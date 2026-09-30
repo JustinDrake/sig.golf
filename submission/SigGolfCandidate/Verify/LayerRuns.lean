@@ -27,8 +27,8 @@ def preStart (lay t : Nat) : Nat :=
   if lay = 4 then trPc 4 t
   else m4Pc (lay + 1) (nCh (lay + 1) - 1) t (chBits (lay + 1) (nCh (lay + 1) - 1) - 1) + 9
 
-/-- Steps of the transition up to the encoding hash (layer 4: `li s6, 7`; layer 0: two `addi`). -/
-def stepsT (lay : Nat) : Nat := if lay = 0 ∨ lay = 4 then 15 else 14
+/-- Steps to the encoding hash; the top route is already an eleven-bit leaf index. -/
+def stepsT (lay : Nat) : Nat := if lay = 0 then 13 else if lay = 4 then 15 else 14
 /-- Steps from a precode start (every start runs its own copy). -/
 def stepsA (lay : Nat) : Nat := stepsT lay
 def encPcC (lay c : Nat) : Nat := trPc lay c + stepsT lay
@@ -47,10 +47,16 @@ def bK (lay : Nat) : List (Reg × Word) :=
     (.x11, 64), (.x12, 0x140)] ++
     (if lay < 4 then [(.x15, BitVec.ofNat 64 (bVal (lay + 1) 41))] else [])
 
+/-- At the top layer, the incoming route is already an 11-bit leaf index. -/
 def uEr (lay : Nat) : E :=
-  .bin .and (.reg (if lay = 4 then .x22 else .x30)) (cw (2 ^ heightL lay - 1))
-def tauEr (lay : Nat) : E := .bin .srl (.reg (if lay = 4 then .x22 else .x30)) (cw (heightL lay))
-def x31Er (lay : Nat) : E := .bin .add (tauEr lay) (.bin .sll (uEr lay) (cw 32))
+  if lay = 0 then .reg .x30 else
+    .bin .and (.reg (if lay = 4 then .x22 else .x30)) (cw (2 ^ heightL lay - 1))
+def tauEr (lay : Nat) : E :=
+  if lay = 0 then cw 0 else
+    .bin .srl (.reg (if lay = 4 then .x22 else .x30)) (cw (heightL lay))
+def x31Er (lay : Nat) : E :=
+  if lay = 0 then .bin .sll (uEr lay) (cw 32) else
+    .bin .add (tauEr lay) (.bin .sll (uEr lay) (cw 32))
 /-- `U = e | 2^h` (heap sentinel): `ori` (h < 11) or two `addi 1024` (h = 11). -/
 def uHE (lay : Nat) : E :=
   if lay = 0 then .bin .add (uEr lay) (cw 2048) else .bin .or (uEr lay) (cw (2 ^ heightL lay))
@@ -140,13 +146,10 @@ def leafPost (lay : Nat) : List (Reg × Word) :=
 def cmpPc (t : Nat) : Nat := compareTab.getD t 0
 def cmpK : List (Reg × Word) := fk false 0x1C0 64 ++ [(.x12, 0x180)]
 def specAcc (t : Nat) : Spec :=
-  ⟨[(.x5, cw 1), (.x10, cw 0)], [], cmpPc t + 8, true, 8,
-   [⟨.ne, ldE 392, ldE 168, false⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
+  ⟨[(.x5, cw 1), (.x10, .bin .xor (ldE 392) (ldE 168))], [], cmpPc t + 7, true, 7,
+   [⟨.ne, ldE 384, ldE 160, false⟩], none, 7⟩
 def specCR1 (t : Nat) : Spec :=
   ⟨rejK, [], cmpPc t + 11, true, 5, [⟨.ne, ldE 384, ldE 160, true⟩], none, 5⟩
-def specCR2 (t : Nat) : Spec :=
-  ⟨rejK, [], cmpPc t + 11, true, 8, [⟨.ne, ldE 392, ldE 168, true⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
-
 /-! ## The per-layer check -/
 
 def layerCheck (lay : Nat) : Bool :=
@@ -158,9 +161,8 @@ def layerCheck (lay : Nat) : Bool :=
     specB [] (runAt (bK lay) [] (encPcC lay c + 1) [.br true]) specRej1 [] [] &&
     specB [] (runAt (bK lay) [] (encPcC lay c + 1) [.br false, .br true]) specRej2 [] []) &&
   (lay != 0 || (List.range 32).all fun t =>
-    specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] &&
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] &&
-      specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] []) &&
+    specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] &&
+      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] []) &&
   specB gkL (runAt (headK lay 42) [] (nextPc' lay 41) [.jmp]) (specLeaf lay) (leafPost lay) leafKeep
 
 end SigGolfCandidate.Verify

@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6048` bytes, `W = 6348` bytes, `K = 131072` bytes (cache), `C = 11527` cycles (verify bound
-`11502` plus the witness charge `⌈6348 / 256⌉ = 25`). Layout (bytes): message 64, secret key 128,
+`S = 6048` bytes, `W = 6348` bytes, `K = 131072` bytes (cache), `C = 11524` cycles (verify bound
+`11499` plus the witness charge `⌈6348 / 256⌉ = 25`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 13056, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -29,6 +29,10 @@ segment dispatch uses 8-word table slots with the entry code inlined, and the fo
 checked once through the stream pointer instead of a per-segment counter. The startup reuses
 the address base and the digest's known input length, saving four more instructions on
 accepting runs. These verifier changes preserve the promoted scheme's hash queries and formats.
+
+The top-layer route uses its incoming eleven-bit leaf index directly, saving two instructions.
+The final comparison passes the XOR of the second root word and public-key word to HALT after
+checking the first word, saving one further instruction on every accepting run.
 
 The certificate is `SigGolfCandidate.certificateNew`. It is transferred from
 `SigGolfCandidate.Final.certificate`, a certificate for the same images under the previous
@@ -55,7 +59,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 13056, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 11527 :=
+theorem certificate : SigGolf.Certificate submission 11524 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

@@ -7,9 +7,9 @@ set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp
 
-/-- The cycle bound of accepting runs: `9467 + 17 · 118 + 29` (every accepting run costs
-exactly `9467 + 17 F + G`, `F ≤ 118` the total folds, `G ≤ 29` the segments with `a ≥ 1`). -/
-def cycleBound : Nat := 11502
+/-- The cycle bound of accepting runs: `9464 + 17 · 118 + 29` (every accepting run costs
+exactly `9464 + 17 F + G`, `F ≤ 118` the total folds, `G ≤ 29` the segments with `a ≥ 1`). -/
+def cycleBound : Nat := 11499
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
 def cycleBoundAll : Nat := 16834
@@ -19,8 +19,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 8565 := by decide
-theorem layC_val : layC = 8565 := by unfold layC; exact layersCost_val
+theorem layersCost_val : layersCost 5 = 8562 := by decide
+theorem layC_val : layC = 8562 := by unfold layC; exact layersCost_val
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
