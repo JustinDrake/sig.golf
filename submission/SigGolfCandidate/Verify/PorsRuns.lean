@@ -208,7 +208,7 @@ def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw EMPTY, d⟩
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[], [], f4Pc c, false, 17, [fBr3 false, fBr2 false, fBr1 false], none⟩
+  ⟨[], [], f4Pc c, false, 18, [fBr3 false, fBr2 false, fBr1 false], none⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB gkL (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
