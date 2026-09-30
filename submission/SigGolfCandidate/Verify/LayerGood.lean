@@ -76,7 +76,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
     obtain ⟨hrej, hacc⟩ := encpost_step L hL t ht a _ (hpost1 a)
     cases hd : decodeDigits (answerBytes 16 a) with
     | none =>
-      obtain ⟨k, hk, u, hst, hf, h5, h10⟩ := hrej hd
+      obtain ⟨k, c, hk, hc, u, hst, hf, h5, h10⟩ := hrej hd
       simp only [cc_pure, hnone]
       exact Good.steps' hst (Good.reject hf h5 h10) (by omega) (by unfold layerCost; omega)
     | some xs =>

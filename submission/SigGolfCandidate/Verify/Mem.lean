@@ -94,8 +94,8 @@ def baseK : List (Reg × Word) :=
 /-- FORS phase: also `K16`. -/
 def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 
-/-- `targetSum << 52` (the encoding check compares the digit sum in bits 52..63). -/
-def KT : Word := BitVec.ofNat 64 (targetSum * 2 ^ 52)
+/-- `targetSum` (the encoding check compares the exact remainder). -/
+def KT : Word := BitVec.ofNat 64 targetSum
 
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register). -/
 def gkL : List (Reg × Word) :=

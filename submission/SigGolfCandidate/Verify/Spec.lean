@@ -13,6 +13,7 @@ structure Spec where
   steps : Nat
   brs : List Br
   spc : Option E := none
+  cycles : Nat := steps
 
 def regsB (r : PRes) (l : List (Reg × E)) : Bool := l.all fun p => E.beq (r.st.regs.get p.1) p.2
 
@@ -22,7 +23,7 @@ def specB (gk : List (Reg × Word)) (o : Option PRes) (sp : Spec) (post : List (
   | none => false
   | some r =>
     regsB r sp.regs && listBeq pairBeq r.st.mem sp.mem && (sp.spc.isSome || r.pc.toNat == (pcOf sp.pc).toNat) &&
-      r.ecall == sp.ecall && r.steps == sp.steps && r.cycles == sp.steps &&
+      r.ecall == sp.ecall && r.steps == sp.steps && r.cycles == sp.cycles &&
       listBeq Br.beq r.brs sp.brs && optEBeq r.spc sp.spc && resOK gk r && knownB post r &&
       keepB keep r
 
@@ -50,7 +51,7 @@ theorem Glob_toState' {gk0 gk : List (Reg × Word)} {wl pk : List Byte} {s : Mac
 /-- What a checked run gives on a concrete state. -/
 structure SpecRes (gk : List (Reg × Word)) (sp : Spec) (post : List (Reg × Word)) (keep : List Reg)
     (s t : MachineState) : Prop where
-  steps : Steps image s sp.steps sp.steps t
+  steps : Steps image s sp.steps sp.cycles t
   ecall : sp.ecall = true → fetch image t = some (.base .ECALL)
   glob : ∀ gk0 wl pk, Glob gk0 wl pk s → Glob gk wl pk t
   known : KnownOK post t

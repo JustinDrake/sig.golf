@@ -241,34 +241,27 @@ theorem swA7_toNat : (swA7.eval s).toNat = m5 (m4 (m3 ((sw1 (dA s) (dB s) + sw1 
     BitVec.toNat_add, BitVec.toNat_ushiftRight, swA6_toNat, Nat.shiftRight_eq_div_pow]
   simp only [m5]; norm_num
 
-def swarOf (a b : Nat) : Nat := m6 (m3 ((sw1 a b + sw1 a b / 64) % 18446744073709551616)) % 4096
+def swarOf (a b : Nat) : Nat := m3 ((sw1 a b + sw1 a b / 64) % 18446744073709551616) % 4095
 
-theorem swS_toNat : (swS.eval s).toNat = swarOf (dA s) (dB s) * 2 ^ 52 := by
-  rw [show swS.eval s = (swA7.eval s + (swA7.eval s >>> ((BitVec.ofNat 64 48).toNat % 64))) <<<
-      ((BitVec.ofNat 64 52).toNat % 64) from rfl]
-  rw [BitVec.toNat_shiftLeft, BitVec.toNat_add, BitVec.toNat_ushiftRight, swA7_toNat,
-    Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
-  simp only [swarOf, m6, m6']
-  norm_num
-  generalize (m5 (m4 (m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (dB s) / 64) % 18446744073709551616)))) = X
-  omega
+theorem swS_toNat : (swS.eval s).toNat = swarOf (dA s) (dB s) := by
+  change ((swA5.eval s) % (4095#64)).toNat = _
+  rw [BitVec.toNat_umod, swA5_toNat]
+  rfl
 
 theorem swS_eq (h0 : dA s < 2 ^ 63) (h1 : dB s < 2 ^ 63) :
     swS.eval s = KT ↔ (digitsOfWord (dA s) ++ digitsOfWord (dB s)).sum = targetSum := by
-  have hs := swar_nat (dA s) (dB s) h0 h1
-  have hl : swarOf (dA s) (dB s) < 4096 := Nat.mod_lt _ (by decide)
+  have hs := swar_remainder_nat (dA s) (dB s) h0 h1
+  have hK : KT.toNat = targetSum := rfl
   rw [← hs]
   change _ ↔ swarOf (dA s) (dB s) = targetSum
-  have hK : KT = BitVec.ofNat 64 (181 * 2 ^ 52) := rfl
-  rw [hK, show targetSum = 181 from rfl]
   constructor
   · intro h
     have := congrArg BitVec.toNat h
-    rw [swS_toNat, BitVec.toNat_ofNat] at this
-    omega
+    rwa [swS_toNat, hK] at this
   · intro h
     apply BitVec.eq_of_toNat_eq
-    rw [swS_toNat, h]; rfl
+    rw [swS_toNat, h, hK]
+
 end
 
 end SigGolfCandidate.Verify

@@ -7,19 +7,19 @@ set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp
 
-/-- The cycle bound of accepting runs after saving 40 head instructions in each of five layers. -/
-def cycleBound : Nat := 11607
+/-- The cycle bound of accepting runs after the five cycle-aware REMU digit-sum reductions. -/
+def cycleBound : Nat := 11597
 
 /-- A cycle bound of every run (`254` per segment instead of `15` / `16 + 17 a`). -/
-def cycleBoundAll : Nat := 16748
+def cycleBoundAll : Nat := 16738
 
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 8675 := by decide
-theorem layC_val : layC = 8675 := by unfold layC; exact layersCost_val
+theorem layersCost_val : layersCost 5 = 8665 := by decide
+theorem layC_val : layC = 8665 := by unfold layC; exact layersCost_val
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do

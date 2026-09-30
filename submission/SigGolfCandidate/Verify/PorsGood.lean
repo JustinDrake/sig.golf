@@ -10,7 +10,7 @@ The root tail (into the layers), then `GoodQ` for the ladder (`segFolds`), one s
 
 Cycle bounds: a segment with `a` folds costs `15` if `a = 0` (dispatch 4, table entry 3, pending
 hash 8) and `16 + 17 a` if `a ≥ 1` (the table inlines the parity check, pending hash and
-entry tail), at most `16 + 17 a` in both cases; tails: merge 6, push 4, root 17.
+entry tail), at most `16 + 17 a` in both cases; tails: merge 6, push 4, root 18.
 Inlining removes one executed jump only for positive-fold segments. The uniform bound improves
 by one per segment: zero-fold segments retain their 15-cycle execution and one cycle of slack.
 -/

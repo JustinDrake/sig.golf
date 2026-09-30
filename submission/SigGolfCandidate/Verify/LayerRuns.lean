@@ -43,9 +43,9 @@ def specA (lay t : Nat) : Spec :=
   ⟨[(.x23, uHE lay), (.x30, tauEr lay), (.x31, x31Er lay)],
    [(⟨none, BitVec.ofNat 64 312⟩, .c 0), (⟨none, BitVec.ofNat 64 304⟩, ctrE lay),
     (⟨none, BitVec.ofNat 64 264⟩, x31Er lay), (⟨none, BitVec.ofNat 64 256⟩, cw (hWord lay + 768))],
-   encPc lay t, true, stepsA lay, [], none⟩
+   encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
 
-/-! ## The encoding check (`slli 52; bne KT`) -/
+/-! ## The encoding check (`remu; bne KT`) -/
 
 def d0E : E := ldE 320
 def d1E : E := ldE 328
@@ -59,7 +59,7 @@ def swA4 : E := .bin .add swA3 (.bin .srl swA3 (cw 6))
 def swA5 : E := .bin .and swA4 m2E
 def swA6 : E := .bin .add swA5 (.bin .srl swA5 (cw 12))
 def swA7 : E := .bin .add swA6 (.bin .srl swA6 (cw 24))
-def swS : E := .bin .sll (.bin .add swA7 (.bin .srl swA7 (cw 48))) (cw 52)
+def swS : E := .bin .remu swA5 (cw 4095)
 
 /-- The dispatch register of a site computed from the digit word `D`. -/
 def maskD (i : Nat) (D : E) : E :=
@@ -69,7 +69,8 @@ def maskD (i : Nat) (D : E) : E :=
 
 def rE0 (lay : Nat) : E := mkBin .add (maskD 0 d0E) (cw (bVal lay 0))
 
-def stepsB (lay : Nat) : Nat := if lay = 4 then 37 else 34
+/-- Charged cycles; the REMU block has three fewer instructions than cycles. -/
+def stepsB (lay : Nat) : Nat := if lay = 4 then 35 else 32
 
 /-- Chain setup: `sd H, CB; sd X31, CB+8` initializes the tweak and clears its chain index
 (layer 4 also zeroes CB+32..48, left by the last PORS leaf). -/
@@ -80,15 +81,15 @@ def setupMem (lay : Nat) : List (Addr × E) :=
 def specBok (lay t : Nat) : Spec :=
   ⟨[(.x1, ldE (chainAddr lay 0)), (.x2, ldE (chainAddr lay 0 + 8)), (.x14, rE0 lay),
     (.x15, cw (bVal lay 0)), (.x16, d0E), (.x17, d1E)],
-   setupMem lay, 0, false, stepsB lay,
+   setupMem lay, 0, false, stepsB lay - 3,
    [⟨.ne, swS, .c KT, false⟩, ⟨.lt, orE, .c 0, false⟩],
    some (mkBin .and (mkAdd (rE0 lay) (.c (BitVec.ofNat 64 (tabAddr lay 0) - BitVec.ofNat 64 (bVal lay 0))))
-     (.c (~~~1#64)))⟩
+     (.c (~~~1#64))), stepsB lay⟩
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
-def specRej1 : Spec := ⟨rejK, [], 32, true, 7, [⟨.lt, orE, .c 0, true⟩], none⟩
-def specRej2 : Spec := ⟨rejK, [], 32, true, 27, [⟨.ne, swS, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none⟩
+def specRej1 : Spec := ⟨rejK, [], 32, true, 7, [⟨.lt, orE, .c 0, true⟩], none, 7⟩
+def specRej2 : Spec := ⟨rejK, [], 32, true, 22, [⟨.ne, swS, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none, 25⟩
 
 /-! ## Leaf -/
 
@@ -97,7 +98,7 @@ def specLeaf (lay : Nat) (d : Bool) : Spec :=
    [(⟨none, BitVec.ofNat 64 456⟩, stW0 456 (.reg .x30)), (⟨none, BitVec.ofNat 64 448⟩, cw (hWord lay + 512)),
     (⟨none, BitVec.ofNat 64 840⟩, .reg .x31), (⟨none, BitVec.ofNat 64 832⟩, cw (hWord lay + 256))],
    xPc (4 - lay) (if d then 1 else 0) 0 + 1, true, 11,
-   [⟨.lt, .bin .sll (.reg .x23) (cw 63), .c 0, d⟩], none⟩
+   [⟨.lt, .bin .sll (.reg .x23) (cw 63), .c 0, d⟩], none, 11⟩
 
 def leafKeep : List Reg := [.x16, .x17, .x22, .x23, .x30, .x31]
 def leafPost (lay : Nat) : List (Reg × Word) :=
@@ -110,11 +111,11 @@ def cmpPc (t : Nat) : Nat := compareTab.getD t 0
 def cmpK : List (Reg × Word) := fk false 0x1C0 64 ++ [(.x12, 0x180)]
 def specAcc (t : Nat) : Spec :=
   ⟨[(.x5, cw 1), (.x10, cw 0)], [], cmpPc t + 8, true, 8,
-   [⟨.ne, ldE 392, ldE 168, false⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none⟩
+   [⟨.ne, ldE 392, ldE 168, false⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
 def specCR1 (t : Nat) : Spec :=
-  ⟨rejK, [], cmpPc t + 11, true, 5, [⟨.ne, ldE 384, ldE 160, true⟩], none⟩
+  ⟨rejK, [], cmpPc t + 11, true, 5, [⟨.ne, ldE 384, ldE 160, true⟩], none, 5⟩
 def specCR2 (t : Nat) : Spec :=
-  ⟨rejK, [], cmpPc t + 11, true, 8, [⟨.ne, ldE 392, ldE 168, true⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none⟩
+  ⟨rejK, [], cmpPc t + 11, true, 8, [⟨.ne, ldE 392, ldE 168, true⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
 
 /-! ## The per-layer check -/
 

@@ -592,7 +592,7 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
     have hsp : tabSpec (tsel s) b = ⟨[(.x14, addC (.reg .x14) (BitVec.ofNat 64 (16 * (b % 16) + 8))),
         (.x12, if b % 16 = 0 then destE (segV (tsel s) b) else cw (0x1E0 + 16 * segT b))], [],
         if b % 16 = 0 then entry0Pc (segV (tsel s) b) + 1 else tabBase (tsel s) + 8 * b + 4,
-        true, if b % 16 = 0 then 3 else 4, if b % 16 = 0 then [] else [parBr (segT b) false], none⟩ := by
+        true, if b % 16 = 0 then 3 else 4, if b % 16 = 0 then [] else [parBr (segT b) false], none, if b % 16 = 0 then 3 else 4⟩ := by
       unfold tabSpec; rw [if_neg ha']; rfl
     obtain ⟨u, hu⟩ := pspec_run (cOk (by unfold segA; omega)) u1 hpc1 (fun p hp => pb1.known p (List.mem_append_left _ hp))
       (by
@@ -980,7 +980,9 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
     by_cases hl : i + 1 = a
     · simp [posSpec, show 14 - a + i = 13 by omega, hl]
     · simp [posSpec, show ¬ 14 - a + i = 13 by omega, hl]
-  refine ⟨u, hsteps ▸ hu.steps, hu.ecall (by by_cases hl : 14 - a + i = 13 <;> simp [posSpec, hl]),
+  have hcycles : (posSpec V t (14 - a + i) t').cycles = (posSpec V t (14 - a + i) t').steps := by
+    unfold posSpec; split <;> rfl
+  refine ⟨u, hu.steps.of_eq hsteps (hcycles.trans hsteps), hu.ecall (by by_cases hl : 14 - a + i = 13 <;> simp [posSpec, hl]),
     pb.reg (by simp [gkP, baseK]), hashArgs_ofNat _ _ _ _ r10 r11 r12 (by omega) (by omega) (by omega) hargs,
     hin.1, hin.2, fun ans => ⟨fun hlt => ?_, fun hl => ?_⟩⟩
   · -- the next position
