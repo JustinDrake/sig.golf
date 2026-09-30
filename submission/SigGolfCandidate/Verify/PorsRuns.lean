@@ -194,21 +194,21 @@ def tailCheck (c : Nat) : Bool :=
 /-! ### The root tail (checks, layer constants) -/
 
 def fBr1 (d : Bool) : Br := ⟨.ltu, cw 4216, .reg .x14, d⟩
-def fBr2 (d : Bool) : Br := ⟨.ne, addC (.reg .x23) (-1#64), .c 0, d⟩
+def fBr2 (d : Bool) : Br := ⟨.ne, .reg .x23, cw 1, d⟩
 def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw EMPTY, d⟩
 
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[], [], f4Pc c, false, 20, [fBr3 false, fBr2 false, fBr1 false], none⟩
+  ⟨[], [], f4Pc c, false, 18, [fBr3 false, fBr2 false, fBr1 false], none⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB gkL (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
     l4K [.x22] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br true]) (rejSpec 5 [fBr1 true]) [] [] [] &&
-  pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br true]) (rejSpec 7 [fBr2 true, fBr1 false]) [] [] [] &&
+  pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br true]) (rejSpec 6 [fBr2 true, fBr1 false]) [] [] [] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br false, .br true])
-    (rejSpec 9 [fBr3 true, fBr2 false, fBr1 false]) [] [] []
+    (rejSpec 8 [fBr3 true, fBr2 false, fBr1 false]) [] [] []
 
 /-! ## Leaves -/
 
