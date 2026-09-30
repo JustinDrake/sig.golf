@@ -26,7 +26,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     (stk : List (Val × Nat)) (m : MachineState) (h : TailIn P s0 14 x 2 c ptr E folds node stk m) :
     ((folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧
         fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 25 25 u ∧
+    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 24 24 u ∧
         LayerIn ⟨P.wl, P.pk, 4, P.idx⟩ node u) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
   have hE := h.hE
@@ -50,17 +50,13 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     exact eq_comm
   have b2 : ∀ d, Br.holds m (fBr2 d) ↔ d = decide (E ≠ 1) := by
     intro d
-    simp only [fBr2, Br.holds, CmpOp.eval, addC_eval, Rv.E.eval, h.rE]
-    have e1 : BitVec.ofNat 64 E + -1#64 = BitVec.ofNat 64 (E + (2 ^ 64 - 1)) := by
-      rw [show (-1#64 : Word) = BitVec.ofNat 64 (2 ^ 64 - 1) from rfl, BitVec.ofNat_add_ofNat]
-    have : (BitVec.ofNat 64 E + -1#64 != 0) = decide (E ≠ 1) := by
-      rw [e1]
+    simp only [fBr2, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.rE]
+    have : (BitVec.ofNat 64 E != BitVec.ofNat 64 1) = decide (E ≠ 1) := by
       by_cases hE1 : E = 1
       · subst hE1; decide
-      · have hne : BitVec.ofNat 64 (E + (2 ^ 64 - 1)) ≠ 0 := by
-          intro e; have := congrArg BitVec.toNat e
-          simp only [BitVec.toNat_ofNat] at this; simp at this; omega
-        rw [show (BitVec.ofNat 64 (E + (2 ^ 64 - 1)) != 0) = true from bne_iff_ne.mpr hne]
+      · have hne : BitVec.ofNat 64 E ≠ BitVec.ofNat 64 1 :=
+          ofNat_ne (by omega) (by decide) hE1
+        rw [show (BitVec.ofNat 64 E != BitVec.ofNat 64 1) = true from bne_iff_ne.mpr hne]
         simp [hE1]
     rw [this]; exact eq_comm
   have b3 : ∀ d, Br.holds m (fBr3 d) ↔ d = decide (stk ≠ []) := by
@@ -91,7 +87,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
           rcases hb with rfl | rfl
           · exact (b2 true).mpr (by simp [h2])
           · exact (b1 false).mpr (by simp [h1])) (by simp)
-        exact ⟨u, 6, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
+        exact ⟨u, 5, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
           hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
       · have h3 : stk ≠ [] := by
           rcases hrej with h' | h' | h'
@@ -106,7 +102,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
           · exact (b3 true).mpr (by simp [h3])
           · exact (b2 false).mpr (by simp [h2])
           · exact (b1 false).mpr (by simp [h1])) (by simp)
-        exact ⟨u, 8, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
+        exact ⟨u, 7, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
           hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
   · intro hacc
     have h2 : ¬ E ≠ 1 := fun e => hacc (Or.inr (Or.inl e))
@@ -138,11 +134,11 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       unfold twLo; omega
 
 
-/-- The cycle bound of accepting runs: `2945 + layersCost 5 = 2945 + 7946`. The part before the layers
+/-- The cycle bound of accepting runs: `2944 + layersCost 5 = 2944 + 7953`. The part before the layers
 is `27` (prologue, counter check) `+ 8` (digest) `+ 107` (setup) `+ 10 + 158` (leaves) `+ 16 · 29 + 17 · 118`
-(segments with at most `118` folds) `+ 6 · 14 + 4 · 14` (merge / push tails) `+ 25` (root tail) `= 2945`;
+(segments with at most `118` folds) `+ 6 · 14 + 4 · 14` (merge / push tails) `+ 24` (root tail) `= 2944`;
 an accepting run with `Z` fold-free segments costs `1` less per such segment. -/
-def cycleBound : Nat := 10891
+def cycleBound : Nat := 10897
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
 def cycleBoundAll : Nat := 16834
@@ -152,8 +148,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7946 := by decide
-theorem layC_val : layC = 7946 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7953 := by decide
+theorem layC_val : layC = 7953 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -187,7 +183,7 @@ theorem Kr_none (P : PCtx) : Kr P none = pure (false, 0) := by
 
 theorem root_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (x c : Nat) (st : PorsState)
     (u : MachineState) (hT : TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u) :
-    GoodQ u (25 + layC + layN) (25 + layC) (st.folds ≤ 118) (25 + layC) (Kr P (some st)) := by
+    GoodQ u (24 + layC + layN) (24 + layC) (st.folds ≤ 118) (24 + layC) (Kr P (some st)) := by
   obtain ⟨hrej, hacc⟩ := tailF_step P hP s0 x c st.ptr st.E st.folds st.node st.stack u hT
   have hL : layC = layersCost 5 := layC_val.trans layersCost_val.symm
   by_cases hc : st.folds > porsM ∨ st.E ≠ 1 ∨ st.stack ≠ []
@@ -209,7 +205,7 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
       (cc (porsRoot P.idx P.v P.wl) (Klay P)) := by
   have hr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (25 + layC + layN) (25 + layC) (st.folds ≤ 118) (25 + layC) (Kr P (some st)) :=
+      GoodQ u (24 + layC + layN) (24 + layC) (st.folds ≤ 118) (24 + layC) (Kr P (some st)) :=
     fun x c st u hT => root_good P hP s0 x c st u hT
   have hg0 := leaves_good P hP s0 (Kr P) (Kr_none P) hr
   have hg := hg0 15 0 ⟨wStream, 0, 0, 0, [], []⟩ s0 (by rfl) h
@@ -228,8 +224,8 @@ theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 
 
 theorem lrest_0 : lrest 0 = 158 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7757 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2803 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7757 + layC + layN := by
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7756 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2802 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7756 + layC + layN := by
   have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 

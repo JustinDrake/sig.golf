@@ -207,7 +207,7 @@ def tailCheck (c : Nat) : Bool :=
 
 /-- The fold limit: `bltu t4, a4` (`FR` beyond `FLIM`). -/
 def fBr1 (d : Bool) : Br := ⟨.ltu, .reg .x29, .reg .x14, d⟩
-def fBr2 (d : Bool) : Br := ⟨.ne, addC (.reg .x23) (-1#64), .c 0, d⟩
+def fBr2 (d : Bool) : Br := ⟨.ne, .reg .x23, cw 1, d⟩
 def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw EMPTY, d⟩
 
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
@@ -217,15 +217,15 @@ constants `t3 = 2^40`, `sp = TMASK`, `a5 = ttab + 2048` that the root tail sets)
 def tailFK : List (Reg × Word) := gkL0 ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40101)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[], [], f4Pc c, false, 25, [fBr3 false, fBr2 false, fBr1 false], none, 25⟩
+  ⟨[], [], f4Pc c, false, 24, [fBr3 false, fBr2 false, fBr1 false], none, 24⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB gkL0 (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
     tailFK [.x22] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br true]) (rejSpec 4 [fBr1 true]) [] [] [] &&
-  pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br true]) (rejSpec 6 [fBr2 true, fBr1 false]) [] [] [] &&
+  pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br true]) (rejSpec 5 [fBr2 true, fBr1 false]) [] [] [] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br false, .br true])
-    (rejSpec 8 [fBr3 true, fBr2 false, fBr1 false]) [] [] []
+    (rejSpec 7 [fBr3 true, fBr2 false, fBr1 false]) [] [] []
 
 /-! ## Leaves -/
 
