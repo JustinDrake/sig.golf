@@ -591,7 +591,7 @@ theorem blocksF_searchCounter (f : Hash) (lay tau e : Nat) (M : Val) (hM : M.len
     unfold searchCounter
     rw [blocksF_hash16_bind, eval_hash16_bind]
     generalize answerBytes 16 (f (fmt (encInput lay tau e M c))) = d
-    cases decodeDigits lay d with
+    cases decodeDigits d with
     | some x' =>
       intro h
       have h' : some (c, x') = some (c', x) := h
@@ -707,20 +707,16 @@ theorem blocksF_expandLayers (f : Hash) (w : List Byte) (idx : Nat) :
           · exact i3 c' hc'
           · unfold cMax at hb3; omega
 
-/-- The counter sum a witness carries: its five `LE32` counters, plus one each. -/
+/-- The counter sum a witness carries: its five `LE32` counters (at `Ref.ctrOff`), plus one each. -/
 def ctrSum (wit : List Byte) : Nat :=
-  ((List.range 5).map fun j => leNat (slice wit (6328 + 4 * j) 4) + 1).sum
+  ((List.range 5).map fun j => leNat (slice wit (ctrOff j) 4) + 1).sum
 
-theorem ctrSum_withCounters (w0 : List Byte) (hw : w0.length = 6348) (cs : List Nat) (hl : cs.length = 5)
+theorem ctrSum_withCounters (w0 : List Byte) (hw : 2960 ≤ w0.length) (cs : List Nat) (hl : cs.length = 5)
     (hc : ∀ c ∈ cs, c < 2 ^ 32) : ctrSum (withCounters w0 cs) = (cs.map (· + 1)).sum := by
-  unfold ctrSum withCounters
-  have ht : (w0.take witCounters).length = 6328 := by
-    rw [List.length_take, witCounters_eq, hw]; rfl
-  have e : ∀ j, j < 5 → leNat (slice (w0.take witCounters ++ (cs.map le32).flatten) (6328 + 4 * j) 4) =
-      cs.getD j 0 := by
+  unfold ctrSum
+  have e : ∀ j, j < 5 → leNat (slice (withCounters w0 cs) (ctrOff j) 4) = cs.getD j 0 := by
     intro j hj
-    rw [Equiv.slice_append_right _ _ _ (4 * j) _ (by rw [ht]), Final.slice_le32s cs j (by omega),
-      Ref.leNat_le32]
+    rw [Equiv.slice_withCounters_ctrOff w0 cs hw j hj, Ref.leNat_le32]
     apply Nat.mod_eq_of_lt
     rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega)]
     exact hc _ (List.getElem_mem _)
@@ -732,7 +728,7 @@ theorem ctrSum_withCounters (w0 : List Byte) (hw : w0.length = 6348) (cs : List 
 trials and at most `311` more. -/
 theorem blocksF_expandList_le (f : Hash) (m sig : List Byte) (hm : m.length = 32) (hsig : sig.length = 6048)
     (wit : List Byte) (h : evalWithAnswerFn f (expandList m sig) = some wit) :
-    wit.length = 6348 ∧ blocksF f (expandList m sig) ≤ 3356 + ctrSum wit := by
+    wit.length = 16384 ∧ blocksF f (expandList m sig) ≤ 3356 + ctrSum wit := by
   unfold expandList at h ⊢
   unfold digest at h ⊢
   simp only [bind_assoc, pure_bind] at h ⊢
@@ -787,14 +783,8 @@ theorem blocksF_expandList_le (f : Hash) (m sig : List Byte) (hm : m.length = 32
         have h' : some (withCounters w0 cs) = some wit := h
         simp only [Option.some.injEq] at h'
         subst h'
-        have hctr : ((cs.map le32).flatten).length = 20 := by
-          rw [List.length_flatten, List.map_map]
-          have : ∀ c ∈ cs, (List.length ∘ le32) c = 4 := fun c _ => by simp [le32, leBytes]
-          rw [List.map_congr_left this, List.map_const', List.sum_replicate, b2]; rfl
-        refine ⟨by
-          unfold withCounters
-          rw [List.length_append, List.length_take, hctr, witCounters_eq, hl0]; rfl, ?_⟩
-        rw [ctrSum_withCounters w0 hl0 cs b2 (fun c hc => by have := b3 c hc; omega)]
+        refine ⟨by rw [Equiv.length_withCounters _ _ (by rw [hl0]; decide), hl0]; rfl, ?_⟩
+        rw [ctrSum_withCounters w0 (by rw [hl0]; decide) cs b2 (fun c hc => by have := b3 c hc; omega)]
         show _ + (_ + (_ + 0)) ≤ _
         rw [show (311 : Nat) * nLayers = 1555 from rfl] at b1
         omega
@@ -858,7 +848,7 @@ theorem expand_le_sign (f : Hash) (sk : Bytes 32) (m : Bytes 32) (σ : Bytes 604
     obtain ⟨wl, hwl, hexp, -⟩ := Final.eval_aExpand_sign' (gF f) sk m hkp hs
     have hE := Equiv.expandRef_eq m (pkA.root : Bytes 16) pkA (Equiv.compress S)
     have hev : evalWithAnswerFn f (expandRef m (pkA.root : Bytes 16) (Equiv.compress S)) =
-        some (Ref.ofList 6348 (Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S)))) := by
+        some (Ref.ofList 16384 (Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S)))) := by
       rw [hE, eval_relabel, hexp]
     unfold expandRef at hev ⊢
     rw [blocksF_bind, evalWithAnswerFn_bind] at *
@@ -871,17 +861,11 @@ theorem expand_le_sign (f : Hash) (sk : Bytes 32) (m : Bytes 32) (σ : Bytes 604
       obtain ⟨hwit, hb⟩ := blocksF_expandList_le f _ _ (length_toList m) (length_toList _) wit hl
       have hcs : ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S)).length = 5 := by
         simp [SphincsSecurity.numLayers]
-      have hctr : (((List.range SphincsSecurity.numLayers).map (Final.ctrOf S)).map le32).flatten.length = 20 := by
-        rw [List.length_flatten, List.map_map]
-        have : ∀ c ∈ (List.range SphincsSecurity.numLayers).map (Final.ctrOf S), (List.length ∘ le32) c = 4 :=
-          fun c _ => by simp [le32, leBytes]
-        rw [List.map_congr_left this, List.map_const', List.sum_replicate, hcs]; rfl
-      have hwc : (Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S))).length = 6348 := by
-        unfold withCounters
-        rw [List.length_append, List.length_take, hctr, witCounters_eq, hwl]; rfl
+      have hwc : (Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S))).length = 16384 := by
+        rw [Equiv.length_withCounters _ _ (by rw [hwl]; decide), hwl]
       have hweq : wit = Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S)) := by
-        rw [← toList_ofList 6348 wit hwit, hev, toList_ofList 6348 _ hwc]
-      rw [hweq, ctrSum_withCounters wl hwl _ hcs (fun c hc => by
+        rw [← toList_ofList 16384 wit hwit, hev, toList_ofList 16384 _ hwc]
+      rw [hweq, ctrSum_withCounters wl (by rw [hwl]; decide) _ hcs (fun c hc => by
         simp only [List.mem_map, List.mem_range] at hc
         obtain ⟨j, hj, rfl⟩ := hc
         unfold Final.ctrOf; rw [dif_pos hj]; exact BitVec.isLt _)] at hb

@@ -42,7 +42,7 @@ theorem sch_step (levels : List (List Val)) (hlen : ∀ l, l < 15 → (levels.ge
       StackAt (schedStep X h).1.stack t' ∧ ReadsAt levels (schedStep X h).1.reads t' ∧
       (schedStep X h).1.reads.length ≤ R0 + (h + 1) ∧ X.1.reads.length ≤ (schedStep X h).1.reads.length ∧
       RegsEq t t' [.x1, .x2, .x3, .x15, .x18, .x19, .x21, .x23, .x25, .x26, .x29] ∧
-      Frame t t' (fun a => 0x3400 + 16 * X.1.reads.length ≤ a ∧ a < 0x3400 + 16 * (schedStep X h).1.reads.length) := by
+      Frame t t' (fun a => 0x24C00 + 16 * X.1.reads.length ≤ a ∧ a < 0x24C00 + 16 * (schedStep X h).1.reads.length) := by
   obtain ⟨st, E, cnt, tt⟩ := X
   simp only at t18 hE1 hE2 hst hrd hR ⊢
   have hst' := hst
@@ -84,7 +84,7 @@ theorem sch_step (levels : List (List Val)) (hlen : ∀ l, l < 15 → (levels.ge
         t'.getReg .x18 = BitVec.ofNat 64 (E / 2) ∧ t'.getReg .x30 = BitVec.ofNat 64 0xB0000 ∧
         StackAt st.stack t' ∧ ReadsAt levels (st.reads ++ [(h, (E ^^^ 1) - porsT / 2 ^ h)]) t' ∧
         RegsEq t t' [.x1, .x2, .x3, .x15, .x18, .x19, .x21, .x23, .x25, .x26, .x29] ∧
-        Frame t t' (fun a => 0x3400 + 16 * st.reads.length ≤ a ∧ a < 0x3400 + 16 * (st.reads.length + 1)) := by
+        Frame t t' (fun a => 0x24C00 + 16 * st.reads.length ≤ a ∧ a < 0x24C00 + 16 * (st.reads.length + 1)) := by
     intro hlt hpc
     obtain ⟨t3, hs3, pc3, x19', x18', rd3, r3, f3⟩ := sch_fold levels hlen hvv st E h (by omega) hE1 hE2 t2 hpc
       (by rw [g2 _ (by decide), t19]) (by rw [g2 _ (by decide), t18]) (by rw [g2 _ (by decide), t30])
@@ -171,8 +171,8 @@ theorem sch_inner (levels : List (List Val)) (hlen : ∀ l, l < 15 → (levels.g
       ((List.range' h n).foldl schedStep X).1.reads.length ≤ R0 + top ∧
       X.1.reads.length ≤ ((List.range' h n).foldl schedStep X).1.reads.length ∧
       RegsEq t t' [.x1, .x2, .x3, .x15, .x18, .x19, .x21, .x23, .x25, .x26, .x29] ∧
-      Frame t t' (fun a => 0x3400 + 16 * X.1.reads.length ≤ a ∧
-        a < 0x3400 + 16 * ((List.range' h n).foldl schedStep X).1.reads.length) := by
+      Frame t t' (fun a => 0x24C00 + 16 * X.1.reads.length ≤ a ∧
+        a < 0x24C00 + 16 * ((List.range' h n).foldl schedStep X).1.reads.length) := by
   intro n
   induction n with
   | zero =>

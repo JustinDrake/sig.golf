@@ -33,8 +33,8 @@ def PadOK (sig : List Byte) (n : Nat) : Prop := ∀ j < 2144, 256 + 16 * n ≤ j
 /-- Pad loop invariant (`m` dwords left). -/
 def PadInv (sig : List Byte) (n : Nat) (u0 : MachineState) (m : Nat) (v : MachineState) : Prop :=
   m ≤ 236 - 2 * n ∧ ((Final none v ∧ ¬ PadOK sig n) ∨
-    (v.pc = pcOf 134 ∧ v.getReg .x29 = BitVec.ofNat 64 (0x3B60 - 8 * m) ∧
-      v.getReg .x25 = BitVec.ofNat 64 0x3B60 ∧ (∀ a, v.getMem a = u0.getMem a) ∧
+    (v.pc = pcOf 134 ∧ v.getReg .x29 = BitVec.ofNat 64 (0x25360 - 8 * m) ∧
+      v.getReg .x25 = BitVec.ofNat 64 0x25360 ∧ (∀ a, v.getMem a = u0.getMem a) ∧
       ∀ j, 256 + 16 * n ≤ j → j < 2144 - 8 * m → sig.getD j 0 = 0))
 
 theorem pad_body (sig : List Byte) (t0 u0 : MachineState) (hsig : SigOK t0 sig) (hfr : Frame t0 u0 SW)
@@ -54,12 +54,12 @@ theorem pad_body (sig : List Byte) (t0 u0 : MachineState) (hsig : SigOK t0 sig) 
     (by rw [show blk135.res.cycles = 2 from rfl]) (fun _ h => h)
   set v2 := blk135.res.toState v1 with hv2
   set d := 2144 - 8 * (m + 1) with hd
-  have hw : v1.getMem (BitVec.ofNat 64 (0x3B60 - 8 * (m + 1))) = t0.getMem (BitVec.ofNat 64 (0x3300 + d)) := by
+  have hw : v1.getMem (BitVec.ofNat 64 (0x25360 - 8 * (m + 1))) = t0.getMem (BitVec.ofNat 64 (0x24B00 + d)) := by
     rw [toState_getMem_nil rfl, vm, hfr _ (by omega) (by unfold SW; omega)]; congr 2; omega
-  have hbytes : ∀ k < 8, extractByte (t0.getMem (BitVec.ofNat 64 (0x3300 + d))) k = sig.getD (d + k) 0 :=
+  have hbytes : ∀ k < 8, extractByte (t0.getMem (BitVec.ofNat 64 (0x24B00 + d))) k = sig.getD (d + k) 0 :=
     fun k hk => sig_dword_byte hsig d k (by omega) hk (by omega)
   by_cases hzero : ∀ k < 8, sig.getD (d + k) 0 = 0
-  · have hw0 : t0.getMem (BitVec.ofNat 64 (0x3300 + d)) = 0 :=
+  · have hw0 : t0.getMem (BitVec.ofNat 64 (0x24B00 + d)) = 0 :=
       word_zero_of_bytes _ (fun k hk => by rw [hbytes k hk, hzero k hk])
     have p2 : v2.pc = pcOf 137 := by
       simp only [hv2, blk135.res, rv_simp, r1.get .x29 List.not_mem_nil, v29]; (try ex_bvsimp [])
@@ -74,7 +74,7 @@ theorem pad_body (sig : List Byte) (t0 u0 : MachineState) (hsig : SigOK t0 sig) 
       by_cases hj : j < 2144 - 8 * (m + 1)
       · exact hz j h1 hj
       · have := hzero (j - d) (by omega); rwa [show d + (j - d) = j by omega] at this
-  · have hnz : t0.getMem (BitVec.ofNat 64 (0x3300 + d)) ≠ 0 := by
+  · have hnz : t0.getMem (BitVec.ofNat 64 (0x24B00 + d)) ≠ 0 := by
       intro h0; apply hzero; intro k hk; rw [← hbytes k hk, h0]; simp [extractByte]
     have p2 : v2.pc = pcOf 284 := by
       simp only [hv2, blk135.res, rv_simp, r1.get .x29 List.not_mem_nil, v29]; (try ex_bvsimp [])
@@ -83,7 +83,7 @@ theorem pad_body (sig : List Byte) (t0 u0 : MachineState) (hsig : SigOK t0 sig) 
     exact hp (d + k) (by omega) (by omega)
 
 theorem pad_run (sig : List Byte) (t0 u : MachineState) (hsig : SigOK t0 sig) (hfr : Frame t0 u SW)
-    (hpc : u.pc = pcOf 132) (n : Nat) (hn : n ≤ 118) (h29 : u.getReg .x29 = BitVec.ofNat 64 (0x3400 + 16 * n)) :
+    (hpc : u.pc = pcOf 132) (n : Nat) (hn : n ≤ 118) (h29 : u.getReg .x29 = BitVec.ofNat 64 (0x24C00 + 16 * n)) :
     Run u (2 + (236 - 2 * n) * 5 + 1) (fun v => (PadOK sig n → v.pc = pcOf 139 ∧ ∀ a, v.getMem a = u.getMem a) ∧
       (¬ PadOK sig n → Final none v)) := by
   have hst := symRun_sound blk132 codeAt_132 u hpc (by simp only [blk132.res, rv_simp])

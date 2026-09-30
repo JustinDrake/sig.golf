@@ -404,7 +404,7 @@ theorem words_rndInput (S m : List Byte) (hS : S.length = 32) (hm : m.length = 3
 
 theorem fmt_rndInput (S m : List Byte) (a : Nat) :
     fmt (rndInput S m a) = pad64 (rndInput S m a) := by
-  simp [fmt, IsChainFmt, IsNodeFmt, IsDigestFmt, rndInput, byte]
+  simp [fmt, IsChainFmt, IsNodeFmt, IsDigestFmt, IsPadChainFmt, rndInput, byte]
 
 /-! The signer packs the randomizer preimage from eight source dwords. -/
 def rndW0 (s0 : Word) : Word := (s0 <<< 16) ||| 0x701#64

@@ -131,7 +131,7 @@ theorem logged_eq_signingTrace {Result : Type} (computation : OracleComp (Oracle
 
 noncomputable def coveredInputs (key : SecretKey) (computation : OracleComp (OracleWorld + SigningSpec) Forgery) : Finset HashInput :=
   hashInputs (simulateQ (expandedAdversaryImpl key) (computation >>= fun forgery =>
-    liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature)))
+    liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature forgery.pads)))
 
 theorem coveredInputs_main_eq_gameRest (adversary : Adversary) (key : SecretKey) :
     coveredInputs key (adversary.main ⟨key.root, key.parameter⟩) =
@@ -142,7 +142,7 @@ theorem coveredInputs_main_eq_gameRest (adversary : Adversary) (key : SecretKey)
     rfl
   have htail : retainedGameRestComputation adversary ⟨key.root, key.parameter⟩ =
       signingTraceComputation (adversary.main ⟨key.root, key.parameter⟩) >>= fun result =>
-        liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ result.1.message result.1.signature) >>= fun verified =>
+        liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ result.1.message result.1.signature result.1.pads) >>= fun verified =>
           pure (result, verified) := by
     unfold retainedGameRestComputation
     apply congrArg (_ >>= ·)
@@ -151,24 +151,24 @@ theorem coveredInputs_main_eq_gameRest (adversary : Adversary) (key : SecretKey)
     rfl
   have hdrop : hashInputs (simulateQ (expandedAdversaryImpl key) (signingTraceComputation (adversary.main ⟨key.root, key.parameter⟩)) >>=
       fun result => simulateQ (expandedAdversaryImpl key)
-        (liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ result.1.message result.1.signature) >>= fun verified =>
+        (liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ result.1.message result.1.signature result.1.pads) >>= fun verified =>
           pure (result, verified))) =
       hashInputs (simulateQ (expandedAdversaryImpl key) (signingTraceComputation (adversary.main ⟨key.root, key.parameter⟩)) >>=
         fun result => simulateQ (expandedAdversaryImpl key)
-          (liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ result.1.message result.1.signature))) := by
+          (liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ result.1.message result.1.signature result.1.pads))) := by
     refine hashInputs_bind_congr (simulateQ (expandedAdversaryImpl key) (signingTraceComputation (adversary.main ⟨key.root, key.parameter⟩)))
       (fun result => simulateQ (expandedAdversaryImpl key)
-        (liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ result.1.message result.1.signature) >>= fun verified =>
+        (liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ result.1.message result.1.signature result.1.pads) >>= fun verified =>
           pure (result, verified)))
       (fun result => simulateQ (expandedAdversaryImpl key)
-        (liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ result.1.message result.1.signature))) (fun result => ?_)
+        (liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ result.1.message result.1.signature result.1.pads))) (fun result => ?_)
     rw [simulateQ_bind]
     exact ResidualByteFrontend.hashInputs_bind_pure_next _ _ (fun verified => ⟨_, by rw [simulateQ_pure]⟩)
   have hfst : (signingTraceComputation (adversary.main ⟨key.root, key.parameter⟩) >>= fun result =>
-      liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ result.1.message result.1.signature)) =
+      liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ result.1.message result.1.signature result.1.pads)) =
       adversary.main ⟨key.root, key.parameter⟩ >>= fun forgery =>
-        liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature) :=
-    signingTrace_bind_fst _ (fun forgery => liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature))
+        liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature forgery.pads) :=
+    signingTrace_bind_fst _ (fun forgery => liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature forgery.pads))
   rw [OtsProbeSimulation.gameRest_eq_map_retained, ResidualByteFrontend.hashInputs_map, hretained, htail, simulateQ_bind, hdrop,
     ← simulateQ_bind, hfst, coveredInputs]
 
@@ -206,7 +206,7 @@ theorem coveredInputs_query_bind (key : SecretKey) (input : (OracleWorld + Signi
     (next : (OracleWorld + SigningSpec).Range input → OracleComp (OracleWorld + SigningSpec) Forgery) :
     coveredInputs key (liftM ((OracleWorld + SigningSpec).query input) >>= next) =
       hashInputs (expandedAdversaryImpl key input >>= fun answer => simulateQ (expandedAdversaryImpl key) (next answer >>= fun forgery =>
-        liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature))) := by
+        liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature forgery.pads))) := by
   unfold coveredInputs
   rw [bind_assoc, simulateQ_bind, simulateQ_spec_query]
 
@@ -221,7 +221,7 @@ theorem coveredInputs_world_next (key : SecretKey) (input : OracleWorld.Domain)
     coveredInputs key (next answer) ⊆ coveredInputs key (liftM ((OracleWorld + SigningSpec).query (.inl input)) >>= next) := by
   rw [coveredInputs_query_bind, expandedAdversaryImpl_inl]
   exact hashInputs_next_subset input (fun answer => simulateQ (expandedAdversaryImpl key) (next answer >>= fun forgery =>
-    liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature))) answer
+    liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature forgery.pads))) answer
 
 theorem coveredInputs_sign (key : SecretKey) (message : Message)
     (next : Option Signature → OracleComp (OracleWorld + SigningSpec) Forgery) :
@@ -239,7 +239,7 @@ theorem coveredInputs_sign_next (key : SecretKey) (message : Message)
   rw [coveredInputs_query_bind, expandedAdversaryImpl_inr]
   exact hashInputs_bind_of_mem_support (sign key message)
     (fun answer => simulateQ (expandedAdversaryImpl key) (next answer >>= fun forgery =>
-      liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature))) signature hsignature
+      liftOracleWorldLeft (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature forgery.pads))) signature hsignature
 
 theorem simulateQ_expanded_liftOracleWorldLeft {Result : Type} (key : SecretKey) (computation : OracleComp OracleWorld Result) :
     simulateQ (expandedAdversaryImpl key) (liftOracleWorldLeft computation) = computation := by
@@ -251,7 +251,7 @@ theorem simulateQ_expanded_liftOracleWorldLeft {Result : Type} (key : SecretKey)
       rfl
 
 theorem coveredInputs_pure (key : SecretKey) (forgery : Forgery) :
-    coveredInputs key (pure forgery) = hashInputs (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature) := by
+    coveredInputs key (pure forgery) = hashInputs (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature forgery.pads) := by
   rw [coveredInputs, pure_bind, simulateQ_expanded_liftOracleWorldLeft]
 
 /-! ### Candidate sets only shrink -/

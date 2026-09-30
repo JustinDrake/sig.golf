@@ -31,7 +31,7 @@ def PCtx.A (P : PCtx) : Nat := P.a.toNat
 def PCtx.idx (P : PCtx) : Nat := idxOf P.A
 def PCtx.v (P : PCtx) : List Nat := leavesOf P.A
 
-def PCtx.ok (P : PCtx) : Prop := P.wl.length = 6348 ∧ P.pk.length = 16
+def PCtx.ok (P : PCtx) : Prop := P.wl.length = 16384 ∧ P.pk.length = 16
 
 theorem PCtx.idx_lt (P : PCtx) : P.idx < 2 ^ 34 := Nat.mod_lt _ (by decide)
 
@@ -47,7 +47,7 @@ theorem zeroP_sub : ∀ a ∈ zeroP, a ∈ protP := by decide
 theorem pSlots_sub : ∀ a ∈ pSlots, a ∈ zeroP := by decide
 
 structure S0 (P : PCtx) (s0 : MachineState) : Prop where
-  wit : WitOK P.wl s0
+  wit : WitAll P.wl s0
   pk : PkOK P.pk s0
   zero : ∀ a ∈ zeroP, s0.getMem (BitVec.ofNat 64 a) = 0
   cb0 : s0.getMem (BitVec.ofNat 64 0xC0) = BitVec.ofNat 64 (twLo 9 0 P.idx 0)

@@ -30,13 +30,13 @@ def afterW (w0 : List Byte) (idx : Nat) (v : List Nat) : OracleComp HashSpec (Op
 /-- A HALT with the outcome `r` (the witness bytes for `some`). -/
 def QP (r : Option (List Byte)) (t : MachineState) : Prop :=
   fetch eimg t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
-    r.map (ofList 6348) = if t.getReg .x10 = 0 then some (readBuffer t 0x800 6348) else none
+    r.map (ofList 16384) = if t.getReg .x10 = 0 then some (readBuffer t 0x800 16384) else none
 
 theorem qp_fail (t : MachineState) (h : FailSt t) : QP none t :=
   ⟨h.1, h.2.1, by rw [if_neg (by rw [h.2.2]; decide)]; rfl⟩
 
 /-- **Phase 2**. -/
-theorem phase2_sim (w0 : List Byte) (hw : w0.length = 6348) (K : Nat → Nat) (v : List Nat) (N : Nat)
+theorem phase2_sim (w0 : List Byte) (hw : w0.length = 16384) (hz : ∀ j < 4, w0.getD (2396 + j) 0 = 0) (K : Nat → Nat) (v : List Nat) (N : Nat)
     (t : MachineState) (hpc : t.pc = pcOf 495)
     (h160 : t.getMem (BitVec.ofNat 64 0x160) = BitVec.ofNat 64 (N % 2 ^ 64)) (hwm : WitMem w0 t)
     (hk : ∀ p < 15, t.getMem (BitVec.ofNat 64 (0x6E0 + 8 * p)) = BitVec.ofNat 64 (K p))
@@ -62,7 +62,7 @@ theorem phase2_sim (w0 : List Byte) (hw : w0.length = 6348) (K : Nat → Nat) (v
       by rw [x22, c1.x4], by rw [r2.get .x25 (by decide), c1.x25], x26, x27, eP, ecb, elf, enb, hw2⟩
     exact ⟨c2, ⟨by norm_num, hidx34, hM, p2, c2.x5, x7, x8, c2.x22, x26, x27, by rw [eM, o1], eP⟩,
       rfl, fun j hj => by simp at hj, fun j hj => by simp at hj⟩
-  have hlay := layers_sim w0 hw (idxOf N) 4 (by norm_num) M [] t2 hl
+  have hlay := layers_sim w0 hw hz (idxOf N) 4 (by norm_num) M [] t2 hl
   refine (Sim.steps hs2 (Sim.bind hlay (W₂ := 0) (fun r2 t3 h3 => ?_))).mono (by omega) (fun _ _ h => h)
   rcases r2 with _ | cs
   · exact Sim.pure (Q := QP) (a := none) (qp_fail t3 h3)

@@ -17,9 +17,9 @@ def ldE (a : Nat) : E := .ld (cw a)
 def stW (a : Nat) (v : E) : E := .bin (.st .w 4) (ldE a) v
 def stW0 (a : Nat) (v : E) : E := .bin (.st .w 0) (ldE a) v
 
-/-- Layer heights (layer 0 = top) and witness offsets of the layer bodies (SPEC-pors). -/
+/-- Layer heights (layer 0 = top) and witness offsets of the paths (W1a, `Ref.pathOff`). -/
 def heightL (lay : Nat) : Nat := [11, 6, 6, 6, 5].getD lay 0
-def layBody (lay : Nat) : Nat := [2424, 3272, 4040, 4808, 5576].getD lay 0
+def pathOffL (lay : Nat) : Nat := [2400, 2576, 2672, 2768, 2864].getD lay 0
 
 /-- Known registers: FORS (`kind = true`) or layers. -/
 def gkOf (kind : Bool) : List (Reg × Word) := if kind then gkF else gkL
@@ -29,7 +29,7 @@ def fk (kind : Bool) (a0 a1 : Nat) : List (Reg × Word) :=
 
 def fkeep (kind : Bool) : List Reg :=
   if kind then [.x16, .x17, .x22, .x23, .x25, .x27, .x28, .x29, .x30, .x31]
-  else [.x14, .x15, .x16, .x17, .x23, .x25, .x27, .x28, .x30, .x31]
+  else [.x14, .x16, .x17, .x23, .x25, .x27, .x30, .x31]
 
 def okFold (kind : Bool) (o : Option PRes) (e : PRes) (post : List (Reg × Word)) : Bool :=
   optBeq o e && resOK (gkOf kind) e && knownB post e && keepB (fkeep kind) e
@@ -58,7 +58,7 @@ def chOf (lay lam : Nat) : Nat := if lay = 0 ∧ 6 ≤ lam then 1 else 0
 def m4Pc (lay ci v kk : Nat) : Nat := m4Base lay ci + v * 2 ^ m4Sh lay ci + m4Off lay ci kk
 
 /-- Sibling witness address of level `lam`. -/
-def sibAddr (lay lam : Nat) : Nat := 0x800 + (layBody lay + 672) + 16 * lam
+def sibAddr (lay lam : Nat) : Nat := 0x800 + pathOffL lay + 16 * lam
 
 /-- M4c: the parent of level `lam` is at depth `h - lam - 1`; at depths 1 and 2 (heap indices
 2..7) its index is a constant stored from the register that holds it. -/
@@ -101,11 +101,11 @@ def lvlK (lam : Nat) : List (Reg × Word) :=
   fk false (if lam = 0 then 0x340 else 0x1C0) (if lam = 0 then 704 else 64)
 
 /-- The registers common to every level: the known ones (level 0 sets `a0, a1` for the node
-hashes), `ra, sp` = the sibling. -/
+hashes), `ra, gp` = the sibling (W1a: `sp` holds the triple mask). -/
 def lvlRegs (lay lam : Nat) : RegFile :=
   let base := RegFile.withKnown (lvlK lam)
   let rf0 := if lam = 0 then (base.set .x10 (cw 0x1C0)).set .x11 (cw 64) else base
-  (rf0.set .x1 (ldE (sibAddr lay lam))).set .x2 (ldE (sibAddr lay lam + 8))
+  (rf0.set .x1 (ldE (sibAddr lay lam))).set .x3 (ldE (sibAddr lay lam + 8))
 
 /-- Level `kk` of block `v` of chunk `ci` of layer `lay`, from after the `ecall` of its node
 hash: load the sibling into the other slot, store the parent's heap index into NB+12, then the

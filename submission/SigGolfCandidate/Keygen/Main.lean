@@ -206,7 +206,8 @@ theorem mac_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels : List 
     norm_num
     ring
   have hblk : (fmt (macInput S masked.flatten)).blocks = 1025 := by
-    rw [blocks_fmt (macInput S masked.flatten) (not_digest_thInput 14 0 0 0 0 _ (by decide))]; simp [Query.blocks, pad64, padBlocks, hxl]
+    rw [blocks_fmt (macInput S masked.flatten) (not_digest_thInput 14 0 0 0 0 _ (by decide))
+      (not_padChain_thInput 14 0 0 0 0 _ (by decide))]; simp [Query.blocks, pad64, padBlocks, hxl]
   have hq' : hashInput u = fmt (macInput S masked.flatten) :=
     hq.trans (fmt_thInput 14 0 0 0 0 _ (by decide)).symm
   have hv : hashArgumentsValid u = true :=

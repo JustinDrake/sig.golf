@@ -61,7 +61,7 @@ noncomputable def retainedGameRestComputation (adversary : Adversary)
     OracleComp (OracleWorld + SigningSpec) RetainedRestResult := do
   let (forgery, log) ← signingTraceComputation (adversary.main publicKey)
   let verified ← liftOracleWorldLeft
-    (scheme.verify publicKey forgery.message forgery.signature)
+    (scheme.verify publicKey forgery.message forgery.signature forgery.pads)
   pure ((forgery, log), verified)
 
 end SphincsSecurity.Concrete.OtsProbeSimulation

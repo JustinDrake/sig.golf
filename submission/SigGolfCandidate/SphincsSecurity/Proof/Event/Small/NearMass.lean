@@ -144,7 +144,7 @@ theorem monitoredCompletedRun_mass_visAdversary (adversary : Adversary) (visBudg
   have hA := monitoredRun_mass parameter root otsSecret labels inputs hencoding selections rows dummy slot budget required stopAfter
     _ _ (visAdversary_weightBound adversary visBudget ⟨root, parameter⟩ hvis) _ before hbefore
   have hV := monitoredWorldRun_mass parameter root otsSecret labels inputs hencoding selections rows dummy slot budget required stopAfter
-    _ verifyHashBound (isQueryBoundP_liftM_of_evenBound _ _ (evenBound_verify _ _ _)) before.2 checked hchecked
+    _ verifyHashBound (isQueryBoundP_liftM_of_evenBound _ _ (evenBound_verifyP _ _ _ _)) before.2 checked hchecked
   have hK := verifyHashBound_lt_keygen
   have hzero : (nearStart spent stopped).2.creationMass = 0 := rfl
   rw [hzero, zero_add] at hA

@@ -6,15 +6,15 @@ import SigGolfCandidate.Sign.Layer
 
 Phase 2 of the expand image (instructions 316 .. 672) runs verify's PORS stack machine on the
 partial witness (`pors_init` 495 .. `pors_ok` 639), then the counter phase: per layer the sign's
-header and least-counter search (instructions 316 .. 381 and the layer-target thunk 1717 .. 1721,
-the sign's words, see `Sign.HeadCode`), then below the top layer verify's chains, leaf and folds (382 .. 477), and at
+header and least-counter search (instructions 316 .. 381, the sign's words, see
+`Sign.HeadCode`), then below the top layer verify's chains, leaf and folds (382 .. 477), and at
 layer 0 the counter write-out and HALT(0) (478 .. 494).
 
 The proofs use the sign's `Sim` judgment (namespace `Sign`) on the expand image `eimg`.
 
 * `FailSt t` : a HALT(1) state; `OPost G` : `FailSt` for `none`, `G a` for `some a`.
 * `wword w o` : the dword of the witness bytes `o .. o+7` (zero beyond the list);
-  `WitMem w t` : the buffer `0x800 .. 0x3300` holds `w` (zero padded).
+  `WitMem w t` : the witness buffer `0x800 .. 0x4800` holds `w` (zero padded).
 -/
 
 set_option linter.unusedSimpArgs false
@@ -31,8 +31,7 @@ abbrev eimg : Image := Expand.image
 /-- The expand image carries the sign's layer header and counter search (words 316 .. 381). -/
 theorem eHeadCode : HeadCode eimg :=
   { c346 := Expand.codeAt_346, c351 := Expand.codeAt_351, c355 := Expand.codeAt_355,
-    c375 := Expand.codeAt_375, c376 := Expand.codeAt_376, c377 := Expand.codeAt_377,
-    c379 := Expand.codeAt_379, c1717 := Expand.codeAt_1717,
+    c376 := Expand.codeAt_376, c377 := Expand.codeAt_377, c379 := Expand.codeAt_379,
     c316 := Expand.codeAt_316, c318 := Expand.codeAt_318, c321 := Expand.codeAt_321,
     c322 := Expand.codeAt_322, c329 := Expand.codeAt_329, c331 := Expand.codeAt_331 }
 
@@ -72,12 +71,12 @@ theorem fail_sim_steps {α : Type} {G : α → MachineState → Prop} {s t : Mac
 /-- The dword of witness bytes `o .. o+7` (zero beyond the list). -/
 def wword (w : List Byte) (o : Nat) : Word := BitVec.ofNat 64 (leNat (wbytes w o 8))
 
-/-- The buffer `0x800 .. 0x3300` holds the witness `w`, zero padded. -/
+/-- The buffer `0x800 .. 0x4800` holds the witness `w`, zero padded. -/
 def WitMem (w : List Byte) (t : MachineState) : Prop :=
-  ∀ k < 1376, t.getMem (BitVec.ofNat 64 (0x800 + 8 * k)) = wword w (8 * k)
+  ∀ k < 2048, t.getMem (BitVec.ofNat 64 (0x800 + 8 * k)) = wword w (8 * k)
 
 /-- Addresses of the witness buffer. -/
-def witA (a : Nat) : Prop := 0x800 ≤ a ∧ a < 0x3300
+def witA (a : Nat) : Prop := 0x800 ≤ a ∧ a < 0x4800
 
 theorem WitMem.frame {w : List Byte} {s t : MachineState} {W : Nat → Prop} (h : WitMem w s)
     (hf : Frame s t W) (hW : ∀ a, witA a → ¬ W a) : WitMem w t := by
@@ -85,7 +84,7 @@ theorem WitMem.frame {w : List Byte} {s t : MachineState} {W : Nat → Prop} (h 
   rw [hf.getMem (by omega) (hW _ (by unfold witA; omega)), h k hk]
 
 theorem WitMem.get {w : List Byte} {t : MachineState} (h : WitMem w t) (o : Nat) (ho : o % 8 = 0)
-    (ho' : o < 0x2B00) : t.getMem (BitVec.ofNat 64 (0x800 + o)) = wword w o := by
+    (ho' : o < 0x4000) : t.getMem (BitVec.ofNat 64 (0x800 + o)) = wword w o := by
   have := h (o / 8) (by omega)
   rwa [show 8 * (o / 8) = o by omega] at this
 
@@ -106,7 +105,7 @@ theorem wordsOf_wbytes16 (w : List Byte) (o : Nat) : wordsOf (wbytes w o 16) = [
 
 /-- Two witness dwords as a 16-byte field. -/
 theorem WitMem.readWords16 {w : List Byte} {t : MachineState} (h : WitMem w t) (o : Nat) (ho : o % 8 = 0)
-    (ho' : o + 8 < 0x2B00) :
+    (ho' : o + 8 < 0x4000) :
     t.readWords (BitVec.ofNat 64 (0x800 + o)) 2 = wordsOf (wbytes w o 16) := by
   rw [readWords_ofNat_two, wordsOf_wbytes16, h.get o ho (by omega),
     show 0x800 + o + 8 = 0x800 + (o + 8) by omega, h.get (o + 8) (by omega) ho']

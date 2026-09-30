@@ -7,9 +7,13 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] canonicalGraphInputs canonicalEncodingInputs canonicalPayloadInputs instFintypePosition
 
+/-- A structural entry: a noncanonical canonical-graph query, above the frontier **or of a length other
+than `48`** (so no OTS prefix row: the padded verifier's 80-byte chain inputs), whose answer is the honest
+label of its position. -/
 def Entry (key : SecretKey) (labels : CanonicalGraphLabels) (words : OtsReferenceWords)
     (input : HashInput) (answer : HashOutput) : Prop :=
-  input ∈ canonicalGraphInputs key.parameter ∧ ∃ position, ReferencePrimitiveWitness.AboveFrontier words position ∧ position.TreeBound ∧
+  input ∈ canonicalGraphInputs key.parameter ∧ ∃ position,
+    (ReferencePrimitiveWitness.AboveFrontier words position ∨ input.length ≠ 48) ∧ position.TreeBound ∧
     AtPosition key.parameter input position ∧ input ≠ canonicalGraphInput key.parameter key.otsSecret key.ftsSecret position labels ∧
       truncateHash answer = truncateHash (labels position)
 
@@ -26,20 +30,48 @@ theorem seen_mul (key : SecretKey) (labels : CanonicalGraphLabels) (words : OtsR
     Seen key labels words (before * after) ↔ Seen key labels words before ∨ Seen key labels words after := by
   simp only [Seen, FreeMonoid.toList_mul, List.mem_append, or_and_right, exists_or]
 
-theorem source_match (key : SecretKey) (f : QueryImpl HashSpec Id) (words : OtsReferenceWords) (trace : Trace)
-    (h : ReferencePrimitiveWitness.StructuralMatch key f words trace) :
-    Seen key (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f) words trace := by
-  obtain ⟨position, habove, hbound, payload, hpayload, hrow, hne, hvalue⟩ := h
+/-- **A padded chain match is a (widened) structural entry** of the honest labels: the new event is
+charged exactly like the record's structural matches. -/
+theorem source_paddedMatch (key : SecretKey) (f : QueryImpl HashSpec Id) (words : OtsReferenceWords)
+    (trace : Trace) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
+    (h : OtsVerifierWitness.PaddedChainMatch f key.parameter lay tree leaf (key.otsSecret lay tree leaf) trace) :
+    ∃ entry ∈ trace.toList,
+      Entry key (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f) words entry.1 entry.2 := by
+  obtain ⟨chainIdx, pad, previous, hpad, hrow, hhit⟩ := h
+  let position : Position := .chain lay tree leaf chainIdx Position.lastChainStep
+  have hbound : position.TreeBound := trivial
   have hcanonical := canonicalGraphInput_eq_honest key.parameter key.otsSecret key.ftsSecret f position
     (hbound.valid position) (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f)
     (fun child hc => congrArg truncateHash
       (canonicalGraphLabels_eq_honest key.parameter key.otsSecret key.ftsSecret f child (hbound.child hc)))
-  refine ⟨_, hrow, graphInput_mem_of_payload key.parameter position payload hpayload, position, habove, hbound, ⟨_, rfl⟩, ?_, ?_⟩
-  · intro heq
-    rw [hcanonical] at heq
-    exact hne (tweakableHashInput_injective key.parameter position.domain_inRange position.domain_inRange heq).2
+  refine ⟨_, hrow, paddedInput_mem_canonicalGraphInputs key.parameter lay tree leaf chainIdx _ pad previous,
+    position, Or.inr ?_, hbound, ⟨_, rfl⟩, ?_, ?_⟩
+  · rw [paddedInput_length key.parameter lay tree leaf chainIdx _ pad previous hpad]
+    decide
+  · rw [hcanonical]
+    exact paddedInput_ne_honestInput key.parameter lay tree leaf chainIdx _ pad previous f key.otsSecret
+      key.ftsSecret hpad
   · rw [canonicalGraphLabels_eq_honest key.parameter key.otsSecret key.ftsSecret f position hbound]
-    exact hvalue
+    change _ = honestValue f key.parameter key.otsSecret key.ftsSecret position
+    rw [honestValue_chain]
+    exact hhit
+
+theorem source_match (key : SecretKey) (f : QueryImpl HashSpec Id) (words : OtsReferenceWords) (trace : Trace)
+    (h : ReferencePrimitiveWitness.StructuralMatch key f words trace) :
+    Seen key (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f) words trace := by
+  rcases h with ⟨position, habove, hbound, payload, hpayload, hrow, hne, hvalue⟩ | ⟨lay, tree, leaf, hpad⟩
+  · have hcanonical := canonicalGraphInput_eq_honest key.parameter key.otsSecret key.ftsSecret f position
+      (hbound.valid position) (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f)
+      (fun child hc => congrArg truncateHash
+        (canonicalGraphLabels_eq_honest key.parameter key.otsSecret key.ftsSecret f child (hbound.child hc)))
+    refine ⟨_, hrow, graphInput_mem_of_payload key.parameter position payload hpayload, position, Or.inl habove, hbound,
+      ⟨_, rfl⟩, ?_, ?_⟩
+    · intro heq
+      rw [hcanonical] at heq
+      exact hne (tweakableHashInput_injective key.parameter position.domain_inRange position.domain_inRange heq).2
+    · rw [canonicalGraphLabels_eq_honest key.parameter key.otsSecret key.ftsSecret f position hbound]
+      exact hvalue
+  · exact source_paddedMatch key f words trace lay tree leaf hpad
 
 theorem Entry.noncanonical {key : SecretKey} {labels : CanonicalGraphLabels} {words : OtsReferenceWords}
     {input : HashInput} {answer : HashOutput} (h : Entry key labels words input answer) :
@@ -50,7 +82,7 @@ theorem Entry.noncanonical {key : SecretKey} {labels : CanonicalGraphLabels} {wo
 theorem Entry.otherHash {key : SecretKey} {labels : CanonicalGraphLabels} {words : OtsReferenceWords}
     {input : HashInput} {answer : HashOutput} (h : Entry key labels words input answer) :
     QueryClass.OtherHash key.parameter words (.inr input) := by
-  obtain ⟨_, position, habove, _, hp, _, _⟩ := h
+  obtain ⟨_, position, hshape, _, hp, _, _⟩ := h
   refine ⟨?_, ?_, ?_⟩
   · rintro ⟨payload, heq⟩
     have hd := (decodePosition_some_iff key.parameter input position).mpr hp
@@ -59,14 +91,16 @@ theorem Entry.otherHash {key : SecretKey} {labels : CanonicalGraphLabels} {words
   · rintro ⟨encoding, he⟩
     exact he.not_atPosition position hp
   · intro address hs
-    obtain ⟨query, hquery⟩ := Option.ne_none_iff_exists'.mp hs
-    have hi := ((OtsPrefix.atAddress key.parameter words address).parse_some_iff input query).mp hquery
-    have heq := atPosition_unique key.parameter hp
-      (show AtPosition key.parameter input (.chain address.1 address.2.1 address.2.2.1 address.2.2.2
-        ((OtsPrefix.atAddress key.parameter words address).step query.1)) from ⟨_, hi⟩)
-    subst position
-    change (words address.1 address.2.1 address.2.2.1 address.2.2.2).val ≤ query.1.val at habove
-    exact Nat.not_lt_of_ge habove query.1.isLt
+    rcases hshape with habove | hlength
+    · obtain ⟨query, hquery⟩ := Option.ne_none_iff_exists'.mp hs
+      have hi := ((OtsPrefix.atAddress key.parameter words address).parse_some_iff input query).mp hquery
+      have heq := atPosition_unique key.parameter hp
+        (show AtPosition key.parameter input (.chain address.1 address.2.1 address.2.2.1 address.2.2.2
+          ((OtsPrefix.atAddress key.parameter words address).step query.1)) from ⟨_, hi⟩)
+      subst position
+      change (words address.1 address.2.1 address.2.2.1 address.2.2.2).val ≤ query.1.val at habove
+      exact Nat.not_lt_of_ge habove query.1.isLt
+    · exact hs (parse_eq_none_of_length hlength)
 
 theorem entry_uniform_le (key : SecretKey) (labels : CanonicalGraphLabels) (words : OtsReferenceWords) (input : HashInput) :
     Pr[Entry key labels words input | (liftM (PMF.uniformOfFintype HashOutput) : SPMF HashOutput)] ≤

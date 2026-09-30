@@ -144,7 +144,7 @@ noncomputable def frontierGameRest (parameter : PublicParameter) (root : Digest)
     ProbComp (Bool × SigningBoundaryTrace) := do
   let result ← frontierAdversaryRun parameter root f ftsSecret words frontier
     (adversary.main ⟨root, parameter⟩)
-  let checked := boundaryEval parameter f (verify ⟨root, parameter⟩ result.1.1.message result.1.1.signature)
+  let checked := boundaryEval parameter f (verifyP ⟨root, parameter⟩ result.1.1.message result.1.1.signature result.1.1.pads)
   pure (decide (SigningTranscript.Valid result.1.2 ∧ ¬SigningTranscript.Contains result.1.2 result.1.1) && checked.1,
     result.2 * checked.2)
 
@@ -161,7 +161,7 @@ theorem fixedBoundaryRun_gameRest_frontier (key : SecretKey) (f : QueryImpl Hash
   rintro ⟨⟨forgery, log⟩, trace⟩
   rw [fixedBoundaryRun_bind]
   change (fun final => (final.1, trace * final.2)) <$>
-    (fixedBoundaryRun key.parameter f (liftM (verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature)) >>=
+    (fixedBoundaryRun key.parameter f (liftM (verifyP ⟨key.root, key.parameter⟩ forgery.message forgery.signature forgery.pads)) >>=
       fun checked => (fun final => (final.1, checked.2 * final.2)) <$>
         fixedBoundaryRun key.parameter f (pure
           (decide (SigningTranscript.Valid log ∧ ¬SigningTranscript.Contains log forgery) && checked.1))) = _

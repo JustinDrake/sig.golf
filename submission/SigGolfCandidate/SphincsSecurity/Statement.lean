@@ -13,10 +13,13 @@ namespace SphincsSecurity
 
 /-! ## The security experiment -/
 
-/-- A claimed forgery: a message and a signature. -/
+/-- A claimed forgery: a message, a signature, and the chain pads of the W1a witness blocks. The
+pads are not part of the signature: `Contains` compares message and signature only, so changing the
+pad of a chain the verifier never hashes (digit `7`) of a signed signature is no forgery. -/
 structure Forgery where
   message : Message
   signature : Signature
+  pads : ChainPads
 deriving DecidableEq
 
 /-- A signing request of the proof's ideal games is a message alone, and the answer is a signature or `none` if the signer fails. -/
@@ -90,7 +93,8 @@ noncomputable def gameCore (adversary : Adversary) : OracleComp OracleWorld Bool
   let (pk, cache, sk) ← liftM (Seeded.keygenFromSeed seed)
   let ((forgery, log) : Forgery × QueryLog RequestSpec) ←
     (simulateQ (QueryImpl.ofLift OracleWorld (WriterT (QueryLog RequestSpec) (OracleComp OracleWorld)) + signingOracle sk) (adversary.main pk cache)).run
-  let verified ← liftM (Concrete.verify pk forgery.message forgery.signature : OracleComp HashSpec Bool)
+  let verified ← liftM (Concrete.verifyP pk forgery.message forgery.signature forgery.pads :
+    OracleComp HashSpec Bool)
   return decide (RequestTranscript.Valid log ∧ ¬RequestTranscript.Contains log forgery) && verified
 
 /-- Forward private sampling for free; answer hash queries consistently and count every call, including cache hits. -/

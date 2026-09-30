@@ -40,8 +40,8 @@ theorem recordedCache_agrees (f : QueryImpl HashSpec Id) (trace : Trace) : (reco
 theorem boundaryEval_verify_message (key : SecretKey) (f : QueryImpl HashSpec Id) (forgery : Forgery)
     (hcounters : CountersInRange forgery.signature) :
     (signingInput key forgery.message forgery.signature, f (signingInput key forgery.message forgery.signature)) ∈
-      (boundaryEval key.parameter f (verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature)).2.messageCalls := by
-  rw [verify_eq_ite, if_pos hcounters, verifyCore, boundaryEval_bind, SigningBoundaryTrace.messageCalls_mul, List.mem_append]
+      (boundaryEval key.parameter f (verifyP ⟨key.root, key.parameter⟩ forgery.message forgery.signature forgery.pads)).2.messageCalls := by
+  rw [verifyP_eq_ite, if_pos hcounters, verifyCoreP, boundaryEval_bind, SigningBoundaryTrace.messageCalls_mul, List.mem_append]
   apply Or.inl
   have hquery : boundaryEval key.parameter f
       (oracleHash (signingInput key forgery.message forgery.signature) : OracleComp HashSpec HashOutput) =
@@ -207,7 +207,7 @@ theorem referenceForgeryGame_full_le (dummy : OtsReferenceWords) (adversary : Ad
       (certificateTraceProgram_full_le adversary)
 
 theorem forgeAdvantage_le_remainingFts_small_budget (dummy : OtsReferenceWords)
-    (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (dummy lay tree leaf))
+    (hdummy : ∀ lay tree leaf, OtsCode.Valid (dummy lay tree leaf))
     (adversary : Adversary) (q : Nat) (hbound : HasHashQueryBound scheme adversary q)
     (hsmall : q ≤ budgetSplit) :
     forgeAdvantage scheme adversary ≤

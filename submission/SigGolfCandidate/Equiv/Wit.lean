@@ -7,12 +7,15 @@ The abstract `Signature` is witness-shaped (`SphincsSecurity.FtsSignature`: slot
 29 stack-machine segments). This file fixes the three maps the Bridge needs (design:
 `work/design/WS7a-SCHEME.md` §3):
 
-* `witSig : List Byte → Signature` / `witDec : Bytes 6348 → Signature` parse a witness exactly as the
+* `witSig : List Byte → Signature` / `witDec : Bytes 16384 → Signature` parse a witness exactly as the
   verifier (`Ref.verifyList`) reads it: `rho` at `0`, the slot code of the `s`-th leaf
   `(pi_s & 0x78) >> 3` from byte `16 + s`, the secrets at `32 + 16 s`, the segment stream from
   `Ref.wStream = 272` by a pointer (header byte `b`: `a = b mod 16`, merge = bit 4, `t` = bit 5,
   normalised when `a = 0`; the `a` nodes at `ptr + 8 + 16 i`; next header at `ptr + 8 + 16 a`), bytes
-  beyond the witness read as zero, the layer bodies and the counters.
+  beyond the witness read as zero, and the W1a layer fields: the chain values at `blockOff lay i + 48`,
+  the paths at `pathOff lay`, the counters at `ctrOff lay` (`c0 .. c3` at `2944 + 4 lay`, `c4` at 2392).
+* `padDec : Bytes 16384 → ChainPads`: the 32 pad bytes `blockOff lay i + 16 .. + 48` of every chain
+  block as two digests (`padDec_eq_zero_iff`: the pad is `0` iff the 32 bytes are zero).
 * `compressList` / `compress : Signature → Bytes 6048`: `rho | secrets | the nodes of segments
   0..28 concatenated, zero padded (or cut) to 118 nodes | per layer chain values, path` (no counters).
 * `aExpand m pk σ`: the digest query of `rho = σ[0..16)` and `m` through the abstract hash, the
@@ -59,9 +62,10 @@ def witFts (w : List Byte) : FtsSignature where
   secrets s := Ref.ofList 16 (Ref.witSecret w s.val)
   segments j := segAt w (segPtr w j.val)
 
-/-- Layer `lay` of a witness: its counter (at `Ref.witCounters + 4 lay`), chain values and path. -/
+/-- Layer `lay` of a witness: its counter (at `Ref.ctrOff lay`), chain values (`Ref.witChain`: the value
+slot `blockOff lay i + 48`) and path (`Ref.witSib`: `pathOff lay + 16 l`). -/
 def witLayer (w : List Byte) (lay : Layer) : LayerSignature lay :=
-  ⟨Ref.ofList 4 (Ref.slice w (Ref.witCounters + 4 * lay.val) 4),
+  ⟨Ref.ofList 4 (Ref.slice w (Ref.ctrOff lay.val) 4),
     fun i => Ref.ofList 16 (Ref.witChain w lay.val i.val),
     fun l => Ref.ofList 16 (Ref.witSib w lay.val l.val)⟩
 
@@ -70,7 +74,14 @@ def witSig (w : List Byte) : Signature :=
   ⟨Ref.ofList 16 (Ref.witRho w), witFts w, witLayer w⟩
 
 /-- **The witness decoder**. -/
-def witDec (w : Bytes 6348) : Signature := witSig (Ref.toList w)
+def witDec (w : Bytes 16384) : Signature := witSig (Ref.toList w)
+
+/-- **The pad decoder** (W1a): the 32 bytes between the tweak slot and the value of chain block
+`(lay, i)` (`Ref.witPad`), as two digests. Verify hashes them as they stand (`Ref.chainInputP`); the
+honest pads are zero. Definitionally `Equiv.padOf (Ref.toList w)` (`Equiv/Verify.lean`). -/
+def padDec (w : Bytes 16384) : SphincsSecurity.ChainPads := fun lay i =>
+  (Ref.ofList 16 (Ref.slice (Ref.toList w) (Ref.blockOff lay.val i.val + 16) 16),
+    Ref.ofList 16 (Ref.slice (Ref.toList w) (Ref.blockOff lay.val i.val + 32) 16))
 
 /-! ## The compact signature -/
 
@@ -130,7 +141,7 @@ def aLayers (index : SphincsSecurity.Index) (S0 : Signature) : Nat → Digest �
 /-- **The abstract expansion**: the digest of `rho = σ[0..16)` and the message, the reference's
 pure partial witness `Ref.expandOf` (which fails on malformed signatures), the abstract PORS stack
 machine on it (the message of the bottom layer), the counter phase, the counters written. -/
-def aExpand (m : Message) (pk : PublicKey) (σ : Bytes 6048) : AComp (Option (Bytes 6348)) := do
+def aExpand (m : Message) (pk : PublicKey) (σ : Bytes 6048) : AComp (Option (Bytes 16384)) := do
   let d ← SphincsSecurity.Concrete.messageDigest (m := AComp) 0 pk.root m
     (Ref.ofList 16 (Ref.sigRho (Ref.toList σ)))
   match Ref.expandOf (Ref.toList σ) d.toNat with
@@ -143,7 +154,7 @@ def aExpand (m : Message) (pk : PublicKey) (σ : Bytes 6048) : AComp (Option (By
     | some M =>
       match ← aLayers index (witSig w0) SphincsSecurity.numLayers M with
       | none => pure none
-      | some cs => pure (some (Ref.ofList 6348 (Ref.withCounters w0 cs)))
+      | some cs => pure (some (Ref.ofList 16384 (Ref.withCounters w0 cs)))
 
 /-! ## Basic facts -/
 
@@ -173,5 +184,51 @@ theorem length_compressList (σ : Signature) : (compressList σ).length = 6048 :
 
 theorem toList_compress (σ : Signature) : Ref.toList (compress σ) = compressList σ :=
   Ref.toList_ofList 6048 _ (length_compressList σ)
+
+/-! ## The pad decoder -/
+
+theorem blockOff_bound (lay : Layer) (i : ChainIndex) : Ref.blockOff lay.val i.val + 64 ≤ 16384 := by
+  have h1 := lay.isLt; have h2 := i.isLt
+  simp only [SphincsSecurity.numLayers, SphincsSecurity.numChains] at h1 h2
+  rw [Ref.blockOff_eq]; omega
+
+theorem wdig_eq_slice (w : List Byte) (o : Nat) (h : o + 16 ≤ w.length) :
+    dv (wdig w o) = Ref.slice w o 16 := by
+  rw [dv_wdig]
+  apply List.ext_getElem (by simp [Ref.wbytes, Ref.slice]; omega)
+  intro j h1 h2
+  simp only [Ref.wbytes, List.length_map, List.length_range] at h1
+  simp only [Ref.wbytes, Ref.slice, List.getElem_map, List.getElem_range, List.getElem_take, List.getElem_drop]
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega), Option.getD_some]
+
+/-- The two pad digests are the two halves of the 32 pad bytes. -/
+theorem dv_padDec (w : Bytes 16384) (lay : Layer) (i : ChainIndex) :
+    dv (padDec w lay i).1 ++ dv (padDec w lay i).2 = Ref.witPad (Ref.toList w) lay.val i.val := by
+  have hb := blockOff_bound lay i
+  have hl : (Ref.toList w).length = 16384 := Ref.length_toList w
+  simp only [padDec]
+  rw [dv_ofList_slice _ _ (by omega), dv_ofList_slice _ _ (by omega), Ref.witPad,
+    show Ref.blockOff lay.val i.val + 32 = Ref.blockOff lay.val i.val + 16 + 16 by omega,
+    show (32 : Nat) = 16 + 16 from rfl, slice_split]
+
+/-- The pad bytes as the abstract chain payload writes them (`bytesLE 16 pad.1 ++ bytesLE 16 pad.2`). -/
+theorem toB_padDec (w : Bytes 16384) (lay : Layer) (i : ChainIndex) :
+    toB (SphincsSecurity.bytesLE 16 (padDec w lay i).1 ++ SphincsSecurity.bytesLE 16 (padDec w lay i).2) =
+      Ref.witPad (Ref.toList w) lay.val i.val := by
+  rw [toB_append, toB_bytesLE, toB_bytesLE]
+  exact dv_padDec w lay i
+
+theorem dv_zero_pad : dv 0 = Ref.zeros 16 := by decide
+
+/-- **A pad is zero iff its 32 witness bytes are zero.** -/
+theorem padDec_eq_zero_iff (w : Bytes 16384) (lay : Layer) (i : ChainIndex) :
+    padDec w lay i = 0 ↔ Ref.witPad (Ref.toList w) lay.val i.val = Ref.zeros 32 := by
+  rw [← dv_padDec w lay i, show Ref.zeros 32 = Ref.zeros 16 ++ Ref.zeros 16 from rfl]
+  constructor
+  · intro h; rw [h]; show dv 0 ++ dv 0 = _; rw [dv_zero_pad]
+  · intro h
+    have h' := List.append_inj h (by rw [length_dv]; rfl)
+    rw [← dv_zero_pad] at h'
+    exact Prod.ext (dv_injective h'.1) (dv_injective h'.2)
 
 end SigGolfCandidate.Equiv

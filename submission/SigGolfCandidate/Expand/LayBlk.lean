@@ -40,14 +40,18 @@ theorem blk382_run (t : MachineState) (hpc : t.pc = pcOf 382) (lay c : Nat) (hl 
       implies_true, and_true, ne_eq, ha, ofNat_eq_iff]
     bvomega
 
-/-- 386 .. 407: the chain base, the `LF` / `NB` / `CB` tweak words, the chain pointers. -/
+theorem ofNat_mul_ofNat' (a b : Nat) : BitVec.ofNat 64 a * BitVec.ofNat 64 b = BitVec.ofNat 64 (a * b) := by
+  apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_mul, Nat.mul_mod]
+
+/-- 386 .. 407: the chain base, the `LF` / `NB` / `CB` tweak words, the chain pointers (W1a: the value
+slot of block `(lay, 0)`, `W + 2992 + 2688 lay`, via `li a7, 1344; mul; slli 1`: 25 cycles). -/
 theorem blk386_run (t : MachineState) (hpc : t.pc = pcOf 386) (lay tau : Nat) (hl : lay < 5) (htau : tau < 2 ^ 30)
     (h8 : t.getReg .x8 = BitVec.ofNat 64 lay) (h30 : t.getReg .x30 = BitVec.ofNat 64 tau)
     (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) :
-    ∃ t', Steps eimg t 22 22 t' ∧ t'.pc = pcOf 408 ∧
+    ∃ t', Steps eimg t 22 25 t' ∧ t'.pc = pcOf 408 ∧
       t'.getReg .x18 = BitVec.ofNat 64 0 ∧ t'.getReg .x19 = t.getReg .x1 ∧
       t'.getReg .x20 = BitVec.ofNat 64 (257 + 65536 * lay) ∧ t'.getReg .x21 = BitVec.ofNat 64 (2 ^ 40) ∧
-      t'.getReg .x23 = BitVec.ofNat 64 (0x800 + (2504 + 768 * lay)) ∧
+      t'.getReg .x23 = BitVec.ofNat 64 (0x800 + (2992 + 2688 * lay)) ∧
       t'.getReg .x24 = BitVec.ofNat 64 0x30260 ∧
       t'.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (513 + 65536 * lay) ∧
       t'.getMem (BitVec.ofNat 64 0x30248) = t.getReg .x31 ∧
@@ -66,8 +70,8 @@ theorem blk386_run (t : MachineState) (hpc : t.pc = pcOf 386) (lay tau : Nat) (h
     by simp only [Expand.blk386.res, rv_simp], ?_, by pnum [Expand.blk386.res], ?_, by pnum [Expand.blk386.res, h25],
     ?_, ?_, ?_, ?_, by pregs, ?_⟩
   · simp only [Expand.blk386.res, rv_simp, ha5, ofNat_add_ofNat]; exact ofNat_congr (by ring)
-  · simp only [Expand.blk386.res, rv_simp, h8, show (9#64 : Word).toNat % 64 = 9 from rfl,
-      show (8#64 : Word).toNat % 64 = 8 from rfl, ofNat_shiftLeft, ofNat_add_ofNat]
+  · simp only [Expand.blk386.res, rv_simp, h8, show (1#64 : Word).toNat % 64 = 1 from rfl,
+      show (1344#64 : Word) = BitVec.ofNat 64 1344 from rfl, ofNat_mul_ofNat', ofNat_shiftLeft, ofNat_add_ofNat]
     exact ofNat_congr (by ring)
   · pnum [Expand.blk386.res, h25]; simp only [ha5, ofNat_add_ofNat]; exact ofNat_congr (by ring)
   · pnum [Expand.blk386.res, h25]
@@ -106,7 +110,7 @@ theorem blk412_run (t : MachineState) (hpc : t.pc = pcOf 412) :
 
 /-- 413 .. 416: the chain value from the witness into `CB + 48`. -/
 theorem blk413_run (w : List Byte) (t : MachineState) (hpc : t.pc = pcOf 413) (o : Nat) (ho : o % 8 = 0)
-    (ho' : o + 16 ≤ 0x2B00) (hw : WitMem w t)
+    (ho' : o + 16 ≤ 0x4000) (hw : WitMem w t)
     (h23 : t.getReg .x23 = BitVec.ofNat 64 (0x800 + o)) (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) :
     ∃ t', Steps eimg t 4 4 t' ∧ t'.pc = pcOf 417 ∧
       t'.readWords (BitVec.ofNat 64 0x30170) 2 = wordsOf (wbytes w o 16) ∧
@@ -163,9 +167,10 @@ theorem blk426_run (t : MachineState) (hpc : t.pc = pcOf 426) (p : Nat) (h28 : t
   ⟨_, symRun_sound Expand.blk426 Expand.codeAt_426 t hpc (by simp only [Expand.blk426.res, rv_simp]),
     by simp only [Expand.blk426.res, rv_simp], by pnum [Expand.blk426.res, h28], by pregs, getMem_nil rfl t⟩
 
-/-- 428 .. 437 (`ch_done`): the chain end into `LF + 32 + 16 i`, next chain. -/
+/-- 428 .. 437 (`ch_done`): the chain end into `LF + 32 + 16 i`, next chain (W1a: the chain
+pointer steps by one 64-byte block). -/
 theorem blk428_run (t : MachineState) (hpc : t.pc = pcOf 428) (i o base : Nat) (hi : i < 42)
-    (ho : o + 16 < 2 ^ 32) (hb : base < 2 ^ 47)
+    (ho : o + 64 < 2 ^ 32) (hb : base < 2 ^ 47)
     (h18 : t.getReg .x18 = BitVec.ofNat 64 i) (h20 : t.getReg .x20 = BitVec.ofNat 64 base)
     (h21 : t.getReg .x21 = BitVec.ofNat 64 (2 ^ 40)) (h23 : t.getReg .x23 = BitVec.ofNat 64 o)
     (h24 : t.getReg .x24 = BitVec.ofNat 64 (0x30260 + 16 * i))
@@ -173,7 +178,7 @@ theorem blk428_run (t : MachineState) (hpc : t.pc = pcOf 428) (i o base : Nat) (
     ∃ t', Steps eimg t 10 10 t' ∧ t'.pc = (if i + 1 = 42 then pcOf 438 else pcOf 408) ∧
       t'.readWords (BitVec.ofNat 64 (0x30260 + 16 * i)) 2 = t.readWords (BitVec.ofNat 64 0x30170) 2 ∧
       t'.getReg .x18 = BitVec.ofNat 64 (i + 1) ∧ t'.getReg .x20 = BitVec.ofNat 64 (base + 2 ^ 40) ∧
-      t'.getReg .x23 = BitVec.ofNat 64 (o + 16) ∧ t'.getReg .x24 = BitVec.ofNat 64 (0x30260 + 16 * (i + 1)) ∧
+      t'.getReg .x23 = BitVec.ofNat 64 (o + 64) ∧ t'.getReg .x24 = BitVec.ofNat 64 (0x30260 + 16 * (i + 1)) ∧
       RegsEq t t' [.x14, .x15, .x18, .x20, .x23, .x24] ∧
       Frame t t' (fun a => a = 0x30260 + 16 * i ∨ a = 0x30260 + 16 * i + 8) := by
   refine ⟨_, symRun_sound Expand.blk428 Expand.codeAt_428 t hpc (by pobl [Expand.blk428.res, h24, h25]),

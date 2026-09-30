@@ -33,7 +33,7 @@ noncomputable def gameRest (parameter : PublicParameter) (root : Digest)
     OracleComp OracleWorld (Bool × SigningBoundaryTrace) := do
   let result ← adversaryRun parameter root external ftsSecret words frontier (adversary.main ⟨root, parameter⟩)
   let checked ← boundaryComputation parameter (liftM
-    (verify ⟨root, parameter⟩ result.1.1.message result.1.1.signature : OracleComp HashSpec Bool))
+    (verifyP ⟨root, parameter⟩ result.1.1.message result.1.1.signature result.1.1.pads : OracleComp HashSpec Bool))
   pure (decide (SigningTranscript.Valid result.1.2 ∧ ¬SigningTranscript.Contains result.1.2 result.1.1) && checked.1,
     result.2 * checked.2)
 

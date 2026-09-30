@@ -1,191 +1,140 @@
 import SigGolfCandidate.Verify.FoldRuns
 
-/-! # Chains (JALR dispatch tables, row-specific pair dispatch): expected symbolic results
+/-! # W1a chains (in place, triple dispatch, layer-shared code): expected symbolic results
 
-The 42 chains of a layer form the units `(0,1) .. (18,19), 20, (21,22) .. (39,40), 41`. A pair
-`(A, B)` has one 64-entry table for `A`, indexed by `dA + 8 dB`; the code of the pair is
-duplicated per digit `dB` of `B` ("copy" `k = dB`): copy `k` holds `A`'s seven steps, then `B`'s
-head (without `jalr`, it stores `B`'s start value itself) and `B`'s steps `k + 1 .. 7`, then the
-next unit's dispatch and head. A single chain (20, 41) has an 8-entry table and one copy.
+Chain `i` of layer `lay` is hashed in its witness block `blk(lay, i) = WIT + blockOff lay i`
+(`[tweak slot 16 | pad 32 | value 16]`). The 42 chains form the 14 triples `(3t, 3t+1, 3t+2)`;
+one interleaved table (`ttab`, 512 rows `k = dA + 8 dB + 64 dC` of 16 slots of 8 words) holds in
+slot `t` of row `k` chain `A = 3t`'s head (digit `< 7`) or its digit-7 copy and a jump into the
+code shared by all layers for `(t, dB, dC)`: `A`'s rungs `1 .. 7` (entered at `dA + 1`), then `B`,
+then `C` (head and rungs `d + 1 .. 7`, or the digit-7 copy), then the extraction of triple
+`t + 1` and its `jalr`, or for `t = 13` the return `jalr zero, ra`.
+
+The code is layer independent: it addresses the blocks relative to `s6 = x22` (the layer base
+`blk(lay, 0) + 1344`), bumps the running tweak word 0 in `s9 = x25` by `t3 = 2^40`, and stores
+tweak word 1 from `t6 = x31`. Its runs are therefore checked once, with `x22`, `x25`, `x31`,
+`a0 = x10`, `a2 = x12` symbolic; the memory writes and obligations have the base `x22` or `x10`.
+
+* head: `addi a0, s6, off; addi a2, a0, 48; add s9, s9, t3; sd s9, 0(a0); sd t6, 8(a0)`;
+* rung `mu`: `sb MU_{mu-1}, 4(a0); [li a2, slot_i (mu = 7)]; ecall`;
+* digit 7: `ld gp, off+48(s6); ld a4, off+56(s6); sd gp, slot_i; sd a4, slot_i+8; add s9, s9, t3`.
 -/
 
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 
-def tget (tab : List (List Nat)) (lay i : Nat) : Nat := (tab.getD lay []).getD i 0
-def tget3 (tab : List (List (List Nat))) (lay i k : Nat) : Nat := ((tab.getD lay []).getD i []).getD k 0
+/-- Known registers in the chain code (layer independent). -/
+def chK0 : List (Reg × Word) := gkL ++ [(.x11, 64)]
 
-/-- Step-1 pc of code copy `k` of chain `i` (virtual for the pair-second chain: its step `mu > k`
-is at `s1K + 2 (mu - 1)`). -/
-def s1K (lay i k : Nat) : Nat := tget3 s1KTab lay i k
-/-- The end of copy `k` of chain `i`: the next chain's head (for a pair-first chain, the code of the
-pair-second chain at the same copy). -/
-def nextK (lay i k : Nat) : Nat := s1K lay i k + 15
-/-- The end of the single (one-copy) chain `i`, used for chain 41 (the leaf code follows). -/
-def nextPc' (lay i : Nat) : Nat := nextK lay i 0
-def tabAddr (lay i : Nat) : Nat := tget tabTab lay i
-def bVal (lay i : Nat) : Nat := tget bTab lay i
-def hasLui (lay i : Nat) : Bool := (luiTab.getD lay []).getD i false
+/-- The offset of chain block `i` from the layer base `s6 = blk(lay, 0) + 1344`. -/
+def offW (i : Nat) : Word := BitVec.ofNat 64 (64 * i) - BitVec.ofNat 64 1344
 
-/-- B at the checkpoint of chain `i`. -/
-def bIn (lay i : Nat) : Nat := if i = 0 then bVal lay 0 else bVal lay (i - 1)
+/-- The leaf-pk slot of chain `i` (`LB + 32 + 16 i`). -/
+def slotA (i : Nat) : Nat := 0x360 + 16 * i
 
-/-- Chain kinds: pair-first chains (with a dispatch prep), pair-second, singles. -/
-def isSingle (i : Nat) : Bool := i = 20 || i = 41
-def isFirst (i : Nat) : Bool := !isSingle i && (i % 21) % 2 = 0
-/-- Pair-second chains: no table and no `jalr` (the pair's table dispatches on both digits). -/
-def isSec (i : Nat) : Bool := !isSingle i && !isFirst i
-/-- The chain's segment starts with a dispatch prep (not for chain 0: prep in the layer code). -/
-def hasPrep (i : Nat) : Bool := i ≠ 0 && (isFirst i || isSingle i)
-/-- The number of code copies of chain `i`. -/
-def nCp (i : Nat) : Nat := if isSingle i then 1 else 8
+/-- The address `s6 + off_i + k` as the executor normalizes it. -/
+def bk (i k : Nat) : Addr := norm (addC (.reg .x22) (offW i + BitVec.ofNat 64 k))
 
-def hWord (lay : Nat) : Nat := 0x101 + 65536 * lay
+/-- The doubleword load at `s6 + off_i + k`. -/
+def ldK (i k : Nat) : E := .ld (bk i k).toE
 
-/-- Known registers in the chain blocks (`a2` is set by each head and by step 7). -/
-def chK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay)), (.x10, 0xC0), (.x11, 64)]
+/-- The step byte `mu - 1` as a register value. -/
+def posE (d : Nat) : E := .c (BitVec.ofNat 64 d)
 
-/-- ... and the answer slot `a2 = CB + 48` inside a chain. -/
-def chKa (lay : Nat) : List (Reg × Word) := chK lay ++ [(.x12, 0xF0)]
+/-- The running tweak word 0 after the bump. -/
+def s9E : E := addC (.reg .x25) K40
 
-def headK (lay i : Nat) : List (Reg × Word) := chK lay ++ [(.x15, BitVec.ofNat 64 (bIn lay i))]
+/-! ## Code tables -/
 
-def dReg (i : Nat) : Reg := if i < 21 then .x16 else .x17
+def triBase (t dB dC : Nat) : Nat := triBaseTab.getD (64 * t + 8 * dB + dC) 0
+/-- The length of the code of a triple's second or third chain at digit `d`. -/
+def partLen (d : Nat) : Nat := if d = 7 then 5 else 6 + 2 * (7 - d)
+def pcB (t dB dC : Nat) : Nat := triBase t dB dC + 15
+def pcC (t dB dC : Nat) : Nat := pcB t dB dC + partLen dB
+def pcX (t dB dC : Nat) : Nat := pcC t dB dC + partLen dC
+/-- Slot `t` of row `k` of the triple table. -/
+def entW (t k : Nat) : Nat := ttabIdx + 128 * k + 8 * t
 
-/-- The dispatch register value computed by the prep of chain `i` (`r = i mod 21`). -/
-def maskE (i : Nat) : E :=
-  if isSingle i then mkBin .sll (mkBin .srl (.reg (dReg i)) (cw 60)) (cw 4)
-  else if i % 21 = 0 then mkBin .and (mkBin .sll (.reg (dReg i)) (cw 4)) (cw 0x3F0)
-  else mkBin .and (mkBin .srl (.reg (dReg i)) (cw (3 * (i % 21) - 4))) (cw 0x3F0)
+/-- The ecall pc of a rung starting at word `p` (step `mu`). -/
+def rungEnd (p mu : Nat) : Nat := p + (if mu = 7 then 2 else 1)
 
-def rE (lay i : Nat) : E := mkBin .add (maskE i) (cw (bVal lay i))
+/-! ## Expected results -/
 
-def chainAddr (lay i : Nat) : Nat := 0x800 + layBody lay + 16 * i
+/-- Rung `mu` of chain `i` (from its `sb`, `a0` symbolic), stopping at its `ecall`. -/
+def rungExp (i mu p : Nat) : PRes :=
+  let rf := RegFile.withKnown chK0
+  ⟨⟨if mu = 7 then rf.set .x12 (cw (slotA i)) else rf,
+    [(⟨some (.reg .x10), 0⟩, .bin (.st .b 4) (.ld (.reg .x10)) (posE (mu - 1)))],
+    [.align8 (.reg .x10), .valid ⟨some (.reg .x10), 4⟩ 1]⟩,
+    pcOf (rungEnd p mu), true, (if mu = 7 then 2 else 1), (if mu = 7 then 2 else 1), [], none⟩
 
-/-- A byte store `sb v, off(CB)` into the chain tweak word at CB. -/
-def stB (off : Nat) (v : E) : E := .bin (.st .b off) (ldE 0xC0) v
+/-- The head of chain `i` at digit `d < 7` and its first rung (`mu = d + 1`, at word `p`), stopping at
+the rung's `ecall`; `j` = the table entry's jump in between (chain `A`). -/
+def headExp (i d p : Nat) (j : Bool) : PRes :=
+  let a0 : E := addC (.reg .x22) (offW i)
+  let rf := ((RegFile.withKnown chK0).set .x10 a0).set .x25 s9E
+  let n := 5 + (if j then 1 else 0) + (if d = 6 then 2 else 1)
+  ⟨⟨rf.set .x12 (if d = 6 then cw (slotA i) else addC a0 48),
+    [(bk i 0, .bin (.st .b 4) s9E (posE d)), (bk i 8, .reg .x31)],
+    [.align8 (.reg .x22), .valid (bk i 4) 1, .valid (bk i 8) 8, .valid (bk i 0) 8]⟩,
+    pcOf (rungEnd p (d + 1)), true, n, n, [], none⟩
 
-/-- Chains `i < 7` store their index byte from a register that already holds `i` in the layers
-(`zero, t1, t2, s0, s1, a3, s10`, see `baseK`/`gkL`), so their head has no `addi TP, i`. -/
-def tagReg (i : Nat) : Bool := decide (i < 7)
+/-- The digit-7 copy of chain `i` into its leaf-pk slot, stopping at `q` (the next chain's code);
+`j` = the table entry's jump. -/
+def copyExp (i q : Nat) (j : Bool) : PRes :=
+  let n := 5 + (if j then 1 else 0)
+  ⟨⟨(((RegFile.withKnown chK0).set .x3 (ldK i 48)).set .x14 (ldK i 56)).set .x25 s9E,
+    [(⟨none, BitVec.ofNat 64 (slotA i + 8)⟩, ldK i 56), (⟨none, BitVec.ofNat 64 (slotA i)⟩, ldK i 48)],
+    [.valid (bk i 56) 8, .valid (bk i 48) 8]⟩,
+    pcOf q, false, n, n, [], none⟩
 
-/-- The `TP` update of a head: none when the index byte comes from a constant register. -/
-def setTag (i : Nat) (rf : RegFile) : RegFile := if tagReg i then rf else rf.set .x4 (cw i)
+/-- The table index of triple `t` (`a4` before the `jalr`). -/
+def triX (t : Nat) : E :=
+  let w : Reg := if t < 7 then .x16 else .x17
+  let sh := 9 * (t % 7)
+  let e0 : E := if sh < 9 then mkBin .sll (.reg w) (cw (9 - sh))
+    else if 9 < sh then mkBin .srl (.reg w) (cw (sh - 9)) else addC (.reg w) 0
+  mkAdd (mkBin .and e0 (.c TMASK)) (.c TTA5)
 
-/-- Head of chain `i`: (lui) (prep) `ld; ld; addi TP, i; sb TP, CB+5; addi a2, CB+48; jalr`,
-stopping at the symbolic target; for `i < 7` the byte store is `sb R_i, CB+5` and `addi TP, i` is
-absent (the stored byte is the same constant). -/
-def headExp (lay i : Nat) : PRes :=
-  let wa := chainAddr lay i
-  let rf0 := RegFile.withKnown (headK lay i)
-  let rf1 := if hasPrep i && hasLui lay i then rf0.set .x15 (cw (bVal lay i)) else rf0
-  let rf2 := if hasPrep i then rf1.set .x14 (rE lay i) else rf1
-  let rcur : E := if hasPrep i then rE lay i else .reg .x14
-  let n := (if tagReg i then 5 else 6) + (if hasPrep i then 3 else 0) +
-    (if hasPrep i && hasLui lay i then 1 else 0)
-  ⟨⟨(setTag i ((rf2.set .x1 (ldE wa)).set .x2 (ldE (wa + 8)))).set .x12 (cw 0xF0),
-    [(⟨none, BitVec.ofNat 64 0xC0⟩, stB 5 (cw i))], []⟩, 0, false, n, n, [],
-    some (mkBin .and (mkAdd rcur (.c (BitVec.ofNat 64 (tabAddr lay i) - BitVec.ofNat 64 (bVal lay i))))
-      (.c (~~~1#64)))⟩
+/-- The dispatch target of triple `t` (`jalr 32 t - 2048(a4)`). -/
+def triTgt (t : Nat) : E :=
+  mkBin .and (mkAdd (triX t) (.c (BitVec.ofNat 64 (32 * t) - BitVec.ofNat 64 2048))) (.c (~~~1#64))
 
-/-- Where the head of the pair-second chain `i` at copy `k` stops: at step `k + 1` (k < 7), else at
-the next head. -/
-def bStop (lay i k : Nat) : Nat := if k < 7 then s1K lay i k + 2 * k else nextK lay i k
-
-/-- Where the pair-second chain `i` at copy `k` stores its start value: CB+48 (k < 7) or its
-leaf slot (k = 7). -/
-def bDst (i k : Nat) : Nat := if k < 7 then 0xF0 else 0x360 + 16 * i
-
-/-- The length (= cycles) of the head of the pair-second chain `i` at copy `k`. -/
-def bN (i k : Nat) : Nat := (if tagReg i then 4 else 5) + (if k < 7 then 2 else 3)
-
-/-- Head of the pair-second chain `i` at copy `k` (its digit): the head without `jalr`
-(`ld; ld; (addi TP, i); sb; addi a2, CB+48`), then `sd; sd` of the start value to `bDst i k`, and
-for k = 7 a `nop`. The registers are those of `headExp` (the chain has no dispatch prep). -/
-def bExp (lay i k : Nat) : PRes :=
-  ⟨⟨(headExp lay i).st.regs,
-    [(⟨none, BitVec.ofNat 64 (bDst i k + 8)⟩, ldE (chainAddr lay i + 8)),
-     (⟨none, BitVec.ofNat 64 (bDst i k)⟩, ldE (chainAddr lay i)),
-     (⟨none, BitVec.ofNat 64 0xC0⟩, stB 5 (cw i))], []⟩, pcOf (bStop lay i k), false, bN i k, bN i k, [], none⟩
-
-/-- Step `mu ∈ 1..7` of copy `k`, from its label to its ecall: `sb MU_{mu-1}, 4(a0)` (byte 4 of the
-chain tweak = `mu - 1`); step 7 also redirects `a2` to the leaf slot. -/
-def stepExp (lay i k mu : Nat) : PRes :=
-  let st := s1K lay i k + 2 * (mu - 1)
-  if mu = 7 then
-    ⟨⟨(RegFile.withKnown (chKa lay)).set .x12 (cw (0x360 + 16 * i)),
-      [(⟨none, BitVec.ofNat 64 0xC0⟩, stB 4 (cw (mu - 1)))], []⟩, pcOf (st + 2), true, 2, 2, [], none⟩
+/-- After chain `C` of triple `t`: the extraction and dispatch of triple `t + 1`, or the return. -/
+def xExp (t : Nat) : PRes :=
+  if t + 1 < 14 then
+    ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, 4, 4, [], some (triTgt (t + 1))⟩
   else
-    ⟨⟨RegFile.withKnown (chKa lay),
-      [(⟨none, BitVec.ofNat 64 0xC0⟩, stB 4 (cw (mu - 1)))], []⟩, pcOf (st + 1), true, 1, 1, [], none⟩
+    ⟨⟨RegFile.withKnown chK0, [], []⟩, 0, false, 1, 1, [], some (mkBin .and (.reg .x1) (.c (~~~1#64)))⟩
 
-def ckeep : List Reg := [.x14, .x15, .x16, .x17, .x23, .x30, .x31]
+/-! ## Checks -/
 
-def okC (o : Option PRes) (e : PRes) (post : List (Reg × Word)) (keep : List Reg) : Bool :=
-  optBeq o e && resOK gkL e && knownB post e && keepB keep e
+def rungCheck (i mu p : Nat) : Bool := optBeq (runAt chK0 [] p []) (rungExp i mu p)
 
-def entryIdx (lay i e : Nat) : Nat := (tabAddr lay i - 0x1000) / 4 + 4 * e
+/-- The code of chain `i` (a triple's `B` or `C`) at digit `d`, from word `p` to `q`. -/
+def partCheck (i d p q : Nat) : Bool :=
+  if d = 7 then optBeq (runAt chK0 [q] p []) (copyExp i q false)
+  else optBeq (runAt chK0 [] p []) (headExp i d (p + 5) false) &&
+    (List.range' (d + 2) (6 - d)).all fun mu => rungCheck i mu (p + 5 + 2 * (mu - d - 1))
 
-def nEnt (i : Nat) : Nat := if isSingle i then 8 else 64
+/-- Table slot `t` of row `k`. -/
+def entCheck (t k : Nat) : Bool :=
+  let dA := k % 8
+  let dB := k / 8 % 8
+  let dC := k / 64
+  if dA = 7 then optBeq (runAt chK0 [pcB t dB dC] (entW t k) []) (copyExp (3 * t) (pcB t dB dC) true)
+  else optBeq (runAt chK0 [] (entW t k) []) (headExp (3 * t) dA (triBase t dB dC + 2 * dA) true)
 
-def entDigit (i e : Nat) : Nat := if isSingle i then e else if isFirst i then e % 8 else e / 8
+/-- The shared code of `(t, dB, dC)`: `A`'s rungs `2 .. 7`, `B`, `C`, the extraction or return. -/
+def blkCheck (t dB dC : Nat) : Bool :=
+  ((List.range' 2 6).all fun mu => rungCheck (3 * t) mu (triBase t dB dC + 2 * (mu - 1))) &&
+  partCheck (3 * t + 1) dB (pcB t dB dC) (pcC t dB dC) &&
+  partCheck (3 * t + 2) dC (pcC t dB dC) (pcX t dB dC) &&
+  optBeq (runAt chK0 [] (pcX t dB dC) [.jmp]) (xExp t)
 
-/-- The code copy that entry `e` of chain `i`'s table jumps into. -/
-def entCp (i e : Nat) : Nat := if isSingle i then 0 else e / 8
-
-def resBeq (a b : Result) : Bool :=
-  SymState.beq a.st b.st && E.beq a.pc b.pc && decide (a.stop = b.stop) && a.steps == b.steps &&
-    a.cycles == b.cycles
-
-theorem resBeq_eq {a b : Result} (h : resBeq a b = true) : a = b := by
-  obtain ⟨a1, a2, a3, a4, a5⟩ := a; obtain ⟨b1, b2, b3, b4, b5⟩ := b
-  simp only [resBeq, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at h
-  obtain ⟨⟨⟨⟨h1, h2⟩, h3⟩, h4⟩, h5⟩ := h
-  rw [SymState.beq_eq h1, E.beq_eq h2, h3, h4, h5]
-
-/-- Table entry of chain `i` for its digit `d` into copy `k`, as a straight-line run ending at the `jal`. -/
-def entryRes (lay i k d : Nat) : Result :=
-  let dst := if d < 7 then 0xF0 else 0x360 + 16 * i
-  let tgt := if d < 7 then s1K lay i k + 2 * d else nextK lay i k
-  let n := if d < 7 then 3 else 4
-  ⟨⟨RegFile.init,
-    [(⟨none, BitVec.ofNat 64 (dst + 8)⟩, .reg .x2), (⟨none, BitVec.ofNat 64 dst⟩, .reg .x1)], []⟩,
-    .c (pcOf tgt), .jump, n, n⟩
-
-/-- Check the entries `e, e+1, ...` of a table whose code (from entry `e`) is `ws`. -/
-def entChk (lay i : Nat) : List (BitVec 32) → Nat → Nat → Bool
-  | _, _, 0 => true
-  | ws, e, n + 1 =>
-    (match symRun cfg0 ws (pcOf (entryIdx lay i e)) 4 with
-     | some r => resBeq r (entryRes lay i (entCp i e) (entDigit i e))
-     | none => false) && entChk lay i (ws.drop 4) (e + 1) n
-
-def entriesCheck (lay i : Nat) : Bool :=
-  isSec i || entChk lay i (codeFrom (entryIdx lay i 0)) 0 (nEnt i)
-
-/-- The steps of every copy (for the pair-second chain, copy `k` has the steps `k + 1 .. 7`). -/
-def stepsCheck (lay i : Nat) : Bool :=
-  (List.range (nCp i)).all fun k => (List.range 7).all fun m =>
-    (isSec i && decide (m < k)) ||
-    okC (runAt (chKa lay) [] (s1K lay i k + 2 * m) []) (stepExp lay i k (m + 1))
-      (chK lay ++ [(.x12, BitVec.ofNat 64 (if m = 6 then 0x360 + 16 * i else 0xF0))]) ckeep
-
-def headKeep (i : Nat) : List Reg :=
-  [.x16, .x17, .x23, .x30, .x31] ++ (if hasPrep i then [] else [.x14])
-
-/-- The head of chain `i` at the end of copy `k` of chain `i - 1`. -/
-def headOk (lay i k : Nat) : Bool :=
-  if isSec i then
-    okC (runAt (headK lay i) [bStop lay i k] (nextK lay (i - 1) k) []) (bExp lay i k)
-      (chKa lay ++ [(.x15, BitVec.ofNat 64 (bVal lay i))]) (headKeep i)
-  else
-    okC (runAt (headK lay i) [] (nextK lay (i - 1) k) [.jmp]) (headExp lay i)
-      (chKa lay ++ [(.x15, BitVec.ofNat 64 (bVal lay i))]) (headKeep i)
-
-def headCheck (lay i : Nat) : Bool :=
-  i == 0 || (List.range (nCp (i - 1))).all fun k => headOk lay i k
-
-def chainCheck (lay i : Nat) : Bool := headCheck lay i && stepsCheck lay i && entriesCheck lay i
+/-- Everything of triple `t`: its 512 table slots and its 64 code blocks. -/
+def triCheck (t : Nat) (lo n : Nat) : Bool :=
+  ((List.range' lo n).all fun k => entCheck t k) &&
+  ((List.range' (lo / 8) (n / 8)).all fun q => blkCheck t (q / 8) (q % 8))
 
 end SigGolfCandidate.Verify

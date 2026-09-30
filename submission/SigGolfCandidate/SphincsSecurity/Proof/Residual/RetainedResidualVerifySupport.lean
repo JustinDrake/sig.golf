@@ -104,10 +104,11 @@ theorem fixedSourceRun_hash_success {Result : Type} {inputs : Finset HashInput} 
 
 theorem fixedSourceRun_verify_honest {inputs : Finset HashInput} (context : Context inputs)
     (memory : Memory) (hcompatible : Compatible context memory)
-    (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (context.dummy lay tree leaf))
-    (hroot : context.key.root = canonicalGraphRoot context.graph) (message : Message) (signature : Signature) (after : Memory)
+    (hdummy : ∀ lay tree leaf, OtsCode.Valid (context.dummy lay tree leaf))
+    (hroot : context.key.root = canonicalGraphRoot context.graph) (message : Message) (signature : Signature)
+    (pads : ChainPads) (after : Memory)
     (hresult : fixedSourceRun context
-      (FtsProbeSimulation.liftOracleWorldLeft (scheme.verify ⟨context.key.root, context.key.parameter⟩ message signature))
+      (FtsProbeSimulation.liftOracleWorldLeft (scheme.verify ⟨context.key.root, context.key.parameter⟩ message signature pads))
         memory (some true, after) ≠ 0) :
     ∃ digest, evalWithAnswerFn context.oracle (messageDigest context.key.parameter context.key.root message signature.randomness) = digest ∧
       CachedRun after.external.cache context.oracle (messageDigest context.key.parameter context.key.root message signature.randomness) ∧
@@ -116,11 +117,11 @@ theorem fixedSourceRun_verify_honest {inputs : Finset HashInput} (context : Cont
   have hcompatible' := fixedSourceRun_compatible context _ memory hcompatible true after hresult
   rw [FtsProbeSimulation.liftOracleWorldLeft_scheme_verify] at hresult
   obtain ⟨hvalue, hcached, _⟩ := fixedSourceRun_hash_success context _ memory true after hresult
-  exact hcompatible'.verify_honest hdummy hroot message signature hvalue.symm hcached
+  exact hcompatible'.verify_honest hdummy hroot message signature pads hvalue.symm hcached
 
 theorem fixedSourceRun_rest_honest {inputs : Finset HashInput} (context : Context inputs)
     (memory : Memory) (hcompatible : Compatible context memory)
-    (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (context.dummy lay tree leaf))
+    (hdummy : ∀ lay tree leaf, OtsCode.Valid (context.dummy lay tree leaf))
     (hroot : context.key.root = canonicalGraphRoot context.graph) (adversary : Adversary) (forgery : Forgery) (after : Memory)
     (hresult : fixedSourceRun context
       (FtsProbeSimulation.unloggedRetainedRestComputation adversary ⟨context.key.root, context.key.parameter⟩)
@@ -149,6 +150,6 @@ theorem fixedSourceRun_rest_honest {inputs : Finset HashInput} (context : Contex
           simp only [Option.elim_some, fixedSourceRun_pure, ne_eq, SPMF.pure_apply_eq_zero_iff,
             not_not, Prod.mk.injEq, Option.some.injEq] at hresult
           obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hresult
-          exact fixedSourceRun_verify_honest context middle hcompatible' hdummy hroot _ _ _ hchecked
+          exact fixedSourceRun_verify_honest context middle hcompatible' hdummy hroot _ _ _ _ hchecked
 
 end SphincsSecurity.Concrete.RetainedResidual

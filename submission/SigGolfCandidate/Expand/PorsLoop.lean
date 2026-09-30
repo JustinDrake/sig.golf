@@ -101,7 +101,7 @@ theorem segLoop_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) :
     PCtx w idx K t → t.pc = pcOf 550 → t.getReg .x9 = BitVec.ofNat 64 (0x800 + ptr) →
     t.getReg .x19 = BitVec.ofNat 64 E → t.getReg .x20 = BitVec.ofNat 64 folds →
     t.getReg .x21 = BitVec.ofNat 64 (0x30540 + 32 * stk.length) → StkOK t stk → stk.length ≤ 15 →
-    ptr % 8 = 0 → ptr + 232 * (stk.length + 1) ≤ 0x2B00 → folds + 14 * (stk.length + 1) < 2 ^ 30 → E < 2 ^ 15 →
+    ptr % 8 = 0 → ptr + 232 * (stk.length + 1) ≤ 0x4000 → folds + 14 * (stk.length + 1) < 2 ^ 30 → E < 2 ^ 15 →
     PendOK idx node pending t →
     Sim eimg t (600 * (stk.length + 1)) (segLoop idx w ptr E folds pending node stk)
       (OPost (LoopOut w idx K t ptr folds stk.length)) := by

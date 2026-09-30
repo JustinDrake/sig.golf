@@ -161,7 +161,7 @@ noncomputable def gameRest (segment : OtsPrefix) (root : Digest) (high : segment
     OracleComp segment.World (Bool × SigningBoundaryTrace) := do
   let result ← segment.adversaryRun root high outside ftsSecret words frontier (adversary.main ⟨root, segment.parameter⟩)
   let checked ← segment.boundary high outside (liftM
-    (verify ⟨root, segment.parameter⟩ result.1.1.message result.1.1.signature : OracleComp HashSpec Bool))
+    (verifyP ⟨root, segment.parameter⟩ result.1.1.message result.1.1.signature result.1.1.pads : OracleComp HashSpec Bool))
   pure (decide (SigningTranscript.Valid result.1.2 ∧ ¬SigningTranscript.Contains result.1.2 result.1.1) && checked.1,
     result.2 * checked.2)
 

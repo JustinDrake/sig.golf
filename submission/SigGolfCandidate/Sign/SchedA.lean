@@ -81,8 +81,8 @@ def StackAt (stack : List Nat) (t : MachineState) : Prop :=
 
 /-- The reads so far, copied to the signature's auth slots. -/
 def ReadsAt (levels : List (List Val)) (reads : List (Nat × Nat)) (t : MachineState) : Prop :=
-  reads.length ≤ 210 ∧ t.getReg .x29 = BitVec.ofNat 64 (0x3400 + 16 * reads.length) ∧
-  (∀ r (hr : r < reads.length), t.readWords (BitVec.ofNat 64 (0x3400 + 16 * r)) 2 = wordsOf (readVal levels reads[r])) ∧
+  reads.length ≤ 210 ∧ t.getReg .x29 = BitVec.ofNat 64 (0x24C00 + 16 * reads.length) ∧
+  (∀ r (hr : r < reads.length), t.readWords (BitVec.ofNat 64 (0x24C00 + 16 * r)) 2 = wordsOf (readVal levels reads[r])) ∧
   ∀ r (hr : r < reads.length), (readVal levels reads[r]).length = 16
 
 /-- The PORS levels in memory. -/
@@ -92,7 +92,7 @@ structure LevelsAt (levels : List (List Val)) (t : MachineState) : Prop where
     (∀ v ∈ levels.getD l [], v.length = 16) ∧ Slots t (lvBase l) (levels.getD l [])
 
 /-- Addresses written by the schedule. -/
-def schW (a : Nat) : Prop := (0x120 ≤ a ∧ a < 0x130) ∨ (0x760 ≤ a ∧ a < 0x7E0) ∨ (0x3400 ≤ a ∧ a < 0x3400 + 16 * 210)
+def schW (a : Nat) : Prop := (0x120 ≤ a ∧ a < 0x130) ∨ (0x760 ≤ a ∧ a < 0x7E0) ∨ (0x24C00 ≤ a ∧ a < 0x24C00 + 16 * 210)
 
 def schRegs : List Reg :=
   [.x1, .x2, .x3, .x8, .x9, .x13, .x15, .x17, .x18, .x19, .x20, .x21, .x23, .x24, .x25, .x26, .x29, .x30]
@@ -122,7 +122,7 @@ theorem sch_fold (levels : List (List Val))
       t'.getReg .x19 = BitVec.ofNat 64 (h + 1) ∧ t'.getReg .x18 = BitVec.ofNat 64 (E / 2) ∧
       ReadsAt levels (st.reads ++ [(h, (E ^^^ 1) - porsT / 2 ^ h)]) t' ∧
       RegsEq t t' [.x1, .x2, .x18, .x19, .x21, .x25, .x26, .x29] ∧
-      Frame t t' (fun a => 0x3400 + 16 * st.reads.length ≤ a ∧ a < 0x3400 + 16 * (st.reads.length + 1)) := by
+      Frame t t' (fun a => 0x24C00 + 16 * st.reads.length ≤ a ∧ a < 0x24C00 + 16 * (st.reads.length + 1)) := by
   obtain ⟨-, h29, hrm, hrlen⟩ := hrd
   have hT : porsT / 2 ^ h = 2 ^ (14 - h) := by
     unfold porsT porsH; rw [Nat.pow_div (by omega) (by norm_num)]
@@ -153,8 +153,8 @@ theorem sch_fold (levels : List (List Val))
   rw [hc1, hk1] at hs1
   have hval := (hlvt h (by omega)) j (by rw [hlh]; exact hj2)
   have hm1 : ∀ a : Nat, a < 2 ^ 64 → t1.getMem (BitVec.ofNat 64 a) =
-      if a = 0x3400 + 16 * st.reads.length + 8 then t.getMem (BitVec.ofNat 64 (lvBase h + 16 * j + 8))
-      else if a = 0x3400 + 16 * st.reads.length then t.getMem (BitVec.ofNat 64 (lvBase h + 16 * j))
+      if a = 0x24C00 + 16 * st.reads.length + 8 then t.getMem (BitVec.ofNat 64 (lvBase h + 16 * j + 8))
+      else if a = 0x24C00 + 16 * st.reads.length then t.getMem (BitVec.ofNat 64 (lvBase h + 16 * j))
       else t.getMem (BitVec.ofNat 64 a) := by
     intro a ha
     simp only [ht1, blk271.res, rv_simp, t18, t19, t30, h29]

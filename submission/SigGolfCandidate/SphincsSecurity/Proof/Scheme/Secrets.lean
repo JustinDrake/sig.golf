@@ -16,7 +16,7 @@ noncomputable def gameRest (scheme : Scheme SecretKey) (adversary : Adversary) (
     (sk : SecretKey) : OracleComp OracleWorld Bool := do
   let ((forgery, log) : Forgery × QueryLog SigningSpec) ←
     (simulateQ (forwardOracles + signingOracle scheme sk) (adversary.main pk)).run
-  let verified ← scheme.verify pk forgery.message forgery.signature
+  let verified ← scheme.verify pk forgery.message forgery.signature forgery.pads
   return decide (SigningTranscript.Valid log ∧ ¬SigningTranscript.Contains log forgery) && verified
 
 theorem gameCore_eq (scheme : Scheme SecretKey) (adversary : Adversary) :

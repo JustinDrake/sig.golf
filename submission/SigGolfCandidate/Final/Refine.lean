@@ -135,10 +135,14 @@ theorem ref_pipeline_eq (sk : SecretKey) (m : Message) :
   · rfl
   · simp only [Option.map_some, relabel_bind]
     rw [Equiv.expandRef_eq m _ _ (Equiv.compress σ)]
-    refine bind_congr fun e => ?_
+    -- the abstract expansion only outputs zero-pad witnesses, so the padded reference verifier
+    -- (`verifyRef_eqP`) agrees with the honest game's unpadded `verify` on its support
+    refine OracleComp.bind_congr_of_forall_mem_support _ fun e he => ?_
     rcases e with _ | w
     · rfl
-    · exact Equiv.verifyRef_eq m _ w
+    · simp only
+      rw [Equiv.verifyRef_eqP, Equiv.padOf_of_mem_support_aExpand_relabel m _ _ w he,
+        SphincsSecurity.Concrete.verifyP_zero]
 
 /-- **The honest pipeline's success bit is the abstract honest game** (relabelled by `fmtQ`). -/
 theorem success_honest_eq_game (hK : KeygenRefinementStatement) (hS : SignRefinementStatement)

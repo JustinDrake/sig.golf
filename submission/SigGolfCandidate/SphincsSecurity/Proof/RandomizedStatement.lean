@@ -25,7 +25,7 @@ noncomputable def romImpl : QueryImpl OracleWorld (StateT (QueryCache HashSpec) 
 structure Scheme (Key : Type := Seeded.SecretKey) where
   keygen : OracleComp OracleWorld (PublicKey × Key)
   sign : Key → Message → OracleComp OracleWorld (Option Signature)
-  verify : PublicKey → Message → Signature → OracleComp OracleWorld Bool
+  verify : PublicKey → Message → Signature → ChainPads → OracleComp OracleWorld Bool
 
 /-- A classical adaptive adversary. After receiving the public key, it may query the shared random oracle, request signatures, and finally return a claimed forgery. -/
 structure Adversary where
@@ -45,7 +45,7 @@ noncomputable def Seeded.gameRest {Key : Type} (randomizedScheme : Scheme Key) (
     (pk : PublicKey) (sk : Key) : OracleComp OracleWorld Bool := do
   let ((forgery, log) : Forgery × QueryLog SigningSpec) ←
     (simulateQ (forwardOracles + signingOracle randomizedScheme sk) (adversary.main pk)).run
-  let verified ← randomizedScheme.verify pk forgery.message forgery.signature
+  let verified ← randomizedScheme.verify pk forgery.message forgery.signature forgery.pads
   return decide (SigningTranscript.Valid log ∧ ¬SigningTranscript.Contains log forgery) && verified
 
 /-- Key generation, followed by the adversary and final verification. -/

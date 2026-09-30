@@ -14,13 +14,17 @@ theorem ReferenceLayerOpening.honest {f : QueryImpl HashSpec Id} {key : SecretKe
   obtain ⟨_, _, _, he, hv, hp⟩ := h
   exact ⟨words lay (treeIndexAt index lay) (leafIndexAt index lay), he, hv, hp⟩
 
+/-- **The small route's verifier classification** (padded verifier): an accepted padded forgery has the
+record's honest opening (about the record's unpadded layer computations), or a layer exception (the
+record's, or a padded chain match), or an FTS exception. -/
 theorem verify_classification (f : QueryImpl HashSpec Id) (key : SecretKey) (words : OtsReferenceWords)
-    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (message : Message) (signature : Signature) (trace : Trace)
-    (hvalid : ∀ lay tree leaf, OtsCode.Valid lay (words lay tree leaf))
+    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (message : Message) (signature : Signature)
+    (pads : ChainPads) (trace : Trace)
+    (hvalid : ∀ lay tree leaf, OtsCode.Valid (words lay tree leaf))
     (hmessages : ∀ index lay, messages ⟨lay, treeIndexAt index lay, leafIndexAt index lay⟩ = evalWithAnswerFn f (layerMessage key index lay))
     (hroot : key.root = honestNode f key.parameter topLayer rootTree (key.otsSecret topLayer rootTree) (layerHeight topLayer) 0)
-    (hverify : evalWithAnswerFn f (verify ⟨key.root, key.parameter⟩ message signature) = true)
-    (hrun : ContainsRun f trace (verify ⟨key.root, key.parameter⟩ message signature)) :
+    (hverify : evalWithAnswerFn f (verifyP ⟨key.root, key.parameter⟩ message signature pads) = true)
+    (hrun : ContainsRun f trace (verifyP ⟨key.root, key.parameter⟩ message signature pads)) :
     ∃ digest, evalWithAnswerFn f (messageDigest key.parameter key.root message signature.randomness) = digest ∧
       ContainsRun f trace (messageDigest key.parameter key.root message signature.randomness) ∧ Admissible digest ∧
       ((FullyHonestOpening f (recordedCache f trace) key (digestIndex digest) (digestLeaves digest) signature ∧
@@ -28,22 +32,34 @@ theorem verify_classification (f : QueryImpl HashSpec Id) (key : SecretKey) (wor
         ∀ slot, FtsVerifierWitness.TrueSecretQuery f key (digestIndex digest) (digestLeaves digest slot) trace) ∨
         LayerException f key words messages selections trace ∨ FtsVerifierWitness.Exception f key (digestIndex digest) trace) := by
   obtain ⟨digest, hd, hdrun, ftsPublicKey, hfts, hlayers, hftsrun, hlayersrun⟩ :=
-    verify_extract ⟨key.root, key.parameter⟩ message signature hverify hrun.cached
+    verifyP_extract ⟨key.root, key.parameter⟩ message signature pads hverify hrun.cached
   refine ⟨digest, hd, (recordedCache_run_iff f trace _).mp hdrun, ?_⟩
   have hftsrun' := (recordedCache_run_iff f trace _).mp hftsrun
-  rcases hypertree_classification f key words messages selections (digestIndex digest) ftsPublicKey signature trace
-      (fun lay => hvalid lay _ _) (hmessages (digestIndex digest)) hroot hlayers ((recordedCache_run_iff f trace _).mp hlayersrun)
-      with ⟨hkey, hopenings⟩ | he
-  · rw [hkey] at hfts
-    obtain ⟨hadmissible, hcase⟩ := FtsVerifierWitness.recover_classification f key (digestIndex digest)
-      (digestLeaves digest) signature.fts trace hfts hftsrun'
-    refine ⟨hadmissible, ?_⟩
-    rcases hcase with ⟨hftsOpening, hqueries⟩ | he
-    · refine Or.inl ⟨?_, fun lay => (hopenings lay).1, hqueries⟩
-      exact ⟨fun lay => ⟨(hopenings lay).1.honest, (hopenings lay).2⟩, hftsOpening, hftsrun⟩
-    · exact Or.inr (Or.inr he)
-  · -- a layer exception: admissibility still comes from the accepted stack machine
-    exact ⟨PorsMachine.ftsRecover_admissible f key.parameter (digestIndex digest) (digestLeaves digest) signature.fts
-      ftsPublicKey hfts, Or.inr (Or.inl he)⟩
+  by_cases hexc : LayerException f key words messages selections trace
+  · exact ⟨PorsMachine.ftsRecover_admissible f key.parameter (digestIndex digest) (digestLeaves digest) signature.fts
+      ftsPublicKey hfts, Or.inr (Or.inl hexc)⟩
+  have hwalk := hypertree_walkP (f := f) (cache := recordedCache f trace) key (digestIndex digest) signature pads
+    (fun lay => ReferenceLayerOpening f key words selections (digestIndex digest) signature lay ∧
+      CachedRun (recordedCache f trace) f (otsLeafAttempt key.parameter lay (treeIndexAt (digestIndex digest) lay)
+        (leafIndexAt (digestIndex digest) lay)
+        (evalWithAnswerFn f (layerMessage key (digestIndex digest) lay)) (signature.counter lay) (signature.chainValue lay)))
+    (fun lay message leafValue hframe hfold => by
+      have h := layer_frame_reference f key words messages selections (digestIndex digest) signature pads lay message
+        key.root leafValue trace (hvalid _ _ _) (hmessages _ _) hexc hframe hfold
+      refine ⟨h.1, h.2.1, ?_⟩
+      rw [← h.1]
+      exact h.2.2)
+    hroot _ hlayers hlayersrun
+  have hkey : ftsPublicKey = honestFtsKey f key.parameter (digestIndex digest) (key.ftsSecret (digestIndex digest)) := by
+    rw [hwalk.2, layerMessage_bottomLayer]
+    rfl
+  rw [hkey] at hfts
+  obtain ⟨hadmissible, hcase⟩ := FtsVerifierWitness.recover_classification f key (digestIndex digest)
+    (digestLeaves digest) signature.fts trace hfts hftsrun'
+  refine ⟨hadmissible, ?_⟩
+  rcases hcase with ⟨hftsOpening, hqueries⟩ | he
+  · refine Or.inl ⟨?_, fun lay => (hwalk.1 lay).1, hqueries⟩
+    exact ⟨fun lay => ⟨(hwalk.1 lay).1.honest, (hwalk.1 lay).2⟩, hftsOpening, hftsrun⟩
+  · exact Or.inr (Or.inr he)
 
 end SphincsSecurity.Concrete.OtsVerifierWitness

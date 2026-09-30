@@ -163,7 +163,7 @@ theorem native_adversaryRun {Result : Type} (parameter : PublicParameter) (root 
 noncomputable def verifyProgram (parameter : PublicParameter) (root : Digest) (labels : CanonicalGraphLabels)
     (forgery : Forgery) : OracleComp World ((Bool × SigningBoundaryTrace) × Trace) :=
   simulateQ (worldProgram parameter labels) (QueryPause.traced hashObservationTrace
-    (boundaryComputation parameter (liftM (verify ⟨root, parameter⟩ forgery.message forgery.signature : OracleComp HashSpec Bool))))
+    (boundaryComputation parameter (liftM (verifyP ⟨root, parameter⟩ forgery.message forgery.signature forgery.pads : OracleComp HashSpec Bool))))
 
 theorem fixed_verifyProgram (parameter : PublicParameter) (root : Digest)
     (otsSecret : Layer → TreeIndex → LeafIndex → ChainIndex → Digest)
@@ -172,9 +172,9 @@ theorem fixed_verifyProgram (parameter : PublicParameter) (root : Digest)
     simulateQ (fixedAnswers (auxiliaryAnswers parameter otsSecret labels residual signer)
       (FtsGuessSigning.secretTable ftsSecret)) (verifyProgram parameter root labels forgery) =
       pure (boundaryEval parameter (programmedHash parameter otsSecret ftsSecret labels residual)
-        (verify ⟨root, parameter⟩ forgery.message forgery.signature),
+        (verifyP ⟨root, parameter⟩ forgery.message forgery.signature forgery.pads),
         answerTrace (programmedHash parameter otsSecret ftsSecret labels residual)
-          (verify ⟨root, parameter⟩ forgery.message forgery.signature)) := by
+          (verifyP ⟨root, parameter⟩ forgery.message forgery.signature forgery.pads)) := by
   rw [verifyProgram, fixed_world_translate]
   exact fixedTrace_boundary_hash parameter _ _
 

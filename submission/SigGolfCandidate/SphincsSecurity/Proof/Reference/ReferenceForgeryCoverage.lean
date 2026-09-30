@@ -19,7 +19,7 @@ def ForgeryWitnessFor (key : SecretKey) (f : QueryImpl HashSpec Id) (root : Dige
   (∀ message signature, (⟨message, some signature⟩ : SigningEntry) ∈ before.1.1.2 →
     ReferenceSigningWitness.SignatureOrigin actualKey f message signature before.1.2) ∧
   result.frontier = frontier ∧
-  trace = before.2 * answerTrace f (verify ⟨actualKey.root, key.parameter⟩ before.1.1.1.message before.1.1.1.signature) ∧
+  trace = before.2 * answerTrace f (verifyP ⟨actualKey.root, key.parameter⟩ before.1.1.1.message before.1.1.1.signature before.1.1.1.pads) ∧
   (ReferenceFtsCoverage.Outcome actualKey f before.1.1.2 before.1.2 trace before.1.1.1 ∨
     ReferencePrimitiveWitness.Outcome actualKey f words (canonicalGraphMessage labels) selections result)
 

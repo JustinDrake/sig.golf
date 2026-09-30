@@ -244,7 +244,7 @@ theorem expected_monitoredWorldRun_creationCost {Result : Type} (computation : O
 /-! ### The completed run -/
 
 noncomputable def verifyComputation (forgery : Forgery) : OracleComp OracleWorld Bool :=
-  liftM (verify ⟨root, parameter⟩ forgery.message forgery.signature : OracleComp HashSpec Bool)
+  liftM (verifyP ⟨root, parameter⟩ forgery.message forgery.signature forgery.pads : OracleComp HashSpec Bool)
 
 noncomputable def expectedCompletedCharge (adversary : Adversary) (state : MonitoredState) : ENNReal :=
   expectedMonitoredCharge parameter root otsSecret labels inputs hencoding selections rows dummy slot budget required stopAfter

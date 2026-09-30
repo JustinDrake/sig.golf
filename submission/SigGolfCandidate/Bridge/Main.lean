@@ -39,9 +39,9 @@ lemma valid_of_inv {T : Transcript sub.sizes} {k : ℕ} {lg : QueryLog RequestSp
   exact hk.trans lifetime_le
 
 lemma not_contains_witness {T : Transcript sub.sizes} {k : ℕ} {lg : QueryLog RequestSpec} {c : ℕ}
-    (hI : Inv B T k lg c) {m : Message} (σ : SphincsSecurity.Signature)
+    (hI : Inv B T k lg c) {m : Message} (σ : SphincsSecurity.Signature) {pads : SphincsSecurity.ChainPads}
     (hfresh : T.freshMessage m = true) :
-    ¬SphincsSecurity.RequestTranscript.Contains lg ⟨B.msgOf m, σ⟩ := by
+    ¬SphincsSecurity.RequestTranscript.Contains lg ⟨B.msgOf m, σ, pads⟩ := by
   rintro ⟨e, he, h1, h2⟩
   obtain ⟨mo, hmo, hmem⟩ := hI.2.2.2.2 e he σ h2
   have : mo = m := B.msgOf_injective (hmo.trans h1)
@@ -57,7 +57,7 @@ lemma not_contains_signature {T : Transcript sub.sizes} {k : ℕ} {lg : QueryLog
     {c : ℕ} (hI : Inv B T k lg c) {m : Message} {σ : Bytes sub.sizes.signature}
     {w : Bytes sub.sizes.witness} (hw : B.compress (B.witDec w) = σ)
     (hfresh : T.freshSignature m σ = true) :
-    ¬SphincsSecurity.RequestTranscript.Contains lg ⟨B.msgOf m, B.witDec w⟩ := by
+    ¬SphincsSecurity.RequestTranscript.Contains lg ⟨B.msgOf m, B.witDec w, B.padDec w⟩ := by
   rintro ⟨e, he, h1, h2⟩
   obtain ⟨mo, hmo, hmem⟩ := hI.2.2.2.2 e he _ h2
   have : mo = m := B.msgOf_injective (hmo.trans h1)

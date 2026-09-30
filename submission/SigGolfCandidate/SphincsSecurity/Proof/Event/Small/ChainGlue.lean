@@ -65,11 +65,11 @@ theorem causalGame_queryBound (parameter : PublicParameter) (external : QueryImp
           (Nat.zero_le _)
     · exact weightBound_logged _ _ (visAdversary_weightBound adversary budget _ hbudget)
   have hverify : ∀ (root : Digest) (forgery : Forgery),
-      (boundaryComputation parameter (liftM (verify ⟨root, parameter⟩ forgery.message forgery.signature :
+      (boundaryComputation parameter (liftM (verifyP ⟨root, parameter⟩ forgery.message forgery.signature forgery.pads :
         OracleComp HashSpec Bool))).IsQueryBoundP CausalFrontierProgram.IsHash verifyHashBound := by
     intro root forgery
     rw [← isQueryBoundP_map_iff _ Prod.fst, boundaryComputation_fst]
-    exact isQueryBoundP_liftM_of_evenBound _ _ (evenBound_verify _ _ _)
+    exact isQueryBoundP_liftM_of_evenBound _ _ (evenBound_verifyP _ _ _ _)
   refine IsQueryBoundP.mono (n := budget - keygenHashCost + (verifyHashBound + 0)) ?_
     (by have := verifyHashBound_lt_keygen; omega)
   exact isQueryBoundP_bind (hadversary _) (fun result _ =>

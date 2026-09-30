@@ -20,7 +20,7 @@ namespace SigGolfCandidate.Sign
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Mem
 
 /-- Destination of the pack: `SIG + 2480`. -/
-abbrev packD : Nat := 0x3300 + 2144
+abbrev packD : Nat := 0x24B00 + 2144
 
 /-- All sources lie below the signature buffer (checked by the kernel). -/
 theorem packTab_src_ok : packTab.all (fun e => decide (e.2.1 < 0x3300 ∧ e.2.2 < 0x3300)) = true := by

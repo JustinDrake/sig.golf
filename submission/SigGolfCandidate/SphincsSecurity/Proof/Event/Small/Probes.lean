@@ -160,7 +160,7 @@ theorem fixed_completedRun_probes_visAdversary (environment : Environment Auxili
   have hbefore := fixed_adversaryRun_probes_weight environment secrets parameter labels _ _
     (visAdversary_weightBound adversary budget ⟨root, parameter⟩ hbudget) state before hb
   have hchecked := fixed_tracedBoundary_probes_bound environment secrets parameter labels _ verifyHashBound
-    (isQueryBoundP_liftM_of_evenBound _ _ (evenBound_verify _ _ _)) before.2 checked hc
+    (isQueryBoundP_liftM_of_evenBound _ _ (evenBound_verifyP _ _ _ _)) before.2 checked hc
   have hK := verifyHashBound_lt_keygen
   change checked.2.probes ≤ state.probes + budget
   omega

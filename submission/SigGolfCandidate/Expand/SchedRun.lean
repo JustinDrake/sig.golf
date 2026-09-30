@@ -33,7 +33,7 @@ structure HM (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (s h : Nat)
   x21 : u.getReg .x21 = BitVec.ofNat 64 x.2.2.1
   x23 : u.getReg .x23 = BitVec.ofNat 64 (0x760 + 8 * x.1.stack.length)
   x24 : u.getReg .x24 = BitVec.ofNat 64 (2 ^ 14)
-  x29 : u.getReg .x29 = BitVec.ofNat 64 (0x3400 + 16 * x.1.reads.length)
+  x29 : u.getReg .x29 = BitVec.ofNat 64 (0x24C00 + 16 * x.1.reads.length)
   x30 : u.getReg .x30 = BitVec.ofNat 64 (0x910 + (segStream sig x.1.segs).length)
   x31 : u.getReg .x31 = BitVec.ofNat 64 (0x910 + (segStream sig x.1.segs).length + 8 + 16 * x.2.2.1)
   stack : StackOK u x.1.stack
@@ -232,8 +232,8 @@ theorem sch_step (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : S
     set L := (segStream sig st.segs).length with hLdef
     set r := st.reads.length with hrdef
     have hm3 : ∀ y : Nat, y < 2 ^ 64 → u3.getMem (BitVec.ofNat 64 y) =
-        if y = 0x910 + (L + 8 + 16 * cnt) + 8 then u.getMem (BitVec.ofNat 64 (0x3400 + 16 * r + 8))
-        else if y = 0x910 + (L + 8 + 16 * cnt) then u.getMem (BitVec.ofNat 64 (0x3400 + 16 * r))
+        if y = 0x910 + (L + 8 + 16 * cnt) + 8 then u.getMem (BitVec.ofNat 64 (0x24C00 + 16 * r + 8))
+        else if y = 0x910 + (L + 8 + 16 * cnt) then u.getMem (BitVec.ofNat 64 (0x24C00 + 16 * r))
         else u2.getMem (BitVec.ofNat 64 y) := by
       intro y hy
       rw [hu3, toState_getMem_two rfl]
@@ -274,11 +274,11 @@ theorem sch_step (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : S
       refine stream_sd2 (P := L + 8 + 16 * cnt) (by omega) (by omega) (by rw [hlc]) 
         (length_sigAuth sig hc.siglen _ (by omega)) hstr (fun y hy => by rw [m4, hm3 y hy, m2]) ?_ ?_
       · intro k hk
-        rw [hfr _ (by omega) (by unfold SW; omega), show 0x3400 + 16 * r = 0x3300 + (256 + 16 * r) by ring,
+        rw [hfr _ (by omega) (by unfold SW; omega), show 0x24C00 + 16 * r = 0x24B00 + (256 + 16 * r) by ring,
           sig_dword_byte hc.sigok _ _ (by omega) hk (by omega), getD_sigAuth sig hc.siglen _ _ (by omega) (by omega),
           show nsum st.segs + cnt = r from hns]
       · intro k hk
-        rw [hfr _ (by omega) (by unfold SW; omega), show 0x3400 + 16 * r + 8 = 0x3300 + (256 + 16 * r + 8) by ring,
+        rw [hfr _ (by omega) (by unfold SW; omega), show 0x24C00 + 16 * r + 8 = 0x24B00 + (256 + 16 * r + 8) by ring,
           sig_dword_byte hc.sigok _ _ (by omega) hk (by omega), getD_sigAuth sig hc.siglen _ _ (by omega) (by omega),
           show nsum st.segs + cnt = r from hns]
         congr 1; ring
@@ -329,7 +329,7 @@ structure LM (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (s : Nat) (
   x8 : u.getReg .x8 = BitVec.ofNat 64 s
   x23 : u.getReg .x23 = BitVec.ofNat 64 (0x760 + 8 * st.stack.length)
   x24 : u.getReg .x24 = BitVec.ofNat 64 (2 ^ 14)
-  x29 : u.getReg .x29 = BitVec.ofNat 64 (0x3400 + 16 * st.reads.length)
+  x29 : u.getReg .x29 = BitVec.ofNat 64 (0x24C00 + 16 * st.reads.length)
   x30 : u.getReg .x30 = BitVec.ofNat 64 (0x910 + (segStream sig st.segs).length)
   x31 : u.getReg .x31 = BitVec.ofNat 64 (0x910 + (segStream sig st.segs).length + 8)
   stack : StackOK u st.stack
@@ -453,7 +453,7 @@ theorem leaf_close (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (s : 
     (st : SchedState) (u : MachineState) (hpc : u.pc = pcOf 129) (h8 : u.getReg .x8 = BitVec.ofNat 64 s)
     (h23 : u.getReg .x23 = BitVec.ofNat 64 (0x760 + 8 * st.stack.length))
     (h24 : u.getReg .x24 = BitVec.ofNat 64 (2 ^ 14))
-    (h29 : u.getReg .x29 = BitVec.ofNat 64 (0x3400 + 16 * st.reads.length))
+    (h29 : u.getReg .x29 = BitVec.ofNat 64 (0x24C00 + 16 * st.reads.length))
     (h30 : u.getReg .x30 = BitVec.ofNat 64 (0x910 + (segStream sig st.segs).length))
     (h31 : u.getReg .x31 = BitVec.ofNat 64 (0x910 + (segStream sig st.segs).length + 8))
     (hstk : StackOK u st.stack) (hstkb : ∀ q ∈ st.stack, q < 2 ^ 15) (hslen : st.stack.length ≤ s + 1)

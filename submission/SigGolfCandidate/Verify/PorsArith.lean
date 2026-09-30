@@ -1,5 +1,6 @@
 import SigGolfCandidate.Verify.PorsRuns
-import SigGolfCandidate.Verify.LayArith
+import SigGolfCandidate.Verify.Swar
+import Mathlib.Tactic.Ring
 
 /-! # Digest-word arithmetic for the PORS phase: idx, the leaf indices, tweak words, counters -/
 
@@ -7,6 +8,47 @@ set_option linter.unusedSimpArgs false
 
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref
+
+/-! ## Sub-word stores and counters (copies of `LayArith` facts, so that the PORS part does not
+depend on the layer modules) -/
+
+theorem preplaceWord32_0_toNat (w : BitVec 64) (v : BitVec 32) :
+    (replaceWord32 w 0 v).toNat = w.toNat / 2 ^ 32 % 2 ^ 32 * 2 ^ 32 + v.toNat := by
+  unfold replaceWord32
+  have hm : (~~~(0xFFFFFFFF#64 <<< (0 * 32)) : BitVec 64) =
+      BitVec.ofNat 64 (2 ^ 32 * (2 ^ 32 - 1) + (2 ^ 0 - 1)) := by decide
+  rw [hm, BitVec.toNat_or, BitVec.toNat_and, BitVec.toNat_shiftLeft]
+  simp only [BitVec.toNat_ofNat, BitVec.truncate_eq_setWidth, BitVec.toNat_setWidth, Nat.zero_mul,
+    Nat.shiftLeft_zero]
+  have hv := v.isLt
+  have hw := w.isLt
+  rw [Nat.mod_eq_of_lt (show v.toNat < 2 ^ 64 by omega), Nat.mod_eq_of_lt (show v.toNat < 2 ^ 64 by omega),
+    Nat.mod_eq_of_lt (show 2 ^ 32 * (2 ^ 32 - 1) + (2 ^ 0 - 1) < 2 ^ 64 by norm_num),
+    land_split _ _ 0 32 (by decide), Nat.and_two_pow_sub_one_eq_mod, Nat.pow_zero, Nat.mod_one, Nat.add_zero,
+    ← Nat.two_pow_add_eq_or_of_lt hv]
+  ring
+
+theorem pmerge_w0_toNat (w v : BitVec 64) :
+    (StoreKind.merge .w w 0 v).toNat = w.toNat / 2 ^ 32 % 2 ^ 32 * 2 ^ 32 + v.toNat % 2 ^ 32 := by
+  simp only [StoreKind.merge, show (0 : Nat) / 4 = 0 from rfl]
+  rw [preplaceWord32_0_toNat]
+  simp [BitVec.toNat_setWidth]
+
+theorem pleNat_slice8 (l : List Byte) (off : Nat) (h : off + 4 ≤ l.length) :
+    leNat (slice l off 8) = leNat (slice l off 4) + 2 ^ 32 * leNat (slice l (off + 4) 4) := by
+  have : slice l off 8 = slice l off 4 ++ slice l (off + 4) 4 := by
+    simp only [slice]
+    rw [show (8 : Nat) = 4 + 4 from rfl, List.take_add, List.drop_drop, Nat.add_comm off 4]
+  rw [this, leNat_append]
+  have : (slice l off 4).length = 4 := by simp [slice]; omega
+  rw [this]; norm_num
+
+
+theorem pwitCounter_lt (wl : List Byte) (lay : Nat) : witCounter wl lay < 2 ^ 32 := by
+  unfold witCounter
+  have := leNat_lt (slice wl (ctrOff lay) 4)
+  have l4 : (slice wl (ctrOff lay) 4).length ≤ 4 := by simp [slice]
+  exact lt_of_lt_of_le this (le_trans (Nat.pow_le_pow_right (by decide) l4) (by norm_num))
 
 theorem ext_toNat (a : BitVec 256) (i : Nat) :
     (a.extractLsb' (64 * i) 64).toNat = a.toNat / 2 ^ (64 * i) % 2 ^ 64 := by

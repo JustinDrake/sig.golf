@@ -282,15 +282,15 @@ theorem boundaryRun_finishGame (pk : PublicKey) (outcome : Forgery × QueryLog S
   rw [finishGame, fixedBoundaryRun_bind, mem_support_bind_iff] at hf
   obtain ⟨checked, hchecked, hf⟩ := hf
   rw [fixedBoundaryRun_pure, map_pure, support_pure, Set.mem_singleton_iff] at hf
-  change checked ∈ support (fixedBoundaryRun pk.parameter f (liftM (verify pk outcome.1.message outcome.1.signature :
+  change checked ∈ support (fixedBoundaryRun pk.parameter f (liftM (verifyP pk outcome.1.message outcome.1.signature outcome.1.pads :
     OracleComp HashSpec Bool))) at hchecked
   rw [fixedBoundaryRun_lift_hash, support_pure, Set.mem_singleton_iff] at hchecked
   rw [hf, hchecked]
   simp only [mul_one]
-  refine ⟨boundaryEval_even _ f _ _ (evenBound_verify _ _ _), ?_⟩
-  have hcalls := evenBound_boundaryEval pk.parameter f (evenBound_verify pk outcome.1.message outcome.1.signature)
+  refine ⟨boundaryEval_even _ f _ _ (evenBound_verifyP _ _ _ _), ?_⟩
+  have hcalls := evenBound_boundaryEval pk.parameter f (evenBound_verifyP pk outcome.1.message outcome.1.signature outcome.1.pads)
   refine le_trans ?_ hcalls
-  have := SigningBoundaryTrace.partition (boundaryEval pk.parameter f (verify pk outcome.1.message outcome.1.signature :
+  have := SigningBoundaryTrace.partition (boundaryEval pk.parameter f (verifyP pk outcome.1.message outcome.1.signature outcome.1.pads :
     OracleComp HashSpec Bool)).2
   omega
 

@@ -47,7 +47,7 @@ def SuccessWitnessFor (key : SecretKey) (f : QueryImpl HashSpec Id) (root : Dige
   (∀ message signature, (⟨message, some signature⟩ : SigningEntry) ∈ before.1.1.2 →
     ReferenceSigningWitness.SignatureOrigin actualKey f message signature before.1.2) ∧
   result.frontier = frontier ∧
-  trace = before.2 * answerTrace f (verify ⟨actualKey.root, key.parameter⟩ before.1.1.1.message before.1.1.1.signature) ∧
+  trace = before.2 * answerTrace f (verifyP ⟨actualKey.root, key.parameter⟩ before.1.1.1.message before.1.1.1.signature before.1.1.1.pads) ∧
   CountersInRange before.1.1.1.signature ∧
   ∃ digest, evalWithAnswerFn f (messageDigest key.parameter actualKey.root before.1.1.1.message before.1.1.1.signature.randomness) = digest ∧
     ContainsRun f trace (messageDigest key.parameter actualKey.root before.1.1.1.message before.1.1.1.signature.randomness) ∧ Admissible digest ∧
@@ -63,18 +63,18 @@ theorem run_success_atRoot (key : SecretKey) (f : QueryImpl HashSpec Id) (root :
     (hroot : root = honestNode f key.parameter topLayer rootTree (key.otsSecret topLayer rootTree) (layerHeight topLayer) 0)
     (selections : ReferenceFamily) (dummy : OtsReferenceWords) (adversary : Adversary) (result : ContactResult)
     (before : AdversaryTrace) (hselected : selections = referenceTableSelection key f)
-    (hvalid : ∀ lay tree leaf, OtsCode.Valid lay (referenceFamilyWords selections dummy lay tree leaf))
+    (hvalid : ∀ lay tree leaf, OtsCode.Valid (referenceFamilyWords selections dummy lay tree leaf))
     (hb : before ∈ support (fixedTrace f (CausalFrontierProgram.adversaryRun key.parameter root f key.ftsSecret
       (referenceFamilyWords selections dummy)
       (canonicalGraphFrontier key.otsSecret (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f) (referenceFamilyWords selections dummy))
       (adversary.main ⟨root, key.parameter⟩))))
     (hv : SigningTranscript.Valid before.1.1.2) (hf : ¬SigningTranscript.Contains before.1.1.2 before.1.1.1)
-    (hverify : evalWithAnswerFn f (verify ⟨root, key.parameter⟩ before.1.1.1.message before.1.1.1.signature) = true)
+    (hverify : evalWithAnswerFn f (verifyP ⟨root, key.parameter⟩ before.1.1.1.message before.1.1.1.signature before.1.1.1.pads) = true)
     (hfrontier : result.frontier = canonicalGraphFrontier key.otsSecret
       (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f) (referenceFamilyWords selections dummy))
-    (ht : result.before * result.after = before.2 * answerTrace f (verify ⟨root, key.parameter⟩ before.1.1.1.message before.1.1.1.signature)) :
+    (ht : result.before * result.after = before.2 * answerTrace f (verifyP ⟨root, key.parameter⟩ before.1.1.1.message before.1.1.1.signature before.1.1.1.pads)) :
     SuccessWitnessFor key f root (referenceFamilyWords selections dummy) selections adversary result before := by
-  have hrun : ContainsRun f (result.before * result.after) (verify ⟨root, key.parameter⟩ before.1.1.1.message before.1.1.1.signature) := by
+  have hrun : ContainsRun f (result.before * result.after) (verifyP ⟨root, key.parameter⟩ before.1.1.1.message before.1.1.1.signature before.1.1.1.pads) := by
     rw [ht]
     exact (containsRun_answerTrace f _).mul_left before.2
   have hw : referenceFamilyWords selections dummy = canonicalReferenceWords (keyAtRoot f key root) f dummy := by
@@ -87,9 +87,9 @@ theorem run_success_atRoot (key : SecretKey) (f : QueryImpl HashSpec Id) (root :
     (isSigningFrontier_canonical (keyAtRoot f key root) f _) (keyTopHonest_keyAtRoot f key root)
     (frontierReferenceWord_canonical (keyAtRoot f key root) f dummy)
     (adversary.main ⟨root, key.parameter⟩) before hbc
-  refine ⟨hb, hv, hf, horigin, hfrontier, ht, counters_of_verify _ _ _ hverify, ?_⟩
+  refine ⟨hb, hv, hf, horigin, hfrontier, ht, counters_of_verifyP _ _ _ _ hverify, ?_⟩
   obtain ⟨digest, hdigest, hdigestRun, hadmissible, hcases⟩ := verify_classification f (keyAtRoot f key root) (referenceFamilyWords selections dummy)
-    (canonicalGraphMessage (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f)) selections before.1.1.1.message before.1.1.1.signature
+    (canonicalGraphMessage (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f)) selections before.1.1.1.message before.1.1.1.signature before.1.1.1.pads
     (result.before * result.after) hvalid (canonical_messages key f root) hroot hverify hrun
   refine ⟨digest, hdigest, hdigestRun, hadmissible, ?_⟩
   rcases hcases with ⟨hfull, href, hqueries⟩ | hbad

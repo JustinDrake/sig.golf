@@ -211,7 +211,7 @@ theorem tracedWorldProgram_query_bind {Result : Type} (input : OracleWorld.Domai
 
 theorem verifyProgram_eq_traced (forgery : Forgery) :
     verifyProgram parameter root labels forgery =
-      tracedWorldProgram parameter labels (liftM (verify ⟨root, parameter⟩ forgery.message forgery.signature : OracleComp HashSpec Bool)) := rfl
+      tracedWorldProgram parameter labels (liftM (verifyP ⟨root, parameter⟩ forgery.message forgery.signature forgery.pads : OracleComp HashSpec Bool)) := rfl
 
 theorem monitoredWorldStep_erasure (input : OracleWorld.Domain) (state : MonitoredState) :
     (fun result => (result.1, result.2.1)) <$>
@@ -253,7 +253,7 @@ noncomputable def monitoredCompletedRun (adversary : Adversary) (state : Monitor
     (adversary.main ⟨root, parameter⟩) state >>= fun before =>
     (fun checked => ((before.1, checked.1), checked.2)) <$>
       monitoredWorldRun parameter root otsSecret labels inputs hencoding selections rows dummy slot budget required stopAfter
-        (liftM (verify ⟨root, parameter⟩ before.1.1.1.1.message before.1.1.1.1.signature : OracleComp HashSpec Bool)) before.2
+        (liftM (verifyP ⟨root, parameter⟩ before.1.1.1.1.message before.1.1.1.1.signature before.1.1.1.1.pads : OracleComp HashSpec Bool)) before.2
 
 theorem monitoredCompletedRun_erasure (adversary : Adversary) (state : MonitoredState) :
     (fun result => (result.1, result.2.1)) <$>

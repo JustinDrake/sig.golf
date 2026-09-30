@@ -1,4 +1,5 @@
 import SigGolfCandidate.Equiv.Wit
+import SigGolfCandidate.SphincsSecurity.Proof.Scheme.Bytes
 
 /-!
 # Honest hash inputs
@@ -995,5 +996,394 @@ theorem hq_keygen (seed : MasterSeed) : HQ (SphincsSecurity.Seeded.keygenFromSee
   refine hq_bind (hq_bind (hq_sequenceFin _ fun _ => hq_bind (hq_sequenceFin _ fun _ =>
     hq_bind (hq_maskSecret _ _ _ _) fun _ => hq_pure _) fun _ => hq_pure _) fun _ => hq_pure _) fun _ => ?_
   exact hq_bind (hq_mac _ _ _) fun _ => hq_pure _
+
+
+/-! ## W1a padded chain inputs
+
+The padded verifier (`SphincsSecurity.Concrete.verifyP`) also hashes 80-byte chain inputs
+`tw ‖ P ‖ pad ‖ v` with a nonzero pad. `Ref.fmt` maps them to the one-block W1a chain block
+`tw' ‖ pad ‖ v` (`Ref.padChainBlock`); it is injective on `HonestP = Honest ∨ PadHonest`
+(`fmtQ_injOn_honestP`), the formal "common tweak offset" condition of W1a. -/
+
+/-- A padded chain input the W1a verifier may issue: 80 bytes, tag `1`, zero parameter slot, position
+below `2^27`, and a **nonzero** pad (bytes `32 .. 64`). A zero pad is the record's 48-byte input. -/
+def PadHonest (x : List UInt8) : Prop :=
+  x.head? = some 1 ∧ x.length = 80 ∧ x.getD 1 0 = 1 ∧
+    (x.drop 16).take 16 = List.replicate 16 0 ∧ posField x < 2 ^ 27 ∧
+    (x.drop 32).take 32 ≠ List.replicate 32 0
+
+/-- The honest inputs of the padded game: the record's, and the padded chain inputs. -/
+def HonestP (x : List UInt8) : Prop := Honest x ∨ PadHonest x
+
+theorem honestP_head (x : List UInt8) (h : HonestP x) : x.head? = some 1 :=
+  h.elim (fun h => h.1) (fun h => h.1)
+
+theorem honestP_of_honest {x : List UInt8} (h : Honest x) : HonestP x := Or.inl h
+
+theorem tag_of_toB {x : List UInt8} (h : (toB x).getD 1 0 = Ref.byte 1) : x.getD 1 0 = 1 := by
+  rw [getD_toB] at h
+  exact UInt8.toBitVec_inj.mp h
+
+/-- The record's honest inputs never take the padded branch (tag 1 means 48 bytes). -/
+theorem not_isPadChainFmt_of_honest {x : List UInt8} (h : Honest x) : ¬ Ref.IsPadChainFmt (toB x) := by
+  rintro ⟨hl, ht⟩
+  have hl' : x.length = 80 := by rwa [length_toB] at hl
+  have h1 := tag_of_toB ht
+  have := h.2.1
+  rw [h1, hl'] at this
+  exact absurd this (by decide)
+
+theorem isPadChainFmt_of_padHonest {x : List UInt8} (h : PadHonest x) : Ref.IsPadChainFmt (toB x) :=
+  ⟨by rw [length_toB]; exact h.2.1, tag_toB x 1 h.2.2.1⟩
+
+theorem fmtQ_of_padHonest {x : List UInt8} (h : PadHonest x) :
+    fmtQ x = ⟨0, Ref.ofList _ (Ref.padChainBlock (toB x))⟩ :=
+  Ref.fmt_of_padChain _ (isPadChainFmt_of_padHonest h)
+
+set_option exponentiation.threshold 600 in
+theorem bytes_fmtQ_of_padHonest {x : List UInt8} (h : PadHonest x) :
+    Ref.toList (fmtQ x).2 = Ref.padChainBlock (toB x) := by
+  rw [fmtQ_of_padHonest h]
+  exact Ref.toList_ofList _ _ (Ref.length_padChainBlock _ (by rw [length_toB]; exact h.2.1))
+
+/-- The pad slot, as organizer bytes, is nonzero. -/
+theorem slice32_ne_zeros {x : List UInt8} (h : PadHonest x) : Ref.slice (toB x) 32 32 ≠ Ref.zeros 32 := by
+  intro heq
+  apply h.2.2.2.2.2
+  have hlen : ((x.drop 32).take 32).length = 32 := by simp [h.2.1]
+  apply List.ext_getElem (by rw [hlen, List.length_replicate])
+  intro i hi _
+  have hi' : i < 32 := by rwa [hlen] at hi
+  have e := congrArg (fun l : List Byte => l[i]?) heq
+  simp only [Ref.slice, toB, ← List.map_drop, ← List.map_take, List.getElem?_map, Ref.zeros,
+    List.getElem?_replicate, hi', if_true] at e
+  rw [List.getElem_replicate]
+  have hget : ((x.drop 32).take 32)[i]? = some ((x.drop 32).take 32)[i] := List.getElem?_eq_getElem hi
+  rw [hget] at e
+  simp only [Option.map_some, Option.some.injEq] at e
+  exact UInt8.toBitVec_inj.mp e
+
+theorem decomp5 (z : List Byte) :
+    z = z.take 4 ++ Ref.slice z 4 4 ++ Ref.slice z 8 8 ++ Ref.slice z 16 16 ++ Ref.slice z 32 32 ++ z.drop 64 := by
+  have h1 := decomp z 4 4 8 16
+  have h2 : z.drop 32 = Ref.slice z 32 32 ++ z.drop 64 := by
+    unfold Ref.slice
+    rw [show (64 : Nat) = 32 + 32 from rfl, ← List.drop_drop, List.take_append_drop]
+  conv_lhs => rw [h1, h2]
+  simp only [List.append_assoc]
+
+
+/-- Two padded inputs with the same block are equal. -/
+theorem padHonest_inj {x y : List UInt8} (hx : PadHonest x) (hy : PadHonest y) (hxy : fmtQ x = fmtQ y) :
+    x = y := by
+  have hL : Ref.padChainBlock (toB x) = Ref.padChainBlock (toB y) := by
+    rw [← bytes_fmtQ_of_padHonest hx, ← bytes_fmtQ_of_padHonest hy, hxy]
+  have lx : (toB x).length = 80 := by rw [length_toB]; exact hx.2.1
+  have ly : (toB y).length = 80 := by rw [length_toB]; exact hy.2.1
+  apply toB_injective
+  set z := toB x with hz
+  set w := toB y with hw
+  unfold Ref.padChainBlock at hL
+  obtain ⟨e1, eE⟩ := List.append_inj hL (by simp [Ref.slice]; omega)
+  obtain ⟨e2, eD⟩ := List.append_inj e1 (by simp [Ref.slice]; omega)
+  obtain ⟨e3, eC⟩ := List.append_inj e2 (by simp [Ref.slice]; omega)
+  obtain ⟨eA, eB⟩ := List.append_inj e3 (by simp; omega)
+  have hpx := hx.2.2.2.2.1
+  have hpy := hy.2.2.2.2.1
+  have eB' := congrArg Ref.leNat eB
+  rw [Ref.leNat_le32, Ref.leNat_le32] at eB'
+  unfold posField at hpx hpy
+  rw [← hz] at hpx; rw [← hw] at hpy
+  have bx : Ref.splitP (Ref.leNat (Ref.slice z 4 4)) < 2 ^ 32 := by unfold Ref.splitP; omega
+  have bw : Ref.splitP (Ref.leNat (Ref.slice w 4 4)) < 2 ^ 32 := by unfold Ref.splitP; omega
+  rw [Nat.mod_eq_of_lt bx, Nat.mod_eq_of_lt bw] at eB'
+  have ep : Ref.leNat (Ref.slice z 4 4) = Ref.leNat (Ref.slice w 4 4) := by
+    unfold Ref.splitP at eB'; omega
+  have e4 : Ref.slice z 4 4 = Ref.slice w 4 4 := by
+    rw [← le32_leNat (Ref.slice z 4 4) (hlength_slice _ _ _ (by omega)),
+      ← le32_leNat (Ref.slice w 4 4) (hlength_slice _ _ _ (by omega)), ep]
+  have eP : Ref.slice z 16 16 = Ref.slice w 16 16 := by
+    rw [slice_toB_zero x 16 hx.2.2.2.1, slice_toB_zero y 16 hy.2.2.2.1]
+  rw [decomp5 z, decomp5 w, eA, e4, eC, eP, eD, eE]
+
+/-- A record input and a padded input never share a query: equal queries force tag 1, hence a record
+chain block, whose bytes `16 .. 48` are zero, while the padded block carries its nonzero pad there. -/
+theorem fmtQ_honest_ne_pad {x y : List UInt8} (hx : Honest x) (hy : PadHonest y) : fmtQ x ≠ fmtQ y := by
+  intro hxy
+  have ly : (toB y).length = 80 := by rw [length_toB]; exact hy.2.1
+  have hL : Ref.fmtList (toB x) = Ref.padChainBlock (toB y) := by
+    rw [← bytes_fmtQ_of_padHonest hy, ← hxy]
+    exact (Ref.toList_fmt (toB x)).symm
+  have hx2 := honest_length x hx
+  have hb : (toB x).getD 1 0 = Ref.byte 1 := by
+    have e := congrArg (fun l => l.getD 1 0) hL
+    rw [Ref.getD_fmtList _ _ (Or.inl (by omega))] at e
+    rw [e]
+    unfold Ref.padChainBlock
+    simp only [List.append_assoc, List.getD_eq_getElem?_getD]
+    rw [List.getElem?_append_left (by simp [ly])]
+    rw [List.getElem?_take_of_lt (by omega)]
+    rw [← List.getD_eq_getElem?_getD]
+    exact tag_toB y 1 hy.2.2.1
+  have h1 := tag_of_toB hb
+  have hl48 : x.length = 48 := by rw [hx.2.1, h1]; rfl
+  have lx : (toB x).length = 48 := by rw [length_toB]; exact hl48
+  have hcx : Ref.IsChainFmt (toB x) := ⟨lx, hb⟩
+  have hy80 := hy.2.1
+  unfold Ref.fmtList at hL
+  rw [if_pos hcx] at hL
+  unfold Ref.chainBlock Ref.padChainBlock at hL
+  obtain ⟨e1, _⟩ := List.append_inj hL (by simp [Ref.slice]; omega)
+  obtain ⟨_, eD⟩ := List.append_inj e1 (by simp [Ref.slice]; omega)
+  exact slice32_ne_zeros hy eD.symm
+
+/-- **The formal common-offset condition for W1a**: the oracle input format is injective on the
+padded game's honest inputs. -/
+theorem fmtQ_injOn_honestP : Set.InjOn fmtQ HonestP := by
+  intro x hx y hy hxy
+  rcases hx with hx | hx <;> rcases hy with hy | hy
+  · exact fmtQ_injOn hx hy hxy
+  · exact absurd hxy (fmtQ_honest_ne_pad hx hy)
+  · exact absurd hxy.symm (fmtQ_honest_ne_pad hy hx)
+  · exact padHonest_inj hx hy hxy
+
+/-! ### The abstract padded chain input is `PadHonest`, and its query is the W1a block -/
+
+theorem length_bytesLE16 (v : Digest) : (SphincsSecurity.bytesLE 16 v).length = 16 := length_bytesLE 16 v
+
+theorem bytesLE16_zero : SphincsSecurity.bytesLE 16 (0 : Digest) = List.replicate 16 0 := by
+  unfold SphincsSecurity.bytesLE
+  apply List.ext_getElem (by simp)
+  intro i h1 h2
+  simp only [List.getElem_ofFn, List.getElem_replicate]
+  apply UInt8.toBitVec_inj.mp
+  simp [BitVec.extractLsb']
+
+/-- The facts `PadHonest` asks of the first 32 bytes are those of any input with the same 32-byte
+prefix. -/
+theorem prefix32_facts {x y : List UInt8} (h : x.take 32 = y.take 32) :
+    x.head? = y.head? ∧ x.getD 1 0 = y.getD 1 0 ∧ (x.drop 16).take 16 = (y.drop 16).take 16 ∧
+      posField x = posField y := by
+  have hhead : x.head? = y.head? := by
+    have e := congrArg (fun l => l[0]?) h
+    simp only [List.getElem?_take] at e
+    rw [List.head?_eq_getElem?, List.head?_eq_getElem?]
+    simpa using e
+  refine ⟨hhead, ?_, ?_, ?_⟩
+  · have := congrArg (fun l => l.getD 1 0) h
+    simpa [List.getD_eq_getElem?_getD, List.getElem?_take] using this
+  · have e := congrArg (fun l => (l.drop 16).take 16) h
+    simp only [List.drop_take, List.take_take] at e
+    simpa using e
+  · unfold posField Ref.slice
+    have e := congrArg (fun l => ((toB l).drop 4).take 4) h
+    simp only [toB, ← List.map_take, ← List.map_drop, List.drop_take, List.take_take] at e ⊢
+    simp only [show min 4 28 = 4 from rfl] at e
+    rw [e]
+
+theorem bytesLE16_ne_zero_pair {pad : Digest × Digest} (hpad : pad ≠ 0) :
+    SphincsSecurity.bytesLE 16 pad.1 ++ SphincsSecurity.bytesLE 16 pad.2 ≠ List.replicate 32 0 := by
+  intro h
+  have h' : SphincsSecurity.bytesLE 16 pad.1 ++ SphincsSecurity.bytesLE 16 pad.2 =
+      SphincsSecurity.bytesLE 16 (0 : Digest) ++ SphincsSecurity.bytesLE 16 (0 : Digest) := by
+    rw [h, bytesLE16_zero]; rfl
+  obtain ⟨e1, e2⟩ := List.append_inj h' (by rw [length_bytesLE16, length_bytesLE16])
+  apply hpad
+  exact Prod.ext (SphincsSecurity.bytesLE_injective e1) (SphincsSecurity.bytesLE_injective e2)
+
+/-- **Every padded query of the abstract padded verifier is `PadHonest`** (parameter `0`). -/
+theorem padHonest_chain (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (c : ChainIndex)
+    (step : SphincsSecurity.ChainStep) (pad : SphincsSecurity.Pad) (hpad : pad ≠ 0) (v : Digest) :
+    PadHonest (SphincsSecurity.tweakableHashInput 0 (.chain lay tree leaf c step)
+      (SphincsSecurity.Concrete.chainPayload pad v)) := by
+  have hstep := step.isLt
+  have hc := c.isLt
+  have hbase : Honest (SphincsSecurity.tweakableHashInput 0 (.chain lay tree leaf c step)
+      (SphincsSecurity.bytesLE 16 v)) := by
+    rw [tweakableHashInput_eq]
+    refine honest_tw 1 lay.val tree.val (SphincsSecurity.chainLength * c.val + step.val) leaf.val 0 _
+      (by simp [tagLen, length_bytesLE]) (fun _ => ⟨rfl, ?_⟩) (fun h => absurd h (by decide))
+      (fun h => absurd h (by decide))
+    simp only [SphincsSecurity.chainLength, SphincsSecurity.winternitzBits, SphincsSecurity.numChains] at hstep hc ⊢
+    omega
+  set x := SphincsSecurity.tweakableHashInput 0 (.chain lay tree leaf c step) (SphincsSecurity.bytesLE 16 v)
+  set y := SphincsSecurity.tweakableHashInput 0 (.chain lay tree leaf c step) (SphincsSecurity.Concrete.chainPayload pad v)
+  have hpre : SphincsSecurity.tweakableHashInput 0 (.chain lay tree leaf c step) [] =
+      SphincsSecurity.tweakBytes (.chain lay tree leaf c step) ++ SphincsSecurity.bytesLE 16 (0 : SphincsSecurity.PublicParameter) := by
+    simp [SphincsSecurity.tweakableHashInput]
+  have hlen32 : (SphincsSecurity.tweakBytes (.chain lay tree leaf c step) ++
+      SphincsSecurity.bytesLE 16 (0 : SphincsSecurity.PublicParameter)).length = 32 := by
+    rw [List.length_append, length_bytesLE]
+    simp [SphincsSecurity.tweakBytes, length_fieldBytes]
+  have htx : x.take 32 = y.take 32 := by
+    simp only [x, y, SphincsSecurity.tweakableHashInput, List.append_assoc]
+    rw [← List.append_assoc, List.take_left' hlen32, ← List.append_assoc, List.take_left' hlen32]
+  obtain ⟨e1, e2, e3, e4⟩ := prefix32_facts htx
+  have hlenY : y.length = 80 := by
+    simp only [y, SphincsSecurity.tweakableHashInput, SphincsSecurity.Concrete.chainPayload, if_neg hpad, List.length_append,
+      length_bytesLE]
+    simp [SphincsSecurity.tweakBytes, length_fieldBytes]
+  have hx1 : x.getD 1 0 = 1 := by
+    simp only [x, tweakableHashInput_eq, List.append_assoc, getD1_fieldBytes]
+    rfl
+  obtain ⟨hh, hl, hP, hpos⟩ : x.head? = some 1 ∧ x.length = tagLen (x.getD 1 0).toNat ∧
+      ((x.getD 1 0 = 1 → (x.drop 16).take 16 = List.replicate 16 0 ∧ posField x < 2 ^ 27)) ∧ True :=
+    ⟨hbase.1, hbase.2.1, hbase.2.2.1, trivial⟩
+  obtain ⟨hP16, hpos27⟩ := hP hx1
+  refine ⟨e1 ▸ hh, hlenY, e2 ▸ hx1, e3 ▸ hP16, e4 ▸ hpos27, ?_⟩
+  have hdrop : (y.drop 32).take 32 = SphincsSecurity.bytesLE 16 pad.1 ++ SphincsSecurity.bytesLE 16 pad.2 := by
+    simp only [y, SphincsSecurity.tweakableHashInput, SphincsSecurity.Concrete.chainPayload, if_neg hpad, List.append_assoc]
+    rw [← List.append_assoc (SphincsSecurity.tweakBytes _), List.drop_left' hlen32, ← List.append_assoc,
+      List.take_left' (by rw [List.length_append, length_bytesLE16, length_bytesLE16])]
+  rw [hdrop]
+  exact bytesLE16_ne_zero_pair hpad
+
+theorem padChainBlock_append (A Pb Vb : List Byte) (hA : A.length = 32) (hP : Pb.length = 32) :
+    Ref.padChainBlock (A ++ (Pb ++ Vb)) =
+      (A.take 4 ++ Ref.le32 (Ref.splitP (Ref.leNat (Ref.slice A 4 4))) ++ Ref.slice A 8 8) ++ Pb ++ Vb := by
+  unfold Ref.padChainBlock
+  have e1 : (A ++ (Pb ++ Vb)).take 4 = A.take 4 := List.take_append_of_le_length (by omega)
+  rw [e1, hslice_append_left _ _ 4 4 (by omega),
+    hslice_append_left _ _ 8 8 (by omega)]
+  have h32 : Ref.slice (A ++ (Pb ++ Vb)) 32 32 = Pb := by
+    unfold Ref.slice
+    rw [List.drop_left' hA, List.take_left' hP]
+  have h64 : (A ++ (Pb ++ Vb)).drop 64 = Vb := by
+    rw [show (64 : Nat) = 32 + 32 from rfl, ← List.drop_drop, List.drop_left' hA, List.drop_left' hP]
+  rw [h32, h64]
+
+theorem chainBlock_append_take (A Vb : List Byte) (hA : A.length = 32) :
+    (Ref.chainBlock (A ++ Vb)).take 16 =
+      A.take 4 ++ Ref.le32 (Ref.splitP (Ref.leNat (Ref.slice A 4 4))) ++ Ref.slice A 8 8 := by
+  unfold Ref.chainBlock
+  have e1 : (A ++ Vb).take 4 = A.take 4 := List.take_append_of_le_length (by omega)
+  rw [e1, hslice_append_left _ _ 4 4 (by omega), hslice_append_left _ _ 8 8 (by omega)]
+  have hl : (A.take 4 ++ Ref.le32 (Ref.splitP (Ref.leNat (Ref.slice A 4 4))) ++ Ref.slice A 8 8).length = 16 := by
+    simp [Ref.slice, hA]
+  rw [List.append_assoc (A.take 4 ++ Ref.le32 (Ref.splitP (Ref.leNat (Ref.slice A 4 4))) ++ Ref.slice A 8 8)
+    (Ref.zeros 32), List.take_left' hl]
+
+/-- **The machine view** of a padded chain step: its oracle query is the record's chain block with
+the 32 zero bytes replaced by the pad, `tw' ‖ pad ‖ v` (what `Ref.verifyRef` hashes in place in the
+W1a witness block). With a zero pad the input is the record chain input (`Ref.fmt_of_chain`). -/
+theorem fmtQ_padded_bytes (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (c : ChainIndex) (step : SphincsSecurity.ChainStep)
+    (pad : Digest × Digest) (hpad : pad ≠ 0) (v : Digest) :
+    Ref.toList (fmtQ (SphincsSecurity.tweakableHashInput 0 (.chain lay tree leaf c step) (SphincsSecurity.Concrete.chainPayload pad v))).2 =
+      (Ref.chainBlock (toB (SphincsSecurity.tweakableHashInput 0 (.chain lay tree leaf c step)
+          (SphincsSecurity.bytesLE 16 v)))).take 16 ++
+        toB (SphincsSecurity.bytesLE 16 pad.1 ++ SphincsSecurity.bytesLE 16 pad.2) ++
+        toB (SphincsSecurity.bytesLE 16 v) := by
+  rw [bytes_fmtQ_of_padHonest (padHonest_chain lay tree leaf c step pad hpad v)]
+  set T := SphincsSecurity.tweakBytes (.chain lay tree leaf c step) ++
+    SphincsSecurity.bytesLE 16 (0 : SphincsSecurity.PublicParameter) with hT
+  have hT32 : (toB T).length = 32 := by
+    rw [length_toB, hT, List.length_append, length_bytesLE]
+    simp [SphincsSecurity.tweakBytes, length_fieldBytes]
+  have hx : toB (SphincsSecurity.tweakableHashInput 0 (.chain lay tree leaf c step) (SphincsSecurity.bytesLE 16 v)) =
+      toB T ++ toB (SphincsSecurity.bytesLE 16 v) := by
+    simp only [hT, SphincsSecurity.tweakableHashInput, toB, List.map_append]
+  have hy : toB (SphincsSecurity.tweakableHashInput 0 (.chain lay tree leaf c step) (SphincsSecurity.Concrete.chainPayload pad v)) =
+      toB T ++ (toB (SphincsSecurity.bytesLE 16 pad.1 ++ SphincsSecurity.bytesLE 16 pad.2) ++
+        toB (SphincsSecurity.bytesLE 16 v)) := by
+    simp only [hT, SphincsSecurity.tweakableHashInput, SphincsSecurity.Concrete.chainPayload, if_neg hpad, toB, List.map_append,
+      List.append_assoc]
+  have hP32 : (toB (SphincsSecurity.bytesLE 16 pad.1 ++ SphincsSecurity.bytesLE 16 pad.2)).length = 32 := by
+    rw [length_toB, List.length_append, length_bytesLE16, length_bytesLE16]
+  rw [hx, hy, padChainBlock_append _ _ _ hT32 hP32, chainBlock_append_take _ _ hT32]
+
+
+/-! ### The padded verifier makes only `HonestP` queries -/
+
+/-- Every query of an abstract computation is honest for the padded game. -/
+abbrev HQP {α : Type} (oa : AComp α) : Prop :=
+  AllQ (ι := List UInt8) (R := SphincsSecurity.HashOutput) HonestP oa
+
+theorem allQ_mono {P Q : List UInt8 → Prop} (hPQ : ∀ x, P x → Q x) {α : Type} {oa : AComp α}
+    (h : AllQ (ι := List UInt8) (R := SphincsSecurity.HashOutput) P oa) :
+    AllQ (ι := List UInt8) (R := SphincsSecurity.HashOutput) Q oa := by
+  induction oa using OracleComp.inductionOn with
+  | pure x => exact allQ_pure Q x
+  | query_bind t k ih =>
+    rw [SigGolfCandidate.Bridge.allQ_query_bind] at h ⊢
+    exact ⟨hPQ _ h.1, fun u => ih u (h.2 u)⟩
+
+theorem hqp_of_hq {α : Type} {oa : AComp α} (h : HQ oa) : HQP oa := allQ_mono (fun _ hx => Or.inl hx) h
+
+theorem hqp_pure {α : Type} (a : α) : HQP (pure a : AComp α) := allQ_pure HonestP a
+
+theorem hqp_bind {α β : Type} {oa : AComp α} {ob : α → AComp β} (h : HQP oa) (h' : ∀ x, HQP (ob x)) :
+    HQP (oa >>= ob) := allQ_bind HonestP h h'
+
+theorem hqp_sequenceFin {α : Type} {n : Nat} (c : Fin n → AComp α) (h : ∀ j, HQP (c j)) :
+    HQP (sequenceFin c) := by
+  induction n with
+  | zero => exact hqp_pure _
+  | succ n ih =>
+    exact hqp_bind (h 0) fun _ => hqp_bind (ih _ fun j => h j.succ) fun _ => hqp_pure _
+
+theorem hqp_chainWalkP (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (c : ChainIndex)
+    (pad : SphincsSecurity.Pad) (start steps : Nat) (v : Digest) :
+    HQP (SphincsSecurity.Concrete.chainWalkP (m := AComp) 0 lay tree leaf c pad start steps v) := by
+  induction steps with
+  | zero => exact hqp_pure _
+  | succ n ih =>
+    refine hqp_bind ih fun prev => ?_
+    split
+    · rename_i hstep
+      refine hqp_bind ((allQ_query (R := SphincsSecurity.HashOutput) HonestP _).mpr ?_) fun _ => hqp_pure _
+      by_cases hpad : pad = 0
+      · subst hpad
+        left
+        rw [show SphincsSecurity.Concrete.chainPayload 0 prev = SphincsSecurity.bytesLE 16 prev from if_pos rfl,
+          tweakableHashInput_eq]
+        refine honest_tw 1 lay.val tree.val (SphincsSecurity.chainLength * c.val + (start + n)) leaf.val 0 _
+          (by simp [tagLen, length_bytesLE]) (fun _ => ⟨rfl, ?_⟩) (fun h => absurd h (by decide))
+          (fun h => absurd h (by decide))
+        have e : SphincsSecurity.chainLength = 8 := rfl
+        have hc := c.isLt
+        unfold SphincsSecurity.numChains at hc
+        rw [e] at hstep ⊢
+        exact lt_of_le_of_lt (Nat.mod_le _ _) (by omega)
+      · exact Or.inr (padHonest_chain lay tree leaf c _ pad hpad prev)
+    · exact hqp_pure _
+
+theorem hqp_otsLeafP (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : Digest)
+    (c : SphincsSecurity.Counter) (values : ChainIndex → Digest) (pads : ChainIndex → SphincsSecurity.Pad) :
+    HQP (SphincsSecurity.Concrete.otsLeafP (m := AComp) 0 lay tree leaf M c values pads) := by
+  unfold SphincsSecurity.Concrete.otsLeafP
+  refine hqp_bind (hqp_of_hq (hq_encode _ _ _ _ _ _)) fun r => ?_
+  split
+  · exact hqp_bind (hqp_sequenceFin _ fun c => hqp_chainWalkP _ _ _ _ _ _ _ _) fun _ =>
+      hqp_bind (hqp_of_hq (hq_leafHash _ _ _ _ _)) fun _ => hqp_pure _
+  · exact hqp_pure _
+
+theorem hqp_verifyLayersP (index : Index) (σ : Signature) (pads : SphincsSecurity.ChainPads) (n : Nat)
+    (M : Digest) : HQP (SphincsSecurity.Concrete.verifyLayersP (m := AComp) 0 index σ pads n M) := by
+  induction n generalizing M with
+  | zero => exact hqp_pure _
+  | succ n ih =>
+    unfold SphincsSecurity.Concrete.verifyLayersP
+    split
+    · refine hqp_bind (hqp_otsLeafP _ _ _ _ _ _ _) fun r => ?_
+      split
+      · exact hqp_bind (hqp_of_hq (hq_treeFold _ _ _ _ _ (Nat.mod_lt _ (Nat.two_pow_pos _)) _ le_rfl _))
+          fun _ => ih _
+      · exact hqp_pure _
+    · exact hqp_pure _
+
+/-- **The padded verifier** makes only `HonestP` queries, for every pad. -/
+theorem hq_verifyP (pk : SphincsSecurity.PublicKey) (hP : pk.parameter = 0) (m : Message)
+    (σ : Signature) (pads : SphincsSecurity.ChainPads) :
+    HQP (SphincsSecurity.Concrete.verifyP (m := AComp) pk m σ pads) := by
+  unfold SphincsSecurity.Concrete.verifyP SphincsSecurity.Concrete.verifyCoreP
+  split
+  · refine hqp_bind (hqp_of_hq (hq_messageDigest _ hP _ _ _)) fun d => ?_
+    refine hqp_bind (hqp_of_hq (hq_ftsRecover _ _ _ _)) fun r => ?_
+    split
+    · rw [hP]
+      refine hqp_bind (hqp_verifyLayersP _ _ _ _ _) fun r => ?_
+      split <;> exact hqp_pure _
+    · exact hqp_pure _
+  · exact hqp_pure _
 
 end SigGolfCandidate.Equiv

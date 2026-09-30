@@ -67,7 +67,7 @@ theorem cachedGameRest_eq (signer : TopCache → Message → OracleComp HashSpec
     cachedGameRest signer adversary pk cache =
       requestLoggedRun (fun request => liftM (signer request.cache request.message)) (adversary.main pk cache) >>= fun result =>
         (fun verified => decide (RequestTranscript.Valid result.2 ∧ ¬RequestTranscript.Contains result.2 result.1) && verified) <$>
-          (liftM (Concrete.verify pk result.1.message result.1.signature : OracleComp HashSpec Bool) : OracleComp OracleWorld Bool) := by
+          (liftM (Concrete.verifyP pk result.1.message result.1.signature result.1.pads : OracleComp HashSpec Bool) : OracleComp OracleWorld Bool) := by
   unfold cachedGameRest requestLoggedRun
   simp only [map_eq_bind_pure_comp]
   rfl
@@ -526,7 +526,7 @@ noncomputable def idealGame (randomizers : RandomizerOutputs) (secretKey : Sphin
       (adversary.main pk published) >>= fun result =>
     (fun verified => decide (SigningTranscript.Valid (projectLog published result.2) ∧
         ¬SigningTranscript.Contains (projectLog published result.2) result.1) && verified) <$>
-      (liftM (Concrete.verify pk result.1.message result.1.signature : OracleComp HashSpec Bool) :
+      (liftM (Concrete.verifyP pk result.1.message result.1.signature result.1.pads : OracleComp HashSpec Bool) :
         OracleComp OracleWorld Bool)
 
 theorem gameRest_simAdversary (randomizers : RandomizerOutputs) (secretKey : SphincsSecurity.SecretKey)
@@ -575,14 +575,14 @@ theorem romRun_count_map {α β : Type} (computation : OracleComp OracleWorld α
 noncomputable def verdictRun (verdict : Bool → Bool) (pk : PublicKey) (forgery : Forgery) (count : Nat)
     (cache : QueryCache HashSpec) : ProbComp (Bool × Nat) :=
   (fun result => (verdict result.1, count + result.2)) <$>
-    (simulateQ romImpl (countHashQueries (liftM (Concrete.verify pk forgery.message forgery.signature :
+    (simulateQ romImpl (countHashQueries (liftM (Concrete.verifyP pk forgery.message forgery.signature forgery.pads :
       OracleComp HashSpec Bool) : OracleComp OracleWorld Bool))).run' cache
 
 theorem romRun_logged_verdict (impl : SigningRequest → OracleComp OracleWorld (Option Signature))
     (computation : OracleComp (OracleWorld + RequestSpec) Forgery) (pk : PublicKey)
     (verdict : Forgery × QueryLog RequestSpec → Bool → Bool) (cache : QueryCache HashSpec) :
     (simulateQ romImpl (countHashQueries (requestLoggedRun impl computation >>= fun result =>
-        (verdict result) <$> (liftM (Concrete.verify pk result.1.message result.1.signature :
+        (verdict result) <$> (liftM (Concrete.verifyP pk result.1.message result.1.signature result.1.pads :
           OracleComp HashSpec Bool) : OracleComp OracleWorld Bool)))).run' cache =
       countedRun impl computation cache >>= fun head =>
         verdictRun (verdict head.1.1) pk head.1.1.1 head.1.2 head.2 := by

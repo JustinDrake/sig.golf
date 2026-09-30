@@ -31,8 +31,8 @@ theorem gameRest_eq_map_retained
   rcases result with ⟨forgery, log⟩
   rw [simulateQ_bind]
   have hlift : simulateQ (expandedAdversaryImpl secretKey)
-      (liftOracleWorldLeft (scheme.verify publicKey forgery.message forgery.signature)) =
-      scheme.verify publicKey forgery.message forgery.signature :=
+      (liftOracleWorldLeft (scheme.verify publicKey forgery.message forgery.signature forgery.pads)) =
+      scheme.verify publicKey forgery.message forgery.signature forgery.pads :=
     FtsProbeSimulation.simulateQ_expanded_liftOracleWorldLeft secretKey _
   rw [hlift]
   simp only [simulateQ_pure, map_bind, map_pure]

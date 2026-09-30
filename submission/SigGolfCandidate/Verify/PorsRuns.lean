@@ -1,5 +1,4 @@
 import SigGolfCandidate.Verify.PorsMem
-import SigGolfCandidate.Verify.LayerRuns
 
 /-!
 # The PORS stack machine: expected symbolic results of its code blocks
@@ -142,7 +141,7 @@ def entCheck1 (tb b : Nat) : Bool :=
     pspecB gkP (runAt gkP [ladPc (segV tb b) (segT b) (14 - segA b)] (slotPc tb b + 5) []) (entSpec tb b) []
       (gkP ++ [(.x10, 0x1C0)]) [.x14, .x15, .x16, .x17, .x20, .x22, .x23, .x24, .x29]
 
-def entCheck : Bool := (List.range 2).all fun tb => (List.range 256).all fun b => entCheck1 tb b
+def pentCheck : Bool := (List.range 2).all fun tb => (List.range 256).all fun b => entCheck1 tb b
 
 def posKnown : List (Reg × Word) := gkP ++ [(.x10, 0x1C0)]
 def posKeep : List Reg := [.x14, .x15, .x16, .x17, .x20, .x22, .x24, .x29]
@@ -213,12 +212,16 @@ def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw EMPTY, d⟩
 
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
+/-- Known at the start of the layer-4 transition (`LayerRuns.l4K`; W1a: `gkL0` includes the chain
+constants `t3 = 2^40`, `sp = TMASK`, `a5 = ttab + 2048` that the root tail sets). -/
+def tailFK : List (Reg × Word) := gkL0 ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40101)]
+
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[], [], f4Pc c, false, 20, [fBr3 false, fBr2 false, fBr1 false], none, 20⟩
+  ⟨[], [], f4Pc c, false, 25, [fBr3 false, fBr2 false, fBr1 false], none, 25⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB gkL0 (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
-    l4K [.x22] &&
+    tailFK [.x22] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br true]) (rejSpec 4 [fBr1 true]) [] [] [] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br true]) (rejSpec 6 [fBr2 true, fBr1 false]) [] [] [] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br false, .br true])
@@ -279,15 +282,15 @@ def k0 : List (Reg × Word) :=
 def gkD : List (Reg × Word) := baseK
 def dgK : List (Reg × Word) := gkD ++ [(.x10, 0x20), (.x11, 64), (.x12, 0x160)]
 
-/-- The counters: two doublewords and a word at `WIT + 6328`. -/
-def ctrX : E := .bin .or (.bin .or (ldE 8376) (ldE 8384)) (.un (.ld .wu 0) (ldE 8392))
+/-- The counters (W1a): `c0 .. c3` as two doublewords at `WIT + 2944`, `c4` as a word at `WIT + 2392`. -/
+def ctrX : E := .bin .or (.bin .or (ldE 4992) (ldE 5000)) (.un (.ld .wu 0) (ldE 4440))
 def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
 
 def specStartOk : Spec :=
   ⟨[], [(⟨none, BitVec.ofNat 64 56⟩, ldE 2056), (⟨none, BitVec.ofNat 64 48⟩, ldE 2048),
     (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 27, true, 27, [⟨.ne, ctrE', .c 0, false⟩], none, 27⟩
 def specStartRej : Spec :=
-  ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 20, [⟨.ne, ctrE', .c 0, true⟩], none, 20⟩
+  ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 19, [⟨.ne, ctrE', .c 0, true⟩], none, 19⟩
 
 def wLdE (i : Nat) : E := ldE (0x160 + 8 * i)
 def idxE : E := .bin .srl (.bin .sll (wLdE 0) (cw 30)) (cw 30)
@@ -318,7 +321,7 @@ def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x830), (.x15, BitVec.ofNat 64 EMPTY),
     (.x29, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 104, [], none, 104⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 107, [], none, 107⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&

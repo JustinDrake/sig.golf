@@ -274,21 +274,6 @@ theorem eval_aLayers (key : SphincsSecurity.SecretKey) (hP : key.parameter = 0) 
 theorem ofList_le32_counter (c : Counter) : Ref.ofList 4 (Ref.le32 c.toNat) = c := by
   rw [Ref.le32, Equiv.leBytes_eq_toList, BitVec.ofNat_toNat, BitVec.setWidth_eq, Ref.ofList_toList]
 
-theorem slice_le32s (L : List Nat) (j : Nat) (hj : j < L.length) :
-    Ref.slice (L.map Ref.le32).flatten (4 * j) 4 = Ref.le32 (L.getD j 0) := by
-  induction L generalizing j with
-  | nil => simp at hj
-  | cons x L ih =>
-    cases j with
-    | zero =>
-      simp only [List.map_cons, List.flatten_cons, List.getD_cons_zero, Nat.mul_zero]
-      rw [Equiv.slice_append_left _ _ _ _ (by simp [Ref.le32, Ref.leBytes]),
-        Equiv.slice_full _ _ (by simp [Ref.le32, Ref.leBytes])]
-    | succ j =>
-      simp only [List.map_cons, List.flatten_cons, List.getD_cons_succ]
-      rw [Equiv.slice_append_right _ _ _ (4 * j) _ (by simp [Ref.le32, Ref.leBytes]; ring)]
-      exact ih j (by simpa using hj)
-
 /-- Under a fixed answer function, the expansion of an honestly produced signature succeeds with a
 witness decoding to the signature: the digest and the partial witness as before (R4), the PORS root
 the verifier's recovery gives, and per layer the signer's counter (`eval_aLayers`). -/
@@ -297,10 +282,10 @@ theorem eval_aExpand_sign' (seed : MasterSeed) (message : Message) {pk : PublicK
     (hkeys : evalWithAnswerFn f (Seeded.keygenFromSeed seed) = (pk, cache, sk))
     (hsign : evalWithAnswerFn f (Seeded.sign sk cache message
       : OracleComp SphincsSecurity.HashSpec (Option Signature)) = some S) :
-    ∃ wl : List Legacy.Byte, wl.length = 6348 ∧
+    ∃ wl : List Legacy.Byte, wl.length = 16384 ∧
       evalWithAnswerFn f (Equiv.aExpand message pk (Equiv.compress S)) =
-        some (Ref.ofList 6348 (Ref.withCounters wl ((List.range numLayers).map (ctrOf S)))) ∧
-      Equiv.witDec (Ref.ofList 6348 (Ref.withCounters wl ((List.range numLayers).map (ctrOf S)))) = S := by
+        some (Ref.ofList 16384 (Ref.withCounters wl ((List.range numLayers).map (ctrOf S)))) ∧
+      Equiv.witDec (Ref.ofList 16384 (Ref.withCounters wl ((List.range numLayers).map (ctrOf S)))) = S := by
   rw [Completeness.eval_keygenFromSeed] at hkeys
   simp only [Prod.mk.injEq] at hkeys
   obtain ⟨rfl, rfl, rfl⟩ := hkeys
@@ -332,16 +317,13 @@ theorem eval_aExpand_sign' (seed : MasterSeed) (message : Message) {pk : PublicK
   have hS : S = ⟨S.randomness, Concrete.honestFts leaves (key.ftsSecret index Concrete.porsTree)
       (Concrete.honestFtsNode f key.parameter index Concrete.porsTree (key.ftsSecret index Concrete.porsTree)), S.layers⟩ := by
     rw [← hfts]
-  obtain ⟨wl, hlen, hexp, hwit⟩ := Equiv.expandOf_honest leaves hadm d.toNat
+  obtain ⟨wl, hlen, hexp, hwit0, hwit⟩ := Equiv.expandOf_honest leaves hadm d.toNat
     (fun r => Equiv.leafOf_eq d r) S.randomness _ _ S.layers
   rw [← hS] at hexp
   -- the decoded partial witness
   have hW0 : Equiv.witSig wl = ⟨S.randomness, S.fts, fun lay =>
-      ⟨Ref.ofList 4 (Ref.slice (wl.drop 6328) (4 * lay.val) 4), (S.layers lay).chainValues,
-        (S.layers lay).path⟩⟩ := by
-    have := hwit (wl.drop 6328)
-    rw [List.take_append_drop] at this
-    rw [this, ← hfts]
+      ⟨0, (S.layers lay).chainValues, (S.layers lay).path⟩⟩ := by
+    rw [hwit0, ← hfts]
   have hwf : Equiv.witFts wl = S.fts := by
     have := congrArg Signature.fts hW0
     exact this
@@ -358,13 +340,8 @@ theorem eval_aExpand_sign' (seed : MasterSeed) (message : Message) {pk : PublicK
   rw [hbottom] at hL
   set cs := (List.range numLayers).map (ctrOf S) with hcs
   have hcsl : cs.length = 5 := by simp [hcs, numLayers]
-  have hctr : ((cs.map Ref.le32).flatten).length = 20 := by
-    rw [List.length_flatten, List.map_map]
-    have : ∀ c ∈ cs, (List.length ∘ Ref.le32) c = 4 := fun c _ => by simp [Ref.le32, Ref.leBytes]
-    rw [List.map_congr_left this, List.map_const', List.sum_replicate, hcsl]; rfl
-  have hwc : (Ref.withCounters wl cs).length = 6348 := by
-    unfold Ref.withCounters
-    rw [List.length_append, List.length_take, hctr, Ref.witCounters_eq, hlen]; rfl
+  have hwc : (Ref.withCounters wl cs).length = 16384 := by
+    rw [Equiv.length_withCounters _ _ (by omega), hlen]
   refine ⟨wl, hlen, ?_, ?_⟩
   · unfold Equiv.aExpand
     rw [ofList_sigRho_compress, evalWithAnswerFn_bind]
@@ -383,14 +360,14 @@ theorem eval_aExpand_sign' (seed : MasterSeed) (message : Message) {pk : PublicK
     rw [evalWithAnswerFn_bind, hL']
     rfl
   · unfold Equiv.witDec
-    rw [Ref.toList_ofList _ _ hwc, Ref.withCounters, Ref.witCounters_eq, hwit]
+    rw [Ref.toList_ofList _ _ hwc, hwit]
     conv_rhs => rw [hS]
     congr 1
     funext lay
     apply LayerSignature.ext
-    · show Ref.ofList 4 (Ref.slice (cs.map Ref.le32).flatten (4 * lay.val) 4) = (S.layers lay).counter
+    · show Ref.ofList 4 (Ref.le32 (cs.getD lay.val 0)) = (S.layers lay).counter
       have hlay := lay.isLt
-      rw [slice_le32s cs lay.val (by rw [hcsl]; exact hlay), hcs, List.getD_eq_getElem?_getD,
+      rw [hcs, List.getD_eq_getElem?_getD,
         List.getElem?_map, List.getElem?_range hlay]
       simp only [Option.map_some, Option.getD_some]
       unfold ctrOf

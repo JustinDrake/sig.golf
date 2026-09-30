@@ -20,7 +20,7 @@ namespace SigGolfCandidate.Sign
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref
 
 def digokW (a : Nat) : Prop :=
-  a = 0x3300 ∨ a = 0x3308 ∨ a = 0x6A0 ∨ a = 0x6A8 ∨ a = 0xC0 ∨ a = 0xC8 ∨ a = 0x1C0 ∨ a = 0x1C8
+  a = 0x24B00 ∨ a = 0x24B08 ∨ a = 0x6A0 ∨ a = 0x6A8 ∨ a = 0xC0 ∨ a = 0xC8 ∨ a = 0x1C0 ∨ a = 0x1C8
 
 def digokRegs : List Reg := [.x1, .x2, .x3, .x9, .x13, .x17, .x18, .x19, .x20, .x22, .x29]
 
@@ -55,8 +55,8 @@ theorem blk145_mem (t : MachineState) (N ix : Nat) (hidx34 : ix < 2 ^ 34)
       else if a = 192 then twWord0 9 0 ix 0
       else if a = 1704 then replaceWord32 (t.getMem (BitVec.ofNat 64 1704)) 0 (BitVec.ofNat 32 ix)
       else if a = 1696 then twWord0 8 0 ix 0
-      else if a = 13064 then t.getMem (BitVec.ofNat 64 56)
-      else if a = 13056 then t.getMem (BitVec.ofNat 64 48)
+      else if a = 150280 then t.getMem (BitVec.ofNat 64 56)
+      else if a = 150272 then t.getMem (BitVec.ofNat 64 48)
       else t.getMem (BitVec.ofNat 64 a) := by
   intro a ha
   simp only [blk145.res, rv_simp]
@@ -81,7 +81,7 @@ theorem digok_run (S : List Byte) (rho : Val) (ans : BitVec 256) (L : List Nat) 
     ∃ tF, Steps image t 34 34 tF ∧ PLeafCtx S (idxOf ans.toNat) L tF ∧ PLevCtx (idxOf ans.toNat) tF ∧
       tF.pc = pcOf 179 ∧ tF.getReg .x9 = BitVec.ofNat 64 0 ∧ CapInv (L.map keyV) 0 [] tF 0 ∧
       tF.getReg .x22 = BitVec.ofNat 64 (idxOf ans.toNat) ∧
-      tF.readWords (BitVec.ofNat 64 0x3300) 2 = t.readWords (BitVec.ofNat 64 0x30) 2 ∧
+      tF.readWords (BitVec.ofNat 64 0x24B00) 2 = t.readWords (BitVec.ofNat 64 0x30) 2 ∧
       RegsEq t tF digokRegs ∧ Frame t tF digokW := by
   set N := ans.toNat with hN
   have hNl : N < 2 ^ 256 := ans.isLt

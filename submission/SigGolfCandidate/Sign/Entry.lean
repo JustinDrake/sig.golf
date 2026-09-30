@@ -87,11 +87,11 @@ theorem flatMap_range_eq {β γ : Type} (xs : List β) (g : Nat → List γ) (f 
 set_option maxRecDepth 100000 in
 /-- The signature bytes after the pack. -/
 theorem final_bytes (t4 : MachineState) (rho : Val) (fts : List Val) (lays : List LayerSig)
-    (hhead : bytesAt t4 0x3300 2144 = rho ++ fts.flatten)
+    (hhead : bytesAt t4 0x24B00 2144 = rho ++ fts.flatten)
     (hll : lays.length = 5) (hst : ∀ l (hl : l < lays.length), StageAt t4 l lays[l]) (t5 : MachineState)
-    (hw5 : t5.readWords (BitVec.ofNat 64 (0x3300 + 2144)) 488 = packTab.map (packDW t4))
+    (hw5 : t5.readWords (BitVec.ofNat 64 (0x24B00 + 2144)) 488 = packTab.map (packDW t4))
     (hf5 : Frame t4 t5 (fun x => packD ≤ x ∧ x < packD + 8 * 488)) :
-    bytesAt t5 0x3300 6048 = serialize rho fts lays := by
+    bytesAt t5 0x24B00 6048 = serialize rho fts lays := by
   rw [show (6048 : Nat) = 2144 + 3904 from rfl, bytesAt_add, pack_layers t4 t5 hw5]
   unfold serialize
   congr 1
@@ -99,8 +99,8 @@ theorem final_bytes (t4 : MachineState) (rho : Val) (fts : List Val) (lays : Lis
     unfold bytesAt; apply List.map_congr_left; intro i hi
     simp only [List.mem_range] at hi
     simp only [MachineState.getByte]
-    have h8 : alignToDword (BitVec.ofNat 64 (0x3300 + i)) = BitVec.ofNat 64 ((0x3300 + i) / 8 * 8) := by
-      rw [← alignToDword_ofNat_aligned (x := (0x3300 + i) / 8 * 8) (by omega) (by omega)]
+    have h8 : alignToDword (BitVec.ofNat 64 (0x24B00 + i)) = BitVec.ofNat 64 ((0x24B00 + i) / 8 * 8) := by
+      rw [← alignToDword_ofNat_aligned (x := (0x24B00 + i) / 8 * 8) (by omega) (by omega)]
       exact (alignToDword_ofNat_eq (by omega) (by omega)).mpr (by omega)
     rw [h8, hf5.getMem (by omega) (by simp only [packD]; omega)]
   · rw [← hll]
