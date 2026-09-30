@@ -4,13 +4,13 @@ import SigGolfCandidate.Sign.Layer
 import SigGolfCandidate.Expand.Copy
 
 /-!
-# Machine trace seams for the 14-byte counter tail
+# Machine trace seams for the 13-byte counter tail
 
 The old `PackRun.pack_run` still reaches PC 2841 and proves its 491 mixed
 signature dwords. The jump at 2841 starts five five-instruction setup blocks followed by
 five copies using the existing polymorphic `Expand.Copy.copy_loop` theorem.
 Each copy writes one aligned body range. The final block reloads the five
-staged counters and writes 14 bytes before HALT.
+staged counters and writes 13 bytes before HALT.
 -/
 
 namespace SigGolfCandidate.Sign
