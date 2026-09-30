@@ -1,21 +1,22 @@
-import SigGolfCandidate.Ref.Basic
+import SigGolfCandidate.Ref.CounterMix
 
-/-!
-# Canonical 13-byte counter tail
+/-! # A canonical twelve-byte counter tail
 
-The five WOTS counters remain 32-bit values in the witness. Only their compact
-signature representation changes. Each accepted counter is below `2^20`; the
-tail is the little-endian encoding of `c₀ + 2^20 c₁ + ⋯ + 2^80 c₄`.
-The top four bits of byte 12 must be zero on every accepted compact signature.
+The witness retains five 32-bit counters. Compact signatures admit counter caps
+557056 on layers 0–3 and 786432 on layer 4. The checked mixed-radix codec uses 96 bits.
+Out-of-range tuples map to the reserved all-one tail, which expansion rejects.
 -/
 
 namespace SigGolfCandidate.Ref.CounterPack
 open SigGolfCandidate.Ref
 open SigGolfCandidate.Legacy
 
+/-- Exact per-layer range admitted by the compact mixed-radix representation. -/
+def counterCap (lay : Nat) : Nat := if 4 ≤ lay then 786432 else 557056
+
 def counterBits : Nat := 20
 def radix : Nat := 2 ^ counterBits
-def tailBytes : Nat := 13
+def tailBytes : Nat := 12
 
 /-- Bytes occupied by one layer's chain values and authentication path. -/
 def bodyBytes (lay : Nat) : Nat := 16 * nChains + 16 * height lay
@@ -32,124 +33,110 @@ theorem bodyOffsets :
 theorem bodyLengths :
     (List.range nLayers).map bodyBytes = [848, 768, 768, 768, 752] := by decide
 theorem tailOffset_eq : tailOffset = 6048 := by decide
-theorem packedSigBytes_eq : packedSigBytes = 6061 := by decide
+theorem packedSigBytes_eq : packedSigBytes = 6060 := by decide
 
-/-- Base-`2^20` digits, least significant counter first. -/
-def packDigits : List Nat → Nat
-  | [] => 0
-  | c :: cs => c + radix * packDigits cs
+/-- Exactly five counters in the per-layer ranges of the compact codec. -/
+def Fits (cs : List Nat) : Prop :=
+  cs.length = 5 ∧ cs.getD 0 0 < 557056 ∧ cs.getD 1 0 < 557056 ∧
+    cs.getD 2 0 < 557056 ∧ cs.getD 3 0 < 557056 ∧ cs.getD 4 0 < 786432
 
-/-- Decode exactly `n` counter digits, least significant first. -/
-def unpackDigits (v : Nat) : Nat → List Nat
-  | 0 => []
-  | n + 1 => v % radix :: unpackDigits (v / radix) n
+instance fitsDecidable (cs : List Nat) : Decidable (Fits cs) :=
+  inferInstanceAs (Decidable (cs.length = 5 ∧ cs.getD 0 0 < 557056 ∧ cs.getD 1 0 < 557056 ∧
+    cs.getD 2 0 < 557056 ∧ cs.getD 3 0 < 557056 ∧ cs.getD 4 0 < 786432))
 
-/-- The compact tail has a fixed length even if a caller supplies fewer layers. -/
+theorem fits_iff (cs : List Nat) : Fits cs ↔
+    cs.length = nLayers ∧ ∀ i, i < nLayers → cs.getD i 0 < counterCap i := by
+  constructor
+  · rintro ⟨hlen, h0, h1, h2, h3, h4⟩
+    refine ⟨hlen, ?_⟩
+    intro i hi
+    change i < 5 at hi
+    interval_cases i <;> simp [counterCap] <;> assumption
+  · rintro ⟨hlen, h⟩
+    exact ⟨hlen, h 0 (by decide), h 1 (by decide), h 2 (by decide),
+      h 3 (by decide), h 4 (by decide)⟩
+
+/-- Total encoding: an unrepresentable tuple receives the explicitly rejected tail. -/
+def packDigits (cs : List Nat) : Nat :=
+  if Fits cs then CounterMix.raw (cs.getD 0 0) (cs.getD 1 0) (cs.getD 2 0) (cs.getD 3 0) (cs.getD 4 0)
+  else CounterMix.reserved
+
+/-- Decode only the requested finite prefix; indices beyond the fifth decode to zero. -/
+def unpackDigits (v n : Nat) : List Nat := (List.range n).map (CounterMix.decode v)
+
 def packTail (counters : List Nat) : List Byte :=
-  toList (n := 13) (BitVec.ofNat (8 * 13) (packDigits counters))
+  toList (n := 12) (BitVec.ofNat (8 * 12) (packDigits counters))
 
 def tailValue (tail : List Byte) : Nat := leNat tail
 def unpackTail (tail : List Byte) : List Nat := unpackDigits (tailValue tail) nLayers
 def unpackCounter (tail : List Byte) (lay : Nat) : Nat := (unpackTail tail).getD lay 0
 
-/-- An accepted tail uses exactly 100 bits; the unused four bits are checked. -/
+/-- Reserved high ranks, including the all-one marker, are rejected. -/
 def canonicalTail (tail : List Byte) : Bool :=
-  (tail.length == tailBytes) && ((tail.getD 12 0).toNat < 16)
+  (tail.length == tailBytes) && (tailValue tail < CounterMix.capacity)
 
 theorem canonicalTail_iff (tail : List Byte) :
-    canonicalTail tail = true ↔
-      tail.length = tailBytes ∧ (tail.getD 12 0).toNat < 16 := by
+    canonicalTail tail = true ↔ tail.length = tailBytes ∧ tailValue tail < CounterMix.capacity := by
   simp [canonicalTail]
 
 theorem length_packTail (cs : List Nat) : (packTail cs).length = tailBytes := by
   simp [packTail, tailBytes, toList, SigGolfCandidate.Legacy.bytes]
 
-theorem packDigits_cons_mod (c : Nat) (cs : List Nat) (hc : c < radix) :
-    packDigits (c :: cs) % radix = c := by
-  change (c + radix * packDigits cs) % radix = c
-  rw [Nat.add_mul_mod_self_left]
-  exact Nat.mod_eq_of_lt hc
+theorem packDigits_lt (cs : List Nat) : packDigits cs < 2 ^ 96 := by
+  unfold packDigits
+  split
+  next h =>
+    exact (CounterMix.raw_lt _ _ _ _ _ h.2.1 h.2.2.1 h.2.2.2.1 h.2.2.2.2.1 h.2.2.2.2.2).trans
+      CounterMix.capacity_lt
+  next h => decide
 
-theorem packDigits_cons_div (c : Nat) (cs : List Nat) (hc : c < radix) :
-    packDigits (c :: cs) / radix = packDigits cs := by
-  change (c + radix * packDigits cs) / radix = packDigits cs
-  rw [Nat.add_mul_div_left _ _ (by decide), Nat.div_eq_of_lt hc]
-  simp
-
-theorem packDigits_lt_pow (cs : List Nat) (hcs : ∀ c ∈ cs, c < radix) :
-    packDigits cs < radix ^ cs.length := by
-  induction cs with
-  | nil => simp [packDigits]
-  | cons c cs ih =>
-    have hc : c < radix := hcs c (by simp)
-    have hrest : ∀ x ∈ cs, x < radix := by
-      intro x hx
-      exact hcs x (by simp [hx])
-    have hb := ih hrest
-    simp only [packDigits, List.length_cons, Nat.pow_succ]
-    norm_num [radix, counterBits] at hc hb ⊢
-    omega
-
-/-- Peeling five bounded radix digits recovers the original counters. -/
-theorem unpackDigits_pack : ∀ (cs : List Nat),
-    (∀ c ∈ cs, c < radix) → unpackDigits (packDigits cs) cs.length = cs := by
-  intro cs
-  induction cs with
-  | nil => intro _; rfl
-  | cons c cs ih =>
-    intro h
-    have hc : c < radix := h c (by simp)
-    have hcs : ∀ x ∈ cs, x < radix := by
-      intro x hx
-      exact h x (by simp [hx])
-    change packDigits (c :: cs) % radix ::
-      unpackDigits (packDigits (c :: cs) / radix) cs.length = c :: cs
-    rw [packDigits_cons_mod c cs hc, packDigits_cons_div c cs hc, ih hcs]
+theorem packDigits_lt_capacity (cs : List Nat) (h : Fits cs) :
+    packDigits cs < CounterMix.capacity := by
+  rw [packDigits, if_pos h]
+  exact CounterMix.raw_lt _ _ _ _ _ h.2.1 h.2.2.1 h.2.2.2.1 h.2.2.2.2.1 h.2.2.2.2.2
 
 theorem length_unpackDigits (v n : Nat) : (unpackDigits v n).length = n := by
-  induction n generalizing v with
-  | zero => rfl
-  | succ n ih => simp [unpackDigits, ih]
+  simp [unpackDigits]
 
-theorem unpackDigits_entries_lt (v n : Nat) :
-    ∀ c ∈ unpackDigits v n, c < radix := by
-  induction n generalizing v with
-  | zero =>
-    intro c hc
-    cases hc
-  | succ n ih =>
-    intro c hc
-    simp only [unpackDigits, List.mem_cons] at hc
-    rcases hc with rfl | hc
-    · exact Nat.mod_lt _ (by decide)
-    · exact ih (v / radix) c hc
+theorem length_unpackTail (tail : List Byte) : (unpackTail tail).length = nLayers :=
+  length_unpackDigits _ _
 
-theorem length_unpackTail (tail : List Byte) : (unpackTail tail).length = nLayers := by
-  exact length_unpackDigits _ _
+theorem unpackDigits_fits (v : Nat) : Fits (unpackDigits v nLayers) := by
+  change 5 = 5 ∧ CounterMix.decode v 0 < 557056 ∧ CounterMix.decode v 1 < 557056 ∧
+    CounterMix.decode v 2 < 557056 ∧ CounterMix.decode v 3 < 557056 ∧ CounterMix.decode v 4 < 786432
+  exact ⟨rfl, CounterMix.decode_lt v 0 (by decide), CounterMix.decode_lt v 1 (by decide),
+    CounterMix.decode_lt v 2 (by decide), CounterMix.decode_lt v 3 (by decide),
+    CounterMix.decode_lt v 4 (by decide)⟩
+
+theorem unpackCounter_lt_cap (tail : List Byte) (lay : Nat) (hlay : lay < nLayers) :
+    unpackCounter tail lay < counterCap lay :=
+  ((fits_iff _).mp (unpackDigits_fits (tailValue tail))).2 lay hlay
 
 theorem unpackCounter_lt (tail : List Byte) (lay : Nat) (hlay : lay < nLayers) :
     unpackCounter tail lay < radix := by
-  unfold unpackCounter
-  have hlen := length_unpackTail tail
-  have hidx : lay < (unpackTail tail).length := by rw [hlen]; exact hlay
-  rw [← List.getElem_eq_getD (l := unpackTail tail) (i := lay) (h := hidx) 0]
-  exact unpackDigits_entries_lt _ _ _ (List.getElem_mem hidx)
+  have h := unpackCounter_lt_cap tail lay hlay
+  unfold counterCap at h
+  split at h <;> exact h.trans (by decide)
 
-/-- Decoding `n` base-`radix` digits and packing them recovers the low `n`
-digits. The proof works for every width and needs no large numeral expansion. -/
-theorem packDigits_unpackDigits (v n : Nat) :
-    packDigits (unpackDigits v n) = v % radix ^ n := by
-  induction n generalizing v with
-  | zero => simp [unpackDigits, packDigits, Nat.mod_one]
-  | succ n ih =>
-    change v % radix + radix * packDigits (unpackDigits (v / radix) n) =
-      v % radix ^ (n + 1)
-    rw [ih (v / radix), Nat.pow_succ, Nat.mul_comm (radix ^ n) radix,
-      Nat.mod_mul]
+theorem packDigits_unpackDigits (v : Nat) :
+    packDigits (unpackDigits v nLayers) = v % CounterMix.capacity := by
+  rw [packDigits, if_pos (unpackDigits_fits v)]
+  exact CounterMix.raw_decode v
 
-/-- Five radix digits reassemble to the low 100 bits of the original tail value. -/
 theorem packDigits_unpackTail (tail : List Byte) :
-    packDigits (unpackTail tail) = tailValue tail % radix ^ nLayers := by
-  exact packDigits_unpackDigits (tailValue tail) nLayers
+    packDigits (unpackTail tail) = tailValue tail % CounterMix.capacity :=
+  packDigits_unpackDigits _
+
+theorem unpackDigits_pack (cs : List Nat) (h : Fits cs) :
+    unpackDigits (packDigits cs) nLayers = cs := by
+  rw [packDigits, if_pos h]
+  have hc := CounterMix.decode_raw _ _ _ _ _ h.2.1 h.2.2.1 h.2.2.2.1 h.2.2.2.2.1 h.2.2.2.2.2
+  apply List.ext_getElem (by rw [length_unpackDigits]; exact h.1.symm)
+  intro i h1 h2
+  have hi : i < 5 := by simpa [unpackDigits, nLayers] using h1
+  unfold unpackDigits at h1 ⊢
+  rw [List.getElem_map, List.getElem_range]
+  rw [List.getElem_eq_getD (l := cs) (i := i) (h := h2) 0]
+  interval_cases i <;> simp_all only [and_self]
 
 end SigGolfCandidate.Ref.CounterPack

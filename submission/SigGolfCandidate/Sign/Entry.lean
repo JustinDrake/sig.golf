@@ -146,11 +146,11 @@ theorem final_bytes_of_parts (t : MachineState) (rho : Val) (fts : List Val)
     (hhead : bytesAt t 0x3300 2144 = rho ++ fts.flatten)
     (hbodies : bytesAt t (0x3300 + 2144) 3904 =
       (lays.map fun l => l.2.1.flatten ++ l.2.2.flatten).flatten)
-    (htail : bytesAt t (0x3300 + 6048) 13 = CounterPack.packTail (lays.map Prod.fst)) :
-    bytesAt t 0x3300 6061 = serialize rho fts lays := by
-  rw [show (6061 : Nat) = 2144 + (3904 + 13) from rfl,
-    bytesAt_add t 0x3300 2144 (3904 + 13),
-    bytesAt_add t (0x3300 + 2144) 3904 13,
+    (htail : bytesAt t (0x3300 + 6048) 12 = CounterPack.packTail (lays.map Prod.fst)) :
+    bytesAt t 0x3300 6060 = serialize rho fts lays := by
+  rw [show (6060 : Nat) = 2144 + (3904 + 12) from rfl,
+    bytesAt_add t 0x3300 2144 (3904 + 12),
+    bytesAt_add t (0x3300 + 2144) 3904 12,
     show (0x3300 + 2144 + 3904 : Nat) = 0x3300 + 6048 from rfl,
     hhead, hbodies, htail]
   simp only [serialize, List.append_assoc]

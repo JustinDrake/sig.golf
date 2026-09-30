@@ -4,13 +4,13 @@ import SigGolfCandidate.Sign.Layer
 import SigGolfCandidate.Expand.Copy
 
 /-!
-# Machine trace seams for the 13-byte counter tail
+# Machine trace seams for the 12-byte counter tail
 
 The old `PackRun.pack_run` still reaches PC 2841 and proves its 491 mixed
 signature dwords. The jump at 2841 starts five five-instruction setup blocks followed by
 five copies using the existing polymorphic `Expand.Copy.copy_loop` theorem.
 Each copy writes one aligned body range. The final block reloads the five
-staged counters and writes 13 bytes before HALT.
+staged counters and writes 12 bytes before HALT.
 -/
 
 namespace SigGolfCandidate.Sign
@@ -24,7 +24,8 @@ sym_block blk2898Packed := symRun { noAlias := true } seg2898 (pcOf 2898) 6
 sym_block blk2909Packed := symRun { noAlias := true } seg2909 (pcOf 2909) 6
 sym_block blk2920Packed := symRun { noAlias := true } seg2920 (pcOf 2920) 6
 sym_block blk2931Packed := symRun { noAlias := true } seg2931 (pcOf 2931) 6
-sym_block blk2942PackedTail := symRun { noAlias := true } seg2942 (pcOf 2942) 26
+sym_block blk2942TailJump := symRun { noAlias := true } seg2942 (pcOf 2942) 2
+sym_block blk2942PackedTail := symRun { noAlias := true } seg2972 (pcOf 2972) 67
 
 /-- The inherited pack's final PC now jumps over the randomizer helper and
 enters the body-copy appendix without changing memory or the result registers. -/

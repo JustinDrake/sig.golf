@@ -11,7 +11,7 @@ set_option linter.unusedVariables false
 namespace SigGolfCandidate.Expand
 open SigGolfCandidate.Legacy SigGolfCandidate.Ref
 
-theorem sigAuth_zero_iff (sig : List Byte) (hsig : sig.length = 6061) (i : Nat) (hi : i < 118) :
+theorem sigAuth_zero_iff (sig : List Byte) (hsig : sig.length = 6060) (i : Nat) (hi : i < 118) :
     sigAuth sig i = zeros 16 ↔ ∀ k < 16, sig.getD (256 + 16 * i + k) 0 = 0 := by
   have hl := length_sigAuth sig hsig i hi
   constructor
@@ -23,7 +23,7 @@ theorem sigAuth_zero_iff (sig : List Byte) (hsig : sig.length = 6061) (i : Nat) 
     rw [← getD_sigAuth sig hsig i k hi (by omega), List.getD_eq_getElem _ _ h1] at this
     rw [this]; exact (List.getElem_replicate _).symm
 
-theorem all_iff_padOK (sig : List Byte) (hsig : sig.length = 6061) (n : Nat) (hn : n ≤ 118) :
+theorem all_iff_padOK (sig : List Byte) (hsig : sig.length = 6060) (n : Nat) (hn : n ≤ 118) :
     (List.range' n (porsM - n)).all (fun i => sigAuth sig i == zeros 16) = true ↔ PadOK sig n := by
   rw [List.all_eq_true]
   simp only [List.mem_range', beq_iff_eq, porsM]
@@ -73,7 +73,7 @@ theorem expandOf_eq {sig : List Byte} {N : Nat}
 counter tail is canonical. This keeps the early failure branch independent of
 the later machine decoder. -/
 theorem expandOf_pad_none {sig : List Byte} {N : Nat}
-    (hsig : sig.length = 6061)
+    (hsig : sig.length = 6060)
     (h1 : (leavesOf N).Nodup)
     (h2 : octopusSize (sortLeaves (leavesOf N)) ≤ porsM)
     (hn : (schedule (sortLeaves (leavesOf N))).2.length ≤ porsM)

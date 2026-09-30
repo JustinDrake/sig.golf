@@ -29,7 +29,7 @@ attribute [local reducible] SphincsSecurity.hashOutputBits SphincsSecurity.diges
 
 /-- **expand**: the reference expansion is the relabelled abstract expansion (any abstract key). -/
 theorem expandRef_eq (m : Bytes 32) (pk : Bytes 16) (pk' : SphincsSecurity.PublicKey)
-    (σ : Bytes 6061) :
+    (σ : Bytes 6060) :
     Ref.expandRef m pk σ = relabel fmtQ (aExpand m pk' σ) := by
   have hr : dv (Ref.ofList 16 (Ref.sigRho (Ref.toList σ))) = Ref.sigRho (Ref.toList σ) :=
     Ref.toList_ofList 16 _ (by simp [Ref.sigRho, Ref.slice, Ref.length_toList])
@@ -108,7 +108,7 @@ theorem segStream_eq (sig : List Byte) (segs : List Nat) :
   simp
 
 section stream
-variable (sig : List Byte) (hsig : sig.length = 6061)
+variable (sig : List Byte) (hsig : sig.length = 6060)
 include hsig
 
 theorem length_sigAuth (k : Nat) (hk : k < 118) : (Ref.sigAuth sig k).length = 16 := by
@@ -202,7 +202,7 @@ theorem chunks_eq (bs : List Nat) (f : Nat → List Byte) :
 /-! ## The witness layout -/
 
 section layout
-variable (sig : List Byte) (hsig : sig.length = 6061) (v vs segs : List Nat) (hvs : vs.length = 15)
+variable (sig : List Byte) (hsig : sig.length = 6060) (v vs segs : List Nat) (hvs : vs.length = 15)
 
 /-- The witness: `head (272 bytes) ++ stream region ++ tail`. -/
 theorem witnessList_split : Ref.witnessList sig v vs segs =
@@ -235,7 +235,7 @@ theorem length_E : ((Ref.segStream sig segs ++ Ref.zeros Ref.streamBytes).take R
   rw [Nat.min_eq_left (by omega)]
   exact Ref.streamBytes_eq
 
-theorem layer_bound : ∀ l, l < 5 → Ref.sigLayerOff l + Ref.sigBodyBytes l ≤ 6061 := by decide
+theorem layer_bound : ∀ l, l < 5 → Ref.sigLayerOff l + Ref.sigBodyBytes l ≤ 6060 := by decide
 
 include hsig in
 theorem length_sigLayerBody (l : Nat) (hl : l < 5) :
@@ -689,7 +689,7 @@ theorem sigAuth_eq (sig : List Byte) (i : Nat) : Ref.sigAuth sig i = Ref.slice s
 
 /-- **R2 on byte lists**: a successful expansion decodes to a signature whose compact form is the
 input. -/
-theorem compressList_expandOf (sig : List Byte) (hsig : sig.length = 6061) (N : Nat) (wl : List Byte)
+theorem compressList_expandOf (sig : List Byte) (hsig : sig.length = 6060) (N : Nat) (wl : List Byte)
     (h : Ref.expandOf sig N = some wl) : compressList (witSig wl) = sig := by
   obtain ⟨hcanon, hnd, hoct, hz, hwl⟩ := expandOf_some sig N wl h
   obtain ⟨-, -, hsch, hl29, -, hn118, hsum, hb⟩ := sched_facts N hnd hoct
@@ -776,21 +776,21 @@ theorem compressList_expandOf (sig : List Byte) (hsig : sig.length = 6061) (N : 
     rw [hdigits]
     exact Ref.canonicalTail_roundtrip _ hcanon
   rw [p1, p2, p3, p4, p5]
-  conv_rhs => rw [← slice_full sig 6061 hsig]
-  rw [show (6061 : Nat) = 16 + (16 * 15 + (16 * 118 + (3904 + 13))) from rfl,
+  conv_rhs => rw [← slice_full sig 6060 hsig]
+  rw [show (6060 : Nat) = 16 + (16 * 15 + (16 * 118 + (3904 + 12))) from rfl,
     slice_split, slice_split, slice_split, slice_split]
   simp only [Ref.sigCounterTail, Ref.CounterPack.tailOffset_eq, Ref.CounterPack.tailBytes,
     List.append_assoc]
 
 /-- **R2 (bytes)**: a successful reference expansion decodes to a signature compressing to `σ`. -/
-theorem expandOf_compress (σ : Bytes 6061) (N : Nat) (wl : List Byte)
+theorem expandOf_compress (σ : Bytes 6060) (N : Nat) (wl : List Byte)
     (h : Ref.expandOf (Ref.toList σ) N = some wl) : compress (witSig wl) = σ := by
   unfold compress
   rw [compressList_expandOf (Ref.toList σ) (Ref.length_toList σ) N wl h, Ref.ofList_toList]
 
 /-- **R2**: every successful run of the abstract expansion decodes to a signature compressing to
 `σ`. -/
-theorem aExpand_compress (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6061)
+theorem aExpand_compress (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6060)
     (w : Bytes 6348) (h : some w ∈ support (aExpand m pk σ)) : compress (witDec w) = σ := by
   unfold aExpand at h
   simp only [support_bind, support_pure, Set.mem_iUnion, Set.mem_singleton_iff] at h
@@ -971,7 +971,7 @@ theorem slice_compress_layer (S : Signature) (lay : Layer) (y len : Nat)
   rw [getD_ofFn, dif_pos lay.isLt]
 
 theorem sigLayerOf_compress (S : Signature)
-    (hcounter : ∀ lay, (S.layers lay).counter.toNat < Ref.CounterPack.radix) (lay : Layer) :
+    (hcounter : ∀ lay, (S.layers lay).counter.toNat < Ref.CounterPack.counterCap lay.val) (lay : Layer) :
     sigLayerOf (compressList S) lay = S.layers lay := by
   have hl := lay.isLt
   simp only [SphincsSecurity.numLayers] at hl
@@ -987,9 +987,10 @@ theorem sigLayerOf_compress (S : Signature)
       rw [sigCounterTail_compress]
       apply Ref.unpackTail_packTail
       · simp [Ref.nLayers, SphincsSecurity.numLayers, Layer]
-      · intro c hc
-        obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hc
-        exact hcounter j
+      · intro i hi
+        have hil : i < SphincsSecurity.numLayers := hi
+        rw [getD_ofFn, dif_pos hil]
+        exact hcounter ⟨i, hil⟩
     have hc : Ref.CounterPack.unpackCounter (Ref.sigCounterTail (compressList S)) lay.val =
         (S.layers lay).counter.toNat := by
       unfold Ref.CounterPack.unpackCounter
@@ -1123,6 +1124,34 @@ theorem length_authNodes_honest :
 
 end honest
 
+/-- A signature outside the compact counter caps has the reserved, rejected tail. -/
+theorem canonicalTail_compress_false (S : Signature)
+    (h : ¬ ∀ lay, (S.layers lay).counter.toNat < Ref.CounterPack.counterCap lay.val) :
+    Ref.CounterPack.canonicalTail (Ref.sigCounterTail (compressList S)) = false := by
+  rw [sigCounterTail_compress]
+  apply Ref.canonicalTail_packTail_false
+  intro hf
+  apply h
+  intro lay
+  have hc := ((Ref.CounterPack.fits_iff _).mp hf).2 lay.val lay.isLt
+  rw [getD_ofFn, dif_pos lay.isLt] at hc
+  exact hc
+
+/-- The reserved tail is rejected after the normal digest query. -/
+theorem aExpand_compress_reject (m : Message) (pk : SphincsSecurity.PublicKey) (S : Signature)
+    (h : ¬ ∀ lay, (S.layers lay).counter.toNat < Ref.CounterPack.counterCap lay.val) :
+    aExpand m pk (compress S) = (do
+      let _ ← SphincsSecurity.Concrete.messageDigest (m := AComp) 0 pk.root m
+        (Ref.ofList 16 (Ref.sigRho (Ref.toList (compress S))))
+      pure none) := by
+  unfold aExpand
+  apply bind_congr
+  intro d
+  rw [toList_compress]
+  simp only [Ref.expandOf, canonicalTail_compress_false S h, Bool.not_false,
+    Bool.true_eq, ↓reduceIte, Option.map_none]
+
+
 /-- **R4**: the honest opening of admissible leaves (any randomness, secrets, node table and layers),
 compressed and expanded with a digest whose leaf indices are `leaves`, decodes to itself. -/
 theorem expandOf_honest (leaves : IndexGroup → FtsLeaf)
@@ -1130,7 +1159,7 @@ theorem expandOf_honest (leaves : IndexGroup → FtsLeaf)
     (hN : ∀ r : IndexGroup, Ref.leafOf N r.val = (leaves r).val) (rho : Digest)
     (secret : FtsLeaf → Digest) (node : Nat → Nat → Digest)
     (layers : (lay : Layer) → LayerSignature lay)
-    (hcounter : ∀ lay, (layers lay).counter.toNat < Ref.CounterPack.radix) :
+    (hcounter : ∀ lay, (layers lay).counter.toNat < Ref.CounterPack.counterCap lay.val) :
     ∃ wl, wl.length = 6348 ∧
       Ref.expandOf (compressList ⟨rho, SphincsSecurity.Concrete.honestFts leaves secret node, layers⟩) N
         = some wl ∧
@@ -1155,9 +1184,10 @@ theorem expandOf_honest (leaves : IndexGroup → FtsLeaf)
     rw [sigCounterTail_compress]
     apply Ref.canonicalTail_packTail
     · simp [Ref.nLayers, SphincsSecurity.numLayers, Layer]
-    · intro c hc
-      obtain ⟨lay, rfl⟩ := List.mem_ofFn.mp hc
-      exact hcounter lay
+    · intro i hi
+      have hil : i < SphincsSecurity.numLayers := hi
+      rw [getD_ofFn, dif_pos hil]
+      exact hcounter ⟨i, hil⟩
   have hn2 : (Ref.schedule (Ref.sortLeaves (Ref.leavesOf N))).2.length =
       ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).map (·.reads)).flatten.length := by rw [hsch]
   have hexp := expandOf_eq_some (compressList (honestSig leaves rho secret node layers)) N hcanon hnd hoct

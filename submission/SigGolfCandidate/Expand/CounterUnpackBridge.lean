@@ -13,8 +13,8 @@ namespace SigGolfCandidate.Expand
 open SigGolfCandidate.Legacy SigGolfCandidate.Sign SigGolfCandidate.Ref RiscvZkvm.Rv64 SigGolfCandidate.Rv
 
 theorem sigOK_region (u : MachineState) (sig : List Byte)
-    (h : SigOK u sig) (hlen : sig.length = 6061)
-    (off n : Nat) (hrange : off + n ≤ 6061) :
+    (h : SigOK u sig) (hlen : sig.length = 6060)
+    (off n : Nat) (hrange : off + n ≤ 6060) :
     bytesAt u (0x3300 + off) n = (sig.drop off).take n := by
   apply List.ext_getElem (by simp [hlen]; omega)
   intro j hj1 hj2
@@ -44,265 +44,166 @@ theorem lwu_first4 (u : MachineState) (a : Nat)
   norm_num at h4' ⊢
   omega
 
-theorem hu_high2_toNat (w : Word) :
-    (LoadKind.fromWord .bu w 4).toNat = w.toNat / 2 ^ 32 % 2 ^ 8 := by
-  simp only [LoadKind.fromWord, extractByte, BitVec.truncate_eq_setWidth,
-    BitVec.toNat_setWidth, BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
-  norm_num
-  omega
-
-theorem lhu_last2 (u : MachineState) (a : Nat)
-    (ha : a % 8 = 0) (hb : a + 8 < 2 ^ 64) :
-    (LoadKind.fromWord .bu (u.getMem (BitVec.ofNat 64 a)) 4).toNat =
-      leNat (bytesAt u (a + 4) 1) := by
-  have he := Sign.getByte_aligned' u a 4 ha (by decide) hb
-  simp only [LoadKind.fromWord, BitVec.toNat_setWidth, bytesAt, List.range_one,
-    List.map_cons, List.map_nil, Nat.add_zero, leNat, Nat.mul_zero, Nat.add_zero]
-  rw [he]
-  have hlt := (extractByte (u.getMem (BitVec.ofNat 64 a)) 4).isLt
-  omega
-
-theorem tail_split14 (tail : List Byte) (hlen : tail.length = 13) :
-    leNat tail = leNat (tail.take 8) + 2 ^ 64 *
-      (leNat ((tail.drop 8).take 4) + 2 ^ 32 * leNat (tail.drop 12)) := by
-  have h8 : 8 ≤ tail.length := by omega
-  have h4 : 4 ≤ (tail.drop 8).length := by simp [hlen]
-  rw [Ref.leNat_split8 tail h8]
-  conv_lhs => rw [← List.take_append_drop 4 (tail.drop 8)]
-  rw [Ref.leNat_append]
-  simp only [List.length_take, Nat.min_eq_left h4, List.drop_drop]
-  norm_num
-
 theorem sigOK_tail_ld (u : MachineState) (sig : List Byte)
-    (h : SigOK u sig) (hlen : sig.length = 6061) :
+    (h : SigOK u sig) (hlen : sig.length = 6060) :
     u.getMem (BitVec.ofNat 64 0x4aa0) =
       BitVec.ofNat 64 (leNat ((sig.drop 6048).take 8)) := by
   rw [getMem_of_bytes u 0x4aa0 (by decide) (by decide)]
-  have hb := congrArg (List.take 8) (sigOK_region u sig h hlen 6048 13 (by decide))
-  have hdrop : (sig.drop 6048).take 13 = sig.drop 6048 := by simp [hlen]
+  have hb := congrArg (List.take 8) (sigOK_region u sig h hlen 6048 12 (by decide))
+  have hdrop : (sig.drop 6048).take 12 = sig.drop 6048 := by simp [hlen]
   rw [hdrop] at hb
-  simp only [bytesAt, ← List.map_take, List.take_range, Nat.min_eq_left (by decide : 8 ≤ 13)] at hb
+  simp only [bytesAt, ← List.map_take, List.take_range, Nat.min_eq_left (by decide : 8 ≤ 12)] at hb
   simpa only [bytesAt, show (13056 : Nat) + 6048 = 19104 by decide] using
     congrArg (fun x => BitVec.ofNat 64 (leNat x)) hb
 
 theorem sigOK_tail_lwu (u : MachineState) (sig : List Byte)
-    (h : SigOK u sig) (hlen : sig.length = 6061) :
+    (h : SigOK u sig) (hlen : sig.length = 6060) :
     (LoadKind.fromWord .wu (u.getMem (BitVec.ofNat 64 0x4aa8)) 0).toNat =
       leNat ((sig.drop 6056).take 4) := by
   rw [lwu_first4 u 0x4aa8 (by decide) (by decide)]
   have hr := sigOK_region u sig h hlen 6056 4 (by decide)
   simpa only [show (0x3300 : Nat) + 6056 = 0x4aa8 by decide] using congrArg leNat hr
 
-theorem sigOK_tail_lhu (u : MachineState) (sig : List Byte)
-    (h : SigOK u sig) (hlen : sig.length = 6061) :
-    (LoadKind.fromWord .bu (u.getMem (BitVec.ofNat 64 0x4aa8)) 4).toNat =
-      leNat ((sig.drop 6060).take 1) := by
-  rw [lhu_last2 u 0x4aa8 (by decide) (by decide)]
-  have hr := sigOK_region u sig h hlen 6060 1 (by decide)
-  simpa only [show (0x3300 : Nat) + 6060 = 0x4aac by decide,
-    show (0x4aa8 : Nat) + 4 = 0x4aac by decide] using congrArg leNat hr
-
-theorem leNat_two (l : List Byte) (hlen : l.length = 2) :
-    leNat l = (l.getD 0 0).toNat + 256 * (l.getD 1 0).toNat := by
-  cases l with
-  | nil => simp at hlen
-  | cons a l =>
-    cases l with
-    | nil => simp at hlen
-    | cons b l =>
-      cases l with
-      | nil => simp [leNat]
-      | cons c l => simp at hlen
-
-theorem tail_hi_two (tail : List Byte) (hlen : tail.length = 13) :
-    leNat ((tail.drop 12).take 1) = (tail.getD 12 0).toNat := by
-  have h1 : ((tail.drop 12).take 1).length = 1 := by simp [hlen]
-  have hone : ∀ l : List Byte, l.length = 1 → leNat l = (l.getD 0 0).toNat := by
-    intro l hl
-    cases l with
-    | nil => simp at hl
-    | cons a l =>
-      have he : l = [] := by simpa using hl
-      subst l
-      simp [leNat]
-  rw [hone _ h1]
-  simp [List.getD_eq_getElem?_getD, List.getElem?_drop]
-
-theorem shift14_zero_iff (w : Word) : w >>> 4 = 0 ↔ w.toNat / 2 ^ 4 = 0 := by
-  constructor
-  · intro h
-    have hh := congrArg BitVec.toNat h
-    simpa [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] using hh
-  · intro h
-    apply BitVec.eq_of_toNat_eq
-    simpa [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] using h
-
-theorem sigOK_tail_canonical (u : MachineState) (sig : List Byte)
-    (h : SigOK u sig) (hlen : sig.length = 6061) :
-    (LoadKind.fromWord .bu (u.getMem (BitVec.ofNat 64 0x4aa8)) 4 >>> 4 = 0) ↔
-      CounterPack.canonicalTail (sig.drop 6048) = true := by
-  have htlen : (sig.drop 6048).length = CounterPack.tailBytes := by
-    simp [hlen, CounterPack.tailBytes]
-  rw [shift14_zero_iff, sigOK_tail_lhu u sig h hlen]
-  have he : (sig.drop 6060).take 1 = ((sig.drop 6048).drop 12).take 1 := by
-    simp only [List.drop_drop, show 6048 + 12 = 6060 by decide]
-  rw [he, tail_hi_two _ (by simpa [CounterPack.tailBytes] using htlen)]
-  exact (CounterUnpackLayout.canonicalTail_iff_highHalfword (sig.drop 6048) htlen).symm
-
 theorem sigOK_tail_value (u : MachineState) (sig : List Byte)
-    (h : SigOK u sig) (hlen : sig.length = 6061) :
+    (h : SigOK u sig) (hlen : sig.length = 6060) :
     CounterPack.tailValue (sig.drop 6048) =
       (u.getMem (BitVec.ofNat 64 0x4aa0)).toNat + 2 ^ 64 *
-        ((LoadKind.fromWord .wu (u.getMem (BitVec.ofNat 64 0x4aa8)) 0).toNat +
-          2 ^ 32 * (LoadKind.fromWord .bu (u.getMem (BitVec.ofNat 64 0x4aa8)) 4).toNat) := by
-  have htail := tail_split14 (sig.drop 6048) (by simp [hlen])
+        (LoadKind.fromWord .wu (u.getMem (BitVec.ofNat 64 0x4aa8)) 0).toNat := by
+  have htail := Ref.leNat_split8 (sig.drop 6048) (by simp [hlen])
   have hlo := congrArg BitVec.toNat (sigOK_tail_ld u sig h hlen)
   have hlt := Ref.leNat_lt ((sig.drop 6048).take 8)
   have hlen8 : ((sig.drop 6048).take 8).length = 8 := by simp [hlen]
   rw [hlen8] at hlt
   have hlt' : leNat ((sig.drop 6048).take 8) < 2 ^ 64 := by norm_num at hlt ⊢; exact hlt
   simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt'] at hlo
-  have h8 : ((sig.drop 6048).drop 8).take 4 = (sig.drop 6056).take 4 := by
-    simp only [List.drop_drop, show 6048 + 8 = 6056 by decide]
-  have h12 : (sig.drop 6048).drop 12 = sig.drop 6060 := by
-    simp only [List.drop_drop, show 6048 + 12 = 6060 by decide]
-  have h2 : sig.drop 6060 = (sig.drop 6060).take 1 := by simp [hlen]
+  have h8 : (sig.drop 6048).drop 8 = (sig.drop 6056).take 4 := by
+    simp [List.drop_drop, hlen]
   unfold CounterPack.tailValue
-  rw [htail, h8, h12, h2, ← hlo, ← sigOK_tail_lwu u sig h hlen,
-    ← sigOK_tail_lhu u sig h hlen]
+  rw [htail, h8, ← hlo, ← sigOK_tail_lwu u sig h hlen]
 
-theorem sigCounterTail_eq_drop (sig : List Byte) (hlen : sig.length = 6061) :
+theorem badTailW_zero_iff (hi : Word) : badTailW hi = 0 ↔ hi.toNat / 16384 < 250563 := by
+  unfold badTailW
+  simp only [BitVec.ult, BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+  norm_num
+  split <;> simp_all
+
+theorem sigOK_tail_canonical (u : MachineState) (sig : List Byte)
+    (h : SigOK u sig) (hlen : sig.length = 6060) :
+    badTailW (LoadKind.fromWord .wu (u.getMem (BitVec.ofNat 64 0x4aa8)) 0) = 0 ↔
+      CounterPack.canonicalTail (sig.drop 6048) = true := by
+  rw [badTailW_zero_iff, CounterPack.canonicalTail_iff]
+  have hv := sigOK_tail_value u sig h hlen
+  have hl := (u.getMem (BitVec.ofNat 64 0x4aa0)).isLt
+  have hlen' : (sig.drop 6048).length = CounterPack.tailBytes := by simp [hlen, CounterPack.tailBytes]
+  rw [hlen', and_iff_right rfl]
+  unfold CounterMix.capacity
+  omega
+
+theorem sigCounterTail_eq_drop (sig : List Byte) (hlen : sig.length = 6060) :
     sigCounterTail sig = sig.drop 6048 := by
   unfold sigCounterTail slice
   rw [CounterPack.tailOffset_eq]
-  have hdrop : (sig.drop 6048).length = 13 := by simp [hlen]
+  have hdrop : (sig.drop 6048).length = 12 := by simp [hlen]
   rw [List.take_of_length_le (by rw [hdrop]; decide)]
 
-/-- The five shift and mask expressions in the decoder recover five radix-2^20 digits. -/
-theorem digit0_word (lo : Word) :
-    ((lo <<< 44 >>> 44).truncate 32).toNat = lo.toNat % 2 ^ 20 := by
-  simp only [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight,
-    BitVec.toNat_shiftLeft, Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
-  omega
-
-theorem digit1_word (lo : Word) :
-    ((lo >>> 20 <<< 44 >>> 44).truncate 32).toNat =
-      lo.toNat / 2 ^ 20 % 2 ^ 20 := by
-  simp only [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight,
-    BitVec.toNat_shiftLeft, Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
-  omega
-
-theorem hi_word (a b : Word) (ha : a.toNat < 2 ^ 32)
-    (hb : b.toNat < 2 ^ 16) :
-    (a ||| b <<< 32).toNat = a.toNat + 2 ^ 32 * b.toNat := by
-  have hrepA : BitVec.ofNat 64 a.toNat = a := by
-    simpa using BitVec.ofNat_toNat 64 a
-  have hrepB : BitVec.ofNat 64 b.toNat = b := by
-    simpa using BitVec.ofNat_toNat 64 b
-  calc
-    (a ||| b <<< 32).toNat =
-        ((BitVec.ofNat 64 a.toNat) ||| (BitVec.ofNat 64 b.toNat <<< 32)).toNat := by
-          rw [hrepA, hrepB]
-    _ = (BitVec.ofNat 64 (b.toNat * 2 ^ 32 + a.toNat)).toNat := by
-          rw [Keygen.ofNat_shl, BitVec.or_comm,
-            Keygen.ofNat_or_add _ _ 32 ha]
-    _ = a.toNat + 2 ^ 32 * b.toNat := by
-          rw [BitVec.toNat_ofNat,
-            Nat.mod_eq_of_lt (by omega : b.toNat * 2 ^ 32 + a.toNat < 2 ^ 64)]
-          omega
-
-theorem shr_word (w : Word) (k : Nat) :
-    w >>> k = BitVec.ofNat 64 (w.toNat / 2 ^ k) := by
-  have hrep : BitVec.ofNat 64 w.toNat = w := by
-    simpa using BitVec.ofNat_toNat 64 w
-  calc
-    w >>> k = BitVec.ofNat 64 w.toNat >>> k := by rw [hrep]
-    _ = _ := Keygen.ofNat_shr w.toNat k w.isLt
-
-theorem and3_word (w : Word) :
-    w &&& 3#64 = BitVec.ofNat 64 (w.toNat % 4) := by
-  apply BitVec.eq_of_toNat_eq
+theorem mask15_toNat (w : Word) : (w &&& 32767).toNat = w.toNat % 32768 := by
   rw [BitVec.toNat_and]
-  have h3 : (3#64 : Word).toNat = 2 ^ 2 - 1 := by decide
-  rw [h3, Nat.and_two_pow_sub_one_eq_mod, BitVec.toNat_ofNat]
-  omega
+  exact Nat.and_two_pow_sub_one_eq_mod w.toNat 15
 
-theorem digit2_word (lo : Word) :
-    ((lo >>> 40 <<< 44 >>> 44).truncate 32).toNat =
-      lo.toNat / 2 ^ 40 % 2 ^ 20 := by
-  simp only [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight,
-    BitVec.toNat_shiftLeft, Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
-  omega
+theorem mask14_toNat (w : Word) : (w &&& 16383).toNat = w.toNat % 16384 := by
+  rw [BitVec.toNat_and]
+  exact Nat.and_two_pow_sub_one_eq_mod w.toNat 14
 
-theorem digit3_word (lo hi : Word) :
-    ((lo >>> 60 ||| (hi <<< 48 >>> 44)).truncate 32).toNat =
-      lo.toNat / 2 ^ 60 + (hi.toNat % 2 ^ 16) * 2 ^ 4 := by
-  have hlo : lo.toNat / 2 ^ 60 < 2 ^ 4 := by have := lo.isLt; omega
-  have hm : hi <<< 48 >>> 44 = BitVec.ofNat 64 ((hi.toNat % 2 ^ 16) * 2 ^ 4) := by
-    apply BitVec.eq_of_toNat_eq
-    simp only [BitVec.toNat_ofNat, BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft,
-      Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
+theorem digitW_toNat (lo hi q : Word) (hq : q = hi >>> 14)
+    (hcan : q.toNat < 250563) (i : Nat) (hi5 : i < 5) :
+    ((digitW lo hi q i).truncate 32).toNat =
+      (CounterUnpackLayout.unpackWords lo.toNat hi.toNat).getD i 0 := by
+  subst q
+  have hlo := lo.isLt
+  simp only [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] at hcan
+  have hrem (w : Word) : rv64_remu w 17 = w % 17 := rfl
+  have hdiv (w : Word) : rv64_divu w 17 = w / 17 := rfl
+  have hm15 (a : Nat) : a &&& 32767 = a % 32768 := Nat.and_two_pow_sub_one_eq_mod a 15
+  have hm14 (a : Nat) : a &&& 16383 = a % 16384 := Nat.and_two_pow_sub_one_eq_mod a 14
+  have hq4 : hi.toNat / 16384 / 17 / 17 / 17 / 17 < 3 := by
+    norm_num at hcan ⊢
     omega
-  rw [shr_word lo 60, hm, BitVec.or_comm,
-    Keygen.ofNat_or_add _ _ 4 hlo]
-  simp only [BitVec.toNat_setWidth, BitVec.toNat_ofNat]
-  have hhi : hi.toNat % 2 ^ 16 < 2 ^ 16 := Nat.mod_lt _ (by decide)
-  have hv : (hi.toNat % 2 ^ 16) * 2 ^ 4 + lo.toNat / 2 ^ 60 < 2 ^ 32 := by omega
-  rw [Nat.mod_eq_of_lt (by omega : _ < 2 ^ 64), Nat.mod_eq_of_lt hv]
-  omega
+  have hlo4 : lo.toNat / 1152921504606846976 < 16 := by omega
+  have hhi14 : hi.toNat % 16384 < 16384 := Nat.mod_lt _ (by decide)
+  interval_cases i <;>
+    simp only [digitW, quotW, hrem, hdiv, BitVec.toNat_setWidth, BitVec.toNat_add,
+      BitVec.toNat_and, BitVec.toNat_shiftLeft, BitVec.toNat_ushiftRight,
+      BitVec.toNat_udiv, BitVec.toNat_umod, Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq,
+      CounterUnpackLayout.unpackWords, List.getD_cons_zero, List.getD_cons_succ]
+  · change (((lo.toNat &&& 32767) + (hi.toNat / 16384 % 17) * 32768 % 18446744073709551616) % 18446744073709551616) % 4294967296 =
+      (lo.toNat % 32768) + 32768 * (hi.toNat / 16384 % 17)
+    rw [hm15]
+    rw [Nat.mod_eq_of_lt (by omega : _ * 32768 < 18446744073709551616)]
+    rw [Nat.mod_eq_of_lt (by omega : _ + _ < 18446744073709551616)]
+    rw [Nat.mod_eq_of_lt (by omega : _ + _ < 4294967296)]
+    omega
+  · change (((lo.toNat / 32768 &&& 32767) + (hi.toNat / 16384/ 17 % 17) * 32768 % 18446744073709551616) % 18446744073709551616) % 4294967296 =
+      (lo.toNat / 32768 % 32768) + 32768 * (hi.toNat / 16384/ 17 % 17)
+    rw [hm15]
+    rw [Nat.mod_eq_of_lt (by omega : _ * 32768 < 18446744073709551616)]
+    rw [Nat.mod_eq_of_lt (by omega : _ + _ < 18446744073709551616)]
+    rw [Nat.mod_eq_of_lt (by omega : _ + _ < 4294967296)]
+    omega
+  · change (((lo.toNat / 1073741824 &&& 32767) + (hi.toNat / 16384/ 17/ 17 % 17) * 32768 % 18446744073709551616) % 18446744073709551616) % 4294967296 =
+      (lo.toNat / 1073741824 % 32768) + 32768 * (hi.toNat / 16384/ 17/ 17 % 17)
+    rw [hm15]
+    rw [Nat.mod_eq_of_lt (by omega : _ * 32768 < 18446744073709551616)]
+    rw [Nat.mod_eq_of_lt (by omega : _ + _ < 18446744073709551616)]
+    rw [Nat.mod_eq_of_lt (by omega : _ + _ < 4294967296)]
+    omega
+  · change (((lo.toNat / 35184372088832 &&& 32767) + (hi.toNat / 16384/ 17/ 17/ 17 % 17) * 32768 % 18446744073709551616) % 18446744073709551616) % 4294967296 =
+      (lo.toNat / 35184372088832 % 32768) + 32768 * (hi.toNat / 16384/ 17/ 17/ 17 % 17)
+    rw [hm15]
+    rw [Nat.mod_eq_of_lt (by omega : _ * 32768 < 18446744073709551616)]
+    rw [Nat.mod_eq_of_lt (by omega : _ + _ < 18446744073709551616)]
+    rw [Nat.mod_eq_of_lt (by omega : _ + _ < 4294967296)]
+    omega
+  · change (((lo.toNat / 1152921504606846976 + ((hi.toNat &&& 16383) * 16) % 18446744073709551616) %
+        18446744073709551616 + (hi.toNat / 16384 / 17 / 17 / 17 / 17 * 262144) % 18446744073709551616) %
+        18446744073709551616) % 4294967296 =
+      lo.toNat / 1152921504606846976 + 16 * (hi.toNat % 16384) +
+        262144 * (hi.toNat / 16384 / 17 / 17 / 17 / 17 % 3)
+    rw [hm14]
+    rw [Nat.mod_eq_of_lt (by omega : hi.toNat % 16384 * 16 < 18446744073709551616)]
+    rw [Nat.mod_eq_of_lt (by omega : lo.toNat / 1152921504606846976 + hi.toNat % 16384 * 16 < 18446744073709551616)]
+    rw [Nat.mod_eq_of_lt (by omega : hi.toNat / 16384 / 17 / 17 / 17 / 17 * 262144 < 18446744073709551616)]
+    rw [Nat.mod_eq_of_lt (by omega : _ + _ < 18446744073709551616)]
+    rw [Nat.mod_eq_of_lt (by omega : _ + _ < 4294967296)]
+    rw [Nat.mod_eq_of_lt hq4]
+    omega
 
-theorem digit4_word (hi : Word) (hhi : hi.toNat < 2 ^ 36) :
-    ((hi >>> 16).truncate 32).toNat = hi.toNat / 2 ^ 16 % 2 ^ 20 := by
-  simp only [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight,
-    Nat.shiftRight_eq_div_pow]
-  have hquot : hi.toNat / 2 ^ 16 < 2 ^ 20 := by omega
-  rw [Nat.mod_eq_of_lt (by omega : hi.toNat / 2 ^ 16 < 2 ^ 32),
-    Nat.mod_eq_of_lt hquot]
 
-/-- The five decoder stores are exactly the reference digits of the loaded
-low 64 and high 36 bits, when the canonicality branch accepts. -/
 theorem packedBody_values (u : MachineState)
     (h7 : u.getReg .x7 = BitVec.ofNat 64 0x20b8)
-    (h12 : (u.getReg .x12).toNat < 2 ^ 32)
-    (h13 : (u.getReg .x13).toNat < 2 ^ 16)
-    (hhi : (u.getReg .x12).toNat + 2 ^ 32 * (u.getReg .x13).toNat < 2 ^ 36) :
+    (hq : u.getReg .x13 = u.getReg .x12 >>> 14)
+    (hcan : (u.getReg .x13).toNat < 250563) :
     let v := blk231PackedBody.res.toState u
     [ (lo32 (v.getMem (BitVec.ofNat 64 0x20b8))).toNat,
       (hi32 (v.getMem (BitVec.ofNat 64 0x20b8))).toNat,
       (lo32 (v.getMem (BitVec.ofNat 64 0x20c0))).toNat,
       (hi32 (v.getMem (BitVec.ofNat 64 0x20c0))).toNat,
       (lo32 (v.getMem (BitVec.ofNat 64 0x20c8))).toNat] =
-      CounterUnpackLayout.unpackWords (u.getReg .x11).toNat
-        ((u.getReg .x12).toNat + 2 ^ 32 * (u.getReg .x13).toNat) := by
-  have hh := hi_word (u.getReg .x12) (u.getReg .x13) h12 h13
-  have hword : (u.getReg .x12 ||| u.getReg .x13 <<< 32).toNat < 2 ^ 36 := by
-    rw [hh]
-    exact hhi
-  have hmid : (u.getReg .x11).toNat / 2 ^ 60 +
-      ((u.getReg .x12 ||| u.getReg .x13 <<< 32).toNat % 2 ^ 16) * 2 ^ 4 < 2 ^ 20 := by
-    have hlo := (u.getReg .x11).isLt
-    have hmod := Nat.mod_lt (u.getReg .x12 ||| u.getReg .x13 <<< 32).toNat (by decide : 0 < 2 ^ 16)
-    omega
-  obtain ⟨h0, h1, h2, h3, h4⟩ := packedBody_halves u h7
+      CounterUnpackLayout.unpackWords (u.getReg .x11).toNat (u.getReg .x12).toNat := by
+  obtain ⟨h0,h1,h2,h3,h4⟩ := packedBody_halves u h7
   dsimp only
-  rw [h0, h1, h2, h3, h4]
-  rw [digit0_word, digit1_word, digit2_word, digit3_word,
-    digit4_word _ hword]
-  simp only [CounterUnpackLayout.unpackWords]
-  rw [← hh]
-  simp only [Nat.mod_eq_of_lt hmid]
+  rw [h0,h1,h2,h3,h4]
+  rw [digitW_toNat _ _ _ hq hcan 0 (by decide), digitW_toNat _ _ _ hq hcan 1 (by decide),
+    digitW_toNat _ _ _ hq hcan 2 (by decide), digitW_toNat _ _ _ hq hcan 3 (by decide),
+    digitW_toNat _ _ _ hq hcan 4 (by decide)]
+  rfl
 
-/-- Under signature loading and an accepted canonical branch, the five
-machine stores decode the same counters as the reference tail parser. -/
 theorem packedBody_sig_values (orig u : MachineState) (sig : List Byte)
-    (hs : SigOK orig sig) (hlen : sig.length = 6061)
+    (hs : SigOK orig sig) (hlen : sig.length = 6060)
     (h11 : u.getReg .x11 = orig.getMem (BitVec.ofNat 64 0x4aa0))
-    (h12 : u.getReg .x12 =
-      LoadKind.fromWord .wu (orig.getMem (BitVec.ofNat 64 0x4aa8)) 0)
-    (h13 : u.getReg .x13 =
-      LoadKind.fromWord .bu (orig.getMem (BitVec.ofNat 64 0x4aa8)) 4)
+    (h12 : u.getReg .x12 = LoadKind.fromWord .wu (orig.getMem (BitVec.ofNat 64 0x4aa8)) 0)
+    (h13 : u.getReg .x13 = LoadKind.fromWord .wu (orig.getMem (BitVec.ofNat 64 0x4aa8)) 0 >>> 14)
     (h7 : u.getReg .x7 = BitVec.ofNat 64 0x20b8)
-    (hcanon : (u.getReg .x13).toNat < 2 ^ 4) :
+    (hcanon : (u.getReg .x13).toNat < 250563) :
     let v := blk231PackedBody.res.toState u
     [ (lo32 (v.getMem (BitVec.ofNat 64 0x20b8))).toNat,
       (hi32 (v.getMem (BitVec.ofNat 64 0x20b8))).toNat,
@@ -310,36 +211,14 @@ theorem packedBody_sig_values (orig u : MachineState) (sig : List Byte)
       (hi32 (v.getMem (BitVec.ofNat 64 0x20c0))).toNat,
       (lo32 (v.getMem (BitVec.ofNat 64 0x20c8))).toNat] =
       CounterPack.unpackTail (sig.drop 6048) := by
-  have h12b : (u.getReg .x12).toNat < 2 ^ 32 := by
-    rw [h12]
-    change (Sign.lwuW (orig.getMem (BitVec.ofNat 64 0x4aa8)) 0).toNat < _
-    rw [Sign.lwuW_toNat]
-    omega
-  have h13b : (u.getReg .x13).toNat < 2 ^ 16 := by
-    rw [h13, hu_high2_toNat]
-    omega
-  have hhib : (u.getReg .x12).toNat + 2 ^ 32 * (u.getReg .x13).toNat < 2 ^ 36 := by
-    omega
   have hval := sigOK_tail_value orig sig hs hlen
-  rw [← h11, ← h12, ← h13] at hval
-  let lo := (u.getReg .x11).toNat
-  let hi := (u.getReg .x12).toNat + 2 ^ 32 * (u.getReg .x13).toNat
-  have hlo : lo < 2 ^ 64 := (u.getReg .x11).isLt
-  have hsplit0 : CounterPack.tailValue (sig.drop 6048) % 2 ^ 64 = lo := by
-    rw [hval]
-    dsimp only [lo, hi]
-    omega
-  have hsplit1 : CounterPack.tailValue (sig.drop 6048) / 2 ^ 64 = hi := by
-    rw [hval]
-    dsimp only [lo, hi]
-    omega
-  calc
-    _ = CounterUnpackLayout.unpackWords lo hi := packedBody_values u h7 h12b h13b hhib
-    _ = CounterUnpackLayout.unpackWords
-        (CounterPack.tailValue (sig.drop 6048) % 2 ^ 64)
-        (CounterPack.tailValue (sig.drop 6048) / 2 ^ 64) := by rw [hsplit0, hsplit1]
-    _ = CounterPack.unpackTail (sig.drop 6048) := by
-          exact CounterUnpackLayout.unpackWords_value _
+  rw [← h11, ← h12] at hval
+  have hlo := (u.getReg .x11).isLt
+  have hsplit0 : CounterPack.tailValue (sig.drop 6048) % 2^64 = (u.getReg .x11).toNat := by omega
+  have hsplit1 : CounterPack.tailValue (sig.drop 6048) / 2^64 = (u.getReg .x12).toNat := by omega
+  dsimp only
+  rw [packedBody_values u h7 (by rw [h12,h13]) hcanon, ← hsplit0, ← hsplit1]
+  exact CounterUnpackLayout.unpackWords_value _
 
 /-- Four bytes from either half of an aligned dword equal the little-endian
 encoding of that half's 32-bit value. -/
@@ -381,14 +260,14 @@ theorem counterArea_bytes (t : MachineState) (c0 c1 c2 c3 c4 : Nat)
   rw [e0, e1, e2, e3, e4]
 
 theorem packedBody_sig_bytes (orig u : MachineState) (sig : List Byte)
-    (hs : SigOK orig sig) (hlen : sig.length = 6061)
+    (hs : SigOK orig sig) (hlen : sig.length = 6060)
     (h11 : u.getReg .x11 = orig.getMem (BitVec.ofNat 64 0x4aa0))
     (h12 : u.getReg .x12 =
       LoadKind.fromWord .wu (orig.getMem (BitVec.ofNat 64 0x4aa8)) 0)
     (h13 : u.getReg .x13 =
-      LoadKind.fromWord .bu (orig.getMem (BitVec.ofNat 64 0x4aa8)) 4)
+      LoadKind.fromWord .wu (orig.getMem (BitVec.ofNat 64 0x4aa8)) 0 >>> 14)
     (h7 : u.getReg .x7 = BitVec.ofNat 64 0x20b8)
-    (hcanon : (u.getReg .x13).toNat < 2 ^ 4) :
+    (hcanon : (u.getReg .x13).toNat < 250563) :
     Sign.bytesAt (blk231PackedBody.res.toState u) 0x20b8 20 =
       ((List.range nLayers).map (sigCounterBytes sig)).flatten := by
   let v := blk231PackedBody.res.toState u
@@ -472,12 +351,12 @@ theorem packedFinish (u : MachineState) (sig w : List Byte)
     (hpc : u.pc = pcOf 226)
     (h6 : u.getReg .x6 = BitVec.ofNat 64 0x4aa0)
     (h7 : u.getReg .x7 = BitVec.ofNat 64 0x20b8)
-    (hs : SigOK u sig) (hlen : sig.length = 6061)
+    (hs : SigOK u sig) (hlen : sig.length = 6060)
     (hb : CounterPack.canonicalTail (sig.drop 6048) = true → ∀ i < 6348,
       (blk231PackedBody.res.toState
         (blk230PackedBranch.res.toState (blk226PackedPrelude.res.toState u))).getByte
           (BitVec.ofNat 64 (0x800 + i)) = w.getD i 0) :
-    Run u 28 (fun v => if CounterPack.canonicalTail (sig.drop 6048) = true
+    Run u 73 (fun v => if CounterPack.canonicalTail (sig.drop 6048) = true
       then Final (some w) v else Final none v) := by
   let t1 := blk226PackedPrelude.res.toState u
   let t2 := blk230PackedBranch.res.toState t1
@@ -512,10 +391,10 @@ theorem packedFinish_of_model (u : MachineState) (sig w : List Byte)
     (hpc : u.pc = pcOf 226)
     (h6 : u.getReg .x6 = BitVec.ofNat 64 0x4aa0)
     (h7 : u.getReg .x7 = BitVec.ofNat 64 0x20b8)
-    (hs : SigOK u sig) (hlen : sig.length = 6061)
+    (hs : SigOK u sig) (hlen : sig.length = 6060)
     (hf : BytesEq u f)
     (hmodel : ∀ i < 6348, putCounters sig f (0x800 + i) = w.getD i 0) :
-    Run u 28 (fun v => if CounterPack.canonicalTail (sig.drop 6048) = true
+    Run u 73 (fun v => if CounterPack.canonicalTail (sig.drop 6048) = true
       then Final (some w) v else Final none v) := by
   refine packedFinish u sig w hpc h6 h7 hs hlen ?_
   intro hc i hi
@@ -533,22 +412,17 @@ theorem packedFinish_of_model (u : MachineState) (sig w : List Byte)
     rw [hbr.2.2.2.1 .x12]
     exact hword.2.1
   have h13 : t2.getReg .x13 =
-      LoadKind.fromWord .bu (u.getMem (BitVec.ofNat 64 0x4aa8)) 4 := by
+      LoadKind.fromWord .wu (u.getMem (BitVec.ofNat 64 0x4aa8)) 0 >>> 14 := by
     rw [hbr.2.2.2.1 .x13]
     exact hword.2.2.1
   have h7b : t2.getReg .x7 = BitVec.ofNat 64 0x20b8 := by
     rw [hbr.2.2.2.1 .x7]
     simp only [t1, Result.toState_getReg, blk226PackedPrelude.res, rv_simp, h7]
-  have h13lt : (t2.getReg .x13).toNat < 2 ^ 4 := by
-    have hz : t1.getReg .x14 = 0 := by
-      rw [hword.2.2.2]
-      exact (sigOK_tail_canonical u sig hs hlen).mpr hc
-    have hshift : t2.getReg .x13 >>> 4 = 0 := by
-      rw [h13]
-      rw [hword.2.2.2] at hz
-      exact hz
-    have := (shift14_zero_iff (t2.getReg .x13)).mp hshift
-    omega
+  have h13lt : (t2.getReg .x13).toNat < 250563 := by
+    have hz := (sigOK_tail_canonical u sig hs hlen).mpr hc
+    rw [badTailW_zero_iff] at hz
+    rw [h13]
+    simpa only [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] using hz
   have harea := packedBody_sig_bytes u t2 sig hs hlen h11 h12 h13 h7b h13lt
   have hbytes2 : BytesEq t2 f := by
     intro a ha

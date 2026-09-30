@@ -29,7 +29,7 @@ theorem fetch_ecall (t : MachineState) (i : Nat) (hi : image.code[i]? = some 0x0
 theorem code141 : image.code[141]? = some 0x00000073#32 := by decide +kernel
 theorem code144 : image.code[144]? = some 0x00000073#32 := by decide +kernel
 theorem code381 : image.code[381]? = some 0x00000073#32 := by decide +kernel
-theorem code2966 : image.code[2966]? = some 0x00000073#32 := by decide +kernel
+theorem code3037 : image.code[3037]? = some 0x00000073#32 := by decide +kernel
 
 theorem stages_after_pack_jump (t5 t6 t7 : MachineState)
     (lays : List LayerSig) (hll : lays.length = 5)
@@ -81,7 +81,7 @@ def ListPost (r : Option (List Byte)) (t : MachineState) : Prop :=
   fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
   match r with
   | none => t.getReg .x10 = 1
-  | some l => t.getReg .x10 = 0 ∧ readBuffer t 0x3300 6061 = ofList 6061 l
+  | some l => t.getReg .x10 = 0 ∧ readBuffer t 0x3300 6060 = ofList 6060 l
 
 /-- The zero buffers used as P slots / padding, never written by `sign` after the setup. -/
 def ZA (a : Nat) : Prop :=
@@ -123,7 +123,7 @@ theorem sched_le (N : Nat) (hadm : admissible N = true) :
 /-- Cycle bound after the MAC check. -/
 def restW : Nat :=
   (2 ^ 20 - 1 + 1) * digCyc + 2 + (34 + ((2 ^ 13 * 79 + (1 + 14 * (4 + (2 ^ 13 * 26 + 4)))) +
-    (11 + 15 * 345 + (20 + (4 * layCyc + topCyc + (2123 + 5906))))))
+    (11 + 15 * 345 + (20 + (4 * layCyc + topCyc + (2123 + 5960))))))
 
 /-- Cycle bound of `signList`. -/
 def signW : Nat := 54 + (8 * 1025 + (53 + restW))
@@ -241,7 +241,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
   have rhoB : rho.length = 16 := hrl
   set vs := sortLeaves (leavesOf N) with hvsdef
   have hvsl : vs.length = 15 := by rw [← hvs, List.length_map, hL]
-  refine (Sim.steps hs3 (Sim.steps hs4 (Sim.bind (W₂ := 2123 + 5906)
+  refine (Sim.steps hs3 (Sim.steps hs4 (Sim.bind (W₂ := 2123 + 5960)
     (layers_sim (toList sk) (toList cache) hS hcache idx hidx 4 le_rfl M t4 hhead)
     (fun r2 t5 h5 => ?_)))).mono (by generalize layCyc = A; generalize topCyc = B; omega) (fun _ _ h => h)
   rcases r2 with _ | lays
@@ -330,11 +330,11 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
     rw [ht9, bytesAt_frame_before t8 _ 0x4aa0 (tail_frame t8)
       0x3b60 3904 (by norm_num) (by norm_num)]
     exact hbody8
-  have htail9 : bytesAt t9 0x4aa0 13 = CounterPack.packTail (lays.map Prod.fst) := by
+  have htail9 : bytesAt t9 0x4aa0 12 = CounterPack.packTail (lays.map Prod.fst) := by
     rw [ht9]
     exact tail_bytes_of_stages t8 lays hll hst8
   refine (Sim.pure_steps (((hs6.trans hs7).trans hs8).trans hs9)
-    ⟨fetch_ecall t9 2966 code2966 (by norm_num) pc9, x59, x109, ?_⟩).mono
+    ⟨fetch_ecall t9 3037 code3037 (by norm_num) pc9, x59, x109, ?_⟩).mono
     (by norm_num) (fun _ _ h => h)
   rw [readBuffer_bytesAt,
     final_bytes_of_parts t9 rho (porsOpening vs p.1 p.2) lays hhead9 hbody9 htail9]
@@ -347,9 +347,9 @@ theorem signList_sim (sk : SecretKey) (cache : Cache) (m : Message) :
 
 
 /-- Final states: at a HALT whose output is `signRef`'s value. -/
-def SignPost (a : Option (Bytes 6061)) (t : MachineState) : Prop :=
+def SignPost (a : Option (Bytes 6060)) (t : MachineState) : Prop :=
   fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
-  a = if t.getReg .x10 = 0 then some (readBuffer t 0x3300 6061) else none
+  a = if t.getReg .x10 = 0 then some (readBuffer t 0x3300 6060) else none
 set_option maxRecDepth 100000 in
 
 theorem signRef_sim (sk : SecretKey) (cache : Cache) (m : Message) :

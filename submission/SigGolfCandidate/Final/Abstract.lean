@@ -1,5 +1,6 @@
 import SigGolfCandidate.SphincsSecurity.Completeness
 import SigGolfCandidate.SphincsSecurity.Completeness.Recovery
+import SigGolfCandidate.SphincsSecurity.Completeness.CapSigning
 import SigGolfCandidate.Equiv.Honest
 import SigGolfCandidate.Equiv.Expand
 
@@ -12,9 +13,9 @@ oracle; `hq_game`: all its queries are `Honest`.
 
 `gameX seed m` is the organizer's honest pipeline in abstract form: it also expands the compressed
 signature (`Equiv.aExpand`, one digest query) and verifies the decoded witness. Under every answer
-function it computes what `game` computes (`eval_gameX`): the expansion's digest query of `rho` returns
-the digest the signer accepted, so (relation R4, `Equiv.expandOf_honest`) the witness decodes to the
-signature itself.
+function it agrees with `Completeness.capGame`: representable counter tuples decode to the honest
+signature, while the reserved tail for an out-of-cap tuple is rejected after the digest query.
+The cap experiment accounts for this additional completeness event without changing signing queries.
 -/
 
 open OracleComp OracleSpec
@@ -72,6 +73,19 @@ theorem hq_game (seed : MasterSeed) (message : Message) : Equiv.HQ (game seed me
   rcases s with _ | σ
   · exact Equiv.hq_pure _
   · exact Equiv.hq_verify _ rfl _ _
+
+theorem hq_capGame (seed : MasterSeed) (message : Message) :
+    Equiv.HQ (Completeness.capGame seed message) := by
+  unfold Completeness.capGame Completeness.signedWithKeys
+    Seeded.keygenFromSeed Seeded.maskRegion
+  simp only [map_bind, map_pure, bind_assoc, pure_bind]
+  refine Equiv.hq_bind (Equiv.hq_buildLayerTablePaired _ rfl _ _ _ (fun _ _ => Equiv.hq_otsSecret _ _ _ _ _ _) _ _)
+    fun t => ?_
+  refine Equiv.hq_bind (Equiv.hq_sequenceFin _ fun _ => Equiv.hq_bind (Equiv.hq_sequenceFin _ fun _ =>
+    Equiv.hq_bind (Equiv.hq_maskSecret _ _ _ _) fun _ => Equiv.hq_pure _) fun _ => Equiv.hq_pure _)
+    fun _ => ?_
+  refine Equiv.hq_bind (Equiv.hq_mac _ _ _) fun _ => ?_
+  exact Equiv.hq_bind (Equiv.hq_sign _ rfl _ _) fun _ => Equiv.hq_pure _
 
 theorem hq_gameX (seed : MasterSeed) (message : Message) : Equiv.HQ (gameX seed message) := by
   unfold gameX Seeded.keygenFromSeed Seeded.maskRegion
@@ -147,28 +161,21 @@ theorem sign_shape (seed : MasterSeed) (message : Message) {pk : PublicKey} {cac
     subst hfts
     exact ⟨_, _, rfl⟩
 
-/-- Under a fixed answer function, the expansion of an honestly produced signature succeeds with a
-witness decoding to the signature. -/
+/-- Under a fixed answer function, an honest signature within the codec caps expands to a
+witness decoding to that signature. -/
 theorem eval_aExpand_sign (seed : MasterSeed) (message : Message) {pk : PublicKey} {cache : TopCache}
     {sk : Seeded.SecretKey} {S : Signature}
     (hkeys : evalWithAnswerFn f (Seeded.keygenFromSeed seed) = (pk, cache, sk))
     (hsign : evalWithAnswerFn f (Seeded.sign sk cache message
-      : OracleComp SphincsSecurity.HashSpec (Option Signature)) = some S) :
+      : OracleComp SphincsSecurity.HashSpec (Option Signature)) = some S)
+    (hcaps : Completeness.capGoodSignature S) :
     ∃ w, evalWithAnswerFn f (Equiv.aExpand message pk (Equiv.compress S)) = some w ∧
       Equiv.witDec w = S := by
   obtain ⟨hpk, hP, hadm, secret, node, hS⟩ := sign_shape f seed message hkeys hsign
   set d := Completeness.digestValue f sk message S.randomness with hd
-  have hcounters : Concrete.CountersInRange S := by
-    have hverify := Completeness.verify_of_keygen_sign f seed message hkeys hsign
-    by_contra hbad
-    rw [Concrete.verify_eq_of_not_counters pk message S hbad] at hverify
-    simp at hverify
   obtain ⟨wl, hlen, hexp, hwit⟩ := Equiv.expandOf_honest (Concrete.digestLeaves d) hadm d.toNat
     (fun r => Equiv.leafOf_eq d r) S.randomness secret node S.layers
-    (fun lay => by
-      have h := hcounters lay
-      simpa [Ref.CounterPack.radix, Ref.CounterPack.counterBits,
-        SphincsSecurity.encodingAttemptLimit] using h)
+    hcaps
   refine ⟨Ref.ofList 6348 wl, ?_, ?_⟩
   · unfold Equiv.aExpand
     rw [ofList_sigRho_compress, evalWithAnswerFn_bind, evalWithAnswerFn_pure]
@@ -183,11 +190,12 @@ theorem eval_aExpand_sign (seed : MasterSeed) (message : Message) {pk : PublicKe
   · unfold Equiv.witDec
     rw [Ref.toList_ofList _ _ hlen, hwit, ← hS]
 
-/-- **The expansion does not change the honest game** under any answer function. -/
+/-- The honest byte pipeline agrees with the checked representability experiment. -/
 theorem eval_gameX (seed : MasterSeed) (message : Message) :
-    evalWithAnswerFn f (gameX seed message) = evalWithAnswerFn f (game seed message) := by
-  unfold gameX game
-  simp only [evalWithAnswerFn_bind]
+    evalWithAnswerFn f (gameX seed message) =
+      evalWithAnswerFn f (Completeness.capGame seed message) := by
+  unfold gameX Completeness.capGame Completeness.signedWithKeys
+  simp only [map_bind, map_pure, evalWithAnswerFn_bind]
   generalize hk : evalWithAnswerFn f (Seeded.keygenFromSeed seed) = kp
   obtain ⟨pk, cache, sk⟩ := kp
   dsimp only
@@ -196,8 +204,14 @@ theorem eval_gameX (seed : MasterSeed) (message : Message) :
   cases s with
   | none => rfl
   | some S =>
-    obtain ⟨w, hw, hwS⟩ := eval_aExpand_sign f seed message hk hs
-    simp only [evalWithAnswerFn_bind, hw, hwS]
+    by_cases hcaps : Completeness.capGoodSignature S
+    · obtain ⟨w, hw, hwS⟩ := eval_aExpand_sign f seed message hk hs hcaps
+      simp only [evalWithAnswerFn_bind, hw, hwS, evalWithAnswerFn_pure,
+        Completeness.capSuccess, decide_eq_true hcaps]
+      exact Completeness.verify_of_keygen_sign f seed message hk hs
+    · dsimp only
+      rw [Equiv.aExpand_compress_reject message pk S hcaps]
+      simp [evalWithAnswerFn_bind, evalWithAnswerFn_pure, Completeness.capSuccess, hcaps]
 
 end eval
 

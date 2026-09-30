@@ -160,6 +160,37 @@ theorem pow_le_half_2822_1980 (x : ENNReal)
     ENNReal.ofReal (x.toReal ^ 1980) ≤ ENNReal.ofReal (1 / 2) := ENNReal.ofReal_le_ofReal hpow
     _ = 2⁻¹ := by rw [one_div, ENNReal.ofReal_inv_of_pos (by norm_num)]; simp
 
+set_option exponentiation.threshold 512 in
+/-- A sharper counter block: 1434 trials halve rejection with acceptance at least 1/2046. -/
+theorem pow_le_half_2046_1434 (x : ENNReal)
+    (hx : x + (2046 : ENNReal)⁻¹ ≤ 1) : x ^ 1434 ≤ 2⁻¹ := by
+  have hx1 : x ≤ 1 := le_trans le_self_add hx
+  have hxtop : x ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hx1
+  have hreal : x.toReal ≤ (2045 : ℝ) / 2046 := by
+    have h := ENNReal.toReal_mono ENNReal.one_ne_top hx
+    rw [ENNReal.toReal_add hxtop (by simp), ENNReal.toReal_inv,
+      ENNReal.toReal_ofNat, ENNReal.toReal_one] at h
+    norm_num at h ⊢
+    linarith
+  have hrat : ((2045 : ℝ) / 2046) ^ 1434 ≤ 1 / 2 := by
+    have hnat : 100 * (2045 : Nat) ^ 239 ≤ 89 * (2046 : Nat) ^ 239 := by decide
+    have hreal : (100 : ℝ) * (2045 : ℝ) ^ 239 ≤ 89 * (2046 : ℝ) ^ 239 := by
+      exact_mod_cast hnat
+    have hblock : ((2045 : ℝ) / 2046) ^ 239 ≤ 89 / 100 := by
+      rw [div_pow]
+      apply (div_le_iff₀ (by positivity)).mpr
+      nlinarith
+    calc
+      _ = (((2045 : ℝ) / 2046) ^ 239) ^ 6 := by rw [← pow_mul]
+      _ ≤ ((89 : ℝ) / 100) ^ 6 := pow_le_pow_left₀ (by positivity) hblock 6
+      _ ≤ 1 / 2 := by norm_num
+  have hpow : x.toReal ^ 1434 ≤ 1 / 2 :=
+    (pow_le_pow_left₀ ENNReal.toReal_nonneg hreal 1434).trans hrat
+  rw [← ENNReal.ofReal_toReal (ENNReal.pow_ne_top hxtop), ENNReal.toReal_pow]
+  calc
+    ENNReal.ofReal (x.toReal ^ 1434) ≤ ENNReal.ofReal (1 / 2) := ENNReal.ofReal_le_ofReal hpow
+    _ = 2⁻¹ := by rw [one_div, ENNReal.ofReal_inv_of_pos (by norm_num)]; simp
+
 /-! ## The closing numbers
 
 Every quantity below is a power of `2⁻¹`, so the comparisons are monotonicity in the exponent and the
@@ -233,5 +264,59 @@ theorem closing_sum :
     _ = (2⁻¹ : ENNReal) ^ 256 := by
       rw [← ENNReal.inv_pow, mul_comm, ← ENNReal.div_eq_inv_mul,
         show (512 : Nat) = 256 + 256 by norm_num, two_pow_div_two_pow]
+
+/-- Low-target counter cap used by the partial twelve-byte serializer. -/
+theorem counter_cap_low_pow (x : ENNReal) (hx : x + (2046 : ENNReal)⁻¹ ≤ 1) :
+    x ^ 557056 ≤ (2⁻¹ : ENNReal) ^ 388 := by
+  have hx1 : x ≤ 1 := le_trans le_self_add hx
+  calc x ^ 557056 ≤ x ^ (1434 * 388) :=
+      pow_le_pow_right_of_le_one' hx1 (by decide)
+    _ = (x ^ 1434) ^ 388 := by rw [← pow_mul]
+    _ ≤ (2⁻¹ : ENNReal) ^ 388 :=
+      pow_le_pow_left₀ (by positivity) (pow_le_half_2046_1434 x hx) _
+
+/-- High-target counter cap used by the partial twelve-byte serializer. -/
+theorem counter_cap_high_pow (x : ENNReal) (hx : x + (2822 : ENNReal)⁻¹ ≤ 1) :
+    x ^ 786432 ≤ (2⁻¹ : ENNReal) ^ 397 := by
+  have hx1 : x ≤ 1 := le_trans le_self_add hx
+  calc x ^ 786432 ≤ x ^ (1980 * 397) :=
+      pow_le_pow_right_of_le_one' hx1 (by decide)
+    _ = (x ^ 1980) ^ 397 := by rw [← pow_mul]
+    _ ≤ (2⁻¹ : ENNReal) ^ 397 :=
+      pow_le_pow_left₀ (by positivity) (pow_le_half_2822_1980 x hx) _
+
+/-- The cap-abort experiment's numerical union bound over all messages.
+This lemma does not replace the stronger existing completeness theorem: the partial
+serializer must separately prove that these are its actual failure probabilities. -/
+theorem closing_sum_caps :
+    (2 : ENNReal) ^ 256 *
+      ((2⁻¹ : ENNReal) ^ 699 + 4 * (2⁻¹ : ENNReal) ^ 388 + (2⁻¹ : ENNReal) ^ 397)
+      ≤ ((2 ^ 128 : Nat) : ENNReal)⁻¹ := by
+  have ha : (2⁻¹ : ENNReal) ^ 699 ≤ (2⁻¹ : ENNReal) ^ 388 := inv_two_pow_anti (by decide)
+  have hb : (2⁻¹ : ENNReal) ^ 397 ≤ (2⁻¹ : ENNReal) ^ 388 := inv_two_pow_anti (by decide)
+  have hsum : (2⁻¹ : ENNReal) ^ 699 + 4 * (2⁻¹ : ENNReal) ^ 388 + (2⁻¹ : ENNReal) ^ 397
+      ≤ (2⁻¹ : ENNReal) ^ 384 := by
+    have h1 := inv_two_pow_succ_add 387
+    have h2 := inv_two_pow_succ_add 386
+    have h3 := inv_two_pow_succ_add 385
+    calc
+      _ ≤ (2⁻¹ : ENNReal) ^ 388 + 4 * (2⁻¹ : ENNReal) ^ 388 + (2⁻¹ : ENNReal) ^ 388 :=
+        add_le_add (add_le_add ha le_rfl) hb
+      _ = 6 * (2⁻¹ : ENNReal) ^ 388 := by ring
+      _ ≤ 8 * (2⁻¹ : ENNReal) ^ 388 := mul_le_mul' (by norm_num) le_rfl
+      _ = (((2⁻¹ : ENNReal) ^ 388 + (2⁻¹ : ENNReal) ^ 388)
+            + ((2⁻¹ : ENNReal) ^ 388 + (2⁻¹ : ENNReal) ^ 388))
+          + (((2⁻¹ : ENNReal) ^ 388 + (2⁻¹ : ENNReal) ^ 388)
+            + ((2⁻¹ : ENNReal) ^ 388 + (2⁻¹ : ENNReal) ^ 388)) := by ring
+      _ = (2⁻¹ : ENNReal) ^ 385 := by rw [h1, h2, h3]
+      _ ≤ (2⁻¹ : ENNReal) ^ 384 := inv_two_pow_anti (by decide)
+  have hcast : ((2 ^ 128 : Nat) : ENNReal)⁻¹ = (2⁻¹ : ENNReal) ^ 128 := by
+    rw [Nat.cast_pow, Nat.cast_ofNat, ENNReal.inv_pow]
+  rw [hcast]
+  calc
+    _ ≤ (2 : ENNReal) ^ 256 * (2⁻¹ : ENNReal) ^ 384 := mul_le_mul_right hsum _
+    _ = (2⁻¹ : ENNReal) ^ 128 := by
+      rw [← ENNReal.inv_pow, mul_comm, ← ENNReal.div_eq_inv_mul,
+        show (384 : Nat) = 256 + 128 by norm_num, two_pow_div_two_pow]
 
 end SphincsSecurity.Completeness

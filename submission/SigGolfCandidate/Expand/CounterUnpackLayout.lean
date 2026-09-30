@@ -5,7 +5,7 @@ import SigGolfCandidate.Ref.CounterPack
 
 The witness still stores five aligned LE32 counters at `0x20b8 + 4*i`.
 The unchanged verifier image reads those words. The expander copies the five
-aligned bodies and unpacks the 13-byte tail before returning the witness.
+aligned bodies and unpacks the 12-byte tail before returning the witness.
 -/
 
 namespace SigGolfCandidate.Expand.CounterUnpackLayout
@@ -40,39 +40,33 @@ theorem tailSource_eq : tailSource = 0x4aa0 := by decide
 theorem counterDest_eq : (List.range nLayers).map counterDest =
     [0x20b8, 0x20bc, 0x20c0, 0x20c4, 0x20c8] := by decide
 
-/-- Decode the five counters from an aligned 64-bit low word and a 40-bit high word. -/
+
+/-- Machine extracts, including the mixed-radix quotient rank. -/
 def unpackWords (lo hi : Nat) : List Nat :=
-  [lo % 2 ^ 20,
-   lo / 2 ^ 20 % 2 ^ 20,
-   lo / 2 ^ 40 % 2 ^ 20,
-   (lo / 2 ^ 60 + (hi % 2 ^ 16) * 2 ^ 4) % 2 ^ 20,
-   hi / 2 ^ 16 % 2 ^ 20]
+  [lo % 32768 + 32768 * (hi / 16384 % 17),
+   lo / 32768 % 32768 + 32768 * (hi / 16384 / 17 % 17),
+   lo / 1073741824 % 32768 + 32768 * (hi / 16384 / 17 / 17 % 17),
+   lo / 35184372088832 % 32768 + 32768 * (hi / 16384 / 17 / 17 / 17 % 17),
+   lo / 1152921504606846976 + 16 * (hi % 16384) +
+     262144 * (hi / 16384 / 17 / 17 / 17 / 17 % 3)]
 
-/-- The four unused bits of the final halfword must be zero. -/
-def canonicalHigh (hi : Nat) : Bool := hi < 2 ^ 36
+def canonicalHigh (hi : Nat) : Bool := hi / 16384 < 250563
 
-/-- The decoder's three register extracts are the five base-`2^20` digits of
-the original 104-bit tail value. The statement permits noncanonical high bits;
-the separate branch check rejects them. -/
 theorem unpackWords_value (v : Nat) :
     unpackWords (v % 2 ^ 64) (v / 2 ^ 64) = CounterPack.unpackDigits v nLayers := by
-  norm_num [unpackWords, CounterPack.unpackDigits, CounterPack.radix,
-    CounterPack.counterBits, nLayers]
+  norm_num [unpackWords, CounterPack.unpackDigits, CounterMix.decode, CounterMix.join, nLayers, List.range_succ, List.map_append]
   omega
 
-/-- The high-half comparison is exactly the 100-bit canonicality bound. -/
 theorem canonicalHigh_iff (v : Nat) :
-    canonicalHigh (v / 2 ^ 64) = true ↔ v < 2 ^ 100 := by
-  simp [canonicalHigh]
+    canonicalHigh (v / 2 ^ 64) = true ↔ v < CounterMix.capacity := by
+  simp [canonicalHigh, CounterMix.capacity]
   omega
 
-/-- The final byte has four unused high bits. -/
 theorem canonicalTail_iff_highHalfword (tail : List Byte)
     (hlen : tail.length = CounterPack.tailBytes) :
     CounterPack.canonicalTail tail = true ↔
-      (tail.getD 12 0).toNat / 2 ^ 4 = 0 := by
-  rw [CounterPack.canonicalTail_iff]
-  norm_num
-  omega
+      canonicalHigh (CounterPack.tailValue tail / 2^64) = true := by
+  rw [CounterPack.canonicalTail_iff, canonicalHigh_iff]
+  exact and_iff_right hlen
 
 end SigGolfCandidate.Expand.CounterUnpackLayout

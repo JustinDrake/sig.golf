@@ -99,7 +99,7 @@ def aMax : Nat := 2 ^ 20
 /-- The counter limit `C_max`: the signer tries `c < cMax`, the verifier rejects `c ≥ cMax`. -/
 def cMax : Nat := 2 ^ 20
 /-- Signature bytes `S`. -/
-def sigBytes : Nat := 6061
+def sigBytes : Nat := 6060
 /-- Witness bytes `W`. -/
 def witBytes : Nat := 6348
 
