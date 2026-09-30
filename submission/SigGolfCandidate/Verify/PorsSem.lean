@@ -610,7 +610,7 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
     have r10 : u.getReg .x10 = BitVec.ofNat 64 (pendAddr pend stk.length) := by
       rw [hkeep .x10 (by simp [tabKeep]), hkeep1 .x10 (by simp [dispKeep])]; exact h.a0
     have r11 : u.getReg .x11 = BitVec.ofNat 64 (64 * (0 + 1)) := hK (.x11, 64) (by simp [gkP])
-    have r15 : u.getReg .x15 = BitVec.ofNat 64 (stkOf' stk.length) := by
+    have r15 : u.getReg .x15 = BitVec.ofNat 64 (stkReg stk.length) := by
       rw [hkeep .x15 (by simp [tabKeep]), hkeep1 .x15 (by simp [dispKeep])]; exact h.rS
     have mem : ∀ A, u.getMem A = m.getMem A := by
       intro A; rw [hu.mem, hsp]; show u1.getMem A = _; rw [hu1.mem]; rfl
@@ -624,7 +624,7 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
       rw [r12]
       split_ifs with h0
       · unfold destE destOf
-        have r15' : u1.getReg .x15 = BitVec.ofNat 64 (stkOf' stk.length) := by
+        have r15' : u1.getReg .x15 = BitVec.ofNat 64 (stkReg stk.length) := by
           rw [hkeep1 .x15 (by simp [dispKeep])]; exact h.rS
         split_ifs <;> simp [Rv.E.eval, BinOp.eval, cw, r15', BitVec.ofNat_add_ofNat]
       · rfl
@@ -953,7 +953,7 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
     · simp only [if_true]
       exact nb_hashInput pb _ _ _ hsl h.nodeLen hH r10 r11 mem8 (by simpa using memS.1) (by simpa using memS.2)
         (by simpa using memN.1) (by simpa using memN.2)
-  have r15 : u.getReg .x15 = BitVec.ofNat 64 (stkOf' stk.length) := by rw [kp .x15 (by simp [posKeep])]; exact h.rS
+  have r15 : u.getReg .x15 = BitVec.ofNat 64 (stkReg stk.length) := by rw [kp .x15 (by simp [posKeep])]; exact h.rS
   have r12 : u.getReg .x12 = BitVec.ofNat 64 (if i + 1 = a then destOf V stk.length else 0x1E0 + 16 * t') := by
     by_cases hl : i + 1 = a
     · rw [hu.regs (.x12, destE V) (by simp [posSpec, show 14 - a + i = 13 by omega]), if_pos hl]
@@ -1064,7 +1064,7 @@ theorem StackOK.pop {e : Val × Nat} {rest : List (Val × Nat)} {m : MachineStat
   exact this
 
 theorem tailKnown_ok {P : PCtx} {s0 m : MachineState} {tb d : Nat} (pb : PB P s0 m tb)
-    (h15 : m.getReg .x15 = BitVec.ofNat 64 (stkOf' d)) : KnownOK (tailKnown d) m := by
+    (h15 : m.getReg .x15 = BitVec.ofNat 64 (stkReg d)) : KnownOK (tailKnown d) m := by
   intro q hq
   simp only [tailKnown, List.mem_append, List.mem_singleton] at hq
   rcases hq with hq | hq
@@ -1166,9 +1166,9 @@ theorem tailM_step (P : PCtx) (s0 : MachineState) (s x c ptr E folds : Nat) (nod
     · rw [kp .x14 (by simp [tailKeep])]; exact h.fr
     · rw [hu.regs (.x23, eS) (by simp [tailMSpec]), hEs]
     · rw [kp .x29 (by simp [tailKeep])]; exact h.sum
-    · rw [hu.regs (.x15, cw (stkOf stk.length - 80)) (by simp [tailMSpec])]
-      show BitVec.ofNat 64 (stkOf stk.length - 80) = BitVec.ofNat 64 (stkOf' rest.length)
-      congr 1; simp only [stkOf, stkOf', hdl]; omega
+    · rw [hu.regs (.x15, cw (80 * stk.length - 80)) (by simp [tailMSpec])]
+      show BitVec.ofNat 64 (80 * stk.length - 80) = BitVec.ofNat 64 (stkReg rest.length)
+      congr 1; simp only [stkReg, hdl]; omega
     · rw [he] at h
       apply h.stack.pop.frame
       intro i hi
@@ -1242,9 +1242,9 @@ theorem tailP_step (P : PCtx) (s0 : MachineState) (s x c ptr E folds : Nat) (nod
     rw [h.lnk, even_andNot1' _ (lnkOf_even s), lnkOf, disp_next s hs14]; rfl
   · rw [kp .x14 (by simp)]; exact h.fr
   · rw [kp .x29 (by simp)]; exact h.sum
-  · rw [hu.regs (.x15, cw (stkOf stk.length + 80)) (by simp [tailPSpec])]
-    show BitVec.ofNat 64 (stkOf stk.length + 80) = BitVec.ofNat 64 (stkOf' (stk.length + 1))
-    congr 1
+  · rw [hu.regs (.x15, cw (80 * stk.length + 80)) (by simp [tailPSpec])]
+    show BitVec.ofNat 64 (80 * stk.length + 80) = BitVec.ofNat 64 (stkReg (stk.length + 1))
+    congr 1; simp only [stkReg]; omega
   · intro i hi
     simp only [List.length_cons] at hi
     by_cases hit : i < stk.length

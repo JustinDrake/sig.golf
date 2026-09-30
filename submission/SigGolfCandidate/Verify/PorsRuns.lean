@@ -65,7 +65,7 @@ def tbOf (s : Nat) : Nat := if s = 14 then tbL else tbN
 
 /-- The destination of the last hash of a segment of variant `V`. -/
 def destE (V : Nat) : E :=
-  if V = 0 then .bin .add (.reg .x15) (cw 48) else if V = 1 then .bin .add (.reg .x15) (cw 112)
+  if V = 0 then .bin .add (.reg .x15) (cw 640) else if V = 1 then .bin .add (.reg .x15) (cw 704)
   else cw 0x120
 
 def rejSpec (steps : Nat) (brs : List Br) : Spec :=
@@ -177,30 +177,30 @@ def posCheck (V : Nat) : Bool :=
 /-! ## Tails -/
 
 def stkOf (d : Nat) : Nat := EMPTY + 80 * d
-def tailKnown (d : Nat) : List (Reg × Word) := gkP ++ [(.x15, BitVec.ofNat 64 (stkOf d))]
+def tailKnown (d : Nat) : List (Reg × Word) := gkP ++ [(.x15, BitVec.ofNat 64 (80 * d))]
 def tailKeep : List Reg := [.x14, .x16, .x17, .x20, .x22, .x24, .x29]
 
 def tailMSpec (c d : Nat) : Spec :=
-  ⟨[(.x3, ldE (stkOf d - 16)), (.x23, eS), (.x10, cw (stkOf d)), (.x15, cw (stkOf d - 80))],
+  ⟨[(.x3, ldE (stkOf d - 16)), (.x23, eS), (.x10, cw (stkOf d)), (.x15, cw (80 * d - 80))],
     [(⟨none, BitVec.ofNat 64 (stkOf d + 8)⟩, stW (stkOf d + 8) eS)], dispTailPc c, false, 6,
     [⟨.ne, ldE (stkOf d - 16), .reg .x23, false⟩], none, 6⟩
 
 def tailMRej (d : Nat) : Spec := rejSpec 5 [⟨.ne, ldE (stkOf d - 16), .reg .x23, true⟩]
 
 def tailPSpec (d : Nat) : Spec :=
-  ⟨[(.x15, cw (stkOf d + 80)), (.x3, .bin .xor (.reg .x23) (cw 1))],
+  ⟨[(.x15, cw (80 * d + 80)), (.x3, .bin .xor (.reg .x23) (cw 1))],
     [(⟨none, BitVec.ofNat 64 (stkOf d + 64)⟩, .bin .xor (.reg .x23) (cw 1))], 0, false, 4, [],
     some (.bin .and (.reg .x24) notOne), 4⟩
 
 def tailCheck (c : Nat) : Bool :=
   (List.range 15).all (fun d =>
     pspecB gkP (runAt (tailKnown d) [dispTailPc c] (tailPc 0 c) [.br false]) (tailMSpec c d) []
-      (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (stkOf d - 80)) else p)
+      (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (80 * d - 80)) else p)
       tailKeep &&
     pspecB [] (runAt (tailKnown d) [] (tailPc 0 c) [.br true]) (tailMRej d) [] [] []) &&
   (List.range 14).all (fun d =>
     pspecB gkP (runAt (tailKnown d) [] (tailPc 1 c) [.jmp]) (tailPSpec d) []
-      (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (stkOf d + 80)) else p)
+      (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (80 * d + 80)) else p)
       [.x14, .x16, .x17, .x20, .x22, .x23, .x24, .x29])
 
 /-! ### The root tail (checks, layer constants) -/
@@ -208,7 +208,7 @@ def tailCheck (c : Nat) : Bool :=
 /-- The fold limit: `bltu t4, a4` (`FR` beyond `FLIM`). -/
 def fBr1 (d : Bool) : Br := ⟨.ltu, .reg .x29, .reg .x14, d⟩
 def fBr2 (d : Bool) : Br := ⟨.ne, addC (.reg .x23) (-1#64), .c 0, d⟩
-def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw EMPTY, d⟩
+def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw 0, d⟩
 
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
@@ -217,7 +217,7 @@ constants `t3 = 2^40`, `sp = TMASK`, `a5 = ttab + 2048` that the root tail sets)
 def tailFK : List (Reg × Word) := gkL0 ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40101)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[], [], f4Pc c, false, 25, [fBr3 false, fBr2 false, fBr1 false], none, 25⟩
+  ⟨[], [], f4Pc c, false, 24, [fBr3 false, fBr2 false, fBr1 false], none, 24⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB gkL0 (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
@@ -225,7 +225,7 @@ def tailFCheck (c : Nat) : Bool :=
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br true]) (rejSpec 4 [fBr1 true]) [] [] [] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br true]) (rejSpec 6 [fBr2 true, fBr1 false]) [] [] [] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br false, .br true])
-    (rejSpec 8 [fBr3 true, fBr2 false, fBr1 false]) [] [] []
+    (rejSpec 7 [fBr3 true, fBr2 false, fBr1 false]) [] [] []
 
 /-! ## Leaves -/
 
@@ -318,10 +318,10 @@ def psetupMem : List (Addr × E) :=
 /-- Known after the setup: the PORS constants, `TB = ptab_n`, `FR` (first header at `FR + 224`),
 the empty stack, the fold limit `FLIM`. -/
 def setupPost : List (Reg × Word) :=
-  gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x830), (.x15, BitVec.ofNat 64 EMPTY),
+  gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x830), (.x15, 0),
     (.x29, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 107, [], none, 107⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 106, [], none, 106⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&
