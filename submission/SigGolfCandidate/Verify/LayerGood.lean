@@ -12,7 +12,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 def layerSpec (w : List Byte) (idx lay : Nat) (M : Val) : OracleComp HashSpec (Option Val) := do
   let (e, tau) := route idx lay
   let d ← hash16 (encInput lay tau e M (witCounter w lay))
-  match decodeDigits d with
+  match decodeDigits lay d with
   | none => pure none
   | some x => do
     let leaf ← verifyLeaf w lay tau e x
@@ -25,13 +25,13 @@ theorem verifyLayers_succ (w : List Byte) (idx lay : Nat) (M : Val) :
       | some r => verifyLayers w idx lay r := by
   simp only [verifyLayers, layerSpec, bind_assoc]
   congr 1; funext d
-  cases h : decodeDigits d <;> simp [h, bind_assoc]
+  cases h : decodeDigits lay d <;> simp [h, bind_assoc]
 
 def FoldEndL (L : LCtx) (u : MachineState) : Prop :=
   ∃ s0, FoldEnd (layFC L) s0 u ∧ LeafCarry L s0
 
 def layerCost (lay : Nat) : Nat :=
-  stepsA lay + 8 + cyclesB lay + (42 * 67 - 9 * targetSum + headSum lay) + 11 + 88 +
+  stepsA lay + 8 + cyclesB lay + (42 * 67 - 9 * targetFor lay + headSum lay) + 11 + 88 +
     foldCost false (heightL lay) 0 (heightL lay)
 
 theorem blocks_q (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 1 := rfl
@@ -63,11 +63,12 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
   simp only []
   rw [cc_bind]
   have hfc := layFC_ok L hL
+  have htarget : targetFor L.lay ≤ 182 := by unfold targetFor targetSum; split_ifs <;> omega
   have hsA : stepsA L.lay ≤ 29 := by unfold stepsA; split_ifs <;> omega
   have hsB : stepsB L.lay ≤ 40 := by unfold stepsB; split_ifs <;> omega
   have hcB : cyclesB L.lay = stepsB L.lay + 3 := rfl
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
-      (cc (match decodeDigits (answerBytes 16 a) with
+      (cc (match decodeDigits L.lay (answerBytes 16 a) with
         | none => pure none
         | some x => do
           let leaf ← verifyLeaf L.wl L.lay L.tau L.e x
@@ -75,7 +76,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
           pure (some root)) Kopt) := by
     intro a
     obtain ⟨hrej, hacc⟩ := encpost_step L hL t ht a _ (hpost1 a)
-    cases hd : decodeDigits (answerBytes 16 a) with
+    cases hd : decodeDigits L.lay (answerBytes 16 a) with
     | none =>
       obtain ⟨k, c, hk, hc, u, hst, hf, h5, h10⟩ := hrej hd
       simp only [cc_pure, hnone]
@@ -84,7 +85,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
       obtain ⟨t2, hst2, hent, hcok, hxs, hsum, hlen⟩ := hacc xs hd
       simp only [verifyLeaf, bind_assoc, cc_bind]
       set c := L.cctx a with hc
-      have hcost : chainsCost c 0 42 = 42 * 67 - 9 * targetSum + headSum L.lay := chainsCost_eq c xs hlen hxs hsum
+      have hcost : chainsCost c 0 42 = 42 * 67 - 9 * targetFor L.lay + headSum L.lay := chainsCost_eq c xs hlen hxs hsum
       have hch := chains_good0 c hcok xs hxs (fun i hi => chainCheck_at L.lay i hlay hi)
         (fun ends => cc (hash16 (leafInput L.lay L.tau L.e ends)) (fun leaf =>
           cc (foldPath (nodeInput L.lay L.tau) L.e leaf (witPath L.wl L.lay)) (fun root =>
@@ -120,7 +121,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
       rw [e1]
       refine Good.steps' hst2 (hch.congr ?_) (by omega) (by rw [hcost]; unfold layerCost; omega)
       rfl
-  have h3 := Good.hashP (x := encInput L.lay L.tau L.e M (witCounter L.wl L.lay)) (K := fun d => cc (match decodeDigits d with
+  have h3 := Good.hashP (x := encInput L.lay L.tau L.e M (witCounter L.wl L.lay)) (K := fun d => cc (match decodeDigits L.lay d with
         | none => pure none
         | some x => do
           let leaf ← verifyLeaf L.wl L.lay L.tau L.e x

@@ -14,7 +14,7 @@ def nCopy (lay : Nat) : Nat := if lay = 4 then 3 else 2
 (layer 4) or after the last fold hash of layer `lay + 1` in stream `t`. -/
 def preStart (lay t : Nat) : Nat :=
   if lay = 4 then (layerPcTab.getD 4 []).getD t 0 else lvlPc (3 - lay) t 0 (heightL (lay + 1) - 1) + 7
-def stepsA (lay : Nat) : Nat := if lay = 0 then 15 else if lay = 4 then 13 else 14
+def stepsA (lay : Nat) : Nat := if lay = 0 then 13 else if lay = 4 then 13 else 14
 def encPc (lay t : Nat) : Nat := preStart lay t + stepsA lay
 
 /-- Known registers at the precode start. -/
@@ -30,10 +30,16 @@ def bK (lay : Nat) : List (Reg × Word) :=
     (.x11, 64), (.x12, 0x140)] ++
     (if lay < 4 then [(.x15, BitVec.ofNat 64 (bVal (lay + 1) 41))] else [])
 
+/-- At the top layer, the incoming route is already an 11-bit leaf index. -/
 def uEr (lay : Nat) : E :=
-  .bin .and (.reg (if lay = 4 then .x22 else .x30)) (cw (2 ^ heightL lay - 1))
-def tauEr (lay : Nat) : E := .bin .srl (.reg (if lay = 4 then .x22 else .x30)) (cw (heightL lay))
-def x31Er (lay : Nat) : E := .bin .add (tauEr lay) (.bin .sll (uEr lay) (cw 32))
+  if lay = 0 then .reg .x30 else
+    .bin .and (.reg (if lay = 4 then .x22 else .x30)) (cw (2 ^ heightL lay - 1))
+def tauEr (lay : Nat) : E :=
+  if lay = 0 then cw 0 else
+    .bin .srl (.reg (if lay = 4 then .x22 else .x30)) (cw (heightL lay))
+def x31Er (lay : Nat) : E :=
+  if lay = 0 then .bin .sll (uEr lay) (cw 32) else
+    .bin .add (tauEr lay) (.bin .sll (uEr lay) (cw 32))
 /-- `U = e | 2^h` (heap sentinel): `ori` (h < 11) or two `addi 1024` (h = 11). -/
 def uHE (lay : Nat) : E :=
   if lay = 0 then .bin .add (uEr lay) (cw 2048) else .bin .or (uEr lay) (cw (2 ^ heightL lay))
@@ -58,7 +64,11 @@ def swA3 : E :=
 def swA4 : E := .bin .add swA3 (.bin .srl swA3 (cw 6))
 def swA5 : E := .bin .and swA4 m2E
 /-- Base-4096 lanes sum modulo 4095; their sum is at most 294. -/
-def swS : E := .bin .remu swA5 (cw 4095)
+def swSBase : E := .bin .remu swA5 (cw 4095)
+
+/-- Normalize the raised target before comparing with the shared target register. -/
+def swS (lay : Nat) : E :=
+  if 3 ≤ lay then .bin .add swSBase (cw (2 ^ 64 - 1)) else swSBase
 
 /-- The dispatch register of a site computed from the digit word `D`. -/
 def maskD (i : Nat) (D : E) : E :=
@@ -68,7 +78,7 @@ def maskD (i : Nat) (D : E) : E :=
 
 def rE0 (lay : Nat) : E := mkBin .add (maskD 0 d0E) (cw (bVal lay 0))
 
-def stepsB (lay : Nat) : Nat := if lay = 4 then 31 else 28
+def stepsB (lay : Nat) : Nat := if lay = 4 then 32 else if lay = 3 then 29 else 28
 /-- REMU costs four cycles, three more than an ordinary instruction. -/
 def cyclesB (lay : Nat) : Nat := stepsB lay + 3
 
@@ -82,14 +92,17 @@ def specBok (lay t : Nat) : Spec :=
   ⟨[(.x1, ldE (chainAddr lay 0)), (.x2, ldE (chainAddr lay 0 + 8)), (.x14, rE0 lay),
     (.x15, cw (bVal lay 0)), (.x16, d0E), (.x17, d1E)],
    setupMem lay, 0, false, stepsB lay,
-   [⟨.ne, swS, .c KT, false⟩, ⟨.lt, orE, .c 0, false⟩],
+   [⟨.ne, swS lay, .c KT, false⟩, ⟨.lt, orE, .c 0, false⟩],
    some (mkBin .and (mkAdd (rE0 lay) (.c (BitVec.ofNat 64 (tabAddr lay 0) - BitVec.ofNat 64 (bVal lay 0))))
      (.c (~~~1#64))), cyclesB lay⟩
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
 def specRej1 : Spec := ⟨rejK, [], 32, true, 7, [⟨.lt, orE, .c 0, true⟩], none, 7⟩
-def specRej2 : Spec := ⟨rejK, [], 32, true, 21, [⟨.ne, swS, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24⟩
+def specRej2 (lay : Nat) : Spec :=
+  ⟨rejK, [], 32, true, 21 + (if 3 ≤ lay then 1 else 0),
+   [⟨.ne, swS lay, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none,
+   24 + (if 3 ≤ lay then 1 else 0)⟩
 
 /-! ## Leaf -/
 
@@ -125,7 +138,7 @@ def layerCheck (lay : Nat) : Bool :=
     specB gkL (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br false, .jmp]) (specBok lay t)
       (chKa lay) [.x22, .x23, .x30, .x31] &&
     specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br true]) specRej1 [] [] &&
-    specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) specRej2 [] [] &&
+    specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) (specRej2 lay) [] [] &&
     (lay != 0 || (specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] &&
       specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] &&
       specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] []))) &&

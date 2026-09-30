@@ -182,9 +182,9 @@ theorem cachedForcedRun_original_budget (dummy : OtsReferenceWords) (adversary :
   exact h
 
 theorem referenceAuxiliary_mem_support (inputs : Finset HashInput) (selections : ReferenceFamily)
-    (hselections : selections ∈ (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).support)
+    (hselections : selections ∈ (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).support)
     (rows : EncodingPosition → Fin encodingAttemptLimit → HashOutput)
-    (hrows : rows ∈ (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections).support) (seed : inputs → HashOutput) :
+    (hrows : rows ∈ (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections).support) (seed : inputs → HashOutput) :
     (⟨selections, Function.uncurry rows, seed⟩ : ReferenceAuxiliary inputs) ∈ (referenceAuxiliarySample inputs).support := by
   rw [referenceAuxiliarySample, PMF.mem_support_bind_iff]
   refine ⟨selections, hselections, ?_⟩
@@ -196,8 +196,8 @@ theorem referenceAuxiliary_mem_support (inputs : Finset HashInput) (selections :
 noncomputable def cachedNearGame (dummy : OtsReferenceWords) (adversary : Adversary) (slot : Nat) : SPMF Bool := do
   let parameter ← 𝒮[sampleParameter]
   let otsSecret ← 𝒮[sampleOtsSecrets]
-  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]
-  let rows ← 𝒮[FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections]
+  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]
+  let rows ← 𝒮[FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections]
   let labels ← 𝒮[PMF.uniformOfFintype CanonicalGraphLabels]
   (fun result => decide (completedNearCertificate parameter (canonicalGraphRoot labels) result.1)) <$>
     cachedForcedRun parameter (canonicalGraphRoot labels) otsSecret labels (canonicalGraphGameInputs adversary)
@@ -212,9 +212,9 @@ theorem forcedNearGame_cached (dummy : OtsReferenceWords) (adversary : Adversary
   funext parameter
   apply congrArg (𝒮[sampleOtsSecrets] >>= ·)
   funext otsSecret
-  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit] >>= ·)
+  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit] >>= ·)
   funext selections
-  apply congrArg (𝒮[FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections] >>= ·)
+  apply congrArg (𝒮[FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections] >>= ·)
   funext rows
   apply congrArg (𝒮[PMF.uniformOfFintype CanonicalGraphLabels] >>= ·)
   funext labels
