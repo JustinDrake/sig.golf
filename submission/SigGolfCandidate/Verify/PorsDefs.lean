@@ -162,7 +162,7 @@ the node in NB slot `t`, `FR` advanced. The exact pointer/segment invariant repl
 structure EntIn (P : PCtx) (s0 : MachineState) (s x V t a ptr E folds : Nat) (node : Val)
     (stk : List (Val × Nat)) (m : MachineState) : Prop where
   pb : PB P s0 m (tbOf s)
-  pc : m.pc = pcOf (tabBase (tsel s) + 8 * wbyte P.wl ptr + 5)
+  pc : m.pc = pcOf (entryPc t V a + 4)
   fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 224 + 16 * a + 8)
   rE : m.getReg .x23 = BitVec.ofNat 64 E
   sum : ptr + 8 * stk.length = 272 + 16 * s + 16 * folds
@@ -180,8 +180,6 @@ structure EntIn (P : PCtx) (s0 : MachineState) (s x V t a ptr E folds : Nat) (no
   ht : t < 2
   hV : V < 3
   hd : V = 1 → stk.length < 14
-  code : segV (tsel s) (wbyte P.wl ptr) = V ∧ segT (wbyte P.wl ptr) = t ∧
-    segA (wbyte P.wl ptr) = a
 
 /-- At ladder position `p = 14 - a + i` of variant `V` in stream `t` (fold `i` of the segment whose
 header is at `ptr`): the current node in NB slot `t`, `E` its heap index. -/

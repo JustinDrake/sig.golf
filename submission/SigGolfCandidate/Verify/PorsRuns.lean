@@ -50,9 +50,9 @@ def f4Pc (c : Nat) : Nat := if c = 2 then layerPcTab.getD 4 [] |>.getD 0 0
 def ldR (r : Reg) (off : Nat) : E := .ld (addC (.reg r) (BitVec.ofNat 64 off))
 def eS : E := .bin .srl (.reg .x23) (cw 1)
 def notOne : E := .c (~~~1#64)
-/-- The table entry address `(lbu (FR + 224) << 5) + TB`. -/
+/-- The table entry address `(lbu (FR + 224) << 4) + TB`. -/
 def dispT (tb : Nat) : E :=
-  .bin .add (.bin .sll (.un (.ld .bu 0) (.ld (.bin .add (.reg .x14) (cw 224)))) (cw 5)) (cw tb)
+  .bin .add (.bin .sll (.un (.ld .bu 0) (.ld (.bin .add (.reg .x14) (cw 224)))) (cw 4)) (cw tb)
 def dispObl : List Oblig := [.align8 (.reg .x14), .valid ⟨some (.reg .x14), BitVec.ofNat 64 224⟩ 1]
 
 /-- The table of leaf `s`. -/
@@ -85,8 +85,6 @@ def dispCheck (c : Nat) : Bool :=
 
 /-! ## Table entries -/
 
-def tsel (s : Nat) : Nat := if s = 14 then 1 else 0
-
 def tabBase (tb : Nat) : Nat := if tb = 0 then ptabN else ptabL
 def segA (b : Nat) : Nat := b % 16
 def segM (b : Nat) : Nat := b / 16 % 2
@@ -100,27 +98,27 @@ def parE : E := .bin .and (.reg .x23) (cw 1)
 def parBr (t : Nat) (d : Bool) : Br := ⟨if t = 1 then .eq else .ne, parE, .c 0, d⟩
 
 /-- Table entry `b` up to the pending hash (`a = 0`: straight from the table; `a ≥ 1`: through the
-inlined parity test, not taken). -/
+entry's parity test, not taken). -/
 def tabSpec (tb b : Nat) : Spec :=
   let a := segA b
   if a > 14 then rejSpec 4 []
   else
     ⟨[(.x14, addC (.reg .x14) (BitVec.ofNat 64 (16 * a + 8))),
       (.x12, if a = 0 then destE (segV tb b) else cw (0x1E0 + 16 * segT b))], [],
-      if a = 0 then entry0Pc (segV tb b) + 1 else tabBase tb + 8 * b + 4, true,
-      if a = 0 then 3 else 4, if a = 0 then [] else [parBr (segT b) false], none⟩
+      if a = 0 then entry0Pc (segV tb b) + 1 else entryPc (segT b) (segV tb b) a + 3, true,
+      if a = 0 then 3 else 5, if a = 0 then [] else [parBr (segT b) false], none⟩
 
 /-- Table entry `b` (`1 ≤ a ≤ 14`) with a wrong parity bit: `j pors_bad_par; j reject`, HALT(1). -/
-def tabRej (b : Nat) : Spec := rejSpec 6 [parBr (segT b) true]
+def tabRej (b : Nat) : Spec := rejSpec 7 [parBr (segT b) true]
 
 def tabKeep : List Reg := [.x10, .x15, .x16, .x17, .x20, .x22, .x23, .x24]
 
 def tabCheck1 (tb b : Nat) : Bool :=
-  if segA b > 14 then pspecB [] (runAt gkP [] (tabBase tb + 8 * b) []) (tabSpec tb b) [] [] []
-  else if segA b = 0 then pspecB gkP (runAt gkP [] (tabBase tb + 8 * b) []) (tabSpec tb b) [] gkP tabKeep
+  if segA b > 14 then pspecB [] (runAt gkP [] (tabBase tb + 4 * b) []) (tabSpec tb b) [] [] []
+  else if segA b = 0 then pspecB gkP (runAt gkP [] (tabBase tb + 4 * b) []) (tabSpec tb b) [] gkP tabKeep
   else
-    pspecB gkP (runAt gkP [] (tabBase tb + 8 * b) [.br false]) (tabSpec tb b) [] gkP tabKeep &&
-    pspecB [] (runAt gkP [] (tabBase tb + 8 * b) [.br true]) (tabRej b) [] [] []
+    pspecB gkP (runAt gkP [] (tabBase tb + 4 * b) [.br false]) (tabSpec tb b) [] gkP tabKeep &&
+    pspecB [] (runAt gkP [] (tabBase tb + 4 * b) [.br true]) (tabRej b) [] [] []
 
 def tabCheck (tb lo n : Nat) : Bool := (List.range' lo n).all fun b => tabCheck1 tb b
 
@@ -128,16 +126,10 @@ def tabCheck (tb lo n : Nat) : Bool := (List.range' lo n).all fun b => tabCheck1
 
 def entSpec (t V k : Nat) : Spec := ⟨[(.x10, cw 0x1C0)], [], ladPc V t (14 - k), false, 2, [], none⟩
 
-def entCheck1 (tb b : Nat) : Bool :=
-  if 1 ≤ segA b ∧ segA b ≤ 14 then
-    pspecB gkP
-      (runAt gkP [ladPc (segV tb b) (segT b) (14 - segA b)] (tabBase tb + 8 * b + 5) [])
-      (entSpec (segT b) (segV tb b) (segA b)) []
-      (gkP ++ [(.x10, 0x1C0)]) [.x14, .x15, .x16, .x17, .x20, .x22, .x23, .x24, .x29]
-  else true
-
 def entCheck : Bool :=
-  (List.range 2).all fun tb => (List.range 256).all fun b => entCheck1 tb b
+  (List.range 2).all fun t => (List.range 3).all fun V => (List.range' 1 14).all fun k =>
+    pspecB gkP (runAt gkP [ladPc V t (14 - k)] (entryPc t V k + 4) []) (entSpec t V k) []
+      (gkP ++ [(.x10, 0x1C0)]) [.x14, .x15, .x16, .x17, .x20, .x22, .x23, .x24, .x29]
 
 def posKnown : List (Reg × Word) := gkP ++ [(.x10, 0x1C0)]
 def posKeep : List Reg := [.x14, .x15, .x16, .x17, .x20, .x22, .x24, .x29]
@@ -203,20 +195,20 @@ def tailCheck (c : Nat) : Bool :=
 
 def fBr1 (d : Bool) : Br := ⟨.ltu, cw 4216, .reg .x14, d⟩
 def fBr2 (d : Bool) : Br := ⟨.ne, .reg .x23, cw 1, d⟩
-def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw EMPTY, d⟩
+def fBr3 (d : Bool) : Br := ⟨.eq, .reg .x15, cw EMPTY, d⟩
 
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[], [], f4Pc c, false, 18, [fBr3 false, fBr2 false, fBr1 false], none⟩
+  ⟨[], [], f4Pc c, false, 17, [fBr3 true, fBr2 false, fBr1 false], none⟩
 
 def tailFCheck (c : Nat) : Bool :=
-  pspecB gkL (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
+  pspecB gkL (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br true]) (tailFSpec c) []
     l4K [.x22] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br true]) (rejSpec 5 [fBr1 true]) [] [] [] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br true]) (rejSpec 6 [fBr2 true, fBr1 false]) [] [] [] &&
-  pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br false, .br true])
-    (rejSpec 8 [fBr3 true, fBr2 false, fBr1 false]) [] [] []
+  pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br false, .br false])
+    (rejSpec 8 [fBr3 false, fBr2 false, fBr1 false]) [] [] []
 
 /-! ## Leaves -/
 
@@ -271,7 +263,7 @@ def k0 : List (Reg × Word) :=
 
 /-- Digest phase: witness bases and `P1 .. P5`. -/
 def gkD : List (Reg × Word) := baseK
-def dgK : List (Reg × Word) := gkD ++ [(.x10, 0x20), (.x11, 64), (.x12, 0x160)]
+def dgK : List (Reg × Word) := gkD ++ [(.x10, 0x20), (.x11, 64), (.x12, 0x160), (.x29, 0)]
 
 /-- The counters: two doublewords and a word at `WIT + 6328`. -/
 def ctrX : E := .bin .or (.bin .or (ldE 8376) (ldE 8384)) (.un (.ld .wu 0) (ldE 8392))
@@ -306,9 +298,9 @@ def psetupMem : List (Addr × E) :=
   ((List.range 15).reverse.map fun r => (⟨none, BitVec.ofNat 64 (PIND + 8 * r)⟩, pindE r))
 
 /-- Known after the setup: the PORS constants, `TB = ptab_n`, `FR` (first header at `FR + 224`),
-the empty stack. -/
+the empty stack, `SUM = 0`. -/
 def setupPost : List (Reg × Word) :=
-  gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x830), (.x15, BitVec.ofNat 64 EMPTY)]
+  gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x830), (.x15, BitVec.ofNat 64 EMPTY), (.x29, 0)]
 
 def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 103, [], none⟩
 
