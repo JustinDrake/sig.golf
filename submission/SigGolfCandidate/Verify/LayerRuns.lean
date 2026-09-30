@@ -14,7 +14,7 @@ def nCopy (lay : Nat) : Nat := if lay = 4 then 3 else 2
 (layer 4) or after the last fold hash of layer `lay + 1` in stream `t`. -/
 def preStart (lay t : Nat) : Nat :=
   if lay = 4 then (layerPcTab.getD 4 []).getD t 0 else lvlPc (3 - lay) t 0 (heightL (lay + 1) - 1) + 7
-def stepsA (lay : Nat) : Nat := if lay = 0 then 15 else 14
+def stepsA (lay : Nat) : Nat := if lay = 0 then 15 else if lay = 4 then 13 else 14
 def encPc (lay t : Nat) : Nat := preStart lay t + stepsA lay
 
 /-- Known registers at the precode start. -/

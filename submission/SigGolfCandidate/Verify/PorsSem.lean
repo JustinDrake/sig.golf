@@ -457,7 +457,6 @@ theorem pend_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0
 /-! ## A segment's start: dispatch, table entry, pending hash -/
 
 /-- The table of leaf `s` (`0` = normal, `1` = last leaf). -/
-def tsel (s : Nat) : Nat := if s = 14 then 1 else 0
 
 theorem tbOf_tsel (s : Nat) : tbOf s = 0x1000 + 4 * tabBase (tsel s) := by
   by_cases h : s = 14 <;> simp [tbOf, tsel, tabBase, h, tbL, tbN]
@@ -478,15 +477,15 @@ theorem wbyte_lt (wl : List Byte) (off : Nat) : wbyte wl off < 256 := (wl.getD o
 theorem dispT_eval {P : PCtx} {s0 m : MachineState} {tb' : Nat} (pb : PB P s0 m tb') (ptr tb : Nat)
     (hfr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 224)) (hp : 272 ≤ ptr) (hp8 : ptr % 8 = 0)
     (hp2 : ptr < 7040) (_htb : tb < 2 ^ 32) :
-    (dispT tb).eval m = BitVec.ofNat 64 (tb + 16 * wbyte P.wl ptr) := by
+    (dispT tb).eval m = BitVec.ofNat 64 (tb + 32 * wbyte P.wl ptr) := by
   have hb := wit_byte pb.wit ptr hp2
   rw [show 0x800 + ptr / 8 * 8 = 0x800 + ptr by omega, show ptr % 8 = 0 from hp8] at hb
   have hbl := wbyte_lt P.wl ptr
   apply BitVec.eq_of_toNat_eq
   show ((LoadKind.bu.fromWord (m.getMem (m.getReg .x14 + BitVec.ofNat 64 224)) 0 <<<
-    ((BitVec.ofNat 64 4).toNat % 64)) + BitVec.ofNat 64 tb).toNat = _
+    ((BitVec.ofNat 64 5).toNat % 64)) + BitVec.ofNat 64 tb).toNat = _
   rw [hfr, BitVec.ofNat_add_ofNat, show 0x800 + ptr - 224 + 224 = 0x800 + ptr by omega,
-    show (BitVec.ofNat 64 4).toNat % 64 = 4 from rfl]
+    show (BitVec.ofNat 64 5).toNat % 64 = 5 from rfl]
   simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, hb, Nat.shiftLeft_eq]
   omega
 
@@ -501,11 +500,11 @@ theorem dispObl_holds {m : MachineState} (ptr : Nat) (hfr : m.getReg .x14 = BitV
     rw [ofNat_toNat_lt _ (by omega)]; omega
 
 theorem tabCheck1_parts (tb b : Nat) (htb : tb < 2) (hb : b < 256) :
-    (segA b > 14 → pspecB [] (runAt gkP [] (tabBase tb + 4 * b) []) (tabSpec tb b) [] [] [] = true) ∧
-    (segA b ≤ 14 → pspecB gkP (runAt gkP [] (tabBase tb + 4 * b) (if segA b = 0 then [] else [.br false]))
+    (segA b > 14 → pspecB [] (runAt gkP [] (tabBase tb + 8 * b) []) (tabSpec tb b) [] [] [] = true) ∧
+    (segA b ≤ 14 → pspecB gkP (runAt gkP [] (tabBase tb + 8 * b) (if segA b = 0 then [] else [.br false]))
       (tabSpec tb b) [] gkP tabKeep = true) ∧
     (1 ≤ segA b → segA b ≤ 14 →
-      pspecB [] (runAt gkP [] (tabBase tb + 4 * b) [.br true]) (tabRej b) [] [] [] = true) := by
+      pspecB [] (runAt gkP [] (tabBase tb + 8 * b) [.br true]) (tabRej b) [] [] [] = true) := by
   have := tabCheck1_ok tb b htb hb
   unfold tabCheck1 at this
   refine ⟨fun h => ?_, fun h => ?_, fun h1 h2 => ?_⟩
@@ -539,10 +538,10 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
     (14 < wbyte P.wl ptr % 16 → ∃ u, Steps image m 8 8 u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (1 ≤ wbyte P.wl ptr % 16 → wbyte P.wl ptr % 16 ≤ 14 → segT (wbyte P.wl ptr) ≠ E % 2 →
-        ∃ u, Steps image m 11 11 u ∧ fetch image u = some (.base .ECALL) ∧
+        ∃ u, Steps image m 10 10 u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (wbyte P.wl ptr % 16 ≤ 14 → (wbyte P.wl ptr % 16 = 0 ∨ segT (wbyte P.wl ptr) = E % 2) →
-        ∃ k u, k ≤ 9 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
+        ∃ k u, k ≤ 8 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 0 ∧ hashArgumentsValid u = true ∧ hashInput u = fmt (pendInput P node pend) ∧
         (fmt (pendInput P node pend)).blocks = 1 ∧
         ∀ ans, (wbyte P.wl ptr % 16 = 0 → TailIn P s0 s x (segV (tsel s) (wbyte P.wl ptr)) 2 (ptr + 8) E folds
@@ -559,7 +558,7 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
   obtain ⟨u1, hu1⟩ := pspec_run cD m h.pc h.pb.known (by simp [dispSpec])
     (dispObl_holds ptr h.fr hp hp8 hp2)
   have htbl : tbOf s < 2 ^ 32 := by rcases htb with e | e <;> rw [e] <;> decide
-  have hpc1 : u1.pc = pcOf (tabBase (tsel s) + 4 * b) := by
+  have hpc1 : u1.pc = pcOf (tabBase (tsel s) + 8 * b) := by
     rw [hu1.spc _ rfl]
     show (dispT (tbOf s)).eval m &&& ~~~1#64 = _
     rw [dispT_eval h.pb ptr (tbOf s) h.fr hp hp8 hp2 htbl, even_andNot1' _ (by
@@ -592,8 +591,8 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
     have ha' : ¬ segA b > 14 := by unfold segA; omega
     have hsp : tabSpec (tsel s) b = ⟨[(.x14, addC (.reg .x14) (BitVec.ofNat 64 (16 * (b % 16) + 8))),
         (.x12, if b % 16 = 0 then destE (segV (tsel s) b) else cw (0x1E0 + 16 * segT b))], [],
-        if b % 16 = 0 then entry0Pc (segV (tsel s) b) + 1 else entryPc (segT b) (segV (tsel s) b) (b % 16) + 3,
-        true, if b % 16 = 0 then 3 else 5, if b % 16 = 0 then [] else [parBr (segT b) false], none⟩ := by
+        if b % 16 = 0 then entry0Pc (segV (tsel s) b) + 1 else tabBase (tsel s) + 8 * b + 4,
+        true, if b % 16 = 0 then 3 else 4, if b % 16 = 0 then [] else [parBr (segT b) false], none⟩ := by
       unfold tabSpec; rw [if_neg ha']; rfl
     obtain ⟨u, hu⟩ := pspec_run (cOk (by unfold segA; omega)) u1 hpc1 (fun p hp => pb1.known p (List.mem_append_left _ hp))
       (by
@@ -655,7 +654,7 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
       simp only [hashArgsB, MEMORY_BYTES, Bool.and_eq_true, decide_eq_true_eq, Nat.reducePow,
         Nat.reduceMul, Nat.reduceAdd]
       refine ⟨⟨⟨⟨hpa.1, ?_, trivial⟩, decide_eq_true ?_⟩, decide_eq_true (And.intro ?_ hda.1)⟩, decide_eq_true ?_⟩ <;> omega
-    refine ⟨4 + (if b % 16 = 0 then 3 else 5), u, by split_ifs <;> omega,
+    refine ⟨4 + (if b % 16 = 0 then 3 else 4), u, by split_ifs <;> omega,
       (hu1.steps.trans hu.steps).of_eq (by simp [dispSpec, hsp]) (by simp [dispSpec, hsp]),
       hu.ecall (by simp [hsp]), pb.reg (by simp [gkP, baseK]),
       hashArgs_ofNat _ _ _ _ r10 r11 hdest (by omega) (by omega) (by omega) hargs,
@@ -694,9 +693,10 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
         rw [hdest, if_neg (by omega)]
       refine ⟨pb.hash ans _ hdn (safe_nb _ ht), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
         (writeHash_at0 _ ans _ hdn (by omega)).trans (vw0_answer ans).symm, ?_, by simp, ⟨hs, hd, hp, hp8, hpb, hfb⟩, h.hE, h.hx,
-        ⟨h1, by omega⟩, ht, segV_lt _ _, hV1⟩
+        ⟨h1, by omega⟩, ht, segV_lt _ _, hV1, ⟨rfl, rfl, rfl⟩⟩
       · rw [writeHash_pc, hu.pc (by rw [hsp]), hsp]
         simp only [if_neg (show ¬ b % 16 = 0 by omega), pcOf_add4]
+        rfl
       · rw [writeHash_getReg, hu.regs (.x14, addC (.reg .x14) (BitVec.ofNat 64 (16 * (b % 16) + 8))) (by rw [hsp]; simp)]
         simp only [addC_eval, Rv.E.eval, hkeep1 .x14 (by simp [dispKeep]), h.fr]
         rw [BitVec.ofNat_add_ofNat, Nat.add_assoc]
@@ -718,18 +718,26 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
 
 /-! ## Entry tails and ladder positions -/
 
-theorem entCheck_at (t V k : Nat) (ht : t < 2) (hV : V < 3) (hk1 : 1 ≤ k) (hk : k ≤ 14) :
-    pspecB gkP (runAt gkP [ladPc V t (14 - k)] (entryPc t V k + 4) []) (entSpec t V k) []
+theorem entCheck_at (tb b : Nat) (htb : tb < 2) (hb : b < 256)
+    (ha1 : 1 ≤ segA b) (ha14 : segA b ≤ 14) :
+    pspecB gkP
+      (runAt gkP [ladPc (segV tb b) (segT b) (14 - segA b)] (tabBase tb + 8 * b + 5) [])
+      (entSpec (segT b) (segV tb b) (segA b)) []
       (gkP ++ [(.x10, 0x1C0)]) [.x14, .x15, .x16, .x17, .x20, .x22, .x23, .x24, .x29] = true := by
-  have := entCheck_ok
-  simp only [entCheck, List.all_eq_true, List.mem_range, List.mem_range'] at this
-  exact this t ht V hV k ⟨k - 1, by omega, by omega⟩
+  have hc := entCheck_ok
+  simp only [entCheck, List.all_eq_true, List.mem_range] at hc
+  have h := hc tb htb b hb
+  have ha : 1 ≤ segA b ∧ segA b ≤ 14 := ⟨ha1, ha14⟩
+  simpa only [entCheck1, if_pos ha] using h
 
 /-- After the pending hash (`a ≥ 1`): `a0 = NB`, jump to the ladder position `14 - a`. -/
 theorem ent_step (P : PCtx) (s0 : MachineState) (s x V t a ptr E folds : Nat) (node : Val)
     (stk : List (Val × Nat)) (m : MachineState) (h : EntIn P s0 s x V t a ptr E folds node stk m) :
     ∃ u, Steps image m 2 2 u ∧ PosIn P s0 s x V t a 0 ptr E folds node stk u := by
-  have c := entCheck_at t V a h.ht h.hV h.ha.1 h.ha.2
+  have hts : tsel s < 2 := by unfold tsel; split_ifs <;> omega
+  have c := entCheck_at (tsel s) (wbyte P.wl ptr) hts (wbyte_lt P.wl ptr)
+    (by rw [h.code.2.2]; exact h.ha.1) (by rw [h.code.2.2]; exact h.ha.2)
+  rw [h.code.1, h.code.2.1, h.code.2.2] at c
   obtain ⟨u, hu⟩ := pspec_run c m h.pc (fun p hp => h.pb.known p (List.mem_append_left _ hp)) (by simp [entSpec]) (by simp)
   have kp : ∀ r ∈ ([.x14, .x15, .x16, .x17, .x20, .x22, .x23, .x24, .x29] : List Reg), u.getReg r = m.getReg r := hu.keep
   have pb := h.pb.run hu (by rw [kp .x20 (by simp)]; exact h.pb.x20) (by simp)

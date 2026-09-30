@@ -2,14 +2,14 @@
 namespace SigGolfCandidate.Verify
 
 /-- Start of the PORS setup (`pors_setup`), of the leaf codes `leaf_s`, the reject stub. -/
-def setupPc : Nat := 37
+def setupPc : Nat := 38
 def leafTab : List Nat := [140, 154, 169, 184, 199, 214, 229, 244, 259, 274, 289, 304, 319, 334, 349]
 def rejectPc : Nat := 30
 def porsRejPc : Nat := 368
 def badSegPc : Nat := 369
-/-- The two dispatch tables (256 entries of 4 instructions): normal leaves, last leaf. -/
-def ptabN : Nat := 370
-def ptabL : Nat := 1394
+/-- The two dispatch tables (256 entries of 8 instructions): normal leaves, last leaf. -/
+def ptabN : Nat := 4096
+def ptabL : Nat := 6144
 /-- Entry codes `entry_t_V_k` [t][V][k - 1] (V = M, P, F) and `entry0_V` [V]. -/
 def entryTab : List (List (List Nat)) := [[[2418, 2424, 2430, 2436, 2442, 2448, 2454, 2460, 2466, 2472, 2478, 2484, 2490, 2496], [2502, 2508, 2514, 2520, 2526, 2532, 2538, 2544, 2550, 2556, 2562, 2568, 2574, 2580], [2586, 2592, 2598, 2604, 2610, 2616, 2622, 2628, 2634, 2640, 2646, 2652, 2658, 2664]], [[2670, 2676, 2682, 2688, 2694, 2700, 2706, 2712, 2718, 2724, 2730, 2736, 2742, 2748], [2754, 2760, 2766, 2772, 2778, 2784, 2790, 2796, 2802, 2808, 2814, 2820, 2826, 2832], [2838, 2844, 2850, 2856, 2862, 2868, 2874, 2880, 2886, 2892, 2898, 2904, 2910, 2916]]]
 def entry0Tab : List Nat := [2923, 3234, 3527]
