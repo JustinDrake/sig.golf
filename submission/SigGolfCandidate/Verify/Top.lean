@@ -9,7 +9,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 /-- The cycle bound of accepting runs: `9467 + 17 · 118 + 29` (every accepting run costs
 exactly `9467 + 17 F + G`, `F ≤ 118` the total folds, `G ≤ 29` the segments with `a ≥ 1`). -/
-def cycleBound : Nat := 11502
+def cycleBound : Nat := 11500
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
 def cycleBoundAll : Nat := 16834
@@ -19,8 +19,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 8565 := by decide
-theorem layC_val : layC = 8565 := by unfold layC; exact layersCost_val
+theorem layersCost_val : layersCost 5 = 8564 := by decide
+theorem layC_val : layC = 8564 := by unfold layC; exact layersCost_val
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -115,8 +115,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (104 + (leafCost 0 + Nseg 0 0)) (104 + (leafCost 0 + Cseg 0 0)) True
-        (104 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (103 + (leafCost 0 + Nseg 0 0)) (103 + (leafCost 0 + Cseg 0 0)) True
+        (103 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with

@@ -140,13 +140,10 @@ def leafPost (lay : Nat) : List (Reg × Word) :=
 def cmpPc (t : Nat) : Nat := compareTab.getD t 0
 def cmpK : List (Reg × Word) := fk false 0x1C0 64 ++ [(.x12, 0x180)]
 def specAcc (t : Nat) : Spec :=
-  ⟨[(.x5, cw 1), (.x10, cw 0)], [], cmpPc t + 8, true, 8,
-   [⟨.ne, ldE 392, ldE 168, false⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
+  ⟨[(.x5, cw 1), (.x10, .bin .xor (ldE 392) (ldE 168))], [], cmpPc t + 7, true, 7,
+   [⟨.ne, ldE 384, ldE 160, false⟩], none, 7⟩
 def specCR1 (t : Nat) : Spec :=
   ⟨rejK, [], cmpPc t + 11, true, 5, [⟨.ne, ldE 384, ldE 160, true⟩], none, 5⟩
-def specCR2 (t : Nat) : Spec :=
-  ⟨rejK, [], cmpPc t + 11, true, 8, [⟨.ne, ldE 392, ldE 168, true⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
-
 /-! ## The per-layer check -/
 
 def layerCheck (lay : Nat) : Bool :=
@@ -158,9 +155,8 @@ def layerCheck (lay : Nat) : Bool :=
     specB [] (runAt (bK lay) [] (encPcC lay c + 1) [.br true]) specRej1 [] [] &&
     specB [] (runAt (bK lay) [] (encPcC lay c + 1) [.br false, .br true]) specRej2 [] []) &&
   (lay != 0 || (List.range 32).all fun t =>
-    specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] &&
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] &&
-      specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] []) &&
+    specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] &&
+      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] []) &&
   specB gkL (runAt (headK lay 42) [] (nextPc' lay 41) [.jmp]) (specLeaf lay) (leafPost lay) leafKeep
 
 end SigGolfCandidate.Verify
