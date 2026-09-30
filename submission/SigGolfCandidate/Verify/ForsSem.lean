@@ -276,15 +276,15 @@ theorem stW0_mod (s : MachineState) (a : Nat) (v : E) (V : Nat) (hv : v.eval s =
   omega
 
 theorem topCheck_parts :
-    specB gkF (runAt dgK [] 27 [.br true, .br false]) (specDgOk 0) (fk true 0xC0 64) [] = true ∧
-    specB gkF (runAt dgK [] 27 [.br true, .br true]) (specDgOk 1) (fk true 0xC0 64) [] = true ∧
-    specB [] (runAt dgK [] 27 [.br false]) specDgRej [] [] = true := by
+    specB gkF (runAt dgK [] 26 [.br true, .br false]) (specDgOk 0) (fk true 0xC0 64) [] = true ∧
+    specB gkF (runAt dgK [] 26 [.br true, .br true]) (specDgOk 1) (fk true 0xC0 64) [] = true ∧
+    specB [] (runAt dgK [] 26 [.br false]) specDgRej [] [] = true := by
   have := topCheck_ok
   simp only [topCheck, Bool.and_eq_true] at this
   exact ⟨this.1.1.2, this.1.2, this.2⟩
 
 theorem dg_leaf (d : DCtx) (hwl : d.wl.length = 6404) (s : MachineState) (hs : DigestOut d s) :
-    (admissible (d.A % 2 ^ 184) = false → ∃ t, Steps image s 6 6 t ∧ fetch image t = some (.base .ECALL) ∧
+    (admissible (d.A % 2 ^ 184) = false → ∃ t, Steps image s 7 7 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 1 ∧ t.getReg .x10 = 1) ∧
     (admissible (d.A % 2 ^ 184) = true → ∃ u, Steps image s 32 32 u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 0 ∧ hashArgumentsValid u = true ∧
@@ -334,7 +334,7 @@ theorem dg_leaf (d : DCtx) (hwl : d.wl.length = 6404) (s : MachineState) (hs : D
       rw [hhi, BitVec.ofNat_add_ofNat]
     have hq : d.idx / 2 ^ 32 < 4 := by omega
     set b := d.u 0 % 2 with hb
-    have hsp : specB gkF (runAt dgK [] 27 [.br true, .br (b == 1)]) (specDgOk b) (fk true 0xC0 64) [] = true := by
+    have hsp : specB gkF (runAt dgK [] 26 [.br true, .br (b == 1)]) (specDgOk b) (fk true 0xC0 64) [] = true := by
       rcases Nat.mod_two_eq_zero_or_one (d.u 0) with h | h
       · rw [hb, h]; exact cOk0
       · rw [hb, h]; exact cOk1

@@ -80,7 +80,7 @@ def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
 
 def specStartOk : Spec :=
   ⟨[], [(⟨none, BitVec.ofNat 64 56⟩, ldE 2056), (⟨none, BitVec.ofNat 64 48⟩, ldE 2048),
-    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 26, true, 26, [⟨.ne, ctrE', .c 0, false⟩], none⟩
+    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 25, true, 25, [⟨.ne, ctrE', .c 0, false⟩], none⟩
 def specStartRej : Spec := ⟨rejK, [], 33, true, 18, [⟨.ne, ctrE', .c 0, true⟩], none⟩
 
 def idxE : E := .bin .srl (.bin .sll (wLdE 0) (cw 30)) (cw 30)
@@ -100,13 +100,13 @@ def specDgOk (b : Nat) : Spec :=
    xPc 0 b 0 + 1, true, 32,
    [⟨.lt, .bin .sll (.bin .or u0E (cw 1024)) (cw 63), .c 0, b == 1⟩, ⟨.eq, admE, .c 0, true⟩], none⟩
 
-def specDgRej : Spec := ⟨rejK, [], 33, true, 6, [⟨.eq, admE, .c 0, false⟩], none⟩
+def specDgRej : Spec := ⟨rejK, [], 33, true, 7, [⟨.eq, admE, .c 0, false⟩], none⟩
 
 def topCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&
   specB [] (runAt k0 [] 0 [.br true]) specStartRej [] [] &&
-  specB gkF (runAt dgK [] 27 [.br true, .br false]) (specDgOk 0) (fk true 0xC0 64) [] &&
-  specB gkF (runAt dgK [] 27 [.br true, .br true]) (specDgOk 1) (fk true 0xC0 64) [] &&
-  specB [] (runAt dgK [] 27 [.br false]) specDgRej [] []
+  specB gkF (runAt dgK [] 26 [.br true, .br false]) (specDgOk 0) (fk true 0xC0 64) [] &&
+  specB gkF (runAt dgK [] 26 [.br true, .br true]) (specDgOk 1) (fk true 0xC0 64) [] &&
+  specB [] (runAt dgK [] 26 [.br false]) specDgRej [] []
 
 end SigGolfCandidate.Verify
