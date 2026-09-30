@@ -10,7 +10,7 @@ The root tail (into the layers), then `GoodQ` for the ladder (`segFolds`), one s
 
 Cycle bounds: a segment with `a` folds costs `15` if `a = 0` (dispatch 4, table entry 3, pending
 hash 8) and `17 + 17 a` if `a ≥ 1` (the entry's parity test adds 2; `17 a` for the folds incl. the
-entry tail), at most `17 + 17 a` in both cases; tails: merge 6, push 4, root 18.
+entry tail), at most `17 + 17 a` in both cases; tails: merge 6, push 4, root 20.
 -/
 
 set_option linter.unusedSimpArgs false
@@ -43,7 +43,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     (stk : List (Val × Nat)) (m : MachineState) (h : TailIn P s0 14 x 2 c ptr E folds node stk m) :
     ((folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧
         fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 18 18 u ∧
+    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 20 20 u ∧
         LayerIn ⟨P.wl, P.pk, 4, P.idx⟩ node u) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb⟩ := h.bnd
   have hE := h.hE
@@ -67,15 +67,19 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     exact eq_comm
   have b2 : ∀ d, Br.holds m (fBr2 d) ↔ d = decide (E ≠ 1) := by
     intro d
-    simp only [fBr2, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.rE]
-    have heq : (BitVec.ofNat 64 E != BitVec.ofNat 64 1) = decide (E ≠ 1) := by
+    simp only [fBr2, Br.holds, CmpOp.eval, addC_eval, Rv.E.eval, h.rE]
+    have e1 : BitVec.ofNat 64 E + -1#64 = BitVec.ofNat 64 (E + (2 ^ 64 - 1)) := by
+      rw [show (-1#64 : Word) = BitVec.ofNat 64 (2 ^ 64 - 1) from rfl, BitVec.ofNat_add_ofNat]
+    have : (BitVec.ofNat 64 E + -1#64 != 0) = decide (E ≠ 1) := by
+      rw [e1]
       by_cases hE1 : E = 1
       · subst hE1; decide
-      · have hne : BitVec.ofNat 64 E ≠ BitVec.ofNat 64 1 :=
-          ofNat_ne (by omega) (by decide) hE1
-        rw [show (BitVec.ofNat 64 E != BitVec.ofNat 64 1) = true from bne_iff_ne.mpr hne]
+      · have hne : BitVec.ofNat 64 (E + (2 ^ 64 - 1)) ≠ 0 := by
+          intro e; have := congrArg BitVec.toNat e
+          simp only [BitVec.toNat_ofNat] at this; simp at this; omega
+        rw [show (BitVec.ofNat 64 (E + (2 ^ 64 - 1)) != 0) = true from bne_iff_ne.mpr hne]
         simp [hE1]
-    rw [heq]; exact eq_comm
+    rw [this]; exact eq_comm
   have b3 : ∀ d, Br.holds m (fBr3 d) ↔ d = decide (stk ≠ []) := by
     intro d
     simp only [fBr3, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.rS]
@@ -103,7 +107,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
           rcases hb with rfl | rfl
           · exact (b2 true).mpr (by simp [h2])
           · exact (b1 false).mpr (by simp [h1])) (by simp)
-        exact ⟨u, 6, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
+        exact ⟨u, 7, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
           hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
       · have h3 : stk ≠ [] := by
           rcases hrej with h' | h' | h'
@@ -120,7 +124,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
           · exact (b3 true).mpr (by simp [h3])
           · exact (b2 false).mpr (by simp [h2])
           · exact (b1 false).mpr (by simp [h1])) (by simp)
-        exact ⟨u, 8, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
+        exact ⟨u, 9, le_refl _, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
           hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
   · intro hacc
     have hsum := h.sum
@@ -326,15 +330,15 @@ def lrest (s : Nat) : Nat := ((List.range' (s + 1) (14 - s)).map leafCost).sum
 def segR (s d : Nat) : Nat := 29 - 2 * s + d
 
 def Cseg (s d : Nat) : Nat :=
-  255 * segR s d + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 18 + layC
+  255 * segR s d + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 20 + layC
 def Aseg (s d F : Nat) : Nat :=
-  17 * segR s d + 17 * (118 - F) + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 18 + layC
+  17 * segR s d + 17 * (118 - F) + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 20 + layC
 def Nseg (s d : Nat) : Nat := Cseg s d + layN
 
 /-- After the leaf's last segment (before the push / root tail). -/
-def CtailPF (s d : Nat) : Nat := if s = 14 then 18 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
+def CtailPF (s d : Nat) : Nat := if s = 14 then 20 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
 def AtailPF (s d F : Nat) : Nat :=
-  if s = 14 then 18 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
+  if s = 14 then 20 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
 def NtailPF (s d : Nat) : Nat := CtailPF s d + layN
 
 /-- Before a merge tail. -/
@@ -466,7 +470,7 @@ theorem leaves_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
     (Kr : Option PorsState → OracleComp HashSpec Obs) (hnone : Kr none = pure (false, 0))
     (hKr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (18 + layC + layN) (18 + layC) (st.folds ≤ 118) (18 + layC) (Kr (some st))) :
+      GoodQ u (20 + layC + layN) (20 + layC) (st.folds ≤ 118) (20 + layC) (Kr (some st))) :
     ∀ n s (st : PorsState) m, s + n = 15 → LeafIn P s0 s st m →
       GoodQ m (leafCost s + Nseg s st.stack.length) (leafCost s + Cseg s st.stack.length) (st.folds ≤ 118)
         (leafCost s + Aseg s st.stack.length st.folds)
