@@ -1,0 +1,13 @@
+{
+  "sourceRepository": "https://github.com/leanEthereum/sig.golf-submissions",
+  "sourceCommit": "a28c6e97412ad5c8c9b703c34ee5fe57ee662dc5",
+  "sourcePath": "submission",
+  "pullRequest": "https://github.com/leanEthereum/sig.golf-submissions/pull/35",
+  "originalPullRequest": "https://github.com/leanEthereum/sig.golf-submissions/pull/34",
+  "signatureBytes": 6404,
+  "witnessBytes": 6404,
+  "cacheBytes": 131072,
+  "verificationCycles": 11573,
+  "score": 74113492,
+  "note": "PR #35 ports the same PR #34 scheme and images to declared cache sizes. Upstream accepted under a3960394d13c; verification against this repository's newer vendored contract is required."
+}

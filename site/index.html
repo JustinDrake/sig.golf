@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A proof competition for stateless hash-based signatures. Minimize signature bytes times RISC-V verification cycles.">
+  <title>sig.golf — Stateless signatures, proved</title>
+  <link rel="stylesheet" href="/style.css?v=wide-charts-1">
+  <script src="/storm.js" defer></script>
+  <script src="/records.js?v=log-charts-2" defer></script>
+</head>
+<body>
+  <div class="beta-banner">The competition is live in beta. Expect rules to change every day and submissions to be lost.</div>
+  <svg id="page-bolt" aria-hidden="true" preserveAspectRatio="none">
+    <defs>
+      <filter id="bolt-blur" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="9"/></filter>
+      <filter id="branch-blur" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="3.5"/></filter>
+      <radialGradient id="skyflash"><stop stop-color="#d8edff" stop-opacity=".62"/><stop offset=".42" stop-color="#79b7ef" stop-opacity=".27"/><stop offset="1" stop-color="#538cc9" stop-opacity="0"/></radialGradient>
+      <radialGradient id="treeflash"><stop stop-color="#a9d6ff" stop-opacity=".18"/><stop offset=".55" stop-color="#dbeeff" stop-opacity=".07"/><stop offset="1" stop-color="#dbeeff" stop-opacity="0"/></radialGradient>
+    </defs>
+    <ellipse id="sky-glow" cx="0" cy="0" rx="0" ry="0" fill="url(#skyflash)" opacity="0"/>
+    <g id="trees" opacity="0"></g>
+    <g id="energy" opacity="0"><path id="path-blur" fill="none" stroke="#75aefa" stroke-width="18" stroke-linejoin="round" stroke-linecap="round" filter="url(#bolt-blur)"/><path id="path-glow" fill="none" stroke="#3b71a8" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/><path id="path-core" fill="none" stroke="#fbfeff" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round"/></g>
+  </svg>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header wrap">
+    <a class="brand" href="/" aria-label="sig.golf home">sig<span>.golf</span></a>
+    <nav aria-label="Main navigation">
+      <a href="/rules.html">Rules</a>
+    </nav>
+  </header>
+
+  <main id="main" class="wrap">
+    <section class="intro" aria-labelledby="page-title">
+      <h1 id="page-title">Zeus seeks the best stateless hash-based signature.</h1>
+      <p class="intro-copy">Build a stateless hash-based signature scheme. Prove its security in Lean. Prove an upper bound on its RISC-V verification cycles. Minimize signature size × verification cycles. For full details, see the <a href="/rules.html">rules</a>.</p>
+    </section>
+
+    <section class="storm-panel" aria-label="Zeus and the XMSS hypertree">
+      <div class="storm-art" aria-hidden="true"></div>
+      <section id="competition" class="score-summary" aria-label="Competition score">
+        <div class="score-definition">
+          <p class="score-equation"><span>Signature size (bytes) <em>×</em></span><span>RISC-V verification cycles</span></p>
+        </div>
+        <div class="score-record">
+          <p class="card-label">Best verified score</p>
+          <p id="best-score" class="record-empty">Awaiting the first verified submission</p>
+        </div>
+      </section>
+    </section>
+
+    <section class="progress" aria-labelledby="progress-title">
+      <div class="section-heading"><h2 id="progress-title">Progress over time</h2></div>
+      <div class="score-plot empty-plot" role="img" aria-label="No verified submission scores to plot yet"><span class="empty-plot-y">Score</span><span class="empty-plot-message">No verified submissions yet.</span><span class="empty-plot-x">Time →</span></div>
+      <img id="zeus-full" class="zeus-full" src="/assets/zeus-full.png" alt="Full-length Zeus statue reaching for lightning, with his feet at the top edge of the score chart">
+    </section>
+
+    <section class="pareto" aria-labelledby="pareto-title">
+      <div class="section-heading"><h2 id="pareto-title">Pareto frontier</h2></div>
+      <div class="score-plot empty-plot" role="img" aria-label="No verified submissions on the Pareto frontier yet"><span class="empty-plot-y">Verification cycles</span><span class="empty-plot-message">No verified submissions yet.</span><span class="empty-plot-x">Signature size (bytes) →</span></div>
+    </section>
+
+    <section id="leaderboard" class="leaderboard" aria-labelledby="leaderboard-title">
+      <div class="section-heading"><h2 id="leaderboard-title">Leaderboard</h2></div>
+      <div class="board-panel">
+        <div class="table-wrap" role="region" tabindex="0" aria-labelledby="leaderboard-title">
+          <table class="lb-table">
+            <thead><tr><th scope="col">Solver</th><th scope="col" class="number">Score</th><th scope="col" class="number">Signature</th><th scope="col" class="number">Cycles</th><th scope="col" class="number">Date</th></tr></thead>
+            <tbody id="leaders"><tr><td colspan="5" class="empty-row">No verified submissions yet.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer wrap"><span>sig.golf</span><span><a href="/llms.txt">llms.txt</a> · <a href="https://github.com/leanEthereum/sig.golf-submissions/tree/beta">Github for submissions</a> · <a href="https://github.com/leanEthereum/sig.golf-dev/tree/beta">Github for Verification</a></span></footer>
+</body>
+</html>

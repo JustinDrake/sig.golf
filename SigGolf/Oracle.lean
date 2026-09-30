@@ -1,0 +1,55 @@
+import SigGolf.Parameters
+import VCVio.OracleComp.QueryTracking.RandomOracle.Simulation
+import VCVio.OracleComp.QueryTracking.WriterCost
+
+/-! # Oracle
+
+The random oracle `H` that every program and the adversary share, and its readings: sampled
+lazily, so each new input gets an independent uniform answer, with or without a running count of
+calls; or fixed to one function, so a statement can hold for every `H`.
+
+VCVio vocabulary used here and below. An `OracleComp spec α` is a computation that may query
+the oracles in `spec`; `A →ₒ B` specifies one oracle from `A` to `B`, and `spec₁ + spec₂`
+offers both, a query being tagged `.inl` or `.inr`. `unifSpec` is the coin oracle and `ProbComp`
+is `OracleComp unifSpec`. A `QueryImpl spec m` answers each query of `spec` by a computation in
+the monad `m`; for `m = Id` it is just a function from queries to answers. `simulateQ impl c`
+runs `c` with every query answered by `impl`, and `evalWithAnswerFn f c` does so for a plain
+function `f`. `liftM` embeds a computation over fewer oracles into one over more. Two notations:
+`$ᵗ T` draws a uniform element of `T`; `Pr[p | c]` is the probability that `c` returns a
+value satisfying `p`, and `Pr[= x | c]` that it returns exactly `x`. -/
+
+namespace SigGolf
+open OracleComp OracleSpec
+
+/-- Byte strings of one or more 64-byte blocks, as HASH reads them: `⟨n, bytes⟩` holds `n + 1`
+blocks, the README's `k`, so the empty input is unrepresentable. The length is part of the input;
+there is no implicit domain separation. -/
+abbrev Query := (n : Nat) × Bytes (64 * (n + 1))
+
+/-- Blocks in an input, each charged as one compression. -/
+def Query.blocks (query : Query) : Nat := query.1 + 1
+
+abbrev HashSpec : OracleSpec Query := Query →ₒ BitVec 256
+
+/-- One particular function `H`, for statements that must hold for every `H`. -/
+abbrev Hash := QueryImpl HashSpec Id
+
+/-- The security experiment's shared oracles: private coins and the hash. -/
+abbrev World := unifSpec + HashSpec
+
+/-- Run against a lazy random oracle: a new input gets a fresh uniform answer, a repeated one
+gets its stored answer. The table starts empty. -/
+def withRandomOracle {α : Type} (program : OracleComp HashSpec α) : ProbComp α :=
+  (simulateQ HashSpec.randomOracle program).run' ∅
+
+/-- One unit per hash call, cache hits included; coins are free. -/
+def hashCost : World.Domain → Nat
+  | .inl _ => 0
+  | .inr _ => 1
+
+/-- The same lazy random oracle, with private coins forwarded for free and a running total of
+`hashCost`; running it returns the result paired with the total. -/
+def countedOracle : QueryImpl World (AddWriterT Nat (StateT (QueryCache HashSpec) ProbComp)) :=
+  (unifFwdImpl HashSpec + HashSpec.randomOracle).withAddCost hashCost
+
+end SigGolf
