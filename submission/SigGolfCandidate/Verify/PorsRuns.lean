@@ -11,7 +11,7 @@ Families (each a list of path runs, checked by `pspecB` in the `PorsCheck*` file
   `E = x | 2^14`, `a0 = CB`, up to the dispatch (the rejects: HALT(1));
 * `disp c` (`c < 18`): the dispatch `lbu T, 224(FR); slli; add TB; jalr` of leaf `c` (link `x24`)
   or of the merge tail copy `c - 15` (no link), stopping at the symbolic table entry;
-* `tab tb b` (`tb < 2`, `b < 256`): table entry `b` (`SUM += a; FR += 16 a + 8; j entry`) and the
+* `tab tb b` (`tb < 2`, `b < 256`): table entry `b` (`FR += 16 a + 8; j entry`) and the
   entry prefix up to the pending hash (`a > 14`: HALT(1); `a ≥ 1`: the parity test
   `andi T, E, 1; beq/bne T, x0, pors_bad_par`, taken: HALT(1));
 * `ent t V k`: after the pending hash, `a0 = NB; j lad_V_t_(14-k)`;
@@ -103,13 +103,13 @@ def tabSpec (tb b : Nat) : Spec :=
   let a := segA b
   if a > 14 then rejSpec 4 []
   else
-    ⟨[(.x29, addC (.reg .x29) (BitVec.ofNat 64 a)), (.x14, addC (.reg .x14) (BitVec.ofNat 64 (16 * a + 8))),
+    ⟨[(.x14, addC (.reg .x14) (BitVec.ofNat 64 (16 * a + 8))),
       (.x12, if a = 0 then destE (segV tb b) else cw (0x1E0 + 16 * segT b))], [],
       if a = 0 then entry0Pc (segV tb b) + 1 else entryPc (segT b) (segV tb b) a + 3, true,
-      if a = 0 then 4 else 6, if a = 0 then [] else [parBr (segT b) false], none⟩
+      if a = 0 then 3 else 5, if a = 0 then [] else [parBr (segT b) false], none⟩
 
 /-- Table entry `b` (`1 ≤ a ≤ 14`) with a wrong parity bit: `j pors_bad_par; j reject`, HALT(1). -/
-def tabRej (b : Nat) : Spec := rejSpec 8 [parBr (segT b) true]
+def tabRej (b : Nat) : Spec := rejSpec 7 [parBr (segT b) true]
 
 def tabKeep : List Reg := [.x10, .x15, .x16, .x17, .x20, .x22, .x23, .x24]
 
@@ -193,14 +193,14 @@ def tailCheck (c : Nat) : Bool :=
 
 /-! ### The root tail (checks, layer constants) -/
 
-def fBr1 (d : Bool) : Br := ⟨.ltu, cw 118, .reg .x29, d⟩
+def fBr1 (d : Bool) : Br := ⟨.ltu, cw 4216, .reg .x14, d⟩
 def fBr2 (d : Bool) : Br := ⟨.ne, addC (.reg .x23) (-1#64), .c 0, d⟩
 def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw EMPTY, d⟩
 
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[], [], f4Pc c, false, 22, [fBr3 false, fBr2 false, fBr1 false], none⟩
+  ⟨[], [], f4Pc c, false, 20, [fBr3 false, fBr2 false, fBr1 false], none⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB gkL (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
@@ -271,7 +271,7 @@ def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
 
 def specStartOk : Spec :=
   ⟨[], [(⟨none, BitVec.ofNat 64 56⟩, ldE 2056), (⟨none, BitVec.ofNat 64 48⟩, ldE 2048),
-    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 27, true, 27, [⟨.ne, ctrE', .c 0, false⟩], none⟩
+    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 26, true, 26, [⟨.ne, ctrE', .c 0, false⟩], none⟩
 def specStartRej : Spec := ⟨[(.x5, cw 1), (.x10, cw 1)], [], 32, true, 19, [⟨.ne, ctrE', .c 0, true⟩], none⟩
 
 def wLdE (i : Nat) : E := ldE (0x160 + 8 * i)
@@ -302,11 +302,11 @@ the empty stack, `SUM = 0`. -/
 def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x830), (.x15, BitVec.ofNat 64 EMPTY), (.x29, 0)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 108, [], none⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 104, [], none⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&
   specB [] (runAt k0 [] 0 [.br true]) specStartRej [] [] &&
-  specB gkD (runAt dgK [leafPc 0] 28 []) setupSpec setupPost []
+  specB gkD (runAt dgK [leafPc 0] 27 []) setupSpec setupPost []
 
 end SigGolfCandidate.Verify

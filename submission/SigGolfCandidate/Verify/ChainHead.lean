@@ -147,13 +147,13 @@ def pairOk : Bool := (List.range 41).all fun i => hasPrep (i + 1) || (isFirst i 
 theorem pairOk_eq : pairOk = true := by decide
 
 /-- The linked JALR address after head `i` has bytes 4 and 5 equal to `0, i+1`.
-The 40 alignments in each layer are checked against the generated PC table. -/
+The 39 alignments used by heads 3 through 41 in each layer are checked against the generated PC table. -/
 def linkOkAll : Bool := (List.range 5).all fun lay =>
-  (List.range 41).all fun i => decide (i = 0 ∨ (linkPc lay i).toNat % 65536 = 256 * (i + 1))
+  (List.range 41).all fun i => decide (i < 2 ∨ (linkPc lay i).toNat % 65536 = 256 * (i + 1))
 
 theorem linkOkAll_eq : linkOkAll = true := by decide +kernel
 
-theorem linkPc_low16 (lay i : Nat) (hl : lay < 5) (hi1 : 1 ≤ i) (hi : i < 41) :
+theorem linkPc_low16 (lay i : Nat) (hl : lay < 5) (hi1 : 2 ≤ i) (hi : i < 41) :
     (linkPc lay i).toNat % 65536 = 256 * (i + 1) := by
   have h := List.all_eq_true.mp (List.all_eq_true.mp linkOkAll_eq lay
     (List.mem_range.mpr hl)) i (List.mem_range.mpr hi)
@@ -310,15 +310,15 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi1 : 1 ≤ i) (hi : i < 42)
   have hl := hc.1
   obtain ⟨ht4, ht1, htb, hB, -, -⟩ := tabOk_spec (tabOk_at c.lay i hl hi)
   have hmem : r.st.mem = [(⟨none, BitVec.ofNat 64 0xC0⟩,
-      if i < 2 then stB 5 (cw i) else stH 4 (.c (linkPc c.lay (i - 1))))] := by
+      if i < 3 then stB 5 (cw i) else stH 4 (.c (linkPc c.lay (i - 1))))] := by
     simp [hr, headExp]
   have fr : ∀ A, A < 2 ^ 64 → A ≠ 0xC0 → (r.toState s).getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA h1
     rw [PRes.toState_getMem, memEval_frame_ofNat _ _ _ hA (by rw [hmem]; simp; omega)]
   have m0 : ((r.toState s).getMem (BitVec.ofNat 64 0xC0)).toNat =
-      (if i < 2 then (s.getMem (BitVec.ofNat 64 0xC0)).toNat % 2 ^ 40
+      (if i < 3 then (s.getMem (BitVec.ofNat 64 0xC0)).toNat % 2 ^ 40
        else (s.getMem (BitVec.ofNat 64 0xC0)).toNat % 2 ^ 32) + 2 ^ 40 * i := by
-    by_cases hi2 : i < 2
+    by_cases hi2 : i < 3
     · rw [PRes.toState_getMem, hmem, if_pos hi2, memEval_cons_eq _ _ _ _ _ rfl,
         stB_toNat _ _ _ (by omega), if_pos hi2]
       have := hCB.2.2

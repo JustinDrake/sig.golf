@@ -110,7 +110,13 @@ def PendMem (P : PCtx) (node : Val) (d : Nat) (m : MachineState) : Pending → P
     m.getMem (BitVec.ofNat 64 (PSB + 80 * d + 56)) = vw1 node ∧
     l.length = 16 ∧ node.length = 16 ∧ H < 2 ^ 15 ∧ d < 14
 
-/-! ## Boundaries -/
+/-! ## Boundaries
+
+The witness pointer also accounts for the fold count: each completed segment consumes
+8 header bytes plus 16 bytes per fold. Before a segment of leaf `s` at stack depth `d`,
+`2*s-d` segments have completed; after it, `2*s-d+1` have completed. The `sum` fields
+record these exact equalities, so the machine needs no separate fold accumulator.
+-/
 
 /-- The link register value set by leaf `s`'s dispatch (the next leaf's start for `s < 14`). -/
 def lnkOf (s : Nat) : Nat := 0x1000 + 4 * (dispLeafPc s + 4)
@@ -127,7 +133,7 @@ structure LeafIn (P : PCtx) (s0 : MachineState) (s : Nat) (st : PorsState) (m : 
   pb : PB P s0 m tbN
   pc : m.pc = pcOf (leafPc s)
   fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + st.ptr - 224)
-  sum : m.getReg .x29 = BitVec.ofNat 64 st.folds
+  sum : st.ptr + 8 * st.stack.length = 272 + 16 * s + 16 * st.folds
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkOf' st.stack.length)
   stack : StackOK st.stack m
   prev : 0 < s → m.getReg (xReg (s + 1)) = BitVec.ofNat 64 st.prev ∧ st.prev ≤ 2 ^ 14
@@ -140,7 +146,7 @@ structure DispIn (P : PCtx) (s0 : MachineState) (s x c ptr E folds : Nat) (pend 
   copy : (c = s ∧ isLeafP pend = true) ∨ (15 ≤ c ∧ c < 18 ∧ isLeafP pend = false)
   fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 224)
   rE : m.getReg .x23 = BitVec.ofNat 64 E
-  sum : m.getReg .x29 = BitVec.ofNat 64 folds
+  sum : ptr + 8 * stk.length = 272 + 16 * s + 16 * folds
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkOf' stk.length)
   stack : StackOK stk m
   a0 : m.getReg .x10 = BitVec.ofNat 64 (pendAddr pend stk.length)
@@ -152,14 +158,14 @@ structure DispIn (P : PCtx) (s0 : MachineState) (s x c ptr E folds : Nat) (pend 
   hx : x ≤ 2 ^ 14
 
 /-- After the pending hash of a segment (header at `ptr`, `a ≥ 1` folds, slot bit `t`, variant `V`):
-the node in NB slot `t`, `FR` and `SUM` advanced. -/
+the node in NB slot `t`, `FR` advanced. The exact pointer/segment invariant replaces a runtime sum. -/
 structure EntIn (P : PCtx) (s0 : MachineState) (s x V t a ptr E folds : Nat) (node : Val)
     (stk : List (Val × Nat)) (m : MachineState) : Prop where
   pb : PB P s0 m (tbOf s)
   pc : m.pc = pcOf (entryPc t V a + 4)
   fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 224 + 16 * a + 8)
   rE : m.getReg .x23 = BitVec.ofNat 64 E
-  sum : m.getReg .x29 = BitVec.ofNat 64 (folds + a)
+  sum : ptr + 8 * stk.length = 272 + 16 * s + 16 * folds
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkOf' stk.length)
   stack : StackOK stk m
   cur : m.getReg (xReg s) = BitVec.ofNat 64 x
@@ -184,7 +190,7 @@ structure PosIn (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) (
   a0 : m.getReg .x10 = BitVec.ofNat 64 0x1C0
   fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 224 + 16 * a + 8)
   rE : m.getReg .x23 = BitVec.ofNat 64 E
-  sum : m.getReg .x29 = BitVec.ofNat 64 (folds + a)
+  sum : ptr + 8 * stk.length = 272 + 16 * s + 16 * folds
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkOf' stk.length)
   stack : StackOK stk m
   cur : m.getReg (xReg s) = BitVec.ofNat 64 x
@@ -212,7 +218,7 @@ structure TailIn (P : PCtx) (s0 : MachineState) (s x V c ptr E folds : Nat) (nod
   pc : m.pc = pcOf (tailPc V c)
   fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 224)
   rE : m.getReg .x23 = BitVec.ofNat 64 E
-  sum : m.getReg .x29 = BitVec.ofNat 64 folds
+  sum : ptr + 8 * stk.length = 280 + 16 * s + 16 * folds
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkOf' stk.length)
   stack : StackOK stk m
   cur : m.getReg (xReg s) = BitVec.ofNat 64 x

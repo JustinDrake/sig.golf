@@ -22,10 +22,10 @@ def isFirst (i : Nat) : Bool := !isSingle i && (i % 21) % 2 = 0
 /-- The chain's segment starts with a dispatch prep (not for chain 0: prep in the layer code). -/
 def hasPrep (i : Nat) : Bool := i ≠ 0 && (isFirst i || isSingle i)
 
-/-- Number of instructions in a chain head.  Heads 2 through 41 use the
-    preceding head's return address in place of `addi; sb`. -/
+/-- Number of instructions in a chain head. Heads 1 and 2 use constant-register
+    byte stores; heads 3 through 41 use the preceding head's return address. -/
 def headLen (lay i : Nat) : Nat :=
-  (if i < 2 then 6 else 5) + (if hasPrep i then 3 else 0) +
+  (if i = 0 then 6 else 5) + (if hasPrep i then 3 else 0) +
     (if hasPrep i && hasLui lay i then 1 else 0)
 
 /-- The address written by a head's linked JALR. -/
@@ -62,8 +62,8 @@ def stB (off : Nat) (v : E) : E := .bin (.st .b off) (ldE 0xC0) v
 /-- A halfword store into bytes 4 and 5 of the chain tweak. -/
 def stH (off : Nat) (v : E) : E := .bin (.st .h off) (ldE 0xC0) v
 
-/-- Chain 1 writes its index with `sb`; chains 2 through 41 write the low
-    halfword of the preceding head's JALR link address with `sh`. -/
+/-- Chains 1 and 2 write their indices with constant-register `sb`; chains 3
+    through 41 write the preceding head's JALR link address with `sh`. -/
 def headExp (lay i : Nat) : PRes :=
   let wa := chainAddr lay i
   let rf0 := RegFile.withKnown (headK lay i)
@@ -73,7 +73,7 @@ def headExp (lay i : Nat) : PRes :=
   let rf3 := (rf2.set .x1 (ldE wa)).set .x2 (ldE (wa + 8))
   let rf4 := if 1 ≤ i && i < 41 then rf3.set .x4 (.c (linkPc lay i))
     else if i < 2 then rf3.set .x4 (cw i) else rf3
-  let write := if i < 2 then stB 5 (cw i) else stH 4 (.c (linkPc lay (i - 1)))
+  let write := if i < 3 then stB 5 (cw i) else stH 4 (.c (linkPc lay (i - 1)))
   let n := headLen lay i
   ⟨⟨rf4.set .x12 (cw 0xF0),
     [(⟨none, BitVec.ofNat 64 0xC0⟩, write)], []⟩, 0, false, n, n, [],
