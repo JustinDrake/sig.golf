@@ -242,11 +242,13 @@ theorem leaf_brs_iff {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m 
       constructor <;> intro e <;> exact e.symm
     by_cases h14 : s = 14
     · subst h14
-      have hn : Br.holds m ⟨.geu, xE 14, cw 0x4000, d2⟩ ↔ d2 = decide (¬ leafX P 14 < porsT) := by
-        simp only [Br.holds, E.eval, BinOp.eval, cw, hx]
-        rw [geu_iff _ _ (by omega) (by decide)]
-        change decide (¬ leafX P 14 < porsT) = d2 ↔ _
-        constructor <;> intro e <;> exact e.symm
+      have hn : Br.holds m ⟨.ltu, cw 16383, xE 14, d2⟩ ↔ d2 = decide (¬ leafX P 14 < porsT) := by
+        simp only [Br.holds, E.eval, CmpOp.eval, cw, hx, BitVec.ult, BitVec.toNat_ofNat]
+        rw [Nat.mod_eq_of_lt (show leafX P 14 < 2 ^ 64 by omega)]
+        change decide (16383 < leafX P 14) = d2 ↔ d2 = decide (¬ leafX P 14 < 16384)
+        have he : (16383 < leafX P 14) ↔ ¬ leafX P 14 < 16384 := by omega
+        simp only [he]
+        exact eq_comm
       simp only [if_true, if_false, show (14 : Nat) ≠ 0 by decide, List.cons_append, List.nil_append,
         List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq, hn, hg]
       simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, forall_const, and_comm]
@@ -295,7 +297,7 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
       obtain ⟨u, hu⟩ := pspec_run c2 m h.pc hK ((hbr false true).mpr ⟨fun hs0 => by
         rw [eq_comm, decide_eq_false_iff_not, not_not]; by_contra hc; exact hprev ⟨hs0, hc⟩,
         fun _ => by simp [h2.2]⟩) hob
-      exact ⟨u, 9, by omega, hu.steps, hu.ecall rfl,
+      exact ⟨u, _, by change 9 ≤ 11; decide, hu.steps, hu.ecall rfl,
         hu.regs (.x5, cw 1) (by simp [rejSpec]), hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
   · intro hacc
     have hbr' : ∀ b ∈ (leafSpec s).brs, b.holds m := by
@@ -593,8 +595,7 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
     have hsp : tabSpec (tsel s) b = ⟨[(.x14, addC (.reg .x14) (BitVec.ofNat 64 (16 * (b % 16) + 8))),
         (.x12, if b % 16 = 0 then destE (segV (tsel s) b) else cw (0x1E0 + 16 * segT b))], [],
         if b % 16 = 0 then entry0Pc (segV (tsel s) b) + 1 else tabBase (tsel s) + 8 * b + 4,
-        true, if b % 16 = 0 then 3 else 4, if b % 16 = 0 then [] else [parBr (segT b) false], none,
-        if b % 16 = 0 then 3 else 4⟩ := by
+        true, if b % 16 = 0 then 3 else 4, if b % 16 = 0 then [] else [parBr (segT b) false], none⟩ := by
       unfold tabSpec; rw [if_neg ha']; rfl
     obtain ⟨u, hu⟩ := pspec_run (cOk (by unfold segA; omega)) u1 hpc1 (fun p hp => pb1.known p (List.mem_append_left _ hp))
       (by
