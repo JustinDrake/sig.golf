@@ -57,7 +57,7 @@ theorem layFC_check (L : LCtx) (hL : L.ok) :
 def LeafCarry (L : LCtx) (s : MachineState) : Prop :=
   s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay) ∧
   s.getReg .x15 = BitVec.ofNat 64 (bVal L.lay 41) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧ CBZ s ∧
-  (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2 ^ 48 = 0
+  (s.getMem (BitVec.ofNat 64 0x50)).toNat / 2 ^ 48 = 0
 
 theorem leaf_step (L : LCtx) (hL : L.ok) (a : BitVec 256) (ends : List Val) (s : MachineState)
     (hs : HeadInv (L.cctx a) 42 ends s) :
@@ -197,11 +197,11 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (a : BitVec 256) (ends : List Val) (s :
     · rw [writeHash_getReg]; exact hlp (.x27, BitVec.ofNat 64 (hWord L.lay)) (by simp)
     · rw [writeHash_getReg]; exact hlp (.x15, BitVec.ofNat 64 (bVal L.lay 41)) (by simp)
     · rw [writeHash_getReg, hkp .x30 (by simp [leafKeep])]; exact h30
-    · exact ⟨by rw [wf 0xE0 (by omega) (by omega), mfr 0xE0 (by omega) (by omega) (by omega) (by omega)
+    · exact ⟨by rw [wf 0x70 (by omega) (by omega), mfr 0x70 (by omega) (by omega) (by omega) (by omega)
           (by omega)]; exact hZ.1,
-        by rw [wf 0xE8 (by omega) (by omega), mfr 0xE8 (by omega) (by omega) (by omega) (by omega)
+        by rw [wf 0x78 (by omega) (by omega), mfr 0x78 (by omega) (by omega) (by omega) (by omega)
           (by omega)]; exact hZ.2⟩
-    · rw [wf 0xC0 (by omega) (by omega), mfr 0xC0 (by omega) (by omega) (by omega) (by omega)
+    · rw [wf 0x50 (by omega) (by omega), mfr 0x50 (by omega) (by omega) (by omega) (by omega)
         (by omega)]; exact hCB.2.2
 
 end SigGolfCandidate.Verify

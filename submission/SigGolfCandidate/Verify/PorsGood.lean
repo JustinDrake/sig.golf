@@ -149,9 +149,8 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       by rw [hmem]; exact n1, h.nodeLen, fun h => absurd h (lt_irrefl 4), ?_, t, ht, by rw [hu.pc rfl, ← hpt]; rfl⟩
     · show u.getReg .x22 = BitVec.ofNat 64 (routeIn P.idx 4)
       rw [hu.keep .x22 (by simp), h.pb.idx]; rfl
-    · rw [hmem, h.pb.prot (by decide), h.pb.s0ok.cb0, ofNat_toNat_lt _ (by unfold twLo; omega)]
-      have := P.idx_lt
-      unfold twLo; omega
+    · intro h4
+      exact absurd h4 (lt_irrefl 4)
 
 
 /-! ## The ladder: `segFolds` -/

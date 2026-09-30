@@ -44,10 +44,10 @@ def hWord (lay : Nat) : Nat := 0x101 + 65536 * lay
 
 /-- Known registers in the chain blocks (`a2` is set by each head and by step 7). -/
 def chK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay)), (.x10, 0xC0), (.x11, 64)]
+  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay)), (.x10, 0x50), (.x11, 64)]
 
 /-- ... and the answer slot `a2 = CB + 48` inside a chain. -/
-def chKa (lay : Nat) : List (Reg × Word) := chK lay ++ [(.x12, 0xF0)]
+def chKa (lay : Nat) : List (Reg × Word) := chK lay ++ [(.x12, 0x80)]
 
 def headK (lay i : Nat) : List (Reg × Word) := chK lay ++ [(.x15, BitVec.ofNat 64 (bIn lay i))]
 
@@ -64,7 +64,7 @@ def rE (lay i : Nat) : E := mkBin .add (maskE i) (cw (bVal lay i))
 def chainAddr (lay i : Nat) : Nat := 0x800 + layBody lay + 16 * i
 
 /-- A byte store `sb v, off(CB)` into the chain tweak word at CB. -/
-def stB (off : Nat) (v : E) : E := .bin (.st .b off) (ldE 0xC0) v
+def stB (off : Nat) (v : E) : E := .bin (.st .b off) (ldE 0x50) v
 
 /-- Chains `i < 7` store their index byte from a register that already holds `i` in the layers
 (`zero, t1, t2, s0, s1, a3, s10`, see `baseK`/`gkL`), so their head has no `addi TP, i`. -/
@@ -84,8 +84,8 @@ def headExp (lay i : Nat) : PRes :=
   let rcur : E := if hasPrep i then rE lay i else .reg .x14
   let n := (if tagReg i then 5 else 6) + (if hasPrep i then 3 else 0) +
     (if hasPrep i && hasLui lay i then 1 else 0)
-  ⟨⟨(setTag i ((rf2.set .x1 (ldE wa)).set .x2 (ldE (wa + 8)))).set .x12 (cw 0xF0),
-    [(⟨none, BitVec.ofNat 64 0xC0⟩, stB 5 (cw i))], []⟩, 0, false, n, n, [],
+  ⟨⟨(setTag i ((rf2.set .x1 (ldE wa)).set .x2 (ldE (wa + 8)))).set .x12 (cw 0x80),
+    [(⟨none, BitVec.ofNat 64 0x50⟩, stB 5 (cw i))], []⟩, 0, false, n, n, [],
     some (mkBin .and (mkAdd rcur (.c (BitVec.ofNat 64 (tabAddr lay i) - BitVec.ofNat 64 (bVal lay i))))
       (.c (~~~1#64)))⟩
 
@@ -95,7 +95,7 @@ def bStop (lay i k : Nat) : Nat := if k < 7 then s1K lay i k + 2 * k else nextK 
 
 /-- Where the pair-second chain `i` at copy `k` stores its start value: CB+48 (k < 7) or its
 leaf slot (k = 7). -/
-def bDst (i k : Nat) : Nat := if k < 7 then 0xF0 else 0x360 + 16 * i
+def bDst (i k : Nat) : Nat := if k < 7 then 0x80 else 0x360 + 16 * i
 
 /-- The length (= cycles) of the head of the pair-second chain `i` at copy `k`. -/
 def bN (i k : Nat) : Nat := (if tagReg i then 4 else 5) + (if k < 7 then 2 else 3)
@@ -107,7 +107,7 @@ def bExp (lay i k : Nat) : PRes :=
   ⟨⟨(headExp lay i).st.regs,
     [(⟨none, BitVec.ofNat 64 (bDst i k + 8)⟩, ldE (chainAddr lay i + 8)),
      (⟨none, BitVec.ofNat 64 (bDst i k)⟩, ldE (chainAddr lay i)),
-     (⟨none, BitVec.ofNat 64 0xC0⟩, stB 5 (cw i))], []⟩, pcOf (bStop lay i k), false, bN i k, bN i k, [], none⟩
+     (⟨none, BitVec.ofNat 64 0x50⟩, stB 5 (cw i))], []⟩, pcOf (bStop lay i k), false, bN i k, bN i k, [], none⟩
 
 /-- Step `mu ∈ 1..7` of copy `k`, from its label to its ecall: `sb MU_{mu-1}, 4(a0)` (byte 4 of the
 chain tweak = `mu - 1`); step 7 also redirects `a2` to the leaf slot. -/
@@ -115,10 +115,10 @@ def stepExp (lay i k mu : Nat) : PRes :=
   let st := s1K lay i k + 2 * (mu - 1)
   if mu = 7 then
     ⟨⟨(RegFile.withKnown (chKa lay)).set .x12 (cw (0x360 + 16 * i)),
-      [(⟨none, BitVec.ofNat 64 0xC0⟩, stB 4 (cw (mu - 1)))], []⟩, pcOf (st + 2), true, 2, 2, [], none⟩
+      [(⟨none, BitVec.ofNat 64 0x50⟩, stB 4 (cw (mu - 1)))], []⟩, pcOf (st + 2), true, 2, 2, [], none⟩
   else
     ⟨⟨RegFile.withKnown (chKa lay),
-      [(⟨none, BitVec.ofNat 64 0xC0⟩, stB 4 (cw (mu - 1)))], []⟩, pcOf (st + 1), true, 1, 1, [], none⟩
+      [(⟨none, BitVec.ofNat 64 0x50⟩, stB 4 (cw (mu - 1)))], []⟩, pcOf (st + 1), true, 1, 1, [], none⟩
 
 def ckeep : List Reg := [.x14, .x15, .x16, .x17, .x23, .x30, .x31]
 
@@ -146,7 +146,7 @@ theorem resBeq_eq {a b : Result} (h : resBeq a b = true) : a = b := by
 
 /-- Table entry of chain `i` for its digit `d` into copy `k`, as a straight-line run ending at the `jal`. -/
 def entryRes (lay i k d : Nat) : Result :=
-  let dst := if d < 7 then 0xF0 else 0x360 + 16 * i
+  let dst := if d < 7 then 0x80 else 0x360 + 16 * i
   let tgt := if d < 7 then s1K lay i k + 2 * d else nextK lay i k
   let n := if d < 7 then 3 else 4
   ⟨⟨RegFile.init,
@@ -169,7 +169,7 @@ def stepsCheck (lay i : Nat) : Bool :=
   (List.range (nCp i)).all fun k => (List.range 7).all fun m =>
     (isSec i && decide (m < k)) ||
     okC (runAt (chKa lay) [] (s1K lay i k + 2 * m) []) (stepExp lay i k (m + 1))
-      (chK lay ++ [(.x12, BitVec.ofNat 64 (if m = 6 then 0x360 + 16 * i else 0xF0))]) ckeep
+      (chK lay ++ [(.x12, BitVec.ofNat 64 (if m = 6 then 0x360 + 16 * i else 0x80))]) ckeep
 
 def headKeep (i : Nat) : List Reg :=
   [.x16, .x17, .x23, .x30, .x31] ++ (if hasPrep i then [] else [.x14])

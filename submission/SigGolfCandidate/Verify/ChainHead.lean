@@ -245,15 +245,15 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi1 : 1 ≤ i) (hi : i < 42)
   have hl := hc.1
   obtain ⟨hT, hB, -⟩ := tabOk_spec (tabOk_at c.lay i hl hi)
   obtain ⟨ht4, ht1, htb⟩ := hT hsec
-  have hmem : r.st.mem = [(⟨none, BitVec.ofNat 64 0xC0⟩, stB 5 (cw i))] := by simp [hr, headExp]
-  have fr : ∀ A, A < 2 ^ 64 → A ≠ 0xC0 → (r.toState s).getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
+  have hmem : r.st.mem = [(⟨none, BitVec.ofNat 64 0x50⟩, stB 5 (cw i))] := by simp [hr, headExp]
+  have fr : ∀ A, A < 2 ^ 64 → A ≠ 0x50 → (r.toState s).getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA h1
     rw [PRes.toState_getMem, memEval_frame_ofNat _ _ _ hA (by rw [hmem]; simp; omega)]
-  have m0 : ((r.toState s).getMem (BitVec.ofNat 64 0xC0)).toNat =
-      (s.getMem (BitVec.ofNat 64 0xC0)).toNat % 2 ^ 40 + 2 ^ 40 * i := by
+  have m0 : ((r.toState s).getMem (BitVec.ofNat 64 0x50)).toNat =
+      (s.getMem (BitVec.ofNat 64 0x50)).toNat % 2 ^ 40 + 2 ^ 40 * i := by
     rw [PRes.toState_getMem, hmem, memEval_cons_eq _ _ _ _ _ rfl, stB_toNat _ _ _ (by omega)]
     have := hCB.2.2
-    generalize (s.getMem (BitVec.ofNat 64 0xC0)).toNat = w at *
+    generalize (s.getMem (BitVec.ofNat 64 0x50)).toNat = w at *
     norm_num at this ⊢
     omega
   have hx15 : (r.toState s).getReg .x15 = BitVec.ofNat 64 (bVal c.lay i) := hK'.2 (.x15, _) (List.mem_singleton_self _)
@@ -373,11 +373,11 @@ theorem entry_lt7 (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hsec : isSec i
   have hreg : ∀ x, t.getReg x = s.getReg x := fun x => by
     rw [ht, Result.toState_getReg]; exact RegFile.init_get_eval s x
   have hmem : ∀ A, A < 2 ^ 64 → t.getMem (BitVec.ofNat 64 A) =
-      if A = 0xF8 then s.getReg .x2 else if A = 0xF0 then s.getReg .x1 else
+      if A = 0x88 then s.getReg .x2 else if A = 0x80 then s.getReg .x1 else
         s.getMem (BitVec.ofNat 64 A) := fun A hA => by
     rw [ht, Result.toState_getMem]; simp only [entryRes, if_pos hd]
-    exact entry_mem s 0xF0 A (by omega) hA
-  have fr : ∀ A, A < 2 ^ 64 → A ≠ 0xF0 → A ≠ 0xF8 → t.getMem (BitVec.ofNat 64 A) =
+    exact entry_mem s 0x80 A (by omega) hA
+  have fr : ∀ A, A < 2 ^ 64 → A ≠ 0x80 → A ≠ 0x88 → t.getMem (BitVec.ofNat 64 A) =
       s.getMem (BitVec.ofNat 64 A) := fun A hA h1 h2 => by
     rw [hmem A hA, if_neg h2, if_neg h1]
   refine ⟨t, hst, Glob_frame hG hreg (fun A hA hp => fr A hA ?_ ?_),
@@ -455,7 +455,7 @@ theorem cpy_prev (c : CCtx) (i : Nat) (hi : i < 42) (hs : isSec i = true) : cpy 
   unfold cpy pf
   rw [if_neg (by simp [h3]), if_pos h2, Nat.sub_add_cancel h1]
 
-theorem bDst_cases (i k : Nat) : bDst i k = 0xF0 ∨ bDst i k = 0x360 + 16 * i := by
+theorem bDst_cases (i k : Nat) : bDst i k = 0x80 ∨ bDst i k = 0x360 + 16 * i := by
   unfold bDst; split
   · exact Or.inl rfl
   · exact Or.inr rfl
@@ -484,17 +484,17 @@ theorem bhead_run (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hsec : isSec i
   have hdc := bDst_cases i (dig c i)
   set dst := bDst i (dig c i) with hdst
   have hmem : r.st.mem = [(⟨none, BitVec.ofNat 64 (dst + 8)⟩, ldE (chainAddr c.lay i + 8)),
-      (⟨none, BitVec.ofNat 64 dst⟩, ldE (chainAddr c.lay i)), (⟨none, BitVec.ofNat 64 0xC0⟩, stB 5 (cw i))] := rfl
-  have fr : ∀ A, A < 2 ^ 64 → A ≠ 0xC0 → A ≠ dst → A ≠ dst + 8 →
+      (⟨none, BitVec.ofNat 64 dst⟩, ldE (chainAddr c.lay i)), (⟨none, BitVec.ofNat 64 0x50⟩, stB 5 (cw i))] := rfl
+  have fr : ∀ A, A < 2 ^ 64 → A ≠ 0x50 → A ≠ dst → A ≠ dst + 8 →
       (r.toState s).getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA h1 h2 h3
     rw [PRes.toState_getMem, memEval_frame_ofNat _ _ _ hA (by rw [hmem]; simp; omega)]
-  have m0 : ((r.toState s).getMem (BitVec.ofNat 64 0xC0)).toNat =
-      (s.getMem (BitVec.ofNat 64 0xC0)).toNat % 2 ^ 40 + 2 ^ 40 * i := by
+  have m0 : ((r.toState s).getMem (BitVec.ofNat 64 0x50)).toNat =
+      (s.getMem (BitVec.ofNat 64 0x50)).toNat % 2 ^ 40 + 2 ^ 40 * i := by
     rw [PRes.toState_getMem, hmem, memEval_cons_ne _ _ _ _ _ (by bvne), memEval_cons_ne _ _ _ _ _ (by bvne),
       memEval_cons_eq _ _ _ _ _ rfl, stB_toNat _ _ _ (by omega)]
     have := hCB.2.2
-    generalize (s.getMem (BitVec.ofNat 64 0xC0)).toNat = w at *
+    generalize (s.getMem (BitVec.ofNat 64 0x50)).toNat = w at *
     norm_num at this ⊢
     omega
   have hoff : chainAddr c.lay i = 0x800 + (witLayerOff c.lay + 16 * i) := by
@@ -543,7 +543,7 @@ theorem bhead_lt7 (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hsec : isSec i
   obtain ⟨t, hst, hG, hK, hR, hCB, hCi, hB, hZ, hLB, hlen, hvs, h0, h8, hpc⟩ :=
     bhead_run c hc i hi hsec acc hchk s hs
   rw [if_pos hd] at hst
-  have hdst : bDst i (dig c i) = 0xF0 := by simp [bDst, hd]
+  have hdst : bDst i (dig c i) = 0x80 := by simp [bDst, hd]
   rw [hdst] at h0 h8
   refine ⟨t, hst, hG, hK, hR, hCB, hCi, hB, hZ, h0, h8, hLB, hlen, hvs, length_witChain c hc i hi, ?_⟩
   rw [hpc, bStop, if_pos hd, cpy_sec c i hsec, Nat.add_sub_cancel]

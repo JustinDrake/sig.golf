@@ -93,17 +93,16 @@ def maskD (i : Nat) (D : E) : E :=
 
 def rE0 (lay : Nat) : E := mkBin .add (maskD 0 d0E) (cw (bVal lay 0))
 
-def stepsB (lay : Nat) : Nat := if lay = 4 then 32 else 29
+def stepsB (lay : Nat) : Nat := if lay = 4 then 29 else 28
 
 /-- One REMU costs four cycles rather than one. -/
 def cyclesB (lay : Nat) : Nat := stepsB lay + 3
 
-/-- Chain setup: `sw H, CB; sd X31, CB+8` (layer 4 also zeroes CB+32..48, left by the last PORS leaf), then
-chain 0's head writes byte 5 (`i = 0`, stored from `zero`). -/
+/-- The WOTS buffer starts at 0x50. A full `sd H` sets the first chain's index to zero.
+Its padding words stay zero through PORS, so the bottom layer needs no clearing stores. -/
 def setupMem (lay : Nat) : List (Addr × E) :=
-  [(⟨none, BitVec.ofNat 64 192⟩, .bin (.st .b 5) (stW0 192 (cw (hWord lay))) (cw 0))] ++
-  (if lay = 4 then [(⟨none, BitVec.ofNat 64 232⟩, .c 0), (⟨none, BitVec.ofNat 64 224⟩, .c 0)] else []) ++
-  [(⟨none, BitVec.ofNat 64 200⟩, .reg .x31)]
+  [(⟨none, BitVec.ofNat 64 88⟩, .reg .x31),
+   (⟨none, BitVec.ofNat 64 80⟩, cw (hWord lay))]
 
 def specBok (lay t : Nat) : Spec :=
   ⟨[(.x1, ldE (chainAddr lay 0)), (.x2, ldE (chainAddr lay 0 + 8)), (.x14, rE0 lay),

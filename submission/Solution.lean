@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6048` bytes, `W = 6348` bytes, `K = 131072` bytes (cache), `C = 11527` cycles (verify bound
-`11502` plus the witness charge `⌈6348 / 256⌉ = 25`). Layout (bytes): message 64, secret key 128,
+`S = 6048` bytes, `W = 6348` bytes, `K = 131072` bytes (cache), `C = 11520` cycles (verify bound
+`11495` plus the witness charge `⌈6348 / 256⌉ = 25`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 13056, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -29,6 +29,12 @@ segment dispatch uses 8-word table slots with the entry code inlined, and the fo
 checked once through the stream pointer instead of a per-segment counter. The startup reuses
 the address base and the digest's known input length, saving four more instructions on
 accepting runs. These verifier changes preserve the promoted scheme's hash queries and formats.
+
+The WOTS verifier uses a separate buffer at 0x50 after the message digest. Its padding at
+0x60..0x7f stays zero through the PORS phase. The bottom layer omits two clearing stores.
+Each layer writes its complete initial tweak with `sd`, which also sets chain 0's index to zero;
+the separate index-byte store is omitted. These changes save seven cycles on accepting runs.
+The signature format, hash queries, and other three program images are unchanged from the base.
 
 The certificate is `SigGolfCandidate.certificateNew`. It is transferred from
 `SigGolfCandidate.Final.certificate`, a certificate for the same images under the previous
@@ -55,7 +61,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 13056, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 11527 :=
+theorem certificate : SigGolf.Certificate submission 11520 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
