@@ -17,7 +17,7 @@ namespace SigGolfCandidate.Rv
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64
 
 deriving instance Lean.ToExpr for Reg
-deriving instance Repr, Lean.ToExpr for SigGolf.Riscv.WordOp
+deriving instance Lean.ToExpr for WordOp
 
 /-- Kind of a load instruction. -/
 inductive LoadKind where

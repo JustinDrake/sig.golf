@@ -6,7 +6,7 @@ namespace SphincsSecurity.Concrete
 open _root_.OracleComp ENNReal
 
 noncomputable def proposalTailBase : ENNReal := 1025 / 1024
-noncomputable def proposalTailMoment : ENNReal := 1075840000 / 1072690687
+noncomputable def proposalTailMoment : ENNReal := 6885376000 / 6865219987
 
 theorem proposalBlockLength_power_moment (accept : ENNReal) (hpos : accept ≠ 0) (hle : accept ≤ 1) (base : ENNReal) :
     (∑' length, proposalBlockLength accept hpos hle length * base ^ length) =
@@ -96,7 +96,7 @@ theorem expected_proposalPrefixWeight (proposals completed : Nat) (hcap : comple
 theorem proposalPrefixWeight_initial_le : proposalPrefixWeight 0 0 ≤ proposalPrefixExceptionBound := by
   rw [proposalPrefixExceptionBound_def]
   let z : ℝ := 1025 / 1024
-  let ratio : ℝ := 1099511627776 / 1099507954175
+  let ratio : ℝ := 35184372088832 / 35184252433375
   have hz : 0 < z := by norm_num [z]
   have hr : 0 < ratio := by norm_num [ratio]
   have hlog : (signatureLimit : ℝ) * Real.log ratio - 2 * 2 ^ 23 * Real.log z ≤ -700 * Real.log 2 := by
