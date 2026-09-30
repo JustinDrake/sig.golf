@@ -243,8 +243,8 @@ theorem leaf_brs_iff {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m 
     by_cases h14 : s = 14
     · subst h14
       have hn : Br.holds m ⟨.geu, xE 14, cw 0x4000, d2⟩ ↔ d2 = decide (¬ leafX P 14 < porsT) := by
-        simp only [Br.holds, E.eval, BinOp.eval, cw, hx]
-        rw [geu_iff _ _ (by omega) (by decide)]
+        simp only [Br.holds, E.eval, cw, hx]
+        rw [geu_iff (leafX P 14) 0x4000 (by omega) (by decide)]
         change decide (¬ leafX P 14 < porsT) = d2 ↔ _
         constructor <;> intro e <;> exact e.symm
       simp only [if_true, if_false, show (14 : Nat) ≠ 0 by decide, List.cons_append, List.nil_append,
@@ -257,7 +257,7 @@ theorem leaf_brs_iff {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m 
 theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : PorsState) (m : MachineState)
     (h : LeafIn P s0 s st m) :
     (((s ≠ 0 ∧ ¬ st.prev < leafX P s) ∨ (s = porsK - 1 ∧ ¬ leafX P s < porsT)) →
-      ∃ u k, k ≤ 11 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
+      ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (¬ ((s ≠ 0 ∧ ¬ st.prev < leafX P s) ∨ (s = porsK - 1 ∧ ¬ leafX P s < porsT)) →
       ∃ u, Steps image m (if s = 0 then 10 else if s = 14 then 13 else 11)
@@ -295,7 +295,7 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
       obtain ⟨u, hu⟩ := pspec_run c2 m h.pc hK ((hbr false true).mpr ⟨fun hs0 => by
         rw [eq_comm, decide_eq_false_iff_not, not_not]; by_contra hc; exact hprev ⟨hs0, hc⟩,
         fun _ => by simp [h2.2]⟩) hob
-      exact ⟨u, 9, by omega, hu.steps, hu.ecall rfl,
+      exact ⟨u, _, le_refl _, hu.steps, hu.ecall rfl,
         hu.regs (.x5, cw 1) (by simp [rejSpec]), hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
   · intro hacc
     have hbr' : ∀ b ∈ (leafSpec s).brs, b.holds m := by

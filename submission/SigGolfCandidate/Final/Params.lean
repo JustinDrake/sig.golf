@@ -2,14 +2,14 @@
 # Iteration parameters
 
 The only numbers that change between optimization iterations of the submission: the proved
-bound on accepting verify runs' RISC-V cycles and the claimed
+bound on verify's RISC-V cycles (every run, in particular every accepting run) and the claimed
 `C = verifyCycleBound + ⌈W / 256⌉`.
 -/
 
 namespace SigGolfCandidate.Final
 
-/-- Upper bound on accepting verify runs, established by the verification proof. -/
-def verifyCycleBound : Nat := 11590
+/-- Proved upper bound on the cycles of every verify run. -/
+def verifyCycleBound : Nat := 11571
 
 /-- The witness charge `⌈6348 / 256⌉`. -/
 def witnessCharge : Nat := 25

@@ -81,7 +81,7 @@ def ListPost (r : Option (List Byte)) (t : MachineState) : Prop :=
   fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
   match r with
   | none => t.getReg .x10 = 1
-  | some l => t.getReg .x10 = 0 ∧ readBuffer t 0x3300 6062 = ofList 6062 l
+  | some l => t.getReg .x10 = 0 ∧ readBuffer t 0x3300 6061 = ofList 6061 l
 
 /-- The zero buffers used as P slots / padding, never written by `sign` after the setup. -/
 def ZA (a : Nat) : Prop :=
@@ -330,7 +330,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
     rw [ht9, bytesAt_frame_before t8 _ 0x4aa0 (tail_frame t8)
       0x3b60 3904 (by norm_num) (by norm_num)]
     exact hbody8
-  have htail9 : bytesAt t9 0x4aa0 14 = CounterPack.packTail (lays.map Prod.fst) := by
+  have htail9 : bytesAt t9 0x4aa0 13 = CounterPack.packTail (lays.map Prod.fst) := by
     rw [ht9]
     exact tail_bytes_of_stages t8 lays hll hst8
   refine (Sim.pure_steps (((hs6.trans hs7).trans hs8).trans hs9)
@@ -347,9 +347,9 @@ theorem signList_sim (sk : SecretKey) (cache : Cache) (m : Message) :
 
 
 /-- Final states: at a HALT whose output is `signRef`'s value. -/
-def SignPost (a : Option (Bytes 6062)) (t : MachineState) : Prop :=
+def SignPost (a : Option (Bytes 6061)) (t : MachineState) : Prop :=
   fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
-  a = if t.getReg .x10 = 0 then some (readBuffer t 0x3300 6062) else none
+  a = if t.getReg .x10 = 0 then some (readBuffer t 0x3300 6061) else none
 set_option maxRecDepth 100000 in
 
 theorem signRef_sim (sk : SecretKey) (cache : Cache) (m : Message) :

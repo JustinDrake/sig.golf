@@ -1,21 +1,21 @@
 import SigGolfCandidate.Ref.Basic
 
 /-!
-# Canonical 14-byte counter tail
+# Canonical 13-byte counter tail
 
 The five WOTS counters remain 32-bit values in the witness. Only their compact
-signature representation changes. Each accepted counter is below `2^22`; the
-tail is the little-endian encoding of `c₀ + 2^22 c₁ + ⋯ + 2^88 c₄`.
-The top two bits of byte 13 must be zero on every accepted compact signature.
+signature representation changes. Each accepted counter is below `2^20`; the
+tail is the little-endian encoding of `c₀ + 2^20 c₁ + ⋯ + 2^80 c₄`.
+The top four bits of byte 12 must be zero on every accepted compact signature.
 -/
 
 namespace SigGolfCandidate.Ref.CounterPack
 open SigGolfCandidate.Ref
 open SigGolfCandidate.Legacy
 
-def counterBits : Nat := 22
+def counterBits : Nat := 20
 def radix : Nat := 2 ^ counterBits
-def tailBytes : Nat := 14
+def tailBytes : Nat := 13
 
 /-- Bytes occupied by one layer's chain values and authentication path. -/
 def bodyBytes (lay : Nat) : Nat := 16 * nChains + 16 * height lay
@@ -32,9 +32,9 @@ theorem bodyOffsets :
 theorem bodyLengths :
     (List.range nLayers).map bodyBytes = [848, 768, 768, 768, 752] := by decide
 theorem tailOffset_eq : tailOffset = 6048 := by decide
-theorem packedSigBytes_eq : packedSigBytes = 6062 := by decide
+theorem packedSigBytes_eq : packedSigBytes = 6061 := by decide
 
-/-- Base-`2^22` digits, least significant counter first. -/
+/-- Base-`2^20` digits, least significant counter first. -/
 def packDigits : List Nat → Nat
   | [] => 0
   | c :: cs => c + radix * packDigits cs
@@ -46,19 +46,19 @@ def unpackDigits (v : Nat) : Nat → List Nat
 
 /-- The compact tail has a fixed length even if a caller supplies fewer layers. -/
 def packTail (counters : List Nat) : List Byte :=
-  toList (n := 14) (BitVec.ofNat (8 * 14) (packDigits counters))
+  toList (n := 13) (BitVec.ofNat (8 * 13) (packDigits counters))
 
 def tailValue (tail : List Byte) : Nat := leNat tail
 def unpackTail (tail : List Byte) : List Nat := unpackDigits (tailValue tail) nLayers
 def unpackCounter (tail : List Byte) (lay : Nat) : Nat := (unpackTail tail).getD lay 0
 
-/-- An accepted tail uses exactly 110 bits; the unused two bits are checked. -/
+/-- An accepted tail uses exactly 100 bits; the unused four bits are checked. -/
 def canonicalTail (tail : List Byte) : Bool :=
-  (tail.length == tailBytes) && ((tail.getD 13 0).toNat < 64)
+  (tail.length == tailBytes) && ((tail.getD 12 0).toNat < 16)
 
 theorem canonicalTail_iff (tail : List Byte) :
     canonicalTail tail = true ↔
-      tail.length = tailBytes ∧ (tail.getD 13 0).toNat < 64 := by
+      tail.length = tailBytes ∧ (tail.getD 12 0).toNat < 16 := by
   simp [canonicalTail]
 
 theorem length_packTail (cs : List Nat) : (packTail cs).length = tailBytes := by
@@ -147,7 +147,7 @@ theorem packDigits_unpackDigits (v n : Nat) :
     rw [ih (v / radix), Nat.pow_succ, Nat.mul_comm (radix ^ n) radix,
       Nat.mod_mul]
 
-/-- Five radix digits reassemble to the low 110 bits of the original tail value. -/
+/-- Five radix digits reassemble to the low 100 bits of the original tail value. -/
 theorem packDigits_unpackTail (tail : List Byte) :
     packDigits (unpackTail tail) = tailValue tail % radix ^ nLayers := by
   exact packDigits_unpackDigits (tailValue tail) nLayers

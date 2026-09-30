@@ -27,7 +27,7 @@ theorem submission_signRefinesCounts (sk : SecretKey) (cache : Cache) (m : Messa
 /-- **Compression bounds** of `SigGolfCandidate.submission`, given the expand refinement in the
 `RefinesCounts` form. -/
 theorem submission_compressionBounds_of_counts
-    (hE : ∀ m pk (sig : Bytes 6062), RefinesCounts submission .expand (m, pk, sig) (expandRef m pk sig)) :
+    (hE : ∀ m pk (sig : Bytes 6061), RefinesCounts submission .expand (m, pk, sig) (expandRef m pk sig)) :
     submission.CompressionBounds :=
   submission_compressionBounds_of_counts' submission_keygenRefinesCounts
     submission_signRefinesCounts hE
@@ -35,13 +35,13 @@ theorem submission_compressionBounds_of_counts
 /-- **Compression bounds** of `SigGolfCandidate.submission`, given the expand refinement in the
 form of `Sign.sign_refines`. -/
 theorem submission_compressionBounds_of_expand
-    (hE : ∀ m pk (sig : Bytes 6062),
+    (hE : ∀ m pk (sig : Bytes 6061),
       (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$> submission.run .expand (m, pk, sig) =
         Sign.countBoth (expandRef m pk sig)) :
     submission.CompressionBounds :=
   submission_compressionBounds_of_counts fun m pk sig => ⟨id, (hE m pk sig).trans (id_map _).symm⟩
 
-theorem submission_expandRefinesCounts (m : Message) (pk : PublicKey) (sig : Bytes 6062) :
+theorem submission_expandRefinesCounts (m : Message) (pk : PublicKey) (sig : Bytes 6061) :
     RefinesCounts submission .expand (m, pk, sig) (expandRef m pk sig) :=
   ⟨id, Expand.expand_refines_counts m pk sig⟩
 

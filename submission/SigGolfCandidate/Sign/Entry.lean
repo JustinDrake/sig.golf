@@ -5,7 +5,7 @@ import SigGolfCandidate.Sign.Pack
 /-!
 # `sign`: layer-loop entry (296 .. 315) and the signature's layer bytes
 
-* `layer_entry` : the layer constants (`LIM = 2^22`, the SWAR masks, `LAY = 4`, `SIGL` = stage 4).
+* `layer_entry` : the layer constants (`LIM = 2^20`, the SWAR masks, `LAY = 4`, `SIGL` = stage 4).
 * `stage_bytes`, `layers_bytes` : the packed layer region `SIG + 2144 ..` from the stages.
 -/
 
@@ -146,11 +146,11 @@ theorem final_bytes_of_parts (t : MachineState) (rho : Val) (fts : List Val)
     (hhead : bytesAt t 0x3300 2144 = rho ++ fts.flatten)
     (hbodies : bytesAt t (0x3300 + 2144) 3904 =
       (lays.map fun l => l.2.1.flatten ++ l.2.2.flatten).flatten)
-    (htail : bytesAt t (0x3300 + 6048) 14 = CounterPack.packTail (lays.map Prod.fst)) :
-    bytesAt t 0x3300 6062 = serialize rho fts lays := by
-  rw [show (6062 : Nat) = 2144 + (3904 + 14) from rfl,
-    bytesAt_add t 0x3300 2144 (3904 + 14),
-    bytesAt_add t (0x3300 + 2144) 3904 14,
+    (htail : bytesAt t (0x3300 + 6048) 13 = CounterPack.packTail (lays.map Prod.fst)) :
+    bytesAt t 0x3300 6061 = serialize rho fts lays := by
+  rw [show (6061 : Nat) = 2144 + (3904 + 13) from rfl,
+    bytesAt_add t 0x3300 2144 (3904 + 13),
+    bytesAt_add t (0x3300 + 2144) 3904 13,
     show (0x3300 + 2144 + 3904 : Nat) = 0x3300 + 6048 from rfl,
     hhead, hbodies, htail]
   simp only [serialize, List.append_assoc]

@@ -67,9 +67,9 @@ theorem flatten_slices (l : List Byte) (off len : Nat) :
 theorem getD_take' (l : List Byte) (n i : Nat) (hi : i < n) : (l.take n).getD i 0 = l.getD i 0 := by
   simp only [List.getD_eq_getElem?_getD, List.getElem?_take]; rw [if_pos hi]
 
-theorem witness_bytes (sig : List Byte) (hsig : sig.length = 6062) (N : Nat) (A : Nat → Nat)
+theorem witness_bytes (sig : List Byte) (hsig : sig.length = 6061) (N : Nat) (A : Nat → Nat)
     (hSK : SortedKeys N A) (hn : (leavesOf N).Nodup) (segs : List Nat) (f0 : Nat → Byte)
-    (h1 : ∀ j < 6062, f0 (0x3300 + j) = sig.getD j 0)
+    (h1 : ∀ j < 6061, f0 (0x3300 + j) = sig.getD j 0)
     (h2 : ∀ i < 2152, f0 (0x910 + i) = (curStream sig segs 0).getD i 0) (h3 : f0 0x81F = 0) :
     ∀ i < 6348, putCounters sig
         (applyCopies copyBodies (piF A 15 (applyCopy (0x3300, 0x800, 4) f0))) (0x800 + i) =
@@ -77,7 +77,7 @@ theorem witness_bytes (sig : List Byte) (hsig : sig.length = 6062) (N : Nat) (A 
   intro i hi
   set g := piF A 15 (applyCopy (0x3300, 0x800, 4) f0) with hg
   -- the signature under the copies
-  have hgs : ∀ j < 6062, g (0x3300 + j) = sig.getD j 0 := by
+  have hgs : ∀ j < 6061, g (0x3300 + j) = sig.getD j 0 := by
     intro j hj; simp only [hg, piF, applyCopy]; rw [if_neg (by omega), if_neg (by omega)]; exact h1 j hj
   -- the witness as one concatenation with explicit lengths
   have eS : ((List.range porsK).map (sigItem sig)).flatten = slice sig 16 240 := by
@@ -120,7 +120,7 @@ theorem witness_bytes (sig : List Byte) (hsig : sig.length = 6062) (N : Nat) (A 
   simp only [getD_app, lr, lp, lz, ls, lt, l0, l1, l2, l3, l4, lc, List.length_nil]
   -- a copied region: `x = 0x800 + i` in `[dst, dst + 4 n)` reads `sig[x - dst + src - 0x3300]`
   have cp : ∀ c ∈ copyBodies, c.2.1 ≤ 0x800 + i → 0x800 + i < c.2.1 + 4 * c.2.2 → 0x3300 ≤ c.1 →
-      c.1 + 4 * c.2.2 ≤ 0x3300 + 6062 →
+      c.1 + 4 * c.2.2 ≤ 0x3300 + 6061 →
       applyCopies copyBodies g (0x800 + i) = sig.getD (0x800 + i - c.2.1 + c.1 - 0x3300) 0 := by
     intro c hc h1 h2 h3 h4
     rw [copy_hit g c hc _ h1 h2]

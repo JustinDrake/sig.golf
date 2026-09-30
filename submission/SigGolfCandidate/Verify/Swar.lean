@@ -99,7 +99,8 @@ theorem swarTail (P0 P1 P2 P3 P4 P5 : Nat) (h0 : P0 ≤ 63) (h1 : P1 ≤ 63) (h2
   have hlt : Y < 18446744073709551616 := by omega
   rw [Nat.mod_eq_of_lt hlt, hY', Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (by omega)]
 
-/-- Reducing modulo 4095 sums base-4096 lanes without carries. -/
+/-- Reducing modulo 4095 sums base-4096 lanes without carries.
+Adapted from @gopikannappan, sig.golf PR 18, commit 3ceb68c. -/
 theorem swarTail_rem (P0 P1 P2 P3 P4 P5 : Nat)
     (h0 : P0 ≤ 63) (h1 : P1 ≤ 63) (h2 : P2 ≤ 63) (h3 : P3 ≤ 63)
     (h4 : P4 ≤ 63) (h5 : P5 ≤ 15) :

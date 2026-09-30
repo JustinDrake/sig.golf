@@ -89,15 +89,15 @@ def M2w : Word := 0xf03f03f03f03f03f#64
 
 /-- Registers constant in all phases after the prologue. -/
 def baseK : List (Reg × Word) :=
-  [(.x5, 0), (.x18, 0x1000), (.x19, 0x1978), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
+  [(.x5, 0), (.x18, 0x1000), (.x19, 0x2000), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
 
 /-- FORS phase: also `K16`. -/
 def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 
-/-- The encoding check compares the unshifted REMU digit sum. -/
+/-- Unshifted target sum, following @gopikannappan PR25. -/
 def KT : Word := BitVec.ofNat 64 targetSum
 
-/-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the REMU divisor. -/
+/-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register). -/
 def gkL : List (Reg × Word) :=
   baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 4095)]
 

@@ -6,7 +6,7 @@ import SigGolfCandidate.Keygen.State
 # Byte seam for the aligned packed-counter stores
 
 The appended signer code stores two aligned 64-bit words at `0x4aa0` and
-`0x4aa8`. The signature exposes only the first fourteen bytes. These lemmas
+`0x4aa8`. The signature exposes only the first thirteen bytes. These lemmas
 turn the two machine words into the reference little-endian counter tail;
 the instruction-level proof supplies the word hypotheses separately.
 -/
@@ -41,55 +41,52 @@ theorem bytesAt_frame_before (t u : MachineState) (B : Nat)
   rw [Expand.getByte_ofNat u _ (by omega), Expand.getByte_ofNat t _ (by omega)]
   rw [hf ((a + i) / 8 * 8) (by omega) (by omega)]
 
-/-- The tail block's shift/OR network computes the low machine word. The
-second OR is modular: the upper two bits of `c2 << 44` may overflow 64 bits. -/
-theorem lowWord_bitwise (c0 c1 c2 : Nat)
-    (h0 : c0 < CounterPack.radix) (h1 : c1 < CounterPack.radix) :
-    (BitVec.ofNat 64 c0 ||| (BitVec.ofNat 64 c1 <<< 22)) |||
-        (BitVec.ofNat 64 c2 <<< 44) =
-      CounterPackLayout.lowWord c0 c1 c2 := by
-  have h01 : c0 + 2 ^ 22 * c1 < 2 ^ 44 := by
+/-- Four radix digits form the low machine word. -/
+theorem lowWord_bitwise (c0 c1 c2 c3 : Nat)
+    (h0 : c0 < CounterPack.radix) (h1 : c1 < CounterPack.radix)
+    (h2 : c2 < CounterPack.radix) :
+    ((BitVec.ofNat 64 c0 ||| (BitVec.ofNat 64 c1 <<< 20)) |||
+        (BitVec.ofNat 64 c2 <<< 40)) ||| (BitVec.ofNat 64 c3 <<< 60) =
+      CounterPackLayout.lowWord c0 c1 c2 c3 := by
+  have h01 : c0 + 2 ^ 20 * c1 < 2 ^ 40 := by
     norm_num [CounterPack.radix, CounterPack.counterBits] at h0 h1 ⊢
     omega
-  have hp1 : BitVec.ofNat 64 c0 ||| (BitVec.ofNat 64 c1 <<< 22) =
-      BitVec.ofNat 64 (c0 + 2 ^ 22 * c1) := by
+  have h012 : c0 + 2 ^ 20 * c1 + 2 ^ 40 * c2 < 2 ^ 60 := by
+    norm_num [CounterPack.radix, CounterPack.counterBits] at h0 h1 h2 ⊢
+    omega
+  have hp1 : BitVec.ofNat 64 c0 ||| (BitVec.ofNat 64 c1 <<< 20) =
+      BitVec.ofNat 64 (c0 + 2 ^ 20 * c1) := by
     rw [Keygen.ofNat_shl, BitVec.or_comm,
-      Keygen.ofNat_or_add c0 c1 22 (by
+      Keygen.ofNat_or_add c0 c1 20 (by
         simpa [CounterPack.radix, CounterPack.counterBits] using h0)]
     congr 1
     ring
-  rw [hp1, Keygen.ofNat_shl, BitVec.or_comm,
-    Keygen.ofNat_or_add (c0 + 2 ^ 22 * c1) c2 44 h01]
+  have hp2 : (BitVec.ofNat 64 c0 ||| (BitVec.ofNat 64 c1 <<< 20)) |||
+      (BitVec.ofNat 64 c2 <<< 40) =
+      BitVec.ofNat 64 (c0 + 2 ^ 20 * c1 + 2 ^ 40 * c2) := by
+    rw [hp1, Keygen.ofNat_shl, BitVec.or_comm,
+      Keygen.ofNat_or_add (c0 + 2 ^ 20 * c1) c2 40 h01]
+    congr 1
+    ring
+  rw [hp2, Keygen.ofNat_shl, BitVec.or_comm,
+    Keygen.ofNat_or_add (c0 + 2 ^ 20 * c1 + 2 ^ 40 * c2) c3 60 h012]
   unfold CounterPackLayout.lowWord
   congr 1
   ring
 
-/-- The high-word shift/OR network computes the upper 46 useful bits. -/
+/-- The remaining 36 bits form the high machine word. -/
 theorem highWord_bitwise (c2 c3 c4 : Nat)
-    (h2 : c2 < CounterPack.radix) (h3 : c3 < CounterPack.radix) :
-    ((BitVec.ofNat 64 c2 >>> 20) ||| (BitVec.ofNat 64 c3 <<< 2)) |||
-        (BitVec.ofNat 64 c4 <<< 24) =
+    (h3 : c3 < CounterPack.radix) :
+    (BitVec.ofNat 64 c3 >>> 4) ||| (BitVec.ofNat 64 c4 <<< 16) =
       CounterPackLayout.highWord c2 c3 c4 := by
-  have h2wide : c2 < 2 ^ 64 := by
-    have := h2
-    norm_num [CounterPack.radix, CounterPack.counterBits] at this ⊢
+  have hwide : c3 < 2 ^ 64 := by
+    norm_num [CounterPack.radix, CounterPack.counterBits] at h3 ⊢
     omega
-  have h2small : c2 / 2 ^ 20 < 2 ^ 2 := by
-    have := h2
-    norm_num [CounterPack.radix, CounterPack.counterBits] at this ⊢
+  have hsmall : c3 / 2 ^ 4 < 2 ^ 16 := by
+    norm_num [CounterPack.radix, CounterPack.counterBits] at h3 ⊢
     omega
-  have h23 : c2 / 2 ^ 20 + 4 * c3 < 2 ^ 24 := by
-    have := h3
-    norm_num [CounterPack.radix, CounterPack.counterBits] at this ⊢
-    omega
-  have hp1 : (BitVec.ofNat 64 c2 >>> 20) ||| (BitVec.ofNat 64 c3 <<< 2) =
-      BitVec.ofNat 64 (c2 / 2 ^ 20 + 4 * c3) := by
-    rw [Keygen.ofNat_shr c2 20 h2wide, Keygen.ofNat_shl,
-      BitVec.or_comm, Keygen.ofNat_or_add (c2 / 2 ^ 20) c3 2 h2small]
-    congr 1
-    ring
-  rw [hp1, Keygen.ofNat_shl, BitVec.or_comm,
-    Keygen.ofNat_or_add (c2 / 2 ^ 20 + 4 * c3) c4 24 h23]
+  rw [Keygen.ofNat_shr c3 4 hwide, Keygen.ofNat_shl,
+    BitVec.or_comm, Keygen.ofNat_or_add (c3 / 2 ^ 4) c4 16 hsmall]
   unfold CounterPackLayout.highWord
   congr 1
   ring
@@ -104,22 +101,22 @@ theorem wordsOf_leBytes16 (v : Nat) :
     wordsOf_eight _ (by simp), leNat_leBytes, leNat_leBytes]
   norm_num
 
-/-- The first fourteen bytes of two aligned words are the exact tail encoding. -/
+/-- The first thirteen bytes of two aligned words are the exact tail encoding. -/
 theorem bytesAt_tail_of_words (t : MachineState) (a v : Nat)
     (ha : a % 8 = 0) (hb : a + 24 < 2 ^ 64)
     (hlo : t.getMem (BitVec.ofNat 64 a) = BitVec.ofNat 64 (v % 2 ^ 64))
     (hhi : t.getMem (BitVec.ofNat 64 (a + 8)) =
       BitVec.ofNat 64 ((v / 2 ^ 64) % 2 ^ 64)) :
-    bytesAt t a 14 = leBytes 14 v := by
+    bytesAt t a 13 = leBytes 13 v := by
   have hwords : t.readWords (BitVec.ofNat 64 a) 2 = wordsOf (leBytes 16 v) := by
     rw [readWords_ofNat_two, wordsOf_leBytes16, hlo, hhi]
   have h16 := bytesAt_of_readWords t 2 a (leBytes 16 v) ha hb
     (by simp) hwords
   calc
-    bytesAt t a 14 = (bytesAt t a 16).take 14 :=
-      (bytesAt_take t a 14 16 (by omega)).symm
-    _ = (leBytes 16 v).take 14 := by rw [h16]
-    _ = leBytes 14 v := Ref.leBytes_take 14 16 v (by omega)
+    bytesAt t a 13 = (bytesAt t a 16).take 13 :=
+      (bytesAt_take t a 13 16 (by omega)).symm
+    _ = (leBytes 16 v).take 13 := by rw [h16]
+    _ = leBytes 13 v := Ref.leBytes_take 13 16 v (by omega)
 
 /-- The machine store seam, stated directly for the five-counter value. -/
 theorem bytesAt_packedTail (t : MachineState) (cs : List Nat)
@@ -127,7 +124,7 @@ theorem bytesAt_packedTail (t : MachineState) (cs : List Nat)
       BitVec.ofNat 64 (CounterPack.packDigits cs % 2 ^ 64))
     (hhi : t.getMem (BitVec.ofNat 64 0x4aa8) =
       BitVec.ofNat 64 ((CounterPack.packDigits cs / 2 ^ 64) % 2 ^ 64)) :
-    bytesAt t 0x4aa0 14 = CounterPack.packTail cs := by
+    bytesAt t 0x4aa0 13 = CounterPack.packTail cs := by
   rw [Ref.packTail_eq_leBytes]
   exact bytesAt_tail_of_words t 0x4aa0 (CounterPack.packDigits cs)
     (by norm_num) (by norm_num) hlo hhi
@@ -140,10 +137,10 @@ theorem bytesAt_packedTail_five (t : MachineState)
     (h1 : c1 < CounterPack.radix)
     (h2 : c2 < CounterPack.radix)
     (hlo : t.getMem (BitVec.ofNat 64 0x4aa0) =
-      CounterPackLayout.lowWord c0 c1 c2)
+      CounterPackLayout.lowWord c0 c1 c2 c3)
     (hhi : t.getMem (BitVec.ofNat 64 0x4aa8) =
       CounterPackLayout.highWord c2 c3 c4) :
-    bytesAt t 0x4aa0 14 =
+    bytesAt t 0x4aa0 13 =
       CounterPack.packTail [c0, c1, c2, c3, c4] := by
   apply bytesAt_packedTail t [c0, c1, c2, c3, c4]
   · exact hlo.trans (CounterPackLayout.lowWord_eq_packDigits c0 c1 c2 c3 c4)
@@ -152,18 +149,18 @@ theorem bytesAt_packedTail_five (t : MachineState)
 /-- The tail appendix's two aligned stores have these exact shift/OR values. -/
 theorem tail_low_expr (t : MachineState) :
     (blk2942PackedTail.res.toState t).getMem (BitVec.ofNat 64 0x4aa0) =
-      ((lwuW (t.getMem (BitVec.ofNat 64 0x900)) 0 |||
-        (lwuW (t.getMem (BitVec.ofNat 64 0xc58)) 0 <<< 22)) |||
-        (lwuW (t.getMem (BitVec.ofNat 64 0xfb0)) 0 <<< 44)) := by
+      (((lwuW (t.getMem (BitVec.ofNat 64 0x900)) 0 |||
+        (lwuW (t.getMem (BitVec.ofNat 64 0xc58)) 0 <<< 20)) |||
+        (lwuW (t.getMem (BitVec.ofNat 64 0xfb0)) 0 <<< 40)) |||
+        (lwuW (t.getMem (BitVec.ofNat 64 0x1308)) 0 <<< 60)) := by
   simp only [Result.toState_getMem, blk2942PackedTail.res, rv_simp]
   simp [show (19104#64 : BitVec 64) ≠ 19112#64 from by decide,
     lwuW, LoadKind.fromWord, BitVec.or_comm, BitVec.or_assoc]
 
 theorem tail_high_expr (t : MachineState) :
     (blk2942PackedTail.res.toState t).getMem (BitVec.ofNat 64 0x4aa8) =
-      ((lwuW (t.getMem (BitVec.ofNat 64 0xfb0)) 0 >>> 20 |||
-        (lwuW (t.getMem (BitVec.ofNat 64 0x1308)) 0 <<< 2)) |||
-        (lwuW (t.getMem (BitVec.ofNat 64 0x1660)) 0 <<< 24)) := by
+      (lwuW (t.getMem (BitVec.ofNat 64 0x1308)) 0 >>> 4) |||
+        (lwuW (t.getMem (BitVec.ofNat 64 0x1660)) 0 <<< 16) := by
   simp only [Result.toState_getMem, blk2942PackedTail.res, rv_simp]
   simp [show (19104#64 : BitVec 64) ≠ 19112#64 from by decide,
     lwuW, LoadKind.fromWord, BitVec.or_comm, BitVec.or_assoc]
@@ -213,18 +210,18 @@ theorem tail_bytes_from_staged (t : MachineState) (c0 c1 c2 c3 c4 : Nat)
     (hm2 : t.getMem (BitVec.ofNat 64 0xfb0) = BitVec.ofNat 64 c2)
     (hm3 : t.getMem (BitVec.ofNat 64 0x1308) = BitVec.ofNat 64 c3)
     (hm4 : t.getMem (BitVec.ofNat 64 0x1660) = BitVec.ofNat 64 c4) :
-    bytesAt (blk2942PackedTail.res.toState t) 0x4aa0 14 =
+    bytesAt (blk2942PackedTail.res.toState t) 0x4aa0 13 =
       CounterPack.packTail [c0, c1, c2, c3, c4] := by
   have hlo : (blk2942PackedTail.res.toState t).getMem (BitVec.ofNat 64 0x4aa0) =
-      CounterPackLayout.lowWord c0 c1 c2 := by
-    rw [tail_low_expr, hm0, hm1, hm2,
-      lwuW_counter c0 h0, lwuW_counter c1 h1, lwuW_counter c2 h2]
-    exact lowWord_bitwise c0 c1 c2 h0 h1
+      CounterPackLayout.lowWord c0 c1 c2 c3 := by
+    rw [tail_low_expr, hm0, hm1, hm2, hm3,
+      lwuW_counter c0 h0, lwuW_counter c1 h1, lwuW_counter c2 h2, lwuW_counter c3 h3]
+    exact lowWord_bitwise c0 c1 c2 c3 h0 h1 h2
   have hhi : (blk2942PackedTail.res.toState t).getMem (BitVec.ofNat 64 0x4aa8) =
       CounterPackLayout.highWord c2 c3 c4 := by
-    rw [tail_high_expr, hm2, hm3, hm4,
-      lwuW_counter c2 h2, lwuW_counter c3 h3, lwuW_counter c4 h4]
-    exact highWord_bitwise c2 c3 c4 h2 h3
+    rw [tail_high_expr, hm3, hm4,
+      lwuW_counter c3 h3, lwuW_counter c4 h4]
+    exact highWord_bitwise c2 c3 c4 h3
   exact bytesAt_packedTail_five _ c0 c1 c2 c3 c4 h0 h1 h2 hlo hhi
 
 theorem layerSig_list_five (lays : List LayerSig) (h : lays.length = 5) :
@@ -243,7 +240,7 @@ theorem fst_list_five (lays : List LayerSig) (h : lays.length = 5) :
 theorem tail_bytes_of_stages (t : MachineState) (lays : List LayerSig)
     (hll : lays.length = 5)
     (hst : ∀ l (hl : l < lays.length), StageAt t l lays[l]) :
-    bytesAt (blk2942PackedTail.res.toState t) 0x4aa0 14 =
+    bytesAt (blk2942PackedTail.res.toState t) 0x4aa0 13 =
       CounterPack.packTail (lays.map Prod.fst) := by
   have s0 := hst 0 (by omega)
   have s1 := hst 1 (by omega)

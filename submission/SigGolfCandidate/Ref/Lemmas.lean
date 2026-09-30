@@ -88,25 +88,25 @@ theorem leNat_div_mod (l : List Byte) (i : Nat) :
       rw [show (b.toNat + 256 * leNat bs) / 256 = leNat bs by simp at hb; omega]
       exact ih i
 
-/-- Canonical 14-byte tails have exactly 110 usable bits. -/
+/-- Canonical 13-byte tails have exactly 100 usable bits. -/
 theorem canonicalTail_value_lt (tail : List Byte)
     (h : CounterPack.canonicalTail tail = true) :
     leNat tail < CounterPack.radix ^ nLayers := by
   obtain ⟨hlen, hhigh⟩ := (CounterPack.canonicalTail_iff tail).mp h
-  have hlen14 : tail.length = 14 := by simpa [CounterPack.tailBytes] using hlen
+  have hlen13 : tail.length = 13 := by simpa [CounterPack.tailBytes] using hlen
   have hlimit := leNat_lt tail
-  rw [hlen14] at hlimit
-  have hdiv : leNat tail / 256 ^ 13 < 256 := by
+  rw [hlen13] at hlimit
+  have hdiv : leNat tail / 256 ^ 12 < 256 := by
     norm_num at hlimit ⊢
     omega
-  have hlast := leNat_div_mod tail 13
+  have hlast := leNat_div_mod tail 12
   rw [Nat.mod_eq_of_lt hdiv] at hlast
-  change leNat tail < (2 ^ 22) ^ 5
+  change leNat tail < (2 ^ 20) ^ 5
   norm_num only [Nat.reducePow] at hlast ⊢
   omega
 
-/-- For a fourteen-byte tail, the high-bit check is exactly the 110-bit value bound. -/
-theorem canonicalTail_iff_value_lt (tail : List Byte) (hlen : tail.length = 14) :
+/-- For a thirteen-byte tail, the high-bit check is exactly the 100-bit value bound. -/
+theorem canonicalTail_iff_value_lt (tail : List Byte) (hlen : tail.length = 13) :
     CounterPack.canonicalTail tail = true ↔
       leNat tail < CounterPack.radix ^ nLayers := by
   constructor
@@ -115,11 +115,11 @@ theorem canonicalTail_iff_value_lt (tail : List Byte) (hlen : tail.length = 14) 
     apply (CounterPack.canonicalTail_iff tail).mpr
     constructor
     · simpa [CounterPack.tailBytes] using hlen
-    · have hquot : leNat tail / 256 ^ 13 < 64 := by
+    · have hquot : leNat tail / 256 ^ 12 < 16 := by
         norm_num [CounterPack.radix, CounterPack.counterBits, nLayers] at hv ⊢
         omega
-      have hlast := leNat_div_mod tail 13
-      rw [Nat.mod_eq_of_lt (by omega : leNat tail / 256 ^ 13 < 256)] at hlast
+      have hlast := leNat_div_mod tail 12
+      rw [Nat.mod_eq_of_lt (by omega : leNat tail / 256 ^ 12 < 256)] at hlast
       rw [← hlast]
       exact hquot
 
@@ -142,9 +142,9 @@ theorem toList_ofNat_eq_leBytes (n v : Nat) :
   exact extractByte_ofNat (8 * n) v i (by omega)
 
 theorem packTail_eq_leBytes (cs : List Nat) :
-    CounterPack.packTail cs = leBytes 14 (CounterPack.packDigits cs) := by
+    CounterPack.packTail cs = leBytes 13 (CounterPack.packDigits cs) := by
   simpa only [CounterPack.packTail] using
-    toList_ofNat_eq_leBytes 14 (CounterPack.packDigits cs)
+    toList_ofNat_eq_leBytes 13 (CounterPack.packDigits cs)
 
 theorem toList_ofList (n : Nat) (l : List Byte) (h : l.length = n) : toList (ofList n l) = l := by
   subst h
@@ -177,18 +177,18 @@ theorem ofList_toList {n : Nat} (x : Bytes n) : ofList n (toList x) = x := by
 theorem canonicalTail_roundtrip (tail : List Byte)
     (h : CounterPack.canonicalTail tail = true) :
     CounterPack.packTail (CounterPack.unpackTail tail) = tail := by
-  have hlen : tail.length = 14 := by
+  have hlen : tail.length = 13 := by
     have hh := (CounterPack.canonicalTail_iff tail).mp h
     simpa [CounterPack.tailBytes] using hh.1
   have hv := canonicalTail_value_lt tail h
-  have hpow : CounterPack.radix ^ nLayers = 2 ^ 110 := by
+  have hpow : CounterPack.radix ^ nLayers = 2 ^ 100 := by
     norm_num [CounterPack.radix, CounterPack.counterBits, nLayers]
-  have hv' : CounterPack.tailValue tail < 2 ^ 110 := by
+  have hv' : CounterPack.tailValue tail < 2 ^ 100 := by
     simpa [CounterPack.tailValue, hpow] using hv
   unfold CounterPack.packTail
   rw [CounterPack.packDigits_unpackTail, hpow, Nat.mod_eq_of_lt hv']
-  change toList (ofList 14 tail) = tail
-  exact toList_ofList 14 tail hlen
+  change toList (ofList 13 tail) = tail
+  exact toList_ofList 13 tail hlen
 
 /-- Every five bounded counters produce a canonical packed tail. -/
 theorem canonicalTail_packTail (cs : List Nat) (hlen : cs.length = nLayers)
@@ -197,19 +197,19 @@ theorem canonicalTail_packTail (cs : List Nat) (hlen : cs.length = nLayers)
   apply (CounterPack.canonicalTail_iff _).mpr
   constructor
   · exact CounterPack.length_packTail cs
-  · have hv : CounterPack.packDigits cs < 2 ^ 110 := by
+  · have hv : CounterPack.packDigits cs < 2 ^ 100 := by
       have hb := CounterPack.packDigits_lt_pow cs hcs
       rw [hlen] at hb
       simpa [CounterPack.radix, CounterPack.counterBits, nLayers] using hb
-    have hv112 : CounterPack.packDigits cs < 2 ^ 112 := by omega
+    have hv104 : CounterPack.packDigits cs < 2 ^ 104 := by omega
     have hvalue : leNat (CounterPack.packTail cs) = CounterPack.packDigits cs := by
       simp only [CounterPack.packTail, leNat_toList, BitVec.toNat_ofNat]
-      exact Nat.mod_eq_of_lt hv112
-    have hquot : CounterPack.packDigits cs / 256 ^ 13 < 64 := by
+      exact Nat.mod_eq_of_lt hv104
+    have hquot : CounterPack.packDigits cs / 256 ^ 12 < 16 := by
       norm_num at hv ⊢
       omega
-    have hlast := leNat_div_mod (CounterPack.packTail cs) 13
-    rw [hvalue, Nat.mod_eq_of_lt (by omega : CounterPack.packDigits cs / 256 ^ 13 < 256)] at hlast
+    have hlast := leNat_div_mod (CounterPack.packTail cs) 12
+    rw [hvalue, Nat.mod_eq_of_lt (by omega : CounterPack.packDigits cs / 256 ^ 12 < 256)] at hlast
     rw [← hlast]
     exact hquot
 
@@ -219,7 +219,7 @@ theorem unpackTail_packTail (cs : List Nat) (hlen : cs.length = nLayers)
     CounterPack.unpackTail (CounterPack.packTail cs) = cs := by
   have hb := CounterPack.packDigits_lt_pow cs hcs
   rw [hlen] at hb
-  have hbits : CounterPack.packDigits cs < 2 ^ (8 * 14) := by
+  have hbits : CounterPack.packDigits cs < 2 ^ (8 * 13) := by
     norm_num [CounterPack.radix, CounterPack.counterBits, nLayers] at hb ⊢
     omega
   have hv : CounterPack.tailValue (CounterPack.packTail cs) = CounterPack.packDigits cs := by
@@ -551,18 +551,18 @@ private theorem length_slice (l : List Byte) (off len : Nat) (h : off + len ≤ 
     (slice l off len).length = len := by
   simp [slice]; omega
 
-theorem length_sigCounterTail (sig : List Byte) (hsig : sig.length = 6062) :
-    (sigCounterTail sig).length = 14 := by
+theorem length_sigCounterTail (sig : List Byte) (hsig : sig.length = 6061) :
+    (sigCounterTail sig).length = 13 := by
   unfold sigCounterTail
   rw [length_slice sig CounterPack.tailOffset CounterPack.tailBytes (by rw [hsig]; decide)]
   rfl
 
-/-- A byte of the compact 14-byte tail at its absolute signature offset. -/
-theorem getD_sigCounterTail (sig : List Byte) (k : Nat) (hk : k < 14) :
+/-- A byte of the compact 13-byte tail at its absolute signature offset. -/
+theorem getD_sigCounterTail (sig : List Byte) (k : Nat) (hk : k < 13) :
     (sigCounterTail sig).getD k 0 = sig.getD (6048 + k) 0 := by
   unfold sigCounterTail
   rw [CounterPack.tailOffset_eq]
-  change (slice sig 6048 14).getD k 0 = sig.getD (6048 + k) 0
+  change (slice sig 6048 13).getD k 0 = sig.getD (6048 + k) 0
   simp only [slice, List.getD_eq_getElem?_getD, List.getElem?_take, List.getElem?_drop]
   rw [if_pos hk]
 
@@ -589,8 +589,8 @@ private theorem length_flatten_map_range' (n : Nat) (f : Nat → List Byte) (g :
 bytes and 15 sorted leaves). -/
 theorem length_witnessList (sig : List Byte) (hsig : sig.length = sigBytes) (v vs segs : List Nat)
     (hvs : vs.length = porsK) : (witnessList sig v vs segs).length = witBytes := by
-  have hs : sig.length = 6062 := hsig
-  have hoff : ∀ lay, lay < nLayers → sigLayerOff lay + sigBodyBytes lay ≤ 6062 := by decide
+  have hs : sig.length = 6061 := hsig
+  have hoff : ∀ lay, lay < nLayers → sigLayerOff lay + sigBodyBytes lay ≤ 6061 := by decide
   have hitem : ∀ i, i < porsK → (sigItem sig i).length = 16 := fun i hi =>
     length_slice _ _ _ (by rw [hs]; unfold porsK at hi; omega)
   have hbody : ∀ lay, lay < nLayers → (sigLayerBody sig lay).length = sigBodyBytes lay :=

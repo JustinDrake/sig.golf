@@ -1,10 +1,10 @@
 import SigGolfCandidate.Expand.Code
 
 /-!
-# Machine trace seams for the 14-byte counter tail
+# Machine trace seams for the 13-byte counter tail
 
 The first five aligned body copies reuse `Expand.Copy.copy_loop`. At PC 226,
-four instructions load the 64+48-bit tail and expose the two unused bits.
+four instructions load the 64+40-bit tail and expose the four unused bits.
 PC 230 branches to the existing failure block 284 if either bit is set.
 The accepted branch decodes and stores the five LE32 witness counters, then
 jumps to the existing success block 281.
@@ -84,9 +84,9 @@ theorem packedPrelude_words (u : MachineState)
     (blk226PackedPrelude.res.toState u).getReg .x12 =
         LoadKind.fromWord .wu (u.getMem (BitVec.ofNat 64 0x4aa8)) 0 ∧
     (blk226PackedPrelude.res.toState u).getReg .x13 =
-        LoadKind.fromWord .hu (u.getMem (BitVec.ofNat 64 0x4aa8)) 4 ∧
+        LoadKind.fromWord .bu (u.getMem (BitVec.ofNat 64 0x4aa8)) 4 ∧
     (blk226PackedPrelude.res.toState u).getReg .x14 =
-        LoadKind.fromWord .hu (u.getMem (BitVec.ofNat 64 0x4aa8)) 4 >>> 14 := by
+        LoadKind.fromWord .bu (u.getMem (BitVec.ofNat 64 0x4aa8)) 4 >>> 4 := by
   simp only [Result.toState_getReg, blk226PackedPrelude.res, rv_simp, h6]
   have haddr : (19104#64 : Word) + 8#64 = 19112#64 := by decide
   simp only [haddr]
@@ -156,7 +156,7 @@ theorem packedBody_frame (u : MachineState)
 theorem packedBody_lowCounter (u : MachineState)
     (h7 : u.getReg .x7 = BitVec.ofNat 64 0x20b8) :
     lo32 ((blk231PackedBody.res.toState u).getMem (BitVec.ofNat 64 0x20b8)) =
-      ((u.getReg .x11 <<< 42) >>> 42).truncate 32 := by
+      ((u.getReg .x11 <<< 44) >>> 44).truncate 32 := by
   simp only [Result.toState_getMem, blk231PackedBody.res, rv_simp, h7]
   have h8 : (8376#64 : Word) + 8#64 = 8384#64 := by decide
   have h16 : (8376#64 : Word) + 16#64 = 8392#64 := by decide
@@ -171,8 +171,8 @@ theorem packedBody_mem0 (u : MachineState)
     (blk231PackedBody.res.toState u).getMem (BitVec.ofNat 64 0x20b8) =
       replaceWord32
         (replaceWord32 (u.getMem (BitVec.ofNat 64 0x20b8)) 0
-          ((u.getReg .x11 <<< 42 >>> 42).truncate 32)) 1
-        ((u.getReg .x11 >>> 22 <<< 42 >>> 42).truncate 32) := by
+          ((u.getReg .x11 <<< 44 >>> 44).truncate 32)) 1
+        ((u.getReg .x11 >>> 20 <<< 44 >>> 44).truncate 32) := by
   simp only [Result.toState_getMem, blk231PackedBody.res, rv_simp, h7]
   have h8 : (8376#64 : Word) + 8#64 = 8384#64 := by decide
   have h16 : (8376#64 : Word) + 16#64 = 8392#64 := by decide
@@ -186,9 +186,8 @@ theorem packedBody_mem1 (u : MachineState)
     (blk231PackedBody.res.toState u).getMem (BitVec.ofNat 64 0x20c0) =
       replaceWord32
         (replaceWord32 (u.getMem (BitVec.ofNat 64 0x20c0)) 0
-          ((u.getReg .x11 >>> 44 |||
-            ((u.getReg .x12 ||| u.getReg .x13 <<< 32) &&& 3#64) <<< 20).truncate 32)) 1
-        (((u.getReg .x12 ||| u.getReg .x13 <<< 32) >>> 2 <<< 42 >>> 42).truncate 32) := by
+          ((u.getReg .x11 >>> 40 <<< 44 >>> 44).truncate 32)) 1
+        ((u.getReg .x11 >>> 60 ||| ((u.getReg .x12 ||| u.getReg .x13 <<< 32) <<< 48 >>> 44)).truncate 32) := by
   simp only [Result.toState_getMem, blk231PackedBody.res, rv_simp, h7]
   have h8 : (8376#64 : Word) + 8#64 = 8384#64 := by decide
   have h16 : (8376#64 : Word) + 16#64 = 8392#64 := by decide
@@ -201,7 +200,7 @@ theorem packedBody_mem2 (u : MachineState)
     (h7 : u.getReg .x7 = BitVec.ofNat 64 0x20b8) :
     (blk231PackedBody.res.toState u).getMem (BitVec.ofNat 64 0x20c8) =
       replaceWord32 (u.getMem (BitVec.ofNat 64 0x20c8)) 0
-        (((u.getReg .x12 ||| u.getReg .x13 <<< 32) >>> 24).truncate 32) := by
+        (((u.getReg .x12 ||| u.getReg .x13 <<< 32) >>> 16).truncate 32) := by
   simp only [Result.toState_getMem, blk231PackedBody.res, rv_simp, h7]
   have h16 : (8376#64 : Word) + 16#64 = 8392#64 := by decide
   simp only [h16]
@@ -213,16 +212,15 @@ theorem packedBody_halves (u : MachineState)
     (h7 : u.getReg .x7 = BitVec.ofNat 64 0x20b8) :
     let v := blk231PackedBody.res.toState u
     lo32 (v.getMem (BitVec.ofNat 64 0x20b8)) =
-        ((u.getReg .x11 <<< 42 >>> 42).truncate 32) ∧
+        ((u.getReg .x11 <<< 44 >>> 44).truncate 32) ∧
     hi32 (v.getMem (BitVec.ofNat 64 0x20b8)) =
-        ((u.getReg .x11 >>> 22 <<< 42 >>> 42).truncate 32) ∧
+        ((u.getReg .x11 >>> 20 <<< 44 >>> 44).truncate 32) ∧
     lo32 (v.getMem (BitVec.ofNat 64 0x20c0)) =
-        ((u.getReg .x11 >>> 44 |||
-          ((u.getReg .x12 ||| u.getReg .x13 <<< 32) &&& 3#64) <<< 20).truncate 32) ∧
+        ((u.getReg .x11 >>> 40 <<< 44 >>> 44).truncate 32) ∧
     hi32 (v.getMem (BitVec.ofNat 64 0x20c0)) =
-        (((u.getReg .x12 ||| u.getReg .x13 <<< 32) >>> 2 <<< 42 >>> 42).truncate 32) ∧
+        ((u.getReg .x11 >>> 60 ||| ((u.getReg .x12 ||| u.getReg .x13 <<< 32) <<< 48 >>> 44)).truncate 32) ∧
     lo32 (v.getMem (BitVec.ofNat 64 0x20c8)) =
-        (((u.getReg .x12 ||| u.getReg .x13 <<< 32) >>> 24).truncate 32) := by
+        (((u.getReg .x12 ||| u.getReg .x13 <<< 32) >>> 16).truncate 32) := by
   dsimp only
   refine ⟨packedBody_lowCounter u h7, ?_, ?_, ?_, ?_⟩
   · rw [packedBody_mem0 u h7]
