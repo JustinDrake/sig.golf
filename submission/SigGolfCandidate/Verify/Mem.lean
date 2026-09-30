@@ -87,19 +87,24 @@ theorem writeWords_regs : ∀ (ws : List Word) (s : MachineState) (base : Word),
 def M1w : Word := 0x71c71c71c71c71c7#64
 def M2w : Word := 0xf03f03f03f03f03f#64
 
-/-- Registers constant in all phases after the prologue. -/
+/-- Registers constant in all phases after the prologue. The address base `x18 = 4095`
+also serves as the digit-check modulus; rebased load offsets preserve every memory address. -/
 def baseK : List (Reg × Word) :=
-  [(.x5, 0), (.x18, 0x1000), (.x19, 0x2000), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
+  [(.x5, 0), (.x18, 0xFFF), (.x19, 0x2000), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
 
 /-- FORS phase: also `K16`. -/
 def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 
-/-- Unshifted target sum, following @gopikannappan PR25. -/
+/-- The exact digit sum, compared after the alias-free reduction modulo 4095. -/
 def KT : Word := BitVec.ofNat 64 targetSum
 
-/-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register). -/
-def gkL : List (Reg × Word) :=
-  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 4095)]
+/-- Layer phase before the layer-4 route: masks, `K16`, `KT`, `P6` (the step-7 MU register). -/
+def gkL0 : List (Reg × Word) :=
+  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6)]
+
+/-- Layer phase after the layer-4 route (`li s6, 7`: `x22` is the heap index 7 of the Merkle
+shape blocks, M4c). -/
+def gkL : List (Reg × Word) := gkL0 ++ [(.x22, 7)]
 
 /-- The `P` slots (`+16 .. +32`) of the hash buffers DB, CB, EB, NB, RB2, LB. -/
 def pSlots : List Nat := [0x10, 0x18, 0xD0, 0xD8, 0x110, 0x118, 0x1D0, 0x1D8, 0x230, 0x238,

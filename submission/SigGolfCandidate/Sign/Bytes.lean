@@ -29,11 +29,6 @@ theorem bytesAt_add (t : MachineState) (a n m : Nat) :
   congr 1
   apply List.map_congr_left; intro i _; simp [Function.comp, Nat.add_assoc]
 
-theorem bytesAt_take (t : MachineState) (a n m : Nat) (h : n ≤ m) :
-    (bytesAt t a m).take n = bytesAt t a n := by
-  unfold bytesAt
-  rw [← List.map_take, List.take_range, Nat.min_eq_left h]
-
 theorem readBuffer_bytesAt (t : MachineState) (a n : Nat) :
     readBuffer t a n = ofList n (bytesAt t a n) := by
   rw [readBuffer_eq]; rfl

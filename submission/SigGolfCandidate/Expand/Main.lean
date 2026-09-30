@@ -1,23 +1,21 @@
 import SigGolfCandidate.Expand.Init
 import SigGolfCandidate.Expand.RefExpand
-import SigGolfCandidate.Expand.CounterUnpackRun
-import SigGolfCandidate.Expand.CounterUnpackBridge
-import SigGolfCandidate.Sign.Sim
+import SigGolfCandidate.Expand.Phase2
 
 /-!
 # `expand` refines `expandRef`
 
-The program makes exactly one oracle query (the digest block at `DG = 0x20`, instructions
-0 .. 13), then runs deterministically (`post_hash`: key extraction, sort, pass test, schedule,
-pad check, copies) to HALT(1) or HALT(0) with the witness `witnessList …`.
+The program makes the digest query (the digest block at `DG = 0x20`, instructions 0 .. 13), runs
+deterministically through the key extraction, sort, pass test, schedule, pad check and the partial
+witness copies (phase 1, `phase1`: HALT(1) or `pors_init` = 495 with the partial witness in its
+buffer), then phase 2 (`ExP.phase2_sim`: verify's PORS root on the partial witness, the counter
+phase, the counters written into the witness, HALT).
 
 Main results (namespace `SigGolfCandidate.Expand`):
 
 * `expand_refines_counts` : value, calls, compressions of `submission.run .expand` =
   `countBoth (expandRef m pk σ)` (the `Budget.RefinesCounts` form, with `F = id`);
 * `expand_refines` : value and calls = `countCalls (expandRef m pk σ)`;
-* `expand_blocks` : value and compressions = `(r, 1)` for the value `r` of `expandRef m pk σ`
-  (exactly one compression on every path);
 * `expand_terminates` : every run under every oracle finishes in fewer than `2^32` cycles.
 -/
 
@@ -25,7 +23,6 @@ set_option linter.unusedSimpArgs false
 set_option linter.unusedVariables false
 set_option linter.unusedTactic false
 set_option linter.unreachableTactic false
-set_option maxRecDepth 4096
 
 namespace SigGolfCandidate.Expand
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref SigGolfCandidate.Mem
@@ -79,29 +76,22 @@ theorem qexp_none (t : MachineState) (h : Final none t) : Qexp none t := by
   obtain ⟨h1, h2, h3⟩ := h
   exact ⟨h1, h2, by rw [if_neg h3]⟩
 
-theorem qexp_some (t : MachineState) (w : List Byte)
-    (hlen : w.length = 6348) (h : Final (some w) t) :
-    Qexp (some (ofList 6348 w)) t := by
-  obtain ⟨hfetch, hx5, hx10, hbyte⟩ := h
-  refine ⟨hfetch, hx5, ?_⟩
-  rw [if_pos hx10]
-  apply congrArg some
-  rw [readBuffer_eq]
-  unfold ofList
-  apply congrArg (BitVec.ofNat (8 * 6348))
-  apply congrArg leNat
-  apply List.ext_getElem (by simp [hlen])
-  intro i h1 h2
-  have hi : i < 6348 := by simpa [hlen] using h2
-  have hbi := hbyte i hi
-  rw [List.getD_eq_getElem _ _ h1] at hbi
-  simpa using hbi.symm
+/-- Phase 1's outcome: a rejection (HALT(1)) or `pors_init` with the partial witness in the buffer. -/
+def P1 (sig : List Byte) (N : Nat) (t : MachineState) : Prop :=
+  (expandOf sig N = none ∧ Final none t) ∨
+  (∃ (A : Nat → Nat) (segs : List Nat), expandOf sig N = some (witnessList sig (leavesOf N) (vsOf A) segs) ∧
+    SortedKeys N A ∧ (leavesOf N).Nodup ∧ t.pc = pcOf 495 ∧ ArrOk t A ∧
+    t.getMem (BitVec.ofNat 64 0x160) = BitVec.ofNat 64 (N % 2 ^ 64) ∧
+    ∀ i < 0x2B00, t.getByte (BitVec.ofNat 64 (0x800 + i)) = (witnessList sig (leavesOf N) (vsOf A) segs).getD i 0)
 
-/-- Everything after the digest query, from the state right after it. -/
-theorem post_hash (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6061) (s2 : MachineState)
+theorem extractLsb'_0_64 (a : BitVec 256) : a.extractLsb' 0 64 = BitVec.ofNat 64 (a.toNat % 2 ^ 64) := by
+  unfold BitVec.extractLsb'; apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_setWidth]
+
+/-- **Phase 1**: everything after the digest query up to `pors_init` (no queries). -/
+theorem phase1 (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6048) (s2 : MachineState)
     (hpc : s2.pc = pcOf 14) (hdo : DOk ans s2) (hsok : SigOK s2 sig)
-    (hz : ∀ a, 0x800 ≤ a → a < 0x2190 → s2.getByte (BitVec.ofNat 64 a) = 0) :
-    Run s2 15000 (Qexp ((expandOf sig ans.toNat).map (ofList 6348))) := by
+    (hz : ∀ a, 0x800 ≤ a → a < 0x3300 → s2.getByte (BitVec.ofNat 64 a) = 0) :
+    Run s2 15000 (P1 sig ans.toNat) := by
   set N := ans.toNat with hN
   refine Run.seq (B₂ := 14666) (ext_run ans s2 hdo s2 hpc (Frame.refl _ _)) (fun t1 h1 => ?_) (by norm_num)
   refine Run.seq (B₂ := 13139) (sort_run ans s2 t1 h1) (fun t2 h2 => ?_) (by norm_num)
@@ -142,89 +132,135 @@ theorem post_hash (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6061
     refine Run.seq (B₂ := 6440) (pad_run sig t3 t4 hc.sigok t4fr t4pc F.reads.length hn t4x29)
       (fun t5 h5 => ?_) (by omega)
     have hall := all_iff_padOK sig hsig F.reads.length hn
+    have hexp := expandOf_eq (sig := sig) hpo.1 hpo.2
+    rw [← hv, hsch] at hexp
+    simp only at hexp
     by_cases hpad : PadOK sig F.reads.length
     · obtain ⟨t5pc, t5m⟩ := h5.1 hpad
+      rw [if_pos (hall.mpr hpad)] at hexp
       have hA5 : ArrOk t5 A := by
         intro p hp'
         rw [t5m, t4fr _ (by omega) (by unfold SW; omega)]; exact hc.arr p hp'
-      have hSig5 : SigOK t5 sig := by
-        have hSig4 : SigOK t4 sig := hc.sigok.frame t4fr (by
-          intro a ha hb
-          simp only [SW]
-          omega)
-        intro j hj
-        rw [getByte_ofNat _ _ (by omega), t5m, ← getByte_ofNat _ _ (by omega)]
-        exact hSig4 j hj
-      refine Run.seq (B₂ := 28) (copy_bodies_run A t5 t5pc hA5)
-        (fun t6 ⟨h61, h62, h63, h64⟩ => ?_) (by norm_num)
-      have hSig6 : SigOK t6 sig := copied_sigOK A t5 t6 sig hSig5 h64
-      let w := witnessList sig (leavesOf N) (vsOf A) F.segs
-      have hlen := length_witnessList sig hsig (leavesOf N) (vsOf A) F.segs (by simp [vsOf, porsK])
-      rw [witBytes] at hlen
-      have hmodel := witness_bytes sig hsig N A hSK hpo.1 F.segs
-        (fun a => t5.getByte (BitVec.ofNat 64 a))
-        (fun j hj => by
-          show t5.getByte _ = _
+      -- bytes of t5 outside KEYS and the scheduler's writes are those of s2
+      have hb5 : ∀ a, a < 2 ^ 64 → ¬ (0x6E0 ≤ a ∧ a < 0x7E0) → ¬ (0x910 ≤ a ∧ a < 0x910 + 2152) →
+          t5.getByte (BitVec.ofNat 64 a) = s2.getByte (BitVec.ofNat 64 a) := by
+        intro a ha h1 h2
+        rw [getByte_ofNat _ _ ha, t5m, t4fr _ (by omega) (by unfold SW; omega), ← getByte_ofNat _ _ ha,
+          hb3 _ ha (by omega)]
+      refine (copy_run A t5 t5pc hA5).mono (by norm_num) (fun t6 ⟨h61, h62⟩ => Or.inr ⟨A, F.segs, hexp, hSK, hpo.1,
+        h61, ?_, ?_, ?_⟩)
+      · intro p hp'
+        rw [getMem_eq_of_bytes t5 t6 (0x6E0 + 8 * p) (by omega) (by omega) (fun k hk => by
+          rw [h62 _ (by omega), copy_miss _ _ (by omega)]; unfold piF applyCopy; dsimp only
+          rw [if_neg (by omega), if_neg (by omega)]), hA5 p hp']
+      · rw [getMem_eq_of_bytes s2 t6 0x160 (by norm_num) (by norm_num) (fun k hk => by
+          rw [h62 _ (by omega), copy_miss _ _ (by omega)]; unfold piF applyCopy; dsimp only
+          rw [if_neg (by omega), if_neg (by omega), hb5 _ (by omega) (by omega) (by omega)])]
+        have := hdo 0 (by norm_num)
+        simp only [Nat.mul_zero, Nat.add_zero] at this
+        rw [this, extractLsb'_0_64]
+      · intro i hi
+        rw [h62 _ (by omega)]
+        refine witness_bytes sig hsig N A hSK hpo.1 F.segs (fun a => t5.getByte (BitVec.ofNat 64 a))
+          (fun j hj => ?_) (fun i hi => ?_) ?_ (fun a h1 h2 => ?_) i hi
+        · show t5.getByte _ = _
           rw [getByte_ofNat _ _ (by omega), t5m, ← getByte_ofNat _ _ (by omega)]
           rw [getByte_ofNat _ _ (by omega), t4fr _ (by omega) (by unfold SW; omega), ← getByte_ofNat _ _ (by omega)]
-          exact hc.sigok j hj)
-        (fun i hi => by
-          show t5.getByte _ = _
+          exact hc.sigok j hj
+        · show t5.getByte _ = _
           rw [getByte_ofNat _ _ (by omega), t5m, ← getByte_ofNat _ _ (by omega)]
-          exact t4str i hi)
-        (by
-          show t5.getByte _ = _
-          rw [getByte_ofNat _ _ (by omega), t5m, t4fr _ (by omega) (by unfold SW; omega),
-            ← getByte_ofNat _ _ (by omega), hb3 _ (by omega) (by omega)]
-          exact hz _ (by omega) (by omega))
-      have hfinish := packedFinish_of_model t6 sig w
-        (applyCopies copyBodies (piF A 15 (applyCopy (0x3300, 0x800, 4)
-          (fun a => t5.getByte (BitVec.ofNat 64 a)))))
-        h61 h62 h63 hSig6 hsig h64 hmodel
-      refine hfinish.mono (le_refl _) (fun t hfin => ?_)
-      by_cases hcan : CounterPack.canonicalTail (sig.drop 6048) = true
-      · have hcTail : CounterPack.canonicalTail (sigCounterTail sig) = true := by
-          rw [sigCounterTail_eq_drop sig hsig]
-          exact hcan
-        have hexp := expandOf_eq (sig := sig) hcTail hpo.1 hpo.2
-        rw [← hv, hsch] at hexp
-        simp only at hexp
-        rw [hexp, if_pos (hall.mpr hpad), Option.map_some]
-        exact qexp_some t w hlen (by simpa [hcan] using hfin)
-      · have hfalse : CounterPack.canonicalTail (sigCounterTail sig) = false := by
-          rw [sigCounterTail_eq_drop sig hsig]
-          cases h : CounterPack.canonicalTail (sig.drop 6048) <;> simp_all
-        rw [expandOf_noncanonical hfalse]
-        simp only [Option.map_none]
-        exact qexp_none t (by simpa [hcan] using hfin)
+          exact t4str i hi
+        · show t5.getByte _ = _
+          rw [hb5 _ (by omega) (by omega) (by omega)]
+          exact hz _ (by omega) (by omega)
+        · show t5.getByte _ = _
+          rw [hb5 _ (by omega) (by omega) (by omega)]
+          exact hz _ (by omega) h2
     · have h5' := h5.2 hpad
-      have hnone : expandOf sig N = none := by
-        exact expandOf_pad_none (sig := sig) (N := N) hsig hpo.1 hpo.2
-          (by rw [← hv, hsch]; exact hn)
-          (by rw [← hv, hsch]; exact hpad)
-      rw [hnone]
-      simp only [Option.map_none]
-      exact (Run.done' (qexp_none t5 h5'))
+      rw [if_neg (fun h => hpad (hall.mp h))] at hexp
+      exact Run.done' (Or.inl ⟨hexp, h5'⟩)
   · rw [if_neg hp] at h3
-    rw [expandOf_none (sig := sig) (fun h => hp ((passOK_iff hSK).mpr h))]
-    exact (Run.done' (qexp_none t3 h3))
+    exact Run.done' (Or.inl ⟨expandOf_none (sig := sig) (fun h => hp ((passOK_iff hSK).mpr h)), h3⟩)
 
+theorem Sim.of_run_bind {s : MachineState} {B W : Nat} {P : MachineState → Prop} {α : Type}
+    {oa : OracleComp HashSpec α} {Q : α → MachineState → Prop}
+    (h : Run s B P) (h2 : ∀ t, P t → Sign.Sim image t W oa Q) : Sign.Sim image s (B + W) oa Q := by
+  obtain ⟨t, k, c, hst, hc, hP⟩ := h
+  exact (Sign.Sim.steps hst (h2 t hP)).mono (by omega) (fun _ _ h => h)
 
+/-- `expandList` after the digest. -/
+def afterD (sig : List Byte) (N : Nat) : OracleComp HashSpec (Option (List Byte)) :=
+  match expandOf sig N with
+  | none => pure none
+  | some w0 => ExP.afterW w0 (idxOf N) (leavesOf N)
 
-theorem Sim.of_run {s : MachineState} {B : Nat} {α : Type} {v : α} {Q : α → MachineState → Prop}
-    (h : Run s B (Q v)) : Sign.Sim image s B (pure v) Q := by
-  obtain ⟨t, k, c, hst, hc, hQ⟩ := h
-  exact (Sign.Sim.pure_steps hst hQ).mono hc (fun _ _ h => h)
+/-- The leaf index the pi byte of slot `s` selects is `KEYS[s] >> 8`. -/
+theorem x_lemma (sig : List Byte) (hsig : sig.length = 6048) (N : Nat) (A : Nat → Nat) (hSK : SortedKeys N A)
+    (hn : (leavesOf N).Nodup) (segs : List Nat) :
+    ∀ s < 15, (leavesOf N ++ [porsT]).getD (witPi (witnessList sig (leavesOf N) (vsOf A) segs) s / 8 % 16) 0 =
+      A s / 256 := by
+  intro s hs
+  have hr : (sigRho sig).length = 16 := by simp [sigRho, slice, hsig]
+  have hpi : (witnessList sig (leavesOf N) (vsOf A) segs).getD (wPi + s) 0 =
+      byte (8 * (leavesOf N).idxOf (lv A s)) := by
+    unfold witnessList witnessBody
+    simp only [List.append_assoc]
+    rw [getD_app, if_neg (by rw [hr]; unfold wPi; omega), hr, getD_app,
+      if_pos (by simp [vsOf]; unfold wPi; omega)]
+    rw [show wPi + s - 16 = s by unfold wPi; omega, List.getD_eq_getElem?_getD, List.getElem?_map]
+    simp [vsOf, hs]
+  have hidx := idxOf_lv hSK hn s hs
+  have hlt : (leavesOf N).idxOf (lv A s) < 15 := by
+    have : A s % 256 < 256 := Nat.mod_lt _ (by norm_num)
+    have hmem : lv A s ∈ leavesOf N := (vsOf_perm hSK).subset (by simp [vsOf]; exact ⟨s, hs, rfl⟩)
+    have := List.idxOf_lt_length_of_mem hmem
+    have hl : (leavesOf N).length = 15 := by simp [leavesOf, porsK]
+    rw [hl] at this; exact this
+  unfold witPi
+  rw [hpi]
+  have hb : (byte (8 * (leavesOf N).idxOf (lv A s))).toNat = 8 * (leavesOf N).idxOf (lv A s) := by
+    unfold byte; rw [BitVec.toNat_ofNat]; omega
+  rw [hb, show 8 * (leavesOf N).idxOf (lv A s) / 8 % 16 = (leavesOf N).idxOf (lv A s) by omega]
+  have hmem : lv A s ∈ leavesOf N := (vsOf_perm hSK).subset (by simp [vsOf]; exact ⟨s, hs, rfl⟩)
+  have hl : (leavesOf N).length = 15 := by simp [leavesOf, porsK]
+  rw [List.getD_append _ _ _ _ (by rw [hl]; exact hlt), List.getD_eq_getElem _ _ (by rw [hl]; exact hlt),
+    List.getElem_idxOf]
+  rfl
+
+theorem witMem_of_bytes (w : List Byte) (t : MachineState)
+    (h : ∀ i < 0x2B00, t.getByte (BitVec.ofNat 64 (0x800 + i)) = w.getD i 0) : ExP.WitMem w t := by
+  intro k hk
+  have := readWords_of_bytes t (0x800 + 8 * k) (wbytes w (8 * k) 8) 1 (ExP.length_wbytes _ _ _) (by omega)
+    (by omega) (fun j hj => by
+      rw [show 0x800 + 8 * k + j = 0x800 + (8 * k + j) by omega, h _ (by omega)]
+      simp [wbytes, show j < 8 by omega])
+  rw [readWords_ofNat_one, wordsOf_eight _ (ExP.length_wbytes _ _ _)] at this
+  exact List.head_eq_of_cons_eq this
+
+/-- Everything after the digest query. -/
+theorem after_sim (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6048) (s2 : MachineState)
+    (hpc : s2.pc = pcOf 14) (hdo : DOk ans s2) (hsok : SigOK s2 sig)
+    (hz : ∀ a, 0x800 ≤ a → a < 0x3300 → s2.getByte (BitVec.ofNat 64 a) = 0) :
+    Sign.Sim image s2 (15000 + (200000 + (34 + 5 * ExP.LW))) (afterD sig ans.toNat) ExP.QP := by
+  refine Sim.of_run_bind (phase1 ans sig hsig s2 hpc hdo hsok hz) (fun t h => ?_)
+  rcases h with ⟨hnone, hf⟩ | ⟨A, segs, hsome, hSK, hn, tpc, tA, t160, tb⟩
+  · unfold afterD; rw [hnone]
+    exact (Sign.Sim.pure (Q := ExP.QP) (a := none) ⟨hf.1, hf.2.1, by rw [if_neg hf.2.2]; rfl⟩).mono
+      (by omega) (fun _ _ h => h)
+  · unfold afterD; rw [hsome]
+    have hlen := length_witnessList sig hsig (leavesOf ans.toNat) (vsOf A) segs (by simp [vsOf, porsK])
+    exact ExP.phase2_sim _ hlen A (leavesOf ans.toNat) ans.toNat t tpc t160 (witMem_of_bytes _ t tb) tA hSK.lt
+      (x_lemma sig hsig ans.toNat A hSK hn segs)
 
 /-- `expand` from a state that looks like its initial state. -/
-theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6061) (hmsg : msg.length = 32)
+theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6048) (hmsg : msg.length = 32)
     (s : MachineState) (hpc : s.pc = pcOf 0) (h5 : s.getReg .x5 = 0)
     (hrho : s.readWords (BitVec.ofNat 64 0x3300) 2 = wordsOf (sigRho sig))
     (hm : s.readWords (BitVec.ofNat 64 0x40) 4 = wordsOf msg) (hsok : SigOK s sig)
-    (hz : ∀ a, 0x800 ≤ a → a < 0x2190 → s.getByte (BitVec.ofNat 64 a) = 0) :
-    Sign.Sim image s (13 + (8 + 15000))
+    (hz : ∀ a, 0x800 ≤ a → a < 0x3300 → s.getByte (BitVec.ofNat 64 a) = 0) :
+    Sign.Sim image s (13 + (8 + (15000 + (200000 + (34 + 5 * ExP.LW)) + 0)))
       ((liftM (HashSpec.query (fmt (digestInput (sigRho sig) msg))) : OracleComp HashSpec _) >>= fun a =>
-        pure ((expandOf sig a.toNat).map (ofList 6348))) Qexp := by
+        afterD sig a.toNat >>= fun r => pure (r.map (ofList 6348))) Qexp := by
   have hr : (sigRho sig).length = 16 := by simp [sigRho, slice, hsig]
   have hst := symRun_sound blk0 codeAt_0 s hpc (by simp only [blk0.res, rv_simp])
   rw [show blk0.res.cycles = 13 by kernel_rfl] at hst
@@ -241,8 +277,9 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6061) (hmsg : msg.
   have hq := start_hash s (sigRho sig) msg hr hmsg hrho hm
   have hb : (fmt (digestInput (sigRho sig) msg)).blocks = 1 :=
     blocks_fmt_digest _ ⟨by simp [digestInput, thInput, hr, hmsg, length_tweak, P, zeros], rfl⟩
-  have := Sign.Sim.query_bind (W := 15000) (f := fun a => (pure ((expandOf sig a.toNat).map (ofList 6348)) :
-      OracleComp HashSpec _)) (Q := Qexp) e1 x5 hv hq (fun a => ?_)
+  have := Sign.Sim.query_bind (W := 15000 + (200000 + (34 + 5 * ExP.LW)) + 0)
+    (f := fun a => afterD sig a.toNat >>= fun r => (pure (r.map (ofList 6348)) : OracleComp HashSpec _))
+    (Q := Qexp) e1 x5 hv hq (fun a => ?_)
   · rw [hb] at this; exact this
   set s2 := writeHash s1 a with hs2
   -- memory of `s2` above `0x40` outside `DO`
@@ -254,7 +291,7 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6061) (hmsg : msg.
       s2.getByte (BitVec.ofNat 64 x) = s.getByte (BitVec.ofNat 64 x) := by
     intro x hx h1 h2
     rw [getByte_ofNat _ _ hx, getByte_ofNat _ _ hx, hmem _ (by omega) (by omega) (by omega)]
-  refine Sim.of_run (post_hash a sig hsig s2 ?_ ?_ ?_ ?_)
+  refine Sign.Sim.bind (W₂ := 0) (after_sim a sig hsig s2 ?_ ?_ ?_ ?_) (fun r t h => Sign.Sim.pure h)
   · rw [hs2, writeHash_pc, hs1]; simp only [blk0.res, rv_simp]; rfl
   · intro i hi
     rw [hs2, writeHash_getMem_ofNat s1 a 352 _ x12 (by norm_num) (by omega)]
@@ -262,32 +299,37 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6061) (hmsg : msg.
   · intro j hj; rw [hbyte _ (by omega) (by omega) (by omega)]; exact hsok j hj
   · intro x h1 h2; rw [hbyte _ (by omega) (by omega) (by omega)]; exact hz x h1 h2
 
-
-
-theorem expandRef_eq (m : Message) (pk : PublicKey) (σ : Bytes 6061) :
+theorem expandRef_eq (m : Message) (pk : PublicKey) (σ : Bytes 6048) :
     expandRef m pk σ = (liftM (HashSpec.query (fmt (digestInput (sigRho (toList σ)) (toList m)))) :
-      OracleComp HashSpec _) >>= fun a => pure ((expandOf (toList σ) a.toNat).map (ofList 6348)) := by
+      OracleComp HashSpec _) >>= fun a => afterD (toList σ) a.toNat >>= fun r => pure (r.map (ofList 6348)) := by
   simp only [expandRef, expandList, digest, H, bind_assoc, pure_bind]
+  rfl
 
-theorem sI_words_sig (m : Message) (pk : PublicKey) (σ : Bytes 6061) :
+theorem sI_words_sig (m : Message) (pk : PublicKey) (σ : Bytes 6048) :
     (sI m pk σ).readWords (BitVec.ofNat 64 0x3300) 2 = wordsOf (sigRho (toList σ)) := by
-  have hl : (toList σ).length = 6061 := by simp [toList, length_bytes]
+  have hl : (toList σ).length = 6048 := by simp [toList, length_bytes]
   apply readWords_of_bytes _ _ _ _ (by simp [sigRho, slice, hl]) (by norm_num) (by norm_num)
   intro j hj
   rw [sI_getByte _ _ _ _ (by omega), if_pos (by omega), sigRho, getD_slice' _ _ _ _ (by omega)]
   simp [toList]
 
-theorem sI_words_msg (m : Message) (pk : PublicKey) (σ : Bytes 6061) :
+theorem sI_words_msg (m : Message) (pk : PublicKey) (σ : Bytes 6048) :
     (sI m pk σ).readWords (BitVec.ofNat 64 0x40) 4 = wordsOf (toList m) := by
   apply readWords_of_bytes _ _ _ _ (by simp [toList, length_bytes]) (by norm_num) (by norm_num)
   intro j hj
   rw [sI_getByte _ _ _ _ (by omega), if_neg (by omega), if_neg (by omega), if_pos (by omega)]
   simp [toList]
 
-theorem sim_sI (m : Message) (pk : PublicKey) (σ : Bytes 6061) :
-    Sign.Sim image (sI m pk σ) (13 + (8 + 15000)) (expandRef m pk σ) Qexp := by
+/-- The cycle bound of `expand` (the five counter searches dominate). -/
+def expandCyc : Nat := 13 + (8 + (15000 + (200000 + (34 + 5 * ExP.LW)) + 0))
+
+theorem expandCyc_lt : expandCyc + 1 < CYCLE_LIMIT := by
+  unfold expandCyc ExP.LW CYCLE_LIMIT; norm_num
+
+theorem sim_sI (m : Message) (pk : PublicKey) (σ : Bytes 6048) :
+    Sign.Sim image (sI m pk σ) expandCyc (expandRef m pk σ) Qexp := by
   rw [expandRef_eq]
-  have hl : (toList σ).length = 6061 := by simp [toList, length_bytes]
+  have hl : (toList σ).length = 6048 := by simp [toList, length_bytes]
   refine expand_sim (toList σ) (toList m) hl (by simp [toList, length_bytes]) (sI m pk σ) (sI_pc m pk σ)
     (sI_getReg m pk σ .x5 (by decide)) (sI_words_sig m pk σ) (sI_words_msg m pk σ) ?_ ?_
   · intro j hj; rw [sI_getByte _ _ _ _ (by omega), if_pos (by omega)]; simp [toList]
@@ -300,82 +342,35 @@ theorem qexp_halt (r : Option (Bytes 6348)) (t : MachineState) (h : Qexp r t) :
 
 /-- **expand refines `expandRef`** (value, oracle calls, compressions; the `Budget.RefinesCounts`
 form with `F = id`). -/
-theorem expand_refines_counts (m : Message) (pk : PublicKey) (σ : Bytes 6061) :
+theorem expand_refines_counts (m : Message) (pk : PublicKey) (σ : Bytes 6048) :
     (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$> submission.run .expand (m, pk, σ) =
       (fun p => (p.1, p.2.1, p.2.2)) <$> Sign.countBoth (expandRef m pk σ) :=
   Sign.Sim.run_eq submission .expand (m, pk, σ) (initialState_eq m pk σ) (sim_sI m pk σ)
-    (by norm_num [CYCLE_LIMIT]) id (fun a t h => qexp_halt a t h)
-
-/-- Projection through the joint call and compression counter. -/
-theorem project_countBoth_calls {α β : Type} (oa : OracleComp HashSpec α)
-    (run : OracleComp HashSpec β) (g : β → α × Nat × Nat)
-    (h : g <$> run = (fun p => (p.1, p.2.1, p.2.2)) <$> Sign.countBoth oa) :
-    (fun r => ((g r).1, (g r).2.1)) <$> run =
-      countCalls oa := by
-  rw [← Sign.countBoth_calls]
-  calc
-    (fun r => ((g r).1, (g r).2.1)) <$> run =
-      (fun p : α × Nat × Nat => (p.1, p.2.1)) <$> (g <$> run) := by
-        rw [Functor.map_map]
-    _ = (fun p : α × Nat × Nat => (p.1, p.2.1)) <$>
-      ((fun p => (p.1, p.2.1, p.2.2)) <$> Sign.countBoth oa) := by rw [h]
-    _ = (fun p => (p.1, p.2.1)) <$> Sign.countBoth oa := by
-      rw [Functor.map_map]
-
-theorem project_countBoth_calls_mapped {α β : Type} (oa : OracleComp HashSpec α)
-    (run : OracleComp HashSpec β) (g : β → α × Nat × Nat)
-    (h : g <$> run = (fun p => (p.1, p.2.1, p.2.2)) <$> Sign.countBoth oa) :
-    (fun r => ((g r).1, (g r).2.1)) <$> run =
-      (fun p => (p.1, p.2)) <$> countCalls oa := by
-  simpa [Prod.mk.eta] using project_countBoth_calls oa run g h
+    (by have := expandCyc_lt; omega) id (fun a t h => qexp_halt a t h)
 
 /-- **expand refines `expandRef`**: value and number of oracle calls. -/
-
-theorem expand_refines (m : Message) (pk : PublicKey) (σ : Bytes 6061) :
+theorem expand_refines (m : Message) (pk : PublicKey) (σ : Bytes 6048) :
     (fun r => (r.value, r.hashCalls)) <$> submission.run .expand (m, pk, σ) =
       (fun p => (p.1, p.2)) <$> countCalls (expandRef m pk σ) := by
-  exact project_countBoth_calls_mapped (expandRef m pk σ)
-    (submission.run .expand (m, pk, σ))
-    (fun r => (r.value, r.hashCalls, r.hashCompressions))
-    (expand_refines_counts m pk σ)
-
-/-- The compression count of every run is `1`. -/
-theorem countBlocks_expandRef (m : Message) (pk : PublicKey) (σ : Bytes 6061) :
-    countBlocks (expandRef m pk σ) = (fun r => (r, 1)) <$> expandRef m pk σ := by
-  have hr : (sigRho (toList σ)).length = 16 := by simp [sigRho, slice, toList, length_bytes]
-  have hml : (toList m).length = 32 := by simp [toList, length_bytes]
-  have hb : (fmt (digestInput (sigRho (toList σ)) (toList m))).blocks = 1 :=
-    blocks_fmt_digest _ ⟨by simp only [digestInput, thInput, List.length_append, length_tweak, P, zeros,
-      List.length_replicate, hr, hml], rfl⟩
-  rw [expandRef_eq]
-  unfold countBlocks
-  rw [countWith_bind, countWith_query]
-  simp only [map_bind, bind_map_left, countWith_pure, map_pure, Nat.add_zero, hb]
-
-/-- **expand compressions**: value and compressions (one compression on every path). -/
-theorem expand_blocks (m : Message) (pk : PublicKey) (σ : Bytes 6061) :
-    (fun r => (r.value, r.hashCompressions)) <$> submission.run .expand (m, pk, σ) =
-      (fun r => (r, 1)) <$> expandRef m pk σ := by
-  have h := congrArg (fun x => (fun t => (t.1, t.2.2)) <$> x) (expand_refines_counts m pk σ)
+  have h := congrArg (fun x => (fun t => (t.1, t.2.1)) <$> x) (expand_refines_counts m pk σ)
   simp only [Functor.map_map] at h
-  rw [h, ← countBlocks_expandRef, ← Sign.countBoth_blocks]
-  exact Functor.map_map (fun p : Option (Bytes 6348) × Nat × Nat => (p.1, p.2.1, p.2.2))
-    (fun t : Option (Bytes 6348) × Nat × Nat => (t.1, t.2.2)) _
+  rw [h, ← Sign.countBoth_calls]
+  erw [Functor.map_map, Functor.map_map]
+  rfl
 
 /-- **expand terminates**: under every oracle, every run finishes in fewer than `2^32` cycles. -/
 theorem expand_terminates (hash : Hash) (m : Message) (pk : PublicKey)
-    (σ : Bytes 6061) :
+    (σ : Bytes 6048) :
     (submission.runWith hash .expand (m, pk, σ)).finished = true ∧
       (submission.runWith hash .expand (m, pk, σ)).cycles < CYCLE_LIMIT := by
   have := Sign.Sim.runWith submission .expand (m, pk, σ) (initialState_eq m pk σ) (sim_sI m pk σ)
-    (by norm_num [CYCLE_LIMIT]) (fun a t h => ⟨h.1, h.2.1⟩) hash
-  exact ⟨this.1, lt_of_le_of_lt this.2 (by norm_num [CYCLE_LIMIT])⟩
+    expandCyc_lt (fun a t h => ⟨h.1, h.2.1⟩) hash
+  exact ⟨this.1, lt_of_le_of_lt this.2 (by have := expandCyc_lt; omega)⟩
 
-/-- Every run (every oracle) takes at most 15022 cycles (honest runs: about 10.2k .. 10.5k). -/
-theorem expand_cycles_le (hash : Hash) (m : Message) (pk : PublicKey) (σ : Bytes 6061) :
-    (submission.runWith hash .expand (m, pk, σ)).cycles ≤ 15022 :=
+/-- Every run (every oracle) takes at most `expandCyc + 1` cycles. -/
+theorem expand_cycles_le (hash : Hash) (m : Message) (pk : PublicKey) (σ : Bytes 6048) :
+    (submission.runWith hash .expand (m, pk, σ)).cycles ≤ expandCyc + 1 :=
   (Sign.Sim.runWith submission .expand (m, pk, σ) (initialState_eq m pk σ) (sim_sI m pk σ)
-    (by norm_num [CYCLE_LIMIT]) (fun a t h => ⟨h.1, h.2.1⟩) hash).2
-
+    expandCyc_lt (fun a t h => ⟨h.1, h.2.1⟩) hash).2
 
 end SigGolfCandidate.Expand

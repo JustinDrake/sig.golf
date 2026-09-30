@@ -2,8 +2,7 @@ import SigGolfCandidate.Verify.FoldRuns
 
 namespace SigGolfCandidate.Verify
 
-def layFoldOk (lay : Nat) : Bool :=
-  foldCheck false 704 (4 - lay) 0 (heightL lay) (0x800 + (layBody lay + 672))
-    (if lay = 0 then 0x180 else 0x120)
+/-- The shape blocks of chunk `ci` of layer `lay` (all `2 ^ bits` blocks). -/
+def layFoldOk (lay ci : Nat) : Bool := foldCheck lay ci 0 (2 ^ chBits lay ci)
 
 end SigGolfCandidate.Verify
