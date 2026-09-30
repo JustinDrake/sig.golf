@@ -70,6 +70,7 @@ theorem chain_good_ent (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (acc : Lis
   have hw := length_witChain c hc i hi
   by_cases h7 : dig c i = 7
   · obtain ⟨t, hst, hH⟩ := entry_7 c hc i hi acc hchk s hs h7
+    have hentry : (if c.lay = 0 ∧ i = 40 then 3 else 4) ≤ 4 := by split_ifs <;> omega
     rw [h7]
     have : chainFrom c.lay c.tau c.e i 7 (witChain c.wl c.lay i) = pure (witChain c.wl c.lay i) := rfl
     rw [this, cc_pure]

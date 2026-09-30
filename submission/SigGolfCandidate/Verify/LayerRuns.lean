@@ -14,7 +14,7 @@ def nCopy (lay : Nat) : Nat := if lay = 4 then 3 else 2
 (layer 4) or after the last fold hash of layer `lay + 1` in stream `t`. -/
 def preStart (lay t : Nat) : Nat :=
   if lay = 4 then (layerPcTab.getD 4 []).getD t 0 else lvlPc (3 - lay) t 0 (heightL (lay + 1) - 1) + 7
-def stepsA (lay : Nat) : Nat := if lay = 0 then 15 else if lay = 4 then 13 else 14
+def stepsA (lay : Nat) : Nat := if lay = 0 then 13 else if lay = 4 then 13 else 14
 def encPc (lay t : Nat) : Nat := preStart lay t + stepsA lay
 
 /-- Known registers at the precode start. -/
@@ -30,10 +30,16 @@ def bK (lay : Nat) : List (Reg × Word) :=
     (.x11, 64), (.x12, 0x140)] ++
     (if lay < 4 then [(.x15, BitVec.ofNat 64 (bVal (lay + 1) 41))] else [])
 
+/-- At the top layer, the incoming route is already an 11-bit leaf index. -/
 def uEr (lay : Nat) : E :=
-  .bin .and (.reg (if lay = 4 then .x22 else .x30)) (cw (2 ^ heightL lay - 1))
-def tauEr (lay : Nat) : E := .bin .srl (.reg (if lay = 4 then .x22 else .x30)) (cw (heightL lay))
-def x31Er (lay : Nat) : E := .bin .add (tauEr lay) (.bin .sll (uEr lay) (cw 32))
+  if lay = 0 then .reg .x30 else
+    .bin .and (.reg (if lay = 4 then .x22 else .x30)) (cw (2 ^ heightL lay - 1))
+def tauEr (lay : Nat) : E :=
+  if lay = 0 then cw 0 else
+    .bin .srl (.reg (if lay = 4 then .x22 else .x30)) (cw (heightL lay))
+def x31Er (lay : Nat) : E :=
+  if lay = 0 then .bin .sll (uEr lay) (cw 32) else
+    .bin .add (tauEr lay) (.bin .sll (uEr lay) (cw 32))
 /-- `U = e | 2^h` (heap sentinel): `ori` (h < 11) or two `addi 1024` (h = 11). -/
 def uHE (lay : Nat) : E :=
   if lay = 0 then .bin .add (uEr lay) (cw 2048) else .bin .or (uEr lay) (cw (2 ^ heightL lay))
