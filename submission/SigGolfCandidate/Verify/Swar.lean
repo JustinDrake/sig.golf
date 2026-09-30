@@ -72,8 +72,8 @@ def m6 (x3 : Nat) : Nat := m6' (m5 (m4 x3))
 
 theorem hdiv4096 (c R : Nat) (h : c < 4096) : (c + 4096 * R) / 4096 = R := by omega
 
-theorem swarTail (P0 P1 P2 P3 P4 P5 : Nat) (h0 : P0 ≤ 56) (h1 : P1 ≤ 56) (h2 : P2 ≤ 56) (h3 : P3 ≤ 56)
-    (h4 : P4 ≤ 56) (h5 : P5 ≤ 14) :
+theorem swarTail (P0 P1 P2 P3 P4 P5 : Nat) (h0 : P0 ≤ 63) (h1 : P1 ≤ 63) (h2 : P2 ≤ 63) (h3 : P3 ≤ 63)
+    (h4 : P4 ≤ 63) (h5 : P5 ≤ 15) :
     m6 (P0 + 4096 * (P1 + 4096 * (P2 + 4096 * (P3 + 4096 * (P4 + 4096 * P5))))) % 4096 =
       P0 + P1 + P2 + P3 + P4 + P5 := by
   have d1 : (P0 + 4096 * (P1 + 4096 * (P2 + 4096 * (P3 + 4096 * (P4 + 4096 * P5))))) / 4096 =
@@ -98,6 +98,31 @@ theorem swarTail (P0 P1 P2 P3 P4 P5 : Nat) (h0 : P0 ≤ 56) (h1 : P1 ≤ 56) (h2
   have hY' : Y = (P0 + P1 + P2 + P3 + P4 + P5) + 4096 * ((P1 + P2 + P3 + P4 + P5) + 4096 * ((P2 + P3 + P4 + P5) + 4096 * ((P3 + P4 + P5) + 4096 * ((P4 + P5) + 4096 * P5)))) := by omega
   have hlt : Y < 18446744073709551616 := by omega
   rw [Nat.mod_eq_of_lt hlt, hY', Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (by omega)]
+
+/-- Reducing modulo 4095 sums base-4096 lanes without carries. -/
+theorem swarTail_rem (P0 P1 P2 P3 P4 P5 : Nat)
+    (h0 : P0 ≤ 63) (h1 : P1 ≤ 63) (h2 : P2 ≤ 63) (h3 : P3 ≤ 63)
+    (h4 : P4 ≤ 63) (h5 : P5 ≤ 15) :
+    (P0 + 4096 * (P1 + 4096 * (P2 + 4096 * (P3 + 4096 * (P4 + 4096 * P5))))) % 4095 =
+      P0 + P1 + P2 + P3 + P4 + P5 := by
+  have hrem :
+      (P0 + 4096 * (P1 + 4096 * (P2 + 4096 * (P3 + 4096 * (P4 + 4096 * P5))))) % 4095 =
+        (P0 + P1 + P2 + P3 + P4 + P5) % 4095 := by
+    simp only [Nat.add_mod, Nat.mul_mod, show 4096 % 4095 = 1 from rfl,
+      Nat.one_mul, Nat.mod_mod]
+    omega
+  rw [hrem, Nat.mod_eq_of_lt (by omega)]
+
+/-- REMU agrees with the original shift/add tail on every masked word.
+The original `m6` is retained because the unchanged signer also uses its proof. -/
+theorem swar_rem (n : Nat) : m3 n % 4095 = m6 (m3 n) % 4096 := by
+  have hp : m3 n = n % 64 + 4096 * (n / 4096 % 64 +
+      4096 * (n / 4096 / 4096 % 64 + 4096 * (n / 4096 / 4096 / 4096 % 64 +
+      4096 * (n / 4096 / 4096 / 4096 / 4096 % 64 +
+      4096 * (n / 4096 / 4096 / 4096 / 4096 / 4096 % 16))))) := by
+    unfold m3; rw [landM2]; omega
+  rw [hp, swarTail_rem _ _ _ _ _ _ (by omega) (by omega) (by omega) (by omega) (by omega) (by omega),
+    swarTail _ _ _ _ _ _ (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)]
 
 theorem swarLanes (L0 L1 L2 L3 L4 L5 L6 L7 L8 L9 L10 : Nat) (h0 : L0 ≤ 28) (h1 : L1 ≤ 28) (h2 : L2 ≤ 28) (h3 : L3 ≤ 28) (h4 : L4 ≤ 28) (h5 : L5 ≤ 28) (h6 : L6 ≤ 28) (h7 : L7 ≤ 28) (h8 : L8 ≤ 28) (h9 : L9 ≤ 28) (h10 : L10 ≤ 14)
     (X : Nat) (hX : X = L0 + 64 * (L1 + 64 * (L2 + 64 * (L3 + 64 * (L4 + 64 * (L5 + 64 * (L6 + 64 * (L7 + 64 * (L8 + 64 * (L9 + 64 * (L10))))))))))) :

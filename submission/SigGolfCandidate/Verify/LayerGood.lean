@@ -31,7 +31,7 @@ def FoldEndL (L : LCtx) (u : MachineState) : Prop :=
   ∃ s0, FoldEnd (layFC L) s0 u ∧ LeafCarry L s0
 
 def layerCost (lay : Nat) : Nat :=
-  stepsA lay + 8 + stepsB lay + (42 * 67 - 9 * targetSum + headSum lay) + 11 + 88 +
+  stepsA lay + 8 + cyclesB lay + (42 * 67 - 9 * targetSum + headSum lay) + 11 + 88 +
     foldCost false (heightL lay) 0 (heightL lay)
 
 theorem blocks_q (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 1 := rfl
@@ -65,6 +65,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
   have hfc := layFC_ok L hL
   have hsA : stepsA L.lay ≤ 29 := by unfold stepsA; split_ifs <;> omega
   have hsB : stepsB L.lay ≤ 40 := by unfold stepsB; split_ifs <;> omega
+  have hcB : cyclesB L.lay = stepsB L.lay + 3 := rfl
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
       (cc (match decodeDigits (answerBytes 16 a) with
         | none => pure none
@@ -76,7 +77,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
     obtain ⟨hrej, hacc⟩ := encpost_step L hL t ht a _ (hpost1 a)
     cases hd : decodeDigits (answerBytes 16 a) with
     | none =>
-      obtain ⟨k, hk, u, hst, hf, h5, h10⟩ := hrej hd
+      obtain ⟨k, c, hk, hc, u, hst, hf, h5, h10⟩ := hrej hd
       simp only [cc_pure, hnone]
       exact Good.steps' hst (Good.reject hf h5 h10) (by omega) (by unfold layerCost; omega)
     | some xs =>

@@ -323,7 +323,7 @@ segments remain (every merge pops, every push ends a leaf), at most `d + 14 - s`
 def layN : Nat := 5000 * 5 + 9
 /-- The layers' cost (irreducible here, so that unification never evaluates it). -/
 @[irreducible] def layC : Nat := layersCost 5
-def leafCost (s : Nat) : Nat := if s = 0 then 10 else if s = 14 then 15 else 11
+def leafCost (s : Nat) : Nat := if s = 0 then 10 else if s = 14 then 13 else 11
 def lrest (s : Nat) : Nat := ((List.range' (s + 1) (14 - s)).map leafCost).sum
 def segR (s d : Nat) : Nat := 29 - 2 * s + d
 
@@ -462,7 +462,7 @@ theorem segLoop_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat)
 
 /-! ## The leaves -/
 
-theorem leafCost_eq (s : Nat) : (if s = 0 then 10 else if s = 14 then 15 else 11) = leafCost s := rfl
+theorem leafCost_eq (s : Nat) : (if s = 0 then 10 else if s = 14 then 13 else 11) = leafCost s := rfl
 
 theorem leaves_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
     (Kr : Option PorsState → OracleComp HashSpec Obs) (hnone : Kr none = pure (false, 0))

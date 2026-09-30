@@ -231,26 +231,17 @@ theorem swA5_toNat : (swA5.eval s).toNat = m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (
     swA4_toNat]
   rfl
 
-theorem swA6_toNat : (swA6.eval s).toNat = m4 (m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (dB s) / 64) % 18446744073709551616)) := by
-  rw [show swA6.eval s = swA5.eval s + (swA5.eval s >>> ((BitVec.ofNat 64 12).toNat % 64)) from rfl,
-    BitVec.toNat_add, BitVec.toNat_ushiftRight, swA5_toNat, Nat.shiftRight_eq_div_pow]
-  simp only [m4]; norm_num
-
-theorem swA7_toNat : (swA7.eval s).toNat = m5 (m4 (m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (dB s) / 64) % 18446744073709551616))) := by
-  rw [show swA7.eval s = swA6.eval s + (swA6.eval s >>> ((BitVec.ofNat 64 24).toNat % 64)) from rfl,
-    BitVec.toNat_add, BitVec.toNat_ushiftRight, swA6_toNat, Nat.shiftRight_eq_div_pow]
-  simp only [m5]; norm_num
-
 def swarOf (a b : Nat) : Nat := m6 (m3 ((sw1 a b + sw1 a b / 64) % 18446744073709551616)) % 4096
 
 theorem swS_toNat : (swS.eval s).toNat = swarOf (dA s) (dB s) * 2 ^ 52 := by
-  rw [show swS.eval s = (swA7.eval s + (swA7.eval s >>> ((BitVec.ofNat 64 48).toNat % 64))) <<<
-      ((BitVec.ofNat 64 52).toNat % 64) from rfl]
-  rw [BitVec.toNat_shiftLeft, BitVec.toNat_add, BitVec.toNat_ushiftRight, swA7_toNat,
-    Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
-  simp only [swarOf, m6, m6']
+  have hr : (rv64_remu (swA5.eval s) (4095#64)).toNat = (swA5.eval s).toNat % 4095 := by
+    simp [rv64_remu, BitVec.toNat_umod]
+  change ((rv64_remu (swA5.eval s) (4095#64)) <<<
+    ((BitVec.ofNat 64 52).toNat % 64)).toNat = _
+  rw [BitVec.toNat_shiftLeft, hr, swA5_toNat, swar_rem, Nat.shiftLeft_eq]
+  simp only [swarOf]
   norm_num
-  generalize (m5 (m4 (m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (dB s) / 64) % 18446744073709551616)))) = X
+  generalize m6 (m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (dB s) / 64) % 18446744073709551616)) = X
   omega
 
 theorem swS_eq (h0 : dA s < 2 ^ 63) (h1 : dB s < 2 ^ 63) :
