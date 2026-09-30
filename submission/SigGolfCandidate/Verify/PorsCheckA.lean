@@ -1,6 +1,6 @@
 import SigGolfCandidate.Verify.PorsRuns
 
-/-! Kernel check of the PORS dispatch tables (both tables, 256 entries each). -/
+/-! Kernel check of the PORS dispatch tables (both tables, 256 slots each). -/
 
 namespace SigGolfCandidate.Verify
 

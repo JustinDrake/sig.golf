@@ -1,5 +1,4 @@
 import SigGolfCandidate.Verify.ChainRuns
-import SigGolfCandidate.Verify.FoldCheckB
 
 /-! Kernel check of chain blocks (layer, chain) (2, 26) .. (2, 35) (one declaration per chain;
 the import chain serializes this family to bound parallel build memory). -/

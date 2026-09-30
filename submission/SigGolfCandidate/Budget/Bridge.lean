@@ -49,35 +49,14 @@ theorem signRefines_of_counts (hc : sub.sizes.cache = CACHE_BYTES)
 
 end
 
-/-- `expandRef` makes one query, the one-block digest of `rho` and `m`. -/
-theorem spec_expandRef (m : Bytes 32) (pk : Bytes 16) (sig : Bytes 6060) :
-    Spec (fun _ => True) (fun _ => True) 1 (expandRef m pk sig) := by
-  have hr : (sigRho (toList sig)).length = 16 := by
-    simp [sigRho, slice, length_toList]
-  obtain ⟨-, hb⟩ := dig_ok (sigRho (toList sig)) (toList m) hr (length_toList m)
-  unfold expandRef expandList digest
-  simp only [bind_assoc, pure_bind]
-  exact Spec.qry_bind trivial (fun u => Spec.pure _ 0 trivial) (by omega)
-
-/-- Expand of the submission from its refinement of `expandRef` (in the form of `Sign.Sim.run_eq`). -/
-theorem expandOneBlock_of_counts
-    (h : ∀ m pk (sig : Bytes 6060), RefinesCounts submission .expand (m, pk, sig) (expandRef m pk sig)) :
-    ExpandOneBlock submission := by
-  rintro ⟨m, pk, sig⟩
-  refine ⟨_, expandRef m pk sig, spec_expandRef m pk sig, ?_⟩
-  obtain ⟨F, hF⟩ := compressions_of_refinesCounts submission (h m pk sig)
-  have h2 := congrArg (fun x => Prod.snd <$> x) hF
-  simp only [Functor.map_map] at h2
-  exact h2
-
-/-- **Compression bounds** for `SigGolfCandidate.submission`, given the keygen, sign and expand
-refinements in the form of `Sign.Sim.run_eq` (`Final.lean` discharges `hK` and `hS`). -/
+/-- **Compression bounds** for `SigGolfCandidate.submission`, given the keygen and sign refinements
+in the form of `Sign.Sim.run_eq` and the pathwise expand bound (`Budget/Expand`). -/
 theorem submission_compressionBounds_of_counts'
     (hK : ∀ sk, RefinesCounts submission .keygen sk (keygenRef sk))
     (hS : ∀ sk cache m, RefinesCounts submission .sign (sk, cache, m) (signRef sk cache m))
-    (hE : ∀ m pk (sig : Bytes 6060), RefinesCounts submission .expand (m, pk, sig) (expandRef m pk sig)) :
+    (hE : ExpandBelowSign submission) :
     submission.CompressionBounds :=
   submission_compressionBounds_of_refines (keygenRefines_of_counts submission hK)
-    (signRefines_of_counts submission rfl hS) (expandOneBlock_of_counts hE)
+    (signRefines_of_counts submission rfl hS) hE
 
 end SigGolfCandidate.Budget

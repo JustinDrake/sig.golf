@@ -72,11 +72,8 @@ def slice (l : List Byte) (off len : Nat) : List Byte := (l.drop off).take len
 /-! ## Parameters (SPEC-pors.md) -/
 
 def nChains : Nat := 42
-/-- The baseline WOTS target sum used by layers zero through three. -/
+/-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
 def targetSum : Nat := 181
-
-/-- Layer-dependent WOTS target: layer four uses 183. -/
-def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 2 else 0
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
 /-- The number of hypertree layers `d`. -/
@@ -97,9 +94,9 @@ def porsSegs : Nat := 2 * porsK - 1
 /-- Digest trials `A_max`. -/
 def aMax : Nat := 2 ^ 20
 /-- The counter limit `C_max`: the signer tries `c < cMax`, the verifier rejects `c ≥ cMax`. -/
-def cMax : Nat := 2 ^ 20
+def cMax : Nat := 2 ^ 22
 /-- Signature bytes `S`. -/
-def sigBytes : Nat := 6060
+def sigBytes : Nat := 6048
 /-- Witness bytes `W`. -/
 def witBytes : Nat := 6348
 
@@ -371,13 +368,13 @@ def digitsOfWord (d : Nat) : List Nat := (List.range 21).map fun r => d / 8 ^ r 
 
 /-- TargetSum decoding of an encoding output `v` (first 16 bytes): `d0`, `d1` = the two LE 64-bit
 halves; reject if bit 63 of `d0` or of `d1` is set, else the 42 digits (21 of `d0`, then 21 of
-`d1`) if they sum to the target of the selected layer. -/
-def decodeDigits (lay : Nat) (v : Val) : Option (List Nat) :=
+`d1`) if they sum to `targetSum`. -/
+def decodeDigits (v : Val) : Option (List Nat) :=
   let d0 := leNat (slice v 0 8)
   let d1 := leNat (slice v 8 8)
   if d0 < 2 ^ 63 ∧ d1 < 2 ^ 63 then
     let x := digitsOfWord d0 ++ digitsOfWord d1
-    if x.sum = targetFor lay then some x else none
+    if x.sum = targetSum then some x else none
   else none
 
 end SigGolfCandidate.Ref

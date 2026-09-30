@@ -7,7 +7,7 @@ import Mathlib.Data.Set.Finite.List
 # Completeness
 
 `submission_complete`: for every secret key, all `2^256` honest pipelines, run against one shared
-lazy random oracle, succeed with probability at least `1 - 2^-128`.
+lazy random oracle, succeed with probability at least `1 - 2^-256`.
 
 1. The `allSucceed` bit of `allMessages` is the conjunction fold (`foldAll`) of the success bits
    of the honest pipelines (`allSucceed_allMessages`).
@@ -17,9 +17,9 @@ lazy random oracle, succeed with probability at least `1 - 2^-128`.
    organizer's lazy oracle on `Query` is the lazy oracle on `HD` (`run'_relabel`).
 4. On a finite domain the lazy oracle is the eager one; a union bound over messages then bounds the
    failure probability by the sum of the per-message failure probabilities
-   (`probOutput_false_foldAll_le`), each of which is that of the counter-cap experiment.
-5. Per-seed representability (`Completeness.cap_complete_seeded`) bounds the sum by `2^-128`.
-   The stronger uncapped completeness theorem is retained separately.
+   (`probOutput_false_foldAll_le`), each of which is that of the seeded completeness experiment.
+5. Per-seed completeness (`Completeness.complete_seeded`, i.e. `sphincs_is_complete_for_every_seed`)
+   bounds the sum by `2^-256`.
 -/
 
 open OracleComp OracleSpec
@@ -104,10 +104,10 @@ noncomputable def gameHD (sk : SecretKey) (m : Message) :
     OracleComp (HD →ₒ SphincsSecurity.HashOutput) Bool :=
   relabel toHD (gameX sk m)
 
-/-- The counter-cap experiment on the honest domain. -/
+/-- The abstract honest game without the expansion, on the honest domain. -/
 noncomputable def gameHD0 (sk : SecretKey) (m : Message) :
     OracleComp (HD →ₒ SphincsSecurity.HashOutput) Bool :=
-  relabel toHD (SphincsSecurity.Completeness.capGame sk m)
+  relabel toHD (game sk m)
 
 theorem relabel_val_gameHD (sk : SecretKey) (m : Message) :
     relabel Subtype.val (gameHD sk m) = gameX sk m := by
@@ -116,10 +116,10 @@ theorem relabel_val_gameHD (sk : SecretKey) (m : Message) :
   exact Bridge.relabel_eq_self_of_allQ Equiv.Honest _ (fun x hx => val_toHD x hx) (hq_gameX sk m)
 
 theorem relabel_val_gameHD0 (sk : SecretKey) (m : Message) :
-    relabel Subtype.val (gameHD0 sk m) = SphincsSecurity.Completeness.capGame sk m := by
+    relabel Subtype.val (gameHD0 sk m) = game sk m := by
   unfold gameHD0
   rw [relabel_relabel]
-  exact Bridge.relabel_eq_self_of_allQ Equiv.Honest _ (fun x hx => val_toHD x hx) (hq_capGame sk m)
+  exact Bridge.relabel_eq_self_of_allQ Equiv.Honest _ (fun x hx => val_toHD x hx) (hq_game sk m)
 
 /-! ## Probabilities -/
 
@@ -131,15 +131,15 @@ theorem withRandomOracle_map {α β : Type} (f : α → β) (oa : OracleComp Has
 
 theorem probOutput_gameHD0 (sk : SecretKey) (m : Message) (b : Bool) :
     Pr[= b | (simulateQ randomOracle (gameHD0 sk m)).run' ∅] =
-      Pr[= b | SphincsSecurity.Completeness.capExperiment sk m] := by
-  rw [SphincsSecurity.Completeness.capExperiment, run'_relabel Subtype.val Subtype.val_injective (gameHD0 sk m) ∅ ∅
+      Pr[= b | SphincsSecurity.Completeness.seededExperiment sk m] := by
+  rw [seededExperiment_eq, run'_relabel Subtype.val Subtype.val_injective (gameHD0 sk m) ∅ ∅
     (fun _ => rfl), relabel_val_gameHD0]
 
-/-- The expansion has the counter-cap failure law: under every table the games agree
+/-- The expansion does not change the failure law: under every table the games agree
 (`eval_gameX`). -/
 theorem probOutput_gameHD (sk : SecretKey) (m : Message) (b : Bool) :
     Pr[= b | (simulateQ randomOracle (gameHD sk m)).run' ∅] =
-      Pr[= b | SphincsSecurity.Completeness.capExperiment sk m] := by
+      Pr[= b | SphincsSecurity.Completeness.seededExperiment sk m] := by
   rw [← probOutput_gameHD0, probOutput_run'_eq_eager (D := HD) (R := SphincsSecurity.HashOutput),
     probOutput_run'_eq_eager (D := HD) (R := SphincsSecurity.HashOutput)]
   have hfun : (fun g : HD → SphincsSecurity.HashOutput =>
@@ -164,9 +164,10 @@ theorem allSucceed_eq_relabel (hK : KeygenRefinementStatement) (hS : SignRefinem
   rw [success_honest_eq_game hK hS hV, ← relabel_val_gameHD, relabel_relabel]
   rfl
 
-/-- The proved per-key failure bound `2^-128` is at most the organizer's `FAILURE`. -/
-theorem failure_ge : ((2 ^ 128 : Nat) : ENNReal)⁻¹ ≤ FAILURE := by
+/-- The proved per-key failure bound `2^-256` is at most the organizer's `FAILURE`. -/
+theorem failure_ge : ((2 ^ 256 : Nat) : ENNReal)⁻¹ ≤ FAILURE := by
   rw [FAILURE, one_div, Nat.cast_pow, Nat.cast_ofNat]
+  exact ENNReal.inv_le_inv.mpr (pow_le_pow_right₀ (by norm_num) (by norm_num))
 
 /-- **Completeness** of the submission, given the keygen, sign and verify refinements. -/
 theorem submission_complete (hK : KeygenRefinementStatement) (hS : SignRefinementStatement)
@@ -191,7 +192,7 @@ theorem submission_complete (hK : KeygenRefinementStatement) (hS : SignRefinemen
     rw [Finset.sum_map_toList]
     refine le_trans ?_ failure_ge
     rw [← tsum_fintype (L := SummationFilter.unconditional Message)]
-    exact SphincsSecurity.Completeness.cap_complete_seeded sk
+    exact SphincsSecurity.Completeness.complete_seeded sk
   have h1 : Pr[= true | (simulateQ randomOracle F).run' ∅] +
       Pr[= false | (simulateQ randomOracle F).run' ∅] = 1 := by
     simp

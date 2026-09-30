@@ -54,7 +54,7 @@ structure SchCtx (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) : Prop 
   lt : ∀ p < 15, A p < 2 ^ 22
   sent : t0.getMem (BitVec.ofNat 64 0x758) = BitVec.ofNat 64 (2 ^ 22)
   sigok : SigOK t0 sig
-  siglen : sig.length = 6060
+  siglen : sig.length = 6048
 
 theorem topM_le (A : Nat → Nat) (hlt : ∀ p < 15, A p < 2 ^ 22) (s : Nat) : topM A s ≤ 14 := by
   unfold topM; split
