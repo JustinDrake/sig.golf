@@ -30,7 +30,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 def leafPc (s : Nat) : Nat := leafTab.getD s 0
 /-- The dispatch of leaf `s` (after the leaf code). -/
-def dispLeafPc (s : Nat) : Nat := leafPc s + (if s = 0 then 10 else if s = 14 then 15 else 11)
+def dispLeafPc (s : Nat) : Nat := leafPc s + (if s = 0 then 10 else if s = 14 then 14 else 11)
 def entry0Pc (V : Nat) : Nat := entry0Tab.getD V 0
 def ladPc (V t p : Nat) : Nat := ((ladTab.getD V []).getD t []).getD p 0
 def lbrPc (V t p : Nat) : Nat := ((lbrTab.getD V []).getD t []).getD p 0
@@ -239,14 +239,14 @@ def pleafPost (s : Nat) : List (Reg × Word) := gkP ++ [(.x20, BitVec.ofNat 64 (
 def pleafKeep (s : Nat) : List Reg := [xReg (s + 1), .x14, .x15, .x22, .x24, .x29]
 
 def leafBrs (s : Nat) (d1 d2 : Bool) : List Br :=
-  (if s = 14 then [⟨.ne, .bin .srl (xE s) (cw 14), .c 0, d2⟩] else []) ++
+  (if s = 14 then [⟨.geu, xE s, cw 0x4000, d2⟩] else []) ++
   (if s = 0 then [] else [⟨.geu, .reg (xReg (s + 1)), xE s, d1⟩])
 
 def leafSpec (s : Nat) : Spec :=
   ⟨[(xReg s, xE s), (.x23, .bin .or (xE s) (cw 0x4000)), (.x1, ldE (secA s)), (.x2, ldE (secA s + 8))],
     [(⟨none, BitVec.ofNat 64 0xE8⟩, ldE (secA s + 8)), (⟨none, BitVec.ofNat 64 0xE0⟩, ldE (secA s)),
       (⟨none, BitVec.ofNat 64 0xC8⟩, stW 0xC8 (xE s))],
-    dispLeafPc s, false, if s = 0 then 10 else if s = 14 then 15 else 11, leafBrs s false false, none, if s = 0 then 10 else if s = 14 then 15 else 11⟩
+    dispLeafPc s, false, if s = 0 then 10 else if s = 14 then 14 else 11, leafBrs s false false, none, if s = 0 then 10 else if s = 14 then 14 else 11⟩
 
 def leafObl (s : Nat) : List Oblig := [.valid ⟨some (piT s), BitVec.ofNat 64 PIND⟩ 8]
 
@@ -259,7 +259,7 @@ def leafCheck (s : Nat) : Bool :=
   (s = 0 || pspecB [] (runAt leafKnown [] (leafPc s) [.br true])
     (rejSpec (if s = 14 then 8 else 6) [⟨.geu, .reg (xReg (s + 1)), xE s, true⟩]) (leafObl s) [] []) &&
   (s != 14 || pspecB [] (runAt leafKnown [] (leafPc s) [.br false, .br true])
-    (rejSpec 10 (leafBrs s false true)) (leafObl s) [] [])
+    (rejSpec 9 (leafBrs s false true)) (leafObl s) [] [])
 
 end SigGolfCandidate.Verify
 

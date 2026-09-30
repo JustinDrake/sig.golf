@@ -19,7 +19,7 @@ set_option backward.isDefEq.respectTransparency false
 
 theorem initialMonitoredSource_event_stop_add_strong_le (key : SecretKey) (adversary : Adversary)
     (encoding : ReferenceEncodingAuxiliary) (dummy : OtsReferenceWords)
-    (hdummy : ∀ lay tree leaf, OtsCode.Valid (dummy lay tree leaf))
+    (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (dummy lay tree leaf))
     (exposed : InitialPublicLabels (referenceFamilyWords encoding.selections dummy)) (high : CanonicalGraphHighHalves)
     (budget : Nat) (stopAfter : CertificateStopRule) (stopped : Bool)
     (hencoding : encoding ∈ referenceEncodingAuxiliarySample.support)
@@ -93,7 +93,7 @@ private theorem probEvent_bind_add_le_const_add {A B : Type} (law : SPMF A) (nex
     _ ≤ _ := add_le_add (mul_le_of_le_one_left' tsum_probOutput_le_one) le_rfl
 
 theorem monitoredSourceGame_event_stop_add_strong_le (dummy : OtsReferenceWords)
-    (hdummy : ∀ lay tree leaf, OtsCode.Valid (dummy lay tree leaf)) (adversary : Adversary)
+    (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (dummy lay tree leaf)) (adversary : Adversary)
     (budget : Nat) (stopAfter : CertificateStopRule) (hbudget : budget ≤ 2 ^ 127) :
     Pr[fun result => result.1 = none ∧ result.2.1.memory.external.hashCalls ≤ budget |
       monitoredSourceGame dummy adversary budget stopAfter] +
@@ -122,7 +122,7 @@ theorem monitoredSourceGame_event_stop_add_strong_le (dummy : OtsReferenceWords)
     hencoding' rfl hbudget
 
 theorem forgeEventAdvantage_le_monitored_bound_add_exception (dummy : OtsReferenceWords)
-    (hdummy : ∀ lay tree leaf, OtsCode.Valid (dummy lay tree leaf)) (adversary : Adversary)
+    (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (dummy lay tree leaf)) (adversary : Adversary)
     (budget : Nat) (stopAfter : CertificateStopRule) (hbudget : budget ≤ 2 ^ 127) :
     forgeEventAdvantage scheme adversary budget ≤
       ENNReal.ofReal (2 * ((budget : ℝ) / 2 ^ digestBits) - ((budget : ℝ) / 2 ^ digestBits) ^ 2) +
@@ -258,7 +258,7 @@ theorem exceptionHistorySourceGame_event_cache_le (dummy : OtsReferenceWords) (a
   exact initialExceptionHistorySource_event_cache_le _ adversary encoding dummy exposed high budget
 
 theorem forgeEventAdvantage_le_native_bound (dummy : OtsReferenceWords)
-    (hdummy : ∀ lay tree leaf, OtsCode.Valid (dummy lay tree leaf)) (adversary : Adversary)
+    (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (dummy lay tree leaf)) (adversary : Adversary)
     (budget : Nat) (hbudget : budget ≤ 2 ^ 127) :
     forgeEventAdvantage scheme adversary budget ≤
       ENNReal.ofReal (2 * ((budget : ℝ) / 2 ^ digestBits) - ((budget : ℝ) / 2 ^ digestBits) ^ 2) +
@@ -280,7 +280,7 @@ theorem security127_event_of_large_budget_plus (q : Nat) (hlarge : budgetSplit �
     forgeEventAdvantage scheme adversary q + (q : ENNReal) / 2 ^ 200 ≤
       (q : ENNReal) / 2 ^ 127 := by
   exact (add_le_add (RetainedResidual.forgeEventAdvantage_le_native_bound fixedReferenceDummy
-    (fun _ _ _ => fixedReferenceDummyWord_valid) adversary q hsmall) le_rfl).trans
+    (fun lay _ _ => fixedReferenceDummyWord_valid lay) adversary q hsmall) le_rfl).trans
       (native_bound_plus_le_security127 q hlarge hsmall)
 
 theorem security127_event_of_large_budget (q : Nat) (hlarge : budgetSplit ≤ q) (adversary : Adversary) :

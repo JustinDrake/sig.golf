@@ -55,22 +55,20 @@ theorem lc_enc {c : Nat} (hc : c < nEnc lay) :
     specB gkL (runAt (bK lay) [] (encPcC lay c + 1) [.br false, .br false, .jmp]) (specBok lay c)
       (chKa lay) [.x23, .x30, .x31] = true ∧
     specB [] (runAt (bK lay) [] (encPcC lay c + 1) [.br true]) specRej1 [] [] = true ∧
-    specB [] (runAt (bK lay) [] (encPcC lay c + 1) [.br false, .br true]) specRej2 [] [] = true := by
+    specB [] (runAt (bK lay) [] (encPcC lay c + 1) [.br false, .br true]) (specRej2 lay) [] [] = true := by
   have h := layerCheck_at lay hl
   simp only [layerCheck, Bool.and_eq_true, List.all_eq_true, List.mem_range] at h
   obtain ⟨⟨h1, h2⟩, h3⟩ := h.1.1.2 c hc
   exact ⟨h1, h2, h3⟩
 
 theorem lc_cmp {t : Nat} (ht : t < 32) (h0 : lay = 0) :
-    specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] = true ∧
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] = true ∧
-      specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] [] = true := by
+    specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] = true ∧
+      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] = true := by
   have h := layerCheck_at lay hl
   subst h0
   simp only [layerCheck, Bool.and_eq_true, List.all_eq_true, List.mem_range, bne_self_eq_false,
     Bool.false_or] at h
-  obtain ⟨⟨h1, h2⟩, h3⟩ := h.1.2 t ht
-  exact ⟨h1, h2, h3⟩
+  exact h.1.2 t ht
 
 theorem lc_leaf :
     specB gkL (runAt (headK lay 42) [] (nextPc' lay 41) [.jmp]) (specLeaf lay)
@@ -240,12 +238,12 @@ theorem setup_word (lay : Nat) (hlay : lay < 5) (s : MachineState)
 
 theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : BitVec 256) (s : MachineState)
     (hs : EncOut L t a s) :
-    (decodeDigits (answerBytes 16 a) = none →
+    (decodeDigits L.lay (answerBytes 16 a) = none →
       ∃ k, k ≤ 27 ∧ ∃ c, c ≤ 27 ∧ ∃ u, Steps image s k c u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (∀ xs, decodeDigits (answerBytes 16 a) = some xs →
+    (∀ xs, decodeDigits L.lay (answerBytes 16 a) = some xs →
       ∃ u, Steps image s (stepsB L.lay) (cyclesB L.lay) u ∧ EntInv (L.cctx a) 0 [] u ∧
-        (L.cctx a).ok ∧ (∀ i < 42, xs.getD i 0 = dig (L.cctx a) i) ∧ xs.sum = targetSum ∧
+        (L.cctx a).ok ∧ (∀ i < 42, xs.getD i 0 = dig (L.cctx a) i) ∧ xs.sum = targetFor L.lay ∧
         xs.length = 42) := by
   obtain ⟨hlay, hidx, hwl⟩ := hL
   obtain ⟨hBok, hR1, hR2⟩ := lc_enc hlay (c := encCp L.lay t) (by simpa [encCp, nEnc] using ht)
@@ -264,7 +262,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
     by_cases hlt : (a.extractLsb' 0 64).toNat < 2 ^ 63 ∧ (a.extractLsb' 64 64).toNat < 2 ^ 63
     · rw [if_pos hlt] at hnone
       have hsum : ¬ (digitsOfWord (a.extractLsb' 0 64).toNat ++ digitsOfWord (a.extractLsb' 64 64).toNat).sum
-          = target := by intro h; rw [if_pos h] at hnone; cases hnone
+          = targetFor L.lay := by intro h; rw [if_pos h] at hnone; cases hnone
       obtain ⟨u, hu⟩ := spec_run hR2 s hpc hK (by
         intro b hb
         simp only [specRej2, List.mem_cons, List.not_mem_nil, or_false] at hb
@@ -272,10 +270,11 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
         · simp only [Br.holds, CmpOp.eval, bne_iff_ne, ne_eq]
           intro h
           apply hsum
-          have := (swS_eq s (by omega) (by omega)).mp h
+          have := (swS_eq s L.lay (by omega) (by omega)).mp h
           rwa [hdA, hdB] at this
         · simp only [Br.holds]; rw [hor]; exact decide_eq_false (by omega))
-      exact ⟨21, by decide, 24, by decide, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
+      exact ⟨21 + (if 3 ≤ L.lay then 1 else 0), (by split_ifs <;> omega),
+        24 + (if 3 ≤ L.lay then 1 else 0), (by split_ifs <;> omega), u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
         hu.regs (.x10, cw 1) (by simp [specRej2, rejK])⟩
     · obtain ⟨u, hu⟩ := spec_run hR1 s hpc hK (by
         intro b hb
@@ -288,7 +287,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
     by_cases hlt : (a.extractLsb' 0 64).toNat < 2 ^ 63 ∧ (a.extractLsb' 64 64).toNat < 2 ^ 63
     · rw [if_pos hlt] at hxs
       by_cases hsum : (digitsOfWord (a.extractLsb' 0 64).toNat ++
-          digitsOfWord (a.extractLsb' 64 64).toNat).sum = target
+          digitsOfWord (a.extractLsb' 64 64).toNat).sum = targetFor L.lay
       · rw [if_pos hsum] at hxs
         cases hxs
         obtain ⟨u, hu⟩ := spec_run hBok s hpc hK (by
@@ -296,7 +295,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
           simp only [specBok, List.mem_cons, List.not_mem_nil, or_false] at hb
           rcases hb with rfl | rfl
           · simp only [Br.holds, CmpOp.eval, bne_eq_false_iff_eq]
-            apply (swS_eq s (by omega) (by omega)).mpr
+            apply (swS_eq s L.lay (by omega) (by omega)).mpr
             rw [hdA, hdB]; exact hsum
           · simp only [Br.holds]; rw [hor]; exact decide_eq_false (by omega))
         set c := L.cctx a with hc

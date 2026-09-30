@@ -7,9 +7,9 @@ set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp
 
-/-- The cycle bound of accepting runs: `9467 + 17 · 118 + 29` (every accepting run costs
-exactly `9467 + 17 F + G`, `F ≤ 118` the total folds, `G ≤ 29` the segments with `a ≥ 1`). -/
-def cycleBound : Nat := 11502
+/-- The cycle bound of accepting runs: `9446 + 17 · 118 + 29` (every accepting run costs
+exactly `9446 + 17 F + G`, `F ≤ 118` the total folds, `G ≤ 29` the segments with `a ≥ 1`). -/
+def cycleBound : Nat := 11481
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
 def cycleBoundAll : Nat := 16834
@@ -19,8 +19,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 8565 := by decide
-theorem layC_val : layC = 8565 := by unfold layC; exact layersCost_val
+theorem layersCost_val : layersCost 5 = 8545 := by decide
+theorem layC_val : layC = 8545 := by unfold layC; exact layersCost_val
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -91,10 +91,10 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
   rw [l0, f0] at hg
   exact hg.mono (le_refl _) (le_refl _) (fun _ => ⟨trivial, le_refl _⟩)
 
-theorem lrest_0 : lrest 0 = 158 := by decide
+theorem lrest_0 : lrest 0 = 157 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7752 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2798 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7752 + layC + layN := by
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7751 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2797 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7751 + layC + layN := by
   have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 

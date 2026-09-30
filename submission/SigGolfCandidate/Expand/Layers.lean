@@ -141,8 +141,8 @@ theorem expandLayers_succ (w : List Byte) (idx lay : Nat) (M : Val) :
             | none => pure none
             | some cs => pure (some (cs ++ [c]))) := rfl
 
-/-- Cycles per layer (the search dominates: `2^22` trials of 40 cycles). -/
-def LW : Nat := 2 ^ 22 * 40 + 10000
+/-- Cycles per layer (the search dominates: `2^22` trials of 44 cycles). -/
+def LW : Nat := 2 ^ 22 * 44 + 10000
 
 /-- **The top layer** (`LAY = 0`): header, search, counter, `halt_ok`. -/
 theorem top_layer (w : List Byte) (hw : w.length = 6348) (idx : Nat) (M : Val) (above : List Nat)

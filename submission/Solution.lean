@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6048` bytes, `W = 6348` bytes, `K = 131072` bytes (cache), `C = 11527` cycles (verify bound
-`11502` plus the witness charge `⌈6348 / 256⌉ = 25`). Layout (bytes): message 64, secret key 128,
+`S = 6048` bytes, `W = 6348` bytes, `K = 131072` bytes (cache), `C = 11506` cycles (verify bound
+`11481` plus the witness charge `⌈6348 / 256⌉ = 25`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 13056, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -13,8 +13,10 @@ counter (the signer's own search from 0), running the record verifier's PORS roo
 on the partial witness to obtain each layer's message, and writes the counters into the witness.
 The witness format is unchanged.
 
-The promoted parameter set is retained: WOTS target sum 181 and the one-block private
-randomizer input, together with its existing security and signing-budget proofs.
+The WOTS target sums are [181,181,181,182,182], indexed from the top layer.
+The layer-dependent target saves two remaining chain steps, with the security, completeness,
+and signing-budget proofs rebuilt for those targets.
+The one-block private randomizer input is retained.
 
 The verifier ports the OTS modular checksum and constant-reuse optimizations: each layer
 uses an exact remainder modulo 4095, and the rebased address register doubles as the
@@ -29,6 +31,12 @@ segment dispatch uses 8-word table slots with the entry code inlined, and the fo
 checked once through the stream pointer instead of a per-segment counter. The startup reuses
 the address base and the digest's known input length, saving four more instructions on
 accepting runs. These verifier changes preserve the promoted scheme's hash queries and formats.
+
+The top-layer route uses its incoming eleven-bit leaf index directly, saving two instructions.
+The final comparison passes the XOR of the second root word and public-key word to HALT after
+checking the first word, saving one further instruction on every accepting run.
+The final PORS leaf compares directly with the existing 2^14 register, saving one instruction.
+The bottom-layer header reuses its known HASH length register, saving another instruction.
 
 The certificate is `SigGolfCandidate.certificateNew`. It is transferred from
 `SigGolfCandidate.Final.certificate`, a certificate for the same images under the previous
@@ -55,7 +63,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 13056, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 11527 :=
+theorem certificate : SigGolf.Certificate submission 11506 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
