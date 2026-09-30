@@ -50,7 +50,7 @@ def signatureLimit : Nat := 2 ^ 32
 /-- Digest attempts per signature, `A_max`. -/
 def digestAttemptLimit : Nat := 2 ^ 20
 /-- Encoding counters tried per layer, `C_max`. -/
-def encodingAttemptLimit : Nat := 2 ^ 20
+def encodingAttemptLimit : Nat := 2 ^ 22
 
 abbrev MasterSeed := BitVec 256
 

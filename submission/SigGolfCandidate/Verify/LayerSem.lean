@@ -18,24 +18,25 @@ structure LCtx where
 def LCtx.ok (L : LCtx) : Prop := L.lay < 5 ∧ L.idx < 2 ^ 34 ∧ L.wl.length = 6348
 def LCtx.e (L : LCtx) : Nat := L.idx / 2 ^ layS L.lay % 2 ^ heightL L.lay
 def LCtx.tau (L : LCtx) : Nat := L.idx / 2 ^ (layS L.lay + heightL L.lay)
-def LCtx.gk (_L : LCtx) : List (Reg × Word) := gkL
+/-- Known registers on entry of layer `lay` (before the layer-4 route `x22` still holds `idx`). -/
+def LCtx.gk (L : LCtx) : List (Reg × Word) := if L.lay = 4 then gkL0 else gkL
 
 /-- At the start of the precode of layer `lay` (either stream), with the message `M` in EB+32. -/
 def LayerIn (L : LCtx) (M : Val) (s : MachineState) : Prop :=
   Glob L.gk L.wl L.pk s ∧ KnownOK (preK L.lay) s ∧
   s.getReg (routeReg L.lay) = BitVec.ofNat 64 (routeIn L.idx L.lay) ∧
   s.getMem (BitVec.ofNat 64 0x120) = vw0 M ∧ s.getMem (BitVec.ofNat 64 0x128) = vw1 M ∧
-  M.length = 16 ∧ (L.lay < 4 → CBZ s) ∧ (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2 ^ 56 = 0 ∧
+  M.length = 16 ∧ (L.lay < 4 → CBZ s) ∧ (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2 ^ 48 = 0 ∧
   ∃ t, t < nCopy L.lay ∧ s.pc = pcOf (preStart L.lay t)
 
 /-- After the encoding hash (answer `a` in EO). -/
 def EncOut (L : LCtx) (t : Nat) (a : BitVec 256) (s : MachineState) : Prop :=
   Glob gkL L.wl L.pk s ∧ KnownOK (bK L.lay) s ∧
-  s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 (if L.lay = 0 then L.e else L.tau) ∧
+  s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧
   s.getReg .x31 = BitVec.ofNat 64 (L.tau + 2 ^ 32 * L.e) ∧
   s.getMem (BitVec.ofNat 64 320) = a.extractLsb' 0 64 ∧
   s.getMem (BitVec.ofNat 64 328) = a.extractLsb' 64 64 ∧
-  (L.lay < 4 → CBZ s) ∧ (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2 ^ 56 = 0 ∧
+  (L.lay < 4 → CBZ s) ∧ (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2 ^ 48 = 0 ∧
   s.pc = pcOf (encPc L.lay t + 1)
 
 /-! ## The per-layer check, by parts -/
@@ -44,30 +45,39 @@ section
 variable {lay : Nat} (hl : lay < 5)
 include hl
 
-theorem lc_stream {t : Nat} (ht : t < nCopy lay) :
-    specB gkL (runAt (preK lay) [] (preStart lay t) []) (specA lay t) (bK lay) [] = true ∧
-    specB gkL (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br false, .jmp]) (specBok lay t)
-      (chKa lay) [.x22, .x23, .x30, .x31] = true ∧
-    specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br true]) specRej1 [] [] = true ∧
-    specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) (specRej2 lay) [] [] = true ∧
-    (lay = 0 → specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] = true ∧
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] = true) := by
+theorem lc_pre {t : Nat} (ht : t < nCopy lay) :
+    specB gkL (runAt (preK lay) [] (preStart lay t) []) (specA lay t) (bK lay) [] = true := by
   have h := layerCheck_at lay hl
   simp only [layerCheck, Bool.and_eq_true, List.all_eq_true, List.mem_range] at h
-  obtain ⟨⟨⟨⟨h1, h2⟩, h3⟩, h4⟩, h5⟩ := h.1 t ht
-  refine ⟨h1, h2, h3, h4, fun h0 => ?_⟩
-  subst h0
-  simp only [bne_self_eq_false, Bool.false_or, Bool.and_eq_true] at h5
-  exact h5
+  exact h.1.1.1 t ht
 
-theorem lc_leaf (d : Bool) :
-    specB gkL (runAt (headK lay 42) [] (nextPc' lay 41) [.br d]) (specLeaf lay d)
+theorem lc_enc {c : Nat} (hc : c < nEnc lay) :
+    specB gkL (runAt (bK lay) [] (encPcC lay c + 1) [.br false, .br false, .jmp]) (specBok lay c)
+      (chKa lay) [.x23, .x30, .x31] = true ∧
+    specB [] (runAt (bK lay) [] (encPcC lay c + 1) [.br true]) specRej1 [] [] = true ∧
+    specB [] (runAt (bK lay) [] (encPcC lay c + 1) [.br false, .br true]) (specRej2 lay) [] [] = true := by
+  have h := layerCheck_at lay hl
+  simp only [layerCheck, Bool.and_eq_true, List.all_eq_true, List.mem_range] at h
+  obtain ⟨⟨h1, h2⟩, h3⟩ := h.1.1.2 c hc
+  exact ⟨h1, h2, h3⟩
+
+theorem lc_cmp {t : Nat} (ht : t < 32) (h0 : lay = 0) :
+    specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] = true ∧
+      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] = true ∧
+      specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] [] = true := by
+  have h := layerCheck_at lay hl
+  subst h0
+  simp only [layerCheck, Bool.and_eq_true, List.all_eq_true, List.mem_range, bne_self_eq_false,
+    Bool.false_or] at h
+  obtain ⟨⟨h1, h2⟩, h3⟩ := h.1.2 t ht
+  exact ⟨h1, h2, h3⟩
+
+theorem lc_leaf :
+    specB gkL (runAt (headK lay 42) [] (nextPc' lay 41) [.jmp]) (specLeaf lay)
       (leafPost lay) leafKeep = true := by
   have h := layerCheck_at lay hl
-  simp only [layerCheck, Bool.and_eq_true, List.all_eq_true, List.mem_range] at h
-  cases d
-  · simpa using h.2 0 (by omega)
-  · simpa using h.2 1 (by omega)
+  simp only [layerCheck, Bool.and_eq_true] at h
+  exact h.2
 
 end
 
@@ -84,7 +94,7 @@ theorem enc_step (L : LCtx) (hL : L.ok) (M : Val) (s : MachineState) (hs : Layer
       ∀ a, EncOut L t a (writeHash u a) := by
   obtain ⟨hlay, hidx, hwl⟩ := hL
   obtain ⟨hG, hK, hR, hM0, hM1, hMl, hZ, hC0, t, ht, hpc⟩ := hs
-  obtain ⟨u, hu⟩ := spec_run (lc_stream hlay ht).1 s hpc hK (by simp [specA])
+  obtain ⟨u, hu⟩ := spec_run (lc_pre hlay ht) s hpc hK (by simp [specA])
   have hK' := hu.known
   have gk : ∀ p ∈ gkL, p ∈ bK L.lay := fun p hp => by simp [bK, hp]
   have h10 : u.getReg .x10 = BitVec.ofNat 64 0x100 := hK' (.x10, 0x100) (by simp [bK])
@@ -103,7 +113,7 @@ theorem enc_step (L : LCtx) (hL : L.ok) (M : Val) (s : MachineState) (hs : Layer
       simp only [specA, List.mem_cons, List.not_mem_nil, or_false]
       rintro p (rfl | rfl | rfl | rfl) <;> simp <;> omega)]
   have hm : ∀ A, u.getMem A = memEval s (specA L.lay t).mem A := hmem
-  refine ⟨t, ht, u, hu.steps, hu.ecall rfl, hK' (.x5, 0) (gk _ (by simp [gkL, baseK])),
+  refine ⟨t, ht, u, hu.steps, hu.ecall rfl, hK' (.x5, 0) (gk _ (by simp [gkL, gkL0, baseK])),
     hashArgs_ofNat _ _ _ _ h10 h11 h12 (by omega) (by omega) (by omega) (by decide), ?_, ?_⟩
   · rw [hashInput_ofNat _ 0x100 0 h10 h11 (by decide) (by decide), pad64_encInput _ _ _ _ hMl]
     congr 1
@@ -137,7 +147,7 @@ theorem enc_step (L : LCtx) (hL : L.ok) (M : Val) (s : MachineState) (hs : Layer
       writeHash_at0 _ a _ h12 (by omega), writeHash_at8 _ a _ h12 (by omega), ?_, ?_, ?_⟩
     · rw [writeHash_getReg, hu.regs (.x23, uHE L.lay) (by simp [specA]), uHE_eval L.idx L.lay hlay hidx s hR]
       rfl
-    · rw [writeHash_getReg, hu.regs (.x30, carryEr L.lay) (by simp [specA]), carryEr_eval L.idx L.lay hlay hidx s hR]
+    · rw [writeHash_getReg, hu.regs (.x30, tauEr L.lay) (by simp [specA]), tauEr_eval L.idx L.lay hlay hidx s hR]
       rfl
     · rw [writeHash_getReg, hu.regs (.x31, x31Er L.lay) (by simp [specA]), hx31]
     · intro h6
@@ -185,7 +195,7 @@ theorem maskD0_eval (s : MachineState) (D : E) (W : Word) (hD : D.eval s = W) :
 
 theorem setup_C0 (lay : Nat) (s : MachineState) :
     memEval s (setupMem lay) (BitVec.ofNat 64 192) =
-      (cw (hWord lay)).eval s := by
+      (E.bin (.st .b 5) (stW0 192 (cw (hWord lay))) (cw 0)).eval s := by
   unfold setupMem; split <;>
     simp only [List.cons_append, List.nil_append] <;>
     (repeat rw [memEval_cons_ne _ _ _ _ _ (by bvne)]) <;> rw [memEval_cons_eq _ _ _ _ _ rfl]
@@ -201,8 +211,9 @@ theorem setup_Z6 (lay : Nat) (s : MachineState) (h : lay = 4) (A : Nat) (hA : A 
   subst h
   simp only [setupMem, if_true, List.cons_append, List.nil_append]
   rcases hA with rfl | rfl
+  · rw [memEval_cons_ne _ _ _ _ _ (by bvne), memEval_cons_ne _ _ _ _ _ (by bvne),
+      memEval_cons_eq _ _ _ _ _ rfl]; rfl
   · rw [memEval_cons_ne _ _ _ _ _ (by bvne), memEval_cons_eq _ _ _ _ _ rfl]; rfl
-  · rw [memEval_cons_eq _ _ _ _ _ rfl]; rfl
 
 theorem setup_fr (lay : Nat) (s : MachineState) (h : lay ≠ 4) (A : Nat) (hA : A < 2 ^ 64)
     (h1 : A ≠ 192) (h2 : A ≠ 200) :
@@ -210,23 +221,34 @@ theorem setup_fr (lay : Nat) (s : MachineState) (h : lay ≠ 4) (A : Nat) (hA : 
   simp only [setupMem, if_neg h, List.nil_append, List.cons_append]
   rw [memEval_cons_ne _ _ _ _ _ (by bvne), memEval_cons_ne _ _ _ _ _ (by bvne)]; rfl
 
-theorem setup_word (lay : Nat) (hlay : lay < 5) (s : MachineState) :
-    ((cw (hWord lay)).eval s).toNat = hWord lay := by
+theorem setup_word (lay : Nat) (hlay : lay < 5) (s : MachineState)
+    (h48 : (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2 ^ 48 = 0) :
+    ((E.bin (.st .b 5) (stW0 192 (cw (hWord lay))) (cw 0)).eval s).toNat =
+      hWord lay + 2 ^ 32 * ((s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2 ^ 32 % 256) := by
+  show (StoreKind.merge .b (StoreKind.merge .w (s.getMem (BitVec.ofNat 64 192)) 0 (BitVec.ofNat 64 (hWord lay)))
+    5 (BitVec.ofNat 64 0)).toNat = _
+  simp only [StoreKind.merge]
+  rw [replaceByte_toNat _ _ (by omega)]
+  have := merge_w0_toNat (s.getMem (BitVec.ofNat 64 192)) (BitVec.ofNat 64 (hWord lay))
+  simp only [StoreKind.merge, show (0 : Nat) / 4 = 0 from rfl] at this
+  rw [this]
   have hw := hWord_lt lay hlay
-  simp only [cw, E.eval, BitVec.toNat_ofNat]
+  simp only [BitVec.toNat_ofNat, BitVec.truncate_eq_setWidth, BitVec.toNat_setWidth] at h48 ⊢
+  generalize (s.getMem (BitVec.ofNat 64 192)).toNat = w at *
+  norm_num at hw h48 ⊢
   omega
 
 theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : BitVec 256) (s : MachineState)
     (hs : EncOut L t a s) :
     (decodeDigits L.lay (answerBytes 16 a) = none →
-      ∃ k c, k ≤ 28 ∧ c ≤ 28 ∧ ∃ u, Steps image s k c u ∧ fetch image u = some (.base .ECALL) ∧
+      ∃ k, k ≤ 27 ∧ ∃ c, c ≤ 27 ∧ ∃ u, Steps image s k c u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (∀ xs, decodeDigits L.lay (answerBytes 16 a) = some xs →
       ∃ u, Steps image s (stepsB L.lay) (cyclesB L.lay) u ∧ EntInv (L.cctx a) 0 [] u ∧
         (L.cctx a).ok ∧ (∀ i < 42, xs.getD i 0 = dig (L.cctx a) i) ∧ xs.sum = targetFor L.lay ∧
         xs.length = 42) := by
   obtain ⟨hlay, hidx, hwl⟩ := hL
-  obtain ⟨-, hBok, hR1, hR2, -⟩ := lc_stream hlay ht
+  obtain ⟨hBok, hR1, hR2⟩ := lc_enc hlay (c := encCp L.lay t) (by simpa [encCp, nEnc] using ht)
   obtain ⟨hG, hK, h23, h30, h31, hD0, hD1, hZ, hC0, hpc⟩ := hs
   have hor : CmpOp.lt.eval (orE.eval s) ((E.c 0).eval s) =
       decide (2 ^ 63 ≤ (a.extractLsb' 0 64).toNat ∨ 2 ^ 63 ≤ (a.extractLsb' 64 64).toNat) := by
@@ -235,6 +257,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
     exact lt_or_eval _ _
   have hdA : dA s = (a.extractLsb' 0 64).toNat := by simp only [dA, hD0]
   have hdB : dB s = (a.extractLsb' 64 64).toNat := by simp only [dB, hD1]
+  have hT : targetFor L.lay < 2 ^ 64 := by have := targetFor_le L.lay; omega
   unfold decodeDigits
   simp only [slice0_answer, slice8_answer]
   constructor
@@ -250,17 +273,17 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
         · simp only [Br.holds, CmpOp.eval, bne_iff_ne, ne_eq]
           intro h
           apply hsum
-          have := (swS_eq s L.lay (by omega) (by omega)).mp h
+          have := (swS_eq s (targetFor L.lay) hT (by omega) (by omega)).mp h
           rwa [hdA, hdB] at this
         · simp only [Br.holds]; rw [hor]; exact decide_eq_false (by omega))
-      exact ⟨21 + (if 4 ≤ L.lay then 1 else 0), 24 + (if 4 ≤ L.lay then 1 else 0), (by split_ifs <;> omega), (by split_ifs <;> omega), u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
+      exact ⟨21, by decide, 24, by decide, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
         hu.regs (.x10, cw 1) (by simp [specRej2, rejK])⟩
     · obtain ⟨u, hu⟩ := spec_run hR1 s hpc hK (by
         intro b hb
         simp only [specRej1, List.mem_cons, List.not_mem_nil, or_false] at hb
         subst hb
         simp only [Br.holds]; rw [hor]; exact decide_eq_true (by omega))
-      exact ⟨7, 7, by omega, by omega, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej1, rejK]),
+      exact ⟨7, by omega, 7, by omega, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej1, rejK]),
         hu.regs (.x10, cw 1) (by simp [specRej1, rejK])⟩
   · intro xs hxs
     by_cases hlt : (a.extractLsb' 0 64).toNat < 2 ^ 63 ∧ (a.extractLsb' 64 64).toNat < 2 ^ 63
@@ -274,14 +297,15 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
           simp only [specBok, List.mem_cons, List.not_mem_nil, or_false] at hb
           rcases hb with rfl | rfl
           · simp only [Br.holds, CmpOp.eval, bne_eq_false_iff_eq]
-            apply (swS_eq s L.lay (by omega) (by omega)).mpr
+            apply (swS_eq s (targetFor L.lay) hT (by omega) (by omega)).mpr
             rw [hdA, hdB]; exact hsum
           · simp only [Br.holds]; rw [hor]; exact decide_eq_false (by omega))
         set c := L.cctx a with hc
         have hcok : c.ok := ⟨hlay, by have := tau_lt L.lay L.idx hlay hidx; simp [hc, LCtx.cctx, LCtx.tau]; omega,
           by have := e_lt L ⟨hlay, hidx, hwl⟩; simp [hc, LCtx.cctx]; omega, hwl, hlt.1, hlt.2⟩
         have hmem := hu.mem
-        obtain ⟨ht4, ht1, htb, hB, -, -⟩ := tabOk_spec (tabOk_at L.lay 0 hlay (by omega))
+        obtain ⟨hT, hB, -⟩ := tabOk_spec (tabOk_at L.lay 0 hlay (by omega))
+        obtain ⟨ht4, ht1, htb⟩ := hT rfl
         have hD0' : d0E.eval s = a.extractLsb' 0 64 := hD0
         have hr0 : (rE0 L.lay).eval s = BitVec.ofNat 64 (rOf c 0) := by
           simp only [rE0, mkBin_eval, BinOp.eval, cw, E.eval]
@@ -293,7 +317,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
         have hoff : chainAddr L.lay 0 = 0x800 + (witLayerOff L.lay + 16 * 0) := by
           unfold chainAddr; rw [witLayerOff_eq _ hlay]; omega
         have hlb := layBody_le _ hlay
-        have hw0 := setup_word L.lay hlay s
+        have hw0 := setup_word L.lay hlay s hC0
         refine ⟨u, hu.steps, ⟨hu.glob _ _ _ hG, hu.known, ⟨?_, ?_, ?_, ?_, ?_⟩, ⟨?_, ?_, ?_⟩, ?_, ⟨?_, ?_⟩,
           ?_, fun j hj => by simp at hj, rfl, by simp, ?_, ?_, ?_⟩, hcok, ?_, hsum,
           by simp [digitsOfWord]⟩
@@ -306,7 +330,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
           simp only [hc, LCtx.cctx, hWord]; omega
         · rw [hmem]; simp only [specBok]; rw [setup_C8]; simp only [E.eval]; rw [h31]; rfl
         · rw [hmem]; simp only [specBok]; rw [setup_C0, hw0]; unfold hWord; omega
-        · unfold CBi; rw [hmem]; simp only [specBok]; rw [setup_C0, hw0]; unfold hWord; norm_num [chainPtr]; omega
+        · unfold CBi; rw [hmem]; simp only [specBok]; rw [setup_C0, hw0]; unfold hWord; omega
         · rw [hu.regs (.x15, cw (bVal L.lay 0)) (by simp [specBok])]; rfl
         · rw [hu.regs (.x14, rE0 L.lay) (by simp [specBok]), hr0]
         · by_cases h6 : L.lay = 4

@@ -75,7 +75,7 @@ def nChains : Nat := 42
 /-- The baseline WOTS target sum used by layers zero through three. -/
 def targetSum : Nat := 181
 
-/-- Layer-dependent WOTS target: layer four uses 183. -/
+/-- Layer-dependent WOTS target: layer four (the bottom layer) uses 183. -/
 def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 2 else 0
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
@@ -97,9 +97,9 @@ def porsSegs : Nat := 2 * porsK - 1
 /-- Digest trials `A_max`. -/
 def aMax : Nat := 2 ^ 20
 /-- The counter limit `C_max`: the signer tries `c < cMax`, the verifier rejects `c ≥ cMax`. -/
-def cMax : Nat := 2 ^ 20
+def cMax : Nat := 2 ^ 22
 /-- Signature bytes `S`. -/
-def sigBytes : Nat := 6061
+def sigBytes : Nat := 6048
 /-- Witness bytes `W`. -/
 def witBytes : Nat := 6348
 
@@ -184,16 +184,9 @@ def IsDigestFmt (x : List Byte) : Prop := x.length = 96 ∧ x.getD 1 0 = byte 12
 instance (x : List Byte) : Decidable (IsDigestFmt x) :=
   inferInstanceAs (Decidable (x.length = 96 ∧ x.getD 1 0 = byte 12))
 
-/-- The live chain identity: chain zero uses zero; later chains use the previous
-endpoint's byte address in the verifier's leaf buffer. -/
-def chainPtr (i : Nat) : Nat := if i = 0 then 0 else 0x350 + 16 * i
-
-/-- Live chain positions put `chainPtr i` in bytes 4 and 5 and `mu - 1` in byte 6.
-The disjoint extension preserves injectivity on the existing honest-query domain
-`p < 2^27`, without imposing a narrower domain on the abstract oracle transfer. -/
-def splitP (p : Nat) : Nat :=
-  if p < 336 then chainPtr (p / 8) + 65536 * (p % 8)
-  else 2 ^ 23 + p
+/-- The split chain position `p' = (p mod 8) | (p div 8) << 8` (byte 4 = `mu - 1`, byte 5 = `i`
+for `p = 8 i + mu - 1`). -/
+def splitP (p : Nat) : Nat := p % 8 + 256 * (p / 8)
 
 /-- The heap index `2^(h - lam) + j` of node `j` of level `lam` of a tree of height `h`. -/
 def heapIndex (h lam j : Nat) : Nat := 2 ^ (h - lam) + j

@@ -85,7 +85,7 @@ theorem pow_le32 (h : Nat) (hh : h ≤ 6) : 2 ^ h ≤ 64 :=
 theorem tleaf_body (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : TreePar)
     (tt : MachineState) (ctx : TreeCtx S x p tt) (j : Nat) (hj : j < 2 ^ p.h)
     (st : List Val × List Val) (t : MachineState) (hinv : TLeafInv p tt j st t) :
-    Sim image t (7 + (21 * 578 + (4 + (88 + 2))))
+    Sim image t (7 + (21 * 480 + (4 + (88 + 2))))
       (do
         let (leaf, c) ← buildLeaf S p.lay p.tau j x
         pure (st.1 ++ [leaf], if j = p.e then c else st.2))
@@ -252,7 +252,7 @@ namespace SigGolfCandidate.Sign
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref
 
 /-- Cycle bound of one leaf. -/
-def tleafCyc : Nat := 7 + (21 * 578 + (4 + (88 + 2)))
+def tleafCyc : Nat := 7 + (21 * 480 + (4 + (88 + 2)))
 
 /-- **Leaves** `0 .. 2^h - 1` of a tree (with capture of leaf `e`). -/
 theorem leaves_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : TreePar)

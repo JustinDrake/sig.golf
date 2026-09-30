@@ -317,14 +317,14 @@ theorem words_th16 (t lay tau p j : Nat) (v : Val) (hv : v.length = 16) :
 
 /-- The HASH input of a chain step (value-last format `tw || 0^32 || v`, `fmt_chainInput`). -/
 theorem hashInput_eq_chain (t : MachineState) (lay tau e i mu : Nat) (v : Val) (hv : v.length = 16)
-    (hmu : 1 ≤ mu) (hmu' : mu ≤ 8) (hi : i < 42)
+    (hmu : 1 ≤ mu) (hmu' : mu ≤ 8) (hi : i < 2 ^ 24)
     (h11 : t.getReg .x11 = BitVec.ofNat 64 64) (h10 : (t.getReg .x10).toNat % 8 = 0)
     (hw : t.readWords (t.getReg .x10) 8 =
-      twWords 1 lay tau (chainPtr i + 65536 * (mu - 1)) e ++ [0, 0, 0, 0] ++ wordsOf v) :
+      twWords 1 lay tau (mu - 1 + 256 * i) e ++ [0, 0, 0, 0] ++ wordsOf v) :
     hashInput t = fmt (chainInput lay tau e i mu v) := by
   rw [hashInput_eq_words t 0 h11 (by norm_num) h10, hw, fmt_chainInput _ _ _ _ _ _ hv hmu hmu' hi]
   unfold queryOfWords ofList
-  rw [← wordsToNat_wordsOf (tweak 1 lay tau (chainPtr i + 65536 * (mu - 1)) e ++ zeros 32 ++ v),
+  rw [← wordsToNat_wordsOf (tweak 1 lay tau (mu - 1 + 256 * i) e ++ zeros 32 ++ v),
     wordsOf_append _ _ (by simp [zeros]), wordsOf_append _ _ (by simp), wordsOf_tweak,
     show (32 : Nat) = 8 * 4 from rfl, wordsOf_zeros]
   rfl

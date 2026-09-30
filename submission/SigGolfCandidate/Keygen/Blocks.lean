@@ -19,7 +19,7 @@ def seg_32 : List (BitVec 32) := [0x001af193, 0x00019e63]
 def seg_34 : List (BitVec 32) := [0x001ad193, 0x6a302223, 0x6a000513, 0x04000593, 0x14000613]
 def seg_39 : List (BitVec 32) := [0x00000073]
 def seg_40 : List (BitVec 32) := [0x001af193, 0x00419193, 0x1401b083, 0x1481b103, 0x0e103823, 0x0e203c23, 0x0c000513, 0x0f000613, 0x00000b93]
-def seg_49 : List (BitVec 32) := [0x001b8b93, 0x1f40006f, 0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013]
+def seg_49 : List (BitVec 32) := [0x001b8b93, 0x003c5193, 0x00819193, 0x007c7e93, 0x01d1e1b3, 0x0c302223, 0x0c000513]
 def seg_56 : List (BitVec 32) := [0x00000073]
 def seg_57 : List (BitVec 32) := [0x001c0c13, 0x00700193, 0xfc3b9ce3]
 def seg_60 : List (BitVec 32) := [0x001c0c13, 0x004a9193, 0x0f003083, 0x0f803103, 0x3611b023, 0x3621b423, 0x001a8a93, 0x02a00193, 0xf63a98e3]
@@ -44,9 +44,7 @@ def seg_171 : List (BitVec 32) := [0x00000073]
 def seg_172 : List (BitVec 32) := [0x00100293, 0x00000513]
 def seg_174 : List (BitVec 32) := [0x00000073]
 
-def seg_175 : List (BitVec 32) := [0x003c5193, 0x00303eb3, 0x41d00eb3, 0x350efe93, 0x00419193, 0x01d181b3, 0x007c7e93, 0x010e9e93, 0x01d181b3, 0x0c302223, 0x0c000513, 0xdf9ff06f]
-
-def L : Rv.Layout := [(0, seg_0), (25, seg_25), (32, seg_32), (34, seg_34), (39, seg_39), (40, seg_40), (49, seg_49), (56, seg_56), (57, seg_57), (60, seg_60), (69, seg_69), (73, seg_73), (74, seg_74), (76, seg_76), (77, seg_77), (85, seg_85), (101, seg_101), (102, seg_102), (104, seg_104), (107, seg_107), (115, seg_115), (118, seg_118), (123, seg_123), (132, seg_132), (133, seg_133), (144, seg_144), (147, seg_147), (171, seg_171), (172, seg_172), (174, seg_174), (175, seg_175)]
+def L : Rv.Layout := [(0, seg_0), (25, seg_25), (32, seg_32), (34, seg_34), (39, seg_39), (40, seg_40), (49, seg_49), (56, seg_56), (57, seg_57), (60, seg_60), (69, seg_69), (73, seg_73), (74, seg_74), (76, seg_76), (77, seg_77), (85, seg_85), (101, seg_101), (102, seg_102), (104, seg_104), (107, seg_107), (115, seg_115), (118, seg_118), (123, seg_123), (132, seg_132), (133, seg_133), (144, seg_144), (147, seg_147), (171, seg_171), (172, seg_172), (174, seg_174)]
 
 theorem layout_ok : layoutOk 0 L = true := by decide +kernel
 
@@ -115,11 +113,6 @@ theorem codeAt_172 : CodeAt image (BitVec.ofNat 64 (0x1000 + 4 * 172)) seg_172 :
   codeAt_layout code_eq layout_ok (i := 28) (by kernel_rfl) (by decide)
 theorem codeAt_174 : CodeAt image (BitVec.ofNat 64 (0x1000 + 4 * 174)) seg_174 :=
   codeAt_layout code_eq layout_ok (i := 29) (by kernel_rfl) (by decide)
-
-theorem codeAt_175 : CodeAt image (BitVec.ofNat 64 (0x1000 + 4 * 175)) seg_175 :=
-  codeAt_layout code_eq layout_ok (i := 30) (by kernel_rfl) (by decide)
-
-sym_block blk_175 := symRun { noAlias := true } seg_175 (BitVec.ofNat 64 (0x1000 + 4 * 175)) 100
 
 sym_block blk_0 := symRun { noAlias := true } seg_0 (BitVec.ofNat 64 (0x1000 + 4 * 0)) 100
 sym_block blk_25 := symRun { noAlias := true } seg_25 (BitVec.ofNat 64 (0x1000 + 4 * 25)) 100

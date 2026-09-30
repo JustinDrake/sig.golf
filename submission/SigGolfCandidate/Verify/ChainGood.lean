@@ -1,4 +1,4 @@
-import SigGolfCandidate.Verify.ThreadedSecond
+import SigGolfCandidate.Verify.ChainHead
 import SigGolfCandidate.Verify.Judg
 
 /-! # Chains: the simulation judgment for one chain and for all 42 chains of a layer -/
@@ -28,46 +28,40 @@ theorem StepInv.vlen {c : CCtx} {i : Nat} {acc : List Val} {mu : Nat} {v : Val} 
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, h, -⟩ := hs; exact h
 
 theorem steps_good (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (acc : List Val)
-    (hchk : ChainEvidence c i) (hlook : LookOK image Threaded.look) (K : List Val → OracleComp HashSpec Obs) (N C : Nat)
+    (hchk : chainCheck c.lay i = true) (K : List Val → OracleComp HashSpec Obs) (N C : Nat)
     (hK : ∀ v t, v.length = 16 → HeadInv c (i + 1) (acc ++ [v]) t → Good t N C (K (acc ++ [v]))) :
-    ∀ k mu, mu + k = 7 → 1 ≤ mu → ∀ v s, StepInv c i acc mu v s →
-      Good s (N + 4 * (8 - mu) + endCost i) (C + 9 * (8 - mu) + 1 + endCost i)
+    ∀ k mu, mu + k = 7 → 1 ≤ mu → dig c i < mu → ∀ v s, StepInv c i acc mu v s →
+      Good s (N + 4 * (8 - mu)) (C + 9 * (8 - mu) + 1)
         (cc (restFold c i mu v) (fun v => K (acc ++ [v]))) := by
   intro k
   induction k with
   | zero =>
-    intro mu hmu h1 v s hs
+    intro mu hmu h1 hdm v s hs
     obtain rfl : mu = 7 := by omega
     have hvl := hs.vlen
-    obtain ⟨t, hst, hf, h5, hv, hin, hpost⟩ := step_7 c hc i hi acc hchk hlook v s hs
+    obtain ⟨t, hst, hf, h5, hv, hin, hpost⟩ := step_7 c hc i hi acc hdm hchk v s hs
     rw [restFold_succ c i 7 (le_refl _), cc_bind]
     simp only [show 7 + 1 = 8 from rfl, restFold_8, cc_pure]
-    have h2 : ∀ a, Good (writeHash t a) (N + endCost i) (C + endCost i)
-        (K (acc ++ [answerBytes 16 a])) := by
-      intro a
-      obtain ⟨u,hu,hU⟩ := done_next c hc i hi _ hchk hlook _ (chain_done c hc i hi acc _ _ (hpost a))
-      exact Good.steps' hu (hK _ u (by simp) hU) (by omega) (by omega)
+    have h2 : ∀ a, Good (writeHash t a) N C (K (acc ++ [answerBytes 16 a])) := fun a =>
+      hK _ _ (by simp) (chain_end c hc i hi acc _ _ (hpost a))
     have h3 := Good.hash (K := fun v => K (acc ++ [v])) hf h5 hv hin h2
     rw [blocks_chain _ _ _ _ _ _ hvl] at h3
     exact Good.steps' hst h3 (by omega) (by omega)
   | succ k ih =>
-    intro mu hmu h1 v s hs
+    intro mu hmu h1 hdm v s hs
     have hvl := hs.vlen
-    obtain ⟨t, hst, hf, h5, hv, hin, hpost⟩ := step_mid c hc i hi acc mu h1 (by omega) hchk hlook v s hs
+    obtain ⟨t, hst, hf, h5, hv, hin, hpost⟩ := step_mid c hc i hi acc mu h1 (by omega) hdm hchk v s hs
     rw [restFold_succ c i mu (by omega), cc_bind]
     have h3 := Good.hash (K := fun v => cc (restFold c i (mu + 1) v) (fun v => K (acc ++ [v])))
-      hf h5 hv hin (fun a => ih (mu + 1) (by omega) (by omega) _ _ (hpost a))
+      hf h5 hv hin (fun a => ih (mu + 1) (by omega) (by omega) (by omega) _ _ (hpost a))
     rw [blocks_chain _ _ _ _ _ _ hvl] at h3
     exact Good.steps' hst h3 (by omega) (by omega)
 
 /-- Cost of chain `i` of layer `lay` at digit `x` (chain 0's head is part of the layer code). -/
-def chainHeadCost (lay i : Nat) : Nat :=
-  if i = 0 then 0 else if isSecond i then 4 else headCost lay i
+def chainCost (lay i x : Nat) : Nat := (if i = 0 then 0 else headCost lay i) + 4 + 9 * (7 - x)
 
-def chainCost (lay i x : Nat) : Nat := chainHeadCost lay i + 4 + 9 * (7 - x)
-
-theorem chain_good_ent (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (acc : List Val)
-    (hchk : ChainEvidence c i) (hlook : LookOK image Threaded.look) (hsec : isSecond i = false) (K : List Val → OracleComp HashSpec Obs) (N C : Nat)
+theorem chain_good_ent (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hsec : isSec i = false) (acc : List Val)
+    (hchk : chainCheck c.lay i = true) (K : List Val → OracleComp HashSpec Obs) (N C : Nat)
     (hK : ∀ v t, v.length = 16 → HeadInv c (i + 1) (acc ++ [v]) t → Good t N C (K (acc ++ [v])))
     (s : MachineState) (hs : EntInv c i acc s) :
     Good s (N + 51) (C + 4 + 9 * (7 - dig c i))
@@ -75,60 +69,52 @@ theorem chain_good_ent (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (acc : Lis
   have hx := dig_lt c i
   have hw := length_witChain c hc i hi
   by_cases h7 : dig c i = 7
-  · obtain ⟨t, hst, hH⟩ := entry_7 c hc i hi acc hchk hlook hsec s hs h7
+  · obtain ⟨t, hst, hH⟩ := entry_7 c hc i hi hsec acc hchk s hs h7
     rw [h7]
     have : chainFrom c.lay c.tau c.e i 7 (witChain c.wl c.lay i) = pure (witChain c.wl c.lay i) := rfl
     rw [this, cc_pure]
     exact Good.steps' hst (hK _ t hw hH) (by omega) (by omega)
-  · obtain ⟨t, hst, hS⟩ := entry_lt7 c hc i hi acc hchk hlook hsec s hs (by omega)
+  · obtain ⟨t, hst, hS⟩ := entry_lt7 c hc i hi hsec acc hchk s hs (by omega)
     have hcf : chainFrom c.lay c.tau c.e i (dig c i) (witChain c.wl c.lay i) =
         restFold c i (dig c i + 1) (witChain c.wl c.lay i) := by
       unfold chainFrom restFold; congr 2; omega
     rw [hcf]
-    have := steps_good c hc i hi acc hchk hlook K N C hK (6 - dig c i) (dig c i + 1) (by omega) (by omega) _ _ hS
-    have he : endCost i = 0 := by simp [endCost, hsec]
-    rw [he] at this
+    have := steps_good c hc i hi acc hchk K N C hK (6 - dig c i) (dig c i + 1) (by omega) (by omega)
+      (by omega) _ _ hS
     exact Good.steps' hst this (by omega) (by omega)
 
 theorem chain_good_head (c : CCtx) (hc : c.ok) (i : Nat) (hi1 : 1 ≤ i) (hi : i < 42) (acc : List Val)
-    (hchk : ChainEvidence c i) (hlook : LookOK image Threaded.look) (K : List Val → OracleComp HashSpec Obs) (N C : Nat)
+    (hchk : chainCheck c.lay i = true) (K : List Val → OracleComp HashSpec Obs) (N C : Nat)
     (hK : ∀ v t, v.length = 16 → HeadInv c (i + 1) (acc ++ [v]) t → Good t N C (K (acc ++ [v])))
     (s : MachineState) (hs : HeadInv c i acc s) :
     Good s (N + 62) (C + chainCost c.lay i (dig c i))
       (cc (chainFrom c.lay c.tau c.e i (dig c i) (witChain c.wl c.lay i)) (fun v => K (acc ++ [v]))) := by
-  by_cases hsec : isSecond i = true
-  · by_cases h7 : dig c i = 7
-    · obtain ⟨t,hst,hD⟩ := second_7 c hc i hi acc hchk hlook hsec s hs h7
-      obtain ⟨u,htu,hU⟩ := done_next c hc i hi _ hchk hlook t hD
-      have ht : endCost i = 1 := by simp [endCost, hsec]
-      rw [ht] at htu
+  have hx := dig_lt c i
+  have hw := length_witChain c hc i hi
+  cases hsec : isSec i
+  · obtain ⟨t, hst, hE⟩ := head_step c hc i hi1 hi hsec acc hchk s hs
+    have hh : headCost c.lay i ≤ 10 := by unfold headCost; split_ifs <;> simp_all
+    have := chain_good_ent c hc i hi hsec acc hchk K N C hK t hE
+    refine Good.steps' hst this (by omega) ?_
+    unfold chainCost; rw [if_neg (by omega)]; omega
+  · -- the pair-second chain: its head stores the start value (no table)
+    have hh : headCost c.lay i ≤ 4 := by unfold headCost; rw [if_pos hsec]; split <;> omega
+    by_cases h7 : dig c i = 7
+    · obtain ⟨t, hst, hH⟩ := bhead_7 c hc i hi hsec acc hchk s hs h7
       rw [h7]
       have : chainFrom c.lay c.tau c.e i 7 (witChain c.wl c.lay i) = pure (witChain c.wl c.lay i) := rfl
       rw [this, cc_pure]
-      have hh := hK _ u (length_witChain c hc i hi) hU
-      have hsu := hst.trans htu
-      refine Good.steps' hsu hh (by omega) ?_
-      simp [chainCost, chainHeadCost, show i ≠ 0 by omega, hsec]
-    · have hd : dig c i < 7 := by have := dig_lt c i; omega
-      obtain ⟨t,hst,hS⟩ := second_lt7 c hc i hi acc hchk hlook hsec s hs hd
+      refine Good.steps' hst (hK _ t hw hH) (by omega) ?_
+      unfold chainCost; rw [if_neg (by omega)]
+    · obtain ⟨t, hst, hS⟩ := bhead_lt7 c hc i hi hsec acc hchk s hs (by omega)
       have hcf : chainFrom c.lay c.tau c.e i (dig c i) (witChain c.wl c.lay i) =
           restFold c i (dig c i + 1) (witChain c.wl c.lay i) := by
         unfold chainFrom restFold; congr 2; omega
       rw [hcf]
-      have hg := steps_good c hc i hi acc hchk hlook K N C hK (6 - dig c i) (dig c i + 1)
-        (by omega) (by omega) _ _ hS
-      have ht : endCost i = 1 := by simp [endCost, hsec]
-      rw [ht] at hg
-      refine Good.steps' hst hg (by omega) ?_
-      simp only [chainCost, chainHeadCost, if_neg (show i ≠ 0 by omega), hsec, if_true]
-      omega
-  · have hsec' : isSecond i = false := by simpa using hsec
-    obtain ⟨t, hst, hE⟩ := head_step c hc i hi1 hi acc hchk hlook hsec' s hs
-    have hh : headCost c.lay i ≤ 10 := by unfold headCost headLen; split_ifs <;> simp_all
-    have := chain_good_ent c hc i hi acc hchk hlook hsec' K N C hK t hE
-    refine Good.steps' hst this (by omega) ?_
-    simp only [chainCost, chainHeadCost, if_neg (show i ≠ 0 by omega), hsec', Bool.false_eq_true, if_false]
-    omega
+      have := steps_good c hc i hi acc hchk K N C hK (6 - dig c i) (dig c i + 1) (by omega) (by omega)
+        (by omega) _ _ hS
+      refine Good.steps' hst this (by omega) ?_
+      unfold chainCost; rw [if_neg (by omega)]; omega
 
 /-! ## All chains -/
 
@@ -140,7 +126,7 @@ def chainsCost (c : CCtx) (i k : Nat) : Nat :=
   ((List.range' i k).map fun j => chainCost c.lay j (dig c j)).sum
 
 theorem chains_good (c : CCtx) (hc : c.ok) (xs : List Nat) (hxs : ∀ i < 42, xs.getD i 0 = dig c i)
-    (hchk : ∀ i < 42, ChainEvidence c i) (hlook : LookOK image Threaded.look) (K : List Val → OracleComp HashSpec Obs) (N C : Nat)
+    (hchk : ∀ i < 42, chainCheck c.lay i = true) (K : List Val → OracleComp HashSpec Obs) (N C : Nat)
     (hK : ∀ ends t, HeadInv c 42 ends t → Good t N C (K ends)) :
     ∀ k i, 1 ≤ i → i + k = 42 → ∀ acc s, HeadInv c i acc s →
       Good s (N + 62 * k) (C + chainsCost c i k)
@@ -156,7 +142,7 @@ theorem chains_good (c : CCtx) (hc : c.ok) (xs : List Nat) (hxs : ∀ i < 42, xs
     rw [List.range'_succ, List.foldlM_cons]
     simp only [chainF, bind_assoc, pure_bind, cc_bind]
     rw [hxs i (by omega)]
-    have := chain_good_head c hc i hi1 (by omega) acc (hchk i (by omega)) hlook
+    have := chain_good_head c hc i hi1 (by omega) acc (hchk i (by omega))
       (fun ends => cc ((List.range' (i + 1) k).foldlM (chainF c xs) ends) K)
       (N + 62 * k) (C + chainsCost c (i + 1) k)
       (fun v t _ ht => by
@@ -168,24 +154,24 @@ theorem chains_good (c : CCtx) (hc : c.ok) (xs : List Nat) (hxs : ∀ i < 42, xs
 
 /-- All 42 chains, from the dispatch of chain 0 (at its table entry). -/
 theorem chains_good0 (c : CCtx) (hc : c.ok) (xs : List Nat) (hxs : ∀ i < 42, xs.getD i 0 = dig c i)
-    (hchk : ∀ i < 42, ChainEvidence c i) (hlook : LookOK image Threaded.look) (K : List Val → OracleComp HashSpec Obs) (N C : Nat)
+    (hchk : ∀ i < 42, chainCheck c.lay i = true) (K : List Val → OracleComp HashSpec Obs) (N C : Nat)
     (hK : ∀ ends t, HeadInv c 42 ends t → Good t N C (K ends)) (s : MachineState)
     (hs : EntInv c 0 [] s) :
     Good s (N + 62 * 42) (C + chainsCost c 0 42) (cc ((List.range 42).foldlM (chainF c xs) []) K) := by
   rw [show List.range 42 = 0 :: List.range' 1 41 from rfl, List.foldlM_cons]
   simp only [chainF, bind_assoc, pure_bind, cc_bind]
   rw [hxs 0 (by omega)]
-  have := chain_good_ent c hc 0 (by omega) [] (hchk 0 (by omega)) hlook (by decide)
+  have := chain_good_ent c hc 0 (by omega) rfl [] (hchk 0 (by omega))
     (fun ends => cc ((List.range' 1 41).foldlM (chainF c xs) ends) K)
     (N + 62 * 41) (C + chainsCost c 1 41)
     (fun v t _ ht => by
-      have := chains_good c hc xs hxs hchk hlook K N C hK 41 1 (le_refl _) rfl ([] ++ [v]) t ht
+      have := chains_good c hc xs hxs hchk K N C hK 41 1 (le_refl _) rfl ([] ++ [v]) t ht
       simpa [chainF] using this) s hs
   refine this.mono (by omega) ?_
   have : chainsCost c 0 42 = chainCost c.lay 0 (dig c 0) + chainsCost c 1 41 := by
     unfold chainsCost; rw [show List.range' 0 42 = 0 :: List.range' 1 41 from rfl]
     simp only [List.map_cons, List.sum_cons]
-  rw [this]; simp only [chainCost, chainHeadCost, if_pos rfl]
+  rw [this]; simp only [chainCost, if_pos rfl]
   omega
 
 theorem sum_eq_getD (l : List Nat) : l.sum = ((List.range l.length).map (l.getD · 0)).sum := by
@@ -197,11 +183,11 @@ theorem sum_eq_getD (l : List Nat) : l.sum = ((List.range l.length).map (l.getD 
     rfl
 
 /-- Sum of the head costs of chains `1 .. 41` of a layer. -/
-def headSum (lay : Nat) : Nat := ((List.range' 0 42).map fun j => chainHeadCost lay j).sum
+def headSum (lay : Nat) : Nat := ((List.range' 0 42).map fun j => if j = 0 then 0 else headCost lay j).sum
 
 theorem chainsCost_aux (c : CCtx) : ∀ k i,
     ((List.range' i k).map fun j => chainCost c.lay j (dig c j)).sum + 9 * ((List.range' i k).map (dig c)).sum =
-      (67 * k + ((List.range' i k).map fun j => chainHeadCost c.lay j).sum) := by
+      (67 * k + ((List.range' i k).map fun j => if j = 0 then 0 else headCost c.lay j).sum) := by
   intro k
   induction k with
   | zero => intro i; rfl
@@ -224,7 +210,7 @@ theorem chainsCost_eq (c : CCtx) (xs : List Nat) (hlen : xs.length = 42)
   have := chainsCost_aux c 42 0
   rw [hs] at this
   unfold chainsCost headSum
-  have ht : targetFor c.lay ≤ 183 := by unfold targetFor targetSum; split_ifs <;> omega
+  have hT := targetFor_le c.lay
   omega
 
 end SigGolfCandidate.Verify

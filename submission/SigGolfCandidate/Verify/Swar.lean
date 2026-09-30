@@ -99,32 +99,6 @@ theorem swarTail (P0 P1 P2 P3 P4 P5 : Nat) (h0 : P0 ≤ 63) (h1 : P1 ≤ 63) (h2
   have hlt : Y < 18446744073709551616 := by omega
   rw [Nat.mod_eq_of_lt hlt, hY', Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (by omega)]
 
-/-- Reducing modulo 4095 sums base-4096 lanes without carries.
-Adapted from @gopikannappan, sig.golf PR 18, commit 3ceb68c. -/
-theorem swarTail_rem (P0 P1 P2 P3 P4 P5 : Nat)
-    (h0 : P0 ≤ 63) (h1 : P1 ≤ 63) (h2 : P2 ≤ 63) (h3 : P3 ≤ 63)
-    (h4 : P4 ≤ 63) (h5 : P5 ≤ 15) :
-    (P0 + 4096 * (P1 + 4096 * (P2 + 4096 * (P3 + 4096 * (P4 + 4096 * P5))))) % 4095 =
-      P0 + P1 + P2 + P3 + P4 + P5 := by
-  have hrem :
-      (P0 + 4096 * (P1 + 4096 * (P2 + 4096 * (P3 + 4096 * (P4 + 4096 * P5))))) % 4095 =
-        (P0 + P1 + P2 + P3 + P4 + P5) % 4095 := by
-    simp only [Nat.add_mod, Nat.mul_mod, show 4096 % 4095 = 1 from rfl,
-      Nat.one_mul, Nat.mod_mod]
-    omega
-  rw [hrem, Nat.mod_eq_of_lt (by omega)]
-
-/-- REMU agrees with the original shift/add tail on every masked word.
-The original `m6` is retained because the unchanged signer also uses its proof. -/
-theorem swar_rem (n : Nat) : m3 n % 4095 = m6 (m3 n) % 4096 := by
-  have hp : m3 n = n % 64 + 4096 * (n / 4096 % 64 +
-      4096 * (n / 4096 / 4096 % 64 + 4096 * (n / 4096 / 4096 / 4096 % 64 +
-      4096 * (n / 4096 / 4096 / 4096 / 4096 % 64 +
-      4096 * (n / 4096 / 4096 / 4096 / 4096 / 4096 % 16))))) := by
-    unfold m3; rw [landM2]; omega
-  rw [hp, swarTail_rem _ _ _ _ _ _ (by omega) (by omega) (by omega) (by omega) (by omega) (by omega),
-    swarTail _ _ _ _ _ _ (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)]
-
 theorem swarLanes (L0 L1 L2 L3 L4 L5 L6 L7 L8 L9 L10 : Nat) (h0 : L0 ≤ 28) (h1 : L1 ≤ 28) (h2 : L2 ≤ 28) (h3 : L3 ≤ 28) (h4 : L4 ≤ 28) (h5 : L5 ≤ 28) (h6 : L6 ≤ 28) (h7 : L7 ≤ 28) (h8 : L8 ≤ 28) (h9 : L9 ≤ 28) (h10 : L10 ≤ 14)
     (X : Nat) (hX : X = L0 + 64 * (L1 + 64 * (L2 + 64 * (L3 + 64 * (L4 + 64 * (L5 + 64 * (L6 + 64 * (L7 + 64 * (L8 + 64 * (L9 + 64 * (L10))))))))))) :
     m6 (m3 ((X + X / 64) % 18446744073709551616)) % 4096 = L0 + L1 + L2 + L3 + L4 + L5 + L6 + L7 + L8 + L9 + L10 := by
@@ -247,4 +221,35 @@ theorem swar_nat (a b : Nat) (ha : a < 2 ^ 63) (hb : b < 2 ^ 63) :
     simp (disch := omega) only [Nat.mod_eq_of_lt]
     omega)]
   omega
+/-! OTS modular checksum port: exact reduction, including all masked-word edge cases. -/
+
+theorem fold_mod4095 (a b c d e f : Nat) :
+    (a + 4096 * (b + 4096 * (c + 4096 * (d + 4096 * (e + 4096 * f))))) % 4095 =
+      (a + b + c + d + e + f) % 4095 := by
+  omega
+
+/-- A masked base-4096 word has at most 330 total lane mass, hence no residue alias. -/
+theorem swar_mersenne (n : Nat) : m6 (m3 n) % 4096 = m3 n % 4095 := by
+  have h0 : n % 64 ≤ 63 := by omega
+  have h1 : n / 4096 % 64 ≤ 63 := by omega
+  have h2 : n / 4096 / 4096 % 64 ≤ 63 := by omega
+  have h3 : n / 4096 / 4096 / 4096 % 64 ≤ 63 := by omega
+  have h4 : n / 4096 / 4096 / 4096 / 4096 % 64 ≤ 63 := by omega
+  have h5 : n / 4096 / 4096 / 4096 / 4096 / 4096 % 16 ≤ 15 := by omega
+  have h := swarTail _ _ _ _ _ _ h0 h1 h2 h3 h4 h5
+  have he : m3 n = n % 64 + 4096 * (n / 4096 % 64 + 4096 *
+      (n / 4096 / 4096 % 64 + 4096 * (n / 4096 / 4096 / 4096 % 64 + 4096 *
+      (n / 4096 / 4096 / 4096 / 4096 % 64 + 4096 *
+      (n / 4096 / 4096 / 4096 / 4096 / 4096 % 16))))) := by
+    unfold m3
+    rw [landM2]
+    ring
+  rw [he, h, fold_mod4095]
+  symm
+  apply Nat.mod_eq_of_lt
+  exact lt_of_le_of_lt
+    (Nat.add_le_add (Nat.add_le_add (Nat.add_le_add (Nat.add_le_add
+      (Nat.add_le_add h0 h1) h2) h3) h4) h5) (by decide)
+
+
 end SigGolfCandidate.Verify

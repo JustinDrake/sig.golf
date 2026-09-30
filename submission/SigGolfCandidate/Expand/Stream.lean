@@ -57,23 +57,23 @@ theorem curStream_succ (sig : List Byte) (segs : List Nat) (cnt : Nat) :
 theorem getD_zeros (k i : Nat) : (zeros k).getD i 0 = 0 := by
   unfold zeros; rw [List.getD_eq_getElem?_getD]; simp
 
-theorem length_sigAuth (sig : List Byte) (hsig : sig.length = 6061) (r : Nat) (hr : r < 118) :
+theorem length_sigAuth (sig : List Byte) (hsig : sig.length = 6048) (r : Nat) (hr : r < 118) :
     (sigAuth sig r).length = 16 := by
   simp [sigAuth, sigItem, slice, porsK, hsig]; omega
 
-theorem getD_sigAuth (sig : List Byte) (hsig : sig.length = 6061) (r k : Nat) (hr : r < 118) (hk : k < 16) :
+theorem getD_sigAuth (sig : List Byte) (hsig : sig.length = 6048) (r k : Nat) (hr : r < 118) (hk : k < 16) :
     (sigAuth sig r).getD k 0 = sig.getD (256 + 16 * r + k) 0 := by
   simp only [sigAuth, sigItem, slice, porsK, List.getD_eq_getElem?_getD, List.getElem?_take,
     List.getElem?_drop]
   rw [if_pos hk]; congr 2; ring
 
-theorem length_items (sig : List Byte) (hsig : sig.length = 6061) (r0 n : Nat) (hr : r0 + n ≤ 118) :
+theorem length_items (sig : List Byte) (hsig : sig.length = 6048) (r0 n : Nat) (hr : r0 + n ≤ 118) :
     (items sig r0 n).length = 16 * n := by
   induction n with
   | zero => simp [items]
   | succ n ih => rw [items_succ, List.length_append, ih (by omega), length_sigAuth sig hsig _ (by omega)]; ring
 
-theorem length_segStream (sig : List Byte) (hsig : sig.length = 6061) :
+theorem length_segStream (sig : List Byte) (hsig : sig.length = 6048) :
     ∀ segs : List Nat, nsum segs ≤ 118 → (segStream sig segs).length = 8 * segs.length + 16 * nsum segs := by
   intro segs
   induction segs using List.reverseRecOn with

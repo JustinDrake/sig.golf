@@ -5,9 +5,9 @@ import SigGolfCandidate.Keygen.Output
 # `keygen` refines `keygenRef`
 
 `keygen_run` : for every secret key `sk`,
-`submission.run .keygen sk = (fun o => ⟨some o, true, 17715399, 653310, 674814⟩) <$> keygenRef sk`:
+`submission.run .keygen sk = (fun o => ⟨some o, true, 13500615, 653310, 674814⟩) <$> keygenRef sk`:
 the machine makes exactly the oracle queries of `keygenRef sk` (in order), outputs its public key
-and cache, and always takes 17715399 cycles, 653310 calls and 674814 compressions.
+and cache, and always takes 13500615 cycles, 653310 calls and 674814 compressions.
 -/
 
 namespace SigGolfCandidate.Keygen
@@ -81,7 +81,7 @@ theorem kW_skOk (sk : SecretKey) : SkOk (kW sk) (toList sk) := by
   rfl
 
 theorem leaves_xsim (sk : SecretKey) :
-    XSim image (kInit sk) (25 + sumTo (fun _ => 6272) (2 ^ 11)) (25 + sumTo (fun _ => 8564) (2 ^ 11))
+    XSim image (kInit sk) (25 + sumTo (fun _ => 4214) (2 ^ 11)) (25 + sumTo (fun _ => 6506) (2 ^ 11))
       (sumTo (fun _ => 316) (2 ^ 11)) (sumTo (fun _ => 326) (2 ^ 11))
       (buildLeaves (toList sk) 0 0 11 0 [])
       (fun p u => LCtx (kW sk) (2 ^ 11) p.1 u ∧ u.pc = if 2 ^ 11 < 2048 then pcOf 25 else pcOf 76) := by
@@ -114,7 +114,7 @@ theorem leaves_xsim (sk : SecretKey) :
   unfold buildLeaves
   refine XSim.steps hst (XSim.foldlM_range (2 ^ 11) _ ([], [])
     (fun e acc u => LCtx (kW sk) e acc.1 u ∧ u.pc = if e < 2048 then pcOf 25 else pcOf 76)
-    (fun _ => 6272) (fun _ => 8564) (fun _ => 316) (fun _ => 326)
+    (fun _ => 4214) (fun _ => 6506) (fun _ => 316) (fun _ => 326)
     (fun e he acc u hu => leaf_xsim (kW sk) (toList sk) (kW_skOk sk) e (by norm_num at he; omega)
       acc u hu.1 (by rw [hu.2, if_pos (by norm_num at he; omega)])) ⟨h0, by rw [tpc]; rfl⟩)
 
@@ -246,7 +246,7 @@ theorem mac_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels : List 
 
 /-- The whole of `keygenList`, from the initial state to the final HALT. -/
 theorem keygenList_xsim (sk : SecretKey) :
-    XSim image (kInit sk) 12970196 17715398 653310 674814 (keygenList (toList sk))
+    XSim image (kInit sk) 8755412 13500614 653310 674814 (keygenList (toList sk))
       (fun r t => fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 0 ∧
         ValAt t 160 r.1 ∧ r.1.length = 16 ∧ readBuffer t 0x4B00 CACHE_BYTES = ofList CACHE_BYTES r.2) := by
   have hS := kW_skOk sk
@@ -307,7 +307,7 @@ theorem keygenList_xsim (sk : SecretKey) :
 
 /-- The whole of `keygen`. -/
 theorem keygen_xsim (sk : SecretKey) :
-    XSim image (kInit sk) 12970196 17715398 653310 674814 (keygenRef sk)
+    XSim image (kInit sk) 8755412 13500614 653310 674814 (keygenRef sk)
       (fun o t => fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 0 ∧
         readOutput submission.sizes submission.layout .keygen t = o) := by
   unfold keygenRef
@@ -320,11 +320,11 @@ theorem keygen_xsim (sk : SecretKey) :
   rw [readBuffer_val t 160 root trl (by norm_num) (by norm_num) tpk, tc]
 
 /-- **keygen**: for every secret key, one run makes exactly the oracle queries of
-`keygenRef sk`, outputs its public key and cache, and always takes 17715399 cycles, 653310 calls
+`keygenRef sk`, outputs its public key and cache, and always takes 13500615 cycles, 653310 calls
 and 674814 compressions. -/
 theorem keygen_run (sk : SecretKey) :
     submission.run .keygen sk =
-      (fun o => ⟨some o, true, 17715399, 653310, 674814⟩) <$> keygenRef sk :=
+      (fun o => ⟨some o, true, 13500615, 653310, 674814⟩) <$> keygenRef sk :=
   XSim.run_eq submission .keygen sk (kInit_eq sk) (keygen_xsim sk) (by decide) id
     (fun _ _ h => h)
 
@@ -346,10 +346,10 @@ theorem keygen_run_counts (sk : SecretKey) :
       (fun p => (some p.1, p.2.1, p.2.2)) <$> Sign.countBoth (keygenRef sk) := by
   rw [keygen_run, keygenRef_countBoth, Functor.map_map, Functor.map_map]; rfl
 
-/-- Fixed-oracle form: finished, exactly 17715399 cycles (`< 2^32`), for every oracle. -/
+/-- Fixed-oracle form: finished, exactly 13500615 cycles (`< 2^32`), for every oracle. -/
 theorem keygen_runWith (hash : Hash) (sk : SecretKey) :
     submission.runWith hash .keygen sk =
-      ⟨some (evalWithAnswerFn hash (keygenRef sk)), true, 17715399, 653310, 674814⟩ := by
+      ⟨some (evalWithAnswerFn hash (keygenRef sk)), true, 13500615, 653310, 674814⟩ := by
   unfold Submission.runWith
   rw [keygen_run, evalWithAnswerFn_map]
   rfl

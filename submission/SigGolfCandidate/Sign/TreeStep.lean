@@ -1,4 +1,4 @@
-import SigGolfCandidate.Sign.ThreadedFormat
+import SigGolfCandidate.Sign.Blocks
 import SigGolfCandidate.Sign.Inv
 
 /-!
@@ -159,7 +159,7 @@ theorem step_capture (p : StepPar) (ts : MachineState) (ctx : StepCtx p ts) (t :
 
 theorem step_body (p : StepPar) (ts : MachineState) (ctx : StepCtx p ts) (j : Nat) (hj : j < 7)
     (st : Val × Val) (t : MachineState) (hinv : StepInv p ts j st t) :
-    Sim image t 36 (do
+    Sim image t 29 (do
         let v ← hash16 (chainInput p.lay p.tau p.ep p.i (1 + j) st.1)
         pure (v, if 1 + j = p.xi then v else st.2))
       (StepInv p ts (j + 1)) := by
@@ -175,18 +175,32 @@ theorem step_body (p : StepPar) (ts : MachineState) (ctx : StepCtx p ts) (j : Na
   have tx5 : t.getReg .x5 = 0 := by rw [tregs.get .x5, ctx.x5]
   have tx11 : t.getReg .x11 = BitVec.ofNat 64 64 := by rw [tregs.get .x11, ctx.x11]
   have tx12 : t.getReg .x12 = BitVec.ofNat 64 0xF0 := by rw [tregs.get .x12, ctx.x12]
-  obtain ⟨t1, hs1, pc1, x23, x10, r1, f1, m1⟩ :=
-    threaded_tree_format t tpc' j (8 * p.i + j) (by omega) t23 t24
-  rw [show (8 * p.i + j) / 8 = p.i by omega, show (8 * p.i + j) % 8 = j by omega] at m1
-  have e1 := threaded_fetch_563 t1 pc1
+  -- block 533: step input
+  have hs1 := symRun_sound blk556 codeAt_556 t tpc' (by simp only [blk556.res, rv_simp])
+  have hc1 : blk556.res.cycles = 7 := rfl
+  rw [hc1] at hs1
+  set t1 := blk556.res.toState t with ht1
+  have f1 : Frame t t1 (fun x => x = 0xC0) := by
+    apply frame_toState; intro x hx hW
+    simp only [blk556.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
+      implies_true, and_true, ne_eq, ofNat_eq_iff]
+    omega
+  have r1 : RegsEq t t1 [.x3, .x10, .x23, .x29] := by
+    intro r hr; rw [ht1, Result.toState_getReg]
+    cases r <;> first | exact absurd (by decide) hr | rfl
+  have e1 := symRun_ecall blk556 codeAt_556 t (by simp only [blk556.res, rv_simp]) rfl
+  have x10 : t1.getReg .x10 = BitVec.ofNat 64 0xC0 := by simp only [ht1, blk556.res, rv_simp]
   have x11 : t1.getReg .x11 = BitVec.ofNat 64 64 := by rw [r1.get .x11, tx11]
   have x12 : t1.getReg .x12 = BitVec.ofNat 64 0xF0 := by rw [r1.get .x12, tx12]
   have x5 : t1.getReg .x5 = 0 := by rw [r1.get .x5, tx5]
-  have mC0 : t1.getMem (BitVec.ofNat 64 0xC0) = twWord0 1 p.lay p.tau (chainPtr p.i + 65536 * j) := by
-    rw [m1]
+  have x23 : t1.getReg .x23 = BitVec.ofNat 64 (j + 1) := by
+    simp only [ht1, blk556.res, rv_simp]; bvsimp [t23]
+  have pc1 : t1.pc = pcOf 563 := by simp only [ht1, blk556.res, rv_simp]
+  have mC0 : t1.getMem (BitVec.ofNat 64 0xC0) = twWord0 1 p.lay p.tau (j + 256 * p.i) := by
+    simp only [ht1, blk556.res, rv_simp, t24, splitP_word p.i j (by omega) (by omega)]
     bvsimp []
-    refine (word_of_halves _ (0x101 + 65536 * p.lay) (chainPtr p.i + 65536 * j)
-      (by rw [lo32_replace1, tlo, ctx.cb0]) (by rw [hi32_replace1])).trans ?_
+    refine (word_of_halves _ (0x101 + 65536 * p.lay) (j + 256 * p.i) (by rw [lo32_replace1, tlo, ctx.cb0])
+      (by rw [hi32_replace1])).trans ?_
     unfold twWord0; congr 1
     rw [Nat.div_eq_of_lt (by omega : p.tau < 2 ^ 32)]; omega
   have hq : hashInput t1 = fmt (chainInput p.lay p.tau p.ep p.i (1 + j) st.1) := by
@@ -198,7 +212,7 @@ theorem step_body (p : StepPar) (ts : MachineState) (ctx : StepCtx p ts) (j : Na
       tframe.getMem (by norm_num) (by simp only [stepW]; omega), ctx.cb8,
       f1.readWords _ _ (by norm_num) (by intro i hi; omega),
       f1.readWords _ _ (by norm_num) (by intro i hi; omega), tz, tv]
-    simp only [twWords_eq, show chainPtr p.i + 65536 * (1 + j - 1) = chainPtr p.i + 65536 * j by omega]
+    simp only [twWords_eq, show 1 + j - 1 + 256 * p.i = j + 256 * p.i by omega]
     simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true, true_and]
     congr 1; omega
   have hb : (fmt (chainInput p.lay p.tau p.ep p.i (1 + j) st.1)).blocks = 1 := by
@@ -315,10 +329,10 @@ theorem step_body (p : StepPar) (ts : MachineState) (ctx : StepCtx p ts) (j : Na
 /-- **Chain steps** `mu = 1 .. 7` (with capture). -/
 theorem steps_sim (p : StepPar) (ts : MachineState) (ctx : StepCtx p ts) (v0 : Val)
     (h0 : StepInv p ts 0 (v0, v0) ts) :
-    Sim image ts (7 * 36) ((List.range' 1 7).foldlM (fun (st : Val × Val) mu => do
+    Sim image ts (7 * 29) ((List.range' 1 7).foldlM (fun (st : Val × Val) mu => do
         let v ← hash16 (chainInput p.lay p.tau p.ep p.i mu st.1)
         pure (v, if mu = p.xi then v else st.2)) (v0, v0)) (StepInv p ts 7) :=
-  Sim.foldlM_range' 1 7 _ (v0, v0) (StepInv p ts) 36
+  Sim.foldlM_range' 1 7 _ (v0, v0) (StepInv p ts) 29
     (fun j hj st t h => step_body p ts ctx j hj st t h) h0
 
 end SigGolfCandidate.Sign

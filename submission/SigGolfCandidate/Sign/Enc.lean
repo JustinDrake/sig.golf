@@ -3,10 +3,12 @@ import SigGolfCandidate.Sign.Inv
 import SigGolfCandidate.Verify.Swar
 
 /-!
-# `sign`, the counter search of a layer (`enc_loop`, instructions 294 .. 329)
+# `sign`, the counter search of a layer (`enc_loop`, instructions 346 .. 381)
 
 `encLoop_sim` : from `enc_loop` with counter `c`, the machine refines
-`searchCounter lay tau e M c (2^20 - c)`.
+`searchCounter lay tau e M c (2^22 - c)`. The digit-sum test compares against the layer target
+(`targetFor lay`: 183 on layer 4, 181 above) through the out-of-line thunk at instruction 1717
+(`t3 -= 183; t3 += 2 · [lay < 4]`), keyed on `x8 = lay`.
 -/
 
 set_option linter.unusedSimpArgs false
@@ -59,15 +61,17 @@ def swF (x : Word) (k : Nat) : Word := x + (x >>> k)
 def swarW (a b m1 m2 : Word) : Word :=
   swF (swF (swF (swF (swS1 a b m1) 6 &&& m2) 12) 24) 48 &&& 2047
 
-/-- The SWAR sum, layer-target thunk, and existing equality branch. -/
+/-- The SWAR sum (instructions 355 .. 374, ending in the jump to the out-of-line layer-target
+thunk at 1717), the thunk (`t3 -= 183; t3 += 2 · [lay < 4]`, jump back) and the equality branch
+at 375. -/
 def swarState (t : MachineState) : MachineState :=
-  blk375.res.toState (blk2967.res.toState (blk355.res.toState t))
+  blk375.res.toState (blk1717.res.toState (blk355.res.toState t))
 
 theorem swarState_pc_raw (t : MachineState) : (swarState t).pc =
     if (swarW (t.getReg .x1) (t.getReg .x2) (t.getReg .x26) (t.getReg .x27) +
         BitVec.ofNat 64 (2 ^ 64 - 183) +
         ((if (t.getReg .x8).ult 4 then (1 : Word) else 0) <<< 1) != 0#64) = true then pcOf 377 else pcOf 376 := by
-  simp only [swarState, blk375.res, blk2967.res, blk355.res, rv_simp,
+  simp only [swarState, blk375.res, blk1717.res, blk355.res, rv_simp,
     swarW, swF, swS1, BitVec.sub_eq_add_neg]
   rfl
 
@@ -168,7 +172,7 @@ structure EncMem (lay tau e : Nat) (M : Val) (u : MachineState) : Prop where
   ebM : u.readWords (BitVec.ofNat 64 0x120) 2 = wordsOf M
   eb56 : u.getMem (BitVec.ofNat 64 0x138) = 0
   x5 : u.getReg .x5 = 0
-  x7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 20)
+  x7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 22)
   x26 : u.getReg .x26 = swM1
   x27 : u.getReg .x27 = swM2
   x8 : u.getReg .x8 = BitVec.ofNat 64 lay
@@ -178,14 +182,31 @@ def encW (a : Nat) : Prop := a = 0x130 ∨ (0x140 ≤ a ∧ a < 0x160)
 def encRegs : List Reg := [.x1, .x2, .x3, .x6, .x10, .x11, .x12, .x28, .x29]
 
 def EncInv (u : MachineState) (c : Nat) (t : MachineState) : Prop :=
-  t.pc = pcOf 346 ∧ t.getReg .x6 = BitVec.ofNat 64 c ∧ c < 2 ^ 20 ∧ RegsEq u t encRegs ∧ Frame u t encW
+  t.pc = pcOf 346 ∧ t.getReg .x6 = BitVec.ofNat 64 c ∧ c < 2 ^ 22 ∧ RegsEq u t encRegs ∧ Frame u t encW
 
 def EncPost (lay : Nat) (u : MachineState) : Option (Nat × List Nat) → MachineState → Prop
   | none, t => t.pc = pcOf 381 ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 1
-  | some (c, x), t => t.pc = pcOf 382 ∧ t.getReg .x6 = BitVec.ofNat 64 c ∧ c < 2 ^ 20 ∧
+  | some (c, x), t => t.pc = pcOf 382 ∧ t.getReg .x6 = BitVec.ofNat 64 c ∧ c < 2 ^ 22 ∧
       (∃ d0 d1, d0 < 2 ^ 63 ∧ d1 < 2 ^ 63 ∧ x = digitsOfWord d0 ++ digitsOfWord d1 ∧ x.sum = targetFor lay ∧
         t.getReg .x1 = BitVec.ofNat 64 d0 ∧ t.getReg .x2 = BitVec.ofNat 64 d1) ∧
       RegsEq u t encRegs ∧ Frame u t encW
+
+/-- The code of the counter search (instructions 346 .. 381, and the layer-target thunk at 1717)
+inside an image: the sign image, and the expand image (which carries the sign's words 316 .. 381
+and the thunk verbatim). -/
+structure EncCode (img : Image) : Prop where
+  c346 : CodeAt img (pcOf 346) seg346
+  c351 : CodeAt img (pcOf 351) seg351
+  c355 : CodeAt img (pcOf 355) seg355
+  c375 : CodeAt img (pcOf 375) seg375
+  c376 : CodeAt img (pcOf 376) seg376
+  c377 : CodeAt img (pcOf 377) seg377
+  c379 : CodeAt img (pcOf 379) seg379
+  c1717 : CodeAt img (pcOf 1717) seg1717
+
+/-- The sign image's counter-search code. -/
+theorem encCode : EncCode image :=
+  ⟨codeAt_346, codeAt_351, codeAt_355, codeAt_375, codeAt_376, codeAt_377, codeAt_379, codeAt_1717⟩
 
 theorem searchCounter_succ (lay tau e : Nat) (M : Val) (c f : Nat) :
     searchCounter lay tau e M c (f + 1) = (hash16 (encInput lay tau e M c) >>= fun d =>
@@ -193,12 +214,12 @@ theorem searchCounter_succ (lay tau e : Nat) (M : Val) (c f : Nat) :
       | some x => pure (some (c, x))
       | none => searchCounter lay tau e M (c + 1) f) := rfl
 
-theorem encTrial (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem lay tau e M u)
+theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem lay tau e M u)
     (c : Nat) (t : MachineState) (hinv : EncInv u c t) (rest : OracleComp HashSpec (Option (Nat × List Nat)))
     (Wr : Nat)
     (hrest : ∀ t', t'.pc = pcOf 377 → t'.getReg .x6 = BitVec.ofNat 64 c → RegsEq u t' encRegs →
-      Frame u t' encW → Sim image t' Wr rest (EncPost lay u)) :
-    Sim image t (43 + Wr) (hash16 (encInput lay tau e M c) >>= fun d =>
+      Frame u t' encW → Sim img t' Wr rest (EncPost lay u)) :
+    Sim img t (43 + Wr) (hash16 (encInput lay tau e M c) >>= fun d =>
       match decodeDigits lay d with
       | some x => pure (some (c, x))
       | none => rest) (EncPost lay u) := by
@@ -207,7 +228,7 @@ theorem encTrial (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem l
   have htau := hmem.htau
   have he := hmem.he
   -- block 294
-  have hs1 := symRun_sound blk346 codeAt_346 t tpc (by simp only [blk346.res, rv_simp])
+  have hs1 := symRun_sound blk346 hcode.c346 t tpc (by simp only [blk346.res, rv_simp])
   have hc1 : blk346.res.cycles = 4 := rfl
   rw [hc1] at hs1
   set t1 := blk346.res.toState t with ht1
@@ -219,7 +240,7 @@ theorem encTrial (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem l
   have r1 : RegsEq t t1 [.x10, .x11, .x12] := by
     intro r hr; rw [ht1, Result.toState_getReg]
     cases r <;> first | exact absurd (by decide) hr | rfl
-  have e1 := symRun_ecall blk346 codeAt_346 t (by simp only [blk346.res, rv_simp]) rfl
+  have e1 := symRun_ecall blk346 hcode.c346 t (by simp only [blk346.res, rv_simp]) rfl
   have x10 : t1.getReg .x10 = BitVec.ofNat 64 0x100 := by simp only [ht1, blk346.res, rv_simp]
   have x11 : t1.getReg .x11 = BitVec.ofNat 64 64 := by simp only [ht1, blk346.res, rv_simp]
   have x12 : t1.getReg .x12 = BitVec.ofNat 64 0x140 := by simp only [ht1, blk346.res, rv_simp]
@@ -269,7 +290,7 @@ theorem encTrial (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem l
   have hd1l : d1 < 2 ^ 64 := BitVec.isLt _
   rw [decodeDigits_answer lay]
   -- block 299: load the encoding, sign test
-  have hs3 := symRun_sound blk351 codeAt_351 t2 pc2 (by simp only [blk351.res, rv_simp])
+  have hs3 := symRun_sound blk351 hcode.c351 t2 pc2 (by simp only [blk351.res, rv_simp])
   have hc3 : blk351.res.cycles = 4 := rfl
   rw [hc3] at hs3
   set t3 := blk351.res.toState t2 with ht3
@@ -304,20 +325,20 @@ theorem encTrial (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem l
       (fun _ _ h => h)
   obtain ⟨h0, h1⟩ := h01
   rw [if_pos ⟨h0, h1⟩]
-  have hs50 := symRun_sound blk355 codeAt_355 t3 (by rw [pc3, if_neg (by omega)])
+  have hs50 := symRun_sound blk355 hcode.c355 t3 (by rw [pc3, if_neg (by omega)])
     (by simp only [blk355.res, rv_simp])
-  have hs51 := symRun_sound blk2967 codeAt_2967 (blk355.res.toState t3)
-    (by simp only [blk355.res, rv_simp]) (by simp only [blk2967.res, rv_simp])
-  have hs52 := symRun_sound blk375 codeAt_375 (blk2967.res.toState (blk355.res.toState t3))
-    (by simp only [blk2967.res, rv_simp]) (by simp only [blk375.res, rv_simp])
-  have hs5 : Steps image t3 26 26 (swarState t3) := hs50.trans (hs51.trans hs52)
+  have hs51 := symRun_sound blk1717 hcode.c1717 (blk355.res.toState t3)
+    (by simp only [blk355.res, rv_simp]) (by simp only [blk1717.res, rv_simp])
+  have hs52 := symRun_sound blk375 hcode.c375 (blk1717.res.toState (blk355.res.toState t3))
+    (by simp only [blk1717.res, rv_simp]) (by simp only [blk375.res, rv_simp])
+  have hs5 : Steps img t3 26 26 (swarState t3) := hs50.trans (hs51.trans hs52)
   set t5 := swarState t3 with ht5
   have f50 : Frame t3 (blk355.res.toState t3) (fun _ => False) := by
     apply frame_toState; intro x hx hW; simp [blk355.res]
   have f51 : Frame (blk355.res.toState t3)
-      (blk2967.res.toState (blk355.res.toState t3)) (fun _ => False) := by
-    apply frame_toState; intro x hx hW; simp [blk2967.res]
-  have f52 : Frame (blk2967.res.toState (blk355.res.toState t3)) t5 (fun _ => False) := by
+      (blk1717.res.toState (blk355.res.toState t3)) (fun _ => False) := by
+    apply frame_toState; intro x hx hW; simp [blk1717.res]
+  have f52 : Frame (blk1717.res.toState (blk355.res.toState t3)) t5 (fun _ => False) := by
     apply frame_toState; intro x hx hW; simp [blk375.res]
   have f5 : Frame t3 t5 (fun _ => False) :=
     ((f50.trans f51).trans f52).mono (by tauto)
@@ -343,7 +364,7 @@ theorem encTrial (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem l
     · rw [if_neg h, if_pos (by rw [decide_eq_false h]; rfl)]
   by_cases hsum : (digitsOfWord d0 ++ digitsOfWord d1).sum = targetFor lay
   · rw [if_pos hsum]
-    have hs6 := symRun_sound blk376 codeAt_376 t5 (by rw [pc5, if_pos hsum])
+    have hs6 := symRun_sound blk376 hcode.c376 t5 (by rw [pc5, if_pos hsum])
       (by simp only [blk376.res, rv_simp])
     have hc6 : blk376.res.cycles = 1 := rfl
     rw [hc6] at hs6
@@ -366,16 +387,16 @@ theorem encTrial (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem l
       (by rw [r5.get .x6, x36]) ru5 fu5))).mono (by omega) (fun _ _ h => h)
 
 /-- After a failing trial (instruction 325): `c += 1`, back to the loop or fail. -/
-theorem encNext (u : MachineState) (hx7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 20)) (c : Nat)
-    (hc : c < 2 ^ 20) (t : MachineState) (tpc : t.pc = pcOf 377) (t6 : t.getReg .x6 = BitVec.ofNat 64 c)
+theorem encNext {img : Image} (hcode : EncCode img) (u : MachineState) (hx7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 22)) (c : Nat)
+    (hc : c < 2 ^ 22) (t : MachineState) (tpc : t.pc = pcOf 377) (t6 : t.getReg .x6 = BitVec.ofNat 64 c)
     (tregs : RegsEq u t encRegs) (tframe : Frame u t encW) :
-    ∃ t', Steps image t 2 2 t' ∧ (c + 1 < 2 ^ 20 → EncInv u (c + 1) t') ∧
-      (c + 1 = 2 ^ 20 → t'.pc = pcOf 379) := by
-  have hs := symRun_sound blk377 codeAt_377 t tpc (by simp only [blk377.res, rv_simp])
+    ∃ t', Steps img t 2 2 t' ∧ (c + 1 < 2 ^ 22 → EncInv u (c + 1) t') ∧
+      (c + 1 = 2 ^ 22 → t'.pc = pcOf 379) := by
+  have hs := symRun_sound blk377 hcode.c377 t tpc (by simp only [blk377.res, rv_simp])
   have r1 : RegsEq t (blk377.res.toState t) [.x6] := by
     intro r hr; rw [Result.toState_getReg]
     cases r <;> first | exact absurd (by decide) hr | rfl
-  have t7 : t.getReg .x7 = BitVec.ofNat 64 (2 ^ 20) := by rw [tregs.get .x7, hx7]
+  have t7 : t.getReg .x7 = BitVec.ofNat 64 (2 ^ 22) := by rw [tregs.get .x7, hx7]
   refine ⟨_, hs, ?_, ?_⟩
   · intro h
     refine ⟨?_, ?_, h, (tregs.trans r1).mono (by decide), ?_⟩
@@ -389,18 +410,18 @@ theorem encNext (u : MachineState) (hx7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 20
     rw [if_neg (by rw [bne_cond _ _ (by omega) (by omega)]; omega)]
 
 /-- **Counter search** of a layer, from counter `c` with `fuel + 1` trials left. -/
-theorem encLoop_sim (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem lay tau e M u) :
-    ∀ fuel c t, c + (fuel + 1) = 2 ^ 20 → EncInv u c t →
-      Sim image t ((fuel + 1) * 45 + 2) (searchCounter lay tau e M c (fuel + 1)) (EncPost lay u) := by
+theorem encLoop_sim {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem lay tau e M u) :
+    ∀ fuel c t, c + (fuel + 1) = 2 ^ 22 → EncInv u c t →
+      Sim img t ((fuel + 1) * 45 + 2) (searchCounter lay tau e M c (fuel + 1)) (EncPost lay u) := by
   intro fuel
   induction fuel with
   | zero =>
     intro c t hc hinv
     rw [searchCounter_succ]
-    refine (encTrial lay tau e M u hmem c t hinv _ 4 ?_).mono (by omega) (fun _ _ h => h)
+    refine (encTrial hcode lay tau e M u hmem c t hinv _ 4 ?_).mono (by omega) (fun _ _ h => h)
     intro t' tpc t6 tregs tframe
-    obtain ⟨t'', hs, -, hfail⟩ := encNext u hmem.x7 c (by omega) t' tpc t6 tregs tframe
-    have hs67 := symRun_sound blk379 codeAt_379 t'' (hfail (by omega)) (by simp only [blk379.res, rv_simp])
+    obtain ⟨t'', hs, -, hfail⟩ := encNext hcode u hmem.x7 c (by omega) t' tpc t6 tregs tframe
+    have hs67 := symRun_sound blk379 hcode.c379 t'' (hfail (by omega)) (by simp only [blk379.res, rv_simp])
     have hc67 : blk379.res.cycles = 2 := rfl
     rw [hc67] at hs67
     have := Sim.steps hs (Sim.pure_steps (a := (none : Option (Nat × List Nat))) (Q := EncPost lay u) hs67
@@ -410,10 +431,10 @@ theorem encLoop_sim (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMe
   | succ f ih =>
     intro c t hc hinv
     rw [searchCounter_succ]
-    refine (encTrial lay tau e M u hmem c t hinv _ (2 + ((f + 1) * 45 + 2)) ?_).mono
+    refine (encTrial hcode lay tau e M u hmem c t hinv _ (2 + ((f + 1) * 45 + 2)) ?_).mono
       (by ring_nf; omega) (fun _ _ h => h)
     intro t' tpc t6 tregs tframe
-    obtain ⟨t'', hs, hinv', -⟩ := encNext u hmem.x7 c (by omega) t' tpc t6 tregs tframe
+    obtain ⟨t'', hs, hinv', -⟩ := encNext hcode u hmem.x7 c (by omega) t' tpc t6 tregs tframe
     exact Sim.steps hs (ih (c + 1) t'' (by omega) (hinv' (by omega)))
 
 end SigGolfCandidate.Sign
