@@ -8,7 +8,7 @@ The numeric parameters for the proved bound on accepting verification runs and t
 namespace SigGolfCandidate.Final
 
 /-- Proved upper bound on the cycles of every accepting verify run. -/
-def verifyCycleBound : Nat := 11502
+def verifyCycleBound : Nat := 11493
 
 /-- The witness charge `⌈6348 / 256⌉`. -/
 def witnessCharge : Nat := 25

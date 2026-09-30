@@ -32,7 +32,7 @@ def LayerIn (L : LCtx) (M : Val) (s : MachineState) : Prop :=
 /-- After the encoding hash (answer `a` in EO). -/
 def EncOut (L : LCtx) (t : Nat) (a : BitVec 256) (s : MachineState) : Prop :=
   Glob gkL L.wl L.pk s ∧ KnownOK (bK L.lay) s ∧
-  s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧
+  s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ (L.lay ≠ 0 → s.getReg .x30 = BitVec.ofNat 64 L.tau) ∧
   s.getReg .x31 = BitVec.ofNat 64 (L.tau + 2 ^ 32 * L.e) ∧
   s.getMem (BitVec.ofNat 64 320) = a.extractLsb' 0 64 ∧
   s.getMem (BitVec.ofNat 64 328) = a.extractLsb' 64 64 ∧
@@ -62,15 +62,13 @@ theorem lc_enc {c : Nat} (hc : c < nEnc lay) :
   exact ⟨h1, h2, h3⟩
 
 theorem lc_cmp {t : Nat} (ht : t < 32) (h0 : lay = 0) :
-    specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] = true ∧
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] = true ∧
-      specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] [] = true := by
+    specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] = true ∧
+      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] = true := by
   have h := layerCheck_at lay hl
   subst h0
   simp only [layerCheck, Bool.and_eq_true, List.all_eq_true, List.mem_range, bne_self_eq_false,
     Bool.false_or] at h
-  obtain ⟨⟨h1, h2⟩, h3⟩ := h.1.2 t ht
-  exact ⟨h1, h2, h3⟩
+  exact h.1.2 t ht
 
 theorem lc_leaf :
     specB gkL (runAt (headK lay 42) [] (nextPc' lay 41) [.jmp]) (specLeaf lay)
@@ -147,7 +145,8 @@ theorem enc_step (L : LCtx) (hL : L.ok) (M : Val) (s : MachineState) (hs : Layer
       writeHash_at0 _ a _ h12 (by omega), writeHash_at8 _ a _ h12 (by omega), ?_, ?_, ?_⟩
     · rw [writeHash_getReg, hu.regs (.x23, uHE L.lay) (by simp [specA]), uHE_eval L.idx L.lay hlay hidx s hR]
       rfl
-    · rw [writeHash_getReg, hu.regs (.x30, tauEr L.lay) (by simp [specA]), tauEr_eval L.idx L.lay hlay hidx s hR]
+    · intro h0
+      rw [writeHash_getReg, hu.regs (.x30, tauEr L.lay) (by simp [specA, h0]), tauEr_eval L.idx L.lay hlay hidx s hR]
       rfl
     · rw [writeHash_getReg, hu.regs (.x31, x31Er L.lay) (by simp [specA]), hx31]
     · intro h6
@@ -323,7 +322,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
         · rw [hu.regs (.x16, d0E) (by simp [specBok])]; exact hD0
         · rw [hu.regs (.x17, d1E) (by simp [specBok])]; exact hD1
         · rw [hu.keep .x23 (by simp)]; exact h23
-        · rw [hu.keep .x30 (by simp)]; exact h30
+        · intro h0; rw [hu.keep .x30 (by simp)]; exact h30 h0
         · rw [hu.keep .x31 (by simp)]; exact h31
         · rw [hmem]; simp only [specBok]; rw [setup_C0, hw0]
           simp only [hc, LCtx.cctx, hWord]; omega

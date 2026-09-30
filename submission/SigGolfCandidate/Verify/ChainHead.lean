@@ -294,7 +294,7 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi1 : 1 ≤ i) (hi : i < 42)
     ?_, ⟨hx15, hR14.1⟩, ⟨by rw [fr _ (by omega) (by omega)]; exact hZ.1, by rw [fr _ (by omega) (by omega)]; exact hZ.2⟩,
     LBOk_frame hLB (fun j hj => ⟨fr _ (by omega) (by omega), fr _ (by omega) (by omega)⟩), hlen, hvs, ?_, ?_, ?_⟩
   · obtain ⟨h1, h2, h3, h4, h5⟩ := hR
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> (rw [hkeep' _ (by simp [headKeep])]; assumption)
+    refine ⟨?_, ?_, ?_, fun h0 => ?_, ?_⟩ <;> (rw [hkeep' _ (by simp [headKeep])]) <;> first | assumption | exact h4 h0
   · rw [m0]; have := hCB.1; omega
   · rw [fr _ (by omega) (by omega)]; exact hCB.2.1
   · rw [m0]; omega
@@ -386,7 +386,7 @@ theorem entry_lt7 (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hsec : isSec i
   · rcases hp with h | h | h | h <;> simp_all [pSlots] <;> omega
   · rcases hp with h | h | h | h <;> simp_all [pSlots] <;> omega
   · obtain ⟨h1, h2, h3, h4, h5⟩ := hR
-    exact ⟨(hreg _).trans h1, (hreg _).trans h2, (hreg _).trans h3, (hreg _).trans h4, (hreg _).trans h5⟩
+    exact ⟨(hreg _).trans h1, (hreg _).trans h2, (hreg _).trans h3, fun h0 => (hreg _).trans (h4 h0), (hreg _).trans h5⟩
   · exact ⟨by rw [fr _ (by omega) (by omega) (by omega)]; exact hCB.1,
       by rw [fr _ (by omega) (by omega) (by omega)]; exact hCB.2.1,
       by rw [fr _ (by omega) (by omega) (by omega)]; exact hCB.2.2⟩
@@ -427,7 +427,7 @@ theorem entry_7 (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hsec : isSec i =
   · rcases hp with h | h | h | h <;> simp_all [pSlots] <;> omega
   · rcases hp with h | h | h | h <;> simp_all [pSlots] <;> omega
   · obtain ⟨h1, h2, h3, h4, h5⟩ := hR
-    exact ⟨(hreg _).trans h1, (hreg _).trans h2, (hreg _).trans h3, (hreg _).trans h4, (hreg _).trans h5⟩
+    exact ⟨(hreg _).trans h1, (hreg _).trans h2, (hreg _).trans h3, fun h0 => (hreg _).trans (h4 h0), (hreg _).trans h5⟩
   · exact ⟨by rw [fr _ (by omega) (by omega) (by omega)]; exact hCB.1,
       by rw [fr _ (by omega) (by omega) (by omega)]; exact hCB.2.1,
       by rw [fr _ (by omega) (by omega) (by omega)]; exact hCB.2.2⟩
@@ -518,7 +518,7 @@ theorem bhead_run (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hsec : isSec i
     have hcy : r.cycles = r.steps := rfl
     rw [hcy, hn] at hst; exact hst
   · obtain ⟨h1, h2, h3, h4, h5⟩ := hR
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> (rw [hkeep' _ (by simp [headKeep])]; assumption)
+    refine ⟨?_, ?_, ?_, fun h0 => ?_, ?_⟩ <;> (rw [hkeep' _ (by simp [headKeep])]) <;> first | assumption | exact h4 h0
   · rw [m0]; have := hCB.1; omega
   · rw [fr _ (by omega) (by omega) (by omega) (by omega)]; exact hCB.2.1
   · rw [m0]; omega

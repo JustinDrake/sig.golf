@@ -18,7 +18,7 @@ Families (each a list of path runs, checked by `pspecB` in the `PorsCheck*` file
 * `pos V t p t'`: ladder position `p` of stream `t` (sibling from `FR + 16 p`, `E >>= 1`, heap
   index, branch to stream `t'`), up to the next hash (`p = 13`: the variant's destination);
 * tails `tailM c d`, `tailP c d`, `tailF c` (copy `c`: `0`, `1` = after stream `c`'s ladder, `2` = after
-  `entry0_V`), with `STK = EMPTY + 80 d` known where the tail writes through it.
+  `entry0_V`), with `x15 = 80 d` and physical stack addresses at `EMPTY + x15`.
 
 Variants: `V = 0` (M, merge), `1` (P, push), `2` (F, root).
 -/
@@ -66,7 +66,8 @@ def tbOf (s : Nat) : Nat := if s = 14 then tbL else tbN
 
 /-- The destination of the last hash of a segment of variant `V`. -/
 def destE (V : Nat) : E :=
-  if V = 0 then .bin .add (.reg .x15) (cw 48) else if V = 1 then .bin .add (.reg .x15) (cw 112)
+  if V = 0 then .bin .add (.reg .x15) (cw (EMPTY + 48))
+  else if V = 1 then .bin .add (.reg .x15) (cw (EMPTY + 112))
   else cw 0x120
 
 def rejSpec (steps : Nat) (brs : List Br) : Spec :=
@@ -177,52 +178,54 @@ def posCheck (V : Nat) : Bool :=
 
 /-! ## Tails -/
 
+/-- The stack register is an offset; memory addresses retain the fixed EMPTY base. -/
+def stkReg (d : Nat) : Nat := 80 * d
 def stkOf (d : Nat) : Nat := EMPTY + 80 * d
-def tailKnown (d : Nat) : List (Reg × Word) := gkP ++ [(.x15, BitVec.ofNat 64 (stkOf d))]
+def tailKnown (d : Nat) : List (Reg × Word) := gkP ++ [(.x15, BitVec.ofNat 64 (stkReg d))]
 def tailKeep : List Reg := [.x14, .x16, .x17, .x20, .x22, .x24, .x29]
 
 def tailMSpec (c d : Nat) : Spec :=
-  ⟨[(.x3, ldE (stkOf d - 16)), (.x23, eS), (.x10, cw (stkOf d)), (.x15, cw (stkOf d - 80))],
+  ⟨[(.x3, ldE (stkOf d - 16)), (.x23, eS), (.x10, cw (stkOf d)), (.x15, .c (BitVec.ofNat 64 (stkReg d) - 80))],
     [(⟨none, BitVec.ofNat 64 (stkOf d + 8)⟩, stW (stkOf d + 8) eS)], dispTailPc c, false, 6,
     [⟨.ne, ldE (stkOf d - 16), .reg .x23, false⟩], none, 6⟩
 
 def tailMRej (d : Nat) : Spec := rejSpec 5 [⟨.ne, ldE (stkOf d - 16), .reg .x23, true⟩]
 
 def tailPSpec (d : Nat) : Spec :=
-  ⟨[(.x15, cw (stkOf d + 80)), (.x3, .bin .xor (.reg .x23) (cw 1))],
+  ⟨[(.x15, cw (stkReg d + 80)), (.x3, .bin .xor (.reg .x23) (cw 1))],
     [(⟨none, BitVec.ofNat 64 (stkOf d + 64)⟩, .bin .xor (.reg .x23) (cw 1))], 0, false, 4, [],
     some (.bin .and (.reg .x24) notOne), 4⟩
 
 def tailCheck (c : Nat) : Bool :=
   (List.range 15).all (fun d =>
     pspecB gkP (runAt (tailKnown d) [dispTailPc c] (tailPc 0 c) [.br false]) (tailMSpec c d) []
-      (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (stkOf d - 80)) else p)
+      (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (stkReg d) - 80) else p)
       tailKeep &&
     pspecB [] (runAt (tailKnown d) [] (tailPc 0 c) [.br true]) (tailMRej d) [] [] []) &&
   (List.range 14).all (fun d =>
     pspecB gkP (runAt (tailKnown d) [] (tailPc 1 c) [.jmp]) (tailPSpec d) []
-      (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (stkOf d + 80)) else p)
+      (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (stkReg d + 80)) else p)
       [.x14, .x16, .x17, .x20, .x22, .x23, .x24, .x29])
 
 /-! ### The root tail (checks, layer constants) -/
 
 /-- The fold limit: `bltu t4, a4` (`FR` beyond `FLIM`). -/
 def fBr1 (d : Bool) : Br := ⟨.ltu, .reg .x29, .reg .x14, d⟩
-def fBr2 (d : Bool) : Br := ⟨.ne, addC (.reg .x23) (-1#64), .c 0, d⟩
-def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw EMPTY, d⟩
+def fBr2 (d : Bool) : Br := ⟨.ne, .reg .x23, cw 1, d⟩
+def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw 0, d⟩
 
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[], [], f4Pc c, false, 20, [fBr3 false, fBr2 false, fBr1 false], none, 20⟩
+  ⟨[], [], f4Pc c, false, 18, [fBr3 false, fBr2 false, fBr1 false], none, 18⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB gkL0 (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
     l4K [.x22] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br true]) (rejSpec 4 [fBr1 true]) [] [] [] &&
-  pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br true]) (rejSpec 6 [fBr2 true, fBr1 false]) [] [] [] &&
+  pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br true]) (rejSpec 5 [fBr2 true, fBr1 false]) [] [] [] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br false, .br true])
-    (rejSpec 8 [fBr3 true, fBr2 false, fBr1 false]) [] [] []
+    (rejSpec 6 [fBr3 true, fBr2 false, fBr1 false]) [] [] []
 
 /-! ## Leaves -/
 
@@ -277,7 +280,7 @@ def k0 : List (Reg × Word) :=
 
 /-- Digest phase: witness bases and `P1 .. P5`. -/
 def gkD : List (Reg × Word) := baseK
-def dgK : List (Reg × Word) := gkD ++ [(.x10, 0x20), (.x11, 64), (.x12, 0x160)]
+def dgK : List (Reg × Word) := gkD ++ [(.x10, 0x20), (.x11, 64), (.x12, 0x160), (.x15, 0)]
 
 /-- The counters: two doublewords and a word at `WIT + 6328`. -/
 def ctrX : E := .bin .or (.bin .or (ldE 8376) (ldE 8384)) (.un (.ld .wu 0) (ldE 8392))
@@ -285,9 +288,9 @@ def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
 
 def specStartOk : Spec :=
   ⟨[], [(⟨none, BitVec.ofNat 64 56⟩, ldE 2056), (⟨none, BitVec.ofNat 64 48⟩, ldE 2048),
-    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 27, true, 27, [⟨.ne, ctrE', .c 0, false⟩], none, 27⟩
+    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 26, true, 26, [⟨.ne, ctrE', .c 0, false⟩], none, 26⟩
 def specStartRej : Spec :=
-  ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 20, [⟨.ne, ctrE', .c 0, true⟩], none, 20⟩
+  ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 19, [⟨.ne, ctrE', .c 0, true⟩], none, 19⟩
 
 def wLdE (i : Nat) : E := ldE (0x160 + 8 * i)
 def idxE : E := .bin .srl (.bin .sll (wLdE 0) (cw 30)) (cw 30)
@@ -303,7 +306,7 @@ def pindE (r : Nat) : E :=
 def nbW0E : E := .bin .add hiE (cw 0xA01)
 
 def psetupMem : List (Addr × E) :=
-  [(⟨none, BitVec.ofNat 64 0x240⟩, .c (-1#64)), (⟨none, BitVec.ofNat 64 0xC8⟩, stW0 0xC8 idxE),
+  [(⟨none, BitVec.ofNat 64 0x240⟩, stW 0x240 (cw 1)), (⟨none, BitVec.ofNat 64 0xC8⟩, stW0 0xC8 idxE),
     (⟨none, BitVec.ofNat 64 0xC0⟩, .bin .add hiE (cw 0x901))] ++
   ((List.range 14).reverse.flatMap fun i =>
     [(⟨none, BitVec.ofNat 64 (PSB + 80 * i + 8)⟩, stW0 (PSB + 80 * i + 8) idxE),
@@ -315,14 +318,14 @@ def psetupMem : List (Addr × E) :=
 /-- Known after the setup: the PORS constants, `TB = ptab_n`, `FR` (first header at `FR + 224`),
 the empty stack, the fold limit `FLIM`. -/
 def setupPost : List (Reg × Word) :=
-  gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x830), (.x15, BitVec.ofNat 64 EMPTY),
+  gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x830), (.x15, 0),
     (.x29, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 104, [], none, 104⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 102, [], none, 102⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&
   specB [] (runAt k0 [] 0 [.br true]) specStartRej [] [] &&
-  specB gkD (runAt dgK [leafPc 0] 28 []) setupSpec setupPost []
+  specB gkD (runAt dgK [leafPc 0] 27 []) setupSpec setupPost []
 
 end SigGolfCandidate.Verify

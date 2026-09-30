@@ -56,7 +56,7 @@ theorem layFC_check (L : LCtx) (hL : L.ok) :
 /-- Carried through the leaf and the fold of layer `lay` to the precode of layer `lay - 1`. -/
 def LeafCarry (L : LCtx) (s : MachineState) : Prop :=
   s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay) ∧
-  s.getReg .x15 = BitVec.ofNat 64 (bVal L.lay 41) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧ CBZ s ∧
+  s.getReg .x15 = BitVec.ofNat 64 (bVal L.lay 41) ∧ (L.lay ≠ 0 → s.getReg .x30 = BitVec.ofNat 64 L.tau) ∧ CBZ s ∧
   (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2 ^ 48 = 0
 
 theorem leaf_step (L : LCtx) (hL : L.ok) (a : BitVec 256) (ends : List Val) (s : MachineState)
@@ -181,10 +181,16 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (a : BitVec 256) (ends : List Val) (s :
       omega
     · rw [wf 0x1C8 (by omega) (by omega), hmem]; simp only [specLeaf, layFC]
       rw [memEval_cons_eq _ _ _ _ _ rfl]
-      simp only [stW0, ldE, cw, Rv.E.eval, BinOp.eval]
-      rw [merge_w0_toNat, h30, BitVec.toNat_ofNat]
-      simp only [LCtx.cctx]
-      norm_num
+      by_cases h0 : L.lay = 0
+      · have ht0 : L.tau = 0 := by
+          unfold LCtx.tau; rw [h0]; exact Nat.div_eq_of_lt (by simpa [layS, heightL] using hidx)
+        simp only [stW0, ldE, cw, Rv.E.eval, BinOp.eval, h0, if_true]
+        rw [merge_w0_toNat, ht0]
+        simp
+      · simp only [stW0, ldE, cw, Rv.E.eval, BinOp.eval, h0, if_false]
+        rw [merge_w0_toNat, h30 h0, BitVec.toNat_ofNat]
+        simp only [LCtx.cctx]
+        norm_num
     · simp only [layFC, hbit]
       rw [writeHash_at0 _ ans _ h12 (by omega)]; exact (vw0_answer ans).symm
     · simp only [layFC, hbit]
@@ -196,7 +202,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (a : BitVec 256) (ends : List Val) (s :
       try rfl
     · rw [writeHash_getReg]; exact hlp (.x27, BitVec.ofNat 64 (hWord L.lay)) (by simp)
     · rw [writeHash_getReg]; exact hlp (.x15, BitVec.ofNat 64 (bVal L.lay 41)) (by simp)
-    · rw [writeHash_getReg, hkp .x30 (by simp [leafKeep])]; exact h30
+    · intro h0; rw [writeHash_getReg, hkp .x30 (by simp [leafKeep])]; exact h30 h0
     · exact ⟨by rw [wf 0xE0 (by omega) (by omega), mfr 0xE0 (by omega) (by omega) (by omega) (by omega)
           (by omega)]; exact hZ.1,
         by rw [wf 0xE8 (by omega) (by omega), mfr 0xE8 (by omega) (by omega) (by omega) (by omega)
