@@ -147,257 +147,6 @@ theorem sign_shape (seed : MasterSeed) (message : Message) {pk : PublicKey} {cac
     subst hfts
     exact ⟨_, _, rfl⟩
 
-/-! ### The counter phase of an honest signature
-
-Each layer's signer ran the counter search from `0` on the layer's message; the expansion runs the
-same search on the message it recomputes (the PORS root, then each layer's root), so it finds the
-signer's counter, and the verifier's chains, leaf and fold give the next message. -/
-
-open SphincsSecurity.Concrete (treeIndexAt leafIndexAt encodingSearch recoverChain leafHash treeFold
-  signaturePath) in
-/-- What one layer of the specification signs, read as the expansion reads it: the least-counter
-search from `0` on the layer's message returns the layer's counter with an encoding whose chains,
-from the layer's chain values, end at the specification's leaf. -/
-theorem signLayer_search (key : SphincsSecurity.SecretKey) (index : Index) (lay : Layer)
-    {part : PaddedLayer} (h : evalWithAnswerFn f (Concrete.signLayer key index lay) = some part) :
-    ∃ enc, evalWithAnswerFn f (encodingSearch key.parameter lay (treeIndexAt index lay)
-        (leafIndexAt index lay)
-        (evalWithAnswerFn f (Concrete.layerMessage key index lay : OracleComp SphincsSecurity.HashSpec Digest))
-        encodingAttemptLimit 0 : OracleComp SphincsSecurity.HashSpec (Option (Counter × Encoding)))
-        = some (part.1, enc) ∧
-      evalWithAnswerFn f (do
-        let ends ← Concrete.sequenceFin (m := OracleComp SphincsSecurity.HashSpec) fun ch =>
-          recoverChain key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay) ch (enc ch)
-            (part.2.1 ch)
-        leafHash key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay) ends :
-          OracleComp SphincsSecurity.HashSpec Digest)
-        = Concrete.honestNode f key.parameter lay (treeIndexAt index lay)
-            (key.otsSecret lay (treeIndexAt index lay)) 0 (leafIndexAt index lay).val := by
-  rw [Concrete.signLayer, evalWithAnswerFn_bind, Concrete.otsSign, evalWithAnswerFn_bind,
-    Concrete.eval_otsSignFrom] at h
-  cases hsearch : evalWithAnswerFn f (encodingSearch key.parameter lay (treeIndexAt index lay)
-      (leafIndexAt index lay) (evalWithAnswerFn f (Concrete.layerMessage key index lay : OracleComp SphincsSecurity.HashSpec Digest))
-      encodingAttemptLimit 0 : OracleComp SphincsSecurity.HashSpec (Option (Counter × Encoding))) with
-  | none =>
-      rw [hsearch] at h
-      simp at h
-  | some result =>
-      obtain ⟨counter, word⟩ := result
-      rw [hsearch] at h
-      simp only [Option.map_some, evalWithAnswerFn_bind, evalWithAnswerFn_pure,
-        Option.some.injEq] at h
-      subst h
-      refine ⟨word, rfl, ?_⟩
-      simp only [evalWithAnswerFn_bind, Concrete.evalWithAnswerFn_sequenceFin, Concrete.eval_recoverChain]
-      rw [Concrete.honestNode_zero_eq_leafHash, Concrete.honestEndpoints_def]
-      simp only [leafHash, Concrete.eval_tweakableHash]
-
-/-- The counters a signature carries, layer `0` first. -/
-def ctrOf (S : Signature) (j : Nat) : Nat :=
-  if h : j < SphincsSecurity.numLayers then (S.layers ⟨j, h⟩).counter.toNat else 0
-
-open SphincsSecurity.Concrete (treeIndexAt leafIndexAt encodingSearch recoverChain leafHash treeFold
-  signaturePath) in
-/-- **The counter phase recovers the signer's counters**: from the message entering layer `n - 1`,
-on a witness-shaped signature with the signer's chain values and paths. -/
-theorem eval_aLayers (key : SphincsSecurity.SecretKey) (hP : key.parameter = 0) (index : Index)
-    (S S0 : Signature)
-    (hlayers : ∀ lay : Layer, ∃ part, evalWithAnswerFn f (Concrete.signLayer key index lay) = some part
-      ∧ S.layers lay = LayerSignature.ofPadded lay part)
-    (hS0 : ∀ lay : Layer, (S0.layers lay).chainValues = (S.layers lay).chainValues ∧
-      (S0.layers lay).path = (S.layers lay).path) :
-    ∀ n : Nat, n ≤ SphincsSecurity.numLayers →
-      evalWithAnswerFn f (Equiv.aLayers index S0 n (Completeness.enterMessage f key index n))
-        = some ((List.range n).map (ctrOf S)) := by
-  intro n
-  induction n using Nat.strongRecOn with
-  | _ n ih =>
-  intro hn
-  match n, hn with
-  | 0, _ => simp [Equiv.aLayers]
-  | 1, _ =>
-    let lay : Layer := ⟨0, by decide⟩
-    obtain ⟨part, hpart, hsig⟩ := hlayers lay
-    obtain ⟨enc, hsearch, -⟩ := signLayer_search f key index lay hpart
-    rw [hP] at hsearch
-    unfold Equiv.aLayers
-    rw [evalWithAnswerFn_bind]
-    have hm : Completeness.enterMessage f key index 1 =
-        evalWithAnswerFn f (Concrete.layerMessage key index lay : OracleComp SphincsSecurity.HashSpec Digest) := by
-      rw [Completeness.enterMessage, dif_pos (by decide)]
-    rw [hm]
-    erw [hsearch]
-    simp only [evalWithAnswerFn_pure, List.range_one, List.map_cons, List.map_nil]
-    congr 2
-    unfold ctrOf
-    rw [dif_pos (by decide)]
-    rw [show (⟨0, _⟩ : Layer) = lay from rfl, hsig]
-  | k + 2, hk =>
-    have hlk : k + 1 < SphincsSecurity.numLayers := by omega
-    let lay : Layer := ⟨k + 1, hlk⟩
-    obtain ⟨part, hpart, hsig⟩ := hlayers lay
-    obtain ⟨enc, hsearch, hleaf⟩ := signLayer_search f key index lay hpart
-    rw [hP] at hsearch hleaf
-    obtain ⟨-, hleafSpec, hpath⟩ := Completeness.signLayer_spec f key index lay hpart
-    have hm : Completeness.enterMessage f key index (k + 2) =
-        evalWithAnswerFn f (Concrete.layerMessage key index lay : OracleComp SphincsSecurity.HashSpec Digest) := by
-      rw [Completeness.enterMessage, dif_pos hlk]
-    have hvals : (S0.layers lay).chainValues = part.2.1 := by rw [(hS0 lay).1, hsig]
-    have hfold := Completeness.eval_treeFold_honest f key.parameter lay
-      (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay))
-      (leafIndexAt index lay) (signaturePath S0 lay)
-      (SphincsSecurity.layerHeight lay) (fun level hlevel => by
-        rw [signaturePath, dif_pos hlevel, (hS0 lay).2, hsig]
-        exact hpath level hlevel)
-    rw [Nat.div_eq_of_lt (Equiv.leafIndexAt_lt index _), hP] at hfold
-    unfold Equiv.aLayers
-    rw [dif_pos hlk, evalWithAnswerFn_bind, hm]
-    erw [hsearch]
-    simp only [evalWithAnswerFn_bind]
-    rw [hvals]
-    have hleaf' := hleaf
-    simp only [evalWithAnswerFn_bind] at hleaf'
-    erw [hleaf']
-    erw [hfold]
-    rw [show Concrete.honestNode f 0 lay (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay))
-        (SphincsSecurity.layerHeight lay) 0 = Completeness.layerRoot f key index lay by
-          rw [Completeness.layerRoot, hP],
-      Completeness.layerRoot_eq_enterMessage f key index (k + 1) hlk,
-      ih (k + 1) (by omega) (by omega)]
-    simp only [evalWithAnswerFn_pure]
-    rw [show List.range (k + 2) = List.range (k + 1) ++ [k + 1] from List.range_succ, List.map_append]
-    congr 3
-    unfold ctrOf
-    rw [dif_pos hlk, show (⟨k + 1, hlk⟩ : Layer) = lay from rfl, hsig]
-
-/-- `LE32` of a counter's value decodes back to the counter. -/
-theorem ofList_le32_counter (c : Counter) : Ref.ofList 4 (Ref.le32 c.toNat) = c := by
-  rw [Ref.le32, Equiv.leBytes_eq_toList, BitVec.ofNat_toNat, BitVec.setWidth_eq, Ref.ofList_toList]
-
-theorem slice_le32s (L : List Nat) (j : Nat) (hj : j < L.length) :
-    Ref.slice (L.map Ref.le32).flatten (4 * j) 4 = Ref.le32 (L.getD j 0) := by
-  induction L generalizing j with
-  | nil => simp at hj
-  | cons x L ih =>
-    cases j with
-    | zero =>
-      simp only [List.map_cons, List.flatten_cons, List.getD_cons_zero, Nat.mul_zero]
-      rw [Equiv.slice_append_left _ _ _ _ (by simp [Ref.le32, Ref.leBytes]),
-        Equiv.slice_full _ _ (by simp [Ref.le32, Ref.leBytes])]
-    | succ j =>
-      simp only [List.map_cons, List.flatten_cons, List.getD_cons_succ]
-      rw [Equiv.slice_append_right _ _ _ (4 * j) _ (by simp [Ref.le32, Ref.leBytes]; ring)]
-      exact ih j (by simpa using hj)
-
-/-- Under a fixed answer function, the expansion of an honestly produced signature succeeds with a
-witness decoding to the signature: the digest and the partial witness as before (R4), the PORS root
-the verifier's recovery gives, and per layer the signer's counter (`eval_aLayers`). -/
-theorem eval_aExpand_sign' (seed : MasterSeed) (message : Message) {pk : PublicKey} {cache : TopCache}
-    {sk : Seeded.SecretKey} {S : Signature}
-    (hkeys : evalWithAnswerFn f (Seeded.keygenFromSeed seed) = (pk, cache, sk))
-    (hsign : evalWithAnswerFn f (Seeded.sign sk cache message
-      : OracleComp SphincsSecurity.HashSpec (Option Signature)) = some S) :
-    ∃ wl : List Legacy.Byte, wl.length = 6348 ∧
-      evalWithAnswerFn f (Equiv.aExpand message pk (Equiv.compress S)) =
-        some (Ref.ofList 6348 (Ref.withCounters wl ((List.range numLayers).map (ctrOf S)))) ∧
-      Equiv.witDec (Ref.ofList 6348 (Ref.withCounters wl ((List.range numLayers).map (ctrOf S)))) = S := by
-  rw [Completeness.eval_keygenFromSeed] at hkeys
-  simp only [Prod.mk.injEq] at hkeys
-  obtain ⟨rfl, rfl, rfl⟩ := hkeys
-  set key := Completeness.tableKey f ⟨seed, 0, Completeness.keygenTableValue f seed (layerHeight topLayer) 0⟩
-    with hkey
-  obtain ⟨hadm, hsig⟩ := Completeness.signChecked_spec f _ _ (Completeness.keygen_cacheHonest f seed _)
-    message (Completeness.signChecked_of_sign f _ _ message hsign)
-  set d := Completeness.digestValue f ⟨seed, 0, Completeness.keygenTableValue f seed (layerHeight topLayer) 0⟩
-    message S.randomness with hd
-  set index := Concrete.digestIndex d with hindex
-  set leaves := Concrete.digestLeaves d with hleaves
-  have hP : key.parameter = 0 := rfl
-  unfold Concrete.signatureValue at hsig
-  rw [Concrete.sequenceFin_option_eq] at hsig
-  split at hsig
-  swap
-  · simp at hsig
-  rename_i hall
-  simp only [Option.map_some, Option.some.injEq] at hsig
-  have hlayers : ∀ lay : Layer, ∃ part, evalWithAnswerFn f (Concrete.signLayer key index lay) = some part
-      ∧ S.layers lay = LayerSignature.ofPadded lay part := fun lay => by
-    rw [← hsig]
-    exact ⟨_, (Option.some_get (hall lay)).symm, rfl⟩
-  have hfts : S.fts = Concrete.honestFts leaves (key.ftsSecret index Concrete.porsTree)
-      (Concrete.honestFtsNode f key.parameter index Concrete.porsTree (key.ftsSecret index Concrete.porsTree)) := by
-    rw [← hsig, Concrete.eval_ftsOpen]
-  have hfts0 : S.fts = evalWithAnswerFn f (Concrete.ftsOpen 0 index leaves (key.ftsSecret index)) := by
-    rw [← hsig, hP]
-  have hS : S = ⟨S.randomness, Concrete.honestFts leaves (key.ftsSecret index Concrete.porsTree)
-      (Concrete.honestFtsNode f key.parameter index Concrete.porsTree (key.ftsSecret index Concrete.porsTree)), S.layers⟩ := by
-    rw [← hfts]
-  obtain ⟨wl, hlen, hexp, hwit⟩ := Equiv.expandOf_honest leaves hadm d.toNat
-    (fun r => Equiv.leafOf_eq d r) S.randomness _ _ S.layers
-  rw [← hS] at hexp
-  -- the decoded partial witness
-  have hW0 : Equiv.witSig wl = ⟨S.randomness, S.fts, fun lay =>
-      ⟨Ref.ofList 4 (Ref.slice (wl.drop 6328) (4 * lay.val) 4), (S.layers lay).chainValues,
-        (S.layers lay).path⟩⟩ := by
-    have := hwit (wl.drop 6328)
-    rw [List.take_append_drop] at this
-    rw [this, ← hfts]
-  have hwf : Equiv.witFts wl = S.fts := by
-    have := congrArg Signature.fts hW0
-    exact this
-  have hS0 : ∀ lay : Layer, ((Equiv.witSig wl).layers lay).chainValues = (S.layers lay).chainValues ∧
-      ((Equiv.witSig wl).layers lay).path = (S.layers lay).path := fun lay => by
-    rw [hW0]; exact ⟨rfl, rfl⟩
-  have hbottom : Completeness.enterMessage f key index numLayers
-      = evalWithAnswerFn f (Concrete.ftsKey key.parameter index (key.ftsSecret index)
-        : OracleComp SphincsSecurity.HashSpec Digest) := by
-    rw [show numLayers = 4 + 1 from rfl, Completeness.enterMessage, dif_pos (by decide),
-      ← Concrete.layerMessage_bottomLayer_eq]
-    rfl
-  have hL := eval_aLayers f key hP index S (Equiv.witSig wl) hlayers hS0 numLayers le_rfl
-  rw [hbottom] at hL
-  set cs := (List.range numLayers).map (ctrOf S) with hcs
-  have hcsl : cs.length = 5 := by simp [hcs, numLayers]
-  have hctr : ((cs.map Ref.le32).flatten).length = 20 := by
-    rw [List.length_flatten, List.map_map]
-    have : ∀ c ∈ cs, (List.length ∘ Ref.le32) c = 4 := fun c _ => by simp [Ref.le32, Ref.leBytes]
-    rw [List.map_congr_left this, List.map_const', List.sum_replicate, hcsl]; rfl
-  have hwc : (Ref.withCounters wl cs).length = 6348 := by
-    unfold Ref.withCounters
-    rw [List.length_append, List.length_take, hctr, Ref.witCounters_eq, hlen]; rfl
-  refine ⟨wl, hlen, ?_, ?_⟩
-  · unfold Equiv.aExpand
-    rw [ofList_sigRho_compress, evalWithAnswerFn_bind]
-    have e1 : evalWithAnswerFn f (Concrete.messageDigest (m := Equiv.AComp) 0 (⟨Completeness.keygenTableValue f seed (layerHeight topLayer) 0, 0⟩ : PublicKey).root message S.randomness)
-        = d := by
-      rw [hd, Completeness.digestValue]
-    have hR := Completeness.eval_ftsRecover_ftsOpen f 0 index leaves hadm (key.ftsSecret index)
-    rw [e1, Equiv.toList_compress, hexp]
-    simp only
-    rw [evalWithAnswerFn_bind, hwf, hfts0]
-    rw [hR]
-    simp only
-    have hL' : evalWithAnswerFn f (Equiv.aLayers (Concrete.digestIndex d) (Equiv.witSig wl) numLayers
-        (evalWithAnswerFn f (Concrete.ftsKey (m := OracleComp SphincsSecurity.HashSpec) 0 index
-          (key.ftsSecret index)))) = some cs := hL
-    rw [evalWithAnswerFn_bind, hL']
-    rfl
-  · unfold Equiv.witDec
-    rw [Ref.toList_ofList _ _ hwc, Ref.withCounters, Ref.witCounters_eq, hwit]
-    conv_rhs => rw [hS]
-    congr 1
-    funext lay
-    apply LayerSignature.ext
-    · show Ref.ofList 4 (Ref.slice (cs.map Ref.le32).flatten (4 * lay.val) 4) = (S.layers lay).counter
-      have hlay := lay.isLt
-      rw [slice_le32s cs lay.val (by rw [hcsl]; exact hlay), hcs, List.getD_eq_getElem?_getD,
-        List.getElem?_map, List.getElem?_range hlay]
-      simp only [Option.map_some, Option.getD_some]
-      unfold ctrOf
-      rw [dif_pos hlay, ofList_le32_counter]
-    · rfl
-    · rfl
-
 /-- Under a fixed answer function, the expansion of an honestly produced signature succeeds with a
 witness decoding to the signature. -/
 theorem eval_aExpand_sign (seed : MasterSeed) (message : Message) {pk : PublicKey} {cache : TopCache}
@@ -407,8 +156,32 @@ theorem eval_aExpand_sign (seed : MasterSeed) (message : Message) {pk : PublicKe
       : OracleComp SphincsSecurity.HashSpec (Option Signature)) = some S) :
     ∃ w, evalWithAnswerFn f (Equiv.aExpand message pk (Equiv.compress S)) = some w ∧
       Equiv.witDec w = S := by
-  obtain ⟨wl, -, h1, h2⟩ := eval_aExpand_sign' f seed message hkeys hsign
-  exact ⟨_, h1, h2⟩
+  obtain ⟨hpk, hP, hadm, secret, node, hS⟩ := sign_shape f seed message hkeys hsign
+  set d := Completeness.digestValue f sk message S.randomness with hd
+  have hcounters : Concrete.CountersInRange S := by
+    have hverify := Completeness.verify_of_keygen_sign f seed message hkeys hsign
+    by_contra hbad
+    rw [Concrete.verify_eq_of_not_counters pk message S hbad] at hverify
+    simp at hverify
+  obtain ⟨wl, hlen, hexp, hwit⟩ := Equiv.expandOf_honest (Concrete.digestLeaves d) hadm d.toNat
+    (fun r => Equiv.leafOf_eq d r) S.randomness secret node S.layers
+    (fun lay => by
+      have h := hcounters lay
+      simpa [Ref.CounterPack.radix, Ref.CounterPack.counterBits,
+        SphincsSecurity.encodingAttemptLimit] using h)
+  refine ⟨Ref.ofList 6348 wl, ?_, ?_⟩
+  · unfold Equiv.aExpand
+    rw [ofList_sigRho_compress, evalWithAnswerFn_bind, evalWithAnswerFn_pure]
+    have e1 : evalWithAnswerFn f (Concrete.messageDigest (m := Equiv.AComp) 0 pk.root message S.randomness)
+        = d := by
+      rw [hd, Completeness.digestValue, hP]
+      rfl
+    rw [e1, Equiv.toList_compress]
+    conv_lhs => rw [hS]
+    rw [hexp]
+    rfl
+  · unfold Equiv.witDec
+    rw [Ref.toList_ofList _ _ hlen, hwit, ← hS]
 
 /-- **The expansion does not change the honest game** under any answer function. -/
 theorem eval_gameX (seed : MasterSeed) (message : Message) :

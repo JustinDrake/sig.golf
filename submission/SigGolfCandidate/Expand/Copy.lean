@@ -73,13 +73,16 @@ def BytesEq (t : MachineState) (f : Nat → Byte) : Prop :=
 def applyCopy (c : Nat × Nat × Nat) (f : Nat → Byte) : Nat → Byte := fun a =>
   if c.2.1 ≤ a ∧ a < c.2.1 + 4 * c.2.2 then f (a - c.2.1 + c.1) else f a
 
-theorem copy_loop {image : Image} {pc : Word} (hc : CodeAt image pc loopCode)
+theorem copy_loop_pointers {image : Image} {pc : Word} (hc : CodeAt image pc loopCode)
     (s : MachineState) (hpc : s.pc = pc) (src dst n : Nat) (f : Nat → Byte) (hf : BytesEq s f)
     (h6 : s.getReg .x6 = BitVec.ofNat 64 src) (h7 : s.getReg .x7 = BitVec.ofNat 64 dst)
     (h8 : s.getReg .x22 = BitVec.ofNat 64 n) (hn : 0 < n)
     (hs : src % 4 = 0) (hd : dst % 4 = 0) (hsb : src + 4 * n ≤ 2 ^ 24) (hdb : dst + 4 * n ≤ 2 ^ 24)
     (hdisj : src + 4 * n ≤ dst ∨ dst + 4 * n ≤ src) :
-    ∃ u, Steps image s (n * 6) (n * 6) u ∧ u.pc = pc + 24 ∧ BytesEq u (applyCopy (src, dst, n) f) := by
+    ∃ u, Steps image s (n * 6) (n * 6) u ∧ u.pc = pc + 24 ∧
+      u.getReg .x6 = BitVec.ofNat 64 (src + 4 * n) ∧
+      u.getReg .x7 = BitVec.ofNat 64 (dst + 4 * n) ∧
+      BytesEq u (applyCopy (src, dst, n) f) := by
   let Inv : Nat → MachineState → Prop := fun i t =>
     i ≤ n ∧ t.getReg .x6 = BitVec.ofNat 64 (src + 4 * (n - i)) ∧
     t.getReg .x7 = BitVec.ofNat 64 (dst + 4 * (n - i)) ∧ t.getReg .x22 = BitVec.ofNat 64 i ∧
@@ -118,11 +121,23 @@ theorem copy_loop {image : Image} {pc : Word} (hc : CodeAt image pc loopCode)
     · simpa using h7
     · rw [hpc, if_neg (by omega)]
     · intro a ha; rw [hf a ha, if_neg (by omega)]
-  obtain ⟨u, hst, _, _, _, _, upc, umem⟩ := Steps.iterate Inv body n s hinit
-  refine ⟨u, hst, by simpa using upc, ?_⟩
+  obtain ⟨u, hst, _, u6, u7, _, upc, umem⟩ := Steps.iterate Inv body n s hinit
+  refine ⟨u, hst, by simpa using upc, by simpa using u6, by simpa using u7, ?_⟩
   intro a ha
   rw [umem a ha]
   simp [applyCopy]
+
+/-- The original loop interface, retaining its smaller conclusion for existing callers. -/
+theorem copy_loop {image : Image} {pc : Word} (hc : CodeAt image pc loopCode)
+    (s : MachineState) (hpc : s.pc = pc) (src dst n : Nat) (f : Nat → Byte) (hf : BytesEq s f)
+    (h6 : s.getReg .x6 = BitVec.ofNat 64 src) (h7 : s.getReg .x7 = BitVec.ofNat 64 dst)
+    (h8 : s.getReg .x22 = BitVec.ofNat 64 n) (hn : 0 < n)
+    (hs : src % 4 = 0) (hd : dst % 4 = 0) (hsb : src + 4 * n ≤ 2 ^ 24) (hdb : dst + 4 * n ≤ 2 ^ 24)
+    (hdisj : src + 4 * n ≤ dst ∨ dst + 4 * n ≤ src) :
+    ∃ u, Steps image s (n * 6) (n * 6) u ∧ u.pc = pc + 24 ∧ BytesEq u (applyCopy (src, dst, n) f) := by
+  obtain ⟨u, hst, upc, _, _, umem⟩ :=
+    copy_loop_pointers hc s hpc src dst n f hf h6 h7 h8 hn hs hd hsb hdb hdisj
+  exact ⟨u, hst, upc, umem⟩
 
 /-- A straight-line prelude (a symbolic block without memory accesses or side conditions that
 sets `t1 = src`, `t2 = dst`, `s0 = n` and falls through to the loop at `pcl`), followed by the
@@ -149,6 +164,34 @@ theorem stage {image : Image} {pcp pcl : Word} {code : List (BitVec 32)} {fuel :
     src dst n f hf' (by simp [h6, E.eval]) (by simp [h7, E.eval]) (by simp [h8, E.eval])
     hn hs hd hsb hdb hdisj
   exact ⟨u, hst.trans hst2, upc, umem⟩
+
+/-- The same setup and loop, carrying the two final address registers into a
+following decoder. Existing callers keep using the smaller `stage` interface. -/
+theorem stage_pointers {image : Image} {pcp pcl : Word} {code : List (BitVec 32)} {fuel : Nat} {r : Result}
+    {cfg : Config} {src dst n : Nat} (hrun : symRun cfg code pcp fuel = some r) (hcode : CodeAt image pcp code)
+    (hmem : r.st.mem = []) (hobl : r.st.obl = [])
+    (h6 : r.st.regs.get .x6 = .c (BitVec.ofNat 64 src))
+    (h7 : r.st.regs.get .x7 = .c (BitVec.ofNat 64 dst))
+    (h8 : r.st.regs.get .x22 = .c (BitVec.ofNat 64 n)) (hpcl : r.pc = .c pcl)
+    (hloop : CodeAt image pcl loopCode)
+    (hcond : 0 < n ∧ src % 4 = 0 ∧ dst % 4 = 0 ∧ src + 4 * n ≤ 2 ^ 24 ∧ dst + 4 * n ≤ 2 ^ 24 ∧
+      (src + 4 * n ≤ dst ∨ dst + 4 * n ≤ src))
+    (t : MachineState) (htpc : t.pc = pcp) (f : Nat → Byte) (hf : BytesEq t f) :
+    ∃ u, Steps image t (r.steps + n * 6) (r.cycles + n * 6) u ∧ u.pc = pcl + 24 ∧
+      u.getReg .x6 = BitVec.ofNat 64 (src + 4 * n) ∧
+      u.getReg .x7 = BitVec.ofNat 64 (dst + 4 * n) ∧
+      BytesEq u (applyCopy (src, dst, n) f) := by
+  have hst := symRun_sound hrun hcode t htpc (by simp [Result.obligs, hobl, Oblig.all])
+  obtain ⟨hn, hs, hd, hsb, hdb, hdisj⟩ := hcond
+  have hf' : BytesEq (r.toState t) f := by
+    intro a ha
+    rw [← hf a ha]
+    simp only [MachineState.getByte, Result.toState_getMem, hmem, memEval_nil]
+  obtain ⟨u, hst2, upc, u6, u7, umem⟩ :=
+    copy_loop_pointers hloop (r.toState t) (by simp [hpcl, E.eval])
+      src dst n f hf' (by simp [h6, E.eval]) (by simp [h7, E.eval])
+      (by simp [h8, E.eval]) hn hs hd hsb hdb hdisj
+  exact ⟨u, hst.trans hst2, upc, u6, u7, umem⟩
 
 /-- Copies applied in list order. -/
 def applyCopies (cs : List (Nat × Nat × Nat)) (f : Nat → Byte) : Nat → Byte :=
@@ -319,6 +362,25 @@ theorem stageRun {cfg : Config} {code : List (BitVec 32)} {i l e fuel : Nat} {r 
     Run t (r.cycles + n * 6) (fun u => u.pc = pcOf e ∧ BytesEq u (applyCopy (src, dst, n) f)) := by
   obtain ⟨u, hst, upc, hu⟩ := stage hrun hcode hmem hobl h6 h7 h22 hpcl hloop hcond t htpc f hf
   exact Run.of hst (le_refl _) ⟨by rw [upc, hexit], hu⟩
+
+/-- A stage interface for the final body loop, retaining its end pointers. -/
+theorem stageRun_pointers {cfg : Config} {code : List (BitVec 32)} {i l e fuel : Nat} {r : Result}
+    {src dst n : Nat} (hrun : symRun cfg code (pcOf i) fuel = some r) (hcode : CodeAt image (pcOf i) code)
+    (hmem : r.st.mem = []) (hobl : r.st.obl = [])
+    (h6 : r.st.regs.get .x6 = .c (BitVec.ofNat 64 src))
+    (h7 : r.st.regs.get .x7 = .c (BitVec.ofNat 64 dst))
+    (h22 : r.st.regs.get .x22 = .c (BitVec.ofNat 64 n)) (hpcl : r.pc = .c (pcOf l))
+    (hloop : CodeAt image (pcOf l) loopCode)
+    (hcond : 0 < n ∧ src % 4 = 0 ∧ dst % 4 = 0 ∧ src + 4 * n ≤ 2 ^ 24 ∧ dst + 4 * n ≤ 2 ^ 24 ∧
+      (src + 4 * n ≤ dst ∨ dst + 4 * n ≤ src)) (hexit : pcOf l + 24 = pcOf e)
+    (t : MachineState) (htpc : t.pc = pcOf i) (f : Nat → Byte) (hf : BytesEq t f) :
+    Run t (r.cycles + n * 6) (fun u => u.pc = pcOf e ∧
+      u.getReg .x6 = BitVec.ofNat 64 (src + 4 * n) ∧
+      u.getReg .x7 = BitVec.ofNat 64 (dst + 4 * n) ∧
+      BytesEq u (applyCopy (src, dst, n) f)) := by
+  obtain ⟨u, hst, upc, u6, u7, hu⟩ :=
+    stage_pointers hrun hcode hmem hobl h6 h7 h22 hpcl hloop hcond t htpc f hf
+  exact Run.of hst (le_refl _) ⟨by rw [upc, hexit], u6, u7, hu⟩
 
 theorem word_eq_of_bytes (w w' : Word) (h : ∀ k < 8, extractByte w k = extractByte w' k) : w = w' := by
   apply BitVec.eq_of_getLsbD_eq; intro i hi

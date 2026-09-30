@@ -159,7 +159,7 @@ def TStepInv (S : List Byte) (x : List Nat) (tau e i : Nat) (ts : MachineState) 
 theorem tstep_body (S : List Byte) (x : List Nat) (tau e i : Nat) (hi : i < 42) (ts : MachineState)
     (hm : TopMem S x tau e ts) (j : Nat) (hj : j < x.getD i 0) (v : Val) (t : MachineState)
     (hinv : TStepInv S x tau e i ts j v t) :
-    Sim image t 18 (hash16 (chainInput 0 tau e i (1 + j) v)) (TStepInv S x tau e i ts (j + 1)) := by
+    Sim image t 25 (hash16 (chainInput 0 tau e i (1 + j) v)) (TStepInv S x tau e i ts (j + 1)) := by
   obtain ⟨-, hvl, tpc, tv, t23, t24, t25, t11, t12, tregs, tframe, tlo⟩ := hinv
   have htau := hm.htau
   have he := hm.he
@@ -177,30 +177,18 @@ theorem tstep_body (S : List Byte) (x : List Nat) (tau e i : Nat) (hi : i < 42) 
   have r0 : RegsEq t t0 [] := by
     intro r hr; rw [ht0, Result.toState_getReg]
     cases r <;> first | exact absurd (by decide) hr | rfl
-  -- block 591: step tweak, HASH
-  have hs1 := symRun_sound blk666 codeAt_666 t0 pc0 (by simp only [blk666.res, rv_simp])
-  have hc1 : blk666.res.cycles = 6 := rfl
-  rw [hc1] at hs1
-  set t1 := blk666.res.toState t0 with ht1
-  have f1 : Frame t0 t1 (fun x => x = 0xC0) := by
-    apply frame_toState; intro x hx hW
-    simp only [blk666.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
-      implies_true, and_true, ne_eq, ofNat_eq_iff]
-    omega
-  have r1 : RegsEq t0 t1 [.x3, .x10, .x29] := by
-    intro r hr; rw [ht1, Result.toState_getReg]
-    cases r <;> first | exact absurd (by decide) hr | rfl
-  have e1 := symRun_ecall blk666 codeAt_666 t0 (by simp only [blk666.res, rv_simp]) rfl
-  have x10 : t1.getReg .x10 = BitVec.ofNat 64 0xC0 := by simp only [ht1, blk666.res, rv_simp]
+  obtain ⟨t1, hs1, pc1, x10, r1, f1, m1⟩ := threaded_top_format t0 pc0 (8 * i + j)
+    (by omega) (by rw [r0.get .x24, t24])
+  rw [show (8 * i + j) / 8 = i by omega, show (8 * i + j) % 8 = j by omega] at m1
+  have e1 := threaded_fetch_672 t1 pc1
   have x11 : t1.getReg .x11 = BitVec.ofNat 64 64 := by rw [r1.get .x11, r0.get .x11, t11]
   have x12 : t1.getReg .x12 = BitVec.ofNat 64 0xF0 := by rw [r1.get .x12, r0.get .x12, t12]
   have x5 : t1.getReg .x5 = 0 := by rw [r1.get .x5, r0.get .x5, tregs.get .x5, hm.x5]
-  have pc1 : t1.pc = pcOf 672 := by simp only [ht1, blk666.res, rv_simp]
-  have mC0 : t1.getMem (BitVec.ofNat 64 0xC0) = twWord0 1 0 tau (j + 256 * i) := by
-    simp only [ht1, blk666.res, rv_simp, r0.get .x24, t24, splitP_word i j (by omega) (by omega)]
+  have mC0 : t1.getMem (BitVec.ofNat 64 0xC0) = twWord0 1 0 tau (chainPtr i + 65536 * j) := by
+    rw [m1]
     bvsimp []
     rw [twWord0_top _ _ _ (by omega)]
-    refine (word_of_halves _ 0x101 (j + 256 * i) (by rw [lo32_replace1, m0, tlo])
+    refine (word_of_halves _ 0x101 (chainPtr i + 65536 * j) (by rw [lo32_replace1, m0, tlo])
       (by rw [hi32_replace1])).trans ?_
     congr 1
   have hq : hashInput t1 = fmt (chainInput 0 tau e i (1 + j) v) := by
@@ -214,7 +202,7 @@ theorem tstep_body (S : List Byte) (x : List Nat) (tau e i : Nat) (hi : i < 42) 
       f1.readWords _ _ (by norm_num) (by intro i hi; omega),
       readWords_congr _ _ _ _ (fun k hk => m0 _), readWords_congr _ _ 0xF0 2 (fun k hk => m0 _),
       tframe.readWords _ _ (by norm_num) (by intro i hi; omega), hm.cbP, tv]
-    simp only [twWords_eq, show 1 + j - 1 + 256 * i = j + 256 * i by omega]
+    simp only [twWords_eq, show chainPtr i + 65536 * (1 + j - 1) = chainPtr i + 65536 * j by omega]
     simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true, true_and]
     congr 1; omega
   have hb : (fmt (chainInput 0 tau e i (1 + j) v)).blocks = 1 := by
@@ -280,7 +268,7 @@ theorem tchain_B (S : List Byte) (x : List Nat) (tau e : Nat) (tm : MachineState
     (tpc : t.pc = pcOf 654) (t21 : t.getReg .x21 = BitVec.ofNat 64 i) (t11 : t.getReg .x11 = BitVec.ofNat 64 64)
     (tsec : t.readWords (BitVec.ofNat 64 (0x140 + 16 * (i % 2))) 2 = wordsOf s)
     (hm : TopMem S x tau e t) (tregs : RegsEq tm t topRegs) (tframe : Frame tm t tchainW) :
-    Sim image t 150 (chainTo 0 tau e i (x.getD i 0) s >>= fun v => pure (acc ++ [v]))
+    Sim image t 199 (chainTo 0 tau e i (x.getD i 0) s >>= fun v => pure (acc ++ [v]))
       (fun r t' => TChainInv S x tau e tm (i + 1) r t' ∧ t'.getReg .x11 = BitVec.ofNat 64 64 ∧ TSec t t') := by
   have htau := hm.htau
   have he := hm.he
@@ -324,10 +312,10 @@ theorem tchain_B (S : List Byte) (x : List Nat) (tau e : Nat) (tm : MachineState
     · rw [r3.get .x11, t11]
     · simp only [ht3, blk654.res, rv_simp]
   have hsteps := Sim.foldlM_range' 1 (x.getD i 0) (fun v mu => hash16 (chainInput 0 tau e i mu v)) s
-    (TStepInv S x tau e i t3) 18 (fun j hj v t h => tstep_body S x tau e i hi t3 hm3 j hj v t h) h0
+    (TStepInv S x tau e i t3) 25 (fun j hj v t h => tstep_body S x tau e i hi t3 hm3 j hj v t h) h0
   unfold chainTo
   refine (Sim.steps hs3 (Sim.bind (W₂ := 10) hsteps (fun v t4 h4 => ?_))).mono
-    (by have := Nat.mul_le_mul_right 18 (show x.getD i 0 ≤ 7 by omega); omega) (fun _ _ h => h)
+    (by have := Nat.mul_le_mul_right 25 (show x.getD i 0 ≤ 7 by omega); omega) (fun _ _ h => h)
   obtain ⟨-, hvl, pc4, v4, x423, x424, x425, x411, x412, r4, f4, lo4⟩ := h4
   -- block 617: exit
   have hs5 := symRun_sound blk665 codeAt_665 t4 pc4 (by simp only [blk665.res, rv_simp])
@@ -406,7 +394,7 @@ theorem top_pair_spec (S : List Byte) (tau e k : Nat) (x : List Nat) (acc : List
 
 theorem tchain_pair (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau e : Nat) (tm : MachineState)
     (k : Nat) (hk : k < 21) (acc : List Val) (t : MachineState) (hinv : TChainInv S x tau e tm (2 * k) acc t) :
-    Sim image t 320 (do
+    Sim image t 418 (do
         let (s0, s1) ← prf2 (prfInput S 0 tau e k)
         let v0 ← chainTo 0 tau e (2 * k) (x.getD (2 * k) 0) s0
         let v1 ← chainTo 0 tau e (2 * k + 1) (x.getD (2 * k + 1) 0) s1
@@ -469,7 +457,7 @@ theorem tchain_pair (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau e :
     congr 1; omega
   have hb : (pad64 (prfInput S 0 tau e k)).blocks = 1 := by
     simp [pad64, Query.blocks, (words_prfInput S hS 0 tau e k).1]
-  refine (Sim.steps hs0 (Sim.steps hs2 (Sim.query_bind (W := 150 + (2 + 150)) e2 x5
+  refine (Sim.steps hs0 (Sim.steps hs2 (Sim.query_bind (W := 199 + (2 + 199)) e2 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
       (by norm_num)) (hq.trans (fmt_thInput _ _ _ _ _ _ (by decide)).symm) (fun a => ?_)))).mono
     (by rw [show prfInput S 0 tau e k = thInput (tweak 0 0 tau k e) S from rfl] at *; rw [blocks_fmt_th _ _ _ _ _ _ (by decide)]
@@ -525,13 +513,13 @@ theorem tchain_pair (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau e :
 /-- **Top chains** `i = 0 .. 41` (pairs `k = 0 .. 20`, up to `x_i`). -/
 theorem topChains_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau e : Nat) (tm : MachineState)
     (h0 : TChainInv S x tau e tm 0 [] tm) :
-    Sim image tm (21 * 320) ((List.range (nChains / 2)).foldlM (fun (acc : List Val) k => do
+    Sim image tm (21 * 418) ((List.range (nChains / 2)).foldlM (fun (acc : List Val) k => do
         let (s0, s1) ← prf2 (prfInput S 0 tau e k)
         let v0 ← chainTo 0 tau e (2 * k) (x.getD (2 * k) 0) s0
         let v1 ← chainTo 0 tau e (2 * k + 1) (x.getD (2 * k + 1) 0) s1
         pure (acc ++ [v0, v1])) []) (TChainInv S x tau e tm 42) := by
   unfold nChains
-  exact Sim.foldlM_range 21 _ [] (fun k => TChainInv S x tau e tm (2 * k)) 320
+  exact Sim.foldlM_range 21 _ [] (fun k => TChainInv S x tau e tm (2 * k)) 418
     (fun k hk acc t h => by
       rw [show 2 * (k + 1) = 2 * k + 2 by ring]; exact tchain_pair S hS x tau e tm k hk acc t h) h0
 
@@ -773,7 +761,7 @@ def TopPost (t0 : MachineState) (r : List Val × List Val) (t : MachineState) : 
 /-- **The top layer** (chains up to `x_i`, path from the cache). -/
 theorem top_sim (S cache : List Byte) (hS : S.length = 32) (x : List Nat) (tau e : Nat) (t : MachineState)
     (hc : TopCtx S cache x tau e t) (tpc : t.pc = pcOf 637) :
-    Sim image t (9 + (21 * 320 + (4 + 11 * 36)))
+    Sim image t (9 + (21 * 418 + (4 + 11 * 36)))
       ((List.range (nChains / 2)).foldlM (fun (acc : List Val) k => do
         let (s0, s1) ← prf2 (prfInput S 0 tau e k)
         let v0 ← chainTo 0 tau e (2 * k) (x.getD (2 * k) 0) s0

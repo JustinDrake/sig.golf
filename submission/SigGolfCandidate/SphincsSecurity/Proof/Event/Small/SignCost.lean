@@ -175,7 +175,7 @@ theorem keygenHashCost_eq : keygenHashCost = 606207 := by
   rw [keygenHashCost_def, treeNodeHashCost_def, oneTimeKeyHashCost_def]
   decide
 
-theorem signHashBound_eq : signHashBound = 25083898 := by
+theorem signHashBound_eq : signHashBound = 9355258 := by
   rw [signHashBound, ftsOpenHashCost_eq, treeNodeHashCost_def, oneTimeKeyHashCost_def]
   decide
 

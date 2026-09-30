@@ -13,7 +13,7 @@ structure Spec where
   steps : Nat
   brs : List Br
   spc : Option E := none
-  /-- RV64M instructions can cost more than one cycle per step. -/
+  /-- Cycle cost may exceed the instruction count for RV64M operations. -/
   cycles : Nat := steps
 
 def regsB (r : PRes) (l : List (Reg × E)) : Bool := l.all fun p => E.beq (r.st.regs.get p.1) p.2

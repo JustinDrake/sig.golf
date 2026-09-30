@@ -221,14 +221,14 @@ def pspecB (gk : List (Reg × Word)) (o : Option PRes) (sp : Spec) (obl : List O
   | some r =>
     regsB r sp.regs && listBeq pairBeq r.st.mem sp.mem &&
       (sp.spc.isSome || r.pc.toNat == (pcOf sp.pc).toNat) &&
-      r.ecall == sp.ecall && r.steps == sp.steps && r.cycles == sp.cycles &&
+      r.ecall == sp.ecall && r.steps == sp.steps && r.cycles == sp.steps &&
       listBeq Br.beq r.brs sp.brs && optEBeq r.spc sp.spc && listBeq Oblig.beq r.st.obl obl &&
       memOKP r.st.mem && regsOK gk r.st.regs && knownB post r && keepB keep r
 
 /-- What a checked PORS run gives on a concrete state. -/
 structure PSpecRes (gk : List (Reg × Word)) (sp : Spec) (post : List (Reg × Word)) (keep : List Reg)
     (s t : MachineState) : Prop where
-  steps : Steps image s sp.steps sp.cycles t
+  steps : Steps image s sp.steps sp.steps t
   ecall : sp.ecall = true → fetch image t = some (.base .ECALL)
   glob : ∀ gk0 s0, GlobP gk0 s0 s → GlobP gk s0 t
   known : KnownOK post t

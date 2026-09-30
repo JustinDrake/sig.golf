@@ -29,13 +29,13 @@ noncomputable def referenceFamilySeedLawAt (parameter : PublicParameter) (inputs
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (selections : ReferenceFamily) :
     PMF (ReferenceFamilySeed parameter inputs hencoding) :=
   (PMF.uniformOfFintype (NonencodingRows parameter inputs hencoding)).bind (fun nonencoding =>
-    (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections).bind
+    (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections).bind
       (fun selectedRows => (PMF.uniformOfFintype (canonicalEncodingInputs parameter → HashOutput)).map
         (fun encoding => ⟨selections, nonencoding, selectedRows, encoding⟩)))
 
 noncomputable def referenceFamilySeedLaw (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) : PMF (ReferenceFamilySeed parameter inputs hencoding) :=
-  (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).bind
+  (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).bind
     (referenceFamilySeedLawAt parameter inputs hencoding)
 
 noncomputable def referenceFamilySeedTable (key : SecretKey) (inputs : Finset HashInput)
@@ -50,13 +50,13 @@ theorem referenceFamilyOracleSample_eq_seed (key : SecretKey) (inputs : Finset H
       (referenceFamilySeedLaw key.parameter inputs hencoding).map
         (fun seed => (seed.selections, referenceFamilySeedTable key inputs hencoding seed)) := by
   rw [referenceFamilyOracleSample, referenceFamilySeedLaw, PMF.map_bind]
-  apply congrArg (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).bind
+  apply congrArg (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).bind
   funext selections
   rw [referenceFamilySeedLawAt, PMF.map_bind]
   apply congrArg (PMF.uniformOfFintype (NonencodingRows key.parameter inputs hencoding)).bind
   funext nonencoding
   rw [PMF.map_bind]
-  apply congrArg (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections).bind
+  apply congrArg (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections).bind
   funext selectedRows
   rw [← UniformTableSplit.uniform_outside
     (referenceFamilyCell key.parameter (outsideGraphMessage key inputs hencoding nonencoding))

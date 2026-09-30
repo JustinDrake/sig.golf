@@ -13,11 +13,11 @@ The abstract `Signature` is witness-shaped (`SphincsSecurity.FtsSignature`: slot
   `Ref.wStream = 272` by a pointer (header byte `b`: `a = b mod 16`, merge = bit 4, `t` = bit 5,
   normalised when `a = 0`; the `a` nodes at `ptr + 8 + 16 i`; next header at `ptr + 8 + 16 a`), bytes
   beyond the witness read as zero, the layer bodies and the counters.
-* `compressList` / `compress : Signature → Bytes 6048`: `rho | secrets | the nodes of segments
-  0..28 concatenated, zero padded (or cut) to 118 nodes | per layer chain values, path` (no counters).
-* `aExpand m pk σ`: the digest query of `rho = σ[0..16)` and `m` through the abstract hash, the
-  pure partial witness `Ref.expandOf` of the reference, the abstract PORS stack machine on it, then
-  per layer the least-counter search (and below the top the verifier's chains, leaf and fold).
+* `compressList` / `compress : Signature → Bytes 6061`: `rho | secrets | the nodes of segments
+  0..28 concatenated, zero padded (or cut) to 118 nodes | five aligned chain/path bodies |
+  canonical 13-byte counter tail`.
+* `aExpand m pk σ`: the digest query of `rho = σ[0..16)` and `m` through the abstract hash, then the
+  pure reconstruction `Ref.expandOf` of the reference.
 -/
 
 open OracleComp OracleSpec
@@ -78,72 +78,35 @@ def witDec (w : Bytes 6348) : Signature := witSig (Ref.toList w)
 def authNodes (σ : Signature) : List Digest :=
   (List.ofFn fun j => List.ofFn (σ.fts.segments j).nodes).flatten
 
-/-- One layer: the 42 chain values and the path. The counter is not part of the compact
-signature: the expansion recomputes it. -/
+/-- One logical layer: `LE32 c`, the 42 chain values and the path. -/
 def layerBytes (σ : Signature) (lay : Layer) : List Byte :=
+  Ref.toList (n := 4) (σ.layers lay).counter ++
+    (List.ofFn fun i => dv ((σ.layers lay).chainValues i)).flatten ++
+    (List.ofFn fun j => dv ((σ.layers lay).path j)).flatten
+
+/-- The aligned body of one compact-signature layer. -/
+def layerBodyBytes (σ : Signature) (lay : Layer) : List Byte :=
   (List.ofFn fun i => dv ((σ.layers lay).chainValues i)).flatten ++
     (List.ofFn fun j => dv ((σ.layers lay).path j)).flatten
 
-/-- **The compact signature bytes**: `rho | 15 secrets | 118 authentication-node slots (the
-segments' nodes in order, zero padded, cut at 118) | layer bodies 0..4` (no counters). -/
+/-- **The compact signature bytes**: `rho | PORS items | aligned layer bodies | 13-byte counter tail`. -/
 def compressList (σ : Signature) : List Byte :=
   dv σ.randomness ++ (List.ofFn fun s => dv (σ.fts.secrets s)).flatten ++
     (((authNodes σ).map dv).flatten ++ Ref.zeros (16 * Ref.porsM)).take (16 * Ref.porsM) ++
-    (List.ofFn (layerBytes σ)).flatten
+    (List.ofFn (layerBodyBytes σ)).flatten ++
+    Ref.CounterPack.packTail (List.ofFn fun lay : Layer => (σ.layers lay).counter.toNat)
 
 /-- **The compact signature**. -/
-def compress (σ : Signature) : Bytes 6048 := Ref.ofList 6048 (compressList σ)
+def compress (σ : Signature) : Bytes 6061 := Ref.ofList 6061 (compressList σ)
 
 /-! ## The abstract expansion -/
 
-open SphincsSecurity.Concrete (treeIndexAt leafIndexAt encodingSearch recoverChain leafHash treeFold
-  signaturePath) in
-/-- The abstract counter phase on the witness-shaped signature `S0`: layers `k-1, .., 0` from `M`
-(the signer's `encodingSearch` from `0`; below the top layer, the verifier's chains, leaf and fold).
-Returns the counters, layer 0 first. -/
-def aLayers (index : SphincsSecurity.Index) (S0 : Signature) : Nat → Digest → AComp (Option (List Nat))
-  | 0, _ => pure (some [])
-  | 1, M => do
-    let lay : Layer := ⟨0, by decide⟩
-    match ← encodingSearch (m := AComp) 0 lay (treeIndexAt index lay) (leafIndexAt index lay) M
-        SphincsSecurity.encodingAttemptLimit 0 with
-    | none => pure none
-    | some (c, _) => pure (some [c.toNat])
-  | n + 2, M =>
-    if h : n + 1 < SphincsSecurity.numLayers then do
-      let lay : Layer := ⟨n + 1, h⟩
-      match ← encodingSearch (m := AComp) 0 lay (treeIndexAt index lay) (leafIndexAt index lay) M
-          SphincsSecurity.encodingAttemptLimit 0 with
-      | none => pure none
-      | some (c, enc) =>
-        let ends ← SphincsSecurity.Concrete.sequenceFin (m := AComp) fun ch =>
-          recoverChain 0 lay (treeIndexAt index lay) (leafIndexAt index lay) ch (enc ch)
-            ((S0.layers lay).chainValues ch)
-        let leaf ← leafHash (m := AComp) 0 lay (treeIndexAt index lay) (leafIndexAt index lay) ends
-        let root ← treeFold (m := AComp) 0 lay (treeIndexAt index lay) (leafIndexAt index lay)
-          (signaturePath S0 lay) (SphincsSecurity.layerHeight lay) leaf
-        match ← aLayers index S0 (n + 1) root with
-        | none => pure none
-        | some cs => pure (some (cs ++ [c.toNat]))
-    else pure none
-
-/-- **The abstract expansion**: the digest of `rho = σ[0..16)` and the message, the reference's
-pure partial witness `Ref.expandOf` (which fails on malformed signatures), the abstract PORS stack
-machine on it (the message of the bottom layer), the counter phase, the counters written. -/
-def aExpand (m : Message) (pk : PublicKey) (σ : Bytes 6048) : AComp (Option (Bytes 6348)) := do
+/-- **The abstract expansion**: the digest of `rho = σ[0..16)` and the message (one abstract query),
+then the reference's pure reconstruction `Ref.expandOf` (which fails on malformed signatures). -/
+def aExpand (m : Message) (pk : PublicKey) (σ : Bytes 6061) : AComp (Option (Bytes 6348)) := do
   let d ← SphincsSecurity.Concrete.messageDigest (m := AComp) 0 pk.root m
     (Ref.ofList 16 (Ref.sigRho (Ref.toList σ)))
-  match Ref.expandOf (Ref.toList σ) d.toNat with
-  | none => pure none
-  | some w0 =>
-    let index := SphincsSecurity.Concrete.digestIndex d
-    match ← SphincsSecurity.Concrete.ftsRecover (m := AComp) 0 index
-        (SphincsSecurity.Concrete.slotValue (SphincsSecurity.Concrete.digestLeaves d)) (witFts w0) with
-    | none => pure none
-    | some M =>
-      match ← aLayers index (witSig w0) SphincsSecurity.numLayers M with
-      | none => pure none
-      | some cs => pure (some (Ref.ofList 6348 (Ref.withCounters w0 cs)))
+  pure ((Ref.expandOf (Ref.toList σ) d.toNat).map (Ref.ofList 6348))
 
 /-! ## Basic facts -/
 
@@ -154,24 +117,31 @@ theorem dv_wdig (w : List Byte) (o : Nat) : dv (wdig w o) = Ref.wbytes w o 16 :=
   Ref.toList_ofList 16 _ (length_wbytes w o 16)
 
 theorem length_layerBytes (σ : Signature) (lay : Layer) :
-    (layerBytes σ lay).length = Ref.bodyBytes lay.val := by
-  simp only [layerBytes, List.length_append]
+    (layerBytes σ lay).length = Ref.sigLayerBytes lay.val := by
+  simp only [layerBytes, List.length_append, Ref.length_toList]
   rw [length_flatten_ofFn _ 16 (fun j => length_dv _), length_flatten_ofFn _ 16 (fun j => length_dv _)]
   fin_cases lay <;> rfl
 
-theorem length_compressList (σ : Signature) : (compressList σ).length = 6048 := by
+theorem length_layerBodyBytes (σ : Signature) (lay : Layer) :
+    (layerBodyBytes σ lay).length = Ref.sigBodyBytes lay.val := by
+  simp only [layerBodyBytes, List.length_append]
+  rw [length_flatten_ofFn _ 16 (fun j => length_dv _), length_flatten_ofFn _ 16 (fun j => length_dv _)]
+  fin_cases lay <;> rfl
+
+theorem length_compressList (σ : Signature) : (compressList σ).length = 6061 := by
   simp only [compressList, List.length_append, length_dv, List.length_take, Ref.zeros,
     List.length_replicate]
   rw [length_flatten_ofFn _ 16 (fun j => length_dv _)]
-  have hl : (List.ofFn (layerBytes σ)).flatten.length = 3904 := by
+  have hl : (List.ofFn (layerBodyBytes σ)).flatten.length = 3904 := by
     rw [List.length_flatten, List.map_ofFn]
-    simp only [Function.comp_def, length_layerBytes, List.sum_ofFn]
+    simp only [Function.comp_def, length_layerBodyBytes, List.sum_ofFn]
     decide
-  rw [hl]
+  rw [hl, Ref.CounterPack.length_packTail]
   simp only [SphincsSecurity.ftsOpenings, Ref.porsM]
+  simp only [Ref.CounterPack.tailBytes]
   omega
 
 theorem toList_compress (σ : Signature) : Ref.toList (compress σ) = compressList σ :=
-  Ref.toList_ofList 6048 _ (length_compressList σ)
+  Ref.toList_ofList 6061 _ (length_compressList σ)
 
 end SigGolfCandidate.Equiv

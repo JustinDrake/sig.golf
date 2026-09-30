@@ -18,14 +18,14 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 set_option maxRecDepth 100000
 
 /-- The loaded initial state. -/
-def sI (m : Message) (pk : PublicKey) (σ : Bytes 6048) : MachineState :=
+def sI (m : Message) (pk : PublicKey) (σ : Bytes 6061) : MachineState :=
   let blank : MachineState := { regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 }
   ((((blank.writeBytesAsWords (BitVec.ofNat 64 (dataBase image)) image.data).writeBytesAsWords
       (BitVec.ofNat 64 0x40) (SigGolfCandidate.Legacy.bytes m)).writeBytesAsWords (BitVec.ofNat 64 0xA0)
       (SigGolfCandidate.Legacy.bytes pk)).writeBytesAsWords
       (BitVec.ofNat 64 0x3300) (SigGolfCandidate.Legacy.bytes σ)).setReg .x2 (BitVec.ofNat 64 (dataBase image))
 
-theorem initialState_eq (m : Message) (pk : PublicKey) (σ : Bytes 6048) :
+theorem initialState_eq (m : Message) (pk : PublicKey) (σ : Bytes 6061) :
     initialState submission .expand (m, pk, σ) = some (sI m pk σ) := by
   unfold initialState
   rw [if_pos (submission_admissible.2 .expand)]
@@ -38,7 +38,7 @@ theorem initialState_eq (m : Message) (pk : PublicKey) (σ : Bytes 6048) :
   dsimp only
   rfl
 
-theorem sI_pc (m : Message) (pk : PublicKey) (σ : Bytes 6048) : (sI m pk σ).pc = pcOf 0 := by
+theorem sI_pc (m : Message) (pk : PublicKey) (σ : Bytes 6061) : (sI m pk σ).pc = pcOf 0 := by
   rw [initialState_pc submission .expand (m, pk, σ) _ (initialState_eq m pk σ)]; rfl
 
 theorem regs_writeBytesAsWords (l : List Byte) : ∀ (s : MachineState) (base : Word),
@@ -55,7 +55,7 @@ theorem regs_writeBytesAsWords (l : List Byte) : ∀ (s : MachineState) (base : 
       rw [ih _ (by simp only [List.length_drop, List.length_cons]; omega)]
       rfl
 
-theorem sI_getReg (m : Message) (pk : PublicKey) (σ : Bytes 6048) (r : Reg) (hr : r ≠ .x2) :
+theorem sI_getReg (m : Message) (pk : PublicKey) (σ : Bytes 6061) (r : Reg) (hr : r ≠ .x2) :
     (sI m pk σ).getReg r = 0 := by
   unfold sI
   dsimp only
@@ -70,19 +70,19 @@ theorem length_bytes {n : Nat} (x : Bytes n) : (SigGolfCandidate.Legacy.bytes x)
   simp [SigGolfCandidate.Legacy.bytes]
 
 /-- Bytes of the initial memory. -/
-theorem sI_getByte (m : Message) (pk : PublicKey) (σ : Bytes 6048) (a : Nat) (ha : a < 2 ^ 64) :
+theorem sI_getByte (m : Message) (pk : PublicKey) (σ : Bytes 6061) (a : Nat) (ha : a < 2 ^ 64) :
     (sI m pk σ).getByte (BitVec.ofNat 64 a) =
-      if 0x3300 ≤ a ∧ a < 0x3300 + 6048 then (SigGolfCandidate.Legacy.bytes σ).getD (a - 0x3300) 0
+      if 0x3300 ≤ a ∧ a < 0x3300 + 6064 then (SigGolfCandidate.Legacy.bytes σ).getD (a - 0x3300) 0
       else if 0xA0 ≤ a ∧ a < 0xB0 then (SigGolfCandidate.Legacy.bytes pk).getD (a - 0xA0) 0
       else if 0x40 ≤ a ∧ a < 0x60 then (SigGolfCandidate.Legacy.bytes m).getD (a - 0x40) 0
       else 0 := by
   unfold sI
   simp only [getByte_setReg, image_data]
-  have L1 : (SigGolfCandidate.Legacy.bytes σ).length = 6048 := length_bytes σ
+  have L1 : (SigGolfCandidate.Legacy.bytes σ).length = 6061 := length_bytes σ
   have L2 : (SigGolfCandidate.Legacy.bytes pk).length = 16 := length_bytes pk
   have L3 : (SigGolfCandidate.Legacy.bytes m).length = 32 := length_bytes m
   rw [getByte_writeBytesAsWords _ _ _ _ (by decide) (by rw [L1]; norm_num) ha, L1]
-  by_cases h1 : 0x3300 ≤ a ∧ a < 0x3300 + 6048
+  by_cases h1 : 0x3300 ≤ a ∧ a < 0x3300 + 6064
   · rw [if_pos (by omega), if_pos h1]
   rw [if_neg (by omega), if_neg h1, getByte_writeBytesAsWords _ _ _ _ (by decide)
     (by rw [L2]; norm_num) ha, L2]

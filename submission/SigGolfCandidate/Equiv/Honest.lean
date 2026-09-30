@@ -188,11 +188,13 @@ theorem fmtQ_injOn : Set.InjOn fmtQ Honest := by
     rw [Ref.leNat_le32, Ref.leNat_le32] at eB'
     unfold posField at hpx hpy
     rw [← hz] at hpx; rw [← hw] at hpy
-    have bx : Ref.splitP (Ref.leNat (Ref.slice z 4 4)) < 2 ^ 32 := by unfold Ref.splitP; omega
-    have bw : Ref.splitP (Ref.leNat (Ref.slice w 4 4)) < 2 ^ 32 := by unfold Ref.splitP; omega
+    have bx : Ref.splitP (Ref.leNat (Ref.slice z 4 4)) < 2 ^ 32 :=
+      Ref.splitP_lt32 _ hpx
+    have bw : Ref.splitP (Ref.leNat (Ref.slice w 4 4)) < 2 ^ 32 :=
+      Ref.splitP_lt32 _ hpy
     rw [Nat.mod_eq_of_lt bx, Nat.mod_eq_of_lt bw] at eB'
-    have ep : Ref.leNat (Ref.slice z 4 4) = Ref.leNat (Ref.slice w 4 4) := by
-      unfold Ref.splitP at eB'; omega
+    have ep : Ref.leNat (Ref.slice z 4 4) = Ref.leNat (Ref.slice w 4 4) :=
+      Ref.splitP_injective eB'
     have e4 : Ref.slice z 4 4 = Ref.slice w 4 4 := by
       rw [← le32_leNat (Ref.slice z 4 4) (hlength_slice _ _ _ (by omega)),
         ← le32_leNat (Ref.slice w 4 4) (hlength_slice _ _ _ (by omega)), ep]
@@ -953,39 +955,10 @@ theorem hq_sign (sk : SphincsSecurity.Seeded.SecretKey) (hP : sk.parameter = 0)
       · exact hq_pure _
   · exact hq_pure _
 
-theorem hq_aLayers (index : Index) (S0 : Signature) (n : Nat) (M : Digest) :
-    HQ (aLayers index S0 n M) := by
-  induction n using Nat.strongRecOn generalizing M with
-  | _ n ih =>
-  match n with
-  | 0 => exact hq_pure _
-  | 1 =>
-    unfold aLayers
-    exact hq_bind (hq_encodingSearch _ _ _ _ _ _ _) fun r => by split <;> exact hq_pure _
-  | k + 2 =>
-    unfold aLayers
-    split
-    · refine hq_bind (hq_encodingSearch _ _ _ _ _ _ _) fun r => ?_
-      split
-      · exact hq_pure _
-      · exact hq_bind (hq_sequenceFin _ fun c => hq_chainWalk _ rfl _ _ _ _ _ _ _) fun _ =>
-          hq_bind (hq_leafHash _ _ _ _ _) fun _ =>
-          hq_bind (hq_treeFold _ _ _ _ _ (by simp only [SphincsSecurity.Concrete.leafIndexAt]; exact Nat.mod_lt _ (Nat.two_pow_pos _)) _ le_rfl _) fun _ =>
-          hq_bind (ih (k + 1) (by omega) _) fun r => by split <;> exact hq_pure _
-    · exact hq_pure _
-
-/-- **expand** (abstract) makes only honest queries: the digest, the PORS stack machine, and per
-layer the counter search, chains, leaf and fold, all with parameter `0`. -/
-theorem hq_aExpand (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6048) :
-    HQ (aExpand m pk σ) := by
-  unfold aExpand
-  refine hq_bind (hq_messageDigest _ rfl _ _ _) fun d => ?_
-  split
-  · exact hq_pure _
-  · refine hq_bind (hq_ftsRecover _ _ _ _) fun r => ?_
-    split
-    · exact hq_pure _
-    · exact hq_bind (hq_aLayers _ _ _ _) fun r => by split <;> exact hq_pure _
+/-- **expand** (abstract) makes only honest queries: one digest query with parameter `0`. -/
+theorem hq_aExpand (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6061) :
+    HQ (aExpand m pk σ) :=
+  hq_bind (hq_messageDigest _ rfl _ _ _) fun _ => hq_pure _
 
 /-- **keygen** makes only honest queries. -/
 theorem hq_keygen (seed : MasterSeed) : HQ (SphincsSecurity.Seeded.keygenFromSeed seed) := by

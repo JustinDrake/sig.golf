@@ -35,7 +35,7 @@ theorem otsLeaf_chain_run (message : Digest) (counter : Counter) (values : Chain
 theorem otsLeaf_marker (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (candidate : Encoding) (trace : Trace)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some candidate)
     (hrun : ContainsRun f trace (otsLeafAttempt parameter lay tree leaf message counter values))
-    (index : ChainIndex) (hneighbor : OtsCode.UnitNeighborAt (words lay tree leaf) candidate index) :
+    (index : ChainIndex) (hneighbor : OtsCode.UnitNeighborAt lay (words lay tree leaf) candidate index) :
     OtsEncodingMarker.Seen parameter words ⟨lay, tree, leaf, index⟩ trace := by
   let input := tweakableHashInput parameter (.encoding lay tree leaf) (digestBytes message ++ counterBytes counter)
   have hi : input ∈ queriedInputs f (encodeAttempt parameter lay tree leaf message counter) := by
@@ -47,7 +47,7 @@ theorem otsLeaf_marker (message : Digest) (counter : Counter) (values : ChainInd
   simpa only [encodeAttempt, evalWithAnswerFn_bind, eval_tweakableHash, evalWithAnswerFn_pure, decodeEncodingOutput, input] using hencode
 
 theorem otsLeaf_chain_classification (message : Digest) (counter : Counter) (values : ChainIndex → Digest)
-    (candidate : Encoding) (trace : Trace) (hvalid : OtsCode.Valid (words lay tree leaf))
+    (candidate : Encoding) (trace : Trace) (hvalid : OtsCode.Valid lay (words lay tree leaf))
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some candidate)
     (hrun : ContainsRun f trace (otsLeafAttempt parameter lay tree leaf message counter values))
     (hendpoints : ∀ index, evalWithAnswerFn f (recoverChain parameter lay tree leaf index (candidate index) (values index))
@@ -92,7 +92,7 @@ def LeafOutputMatch (trace : Trace) : Prop :=
     truncateHash (f (tweakableHashInput parameter (.leaf lay tree leaf) payload)) = canonicalLeaf f parameter lay tree leaf secret
 
 theorem otsLeaf_classification (message : Digest) (counter : Counter) (values : ChainIndex → Digest)
-    (candidate : Encoding) (trace : Trace) (hvalid : OtsCode.Valid (words lay tree leaf))
+    (candidate : Encoding) (trace : Trace) (hvalid : OtsCode.Valid lay (words lay tree leaf))
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some candidate)
     (hrun : ContainsRun f trace (otsLeafAttempt parameter lay tree leaf message counter values))
     (hleaf : evalWithAnswerFn f (otsLeafAttempt parameter lay tree leaf message counter values)

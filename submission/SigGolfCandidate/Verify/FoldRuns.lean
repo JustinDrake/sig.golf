@@ -1,13 +1,7 @@
 import SigGolfCandidate.Verify.Post
 import SigGolfCandidate.Verify.Tab
 
-/-! # Merkle fold levels (M4 shape blocks): expected symbolic results
-
-After the leaf hash, one computed jump per chunk of the leaf index enters a block of
-straight-line levels for that chunk value (layers 1..4: one chunk of `h` bits; layer 0: 6 + 5
-bits). Block `v` of chunk `ci` starts at word `m4Base + v * 2 ^ m4Sh`; level `kk` of the chunk
-(`lam = chB0 + kk`) starts with `li a2, 0x1E0 + 16 t; ecall` (the hash of the node below, into
-the slot of side `t = v / 2^kk % 2`) at offset `m4Off kk`. -/
+/-! # Merkle fold levels (two-track regions): expected symbolic results -/
 
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
@@ -21,140 +15,66 @@ def stW0 (a : Nat) (v : E) : E := .bin (.st .w 0) (ldE a) v
 def heightL (lay : Nat) : Nat := [11, 6, 6, 6, 5].getD lay 0
 def layBody (lay : Nat) : Nat := [2424, 3272, 4040, 4808, 5576].getD lay 0
 
+/-- X-block pc `j` of stream `t` of region `rg`. -/
+def xPc (rg t j : Nat) : Nat := ((xTab.getD rg []).getD t []).getD j 0
+
+/-- Start of fold level `lam` (right after the ecall of X-block `j0 + lam`). -/
+def lvlPc (rg t j0 lam : Nat) : Nat := xPc rg t (j0 + lam) + 2
+
 /-- Known registers: FORS (`kind = true`) or layers. -/
 def gkOf (kind : Bool) : List (Reg × Word) := if kind then gkF else gkL
 
 def fk (kind : Bool) (a0 a1 : Nat) : List (Reg × Word) :=
   gkOf kind ++ [(.x10, BitVec.ofNat 64 a0), (.x11, BitVec.ofNat 64 a1)]
 
+/-- Fold level `lam` of `h`, in stream `t`, sibling at witness address `wa`, next stream `t'`
+(unused for the last level), final destination `dst`. The level stores only the heap index of
+its output node (`srli TP, E, lam + 1; sw TP, NB+12`, with `E = e | 2^h` in `x23`); the root
+level stores the constant 1 (`sw P1, NB+12`). -/
+def lvlExp (kind : Bool) (a1 : Nat) (rg t j0 h lam wa dst t' : Nat) : PRes :=
+  let sib := 0x1F0 - 16 * t
+  let base := RegFile.withKnown (fk kind (if lam = 0 then (if kind then 0xC0 else 0x340) else 0x1C0) a1)
+  let rf0 := if lam = 0 then
+      (if kind then base.set .x10 (cw 0x1C0) else (base.set .x10 (cw 0x1C0)).set .x11 (cw 64))
+    else base
+  let rf := (rf0.set .x1 (ldE wa)).set .x2 (ldE (wa + 8))
+  let mb : List (Addr × E) :=
+    [(⟨none, BitVec.ofNat 64 (sib + 8)⟩, ldE (wa + 8)), (⟨none, BitVec.ofNat 64 sib⟩, ldE wa)]
+  let mh : List (Addr × E) := if lam = 0 ∧ kind then [(⟨none, BitVec.ofNat 64 0x1C0⟩, .reg .x27)] else []
+  let hs := if lam = 0 then 2 else 0
+  if lam + 1 = h then
+    ⟨⟨rf.set .x12 (cw dst), [(⟨none, BitVec.ofNat 64 0x1C8⟩, stW 0x1C8 (cw 1))] ++ mb ++ mh, []⟩,
+      pcOf (lvlPc rg t j0 lam + hs + 6), true, hs + 6, hs + 6, [], none⟩
+  else
+    let tE : E := .bin .sll (.reg .x23) (cw (62 - lam))
+    let jE : E := .bin .srl (.reg .x23) (cw (lam + 1))
+    ⟨⟨(((rf.set .x4 jE).set .x3 tE).set .x12 (cw (0x1E0 + 16 * t'))),
+      [(⟨none, BitVec.ofNat 64 0x1C8⟩, stW 0x1C8 jE)] ++ mb ++ mh, []⟩,
+      pcOf (xPc rg t' (j0 + lam + 1) + 1), true, hs + 9, hs + 9,
+      [⟨if t = 0 then .lt else .ge, tE, .c 0, if t = 0 then t' = 1 else t' = 0⟩], none⟩
+
+def lvlDirs (h lam t' : Nat) : List Dir := if lam + 1 = h then [] else [.br (t' = 1)]
+
+def lvlDirs' (t h lam t' : Nat) : List Dir :=
+  if lam + 1 = h then [] else [.br (if t = 0 then t' = 1 else t' = 0)]
+
 def fkeep (kind : Bool) : List Reg :=
   if kind then [.x16, .x17, .x22, .x23, .x25, .x27, .x28, .x29, .x30, .x31]
-  else [.x14, .x15, .x16, .x17, .x23, .x25, .x27, .x28, .x30, .x31]
+  else [.x14, .x15, .x16, .x17, .x22, .x23, .x25, .x27, .x30, .x31]
 
 def okFold (kind : Bool) (o : Option PRes) (e : PRes) (post : List (Reg × Word)) : Bool :=
   optBeq o e && resOK (gkOf kind) e && knownB post e && keepB (fkeep kind) e
 
-/-! ## Shape blocks (tables in `Tab.lean`) -/
+def lvlPost (kind : Bool) (h lam dst t' : Nat) : List (Reg × Word) :=
+  fk kind 0x1C0 64 ++ [(.x12, BitVec.ofNat 64 (if lam + 1 = h then dst else 0x1E0 + 16 * t'))]
 
-def m4Get (lay ci j : Nat) : Nat := ((m4Tab.getD lay []).getD ci []).getD j 0
-/-- First word of block 0 of chunk `ci`. -/
-def m4Base (lay ci : Nat) : Nat := m4Get lay ci 0
-/-- log2 of the block size in words. -/
-def m4Sh (lay ci : Nat) : Nat := m4Get lay ci 1
-/-- The dispatch constants: `lui` value and the offset added to the shifted index. -/
-def m4Hi (lay ci : Nat) : Nat := m4Get lay ci 4
-def m4Doff (lay ci : Nat) : Nat := m4Get lay ci 5
-/-- Offset of level `kk` in a block of chunk `ci`. -/
-def m4Off (lay ci kk : Nat) : Nat := ((m4OffTab.getD lay []).getD ci []).getD kk 0
-
-/-- Chunks of the leaf index: layer 0 has two (bits 0..5, 6..10), the others one. -/
-def nCh (lay : Nat) : Nat := if lay = 0 then 2 else 1
-def chB0 (lay ci : Nat) : Nat := if lay = 0 ∧ ci = 1 then 6 else 0
-def chBits (lay ci : Nat) : Nat := if lay = 0 then (if ci = 0 then 6 else 5) else heightL lay
-/-- The chunk holding level `lam`. -/
-def chOf (lay lam : Nat) : Nat := if lay = 0 ∧ 6 ≤ lam then 1 else 0
-
-/-- The `li a2` of level `kk` of block `v` of chunk `ci`. -/
-def m4Pc (lay ci v kk : Nat) : Nat := m4Base lay ci + v * 2 ^ m4Sh lay ci + m4Off lay ci kk
-
-/-- Sibling witness address of level `lam`. -/
-def sibAddr (lay lam : Nat) : Nat := 0x800 + (layBody lay + 672) + 16 * lam
-
-/-- M4c: the parent of level `lam` is at depth `h - lam - 1`; at depths 1 and 2 (heap indices
-2..7) its index is a constant stored from the register that holds it. -/
-def isConstLvl (lay lam : Nat) : Bool := lam + 3 = heightL lay || lam + 2 = heightL lay
-
-/-- Destination of the root hash: EB+32 (the next layer's message) or FO (layer 0). -/
-def dstOf (lay : Nat) : Nat := if lay = 0 then 0x180 else 0x120
-
-/-- `x3` after the chunk dispatch into chunk `ci` (`[andi] slli; lui; add`). -/
-def dispGp (lay ci : Nat) : E :=
-  let idx : E := if nCh lay = 1 then .reg .x23
-    else if ci = 0 then mkBin .and (.reg .x23) (cw 63)
-    else mkBin .and (.reg .x23) (.c (BitVec.ofNat 64 (2 ^ 64 - 64)))
-  let sh := if nCh lay = 2 ∧ ci = 1 then m4Sh lay ci + 2 - 6 else m4Sh lay ci + 2
-  mkAdd (mkBin .sll idx (cw sh)) (cw (m4Hi lay ci))
-
-/-- The target of the chunk dispatch (`jalr zero, lo(gp)`). -/
-def dispTgt (lay ci : Nat) : E :=
-  mkBin .and (mkAdd (dispGp lay ci) (.c (BitVec.ofNat 64 (m4Doff lay ci) - BitVec.ofNat 64 (m4Hi lay ci))))
-    (.c (~~~1#64))
-
-/-- The value stored into NB+12 (the parent's heap index) by level `kk` of block `v`: the
-constant 1 at the root, M4c constants (`sw R`) at depths 1 and 2 of the last chunk, else
-`srli TP, E, lam + 1`. -/
-def lvlNb (lay ci v kk : Nat) : E :=
-  let lam := chB0 lay ci + kk
-  if lam + 1 = heightL lay then cw 1
-  else if kk + 1 < chBits lay ci ∧ isConstLvl lay lam = true then
-    cw (2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1))
-  else .bin .srl (.reg .x23) (cw (lam + 1))
-
-/-- The memory writes of a level: NB+12, then the sibling into the slot `1 - t`. -/
-def lvlMem (lay lam t : Nat) (nb : E) : List (Addr × E) :=
-  [(⟨none, BitVec.ofNat 64 0x1C8⟩, stW 0x1C8 nb),
-   (⟨none, BitVec.ofNat 64 (0x1F0 - 16 * t + 8)⟩, ldE (sibAddr lay lam + 8)),
-   (⟨none, BitVec.ofNat 64 (0x1F0 - 16 * t)⟩, ldE (sibAddr lay lam))]
-
-/-- Known registers at the start of level `lam`. -/
-def lvlK (lam : Nat) : List (Reg × Word) :=
-  fk false (if lam = 0 then 0x340 else 0x1C0) (if lam = 0 then 704 else 64)
-
-/-- The registers common to every level: the known ones (level 0 sets `a0, a1` for the node
-hashes), `ra, sp` = the sibling. -/
-def lvlRegs (lay lam : Nat) : RegFile :=
-  let base := RegFile.withKnown (lvlK lam)
-  let rf0 := if lam = 0 then (base.set .x10 (cw 0x1C0)).set .x11 (cw 64) else base
-  (rf0.set .x1 (ldE (sibAddr lay lam))).set .x2 (ldE (sibAddr lay lam + 8))
-
-/-- Level `kk` of block `v` of chunk `ci` of layer `lay`, from after the `ecall` of its node
-hash: load the sibling into the other slot, store the parent's heap index into NB+12, then the
-next level's `li a2` (stopping at its `ecall`), or at the end of chunk 0 of layer 0 the dispatch
-into chunk 1 (a jump to a symbolic target), or for the root `li a2, dst` and its `ecall`. -/
-def lvlExp (lay ci v kk : Nat) : PRes :=
-  let lam := chB0 lay ci + kk
-  let mem := lvlMem lay lam (v / 2 ^ kk % 2) (lvlNb lay ci v kk)
-  let hs := if lam = 0 then 2 else 0
-  if lam + 1 = heightL lay then
-    ⟨⟨(lvlRegs lay lam).set .x12 (cw (dstOf lay)), mem, []⟩, pcOf (m4Pc lay ci v kk + 8), true, 6, 6, [], none⟩
-  else if kk + 1 < chBits lay ci then
-    let rf := if isConstLvl lay lam then lvlRegs lay lam
-      else (lvlRegs lay lam).set .x4 (.bin .srl (.reg .x23) (cw (lam + 1)))
-    let n := hs + (if isConstLvl lay lam then 6 else 7)
-    ⟨⟨rf.set .x12 (cw (0x1E0 + 16 * (v / 2 ^ (kk + 1) % 2))), mem, []⟩,
-      pcOf (m4Pc lay ci v (kk + 1) + 1), true, n, n, [], none⟩
-  else
-    ⟨⟨((lvlRegs lay lam).set .x4 (cw (m4Hi lay (ci + 1)))).set .x3 (dispGp lay (ci + 1)), mem, []⟩,
-      0, false, hs + 11, hs + 11, [], some (dispTgt lay (ci + 1))⟩
-
-/-- Direction list of a level run: stop at the dispatch jump at the end of a chunk. -/
-def lvlDirs (lay ci kk : Nat) : List Dir :=
-  if chB0 lay ci + kk + 1 = heightL lay then [] else if kk + 1 < chBits lay ci then [] else [.jmp]
-
-/-- Known registers after a level run: the node-hash arguments (`a2` too unless the run stops at
-the chunk dispatch). -/
-def lvlPost (lay ci v kk : Nat) : List (Reg × Word) :=
-  if chB0 lay ci + kk + 1 = heightL lay then fk false 0x1C0 64 ++ [(.x12, BitVec.ofNat 64 (dstOf lay))]
-  else if kk + 1 < chBits lay ci then
-    fk false 0x1C0 64 ++ [(.x12, BitVec.ofNat 64 (0x1E0 + 16 * (v / 2 ^ (kk + 1) % 2)))]
-  else fk false 0x1C0 64
-
-/-- Block entry: `li a2, 0x1E0 + 16 t` (`t = v % 2`), stopping at the `ecall`. -/
-def entExp (lay ci v : Nat) : PRes :=
-  ⟨⟨(RegFile.withKnown (lvlK (chB0 lay ci))).set .x12 (cw (0x1E0 + 16 * (v % 2))), [], []⟩,
-    pcOf (m4Pc lay ci v 0 + 1), true, 1, 1, [], none⟩
-
-def entPost (lay ci v : Nat) : List (Reg × Word) :=
-  lvlK (chB0 lay ci) ++ [(.x12, BitVec.ofNat 64 (0x1E0 + 16 * (v % 2)))]
-
-/-- The entry and all levels of block `v` of chunk `ci` of layer `lay`. -/
-def blockCheck (lay ci v : Nat) : Bool :=
-  okFold false (runAt (lvlK (chB0 lay ci)) [] (m4Pc lay ci v 0) []) (entExp lay ci v) (entPost lay ci v) &&
-  (List.range (chBits lay ci)).all fun kk =>
-    okFold false (runAt (lvlK (chB0 lay ci + kk)) [] (m4Pc lay ci v kk + 2) (lvlDirs lay ci kk))
-      (lvlExp lay ci v kk) (lvlPost lay ci v kk)
-
-/-- Blocks `a .. a + n - 1` of chunk `ci` of layer `lay`. -/
-def foldCheck (lay ci a n : Nat) : Bool := (List.range' a n).all (blockCheck lay ci)
+/-- All levels of one fold (both streams, both successor streams). -/
+def foldCheck (kind : Bool) (a1 rg j0 h wa0 dst : Nat) : Bool :=
+  (List.range h).all fun lam => (List.range 2).all fun t => (List.range 2).all fun t' =>
+    (lam + 1 = h ∧ t' = 1) ||
+    okFold kind (runAt (fk kind (if lam = 0 then (if kind then 0xC0 else 0x340) else 0x1C0) (if lam = 0 then a1 else 64)) []
+        (lvlPc rg t j0 lam) (lvlDirs' t h lam t'))
+      (lvlExp kind (if lam = 0 then a1 else 64) rg t j0 h lam (wa0 + 16 * lam) dst t')
+      (lvlPost kind h lam dst t')
 
 end SigGolfCandidate.Verify

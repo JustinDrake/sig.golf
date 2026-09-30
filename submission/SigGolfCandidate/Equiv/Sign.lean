@@ -222,17 +222,30 @@ theorem length_flatten_map_dv (l : List Digest) : (l.map dv).flatten.length = 16
   | cons a l ih => simp only [List.map_cons, List.flatten_cons, List.length_append, length_dv, ih,
       List.length_cons]; ring
 
-/-- The layer bytes of the reference serialization. -/
+/-- The aligned layer bodies of the reference serialization. -/
 theorem serialize_layers (parts : Layer → SphincsSecurity.Concrete.LayerOutput) (σ : Signature)
     (hσ : σ.layers = fun lay => SphincsSecurity.Concrete.LayerOutput.toSignature lay (parts lay)) :
     ((List.ofFn fun l : Fin (4 + 1) =>
         layerRef (Fin.castLE (le_refl 5) l) (parts (Fin.castLE (le_refl 5) l))).map
       fun l => l.2.1.flatten ++ l.2.2.flatten).flatten =
-      (List.ofFn (layerBytes σ)).flatten := by
+      (List.ofFn (layerBodyBytes σ)).flatten := by
   simp only [List.map_ofFn]
   congr 2
   funext l
-  simp only [Function.comp, layerBytes, layerRef, map_range_eq_ofFn, hσ,
+  simp only [Function.comp, layerBodyBytes, layerRef, map_range_eq_ofFn, hσ,
+    SphincsSecurity.Concrete.LayerOutput.toSignature]
+  rfl
+
+/-- The same five reference outputs supply the digits of the final counter tail. -/
+theorem serialize_counters (parts : Layer → SphincsSecurity.Concrete.LayerOutput) (σ : Signature)
+    (hσ : σ.layers = fun lay => SphincsSecurity.Concrete.LayerOutput.toSignature lay (parts lay)) :
+    (List.ofFn fun l : Fin (4 + 1) =>
+        layerRef (Fin.castLE (le_refl 5) l) (parts (Fin.castLE (le_refl 5) l))).map Prod.fst =
+      List.ofFn fun lay : Layer => (σ.layers lay).counter.toNat := by
+  simp only [List.map_ofFn]
+  apply List.ofFn_inj.mpr
+  funext lay
+  simp only [Function.comp, layerRef, hσ,
     SphincsSecurity.Concrete.LayerOutput.toSignature]
   rfl
 
@@ -254,7 +267,7 @@ theorem serialize_eq (rho : Digest) (leaves : IndexGroup → FtsLeaf)
   set σ : Signature := ⟨rho, SphincsSecurity.Concrete.honestFts leaves sec T,
       fun lay => SphincsSecurity.Concrete.LayerOutput.toSignature lay (parts lay)⟩ with hσ
   unfold Ref.serialize compressList
-  rw [serialize_layers parts σ rfl, sortLeaves_eq]
+  rw [serialize_layers parts σ rfl, serialize_counters parts σ rfl, sortLeaves_eq]
   unfold Ref.porsOpening
   rw [schedule_ref _ (sortedLeaves_lt leaves)]
   simp only
