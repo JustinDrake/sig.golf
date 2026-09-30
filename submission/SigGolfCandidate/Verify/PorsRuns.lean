@@ -200,7 +200,7 @@ def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw EMPTY, d⟩
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[], [], f4Pc c, false, 20, [fBr3 false, fBr2 false, fBr1 false], none⟩
+  ⟨[], [], f4Pc c, false, 19, [fBr3 false, fBr2 false, fBr1 false], none⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB gkL (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
@@ -263,7 +263,7 @@ def k0 : List (Reg × Word) :=
 
 /-- Digest phase: witness bases and `P1 .. P5`. -/
 def gkD : List (Reg × Word) := baseK
-def dgK : List (Reg × Word) := gkD ++ [(.x10, 0x20), (.x11, 64), (.x12, 0x160)]
+def dgK : List (Reg × Word) := gkD ++ [(.x10, 0x20), (.x11, 64), (.x12, 0x160), (.x29, 0)]
 
 /-- The counters: two doublewords and a word at `WIT + 6328`. -/
 def ctrX : E := .bin .or (.bin .or (ldE 8376) (ldE 8384)) (.un (.ld .wu 0) (ldE 8392))
@@ -302,7 +302,7 @@ the empty stack, `SUM = 0`. -/
 def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x830), (.x15, BitVec.ofNat 64 EMPTY), (.x29, 0)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 104, [], none⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 103, [], none⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&
