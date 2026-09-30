@@ -99,7 +99,7 @@ def DigestOut (d : DCtx) (s : MachineState) : Prop :=
   (s.getMem (BitVec.ofNat 64 0xC0)).toNat < 2 ^ 32 ∧
   s.getMem (BitVec.ofNat 64 0xF0) = 0 ∧ s.getMem (BitVec.ofNat 64 0xF8) = 0 ∧
   (s.getMem (BitVec.ofNat 64 0x220)).toNat < 2 ^ 32 ∧ (s.getMem (BitVec.ofNat 64 0x228)).toNat < 2 ^ 32 ∧
-  s.pc = pcOf 27
+  s.pc = pcOf 26
 
 /-- The digest block `tw(12, 0, 0, 0, 0) || rho || m` as words. -/
 theorem fmt_digestInput_words (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
@@ -127,7 +127,7 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
     (s : MachineState) (hs : InitOK ml pkl wl s) :
     (countersOk wl = false → ∃ t, Steps image s 18 18 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 1 ∧ t.getReg .x10 = 1) ∧
-    (countersOk wl = true → ∃ t, Steps image s 26 26 t ∧ fetch image t = some (.base .ECALL) ∧
+    (countersOk wl = true → ∃ t, Steps image s 25 25 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 0 ∧ hashArgumentsValid t = true ∧
         hashInput t = fmt (digestInput (witRho wl) ml) ∧
         ∀ a, DigestOut ⟨wl, pkl, a⟩ (writeHash t a)) := by

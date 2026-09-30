@@ -8,7 +8,7 @@ namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp
 
 /-- The cycle bound of the verify program (every run, honest or not). -/
-def cycleBound : Nat := 11547
+def cycleBound : Nat := 11546
 
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 40100
