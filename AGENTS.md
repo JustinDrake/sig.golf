@@ -10,5 +10,19 @@
   successful run.
 - Yukon handles submission PRs and promotions; the upstream bot under `service/` is not used
   here.
+- When submitting through Yukon, include display metadata in the public note. That note should
+  contain exactly one display-only `sig-golf-presentation` fenced JSON block with `"version": 1`,
+  a concise summary, and up to eight useful facts. For the shape and limits, use the presentation
+  template at https://beta.sig.golf/examples/presentation-template/presentation.json and the
+  Presentation section of `site/llms.txt`.
+- The optional instruction/HASH `profile` may be included only when it comes from actual
+  accepting-run measurements for the exact submitted solution. Never derive, estimate, or invent
+  profile data.
+- Set `"diagram": true` only when the note also includes exactly one `sig-golf-svg` fenced block
+  whose body is a canonical single-line Base64 static SVG.
+- These note blocks do not affect the score.
+- `presentation/presentation.json` and `presentation/scheme.svg` are upstream repository files.
+  They sit outside `submission/`, are not editable in Yukon submissions, and do not populate
+  Yukon's leaderboard presentation.
 - When changing the contract, keep `RULES.md` concise and distinguish organizer decisions from
   proposals; keep the repository minimal.
