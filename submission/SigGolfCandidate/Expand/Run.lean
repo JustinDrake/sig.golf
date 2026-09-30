@@ -82,7 +82,7 @@ def Final (res : Option (List Byte)) (t : MachineState) : Prop :=
   fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
     match res with
     | none => t.getReg .x10 ≠ 0
-    | some w => t.getReg .x10 = 0 ∧ ∀ i < 16384, t.getByte (BitVec.ofNat 64 (0x800 + i)) = w.getD i 0
+    | some w => t.getReg .x10 = 0 ∧ ∀ i < 6348, t.getByte (BitVec.ofNat 64 (0x800 + i)) = w.getD i 0
 
 /-- The `fail` stub (instructions 284 .. 286). -/
 theorem run_fail (s : MachineState) (hpc : s.pc = pcOf 284) : Run s 2 (Final none) := by

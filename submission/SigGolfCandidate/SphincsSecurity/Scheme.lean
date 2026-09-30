@@ -5,7 +5,7 @@ import VCVio.OracleComp.QueryTracking.RandomOracle.Simulation
 /-!
 # SPHINCS+ scheme
 
-Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sum `181`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
+Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sums `181` on layers zero through three and `182` on layer four, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
 
 The few-time signature is PORS+FP (`work/design/SPEC-pors.md`, reference `work/py-pors/ref.py`): one Merkle
 tree of height `14` per instance `idx`, the full 256-bit digest split into `idx` (34 bits) and `k = 15`
@@ -61,6 +61,9 @@ abbrev PublicParameter := BitVec publicParameterBits
 abbrev Randomness := Digest
 abbrev Counter := BitVec counterBits
 abbrev Layer := Fin numLayers
+
+/-- The target sum at a particular one-time-signature layer. -/
+def targetFor (lay : Layer) : Nat := targetSum + if 4 ≤ lay.val then 2 else 0
 /-- `idx`, which few-time key signs. -/
 abbrev Index := Fin (2 ^ totalHeight)
 /-- `tau`, a tree of any layer. Layer `lay` only uses the values below `2^(sum_{j < lay} h_j)`. -/
@@ -309,7 +312,7 @@ def macHashInput (parameter : PublicParameter) (seed : MasterSeed) (region : Top
 
 /-! ### The target-sum code
 
-`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and the code is the words of digit sum `T = 181`. Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
+`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and each layer uses the words of its fixed digit sum (`181`, or `182` on layer four). Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
 
 namespace TargetSum
 
@@ -317,10 +320,10 @@ namespace TargetSum
 def sum (x : Encoding) : Nat := ∑ i, (x i).val
 
 /-- Membership in the code `C`: digit sum `T`. -/
-def Valid (x : Encoding) : Prop := sum x = targetSum
+def Valid (lay : Layer) (x : Encoding) : Prop := sum x = targetFor lay
 
-instance : DecidablePred Valid :=
-  fun x => inferInstanceAs (Decidable (sum x = targetSum))
+instance (lay : Layer) : DecidablePred (Valid lay) :=
+  fun x => inferInstanceAs (Decidable (sum x = targetFor lay))
 
 /-- `v / 2 = 21` digits in each half of the digest. -/
 def digitsPerHalf : Nat := numChains / 2
@@ -334,8 +337,8 @@ def digestEncoding (digest : Digest) : Encoding :=
   fun i => (digest.extractLsb' (digitOffset i) winternitzBits).toFin
 
 /-- Decode the concrete little-endian layout: 21 three-bit digits, padding bit 63, 21 digits, and padding bit 127. A digest decodes exactly when both padding bits are clear and the digits reach the target sum. -/
-def decodeDigest (digest : Digest) : Option Encoding :=
-  if digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false ∧ Valid (digestEncoding digest)
+def decodeDigest (lay : Layer) (digest : Digest) : Option Encoding :=
+  if digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false ∧ Valid lay (digestEncoding digest)
   then some (digestEncoding digest) else none
 
 end TargetSum
@@ -349,13 +352,6 @@ abbrev HashSpec := HashInput →ₒ HashOutput
 
 /-- Private uniform sampling and the shared hash oracle. Only hash calls count toward the query budget. -/
 abbrev OracleWorld := unifSpec + HashSpec
-
-/-- The 32 witness bytes between `tweak ‖ P` and a chain value in a W1a chain block
-(`[tweak 16 | pad 32 | value 16]`), as two digests. Honest verification uses `0`. -/
-abbrev Pad := Digest × Digest
-
-/-- One pad per (layer, chain): the forgery's padding. It is not part of the signature. -/
-abbrev ChainPads := Layer → ChainIndex → Pad
 
 namespace Concrete
 
@@ -431,7 +427,7 @@ def encode (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf 
     (message : Digest) (counter : Counter) : m (Option Encoding) := do
   let digest ← tweakableHash parameter (.encoding lay tree leaf)
     (bytesLE 16 message ++ bytesLE 4 counter)
-  return TargetSum.decodeDigest digest
+  return TargetSum.decodeDigest lay digest
 
 /-- `OtsLeaf`: the verifier's leaf, or nothing if the counter does not encode the message. -/
 def otsLeaf (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
@@ -779,78 +775,6 @@ def verifyCore (publicKey : PublicKey) (message : Message) (signature : Signatur
 def verify (publicKey : PublicKey) (message : Message) (signature : Signature) : m Bool :=
   if CountersInRange signature then verifyCore publicKey message signature else pure false
 
-/-! ### The padded verifier
-
-The W1a machine hashes every chain step in place in its witness block `[tweak | pad | value]`; the
-32 pad bytes are the forgery's choice. `verifyP` is `verify` with that pad in every chain payload:
-`chainPayload 0 v` is the record payload, so with zero pads it is `verify` (`verifyP_zero`). -/
-
-/-- The payload of a chain step: the record's 16-byte value when `pad = 0`, otherwise the 48-byte
-`pad ‖ value` (three digests, so still a canonical-graph payload at the same chain position). -/
-def chainPayload (pad : Pad) (value : Digest) : HashInput :=
-  if pad = 0 then bytesLE 16 value else bytesLE 16 pad.1 ++ bytesLE 16 pad.2 ++ bytesLE 16 value
-
-/-- `chainWalk` with a constant pad on every step. -/
-def chainWalkP (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (chainIdx : ChainIndex) (pad : Pad) : Nat → Nat → Digest → m Digest
-  | _, 0, value => pure value
-  | start, steps + 1, value => do
-      let previous ← chainWalkP parameter lay tree leaf chainIdx pad start steps value
-      if hstep : start + steps < chainLength - 1 then
-        tweakableHash parameter (.chain lay tree leaf chainIdx ⟨start + steps, hstep⟩)
-          (chainPayload pad previous)
-      else
-        pure 0
-
-/-- The verifier's half of a padded chain. -/
-def recoverChainP (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (chainIdx : ChainIndex) (pad : Pad) (digit : Digit) (value : Digest) : m Digest :=
-  chainWalkP parameter lay tree leaf chainIdx pad digit.val (chainLength - 1 - digit.val) value
-
-/-- `otsLeaf` with per-chain pads. -/
-def otsLeafP (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (pads : ChainIndex → Pad) :
-    m (Option Digest) := do
-  let some encoding ← encode parameter lay tree leaf message counter | return none
-  let endpoints ← sequenceFin fun chainIdx =>
-    recoverChainP parameter lay tree leaf chainIdx (pads chainIdx) (encoding chainIdx) (values chainIdx)
-  let value ← leafHash parameter lay tree leaf endpoints
-  return some value
-
-/-- `verifyLayers` with the forgery's pads. -/
-def verifyLayersP (parameter : PublicParameter) (index : Index) (signature : Signature)
-    (pads : ChainPads) : Nat → Digest → m (Option Digest)
-  | 0, message => pure (some message)
-  | remaining + 1, message => do
-      if hlayer : remaining < numLayers then
-        let lay : Layer := ⟨remaining, hlayer⟩
-        let tree := treeIndexAt index lay
-        let leaf := leafIndexAt index lay
-        let part := signature.layers lay
-        let some value ← otsLeafP parameter lay tree leaf message part.counter part.chainValues (pads lay)
-          | return none
-        let root ← treeFold parameter lay tree leaf (signaturePath signature lay) (layerHeight lay) value
-        verifyLayersP parameter index signature pads remaining root
-      else
-        pure none
-
-/-- `verifyCore` with the forgery's pads: only the layer walk changes. -/
-def verifyCoreP (publicKey : PublicKey) (message : Message) (signature : Signature) (pads : ChainPads) :
-    m Bool := do
-  let digest ← messageDigest publicKey.parameter publicKey.root message signature.randomness
-  let index := digestIndex digest
-  let some ftsPublicKey ← ftsRecover publicKey.parameter index (slotValue (digestLeaves digest))
-      signature.fts
-    | return false
-  let some root ← verifyLayersP publicKey.parameter index signature pads numLayers ftsPublicKey
-    | return false
-  return decide (root = publicKey.root)
-
-/-- **The padded verifier** `VerP(pk, m, σ, pads)`: `verify` with the forgery's chain pads. -/
-def verifyP (publicKey : PublicKey) (message : Message) (signature : Signature) (pads : ChainPads) :
-    m Bool :=
-  if CountersInRange signature then verifyCoreP publicKey message signature pads else pure false
-
 /-! ### Building trees
 
 The signer builds every tree it touches exactly once: all leaves in order, then the levels bottom-up,
@@ -1027,7 +951,7 @@ def signFrom (parameter : PublicParameter) (index : Index)
   return some ⟨randomness, honestFts leaves secrets table,
     fun lay => LayerOutput.toSignature lay (parts lay)⟩
 
-attribute [irreducible] verify verifyP
+attribute [irreducible] verify
 
 /-! ### The builders with paired secrets
 

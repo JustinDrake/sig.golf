@@ -88,46 +88,40 @@ def M1w : Word := 0x71c71c71c71c71c7#64
 def M2w : Word := 0xf03f03f03f03f03f#64
 
 /-- Registers constant in all phases after the prologue. The address base `x18 = 4095`
-also serves as the digit-check modulus; rebased load offsets preserve every memory address.
-`x19 = 7` is the heap index 7 of the Merkle shape blocks (M4c; W1a needs no second witness base). -/
+also serves as the digit-check modulus; rebased load offsets preserve every memory address. -/
 def baseK : List (Reg × Word) :=
-  [(.x5, 0), (.x18, 0xFFF), (.x19, 7), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
-
-/-- The W1a chain constants: the tweak-word bump `2^40` (`x28`), the triple-dispatch mask (`x2`),
-the triple table base `ttab + 2048` (`x15`). -/
-def K40 : Word := 0x10000000000
-def TMASK : Word := 0x3fe00
-def TTA5 : Word := 0x50000
+  [(.x5, 0), (.x18, 0xFFF), (.x19, 0x2000), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
 
 /-- FORS phase: also `K16`. -/
 def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 
-/-- The exact digit sum, compared after the alias-free reduction modulo 4095. -/
+/-- The exact digit sum of layers 0 .. 3, compared after the alias-free reduction modulo 4095. -/
 def KT : Word := BitVec.ofNat 64 targetSum
 
-/-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
-def gkL0 : List (Reg × Word) :=
-  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, K40), (.x2, TMASK),
-    (.x15, TTA5)]
+/-- The layer-4 digit sum target `targetFor 4 = 183`, held in `x15` from the PORS root tail to the
+layer-4 encoding check (`x15` is dead there; the check then loads its chain-0 constant). -/
+def KT4 : Word := BitVec.ofNat 64 (targetFor 4)
 
-/-- The layer phase (the same list: W1a keeps no layer-4-only constant). -/
-def gkL : List (Reg × Word) := gkL0
+/-- The digit-sum constant the encoding check of layer `lay` compares against. -/
+def KTof (lay : Nat) : Word := BitVec.ofNat 64 (targetFor lay)
+
+theorem targetFor_le (lay : Nat) : targetFor lay ≤ 183 := by
+  unfold targetFor targetSum; split <;> omega
+
+/-- Layer phase before the layer-4 route: masks, `K16`, `KT`, `P6` (the step-7 MU register). -/
+def gkL0 : List (Reg × Word) :=
+  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6)]
+
+/-- Layer phase after the layer-4 route (`li s6, 7`: `x22` is the heap index 7 of the Merkle
+shape blocks, M4c). -/
+def gkL : List (Reg × Word) := gkL0 ++ [(.x22, 7)]
 
 /-- The `P` slots (`+16 .. +32`) of the hash buffers DB, CB, EB, NB, RB2, LB. -/
 def pSlots : List Nat := [0x10, 0x18, 0xD0, 0xD8, 0x110, 0x118, 0x1D0, 0x1D8, 0x230, 0x238,
   0x350, 0x358]
 
-/-- The witness words below the chain array (`[0, 2944)`: rho, pi, secrets, stream, `c4`, paths), which
-no block writes. -/
 def WitOK (wl : List Byte) (s : MachineState) : Prop :=
-  ∀ j, j < 368 → s.getMem (BitVec.ofNat 64 (0x800 + 8 * j)) = w64 (slice wl (8 * j) 8)
-
-/-- The whole witness (`W = 16384`), as long as verify has not written the chain array (PORS phase). -/
-def WitAll (wl : List Byte) (s : MachineState) : Prop :=
-  ∀ j, j < 2048 → s.getMem (BitVec.ofNat 64 (0x800 + 8 * j)) = w64 (slice wl (8 * j) 8)
-
-theorem WitAll.lo {wl : List Byte} {s : MachineState} (h : WitAll wl s) : WitOK wl s :=
-  fun j hj => h j (by omega)
+  ∀ j, j < 880 → s.getMem (BitVec.ofNat 64 (0x800 + 8 * j)) = w64 (slice wl (8 * j) 8)
 
 def PkOK (pk : List Byte) (s : MachineState) : Prop :=
   s.getMem 0xA0 = w64 (pk.take 8) ∧ s.getMem 0xA8 = w64 (pk.drop 8)
@@ -191,21 +185,6 @@ theorem Glob_toState {gk : List (Reg × Word)} {wl pk : List Byte} {s : MachineS
   · intro a ha
     have : a < 2 ^ 64 := by simp [pSlots] at ha; omega
     rw [fr a this (Or.inr (Or.inl ha))]; exact h4 a ha
-
-theorem WitAll_toState {wl : List Byte} {s : MachineState} (hW : WitAll wl s) (σ : SymState)
-    (pc : Word) (hm : memOK σ.mem = true) : WitAll wl (σ.toState s pc) := by
-  intro j hj
-  rw [SymState.toState_getMem, memEval_frame s _ _ (memOK_ne hm s _ (by omega) (Or.inl (by omega)))]
-  exact hW j hj
-
-theorem WitAll_writeHash {wl : List Byte} {s : MachineState} (hW : WitAll wl s)
-    (ans : BitVec 256) (d : Nat) (hd : s.getReg .x12 = BitVec.ofNat 64 d)
-    (hsafe : safeDest d = true) : WitAll wl (writeHash s ans) := by
-  simp only [safeDest, Bool.and_eq_true, decide_eq_true_eq] at hsafe
-  intro j hj
-  rw [writeHash_getMem_ofNat s ans d _ hd (by omega) (by omega),
-    if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega)]
-  exact hW j hj
 
 theorem Glob_writeHash {gk : List (Reg × Word)} {wl pk : List Byte} {s : MachineState}
     (hG : Glob gk wl pk s)

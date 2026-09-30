@@ -26,7 +26,7 @@ theorem transcriptWin_mono (forgery : Forgery) (original forwarded : QueryLog Si
 
 noncomputable def finishGame (publicKey : PublicKey) (result : Forgery × QueryLog SigningSpec) :
     OracleComp OracleWorld Bool := do
-  let verified ← liftM (Concrete.verifyP publicKey result.1.message result.1.signature result.1.pads : OracleComp HashSpec Bool)
+  let verified ← liftM (Concrete.verify publicKey result.1.message result.1.signature : OracleComp HashSpec Bool)
   return transcriptWin result.1 result.2 verified
 
 noncomputable def sourceGame (publicKey : PublicKey) (adversary : Adversary) :
@@ -37,7 +37,7 @@ noncomputable def transcriptReduction (publicKey : PublicKey) (adversary : Adver
     OracleComp (OracleWorld + SigningSpec) (Bool × Bool) := do
   let result ← withRequestLog (memoize (withRequestLog (adversary.main publicKey)) ∅)
   let verified ← baseLift (liftM
-    (Concrete.verifyP publicKey result.1.1.message result.1.1.signature result.1.1.pads : OracleComp HashSpec Bool) :
+    (Concrete.verify publicKey result.1.1.message result.1.1.signature : OracleComp HashSpec Bool) :
       OracleComp OracleWorld Bool)
   return (transcriptWin result.1.1 result.1.2 verified, transcriptWin result.1.1 result.2 verified)
 

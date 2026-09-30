@@ -35,16 +35,9 @@ theorem sourceInputs_keyCode {Result : Type} (key : SecretKey) (computation : Or
 
 attribute [local irreducible] signatureFintype
 
-/-- The forgery's chain pads range over a finite type. -/
-noncomputable instance chainPadsFintype : Fintype ChainPads :=
-  inferInstanceAs (Fintype (Layer → ChainIndex → Digest × Digest))
-
-attribute [local irreducible] chainPadsFintype
-
 noncomputable def verificationInputs (key : SecretKey) : Finset HashInput :=
   Finset.univ.biUnion fun message : Message => Finset.univ.biUnion fun signature : Signature =>
-    Finset.univ.biUnion fun pads : ChainPads =>
-      hashInputs (scheme.verify ⟨key.root, key.parameter⟩ message signature pads)
+    hashInputs (scheme.verify ⟨key.root, key.parameter⟩ message signature)
 
 noncomputable def gameInputs (adversary : Adversary) : Finset HashInput :=
   canonicalGraphGameInputs adversary ∪ Finset.univ.biUnion fun code : KeyCode =>
@@ -58,15 +51,14 @@ theorem sourceInputs_subset_gameInputs (adversary : Adversary) (key : SecretKey)
   exact Or.inr (Finset.mem_biUnion.mpr ⟨keyCode key, Finset.mem_univ _, Finset.mem_union_left _ hinput⟩)
 
 theorem verifyInputs_subset_gameInputs (adversary : Adversary) (key : SecretKey) (forgery : Forgery) :
-    hashInputs (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature forgery.pads) ⊆ gameInputs adversary := by
+    hashInputs (scheme.verify ⟨key.root, key.parameter⟩ forgery.message forgery.signature) ⊆ gameInputs adversary := by
   intro input hinput
   rw [gameInputs, Finset.mem_union]
   apply Or.inr
   apply Finset.mem_biUnion.mpr
   refine ⟨keyCode key, Finset.mem_univ _, Finset.mem_union_right _ ?_⟩
   rw [verificationInputs, Finset.mem_biUnion]
-  exact ⟨forgery.message, Finset.mem_univ _, Finset.mem_biUnion.mpr ⟨forgery.signature, Finset.mem_univ _,
-    Finset.mem_biUnion.mpr ⟨forgery.pads, Finset.mem_univ _, hinput⟩⟩⟩
+  exact ⟨forgery.message, Finset.mem_univ _, Finset.mem_biUnion.mpr ⟨forgery.signature, Finset.mem_univ _, hinput⟩⟩
 
 theorem canonicalEncodingInputs_subset_retainedGameInputs (adversary : Adversary) (parameter : PublicParameter) :
     canonicalEncodingInputs parameter ⊆ gameInputs adversary :=

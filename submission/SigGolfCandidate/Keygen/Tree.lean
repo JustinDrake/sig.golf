@@ -176,7 +176,7 @@ theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List V
     ((codeAt_101.fetch u upc).trans rfl) (by rw [ux _ (by simp)]; exact h.base.r5)
     (hashArgs_const u 448 64 (REGION + 16 * lvOff (k + 1) + 16 * j) u10 u11 u12 (by norm_num)
       (by norm_num) (by norm_num) (by unfold REGION; omega) (by unfold REGION; omega))
-    hq (not_digest_thInput 3 0 0 _ _ _ (by decide)) (not_padChain_thInput 3 0 0 _ _ _ (by decide)) (fun a => ?_))).of_eq rfl (by rfl)
+    hq (not_digest_thInput 3 0 0 _ _ _ (by decide)) (fun a => ?_))).of_eq rfl (by rfl)
       (by rw [hblk]) (by rfl) (by rw [hblk])
   have wpc : (writeHash u a).pc = pcOf 102 := by rw [pc_writeHash, upc]; rfl
   obtain ⟨v, vst, vpc, v16, vun, vfr⟩ := spec_102 (writeHash u a) wpc j (2 ^ (10 - k)) (by omega)

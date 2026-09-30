@@ -18,7 +18,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 /-- `pr_seg` (550 .. 553): the header byte `b`, `a = b & 15`, reject `a > 14`. -/
 theorem blk550_run (w : List Byte) (t : MachineState) (ptr : Nat) (hpc : t.pc = pcOf 550)
-    (h9 : t.getReg .x9 = BitVec.ofNat 64 (0x800 + ptr)) (hptr : ptr % 8 = 0) (hptr' : ptr < 0x4000)
+    (h9 : t.getReg .x9 = BitVec.ofNat 64 (0x800 + ptr)) (hptr : ptr % 8 = 0) (hptr' : ptr < 0x2B00)
     (hw : WitMem w t) :
     ∃ t', Steps eimg t 4 4 t' ∧
       t'.pc = (if 14 < wbyte w ptr % 16 then pcOf 284 else pcOf 554) ∧
@@ -128,7 +128,7 @@ theorem blk567_run (t : MachineState) (hpc : t.pc = pcOf 567) (n : Nat) (hn : n 
 
 /-- 568 .. 577: `PB` word 1 = heap index `E / 2`, load the sibling and the node, test `E & 1`. -/
 theorem blk568_run (w : List Byte) (idx : Nat) (t : MachineState) (hpc : t.pc = pcOf 568) (E o : Nat)
-    (hE : E < 2 ^ 15) (ho : o % 8 = 0) (ho' : o + 16 ≤ 0x4000) (hw : WitMem w t)
+    (hE : E < 2 ^ 15) (ho : o % 8 = 0) (ho' : o + 16 ≤ 0x2B00) (hw : WitMem w t)
     (h19 : t.getReg .x19 = BitVec.ofNat 64 E) (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000)
     (h26 : t.getReg .x26 = BitVec.ofNat 64 (idx % 2 ^ 32))
     (h28 : t.getReg .x28 = BitVec.ofNat 64 (0x800 + o)) :

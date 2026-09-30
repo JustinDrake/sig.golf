@@ -30,7 +30,7 @@ noncomputable def cachedGameRest (signer : TopCache → Message → OracleComp H
       QueryImpl.withLogging fun request : SigningRequest =>
         (liftM (signer request.cache request.message) : OracleComp OracleWorld (Option Signature)))
       (adversary.main pk cache)).run
-  let verified ← liftM (Concrete.verifyP pk forgery.message forgery.signature forgery.pads : OracleComp HashSpec Bool)
+  let verified ← liftM (Concrete.verify pk forgery.message forgery.signature : OracleComp HashSpec Bool)
   return decide (RequestTranscript.Valid log ∧ ¬RequestTranscript.Contains log forgery) && verified
 
 /-- The experiment once the seed is sampled: seeded key generation, then play against the seeded signer. -/

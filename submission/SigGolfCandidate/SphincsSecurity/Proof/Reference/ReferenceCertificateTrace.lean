@@ -10,7 +10,7 @@ attribute [local irreducible] scheme frontierRoot canonicalGraphLabels canonical
 
 noncomputable def completeCertificateRest (key : SecretKey) (f : QueryImpl HashSpec Id)
     (before : (Forgery × QueryLog SigningSpec) × SigningBoundaryTrace) : RetainedRestResult × SigningBoundaryTrace :=
-  let checked := boundaryEval key.parameter f (verifyP ⟨key.root, key.parameter⟩ before.1.1.message before.1.1.signature before.1.1.pads)
+  let checked := boundaryEval key.parameter f (verify ⟨key.root, key.parameter⟩ before.1.1.message before.1.1.signature)
   ((before.1, checked.1), before.2 * checked.2)
 
 theorem fixedBoundaryRun_retained_frontier (key : SecretKey) (f : QueryImpl HashSpec Id)
@@ -32,7 +32,7 @@ theorem fixedBoundaryRun_retained_frontier (key : SecretKey) (f : QueryImpl Hash
   simp only [simulateQ_pure, bind_pure_comp, fixedBoundaryRun_map, scheme]
   change (fun final => (final.1, trace * final.2)) <$>
     (Prod.map (fun checked => ((forgery, log), checked)) id) <$>
-      fixedBoundaryRun key.parameter f (liftM (verifyP (m := OracleComp HashSpec) ⟨key.root, key.parameter⟩ forgery.message forgery.signature forgery.pads)) = _
+      fixedBoundaryRun key.parameter f (liftM (verify (m := OracleComp HashSpec) ⟨key.root, key.parameter⟩ forgery.message forgery.signature)) = _
   rw [fixedBoundaryRun_lift_hash, map_pure, map_pure]
   rfl
 

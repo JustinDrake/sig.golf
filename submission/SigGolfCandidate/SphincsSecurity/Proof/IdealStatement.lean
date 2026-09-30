@@ -235,8 +235,8 @@ end Concrete
 noncomputable def Concrete.scheme : Scheme SecretKey where
   keygen := Concrete.keygen
   sign := Concrete.sign
-  verify := fun publicKey message signature pads =>
-    liftM (Concrete.verifyP publicKey message signature pads : OracleComp HashSpec Bool)
+  verify := fun publicKey message signature =>
+    liftM (Concrete.verify publicKey message signature : OracleComp HashSpec Bool)
 
 /-- The security claim: `127` bits of classical strong unforgeability in the random-oracle model, at `2^32` signing requests per key pair. -/
 abbrev IndependentSecurityStatement : Prop :=

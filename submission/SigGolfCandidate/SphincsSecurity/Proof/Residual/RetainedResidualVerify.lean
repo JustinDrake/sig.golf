@@ -15,11 +15,10 @@ theorem Context.root_value {inputs : Finset HashInput} (context : Context inputs
   rfl
 
 theorem Compatible.layer_frame_reference {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
-    (hcompatible : Compatible context memory) (index : Index) (signature : Signature) (pads : ChainPads) (lay : Layer)
+    (hcompatible : Compatible context memory) (index : Index) (signature : Signature) (lay : Layer)
     (message target leafValue : Digest)
-    (hword : OtsCode.Valid (context.words lay (treeIndexAt index lay) (leafIndexAt index lay)))
-    (hframe : LayerFrameP context.oracle memory.external.cache context.key.parameter index signature pads lay message
-      target leafValue)
+    (hword : OtsCode.Valid lay (context.words lay (treeIndexAt index lay) (leafIndexAt index lay)))
+    (hframe : LayerFrame context.oracle memory.external.cache context.key.parameter index signature lay message target leafValue)
     (hfold : foldValue context.oracle context.key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
       (signaturePath signature lay) leafValue (layerHeight lay) =
       honestNode context.oracle context.key.parameter lay (treeIndexAt index lay)
@@ -31,53 +30,63 @@ theorem Compatible.layer_frame_reference {inputs : Finset HashInput} {context : 
       CachedRun memory.external.cache context.oracle (otsLeafAttempt context.key.parameter lay (treeIndexAt index lay)
         (leafIndexAt index lay) (evalWithAnswerFn context.oracle (layerMessage context.key index lay))
         (signature.counter lay) (signature.chainValue lay)) := by
-  obtain ⟨hhonest, _, hrun⟩ := hcompatible.layer_honestP lay (treeIndexAt index lay) (leafIndexAt index lay)
-    (leafIndexAt_lt index lay) message (signature.counter lay) (signature.chainValue lay) (pads lay)
-    (signaturePath signature lay) leafValue hframe.1 hfold hframe.2.2.1 hframe.2.2.2.1
+  have hhonest := hcompatible.layer_honest lay (treeIndexAt index lay) (leafIndexAt index lay)
+    (leafIndexAt_lt index lay) message (signature.counter lay) (signature.chainValue lay) (signaturePath signature lay)
+    leafValue hframe.1 hfold hframe.2.2.1 hframe.2.2.2.1
   obtain ⟨_, _, hmessage, _⟩ := hcompatible.layer_reference lay (treeIndexAt index lay) (leafIndexAt index lay)
-    message (signature.counter lay) (signature.chainValue lay) (signaturePath signature lay) hword hhonest hrun
+    message (signature.counter lay) (signature.chainValue lay) (signaturePath signature lay) hword hhonest hframe.2.2.1
   have heq := hmessage.trans (context.layer_message index lay)
   refine ⟨heq, ?_⟩
   rw [← heq]
-  exact ⟨hhonest, hrun⟩
+  exact ⟨hhonest, hframe.2.2.1⟩
 
-/-- **`Compatible.verify_honest` with pads** (`Residual/RetainedResidualVerify.lean:76`): the conclusion
-is the record's, word for word. -/
+theorem Compatible.hypertree_honest {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
+    (hcompatible : Compatible context memory) (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (context.dummy lay tree leaf))
+    (hroot : context.key.root = canonicalGraphRoot context.graph) (index : Index) (leaves : IndexGroup → FtsLeaf)
+    (signature : Signature) (ftsPublicKey : Digest)
+    (hfts : evalWithAnswerFn context.oracle
+      (ftsRecover context.key.parameter index (slotValue leaves) signature.fts) = some ftsPublicKey)
+    (hverify : evalWithAnswerFn context.oracle
+      (verifyLayers context.key.parameter index signature numLayers ftsPublicKey) = some context.key.root)
+    (hlayersRun : CachedRun memory.external.cache context.oracle
+      (verifyLayers context.key.parameter index signature numLayers ftsPublicKey))
+    (hftsRun : CachedRun memory.external.cache context.oracle
+      (ftsRecover context.key.parameter index (slotValue leaves) signature.fts)) :
+    AdmissibleLeaves leaves ∧ FullyHonestOpening context.oracle memory.external.cache context.key index leaves signature ∧
+      ∀ slot, memory.routing.disclosed index porsTree (leaves slot) := by
+  have hwalk := hypertree_walk (f := context.oracle) (cache := memory.external.cache) context.key index signature
+    (fun lay => HonestLayerOpening context.oracle context.key.parameter context.key.otsSecret lay
+        (treeIndexAt index lay) (leafIndexAt index lay) (evalWithAnswerFn context.oracle (layerMessage context.key index lay))
+        (signature.counter lay) (signature.chainValue lay) (signaturePath signature lay) ∧
+      CachedRun memory.external.cache context.oracle (otsLeafAttempt context.key.parameter lay (treeIndexAt index lay)
+        (leafIndexAt index lay) (evalWithAnswerFn context.oracle (layerMessage context.key index lay))
+        (signature.counter lay) (signature.chainValue lay)))
+    (fun lay message leafValue hframe hfold =>
+      hcompatible.layer_frame_reference index signature lay message context.key.root leafValue
+        (context.words_valid hdummy _ _ _) hframe hfold)
+    (by rw [hroot, context.root_value]) ftsPublicKey hverify hlayersRun
+  have hftsKey : ftsPublicKey = honestFtsKey context.oracle context.key.parameter index (context.key.ftsSecret index) := by
+    rw [hwalk.2, layerMessage_bottomLayer]
+    rfl
+  rw [hftsKey] at hfts
+  obtain ⟨hadmissible, hftsHonest, _⟩ := hcompatible.ftsRecover_honest index leaves signature.fts hfts hftsRun
+  exact ⟨hadmissible, ⟨hwalk.1, hftsHonest, hftsRun⟩,
+    hcompatible.ftsRecover_disclosed index leaves signature.fts hfts hftsRun⟩
+
 theorem Compatible.verify_honest {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
-    (hcompatible : Compatible context memory) (hdummy : ∀ lay tree leaf, OtsCode.Valid (context.dummy lay tree leaf))
+    (hcompatible : Compatible context memory) (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (context.dummy lay tree leaf))
     (hroot : context.key.root = canonicalGraphRoot context.graph) (message : Message) (signature : Signature)
-    (pads : ChainPads)
-    (hverify : evalWithAnswerFn context.oracle (verifyP ⟨context.key.root, context.key.parameter⟩ message signature pads) = true)
-    (hrun : CachedRun memory.external.cache context.oracle (verifyP ⟨context.key.root, context.key.parameter⟩ message signature pads)) :
+    (hverify : evalWithAnswerFn context.oracle (verify ⟨context.key.root, context.key.parameter⟩ message signature) = true)
+    (hrun : CachedRun memory.external.cache context.oracle (verify ⟨context.key.root, context.key.parameter⟩ message signature)) :
     ∃ digest, evalWithAnswerFn context.oracle (messageDigest context.key.parameter context.key.root message signature.randomness) = digest ∧
       CachedRun memory.external.cache context.oracle (messageDigest context.key.parameter context.key.root message signature.randomness) ∧
       Admissible digest ∧
       FullyHonestOpening context.oracle memory.external.cache context.key (digestIndex digest) (digestLeaves digest) signature ∧
       ∀ slot, memory.routing.disclosed (digestIndex digest) porsTree (digestLeaves digest slot) := by
   obtain ⟨digest, hdigest, hdigestRun, ftsPublicKey, hfts, hlayers, hftsRun, hlayersRun⟩ :=
-    verifyP_extract ⟨context.key.root, context.key.parameter⟩ message signature pads hverify hrun
-  have hwalk := hypertree_walkP (f := context.oracle) (cache := memory.external.cache) context.key (digestIndex digest)
-    signature pads
-    (fun lay => HonestLayerOpening context.oracle context.key.parameter context.key.otsSecret lay
-        (treeIndexAt (digestIndex digest) lay) (leafIndexAt (digestIndex digest) lay)
-        (evalWithAnswerFn context.oracle (layerMessage context.key (digestIndex digest) lay))
-        (signature.counter lay) (signature.chainValue lay) (signaturePath signature lay) ∧
-      CachedRun memory.external.cache context.oracle (otsLeafAttempt context.key.parameter lay
-        (treeIndexAt (digestIndex digest) lay) (leafIndexAt (digestIndex digest) lay)
-        (evalWithAnswerFn context.oracle (layerMessage context.key (digestIndex digest) lay))
-        (signature.counter lay) (signature.chainValue lay)))
-    (fun lay message leafValue hframe hfold =>
-      hcompatible.layer_frame_reference (digestIndex digest) signature pads lay message context.key.root leafValue
-        (context.words_valid hdummy _ _ _) hframe hfold)
-    (by rw [hroot, context.root_value]) ftsPublicKey hlayers hlayersRun
-  have hftsKey : ftsPublicKey = honestFtsKey context.oracle context.key.parameter (digestIndex digest)
-      (context.key.ftsSecret (digestIndex digest)) := by
-    rw [hwalk.2, layerMessage_bottomLayer]
-    rfl
-  rw [hftsKey] at hfts
-  obtain ⟨hadmissible, hftsHonest, _⟩ := hcompatible.ftsRecover_honest (digestIndex digest) (digestLeaves digest)
-    signature.fts hfts hftsRun
-  exact ⟨digest, hdigest, hdigestRun, hadmissible, ⟨hwalk.1, hftsHonest, hftsRun⟩,
-    hcompatible.ftsRecover_disclosed (digestIndex digest) (digestLeaves digest) signature.fts hfts hftsRun⟩
+    verify_extract ⟨context.key.root, context.key.parameter⟩ message signature hverify hrun
+  obtain ⟨hadmissible, hfull, hdisclosed⟩ := hcompatible.hypertree_honest hdummy hroot (digestIndex digest)
+    (digestLeaves digest) signature ftsPublicKey hfts hlayers hlayersRun hftsRun
+  exact ⟨digest, hdigest, hdigestRun, hadmissible, hfull, hdisclosed⟩
 
 end SphincsSecurity.Concrete.RetainedResidual

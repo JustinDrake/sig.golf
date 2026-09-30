@@ -107,8 +107,6 @@ structure ZeroPadAssumptions (sub : SigGolfCandidate.Legacy.Submission) where
   decoder. -/
   compress : SphincsSecurity.Signature → SigGolfCandidate.Legacy.Bytes sub.sizes.signature
   witDec : SigGolfCandidate.Legacy.Bytes sub.sizes.witness → SphincsSecurity.Signature
-  /-- (B) the chain pads a witness carries. -/
-  padDec : SigGolfCandidate.Legacy.Bytes sub.sizes.witness → SphincsSecurity.ChainPads
   /-- (B) public keys. -/
   pkEnc : SphincsSecurity.PublicKey → SigGolfCandidate.Legacy.PublicKey
   /-- (B) caches: the bytes key generation publishes, and the abstract cache the signer reads from
@@ -156,10 +154,10 @@ structure ZeroPadAssumptions (sub : SigGolfCandidate.Legacy.Submission) where
       (fun r => (r.value, r.hashCalls)) <$> sub.run .verify (message, pkEnc pk, witness) =
         (fun p => (if p.1 then some () else none, p.2)) <$>
           countCalls (relabel pad
-            (aVerifyP pk (msgOf message) (witDec witness) (padDec witness)))
+            (aVerify pk (msgOf message) (witDec witness)))
   verify_honest : ∀ seed pk cache' sk', (pk, cache', sk') ∈ support (aKeygen seed) →
-    ∀ message signature pads,
-      AllQ Honest (aVerifyP pk message signature pads)
+    ∀ message signature,
+      AllQ Honest (aVerify pk message signature)
 
 
 namespace ZeroPadAssumptions
@@ -182,7 +180,6 @@ noncomputable def toAssumptions : Assumptions sub where
   msgOf_injective := Z.msgOf_injective
   compress := Z.compress
   witDec := Z.witDec
-  padDec := Z.padDec
   pkEnc := Z.pkEnc
   cacheEnc := Z.cacheEnc
   cacheDec := Z.cacheDec
@@ -202,7 +199,7 @@ noncomputable def toAssumptions : Assumptions sub where
   expand_honest := Z.expand_honest
   expand_compress := Z.expand_compress
   verify_eq seed pk cache' sk' h m w := by
-    rw [Z.verify_eq seed pk cache' sk' h, Z.relabel_zp (Z.verify_honest _ pk cache' sk' h _ _ _)]
+    rw [Z.verify_eq seed pk cache' sk' h, Z.relabel_zp (Z.verify_honest _ pk cache' sk' h _ _)]
   verify_honest := Z.verify_honest
 
 end ZeroPadAssumptions

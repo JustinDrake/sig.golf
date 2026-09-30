@@ -33,7 +33,7 @@ def PSB : Nat := 0x2A0
 def EMPTY : Nat := 0x250
 def PIND : Nat := 0x780
 /-- The number of witness doublewords the verifier may read (the stream reads up to 7000 bytes). -/
-def NW : Nat := 2048
+def NW : Nat := 880
 
 def tbN : Nat := 0x1000 + 4 * ptabN
 def tbL : Nat := 0x1000 + 4 * ptabL

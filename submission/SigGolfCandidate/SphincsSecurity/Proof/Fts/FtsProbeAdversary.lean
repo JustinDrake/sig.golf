@@ -55,7 +55,7 @@ noncomputable def tracedGameRestComputation (adversary : Adversary)
     OracleComp (OracleWorld + SigningSpec) Bool := do
   let (forgery, log) ← signingTraceComputation (adversary.main publicKey)
   let verified ← liftOracleWorldLeft
-    (scheme.verify publicKey forgery.message forgery.signature forgery.pads)
+    (scheme.verify publicKey forgery.message forgery.signature)
   pure (decide (SigningTranscript.Valid log ∧
     ¬SigningTranscript.Contains log forgery) && verified)
 

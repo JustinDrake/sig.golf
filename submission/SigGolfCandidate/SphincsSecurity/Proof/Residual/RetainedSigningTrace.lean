@@ -51,7 +51,7 @@ theorem signingTraceComputation_liftOracleWorldLeft
 noncomputable def unloggedRetainedRestComputation (adversary : Adversary) (publicKey : PublicKey) :
     OracleComp (OracleWorld + SigningSpec) (Forgery × Bool) := do
   let forgery ← adversary.main publicKey
-  let verified ← liftOracleWorldLeft (scheme.verify publicKey forgery.message forgery.signature forgery.pads)
+  let verified ← liftOracleWorldLeft (scheme.verify publicKey forgery.message forgery.signature)
   pure (forgery, verified)
 
 def arrangeRetainedTrace (result : (Forgery × Bool) × QueryLog SigningSpec) : RetainedRestResult :=

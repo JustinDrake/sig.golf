@@ -48,7 +48,7 @@ theorem blk495_run (w : List Byte) (K : Nat → Nat) (t : MachineState) (hpc : t
       implies_true, and_true, ne_eq, ofNat_add_ofNat, ofNat_eq_iff]
     bvomega
   have hA : ∀ a, (a = 0x30000 ∨ a = 0x30010 ∨ a = 0x30018 ∨ a = 0x30030 ∨ a = 0x30038 ∨ a = 0x30040 ∨
-      a = 0x30050 ∨ a = 0x30058) → a < 0x6E0 ∨ 0x24B00 ≤ a := by intro a h; omega
+      a = 0x30050 ∨ a = 0x30058) → a < 0x6E0 ∨ 0x3300 ≤ a := by intro a h; omega
   refine ⟨_, symRun_sound Expand.blk495 Expand.codeAt_495 t hpc (by simp only [Expand.blk495.res, rv_simp]),
     ⟨⟨hidx', x4, by simp only [Expand.blk495.res, rv_simp], by pnum [Expand.blk495.res],
       by simp only [Expand.blk495.res, rv_simp], ?_, by simp only [Expand.blk495.res, rv_simp], ?_, ?_, ?_, ?_, ?_, ?_,

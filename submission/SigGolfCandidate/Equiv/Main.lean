@@ -3,7 +3,6 @@ import SigGolfCandidate.Equiv.Sign
 import SigGolfCandidate.Equiv.Expand
 import SigGolfCandidate.Equiv.Keygen
 import SigGolfCandidate.Equiv.Honest
-import SigGolfCandidate.SphincsSecurity.Proof.Ots.PaddedChain
 import SigGolfCandidate.Bridge.All
 import SigGolfCandidate.Submission
 
@@ -74,14 +73,13 @@ noncomputable def zeroPadAssumptions (security : SigGolfCandidate.Bridge.EventSe
   msgOf_injective := fun _ _ h => h
   compress := compress
   witDec := witDec
-  padDec := padDec
   pkEnc := pkEnc
   cacheEnc := cacheEnc
   cacheDec := cacheDec
   pad := fmtQ
-  Honest := HonestP
-  pad_injOn := fmtQ_injOn_honestP
-  honest_head := honestP_head
+  Honest := Honest
+  pad_injOn := fmtQ_injOn
+  honest_head := honest_head
   qEnc := SigGolfCandidate.Bridge.defaultQEnc
   qEnc_injective := SigGolfCandidate.Bridge.defaultQEnc_injective
   aExpand := aExpand
@@ -92,7 +90,7 @@ noncomputable def zeroPadAssumptions (security : SigGolfCandidate.Bridge.EventSe
       rw [keygenRef_eq, countCalls_map]
     rw [R.keygen sk, e1, Functor.map_map]
     rfl
-  keygen_honest seed := hqp_of_hq (hq_keygen seed)
+  keygen_honest seed := hq_keygen seed
   sign_eq sk pk cache' sk' h cache m := by
     obtain ⟨hs, hP, -⟩ := keygen_support _ _ h
     have hs' : sk'.seed = sk := hs
@@ -103,29 +101,25 @@ noncomputable def zeroPadAssumptions (security : SigGolfCandidate.Bridge.EventSe
       rw [← hs', signRef_eq sk' hP cache m, countCalls_map]
     rw [R.sign, e1, Functor.map_map]
     rfl
-  sign_honest seed pk cache' sk' h cache m := hqp_of_hq (hq_sign sk' (keygen_support _ _ h).2.1 cache m)
+  sign_honest seed pk cache' sk' h cache m := hq_sign sk' (keygen_support _ _ h).2.1 cache m
   expand_eq seed pk cache' sk' h m σ := by
     rw [R.expand m (pkEnc pk) σ, expandRef_eq m (pkEnc pk) pk σ]
     rfl
-  expand_honest seed pk cache' sk' h m σ := hqp_of_hq (hq_aExpand m pk σ)
+  expand_honest seed pk cache' sk' h m σ := hq_aExpand m pk σ
   expand_compress seed pk cache' sk' h m σ w hw := aExpand_compress m pk σ w hw
-  verify_eq seed pk cache' sk' h m (w : Bytes 16384) := by
+  verify_eq seed pk cache' sk' h m (w : Bytes 6348) := by
     obtain ⟨-, -, hpk⟩ := keygen_support _ _ h
     have hpk' : pk = ⟨sk'.root, 0⟩ := hpk
     have e : (⟨pkEnc pk, 0⟩ : SphincsSecurity.PublicKey) = pk := by
       rw [hpk']; rfl
-    -- W1a: the machine hashes the witness pads (`padDec w`), and the padded reference verifier
-    -- is the relabelled padded abstract verifier (`verifyRef_eqP`)
     have e2 : Ref.countCalls (Ref.verifyRef m (pkEnc pk) w) =
-        Ref.countCalls (relabel fmtQ (SphincsSecurity.Concrete.verifyP (m := AComp) pk m (witDec w)
-          (padDec w))) := by
-      rw [verifyRef_eqP, e]
-      rfl
+        Ref.countCalls (relabel fmtQ (SphincsSecurity.Concrete.verify (m := AComp) pk m (witDec w))) := by
+      rw [verifyRef_eq, e]
     rw [R.verify m (pkEnc pk) w, e2]
     rfl
-  verify_honest seed pk cache' sk' h m σ pads := by
+  verify_honest seed pk cache' sk' h m σ := by
     obtain ⟨-, -, hpk⟩ := keygen_support _ _ h
-    exact hq_verifyP pk (by rw [show pk = _ from hpk]) m σ pads
+    exact hq_verify pk (by rw [show pk = _ from hpk]) m σ
 
 /-- **Security of the submission**, from (A) abstract security and the four bytecode refinement
 theorems. -/

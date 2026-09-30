@@ -28,7 +28,7 @@ theorem PB.halfv {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) 
     (ha : a ∈ halfP) : (m.getMem (BitVec.ofNat 64 a)).toNat % 2 ^ 32 = P.idx % 2 ^ 32 :=
   (h.glob.2.2.1 a ha).trans (h.s0ok.half a ha)
 
-theorem PB.wit {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) : WitAll P.wl m :=
+theorem PB.wit {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) : WitOK P.wl m :=
   fun j hj => (h.glob.2.2.2 j (by unfold NW; omega)).trans (h.s0ok.wit j hj)
 
 theorem PB.zero {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) {a : Nat}
@@ -108,8 +108,8 @@ theorem getD_slice (l : List Byte) (off bo : Nat) (hbo : bo < 8) :
     (slice l off 8).getD bo 0 = l.getD (off + bo) 0 := by
   simp only [slice, List.getD_eq_getElem?_getD, List.getElem?_take, if_pos hbo, List.getElem?_drop]
 
-/-- A witness byte read by `lbu` at `WIT + off` (any `off < 16384`). -/
-theorem wit_byte {wl : List Byte} {s : MachineState} (hW : WitAll wl s) (off : Nat) (hoff : off < 16384) :
+/-- A witness byte read by `lbu` at `WIT + off` (any `off < 7040`). -/
+theorem wit_byte {wl : List Byte} {s : MachineState} (hW : WitOK wl s) (off : Nat) (hoff : off < 7040) :
     (LoadKind.bu.fromWord (s.getMem (BitVec.ofNat 64 (0x800 + off / 8 * 8))) (off % 8)).toNat = wbyte wl off := by
   rw [show 0x800 + off / 8 * 8 = 0x800 + 8 * (off / 8) by omega, hW (off / 8) (by omega),
     bu_w64 _ _ (by simp [slice]), getD_slice _ _ _ (Nat.mod_lt _ (by decide)), wbyte]
@@ -314,7 +314,7 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
         (if k = 0 then vw0 else vw1) (witSecret P.wl s) := by
       intro k hk
       rw [show secA s + 8 * k = 0x800 + (32 + 16 * s + 8 * k) by unfold secA; omega,
-        wit_word_all h.pb.wit _ (by omega) (by omega)]
+        wit_word h.pb.wit _ (by omega) (by omega)]
       interval_cases k
       · simp [witSecret, vw0_slice, wSec]
       · simp [witSecret, vw1_slice, wSec]
@@ -474,7 +474,7 @@ theorem wbyte_lt (wl : List Byte) (off : Nat) : wbyte wl off < 256 := (wl.getD o
 
 theorem dispT_eval {P : PCtx} {s0 m : MachineState} {tb' : Nat} (pb : PB P s0 m tb') (ptr tb : Nat)
     (hfr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 224)) (hp : 272 ≤ ptr) (hp8 : ptr % 8 = 0)
-    (hp2 : ptr < 16384) (_htb : tb < 2 ^ 32) :
+    (hp2 : ptr < 7040) (_htb : tb < 2 ^ 32) :
     (dispT tb).eval m = BitVec.ofNat 64 (tb + 32 * wbyte P.wl ptr) := by
   have hb := wit_byte pb.wit ptr hp2
   rw [show 0x800 + ptr / 8 * 8 = 0x800 + ptr by omega, show ptr % 8 = 0 from hp8] at hb
@@ -488,7 +488,7 @@ theorem dispT_eval {P : PCtx} {s0 m : MachineState} {tb' : Nat} (pb : PB P s0 m 
   omega
 
 theorem dispObl_holds {m : MachineState} (ptr : Nat) (hfr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 224))
-    (hp : 272 ≤ ptr) (hp8 : ptr % 8 = 0) (hp2 : ptr < 16384) : ∀ o ∈ dispObl, o.holds m := by
+    (hp : 272 ≤ ptr) (hp8 : ptr % 8 = 0) (hp2 : ptr < 7040) : ∀ o ∈ dispObl, o.holds m := by
   intro o ho
   simp only [dispObl, List.mem_cons, List.not_mem_nil, or_false] at ho
   rcases ho with rfl | rfl
@@ -547,7 +547,7 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
           (1 ≤ wbyte P.wl ptr % 16 → EntIn P s0 s x (segV (tsel s) (wbyte P.wl ptr)) (segT (wbyte P.wl ptr))
             (wbyte P.wl ptr % 16) ptr E folds (answerBytes 16 ans) stk (writeHash u ans))) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
-  have hp2 : ptr < 16384 := by omega
+  have hp2 : ptr < 7040 := by omega
   set b := wbyte P.wl ptr with hbdef
   have hbl : b < 256 := wbyte_lt P.wl ptr
   have htb : tbOf s = tbN ∨ tbOf s = tbL := by unfold tbOf; split_ifs <;> simp
@@ -717,11 +717,11 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
 
 /-! ## Entry tails and ladder positions -/
 
-theorem pentCheck_at (tb b : Nat) (htb : tb < 2) (hb : b < 256) (hk1 : 1 ≤ segA b) (hk : segA b ≤ 14) :
+theorem entCheck_at (tb b : Nat) (htb : tb < 2) (hb : b < 256) (hk1 : 1 ≤ segA b) (hk : segA b ≤ 14) :
     pspecB gkP (runAt gkP [ladPc (segV tb b) (segT b) (14 - segA b)] (slotPc tb b + 5) []) (entSpec tb b) []
       (gkP ++ [(.x10, 0x1C0)]) [.x14, .x15, .x16, .x17, .x20, .x22, .x23, .x24, .x29] = true := by
-  have := pentCheck_ok
-  simp only [pentCheck, List.all_eq_true, List.mem_range] at this
+  have := entCheck_ok
+  simp only [entCheck, List.all_eq_true, List.mem_range] at this
   have h1 := this tb htb b hb
   simp only [entCheck1, Bool.or_eq_true, decide_eq_true_eq] at h1
   rcases h1 with (h1 | h1) | h1
@@ -735,7 +735,7 @@ theorem ent_step (P : PCtx) (s0 : MachineState) (s x V t a ptr E folds : Nat) (n
     ∃ u, Steps image m 2 2 u ∧ PosIn P s0 s x V t a 0 ptr E folds node stk u := by
   obtain ⟨hsV, hsT, hsA⟩ := h.slot
   have hts : tsel s < 2 := by unfold tsel; split_ifs <;> omega
-  have c := pentCheck_at (tsel s) (wbyte P.wl ptr) hts (wbyte_lt _ _) (by rw [hsA]; exact h.ha.1)
+  have c := entCheck_at (tsel s) (wbyte P.wl ptr) hts (wbyte_lt _ _) (by rw [hsA]; exact h.ha.1)
     (by rw [hsA]; exact h.ha.2)
   rw [hsV, hsT, hsA] at c
   obtain ⟨u, hu⟩ := pspec_run c m h.pc (fun p hp => h.pb.known p (List.mem_append_left _ hp)) (by simp [entSpec]) (by simp)
@@ -784,11 +784,11 @@ theorem wbytes_split (wl : List Byte) (off : Nat) :
     rfl
 
 theorem psib_words {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (off : Nat)
-    (h8 : off % 8 = 0) (hoff : off + 16 ≤ 16384) :
+    (h8 : off % 8 = 0) (hoff : off + 16 ≤ 7040) :
     m.getMem (BitVec.ofNat 64 (0x800 + off)) = vw0 (wbytes P.wl off 16) ∧
     m.getMem (BitVec.ofNat 64 (0x800 + off + 8)) = vw1 (wbytes P.wl off 16) := by
   rw [(wbytes_split P.wl off).1, (wbytes_split P.wl off).2, Nat.add_assoc]
-  exact ⟨wit_word_all h.wit _ h8 (by omega), wit_word_all h.wit _ (by omega) (by omega)⟩
+  exact ⟨wit_word h.wit _ h8 (by omega), wit_word h.wit _ (by omega) (by omega)⟩
 
 theorem lbr_lad : ∀ V, V < 3 → ∀ t, t < 2 → ∀ p, p < 13 → lbrPc V t (p + 1) + 2 = ladPc V t (p + 1) := by
   decide

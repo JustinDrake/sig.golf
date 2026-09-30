@@ -1,4 +1,5 @@
 import SigGolfCandidate.Verify.PorsSem
+import SigGolfCandidate.Verify.LayerGood
 
 /-!
 # The PORS stack machine: the simulation judgment
@@ -9,7 +10,7 @@ The root tail (into the layers), then `GoodQ` for the ladder (`segFolds`), one s
 
 Cycle bounds: a segment with `a` folds costs `15` if `a = 0` (dispatch 4, table slot 3, pending
 hash 8) and `16 + 17 a` if `a ≥ 1` (the slot's inlined parity test adds 1; `17 a` for the folds incl.
-the entry tail), at most `16 + 17 a` in both cases; tails: merge 6, push 4, root 25 (W1a: the root tail also sets `t3`, `sp`, `a5`).
+the entry tail), at most `16 + 17 a` in both cases; tails: merge 6, push 4, root 19.
 -/
 
 set_option linter.unusedSimpArgs false
@@ -20,17 +21,132 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 /-! ## The root tail -/
 
+theorem tailFCheck_at (c : Nat) (hc : c < 3) : tailFCheck c = true :=
+  List.all_eq_true.mp tailFCheck_all c (List.mem_range.mpr hc)
+
+theorem f4Pc_pre (c : Nat) (hc : c < 3) : ∃ t, t < nCopy 4 ∧ f4Pc c = preStart 4 t := by
+  rcases (show c = 0 ∨ c = 1 ∨ c = 2 by omega) with rfl | rfl | rfl
+  · exact ⟨2, by decide, rfl⟩
+  · exact ⟨1, by decide, rfl⟩
+  · exact ⟨0, by decide, rfl⟩
+
 theorem PB.glob_layers {P : PCtx} {s0 u : MachineState} {gk : List (Reg × Word)}
     (hg : GlobP gk s0 u) (hs0 : S0 P s0) : Glob gk P.wl P.pk u := by
-  refine ⟨hg.1, fun j hj => (hg.2.2.2 j (by unfold NW; omega)).trans (hs0.wit j (by omega)), ?_, ?_⟩
+  refine ⟨hg.1, fun j hj => (hg.2.2.2 j (by unfold NW; omega)).trans (hs0.wit j hj), ?_, ?_⟩
   · exact ⟨(hg.2.1 0xA0 (by decide)).trans hs0.pk.1, (hg.2.1 0xA8 (by decide)).trans hs0.pk.2⟩
   · intro a ha
     exact (hg.2.1 a (zeroP_sub a (pSlots_sub a ha))).trans (hs0.zero a (pSlots_sub a ha))
 
-/-- The PORS phase does not write the witness: the whole witness is intact when the layers start. -/
-theorem PB.witAll_layers {P : PCtx} {s0 u : MachineState} {gk : List (Reg × Word)}
-    (hg : GlobP gk s0 u) (hs0 : S0 P s0) : WitAll P.wl u :=
-  fun j hj => (hg.2.2.2 j (by unfold NW; omega)).trans (hs0.wit j hj)
+/-- The root tail: the fold limit `FR ≤ FLIM` (with an empty stack exactly `folds ≤ 118`), `E = 1`,
+empty stack (else HALT(1)); the layer constants; the precode of layer 4 with the PORS root as its
+message. -/
+theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds : Nat) (node : Val)
+    (stk : List (Val × Nat)) (m : MachineState) (h : TailIn P s0 14 x 2 c ptr E folds node stk m) :
+    ((folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧
+        fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
+    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 19 19 u ∧
+        LayerIn ⟨P.wl, P.pk, 4, P.idx⟩ node u) := by
+  obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
+  have hE := h.hE
+  have hc := h.hc
+  have cF := tailFCheck_at c hc
+  simp only [tailFCheck, Bool.and_eq_true] at cF
+  obtain ⟨⟨⟨cAcc, cR1⟩, cR2⟩, cR3⟩ := cF
+  have hK : KnownOK tailFKnown m := by
+    intro q hq
+    simp only [tailFKnown, List.mem_append, List.mem_singleton] at hq
+    rcases hq with hq | hq
+    · exact h.pb.reg hq
+    · subst hq
+      have := h.a2; simp only [destOf, show (2 : Nat) ≠ 0 by decide, show (2 : Nat) ≠ 1 by decide,
+        if_false] at this
+      exact this
+  have b1 : ∀ d, Br.holds m (fBr1 d) ↔ d = decide (¬ FLIM < 0x800 + ptr - 224) := by
+    intro d
+    simp only [fBr1, Br.holds, Rv.E.eval, h.sum, h.fr]
+    rw [geu_iff _ _ (by decide) (by omega)]
+    exact eq_comm
+  have b2 : ∀ d, Br.holds m (fBr2 d) ↔ d = decide (E ≠ 1) := by
+    intro d
+    simp only [fBr2, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.rE]
+    have heq : (BitVec.ofNat 64 E : Word) = BitVec.ofNat 64 1 ↔ E = 1 :=
+      ofNat_eq_iff (by omega) (by decide)
+    by_cases hE1 : E = 1
+    · subst E; simp
+    · have hne : (BitVec.ofNat 64 E : Word) ≠ BitVec.ofNat 64 1 := fun h => hE1 (heq.mp h)
+      simp [bne_iff_ne.mpr hne, hE1]
+  have b3 : ∀ d, Br.holds m (fBr3 d) ↔ d = decide (stk ≠ []) := by
+    intro d
+    simp only [fBr3, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.rS]
+    have : (BitVec.ofNat 64 (stkOf' stk.length) != BitVec.ofNat 64 EMPTY) = decide (stk ≠ []) := by
+      cases stk with
+      | nil => simp [stkOf']
+      | cons e r =>
+        have hne : BitVec.ofNat 64 (stkOf' (e :: r).length) ≠ BitVec.ofNat 64 EMPTY :=
+          ofNat_ne (by simp only [stkOf', EMPTY, List.length_cons] at hd ⊢; omega) (by decide) (by simp [stkOf', EMPTY])
+        rw [show (BitVec.ofNat 64 (stkOf' (e :: r).length) != BitVec.ofNat 64 EMPTY) = true from bne_iff_ne.mpr hne]
+        simp
+    rw [this]; exact eq_comm
+  have hpM : porsM = 118 := rfl
+  have hfl : FLIM = 0x800 + 272 - 224 + 8 * 29 + 16 * 118 := rfl
+  constructor
+  · intro hrej
+    by_cases h1 : FLIM < 0x800 + ptr - 224
+    · obtain ⟨u, hu⟩ := pspec_run cR1 m h.pc hK (by
+        intro b hb; simp only [rejSpec, List.mem_singleton] at hb; subst hb
+        exact (b1 false).mpr (by simp [h1])) (by simp)
+      exact ⟨u, 5, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
+        hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
+    · by_cases h2 : E ≠ 1
+      · obtain ⟨u, hu⟩ := pspec_run cR2 m h.pc hK (by
+          intro b hb; simp only [rejSpec, List.mem_cons, List.not_mem_nil, or_false] at hb
+          rcases hb with rfl | rfl
+          · exact (b2 true).mpr (by simp [h2])
+          · exact (b1 true).mpr (by simp [h1])) (by simp)
+        exact ⟨u, 4, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
+          hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
+      · have h3 : stk ≠ [] := by
+          rcases hrej with h' | h' | h'
+          · intro hnil
+            have hl0 : stk.length = 0 := by rw [hnil]; rfl
+            rw [hpM] at h'; rw [hfl] at h1; omega
+          · exact absurd h' h2
+          · exact h'
+        obtain ⟨u, hu⟩ := pspec_run cR3 m h.pc hK (by
+          intro b hb; simp only [rejSpec, List.mem_cons, List.not_mem_nil, or_false] at hb
+          rcases hb with rfl | rfl | rfl
+          · exact (b3 true).mpr (by simp [h3])
+          · exact (b2 false).mpr (by simp [h2])
+          · exact (b1 true).mpr (by simp [h1])) (by simp)
+        exact ⟨u, 6, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
+          hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
+  · intro hacc
+    have h2 : ¬ E ≠ 1 := fun e => hacc (Or.inr (Or.inl e))
+    have h3 : ¬ stk ≠ [] := fun e => hacc (Or.inr (Or.inr e))
+    have h1 : ¬ FLIM < 0x800 + ptr - 224 := by
+      have hf : ¬ folds > porsM := fun e => hacc (Or.inl e)
+      have hnil : stk = [] := by by_contra hc; exact h3 hc
+      have hl0 : stk.length = 0 := by rw [hnil]; rfl
+      rw [hpM] at hf; rw [hfl]; omega
+    obtain ⟨u, hu⟩ := pspec_run cAcc m h.pc hK (by
+      intro b hb; simp only [tailFSpec, List.mem_cons, List.not_mem_nil, or_false] at hb
+      rcases hb with rfl | rfl | rfl
+      · exact (b3 false).mpr (by simp [h3])
+      · exact (b2 false).mpr (by simp [h2])
+      · exact (b1 true).mpr (by simp [h1])) (by simp)
+    have hg := hu.glob _ _ h.pb.glob
+    have hmem : ∀ A, u.getMem A = m.getMem A := fun A => by rw [hu.mem]; rfl
+    have n0 := h.node0; have n1 := h.node1
+    simp only [destOf, show (2 : Nat) ≠ 0 by decide, show (2 : Nat) ≠ 1 by decide, if_false] at n0 n1
+    obtain ⟨t, ht, hpt⟩ := f4Pc_pre c hc
+    refine ⟨u, hu.steps, PB.glob_layers hg h.pb.s0ok, hu.known, ?_, by rw [hmem]; exact n0,
+      by rw [hmem]; exact n1, h.nodeLen, fun h => absurd h (lt_irrefl 4), ?_, t, ht, by rw [hu.pc rfl, ← hpt]; rfl⟩
+    · show u.getReg .x22 = BitVec.ofNat 64 (routeIn P.idx 4)
+      rw [hu.keep .x22 (by simp), h.pb.idx]; rfl
+    · rw [hmem, h.pb.prot (by decide), h.pb.s0ok.cb0, ofNat_toNat_lt _ (by unfold twLo; omega)]
+      have := P.idx_lt
+      unfold twLo; omega
+
 
 /-! ## The ladder: `segFolds` -/
 
@@ -200,24 +316,22 @@ segments remain (every merge pops, every push ends a leaf), at most `d + 14 - s`
 `118` (`Aseg`). -/
 
 def layN : Nat := 5000 * 5 + 9
-/-- The layers' cost `LayerGood.layersCost 5` (a literal here, so that the PORS part does not depend
-on the layer modules; `Top.layC_val` proves the equality). Irreducible, so that unification never
-evaluates it. -/
-@[irreducible] def layC : Nat := 7956
+/-- The layers' cost (irreducible here, so that unification never evaluates it). -/
+@[irreducible] def layC : Nat := layersCost 5
 def leafCost (s : Nat) : Nat := if s = 0 then 10 else if s = 14 then 15 else 11
 def lrest (s : Nat) : Nat := ((List.range' (s + 1) (14 - s)).map leafCost).sum
 def segR (s d : Nat) : Nat := 29 - 2 * s + d
 
 def Cseg (s d : Nat) : Nat :=
-  256 * segR s d + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 25 + layC
+  256 * segR s d + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 19 + layC
 def Aseg (s d F : Nat) : Nat :=
-  16 * segR s d + 17 * (118 - F) + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 25 + layC
+  16 * segR s d + 17 * (118 - F) + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 19 + layC
 def Nseg (s d : Nat) : Nat := Cseg s d + layN
 
 /-- After the leaf's last segment (before the push / root tail). -/
-def CtailPF (s d : Nat) : Nat := if s = 14 then 25 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
+def CtailPF (s d : Nat) : Nat := if s = 14 then 19 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
 def AtailPF (s d F : Nat) : Nat :=
-  if s = 14 then 25 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
+  if s = 14 then 19 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
 def NtailPF (s d : Nat) : Nat := CtailPF s d + layN
 
 /-- Before a merge tail. -/
@@ -349,7 +463,7 @@ theorem leaves_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
     (Kr : Option PorsState → OracleComp HashSpec Obs) (hnone : Kr none = pure (false, 0))
     (hKr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (25 + layC + layN) (25 + layC) (st.folds ≤ 118) (25 + layC) (Kr (some st))) :
+      GoodQ u (19 + layC + layN) (19 + layC) (st.folds ≤ 118) (19 + layC) (Kr (some st))) :
     ∀ n s (st : PorsState) m, s + n = 15 → LeafIn P s0 s st m →
       GoodQ m (leafCost s + Nseg s st.stack.length) (leafCost s + Cseg s st.stack.length) (st.folds ≤ 118)
         (leafCost s + Aseg s st.stack.length st.folds)

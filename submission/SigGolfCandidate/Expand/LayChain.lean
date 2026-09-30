@@ -173,23 +173,24 @@ structure ChInv (w : List Byte) (idx : Nat) (u : MachineState) (lay d0 d1 i : Na
   x18 : t.getReg .x18 = BitVec.ofNat 64 i
   x19 : i < 42 → t.getReg .x19 = BitVec.ofNat 64 (digWord d0 d1 i)
   x20 : t.getReg .x20 = BitVec.ofNat 64 (257 + 65536 * lay + 2 ^ 40 * i)
-  x23 : t.getReg .x23 = BitVec.ofNat 64 (0x800 + (2992 + 2688 * lay) + 64 * i)
+  x23 : t.getReg .x23 = BitVec.ofNat 64 (0x800 + witLayerOff lay + 16 * i)
   x24 : t.getReg .x24 = BitVec.ofNat 64 (0x30260 + 16 * i)
   regs : RegsEq u t chRegs
   frame : Frame u t chW
 
-/-- W1a: the value slot of chain block `(lay, i)` is `blockOff lay i + 48 = 2992 + 2688 lay + 64 i`. -/
-theorem chainOff_eq (lay i : Nat) : blockOff lay i + 48 = 2992 + 2688 * lay + 64 * i := by
-  rw [blockOff_eq]; omega
+theorem witLayerOff_le (lay : Nat) (h : lay < 5) :
+    witLayerOff lay + 672 + 16 * height lay ≤ 6328 ∧ witLayerOff lay % 8 = 0 := by
+  interval_cases lay <;> decide
 
 theorem chain_body (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e d0 d1 : Nat) (hl : lay < 5)
-    (htau : tau < 2 ^ 30) (he : e < 2048) (hd0 : d0 < 2 ^ 63) (hd1 : d1 < 2 ^ 63) (hw : w.length = 16384)
+    (htau : tau < 2 ^ 30) (he : e < 2048) (hd0 : d0 < 2 ^ 63) (hd1 : d1 < 2 ^ 63) (hw : w.length = 6348)
     (u2 : u.getReg .x2 = BitVec.ofNat 64 d1) (u21 : u.getReg .x21 = BitVec.ofNat 64 (2 ^ 40))
     (u148 : u.getMem (BitVec.ofNat 64 0x30148) = BitVec.ofNat 64 (tau + 2 ^ 32 * e)) :
     ∀ i < 42, ∀ (ends : List Val) (t : MachineState), ChInv w idx u lay d0 d1 i ends t →
       Sim eimg t 160 (leafF w lay tau e (digitsOfWord d0 ++ digitsOfWord d1) ends i)
         (ChInv w idx u lay d0 d1 (i + 1)) := by
   intro i hi ends t hinv
+  have hwl := witLayerOff_le lay hl
   have hlen := hinv.len
   have tpc : t.pc = pcOf 408 := by rw [hinv.pc, if_pos hi]
   have hq : digWord d0 d1 i < 2 ^ 64 := by
@@ -216,13 +217,13 @@ theorem chain_body (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e d0 
       · rw [if_neg h1, if_neg (by omega), Nat.div_div_eq_div_mul, ← Nat.pow_succ]
         congr 2; omega
   have c2 := (hinv.ctx.frame_nil m1 r1).frame_nil m2 r2
-  obtain ⟨t3, hs3, p3, v3, r3, f3⟩ := blk413_run w t2 p2 (2992 + 2688 * lay + 64 * i) (by omega) (by omega) c2.wit
+  obtain ⟨t3, hs3, p3, v3, r3, f3⟩ := blk413_run w t2 p2 (witLayerOff lay + 16 * i) (by omega) (by omega) c2.wit
     (by rw [r2.get .x23, r1.get .x23, hinv.x23]; exact ofNat_congr (by omega)) c2.x25
   have c3 := c2.frame f3 r3 (fun a h1 h2 => by unfold lctxA witA at h1; omega)
   set x := (digitsOfWord d0 ++ digitsOfWord d1).getD i 0 with hx
   have hx8 : x < 8 := by rw [← hdig]; omega
-  have hchain : witChain w lay i = wbytes w (2992 + 2688 * lay + 64 * i) 16 := by
-    unfold witChain; rw [chainOff_eq, slice_eq_wbytes _ _ _ (by omega)]
+  have hchain : witChain w lay i = wbytes w (witLayerOff lay + 16 * i) 16 := by
+    unfold witChain; rw [slice_eq_wbytes _ _ _ (by omega)]
   have R3 := (r1.trans r2).trans r3
   have hstep := Sim.foldlM_range' (image := eimg) (x + 1) (7 - x) (fun v mu => hash16 (chainInput lay tau e i mu v))
     (witChain w lay i) (StepInv w idx t3 x) 19
@@ -239,7 +240,7 @@ theorem chain_body (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e d0 
   obtain ⟨t5, hs5, p5, r5, m5⟩ := blk417_run t4 p4 (x + (7 - x)) (by omega) y28'
   rw [if_pos (by omega)] at p5
   have R4 := (R3.trans r4).trans r5
-  obtain ⟨t6, hs6, p6, w6, y18, y20, y23, y24, r6, f6⟩ := blk428_run t5 p5 i (0x800 + (2992 + 2688 * lay) + 64 * i)
+  obtain ⟨t6, hs6, p6, w6, y18, y20, y23, y24, r6, f6⟩ := blk428_run t5 p5 i (0x800 + witLayerOff lay + 16 * i)
     (257 + 65536 * lay + 2 ^ 40 * i) hi (by omega) (by omega) (by rw [R4.get .x18 (by decide), hinv.x18])
     (by rw [R4.get .x20 (by decide), hinv.x20])
     (by rw [R4.get .x21 (by decide), hinv.regs.get .x21, u21])

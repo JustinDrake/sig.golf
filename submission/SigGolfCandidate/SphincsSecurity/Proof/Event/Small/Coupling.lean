@@ -176,7 +176,7 @@ theorem fixed_cap_domination (sk : SecretKey) (parameter : PublicParameter) (f :
 
 /-- Verification and the verdict after the adversary phase. -/
 noncomputable def finishGame (pk : PublicKey) (result : Forgery × QueryLog SigningSpec) : OracleComp OracleWorld Bool := do
-  let verified ← scheme.verify pk result.1.message result.1.signature result.1.pads
+  let verified ← scheme.verify pk result.1.message result.1.signature
   return decide (SigningTranscript.Valid result.2 ∧ ¬SigningTranscript.Contains result.2 result.1) && verified
 
 theorem gameRest_eq_advPhase (adversary : Adversary) (pk : PublicKey) (sk : SecretKey) :

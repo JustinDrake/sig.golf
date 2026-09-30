@@ -87,7 +87,7 @@ structure SchCtx (levels : List (List Val)) (L : List Nat) (t0 : MachineState) :
   lvslots : ∀ l (hl : l < 15), Slots t0 (lvBase l) (levels.getD l [])
 
 /-- Addresses written by the schedule loop (given the reads so far). -/
-def schW' (n : Nat) (a : Nat) : Prop := (0x760 ≤ a ∧ a < 0x7E0) ∨ (0x24C00 ≤ a ∧ a < 0x24C00 + 16 * n)
+def schW' (n : Nat) (a : Nat) : Prop := (0x760 ≤ a ∧ a < 0x7E0) ∨ (0x3400 ≤ a ∧ a < 0x3400 + 16 * n)
 
 /-- Invariant of the leaf loop before leaf `s`. -/
 def SchInv (levels : List (List Val)) (t0 : MachineState) (s : Nat) (st : SchedState) (t : MachineState) : Prop :=
