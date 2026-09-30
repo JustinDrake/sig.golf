@@ -68,7 +68,7 @@ theorem security127_event_of_small_budget_plus (q : Nat) (hsmall : q + 1 ≤ bud
       _ ≤ visSmallBound (q + 1) + ((q + 1 : Nat) : ENNReal) / 2 ^ 200 := by
         apply add_le_add
           (forgeAdvantage_visAdversary_le fixedReferenceDummy
-            (fun _ _ _ => fixedReferenceDummyWord_valid) adversary (q + 1) (by omega) hsmall)
+            (fun lay _ _ => fixedReferenceDummyWord_valid lay) adversary (q + 1) (by omega) hsmall)
         exact ENNReal.div_le_div (by exact_mod_cast Nat.le_add_right q 1) le_rfl
       _ ≤ _ := visSmallBound_plus_le q hq hsmall
   · rw [forgeEventAdvantage_eq_zero adversary q (by omega), zero_add]
