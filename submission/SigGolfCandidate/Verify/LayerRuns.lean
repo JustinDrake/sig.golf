@@ -59,7 +59,14 @@ def swA4 : E := .bin .add swA3 (.bin .srl swA3 (cw 6))
 def swA5 : E := .bin .and swA4 m2E
 def swA6 : E := .bin .add swA5 (.bin .srl swA5 (cw 12))
 def swA7 : E := .bin .add swA6 (.bin .srl swA6 (cw 24))
-def swS : E := .bin .sll (.bin .add swA7 (.bin .srl swA7 (cw 48))) (cw 52)
+def swSBase : E := .bin .sll (.bin .add swA7 (.bin .srl swA7 (cw 48))) (cw 52)
+
+/-- Subtract the layer's one-unit target increment before shifting the sum. -/
+def swS (lay : Nat) : E :=
+  if 3 ≤ lay then
+    .bin .sll (.bin .add (.bin .add swA7 (.bin .srl swA7 (cw 48)))
+      (cw (2 ^ 64 - 1))) (cw 52)
+  else swSBase
 
 /-- The dispatch register of a site computed from the digit word `D`. -/
 def maskD (i : Nat) (D : E) : E :=
@@ -69,7 +76,7 @@ def maskD (i : Nat) (D : E) : E :=
 
 def rE0 (lay : Nat) : E := mkBin .add (maskD 0 d0E) (cw (bVal lay 0))
 
-def stepsB (lay : Nat) : Nat := if lay = 4 then 37 else 34
+def stepsB (lay : Nat) : Nat := if lay = 4 then 38 else if lay = 3 then 35 else 34
 
 /-- Chain setup: `sd H, CB; sd X31, CB+8` initializes the tweak and clears its chain index
 (layer 4 also zeroes CB+32..48, left by the last PORS leaf). -/
@@ -81,14 +88,14 @@ def specBok (lay t : Nat) : Spec :=
   ⟨[(.x1, ldE (chainAddr lay 0)), (.x2, ldE (chainAddr lay 0 + 8)), (.x14, rE0 lay),
     (.x15, cw (bVal lay 0)), (.x16, d0E), (.x17, d1E)],
    setupMem lay, 0, false, stepsB lay,
-   [⟨.ne, swS, .c KT, false⟩, ⟨.lt, orE, .c 0, false⟩],
+   [⟨.ne, swS lay, .c KT, false⟩, ⟨.lt, orE, .c 0, false⟩],
    some (mkBin .and (mkAdd (rE0 lay) (.c (BitVec.ofNat 64 (tabAddr lay 0) - BitVec.ofNat 64 (bVal lay 0))))
      (.c (~~~1#64)))⟩
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
 def specRej1 : Spec := ⟨rejK, [], 32, true, 7, [⟨.lt, orE, .c 0, true⟩], none⟩
-def specRej2 : Spec := ⟨rejK, [], 32, true, 27, [⟨.ne, swS, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none⟩
+def specRej2 (lay : Nat) : Spec := ⟨rejK, [], 32, true, 27 + (if 3 ≤ lay then 1 else 0), [⟨.ne, swS lay, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none⟩
 
 /-! ## Leaf -/
 
@@ -124,7 +131,7 @@ def layerCheck (lay : Nat) : Bool :=
     specB gkL (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br false, .jmp]) (specBok lay t)
       (chKa lay) [.x22, .x23, .x30, .x31] &&
     specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br true]) specRej1 [] [] &&
-    specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) specRej2 [] [] &&
+    specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) (specRej2 lay) [] [] &&
     (lay != 0 || (specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] &&
       specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] &&
       specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] []))) &&

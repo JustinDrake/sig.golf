@@ -12,7 +12,7 @@ noncomputable def prefixContactGame (inputs : Finset HashInput)
     (address : OtsPrefix.ChainAddress) (dummy : OtsReferenceWords) (adversary : Adversary) : SPMF Bool := do
   let parameter ← 𝒮[sampleParameter]
   let ftsSecret ← 𝒮[sampleFtsSecrets]
-  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]
+  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]
   let words := referenceFamilyWords selections dummy
   let segment := OtsPrefix.atAddress parameter words address
   let other ← 𝒮[PMF.uniformOfFintype segment.ErasedSecrets]

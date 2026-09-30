@@ -8,18 +8,18 @@ namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp
 
 /-- The cycle bound of accepting runs after saving 40 head instructions in each of five layers. -/
-def cycleBound : Nat := 11606
+def cycleBound : Nat := 11593
 
 /-- A cycle bound of every run (`254` per segment instead of `15` / `16 + 17 a`). -/
-def cycleBoundAll : Nat := 16747
+def cycleBoundAll : Nat := 16734
 
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 8675 := by decide
-theorem layC_val : layC = 8675 := by unfold layC; exact layersCost_val
+theorem layersCost_val : layersCost 5 = 8659 := by decide
+theorem layC_val : layC = 8659 := by unfold layC; exact layersCost_val
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -90,10 +90,10 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
   rw [l0, f0] at hg
   exact hg.mono (le_refl _) (le_refl _) (fun _ => ⟨trivial, le_refl _⟩)
 
-theorem lrest_0 : lrest 0 = 156 := by decide
+theorem lrest_0 : lrest 0 = 158 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7690 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2794 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7690 + layC + layN := by
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7692 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2796 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7692 + layC + layN := by
   have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 
@@ -114,8 +114,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (103 + (leafCost 0 + Nseg 0 0)) (103 + (leafCost 0 + Cseg 0 0)) True
-        (103 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (104 + (leafCost 0 + Nseg 0 0)) (104 + (leafCost 0 + Cseg 0 0)) True
+        (104 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with

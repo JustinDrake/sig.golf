@@ -62,7 +62,7 @@ theorem referenceEncodingSearch_valid (parameter : PublicParameter) (f : QueryIm
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : Digest)
     (attempts start : Nat) (counter : Counter) (word : Encoding)
     (hword : (referenceEncodingSearch parameter f lay tree leaf message attempts start).1 = some (counter, word)) :
-    OtsCode.Valid word := by
+    OtsCode.Valid lay word := by
   induction attempts generalizing start with
   | zero => simp [referenceEncodingSearch] at hword
   | succ attempts ih =>
@@ -77,8 +77,8 @@ theorem referenceEncodingSearch_valid (parameter : PublicParameter) (f : QueryIm
           simpa only [encodeAttempt, evalWithAnswerFn_bind, evalWithAnswerFn_pure, hword.2] using hencode
 
 theorem canonicalReferenceWords_valid (key : SecretKey) (f : QueryImpl HashSpec Id)
-    (dummy : OtsReferenceWords) (hdummy : ∀ lay tree leaf, OtsCode.Valid (dummy lay tree leaf)) :
-    ∀ lay tree leaf, OtsCode.Valid (canonicalReferenceWords key f dummy lay tree leaf) := by
+    (dummy : OtsReferenceWords) (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (dummy lay tree leaf)) :
+    ∀ lay tree leaf, OtsCode.Valid lay (canonicalReferenceWords key f dummy lay tree leaf) := by
   intro lay tree leaf
   cases hsearch : (canonicalEncodingSearch key f lay tree leaf).1 with
   | none => simpa only [canonicalReferenceWords, hsearch, Option.map_none, Option.getD_none] using hdummy lay tree leaf
