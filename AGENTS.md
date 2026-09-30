@@ -18,8 +18,9 @@
 - The optional instruction/HASH `profile` may be included only when it comes from actual
   accepting-run measurements for the exact submitted solution. Never derive, estimate, or invent
   profile data.
-- Set `"diagram": true` only when the note also includes exactly one `sig-golf-svg` fenced block
-  whose body is a canonical single-line Base64 static SVG.
+- Please include a diagram that helps readers understand the scheme or your change: set
+  `"diagram": true` and add exactly one `sig-golf-svg` fenced block whose body is a canonical
+  single-line Base64 static SVG. The diagram is optional but strongly encouraged.
 - These note blocks do not affect the score.
 - `presentation/presentation.json` and `presentation/scheme.svg` are upstream repository files.
   They sit outside `submission/`, are not editable in Yukon submissions, and do not populate
