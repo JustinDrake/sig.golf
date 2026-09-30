@@ -26,7 +26,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     (stk : List (Val × Nat)) (m : MachineState) (h : TailIn P s0 14 x 2 c ptr E folds node stk m) :
     ((folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧
         fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 25 25 u ∧
+    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 22 22 u ∧
         LayerIn ⟨P.wl, P.pk, 4, P.idx⟩ node u) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
   have hE := h.hE
@@ -43,26 +43,20 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       have := h.a2; simp only [destOf, show (2 : Nat) ≠ 0 by decide, show (2 : Nat) ≠ 1 by decide,
         if_false] at this
       exact this
-  have b1 : ∀ d, Br.holds m (fBr1 d) ↔ d = decide (FLIM < 0x800 + ptr - 224) := by
+  have b1 : ∀ d, Br.holds m (fBr1 d) ↔ d = decide (¬ FLIM < 0x800 + ptr - 224) := by
     intro d
-    simp only [fBr1, Br.holds, CmpOp.eval, Rv.E.eval, h.sum, h.fr, BitVec.ult,
-      ofNat_toNat_lt _ (show FLIM < 2 ^ 64 by decide), ofNat_toNat_lt _ (show 0x800 + ptr - 224 < 2 ^ 64 by omega)]
+    simp only [fBr1, Br.holds, Rv.E.eval, h.sum, h.fr]
+    rw [geu_iff _ _ (by decide) (by omega)]
     exact eq_comm
   have b2 : ∀ d, Br.holds m (fBr2 d) ↔ d = decide (E ≠ 1) := by
     intro d
-    simp only [fBr2, Br.holds, CmpOp.eval, addC_eval, Rv.E.eval, h.rE]
-    have e1 : BitVec.ofNat 64 E + -1#64 = BitVec.ofNat 64 (E + (2 ^ 64 - 1)) := by
-      rw [show (-1#64 : Word) = BitVec.ofNat 64 (2 ^ 64 - 1) from rfl, BitVec.ofNat_add_ofNat]
-    have : (BitVec.ofNat 64 E + -1#64 != 0) = decide (E ≠ 1) := by
-      rw [e1]
-      by_cases hE1 : E = 1
-      · subst hE1; decide
-      · have hne : BitVec.ofNat 64 (E + (2 ^ 64 - 1)) ≠ 0 := by
-          intro e; have := congrArg BitVec.toNat e
-          simp only [BitVec.toNat_ofNat] at this; simp at this; omega
-        rw [show (BitVec.ofNat 64 (E + (2 ^ 64 - 1)) != 0) = true from bne_iff_ne.mpr hne]
-        simp [hE1]
-    rw [this]; exact eq_comm
+    simp only [fBr2, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.rE]
+    have heq : (BitVec.ofNat 64 E : Word) = BitVec.ofNat 64 1 ↔ E = 1 :=
+      ofNat_eq_iff (by omega) (by decide)
+    by_cases hE1 : E = 1
+    · subst E; simp
+    · have hne : (BitVec.ofNat 64 E : Word) ≠ BitVec.ofNat 64 1 := fun h => hE1 (heq.mp h)
+      simp [bne_iff_ne.mpr hne, hE1]
   have b3 : ∀ d, Br.holds m (fBr3 d) ↔ d = decide (stk ≠ []) := by
     intro d
     simp only [fBr3, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.rS]
@@ -82,16 +76,16 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     by_cases h1 : FLIM < 0x800 + ptr - 224
     · obtain ⟨u, hu⟩ := pspec_run cR1 m h.pc hK (by
         intro b hb; simp only [rejSpec, List.mem_singleton] at hb; subst hb
-        exact (b1 true).mpr (by simp [h1])) (by simp)
-      exact ⟨u, 4, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
+        exact (b1 false).mpr (by simp [h1])) (by simp)
+      exact ⟨u, 5, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
         hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
     · by_cases h2 : E ≠ 1
       · obtain ⟨u, hu⟩ := pspec_run cR2 m h.pc hK (by
           intro b hb; simp only [rejSpec, List.mem_cons, List.not_mem_nil, or_false] at hb
           rcases hb with rfl | rfl
           · exact (b2 true).mpr (by simp [h2])
-          · exact (b1 false).mpr (by simp [h1])) (by simp)
-        exact ⟨u, 6, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
+          · exact (b1 true).mpr (by simp [h1])) (by simp)
+        exact ⟨u, 5, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
           hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
       · have h3 : stk ≠ [] := by
           rcases hrej with h' | h' | h'
@@ -105,8 +99,8 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
           rcases hb with rfl | rfl | rfl
           · exact (b3 true).mpr (by simp [h3])
           · exact (b2 false).mpr (by simp [h2])
-          · exact (b1 false).mpr (by simp [h1])) (by simp)
-        exact ⟨u, 8, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
+          · exact (b1 true).mpr (by simp [h1])) (by simp)
+        exact ⟨u, 7, by omega, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
           hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
   · intro hacc
     have h2 : ¬ E ≠ 1 := fun e => hacc (Or.inr (Or.inl e))
@@ -121,7 +115,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       rcases hb with rfl | rfl | rfl
       · exact (b3 false).mpr (by simp [h3])
       · exact (b2 false).mpr (by simp [h2])
-      · exact (b1 false).mpr (by simp [h1])) (by simp)
+      · exact (b1 true).mpr (by simp [h1])) (by simp)
     have hg := hu.glob _ _ h.pb.glob
     have hmem : ∀ A, u.getMem A = m.getMem A := fun A => by rw [hu.mem]; rfl
     have n0 := h.node0; have n1 := h.node1
@@ -138,12 +132,9 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       unfold twLo; omega
 
 
-/-- The cycle bound of accepting runs: `2945 + layersCost 5 = 2945 + 7956`. The part before the layers
-is `27` (prologue, counter check) `+ 8` (digest) `+ 107` (setup) `+ 10 + 158` (leaves) `+ 16 · 29 + 17 · 118`
-(segments with at most `118` folds) `+ 6 · 14 + 4 · 14` (merge / push tails) `+ 25` (root tail) `= 2945`;
-an accepting run with `Z` fold-free segments costs `1` less per such segment. Feasible worst case
-(emulator, `F = 118`, `Z = 1`, no digit 7): `2944 + 7956 = 10900`. -/
-def cycleBound : Nat := 10901
+/-- The accepting bound is `2942 + layersCost 5 = 2942 + 7956`. Relative to the accepted
+in-place chain verifier, the root tail reuses known constants and saves three instructions. -/
+def cycleBound : Nat := 10898
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
 def cycleBoundAll : Nat := 16834
@@ -188,7 +179,7 @@ theorem Kr_none (P : PCtx) : Kr P none = pure (false, 0) := by
 
 theorem root_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (x c : Nat) (st : PorsState)
     (u : MachineState) (hT : TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u) :
-    GoodQ u (25 + layC + layN) (25 + layC) (st.folds ≤ 118) (25 + layC) (Kr P (some st)) := by
+    GoodQ u (22 + layC + layN) (22 + layC) (st.folds ≤ 118) (22 + layC) (Kr P (some st)) := by
   obtain ⟨hrej, hacc⟩ := tailF_step P hP s0 x c st.ptr st.E st.folds st.node st.stack u hT
   have hL : layC = layersCost 5 := layC_val.trans layersCost_val.symm
   by_cases hc : st.folds > porsM ∨ st.E ≠ 1 ∨ st.stack ≠ []
@@ -210,7 +201,7 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
       (cc (porsRoot P.idx P.v P.wl) (Klay P)) := by
   have hr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (25 + layC + layN) (25 + layC) (st.folds ≤ 118) (25 + layC) (Kr P (some st)) :=
+      GoodQ u (22 + layC + layN) (22 + layC) (st.folds ≤ 118) (22 + layC) (Kr P (some st)) :=
     fun x c st u hT => root_good P hP s0 x c st u hT
   have hg0 := leaves_good P hP s0 (Kr P) (Kr_none P) hr
   have hg := hg0 15 0 ⟨wStream, 0, 0, 0, [], []⟩ s0 (by rfl) h
@@ -229,8 +220,8 @@ theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 
 
 theorem lrest_0 : lrest 0 = 158 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7757 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2803 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7757 + layC + layN := by
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7754 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2800 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7754 + layC + layN := by
   have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 
