@@ -1,6 +1,8 @@
 import SigGolf
 import SigGolfCandidate.Transfer.Final
 
+-- Yukon iteration: expose S×C as a checked numeral so the claim cannot drift from Solution.lean.
+
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
@@ -35,5 +37,8 @@ theorem layout_offsets : submission.layout =
 
 theorem certificate : SigGolf.Certificate submission 11632 :=
   SigGolfCandidate.certificateNew
+
+/-- Score product used by the `full` track: `S × C` with the declared cycle bound. -/
+theorem declared_score_product : submission.sizes.signature * 11632 = 70513184 := rfl
 
 end SigGolf.Challenge
