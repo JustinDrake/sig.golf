@@ -271,7 +271,7 @@ def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
 
 def specStartOk : Spec :=
   ⟨[], [(⟨none, BitVec.ofNat 64 56⟩, ldE 2056), (⟨none, BitVec.ofNat 64 48⟩, ldE 2048),
-    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 28, true, 28, [⟨.ne, ctrE', .c 0, false⟩], none⟩
+    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 27, true, 27, [⟨.ne, ctrE', .c 0, false⟩], none⟩
 def specStartRej : Spec := ⟨[(.x5, cw 1), (.x10, cw 1)], [], 32, true, 20, [⟨.ne, ctrE', .c 0, true⟩], none⟩
 
 def wLdE (i : Nat) : E := ldE (0x160 + 8 * i)
@@ -307,6 +307,6 @@ def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 108, [], 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&
   specB [] (runAt k0 [] 0 [.br true]) specStartRej [] [] &&
-  specB gkD (runAt dgK [leafPc 0] 29 []) setupSpec setupPost []
+  specB gkD (runAt dgK [leafPc 0] 28 []) setupSpec setupPost []
 
 end SigGolfCandidate.Verify
