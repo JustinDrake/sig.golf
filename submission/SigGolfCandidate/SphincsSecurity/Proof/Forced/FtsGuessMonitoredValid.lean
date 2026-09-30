@@ -324,7 +324,7 @@ theorem covered_sign_next (message : Message) (next : Option Signature → Oracl
 
 theorem covered_pure (forgery : Forgery) (state : MonitoredState) (hvalid : Valid state)
     (hcovered : CoveredRun parameter root otsSecret labels inputs (pure forgery) state) :
-    hashInputs (liftM (verifyP ⟨root, parameter⟩ forgery.message forgery.signature forgery.pads : OracleComp HashSpec Bool) :
+    hashInputs (liftM (verify ⟨root, parameter⟩ forgery.message forgery.signature : OracleComp HashSpec Bool) :
       OracleComp OracleWorld Bool) ⊆ inputs := by
   obtain ⟨secrets, hsecrets⟩ := exists_complete_ne_zero state.1.2.allowed hvalid
   have h := hcovered secrets hsecrets

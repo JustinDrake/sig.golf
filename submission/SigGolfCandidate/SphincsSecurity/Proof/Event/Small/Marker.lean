@@ -261,11 +261,11 @@ theorem causalGame_nonmessage_marker (adversary : Adversary) (budget : Nat) (res
   simp only [QueryCap.counted_bind, QueryCap.counted_pure, pure_bind, mem_support_bind_iff, mem_support_pure_iff] at horiginal
   obtain ⟨first, hfirst, _, ⟨second, hsecond, rfl⟩, rfl⟩ := horiginal
   have hadv := causalAdversaryRun_visAdversary_marker parameter _ external ftsSecret words frontier adversary budget _ first hfirst
-  have hbound : (boundaryComputation parameter (liftM (verifyP ⟨frontierRoot parameter (maskOtsPrefixes parameter words external)
-      words frontier, parameter⟩ first.1.1.1.message first.1.1.1.signature first.1.1.1.pads : OracleComp HashSpec Bool))).IsQueryBoundP
+  have hbound : (boundaryComputation parameter (liftM (verify ⟨frontierRoot parameter (maskOtsPrefixes parameter words external)
+      words frontier, parameter⟩ first.1.1.1.message first.1.1.1.signature : OracleComp HashSpec Bool))).IsQueryBoundP
       (CausalFrontierProgram.NonmessageHash parameter) verifyHashBound := by
     rw [← isQueryBoundP_map_iff _ Prod.fst, boundaryComputation_fst]
-    refine (isQueryBoundP_liftM_of_evenBound _ _ (evenBound_verifyP _ _ _ _)).of_imp ?_
+    refine (isQueryBoundP_liftM_of_evenBound _ _ (evenBound_verify _ _ _)).of_imp ?_
     intro input hinput
     cases input with
     | inl _ => exact hinput.elim
@@ -273,15 +273,15 @@ theorem causalGame_nonmessage_marker (adversary : Adversary) (budget : Nat) (res
   have hcount := QueryCap.counted_le_of_queryBound _ _ _ hbound second hsecond
   have hmarker : markerValue ((FreeMonoid.of none) ^ keygenHashCost * (first.1.2 * second.1.2)) = markerValue first.1.2 := by
     rw [markerValue_pow_none_mul, markerValue_mul_even]
-    have hsupport : second.1 ∈ support (boundaryComputation parameter (liftM (verifyP ⟨frontierRoot parameter
-        (maskOtsPrefixes parameter words external) words frontier, parameter⟩ first.1.1.1.message first.1.1.1.signature first.1.1.1.pads :
+    have hsupport : second.1 ∈ support (boundaryComputation parameter (liftM (verify ⟨frontierRoot parameter
+        (maskOtsPrefixes parameter words external) words frontier, parameter⟩ first.1.1.1.message first.1.1.1.signature :
         OracleComp HashSpec Bool))) := by
       have h := QueryCap.counted_forget (CausalFrontierProgram.NonmessageHash parameter) (boundaryComputation parameter
-        (liftM (verifyP ⟨frontierRoot parameter (maskOtsPrefixes parameter words external) words frontier, parameter⟩
-          first.1.1.1.message first.1.1.1.signature first.1.1.1.pads : OracleComp HashSpec Bool)))
+        (liftM (verify ⟨frontierRoot parameter (maskOtsPrefixes parameter words external) words frontier, parameter⟩
+          first.1.1.1.message first.1.1.1.signature : OracleComp HashSpec Bool)))
       rw [← h, support_map]
       exact ⟨second, hsecond, rfl⟩
-    exact boundaryComputation_even parameter _ _ (evenBound_verifyP _ _ _ _) _ hsupport
+    exact boundaryComputation_even parameter _ _ (evenBound_verify _ _ _) _ hsupport
   change first.2 + (second.2 + 0) ≤ markerValue ((FreeMonoid.of none) ^ keygenHashCost * (first.1.2 * second.1.2)) + verifyHashBound
   rw [hmarker, ← hadv]
   omega

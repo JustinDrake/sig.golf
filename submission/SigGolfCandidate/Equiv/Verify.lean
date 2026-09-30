@@ -1,11 +1,10 @@
 import SigGolfCandidate.Equiv.Layers
 
 /-!
-# Verification (PORS+FP, W1a padded chains)
+# Verification (PORS+FP)
 
-`verifyRef_eqP`: for every witness, the reference verifier is the relabelled padded abstract verifier
-`verifyP` on the public key `⟨pk, 0⟩`, the decoded witness `witDec w` and the witness pads `padOf`
-(rejecting paths included).
+`verifyRef_eq`: for every witness, the reference verifier is the relabelled abstract verifier on
+the public key `⟨pk, 0⟩` and the decoded witness `witDec w` (rejecting paths included).
 -/
 
 open OracleComp OracleSpec
@@ -87,20 +86,14 @@ end fold
 
 section wit
 
-variable (wl : List Byte) (hl : wl.length = 16384)
+variable (wl : List Byte) (hl : wl.length = 6348)
 
-theorem path_bound (lay : Layer) :
-    Ref.pathOff lay.val + 16 * SphincsSecurity.layerHeight lay ≤ 2944 := by
+theorem wit_bound (lay : Layer) :
+    Ref.witLayerOff lay.val + 672 + 16 * SphincsSecurity.layerHeight lay ≤ Ref.witCounters := by
   fin_cases lay <;> decide
 
 theorem lay_lt (lay : Layer) : lay.val < 5 := lay.isLt
 theorem chain_lt (i : ChainIndex) : i.val < 42 := i.isLt
-
-theorem block_bound (lay : Layer) (i : ChainIndex) : Ref.blockOff lay.val i.val + 64 ≤ 16384 := by
-  have := lay_lt lay; have := chain_lt i; rw [Ref.blockOff_eq]; omega
-
-theorem ctrOff_bound (lay : Layer) : Ref.ctrOff lay.val + 4 ≤ 16384 := by
-  fin_cases lay <;> decide
 
 include hl
 
@@ -113,7 +106,9 @@ theorem witSecret_eq (s : Nat) (hs : s < 15) :
 
 theorem witChain_eq (lay : Layer) (i : ChainIndex) :
     Ref.witChain wl lay.val i.val = dv (((witSig wl).layers lay).chainValues i) :=
-  (dv_ofList_slice _ _ (by have := block_bound lay i; omega)).symm
+  (dv_ofList_slice _ _ (by
+    have := wit_bound lay; have := chain_lt i; have := Ref.witCounters_eq
+    omega)).symm
 
 theorem witPath_eq (lay : Layer) :
     Ref.witPath wl lay.val = (List.range (SphincsSecurity.layerHeight lay)).map fun l =>
@@ -125,7 +120,8 @@ theorem witPath_eq (lay : Layer) :
   have hl2 : l < SphincsSecurity.layerHeight lay := List.mem_range.mp hl'
   unfold SphincsSecurity.Concrete.signaturePath
   rw [dif_pos hl2]
-  have hb := path_bound lay
+  have hb := wit_bound lay
+  have hc := Ref.witCounters_eq
   exact (dv_ofList_slice _ _ (by omega)).symm
 
 omit hl in
@@ -138,8 +134,8 @@ theorem witCounter_toNat (lay : Layer) :
   rw [← witCounter_eq wl lay]
   simp only [BitVec.toNat_ofNat, SphincsSecurity.counterBits]
   apply Nat.mod_eq_of_lt
-  have := Ref.leNat_lt (Ref.slice wl (Ref.ctrOff lay.val) 4)
-  rw [length_slice _ _ _ (by have := ctrOff_bound lay; omega)] at this
+  have := Ref.leNat_lt (Ref.slice wl (Ref.witCounters + 4 * lay.val) 4)
+  rw [length_slice _ _ _ (by have := lay_lt lay; have := Ref.witCounters_eq; omega)] at this
   unfold Ref.witCounter; omega
 
 theorem countersOk_eq :
@@ -159,78 +155,9 @@ theorem countersOk_eq :
 
 end wit
 
-/-! ## The chain pads -/
-
-/-- The pads of a W1a witness (byte list): chain block `(lay, i)` is `[tweak 16 | pad 32 | value 16]`;
-its pad as two digests. `Equiv.padDec w = padOf (Ref.toList w)` (stream E, `Equiv/Wit.lean`). -/
-def padOf (w : List Byte) : SphincsSecurity.ChainPads := fun lay i =>
-  (Ref.ofList 16 (Ref.slice w (Ref.blockOff lay.val i.val + 16) 16),
-    Ref.ofList 16 (Ref.slice w (Ref.blockOff lay.val i.val + 32) 16))
-
-/-- A pad as the 32 witness bytes. -/
-def padB (pad : SphincsSecurity.Pad) : List Byte := dv pad.1 ++ dv pad.2
-
-theorem dv_zero : dv 0 = Ref.zeros 16 := toList_zero 16
-
-theorem padB_eq_zeros (pad : SphincsSecurity.Pad) : padB pad = Ref.zeros 32 ↔ pad = 0 := by
-  constructor
-  · intro h
-    have h' : dv pad.1 ++ dv pad.2 = dv 0 ++ dv 0 := by
-      rw [dv_zero]; exact h
-    obtain ⟨h1, h2⟩ := List.append_inj h' (by simp)
-    exact Prod.ext (dv_injective h1) (dv_injective h2)
-  · rintro rfl
-    show dv 0 ++ dv 0 = Ref.zeros 32
-    rw [dv_zero]; rfl
-
-theorem witPad_eq (wl : List Byte) (hl : wl.length = 16384) (lay : Layer) (i : ChainIndex) :
-    Ref.witPad wl lay.val i.val = padB (padOf wl lay i) := by
-  have hb := block_bound lay i
-  unfold Ref.witPad padB padOf
-  rw [show (32 : Nat) = 16 + 16 from rfl, slice_split, dv_ofList_slice _ _ (by omega),
-    dv_ofList_slice _ _ (by omega)]
-
-/-- A padded chain step: the reference input `Ref.chainInputP` is the abstract chain query with
-`chainPayload pad v` (for a zero pad, the record chain step). -/
-theorem hash16_chainP (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (c : ChainIndex) (p : Nat)
-    (hp : p < SphincsSecurity.chainLength - 1) (pad : SphincsSecurity.Pad) (v : Digest) :
-    Ref.hash16 (Ref.chainInputP lay tree leaf c (p + 1) (padB pad) (dv v)) =
-      dv <$> relabel fmtQ (SphincsSecurity.Concrete.tweakableHash (m := AComp) 0
-        (.chain lay tree leaf c ⟨p, hp⟩) (SphincsSecurity.Concrete.chainPayload pad v)) := by
-  unfold Ref.chainInputP SphincsSecurity.Concrete.chainPayload
-  by_cases hpad : pad = 0
-  · rw [if_pos ((padB_eq_zeros pad).mpr hpad), if_pos hpad]
-    exact hash16_chain lay tree leaf c 0 rfl p hp v
-  · rw [if_neg (fun h => hpad ((padB_eq_zeros pad).mp h)), if_neg hpad]
-    apply hash16_tweakable
-    rw [toB_tweakableHashInput]
-    simp only [toB_append, toB_dv]
-    simp only [SphincsSecurity.tweakBytes, SphincsSecurity.hashDomainFields, toB_tweakFields,
-      Ref.thInput, padB, SphincsSecurity.chainLength, SphincsSecurity.winternitzBits]
-    simp only [List.append_assoc]
-    congr 3
-
-/-- The padded reference chain fold from position `s` (steps `s+1 .. s+n`). -/
-theorem chainFoldP_eq (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (c : ChainIndex)
-    (pad : SphincsSecurity.Pad) (s n : Nat) (hsn : s + n ≤ 7) (v : Digest) :
-    (List.range' (s + 1) n).foldlM
-        (fun v mu => Ref.hash16 (Ref.chainInputP lay tree leaf c mu (padB pad) v)) (dv v) =
-      dv <$> relabel fmtQ (SphincsSecurity.Concrete.chainWalkP (m := AComp) 0 lay tree leaf c pad s n v) := by
-  induction n with
-  | zero => simp [SphincsSecurity.Concrete.chainWalkP]
-  | succ n ih =>
-    rw [List.range'_concat, List.foldlM_append, ih (by omega)]
-    simp only [SphincsSecurity.Concrete.chainWalkP, relabel_bind, map_bind, bind_map_left,
-      Nat.one_mul, List.foldlM_cons, List.foldlM_nil, bind_pure]
-    congr 1; funext u
-    have hp : s + n < SphincsSecurity.chainLength - 1 := by
-      simp [SphincsSecurity.chainLength, SphincsSecurity.winternitzBits]; omega
-    rw [dif_pos hp, show s + 1 + n = (s + n) + 1 by omega, hash16_chainP lay tree leaf c _ hp]
-
 /-! ## The layers -/
 
-/-- The unpadded leaf (`Ref.verifyLeaf`, used by expand's counter phase on the partial witness). -/
-theorem verifyLeaf_eq (wl : List Byte) (hl : wl.length = 16384) (lay : Layer) (tree : TreeIndex)
+theorem verifyLeaf_eq (wl : List Byte) (hl : wl.length = 6348) (lay : Layer) (tree : TreeIndex)
     (leaf : LeafIndex) (enc : Encoding) :
     Ref.verifyLeaf wl lay tree leaf (List.ofFn fun i => (enc i).val) =
       dv <$> relabel fmtQ (do
@@ -255,55 +182,30 @@ theorem verifyLeaf_eq (wl : List Byte) (hl : wl.length = 16384) (lay : Layer) (t
   refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun f => ?_
   rw [foldl_finRange_append, List.nil_append, hash16_leaf]
 
-theorem verifyLeafP_eq (wl : List Byte) (hl : wl.length = 16384) (lay : Layer) (tree : TreeIndex)
-    (leaf : LeafIndex) (enc : Encoding) :
-    Ref.verifyLeafP wl lay tree leaf (List.ofFn fun i => (enc i).val) =
-      dv <$> relabel fmtQ (do
-        let endpoints ← sequenceFin (m := AComp) fun c =>
-          SphincsSecurity.Concrete.recoverChainP 0 lay tree leaf c (padOf wl lay c) (enc c)
-            (((witSig wl).layers lay).chainValues c)
-        SphincsSecurity.Concrete.leafHash 0 lay tree leaf endpoints) := by
-  unfold Ref.verifyLeafP
-  rw [show Ref.nChains = SphincsSecurity.numChains from rfl]
-  rw [foldlM_range_seq (fun c : ChainIndex => relabel fmtQ
-      (SphincsSecurity.Concrete.recoverChainP (m := AComp) 0 lay tree leaf c (padOf wl lay c) (enc c)
-        (((witSig wl).layers lay).chainValues c))) _ dv (fun j hj => by
-    rw [getD_ofFn, dif_pos hj, witChain_eq wl hl lay ⟨j, hj⟩, witPad_eq wl hl lay ⟨j, hj⟩]
-    have hd : (enc ⟨j, hj⟩).val ≤ 7 := by
-      have := (enc ⟨j, hj⟩).isLt
-      simp [SphincsSecurity.chainLength, SphincsSecurity.winternitzBits] at this; omega
-    unfold Ref.chainFromP SphincsSecurity.Concrete.recoverChainP
-    rw [chainFoldP_eq lay tree leaf ⟨j, hj⟩ _ _ _ (by omega),
-      show SphincsSecurity.chainLength - 1 - (enc ⟨j, hj⟩).val = 7 - (enc ⟨j, hj⟩).val by
-        simp [SphincsSecurity.chainLength, SphincsSecurity.winternitzBits]]) (fun acc _ v => acc ++ [v])]
-  simp only [relabel_bind, relabel_sequenceFin, map_bind, bind_map_left]
-  refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun f => ?_
-  rw [foldl_finRange_append, List.nil_append, hash16_leaf]
-
-theorem verifyLayersP_eq (wl : List Byte) (hl : wl.length = 16384) (index : Index) (n : Nat)
+theorem verifyLayers_eq (wl : List Byte) (hl : wl.length = 6348) (index : Index) (n : Nat)
     (hn : n ≤ 5) (M : Digest) :
     Ref.verifyLayers wl index n (dv M) =
       Option.map dv <$> relabel fmtQ
-        (SphincsSecurity.Concrete.verifyLayersP (m := AComp) 0 index (witSig wl) (padOf wl) n M) := by
+        (SphincsSecurity.Concrete.verifyLayers (m := AComp) 0 index (witSig wl) n M) := by
   induction n generalizing M with
-  | zero => simp [Ref.verifyLayers, SphincsSecurity.Concrete.verifyLayersP]
+  | zero => simp [Ref.verifyLayers, SphincsSecurity.Concrete.verifyLayers]
   | succ n ih =>
     let lay : Layer := ⟨n, show n < 5 by omega⟩
     have hr := route_eq index lay
     simp only [lay] at hr
-    unfold Ref.verifyLayers SphincsSecurity.Concrete.verifyLayersP
+    unfold Ref.verifyLayers SphincsSecurity.Concrete.verifyLayers
     rw [dif_pos (show n < SphincsSecurity.numLayers by show n < 5; omega)]
     simp only [hr]
-    unfold SphincsSecurity.Concrete.otsLeafP SphincsSecurity.Concrete.encode
+    unfold SphincsSecurity.Concrete.otsLeaf SphincsSecurity.Concrete.encode
     rw [hash16_enc lay, witCounter_eq wl lay]
     simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_
-    rw [decodeDigits_dv]
-    cases hd : SphincsSecurity.TargetSum.decodeDigest d with
+    rw [decodeDigits_dv lay d]
+    cases hd : SphincsSecurity.TargetSum.decodeDigest lay d with
     | none => simp
     | some enc =>
       simp only [Option.map_some]
-      rw [verifyLeafP_eq wl hl lay _ _ enc]
+      rw [verifyLeaf_eq wl hl lay _ _ enc]
       simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun ends => ?_
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun v => ?_
@@ -585,7 +487,7 @@ def projR (st : Ref.PorsState) : Nat × Nat × List (Ref.Val × Nat) × Ref.Val 
 def projRecA (st : RecoverState) : Nat × Nat × List (Ref.Val × Nat) × Ref.Val :=
   (st.folds, st.heap, encStack st.stack, dv st.node)
 
-theorem porsLeaves_eq (hl : wl.length = 16384) (leaves : IndexGroup → FtsLeaf) :
+theorem porsLeaves_eq (hl : wl.length = 6348) (leaves : IndexGroup → FtsLeaf) :
     ∀ (rem pos prev : Nat) (ast : RecoverState), pos + rem = 15 →
       ast.segment + ast.stack.length ≤ 2 * pos →
       Option.map projR <$> Ref.porsLeaves index (List.ofFn fun r => (leaves r).val) wl
@@ -662,7 +564,7 @@ theorem porsLeaves_node_irrel (i : Nat) (v : List Nat) (w : List Byte) (s : Nat)
   rw [segLoop_leaf_irrel i w p _ f _ _ n1 n2]
 
 /-- The stack machine: `Ref.porsRoot` is the relabelled `ftsRecover` on the decoded witness. -/
-theorem porsRoot_eq (hl : wl.length = 16384) (leaves : IndexGroup → FtsLeaf) :
+theorem porsRoot_eq (hl : wl.length = 6348) (leaves : IndexGroup → FtsLeaf) :
     Ref.porsRoot index (List.ofFn fun r => (leaves r).val) wl =
       Option.map dv <$> relabel fmtQ (SphincsSecurity.Concrete.ftsRecover (m := AComp) 0 index
         (SphincsSecurity.Concrete.slotValue leaves) (witFts wl)) := by
@@ -701,14 +603,12 @@ end pors
 
 /-! ## The verifier -/
 
-/-- **verify** (W1a, padded): `verifyRef m pk w` is the relabelled padded abstract verifier on `⟨pk, 0⟩`,
-`witDec w` and the witness pads `padOf (toList w)` (rejecting paths included). -/
-theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 16384) :
+/-- **verify**: `verifyRef m pk w` is the relabelled abstract verifier on `⟨pk, 0⟩` and `witDec w`. -/
+theorem verifyRef_eq (m : Bytes 32) (pk : Bytes 16) (w : Bytes 6348) :
     Ref.verifyRef m pk w =
-      relabel fmtQ (SphincsSecurity.Concrete.verifyP (m := AComp) ⟨pk, 0⟩ m (witDec w)
-        (padOf (Ref.toList w))) := by
-  have hl : (Ref.toList w).length = 16384 := Ref.length_toList w
-  unfold Ref.verifyRef Ref.verifyList SphincsSecurity.Concrete.verifyP SphincsSecurity.Concrete.verifyCoreP
+      relabel fmtQ (SphincsSecurity.Concrete.verify (m := AComp) ⟨pk, 0⟩ m (witDec w)) := by
+  have hl : (Ref.toList w).length = 6348 := Ref.length_toList w
+  unfold Ref.verifyRef Ref.verifyList SphincsSecurity.Concrete.verify SphincsSecurity.Concrete.verifyCore
   rw [countersOk_eq _ hl]
   unfold witDec
   by_cases hc : SphincsSecurity.Concrete.CountersInRange (witSig (Ref.toList w))
@@ -722,7 +622,7 @@ theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 16384) :
     · simp [relabel_pure]
     · simp only [Option.map_some]
       rw [show Ref.nLayers = SphincsSecurity.numLayers from rfl,
-        verifyLayersP_eq _ hl _ SphincsSecurity.numLayers (le_refl 5), bind_map_left, relabel_bind]
+        verifyLayers_eq _ hl _ SphincsSecurity.numLayers (le_refl 5), bind_map_left, relabel_bind]
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun r => ?_
       rcases r with _ | root
       · simp [relabel_pure]

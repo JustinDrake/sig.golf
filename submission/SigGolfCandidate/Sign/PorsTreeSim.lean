@@ -14,7 +14,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 /-- Addresses written by the PORS tree (leaves and levels). -/
 def porsW (a : Nat) : Prop :=
   a = 0x6A8 ∨ a = 0xC8 ∨ (0xE0 ≤ a ∧ a < 0xF0) ∨ (0x140 ≤ a ∧ a < 0x160) ∨ (0x30000 ≤ a ∧ a < 0xB0000) ∨
-    (0x24B10 ≤ a ∧ a < 0x24C00) ∨ a = 456 ∨ a = 480 ∨ a = 488 ∨ a = 496 ∨ a = 504
+    (0x3310 ≤ a ∧ a < 0x3400) ∨ a = 456 ∨ a = 480 ∨ a = 488 ∨ a = 496 ∨ a = 504
 
 def porsRegs : List Reg := [.x1, .x2, .x3, .x9, .x10, .x11, .x12, .x13, .x15, .x16, .x17, .x18, .x19, .x20, .x25]
 
@@ -24,7 +24,7 @@ def PorsPost (L : List Nat) (t0 : MachineState) (r : List (List Val) × List Val
   (∀ l, l < 15 → (r.1.getD l []).length = 2 ^ (14 - l) ∧ (∀ v ∈ r.1.getD l [], v.length = 16) ∧
     Slots t (lvBase l) (r.1.getD l [])) ∧
   r.2.length = 2 ^ 14 ∧ (∀ v ∈ r.2, v.length = 16) ∧
-  (∀ s < 15, t.readWords (BitVec.ofNat 64 (0x24B10 + 16 * s)) 2 = wordsOf (r.2.getD ((L.map keyV).getD s 0) [])) ∧
+  (∀ s < 15, t.readWords (BitVec.ofNat 64 (0x3310 + 16 * s)) 2 = wordsOf (r.2.getD ((L.map keyV).getD s 0) [])) ∧
   RegsEq t0 t porsRegs ∧ Frame t0 t porsW
 
 theorem buildPorsTree_eq (S : List Byte) (idx : Nat) :

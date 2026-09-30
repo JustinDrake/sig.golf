@@ -131,8 +131,7 @@ theorem step_xsim (W : List Word) (e : Nat) (leaves : List Val) (j : Nat) (ends 
     ((codeAt_56.fetch u upc).trans rfl) (by rw [ux _ (by simp)]; exact h.base.r5)
     (hashArgs_const u 192 64 240 u10 (by rw [ux _ (by simp)]; exact h.r11) u12 (by norm_num)
       (by norm_num) (by norm_num) (by norm_num) (by norm_num)) hq
-      (not_digest_thInput _ _ _ _ _ _ (by decide))
-      (not_padChain_of_length _ (by simp [chainInput, thInput, h.vl])) (fun a => ?_))).of_eq rfl
+      (not_digest_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).of_eq rfl
     (by rfl) (by rw [hblk]) (by rfl) (by rw [hblk])
   have wpc : (writeHash u a).pc = pcOf 57 := by rw [pc_writeHash, upc]; rfl
   obtain ⟨v, vst, vpc, v24, vun, vfr⟩ := spec_57 (writeHash u a) wpc (m + 1) (8 * j + m)
@@ -294,7 +293,7 @@ theorem pair_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (e : Nat) (lea
     (hashArgs_const u2 1696 64 320 u10 u11 u12 (by norm_num)
       (by norm_num) (by norm_num) (by norm_num) (by norm_num))
     (hq.trans (fmt_thInput 0 0 0 k e S (by decide)).symm)
-    (not_digest_thInput 0 0 0 k e S (by decide)) (not_padChain_thInput 0 0 0 k e S (by decide)) (fun a => ?_)))).of_eq rfl
+    (not_digest_thInput 0 0 0 k e S (by decide)) (fun a => ?_)))).of_eq rfl
     (by rfl) (by rw [hblk]) (by rfl) (by rw [hblk])
   have hwf := Frame.writeHash u2 a 320 u12 (by norm_num) (by norm_num)
   have c0 : CCtx W e leaves (2 * k) st.1 (writeHash u2 a) := by
@@ -408,7 +407,7 @@ theorem leaf_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (e : Nat) (he 
     (by rw [xun _ (by simp) (by simp) (by simp) (by simp)]; exact hc.base.r5)
     (hashArgs_const x 832 704 (REGION + 16 * e) x10 x11 x12 (by norm_num) (by norm_num) (by norm_num)
       (by unfold REGION; omega) (by unfold REGION; omega)) (hq.trans (fmt_thInput 2 0 0 0 e _ (by decide)).symm)
-    (not_digest_thInput 2 0 0 0 e _ (by decide)) (not_padChain_thInput 2 0 0 0 e _ (by decide)) (fun a => ?_))).of_eq rfl (by rfl) (by rw [hblk])
+    (not_digest_thInput 2 0 0 0 e _ (by decide)) (fun a => ?_))).of_eq rfl (by rfl) (by rw [hblk])
       (by rfl) (by rw [hblk])
   have wpc : (writeHash x a).pc = pcOf 74 := by rw [pc_writeHash, xpc]; rfl
   obtain ⟨y, yst, ypc, y20, yun, yfr⟩ := spec_74 (writeHash x a) wpc e he

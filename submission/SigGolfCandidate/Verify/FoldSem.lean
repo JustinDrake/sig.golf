@@ -40,10 +40,10 @@ structure FCtx where
   dst : Nat
 
 def FCtx.ok (fc : FCtx) : Prop :=
-  2 ≤ fc.h ∧ fc.h ≤ 11 ∧ fc.E < 2 ^ fc.h ∧ fc.t < 256 ∧ fc.f2 < 256 ∧ fc.wl.length = 16384 ∧
-  fc.sibOff % 8 = 0 ∧ fc.sibOff + 16 * fc.h ≤ 2944 ∧ safeDest fc.dst = true ∧
+  2 ≤ fc.h ∧ fc.h ≤ 11 ∧ fc.E < 2 ^ fc.h ∧ fc.t < 256 ∧ fc.f2 < 256 ∧ fc.wl.length = 6348 ∧
+  fc.sibOff % 8 = 0 ∧ fc.sibOff + 16 * fc.h ≤ 6348 ∧ safeDest fc.dst = true ∧
   (fc.dst + 32 ≤ 0x1C0 ∨ 0x210 ≤ fc.dst) ∧ fc.lay < 5 ∧ fc.h = heightL fc.lay ∧
-  fc.sibOff = pathOffL fc.lay ∧ fc.dst = dstOf fc.lay
+  fc.sibOff = layBody fc.lay + 672 ∧ fc.dst = dstOf fc.lay
 
 def FCtx.lo0 (fc : FCtx) : Nat := 1 + 256 * fc.t + 65536 * fc.f2 + 2 ^ 24 * (fc.tau / 2 ^ 32 % 256)
 

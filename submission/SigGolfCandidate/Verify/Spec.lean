@@ -55,7 +55,6 @@ structure SpecRes (gk : List (Reg × Word)) (sp : Spec) (post : List (Reg × Wor
   steps : Steps image s sp.steps sp.cycles t
   ecall : sp.ecall = true → fetch image t = some (.base .ECALL)
   glob : ∀ gk0 wl pk, Glob gk0 wl pk s → Glob gk wl pk t
-  wall : ∀ wl, WitAll wl s → WitAll wl t
   known : KnownOK post t
   keep : ∀ x ∈ keep, t.getReg x = s.getReg x
   regs : ∀ p ∈ sp.regs, t.getReg p.1 = p.2.eval s
@@ -78,8 +77,7 @@ theorem spec_run {gk known post : List (Reg × Word)} {stops : List Nat} {n : Na
   have hspc' := optEBeq_eq hspc
   obtain ⟨hst', hec', -⟩ := run_post hr hok s hpc hk (by rw [hbrs']; exact hbr)
   simp only [resOK, Bool.and_eq_true, List.isEmpty_iff] at hok
-  refine ⟨r.toState s, ⟨?_, ?_, ?_, fun wl hW => WitAll_toState hW r.st _ hok.1.1, knownB_ok hkn s,
-    keepB_ok hkeep s, ?_, ?_, ?_, ?_⟩⟩
+  refine ⟨r.toState s, ⟨?_, ?_, ?_, knownB_ok hkn s, keepB_ok hkeep s, ?_, ?_, ?_, ?_⟩⟩
   · rw [hcy, hst] at hst'; exact hst'
   · intro he; exact hec' (hec.trans he)
   · intro gk0 wl pk hG; exact Glob_toState' hG r.st _ hok.1.1 hok.1.2

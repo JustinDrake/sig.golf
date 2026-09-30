@@ -54,7 +54,7 @@ def FInv (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineState) (ptr a
   RegsEq u t foldRegs ∧ Frame u t segW
 
 theorem fold_body (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineState) (ptr a : Nat)
-    (hptr : ptr % 8 = 0) (hpa : ptr + 8 + 16 * a ≤ 0x4000) :
+    (hptr : ptr % 8 = 0) (hpa : ptr + 8 + 16 * a ≤ 0x2B00) :
     ∀ j < a, ∀ (st : Val × Nat) (t : MachineState), FInv w idx K u ptr a j st t →
       Sim eimg t 32 (foldF idx w ptr st j) (FInv w idx K u ptr a (j + 1)) := by
   intro j hj st t hinv
@@ -170,7 +170,7 @@ theorem seg_folds (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineStat
     (t : MachineState) (hc : PCtx w idx K t) (hpc : t.pc = pcOf 565) (hv : v.length = 16)
     (h6 : t.getReg .x6 = BitVec.ofNat 64 (wbyte w ptr)) (h7 : t.getReg .x7 = BitVec.ofNat 64 (wbyte w ptr % 16))
     (h9 : t.getReg .x9 = BitVec.ofNat 64 (0x800 + ptr)) (h19 : t.getReg .x19 = BitVec.ofNat 64 E)
-    (hE : E < 2 ^ 15) (hptr : ptr % 8 = 0) (hptr' : ptr + 232 ≤ 0x4000) (ha : wbyte w ptr % 16 ≤ 14)
+    (hE : E < 2 ^ 15) (hptr : ptr % 8 = 0) (hptr' : ptr + 232 ≤ 0x2B00) (ha : wbyte w ptr % 16 ≤ 14)
     (hout : t.readWords (BitVec.ofNat 64 0x30080) 2 = wordsOf v)
     (tregs : RegsEq u t segRegs) (tframe : Frame u t segW) :
     Sim eimg t 460 (segFolds idx w ptr (wbyte w ptr % 16) v E >>= fun x => match x with
@@ -207,7 +207,7 @@ theorem seg_folds (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineStat
 theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds : Nat) (pending : Pending)
     (node : Val) (t : MachineState) (hc : PCtx w idx K t) (hpc : t.pc = pcOf 550)
     (h9 : t.getReg .x9 = BitVec.ofNat 64 (0x800 + ptr)) (h19 : t.getReg .x19 = BitVec.ofNat 64 E)
-    (hptr : ptr % 8 = 0) (hptr' : ptr + 232 ≤ 0x4000) (hE : E < 2 ^ 15) (hpend : PendOK idx node pending t) :
+    (hptr : ptr % 8 = 0) (hptr' : ptr + 232 ≤ 0x2B00) (hE : E < 2 ^ 15) (hpend : PendOK idx node pending t) :
     Sim eimg t 500 (Ref.segment idx w ptr E folds pending node) (OPost (SegOut w idx K t ptr folds)) := by
   have hb : wbyte w ptr < 256 := (w.getD ptr 0).isLt
   obtain ⟨t1, hs1, p1, y6, y7, r1, m1⟩ := blk550_run w t ptr hpc h9 hptr (by omega) hc.wit

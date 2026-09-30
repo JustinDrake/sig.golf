@@ -58,7 +58,7 @@ theorem security127_of_large_budget (q : Nat) (hlarge : budgetSplit ≤ q) (adve
     (hcost : HasHashQueryBound scheme adversary q) : forgeAdvantage scheme adversary ≤ (q : ENNReal) / 2 ^ 127 := by
   by_cases hsmall : q ≤ 2 ^ 127
   · exact (RetainedResidual.forgeAdvantage_le_native_bound fixedReferenceDummy
-      (fun _ _ _ => fixedReferenceDummyWord_valid) adversary q hcost hsmall).trans
+      (fun lay _ _ => fixedReferenceDummyWord_valid lay) adversary q hcost hsmall).trans
         (native_bound_le_security127 q hlarge hsmall)
   · apply probOutput_le_one.trans
     calc

@@ -120,7 +120,7 @@ lemma relabel_verify {cache' : SphincsSecurity.TopCache}
         (pure (⟨verify.value.isSome && fresh, calls + verify.hashCalls⟩ : AttackResult) :
           OracleComp SigGolfCandidate.Legacy.HashSpec AttackResult)) =
       (fun p => (⟨p.1 && fresh, calls + p.2⟩ : AttackResult)) <$>
-        countCalls (aVerifyP pk (B.msgOf m) (B.witDec w) (B.padDec w)) := by
+        countCalls (aVerify pk (B.msgOf m) (B.witDec w)) := by
   have e : ((sub.run .verify (m, B.pkEnc pk, w)) >>= fun verify =>
         (pure (⟨verify.value.isSome && fresh, calls + verify.hashCalls⟩ : AttackResult) :
           OracleComp SigGolfCandidate.Legacy.HashSpec AttackResult)) =
@@ -130,7 +130,7 @@ lemma relabel_verify {cache' : SphincsSecurity.TopCache}
     rfl
   rw [e, B.verify_eq _ pk cache' sk' hkey]
   erw [Functor.map_map, relabel_map]
-  rw [relabel_unpad_countCalls B _ (B.verify_honest _ pk cache' sk' hkey _ _ _)]
+  rw [relabel_unpad_countCalls B _ (B.verify_honest _ pk cache' sk' hkey _ _)]
   refine congrArg (· <$> _) ?_
   funext a
   rcases a with ⟨b, c⟩
@@ -143,7 +143,7 @@ lemma orgK_submit_witness {cache' : SphincsSecurity.TopCache}
     (h : A.step s = .submit (.witness m w)) :
     orgK B A sk pk (n + 1) s T =
       (liftM ((fun p => (⟨p.1 && T.freshMessage m, T.hashCalls + p.2⟩ : AttackResult)) <$>
-        countCalls (aVerifyP pk (B.msgOf m) (B.witDec w) (B.padDec w))) : OracleComp AW _) := by
+        countCalls (aVerify pk (B.msgOf m) (B.witDec w))) : OracleComp AW _) := by
   simp only [orgK, Submission.interact, h, relabelW_liftM_hash]
   rw [← relabel_verify B hkey m w]
   rfl
@@ -162,7 +162,7 @@ lemma orgK_submit_signature {cache' : SphincsSecurity.TopCache}
         | none => pure ⟨false, T.hashCalls + p.2⟩
         | some w =>
           (liftM ((fun q => (⟨q.1 && T.freshSignature m σ, T.hashCalls + p.2 + q.2⟩ :
-              AttackResult)) <$> countCalls (aVerifyP pk (B.msgOf m) (B.witDec w) (B.padDec w))) :
+              AttackResult)) <$> countCalls (aVerify pk (B.msgOf m) (B.witDec w))) :
             OracleComp AW _) := by
   simp only [orgK, Submission.interact, h, relabelW_liftM_hash, Submission.checkForgery]
   have hE : relabel B.unpad ((fun r => (r.value, r.hashCalls)) <$>

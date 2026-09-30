@@ -56,10 +56,9 @@ theorem liftHashSource_eq_liftOracleWorldLeft (computation : OracleComp HashSpec
       rw [liftHashSource_query_bind, hworld, liftOracleWorldLeft_query_bind]
       exact bind_congr ih
 
-theorem liftOracleWorldLeft_scheme_verify (publicKey : PublicKey) (message : Message) (signature : Signature)
-    (pads : ChainPads) :
-    liftOracleWorldLeft (scheme.verify publicKey message signature pads) =
-      liftHashSource (verifyP (m := OracleComp HashSpec) publicKey message signature pads) := by
+theorem liftOracleWorldLeft_scheme_verify (publicKey : PublicKey) (message : Message) (signature : Signature) :
+    liftOracleWorldLeft (scheme.verify publicKey message signature) =
+      liftHashSource (verify (m := OracleComp HashSpec) publicKey message signature) := by
   rw [liftHashSource_eq_liftOracleWorldLeft]
   rfl
 

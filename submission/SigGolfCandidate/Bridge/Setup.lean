@@ -39,12 +39,6 @@ def aVerify (pk : SphincsSecurity.PublicKey) (message : SphincsSecurity.Message)
     (signature : SphincsSecurity.Signature) : OracleComp AHash Bool :=
   SphincsSecurity.Concrete.verify (m := OracleComp SphincsSecurity.HashSpec) pk message signature
 
-/-- Abstract padded verification (the verifier of the security game), typed over `AHash`: `pads` are
-the witness bytes between the tweak slot and the value of every chain block. -/
-def aVerifyP (pk : SphincsSecurity.PublicKey) (message : SphincsSecurity.Message)
-    (signature : SphincsSecurity.Signature) (pads : SphincsSecurity.ChainPads) : OracleComp AHash Bool :=
-  SphincsSecurity.Concrete.verifyP (m := OracleComp SphincsSecurity.HashSpec) pk message signature pads
-
 /-- Abstract event-form security: every adversary wins *and* uses at most `q` hash calls with
 probability at most `q / 2^127`. -/
 def EventSecurity : Prop :=
@@ -75,9 +69,6 @@ structure Assumptions (submission : SigGolfCandidate.Legacy.Submission) where
   No codec law is assumed; the only link is `expand_compress` below. -/
   compress : SphincsSecurity.Signature → SigGolfCandidate.Legacy.Bytes submission.sizes.signature
   witDec : SigGolfCandidate.Legacy.Bytes submission.sizes.witness → SphincsSecurity.Signature
-  /-- (B) the chain pads a witness carries (the bytes the verifier hashes between each chain block's
-  tweak slot and its value). -/
-  padDec : SigGolfCandidate.Legacy.Bytes submission.sizes.witness → SphincsSecurity.ChainPads
   /-- (B) public keys. -/
   pkEnc : SphincsSecurity.PublicKey → SigGolfCandidate.Legacy.PublicKey
   /-- (B) caches: `cacheEnc` gives the bytes key generation publishes, `cacheDec` the abstract
@@ -128,9 +119,9 @@ structure Assumptions (submission : SigGolfCandidate.Legacy.Submission) where
       (fun r => (r.value, r.hashCalls)) <$> submission.run .verify (message, pkEnc pk, witness) =
         (fun p => (if p.1 then some () else none, p.2)) <$>
           countCalls (relabel pad
-            (aVerifyP pk (msgOf message) (witDec witness) (padDec witness)))
+            (aVerify pk (msgOf message) (witDec witness)))
   verify_honest : ∀ seed pk cache' sk', (pk, cache', sk') ∈ support (aKeygen seed) →
-    ∀ message signature pads,
-      AllQ Honest (aVerifyP pk message signature pads)
+    ∀ message signature,
+      AllQ Honest (aVerify pk message signature)
 
 end SigGolfCandidate.Bridge

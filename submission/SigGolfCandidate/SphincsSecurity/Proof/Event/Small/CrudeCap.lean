@@ -66,12 +66,12 @@ theorem fixed_finishGame_cost (parameter : PublicParameter) (f : QueryImpl HashS
   obtain ⟨checked, hchecked, hresult⟩ := hresult
   rw [fixedBoundaryRun_pure, map_pure, support_pure, Set.mem_singleton_iff] at hresult
   subst result
-  change checked ∈ support (fixedBoundaryRun parameter f (liftM (verifyP pk outcome.1.message outcome.1.signature outcome.1.pads :
+  change checked ∈ support (fixedBoundaryRun parameter f (liftM (verify pk outcome.1.message outcome.1.signature :
     OracleComp HashSpec Bool))) at hchecked
   rw [fixedBoundaryRun_lift_hash, support_pure, Set.mem_singleton_iff] at hchecked
   subst checked
   simp only [SigningBoundaryTrace.hashCalls_mul]
-  exact (evenBound_boundaryEval parameter f (evenBound_verifyP _ _ _ _)).trans_eq (by rfl)
+  exact (evenBound_boundaryEval parameter f (evenBound_verify _ _ _)).trans_eq (by rfl)
 
 
 theorem fixed_visAdversary_cost (adversary : Adversary) (budget : Nat) (hbudget : keygenHashCost + 1 ≤ budget)

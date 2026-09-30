@@ -23,13 +23,13 @@ variable {sub : Submission} (B : Assumptions sub) (A : Adversary sub.sizes)
 
 /-- A fixed forgery returned when the organizer adversary never submits (or its signature fails
 to expand). -/
-def dummyForgery : SphincsSecurity.Forgery := ⟨B.msgOf 0, B.witDec 0, B.padDec 0⟩
+def dummyForgery : SphincsSecurity.Forgery := ⟨B.msgOf 0, B.witDec 0⟩
 
 /-- The abstract forgery for a signature-form submission, from the result of the simulated
 expansion. -/
 def sigForgery (m : Message) : Option (Bytes sub.sizes.witness) → SphincsSecurity.Forgery
   | none => dummyForgery B
-  | some w => ⟨B.msgOf m, B.witDec w, B.padDec w⟩
+  | some w => ⟨B.msgOf m, B.witDec w⟩
 
 /-- Run an `AHash` computation through the adversary's hash oracle. -/
 def liftH {α : Type} (X : OracleComp AHash α) : OracleComp ASpec α :=
@@ -43,7 +43,7 @@ def advLoop (pk : SphincsSecurity.PublicKey) :
   | 0, _, _ => pure (dummyForgery B)
   | n + 1, s, k =>
     match A.step s with
-    | .submit (.witness m w) => pure ⟨B.msgOf m, B.witDec w, B.padDec w⟩
+    | .submit (.witness m w) => pure ⟨B.msgOf m, B.witDec w⟩
     | .submit (.signature m σ) => do
         let r ← liftH (B.aExpand (B.msgOf m) pk σ)
         pure (sigForgery B m r)
@@ -84,7 +84,7 @@ noncomputable def aGameCore (adversary : SphincsSecurity.Security.Adversary) : O
   let (pk, cache, sk) ← (liftM (aKeygen seed) : OracleComp AW _)
   let ((forgery, log) : SphincsSecurity.Forgery × QueryLog RequestSpec) ←
     (simulateQ (advImpl sk) (adversary.main pk cache)).run
-  let verified ← (liftM (aVerifyP pk forgery.message forgery.signature forgery.pads) : OracleComp AW _)
+  let verified ← (liftM (aVerify pk forgery.message forgery.signature) : OracleComp AW _)
   return decide (SphincsSecurity.RequestTranscript.Valid log ∧ ¬SphincsSecurity.RequestTranscript.Contains log forgery) && verified
 
 /-- Hash calls cost one, uniform sampling is free. -/
@@ -145,7 +145,7 @@ noncomputable def absK (sk : SphincsSecurity.Seeded.SecretKey) (pk : SphincsSecu
   countFrom costW (do
     let ((forgery, log) : SphincsSecurity.Forgery × QueryLog RequestSpec) ←
       advRun sk (advLoop B A pk n s k)
-    let verified ← (liftM (aVerifyP pk forgery.message forgery.signature forgery.pads) : OracleComp AW _)
+    let verified ← (liftM (aVerify pk forgery.message forgery.signature) : OracleComp AW _)
     return decide (SphincsSecurity.RequestTranscript.Valid (lg ++ log) ∧
       ¬SphincsSecurity.RequestTranscript.Contains (lg ++ log) forgery) && verified) c
 
@@ -211,9 +211,8 @@ lemma absK_submit_witness {n : ℕ} {s : A.State} {k : ℕ} {lg : QueryLog Reque
     {m : Message} {w : Bytes sub.sizes.witness} (h : A.step s = .submit (.witness m w)) :
     absK B A sk pk (n + 1) s k lg c =
       (fun p => (decide (SphincsSecurity.RequestTranscript.Valid lg ∧
-          ¬SphincsSecurity.RequestTranscript.Contains lg ⟨B.msgOf m, B.witDec w, B.padDec w⟩) && p.1, p.2)) <$>
-        (liftM (countFrom (fun _ => 1) (aVerifyP pk (B.msgOf m) (B.witDec w) (B.padDec w)) c) :
-          OracleComp AW _) := by
+          ¬SphincsSecurity.RequestTranscript.Contains lg ⟨B.msgOf m, B.witDec w⟩) && p.1, p.2)) <$>
+        (liftM (countFrom (fun _ => 1) (aVerify pk (B.msgOf m) (B.witDec w)) c) : OracleComp AW _) := by
   unfold absK
   simp only [advLoop, h, advRun_pure, pure_bind, List.append_nil]
   rw [map_eq_bind_pure_comp, countFrom_bind, countFrom_liftM_hash _ (fun _ => rfl)]
@@ -225,8 +224,8 @@ lemma absK_submit_signature {n : ℕ} {s : A.State} {k : ℕ} {lg : QueryLog Req
       (liftM (countFrom (fun _ => 1) (B.aExpand (B.msgOf m) pk σ) c) : OracleComp AW _) >>= fun p =>
         (fun q => (decide (SphincsSecurity.RequestTranscript.Valid lg ∧
             ¬SphincsSecurity.RequestTranscript.Contains lg (sigForgery B m p.1)) && q.1, q.2)) <$>
-          (liftM (countFrom (fun _ => 1) (aVerifyP pk (sigForgery B m p.1).message
-            (sigForgery B m p.1).signature (sigForgery B m p.1).pads) p.2) : OracleComp AW _) := by
+          (liftM (countFrom (fun _ => 1) (aVerify pk (sigForgery B m p.1).message
+            (sigForgery B m p.1).signature) p.2) : OracleComp AW _) := by
   unfold absK
   simp only [advLoop, h]
   rw [advRun_liftH_bind, bind_assoc, countFrom_bind, countFrom_liftM_hash _ (fun _ => rfl)]

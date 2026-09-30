@@ -45,15 +45,15 @@ structure PLeafCtx (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
 /-- Addresses written by the leaf loop. -/
 def pleafW (a : Nat) : Prop :=
   a = 0x6A8 ∨ a = 0xC8 ∨ (0xE0 ≤ a ∧ a < 0xF0) ∨ (0x140 ≤ a ∧ a < 0x160) ∨
-    (0x30000 ≤ a ∧ a < 0x30000 + 16 * (2 ^ 14 + 1)) ∨ (0x24B10 ≤ a ∧ a < 0x24B10 + 16 * 15)
+    (0x30000 ≤ a ∧ a < 0x30000 + 16 * (2 ^ 14 + 1)) ∨ (0x3310 ≤ a ∧ a < 0x3310 + 16 * 15)
 
 def pleafRegs : List Reg := [.x1, .x2, .x3, .x9, .x10, .x11, .x12, .x13, .x18, .x20]
 
 /-- The capture state after `j` leaves: `c` keys captured. -/
 def CapInv (vs : List Nat) (j : Nat) (secs : List Val) (t : MachineState) (c : Nat) : Prop :=
   c ≤ 15 ∧ (∀ s < c, vs.getD s 0 < j) ∧ (c < 15 → j ≤ vs.getD c 0) ∧
-  (∀ s < c, t.readWords (BitVec.ofNat 64 (0x24B10 + 16 * s)) 2 = wordsOf (secs.getD (vs.getD s 0) [])) ∧
-  t.getReg .x18 = BitVec.ofNat 64 (0x24B10 + 16 * c) ∧ t.getReg .x20 = BitVec.ofNat 64 (0x6E0 + 8 * c) ∧
+  (∀ s < c, t.readWords (BitVec.ofNat 64 (0x3310 + 16 * s)) 2 = wordsOf (secs.getD (vs.getD s 0) [])) ∧
+  t.getReg .x18 = BitVec.ofNat 64 (0x3310 + 16 * c) ∧ t.getReg .x20 = BitVec.ofNat 64 (0x6E0 + 8 * c) ∧
   t.getReg .x13 = BitVec.ofNat 64 (vsAt vs c)
 
 /-- Invariant after `j` leaves. -/
@@ -268,7 +268,7 @@ theorem pleaf_B (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState)
     have hc15 : c < 15 := by
       by_contra h; unfold vsAt at hju; rw [if_neg h] at hju; omega
     have hjc : (L.map keyV).getD c 0 = j := by unfold vsAt at hju; rw [if_pos hc15] at hju; omega
-    have t318 : t3.getReg .x18 = BitVec.ofNat 64 (0x24B10 + 16 * c) := by rw [r3.get .x18, h18]
+    have t318 : t3.getReg .x18 = BitVec.ofNat 64 (0x3310 + 16 * c) := by rw [r3.get .x18, h18]
     have t320 : t3.getReg .x20 = BitVec.ofNat 64 (0x6E0 + 8 * c) := by rw [r3.get .x20, h20]
     have hs4 := symRun_sound blk194 codeAt_194 t3 (by rw [pc3, if_pos hju]) (by
       simp only [blk194.res, rv_simp, t318, t320, ofNat_add_ofNat, accessValid_ofNat, ne_eq, ofNat_eq_iff,
@@ -277,7 +277,7 @@ theorem pleaf_B (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState)
     have hc4 : blk194.res.cycles = 8 := rfl
     rw [hc4] at hs4
     set t4 := blk194.res.toState t3 with ht4
-    have f4 : Frame t3 t4 (fun x => x = 0x24B10 + 16 * c ∨ x = 0x24B10 + 16 * c + 8) := by
+    have f4 : Frame t3 t4 (fun x => x = 0x3310 + 16 * c ∨ x = 0x3310 + 16 * c + 8) := by
       apply frame_toState; intro x hx hW
       simp only [blk194.res, rv_simp, t318, ofNat_add_ofNat, List.forall_mem_cons, List.not_mem_nil,
         IsEmpty.forall_iff, implies_true, and_true, ne_eq, ofNat_eq_iff]
@@ -285,7 +285,7 @@ theorem pleaf_B (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState)
     have r4 : RegsEq t3 t4 [.x1, .x2, .x13, .x18, .x20] := by
       intro r hr; rw [ht4, Result.toState_getReg]
       cases r <;> first | exact absurd (by decide) hr | rfl
-    have sig4 : t4.readWords (BitVec.ofNat 64 (0x24B10 + 16 * c)) 2 = wordsOf s := by
+    have sig4 : t4.readWords (BitVec.ofNat 64 (0x3310 + 16 * c)) 2 = wordsOf s := by
       rw [← v3, readWords_ofNat_two, readWords_ofNat_two]
       simp only [ht4, blk194.res, rv_simp, t318, ofNat_add_ofNat, ofNat_eq_iff]
       simp (disch := bvomega) only [if_pos, if_neg, if_true, Nat.reduceAdd]

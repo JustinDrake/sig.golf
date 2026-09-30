@@ -79,12 +79,12 @@ theorem afterSelect_congr (decode : Answer → Option Value) (n : Nat) (result :
 
 variable [Fintype Index] [DecidableEq Index]
 
-noncomputable def familyRows (decode : Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value)) :
+noncomputable def familyRows (decode : Index → Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value)) :
     PMF (Index × Fin n → Answer) :=
   (FirstSuccessFamily.afterSelect decode n results).map Function.uncurry
 
 omit [DecidableEq Answer] in
-theorem familyRows_apply (decode : Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value))
+theorem familyRows_apply (decode : Index → Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value))
     (rows : Index × Fin n → Answer) :
     familyRows decode n results rows =
       FirstSuccessFamily.afterSelect decode n results (Function.curry rows) := by
@@ -97,17 +97,17 @@ theorem familyRows_apply (decode : Answer → Option Value) (n : Nat) (results :
     funext index coordinate
     exact (congrFun heq (index, coordinate)).symm
 
-theorem familyRows_congr (decode : Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value))
+theorem familyRows_congr (decode : Index → Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value))
     (left right : Index × Fin n → Answer) (hkept : ∀ row, familyKept results row → left row = right row) :
     familyRows decode n results left = familyRows decode n results right := by
   simp only [familyRows_apply, FirstSuccessFamily.afterSelect, FinitePmfProduct.apply]
   apply Finset.prod_congr rfl
   intro index _
-  exact afterSelect_congr decode n (results index) _ _ (fun coordinate hk => hkept (index, coordinate) hk)
+  exact afterSelect_congr (decode index) n (results index) _ _ (fun coordinate hk => hkept (index, coordinate) hk)
 
 variable [Fintype Cell] [DecidableEq Cell]
 
-theorem overwrite_eq_prefix (decode : Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value))
+theorem overwrite_eq_prefix (decode : Index → Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value))
     (embed : Index × Fin n → Cell) (hinj : Function.Injective embed) :
     (familyRows decode n results).bind (fun rows => (PMF.uniformOfFintype (Cell → Answer)).map
       (fun seed => ((fun row : {row // familyKept results row} => rows row.val), UniformTableSplit.overwrite embed hinj rows seed))) =
@@ -116,7 +116,7 @@ theorem overwrite_eq_prefix (decode : Answer → Option Value) (n : Nat) (result
         UnrestrictedRowSwap.prefixOverwrite embed hinj (familyKept results) rows seed))) :=
   UnrestrictedRowSwap.overwrite_eq_prefix embed hinj (familyKept results) _ (familyRows_congr decode n results)
 
-theorem overwrite_table_eq_prefix (decode : Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value))
+theorem overwrite_table_eq_prefix (decode : Index → Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value))
     (embed : Index × Fin n → Cell) (hinj : Function.Injective embed) :
     (FirstSuccessFamily.afterSelect decode n results).bind
       (fun rows => (PMF.uniformOfFintype (Cell → Answer)).map

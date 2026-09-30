@@ -68,8 +68,8 @@ theorem fixed_reference_adversaryRun {Result : Type} (key : SecretKey) (root : D
 
 noncomputable def completedAtRoot (parameter : PublicParameter) (root : Digest) (f : QueryImpl HashSpec Id)
     (before : AdversaryTrace) : AdversaryTrace × (Bool × SigningBoundaryTrace) × Trace :=
-  (before, boundaryEval parameter f (verifyP ⟨root, parameter⟩ before.1.1.1.message before.1.1.1.signature before.1.1.1.pads),
-    answerTrace f (verifyP ⟨root, parameter⟩ before.1.1.1.message before.1.1.1.signature before.1.1.1.pads))
+  (before, boundaryEval parameter f (verify ⟨root, parameter⟩ before.1.1.1.message before.1.1.1.signature),
+    answerTrace f (verify ⟨root, parameter⟩ before.1.1.1.message before.1.1.1.signature))
 
 theorem fixed_reference_completedRun (key : SecretKey) (root : Digest) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs key.parameter ⊆ inputs) (labels : CanonicalGraphLabels)
