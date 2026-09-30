@@ -43,15 +43,15 @@ theorem digestFactor_pow_le : digestFactor ^ digestAttemptLimit ≤ (2⁻¹ : �
     _ ≤ (2⁻¹ : ℝ≥0∞) ^ 699 := pow_le_pow_left₀ (by positivity) hhalf _
 
 theorem encoding_pow_le : encodingBound ≤ (2⁻¹ : ℝ≥0∞) ^ 1749 := by
-  have hroom := failMass_encoding_add_le
+  have hroom : encodingFactor + (codeShare : ℝ≥0∞)⁻¹ ≤ 1 := encodingFactor_room.le
   have hhalf := pow_le_half_ennreal codeShare (by decide) _ hroom
-  have hone : failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ≤ 1 :=
+  have hone : encodingFactor ≤ 1 :=
     le_trans le_self_add hroom
   rw [encodingBound]
-  calc failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ encodingAttemptLimit
-        ≤ failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ (codeShare * 1749) :=
+  calc encodingFactor ^ encodingAttemptLimit
+        ≤ encodingFactor ^ (codeShare * 1749) :=
           pow_le_pow_right_of_le_one' hone (by rw [encodingAttemptLimit, codeShare]; norm_num)
-    _ = (failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ codeShare) ^ 1749 :=
+    _ = (encodingFactor ^ codeShare) ^ 1749 :=
           pow_mul _ _ _
     _ ≤ (2⁻¹ : ℝ≥0∞) ^ 1749 := pow_le_pow_left₀ (by positivity) hhalf _
 

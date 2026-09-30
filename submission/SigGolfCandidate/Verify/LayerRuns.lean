@@ -58,7 +58,9 @@ def swA3 : E :=
 def swA4 : E := .bin .add swA3 (.bin .srl swA3 (cw 6))
 def swA5 : E := .bin .and swA4 m2E
 /-- Base-4096 lanes sum modulo 4095; their sum is at most 294. -/
-def swS : E := .bin .remu swA5 (cw 4095)
+def swSBase : E := .bin .remu swA5 (cw 4095)
+def swS (lay : Nat) : E :=
+  if 3 ≤ lay then .bin .add swSBase (.c (-1#64)) else swSBase
 
 /-- The dispatch register of a site computed from the digit word `D`. -/
 def maskD (i : Nat) (D : E) : E :=
@@ -68,7 +70,7 @@ def maskD (i : Nat) (D : E) : E :=
 
 def rE0 (lay : Nat) : E := mkBin .add (maskD 0 d0E) (cw (bVal lay 0))
 
-def stepsB (lay : Nat) : Nat := if lay = 4 then 31 else 28
+def stepsB (lay : Nat) : Nat := (if lay = 4 then 31 else 28) + (if 3 ≤ lay then 1 else 0)
 /-- REMU costs four cycles, three more than an ordinary instruction. -/
 def cyclesB (lay : Nat) : Nat := stepsB lay + 3
 
@@ -82,14 +84,14 @@ def specBok (lay t : Nat) : Spec :=
   ⟨[(.x1, ldE (chainAddr lay 0)), (.x2, ldE (chainAddr lay 0 + 8)), (.x14, rE0 lay),
     (.x15, cw (bVal lay 0)), (.x16, d0E), (.x17, d1E)],
    setupMem lay, 0, false, stepsB lay,
-   [⟨.ne, swS, .c KT, false⟩, ⟨.lt, orE, .c 0, false⟩],
+   [⟨.ne, swS lay, .c KT, false⟩, ⟨.lt, orE, .c 0, false⟩],
    some (mkBin .and (mkAdd (rE0 lay) (.c (BitVec.ofNat 64 (tabAddr lay 0) - BitVec.ofNat 64 (bVal lay 0))))
      (.c (~~~1#64))), cyclesB lay⟩
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
 def specRej1 : Spec := ⟨rejK, [], 32, true, 7, [⟨.lt, orE, .c 0, true⟩], none, 7⟩
-def specRej2 : Spec := ⟨rejK, [], 32, true, 21, [⟨.ne, swS, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24⟩
+def specRej2 (lay : Nat) : Spec := ⟨rejK, [], 32, true, 21 + (if 3 ≤ lay then 1 else 0), [⟨.ne, swS lay, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24 + (if 3 ≤ lay then 1 else 0)⟩
 
 /-! ## Leaf -/
 
@@ -109,13 +111,12 @@ def leafPost (lay : Nat) : List (Reg × Word) :=
 
 def cmpPc (t : Nat) : Nat := compareTab.getD t 0
 def cmpK : List (Reg × Word) := fk false 0x1C0 64 ++ [(.x12, 0x180)]
+/-- HALT accepts precisely when the second word XOR is zero. -/
 def specAcc (t : Nat) : Spec :=
-  ⟨[(.x5, cw 1), (.x10, cw 0)], [], cmpPc t + 8, true, 8,
-   [⟨.ne, ldE 392, ldE 168, false⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
+  ⟨[(.x5, cw 1), (.x10, .bin .xor (ldE 392) (ldE 168))], [], cmpPc t + 7, true, 7,
+   [⟨.ne, ldE 384, ldE 160, false⟩], none, 7⟩
 def specCR1 (t : Nat) : Spec :=
   ⟨rejK, [], cmpPc t + 11, true, 5, [⟨.ne, ldE 384, ldE 160, true⟩], none, 5⟩
-def specCR2 (t : Nat) : Spec :=
-  ⟨rejK, [], cmpPc t + 11, true, 8, [⟨.ne, ldE 392, ldE 168, true⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
 
 /-! ## The per-layer check -/
 
@@ -125,10 +126,9 @@ def layerCheck (lay : Nat) : Bool :=
     specB gkL (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br false, .jmp]) (specBok lay t)
       (chKa lay) [.x22, .x23, .x30, .x31] &&
     specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br true]) specRej1 [] [] &&
-    specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) specRej2 [] [] &&
-    (lay != 0 || (specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] &&
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] &&
-      specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] []))) &&
+    specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) (specRej2 lay) [] [] &&
+    (lay != 0 || (specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] &&
+      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] []))) &&
   ((List.range 2).all fun d =>
     specB gkL (runAt (headK lay 42) [] (nextPc' lay 41) [.br (d == 1)]) (specLeaf lay (d == 1))
       (leafPost lay) leafKeep)

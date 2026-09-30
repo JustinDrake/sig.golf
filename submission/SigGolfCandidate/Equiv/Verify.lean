@@ -200,8 +200,8 @@ theorem verifyLayers_eq (wl : List Byte) (hl : wl.length = 6348) (index : Index)
     rw [hash16_enc lay, witCounter_eq wl lay]
     simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_
-    rw [decodeDigits_dv]
-    cases hd : SphincsSecurity.TargetSum.decodeDigest d with
+    rw [decodeDigits_dv lay d]
+    cases hd : SphincsSecurity.TargetSum.decodeDigest lay d with
     | none => simp
     | some enc =>
       simp only [Option.map_some]

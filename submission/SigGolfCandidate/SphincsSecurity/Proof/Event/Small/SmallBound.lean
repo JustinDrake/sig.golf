@@ -27,7 +27,7 @@ theorem signRatio_budget_le (budget : Nat) (hsmall : budget ≤ budgetSplit) : s
   rw [signRatio]
   omega
 
-theorem forgeAdvantage_visAdversary_le (dummy : OtsReferenceWords) (hdummy : ∀ lay tree leaf, OtsCode.Valid (dummy lay tree leaf))
+theorem forgeAdvantage_visAdversary_le (dummy : OtsReferenceWords) (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (dummy lay tree leaf))
     (adversary : Adversary) (budget : Nat) (hbudget : keygenHashCost + 1 ≤ budget) (hsmall : budget ≤ budgetSplit) :
     forgeAdvantage scheme (visAdversary adversary budget) ≤ visSmallBound budget := by
   let vis := visAdversary adversary budget

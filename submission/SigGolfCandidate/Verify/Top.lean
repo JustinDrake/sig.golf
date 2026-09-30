@@ -8,7 +8,7 @@ namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp
 
 /-- Accepting VM cycles, with a shared REMU divisor, direct sum checks, and root fallthrough. -/
-def cycleBound : Nat := 11590
+def cycleBound : Nat := 11573
 
 /-- A cycle bound of every run (`254` per segment instead of `15` / `16 + 17 a`). -/
 def cycleBoundAll : Nat := 16749
@@ -18,8 +18,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 8660 := by decide
-theorem layC_val : layC = 8660 := by unfold layC; exact layersCost_val
+theorem layersCost_val : layersCost 5 = 8643 := by decide
+theorem layC_val : layC = 8643 := by unfold layC; exact layersCost_val
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do

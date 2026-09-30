@@ -233,28 +233,46 @@ theorem swA5_toNat : (swA5.eval s).toNat = m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (
 
 def swarOf (a b : Nat) : Nat := m6 (m3 ((sw1 a b + sw1 a b / 64) % 18446744073709551616)) % 4096
 
-theorem swS_toNat : (swS.eval s).toNat = swarOf (dA s) (dB s) := by
+theorem swSBase_toNat : (swSBase.eval s).toNat = swarOf (dA s) (dB s) := by
   have hr : (rv64_remu (swA5.eval s) (4095#64)).toNat = (swA5.eval s).toNat % 4095 := by
     simp [rv64_remu, BitVec.toNat_umod]
   change (rv64_remu (swA5.eval s) (4095#64)).toNat = _
   rw [hr, swA5_toNat]
   exact swar_rem _
 
-theorem swS_eq (h0 : dA s < 2 ^ 63) (h1 : dB s < 2 ^ 63) :
-    swS.eval s = KT ↔ (digitsOfWord (dA s) ++ digitsOfWord (dB s)).sum = targetSum := by
+theorem swS_toNat (lay : Nat) : ((swS lay).eval s).toNat =
+    (swarOf (dA s) (dB s) + 2 ^ 64 - (if 3 ≤ lay then 1 else 0)) % 2 ^ 64 := by
+  have hb : swarOf (dA s) (dB s) < 4096 := Nat.mod_lt _ (by decide)
+  unfold swS
+  split_ifs with hl
+  · change (swSBase.eval s + (-1#64)).toNat = _
+    rw [BitVec.toNat_add, swSBase_toNat]
+    have hn : (-1#64).toNat = 18446744073709551615 := by decide
+    rw [hn]
+    omega
+  · rw [swSBase_toNat]
+    omega
+
+theorem swS_eq (lay : Nat) (h0 : dA s < 2 ^ 63) (h1 : dB s < 2 ^ 63) :
+    (swS lay).eval s = KT ↔ (digitsOfWord (dA s) ++ digitsOfWord (dB s)).sum = targetFor lay := by
   have hs := swar_nat (dA s) (dB s) h0 h1
+  have hl : swarOf (dA s) (dB s) < 4096 := Nat.mod_lt _ (by decide)
   rw [← hs]
-  change _ ↔ swarOf (dA s) (dB s) = targetSum
+  change _ ↔ swarOf (dA s) (dB s) = targetFor lay
   have hK : KT = BitVec.ofNat 64 181 := rfl
-  rw [hK, show targetSum = 181 from rfl]
+  rw [hK]
   constructor
   · intro h
-    have := congrArg BitVec.toNat h
-    rw [swS_toNat, BitVec.toNat_ofNat] at this
-    omega
+    have hh := congrArg BitVec.toNat h
+    rw [swS_toNat, BitVec.toNat_ofNat] at hh
+    unfold targetFor targetSum
+    split_ifs at * <;> omega
   · intro h
     apply BitVec.eq_of_toNat_eq
-    rw [swS_toNat, h]; rfl
+    rw [swS_toNat, h]
+    unfold targetFor targetSum
+    split_ifs <;> rfl
+
 end
 
 end SigGolfCandidate.Verify

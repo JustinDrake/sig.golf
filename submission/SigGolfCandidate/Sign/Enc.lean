@@ -23,18 +23,17 @@ theorem slice_valOfWords_8 (w0 w1 : Word) : slice (valOfWords w0 w1) 8 8 = bytes
   simp [slice, valOfWords, List.drop_append_of_le_length]
 
 /-- `decodeDigits` of a hash answer, in terms of its first two dwords. -/
-theorem decodeDigits_answer (a : BitVec 256) :
-    decodeDigits (answerBytes 16 a) =
+theorem decodeDigits_answer (lay : Nat) (a : BitVec 256) :
+    decodeDigits lay (answerBytes 16 a) =
       if (a.extractLsb' 0 64).toNat < 2 ^ 63 ∧ (a.extractLsb' 64 64).toNat < 2 ^ 63 then
         (if (digitsOfWord (a.extractLsb' 0 64).toNat ++ digitsOfWord (a.extractLsb' 64 64).toNat).sum
-            = 181 then
+            = targetFor lay then
           some (digitsOfWord (a.extractLsb' 0 64).toNat ++ digitsOfWord (a.extractLsb' 64 64).toNat)
         else none)
       else none := by
   rw [answerBytes_16]
   unfold decodeDigits
   rw [slice_valOfWords_0, slice_valOfWords_8, leNat_bytesOfWord, leNat_bytesOfWord]
-  rfl
 
 theorem slt_zero_ofNat (d : Nat) (hd : d < 2 ^ 64) :
     BitVec.slt (BitVec.ofNat 64 d) (BitVec.ofNat 64 0) = decide (2 ^ 63 ≤ d) := by
@@ -60,10 +59,14 @@ def swF (x : Word) (k : Nat) : Word := x + (x >>> k)
 def swarW (a b m1 m2 : Word) : Word :=
   swF (swF (swF (swF (swS1 a b m1) 6 &&& m2) 12) 24) 48 &&& 2047
 
--- The final pc of the SWAR block (`bne t3, x0` after `addi t3, t3, -181`).
-kernel_theorem blk355_pc_raw : ∀ t : MachineState, (blk355.res.toState t).pc =
+/-- The SWAR sum, layer-target thunk, and existing equality branch. -/
+def swarState (t : MachineState) : MachineState :=
+  blk375.res.toState (blk2967.res.toState (blk355.res.toState t))
+
+kernel_theorem swarState_pc_raw : ∀ t : MachineState, (swarState t).pc =
     if (swarW (t.getReg .x1) (t.getReg .x2) (t.getReg .x26) (t.getReg .x27) +
-        BitVec.ofNat 64 (2 ^ 64 - 181) != 0#64) = true then pcOf 377 else pcOf 376
+        BitVec.ofNat 64 (2 ^ 64 - 182) +
+        (if (t.getReg .x8).ult 3 then 1 else 0) != 0#64) = true then pcOf 377 else pcOf 376
 
 theorem swF_toNat (x : Word) (k : Nat) : (swF x k).toNat = (x.toNat + x.toNat / 2 ^ k) % 2 ^ 64 := by
   rw [swF, BitVec.toNat_add, BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
@@ -118,18 +121,22 @@ theorem swarW_toNat (a b : Nat) (ha : a < 2 ^ 63) (hb : b < 2 ^ 63) :
   rw [← Nat.mod_mod_of_dvd X (show 2048 ∣ 4096 by norm_num), key]
   omega
 
-theorem swar_check (a b : Nat) (ha : a < 2 ^ 63) (hb : b < 2 ^ 63) :
-    (swarW (BitVec.ofNat 64 a) (BitVec.ofNat 64 b) swM1 swM2 + BitVec.ofNat 64 (2 ^ 64 - 181)
-      != 0#64) = !decide ((digitsOfWord a ++ digitsOfWord b).sum = 181) := by
+theorem swar_check (lay a b : Nat) (ha : a < 2 ^ 63) (hb : b < 2 ^ 63) :
+    (swarW (BitVec.ofNat 64 a) (BitVec.ofNat 64 b) swM1 swM2 + BitVec.ofNat 64 (2 ^ 64 - targetFor lay)
+      != 0#64) = !decide ((digitsOfWord a ++ digitsOfWord b).sum = targetFor lay) := by
   have h := swarW_toNat a b ha hb
   have hle := digits_sum_le a b
   generalize swarW (BitVec.ofNat 64 a) (BitVec.ofNat 64 b) swM1 swM2 = w at h
-  have hc : (BitVec.ofNat 64 (2 ^ 64 - 181)).toNat = 2 ^ 64 - 181 := rfl
-  by_cases hs : (digitsOfWord a ++ digitsOfWord b).sum = 181
-  · have : w + BitVec.ofNat 64 (2 ^ 64 - 181) = 0#64 := by
-      apply BitVec.eq_of_toNat_eq; rw [BitVec.toNat_add, h, hs, hc]; rfl
+  have ht : targetFor lay = 181 ∨ targetFor lay = 182 := by
+    unfold targetFor targetSum; split_ifs <;> omega
+  have hc : (BitVec.ofNat 64 (2 ^ 64 - targetFor lay)).toNat = 2 ^ 64 - targetFor lay := by
+    rcases ht with h | h <;> rw [h] <;> rfl
+  by_cases hs : (digitsOfWord a ++ digitsOfWord b).sum = targetFor lay
+  · have : w + BitVec.ofNat 64 (2 ^ 64 - targetFor lay) = 0#64 := by
+      apply BitVec.eq_of_toNat_eq; rw [BitVec.toNat_add, h, hs, hc]
+      rcases ht with hh | hh <;> rw [hh] <;> rfl
     rw [this, decide_eq_true hs]; rfl
-  · have : w + BitVec.ofNat 64 (2 ^ 64 - 181) ≠ 0#64 := by
+  · have : w + BitVec.ofNat 64 (2 ^ 64 - targetFor lay) ≠ 0#64 := by
       intro h'
       have := congrArg BitVec.toNat h'
       rw [BitVec.toNat_add, h, hc] at this
@@ -161,6 +168,7 @@ structure EncMem (lay tau e : Nat) (M : Val) (u : MachineState) : Prop where
   x7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 22)
   x26 : u.getReg .x26 = swM1
   x27 : u.getReg .x27 = swM2
+  x8 : u.getReg .x8 = BitVec.ofNat 64 lay
 
 def encW (a : Nat) : Prop := a = 0x130 ∨ (0x140 ≤ a ∧ a < 0x160)
 
@@ -169,16 +177,16 @@ def encRegs : List Reg := [.x1, .x2, .x3, .x6, .x10, .x11, .x12, .x28, .x29]
 def EncInv (u : MachineState) (c : Nat) (t : MachineState) : Prop :=
   t.pc = pcOf 346 ∧ t.getReg .x6 = BitVec.ofNat 64 c ∧ c < 2 ^ 22 ∧ RegsEq u t encRegs ∧ Frame u t encW
 
-def EncPost (u : MachineState) : Option (Nat × List Nat) → MachineState → Prop
+def EncPost (lay : Nat) (u : MachineState) : Option (Nat × List Nat) → MachineState → Prop
   | none, t => t.pc = pcOf 381 ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 1
   | some (c, x), t => t.pc = pcOf 382 ∧ t.getReg .x6 = BitVec.ofNat 64 c ∧ c < 2 ^ 22 ∧
-      (∃ d0 d1, d0 < 2 ^ 63 ∧ d1 < 2 ^ 63 ∧ x = digitsOfWord d0 ++ digitsOfWord d1 ∧ x.sum = 181 ∧
+      (∃ d0 d1, d0 < 2 ^ 63 ∧ d1 < 2 ^ 63 ∧ x = digitsOfWord d0 ++ digitsOfWord d1 ∧ x.sum = targetFor lay ∧
         t.getReg .x1 = BitVec.ofNat 64 d0 ∧ t.getReg .x2 = BitVec.ofNat 64 d1) ∧
       RegsEq u t encRegs ∧ Frame u t encW
 
 theorem searchCounter_succ (lay tau e : Nat) (M : Val) (c f : Nat) :
     searchCounter lay tau e M c (f + 1) = (hash16 (encInput lay tau e M c) >>= fun d =>
-      match decodeDigits d with
+      match decodeDigits lay d with
       | some x => pure (some (c, x))
       | none => searchCounter lay tau e M (c + 1) f) := rfl
 
@@ -186,11 +194,11 @@ theorem encTrial (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem l
     (c : Nat) (t : MachineState) (hinv : EncInv u c t) (rest : OracleComp HashSpec (Option (Nat × List Nat)))
     (Wr : Nat)
     (hrest : ∀ t', t'.pc = pcOf 377 → t'.getReg .x6 = BitVec.ofNat 64 c → RegsEq u t' encRegs →
-      Frame u t' encW → Sim image t' Wr rest (EncPost u)) :
-    Sim image t (38 + Wr) (hash16 (encInput lay tau e M c) >>= fun d =>
-      match decodeDigits d with
+      Frame u t' encW → Sim image t' Wr rest (EncPost lay u)) :
+    Sim image t (42 + Wr) (hash16 (encInput lay tau e M c) >>= fun d =>
+      match decodeDigits lay d with
       | some x => pure (some (c, x))
-      | none => rest) (EncPost u) := by
+      | none => rest) (EncPost lay u) := by
   obtain ⟨tpc, t6, hc, tregs, tframe⟩ := hinv
   have hl := hmem.hlay
   have htau := hmem.htau
@@ -240,7 +248,7 @@ theorem encTrial (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem l
     · rw [if_pos trivial, Nat.mod_eq_of_lt (by omega : c < 2 ^ 32)]
   have hb : (pad64 (encInput lay tau e M c)).blocks = 1 :=
     congrArg (· + 1) (words_encInput lay tau e M hmem.hM c).1
-  refine (Sim.steps hs1 (Sim.hash16_bind (W := 26 + Wr) e1 x5
+  refine (Sim.steps hs1 (Sim.hash16_bind (W := 30 + Wr) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
       (by norm_num)) hq (fmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]; omega) (fun _ _ h => h)
   set t2 := writeHash t1 a with ht2
@@ -256,7 +264,7 @@ theorem encTrial (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem l
   have hd1' : a.extractLsb' 64 64 = BitVec.ofNat 64 d1 := by rw [hd1, BitVec.ofNat_toNat]; rfl
   have hd0l : d0 < 2 ^ 64 := BitVec.isLt _
   have hd1l : d1 < 2 ^ 64 := BitVec.isLt _
-  rw [decodeDigits_answer]
+  rw [decodeDigits_answer lay]
   -- block 299: load the encoding, sign test
   have hs3 := symRun_sound blk351 codeAt_351 t2 pc2 (by simp only [blk351.res, rv_simp])
   have hc3 : blk351.res.cycles = 4 := rfl
@@ -293,26 +301,44 @@ theorem encTrial (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem l
       (fun _ _ h => h)
   obtain ⟨h0, h1⟩ := h01
   rw [if_pos ⟨h0, h1⟩]
-  have hs5 := symRun_sound blk355 codeAt_355 t3 (by rw [pc3, if_neg (by omega)])
+  have hs50 := symRun_sound blk355 codeAt_355 t3 (by rw [pc3, if_neg (by omega)])
     (by simp only [blk355.res, rv_simp])
-  have hc5 : blk355.res.cycles = 21 := rfl
-  rw [hc5] at hs5
-  set t5 := blk355.res.toState t3 with ht5
-  have f5 : Frame t3 t5 (fun _ => False) := by
+  have hs51 := symRun_sound blk2967 codeAt_2967 (blk355.res.toState t3)
+    (by simp only [blk355.res, rv_simp]) (by simp only [blk2967.res, rv_simp])
+  have hs52 := symRun_sound blk375 codeAt_375 (blk2967.res.toState (blk355.res.toState t3))
+    (by simp only [blk2967.res, rv_simp]) (by simp only [blk375.res, rv_simp])
+  have hs5 : Steps image t3 25 25 (swarState t3) := hs50.trans (hs51.trans hs52)
+  set t5 := swarState t3 with ht5
+  have f50 : Frame t3 (blk355.res.toState t3) (fun _ => False) := by
     apply frame_toState; intro x hx hW; simp [blk355.res]
+  have f51 : Frame (blk355.res.toState t3)
+      (blk2967.res.toState (blk355.res.toState t3)) (fun _ => False) := by
+    apply frame_toState; intro x hx hW; simp [blk2967.res]
+  have f52 : Frame (blk2967.res.toState (blk355.res.toState t3)) t5 (fun _ => False) := by
+    apply frame_toState; intro x hx hW; simp [blk375.res]
+  have f5 : Frame t3 t5 (fun _ => False) :=
+    ((f50.trans f51).trans f52).mono (by tauto)
   have r5 : RegsEq t3 t5 [.x28, .x29] := by
-    intro r hr; rw [ht5, Result.toState_getReg]
+    intro r hr
+    unfold t5 swarState
+    simp only [Result.toState_getReg]
     cases r <;> first | exact absurd (by decide) hr | rfl
   have fu5 : Frame u t5 encW := (fu3.trans f5).mono (by
     intro x hx; rcases hx with h | h; exact h; exact h.elim)
   have ru5 : RegsEq u t5 encRegs := (ru3.trans r5).mono (by decide)
-  have pc5 : t5.pc = if (digitsOfWord d0 ++ digitsOfWord d1).sum = 181 then pcOf 376 else pcOf 377 := by
-    rw [ht5, blk355_pc_raw, y1, y2, ru3.get .x26, hmem.x26, ru3.get .x27, hmem.x27,
-      swar_check d0 d1 h0 h1]
-    by_cases h : (digitsOfWord d0 ++ digitsOfWord d1).sum = 181
+  have pc5 : t5.pc = if (digitsOfWord d0 ++ digitsOfWord d1).sum = targetFor lay then pcOf 376 else pcOf 377 := by
+    have hx8 : t3.getReg .x8 = BitVec.ofNat 64 lay := by rw [ru3.get .x8, hmem.x8]
+    have htarget : BitVec.ofNat 64 (2 ^ 64 - 182) +
+        (if (BitVec.ofNat 64 lay).ult 3 then 1 else 0) =
+        BitVec.ofNat 64 (2 ^ 64 - targetFor lay) := by
+      have hl := hmem.hlay
+      interval_cases lay <;> decide
+    rw [ht5, swarState_pc_raw, y1, y2, ru3.get .x26, hmem.x26, ru3.get .x27, hmem.x27, hx8,
+      BitVec.add_assoc, htarget, swar_check lay d0 d1 h0 h1]
+    by_cases h : (digitsOfWord d0 ++ digitsOfWord d1).sum = targetFor lay
     · rw [if_pos h, if_neg (by rw [decide_eq_true h]; decide)]
     · rw [if_neg h, if_pos (by rw [decide_eq_false h]; rfl)]
-  by_cases hsum : (digitsOfWord d0 ++ digitsOfWord d1).sum = 181
+  by_cases hsum : (digitsOfWord d0 ++ digitsOfWord d1).sum = targetFor lay
   · rw [if_pos hsum]
     have hs6 := symRun_sound blk376 codeAt_376 t5 (by rw [pc5, if_pos hsum])
       (by simp only [blk376.res, rv_simp])
@@ -362,7 +388,7 @@ theorem encNext (u : MachineState) (hx7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 22
 /-- **Counter search** of a layer, from counter `c` with `fuel + 1` trials left. -/
 theorem encLoop_sim (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem lay tau e M u) :
     ∀ fuel c t, c + (fuel + 1) = 2 ^ 22 → EncInv u c t →
-      Sim image t ((fuel + 1) * 40 + 2) (searchCounter lay tau e M c (fuel + 1)) (EncPost u) := by
+      Sim image t ((fuel + 1) * 44 + 2) (searchCounter lay tau e M c (fuel + 1)) (EncPost lay u) := by
   intro fuel
   induction fuel with
   | zero =>
@@ -374,14 +400,14 @@ theorem encLoop_sim (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMe
     have hs67 := symRun_sound blk379 codeAt_379 t'' (hfail (by omega)) (by simp only [blk379.res, rv_simp])
     have hc67 : blk379.res.cycles = 2 := rfl
     rw [hc67] at hs67
-    have := Sim.steps hs (Sim.pure_steps (a := (none : Option (Nat × List Nat))) (Q := EncPost u) hs67
+    have := Sim.steps hs (Sim.pure_steps (a := (none : Option (Nat × List Nat))) (Q := EncPost lay u) hs67
       ⟨by simp only [blk379.res, rv_simp], by simp only [blk379.res, rv_simp],
        by simp only [blk379.res, rv_simp]⟩)
     simpa [searchCounter] using this
   | succ f ih =>
     intro c t hc hinv
     rw [searchCounter_succ]
-    refine (encTrial lay tau e M u hmem c t hinv _ (2 + ((f + 1) * 40 + 2)) ?_).mono
+    refine (encTrial lay tau e M u hmem c t hinv _ (2 + ((f + 1) * 44 + 2)) ?_).mono
       (by ring_nf; omega) (fun _ _ h => h)
     intro t' tpc t6 tregs tframe
     obtain ⟨t'', hs, hinv', -⟩ := encNext u hmem.x7 c (by omega) t' tpc t6 tregs tframe
