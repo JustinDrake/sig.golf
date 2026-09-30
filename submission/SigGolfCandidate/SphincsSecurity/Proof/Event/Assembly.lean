@@ -20,11 +20,20 @@ theorem independentEventStatement : IndependentEventStatement := by
   · exact Concrete.EventSmall.security127_event_of_small_budget q h adversary
   · exact Concrete.security127_event_of_large_budget q (by omega) adversary
 
+theorem independentEventStatementReserve : IndependentEventStatementReserve := by
+  intro q _ hq adversary
+  have hcast127 : ((2 ^ 127 : Nat) : ℝ≥0∞) = (2 : ℝ≥0∞) ^ 127 := by norm_num
+  have hcast200 : ((2 ^ 200 : Nat) : ℝ≥0∞) = (2 : ℝ≥0∞) ^ 200 := by norm_num
+  rw [hcast127, hcast200]
+  by_cases h : q + 1 ≤ Concrete.budgetSplit
+  · exact Concrete.EventSmall.security127_event_of_small_budget_plus q h adversary
+  · exact Concrete.security127_event_of_large_budget_plus q (by omega) (by omega) adversary
+
 /-- **The event form of the 127-bit bound**, for every adversary, with no query bound. -/
 theorem security127_event : ∀ q : Nat, 1 ≤ q → ∀ adversary : Security.Adversary,
     Pr[fun result => result.1 = true ∧ result.2 ≤ q | Security.experiment adversary] ≤
       (q : ℝ≥0∞) / ((2 ^ 127 : Nat) : ℝ≥0∞) :=
-  fun q hq adversary => security127_event_of_independent independentEventStatement
+  fun q hq adversary => security127_event_of_independent independentEventStatementReserve
     (fun adversary => Concrete.EventSmall.forgeEventAdvantage_eq_zero adversary 0
       (by rw [Concrete.EventSmall.keygenHashCost_eq]; norm_num)) q hq adversary
 

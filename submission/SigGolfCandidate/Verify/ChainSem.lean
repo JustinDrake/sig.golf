@@ -27,7 +27,7 @@ def CCtx.Regs (c : CCtx) (s : MachineState) : Prop :=
   s.getReg .x31 = c.x31
 
 def CCtx.ok (c : CCtx) : Prop :=
-  c.lay < 5 ∧ c.tau < 2 ^ 32 ∧ c.e < 2 ^ 32 ∧ c.wl.length = 6404 ∧ c.d0.toNat < 2 ^ 63 ∧
+  c.lay < 5 ∧ c.tau < 2 ^ 32 ∧ c.e < 2 ^ 32 ∧ c.wl.length = 6348 ∧ c.d0.toNat < 2 ^ 63 ∧
     c.d1.toNat < 2 ^ 63
 
 /-- The chain tweak word 0 at CB: low half `0x101 | lay << 16` (bytes 0..3), bytes 6, 7 zero. -/
@@ -63,7 +63,8 @@ def HeadInv (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
   (i < 42 → hasPrep i = false → s.getReg .x14 = BitVec.ofNat 64 (rOf c i))
 
 def RB (c : CCtx) (i : Nat) (s : MachineState) : Prop :=
-  s.getReg .x15 = BitVec.ofNat 64 (bVal c.lay i) ∧ s.getReg .x14 = BitVec.ofNat 64 (rOf c i)
+  s.getReg .x15 = BitVec.ofNat 64 (bVal c.lay i) ∧ s.getReg .x14 = BitVec.ofNat 64 (rOf c i) ∧
+  (1 ≤ i → i < 41 → s.getReg .x4 = linkPc c.lay i)
 
 /-- At the table entry of chain `i`, with the chain value loaded. -/
 def EntInv (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
@@ -88,8 +89,8 @@ def EndInv (c : CCtx) (i : Nat) (acc : List Val) (v : Val) (s : MachineState) : 
 theorem witLayerOff_eq (lay : Nat) (h : lay < 5) : witLayerOff lay = layBody lay := by
   interval_cases lay <;> decide
 
-theorem layBody_le (lay : Nat) (h : lay < 5) : layBody lay ≤ 5632 ∧ layBody lay % 8 = 0 ∧
-    layBody lay + 672 + 16 * heightL lay = (if lay + 1 < 5 then layBody (lay + 1) else 6384) := by
+theorem layBody_le (lay : Nat) (h : lay < 5) : layBody lay ≤ 5576 ∧ layBody lay % 8 = 0 ∧
+    layBody lay + 672 + 16 * heightL lay = (if lay + 1 < 5 then layBody (lay + 1) else 6328) := by
   interval_cases lay <;> decide
 
 theorem length_witChain (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) :
@@ -248,8 +249,13 @@ theorem Regs_keep {c : CCtx} {r : PRes} {s : MachineState} (hR : c.Regs s)
 
 theorem RB_keep {c : CCtx} {i : Nat} {r : PRes} {s : MachineState} (hB : RB c i s)
     (hkeep : ∀ x ∈ ckeep, (r.toState s).getReg x = s.getReg x) : RB c i (r.toState s) := by
-  obtain ⟨h1, h2⟩ := hB
-  refine ⟨?_, ?_⟩ <;> (rw [hkeep _ (by simp [ckeep])]; assumption)
+  obtain ⟨h1, h2, h4⟩ := hB
+  refine ⟨?_, ?_, ?_⟩
+  · rw [hkeep _ (by simp [ckeep])]; exact h1
+  · rw [hkeep _ (by simp [ckeep])]; exact h2
+  · intro hi1 hi
+    rw [hkeep _ (by simp [ckeep])]
+    exact h4 hi1 hi
 
 theorem Regs_wh {c : CCtx} {s : MachineState} (hR : c.Regs s) (a : BitVec 256) :
     c.Regs (writeHash s a) := by

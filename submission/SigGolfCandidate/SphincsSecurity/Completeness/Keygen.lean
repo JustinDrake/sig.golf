@@ -1,5 +1,6 @@
 import SigGolfCandidate.SphincsSecurity.Completeness.Digest
 import SigGolfCandidate.SphincsSecurity.Completeness.Recovery
+import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.CacheDerivation
 
 /-!
 # What key generation leaves uncached
@@ -60,36 +61,15 @@ theorem keygen_fresh (seed : MasterSeed)
     fun lay _ tree leaf payload => cache_none_of_avoids _ ∅ r hr _ rfl
       (Avoids.keygen_of seed _ ?_ ?_ ?_ ?_ ?_)⟩
   · intro parameter domain h
-    exact fieldInput_ne_of_tag_ne' parameter r.1.2.2.parameter
-      (fields1 := keygenDomainFields domain) (fields2 := ⟨7#8, 0#8, 0#40, BitVec.ofNat 32 s, 0#32⟩)
-      (keygenDomain_tag_ne domain 7 (by simp)) _ _
-      (by simpa only [keygenHashInput, randInput, randomizerHashInput, List.append_assoc] using h)
+    exact (randomizerHashInput_ne_keygenHashInput _ _ _ _ _ _ _) h.symm
   · intro parameter tree leaf chainIdx step payload h
-    exact fieldInput_ne_of_tag_ne' parameter r.1.2.2.parameter
-      (fields1 := hashDomainFields (.chain topLayer tree leaf chainIdx step))
-      (fields2 := ⟨7#8, 0#8, 0#40, BitVec.ofNat 32 s, 0#32⟩)
-      (by simp [hashDomainFields, tweakFields]) _ _
-      (by simpa only [tweakableHashInput, tweakBytes, randInput, randomizerHashInput,
-        List.append_assoc] using h)
+    exact (randomizerHashInput_ne_tweakableHashInput _ _ _ _ _ _ _) h.symm
   · intro parameter tree leaf payload h
-    exact fieldInput_ne_of_tag_ne' parameter r.1.2.2.parameter
-      (fields1 := hashDomainFields (.leaf topLayer tree leaf))
-      (fields2 := ⟨7#8, 0#8, 0#40, BitVec.ofNat 32 s, 0#32⟩)
-      (by simp [hashDomainFields, tweakFields]) _ _
-      (by simpa only [tweakableHashInput, tweakBytes, randInput, randomizerHashInput,
-        List.append_assoc] using h)
+    exact (randomizerHashInput_ne_tweakableHashInput _ _ _ _ _ _ _) h.symm
   · intro parameter tree level nodeIdx payload h
-    exact fieldInput_ne_of_tag_ne' parameter r.1.2.2.parameter
-      (fields1 := hashDomainFields (.node topLayer tree level nodeIdx))
-      (fields2 := ⟨7#8, 0#8, 0#40, BitVec.ofNat 32 s, 0#32⟩)
-      (by simp [hashDomainFields, tweakFields]) _ _
-      (by simpa only [tweakableHashInput, tweakBytes, randInput, randomizerHashInput,
-        List.append_assoc] using h)
+    exact (randomizerHashInput_ne_tweakableHashInput _ _ _ _ _ _ _) h.symm
   · intro parameter region h
-    exact macHashInput_ne_of_tag_ne parameter r.1.2.2.parameter seed region
-      (fields := ⟨7#8, 0#8, 0#40, BitVec.ofNat 32 s, 0#32⟩)
-      (show (7#8 : BitVec 8) ≠ 14#8 by decide) _
-      (by simpa only [randInput, randomizerHashInput, List.append_assoc] using h)
+    exact (macHashInput_ne_randomizerHashInput _ _ _ _ _ _ _) h
   · intro parameter domain
     exact keygenHashInput_ne_tweakableHashInput parameter _ domain _ seed _
   · intro parameter tree leaf chainIdx step payload

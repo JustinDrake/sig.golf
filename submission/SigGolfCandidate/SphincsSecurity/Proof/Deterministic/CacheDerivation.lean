@@ -76,20 +76,24 @@ theorem macHashInput_ne_randomizerHashInput (p₁ p₂ : PublicParameter) (s₁ 
   intro h
   have h2 := congrArg (List.take 2) h
   rw [macHashInput_tag] at h2
-  simp [randomizerHashInput, fieldBytes, bytesLE] at h2
+  have hr : (randomizerHashInput p₂ s₂ message trial).take 2 = [1, 7] := by
+    simp [randomizerHashInput]
+  rw [hr] at h2
   exact absurd h2 (by decide)
 
 theorem macHashInput_ne_tweakableHashInput (p₁ p₂ : PublicParameter) (seed : MasterSeed)
     (region : TopRegion) (domain : HashDomain) (payload : HashInput) :
     macHashInput p₁ seed region ≠ tweakableHashInput p₂ domain payload := by
   intro h
-  have h2 := congrArg (List.take 2) h
-  rw [macHashInput_tag] at h2
-  cases domain <;> simp [tweakableHashInput, tweakBytes, hashDomainFields, tweakFields, fieldBytes, bytesLE] at h2 <;>
-    exact absurd h2 (by decide)
+  have htag := congrArg (fun x : HashInput => x.getD 1 0) h
+  rw [tag_mac, tag_tweakable] at htag
+  have hne : UInt8.ofBitVec (hashDomainFields domain).tag ≠ 14 := by
+    cases domain <;> dsimp [hashDomainFields, tweakFields] <;> decide
+  exact hne htag.symm
 
 theorem derivationSeedHit_mac (parameter : PublicParameter) (seed : MasterSeed) (region : TopRegion) :
     DerivationSeedHit (macHashInput parameter seed region) seed := by
+  apply Or.inl
   simp [DerivationSeedHit, macHashInput, fieldBytes, bytesLE]
 
 namespace Seeded

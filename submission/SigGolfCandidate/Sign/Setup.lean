@@ -7,7 +7,8 @@ import SigGolfCandidate.Sign.Mac
 * block 0 (0 .. 53): `S`, `m` into the buffers, the tag (cache bytes 0 .. 32) into `x13 .. x16`,
   the in-place MAC input `tw_mac | P | S | region | 0^32` at `CACHE - 32`; HASH at 54.
 * 55 .. 62: compare the answer (`DO`) with the tag, dword by dword (`fail_mac` at 84 .. 86).
-* 63 .. 64: `LIM = 2^20`, `CNT = 0`; the digest loop starts at 65.
+* 63 .. 64: `LIM = 2^20`, then branch to the randomizer packer at 2844 .. 2886;
+  the digest loop starts at 65.
 
 `mac_sim` : the machine refines `H(macInput S region) >>= fun tag => if tag = cacheTag then rest
 else pure none`, given a simulation of `rest` from the digest loop.
@@ -28,28 +29,29 @@ kernel_theorem blk0_rbS : ∀ t : MachineState,
 kernel_theorem blk0_rbM : ∀ t : MachineState,
     (blk0.res.toState t).readWords (BitVec.ofNat 64 0x660) 4 = t.readWords (BitVec.ofNat 64 0x40) 4
 kernel_theorem blk0_macS : ∀ t : MachineState,
-    (blk0.res.toState t).readWords (BitVec.ofNat 64 0x44A0) 4 = t.readWords (BitVec.ofNat 64 0x80) 4
+    (blk0.res.toState t).readWords (BitVec.ofNat 64 0x4B00) 4 = t.readWords (BitVec.ofNat 64 0x80) 4
 kernel_theorem blk0_db0 : ∀ t : MachineState,
     (blk0.res.toState t).getMem (BitVec.ofNat 64 0x20) = BitVec.ofNat 64 0xC01
 kernel_theorem blk0_mac0 : ∀ t : MachineState,
-    (blk0.res.toState t).getMem (BitVec.ofNat 64 0x4480) = BitVec.ofNat 64 0xE01
+    (blk0.res.toState t).getMem (BitVec.ofNat 64 0x4AE0) = BitVec.ofNat 64 0xE01
 kernel_theorem blk0_macZ : ∀ t : MachineState,
-    (blk0.res.toState t).readWords (BitVec.ofNat 64 0x144A0) 4 = [0, 0, 0, 0]
+    (blk0.res.toState t).readWords (BitVec.ofNat 64 0x14B00) 4 = [0, 0, 0, 0]
 kernel_theorem blk0_tag : ∀ t : MachineState,
     [(blk0.res.toState t).getReg .x13, (blk0.res.toState t).getReg .x14,
       (blk0.res.toState t).getReg .x15, (blk0.res.toState t).getReg .x16] =
-    t.readWords (BitVec.ofNat 64 0x44A0) 4
+    t.readWords (BitVec.ofNat 64 0x4B00) 4
 theorem blk0_rb0 (t : MachineState) :
     lo32 ((blk0.res.toState t).getMem (BitVec.ofNat 64 0x620)) = BitVec.ofNat 32 0x701 := by
   simp (config := { decide := true }) only [blk0.res, rv_simp, lo32_replace0, Nat.zero_div, ↓reduceIte]
 
 /-- Addresses written by the setup block. -/
 def setupW (a : Nat) : Prop :=
-  a = 0x20 ∨ a = 0x620 ∨ (0x640 ≤ a ∧ a < 0x680) ∨ (0x6C0 ≤ a ∧ a < 0x6E0) ∨ a = 0x4480 ∨
-    (0x44A0 ≤ a ∧ a < 0x44C0) ∨ (0x144A0 ≤ a ∧ a < 0x144C0)
+  a = 0x20 ∨ a = 0x620 ∨ (0x640 ≤ a ∧ a < 0x680) ∨ (0x6C0 ≤ a ∧ a < 0x6E0) ∨ a = 0x4AE0 ∨
+    (0x4B00 ≤ a ∧ a < 0x4B20) ∨ (0x14B00 ≤ a ∧ a < 0x14B20)
 
 /-- Addresses written up to the digest loop (setup, the MAC answer). -/
-def macW (a : Nat) : Prop := setupW a ∨ (0x160 ≤ a ∧ a < 0x180)
+def macW (a : Nat) : Prop :=
+  setupW a ∨ (0x160 ≤ a ∧ a < 0x180) ∨ (0x780 ≤ a ∧ a < 0x7c0)
 
 /-- Facts at the start of the digest loop. -/
 structure MacOk (sk : SecretKey) (cache : Cache) (m : Message) (u : MachineState) : Prop where
@@ -87,13 +89,13 @@ theorem cmp_block {r : Result} {code : List (BitVec 32)} {a b : Nat} (hrun : sym
   rw [Result.toState_getMem, hmem, memEval_nil]
 
 kernel_theorem blk55_pc : ∀ t : MachineState, (blk55.res.toState t).pc =
-    if (t.getMem (BitVec.ofNat 64 0x160) != t.getReg .x13) = true then pcOf 87 else pcOf 57
+    if (t.getMem (BitVec.ofNat 64 0x160) != t.getReg .x13) = true then pcOf 142 else pcOf 57
 kernel_theorem blk57_pc : ∀ t : MachineState, (blk57.res.toState t).pc =
-    if (t.getMem (BitVec.ofNat 64 0x168) != t.getReg .x14) = true then pcOf 87 else pcOf 59
+    if (t.getMem (BitVec.ofNat 64 0x168) != t.getReg .x14) = true then pcOf 142 else pcOf 59
 kernel_theorem blk59_pc : ∀ t : MachineState, (blk59.res.toState t).pc =
-    if (t.getMem (BitVec.ofNat 64 0x170) != t.getReg .x15) = true then pcOf 87 else pcOf 61
+    if (t.getMem (BitVec.ofNat 64 0x170) != t.getReg .x15) = true then pcOf 142 else pcOf 61
 kernel_theorem blk61_pc : ∀ t : MachineState, (blk61.res.toState t).pc =
-    if (t.getMem (BitVec.ofNat 64 0x178) != t.getReg .x16) = true then pcOf 87 else pcOf 63
+    if (t.getMem (BitVec.ofNat 64 0x178) != t.getReg .x16) = true then pcOf 142 else pcOf 63
 
 /-- A compare block `ld ra, D(x0); bne ra, R, fail_mac`. -/
 theorem blk_cmp {code : List (BitVec 32)} {a : Nat} {r : Result} {P : MachineState → Word}
@@ -123,8 +125,8 @@ theorem setup_regs (t : MachineState) :
 theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
     (rest : OracleComp HashSpec (Option β)) (Wr : Nat) (Q : Option β → MachineState → Prop)
     (hrest : ∀ u, MacOk sk cache m u → Sim image u Wr rest Q)
-    (hbad : ∀ t, t.pc = pcOf 89 → t.getReg .x5 = 1 → t.getReg .x10 = 1 → Q none t) :
-    Sim image (s0 sk cache m) (54 + (8 * 1025 + (10 + Wr)))
+    (hbad : ∀ t, t.pc = pcOf 144 → t.getReg .x5 = 1 → t.getReg .x10 = 1 → Q none t) :
+    Sim image (s0 sk cache m) (54 + (8 * 1025 + (53 + Wr)))
       (H (macInput (toList sk) (cacheRegion (toList cache))) >>= fun tag =>
         if toList (n := 32) tag = cacheTag (toList cache) then rest else pure none) Q := by
   set s := s0 sk cache m with hs0
@@ -138,7 +140,7 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
   have rg := setup_regs s
   have e1 := symRun_ecall blk0 codeAt_0 s (by simp only [blk0.res, rv_simp]) rfl
   have x5 : u.getReg .x5 = 0 := by rw [rg.get .x5]; exact s0_getReg sk cache m .x5 (by decide)
-  have x10 : u.getReg .x10 = BitVec.ofNat 64 0x4480 := by simp only [hu, blk0.res, rv_simp]
+  have x10 : u.getReg .x10 = BitVec.ofNat 64 0x4AE0 := by simp only [hu, blk0.res, rv_simp]
   have x11 : u.getReg .x11 = BitVec.ofNat 64 65600 := by simp only [hu, blk0.res, rv_simp]
   have x12 : u.getReg .x12 = BitVec.ofNat 64 0x160 := by simp only [hu, blk0.res, rv_simp]
   have pc1 : u.pc = pcOf 54 := by simp only [hu, blk0.res, rv_simp]
@@ -151,15 +153,15 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
       readWords_ofNat_add]
     simp only [Nat.reduceMul, Nat.reduceAdd]
     rw [readWords_ofNat_one, readWords_ofNat_one, hu, blk0_mac0, ← hu,
-      f.getMem (a := 0x4488) (by norm_num) (by simp only [setupW]; omega),
-      s0_zero sk cache m 0x4488 (by norm_num) (by norm_num) (by omega),
+      f.getMem (a := 0x4AE8) (by norm_num) (by simp only [setupW]; omega),
+      s0_zero sk cache m 0x4AE8 (by norm_num) (by norm_num) (by omega),
       f.readWords _ _ (by norm_num) (by intro i hi; simp only [setupW]; omega),
-      show (0x4490 : Nat) = 0x4490 from rfl, readWords_ofNat_two,
-      s0_zero sk cache m 0x4490 (by norm_num) (by norm_num) (by omega),
-      s0_zero sk cache m 0x4498 (by norm_num) (by norm_num) (by omega),
+      show (0x4AF0 : Nat) = 0x4AF0 from rfl, readWords_ofNat_two,
+      s0_zero sk cache m 0x4AF0 (by norm_num) (by norm_num) (by omega),
+      s0_zero sk cache m 0x4AF8 (by norm_num) (by norm_num) (by omega),
       hu, blk0_macS, blk0_macZ, ← hu,
       f.readWords _ _ (by norm_num) (by intro i hi; simp only [setupW]; omega),
-      show (0x44C0 : Nat) = 0x44A0 + 32 from rfl, s0_readWords_cache sk cache m 32 8188 (by norm_num) (by norm_num),
+      show (0x4B20 : Nat) = 0x4B00 + 32 from rfl, s0_readWords_cache sk cache m 32 8188 (by norm_num) (by norm_num),
       s0_readWords_sk]
     simp only [twWords_eq, twWord0, List.cons_append, List.nil_append, List.append_assoc]
     rfl
@@ -167,7 +169,7 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
     simp [pad64, Query.blocks, hn]
   have hq' : hashInput u = fmt (macInput (toList sk) (cacheRegion (toList cache))) :=
     hq.trans (fmt_thInput _ _ _ _ _ _ (by decide)).symm
-  refine (Sim.steps hs (Sim.query_bind (W := 10 + Wr) e1 x5
+  refine (Sim.steps hs (Sim.query_bind (W := 53 + Wr) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
       (by norm_num)) hq' (fun a => ?_))).mono (by rw [show macInput (toList sk) (cacheRegion (toList cache)) = thInput (tweak 14 0 0 0 0) _ from rfl, blocks_fmt_th _ _ _ _ _ _ (by decide)]; rw [← show macInput (toList sk) (cacheRegion (toList cache)) = thInput (tweak 14 0 0 0 0) _ from rfl, hb]) (fun _ _ h => h)
   set t2 := writeHash u a with ht2
@@ -180,19 +182,19 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
   have r2 : ∀ r, t2.getReg r = u.getReg r := fun r => by rw [ht2, writeHash_getReg]
   -- the tag words
   have htag := blk0_tag s
-  rw [← hu, show (0x44A0 : Nat) = 0x44A0 + 0 from rfl, s0_readWords_cache sk cache m 0 4 (by norm_num)
+  rw [← hu, show (0x4B00 : Nat) = 0x4B00 + 0 from rfl, s0_readWords_cache sk cache m 0 4 (by norm_num)
     (by norm_num)] at htag
   have hct : slice (toList cache) 0 (8 * 4) = cacheTag (toList cache) := rfl
   rw [hct] at htag
   have heq := tag_eq_iff a _ (length_cacheTag cache) _ _ _ _ htag.symm
   -- the failure exit
-  have fail : ∀ t, t.pc = pcOf 87 → Sim image t 2 (pure none) Q := by
+  have fail : ∀ t, t.pc = pcOf 142 → Sim image t 2 (pure none) Q := by
     intro t tpc
-    have hs84 := symRun_sound blk87 codeAt_87 t tpc (by simp only [blk87.res, rv_simp])
-    have hc84 : blk87.res.cycles = 2 := rfl
-    rw [hc84] at hs84
-    exact Sim.pure_steps hs84 (hbad _ (by simp only [blk87.res, rv_simp]) (by simp only [blk87.res, rv_simp])
-      (by simp only [blk87.res, rv_simp]))
+    have hs142 := symRun_sound blk142 codeAt_142 t tpc (by simp only [blk142.res, rv_simp])
+    have hc142 : blk142.res.cycles = 2 := rfl
+    rw [hc142] at hs142
+    exact Sim.pure_steps hs142 (hbad _ (by simp only [blk142.res, rv_simp]) (by simp only [blk142.res, rv_simp])
+      (by simp only [blk142.res, rv_simp]))
   obtain ⟨e0, e1, e2, e3⟩ : t2.getMem (BitVec.ofNat 64 0x160) = a.extractLsb' 0 64 ∧
       t2.getMem (BitVec.ofNat 64 0x168) = a.extractLsb' 64 64 ∧
       t2.getMem (BitVec.ofNat 64 0x170) = a.extractLsb' 128 64 ∧
@@ -252,10 +254,21 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
     intro q h1 h6 h7
     rw [r7.get q (by simp [h6, h7]), r6.get q (by simp [h1]), r5.get q (by simp [h1]),
       r4.get q (by simp [h1]), r3.get q (by simp [h1]), r2]
+  have pc7 : t7.pc = pcOf 2844 := by simp only [ht7, blk63.res, rv_simp]
+  have hs8 := symRun_sound blk2844 codeAt_2844 t7 pc7 (by simp only [blk2844.res, rv_simp])
+  rw [blk2844_cycles] at hs8
+  set t8 := blk2844.res.toState t7 with ht8
+  have f8 : Frame t7 t8 (fun a => 0x780 ≤ a ∧ a < 0x7c0) := blk2844_frame t7
+  have r8 := blk2844_regs t7
   have fr : Frame s t7 macW := by
     intro x hx hW
     rw [n7, f2.getMem hx (by simp only [macW, setupW] at hW; omega),
       f.getMem hx (by simp only [macW, setupW] at hW ⊢; omega)]
+  have fr8 : Frame s t8 macW := (fr.trans f8).mono (by
+    intro a ha
+    rcases ha with h | h
+    · exact h
+    · exact Or.inr (Or.inr h))
   have fu : ∀ a n, a + 8 * n < 2 ^ 64 → (∀ i < n, ¬ macW (a + 8 * i)) →
       t7.readWords (BitVec.ofNat 64 a) n = s.readWords (BitVec.ofNat 64 a) n :=
     fun a n h1 h2 => fr.readWords a n h1 h2
@@ -265,7 +278,7 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
     exact readWords_congr _ _ a n (fun i hi => by rw [n7, f2.getMem (by omega) (by have := h2 i hi; omega)])
   have hz : ∀ a n, a % 8 = 0 → a + 8 * n + 8 < 2 ^ 64 →
       (∀ i < n, a + 8 * i + 8 ≤ 0x40 ∨ (0x60 ≤ a + 8 * i ∧ a + 8 * i + 8 ≤ 0x80) ∨
-        (0xA0 ≤ a + 8 * i ∧ a + 8 * i + 8 ≤ 0x44A0) ∨ 0x244A0 ≤ a + 8 * i) →
+        (0xA0 ≤ a + 8 * i ∧ a + 8 * i + 8 ≤ 0x4B00) ∨ 0x24B00 ≤ a + 8 * i) →
       s.readWords (BitVec.ofNat 64 a) n = List.replicate n 0 := by
     intro a n h8 hb hout
     induction n generalizing a with
@@ -275,24 +288,31 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
         ih (a + 8) (by omega) (by omega)
           (fun i hi => by rw [show a + 8 + 8 * i = a + 8 * (i + 1) by ring]; exact hout _ (by omega))]
       rfl
-  have ok : MacOk sk cache m t7 := by
-    refine ⟨by simp only [ht7, blk63.res, rv_simp], ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, fr⟩
-    · rw [fu7 _ _ (by norm_num) (by intro i hi; omega), hu, blk0_rbS, s0_readWords_sk]
-    · rw [fu7 _ _ (by norm_num) (by intro i hi; omega), hu, blk0_rbM, s0_readWords_msg]
-    · rw [fu _ _ (by norm_num) (by intro i hi; simp only [macW, setupW]; omega),
-        hz _ _ (by norm_num) (by norm_num) (by intro i hi; omega)]; rfl
-    · rw [fu _ _ (by norm_num) (by intro i hi; simp only [macW, setupW]; omega),
-        hz _ _ (by norm_num) (by norm_num) (by intro i hi; omega)]; rfl
-    · rw [n7, f2.getMem (by norm_num) (by omega), hu, blk0_rb0]
-    · rw [readWords_ofNat_succ, n7, f2.getMem (by norm_num) (by omega), hu, blk0_db0,
+  have ok : MacOk sk cache m t8 := by
+    refine ⟨blk2844_pc t7, ⟨?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, fr8⟩
+    · rw [f8.readWords _ _ (by norm_num) (by intro i hi; omega),
+        fu7 _ _ (by norm_num) (by intro i hi; omega), hu, blk0_rbS, s0_readWords_sk]
+    · rw [f8.readWords _ _ (by norm_num) (by intro i hi; omega),
+        fu7 _ _ (by norm_num) (by intro i hi; omega), hu, blk0_rbM, s0_readWords_msg]
+    · have hw := blk2844_words t7
+      rw [← ht8] at hw
+      rw [hw]
+      rw [f8.getMem (by norm_num) (by omega), f8.getMem (by norm_num) (by omega),
+        f8.getMem (by norm_num) (by omega), f8.getMem (by norm_num) (by omega),
+        f8.getMem (by norm_num) (by omega), f8.getMem (by norm_num) (by omega),
+        f8.getMem (by norm_num) (by omega), f8.getMem (by norm_num) (by omega)]
+    · rw [f8.readWords _ _ (by norm_num) (by intro i hi; omega), readWords_ofNat_succ,
+        n7, f2.getMem (by norm_num) (by omega), hu, blk0_db0,
         fu _ _ (by norm_num) (by intro i hi; simp only [macW, setupW]; omega),
         hz _ _ (by norm_num) (by norm_num) (by intro i hi; omega)]; rfl
-    · rw [fu _ _ (by norm_num) (by intro i hi; simp only [macW, setupW]; omega), s0_readWords_msg]
-    · rw [g7 .x5 (by decide) (by decide) (by decide), x5]
-    · simp only [ht7, blk63.res, rv_simp]
-    · simp only [ht7, blk63.res, rv_simp]; rfl
-    · rw [fu7 _ _ (by norm_num) (by intro i hi; omega), hu, blk0_pbS, s0_readWords_sk]
+    · rw [f8.readWords _ _ (by norm_num) (by intro i hi; omega),
+        fu _ _ (by norm_num) (by intro i hi; simp only [macW, setupW]; omega), s0_readWords_msg]
+    · rw [r8.get .x5, g7 .x5 (by decide) (by decide) (by decide), x5]
+    · exact blk2844_x6 t7
+    · rw [r8.get .x7]; simp only [ht7, blk63.res, rv_simp]; rfl
+    · rw [f8.readWords _ _ (by norm_num) (by intro i hi; omega),
+        fu7 _ _ (by norm_num) (by intro i hi; omega), hu, blk0_pbS, s0_readWords_sk]
   exact (Sim.steps hs3 (Sim.steps hs4 (Sim.steps hs5 (Sim.steps hs6 (Sim.steps hs7
-    (hrest t7 ok)))))).mono (by omega) (fun _ _ h => h)
+    (Sim.steps hs8 (hrest t8 ok))))))).mono (by omega) (fun _ _ h => h)
 
 end SigGolfCandidate.Sign

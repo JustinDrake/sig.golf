@@ -89,7 +89,7 @@ theorem chain_good_head (c : CCtx) (hc : c.ok) (i : Nat) (hi1 : 1 ≤ i) (hi : i
     Good s (N + 62) (C + chainCost c.lay i (dig c i))
       (cc (chainFrom c.lay c.tau c.e i (dig c i) (witChain c.wl c.lay i)) (fun v => K (acc ++ [v]))) := by
   obtain ⟨t, hst, hE⟩ := head_step c hc i hi1 hi acc hchk s hs
-  have hh : headCost c.lay i ≤ 10 := by unfold headCost; split_ifs <;> simp_all
+  have hh : headCost c.lay i ≤ 10 := by unfold headCost headLen; split_ifs <;> simp_all
   have := chain_good_ent c hc i hi acc hchk K N C hK t hE
   refine Good.steps' hst this (by omega) ?_
   unfold chainCost; rw [if_neg (by omega)]; omega

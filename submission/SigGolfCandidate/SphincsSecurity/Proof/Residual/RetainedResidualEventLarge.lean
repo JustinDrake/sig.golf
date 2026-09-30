@@ -275,12 +275,18 @@ namespace SphincsSecurity.Concrete
 
 open _root_.OracleComp OracleSpec ENNReal
 
+theorem security127_event_of_large_budget_plus (q : Nat) (hlarge : budgetSplit ≤ q)
+    (hsmall : q ≤ 2 ^ 127) (adversary : Adversary) :
+    forgeEventAdvantage scheme adversary q + (q : ENNReal) / 2 ^ 200 ≤
+      (q : ENNReal) / 2 ^ 127 := by
+  exact (add_le_add (RetainedResidual.forgeEventAdvantage_le_native_bound fixedReferenceDummy
+    (fun _ _ _ => fixedReferenceDummyWord_valid) adversary q hsmall) le_rfl).trans
+      (native_bound_plus_le_security127 q hlarge hsmall)
+
 theorem security127_event_of_large_budget (q : Nat) (hlarge : budgetSplit ≤ q) (adversary : Adversary) :
     forgeEventAdvantage scheme adversary q ≤ (q : ENNReal) / 2 ^ 127 := by
   by_cases hsmall : q ≤ 2 ^ 127
-  · exact (RetainedResidual.forgeEventAdvantage_le_native_bound fixedReferenceDummy
-      (fun _ _ _ => fixedReferenceDummyWord_valid) adversary q hsmall).trans
-        (native_bound_le_security127 q hlarge hsmall)
+  · exact (le_self_add).trans (security127_event_of_large_budget_plus q hlarge hsmall adversary)
   · apply probEvent_le_one.trans
     calc
       (1 : ENNReal) = (2 ^ 127 : ENNReal) / 2 ^ 127 := (ENNReal.div_self (by positivity) (by finiteness)).symm

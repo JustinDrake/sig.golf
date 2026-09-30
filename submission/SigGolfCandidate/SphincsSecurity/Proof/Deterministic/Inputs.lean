@@ -1,69 +1,109 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Seeded.KeyDerivation
+import SigGolfCandidate.SphincsSecurity.Proof.Scheme.HashOutputSplit
+import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.SeedHitProbability
 
 open OracleComp OracleSpec ENNReal
 
 namespace SphincsSecurity
 
 set_option backward.isDefEq.respectTransparency false
+set_option maxRecDepth 8192
+set_option maxHeartbeats 1000000
 
-theorem randomizerHashInput_injective {p₁ p₂ : PublicParameter} {s₁ s₂ : MasterSeed}
+theorem randomizerHashInput_injective {p₁ p₂ : PublicParameter} {s : MasterSeed}
     {m₁ m₂ : Message} {a₁ a₂ : BitVec 32}
-    (h : randomizerHashInput p₁ s₁ m₁ a₁ = randomizerHashInput p₂ s₂ m₂ a₂) :
-    p₁ = p₂ ∧ s₁ = s₂ ∧ m₁ = m₂ ∧ a₁ = a₂ := by
+    (h : randomizerHashInput p₁ s m₁ a₁ = randomizerHashInput p₂ s m₂ a₂) :
+    m₁ = m₂ ∧ a₁ = a₂ := by
   unfold randomizerHashInput at h
-  obtain ⟨hprefix, hm⟩ := List.append_inj' h (by simp [bytesLE_length])
-  obtain ⟨hprefix, hs⟩ := List.append_inj' hprefix (by simp [bytesLE_length])
-  obtain ⟨htweak, hp⟩ := List.append_inj' hprefix (by simp [bytesLE_length])
-  exact ⟨bytesLE_injective hp, bytesLE_injective hs, bytesLE_injective hm,
-    congrArg TweakFields.position (fieldBytes_injective htweak)⟩
+  obtain ⟨hprefix, ha⟩ := List.append_inj' h (by simp [bytesLE_length])
+  obtain ⟨_, hm⟩ := List.append_inj' hprefix (by simp [bytesLE_length])
+  exact ⟨bytesLE_injective hm, bytesLE_injective ha⟩
+
+private theorem tag_append (left right : HashInput) (h : 2 ≤ left.length) :
+    (left ++ right).getD 1 0 = left.getD 1 0 := by
+  simp only [List.getD_eq_getElem?_getD]
+  rw [List.getElem?_append_left (by omega : 1 < left.length)]
+
+private theorem tag_fieldBytes (fields : TweakFields) :
+    (fieldBytes fields).getD 1 0 = UInt8.ofBitVec fields.tag := by
+  simp only [fieldBytes, bytesLE, List.append_assoc]
+  simp [List.getD_eq_getElem?_getD]
+
+private theorem tag_randomizer (parameter : PublicParameter) (seed : MasterSeed)
+    (message : Message) (trial : BitVec 32) :
+    (randomizerHashInput parameter seed message trial).getD 1 0 = 7 := by
+  simp [randomizerHashInput, List.getD_eq_getElem?_getD]
+
+private theorem tag_keygen (parameter : PublicParameter) (domain : KeygenDomain)
+    (seed : MasterSeed) :
+    (keygenHashInput parameter domain seed).getD 1 0 =
+      UInt8.ofBitVec (keygenDomainFields domain).tag := by
+  simp only [keygenHashInput]
+  rw [tag_append _ _ (by simp [fieldBytes, bytesLE_length])]
+  rw [tag_append _ _ (by simp [fieldBytes, bytesLE_length])]
+  exact tag_fieldBytes _
+
+theorem tag_tweakable (parameter : PublicParameter) (domain : HashDomain)
+    (payload : HashInput) :
+    (tweakableHashInput parameter domain payload).getD 1 0 =
+      UInt8.ofBitVec (hashDomainFields domain).tag := by
+  simp only [tweakableHashInput, tweakBytes]
+  rw [tag_append _ _ (by simp [fieldBytes, bytesLE_length])]
+  rw [tag_append _ _ (by simp [fieldBytes, bytesLE_length])]
+  exact tag_fieldBytes _
+
+theorem tag_mac (parameter : PublicParameter) (seed : MasterSeed)
+    (region : TopRegion) :
+    (macHashInput parameter seed region).getD 1 0 = 14 := by
+  simp only [macHashInput]
+  rw [tag_append _ _ (by simp [fieldBytes, bytesLE_length])]
+  rw [tag_append _ _ (by simp [fieldBytes, bytesLE_length])]
+  rw [tag_append _ _ (by simp [fieldBytes, bytesLE_length])]
+  exact tag_fieldBytes _
 
 theorem randomizerHashInput_ne_keygenHashInput (p₁ p₂ : PublicParameter)
     (s₁ s₂ : MasterSeed) (message : Message) (trial : BitVec 32) (domain : KeygenDomain) :
     randomizerHashInput p₁ s₁ message trial ≠ keygenHashInput p₂ domain s₂ := by
   intro h
-  have := congrArg List.length h
-  simp [randomizerHashInput, keygenHashInput, fieldBytes, bytesLE_length] at this
+  have htag := congrArg (fun x : HashInput => x.getD 1 0) h
+  rw [tag_randomizer, tag_keygen] at htag
+  have hne : UInt8.ofBitVec (keygenDomainFields domain).tag ≠ 7 := by
+    cases domain <;> dsimp [keygenDomainFields, tweakFields] <;> decide
+  exact hne htag.symm
 
 theorem randomizerHashInput_ne_tweakableHashInput (p₁ p₂ : PublicParameter)
     (seed : MasterSeed) (message : Message) (trial : BitVec 32)
     (domain : HashDomain) (payload : HashInput) :
     randomizerHashInput p₁ seed message trial ≠ tweakableHashInput p₂ domain payload := by
   intro h
-  simp only [randomizerHashInput, tweakableHashInput, tweakBytes, List.append_assoc] at h
-  obtain ⟨htweak, _⟩ := List.append_inj h (by simp [fieldBytes, bytesLE_length])
-  have htag := congrArg TweakFields.tag (fieldBytes_injective htweak)
-  cases domain <;> simp [hashDomainFields, tweakFields] at htag
+  have htag := congrArg (fun x : HashInput => x.getD 1 0) h
+  rw [tag_randomizer, tag_tweakable] at htag
+  have hne : UInt8.ofBitVec (hashDomainFields domain).tag ≠ 7 := by
+    cases domain <;> dsimp [hashDomainFields, tweakFields] <;> decide
+  exact hne htag.symm
 
-/-- Every seed-derived input puts the complete seed in bytes 32 through 63. -/
+/-- A seed-derived query contains either the whole seed at the legacy position, or the
+26-byte seed prefix used by the one-block randomizer domain. -/
 def DerivationSeedHit (input : HashInput) (seed : MasterSeed) : Prop :=
-  (input.drop 32).take 32 = bytesLE 32 seed
+  (input.drop 32).take 32 = bytesLE 32 seed ∨
+    input.take 28 = [1, 7] ++ bytesLE 26 (seed.extractLsb' 0 208)
 
 theorem derivationSeedHit_keygen (parameter : PublicParameter) (domain : KeygenDomain) (seed : MasterSeed) :
     DerivationSeedHit (keygenHashInput parameter domain seed) seed := by
-  simp [DerivationSeedHit, keygenHashInput, fieldBytes, bytesLE]
+  apply Or.inl
+  simp [keygenHashInput, fieldBytes, bytesLE]
 
 theorem derivationSeedHit_randomizer (parameter : PublicParameter) (seed : MasterSeed)
     (message : Message) (trial : BitVec 32) :
     DerivationSeedHit (randomizerHashInput parameter seed message trial) seed := by
-  simp [DerivationSeedHit, randomizerHashInput, fieldBytes, bytesLE]
-
-theorem derivationSeedHit_unique {input : HashInput} {left right : MasterSeed}
-    (hl : DerivationSeedHit input left) (hr : DerivationSeedHit input right) : left = right :=
-  bytesLE_injective (hl.symm.trans hr)
+  apply Or.inr
+  simp [randomizerHashInput, bytesLE_length]
 
 theorem probEvent_derivationSeedHit_le (input : HashInput) :
-    Pr[DerivationSeedHit input | sampleMasterSeed] ≤ 1 / ((2 ^ 256 : Nat) : ℝ≥0∞) := by
-  classical
-  by_cases hexists : ∃ seed, DerivationSeedHit input seed
-  · obtain ⟨seed, hseed⟩ := hexists
-    have hevent : DerivationSeedHit input = fun other => other = seed := by
-      funext other
-      exact propext ⟨fun h => derivationSeedHit_unique h hseed, fun h => h ▸ hseed⟩
-    rw [hevent]
-    simp [sampleMasterSeed, MasterSeed]
-  · have hempty : DerivationSeedHit input = fun _ => False := by
-      funext seed
-      exact propext ⟨fun h => hexists ⟨seed, h⟩, False.elim⟩
-    simp [hempty]
+    Pr[DerivationSeedHit input | sampleMasterSeed] ≤ 1 / ((2 ^ 207 : Nat) : ℝ≥0∞) := by
+  change Pr[(fun seed => (input.drop 32).take 32 = bytesLE 32 seed ∨
+    input.take 28 = [1, 7] ++ bytesLE 26 (seed.extractLsb' 0 208)) | sampleMasterSeed] ≤ _
+  exact (probEvent_or_le _ _ _).trans
+    ((add_le_add (full_bound input) (prefix_bound input)).trans numeric_bound)
 
 end SphincsSecurity

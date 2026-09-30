@@ -24,7 +24,7 @@ theorem randomizerInputs_injective (parameter : PublicParameter) (seed : MasterS
     Function.Injective (randomizerInputs parameter seed) := by
   intro left right h
   have heq := randomizerHashInput_injective h
-  exact Prod.ext heq.2.2.1 heq.2.2.2
+  exact Prod.ext heq.1 heq.2
 
 theorem derivationCache_randomizer_fresh (seed : MasterSeed) (outputs : SecretOutputs)
     (position : RandomizerPosition) :

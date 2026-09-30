@@ -9,7 +9,7 @@ The experiment samples the master seed and derives everything from it: the one-t
 secrets, the randomizers, the cache's masks and its MAC. Presampling every derivation into the random
 oracle's cache and erasing the derivation queries turns the experiment after the seed into the cached
 table game, which saves at least key generation's first query. The table game does not depend on the
-seed, so replacing the derivation cache by the empty one costs one 256-bit seed guess per hash query.
+seed, so replacing the derivation cache by the empty one costs at most `2^-207` per hash query.
 -/
 
 open OracleComp OracleSpec ENNReal
@@ -130,7 +130,7 @@ attribute [local irreducible] deterministicGameAfterSeed cachedTableGameAfterSec
   signingDerivationCache maskedDerivationCache cachedDerivationCache sampleMasterSeed sampleSecretOutputs
   sampleRandomizerOutputs sampleMaskOutputs sampleMacOutputs in
 /-- **The seed erased from the experiment.** The experiment's budget event is at most the cached table
-game's, at one query less, plus one 256-bit seed guess per remaining query. -/
+game's, at one query less, plus a `2^-207` seed-hit bound per remaining query. -/
 theorem experiment_event_le_cachedTable (adversary : Security.Adversary) (q : Nat) :
     Pr[fun result => result.1 = true ∧ result.2 ≤ q | Security.experiment adversary] ≤
       Pr[fun result => result.1 = true ∧ result.2 ≤ q - 1 | do
@@ -140,7 +140,7 @@ theorem experiment_event_le_cachedTable (adversary : Security.Adversary) (q : Na
         let macs ← sampleMacOutputs
         (simulateQ romImpl (countHashQueries
           (cachedTableGameAfterSecrets adversary outputs randomizers masks macs))).run' ∅] +
-        ((q - 1 : Nat) : ℝ≥0∞) / ((2 ^ 256 : Nat) : ℝ≥0∞) := by
+        ((q - 1 : Nat) : ℝ≥0∞) / ((2 ^ 207 : Nat) : ℝ≥0∞) := by
   rw [experiment_eq_counted, gameCore_deterministic_eq, romRun_countHashQueries_lift_bind']
   calc
     _ ≤ Pr[fun result => result.1 = true ∧ result.2 ≤ q - 1 | do

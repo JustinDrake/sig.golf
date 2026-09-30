@@ -6,14 +6,14 @@ namespace SphincsSecurity.Seeded
 
 set_option backward.isDefEq.respectTransparency false
 
-theorem exists_seed_not_hit (inputs : List HashInput) (hsize : inputs.length < 2 ^ 256) :
+theorem exists_seed_not_hit (inputs : List HashInput) (hsize : inputs.length < 2 ^ 207) :
     ∃ seed, ¬SeedHitLog inputs seed := by
   classical
   by_contra h
   have hall : ∀ seed, SeedHitLog inputs seed := by simpa using h
   have hone : Pr[SeedHitLog inputs | sampleMasterSeed] = 1 := by
     simp [hall]
-  have hlt : (inputs.length : ℝ≥0∞) / ((2 ^ 256 : Nat) : ℝ≥0∞) < 1 :=
+  have hlt : (inputs.length : ℝ≥0∞) / ((2 ^ 207 : Nat) : ℝ≥0∞) < 1 :=
     ENNReal.div_lt_of_lt_mul (by rw [one_mul]; exact_mod_cast hsize)
   exact (not_lt_of_ge (hone ▸ probEvent_seedHitLog_le inputs)) hlt
 
@@ -111,7 +111,7 @@ theorem romImpl_support_transfer (bad : HashInput → Prop) (left right : QueryC
 /-- A budget valid for every unguessed seed also bounds the ordinary consistent oracle. -/
 theorem hashQueryBound_of_seed_caches {α : Type} (computation : OracleComp OracleWorld α)
     (q : Nat) (inputs : List HashInput) (caches : MasterSeed → QueryCache HashSpec)
-    (cache : QueryCache HashSpec) (hsize : inputs.length + q < 2 ^ 256)
+    (cache : QueryCache HashSpec) (hsize : inputs.length + q < 2 ^ 207)
     (hagree : ∀ seed, ¬SeedHitLog inputs seed →
       AgreeOutside (fun input => SeedHit input seed) (caches seed) cache)
     (hbound : ∀ seed, ¬SeedHitLog inputs seed → HashQueryBound computation (caches seed) q) :

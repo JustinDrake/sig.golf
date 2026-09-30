@@ -52,19 +52,31 @@ theorem forgeEventAdvantage_eq_zero (adversary : Adversary) (q : Nat) (hq : q < 
   have := boundaryGameCore_hashCalls_ge adversary result hresult
   omega
 
-/-- **The small-budget event bound.** -/
-theorem security127_event_of_small_budget (q : Nat) (hsmall : q + 1 ≤ budgetSplit) (adversary : Adversary) :
-    forgeEventAdvantage scheme adversary q ≤ (q : ENNReal) / 2 ^ 127 := by
+/-- The small-budget event bound with a proportional transfer reserve. -/
+theorem security127_event_of_small_budget_plus (q : Nat) (hsmall : q + 1 ≤ budgetSplit)
+    (adversary : Adversary) :
+    forgeEventAdvantage scheme adversary q + (q : ENNReal) / 2 ^ 200 ≤
+      (q : ENNReal) / 2 ^ 127 := by
   by_cases hq : keygenHashCost ≤ q
   · calc
-      _ ≤ forgeEventAdvantage scheme (visAdversary adversary (q + 1)) (q + 1) :=
-        forgeEventAdvantage_le_visAdversary adversary q
-      _ ≤ forgeAdvantage scheme (visAdversary adversary (q + 1)) := forgeEventAdvantage_le_forgeAdvantage _ _
-      _ ≤ visSmallBound (q + 1) :=
-        forgeAdvantage_visAdversary_le fixedReferenceDummy (fun _ _ _ => fixedReferenceDummyWord_valid) adversary (q + 1)
-          (by omega) hsmall
-      _ ≤ _ := visSmallBound_le q hq hsmall
-  · rw [forgeEventAdvantage_eq_zero adversary q (by omega)]
-    exact zero_le
+      _ ≤ forgeEventAdvantage scheme (visAdversary adversary (q + 1)) (q + 1) +
+          (q : ENNReal) / 2 ^ 200 :=
+        add_le_add (forgeEventAdvantage_le_visAdversary adversary q) le_rfl
+      _ ≤ forgeAdvantage scheme (visAdversary adversary (q + 1)) +
+          (q : ENNReal) / 2 ^ 200 :=
+        add_le_add (forgeEventAdvantage_le_forgeAdvantage _ _) le_rfl
+      _ ≤ visSmallBound (q + 1) + ((q + 1 : Nat) : ENNReal) / 2 ^ 200 := by
+        apply add_le_add
+          (forgeAdvantage_visAdversary_le fixedReferenceDummy
+            (fun _ _ _ => fixedReferenceDummyWord_valid) adversary (q + 1) (by omega) hsmall)
+        exact ENNReal.div_le_div (by exact_mod_cast Nat.le_add_right q 1) le_rfl
+      _ ≤ _ := visSmallBound_plus_le q hq hsmall
+  · rw [forgeEventAdvantage_eq_zero adversary q (by omega), zero_add]
+    exact ENNReal.div_le_div le_rfl (by norm_num)
+
+/-- **The small-budget event bound.** -/
+theorem security127_event_of_small_budget (q : Nat) (hsmall : q + 1 ≤ budgetSplit) (adversary : Adversary) :
+    forgeEventAdvantage scheme adversary q ≤ (q : ENNReal) / 2 ^ 127 :=
+  (le_self_add).trans (security127_event_of_small_budget_plus q hsmall adversary)
 
 end SphincsSecurity.Concrete.EventSmall

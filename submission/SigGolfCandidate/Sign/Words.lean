@@ -28,6 +28,22 @@ theorem leNat_append (a b : List Byte) : leNat (a ++ b) = leNat a + 256 ^ a.leng
   | nil => simp [leNat]
   | cons x xs ih => simp only [List.cons_append, leNat, ih, List.length_cons, Nat.pow_succ]; ring
 
+theorem leNat_take_mod (l : List Byte) (k : Nat) (hk : k ≤ l.length) :
+    leNat (l.take k) = leNat l % 256 ^ k := by
+  have hlt : leNat (l.take k) < 256 ^ k := by
+    simpa [List.length_take, Nat.min_eq_left hk] using leNat_lt (l.take k)
+  conv_rhs => rw [← List.take_append_drop k l, leNat_append]
+  rw [List.length_take, Nat.min_eq_left hk, Nat.add_mul_mod_self_left]
+  exact (Nat.mod_eq_of_lt hlt).symm
+
+theorem leNat_drop_div (l : List Byte) (k : Nat) (hk : k ≤ l.length) :
+    leNat (l.drop k) = leNat l / 256 ^ k := by
+  have hlt : leNat (l.take k) < 256 ^ k := by
+    simpa [List.length_take, Nat.min_eq_left hk] using leNat_lt (l.take k)
+  conv_rhs => rw [← List.take_append_drop k l, leNat_append]
+  rw [List.length_take, Nat.min_eq_left hk, Nat.add_mul_div_left _ _ (by positivity),
+    Nat.div_eq_of_lt hlt, zero_add]
+
 theorem leNat_leBytes (k v : Nat) : leNat (leBytes k v) = v % 256 ^ k := leNat_map_range k v
 
 theorem leNat_le32 (v : Nat) : leNat (le32 v) = v % 2 ^ 32 := by
@@ -278,13 +294,13 @@ theorem words_prfInput (S : List Byte) (hS : S.length = 32) (lay tau e i : Nat) 
   rw [h2, prfInput, wordsOf_thInput_pad]
   simp [hS, zeros]
 
-theorem words_ftsPrfInput (S : List Byte) (hS : S.length = 32) (k idx j : Nat) :
-    padBlocks (ftsPrfInput S k idx j).length = 0 ∧
-    wordsOf (padTo64 (ftsPrfInput S k idx j)) = twWords 8 k idx 0 j ++ [0, 0] ++ wordsOf S := by
-  obtain ⟨h1, h2⟩ := padTo64_eq (ftsPrfInput S k idx j) 0 (by simp [ftsPrfInput, hS])
-    (by simp [ftsPrfInput, hS])
+theorem words_porsPrfInput (S : List Byte) (hS : S.length = 32) (idx q : Nat) :
+    padBlocks (porsPrfInput S idx q).length = 0 ∧
+    wordsOf (padTo64 (porsPrfInput S idx q)) = twWords 8 0 idx 0 q ++ [0, 0] ++ wordsOf S := by
+  obtain ⟨h1, h2⟩ := padTo64_eq (porsPrfInput S idx q) 0 (by simp [porsPrfInput, hS])
+    (by simp [porsPrfInput, hS])
   refine ⟨h1, ?_⟩
-  rw [h2, ftsPrfInput, wordsOf_thInput_pad]
+  rw [h2, porsPrfInput, wordsOf_thInput_pad]
   simp [hS, zeros]
 
 /-- A 48-byte input `tw | P | v` (chain step, FORS leaf). -/
@@ -325,7 +341,7 @@ theorem hashInput_eq_digest (t : MachineState) (rho m : List Byte) (hr : rho.len
     wordsOf_append _ _ (by simp [hr]), wordsOf_append _ _ (by simp), wordsOf_tweak]
 
 theorem blocks_fmt_th (t lay tau p j : Nat) (payload : List Byte)
-    (ht : byte t ∉ [byte 1, byte 3, byte 10, byte 12]) :
+    (ht : byte t ∉ [byte 1, byte 3, byte 12]) :
     (fmt (thInput (tweak t lay tau p j) payload)).blocks = (pad64 (thInput (tweak t lay tau p j) payload)).blocks := by
   rw [fmt_thInput _ _ _ _ _ _ ht]
 
@@ -378,17 +394,132 @@ theorem words_encInput (lay tau e : Nat) (M : Val) (hM : M.length = 16) (c : Nat
   simp
 
 theorem words_rndInput (S m : List Byte) (hS : S.length = 32) (hm : m.length = 32) (a : Nat) :
-    padBlocks (rndInput S m a).length = 1 ∧
-    wordsOf (padTo64 (rndInput S m a)) =
-      twWords 7 0 0 a 0 ++ [0, 0] ++ wordsOf S ++ wordsOf m ++ [0, 0, 0, 0] := by
-  obtain ⟨h1, h2⟩ := padTo64_eq (rndInput S m a) 1 (by simp [rndInput, hS, hm])
-    (by simp [rndInput, hS, hm])
-  refine ⟨h1, ?_⟩
-  rw [h2, rndInput, wordsOf_thInput_pad]
-  simp only [length_thInput, length_tweak, List.length_append, hS, hm]
-  rw [show 64 * (1 + 1) - (16 + 16 + (32 + 32)) = 8 * 4 from rfl,
-    wordsOf_append _ _ (by simp [hS, hm]), wordsOf_append _ _ (by omega), wordsOf_zeros]
-  simp
+    padBlocks (rndInput S m a).length = 0 ∧
+    wordsOf (padTo64 (rndInput S m a)) = wordsOf (rndInput S m a) := by
+  have hlen : (rndInput S m a).length = 64 := by simp [rndInput, hS, hm]
+  have hblocks : padBlocks (rndInput S m a).length = 0 := by simp [padBlocks, hlen]
+  refine ⟨hblocks, ?_⟩
+  rw [padTo64, hblocks]
+  simp [hlen, zeros]
+
+theorem fmt_rndInput (S m : List Byte) (a : Nat) :
+    fmt (rndInput S m a) = pad64 (rndInput S m a) := by
+  simp [fmt, IsChainFmt, IsNodeFmt, IsDigestFmt, rndInput, byte]
+
+/-! The signer packs the randomizer preimage from eight source dwords. -/
+def rndW0 (s0 : Word) : Word := (s0 <<< 16) ||| 0x701#64
+def rndW1 (a b : Word) : Word := (a >>> 48) ||| (b <<< 16)
+def rndW3 (s2 s3 m0 : Word) : Word :=
+  (s2 >>> 48) ||| (((s3 <<< 16) <<< 32) >>> 32) ||| (m0 <<< 32)
+def rndW4 (a b : Word) : Word := (a >>> 32) ||| (b <<< 32)
+def rndW7 (m3 : Word) : Word := m3 >>> 32
+
+def rndPackWords (s0 s1 s2 s3 m0 m1 m2 m3 : Word) : List Word :=
+  [rndW0 s0, rndW1 s0 s1, rndW1 s1 s2, rndW3 s2 s3 m0,
+   rndW4 m0 m1, rndW4 m1 m2, rndW4 m2 m3, rndW7 m3]
+
+private theorem rndW0_bytes (s0 : Word) :
+    bytesOfWord (rndW0 s0) = [byte 1, byte 7] ++ (bytesOfWord s0).take 6 := by
+  simp [rndW0, bytesOfWord, List.range_succ, List.take, byte]
+  repeat' constructor
+  all_goals
+    ext i hi
+    interval_cases i <;> simp_all [Nat.add_comm, Nat.add_left_comm]
+
+private theorem rndW1_bytes (a b : Word) :
+    bytesOfWord (rndW1 a b) = (bytesOfWord a).drop 6 ++ (bytesOfWord b).take 6 := by
+  simp [rndW1, bytesOfWord, List.range_succ, List.take, List.drop]
+  repeat' constructor
+  all_goals
+    ext i hi
+    interval_cases i <;> simp_all [Nat.add_comm, Nat.add_left_comm]
+
+private theorem rndW3_bytes (s2 s3 m0 : Word) :
+    bytesOfWord (rndW3 s2 s3 m0) =
+      (bytesOfWord s2).drop 6 ++ (bytesOfWord s3).take 2 ++ (bytesOfWord m0).take 4 := by
+  simp [rndW3, bytesOfWord, List.range_succ, List.take, List.drop]
+  repeat' constructor
+  all_goals
+    ext i hi
+    interval_cases i <;> simp_all [Nat.add_comm, Nat.add_left_comm]
+
+private theorem rndW4_bytes (a b : Word) :
+    bytesOfWord (rndW4 a b) = (bytesOfWord a).drop 4 ++ (bytesOfWord b).take 4 := by
+  simp [rndW4, bytesOfWord, List.range_succ, List.take, List.drop]
+  repeat' constructor
+  all_goals
+    ext i hi
+    interval_cases i <;> simp_all [Nat.add_comm, Nat.add_left_comm]
+
+private theorem rndW7_bytes (m3 : Word) :
+    bytesOfWord (rndW7 m3) = (bytesOfWord m3).drop 4 ++ zeros 4 := by
+  simp [rndW7, bytesOfWord, List.range_succ, List.drop, zeros]
+  repeat' constructor
+  all_goals
+    ext i hi
+    interval_cases i <;> simp_all [Nat.add_comm, Nat.add_left_comm]
+
+theorem rndInput_packed_bytes (s0 s1 s2 s3 m0 m1 m2 m3 : Word) :
+    rndInput (bytesOfWord s0 ++ bytesOfWord s1 ++ bytesOfWord s2 ++ bytesOfWord s3)
+      (bytesOfWord m0 ++ bytesOfWord m1 ++ bytesOfWord m2 ++ bytesOfWord m3) 0 =
+    ((rndPackWords s0 s1 s2 s3 m0 m1 m2 m3).map bytesOfWord).flatten := by
+  simp only [rndPackWords, List.map_cons, List.map_nil, List.flatten_cons, List.flatten_nil,
+    List.append_nil, rndW0_bytes, rndW1_bytes, rndW3_bytes, rndW4_bytes, rndW7_bytes]
+  simp [rndInput, List.take_append, List.take_of_length_le, le32, leBytes, zeros]
+  simp only [← List.append_assoc, List.take_append_drop]
+  simp [byte]
+
+theorem wordsOf_flatten_bytesOfWord (ws : List Word) :
+    wordsOf ((ws.map bytesOfWord).flatten) = ws := by
+  induction ws with
+  | nil => simp [wordsOf_nil]
+  | cons w ws ih =>
+    rw [List.map_cons, List.flatten_cons, wordsOf_append _ _ (by simp), wordsOf_bytesOfWord, ih]
+    rfl
+
+theorem words_rndInput_packed (s0 s1 s2 s3 m0 m1 m2 m3 : Word) :
+    wordsOf (rndInput (bytesOfWord s0 ++ bytesOfWord s1 ++ bytesOfWord s2 ++ bytesOfWord s3)
+      (bytesOfWord m0 ++ bytesOfWord m1 ++ bytesOfWord m2 ++ bytesOfWord m3) 0) =
+    rndPackWords s0 s1 s2 s3 m0 m1 m2 m3 := by
+  rw [rndInput_packed_bytes, wordsOf_flatten_bytesOfWord]
+
+theorem le32_eq_bytes4 (a : Nat) : le32 a = (bytesOfWord (BitVec.ofNat 64 a)).take 4 := by
+  simp [le32, leBytes, bytesOfWord, List.range_succ, List.take]
+  simp only [extractByte_ofNat 64 a 1 (by norm_num),
+    extractByte_ofNat 64 a 2 (by norm_num),
+    extractByte_ofNat 64 a 3 (by norm_num)]
+  norm_num
+  simpa using (extractByte_ofNat 64 a 0 (by norm_num)).symm
+
+def rndW7a (m3 : Word) (a : Nat) : Word := (m3 >>> 32) ||| ((BitVec.ofNat 64 a) <<< 32)
+
+private theorem rndW7a_bytes (m3 : Word) (a : Nat) :
+    bytesOfWord (rndW7a m3 a) = (bytesOfWord m3).drop 4 ++ le32 a := by
+  rw [le32_eq_bytes4]
+  simp [rndW7a, bytesOfWord, List.range_succ, List.take, List.drop]
+  repeat' constructor
+  all_goals
+    ext i hi
+    interval_cases i <;> simp_all [Nat.add_comm, Nat.add_left_comm]
+
+def rndPackWordsAt (s0 s1 s2 s3 m0 m1 m2 m3 : Word) (a : Nat) : List Word :=
+  [rndW0 s0, rndW1 s0 s1, rndW1 s1 s2, rndW3 s2 s3 m0,
+   rndW4 m0 m1, rndW4 m1 m2, rndW4 m2 m3, rndW7a m3 a]
+
+theorem rndInput_packed_bytes_at (s0 s1 s2 s3 m0 m1 m2 m3 : Word) (a : Nat) :
+    rndInput (bytesOfWord s0 ++ bytesOfWord s1 ++ bytesOfWord s2 ++ bytesOfWord s3)
+      (bytesOfWord m0 ++ bytesOfWord m1 ++ bytesOfWord m2 ++ bytesOfWord m3) a =
+    ((rndPackWordsAt s0 s1 s2 s3 m0 m1 m2 m3 a).map bytesOfWord).flatten := by
+  simp only [rndPackWordsAt, List.map_cons, List.map_nil, List.flatten_cons, List.flatten_nil,
+    List.append_nil, rndW0_bytes, rndW1_bytes, rndW3_bytes, rndW4_bytes, rndW7a_bytes]
+  simp [rndInput, List.take_append, List.take_of_length_le]
+  simp only [← List.append_assoc, List.take_append_drop]
+
+theorem words_rndInput_packed_at (s0 s1 s2 s3 m0 m1 m2 m3 : Word) (a : Nat) :
+    wordsOf (rndInput (bytesOfWord s0 ++ bytesOfWord s1 ++ bytesOfWord s2 ++ bytesOfWord s3)
+      (bytesOfWord m0 ++ bytesOfWord m1 ++ bytesOfWord m2 ++ bytesOfWord m3) a) =
+    rndPackWordsAt s0 s1 s2 s3 m0 m1 m2 m3 a := by
+  rw [rndInput_packed_bytes_at, wordsOf_flatten_bytesOfWord]
 
 theorem words_digestInput (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
     padBlocks (digestInput rho m).length = 1 ∧

@@ -22,6 +22,15 @@ def isFirst (i : Nat) : Bool := !isSingle i && (i % 21) % 2 = 0
 /-- The chain's segment starts with a dispatch prep (not for chain 0: prep in the layer code). -/
 def hasPrep (i : Nat) : Bool := i ≠ 0 && (isFirst i || isSingle i)
 
+/-- Number of instructions in a chain head.  Heads 2 through 41 use the
+    preceding head's return address in place of `addi; sb`. -/
+def headLen (lay i : Nat) : Nat :=
+  (if i < 2 then 6 else 5) + (if hasPrep i then 3 else 0) +
+    (if hasPrep i && hasLui lay i then 1 else 0)
+
+/-- The address written by a head's linked JALR. -/
+def linkPc (lay i : Nat) : Word := pcOf (nextPc' lay (i - 1) + headLen lay i)
+
 def hWord (lay : Nat) : Nat := 0x101 + 65536 * lay
 
 /-- Known registers in the chain blocks (`a2` is set by each head and by step 7). -/
@@ -31,7 +40,9 @@ def chK (lay : Nat) : List (Reg × Word) :=
 /-- ... and the answer slot `a2 = CB + 48` inside a chain. -/
 def chKa (lay : Nat) : List (Reg × Word) := chK lay ++ [(.x12, 0xF0)]
 
-def headK (lay i : Nat) : List (Reg × Word) := chK lay ++ [(.x15, BitVec.ofNat 64 (bIn lay i))]
+def headK (lay i : Nat) : List (Reg × Word) :=
+  chK lay ++ [(.x15, BitVec.ofNat 64 (bIn lay i))] ++
+    (if 2 ≤ i && i < 42 then [(.x4, linkPc lay (i - 1))] else [])
 
 def dReg (i : Nat) : Reg := if i < 21 then .x16 else .x17
 
@@ -48,17 +59,24 @@ def chainAddr (lay i : Nat) : Nat := 0x800 + layBody lay + 16 * i
 /-- A byte store `sb v, off(CB)` into the chain tweak word at CB. -/
 def stB (off : Nat) (v : E) : E := .bin (.st .b off) (ldE 0xC0) v
 
-/-- Head of chain `i`: (lui) (prep) `ld; ld; addi TP, i; sb TP, CB+5; addi a2, CB+48; jalr`,
-stopping at the symbolic target. -/
+/-- A halfword store into bytes 4 and 5 of the chain tweak. -/
+def stH (off : Nat) (v : E) : E := .bin (.st .h off) (ldE 0xC0) v
+
+/-- Chain 1 writes its index with `sb`; chains 2 through 41 write the low
+    halfword of the preceding head's JALR link address with `sh`. -/
 def headExp (lay i : Nat) : PRes :=
   let wa := chainAddr lay i
   let rf0 := RegFile.withKnown (headK lay i)
   let rf1 := if hasPrep i && hasLui lay i then rf0.set .x15 (cw (bVal lay i)) else rf0
   let rf2 := if hasPrep i then rf1.set .x14 (rE lay i) else rf1
   let rcur : E := if hasPrep i then rE lay i else .reg .x14
-  let n := 6 + (if hasPrep i then 3 else 0) + (if hasPrep i && hasLui lay i then 1 else 0)
-  ⟨⟨(((rf2.set .x1 (ldE wa)).set .x2 (ldE (wa + 8))).set .x4 (cw i)).set .x12 (cw 0xF0),
-    [(⟨none, BitVec.ofNat 64 0xC0⟩, stB 5 (cw i))], []⟩, 0, false, n, n, [],
+  let rf3 := (rf2.set .x1 (ldE wa)).set .x2 (ldE (wa + 8))
+  let rf4 := if 1 ≤ i && i < 41 then rf3.set .x4 (.c (linkPc lay i))
+    else if i < 2 then rf3.set .x4 (cw i) else rf3
+  let write := if i < 2 then stB 5 (cw i) else stH 4 (.c (linkPc lay (i - 1)))
+  let n := headLen lay i
+  ⟨⟨rf4.set .x12 (cw 0xF0),
+    [(⟨none, BitVec.ofNat 64 0xC0⟩, write)], []⟩, 0, false, n, n, [],
     some (mkBin .and (mkAdd rcur (.c (BitVec.ofNat 64 (tabAddr lay i) - BitVec.ofNat 64 (bVal lay i))))
       (.c (~~~1#64)))⟩
 
@@ -75,7 +93,7 @@ def stepExp (lay i mu : Nat) : PRes :=
     ⟨⟨RegFile.withKnown (chKa lay),
       [(⟨none, BitVec.ofNat 64 0xC0⟩, stB 4 (cw (mu - 1)))], []⟩, pcOf (st + 1), true, 1, 1, [], none⟩
 
-def ckeep : List Reg := [.x14, .x15, .x16, .x17, .x22, .x23, .x30, .x31]
+def ckeep : List Reg := [.x4, .x14, .x15, .x16, .x17, .x22, .x23, .x30, .x31]
 
 def okC (o : Option PRes) (e : PRes) (post : List (Reg × Word)) (keep : List Reg) : Bool :=
   optBeq o e && resOK gkL e && knownB post e && keepB keep e

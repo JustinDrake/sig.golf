@@ -49,6 +49,20 @@ theorem toB_bytesLE (n : Nat) (v : BitVec (8 * n)) :
   intro i h1 h2
   simp
 
+/-- The one-block randomizer uses the low 26 bytes of the master seed. -/
+theorem toB_seedPrefix (seed : SphincsSecurity.MasterSeed) :
+    toB (SphincsSecurity.bytesLE 26 (seed.extractLsb' 0 208)) =
+      (Ref.toList (n := 32) seed).take 26 := by
+  rw [toB_bytesLE]
+  simp only [Ref.toList, SigGolfCandidate.Legacy.bytes]
+  rw [← List.map_take, List.take_range]
+  simp only [show min 26 32 = 26 by decide]
+  apply List.map_congr_left
+  intro i hi
+  exact BitVec.extractLsb'_extractLsb'_of_le (by
+    have := List.mem_range.mp hi
+    omega)
+
 theorem leBytes_eq_toList (k v : Nat) : Ref.leBytes k v = Ref.toList (BitVec.ofNat (8 * k) v) := by
   simp only [Ref.leBytes, Ref.toList, SigGolfCandidate.Legacy.bytes]
   apply List.map_congr_left

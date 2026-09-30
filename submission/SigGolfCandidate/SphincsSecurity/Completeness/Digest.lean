@@ -1,16 +1,18 @@
 import SigGolfCandidate.SphincsSecurity.Completeness.Search
 import SigGolfCandidate.SphincsSecurity.Completeness.Fresh
 import SigGolfCandidate.SphincsSecurity.Completeness.Uniform
+import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.Inputs
 
 /-!
 # The randomizer search
 
 Each trial derives a randomizer from a fresh input, then hashes the message with it and keeps the
-digest if its last index group is zero, which a fresh answer does with probability `1/1024`. The
+digest if it is admissible (distinct leaf indices, octopus of at most `120` nodes), which a fresh answer
+is with probability `p = 15! · N / 2^210 ≥ 2^-10` (`Octopus/`). The
 second query need not be fresh: a randomizer can repeat one an earlier trial drew, and then the
 digest is the earlier, rejected one. So the induction carries the set `R` of randomizers drawn so
 far. A trial lands in `R` with probability at most `|R| / 2 ^ 128`, and otherwise its digest query
-is fresh; either way one trial fails with probability at most `1023/1024 + 2 ^ 20 / 2 ^ 128`, since
+is fresh; either way one trial fails with probability at most `1 - 2^-10 + 2 ^ 20 / 2 ^ 128`, since
 at most `A_max = 2 ^ 20` randomizers are ever drawn.
 -/
 
@@ -34,10 +36,9 @@ theorem randInput_inj (secretKey : Seeded.SecretKey) (message : Message) {t t' :
     (ht : t < 2 ^ 32) (ht' : t' < 2 ^ 32)
     (h : randInput secretKey message t = randInput secretKey message t') : t = t' := by
   simp only [randInput, randomizerHashInput] at h
-  have hfields := SphincsSecurity.fieldBytes_injective
-    (List.append_cancel_right (List.append_cancel_right (List.append_cancel_right h)))
-  simp only [TweakFields.mk.injEq, true_and, and_true] at hfields
-  have hv := congrArg BitVec.toNat hfields
+  have htrial : BitVec.ofNat 32 t = BitVec.ofNat 32 t' :=
+    SphincsSecurity.bytesLE_injective (List.append_cancel_left h)
+  have hv := congrArg BitVec.toNat htrial
   simp only [BitVec.toNat_ofNat] at hv
   rwa [Nat.mod_eq_of_lt ht, Nat.mod_eq_of_lt ht'] at hv
 
@@ -52,17 +53,8 @@ theorem msgInput_inj (secretKey : Seeded.SecretKey) (message : Message)
 
 theorem randInput_ne_msgInput (secretKey : Seeded.SecretKey) (message : Message) (trial : Nat)
     (randomness : Randomness) :
-    randInput secretKey message trial ≠ msgInput secretKey message randomness := by
-  intro h
-  have h' : fieldBytes ⟨7#8, 0#8, 0#40, BitVec.ofNat 32 trial, 0#32⟩ ++ bytesLE 16 secretKey.parameter
-        ++ (bytesLE 32 secretKey.seed ++ bytesLE 32 message)
-      = fieldBytes (hashDomainFields .message) ++ bytesLE 16 secretKey.parameter
-        ++ messageDigestPayload secretKey.root message randomness := by
-    simpa only [randInput, msgInput, randomizerHashInput, tweakableHashInput, tweakBytes,
-      List.append_assoc] using h
-  exact fieldInput_ne_of_tag_ne secretKey.parameter
-    (fields1 := ⟨7#8, 0#8, 0#40, BitVec.ofNat 32 trial, 0#32⟩)
-    (fields2 := hashDomainFields .message) (by simp [hashDomainFields, tweakFields]) _ _ h'
+    randInput secretKey message trial ≠ msgInput secretKey message randomness :=
+  randomizerHashInput_ne_tweakableHashInput _ _ _ _ _ _ _
 
 theorem cached_run (input : HashInput) (cache : QueryCache HashSpec) (answer : HashOutput)
     (hcached : cache input = some answer) :
@@ -74,13 +66,15 @@ noncomputable def digestReject : ℝ≥0∞ :=
   Pr[fun u : HashOutput => ¬ Admissible (truncateMessageDigest u) |
     ($ᵗ HashOutput : ProbComp HashOutput)]
 
-theorem digestReject_add : digestReject + (1024 : ℝ≥0∞)⁻¹ = 1 := by
+theorem digestReject_add : digestReject + (2142 : ℝ≥0∞)⁻¹ ≤ 1 := by
   have h := probEvent_compl ($ᵗ HashOutput : ProbComp HashOutput)
     (fun u => Admissible (truncateMessageDigest u))
   have hfail : Pr[⊥ | ($ᵗ HashOutput : ProbComp HashOutput)] = 0 := by simp
-  rw [probEvent_admissible, hfail, tsub_zero] at h
-  rw [add_comm]
-  exact h
+  rw [hfail, tsub_zero] at h
+  calc digestReject + (2142 : ℝ≥0∞)⁻¹
+      ≤ digestReject + Pr[fun u : HashOutput => Admissible (truncateMessageDigest u) |
+          ($ᵗ HashOutput : ProbComp HashOutput)] := add_le_add le_rfl probEvent_admissible_ge
+    _ = 1 := by rw [add_comm]; exact h
 
 theorem digestReject_le_one : digestReject ≤ 1 := probEvent_le_one
 

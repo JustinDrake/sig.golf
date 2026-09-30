@@ -12,7 +12,7 @@ theorem probOutput_stopBefore_seed_le {α : Type} (computation : OracleComp Orac
     (cache : QueryCache HashSpec) (q : Nat) (hbound : HashQueryBound computation cache q) :
     Pr[= none | sampleMasterSeed >>= fun seed =>
       (simulateQ romImpl (stopBefore (hashBad (fun input => SeedHit input seed)) computation)).run' cache] ≤
-        q / ((2 ^ 256 : Nat) : ℝ≥0∞) := by
+        q / ((2 ^ 207 : Nat) : ℝ≥0∞) := by
   classical
   let trace := (simulateQ romImpl (traceHashes computation)).run' cache
   calc
@@ -40,7 +40,7 @@ theorem probEvent_random_cache_change_le {α : Type} (computation : OracleComp O
     (hagree : ∀ seed, AgreeOutside (fun input => SeedHit input seed) (initial seed) cache)
     (q : Nat) (hbound : HashQueryBound computation cache q) (event : α → Prop) :
     Pr[event | sampleMasterSeed >>= fun seed => (simulateQ romImpl computation).run' (initial seed)] ≤
-      Pr[event | (simulateQ romImpl computation).run' cache] + q / ((2 ^ 256 : Nat) : ℝ≥0∞) := by
+      Pr[event | (simulateQ romImpl computation).run' cache] + q / ((2 ^ 207 : Nat) : ℝ≥0∞) := by
   classical
   let stopped := fun seed =>
     (simulateQ romImpl (stopBefore (hashBad (fun input => SeedHit input seed)) computation)).run' cache

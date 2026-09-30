@@ -7,15 +7,15 @@ namespace SphincsSecurity
 abbrev SeedHit := DerivationSeedHit
 
 theorem probEvent_seedHit_le (input : HashInput) :
-    Pr[SeedHit input | sampleMasterSeed] ≤ 1 / ((2 ^ 256 : Nat) : ℝ≥0∞) :=
+    Pr[SeedHit input | sampleMasterSeed] ≤ 1 / ((2 ^ 207 : Nat) : ℝ≥0∞) :=
   probEvent_derivationSeedHit_le input
 
 def SeedHitLog (inputs : List HashInput) (seed : MasterSeed) : Prop :=
   ∃ input ∈ inputs, SeedHit input seed
 
-/-- A list chosen independently of the seed contributes at most one 256-bit guess per input. -/
+/-- A list chosen independently of the seed contributes at most one 207-bit guess per input. -/
 theorem probEvent_seedHitLog_le (inputs : List HashInput) :
-    Pr[SeedHitLog inputs | sampleMasterSeed] ≤ inputs.length / ((2 ^ 256 : Nat) : ℝ≥0∞) := by
+    Pr[SeedHitLog inputs | sampleMasterSeed] ≤ inputs.length / ((2 ^ 207 : Nat) : ℝ≥0∞) := by
   induction inputs with
   | nil => simp [SeedHitLog]
   | cons input inputs ih =>
@@ -27,7 +27,7 @@ theorem probEvent_seedHitLog_le (inputs : List HashInput) :
       calc
         _ ≤ Pr[SeedHit input | sampleMasterSeed] + Pr[SeedHitLog inputs | sampleMasterSeed] :=
           probEvent_or_le _ _ _
-        _ ≤ 1 / ((2 ^ 256 : Nat) : ℝ≥0∞) + inputs.length / ((2 ^ 256 : Nat) : ℝ≥0∞) :=
+        _ ≤ 1 / ((2 ^ 207 : Nat) : ℝ≥0∞) + inputs.length / ((2 ^ 207 : Nat) : ℝ≥0∞) :=
           add_le_add (probEvent_seedHit_le input) ih
         _ = _ := by simp [List.length_cons, Nat.cast_add, ENNReal.add_div, add_comm]
 

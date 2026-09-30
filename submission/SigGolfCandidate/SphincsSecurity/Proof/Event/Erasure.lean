@@ -126,7 +126,7 @@ theorem probEvent_random_cache_change_event {α : Type} (computation : OracleCom
     Pr[fun result => event result.1 ∧ result.2 ≤ budget | sampleMasterSeed >>= fun seed =>
       (simulateQ romImpl (countHashQueries computation)).run' (initial seed)] ≤
       Pr[fun result => event result.1 ∧ result.2 ≤ budget | (simulateQ romImpl (countHashQueries computation)).run' cache] +
-        budget / ((2 ^ 256 : Nat) : ℝ≥0∞) := by
+        budget / ((2 ^ 207 : Nat) : ℝ≥0∞) := by
   have hleft : Pr[fun result => event result.1 ∧ result.2 ≤ budget | sampleMasterSeed >>= fun seed =>
       (simulateQ romImpl (countHashQueries computation)).run' (initial seed)] =
       Pr[fun outcome => ∃ result, outcome = some result ∧ event result.1 | sampleMasterSeed >>= fun seed =>
