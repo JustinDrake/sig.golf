@@ -143,6 +143,13 @@ theorem uEr_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : Mac
     (uEr lay).eval s = BitVec.ofNat 64 (idx / 2 ^ layS lay % 2 ^ heightL lay) := by
   have hr := routeIn_lt idx lay hidx
   have hh := heightL_le lay hlay
+  by_cases h0 : lay = 0
+  · subst lay
+    change s.getReg .x30 = BitVec.ofNat 64 (idx / 2 ^ 23 % 2 ^ 11)
+    change s.getReg .x30 = BitVec.ofNat 64 (idx / 2 ^ 23) at h
+    rw [Nat.mod_eq_of_lt (show idx / 2 ^ 23 < 2 ^ 11 by omega)]
+    exact h
+  simp only [uEr, if_neg h0]
   show (E.bin .and (.reg (routeReg lay)) (cw (2 ^ heightL lay - 1))).eval s = _
   rw [and_mask_eval s _ _ _ (by omega) (by omega) h, routeIn_eq idx lay hlay]
 
@@ -151,6 +158,12 @@ theorem tauEr_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : M
     (tauEr lay).eval s = BitVec.ofNat 64 (idx / 2 ^ (layS lay + heightL lay)) := by
   have hr := routeIn_lt idx lay hidx
   have hh := heightL_le lay hlay
+  by_cases h0 : lay = 0
+  · subst lay
+    change (0 : Word) = BitVec.ofNat 64 (idx / 2 ^ 34)
+    rw [Nat.div_eq_of_lt hidx]
+    rfl
+  simp only [tauEr, if_neg h0]
   show (E.bin .srl (.reg (routeReg lay)) (cw (heightL lay))).eval s = _
   rw [srl_reg_eval s _ _ _ (by omega) (by omega) h, routeIn_eq idx lay hlay, Nat.div_div_eq_div_mul,
     ← Nat.pow_add]
@@ -168,6 +181,16 @@ theorem e_lt32 (lay idx : Nat) (hlay : lay < 5) : idx / 2 ^ layS lay % 2 ^ heigh
   have := Nat.mod_lt (idx / 2 ^ layS lay) (show 0 < 2 ^ heightL lay from Nat.two_pow_pos _)
   have : 2 ^ heightL lay ≤ 2048 := by interval_cases lay <;> decide
   omega
+
+theorem carryEr_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : MachineState)
+    (h : s.getReg (routeReg lay) = BitVec.ofNat 64 (routeIn idx lay)) :
+    (carryEr lay).eval s = BitVec.ofNat 64
+      (if lay = 0 then idx / 2 ^ layS lay % 2 ^ heightL lay
+       else idx / 2 ^ (layS lay + heightL lay)) := by
+  unfold carryEr
+  split_ifs
+  · exact uEr_eval idx lay hlay hidx s h
+  · exact tauEr_eval idx lay hlay hidx s h
 
 theorem uHE_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : MachineState)
     (h : s.getReg (routeReg lay) = BitVec.ofNat 64 (routeIn idx lay)) :
@@ -199,7 +222,10 @@ theorem x31Er_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : M
       2 ^ 32 * (idx / 2 ^ layS lay % 2 ^ heightL lay)) := by
   have ht := tau_lt lay idx hlay hidx
   have he := e_lt32 lay idx hlay
-  have h1 : (x31Er lay).eval s = (tauEr lay).eval s + ((uEr lay).eval s <<< ((BitVec.ofNat 64 32).toNat % 64)) := rfl
+  have h1 : (x31Er lay).eval s = (tauEr lay).eval s + ((uEr lay).eval s <<< ((BitVec.ofNat 64 32).toNat % 64)) := by
+    by_cases h0 : lay = 0
+    · simp [x31Er, tauEr, h0, cw, E.eval, BinOp.eval]
+    · simp only [x31Er, if_neg h0]; rfl
   rw [h1, tauEr_eval idx lay hlay hidx s h, uEr_eval idx lay hlay hidx s h]
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]

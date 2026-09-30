@@ -31,7 +31,7 @@ def LayerIn (L : LCtx) (M : Val) (s : MachineState) : Prop :=
 /-- After the encoding hash (answer `a` in EO). -/
 def EncOut (L : LCtx) (t : Nat) (a : BitVec 256) (s : MachineState) : Prop :=
   Glob gkL L.wl L.pk s ∧ KnownOK (bK L.lay) s ∧
-  s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧
+  s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 (if L.lay = 0 then L.e else L.tau) ∧
   s.getReg .x31 = BitVec.ofNat 64 (L.tau + 2 ^ 32 * L.e) ∧
   s.getMem (BitVec.ofNat 64 320) = a.extractLsb' 0 64 ∧
   s.getMem (BitVec.ofNat 64 328) = a.extractLsb' 64 64 ∧
@@ -50,16 +50,15 @@ theorem lc_stream {t : Nat} (ht : t < nCopy lay) :
       (chKa lay) [.x22, .x23, .x30, .x31] = true ∧
     specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br true]) specRej1 [] [] = true ∧
     specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) (specRej2 lay) [] [] = true ∧
-    (lay = 0 → specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] = true ∧
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] = true ∧
-      specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] [] = true) := by
+    (lay = 0 → specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] = true ∧
+      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] = true) := by
   have h := layerCheck_at lay hl
   simp only [layerCheck, Bool.and_eq_true, List.all_eq_true, List.mem_range] at h
   obtain ⟨⟨⟨⟨h1, h2⟩, h3⟩, h4⟩, h5⟩ := h.1 t ht
   refine ⟨h1, h2, h3, h4, fun h0 => ?_⟩
   subst h0
   simp only [bne_self_eq_false, Bool.false_or, Bool.and_eq_true] at h5
-  exact ⟨h5.1.1, h5.1.2, h5.2⟩
+  exact h5
 
 theorem lc_leaf (d : Bool) :
     specB gkL (runAt (headK lay 42) [] (nextPc' lay 41) [.br d]) (specLeaf lay d)
@@ -138,7 +137,7 @@ theorem enc_step (L : LCtx) (hL : L.ok) (M : Val) (s : MachineState) (hs : Layer
       writeHash_at0 _ a _ h12 (by omega), writeHash_at8 _ a _ h12 (by omega), ?_, ?_, ?_⟩
     · rw [writeHash_getReg, hu.regs (.x23, uHE L.lay) (by simp [specA]), uHE_eval L.idx L.lay hlay hidx s hR]
       rfl
-    · rw [writeHash_getReg, hu.regs (.x30, tauEr L.lay) (by simp [specA]), tauEr_eval L.idx L.lay hlay hidx s hR]
+    · rw [writeHash_getReg, hu.regs (.x30, carryEr L.lay) (by simp [specA]), carryEr_eval L.idx L.lay hlay hidx s hR]
       rfl
     · rw [writeHash_getReg, hu.regs (.x31, x31Er L.lay) (by simp [specA]), hx31]
     · intro h6

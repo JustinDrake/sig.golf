@@ -23,7 +23,7 @@ def CCtx.x31 (c : CCtx) : Word := BitVec.ofNat 64 (c.tau + 2 ^ 32 * c.e)
 
 def CCtx.Regs (c : CCtx) (s : MachineState) : Prop :=
   s.getReg .x16 = c.d0 ∧ s.getReg .x17 = c.d1 ∧
-  s.getReg .x23 = BitVec.ofNat 64 (c.e + 2 ^ heightL c.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 c.tau ∧
+  s.getReg .x23 = BitVec.ofNat 64 (c.e + 2 ^ heightL c.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 (if c.lay = 0 then c.e else c.tau) ∧
   s.getReg .x31 = c.x31
 
 def CCtx.ok (c : CCtx) : Prop :=

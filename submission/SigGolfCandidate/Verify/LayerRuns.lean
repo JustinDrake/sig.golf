@@ -14,7 +14,7 @@ def nCopy (lay : Nat) : Nat := if lay = 4 then 3 else 2
 (layer 4) or after the last fold hash of layer `lay + 1` in stream `t`. -/
 def preStart (lay t : Nat) : Nat :=
   if lay = 4 then (layerPcTab.getD 4 []).getD t 0 else lvlPc (3 - lay) t 0 (heightL (lay + 1) - 1) + 7
-def stepsA (lay : Nat) : Nat := if lay = 0 then 15 else if lay = 4 then 13 else 14
+def stepsA (lay : Nat) : Nat := if lay = 0 then 12 else if lay = 4 then 13 else 14
 def encPc (lay t : Nat) : Nat := preStart lay t + stepsA lay
 
 /-- Known registers at the precode start. -/
@@ -30,17 +30,26 @@ def bK (lay : Nat) : List (Reg × Word) :=
     (.x11, 64), (.x12, 0x140)] ++
     (if lay < 4 then [(.x15, BitVec.ofNat 64 (bVal (lay + 1) 41))] else [])
 
+/-- At the top layer, the incoming route is already an 11-bit leaf index. -/
 def uEr (lay : Nat) : E :=
-  .bin .and (.reg (if lay = 4 then .x22 else .x30)) (cw (2 ^ heightL lay - 1))
-def tauEr (lay : Nat) : E := .bin .srl (.reg (if lay = 4 then .x22 else .x30)) (cw (heightL lay))
-def x31Er (lay : Nat) : E := .bin .add (tauEr lay) (.bin .sll (uEr lay) (cw 32))
+  if lay = 0 then .reg .x30 else
+    .bin .and (.reg (if lay = 4 then .x22 else .x30)) (cw (2 ^ heightL lay - 1))
+def tauEr (lay : Nat) : E :=
+  if lay = 0 then cw 0 else
+    .bin .srl (.reg (if lay = 4 then .x22 else .x30)) (cw (heightL lay))
+/-- Physical x30 retains the leaf index once the final tree address is known to be zero. -/
+def carryEr (lay : Nat) : E := if lay = 0 then uEr lay else tauEr lay
+
+def x31Er (lay : Nat) : E :=
+  if lay = 0 then .bin .sll (uEr lay) (cw 32) else
+    .bin .add (tauEr lay) (.bin .sll (uEr lay) (cw 32))
 /-- `U = e | 2^h` (heap sentinel): `ori` (h < 11) or two `addi 1024` (h = 11). -/
 def uHE (lay : Nat) : E :=
   if lay = 0 then .bin .add (uEr lay) (cw 2048) else .bin .or (uEr lay) (cw (2 ^ heightL lay))
 def ctrE (lay : Nat) : E := .un (.ld .wu (4 * (lay % 2))) (ldE (0x20B8 + 8 * (lay / 2)))
 
 def specA (lay t : Nat) : Spec :=
-  ⟨[(.x23, uHE lay), (.x30, tauEr lay), (.x31, x31Er lay)],
+  ⟨[(.x23, uHE lay), (.x30, carryEr lay), (.x31, x31Er lay)],
    [(⟨none, BitVec.ofNat 64 312⟩, .c 0), (⟨none, BitVec.ofNat 64 304⟩, ctrE lay),
     (⟨none, BitVec.ofNat 64 264⟩, x31Er lay), (⟨none, BitVec.ofNat 64 256⟩, cw (hWord lay + 768))],
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
@@ -102,9 +111,11 @@ def specRej2 (lay : Nat) : Spec := ⟨rejK, [], 32, true, 21 + (if 4 ≤ lay the
 
 /-! ## Leaf -/
 
+def leafTauE (lay : Nat) : E := if lay = 0 then cw 0 else .reg .x30
+
 def specLeaf (lay : Nat) (d : Bool) : Spec :=
   ⟨[(.x10, cw 832), (.x11, cw 704), (.x12, cw (480 + 16 * (if d then 1 else 0)))],
-   [(⟨none, BitVec.ofNat 64 456⟩, stW0 456 (.reg .x30)), (⟨none, BitVec.ofNat 64 448⟩, cw (hWord lay + 512)),
+   [(⟨none, BitVec.ofNat 64 456⟩, stW0 456 (leafTauE lay)), (⟨none, BitVec.ofNat 64 448⟩, cw (hWord lay + 512)),
     (⟨none, BitVec.ofNat 64 840⟩, .reg .x31), (⟨none, BitVec.ofNat 64 832⟩, cw (hWord lay + 256))],
    xPc (4 - lay) (if d then 1 else 0) 0 + 1, true, 11,
    [⟨.lt, .bin .sll (.reg .x23) (cw 63), .c 0, d⟩], none, 11⟩
@@ -119,13 +130,10 @@ def leafPost (lay : Nat) : List (Reg × Word) :=
 def cmpPc (t : Nat) : Nat := compareTab.getD t 0
 def cmpK : List (Reg × Word) := fk false 0x1C0 64 ++ [(.x12, 0x180)]
 def specAcc (t : Nat) : Spec :=
-  ⟨[(.x5, cw 1), (.x10, cw 0)], [], cmpPc t + 8, true, 8,
-   [⟨.ne, ldE 392, ldE 168, false⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
+  ⟨[(.x5, cw 1), (.x10, .bin .xor (ldE 392) (ldE 168))], [], cmpPc t + 7, true, 7,
+   [⟨.ne, ldE 384, ldE 160, false⟩], none, 7⟩
 def specCR1 (t : Nat) : Spec :=
   ⟨rejK, [], cmpPc t + 11, true, 5, [⟨.ne, ldE 384, ldE 160, true⟩], none, 5⟩
-def specCR2 (t : Nat) : Spec :=
-  ⟨rejK, [], cmpPc t + 11, true, 8, [⟨.ne, ldE 392, ldE 168, true⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
-
 /-! ## The per-layer check -/
 
 def layerCheck (lay : Nat) : Bool :=
@@ -135,9 +143,8 @@ def layerCheck (lay : Nat) : Bool :=
       (chKa lay) [.x22, .x23, .x30, .x31] &&
     specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br true]) specRej1 [] [] &&
     specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) (specRej2 lay) [] [] &&
-    (lay != 0 || (specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] &&
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] &&
-      specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] []))) &&
+    (lay != 0 || (specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] &&
+      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] []))) &&
   ((List.range 2).all fun d =>
     specB gkL (runAt (headK lay 42) [] (nextPc' lay 41) [.br (d == 1)]) (specLeaf lay (d == 1))
       (leafPost lay) leafKeep)
