@@ -5,7 +5,7 @@ set_option maxRecDepth 8192
 /-!
 # Aligned signer packing plan
 
-The old pack mixed each 4-byte counter into a layer. The compact 13-byte-tail
+The old pack mixed each 4-byte counter into a layer. The compact 14-byte-tail
 format lets the existing staged layer bodies move directly by aligned dwords.
 The signer writes the five counters only after these 488 body dwords.
 -/
@@ -32,27 +32,27 @@ theorem signatureBodyOffsets :
     (List.range nLayers).map signatureBodyOffset =
       [0x3b60, 0x3eb0, 0x41b0, 0x44b0, 0x47b0] := by decide
 
-/-- The low 64 bits of the five 20-bit counters. -/
-def lowWord (c0 c1 c2 c3 : Nat) : BitVec 64 :=
-  BitVec.ofNat 64 (c0 + 2 ^ 20 * c1 + 2 ^ 40 * c2 + 2 ^ 60 * c3)
+/-- The low 64 bits of the five 22-bit counters. -/
+def lowWord (c0 c1 c2 : Nat) : BitVec 64 :=
+  BitVec.ofNat 64 (c0 + 2 ^ 22 * c1 + 2 ^ 44 * c2)
 
-/-- Bits 64..99; its upper 28 bits are zero for accepted counters. -/
+/-- Bits 64..109; its upper 18 bits are zero for accepted counters. -/
 def highWord (c2 c3 c4 : Nat) : BitVec 64 :=
-  BitVec.ofNat 64 (c3 / 2 ^ 4 + 2 ^ 16 * c4)
+  BitVec.ofNat 64 (c2 / 2 ^ 20 + 4 * c3 + 2 ^ 24 * c4)
 
 theorem highWord_value_lt (c2 c3 c4 : Nat)
     (h2 : c2 < CounterPack.radix)
     (h3 : c3 < CounterPack.radix)
     (h4 : c4 < CounterPack.radix) :
-    c3 / 2 ^ 4 + 2 ^ 16 * c4 < 2 ^ 36 := by
+    c2 / 2 ^ 20 + 4 * c3 + 2 ^ 24 * c4 < 2 ^ 46 := by
   norm_num [CounterPack.radix, CounterPack.counterBits] at h2 h3 h4 ⊢
   omega
 
 /-- The two aligned stores in the signer tail split the five-digit value at
-bit 64. The top 28 bits of the second store are zero by `highWord_value_lt`. -/
+bit 64. The top 18 bits of the second store are zero by `highWord_value_lt`. -/
 theorem packDigits_five_low (c0 c1 c2 c3 c4 : Nat) :
     CounterPack.packDigits [c0, c1, c2, c3, c4] % 2 ^ 64 =
-      (c0 + 2 ^ 20 * c1 + 2 ^ 40 * c2 + 2 ^ 60 * c3) % 2 ^ 64 := by
+      (c0 + 2 ^ 22 * c1 + 2 ^ 44 * c2) % 2 ^ 64 := by
   norm_num [CounterPack.packDigits, CounterPack.radix, CounterPack.counterBits]
   omega
 
@@ -61,14 +61,14 @@ theorem packDigits_five_high (c0 c1 c2 c3 c4 : Nat)
     (h1 : c1 < CounterPack.radix)
     (h2 : c2 < CounterPack.radix) :
     CounterPack.packDigits [c0, c1, c2, c3, c4] / 2 ^ 64 =
-      c3 / 2 ^ 4 + 2 ^ 16 * c4 := by
+      c2 / 2 ^ 20 + 4 * c3 + 2 ^ 24 * c4 := by
   norm_num [CounterPack.packDigits, CounterPack.radix, CounterPack.counterBits] at h0 h1 h2 ⊢
   omega
 
 /-- The value written by the first aligned store is the low machine word of
 the canonical five-digit encoding. -/
 theorem lowWord_eq_packDigits (c0 c1 c2 c3 c4 : Nat) :
-    lowWord c0 c1 c2 c3 =
+    lowWord c0 c1 c2 =
       BitVec.ofNat 64 (CounterPack.packDigits [c0, c1, c2, c3, c4] % 2 ^ 64) := by
   rw [packDigits_five_low]
   apply BitVec.eq_of_toNat_eq

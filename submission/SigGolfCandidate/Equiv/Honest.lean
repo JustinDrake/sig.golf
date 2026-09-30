@@ -954,7 +954,7 @@ theorem hq_sign (sk : SphincsSecurity.Seeded.SecretKey) (hP : sk.parameter = 0)
   · exact hq_pure _
 
 /-- **expand** (abstract) makes only honest queries: one digest query with parameter `0`. -/
-theorem hq_aExpand (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6061) :
+theorem hq_aExpand (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6062) :
     HQ (aExpand m pk σ) :=
   hq_bind (hq_messageDigest _ rfl _ _ _) fun _ => hq_pure _
 

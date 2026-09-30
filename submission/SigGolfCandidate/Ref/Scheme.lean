@@ -161,7 +161,7 @@ def searchCounter (lay tau e : Nat) (M : Val) (c : Nat) :
   | 0 => pure none
   | fuel + 1 => do
     let d ← hash16 (encInput lay tau e M c)
-    match decodeDigits lay d with
+    match decodeDigits d with
     | some x => pure (some (c, x))
     | none => searchCounter lay tau e M (c + 1) fuel
 
@@ -235,9 +235,9 @@ def signList (S cache m : List Byte) : OracleComp HashSpec (Option (List Byte)) 
   else pure none
 
 def signRef (sk : Bytes 32) (cache : Cache) (m : Bytes 32) :
-    OracleComp HashSpec (Option (Bytes 6061)) := do
+    OracleComp HashSpec (Option (Bytes 6062)) := do
   let r ← signList (toList sk) (toList cache) (toList m)
-  pure (r.map (ofList 6061))
+  pure (r.map (ofList 6062))
 
 /-! ## Signature and witness layout -/
 
@@ -335,7 +335,7 @@ def expandList (m sig : List Byte) : OracleComp HashSpec (Option (List Byte)) :=
   pure (expandOf sig N)
 
 /-- `ref.expand(pk, m, sig)` (the public key is unused). -/
-def expandRef (m : Bytes 32) (_pk : Bytes 16) (sig : Bytes 6061) :
+def expandRef (m : Bytes 32) (_pk : Bytes 16) (sig : Bytes 6062) :
     OracleComp HashSpec (Option (Bytes 6348)) := do
   let r ← expandList (toList m) (toList sig)
   pure (r.map (ofList 6348))
@@ -487,7 +487,7 @@ def verifyLayers (w : List Byte) (idx : Nat) : Nat → Val → OracleComp HashSp
   | lay + 1, M => do
     let (e, tau) := route idx lay
     let d ← hash16 (encInput lay tau e M (witCounter w lay))
-    match decodeDigits lay d with
+    match decodeDigits d with
     | none => pure none
     | some x =>
       let leaf ← verifyLeaf w lay tau e x
@@ -511,7 +511,7 @@ def verifyRef (m : Bytes 32) (pk : Bytes 16) (w : Bytes 6348) : OracleComp HashS
   verifyList (toList m) (toList pk) (toList w)
 
 /-- `ref.verify`: expand, then verify the witness (`false` if expand fails). -/
-def verifySigRef (m : Bytes 32) (pk : Bytes 16) (sig : Bytes 6061) : OracleComp HashSpec Bool := do
+def verifySigRef (m : Bytes 32) (pk : Bytes 16) (sig : Bytes 6062) : OracleComp HashSpec Bool := do
   match ← expandRef m pk sig with
   | none => pure false
   | some w => verifyRef m pk w

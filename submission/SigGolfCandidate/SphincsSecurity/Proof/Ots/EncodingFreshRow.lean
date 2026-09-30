@@ -7,13 +7,11 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] Finset.univ
 
-variable {lay : Layer}
-
-def FreshEncodingSupport (lay : Layer) (reference : Encoding) (allowed : Finset HashOutput) : Prop :=
-  allowed = Finset.univ ∨ ∀ output ∈ allowed, decodeEncodingOutput lay output = none ∨ decodeEncodingOutput lay output = some reference
+def FreshEncodingSupport (reference : Encoding) (allowed : Finset HashOutput) : Prop :=
+  allowed = Finset.univ ∨ ∀ output ∈ allowed, decodeEncodingOutput output = none ∨ decodeEncodingOutput output = some reference
 
 theorem firstSuccess_allowed_fresh {n : Nat} (index : Fin n) (reference : Encoding) (coordinate : Fin n) :
-    FreshEncodingSupport lay reference (FirstSuccessTable.allowed (decodeEncodingOutput lay) index reference coordinate) := by
+    FreshEncodingSupport reference (FirstSuccessTable.allowed decodeEncodingOutput index reference coordinate) := by
   unfold FirstSuccessTable.allowed
   split_ifs with hlt heq
   · exact Or.inr fun output ho => Or.inl ((FirstSuccessTable.mem_invalid _ _).mp ho)
@@ -21,23 +19,23 @@ theorem firstSuccess_allowed_fresh {n : Nat} (index : Fin n) (reference : Encodi
   · exact Or.inl rfl
 
 theorem freshEncodingSupport_probability_le (reference : Encoding) (targets : Finset Encoding) (href : reference ∉ targets)
-    (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport lay reference allowed) :
-    Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests lay targets | PMF.uniformOfFinset allowed ha] ≤
+    (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport reference allowed) :
+    Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests targets | PMF.uniformOfFinset allowed ha] ≤
       (targets.card : ENNReal) / Fintype.card Digest := by
   rcases hallowed with rfl | hrestricted
-  · have h := OtsCode.decodingDigests_uniform_le (lay := lay) targets
+  · have h := OtsCode.decodingDigests_uniform_le targets
     simpa only [probEvent_eq_tsum_ite, probOutput_uniformSample, PMF.probOutput_eq_apply, PMF.uniformOfFinset_apply,
       Finset.mem_univ, if_true, Finset.card_univ] using h
-  · have hzero : Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests lay targets |
+  · have hzero : Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests targets |
         PMF.uniformOfFinset allowed ha] = 0 := by
       simp only [probEvent_eq_tsum_ite, PMF.probOutput_eq_apply]
       apply ENNReal.tsum_eq_zero.mpr
       intro output
       by_cases hm : output ∈ allowed
-      · have hn : truncateHash output ∉ OtsCode.decodingDigests lay targets := by
+      · have hn : truncateHash output ∉ OtsCode.decodingDigests targets := by
           intro hd
           obtain ⟨word, hw, hdecode⟩ := OtsCode.mem_decodingDigests.mp hd
-          change decodeEncodingOutput lay output = some word at hdecode
+          change decodeEncodingOutput output = some word at hdecode
           rcases hrestricted output hm with hi | hr
           · rw [hi] at hdecode
             contradiction
@@ -49,20 +47,20 @@ theorem freshEncodingSupport_probability_le (reference : Encoding) (targets : Fi
     exact zero_le
 
 theorem freshEncodingSupport_neighbor_le (reference : Encoding) (lowered : ChainIndex)
-    (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport lay reference allowed) :
-    Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests lay (OtsCode.unitNeighbors lay reference lowered) |
+    (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport reference allowed) :
+    Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests (OtsCode.unitNeighbors reference lowered) |
       PMF.uniformOfFinset allowed ha] ≤ (OtsCode.unitNeighborBound : ENNReal) / (Fintype.card Digest : ENNReal) := by
-  have href : reference ∉ OtsCode.unitNeighbors lay reference lowered := by
+  have href : reference ∉ OtsCode.unitNeighbors reference lowered := by
     intro h
     exact (OtsCode.mem_unitNeighbors.mp h).ne rfl
   exact (freshEncodingSupport_probability_le reference _ href allowed ha hallowed).trans
     (ENNReal.div_le_div_right (Nat.cast_le.mpr (OtsCode.unitNeighbors_card_le reference lowered)) _)
 
 theorem freshEncodingSupport_all_neighbors_le (reference : Encoding)
-    (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport lay reference allowed) :
-    Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests lay (OtsCode.allUnitNeighbors lay reference) |
+    (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport reference allowed) :
+    Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests (OtsCode.allUnitNeighbors reference) |
       PMF.uniformOfFinset allowed ha] ≤ (OtsCode.neighborBound : ENNReal) / (Fintype.card Digest : ENNReal) := by
-  have href : reference ∉ OtsCode.allUnitNeighbors lay reference := by
+  have href : reference ∉ OtsCode.allUnitNeighbors reference := by
     intro h
     obtain ⟨lowered, ht⟩ := OtsCode.mem_allUnitNeighbors.mp h
     exact ht.ne rfl

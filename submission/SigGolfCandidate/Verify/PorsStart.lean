@@ -52,11 +52,11 @@ theorem ctr_word4 (wl : List Byte) (hwl : wl.length = 6348) (s : MachineState) (
 theorem ctr_iff (wl : List Byte) (hwl : wl.length = 6348) (s : MachineState) (hW : WitOK wl s) :
     ctrE'.eval s = 0 ↔ countersOk wl = true := by
   have e : ctrE'.eval s = (ctrX.eval s ||| (ctrX.eval s <<< ((BitVec.ofNat 64 32).toNat % 64))) >>>
-      ((BitVec.ofNat 64 52).toNat % 64) := rfl
+      ((BitVec.ofNat 64 54).toNat % 64) := rfl
   have ex : ctrX.eval s = s.getMem (BitVec.ofNat 64 8376) ||| s.getMem (BitVec.ofNat 64 8384) |||
       (extractWord32 (s.getMem (BitVec.ofNat 64 8392)) 0).zeroExtend 64 := rfl
   have hx := (ctrX.eval s).isLt
-  have hsh : ctrE'.eval s = 0 ↔ (ctrX.eval s).toNat % 2 ^ 32 < 2 ^ 20 ∧ (ctrX.eval s).toNat / 2 ^ 32 < 2 ^ 20 := by
+  have hsh : ctrE'.eval s = 0 ↔ (ctrX.eval s).toNat % 2 ^ 32 < 2 ^ 22 ∧ (ctrX.eval s).toNat / 2 ^ 32 < 2 ^ 22 := by
     rw [e, ← ctr_shift_iff _ hx]
     constructor
     · intro h
@@ -94,7 +94,7 @@ def DigestOut (P : PCtx) (s : MachineState) : Prop :=
   (∀ i, i < 4 → s.getMem (BitVec.ofNat 64 (0x160 + 8 * i)) = P.a.extractLsb' (64 * i) 64) ∧
   (∀ A, A < 0x800 → A % 8 = 0 → 0x60 ≤ A → A ≠ 0xA0 → A ≠ 0xA8 → (A < 0x160 ∨ 0x180 ≤ A) →
     s.getMem (BitVec.ofNat 64 A) = 0) ∧
-  s.pc = pcOf 26
+  s.pc = pcOf 27
 
 /-- The digest block `tw(12, 0, 0, 0, 0) || rho || m` as words. -/
 theorem fmt_digestInput_words (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
@@ -121,16 +121,16 @@ theorem init_glob (ml pkl wl : List Byte) (s : MachineState) (hs : InitOK ml pkl
 theorem startCheck_parts :
     specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] = true ∧
     specB [] (runAt k0 [] 0 [.br true]) specStartRej [] [] = true ∧
-    specB gkD (runAt dgK [leafPc 0] 26 []) setupSpec setupPost [] = true := by
+    specB gkD (runAt dgK [leafPc 0] 27 []) setupSpec setupPost [] = true := by
   have := startCheck_ok
   simp only [startCheck, Bool.and_eq_true] at this
   exact ⟨this.1.1, this.1.2, this.2⟩
 
 theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.length = 6348)
     (s : MachineState) (hs : InitOK ml pkl wl s) :
-    (countersOk wl = false → ∃ t, Steps image s 18 18 t ∧ fetch image t = some (.base .ECALL) ∧
+    (countersOk wl = false → ∃ t, Steps image s 19 19 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 1 ∧ t.getReg .x10 = 1) ∧
-    (countersOk wl = true → ∃ t, Steps image s 25 25 t ∧ fetch image t = some (.base .ECALL) ∧
+    (countersOk wl = true → ∃ t, Steps image s 26 26 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 0 ∧ hashArgumentsValid t = true ∧
         hashInput t = fmt (digestInput (witRho wl) ml) ∧
         ∀ a, DigestOut ⟨wl, pkl, a⟩ (writeHash t a)) := by
@@ -273,7 +273,7 @@ theorem stW0_low (s : MachineState) (a : Nat) (v : E) (V : Nat) (hv : v.eval s =
   omega
 
 theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P s) :
-    ∃ u, Steps image s 101 101 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
+    ∃ u, Steps image s 103 103 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
   obtain ⟨hG, hK, hd, hZ, hpc⟩ := hs
   obtain ⟨-, -, cSet⟩ := startCheck_parts
   obtain ⟨u, hu⟩ := spec_run cSet s hpc hK (by simp [setupSpec])
@@ -319,10 +319,7 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
         · exact (setup_blk i hi).2
       rw [key]
       exact stW0_low s a idxE _ hidx (by omega)
-    · rw [hlook 0x240 (by omega), look_some (e := stW 0x240 (cw 1)) (by decide +kernel)]
-      change StoreKind.merge .w (s.getMem (BitVec.ofNat 64 0x240)) 4 (1#64) = _
-      rw [hZ 0x240 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
-      rfl
+    · rw [hlook 0x240 (by omega), look_some (e := .c (-1#64)) (by decide +kernel)]; rfl
     · intro r hr
       by_cases h15 : r < 15
       · rw [hlook _ (by unfold PIND; omega), setup_pind r h15]
@@ -342,9 +339,9 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
   refine ⟨u, hu.steps, S, ⟨⟨⟨fun p hp => hK' p (by simp [setupPost] at hp ⊢; tauto), PFrame.refl u⟩, S, ?_⟩,
     hu.pc rfl, ?_, ?_, ?_, fun i hi => by simp at hi, fun h => by omega, ?_⟩⟩
   · rw [hu.regs (.x22, idxE) (by simp [setupSpec]), hidx]
-  · rw [hK' (.x14, 0x7B8) (by simp [setupPost])]; rfl
+  · rw [hK' (.x14, 0x830) (by simp [setupPost])]; rfl
   · rfl
-  · rw [hK' (.x15, 0) (by simp [setupPost])]; rfl
+  · rw [hK' (.x15, BitVec.ofNat 64 EMPTY) (by simp [setupPost])]; rfl
   · simp [SegBnd, wStream, wSec, porsK]
 
 end SigGolfCandidate.Verify

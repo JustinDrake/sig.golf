@@ -50,7 +50,7 @@ theorem signRefines_of_counts (hc : sub.sizes.cache = CACHE_BYTES)
 end
 
 /-- `expandRef` makes one query, the one-block digest of `rho` and `m`. -/
-theorem spec_expandRef (m : Bytes 32) (pk : Bytes 16) (sig : Bytes 6061) :
+theorem spec_expandRef (m : Bytes 32) (pk : Bytes 16) (sig : Bytes 6062) :
     Spec (fun _ => True) (fun _ => True) 1 (expandRef m pk sig) := by
   have hr : (sigRho (toList sig)).length = 16 := by
     simp [sigRho, slice, length_toList]
@@ -61,7 +61,7 @@ theorem spec_expandRef (m : Bytes 32) (pk : Bytes 16) (sig : Bytes 6061) :
 
 /-- Expand of the submission from its refinement of `expandRef` (in the form of `Sign.Sim.run_eq`). -/
 theorem expandOneBlock_of_counts
-    (h : ∀ m pk (sig : Bytes 6061), RefinesCounts submission .expand (m, pk, sig) (expandRef m pk sig)) :
+    (h : ∀ m pk (sig : Bytes 6062), RefinesCounts submission .expand (m, pk, sig) (expandRef m pk sig)) :
     ExpandOneBlock submission := by
   rintro ⟨m, pk, sig⟩
   refine ⟨_, expandRef m pk sig, spec_expandRef m pk sig, ?_⟩
@@ -75,7 +75,7 @@ refinements in the form of `Sign.Sim.run_eq` (`Final.lean` discharges `hK` and `
 theorem submission_compressionBounds_of_counts'
     (hK : ∀ sk, RefinesCounts submission .keygen sk (keygenRef sk))
     (hS : ∀ sk cache m, RefinesCounts submission .sign (sk, cache, m) (signRef sk cache m))
-    (hE : ∀ m pk (sig : Bytes 6061), RefinesCounts submission .expand (m, pk, sig) (expandRef m pk sig)) :
+    (hE : ∀ m pk (sig : Bytes 6062), RefinesCounts submission .expand (m, pk, sig) (expandRef m pk sig)) :
     submission.CompressionBounds :=
   submission_compressionBounds_of_refines (keygenRefines_of_counts submission hK)
     (signRefines_of_counts submission rfl hS) (expandOneBlock_of_counts hE)

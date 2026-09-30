@@ -231,59 +231,30 @@ theorem swA5_toNat : (swA5.eval s).toNat = m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (
     swA4_toNat]
   rfl
 
-theorem swA6_toNat : (swA6.eval s).toNat = m4 (m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (dB s) / 64) % 18446744073709551616)) := by
-  rw [show swA6.eval s = swA5.eval s + (swA5.eval s >>> ((BitVec.ofNat 64 12).toNat % 64)) from rfl,
-    BitVec.toNat_add, BitVec.toNat_ushiftRight, swA5_toNat, Nat.shiftRight_eq_div_pow]
-  simp only [m4]; norm_num
-
-theorem swA7_toNat : (swA7.eval s).toNat = m5 (m4 (m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (dB s) / 64) % 18446744073709551616))) := by
-  rw [show swA7.eval s = swA6.eval s + (swA6.eval s >>> ((BitVec.ofNat 64 24).toNat % 64)) from rfl,
-    BitVec.toNat_add, BitVec.toNat_ushiftRight, swA6_toNat, Nat.shiftRight_eq_div_pow]
-  simp only [m5]; norm_num
-
 def swarOf (a b : Nat) : Nat := m6 (m3 ((sw1 a b + sw1 a b / 64) % 18446744073709551616)) % 4096
 
-theorem swRem_toNat : (swRem.eval s).toNat = swarOf (dA s) (dB s) := by
-  change (rv64_remu (swA5.eval s) (4095#64)).toNat = _
+theorem swS_toNat : (swS.eval s).toNat = swarOf (dA s) (dB s) := by
   have hr : (rv64_remu (swA5.eval s) (4095#64)).toNat = (swA5.eval s).toNat % 4095 := by
     simp [rv64_remu, BitVec.toNat_umod]
-  rw [hr, swA5_toNat, swar_rem]
-  rfl
+  change (rv64_remu (swA5.eval s) (4095#64)).toNat = _
+  rw [hr, swA5_toNat]
+  exact swar_rem _
 
-theorem swSBase_toNat : (swSBase.eval s).toNat = swarOf (dA s) (dB s) := swRem_toNat s
-
-theorem swS_toNat (lay : Nat) : (swS lay |>.eval s).toNat =
-    (swarOf (dA s) (dB s) + 2 ^ 64 - (if 4 ≤ lay then 2 else 0)) % 2 ^ 64 := by
-  have hl : swarOf (dA s) (dB s) < 4096 := Nat.mod_lt _ (by decide)
-  unfold swS
-  split_ifs
-  · change ((swRem.eval s) + BitVec.ofNat 64 (2 ^ 64 - 2)).toNat = _
-    rw [BitVec.toNat_add, BitVec.toNat_ofNat, swRem_toNat]
-    norm_num
-    omega
-  · rw [swSBase_toNat]
-    omega
-
-theorem swS_eq (lay : Nat) (h0 : dA s < 2 ^ 63) (h1 : dB s < 2 ^ 63) :
-    (swS lay).eval s = KT ↔ (digitsOfWord (dA s) ++ digitsOfWord (dB s)).sum = targetFor lay := by
+theorem swS_eq (h0 : dA s < 2 ^ 63) (h1 : dB s < 2 ^ 63) :
+    swS.eval s = KT ↔ (digitsOfWord (dA s) ++ digitsOfWord (dB s)).sum = targetSum := by
   have hs := swar_nat (dA s) (dB s) h0 h1
-  have hl : swarOf (dA s) (dB s) < 4096 := Nat.mod_lt _ (by decide)
   rw [← hs]
-  change _ ↔ swarOf (dA s) (dB s) = targetFor lay
+  change _ ↔ swarOf (dA s) (dB s) = targetSum
   have hK : KT = BitVec.ofNat 64 181 := rfl
-  rw [hK]
+  rw [hK, show targetSum = 181 from rfl]
   constructor
   · intro h
-    have hh := congrArg BitVec.toNat h
-    rw [swS_toNat, BitVec.toNat_ofNat] at hh
-    unfold targetFor targetSum
-    split_ifs at * <;> omega
+    have := congrArg BitVec.toNat h
+    rw [swS_toNat, BitVec.toNat_ofNat] at this
+    omega
   · intro h
     apply BitVec.eq_of_toNat_eq
-    rw [swS_toNat, h]
-    unfold targetFor targetSum
-    split_ifs <;> rfl
-
+    rw [swS_toNat, h]; rfl
 end
 
 end SigGolfCandidate.Verify

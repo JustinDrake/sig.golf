@@ -21,9 +21,9 @@ holds for every seed (`complete_seeded`), and averaging over the seed gives `com
 The numbers: digest admissibility has probability at least `1/2142`; after the collision allowance
 `2²⁰/2¹²⁸`, a randomizer trial still succeeds with probability at least `1/2143`. Each block of
 `1500` trials halves the failure probability, and `2²⁰ ≥ 1500 · 699` gives failure at most
-`2⁻⁶⁹⁹`. A counter trial accepts at least one in `codeShare = 2822` of the `2¹²⁸` digests, so
-`2²⁰ ≥ 1980 · 529` counters all fail with probability at most `2⁻⁵²⁹`. Over `2²⁵⁶` messages,
-`2²⁵⁶ · (2⁻⁶⁹⁹ + 5 · 2⁻⁵²⁹) ≤ 2⁻²⁵⁶`.
+`2⁻⁶⁹⁹`. A counter trial accepts at least one in `codeShare = 2397` of the `2¹²⁸` digests, so
+`2²² ≥ 2397 · 1749` counters all fail with probability at most `2⁻¹⁷⁴⁹`. Over `2²⁵⁶` messages,
+`2²⁵⁶ · (2⁻⁶⁹⁹ + 5 · 2⁻¹⁷⁴⁹) ≤ 2⁻²⁵⁶`.
 -/
 
 open OracleComp OracleSpec ENNReal
@@ -42,18 +42,18 @@ theorem digestFactor_pow_le : digestFactor ^ digestAttemptLimit ≤ (2⁻¹ : �
     _ = (digestFactor ^ 1500) ^ 699 := pow_mul _ _ _
     _ ≤ (2⁻¹ : ℝ≥0∞) ^ 699 := pow_le_pow_left₀ (by positivity) hhalf _
 
-theorem encoding_pow_le : encodingBound ≤ (2⁻¹ : ℝ≥0∞) ^ 529 := by
-  have hroom : encodingFactor + (codeShare : ℝ≥0∞)⁻¹ ≤ 1 := encodingFactor_room.le
-  have hhalf := pow_le_half_2822_1980 encodingFactor hroom
-  have hone : encodingFactor ≤ 1 :=
+theorem encoding_pow_le : encodingBound ≤ (2⁻¹ : ℝ≥0∞) ^ 1749 := by
+  have hroom := failMass_encoding_add_le
+  have hhalf := pow_le_half_ennreal codeShare (by decide) _ hroom
+  have hone : failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ≤ 1 :=
     le_trans le_self_add hroom
   rw [encodingBound]
-  calc encodingFactor ^ encodingAttemptLimit
-        ≤ encodingFactor ^ (1980 * 529) :=
-          pow_le_pow_right_of_le_one' hone (by rw [encodingAttemptLimit]; norm_num)
-    _ = (encodingFactor ^ 1980) ^ 529 :=
+  calc failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ encodingAttemptLimit
+        ≤ failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ (codeShare * 1749) :=
+          pow_le_pow_right_of_le_one' hone (by rw [encodingAttemptLimit, codeShare]; norm_num)
+    _ = (failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ codeShare) ^ 1749 :=
           pow_mul _ _ _
-    _ ≤ (2⁻¹ : ℝ≥0∞) ^ 529 := pow_le_pow_left₀ (by positivity) hhalf _
+    _ ≤ (2⁻¹ : ℝ≥0∞) ^ 1749 := pow_le_pow_left₀ (by positivity) hhalf _
 
 /-- Key generation then signing fails only if one of signing's six searches does. -/
 theorem probEvent_signedWithKeys_none (seed : MasterSeed) (message : Message) :
@@ -71,10 +71,10 @@ theorem probEvent_signedWithKeys_none (seed : MasterSeed) (message : Message) :
   · rw [add_zero]
     exact probEvent_sign_none r.1.2.2 r.1.2.1 message r.2 hmac hrand hmsg henc
 
-/-- One message fails from a fixed seed with probability at most `2⁻⁶⁹⁹ + 5 · 2⁻⁵²⁹`. -/
+/-- One message fails from a fixed seed with probability at most `2⁻¹⁰²³ + 5 · 2⁻¹⁷⁴⁹`. -/
 theorem seeded_failure_le (seed : MasterSeed) (message : Message) :
     Pr[= false | seededExperiment seed message]
-      ≤ (2⁻¹ : ℝ≥0∞) ^ 699 + 5 * (2⁻¹ : ℝ≥0∞) ^ 529 := by
+      ≤ (2⁻¹ : ℝ≥0∞) ^ 699 + 5 * (2⁻¹ : ℝ≥0∞) ^ 1749 := by
   rw [seededExperiment_eq, ← probEvent_eq_eq_probOutput, probEvent_map]
   refine ((probEvent_honest_false_le seed message).trans
     (probEvent_signedWithKeys_none seed message)).trans ?_
@@ -87,9 +87,9 @@ theorem complete_seeded : SphincsSeededCompletenessStatement := by
   intro seed
   calc
     ∑' message : Message, Pr[= false | seededExperiment seed message]
-        ≤ ∑' _message : Message, ((2⁻¹ : ℝ≥0∞) ^ 699 + 5 * (2⁻¹ : ℝ≥0∞) ^ 529) :=
+        ≤ ∑' _message : Message, ((2⁻¹ : ℝ≥0∞) ^ 699 + 5 * (2⁻¹ : ℝ≥0∞) ^ 1749) :=
           ENNReal.tsum_le_tsum fun message => seeded_failure_le seed message
-    _ = (2 : ℝ≥0∞) ^ 256 * ((2⁻¹ : ℝ≥0∞) ^ 699 + 5 * (2⁻¹ : ℝ≥0∞) ^ 529) := by
+    _ = (2 : ℝ≥0∞) ^ 256 * ((2⁻¹ : ℝ≥0∞) ^ 699 + 5 * (2⁻¹ : ℝ≥0∞) ^ 1749) := by
           rw [tsum_fintype, Finset.sum_const, nsmul_eq_mul, Finset.card_univ,
             show Fintype.card Message = 2 ^ 256 by simp [messageBits], Nat.cast_pow, Nat.cast_ofNat]
     _ ≤ ((2 ^ 256 : Nat) : ℝ≥0∞)⁻¹ := closing_sum
