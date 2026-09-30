@@ -286,7 +286,7 @@ def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 52)
 def specStartOk : Spec :=
   ⟨[], [(⟨none, BitVec.ofNat 64 56⟩, ldE 2056), (⟨none, BitVec.ofNat 64 48⟩, ldE 2048),
     (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 25, true, 25, [⟨.ne, ctrE', .c 0, false⟩], none, 25⟩
-def specStartRej : Spec := ⟨[(.x5, cw 1), (.x10, cw 1)], [], 32, true, 18, [⟨.ne, ctrE', .c 0, true⟩], none, 18⟩
+def specStartRej : Spec := ⟨[(.x5, cw 1), (.x10, cw 1)], [], 354, true, 18, [⟨.ne, ctrE', .c 0, true⟩], none, 18⟩
 
 def wLdE (i : Nat) : E := ldE (0x160 + 8 * i)
 def idxE : E := .bin .srl (.bin .sll (wLdE 0) (cw 30)) (cw 30)
@@ -316,7 +316,7 @@ the empty stack offset, preserved from initialization through the digest. -/
 def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x7B8), (.x15, 0)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 101, [], none, 101⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 100, [], none, 100⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&

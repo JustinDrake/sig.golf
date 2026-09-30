@@ -7,8 +7,8 @@ set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp
 
-/-- Accepting bound with a zero-based PORS stack register and rebased frame pointer. -/
-def cycleBound : Nat := 11563
+/-- The cycle bound of accepting runs after saving 40 head instructions in each of five layers. -/
+def cycleBound : Nat := 11562
 
 /-- A cycle bound of every run (`254` per segment instead of `15` / `16 + 17 a`). -/
 def cycleBoundAll : Nat := 16722
@@ -114,8 +114,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (101 + (leafCost 0 + Nseg 0 0)) (101 + (leafCost 0 + Cseg 0 0)) True
-        (101 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (100 + (leafCost 0 + Nseg 0 0)) (100 + (leafCost 0 + Cseg 0 0)) True
+        (100 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with

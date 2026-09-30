@@ -106,8 +106,8 @@ def specBok (lay t : Nat) : Spec :=
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
-def specRej1 : Spec := ⟨rejK, [], 32, true, 7, [⟨.lt, orE, .c 0, true⟩], none, 7⟩
-def specRej2 (lay : Nat) : Spec := ⟨rejK, [], 32, true, 21 + (if 4 ≤ lay then 1 else 0), [⟨.ne, swS lay, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24 + (if 4 ≤ lay then 1 else 0)⟩
+def specRej1 : Spec := ⟨rejK, [], 354, true, 7, [⟨.lt, orE, .c 0, true⟩], none, 7⟩
+def specRej2 (lay : Nat) : Spec := ⟨rejK, [], 354, true, 21 + (if 4 ≤ lay then 1 else 0), [⟨.ne, swS lay, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24 + (if 4 ≤ lay then 1 else 0)⟩
 
 /-! ## Leaf -/
 
