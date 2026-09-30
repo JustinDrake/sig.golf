@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10965` cycles (verify bound
-`10901` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
+`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10955` cycles (verify bound
+`10891` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 150272, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -25,9 +25,8 @@ randomizer input, together with its existing security and signing-budget proofs.
 The verifier ports the OTS modular checksum and constant-reuse optimizations: each layer
 uses an exact remainder modulo 4095, and the rebased address register doubles as the
 modulus. The verify image is regenerated without the padding that kept the old addresses,
-chains 0..6 store their index byte from registers that already hold 0..6, and each digit pair
-dispatches once: the table of the pair's first chain jumps into a copy of the pair's code
-specialized to the second digit, so the second chain has neither a table nor a `jalr`. Each
+chains use the inherited in-place triple dispatch. For next-triple indices 1 and 8, the
+mask instruction reads the packed digit register directly, saving two instructions per layer. Each
 Merkle path jumps once per leaf-index chunk into straight-line level code for that chunk value
 (no per-level branch), the two heap indices below each root are stored from registers that
 hold them, and each block of the last chunk carries its own copy of the next layer's transition. The PORS
@@ -61,7 +60,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10965 :=
+theorem certificate : SigGolf.Certificate submission 10955 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
