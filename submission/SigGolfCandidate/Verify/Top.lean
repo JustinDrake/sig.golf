@@ -8,10 +8,10 @@ namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp
 
 /-- The cycle bound of accepting runs after saving 40 head instructions in each of five layers. -/
-def cycleBound : Nat := 11607
+def cycleBound : Nat := 11606
 
 /-- A cycle bound of every run (`254` per segment instead of `15` / `16 + 17 a`). -/
-def cycleBoundAll : Nat := 16748
+def cycleBoundAll : Nat := 16747
 
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 45000
@@ -114,8 +114,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (103 + (leafCost 0 + Nseg 0 0)) (103 + (leafCost 0 + Cseg 0 0)) True
-        (103 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (102 + (leafCost 0 + Nseg 0 0)) (102 + (leafCost 0 + Cseg 0 0)) True
+        (102 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with
