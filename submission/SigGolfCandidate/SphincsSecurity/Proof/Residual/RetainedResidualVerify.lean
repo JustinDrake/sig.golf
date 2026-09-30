@@ -17,7 +17,7 @@ theorem Context.root_value {inputs : Finset HashInput} (context : Context inputs
 theorem Compatible.layer_frame_reference {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
     (hcompatible : Compatible context memory) (index : Index) (signature : Signature) (lay : Layer)
     (message target leafValue : Digest)
-    (hword : OtsCode.Valid lay (context.words lay (treeIndexAt index lay) (leafIndexAt index lay)))
+    (hword : OtsCode.Valid (context.words lay (treeIndexAt index lay) (leafIndexAt index lay)))
     (hframe : LayerFrame context.oracle memory.external.cache context.key.parameter index signature lay message target leafValue)
     (hfold : foldValue context.oracle context.key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
       (signaturePath signature lay) leafValue (layerHeight lay) =
@@ -41,7 +41,7 @@ theorem Compatible.layer_frame_reference {inputs : Finset HashInput} {context : 
   exact ⟨hhonest, hframe.2.2.1⟩
 
 theorem Compatible.hypertree_honest {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
-    (hcompatible : Compatible context memory) (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (context.dummy lay tree leaf))
+    (hcompatible : Compatible context memory) (hdummy : ∀ lay tree leaf, OtsCode.Valid (context.dummy lay tree leaf))
     (hroot : context.key.root = canonicalGraphRoot context.graph) (index : Index) (leaves : IndexGroup → FtsLeaf)
     (signature : Signature) (ftsPublicKey : Digest)
     (hfts : evalWithAnswerFn context.oracle
@@ -74,7 +74,7 @@ theorem Compatible.hypertree_honest {inputs : Finset HashInput} {context : Conte
     hcompatible.ftsRecover_disclosed index leaves signature.fts hfts hftsRun⟩
 
 theorem Compatible.verify_honest {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
-    (hcompatible : Compatible context memory) (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (context.dummy lay tree leaf))
+    (hcompatible : Compatible context memory) (hdummy : ∀ lay tree leaf, OtsCode.Valid (context.dummy lay tree leaf))
     (hroot : context.key.root = canonicalGraphRoot context.graph) (message : Message) (signature : Signature)
     (hverify : evalWithAnswerFn context.oracle (verify ⟨context.key.root, context.key.parameter⟩ message signature) = true)
     (hrun : CachedRun memory.external.cache context.oracle (verify ⟨context.key.root, context.key.parameter⟩ message signature)) :

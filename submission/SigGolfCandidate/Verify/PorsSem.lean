@@ -242,9 +242,10 @@ theorem leaf_brs_iff {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m 
       constructor <;> intro e <;> exact e.symm
     by_cases h14 : s = 14
     · subst h14
-      have hn : Br.holds m ⟨.ne, .bin .srl (xE 14) (cw 14), .c 0, d2⟩ ↔ d2 = decide (¬ leafX P 14 < porsT) := by
+      have hn : Br.holds m ⟨.geu, xE 14, cw 0x4000, d2⟩ ↔ d2 = decide (¬ leafX P 14 < porsT) := by
         simp only [Br.holds, E.eval, BinOp.eval, cw, hx]
-        rw [srl14_ne _ hxl]
+        rw [geu_iff _ _ (by omega) (by decide)]
+        change decide (¬ leafX P 14 < porsT) = d2 ↔ _
         constructor <;> intro e <;> exact e.symm
       simp only [if_true, if_false, show (14 : Nat) ≠ 0 by decide, List.cons_append, List.nil_append,
         List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq, hn, hg]
@@ -259,8 +260,8 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
       ∃ u k, k ≤ 11 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (¬ ((s ≠ 0 ∧ ¬ st.prev < leafX P s) ∨ (s = porsK - 1 ∧ ¬ leafX P s < porsT)) →
-      ∃ u, Steps image m (if s = 0 then 10 else if s = 14 then 15 else 11)
-        (if s = 0 then 10 else if s = 14 then 15 else 11) u ∧
+      ∃ u, Steps image m (if s = 0 then 10 else if s = 14 then 13 else 11)
+        (if s = 0 then 10 else if s = 14 then 13 else 11) u ∧
         DispIn P s0 s (leafX P s) s st.ptr (porsT ||| leafX P s) st.folds
           (.leaf (leafX P s) (witSecret P.wl s)) st.node st.stack u) := by
   have hs : s < 15 := h.bnd.1
@@ -294,7 +295,7 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
       obtain ⟨u, hu⟩ := pspec_run c2 m h.pc hK ((hbr false true).mpr ⟨fun hs0 => by
         rw [eq_comm, decide_eq_false_iff_not, not_not]; by_contra hc; exact hprev ⟨hs0, hc⟩,
         fun _ => by simp [h2.2]⟩) hob
-      exact ⟨u, _, le_refl _, hu.steps, hu.ecall rfl,
+      exact ⟨u, 9, by omega, hu.steps, hu.ecall rfl,
         hu.regs (.x5, cw 1) (by simp [rejSpec]), hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
   · intro hacc
     have hbr' : ∀ b ∈ (leafSpec s).brs, b.holds m := by
@@ -592,7 +593,8 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
     have hsp : tabSpec (tsel s) b = ⟨[(.x14, addC (.reg .x14) (BitVec.ofNat 64 (16 * (b % 16) + 8))),
         (.x12, if b % 16 = 0 then destE (segV (tsel s) b) else cw (0x1E0 + 16 * segT b))], [],
         if b % 16 = 0 then entry0Pc (segV (tsel s) b) + 1 else tabBase (tsel s) + 8 * b + 4,
-        true, if b % 16 = 0 then 3 else 4, if b % 16 = 0 then [] else [parBr (segT b) false], none⟩ := by
+        true, if b % 16 = 0 then 3 else 4, if b % 16 = 0 then [] else [parBr (segT b) false], none,
+        if b % 16 = 0 then 3 else 4⟩ := by
       unfold tabSpec; rw [if_neg ha']; rfl
     obtain ⟨u, hu⟩ := pspec_run (cOk (by unfold segA; omega)) u1 hpc1 (fun p hp => pb1.known p (List.mem_append_left _ hp))
       (by
