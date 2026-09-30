@@ -211,20 +211,10 @@ theorem geu_iff (a b : Nat) (ha : a < 2 ^ 64) (hb : b < 2 ^ 64) :
   simp only [CmpOp.eval, BitVec.ult, ofNat_toNat_lt _ ha, ofNat_toNat_lt _ hb]
   by_cases h : a < b <;> simp [h]
 
-theorem srl14_ne (x : Nat) (hx : x ≤ 2 ^ 14) :
-    CmpOp.ne.eval ((BitVec.ofNat 64 x) >>> ((BitVec.ofNat 64 14).toNat % 64)) 0 = decide (¬ x < porsT) := by
-  simp only [CmpOp.eval, bne_iff_ne, ne_eq]
-  have e : (BitVec.ofNat 64 x) >>> ((BitVec.ofNat 64 14).toNat % 64) = BitVec.ofNat 64 (x / 2 ^ 14) := by
-    apply BitVec.eq_of_toNat_eq
-    simp only [BitVec.toNat_ushiftRight, BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow]
-    rw [Nat.mod_eq_of_lt (show x < 2 ^ 64 by omega)]; norm_num
-    rw [Nat.mod_eq_of_lt (by omega)]
-  rw [e]
-  unfold porsT porsH
-  by_cases h : x < 2 ^ 14
-  · rw [Nat.div_eq_of_lt h]; simp; omega
-  · have : x = 2 ^ 14 := by omega
-    subst this; decide
+/-- The unsigned threshold comparison has the same leaf-range predicate for every word. -/
+theorem geu14 (x : Nat) (hx : x < 2 ^ 64) :
+    CmpOp.geu.eval (BitVec.ofNat 64 x) (BitVec.ofNat 64 0x4000) = decide (¬ x < porsT) := by
+  exact geu_iff x porsT hx (by decide)
 
 theorem leaf_brs_iff {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (s : Nat) (hs : s < 15)
     (prev : Nat) (hp : 0 < s → m.getReg (xReg (s + 1)) = BitVec.ofNat 64 prev ∧ prev ≤ 2 ^ 14)
@@ -242,9 +232,9 @@ theorem leaf_brs_iff {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m 
       constructor <;> intro e <;> exact e.symm
     by_cases h14 : s = 14
     · subst h14
-      have hn : Br.holds m ⟨.ne, .bin .srl (xE 14) (cw 14), .c 0, d2⟩ ↔ d2 = decide (¬ leafX P 14 < porsT) := by
-        simp only [Br.holds, E.eval, BinOp.eval, cw, hx]
-        rw [srl14_ne _ hxl]
+      have hn : Br.holds m ⟨.geu, xE 14, cw 0x4000, d2⟩ ↔ d2 = decide (¬ leafX P 14 < porsT) := by
+        simp only [Br.holds, E.eval, cw, hx]
+        rw [geu14 _ (by omega)]
         constructor <;> intro e <;> exact e.symm
       simp only [if_true, if_false, show (14 : Nat) ≠ 0 by decide, List.cons_append, List.nil_append,
         List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq, hn, hg]
@@ -256,11 +246,11 @@ theorem leaf_brs_iff {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m 
 theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : PorsState) (m : MachineState)
     (h : LeafIn P s0 s st m) :
     (((s ≠ 0 ∧ ¬ st.prev < leafX P s) ∨ (s = porsK - 1 ∧ ¬ leafX P s < porsT)) →
-      ∃ u k, k ≤ 11 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
+      ∃ u k, k ≤ 10 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (¬ ((s ≠ 0 ∧ ¬ st.prev < leafX P s) ∨ (s = porsK - 1 ∧ ¬ leafX P s < porsT)) →
-      ∃ u, Steps image m (if s = 0 then 10 else if s = 14 then 15 else 11)
-        (if s = 0 then 10 else if s = 14 then 15 else 11) u ∧
+      ∃ u, Steps image m (if s = 0 then 10 else if s = 14 then 14 else 11)
+        (if s = 0 then 10 else if s = 14 then 14 else 11) u ∧
         DispIn P s0 s (leafX P s) s st.ptr (porsT ||| leafX P s) st.folds
           (.leaf (leafX P s) (witSecret P.wl s)) st.node st.stack u) := by
   have hs : s < 15 := h.bnd.1

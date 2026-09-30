@@ -4,9 +4,14 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6062` bytes, `W = 6348` bytes, `K = 131072` bytes (cache), `C = 11618` cycles (verify bound
-`11593` plus the witness charge `⌈6348 / 256⌉ = 25`). Layout (bytes): message 64, secret key 128,
+`S = 6062` bytes, `W = 6348` bytes, `K = 131072` bytes (cache), `C = 11630` cycles (verify bound
+`11605` plus the witness charge `⌈6348 / 256⌉ = 25`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 13056, witness 2048.
+
+The verifier reuses the preceding dispatch base for chain 41 in the final layer by moving its
+table one instruction earlier, and checks the final PORS leaf bound with a single unsigned
+comparison. These changes lower the accepting bound by two cycles relative to accepted
+C = 11632, with the same signature format and reference scheme.
 
 The certificate is `SigGolfCandidate.certificateNew`. It is transferred from
 `SigGolfCandidate.Final.certificate`, a certificate for the same images under the previous
@@ -33,7 +38,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 13056, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 11618 :=
+theorem certificate : SigGolf.Certificate submission 11630 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

@@ -28,7 +28,7 @@ def ReferenceLayerOpening (index : Index) (signature : Signature) (lay : Layer) 
         (Nat.xor ((leafIndexAt index lay).val / 2 ^ level) 1)
 
 theorem layer_frame_reference (index : Index) (signature : Signature) (lay : Layer) (message target leafValue : Digest) (trace : Trace)
-    (hvalid : OtsCode.Valid lay (words lay (treeIndexAt index lay) (leafIndexAt index lay)))
+    (hvalid : OtsCode.Valid (words lay (treeIndexAt index lay) (leafIndexAt index lay)))
     (hmessages : messages ⟨lay, treeIndexAt index lay, leafIndexAt index lay⟩ = evalWithAnswerFn f (layerMessage key index lay))
     (hclean : ¬LayerException f key words messages selections trace)
     (hframe : LayerFrame f (recordedCache f trace) key.parameter index signature lay message target leafValue)
@@ -54,7 +54,7 @@ theorem layer_frame_reference (index : Index) (signature : Signature) (lay : Lay
       · exact False.elim (hclean (Or.inl he))
 
 theorem hypertree_reference (index : Index) (ftsPublicKey : Digest) (signature : Signature) (trace : Trace)
-    (hvalid : ∀ lay, OtsCode.Valid lay (words lay (treeIndexAt index lay) (leafIndexAt index lay)))
+    (hvalid : ∀ lay, OtsCode.Valid (words lay (treeIndexAt index lay) (leafIndexAt index lay)))
     (hmessages : ∀ lay, messages ⟨lay, treeIndexAt index lay, leafIndexAt index lay⟩ = evalWithAnswerFn f (layerMessage key index lay))
     (hroot : key.root = honestNode f key.parameter topLayer rootTree (key.otsSecret topLayer rootTree) (layerHeight topLayer) 0)
     (hclean : ¬LayerException f key words messages selections trace)
@@ -80,7 +80,7 @@ theorem hypertree_reference (index : Index) (ftsPublicKey : Digest) (signature :
   rfl
 
 theorem hypertree_classification (index : Index) (ftsPublicKey : Digest) (signature : Signature) (trace : Trace)
-    (hvalid : ∀ lay, OtsCode.Valid lay (words lay (treeIndexAt index lay) (leafIndexAt index lay)))
+    (hvalid : ∀ lay, OtsCode.Valid (words lay (treeIndexAt index lay) (leafIndexAt index lay)))
     (hmessages : ∀ lay, messages ⟨lay, treeIndexAt index lay, leafIndexAt index lay⟩ = evalWithAnswerFn f (layerMessage key index lay))
     (hroot : key.root = honestNode f key.parameter topLayer rootTree (key.otsSecret topLayer rootTree) (layerHeight topLayer) 0)
     (hverify : evalWithAnswerFn f (verifyLayers key.parameter index signature numLayers ftsPublicKey) = some key.root)

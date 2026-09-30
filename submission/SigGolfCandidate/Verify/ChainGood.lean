@@ -70,6 +70,7 @@ theorem chain_good_ent (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (acc : Lis
   have hw := length_witChain c hc i hi
   by_cases h7 : dig c i = 7
   · obtain ⟨t, hst, hH⟩ := entry_7 c hc i hi acc hchk s hs h7
+    have hentry : (if c.lay = 0 ∧ i = 40 then 3 else 4) ≤ 4 := by split_ifs <;> omega
     rw [h7]
     have : chainFrom c.lay c.tau c.e i 7 (witChain c.wl c.lay i) = pure (witChain c.wl c.lay i) := rfl
     rw [this, cc_pure]
@@ -177,9 +178,9 @@ theorem chainsCost_aux (c : CCtx) : ∀ k i,
     omega
 
 theorem chainsCost_eq (c : CCtx) (xs : List Nat) (hlen : xs.length = 42)
-    (hxs : ∀ i < 42, xs.getD i 0 = dig c i) (hsum : xs.sum = targetFor c.lay) :
-    chainsCost c 0 42 = 42 * 67 - 9 * targetFor c.lay + headSum c.lay := by
-  have hs : ((List.range' 0 42).map (dig c)).sum = targetFor c.lay := by
+    (hxs : ∀ i < 42, xs.getD i 0 = dig c i) (hsum : xs.sum = targetSum) :
+    chainsCost c 0 42 = 42 * 67 - 9 * targetSum + headSum c.lay := by
+  have hs : ((List.range' 0 42).map (dig c)).sum = targetSum := by
     rw [← hsum, sum_eq_getD xs, hlen, List.range_eq_range']
     congr 1
     apply List.map_congr_left
@@ -188,7 +189,7 @@ theorem chainsCost_eq (c : CCtx) (xs : List Nat) (hlen : xs.length = 42)
   have := chainsCost_aux c 42 0
   rw [hs] at this
   unfold chainsCost headSum
-  have ht : targetFor c.lay ≤ 182 := by unfold targetFor targetSum; split_ifs <;> omega
+  simp only [targetSum] at this ⊢
   omega
 
 end SigGolfCandidate.Verify

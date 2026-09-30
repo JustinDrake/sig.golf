@@ -448,7 +448,8 @@ theorem entry_mem (s : MachineState) (dst A : Nat) (hd : dst + 16 < 2 ^ 64) (hA 
 
 theorem entry_run (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hchk : chainCheck c.lay i = true)
     (s : MachineState) (hpc : s.pc = pcOf (entryIdx c.lay i (entIdx c i))) :
-    Steps image s (if dig c i < 7 then 3 else 4) (if dig c i < 7 then 3 else 4)
+    Steps image s (if dig c i < 7 then 3 else if c.lay = 0 ∧ i = 40 then 3 else 4)
+      (if dig c i < 7 then 3 else if c.lay = 0 ∧ i = 40 then 3 else 4)
       ((entryRes c.lay i (dig c i)).toState s) := by
   obtain ⟨ht4, ht1, htb, -, -, -⟩ := tabOk_spec (tabOk_at c.lay i hc.1 hi)
   obtain ⟨he, hd⟩ := entIdx_spec c i hi
@@ -504,7 +505,8 @@ theorem entry_lt7 (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (acc : List Val
 
 theorem entry_7 (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (acc : List Val)
     (hchk : chainCheck c.lay i = true) (s : MachineState) (hs : EntInv c i acc s) (hd : dig c i = 7) :
-    ∃ t, Steps image s 4 4 t ∧ HeadInv c (i + 1) (acc ++ [witChain c.wl c.lay i]) t := by
+    ∃ t, Steps image s (if c.lay = 0 ∧ i = 40 then 3 else 4) (if c.lay = 0 ∧ i = 40 then 3 else 4) t ∧
+      HeadInv c (i + 1) (acc ++ [witChain c.wl c.lay i]) t := by
   obtain ⟨hG, hK, hR, hCB, -, hB, hZ, hLB, hlen, hvs, hx1, hx2, hpc⟩ := hs
   have hst := entry_run c hc i hi hchk s hpc
   rw [if_neg (by omega)] at hst

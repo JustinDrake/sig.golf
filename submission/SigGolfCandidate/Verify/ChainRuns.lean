@@ -118,7 +118,8 @@ theorem resBeq_eq {a b : Result} (h : resBeq a b = true) : a = b := by
 def entryRes (lay i d : Nat) : Result :=
   let dst := if d < 7 then 0xF0 else 0x360 + 16 * i
   let tgt := if d < 7 then s1Pc lay i + 2 * d else nextPc' lay i
-  let n := if d < 7 then 3 else 4
+  -- Top-layer chain 40 frees its last table word for the final single-digit table.
+  let n := if d < 7 then 3 else if lay = 0 ∧ i = 40 then 3 else 4
   ⟨⟨RegFile.init,
     [(⟨none, BitVec.ofNat 64 (dst + 8)⟩, .reg .x2), (⟨none, BitVec.ofNat 64 dst⟩, .reg .x1)], []⟩,
     .c (pcOf tgt), .jump, n, n⟩
