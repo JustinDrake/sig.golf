@@ -7,9 +7,9 @@ set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp
 
-/-- The cycle bound of accepting runs: `9467 + 17 · 118 + 29` (every accepting run costs
-exactly `9467 + 17 F + G`, `F ≤ 118` the total folds, `G ≤ 29` the segments with `a ≥ 1`). -/
-def cycleBound : Nat := 11502
+/-- The cycle bound of accepting runs: `9466 + 17 · 118 + 29` (every accepting run costs
+exactly `9466 + 17 F + G`, `F ≤ 118` the total folds, `G ≤ 29` the segments with `a ≥ 1`). -/
+def cycleBound : Nat := 11501
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
 def cycleBoundAll : Nat := 16834
