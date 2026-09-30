@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 2,
+  "name": "sig-golf",
+  "tracks": [
+    {
+      "name": "full",
+      "description": "Minimize signature bytes × RISC-V verification cycles for a Lean-certified stateless signature scheme under the pinned beta contract.",
+      "category": "cryptography",
+      "direction": "-",
+      "editablePaths": [
+        "submission"
+      ],
+      "setupCommand": [
+        "bash",
+        "scripts/setup.sh"
+      ],
+      "benchmarkCommand": [
+        "python3",
+        "scripts/run.py"
+      ],
+      "scorePath": "scripts/score.json",
+      "maxSubmissionBytes": 16777216,
+      "runner": {
+        "provider": "github-actions",
+        "workflow": "benchmark.yml"
+      }
+    }
+  ]
+}
