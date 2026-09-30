@@ -178,30 +178,30 @@ def posCheck (V : Nat) : Bool :=
 /-! ## Tails -/
 
 def stkOf (d : Nat) : Nat := EMPTY + 80 * d
-def tailKnown (d : Nat) : List (Reg × Word) := gkP ++ [(.x15, BitVec.ofNat 64 (stkOf d))]
+def tailKnown (d : Nat) : List (Reg × Word) := gkP ++ [(.x15, BitVec.ofNat 64 (80 * d))]
 def tailKeep : List Reg := [.x14, .x16, .x17, .x20, .x22, .x24, .x29]
 
 def tailMSpec (c d : Nat) : Spec :=
-  ⟨[(.x3, ldE (stkOf d - 16)), (.x23, eS), (.x10, cw (stkOf d)), (.x15, cw (stkOf d - 80))],
+  ⟨[(.x3, ldE (stkOf d - 16)), (.x23, eS), (.x10, cw (stkOf d)), (.x15, cw (80 * d - 80))],
     [(⟨none, BitVec.ofNat 64 (stkOf d + 8)⟩, stW (stkOf d + 8) eS)], dispTailPc c, false, 6,
     [⟨.ne, ldE (stkOf d - 16), .reg .x23, false⟩], none, 6⟩
 
 def tailMRej (d : Nat) : Spec := rejSpec 5 [⟨.ne, ldE (stkOf d - 16), .reg .x23, true⟩]
 
 def tailPSpec (d : Nat) : Spec :=
-  ⟨[(.x15, cw (stkOf d + 80)), (.x3, .bin .xor (.reg .x23) (cw 1))],
+  ⟨[(.x15, cw (80 * d + 80)), (.x3, .bin .xor (.reg .x23) (cw 1))],
     [(⟨none, BitVec.ofNat 64 (stkOf d + 64)⟩, .bin .xor (.reg .x23) (cw 1))], 0, false, 4, [],
     some (.bin .and (.reg .x24) notOne), 4⟩
 
 def tailCheck (c : Nat) : Bool :=
   (List.range 15).all (fun d =>
     pspecB gkP (runAt (tailKnown d) [dispTailPc c] (tailPc 0 c) [.br false]) (tailMSpec c d) []
-      (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (stkOf d - 80)) else p)
+      (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (80 * d - 80)) else p)
       tailKeep &&
     pspecB [] (runAt (tailKnown d) [] (tailPc 0 c) [.br true]) (tailMRej d) [] [] []) &&
   (List.range 14).all (fun d =>
     pspecB gkP (runAt (tailKnown d) [] (tailPc 1 c) [.jmp]) (tailPSpec d) []
-      (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (stkOf d + 80)) else p)
+      (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (80 * d + 80)) else p)
       [.x14, .x16, .x17, .x20, .x22, .x23, .x24, .x29])
 
 /-! ### The root tail (checks, layer constants) -/
@@ -209,7 +209,7 @@ def tailCheck (c : Nat) : Bool :=
 /-- The fold limit: `bltu t4, a4` (`FR` beyond `FLIM`). -/
 def fBr1 (d : Bool) : Br := ⟨.ltu, .reg .x29, .reg .x14, d⟩
 def fBr2 (d : Bool) : Br := ⟨.ne, addC (.reg .x23) (-1#64), .c 0, d⟩
-def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw EMPTY, d⟩
+def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw 0, d⟩
 
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
@@ -315,10 +315,10 @@ def psetupMem : List (Addr × E) :=
 /-- Known after the setup: the PORS constants, `TB = ptab_n`, `FR` (first header at `FR + 224`),
 the empty stack, the fold limit `FLIM`. -/
 def setupPost : List (Reg × Word) :=
-  gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x830), (.x15, BitVec.ofNat 64 EMPTY),
+  gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x830), (.x15, 0),
     (.x29, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 104, [], none, 104⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 103, [], none, 103⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&

@@ -84,13 +84,13 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
   have b3 : ∀ d, Br.holds m (fBr3 d) ↔ d = decide (stk ≠ []) := by
     intro d
     simp only [fBr3, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.rS]
-    have : (BitVec.ofNat 64 (stkOf' stk.length) != BitVec.ofNat 64 EMPTY) = decide (stk ≠ []) := by
+    have : (BitVec.ofNat 64 (stkReg stk.length) != BitVec.ofNat 64 0) = decide (stk ≠ []) := by
       cases stk with
-      | nil => simp [stkOf']
+      | nil => simp [stkReg]
       | cons e r =>
-        have hne : BitVec.ofNat 64 (stkOf' (e :: r).length) ≠ BitVec.ofNat 64 EMPTY :=
-          ofNat_ne (by simp only [stkOf', EMPTY, List.length_cons] at hd ⊢; omega) (by decide) (by simp [stkOf', EMPTY])
-        rw [show (BitVec.ofNat 64 (stkOf' (e :: r).length) != BitVec.ofNat 64 EMPTY) = true from bne_iff_ne.mpr hne]
+        have hne : BitVec.ofNat 64 (stkReg (e :: r).length) ≠ 0 :=
+          ofNat_ne (by simp only [stkReg, List.length_cons] at hd ⊢; omega) (by decide) (by simp [stkReg])
+        rw [show (BitVec.ofNat 64 (stkReg (e :: r).length) != 0) = true from bne_iff_ne.mpr hne]
         simp
     rw [this]; exact eq_comm
   have hpM : porsM = 118 := rfl

@@ -273,7 +273,7 @@ theorem stW0_low (s : MachineState) (a : Nat) (v : E) (V : Nat) (hv : v.eval s =
   omega
 
 theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P s) :
-    ∃ u, Steps image s 104 104 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
+    ∃ u, Steps image s 103 103 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
   obtain ⟨hG, hK, hd, hZ, hpc⟩ := hs
   obtain ⟨-, -, cSet⟩ := startCheck_parts
   obtain ⟨u, hu⟩ := spec_run cSet s hpc hK (by simp [setupSpec])
@@ -341,7 +341,7 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
   · rw [hu.regs (.x22, idxE) (by simp [setupSpec]), hidx]
   · rw [hK' (.x14, 0x830) (by simp [setupPost])]; rfl
   · rw [hK' (.x29, BitVec.ofNat 64 FLIM) (by simp [setupPost])]
-  · rw [hK' (.x15, BitVec.ofNat 64 EMPTY) (by simp [setupPost])]; rfl
+  · rw [hK' (.x15, 0) (by simp [setupPost])]; rfl
   · simp [SegBnd, wStream, wSec, porsK]
 
 end SigGolfCandidate.Verify
