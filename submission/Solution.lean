@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10755` cycles (verify bound
-`10691` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
+`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10893` cycles (verify bound
+`10829` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 150272, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -19,19 +19,27 @@ pad is hashed as it stands; the abstract game accounts for this through the padd
 (`verifyP`, `Bridge.padDec`). Verify dispatches three chains per table jump. The counters `c0 .. c3`
 sit in the tweak slot of layer 0's first block, `c4` after the PORS stream.
 
-The chain HASH header now uses the physical witness-block address. The verifier stores this
-address from its input pointer and removes one running-header update per chain. A global
-involutive permutation of oracle queries transfers the existing security proof to this format.
+The layer targets are 181,181,181,182,183. An authenticated cache of 2046 internal nodes
+replaces the full-node cache; signing reconstructs the missing leaf sibling. The 187 saved
+deterministic signing compressions fund the additional layer-3 target. The reference, machine
+refinement, security bridge, completeness and moment-budget proofs cover this cache format.
+Layer 3 loads its comparison target explicitly; layer 4 retains the target in a known register.
+The existing digest, PORS address, mask-data, root-test and route optimizations are preserved.
 
-The promoted parameter set is retained: WOTS target sum 181 and the one-block private
-randomizer input, together with its existing security and signing-budget proofs.
+The layer-header register now holds the leaf header. The chain initializer subtracts 256,
+the encoding prefix adds 512, and the leaf prefix stores the register directly. This removes
+one instruction per layer. The stack guard uses one high-word store into an initially zero
+word. The final root comparison returns the XOR of its last words as the exit code after
+checking the first words. These changes save seven further ordinary cycles.
 
 The verifier ports the OTS modular checksum and constant-reuse optimizations: each layer
 uses an exact remainder modulo 4095, and the rebased address register doubles as the
-modulus. The verify image is regenerated without the padding that kept the old addresses,
-chains 0..6 store their index byte from registers that already hold 0..6, and each digit pair
-dispatches once: the table of the pair's first chain jumps into a copy of the pair's code
-specialized to the second digit, so the second chain has neither a table nor a `jalr`. Each
+modulus. The shared chain code dispatches triples. The zero-shift extractions after triples
+0 and 7 read the packed register directly, saving two copies per layer. Chain 0 initializes
+the running tweak from the layer header in both its hash and digit-7 copy paths; subsequent
+chains increment that tweak. This removes the separate initialization from each layer's
+prologue, saving another cycle per layer. These two changes save fifteen cycles in total.
+Each
 Merkle path jumps once per leaf-index chunk into straight-line level code for that chunk value
 (no per-level branch), the two heap indices below each root are stored from registers that
 hold them, and each block of the last chunk carries its own copy of the next layer's transition. The PORS
@@ -65,7 +73,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10755 :=
+theorem certificate : SigGolf.Certificate submission 10893 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

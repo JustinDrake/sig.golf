@@ -254,7 +254,7 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
       t4.getReg .x10 = BitVec.ofNat 64 0x30000 ∨ t4.getReg .x10 = BitVec.ofNat 64 0x30040 →
       t4.getReg .x11 = BitVec.ofNat 64 64 → t4.getReg .x12 = BitVec.ofNat 64 0x30080 →
       RegsEq t2 t4 [.x10, .x11, .x12] → (∀ x, t4.getMem x = t2.getMem x) →
-      hashInput t4 = pad64 q → addrFmt q = pad64 q → (pad64 q).blocks = 1 →
+      hashInput t4 = pad64 q → fmt q = pad64 q → (pad64 q).blocks = 1 →
       Sim eimg t 500 (hash16 q >>= fun node =>
         segFolds idx w ptr (wbyte w ptr % 16) node E >>= fun x => match x with
           | (node, E) => pure (some (ptr + 8 + 16 * (wbyte w ptr % 16), E, folds + wbyte w ptr % 16, node,

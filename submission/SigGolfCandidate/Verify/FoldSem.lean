@@ -228,7 +228,7 @@ theorem length_sib (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam < fc.h) :
 /-- The heap index of the output node of level `lam`. -/
 def FCtx.heap (fc : FCtx) (lam : Nat) : Nat := 2 ^ (fc.h - (lam + 1)) + fc.E / 2 ^ (lam + 1)
 
-/-- The oracle block of level `lam` (`addrFmt`): the node tweak with `p = 0` and the heap index. -/
+/-- The oracle block of level `lam` (`fmt`): the node tweak with `p = 0` and the heap index. -/
 def FCtx.hinput (fc : FCtx) (lam : Nat) (v : Val) : List Byte :=
   if fc.E / 2 ^ lam % 2 = 1 then nodeF fc.t fc.f2 fc.tau 0 (fc.heap lam) (fc.sib lam) v
   else nodeF fc.t fc.f2 fc.tau 0 (fc.heap lam) v (fc.sib lam)
@@ -249,7 +249,7 @@ theorem heap_lt (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam < fc.h) : fc.h
 def NodeH (fc : FCtx) : Prop := fc.t = 3 ∧ fc.h = height (fc.f2 % 256)
 
 theorem fmt_input (fc : FCtx) (hfc : fc.ok) (hn : NodeH fc) (lam : Nat) (hlam : lam < fc.h) (v : Val)
-    (hv : v.length = 16) : addrFmt (fc.input lam v) = pad64 (fc.hinput lam v) := by
+    (hv : v.length = 16) : fmt (fc.input lam v) = pad64 (fc.hinput lam v) := by
   have hs := length_sib fc hfc lam hlam
   have hj : fc.E / 2 ^ (lam + 1) < 2 ^ 32 := by
     have h3 : fc.E < 2 ^ 11 := lt_of_lt_of_le hfc.2.2.1 (Nat.pow_le_pow_right (by decide) hfc.2.1)
@@ -258,10 +258,10 @@ theorem fmt_input (fc : FCtx) (hfc : fc.ok) (hn : NodeH fc) (lam : Nat) (hlam : 
   unfold FCtx.input FCtx.hinput FCtx.node nodeF
   rw [ht]
   split
-  · rw [addrFmt_eq_th _ _ _ _ _ _ (by decide), fmt_thInput_node _ _ _ _ _ (by simp [hs, hv]) (by have := hfc.2.1; omega) hj, ← hH,
+  · rw [fmt_thInput_node _ _ _ _ _ (by simp [hs, hv]) (by have := hfc.2.1; omega) hj, ← hH,
       blk_eq_pad64 _ (by simp [hs, hv])]
     rfl
-  · rw [addrFmt_eq_th _ _ _ _ _ _ (by decide), fmt_thInput_node _ _ _ _ _ (by simp [hs, hv]) (by have := hfc.2.1; omega) hj, ← hH,
+  · rw [fmt_thInput_node _ _ _ _ _ (by simp [hs, hv]) (by have := hfc.2.1; omega) hj, ← hH,
       blk_eq_pad64 _ (by simp [hs, hv])]
     rfl
 
@@ -710,7 +710,7 @@ theorem fold_good (fc : FCtx) (hfc : fc.ok) (hn : NodeH fc)
     intro lam hk _ v s hs
     have hvl : v.length = 16 := hs.2.2.2.2.2.2.2.1
     have hfm := fmt_input fc hfc hn lam (by omega) v hvl
-    have hblk : (addrFmt (fc.input lam v)).blocks = 1 := by
+    have hblk : (fmt (fc.input lam v)).blocks = 1 := by
       rw [hfm, pad64_hinput fc hfc lam (by omega) v hvl]; rfl
     rw [List.range'_succ, List.foldlM_cons, stepFn_eq fc lam (by omega), cc_bind]
     by_cases hlast : lam + 1 = fc.h

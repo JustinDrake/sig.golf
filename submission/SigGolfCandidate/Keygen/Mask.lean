@@ -205,7 +205,7 @@ theorem mask_node_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels :
     ((codeAt_132.fetch u upc).trans rfl) (by rw [ux _ (by simp)]; exact h.base.r5)
     (hashArgs_const u 1696 64 320 u10 u11 u12 (by norm_num) (by norm_num) (by norm_num)
       (by norm_num) (by norm_num))
-    (hq.trans (addrFmt_thInput 13 0 0 l j S (by decide)).symm)
+    (hq.trans (fmt_thInput 13 0 0 l j S (by decide)).symm)
     (not_digest_thInput 13 0 0 l j S (by decide)) (not_padChain_thInput 13 0 0 l j S (by decide)) (fun a => ?_))).of_eq rfl (by rfl)
       (by rw [hblk]) (by rfl) (by rw [hblk])
   have wpc : (writeHash u a).pc = pcOf 133 := by rw [pc_writeHash, upc]; rfl
@@ -328,31 +328,61 @@ theorem mask_level_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels 
     · rw [if_pos hl', if_neg (by omega)]
     · rw [if_neg hl', if_pos (by omega)]
 
-/-- All masks: levels `l = 0 .. 10`, from instruction 101. -/
+/-- Mask only levels 1 through 10, retaining the unused leaf prefix until output clearing. -/
 theorem masks_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels : List (List Val))
     (root : Val) (t : MachineState) (hb : Base W t) (hs : Shape 11 levels)
     (hv : Vals t REGION (nodes levels)) (hout : Out root t) (hpc : t.pc = pcOf 115) :
-    XSim image t (3 + sumTo (fun l => 8 + 2 ^ (11 - l) * 21) 11)
-      (3 + sumTo (fun l => 8 + 2 ^ (11 - l) * 28) 11) (sumTo (fun l => 2 ^ (11 - l)) 11)
-      (sumTo (fun l => 2 ^ (11 - l)) 11)
-      ((List.range 11).foldlM (fun (acc : List Val) l => do
+    XSim image t (3 + sumTo (fun l => 8 + 2 ^ (11 - (1 + l)) * 21) 10)
+      (3 + sumTo (fun l => 8 + 2 ^ (11 - (1 + l)) * 28) 10)
+      (sumTo (fun l => 2 ^ (11 - (1 + l))) 10)
+      (sumTo (fun l => 2 ^ (11 - (1 + l))) 10)
+      ((List.range' 1 10).foldlM (fun (acc : List Val) l => do
         let ml ← maskLevel S l (levels.getD l [])
-        pure (acc ++ ml)) [])
+        pure (acc ++ ml)) ((nodes levels).take 2048))
       (fun masked u => OCtx W levels root 11 masked u ∧ u.pc = pcOf 147) := by
   obtain ⟨u, hst, upc, u20, u15, uun, ufr⟩ := spec_115 t hpc
-  have h0 : OCtx W levels root 0 [] u := by
+  have h0 : OCtx W levels root 1 ((nodes levels).take 2048) u := by
     refine ⟨hb.frame (fun r hr => uun r (by rcases hr with h | h | h | h <;> simp [h])
-      (by rcases hr with h | h | h | h <;> simp [h])) ufr (by simp), u15, ?_, hs, rfl, ?_,
+      (by rcases hr with h | h | h | h <;> simp [h])) ufr (by simp), u15, ?_, hs, ?_, ?_,
       hout.frame ufr (by simp)⟩
     · rw [u20]; rfl
-    · simpa [lvOff] using (show Vals u REGION (nodes levels) from
-        ⟨hv.1, fun i hi => (hv.2 i hi).frame ufr (by
-          simp [nodes_length levels hs] at hi; unfold REGION; omega) (by simp)⟩)
-  refine (XSim.steps hst (XSim.foldlM_range 11 _ [] (fun l macc w => OCtx W levels root l macc w ∧
-    w.pc = if l < 11 then pcOf 118 else pcOf 147)
-    (fun l => 8 + 2 ^ (11 - l) * 21) (fun l => 8 + 2 ^ (11 - l) * 28) (fun l => 2 ^ (11 - l))
-    (fun l => 2 ^ (11 - l))
-    (fun l hl macc w hw => mask_level_xsim W S hS levels root l hl macc w hw.1 (by rw [hw.2, if_pos hl]))
+    · rw [List.length_take, nodes_length levels hs]; rfl
+    · rw [show lvOff 1 = 2048 from rfl, List.take_append_drop]
+      exact ⟨hv.1, fun i hi => (hv.2 i hi).frame ufr (by
+        rw [nodes_length levels hs] at hi; unfold REGION; omega) (by simp)⟩
+  refine (XSim.steps hst (XSim.foldlM_range' 1 10 _ ((nodes levels).take 2048)
+    (fun j macc w => OCtx W levels root (1 + j) macc w ∧
+      w.pc = if 1 + j < 11 then pcOf 118 else pcOf 147)
+    (fun l => 8 + 2 ^ (11 - (1 + l)) * 21) (fun l => 8 + 2 ^ (11 - (1 + l)) * 28)
+    (fun l => 2 ^ (11 - (1 + l))) (fun l => 2 ^ (11 - (1 + l)))
+    (fun j hj macc w hw => by
+      simpa only [Nat.add_assoc] using
+        mask_level_xsim W S hS levels root (1 + j) (by omega) macc w hw.1
+          (by rw [hw.2, if_pos (by omega)]))
     ⟨h0, by rw [upc]; rfl⟩)).mono (fun m w hw => ⟨hw.1, by rw [hw.2]; rfl⟩)
+
+/-- A fixed ignored prefix commutes with the append-only masking fold. -/
+theorem mask_fold_prefix (S : List Byte) (levels : List (List Val)) (ls : List Nat)
+    (pad acc : List Val) :
+    ls.foldlM (fun acc l => do let row ← maskLevel S l (levels.getD l []); pure (acc ++ row)) (pad ++ acc) =
+      (fun rows => pad ++ rows) <$>
+        ls.foldlM (fun acc l => do let row ← maskLevel S l (levels.getD l []); pure (acc ++ row)) acc := by
+  induction ls generalizing acc with
+  | nil => simp
+  | cons l ls ih =>
+    simp only [List.foldlM_cons, bind_assoc, pure_bind, map_bind]
+    refine bind_congr fun row => ?_
+    rw [List.append_assoc, ih]
+
+theorem mask_fold_drop (S : List Byte) (levels : List (List Val)) (ls : List Nat)
+    (pad : List Val) :
+    (fun rows => rows.drop pad.length) <$>
+      ls.foldlM (fun acc l => do let row ← maskLevel S l (levels.getD l []); pure (acc ++ row)) pad =
+      ls.foldlM (fun acc l => do let row ← maskLevel S l (levels.getD l []); pure (acc ++ row)) [] := by
+  have h := mask_fold_prefix S levels ls pad []
+  rw [List.append_nil] at h
+  rw [h, Functor.map_map]
+  simp only [Function.comp_def, List.drop_left]
+  exact id_map _
 
 end SigGolfCandidate.Keygen
