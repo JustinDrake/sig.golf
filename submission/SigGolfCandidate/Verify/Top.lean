@@ -179,7 +179,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
 /-- Universal accepting-run bound. Scaled PIND byte offsets remove one instruction from
 all fifteen leaf headers. The tag-9 address-field rotation is an injective query relabel;
 Final.Discharge supplies the additional universal structural credit. Sparse cap initialization adds one instruction. This is a proof bound. -/
-def cycleBound : Nat := 10287
+def cycleBound : Nat := 10283
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
 def cycleBoundAll : Nat := 16858
@@ -190,8 +190,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7478 := by decide
-theorem layC_val : layC = 7478 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7475 := by decide
+theorem layC_val : layC = 7475 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -290,8 +290,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (92 + (leafCost 0 + Nseg 0 0)) (92 + (leafCost 0 + Cseg 0 0)) True
-        (92 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (91 + (leafCost 0 + Nseg 0 0)) (91 + (leafCost 0 + Cseg 0 0)) True
+        (91 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with

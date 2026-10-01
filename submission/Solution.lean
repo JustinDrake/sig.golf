@@ -5,9 +5,14 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
-The claim C=10314 is accepting verifier bound10259 plus witness charge55.
+The claim C=10310 is accepting verifier bound10255 plus witness charge55.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[185,185,185,185,186].
+
+PORS setup falls through into relocated leaf blocks, removing one jump.
+The top Merkle path uses a2048-slot, two-jump dispatch DAG over shared
+six-bit prefixes and five-bit suffixes, removing three dispatch cycles.
+The verify image, including its16KiB dispatch table, is939072 bytes.
 
 For oracle words A,B,C,D, select AB when B's top bit is clear and A's top
 bit is clear; select BC when B's top bit is clear and A's top bit is set.
@@ -66,6 +71,11 @@ The external witness omits internal cache words and stores the sparse PORS strea
 consumed tweak slots. Authentication paths are contiguous. The external witness begins
 at0x1100 and has14080bytes, with charge55.
 
+The verifier reserves x4 for the constant 2^60 and uses an unsigned comparison for
+the gated selector case. Branch-specific padding checks remove one worst-case cycle
+from each of the five layers; the single root-tail initializer costs one cycle, for a
+net four-cycle reduction from the 10263-cycle parent bound.
+
 The certificate covers all four images, universal termination, per-seed
 completeness, honest compression budgets,127-bit security and accepting
 verifier cycles under the pinned contract. No measured profile is claimed.
@@ -85,7 +95,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4352 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10314 :=
+theorem certificate : SigGolf.Certificate submission 10310 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

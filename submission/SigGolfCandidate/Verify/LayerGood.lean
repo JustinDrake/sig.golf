@@ -116,7 +116,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     LayerIn ⟨wl, pk, lay - 1, idx⟩ v u := by
   have hfc := layFC_ok ⟨wl, pk, lay, idx⟩ ⟨h7, hidx, hwl⟩
   have hh := heightL_le lay h7
-  obtain ⟨hG, hK, -, -, -, hm0, hm8, hvl, hF, hpc, hFresh, h12⟩ := hu
+  obtain ⟨hG, hK, -, -, -, hm0, hm8, hvl, hF, hpc, hFresh, h12, _⟩ := hu
   obtain ⟨h27, h30, hCB, -, -⟩ := hc
   have hsw := sib_words (layFC ⟨wl, pk, lay, idx⟩) hfc (heightL lay - 1)
     (by show heightL lay - 1 < heightL lay; omega) u hG hFresh
@@ -434,6 +434,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The cycles of the five layers and the comparison (`8`). Against the head without the pair
 message: `-14` per lower layer (no root hash) and `+4` in each upper transition (the sibling copy). -/
-theorem layersCost_5 : layersCost 5 = 7478 := by decide
+theorem layersCost_5 : layersCost 5 = 7475 := by decide
 
 end SigGolfCandidate.Verify

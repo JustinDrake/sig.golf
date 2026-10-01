@@ -307,7 +307,8 @@ def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x130)]
 mask `sp = TMASK` are loaded from the verifier's data words through `sp = dataBase` and resolved
 from protected memory in `tailF_step`. Retaining the x28=2688 initializer for carried-base subtraction makes the accepting tail take12 instructions. -/
 def rootK : List (Reg × Word) :=
-  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x14, KT4), (.x4, 0x1000000000000000)]
+  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x14, KT4),
+    (.x4, 0x1000000000000000)]
 def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x130)]
 
 def tailFSpec (c : Nat) : Spec :=
@@ -428,7 +429,7 @@ def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 4992), (.x15, 0),
     (.x18, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 92, [], none, 92⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 91, [], none, 91⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&
