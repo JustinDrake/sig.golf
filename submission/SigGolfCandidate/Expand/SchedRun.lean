@@ -34,8 +34,8 @@ structure HM (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (s h : Nat)
   x23 : u.getReg .x23 = BitVec.ofNat 64 (0x760 + 8 * x.1.stack.length)
   x24 : u.getReg .x24 = BitVec.ofNat 64 (2 ^ 14)
   x29 : u.getReg .x29 = BitVec.ofNat 64 (0x24C00 + 16 * x.1.reads.length)
-  x30 : u.getReg .x30 = BitVec.ofNat 64 (0xA10 + (segStream sig x.1.segs).length)
-  x31 : u.getReg .x31 = BitVec.ofNat 64 (0xA10 + (segStream sig x.1.segs).length + 8 + 16 * x.2.2.1)
+  x30 : u.getReg .x30 = BitVec.ofNat 64 (0x910 + (segStream sig x.1.segs).length)
+  x31 : u.getReg .x31 = BitVec.ofNat 64 (0x910 + (segStream sig x.1.segs).length + 8 + 16 * x.2.2.1)
   stack : StackOK u x.1.stack
   stackb : ∀ q ∈ x.1.stack, q < 2 ^ 15
   slen : x.1.stack.length ≤ s
@@ -159,17 +159,17 @@ theorem sch_step (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : S
       rw [hbdef]
       interval_cases t <;> interval_cases cnt <;> rfl
     have hm3 : ∀ y : Nat, y < 2 ^ 64 → u3.getMem (BitVec.ofNat 64 y) =
-        if y = 0xA10 + (segStream sig st.segs).length then
+        if y = 0x910 + (segStream sig st.segs).length then
           replaceByte (u2.getMem (BitVec.ofNat 64 y)) 0 (byte b) else u2.getMem (BitVec.ofNat 64 y) := by
       intro y hy
       rw [hu3, toState_getMem_one rfl]
       simp only [Addr.eval, Rv.E.eval, BinOp.eval, StoreKind.merge, Option.map, BitVec.add_zero]
       rw [show ((5#64 : Word).toNat % 64) = 5 from rfl, hwb, r2.get .x30 (by simp), h30]
-      by_cases hy' : y = 0xA10 + (segStream sig st.segs).length
+      by_cases hy' : y = 0x910 + (segStream sig st.segs).length
       · subst hy'; simp
       · rw [if_neg hy', if_neg (by rw [ofNat_eq_iff]; omega)]
     refine (sch_next u3 p3 h y19).mono (le_refl _) (fun u4 ⟨p4, y19', r4, m4⟩ => ?_)
-    have m42 : ∀ y : Nat, y < 2 ^ 64 → y ≠ 0xA10 + (segStream sig st.segs).length →
+    have m42 : ∀ y : Nat, y < 2 ^ 64 → y ≠ 0x910 + (segStream sig st.segs).length →
         u4.getMem (BitVec.ofNat 64 y) = u.getMem (BitVec.ofNat 64 y) := by
       intro y hy hne; rw [m4, hm3 y hy, if_neg hne, m2]
     have g : ∀ r : Reg, r ∉ [.x15, .x18, .x21, .x23, .x25, .x30, .x31, .x3, .x19] →
@@ -232,22 +232,22 @@ theorem sch_step (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : S
     set L := (segStream sig st.segs).length with hLdef
     set r := st.reads.length with hrdef
     have hm3 : ∀ y : Nat, y < 2 ^ 64 → u3.getMem (BitVec.ofNat 64 y) =
-        if y = 0xA10 + (L + 8 + 16 * cnt) + 8 then u.getMem (BitVec.ofNat 64 (0x24C00 + 16 * r + 8))
-        else if y = 0xA10 + (L + 8 + 16 * cnt) then u.getMem (BitVec.ofNat 64 (0x24C00 + 16 * r))
+        if y = 0x910 + (L + 8 + 16 * cnt) + 8 then u.getMem (BitVec.ofNat 64 (0x24C00 + 16 * r + 8))
+        else if y = 0x910 + (L + 8 + 16 * cnt) then u.getMem (BitVec.ofNat 64 (0x24C00 + 16 * r))
         else u2.getMem (BitVec.ofNat 64 y) := by
       intro y hy
       rw [hu3, toState_getMem_two rfl]
       simp only [Addr.eval, Rv.E.eval, BinOp.eval, Option.map, BitVec.add_zero, r2.get .x31 (by simp),
         r2.get .x29 (by simp), h31, h29, m2]
       rw [show (8#64 : Word) = BitVec.ofNat 64 8 from rfl, ofNat_add_ofNat]
-      by_cases e1 : y = 0xA10 + (L + 8 + 16 * cnt) + 8
+      by_cases e1 : y = 0x910 + (L + 8 + 16 * cnt) + 8
       · rw [if_pos (ofNat_congr (by omega)), if_pos e1]; exact congrArg _ (ofNat_add_ofNat _ 8)
       · rw [if_neg (by rw [ofNat_eq_iff]; omega), if_neg e1]
-        by_cases e2 : y = 0xA10 + (L + 8 + 16 * cnt)
+        by_cases e2 : y = 0x910 + (L + 8 + 16 * cnt)
         · rw [if_pos (ofNat_congr (by omega)), if_pos e2]
         · rw [if_neg (by rw [ofNat_eq_iff]; omega), if_neg e2]
     refine (sch_next u3 p3 h y19).mono (le_refl _) (fun u4 ⟨p4, y19', r4, m4⟩ => ?_)
-    have m42 : ∀ y : Nat, y < 2 ^ 64 → (y < 0xA10 + L + 8 + 16 * cnt ∨ 0xA10 + L + 8 + 16 * cnt + 16 ≤ y) →
+    have m42 : ∀ y : Nat, y < 2 ^ 64 → (y < 0x910 + L + 8 + 16 * cnt ∨ 0x910 + L + 8 + 16 * cnt + 16 ≤ y) →
         u4.getMem (BitVec.ofNat 64 y) = u.getMem (BitVec.ofNat 64 y) := by
       intro y hy hne; rw [m4, hm3 y hy, if_neg (by omega), if_neg (by omega), m2]
     have g : ∀ r : Reg, r ∉ [.x1, .x2, .x18, .x21, .x29, .x31, .x3, .x19] → u4.getReg r = u.getReg r := by
@@ -330,8 +330,8 @@ structure LM (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (s : Nat) (
   x23 : u.getReg .x23 = BitVec.ofNat 64 (0x760 + 8 * st.stack.length)
   x24 : u.getReg .x24 = BitVec.ofNat 64 (2 ^ 14)
   x29 : u.getReg .x29 = BitVec.ofNat 64 (0x24C00 + 16 * st.reads.length)
-  x30 : u.getReg .x30 = BitVec.ofNat 64 (0xA10 + (segStream sig st.segs).length)
-  x31 : u.getReg .x31 = BitVec.ofNat 64 (0xA10 + (segStream sig st.segs).length + 8)
+  x30 : u.getReg .x30 = BitVec.ofNat 64 (0x910 + (segStream sig st.segs).length)
+  x31 : u.getReg .x31 = BitVec.ofNat 64 (0x910 + (segStream sig st.segs).length + 8)
   stack : StackOK u st.stack
   stackb : ∀ q ∈ st.stack, q < 2 ^ 15
   slen : st.stack.length ≤ s
@@ -454,8 +454,8 @@ theorem leaf_close (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (s : 
     (h23 : u.getReg .x23 = BitVec.ofNat 64 (0x760 + 8 * st.stack.length))
     (h24 : u.getReg .x24 = BitVec.ofNat 64 (2 ^ 14))
     (h29 : u.getReg .x29 = BitVec.ofNat 64 (0x24C00 + 16 * st.reads.length))
-    (h30 : u.getReg .x30 = BitVec.ofNat 64 (0xA10 + (segStream sig st.segs).length))
-    (h31 : u.getReg .x31 = BitVec.ofNat 64 (0xA10 + (segStream sig st.segs).length + 8))
+    (h30 : u.getReg .x30 = BitVec.ofNat 64 (0x910 + (segStream sig st.segs).length))
+    (h31 : u.getReg .x31 = BitVec.ofNat 64 (0x910 + (segStream sig st.segs).length + 8))
     (hstk : StackOK u st.stack) (hstkb : ∀ q ∈ st.stack, q < 2 ^ 15) (hslen : st.stack.length ≤ s + 1)
     (hstr : StreamOK u (curStream sig st.segs 0)) (hns : nsum st.segs = st.reads.length)
     (hfr : Frame t0 u SW) :
@@ -520,13 +520,13 @@ theorem leaf_end (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : S
     rw [hbdef]
     interval_cases t <;> interval_cases cnt <;> rfl
   have hm2 : ∀ y : Nat, y < 2 ^ 64 → u2.getMem (BitVec.ofNat 64 y) =
-      if y = 0xA10 + (segStream sig st.segs).length then
+      if y = 0x910 + (segStream sig st.segs).length then
         replaceByte (u.getMem (BitVec.ofNat 64 y)) 0 (byte b) else u.getMem (BitVec.ofNat 64 y) := by
     intro y hy
     rw [hu2, toState_getMem_one rfl]
     simp only [Addr.eval, Rv.E.eval, BinOp.eval, StoreKind.merge, BitVec.add_zero]
     rw [hwb, r1.get .x30 (by simp), h30, m1]
-    by_cases hy' : y = 0xA10 + (segStream sig st.segs).length
+    by_cases hy' : y = 0x910 + (segStream sig st.segs).length
     · subst hy'; simp
     · rw [if_neg hy', if_neg (by rw [ofNat_eq_iff]; omega), m1]
   have p2 : u2.pc = if s = 14 then pcOf 129 else pcOf 126 := by
@@ -535,11 +535,11 @@ theorem leaf_end (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : S
   have hL' := length_segStream sig hc.siglen (st.segs ++ [b]) (by rw [nsum_snoc]; omega)
   rw [nsum_snoc, hb16] at hL'
   simp only [List.length_append, List.length_singleton] at hL'
-  have m2x : ∀ y : Nat, y < 2 ^ 64 → y ≠ 0xA10 + (segStream sig st.segs).length →
+  have m2x : ∀ y : Nat, y < 2 ^ 64 → y ≠ 0x910 + (segStream sig st.segs).length →
       u2.getMem (BitVec.ofNat 64 y) = u.getMem (BitVec.ofNat 64 y) := fun y hy hne => by rw [hm2 y hy, if_neg hne]
-  have s30 : u2.getReg .x30 = BitVec.ofNat 64 (0xA10 + (segStream sig (st.segs ++ [b])).length) := by
+  have s30 : u2.getReg .x30 = BitVec.ofNat 64 (0x910 + (segStream sig (st.segs ++ [b])).length) := by
     simp only [hu2, blk119.res, rv_simp, r1.get .x31 (by simp), h31]; exact ofNat_congr (by omega)
-  have s31 : u2.getReg .x31 = BitVec.ofNat 64 (0xA10 + (segStream sig (st.segs ++ [b])).length + 8) := by
+  have s31 : u2.getReg .x31 = BitVec.ofNat 64 (0x910 + (segStream sig (st.segs ++ [b])).length + 8) := by
     simp only [hu2, blk119.res, rv_simp, r1.get .x31 (by simp), h31]; ex_bvsimp []; exact ofNat_congr (by omega)
   have sstr : StreamOK u2 (curStream sig (st.segs ++ [b]) 0) :=
     stream_sb (P := (segStream sig st.segs).length) (by rw [hL]; omega) (by omega) hstr hm2
@@ -707,7 +707,7 @@ theorem sch_leaves (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc :
 /-- The whole schedule loop (instructions 72 .. 131) from its start. -/
 theorem sch_run (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : SchCtx A sig t0)
     (hd : ∀ s < 14, lv A s ≠ lv A (s + 1)) (hpc : t0.pc = pcOf 72)
-    (hz : ∀ i < 2152, t0.getByte (BitVec.ofNat 64 (0xA10 + i)) = 0)
+    (hz : ∀ i < 2152, t0.getByte (BitVec.ofNat 64 (0x910 + i)) = 0)
     (hr : (schedule (vsOf A)).2.length ≤ 117) (hg : (schedule (vsOf A)).1.length ≤ 29) :
     Run t0 (9 + 15 * 294) (LM A sig t0 15 ((List.range 15).foldl (schedLeaf (vsOf A)) ⟨[], [], []⟩)) := by
   refine Run.blk blk72 codeAt_72 hpc (by simp only [blk72.res, rv_simp]) ?_

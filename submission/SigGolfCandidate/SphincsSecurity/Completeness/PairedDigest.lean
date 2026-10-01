@@ -140,27 +140,27 @@ theorem paired_digest_room (x : ENNReal) (hx : x + (3410 : ENNReal)⁻¹ ≤ 1) 
 
 /-- The all-message union bound still meets the contractual 128-bit completeness. -/
 theorem paired_closing_sum :
-    (2 : ENNReal) ^ 256 * ((2⁻¹ : ENNReal) ^ 419 + 5 * (2⁻¹ : ENNReal) ^ 1749)
+    (2 : ENNReal) ^ 256 * ((2⁻¹ : ENNReal) ^ 419 + 5 * (2⁻¹ : ENNReal) ^ 1741)
       ≤ ((2 ^ 128 : Nat) : ENNReal)⁻¹ := by
   have hcast : ((2 ^ 128 : Nat) : ENNReal)⁻¹ = (2⁻¹ : ENNReal) ^ 128 := by
     rw [Nat.cast_pow, Nat.cast_ofNat, ENNReal.inv_pow]
   have ha : (2⁻¹ : ENNReal) ^ 419 ≤ (2⁻¹ : ENNReal) ^ 385 := inv_two_pow_anti (by norm_num)
-  have hb : 5 * (2⁻¹ : ENNReal) ^ 1749 ≤ (2⁻¹ : ENNReal) ^ 385 := by
-    have hy : (2⁻¹ : ENNReal) ^ 1749 ≤ (2⁻¹ : ENNReal) ^ 388 := inv_two_pow_anti (by norm_num)
+  have hb : 5 * (2⁻¹ : ENNReal) ^ 1741 ≤ (2⁻¹ : ENNReal) ^ 385 := by
+    have hy : (2⁻¹ : ENNReal) ^ 1741 ≤ (2⁻¹ : ENNReal) ^ 388 := inv_two_pow_anti (by norm_num)
     have h1 := inv_two_pow_succ_add 387
     have h2 := inv_two_pow_succ_add 386
     have h3 := inv_two_pow_succ_add 385
-    calc 5 * (2⁻¹ : ENNReal) ^ 1749 ≤ 8 * (2⁻¹ : ENNReal) ^ 388 := mul_le_mul' (by norm_num) hy
+    calc 5 * (2⁻¹ : ENNReal) ^ 1741 ≤ 8 * (2⁻¹ : ENNReal) ^ 388 := mul_le_mul' (by norm_num) hy
       _ = (((2⁻¹ : ENNReal) ^ 388 + (2⁻¹ : ENNReal) ^ 388)
             + ((2⁻¹ : ENNReal) ^ 388 + (2⁻¹ : ENNReal) ^ 388))
           + (((2⁻¹ : ENNReal) ^ 388 + (2⁻¹ : ENNReal) ^ 388)
             + ((2⁻¹ : ENNReal) ^ 388 + (2⁻¹ : ENNReal) ^ 388)) := by ring
       _ = (2⁻¹ : ENNReal) ^ 385 := by rw [h1, h2, h3]
-  have hsum : (2⁻¹ : ENNReal) ^ 419 + 5 * (2⁻¹ : ENNReal) ^ 1749 ≤ (2⁻¹ : ENNReal) ^ 384 :=
+  have hsum : (2⁻¹ : ENNReal) ^ 419 + 5 * (2⁻¹ : ENNReal) ^ 1741 ≤ (2⁻¹ : ENNReal) ^ 384 :=
     (add_le_add ha hb).trans_eq (inv_two_pow_succ_add 384)
   rw [hcast]
   calc
-    (2 : ENNReal) ^ 256 * ((2⁻¹ : ENNReal) ^ 419 + 5 * (2⁻¹ : ENNReal) ^ 1749)
+    (2 : ENNReal) ^ 256 * ((2⁻¹ : ENNReal) ^ 419 + 5 * (2⁻¹ : ENNReal) ^ 1741)
         ≤ (2 : ENNReal) ^ 256 * (2⁻¹ : ENNReal) ^ 384 := mul_le_mul_right hsum _
     _ = (2⁻¹ : ENNReal) ^ 128 := by
       rw [← ENNReal.inv_pow, mul_comm, ← ENNReal.div_eq_inv_mul,

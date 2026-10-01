@@ -3,10 +3,11 @@ import SigGolfCandidate.SphincsSecurity.Scheme
 /-!
 # How many digests the target-sum code accepts
 
-The signer's counter search accepts 42 three-bit digits with sum 185 in every layer, with both padding bits clear. The count is the coefficient of
-`z^185` in `(1 + z + ... + z^7)^42`. The selected-half oracle law
-multiplies their ordinary digest probability by 1923/1024, giving success probability at
-least `1 / codeShare`, where `codeShare = 2397`, in every layer.
+The signer's counter search accepts 42 three-bit digits with sum 185 in layers 0..3 and
+186 in layer 4, with both padding bits clear. The counts are the coefficients of
+`z^185` and `z^186` in `(1 + z + ... + z^7)^42`. The selected-half oracle law
+multiplies their ordinary digest probability by 63/32, giving success probability at
+least `1 / codeShare`, where `codeShare = 2408`, in every layer.
 
 Counting it is one identity and one division. Packing the polynomial into a single natural number
 in base `2^128`, which is above every coefficient, turns the product of the `42` factors into a
@@ -100,15 +101,15 @@ theorem weight_eq : (∑ d : Digit, base ^ d.val) = (base ^ 8 - 1) / (base - 1) 
 theorem codeCount_target :
     codeCount (targetFor lay) = (∑ d : Digit, base ^ d.val) ^ numChains / base ^ (targetFor lay) % base := by
   rw [weight_pow, sum_encoding_pow]
-  exact (digit_of_sum base (by decide) codeCount codeCount_lt_base 295 (targetFor lay) (by unfold targetFor; decide)).symm
+  exact (digit_of_sum base (by decide) codeCount codeCount_lt_base 295 (targetFor lay) (by unfold targetFor; split_ifs <;> decide)).symm
 
 /-- One digest in `codeShare` or more is a codeword. -/
-def codeShare : Nat := 2397
+def codeShare : Nat := 2408
 
-theorem digests_le_codeShare_mul_codeCount : 1024 * 2 ^ 128 ≤ (1923 * codeShare) * codeCount (targetFor lay) := by
+theorem digests_le_codeShare_mul_codeCount : 32 * 2 ^ 128 ≤ (63 * codeShare) * codeCount (targetFor lay) := by
   rw [codeCount_target, weight_eq]
   unfold targetFor
-  decide
+  split_ifs <;> decide
 
 
 /-- A bounded-digit sum stays below the next power. -/
@@ -261,7 +262,7 @@ theorem decodeDigest_pack (x : Encoding) (hx : Valid lay x) : decodeDigest lay (
 
 /-- The signer's counter search accepts at least one in `codeShare` of the `2^128` digests. -/
 theorem digests_le_codeShare_mul_card_accepting :
-    1024 * 2 ^ 128 ≤ (1923 * codeShare) * (Finset.univ.filter fun d : Digest => (decodeDigest lay d).isSome).card := by
+    32 * 2 ^ 128 ≤ (63 * codeShare) * (Finset.univ.filter fun d : Digest => (decodeDigest lay d).isSome).card := by
   refine le_trans (digests_le_codeShare_mul_codeCount (lay := lay)) (Nat.mul_le_mul_left _ ?_)
   rw [codeCount]
   apply Finset.card_le_card_of_injOn pack

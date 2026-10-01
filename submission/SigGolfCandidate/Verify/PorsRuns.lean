@@ -8,13 +8,13 @@ Families (each a list of path runs, checked by `pspecB` in the `PorsCheck*` file
 * `setup`: falling through from the digest HASH to `leaf_0` (leaf index table, tweak words, guard);
 * `leaf s` (`s < 15`): pi byte, `x = PIND[pi & 0x78 / 8]`, the order checks, leaf tweak, secret,
   `E = x | 2^14`, `a0 = CB`, up to the dispatch (the rejects: HALT(1));
-* `disp c` (`c < 18`): the dispatch `lbu T, 592(FR); slli; add TB; jalr` of leaf `c` (link `x24`)
+* `disp c` (`c < 18`): the dispatch `lbu T, 336(FR); slli; add TB; jalr` of leaf `c` (link `x24`)
   or of the merge tail copy `c - 15` (no link), stopping at the symbolic table entry;
 * `tab tb b` (`tb < 2`, `b < 256`): the 8-word table slot `b` (`FR += 16 a + 8`, then for `a = 0`
   `j entry0_V`, for `a ≥ 1` the inlined entry code) up to the pending hash (`a > 14`: HALT(1);
   `a ≥ 1`: the parity test `andi T, E, 1; beq/bne T, x0, slot(b | 15)`, taken: HALT(1));
 * `ent tb b`: after the pending hash in slot `b`, `a0 = NB; j lad_V_t_(14-a)`;
-* `pos V t p t'`: ladder position `p` of stream `t` (sibling from `FR + 368 + 16 p`, `E >>= 1`, heap
+* `pos V t p t'`: ladder position `p` of stream `t` (sibling from `FR + 112 + 16 p`, `E >>= 1`, heap
   index, branch to stream `t'`), up to the next hash (`p = 13`: the variant's destination);
 * tails `tailM c d`, `tailP c d`, `tailF c` (copy `c`: `0`, `1` = after stream `c`'s ladder, `2` = after
   `entry0_V`), with `STK = 80 d` known where the tail writes through it.
@@ -64,10 +64,10 @@ def RTAB : Nat := 0xFDFFE0
 def RtabData (s : MachineState) : Prop :=
   ∀ n, n ≤ 2 ^ 14 → s.getMem (BitVec.ofNat 64 (RTAB + 8 * n)) = Ref.Rev.revWord (2 ^ 14 ||| n)
 def notOne : E := .c (~~~1#64)
-/-- The table slot address `(lbu (FR + 592) << 5) + TB` (8-word slots). -/
+/-- The table slot address `(lbu (FR + 336) << 5) + TB` (8-word slots). -/
 def dispT (tb : Nat) : E :=
-  .bin .add (.bin .sll (.un (.ld .bu 0) (.ld (.bin .add (.reg .x14) (cw 592)))) (cw 5)) (cw tb)
-def dispObl : List Oblig := [.align8 (.reg .x14), .valid ⟨some (.reg .x14), BitVec.ofNat 64 592⟩ 1]
+  .bin .add (.bin .sll (.un (.ld .bu 0) (.ld (.bin .add (.reg .x14) (cw 336)))) (cw 5)) (cw tb)
+def dispObl : List Oblig := [.align8 (.reg .x14), .valid ⟨some (.reg .x14), BitVec.ofNat 64 336⟩ 1]
 
 /-- The table of leaf `s`. -/
 def tbOf (s : Nat) : Nat := if s = 14 then tbL else tbN
@@ -155,17 +155,17 @@ def posKnown : List (Reg × Word) := gkP ++ [(.x10, 0x1C0)]
 def posKeep : List Reg := [.x14, .x15, .x16, .x17, .x20, .x22, .x24, .x29]
 
 def posMem (t p : Nat) : List (Addr × E) :=
-  [(⟨none, BitVec.ofNat 64 0x1C8⟩, stW 0x1C8 eS), (⟨none, BitVec.ofNat 64 (0x1F8 - 16 * t)⟩, ldR .x14 (368 + 16 * p + 8)),
-    (⟨none, BitVec.ofNat 64 (0x1F0 - 16 * t)⟩, ldR .x14 (368 + 16 * p))]
+  [(⟨none, BitVec.ofNat 64 0x1C8⟩, stW 0x1C8 eS), (⟨none, BitVec.ofNat 64 (0x1F8 - 16 * t)⟩, ldR .x14 (112 + 16 * p + 8)),
+    (⟨none, BitVec.ofNat 64 (0x1F0 - 16 * t)⟩, ldR .x14 (112 + 16 * p))]
 
 def posObl (p : Nat) : List Oblig :=
-  [.valid ⟨some (.reg .x14), BitVec.ofNat 64 (368 + 16 * p + 8)⟩ 8, .valid ⟨some (.reg .x14), BitVec.ofNat 64 (368 + 16 * p)⟩ 8]
+  [.valid ⟨some (.reg .x14), BitVec.ofNat 64 (112 + 16 * p + 8)⟩ 8, .valid ⟨some (.reg .x14), BitVec.ofNat 64 (112 + 16 * p)⟩ 8]
 
 /-- The branch direction from stream `t` to stream `t'`. -/
 def crossDir (t t' : Nat) : Bool := if t = 0 then t' = 1 else t' = 0
 
 def posSpec (V t p t' : Nat) : Spec :=
-  let regs0 := [(.x1, ldR .x14 (368 + 16 * p)), (.x2, ldR .x14 (368 + 16 * p + 8)), ((.x23 : Reg), eS)]
+  let regs0 := [(.x1, ldR .x14 (112 + 16 * p)), (.x2, ldR .x14 (112 + 16 * p + 8)), ((.x23 : Reg), eS)]
   if p = 13 then ⟨regs0 ++ [(.x12, destE V)], posMem t p, ladPc V t p + 7, true, 7, [], none, 7⟩
   else
     ⟨regs0 ++ [(.x12, cw (0x1E0 + 16 * t'))], posMem t p,
@@ -225,15 +225,14 @@ def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 /-- Known at the layer-4 transition: the root sets the layer constants and
 `x28 = 2688` for carried-base subtraction. It reuses `x18 = 4095` with one ADDI;
 `sp = 0x3FE00` reuses the constructed header constant. The accepting tail takes
-13 instructions, including its branch checks and mask loads. -/
+15 instructions, including its branch checks and mask loads. -/
 def rootK : List (Reg × Word) :=
-  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5)]
-def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120)]
+  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x2, TMASK), (.x15, TTA5)]
+def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401), (.x14, KT4)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8), (.x27, ldE 0xFFFFE8),
-      (.x2, .bin .add (ldE 0xFFFFE8) (cw 18446744073709550079))], [], f4Pc c, false, 13,
-    [fBr3 false, fBr2 false, fBr1 false], none, 13⟩
+  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 15,
+    [fBr3 false, fBr2 false, fBr1 false], none, 15⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
@@ -247,9 +246,9 @@ def tailFCheck (c : Nat) : Bool :=
 
 /-- The register holding leaf `s`'s index (`XA`, `XB` alternate). -/
 def xReg (s : Nat) : Reg := if s % 2 = 0 then .x16 else .x17
-/-- `pi_s & 0x78` (the slot's byte offset in `PIND`; W1: `pi_s` at `WIT + 512 + s = 0xA00 + s`). -/
+/-- `pi_s & 0x78` (the slot's byte offset in `PIND`; W1: `pi_s` at `WIT + 256 + s = 0x900 + s`). -/
 def piT (s : Nat) : E :=
-  .bin .and (.un (.ld .bu ((512 + s) % 8)) (ldE (0x800 + (512 + s) / 8 * 8))) (cw 0x78)
+  .bin .and (.un (.ld .bu ((256 + s) % 8)) (ldE (0x800 + (256 + s) / 8 * 8))) (cw 0x78)
 def xE (s : Nat) : E := .ld (.bin .add (piT s) (cw PIND))
 /-- W1: secret `s` in the tweak slot of chain block `(0, 2 + s)` (`WIT + 3072 + 64 s = 0x1400 + 64 s`). -/
 def secA (s : Nat) : Nat := 0x800 + 3072 + 64 * s
@@ -307,8 +306,8 @@ offsets are rebased by `+32`); the relocated leaf head restores `x18 = 0xFFF` (`
 def gkD : List (Reg × Word) := [(.x5, 0), (.x19, 7), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
 def dgK : List (Reg × Word) := gkD ++ [(.x18, 0xFDF), (.x10, 0x20), (.x11, 64), (.x12, 0), (.x15, 0)]
 
-/-- The counters (W1a): `c0 .. c3` as two doublewords at `WIT + 2944`, `c4` as a word at `WIT + 2648`. -/
-def ctrX : E := .bin .or (.bin .or (ldE 4992) (ldE 5000)) (.un (.ld .wu 0) (ldE 4696))
+/-- The counters (W1a): `c0 .. c3` as two doublewords at `WIT + 2944`, `c4` as a word at `WIT + 2392`. -/
+def ctrX : E := .bin .or (.bin .or (ldE 4992) (ldE 5000)) (.un (.ld .wu 0) (ldE 4440))
 def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
 
 def specStartOk : Spec :=
@@ -340,7 +339,7 @@ def psetupMem : List (Addr × E) :=
     (⟨none, BitVec.ofNat 64 0x7F8⟩, cw 0x4000)] ++
   ((List.range 15).reverse.map fun r => (⟨none, BitVec.ofNat 64 (PIND + 8 * r)⟩, pindE r))
 
-/-- Known after the setup: the PORS constants, `TB = ptab_n`, `FR` (first header at `FR + 592`),
+/-- Known after the setup: the PORS constants, `TB = ptab_n`, `FR` (first header at `FR + 336`),
 the empty stack, the fold limit `FLIM`. -/
 def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x7C0), (.x15, 0),

@@ -29,7 +29,7 @@ theorem newEncodingMatch_cell_le (history : OtsContactTrace.Trace)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed)
     (row : canonicalEncodingInputs parameter) :
     Pr[fun output => PublicEncodingMatch.Match parameter messages words selections row.val output ∧
-      ¬EncodingOutputMatch parameter words messages selections history | cell (allowed row)] ≤ ((1923 / 1024 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
+      ¬EncodingOutputMatch parameter words messages selections history | cell (allowed row)] ≤ ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
   refine (_root_.probEvent_mono (fun _ _ h => ⟨h.1, fun hin => h.2 ⟨_, hin, row.property, h.1⟩⟩)).trans
     ((hc.new_reply_probability_le row (PublicEncodingMatch.Match parameter messages words selections row.val)).trans ?_)
   simpa only [cell, dif_pos (referenceEncodingAllowed_nonempty parameter messages selections row), SPMF.probEvent_liftM] using
@@ -57,7 +57,7 @@ theorem queryNewEncodingMatch_le (inputs : Finset HashInput)
     (input : OracleWorld.Domain) :
     Pr[fun result => QueryNewEncodingMatch parameter words messages selections history input result.1 |
       (lazyWorldImpl parameter inputs hencoding outside input).run allowed] ≤
-      ((1923 / 1024 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ((if QueryClass.EncodingHash parameter input then 1 else 0 : Nat) : ENNReal) := by
+      ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ((if QueryClass.EncodingHash parameter input then 1 else 0 : Nat) : ENNReal) := by
   cases input with
   | inl input =>
       have hz : Pr[fun result => QueryNewEncodingMatch parameter words messages selections history (.inl input) result.1 |
@@ -89,7 +89,7 @@ theorem encodingMatch_query_potential_le (inputs : Finset HashInput)
     (∑' result, Pr[= result | (lazyWorldImpl parameter inputs hencoding outside input).run allowed] *
       (if EncodingOutputMatch parameter words messages selections (history * hashObservationTrace input result.1) then 1 else 0 : ENNReal)) ≤
       (if EncodingOutputMatch parameter words messages selections history then 1 else 0 : ENNReal) +
-        ((1923 / 1024 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ((if QueryClass.EncodingHash parameter input then 1 else 0 : Nat) : ENNReal) := by
+        ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ((if QueryClass.EncodingHash parameter input then 1 else 0 : Nat) : ENNReal) := by
   by_cases hs : EncodingOutputMatch parameter words messages selections history
   · have hnext : ∀ answer, EncodingOutputMatch parameter words messages selections (history * hashObservationTrace input answer) :=
       fun _ => (encodingOutputMatch_mul _ _ _ _ _ _).mpr (Or.inl hs)
@@ -108,14 +108,14 @@ theorem encodingMatch_lazyRun_le {Result : Type} (inputs : Finset HashInput)
     Pr[fun result => EncodingOutputMatch parameter words messages selections (history * result.1.2) |
       lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation) allowed] ≤
       (if EncodingOutputMatch parameter words messages selections history then 1 else 0 : ENNReal) +
-        ((1923 / 1024 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ∑' result,
+        ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ∑' result,
           Pr[= result | lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation) allowed] *
             (encodingCalls parameter result.1.2 : ENNReal) := by
   suffices h : (∑' result, Pr[= result | lazyRun parameter inputs hencoding outside
       (QueryPause.traced hashObservationTrace computation) allowed] *
       (if EncodingOutputMatch parameter words messages selections (history * result.1.2) then 1 else 0 : ENNReal)) ≤
       (if EncodingOutputMatch parameter words messages selections history then 1 else 0 : ENNReal) +
-        ((1923 / 1024 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ∑' result,
+        ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ∑' result,
           Pr[= result | lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation) allowed] *
             (encodingCalls parameter result.1.2 : ENNReal) by
     simpa only [mul_ite, mul_one, mul_zero, ← probEvent_eq_tsum_ite] using h
@@ -141,7 +141,7 @@ theorem encodingMatch_initial_lazyRun_le {Result : Type} (inputs : Finset HashIn
     Pr[fun result => EncodingOutputMatch parameter words messages selections result.1.2 |
       lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation)
         (referenceEncodingAllowed parameter messages selections)] ≤
-      ((1923 / 1024 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ∑' result,
+      ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ∑' result,
         Pr[= result | lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation)
           (referenceEncodingAllowed parameter messages selections)] * (encodingCalls parameter result.1.2 : ENNReal) := by
   simpa only [one_mul, if_neg (encodingOutputMatch_one parameter words messages selections), zero_add] using

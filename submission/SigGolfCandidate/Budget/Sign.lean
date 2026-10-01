@@ -10,7 +10,7 @@ queries types `0..3`, `13`, `14`), and for **every** cache argument, the expecta
   `z ^ 513 * (bD * (z ^ 40959 * (counterProduct bC 5 * z ^ (73244 + 542))))`,
 
 where `bD` bounds the digest search and `bC i` the counter search in layer `i` (`V_signRef`). The
-deterministic part (paired PRF secrets, 5 layers (11,6,6,6,5), target 185) is MAC 513 + PORS tree
+deterministic part (paired PRF secrets, 5 layers (11,6,6,6,5), targets 185/186) is MAC 513 + PORS tree
 40959 + layers 1..4 73244 + top layer 542 = 115258 blocks (top layer: 21 paired secret queries,
 `targetSum = 185` chain steps, 10 masks, and 326 compressions to rebuild the omitted sibling leaf).
 -/

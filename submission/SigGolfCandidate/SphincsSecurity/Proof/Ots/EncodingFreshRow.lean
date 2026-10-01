@@ -23,7 +23,7 @@ theorem firstSuccess_allowed_fresh {n : Nat} (index : Fin n) (reference : Encodi
 theorem freshEncodingSupport_probability_le (reference : Encoding) (targets : Finset Encoding) (href : reference ∉ targets)
     (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport lay reference allowed) :
     Pr[fun output : HashOutput => selectEncodingDigest output ∈ OtsCode.decodingDigests lay targets | PMF.uniformOfFinset allowed ha] ≤
-      ((1923 / 1024 : ENNReal) * targets.card) / Fintype.card Digest := by
+      ((63 / 32 : ENNReal) * targets.card) / Fintype.card Digest := by
   rcases hallowed with rfl | hrestricted
   · have h := OtsCode.decodingDigests_uniform_le (lay := lay) targets
     simpa only [probEvent_eq_tsum_ite, probOutput_uniformSample, PMF.probOutput_eq_apply, PMF.uniformOfFinset_apply,
@@ -51,7 +51,7 @@ theorem freshEncodingSupport_probability_le (reference : Encoding) (targets : Fi
 theorem freshEncodingSupport_neighbor_le (reference : Encoding) (lowered : ChainIndex)
     (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport lay reference allowed) :
     Pr[fun output : HashOutput => selectEncodingDigest output ∈ OtsCode.decodingDigests lay (OtsCode.unitNeighbors lay reference lowered) |
-      PMF.uniformOfFinset allowed ha] ≤ ((1923 / 1024 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) / (Fintype.card Digest : ENNReal) := by
+      PMF.uniformOfFinset allowed ha] ≤ ((63 / 32 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) / (Fintype.card Digest : ENNReal) := by
   have href : reference ∉ OtsCode.unitNeighbors lay reference lowered := by
     intro h
     exact (OtsCode.mem_unitNeighbors.mp h).ne rfl
@@ -62,7 +62,7 @@ theorem freshEncodingSupport_neighbor_le (reference : Encoding) (lowered : Chain
 theorem freshEncodingSupport_all_neighbors_le (reference : Encoding)
     (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport lay reference allowed) :
     Pr[fun output : HashOutput => selectEncodingDigest output ∈ OtsCode.decodingDigests lay (OtsCode.allUnitNeighbors lay reference) |
-      PMF.uniformOfFinset allowed ha] ≤ ((1923 / 1024 : ENNReal) * (OtsCode.neighborBound : ENNReal)) / (Fintype.card Digest : ENNReal) := by
+      PMF.uniformOfFinset allowed ha] ≤ ((63 / 32 : ENNReal) * (OtsCode.neighborBound : ENNReal)) / (Fintype.card Digest : ENNReal) := by
   have href : reference ∉ OtsCode.allUnitNeighbors lay reference := by
     intro h
     obtain ⟨lowered, ht⟩ := OtsCode.mem_allUnitNeighbors.mp h
