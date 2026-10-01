@@ -33,11 +33,11 @@ theorem targetCreationMultiplier_le_macro (key : SecretKey) (cache : QueryCache 
   | inr message =>
       simp only [targetCreationMultiplier, signingMacroHashCost]
       calc
-        _ ≤ (3410 : ENNReal) * 1 :=
+        _ ≤ (2142 : ENNReal) * 1 :=
           mul_le_mul' admissibleProbability_inv_le (freshDigestSelectionProbability_le_one key message cache)
         _ ≤ _ := by
           rw [mul_one]
-          exact_mod_cast (show 3410 ≤ 2 ^ ftsTreeHeight by decide)
+          exact_mod_cast (show 2142 ≤ 2 ^ ftsTreeHeight by decide)
 
 theorem creationBudget_update (key : SecretKey) (budget : Nat) (required : Finset IndexGroup) (stopAfter : CertificateStopRule)
     (input : (OracleWorld + SigningSpec).Domain) (state : CertificateMonitorState) (length : Nat)

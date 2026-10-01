@@ -165,15 +165,15 @@ def CCtx.x31 (c : CCtx) : Word := BitVec.ofNat 64 (c.tau + 2 ^ 32 * c.e)
 
 def CCtx.Regs (c : CCtx) (s : MachineState) : Prop :=
   s.getReg .x16 = c.d0 ∧ s.getReg .x17 = c.d1 ∧
-  s.getReg .x23 = BitVec.ofNat 64 (c.e + 2 ^ heightL c.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 c.tau ∧
+  s.getReg .x23 = BitVec.ofNat 64 (c.e + 2 ^ heightL c.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 (if c.lay = 0 then c.e else c.tau) ∧
   s.getReg .x31 = c.x31
 
 def CCtx.ok (c : CCtx) : Prop :=
   c.lay < 5 ∧ c.tau < 2 ^ 32 ∧ c.e < 2 ^ 32 ∧ c.wl.length = 16384 ∧ c.d0.toNat < 2 ^ 63 ∧
     c.d1.toNat < 2 ^ 63
 
-/-- The running-header register `x25` is no longer used by the chain code (address headers). -/
-def carryW0 (lay : Nat) : Word := BitVec.ofNat 64 (hWord lay) - K40
+/-- The unused running-header register remains fixed throughout the chain phase. -/
+def carryW0 (_lay : Nat) : Word := KT
 
 /-- The address header before the tree-high byte (zero in these programs). -/
 def newTwW0 (lay i mu : Nat) : Nat := blkN lay i + 2 ^ 32 * mu
@@ -220,12 +220,12 @@ def CB0 (s : MachineState) : Prop := (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2
 /-- The registers and buffers common to the whole chain phase (`acc` = the chain ends so far). -/
 def ChBase (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
   Glob gkL c.wl c.pk s ∧ KnownOK chK0 s ∧ c.Regs s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N c.lay) ∧
-  s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay + 768) ∧ s.getReg .x1 = c.ret ∧ LBOk acc s ∧
+  s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay + 256) ∧ s.getReg .x1 = c.ret ∧ LBOk acc s ∧
   acc.length = i ∧ (∀ v ∈ acc, v.length = 16) ∧ CB0 s
 
-/-- Before chain `i`'s code (`x25` = the previous chain's tweak word 0). -/
+/-- Before chain `i`: chain 0 initializes `x25`; later chains receive the previous tweak. -/
 def ChainIn (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
-  ChBase c i acc s ∧ True ∧ Fresh c.wl c.lay i s ∧
+  ChBase c i acc s ∧ s.getReg .x25 = carryW0 c.lay ∧ Fresh c.wl c.lay i s ∧
   s.pc = pcOf (startPc c i)
 
 /-- Chain `i`'s tweak slot: word 0 with the layer and the chain (byte 4, the step, free), word 1. -/
@@ -241,7 +241,7 @@ def PadOk (c : CCtx) (i : Nat) (s : MachineState) : Prop :=
 
 /-- At rung `mu` of chain `i` with the value `v` in the block's value slot. -/
 def StepInv (c : CCtx) (i : Nat) (acc : List Val) (mu : Nat) (v : Val) (s : MachineState) : Prop :=
-  ChBase c i acc s ∧ True ∧ Fresh c.wl c.lay (i + 1) s ∧
+  ChBase c i acc s ∧ s.getReg .x25 = carryW0 c.lay ∧ Fresh c.wl c.lay (i + 1) s ∧
   PadOk c i s ∧ TwOk c i s ∧ s.getMem (BitVec.ofNat 64 (blkN c.lay i + 48)) = vw0 v ∧
   s.getMem (BitVec.ofNat 64 (blkN c.lay i + 56)) = vw1 v ∧ v.length = 16 ∧
   s.getReg .x10 = BitVec.ofNat 64 (blkN c.lay i) ∧ s.getReg .x12 = BitVec.ofNat 64 (blkN c.lay i + 48) ∧
@@ -249,7 +249,7 @@ def StepInv (c : CCtx) (i : Nat) (acc : List Val) (mu : Nat) (v : Val) (s : Mach
 
 /-- After chain `i` (its end value is in its leaf-pk slot, the last element of `acc`). -/
 def EndInv (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
-  ChBase c (i + 1) acc s ∧ True ∧ Fresh c.wl c.lay (i + 1) s ∧
+  ChBase c (i + 1) acc s ∧ s.getReg .x25 = carryW0 c.lay ∧ Fresh c.wl c.lay (i + 1) s ∧
   s.pc = pcOf (endPc c i)
 
 theorem length_witChain (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) :
@@ -491,7 +491,7 @@ theorem rungPc_end (c : CCtx) (i : Nat) (hd : dig c i < 7) : rungPc c i 7 + 3 = 
 /-- Just before the `ecall` of step `mu` of chain `i` (value `v` in the value slot, the step byte
 written, `a2` = the value slot, or the leaf-pk slot for step 7). -/
 def PreHash (c : CCtx) (i : Nat) (acc : List Val) (mu : Nat) (v : Val) (t : MachineState) : Prop :=
-  ChBase c i acc t ∧ True ∧ Fresh c.wl c.lay (i + 1) t ∧
+  ChBase c i acc t ∧ t.getReg .x25 = carryW0 c.lay ∧ Fresh c.wl c.lay (i + 1) t ∧
   PadOk c i t ∧ t.getMem (BitVec.ofNat 64 (blkN c.lay i)) = BitVec.ofNat 64 (newTwW0 c.lay i (mu - 1)) ∧
   t.getMem (BitVec.ofNat 64 (blkN c.lay i + 8)) = c.x31 ∧
   t.getMem (BitVec.ofNat 64 (blkN c.lay i + 48)) = vw0 v ∧
@@ -538,7 +538,7 @@ theorem prehash_step (c : CCtx) (hc : c.ok) (i mu : Nat) (hi : i < 42) (h1 : 1 �
         LBOk_frame hLB (fun j hj => ⟨wfr _ (by omega) (Or.inl (by rw [hlen] at hj; omega)),
           wfr _ (by omega) (Or.inl (by rw [hlen] at hj; omega))⟩), hlen, hvs,
         by unfold CB0; rw [wfr _ (by omega) (Or.inl (by omega))]; exact hCB⟩,
-        trivial, ?_, fun k hk hk' => ?_, ⟨?_, ?_, ?_⟩, ?_, ?_, by simp,
+        by rw [writeHash_getReg]; exact h25, ?_, fun k hk hk' => ?_, ⟨?_, ?_, ?_⟩, ?_, ?_, by simp,
         by rw [writeHash_getReg]; exact t10, by rw [writeHash_getReg]; exact d12, ?_⟩
       · intro a' b' k hw
         obtain ⟨n1, n2, n3⟩ := fresh_disj hw hi
@@ -564,7 +564,7 @@ theorem prehash_step (c : CCtx) (hc : c.ok) (i mu : Nat) (hi : i < 42) (h1 : 1 �
         hK', hR', by rw [writeHash_getReg]; exact h22, by rw [writeHash_getReg]; exact h27,
         by rw [writeHash_getReg]; exact h1r, ?_, by simp [hlen], ?_,
         by unfold CB0; rw [wfr _ (by omega) (Or.inl (by unfold slotA; omega))]; exact hCB⟩,
-        trivial,
+        by rw [writeHash_getReg]; exact h25,
         ?_, ?_⟩
       · refine LBOk_append (LBOk_frame hLB (fun j hj => ?_)) _ ?_ ?_
         · rw [hlen] at hj
@@ -638,7 +638,7 @@ theorem rung_step (c : CCtx) (hc : c.ok) (i mu p : Nat) (hi : i < 42) (h1 : 1 �
       LBOk_frame hLB (fun j hj => ⟨tfr _ (by omega) (by rw [hlen] at hj; omega),
         tfr _ (by omega) (by rw [hlen] at hj; omega)⟩), hlen, hvs,
         by unfold CB0; rw [tfr _ (by omega) (by omega)]; exact hCB⟩,
-      trivial, ?_, fun k hk hk' => by rw [tfr _ (by omega) (by omega)]; exact hP k hk hk',
+      (treg _ (by decide)).trans h25, ?_, fun k hk hk' => by rw [tfr _ (by omega) (by omega)]; exact hP k hk hk',
       ?_, (tfr _ (by omega) (by omega)).trans hT.2.2, (tfr _ (by omega) (by omega)).trans hv0,
       (tfr _ (by omega) (by omega)).trans hv1, hvl, (treg _ (by decide)).trans h10, t12, ?_, hec rfl⟩⟩
   · obtain ⟨r1, r2, r3, r4, r5⟩ := hR
@@ -663,6 +663,15 @@ theorem twW0_word (lay i : Nat) (hl : lay < 5) (hi : i < 42) :
 theorem twW0_bump (lay i : Nat) (hl : lay < 5) (hi : i < 42) :
     BitVec.ofNat 64 (twW0 lay i) - K40 + K40 = BitVec.ofNat 64 (twW0 lay i) := by
   rw [BitVec.sub_add_cancel]
+
+theorem s9E_eval (c : CCtx) (i : Nat) (s : MachineState) (hl : c.lay < 5) (hi : i < 42)
+    (h25 : i ≠ 0 → s.getReg .x25 = BitVec.ofNat 64 (twW0 c.lay i) - K40)
+    (h27 : s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay + 256)) :
+    (s9E i).eval s = BitVec.ofNat 64 (twW0 c.lay i) := by
+  by_cases h : i = 0
+  · subst i; simp [s9E, addC_eval, E.eval, h27, twW0, BitVec.ofNat_add, BitVec.add_assoc]
+  · simp only [s9E, if_neg h, addC_eval, E.eval, h25 h]
+    exact twW0_bump _ _ hl hi
 
 theorem K40_eq : K40 = BitVec.ofNat 64 (2 ^ 40) := rfl
 
@@ -718,7 +727,10 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i <
     · rw [if_pos h6, if_pos (by omega)]; rfl
     · rw [if_neg h6, if_neg (by omega), addC_eval, a0e, show (48 : Word) = BitVec.ofNat 64 48 from rfl,
         BitVec.ofNat_add_ofNat]
-  have t25 : True := trivial
+  have t25 : t.getReg .x25 = carryW0 c.lay := by
+    rw [ht, PRes.toState_getReg]; simp only [hr, headExp]
+    rw [RegFile.get_set_ne _ _ (by decide), RegFile.get_set_ne _ _ (by decide), known_eval hK]
+    exact h25
   have tmem : ∀ A, t.getMem A = if A = BitVec.ofNat 64 B then
       StoreKind.merge .b (BitVec.ofNat 64 B) 4 (BitVec.ofNat 64 d)
       else if A = BitVec.ofNat 64 (B + 8) then c.x31 else s.getMem A := by
@@ -856,7 +868,9 @@ theorem copy_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i =
     rcases List.mem_append.mp hw with h | h
     · exact hvs w h
     · rw [List.mem_singleton.mp h]; exact length_witChain c hc i hi
-  · trivial
+  · rw [ht, PRes.toState_getReg]; simp only [hr, copyExp]
+    rw [RegFile.get_set_ne _ _ (by decide), RegFile.get_set_ne _ _ (by decide), known_eval hK]
+    exact h25
   · intro a' b' k hw
     rw [tfr _ (by rw [blkN_eq]; obtain ⟨ha5, hb42, hk8, -⟩ := hw; omega)
       (by unfold slotA; rw [blkN_eq]; omega) (by unfold slotA; rw [blkN_eq]; omega)]
@@ -1030,7 +1044,7 @@ theorem x_step (c : CCtx) (hc : c.ok) (t : Nat) (ht : t < 14) (acc : List Val)
     · obtain ⟨r1, r2, r3, r4, r5⟩ := hR
       exact ⟨(ureg _ (by decide)).trans r1, (ureg _ (by decide)).trans r2, (ureg _ (by decide)).trans r3,
         (ureg _ (by decide)).trans r4, (ureg _ (by decide)).trans r5⟩
-    · trivial
+    · rw [ureg _ (by decide)]; exact h25
     · rw [hu, PRes.toState_pc_some _ _ _ rfl, triTgt_eval c hc (t + 1) h1 s hRs]
       unfold startPc; rw [if_pos (by omega), show (3 * t + 3) / 3 = t + 1 by omega]
   · subst h13

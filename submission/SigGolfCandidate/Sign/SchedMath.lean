@@ -485,7 +485,7 @@ theorem schedule_reads_length (vs : List Nat) (hlen : vs.length = 15)
     (schedule vs).2.length = octopusSize vs :=
   schedule_reads_length_gen vs (by omega) hsort hlt
 
-/-- Corollary: an admissible leaf set needs at most `porsM = 117` authentication nodes. -/
+/-- Corollary: an admissible leaf set needs at most `porsM = 118` authentication nodes. -/
 theorem schedule_reads_le (vs : List Nat) (hlen : vs.length = 15)
     (hsort : vs.Pairwise (· < ·)) (hlt : ∀ v ∈ vs, v < 2 ^ 14) (hoct : octopusSize vs ≤ porsM) :
     (schedule vs).2.length ≤ porsM := by

@@ -199,11 +199,19 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
         writeHash_frame _ a 0 A h12 hA (by omega) h
       refine ⟨?_, Glob_writeHash hG a _ h12 (by decide), WitAll_writeHash (hu.wall _ hW) a _ h12 (by decide),
         Known_writeHash hKd a, ?_, ?_, ?_⟩
-      · constructor
-        · rw [wf 0xFFFFF0 (by decide) (by decide), mfr 0xFFFFF0 (by decide) (by decide) (by decide) (by decide)]
+      · refine ⟨?_, ?_, ?_, ?_⟩
+        · rw [wf 0xFFFFF0 (by decide) (by decide),
+            mfr 0xFFFFF0 (by decide) (by decide) (by decide) (by decide)]
           exact hMask.1
-        · rw [wf 0xFFFFF8 (by decide) (by decide), mfr 0xFFFFF8 (by decide) (by decide) (by decide) (by decide)]
-          exact hMask.2
+        · rw [wf 0xFFFFF8 (by decide) (by decide),
+            mfr 0xFFFFF8 (by decide) (by decide) (by decide) (by decide)]
+          exact hMask.2.1
+        · rw [wf 0xFFFFE0 (by decide) (by decide),
+            mfr 0xFFFFE0 (by decide) (by decide) (by decide) (by decide)]
+          exact hMask.2.2.1
+        · rw [wf 0xFFFFE8 (by decide) (by decide),
+            mfr 0xFFFFE8 (by decide) (by decide) (by decide) (by decide)]
+          exact hMask.2.2.2
       · intro i hi
         have := writeHash_getMem_ofNat u a 0 (8 * i) h12 (by omega) (by omega)
         rw [this]
@@ -294,14 +302,15 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
     rw [hhi, BitVec.ofNat_add_ofNat, twLo_idx _ _ (by decide) hil]; congr 1; omega
   have S : S0 P u := by
     refine ⟨?_, hu.wall _ hWA, hGu.2.2.1, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · have fr : ∀ A, A = 0xFFFFF0 ∨ A = 0xFFFFF8 →
+    · have fr : ∀ A, A = 0xFFFFF0 ∨ A = 0xFFFFF8 ∨ A = 0xFFFFE0 ∨ A = 0xFFFFE8 →
           u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
         intro A hA
         rw [hlook A (by omega)]
         have hn : memLook psetupMem A = none := by
-          rcases hA with rfl | rfl <;> decide +kernel
+          rcases hA with rfl | rfl | rfl | rfl <;> decide +kernel
         rw [hn]
-      exact ⟨(fr _ (Or.inl rfl)).trans hMask.1, (fr _ (Or.inr rfl)).trans hMask.2⟩
+      exact ⟨(fr _ (by simp)).trans hMask.1, (fr _ (by simp)).trans hMask.2.1,
+        (fr _ (by simp)).trans hMask.2.2.1, (fr _ (by simp)).trans hMask.2.2.2⟩
     · intro a ha
       have hn := setup_none a ha
       have ha' : a < 2 ^ 64 := by have := zeroP_lt a ha; omega
@@ -353,7 +362,7 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
   refine ⟨u, hu.steps, S, ⟨⟨⟨fun p hp => hK' p (by simp [setupPost] at hp ⊢; tauto), PFrame.refl u⟩, S, ?_⟩,
     hu.pc rfl, ?_, ?_, ?_, fun i hi => by simp at hi, fun h => by omega, ?_⟩⟩
   · rw [hu.regs (.x22, idxE) (by simp [setupSpec]), hidx]
-  · rw [hK' (.x14, 0x7C0) (by simp [setupPost])]; rfl
+  · rw [hK' (.x14, 0x7B0) (by simp [setupPost])]; rfl
   · rw [hK' (.x18, BitVec.ofNat 64 FLIM) (by simp [setupPost])]
   · rw [hK' (.x15, 0) (by simp [setupPost])]; rfl
   · simp [SegBnd, wStream, wSec, porsK]

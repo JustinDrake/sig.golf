@@ -27,7 +27,7 @@ theorem prefixObservedRun_hashCalls_le (parameter : PublicParameter) (hparameter
     (ftsSecret : Index → FtsTree → FtsLeaf → Digest)
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (chainIdx : ChainIndex)
     (dummy : OtsReferenceWords) (adversary : Adversary) (selections : ReferenceFamily)
-    (hselections : selections ∈ (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).support)
+    (hselections : selections ∈ (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).support)
     (q : Nat) (hbound : HasHashQueryBound scheme adversary q) :
     let words := referenceFamilyWords selections dummy
     let segment : OtsPrefix := ⟨parameter, lay, tree, leaf, chainIdx, words lay tree leaf chainIdx⟩
@@ -56,7 +56,7 @@ theorem prefixObservedRun_hashCalls_le (parameter : PublicParameter) (hparameter
 /-- Every seed game of a chain segment admits a cost bounding its prefix queries within `budget`. -/
 def PrefixBudget (dummy : OtsReferenceWords) (adversary : Adversary) (budget : Nat) : Prop :=
   ∀ parameter ∈ support sampleParameter, ∀ (ftsSecret : Index → FtsTree → FtsLeaf → Digest) (address : OtsPrefix.ChainAddress)
-    (selections : ReferenceFamily), selections ∈ (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).support →
+    (selections : ReferenceFamily), selections ∈ (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).support →
     ∀ (other : (OtsPrefix.atAddress parameter (referenceFamilyWords selections dummy) address).ErasedSecrets)
       (auxiliary : (OtsPrefix.atAddress parameter (referenceFamilyWords selections dummy) address).ReferenceAuxSeed
         (canonicalGraphGameInputs adversary) (canonicalEncodingInputs_subset_gameInputs adversary parameter)

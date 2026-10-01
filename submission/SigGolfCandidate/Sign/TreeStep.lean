@@ -241,7 +241,7 @@ theorem step_body (p : StepPar) (ts : MachineState) (ctx : StepCtx p ts) (j : Na
     simp only [ht1, blk556.res, rv_simp, t24, splitP_word p.i j (by omega) (by omega)]
   have x29 : t1.getReg .x29 = BitVec.ofNat 64 j := by
     simp only [ht1, blk556.res, rv_simp, t24, splitP_low p.i j hi (by omega)]
-  have aq := address_query t1 (pcOf 2988) (pcOf 3007) (pcOf 3010)
+  have aq := address_query t1 (pcOf 2887) (pcOf 2906) (pcOf 2909)
     addrHead563 addrTail563 (jumpAddress563 t1 pc1)
     (fun w hp => by simpa only [pc1, show pcOf 563 + 4 = pcOf 564 from rfl] using returnAddress563 w hp)
     (by rfl) (by rfl) 192 p.lay p.i j hl hi (by omega)

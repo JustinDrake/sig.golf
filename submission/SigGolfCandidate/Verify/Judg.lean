@@ -184,7 +184,7 @@ end SigGolfCandidate.Verify
 
 `GoodQ s N C Q A X`: as `Good s N C X`, and moreover every accepting run (exit `success`) satisfies
 `Q` and takes at most `A` cycles. (The verify program bounds accepting runs more tightly than
-all runs: an accepting run passed the check "total folds `≤ 117`".) -/
+all runs: an accepting run passed the check "total folds `≤ 118`".) -/
 
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp

@@ -20,7 +20,7 @@ record's, or a padded chain match), or an FTS exception. -/
 theorem verify_classification (f : QueryImpl HashSpec Id) (key : SecretKey) (words : OtsReferenceWords)
     (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (message : Message) (signature : Signature)
     (pads : ChainPads) (trace : Trace)
-    (hvalid : ∀ lay tree leaf, OtsCode.Valid (words lay tree leaf))
+    (hvalid : ∀ lay tree leaf, OtsCode.Valid lay (words lay tree leaf))
     (hmessages : ∀ index lay, messages ⟨lay, treeIndexAt index lay, leafIndexAt index lay⟩ = evalWithAnswerFn f (layerMessage key index lay))
     (hroot : key.root = honestNode f key.parameter topLayer rootTree (key.otsSecret topLayer rootTree) (layerHeight topLayer) 0)
     (hverify : evalWithAnswerFn f (verifyP ⟨key.root, key.parameter⟩ message signature pads) = true)

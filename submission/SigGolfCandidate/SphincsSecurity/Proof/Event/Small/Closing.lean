@@ -4,7 +4,7 @@ import SigGolfCandidate.SphincsSecurity.Proof.Event.Small.SmallBound
 
 At budget `q + 1` with `keygenHashCost ≤ q < budgetSplit`, the small-budget bound of the capped adversary
 is at most `q / 2^127`. Compared with the query-bounded closing, the full-certificate excess is paid at
-the crude budget `265 (q + 1)` (per request, at most 265 times the least signing cost `signCharge`), and the
+the crude budget `254 (q + 1)` (per request, at most 254 times the least signing cost `signCharge`), and the
 near-certificate term (15 slots, price `1241/15`) leaves about `0.018 x` of slack at the split; the extra query
 of the marker costs `2^-127`, which the slack absorbs since `q ≥ keygenHashCost`.
 -/
@@ -16,8 +16,8 @@ open ENNReal
 set_option exponentiation.threshold 1024
 
 private theorem visRangeClosing (x : ℝ) (hlow : 606208 / 2 ^ 128 ≤ x) (hhigh : x ≤ 3 / 16384) :
-    7 / 4 * x + 265 * 1 / 2 ^ 16 * x + 1 / 2 ^ 700 + x ^ 2 * 2 +
-      16384 / 16381 * x * (1241 * x + 15 * (265 * x / 2 ^ 25) + 15 / 2 ^ 700) +
+    7 / 4 * x + 254 * 1 / 2 ^ 16 * x + 1 / 2 ^ 700 + x ^ 2 * 2 +
+      16384 / 16381 * x * (1241 * x + 15 * (254 * x / 2 ^ 25) + 15 / 2 ^ 700) +
       x / 2 ^ 72 ≤ 2 * x - 2 / 2 ^ 128 := by
   have hn : 0 ≤ x := le_trans (by positivity) hlow
   have hsq : x * x ≤ x * (3 / 16384) := mul_le_mul_of_nonneg_left hhigh hn
@@ -69,7 +69,7 @@ theorem visSmallBound_plus_le (q : Nat) (hq : keygenHashCost ≤ q) (hsmall : q 
     have h : ((16381 * 2 ^ 114 : Nat) : ENNReal) ≤ ((2 ^ 128 - b : Nat) : ENNReal) := by
       exact_mod_cast (show 16381 * 2 ^ 114 ≤ 2 ^ 128 - b by omega)
     exact_mod_cast h
-  have hcache : ((265 * b : Nat) : ENNReal) * certificateCacheExceptionRate ≤ ((265 * b : Nat) : ENNReal) * (2 ^ 153 : ENNReal)⁻¹ :=
+  have hcache : ((254 * b : Nat) : ENNReal) * certificateCacheExceptionRate ≤ ((254 * b : Nat) : ENNReal) * (2 ^ 153 : ENNReal)⁻¹ :=
     mul_le_mul' le_rfl certificateCacheExceptionRate_le
   refine le_trans (add_le_add (add_le_add (add_le_add le_rfl hpair)
     (mul_le_mul' hinv (mul_le_mul' le_rfl (mul_le_mul' le_rfl (add_le_add le_rfl (add_le_add hcache le_rfl)))))) le_rfl) ?_

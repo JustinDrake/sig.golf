@@ -338,10 +338,10 @@ theorem chainsCost_aux (c : CCtx) : ∀ k i,
 /-- The chain-phase cycles of a layer (at most; each digit-7 chain saves one more cycle). -/
 def chainsBound (lay : Nat) : Nat := 42 * 68 - 9 * targetFor lay + 65
 
-theorem chainsCost_le (c : CCtx) (xs : List Nat) (hlen : xs.length = 42)
-    (hxs : ∀ i < 42, xs.getD i 0 = dig c i) (hsum : xs.sum = targetFor c.lay) :
-    chainsCost c 0 42 ≤ chainsBound c.lay := by
-  have hs : ((List.range' 0 42).map (dig c)).sum = targetFor c.lay := by
+theorem chainsCost_le (lay : Nat) (c : CCtx) (xs : List Nat) (hlen : xs.length = 42)
+    (hxs : ∀ i < 42, xs.getD i 0 = dig c i) (hsum : xs.sum = targetFor lay) :
+    chainsCost c 0 42 ≤ chainsBound lay := by
+  have hs : ((List.range' 0 42).map (dig c)).sum = targetFor lay := by
     rw [← hsum, sum_eq_getD xs, hlen, List.range_eq_range']
     congr 1
     apply List.map_congr_left
@@ -350,7 +350,7 @@ theorem chainsCost_le (c : CCtx) (xs : List Nat) (hlen : xs.length = 42)
   have := chainsCost_aux c 42 0
   rw [hs, show ((List.range' 0 42).map xtra).sum = 65 by decide] at this
   unfold chainsCost chainsBound
-  have hT := targetFor_le c.lay
+  have ht : targetFor lay ≤ 183 := by unfold targetFor targetSum; split_ifs <;> omega
   omega
 
 end SigGolfCandidate.Verify

@@ -141,9 +141,9 @@ theorem sgOff_eq (lay : Nat) (hl : lay < 5) : sigLayerOff lay = sgOff lay := by
   interval_cases lay <;> decide
 
 set_option maxRecDepth 20000 in
-theorem witness_bytes (sig : List Byte) (hsig : sig.length = 6032) (N : Nat) (A : Nat → Nat)
+theorem witness_bytes (sig : List Byte) (hsig : sig.length = 6048) (N : Nat) (A : Nat → Nat)
     (hSK : SortedKeys N A) (hn : (leavesOf N).Nodup) (segs : List Nat) (f0 : Nat → Byte)
-    (h1 : ∀ j < 6032, f0 (0x24B00 + j) = sig.getD j 0)
+    (h1 : ∀ j < 6048, f0 (0x24B00 + j) = sig.getD j 0)
     (h2 : ∀ i < 2152, f0 (0x910 + i) = (curStream sig segs 0).getD i 0) (h3 : f0 0x81F = 0)
     (hlen : (segStream sig segs).length ≤ 2120)
     (h4 : ∀ a, 0x800 + 2424 ≤ a → a < 0x24B00 → f0 a = 0) :
@@ -152,7 +152,7 @@ theorem witness_bytes (sig : List Byte) (hsig : sig.length = 6032) (N : Nat) (A 
   intro i hi
   set g := piF A 15 (applyCopy (0x24B00, 0x800, 4) f0) with hg
   -- the signature under the copies
-  have hgs : ∀ j < 6032, g (0x24B00 + j) = sig.getD j 0 := by
+  have hgs : ∀ j < 6048, g (0x24B00 + j) = sig.getD j 0 := by
     intro j hj; simp only [hg, piF, applyCopy]; rw [if_neg (by omega), if_neg (by omega)]; exact h1 j hj
   have hg0 : ∀ a, 0x800 + 2424 ≤ a → a < 0x24B00 → g a = 0 := by
     intro a ha1 ha2; simp only [hg, piF, applyCopy]; rw [if_neg (by omega), if_neg (by omega)]; exact h4 a ha1 ha2
@@ -317,7 +317,7 @@ theorem witness_bytes (sig : List Byte) (hsig : sig.length = 6032) (N : Nat) (A 
       sigChain, getD_slice' _ _ _ _ (by omega), sgOff_eq lay hl]
 
 /-- The bytes `2396 .. 2399` of the partial witness (after the `c4` slot) are zero. -/
-theorem witnessList_c4 (sig : List Byte) (hsig : sig.length = 6032) (v vs segs : List Nat) (hvs : vs.length = 15) :
+theorem witnessList_c4 (sig : List Byte) (hsig : sig.length = 6048) (v vs segs : List Nat) (hvs : vs.length = 15) :
     ∀ j < 4, (witnessList sig v vs segs).getD (2396 + j) 0 = 0 := by
   intro j hj
   have eS : ((List.range porsK).map (sigItem sig)).flatten = slice sig 16 240 := by

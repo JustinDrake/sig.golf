@@ -56,7 +56,7 @@ theorem searchCounter_eq (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M 
     simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_
     rw [decodeDigits_dv]
-    cases hd : SphincsSecurity.TargetSum.decodeDigest d with
+    cases hd : SphincsSecurity.TargetSum.decodeDigest lay d with
     | none =>
       simp only [Option.map_none]
       rw [ih (c + 1) (by omega)]

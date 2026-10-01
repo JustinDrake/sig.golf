@@ -1,7 +1,7 @@
 import SigGolfCandidate.SphincsSecurity.Completeness.Game
 import SigGolfCandidate.SphincsSecurity.Completeness.Signing
 import SigGolfCandidate.SphincsSecurity.Completeness.Keygen
-import SigGolfCandidate.SphincsSecurity.Completeness.PairedDigest
+import SigGolfCandidate.SphincsSecurity.Completeness.Digest
 
 /-!
 # Completeness
@@ -18,12 +18,8 @@ and `Encoding.lean`). Each search is long enough that its failure decays exponen
 (`Decay.lean`), which is what closes the bound below. Nothing in the bound depends on the seed, so it
 holds for every seed (`complete_seeded`), and averaging over the seed gives `complete`.
 
-The numbers: digest admissibility has probability at least `1/3410`; after the collision allowance
-`2²²/2¹²⁸`, each randomizer pair still succeeds with probability at least `1/1706`.
-Each block of `1250` pairs halves the failure probability, and `2¹⁹ ≥ 1250 · 419` gives failure at most
-`2⁻⁴¹⁹`. A counter trial accepts at least one in `codeShare = 2397` of the `2¹²⁸` digests, so
-`2²² ≥ 2397 · 1749` counters all fail with probability at most `2⁻¹⁷⁴⁹`. Over `2²⁵⁶` messages,
-`2²⁵⁶ · (2⁻⁴¹⁹ + 5 · 2⁻¹⁷⁴⁹) ≤ 2⁻¹²⁸`.
+Paired randomizer trials give digest failure at most `2⁻⁴¹⁹`. The mixed counter targets
+give failure at most `2⁻⁵²⁹`. Their union over all `2²⁵⁶` messages is at most `2⁻¹²⁸`.
 -/
 
 open OracleComp OracleSpec ENNReal
@@ -34,7 +30,7 @@ open Concrete
 
 theorem digestFactor_pow_le : pairedDigestFactor ^ digestPairLimit ≤ (2⁻¹ : ℝ≥0∞) ^ 419 := by
   have hp : digestReject + (3410 : ℝ≥0∞)⁻¹ ≤ 1 :=
-    digestReject_add
+    (add_le_add (le_refl digestReject) (show (3410 : ℝ≥0∞)⁻¹ ≤ (2142 : ℝ≥0∞)⁻¹ by norm_num)).trans digestReject_add
   have hroom : pairedDigestFactor + ((1706 : Nat) : ℝ≥0∞)⁻¹ ≤ 1 :=
     paired_digest_room digestReject hp
   have hhalf := pow_le_half_1706_1250 pairedDigestFactor hroom
@@ -44,18 +40,18 @@ theorem digestFactor_pow_le : pairedDigestFactor ^ digestPairLimit ≤ (2⁻¹ :
     _ = (pairedDigestFactor ^ 1250) ^ 419 := pow_mul _ _ _
     _ ≤ (2⁻¹ : ℝ≥0∞) ^ 419 := pow_le_pow_left₀ (by positivity) hhalf _
 
-theorem encoding_pow_le : encodingBound ≤ (2⁻¹ : ℝ≥0∞) ^ 1749 := by
-  have hroom := failMass_encoding_add_le
-  have hhalf := pow_le_half_ennreal codeShare (by decide) _ hroom
-  have hone : failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ≤ 1 :=
+theorem encoding_pow_le : encodingBound ≤ (2⁻¹ : ℝ≥0∞) ^ 529 := by
+  have hroom : encodingFactor + (codeShare : ℝ≥0∞)⁻¹ ≤ 1 := encodingFactor_room.le
+  have hhalf := pow_le_half_2822_1980 encodingFactor hroom
+  have hone : encodingFactor ≤ 1 :=
     le_trans le_self_add hroom
   rw [encodingBound]
-  calc failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ encodingAttemptLimit
-        ≤ failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ (codeShare * 1749) :=
-          pow_le_pow_right_of_le_one' hone (by rw [encodingAttemptLimit, codeShare]; norm_num)
-    _ = (failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ codeShare) ^ 1749 :=
+  calc encodingFactor ^ encodingAttemptLimit
+        ≤ encodingFactor ^ (1980 * 529) :=
+          pow_le_pow_right_of_le_one' hone (by rw [encodingAttemptLimit]; norm_num)
+    _ = (encodingFactor ^ 1980) ^ 529 :=
           pow_mul _ _ _
-    _ ≤ (2⁻¹ : ℝ≥0∞) ^ 1749 := pow_le_pow_left₀ (by positivity) hhalf _
+    _ ≤ (2⁻¹ : ℝ≥0∞) ^ 529 := pow_le_pow_left₀ (by positivity) hhalf _
 
 /-- Key generation then signing fails only if one of signing's six searches does. -/
 theorem probEvent_signedWithKeys_none (seed : MasterSeed) (message : Message) :
@@ -73,10 +69,10 @@ theorem probEvent_signedWithKeys_none (seed : MasterSeed) (message : Message) :
   · rw [add_zero]
     exact probEvent_sign_none r.1.2.2 r.1.2.1 message r.2 hmac hrand hmsg henc
 
-/-- One message fails from a fixed seed with probability at most `2⁻⁴¹⁹ + 5 · 2⁻¹⁷⁴⁹`. -/
+/-- One message fails from a fixed seed with probability at most `2⁻⁴¹⁹ + 5 · 2⁻⁵²⁹`. -/
 theorem seeded_failure_le (seed : MasterSeed) (message : Message) :
     Pr[= false | seededExperiment seed message]
-      ≤ (2⁻¹ : ℝ≥0∞) ^ 419 + 5 * (2⁻¹ : ℝ≥0∞) ^ 1749 := by
+      ≤ (2⁻¹ : ℝ≥0∞) ^ 419 + 5 * (2⁻¹ : ℝ≥0∞) ^ 529 := by
   rw [seededExperiment_eq, ← probEvent_eq_eq_probOutput, probEvent_map]
   refine ((probEvent_honest_false_le seed message).trans
     (probEvent_signedWithKeys_none seed message)).trans ?_
@@ -89,9 +85,9 @@ theorem complete_seeded : SphincsSeededCompletenessStatement := by
   intro seed
   calc
     ∑' message : Message, Pr[= false | seededExperiment seed message]
-        ≤ ∑' _message : Message, ((2⁻¹ : ℝ≥0∞) ^ 419 + 5 * (2⁻¹ : ℝ≥0∞) ^ 1749) :=
+        ≤ ∑' _message : Message, ((2⁻¹ : ℝ≥0∞) ^ 419 + 5 * (2⁻¹ : ℝ≥0∞) ^ 529) :=
           ENNReal.tsum_le_tsum fun message => seeded_failure_le seed message
-    _ = (2 : ℝ≥0∞) ^ 256 * ((2⁻¹ : ℝ≥0∞) ^ 419 + 5 * (2⁻¹ : ℝ≥0∞) ^ 1749) := by
+    _ = (2 : ℝ≥0∞) ^ 256 * ((2⁻¹ : ℝ≥0∞) ^ 419 + 5 * (2⁻¹ : ℝ≥0∞) ^ 529) := by
           rw [tsum_fintype, Finset.sum_const, nsmul_eq_mul, Finset.card_univ,
             show Fintype.card Message = 2 ^ 256 by simp [messageBits], Nat.cast_pow, Nat.cast_ofNat]
     _ ≤ ((2 ^ 128 : Nat) : ℝ≥0∞)⁻¹ := paired_closing_sum

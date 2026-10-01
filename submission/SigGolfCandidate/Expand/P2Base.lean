@@ -31,6 +31,7 @@ abbrev eimg : Image := Expand.image
 /-- The expand image carries the sign's layer header and counter search (words 316 .. 381). -/
 theorem eHeadCode : HeadCode eimg :=
   { c346 := Expand.codeAt_346, c351 := Expand.codeAt_351, c355 := Expand.codeAt_355,
+    c375 := Expand.codeAt_375, c2933 := Expand.codeAt_2933,
     c376 := Expand.codeAt_376, c377 := Expand.codeAt_377, c379 := Expand.codeAt_379,
     c316 := Expand.codeAt_316, c318 := Expand.codeAt_318, c321 := Expand.codeAt_321,
     c322 := Expand.codeAt_322, c329 := Expand.codeAt_329, c331 := Expand.codeAt_331 }

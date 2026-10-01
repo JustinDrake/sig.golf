@@ -1,4 +1,4 @@
-import SigGolfCandidate.SphincsSecurity.Completeness.PairedDigest
+import SigGolfCandidate.SphincsSecurity.Completeness.Digest
 import SigGolfCandidate.SphincsSecurity.Completeness.Counter
 import SigGolfCandidate.SphincsSecurity.Completeness.Encoding
 
@@ -30,7 +30,7 @@ attribute [local irreducible] Seeded.signDigestLoop Concrete.buildLayerTreePaire
 
 /-- One counter search's failure bound. -/
 noncomputable def encodingBound : ℝ≥0∞ :=
-  failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ encodingAttemptLimit
+  encodingFactor ^ encodingAttemptLimit
 
 theorem EncodingFresh.mono {parameter : PublicParameter} {pending pending' : Layer → Prop}
     {cache : QueryCache HashSpec} (h : EncodingFresh parameter pending cache)
