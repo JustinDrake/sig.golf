@@ -34,30 +34,6 @@ theorem digest_inverse_le_probeHazard (probes : Nat) :
     _ ≤ (Fintype.card Digest : ENNReal)⁻¹ + (1 - (Fintype.card Digest : ENNReal)⁻¹) := add_le_add le_rfl hsquare
     _ = 1 := add_tsub_cancel_of_le hone
 
-/-- The encoding selector's enlarged fiber still fits the existing two-label hazard. -/
-theorem encoding_rate_le_probeHazard (probes : Nat) :
-    (15 / 8 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹ ≤ probeHazard probes := by
-  have hcard : Fintype.card Digest = 2 ^ digestBits := Fintype.card_bitVec digestBits
-  have hinv : (Fintype.card Digest : ENNReal)⁻¹ ≤ ((2 ^ digestBits - probes : Nat) : ENNReal)⁻¹ := by
-    apply ENNReal.inv_le_inv.mpr
-    exact_mod_cast (show 2 ^ digestBits - probes ≤ Fintype.card Digest by
-      rw [hcard]; exact Nat.sub_le _ _)
-  have hone : (Fintype.card Digest : ENNReal)⁻¹ ≤ 1 := by
-    rw [hcard]
-    norm_num [digestBits]
-  have hsquare : (1 - (Fintype.card Digest : ENNReal)⁻¹) ^ 2 ≤ 1 := by
-    simpa only [one_pow] using pow_le_pow_left' (tsub_le_self :
-      1 - (Fintype.card Digest : ENNReal)⁻¹ ≤ 1) 2
-  calc
-    _ ≤ 1 - (1 - (Fintype.card Digest : ENNReal)⁻¹) ^ 2 := by
-      apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-      rw [ENNReal.toReal_sub_of_le hsquare (by finiteness), ENNReal.toReal_pow,
-        ENNReal.toReal_sub_of_le hone (by finiteness)]
-      norm_num [hcard, digestBits, ENNReal.toReal_mul, ENNReal.toReal_div,
-        ENNReal.toReal_inv, ENNReal.toReal_pow]
-    _ ≤ _ := tsub_le_tsub_left
-      (pow_le_pow_left' (tsub_le_tsub_left hinv 1) 2) 1
-
 theorem prob_stopped_observe {Answer Memory : Type} (response : SPMF Answer)
     (stopped : Memory) (next : Answer → Memory) :
     Pr[fun result => result.1 = none |

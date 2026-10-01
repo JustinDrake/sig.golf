@@ -14,8 +14,8 @@ structure ReferenceEncodingAuxiliary where
   rows : CanonicalEncodingRows
 
 noncomputable def referenceEncodingAuxiliarySample : PMF ReferenceEncodingAuxiliary :=
-  (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).bind (fun selections =>
-    (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections).map
+  (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).bind (fun selections =>
+    (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections).map
       (fun rows => ⟨selections, Function.uncurry rows⟩))
 
 theorem referenceAuxiliarySample_bind_seed {Result : Type} (inputs : Finset HashInput)

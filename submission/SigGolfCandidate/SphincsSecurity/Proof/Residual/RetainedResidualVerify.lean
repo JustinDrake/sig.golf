@@ -17,7 +17,7 @@ theorem Context.root_value {inputs : Finset HashInput} (context : Context inputs
 theorem Compatible.layer_frame_reference {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
     (hcompatible : Compatible context memory) (index : Index) (signature : Signature) (pads : ChainPads) (lay : Layer)
     (message target leafValue : Digest)
-    (hword : OtsCode.Valid lay (context.words lay (treeIndexAt index lay) (leafIndexAt index lay)))
+    (hword : OtsCode.Valid (context.words lay (treeIndexAt index lay) (leafIndexAt index lay)))
     (hframe : LayerFrameP context.oracle memory.external.cache context.key.parameter index signature pads lay message
       target leafValue)
     (hfold : foldValue context.oracle context.key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
@@ -44,7 +44,7 @@ theorem Compatible.layer_frame_reference {inputs : Finset HashInput} {context : 
 /-- **`Compatible.verify_honest` with pads** (`Residual/RetainedResidualVerify.lean:76`): the conclusion
 is the record's, word for word. -/
 theorem Compatible.verify_honest {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
-    (hcompatible : Compatible context memory) (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (context.dummy lay tree leaf))
+    (hcompatible : Compatible context memory) (hdummy : ∀ lay tree leaf, OtsCode.Valid (context.dummy lay tree leaf))
     (hroot : context.key.root = canonicalGraphRoot context.graph) (message : Message) (signature : Signature)
     (pads : ChainPads)
     (hverify : evalWithAnswerFn context.oracle (verifyP ⟨context.key.root, context.key.parameter⟩ message signature pads) = true)

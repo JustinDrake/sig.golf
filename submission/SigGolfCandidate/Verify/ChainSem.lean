@@ -165,7 +165,7 @@ def CCtx.x31 (c : CCtx) : Word := BitVec.ofNat 64 (c.tau + 2 ^ 32 * c.e)
 
 def CCtx.Regs (c : CCtx) (s : MachineState) : Prop :=
   s.getReg .x16 = c.d0 ∧ s.getReg .x17 = c.d1 ∧
-  s.getReg .x23 = BitVec.ofNat 64 (c.e + 2 ^ heightL c.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 (if c.lay = 0 then c.e else c.tau) ∧
+  s.getReg .x23 = BitVec.ofNat 64 (c.e + 2 ^ heightL c.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 c.tau ∧
   s.getReg .x31 = c.x31
 
 def CCtx.ok (c : CCtx) : Prop :=
@@ -220,7 +220,7 @@ def CB0 (s : MachineState) : Prop := (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2
 /-- The registers and buffers common to the whole chain phase (`acc` = the chain ends so far). -/
 def ChBase (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
   Glob gkL c.wl c.pk s ∧ KnownOK chK0 s ∧ c.Regs s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N c.lay) ∧
-  s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay + 768) ∧ s.getReg .x1 = c.ret ∧ LBOk acc s ∧
+  s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay + 256) ∧ s.getReg .x1 = c.ret ∧ LBOk acc s ∧
   acc.length = i ∧ (∀ v ∈ acc, v.length = 16) ∧ CB0 s
 
 /-- Before chain `i`'s code (`x25` = the previous chain's tweak word 0). -/

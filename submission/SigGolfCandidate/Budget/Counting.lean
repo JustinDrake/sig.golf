@@ -1,6 +1,5 @@
 import SigGolfCandidate.Budget.Loops
 import SigGolfCandidate.Budget.Octopus.Prob
-import SigGolfCandidate.SphincsSecurity.Proof.Ots.EncodingSelection
 
 /-!
 # Budget: the acceptance probabilities of one fresh answer
@@ -12,17 +11,14 @@ For a uniform answer `u : BitVec 256`:
   `Octopus.admissible` by `rfl`, `admissible_eq_octopus`);
 * the randomizer lands in a set `R` of values with probability at most `|R| / 2^128`
   (`probEvent_answerBytes_mem_le`);
-* the encoding decodes with probability exactly `15 * codeCount lay / 2^131`, where
-  `codeCount lay` counts the pairs of 21-digit octal
-  words with the selected layer target sum (184 or 185) (`probEvent_decode_none`). The count is a generating-function identity
+* the encoding decodes with probability exactly `codeCount / 2^128`, where
+  `codeCount = 166377570312823648881394061712938016` is the number of pairs of 21-digit octal
+  words with digit sum `targetSum` (181) (`probEvent_decode_none`). The count is a generating-function identity
   evaluated by the kernel (`codeCount_eq`), as in the leanVM completeness proof.
 -/
 
 namespace SigGolfCandidate.Budget
 open SigGolfCandidate.Legacy SigGolfCandidate.Ref OracleComp Finset ENNReal
-
-set_option allowUnsafeReducibility true in
-attribute [local reducible] SphincsSecurity.hashOutputBits SphincsSecurity.digestBits
 
 /-! ## Counting over ranges -/
 
@@ -245,34 +241,25 @@ theorem npair_coeff (n s X : Nat) (hX : 8 ^ n * 8 ^ n < X) (hs : s < 14 * n + 1)
   rw [← gf_pairs]
   exact (digit_of_sum X (by omega) (npair n) (fun s => (npair_le n s).trans_lt hX) _ s hs).symm
 
-variable {lay : Nat}
-
-/-- Number of accepted encodings at the selected layer. -/
-
-def codeCount (lay : Nat) : Nat :=
-  if 1 ≤ lay then 85765828219404593829886748260228224
-  else 101963205812723399925627924643353984
+/-- The number of accepted encodings (pairs of 21-digit words with digit sum `targetSum = 181`). -/
+def codeCount : Nat := 166377570312823648881394061712938016
 
 theorem gfDigit_eq (X : Nat) : gfDigit X = 1 + X + X ^ 2 + X ^ 3 + X ^ 4 + X ^ 5 + X ^ 6 + X ^ 7 := by
   simp [gfDigit, Finset.sum_range_succ]
 
-theorem npair_target : npair 21 (targetFor lay) = codeCount lay := by
-  by_cases h : 1 ≤ lay
-  · simp only [targetFor, targetSum, h, if_true, Nat.reduceAdd, codeCount]
-    rw [npair_coeff 21 185 (2 ^ 128) (by norm_num) (by norm_num), gfDigit_eq]
-    decide
-  · simp only [targetFor, targetSum, h, if_false, Nat.add_zero, codeCount]
-    rw [npair_coeff 21 184 (2 ^ 128) (by norm_num) (by norm_num), gfDigit_eq]
-    decide
+theorem npair_target : npair 21 targetSum = codeCount := by
+  rw [npair_coeff 21 targetSum (2 ^ 128) (by norm_num) (by simp [targetSum]), gfDigit_eq]
+  simp only [targetSum]
+  decide
 
 /-- The decoding condition on the low 128 bits `k`. -/
-def Dok (lay k : Nat) : Prop :=
+def Dok (k : Nat) : Prop :=
   k % 2 ^ 64 < 2 ^ 63 ∧ k / 2 ^ 64 % 2 ^ 64 < 2 ^ 63 ∧
-    ds 21 (k % 2 ^ 64) + ds 21 (k / 2 ^ 64 % 2 ^ 64) = (targetFor lay)
+    ds 21 (k % 2 ^ 64) + ds 21 (k / 2 ^ 64 % 2 ^ 64) = targetSum
 
-instance (lay : Nat) : DecidablePred (Dok lay) := fun k => by unfold Dok; infer_instance
+instance : DecidablePred Dok := fun k => by unfold Dok; infer_instance
 
-theorem Dok_high (a b : Nat) : Dok lay (a + 2 ^ 128 * b) ↔ Dok lay a := by
+theorem Dok_high (a b : Nat) : Dok (a + 2 ^ 128 * b) ↔ Dok a := by
   have e : 2 ^ 128 * b = 2 ^ 64 * (2 ^ 64 * b) := by rw [← Nat.mul_assoc, ← pow_add]
   have h1 : (a + 2 ^ 128 * b) % 2 ^ 64 = a % 2 ^ 64 := by rw [e, Nat.add_mul_mod_self_left]
   have h2 : (a + 2 ^ 128 * b) / 2 ^ 64 % 2 ^ 64 = a / 2 ^ 64 % 2 ^ 64 := by
@@ -280,7 +267,7 @@ theorem Dok_high (a b : Nat) : Dok lay (a + 2 ^ 128 * b) ↔ Dok lay a := by
   unfold Dok; rw [h1, h2]
 
 theorem Dok_split (a0 a1 : Nat) (h0 : a0 < 2 ^ 64) (h1 : a1 < 2 ^ 64) :
-    Dok lay (a0 + 2 ^ 64 * a1) ↔ (a0 < 2 ^ 63 ∧ a1 < 2 ^ 63 ∧ ds 21 a0 + ds 21 a1 = (targetFor lay)) := by
+    Dok (a0 + 2 ^ 64 * a1) ↔ (a0 < 2 ^ 63 ∧ a1 < 2 ^ 63 ∧ ds 21 a0 + ds 21 a1 = targetSum) := by
   have e1 : (a0 + 2 ^ 64 * a1) % 2 ^ 64 = a0 := by
     rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt h0]
   have e2 : (a0 + 2 ^ 64 * a1) / 2 ^ 64 % 2 ^ 64 = a1 := by
@@ -299,49 +286,49 @@ theorem sum_half (M : Nat) (f : Nat → Nat) (P : Nat → Prop) [DecidablePred P
   by_cases hp : P x <;> simp [hp, this]
 
 theorem Dok_split' (M a0 a1 : Nat) (hM : M = 2 ^ 63) (h0 : a0 < M + M) (h1 : a1 < M + M) :
-    Dok lay (a0 + (M + M) * a1) ↔ (a0 < M ∧ a1 < M ∧ ds 21 a0 + ds 21 a1 = (targetFor lay)) := by
+    Dok (a0 + (M + M) * a1) ↔ (a0 < M ∧ a1 < M ∧ ds 21 a0 + ds 21 a1 = targetSum) := by
   have hMM : M + M = 2 ^ 64 := by subst hM; norm_num
   rw [hMM] at h0 h1 ⊢
   rw [Dok_split a0 a1 h0 h1, hM]
 
 theorem count_Dok_low (M : Nat) (hM : M = 2 ^ 63) :
-    (∑ a ∈ range ((M + M) * (M + M)), if Dok lay a then 1 else 0) =
-      ∑ a1 ∈ range M, ∑ a0 ∈ range M, if ds 21 a0 + ds 21 a1 = (targetFor lay) then 1 else 0 := by
+    (∑ a ∈ range ((M + M) * (M + M)), if Dok a then 1 else 0) =
+      ∑ a1 ∈ range M, ∑ a0 ∈ range M, if ds 21 a0 + ds 21 a1 = targetSum then 1 else 0 := by
   rw [sum_range_mul]
   have step : ∀ a1 ∈ range (M + M),
-      (∑ a0 ∈ range (M + M), if Dok lay (a0 + (M + M) * a1) then 1 else 0)
-      = if a1 < M then ∑ a0 ∈ range M, (if ds 21 a0 + ds 21 a1 = (targetFor lay) then 1 else 0) else 0 := by
+      (∑ a0 ∈ range (M + M), if Dok (a0 + (M + M) * a1) then 1 else 0)
+      = if a1 < M then ∑ a0 ∈ range M, (if ds 21 a0 + ds 21 a1 = targetSum then 1 else 0) else 0 := by
     intro a1 ha1
     rw [Finset.sum_congr rfl fun a0 ha0 => by
       rw [if_congr (Dok_split' M a0 a1 hM (mem_range.mp ha0) (mem_range.mp ha1)) rfl rfl]]
     by_cases h : a1 < M
     · rw [if_pos h]
-      have := sum_half M (fun _ => 1) (fun a0 => ds 21 a0 + ds 21 a1 = (targetFor lay))
+      have := sum_half M (fun _ => 1) (fun a0 => ds 21 a0 + ds 21 a1 = targetSum)
       rw [← this]
       refine Finset.sum_congr rfl fun a0 _ => ?_
       by_cases h' : a0 < M <;> simp [h, h']
     · rw [if_neg h]
       exact Finset.sum_eq_zero fun a0 _ => by simp [h]
   rw [Finset.sum_congr rfl step]
-  have := sum_half M (fun a1 => ∑ a0 ∈ range M, if ds 21 a0 + ds 21 a1 = (targetFor lay) then 1 else 0)
+  have := sum_half M (fun a1 => ∑ a0 ∈ range M, if ds 21 a0 + ds 21 a1 = targetSum then 1 else 0)
     (fun _ => True)
   simp only [and_true, if_true] at this
   exact this
 
 theorem count_Dok (W T : Nat) (hW : W = 2 ^ 128) :
-    (∑ k ∈ range (W * T), if Dok lay k then 1 else 0) = T * ∑ a ∈ range W, if Dok lay a then 1 else 0 := by
+    (∑ k ∈ range (W * T), if Dok k then 1 else 0) = T * ∑ a ∈ range W, if Dok a then 1 else 0 := by
   rw [sum_range_mul]
-  have : ∀ b ∈ range T, (∑ a ∈ range W, if Dok lay (a + W * b) then 1 else 0) =
-      ∑ a ∈ range W, if Dok lay a then 1 else 0 := fun b _ =>
+  have : ∀ b ∈ range T, (∑ a ∈ range W, if Dok (a + W * b) then 1 else 0) =
+      ∑ a ∈ range W, if Dok a then 1 else 0 := fun b _ =>
     Finset.sum_congr rfl fun a _ => by rw [hW]; exact if_congr (Dok_high a _) rfl rfl
   rw [Finset.sum_congr rfl this, Finset.sum_const, card_range, smul_eq_mul]
 
 theorem count_Dok_256 :
-    ((range (2 ^ 256)).filter (Dok lay)).card = 2 ^ 128 * codeCount lay := by
-  have h1 := count_Dok (lay := lay) ((2 ^ 63 + 2 ^ 63) * (2 ^ 63 + 2 ^ 63)) (2 ^ 128) (by norm_num)
-  have h2 := count_Dok_low (lay := lay) (2 ^ 63) rfl
-  have h3 : npair 21 (targetFor lay) = ∑ a1 ∈ range (2 ^ 63), ∑ a0 ∈ range (2 ^ 63),
-      if ds 21 a0 + ds 21 a1 = (targetFor lay) then 1 else 0 := by
+    ((range (2 ^ 256)).filter Dok).card = 2 ^ 128 * codeCount := by
+  have h1 := count_Dok ((2 ^ 63 + 2 ^ 63) * (2 ^ 63 + 2 ^ 63)) (2 ^ 128) (by norm_num)
+  have h2 := count_Dok_low (2 ^ 63) rfl
+  have h3 : npair 21 targetSum = ∑ a1 ∈ range (2 ^ 63), ∑ a0 ∈ range (2 ^ 63),
+      if ds 21 a0 + ds 21 a1 = targetSum then 1 else 0 := by
     unfold npair; rw [show (8 : Nat) ^ 21 = 2 ^ 63 by norm_num]
   have e : (2 : Nat) ^ 256 = (2 ^ 63 + 2 ^ 63) * (2 ^ 63 + 2 ^ 63) * 2 ^ 128 := by norm_num
   rw [card_filter_range, e, h1, h2, ← h3, npair_target]
@@ -355,7 +342,7 @@ theorem slice_leBytes16 (v : Nat) :
   · simp
 
 theorem decode_none_iff (u : BitVec 256) :
-    decodeDigits lay (answerBytes 16 u) = none ↔ ¬ Dok lay u.toNat := by
+    decodeDigits (answerBytes 16 u) = none ↔ ¬ Dok u.toNat := by
   rw [answerBytes_eq 16 u (by omega)]
   obtain ⟨h1, h2⟩ := slice_leBytes16 u.toNat
   unfold decodeDigits
@@ -365,75 +352,18 @@ theorem decode_none_iff (u : BitVec 256) :
   unfold Dok
   split_ifs with ha hb <;> simp_all
 
-/-- A fresh encoding is rejected with probability `1 - codeCount lay / 2^128`. -/
+/-- A fresh encoding is rejected with probability `1 - codeCount / 2^128`. -/
 theorem probEvent_decode_none :
-    Pr[fun u : BitVec 256 => decodeDigits lay (answerBytes 16 u) = none |
+    Pr[fun u : BitVec 256 => decodeDigits (answerBytes 16 u) = none |
       ($ᵗ BitVec 256 : ProbComp (BitVec 256))] =
-      1 - (2 ^ 128 * codeCount lay : Nat) / (2 ^ 256 : ℝ≥0∞) := by
+      1 - (2 ^ 128 * codeCount : Nat) / (2 ^ 256 : ℝ≥0∞) := by
   have hc := probEvent_compl ($ᵗ BitVec 256 : ProbComp (BitVec 256))
-    (fun u : BitVec 256 => Dok lay u.toNat)
+    (fun u : BitVec 256 => Dok u.toNat)
   have hfail : Pr[⊥ | ($ᵗ BitVec 256 : ProbComp (BitVec 256))] = 0 := by simp
   rw [hfail, tsub_zero] at hc
-  have hcongr : (fun u : BitVec 256 => decodeDigits lay (answerBytes 16 u) = none) =
-      fun u => ¬ Dok lay u.toNat := funext fun u => propext (decode_none_iff u)
+  have hcongr : (fun u : BitVec 256 => decodeDigits (answerBytes 16 u) = none) =
+      fun u => ¬ Dok u.toNat := funext fun u => propext (decode_none_iff u)
   rw [hcongr, ENNReal.eq_sub_of_add_eq probEvent_ne_top ((add_comm _ _).trans hc),
-    probEvent_uniform_toNat (Dok lay), count_Dok_256]
-
-theorem count_Dok_128 :
-    ((univ : Finset (BitVec 128)).filter fun d => Dok lay d.toNat).card = codeCount lay := by
-  rw [card_bitVec_filter, card_filter_range]
-  have h2 := count_Dok_low (lay := lay) (2 ^ 63) rfl
-  have h3 : npair 21 (targetFor lay) = ∑ a1 ∈ range (2 ^ 63), ∑ a0 ∈ range (2 ^ 63),
-      if ds 21 a0 + ds 21 a1 = (targetFor lay) then 1 else 0 := by
-    unfold npair; rw [show (8 : Nat) ^ 21 = 2 ^ 63 by norm_num]
-  rw [show (2 : Nat) ^ 128 = (2 ^ 63 + 2 ^ 63) * (2 ^ 63 + 2 ^ 63) by norm_num,
-    h2, ← h3, npair_target]
-
-theorem selected_decode_none_iff (u : BitVec 256) :
-    decodeDigits lay (encodingBytes u) = none ↔
-      ¬ Dok lay (SphincsSecurity.selectEncodingDigest u).toNat := by
-  rw [encodingBytes, decode_none_iff]
-  have h := Dok_high (lay := lay) ((encodingAnswer u).toNat % 2 ^ 128)
-    ((encodingAnswer u).toNat / 2 ^ 128)
-  rw [Nat.mod_add_div] at h
-  exact not_congr h
-
-/-- The actual selector has seven quarter-spaces per accepted encoding. -/
-theorem probEvent_selected_decode_none :
-    Pr[fun u : BitVec 256 => decodeDigits lay (encodingBytes u) = none |
-      ($ᵗ BitVec 256 : ProbComp (BitVec 256))] =
-      1 - ((15 * 2 ^ 125 * codeCount lay : Nat) : ℝ≥0∞) / (2 ^ 256 : ℝ≥0∞) := by
-  let targets : Finset SphincsSecurity.Digest := univ.filter fun d => Dok lay d.toNat
-  have hpad : ∀ d ∈ targets, (d.getLsbD 63 || d.getLsbD 127) = false := by
-    intro d hd
-    have hlow := ((mem_filter.mp hd).2 : Dok lay d.toNat).1
-    have hhigh := ((mem_filter.mp hd).2 : Dok lay d.toNat).2.1
-    apply Bool.or_eq_false_iff.mpr
-    constructor
-    · rw [BitVec.getLsbD, Nat.testBit_eq_decide_div_mod_eq]
-      simp only [decide_eq_false_iff_not]
-      norm_num at hlow ⊢
-      omega
-    · rw [BitVec.getLsbD, Nat.testBit_eq_decide_div_mod_eq]
-      simp only [decide_eq_false_iff_not]
-      norm_num at hhigh ⊢
-      omega
-  have hcard := SphincsSecurity.EncodingSelection.card_select_mem_of_padding targets hpad
-  have ht : targets.card = codeCount lay := count_Dok_128
-  rw [ht, show (2 : Nat) ^ 128 + 2 ^ 127 + 3 * 2 ^ 125 = 15 * 2 ^ 125 by norm_num] at hcard
-  have hc := probEvent_compl ($ᵗ BitVec 256 : ProbComp (BitVec 256))
-    (fun u => Dok lay (SphincsSecurity.selectEncodingDigest u).toNat)
-  have hfail : Pr[⊥ | ($ᵗ BitVec 256 : ProbComp (BitVec 256))] = 0 := by simp
-  rw [hfail, tsub_zero] at hc
-  have hcongr : (fun u : BitVec 256 => decodeDigits lay (encodingBytes u) = none) =
-      fun u => ¬ Dok lay (SphincsSecurity.selectEncodingDigest u).toNat :=
-    funext fun u => propext (selected_decode_none_iff u)
-  rw [hcongr, ENNReal.eq_sub_of_add_eq probEvent_ne_top ((add_comm _ _).trans hc),
-    SphincsSecurity.Completeness.probEvent_uniform]
-  have hcount : ((univ : Finset (BitVec 256)).filter
-      fun u => Dok lay (SphincsSecurity.selectEncodingDigest u).toNat).card =
-      15 * 2 ^ 125 * codeCount lay := by
-    simpa only [targets, mem_filter, mem_univ, true_and] using hcard
-  rw [hcount]
+    probEvent_uniform_toNat Dok, count_Dok_256]
 
 end SigGolfCandidate.Budget
