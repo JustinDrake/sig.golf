@@ -10,7 +10,7 @@ set_option backward.isDefEq.respectTransparency false
 
 theorem referenceAuxiliarySample_select (inputs : Finset HashInput) (auxiliary : ReferenceAuxiliary inputs)
     (hauxiliary : auxiliary ∈ (referenceAuxiliarySample inputs).support) (position : EncodingPosition) :
-    FirstSuccessTable.select decodeEncodingOutput (fun counter => auxiliary.rows (position, counter)) =
+    FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter => auxiliary.rows (position, counter)) =
       auxiliary.selections position := by
   rw [referenceAuxiliarySample, PMF.mem_support_bind_iff] at hauxiliary
   obtain ⟨selections, hselections, hauxiliary⟩ := hauxiliary
@@ -18,9 +18,9 @@ theorem referenceAuxiliarySample_select (inputs : Finset HashInput) (auxiliary :
   obtain ⟨rows, hrows, hauxiliary⟩ := hauxiliary
   rw [PMF.mem_support_map_iff] at hauxiliary
   obtain ⟨seed, _, rfl⟩ := hauxiliary
-  have hselected : FirstSuccessFamily.select decodeEncodingOutput encodingAttemptLimit rows = selections := by
+  have hselected : FirstSuccessFamily.select decodeEncodingFamily encodingAttemptLimit rows = selections := by
     by_contra hne
-    have hmass := FirstSuccessFamily.selected_mul_afterSelect decodeEncodingOutput encodingAttemptLimit selections rows
+    have hmass := FirstSuccessFamily.selected_mul_afterSelect decodeEncodingFamily encodingAttemptLimit selections rows
     rw [if_neg hne] at hmass
     exact mul_ne_zero ((PMF.mem_support_iff _ _).mp hselections) ((PMF.mem_support_iff _ _).mp hrows) hmass
   exact congrFun hselected position
