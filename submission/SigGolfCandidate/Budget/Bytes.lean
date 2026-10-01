@@ -90,6 +90,16 @@ theorem qbyte_lay (t lay tau p j : Nat) (pl : List Byte) :
     qbyte (addrFmt (thInput (tweak t lay tau p j) pl)) 2 = lay % 256 := by
   rw [qbyte_fmt _ _ (by omega)]; simp [thInput, tweak, byte_toNat]
 
+/-- The encoding input carries its message right after the tweak; its tag and layer bytes are the
+tweak's. -/
+theorem qbyte_tag_enc (lay tau e : Nat) (M : Val) (c : Nat) :
+    qbyte (addrFmt (encInput lay tau e M c)) 1 = 4 := by
+  rw [qbyte_fmt _ _ (by omega)]; simp [encInput, tweak, byte_toNat]
+
+theorem qbyte_lay_enc (lay tau e : Nat) (M : Val) (c : Nat) :
+    qbyte (addrFmt (encInput lay tau e M c)) 2 = lay % 256 := by
+  rw [qbyte_fmt _ _ (by omega)]; simp [encInput, tweak, byte_toNat]
+
 theorem leNat_leBytes (k v : Nat) : leNat (leBytes k v) = v % 256 ^ k := leNat_map_range k v
 
 theorem le32_inj {c c' : Nat} (hc : c < 2 ^ 32) (hc' : c' < 2 ^ 32) (h : le32 c = le32 c') :

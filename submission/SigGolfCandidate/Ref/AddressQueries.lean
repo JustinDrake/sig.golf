@@ -241,8 +241,7 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
 
 @[simp] theorem addrFmt_encInput (lay tau e : Nat) (M : Val) (c : Nat) :
     addrFmt (encInput lay tau e M c) = fmt (encInput lay tau e M c) := by
-  unfold encInput
-  exact addrFmt_eq_th _ _ _ _ _ _ (by decide)
+  apply addrFmt_eq_of_prefix <;> simp [encInput, tweak, byte_toNat]
 
 @[simp] theorem addrFmt_porsPrfInput (S : List Byte) (idx q : Nat) :
     addrFmt (porsPrfInput S idx q) = fmt (porsPrfInput S idx q) := by

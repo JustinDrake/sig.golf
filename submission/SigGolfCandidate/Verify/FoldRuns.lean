@@ -65,8 +65,19 @@ def sibAddr (lay lam : Nat) : Nat := 0x800 + pathOffL lay + pathStrideL lay * la
 2..7) its index is a constant stored from the register that holds it. -/
 def isConstLvl (lay lam : Nat) : Bool := lam + 3 = heightL lay || lam + 2 = heightL lay
 
-/-- Destination of the root hash: EB+32 (the next layer's message) or FO (layer 0). -/
+/-- Destination of the root hash of the top layer: FO. (Below the top layer no root is hashed; `0x120`
+is where the node under the root goes, see `nodeDst`.) -/
 def dstOf (lay : Nat) : Nat := if lay = 0 then 0x180 else 0x120
+
+/-- Destination of the hash that produces the node of level `lam` on the path (`t` = its side): its slot
+of the node buffer, except below the top layer for the node under the root, which goes straight into
+the next layer's encoding block (`0x120`; the root's other child is copied next to it by the transition). -/
+def nodeDst (lay lam t : Nat) : Nat :=
+  if lay ≠ 0 ∧ lam + 1 = heightL lay then 0x120 else 0x360 + 16 * t
+
+/-- The number of level runs of a block of chunk `ci`: below the top layer the last level (the root) has
+none. -/
+def lvlN (lay ci : Nat) : Nat := if lay = 0 then chBits lay ci else chBits lay ci - 1
 
 /-- `x3` after the chunk dispatch into chunk `ci` (`[andi] slli; lui; add`). -/
 def dispGp (lay ci : Nat) : E :=
@@ -126,7 +137,7 @@ def lvlExp (lay ci v kk : Nat) : PRes :=
     let rf := if isConstLvl lay lam then lvlRegs lay lam
       else (lvlRegs lay lam).set .x4 (.bin .srl (.reg .x23) (cw (lam + 1)))
     let n := hs + (if isConstLvl lay lam then 6 else 7)
-    ⟨⟨rf.set .x12 (cw (0x360 + 16 * (v / 2 ^ (kk + 1) % 2))), mem, []⟩,
+    ⟨⟨rf.set .x12 (cw (nodeDst lay (lam + 1) (v / 2 ^ (kk + 1) % 2))), mem, []⟩,
       pcOf (m4Pc lay ci v (kk + 1) + 1), true, n, n, [], none⟩
   else
     ⟨⟨((lvlRegs lay lam).set .x4 (cw (m4Hi lay (ci + 1)))).set .x3 (dispGp lay (ci + 1)), mem, []⟩,
@@ -141,7 +152,7 @@ the chunk dispatch). -/
 def lvlPost (lay ci v kk : Nat) : List (Reg × Word) :=
   if chB0 lay ci + kk + 1 = heightL lay then foldK lay 64 ++ [(.x12, BitVec.ofNat 64 (dstOf lay))]
   else if kk + 1 < chBits lay ci then
-    foldK lay 64 ++ [(.x12, BitVec.ofNat 64 (0x360 + 16 * (v / 2 ^ (kk + 1) % 2)))]
+    foldK lay 64 ++ [(.x12, BitVec.ofNat 64 (nodeDst lay (chB0 lay ci + kk + 1) (v / 2 ^ (kk + 1) % 2)))]
   else foldK lay 64
 
 /-- Block entry: `li a2, 0x360 + 16 t` (`t = v % 2`), stopping at the `ecall`. -/
@@ -155,7 +166,7 @@ def entPost (lay ci v : Nat) : List (Reg × Word) :=
 /-- The entry and all levels of block `v` of chunk `ci` of layer `lay`. -/
 def blockCheck (lay ci v : Nat) : Bool :=
   okFold false (runAt (lvlK lay (chB0 lay ci)) [] (m4Pc lay ci v 0) []) (entExp lay ci v) (entPost lay ci v) &&
-  (List.range (chBits lay ci)).all fun kk =>
+  (List.range (lvlN lay ci)).all fun kk =>
     okFold false (runAt (lvlK lay (chB0 lay ci + kk)) [] (m4Pc lay ci v kk + 2) (lvlDirs lay ci kk))
       (lvlExp lay ci v kk) (lvlPost lay ci v kk)
 

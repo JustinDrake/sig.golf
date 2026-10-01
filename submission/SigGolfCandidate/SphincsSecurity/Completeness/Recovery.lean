@@ -142,7 +142,7 @@ reach the specification's endpoints and the leaf it hashes is the specification'
 
 /-- What a successful counter search returned: an encoding of the message, at a counter it tried. -/
 theorem encodingSearch_spec (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
-    (leaf : LeafIndex) (message : Digest) :
+    (leaf : LeafIndex) (message : EncMessage) :
     ∀ (attempts start : Nat) {counter : Counter} {word : Encoding}, start + attempts ≤ 2 ^ 32 →
       evalWithAnswerFn f (encodingSearch parameter lay tree leaf message attempts start
           : OracleComp HashSpec (Option (Counter × Encoding))) = some (counter, word) →
@@ -175,7 +175,7 @@ theorem signLayer_spec (key : SecretKey) (index : Index) (lay : Layer) {part : P
     (h : evalWithAnswerFn f (signLayer key index lay) = some part) :
     part.1.toNat < encodingAttemptLimit
       ∧ evalWithAnswerFn f (otsLeaf key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
-          (evalWithAnswerFn f (layerMessage key index lay : OracleComp HashSpec Digest))
+          (evalWithAnswerFn f (layerMessage key index lay : OracleComp HashSpec EncMessage))
           part.1 part.2.1 : OracleComp HashSpec (Option Digest))
         = some (honestNode f key.parameter lay (treeIndexAt index lay)
             (key.otsSecret lay (treeIndexAt index lay)) 0 (leafIndexAt index lay).val)
@@ -187,7 +187,7 @@ theorem signLayer_spec (key : SecretKey) (index : Index) (lay : Layer) {part : P
   have hlimit : 0 + encodingAttemptLimit ≤ 2 ^ 32 := by rw [encodingAttemptLimit]; norm_num
   rw [signLayer, evalWithAnswerFn_bind, otsSign, evalWithAnswerFn_bind, eval_otsSignFrom] at h
   cases hsearch : evalWithAnswerFn f (encodingSearch key.parameter lay (treeIndexAt index lay)
-      (leafIndexAt index lay) (evalWithAnswerFn f (layerMessage key index lay : OracleComp HashSpec Digest))
+      (leafIndexAt index lay) (evalWithAnswerFn f (layerMessage key index lay : OracleComp HashSpec EncMessage))
       encodingAttemptLimit 0 : OracleComp HashSpec (Option (Counter × Encoding))) with
   | none =>
       rw [hsearch] at h
@@ -212,36 +212,35 @@ theorem signLayer_spec (key : SecretKey) (index : Index) (lay : Layer) {part : P
 
 /-! ## The hypertree
 
-Layer `lay` signs the root of the tree below it, so the value the verifier carries up is the message
-the next layer signed, and layer `0`'s root is the public key. -/
+Layer `lay` signs the two children of the root of the tree below it, so the pair the verifier carries up
+is the message the next layer signed, and layer `0`'s pair hashes to the public key. -/
 
-/-- The root of the tree layer `lay` carries, on the route `index` selects. -/
-def layerRoot (key : SecretKey) (index : Index) (lay : Layer) : Digest :=
-  honestNode f key.parameter lay (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay))
-    (layerHeight lay) 0
+/-- The two children of the root of the tree layer `lay` carries, on the route `index` selects. -/
+def layerTop (key : SecretKey) (index : Index) (lay : Layer) : EncMessage :=
+  honestPair f key.parameter lay (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay))
 
 /-- The message entering the verifier's walk with `remaining` layers left to check. -/
-def enterMessage (key : SecretKey) (index : Index) : Nat → Digest
-  | 0 => layerRoot f key index topLayer
+def enterMessage (key : SecretKey) (index : Index) : Nat → EncMessage
+  | 0 => layerTop f key index topLayer
   | r + 1 => if h : r < numLayers then
-      evalWithAnswerFn f (layerMessage key index ⟨r, h⟩ : OracleComp HashSpec Digest) else 0
+      evalWithAnswerFn f (layerMessage key index ⟨r, h⟩ : OracleComp HashSpec EncMessage) else (0, 0)
 
-theorem layerRoot_eq_enterMessage (key : SecretKey) (index : Index) (r : Nat) (h : r < numLayers) :
-    layerRoot f key index ⟨r, h⟩ = enterMessage f key index r := by
+theorem layerTop_eq_enterMessage (key : SecretKey) (index : Index) (r : Nat) (h : r < numLayers) :
+    layerTop f key index ⟨r, h⟩ = enterMessage f key index r := by
   cases r with
   | zero => rfl
   | succ r =>
       rw [enterMessage, dif_pos (Nat.lt_of_succ_lt h), layerMessage, dif_pos h]
-      rfl
+      exact (eval_treeTop f key.parameter _ _ _).symm
 
-/-- The verifier's walk up the hypertree ends at the root of the top tree. -/
+/-- The verifier's walk up the hypertree ends at the two children of the root of the top tree. -/
 theorem eval_verifyLayers (key : SecretKey) (index : Index) (signature : Signature)
     (hlayers : ∀ lay : Layer, ∃ part, evalWithAnswerFn f (signLayer key index lay) = some part
       ∧ signature.layers lay = LayerSignature.ofPadded lay part) :
     ∀ remaining : Nat, remaining ≤ numLayers →
       evalWithAnswerFn f (verifyLayers key.parameter index signature remaining
-          (enterMessage f key index remaining) : OracleComp HashSpec (Option Digest))
-        = some (layerRoot f key index topLayer) := by
+          (enterMessage f key index remaining) : OracleComp HashSpec (Option EncMessage))
+        = some (layerTop f key index topLayer) := by
   intro remaining
   induction remaining with
   | zero => intro _; rw [verifyLayers]; rfl
@@ -250,21 +249,30 @@ theorem eval_verifyLayers (key : SecretKey) (index : Index) (signature : Signatu
       have hlayer : r < numLayers := Nat.lt_of_succ_le hrem
       obtain ⟨part, hpart, hsig⟩ := hlayers ⟨r, hlayer⟩
       obtain ⟨_, hleaf, hpath⟩ := signLayer_spec f key index ⟨r, hlayer⟩ hpart
+      have hpos := layerHeight_pos (⟨r, hlayer⟩ : Layer)
+      have hsigPath : ∀ level, level < layerHeight ⟨r, hlayer⟩ →
+          signaturePath signature ⟨r, hlayer⟩ level =
+            honestNode f key.parameter ⟨r, hlayer⟩ (treeIndexAt index ⟨r, hlayer⟩)
+              (key.otsSecret ⟨r, hlayer⟩ (treeIndexAt index ⟨r, hlayer⟩)) level
+              (Nat.xor ((leafIndexAt index ⟨r, hlayer⟩).val / 2 ^ level) 1) := fun level hlevel => by
+        rw [signaturePath, dif_pos hlevel, hsig]
+        exact hpath level hlevel
       have hfold := eval_treeFold_honest f key.parameter ⟨r, hlayer⟩
         (treeIndexAt index ⟨r, hlayer⟩) (key.otsSecret ⟨r, hlayer⟩ (treeIndexAt index ⟨r, hlayer⟩))
         (leafIndexAt index ⟨r, hlayer⟩) (signaturePath signature ⟨r, hlayer⟩)
-        (layerHeight ⟨r, hlayer⟩) (fun level hlevel => by
-          rw [signaturePath, dif_pos hlevel, hsig]
-          exact hpath level hlevel)
-      rw [Nat.div_eq_of_lt (leafIndexAt_lt index _)] at hfold
+        (layerHeight ⟨r, hlayer⟩ - 1) (fun level hlevel => hsigPath level (by omega))
       rw [verifyLayers, dif_pos hlayer, enterMessage, dif_pos hlayer]
       dsimp only
       rw [hsig]
       simp only [evalWithAnswerFn_bind, hleaf, hfold]
-      rw [show honestNode f key.parameter ⟨r, hlayer⟩ (treeIndexAt index ⟨r, hlayer⟩)
-          (key.otsSecret ⟨r, hlayer⟩ (treeIndexAt index ⟨r, hlayer⟩)) (layerHeight ⟨r, hlayer⟩) 0
-          = layerRoot f key index ⟨r, hlayer⟩ from rfl,
-        layerRoot_eq_enterMessage f key index r hlayer]
+      rw [hsigPath (layerHeight ⟨r, hlayer⟩ - 1) (by omega),
+        topPair_honest f key.parameter ⟨r, hlayer⟩ (treeIndexAt index ⟨r, hlayer⟩)
+          (key.otsSecret ⟨r, hlayer⟩ (treeIndexAt index ⟨r, hlayer⟩)) (leafIndexAt index ⟨r, hlayer⟩)
+          (leafIndexAt_lt index _) hpos,
+        show honestPair f key.parameter ⟨r, hlayer⟩ (treeIndexAt index ⟨r, hlayer⟩)
+          (key.otsSecret ⟨r, hlayer⟩ (treeIndexAt index ⟨r, hlayer⟩))
+          = layerTop f key index ⟨r, hlayer⟩ from rfl,
+        layerTop_eq_enterMessage f key index r hlayer]
       exact ih (Nat.le_of_succ_le hrem)
 
 attribute [local semireducible] Concrete.verify
@@ -303,19 +311,23 @@ theorem verify_of_signatureValue (key : SecretKey) (message : Message) (randomne
         = evalWithAnswerFn f (ftsOpen key.parameter index (digestLeaves digest) (key.ftsSecret index)) := by
       rw [← hsig]
     have hbottom : enterMessage f key index numLayers
-        = evalWithAnswerFn f (ftsKey key.parameter index (key.ftsSecret index)
-          : OracleComp HashSpec Digest) := by
-      rw [show numLayers = 4 + 1 from rfl, enterMessage, dif_pos (by decide),
-        ← layerMessage_bottomLayer_eq]
-      rfl
-    have htop : layerRoot f key index topLayer = key.root := by
-      rw [hroot, layerRoot, show treeIndexAt index topLayer = rootTree from
+        = (0, evalWithAnswerFn f (ftsKey key.parameter index (key.ftsSecret index)
+          : OracleComp HashSpec Digest)) := by
+      rw [show numLayers = 4 + 1 from rfl, enterMessage, dif_pos (by decide)]
+      change evalWithAnswerFn f (layerMessage key index bottomLayer) = _
+      rw [layerMessage_bottomLayer_eq]
+      simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure]
+    have htop : evalWithAnswerFn f (topRoot key.parameter index (layerTop f key index topLayer)
+        : OracleComp HashSpec Digest) = key.root := by
+      rw [hroot, topRoot, Concrete.eval_tweakableHash, layerTop, show treeIndexAt index topLayer = rootTree from
         Fin.ext (treeIndexAt_topLayer index)]
+      exact (honestNode_succ f key.parameter topLayer rootTree (key.otsSecret topLayer rootTree)
+        (layerHeight topLayer - 1) 0).symm
     rw [verify_eq _ _ _ hcounters]
     simp only [evalWithAnswerFn_bind, hrandomness, ← hdigest, ← hindex, hfts,
       eval_ftsRecover_ftsOpen f key.parameter index _ hadmissible]
-    rw [← hbottom, eval_verifyLayers f key index signature hlayers numLayers (Nat.le_refl _), htop]
-    simp
+    rw [← hbottom, eval_verifyLayers f key index signature hlayers numLayers (Nat.le_refl _)]
+    simp [evalWithAnswerFn_bind, htop]
   next => simp at hsig
 
 /-! ## The seeded signer

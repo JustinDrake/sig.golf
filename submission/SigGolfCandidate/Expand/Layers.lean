@@ -4,7 +4,7 @@ import SigGolfCandidate.Sign.Bytes
 /-!
 # `expand`, phase 2: the counter phase (`Ref.expandLayers`, instructions 316 .. 494)
 
-`layers_sim` : from `layer_loop` with `LAY = n - 1` and the message `M` at `0x120`, the machine
+`layers_sim` : from `layer_loop` with `LAY = n - 1` and the 32-byte message `M` at `0x110`, the machine
 refines `expandLayers w idx n M`: per layer the sign's header and least-counter search, the
 counter into `CT + 8 LAY`, and below layer 0 verify's chains, leaf and folds (the root is the next
 message); at layer 0 `halt_ok` writes the five counters into the witness and halts with
@@ -188,8 +188,14 @@ theorem expandLayers_succ (w : List Byte) (idx lay : Nat) (M : Val) :
         | some (c, x) =>
           verifyLeaf w (lay + 1) (route idx (lay + 1)).2 (route idx (lay + 1)).1 x >>= fun leaf =>
           foldPath (nodeInput (lay + 1) (route idx (lay + 1)).2) (route idx (lay + 1)).1 leaf
-              (witPath w (lay + 1)) >>= fun root =>
-          expandLayers w idx (lay + 1) root >>= fun r2 =>
+              ((witPath w (lay + 1)).take (height (lay + 1) - 1)) >>= fun node =>
+          hash16 (nodeInput (lay + 1) (route idx (lay + 1)).2 (height (lay + 1)) 0
+              ((topPair (route idx (lay + 1)).1 (height (lay + 1)) node
+                (witSib w (lay + 1) (height (lay + 1) - 1))).take 16)
+              ((topPair (route idx (lay + 1)).1 (height (lay + 1)) node
+                (witSib w (lay + 1) (height (lay + 1) - 1))).drop 16)) >>= fun _ =>
+          expandLayers w idx (lay + 1) (topPair (route idx (lay + 1)).1 (height (lay + 1)) node
+              (witSib w (lay + 1) (height (lay + 1) - 1))) >>= fun r2 =>
             match r2 with
             | none => pure none
             | some cs => pure (some (cs ++ [c]))) := rfl
@@ -312,7 +318,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
       by rw [y20]; try exact ofNat_congr (by ring), by rw [y23]; simp,
       by rw [y24]; try exact ofNat_congr (by ring), RegsEq.refl _ _, Frame.refl _ _⟩
   rw [verifyLeaf_eq, bind_assoc]
-  simp only [foldPath_eq]
+  simp only [foldPath_take_eq]
   refine (Sim.steps hs6 (Sim.steps hs7 (Sim.bind hch (W₂ := 300 + (n + 1) * LW) (fun ends t8 h8 => ?_)))).mono
     (by omega) (fun _ _ h => h)
   -- the leaf
@@ -321,7 +327,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
   have hleaf := leaf_sim w idx (n + 1) tau e hn htau30 he2048 ends h8.len h8.vlen t8
     (by rw [h8.pc, if_neg (by norm_num)]) h8.ctx h8.slots
     (by rw [g8 _ (by norm_num) (by unfold chW; omega), mLF0]) (by rw [g8 _ (by norm_num) (by unfold chW; omega), mLF8])
-  refine (Sim.bind hleaf (W₂ := 200 + (n + 1) * LW) (fun leaf t9 h9 => ?_)).mono (by omega) (fun _ _ h => h)
+  refine (Sim.bind hleaf (W₂ := 206 + (n + 1) * LW) (fun leaf t9 h9 => ?_)).mono (by omega) (fun _ _ h => h)
   obtain ⟨p9, c9, hl9, o9, r9, f9⟩ := h9
   -- the folds
   have R9 := h8.regs.trans r9
@@ -335,31 +341,52 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
     (h8.frame.trans f9).trans (fun a _ _ => m10 _ : Frame t9 t10 (fun _ => False)) |>.mono (by
       intro a ha; simp only [or_false] at ha; exact ha)
   have R10 := R9.trans r10
-  have hfd := Sim.foldlM_range (image := eimg) (height (n + 1)) (fdF w (n + 1) tau e) leaf
-    (FdInv w idx t10 (n + 1) e) 30
-    (fold_step w idx t10 (n + 1) tau e (by omega) hn htau30 he32 hw
+  have hstep := fold_step2 w idx t10 (n + 1) tau e (by omega) hn htau30 he32 hw
       (by rw [R10.get .x9 (by decide), R57.get .x9 (by decide), x49])
       (by rw [R10.get .x30 (by decide), R57.get .x30 (by decide), x430])
-      (by rw [F10.getMem (by norm_num) (by unfold chW; omega), mNB0]))
+      (by rw [F10.getMem (by norm_num) (by unfold chW; omega), mNB0])
+  have hfd := Sim.foldlM_range (image := eimg) (height (n + 1) - 1) (fdF w (n + 1) tau e) leaf
+    (FdInv w idx t10 (n + 1) e) 30
+    (fun lam hlam v t h => (hstep lam (by omega) v t h).mono le_rfl (fun _ _ h => h.1))
     ⟨by rw [p10, if_pos (by omega)], c10, by omega, by rw [z18]; simp, z19,
       by rw [z23]; have : n < 4 := by omega
          interval_cases n <;> rfl, hl9,
       by rw [readWords_ofNat_two, m10, m10, ← readWords_ofNat_two, o9], RegsEq.refl _ _, Frame.refl _ _⟩
-  refine (Sim.steps hs10 (Sim.bind hfd (W₂ := 6 + (n + 1) * LW) (fun root t11 h11 => ?_))).mono
-    (by nlinarith) (fun _ _ h => h)
-  obtain ⟨p11, c11, -, -, -, -, hl11, o11, r11, f11⟩ := h11
+  refine (Sim.steps hs10 (Sim.bind hfd (W₂ := 30 + (12 + (n + 1) * LW)) (fun node t11' h11' => ?_))).mono
+    (by generalize (n + 1) * LW = X; omega) (fun _ _ h => h)
+  -- the last fold: the root (which nothing reads); its two inputs, the next message, stay in the node buffer
+  have hnl : node.length = 16 := h11'.2.2.2.2.2.2.1
+  have hsl : (witSib w (n + 1) (height (n + 1) - 1)).length = 16 := by
+    have hs64 : pathStride (n + 1) = 64 := by unfold pathStride; rw [if_neg (by omega)]
+    have hb := hwl.1
+    unfold witSib slice
+    rw [hs64] at hb ⊢
+    simp only [List.length_take, List.length_drop]
+    omega
+  rw [fdF_last w (n + 1) tau e he32 (by omega) node hnl hsl]
+  have hlast := hstep (height (n + 1) - 1) (by omega) node t11' h11'
+  refine Sim.bind hlast (W₂ := 12 + (n + 1) * LW) (fun root t11 h11 => ?_)
+  obtain ⟨⟨p11, c11, -, -, -, -, hl11, o11, r11, f11⟩, hnb⟩ := h11
+  rw [show height (n + 1) - 1 + 1 = height (n + 1) by omega] at p11
   rw [if_neg (by omega)] at p11
+  have hsibD : (witPath w (n + 1)).getD (height (n + 1) - 1) [] = witSib w (n + 1) (height (n + 1) - 1) := by
+    simp [witPath, List.getD_eq_getElem?_getD, List.getElem?_map,
+      List.getElem?_range (show height (n + 1) - 1 < height (n + 1) by omega)]
+  rw [hsibD] at hnb
+  have htop : (topPair e (height (n + 1)) node (witSib w (n + 1) (height (n + 1) - 1))).length = 32 := by
+    unfold topPair; split <;> rw [List.length_append] <;> omega
   have R11 := R10.trans r11
   obtain ⟨t12, hs12, p12, x8', w12, r12, f12⟩ := blk472_run t11 p11 (n + 1) (by omega) hn
     (by rw [R11.get .x8 (by decide), R7.get .x8 (by decide), hinv.head.x8]) c11.x25
   have c12 := c11.frame f12 r12 (fun a h1 h2 => by unfold lctxA witA at h1; omega)
-  have F12 : Frame t7 t12 (fun a => (chW a ∨ (0x30200 ≤ a ∧ a < 0x30220)) ∨ fdW a ∨ (a = 0x120 ∨ a = 0x128)) :=
+  have F12 : Frame t7 t12 (fun a => (chW a ∨ (0x30200 ≤ a ∧ a < 0x30220)) ∨ fdW a ∨ (0x110 ≤ a ∧ a < 0x130)) :=
     (F10.trans (f11.trans f12)).mono (fun a ha => ha)
   have R12 := R11.trans r12
   have hab := hinv.hab
-  have hinv' : LayInv w idx n root (c :: above) t12 := by
-    refine ⟨c12, ⟨by omega, hidx, hl11, p12, c12.x5, c12.x7, by rw [x8']; rfl, c12.x22, c12.x26, c12.x27,
-      by rw [w12, o11], c12.ebP⟩, by simp; omega, ?_, ?_⟩
+  have hinv' : LayInv w idx n (topPair e (height (n + 1)) node (witSib w (n + 1) (height (n + 1) - 1)))
+      (c :: above) t12 := by
+    refine ⟨c12, ⟨by omega, hidx, htop, p12, c12.x5, c12.x7, by rw [x8']; rfl, c12.x22, c12.x26, c12.x27,
+      by rw [w12, hnb]; rfl⟩, by simp; omega, ?_, ?_⟩
     · intro j hj
       simp only [List.length_cons] at hj
       rw [F12.getMem (a := 0x30780 + 8 * (n + 1 + j)) (by omega) (by simp only [chW, fdW]; omega)]
@@ -375,7 +402,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
       cases j with
       | zero => exact hcl
       | succ j => exact hinv.clt j (by simp only [List.length_cons] at hj; omega)
-  refine (Sim.steps hs12 (Sim.bind (ih root (c :: above) t12 hinv') (W₂ := 0) (fun r2 t13 h13 => ?_))).mono
+  refine (Sim.steps hs12 (Sim.bind (ih _ (c :: above) t12 hinv') (W₂ := 0) (fun r2 t13 h13 => ?_))).mono
     (by omega) (fun _ _ h => h)
   rcases r2 with _ | cs
   · exact (Sim.pure (Q := LPost w above (n + 2)) (a := none) h13)

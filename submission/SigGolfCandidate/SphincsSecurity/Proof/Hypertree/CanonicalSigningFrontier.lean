@@ -59,7 +59,7 @@ theorem frontierReferenceWord_canonical (key : SecretKey) (f : QueryImpl HashSpe
   simp only [canonicalReferenceWords, hword, Option.map_some, Option.getD_some]
 
 theorem referenceEncodingSearch_valid (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
-    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : Digest)
+    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : EncMessage)
     (attempts start : Nat) (counter : Counter) (word : Encoding)
     (hword : (referenceEncodingSearch parameter f lay tree leaf message attempts start).1 = some (counter, word)) :
     OtsCode.Valid lay word := by

@@ -113,11 +113,13 @@ def compress (σ : Signature) : Bytes 6032 := Ref.ofList 6032 (compressList σ)
 /-! ## The abstract expansion -/
 
 open SphincsSecurity.Concrete (treeIndexAt leafIndexAt encodingSearch recoverChain leafHash treeFold
-  signaturePath) in
+  signaturePath topPair tweakableHash nodePayload) in
 /-- The abstract counter phase on the witness-shaped signature `S0`: layers `k-1, .., 0` from `M`
-(the signer's `encodingSearch` from `0`; below the top layer, the verifier's chains, leaf and fold).
+(the signer's `encodingSearch` from `0`; below the top layer, the verifier's chains, leaf and fold; the
+expander also hashes the root, which nothing reads: the root's two children are the next message).
 Returns the counters, layer 0 first. -/
-def aLayers (index : SphincsSecurity.Index) (S0 : Signature) : Nat → Digest → AComp (Option (List Nat))
+def aLayers (index : SphincsSecurity.Index) (S0 : Signature) :
+    Nat → SphincsSecurity.EncMessage → AComp (Option (List Nat))
   | 0, _ => pure (some [])
   | 1, M => do
     let lay : Layer := ⟨0, by decide⟩
@@ -136,9 +138,13 @@ def aLayers (index : SphincsSecurity.Index) (S0 : Signature) : Nat → Digest �
           recoverChain 0 lay (treeIndexAt index lay) (leafIndexAt index lay) ch (enc ch)
             ((S0.layers lay).chainValues ch)
         let leaf ← leafHash (m := AComp) 0 lay (treeIndexAt index lay) (leafIndexAt index lay) ends
-        let root ← treeFold (m := AComp) 0 lay (treeIndexAt index lay) (leafIndexAt index lay)
-          (signaturePath S0 lay) (SphincsSecurity.layerHeight lay) leaf
-        match ← aLayers index S0 (n + 1) root with
+        let node ← treeFold (m := AComp) 0 lay (treeIndexAt index lay) (leafIndexAt index lay)
+          (signaturePath S0 lay) (SphincsSecurity.layerHeight lay - 1) leaf
+        let top := topPair ((leafIndexAt index lay).val.testBit (SphincsSecurity.layerHeight lay - 1)) node
+          (signaturePath S0 lay (SphincsSecurity.layerHeight lay - 1))
+        let _ ← tweakableHash (m := AComp) 0
+          (.node lay (treeIndexAt index lay) (SphincsSecurity.layerHeight lay) 0) (nodePayload top.1 top.2)
+        match ← aLayers index S0 (n + 1) top with
         | none => pure none
         | some cs => pure (some (cs ++ [c.toNat]))
     else pure none
@@ -157,7 +163,7 @@ def aExpand (m : Message) (pk : PublicKey) (σ : Bytes 6032) : AComp (Option (By
         (SphincsSecurity.Concrete.slotValue (SphincsSecurity.Concrete.digestLeaves d)) (witFts w0) with
     | none => pure none
     | some M =>
-      match ← aLayers index (witSig w0) SphincsSecurity.numLayers M with
+      match ← aLayers index (witSig w0) SphincsSecurity.numLayers (0, M) with
       | none => pure none
       | some cs => pure (some (Ref.ofList 15872 (Ref.cutW (Ref.withCounters w0 cs))))
 

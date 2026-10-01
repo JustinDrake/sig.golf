@@ -21,7 +21,7 @@ theorem knownEncodingCell_not_message (parameter : PublicParameter) (inputs : Fi
     (hmessage : MessageHashInput parameter input.val) :
     input ∉ Set.range (knownEncodingCell parameter inputs hencoding known) := by
   rintro ⟨row, heq⟩
-  have hat : AtEncodingPosition parameter (knownEncodingCell parameter inputs hencoding known row).val row.1 := ⟨_, rfl⟩
+  have hat : AtEncodingPosition parameter (knownEncodingCell parameter inputs hencoding known row).val row.1 := ⟨_, _, rfl⟩
   rw [heq] at hat
   exact ResidualByteFrontend.message_not_encoding parameter input.val hmessage row.1 hat
 
@@ -30,7 +30,7 @@ theorem canonicalEncodingCell_not_message (parameter : PublicParameter) (inputs 
     (hmessage : MessageHashInput parameter input.val) :
     input ∉ Set.range (canonicalEncodingCell parameter inputs hencoding labels) := by
   rintro ⟨row, heq⟩
-  have hat : AtEncodingPosition parameter (canonicalEncodingCell parameter inputs hencoding labels row).val row.1 := ⟨_, rfl⟩
+  have hat : AtEncodingPosition parameter (canonicalEncodingCell parameter inputs hencoding labels row).val row.1 := ⟨_, _, rfl⟩
   rw [heq] at hat
   exact ResidualByteFrontend.message_not_encoding parameter input.val hmessage row.1 hat
 

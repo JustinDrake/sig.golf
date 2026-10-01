@@ -175,7 +175,7 @@ theorem eval_buildLayerTree_table (parameter : PublicParameter) (lay : Layer) (t
   · exact hlevel
   · exact hnodeIdx
 
-/-- **A layer's tree, built once.** Its root is the specification's root, its path the
+/-- **A layer's tree, built once.** Its root's children are the specification's, its path the
 specification's path, and the values at the captured leaf the one-time signature's values. -/
 theorem eval_buildLayerTree (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
     (secret : LeafIndex → ChainIndex → OracleComp HashSpec Digest) (leaf : LeafIndex)
@@ -186,7 +186,7 @@ theorem eval_buildLayerTree (parameter : PublicParameter) (lay : Layer) (tree : 
         (chainWalk parameter lay tree leaf chainIdx 0 (digits chainIdx).val (table leaf chainIdx)))
       ∧ (∀ level, level < layerHeight lay →
           result.2.1 level = honestNode f parameter lay tree table level (Nat.xor (leaf.val / 2 ^ level) 1))
-      ∧ result.2.2 = honestNode f parameter lay tree table (layerHeight lay) 0 := by
+      ∧ result.2.2 = honestPair f parameter lay tree table := by
   intro result table
   have htable := eval_buildLayerTree_table f parameter lay tree secret leaf digits
   simp only [result, buildLayerTree, evalWithAnswerFn_bind, evalWithAnswerFn_pure]
@@ -197,37 +197,46 @@ theorem eval_buildLayerTree (parameter : PublicParameter) (lay : Layer) (tree : 
     simp only [leafOfNat_val, if_true, table]
   · intro level hlevel
     exact htable level hlevel.le _ (xor_div_lt hleaf hlevel)
-  · exact htable _ le_rfl 0 (by simp)
+  · exact Prod.ext (htable _ (Nat.sub_le _ _) 0 (Nat.two_pow_pos _))
+      (htable _ (Nat.sub_le _ _) 1 (by
+        have := layerHeight_pos lay
+        rw [show layerHeight lay - (layerHeight lay - 1) = 1 by omega]
+        decide))
 
-theorem eval_buildLayerTree_root (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
+theorem eval_buildLayerTree_top (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
     (secret : LeafIndex → ChainIndex → OracleComp HashSpec Digest) (leaf : LeafIndex)
     (hleaf : leaf.val < 2 ^ layerHeight lay) (digits : Encoding) :
     (evalWithAnswerFn f (buildLayerTree parameter lay tree secret leaf digits)).2.2
-      = evalWithAnswerFn f (treeRoot parameter lay tree
+      = evalWithAnswerFn f (treeTop parameter lay tree
           (fun leaf chainIdx => evalWithAnswerFn f (secret leaf chainIdx))) :=
-  (eval_buildLayerTree f parameter lay tree secret leaf hleaf digits).2.2
+  (eval_buildLayerTree f parameter lay tree secret leaf hleaf digits).2.2.trans
+    (eval_treeTop f parameter lay tree _).symm
 
 /-- Key generation's root is the specification's root. -/
 theorem eval_keygenRoot (parameter : PublicParameter) (secret : LeafIndex → ChainIndex → Digest) :
     evalWithAnswerFn f (keygenRoot parameter secret)
       = evalWithAnswerFn f (treeRoot parameter topLayer rootTree secret) := by
-  have h := eval_buildLayerTree_root f parameter topLayer rootTree
-    (fun leaf chainIdx => pure (secret leaf chainIdx)) ⟨0, Nat.two_pow_pos _⟩
-    (Nat.two_pow_pos _) zeroEncoding
-  simp only [evalWithAnswerFn_pure] at h
+  have htable := eval_buildLayerTree_table f parameter topLayer rootTree
+    (fun leaf chainIdx => pure (secret leaf chainIdx)) ⟨0, Nat.two_pow_pos _⟩ zeroEncoding
+    (layerHeight topLayer) le_rfl 0 (by rw [Nat.sub_self, pow_zero]; exact Nat.one_pos)
+  simp only [evalWithAnswerFn_pure] at htable
   unfold keygenRoot
   rw [evalWithAnswerFn_bind]
-  -- `split` keeps the tree build opaque; generalizing it makes the kernel run the whole build
+  -- `split` keeps the table build opaque; generalizing it makes the kernel run the whole build
   split
-  next values path root hresult =>
-    rw [evalWithAnswerFn_pure, ← h, hresult]
+  next leaves table hresult =>
+    rw [evalWithAnswerFn_pure]
+    have hsnd := congrArg Prod.snd hresult
+    simp only [buildLayerTable, evalWithAnswerFn_bind, evalWithAnswerFn_pure] at hsnd
+    rw [← hsnd]
+    exact htable
 
 theorem buildLayerTree_eq_table (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
     (secret : LeafIndex → ChainIndex → OracleComp HashSpec Digest) (leaf : LeafIndex) (digits : Encoding) :
     buildLayerTree parameter lay tree secret leaf digits =
       (fun built : (Fin (2 ^ layerHeight lay) → (ChainIndex → Digest) × Digest) × (Nat → Nat → Digest) =>
         ((if h : leaf.val < 2 ^ layerHeight lay then (built.1 ⟨leaf.val, h⟩).1 else fun _ => 0),
-          (fun level => built.2 level (Nat.xor (leaf.val / 2 ^ level) 1)), built.2 (layerHeight lay) 0)) <$>
+          (fun level => built.2 level (Nat.xor (leaf.val / 2 ^ level) 1)), tableTop built.2 (layerHeight lay))) <$>
         buildLayerTable parameter lay tree secret leaf digits := by
   simp only [buildLayerTree, buildLayerTable, map_bind, bind_assoc, pure_bind, map_pure]
 
@@ -354,7 +363,7 @@ theorem eval_buildFtsTree_open (parameter : PublicParameter) (index : Index)
 /-! ### The layers -/
 
 theorem eval_otsSignFrom (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
-    (leaf : LeafIndex) (secret : ChainIndex → Digest) (message : Digest) (attempts counter : Nat) :
+    (leaf : LeafIndex) (secret : ChainIndex → Digest) (message : EncMessage) (attempts counter : Nat) :
     evalWithAnswerFn f (otsSignFrom parameter lay tree leaf secret message attempts counter)
       = (evalWithAnswerFn f (encodingSearch parameter lay tree leaf message attempts counter)).map
           fun result => (result.1, fun chainIdx => evalWithAnswerFn f
@@ -400,7 +409,7 @@ theorem eval_signLayers (key : SecretKey) (index : Index)
     (hsecret : ∀ lay tree leaf chainIdx,
       evalWithAnswerFn f (secret lay tree leaf chainIdx) = key.otsSecret lay tree leaf chainIdx)
     (topNode : Nat → Nat → OracleComp HashSpec Digest) (htop : TopAgrees f key topNode)
-    (remaining : Nat) (hremaining : remaining ≤ numLayers) (message : Digest)
+    (remaining : Nat) (hremaining : remaining ≤ numLayers) (message : EncMessage)
     (hmessage : ∀ h : 0 < remaining,
       message = evalWithAnswerFn f (layerMessage key index ⟨remaining - 1, by omega⟩)) :
     match evalWithAnswerFn f (signLayers key.parameter index secret topNode remaining message) with
@@ -490,7 +499,8 @@ theorem eval_signLayers (key : SecretKey) (index : Index)
             rw [layerMessage, dif_pos hbelow]
             have hlay : (⟨remaining - 1 + 1, hbelow⟩ : Layer) = lay := Fin.ext (by simp [lay]; omega)
             rw [hlay, hroot]
-            simp only [treeRoot, honestNode]
+            exact (eval_treeTop f key.parameter lay (treeIndexAt index lay)
+              (key.otsSecret lay (treeIndexAt index lay))).symm
           have hrest := ih (by omega) root hnext
           revert hrest
           cases evalWithAnswerFn f (signLayers key.parameter index secret topNode remaining root) with
@@ -540,8 +550,10 @@ def signatureValue (key : SecretKey) (randomness : Randomness) (index : Index)
       layers := fun lay => LayerSignature.ofPadded lay (parts lay) }
 
 theorem layerMessage_bottomLayer_eq (key : SecretKey) (index : Index) :
-    (layerMessage key index bottomLayer : OracleComp HashSpec Digest) =
-      ftsKey key.parameter index (key.ftsSecret index) := by
+    (layerMessage key index bottomLayer : OracleComp HashSpec EncMessage) =
+      (do
+        let ftsRoot ← ftsKey key.parameter index (key.ftsSecret index)
+        return (0, ftsRoot)) := by
   rw [layerMessage, dif_neg (by decide)]
 
 /-- **The signer computes the specification's signature.** -/
@@ -569,16 +581,17 @@ theorem eval_signFrom (key : SecretKey) (index : Index)
   rintro ⟨hopen, hkey⟩
   simp only at hopen hkey
   have hlayers := eval_signLayers f key index otsGet hots topGet htop numLayers le_rfl
-      (table ftsTreeHeight 0) (by
+      (0, table ftsTreeHeight 0) (by
     intro _
     rw [hkey]
     change _ = evalWithAnswerFn f (layerMessage key index bottomLayer)
-    rw [layerMessage_bottomLayer_eq])
+    rw [layerMessage_bottomLayer_eq]
+    simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure])
   simp only [evalWithAnswerFn_bind]
   unfold signatureValue
   rw [sequenceFin_option_eq]
   revert hlayers
-  cases evalWithAnswerFn f (signLayers key.parameter index otsGet topGet numLayers (table ftsTreeHeight 0)) with
+  cases evalWithAnswerFn f (signLayers key.parameter index otsGet topGet numLayers (0, table ftsTreeHeight 0)) with
   | none =>
       rintro ⟨lay, _, hnone⟩
       rw [dif_neg (fun hall => by have := hall lay; rw [hnone] at this; simp at this)]
@@ -613,7 +626,7 @@ def TopRegionEq {m : Type → Type} (topNode topNode' : Nat → Nat → m Digest
 
 theorem signTopLayer_congr_top {m : Type → Type} [Monad m] [HasQuery HashSpec m] (parameter : PublicParameter) (index : Index)
     (secret : LeafIndex → ChainIndex → m Digest) (topNode topNode' : Nat → Nat → m Digest)
-    (htop : TopRegionEq topNode topNode') (message : Digest) :
+    (htop : TopRegionEq topNode topNode') (message : EncMessage) :
     signTopLayer parameter index secret topNode message = signTopLayer parameter index secret topNode' message := by
   have hpath : (fun level : Fin maxLayerHeight =>
       topNode level.val (Nat.xor ((leafIndexAt index topLayer).val / 2 ^ level.val) 1)) =
@@ -624,7 +637,7 @@ theorem signTopLayer_congr_top {m : Type → Type} [Monad m] [HasQuery HashSpec 
 
 theorem signLayers_congr_top {m : Type → Type} [Monad m] [HasQuery HashSpec m] (parameter : PublicParameter) (index : Index)
     (secret : Layer → TreeIndex → LeafIndex → ChainIndex → m Digest) (topNode topNode' : Nat → Nat → m Digest)
-    (htop : TopRegionEq topNode topNode') (remaining : Nat) (message : Digest) :
+    (htop : TopRegionEq topNode topNode') (remaining : Nat) (message : EncMessage) :
     signLayers parameter index secret topNode remaining message =
       signLayers parameter index secret topNode' remaining message := by
   induction remaining generalizing message with

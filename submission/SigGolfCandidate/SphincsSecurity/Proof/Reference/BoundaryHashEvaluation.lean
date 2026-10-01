@@ -13,7 +13,8 @@ def authenticationHashCost (lay : Layer) : Nat :=
 
 def layerMessageHashCost (lay : Layer) : Nat :=
   if hbelow : lay.val + 1 < numLayers then
-    treeNodeHashCost (layerHeight ⟨lay.val + 1, hbelow⟩)
+    treeNodeHashCost (layerHeight ⟨lay.val + 1, hbelow⟩ - 1) +
+      treeNodeHashCost (layerHeight ⟨lay.val + 1, hbelow⟩ - 1)
   else ftsKeyHashCost
 
 end SphincsSecurity.Concrete
@@ -32,6 +33,19 @@ theorem tweakableHashInput_tag_eq (parameter : PublicParameter) (first second : 
   simp only [tweakableHashInput] at heq
   obtain ⟨hprefix, _⟩ := List.append_inj heq (by simp [tweakBytes_length, bytesLE_length])
   obtain ⟨htweak, _⟩ := List.append_inj' hprefix (by simp [bytesLE_length])
+  exact congrArg TweakFields.tag (tweakBytes_eq_iff.mp htweak)
+
+/-- The same across parameters (the encoding hash carries half of its message in the parameter slot). -/
+theorem tweakableHashInput_tag_eq' (parameter1 parameter2 : PublicParameter) (first second : HashDomain)
+    (firstPayload secondPayload : HashInput)
+    (heq : tweakableHashInput parameter1 first firstPayload = tweakableHashInput parameter2 second secondPayload) :
+    (hashDomainFields first).tag = (hashDomainFields second).tag := by
+  simp only [tweakableHashInput] at heq
+  have hlen1 : (bytesLE 16 parameter1).length = 16 := bytesLE_length 16 parameter1
+  have hlen2 : (bytesLE 16 parameter2).length = 16 := bytesLE_length 16 parameter2
+  obtain ⟨hprefix, _⟩ := List.append_inj heq (by
+    rw [List.length_append, List.length_append, tweakBytes_length, tweakBytes_length, hlen1, hlen2])
+  obtain ⟨htweak, _⟩ := List.append_inj' hprefix (by rw [hlen1, hlen2])
   exact congrArg TweakFields.tag (tweakBytes_eq_iff.mp htweak)
 
 end SphincsSecurity.Concrete.FtsProbeSimulation
@@ -215,11 +229,11 @@ theorem boundaryEval_ftsKey (parameter : PublicParameter) (f : QueryImpl HashSpe
 theorem boundaryEval_layerMessage (key : SecretKey) (f : QueryImpl HashSpec Id) (index : Index) (lay : Layer) :
     boundaryEval key.parameter f (layerMessage key index lay) =
       (evalWithAnswerFn f (layerMessage key index lay), (FreeMonoid.of none) ^ layerMessageHashCost lay) := by
+  apply boundaryEval_eq_of_snd
   rw [layerMessage, layerMessageHashCost]
   split_ifs
-  · rw [treeRoot]
-    exact boundaryEval_treeNode _ _ _ _ _ _ _
-  · exact boundaryEval_ftsKey _ _ _ _
+  · simp only [treeTop, boundaryEval_bind, boundaryEval_treeNode, boundaryEval_pure, mul_one, pow_add]
+  · simp only [boundaryEval_bind, boundaryEval_ftsKey, boundaryEval_pure, mul_one]
 
 theorem boundaryEval_hash_query (parameter : PublicParameter) (f : QueryImpl HashSpec Id) (input : HashInput) :
     boundaryEval parameter f (liftM (HashSpec.query input)) =
@@ -371,7 +385,7 @@ theorem boundaryEval_keygenRoot (parameter : PublicParameter) (f : QueryImpl Has
       (evalWithAnswerFn f (keygenRoot parameter secret), (FreeMonoid.of none) ^ keygenHashCost) := by
   apply boundaryEval_eq_of_snd
   unfold keygenRoot
-  rw [boundaryEval_bind, boundaryEval_buildLayerTree_pure, keygenHashCost_def]
+  rw [boundaryEval_bind, boundaryEval_buildLayerTable_pure, keygenHashCost_def]
   -- `split` keeps the scrutinee opaque; generalizing it makes the kernel evaluate the tree build
   split
   simp only [boundaryEval_pure, mul_one]

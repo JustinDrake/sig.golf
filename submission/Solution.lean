@@ -5,7 +5,7 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=15872 witness bytes, K=131072 cache bytes.
-The claim C=10374 is accepting verifier bound10312 plus witness charge62.
+The claim C=10334 is accepting verifier bound10272 plus witness charge62.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[185,185,185,185,186].
 
@@ -84,7 +84,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2560 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10374 :=
+theorem certificate : SigGolf.Certificate submission 10334 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

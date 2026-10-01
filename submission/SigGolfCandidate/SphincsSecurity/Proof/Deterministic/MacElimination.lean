@@ -224,7 +224,7 @@ theorem pathNode_lt (leaf : LeafIndex) (level : Fin maxLayerHeight) :
 
 theorem signTopLayer_congr (parameter : PublicParameter) (index : Index)
     (secret : LeafIndex → ChainIndex → m Digest) {top₁ top₂ : Nat → Nat → m Digest} (h : TopAgree top₁ top₂)
-    (message : Digest) :
+    (message : EncMessage) :
     signTopLayer parameter index secret top₁ message = signTopLayer parameter index secret top₂ message := by
   have hpath : ∀ level : Fin maxLayerHeight,
       top₁ level.val (Nat.xor ((leafIndexAt index topLayer).val / 2 ^ level.val) 1) =
@@ -235,7 +235,7 @@ theorem signTopLayer_congr (parameter : PublicParameter) (index : Index)
 
 theorem signLayers_congr (parameter : PublicParameter) (index : Index)
     (secret : Layer → TreeIndex → LeafIndex → ChainIndex → m Digest) {top₁ top₂ : Nat → Nat → m Digest}
-    (h : TopAgree top₁ top₂) (remaining : Nat) (message : Digest) :
+    (h : TopAgree top₁ top₂) (remaining : Nat) (message : EncMessage) :
     signLayers parameter index secret top₁ remaining message = signLayers parameter index secret top₂ remaining message := by
   induction remaining generalizing message with
   | zero => rfl

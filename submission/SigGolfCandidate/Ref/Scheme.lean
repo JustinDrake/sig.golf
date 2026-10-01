@@ -38,11 +38,13 @@ def levelStep (node : NodeFmt) (cap : Nat) (st : List Val × List Val) (lam : Na
   let level ← buildLevel node lam st.1
   pure (level, path)
 
-/-- Levels `lam = 1 .. h` bottom-up from `leaves`. Returns `(root, path of leaf cap)`. -/
+/-- Levels `lam = 1 .. h` bottom-up from `leaves`. Returns `(root, path of leaf cap, L || R)` with
+`L, R` the two nodes of level `h - 1` (the root's children, read before the last level is built). -/
 def buildLevels (node : NodeFmt) (cap h : Nat) (leaves : List Val) :
-    OracleComp HashSpec (Val × List Val) := do
-  let st ← (List.range' 1 h).foldlM (levelStep node cap) (leaves, [])
-  pure (st.1.getD 0 [], st.2)
+    OracleComp HashSpec (Val × List Val × Val) := do
+  let st ← (List.range' 1 (h - 1)).foldlM (levelStep node cap) (leaves, [])
+  let st' ← levelStep node cap st h
+  pure (st'.1.getD 0 [], st'.2, st.1.getD 0 [] ++ st.1.getD 1 [])
 
 /-- Chain `i` of leaf `e` of tree `(lay, tau)` from its secret `v`: steps `mu = 1 .. 7`.
 Returns `(chain end, value at position x)` (position 0 = the secret). -/
@@ -71,13 +73,14 @@ def buildLeaves (S : List Byte) (lay tau h cap : Nat) (x : List Nat) :
     let (leaf, c) ← buildLeaf S lay tau e x
     pure (st.1 ++ [leaf], if e = cap then c else st.2)) ([], [])
 
-/-- Tree `(lay, tau)` of height `h`, built once (`ref.build_tree`): leaves, then levels.
-Returns `(root, chain values x of leaf cap, path of leaf cap)`. -/
+/-- Tree `(lay, tau)` of height `h`, built once up to its root (`ref.build_tree`): leaves, then levels.
+Returns `(L || R, chain values x of leaf cap, path of leaf cap)`, `L || R` the root's two children: the
+message of the layer above. -/
 def buildTree (S : List Byte) (lay tau h cap : Nat) (x : List Nat) :
     OracleComp HashSpec (Val × List Val × List Val) := do
   let (leaves, vals) ← buildLeaves S lay tau h cap x
-  let (root, path) ← buildLevels (nodeInput lay tau) cap h leaves
-  pure (root, vals, path)
+  let (_, path, top) ← buildLevels (nodeInput lay tau) cap h leaves
+  pure (top, vals, path)
 
 /-! ## keygen -/
 
@@ -210,7 +213,7 @@ def signTop (S cache : List Byte) (idx : Nat) (M : Val) :
     pure (some [(c, vals, path)])
 
 /-- Layers `lay, lay-1, .., 1` (`M` = the message of layer `lay`): counter search, then the tree
-with capture; its root is the message of the layer below; then the top layer (`signTop`).
+with capture; its root's two children are the message of the layer above; then the top layer (`signTop`).
 Called with `lay = nLayers - 1`. Returns the layers in order `0 .. lay`. -/
 def signLayers (S cache : List Byte) (idx : Nat) :
     Nat → Val → OracleComp HashSpec (Option (List LayerSig))
@@ -220,8 +223,8 @@ def signLayers (S cache : List Byte) (idx : Nat) :
     match ← searchCounter (lay + 1) tau e M 0 cMax with
     | none => pure none
     | some (c, x) =>
-      let (root, vals, path) ← buildTree S (lay + 1) tau (height (lay + 1)) e x
-      match ← signLayers S cache idx lay root with
+      let (top, vals, path) ← buildTree S (lay + 1) tau (height (lay + 1)) e x
+      match ← signLayers S cache idx lay top with
       | none => pure none
       | some rest => pure (some (rest ++ [(c, vals, path)]))
 
@@ -232,7 +235,7 @@ def serialize (rho : Val) (fts : List Val) (lays : List LayerSig) : List Byte :=
     (lays.map fun l => l.2.1.flatten ++ l.2.2.flatten).flatten
 
 /-- `ref.sign`: the MAC check of the cache (one query; `none` on a mismatch), the digest search,
-the PORS tree of `idx` (its root is the message of the bottom layer), the layers `4 .. 0`. -/
+the PORS tree of `idx` (`P ||` its root is the message of the bottom layer), the layers `4 .. 0`. -/
 def signList (S cache m : List Byte) : OracleComp HashSpec (Option (List Byte)) := do
   let tag ← H (macInput S (cacheRegion cache))
   if toList (n := 32) tag = cacheTag cache then
@@ -242,7 +245,7 @@ def signList (S cache m : List Byte) : OracleComp HashSpec (Option (List Byte)) 
       let (levels, secrets) ← buildPorsTree S (idxOf N)
       let M := (levels.getD porsH []).getD 0 []
       let fts := porsOpening (sortLeaves (leavesOf N)) levels secrets
-      match ← signLayers S cache (idxOf N) (nLayers - 1) M with
+      match ← signLayers S cache (idxOf N) (nLayers - 1) (P ++ M) with
       | none => pure none
       | some lays => pure (some (serialize rho fts lays))
   else pure none
@@ -536,8 +539,14 @@ def verifyLeafP (w : List Byte) (lay tau e : Nat) (x : List Nat) : OracleComp Ha
     pure (ends ++ [v])) []
   hash16 (leafInput lay tau e ends)
 
-/-- Layers `n-1, .., 0` from the message `M` of layer `n-1`: encoding (reject = `none`),
-chains, leaf, folds. Returns the top root. -/
+/-- The root's two children in order, `L || R`: the node the fold reaches below the root and the top
+sibling, the sibling first when the leaf is in the right half of a tree of height `h`. -/
+def topPair (e h : Nat) (node sib : Val) : Val :=
+  if e / 2 ^ (h - 1) % 2 = 1 then sib ++ node else node ++ sib
+
+/-- Layers `n-1, .., 0` from the 32-byte message `M` of layer `n-1`: encoding (reject = `none`),
+chains, leaf, folds. Below the top layer the fold stops under the root and the root's two children are
+the message of the layer above; the top layer folds to its root. Returns the top root. -/
 def verifyLayers (w : List Byte) (idx : Nat) : Nat → Val → OracleComp HashSpec (Option Val)
   | 0, M => pure (some M)
   | lay + 1, M => do
@@ -547,19 +556,23 @@ def verifyLayers (w : List Byte) (idx : Nat) : Nat → Val → OracleComp HashSp
     | none => pure none
     | some x =>
       let leaf ← verifyLeafP w lay tau e x
-      let root ← foldPath (nodeInput lay tau) e leaf (witPath w lay)
-      verifyLayers w idx lay root
+      if lay = 0 then
+        let root ← foldPath (nodeInput lay tau) e leaf (witPath w lay)
+        verifyLayers w idx lay root
+      else
+        let node ← foldPath (nodeInput lay tau) e leaf ((witPath w lay).take (height lay - 1))
+        verifyLayers w idx lay (topPair e (height lay) node (witSib w lay (height lay - 1)))
 
 /-- Verification of a witness (byte list; `ref.verify_witness` without its length check,
 which `verifyRef` makes vacuous): the counter range check (no queries), the digest, the PORS
-root (the message of the bottom layer), the layers `4 .. 0`, the comparison with `pk`. -/
+root (`P ||` it is the message of the bottom layer), the layers `4 .. 0`, the comparison with `pk`. -/
 def verifyList (m pk w : List Byte) : OracleComp HashSpec Bool := do
   if !countersOk w then return false
   let N ← digest (witRho w) m
   match ← porsRoot (idxOf N) (leavesOf N) w with
   | none => pure false
   | some M =>
-    match ← verifyLayers w (idxOf N) nLayers M with
+    match ← verifyLayers w (idxOf N) nLayers (P ++ M) with
     | none => pure false
     | some root => pure (root == pk)
 
@@ -571,8 +584,9 @@ def verifyRef (m : Bytes 32) (pk : Bytes 16) (w : Bytes 15872) : OracleComp Hash
 
 /-- The counter phase: layers `k-1, .., 0` from the message `M` of layer `k-1`. Each layer's
 counter is the least `c < C_max` whose encoding decodes (the signer's `searchCounter` from `0`);
-below the top layer, verify's leaf and fold on the partial witness `w` give the message of the
-layer above. Returns the counters of layers `0 .. k-1`, layer 0 first. -/
+below the top layer, verify's leaf and fold on the partial witness `w` (the fold runs to the root; the
+root's two children are the message of the layer above). Returns the counters of layers `0 .. k-1`,
+layer 0 first. -/
 def expandLayers (w : List Byte) (idx : Nat) : Nat → Val → OracleComp HashSpec (Option (List Nat))
   | 0, _ => pure (some [])
   | 1, M => do
@@ -586,8 +600,11 @@ def expandLayers (w : List Byte) (idx : Nat) : Nat → Val → OracleComp HashSp
     | none => pure none
     | some (c, x) =>
       let leaf ← verifyLeaf w (lay + 1) tau e x
-      let root ← foldPath (nodeInput (lay + 1) tau) e leaf (witPath w (lay + 1))
-      match ← expandLayers w idx (lay + 1) root with
+      let node ← foldPath (nodeInput (lay + 1) tau) e leaf
+        ((witPath w (lay + 1)).take (height (lay + 1) - 1))
+      let top := topPair e (height (lay + 1)) node (witSib w (lay + 1) (height (lay + 1) - 1))
+      let _ ← hash16 (nodeInput (lay + 1) tau (height (lay + 1)) 0 (top.take 16) (top.drop 16))
+      match ← expandLayers w idx (lay + 1) top with
       | none => pure none
       | some cs => pure (some (cs ++ [c]))
 
@@ -607,7 +624,7 @@ def expandList (m sig : List Byte) : OracleComp HashSpec (Option (List Byte)) :=
     match ← porsRoot (idxOf N) (leavesOf N) w0 with
     | none => pure none
     | some M =>
-      match ← expandLayers w0 (idxOf N) nLayers M with
+      match ← expandLayers w0 (idxOf N) nLayers (P ++ M) with
       | none => pure none
       | some cs => pure (some (withCounters w0 cs))
 

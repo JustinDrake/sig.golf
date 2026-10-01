@@ -164,18 +164,22 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     -- W1a: the chain array is untouched by the PORS phase (`Fresh` at layer 4, chain 0).
     have hWA := PB.witAll_layers hg h.pb.s0ok
     refine ⟨u, hu.steps, PB.glob_layers hg h.pb.s0ok, hknown, ?_, by rw [hmem]; exact n0,
-      by rw [hmem]; exact n1, h.nodeLen, fun h => absurd h (lt_irrefl 4), ?_, Fresh_of_all hWA 4 0, t, ht, by rw [hu.pc rfl, ← hpt]; rfl⟩
+      by rw [hmem]; exact n1, h.nodeLen, fun h => absurd h (lt_irrefl 4), ?_, Fresh_of_all hWA 4 0,
+      fun _ => ⟨?_, ?_⟩, fun h => absurd rfl h, t, ht, by rw [hu.pc rfl, ← hpt]; rfl,
+      fun h => absurd rfl h⟩
     · show u.getReg .x22 = BitVec.ofNat 64 (routeIn P.idx 4)
       rw [hu.keep .x22 (by simp), h.pb.idx]; rfl
     · have := P.idx_lt
       rw [hmem, h.pb.prot (by decide), h.pb.s0ok.cb0, ofNat_toNat_lt _ (by unfold twLo; omega)]
       unfold twLo; omega
+    · rw [hmem, h.pb.prot (by decide)]; exact h.pb.s0ok.zero _ (by decide)
+    · rw [hmem, h.pb.prot (by decide)]; exact h.pb.s0ok.zero _ (by decide)
 
 
 /-- Universal accepting-run bound. Scaled PIND byte offsets remove one instruction from
 all fifteen leaf headers. The tag-9 address-field rotation is an injective query relabel;
 Final.Discharge supplies the additional universal structural credit. This is a proof bound. -/
-def cycleBound : Nat := 10326
+def cycleBound : Nat := 10286
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
 def cycleBoundAll : Nat := 16857
@@ -186,8 +190,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7533 := by decide
-theorem layC_val : layC = 7533 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7493 := by decide
+theorem layC_val : layC = 7493 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -204,7 +208,7 @@ def Klay (P : PCtx) : Option Val → OracleComp HashSpec Obs := fun r =>
   cc (match r with
     | none => pure false
     | some M => do
-      let o ← verifyLayers P.wl P.idx nLayers M
+      let o ← verifyLayers P.wl P.idx nLayers (Ref.P ++ M)
       match o with
       | none => pure false
       | some root => pure (root == P.pk)) Kb
@@ -232,7 +236,9 @@ theorem root_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (x c : Nat) (st : P
   · simp only [Kr, if_neg hc, cc_pure, Klay]
     obtain ⟨v, hst, hL4⟩ := hacc hc
     rw [tail_eq]
-    have hg := layers_good P.wl P.pk hP.2 P.idx P.idx_lt hP.1 5 (le_refl _) st.node v hL4
+    have hg : Good v (5000 * 5 + 9) (layersCost 5)
+        (cc (verifyLayers P.wl P.idx 5 (Ref.P ++ st.node)) (Kfin P.pk)) :=
+      layers_good P.wl P.pk hP.2 P.idx P.idx_lt hP.1 5 (le_refl _) st.node v hL4
     have hfolds : st.folds ≤ 117 := by simp only [porsM] at hc; omega
     exact GoodQ.steps' hst hg.toQ (by unfold layN; omega) (by rw [hL]; omega) (fun _ => ⟨hfolds, by rw [hL]; omega⟩)
 
@@ -291,7 +297,7 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
           match r with
           | none => pure false
           | some M => do
-            let o ← verifyLayers wl (idxOf a.toNat) nLayers M
+            let o ← verifyLayers wl (idxOf a.toNat) nLayers (Ref.P ++ M)
             match o with
             | none => pure false
             | some root => pure (root == pkl)) Kb) := by

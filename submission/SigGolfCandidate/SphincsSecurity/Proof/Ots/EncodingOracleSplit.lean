@@ -40,7 +40,7 @@ theorem canonicalGraphInput_not_encodingInputs (parameter : PublicParameter)
   simp only [Finset.mem_biUnion, Finset.mem_univ, true_and, Finset.mem_image] at h
   obtain ⟨encodingPosition, pair, heq⟩ := h
   have hencoding : AtEncodingPosition parameter (canonicalGraphInput parameter otsSecret ftsSecret position labels)
-      encodingPosition := ⟨_, heq.symm⟩
+      encodingPosition := ⟨_, _, heq.symm⟩
   exact hencoding.not_atPosition position ⟨_, rfl⟩
 
 theorem canonicalGraphCell_not_encodingRange (parameter : PublicParameter)
@@ -73,19 +73,20 @@ theorem canonicalGraphLabels_joinEncodingTable (parameter : PublicParameter)
   exact (UniformTableSplit.join_outside _ _ encoding outside cell).trans
     (UniformTableSplit.join_outside _ _ (fun _ => 0) outside cell).symm
 
-noncomputable def referenceCounterCell (parameter : PublicParameter) (position : EncodingPosition) (message : Digest)
+noncomputable def referenceCounterCell (parameter : PublicParameter) (position : EncodingPosition) (message : EncMessage)
     (counter : Fin encodingAttemptLimit) : canonicalEncodingInputs parameter :=
   ⟨encodingRetryInput parameter position message counter.val,
     encodingRetryInput_mem_canonicalEncodingInputs parameter position message counter⟩
 
-theorem referenceCounterCell_injective (parameter : PublicParameter) (position : EncodingPosition) (message : Digest) :
+theorem referenceCounterCell_injective (parameter : PublicParameter) (position : EncodingPosition) (message : EncMessage) :
     Function.Injective (referenceCounterCell parameter position message) := by
   intro left right heq
-  exact Fin.ext (encodingRetryInput_injective_of_lt left.isLt right.isLt (congrArg Subtype.val heq))
+  exact Fin.ext (encodingRetryInput_injective_of_lt (parameter := parameter) left.isLt right.isLt
+    (congrArg Subtype.val heq))
 
 noncomputable def outsideGraphMessage (key : SecretKey) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs key.parameter ⊆ inputs) (outside : NonencodingRows key.parameter inputs hencoding)
-    (position : EncodingPosition) : Digest :=
+    (position : EncodingPosition) : EncMessage :=
   canonicalGraphMessage (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret
     (nonencodingAnswer key.parameter inputs hencoding outside)) position
 

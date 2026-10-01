@@ -162,7 +162,7 @@ theorem signLayer_search (key : SphincsSecurity.SecretKey) (index : Index) (lay 
     {part : PaddedLayer} (h : evalWithAnswerFn f (Concrete.signLayer key index lay) = some part) :
     ∃ enc, evalWithAnswerFn f (encodingSearch key.parameter lay (treeIndexAt index lay)
         (leafIndexAt index lay)
-        (evalWithAnswerFn f (Concrete.layerMessage key index lay : OracleComp SphincsSecurity.HashSpec Digest))
+        (evalWithAnswerFn f (Concrete.layerMessage key index lay : OracleComp SphincsSecurity.HashSpec EncMessage))
         encodingAttemptLimit 0 : OracleComp SphincsSecurity.HashSpec (Option (Counter × Encoding)))
         = some (part.1, enc) ∧
       evalWithAnswerFn f (do
@@ -176,7 +176,7 @@ theorem signLayer_search (key : SphincsSecurity.SecretKey) (index : Index) (lay 
   rw [Concrete.signLayer, evalWithAnswerFn_bind, Concrete.otsSign, evalWithAnswerFn_bind,
     Concrete.eval_otsSignFrom] at h
   cases hsearch : evalWithAnswerFn f (encodingSearch key.parameter lay (treeIndexAt index lay)
-      (leafIndexAt index lay) (evalWithAnswerFn f (Concrete.layerMessage key index lay : OracleComp SphincsSecurity.HashSpec Digest))
+      (leafIndexAt index lay) (evalWithAnswerFn f (Concrete.layerMessage key index lay : OracleComp SphincsSecurity.HashSpec EncMessage))
       encodingAttemptLimit 0 : OracleComp SphincsSecurity.HashSpec (Option (Counter × Encoding))) with
   | none =>
       rw [hsearch] at h
@@ -223,7 +223,7 @@ theorem eval_aLayers (key : SphincsSecurity.SecretKey) (hP : key.parameter = 0) 
     unfold Equiv.aLayers
     rw [evalWithAnswerFn_bind]
     have hm : Completeness.enterMessage f key index 1 =
-        evalWithAnswerFn f (Concrete.layerMessage key index lay : OracleComp SphincsSecurity.HashSpec Digest) := by
+        evalWithAnswerFn f (Concrete.layerMessage key index lay : OracleComp SphincsSecurity.HashSpec EncMessage) := by
       rw [Completeness.enterMessage, dif_pos (by decide)]
     rw [hm]
     erw [hsearch]
@@ -240,16 +240,23 @@ theorem eval_aLayers (key : SphincsSecurity.SecretKey) (hP : key.parameter = 0) 
     rw [hP] at hsearch hleaf
     obtain ⟨-, hleafSpec, hpath⟩ := Completeness.signLayer_spec f key index lay hpart
     have hm : Completeness.enterMessage f key index (k + 2) =
-        evalWithAnswerFn f (Concrete.layerMessage key index lay : OracleComp SphincsSecurity.HashSpec Digest) := by
+        evalWithAnswerFn f (Concrete.layerMessage key index lay : OracleComp SphincsSecurity.HashSpec EncMessage) := by
       rw [Completeness.enterMessage, dif_pos hlk]
     have hvals : (S0.layers lay).chainValues = part.2.1 := by rw [(hS0 lay).1, hsig]
+    have hpos := SphincsSecurity.layerHeight_pos lay
+    have hsigPath : ∀ level, level < SphincsSecurity.layerHeight lay →
+        signaturePath S0 lay level =
+          Concrete.honestNode f key.parameter lay (treeIndexAt index lay)
+            (key.otsSecret lay (treeIndexAt index lay)) level
+            (Nat.xor ((leafIndexAt index lay).val / 2 ^ level) 1) := fun level hlevel => by
+      rw [signaturePath, dif_pos hlevel, (hS0 lay).2, hsig]
+      exact hpath level hlevel
     have hfold := Completeness.eval_treeFold_honest f key.parameter lay
       (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay))
       (leafIndexAt index lay) (signaturePath S0 lay)
-      (SphincsSecurity.layerHeight lay) (fun level hlevel => by
-        rw [signaturePath, dif_pos hlevel, (hS0 lay).2, hsig]
-        exact hpath level hlevel)
-    rw [Nat.div_eq_of_lt (Equiv.leafIndexAt_lt index _), hP] at hfold
+      (SphincsSecurity.layerHeight lay - 1) (fun level hlevel => hsigPath level (by omega))
+    have hsib := hsigPath (SphincsSecurity.layerHeight lay - 1) (by omega)
+    rw [hP] at hfold hsib
     unfold Equiv.aLayers
     rw [dif_pos hlk, evalWithAnswerFn_bind, hm]
     erw [hsearch]
@@ -259,10 +266,12 @@ theorem eval_aLayers (key : SphincsSecurity.SecretKey) (hP : key.parameter = 0) 
     simp only [evalWithAnswerFn_bind] at hleaf'
     erw [hleaf']
     erw [hfold]
-    rw [show Concrete.honestNode f 0 lay (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay))
-        (SphincsSecurity.layerHeight lay) 0 = Completeness.layerRoot f key index lay by
-          rw [Completeness.layerRoot, hP],
-      Completeness.layerRoot_eq_enterMessage f key index (k + 1) hlk,
+    rw [hsib, Concrete.topPair_honest f 0 lay (treeIndexAt index lay)
+        (key.otsSecret lay (treeIndexAt index lay)) (leafIndexAt index lay)
+        (Equiv.leafIndexAt_lt index lay) hpos,
+      show Concrete.honestPair f 0 lay (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay))
+        = Completeness.layerTop f key index lay by rw [Completeness.layerTop, hP],
+      Completeness.layerTop_eq_enterMessage f key index (k + 1) hlk,
       ih (k + 1) (by omega) (by omega)]
     simp only [evalWithAnswerFn_pure]
     rw [show List.range (k + 2) = List.range (k + 1) ++ [k + 1] from List.range_succ, List.map_append]
@@ -332,11 +341,12 @@ theorem eval_aExpand_sign' (seed : MasterSeed) (message : Message) {pk : PublicK
       ((Equiv.witSig wl).layers lay).path = (S.layers lay).path := fun lay => by
     rw [hW0]; exact ⟨rfl, rfl⟩
   have hbottom : Completeness.enterMessage f key index numLayers
-      = evalWithAnswerFn f (Concrete.ftsKey key.parameter index (key.ftsSecret index)
-        : OracleComp SphincsSecurity.HashSpec Digest) := by
-    rw [show numLayers = 4 + 1 from rfl, Completeness.enterMessage, dif_pos (by decide),
-      ← Concrete.layerMessage_bottomLayer_eq]
-    rfl
+      = (0, evalWithAnswerFn f (Concrete.ftsKey key.parameter index (key.ftsSecret index)
+        : OracleComp SphincsSecurity.HashSpec Digest)) := by
+    rw [show numLayers = 4 + 1 from rfl, Completeness.enterMessage, dif_pos (by decide)]
+    change evalWithAnswerFn f (Concrete.layerMessage key index bottomLayer) = _
+    rw [Concrete.layerMessage_bottomLayer_eq]
+    simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure]
   have hL := eval_aLayers f key hP index S (Equiv.witSig wl) hlayers hS0 numLayers le_rfl
   rw [hbottom] at hL
   set cs := (List.range numLayers).map (ctrOf S) with hcs
@@ -360,7 +370,7 @@ theorem eval_aExpand_sign' (seed : MasterSeed) (message : Message) {pk : PublicK
     rw [hR]
     simp only
     have hL' : evalWithAnswerFn f (Equiv.aLayers (Concrete.digestIndex d) (Equiv.witSig wl) numLayers
-        (evalWithAnswerFn f (Concrete.ftsKey (m := OracleComp SphincsSecurity.HashSpec) 0 index
+        (0, evalWithAnswerFn f (Concrete.ftsKey (m := OracleComp SphincsSecurity.HashSpec) 0 index
           (key.ftsSecret index)))) = some cs := hL
     rw [evalWithAnswerFn_bind, hL']
     rfl

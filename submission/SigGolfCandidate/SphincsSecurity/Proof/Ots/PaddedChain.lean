@@ -68,7 +68,7 @@ theorem recoverChainP_eq_of_inactive (parameter : PublicParameter) (lay : Layer)
     rfl
 
 theorem otsLeafP_zero (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) :
+    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) :
     otsLeafP (m := m) parameter lay tree leaf message counter values (fun _ => 0) =
       otsLeaf parameter lay tree leaf message counter values := by
   unfold otsLeafP otsLeaf
@@ -78,7 +78,7 @@ theorem otsLeafP_zero (parameter : PublicParameter) (lay : Layer) (tree : TreeIn
   | some encoding => simp only [recoverChainP_zero]
 
 theorem verifyLayersP_zero (parameter : PublicParameter) (index : Index) (signature : Signature)
-    (remaining : Nat) (message : Digest) :
+    (remaining : Nat) (message : EncMessage) :
     verifyLayersP (m := m) parameter index signature (fun _ _ => 0) remaining message =
       verifyLayers parameter index signature remaining message := by
   induction remaining generalizing message with
@@ -227,7 +227,7 @@ theorem exists_active_of_not_inactive {pads : ChainIndex → Pad} {codeword : En
 
 /-- With inactive pads the padded one-time leaf *is* the record's, query for query and value for value,
 under the answer function that decoded the codeword. -/
-theorem otsLeafAttemptP_run_eq_of_inactive (message : Digest) (counter : Counter)
+theorem otsLeafAttemptP_run_eq_of_inactive (message : EncMessage) (counter : Counter)
     (values : ChainIndex → Digest) (pads : ChainIndex → Pad) (codeword : Encoding)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some codeword)
     (hinactive : PadsInactive pads codeword) :
@@ -247,7 +247,7 @@ theorem otsLeafAttemptP_run_eq_of_inactive (message : Digest) (counter : Counter
   simp only [hseq]
   refine ⟨?_, ?_⟩ <;> trivial
 
-theorem cachedRun_otsLeafAttemptP_iff_of_inactive (cache : QueryCache HashSpec) (message : Digest)
+theorem cachedRun_otsLeafAttemptP_iff_of_inactive (cache : QueryCache HashSpec) (message : EncMessage)
     (counter : Counter) (values : ChainIndex → Digest) (pads : ChainIndex → Pad) (codeword : Encoding)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some codeword)
     (hinactive : PadsInactive pads codeword) :
@@ -259,7 +259,7 @@ theorem cachedRun_otsLeafAttemptP_iff_of_inactive (cache : QueryCache HashSpec) 
 
 /-! ### Where the padded leaf's queries are -/
 
-theorem otsLeafP_leaf_query_mem (message : Digest) (counter : Counter) (values : ChainIndex → Digest)
+theorem otsLeafP_leaf_query_mem (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest)
     (pads : ChainIndex → Pad) (codeword : Encoding)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some codeword) :
     tweakableHashInput parameter (.leaf lay tree leaf)
@@ -276,7 +276,7 @@ theorem otsLeafP_leaf_query_mem (message : Digest) (counter : Counter) (values :
       (fun chainIdx => evalWithAnswerFn f (recoverChainP parameter lay tree leaf chainIdx (pads chainIdx)
         (codeword chainIdx) (values chainIdx)))
 
-theorem otsLeafP_chain_query_mem (message : Digest) (counter : Counter) (values : ChainIndex → Digest)
+theorem otsLeafP_chain_query_mem (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest)
     (pads : ChainIndex → Pad) (codeword : Encoding)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some codeword)
     (chainIdx : ChainIndex) {input : HashInput}
@@ -289,7 +289,7 @@ theorem otsLeafP_chain_query_mem (message : Digest) (counter : Counter) (values 
   apply queriedInputs_mono_bind_left
   exact sequenceFin_component_query_mem f _ chainIdx hinput
 
-theorem eval_otsLeafAttemptP (message : Digest) (counter : Counter) (values : ChainIndex → Digest)
+theorem eval_otsLeafAttemptP (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest)
     (pads : ChainIndex → Pad) (codeword : Encoding)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some codeword) :
     evalWithAnswerFn f (otsLeafAttemptP parameter lay tree leaf message counter values pads) =
@@ -373,7 +373,7 @@ section descent
 variable {m : Type → Type} [Monad m] [HasQuery HashSpec m]
 
 theorem verifyLayersP_succ_eq (parameter : PublicParameter) (index : Index) (signature : Signature)
-    (pads : ChainPads) (remaining : Nat) (message : Digest) :
+    (pads : ChainPads) (remaining : Nat) (message : EncMessage) :
     verifyLayersP (m := m) parameter index signature pads (remaining + 1) message
       = (if hlayer : remaining < numLayers then
           (do
@@ -383,11 +383,14 @@ theorem verifyLayersP_succ_eq (parameter : PublicParameter) (index : Index) (sig
                 (signature.chainValue ⟨remaining, hlayer⟩) (pads ⟨remaining, hlayer⟩) with
             | none => pure none
             | some value => do
-                let root ← treeFold parameter ⟨remaining, hlayer⟩
+                let node ← treeFold parameter ⟨remaining, hlayer⟩
                   (treeIndexAt index ⟨remaining, hlayer⟩) (leafIndexAt index ⟨remaining, hlayer⟩)
-                  (signaturePath signature ⟨remaining, hlayer⟩) (layerHeight ⟨remaining, hlayer⟩)
+                  (signaturePath signature ⟨remaining, hlayer⟩) (layerHeight ⟨remaining, hlayer⟩ - 1)
                   value
-                verifyLayersP parameter index signature pads remaining root)
+                verifyLayersP parameter index signature pads remaining
+                  (topPair ((leafIndexAt index ⟨remaining, hlayer⟩).val.testBit
+                      (layerHeight ⟨remaining, hlayer⟩ - 1)) node
+                    (signaturePath signature ⟨remaining, hlayer⟩ (layerHeight ⟨remaining, hlayer⟩ - 1))))
         else pure none) := by
   rw [verifyLayersP]
   split
@@ -406,9 +409,11 @@ theorem verifyCoreP_eq (publicKey : PublicKey) (message : Message) (signature : 
           | none => return false
           | some ftsPublicKey =>
               match ← verifyLayersP publicKey.parameter (digestIndex digest) signature pads numLayers
-                  ftsPublicKey with
+                  (0, ftsPublicKey) with
               | none => return false
-              | some root => return decide (root = publicKey.root)) := by
+              | some top => do
+                  let root ← topRoot publicKey.parameter (digestIndex digest) top
+                  return decide (root = publicKey.root)) := by
   unfold verifyCoreP
   apply bind_congr
   intro digest
@@ -444,7 +449,7 @@ variable {f : QueryImpl HashSpec Id} {parameter : PublicParameter} {cache : Quer
 
 theorem verifyLayersP_succ_extract (f : QueryImpl HashSpec Id) (parameter : PublicParameter)
     (index : Index) (signature : Signature) (pads : ChainPads) (remaining : Nat) (hlayer : remaining < numLayers)
-    (message : Digest) (target : Digest)
+    (message target : EncMessage)
     (hverify : evalWithAnswerFn f
         (verifyLayersP parameter index signature pads (remaining + 1) message) = some target) :
     ∃ leafValue, evalWithAnswerFn f (otsLeafAttemptP parameter ⟨remaining, hlayer⟩
@@ -453,9 +458,9 @@ theorem verifyLayersP_succ_extract (f : QueryImpl HashSpec Id) (parameter : Publ
           (pads ⟨remaining, hlayer⟩))
         = some leafValue
       ∧ evalWithAnswerFn f (verifyLayersP parameter index signature pads remaining
-          (foldValue f parameter ⟨remaining, hlayer⟩ (treeIndexAt index ⟨remaining, hlayer⟩)
+          (foldPair f parameter ⟨remaining, hlayer⟩ (treeIndexAt index ⟨remaining, hlayer⟩)
             (leafIndexAt index ⟨remaining, hlayer⟩) (signaturePath signature ⟨remaining, hlayer⟩)
-            leafValue (layerHeight ⟨remaining, hlayer⟩))) = some target := by
+            leafValue)) = some target := by
   rcases hleaf : evalWithAnswerFn f (otsLeafAttemptP parameter ⟨remaining, hlayer⟩
       (treeIndexAt index ⟨remaining, hlayer⟩) (leafIndexAt index ⟨remaining, hlayer⟩) message
       (signature.counter ⟨remaining, hlayer⟩) (signature.chainValue ⟨remaining, hlayer⟩)
@@ -465,7 +470,7 @@ theorem verifyLayersP_succ_extract (f : QueryImpl HashSpec Id) (parameter : Publ
     simp at hverify
   · refine ⟨leafValue, rfl, ?_⟩
     rw [verifyLayersP_succ_eq, dif_pos hlayer, evalWithAnswerFn_bind, hleaf] at hverify
-    simpa [foldValue, evalWithAnswerFn_bind] using hverify
+    simpa [foldPair, foldValue, evalWithAnswerFn_bind] using hverify
 
 theorem counters_of_verifyP (publicKey : PublicKey) (message : Message) (signature : Signature) (pads : ChainPads)
     (hverify : evalWithAnswerFn f (verifyP publicKey message signature pads) = true) :
@@ -474,7 +479,7 @@ theorem counters_of_verifyP (publicKey : PublicKey) (message : Message) (signatu
   rw [verifyP_eq_of_not_counters publicKey message signature pads hcounters] at hverify
   simp at hverify
 
-/-- `verify_extract` with pads (`Hypertree/Descent.lean:32`). -/
+/-- `verify_extract` with pads (`Hypertree/Descent.lean`). -/
 theorem verifyP_extract (publicKey : PublicKey) (message : Message) (signature : Signature) (pads : ChainPads)
     (hverify : evalWithAnswerFn f (verifyP publicKey message signature pads) = true)
     (hrun : CachedRun cache f (verifyP publicKey message signature pads)) :
@@ -483,16 +488,20 @@ theorem verifyP_extract (publicKey : PublicKey) (message : Message) (signature :
           (messageDigest publicKey.parameter publicKey.root message signature.randomness) = digest
         ∧ CachedRun cache f
           (messageDigest publicKey.parameter publicKey.root message signature.randomness)
-        ∧ ∃ ftsPublicKey : Digest,
+        ∧ ∃ (ftsPublicKey : Digest) (top : EncMessage),
           evalWithAnswerFn f (ftsRecover publicKey.parameter (digestIndex digest)
               (slotValue (digestLeaves digest)) signature.fts) = some ftsPublicKey
             ∧ evalWithAnswerFn f
-              (verifyLayersP publicKey.parameter (digestIndex digest) signature pads numLayers ftsPublicKey)
-              = some publicKey.root
+              (verifyLayersP publicKey.parameter (digestIndex digest) signature pads numLayers
+                (0, ftsPublicKey)) = some top
+            ∧ evalWithAnswerFn f (topRoot publicKey.parameter (digestIndex digest) top)
+              = publicKey.root
             ∧ CachedRun cache f (ftsRecover publicKey.parameter (digestIndex digest)
               (slotValue (digestLeaves digest)) signature.fts)
             ∧ CachedRun cache f
-              (verifyLayersP publicKey.parameter (digestIndex digest) signature pads numLayers ftsPublicKey) := by
+              (verifyLayersP publicKey.parameter (digestIndex digest) signature pads numLayers
+                (0, ftsPublicKey))
+            ∧ CachedRun cache f (topRoot publicKey.parameter (digestIndex digest) top) := by
   have hcounters := counters_of_verifyP publicKey message signature pads hverify
   let digest := evalWithAnswerFn f
     (messageDigest publicKey.parameter publicKey.root message signature.randomness)
@@ -506,18 +515,22 @@ theorem verifyP_extract (publicKey : PublicKey) (message : Message) (signature :
     | none => pure false
     | some ftsPublicKey =>
         match ← verifyLayersP publicKey.parameter (digestIndex digest) signature pads numLayers
-            ftsPublicKey with
+            (0, ftsPublicKey) with
         | none => pure false
-        | some root => pure (decide (root = publicKey.root))) = true at hverify
+        | some top => do
+            let root ← topRoot publicKey.parameter (digestIndex digest) top
+            pure (decide (root = publicKey.root))) = true at hverify
   change CachedRun cache f (do
     match ← ftsRecover publicKey.parameter (digestIndex digest) (slotValue (digestLeaves digest))
         signature.fts with
     | none => pure false
     | some ftsPublicKey =>
         match ← verifyLayersP publicKey.parameter (digestIndex digest) signature pads numLayers
-            ftsPublicKey with
+            (0, ftsPublicKey) with
         | none => pure false
-        | some root => pure (decide (root = publicKey.root))) at hafterDigest
+        | some top => do
+            let root ← topRoot publicKey.parameter (digestIndex digest) top
+            pure (decide (root = publicKey.root))) at hafterDigest
   have hfts := hafterDigest.bind_left
   rw [evalWithAnswerFn_bind] at hverify
   have hafterFts := hafterDigest.bind_right
@@ -530,41 +543,42 @@ theorem verifyP_extract (publicKey : PublicKey) (message : Message) (signature :
       simp only at hverify hafterFts
       rw [evalWithAnswerFn_bind] at hverify
       have hlayersRun := hafterFts.bind_left
-      refine ⟨digest, rfl, hmessageRun, ftsPublicKey, hkey, ?_, hfts, hlayersRun⟩
+      have hafterLayers := hafterFts.bind_right
+      revert hverify hafterLayers
       cases hresult : evalWithAnswerFn f
-          (verifyLayersP publicKey.parameter (digestIndex digest) signature pads numLayers ftsPublicKey) with
-      | none =>
-          rw [hresult] at hverify
-          simp at hverify
-      | some root =>
-          rw [hresult] at hverify
-          simp only [evalWithAnswerFn_pure, decide_eq_true_eq] at hverify
-          simp [hverify]
+          (verifyLayersP publicKey.parameter (digestIndex digest) signature pads numLayers
+            (0, ftsPublicKey)) with
+      | none => intro hverify; simp at hverify
+      | some top =>
+          intro hverify hafterLayers
+          simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure, decide_eq_true_eq] at hverify
+          exact ⟨digest, rfl, hmessageRun, ftsPublicKey, top, hkey, hresult, hverify, hfts,
+            hlayersRun, hafterLayers.bind_left⟩
 
-/-- `LayerFrame` with pads (`Hypertree/Descent.lean:127`). -/
+/-- `LayerFrame` with pads (`Hypertree/Descent.lean`). -/
 def LayerFrameP (f : QueryImpl HashSpec Id) (cache : QueryCache HashSpec)
     (parameter : PublicParameter) (index : Index) (signature : Signature) (pads : ChainPads)
-    (lay : Layer) (message target leafValue : Digest) : Prop :=
+    (lay : Layer) (message target : EncMessage) (leafValue : Digest) : Prop :=
   evalWithAnswerFn f
         (otsLeafAttemptP parameter lay (treeIndexAt index lay) (leafIndexAt index lay) message
           (signature.counter lay) (signature.chainValue lay) (pads lay)) = some leafValue
       ∧ evalWithAnswerFn f
         (verifyLayersP parameter index signature pads lay.val
-          (foldValue f parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
-            (signaturePath signature lay) leafValue (layerHeight lay))) = some target
+          (foldPair f parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
+            (signaturePath signature lay) leafValue)) = some target
       ∧ CachedRun cache f
         (otsLeafAttemptP parameter lay (treeIndexAt index lay) (leafIndexAt index lay) message
           (signature.counter lay) (signature.chainValue lay) (pads lay))
       ∧ CachedRun cache f
         (treeFold parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
-          (signaturePath signature lay) (layerHeight lay) leafValue)
+          (signaturePath signature lay) (layerHeight lay - 1) leafValue)
       ∧ CachedRun cache f
         (verifyLayersP parameter index signature pads lay.val
-          (foldValue f parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
-            (signaturePath signature lay) leafValue (layerHeight lay)))
+          (foldPair f parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
+            (signaturePath signature lay) leafValue))
 
 theorem layerFrameP_of_verify (index : Index) (signature : Signature) (pads : ChainPads)
-    (lay : Layer) (message target : Digest)
+    (lay : Layer) (message target : EncMessage)
     (hverify : evalWithAnswerFn f
       (verifyLayersP parameter index signature pads (lay.val + 1) message) = some target)
     (hrun : CachedRun cache f
@@ -578,31 +592,31 @@ theorem layerFrameP_of_verify (index : Index) (signature : Signature) (pads : Ch
   rw [hleaf] at hafter
   exact ⟨leafValue, hleaf, hrest, hots, hafter.bind_left, hafter.bind_right⟩
 
-/-- **The hypertree walk with pads** (`hypertree_walk`, `Hypertree/Descent.lean:169`, verbatim with
+/-- **The hypertree walk with pads** (`hypertree_walk`, `Hypertree/Descent.lean`, verbatim with
 `LayerFrameP`/`verifyLayersP`). -/
 theorem hypertree_walkP (key : SecretKey) (index : Index) (signature : Signature) (pads : ChainPads)
-    (Q : Layer → Prop)
+    (Q : Layer → Prop) (top : EncMessage)
     (hstep : ∀ lay message leafValue,
-      LayerFrameP f cache key.parameter index signature pads lay message key.root leafValue →
-      foldValue f key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
-          (signaturePath signature lay) leafValue (layerHeight lay) =
-        honestNode f key.parameter lay (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay))
-          (layerHeight lay) 0 →
+      LayerFrameP f cache key.parameter index signature pads lay message top leafValue →
+      foldPair f key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
+          (signaturePath signature lay) leafValue =
+        honestPair f key.parameter lay (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay)) →
       message = evalWithAnswerFn f (layerMessage key index lay) ∧ Q lay)
-    (hroot : key.root = honestNode f key.parameter topLayer rootTree (key.otsSecret topLayer rootTree)
-      (layerHeight topLayer) 0)
+    (htop : top = honestPair f key.parameter topLayer rootTree (key.otsSecret topLayer rootTree))
     (ftsPublicKey : Digest)
     (hverify : evalWithAnswerFn f
-      (verifyLayersP key.parameter index signature pads numLayers ftsPublicKey) = some key.root)
-    (hrun : CachedRun cache f (verifyLayersP key.parameter index signature pads numLayers ftsPublicKey)) :
-    (∀ lay, Q lay) ∧ ftsPublicKey = evalWithAnswerFn f (layerMessage key index bottomLayer) := by
+      (verifyLayersP key.parameter index signature pads numLayers (0, ftsPublicKey)) = some top)
+    (hrun : CachedRun cache f
+      (verifyLayersP key.parameter index signature pads numLayers (0, ftsPublicKey))) :
+    (∀ lay, Q lay) ∧
+      ((0, ftsPublicKey) : EncMessage) = evalWithAnswerFn f (layerMessage key index bottomLayer) := by
   have hwalk : ∀ remaining, (hr : remaining ≤ numLayers) → ∀ message,
-      evalWithAnswerFn f (verifyLayersP key.parameter index signature pads remaining message) = some key.root →
+      evalWithAnswerFn f (verifyLayersP key.parameter index signature pads remaining message) = some top →
       CachedRun cache f (verifyLayersP key.parameter index signature pads remaining message) →
       (∀ lay : Layer, lay.val < remaining → Q lay) ∧
         (∀ h : 0 < remaining,
           message = evalWithAnswerFn f (layerMessage key index ⟨remaining - 1, by have := hr; omega⟩)) ∧
-        (remaining = 0 → message = key.root) := by
+        (remaining = 0 → message = top) := by
     intro remaining
     induction remaining with
     | zero =>
@@ -615,24 +629,25 @@ theorem hypertree_walkP (key : SecretKey) (index : Index) (signature : Signature
         have hlayer : r < numLayers := by omega
         let lay : Layer := ⟨r, hlayer⟩
         obtain ⟨leafValue, hframe⟩ :=
-          layerFrameP_of_verify (f := f) (cache := cache) index signature pads lay message key.root hv hc
+          layerFrameP_of_verify (f := f) (cache := cache) index signature pads lay message top hv hc
         have hrest := ih (by omega) _ hframe.2.1 hframe.2.2.2.2
-        have hfold : foldValue f key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
-            (signaturePath signature lay) leafValue (layerHeight lay) =
-            honestNode f key.parameter lay (treeIndexAt index lay)
-              (key.otsSecret lay (treeIndexAt index lay)) (layerHeight lay) 0 := by
+        have hfold : foldPair f key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
+            (signaturePath signature lay) leafValue =
+            honestPair f key.parameter lay (treeIndexAt index lay)
+              (key.otsSecret lay (treeIndexAt index lay)) := by
           rcases Nat.eq_zero_or_pos r with hzero | hpos
-          · have htop : lay = topLayer := Fin.ext hzero
+          · have hlay : lay = topLayer := Fin.ext hzero
             have htree : treeIndexAt index lay = rootTree := by
-              rw [htop]
+              rw [hlay]
               exact Fin.ext (treeIndexAt_topLayer index)
-            rw [hrest.2.2 hzero, hroot, htree, htop]
+            rw [hrest.2.2 hzero, htop, htree, hlay]
           · rw [hrest.2.1 hpos]
             have hbelow : r - 1 + 1 < numLayers := by omega
             rw [layerMessage_of_lt key index ⟨r - 1, by omega⟩ hbelow]
             have hl : (⟨r - 1 + 1, hbelow⟩ : Layer) = lay := Fin.ext (by simp [lay]; omega)
             simp only [hl]
-            rfl
+            exact eval_treeTop f key.parameter lay (treeIndexAt index lay)
+              (key.otsSecret lay (treeIndexAt index lay))
         obtain ⟨hmessage, hq⟩ := hstep lay message leafValue hframe hfold
         refine ⟨fun other hother => ?_, fun _ => hmessage, fun h => absurd h (Nat.succ_ne_zero r)⟩
         by_cases heq : other.val = r
@@ -640,7 +655,7 @@ theorem hypertree_walkP (key : SecretKey) (index : Index) (signature : Signature
           rw [this]
           exact hq
         · exact hrest.1 other (by omega)
-  obtain ⟨hq, hmessage, _⟩ := hwalk numLayers le_rfl ftsPublicKey hverify hrun
+  obtain ⟨hq, hmessage, _⟩ := hwalk numLayers le_rfl (0, ftsPublicKey) hverify hrun
   exact ⟨fun lay => hq lay lay.isLt, hmessage (by decide)⟩
 
 end descentEval

@@ -190,9 +190,12 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     have hFresh : Fresh L.wl L.lay 42 (writeHash u ans) := by
       refine Fresh_frame hF (fun A hA hA' => ?_)
       rw [wf A hA (Or.inr (by omega)), mfr A hA (by omega) (by omega)]
+    have hvA : (layFC L).vA 0 = 0x360 + 16 * (L.e % 2) := by
+      rw [FCtx.vA_lt _ (layFC_ok L ⟨hlay, hidx, hwl⟩) 0 (by simp only [layFC]; omega)]
+      simp only [layFC, hbit]
     refine ⟨⟨Glob_writeHash hGu ans _ h12 (by
         rcases Nat.mod_two_eq_zero_or_one L.e with h | h <;> rw [h] <;> decide),
-      ?_, ?_, ?_, ?_, ?_, ?_, by simp, ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩, ?_, hFresh⟩, ?_, ?_, ?_, hFresh, ?_⟩
+      ?_, ?_, ?_, ?_, ?_, ?_, by simp, ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩, ?_, hFresh, ?_⟩, ?_, ?_, ?_, hFresh, ?_⟩
     · have := Known_writeHash hK2'.1 ans
       simpa [lvlK, layFC] using this
     · rw [writeHash_getReg, hkp .x23 (by simp [leafKeep])]; exact h23
@@ -209,15 +212,13 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       (try simp only [Rv.E.eval]); rw [h31]
       simp only [CCtx.x31, LCtx.cctx, BitVec.toNat_ofNat]
       omega
-    · simp only [layFC, hbit]
-      rw [writeHash_at0 _ ans _ h12 (by omega)]; exact (vw0_answer ans).symm
-    · simp only [layFC, hbit]
-      rw [show 0x368 + 16 * (L.e % 2) = 0x360 + 16 * (L.e % 2) + 8 by omega,
-        writeHash_at8 _ ans _ h12 (by omega)]; exact (vw1_answer ans).symm
+    · rw [hvA, writeHash_at0 _ ans _ h12 (by omega)]; exact (vw0_answer ans).symm
+    · rw [hvA, writeHash_at8 _ ans _ h12 (by omega)]; exact (vw1_answer ans).symm
     · have hc0 : chOf L.lay 0 = 0 := by simp [chOf]
       rw [writeHash_pc, hpc2, pcOf_add4]
       simp only [FCtx.X, FCtx.ci, FCtx.kk, FCtx.blk, layFC, hc0, Nat.zero_sub]
       try rfl
+    · rw [hvA, writeHash_getReg]; exact h12
     · rw [writeHash_getReg]; exact h27u
     · rw [writeHash_getReg, hkp .x30 (by simp [leafKeep])]; exact h30
     · unfold CB0
