@@ -23,37 +23,59 @@ attribute [local reducible] SphincsSecurity.hashOutputBits SphincsSecurity.diges
 
 /-- The cache bytes of an abstract cache: tag, region, zeros. -/
 def cacheList (c : TopCache) : List Byte :=
-  Ref.toList (n := 32) c.tag ++ toB (SphincsSecurity.regionBytes c.region) ++
-    Ref.zeros (Ref.cacheBytes - 32 - Ref.regionBytes)
+  Ref.zeros Ref.cachePadBytes ++ Ref.toList (n := 32) c.tag ++ toB (SphincsSecurity.regionBytes c.region) ++
+    Ref.zeros (Ref.cacheBytes - Ref.cachePadBytes - 32 - Ref.regionBytes)
 
 /-- **The cache encoding** (what key generation publishes). -/
 def cacheEnc (c : TopCache) : SigGolfCandidate.Cache := Ref.ofList SigGolfCandidate.CACHE_BYTES (cacheList c)
 
 /-- Read an abstract cache from bytes. -/
 def cacheOfList (l : List Byte) : TopCache :=
-  ⟨Ref.ofList 32 (Ref.cacheTag l), fun lv j => Ref.ofList 16 (Ref.cacheNode l lv j)⟩
+  ⟨Ref.ofList 32 (Ref.cacheTag l), fun lv j => Ref.ofList 16 (Ref.cacheNode l (lv.val + 1) j)⟩
 
 /-- **The cache decoding** (what the signer reads from arbitrary bytes). -/
 def cacheDec (b : SigGolfCandidate.Cache) : TopCache := cacheOfList (Ref.toList b)
 
 theorem length_regionBytes (region : TopRegion) :
-    (SphincsSecurity.regionBytes region).length = 65504 := by
+    (SphincsSecurity.regionBytes region).length = 32736 := by
   unfold SphincsSecurity.regionBytes
   rw [List.length_flatten, List.map_ofFn, List.sum_ofFn]
-  have : ∀ lv : Fin SphincsSecurity.maxLayerHeight,
-      (List.length ∘ fun level : Fin SphincsSecurity.maxLayerHeight =>
+  have : ∀ lv : Fin (SphincsSecurity.maxLayerHeight - 1),
+      (List.length ∘ fun level : Fin (SphincsSecurity.maxLayerHeight - 1) =>
         (List.ofFn (region level)).flatMap (SphincsSecurity.bytesLE 16)) lv =
-        16 * 2 ^ (SphincsSecurity.maxLayerHeight - lv.val) := by
+        16 * 2 ^ (SphincsSecurity.maxLayerHeight - (lv.val + 1)) := by
     intro lv
     simp only [Function.comp, List.length_flatMap, List.map_ofFn, List.sum_ofFn]
     simp [SphincsSecurity.bytesLE, Nat.mul_comm]
   simp only [this]
   decide
 
-theorem topN_eq (lv : Nat) :
-    16 * Ref.topN lv = ((List.range lv).map fun k => 16 * 2 ^ (SphincsSecurity.maxLayerHeight - k)).sum := by
-  unfold Ref.topN
-  rw [← List.sum_map_mul_left]; rfl
+/-- Number of internal nodes before cache rowl (actual levell+1). -/
+def cacheN (l : Nat) : Nat :=
+  ((List.range l).map fun k => 2 ^ (SphincsSecurity.maxLayerHeight - (k + 1))).sum
+
+theorem cacheN_succ (l : Nat) : cacheN (l + 1) = cacheN l + 2 ^ (SphincsSecurity.maxLayerHeight - (l + 1)) := by
+  simp [cacheN, List.range_succ]
+
+theorem topN_shift (l : Nat) : Ref.topN (l + 1) = Ref.topN 1 + cacheN l := by
+  induction l with
+  | zero => rfl
+  | succ l ih =>
+    have hs : Ref.topN (l + 1 + 1) = Ref.topN (l + 1) + 2 ^ (Ref.topH - (l + 1)) := by
+      simp [Ref.topN, List.range_succ, Nat.add_assoc]
+    rw [hs, ih, cacheN_succ]
+    exact Nat.add_assoc _ _ _
+
+theorem cacheN_eq (lv : Nat) :
+    16 * cacheN lv = ((List.range lv).map fun k => 16 * 2 ^ (SphincsSecurity.maxLayerHeight - (k + 1))).sum := by
+  unfold cacheN
+  rw [← List.sum_map_mul_left]
+
+theorem cacheNodeOff_row (lv j : Nat) :
+    Ref.cacheNodeOff (lv + 1) j = Ref.cachePadBytes + 32 + 16 * (cacheN lv + j) := by
+  unfold Ref.cacheNodeOff Ref.cachePadBytes
+  rw [topN_shift]
+  ring
 
 theorem node_bound (lv j : Nat) (hlv : lv < SphincsSecurity.maxLayerHeight)
     (hj : j < 2 ^ (SphincsSecurity.maxLayerHeight - lv)) :
@@ -67,24 +89,24 @@ theorem toB_regionBytes_cacheOfList (l : List Byte) (hl : l.length = SigGolfCand
     toB (SphincsSecurity.regionBytes (cacheOfList l).region) = Ref.cacheRegion l := by
   unfold SphincsSecurity.regionBytes
   simp only [toB, List.map_flatten, List.map_ofFn]
-  have e : ∀ lv : Fin SphincsSecurity.maxLayerHeight,
-      (List.map UInt8.toBitVec ∘ fun level : Fin SphincsSecurity.maxLayerHeight =>
+  have e : ∀ lv : Fin (SphincsSecurity.maxLayerHeight - 1),
+      (List.map UInt8.toBitVec ∘ fun level : Fin (SphincsSecurity.maxLayerHeight - 1) =>
         (List.ofFn ((cacheOfList l).region level)).flatMap (SphincsSecurity.bytesLE 16)) lv =
-      Ref.slice l (32 + ((List.range lv).map fun k => 16 * 2 ^ (SphincsSecurity.maxLayerHeight - k)).sum)
-        (16 * 2 ^ (SphincsSecurity.maxLayerHeight - lv.val)) := by
+      Ref.slice l (Ref.cachePadBytes + 32 + ((List.range lv).map fun k => 16 * 2 ^ (SphincsSecurity.maxLayerHeight - (k + 1))).sum)
+        (16 * 2 ^ (SphincsSecurity.maxLayerHeight - (lv.val + 1))) := by
     intro lv
     simp only [Function.comp]
     rw [show List.map UInt8.toBitVec = toB from rfl, toB_flatMap_dv, List.map_ofFn]
     have e2 : (List.ofFn (dv ∘ (cacheOfList l).region lv)) =
-        List.ofFn fun j : Fin (2 ^ (SphincsSecurity.maxLayerHeight - lv.val)) =>
-          Ref.slice l ((32 + 16 * Ref.topN lv) + 16 * j.val) 16 := by
+        List.ofFn fun j : Fin (2 ^ (SphincsSecurity.maxLayerHeight - (lv.val + 1))) =>
+          Ref.slice l ((Ref.cachePadBytes + 32 + 16 * cacheN lv) + 16 * j.val) 16 := by
       apply List.ofFn_inj.mpr
       funext j
       simp only [Function.comp, cacheOfList, Ref.cacheNode]
-      have hb := node_bound lv j lv.isLt j.isLt
+      have hb := node_bound (lv.val + 1) j (by have := lv.isLt; omega) j.isLt
       rw [dv_ofList_slice _ _ (by rw [hl]; unfold SigGolfCandidate.CACHE_BYTES; omega)]
-      unfold Ref.cacheNodeOff; congr 1; ring
-    rw [e2, flatten_ofFn_slices, topN_eq]
+      rw [cacheNodeOff_row]; congr 1; ring
+    rw [e2, flatten_ofFn_slices, cacheN_eq]
   rw [List.ofFn_inj.mpr (funext e), flatten_ofFn_slices_var]
   rfl
 
@@ -109,11 +131,12 @@ theorem cacheTag_iff (b : SigGolfCandidate.Cache) (tag : SphincsSecurity.HashOut
     exact Ref.toList_ofList 32 _ hl
 
 /-- A cached node, as the reference reads it. -/
-theorem dv_cacheDec_node (b : SigGolfCandidate.Cache) (lv j : Nat) (hlv : lv < SphincsSecurity.maxLayerHeight)
+theorem dv_cacheDec_node (b : SigGolfCandidate.Cache) (lv j : Nat) (hpos : 0 < lv) (hlv : lv < SphincsSecurity.maxLayerHeight)
     (hj : j < 2 ^ (SphincsSecurity.maxLayerHeight - lv)) :
     dv ((cacheDec b).node lv j) = Ref.cacheNode (Ref.toList b) lv j := by
   unfold TopCache.node
-  rw [dif_pos hlv, dif_pos hj]
+  rw [dif_pos ⟨hpos, hlv⟩, dif_pos hj]
+  simp only [cacheDec, cacheOfList, Nat.sub_add_cancel (by omega : 1 ≤ lv)]
   show dv (Ref.ofList 16 (Ref.cacheNode (Ref.toList b) lv j)) = _
   have hb := node_bound lv j hlv hj
   exact dv_ofList_slice _ _ (by rw [Ref.length_toList]; unfold SigGolfCandidate.CACHE_BYTES; omega)
@@ -127,7 +150,7 @@ theorem length_cacheList (c : TopCache) : (cacheList c).length = SigGolfCandidat
 
 theorem toB_regionBytes_nested (region : TopRegion) :
     toB (SphincsSecurity.regionBytes region) =
-      (List.ofFn fun lv : Fin SphincsSecurity.maxLayerHeight =>
+      (List.ofFn fun lv : Fin (SphincsSecurity.maxLayerHeight - 1) =>
         (List.ofFn fun j => dv (region lv j)).flatten).flatten := by
   unfold SphincsSecurity.regionBytes
   rw [show toB = List.map UInt8.toBitVec from rfl, List.map_flatten, List.map_ofFn]
@@ -136,30 +159,30 @@ theorem toB_regionBytes_nested (region : TopRegion) :
   rw [show List.map UInt8.toBitVec = toB from rfl, toB_flatMap_dv, List.map_ofFn]
   rfl
 
-theorem take_region_length (region : TopRegion) (l : Nat) (hl : l ≤ SphincsSecurity.maxLayerHeight) :
-    ((List.ofFn fun lv : Fin SphincsSecurity.maxLayerHeight =>
-        (List.ofFn fun j => dv (region lv j)).flatten).take l).flatten.length = 16 * Ref.topN l := by
+theorem take_region_length (region : TopRegion) (l : Nat) (hl : l ≤ SphincsSecurity.maxLayerHeight - 1) :
+    ((List.ofFn fun lv : Fin (SphincsSecurity.maxLayerHeight - 1) =>
+        (List.ofFn fun j => dv (region lv j)).flatten).take l).flatten.length = 16 * cacheN l := by
   induction l with
-  | zero => simp [Ref.topN]
+  | zero => simp [cacheN]
   | succ l ih =>
     rw [List.take_add_one, List.flatten_append, List.length_append, ih (by omega),
       List.getElem?_ofFn, dif_pos (by omega)]
     simp only [Option.toList_some, List.flatten_cons, List.flatten_nil, List.append_nil]
     rw [length_flatten_ofFn _ 16 (fun _ => length_dv _)]
-    simp only [Ref.topN, List.range_succ, List.map_append, List.sum_append, List.map_cons,
+    simp only [cacheN, List.range_succ, List.map_append, List.sum_append, List.map_cons,
       List.map_nil, List.sum_cons, List.sum_nil]
-    rw [show Ref.topH = SphincsSecurity.maxLayerHeight from rfl]; ring
+    ring
 
-theorem slice_region (region : TopRegion) (lv : Fin SphincsSecurity.maxLayerHeight)
-    (j : Fin (2 ^ (SphincsSecurity.maxLayerHeight - lv.val))) :
-    Ref.slice (toB (SphincsSecurity.regionBytes region)) (16 * (Ref.topN lv + j)) 16 =
+theorem slice_region (region : TopRegion) (lv : Fin (SphincsSecurity.maxLayerHeight - 1))
+    (j : Fin (2 ^ (SphincsSecurity.maxLayerHeight - (lv.val + 1)))) :
+    Ref.slice (toB (SphincsSecurity.regionBytes region)) (16 * (cacheN lv + j)) 16 =
       dv (region lv j) := by
-  rw [toB_regionBytes_nested, show 16 * (Ref.topN lv + j) = 16 * Ref.topN lv + 16 * j by ring,
+  rw [toB_regionBytes_nested, show 16 * (cacheN lv + j) = 16 * cacheN lv + 16 * j by ring,
     ← take_region_length region lv (by have := lv.isLt; omega)]
   rw [slice_flatten_take _ _ _ _ (by simp) (by
       rw [getD_ofFn, dif_pos lv.isLt, length_flatten_ofFn _ 16 (fun _ => length_dv _)]
       exact (by have := j.isLt; omega :
-        16 * j.val + 16 ≤ 16 * 2 ^ (SphincsSecurity.maxLayerHeight - lv.val))),
+        16 * j.val + 16 ≤ 16 * 2 ^ (SphincsSecurity.maxLayerHeight - (lv.val + 1)))),
     getD_ofFn, dif_pos lv.isLt,
     slice_flatten_ofFn _ 16 j 0 16 _ (fun _ _ => length_dv _) (by simp) (by ring),
     slice_full _ _ (length_dv _)]
@@ -172,17 +195,23 @@ theorem cacheDec_cacheEnc (c : TopCache) : cacheDec (cacheEnc c) = c := by
   cases c with | mk tag region =>
   unfold cacheOfList
   refine congrArg₂ TopCache.mk ?_ ?_
-  · show Ref.ofList 32 (Ref.slice (cacheList ⟨tag, region⟩) 0 32) = tag
-    rw [cacheList, List.append_assoc, slice_append_left _ _ _ _ (by rw [Ref.length_toList]),
+  · change Ref.ofList 32 (Ref.slice (cacheList ⟨tag, region⟩) Ref.cachePadBytes 32) = tag
+    simp only [cacheList, List.append_assoc]
+    rw [slice_append_right _ _ _ 0 _ (by simp [Ref.length_zeros]),
+      slice_append_left _ _ _ _ (by rw [Ref.length_toList]),
       slice_full _ _ (Ref.length_toList _)]
     exact Ref.ofList_toList (n := 32) tag
   · funext lv j
-    show Ref.ofList 16 (Ref.slice (cacheList ⟨tag, region⟩) (Ref.cacheNodeOff lv j) 16) = region lv j
-    have hb := node_bound lv j lv.isLt j.isLt
-    rw [cacheList, List.append_assoc, slice_append_right _ _ _ (16 * (Ref.topN lv + j)) _
-        (by rw [Ref.length_toList]; unfold Ref.cacheNodeOff; ring),
-      slice_append_left _ _ _ _ (by rw [length_toB, length_regionBytes]; unfold Ref.cacheNodeOff at hb; omega),
-      slice_region]
+    change Ref.ofList 16 (Ref.slice (cacheList ⟨tag, region⟩) (Ref.cacheNodeOff (lv.val + 1) j) 16) = region lv j
+    have hb := node_bound (lv.val + 1) j (by have := lv.isLt; omega) j.isLt
+    rw [cacheNodeOff_row] at hb ⊢
+    simp only [cacheList, List.append_assoc]
+    rw [slice_append_right _ _ _ (32 + 16 * (cacheN lv + j)) _ (by rw [Ref.length_zeros]; ring),
+      slice_append_right _ _ _ (16 * (cacheN lv + j)) _ (by rw [Ref.length_toList]),
+      slice_append_left _ _ _ _ (by
+        rw [length_toB, length_regionBytes]
+        have hp : Ref.cachePadBytes = 32768 := by decide
+        rw [hp] at hb; omega), slice_region]
     exact Ref.ofList_toList (n := 16) _
 
 end SigGolfCandidate.Equiv

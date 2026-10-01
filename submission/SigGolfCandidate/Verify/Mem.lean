@@ -102,7 +102,7 @@ def TTA5 : Word := 0x50000
 /-- FORS phase: also `K16`. -/
 def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 
-/-- The exact digit sum of layers 0 .. 3, compared after the alias-free reduction modulo 4095. -/
+/-- The exact digit sum of layers 0 .. 2, compared after the alias-free reduction modulo 4095. -/
 def KT : Word := BitVec.ofNat 64 targetSum
 
 /-- The layer-4 digit sum target `targetFor 4 = 183`, held in `x14` from the PORS root tail to the
@@ -113,7 +113,7 @@ def KT4 : Word := BitVec.ofNat 64 (targetFor 4)
 def KTof (lay : Nat) : Word := BitVec.ofNat 64 (targetFor lay)
 
 theorem targetFor_le (lay : Nat) : targetFor lay ≤ 183 := by
-  unfold targetFor targetSum; split <;> omega
+  unfold targetFor targetSum; split_ifs <;> omega
 
 /-- The verifier's embedded mask words. -/
 def MaskData (s : MachineState) : Prop :=

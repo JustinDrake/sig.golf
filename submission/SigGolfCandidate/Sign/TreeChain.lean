@@ -27,8 +27,8 @@ structure LeafPar where
 structure ChainCtx (S : List Byte) (x : List Nat) (p : LeafPar) (tl : MachineState) : Prop where
   hlay : p.lay < 7
   htau : p.tau < 2 ^ 30
-  he : p.e < 64
-  hep : p.ep < 64
+  he : p.e < 2048
+  hep : p.ep < 2048
   hsigl : p.sigl = 0x900 + 856 * p.lay
   hx : ∀ i, x.getD i 0 < 8
   x5 : tl.getReg .x5 = 0

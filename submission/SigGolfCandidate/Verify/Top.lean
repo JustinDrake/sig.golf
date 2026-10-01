@@ -157,13 +157,13 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       unfold twLo; omega
 
 
-/-- The cycle bound of accepting runs: `2926 + layersCost 5 = 2926 + 7920`. The part before the layers
-is `25` (prologue, counter check) `+ 8` (digest) `+ 101` (setup, falling through from the digest HASH) `+ 10 + 157` (leaves) `+ 16 · 29 + 17 · 118`
-(segments with at most `118` folds) `+ 6 · 14 + 4 · 14` (merge / push tails) `+ 15` (root tail) `= 2926`;
+/-- The cycle bound of accepting runs: `2925 + layersCost 5 = 2925 + 7906`. The part before the layers
+is `25` (prologue, counter check) `+ 8` (digest) `+ 100` (setup, falling through from the digest HASH, single-store guard) `+ 10 + 157` (leaves) `+ 16 · 29 + 17 · 118`
+(segments with at most `118` folds) `+ 6 · 14 + 4 · 14` (merge / push tails) `+ 15` (root tail) `= 2925`;
 an accepting run with `Z` fold-free segments costs `1` less per such segment. Feasible worst case
-(emulator, `F = 118`, `Z = 1`, no digit 7): `2925 + 7920 = 10845` (the layer-4 target 183 saves
+(emulator, `F = 118`, `Z = 1`, no digit 7): `2924 + 7906 = 10830` (the layer-4 target 183 saves
 18 cycles against a uniform target 181). -/
-def cycleBound : Nat := 10846
+def cycleBound : Nat := 10831
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
 def cycleBoundAll : Nat := 16834
@@ -173,8 +173,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7920 := by decide
-theorem layC_val : layC = 7920 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7906 := by decide
+theorem layC_val : layC = 7906 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -271,8 +271,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (101 + (leafCost 0 + Nseg 0 0)) (101 + (leafCost 0 + Cseg 0 0)) True
-        (101 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (100 + (leafCost 0 + Nseg 0 0)) (100 + (leafCost 0 + Cseg 0 0)) True
+        (100 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with

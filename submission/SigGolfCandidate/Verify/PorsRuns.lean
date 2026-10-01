@@ -314,7 +314,7 @@ def pindE (r : Nat) : E :=
 def nbW0E : E := .bin .add hiE (cw 0xA01)
 
 def psetupMem : List (Addr × E) :=
-  [(⟨none, BitVec.ofNat 64 0x240⟩, .c (-1#64)), (⟨none, BitVec.ofNat 64 0xC8⟩, stW0 0xC8 idxE),
+  [(⟨none, BitVec.ofNat 64 0x240⟩, stW 0x240 (cw 1)), (⟨none, BitVec.ofNat 64 0xC8⟩, stW0 0xC8 idxE),
     (⟨none, BitVec.ofNat 64 0xC0⟩, .bin .add hiE (cw 0x901))] ++
   ((List.range 14).reverse.flatMap fun i =>
     [(⟨none, BitVec.ofNat 64 (PSB + 80 * i + 8)⟩, stW0 (PSB + 80 * i + 8) idxE),
@@ -329,7 +329,7 @@ def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x7B0), (.x15, 0),
     (.x18, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 101, [], none, 101⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 100, [], none, 100⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&

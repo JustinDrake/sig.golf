@@ -29,25 +29,27 @@ kernel_theorem blk0_rbS : ∀ t : MachineState,
 kernel_theorem blk0_rbM : ∀ t : MachineState,
     (blk0.res.toState t).readWords (BitVec.ofNat 64 0x660) 4 = t.readWords (BitVec.ofNat 64 0x40) 4
 kernel_theorem blk0_macS : ∀ t : MachineState,
-    (blk0.res.toState t).readWords (BitVec.ofNat 64 0x4B00) 4 = t.readWords (BitVec.ofNat 64 0x80) 4
+    (blk0.res.toState t).readWords (BitVec.ofNat 64 0xCB00) 4 = t.readWords (BitVec.ofNat 64 0x80) 4
 kernel_theorem blk0_db0 : ∀ t : MachineState,
     (blk0.res.toState t).getMem (BitVec.ofNat 64 0x20) = BitVec.ofNat 64 0xC01
 kernel_theorem blk0_mac0 : ∀ t : MachineState,
-    (blk0.res.toState t).getMem (BitVec.ofNat 64 0x4AE0) = BitVec.ofNat 64 0xE01
+    (blk0.res.toState t).getMem (BitVec.ofNat 64 0xCAE0) = BitVec.ofNat 64 0xE01
+kernel_theorem blk0_macPrefix : ∀ t : MachineState,
+    (blk0.res.toState t).readWords (BitVec.ofNat 64 0xCAE0) 4 = [0xE01, 0, 0, 0]
 kernel_theorem blk0_macZ : ∀ t : MachineState,
     (blk0.res.toState t).readWords (BitVec.ofNat 64 0x14B00) 4 = [0, 0, 0, 0]
 kernel_theorem blk0_tag : ∀ t : MachineState,
     [(blk0.res.toState t).getReg .x13, (blk0.res.toState t).getReg .x14,
       (blk0.res.toState t).getReg .x15, (blk0.res.toState t).getReg .x16] =
-    t.readWords (BitVec.ofNat 64 0x4B00) 4
+    t.readWords (BitVec.ofNat 64 0xCB00) 4
 theorem blk0_rb0 (t : MachineState) :
     lo32 ((blk0.res.toState t).getMem (BitVec.ofNat 64 0x620)) = BitVec.ofNat 32 0x701 := by
   simp (config := { decide := true }) only [blk0.res, rv_simp, lo32_replace0, Nat.zero_div, ↓reduceIte]
 
 /-- Addresses written by the setup block. -/
 def setupW (a : Nat) : Prop :=
-  a = 0x20 ∨ a = 0x620 ∨ (0x640 ≤ a ∧ a < 0x680) ∨ (0x6C0 ≤ a ∧ a < 0x6E0) ∨ a = 0x4AE0 ∨
-    (0x4B00 ≤ a ∧ a < 0x4B20) ∨ (0x14B00 ≤ a ∧ a < 0x14B20)
+  a = 0x20 ∨ a = 0x620 ∨ (0x640 ≤ a ∧ a < 0x680) ∨ (0x6C0 ≤ a ∧ a < 0x6E0) ∨ (0xCAE0 ≤ a ∧ a < 0xCB00) ∨
+    (0xCB00 ≤ a ∧ a < 0xCB20) ∨ (0x14B00 ≤ a ∧ a < 0x14B20)
 
 /-- Addresses written up to the digest loop (setup, the MAC answer). -/
 def macW (a : Nat) : Prop :=
@@ -67,13 +69,13 @@ theorem MacOk.inv {sk : SecretKey} {cache : Cache} {m : Message} {u : MachineSta
     (h : MacOk sk cache m u) : DigInv u 0 u :=
   ⟨h.pc, by rw [h.x6]; rfl, by norm_num, RegsEq.refl _ _, Frame.refl _ _, rfl⟩
 
-theorem length_cacheRegion (cache : Cache) : (cacheRegion (toList cache)).length = 65504 := by
+theorem length_cacheRegion (cache : Cache) : (cacheRegion (toList cache)).length = 32736 := by
   have hlen : (toList cache).length = 131072 := by simp [toList, SigGolfCandidate.Legacy.bytes]; rfl
-  simp [cacheRegion, slice, hlen, regionBytes]; decide
+  simp [cacheRegion, slice, hlen, regionBytes, cachePadBytes]; decide
 
 theorem length_cacheTag (cache : Cache) : (cacheTag (toList cache)).length = 32 := by
   have hlen : (toList cache).length = 131072 := by simp [toList, SigGolfCandidate.Legacy.bytes]; rfl
-  simp [cacheTag, slice, hlen]
+  simp [cacheTag, slice, hlen, cachePadBytes_eq]
 
 /-- A compare block `ld ra, D; bne ra, aK, fail`. -/
 theorem cmp_block {r : Result} {code : List (BitVec 32)} {a b : Nat} (hrun : symRun { noAlias := true } code (pcOf a) 3 = some r)
@@ -126,7 +128,7 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
     (rest : OracleComp HashSpec (Option β)) (Wr : Nat) (Q : Option β → MachineState → Prop)
     (hrest : ∀ u, MacOk sk cache m u → Sim image u Wr rest Q)
     (hbad : ∀ t, t.pc = pcOf 144 → t.getReg .x5 = 1 → t.getReg .x10 = 1 → Q none t) :
-    Sim image (s0 sk cache m) (54 + (8 * 1025 + (53 + Wr)))
+    Sim image (s0 sk cache m) (54 + (8 * 513 + (53 + Wr)))
       (H (macInput (toList sk) (cacheRegion (toList cache))) >>= fun tag =>
         if toList (n := 32) tag = cacheTag (toList cache) then rest else pure none) Q := by
   set s := s0 sk cache m with hs0
@@ -140,32 +142,24 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
   have rg := setup_regs s
   have e1 := symRun_ecall blk0 codeAt_0 s (by simp only [blk0.res, rv_simp]) rfl
   have x5 : u.getReg .x5 = 0 := by rw [rg.get .x5]; exact s0_getReg sk cache m .x5 (by decide)
-  have x10 : u.getReg .x10 = BitVec.ofNat 64 0x4AE0 := by simp only [hu, blk0.res, rv_simp]
-  have x11 : u.getReg .x11 = BitVec.ofNat 64 65600 := by simp only [hu, blk0.res, rv_simp]
+  have x10 : u.getReg .x10 = BitVec.ofNat 64 0xCAE0 := by simp only [hu, blk0.res, rv_simp]
+  have x11 : u.getReg .x11 = BitVec.ofNat 64 32832 := by simp only [hu, blk0.res, rv_simp]
   have x12 : u.getReg .x12 = BitVec.ofNat 64 0x160 := by simp only [hu, blk0.res, rv_simp]
   have pc1 : u.pc = pcOf 54 := by simp only [hu, blk0.res, rv_simp]
   have hR := length_cacheRegion cache
   obtain ⟨hn, hw⟩ := words_macInput (toList sk) (cacheRegion (toList cache)) hS hR
   have hq : hashInput u = pad64 (macInput (toList sk) (cacheRegion (toList cache))) := by
-    refine hashInput_eq_pad64 u _ 1024 hn (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
-    rw [hw, x10, show 8 * (1024 + 1) = 1 + 1 + 2 + 4 + 8188 + 4 from rfl]
-    rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add,
-      readWords_ofNat_add]
+    refine hashInput_eq_pad64 u _ 512 hn (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
+    rw [hw, x10, show 8 * (512 + 1) = 4 + 4 + 4092 + 4 from rfl]
+    rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add]
     simp only [Nat.reduceMul, Nat.reduceAdd]
-    rw [readWords_ofNat_one, readWords_ofNat_one, hu, blk0_mac0, ← hu,
-      f.getMem (a := 0x4AE8) (by norm_num) (by simp only [setupW]; omega),
-      s0_zero sk cache m 0x4AE8 (by norm_num) (by norm_num) (by omega),
+    rw [hu, blk0_macPrefix, blk0_macS, blk0_macZ, ← hu,
       f.readWords _ _ (by norm_num) (by intro i hi; simp only [setupW]; omega),
-      show (0x4AF0 : Nat) = 0x4AF0 from rfl, readWords_ofNat_two,
-      s0_zero sk cache m 0x4AF0 (by norm_num) (by norm_num) (by omega),
-      s0_zero sk cache m 0x4AF8 (by norm_num) (by norm_num) (by omega),
-      hu, blk0_macS, blk0_macZ, ← hu,
-      f.readWords _ _ (by norm_num) (by intro i hi; simp only [setupW]; omega),
-      show (0x4B20 : Nat) = 0x4B00 + 32 from rfl, s0_readWords_cache sk cache m 32 8188 (by norm_num) (by norm_num),
-      s0_readWords_sk]
+      show (0xCB20 : Nat) = 0x4B00 + 32800 from rfl,
+      s0_readWords_cache sk cache m 32800 4092 (by norm_num) (by norm_num), s0_readWords_sk]
     simp only [twWords_eq, twWord0, List.cons_append, List.nil_append, List.append_assoc]
     rfl
-  have hb : (pad64 (macInput (toList sk) (cacheRegion (toList cache)))).blocks = 1025 := by
+  have hb : (pad64 (macInput (toList sk) (cacheRegion (toList cache)))).blocks = 513 := by
     simp [pad64, Query.blocks, hn]
   have hq' : hashInput u = fmt (macInput (toList sk) (cacheRegion (toList cache))) :=
     hq.trans (fmt_thInput _ _ _ _ _ _ (by decide)).symm
@@ -182,9 +176,9 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
   have r2 : ∀ r, t2.getReg r = u.getReg r := fun r => by rw [ht2, writeHash_getReg]
   -- the tag words
   have htag := blk0_tag s
-  rw [← hu, show (0x4B00 : Nat) = 0x4B00 + 0 from rfl, s0_readWords_cache sk cache m 0 4 (by norm_num)
+  rw [← hu, show (0xCB00 : Nat) = 0x4B00 + 32768 from rfl, s0_readWords_cache sk cache m 32768 4 (by norm_num)
     (by norm_num)] at htag
-  have hct : slice (toList cache) 0 (8 * 4) = cacheTag (toList cache) := rfl
+  have hct : slice (toList cache) 32768 (8 * 4) = cacheTag (toList cache) := rfl
   rw [hct] at htag
   have heq := tag_eq_iff a _ (length_cacheTag cache) _ _ _ _ htag.symm
   -- the failure exit

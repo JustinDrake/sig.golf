@@ -33,7 +33,7 @@ def preStart (lay t : Nat) : Nat :=
 
 /-- Steps of the transition up to the encoding hash: layer 0 consumes the remaining route bits
 directly (two `addi` for the sentinel, no mask/shift); layer 4 reuses the known hash length. -/
-def stepsA (lay : Nat) : Nat := if lay = 0 ∨ lay = 4 then 13 else 14
+def stepsA (lay : Nat) : Nat := if lay = 0 ∨ lay = 4 then 12 else 13
 def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
 
 /-- Known registers at the transition start. -/
@@ -44,7 +44,7 @@ def preK (lay : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay
 
 /-- Known registers after the encoding hash call. -/
 def bK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay)), (.x10, 0x100), (.x11, 64), (.x12, 0x140)] ++
+  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)] ++
     (if lay = 4 then [(.x14, KT4)] else [])
 
 def uEr (lay : Nat) : E :=
@@ -70,10 +70,11 @@ def specA (lay t : Nat) : Spec :=
     (⟨none, BitVec.ofNat 64 264⟩, x31Er lay), (⟨none, BitVec.ofNat 64 256⟩, cw (hWord lay + 768))],
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
 
-/-! ## The encoding check (`remu x25, x25, x18; bne KT`; layer 4: `bne x14` holding `KT4`) and the chain prologue -/
+/-! ## The encoding check (`remu x25, x25, x18`; layers 0 .. 2 compare `KT`, layer 3 loads 182 into
+`x14` (`li a4, 182`, one more step), layer 4 reuses `x14 = KT4`) and the chain prologue -/
 
-def d0E : E := ldE 320
-def d1E : E := ldE 328
+def d0E : E := ldE 288
+def d1E : E := ldE 296
 def m1E : E := .c M1w
 def m2E : E := .c M2w
 def orE : E := .bin .or d0E d1E
@@ -91,13 +92,13 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E : E := .bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 : E := .bin .and (.bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB : Nat := 24
+def stepsB (lay : Nat) : Nat := 24 + (if lay = 3 then 1 else 0)
 /-- One REMU costs four cycles rather than one. -/
-def cyclesB : Nat := stepsB + 3
+def cyclesB (lay : Nat) : Nat := stepsB lay + 3
 
 def specBok (lay : Nat) : Spec :=
-  ⟨[(.x14, x14E), (.x16, d0E), (.x17, d1E)], [], 0, false, stepsB,
-   [⟨.ne, swS, .c (KTof lay), false⟩, ⟨.lt, orE, .c 0, false⟩], some tgt0, cyclesB⟩
+  ⟨[(.x14, x14E), (.x16, d0E), (.x17, d1E)], [], 0, false, stepsB lay,
+   [⟨.ne, swS, .c (KTof lay), false⟩, ⟨.lt, orE, .c 0, false⟩], some tgt0, cyclesB lay⟩
 
 /-- Known registers on entry of the chain code; chain 0 initializes `x25` from `x27`. -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
@@ -108,7 +109,7 @@ def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
 def specRej1 : Spec := ⟨rejK, [], rejectPc + 2, true, 7, [⟨.lt, orE, .c 0, true⟩], none, 7⟩
 def specRej2 (lay : Nat) : Spec :=
-  ⟨rejK, [], rejectPc + 2, true, 21, [⟨.ne, swS, .c (KTof lay), true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24⟩
+  ⟨rejK, [], rejectPc + 2, true, 21 + (if lay = 3 then 1 else 0), [⟨.ne, swS, .c (KTof lay), true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24 + (if lay = 3 then 1 else 0)⟩
 
 /-! ## Leaf -/
 
@@ -132,13 +133,13 @@ def leafPost (lay : Nat) : List (Reg × Word) :=
 
 def cmpPc (t : Nat) : Nat := compareTab.getD t 0
 def cmpK : List (Reg × Word) := fk false 0x1C0 64 ++ [(.x12, 0x180)]
+def cmpDiff : E := .bin .sub (ldE 392) (ldE 168)
 def specAcc (t : Nat) : Spec :=
-  ⟨[(.x5, cw 1), (.x10, cw 0)], [], cmpPc t + 8, true, 8,
-   [⟨.ne, ldE 392, ldE 168, false⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
+  ⟨[(.x5, cw 1), (.x10, cmpDiff)], [], cmpPc t + 7, true, 7,
+   [⟨.ne, ldE 384, ldE 160, false⟩], none, 7⟩
 def specCR1 (t : Nat) : Spec :=
   ⟨rejK, [], cmpPc t + 11, true, 5, [⟨.ne, ldE 384, ldE 160, true⟩], none, 5⟩
-def specCR2 (t : Nat) : Spec :=
-  ⟨rejK, [], cmpPc t + 11, true, 8, [⟨.ne, ldE 392, ldE 168, true⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
+
 
 /-! ## The per-layer check -/
 
@@ -154,8 +155,7 @@ def copyCheck (lay t : Nat) : Bool :=
 def layerCheck (lay : Nat) : Bool :=
   ((List.range (nCopy lay)).all fun t => copyCheck lay t) &&
   (lay != 0 || (List.range 32).all fun t =>
-    specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] &&
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] &&
-      specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] [])
+    specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] &&
+      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [])
 
 end SigGolfCandidate.Verify

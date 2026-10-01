@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10910` cycles (verify bound
-`10846` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
+`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10895` cycles (verify bound
+`10831` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 150272, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -19,12 +19,14 @@ pad is hashed as it stands; the abstract game accounts for this through the padd
 (`verifyP`, `Bridge.padDec`). Verify dispatches three chains per table jump. The counters `c0 .. c3`
 sit in the tweak slot of layer 0's first block, `c4` after the PORS stream.
 
-The promoted parameter set is retained except for a layer-specific WOTS target: layers 0 .. 3 keep
-the target sum 181 and the bottom layer 4 uses 183 (two fewer chain steps on every accepting run,
-18 verify cycles), with the one-block private randomizer input; the security, completeness and
-signing-budget proofs carry the layer target (four counter factors 1.011 and one 1.0152). The
-verifier keeps the layer-4 target in a register that is dead between the PORS root tail and the
-layer-4 encoding check, so no instruction is added. Verifier micro-savings (18 cycles): the digest
+The layer targets are `[181, 181, 181, 182, 183]`, with the one-block private randomizer input.
+The cache authenticates only the 2,046 masked internal top-tree nodes (513 MAC blocks); signing
+rebuilds the omitted leaf sibling in 326 compressions, which saves 187 deterministic signing
+compressions and funds layer 3's target 182. The signing-budget product is
+`2^(115254/131072) * 1.0232 * 1.01094^3 * 1.01284 * 1.01515 ≤ 2`; the security, completeness and
+signing-budget proofs carry the layer target. The verifier keeps the layer-4 target in a register
+that is dead between the PORS root tail and the layer-4 encoding check (no instruction added);
+layer 3 loads 182 into a scratch register before its comparison (nine fewer chain cycles, one load). Verifier micro-savings (18 cycles): the digest
 hashes to address 0 so its output register needs no load, the PORS stack register is zero-based and
 its frame is rebased by 352 so the fold limit is the existing `x18 = 4095`, the SWAR masks are two
 data words of the image loaded in the root tails, the root's `E = 1` and empty-stack checks compare
@@ -77,7 +79,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10910 :=
+theorem certificate : SigGolf.Certificate submission 10895 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
