@@ -214,17 +214,16 @@ def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw 0, d⟩
 
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
-/-- Known at the start of the layer-4 transition: the layer constants the root tail sets
-(`a5 = ttab + 2048`). The masks `x20`, `x21`, the header word `x27 = 0x40401` and the dispatch
-mask `sp = TMASK` are loaded from the verifier's data words through `sp = dataBase` and resolved
-from protected memory in `tailF_step`, so the accepting tail takes 11 instructions. -/
+/-- Root-tail constants for the address-header verifier. The uniform target uses x29;
+no x14 target reload or x28 running-header increment is needed. Masks come from
+protected image data, and x27 carries the encoding-biased header. The initial stack pointer addresses the masks directly; the protected header and mask are loaded as well; the tail takes 12 steps and derives the layer stride from x18. -/
 def rootK : List (Reg × Word) :=
   baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x15, TTA5)]
-def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120)]
+def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x28, 2688)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8), (.x27, ldE 0xFFFFE0), (.x2, ldE 0xFFFFE8)], [], f4Pc c, false, 11,
-    [fBr3 false, fBr2 false, fBr1 false], none, 11⟩
+  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8), (.x27, ldE 0xFFFFE0), (.x2, ldE 0xFFFFE8)], [], f4Pc c, false, 12,
+    [fBr3 false, fBr2 false, fBr1 false], none, 12⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
@@ -280,10 +279,10 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 /-- All registers except `x2` are zero in the initial state. -/
 def k0 : List (Reg × Word) :=
-  [(.x1, 0), (.x3, 0), (.x4, 0), (.x5, 0), (.x6, 0), (.x7, 0), (.x8, 0), (.x9, 0), (.x10, 0), (.x11, 0),
+  [(.x2, 0xFFFFE0), (.x1, 0), (.x3, 0), (.x4, 0), (.x5, 0), (.x6, 0), (.x7, 0), (.x8, 0), (.x9, 0), (.x10, 0), (.x11, 0),
    (.x12, 0), (.x13, 0), (.x14, 0), (.x15, 0), (.x16, 0), (.x17, 0), (.x18, 0), (.x19, 0), (.x20, 0),
    (.x21, 0), (.x22, 0), (.x23, 0), (.x24, 0), (.x25, 0), (.x26, 0), (.x27, 0), (.x28, 0), (.x29, 0),
-   (.x30, 0), (.x31, 0), (.x2, 0xFFFFE0)]
+   (.x30, 0), (.x31, 0)]
 
 /-- Digest phase: witness bases and `P1 .. P5`. -/
 def gkD : List (Reg × Word) := baseK ++ [(.x2, 0xFFFFE0)]

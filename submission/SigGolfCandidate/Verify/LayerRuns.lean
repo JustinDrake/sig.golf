@@ -9,7 +9,7 @@ layer `lay + 1`) runs its own copy of the transition (`trPc lay c`):
 * route and encoding (`stepsA` steps up to the encoding `ecall`; the counter is read from the
   witness, `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `2392`);
 * the encoding check (`or; blt` for the top bits, the SWAR digit sum, `remu` by `x18 = 4095`,
-  `bne KT`), then the chain prologue `li s6, base`, the extraction of triple 0
+  `bne KT`), then the chain prologue (initialize the bottom-layer base, subtract the retained stride above it), the extraction of triple 0
   and `jalr ra` into the layer-shared chain code (24 steps, 27 cycles);
 * at the return pc `retPc lay c`: the leaf tweak and the dispatch into the fold's shape block. -/
 
@@ -39,12 +39,13 @@ def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
 /-- Known registers at the transition start. -/
 def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401)]
 def aK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, 0x120), (.x27, BitVec.ofNat 64 (hWord (lay + 1) + 768))]
+  gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, 0x120), (.x27, BitVec.ofNat 64 (hWord (lay + 1) + 768)), (.x22, BitVec.ofNat 64 (s6N (lay + 1)))]
 def preK (lay : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay
 
 /-- Known registers after the encoding hash call. -/
 def bK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)]
+  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)] ++
+    (if lay = 4 then [] else [(.x22, BitVec.ofNat 64 (s6N (lay + 1)))])
 
 def uEr (lay : Nat) : E :=
   if lay = 0 then .reg .x30
@@ -72,7 +73,7 @@ def specA (lay t : Nat) : Spec :=
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
 
 /-! ## The encoding check (`remu x25, x25, x18`; layers 0 .. 3 compare `KT`, layer 4 also compares `x29 = KT`,
-all targets 181) and the chain prologue -/
+all targets 183) and the chain prologue -/
 
 def encSelE : E := .bin .sll (.bin .srl (ldE 288) (cw 63)) (cw 4)
 def d0E : E := .ld (.bin .add encSelE (cw 288))
@@ -116,13 +117,13 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E : E := .bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 : E := .bin .and (.bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB : Nat := 27
+def stepsB (lay : Nat) : Nat := if lay = 4 then 27 else 26
 /-- One REMU costs four cycles rather than one. -/
-def cyclesB : Nat := stepsB + 3
+def cyclesB (lay : Nat) : Nat := stepsB lay + 3
 
 def specBok (lay : Nat) : Spec :=
-  ⟨[(.x14, x14E), (.x16, d0E), (.x17, d1E)], [], 0, false, stepsB,
-   [⟨.ne, swS, .c (KTof lay), false⟩, ⟨.lt, orE, .c 0, false⟩], some tgt0, cyclesB⟩
+  ⟨[(.x14, x14E), (.x16, d0E), (.x17, d1E)], [], 0, false, stepsB lay,
+   [⟨.ne, swS, .c (KTof lay), false⟩, ⟨.lt, orE, .c 0, false⟩], some tgt0, cyclesB lay⟩
 
 /-- Known registers on entry of the chain code; chain 0 initializes `x25` from `x27`. -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
@@ -141,7 +142,7 @@ def specRej2 (lay : Nat) : Spec :=
 chunk 0. -/
 def leafSteps (lay : Nat) : Nat := if lay = 0 then 10 else 9
 
-def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768))]
+def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x22, BitVec.ofNat 64 (s6N lay))]
 
 def specLeaf (lay : Nat) : Spec :=
   ⟨[(.x10, cw 832), (.x11, cw 704)],
@@ -150,7 +151,7 @@ def specLeaf (lay : Nat) : Spec :=
 
 def leafKeep : List Reg := [.x16, .x17, .x23, .x30, .x31]
 def leafPost (lay : Nat) : List (Reg × Word) :=
-  fk false 0x340 704 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768))]
+  fk false 0x340 704 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x22, BitVec.ofNat 64 (s6N lay))]
 
 /-! ## Compare -/
 

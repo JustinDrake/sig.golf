@@ -200,17 +200,13 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
       refine ⟨?_, Glob_writeHash hG a _ h12 (by decide), WitAll_writeHash (hu.wall _ hW) a _ h12 (by decide),
         Known_writeHash hKd a, ?_, ?_, ?_⟩
       · refine ⟨?_, ?_, ?_, ?_⟩
-        · rw [wf 0xFFFFF0 (by decide) (by decide),
-            mfr 0xFFFFF0 (by decide) (by decide) (by decide) (by decide)]
+        · rw [wf 0xFFFFF0 (by decide) (by decide), mfr 0xFFFFF0 (by decide) (by decide) (by decide) (by decide)]
           exact hMask.1
-        · rw [wf 0xFFFFF8 (by decide) (by decide),
-            mfr 0xFFFFF8 (by decide) (by decide) (by decide) (by decide)]
+        · rw [wf 0xFFFFF8 (by decide) (by decide), mfr 0xFFFFF8 (by decide) (by decide) (by decide) (by decide)]
           exact hMask.2.1
-        · rw [wf 0xFFFFE0 (by decide) (by decide),
-            mfr 0xFFFFE0 (by decide) (by decide) (by decide) (by decide)]
+        · rw [wf 0xFFFFE0 (by decide) (by decide), mfr 0xFFFFE0 (by decide) (by decide) (by decide) (by decide)]
           exact hMask.2.2.1
-        · rw [wf 0xFFFFE8 (by decide) (by decide),
-            mfr 0xFFFFE8 (by decide) (by decide) (by decide) (by decide)]
+        · rw [wf 0xFFFFE8 (by decide) (by decide), mfr 0xFFFFE8 (by decide) (by decide) (by decide) (by decide)]
           exact hMask.2.2.2
       · intro i hi
         have := writeHash_getMem_ofNat u a 0 (8 * i) h12 (by omega) (by omega)

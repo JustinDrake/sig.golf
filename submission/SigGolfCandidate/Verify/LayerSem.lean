@@ -251,7 +251,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
       ∃ k, k ≤ 33 ∧ ∃ c, c ≤ 33 ∧ ∃ u, Steps image s k c u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (∀ xs, decodeDigits (encodingBytes a) = some xs →
-      ∃ u, Steps image s stepsB cyclesB u ∧ ChainIn (L.cctx t a) 0 [] u ∧
+      ∃ u, Steps image s (stepsB L.lay) (cyclesB L.lay) u ∧ ChainIn (L.cctx t a) 0 [] u ∧
         (L.cctx t a).ok ∧ (∀ i < 42, xs.getD i 0 = dig (L.cctx t a) i) ∧ xs.sum = targetFor L.lay ∧
         xs.length = 42) := by
   obtain ⟨hlay, hidx, hwl⟩ := hL
