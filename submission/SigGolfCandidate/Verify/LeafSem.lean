@@ -58,7 +58,7 @@ theorem layFC_check (L : LCtx) (hL : L.ok) :
 /-- Carried through the leaf and the fold of layer `lay` to the transition of layer `lay - 1`:
 the tweak word, `tau`, the CB word, and the chain array of the layers `< lay` still the witness. -/
 def LeafCarry (L : LCtx) (s : MachineState) : Prop :=
-  s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay + 256) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧
+  s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 (if L.lay = 0 then L.e else L.tau) ∧
   CB0 s ∧ Fresh L.wl L.lay 42 s
 
 /-- After the return of the chain code. -/
@@ -76,6 +76,14 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
   obtain ⟨hlay, hidx, hwl⟩ := hL
   obtain ⟨⟨hG, hK, hR, h22, h27, h1r, hLB, hlen, hvs, hCB⟩, hF, hpc⟩ := chainNext_42 hs
   obtain ⟨h16, h17, h23, h30, h31⟩ := hR
+  have hstore : (leafTauE L.lay).eval s = BitVec.ofNat 64 L.tau := by
+    by_cases h0 : L.lay = 0
+    · have hz : L.tau = 0 := by
+        simp only [LCtx.tau, h0, layS, heightL]
+        exact Nat.div_eq_of_lt hidx
+      simp [leafTauE, h0, hz, E.eval, cw]
+    · change s.getReg .x30 = BitVec.ofNat 64 (if L.lay = 0 then L.e else L.tau) at h30
+      simpa only [leafTauE, if_neg h0, E.eval] using h30
   have hpc' : s.pc = pcOf (retPc L.lay t) := hpc
   have hKl : KnownOK (leafK L.lay) s := by
     intro p hp
@@ -123,9 +131,9 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       simp only [leafKeep, List.mem_cons, List.not_mem_nil, or_false] at hx
       rcases hx with rfl | rfl | rfl | rfl | rfl <;> simp [fkeep]
     exact (hkeep2 x hx').trans (hu.keep x hx)
-  have h27u : u.getReg .x27 = BitVec.ofNat 64 (hWord L.lay + 256) := by
+  have h27u : u.getReg .x27 = BitVec.ofNat 64 (hWord L.lay) := by
     rw [hkeep2 .x27 (by simp [fkeep])]
-    exact hu.known (.x27, BitVec.ofNat 64 (hWord L.lay + 256)) (by simp [leafPost])
+    exact hu.known (.x27, BitVec.ofNat 64 (hWord L.lay)) (by simp [leafPost])
   have mfr : ∀ A, A < 2 ^ 64 → A ≠ 456 → A ≠ 448 → A ≠ 840 → A ≠ 832 →
       u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA h1 h2 h3 h4
@@ -189,9 +197,8 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       omega
     · rw [wf 0x1C8 (by omega) (by omega), hmem]; simp only [specLeaf, layFC]
       rw [memEval_cons_eq _ _ _ _ _ rfl]
-      simp only [stW0, ldE, cw, Rv.E.eval, BinOp.eval]
-      rw [merge_w0_toNat, h30, BitVec.toNat_ofNat]
-      simp only [LCtx.cctx]
+      simp only [stW0, ldE, cw, Rv.E.eval, BinOp.eval, hstore]
+      rw [merge_w0_toNat, BitVec.toNat_ofNat]
       norm_num
     · simp only [layFC, hbit]
       rw [writeHash_at0 _ ans _ h12 (by omega)]; exact (vw0_answer ans).symm
@@ -204,12 +211,9 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       try rfl
     · rw [writeHash_getReg]; exact h27u
     · rw [writeHash_getReg, hkp .x30 (by simp [leafKeep])]; exact h30
-    · apply hCB.frame
-      intro A hA hp
-      rcases hp with rfl | hp
-      · rw [wf 0xC0 (by omega) (by omega), mfr 0xC0 (by omega) (by omega) (by omega) (by omega) (by omega)]
-      · unfold tweakBase at hp
-        rw [wf A hA (Or.inr (by omega)), mfr A hA (by omega) (by omega) (by omega) (by omega)]
+    · unfold CB0
+      rw [wf 0xC0 (by omega) (by omega), mfr 0xC0 (by omega) (by omega) (by omega) (by omega) (by omega)]
+      exact hCB
     · refine Fresh_frame hF (fun A hA hA' => ?_)
       rw [wf A hA (Or.inr (by omega)), mfr A hA (by omega) (by omega) (by omega) (by omega)]
 

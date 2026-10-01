@@ -79,9 +79,9 @@ theorem V_signTop (z bC : ℝ≥0∞) (hz : 1 ≤ z) (hbC : 1 ≤ bC)
   unfold signTop
   rcases hr : route idx 0 with ⟨e, tau⟩
   dsimp only
-  have hfresh : ∀ c', 0 ≤ c' → c' < 2 ^ 32 → c (fmt (encInput 0 tau e M c')) = none := by
+  have hfresh : ∀ c', 0 ≤ c' → c' < 2 ^ 32 → c (addrFmt (encInput 0 tau e M c')) = none := by
     intro c' _ _
-    cases hq : c (fmt (encInput 0 tau e M c')) with
+    cases hq : c (addrFmt (encInput 0 tau e M c')) with
     | none => rfl
     | some u =>
       exfalso
@@ -146,9 +146,9 @@ theorem V_signLayers (z : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (
     rcases hr : route idx (lay + 1) with ⟨e, tau⟩
     dsimp only
     have hfresh : ∀ c', 0 ≤ c' → c' < 2 ^ 32 →
-        cache' (fmt (encInput (lay + 1) tau e M c')) = none := by
+        cache' (addrFmt (encInput (lay + 1) tau e M c')) = none := by
       intro c' _ _
-      cases hq : cache' (fmt (encInput (lay + 1) tau e M c')) with
+      cases hq : cache' (addrFmt (encInput (lay + 1) tau e M c')) with
       | none => rfl
       | some u =>
         exfalso
@@ -191,14 +191,14 @@ theorem V_signLayers (z : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (
               treeCost (height (lay + 1)) + (layerCost lay + topCost) by omega, counterProduct_succ bC (lay + 1)]
             ring
 
-theorem spec_H {P : Query → Prop} (x : List Byte) (k : Nat) (hP : P (fmt x))
-    (hk : (fmt x).blocks ≤ k) : Spec P (fun _ => True) k (Ref.H x) := by
+theorem spec_H {P : Query → Prop} (x : List Byte) (k : Nat) (hP : P (addrFmt x))
+    (hk : (addrFmt x).blocks ≤ k) : Spec P (fun _ => True) k (Ref.H x) := by
   rw [← bind_pure (Ref.H x)]
   exact Spec.qry_bind hP (fun u => Spec.pure _ 0 trivial) (by omega)
 
 theorem mac_ok (S cache : List Byte) (hS : S.length = 32) :
-    qbyte (fmt (macInput S (cacheRegion cache))) 1 = 14 ∧
-      (fmt (macInput S (cacheRegion cache))).blocks ≤ 513 := by
+    qbyte (addrFmt (macInput S (cacheRegion cache))) 1 = 14 ∧
+      (addrFmt (macInput S (cacheRegion cache))).blocks ≤ 513 := by
   refine ⟨by unfold macInput; rw [qbyte_tag], blocksFmt_le _ 513 ?_ (by omega)⟩
   have : (cacheRegion cache).length ≤ 32736 := by
     unfold cacheRegion slice; rw [List.length_take, ← regionBytes_eq]; omega
@@ -252,15 +252,15 @@ theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
         exact (spec_buildPorsTree S hS (idxOf N)).V_le hz c1
   · refine V_searchDigest z bD hz hbD hstepD S m hS hm aMax 0 c ∅ (by simp [aMax]) (by simp)
       (fun a' _ _ => ?_) (fun rho _ _ => ?_)
-    · cases hq : c (fmt (rndInput S m a')) with
+    · cases hq : c (addrFmt (rndInput S m a')) with
       | none => rfl
       | some u =>
         exfalso
-        have h7 : qbyte (fmt (rndInput S m a')) 1 = 7 := by
+        have h7 : qbyte (addrFmt (rndInput S m a')) 1 = 7 := by
           rw [qbyte_fmt _ _ (by decide)]
           simp [rndInput, byte_toNat]
         exact (hinv _ u hq).2.1 h7
-    · cases hq : c (fmt (digestInput rho m)) with
+    · cases hq : c (addrFmt (digestInput rho m)) with
       | none => rfl
       | some u =>
         exfalso; have := (hinv _ u hq).2.2; unfold digestInput at this; rw [qbyte_tag] at this

@@ -39,7 +39,7 @@ theorem start_mem (s : MachineState) (a : Nat) (ha : a < 2 ^ 64) (h : 0x40 ≤ a
 theorem start_hash (s : MachineState) (rho msg : List Byte) (hr : rho.length = 16) (hm : msg.length = 32)
     (hsig : s.readWords (BitVec.ofNat 64 0x24B00) 2 = wordsOf rho)
     (hmsg : s.readWords (BitVec.ofNat 64 0x40) 4 = wordsOf msg) :
-    hashInput (blk0.res.toState s) = fmt (digestInput rho msg) := by
+    hashInput (blk0.res.toState s) = addrFmt (digestInput rho msg) := by
   have h10 : (blk0.res.toState s).getReg .x10 = BitVec.ofNat 64 32 := by simp only [blk0.res, rv_simp]
   refine hashInput_eq_digest _ _ _ hr hm (by simp only [blk0.res, rv_simp]) (by rw [h10]; decide) ?_
   rw [h10, show 8 = 1 + 1 + 1 + 1 + 4 from rfl, readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add,
@@ -261,7 +261,7 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6048) (hmsg : msg.
     (hm : s.readWords (BitVec.ofNat 64 0x40) 4 = wordsOf msg) (hsok : SigOK s sig)
     (hz : ∀ a, 0x800 ≤ a → a < 0x24B00 → s.getByte (BitVec.ofNat 64 a) = 0) :
     Sign.Sim image s (13 + (8 + (15000 + (200000 + (34 + 5 * ExP.LW)) + 0)))
-      ((liftM (HashSpec.query (fmt (digestInput (sigRho sig) msg))) : OracleComp HashSpec _) >>= fun a =>
+      ((liftM (HashSpec.query (addrFmt (digestInput (sigRho sig) msg))) : OracleComp HashSpec _) >>= fun a =>
         afterD sig a.toNat >>= fun r => pure (r.map (ofList 16384))) Qexp := by
   have hr : (sigRho sig).length = 16 := by simp [sigRho, slice, hsig]
   have hst := symRun_sound blk0 codeAt_0 s hpc (by simp only [blk0.res, rv_simp])
@@ -277,8 +277,8 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6048) (hmsg : msg.
   have hv : hashArgumentsValid s1 = true :=
     hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
   have hq := start_hash s (sigRho sig) msg hr hmsg hrho hm
-  have hb : (fmt (digestInput (sigRho sig) msg)).blocks = 1 :=
-    blocks_fmt_digest _ ⟨by simp [digestInput, thInput, hr, hmsg, length_tweak, P, zeros], rfl⟩
+  have hb : (addrFmt (digestInput (sigRho sig) msg)).blocks = 1 :=
+    by rw [addrFmt_digestInput]; exact blocks_fmt_digest _ ⟨by simp [digestInput, thInput, hr, hmsg, length_tweak, P, zeros], rfl⟩
   have := Sign.Sim.query_bind (W := 15000 + (200000 + (34 + 5 * ExP.LW)) + 0)
     (f := fun a => afterD sig a.toNat >>= fun r => (pure (r.map (ofList 16384)) : OracleComp HashSpec _))
     (Q := Qexp) e1 x5 hv hq (fun a => ?_)
@@ -302,7 +302,7 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6048) (hmsg : msg.
   · intro x h1 h2; rw [hbyte _ (by omega) (by omega) (by omega)]; exact hz x h1 h2
 
 theorem expandRef_eq (m : Message) (pk : PublicKey) (σ : Bytes 6048) :
-    expandRef m pk σ = (liftM (HashSpec.query (fmt (digestInput (sigRho (toList σ)) (toList m)))) :
+    expandRef m pk σ = (liftM (HashSpec.query (addrFmt (digestInput (sigRho (toList σ)) (toList m)))) :
       OracleComp HashSpec _) >>= fun a => afterD (toList σ) a.toNat >>= fun r => pure (r.map (ofList 16384)) := by
   simp only [expandRef, expandList, digest, H, bind_assoc, pure_bind]
   rfl

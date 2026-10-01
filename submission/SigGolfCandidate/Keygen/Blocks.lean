@@ -1,3 +1,4 @@
+import SigGolfCandidate.Rv.AddressAdapter
 import SigGolfCandidate.Expand.Mem
 import SigGolfCandidate.Submission
 
@@ -20,7 +21,7 @@ def seg_34 : List (BitVec 32) := [0x001ad193, 0x6a302223, 0x6a000513, 0x04000593
 def seg_39 : List (BitVec 32) := [0x00000073]
 def seg_40 : List (BitVec 32) := [0x001af193, 0x00419193, 0x1401b083, 0x1481b103, 0x0e103823, 0x0e203c23, 0x0c000513, 0x0f000613, 0x00000b93]
 def seg_49 : List (BitVec 32) := [0x001b8b93, 0x003c5193, 0x00819193, 0x007c7e93, 0x01d1e1b3, 0x0c302223, 0x0c000513]
-def seg_56 : List (BitVec 32) := [0x00000073]
+def seg_56 : List (BitVec 32) := [0x20c0006f]
 def seg_57 : List (BitVec 32) := [0x001c0c13, 0x00700193, 0xfc3b9ce3]
 def seg_60 : List (BitVec 32) := [0x001c0c13, 0x004a9193, 0x0f003083, 0x0f803103, 0x3611b023, 0x3621b423, 0x001a8a93, 0x02a00193, 0xf63a98e3]
 def seg_69 : List (BitVec 32) := [0x34000513, 0x2c000593, 0x004a1193, 0x00398633]
@@ -44,13 +45,15 @@ def seg_171 : List (BitVec 32) := [0x00000073]
 def seg_172 : List (BitVec 32) := [0x02c0006f, 0x00000013]
 def seg_174 : List (BitVec 32) := [0x00000073]
 
+def segAddrReturn56 : List (BitVec 32) := [0xda1ff06f]
+
 def seg_149 : List (BitVec 32) := [0x0000deb7, 0xb00e8e93, 0x000011b7, 0xe0118193, 0xfe3eb023, 0x08003083, 0x001eb023, 0x08803083, 0x001eb423, 0x09003083, 0x001eb823, 0x09803083, 0x001ebc23, 0x000a3023, 0x000a3423, 0x000a3823, 0x000a3c23, 0xfe0e8513, 0x000085b7, 0x04058593, 0x0000d637, 0xb0060613]
 def seg_175 : List (BitVec 32) := [0x00005eb7, 0xb00e8e93, 0x0000d1b7, 0xb0018193]
 def seg_179 : List (BitVec 32) := [0x000eb023, 0x008e8e93, 0xfe3e9ce3]
 def seg_182 : List (BitVec 32) := [0xf7dff06f]
 def seg_183 : List (BitVec 32) := [0xfe0eb023, 0x00100293, 0x00000513, 0xfd1ff06f]
 
-def L : Rv.Layout := [(0, seg_0), (25, seg_25), (32, seg_32), (34, seg_34), (39, seg_39), (40, seg_40), (49, seg_49), (56, seg_56), (57, seg_57), (60, seg_60), (69, seg_69), (73, seg_73), (74, seg_74), (76, seg_76), (77, seg_77), (85, seg_85), (101, seg_101), (102, seg_102), (104, seg_104), (107, seg_107), (115, seg_115), (118, seg_118), (123, seg_123), (132, seg_132), (133, seg_133), (144, seg_144), (147, seg_147), (149, seg_149), (171, seg_171), (172, seg_172), (174, seg_174), (175, seg_175), (179, seg_179), (182, seg_182), (183, seg_183)]
+def L : Rv.Layout := [(0, seg_0), (25, seg_25), (32, seg_32), (34, seg_34), (39, seg_39), (40, seg_40), (49, seg_49), (56, seg_56), (57, seg_57), (60, seg_60), (69, seg_69), (73, seg_73), (74, seg_74), (76, seg_76), (77, seg_77), (85, seg_85), (101, seg_101), (102, seg_102), (104, seg_104), (107, seg_107), (115, seg_115), (118, seg_118), (123, seg_123), (132, seg_132), (133, seg_133), (144, seg_144), (147, seg_147), (149, seg_149), (171, seg_171), (172, seg_172), (174, seg_174), (175, seg_175), (179, seg_179), (182, seg_182), (183, seg_183), (187, AddressAdapter.headCode), (206, AddressAdapter.tailCode), (209, segAddrReturn56)]
 
 theorem layout_ok : layoutOk 0 L = true := by decide +kernel
 
@@ -163,5 +166,18 @@ sym_block blk_182 := symRun { noAlias := true } seg_182 (BitVec.ofNat 64 (0x1000
 theorem codeAt_183 : CodeAt image (BitVec.ofNat 64 (0x1000 + 4 * 183)) seg_183 :=
   codeAt_layout code_eq layout_ok (i := 34) (by kernel_rfl) (by decide)
 sym_block blk_183 := symRun { noAlias := true } seg_183 (BitVec.ofNat 64 (0x1000 + 4 * 183)) 100
+
+theorem addrHead56 : CodeAt image ((BitVec.ofNat 64 (0x1000 + 4 * 187))) AddressAdapter.headCode := by unfold CodeAt; decide +kernel
+theorem addrTail56 : CodeAt image ((BitVec.ofNat 64 (0x1000 + 4 * 206))) AddressAdapter.tailCode := by unfold CodeAt; decide +kernel
+theorem addrJump56 : CodeAt image ((BitVec.ofNat 64 (0x1000 + 4 * 56))) [0x20c0006f#32] := by unfold CodeAt; decide +kernel
+theorem addrReturn56 : CodeAt image ((BitVec.ofNat 64 (0x1000 + 4 * 209))) segAddrReturn56 := by unfold CodeAt; decide +kernel
+theorem jumpAddress56 (s : MachineState) (hpc : s.pc = (BitVec.ofNat 64 (0x1000 + 4 * 56))) :
+    Steps image s 1 1 { s with pc := (BitVec.ofNat 64 (0x1000 + 4 * 187)) } := by
+  apply AddressAdapter.jump_step s ((BitVec.ofNat 64 (0x1000 + 4 * 56))) ((BitVec.ofNat 64 (0x1000 + 4 * 187))) (BitVec.ofInt 21 (524)) hpc (by decide +kernel)
+  exact (addrJump56.fetch s hpc).trans (by kernel_rfl)
+theorem returnAddress56 (s : MachineState) (hpc : s.pc = (BitVec.ofNat 64 (0x1000 + 4 * 209))) :
+    Steps image s 1 1 { s with pc := (BitVec.ofNat 64 (0x1000 + 4 * 57)) } := by
+  apply AddressAdapter.jump_step s ((BitVec.ofNat 64 (0x1000 + 4 * 209))) ((BitVec.ofNat 64 (0x1000 + 4 * 57))) (BitVec.ofInt 21 (-608)) hpc (by decide +kernel)
+  exact (addrReturn56.fetch s hpc).trans (by kernel_rfl)
 
 end SigGolfCandidate.Keygen

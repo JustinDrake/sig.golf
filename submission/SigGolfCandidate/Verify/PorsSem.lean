@@ -242,9 +242,10 @@ theorem leaf_brs_iff {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m 
       constructor <;> intro e <;> exact e.symm
     by_cases h14 : s = 14
     · subst h14
-      have hn : Br.holds m ⟨.ne, .bin .srl (xE 14) (cw 14), .c 0, d2⟩ ↔ d2 = decide (¬ leafX P 14 < porsT) := by
-        simp only [Br.holds, E.eval, BinOp.eval, cw, hx]
-        rw [srl14_ne _ hxl]
+      have hn : Br.holds m ⟨.geu, xE 14, cw 0x4000, d2⟩ ↔ d2 = decide (¬ leafX P 14 < porsT) := by
+        simp only [Br.holds, E.eval, cw, hx]
+        rw [geu_iff (leafX P 14) 0x4000 (by omega) (by decide)]
+        change decide (¬ leafX P 14 < porsT) = d2 ↔ _
         constructor <;> intro e <;> exact e.symm
       simp only [if_true, if_false, show (14 : Nat) ≠ 0 by decide, List.cons_append, List.nil_append,
         List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq, hn, hg]
@@ -259,8 +260,8 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
       ∃ u k, k ≤ 11 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (¬ ((s ≠ 0 ∧ ¬ st.prev < leafX P s) ∨ (s = porsK - 1 ∧ ¬ leafX P s < porsT)) →
-      ∃ u, Steps image m (if s = 0 then 10 else if s = 14 then 15 else 11)
-        (if s = 0 then 10 else if s = 14 then 15 else 11) u ∧
+      ∃ u, Steps image m (if s = 0 then 10 else if s = 14 then 14 else 11)
+        (if s = 0 then 10 else if s = 14 then 14 else 11) u ∧
         DispIn P s0 s (leafX P s) s st.ptr (porsT ||| leafX P s) st.folds
           (.leaf (leafX P s) (witSecret P.wl s)) st.node st.stack u) := by
   have hs : s < 15 := h.bnd.1
@@ -410,11 +411,11 @@ theorem even_andNot1' (n : Nat) (h : n % 2 = 0) :
 theorem pend_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0 u tb) (pend : Pending)
     (node : Val) (d : Nat) (h10 : u.getReg .x10 = BitVec.ofNat 64 (pendAddr pend d))
     (h11 : u.getReg .x11 = BitVec.ofNat 64 (64 * (0 + 1))) (hpm : PendMem P node d u pend) :
-    hashInput u = fmt (pendInput P node pend) ∧ (fmt (pendInput P node pend)).blocks = 1 := by
+    hashInput u = addrFmt (pendInput P node pend) ∧ (addrFmt (pendInput P node pend)).blocks = 1 := by
   cases pend with
   | leaf x sec =>
     obtain ⟨m8, m32, m40, hsl, hx⟩ := hpm
-    have hf : fmt (pendInput P node (.leaf x sec)) = queryOfWords 0
+    have hf : addrFmt (pendInput P node (.leaf x sec)) = queryOfWords 0
         [BitVec.ofNat 64 (twLo 9 0 P.idx 0), BitVec.ofNat 64 (twHi P.idx x), 0, 0, vw0 sec, vw1 sec, 0, 0] := by
       simp only [pendInput]
       rw [show porsLeafInput P.idx x sec = thInput (tweak 9 0 P.idx 0 x) sec from rfl,
@@ -430,7 +431,7 @@ theorem pend_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0
     rw [pb.prot (by decide), pb.s0ok.cb0]
   | merge H l =>
     obtain ⟨m8, m32, m40, m48, m56, hl, hn, hH, hd⟩ := hpm
-    have hf : fmt (pendInput P node (.merge H l)) = queryOfWords 0
+    have hf : addrFmt (pendInput P node (.merge H l)) = queryOfWords 0
         [BitVec.ofNat 64 (twLo 10 0 P.idx 0), BitVec.ofNat 64 (twHi P.idx H), 0, 0, vw0 l, vw1 l,
           vw0 node, vw1 node] := by
       simp only [pendInput]
@@ -540,8 +541,8 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (wbyte P.wl ptr % 16 ≤ 14 → (wbyte P.wl ptr % 16 = 0 ∨ segT (wbyte P.wl ptr) = E % 2) →
         ∃ k u, k ≤ 8 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
-        u.getReg .x5 = 0 ∧ hashArgumentsValid u = true ∧ hashInput u = fmt (pendInput P node pend) ∧
-        (fmt (pendInput P node pend)).blocks = 1 ∧
+        u.getReg .x5 = 0 ∧ hashArgumentsValid u = true ∧ hashInput u = addrFmt (pendInput P node pend) ∧
+        (addrFmt (pendInput P node pend)).blocks = 1 ∧
         ∀ ans, (wbyte P.wl ptr % 16 = 0 → TailIn P s0 s x (segV (tsel s) (wbyte P.wl ptr)) 2 (ptr + 8) E folds
             (answerBytes 16 ans) stk (writeHash u ans)) ∧
           (1 ≤ wbyte P.wl ptr % 16 → EntIn P s0 s x (segV (tsel s) (wbyte P.wl ptr)) (segT (wbyte P.wl ptr))
@@ -813,8 +814,8 @@ theorem nb_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0 u
     (m8 : u.getMem (BitVec.ofNat 64 0x1C8) = BitVec.ofNat 64 (twHi P.idx H))
     (l0 : u.getMem (BitVec.ofNat 64 0x1E0) = vw0 l) (l1 : u.getMem (BitVec.ofNat 64 0x1E8) = vw1 l)
     (r0 : u.getMem (BitVec.ofNat 64 0x1F0) = vw0 r) (r1 : u.getMem (BitVec.ofNat 64 0x1F8) = vw1 r) :
-    hashInput u = fmt (porsNodeInput P.idx H l r) ∧ (fmt (porsNodeInput P.idx H l r)).blocks = 1 := by
-  have hf : fmt (porsNodeInput P.idx H l r) = queryOfWords 0
+    hashInput u = addrFmt (porsNodeInput P.idx H l r) ∧ (addrFmt (porsNodeInput P.idx H l r)).blocks = 1 := by
+  have hf : addrFmt (porsNodeInput P.idx H l r) = queryOfWords 0
       [BitVec.ofNat 64 (twLo 10 0 P.idx 0), BitVec.ofNat 64 (twHi P.idx H), 0, 0, vw0 l, vw1 l, vw0 r, vw1 r] := by
     rw [show porsNodeInput P.idx H l r = thInput (tweak 10 0 P.idx 0 H) (l ++ r) from rfl,
       fmt_th _ _ _ _ _ _ (by decide),
@@ -841,8 +842,8 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
     (stk : List (Val × Nat)) (m : MachineState) (h : PosIn P s0 s x V t a i ptr E folds node stk m) :
     ∃ u, Steps image m (if i + 1 = a then 7 else 9) (if i + 1 = a then 7 else 9) u ∧
       fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 0 ∧ hashArgumentsValid u = true ∧
-      hashInput u = fmt (foldInput P E t (wbytes P.wl (ptr + 8 + 16 * i) 16) node) ∧
-      (fmt (foldInput P E t (wbytes P.wl (ptr + 8 + 16 * i) 16) node)).blocks = 1 ∧
+      hashInput u = addrFmt (foldInput P E t (wbytes P.wl (ptr + 8 + 16 * i) 16) node) ∧
+      (addrFmt (foldInput P E t (wbytes P.wl (ptr + 8 + 16 * i) 16) node)).blocks = 1 ∧
       ∀ ans, (i + 1 < a → PosIn P s0 s x V (E / 2 % 2) a (i + 1) ptr (E / 2) folds (answerBytes 16 ans) stk
           (writeHash u ans)) ∧
         (i + 1 = a → TailIn P s0 s x V t (ptr + 8 + 16 * a) (E / 2) (folds + a) (answerBytes 16 ans) stk
@@ -944,7 +945,7 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
   have r10 : u.getReg .x10 = BitVec.ofNat 64 0x1C0 := hK' (.x10, 0x1C0) (by simp [posKnown])
   have r11 : u.getReg .x11 = BitVec.ofNat 64 (64 * (0 + 1)) := hK' (.x11, 64) (by simp [posKnown, gkP])
   have hH : E / 2 < 2 ^ 32 := by omega
-  have hin : hashInput u = fmt (foldInput P E t sib node) ∧ (fmt (foldInput P E t sib node)).blocks = 1 := by
+  have hin : hashInput u = addrFmt (foldInput P E t sib node) ∧ (addrFmt (foldInput P E t sib node)).blocks = 1 := by
     unfold foldInput
     rcases (show t = 0 ∨ t = 1 by omega) with rfl | rfl
     · simp only [if_neg (show ¬ (0 : Nat) = 1 by decide)]

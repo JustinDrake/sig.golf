@@ -202,7 +202,7 @@ theorem steps_good (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (i 
       obtain ⟨u, hu, hn⟩ := end_next c hc hret i hi _ _ ((hpost a).2 rfl)
       exact Good.steps hu (hK _ _ (by simp) hn)
     have h3 := Good.hash (K := fun v => K (acc ++ [v])) hs.2.2.2.2.2.2.2.2.2.2.2.2 h5 hv hin h2
-    rw [blocks_chainInputP _ _ _ _ _ _ _ (length_witPad c hc i hi) hvl (by omega) (by omega) (by omega)] at h3
+    rw [addrFmt_blocks, blocks_chainInputP _ _ _ _ _ _ _ (length_witPad c hc i hi) hvl (by omega) (by omega) (by omega)] at h3
     have := xCost_le i
     exact h3.mono (by omega) (by simp [preCost]; omega)
   | succ k ih =>
@@ -220,7 +220,7 @@ theorem steps_good (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (i 
       exact Good.steps' hu this (by split <;> omega) (by omega)
     have h3 := Good.hash (K := fun v => cc (restFold c i (mu + 1) v) (fun v => K (acc ++ [v])))
       hs.2.2.2.2.2.2.2.2.2.2.2.2 h5 hv hin h2
-    rw [blocks_chainInputP _ _ _ _ _ _ _ (length_witPad c hc i hi) hvl (by omega) (by omega) (by omega)] at h3
+    rw [addrFmt_blocks, blocks_chainInputP _ _ _ _ _ _ _ (length_witPad c hc i hi) hvl (by omega) (by omega) (by omega)] at h3
     refine h3.mono (by omega) ?_
     unfold preCost
     by_cases h6 : mu + 1 = 7
@@ -338,10 +338,10 @@ theorem chainsCost_aux (c : CCtx) : ∀ k i,
 /-- The chain-phase cycles of a layer (at most; each digit-7 chain saves one more cycle). -/
 def chainsBound (lay : Nat) : Nat := 42 * 68 - 9 * targetFor lay + 65
 
-theorem chainsCost_le (c : CCtx) (xs : List Nat) (hlen : xs.length = 42)
-    (hxs : ∀ i < 42, xs.getD i 0 = dig c i) (hsum : xs.sum = targetFor c.lay) :
-    chainsCost c 0 42 ≤ chainsBound c.lay := by
-  have hs : ((List.range' 0 42).map (dig c)).sum = targetFor c.lay := by
+theorem chainsCost_le (lay : Nat) (c : CCtx) (xs : List Nat) (hlen : xs.length = 42)
+    (hxs : ∀ i < 42, xs.getD i 0 = dig c i) (hsum : xs.sum = targetFor lay) :
+    chainsCost c 0 42 ≤ chainsBound lay := by
+  have hs : ((List.range' 0 42).map (dig c)).sum = targetFor lay := by
     rw [← hsum, sum_eq_getD xs, hlen, List.range_eq_range']
     congr 1
     apply List.map_congr_left
@@ -350,7 +350,7 @@ theorem chainsCost_le (c : CCtx) (xs : List Nat) (hlen : xs.length = 42)
   have := chainsCost_aux c 42 0
   rw [hs, show ((List.range' 0 42).map xtra).sum = 65 by decide] at this
   unfold chainsCost chainsBound
-  have hT := targetFor_le c.lay
+  have ht : targetFor lay ≤ 183 := by unfold targetFor targetSum; split_ifs <;> omega
   omega
 
 end SigGolfCandidate.Verify

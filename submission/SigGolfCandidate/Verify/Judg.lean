@@ -76,7 +76,7 @@ theorem cc_bind {α β : Type} (oa : OracleComp HashSpec α) (f : α → OracleC
 
 theorem cc_hash16 (x : List Byte) (K : Val → OracleComp HashSpec Obs) :
     cc (hash16 x) K = (do
-      let a ← (HashSpec.query (fmt x) : OracleComp HashSpec _)
+      let a ← (HashSpec.query (addrFmt x) : OracleComp HashSpec _)
       (fun q => (q.1, 1 + q.2)) <$> K (answerBytes 16 a)) := by
   simp only [hash16, cc_bind]
   simp only [cc, H, countCalls_query, bind_map_left, countCalls_pure, pure_bind,
@@ -87,9 +87,9 @@ theorem cc_hash16 (x : List Byte) (K : Val → OracleComp HashSpec Obs) :
 theorem Good.hash {s : MachineState} {N C : Nat} {x : List Byte}
     {K : Val → OracleComp HashSpec Obs}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
-    (hv : hashArgumentsValid s = true) (hin : hashInput s = fmt x)
+    (hv : hashArgumentsValid s = true) (hin : hashInput s = addrFmt x)
     (h : ∀ a, Good (writeHash s a) N C (K (answerBytes 16 a))) :
-    Good s (N + 1) (C + 8 * (fmt x).blocks) (cc (hash16 x) K) := by
+    Good s (N + 1) (C + 8 * (addrFmt x).blocks) (cc (hash16 x) K) := by
   intro F hF
   have hF' : F = (F - 1) + 1 := by omega
   refine ⟨?_, fun hash => ?_⟩
@@ -98,22 +98,22 @@ theorem Good.hash {s : MachineState} {N C : Nat} {x : List Byte}
     rw [Functor.map_map, ← (h a (F - 1) (by omega)).1, Functor.map_map]
     congr 1
   · rw [hF', evalWith_hash hash (F - 1) hf ht0 hv, hin]
-    obtain ⟨h1, h2⟩ := (h (hash (fmt x)) (F - 1) (by omega)).2 hash
+    obtain ⟨h1, h2⟩ := (h (hash (addrFmt x)) (F - 1) (by omega)).2 hash
     simp only [Execution.charge_exit, Execution.charge_cycles]
     exact ⟨h1, by omega⟩
 
 theorem cc_H (x : List Byte) (K : BitVec 256 → OracleComp HashSpec Obs) :
     cc (H x) K = (do
-      let a ← (HashSpec.query (fmt x) : OracleComp HashSpec _)
+      let a ← (HashSpec.query (addrFmt x) : OracleComp HashSpec _)
       (fun q => (q.1, 1 + q.2)) <$> K a) := by
   simp only [cc, H, countCalls_query, bind_map_left]
 
 theorem Good.hashH {s : MachineState} {N C : Nat} {x : List Byte}
     {K : BitVec 256 → OracleComp HashSpec Obs}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
-    (hv : hashArgumentsValid s = true) (hin : hashInput s = fmt x)
+    (hv : hashArgumentsValid s = true) (hin : hashInput s = addrFmt x)
     (h : ∀ a, Good (writeHash s a) N C (K a)) :
-    Good s (N + 1) (C + 8 * (fmt x).blocks) (cc (H x) K) := by
+    Good s (N + 1) (C + 8 * (addrFmt x).blocks) (cc (H x) K) := by
   intro F hF
   have hF' : F = (F - 1) + 1 := by omega
   refine ⟨?_, fun hash => ?_⟩
@@ -122,7 +122,7 @@ theorem Good.hashH {s : MachineState} {N C : Nat} {x : List Byte}
     rw [Functor.map_map, ← (h a (F - 1) (by omega)).1, Functor.map_map]
     congr 1
   · rw [hF', evalWith_hash hash (F - 1) hf ht0 hv, hin]
-    obtain ⟨h1, h2⟩ := (h (hash (fmt x)) (F - 1) (by omega)).2 hash
+    obtain ⟨h1, h2⟩ := (h (hash (addrFmt x)) (F - 1) (by omega)).2 hash
     simp only [Execution.charge_exit, Execution.charge_cycles]
     exact ⟨h1, by omega⟩
 
@@ -148,7 +148,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 /-- HASH on a zero-padded (non-chain) input. -/
 theorem Good.hashP {s : MachineState} {N C : Nat} {x : List Byte}
-    {K : Val → OracleComp HashSpec Obs} (hx : fmt x = pad64 x)
+    {K : Val → OracleComp HashSpec Obs} (hx : addrFmt x = pad64 x)
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
     (hv : hashArgumentsValid s = true) (hin : hashInput s = pad64 x)
     (h : ∀ a, Good (writeHash s a) N C (K (answerBytes 16 a))) :
@@ -157,7 +157,7 @@ theorem Good.hashP {s : MachineState} {N C : Nat} {x : List Byte}
   rwa [hx] at this
 
 theorem Good.hashHP {s : MachineState} {N C : Nat} {x : List Byte}
-    {K : BitVec 256 → OracleComp HashSpec Obs} (hx : fmt x = pad64 x)
+    {K : BitVec 256 → OracleComp HashSpec Obs} (hx : addrFmt x = pad64 x)
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
     (hv : hashArgumentsValid s = true) (hin : hashInput s = pad64 x)
     (h : ∀ a, Good (writeHash s a) N C (K a)) :
@@ -165,11 +165,18 @@ theorem Good.hashHP {s : MachineState} {N C : Nat} {x : List Byte}
   have := Good.hashH hf ht0 hv (hin.trans hx.symm) h
   rwa [hx] at this
 
-/-- Zero-padded `thInput` for the tags that `fmt` leaves alone (not 1, 3, 12). -/
+/-- Zero-padded `thInput` for the tags that `addrFmt` leaves alone (not 1, 3, 12). -/
 theorem fmt_th (t lay tau p j : Nat) (payload : List Byte)
     (ht : byte t ∉ [byte 1, byte 3, byte 12]) :
-    fmt (thInput (tweak t lay tau p j) payload) = pad64 (thInput (tweak t lay tau p j) payload) :=
-  fmt_thInput t lay tau p j payload ht
+    addrFmt (thInput (tweak t lay tau p j) payload) = pad64 (thInput (tweak t lay tau p j) payload) :=
+  by
+    have h1 : t % 256 ≠ 1 := by
+      intro he
+      apply ht
+      have hb : byte t = byte 1 := by apply BitVec.eq_of_toNat_eq; simp [byte_toNat, he]
+      rw [hb]; exact List.mem_cons_self
+    rw [addrFmt_eq_th _ _ _ _ _ _ h1]
+    exact fmt_thInput t lay tau p j payload ht
 
 end SigGolfCandidate.Verify
 
@@ -236,9 +243,9 @@ theorem GoodQ.steps' {s t : MachineState} {k c N C A N' C' A' : Nat} {Q Q' : Pro
 theorem GoodQ.hash {s : MachineState} {N C A : Nat} {Q : Prop} {x : List Byte}
     {K : Val → OracleComp HashSpec Obs}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
-    (hv : hashArgumentsValid s = true) (hin : hashInput s = fmt x)
+    (hv : hashArgumentsValid s = true) (hin : hashInput s = addrFmt x)
     (h : ∀ a, GoodQ (writeHash s a) N C Q A (K (answerBytes 16 a))) :
-    GoodQ s (N + 1) (C + 8 * (fmt x).blocks) Q (A + 8 * (fmt x).blocks) (cc (hash16 x) K) := by
+    GoodQ s (N + 1) (C + 8 * (addrFmt x).blocks) Q (A + 8 * (addrFmt x).blocks) (cc (hash16 x) K) := by
   intro F hF
   have hF' : F = (F - 1) + 1 := by omega
   refine ⟨?_, fun hash => ?_⟩
@@ -247,7 +254,7 @@ theorem GoodQ.hash {s : MachineState} {N C A : Nat} {Q : Prop} {x : List Byte}
     rw [Functor.map_map, ← (h a (F - 1) (by omega)).1, Functor.map_map]
     congr 1
   · rw [hF', evalWith_hash hash (F - 1) hf ht0 hv, hin]
-    obtain ⟨h1, h2, h3⟩ := (h (hash (fmt x)) (F - 1) (by omega)).2 hash
+    obtain ⟨h1, h2, h3⟩ := (h (hash (addrFmt x)) (F - 1) (by omega)).2 hash
     simp only [Execution.charge_exit, Execution.charge_cycles]
     refine ⟨h1, by omega, fun hs => ?_⟩
     obtain ⟨hq, ha⟩ := h3 hs
@@ -256,9 +263,9 @@ theorem GoodQ.hash {s : MachineState} {N C A : Nat} {Q : Prop} {x : List Byte}
 theorem GoodQ.hashH {s : MachineState} {N C A : Nat} {Q : Prop} {x : List Byte}
     {K : BitVec 256 → OracleComp HashSpec Obs}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
-    (hv : hashArgumentsValid s = true) (hin : hashInput s = fmt x)
+    (hv : hashArgumentsValid s = true) (hin : hashInput s = addrFmt x)
     (h : ∀ a, GoodQ (writeHash s a) N C Q A (K a)) :
-    GoodQ s (N + 1) (C + 8 * (fmt x).blocks) Q (A + 8 * (fmt x).blocks) (cc (H x) K) := by
+    GoodQ s (N + 1) (C + 8 * (addrFmt x).blocks) Q (A + 8 * (addrFmt x).blocks) (cc (H x) K) := by
   intro F hF
   have hF' : F = (F - 1) + 1 := by omega
   refine ⟨?_, fun hash => ?_⟩
@@ -267,7 +274,7 @@ theorem GoodQ.hashH {s : MachineState} {N C A : Nat} {Q : Prop} {x : List Byte}
     rw [Functor.map_map, ← (h a (F - 1) (by omega)).1, Functor.map_map]
     congr 1
   · rw [hF', evalWith_hash hash (F - 1) hf ht0 hv, hin]
-    obtain ⟨h1, h2, h3⟩ := (h (hash (fmt x)) (F - 1) (by omega)).2 hash
+    obtain ⟨h1, h2, h3⟩ := (h (hash (addrFmt x)) (F - 1) (by omega)).2 hash
     simp only [Execution.charge_exit, Execution.charge_cycles]
     refine ⟨h1, by omega, fun hs => ?_⟩
     obtain ⟨hq, ha⟩ := h3 hs

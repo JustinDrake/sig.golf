@@ -171,7 +171,7 @@ theorem nodeLoop_sim {image : Image} {L : Nat} (hA : CodeAt image (pcOf L) nodeS
     (h17 : s.getReg .x17 = BitVec.ofNat 64 c.m) (h19 : s.getReg .x19 = BitVec.ofNat 64 c.B)
     (h5 : s.getReg .x5 = 0) (hm32 : 2 * c.m < 2 ^ 32)
     (hfmt : ∀ j l r, j < c.m → l.length = 16 → r.length = 16 →
-      fmt (nodeFmt c.tt c.lay c.tau c.lam j l r) = pad64 (nodeFmt c.tt c.lay c.tau 0 (c.m + j) l r))
+      addrFmt (nodeFmt c.tt c.lay c.tau c.lam j l r) = pad64 (nodeFmt c.tt c.lay c.tau 0 (c.m + j) l r))
     (hw0 : s.getMem (BitVec.ofNat 64 448) = twWord0 c.tt c.lay c.tau 0)
     (hw1 : lo32 (s.getMem (BitVec.ofNat 64 456)) = BitVec.ofNat 32 c.tau)
     (hz0 : s.getMem (BitVec.ofNat 64 464) = 0) (hz1 : s.getMem (BitVec.ofNat 64 472) = 0)
@@ -272,7 +272,7 @@ theorem nodeLoop_sim {image : Image} {L : Nat} (hA : CodeAt image (pcOf L) nodeS
             if_true, lo32_replace1]
           exact tframe.2))
     refine this.mono ?_ (fun _ _ h => h)
-    rw [hfmt j _ _ hj hl hr, nodeFmt, pad64_blocks_one _ (words_th32 c.tt c.lay c.tau 0 (c.m + j) _ _ hl hr).1]
+    rw [← addrFmt_blocks, hfmt j _ _ hj hl hr, nodeFmt, pad64_blocks_one _ (words_th32 c.tt c.lay c.tau 0 (c.m + j) _ _ hl hr).1]
   · refine ⟨Nat.zero_le _, rfl, by simp, by simp, fun i hi _ => hslots i hi, by simp [hpc, hm],
       by simpa using h16, fun r _ _ _ _ _ _ _ => rfl, fun a _ _ _ _ _ _ _ => rfl, rfl⟩
 

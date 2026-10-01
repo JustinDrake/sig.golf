@@ -61,14 +61,14 @@ def swarW (a b m1 m2 : Word) : Word :=
 
 /-- The SWAR sum, layer-target thunk, and existing equality branch. -/
 def swarState (t : MachineState) : MachineState :=
-  blk375.res.toState (blk2887.res.toState (blk355.res.toState t))
+  blk375.res.toState (blk2933.res.toState (blk355.res.toState t))
 
 theorem swarState_pc_raw (t : MachineState) : (swarState t).pc =
     if (swarW (t.getReg .x1) (t.getReg .x2) (t.getReg .x26) (t.getReg .x27) +
         BitVec.ofNat 64 (2 ^ 64 - 183) +
         (if (t.getReg .x8).ult 3 then (1 : Word) else 0) +
         (if (t.getReg .x8).ult 4 then (1 : Word) else 0) != 0#64) = true then pcOf 377 else pcOf 376 := by
-  simp only [swarState, blk375.res, blk2887.res, blk355.res, rv_simp,
+  simp only [swarState, blk375.res, blk2933.res, blk355.res, rv_simp,
     swarW, swF, swS1, BitVec.sub_eq_add_neg]
   rfl
 
@@ -195,13 +195,13 @@ structure EncCode (img : Image) : Prop where
   c351 : CodeAt img (pcOf 351) seg351
   c355 : CodeAt img (pcOf 355) seg355
   c375 : CodeAt img (pcOf 375) seg375
-  c2887 : CodeAt img (pcOf 2887) seg2887
+  c2933 : CodeAt img (pcOf 2933) seg2933
   c376 : CodeAt img (pcOf 376) seg376
   c377 : CodeAt img (pcOf 377) seg377
   c379 : CodeAt img (pcOf 379) seg379
 
 /-- The sign image's counter-search code. -/
-theorem encCode : EncCode image := ⟨codeAt_346, codeAt_351, codeAt_355, codeAt_375, codeAt_2887, codeAt_376, codeAt_377, codeAt_379⟩
+theorem encCode : EncCode image := ⟨codeAt_346, codeAt_351, codeAt_355, codeAt_375, codeAt_2933, codeAt_376, codeAt_377, codeAt_379⟩
 
 theorem searchCounter_succ (lay tau e : Nat) (M : Val) (c f : Nat) :
     searchCounter lay tau e M c (f + 1) = (hash16 (encInput lay tau e M c) >>= fun d =>
@@ -269,7 +269,7 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
     congrArg (· + 1) (words_encInput lay tau e M hmem.hM c).1
   refine (Sim.steps hs1 (Sim.hash16_bind (W := 32 + Wr) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) hq (fmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]; omega) (fun _ _ h => h)
+      (by norm_num)) hq (addrFmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]; omega) (fun _ _ h => h)
   set t2 := writeHash t1 a with ht2
   have f2 : Frame t1 t2 (fun x => 0x140 ≤ x ∧ x < 0x140 + 32) := frame_writeHash t1 a _ x12 (by norm_num)
   have pc2 : t2.pc = pcOf 351 := by rw [ht2, writeHash_pc, pc1]; apply BitVec.eq_of_toNat_eq; simp
@@ -322,18 +322,18 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
   rw [if_pos ⟨h0, h1⟩]
   have hs50 := symRun_sound blk355 hcode.c355 t3 (by rw [pc3, if_neg (by omega)])
     (by simp only [blk355.res, rv_simp])
-  have hs51 := symRun_sound blk2887 hcode.c2887 (blk355.res.toState t3)
-    (by simp only [blk355.res, rv_simp]) (by simp only [blk2887.res, rv_simp])
-  have hs52 := symRun_sound blk375 hcode.c375 (blk2887.res.toState (blk355.res.toState t3))
-    (by simp only [blk2887.res, rv_simp]) (by simp only [blk375.res, rv_simp])
+  have hs51 := symRun_sound blk2933 hcode.c2933 (blk355.res.toState t3)
+    (by simp only [blk355.res, rv_simp]) (by simp only [blk2933.res, rv_simp])
+  have hs52 := symRun_sound blk375 hcode.c375 (blk2933.res.toState (blk355.res.toState t3))
+    (by simp only [blk2933.res, rv_simp]) (by simp only [blk375.res, rv_simp])
   have hs5 : Steps img t3 27 27 (swarState t3) := hs50.trans (hs51.trans hs52)
   set t5 := swarState t3 with ht5
   have f50 : Frame t3 (blk355.res.toState t3) (fun _ => False) := by
     apply frame_toState; intro x hx hW; simp [blk355.res]
   have f51 : Frame (blk355.res.toState t3)
-      (blk2887.res.toState (blk355.res.toState t3)) (fun _ => False) := by
-    apply frame_toState; intro x hx hW; simp [blk2887.res]
-  have f52 : Frame (blk2887.res.toState (blk355.res.toState t3)) t5 (fun _ => False) := by
+      (blk2933.res.toState (blk355.res.toState t3)) (fun _ => False) := by
+    apply frame_toState; intro x hx hW; simp [blk2933.res]
+  have f52 : Frame (blk2933.res.toState (blk355.res.toState t3)) t5 (fun _ => False) := by
     apply frame_toState; intro x hx hW; simp [blk375.res]
   have f5 : Frame t3 t5 (fun _ => False) :=
     ((f50.trans f51).trans f52).mono (by tauto)

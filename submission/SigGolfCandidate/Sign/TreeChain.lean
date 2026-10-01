@@ -90,7 +90,7 @@ theorem chain_rest (p : LeafPar) (tl : MachineState) (i xi : Nat) (hi : i < 42) 
     (tregs : RegsEq tl ts chainRegs) (tframe : Frame tl ts (chainW p))
     (tlo1 : lo32 (ts.getMem (BitVec.ofNat 64 0x6A0)) = lo32 (tl.getMem (BitVec.ofNat 64 0x6A0)))
     (tlo2 : lo32 (ts.getMem (BitVec.ofNat 64 0xC0)) = lo32 (tl.getMem (BitVec.ofNat 64 0xC0))) :
-    Sim image ts (7 * 29 + 9) ((List.range' 1 7).foldlM (fun (st : Val × Val) mu => do
+    Sim image ts (7 * 55 + 9) ((List.range' 1 7).foldlM (fun (st : Val × Val) mu => do
         let v ← hash16 (chainInput p.lay p.tau p.ep i mu st.1)
         pure (v, if mu = xi then v else st.2)) (v0, v0) >>= fun q =>
           pure (st.1 ++ [q.1], st.2 ++ [q.2]))
@@ -189,7 +189,7 @@ theorem chain_B (x : List Nat) (p : LeafPar) (S : List Byte)
     (tregs : RegsEq tl t chainRegs) (tframe : Frame tl t (chainW p))
     (tlo1 : lo32 (t.getMem (BitVec.ofNat 64 0x6A0)) = lo32 (tl.getMem (BitVec.ofNat 64 0x6A0)))
     (tlo2 : lo32 (t.getMem (BitVec.ofNat 64 0xC0)) = lo32 (tl.getMem (BitVec.ofNat 64 0xC0))) :
-    Sim image t (12 + (1 + (6 + (7 * 29 + 9))))
+    Sim image t (12 + (1 + (6 + (7 * 55 + 9))))
       (chainSteps p.lay p.tau p.ep i (x.getD i 0) s >>= fun q => pure (st.1 ++ [q.1], st.2 ++ [q.2]))
       (fun r t' => ChainInv p tl (i + 1) r t' ∧ t'.getReg .x11 = BitVec.ofNat 64 64 ∧ SecPres t t') := by
   have hsig := ctx.hsigl
@@ -246,7 +246,7 @@ theorem chain_B (x : List Nat) (p : LeafPar) (S : List Byte)
       Frame t3 ts (fun x => p.ep = p.e ∧ (x = p.sigl + 8 + 16 * i ∨ x = p.sigl + 16 + 16 * i)) →
       (p.ep = p.e → x.getD i 0 ≤ 0 →
         ts.readWords (BitVec.ofNat 64 (p.sigl + 8 + 16 * i)) 2 = wordsOf s) →
-      Sim image ts (7 * 29 + 9)
+      Sim image ts (7 * 55 + 9)
         (chainSteps p.lay p.tau p.ep i (x.getD i 0) s >>= fun q => pure (st.1 ++ [q.1], st.2 ++ [q.2]))
         (fun r t' => ChainInv p tl (i + 1) r t' ∧ t'.getReg .x11 = BitVec.ofNat 64 64 ∧ SecPres t t') := by
     intro ts tspc tsr tsf tscap
@@ -321,7 +321,7 @@ theorem chain_B (x : List Nat) (p : LeafPar) (S : List Byte)
 theorem chain_pair (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : LeafPar)
     (tl : MachineState) (ctx : ChainCtx S x p tl) (k : Nat) (hk : k < 21)
     (st : List Val × List Val) (t : MachineState) (hinv : ChainInv p tl (2 * k) st t) :
-    Sim image t 480
+    Sim image t 844
       (do
         let (s0, s1) ← prf2 (prfInput S p.lay p.tau p.ep k)
         let (v0, c0) ← chainSteps p.lay p.tau p.ep (2 * k) (x.getD (2 * k) 0) s0
@@ -394,9 +394,9 @@ theorem chain_pair (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : Leaf
     congr 1; omega
   have hb : (pad64 (prfInput S p.lay p.tau p.ep k)).blocks = 1 := by
     simp [pad64, Query.blocks, (words_prfInput S hS p.lay p.tau p.ep k).1]
-  refine (Sim.steps hs0 (Sim.steps hs2 (Sim.query_bind (W := 231 + (2 + 231)) e2 x5
+  refine (Sim.steps hs0 (Sim.steps hs2 (Sim.query_bind (W := 413 + (2 + 413)) e2 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) (hq.trans (fmt_thInput _ _ _ _ _ _ (by decide)).symm) (fun a => ?_)))).mono
+      (by norm_num)) (hq.trans (addrFmt_thInput _ _ _ _ _ _ (by decide)).symm) (fun a => ?_)))).mono
     (by rw [show prfInput S p.lay p.tau p.ep k = thInput (tweak 0 p.lay p.tau k p.ep) S from rfl] at *; rw [blocks_fmt_th _ _ _ _ _ _ (by decide)]
         rw [hb]; norm_num)
     (fun _ _ h => h)
@@ -453,13 +453,13 @@ theorem chain_pair (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : Leaf
 theorem chains_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : LeafPar)
     (tl : MachineState) (ctx : ChainCtx S x p tl) (hpc : tl.pc = pcOf 529)
     (h21 : tl.getReg .x21 = BitVec.ofNat 64 0) (h24 : tl.getReg .x24 = BitVec.ofNat 64 0) :
-    Sim image tl (21 * 480) ((List.range (nChains / 2)).foldlM (fun (st : List Val × List Val) k => do
+    Sim image tl (21 * 844) ((List.range (nChains / 2)).foldlM (fun (st : List Val × List Val) k => do
         let (s0, s1) ← prf2 (prfInput S p.lay p.tau p.ep k)
         let (v0, c0) ← chainSteps p.lay p.tau p.ep (2 * k) (x.getD (2 * k) 0) s0
         let (v1, c1) ← chainSteps p.lay p.tau p.ep (2 * k + 1) (x.getD (2 * k + 1) 0) s1
         pure (st.1 ++ [v0, v1], st.2 ++ [c0, c1])) ([], [])) (ChainInv p tl 42) := by
   unfold nChains
-  exact Sim.foldlM_range 21 _ ([], []) (fun k => ChainInv p tl (2 * k)) 480
+  exact Sim.foldlM_range 21 _ ([], []) (fun k => ChainInv p tl (2 * k)) 844
     (fun k hk st t h => by rw [show 2 * (k + 1) = 2 * k + 2 by ring]; exact chain_pair S hS x p tl ctx k hk st t h)
     ⟨by norm_num, rfl, rfl, by simp, by simp, Slots.nil _ _, fun _ => Slots.nil _ _,
       by simpa using hpc, h21, by simpa using h24, RegsEq.refl _ _, Frame.refl _ _, rfl, rfl⟩

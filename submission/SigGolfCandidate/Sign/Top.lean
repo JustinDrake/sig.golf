@@ -163,7 +163,7 @@ def TStepInv (S : List Byte) (x : List Nat) (tau e i : Nat) (ts : MachineState) 
 theorem tstep_body (S : List Byte) (x : List Nat) (tau e i : Nat) (hi : i < 42) (ts : MachineState)
     (hm : TopMem S x tau e ts) (j : Nat) (hj : j < x.getD i 0) (v : Val) (t : MachineState)
     (hinv : TStepInv S x tau e i ts j v t) :
-    Sim image t 18 (hash16 (chainInput 0 tau e i (1 + j) v)) (TStepInv S x tau e i ts (j + 1)) := by
+    Sim image t 44 (hash16 (chainInput 0 tau e i (1 + j) v)) (TStepInv S x tau e i ts (j + 1)) := by
   obtain ⟨-, hvl, tpc, tv, t23, t24, t25, t11, t12, tregs, tframe, tlo⟩ := hinv
   have htau := hm.htau
   have he := hm.he
@@ -194,7 +194,6 @@ theorem tstep_body (S : List Byte) (x : List Nat) (tau e i : Nat) (hi : i < 42) 
   have r1 : RegsEq t0 t1 [.x3, .x10, .x29] := by
     intro r hr; rw [ht1, Result.toState_getReg]
     cases r <;> first | exact absurd (by decide) hr | rfl
-  have e1 := symRun_ecall blk666 codeAt_666 t0 (by simp only [blk666.res, rv_simp]) rfl
   have x10 : t1.getReg .x10 = BitVec.ofNat 64 0xC0 := by simp only [ht1, blk666.res, rv_simp]
   have x11 : t1.getReg .x11 = BitVec.ofNat 64 64 := by rw [r1.get .x11, r0.get .x11, t11]
   have x12 : t1.getReg .x12 = BitVec.ofNat 64 0xF0 := by rw [r1.get .x12, r0.get .x12, t12]
@@ -226,9 +225,18 @@ theorem tstep_body (S : List Byte) (x : List Nat) (tau e i : Nat) (hi : i < 42) 
   have hstep : hash16 (chainInput 0 tau e i (1 + j) v) =
       hash16 (chainInput 0 tau e i (1 + j) v) >>= fun w => pure w := by rw [bind_pure]
   rw [hstep]
-  refine (Sim.steps hs0 (Sim.steps hs1 (Sim.hash16_bindF (W := 3) e1 x5
-    (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) hq (fun a => ?_)))).mono (by rw [hb]) (fun _ _ h => h)
+  have x3 : t1.getReg .x3 = BitVec.ofNat 64 (j + 256 * i) := by
+    simp only [ht1, blk666.res, rv_simp, r0.get .x24, t24, splitP_word i j (by omega) (by omega)]
+  have x29 : t1.getReg .x29 = BitVec.ofNat 64 j := by
+    simp only [ht1, blk666.res, rv_simp, r0.get .x24, t24, splitP_low i j hi (by omega)]
+  have aq := address_query t1 (pcOf 2910) (pcOf 2929) (pcOf 2932)
+    addrHead672 addrTail672 (jumpAddress672 t1 pc1)
+    (fun w hp => by simpa only [pc1, show pcOf 672 + 4 = pcOf 673 from rfl] using returnAddress672 w hp)
+    (by rfl) (by rfl) 192 0 i j (by norm_num) hi (by omega)
+    (by norm_num) (by norm_num) x10 x11 x12 x3 x29 x5
+    (mC0.trans (twWord0_address _ _ _ _ (by norm_num) (by omega) hi (by omega))) _ hq hb
+  refine (Sim.steps hs0 (Sim.steps hs1 (address_hash16_bindF (W := 3) aq
+    (fun a => ?_)))).mono (by norm_num) (fun _ _ h => h)
   set w := answerBytes 16 a with hw
   have hwl : w.length = 16 := by simp [hw]
   set t2 := writeHash t1 a with ht2
@@ -284,7 +292,7 @@ theorem tchain_B (S : List Byte) (x : List Nat) (tau e : Nat) (tm : MachineState
     (tpc : t.pc = pcOf 654) (t21 : t.getReg .x21 = BitVec.ofNat 64 i) (t11 : t.getReg .x11 = BitVec.ofNat 64 64)
     (tsec : t.readWords (BitVec.ofNat 64 (0x140 + 16 * (i % 2))) 2 = wordsOf s)
     (hm : TopMem S x tau e t) (tregs : RegsEq tm t topRegs) (tframe : Frame tm t tchainW) :
-    Sim image t 150 (chainTo 0 tau e i (x.getD i 0) s >>= fun v => pure (acc ++ [v]))
+    Sim image t 332 (chainTo 0 tau e i (x.getD i 0) s >>= fun v => pure (acc ++ [v]))
       (fun r t' => TChainInv S x tau e tm (i + 1) r t' ∧ t'.getReg .x11 = BitVec.ofNat 64 64 ∧ TSec t t') := by
   have htau := hm.htau
   have he := hm.he
@@ -328,10 +336,10 @@ theorem tchain_B (S : List Byte) (x : List Nat) (tau e : Nat) (tm : MachineState
     · rw [r3.get .x11, t11]
     · simp only [ht3, blk654.res, rv_simp]
   have hsteps := Sim.foldlM_range' 1 (x.getD i 0) (fun v mu => hash16 (chainInput 0 tau e i mu v)) s
-    (TStepInv S x tau e i t3) 18 (fun j hj v t h => tstep_body S x tau e i hi t3 hm3 j hj v t h) h0
+    (TStepInv S x tau e i t3) 44 (fun j hj v t h => tstep_body S x tau e i hi t3 hm3 j hj v t h) h0
   unfold chainTo
   refine (Sim.steps hs3 (Sim.bind (W₂ := 10) hsteps (fun v t4 h4 => ?_))).mono
-    (by have := Nat.mul_le_mul_right 18 (show x.getD i 0 ≤ 7 by omega); omega) (fun _ _ h => h)
+    (by have := Nat.mul_le_mul_right 44 (show x.getD i 0 ≤ 7 by omega); omega) (fun _ _ h => h)
   obtain ⟨-, hvl, pc4, v4, x423, x424, x425, x411, x412, r4, f4, lo4⟩ := h4
   -- block 617: exit
   have hs5 := symRun_sound blk665 codeAt_665 t4 pc4 (by simp only [blk665.res, rv_simp])
@@ -410,7 +418,7 @@ theorem top_pair_spec (S : List Byte) (tau e k : Nat) (x : List Nat) (acc : List
 
 theorem tchain_pair (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau e : Nat) (tm : MachineState)
     (k : Nat) (hk : k < 21) (acc : List Val) (t : MachineState) (hinv : TChainInv S x tau e tm (2 * k) acc t) :
-    Sim image t 320 (do
+    Sim image t 684 (do
         let (s0, s1) ← prf2 (prfInput S 0 tau e k)
         let v0 ← chainTo 0 tau e (2 * k) (x.getD (2 * k) 0) s0
         let v1 ← chainTo 0 tau e (2 * k + 1) (x.getD (2 * k + 1) 0) s1
@@ -473,9 +481,9 @@ theorem tchain_pair (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau e :
     congr 1; omega
   have hb : (pad64 (prfInput S 0 tau e k)).blocks = 1 := by
     simp [pad64, Query.blocks, (words_prfInput S hS 0 tau e k).1]
-  refine (Sim.steps hs0 (Sim.steps hs2 (Sim.query_bind (W := 150 + (2 + 150)) e2 x5
+  refine (Sim.steps hs0 (Sim.steps hs2 (Sim.query_bind (W := 332 + (2 + 332)) e2 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) (hq.trans (fmt_thInput _ _ _ _ _ _ (by decide)).symm) (fun a => ?_)))).mono
+      (by norm_num)) (hq.trans (addrFmt_thInput _ _ _ _ _ _ (by decide)).symm) (fun a => ?_)))).mono
     (by rw [show prfInput S 0 tau e k = thInput (tweak 0 0 tau k e) S from rfl] at *; rw [blocks_fmt_th _ _ _ _ _ _ (by decide)]
         rw [hb]; norm_num)
     (fun _ _ h => h)
@@ -529,13 +537,13 @@ theorem tchain_pair (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau e :
 /-- **Top chains** `i = 0 .. 41` (pairs `k = 0 .. 20`, up to `x_i`). -/
 theorem topChains_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau e : Nat) (tm : MachineState)
     (h0 : TChainInv S x tau e tm 0 [] tm) :
-    Sim image tm (21 * 320) ((List.range (nChains / 2)).foldlM (fun (acc : List Val) k => do
+    Sim image tm (21 * 684) ((List.range (nChains / 2)).foldlM (fun (acc : List Val) k => do
         let (s0, s1) ← prf2 (prfInput S 0 tau e k)
         let v0 ← chainTo 0 tau e (2 * k) (x.getD (2 * k) 0) s0
         let v1 ← chainTo 0 tau e (2 * k + 1) (x.getD (2 * k + 1) 0) s1
         pure (acc ++ [v0, v1])) []) (TChainInv S x tau e tm 42) := by
   unfold nChains
-  exact Sim.foldlM_range 21 _ [] (fun k => TChainInv S x tau e tm (2 * k)) 320
+  exact Sim.foldlM_range 21 _ [] (fun k => TChainInv S x tau e tm (2 * k)) 684
     (fun k hk acc t h => by
       rw [show 2 * (k + 1) = 2 * k + 2 by ring]; exact tchain_pair S hS x tau e tm k hk acc t h) h0
 
@@ -684,7 +692,7 @@ theorem tpath_body (S cache : List Byte) (hS : S.length = 32) (e : Nat) (tp : Ma
   have htn := topN_add_lt l sb hl hsbl
   refine (Sim.steps hs1 (Sim.hash16_bind (W := 17) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) hq (fmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
+      (by norm_num)) hq (addrFmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
   set mk := answerBytes 16 a with hmk
   set t2 := writeHash t1 a with ht2
   have f2 : Frame t1 t2 (fun x => 0x140 ≤ x ∧ x < 0x140 + 32) := frame_writeHash t1 a _ x12 (by norm_num)
@@ -789,7 +797,7 @@ theorem topSibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau 
     (t : MachineState) (hm : TopMem S x tau e t) (hpc : t.pc = pcOf 685)
     (h8 : t.getReg .x8 = 0) (h13 : t.getReg .x13 = BitVec.ofNat 64 e)
     (hlbP : t.readWords (BitVec.ofNat 64 0x350) 2 = [0, 0]) :
-    Sim image t (17 + (21 * 480 + (4 + (88 + 9))))
+    Sim image t (17 + (21 * 844 + (4 + (88 + 9))))
       (Prod.fst <$> buildLeaf S 0 0 (e ^^^ 1) x) (TopSiblingPost t) := by
   let ep := e ^^^ 1
   have hep : ep < 2048 := Nat.xor_lt_two_pow (show e < 2 ^ 11 from hm.he) (by decide : 1 < 2 ^ 11)
@@ -874,7 +882,7 @@ def TopPost (t0 : MachineState) (r : List Val × List Val) (t : MachineState) : 
 /-- **The top layer** (chains up to `x_i`, path from the cache). -/
 theorem top_sim (S cache : List Byte) (hS : S.length = 32) (x : List Nat) (tau e : Nat) (t : MachineState)
     (hc : TopCtx S cache x tau e t) (tpc : t.pc = pcOf 637) :
-    Sim image t (9 + (21 * 320 + ((17 + (21 * 480 + (4 + (88 + 9)))) + 10 * 36)))
+    Sim image t (9 + (21 * 684 + ((17 + (21 * 844 + (4 + (88 + 9)))) + 10 * 36)))
       ((List.range (nChains / 2)).foldlM (fun (acc : List Val) k => do
         let (s0, s1) ← prf2 (prfInput S 0 tau e k)
         let v0 ← chainTo 0 tau e (2 * k) (x.getD (2 * k) 0) s0

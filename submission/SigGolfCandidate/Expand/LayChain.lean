@@ -1,4 +1,5 @@
 import SigGolfCandidate.Expand.LayBlk2
+import SigGolfCandidate.Sign.AddressHash
 
 /-!
 # `expand`, phase 2: a layer's chains and OTS leaf (`Ref.verifyLeaf`, instructions 408 .. 441)
@@ -97,12 +98,12 @@ theorem step_body (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e i x 
     (u20 : u.getReg .x20 = BitVec.ofNat 64 (257 + 65536 * lay + 2 ^ 40 * i))
     (u148 : u.getMem (BitVec.ofNat 64 0x30148) = BitVec.ofNat 64 (tau + 2 ^ 32 * e)) :
     ∀ j < 7 - x, ∀ (v : Val) (t : MachineState), StepInv w idx u x j v t →
-      Sim eimg t 19 ((fun v mu => hash16 (chainInput lay tau e i mu v)) v (x + 1 + j))
+      Sim eimg t 44 ((fun v mu => hash16 (chainInput lay tau e i mu v)) v (x + 1 + j))
         (StepInv w idx u x (j + 1)) := by
   intro j hj v t ⟨tpc, tc, t28, hxj, hv, tv, tregs, tframe⟩
   obtain ⟨t1, hs1, p1, r1, m1⟩ := blk417_run t tpc (x + j) (by omega) t28
   rw [if_neg (by omega)] at p1
-  obtain ⟨t2, hs2, e2, p2, x10, x11, x12, m140, r2, f2⟩ := blk419_run t1 p1 (x + j)
+  obtain ⟨t2, hs2, p2, x10, x11, x12, m140, r2, f2, x14⟩ := blk419_run t1 p1 (x + j)
     (257 + 65536 * lay + 2 ^ 40 * i) (by omega) (by omega) (by rw [r1.get .x28, t28])
     (by rw [r1.get .x20, tregs.get .x20, u20]) (by rw [r1.get .x25, tc.x25])
   have c2 : LCtx w idx t2 := (tc.frame_nil m1 r1).frame f2 r2 (fun a h1 h2 => by unfold lctxA witA at h1; omega)
@@ -119,9 +120,21 @@ theorem step_body (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e i x 
       f12.getMem (by norm_num) (by norm_num), tframe.getMem (by norm_num) (by omega), u148]
     simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true]
     exact ofNat_congr (by ring)
-  refine (Sim.steps hs1 (Sim.steps hs2 (Sim.of_eq (Sim.hash16_bindF (f := pure) (W := 2) e2 c2.x5
-    (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) hq (fun ans => ?_)) (bind_pure _)))).mono (by rw [blocks_fmt_chainInput _ _ _ _ _ _ hv (by omega) (by omega) (by omega)]; omega)
+  have hw : t2.getMem (BitVec.ofNat 64 0x30140) =
+      BitVec.ofNat 64 (AddressFormat.oldHeader lay 0 i (x + j)) := by
+    rw [m140]
+    unfold AddressFormat.oldHeader
+    congr 1
+    norm_num
+    omega
+  have aq := expand_address_query t2 (pcOf 804) (pcOf 824) (pcOf 825)
+    Expand.addrHead425 Expand.addrTail425 (Expand.jumpAddress425 t2 p2)
+    (fun z hp => by simpa only [p2, show pcOf 425 + 4 = pcOf 426 from rfl] using Expand.returnAddress425 z hp)
+    (by rfl) (by rfl) 0x30140 lay i (x + j) (by omega) hi (by omega)
+    (by norm_num) (by norm_num) x10 x11 x12 (x14.trans (m140.symm.trans hw)) c2.x5 hw _ hq
+    (blocks_fmt_chainInput _ _ _ _ _ _ hv (by omega) (by omega) (by omega))
+  refine (Sim.steps hs1 (Sim.steps hs2 (Sim.of_eq (expand_address_hash16_bindF
+    (f := pure) (W := 2) aq (fun ans => ?_)) (bind_pure _)))).mono (by norm_num)
     (fun _ _ h => h)
   set t3 := writeHash t2 ans with ht3
   have p3 : t3.pc = pcOf 426 := by rw [ht3, writeHash_pc, p2]; rfl
@@ -187,7 +200,7 @@ theorem chain_body (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e d0 
     (u2 : u.getReg .x2 = BitVec.ofNat 64 d1) (u21 : u.getReg .x21 = BitVec.ofNat 64 (2 ^ 40))
     (u148 : u.getMem (BitVec.ofNat 64 0x30148) = BitVec.ofNat 64 (tau + 2 ^ 32 * e)) :
     ∀ i < 42, ∀ (ends : List Val) (t : MachineState), ChInv w idx u lay d0 d1 i ends t →
-      Sim eimg t 160 (leafF w lay tau e (digitsOfWord d0 ++ digitsOfWord d1) ends i)
+      Sim eimg t 335 (leafF w lay tau e (digitsOfWord d0 ++ digitsOfWord d1) ends i)
         (ChInv w idx u lay d0 d1 (i + 1)) := by
   intro i hi ends t hinv
   have hlen := hinv.len
@@ -225,7 +238,7 @@ theorem chain_body (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e d0 
     unfold witChain; rw [chainOff_eq, slice_eq_wbytes _ _ _ (by omega)]
   have R3 := (r1.trans r2).trans r3
   have hstep := Sim.foldlM_range' (image := eimg) (x + 1) (7 - x) (fun v mu => hash16 (chainInput lay tau e i mu v))
-    (witChain w lay i) (StepInv w idx t3 x) 19
+    (witChain w lay i) (StepInv w idx t3 x) 44
     (step_body w idx t3 lay tau e i x hl htau he hi hx8
       (by rw [R3.get .x20 (by decide), hinv.x20])
       (by rw [f3.getMem (by norm_num) (by omega), m2, m1, hinv.frame.getMem (by norm_num) (by unfold chW; omega),
