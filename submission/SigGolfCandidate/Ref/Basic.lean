@@ -72,10 +72,10 @@ def slice (l : List Byte) (off len : Nat) : List Byte := (l.drop off).take len
 /-! ## Parameters (SPEC-pors.md) -/
 
 def nChains : Nat := 42
-/-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
+/-- The baseline WOTS target sum used by layers zero through three. -/
 def targetSum : Nat := 181
 
-/-- Layer four uses a target two larger than the other layers. -/
+/-- Layer-dependent WOTS target: layer four (the bottom layer) uses 183. -/
 def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 2 else 0
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
@@ -385,7 +385,7 @@ def digitsOfWord (d : Nat) : List Nat := (List.range 21).map fun r => d / 8 ^ r 
 
 /-- TargetSum decoding of an encoding output `v` (first 16 bytes): `d0`, `d1` = the two LE 64-bit
 halves; reject if bit 63 of `d0` or of `d1` is set, else the 42 digits (21 of `d0`, then 21 of
-`d1`) if they sum to `targetSum`. -/
+`d1`) if they sum to the target of the selected layer. -/
 def decodeDigits (lay : Nat) (v : Val) : Option (List Nat) :=
   let d0 := leNat (slice v 0 8)
   let d1 := leNat (slice v 8 8)

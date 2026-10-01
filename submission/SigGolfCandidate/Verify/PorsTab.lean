@@ -2,7 +2,7 @@
 namespace SigGolfCandidate.Verify
 
 /-- Start of the PORS setup (`pors_setup`), of the leaf codes `leaf_s`, the reject stub. -/
-def setupPc : Nat := 28
+def setupPc : Nat := 34
 def leafTab : List Nat := [135, 149, 164, 179, 194, 209, 224, 239, 254, 269, 284, 299, 314, 329, 344]
 def rejectPc : Nat := 363
 def porsRejPc : Nat := 363

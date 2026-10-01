@@ -32,10 +32,10 @@ def FoldEndL (L : LCtx) (u : MachineState) : Prop :=
 
 /-- Cycles of layer `lay` (an upper bound: each digit-7 chain saves one more cycle): the transition
 up to the encoding hash, the hash, the check and chain prologue (`remu` 4 cycles), the 42 chains
-(`chainsBound`, the digit sum being `targetSum`), the leaf tweak and dispatch, the leaf hash
+(`chainsBound lay`, the digit sum being `targetFor lay`), the leaf tweak and dispatch, the leaf hash
 (11 blocks), the fold. -/
 def layerCost (lay : Nat) : Nat :=
-  stepsA lay + 8 + cyclesB lay + chainsBound lay + (leafSteps lay + 1) + 88 + foldCost lay 0 (heightL lay)
+  stepsA lay + 8 + cyclesB + chainsBound lay + (leafSteps lay + 1) + 88 + foldCost lay 0 (heightL lay)
 
 theorem blocks_q (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 1 := rfl
 
@@ -69,11 +69,9 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
   simp only []
   rw [cc_bind]
   have hfc := layFC_ok L hL
-  have htarget : targetFor L.lay ≤ 183 := by unfold targetFor targetSum; split_ifs <;> omega
-  have hcb : chainsBound L.lay ≥ 1300 := by unfold chainsBound; omega
-  have hsA : stepsA L.lay ≤ 15 := by unfold stepsA; split_ifs <;> omega
-  have hcB : cyclesB L.lay ≤ 29 := by unfold cyclesB stepsB; split_ifs <;> omega
-  have hsB : stepsB L.lay ≤ 26 := by unfold stepsB; split_ifs <;> omega
+  have hsA : stepsA L.lay ≤ 15 := by unfold stepsA; split <;> omega
+  have hcB : cyclesB = 28 := rfl
+  have hsB : stepsB = 25 := rfl
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
       (cc (match decodeDigits L.lay (answerBytes 16 a) with
         | none => pure none
@@ -91,7 +89,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
     | some xs =>
       obtain ⟨t2, hst2, hent, hcok, hxs, hsum, hlen⟩ := hacc xs hd
       simp only [verifyLeafP, bind_assoc, cc_bind]
-      have hcost := chainsCost_le L.lay (L.cctx t a) xs hlen hxs hsum
+      have hcost : chainsCost (L.cctx t a) 0 42 ≤ chainsBound L.lay := chainsCost_le (L.cctx t a) xs hlen hxs hsum
       have hch := chains_good0 (L.cctx t a) hcok (pcOf_even _) xs hxs
         (fun ends => cc (hash16 (leafInput L.lay L.tau L.e ends)) (fun leaf =>
           cc (foldPath (nodeInput L.lay L.tau) L.e leaf (witPath L.wl L.lay)) (fun root =>
@@ -318,7 +316,8 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
         | succ m => exact foldEnd_layerIn wl pk (m + 1) idx (by omega) (by omega) u hu a) s hs
     exact this.mono (by omega) (by dsimp only; simp only [layersCost]; omega)
 
-/-- The layer cycles: `1543` (layer 4), `3 × 1576`, `1658` (layer 0), and the comparison `9`. -/
-theorem layersCost_5 : layersCost 5 = 7938 := by decide
+/-- The layer cycles: `1542` (layer 4, target 183, no hash-length reload), `3 × 1576`, `1656`
+(layer 0, direct route), and the comparison `9`. -/
+theorem layersCost_5 : layersCost 5 = 7935 := by decide
 
 end SigGolfCandidate.Verify

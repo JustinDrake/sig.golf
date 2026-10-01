@@ -248,7 +248,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
       ∃ k, k ≤ 27 ∧ ∃ c, c ≤ 27 ∧ ∃ u, Steps image s k c u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (∀ xs, decodeDigits L.lay (answerBytes 16 a) = some xs →
-      ∃ u, Steps image s (stepsB L.lay) (cyclesB L.lay) u ∧ ChainIn (L.cctx t a) 0 [] u ∧
+      ∃ u, Steps image s stepsB cyclesB u ∧ ChainIn (L.cctx t a) 0 [] u ∧
         (L.cctx t a).ok ∧ (∀ i < 42, xs.getD i 0 = dig (L.cctx t a) i) ∧ xs.sum = targetFor L.lay ∧
         xs.length = 42) := by
   obtain ⟨hlay, hidx, hwl⟩ := hL
@@ -261,6 +261,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
     exact lt_or_eval _ _
   have hdA : dA s = (a.extractLsb' 0 64).toNat := by simp only [dA, hD0]
   have hdB : dB s = (a.extractLsb' 64 64).toNat := by simp only [dB, hD1]
+  have hT : targetFor L.lay < 2 ^ 64 := by have := targetFor_le L.lay; omega
   unfold decodeDigits
   simp only [slice0_answer, slice8_answer]
   constructor
@@ -276,10 +277,10 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
         · simp only [Br.holds, CmpOp.eval, bne_iff_ne, ne_eq]
           intro h
           apply hsum
-          have := (swS_eq s L.lay (by omega) (by omega)).mp h
+          have := (swS_eq s (targetFor L.lay) hT (by omega) (by omega)).mp h
           rwa [hdA, hdB] at this
         · simp only [Br.holds]; rw [hor]; exact decide_eq_false (by omega))
-      exact ⟨21 + (if 4 ≤ L.lay then 1 else 0), (by split_ifs <;> omega), 24 + (if 4 ≤ L.lay then 1 else 0), (by split_ifs <;> omega), u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
+      exact ⟨21, by decide, 24, by decide, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
         hu.regs (.x10, cw 1) (by simp [specRej2, rejK])⟩
     · obtain ⟨u, hu⟩ := spec_run hR1 s hpc hK (by
         intro b hb
@@ -300,7 +301,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
           simp only [specBok, List.mem_cons, List.not_mem_nil, or_false] at hb
           rcases hb with rfl | rfl
           · simp only [Br.holds, CmpOp.eval, bne_eq_false_iff_eq]
-            apply (swS_eq s L.lay (by omega) (by omega)).mpr
+            apply (swS_eq s (targetFor L.lay) hT (by omega) (by omega)).mpr
             rw [hdA, hdB]; exact hsum
           · simp only [Br.holds]; rw [hor]; exact decide_eq_false (by omega))
         have hcok : (L.cctx t a).ok :=
