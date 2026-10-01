@@ -9,7 +9,7 @@ The root tail (into the layers), then `GoodQ` for the ladder (`segFolds`), one s
 
 Cycle bounds: a segment with `a` folds costs `15` if `a = 0` (dispatch 4, table slot 3, pending
 hash 8) and `16 + 17 a` if `a ≥ 1` (the slot's inlined parity test adds 1; `17 a` for the folds incl.
-the entry tail), at most `16 + 17 a` in both cases; tails: merge 6, push 4, root 17 (W1a: the root tail also sets `t3`, `sp`, `a5`, `a4`; the masks are loaded from the data words).
+the entry tail), at most `16 + 17 a` in both cases; tails: merge 6, push 4, root 15 (W1a: the root tail also sets `t3`, `sp`, `a5`, `a4`; the masks are loaded from the data words).
 -/
 
 set_option linter.unusedSimpArgs false
@@ -215,9 +215,9 @@ def Aseg (s d F : Nat) : Nat :=
 def Nseg (s d : Nat) : Nat := Cseg s d + layN
 
 /-- After the leaf's last segment (before the push / root tail). -/
-def CtailPF (s d : Nat) : Nat := if s = 14 then 17 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
+def CtailPF (s d : Nat) : Nat := if s = 14 then 15 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
 def AtailPF (s d F : Nat) : Nat :=
-  if s = 14 then 17 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
+  if s = 14 then 15 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
 def NtailPF (s d : Nat) : Nat := CtailPF s d + layN
 
 /-- Before a merge tail. -/
