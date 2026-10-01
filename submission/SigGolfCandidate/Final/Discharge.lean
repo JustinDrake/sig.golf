@@ -1,7 +1,7 @@
 import SigGolfCandidate.Final.Main
 import SigGolfCandidate.Keygen.Main
 import SigGolfCandidate.Sign.Main
-import SigGolfCandidate.Research.PorsTightBound
+import SigGolfCandidate.Verify.Main
 import SigGolfCandidate.SphincsSecurity
 
 /-!
@@ -36,7 +36,7 @@ theorem verifyTermination : VerifyTerminationStatement := fun hash m pk w =>
   ⟨(Verify.verify_terminates hash (m, pk, w)).1, (Verify.verify_terminates hash (m, pk, w)).2.2⟩
 
 theorem verifyCycles : VerifyCyclesStatement := fun hash m pk w h =>
-  Verify.verify_accept_cycles_tight hash (m, pk, w) (by
+  Verify.verify_accept_cycles hash (m, pk, w) (by
     cases hv : (submission.runWith hash .verify (m, pk, w)).value with
     | none => simp [hv] at h
     | some u => cases u; rfl)

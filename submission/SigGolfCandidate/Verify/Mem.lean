@@ -93,9 +93,11 @@ also serves as the digit-check modulus; rebased load offsets preserve every memo
 def baseK : List (Reg × Word) :=
   [(.x5, 0), (.x18, 0xFFF), (.x19, 7), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
 
-/-- The legacy tweak increment, triple-dispatch mask (`x2`),
+/-- The W1a chain constants: the tweak-word bump `2^40` (`x28`), the triple-dispatch mask (`x2`),
 the triple table base `ttab + 2048` (`x15`). -/
 def K40 : Word := 0x10000000000
+/-- Fixed offset from each layer witness pointer to its first-step tweak-table pointer. -/
+def TableDelta : Word := 0xFFB7F0
 def TMASK : Word := 0x3fe00
 def TTA5 : Word := 0x50000
 
@@ -135,7 +137,7 @@ def MaskData (s : MachineState) : Prop :=
 
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
 def gkL0 : List (Reg × Word) :=
-  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x2, TMASK),
+  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, TableDelta), (.x2, TMASK),
     (.x15, TTA5)]
 
 theorem MaskData.frame {s t : MachineState} (h : MaskData s)
