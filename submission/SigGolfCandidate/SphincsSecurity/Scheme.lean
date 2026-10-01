@@ -5,7 +5,7 @@ import VCVio.OracleComp.QueryTracking.RandomOracle.Simulation
 /-!
 # SPHINCS+ scheme
 
-Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sum `183`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
+Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sums `[184,184,184,185,185]`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
 
 The few-time signature is PORS+FP (`work/design/SPEC-pors.md`, reference `work/py-pors/ref.py`): one Merkle
 tree of height `14` per instance `idx`, the full 256-bit digest split into `idx` (34 bits) and `k = 15`
@@ -63,6 +63,9 @@ abbrev PublicParameter := BitVec publicParameterBits
 abbrev Randomness := Digest
 abbrev Counter := BitVec counterBits
 abbrev Layer := Fin numLayers
+
+/-- The target sum at a particular one-time-signature layer. -/
+def targetFor (lay : Layer) : Nat := targetSum + if 3 ≤ lay.val then 1 else 0
 /-- `idx`, which few-time key signs. -/
 abbrev Index := Fin (2 ^ totalHeight)
 /-- `tau`, a tree of any layer. Layer `lay` only uses the values below `2^(sum_{j < lay} h_j)`. -/
@@ -130,7 +133,7 @@ def truncateHash (output : HashOutput) : Digest :=
 
 /-- Encoding-only conditional half selection; all other hash domains keep their usual truncation. -/
 def selectEncodingAnswer (a : HashOutput) : HashOutput :=
-  if (a.getLsbD 63 || a.getLsbD 127) then a >>> 128 else a
+  if a.getLsbD 63 || a.getLsbD 127 then a >>> 128 else a
 
 def selectEncodingDigest (a : HashOutput) : Digest :=
   truncateHash (selectEncodingAnswer a)
@@ -320,7 +323,7 @@ def macHashInput (parameter : PublicParameter) (seed : MasterSeed) (region : Top
 
 /-! ### The target-sum code
 
-`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and the code is the words of digit sum `T = 183`. Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
+`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and the code is the words of digit sum `T = 184`. Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
 
 namespace TargetSum
 
@@ -328,10 +331,10 @@ namespace TargetSum
 def sum (x : Encoding) : Nat := ∑ i, (x i).val
 
 /-- Membership in the code `C`: digit sum `T`. -/
-def Valid (x : Encoding) : Prop := sum x = targetSum
+def Valid (lay : Layer) (x : Encoding) : Prop := sum x = targetFor lay
 
-instance : DecidablePred Valid :=
-  fun x => inferInstanceAs (Decidable (sum x = targetSum))
+instance (lay : Layer) : DecidablePred (Valid lay) :=
+  fun x => inferInstanceAs (Decidable (sum x = targetFor lay))
 
 /-- `v / 2 = 21` digits in each half of the digest. -/
 def digitsPerHalf : Nat := numChains / 2
@@ -345,8 +348,8 @@ def digestEncoding (digest : Digest) : Encoding :=
   fun i => (digest.extractLsb' (digitOffset i) winternitzBits).toFin
 
 /-- Decode the concrete little-endian layout: 21 three-bit digits, padding bit 63, 21 digits, and padding bit 127. A digest decodes exactly when both padding bits are clear and the digits reach the target sum. -/
-def decodeDigest (digest : Digest) : Option Encoding :=
-  if digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false ∧ Valid (digestEncoding digest)
+def decodeDigest (lay : Layer) (digest : Digest) : Option Encoding :=
+  if digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false ∧ Valid lay (digestEncoding digest)
   then some (digestEncoding digest) else none
 
 end TargetSum
@@ -442,7 +445,7 @@ def encode (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf 
     (message : Digest) (counter : Counter) : m (Option Encoding) := do
   let answer ← oracleHash (tweakableHashInput parameter (.encoding lay tree leaf)
     (bytesLE 16 message ++ bytesLE 4 counter))
-  return TargetSum.decodeDigest (selectEncodingDigest answer)
+  return TargetSum.decodeDigest lay (selectEncodingDigest answer)
 
 /-- `OtsLeaf`: the verifier's leaf, or nothing if the counter does not encode the message. -/
 def otsLeaf (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)

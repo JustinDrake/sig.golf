@@ -17,14 +17,16 @@ namespace SphincsSecurity.Completeness
 
 open TargetSum
 
+variable {lay : Layer}
+
 /-- The ordinary low-half share, retained as a digest-counting helper only. -/
 theorem probEvent_accept :
-    Pr[fun u : HashOutput => (decodeDigest (truncateHash u)).isSome |
+    Pr[fun u : HashOutput => (decodeDigest lay (truncateHash u)).isSome |
         ($ᵗ HashOutput : ProbComp HashOutput)]
-      = ((univ.filter fun d : Digest => (decodeDigest d).isSome).card : ℝ≥0∞)
+      = ((univ.filter fun d : Digest => (decodeDigest lay d).isSome).card : ℝ≥0∞)
           / (Fintype.card Digest : ℝ≥0∞) := by
   rw [show Fintype.card Digest = 2 ^ digestBits by simp, Nat.cast_pow, Nat.cast_ofNat,
-    ← probEvent_truncateHash_mem (univ.filter fun d : Digest => (decodeDigest d).isSome)]
+    ← probEvent_truncateHash_mem (univ.filter fun d : Digest => (decodeDigest lay d).isSome)]
   apply probEvent_congr'
   · intro u _
     simp only [Finset.mem_filter, Finset.mem_univ, true_and]
@@ -32,42 +34,42 @@ theorem probEvent_accept :
 
 /-- The actual raw-query decoder has exactly the `7/4` selected acceptance share. -/
 theorem probEvent_selected_accept :
-    Pr[fun u : HashOutput => (decodeDigest (selectEncodingDigest u)).isSome |
+    Pr[fun u : HashOutput => (decodeDigest lay (selectEncodingDigest u)).isSome |
         ($ᵗ HashOutput : ProbComp HashOutput)] =
       (7 / 4 : ℝ≥0∞) *
-        (((univ.filter fun d : Digest => (decodeDigest d).isSome).card : ℝ≥0∞)
+        (((univ.filter fun d : Digest => (decodeDigest lay d).isSome).card : ℝ≥0∞)
           / (Fintype.card Digest : ℝ≥0∞)) := by
-  have hpad : ∀ d ∈ (univ.filter fun d : Digest => (decodeDigest d).isSome),
-      d.getLsbD 63 = false ∧ d.getLsbD 127 = false := by
+  have hpad : ∀ d ∈ (univ.filter fun d : Digest => (decodeDigest lay d).isSome),
+      (d.getLsbD 63 || d.getLsbD 127) = false := by
     intro d hd
     have hd' := (mem_filter.mp hd).2
     unfold decodeDigest at hd'
     split at hd'
     · rename_i hp
-      exact ⟨hp.1, hp.2.1⟩
+      exact Bool.or_eq_false_iff.mpr ⟨hp.1, hp.2.1⟩
     · simp at hd'
   simpa only [mem_filter, mem_univ, true_and] using
     EncodingSelection.prob_select_mem_of_padding
-      (univ.filter fun d : Digest => (decodeDigest d).isSome) hpad
+      (univ.filter fun d : Digest => (decodeDigest lay d).isSome) hpad
 
 /-- One selected trial rejects at most `1 - 1 / codeShare` of raw answers. -/
 theorem failMass_encoding_add_le :
-    failMass (fun out => decodeDigest (selectEncodingDigest out)) + (codeShare : ℝ≥0∞)⁻¹ ≤ 1 := by
+    failMass (fun out => decodeDigest lay (selectEncodingDigest out)) + (codeShare : ℝ≥0∞)⁻¹ ≤ 1 := by
   obtain ⟨accepted, haccepted⟩ :
-      ∃ n, (univ.filter fun d : Digest => (decodeDigest d).isSome).card = n := ⟨_, rfl⟩
+      ∃ n, (univ.filter fun d : Digest => (decodeDigest lay d).isSome).card = n := ⟨_, rfl⟩
   have hnat : 4 * (2 : Nat) ^ 128 ≤ (7 * codeShare) * accepted :=
     haccepted ▸ digests_le_codeShare_mul_card_accepting
   have hcard : (Fintype.card Digest : ℝ≥0∞) = (2 : ℝ≥0∞) ^ 128 := by
     rw [show Fintype.card Digest = 2 ^ 128 by simp [digestBits], Nat.cast_pow, Nat.cast_ofNat]
   have hcompl := probEvent_compl ($ᵗ HashOutput : ProbComp HashOutput)
-    (fun u => (decodeDigest (selectEncodingDigest u)).isSome)
-  have hreject : Pr[fun u : HashOutput => ¬ (decodeDigest (selectEncodingDigest u)).isSome = true |
+    (fun u => (decodeDigest lay (selectEncodingDigest u)).isSome)
+  have hreject : Pr[fun u : HashOutput => ¬ (decodeDigest lay (selectEncodingDigest u)).isSome = true |
       ($ᵗ HashOutput : ProbComp HashOutput)]
-      = failMass (fun out => decodeDigest (selectEncodingDigest out)) := by
+      = failMass (fun out => decodeDigest lay (selectEncodingDigest out)) := by
     rw [failMass_eq_probEvent]
     apply probEvent_congr'
     · intro u _
-      cases decodeDigest (selectEncodingDigest u) <;> simp
+      cases decodeDigest lay (selectEncodingDigest u) <;> simp
     · rfl
   have hfail : Pr[⊥ | ($ᵗ HashOutput : ProbComp HashOutput)] = 0 := by simp
   rw [hreject, probEvent_selected_accept, hfail, tsub_zero, hcard, haccepted] at hcompl
@@ -81,5 +83,22 @@ theorem failMass_encoding_add_le :
     norm_num [codeShare] at hnatR ⊢
     linarith
   exact (add_le_add le_rfl hshare).trans_eq ((add_comm _ _).trans hcompl)
+
+/-- A common rejection envelope for both admitted layer targets. -/
+noncomputable def encodingFactor : ℝ≥0∞ := 2396 / 2397
+
+theorem encodingFactor_room : encodingFactor + (codeShare : ℝ≥0∞)⁻¹ = 1 := by
+  change (2396 : ℝ≥0∞) / 2397 + (2397 : ℝ≥0∞)⁻¹ = 1
+  have hq : (2396 : ℝ≥0∞) / 2397 ≠ ⊤ := ENNReal.div_ne_top (by simp) (by norm_num)
+  have hi : (2397 : ℝ≥0∞)⁻¹ ≠ ⊤ := by simp
+  rw [← ENNReal.toReal_eq_toReal_iff' (ENNReal.add_ne_top.mpr ⟨hq, hi⟩) (by simp),
+    ENNReal.toReal_add hq hi, ENNReal.toReal_div, ENNReal.toReal_inv]
+  norm_num
+
+theorem failMass_encoding_le :
+    failMass (fun out => decodeDigest lay (selectEncodingDigest out)) ≤ encodingFactor := by
+  apply (ENNReal.add_le_add_iff_right (a := (codeShare : ℝ≥0∞)⁻¹) (by simp [codeShare])).mp
+  rw [encodingFactor_room]
+  exact failMass_encoding_add_le
 
 end SphincsSecurity.Completeness

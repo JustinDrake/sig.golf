@@ -950,9 +950,9 @@ theorem decodedCostRem_ge (wl : List Byte) (j : Nat) (hj : j < 29) :
 /-- A witness-dependent accepting budget. It retains every zero-segment saving
 and the actual remaining decoded folds, independent of the final fold cap. -/
 def Aexact (wl : List Byte) (s d : Nat) : Nat :=
-  decodedCostRem wl (2*s-d) + 6*(d+14-s) + 4*(14-s) + lrest s + 11 + layC
+  decodedCostRem wl (2*s-d) + 6*(d+14-s) + 4*(14-s) + lrest s + 15 + layC
 def AexactPF (wl : List Byte) (s d : Nat) : Nat :=
-  if s = 14 then 11 + layC else 4+leafCost (s+1)+Aexact wl (s+1) (d+1)
+  if s = 14 then 15 + layC else 4+leafCost (s+1)+Aexact wl (s+1) (d+1)
 def AexactM (wl : List Byte) (s d : Nat) : Nat :=
   if d = 0 then 6 else 6+Aexact wl s (d-1)
 
@@ -1082,7 +1082,7 @@ theorem leaves_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState)
     (hKr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
       st.ptr = Equiv.segPtr P.wl (29-st.stack.length) →
-      GoodQ u (11 + layC + layN) (11 + layC) (st.folds ≤ 117) (11 + layC) (Kr (some st))) :
+      GoodQ u (15 + layC + layN) (15 + layC) (st.folds ≤ 117) (15 + layC) (Kr (some st))) :
     ∀ n s (st : PorsState) m, s + n = 15 → LeafIn P s0 s st m →
       st.ptr = Equiv.segPtr P.wl (2*s-st.stack.length) →
       GoodQ m (leafCost s + Nseg s st.stack.length) (leafCost s + Cseg s st.stack.length) (st.folds ≤ 117)
@@ -1163,7 +1163,7 @@ theorem pors_good_decoded (P : PCtx) (hP : P.ok) (s0 : MachineState)
       (cc (porsRoot P.idx P.v P.wl) (Klay P)) := by
   have hr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (11 + layC + layN) (11 + layC) (st.folds ≤ 117) (11 + layC) (Kr P (some st)) :=
+      GoodQ u (15 + layC + layN) (15 + layC) (st.folds ≤ 117) (15 + layC) (Kr P (some st)) :=
     fun x c st u hT => root_good P hP s0 x c st u hT
   have hg0 := leaves_good_exact P hP s0 (Kr P) (Kr_none P) (fun x c st u hT _ => hr x c st u hT)
   have hg := hg0 15 0 ⟨wStream, 0, 0, 0, [], []⟩ s0 (by rfl) h rfl
@@ -1178,10 +1178,10 @@ theorem pors_good_decoded (P : PCtx) (hP : P.ok) (s0 : MachineState)
   rw [l0] at hg
   exact hg.mono (le_refl _) (le_refl _) (fun _ => ⟨trivial, le_refl _⟩)
 
-def cycleBoundDecoded (wl : List Byte) : Nat := 450 + layC + decodedCostRem wl 0
+def cycleBoundDecoded (wl : List Byte) : Nat := 454 + layC + decodedCostRem wl 0
 
 theorem exact_cost_vals (wl : List Byte) :
-    leafCost 0 + Aexact wl 0 0 = 318 + layC + decodedCostRem wl 0 := by
+    leafCost 0 + Aexact wl 0 0 = 322 + layC + decodedCostRem wl 0 := by
   have h0 : leafCost 0 = 10 := rfl
   simp only [Aexact, lrest_0, h0, Nat.mul_zero, Nat.sub_self]
   omega
