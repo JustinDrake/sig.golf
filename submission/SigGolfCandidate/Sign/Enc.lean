@@ -431,7 +431,7 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
     congrArg (· + 1) (words_encInput lay tau e M hmem.hM c).1
   refine (Sim.steps hs1 (Sim.encodingHash_bind (W := 50 + Wr) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) hq (by rw [addrFmt_encInput]; exact Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide))
+      (by norm_num)) hq (by rw [addrFmt_encInput_valid _ _ _ _ (le_of_eq hmem.hM)]; exact Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide))
         (fun a => ?_))).mono (by rw [hb]; omega) (fun _ _ h => h)
   set t2 := writeHash t1 a with ht2
   have f2 : Frame t1 t2 (fun x => 0x140 ≤ x ∧ x < 0x140 + 32) := frame_writeHash t1 a _ x12 (by norm_num)
