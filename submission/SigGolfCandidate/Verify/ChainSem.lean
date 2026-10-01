@@ -961,7 +961,7 @@ theorem triTgt_eval (c : CCtx) (hc : c.ok) (t : Nat) (ht : t < 14) (s : MachineS
 theorem x_step (c : CCtx) (hc : c.ok) (t : Nat) (ht : t < 14) (acc : List Val)
     (hrun : runAt chK0 [] (tX c (3 * t + 2)) [.jmp] = some (xExp t))
     (hret : c.ret &&& ~~~1#64 = c.ret) (s : MachineState) (hs : EndInv c (3 * t + 2) acc s) :
-    (t + 1 < 14 → ∃ u, Steps image s 4 4 u ∧ ChainIn c (3 * t + 3) acc u) ∧
+    (t + 1 < 14 → ∃ u, Steps image s (xSteps t) (xSteps t) u ∧ ChainIn c (3 * t + 3) acc u) ∧
       (t = 13 → ∃ u, Steps image s 1 1 u ∧ ChBase c 42 acc u ∧ Fresh c.wl c.lay 42 u ∧ u.pc = c.ret) := by
   obtain ⟨hB, h25, hF, hpc⟩ := hs
   have hpc' : s.pc = pcOf (tX c (3 * t + 2)) := by
@@ -969,10 +969,10 @@ theorem x_step (c : CCtx) (hc : c.ok) (t : Nat) (ht : t < 14) (acc : List Val)
   obtain ⟨hst, -⟩ := crun hrun s hpc' hB.2.1 (by simp [xExp]; split <;> simp) (by simp [xExp]; split <;> simp)
   have hRs := hB.2.2.1
   refine ⟨fun h1 => ?_, fun h13 => ?_⟩
-  · have hx : xExp t = ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, 4, 4, [],
+  · have hx : xExp t = ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, xSteps t, xSteps t, [],
         some (triTgt (t + 1))⟩ := by simp [xExp, h1]
     rw [hx] at hst
-    set u := PRes.toState ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, 4, 4, [],
+    set u := PRes.toState ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, xSteps t, xSteps t, [],
         some (triTgt (t + 1))⟩ s with hu
     have ureg : ∀ x, x ≠ .x14 → u.getReg x = s.getReg x := by
       intro x hx; rw [hu, PRes.toState_getReg, RegFile.get_set_ne _ _ hx, known_eval hB.2.1]
