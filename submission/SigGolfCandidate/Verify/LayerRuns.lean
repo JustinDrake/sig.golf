@@ -37,15 +37,14 @@ def stepsA (lay : Nat) : Nat := if lay = 0 ∨ lay = 4 then 11 else 12
 def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
 
 /-- Known registers at the transition start. -/
-def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401), (.x14, KT4)]
+def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401)]
 def aK (lay : Nat) : List (Reg × Word) :=
   gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, 0x120), (.x27, BitVec.ofNat 64 (hWord (lay + 1) + 768))]
 def preK (lay : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay
 
 /-- Known registers after the encoding hash call. -/
 def bK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)] ++
-    (if lay = 4 then [(.x14, KT4)] else [])
+  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)]
 
 def uEr (lay : Nat) : E :=
   if lay = 0 then .reg .x30
@@ -70,7 +69,7 @@ def specA (lay t : Nat) : Spec :=
     (⟨none, BitVec.ofNat 64 264⟩, x31Er lay), (⟨none, BitVec.ofNat 64 256⟩, cw (hWord lay + 768))],
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
 
-/-! ## The encoding check (`remu x25, x25, x18`; layers 0 .. 3 compare `KT`, layer 4 reuses `x14 = KT4`,
+/-! ## The encoding check (`remu x25, x25, x18`; all layers compare the uniform `x29 = KT`,
 all targets 181) and the chain prologue -/
 
 def d0E : E := ldE 288
