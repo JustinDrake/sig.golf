@@ -35,7 +35,6 @@ private theorem visRangeClosing (x : ℝ) (hlow : 606208 / 2 ^ 128 ≤ x) (hhigh
 theorem visSmallBound_plus_le (q : Nat) (hq : keygenHashCost ≤ q) (hsmall : q + 1 ≤ budgetSplit) :
     visSmallBound (q + 1) + ((q + 1 : Nat) : ENNReal) / 2 ^ 200 ≤ (q : ENNReal) / 2 ^ 127 := by
   rw [budgetSplit_def] at hsmall
-  have hcoarse : q + 1 ≤ 3 * 2 ^ 114 := hsmall.trans (by norm_num)
   rw [keygenHashCost_eq] at hq
   unfold visSmallBound FtsGuessHash.nearMixedBound
   rw [primitiveCoefficient_def, fullCertificateExcessRate_def, proposalPrefixExceptionBound_def, nearCertificatePrice_def,
@@ -45,7 +44,7 @@ theorem visSmallBound_plus_le (q : Nat) (hq : keygenHashCost ≤ q) (hsmall : q 
     apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
     rw [ENNReal.toReal_div, ENNReal.toReal_div, ENNReal.toReal_pow, ENNReal.toReal_natCast, ENNReal.toReal_ofNat,
       ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
-    have hq' : ((b : Nat) : ℝ) ≤ 3 * 2 ^ 114 := by exact_mod_cast hcoarse
+    have hq' : ((b : Nat) : ℝ) ≤ 3 * 2 ^ 114 := by exact_mod_cast hsmall
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith
   have hhalf : (2 : ENNReal)⁻¹ ≤ 1 - ((b : Nat) : ENNReal) / 2 ^ 128 := by
@@ -81,7 +80,7 @@ theorem visSmallBound_plus_le (q : Nat) (hq : keygenHashCost ≤ q) (hsmall : q 
     apply div_le_div_of_nonneg_right _ (by positivity)
     exact_mod_cast (show 606208 ≤ b by omega)
   have hhigh : ((b : Nat) : ℝ) / 2 ^ 128 ≤ 3 / 16384 := by
-    have hq' : ((b : Nat) : ℝ) ≤ 3 * 2 ^ 114 := by exact_mod_cast hcoarse
+    have hq' : ((b : Nat) : ℝ) ≤ 3 * 2 ^ 114 := by exact_mod_cast hsmall
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith
   have hqb : (q : ℝ) = ((b : Nat) : ℝ) - 1 := by

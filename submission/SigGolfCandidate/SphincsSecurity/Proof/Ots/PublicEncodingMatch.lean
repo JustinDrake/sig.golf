@@ -1,5 +1,4 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
-import SigGolfCandidate.SphincsSecurity.Proof.Ots.EncodingSelection
 import SigGolfCandidate.SphincsSecurity.Proof.Base.FirstSuccessPrefix
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.HiddenLabelProbe
 import SigGolfCandidate.SphincsSecurity.Proof.Ots.OtsProbeCompletionSampling
@@ -62,22 +61,22 @@ theorem protected_not_match (parameter : PublicParameter) (inputs : Finset HashI
 
 theorem prob_decode_word_le (word : Encoding) :
     Pr[fun answer => decodeEncodingOutput answer = some word | (liftM (PMF.uniformOfFintype HashOutput) : SPMF HashOutput)] ≤
-      ((3 / 2 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
+      (Fintype.card Digest : ENNReal)⁻¹ := by
   by_cases hexists : ∃ digest, OtsCode.decode digest = some word
   · obtain ⟨digest, hdigest⟩ := hexists
     calc
-      _ ≤ Pr[fun answer => selectEncodingDigest answer = digest |
+      _ ≤ Pr[fun answer => truncateHash answer = digest |
           (liftM (PMF.uniformOfFintype HashOutput) : SPMF HashOutput)] :=
         probEvent_mono fun _ _ hdecode => OtsCode.decode_some_injective hdecode hdigest
-      _ ≤ _ := EncodingSelection.prob_select_eq_le_pmf digest
+      _ = _ := HiddenLabelProbe.prob_truncate_eq digest
   · have hfalse (answer : HashOutput) : ¬decodeEncodingOutput answer = some word :=
-      fun hdecode => hexists ⟨selectEncodingDigest answer, hdecode⟩
+      fun hdecode => hexists ⟨truncateHash answer, hdecode⟩
     simp only [probEvent_eq_tsum_ite, hfalse, if_false, tsum_zero, zero_le]
 
 theorem prob_match_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
     (words : OtsReferenceWords) (selections : ReferenceFamily) (input : HashInput) :
     Pr[Match parameter messages words selections input | (liftM (PMF.uniformOfFintype HashOutput) : SPMF HashOutput)] ≤
-      ((3 / 2 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
+      (Fintype.card Digest : ENNReal)⁻¹ := by
   by_cases hexists : ∃ position, AtEncodingPosition parameter input position
   · obtain ⟨position, hat⟩ := hexists
     calc
