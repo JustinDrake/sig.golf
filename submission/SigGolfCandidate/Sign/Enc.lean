@@ -37,10 +37,25 @@ theorem encoding_bit63 (a : BitVec 256) :
     cases h : a.getLsbD 63 <;>
       simp [BitVec.getLsbD_extractLsb', BitVec.getLsbD_ushiftRight, h, hz, hlt]
 
+/-- The encoding selector checks both otherwise forbidden low-half padding bits. -/
+theorem encoding_paddingSelector (a : BitVec 256) :
+    ((a.extractLsb' 0 64 ||| a.extractLsb' 64 64) >>> 63) =
+      if a.getLsbD 63 || a.getLsbD 127 then (1 : Word) else 0 := by
+  have h0 := encoding_bit63 a
+  have h1 := encoding_bit63 (a >>> 64)
+  have he : (a >>> 64).extractLsb' 0 64 = a.extractLsb' 64 64 := by
+    apply BitVec.eq_of_getLsbD_eq
+    intro i hi
+    simp [BitVec.getLsbD_extractLsb', BitVec.getLsbD_ushiftRight, hi]
+  rw [he] at h1
+  simp only [BitVec.getLsbD_ushiftRight, show (64 + 63 : Nat) = 127 from rfl] at h1
+  rw [BitVec.ushiftRight_or_distrib, h0, h1]
+  cases h63 : a.getLsbD 63 <;> cases h127 : a.getLsbD 127 <;> simp [h63, h127]
+
 /-- The two selected dwords, without changing any nonencoding hash semantics. -/
 theorem encoding_word (a : BitVec 256) (i : Nat) (hi : i < 2) :
     (encodingAnswer a).extractLsb' (64 * i) 64 =
-      if a.getLsbD 63 then a.extractLsb' (128 + 64 * i) 64
+      if (a.getLsbD 63 || a.getLsbD 127) then a.extractLsb' (128 + 64 * i) 64
       else a.extractLsb' (64 * i) 64 := by
   unfold encodingAnswer
   split
@@ -60,7 +75,7 @@ theorem encodingSelect_steps {img : Image}
     (w1 : s.getMem 328 = a.extractLsb' 64 64)
     (w2 : s.getMem 336 = a.extractLsb' 128 64)
     (w3 : s.getMem 344 = a.extractLsb' 192 64) :
-    ∃ t, Steps img s 8 8 t ∧ t.pc = pcOf 353 ∧
+    ∃ t, Steps img s 10 10 t ∧ t.pc = pcOf 353 ∧
       t.getReg .x1 = (encodingAnswer a).extractLsb' 0 64 ∧
       t.getReg .x2 = (encodingAnswer a).extractLsb' 64 64 ∧
       RegsEq s t [.x1, .x2, .x3] ∧ Frame s t (fun _ => False) := by
@@ -72,13 +87,14 @@ theorem encodingSelect_steps {img : Image}
   have h2 : u.getMem 336 = a.extractLsb' 128 64 := by simpa [u, blk351.res, rv_simp] using w2
   have h3 : u.getMem 344 = a.extractLsb' 192 64 := by simpa [u, blk351.res, rv_simp] using w3
   have h0raw : u.getMem (320#64) = a.extractLsb' 0 64 := h0
+  have h1raw : u.getMem (328#64) = a.extractLsb' 64 64 := h1
   have hstub := symRun_sound blk1800 hc1800 u hpcu (by
     simp only [blk1800.res, rv_simp]
-    rw [h0raw]
-    change accessValid ((a.extractLsb' 0 64 >>> 63) <<< 4 + 328#64) 8 = true ∧
-      accessValid ((a.extractLsb' 0 64 >>> 63) <<< 4 + 320#64) 8 = true
-    rw [encoding_bit63]
-    cases hb : a.getLsbD 63 <;> simp [hb, accessValid, rangeValid, MEMORY_BYTES])
+    rw [h0raw, h1raw]
+    change accessValid (((a.extractLsb' 0 64 ||| a.extractLsb' 64 64) >>> 63) <<< 4 + 328#64) 8 = true ∧
+      accessValid (((a.extractLsb' 0 64 ||| a.extractLsb' 64 64) >>> 63) <<< 4 + 320#64) 8 = true
+    rw [encoding_paddingSelector]
+    cases hb : (a.getLsbD 63 || a.getLsbD 127) <;> simp [hb, accessValid, rangeValid, MEMORY_BYTES])
   refine ⟨blk1800.res.toState u, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · exact (hjump.trans hstub).of_eq rfl rfl
   · simp only [blk1800.res, rv_simp]
@@ -86,20 +102,20 @@ theorem encodingSelect_steps {img : Image}
     simp only [Nat.mul_zero, Nat.add_zero] at hw
     rw [hw]
     simp only [blk1800.res, rv_simp]
-    rw [h0raw]
-    change u.getMem ((a.extractLsb' 0 64 >>> 63) <<< 4 + 320#64) = _
-    rw [encoding_bit63]
-    cases hb : a.getLsbD 63 <;> simp [hb, BitVec.ofNat_eq_ofNat, h0, h2]
+    rw [h0raw, h1raw]
+    change u.getMem (((a.extractLsb' 0 64 ||| a.extractLsb' 64 64) >>> 63) <<< 4 + 320#64) = _
+    rw [encoding_paddingSelector]
+    cases hb : (a.getLsbD 63 || a.getLsbD 127) <;> simp [hb, BitVec.ofNat_eq_ofNat, h0, h2]
     · exact h0
     · exact h2
   · have hw := encoding_word a 1 (by decide)
     simp only [Nat.mul_one, Nat.reduceAdd] at hw
     rw [hw]
     simp only [blk1800.res, rv_simp]
-    rw [h0raw]
-    change u.getMem ((a.extractLsb' 0 64 >>> 63) <<< 4 + 328#64) = _
-    rw [encoding_bit63]
-    cases hb : a.getLsbD 63 <;> simp [hb, BitVec.ofNat_eq_ofNat, h1, h3]
+    rw [h0raw, h1raw]
+    change u.getMem (((a.extractLsb' 0 64 ||| a.extractLsb' 64 64) >>> 63) <<< 4 + 328#64) = _
+    rw [encoding_paddingSelector]
+    cases hb : (a.getLsbD 63 || a.getLsbD 127) <;> simp [hb, BitVec.ofNat_eq_ofNat, h1, h3]
     · exact h1
     · exact h3
   · intro r hr
@@ -113,7 +129,7 @@ theorem decodeDigits_answer (a : BitVec 256) :
     decodeDigits (answerBytes 16 a) =
       if (a.extractLsb' 0 64).toNat < 2 ^ 63 ∧ (a.extractLsb' 64 64).toNat < 2 ^ 63 then
         (if (digitsOfWord (a.extractLsb' 0 64).toNat ++ digitsOfWord (a.extractLsb' 64 64).toNat).sum
-            = 183 then
+            = 184 then
           some (digitsOfWord (a.extractLsb' 0 64).toNat ++ digitsOfWord (a.extractLsb' 64 64).toNat)
         else none)
       else none := by
@@ -146,10 +162,10 @@ def swF (x : Word) (k : Nat) : Word := x + (x >>> k)
 def swarW (a b m1 m2 : Word) : Word :=
   swF (swF (swF (swF (swS1 a b m1) 6 &&& m2) 12) 24) 48 &&& 2047
 
--- The final pc of the SWAR block (`bne t3, x0` after `addi t3, t3, -183`).
+-- The final pc of the SWAR block (`bne t3, x0` after `addi t3, t3, -184`).
 kernel_theorem blk355_pc_raw : ∀ t : MachineState, (blk355.res.toState t).pc =
     if (swarW (t.getReg .x1) (t.getReg .x2) (t.getReg .x26) (t.getReg .x27) +
-        BitVec.ofNat 64 (2 ^ 64 - 183) != 0#64) = true then pcOf 377 else pcOf 376
+        BitVec.ofNat 64 (2 ^ 64 - 184) != 0#64) = true then pcOf 377 else pcOf 376
 
 theorem swF_toNat (x : Word) (k : Nat) : (swF x k).toNat = (x.toNat + x.toNat / 2 ^ k) % 2 ^ 64 := by
   rw [swF, BitVec.toNat_add, BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
@@ -205,17 +221,17 @@ theorem swarW_toNat (a b : Nat) (ha : a < 2 ^ 63) (hb : b < 2 ^ 63) :
   omega
 
 theorem swar_check (a b : Nat) (ha : a < 2 ^ 63) (hb : b < 2 ^ 63) :
-    (swarW (BitVec.ofNat 64 a) (BitVec.ofNat 64 b) swM1 swM2 + BitVec.ofNat 64 (2 ^ 64 - 183)
-      != 0#64) = !decide ((digitsOfWord a ++ digitsOfWord b).sum = 183) := by
+    (swarW (BitVec.ofNat 64 a) (BitVec.ofNat 64 b) swM1 swM2 + BitVec.ofNat 64 (2 ^ 64 - 184)
+      != 0#64) = !decide ((digitsOfWord a ++ digitsOfWord b).sum = 184) := by
   have h := swarW_toNat a b ha hb
   have hle := digits_sum_le a b
   generalize swarW (BitVec.ofNat 64 a) (BitVec.ofNat 64 b) swM1 swM2 = w at h
-  have hc : (BitVec.ofNat 64 (2 ^ 64 - 183)).toNat = 2 ^ 64 - 183 := rfl
-  by_cases hs : (digitsOfWord a ++ digitsOfWord b).sum = 183
-  · have : w + BitVec.ofNat 64 (2 ^ 64 - 183) = 0#64 := by
+  have hc : (BitVec.ofNat 64 (2 ^ 64 - 184)).toNat = 2 ^ 64 - 184 := rfl
+  by_cases hs : (digitsOfWord a ++ digitsOfWord b).sum = 184
+  · have : w + BitVec.ofNat 64 (2 ^ 64 - 184) = 0#64 := by
       apply BitVec.eq_of_toNat_eq; rw [BitVec.toNat_add, h, hs, hc]; rfl
     rw [this, decide_eq_true hs]; rfl
-  · have : w + BitVec.ofNat 64 (2 ^ 64 - 183) ≠ 0#64 := by
+  · have : w + BitVec.ofNat 64 (2 ^ 64 - 184) ≠ 0#64 := by
       intro h'
       have := congrArg BitVec.toNat h'
       rw [BitVec.toNat_add, h, hc] at this
@@ -258,7 +274,7 @@ def EncInv (u : MachineState) (c : Nat) (t : MachineState) : Prop :=
 def EncPost (u : MachineState) : Option (Nat × List Nat) → MachineState → Prop
   | none, t => t.pc = pcOf 381 ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 1
   | some (c, x), t => t.pc = pcOf 382 ∧ t.getReg .x6 = BitVec.ofNat 64 c ∧ c < 2 ^ 22 ∧
-      (∃ d0 d1, d0 < 2 ^ 63 ∧ d1 < 2 ^ 63 ∧ x = digitsOfWord d0 ++ digitsOfWord d1 ∧ x.sum = 183 ∧
+      (∃ d0 d1, d0 < 2 ^ 63 ∧ d1 < 2 ^ 63 ∧ x = digitsOfWord d0 ++ digitsOfWord d1 ∧ x.sum = 184 ∧
         t.getReg .x1 = BitVec.ofNat 64 d0 ∧ t.getReg .x2 = BitVec.ofNat 64 d1) ∧
       RegsEq u t encRegs ∧ Frame u t encW
 
@@ -288,7 +304,7 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
     (Wr : Nat)
     (hrest : ∀ t', t'.pc = pcOf 377 → t'.getReg .x6 = BitVec.ofNat 64 c → RegsEq u t' encRegs →
       Frame u t' encW → Sim img t' Wr rest (EncPost u)) :
-    Sim img t (44 + Wr) (encodingHash (encInput lay tau e M c) >>= fun d =>
+    Sim img t (46 + Wr) (encodingHash (encInput lay tau e M c) >>= fun d =>
       match decodeDigits d with
       | some x => pure (some (c, x))
       | none => rest) (EncPost u) := by
@@ -341,7 +357,7 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
     · rw [if_pos trivial, Nat.mod_eq_of_lt (by omega : c < 2 ^ 32)]
   have hb : (pad64 (encInput lay tau e M c)).blocks = 1 :=
     congrArg (· + 1) (words_encInput lay tau e M hmem.hM c).1
-  refine (Sim.steps hs1 (Sim.encodingHash_bind (W := 32 + Wr) e1 x5
+  refine (Sim.steps hs1 (Sim.encodingHash_bind (W := 34 + Wr) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
       (by norm_num)) hq (addrFmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]; omega) (fun _ _ h => h)
   set t2 := writeHash t1 a with ht2
@@ -368,7 +384,7 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
   rw [encodingBytes, decodeDigits_answer]
   have hsB := symRun_sound blk353 hcode.c353 tsel pcsel (by simp only [blk353.res, rv_simp])
   set t3 := blk353.res.toState tsel with ht3
-  have hs3 : Steps img t2 10 10 t3 := (hsel.trans hsB).of_eq rfl rfl
+  have hs3 : Steps img t2 12 12 t3 := (hsel.trans hsB).of_eq rfl rfl
   have fB : Frame tsel t3 (fun _ => False) := by
     apply frame_toState; intro x hx hW; simp [blk353.res]
   have f3 : Frame t2 t3 (fun _ => False) := (fsel.trans fB).mono (by simp)
@@ -416,13 +432,13 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
   have fu5 : Frame u t5 encW := (fu3.trans f5).mono (by
     intro x hx; rcases hx with h | h; exact h; exact h.elim)
   have ru5 : RegsEq u t5 encRegs := (ru3.trans r5).mono (by decide)
-  have pc5 : t5.pc = if (digitsOfWord d0 ++ digitsOfWord d1).sum = 183 then pcOf 376 else pcOf 377 := by
+  have pc5 : t5.pc = if (digitsOfWord d0 ++ digitsOfWord d1).sum = 184 then pcOf 376 else pcOf 377 := by
     rw [ht5, blk355_pc_raw, y1, y2, ru3.get .x26, hmem.x26, ru3.get .x27, hmem.x27,
       swar_check d0 d1 h0 h1]
-    by_cases h : (digitsOfWord d0 ++ digitsOfWord d1).sum = 183
+    by_cases h : (digitsOfWord d0 ++ digitsOfWord d1).sum = 184
     · rw [if_pos h, if_neg (by rw [decide_eq_true h]; decide)]
     · rw [if_neg h, if_pos (by rw [decide_eq_false h]; rfl)]
-  by_cases hsum : (digitsOfWord d0 ++ digitsOfWord d1).sum = 183
+  by_cases hsum : (digitsOfWord d0 ++ digitsOfWord d1).sum = 184
   · rw [if_pos hsum]
     have hs6 := symRun_sound blk376 hcode.c376 t5 (by rw [pc5, if_pos hsum])
       (by simp only [blk376.res, rv_simp])
@@ -472,7 +488,7 @@ theorem encNext {img : Image} (hcode : EncCode img) (u : MachineState) (hx7 : u.
 /-- **Counter search** of a layer, from counter `c` with `fuel + 1` trials left. -/
 theorem encLoop_sim {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val) (u : MachineState) (hmem : EncMem lay tau e M u) :
     ∀ fuel c t, c + (fuel + 1) = 2 ^ 22 → EncInv u c t →
-      Sim img t ((fuel + 1) * 46 + 2) (searchCounter lay tau e M c (fuel + 1)) (EncPost u) := by
+      Sim img t ((fuel + 1) * 48 + 2) (searchCounter lay tau e M c (fuel + 1)) (EncPost u) := by
   intro fuel
   induction fuel with
   | zero =>
@@ -491,7 +507,7 @@ theorem encLoop_sim {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : V
   | succ f ih =>
     intro c t hc hinv
     rw [searchCounter_succ]
-    refine (encTrial hcode lay tau e M u hmem c t hinv _ (2 + ((f + 1) * 46 + 2)) ?_).mono
+    refine (encTrial hcode lay tau e M u hmem c t hinv _ (2 + ((f + 1) * 48 + 2)) ?_).mono
       (by ring_nf; omega) (fun _ _ h => h)
     intro t' tpc t6 tregs tframe
     obtain ⟨t'', hs, hinv', -⟩ := encNext hcode u hmem.x7 c (by omega) t' tpc t6 tregs tframe

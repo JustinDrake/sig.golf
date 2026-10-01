@@ -13,9 +13,9 @@ For a uniform answer `u : BitVec 256`:
 * the randomizer lands in a set `R` of values with probability at most `|R| / 2^128`
   (`probEvent_answerBytes_mem_le`);
 * ordinary low-half encoding decodes with probability exactly `codeCount / 2^128`, where
-  `codeCount = 120626508116675256487918723077579392` is the number of pairs of 21-digit octal
-  words with digit sum `targetSum` (183) (`probEvent_decode_none`). The actual conditional-half
-  selector multiplies this probability by `3/2` (`probEvent_selected_decode_none`). The count is a generating-function identity
+  `codeCount = 101963205812723399925627924643353984` is the number of pairs of 21-digit octal
+  words with digit sum `targetSum` (184) (`probEvent_decode_none`). The actual conditional-half
+  selector multiplies this probability by `7/4` (`probEvent_selected_decode_none`). The count is a generating-function identity
   evaluated by the kernel (`codeCount_eq`), as in the leanVM completeness proof.
 -/
 
@@ -246,8 +246,8 @@ theorem npair_coeff (n s X : Nat) (hX : 8 ^ n * 8 ^ n < X) (hs : s < 14 * n + 1)
   rw [← gf_pairs]
   exact (digit_of_sum X (by omega) (npair n) (fun s => (npair_le n s).trans_lt hX) _ s hs).symm
 
-/-- The number of accepted encodings (pairs of 21-digit words with digit sum `targetSum = 183`). -/
-def codeCount : Nat := 120626508116675256487918723077579392
+/-- The number of accepted encodings (pairs of 21-digit words with digit sum `targetSum = 184`). -/
+def codeCount : Nat := 101963205812723399925627924643353984
 
 theorem gfDigit_eq (X : Nat) : gfDigit X = 1 + X + X ^ 2 + X ^ 3 + X ^ 4 + X ^ 5 + X ^ 6 + X ^ 7 := by
   simp [gfDigit, Finset.sum_range_succ]
@@ -390,22 +390,29 @@ theorem selected_decode_none_iff (u : BitVec 256) :
   rw [Nat.mod_add_div] at h
   exact not_congr h
 
-/-- The actual selector has three half-spaces per accepted encoding. -/
+/-- The actual selector has seven quarter-spaces per accepted encoding. -/
 theorem probEvent_selected_decode_none :
     Pr[fun u : BitVec 256 => decodeDigits (encodingBytes u) = none |
       ($ᵗ BitVec 256 : ProbComp (BitVec 256))] =
-      1 - ((3 * 2 ^ 127 * codeCount : Nat) : ℝ≥0∞) / (2 ^ 256 : ℝ≥0∞) := by
+      1 - ((7 * 2 ^ 126 * codeCount : Nat) : ℝ≥0∞) / (2 ^ 256 : ℝ≥0∞) := by
   let targets : Finset SphincsSecurity.Digest := univ.filter fun d => Dok d.toNat
-  have hpad : ∀ d ∈ targets, d.getLsbD 63 = false := by
+  have hpad : ∀ d ∈ targets, (d.getLsbD 63 || d.getLsbD 127) = false := by
     intro d hd
     have hlow := ((mem_filter.mp hd).2 : Dok d.toNat).1
-    rw [BitVec.getLsbD, Nat.testBit_eq_decide_div_mod_eq]
-    simp only [decide_eq_false_iff_not]
-    norm_num at hlow ⊢
-    omega
+    have hhigh := ((mem_filter.mp hd).2 : Dok d.toNat).2.1
+    apply Bool.or_eq_false_iff.mpr
+    constructor
+    · rw [BitVec.getLsbD, Nat.testBit_eq_decide_div_mod_eq]
+      simp only [decide_eq_false_iff_not]
+      norm_num at hlow ⊢
+      omega
+    · rw [BitVec.getLsbD, Nat.testBit_eq_decide_div_mod_eq]
+      simp only [decide_eq_false_iff_not]
+      norm_num at hhigh ⊢
+      omega
   have hcard := SphincsSecurity.EncodingSelection.card_select_mem_of_padding targets hpad
   have ht : targets.card = codeCount := count_Dok_128
-  rw [ht, show (2 : Nat) ^ 128 + 2 ^ 127 = 3 * 2 ^ 127 by norm_num] at hcard
+  rw [ht, show (2 : Nat) ^ 128 + 3 * 2 ^ 126 = 7 * 2 ^ 126 by norm_num] at hcard
   have hc := probEvent_compl ($ᵗ BitVec 256 : ProbComp (BitVec 256))
     (fun u => Dok (SphincsSecurity.selectEncodingDigest u).toNat)
   have hfail : Pr[⊥ | ($ᵗ BitVec 256 : ProbComp (BitVec 256))] = 0 := by simp
@@ -417,7 +424,7 @@ theorem probEvent_selected_decode_none :
     SphincsSecurity.Completeness.probEvent_uniform]
   have hcount : ((univ : Finset (BitVec 256)).filter
       fun u => Dok (SphincsSecurity.selectEncodingDigest u).toNat).card =
-      3 * 2 ^ 127 * codeCount := by
+      7 * 2 ^ 126 * codeCount := by
     simpa only [targets, mem_filter, mem_univ, true_and] using hcard
   rw [hcount]
 

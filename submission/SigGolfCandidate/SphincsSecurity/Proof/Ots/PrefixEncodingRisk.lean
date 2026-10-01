@@ -176,7 +176,7 @@ theorem prob_prefixHashQuery_encodingMatch_le (hencoding : canonicalEncodingInpu
     Pr[ReturnedMatch (PublicEncodingMatch.Match parameter (knownEncodingMessage known) words selections) input.val |
       AdaptiveResidualLabels.lazyRun
         (prefixEnvironment parameter inputs hencoding words disclosed known publicReplies selections rows) (hashQuery input) state] ≤
-      ((3 / 2 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
+      ((7 / 4 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
   by_cases hexists : ∃ position, AtEncodingPosition parameter input.val position
   · obtain ⟨position, hat⟩ := hexists
     rw [hashQuery, lazyRun_prepare_bind]

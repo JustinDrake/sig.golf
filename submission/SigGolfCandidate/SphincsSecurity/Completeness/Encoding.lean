@@ -6,8 +6,8 @@ import SigGolfCandidate.SphincsSecurity.Proof.Ots.EncodingSelection
 /-!
 # What one encoding trial rejects
 
-Conditional-half selection gives every accepted digest exactly `3/2` times its
-ordinary truncation mass. Together with the target-183 count, this preserves the
+Conditional-half selection gives every accepted digest exactly `7/4` times its
+ordinary truncation mass. Together with the target-184 count, this preserves the
 conservative success lower bound `1 / codeShare` used by the completeness tail.
 -/
 
@@ -30,21 +30,21 @@ theorem probEvent_accept :
     simp only [Finset.mem_filter, Finset.mem_univ, true_and]
   · rfl
 
-/-- The actual raw-query decoder has exactly the `3/2` selected acceptance share. -/
+/-- The actual raw-query decoder has exactly the `7/4` selected acceptance share. -/
 theorem probEvent_selected_accept :
     Pr[fun u : HashOutput => (decodeDigest (selectEncodingDigest u)).isSome |
         ($ᵗ HashOutput : ProbComp HashOutput)] =
-      (3 / 2 : ℝ≥0∞) *
+      (7 / 4 : ℝ≥0∞) *
         (((univ.filter fun d : Digest => (decodeDigest d).isSome).card : ℝ≥0∞)
           / (Fintype.card Digest : ℝ≥0∞)) := by
   have hpad : ∀ d ∈ (univ.filter fun d : Digest => (decodeDigest d).isSome),
-      d.getLsbD 63 = false := by
+      (d.getLsbD 63 || d.getLsbD 127) = false := by
     intro d hd
     have hd' := (mem_filter.mp hd).2
     unfold decodeDigest at hd'
     split at hd'
     · rename_i hp
-      exact hp.1
+      exact Bool.or_eq_false_iff.mpr ⟨hp.1, hp.2.1⟩
     · simp at hd'
   simpa only [mem_filter, mem_univ, true_and] using
     EncodingSelection.prob_select_mem_of_padding
@@ -55,7 +55,7 @@ theorem failMass_encoding_add_le :
     failMass (fun out => decodeDigest (selectEncodingDigest out)) + (codeShare : ℝ≥0∞)⁻¹ ≤ 1 := by
   obtain ⟨accepted, haccepted⟩ :
       ∃ n, (univ.filter fun d : Digest => (decodeDigest d).isSome).card = n := ⟨_, rfl⟩
-  have hnat : 2 * (2 : Nat) ^ 128 ≤ (3 * codeShare) * accepted :=
+  have hnat : 4 * (2 : Nat) ^ 128 ≤ (7 * codeShare) * accepted :=
     haccepted ▸ digests_le_codeShare_mul_card_accepting
   have hcard : (Fintype.card Digest : ℝ≥0∞) = (2 : ℝ≥0∞) ^ 128 := by
     rw [show Fintype.card Digest = 2 ^ 128 by simp [digestBits], Nat.cast_pow, Nat.cast_ofNat]
@@ -72,9 +72,9 @@ theorem failMass_encoding_add_le :
   have hfail : Pr[⊥ | ($ᵗ HashOutput : ProbComp HashOutput)] = 0 := by simp
   rw [hreject, probEvent_selected_accept, hfail, tsub_zero, hcard, haccepted] at hcompl
   have hshare : (codeShare : ℝ≥0∞)⁻¹ ≤
-      (3 / 2 : ℝ≥0∞) * ((accepted : ℝ≥0∞) / (2 : ℝ≥0∞) ^ 128) := by
+      (7 / 4 : ℝ≥0∞) * ((accepted : ℝ≥0∞) / (2 : ℝ≥0∞) ^ 128) := by
     apply (ENNReal.toReal_le_toReal (by norm_num [codeShare]) (by finiteness)).mp
-    have hnatR : (2 : ℝ) * 2 ^ 128 ≤ (3 * (codeShare : ℝ)) * accepted := by
+    have hnatR : (4 : ℝ) * 2 ^ 128 ≤ (7 * (codeShare : ℝ)) * accepted := by
       exact_mod_cast hnat
     simp only [ENNReal.toReal_inv, ENNReal.toReal_mul, ENNReal.toReal_div,
       ENNReal.toReal_pow, ENNReal.toReal_natCast, ENNReal.toReal_ofNat]

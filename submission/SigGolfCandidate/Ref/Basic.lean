@@ -74,7 +74,7 @@ def slice (l : List Byte) (off len : Nat) : List Byte := (l.drop off).take len
 
 def nChains : Nat := 42
 /-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
-def targetSum : Nat := 183
+def targetSum : Nat := 184
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
 /-- The number of hypertree layers `d`. -/
@@ -264,7 +264,7 @@ def hash16 (x : List Byte) : OracleComp HashSpec Val := do
 /-- Encoding-only half selection: keep the low half when its padding bit is clear,
 otherwise use the independent high half. Ordinary hashes are unchanged. -/
 def encodingAnswer (a : BitVec 256) : BitVec 256 :=
-  if a.getLsbD 63 then a >>> 128 else a
+  if a.getLsbD 63 || a.getLsbD 127 then a >>> 128 else a
 
 def encodingBytes (a : BitVec 256) : Val := answerBytes 16 (encodingAnswer a)
 

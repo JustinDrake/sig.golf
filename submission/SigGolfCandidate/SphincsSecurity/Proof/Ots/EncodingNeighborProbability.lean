@@ -26,22 +26,22 @@ theorem decodingDigests_card_le (words : Finset Encoding) : (decodingDigests wor
     exact decode_some_injective hleft (by rw [he]; exact hright)
 
 theorem decodingDigests_padding (words : Finset Encoding) :
-    ∀ digest ∈ decodingDigests words, digest.getLsbD 63 = false := by
+    ∀ digest ∈ decodingDigests words, (digest.getLsbD 63 || digest.getLsbD 127) = false := by
   intro digest hd
   obtain ⟨word, _, hdecode⟩ := mem_decodingDigests.mp hd
   rw [decode_def] at hdecode
   unfold TargetSum.decodeDigest at hdecode
   split at hdecode
   · rename_i hp
-    exact hp.1
+    exact Bool.or_eq_false_iff.mpr ⟨hp.1, hp.2.1⟩
   · simp at hdecode
 
 theorem decodingDigests_uniform_le (words : Finset Encoding) :
     Pr[fun output : HashOutput => selectEncodingDigest output ∈ decodingDigests words | ($ᵗ HashOutput : ProbComp HashOutput)] ≤
-      ((3 / 2 : ENNReal) * words.card) / Fintype.card Digest := by
+      ((7 / 4 : ENNReal) * words.card) / Fintype.card Digest := by
   rw [EncodingSelection.prob_select_mem_of_padding _ (decodingDigests_padding words)]
   calc
-    _ ≤ (3 / 2 : ENNReal) * ((words.card : ENNReal) / Fintype.card Digest) :=
+    _ ≤ (7 / 4 : ENNReal) * ((words.card : ENNReal) / Fintype.card Digest) :=
       mul_le_mul' le_rfl
         (ENNReal.div_le_div_right (Nat.cast_le.mpr (decodingDigests_card_le words)) _)
     _ = _ := by simp only [div_eq_mul_inv, mul_assoc]

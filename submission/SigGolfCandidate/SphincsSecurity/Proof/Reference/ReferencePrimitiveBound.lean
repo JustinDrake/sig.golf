@@ -50,12 +50,12 @@ theorem graphPrimitiveEvent_of_outcome (key : SecretKey) (f : QueryImpl HashSpec
 noncomputable def primitivePrefixRate (q : Nat) : ENNReal :=
   let n : ENNReal := Fintype.card Digest
   let x := (q : ENNReal) / n
-  prefixTwoEdgeRate q / (1 - x) + (4 * x) / ((1 - x)^2 * n) + ((2 * ((3 / 2 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * x) / ((1 - x) * n)
+  prefixTwoEdgeRate q / (1 - x) + (4 * x) / ((1 - x)^2 * n) + ((2 * ((7 / 4 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * x) / ((1 - x) * n)
 
 noncomputable def primitiveEncodingRate (q : Nat) : ENNReal :=
   let n : ENNReal := Fintype.card Digest
   let x := (q : ENNReal) / n
-  (3 / 2 : ENNReal) * n⁻¹ + ((2 * ((3 / 2 : ENNReal) * (OtsCode.neighborBound : ENNReal))) * x) / ((1 - x) * n)
+  (7 / 4 : ENNReal) * n⁻¹ + ((2 * ((7 / 4 : ENNReal) * (OtsCode.neighborBound : ENNReal))) * x) / ((1 - x) * n)
 
 theorem primitivePrefixRate_mono {q r : Nat} (h : q ≤ r) : primitivePrefixRate q ≤ primitivePrefixRate r := by
   dsimp only [primitivePrefixRate, prefixTwoEdgeRate]
