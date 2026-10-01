@@ -1166,11 +1166,11 @@ theorem pors_good_decoded (P : PCtx) (hP : P.ok) (s0 : MachineState)
   rw [l0] at hg
   exact hg.mono (le_refl _) (le_refl _) (fun _ => ⟨trivial, le_refl _⟩)
 
-def cycleBoundDecoded (wl : List Byte) : Nat := 459 + layC + decodedCostRem wl 0
+def cycleBoundDecoded (wl : List Byte) : Nat := 451 + layC + decodedCostRem wl 0
 
 theorem exact_cost_vals (wl : List Byte) :
-    leafCost 0 + Aexact wl 0 0 = 335 + layC + decodedCostRem wl 0 := by
-  have h0 : leafCost 0 = 11 := rfl
+    leafCost 0 + Aexact wl 0 0 = 320 + layC + decodedCostRem wl 0 := by
+  have h0 : leafCost 0 = 10 := rfl
   simp only [Aexact, lrest_0, h0, Nat.mul_zero, Nat.sub_self]
   omega
 
@@ -1192,8 +1192,8 @@ theorem main_good_decoded (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : 
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (92 + (leafCost 0 + Nseg 0 0)) (92 + (leafCost 0 + Cseg 0 0)) True
-        (92 + (leafCost 0 + Aexact wl 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (99 + (leafCost 0 + Nseg 0 0)) (99 + (leafCost 0 + Cseg 0 0)) True
+        (99 + (leafCost 0 + Aexact wl 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with
