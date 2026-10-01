@@ -71,8 +71,8 @@ def specA (lay t : Nat) : Spec :=
     (⟨none, BitVec.ofNat 64 264⟩, x31Er lay), (⟨none, BitVec.ofNat 64 256⟩, cw (hWord lay + 768))],
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
 
-/-! ## The encoding check (`remu x25, x25, x18`; layers 0 .. 3 compare `KT`, layer 4 also compares `x29 = KT`,
-all targets 181) and the chain prologue -/
+/-! ## The encoding check (`remu x25, x25, x18`; layers 0 and 1 compare `x29 = KT = 183`, layers 2 .. 4
+compare `x28 = KT4 = 184`) and the chain prologue -/
 
 def encSelE : E := .bin .sll (.bin .srl (ldE 288) (cw 63)) (cw 4)
 def d0E : E := .ld (.bin .add encSelE (cw 288))
