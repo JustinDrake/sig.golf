@@ -45,7 +45,7 @@ def LayerIn (L : LCtx) (M : Val) (s : MachineState) : Prop :=
 /-- After the encoding hash of transition copy `t` (answer `a` in EO). -/
 def EncOut (L : LCtx) (t : Nat) (a : BitVec 256) (s : MachineState) : Prop :=
   Glob gkL L.wl L.pk s ∧ KnownOK (bK L.lay) s ∧
-  s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧
+  s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 (if L.lay = 0 then L.e else L.tau) ∧
   s.getReg .x31 = BitVec.ofNat 64 (L.tau + 2 ^ 32 * L.e) ∧
   s.getMem (BitVec.ofNat 64 288) = a.extractLsb' 0 64 ∧
   s.getMem (BitVec.ofNat 64 296) = a.extractLsb' 64 64 ∧
@@ -178,7 +178,7 @@ theorem enc_step (L : LCtx) (hL : L.ok) (M : Val) (s : MachineState) (hs : Layer
       writeHash_at0 _ a _ h12 (by omega), writeHash_at8 _ a _ h12 (by omega), ?_, ?_, ?_⟩
     · rw [writeHash_getReg, hu.regs (.x23, uHE L.lay) (by simp [specA]), uHE_eval L.idx L.lay hlay hidx s hR]
       rfl
-    · rw [writeHash_getReg, hu.regs (.x30, tauEr L.lay) (by simp [specA]), tauEr_eval L.idx L.lay hlay hidx s hR]
+    · rw [writeHash_getReg, hu.regs (.x30, carryEr L.lay) (by simp [specA]), carryEr_eval L.idx L.lay hlay hidx s hR]
       rfl
     · rw [writeHash_getReg, hu.regs (.x31, x31Er L.lay) (by simp [specA]), hx31]
     · unfold CB0
