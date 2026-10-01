@@ -72,7 +72,7 @@ theorem structuralAnswer_selections (key : SecretKey) (inputs : Finset HashInput
       referenceTableSelection key (structuralAnswer key inputs labels outside right) := by
   funext position
   rw [referenceTableSelection, referenceTableSelection, structuralAnswer_graph, structuralAnswer_graph]
-  apply congrArg (FirstSuccessTable.select (decodeEncodingOutput position.lay))
+  apply congrArg (FirstSuccessTable.select decodeEncodingOutput)
   funext counter
   apply structuralAnswer_nonstructural
   rintro ⟨other, ho⟩

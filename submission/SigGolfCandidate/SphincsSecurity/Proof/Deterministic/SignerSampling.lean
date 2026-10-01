@@ -1,4 +1,4 @@
-import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.TrialSampling
+import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.PairedSampling
 
 open OracleComp OracleSpec
 
@@ -9,7 +9,7 @@ set_option maxRecDepth 4096
 
 variable {State : Type}
 
-attribute [local irreducible] tableDigestLoop Concrete.signDigestLoop
+attribute [local irreducible] pairedTableDigestLoop Concrete.signDigestLoop
 
 /-- What either signer does after its digest loop. -/
 def signatureAfterTrial (secretKey : SphincsSecurity.SecretKey) (attempt : TrialResult) : OracleComp HashSpec (Option Signature) :=
@@ -19,7 +19,7 @@ def signatureAfterTrial (secretKey : SphincsSecurity.SecretKey) (attempt : Trial
 
 theorem tableSign_eq_finish (randomizers : RandomizerOutputs) (secretKey : SphincsSecurity.SecretKey) (message : Message) :
     (tableSign randomizers secretKey message : OracleComp HashSpec (Option Signature)) =
-      (tableDigestLoop randomizers secretKey message digestAttemptLimit 0 >>= signatureAfterTrial secretKey) := by
+      (pairedTableDigestLoop randomizers secretKey message digestPairLimit 0 >>= signatureAfterTrial secretKey) := by
   unfold tableSign
   apply bind_congr
   intro attempt
@@ -45,7 +45,8 @@ theorem evalDist_tableSign (hash : QueryImpl HashSpec (StateT State ProbComp))
         secretKey message : OracleComp HashSpec (Option Signature)) : OracleComp OracleWorld (Option Signature))).run state] =
       𝒮[(simulateQ (worldHandler hash) (Concrete.sign secretKey message)).run state] := by
   simp_rw [tableSign_eq_finish, sign_eq_finish, liftM_bind, simulateQ_bind, StateT.run_bind]
-  have h := evalDist_tableDigestLoop hash secretKey message digestAttemptLimit 0 (by decide) state
+  have h := evalDist_pairedTableDigestLoop hash secretKey message digestPairLimit 0 (by decide) state
+  rw [show 2 * digestPairLimit = digestAttemptLimit from rfl] at h
   have heq := congrArg (fun distribution => distribution >>= fun result : TrialResult × State =>
     𝒮[(simulateQ (worldHandler hash) (liftM (signatureAfterTrial secretKey result.1) :
       OracleComp OracleWorld (Option Signature))).run result.2]) h

@@ -101,7 +101,7 @@ theorem nodeLoopD_sim (node : NodeFmt) (c : NodeCtxD) (lvl : List Val)
     (h25 : s.getReg .x25 = BitVec.ofNat 64 c.D)
     (h5 : s.getReg .x5 = 0) (hm32 : 2 * c.m < 2 ^ 32)
     (hfmt : ∀ j l r, j < c.m → l.length = 16 → r.length = 16 →
-      fmt (node c.lam j l r) = pad64 (nodeFmt c.tt c.lay c.tau 0 (c.m + j) l r))
+      addrFmt (node c.lam j l r) = pad64 (nodeFmt c.tt c.lay c.tau 0 (c.m + j) l r))
     (hw0 : s.getMem (BitVec.ofNat 64 448) = twWord0 c.tt c.lay c.tau 0)
     (hw1 : lo32 (s.getMem (BitVec.ofNat 64 456)) = BitVec.ofNat 32 c.tau)
     (hz0 : s.getMem (BitVec.ofNat 64 464) = 0) (hz1 : s.getMem (BitVec.ofNat 64 472) = 0)
@@ -201,7 +201,7 @@ theorem nodeLoopD_sim (node : NodeFmt) (c : NodeCtxD) (lvl : List Val)
             if_true, lo32_replace1]
           exact tframe.2))
     refine this.mono ?_ (fun _ _ h => h)
-    rw [hfmt j _ _ hj hl hr, nodeFmt, pad64_blocks_one _ (words_th32 c.tt c.lay c.tau 0 (c.m + j) _ _ hl hr).1]
+    rw [← addrFmt_blocks, hfmt j _ _ hj hl hr, nodeFmt, pad64_blocks_one _ (words_th32 c.tt c.lay c.tau 0 (c.m + j) _ _ hl hr).1]
   · refine ⟨Nat.zero_le _, rfl, by simp, by simp, fun i hi => hslots i hi, by simp [hpc, hm],
       by simpa using h16, fun r _ _ _ _ _ _ _ => rfl, fun a _ _ _ _ _ _ _ => rfl, rfl⟩
 
@@ -309,7 +309,7 @@ theorem plev_body (idx : Nat) (t0 : MachineState) (ctx : PLevCtx idx t0) (j : Na
     (by rw [r1.get .x5, tregs.get .x5 (by simp [plevRegs]), ctx.x5]) (by simp only [c]; omega)
     (fun jj l r hjj hl hr => by
       simp only [c, porsNodeFmt, porsNodeInput, heapIndex, porsH, nodeFmt]
-      rw [fmt_thInput _ _ _ _ _ _ (by decide), show 14 - (1 + j) = 13 - j by omega])
+      rw [addrFmt_thInput _ _ _ _ _ _ (by decide), show 14 - (1 + j) = 13 - j by omega])
     (by simp only [c]; rw [m1, tframe.getMem (by norm_num) (by simp only [plevW, lvBase]; omega), ctx.nb0])
     (by simp only [c]; rw [m1, tlo, ctx.nb8])
     (by rw [m1, tframe.getMem (by norm_num) (by simp only [plevW, lvBase]; omega)]

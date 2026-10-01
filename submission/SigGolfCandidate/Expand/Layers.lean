@@ -171,8 +171,8 @@ theorem expandLayers_succ (w : List Byte) (idx lay : Nat) (M : Val) :
             | none => pure none
             | some cs => pure (some (cs ++ [c]))) := rfl
 
-/-- Cycles per layer (the search dominates: `2^22` trials of 46 cycles). -/
-def LW : Nat := 2 ^ 22 * 46 + 10000
+/-- Cycles per layer (the search dominates: `2^22` trials of 40 cycles; the chain adapter adds 8000). -/
+def LW : Nat := 2 ^ 22 * 40 + 18000
 
 /-- **The top layer** (`LAY = 0`): header, search, counter, `halt_ok`. -/
 theorem top_layer (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.getD (2396 + j) 0 = 0) (idx : Nat) (M : Val) (above : List Nat)
@@ -251,7 +251,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
   rw [expandLayers_succ, show cMax = 2 ^ 22 - 1 + 1 from rfl]
   have henc := encLoop_sim eHeadCode.toEncCode (n + 1) tau e M t4 emem (2 ^ 22 - 1) 0 t4 (by norm_num)
     ⟨pc4, x46, by norm_num, RegsEq.refl _ _, Frame.refl _ _⟩
-  refine (Sim.steps hs4 (Sim.bind henc (W₂ := 8000 + (n + 1) * LW) (fun r t5 h5 => ?_))).mono
+  refine (Sim.steps hs4 (Sim.bind henc (W₂ := 16000 + (n + 1) * LW) (fun r t5 h5 => ?_))).mono
     (by unfold LW; omega) (fun _ _ h => h)
   rcases r with _ | ⟨c, x⟩
   · obtain ⟨p5, x55, x510⟩ := h5
@@ -279,7 +279,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
   have c7 : LCtx w idx t7 := hc.frame F7 R7 (fun a h1 h2 => by simp only [lctxA, witA, encW] at h1 h2; omega)
   -- the chains
   have hch := Sim.foldlM_range (image := eimg) 42 (leafF w (n + 1) tau e (digitsOfWord d0 ++ digitsOfWord d1)) []
-    (ChInv w idx t7 (n + 1) d0 d1) 160
+    (ChInv w idx t7 (n + 1) d0 d1) 335
     (chain_body w idx t7 (n + 1) tau e d0 d1 hn htau30 he2048 hd0 hd1 hw
       (by rw [r7.get .x2, r6.get .x2, x52]) y21 mCB8)
     ⟨by rw [p7, if_pos (by norm_num)], c7, by norm_num, rfl, fun v hv => by simp at hv,

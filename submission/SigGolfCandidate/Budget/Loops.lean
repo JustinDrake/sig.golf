@@ -98,14 +98,14 @@ theorem AllShort.append {l : List Val} {v : Val} (hl : AllShort l) (hv : v.lengt
   · exact hl w hw
   · exact hv
 
-theorem spec_hash16 {P : Query → Prop} (x : List Byte) (k : Nat) (hP : P (fmt x))
-    (hk : (fmt x).blocks ≤ k) : Spec P (fun v : Val => v.length = 16) k (hash16 x) := by
-  show Spec P _ k (qry (fmt x) >>= fun a => Pure.pure (answerBytes 16 a))
+theorem spec_hash16 {P : Query → Prop} (x : List Byte) (k : Nat) (hP : P (addrFmt x))
+    (hk : (addrFmt x).blocks ≤ k) : Spec P (fun v : Val => v.length = 16) k (hash16 x) := by
+  show Spec P _ k (qry (addrFmt x) >>= fun a => Pure.pure (answerBytes 16 a))
   exact Spec.qry_bind hP (fun u => Spec.pure _ 0 (by simp)) (by omega)
 
 theorem spec_hash16_bind {P : Query → Prop} {β : Type} {R : β → Prop} (x : List Byte)
-    {f : Val → OracleComp HashSpec β} {kx l n : Nat} (hP : P (fmt x))
-    (hk : (fmt x).blocks ≤ kx) (hf : ∀ v : Val, v.length = 16 → Spec P R l (f v))
+    {f : Val → OracleComp HashSpec β} {kx l n : Nat} (hP : P (addrFmt x))
+    (hk : (addrFmt x).blocks ≤ kx) (hf : ∀ v : Val, v.length = 16 → Spec P R l (f v))
     (hn : kx + l ≤ n) : Spec P R n (Ref.hash16 x >>= f) :=
   (spec_hash16 x kx hP hk).bind' hf hn
 
@@ -119,7 +119,7 @@ def PP (q : Query) : Prop := 8 ≤ qbyte q 1 ∧ qbyte q 1 ≤ 10
 /-- A node format queries `P` and fits one block on short children. -/
 def NodeOK (P : Query → Prop) (node : NodeFmt) : Prop :=
   ∀ lam j l r, l.length ≤ 16 → r.length ≤ 16 →
-    P (fmt (node lam j l r)) ∧ (node lam j l r).length ≤ 64
+    P (addrFmt (node lam j l r)) ∧ (node lam j l r).length ≤ 64
 
 theorem nodeOK_nodeInput (lay tau : Nat) : NodeOK PT (nodeInput lay tau) := by
   intro lam j l r hl hr
@@ -171,15 +171,15 @@ theorem spec_buildLevels {P : Query → Prop} {node : NodeFmt} (hn : NodeOK P no
   rw [this, Nat.pow_succ, Nat.mul_div_cancel _ (by norm_num)]
 
 theorem prf_ok (S : List Byte) (hS : S.length = 32) (lay tau e i : Nat) :
-    PT (fmt (prfInput S lay tau e i)) ∧ (fmt (prfInput S lay tau e i)).blocks ≤ 1 := by
+    PT (addrFmt (prfInput S lay tau e i)) ∧ (addrFmt (prfInput S lay tau e i)).blocks ≤ 1 := by
   refine ⟨?_, blocksFmt_le _ 1 (by simp [prfInput, hS]) le_rfl⟩
   unfold PT prfInput; rw [qbyte_tag]; omega
 
 theorem spec_prf2 {P : Query → Prop} {β : Type} {R : β → Prop} (x : List Byte)
-    {f : Val × Val → OracleComp HashSpec β} {kx l n : Nat} (hP : P (fmt x))
-    (hk : (fmt x).blocks ≤ kx) (hf : ∀ v : Val × Val, v.1.length ≤ 16 → v.2.length ≤ 16 →
+    {f : Val × Val → OracleComp HashSpec β} {kx l n : Nat} (hP : P (addrFmt x))
+    (hk : (addrFmt x).blocks ≤ kx) (hf : ∀ v : Val × Val, v.1.length ≤ 16 → v.2.length ≤ 16 →
       Spec P R l (f v)) (hn : kx + l ≤ n) : Spec P R n (prf2 x >>= f) := by
-  show Spec P R n ((qry (fmt x) >>= fun a => Pure.pure ((answerBytes 32 a).take 16,
+  show Spec P R n ((qry (addrFmt x) >>= fun a => Pure.pure ((answerBytes 32 a).take 16,
     (answerBytes 32 a).drop 16)) >>= f)
   rw [bind_assoc]
   refine Spec.qry_bind hP (k := l) (fun u => ?_) (by omega)
@@ -300,7 +300,7 @@ theorem length_xorBytes_le (a b : List Byte) (hb : b.length = 16) : (xorBytes a 
   unfold xorBytes; rw [List.length_zipWith]; omega
 
 theorem mask_ok (S : List Byte) (hS : S.length = 32) (l j : Nat) :
-    (13 = qbyte (fmt (maskInput S l j)) 1) ∧ (fmt (maskInput S l j)).blocks ≤ 1 := by
+    (13 = qbyte (addrFmt (maskInput S l j)) 1) ∧ (addrFmt (maskInput S l j)).blocks ≤ 1 := by
   refine ⟨?_, blocksFmt_le _ 1 (by simp [maskInput, hS]) le_rfl⟩
   unfold maskInput; rw [qbyte_tag]
 
@@ -358,7 +358,7 @@ theorem spec_keygenRef (sk : Bytes 32) :
       have := length_flatten_le hm.2
       rw [hm.1, show topN (10 + 1) - topN 1 = 2046 by decide] at this
       omega
-    show Spec PK _ _ (qry (fmt (macInput (toList sk) masked.flatten)) >>= fun tag => Pure.pure _)
+    show Spec PK _ _ (qry (addrFmt (macInput (toList sk) masked.flatten)) >>= fun tag => Pure.pure _)
     refine Spec.qry_bind (Or.inr (Or.inr ?_)) (fun u => Spec.pure _ 0 trivial)
       (blocksFmt_le _ 513 ?_ (by omega) |> fun h => by omega)
     · unfold macInput; rw [qbyte_tag]
@@ -419,13 +419,13 @@ def PC (lay : Nat) (q : Query) : Prop := qbyte q 1 = 4 ∧ qbyte q 2 = lay
 def PD (q : Query) : Prop := qbyte q 1 = 7 ∨ qbyte q 1 = 12
 
 theorem enc_ok (lay tau e : Nat) (M : Val) (hM : M.length ≤ 16) (c : Nat) (hlay : lay < 256) :
-    PC lay (fmt (encInput lay tau e M c)) ∧ (fmt (encInput lay tau e M c)).blocks ≤ 1 := by
+    PC lay (addrFmt (encInput lay tau e M c)) ∧ (addrFmt (encInput lay tau e M c)).blocks ≤ 1 := by
   refine ⟨⟨?_, ?_⟩, blocksFmt_le _ 1 (by simp [encInput]; omega) le_rfl⟩
   · unfold encInput; rw [qbyte_tag]
   · unfold encInput; rw [qbyte_lay]; omega
 
-theorem decodeDigits_some {lay : Nat} {v : Val} {x : List Nat} (h : decodeDigits lay v = some x) :
-    x.length = 42 ∧ x.sum = targetFor lay := by
+theorem decodeDigits_some {v : Val} {x : List Nat} (h : decodeDigits v = some x) :
+    x.length = 42 ∧ x.sum = targetSum := by
   unfold decodeDigits at h
   simp only at h
   split_ifs at h with h1 h2
@@ -433,11 +433,11 @@ theorem decodeDigits_some {lay : Nat} {v : Val} {x : List Nat} (h : decodeDigits
   exact ⟨by simp [digitsOfWord], h2⟩
 
 /-- The counter search's results: accepted digit words. -/
-def DigOK (lay : Nat) (o : Option (Nat × List Nat)) : Prop :=
-  ∀ c x, o = some (c, x) → x.length = 42 ∧ x.sum = targetFor lay
+def DigOK (o : Option (Nat × List Nat)) : Prop :=
+  ∀ c x, o = some (c, x) → x.length = 42 ∧ x.sum = targetSum
 
 theorem spec_searchCounter (lay tau e : Nat) (M : Val) (hM : M.length ≤ 16) (hlay : lay < 256) :
-    ∀ fuel c, Spec (PC lay) (DigOK lay) fuel (searchCounter lay tau e M c fuel) := by
+    ∀ fuel c, Spec (PC lay) DigOK fuel (searchCounter lay tau e M c fuel) := by
   intro fuel
   induction fuel with
   | zero => intro c; exact Spec.pure _ _ (by simp [DigOK])
@@ -453,14 +453,14 @@ theorem spec_searchCounter (lay tau e : Nat) (M : Val) (hM : M.length ≤ 16) (h
     · exact ih (c + 1)
 
 theorem rnd_ok (S m : List Byte) (hS : S.length = 32) (hm : m.length = 32) (a : Nat) :
-    PD (fmt (rndInput S m a)) ∧ (fmt (rndInput S m a)).blocks ≤ 1 := by
+    PD (addrFmt (rndInput S m a)) ∧ (addrFmt (rndInput S m a)).blocks ≤ 1 := by
   refine ⟨Or.inl ?_, blocksFmt_le _ 1 (by simp [rndInput, hS, hm]) (by omega)⟩
   rw [qbyte_fmt _ _ (by decide)]
   simp [rndInput, byte_toNat]
 
 theorem dig_ok (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
-    PD (fmt (digestInput rho m)) ∧ (fmt (digestInput rho m)).blocks ≤ 1 := by
-  refine ⟨Or.inr ?_, by rw [Ref.fmt_digestInput rho m hr hm]; exact le_rfl⟩
+    PD (addrFmt (digestInput rho m)) ∧ (addrFmt (digestInput rho m)).blocks ≤ 1 := by
+  refine ⟨Or.inr ?_, by rw [addrFmt_digestInput, Ref.fmt_digestInput rho m hr hm]; exact le_rfl⟩
   unfold digestInput; rw [qbyte_tag]
 
 theorem spec_searchDigest (S m : List Byte) (hS : S.length = 32) (hm : m.length = 32) :
@@ -474,7 +474,7 @@ theorem spec_searchDigest (S m : List Byte) (hS : S.length = 32) (hm : m.length 
     obtain ⟨h1, h2⟩ := rnd_ok S m hS hm a
     refine spec_hash16_bind _ h1 h2 (l := 1 + 2 * n) (fun rho hrho => ?_) (by omega)
     obtain ⟨h3, h4⟩ := dig_ok rho m hrho hm
-    show Spec PD _ _ (qry (fmt (digestInput rho m)) >>= fun b => Pure.pure b.toNat
+    show Spec PD _ _ (qry (addrFmt (digestInput rho m)) >>= fun b => Pure.pure b.toNat
       >>= fun N => if admissible N = true then Pure.pure (some (rho, N))
         else searchDigest S m (a + 1) n)
     refine Spec.qry_bind h3 (k := 2 * n) (fun u => ?_) (by omega)

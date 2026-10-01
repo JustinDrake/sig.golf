@@ -10,8 +10,8 @@ attribute [local irreducible] canonicalEncodingInputs canonicalGraphInputs canon
 noncomputable def forcedNearDeferredGame (dummy : OtsReferenceWords) (adversary : Adversary) (slot : Nat) : SPMF Bool := do
   let parameter ← 𝒮[sampleParameter]
   let otsSecret ← 𝒮[sampleOtsSecrets]
-  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]
-  let rows ← 𝒮[FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections]
+  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]
+  let rows ← 𝒮[FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections]
   let labels ← 𝒮[PMF.uniformOfFintype CanonicalGraphLabels]
   (fun result => decide (completedNearCertificate parameter (canonicalGraphRoot labels) result.1.1)) <$>
     deferredForcedRun parameter (canonicalGraphRoot labels) otsSecret labels (canonicalGraphGameInputs adversary)
@@ -25,9 +25,9 @@ theorem forcedNearGame_deferred (dummy : OtsReferenceWords) (adversary : Adversa
   funext parameter
   apply congrArg (𝒮[sampleOtsSecrets] >>= ·)
   funext otsSecret
-  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit] >>= ·)
+  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit] >>= ·)
   funext selections
-  apply congrArg (𝒮[FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections] >>= ·)
+  apply congrArg (𝒮[FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections] >>= ·)
   funext rows
   rw [RetainedObservation.bind_comm]
   apply congrArg (𝒮[PMF.uniformOfFintype CanonicalGraphLabels] >>= ·)

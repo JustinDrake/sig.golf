@@ -32,9 +32,8 @@ def PSB : Nat := 0x2A0
 /-- `STK` of the empty stack; its `Q` word is the guard at `EMPTY - 16 = 0x240`. -/
 def EMPTY : Nat := 0x250
 def PIND : Nat := 0x780
-/-- The protected doubleword range from witness base through the top of memory.
-It includes the embedded tweak table; this is a frame bound, not the witness size. -/
-def NW : Nat := 2096896
+/-- The number of witness doublewords the verifier may read (the stream reads up to 7000 bytes). -/
+def NW : Nat := 2048
 
 def tbN : Nat := 0x1000 + 4 * ptabN
 def tbL : Nat := 0x1000 + 4 * ptabL

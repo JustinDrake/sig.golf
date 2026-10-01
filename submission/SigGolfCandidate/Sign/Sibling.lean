@@ -34,7 +34,7 @@ theorem sibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (e ep : 
     (hlb0 : tl.getMem (BitVec.ofNat 64 0x340) = twWord0 2 0 0 0)
     (hlb8 : tl.getMem (BitVec.ofNat 64 0x348) = BitVec.ofNat 64 (2 ^ 32 * ep))
     (hlbP : tl.readWords (BitVec.ofNat 64 0x350) 2 = [0, 0]) :
-    Sim image tl (21 * 480 + (4 + (88 + 9)))
+    Sim image tl (21 * 844 + (4 + (88 + 9)))
       (Prod.fst <$> buildLeaf S 0 0 ep x) (SiblingPost tl) := by
   have hep : ep < 2048 := ctx.hep
   have he : e < 2048 := ctx.he
@@ -90,7 +90,7 @@ theorem sibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (e ep : 
   refine (Sim.steps hs3 (Sim.hash16_bind (W := 9) e3 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num)
       (by norm_num) (by norm_num) (by norm_num)) hq
-    (fmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
+    (addrFmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
   set t4 := writeHash t3 a with ht4
   have f4 : Frame t3 t4 (fun z => 0xBA8 ≤ z ∧ z < 0xBC8) :=
     frame_writeHash t3 a _ x12 (by norm_num)

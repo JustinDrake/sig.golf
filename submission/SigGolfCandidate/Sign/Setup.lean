@@ -1,4 +1,4 @@
-import SigGolfCandidate.Sign.Digest
+import SigGolfCandidate.Sign.DigestPairs
 import SigGolfCandidate.Sign.Mac
 
 /-!
@@ -61,7 +61,7 @@ structure MacOk (sk : SecretKey) (cache : Cache) (m : Message) (u : MachineState
   mem : DigMem (toList sk) (toList m) u
   x5 : u.getReg .x5 = 0
   x6 : u.getReg .x6 = 0
-  x7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 20)
+  x7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 19)
   pbS : u.readWords (BitVec.ofNat 64 0x6C0) 4 = wordsOf (toList sk)
   frame : Frame (s0 sk cache m) u macW
 
@@ -161,8 +161,8 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
     rfl
   have hb : (pad64 (macInput (toList sk) (cacheRegion (toList cache)))).blocks = 513 := by
     simp [pad64, Query.blocks, hn]
-  have hq' : hashInput u = fmt (macInput (toList sk) (cacheRegion (toList cache))) :=
-    hq.trans (fmt_thInput _ _ _ _ _ _ (by decide)).symm
+  have hq' : hashInput u = addrFmt (macInput (toList sk) (cacheRegion (toList cache))) :=
+    hq.trans (addrFmt_thInput _ _ _ _ _ _ (by decide)).symm
   refine (Sim.steps hs (Sim.query_bind (W := 53 + Wr) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
       (by norm_num)) hq' (fun a => ?_))).mono (by rw [show macInput (toList sk) (cacheRegion (toList cache)) = thInput (tweak 14 0 0 0 0) _ from rfl, blocks_fmt_th _ _ _ _ _ _ (by decide)]; rw [← show macInput (toList sk) (cacheRegion (toList cache)) = thInput (tweak 14 0 0 0 0) _ from rfl, hb]) (fun _ _ h => h)

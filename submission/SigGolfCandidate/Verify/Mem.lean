@@ -93,7 +93,7 @@ also serves as the digit-check modulus; rebased load offsets preserve every memo
 def baseK : List (Reg × Word) :=
   [(.x5, 0), (.x18, 0xFFF), (.x19, 7), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
 
-/-- The legacy tweak increment, triple-dispatch mask (`x2`),
+/-- The W1a chain constants: the tweak-word bump `2^40` (`x28`), the triple-dispatch mask (`x2`),
 the triple table base `ttab + 2048` (`x15`). -/
 def K40 : Word := 0x10000000000
 def TMASK : Word := 0x3fe00
@@ -102,47 +102,31 @@ def TTA5 : Word := 0x50000
 /-- FORS phase: also `K16`. -/
 def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 
-/-- The exact digit sum of layers 0 .. 3, compared after the alias-free reduction modulo 4095. -/
+/-- The exact digit sum of every layer, compared after the alias-free reduction modulo 4095. -/
 def KT : Word := BitVec.ofNat 64 targetSum
 
-/-- The layer-4 digit sum target `targetFor 4 = 183`, held in `x14` from the PORS root tail to the
+/-- Uniform target, retaining the existing layer-indexed verifier interfaces. -/
+def targetFor (_lay : Nat) : Nat := targetSum
+
+/-- The layer-4 digit sum target `targetFor 4 = 181`, held in `x14` from the PORS root tail to the
 layer-4 encoding check (`x14` is dead there; the chain prologue then loads the triple index into it). -/
 def KT4 : Word := BitVec.ofNat 64 (targetFor 4)
 
 /-- The digit-sum constant the encoding check of layer `lay` compares against. -/
 def KTof (lay : Nat) : Word := BitVec.ofNat 64 (targetFor lay)
 
-theorem targetFor_le (lay : Nat) : targetFor lay ≤ 183 := by
-  unfold targetFor targetSum; split_ifs <;> omega
-
-/-- Precomputed first-step tweak words, preserved above the verifier's scratch memory. -/
-def tweakBase : Nat := 0xFFCB70
-def tweakPtr (lay : Nat) : Nat := tweakBase + 2688 * lay + 1344
-def TweakData (s : MachineState) : Prop := ∀ j, j < 1680 →
-  s.getMem (BitVec.ofNat 64 (tweakBase + 8 * j)) = BitVec.ofNat 64 (Images.tweakValue j)
-
-theorem TweakData.frame {s t : MachineState} (h : TweakData s)
-    (fr : ∀ A, A < 2 ^ 64 → tweakBase ≤ A →
-      t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A)) : TweakData t := by
-  intro j hj
-  rw [fr _ (by unfold tweakBase; omega) (by omega)]
-  exact h j hj
+theorem targetFor_le (lay : Nat) : targetFor lay ≤ 181 := by
+  simp [targetFor, targetSum]
 
 /-- The verifier's embedded mask words. -/
 def MaskData (s : MachineState) : Prop :=
   s.getMem (BitVec.ofNat 64 0xFFFFF0) = M1w ∧
-  s.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w ∧ TweakData s
+  s.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w
 
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
 def gkL0 : List (Reg × Word) :=
-  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x2, TMASK),
+  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, K40), (.x2, TMASK),
     (.x15, TTA5)]
-
-theorem MaskData.frame {s t : MachineState} (h : MaskData s)
-    (fr : ∀ A, A < 2 ^ 64 → tweakBase ≤ A →
-      t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A)) : MaskData t := by
-  exact ⟨(fr _ (by decide) (by decide)).trans h.1,
-    (fr _ (by decide) (by decide)).trans h.2.1, h.2.2.frame fr⟩
 
 /-- The layer phase (the same list: W1a keeps no layer-4-only constant). -/
 def gkL : List (Reg × Word) := gkL0

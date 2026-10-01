@@ -56,7 +56,7 @@ theorem searchCounter_eq (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M 
     simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_
     rw [decodeDigits_dv]
-    cases hd : SphincsSecurity.TargetSum.decodeDigest lay d with
+    cases hd : SphincsSecurity.TargetSum.decodeDigest d with
     | none =>
       simp only [Option.map_none]
       rw [ih (c + 1) (by omega)]
@@ -357,6 +357,17 @@ theorem hash16_rnd (seed : MasterSeed) (m : Message) (a : Nat) :
     Ref.hash16 (Ref.rndInput (Ref.toList (n := 32) seed) (Ref.toList (n := 32) m) a) =
       dv <$> relabel fmtQ (SphincsSecurity.deriveRandomizer (m := AComp) 0 seed m (BitVec.ofNat 32 a)) := by
   apply hash16_derive
+  rw [SphincsSecurity.randomizerHashInput]
+  simp only [toB_append]
+  rw [toB_seedPrefix, toB_bytesLE 32 m, toB_bytesLE_ofNat 4 a]
+  simp only [Ref.rndInput]
+  rfl
+
+theorem prf2_rnd (seed : MasterSeed) (m : Message) (a : Nat) :
+    Ref.prf2 (Ref.rndInput (Ref.toList (n := 32) seed) (Ref.toList (n := 32) m) a) =
+      (fun p => (dv p.1, dv p.2)) <$> relabel fmtQ
+        (SphincsSecurity.Seeded.deriveRandomizerPair (m := AComp) 0 seed m (BitVec.ofNat 32 a)) := by
+  apply prf2_eq
   rw [SphincsSecurity.randomizerHashInput]
   simp only [toB_append]
   rw [toB_seedPrefix, toB_bytesLE 32 m, toB_bytesLE_ofNat 4 a]

@@ -10,14 +10,14 @@ code shared by all layers for `(t, dB, dC)`: `A`'s rungs `1 .. 7` (entered at `d
 then `C` (head and rungs `d + 1 .. 7`, or the digit-7 copy), then the extraction of triple
 `t + 1` and its `jalr`, or for `t = 13` the return `jalr zero, ra`.
 
-The code is layer independent: witness blocks are addressed relative to `x22`, and the public
-first-step tweak table relative to the layer pointer in `x4`. Each hashed chain loads its full
-first header word into `x25` and stores tweak word 1 from `x31`. The initial digit-byte store is
-skipped because the table word already contains that digit. Subsequent rungs still update it.
+The code is layer independent: it addresses the blocks relative to `s6 = x22` (the layer base
+`blk(lay, 0) + 1344`), bumps the running tweak word 0 in `s9 = x25` by `t3 = 2^40`, and stores
+tweak word 1 from `t6 = x31`. Its runs are therefore checked once, with `x22`, `x25`, `x31`,
+`a0 = x10`, `a2 = x12` symbolic; the memory writes and obligations have the base `x22` or `x10`.
 
-* head: set input/output pointers, load the first-step header, and store both tweak words;
-* later rung `mu`: `sb MU_{mu-1}, 4(a0); [li a2, slot_i (mu = 7)]; ecall`;
-* digit 7: copy the two terminal-value words directly to the leaf-pk slot.
+* head: `addi a0, s6, off; addi a2, a0, 48; add s9, s9, t3; sd s9, 0(a0); sd t6, 8(a0)`;
+* rung `mu`: `sb MU_{mu-1}, 4(a0); [li a2, slot_i (mu = 7)]; ecall`;
+* digit 7: `ld gp, off+48(s6); ld a4, off+56(s6); sd gp, slot_i; sd a4, slot_i+8; add s9, s9, t3`.
 -/
 
 namespace SigGolfCandidate.Verify
@@ -41,9 +41,8 @@ def ldK (i k : Nat) : E := .ld (bk i k).toE
 /-- The step byte `mu - 1` as a register value. -/
 def posE (d : Nat) : E := .c (BitVec.ofNat 64 d)
 
-/-- Address of the precomputed first-step tweak word. -/
-def tk (i d : Nat) : Addr := norm (addC (.reg .x4) (BitVec.ofNat 64 (64 * i + 8 * d) - BitVec.ofNat 64 1344))
-def s9E (i d : Nat) : E := .ld (tk i d).toE
+/-- The running tweak word 0 after the bump. -/
+def s9E : E := addC (.reg .x25) K40
 
 /-! ## Code tables -/
 
@@ -73,18 +72,18 @@ def rungExp (i mu p : Nat) : PRes :=
 the rung's `ecall`; `j` = the table entry's jump in between (chain `A`). -/
 def headExp (i d p : Nat) (j : Bool) : PRes :=
   let a0 : E := addC (.reg .x22) (offW i)
-  let rf := ((RegFile.withKnown chK0).set .x10 a0).set .x25 (s9E i d)
+  let rf := (RegFile.withKnown chK0).set .x10 a0
   let n := 4 + (if j then 1 else 0) + (if d = 6 then 2 else 1)
   ⟨⟨rf.set .x12 (if d = 6 then cw (slotA i) else addC a0 48),
-    [(bk i 8, .reg .x31), (bk i 0, s9E i d)],
-    [.valid (bk i 8) 8, .valid (bk i 0) 8, .valid (tk i d) 8]⟩,
+    [(bk i 0, .bin (.st .b 4) a0 (posE d)), (bk i 8, .reg .x31)],
+    [.align8 (.reg .x22), .valid (bk i 4) 1, .valid (bk i 8) 8, .valid (bk i 0) 8]⟩,
     pcOf (rungEnd p (d + 1)), true, n, n, [], none⟩
 
 /-- The digit-7 copy of chain `i` into its leaf-pk slot, stopping at `q` (the next chain's code);
 `j` = the table entry's jump. -/
 def copyExp (i q : Nat) (j : Bool) : PRes :=
   let n := 4 + (if j then 1 else 0)
-  ⟨⟨(((RegFile.withKnown chK0).set .x3 (ldK i 48)).set .x14 (ldK i 56)).set .x25 (.reg .x25),
+  ⟨⟨((RegFile.withKnown chK0).set .x3 (ldK i 48)).set .x14 (ldK i 56),
     [(⟨none, BitVec.ofNat 64 (slotA i + 8)⟩, ldK i 56), (⟨none, BitVec.ofNat 64 (slotA i)⟩, ldK i 48)],
     [.valid (bk i 56) 8, .valid (bk i 48) 8]⟩,
     pcOf q, false, n, n, [], none⟩

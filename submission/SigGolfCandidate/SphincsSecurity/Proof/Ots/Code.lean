@@ -16,16 +16,14 @@ open scoped BigOperators
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 
-variable {lay : Layer}
+irreducible_def Valid (x : Encoding) : Prop := TargetSum.Valid x
 
-irreducible_def Valid (lay : Layer) (x : Encoding) : Prop := TargetSum.Valid lay x
+irreducible_def decode (digest : Digest) : Option Encoding := TargetSum.decodeDigest digest
 
-irreducible_def decode (lay : Layer) (digest : Digest) : Option Encoding := TargetSum.decodeDigest lay digest
-
-theorem decode_valid {digest : Digest} {word : Encoding} (hdecode : decode lay digest = some word) : Valid lay word := by
+theorem decode_valid {digest : Digest} {word : Encoding} (hdecode : decode digest = some word) : Valid word := by
   rw [decode_def] at hdecode
   rw [Valid_def]
-  by_cases hvalid : digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false ∧ TargetSum.Valid lay (TargetSum.digestEncoding digest)
+  by_cases hvalid : digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false ∧ TargetSum.Valid (TargetSum.digestEncoding digest)
   · rw [TargetSum.decodeDigest, if_pos hvalid] at hdecode
     exact Option.some.inj hdecode ▸ hvalid.2.2
   · rw [TargetSum.decodeDigest, if_neg hvalid] at hdecode
@@ -99,7 +97,7 @@ private theorem digest_eq_of_encoding_eq_of_padding {left right : Digest}
         rw [hleft127, hright127]
 
 theorem decode_some_injective {left right : Digest} {word : Encoding}
-    (hleft : decode lay left = some word) (hright : decode lay right = some word) : left = right := by
+    (hleft : decode left = some word) (hright : decode right = some word) : left = right := by
   rw [decode_def, TargetSum.decodeDigest] at hleft hright
   split at hleft <;> split at hright
   · rename_i hleftValid hrightValid
@@ -109,7 +107,7 @@ theorem decode_some_injective {left right : Digest} {word : Encoding}
   all_goals simp at hleft hright
 
 /-- Two valid words cannot be ordered componentwise unless they are equal: walking chains forward from a revealed word never reaches another valid word. -/
-theorem eq_of_le_of_valid {x y : Encoding} (hx : Valid lay x) (hy : Valid lay y)
+theorem eq_of_le_of_valid {x y : Encoding} (hx : Valid x) (hy : Valid y)
     (hle : ∀ i, (x i).val ≤ (y i).val) : x = y := by
   rw [Valid_def] at hx hy
   have hsum : TargetSum.sum x = TargetSum.sum y := hx.trans hy.symm
@@ -122,23 +120,16 @@ theorem eq_of_le_of_valid {x y : Encoding} (hx : Valid lay x) (hy : Valid lay y)
   omega
 
 /-- A valid word, used where the proof needs a word before the reference encoding is known. -/
-irreducible_def defaultWord (lay : Layer) : Encoding :=
-  fun index => if index.val < (if 4 ≤ lay.val then 26 else 25) then ⟨7, by decide⟩ else if index.val = (if 4 ≤ lay.val then 26 else 25) then ⟨if 4 ≤ lay.val then 1 else if 3 ≤ lay.val then 7 else 6, by split_ifs <;> decide⟩ else ⟨0, by decide⟩
+irreducible_def defaultWord : Encoding :=
+  fun index => if index.val < 25 then ⟨7, by decide⟩ else if index.val = 25 then ⟨6, by decide⟩ else ⟨0, by decide⟩
 
-theorem defaultWord_valid : Valid lay (defaultWord lay) := by
+theorem defaultWord_valid : Valid defaultWord := by
   rw [Valid_def]
-  change (∑ index : ChainIndex, (defaultWord lay index).val) = targetFor lay
-  by_cases h : 4 ≤ lay.val
-  · simp only [defaultWord_def, h, if_true, targetFor, targetSum]
-    change (∑ index : Fin 42, if index.val < 26 then (7 : Nat) else if index.val = 26 then 1 else 0) = 183
-    decide
-  · by_cases h3 : 3 ≤ lay.val
-    · simp only [defaultWord_def, h, h3, if_false, if_true, targetFor, targetSum]
-      change (∑ index : Fin 42, if index.val < 25 then (7 : Nat) else if index.val = 25 then 7 else 0) = 182
-      decide
-    · simp only [defaultWord_def, h, h3, if_false, targetFor, targetSum]
-      change (∑ index : Fin 42, if index.val < 25 then (7 : Nat) else if index.val = 25 then 6 else 0) = 181
-      decide
+  change (∑ index : ChainIndex, (defaultWord index).val) = 181
+  simp only [defaultWord_def]
+  change (∑ index : Fin 42, if index.val < 25 then (7 : Nat) else if index.val = 25 then 6 else 0) = 181
+  simp only [Fin.sum_univ_succ, Fin.sum_univ_zero]
+  norm_num
 
 /-- The chain steps a signer walks to reveal a word. -/
 def signingSteps (word : Encoding) : Nat := ∑ index, (word index).val
@@ -147,36 +138,36 @@ def signingSteps (word : Encoding) : Nat := ∑ index, (word index).val
 
 A valid word one backward step below the reference at one chain and nowhere else below it. This is the only way a forgery can reuse a one-time key with a single inverted chain step. -/
 
-def UnitNeighborAt (lay : Layer) (reference candidate : Encoding) (lowered : ChainIndex) : Prop :=
-  Valid lay reference ∧ Valid lay candidate ∧ (candidate lowered).val + 1 = (reference lowered).val ∧
+def UnitNeighborAt (reference candidate : Encoding) (lowered : ChainIndex) : Prop :=
+  Valid reference ∧ Valid candidate ∧ (candidate lowered).val + 1 = (reference lowered).val ∧
     ∀ index, index ≠ lowered → (reference index).val ≤ (candidate index).val
 
 theorem UnitNeighborAt.ne {reference candidate : Encoding} {lowered : ChainIndex}
-    (h : UnitNeighborAt lay reference candidate lowered) : candidate ≠ reference := by
+    (h : UnitNeighborAt reference candidate lowered) : candidate ≠ reference := by
   intro he
   have hd := h.2.2.1
   rw [he] at hd
   omega
 
 theorem UnitNeighborAt.lowered_unique {reference candidate : Encoding} {left right : ChainIndex}
-    (hleft : UnitNeighborAt lay reference candidate left) (hright : UnitNeighborAt lay reference candidate right) : left = right := by
+    (hleft : UnitNeighborAt reference candidate left) (hright : UnitNeighborAt reference candidate right) : left = right := by
   by_contra hne
   have hle := hleft.2.2.2 right (Ne.symm hne)
   have hd := hright.2.2.1
   omega
 
-noncomputable def unitNeighbors (lay : Layer) (reference : Encoding) (lowered : ChainIndex) : Finset Encoding :=
-  Finset.univ.filter (fun candidate => UnitNeighborAt lay reference candidate lowered)
+noncomputable def unitNeighbors (reference : Encoding) (lowered : ChainIndex) : Finset Encoding :=
+  Finset.univ.filter (fun candidate => UnitNeighborAt reference candidate lowered)
 
 theorem mem_unitNeighbors {reference candidate : Encoding} {lowered : ChainIndex} :
-    candidate ∈ unitNeighbors lay reference lowered ↔ UnitNeighborAt lay reference candidate lowered := by
+    candidate ∈ unitNeighbors reference lowered ↔ UnitNeighborAt reference candidate lowered := by
   simp only [unitNeighbors, Finset.mem_filter, Finset.mem_univ, true_and]
 
-noncomputable def allUnitNeighbors (lay : Layer) (reference : Encoding) : Finset Encoding :=
-  Finset.univ.biUnion (unitNeighbors lay reference)
+noncomputable def allUnitNeighbors (reference : Encoding) : Finset Encoding :=
+  Finset.univ.biUnion (unitNeighbors reference)
 
 theorem mem_allUnitNeighbors {reference candidate : Encoding} :
-    candidate ∈ allUnitNeighbors lay reference ↔ ∃ lowered, UnitNeighborAt lay reference candidate lowered := by
+    candidate ∈ allUnitNeighbors reference ↔ ∃ lowered, UnitNeighborAt reference candidate lowered := by
   simp only [allUnitNeighbors, Finset.mem_biUnion, Finset.mem_univ, true_and, mem_unitNeighbors]
 
 /-- The unit neighbors of a word at one lowered chain. -/
@@ -207,7 +198,7 @@ private theorem single_of_sum_one (f : ChainIndex → Nat) (hsum : (∑ index, f
 
 /-- For the target-sum code a unit neighbor moves exactly one step from the lowered chain to one other chain. -/
 private theorem UnitNeighborAt.raised {reference candidate : Encoding} {lowered : ChainIndex}
-    (h : UnitNeighborAt lay reference candidate lowered) :
+    (h : UnitNeighborAt reference candidate lowered) :
     ∃ raised, raised ≠ lowered ∧ (reference raised).val + 1 = (candidate raised).val ∧
       ∀ index, index ≠ lowered → index ≠ raised → candidate index = reference index := by
   obtain ⟨hreference, hcandidate, hlow, hup⟩ := h
@@ -237,8 +228,8 @@ private theorem UnitNeighborAt.raised {reference candidate : Encoding} {lowered 
     omega
 
 theorem unitNeighbors_card_le (reference : Encoding) (lowered : ChainIndex) :
-    (unitNeighbors lay reference lowered).card ≤ unitNeighborBound := by
-  let chooseRaised : {candidate // UnitNeighborAt lay reference candidate lowered} → {raised : ChainIndex // raised ≠ lowered} :=
+    (unitNeighbors reference lowered).card ≤ unitNeighborBound := by
+  let chooseRaised : {candidate // UnitNeighborAt reference candidate lowered} → {raised : ChainIndex // raised ≠ lowered} :=
     fun candidate => ⟨candidate.property.raised.choose, candidate.property.raised.choose_spec.1⟩
   have hinj : Function.Injective chooseRaised := by
     intro left right he
@@ -268,9 +259,9 @@ theorem unitNeighbors_card_le (reference : Encoding) (lowered : ChainIndex) :
   rw [unitNeighborBound_def]
   simpa only [unitNeighbors] using hcard
 
-theorem allUnitNeighbors_card_le (reference : Encoding) : (allUnitNeighbors lay reference).card ≤ neighborBound := by
+theorem allUnitNeighbors_card_le (reference : Encoding) : (allUnitNeighbors reference).card ≤ neighborBound := by
   calc
-    _ ≤ ∑ lowered : ChainIndex, (unitNeighbors lay reference lowered).card := Finset.card_biUnion_le
+    _ ≤ ∑ lowered : ChainIndex, (unitNeighbors reference lowered).card := Finset.card_biUnion_le
     _ ≤ ∑ _lowered : ChainIndex, unitNeighborBound :=
       Finset.sum_le_sum fun lowered _ => unitNeighbors_card_le reference lowered
     _ = neighborBound := by
@@ -322,7 +313,7 @@ abbrev counterBytes (counter : Counter) : HashInput := bytesLE 4 counter
 def encodeAttempt (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
     (message : Digest) (counter : Counter) : m (Option Encoding) := do
   let digest ← tweakableHash parameter (.encoding lay tree leaf) (bytesLE 16 message ++ counterBytes counter)
-  return OtsCode.decode lay digest
+  return OtsCode.decode digest
 
 /-- The verifier's one-time leaf, or nothing if the counter does not encode the message. -/
 def otsLeafAttempt (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)

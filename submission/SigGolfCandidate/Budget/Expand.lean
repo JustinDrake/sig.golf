@@ -114,7 +114,7 @@ theorem bR_oracleHash_ge (x : SphincsSecurity.HashInput) :
   unfold bR
   rw [Equiv.relabel_oracleHash]
   unfold Ref.H
-  rw [show (HashSpec.query (fmt (Equiv.toB x)) : OracleComp HashSpec _) = qry (fmt (Equiv.toB x)) from rfl,
+  rw [show (HashSpec.query (addrFmt (Equiv.toB x)) : OracleComp HashSpec _) = qry (addrFmt (Equiv.toB x)) from rfl,
     blocksF_query]
   unfold Query.blocks; omega
 
@@ -299,7 +299,7 @@ theorem bR_sign_ge (sk : Seeded.SecretKey) (cache : TopCache) (msg : SphincsSecu
   unfold Seeded.signChecked at h ⊢
   rw [bR_bind]
   rw [evalWithAnswerFn_bind] at h
-  cases hd : evalWithAnswerFn (gF f) (Seeded.signDigestLoop (m := Equiv.AComp) sk msg digestAttemptLimit 0) with
+  cases hd : evalWithAnswerFn (gF f) (Seeded.signDigestPairs (m := Equiv.AComp) sk msg digestPairLimit 0) with
   | none => rw [hd] at h; simp at h
   | some r =>
     obtain ⟨randomness, index, leaves⟩ := r
@@ -568,12 +568,12 @@ theorem spec_porsRoot (idx : Nat) (v : List Nat) (w : List Byte) :
 /-! ### The counter phase and the whole expansion -/
 
 theorem blocksF_hash16_bind (f : Hash) {β : Type} (x : List Byte) (K : Val → OracleComp HashSpec β) :
-    blocksF f (hash16 x >>= K) = (fmt x).blocks + blocksF f (K (answerBytes 16 (f (fmt x)))) := by
+    blocksF f (hash16 x >>= K) = (addrFmt x).blocks + blocksF f (K (answerBytes 16 (f (addrFmt x)))) := by
   rw [hash16_bind_eq, blocksF_bind, blocksF_query]
   congr 2
 
 theorem eval_hash16_bind (f : Hash) {β : Type} (x : List Byte) (K : Val → OracleComp HashSpec β) :
-    evalWithAnswerFn f (hash16 x >>= K) = evalWithAnswerFn f (K (answerBytes 16 (f (fmt x)))) := by
+    evalWithAnswerFn f (hash16 x >>= K) = evalWithAnswerFn f (K (answerBytes 16 (f (addrFmt x)))) := by
   rw [hash16_bind_eq, evalWithAnswerFn_bind]
   rfl
 
@@ -586,23 +586,23 @@ theorem blocksF_searchCounter (f : Hash) (lay tau e : Nat) (M : Val) (hM : M.len
   | zero => intro c c' x h; simp [searchCounter] at h
   | succ n ih =>
     intro c c' x
-    have hb : (fmt (encInput lay tau e M c)).blocks ≤ 1 :=
+    have hb : (addrFmt (encInput lay tau e M c)).blocks ≤ 1 :=
       blocksFmt_le _ 1 (by simp [encInput]; omega) le_rfl
     unfold searchCounter
     rw [blocksF_hash16_bind, eval_hash16_bind]
-    generalize answerBytes 16 (f (fmt (encInput lay tau e M c))) = d
-    cases decodeDigits lay d with
+    generalize answerBytes 16 (f (addrFmt (encInput lay tau e M c))) = d
+    cases decodeDigits d with
     | some x' =>
       intro h
       have h' : some (c, x') = some (c', x) := h
       simp only [Option.some.injEq, Prod.mk.injEq] at h'
       obtain ⟨rfl, -⟩ := h'
-      show (fmt (encInput lay tau e M c)).blocks + 0 + c ≤ c + 1 ∧ c ≤ c ∧ c < c + (n + 1)
+      show (addrFmt (encInput lay tau e M c)).blocks + 0 + c ≤ c + 1 ∧ c ≤ c ∧ c < c + (n + 1)
       omega
     | none =>
       intro h
       have := ih (c + 1) c' x h
-      show (fmt (encInput lay tau e M c)).blocks + blocksF f (searchCounter lay tau e M (c + 1) n) + c ≤ c' + 1 ∧
+      show (addrFmt (encInput lay tau e M c)).blocks + blocksF f (searchCounter lay tau e M (c + 1) n) + c ≤ c' + 1 ∧
         c ≤ c' ∧ c' < c + (n + 1)
       omega
 
@@ -726,19 +726,19 @@ theorem ctrSum_withCounters (w0 : List Byte) (hw : 2960 ≤ w0.length) (cs : Lis
 
 /-- **The expansion's compressions**: the digest, the PORS stack machine, then per layer the counter
 trials and at most `311` more. -/
-theorem blocksF_expandList_le (f : Hash) (m sig : List Byte) (hm : m.length = 32) (hsig : sig.length = 6048)
+theorem blocksF_expandList_le (f : Hash) (m sig : List Byte) (hm : m.length = 32) (hsig : sig.length = 6032)
     (wit : List Byte) (h : evalWithAnswerFn f (expandList m sig) = some wit) :
     wit.length = 16384 ∧ blocksF f (expandList m sig) ≤ 3356 + ctrSum wit := by
   unfold expandList at h ⊢
   unfold digest at h ⊢
   simp only [bind_assoc, pure_bind] at h ⊢
-  rw [H, show (HashSpec.query (fmt (digestInput (sigRho sig) m)) : OracleComp HashSpec _) =
-    qry (fmt (digestInput (sigRho sig) m)) from rfl] at h ⊢
+  rw [H, show (HashSpec.query (addrFmt (digestInput (sigRho sig) m)) : OracleComp HashSpec _) =
+    qry (addrFmt (digestInput (sigRho sig) m)) from rfl] at h ⊢
   rw [blocksF_bind, blocksF_query]
   rw [evalWithAnswerFn_bind] at h
   have hr : (sigRho sig).length = 16 := by simp [sigRho, slice, hsig]
-  have hdb : (fmt (digestInput (sigRho sig) m)).blocks ≤ 1 := (dig_ok (sigRho sig) m hr hm).2
-  generalize evalWithAnswerFn f (qry (fmt (digestInput (sigRho sig) m))) = a at h ⊢
+  have hdb : (addrFmt (digestInput (sigRho sig) m)).blocks ≤ 1 := (dig_ok (sigRho sig) m hr hm).2
+  generalize evalWithAnswerFn f (qry (addrFmt (digestInput (sigRho sig) m))) = a at h ⊢
   generalize hx : expandOf sig a.toNat = ox at h ⊢
   rcases ox with _ | w0
   · exact absurd h (by simp)
@@ -813,7 +813,7 @@ attribute [local reducible] SphincsSecurity.hashOutputBits SphincsSecurity.diges
 
 /-- **Under every answer function, the expansion of the signature costs fewer compressions than
 the signing**, for the key pair of key generation. -/
-theorem expand_le_sign (f : Hash) (sk : Bytes 32) (m : Bytes 32) (σ : Bytes 6048)
+theorem expand_le_sign (f : Hash) (sk : Bytes 32) (m : Bytes 32) (σ : Bytes 6032)
     (hσ : evalWithAnswerFn f (signRef sk (evalWithAnswerFn f (keygenRef sk)).2 m) = some σ) :
     blocksF f (expandRef m (evalWithAnswerFn f (keygenRef sk)).1 σ) ≤
       blocksF f (signRef sk (evalWithAnswerFn f (keygenRef sk)).2 m) := by
@@ -927,7 +927,7 @@ theorem expand_run_le
       submission.run .sign (sk, cache, m) = Sign.countBoth (signRef sk cache m))
     (hE : ∀ m pk σ, (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$>
       submission.run .expand (m, pk, σ) = (fun p => (p.1, p.2.1, p.2.2)) <$> Sign.countBoth (expandRef m pk σ))
-    (f : Hash) (sk : SecretKey) (m : Message) (pk : PublicKey) (cache : Cache) (σ : Bytes 6048)
+    (f : Hash) (sk : SecretKey) (m : Message) (pk : PublicKey) (cache : Cache) (σ : Bytes 6032)
     (hk : (evalWithAnswerFn f (submission.run .keygen sk)).value = some (pk, cache))
     (hs : (evalWithAnswerFn f (submission.run .sign (sk, cache, m))).value = some σ) :
     (evalWithAnswerFn f (submission.run .expand (m, pk, σ))).hashCompressions ≤

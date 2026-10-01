@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10690` cycles (verify bound
-`10626` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
+`S = 6032` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10694` cycles (verify bound
+`10630` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 150272, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -19,28 +19,40 @@ pad is hashed as it stands; the abstract game accounts for this through the padd
 (`verifyP`, `Bridge.padDec`). Verify dispatches three chains per table jump. The counters `c0 .. c3`
 sit in the tweak slot of layer 0's first block, `c4` after the PORS stream.
 
-The layer targets are 181,181,181,182,183. An authenticated cache of 2046 internal nodes
-replaces the full-node cache; signing reconstructs the missing leaf sibling. The 187 saved
-deterministic signing compressions fund the additional layer-3 target. The reference, machine
-refinement, security bridge, completeness and moment-budget proofs cover this cache format.
-Layer 3 loads its comparison target explicitly; layer 4 retains the target in a known register.
-The existing digest, PORS address, mask-data, root-test and route optimizations are preserved.
+The chain HASH header uses the physical witness-block address (GordoAR's address headers): the
+verifier stores this address from its input pointer and needs no running-header update per chain
+(one instruction fewer per chain, 210 cycles); a global involutive permutation of oracle queries
+(`Ref/AddressFormat`) transfers the security proof to this format, and keygen, sign and expand
+convert their chain queries through small adapter blocks.
 
-The layer-header register holds the leaf header. The encoding prefix adds 512,
-and the leaf prefix stores the register directly. This removes
-one instruction per layer. The stack guard uses one high-word store into an initially zero
-word. The final root comparison returns the XOR of its last words as the exit code after
-checking the first words. These changes save seven further ordinary cycles.
+The signer derives two candidate randomizers from each private randomizer answer (paired M117,
+patternrecognition9-del): the saved digest-search budget lowers the octopus authentication cap from 118 to
+117 nodes, one 16-byte authentication slot leaves the signature (6048 → 6032 bytes) and the verifier's
+longest honest path loses one fold (17 cycles). All five WOTS layers use the uniform target sum 181,
+which restores the five counter-search factors 1.011 in the signing-budget proof. The cache
+authenticates only the 2,046 masked internal top-tree nodes (513 MAC blocks); signing rebuilds the
+omitted leaf sibling in 326 compressions (187 fewer deterministic compressions). The signing-budget
+product is `2^(115254/131072) * 1.0279 * 1.011^5 ≤ 2`. The verifier keeps the bottom-layer target in a
+register that is dead between the PORS root tail and the layer-4 encoding check, now 181. Verifier micro-savings (18 cycles): the digest
+hashes to address 0 so its output register needs no load, the PORS stack register is zero-based and
+its frame is rebased by 336 so the fold limit is the existing `x18 = 4095`, the SWAR masks are two
+data words of the image loaded in the root tails, the root's `E = 1` and empty-stack checks compare
+registers directly, redundant hash-length reloads and `lui/addi` constant pairs reachable from
+`x18` are dropped, and the top layer's route needs no masking (its remaining 11 route bits fit). In the layer-shared
+chain code, the dispatch of triples 1 and 8 masks the digit word directly (their digits already sit
+at the table-index bits), dropping a register move from 128 blocks: two cycles per layer. Chain 0 of every layer initializes
+the running tweak from the layer header in its head (hash and digit-7 paths), so the layer prologue
+needs no separate initialization (erickeigen, one cycle per layer). The PORS root tails build the
+chain constants from `x6 = 1` and the layer header in two fewer instructions, the digest falls
+through into the relocated setup, and the last PORS leaf compares against the known range limit
+(four more cycles).
 
 The verifier ports the OTS modular checksum and constant-reuse optimizations: each layer
 uses an exact remainder modulo 4095, and the rebased address register doubles as the
-modulus. The shared chain code dispatches triples. The zero-shift extractions after triples
-0 and 7 read the packed register directly, saving two copies per layer. First-step chain
-headers now come from a public table of 1680 words, indexed by layer, chain and digit. Each
-hashed chain skips its initial digit-byte store, and digit-7 copies no longer update a running
-tweak. This saves 210 instructions across the chains at a cost of ten pointer-initialization
-instructions: a further 200-cycle reduction. Subsequent rungs retain their byte updates.
-Each
+modulus. The verify image is regenerated without the padding that kept the old addresses,
+chains 0..6 store their index byte from registers that already hold 0..6, and each digit pair
+dispatches once: the table of the pair's first chain jumps into a copy of the pair's code
+specialized to the second digit, so the second chain has neither a table nor a `jalr`. Each
 Merkle path jumps once per leaf-index chunk into straight-line level code for that chunk value
 (no per-level branch), the two heap indices below each root are stored from registers that
 hold them, and each block of the last chunk carries its own copy of the next layer's transition. The PORS
@@ -48,12 +60,6 @@ segment dispatch uses 8-word table slots with the entry code inlined, and the fo
 checked once through the stream pointer instead of a per-segment counter. The startup reuses
 the address base and the digest's known input length, saving four more instructions on
 accepting runs. These verifier changes preserve the promoted scheme's hash queries and formats.
-
-Encoding hashes overwrite the layer roots they consume, reusing the carried output pointer.
-The precomputed tweak table makes the old x28 tweak-increment initialization unnecessary.
-These remove seven executed instructions. A universal PORS schedule argument supplies one
-additional cycle of credit: either a zero-fold segment occurs, or the total positive-fold
-count is below the cap. The final certificate uses the tightened accepting bound.
 
 The certificate is `SigGolfCandidate.certificateNew`. It is transferred from
 `SigGolfCandidate.Final.certificate`, a certificate for the same images under the previous
@@ -70,7 +76,7 @@ namespace SigGolf.Challenge
 
 def submission : SigGolf.Submission := SigGolfCandidate.submissionNew
 
-theorem signature_bytes : submission.sizes.signature = 6048 := rfl
+theorem signature_bytes : submission.sizes.signature = 6032 := rfl
 
 theorem witness_bytes : submission.sizes.witness = 16384 := rfl
 
@@ -80,7 +86,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10690 :=
+theorem certificate : SigGolf.Certificate submission 10694 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
