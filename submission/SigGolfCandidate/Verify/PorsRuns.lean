@@ -215,15 +215,15 @@ def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw 0, d⟩
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
 /-- Known at the start of the layer-4 transition: the layer constants the root tail sets (W1a: also
-`t3 = 2^40`, `sp = TMASK`, `a5 = ttab + 2048`, and `a4 = KT4`); the masks `x20`, `x21` are loaded from
+`sp = TMASK`, `a5 = ttab + 2048`, and `a4 = KT4`); the masks `x20`, `x21` are loaded from
 the verifier's data words and resolved from protected memory in `tailF_step`. -/
 def rootK : List (Reg × Word) :=
-  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, K40), (.x2, TMASK), (.x15, TTA5)]
+  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x2, TMASK), (.x15, TTA5)]
 def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40201), (.x14, KT4)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 17,
-    [fBr3 false, fBr2 false, fBr1 false], none, 17⟩
+  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 15,
+    [fBr3 false, fBr2 false, fBr1 false], none, 15⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
@@ -248,26 +248,26 @@ def pleafPost (s : Nat) : List (Reg × Word) := gkP ++ [(.x20, BitVec.ofNat 64 (
 def pleafKeep (s : Nat) : List Reg := [xReg (s + 1), .x14, .x15, .x22, .x24, .x29]
 
 def leafBrs (s : Nat) (d1 d2 : Bool) : List Br :=
-  (if s = 14 then [⟨.ne, .bin .srl (xE s) (cw 14), .c 0, d2⟩] else []) ++
+  (if s = 14 then [⟨.ltu, xE s, cw 0x4000, !d2⟩] else []) ++
   (if s = 0 then [] else [⟨.geu, .reg (xReg (s + 1)), xE s, d1⟩])
 
 def leafSpec (s : Nat) : Spec :=
   ⟨[(xReg s, xE s), (.x23, .bin .or (xE s) (cw 0x4000)), (.x1, ldE (secA s)), (.x2, ldE (secA s + 8))],
     [(⟨none, BitVec.ofNat 64 0xE8⟩, ldE (secA s + 8)), (⟨none, BitVec.ofNat 64 0xE0⟩, ldE (secA s)),
       (⟨none, BitVec.ofNat 64 0xC8⟩, stW 0xC8 (xE s))],
-    dispLeafPc s, false, if s = 0 then 10 else if s = 14 then 15 else 11, leafBrs s false false, none, if s = 0 then 10 else if s = 14 then 15 else 11⟩
+    dispLeafPc s, false, if s = 0 then 10 else if s = 14 then 14 else 11, leafBrs s false false, none, if s = 0 then 10 else if s = 14 then 14 else 11⟩
 
 def leafObl (s : Nat) : List Oblig := [.valid ⟨some (piT s), BitVec.ofNat 64 PIND⟩ 8]
 
 def leafDirs (s : Nat) : List Dir :=
-  if s = 0 then [] else if s = 14 then [.br false, .br false] else [.br false]
+  if s = 0 then [] else if s = 14 then [.br false, .br true] else [.br false]
 
 def leafCheck (s : Nat) : Bool :=
   pspecB gkP (runAt leafKnown [dispLeafPc s] (leafPc s) (leafDirs s)) (leafSpec s) (leafObl s)
     (pleafPost s) (pleafKeep s) &&
   (s = 0 || pspecB [] (runAt leafKnown [] (leafPc s) [.br true])
     (rejSpec (if s = 14 then 8 else 6) [⟨.geu, .reg (xReg (s + 1)), xE s, true⟩]) (leafObl s) [] []) &&
-  (s != 14 || pspecB [] (runAt leafKnown [] (leafPc s) [.br false, .br true])
+  (s != 14 || pspecB [] (runAt leafKnown [] (leafPc s) [.br false, .br false])
     (rejSpec 10 (leafBrs s false true)) (leafObl s) [] [])
 
 end SigGolfCandidate.Verify
