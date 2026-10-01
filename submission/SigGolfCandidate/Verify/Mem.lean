@@ -128,8 +128,8 @@ def MaskData (s : MachineState) : Prop :=
 
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
 def gkL0 : List (Reg × Word) :=
-  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x2, TMASK),
-    (.x15, TTA5)]
+  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x2, TMASK),
+    (.x15, TTA5), (.x28, 2688)]
 
 /-- The layer phase (the same list: W1a keeps no layer-4-only constant). -/
 def gkL : List (Reg × Word) := gkL0

@@ -9,7 +9,7 @@ layer `lay + 1`) runs its own copy of the transition (`trPc lay c`):
 * route and encoding (`stepsA` steps up to the encoding `ecall`; the counter is read from the
   witness, `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `2392`);
 * the encoding check (`or; blt` for the top bits, the SWAR digit sum, `remu` by `x18 = 4095`,
-  `bne KT`), then the chain prologue `li s6, base`, the extraction of triple 0
+  `bne KT`), then the chain prologue (initialize the bottom-layer base, subtract the retained stride above it), the extraction of triple 0
   and `jalr ra` into the layer-shared chain code (24 steps, 27 cycles);
 * at the return pc `retPc lay c`: the leaf tweak and the dispatch into the fold's shape block. -/
 
@@ -52,7 +52,7 @@ def uEr (lay : Nat) : E :=
   else .bin .and (.reg (if lay = 4 then .x22 else .x30)) (cw (2 ^ heightL lay - 1))
 def tauEr (lay : Nat) : E :=
   if lay = 0 then cw 0 else .bin .srl (.reg (if lay = 4 then .x22 else .x30)) (cw (heightL lay))
-/-- Physical x30 keeps the final leaf index once the top tree address is zero. -/
+/-- Physical x30 keeps the final leaf index after the top tree address is known zero. -/
 def carryEr (lay : Nat) : E := if lay = 0 then uEr lay else tauEr lay
 def x31Er (lay : Nat) : E :=
   if lay = 0 then .bin .sll (.reg .x30) (cw 32)
@@ -72,8 +72,7 @@ def specA (lay t : Nat) : Spec :=
     (⟨none, BitVec.ofNat 64 264⟩, x31Er lay), (⟨none, BitVec.ofNat 64 256⟩, cw (hWord lay + 768))],
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
 
-/-! ## The encoding check (`remu x25, x25, x18`; layers 0 .. 3 compare `KT`, layer 4 reuses `x14 = KT4`,
-targets184/185, with a one-step positive correction only in layer0) and the chain prologue -/
+/-! ## Encoding checks compare the shared x29 = 185; layer 0 adds one to its checksum. -/
 
 /-- Four selector paths: AB, gated AB, BC, CD. The gated AB case is rejected by padding. -/
 def selOf (a : BitVec 256) : Nat :=

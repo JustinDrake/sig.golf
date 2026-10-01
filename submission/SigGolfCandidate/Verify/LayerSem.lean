@@ -25,7 +25,7 @@ def LCtx.ok (L : LCtx) : Prop := L.lay < 5 ∧ L.idx < 2 ^ 34 ∧ L.wl.length = 
 def LCtx.e (L : LCtx) : Nat := L.idx / 2 ^ layS L.lay % 2 ^ heightL L.lay
 def LCtx.tau (L : LCtx) : Nat := L.idx / 2 ^ (layS L.lay + heightL L.lay)
 /-- Known registers on entry of a layer (W1a: one list `gkL = gkL0` for all layers; the chain
-constants `K40`, `TMASK`, `TTA5` are set once, before layer 4). -/
+constants `TMASK`, `TTA5` are set once, before layer 4). -/
 def LCtx.gk (_L : LCtx) : List (Reg × Word) := gkL0
 
 /-- t0's `CB + 32 .. CB + 48 = 0` (the zero pad of the chain buffer). W1a hashes the chains in place

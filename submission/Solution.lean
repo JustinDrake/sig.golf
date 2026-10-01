@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
-S=6032 signature bytes, W=16384 witness bytes, K=131072 cache bytes.
-The claim C=10519 is accepting verifier bound10455 plus witness charge64.
+S=6032 signature bytes, W=16128 witness bytes, K=131072 cache bytes.
+The claim C=10518 is accepting verifier bound10455 plus witness charge63.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[184,185,185,185,185].
 
@@ -15,8 +15,6 @@ When B's top bit is set, select CD only if either of A's top two bits is
 set; otherwise retain the invalid AB pair. Every padding-clear output has
 exactly15*2^125 preimages, giving acceptance multiplier15/8. Sign, expand,
 reference and verify all implement this fixed selector.
-
-The verifier also carries forward the promoted234b1bd3 root-data and final-layer x30 optimizations. Retaining the x28 initializer needed by our carried-base SUB gives a net four-cycle saving from C10523. The signature scheme and all oracle queries are unchanged.
 
 The proven signing envelope is
 2^(115257/131072)*1.0279*1.00951*1.01132^4 <= 2.
@@ -44,6 +42,10 @@ certified two-padding-bit selector and layer-specific target proofs.
 The certificate covers all four images, universal termination, per-seed
 completeness, honest compression budgets,127-bit security and accepting
 verifier cycles under the pinned contract. No measured profile is claimed.
+The 16128-byte witness compaction follows znan2, PR144: rho and the PORS
+secrets occupy consumed layer-zero tweak slots, and the input starts at 0x900.
+The internal reference view prepends 256 zero bytes; verifier execution costs
+are unchanged while the witness charge falls from 64 to 63.
 -/
 
 namespace SigGolf.Challenge
@@ -52,15 +54,15 @@ def submission : SigGolf.Submission := SigGolfCandidate.submissionNew
 
 theorem signature_bytes : submission.sizes.signature = 6032 := rfl
 
-theorem witness_bytes : submission.sizes.witness = 16384 := rfl
+theorem witness_bytes : submission.sizes.witness = 16128 := rfl
 
 theorem cache_bytes : submission.sizes.cache = 131072 := rfl
 
 theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
-    cache := 19200, signature := 150272, witness := 2048 } := rfl
+    cache := 19200, signature := 150272, witness := 2304 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10519 :=
+theorem certificate : SigGolf.Certificate submission 10518 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

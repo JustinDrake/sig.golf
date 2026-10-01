@@ -167,14 +167,11 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       unfold twLo; omega
 
 
-/-- Universal accepting-run bound: PORS/initialization cost2904 plus
-`layersCost5 = 7552`. The 15/8 selector takes at most seven instructions:
-AB uses four, gated AB five, and BC/CD seven. Header bias saves one instruction per layer and startup saves one. Protected static data saves three root-tail instructions while preserving x28, and the final layer retains x30 to save one instruction;
-Final.Discharge supplies the additional universal structural credit. This is a proof bound, not a profile. -/
+/-- Generic accepting bound: 2904 prefix cycles plus 7552 layer cycles. The protected-data root takes twelve steps; the final route remains in its physical register. -/
 def cycleBound : Nat := 10456
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
-def cycleBoundAll : Nat := 16856
+def cycleBoundAll : Nat := 16850
 
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 45000
@@ -296,7 +293,7 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
       obtain ⟨u, hsu, hS0, hLI⟩ := setup_step P ⟨hwl, hpk⟩ _ (hpost a)
       have := pors_good P ⟨hwl, hpk⟩ u hLI
       exact (GoodQ.steps hsu this).mono (by omega) (by omega) (fun q => ⟨q, by omega⟩)
-    have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; omega
+    have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; rw [wRho_eq]; omega
     have h3 := GoodQ.hashH (x := digestInput (witRho wl) ml) hf h5 hv hin H
     rw [fmt_digestInput_words _ _ hrho hml, blocks_qT] at h3
     have hN : layN = 25009 := rfl
