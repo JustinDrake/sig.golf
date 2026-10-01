@@ -316,8 +316,8 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
         | succ m => exact foldEnd_layerIn wl pk (m + 1) idx (by omega) (by omega) u hu a) s hs
     exact this.mono (by omega) (by dsimp only; simp only [layersCost]; omega)
 
-/-- The layer cycles: `1542` (layer 4, target 183, no hash-length reload), `3 × 1576`, `1656`
+/-- The layer cycles: `1540` (layer 4, target 183, no hash-length reload, zero-shift dispatch), `3 × 1574`, `1654`
 (layer 0, direct route), and the comparison `9`. -/
-theorem layersCost_5 : layersCost 5 = 7935 := by decide
+theorem layersCost_5 : layersCost 5 = 7925 := by decide
 
 end SigGolfCandidate.Verify
