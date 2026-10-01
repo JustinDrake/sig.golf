@@ -222,8 +222,8 @@ def rootK : List (Reg × Word) :=
 def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40101), (.x14, KT4)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 17,
-    [fBr3 false, fBr2 false, fBr1 false], none, 17⟩
+  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 15,
+    [fBr3 false, fBr2 false, fBr1 false], none, 15⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
@@ -312,7 +312,7 @@ def pindE (r : Nat) : E :=
 def nbW0E : E := .bin .add hiE (cw 0xA01)
 
 def psetupMem : List (Addr × E) :=
-  [(⟨none, BitVec.ofNat 64 0x240⟩, .c (-1#64)), (⟨none, BitVec.ofNat 64 0xC8⟩, stW0 0xC8 idxE),
+  [(⟨none, BitVec.ofNat 64 0x240⟩, .c (BitVec.ofNat 64 (2 ^ 32))), (⟨none, BitVec.ofNat 64 0xC8⟩, stW0 0xC8 idxE),
     (⟨none, BitVec.ofNat 64 0xC0⟩, .bin .add hiE (cw 0x901))] ++
   ((List.range 14).reverse.flatMap fun i =>
     [(⟨none, BitVec.ofNat 64 (PSB + 80 * i + 8)⟩, stW0 (PSB + 80 * i + 8) idxE),
@@ -327,7 +327,7 @@ def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x7B0), (.x15, 0),
     (.x18, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 102, [], none, 102⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 100, [], none, 100⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&

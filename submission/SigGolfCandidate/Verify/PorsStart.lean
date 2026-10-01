@@ -330,7 +330,7 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
         · exact (setup_blk i hi).2
       rw [key]
       exact stW0_low s a idxE _ hidx (by omega)
-    · rw [hlook 0x240 (by omega), look_some (e := .c (-1#64)) (by decide +kernel)]; rfl
+    · rw [hlook 0x240 (by omega), look_some (e := .c (BitVec.ofNat 64 (2 ^ 32))) (by decide +kernel)]; rfl
     · intro r hr
       by_cases h15 : r < 15
       · rw [hlook _ (by unfold PIND; omega), setup_pind r h15]

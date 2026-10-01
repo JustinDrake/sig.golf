@@ -219,7 +219,7 @@ def FinalIn (wl pk : List Byte) (idx : Nat) (M : Val) (s : MachineState) : Prop 
 theorem cmp_link : ∀ t, t < 32 → m4Pc 0 1 t 4 + 8 + 1 = cmpPc t := by decide
 
 theorem compare_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (M : Val)
-    (s : MachineState) (hs : FinalIn wl pk idx M s) : Good s 9 9 (pure (M == pk, 0)) := by
+    (s : MachineState) (hs : FinalIn wl pk idx M s) : Good s 8 8 (pure (M == pk, 0)) := by
   obtain ⟨u, a, ⟨s0, ⟨hG, hK, hF, hpc, -, -⟩, -⟩, rfl, rfl⟩ := hs
   have hdst : (layFC ⟨wl, pk, 0, idx⟩).dst = 0x180 := by simp [layFC, dstOf]
   have h12 : u.getReg .x12 = BitVec.ofNat 64 0x180 := by
@@ -241,29 +241,39 @@ theorem compare_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (M :
   have p0 : (writeHash u a).getMem (BitVec.ofNat 64 160) = w64 (pk.take 8) := hG'.2.2.1.1
   have p1 : (writeHash u a).getMem (BitVec.ofNat 64 168) = w64 (pk.drop 8) := hG'.2.2.1.2
   have heq := val_eq_iff (answerBytes 16 a) pk (by simp) hpk
-  obtain ⟨r1, r2, r3⟩ := lc_cmp (lay := 0) (by omega) htt2 rfl
+  obtain ⟨r1, r2⟩ := lc_cmp (lay := 0) (by omega) htt2 rfl
   by_cases e0 : vw0 (answerBytes 16 a) = w64 (pk.take 8)
-  · by_cases e1 : vw1 (answerBytes 16 a) = w64 (pk.drop 8)
-    · obtain ⟨v, hv⟩ := spec_run r1 _ hpc' hK' (by
-        intro b hb
-        simp only [specAcc, List.mem_cons, List.not_mem_nil, or_false] at hb
-        rcases hb with rfl | rfl <;>
-          simp only [Br.holds, CmpOp.eval, Rv.E.eval, ldE, cw, m0, m1, p0, p1, e0, e1, bne_self_eq_false])
-      have hb : (answerBytes 16 a == pk) = true := beq_iff_eq.mpr (heq.mpr ⟨e0, e1⟩)
-      have := Good.steps hv.steps (Good.halt (hv.ecall rfl) (hv.regs (.x5, cw 1) (by simp [specAcc])))
-      rw [hv.regs (.x10, cw 0) (by simp [specAcc])] at this
-      rw [hb]; exact this.mono (by simp [specAcc]) (by simp [specAcc])
-    · obtain ⟨v, hv⟩ := spec_run r3 _ hpc' hK' (by
-        intro b hb
-        simp only [specCR2, List.mem_cons, List.not_mem_nil, or_false] at hb
-        rcases hb with rfl | rfl
-        · simp only [Br.holds, CmpOp.eval, Rv.E.eval, ldE, cw, m1, p1]; simpa using e1
-        · simp only [Br.holds, CmpOp.eval, Rv.E.eval, ldE, cw, m0, p0, e0, bne_self_eq_false])
-      have hb : (answerBytes 16 a == pk) = false := by
-        rw [beq_eq_false_iff_ne]; intro h; exact e1 (heq.mp h).2
-      have := Good.steps hv.steps (Good.reject (hv.ecall rfl) (hv.regs (.x5, cw 1) (by simp [specCR2, rejK]))
-        (hv.regs (.x10, cw 1) (by simp [specCR2, rejK])))
-      rw [hb]; exact this.mono (by simp [specCR2]) (by simp [specCR2])
+  · obtain ⟨v, hv⟩ := spec_run r1 _ hpc' hK' (by
+      intro b hb
+      simp only [specAcc, List.mem_cons, List.not_mem_nil, or_false] at hb
+      subst hb
+      simp only [Br.holds, CmpOp.eval, Rv.E.eval, ldE, cw, m0, p0, e0, bne_self_eq_false])
+    have ha0 : v.getReg .x10 = m1 - p1 := by
+      have h := hv.regs (.x10, cmpDiff) (by simp [specAcc])
+      simpa [cmpDiff, Rv.E.eval, BinOp.eval, ldE, m1, p1] using h
+    have hobs : decide (v.getReg .x10 = 0) = (answerBytes 16 a == pk) := by
+      by_cases e1 : vw1 (answerBytes 16 a) = w64 (pk.drop 8)
+      · have hb : (answerBytes 16 a == pk) = true := beq_iff_eq.mpr (heq.mpr ⟨e0, e1⟩)
+        have h0 : v.getReg .x10 = 0 := by rw [ha0, show m1 - p1 = 0 by simp [m1, p1, e1, BitVec.sub_self]]
+        simp [h0, hb]
+      · have hb : (answerBytes 16 a == pk) = false := by
+          rw [beq_eq_false_iff_ne]; intro h; exact e1 (heq.mp h).2
+        have hne : ¬ v.getReg .x10 = 0 := by
+          rw [ha0]; intro h
+          have : m1 = p1 := BitVec.sub_eq_zero_iff_eq.mp h
+          exact e1 (by simpa [m1, p1] using this)
+        simp [hne, hb]
+    have ghalt := Good.halt (hv.ecall rfl) (hv.regs (.x5, cw 1) (by simp [specAcc]))
+    -- Good.halt gives pure (decide (a0=0), 0); rewrite observation
+    have ghalt' : Good v 1 1 (pure (answerBytes 16 a == pk, 0)) := by
+      intro F hF
+      obtain ⟨h1, h2⟩ := ghalt F hF
+      refine ⟨?_, fun hash => ?_⟩
+      · simpa [obs, hobs] using h1
+      · obtain ⟨he, hc⟩ := h2 hash
+        refine ⟨?_, hc⟩
+        simpa [hobs] using he
+    exact (Good.steps hv.steps ghalt').mono (by simp [specAcc]) (by simp [specAcc])
   · obtain ⟨v, hv⟩ := spec_run r2 _ hpc' hK' (by
       intro b hb
       simp only [specCR1, List.mem_cons, List.not_mem_nil, or_false] at hb
@@ -286,13 +296,13 @@ def InLayer (wl pk : List Byte) (idx : Nat) : Nat → Val → MachineState → P
   | n + 1 => LayerIn ⟨wl, pk, n, idx⟩
 
 def layersCost : Nat → Nat
-  | 0 => 9
+  | 0 => 8
   | n + 1 => layersCost n + layerCost n
 
 theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx : idx < 2 ^ 34)
     (hwl : wl.length = 16384) :
     ∀ n, n ≤ 5 → ∀ M s, InLayer wl pk idx n M s →
-      Good s (5000 * n + 9) (layersCost n) (cc (verifyLayers wl idx n M) (Kfin pk)) := by
+      Good s (5000 * n + 8) (layersCost n) (cc (verifyLayers wl idx n M) (Kfin pk)) := by
   intro n
   induction n with
   | zero =>
@@ -307,7 +317,7 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
       (fun o => cc (match o with
         | none => pure none
         | some r => verifyLayers wl idx n r) (Kfin pk)) (by simp [Kfin])
-      (5000 * n + 9) (layersCost n) (by
+      (5000 * n + 8) (layersCost n) (by
         intro a u hu
         simp only []
         apply ih (by omega)
@@ -318,6 +328,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The layer cycles: `1539` (layer 4, target 183, no hash-length reload), `3 × 1573`, `1653`
 (layer 0, direct route), and the comparison `9`. -/
-theorem layersCost_5 : layersCost 5 = 7920 := by decide
+theorem layersCost_5 : layersCost 5 = 7914 := by decide
 
 end SigGolfCandidate.Verify
