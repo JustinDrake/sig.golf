@@ -21,7 +21,7 @@ theorem schedStep_ne (st : SchedState) (E cnt tt h Q : Nat) (rest : List Nat) (h
 
 theorem schedStep_eq (st : SchedState) (E cnt tt h Q : Nat) (rest : List Nat) (hs : st.stack = Q :: rest) (hQ : Q = E) :
     schedStep (st, E, cnt, tt) h = ({ st with segs := st.segs ++ [cnt ||| 16 ||| 32 * tt], stack := rest },
-      E / 2, 0, E / 2 % 8) := by
+      E / 2, 0, E / 2 % 2) := by
   simp only [schedStep, hs, if_pos hQ]
 
 /-- One height step (`sch_h` 263 .. `sch_next` 287) at height `h < top`. -/

@@ -9,48 +9,6 @@ set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref
 
-theorem prefixN_le (a : Nat) : prefixN a ≤ 2 := by
-  unfold prefixN; split_ifs <;> omega
-
-theorem prefixN_lt (a : Nat) (ha : 0 < a) : prefixN a < a := by
-  unfold prefixN; split_ifs <;> omega
-
-theorem prefix_tag_slot (a i E bits : Nat) (hi : i ≤ prefixN a)
-    (h : E % 2^(3-i) = bits / 2^i) : E % 2 = bits / 2^i % 2 := by
-  have hn := prefixN_le a
-  have hib : i ≤ 2 := by omega
-  interval_cases i <;> norm_num at * <;> omega
-
-theorem prefix_tag_next (a i E bits : Nat) (hi : i < prefixN a)
-    (h : E % 2^(3-i) = bits / 2^i) :
-    E / 2 % 2^(3-(i+1)) = bits / 2^(i+1) := by
-  have hn := prefixN_le a
-  have hib : i ≤ 2 := by omega
-  interval_cases i <;> norm_num at * <;> omega
-
-theorem prefix_tag_next_slot (a i E bits : Nat) (hi : i < prefixN a)
-    (h : E % 2^(3-i) = bits / 2^i) : E / 2 % 2 = bits / 2^(i+1) % 2 := by
-  exact prefix_tag_slot a (i+1) (E/2) bits (by omega) (prefix_tag_next a i E bits hi h)
-
-theorem foldBudget_step : ∀ a : Fin 15, ∀ i : Fin 15, i.val < a.val →
-    foldBudget a.val i.val = posCycles a.val i.val + 8 + foldBudget a.val (i.val+1) := by
-  decide +kernel
-
-theorem posCycles_le : ∀ a : Fin 15, ∀ i : Fin 15, i.val < a.val → posCycles a.val i.val ≤ 10 := by
-  decide +kernel
-
-theorem foldBudget_start (a : Nat) (ha : 0 < a) :
-    foldBudget a 0 = 17*a-2-prefixSave a := by
-  simp [foldBudget, prefixBefore, ha]
-
-theorem foldBudget_old_bound : ∀ a : Fin 15, foldBudget a.val 0 ≤ 17*a.val-2 := by
-  decide +kernel
-
-theorem prefixSave_eq : ∀ a : Nat, prefixSave a = if a < 2 then 0 else 2 * min (a - 1) 2 - 1 := by
-  intro a
-  unfold prefixSave prefixN
-  split_ifs <;> rfl
-
 /-! ## Sub-word stores and counters (copies of `LayArith` facts, so that the PORS part does not
 depend on the layer modules) -/
 

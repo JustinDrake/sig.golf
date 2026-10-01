@@ -50,23 +50,20 @@ theorem blk554_run (t : MachineState) (hpc : t.pc = pcOf 554) (a : Nat) (ha : a 
   · rw [if_pos (by simpa using h), if_pos h]
   · rw [if_neg (by simpa using h), if_neg h]
 
-theorem and7_path (n : Nat) : n &&& 7 = n % 8 := Nat.and_two_pow_sub_one_eq_mod n 3
-
-/-- 555 .. 558: the low-three-bit path `b >> 5` against `E & 7`. -/
+/-- 555 .. 558: the direction bit `t = b >> 5 & 1` against `E & 1`. -/
 theorem blk555_run (t : MachineState) (hpc : t.pc = pcOf 555) (b E : Nat) (hb : b < 256) (hE : E < 2 ^ 15)
     (h6 : t.getReg .x6 = BitVec.ofNat 64 b) (h19 : t.getReg .x19 = BitVec.ofNat 64 E) :
-    ∃ t', Steps eimg t 4 4 t' ∧ t'.pc = (if b / 32 ≠ E % 8 then pcOf 284 else pcOf 559) ∧
+    ∃ t', Steps eimg t 4 4 t' ∧ t'.pc = (if b / 32 % 2 ≠ E % 2 then pcOf 284 else pcOf 559) ∧
       RegsEq t t' [.x13, .x14] ∧ ∀ x, t'.getMem x = t.getMem x := by
   refine ⟨_, symRun_sound Expand.blk555 Expand.codeAt_555 t hpc (by simp only [Expand.blk555.res, rv_simp]),
     ?_, by pregs, getMem_nil rfl t⟩
   simp only [Expand.blk555.res, rv_simp, h6, h19]
   rw [show (5#64 : Word).toNat % 64 = 5 from rfl, ofNat_ushiftRight _ _ (by omega),
-    ofNat_and_ofNat _ _ (by omega) (by norm_num), and7_path,
-    ofNat_and_ofNat _ _ (by omega) (by norm_num), and7_path, ofNat_bne_ofNat,
-    Nat.mod_eq_of_lt (by omega : b / 2 ^ 5 % 8 < 2 ^ 64),
-    Nat.mod_eq_of_lt (by omega : E % 8 < 2 ^ 64)]
-  rw [Nat.mod_eq_of_lt (by omega : b / 2 ^ 5 < 8)]
-  by_cases h : b / 32 ≠ E % 8
+    ofNat_and_ofNat _ _ (by omega) (by norm_num), and_one,
+    ofNat_and_ofNat _ _ (by omega) (by norm_num), and_one, ofNat_bne_ofNat,
+    Nat.mod_eq_of_lt (by omega : b / 2 ^ 5 % 2 < 2 ^ 64),
+    Nat.mod_eq_of_lt (by omega : E % 2 < 2 ^ 64)]
+  by_cases h : b / 32 % 2 ≠ E % 2
   · rw [if_pos (by simpa using h), if_pos h]
   · rw [if_neg (by simpa using h), if_neg h]
 
