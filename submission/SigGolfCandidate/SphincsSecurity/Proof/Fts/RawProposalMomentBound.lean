@@ -55,7 +55,7 @@ theorem reuseRawEnvelope_le_binomialAverage (key : SecretKey) (reuse rate : ENNR
   intro index _
   exact targetIndexSigning_iterate_power_le_binomialAverage hrate signatures (hprob index) _ remaining.card
 
-noncomputable def targetProposalOverhead : ENNReal := 49197 / 32768
+noncomputable def targetProposalOverhead : ENNReal := 49185 / 32768
 
 noncomputable def targetProposalIndexRate : ENNReal :=
   targetProposalOverhead * (Fintype.card Index : ENNReal)⁻¹
@@ -105,7 +105,7 @@ theorem targetProposalRate_of_cache_bound (cache : ENNReal) (spent queries signa
   have hx : 0 < x := by linarith
   have hinv : ((2 : ℝ) ^ 128 * x)⁻¹ * (2 ^ 128 * x) = 1 := inv_mul_cancel₀ (by positivity)
   have hinvpos : 0 < ((2 : ℝ) ^ 128 * x)⁻¹ := by positivity
-  have hsmall : ((2 : ℝ) ^ 128 * x)⁻¹ * (2 ^ 72 + 15 + 2 ^ 32) ≤ 5 / 10 ^ 14 := by
+  have hsmall : ((2 : ℝ) ^ 128 * x)⁻¹ * (2 ^ 72 + 15 + 2 ^ 32) ≤ 3 / 10 ^ 14 := by
     rw [mul_comm, ← div_eq_mul_inv, div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith
   norm_num at hinv hinvpos hsmall ⊢

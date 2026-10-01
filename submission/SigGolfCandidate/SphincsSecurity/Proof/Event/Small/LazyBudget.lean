@@ -83,7 +83,7 @@ theorem digestAttemptExpectation_le (key : SecretKey) (message : Message) (cache
       norm_num [randomnessBits, ENNReal.toReal_mul, ENNReal.toReal_inv]
     rw [hhalf]
     calc
-      ((2 ^ 13 : ENNReal))⁻¹ ≤ 2⁻¹ * (3410 : ENNReal)⁻¹ := by
+      ((2 ^ 13 : ENNReal))⁻¹ ≤ 2⁻¹ * (2142 : ENNReal)⁻¹ := by
         rw [← ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by norm_num))]
         exact ENNReal.inv_le_inv.mpr (by norm_num)
       _ ≤ _ := mul_le_mul' le_rfl admissibleProbability_ge

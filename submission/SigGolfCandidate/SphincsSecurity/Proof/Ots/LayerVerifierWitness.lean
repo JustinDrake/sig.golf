@@ -25,7 +25,7 @@ theorem canonicalLeaf_eq_honestNode (leaf : LeafIndex) :
 
 theorem layer_classification (leaf : LeafIndex) (hleafIndex : leaf.val < 2 ^ layerHeight lay)
     (path : Nat → Digest) (message : Digest) (counter : Counter) (values : ChainIndex → Digest)
-    (candidate : Encoding) (leafValue : Digest) (trace : Trace) (hvalid : OtsCode.Valid (words lay tree leaf))
+    (candidate : Encoding) (leafValue : Digest) (trace : Trace) (hvalid : OtsCode.Valid lay (words lay tree leaf))
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some candidate)
     (hots : evalWithAnswerFn f (otsLeafAttempt parameter lay tree leaf message counter values) = some leafValue)
     (hfold : foldValue f parameter lay tree leaf path leafValue (layerHeight lay) =

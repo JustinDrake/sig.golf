@@ -54,7 +54,7 @@ structure SchCtx (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) : Prop 
   lt : ∀ p < 15, A p < 2 ^ 22
   sent : t0.getMem (BitVec.ofNat 64 0x758) = BitVec.ofNat 64 (2 ^ 22)
   sigok : SigOK t0 sig
-  siglen : sig.length = 6032
+  siglen : sig.length = 6048
 
 theorem topM_le (A : Nat → Nat) (hlt : ∀ p < 15, A p < 2 ^ 22) (s : Nat) : topM A s ≤ 14 := by
   unfold topM; split
@@ -73,7 +73,7 @@ theorem sch_next (u : MachineState) (hpc : u.pc = pcOf 117) (h : Nat)
 
 theorem sch_step (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : SchCtx A sig t0)
     (s h : Nat) (x : SchedState × Nat × Nat × Nat) (u : MachineState) (hm : HM A sig t0 s h x u)
-    (hh : h < topM A s) (hr : (schedStep x h).1.reads.length ≤ 117)
+    (hh : h < topM A s) (hr : (schedStep x h).1.reads.length ≤ 118)
     (hg : (schedStep x h).1.segs.length + 1 ≤ 29) :
     Run u 16 (HM A sig t0 s (h + 1) (schedStep x h)) := by
   obtain ⟨st, E, cnt, t⟩ := x
@@ -120,7 +120,7 @@ theorem sch_step (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : S
     generalize st.stack.headD 0 = q at hQb ⊢
     rw [Nat.mod_eq_of_lt (a := q) (by omega), Nat.mod_eq_of_lt (a := E) (by omega)]
     by_cases hq : q = E <;> simp [hq]
-  have hnsr : nsum st.segs ≤ 117 := by
+  have hnsr : nsum st.segs ≤ 118 := by
     have := (schedStep_mono (st, E, cnt, t) h).1; dsimp only at this; omega
   have hL := length_segStream sig hc.siglen st.segs hnsr
   by_cases hq : st.stack.headD 0 = E
@@ -480,7 +480,7 @@ def leafEnd (s : Nat) (x : SchedState × Nat × Nat × Nat) : SchedState :=
 
 theorem leaf_end (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : SchCtx A sig t0)
     (s : Nat) (x : SchedState × Nat × Nat × Nat) (u : MachineState) (hm : HM A sig t0 s (topM A s) x u)
-    (hr : x.1.reads.length ≤ 117) (hg : x.1.segs.length + 1 ≤ 29) :
+    (hr : x.1.reads.length ≤ 118) (hg : x.1.segs.length + 1 ≤ 29) :
     Run u 14 (LM A sig t0 (s + 1) (leafEnd s x)) := by
   obtain ⟨st, E, cnt, t⟩ := x
   obtain ⟨hpc, h8, h9, h20, h19, h18, h15, h21, h23, h24, h29, h30, h31, hstk, hstkb, hslen, hstr,
@@ -495,7 +495,7 @@ theorem leaf_end (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : S
     rw [ofNat_slt_ofNat _ _ (by omega) (by omega)]; simp
   have r1 : RegsEq u u1 [] := by regs_eq
   have m1 : ∀ a, u1.getMem a = u.getMem a := toState_getMem_nil rfl u
-  have hnsr : nsum st.segs ≤ 117 := by omega
+  have hnsr : nsum st.segs ≤ 118 := by omega
   have hL := length_segStream sig hc.siglen st.segs hnsr
   have hc16 : cnt < 16 := by omega
   set b := cnt ||| 32 * t with hbdef
@@ -606,7 +606,7 @@ theorem leaf_end (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : S
 
 theorem sch_inner (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : SchCtx A sig t0) (s : Nat) :
     ∀ n h (x : SchedState × Nat × Nat × Nat) (u : MachineState), h + n = topM A s → HM A sig t0 s h x u →
-      ((List.range' h n).foldl schedStep x).1.reads.length ≤ 117 →
+      ((List.range' h n).foldl schedStep x).1.reads.length ≤ 118 →
       ((List.range' h n).foldl schedStep x).1.segs.length + 1 ≤ 29 →
       Run u (16 * n) (HM A sig t0 s (h + n) ((List.range' h n).foldl schedStep x)) := by
   intro n
@@ -659,7 +659,7 @@ theorem leaf_mono (vs : List Nat) (st : SchedState) (s : Nat) :
 /-- One leaf. -/
 theorem sch_leaf (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : SchCtx A sig t0)
     (hd : ∀ s < 14, lv A s ≠ lv A (s + 1)) (s : Nat) (hs : s < 15) (st : SchedState) (u : MachineState)
-    (hl : LM A sig t0 s st u) (hr : (schedLeaf (vsOf A) st s).reads.length ≤ 117)
+    (hl : LM A sig t0 s st u) (hr : (schedLeaf (vsOf A) st s).reads.length ≤ 118)
     (hg : (schedLeaf (vsOf A) st s).segs.length ≤ 29) :
     Run u (56 + 16 * 14 + 14) (LM A sig t0 (s + 1) (schedLeaf (vsOf A) st s)) := by
   rw [schedLeaf_eq A st s hs] at hr hg ⊢
@@ -667,7 +667,7 @@ theorem sch_leaf (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : S
   set x0 : SchedState × Nat × Nat × Nat := (st, porsT ||| lv A s, 0, (porsT ||| lv A s) % 2)
   have hF : (List.range (topM A s)).foldl schedStep x0 = (List.range' 0 (topM A s)).foldl schedStep x0 := by
     rw [List.range_eq_range']
-  have hr' : ((List.range (topM A s)).foldl schedStep x0).1.reads.length ≤ 117 := by
+  have hr' : ((List.range (topM A s)).foldl schedStep x0).1.reads.length ≤ 118 := by
     unfold leafEnd at hr; split at hr <;> simpa using hr
   have hg' : ((List.range (topM A s)).foldl schedStep x0).1.segs.length + 1 ≤ 29 := by
     unfold leafEnd at hg; split at hg <;> simpa using hg
@@ -690,7 +690,7 @@ theorem leaves_mono (vs : List Nat) (L : List Nat) : ∀ st : SchedState,
 theorem sch_leaves (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : SchCtx A sig t0)
     (hd : ∀ s < 14, lv A s ≠ lv A (s + 1)) :
     ∀ k s (st : SchedState) (u : MachineState), s + k = 15 → LM A sig t0 s st u →
-      ((List.range' s k).foldl (schedLeaf (vsOf A)) st).reads.length ≤ 117 →
+      ((List.range' s k).foldl (schedLeaf (vsOf A)) st).reads.length ≤ 118 →
       ((List.range' s k).foldl (schedLeaf (vsOf A)) st).segs.length ≤ 29 →
       Run u (k * 294) (LM A sig t0 15 ((List.range' s k).foldl (schedLeaf (vsOf A)) st)) := by
   intro k
@@ -708,7 +708,7 @@ theorem sch_leaves (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc :
 theorem sch_run (A : Nat → Nat) (sig : List Byte) (t0 : MachineState) (hc : SchCtx A sig t0)
     (hd : ∀ s < 14, lv A s ≠ lv A (s + 1)) (hpc : t0.pc = pcOf 72)
     (hz : ∀ i < 2152, t0.getByte (BitVec.ofNat 64 (0x910 + i)) = 0)
-    (hr : (schedule (vsOf A)).2.length ≤ 117) (hg : (schedule (vsOf A)).1.length ≤ 29) :
+    (hr : (schedule (vsOf A)).2.length ≤ 118) (hg : (schedule (vsOf A)).1.length ≤ 29) :
     Run t0 (9 + 15 * 294) (LM A sig t0 15 ((List.range 15).foldl (schedLeaf (vsOf A)) ⟨[], [], []⟩)) := by
   refine Run.blk blk72 codeAt_72 hpc (by simp only [blk72.res, rv_simp]) ?_
   set u := blk72.res.toState t0 with hu

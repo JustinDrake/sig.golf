@@ -402,15 +402,6 @@ theorem Avoids.deriveRandomizer (parameter : PublicParameter) (seed : MasterSeed
   rw [queriedInputs_deriveRandomizer, List.mem_singleton] at hmem
   exact hne hmem.symm
 
-theorem Avoids.deriveRandomizerPair (parameter : PublicParameter) (seed : MasterSeed)
-    (message : Message) (trial : BitVec 32)
-    (hne : randomizerHashInput parameter seed message trial ≠ target) :
-    Avoids f target (Seeded.deriveRandomizerPair parameter seed message trial
-      : OracleComp HashSpec (Randomness × Randomness)) := by
-  intro hmem
-  change target ∈ [randomizerHashInput parameter seed message trial] at hmem
-  exact hne (List.mem_singleton.mp hmem).symm
-
 theorem queriedInputs_messageDigest (parameter : PublicParameter) (root : Digest)
     (message : Message) (randomness : Randomness) :
     queriedInputs f (Concrete.messageDigest parameter root message randomness
@@ -458,29 +449,6 @@ theorem Avoids.signDigestLoop (secretKey : Seeded.SecretKey) (message : Message)
       · exact Avoids.pure' f target _
       · exact ih _
 
-
-theorem Avoids.signDigestPairs (secretKey : Seeded.SecretKey) (message : Message)
-    (hrand : ∀ trial : BitVec 32,
-      randomizerHashInput secretKey.parameter secretKey.seed message trial ≠ target)
-    (hmsg : ∀ randomness : Randomness, tweakableHashInput secretKey.parameter .message
-      (Concrete.messageDigestPayload secretKey.root message randomness) ≠ target) :
-    ∀ (attempts trial : Nat),
-      Avoids f target (Seeded.signDigestPairs secretKey message attempts trial
-        : OracleComp HashSpec (Option (Randomness × Index × (IndexGroup → FtsLeaf)))) := by
-  intro attempts
-  induction attempts with
-  | zero => intro trial; exact Avoids.pure' f target _
-  | succ attempts ih =>
-    intro trial
-    rw [Seeded.signDigestPairs]
-    refine Avoids.bind f target (Avoids.deriveRandomizerPair f target _ _ _ _ (hrand _)) ?_
-    refine Avoids.bind f target (Avoids.signAttempt f target _ _ _ (hmsg _)) ?_
-    split
-    · exact Avoids.pure' f target _
-    · refine Avoids.bind f target (Avoids.signAttempt f target _ _ _ (hmsg _)) ?_
-      split
-      · exact Avoids.pure' f target _
-      · exact ih _
 
 /-! ## A layer
 
@@ -580,14 +548,6 @@ theorem Avoids.signDigestLoop_of_structural (secretKey : Seeded.SecretKey) (mess
       Avoids f target (Seeded.signDigestLoop secretKey message attempts trial
         : OracleComp HashSpec (Option (Randomness × Index × (IndexGroup → FtsLeaf)))) :=
   Avoids.signDigestLoop f target secretKey message
-    (fun trial => hstruct.randomizer message trial) (fun _ => hstruct.msg _)
-
-theorem Avoids.signDigestPairs_of_structural (secretKey : Seeded.SecretKey) (message : Message)
-    (hstruct : Structural secretKey.parameter secretKey.seed target) :
-    ∀ (attempts trial : Nat),
-      Avoids f target (Seeded.signDigestPairs secretKey message attempts trial
-        : OracleComp HashSpec (Option (Randomness × Index × (IndexGroup → FtsLeaf)))) :=
-  Avoids.signDigestPairs f target secretKey message
     (fun trial => hstruct.randomizer message trial) (fun _ => hstruct.msg _)
 
 theorem Avoids.buildFtsTreePaired_of_structural (parameter : PublicParameter) (index : Index)

@@ -16,7 +16,7 @@ theorem certificateCacheExceptionRate_le : certificateCacheExceptionRate ≤ (2 
   have hp := admissibleProbability_le
   unfold certificateCacheExceptionRate
   calc
-    _ ≤ 1 / 2 ^ 166 + (3409 : ENNReal)⁻¹ / 2 ^ 144 := by gcongr
+    _ ≤ 1 / 2 ^ 166 + (2141 : ENNReal)⁻¹ / 2 ^ 144 := by gcongr
     _ ≤ _ := by
       apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
       rw [ENNReal.toReal_add (by finiteness) (by finiteness)]

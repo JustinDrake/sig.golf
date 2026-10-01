@@ -6,7 +6,7 @@ import SigGolfCandidate.Expand.PorsLoop
 * `porsLeaves_sim` : from `pr_leaf` with leaf `s` and the reference state `st` (`LeafInv`),
   the machine refines `Ref.porsLeaves idx v w (range' s n) st`, the leaf index of slot `s` being
   `KEYS[s] >> 8` (hypothesis `hx`: the witness's pi byte selects it from `v ++ [porsT]`);
-* `porsEnd_sim` : the final checks of `Ref.porsRoot` (at most 117 folds, `E = 1`, empty stack),
+* `porsEnd_sim` : the final checks of `Ref.porsRoot` (at most 118 folds, `E = 1`, empty stack),
   to `pors_ok` (639) with the root at `OUT`.
 -/
 

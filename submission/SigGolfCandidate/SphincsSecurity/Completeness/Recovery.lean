@@ -404,47 +404,8 @@ theorem signDigestLoop_spec (secretKey : Seeded.SecretKey) (message : Message) :
           evalWithAnswerFn_pure, if_neg hadmissible] at h
         exact ih (trial + 1) h
 
-theorem signDigestPairs_spec (secretKey : Seeded.SecretKey) (message : Message) :
-    ∀ (attempts trial : Nat) {randomness : Randomness} {index : Index}
-      {leaves : IndexGroup → FtsLeaf},
-      evalWithAnswerFn f (Seeded.signDigestPairs secretKey message attempts trial
-          : OracleComp HashSpec (Option (Randomness × Index × (IndexGroup → FtsLeaf))))
-          = some (randomness, index, leaves) →
-      Admissible (digestValue f secretKey message randomness)
-        ∧ index = digestIndex (digestValue f secretKey message randomness)
-        ∧ leaves = digestLeaves (digestValue f secretKey message randomness) := by
-  intro attempts
-  induction attempts with
-  | zero => intro trial randomness index leaves h; simp [Seeded.signDigestPairs] at h
-  | succ attempts ih =>
-    intro trial randomness index leaves h
-    simp only [Seeded.signDigestPairs, Seeded.signAttempt, Seeded.deriveRandomizerPair,
-      evalWithAnswerFn_bind, eval_oracleHash, evalWithAnswerFn_pure] at h
-    by_cases hlo : Admissible (digestValue f secretKey message
-      (Seeded.splitSecrets (f (randomizerHashInput secretKey.parameter secretKey.seed
-        message (BitVec.ofNat 32 trial)))).1)
-    · rw [digestValue] at hlo
-      simp only [if_pos hlo, evalWithAnswerFn_pure, Option.some.injEq, Prod.mk.injEq] at h
-      obtain ⟨hrand, hindex, hleaves⟩ := h
-      subst hrand
-      exact ⟨hlo, hindex.symm, hleaves.symm⟩
-    · rw [digestValue] at hlo
-      simp only [if_neg hlo, evalWithAnswerFn_pure] at h
-      by_cases hhi : Admissible (digestValue f secretKey message
-        (Seeded.splitSecrets (f (randomizerHashInput secretKey.parameter secretKey.seed
-          message (BitVec.ofNat 32 trial)))).2)
-      · rw [digestValue] at hhi
-        simp only [Seeded.signAttempt, evalWithAnswerFn_bind, if_pos hhi,
-          evalWithAnswerFn_pure, Option.some.injEq, Prod.mk.injEq] at h
-        obtain ⟨hrand, hindex, hleaves⟩ := h
-        subst hrand
-        exact ⟨hhi, hindex.symm, hleaves.symm⟩
-      · rw [digestValue] at hhi
-        simp only [Seeded.signAttempt, evalWithAnswerFn_bind, if_neg hhi, evalWithAnswerFn_pure] at h
-        exact ih (trial + 1) h
-
 -- Below, only the shape of `sign` matters; sealing the loop keeps the unfolding shallow.
-attribute [local irreducible] Seeded.signDigestLoop Seeded.signDigestPairs Concrete.signFrom Concrete.signFromPaired
+attribute [local irreducible] Seeded.signDigestLoop Concrete.signFrom Concrete.signFromPaired
 
 /-- What a successful signing after the MAC check produced: an admissible digest, and the
 specification's signature after it for the key the seed derives. -/
@@ -457,14 +418,14 @@ theorem signChecked_spec (secretKey : Seeded.SecretKey) (cache : TopCache)
           (digestIndex (digestValue f secretKey message signature.randomness))
           (digestLeaves (digestValue f secretKey message signature.randomness)) = some signature := by
   rw [Seeded.signChecked, evalWithAnswerFn_bind] at h
-  cases hloop : evalWithAnswerFn f (Seeded.signDigestPairs secretKey message digestPairLimit 0
+  cases hloop : evalWithAnswerFn f (Seeded.signDigestLoop secretKey message digestAttemptLimit 0
       : OracleComp HashSpec (Option (Randomness × Index × (IndexGroup → FtsLeaf)))) with
   | none => rw [hloop] at h; simp at h
   | some result =>
       obtain ⟨randomness, index, leaves⟩ := result
       rw [hloop] at h
       obtain ⟨hadmissible, hindex, hleaves⟩ :=
-        signDigestPairs_spec f secretKey message digestPairLimit 0 hloop
+        signDigestLoop_spec f secretKey message digestAttemptLimit 0 hloop
       change evalWithAnswerFn f (signFromPaired secretKey.parameter index
         (Seeded.ftsSecret secretKey.parameter secretKey.seed index)
         (Seeded.otsSecret secretKey.parameter secretKey.seed)

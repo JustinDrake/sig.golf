@@ -161,16 +161,16 @@ theorem blk629_run (t : MachineState) (hpc : t.pc = pcOf 629) (s x : Nat) (hs : 
     · rw [if_pos (by simp; omega), if_neg h]
   · simp only [Expand.blk629.res, rv_simp, h8, ofNat_add_ofNat]
 
-/-- 633 .. 634: reject more than 117 folds. -/
+/-- 633 .. 634: reject more than 118 folds. -/
 theorem blk633_run (t : MachineState) (hpc : t.pc = pcOf 633) (f : Nat) (hf : f < 2 ^ 32)
     (h20 : t.getReg .x20 = BitVec.ofNat 64 f) :
-    ∃ t', Steps eimg t 2 2 t' ∧ t'.pc = (if 117 < f then pcOf 284 else pcOf 635) ∧
+    ∃ t', Steps eimg t 2 2 t' ∧ t'.pc = (if 118 < f then pcOf 284 else pcOf 635) ∧
       RegsEq t t' [.x17] ∧ ∀ y, t'.getMem y = t.getMem y := by
   refine ⟨_, symRun_sound Expand.blk633 Expand.codeAt_633 t hpc (by simp only [Expand.blk633.res, rv_simp]),
     ?_, by pregs, getMem_nil rfl t⟩
-  simp only [Expand.blk633.res, rv_simp, h20, show (117#64 : Word) = BitVec.ofNat 64 117 from rfl]
+  simp only [Expand.blk633.res, rv_simp, h20, show (118#64 : Word) = BitVec.ofNat 64 118 from rfl]
   rw [ofNat_slt_ofNat _ _ (by norm_num) (by omega)]
-  by_cases h : 117 < f
+  by_cases h : 118 < f
   · rw [if_pos (by simpa using h), if_pos h]
   · rw [if_neg (by simpa using h), if_neg h]
 

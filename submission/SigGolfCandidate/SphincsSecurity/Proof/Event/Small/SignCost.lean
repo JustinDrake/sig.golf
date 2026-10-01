@@ -179,8 +179,8 @@ theorem signHashBound_eq : signHashBound = 25083898 := by
   rw [signHashBound, ftsOpenHashCost_eq, treeNodeHashCost_def, oneTimeKeyHashCost_def]
   decide
 
-/-- A conservative ratio between the largest and least cost of a signing request. -/
-def signRatio : Nat := 265
+/-- The ratio between the largest and the least cost of a signing request, rounded up. -/
+def signRatio : Nat := 254
 
 theorem signHashBound_le : signHashBound ≤ signRatio * signCharge := by
   rw [signHashBound_eq, signCharge_eq, signRatio]

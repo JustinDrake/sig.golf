@@ -44,26 +44,7 @@ theorem tableSign_own (randomizers : RandomizerOutputs) (secretKey : SphincsSecu
     tableSign randomizers secretKey message =
       tableSign (fun position => randomizers (message, position.2)) secretKey message := by
   unfold tableSign
-  have hown : ∀ attempts trial, (pairedTableDigestLoop randomizers secretKey message attempts trial :
-      OracleComp HashSpec TrialResult) = pairedTableDigestLoop
-        (fun position => randomizers (message, position.2)) secretKey message attempts trial := by
-    intro attempts
-    induction attempts with
-    | zero => intro trial; rfl
-    | succ attempts ih =>
-        intro trial
-        simp only [pairedTableDigestLoop]
-        apply bind_congr
-        intro result
-        cases result with
-        | some result => rfl
-        | none =>
-            apply bind_congr
-            intro result
-            cases result with
-            | some result => rfl
-            | none => exact ih _
-  rw [hown]
+  rw [tableDigestLoop_own randomizers secretKey message]
 
 attribute [local irreducible] tableSign
 

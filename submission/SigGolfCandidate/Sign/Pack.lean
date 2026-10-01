@@ -5,7 +5,7 @@ import SigGolfCandidate.Sign.PackRun
 /-!
 # `sign`: the pack (instructions 718 .. 1713)
 
-`pack_bytes` : after the pack, the signature layer region `SIG + 2128 ..` holds the staged bytes
+`pack_bytes` : after the pack, the signature layer region `SIG + 2144 ..` holds the staged bytes
 in signature order: layer `l`'s body at `STG + 856 l + 8` (the counters are not packed).
 -/
 
@@ -70,15 +70,15 @@ theorem packTab_kind2 : ∀ j < 488, (packTab.getD j (0, 0, 0)).1 ≠ 2 := by
 
 /-- **Pack**: the signature layer region after the pack, as stage bytes. -/
 theorem pack_bytes (t u : MachineState)
-    (hw : u.readWords (BitVec.ofNat 64 (0x24B00 + 2128)) 488 = packTab.map (packDW t)) :
-    bytesAt u (0x24B00 + 2128) 3904 =
+    (hw : u.readWords (BitVec.ofNat 64 (0x24B00 + 2144)) 488 = packTab.map (packDW t)) :
+    bytesAt u (0x24B00 + 2144) 3904 =
       (List.range 3904).map (fun p =>
         t.getByte (BitVec.ofNat 64 (srcA (packTab.getD (p / 8) (0, 0, 0)) (p % 8)))) := by
   apply List.ext_getElem (by simp)
   intro p h1 h2
   simp only [length_bytesAt] at h1
   simp only [bytesAt, List.getElem_map, List.getElem_range]
-  rw [show 0x24B00 + 2128 + p = (0x24B00 + 2128 + 8 * (p / 8)) + p % 8 by omega,
+  rw [show 0x24B00 + 2144 + p = (0x24B00 + 2144 + 8 * (p / 8)) + p % 8 by omega,
     getByte_aligned' _ _ _ (by omega) (by omega) (by omega),
     getMem_of_readWords _ 488 _ (p / 8) _ hw (by omega)]
   have hmem : packTab.getD (p / 8) (0, 0, 0) ∈ packTab := by
@@ -139,8 +139,8 @@ theorem pack_addrs : (List.range 3904).map (fun p => srcA (packTab.getD (p / 8) 
   rw [getElem_blocks8]
 
 theorem pack_layers (t u : MachineState)
-    (hw : u.readWords (BitVec.ofNat 64 (0x24B00 + 2128)) 488 = packTab.map (packDW t)) :
-    bytesAt u (0x24B00 + 2128) 3904 =
+    (hw : u.readWords (BitVec.ofNat 64 (0x24B00 + 2144)) 488 = packTab.map (packDW t)) :
+    bytesAt u (0x24B00 + 2144) 3904 =
       (List.range 5).flatMap (fun l => bytesAt t (0x900 + 856 * l + 8) (672 + 16 * height l)) := by
   rw [pack_bytes t u hw]
   have h := congrArg (List.map (fun a => t.getByte (BitVec.ofNat 64 a))) pack_addrs

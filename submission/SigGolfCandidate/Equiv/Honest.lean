@@ -567,11 +567,6 @@ theorem hq_deriveRandomizer (seed : MasterSeed) (m : Message) (trial : BitVec 32
   refine hq_bind (hq_oracleHash _ ?_) fun _ => hq_pure _
   simp [Honest, SphincsSecurity.randomizerHashInput, tagLen, length_bytesLE]
 
-theorem hq_deriveRandomizerPair (seed : MasterSeed) (m : Message) (trial : BitVec 32) :
-    HQ (SphincsSecurity.Seeded.deriveRandomizerPair (m := AComp) P seed m trial) := by
-  refine hq_bind (hq_oracleHash _ ?_) fun _ => hq_pure _
-  simp [Honest, SphincsSecurity.randomizerHashInput, tagLen, length_bytesLE]
-
 end calls
 
 macro "hqs" : tactic => `(tactic| repeat (first
@@ -949,22 +944,18 @@ theorem hq_sign (sk : SphincsSecurity.Seeded.SecretKey) (hP : sk.parameter = 0)
   refine hq_bind (hq_mac _ _ _) fun tag => ?_
   split
   · refine hq_bind ?_ fun r => ?_
-    · generalize SphincsSecurity.digestPairLimit = n
+    · generalize SphincsSecurity.digestAttemptLimit = n
       generalize (0 : Nat) = a
       induction n generalizing a with
       | zero => exact hq_pure _
       | succ n ih =>
-        unfold SphincsSecurity.Seeded.signDigestPairs SphincsSecurity.Seeded.signAttempt
-        refine hq_bind (hq_deriveRandomizerPair _ _ _ _) fun _ => ?_
+        unfold SphincsSecurity.Seeded.signDigestLoop SphincsSecurity.Seeded.signAttempt
+        refine hq_bind (hq_deriveRandomizer _ _ _ _) fun _ => ?_
         refine hq_bind (hq_bind (hq_messageDigest _ hP _ _ _) fun _ => by split <;> exact hq_pure _)
           fun r => ?_
         split
         · exact hq_pure _
-        · refine hq_bind (hq_bind (hq_messageDigest _ hP _ _ _) fun _ => by split <;> exact hq_pure _)
-            fun r => ?_
-          split
-          · exact hq_pure _
-          · exact ih _
+        · exact ih _
     · split
       · exact hq_signFromPaired _ hP _ _ (fun _ _ => hq_ftsSecret _ _ _ _ _) _
           (fun _ _ _ _ => hq_otsSecret _ _ _ _ _ _)
@@ -995,7 +986,7 @@ theorem hq_aLayers (index : Index) (S0 : Signature) (n : Nat) (M : Digest) :
 
 /-- **expand** (abstract) makes only honest queries: the digest, the PORS stack machine, and per
 layer the counter search, chains, leaf and fold, all with parameter `0`. -/
-theorem hq_aExpand (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6032) :
+theorem hq_aExpand (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6048) :
     HQ (aExpand m pk σ) := by
   unfold aExpand
   refine hq_bind (hq_messageDigest _ rfl _ _ _) fun d => ?_
