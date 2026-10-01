@@ -2,9 +2,9 @@
   "S": 6032,
   "W": 14080,
   "K": 131072,
-  "C": 10314,
+  "C": 10299,
   "layout": {
-    "message": 64,
+    "message": 32,
     "secret_key": 128,
     "public_key": 160,
     "cache": 19200,

@@ -195,9 +195,13 @@ theorem e_lt32 (lay idx : Nat) (hlay : lay < 5) : idx / 2 ^ layS lay % 2 ^ heigh
   have : 2 ^ heightL lay ≤ 2048 := by interval_cases lay <;> decide
   omega
 
+theorem xor_top_sentinel : ∀ e, e < 2048 →
+    (BitVec.ofNat 64 e ^^^ 4095#64) = BitVec.ofNat 64 (4095 - e) := by decide +kernel
+
+
 theorem uHE_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : MachineState)
     (h : s.getReg (routeReg lay) = BitVec.ofNat 64 (routeIn idx lay)) :
-    (uHE lay).eval s = BitVec.ofNat 64 (idx / 2 ^ layS lay % 2 ^ heightL lay + 2 ^ heightL lay) := by
+    (uHE lay).eval s = BitVec.ofNat 64 (heapU lay (idx / 2 ^ layS lay % 2 ^ heightL lay)) := by
   have he := uEr_eval idx lay hlay hidx s h
   have hm := Nat.mod_lt (idx / 2 ^ layS lay) (show 0 < 2 ^ heightL lay from Nat.two_pow_pos _)
   have hh := heightL_le lay hlay
@@ -205,10 +209,12 @@ theorem uHE_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : Mac
   unfold uHE
   split
   · rename_i h0; subst h0
-    show (uEr 0).eval s + BitVec.ofNat 64 2048 = _
-    rw [he, BitVec.ofNat_add_ofNat]; rfl
-  · show (uEr lay).eval s ||| BitVec.ofNat 64 (2 ^ heightL lay) = _
+    show (uEr 0).eval s ^^^ BitVec.ofNat 64 4095 = _
     rw [he]
+    exact xor_top_sentinel _ (by simpa [heightL] using hm)
+  · rename_i h0
+    show (uEr lay).eval s ||| BitVec.ofNat 64 (2 ^ heightL lay) = _
+    rw [he, heapU, if_neg h0]
     apply BitVec.eq_of_toNat_eq
     simp only [BitVec.toNat_or, BitVec.toNat_ofNat]
     rw [Nat.mod_eq_of_lt (show idx / 2 ^ layS lay % 2 ^ heightL lay < 2 ^ 64 by omega),

@@ -52,11 +52,15 @@ def m4Off (lay ci kk : Nat) : Nat := ((m4OffTab.getD lay []).getD ci []).getD kk
 def nCh (lay : Nat) : Nat := if lay = 0 then 2 else 1
 def chB0 (lay ci : Nat) : Nat := if lay = 0 ∧ ci = 1 then 6 else 0
 def chBits (lay ci : Nat) : Nat := if lay = 0 then (if ci = 0 then 6 else 5) else heightL lay
+def heapU (lay e : Nat) : Nat := if lay = 0 then 4095 - e else e + 2 ^ heightL lay
+
+
 /-- The chunk holding level `lam`. -/
 def chOf (lay lam : Nat) : Nat := if lay = 0 ∧ 6 ≤ lam then 1 else 0
 
 /-- The `li a2` of level `kk` of block `v` of chunk `ci`. -/
-def m4Pc (lay ci v kk : Nat) : Nat := m4Base lay ci + v * 2 ^ m4Sh lay ci + m4Off lay ci kk
+def m4Pc (lay ci v kk : Nat) : Nat :=
+  m4Base lay ci + (if lay = 0 then 2 ^ chBits lay ci - 1 - v else v) * 2 ^ m4Sh lay ci + m4Off lay ci kk
 
 /-- Sibling witness address of level `lam`. -/
 def sibAddr (lay lam : Nat) : Nat := 0x800 + pathOffL lay + pathStrideL lay * lam
@@ -99,7 +103,9 @@ def lvlNb (lay ci v kk : Nat) : E :=
   let lam := chB0 lay ci + kk
   if lam + 1 = heightL lay then cw 1
   else if kk + 1 < chBits lay ci ∧ isConstLvl lay lam = true then
-    cw (2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1))
+    cw (if lay = 0 then 3 * 2 ^ (heightL lay - (lam + 1)) - 1 -
+      (2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1))
+      else 2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1))
   else .bin .srl (.reg .x23) (cw (lam + 1))
 
 /-- The memory writes of a level: NB+12, then the sibling into the slot `1 - t`. -/
@@ -107,7 +113,7 @@ def lvlMem (lay lam t : Nat) (nb : E) : List (Addr × E) :=
   [(⟨none, BitVec.ofNat 64 0x348⟩, stW 0x348 nb),
    (⟨none, BitVec.ofNat 64 (0x370 - 16 * t + 8)⟩, ldE (sibAddr lay lam + 8)),
    (⟨none, BitVec.ofNat 64 (0x370 - 16 * t)⟩, ldE (sibAddr lay lam))] ++
-  (if lam = 0 then [(⟨none, BitVec.ofNat 64 0x340⟩, .bin (.st .b 1) (ldE 0x340) (cw 3))] else [])
+  (if lam = 0 then [(⟨none, BitVec.ofNat 64 0x340⟩, .bin (.st .b (if lay < 4 then 2 else 1)) (ldE 0x340) (cw (if lay < 4 then lay else 3)))] else [])
 
 /-- Known registers at the start of level `lam`. -/
 def foldK (lay len : Nat) : List (Reg × Word) :=
@@ -140,8 +146,8 @@ def lvlExp (lay ci v kk : Nat) : PRes :=
     ⟨⟨rf.set .x12 (cw (nodeDst lay (lam + 1) (v / 2 ^ (kk + 1) % 2))), mem, []⟩,
       pcOf (m4Pc lay ci v (kk + 1) + 1), true, n, n, [], none⟩
   else
-    ⟨⟨((lvlRegs lay lam).set .x25 (cw (m4Hi lay (ci + 1)))).set .x3 (dispGp lay (ci + 1)), mem, []⟩,
-      0, false, hs + 11, hs + 11, [], some (dispTgt lay (ci + 1))⟩
+    ⟨⟨(lvlRegs lay lam).set .x25 (.bin .srl (.reg .x23) (cw (lam + 1))), mem, []⟩,
+      0, false, hs + 7, hs + 7, [], some (mkBin .and (.reg .x16) (.c (~~~1#64)))⟩
 
 /-- Direction list of a level run: stop at the dispatch jump at the end of a chunk. -/
 def lvlDirs (lay ci kk : Nat) : List Dir :=
@@ -172,5 +178,20 @@ def blockCheck (lay ci v : Nat) : Bool :=
 
 /-- Blocks `a .. a + n - 1` of chunk `ci` of layer `lay`. -/
 def foldCheck (lay ci a n : Nat) : Bool := (List.range' a n).all (blockCheck lay ci)
+
+
+/-- Full-index return slots for the top tree's shared six- and five-level blocks. -/
+def topSlotBase : Nat := 197888
+def topSlotPc (E : Nat) : Nat := topSlotBase + 2 * (2047 - E)
+
+def topSlotEnterExp (E : Nat) : PRes :=
+  ⟨⟨(RegFile.withKnown (foldK 0 704)).set .x16 (cw (0x1000 + 4 * (topSlotPc E + 1))), [], []⟩,
+    pcOf (m4Pc 0 0 (E % 64) 0), false, 1, 1, [], none⟩
+def topSlotReturnExp (E : Nat) : PRes :=
+  ⟨⟨RegFile.withKnown (foldK 0 64), [], []⟩,
+    pcOf (m4Pc 0 1 (E / 64) 0), false, 1, 1, [], none⟩
+def topSlotCheck (E : Nat) : Bool :=
+  optBeq (runAt (foldK 0 704) [m4Pc 0 0 (E % 64) 0] (topSlotPc E) []) (topSlotEnterExp E) &&
+  optBeq (runAt (foldK 0 64) [m4Pc 0 1 (E / 64) 0] (topSlotPc E + 1) []) (topSlotReturnExp E)
 
 end SigGolfCandidate.Verify

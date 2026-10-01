@@ -76,7 +76,15 @@ sym_block blk376 := symRun { noAlias := true } seg376 (pcOf 376) 2
 sym_block blk377 := symRun { noAlias := true } seg377 (pcOf 377) 3
 sym_block blk379 := symRun { noAlias := true } seg379 (pcOf 379) 4
 sym_block blk382 := symRun { noAlias := true } seg382 (pcOf 382) 128
-sym_block blk509 := symRun { noAlias := true } seg509 (pcOf 509) 14
+sym_block carryHead509 := symRun {noAlias:=true} seg509 (pcOf 509) 100
+sym_block carryTest509 := symRunAux {noAlias:=true} segCarryTest509 (pcOf 3034) 100 carryHead509.res.st
+sym_block carryLow509 := symRunAux {noAlias:=true} segCarryLow509 (pcOf 3037) 100 carryTest509.res.st
+sym_block carryHigh509 := symRunAux {noAlias:=true} segCarryHigh509 (pcOf 3040) 100 carryTest509.res.st
+sym_block carryLowRes509 := symRunAux {noAlias:=true} segCarryReturn509 (pcOf 516) 100 carryLow509.res.st
+sym_block carryHighRes509 := symRunAux {noAlias:=true} segCarryReturn509 (pcOf 516) 100 carryHigh509.res.st
+sym_block blk509 := some { carryLowRes509.res with st := {carryLowRes509.res.st with
+  regs := {carryLowRes509.res.st.regs with r29 := E.ite .eq (.reg .x8) (.c 4) carryHighRes509.res.st.regs.r29 carryLowRes509.res.st.regs.r29},
+  mem := (List.zipWith (fun p q => (p.1, if E.beq p.2 q.2 then p.2 else E.ite .eq (.reg .x8) (.c 4) q.2 p.2)) carryLowRes509.res.st.mem carryHighRes509.res.st.mem)}}
 sym_block blk522 := symRun { noAlias := true } seg522 (pcOf 522) 8
 sym_block blk529 := symRun { noAlias := true } seg529 (pcOf 529) 3
 sym_block blk531 := symRun { noAlias := true } seg531 (pcOf 531) 7
@@ -117,7 +125,9 @@ sym_block blk2893 := symRun { noAlias := true } seg2893 (pcOf 2893) 5
 sym_block blk2897 := symRun { noAlias := true } seg2897 (pcOf 2897) 2
 sym_block blk2898 := symRun { noAlias := true } seg2898 (pcOf 2898) 3
 sym_block blk2900 := symRun { noAlias := true } seg2900 (pcOf 2900) 5
-sym_block blk2971 := symRun { noAlias := true } seg2971 (pcOf 2971) 10
+sym_block carryHead2971 := symRun {noAlias:=true} seg2971 (pcOf 2971) 100
+sym_block carryThunk2971 := symRunAux {noAlias:=true} segCarryTop2971 (pcOf 3041) 100 carryHead2971.res.st
+sym_block blk2971 := symRunAux {noAlias:=true} segCarryReturn2971 (pcOf 2974) 100 carryThunk2971.res.st
 sym_block blk2980 := symRun { noAlias := true } seg2980 (pcOf 2980) 2
 sym_block blk2981 := symRun { noAlias := true } seg2981 (pcOf 2981) 6
 sym_block blk2986 := symRun { noAlias := true } seg2986 (pcOf 2986) 3
@@ -126,5 +136,72 @@ sym_block blk375 := symRun { noAlias := true } seg375 (pcOf 375) 2
 sym_block blk1816 := symRun { noAlias := true } seg1816 (pcOf 1816) 5
 sym_block blk1820 := symRun { noAlias := true } seg1820 (pcOf 1820) 7
 sym_block blk635 := symRun { noAlias := true } seg635 (pcOf 635) 3
+
+
+def treeSetupCost (lay : Nat) : Nat := if lay=4 then 17 else 20
+
+theorem carryRun509 (s : MachineState) (hpc:s.pc=pcOf 509) :
+    ∃ k c, Steps image s k c (blk509.res.toState s) ∧ c≤20 := by
+  have h0 := symRun_sound carryHead509 codeAt_509 s hpc (by simp only [carryHead509.res,rv_simp])
+  have h1 := (symRunAux_sound {noAlias:=true} image s segCarryTest509 (pcOf 3034) 100
+    carryHead509.res.st _ carryTest509 codeAt_carryTest509 (by
+      apply (Oblig.all_iff s _).mp; simp only [carryTest509.res,rv_simp])).1
+  change Steps image (carryHead509.res.toState s) _ _ _ at h1
+  by_cases h : s.getReg .x8=4#64
+  · have h2 := (symRunAux_sound {noAlias:=true} image s segCarryHigh509 (pcOf 3040) 100
+      carryTest509.res.st _ carryHigh509 codeAt_carryHigh509 (by
+        apply (Oblig.all_iff s _).mp; simp only [carryHigh509.res,rv_simp])).1
+    have h3 := (symRunAux_sound {noAlias:=true} image s segCarryReturn509 (pcOf 516) 100
+      carryHigh509.res.st _ carryHighRes509 codeAt_carryReturn509 (by
+        apply (Oblig.all_iff s _).mp; simp only [carryHighRes509.res,rv_simp])).1
+    have hp : carryTest509.res.pc.eval s=pcOf 3040 := by
+      simp [carryTest509.res,rv_simp,h]
+    have hs : carryTest509.res.st.toState s (pcOf 3040)=carryTest509.res.toState s := by
+      unfold Result.toState; rw [hp]
+    rw [hs] at h2
+    change Steps image (carryHigh509.res.toState s) _ _ _ at h3
+    have he : blk509.res.toState s=carryHighRes509.res.toState s := by
+      simp only [blk509.res,carryHighRes509.res,Result.toState,SymState.toState,
+        memEval,Addr.eval,E.eval,CmpOp.eval,BinOp.eval,RegFile.get,beq_iff_eq,h,↓reduceIte]
+      congr 1
+      funext r
+      cases r <;> simp [E.eval,CmpOp.eval,BinOp.eval,h]
+    rw [he]
+    exact ⟨_,_,h0.trans (h1.trans (h2.trans h3)),by decide⟩
+  · have h2 := (symRunAux_sound {noAlias:=true} image s segCarryLow509 (pcOf 3037) 100
+      carryTest509.res.st _ carryLow509 codeAt_carryLow509 (by
+        apply (Oblig.all_iff s _).mp; simp only [carryLow509.res,rv_simp])).1
+    have h3 := (symRunAux_sound {noAlias:=true} image s segCarryReturn509 (pcOf 516) 100
+      carryLow509.res.st _ carryLowRes509 codeAt_carryReturn509 (by
+        apply (Oblig.all_iff s _).mp; simp only [carryLowRes509.res,rv_simp])).1
+    have hp : carryTest509.res.pc.eval s=pcOf 3037 := by
+      simp [carryTest509.res,rv_simp,h]
+    have hs : carryTest509.res.st.toState s (pcOf 3037)=carryTest509.res.toState s := by
+      unfold Result.toState; rw [hp]
+    rw [hs] at h2
+    change Steps image (carryLow509.res.toState s) _ _ _ at h3
+    have he : blk509.res.toState s=carryLowRes509.res.toState s := by
+      simp only [blk509.res,carryLowRes509.res,Result.toState,SymState.toState,
+        memEval,Addr.eval,E.eval,CmpOp.eval,BinOp.eval,RegFile.get,beq_iff_eq,h,↓reduceIte]
+      congr 1
+      funext r
+      cases r <;> simp [E.eval,CmpOp.eval,BinOp.eval,h]
+    rw [he]
+    exact ⟨_,_,h0.trans (h1.trans (h2.trans h3)),by decide⟩
+
+theorem carryRun2971 (s : MachineState) (hpc:s.pc=pcOf 2971) (hobl:blk2971.res.obligs s) :
+    Steps image s 12 12 (blk2971.res.toState s) := by
+  have ho := (Oblig.all_iff s _).mp hobl
+  have h2 := symRunAux_sound {noAlias:=true} image s segCarryReturn2971 (pcOf 2974) 100
+    carryThunk2971.res.st _ blk2971 codeAt_carryReturn2971 ho
+  have h1 := symRunAux_sound {noAlias:=true} image s segCarryTop2971 (pcOf 3041) 100
+    carryHead2971.res.st _ carryThunk2971 codeAt_carryTop2971 (fun o h=>ho o (h2.2.1 h))
+  have h0 := symRun_sound carryHead2971 codeAt_2971 s hpc
+    ((Oblig.all_iff s _).mpr (fun o h=>ho o (h2.2.1 (h1.2.1 h))))
+  have hs1:=h1.1
+  have hs2:=h2.1
+  change Steps image (carryHead2971.res.toState s) _ _ _ at hs1
+  change Steps image (carryThunk2971.res.toState s) _ _ _ at hs2
+  exact h0.trans (hs1.trans hs2)
 
 end SigGolfCandidate.Sign

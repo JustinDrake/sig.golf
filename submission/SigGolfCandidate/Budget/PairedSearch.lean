@@ -10,7 +10,9 @@ Thus no independence claim is made about a half after the randomizer has been ca
 -/
 
 namespace SigGolfCandidate.Budget
+attribute [local irreducible] SigGolfCandidate.Ref.AddressFormat.queryPerm
 set_option maxHeartbeats 1000000
+set_option linter.constructorNameAsVariable false
 open SigGolfCandidate.Legacy SigGolfCandidate.Ref OracleComp OracleSpec ENNReal OracleComp.EvalDist
 
 noncomputable def epsP : ℝ≥0∞ := (2 : ℝ≥0∞) ^ 21 / 2 ^ 128

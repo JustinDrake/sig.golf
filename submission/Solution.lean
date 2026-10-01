@@ -5,7 +5,13 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
-The claim C=10314 is accepting verifier bound10259 plus witness charge55.
+The claim C=10299 is accepting verifier bound10244 plus witness charge55.
+This candidate retains the accepted ordered root-children message construction and adds
+length-separated leaf header reuse, a preserved selector threshold, a reversible
+top heap address reflection, carried upper-layer leaf headers, and rotated encoding
+payload lanes. The encoding header remains in memory and only its layer byte is updated,
+removing four header subtractions and one unused register initializer.
+Sparse temporary PORS cells share consumed chain-tweak slots. The certificate checks the concrete programs and query map.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[185,185,185,185,186].
 
@@ -62,9 +68,9 @@ c216d85858f8a7dcd68a2782cc27cfd057d45b67. Earlier public sources include
 4528ff23136b01e342c77eedaf2f6d74ad961d15, and
 0ba3dc24993dd3491a0a6a064c7cd9fbb9aa6439.
 
-The external witness omits internal cache words and stores the sparse PORS stream in
-consumed tweak slots. Authentication paths are contiguous. The external witness begins
-at0x1100 and has14080bytes, with charge55.
+The external witness omits its internal zero prefix. Temporary PORS cells share consumed
+chain tweak slots, and authentication paths use contiguous 16-byte cells. The external
+witness begins at 0x1100 and has 14080 bytes, with charge 55.
 
 The certificate covers all four images, universal termination, per-seed
 completeness, honest compression budgets,127-bit security and accepting
@@ -82,10 +88,10 @@ theorem witness_bytes : submission.sizes.witness = 14080 := rfl
 theorem cache_bytes : submission.sizes.cache = 131072 := rfl
 
 theorem layout_offsets : submission.layout =
-  { message := 64, secretKey := 128, publicKey := 160,
+  { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4352 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10314 :=
+theorem certificate : SigGolf.Certificate submission 10299 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

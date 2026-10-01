@@ -14,7 +14,7 @@ open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGol
 
 set_option maxRecDepth 8192
 
-def seg_0 : List (BitVec 32) := [0x08003083, 0x6c103023, 0x08803083, 0x6c103423, 0x09003083, 0x6c103823, 0x09803083, 0x6c103c23, 0x00000413, 0x00000f13, 0x00b00493, 0x000059b7, 0xb2098993, 0x01041193, 0x0011ee93, 0x6bd02023, 0x1011ee93, 0x0dd02023, 0x4011ee93, 0x35d03023, 0x00100193, 0x009198b3, 0x00000a13, 0x0e003023, 0x0e003423]
+def seg_0 : List (BitVec 32) := [0x08003083, 0x6c103023, 0x08803083, 0x6c103423, 0x09003083, 0x6c103823, 0x09803083, 0x6c103c23, 0x00000413, 0x00000f13, 0x00b00493, 0x000059b7, 0xb2098993, 0x01041193, 0x0011ee93, 0x6bd02023, 0x1011ee93, 0x0dd02023, 0x3140006f, 0x35d03023, 0x00100193, 0x009198b3, 0x00000a13, 0x0e003023, 0x0e003423]
 def seg_25 : List (BitVec 32) := [0x020a1193, 0x01e1e1b3, 0x6a303423, 0x0c303423, 0x34303423, 0x00000a93, 0x00000c13]
 def seg_32 : List (BitVec 32) := [0x001af193, 0x00019e63]
 def seg_34 : List (BitVec 32) := [0x001ad193, 0x6a302223, 0x6a000513, 0x04000593, 0x14000613]
@@ -29,7 +29,7 @@ def seg_73 : List (BitVec 32) := [0x00000073]
 def seg_74 : List (BitVec 32) := [0x001a0a13, 0xf31a1ce3]
 def seg_76 : List (BitVec 32) := [0x00100793]
 def seg_77 : List (BitVec 32) := [0x01041193, 0x3011e193, 0x1c303023, 0x1de02423, 0x00489193, 0x00398cb3, 0x0018d893, 0x00000813]
-def seg_85 : List (BitVec 32) := [0x01180133, 0x1c202623, 0x00581193, 0x013181b3, 0x0001b083, 0x1e103023, 0x0081b083, 0x1e103423, 0x0101b083, 0x1e103823, 0x0181b083, 0x1e103c23, 0x1c000513, 0x04000593, 0x00481193, 0x003c8633]
+def seg_85 : List (BitVec 32) := [0x1f40006f, 0x1c202623, 0x00581193, 0x013181b3, 0x0001b083, 0x1e103023, 0x0081b083, 0x1e103423, 0x0101b083, 0x1e103823, 0x0181b083, 0x1e103c23, 0x1c000513, 0x04000593, 0x00481193, 0x003c8633]
 def seg_101 : List (BitVec 32) := [0x00000073]
 def seg_102 : List (BitVec 32) := [0x00180813, 0xfb181ce3]
 def seg_104 : List (BitVec 32) := [0x000c8993, 0x00178793, 0xf8f4d6e3]
@@ -53,7 +53,13 @@ def seg_183 : List (BitVec 32) := [0xfe0eb023, 0x00100293, 0x00000513, 0xfd1ff06
 
 def segAddrReturn56 : List (BitVec 32) := [0xda1ff06f]
 
-def L : Rv.Layout := [(0, seg_0), (25, seg_25), (32, seg_32), (34, seg_34), (39, seg_39), (40, seg_40), (49, seg_49), (56, seg_56), (57, seg_57), (60, seg_60), (69, seg_69), (73, seg_73), (74, seg_74), (76, seg_76), (77, seg_77), (85, seg_85), (101, seg_101), (102, seg_102), (104, seg_104), (107, seg_107), (115, seg_115), (118, seg_118), (123, seg_123), (132, seg_132), (133, seg_133), (144, seg_144), (147, seg_147), (149, seg_149), (171, seg_171), (172, seg_172), (174, seg_174), (175, seg_175), (179, seg_179), (182, seg_182), (183, seg_183), (187, AddressAdapter.headCode), (206, AddressAdapter.tailCode), (209, segAddrReturn56)]
+def segPtrReturn85 : List (BitVec 32) := [0x00581193, 0x013181b3, 0x0001b083, 0x1e103023, 0x0081b083, 0x1e103423, 0x0101b083, 0x1e103823, 0x0181b083, 0x1e103c23, 0x1c000513, 0x04000593, 0x00481193, 0x003c8633]
+def segPtr210 : List (BitVec 32) := [0x00189193, 0xfff18193, 0x41018133, 0x1c202623, 0xe05ff06f]
+
+def segCarry215 : List (BitVec 32) := [0x00010eb7, 0x301e8e93, 0xce9ff06f]
+def segCarryReturn0 : List (BitVec 32) := seg_0.drop 19
+
+def L : Rv.Layout := [(0, seg_0), (25, seg_25), (32, seg_32), (34, seg_34), (39, seg_39), (40, seg_40), (49, seg_49), (56, seg_56), (57, seg_57), (60, seg_60), (69, seg_69), (73, seg_73), (74, seg_74), (76, seg_76), (77, seg_77), (85, seg_85), (101, seg_101), (102, seg_102), (104, seg_104), (107, seg_107), (115, seg_115), (118, seg_118), (123, seg_123), (132, seg_132), (133, seg_133), (144, seg_144), (147, seg_147), (149, seg_149), (171, seg_171), (172, seg_172), (174, seg_174), (175, seg_175), (179, seg_179), (182, seg_182), (183, seg_183), (187, AddressAdapter.headCode), (206, AddressAdapter.tailCode), (209, segAddrReturn56), (210, segPtr210), (215, segCarry215)]
 
 theorem layout_ok : layoutOk 0 L = true := by decide +kernel
 
@@ -123,7 +129,11 @@ theorem codeAt_172 : CodeAt image (BitVec.ofNat 64 (0x1000 + 4 * 172)) seg_172 :
 theorem codeAt_174 : CodeAt image (BitVec.ofNat 64 (0x1000 + 4 * 174)) seg_174 :=
   codeAt_layout code_eq layout_ok (i := 30) (by kernel_rfl) (by decide)
 
-sym_block blk_0 := symRun { noAlias := true } seg_0 (BitVec.ofNat 64 (0x1000 + 4 * 0)) 100
+theorem codeAt_carry215 : CodeAt image (BitVec.ofNat 64 (0x1000+4*215)) segCarry215 := by unfold CodeAt; decide +kernel
+theorem codeAt_carryReturn0 : CodeAt image (BitVec.ofNat 64 (0x1000+4*19)) segCarryReturn0 := by unfold CodeAt; decide +kernel
+sym_block blkCarryHead0 := symRun { noAlias := true } seg_0 (BitVec.ofNat 64 0x1000) 100
+sym_block blkCarryThunk0 := symRunAux { noAlias := true } segCarry215 (BitVec.ofNat 64 (0x1000+4*215)) 100 blkCarryHead0.res.st
+sym_block blk_0 := symRunAux { noAlias := true } segCarryReturn0 (BitVec.ofNat 64 (0x1000+4*19)) 100 blkCarryThunk0.res.st
 sym_block blk_25 := symRun { noAlias := true } seg_25 (BitVec.ofNat 64 (0x1000 + 4 * 25)) 100
 sym_block blk_32 := symRun { noAlias := true } seg_32 (BitVec.ofNat 64 (0x1000 + 4 * 32)) 100
 sym_block blk_34 := symRun { noAlias := true } seg_34 (BitVec.ofNat 64 (0x1000 + 4 * 34)) 100
@@ -135,7 +145,12 @@ sym_block blk_69 := symRun { noAlias := true } seg_69 (BitVec.ofNat 64 (0x1000 +
 sym_block blk_74 := symRun { noAlias := true } seg_74 (BitVec.ofNat 64 (0x1000 + 4 * 74)) 100
 sym_block blk_76 := symRun { noAlias := true } seg_76 (BitVec.ofNat 64 (0x1000 + 4 * 76)) 100
 sym_block blk_77 := symRun { noAlias := true } seg_77 (BitVec.ofNat 64 (0x1000 + 4 * 77)) 100
-sym_block blk_85 := symRun { noAlias := true } seg_85 (BitVec.ofNat 64 (0x1000 + 4 * 85)) 100
+theorem codeAt_ptr210 : CodeAt image (BitVec.ofNat 64 (0x1000 + 4 * 210)) segPtr210 := by unfold CodeAt;decide +kernel
+theorem codeAt_ptrReturn85 : CodeAt image (BitVec.ofNat 64 (0x1000 + 4 * 87)) segPtrReturn85 := by unfold CodeAt;decide +kernel
+sym_block blkPtrHead85 := symRun { noAlias := true } seg_85 (BitVec.ofNat 64 (0x1000 + 4 * 85)) 100
+sym_block blkPtrThunk85 := symRunAux { noAlias := true } segPtr210 (BitVec.ofNat 64 (0x1000 + 4 * 210)) 100 blkPtrHead85.res.st
+sym_block blk_85 := symRunAux { noAlias := true } segPtrReturn85 (BitVec.ofNat 64 (0x1000 + 4 * 87)) 100 blkPtrThunk85.res.st
+
 sym_block blk_102 := symRun { noAlias := true } seg_102 (BitVec.ofNat 64 (0x1000 + 4 * 102)) 100
 sym_block blk_104 := symRun { noAlias := true } seg_104 (BitVec.ofNat 64 (0x1000 + 4 * 104)) 100
 sym_block blk_107 := symRun { noAlias := true } seg_107 (BitVec.ofNat 64 (0x1000 + 4 * 107)) 100
@@ -179,5 +194,35 @@ theorem returnAddress56 (s : MachineState) (hpc : s.pc = (BitVec.ofNat 64 (0x100
     Steps image s 1 1 { s with pc := (BitVec.ofNat 64 (0x1000 + 4 * 57)) } := by
   apply AddressAdapter.jump_step s ((BitVec.ofNat 64 (0x1000 + 4 * 209))) ((BitVec.ofNat 64 (0x1000 + 4 * 57))) (BitVec.ofInt 21 (-608)) hpc (by decide +kernel)
   exact (addrReturn56.fetch s hpc).trans (by kernel_rfl)
+
+theorem ptrRun85 (s : MachineState) (hpc : s.pc=(BitVec.ofNat 64 (0x1000 + 4 * 85)))
+    (hobl : blk_85.res.obligs s) : Steps image s 20 20 (blk_85.res.toState s) := by
+  have ho := (Oblig.all_iff s _).mp hobl
+  have hs2 := symRunAux_sound {noAlias:=true} image s segPtrReturn85 (BitVec.ofNat 64 (0x1000 + 4 * 87)) 100
+    blkPtrThunk85.res.st _ blk_85 codeAt_ptrReturn85 ho
+  have hs1 := symRunAux_sound {noAlias:=true} image s segPtr210 (BitVec.ofNat 64 (0x1000 + 4 * 210)) 100
+    blkPtrHead85.res.st _ blkPtrThunk85 codeAt_ptr210 (fun o h=>ho o (hs2.2.1 h))
+  have h0 := symRun_sound blkPtrHead85 codeAt_85 s hpc
+    ((Oblig.all_iff s _).mpr (fun o h=>ho o (hs2.2.1 (hs1.2.1 h))))
+  have h1 := hs1.1
+  have h2 := hs2.1
+  change Steps image (blkPtrHead85.res.toState s) _ _ _ at h1
+  change Steps image (blkPtrThunk85.res.toState s) _ _ _ at h2
+  exact h0.trans (h1.trans h2)
+
+theorem carryRun0 (s : MachineState) (hpc : s.pc=(BitVec.ofNat 64 (0x1000 + 4 * 0)))
+    (hobl : blk_0.res.obligs s) : Steps image s 28 28 (blk_0.res.toState s) := by
+  have ho := (Oblig.all_iff s _).mp hobl
+  have hs2 := symRunAux_sound {noAlias:=true} image s segCarryReturn0 (BitVec.ofNat 64 (0x1000 + 4 * 19)) 100
+    blkCarryThunk0.res.st _ blk_0 codeAt_carryReturn0 ho
+  have hs1 := symRunAux_sound {noAlias:=true} image s segCarry215 (BitVec.ofNat 64 (0x1000 + 4 * 215)) 100
+    blkCarryHead0.res.st _ blkCarryThunk0 codeAt_carry215 (fun o h=>ho o (hs2.2.1 h))
+  have h0 := symRun_sound blkCarryHead0 codeAt_0 s hpc
+    ((Oblig.all_iff s _).mpr (fun o h=>ho o (hs2.2.1 (hs1.2.1 h))))
+  have h1 := hs1.1
+  have h2 := hs2.1
+  change Steps image (blkCarryHead0.res.toState s) _ _ _ at h1
+  change Steps image (blkCarryThunk0.res.toState s) _ _ _ at h2
+  exact h0.trans (h1.trans h2)
 
 end SigGolfCandidate.Keygen
