@@ -256,20 +256,19 @@ theorem swS_toNat : (swS.eval s).toNat = swarOf (dA s) (dB s) := by
   rw [swA5_toNat, ← swar_mersenne]
   rfl
 
-theorem swS_eq (h0 : dA s < 2 ^ 63) (h1 : dB s < 2 ^ 63) :
-    swS.eval s = KT ↔ (digitsOfWord (dA s) ++ digitsOfWord (dB s)).sum = targetSum := by
+theorem swS_eq (T : Nat) (hT : T < 2 ^ 64) (h0 : dA s < 2 ^ 63) (h1 : dB s < 2 ^ 63) :
+    swS.eval s = BitVec.ofNat 64 T ↔ (digitsOfWord (dA s) ++ digitsOfWord (dB s)).sum = T := by
   have hs := swar_nat (dA s) (dB s) h0 h1
   rw [← hs]
-  change _ ↔ swarOf (dA s) (dB s) = targetSum
+  change _ ↔ swarOf (dA s) (dB s) = T
   constructor
   · intro h
     have := congrArg BitVec.toNat h
-    rw [swS_toNat] at this
+    rw [swS_toNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hT] at this
     exact this
   · intro h
     apply BitVec.eq_of_toNat_eq
-    rw [swS_toNat, h]
-    rfl
+    rw [swS_toNat, h, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hT]
 
 end
 

@@ -6,8 +6,8 @@ import SigGolfCandidate.Sign.Layer
 
 Phase 2 of the expand image (instructions 316 .. 672) runs verify's PORS stack machine on the
 partial witness (`pors_init` 495 .. `pors_ok` 639), then the counter phase: per layer the sign's
-header and least-counter search (instructions 316 .. 381, the sign's words, see
-`Sign.HeadCode`), then below the top layer verify's chains, leaf and folds (382 .. 477), and at
+header and least-counter search (instructions 316 .. 381 and the layer-target thunk 1717 .. 1721,
+the sign's words, see `Sign.HeadCode`), then below the top layer verify's chains, leaf and folds (382 .. 477), and at
 layer 0 the counter write-out and HALT(0) (478 .. 494).
 
 The proofs use the sign's `Sim` judgment (namespace `Sign`) on the expand image `eimg`.
@@ -31,7 +31,8 @@ abbrev eimg : Image := Expand.image
 /-- The expand image carries the sign's layer header and counter search (words 316 .. 381). -/
 theorem eHeadCode : HeadCode eimg :=
   { c346 := Expand.codeAt_346, c351 := Expand.codeAt_351, c355 := Expand.codeAt_355,
-    c376 := Expand.codeAt_376, c377 := Expand.codeAt_377, c379 := Expand.codeAt_379,
+    c375 := Expand.codeAt_375, c376 := Expand.codeAt_376, c377 := Expand.codeAt_377,
+    c379 := Expand.codeAt_379, c1717 := Expand.codeAt_1717,
     c316 := Expand.codeAt_316, c318 := Expand.codeAt_318, c321 := Expand.codeAt_321,
     c322 := Expand.codeAt_322, c329 := Expand.codeAt_329, c331 := Expand.codeAt_331 }
 

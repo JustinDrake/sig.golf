@@ -4,7 +4,7 @@ import SigGolfCandidate.SphincsSecurity.Scheme
 # A search that beats its own odds
 
 The signer's searches are long: `2 ^ 20` randomizer trials accepted with probability at least `2 ^ -10`
-each, and `2 ^ 22` counter trials accepted with probability at least `1/2397` each.
+each, and `2 ^ 20` counter trials accepted with probability at least `1/2397` each.
 What that buys is stated here, in the elementary form the bound needs. A trial rejected with
 probability at most `1 - 1/m` leaves at most `1/2` after `m` trials, because `(1-a)(1+a) ≤ 1` caps
 the product while Bernoulli's inequality puts `(1+a)^m` above `1 + m a = 2`.
@@ -98,6 +98,68 @@ theorem pow_le_half_2143_1500 (x : ENNReal)
     ENNReal.ofReal (x.toReal ^ 1500) ≤ ENNReal.ofReal (1 / 2) := ENNReal.ofReal_le_ofReal hpow
     _ = 2⁻¹ := by rw [one_div, ENNReal.ofReal_inv_of_pos (by norm_num)]; simp
 
+set_option exponentiation.threshold 512 in
+/-- A sharper counter block: 1680 trials halve rejection with acceptance at least 1/2397. -/
+theorem pow_le_half_2397_1680 (x : ENNReal)
+    (hx : x + (2397 : ENNReal)⁻¹ ≤ 1) : x ^ 1680 ≤ 2⁻¹ := by
+  have hx1 : x ≤ 1 := le_trans le_self_add hx
+  have hxtop : x ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hx1
+  have hreal : x.toReal ≤ (2396 : ℝ) / 2397 := by
+    have h := ENNReal.toReal_mono ENNReal.one_ne_top hx
+    rw [ENNReal.toReal_add hxtop (by simp), ENNReal.toReal_inv,
+      ENNReal.toReal_ofNat, ENNReal.toReal_one] at h
+    norm_num at h ⊢
+    linarith
+  have hrat : ((2396 : ℝ) / 2397) ^ 1680 ≤ 1 / 2 := by
+    have hnat : 100 * (2396 : Nat) ^ 280 ≤ 89 * (2397 : Nat) ^ 280 := by decide
+    have hreal : (100 : ℝ) * (2396 : ℝ) ^ 280 ≤ 89 * (2397 : ℝ) ^ 280 := by
+      exact_mod_cast hnat
+    have hblock : ((2396 : ℝ) / 2397) ^ 280 ≤ 89 / 100 := by
+      rw [div_pow]
+      apply (div_le_iff₀ (by positivity)).mpr
+      nlinarith
+    calc
+      _ = (((2396 : ℝ) / 2397) ^ 280) ^ 6 := by rw [← pow_mul]
+      _ ≤ ((89 : ℝ) / 100) ^ 6 := pow_le_pow_left₀ (by positivity) hblock 6
+      _ ≤ 1 / 2 := by norm_num
+  have hpow : x.toReal ^ 1680 ≤ 1 / 2 :=
+    (pow_le_pow_left₀ ENNReal.toReal_nonneg hreal 1680).trans hrat
+  rw [← ENNReal.ofReal_toReal (ENNReal.pow_ne_top hxtop), ENNReal.toReal_pow]
+  calc
+    ENNReal.ofReal (x.toReal ^ 1680) ≤ ENNReal.ofReal (1 / 2) := ENNReal.ofReal_le_ofReal hpow
+    _ = 2⁻¹ := by rw [one_div, ENNReal.ofReal_inv_of_pos (by norm_num)]; simp
+
+set_option exponentiation.threshold 512 in
+/-- A sharper counter block: 1980 trials halve rejection with acceptance at least 1/2822. -/
+theorem pow_le_half_2822_1980 (x : ENNReal)
+    (hx : x + (2822 : ENNReal)⁻¹ ≤ 1) : x ^ 1980 ≤ 2⁻¹ := by
+  have hx1 : x ≤ 1 := le_trans le_self_add hx
+  have hxtop : x ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hx1
+  have hreal : x.toReal ≤ (2821 : ℝ) / 2822 := by
+    have h := ENNReal.toReal_mono ENNReal.one_ne_top hx
+    rw [ENNReal.toReal_add hxtop (by simp), ENNReal.toReal_inv,
+      ENNReal.toReal_ofNat, ENNReal.toReal_one] at h
+    norm_num at h ⊢
+    linarith
+  have hrat : ((2821 : ℝ) / 2822) ^ 1980 ≤ 1 / 2 := by
+    have hnat : 100 * (2821 : Nat) ^ 330 ≤ 89 * (2822 : Nat) ^ 330 := by decide
+    have hreal : (100 : ℝ) * (2821 : ℝ) ^ 330 ≤ 89 * (2822 : ℝ) ^ 330 := by
+      exact_mod_cast hnat
+    have hblock : ((2821 : ℝ) / 2822) ^ 330 ≤ 89 / 100 := by
+      rw [div_pow]
+      apply (div_le_iff₀ (by positivity)).mpr
+      nlinarith
+    calc
+      _ = (((2821 : ℝ) / 2822) ^ 330) ^ 6 := by rw [← pow_mul]
+      _ ≤ ((89 : ℝ) / 100) ^ 6 := pow_le_pow_left₀ (by positivity) hblock 6
+      _ ≤ 1 / 2 := by norm_num
+  have hpow : x.toReal ^ 1980 ≤ 1 / 2 :=
+    (pow_le_pow_left₀ ENNReal.toReal_nonneg hreal 1980).trans hrat
+  rw [← ENNReal.ofReal_toReal (ENNReal.pow_ne_top hxtop), ENNReal.toReal_pow]
+  calc
+    ENNReal.ofReal (x.toReal ^ 1980) ≤ ENNReal.ofReal (1 / 2) := ENNReal.ofReal_le_ofReal hpow
+    _ = 2⁻¹ := by rw [one_div, ENNReal.ofReal_inv_of_pos (by norm_num)]; simp
+
 /-! ## The closing numbers
 
 Every quantity below is a power of `2⁻¹`, so the comparisons are monotonicity in the exponent and the
@@ -142,31 +204,31 @@ theorem digest_room (x : ENNReal) (hx : x + (2142 : ENNReal)⁻¹ ≤ 1) :
     _ ≤ 1 := hx
 
 /-- After a union bound over all `2²⁵⁶` messages, the digest search (`2⁻⁶⁹⁹`) and the five counter
-searches (`2⁻¹⁴⁸⁶` each) stay below `2⁻²⁵⁶`. -/
+searches (`2⁻⁵²⁹` each) stay below `2⁻²⁵⁶`. -/
 theorem closing_sum :
     (2 : ENNReal) ^ 256 *
-      ((2⁻¹ : ENNReal) ^ 699 + 5 * (2⁻¹ : ENNReal) ^ 1749)
+      ((2⁻¹ : ENNReal) ^ 699 + 5 * (2⁻¹ : ENNReal) ^ 529)
       ≤ ((2 ^ 256 : Nat) : ENNReal)⁻¹ := by
   have hcast : ((2 ^ 256 : Nat) : ENNReal)⁻¹ = (2⁻¹ : ENNReal) ^ 256 := by
     rw [Nat.cast_pow, Nat.cast_ofNat, ENNReal.inv_pow]
   have ha : (2⁻¹ : ENNReal) ^ 699 ≤ (2⁻¹ : ENNReal) ^ 513 := inv_two_pow_anti (by norm_num)
-  have hb : 5 * (2⁻¹ : ENNReal) ^ 1749 ≤ (2⁻¹ : ENNReal) ^ 513 := by
-    have hy : (2⁻¹ : ENNReal) ^ 1749 ≤ (2⁻¹ : ENNReal) ^ 516 := inv_two_pow_anti (by norm_num)
+  have hb : 5 * (2⁻¹ : ENNReal) ^ 529 ≤ (2⁻¹ : ENNReal) ^ 513 := by
+    have hy : (2⁻¹ : ENNReal) ^ 529 ≤ (2⁻¹ : ENNReal) ^ 516 := inv_two_pow_anti (by norm_num)
     have h1 := inv_two_pow_succ_add 515
     have h2 := inv_two_pow_succ_add 514
     have h3 := inv_two_pow_succ_add 513
-    calc 5 * (2⁻¹ : ENNReal) ^ 1749 ≤ 8 * (2⁻¹ : ENNReal) ^ 516 :=
+    calc 5 * (2⁻¹ : ENNReal) ^ 529 ≤ 8 * (2⁻¹ : ENNReal) ^ 516 :=
           mul_le_mul' (by norm_num) hy
       _ = (((2⁻¹ : ENNReal) ^ 516 + (2⁻¹ : ENNReal) ^ 516)
             + ((2⁻¹ : ENNReal) ^ 516 + (2⁻¹ : ENNReal) ^ 516))
           + (((2⁻¹ : ENNReal) ^ 516 + (2⁻¹ : ENNReal) ^ 516)
             + ((2⁻¹ : ENNReal) ^ 516 + (2⁻¹ : ENNReal) ^ 516)) := by ring
       _ = (2⁻¹ : ENNReal) ^ 513 := by rw [h1, h2, h3]
-  have hsum : (2⁻¹ : ENNReal) ^ 699 + 5 * (2⁻¹ : ENNReal) ^ 1749 ≤ (2⁻¹ : ENNReal) ^ 512 :=
+  have hsum : (2⁻¹ : ENNReal) ^ 699 + 5 * (2⁻¹ : ENNReal) ^ 529 ≤ (2⁻¹ : ENNReal) ^ 512 :=
     (add_le_add ha hb).trans_eq (inv_two_pow_succ_add 512)
   rw [hcast]
   calc
-    (2 : ENNReal) ^ 256 * ((2⁻¹ : ENNReal) ^ 699 + 5 * (2⁻¹ : ENNReal) ^ 1749)
+    (2 : ENNReal) ^ 256 * ((2⁻¹ : ENNReal) ^ 699 + 5 * (2⁻¹ : ENNReal) ^ 529)
         ≤ (2 : ENNReal) ^ 256 * (2⁻¹ : ENNReal) ^ 512 := mul_le_mul_right hsum _
     _ = (2⁻¹ : ENNReal) ^ 256 := by
       rw [← ENNReal.inv_pow, mul_comm, ← ENNReal.div_eq_inv_mul,

@@ -43,7 +43,7 @@ theorem prob_checkedHashQuery_stop_le_add (reject : HashInput → HashOutput →
 omit actions in
 theorem prob_checkedPrefixHashQuery_stop_le (hencoding : canonicalEncodingInputs parameter ⊆ inputs)
     (publicReplies : CanonicalGraphLabels) (selections : ReferenceFamily) (rows : CanonicalEncodingRows)
-    (hselect : ∀ position, FirstSuccessTable.select decodeEncodingOutput (fun counter => rows (position, counter)) = selections position)
+    (hselect : ∀ position, FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter => rows (position, counter)) = selections position)
     (input : inputs) (state : State inputs) (ha : ∀ coordinate, (state.candidates coordinate).Nonempty)
     (hcovered : RowsCovered inputs state) (hbound : HiddenCandidateBound words disclosed state)
     (hclean : ReplyClean (PublicEncodingMatch.Match parameter (knownEncodingMessage known) words selections) state.memory.cache) :

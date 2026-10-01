@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10955` cycles (verify bound
-`10891` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
+`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10937` cycles (verify bound
+`10873` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 150272, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -19,21 +19,22 @@ pad is hashed as it stands; the abstract game accounts for this through the padd
 (`verifyP`, `Bridge.padDec`). Verify dispatches three chains per table jump. The counters `c0 .. c3`
 sit in the tweak slot of layer 0's first block, `c4` after the PORS stream.
 
-The promoted parameter set is retained: WOTS target sum 181 and the one-block private
-randomizer input, together with its existing security and signing-budget proofs.
+The WOTS target sum is 181 on layers zero through three and 183 on bottom layer four.
+The layer-indexed security and signing-budget proofs are combined with the padded-witness
+argument. A short bottom-layer comparison helper adds three instructions while the higher
+target removes two chain steps, saving fifteen cycles net relative to uniform target 181.
+The one-block private randomizer input is retained.
 
-The verifier ports the OTS modular checksum and constant-reuse optimizations: each layer
-uses an exact remainder modulo 4095, and the rebased address register doubles as the
-modulus. The verify image is regenerated without the padding that kept the old addresses,
-chains use the inherited in-place triple dispatch. For next-triple indices 1 and 8, the
-mask instruction reads the packed digit register directly, saving two instructions per layer. Each
-Merkle path jumps once per leaf-index chunk into straight-line level code for that chunk value
-(no per-level branch), the two heap indices below each root are stored from registers that
-hold them, and each block of the last chunk carries its own copy of the next layer's transition. The PORS
-segment dispatch uses 8-word table slots with the entry code inlined, and the fold limit is
-checked once through the stream pointer instead of a per-segment counter. The startup reuses
-the address base and the digest's known input length, saving four more instructions on
-accepting runs. These verifier changes preserve the promoted scheme's hash queries and formats.
+The verifier keeps the exact remainder checksum modulo 4095, triple-chain dispatch, and
+chunk-selected Merkle paths of the accepted in-place construction. The PORS segment dispatch
+uses 8-word table slots with inlined entry code. Its root tail now compares E directly with the
+known constant-one register, reuses the known hash input length 64, and forms the chain tweak
+constant by shifting that same constant-one register. These three instruction savings preserve
+the root-tail output registers and all hash queries, while the branch layout preserves subsequent
+instruction addresses. The root-tail rejection paths remain covered by the arbitrary-input bound.
+
+Zero-shift triple dispatch reads the packed digit register directly instead of first copying it,
+saving two more instructions per layer with the accepted dispatch proof.
 
 The certificate is `SigGolfCandidate.certificateNew`. It is transferred from
 `SigGolfCandidate.Final.certificate`, a certificate for the same images under the previous
@@ -60,7 +61,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10955 :=
+theorem certificate : SigGolf.Certificate submission 10937 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

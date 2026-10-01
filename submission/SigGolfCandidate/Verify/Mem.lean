@@ -105,6 +105,11 @@ def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 /-- The exact digit sum, compared after the alias-free reduction modulo 4095. -/
 def KT : Word := BitVec.ofNat 64 targetSum
 
+def KTof (lay : Nat) : Word := BitVec.ofNat 64 (targetFor lay)
+
+theorem targetFor_le (lay : Nat) : targetFor lay ≤ 183 := by
+  unfold targetFor targetSum; split <;> omega
+
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
 def gkL0 : List (Reg × Word) :=
   baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, K40), (.x2, TMASK),

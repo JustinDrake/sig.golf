@@ -85,13 +85,15 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E : E := .bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 : E := .bin .and (.bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB : Nat := 25
-/-- One REMU costs four cycles rather than one. -/
-def cyclesB : Nat := stepsB + 3
+def extraB (lay : Nat) : Nat := if lay = 4 then 3 else 0
 
-def specBok : Spec :=
-  ⟨[(.x14, x14E), (.x16, d0E), (.x17, d1E)], [], 0, false, stepsB,
-   [⟨.ne, swS, .c KT, false⟩, ⟨.lt, orE, .c 0, false⟩], some tgt0, cyclesB⟩
+def stepsB (lay : Nat) : Nat := 25 + extraB lay
+/-- One REMU costs four cycles rather than one. -/
+def cyclesB (lay : Nat) : Nat := stepsB lay + 3
+
+def specBok (lay : Nat) : Spec :=
+  ⟨[(.x14, x14E), (.x16, d0E), (.x17, d1E)], [], 0, false, stepsB lay,
+   [⟨.ne, swS, .c (KTof lay), false⟩, ⟨.lt, orE, .c 0, false⟩], some tgt0, cyclesB lay⟩
 
 /-- Known registers on entry of the chain code (`li s6; sub s9, s11, t3; jalr ra`). -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
@@ -101,8 +103,8 @@ def chKa (lay c : Nat) : List (Reg × Word) :=
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
 def specRej1 : Spec := ⟨rejK, [], rejectPc + 2, true, 7, [⟨.lt, orE, .c 0, true⟩], none, 7⟩
-def specRej2 : Spec :=
-  ⟨rejK, [], rejectPc + 2, true, 21, [⟨.ne, swS, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24⟩
+def specRej2 (lay : Nat) : Spec :=
+  ⟨rejK, [], rejectPc + 2, true, 21 + extraB lay, [⟨.ne, swS, .c (KTof lay), true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24 + extraB lay⟩
 
 /-! ## Leaf -/
 
@@ -139,10 +141,10 @@ def specCR2 (t : Nat) : Spec :=
 /-- Everything of transition copy `t` of layer `lay`. -/
 def copyCheck (lay t : Nat) : Bool :=
   specB gkL (runAt (preK lay) [] (preStart lay t) []) (specA lay t) (bK lay) [] &&
-  specB gkL (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br false, .jmp]) specBok
+  specB gkL (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br false, .jmp]) (specBok lay)
     (chKa lay t) [.x23, .x30, .x31] &&
   specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br true]) specRej1 [] [] &&
-  specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) specRej2 [] [] &&
+  specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) (specRej2 lay) [] [] &&
   specB gkL (runAt (leafK lay) [] (retPc lay t) [.jmp]) (specLeaf lay) (leafPost lay) leafKeep
 
 def layerCheck (lay : Nat) : Bool :=
