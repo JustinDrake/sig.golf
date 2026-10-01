@@ -8,8 +8,8 @@ The numeric parameters for the proved bound on accepting verification runs and t
 namespace SigGolfCandidate.Final
 
 /-- Universal accepting-run bound from the exact verifier simulation. The mixed
-184/185 layer targets and checked two-fold PORS prefixes are included in the bound. -/
-def verifyCycleBound : Nat := 10434
+184/185 layer targets and checked PORS prefixes use the full tree-topology bound. -/
+def verifyCycleBound : Nat := 10416
 
 /-- The witness charge `⌈16384 / 256⌉`. -/
 def witnessCharge : Nat := 64

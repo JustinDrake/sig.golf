@@ -5,7 +5,7 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=16384 witness bytes, K=131072 cache bytes.
-The claim C=10498 is accepting verifier bound10434 plus witness charge64.
+The claim C=10480 is accepting verifier bound10416 plus witness charge64.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[184,185,185,185,185].
 
@@ -23,8 +23,9 @@ expander emits these canonical path bits. All signature bytes and honest
 oracle queries stay unchanged; malformed witnesses face the stronger guard.
 The existing constant6 initializer moves from root entry to digest setup,
 so the new prefixes require no net initializer charge. Their aggregate
-credit is at least22 cycles below the generic bound, versus the prior
-one-cycle structural credit, giving a net21-cycle improvement from C10519.
+credit is at least40 cycles below the generic bound. A kernel-checked table
+for zero-inclusive compressed trees improves the previous relaxed22-cycle
+credit by18, giving C10480 with the exact same four executable images.
 
 The proven signing envelope is
 2^(115257/131072)*1.0279*1.00951*1.01132^4 <= 2.
@@ -68,7 +69,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10498 :=
+theorem certificate : SigGolf.Certificate submission 10480 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

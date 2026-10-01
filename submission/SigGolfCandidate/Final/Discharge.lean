@@ -744,7 +744,7 @@ theorem recoverRun_decodedFolds_sum (f : QueryImpl HashSpec Id)
   rw [he, hfolds]
   exact schedule_readSum_eq_octopus leaves hadm.1
 
-theorem recoverRun_exactSegmentsCost (f : QueryImpl HashSpec Id)
+theorem recoverRun_exactSegmentsCost_prefix_relaxed (f : QueryImpl HashSpec Id)
     (parameter : PublicParameter) (index : Index)
     (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
     (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
@@ -820,6 +820,1270 @@ theorem recoverRun_exactSegmentsCost (f : QueryImpl HashSpec Id)
     apply recoverRun_positive_folds f parameter index leaves fts r hrun
     intro j
     exact hp _ (List.mem_ofFn.mpr ⟨j, rfl⟩)
+
+end SigGolfCandidate.Research.PorsPositiveBound
+
+
+/-! ## Topology-aware PORS cost certificate -/
+
+namespace SiggolfPrefixCertificate
+
+/-- Zero-length unary runs are permitted, including at the root and leaves. -/
+inductive Tree (credit : Nat → Nat) : Nat → Nat → Nat → Nat → Prop
+  | leaf (h : Nat) : Tree credit h 1 h (credit h)
+  | fork (h a p q fl fr cl cr : Nat) (ha : a < h)
+      (left : Tree credit (h-a-1) p fl cl)
+      (right : Tree credit (h-a-1) q fr cr) :
+      Tree credit h (p+q) (a+fl+fr) (credit a+cl+cr)
+
+theorem Tree.leaves_pos {credit : Nat → Nat} {h k f c : Nat}
+    (ht : Tree credit h k f c) : 0 < k := by
+  induction ht with
+  | leaf => omega
+  | fork h a p q fl fr cl cr ha left right ihl ihr => omega
+
+/-- Each table value is one plus a fold upper bound; zero denotes infeasibility. -/
+structure Certificate (credit : Nat → Nat) (upper : Nat → Nat → Nat → Nat) : Prop where
+  leaf : ∀ h, h≤14 → credit h≤39 → h+1≤upper h 1 (credit h)
+  fork : ∀ h a p q cl cr, h≤14 → a<h → 0<p → 0<q → p+q≤15 →
+    credit a+cl+cr≤39 → 0<upper (h-a-1) p cl → 0<upper (h-a-1) q cr →
+    a+upper (h-a-1) p cl+upper (h-a-1) q cr-1≤upper h (p+q) (credit a+cl+cr)
+
+theorem Tree.fold_bound {credit : Nat → Nat} {upper : Nat → Nat → Nat → Nat}
+    (hc : Certificate credit upper) {h k f c : Nat} (ht : Tree credit h k f c)
+    (hh : h≤14) (hk : k≤15) (hcc : c≤39) : f<upper h k c := by
+  induction ht with
+  | leaf h => have := hc.leaf h hh hcc; omega
+  | fork h a p q fl fr cl cr ha left right ihl ihr =>
+      have hp := left.leaves_pos
+      have hq := right.leaves_pos
+      have hl := ihl (by omega) (by omega) (by omega)
+      have hr := ihr (by omega) (by omega) (by omega)
+      have hs := hc.fork h a p q cl cr hh ha hp hq hk hcc (by omega) (by omega)
+      omega
+
+theorem cost_2413 {credit : Nat → Nat} {upper : Nat → Nat → Nat → Nat}
+    (hc : Certificate credit upper)
+    (hroot : ∀ c : Fin 40, 464+17*(upper 14 15 c.val-1)-c.val≤2413)
+    {f c : Nat} (ht : Tree credit 14 15 f c) (hf : f≤117) :
+    464+17*f-c≤2413 := by
+  by_cases hcc : c≤39
+  · have hb := ht.fold_bound hc (by omega) (by omega) hcc
+    have hs := hroot ⟨c,by omega⟩
+    simp only at hs
+    omega
+  · omega
+
+end SiggolfPrefixCertificate
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 20000
+set_option maxHeartbeats 0
+
+def save (a : Nat) : Nat := if a<2 then 0 else 2*min (a-1) 2-1
+def credit (a : Nat) : Nat := (if a=0 then 1 else 0)+save a
+
+def row0 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 15296605450596291897003637061602511075924463299623145836628444171172474686655185024
+
+  | 2 => 0
+
+  | 3 => 0
+
+  | 4 => 0
+
+  | 5 => 0
+
+  | 6 => 0
+
+  | 7 => 0
+
+  | 8 => 0
+
+  | 9 => 0
+
+  | 10 => 0
+
+  | 11 => 0
+
+  | 12 => 0
+
+  | 13 => 0
+
+  | 14 => 0
+
+  | 15 => 0
+
+  | _ => 0
+
+def row1 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 30593210901192583794007274123205022151848926599246291673256888342344949373310370050
+
+  | 2 => 15296605450596291897003637061602511075924463299623145836628444171172474686655168512
+
+  | 3 => 0
+
+  | 4 => 0
+
+  | 5 => 0
+
+  | 6 => 0
+
+  | 7 => 0
+
+  | 8 => 0
+
+  | 9 => 0
+
+  | 10 => 0
+
+  | 11 => 0
+
+  | 12 => 0
+
+  | 13 => 0
+
+  | 14 => 0
+
+  | 15 => 0
+
+  | _ => 0
+
+def row2 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 45889816351788875691010911184807533227773389898869437509885332513517424059965555072
+
+  | 2 => 45889816351788875691010911184807533227773389898869437509885332513517424059965555072
+
+  | 3 => 30593210901192583794007274123205022151848926599246291673256888342344949373306142720
+
+  | 4 => 15296605450596291897003637061602511075924463299623145836628444171172470253978386432
+
+  | 5 => 0
+
+  | 6 => 0
+
+  | 7 => 0
+
+  | 8 => 0
+
+  | 9 => 0
+
+  | 10 => 0
+
+  | 11 => 0
+
+  | 12 => 0
+
+  | 13 => 0
+
+  | 14 => 0
+
+  | 15 => 0
+
+  | _ => 0
+
+def row3 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 61186421802385167588014548246410044303697853198492583346513776684689898746620674048
+
+  | 2 => 76483027252981459485018185308012555379622316498115729183142220855862373433275908612
+
+  | 3 => 76483027252981459485018185308012555379622316498115729183142220855862373433275842560
+
+  | 4 => 76483027252981459485018185308012555379622316498115729183142220855862373433275842560
+
+  | 5 => 61186421802385167588014548246410044303697853198492583346513776684689898608099590144
+
+  | 6 => 45889816351788875691010911184807533227773389898869437509885332513299549129961111552
+
+  | 7 => 30593210901192583794007274123205022151848926599246291673256583731114810254148239360
+
+  | 8 => 15296605450596291897003637061602511075924463299623145517220418916815460136304771072
+
+  | 9 => 0
+
+  | 10 => 0
+
+  | 11 => 0
+
+  | 12 => 0
+
+  | 13 => 0
+
+  | 14 => 0
+
+  | 15 => 0
+
+  | _ => 0
+
+def row4 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 76483027252981459485018185308012555379622316498115729183142220855862373433275842560
+
+  | 2 => 107076238154174043279025459431217577531471243097362020856399109198207318373909496448
+
+  | 3 => 122372843604770335176029096492820088607395706396985166693027553369379793060562567168
+
+  | 4 => 137669449055366627073032733554422599683320169696608312529655997540552267747217752960
+
+  | 5 => 137669449055366627073032733554422599683320169696608312529655997540552267747202957312
+
+  | 6 => 137669449055366627073032733554422599683320169696608312529655997540552267747202957312
+
+  | 7 => 137669449055366627073032733554422599683320169696608312529655997540552232285805477888
+
+  | 8 => 137669449055366627073032733554422599683320169696608312529655997540552232285805477888
+
+  | 9 => 122372843604770335176029096492820088607395706396985166693027553295011821385058091008
+
+  | 10 => 107076238154174043279025459431217577531471243097362020856262643367104997421951746048
+
+  | 11 => 91779632703577751382021822369615066455546779797738629714407269680847673450813194240
+
+  | 12 => 76483027252981459485018185308012555379622316069413534637078014917752631786953768960
+
+  | 13 => 61186421802385167588014548246410044302978610266735249233224561707959444504664080384
+
+  | 14 => 45889816351788875691010911184806401956458774331306672982060172344336603140337958912
+
+  | 15 => 30593210901192583794007272541573088826071096341409586613057476411042790138278051840
+
+  | _ => 0
+
+def row5 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 91779632703577751382021822369615066455546779797738875019770665027034848119931011072
+
+  | 2 => 137669449055366627073032733554422599683320169696608312529655997540552267712589463552
+
+  | 3 => 168262659956559210867040007677627621835169096295854604202912884693009603787371839488
+
+  | 4 => 198855870857751794661047281800832643987018022895100895556761748961589159362371388424
+
+  | 5 => 214152476308348086558050918862435155062942486194724041393390193132761629616349642752
+
+  | 6 => 229449081758944378455054555924037666138866949494347187230018637303934104303275343872
+
+  | 7 => 244745687209540670352058192985640177214791412793970333066646929178714885865227681792
+
+  | 8 => 260042292660136962249061830047242688290715876093593478903275373349887360551908016128
+
+  | 9 => 260042292660136962249061830047242688290715876093593478903275373349887360101714493440
+
+  | 10 => 260042292660136962249061830047242688290715876093593478903275373349887360101714493440
+
+  | 11 => 260042292660136962249061830047242688290715876093593478903275373348870610913184448512
+
+  | 12 => 260042292660136962249061830047242688290715876093593478903275373348870610913184448512
+
+  | 13 => 260042292660136962249061830047242688290715876093593478903273088765733942169490685952
+
+  | 14 => 260042292660136962249061830047242688290715876093593478903273088765733942169490685952
+
+  | 15 => 260042292660136962249061830047242688290715876093593473792747121585862822317181108224
+
+  | _ => 0
+
+def row6 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 107076238154174043279025459431217577531471243097362020856399109198207322806586179584
+
+  | 2 => 168262659956559210867040007677627621835169096295854604202912885882897217050998996992
+
+  | 3 => 214152476308348086558050918862435155062942486194724041712798217197231026435746955264
+
+  | 4 => 260042292660136962249061830047242688290715876093593478900780150448906764523743118464
+
+  | 5 => 290635503561329546043069104170447710442564802607099331984212727748553306122653532160
+
+  | 6 => 321228714462522129837076378293652732571397955475181523764944575593051966227888668672
+
+  | 7 => 351821925363714713631083652410679505006529025508943112903904587359025945497391071232
+
+  | 8 => 382415136264907297423432465253895498507879472122371026309188408213052612478180247424
+
+  | 9 => 397711741715503589320436102315498009583803935421994172145797357265568241132465291264
+
+  | 10 => 413008347166099881217439739377100520659728398721617317982425802626555708608012615680
+
+  | 11 => 428304952616696173114443376438703031735652862020570657204914571592405131729764876288
+
+  | 12 => 443601558067292465011447013500305542811577325320193803041543015772873036052410925056
+
+  | 13 => 458898163517888756908450650561908053864487408600821779731668185780299632598516236288
+
+  | 14 => 474194768968485048805454287623510564940411871900444925568296629951544723396485971968
+
+  | 15 => 489491374419081340702457923894344999861935453070309709085721637745011527976510029824
+
+  | _ => 0
+
+def row7 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 122372843604770335176029096492820088607395706396985166693027553369379797493241348096
+
+  | 2 => 198855870857751794661047281800832643987018022895100895876169774225242166389679063040
+
+  | 3 => 260042292660136962249061830047242688290715876093593479222683549701379832866253307904
+
+  | 4 => 321228714462522129837076378293652732594413729292086062247274430834275008559091548160
+
+  | 5 => 367118530814311005528087289478460265822187119104545213671463919730149970361687474176
+
+  | 6 => 413008347166099881219098200663267799026764924539975831755918638155838139737126731776
+
+  | 7 => 458898163517888756910109111841848814961908599618942717492938254709386325404069920768
+
+  | 8 => 504787979869677632599448605017917405252851490157099378674685941897423727614329358352
+
+  | 9 => 535381190770425026583516536064683249369023890149723320132822192838400506334443208704
+
+  | 10 => 565854896941976538613286021293722541454796885924826907327884448956676106937853542400
+
+  | 11 => 581270073491955293167576891544133152382360790799349344679269070174312056643158802432
+
+  | 12 => 596567605279265510554090585115023226738376187236276391230856546978660027298238955520
+
+  | 13 => 611864217966867379993981019493104546902426360951034682910088750042065994447910338560
+
+  | 14 => 627160823474002777965538459658742048674350401677665422439635359269204564996645715968
+
+  | 15 => 657634529645554289995307844454153574573231176080138238631423487894716594722850209792
+
+  | _ => 0
+
+def row8 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 137669449055366627073032733554422599683320169696608312529655997540552272179896516608
+
+  | 2 => 229449081758944378455054555924037666138866949494347187549426662567587115728359129088
+
+  | 3 => 305932109011925837940072741232050221518489265992462916732568882214824627447883890688
+
+  | 4 => 382415136264907297425090926540062776898111582490578645593749218452875902783487737856
+
+  | 5 => 443601558067292465013105474786472821201809435602650476809347104747321401850533511168
+
+  | 6 => 504787979869677632601120023032882865482310299481292985615542061563958883632581443584
+
+  | 7 => 565974401672062800189134571273066015380105663383310405966577603312506627483613790208
+
+  | 8 => 627160823474447967775477600280163775877969087009772808500308613280384158295753263232
+
+  | 9 => 673050639825788175609500657209023907420066254329952401061727638075682433816848236544
+
+  | 10 => 718820017817235658663102715842077804879742182426837226974986448533467133360736305152
+
+  | 11 => 734236120703928338706903540598920666570812870990448194140119147196708251468012978176
+
+  | 12 => 749533659728244106678002868096073657184059927203103850259031472065094186390639738880
+
+  | 13 => 764830272472385081981835377739203532236950566548718235300620319745643898545176051712
+
+  | 14 => 795303978700475700084500306795191612303221035107435537607812076714554779963198799872
+
+  | 15 => 825896255970967989965296039915802972386677331432325754226964085490727172662445998080
+
+  | _ => 0
+
+def row9 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 152966054505962918970036370616025110759244632996231458366284441711724746866551685120
+
+  | 2 => 260042292660136962249061830047242688290715876093593479222683550909932065067039195136
+
+  | 3 => 351821925363714713631083652416857754746262655891332354242454214728269426496280461312
+
+  | 4 => 443601558067292465013105474786472821201809435689071228940262841651213302747872886784
+
+  | 5 => 520084585320273924498123660094485376581431752100766164788854216536376544247351869440
+
+  | 6 => 596567612573255383983141845402497931937857057414550091604545280415203991465744138240
+
+  | 7 => 673050639826236843468160030704283587042374772607211689378823285010338020863489605632
+
+  | 8 => 749533667079218302951506695982119630246205803328883810312524703318583844884201865216
+
+  | 9 => 810720088881154775299666138923612882482481654594783427970962373542631752936873525248
+
+  | 10 => 871786065028766992437880273365660724417526707191917582131625074656612335729086824448
+
+  | 11 => 887083604053082787368939124308575277783789945194512486321706845152676882457944915968
+
+  | 12 => 902380216797665474437307869972425696301669176230302310272642938078674157519939567616
+
+  | 13 => 932972494068599449124364487172007602206030821823883057911415580449960836862222270464
+
+  | 14 => 948388596955292129380435501041551903535575447764229192584932819059778771552198197248
+
+  | 15 => 963686136036147003212185894695240264959316943342419614349056209197579232794852196352
+
+  | _ => 0
+
+def row10 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 168262659956559210867040007677627621835169096295854604202912885882897221553206853632
+
+  | 2 => 290635503561329546043069104170447710442564802692839770895940439252277014405719261184
+
+  | 3 => 397711741715503589322094563601665287974036045790201791752339547241714225544677031936
+
+  | 4 => 504787979869677632601120023032882865505507288887563812286776466020848019698683478016
+
+  | 5 => 596567612573255383983141845402497931961054068598881853087730216948898434191537995776
+
+  | 6 => 688347245276833135365163667772112998393403826151772306134719397318637767986100830208
+
+  | 7 => 780126877980410886747185490135501164527814468071434438921507027864664886649521438720
+
+  | 8 => 871906510683988638127535792462583219374491071859053590160837967338211843868956033024
+
+  | 9 => 948389537936521402369381949905796709302663568654590423038375700617549797257830727680
+
+  | 10 => 1024752119477742137478007434016646962472167971333830552001090149581210882304295043072
+
+  | 11 => 1040048724928338429587294115701482480667630726192457451704056963665837239603413647360
+
+  | 12 => 1055345337672924594701065967630283828777542370583297023333140715349446863611051900928
+
+  | 13 => 1085938541337111600950527983157069280766860169565506182285895884953551463670676979712
+
+  | 14 => 1116531752181319888860029256386262406017973145587822955094996675464199856735121309696
+
+  | 15 => 1131828357631916180969316039295540902882520448276664236485140799185803175865299763200
+
+  | _ => 0
+
+def row11 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 183559265407155502764043644739230132911093559595477750039541330054069696239862022144
+
+  | 2 => 321228714462522129837076378293652732594413729292086062569197327594621963744399327232
+
+  | 3 => 443601558067292465013105474786472821201809435689071229262224879755159024593073602560
+
+  | 4 => 565974401672062800189134571279292909809205142086056395633290090399850223874424700928
+
+  | 5 => 673050639826236843468160030710510487340676385096997541386644900645056178028393005056
+
+  | 6 => 780126877980410886747185490141728064848950605863765468499333256231851310259577552896
+
+  | 7 => 887203116134584930026210949566718742036269915403668788210970753100246738790604865536
+
+  | 8 => 994279354288758973303564888955355037436761680770976070291269685528392339214858977280
+
+  | 9 => 1086058986991888029442401726719065375933290735087117639467069455424629252964367728640
+
+  | 10 => 1177718173983698100357224532567896743099800529205321983597632766948057091573245018112
+
+  | 11 => 1208310443960203995066668214248734031307235204261486819617959422366844670437647974400
+
+  | 12 => 1208311384884897640242051078743520592935119069336149047747115328250683732565237432320
+
+  | 13 => 1238904595786090224034399891580606604295843350320316255423701316137225358762217308160
+
+  | 14 => 1269497806687279329783004058654222985824360033548876065218673780412436281782477783040
+
+  | 15 => 1300090083957768141832338190634646353131580316625860462544000501314988038274905276416
+
+  | _ => 0
+
+def row12 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 198855870857751794661047281800832643987018022895100895876169774225242170926517190656
+
+  | 2 => 351821925363714713631083652416857754746262655891332354242454215936966913083079393280
+
+  | 3 => 489491374419081340704116385971280354429582825587940666772110212268603823641470173184
+
+  | 4 => 627160823474447967777149119525702954112902995284548978979803714778852428050165923840
+
+  | 5 => 749533667079218302953178216018523042720298701595113229685559736637532994411306156032
+
+  | 6 => 871906510683988638129207312511343131304497385575763863725663695198367050621234708480
+
+  | 7 => 994279354288758973305236408997936319567561347596615790017441423102566717340671541248
+
+  | 8 => 1116652197893529308479593985448126858444872921224574611896160380509028942529056210944
+
+  | 9 => 1223728436047254656515421503544593635669429130336526522689702389007339528833053229056
+
+  | 10 => 1330684228489660992153359874607219092766599778978253676447534872827015751646545182720
+
+  | 11 => 1376573096622766376835099914207808045349763654280377153735920114778970763030446473216
+
+  | 12 => 1376573103916318016334393561829703851167137461609816291993022324950315916493712261120
+
+  | 13 => 1391869716661349371256433239177264026855864617757177582815074932304804422962361925632
+
+  | 14 => 1422463861193238770705978758919280736795407627024531425356732990426534029547542675456
+
+  | 15 => 1468352736620334001435548413521556926316326949729533265387082689056207194825873686528
+
+  | _ => 0
+
+def row13 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 214152476308348086558050918862435155062942486194724041712798218396414645613172359168
+
+  | 2 => 382415136264907297425090926540062776898111582490578645915711104279311862421759459328
+
+  | 3 => 535381190770870216395127297156087887657356215486810104281995544782048622689866743808
+
+  | 4 => 688347245276833135365163667772112998416600848483041562326317339157854632225907146752
+
+  | 5 => 826016694332199762438196401326535598099921018093228958549293779933350658688721879040
+
+  | 6 => 963686143387566389511229134880958197760044165287762299516813341477735241290400923648
+
+  | 7 => 1101355592442933016584261868429153897098852779875297997552077847848081039878260785152
+
+  | 8 => 1239025041498299643655623081940946569961650611613687144224892712707439468805883953152
+
+  | 9 => 1361397885102621283588454135874572125389514162577265381333316977052791494180979343360
+
+  | 10 => 1483650282995623883951166432224879021253946583331010537213919596621436132120791613440
+
+  | 11 => 1544835756522341237474820001197826149438682466541152247545273348231116252545424556032
+
+  | 12 => 1544835756522341291820937784813281235137162988494285006649964162832072167644752510976
+
+  | 13 => 1544835763873322416800722113691231040674870922794214927759990782108722643044235476992
+
+  | 14 => 1575429915698759923568652018579951794007256974119378150087249119645186700470971793408
+
+  | 15 => 1636496818126543455119776698504236921252772817576731168905067419460209354755832545280
+
+  | _ => 0
+
+def row14 (k : Nat) : Nat := match k with
+
+  | 0 => 0
+
+  | 1 => 229449081758944378455054555924037666138866949494347187549426662567587120299827527680
+
+  | 2 => 413008347166099881219098200663267799049960509089824937588967992621656811760439525376
+
+  | 3 => 581271007122659092086138208340895420885129605385679541791880877295493421738263314432
+
+  | 4 => 749533667079218302953178216018523042720298701681534145672830963536856836401648369664
+
+  | 5 => 902499721585181221923214586634548153479543334591344687413027823229168322966137602048
+
+  | 6 => 1055465776091144140893250957250573264215590944999760735307962987757103431959567138816
+
+  | 7 => 1208431830597107059863287327860371474630144212153980205086714125019642772739437101056
+
+  | 8 => 1361397885103069978831652178433766281478428302002804908786351728253438267881194258432
+
+  | 9 => 1499067334157987910661486768204550615132435179677392612460253420999743740324874289152
+
+  | 10 => 1636616337501586802708919656993178747354146362206748237051858098018928847743331860480
+
+  | 11 => 1713098416421916152245058005838497803608314689539326878196798974965940941452409307136
+
+  | 12 => 1728275517142429687996129057598024639995234116362842751805455205527067004318926241792
+
+  | 13 => 1728275517256398306935725064950707911515298077705529445770123310327444037909096693760
+
+  | 14 => 1743691634730622038383844755778398274110877853209320212203502281184758921801999843328
+
+  | 15 => 1789581443674897638900673253879869067154850231111310948552069677665787879979690754048
+
+  | _ => 0
+
+def row (h k : Nat) : Nat := match h with
+  | 0 => row0 k
+  | 1 => row1 k
+  | 2 => row2 k
+  | 3 => row3 k
+  | 4 => row4 k
+  | 5 => row5 k
+  | 6 => row6 k
+  | 7 => row7 k
+  | 8 => row8 k
+  | 9 => row9 k
+  | 10 => row10 k
+  | 11 => row11 k
+  | 12 => row12 k
+  | 13 => row13 k
+  | 14 => row14 k
+  | _ => 0
+
+
+def upper (h k c : Nat) : Nat := (row h k / 128^c) % 128
+
+def checkLeaf (h : Nat) : Bool := (List.range 40).all fun c =>
+  decide (credit h ≤ c → h+1 ≤ upper h 1 c)
+
+def checkFork (h k c : Nat) : Bool := (List.range h).all fun a =>
+  if credit a > c then true else
+    (List.range k).all fun p => if p=0 then true else
+      (List.range (c-credit a+1)).all fun cl =>
+        let cr := c-credit a-cl
+        let ul := upper (h-a-1) p cl
+        if ul=0 then true else
+          let ur := upper (h-a-1) (k-p) cr
+          decide (ur=0 ∨ a+ul+ur-1 ≤ upper h k c)
+
+def checkHeight (h : Nat) : Bool := checkLeaf h &&
+  (List.range 16).all fun k => (List.range 40).all fun c => checkFork h k c
+
+
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+open SiggolfPrefixCertificate
+
+set_option maxRecDepth 2000
+set_option maxHeartbeats 4000000
+
+ theorem certificate_of_checks
+    (checks : ∀ h, h≤14 → checkHeight h=true) : Certificate credit upper := by
+  constructor
+  · intro h hh hc
+    have H := checks h hh
+    simp only [checkHeight, Bool.and_eq_true] at H
+    have HL := H.1
+    simp only [checkLeaf, List.all_eq_true] at HL
+    have HS := HL (credit h) (List.mem_range.mpr (by omega))
+    simpa using HS
+  · intro h a p q cl cr hh ha hp hq hpq hc hul hur
+    have H := checks h hh
+    simp only [checkHeight, Bool.and_eq_true] at H
+    have HF := H.2
+    simp only [List.all_eq_true] at HF
+    have HF := HF (p+q) (List.mem_range.mpr (by omega)) (credit a+cl+cr)
+      (List.mem_range.mpr (by omega))
+    simp only [checkFork, List.all_eq_true] at HF
+    have HA := HF a (List.mem_range.mpr ha)
+    have hca : ¬credit a > credit a+cl+cr := by omega
+    simp only [hca, ↓reduceIte, List.all_eq_true] at HA
+    have HP := HA p (List.mem_range.mpr (by omega))
+    have hp0 : ¬p=0 := by omega
+    simp only [hp0, ↓reduceIte, List.all_eq_true] at HP
+    have HC := HP cl (List.mem_range.mpr (by omega))
+    have eqcr : credit a+cl+cr-credit a-cl=cr := by omega
+    have eqq : p+q-p=q := by omega
+    have hnul : ¬upper (h-a-1) p cl=0 := by omega
+    simp only [eqcr, eqq, hnul, ↓reduceIte, decide_eq_true_eq] at HC
+    omega
+
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 1000000
+ theorem root_check : ∀ c : Fin 40, 464+17*(upper 14 15 c.val-1)-c.val≤2413 := by
+  decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_height_0 : checkHeight 0 = true := by decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_height_1 : checkHeight 1 = true := by decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_height_2 : checkHeight 2 = true := by decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_height_3 : checkHeight 3 = true := by decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_height_4 : checkHeight 4 = true := by decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_height_5 : checkHeight 5 = true := by decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_height_6 : checkHeight 6 = true := by decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_height_7 : checkHeight 7 = true := by decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_height_8 : checkHeight 8 = true := by decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_height_9 : checkHeight 9 = true := by decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_height_10 : checkHeight 10 = true := by decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_height_11 : checkHeight 11 = true := by decide +kernel
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_leaf_12 : checkLeaf 12=true := by decide +kernel
+theorem check_h12_k0 : (List.range 40).all (fun c => checkFork 12 0 c)=true := by decide +kernel
+theorem check_h12_k1 : (List.range 40).all (fun c => checkFork 12 1 c)=true := by decide +kernel
+theorem check_h12_k2 : (List.range 40).all (fun c => checkFork 12 2 c)=true := by decide +kernel
+theorem check_h12_k3 : (List.range 40).all (fun c => checkFork 12 3 c)=true := by decide +kernel
+theorem check_h12_k4 : (List.range 40).all (fun c => checkFork 12 4 c)=true := by decide +kernel
+theorem check_h12_k5 : (List.range 40).all (fun c => checkFork 12 5 c)=true := by decide +kernel
+theorem check_h12_k6 : (List.range 40).all (fun c => checkFork 12 6 c)=true := by decide +kernel
+theorem check_h12_k7 : (List.range 40).all (fun c => checkFork 12 7 c)=true := by decide +kernel
+theorem check_h12_k8 : (List.range 40).all (fun c => checkFork 12 8 c)=true := by decide +kernel
+theorem check_h12_k9 : (List.range 40).all (fun c => checkFork 12 9 c)=true := by decide +kernel
+theorem check_h12_k10 : (List.range 40).all (fun c => checkFork 12 10 c)=true := by decide +kernel
+theorem check_h12_k11 : (List.range 40).all (fun c => checkFork 12 11 c)=true := by decide +kernel
+theorem check_h12_k12 : (List.range 40).all (fun c => checkFork 12 12 c)=true := by decide +kernel
+theorem check_h12_k13 : (List.range 40).all (fun c => checkFork 12 13 c)=true := by decide +kernel
+theorem check_h12_k14 : (List.range 40).all (fun c => checkFork 12 14 c)=true := by decide +kernel
+theorem check_h12_k15 : (List.range 40).all (fun c => checkFork 12 15 c)=true := by decide +kernel
+theorem check_height_12 : checkHeight 12=true := by
+  simp only [checkHeight,Bool.and_eq_true]
+  constructor
+  · exact check_leaf_12
+  · apply List.all_eq_true.mpr
+    intro k hk
+    have hk : k<16 := List.mem_range.mp hk
+    have hc : k=0 ∨ k=1 ∨ k=2 ∨ k=3 ∨ k=4 ∨ k=5 ∨ k=6 ∨ k=7 ∨ k=8 ∨ k=9 ∨ k=10 ∨ k=11 ∨ k=12 ∨ k=13 ∨ k=14 ∨ k=15 := by omega
+    rcases hc with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    · exact check_h12_k0
+    · exact check_h12_k1
+    · exact check_h12_k2
+    · exact check_h12_k3
+    · exact check_h12_k4
+    · exact check_h12_k5
+    · exact check_h12_k6
+    · exact check_h12_k7
+    · exact check_h12_k8
+    · exact check_h12_k9
+    · exact check_h12_k10
+    · exact check_h12_k11
+    · exact check_h12_k12
+    · exact check_h12_k13
+    · exact check_h12_k14
+    · exact check_h12_k15
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_leaf_13 : checkLeaf 13=true := by decide +kernel
+theorem check_h13_k0 : (List.range 40).all (fun c => checkFork 13 0 c)=true := by decide +kernel
+theorem check_h13_k1 : (List.range 40).all (fun c => checkFork 13 1 c)=true := by decide +kernel
+theorem check_h13_k2 : (List.range 40).all (fun c => checkFork 13 2 c)=true := by decide +kernel
+theorem check_h13_k3 : (List.range 40).all (fun c => checkFork 13 3 c)=true := by decide +kernel
+theorem check_h13_k4 : (List.range 40).all (fun c => checkFork 13 4 c)=true := by decide +kernel
+theorem check_h13_k5 : (List.range 40).all (fun c => checkFork 13 5 c)=true := by decide +kernel
+theorem check_h13_k6 : (List.range 40).all (fun c => checkFork 13 6 c)=true := by decide +kernel
+theorem check_h13_k7 : (List.range 40).all (fun c => checkFork 13 7 c)=true := by decide +kernel
+theorem check_h13_k8 : (List.range 40).all (fun c => checkFork 13 8 c)=true := by decide +kernel
+theorem check_h13_k9 : (List.range 40).all (fun c => checkFork 13 9 c)=true := by decide +kernel
+theorem check_h13_k10 : (List.range 40).all (fun c => checkFork 13 10 c)=true := by decide +kernel
+theorem check_h13_k11 : (List.range 40).all (fun c => checkFork 13 11 c)=true := by decide +kernel
+theorem check_h13_k12 : (List.range 40).all (fun c => checkFork 13 12 c)=true := by decide +kernel
+theorem check_h13_k13 : (List.range 40).all (fun c => checkFork 13 13 c)=true := by decide +kernel
+theorem check_h13_k14 : (List.range 40).all (fun c => checkFork 13 14 c)=true := by decide +kernel
+theorem check_h13_k15 : (List.range 40).all (fun c => checkFork 13 15 c)=true := by decide +kernel
+theorem check_height_13 : checkHeight 13=true := by
+  simp only [checkHeight,Bool.and_eq_true]
+  constructor
+  · exact check_leaf_13
+  · apply List.all_eq_true.mpr
+    intro k hk
+    have hk : k<16 := List.mem_range.mp hk
+    have hc : k=0 ∨ k=1 ∨ k=2 ∨ k=3 ∨ k=4 ∨ k=5 ∨ k=6 ∨ k=7 ∨ k=8 ∨ k=9 ∨ k=10 ∨ k=11 ∨ k=12 ∨ k=13 ∨ k=14 ∨ k=15 := by omega
+    rcases hc with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    · exact check_h13_k0
+    · exact check_h13_k1
+    · exact check_h13_k2
+    · exact check_h13_k3
+    · exact check_h13_k4
+    · exact check_h13_k5
+    · exact check_h13_k6
+    · exact check_h13_k7
+    · exact check_h13_k8
+    · exact check_h13_k9
+    · exact check_h13_k10
+    · exact check_h13_k11
+    · exact check_h13_k12
+    · exact check_h13_k13
+    · exact check_h13_k14
+    · exact check_h13_k15
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+set_option maxRecDepth 5000
+set_option maxHeartbeats 4000000
+theorem check_leaf_14 : checkLeaf 14=true := by decide +kernel
+theorem check_h14_k0 : (List.range 40).all (fun c => checkFork 14 0 c)=true := by decide +kernel
+theorem check_h14_k1 : (List.range 40).all (fun c => checkFork 14 1 c)=true := by decide +kernel
+theorem check_h14_k2 : (List.range 40).all (fun c => checkFork 14 2 c)=true := by decide +kernel
+theorem check_h14_k3 : (List.range 40).all (fun c => checkFork 14 3 c)=true := by decide +kernel
+theorem check_h14_k4 : (List.range 40).all (fun c => checkFork 14 4 c)=true := by decide +kernel
+theorem check_h14_k5 : (List.range 40).all (fun c => checkFork 14 5 c)=true := by decide +kernel
+theorem check_h14_k6 : (List.range 40).all (fun c => checkFork 14 6 c)=true := by decide +kernel
+theorem check_h14_k7 : (List.range 40).all (fun c => checkFork 14 7 c)=true := by decide +kernel
+theorem check_h14_k8 : (List.range 40).all (fun c => checkFork 14 8 c)=true := by decide +kernel
+theorem check_h14_k9 : (List.range 40).all (fun c => checkFork 14 9 c)=true := by decide +kernel
+theorem check_h14_k10 : (List.range 40).all (fun c => checkFork 14 10 c)=true := by decide +kernel
+theorem check_h14_k11 : (List.range 40).all (fun c => checkFork 14 11 c)=true := by decide +kernel
+theorem check_h14_k12 : (List.range 40).all (fun c => checkFork 14 12 c)=true := by decide +kernel
+theorem check_h14_k13 : (List.range 40).all (fun c => checkFork 14 13 c)=true := by decide +kernel
+theorem check_h14_k14 : (List.range 40).all (fun c => checkFork 14 14 c)=true := by decide +kernel
+theorem check_h14_k15 : (List.range 40).all (fun c => checkFork 14 15 c)=true := by decide +kernel
+theorem check_height_14 : checkHeight 14=true := by
+  simp only [checkHeight,Bool.and_eq_true]
+  constructor
+  · exact check_leaf_14
+  · apply List.all_eq_true.mpr
+    intro k hk
+    have hk : k<16 := List.mem_range.mp hk
+    have hc : k=0 ∨ k=1 ∨ k=2 ∨ k=3 ∨ k=4 ∨ k=5 ∨ k=6 ∨ k=7 ∨ k=8 ∨ k=9 ∨ k=10 ∨ k=11 ∨ k=12 ∨ k=13 ∨ k=14 ∨ k=15 := by omega
+    rcases hc with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    · exact check_h14_k0
+    · exact check_h14_k1
+    · exact check_h14_k2
+    · exact check_h14_k3
+    · exact check_h14_k4
+    · exact check_h14_k5
+    · exact check_h14_k6
+    · exact check_h14_k7
+    · exact check_h14_k8
+    · exact check_h14_k9
+    · exact check_h14_k10
+    · exact check_h14_k11
+    · exact check_h14_k12
+    · exact check_h14_k13
+    · exact check_h14_k14
+    · exact check_h14_k15
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixTable
+open SiggolfPrefixCertificate
+set_option maxRecDepth 5000
+set_option maxHeartbeats 1000000
+
+theorem checks_all (h : Nat) (hh : h≤14) : checkHeight h=true := by
+  have hcases : h=0 ∨ h=1 ∨ h=2 ∨ h=3 ∨ h=4 ∨ h=5 ∨ h=6 ∨ h=7 ∨ h=8 ∨ h=9 ∨ h=10 ∨ h=11 ∨ h=12 ∨ h=13 ∨ h=14 := by omega
+  rcases hcases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  · exact check_height_0
+  · exact check_height_1
+  · exact check_height_2
+  · exact check_height_3
+  · exact check_height_4
+  · exact check_height_5
+  · exact check_height_6
+  · exact check_height_7
+  · exact check_height_8
+  · exact check_height_9
+  · exact check_height_10
+  · exact check_height_11
+  · exact check_height_12
+  · exact check_height_13
+  · exact check_height_14
+
+theorem certificate : Certificate credit upper := certificate_of_checks checks_all
+
+theorem bound_2413 {f c : Nat} (ht : Tree credit 14 15 f c) (hf : f≤117) :
+    464+17*f-c≤2413 := cost_2413 certificate root_check ht hf
+
+end SiggolfPrefixTable
+
+namespace SiggolfPrefixSchedule
+open SiggolfPrefixCertificate
+
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 4096
+
+variable (credit : Nat → Nat)
+
+/-- A pending leaf or binary hash before the following unary run is emitted. -/
+inductive PendingTree (credit : Nat → Nat) : Nat → Nat → Nat → Nat → Prop
+  | leaf : PendingTree credit 0 1 0 0
+  | merge {h a b fl fr cl cr : Nat}
+      (left : Tree credit h a fl cl) (right : Tree credit h b fr cr) :
+      PendingTree credit (h+1) (a+b) (fl+fr) (cl+cr)
+
+theorem PendingTree.fold {x k f c top : Nat} (ht : PendingTree credit x k f c)
+    (hx : x ≤ top) : Tree credit top k (f+(top-x)) (c+credit (top-x)) := by
+  cases ht with
+  | leaf => simpa using Tree.leaf (credit := credit) top
+  | @merge h a b fl fr cl cr left right =>
+      have eh : top-(top-(h+1))-1 = h := by omega
+      have hl : Tree credit (top-(top-(h+1))-1) a fl cl := by simpa [eh] using left
+      have hr : Tree credit (top-(top-(h+1))-1) b fr cr := by simpa [eh] using right
+      have q := Tree.fork top (top-(h+1)) a b fl fr cl cr (by omega) hl hr
+      convert q using 1 <;> omega
+
+structure Node where
+  height : Nat
+  leaves : Nat
+  folds : Nat
+  credits : Nat
+  tree : Tree credit height leaves folds credits
+
+def leafSum (stack : List (Node credit)) : Nat := (stack.map Node.leaves).sum
+def foldSum (stack : List (Node credit)) : Nat := (stack.map Node.folds).sum
+def creditSum (stack : List (Node credit)) : Nat := (stack.map Node.credits).sum
+
+/-- Zero folds are allowed before a merge and at the end of a climb. -/
+def Runs : Nat → List Nat → Nat → Prop
+  | x, [], top => x ≤ top
+  | x, y::ys, top => x ≤ y ∧ Runs (y+1) ys top
+
+def climbCredit : Nat → List Nat → Nat → Nat
+  | x, [], top => credit (top-x)
+  | x, y::ys, top => credit (y-x) + climbCredit (y+1) ys top
+
+theorem Runs.length_le {x top : Nat} {heights : List Nat}
+    (hp : Runs x heights top) : x+heights.length ≤ top := by
+  induction heights generalizing x with
+  | nil => simpa [Runs] using hp
+  | cons y ys ih =>
+      obtain ⟨hxy,hp⟩ := hp
+      have h := ih hp
+      simp only [List.length_cons]
+      omega
+
+theorem runs_of_bounds (heights : List Nat) : ∀ x top,
+    heights.Pairwise (· < ·) → (∀ y ∈ heights, x ≤ y ∧ y < top) → x ≤ top →
+    Runs x heights top := by
+  induction heights with
+  | nil => intro x top _ _ hx; exact hx
+  | cons y ys ih =>
+      intro x top hs hb hx
+      have hy := hb y (by simp)
+      refine ⟨hy.1, ih (y+1) top (List.pairwise_cons.mp hs).2 ?_ (by omega)⟩
+      intro z hz
+      exact ⟨(List.pairwise_cons.mp hs).1 z hz, (hb z (by simp [hz])).2⟩
+
+theorem climb (stack : List (Node credit)) : ∀ (x k f c top : Nat),
+    PendingTree credit x k f c → Runs x (stack.map Node.height) top →
+    ∃ total, Tree credit top (k+leafSum credit stack) total
+      (c+creditSum credit stack+climbCredit credit x (stack.map Node.height) top) ∧
+      total+x+stack.length = f+top+foldSum credit stack := by
+  induction stack with
+  | nil =>
+      intro x k f c top ht hp
+      have hx : x ≤ top := hp
+      refine ⟨f+(top-x), ?_, ?_⟩
+      · simpa [leafSum,creditSum,climbCredit] using ht.fold credit hx
+      · simp only [List.length_nil,foldSum,List.map_nil,List.sum_nil]; omega
+  | cons node rest ih =>
+      intro x k f c top ht hp
+      have hp' : x ≤ node.height ∧ Runs (node.height+1) (rest.map Node.height) top := hp
+      have hcurrent := ht.fold credit hp'.1
+      have hnext := PendingTree.merge node.tree hcurrent
+      obtain ⟨total,htree,heq⟩ := ih (node.height+1) (node.leaves+k)
+        (node.folds+(f+(node.height-x))) (node.credits+(c+credit (node.height-x)))
+        top hnext hp'.2
+      refine ⟨total, ?_, ?_⟩
+      · have eleaves : node.leaves+k+leafSum credit rest = k+leafSum credit (node::rest) := by
+          simp only [leafSum,List.map_cons,List.sum_cons]; omega
+        have ecredit : node.credits+(c+credit (node.height-x))+creditSum credit rest+
+              climbCredit credit (node.height+1) (rest.map Node.height) top =
+            c+creditSum credit (node::rest)+climbCredit credit x ((node::rest).map Node.height) top := by
+          simp only [creditSum,List.map_cons,List.sum_cons,climbCredit]; omega
+        rwa [eleaves,ecredit] at htree
+      · simp only [List.length_cons,foldSum,List.map_cons,List.sum_cons] at heq ⊢; omega
+
+inductive Trace (credit : Nat → Nat) : List Nat → Nat → Nat → Nat → Nat → Prop
+  | last (heights : List Nat) (top : Nat) (hp : Runs 0 heights top) :
+      Trace credit heights 1 top (top-heights.length) (climbCredit credit 0 heights top)
+  | next (lo hi : List Nat) (t n top f c : Nat) (hp : Runs 0 lo t)
+      (tail : Trace credit (t::hi) n top f c) :
+      Trace credit (lo++hi) (n+1) top ((t-lo.length)+f) (climbCredit credit 0 lo t+c)
+
+theorem trace_tree {heights : List Nat} {n top f c : Nat}
+    (ht : Trace credit heights n top f c) : ∀ stack : List (Node credit),
+    stack.map Node.height = heights →
+    Tree credit top (n+leafSum credit stack) (f+foldSum credit stack) (c+creditSum credit stack) := by
+  induction ht with
+  | last heights top hp =>
+      intro stack hmap
+      have hp' : Runs 0 (stack.map Node.height) top := by simpa [hmap] using hp
+      obtain ⟨total,htree,heq⟩ := climb credit stack 0 1 0 0 top (PendingTree.leaf (credit := credit)) hp'
+      have hlen : stack.length = heights.length := by
+        have h := congrArg List.length hmap; simpa only [List.length_map] using h
+      have hbound := hp.length_le
+      have e : total = top-heights.length+foldSum credit stack := by omega
+      simpa only [e,hmap,Nat.zero_add,Nat.add_comm] using htree
+  | next lo hi t n top f c hp tail ih =>
+      intro stack hmap
+      obtain ⟨low,high,hs,hl,hh⟩ := List.map_eq_append_iff.mp hmap
+      subst stack
+      have hp' : Runs 0 (low.map Node.height) t := by simpa [hl] using hp
+      obtain ⟨total,htree,heq⟩ := climb credit low 0 1 0 0 t (PendingTree.leaf (credit := credit)) hp'
+      let node : Node credit := ⟨t,1+leafSum credit low,total,
+        creditSum credit low+climbCredit credit 0 (low.map Node.height) t,by simpa using htree⟩
+      have hmap' : (node::high).map Node.height = t::hi := by simp only [List.map_cons,node,hh]
+      have hresult := ih (node::high) hmap'
+      have hlen : low.length = lo.length := by
+        have h := congrArg List.length hl; simpa only [List.length_map] using h
+      have hbound := hp.length_le
+      have etotal : total = t-lo.length+foldSum credit low := by omega
+      have eleaves : n+leafSum credit (node::high) = (n+1)+leafSum credit (low++high) := by
+        simp only [leafSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node]; omega
+      have efolds : f+foldSum credit (node::high) = (t-lo.length+f)+foldSum credit (low++high) := by
+        simp only [foldSum] at etotal
+        simp only [foldSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node]; omega
+      have ecredits : c+creditSum credit (node::high) =
+          (climbCredit credit 0 lo t+c)+creditSum credit (low++high) := by
+        simp only [creditSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node,hl]; omega
+      rwa [eleaves,efolds,ecredits] at hresult
+
+open SphincsSecurity SphincsSecurity.Concrete SphincsSecurity.Completeness
+open SigGolfCandidate.Research.PorsPositiveBound
+
+def scheduleCredit (ss : List ScheduleSegment) : Nat := (ss.map fun s => credit s.reads.length).sum
+
+theorem climbSegs_credit (v x top : Nat) (L : List Nat) :
+    scheduleCredit credit (climbSegs v x L top) = climbCredit credit x L top := by
+  induction L generalizing x with
+  | nil => simp [scheduleCredit,climbSegs,climbCredit,sibs]
+  | cons y ys ih =>
+      simp only [climbSegs,scheduleCredit,List.map_cons,List.sum_cons,sibs,
+        List.length_map,List.length_range',climbCredit]
+      exact congrArg (credit (y-x)+·) (ih (y+1))
+
+theorem climbSegs_readSum_runs (v x top : Nat) (L : List Nat) (hp : Runs x L top) :
+    readSum (climbSegs v x L top)+x+L.length = top := by
+  induction L generalizing x with
+  | nil =>
+      have hx : x ≤ top := hp
+      simp only [climbSegs,readSum,List.map_cons,List.map_nil,List.sum_cons,List.sum_nil,
+        sibs,List.length_map,List.length_range',List.length_nil]
+      omega
+  | cons y ys ih =>
+      obtain ⟨hxy,hp⟩ := hp
+      have h := ih (y+1) hp
+      simp only [climbSegs,readSum,List.map_cons,List.sum_cons,sibs,
+        List.length_map,List.length_range',List.length_cons] at *
+      omega
+
+theorem allSegs_trace (v : Nat) (rest L : List Nat)
+    (hs : (v::rest).Pairwise (· < ·))
+    (hb : ∀ w ∈ v::rest, w < 2^ftsTreeHeight) (hL : Pending v L) :
+    Trace credit L (v::rest).length 14 (readSum (allSegs (v::rest) L))
+      (scheduleCredit credit (allSegs (v::rest) L)) := by
+  induction rest generalizing v L with
+  | nil =>
+      have hf : L.filter (· < ftsTreeHeight) = L := by
+        apply List.filter_eq_self.mpr
+        intro y hy
+        simpa using (hL.2 y hy).1
+      have he : allSegs [v] L = climbSegs v 0 L 14 := by
+        change climbSegs v 0 (L.filter (· < ftsTreeHeight)) ftsTreeHeight ++ [] = _
+        rw [hf,List.append_nil]
+        rfl
+      rw [he]
+      have hr : Runs 0 L 14 := runs_of_bounds L 0 14 hL.1
+        (fun y hy => ⟨Nat.zero_le y,(hL.2 y hy).1⟩) (by omega)
+      have hsum := climbSegs_readSum_runs v 0 14 L hr
+      have heq : readSum (climbSegs v 0 L 14) = 14-L.length := by omega
+      simpa only [List.length_cons,List.length_nil,heq,climbSegs_credit] using Trace.last L 14 hr
+  | cons w rest ih =>
+      let t := leafTop v (w::rest)
+      let lo := L.filter (· < t)
+      let hi := L.filter (t < ·)
+      have hsplit : L = lo++hi := pending_split hL hs hb
+      have hn : Pending w (t::hi) :=
+        (pending_next ((List.pairwise_cons.mp hs).1 w (by simp))
+          (hb w (by simp)) (by rfl) hL).1
+      have ht := ih w (t::hi) (List.pairwise_cons.mp hs).2
+        (fun z hz => hb z (List.mem_cons_of_mem v hz)) hn
+      have hr : Runs 0 lo t := runs_of_bounds lo 0 t (hL.1.filter _)
+        (fun y hy => ⟨Nat.zero_le y,(mem_filter_lt hy).2⟩) (Nat.zero_le _)
+      have hsum := climbSegs_readSum_runs v 0 t lo hr
+      have heq : readSum (climbSegs v 0 lo t) = t-lo.length := by omega
+      have htrace := Trace.next lo hi t (w::rest).length 14
+        (readSum (allSegs (w::rest) (t::hi)))
+        (scheduleCredit credit (allSegs (w::rest) (t::hi))) hr ht
+      rw [←hsplit] at htrace
+      change Trace credit L ((v::w::rest).length) 14
+        (readSum (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)))
+        (scheduleCredit credit (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)))
+      have hread : readSum (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)) =
+          (t-lo.length)+readSum (allSegs (w::rest) (t::hi)) := by
+        simp only [readSum,List.map_append,List.sum_append] at heq ⊢
+        rw [heq]
+      have hcredit : scheduleCredit credit (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)) =
+          climbCredit credit 0 lo t+scheduleCredit credit (allSegs (w::rest) (t::hi)) := by
+        simpa only [scheduleCredit,List.map_append,List.sum_append] using
+          congrArg (fun n => n+scheduleCredit credit (allSegs (w::rest) (t::hi)))
+            (climbSegs_credit credit v 0 t lo)
+      rw [hread,hcredit]
+      exact htrace
+
+theorem schedule_tree (leaves : IndexGroup → FtsLeaf) (hinj : Function.Injective leaves) :
+    Tree credit 14 15 (readSum (schedule (sortedLeaves leaves)))
+      (scheduleCredit credit (schedule (sortedLeaves leaves))) := by
+  obtain ⟨hlen,hs,hb⟩ := sortedLeaves_facts leaves hinj
+  obtain ⟨v,rest,he⟩ : ∃ v rest, sortedLeaves leaves = v::rest := by
+    cases h : sortedLeaves leaves with
+    | nil => rw [h] at hlen; simp [ftsOpenings] at hlen
+    | cons v rest => exact ⟨v,rest,rfl⟩
+  rw [he] at hlen hs hb
+  have hL : Pending v [] := ⟨List.Pairwise.nil,by simp⟩
+  have hsch : schedule (sortedLeaves leaves) = allSegs (v::rest) [] := by
+    have h := scheduleLeaves_eq rest v ⟨[],[],0,false,[],0⟩ [] hs hb hL rfl
+    rw [schedule,he,h.1,List.nil_append]
+  have ht := allSegs_trace credit v rest [] hs hb hL
+  have htree := trace_tree credit ht [] rfl
+  rw [hlen] at htree
+  simpa only [hsch,leafSum,foldSum,creditSum,List.map_nil,List.sum_nil,Nat.add_zero,ftsOpenings] using htree
+
+open OracleComp
+
+theorem recoverRun_decodedFolds_eq (f : QueryImpl HashSpec Id)
+    (parameter : PublicParameter) (index : Index)
+    (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
+    (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
+    decodedFolds fts = (schedule (sortedLeaves leaves)).map (·.reads.length) := by
+  obtain ⟨slot,hperm,hsorted,hsegments,hfolds,hadm,hbij⟩ :=
+    PorsMachine.recoverRun_structure f parameter index leaves fts r hrun
+  have hlen := schedule_length_of_injective leaves hadm.1
+  have hm := (PorsMachine.recoverRun_schedule f parameter index leaves fts r hrun).1
+  apply List.ext_getElem
+  · simp only [decodedFolds,List.length_ofFn,List.length_map,hlen]
+  · intro i hi hj
+    have hilt : i < ftsSegments := by simpa only [decodedFolds,List.length_ofFn] using hi
+    have hil : i < (schedule (sortedLeaves leaves)).length := by omega
+    have h := (hm ⟨i,hilt⟩).1
+    simpa only [decodedFolds,List.getElem_ofFn,List.getElem_map,List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem hil,Option.getD_some] using h
+
+/-- Every accepted PORS witness has a zero-inclusive tree with the exact decoded
+fold total and exact total of any per-segment credit function. -/
+theorem recoverRun_tree (f : QueryImpl HashSpec Id)
+    (parameter : PublicParameter) (index : Index)
+    (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
+    (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
+    Tree credit 14 15 r.folds (((decodedFolds fts).map credit).sum) := by
+  obtain ⟨slot,hperm,hsorted,hsegments,hfolds,hadm,hbij⟩ :=
+    PorsMachine.recoverRun_structure f parameter index leaves fts r hrun
+  have ht := schedule_tree credit leaves hadm.1
+  have he := recoverRun_decodedFolds_eq f parameter index leaves fts r hrun
+  have hc : scheduleCredit credit (schedule (sortedLeaves leaves)) =
+      ((decodedFolds fts).map credit).sum := by
+    rw [he,List.map_map]
+    rfl
+  have hf : readSum (schedule (sortedLeaves leaves)) = r.folds := by
+    rw [readSum,←he]
+    exact recoverRun_decodedFolds_sum f parameter index leaves fts r hrun
+  rwa [hc,hf] at ht
+
+
+end SiggolfPrefixSchedule
+
+namespace SiggolfPrefixSubmissionBridge
+open OracleComp SphincsSecurity SphincsSecurity.Concrete SphincsSecurity.Completeness
+open SigGolfCandidate.Research.PorsPositiveBound
+open SiggolfPrefixCertificate
+
+set_option maxHeartbeats 1000000
+
+theorem recoverRun_exactSegmentsCost_2413_of
+    (bound : ∀ {n c : Nat}, Tree SiggolfPrefixTable.credit 14 15 n c → n≤117 →
+      464+17*n-c≤2413)
+    (f : QueryImpl HashSpec Id) (parameter : PublicParameter) (index : Index)
+    (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
+    (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
+    exactSegmentsCost (decodedFolds fts) ≤ 2413 := by
+  have ht := SiggolfPrefixSchedule.recoverRun_tree SiggolfPrefixTable.credit
+    f parameter index leaves fts r hrun
+  obtain ⟨slot,hperm,hsorted,hsegments,hfolds,hadm,hbij⟩ :=
+    PorsMachine.recoverRun_structure f parameter index leaves fts r hrun
+  have hf : r.folds≤117 := by rw [hfolds]; exact hadm.2
+  have hb := bound ht hf
+  have hc := SigGolfCandidate.Research.PorsPrefixCredit.segmentsCost_add_credit (decodedFolds fts)
+  rw [←exactSegmentsCost_prefix_eq] at hc
+  have hsum := recoverRun_decodedFolds_sum f parameter index leaves fts r hrun
+  have hlen : (decodedFolds fts).length=29 := by simp [decodedFolds,ftsSegments,ftsOpenings]
+  rw [hsum,hlen] at hc
+  have heq : SigGolfCandidate.Research.PorsPrefixCredit.totalCredit (decodedFolds fts) =
+      ((decodedFolds fts).map SiggolfPrefixTable.credit).sum := rfl
+  rw [heq] at hc
+  omega
+
+end SiggolfPrefixSubmissionBridge
+
+namespace SigGolfCandidate.Research.PorsPositiveBound
+open SphincsSecurity SphincsSecurity.Concrete OracleComp
+
+/-- The full compressed-tree topology gives forty cycles of segment credit
+below the generic envelope for every accepted PORS witness. -/
+theorem recoverRun_exactSegmentsCost (f : QueryImpl HashSpec Id)
+    (parameter : PublicParameter) (index : Index)
+    (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
+    (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
+    exactSegmentsCost (decodedFolds fts) ≤ 16*29 + 17*117 - 40 := by
+  exact SiggolfPrefixSubmissionBridge.recoverRun_exactSegmentsCost_2413_of
+    SiggolfPrefixTable.bound_2413 f parameter index leaves fts r hrun
 
 end SigGolfCandidate.Research.PorsPositiveBound
 
@@ -1449,7 +2713,7 @@ theorem porsRoot_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
     (leaves : IndexGroup → FtsLeaf) (node : Ref.Val)
     (hrun : evalWithAnswerFn hash
       (Ref.porsRoot index (List.ofFn fun r => (leaves r).val) wl) = some node) :
-    decodedCostRem wl 0 ≤ 16*29 + 17*117 - 22 := by
+    decodedCostRem wl 0 ≤ 16*29 + 17*117 - 40 := by
   let f : QueryImpl SphincsSecurity.HashSpec Id := fun q => hash (fmtQ q)
   have he := congrArg (evalWithAnswerFn hash) (porsRoot_eq index wl hl leaves)
   rw [hrun, evalWithAnswerFn_map, Final.evalWithAnswerFn_relabel,
@@ -1465,7 +2729,7 @@ theorem porsRoot_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
 theorem verifyList_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
     (ml pkl wl : List Byte) (hl : wl.length = 16384)
     (hverify : evalWithAnswerFn hash (Ref.verifyList ml pkl wl) = true) :
-    decodedCostRem wl 0 ≤ 16*29 + 17*117 - 22 := by
+    decodedCostRem wl 0 ≤ 16*29 + 17*117 - 40 := by
   unfold Ref.verifyList at hverify
   cases hc : Ref.countersOk wl with
   | false => simp [hc] at hverify
@@ -1497,7 +2761,7 @@ universal positive-segment structural theorem. All-input bounds are unchanged. -
 theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
     (hpk : pkl.length = 16) (hwl : wl.length = 16384) (s : MachineState)
     (hs : InitOK ml pkl wl s) :
-    GoodQ s fuelBound cycleBoundAll True (cycleBound-22) (cc (verifyList ml pkl wl) Kb) := by
+    GoodQ s fuelBound cycleBoundAll True (cycleBound-40) (cc (verifyList ml pkl wl) Kb) := by
   intro F hF
   have hg := main_good_decoded ml pkl wl hml hpk hwl s hs F hF
   refine ⟨hg.1, fun hash => ⟨(hg.2 hash).1, (hg.2 hash).2.1, fun hsucc => ⟨trivial, ?_⟩⟩⟩
@@ -1515,17 +2779,17 @@ theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
 
 theorem verify_good_tight (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (s : MachineState) (hs : initialState submission .verify input = some s) :
-    GoodQ s fuelBound cycleBoundAll True (cycleBound-22)
+    GoodQ s fuelBound cycleBoundAll True (cycleBound-40)
       (cc (verifyRef input.1 input.2.1 input.2.2) Kb) := by
   obtain ⟨m, pk, w⟩ := input
   exact main_good_tight _ _ _ (length_toList m) (length_toList pk) (length_toList w) s (init_ok m pk w s hs)
 
-/-- Every accepting execution of the verifier takes22 fewer cycles than
+/-- Every accepting execution of the verifier takes40 fewer cycles than
 its generic bound. This is universal over hash answers and arbitrary witnesses. -/
 theorem verify_accept_cycles_tight (hash : Hash)
     (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (h : (submission.runWith hash .verify input).value = some ()) :
-    (submission.runWith hash .verify input).cycles ≤ cycleBound-22 := by
+    (submission.runWith hash .verify input).cycles ≤ cycleBound-40 := by
   obtain ⟨s, hs⟩ := init_exists input
   have hg := (verify_good_tight input s hs CYCLE_LIMIT (by unfold CYCLE_LIMIT fuelBound; norm_num)).2 hash
   rw [runWith_eq submission hash .verify input s hs, image_eq] at h ⊢
