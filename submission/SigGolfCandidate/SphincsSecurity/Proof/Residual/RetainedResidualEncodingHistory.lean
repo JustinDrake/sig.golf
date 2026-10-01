@@ -184,7 +184,7 @@ end Local
 
 theorem referenceEncodingAuxiliary_select (encoding : ReferenceEncodingAuxiliary)
     (hencoding : encoding ∈ referenceEncodingAuxiliarySample.support) (position : EncodingPosition) :
-    FirstSuccessTable.select decodeEncodingOutput (fun counter => encoding.rows (position, counter)) = encoding.selections position :=
+    FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter => encoding.rows (position, counter)) = encoding.selections position :=
   referenceAuxiliarySample_select ∅ ⟨encoding.selections, encoding.rows, fun _ => 0⟩
     (referenceEncodingAuxiliary_support_seed ∅ encoding hencoding (fun _ => 0)) position
 
