@@ -107,24 +107,38 @@ theorem wordPerm_leaf_class (w : Nat) (h : w % 65536 ≠ 2305) : wordPerm w % 65
     omega
   · exact h
 
+theorem wordPerm_encoding_class (w : Nat) (h : w % 65536 ≠ 1025) : wordPerm w % 65536 ≠ 1025 := by
+  unfold wordPerm
+  split_ifs with ho hn
+  · simp only [oldValid] at ho
+    unfold oldToNew
+    omega
+  · simp only [newValid] at hn
+    dsimp only [newToOld]
+    omega
+  · exact h
+
 theorem queryPerm_node (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
     (hc : w0.toNat % 65536 = 2561) :
     queryPerm (queryOfWords 0 (w0 :: w1 :: ws)) =
       queryOfWords 0 (w0 :: BitVec.ofNat 64 (w1.toNat % 4294967296 +
         4294967296 * Rev.efield (w1.toNat / 4294967296)) :: ws) := by
-  rw [queryPerm, baseQueryPerm_node w0 w1 ws hlen hc]
-  apply LeafScale.queryRel_fixed
-  rw [queryOfWords_class, hc]
-  decide
+  rw [queryPerm, baseQueryPerm_node w0 w1 ws hlen hc,
+    LeafScale.queryRel_fixed _ (by rw [queryOfWords_class,hc]; decide),
+    EncodingSwap.query_fixed _ (by rw [queryOfWords_class,hc]; decide)]
 
 theorem queryPerm_words (w : Word) (ws : List Word) (hlen : ws.length = 7)
-    (hc : w.toNat % 65536 ≠ 2561) (h9 : w.toNat % 65536 ≠ 2305) :
+    (hc : w.toNat % 65536 ≠ 2561) (h9 : w.toNat % 65536 ≠ 2305)
+    (h4 : w.toNat % 65536 ≠ 1025) :
     queryPerm (queryOfWords 0 (w :: ws)) =
       queryOfWords 0 (BitVec.ofNat 64 (wordPerm w.toNat) :: ws) := by
-  rw [queryPerm, baseQueryPerm_words w ws hlen hc]
-  apply LeafScale.queryRel_fixed
-  rw [queryOfWords_class, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (wordPerm_lt _ w.isLt)]
-  exact wordPerm_leaf_class _ h9
+  have hleaf : (queryOfWords 0 (BitVec.ofNat 64 (wordPerm w.toNat) :: ws)).2.toNat%65536≠2305 := by
+    rw [queryOfWords_class, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (wordPerm_lt _ w.isLt)]
+    exact wordPerm_leaf_class _ h9
+  have henc : (queryOfWords 0 (BitVec.ofNat 64 (wordPerm w.toNat) :: ws)).2.toNat%65536≠1025 := by
+    rw [queryOfWords_class, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (wordPerm_lt _ w.isLt)]
+    exact wordPerm_encoding_class _ h4
+  rw [queryPerm,baseQueryPerm_words w ws hlen hc,LeafScale.queryRel_fixed _ hleaf,EncodingSwap.query_fixed _ henc]
 
 theorem leafRel_eq (a b R : Nat) (ha : a < 18446744073709551616) (hb : b < 18446744073709551616) :
     LeafScale.rel (a + 18446744073709551616 * (b + 18446744073709551616 * R)) =
@@ -172,16 +186,19 @@ theorem queryPerm_leaf (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
     rw [queryOfWords_class, hc]
   have hbase : baseQueryPerm (queryOfWords 0 (w0 :: w1 :: ws)) = queryOfWords 0 (w0 :: w1 :: ws) := by
     apply baseQueryPerm_fixed <;> omega
-  rw [queryPerm, hbase]
-  have hred : LeafScale.queryRel (queryOfWords 0 (w0 :: w1 :: ws)) =
-      ⟨0, BitVec.ofNat 512 (LeafScale.rel (queryOfWords 0 (w0 :: w1 :: ws)).2.toNat)⟩ := by
-    simp only [queryOfWords, LeafScale.queryRel] at hclsQ ⊢
-    rw [if_pos hclsQ]
-  rw [hred]
-  simp only [queryOfWords]
-  congr 1
-  apply BitVec.eq_of_toNat_eq
-  rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat, e1, e2, Nat.mod_eq_of_lt hN, key]
+  have hleaf : LeafScale.queryRel (queryOfWords 0 (w0 :: w1 :: ws)) =
+      queryOfWords 0 (w0 :: BitVec.ofNat 64 (w1.toNat % 4294967296 +
+        4294967296 * LeafScale.left3 (w1.toNat / 4294967296)) :: ws) := by
+    have hred : LeafScale.queryRel (queryOfWords 0 (w0 :: w1 :: ws)) =
+        ⟨0, BitVec.ofNat 512 (LeafScale.rel (queryOfWords 0 (w0 :: w1 :: ws)).2.toNat)⟩ := by
+      simp only [queryOfWords, LeafScale.queryRel] at hclsQ ⊢
+      rw [if_pos hclsQ]
+    rw [hred]
+    simp only [queryOfWords]
+    congr 1
+    apply BitVec.eq_of_toNat_eq
+    rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat, e1, e2, Nat.mod_eq_of_lt hN, key]
+  rw [queryPerm,hbase,hleaf,EncodingSwap.query_fixed _ (by rw [queryOfWords_class,hc];decide)]
 
 end SigGolfCandidate.Ref.AddressFormat
 
@@ -206,7 +223,8 @@ theorem addrFmt_eq_of_prefix (x : List Byte)
     (h0 : (x.getD 0 0).toNat % 64 ≠ 0)
     (h1 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 257)
     (h2 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 2561)
-    (h9 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 2305) :
+    (h9 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 2305)
+    (h4 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 1025) :
     addrFmt x = fmt x := by
   apply AddressFormat.queryPerm_fixed
   · have h := (fmt_low_bytes x).1
@@ -218,9 +236,11 @@ theorem addrFmt_eq_of_prefix (x : List Byte)
 
   · have h := fmt_low_bytes x
     omega
+  · have h := fmt_low_bytes x
+    omega
 
 theorem addrFmt_eq_th (t lay tau p j : Nat) (payload : List Byte)
-    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9) :
+    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 4) :
     addrFmt (thInput (tweak t lay tau p j) payload) =
       fmt (thInput (tweak t lay tau p j) payload) := by
   apply addrFmt_eq_of_prefix
@@ -232,9 +252,11 @@ theorem addrFmt_eq_th (t lay tau p j : Nat) (payload : List Byte)
 
   · simp [thInput, tweak, byte_toNat]
     omega
+  · simp [thInput, tweak, byte_toNat]
+    omega
 
 theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
-    (ht : byte t ∉ [byte 1, byte 3, byte 9, byte 10, byte 12]) :
+    (ht : byte t ∉ [byte 1, byte 3, byte 4, byte 9, byte 10, byte 12]) :
     addrFmt (thInput (tweak t lay tau p j) payload) =
       pad64 (thInput (tweak t lay tau p j) payload) := by
   have hb : ∀ k, k < 256 → byte t = byte k → t % 256 = k := by
@@ -242,15 +264,16 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
     have := congrArg BitVec.toNat h
     simp only [byte_toNat] at this
     omega
-  have h1 : t % 256 ≠ 1 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 := by
+  have h1 : t % 256 ≠ 1 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 4 := by
     have heq : ∀ k, t % 256 = k → byte t = byte k := by
       intro k h
       apply BitVec.eq_of_toNat_eq
       simp [byte_toNat, h, Nat.mod_eq_of_lt (show k < 256 by omega)]
-    refine ⟨?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_⟩
     · intro h; apply ht; simp [heq 1 h]
     · intro h; apply ht; simp [heq 10 h]
     · intro h; apply ht; simp [heq 9 h]
+    · intro h; apply ht; simp [heq 4 h]
   have ht' : byte t ∉ [byte 1, byte 3, byte 12] := by
     intro hm; apply ht; simp only [List.mem_cons, List.not_mem_nil, or_false] at hm ⊢; tauto
   rw [addrFmt_eq_th _ _ _ _ _ _ h1, fmt_thInput _ _ _ _ _ _ ht']
@@ -271,9 +294,19 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
   exact addrFmt_eq_th _ _ _ _ _ _ (by decide)
 
 @[simp] theorem addrFmt_encInput (lay tau e : Nat) (M : Val) (c : Nat) :
-    addrFmt (encInput lay tau e M c) = fmt (encInput lay tau e M c) := by
-  unfold encInput
-  exact addrFmt_eq_th _ _ _ _ _ _ (by decide)
+    addrFmt (encInput lay tau e M c) = EncodingSwap.query (fmt (encInput lay tau e M c)) := by
+  unfold addrFmt AddressFormat.queryPerm
+  congr 1
+  rw [AddressFormat.baseQueryPerm_fixed _ (by
+    have h := fmt_low_bytes (encInput lay tau e M c)
+    simp [encInput,thInput,tweak,byte_toNat] at h ⊢;omega) (by
+    have h := fmt_low_bytes (encInput lay tau e M c)
+    simp [encInput,thInput,tweak,byte_toNat] at h ⊢;omega) (by
+    have h := fmt_low_bytes (encInput lay tau e M c)
+    simp [encInput,thInput,tweak,byte_toNat] at h ⊢;omega)]
+  apply LeafScale.queryRel_fixed
+  have h := fmt_low_bytes (encInput lay tau e M c)
+  simp [encInput,thInput,tweak,byte_toNat] at h ⊢;omega
 
 @[simp] theorem addrFmt_porsPrfInput (S : List Byte) (idx q : Nat) :
     addrFmt (porsPrfInput S idx q) = fmt (porsPrfInput S idx q) := by
@@ -282,13 +315,18 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
 
 @[simp] theorem addrFmt_porsLeafInput (idx j : Nat) (v : Val) :
     addrFmt (porsLeafInput idx j v) = LeafScale.queryRel (fmt (porsLeafInput idx j v)) := by
+  have hbase : AddressFormat.baseQueryPerm (fmt (porsLeafInput idx j v)) = fmt (porsLeafInput idx j v) := by
+    apply AddressFormat.baseQueryPerm_fixed
+    all_goals
+      have h := fmt_low_bytes (porsLeafInput idx j v)
+      simp [porsLeafInput,thInput,tweak,byte_toNat] at h ⊢;omega
   unfold addrFmt AddressFormat.queryPerm
-  congr 1
-  apply AddressFormat.baseQueryPerm_fixed
-  all_goals
-    have h := fmt_low_bytes (porsLeafInput idx j v)
-    simp [porsLeafInput, thInput, tweak, byte_toNat] at h ⊢
-    omega
+  rw [hbase]
+  apply EncodingSwap.query_fixed
+  have h := fmt_low_bytes (porsLeafInput idx j v)
+  rw [LeafScale.queryRel_class]
+  simp [porsLeafInput,thInput,tweak,byte_toNat] at h ⊢
+  omega
 
 -- `addrFmt (porsNodeInput ..)` relabels the header field: see `Verify.Words.addrFmt_porsNodeInput`.
 
@@ -307,3 +345,35 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
   apply addrFmt_eq_of_prefix <;> simp [rndInput, byte_toNat]
 
 end SigGolfCandidate.Ref
+
+namespace SigGolfCandidate.Ref.EncodingSwap
+open SigGolfCandidate.Legacy SigGolfCandidate.Rv SigGolfCandidate.Ref.AddressFormat
+set_option exponentiation.threshold 1024
+set_option maxRecDepth 10000
+
+theorem query_words (w0 w1 w2 w3 w4 w5 w6 w7 : Word)
+    (hc : w0.toNat%65536=1025) :
+    query (queryOfWords 0 [w0,w1,w2,w3,w4,w5,w6,w7]) =
+      queryOfWords 0 [w0,w1,w2,w3,w6,w7,w4,w5] := by
+  let a := wordsToNat [w0,w1,w2,w3]
+  let b := wordsToNat [w4,w5]
+  let c := wordsToNat [w6,w7]
+  have ha : a<2^256 := wordsToNat_lt _
+  have hb : b<2^128 := wordsToNat_lt _
+  have hh : c<2^128 := wordsToNat_lt _
+  have hform : wordsToNat [w0,w1,w2,w3,w4,w5,w6,w7] = a+2^256*b+2^384*c := by
+    dsimp [a,b,c,wordsToNat];norm_num;ring
+  have hform' : wordsToNat [w0,w1,w2,w3,w6,w7,w4,w5] = a+2^256*c+2^384*b := by
+    dsimp [a,b,c,wordsToNat];norm_num;ring
+  have hn : wordsToNat [w0,w1,w2,w3,w4,w5,w6,w7]<2^512 := wordsToNat_lt _
+  have hc' : (queryOfWords 0 [w0,w1,w2,w3,w4,w5,w6,w7]).2.toNat%65536=1025 := by
+    rw [queryOfWords_class,hc]
+  change (BitVec.ofNat 512 (wordsToNat [w0,w1,w2,w3,w4,w5,w6,w7])).toNat%65536=1025 at hc'
+  change (if _ then _ else _) = _
+  rw [if_pos hc']
+  simp only [queryOfWords]
+  congr 1
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_ofNat]
+  rw [Nat.mod_eq_of_lt hn,hform,hform',word_eq a b c ha hb hh]
+end SigGolfCandidate.Ref.EncodingSwap

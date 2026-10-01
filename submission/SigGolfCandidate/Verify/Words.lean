@@ -287,6 +287,21 @@ theorem pad64_encInput (lay tau e : Nat) (M : Val) (hM : M.length = 16) (c : Nat
   simp only [w64, leNat_append, leNat_le32, leNat_zeros, Nat.mul_zero, Nat.add_zero]
   rfl
 
+/-- The encoding payload is exchanged with the counter/padding half by the
+bijective tag-4 query relabelling. -/
+theorem addrFmt_encInput_words (lay tau e : Nat) (M : Val) (hM : M.length = 16) (c : Nat) :
+    addrFmt (encInput lay tau e M c) = queryOfWords 0
+      [BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0,
+        BitVec.ofNat 64 (c % 2 ^ 32), 0, vw0 M, vw1 M] := by
+  have hf : fmt (encInput lay tau e M c) = pad64 (encInput lay tau e M c) :=
+    fmt_thInput _ _ _ _ _ _ (by decide)
+  rw [addrFmt_encInput, hf, pad64_encInput _ _ _ _ hM]
+  apply EncodingSwap.query_words
+  simp only [BitVec.toNat_ofNat]
+  rw [Nat.mod_mod_of_dvd _ (by decide : 65536 ∣ 2 ^ 64)]
+  unfold twLo
+  omega
+
 theorem pad64_leafInput (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
     (hv : ∀ v ∈ ends, v.length = 16) :
     pad64 (leafInput lay tau e ends) = queryOfWords 10

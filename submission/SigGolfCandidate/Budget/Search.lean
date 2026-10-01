@@ -50,8 +50,10 @@ theorem probEvent_not_uniform (P : BitVec 256 → Prop) [DecidablePred P] :
 /-! ## Counter search -/
 
 theorem fmt_encInput (lay tau e : Nat) (M : Val) (c : Nat) :
-    addrFmt (encInput lay tau e M c) = pad64 (encInput lay tau e M c) :=
-  fmt_eq_pad64 _ _ _ _ _ _ (by decide)
+    addrFmt (encInput lay tau e M c) = EncodingSwap.query (pad64 (encInput lay tau e M c)) := by
+  rw [addrFmt_encInput]
+  congr 1
+  exact fmt_thInput _ _ _ _ _ _ (by decide)
 
 theorem fmt_rndInput (S m : List Byte) (a : Nat) : addrFmt (rndInput S m a) = pad64 (rndInput S m a) :=
   by rw [addrFmt_rndInput]; simp [fmt, IsChainFmt, IsNodeFmt, IsDigestFmt, IsPadChainFmt, rndInput, byte]
@@ -59,7 +61,8 @@ theorem fmt_rndInput (S m : List Byte) (a : Nat) : addrFmt (rndInput S m a) = pa
 theorem enc_inj (lay tau e : Nat) (M : Val) {c c' : Nat} (hc : c < 2 ^ 32) (hc' : c' < 2 ^ 32)
     (h : addrFmt (encInput lay tau e M c) = addrFmt (encInput lay tau e M c')) : c = c' := by
   rw [fmt_encInput, fmt_encInput] at h
-  have h2 := pad64_inj (by simp [encInput]) h
+  have hh := EncodingSwap.query_involutive.injective h
+  have h2 := pad64_inj (by simp [encInput]) hh
   simp only [encInput, thInput, List.append_assoc, List.append_cancel_left_eq] at h2
   exact le32_inj hc hc' h2
 

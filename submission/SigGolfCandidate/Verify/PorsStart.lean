@@ -33,15 +33,15 @@ theorem ctr_word (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (
     show 2944 + 4 * (2 * i + 1) = 2944 + 8 * i + 4 by omega]
 
 theorem ctr_word4 (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (hW : WitAll wl s) :
-    ((extractWord32 (s.getMem (BitVec.ofNat 64 4440)) 0).zeroExtend 64).toNat = witCounter wl 4 := by
-  rw [show (4440 : Nat) = 0x800 + 2392 from rfl, wit_word_all hW _ (by omega) (by omega)]
+    ((extractWord32 (s.getMem (BitVec.ofNat 64 4696)) 0).zeroExtend 64).toNat = witCounter wl 4 := by
+  rw [show (4696 : Nat) = 0x800 + 2648 from rfl, wit_word_all hW _ (by omega) (by omega)]
   simp only [extractWord32, BitVec.truncate_eq_setWidth, BitVec.toNat_setWidth,
     BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
   rw [w64_toNat _ (by simp [slice]), pleNat_slice8 _ _ (by omega)]
   simp only [witCounter, ctrOff, show ¬ (4 < 4) by omega, if_false, wC4_eq]
-  have := leNat_lt (slice wl 2392 4)
-  have l4 : (slice wl 2392 4).length ≤ 4 := by simp [slice]
-  have : leNat (slice wl 2392 4) < 2 ^ 32 :=
+  have := leNat_lt (slice wl 2648 4)
+  have l4 : (slice wl 2648 4).length ≤ 4 := by simp [slice]
+  have : leNat (slice wl 2648 4) < 2 ^ 32 :=
     lt_of_lt_of_le this (le_trans (Nat.pow_le_pow_right (by decide) l4) (by norm_num))
   norm_num
   omega
@@ -51,7 +51,7 @@ theorem ctr_iff (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (h
   have e : ctrE'.eval s = (ctrX.eval s ||| (ctrX.eval s <<< ((BitVec.ofNat 64 32).toNat % 64))) >>>
       ((BitVec.ofNat 64 54).toNat % 64) := rfl
   have ex : ctrX.eval s = s.getMem (BitVec.ofNat 64 4992) ||| s.getMem (BitVec.ofNat 64 5000) |||
-      (extractWord32 (s.getMem (BitVec.ofNat 64 4440)) 0).zeroExtend 64 := rfl
+      (extractWord32 (s.getMem (BitVec.ofNat 64 4696)) 0).zeroExtend 64 := rfl
   have hx := (ctrX.eval s).isLt
   have hsh : ctrE'.eval s = 0 ↔ (ctrX.eval s).toNat % 2 ^ 32 < 2 ^ 22 ∧ (ctrX.eval s).toNat / 2 ^ 32 < 2 ^ 22 := by
     rw [e, ← ctr_shift_iff _ hx]
@@ -167,13 +167,12 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
     have hG : Glob gkD wl pkl u := hu.glob _ _ _ hG0
     refine ⟨u, hu.steps, hu.ecall rfl, hKd (.x5, 0) (by simp [dgK, gkD, baseK]),
       hashArgs_ofNat _ _ _ _ h10 h11 h12 (by omega) (by omega) (by omega) (by decide), ?_, ?_⟩
-    · have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; omega
+    · have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; rw [wRho_eq]; omega
       rw [hashInput_ofNat _ 0x20 0 h10 h11 (by decide) (by decide), fmt_digestInput_words _ _ hrho hml]
       congr 1
       simp only [List.range, List.range.loop, List.map, Nat.reduceAdd, Nat.reduceMul, Nat.add_zero,
         Nat.mul_zero, Nat.zero_add, wordsOfN, List.cons_append, List.nil_append, List.cons.injEq]
-      have w0 := hW 0 (by decide); have w1 := hW 1 (by decide)
-      simp only [Nat.mul_zero, Nat.add_zero, Nat.mul_one, Nat.reduceAdd] at w0 w1
+      have w0 := hW 376 (by decide); have w1 := hW 377 (by decide)
       have m0 := hM 0 (by decide); have m1 := hM 1 (by decide); have m2 := hM 2 (by decide)
       have m3 := hM 3 (by decide)
       simp only [Nat.mul_zero, Nat.add_zero, Nat.mul_one, Nat.reduceAdd, Nat.reduceMul] at m0 m1 m2 m3
@@ -185,11 +184,11 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
       · rw [hmem]; simp only [specStartOk]
         rw [memEval_cons_ne _ _ _ _ _ (by decide), memEval_cons_eq _ _ _ _ _ rfl]
         simp only [ldE, cw, Rv.E.eval]
-        rw [show (2048 : Nat) = 0x800 + 8 * 0 from rfl, w0, witRho, vw0_slice]
+        rw [show (5056 : Nat) = 0x800 + 8 * 376 from rfl, w0, witRho, vw0_slice, wRho_eq]
       · rw [hmem]; simp only [specStartOk]
         rw [memEval_cons_eq _ _ _ _ _ rfl]
         simp only [ldE, cw, Rv.E.eval]
-        rw [show (2056 : Nat) = 0x800 + 8 from rfl, w1, witRho, vw1_slice]
+        rw [show (5064 : Nat) = 0x800 + 8 * 377 from rfl, w1, witRho, vw1_slice, wRho_eq]
       · rw [mfr 64 (by omega) (by omega) (by omega) (by omega), m0]; rfl
       · rw [mfr 72 (by omega) (by omega) (by omega) (by omega), m1]; rfl
       · rw [mfr 80 (by omega) (by omega) (by omega) (by omega), m2]; simp [slice, List.drop_drop]
@@ -396,6 +395,6 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
   · rw [hK' (.x14, 0x7C0) (by simp [setupPost])]; rfl
   · rw [hK' (.x18, BitVec.ofNat 64 FLIM) (by simp [setupPost])]
   · rw [hK' (.x15, 0) (by simp [setupPost])]; rfl
-  · simp [SegBnd, wStream, wSec, porsK]
+  · simp [SegBnd, wStream, wPi, porsK]
 
 end SigGolfCandidate.Verify

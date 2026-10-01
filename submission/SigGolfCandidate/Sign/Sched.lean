@@ -4,7 +4,7 @@ import SigGolfCandidate.Sign.SchedB
 # `sign`, the authentication nodes in read order (`schedule_loop`, instructions 238 .. 295)
 
 `sched_run` : from `238` (the PORS levels in memory, `levels[l]` at `lvBase l`), the root goes
-to `EB + 32` and the schedule of the sorted leaves `vs` (`Ref.schedule`) copies the read node
+to `EB + 48` and the schedule of the sorted leaves `vs` (`Ref.schedule`) copies the read node
 `levels[h][j]` of read `r` to `SIG + 256 + 16 r` (`AP`, `x29`). The machine keeps the stack of
 pending sibling heap indices at `STK + 8 ..` (`STP`, `x23`; `STK + 0 = 0` is the bottom sentinel).
 -/
@@ -362,15 +362,15 @@ theorem sch_loop (levels : List (List Val)) (L : List Nat) (t0 : MachineState) (
     rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
     exact h2
 
-/-- **The schedule** (from 238): the root to `EB + 32`, the reads of `schedule vs` to the
+/-- **The schedule** (from 238): the root to `EB + 48`, the reads of `schedule vs` to the
 signature's auth slots; ends at 296. -/
 theorem sched_run (levels : List (List Val)) (L : List Nat) (t : MachineState) (ctx : SchCtx levels L t)
     (tpc : t.pc = pcOf 238) (t19 : t.getReg .x19 = BitVec.ofNat 64 (lvBase 14)) :
     ∃ k c t', Steps image t k c t' ∧ c ≤ 11 + 15 * 345 ∧ t'.pc = pcOf 296 ∧
-      t'.readWords (BitVec.ofNat 64 0x120) 2 = wordsOf ((levels.getD 14 []).getD 0 []) ∧
+      t'.readWords (BitVec.ofNat 64 0x130) 2 = wordsOf ((levels.getD 14 []).getD 0 []) ∧
       ReadsAt levels (schedule (L.map keyV)).2 t' ∧
       RegsEq t t' schRegs ∧
-      Frame t t' (fun a => (0x120 ≤ a ∧ a < 0x130) ∨ schW' (schedule (L.map keyV)).2.length a) := by
+      Frame t t' (fun a => (0x130 ≤ a ∧ a < 0x140) ∨ schW' (schedule (L.map keyV)).2.length a) := by
   have hs1 := symRun_sound blk238 codeAt_238 t tpc (by
     simp only [blk238.res, rv_simp, t19, accessValid_ofNat, ofNat_add_ofNat]; unfold lvBase; norm_num)
   set t1 := blk238.res.toState t with ht1
@@ -379,8 +379,8 @@ theorem sched_run (levels : List (List Val)) (L : List Nat) (t : MachineState) (
   have hroot := (ctx.lvslots 14 (by norm_num)) 0 (by rw [ctx.lvlen 14 (by norm_num)]; norm_num)
   simp only [Nat.mul_zero, Nat.add_zero] at hroot
   have hm1 : ∀ a : Nat, a < 2 ^ 64 → t1.getMem (BitVec.ofNat 64 a) =
-      if a = 0x760 then 0 else if a = 0x128 then t.getMem (BitVec.ofNat 64 (lvBase 14 + 8))
-      else if a = 0x120 then t.getMem (BitVec.ofNat 64 (lvBase 14)) else t.getMem (BitVec.ofNat 64 a) := by
+      if a = 0x760 then 0 else if a = 0x138 then t.getMem (BitVec.ofNat 64 (lvBase 14 + 8))
+      else if a = 0x130 then t.getMem (BitVec.ofNat 64 (lvBase 14)) else t.getMem (BitVec.ofNat 64 a) := by
     intro a ha
     simp only [ht1, blk238.res, rv_simp, t19, ofNat_add_ofNat, ofNat_eq_iff]
     have : lvBase 14 = 0xB0000 - 32 := rfl
@@ -415,8 +415,8 @@ theorem sched_run (levels : List (List Val)) (L : List Nat) (t : MachineState) (
     (r1.trans rg2).mono (by intro q hq; simp [schRegs] at hq ⊢; tauto), ?_⟩
   · rw [fr2.readWords _ _ (by norm_num) (by intro i hi; simp only [schW']; omega), readWords_ofNat_two,
       hm1 _ (by norm_num), hm1 _ (by norm_num)]
-    simp only [show ¬ ((0x120 : Nat) = 0x760) by norm_num, show ¬ ((0x128 : Nat) = 0x760) by norm_num,
-      show ¬ ((0x120 : Nat) = 0x128) by norm_num, if_false, if_true]
+    simp only [show ¬ ((0x130 : Nat) = 0x760) by norm_num, show ¬ ((0x138 : Nat) = 0x760) by norm_num,
+      show ¬ ((0x130 : Nat) = 0x138) by norm_num, if_false, if_true]
     rw [← readWords_ofNat_two, hroot]
     exact congrArg wordsOf (getD_of_lt (by rw [ctx.lvlen 14 (by norm_num)]; norm_num)).symm
   · intro a ha hW
