@@ -39,7 +39,7 @@ theorem PCtx.idx_lt (P : PCtx) : P.idx < 2 ^ 34 := Nat.mod_lt _ (by decide)
 
 /-- Zero words (the `P` slots of all hash buffers and stack blocks, `CB + 48 .. 64`). -/
 def zeroP : List Nat :=
-  [0xD0, 0xD8, 0xF0, 0xF8, 0x110, 0x118, 0x1D0, 0x1D8, 0x230, 0x238] ++
+  [ 0xD0, 0xD8, 0xF0, 0xF8, 0x110, 0x118, 0x1D0, 0x1D8, 0x230, 0x238] ++
     (List.range 14).flatMap fun i => [PSB + 80 * i + 16, PSB + 80 * i + 24]
 
 theorem zeroP_sub : ∀ a ∈ zeroP, a ∈ protP := by decide
@@ -55,7 +55,7 @@ structure S0 (P : PCtx) (s0 : MachineState) : Prop where
   nb0 : s0.getMem (BitVec.ofNat 64 0x1C0) = BitVec.ofNat 64 (twLo 10 0 P.idx 0)
   blk0 : ∀ i, i < 14 → s0.getMem (BitVec.ofNat 64 (PSB + 80 * i)) = BitVec.ofNat 64 (twLo 10 0 P.idx 0)
   half : ∀ a ∈ halfP, (s0.getMem (BitVec.ofNat 64 a)).toNat % 2 ^ 32 = P.idx % 2 ^ 32
-  guard : s0.getMem (BitVec.ofNat 64 0x240) = -1#64
+  guard : s0.getMem (BitVec.ofNat 64 0x240) = 0x100000000#64
   pind : ∀ r, r < 16 → s0.getMem (BitVec.ofNat 64 (PIND + 8 * r)) =
     BitVec.ofNat 64 ((P.v ++ [porsT]).getD r 0)
 
@@ -80,7 +80,7 @@ def StackOK (stk : List (Val × Nat)) (m : MachineState) : Prop :=
     m.getMem (BitVec.ofNat 64 (blkL i + 8)) = vw1 (stkE stk i).1 ∧
     (stkE stk i).1.length = 16 ∧ (stkE stk i).2 < 2 ^ 15
 
-/-- Physical stack address at depth `d`; the register itself holds `stkReg d`. -/
+/-- `STK` at depth `d`. -/
 def stkOf' (d : Nat) : Nat := EMPTY + 80 * d
 
 /-! ## Pending hash inputs -/

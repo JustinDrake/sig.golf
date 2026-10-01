@@ -9,7 +9,7 @@ The root tail (into the layers), then `GoodQ` for the ladder (`segFolds`), one s
 
 Cycle bounds: a segment with `a` folds costs `15` if `a = 0` (dispatch 4, table slot 3, pending
 hash 8) and `16 + 17 a` if `a ≥ 1` (the slot's inlined parity test adds 1; `17 a` for the folds incl.
-the entry tail), at most `16 + 17 a` in both cases; tails: merge 6, push 4, root 17 (W1a: the root tail also sets `t3`, `sp`, `a5`, `a4`; the masks are loaded from the data words).
+the entry tail), at most `16 + 17 a` in both cases; tails: merge 6, push 4, root 16 (W1a: the root tail also sets `t3`, `sp`, `a5`).
 -/
 
 set_option linter.unusedSimpArgs false
@@ -203,21 +203,21 @@ def layN : Nat := 5000 * 5 + 9
 /-- The layers' cost `LayerGood.layersCost 5` (a literal here, so that the PORS part does not depend
 on the layer modules; `Top.layC_val` proves the equality). Irreducible, so that unification never
 evaluates it. -/
-@[irreducible] def layC : Nat := 7920
-def leafCost (s : Nat) : Nat := if s = 0 then 10 else if s = 14 then 15 else 11
+@[irreducible] def layC : Nat := 7911
+def leafCost (s : Nat) : Nat := if s = 0 then 10 else if s = 14 then 14 else 11
 def lrest (s : Nat) : Nat := ((List.range' (s + 1) (14 - s)).map leafCost).sum
 def segR (s d : Nat) : Nat := 29 - 2 * s + d
 
 def Cseg (s d : Nat) : Nat :=
-  256 * segR s d + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 17 + layC
+  256 * segR s d + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 15 + layC
 def Aseg (s d F : Nat) : Nat :=
-  16 * segR s d + 17 * (118 - F) + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 17 + layC
+  16 * segR s d + 17 * (118 - F) + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 15 + layC
 def Nseg (s d : Nat) : Nat := Cseg s d + layN
 
 /-- After the leaf's last segment (before the push / root tail). -/
-def CtailPF (s d : Nat) : Nat := if s = 14 then 17 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
+def CtailPF (s d : Nat) : Nat := if s = 14 then 15 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
 def AtailPF (s d F : Nat) : Nat :=
-  if s = 14 then 17 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
+  if s = 14 then 15 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
 def NtailPF (s d : Nat) : Nat := CtailPF s d + layN
 
 /-- Before a merge tail. -/
@@ -343,13 +343,13 @@ theorem segLoop_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat)
 
 /-! ## The leaves -/
 
-theorem leafCost_eq (s : Nat) : (if s = 0 then 10 else if s = 14 then 15 else 11) = leafCost s := rfl
+theorem leafCost_eq (s : Nat) : (if s = 0 then 10 else if s = 14 then 14 else 11) = leafCost s := rfl
 
 theorem leaves_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
     (Kr : Option PorsState → OracleComp HashSpec Obs) (hnone : Kr none = pure (false, 0))
     (hKr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (17 + layC + layN) (17 + layC) (st.folds ≤ 118) (17 + layC) (Kr (some st))) :
+      GoodQ u (15 + layC + layN) (15 + layC) (st.folds ≤ 118) (15 + layC) (Kr (some st))) :
     ∀ n s (st : PorsState) m, s + n = 15 → LeafIn P s0 s st m →
       GoodQ m (leafCost s + Nseg s st.stack.length) (leafCost s + Cseg s st.stack.length) (st.folds ≤ 118)
         (leafCost s + Aseg s st.stack.length st.folds)

@@ -343,25 +343,30 @@ def tableKey (secretKey : Seeded.SecretKey) : SecretKey where
 
 /-- The cache holds the top tree the seeded key's secrets span, each node masked with its derived mask. -/
 def CacheHonest (secretKey : Seeded.SecretKey) (cache : TopCache) : Prop :=
-  ∀ (level : Nat) (hlevel : level < maxLayerHeight) (nodeIdx : Nat)
-    (hnodeIdx : nodeIdx < 2 ^ (maxLayerHeight - level)),
-    cache.region ⟨level, hlevel⟩ ⟨nodeIdx, hnodeIdx⟩
+  ∀ (level : Nat), 0 < level → level < maxLayerHeight → ∀ (nodeIdx : Nat),
+    nodeIdx < 2 ^ (maxLayerHeight - level) →
+    cache.node level nodeIdx
       = honestNode f secretKey.parameter topLayer rootTree
           (fun leaf chainIdx => unpairedOts f (Seeded.otsSecret secretKey.parameter secretKey.seed topLayer rootTree leaf) chainIdx) level nodeIdx
         ^^^ evalWithAnswerFn f (Seeded.maskSecret secretKey.parameter secretKey.seed level nodeIdx
           : OracleComp HashSpec Digest)
 
-/-- Reading an honest cache unmasks to the top tree: the mask derivation returns the mask the node
-was stored under. -/
+/-- Reconstructing level zero and unmasking authenticated positive levels both yield the top tree. -/
 theorem cachedTopNode_agrees (secretKey : Seeded.SecretKey) (cache : TopCache)
     (hcache : CacheHonest f secretKey cache) :
     TopAgrees f (tableKey f secretKey) (Seeded.cachedTopNode secretKey.parameter secretKey.seed cache) := by
   intro level hlevel nodeIdx hnodeIdx
-  have hnode : cache.node level nodeIdx = cache.region ⟨level, hlevel⟩ ⟨nodeIdx, hnodeIdx⟩ := by
-    simp only [TopCache.node, dif_pos hlevel, dif_pos hnodeIdx]
-  simp only [Seeded.cachedTopNode, evalWithAnswerFn_bind, evalWithAnswerFn_pure]
-  rw [hnode, hcache level hlevel nodeIdx hnodeIdx, BitVec.xor_assoc, BitVec.xor_self, BitVec.xor_zero]
-  rfl
+  by_cases hz : level = 0
+  · subst level
+    simp only [Seeded.cachedTopNode, if_true, evalWithAnswerFn_bind, evalWithAnswerFn_pure]
+    rw [eval_buildLeafPaired, eval_buildLeaf f secretKey.parameter topLayer rootTree
+      (fun leaf chainIdx => pure (unpairedOts f
+        (Seeded.otsSecret secretKey.parameter secretKey.seed topLayer rootTree leaf) chainIdx))]
+    simp only [evalWithAnswerFn_pure, tableKey, leafOfNat]
+    rw [Nat.mod_eq_of_lt (by simpa only [Nat.sub_zero] using hnodeIdx)]
+  · simp only [Seeded.cachedTopNode, if_neg hz, evalWithAnswerFn_bind, evalWithAnswerFn_pure]
+    rw [hcache level (by omega) hlevel nodeIdx hnodeIdx, BitVec.xor_assoc, BitVec.xor_self, BitVec.xor_zero]
+    rfl
 
 /-- The digest the signer accepted. -/
 def digestValue (secretKey : Seeded.SecretKey) (message : Message) (randomness : Randomness) :
@@ -551,10 +556,10 @@ theorem keygenTableValue_eq (seed : MasterSeed) (level : Nat) (hlevel : level �
   exact eval_buildLayerTablePaired_node f 0 topLayer rootTree _ _ _ level hlevel nodeIdx hnodeIdx
 
 theorem eval_maskRegion (parameter : PublicParameter) (seed : MasterSeed) (table : Nat → Nat → Digest)
-    (level : Fin maxLayerHeight) (nodeIdx : Fin (2 ^ (maxLayerHeight - level.val))) :
+    (level : Fin (maxLayerHeight - 1)) (nodeIdx : Fin (2 ^ (maxLayerHeight - (level.val + 1)))) :
     evalWithAnswerFn f (Seeded.maskRegion parameter seed table : OracleComp HashSpec TopRegion) level nodeIdx
-      = table level.val nodeIdx.val ^^^ evalWithAnswerFn f
-          (Seeded.maskSecret parameter seed level.val nodeIdx.val : OracleComp HashSpec Digest) := by
+      = table (level.val + 1) nodeIdx.val ^^^ evalWithAnswerFn f
+          (Seeded.maskSecret parameter seed (level.val + 1) nodeIdx.val : OracleComp HashSpec Digest) := by
   simp only [Seeded.maskRegion, evalWithAnswerFn_bind, evalWithAnswerFn_sequenceFin,
     evalWithAnswerFn_pure, dif_pos nodeIdx.isLt]
 
@@ -566,14 +571,20 @@ theorem cacheHonest_of_table (seed : MasterSeed) (root : Digest) (tag : HashOutp
         (fun leaf chainIdx => unpairedOts f (Seeded.otsSecret 0 seed topLayer rootTree leaf) chainIdx) level nodeIdx) :
     CacheHonest f ⟨seed, 0, root⟩
       ⟨tag, evalWithAnswerFn f (Seeded.maskRegion 0 seed table : OracleComp HashSpec TopRegion)⟩ := by
-  intro level hlevel nodeIdx hnodeIdx
+  intro level hpos hlevel nodeIdx hnodeIdx
   have hheight : layerHeight topLayer = maxLayerHeight := rfl
-  have hmask := eval_maskRegion f 0 seed table ⟨level, hlevel⟩ ⟨nodeIdx, hnodeIdx⟩
-  dsimp only at hmask
+  let row : Fin (maxLayerHeight - 1) := ⟨level - 1, by omega⟩
+  have he : row.val + 1 = level := by dsimp [row]; omega
+  let node : Fin (2 ^ (maxLayerHeight - (row.val + 1))) := ⟨nodeIdx, by rw [he]; exact hnodeIdx⟩
+  have hmask := eval_maskRegion f 0 seed table row node
+  conv at hmask =>
+    rhs
+    change table (row.val + 1) nodeIdx ^^^ evalWithAnswerFn f (Seeded.maskSecret 0 seed (row.val + 1) nodeIdx : OracleComp HashSpec Digest)
+    rw [he]
   rw [htable level (by rw [hheight]; omega) nodeIdx (by rw [hheight]; exact hnodeIdx)] at hmask
   -- reduce the key's projections first: comparing them unreduced unfolds the evaluations
   dsimp only
-  exact hmask
+  simpa only [TopCache.node, dif_pos (show 0 < level ∧ level < maxLayerHeight from ⟨hpos, hlevel⟩), dif_pos hnodeIdx, row, node] using hmask
 
 /-- The cache key generation writes is honest for the key it returns. -/
 theorem keygen_cacheHonest (seed : MasterSeed) (tag : HashOutput) :

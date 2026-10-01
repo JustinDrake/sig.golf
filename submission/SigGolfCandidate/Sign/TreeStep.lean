@@ -55,8 +55,8 @@ structure StepPar where
 structure StepCtx (p : StepPar) (ts : MachineState) : Prop where
   hlay : p.lay < 7
   htau : p.tau < 2 ^ 30
-  he : p.e < 64
-  hep : p.ep < 64
+  he : p.e < 2048
+  hep : p.ep < 2048
   hi : p.i < 42
   hxi : p.xi < 8
   hsigl : p.sigl = 0x900 + 856 * p.lay

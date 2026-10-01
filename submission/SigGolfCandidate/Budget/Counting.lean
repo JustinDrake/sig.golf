@@ -13,7 +13,7 @@ For a uniform answer `u : BitVec 256`:
   (`probEvent_answerBytes_mem_le`);
 * the encoding decodes with probability exactly `codeCount lay / 2^128`, where
   `codeCount lay` counts the pairs of 21-digit octal
-  words with the selected layer target sum (181 or 183) (`probEvent_decode_none`). The count is a generating-function identity
+  words with the selected layer target sum (181, 182, or 183) (`probEvent_decode_none`). The count is a generating-function identity
   evaluated by the kernel (`codeCount_eq`), as in the leanVM completeness proof.
 -/
 
@@ -247,6 +247,7 @@ variable {lay : Nat}
 
 def codeCount (lay : Nat) : Nat :=
   if 4 ≤ lay then 120626508116675256487918723077579392
+  else if 3 ≤ lay then 142011337208683198491175192637617680
   else 166377570312823648881394061712938016
 
 theorem gfDigit_eq (X : Nat) : gfDigit X = 1 + X + X ^ 2 + X ^ 3 + X ^ 4 + X ^ 5 + X ^ 6 + X ^ 7 := by
@@ -257,9 +258,13 @@ theorem npair_target : npair 21 (targetFor lay) = codeCount lay := by
   · simp only [targetFor, targetSum, h, if_true, Nat.reduceAdd, codeCount]
     rw [npair_coeff 21 183 (2 ^ 128) (by norm_num) (by norm_num), gfDigit_eq]
     decide
-  · simp only [targetFor, targetSum, h, if_false, Nat.add_zero, codeCount]
-    rw [npair_coeff 21 181 (2 ^ 128) (by norm_num) (by norm_num), gfDigit_eq]
-    decide
+  · by_cases h3 : 3 ≤ lay
+    · simp only [targetFor, targetSum, h, h3, if_false, if_true, Nat.reduceAdd, codeCount]
+      rw [npair_coeff 21 182 (2 ^ 128) (by norm_num) (by norm_num), gfDigit_eq]
+      decide
+    · simp only [targetFor, targetSum, h, h3, if_false, Nat.add_zero, codeCount]
+      rw [npair_coeff 21 181 (2 ^ 128) (by norm_num) (by norm_num), gfDigit_eq]
+      decide
 
 /-- The decoding condition on the low 128 bits `k`. -/
 def Dok (lay k : Nat) : Prop :=

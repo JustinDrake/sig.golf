@@ -1,5 +1,6 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.GameExpansion
 import SigGolfCandidate.SphincsSecurity.Proof.Reference.QueryBound
+import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.InternalCacheBridge
 
 /-!
 # Eliminating the cache MAC and the node masks
@@ -32,6 +33,17 @@ namespace SphincsSecurity.Seeded
 set_option backward.isDefEq.respectTransparency false
 
 open Concrete
+
+/-- The cached table signer after erasing the keygen-cached leaf reconstruction. -/
+def pureTableSignChecked (randomizers : RandomizerOutputs) (masks : MaskOutputs)
+    (key : SphincsSecurity.SecretKey) (cache : TopCache) (message : Message) :
+    OracleComp HashSpec (Option Signature) :=
+  InternalCache.checkedSign randomizers key (InternalCache.pureNode key cache masks) message
+
+def pureTableSign (randomizers : RandomizerOutputs) (masks : MaskOutputs) (macs : MacOutputs)
+    (key : SphincsSecurity.SecretKey) (cache : TopCache) (message : Message) :
+    OracleComp HashSpec (Option Signature) :=
+  InternalCache.authenticatedSign InternalCache.pureNode randomizers key masks macs cache message
 
 /-- Run an experiment adversary against a logged request signer. -/
 noncomputable def requestLoggedRun {α : Type} (impl : SigningRequest → OracleComp OracleWorld (Option Signature))
@@ -245,17 +257,25 @@ end Congruence
 the region. -/
 theorem cachedTableSignChecked_eq_tableSign (randomizers : RandomizerOutputs) (masks : MaskOutputs)
     (secretKey : SphincsSecurity.SecretKey) (cache : TopCache)
-    (h : ∀ level nodeIdx, level < maxLayerHeight → nodeIdx < 2 ^ (maxLayerHeight - level) →
+    (h : ∀ level nodeIdx, 0 < level → level < maxLayerHeight → nodeIdx < 2 ^ (maxLayerHeight - level) →
       cache.node level nodeIdx ^^^ maskValue masks level nodeIdx = secretKey.top level nodeIdx)
     (message : Message) :
-    cachedTableSignChecked randomizers masks secretKey cache message = tableSign randomizers secretKey message := by
-  unfold cachedTableSignChecked tableSign
+    pureTableSignChecked randomizers masks secretKey cache message = tableSign randomizers secretKey message := by
+  unfold pureTableSignChecked InternalCache.checkedSign tableSign
   refine bind_congr fun attempt => ?_
   rcases attempt with _ | ⟨randomness, index, leaves⟩
   · rfl
   · dsimp only
     rw [Concrete.signAfterDigest]
-    exact signFrom_congr _ _ _ _ (fun level nodeIdx hl hn => by simp only [h level nodeIdx hl hn]) _ _
+    apply signFrom_congr
+    intro level nodeIdx hl hn
+    unfold InternalCache.pureNode
+    by_cases hz : level = 0
+    · subst level
+      simp only [leafOfNat, Nat.sub_zero] at hn ⊢
+      rw [Nat.mod_eq_of_lt hn]
+      simp only [if_true]
+    · rw [if_neg hz, h level nodeIdx (by omega) hl hn]
 
 /-! ## Moving the masks -/
 
@@ -296,21 +316,21 @@ theorem maskValue_maskShift (top : Nat → Nat → Digest) (masks : MaskOutputs)
   simp only [maskValue, maskShift, truncateHash_xor_setWidth, h1, h2]
 
 /-- The simulator's region: the masks themselves. -/
-def simRegion (masks : MaskOutputs) : TopRegion := fun level nodeIdx => maskValue masks level.val nodeIdx.val
+def simRegion (masks : MaskOutputs) : TopRegion := fun level nodeIdx => maskValue masks (level.val + 1) nodeIdx.val
 
 theorem tableRegion_maskShift (top : Nat → Nat → Digest) (masks : MaskOutputs) :
     tableRegion top (maskShift top masks) = simRegion masks := by
   funext level nodeIdx
-  simp only [tableRegion, simRegion, maskValue_maskShift top masks level.isLt nodeIdx.isLt]
+  simp only [tableRegion, simRegion, maskValue_maskShift top masks (by omega : level.val + 1 < maxLayerHeight) nodeIdx.isLt]
   rw [BitVec.xor_comm, BitVec.xor_assoc]
   simp
 
 theorem simRegion_node_unmask (top : Nat → Nat → Digest) (masks : MaskOutputs) (tag : HashOutput)
-    {level nodeIdx : Nat} (hlevel : level < maxLayerHeight) (hnode : nodeIdx < 2 ^ (maxLayerHeight - level)) :
+    {level nodeIdx : Nat} (hpos : 0 < level) (hlevel : level < maxLayerHeight) (hnode : nodeIdx < 2 ^ (maxLayerHeight - level)) :
     (⟨tag, simRegion masks⟩ : TopCache).node level nodeIdx ^^^ maskValue (maskShift top masks) level nodeIdx =
       top level nodeIdx := by
   rw [maskValue_maskShift top masks hlevel hnode]
-  simp [TopCache.node, hlevel, hnode, simRegion]
+  simp [TopCache.node, hpos, hlevel, hnode, simRegion, Nat.sub_add_cancel (by omega : 1 ≤ level)]
 
 
 /-! ## The MAC check, up to bad requests -/
@@ -328,15 +348,15 @@ def MacBad (region : TopRegion) (table : MacOutputs) (request : SigningRequest) 
 theorem cachedTableSign_eq_modSign (randomizers : RandomizerOutputs) (outputs : SecretOutputs)
     (top : Nat → Nat → Digest) (masks : MaskOutputs) (tag : HashOutput) (table : MacOutputs)
     (request : SigningRequest) (hgood : ¬MacBad (simRegion masks) table request) :
-    cachedTableSign randomizers (maskShift top masks) (Function.update table (simRegion masks) tag)
+    pureTableSign randomizers (maskShift top masks) (Function.update table (simRegion masks) tag)
         (tableKey 0 top outputs) request.cache request.message =
       modSign randomizers (tableKey 0 top outputs) ⟨tag, simRegion masks⟩ request.cache request.message := by
-  unfold cachedTableSign modSign
+  unfold pureTableSign InternalCache.authenticatedSign modSign
   by_cases hcache : request.cache = ⟨tag, simRegion masks⟩
   · rw [hcache, if_pos rfl]
     simp only [Function.update_self, if_true]
     exact cachedTableSignChecked_eq_tableSign _ _ _ _
-      (fun level nodeIdx hl hn => simRegion_node_unmask top masks tag hl hn) _
+      (fun level nodeIdx hp hl hn => simRegion_node_unmask top masks tag hp hl hn) _
   · rw [if_neg hcache, if_neg]
     intro htag
     by_cases hregion : request.cache.region = simRegion masks
@@ -654,7 +674,7 @@ published region. -/
 noncomputable def realImpl (randomizers : RandomizerOutputs) (outputs : SecretOutputs) (top : Nat → Nat → Digest)
     (masks : MaskOutputs) (tag : HashOutput) (table : MacOutputs) (request : SigningRequest) :
     OracleComp OracleWorld (Option Signature) :=
-  liftM (cachedTableSign randomizers (maskShift top masks) (Function.update table (simRegion masks) tag)
+  liftM (pureTableSign randomizers (maskShift top masks) (Function.update table (simRegion masks) tag)
     (tableKey 0 top outputs) request.cache request.message)
 
 /-- The request signer without the MAC. -/
@@ -669,14 +689,14 @@ theorem probEvent_macTable_le_ideal (randomizers : RandomizerOutputs) (outputs :
     (cache : QueryCache HashSpec) (P : Nat → Prop) :
     Pr[fun result => result.1 = true ∧ P result.2 | sampleMacOutputs >>= fun table =>
         (simulateQ romImpl (countHashQueries (cachedGameRest
-          (cachedTableSign randomizers (maskShift top masks) (Function.update table (simRegion masks) tag)
+          (pureTableSign randomizers (maskShift top masks) (Function.update table (simRegion masks) tag)
             (tableKey 0 top outputs)) adversary ⟨top (layerHeight topLayer) 0, 0⟩ ⟨tag, simRegion masks⟩))).run' cache] ≤
       Pr[fun result => result.1 = true ∧ P result.2 |
         (simulateQ romImpl (countHashQueries (idealGame randomizers (tableKey 0 top outputs) adversary
           ⟨top (layerHeight topLayer) 0, 0⟩ ⟨tag, simRegion masks⟩))).run' cache] +
         (signatureLimit : ℝ≥0∞) * (2 ^ 256 : ℝ≥0∞)⁻¹ := by
   have hreal : ∀ table, (simulateQ romImpl (countHashQueries (cachedGameRest
-      (cachedTableSign randomizers (maskShift top masks) (Function.update table (simRegion masks) tag)
+      (pureTableSign randomizers (maskShift top masks) (Function.update table (simRegion masks) tag)
         (tableKey 0 top outputs)) adversary ⟨top (layerHeight topLayer) 0, 0⟩ ⟨tag, simRegion masks⟩))).run' cache =
       countedRun (realImpl randomizers outputs top masks tag table)
         (adversary.main ⟨top (layerHeight topLayer) 0, 0⟩ ⟨tag, simRegion masks⟩) cache >>=
@@ -726,7 +746,7 @@ theorem probEvent_cachedGameRest_le (randomizers : RandomizerOutputs) (outputs :
         let masks ← sampleMaskOutputs
         let macs ← sampleMacOutputs
         (simulateQ romImpl (countHashQueries (cachedGameRest
-          (cachedTableSign randomizers masks macs (tableKey 0 top outputs)) adversary
+          (pureTableSign randomizers masks macs (tableKey 0 top outputs)) adversary
             ⟨top (layerHeight topLayer) 0, 0⟩ ⟨macs (tableRegion top masks), tableRegion top masks⟩))).run' cache] ≤
       Pr[fun result => result.1 = true ∧ P result.2 |
         (simulateQ romImpl (countHashQueries (gameRest (tableScheme randomizers) (simAdversary adversary)
@@ -742,16 +762,16 @@ theorem probEvent_cachedGameRest_le (randomizers : RandomizerOutputs) (outputs :
     rw [← bind_map_left (maskShift top), evalSPMF_bind, evalSPMF_bind, sampleMaskOutputs, hshift]
   rw [probEvent_congr' (fun _ _ => Iff.rfl) (show 𝒮[sampleMaskOutputs >>= fun masks => sampleMacOutputs >>= fun macs =>
       (simulateQ romImpl (countHashQueries (cachedGameRest
-          (cachedTableSign randomizers masks macs (tableKey 0 top outputs)) adversary
+          (pureTableSign randomizers masks macs (tableKey 0 top outputs)) adversary
             ⟨top (layerHeight topLayer) 0, 0⟩ ⟨macs (tableRegion top masks), tableRegion top masks⟩))).run' cache] =
       𝒮[sampleMaskOutputs >>= fun masks => sampleMacOutputs >>= fun macs =>
       (simulateQ romImpl (countHashQueries (cachedGameRest
-          (cachedTableSign randomizers (maskShift top masks) macs (tableKey 0 top outputs)) adversary
+          (pureTableSign randomizers (maskShift top masks) macs (tableKey 0 top outputs)) adversary
             ⟨top (layerHeight topLayer) 0, 0⟩ ⟨macs (simRegion masks), simRegion masks⟩))).run' cache] by
     simp only [← tableRegion_maskShift top]
     exact hmove (fun masks => sampleMacOutputs >>= fun macs =>
       (simulateQ romImpl (countHashQueries (cachedGameRest
-          (cachedTableSign randomizers masks macs (tableKey 0 top outputs)) adversary
+          (pureTableSign randomizers masks macs (tableKey 0 top outputs)) adversary
             ⟨top (layerHeight topLayer) 0, 0⟩ ⟨macs (tableRegion top masks), tableRegion top masks⟩))).run' cache))]
   apply probEvent_bind_congr_le_add
   intro masks _
@@ -760,11 +780,11 @@ theorem probEvent_cachedGameRest_le (randomizers : RandomizerOutputs) (outputs :
     (simRegion masks)
   rw [probEvent_congr' (fun _ _ => Iff.rfl) (show 𝒮[sampleMacOutputs >>= fun macs =>
       (simulateQ romImpl (countHashQueries (cachedGameRest
-          (cachedTableSign randomizers (maskShift top masks) macs (tableKey 0 top outputs)) adversary
+          (pureTableSign randomizers (maskShift top masks) macs (tableKey 0 top outputs)) adversary
             ⟨top (layerHeight topLayer) 0, 0⟩ ⟨macs (simRegion masks), simRegion masks⟩))).run' cache] =
       𝒮[($ᵗ HashOutput) >>= fun tag => sampleMacOutputs >>= fun table =>
       (simulateQ romImpl (countHashQueries (cachedGameRest
-          (cachedTableSign randomizers (maskShift top masks) (Function.update table (simRegion masks) tag)
+          (pureTableSign randomizers (maskShift top masks) (Function.update table (simRegion masks) tag)
             (tableKey 0 top outputs)) adversary
             ⟨top (layerHeight topLayer) 0, 0⟩ ⟨tag, simRegion masks⟩))).run' cache] by
     rw [evalSPMF_bind, sampleMacOutputs, ← hlaw, ← evalSPMF_bind]
@@ -824,8 +844,33 @@ theorem cachedTable_le_simulated (adversary : Security.Adversary) (outputs : Sec
   simp only [hreal, hideal, romRun_count_bind]
   refine (le_of_eq (probEvent_bind_swap_three _ _ _ _ _)).trans ?_
   apply probEvent_bind_congr_le_add
-  intro head _
+  intro head hhead
   simp only [← map_bind, probEvent_map]
-  exact probEvent_cachedGameRest_le randomizers outputs adversary head.1.1 head.2 (fun count => head.1.2 + count ≤ b)
+  refine le_trans ?_ (probEvent_cachedGameRest_le randomizers outputs adversary head.1.1 head.2
+    (fun count => head.1.2 + count ≤ b))
+  have hforget : (head.1.1, head.2) ∈ support
+      ((simulateQ romImpl (liftM (Concrete.keygenTable 0
+        (tableOts outputs topLayer rootTree) : OracleComp HashSpec _) : OracleComp OracleWorld _)).run ∅) := by
+    rw [← countHashQueries_run_forget, support_map]
+    exact ⟨head, hhead, rfl⟩
+  have hrun : (head.1.1, head.2) ∈ support
+      ((simulateQ (randomOracle : QueryImpl HashSpec _) (Concrete.keygenTable 0
+        (tableOts outputs topLayer rootTree))).run ∅) := by
+    simpa only [romImpl, QueryImpl.simulateQ_add_liftM_right] using hforget
+  obtain ⟨_, f, hf, heval, hqueries⟩ := exists_answerFn_replay_of_mem_support
+    (Concrete.keygenTable 0 (tableOts outputs topLayer rootTree)) ∅ head.1.1 head.2 hrun
+  have hc : CachedRun head.2 f (Concrete.keygenTable 0 (tableOts outputs topLayer rootTree)) := hqueries
+  apply probEvent_bind_mono
+  intro masks _
+  apply probEvent_bind_mono
+  intro macs _
+  have he := erases_cachedGameRest head.2
+    (fun cache message => InternalCache.erases_authenticatedSign
+      (tableKey 0 head.1.1 outputs) hc hf heval.symm randomizers masks macs cache message)
+    adversary ⟨head.1.1 (layerHeight topLayer) 0, 0⟩
+    ⟨macs (tableRegion head.1.1 masks), tableRegion head.1.1 masks⟩
+  exact he.probEvent_counted_le head.2 le_rfl
+    (fun value count => value = true ∧ head.1.2 + count ≤ b)
+    (fun value count count' hle h => ⟨h.1, (Nat.add_le_add_left hle _).trans h.2⟩)
 
 end SphincsSecurity.Seeded

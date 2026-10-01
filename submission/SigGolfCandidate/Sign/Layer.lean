@@ -42,18 +42,20 @@ theorem Statics.frame {S : List Byte} {s t : MachineState} {W : Nat → Prop} (h
 
 /-- The cache region (masked top-tree nodes), untouched by `sign`. -/
 def RegionOk (cache : List Byte) (t : MachineState) : Prop :=
-  ∀ l j, l < 11 → j < 2 ^ (11 - l) →
+  ∀ l j, 0 < l → l < 11 → j < 2 ^ (11 - l) →
     t.readWords (BitVec.ofNat 64 (0x4B00 + cacheNodeOff l j)) 2 = wordsOf (cacheNode cache l j)
 
 /-- Addresses of the cache region. -/
-def regionA (a : Nat) : Prop := 0x4B20 ≤ a ∧ a < 0x14B00
+def regionA (a : Nat) : Prop := 0xCB20 ≤ a ∧ a < 0x14B00
 
 theorem RegionOk.frame {cache : List Byte} {s t : MachineState} {W : Nat → Prop} (h : RegionOk cache s)
     (hf : Frame s t W) (hW : ∀ a, regionA a → ¬ W a) : RegionOk cache t := by
-  intro l j hl hj
+  intro l j hpos hl hj
   have := cacheNodeOff_lt l j hl hj
-  have : 32 ≤ cacheNodeOff l j := by unfold cacheNodeOff; omega
-  rw [hf.readWords _ _ (by omega) (fun i hi => hW _ (by simp only [regionA]; omega)), h l j hl hj]
+  have hn : 2048 ≤ topN l := by
+    interval_cases l <;> first | omega | decide
+  have : 32800 ≤ cacheNodeOff l j := by unfold cacheNodeOff; omega
+  rw [hf.readWords _ _ (by omega) (fun i hi => hW _ (by simp only [regionA]; omega)), h l j hpos hl hj]
 
 /-- The state at `layer_loop` for layer `lay` with message `M`. -/
 structure LayHead (S cache : List Byte) (idx lay : Nat) (M : Val) (t : MachineState) : Prop where
@@ -497,10 +499,10 @@ def LaysPost (t0 : MachineState) (n : Nat) : Option (List LayerSig) → MachineS
       t.pc = pcOf 718 ∧ t.getReg .x5 = 0 ∧ Frame t0 t (layW n)
 
 /-- Cycle bound of one layer below the top. -/
-def layCyc : Nat := 26 + ((2 ^ 22) * 45 + 2) + (127 + (13 + (treeCyc + 7)))
+def layCyc : Nat := 26 + ((2 ^ 22) * 46 + 2) + (127 + (13 + (treeCyc + 7)))
 
 /-- Cycle bound of the top layer. -/
-def topCyc : Nat := 26 + ((2 ^ 22) * 45 + 2) + (127 + (9 + (21 * 320 + (4 + 11 * 36))))
+def topCyc : Nat := 26 + ((2 ^ 22) * 46 + 2) + (127 + (9 + (21 * 320 + ((17 + (21 * 480 + (4 + (88 + 9)))) + 10 * 36))))
 
 /-- End of a layer (instructions 565 .. 571): root → `EB+32`, next layer. -/
 theorem layer_tail (lay : Nat) (hlay : lay < 6) (h1 : 1 ≤ lay) (t : MachineState) (tpc : t.pc = pcOf 630)
@@ -548,7 +550,7 @@ theorem top_layer_sim (S cache : List Byte) (hS : S.length = 32) (hcache : cache
   rw [signTop_eq, show cMax = 2 ^ 22 - 1 + 1 from rfl]
   have henc := encLoop_sim encCode 0 tau e M t4 emem (2 ^ 22 - 1) 0 t4 (by norm_num)
     ⟨pc4, x46, by norm_num, RegsEq.refl _ _, Frame.refl _ _⟩
-  refine (Sim.steps hs4 (Sim.bind (W₂ := 127 + (9 + (21 * 320 + (4 + 11 * 36)))) henc
+  refine (Sim.steps hs4 (Sim.bind (W₂ := 127 + (9 + (21 * 320 + ((17 + (21 * 480 + (4 + (88 + 9)))) + 10 * 36)))) henc
     (fun r t5 h5 => ?_))).mono (by unfold topCyc; omega) (fun _ _ h => h)
   rcases r with _ | ⟨c, x⟩
   · exact (Sim.pure (Q := LaysPost t 0) (a := none) (s := t5) h5).mono (by omega) (fun _ _ h => h)
@@ -564,8 +566,8 @@ theorem top_layer_sim (S cache : List Byte) (hS : S.length = 32) (hcache : cache
       (a = 0x900 + 856 * 0 ∨ (0x780 ≤ a ∧ a < 0x8D0))) := ft5.trans fu
   have tctx : TopCtx S cache (digitsOfWord d0 ++ digitsOfWord d1) tau e u := by
     refine ⟨htau30, he2048, fun i => digits_lt d0 d1 i, by rw [rtu.get .x5, hh.x5],
-      by rw [ru.get .x13, r5.get .x13, x413], by rw [rtu.get .x18, hh.x18],
-      by rw [ru.get .x31, r5.get .x31, x431], fun i hi => ?_, ?_, ?_, ?_, ?_, ?_⟩
+      by rw [rtu.get .x8, hh.x8]; rfl, by rw [ru.get .x13, r5.get .x13, x413], by rw [rtu.get .x18, hh.x18],
+      by rw [ru.get .x31, r5.get .x31, x431], fun i hi => ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [getMem_of_readWords u 42 0x780 i _ digu hi]
       rw [List.getD_eq_getElem?_getD, List.getElem?_map]
       rw [List.getD_eq_getElem?_getD]
@@ -573,6 +575,7 @@ theorem top_layer_sim (S cache : List Byte) (hS : S.length = 32) (hcache : cache
     · rw [ftu.readWords _ _ (by norm_num) (by intro i hi; simp only [encW]; omega), hh.st.pbP]
     · rw [ftu.readWords _ _ (by norm_num) (by intro i hi; simp only [encW]; omega), hh.st.pbS]
     · rw [ftu.readWords _ _ (by norm_num) (by intro i hi; simp only [encW]; omega), hh.st.cbP]
+    · rw [ftu.readWords _ _ (by norm_num) (by intro i hi; simp only [encW]; omega), hh.st.lbP]
     · exact hh.region.frame ftu (by intro a ha; simp only [regionA] at ha; simp only [encW]; omega)
     · exact fun l j hl hj => length_cacheNode cache hcache l j hl hj
   refine Sim.steps hsu (Sim.bind (W₂ := 0) (top_sim S cache hS _ tau e u tctx pcu) (fun r t6 h6 => ?_))
@@ -611,9 +614,9 @@ theorem layers_sim (S cache : List Byte) (hS : S.length = 32) (hcache : cache.le
     rw [signLayers_succ, show cMax = 2 ^ 22 - 1 + 1 from rfl]
     have henc := encLoop_sim encCode (n + 1) tau e M t4 emem (2 ^ 22 - 1) 0 t4 (by norm_num)
       ⟨pc4, x46, by norm_num, RegsEq.refl _ _, Frame.refl _ _⟩
-    have hW : c0 + ((2 ^ 22 - 1 + 1) * 45 + 2 + (127 + (13 + (treeCyc + (7 + (n * layCyc + topCyc + 0)))))) ≤
+    have hW : c0 + ((2 ^ 22 - 1 + 1) * 46 + 2 + (127 + (13 + (treeCyc + (7 + (n * layCyc + topCyc + 0)))))) ≤
         (n + 1) * layCyc + topCyc := by
-      have hL : 26 + ((2 ^ 22) * 45 + 2) + (127 + (13 + (treeCyc + 7))) = layCyc := rfl
+      have hL : 26 + ((2 ^ 22) * 46 + 2) + (127 + (13 + (treeCyc + 7))) = layCyc := rfl
       rw [Nat.add_mul n 1 layCyc, Nat.one_mul]; omega
     refine (Sim.steps hs4 (Sim.bind henc (fun r t5 h5 => ?_))).mono hW (fun _ _ h => h)
     rcases r with _ | ⟨c, x⟩
