@@ -72,8 +72,8 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
   have htarget := targetFor_le L.lay
   have hcb : chainsBound L.lay ≥ 1200 := by unfold chainsBound; omega
   have hsA : stepsA L.lay ≤ 15 := by unfold stepsA; split <;> omega
-  have hcB : cyclesB = 33 := rfl
-  have hsB : stepsB = 30 := rfl
+  have hcB : cyclesB = 31 := rfl
+  have hsB : stepsB = 28 := rfl
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
       (cc (match decodeDigits (encodingBytes a) with
         | none => pure none
@@ -319,6 +319,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The layer cycles in order 0 .. 4: `1610` (direct route), `1530`, `1530`, `1530`, `1514` (target 181
 held in `x14`, no hash-length reload), and the comparison `8`. -/
-theorem layersCost_5 : layersCost 5 = 7647 := by decide
+theorem layersCost_5 : layersCost 5 = 7632 := by decide
 
 end SigGolfCandidate.Verify
