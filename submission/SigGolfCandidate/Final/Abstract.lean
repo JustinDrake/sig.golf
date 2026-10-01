@@ -284,8 +284,8 @@ theorem eval_aExpand_sign' (seed : MasterSeed) (message : Message) {pk : PublicK
       : OracleComp SphincsSecurity.HashSpec (Option Signature)) = some S) :
     ∃ wl : List Legacy.Byte, wl.length = 16384 ∧ wl.take Ref.witLead = Ref.zeros Ref.witLead ∧
       evalWithAnswerFn f (Equiv.aExpand message pk (Equiv.compress S)) =
-        some (Ref.ofList 16128 (Ref.cutW (Ref.withCounters wl ((List.range numLayers).map (ctrOf S))))) ∧
-      Equiv.witDec (Ref.ofList 16128 (Ref.cutW (Ref.withCounters wl ((List.range numLayers).map (ctrOf S))))) =
+        some (Ref.ofList 14080 (Ref.cutW (Ref.withCounters wl ((List.range numLayers).map (ctrOf S))))) ∧
+      Equiv.witDec (Ref.ofList 14080 (Ref.cutW (Ref.withCounters wl ((List.range numLayers).map (ctrOf S))))) =
         S := by
   rw [Completeness.eval_keygenFromSeed] at hkeys
   simp only [Prod.mk.injEq] at hkeys

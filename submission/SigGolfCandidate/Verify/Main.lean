@@ -6,8 +6,8 @@ import SigGolfCandidate.Verify.Top
 * `verify_refines`: the verify program refines `verifyRef` (value and number of hash calls),
   as an equality of oracle computations.
 * `verify_terminates`: for every fixed oracle and input, the run finishes within `cycleBoundAll`
-  (= 16894) cycles (in particular `< CYCLE_LIMIT`).
-* `verify_accept_cycles`: accepting runs take at most `cycleBound` (= 10359) cycles.
+  (= 16895) cycles (in particular `< CYCLE_LIMIT`).
+* `verify_accept_cycles`: accepting runs take at most `cycleBound` (= 10360) cycles.
 -/
 
 namespace SigGolfCandidate.Verify
@@ -31,7 +31,7 @@ theorem cc_Kb (oa : OracleComp HashSpec Bool) :
   simp only [cc, Kb, map_pure, Nat.add_zero]
   exact bind_pure _
 
-theorem verify_refines (m : Message) (pk : PublicKey) (w : Bytes 16128) :
+theorem verify_refines (m : Message) (pk : PublicKey) (w : Bytes 14080) :
     (fun r => (r.value, r.hashCalls)) <$> submission.run .verify (m, pk, w) =
       (fun p => (if p.1 then some () else none, p.2)) <$> countCalls (verifyRef m pk w) := by
   obtain ⟨s, hs⟩ := init_exists (m, pk, w)

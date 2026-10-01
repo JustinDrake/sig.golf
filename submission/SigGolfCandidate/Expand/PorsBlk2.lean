@@ -27,7 +27,7 @@ theorem blk595_run (t : MachineState) (hpc : t.pc = pcOf 595) (b ptr folds : Nat
     (h6 : t.getReg .x6 = BitVec.ofNat 64 b) (h7 : t.getReg .x7 = BitVec.ofNat 64 (b % 16))
     (h9 : t.getReg .x9 = BitVec.ofNat 64 (0x800 + ptr)) (h20 : t.getReg .x20 = BitVec.ofNat 64 folds) :
     ∃ t', Steps eimg t 7 7 t' ∧ t'.pc = (if b / 16 % 2 = 1 then pcOf 602 else pcOf 620) ∧
-      t'.getReg .x9 = BitVec.ofNat 64 (0x800 + (ptr + 8 + 16 * (b % 16))) ∧
+      t'.getReg .x9 = BitVec.ofNat 64 (0x800 + (ptr + 64 + 64 * (b % 16))) ∧
       t'.getReg .x20 = BitVec.ofNat 64 (folds + b % 16) ∧
       RegsEq t t' [.x9, .x13, .x20] ∧ ∀ x, t'.getMem x = t.getMem x := by
   refine ⟨_, symRun_sound Expand.blk595 Expand.codeAt_595 t hpc (by simp only [Expand.blk595.res, rv_simp]),

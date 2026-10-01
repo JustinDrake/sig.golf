@@ -75,10 +75,10 @@ def wword (w : List Byte) (o : Nat) : Word := BitVec.ofNat 64 (leNat (wbytes w o
 
 /-- The buffer `0x800 .. 0x4800` holds the witness `w`, zero padded. -/
 def WitMem (w : List Byte) (t : MachineState) : Prop :=
-  ∀ k < 2048, t.getMem (BitVec.ofNat 64 (0x800 + 8 * k)) = wword w (8 * k)
+  ∀ k < 8192, t.getMem (BitVec.ofNat 64 (0x800 + 8 * k)) = wword w (8 * k)
 
 /-- Addresses of the witness buffer. -/
-def witA (a : Nat) : Prop := 0x800 ≤ a ∧ a < 0x4800
+def witA (a : Nat) : Prop := 0x800 ≤ a ∧ a < 0x10800
 
 theorem WitMem.frame {w : List Byte} {s t : MachineState} {W : Nat → Prop} (h : WitMem w s)
     (hf : Frame s t W) (hW : ∀ a, witA a → ¬ W a) : WitMem w t := by
@@ -86,7 +86,7 @@ theorem WitMem.frame {w : List Byte} {s t : MachineState} {W : Nat → Prop} (h 
   rw [hf.getMem (by omega) (hW _ (by unfold witA; omega)), h k hk]
 
 theorem WitMem.get {w : List Byte} {t : MachineState} (h : WitMem w t) (o : Nat) (ho : o % 8 = 0)
-    (ho' : o < 0x4000) : t.getMem (BitVec.ofNat 64 (0x800 + o)) = wword w o := by
+    (ho' : o < 0x10000) : t.getMem (BitVec.ofNat 64 (0x800 + o)) = wword w o := by
   have := h (o / 8) (by omega)
   rwa [show 8 * (o / 8) = o by omega] at this
 
@@ -107,7 +107,7 @@ theorem wordsOf_wbytes16 (w : List Byte) (o : Nat) : wordsOf (wbytes w o 16) = [
 
 /-- Two witness dwords as a 16-byte field. -/
 theorem WitMem.readWords16 {w : List Byte} {t : MachineState} (h : WitMem w t) (o : Nat) (ho : o % 8 = 0)
-    (ho' : o + 8 < 0x4000) :
+    (ho' : o + 8 < 0x10000) :
     t.readWords (BitVec.ofNat 64 (0x800 + o)) 2 = wordsOf (wbytes w o 16) := by
   rw [readWords_ofNat_two, wordsOf_wbytes16, h.get o ho (by omega),
     show 0x800 + o + 8 = 0x800 + (o + 8) by omega, h.get (o + 8) (by omega) ho']

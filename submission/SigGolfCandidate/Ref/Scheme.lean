@@ -271,30 +271,31 @@ def sigAuth (sig : List Byte) (i : Nat) : Val := sigItem sig (porsK + i)
 /-- The body (chain values, path) of layer `lay` in the signature. -/
 def sigLayerBody (sig : List Byte) (lay : Nat) : List Byte := slice sig (sigLayerOff lay) (bodyBytes lay)
 
-/-! ### The W1 witness (`W = 16128` at `0x900`)
+/-! ### The sparse-stream witness (`W = 14080` at `0x1100`)
 
-The reference reads the witness through the 16384-byte view of `0x800 .. 0x4800` (`extW`: 256 zero
+The reference reads the witness through the 16384-byte view of `0x800 .. 0x4800` (`extW`: 2304 zero
 bytes, then the witness), so every offset below is relative to `0x800`:
-`0^256 | pi (15) | 0 | segment stream (STREAM_BYTES = 8 * 29 + 16 * 118) | c4 (LE32) | 0^4 | paths
-(layers 0 .. 4, `16 h` bytes each) | chain array`. The chain array has one region of 42 blocks of 64
+`0^2304 | pi (15) | 0 | c4 (LE32) | 0^12 | paths (544) | 0^64 | chain array`.
+The PORS headers and authentication nodes occupy the first 16 bytes of global chain blocks 32..177,
+with one 64-byte block per header or node. The chain array has one region of 42 blocks of 64
 bytes per layer (layer 0 first); block `(lay, i)` is `[tweak slot 16 | pad 32 | value 16]`: verify
 hashes the chains in place (it writes the tweak into the slot and the chain step outputs over the
 value), so a nonzero pad is hashed as it stands (the padded chain query `chainInputP`). The counters
 `c0 .. c3` sit in the tweak slot of block `(0, 0)` (dead until layer 0's chain 0, after the last
 encoding). W1: `rho` sits in the tweak slot of block `(0, 1)` and secret `s` in that of block
 `(0, 2 + s)`; verify reads them in the digest and the PORS root, before layer 0 writes any tweak. -/
-def wPi : Nat := 256
-def wStream : Nat := wPi + 16
-/-- Fixed allocation preserves the in-place WOTS witness addresses when the auth cap is 117. -/
-def streamBytes : Nat := 8 * porsSegs + 16 * 118
-/-- Counter `c4` (layer 4) at 2392, then 4 zero bytes. -/
-def wC4 : Nat := wStream + streamBytes
-/-- The paths, layer 0 first (2400). -/
-def wPaths : Nat := wC4 + 8
+def wPi : Nat := 2304
+/-- Sparse PORS stream begins in global chain tweak slot32. -/
+def wStream : Nat := 4992
+def streamBytes : Nat := 64 * (porsSegs + porsM)
+/-- Counter `c4` (layer4), then twelve zero bytes. -/
+def wC4 : Nat := wPi + 16
+/-- All authentication paths remain contiguous, layer0 first. -/
+def wPaths : Nat := wPi + 32
 /-- Offset of layer `lay`'s path. -/
 def pathOff (lay : Nat) : Nat := wPaths + 16 * ((List.range lay).map height).sum
 /-- The chain array (2944). -/
-def wChains : Nat := pathOff nLayers
+def wChains : Nat := 2944
 /-- Offset of chain block `(lay, i)`. -/
 def blockOff (lay i : Nat) : Nat := wChains + 64 * nChains * lay + 64 * i
 /-- Offset of the counter of layer `lay`: `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `wC4`. -/
@@ -304,10 +305,10 @@ def wRho : Nat := blockOff 0 1
 /-- W1: secret `s` in the tweak slot of chain block `(0, 2 + s)` (`3072 + 64 s`, the address `0x1400 + 64 s`). -/
 def wSec (s : Nat) : Nat := blockOff 0 (2 + s)
 
-/-- The 256 bytes `0x800 .. 0x900` in front of the witness buffer (zero, the view's lead). -/
-def witLead : Nat := 256
-/-- The witness bytes `W` (the buffer `0x900 .. 0x4800`). -/
-def witLen : Nat := 16128
+/-- The 2304 zero bytes `0x800 .. 0x1100` in front of the witness buffer. -/
+def witLead : Nat := 2304
+/-- The witness bytes `W` (the buffer `0x1100 .. 0x4800`). -/
+def witLen : Nat := 14080
 /-- The 16384-byte view of a witness (`0x800 .. 0x4800`). -/
 def extW (w : List Byte) : List Byte := zeros witLead ++ w
 /-- The witness of a 16384-byte view. -/
@@ -315,11 +316,13 @@ def cutW (w : List Byte) : List Byte := w.drop witLead
 
 /-! ## expand: the partial witness (no queries), then the counter phase (queries) -/
 
-/-- The segment stream of `ref.expand`: for each segment byte `b` (with `a = b mod 16`), the
-8-byte header `b, 0^7`, then the next `a` auth items of the signature (read order). State
+/-- The logical sparse stream: for each segment byte `b` (with `a = b mod 16`), the
+64-byte header `b, 0^63`, then the next `a` auth items padded to 64 bytes. Only the first
+16 bytes of each slot are embedded in the witness; pad and chain-value bytes stay separate. State
 `(bytes, r)` with `r` the number of auth items used so far. -/
 def streamStep (sig : List Byte) (st : List Byte × Nat) (b : Nat) : List Byte × Nat :=
-  (st.1 ++ [byte b] ++ zeros 7 ++ ((List.range (b % 16)).map fun i => sigAuth sig (st.2 + i)).flatten,
+  (st.1 ++ [byte b] ++ zeros 63 ++
+      ((List.range (b % 16)).map fun i => sigAuth sig (st.2 + i) ++ zeros 48).flatten,
     st.2 + b % 16)
 
 def segStream (sig : List Byte) (segs : List Nat) : List Byte := (segs.foldl (streamStep sig) ([], 0)).1
@@ -329,30 +332,28 @@ def sigChain (sig : List Byte) (lay i : Nat) : Val := slice sig (sigLayerOff lay
 def sigPath (sig : List Byte) (lay : Nat) : List Byte :=
   slice sig (sigLayerOff lay + 16 * nChains) (16 * height lay)
 
-/-- The tweak slot of chain block `(lay, i)` in the partial witness (W1): `rho` in block `(0, 1)`,
-secret `s` in block `(0, 2 + s)`, else zero. -/
-def slotOf (sig : List Byte) (lay i : Nat) : List Byte :=
+/-- The tweak slot: `rho` in block `(0, 1)`, secret `s` in `(0, 2 + s)`,
+PORS stream slots in global blocks 32..177, otherwise zero. -/
+def slotOf (sig : List Byte) (segs : List Nat) (lay i : Nat) : List Byte :=
   if lay = 0 ∧ i = 1 then sigRho sig
   else if lay = 0 ∧ 2 ≤ i ∧ i < 2 + porsK then sigItem sig (i - 2)
+  else if 32 ≤ nChains * lay + i ∧ nChains * lay + i < 178 then
+    (List.range 16).map fun j => (segStream sig segs).getD (64 * (nChains * lay + i - 32) + j) 0
   else zeros 16
 
 /-- The chain region of layer `lay` in the partial witness: block `i` = `slot | 0^32 | chain value i`. -/
-def chainRegion (sig : List Byte) (lay : Nat) : List Byte :=
-  ((List.range nChains).map fun i => slotOf sig lay i ++ zeros 32 ++ sigChain sig lay i).flatten
+def chainRegion (sig : List Byte) (segs : List Nat) (lay : Nat) : List Byte :=
+  ((List.range nChains).map fun i => slotOf sig segs lay i ++ zeros 32 ++ sigChain sig lay i).flatten
 
-/-- The partial witness bytes (W1, the 16384-byte view, zero counters and pads): `0^256 | pi | 0 |
-stream, zero padded to STREAM_BYTES | 0^8 | paths 0..4 | chain regions 0..4` (`rho` and the secrets
-in the tweak slots of layer 0, `slotOf`). -/
+/-- The partial 16384-byte view: zero lead, pi, zero counters, paths, gap and chain regions.
+`slotOf` embeds rho, secrets and the sparse PORS stream in the tweak slots. -/
 def witnessBody (sig : List Byte) (v vs segs : List Nat) : List Byte :=
-  zeros wPi ++ vs.map (fun x => byte (8 * v.idxOf x)) ++ zeros (wStream - wPi - porsK) ++
-    (segStream sig segs ++ zeros streamBytes).take streamBytes ++ zeros 8 ++
-    ((List.range nLayers).map (sigPath sig)).flatten ++
-    ((List.range nLayers).map (chainRegion sig)).flatten
+  zeros wPi ++ vs.map (fun x => byte (8 * v.idxOf x)) ++ zeros 1 ++ zeros 16 ++
+    ((List.range nLayers).map (sigPath sig)).flatten ++ zeros 64 ++
+    ((List.range nLayers).map (chainRegion sig segs)).flatten
 
-/-- The partial witness built by expand (after its checks), from the signature, the leaf indices
-`v` (digest-slot order), their sorted list `vs`, and the segment bytes `segs`: `witnessBody`
-(zero counters, zero pads and tweak slots). (On every input expand accepts the stream has at most
-`STREAM_BYTES` bytes; the `take` only fixes the length otherwise.) -/
+/-- The partial witness built after expand's checks, with zero counters and pads.
+The stream is embedded through fixed-size tweak slots, so witness length does not depend on it. -/
 def witnessList (sig : List Byte) (v vs segs : List Nat) : List Byte :=
   witnessBody sig v vs segs
 
@@ -417,7 +418,7 @@ with heap index `E / 2`, and goes up. State `(node, E)`. -/
 def segFolds (idx : Nat) (w : List Byte) (ptr a : Nat) (node : Val) (E : Nat) :
     OracleComp HashSpec (Val × Nat) :=
   (List.range a).foldlM (fun (st : Val × Nat) i =>
-    let sib := wbytes w (ptr + 8 + 16 * i) 16
+    let sib := wbytes w (ptr + 64 + 64 * i) 16
     if st.2 % 2 = 1 then do
       let v ← hash16 (porsNodeInput idx (st.2 / 2) sib st.1)
       pure (v, st.2 / 2)
@@ -440,7 +441,7 @@ def segment (idx : Nat) (w : List Byte) (ptr E folds : Nat) (pending : Pending) 
   else
     let node ← pendingHash idx node pending
     let (node, E) ← segFolds idx w ptr a node E
-    pure (some (ptr + 8 + 16 * a, E, folds + a, node, merge = 1))
+    pure (some (ptr + 64 + 64 * a, E, folds + a, node, merge = 1))
 
 /-- The segments of one leaf (the inner `while True` of `ref.pors_root`), by structural recursion
 on the stack (head = top): a `segment`; without merge the leaf is done, returning
@@ -558,8 +559,8 @@ def verifyList (m pk w : List Byte) : OracleComp HashSpec Bool := do
     | none => pure false
     | some root => pure (root == pk)
 
-/-- Verification of a witness (`W = 16128` bytes), read through its 16384-byte view `extW`. -/
-def verifyRef (m : Bytes 32) (pk : Bytes 16) (w : Bytes 16128) : OracleComp HashSpec Bool :=
+/-- Verification of a witness (`W = 14080` bytes), read through its 16384-byte view `extW`. -/
+def verifyRef (m : Bytes 32) (pk : Bytes 16) (w : Bytes 14080) : OracleComp HashSpec Bool :=
   verifyList (toList m) (toList pk) (extW (toList w))
 
 /-! ## expand: the counter phase -/
@@ -609,9 +610,9 @@ def expandList (m sig : List Byte) : OracleComp HashSpec (Option (List Byte)) :=
 /-- `ref.expand(pk, m, sig)` (the public key is unused): the witness is the 16384-byte view without
 its 256-byte lead (`cutW`). -/
 def expandRef (m : Bytes 32) (_pk : Bytes 16) (sig : Bytes 6032) :
-    OracleComp HashSpec (Option (Bytes 16128)) := do
+    OracleComp HashSpec (Option (Bytes 14080)) := do
   let r ← expandList (toList m) (toList sig)
-  pure (r.map fun l => ofList 16128 (cutW l))
+  pure (r.map fun l => ofList 14080 (cutW l))
 
 /-- `ref.verify`: expand, then verify the witness (`false` if expand fails). -/
 def verifySigRef (m : Bytes 32) (pk : Bytes 16) (sig : Bytes 6032) : OracleComp HashSpec Bool := do

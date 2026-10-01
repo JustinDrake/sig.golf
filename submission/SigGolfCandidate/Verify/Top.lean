@@ -44,10 +44,10 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       have := h.a2; simp only [destOf, show (2 : Nat) ≠ 0 by decide, show (2 : Nat) ≠ 1 by decide,
         if_false] at this
       exact this
-  have b1 : ∀ d, Br.holds m (fBr1 d) ↔ d = decide (FLIM < 0x800 + ptr - 336) := by
+  have b1 : ∀ d, Br.holds m (fBr1 d) ↔ d = decide (0x4000 < 0x800 + ptr) := by
     intro d
     simp only [fBr1, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.fr, BitVec.ult,
-      ofNat_toNat_lt _ (show FLIM < 2 ^ 64 by decide), ofNat_toNat_lt _ (show 0x800 + ptr - 336 < 2 ^ 64 by omega)]
+      ofNat_toNat_lt _ (show 0x4000 < 2 ^ 64 by decide), ofNat_toNat_lt _ (show 0x800 + ptr < 2 ^ 64 by omega)]
     exact eq_comm
   have heq : (Rev.revWord E != BitVec.ofNat 64 sgn31) = decide (E ≠ 1) := by
     by_cases h1 : E = 1
@@ -74,10 +74,10 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
         simp
     rw [this]; exact eq_comm
   have hpM : porsM = 117 := rfl
-  have hfl : FLIM = 4095 := rfl
+  have hfl : (0x4000 : Nat) = 16384 := rfl
   constructor
   · intro hrej
-    by_cases h1 : FLIM < 0x800 + ptr - 336
+    by_cases h1 : 0x4000 < 0x800 + ptr
     · obtain ⟨u, hu⟩ := pspec_run cR1 m h.pc hK (by
         intro b hb; simp only [rejSpec, List.mem_singleton] at hb; subst hb
         exact (b1 true).mpr (by simp [h1])) (by simp)
@@ -109,7 +109,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
   · intro hacc
     have h2 : ¬ E ≠ 1 := fun e => hacc (Or.inr (Or.inl e))
     have h3 : ¬ stk ≠ [] := fun e => hacc (Or.inr (Or.inr e))
-    have h1 : ¬ FLIM < 0x800 + ptr - 336 := by
+    have h1 : ¬ 0x4000 < 0x800 + ptr := by
       have hf : ¬ folds > porsM := fun e => hacc (Or.inl e)
       have hnil : stk = [] := by by_contra hc; exact h3 hc
       have hl0 : stk.length = 0 := by rw [hnil]; rfl
@@ -162,16 +162,17 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       unfold twLo; omega
 
 
-/-- Universal accepting-run bound: PORS/initialization cost `2824` plus `layersCost 5 = 7535`.
+/-- Universal accepting-run bound: PORS/initialization cost `2825` plus `layersCost 5 = 7535`.
 The relabelled PORS headers (`Ref.Rev.efield`): one `slliw` per fold (`16` per fold instead of `17`), a
-header-table load per leaf (`+2` each), and the table constants in the setup (`+4`). The 15/8 selector takes
+header-table load per leaf (`+2` each), and the table constants in the setup (`+4`). The 63/32 selector takes
 at most seven instructions: AB uses four, gated AB five, and BC/CD seven. Header bias saves one instruction
-per layer and startup saves one; Final.Discharge supplies the additional universal structural credit. This is
+per layer and startup saves one; sparse-stream initialization costs one extra instruction.
+Final.Discharge supplies the additional universal structural credit. This is
 a proof bound, not a profile. -/
-def cycleBound : Nat := 10359
+def cycleBound : Nat := 10360
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
-def cycleBoundAll : Nat := 16894
+def cycleBoundAll : Nat := 16895
 
 
 /-- A step bound (fuel) sufficient for every run. -/
@@ -277,8 +278,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (104 + (leafCost 0 + Nseg 0 0)) (104 + (leafCost 0 + Cseg 0 0)) True
-        (104 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (105 + (leafCost 0 + Nseg 0 0)) (105 + (leafCost 0 + Cseg 0 0)) True
+        (105 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with

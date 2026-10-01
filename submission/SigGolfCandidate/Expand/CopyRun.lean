@@ -4,7 +4,7 @@ import SigGolfCandidate.Expand.Copy
 # `expand`: the copy phase (instructions 139 .. 173, then the scatter 683 .. 803)
 
 `rho` (4 words, W1: into the tweak slot of chain block `(0, 1)`, `0x13C0`), the pi bytes (`pi_loop`:
-byte `s` = low byte of `KEYS[s]`, at `0x900 + s`), the secrets (W1: the 16-byte stride-64 loop, secret
+byte `s` = low byte of `KEYS[s]`, at `0x1100 + s`), the secrets (W1: the 16-byte stride-64 loop, secret
 `s` into the tweak slot of chain block `(0, 2 + s)`, `0x1400 + 64 s`), then `j scatter` (173): per
 layer, the 42 chain values (16 bytes each, signature stride 16, witness stride 64: into the value slot
 `block(lay, i) + 48` of the W1a chain array) and the path (word copy to `pathOff lay`); then
@@ -23,11 +23,11 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 /-- The pi bytes on top of `g`. -/
 def piF (A : Nat → Nat) (j : Nat) (g : Nat → Byte) : Nat → Byte := fun a =>
-  if 0x900 ≤ a ∧ a < 0x900 + j then byte (A (a - 0x900)) else g a
+  if 0x1100 ≤ a ∧ a < 0x1100 + j then byte (A (a - 0x1100)) else g a
 
 /-- Signature offsets of the layer bodies (`sigLayerOff`), witness path offsets (`pathOff`), path words. -/
 def sgOff (lay : Nat) : Nat := [2128, 2976, 3744, 4512, 5280].getD lay 0
-def pOff (lay : Nat) : Nat := [2400, 2576, 2672, 2768, 2864].getD lay 0
+def pOff (lay : Nat) : Nat := [2336, 2512, 2608, 2704, 2800].getD lay 0
 def pWords (lay : Nat) : Nat := [44, 24, 24, 24, 20].getD lay 0
 
 /-- The scatter copies of layer `lay`: the 42 chain values into the value slots, then the path. -/
@@ -45,7 +45,7 @@ def copyRest : List (Nat × Nat × Nat) :=
 
 theorem pi_loop (A : Nat → Nat) (g : Nat → Byte) :
     ∀ k (v : MachineState), k ≤ 15 → (v.pc = if k = 0 then pcOf 160 else pcOf 153) →
-      v.getReg .x8 = BitVec.ofNat 64 (15 - k) → v.getReg .x25 = BitVec.ofNat 64 0x900 →
+      v.getReg .x8 = BitVec.ofNat 64 (15 - k) → v.getReg .x25 = BitVec.ofNat 64 0x1100 →
       BytesEq v (piF A (15 - k) g) → ArrOk v A →
       Run v (7 * k) (fun w => w.pc = pcOf 160 ∧ BytesEq w (piF A 15 g) ∧ ArrOk w A) := by
   intro k
@@ -65,10 +65,10 @@ theorem pi_loop (A : Nat → Nat) (g : Nat → Byte) :
     · intro a ha'
       rw [wb a ha', hb a ha']
       unfold piF
-      by_cases h1 : a = 0x900 + (15 - (k + 1))
-      · rw [if_pos h1, if_pos (by omega), show a - 0x900 = 15 - (k + 1) by omega]; rfl
+      by_cases h1 : a = 0x1100 + (15 - (k + 1))
+      · rw [if_pos h1, if_pos (by omega), show a - 0x1100 = 15 - (k + 1) by omega]; rfl
       · rw [if_neg h1]
-        by_cases h2 : 0x900 ≤ a ∧ a < 0x900 + (15 - (k + 1))
+        by_cases h2 : 0x1100 ≤ a ∧ a < 0x1100 + (15 - (k + 1))
         · rw [if_pos h2, if_pos (by omega)]
         · rw [if_neg h2, if_neg (by omega)]
     · intro p hp

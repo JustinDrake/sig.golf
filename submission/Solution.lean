@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
-S=6032 signature bytes, W=16128 witness bytes, K=131072 cache bytes.
-The claim C=10421 is accepting verifier bound10358 plus witness charge63.
+S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
+The claim C=10414 is accepting verifier bound10359 plus witness charge55.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[185,185,185,185,186].
 
@@ -57,15 +57,15 @@ def submission : SigGolf.Submission := SigGolfCandidate.submissionNew
 
 theorem signature_bytes : submission.sizes.signature = 6032 := rfl
 
-theorem witness_bytes : submission.sizes.witness = 16128 := rfl
+theorem witness_bytes : submission.sizes.witness = 14080 := rfl
 
 theorem cache_bytes : submission.sizes.cache = 131072 := rfl
 
 theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
-    cache := 19200, signature := 150272, witness := 2304 } := rfl
+    cache := 19200, signature := 150272, witness := 4352 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10421 :=
+theorem certificate : SigGolf.Certificate submission 10414 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

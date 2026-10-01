@@ -37,7 +37,7 @@ theorem PB.witAll_layers {P : PCtx} {s0 u : MachineState} {gk : List (Reg × Wor
 /-- The body of `segFolds` (fold `i`). -/
 def foldBody (idx : Nat) (w : List Byte) (ptr : Nat) : Val × Nat → Nat → OracleComp HashSpec (Val × Nat) :=
   fun st i =>
-    let sib := wbytes w (ptr + 8 + 16 * i) 16
+    let sib := wbytes w (ptr + 64 + 64 * i) 16
     if st.2 % 2 = 1 then do
       let v ← hash16 (porsNodeInput idx (st.2 / 2) sib st.1)
       pure (v, st.2 / 2)
@@ -50,7 +50,7 @@ theorem segFolds_eq (idx : Nat) (w : List Byte) (ptr a : Nat) (node : Val) (E : 
 
 theorem foldBody_eq (P : PCtx) (ptr : Nat) (node : Val) (E i t : Nat) (ht : t = E % 2) :
     foldBody P.idx P.wl ptr (node, E) i =
-      hash16 (foldInput P E t (wbytes P.wl (ptr + 8 + 16 * i) 16) node) >>= fun v => pure (v, E / 2) := by
+      hash16 (foldInput P E t (wbytes P.wl (ptr + 64 + 64 * i) 16) node) >>= fun v => pure (v, E / 2) := by
   unfold foldBody foldInput
   simp only []
   rw [← ht]
@@ -59,7 +59,7 @@ theorem foldBody_eq (P : PCtx) (ptr : Nat) (node : Val) (E i t : Nat) (ht : t = 
 theorem folds_good (P : PCtx) (s0 : MachineState) (s x V a ptr folds : Nat)
     (stk : List (Val × Nat)) (K : Val × Nat → OracleComp HashSpec Obs) (NT CT AT : Nat) (QT : Prop)
     (hK : ∀ (t : Nat) (node : Val) (E : Nat) (u : MachineState),
-      TailIn P s0 s x V t (ptr + 8 + 16 * a) E (folds + a) node stk u → GoodQ u NT CT QT AT (K (node, E))) :
+      TailIn P s0 s x V t (ptr + 64 + 64 * a) E (folds + a) node stk u → GoodQ u NT CT QT AT (K (node, E))) :
     ∀ r i t E node m, i + r = a → PosIn P s0 s x V t a i ptr E folds node stk m →
       t = E % 2 →
       GoodQ m (NT + 17 * r) (CT + 17 * r - 2) QT (AT + 16 * r - 1)
@@ -85,7 +85,7 @@ theorem folds_good (P : PCtx) (s0 : MachineState) (s x V a ptr folds : Nat)
       · simp only [if_neg hl]
         exact ih (i + 1) (E / 2 % 2) (E / 2) (answerBytes 16 ans) (writeHash u ans) (by omega)
           ((hpost ans).1 (by have := h.ha; omega)) rfl
-    have h3 := GoodQ.hash (x := foldInput P E t (wbytes P.wl (ptr + 8 + 16 * i) 16) node)
+    have h3 := GoodQ.hash (x := foldInput P E t (wbytes P.wl (ptr + 64 + 64 * i) 16) node)
       (K := fun v => cc (pure (v, E / 2)) fun st =>
           cc ((List.range' (i + 1) k).foldlM (foldBody P.idx P.wl ptr) st) K) hf h5 hv hin H
     rw [hbl] at h3
@@ -119,9 +119,9 @@ theorem segment_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr E fol
     (N C A : Nat) (NT CT : Nat → Nat) (AT : Nat → Nat → Nat)
     (hK : ∀ (a V c' E' : Nat) (node' : Val) (u : MachineState), a ≤ 14 →
       V = segV (tsel s) (wbyte P.wl ptr) → a = wbyte P.wl ptr % 16 →
-      TailIn P s0 s x V c' (ptr + 8 + 16 * a) E' (folds + a) node' stk u →
+      TailIn P s0 s x V c' (ptr + 64 + 64 * a) E' (folds + a) node' stk u →
       GoodQ u (NT V) (CT V) (folds + a ≤ 117) (AT V (folds + a))
-        (K (some (ptr + 8 + 16 * a, E', folds + a, node', decide (wbyte P.wl ptr / 16 % 2 = 1)))))
+        (K (some (ptr + 64 + 64 * a, E', folds + a, node', decide (wbyte P.wl ptr / 16 % 2 = 1)))))
     (hN : ∀ V, V < 3 → 18 + 17 * 14 + NT V ≤ N) (hC : ∀ V a, V < 3 → a ≤ 14 → 18 + 17 * a + CT V ≤ C)
     (hA : ∀ V a, V < 3 → a ≤ 14 → folds + a ≤ 117 → 16 + 16 * a + AT V (folds + a) ≤ A)
     (h9 : 13 ≤ N ∧ 13 ≤ C ∧ 13 ≤ A) :
@@ -152,7 +152,7 @@ theorem segment_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr E fol
     have H : ∀ ans, GoodQ (writeHash u ans) (NT V + 17 * 14 + 2) (CT V + 17 * a) (folds + a ≤ 117) (AT V (folds + a) + 16 * a + 1)
         ((fun v => cc (segFolds P.idx P.wl ptr a v E) fun p =>
           match p with
-          | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1))))
+          | (node, E) => K (some (ptr + 64 + 64 * a, E, folds + a, node, decide (b / 16 % 2 = 1))))
           (answerBytes 16 ans)) := by
       intro ans
       simp only []
@@ -169,7 +169,7 @@ theorem segment_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr E fol
         rw [segFolds_eq, List.range_eq_range']
         have := folds_good P s0 s x V a ptr folds stk
           (fun p => match p with
-            | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1))))
+            | (node, E) => K (some (ptr + 64 + 64 * a, E, folds + a, node, decide (b / 16 % 2 = 1))))
           (NT V) (CT V) (AT V (folds + a)) (folds + a ≤ 117)
           (fun t node' E' u' hT => hK a V t E' node' u' ha14 rfl rfl hT) a 0 (segT b) E (answerBytes 16 ans)
           u2 (by omega) hP2 (by rcases hpar' with e | e <;> [omega; exact e])
@@ -177,14 +177,14 @@ theorem segment_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr E fol
     have h3 := GoodQ.hash (x := pendInput P node pend)
       (K := fun v => cc (segFolds P.idx P.wl ptr a v E) fun p =>
           match p with
-          | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) hf h5 hv hin H
+          | (node, E) => K (some (ptr + 64 + 64 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) hf h5 hv hin H
     rw [hbl] at h3
     have e2 : (fun node' => cc (segFolds P.idx P.wl ptr a node' E >>= fun x =>
           match x with
-          | (node, E) => pure (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) K) =
+          | (node, E) => pure (some (ptr + 64 + 64 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) K) =
         (fun v => cc (segFolds P.idx P.wl ptr a v E) fun p =>
           match p with
-          | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) := by
+          | (node, E) => K (some (ptr + 64 + 64 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) := by
       funext v; rw [cc_bind]; congr 1; funext p; obtain ⟨n1, e1⟩ := p; simp only [cc_pure]
     rw [e2]
     exact GoodQ.steps' hst h3 (by have := hN V hVl; omega) (by have := hC V a hVl ha14; omega)
@@ -300,7 +300,7 @@ theorem segLoop_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat)
     · obtain ⟨hVe, hm⟩ := segV_PF s _ (hV ▸ hV0)
       simp only [hV0, if_false, hm, decide_false, Bool.false_eq_true, cc_pure]
       rw [hV, hVe] at hT
-      have hh := hK (ptr + 8 + 16 * a) E' (folds + a) node' [] c' u hT
+      have hh := hK (ptr + 64 + 64 * a) E' (folds + a) node' [] c' u hT
       exact hh
   | cons e rest ih =>
     intro ptr E folds pend node c m h
@@ -337,7 +337,7 @@ theorem segLoop_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat)
     · obtain ⟨hVe, hm⟩ := segV_PF s _ (hV ▸ hV0)
       simp only [hV0, if_false, hm, decide_false, Bool.not_false, if_true, cc_pure]
       rw [hV, hVe] at hT
-      have hh := hK (ptr + 8 + 16 * a) E' (folds + a) node' ((pnode, Q) :: rest) c' u hT
+      have hh := hK (ptr + 64 + 64 * a) E' (folds + a) node' ((pnode, Q) :: rest) c' u hT
       exact hh
 
 

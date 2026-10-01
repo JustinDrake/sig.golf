@@ -35,7 +35,7 @@ structure LeafInv (w : List Byte) (idx : Nat) (K : Nat → Nat) (s : Nat) (st : 
   hk : st.stack.length ≤ s
   hk14 : st.stack.length ≤ 14
   hptr : st.ptr % 8 = 0
-  hptr' : st.ptr ≤ 272 + 232 * (2 * s - st.stack.length)
+  hptr' : st.ptr ≤ 4992 + 960 * (2 * s - st.stack.length)
   hf : st.folds ≤ 14 * (2 * s - st.stack.length)
   hprev : st.prev < 2 ^ 14
   hE : st.E < 2 ^ 15

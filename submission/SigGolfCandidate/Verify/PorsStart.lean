@@ -33,15 +33,15 @@ theorem ctr_word (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (
     show 2944 + 4 * (2 * i + 1) = 2944 + 8 * i + 4 by omega]
 
 theorem ctr_word4 (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (hW : WitAll wl s) :
-    ((extractWord32 (s.getMem (BitVec.ofNat 64 4440)) 0).zeroExtend 64).toNat = witCounter wl 4 := by
-  rw [show (4440 : Nat) = 0x800 + 2392 from rfl, wit_word_all hW _ (by omega) (by omega)]
+    ((extractWord32 (s.getMem (BitVec.ofNat 64 4368)) 0).zeroExtend 64).toNat = witCounter wl 4 := by
+  rw [show (4368 : Nat) = 0x800 + 2320 from rfl, wit_word_all hW _ (by omega) (by omega)]
   simp only [extractWord32, BitVec.truncate_eq_setWidth, BitVec.toNat_setWidth,
     BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
   rw [w64_toNat _ (by simp [slice]), pleNat_slice8 _ _ (by omega)]
   simp only [witCounter, ctrOff, show ¬ (4 < 4) by omega, if_false, wC4_eq]
-  have := leNat_lt (slice wl 2392 4)
-  have l4 : (slice wl 2392 4).length ≤ 4 := by simp [slice]
-  have : leNat (slice wl 2392 4) < 2 ^ 32 :=
+  have := leNat_lt (slice wl 2320 4)
+  have l4 : (slice wl 2320 4).length ≤ 4 := by simp [slice]
+  have : leNat (slice wl 2320 4) < 2 ^ 32 :=
     lt_of_lt_of_le this (le_trans (Nat.pow_le_pow_right (by decide) l4) (by norm_num))
   norm_num
   omega
@@ -51,7 +51,7 @@ theorem ctr_iff (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (h
   have e : ctrE'.eval s = (ctrX.eval s ||| (ctrX.eval s <<< ((BitVec.ofNat 64 32).toNat % 64))) >>>
       ((BitVec.ofNat 64 54).toNat % 64) := rfl
   have ex : ctrX.eval s = s.getMem (BitVec.ofNat 64 4992) ||| s.getMem (BitVec.ofNat 64 5000) |||
-      (extractWord32 (s.getMem (BitVec.ofNat 64 4440)) 0).zeroExtend 64 := rfl
+      (extractWord32 (s.getMem (BitVec.ofNat 64 4368)) 0).zeroExtend 64 := rfl
   have hx := (ctrX.eval s).isLt
   have hsh : ctrE'.eval s = 0 ↔ (ctrX.eval s).toNat % 2 ^ 32 < 2 ^ 22 ∧ (ctrX.eval s).toNat / 2 ^ 32 < 2 ^ 22 := by
     rw [e, ← ctr_shift_iff _ hx]
@@ -299,7 +299,7 @@ theorem memLook_none_hi : ∀ (ws : SymMem) (A : Nat), (ws.all fun p => decide (
     exact memLook_none_hi ws A h2 hA
 
 theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P s) :
-    ∃ u, Steps image s 104 104 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
+    ∃ u, Steps image s 105 105 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
   obtain ⟨hMask, hRt, hG, hWA, hK, hd, hZ, hpc⟩ := hs
   obtain ⟨-, -, cSet⟩ := startCheck_parts
   obtain ⟨u, hu⟩ := spec_run cSet s hpc hK (by simp [setupSpec])
@@ -380,7 +380,7 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
   refine ⟨u, hu.steps, S, ⟨⟨⟨fun p hp => hK' p (by simp [setupPost] at hp ⊢; tauto), PFrame.refl u⟩, S, ?_⟩,
     hu.pc rfl, ?_, ?_, ?_, fun i hi => by simp at hi, fun h => by omega, ?_⟩⟩
   · rw [hu.regs (.x22, idxE) (by simp [setupSpec]), hidx]
-  · rw [hK' (.x14, 0x7C0) (by simp [setupPost])]; rfl
+  · rw [hK' (.x14, 0x1B80) (by simp [setupPost])]; rfl
   · rw [hK' (.x18, BitVec.ofNat 64 FLIM) (by simp [setupPost])]
   · rw [hK' (.x15, 0) (by simp [setupPost])]; rfl
   · simp [SegBnd, wStream, wPi, porsK]
