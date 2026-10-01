@@ -2,6 +2,7 @@ import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.StructuralMatchBound
 import SigGolfCandidate.SphincsSecurity.Proof.Ots.EncodingMatchBound
 import SigGolfCandidate.SphincsSecurity.Proof.Ots.OtsDistinctContactBound
 import SigGolfCandidate.SphincsSecurity.Proof.Ots.OtsMarkerContactProbability
+import SigGolfCandidate.SphincsSecurity.Proof.Ots.OtsContactFirstProbability
 namespace SphincsSecurity.Concrete
 
 open _root_.OracleComp OracleSpec
@@ -47,22 +48,35 @@ theorem graphPrimitiveEvent_of_outcome (key : SecretKey) (f : QueryImpl HashSpec
   · exact Or.inr (Or.inr (Or.inr (Or.inl hdistinct)))
   · exact Or.inr (Or.inr (Or.inr (Or.inr hmarker)))
 
-noncomputable def primitivePrefixRate (q : Nat) : ENNReal :=
+noncomputable def rawPrimitivePrefixRate (q : Nat) : ENNReal :=
   let n : ENNReal := Fintype.card Digest
   let x := (q : ENNReal) / n
-  prefixTwoEdgeRate q / (1 - x) + (4 * x) / ((1 - x)^2 * n) + ((2 * ((15 / 8 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * x) / ((1 - x) * n)
+  prefixTwoEdgeRate q / (1 - x) + (4 * x) / ((1 - x)^2 * n) + ((2 * ((63 / 32 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * x) / ((1 - x) * n)
+
+noncomputable def rawPrimitiveEncodingRate (q : Nat) : ENNReal :=
+  let n : ENNReal := Fintype.card Digest
+  let x := (q : ENNReal) / n
+  (63 / 32 : ENNReal) * n⁻¹ + ((2 * ((63 / 32 : ENNReal) * (OtsCode.neighborBound : ENNReal))) * x) / ((1 - x) * n)
+
+/-- The contact union is charged once, rather than separately for each witness. -/
+noncomputable def coarsePrimitivePrefixRate (q : Nat) : ENNReal :=
+  (2 / Fintype.card Digest) / (1 - (q : ENNReal) / Fintype.card Digest)
+
+/-- Mix one part of the fine bound with fifteen parts of the contact-union bound. -/
+noncomputable def primitivePrefixRate (q : Nat) : ENNReal :=
+  (1 / 16 : ENNReal) * rawPrimitivePrefixRate q +
+    (15 / 16 : ENNReal) * coarsePrimitivePrefixRate q
 
 noncomputable def primitiveEncodingRate (q : Nat) : ENNReal :=
-  let n : ENNReal := Fintype.card Digest
-  let x := (q : ENNReal) / n
-  (15 / 8 : ENNReal) * n⁻¹ + ((2 * ((15 / 8 : ENNReal) * (OtsCode.neighborBound : ENNReal))) * x) / ((1 - x) * n)
+  (1 / 16 : ENNReal) * rawPrimitiveEncodingRate q +
+    (15 / 16 : ENNReal) * ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹)
 
 theorem primitivePrefixRate_mono {q r : Nat} (h : q ≤ r) : primitivePrefixRate q ≤ primitivePrefixRate r := by
-  dsimp only [primitivePrefixRate, prefixTwoEdgeRate]
+  dsimp only [primitivePrefixRate, rawPrimitivePrefixRate, coarsePrimitivePrefixRate, prefixTwoEdgeRate]
   gcongr
 
 theorem primitiveEncodingRate_mono {q r : Nat} (h : q ≤ r) : primitiveEncodingRate q ≤ primitiveEncodingRate r := by
-  dsimp only [primitiveEncodingRate]
+  dsimp only [primitiveEncodingRate, rawPrimitiveEncodingRate]
   gcongr
 
 theorem primitive_rates_small (q : Nat) (hq : q ≤ budgetSplit) :
@@ -79,20 +93,173 @@ theorem primitive_rates_small (q : Nat) (hq : q ≤ budgetSplit) :
   have hs := ENNReal.toReal_sub_of_le hx.le (show (1 : ENNReal) ≠ ⊤ by finiteness)
   constructor
   · apply (primitivePrefixRate_mono hq).trans
-    dsimp only [primitivePrefixRate, prefixTwoEdgeRate]
+    dsimp only [primitivePrefixRate, rawPrimitivePrefixRate, coarsePrimitivePrefixRate, prefixTwoEdgeRate]
     apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
+    repeat rw [ENNReal.toReal_add (by finiteness) (by finiteness)]
+    simp only [ENNReal.toReal_mul, ENNReal.toReal_div, ENNReal.toReal_pow, hs,
+      ENNReal.toReal_natCast, ENNReal.toReal_ofNat, ENNReal.toReal_one]
     repeat rw [ENNReal.toReal_add (by finiteness) (by finiteness)]
     simp only [ENNReal.toReal_mul, ENNReal.toReal_div, ENNReal.toReal_pow, hs,
       ENNReal.toReal_natCast, ENNReal.toReal_ofNat, ENNReal.toReal_one]
     repeat rw [ENNReal.toReal_add (by finiteness) (by finiteness)]
     norm_num [ENNReal.toReal_mul, ENNReal.toReal_div, ENNReal.toReal_pow, hcard, OtsCode.unitNeighborBound_eq]
   · apply (primitiveEncodingRate_mono hq).trans
-    dsimp only [primitiveEncodingRate]
+    dsimp only [primitiveEncodingRate, rawPrimitiveEncodingRate]
     apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
     repeat rw [ENNReal.toReal_add (by finiteness) (by finiteness)]
     simp only [ENNReal.toReal_mul, ENNReal.toReal_div, ENNReal.toReal_inv, hs,
       ENNReal.toReal_natCast, ENNReal.toReal_ofNat, ENNReal.toReal_one]
+    repeat rw [ENNReal.toReal_add (by finiteness) (by finiteness)]
+    simp only [ENNReal.toReal_mul, ENNReal.toReal_div, ENNReal.toReal_inv, hs,
+      ENNReal.toReal_natCast, ENNReal.toReal_ofNat, ENNReal.toReal_one]
     norm_num [hcard, OtsCode.neighborBound_eq]
+
+private theorem primitive_marker_rate_mono {a b s t x den P E : ENNReal} (h : a ≤ b) :
+    ((2 * (a * s)) * x * P + (2 * (a * t)) * x * E) / den ≤
+      ((2 * (b * s)) * x * P + (2 * (b * t)) * x * E) / den := by
+  gcongr
+
+theorem referenceGraphContextGame_primitive_raw_le (dummy : OtsReferenceWords) (adversary : Adversary) (q : Nat)
+    (hprefix : PrefixBudget dummy adversary q) (hcontact : ContactBudget dummy adversary q) (hsmall : q < Fintype.card Digest) :
+    Pr[GraphPrimitiveEvent dummy | referenceGraphContextGame contactObserver (canonicalGraphGameInputs adversary)
+      (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] ≤
+      rawPrimitivePrefixRate q * (∑' result,
+        Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary)
+          (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] * (result.prefixCalls dummy : ENNReal)) +
+      rawPrimitiveEncodingRate q * (∑' result,
+        Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary)
+          (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] * (result.encodingCalls : ENNReal)) +
+      (Fintype.card Digest : ENNReal)⁻¹ * (∑' result,
+        Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary)
+          (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] * (result.otherCalls dummy : ENNReal)) := by
+  let law := referenceGraphContextGame contactObserver (canonicalGraphGameInputs adversary)
+    (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary
+  have he := referenceEncodingContextGame_match_le_encodingCost dummy adversary
+  replace he := he.trans (mul_le_mul' (mul_le_mul' (show _ ≤ (63 / 32 : ENNReal) from by
+    apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
+    norm_num [ENNReal.toReal_div]) le_rfl) le_rfl)
+  rw [← referenceGraphContextGame_encoding contactObserver _ _ dummy adversary, probEvent_map] at he
+  have hs := referenceGraphContextGame_match_le_otherCost dummy adversary
+  have ht := referenceContactGame_twoEdge_le dummy adversary q hprefix hsmall
+  have hd := referenceContactGame_distinct_le dummy adversary q hprefix hcontact hsmall
+  have hm := referenceContactGame_markerContact_le dummy adversary q hprefix hcontact hsmall
+  replace hm := hm.trans (primitive_marker_rate_mono (show _ ≤ (63 / 32 : ENNReal) from by
+    apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
+    norm_num [ENNReal.toReal_div]))
+  rw [← referenceGraphContextGame_contact_event _ _ dummy adversary] at ht hd hm
+  have h := (probEvent_or_le law _ _).trans (add_le_add he
+    ((probEvent_or_le law _ _).trans (add_le_add hs
+      ((probEvent_or_le law _ _).trans (add_le_add ht
+        ((probEvent_or_le law _ _).trans (add_le_add hd hm)))))))
+  change Pr[GraphPrimitiveEvent dummy | law] ≤ _ at h
+  refine h.trans_eq ?_
+  simp only [rawPrimitivePrefixRate, rawPrimitiveEncodingRate, div_eq_mul_inv]
+  ring
+
+private theorem primitiveContact_card_pos (parameter : PublicParameter) (words : OtsReferenceWords)
+    (result : ContactResult)
+    (h : result.TwoEdge parameter words ∨ result.TwoContacts parameter words ∨ result.MarkerContact parameter words) :
+    0 < (OtsContactTrace.contacts parameter words result.frontier (result.before * result.after)).card := by
+  rcases h with htwo | hdistinct | hmarker
+  · obtain ⟨address, first, last, _, hlast, _, entry, hentry, hparse, hanswer⟩ := htwo
+    apply Finset.card_pos.mpr
+    refine ⟨address, (OtsContactTrace.mem_contacts _ _ _ _ _).mpr ?_⟩
+    exact ⟨entry, hentry, last, hparse, hlast, hanswer⟩
+  · change 2 ≤ (OtsContactTrace.contacts parameter words result.frontier (result.before * result.after)).card at hdistinct
+    omega
+  · obtain ⟨address, _, hcontact⟩ := hmarker
+    exact Finset.card_pos.mpr ⟨address, hcontact⟩
+
+theorem referenceContactGame_primitiveContact_le (dummy : OtsReferenceWords) (adversary : Adversary) (q : Nat)
+    (hprefix : PrefixBudget dummy adversary q) (hsmall : q < Fintype.card Digest) :
+    Pr[fun result => result.2.2.TwoEdge result.1 (referenceFamilyWords result.2.1 dummy) ∨
+      result.2.2.TwoContacts result.1 (referenceFamilyWords result.2.1 dummy) ∨
+      result.2.2.MarkerContact result.1 (referenceFamilyWords result.2.1 dummy) |
+        referenceContactGame (canonicalGraphGameInputs adversary)
+          (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] ≤
+      coarsePrimitivePrefixRate q * (∑' result,
+        Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary)
+          (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] * (result.prefixCalls dummy : ENNReal)) := by
+  have hcount : Pr[fun result => result.2.2.TwoEdge result.1 (referenceFamilyWords result.2.1 dummy) ∨
+      result.2.2.TwoContacts result.1 (referenceFamilyWords result.2.1 dummy) ∨
+      result.2.2.MarkerContact result.1 (referenceFamilyWords result.2.1 dummy) |
+        referenceContactGame (canonicalGraphGameInputs adversary)
+          (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] ≤
+      ∑' result, Pr[= result | referenceContactGame (canonicalGraphGameInputs adversary)
+        (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] *
+          ((OtsContactTrace.contacts result.1 (referenceFamilyWords result.2.1 dummy) result.2.2.frontier
+            (result.2.2.before * result.2.2.after)).card : ENNReal) := by
+    rw [probEvent_eq_tsum_ite]
+    apply ENNReal.tsum_le_tsum
+    intro result
+    split
+    · rename_i he
+      have hp := primitiveContact_card_pos _ _ _ he
+      exact (mul_one _).symm.trans_le (mul_le_mul' le_rfl (by exact_mod_cast Nat.succ_le_iff.mpr hp))
+    · exact bot_le
+  have hscaled := (mul_le_mul' (le_refl (1 - (q : ENNReal) / Fintype.card Digest)) hcount).trans
+    (referenceContactGame_contacts_cost_le dummy adversary q hprefix hsmall)
+  have hcard : (Fintype.card Digest : ENNReal) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
+  have hpositive : 0 < 1 - (q : ENNReal) / Fintype.card Digest := by
+    apply tsub_pos_iff_lt.mpr
+    rw [ENNReal.div_lt_iff (Or.inl hcard) (Or.inl (by finiteness)), one_mul]
+    exact_mod_cast hsmall
+  calc
+    _ ≤ ((2 / Fintype.card Digest) * (∑' result,
+        Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary)
+          (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] * (result.prefixCalls dummy : ENNReal))) /
+        (1 - (q : ENNReal) / Fintype.card Digest) := by
+      apply (ENNReal.le_div_iff_mul_le (Or.inl (ne_of_gt hpositive)) (Or.inl (by finiteness))).mpr
+      simpa only [mul_comm] using hscaled
+    _ = _ := by
+      simp only [coarsePrimitivePrefixRate, div_eq_mul_inv]
+      ring
+
+theorem referenceGraphContextGame_primitive_coarse_le (dummy : OtsReferenceWords) (adversary : Adversary) (q : Nat)
+    (hprefix : PrefixBudget dummy adversary q) (hsmall : q < Fintype.card Digest) :
+    Pr[GraphPrimitiveEvent dummy | referenceGraphContextGame contactObserver (canonicalGraphGameInputs adversary)
+      (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] ≤
+      coarsePrimitivePrefixRate q * (∑' result,
+        Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary)
+          (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] * (result.prefixCalls dummy : ENNReal)) +
+      ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * (∑' result,
+        Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary)
+          (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] * (result.encodingCalls : ENNReal)) +
+      (Fintype.card Digest : ENNReal)⁻¹ * (∑' result,
+        Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary)
+          (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] * (result.otherCalls dummy : ENNReal)) := by
+  let law := referenceGraphContextGame contactObserver (canonicalGraphGameInputs adversary)
+    (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary
+  have he := referenceEncodingContextGame_match_le_encodingCost dummy adversary
+  replace he := he.trans (mul_le_mul' (mul_le_mul' (show _ ≤ (63 / 32 : ENNReal) from by
+    apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
+    norm_num [ENNReal.toReal_div]) le_rfl) le_rfl)
+  rw [← referenceGraphContextGame_encoding contactObserver _ _ dummy adversary, probEvent_map] at he
+  have hs := referenceGraphContextGame_match_le_otherCost dummy adversary
+  have hc := referenceContactGame_primitiveContact_le dummy adversary q hprefix hsmall
+  rw [← referenceGraphContextGame_contact_event _ _ dummy adversary] at hc
+  have h := (probEvent_or_le law _ _).trans (add_le_add he
+    ((probEvent_or_le law _ _).trans (add_le_add hs hc)))
+  change Pr[GraphPrimitiveEvent dummy | law] ≤ _ at h
+  exact h.trans_eq (by ring)
+
+private theorem primitive_mixture {p a b c d o P E O : ENNReal}
+    (hfine : p ≤ a * P + b * E + o * O) (hcoarse : p ≤ c * P + d * E + o * O) :
+    p ≤ ((1 / 16 : ENNReal) * a + (15 / 16 : ENNReal) * c) * P +
+      ((1 / 16 : ENNReal) * b + (15 / 16 : ENNReal) * d) * E + o * O := by
+  have hweights : (1 / 16 : ENNReal) + (15 / 16 : ENNReal) = 1 := by
+    rw [ENNReal.div_add_div_same, show (1 : ENNReal) + 15 = 16 by norm_num]
+    exact ENNReal.div_self (by norm_num) (by finiteness)
+  calc
+    p = (1 / 16 : ENNReal) * p + (15 / 16 : ENNReal) * p := by
+      rw [← add_mul, hweights, one_mul]
+    _ ≤ (1 / 16 : ENNReal) * (a * P + b * E + o * O) +
+        (15 / 16 : ENNReal) * (c * P + d * E + o * O) :=
+      add_le_add (mul_le_mul' le_rfl hfine) (mul_le_mul' le_rfl hcoarse)
+    _ = ((1 / 16 : ENNReal) * a + (15 / 16 : ENNReal) * c) * P +
+        ((1 / 16 : ENNReal) * b + (15 / 16 : ENNReal) * d) * E +
+        ((1 / 16 : ENNReal) + (15 / 16 : ENNReal)) * (o * O) := by ring
+    _ = _ := by rw [hweights, one_mul]
 
 theorem referenceGraphContextGame_primitive_le (dummy : OtsReferenceWords) (adversary : Adversary) (q : Nat)
     (hprefix : PrefixBudget dummy adversary q) (hcontact : ContactBudget dummy adversary q) (hsmall : q < Fintype.card Digest) :
@@ -107,23 +274,8 @@ theorem referenceGraphContextGame_primitive_le (dummy : OtsReferenceWords) (adve
       (Fintype.card Digest : ENNReal)⁻¹ * (∑' result,
         Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary)
           (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] * (result.otherCalls dummy : ENNReal)) := by
-  let law := referenceGraphContextGame contactObserver (canonicalGraphGameInputs adversary)
-    (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary
-  have he := referenceEncodingContextGame_match_le_encodingCost dummy adversary
-  rw [← referenceGraphContextGame_encoding contactObserver _ _ dummy adversary, probEvent_map] at he
-  have hs := referenceGraphContextGame_match_le_otherCost dummy adversary
-  have ht := referenceContactGame_twoEdge_le dummy adversary q hprefix hsmall
-  have hd := referenceContactGame_distinct_le dummy adversary q hprefix hcontact hsmall
-  have hm := referenceContactGame_markerContact_le dummy adversary q hprefix hcontact hsmall
-  rw [← referenceGraphContextGame_contact_event _ _ dummy adversary] at ht hd hm
-  have h := (probEvent_or_le law _ _).trans (add_le_add he
-    ((probEvent_or_le law _ _).trans (add_le_add hs
-      ((probEvent_or_le law _ _).trans (add_le_add ht
-        ((probEvent_or_le law _ _).trans (add_le_add hd hm)))))))
-  change Pr[GraphPrimitiveEvent dummy | law] ≤ _ at h
-  refine h.trans_eq ?_
-  simp only [primitivePrefixRate, primitiveEncodingRate, div_eq_mul_inv]
-  ring
+  exact primitive_mixture (referenceGraphContextGame_primitive_raw_le dummy adversary q hprefix hcontact hsmall)
+    (referenceGraphContextGame_primitive_coarse_le dummy adversary q hprefix hsmall)
 
 theorem referenceGraphContextGame_primitive_joint_budget (dummy : OtsReferenceWords) (adversary : Adversary) (q : Nat)
     (hbound : HasHashQueryBound scheme adversary q) (hsmall : q < Fintype.card Digest)

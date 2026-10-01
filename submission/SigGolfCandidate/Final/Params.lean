@@ -1143,10 +1143,10 @@ namespace SigGolfCandidate.Final
 /-- Universal accepting-run bound after fifteen leaf-offset instruction eliminations,
 three static root-header loads, one retained top-layer base, and the exact structural
 PORS segment credit with conditional two-fold prefixes and exact root reserve. Query formatting is an injective global relabel. -/
-def verifyCycleBound : Nat := 10344
+def verifyCycleBound : Nat := 10326
 
-/-- The witness charge `⌈16384 / 256⌉`. -/
-def witnessCharge : Nat := 64
+/-- The witness charge `⌈15872 / 256⌉`, with external witness at0xA00. -/
+def witnessCharge : Nat := 62
 
 /-- The claimed verification cost `C`. -/
 def claimedC : Nat := verifyCycleBound + witnessCharge

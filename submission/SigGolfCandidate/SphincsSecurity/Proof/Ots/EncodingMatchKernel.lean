@@ -66,7 +66,7 @@ theorem match_allowed_le (parameter : PublicParameter) (messages : EncodingPosit
     (words : OtsReferenceWords) (selections : ReferenceFamily) (cell : canonicalEncodingInputs parameter) :
     Pr[Match parameter messages words selections cell.val |
       PMF.uniformOfFinset (referenceEncodingAllowed parameter messages selections cell)
-        (referenceEncodingAllowed_nonempty parameter messages selections cell)] ≤ ((15 / 8 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
+        (referenceEncodingAllowed_nonempty parameter messages selections cell)] ≤ ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
   rcases match_allowed_cases parameter messages words selections cell with hfull | hnone
   · simpa only [probEvent_eq_tsum_ite, PMF.probOutput_eq_apply, PMF.uniformOfFinset_apply,
       hfull, Finset.mem_univ, if_true, Finset.card_univ, SPMF.probOutput_liftM, PMF.uniformOfFintype_apply] using

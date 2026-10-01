@@ -74,10 +74,10 @@ def slice (l : List Byte) (off len : Nat) : List Byte := (l.drop off).take len
 
 def nChains : Nat := 42
 /-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
-def targetSum : Nat := 184
+def targetSum : Nat := 185
 
-/-- Layers three and four use a target one larger than the top three layers. -/
-def targetFor (lay : Nat) : Nat := targetSum + if 1 ≤ lay then 1 else 0
+/-- Layer four uses a target one larger than the top four layers. -/
+def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 1 else 0
 
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
@@ -102,7 +102,8 @@ def aMax : Nat := 2 ^ 19
 def cMax : Nat := 2 ^ 22
 /-- Signature bytes `S`. -/
 def sigBytes : Nat := 6032
-/-- Witness bytes `W`. -/
+/-- Bytes of the witness view `0x800 .. 0x4800` the reference reads (the witness `W = 15872`
+sits at `0xA00`, after the view's 512-byte zero lead; `Ref.extW`). -/
 def witBytes : Nat := 16384
 
 /-- Height of hypertree layer `lay` (layer 0 = top): `heights[lay]`. -/
@@ -267,9 +268,11 @@ def hash16 (x : List Byte) : OracleComp HashSpec Val := do
 
 /-- Encoding-only half selection: keep the low half when its padding bit is clear,
 otherwise use the independent high half. Ordinary hashes are unchanged. -/
+def encodingGate {n : Nat} (a : BitVec n) : Bool := !(a.extractLsb' 60 4).ult 1#4
+
 def encodingAnswer (a : BitVec 256) : BitVec 256 :=
   if a.getLsbD 127 then
-    if a.getLsbD 62 || a.getLsbD 63 then a >>> 128 else a
+    if encodingGate a then a >>> 128 else a
   else if a.getLsbD 63 then a >>> 64 else a
 
 def encodingBytes (a : BitVec 256) : Val := answerBytes 16 (encodingAnswer a)

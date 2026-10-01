@@ -72,7 +72,7 @@ structure PCtx (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState) 
   x22 : t.getReg .x22 = BitVec.ofNat 64 0x30540
   x25 : t.getReg .x25 = BitVec.ofNat 64 0x30000
   x26 : t.getReg .x26 = BitVec.ofNat 64 (idx % 2 ^ 32)
-  x27 : t.getReg .x27 = BitVec.ofNat 64 0x800
+  x27 : t.getReg .x27 = BitVec.ofNat 64 0x1000
   lb0 : t.getMem (BitVec.ofNat 64 0x30000) = BitVec.ofNat 64 (1 + 256 * 9 + 2 ^ 24 * (idx / 2 ^ 32))
   lb16 : t.getMem (BitVec.ofNat 64 0x30010) = 0
   lb24 : t.getMem (BitVec.ofNat 64 0x30018) = 0
