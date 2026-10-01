@@ -5,7 +5,7 @@ import SigGolfCandidate.Verify.PorsMem
 
 Families (each a list of path runs, checked by `pspecB` in the `PorsCheck*` files):
 
-* `setup`: falling through from the digest HASH to `leaf_0` (leaf index table, tweak words, guard);
+* `setup`: from the digest's `j pors_setup` to `leaf_0` (leaf index table, tweak words, guard);
 * `leaf s` (`s < 15`): pi byte, `x = PIND[pi & 0x78 / 8]`, the order checks, leaf tweak, secret,
   `E = x | 2^14`, `a0 = CB`, up to the dispatch (the rejects: HALT(1));
 * `disp c` (`c < 18`): the dispatch `lbu T, 352(FR); slli; add TB; jalr` of leaf `c` (link `x24`)
@@ -29,7 +29,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 def leafPc (s : Nat) : Nat := leafTab.getD s 0
 /-- The dispatch of leaf `s` (after the leaf code). -/
-def dispLeafPc (s : Nat) : Nat := leafPc s + (if s = 0 then 10 else if s = 14 then 14 else 11)
+def dispLeafPc (s : Nat) : Nat := leafPc s + (if s = 0 then 10 else if s = 14 then 15 else 11)
 def entry0Pc (V : Nat) : Nat := entry0Tab.getD V 0
 def ladPc (V t p : Nat) : Nat := ((ladTab.getD V []).getD t []).getD p 0
 def lbrPc (V t p : Nat) : Nat := ((lbrTab.getD V []).getD t []).getD p 0
@@ -216,9 +216,7 @@ def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
 /-- Known at the start of the layer-4 transition: the layer constants the root tail sets (W1a: also
 `t3 = 2^40`, `sp = TMASK`, `a5 = ttab + 2048`, and `a4 = KT4`); the masks `x20`, `x21` are loaded from
-the verifier's data words and resolved from protected memory in `tailF_step`.
-`t3` reuses `x6 = 1` in one shift; `sp = 0x3FE00` reuses `x27 = 0x40101` in one
-addition of `-0x301`, so the accepting tail takes 15 instructions. -/
+the verifier's data words and resolved from protected memory in `tailF_step`. -/
 def rootK : List (Reg × Word) :=
   baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, K40), (.x2, TMASK), (.x15, TTA5)]
 def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40101), (.x14, KT4)]
@@ -250,14 +248,14 @@ def pleafPost (s : Nat) : List (Reg × Word) := gkP ++ [(.x20, BitVec.ofNat 64 (
 def pleafKeep (s : Nat) : List Reg := [xReg (s + 1), .x14, .x15, .x22, .x24, .x29]
 
 def leafBrs (s : Nat) (d1 d2 : Bool) : List Br :=
-  (if s = 14 then [⟨.geu, xE s, cw 0x4000, d2⟩] else []) ++
+  (if s = 14 then [⟨.ne, .bin .srl (xE s) (cw 14), .c 0, d2⟩] else []) ++
   (if s = 0 then [] else [⟨.geu, .reg (xReg (s + 1)), xE s, d1⟩])
 
 def leafSpec (s : Nat) : Spec :=
   ⟨[(xReg s, xE s), (.x23, .bin .or (xE s) (cw 0x4000)), (.x1, ldE (secA s)), (.x2, ldE (secA s + 8))],
     [(⟨none, BitVec.ofNat 64 0xE8⟩, ldE (secA s + 8)), (⟨none, BitVec.ofNat 64 0xE0⟩, ldE (secA s)),
       (⟨none, BitVec.ofNat 64 0xC8⟩, stW 0xC8 (xE s))],
-    dispLeafPc s, false, if s = 0 then 10 else if s = 14 then 14 else 11, leafBrs s false false, none, if s = 0 then 10 else if s = 14 then 14 else 11⟩
+    dispLeafPc s, false, if s = 0 then 10 else if s = 14 then 15 else 11, leafBrs s false false, none, if s = 0 then 10 else if s = 14 then 15 else 11⟩
 
 def leafObl (s : Nat) : List Oblig := [.valid ⟨some (piT s), BitVec.ofNat 64 PIND⟩ 8]
 
@@ -270,7 +268,7 @@ def leafCheck (s : Nat) : Bool :=
   (s = 0 || pspecB [] (runAt leafKnown [] (leafPc s) [.br true])
     (rejSpec (if s = 14 then 8 else 6) [⟨.geu, .reg (xReg (s + 1)), xE s, true⟩]) (leafObl s) [] []) &&
   (s != 14 || pspecB [] (runAt leafKnown [] (leafPc s) [.br false, .br true])
-    (rejSpec 9 (leafBrs s false true)) (leafObl s) [] [])
+    (rejSpec 10 (leafBrs s false true)) (leafObl s) [] [])
 
 end SigGolfCandidate.Verify
 
@@ -314,7 +312,7 @@ def pindE (r : Nat) : E :=
 def nbW0E : E := .bin .add hiE (cw 0xA01)
 
 def psetupMem : List (Addr × E) :=
-  [(⟨none, BitVec.ofNat 64 0x240⟩, .c (-1#64)), (⟨none, BitVec.ofNat 64 0xC8⟩, stW0 0xC8 idxE),
+  [(⟨none, BitVec.ofNat 64 0x240⟩, stW 0x240 (cw 1)), (⟨none, BitVec.ofNat 64 0xC8⟩, stW0 0xC8 idxE),
     (⟨none, BitVec.ofNat 64 0xC0⟩, .bin .add hiE (cw 0x901))] ++
   ((List.range 14).reverse.flatMap fun i =>
     [(⟨none, BitVec.ofNat 64 (PSB + 80 * i + 8)⟩, stW0 (PSB + 80 * i + 8) idxE),
@@ -329,7 +327,7 @@ def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x7B0), (.x15, 0),
     (.x18, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 101, [], none, 101⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 100, [], none, 100⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&
