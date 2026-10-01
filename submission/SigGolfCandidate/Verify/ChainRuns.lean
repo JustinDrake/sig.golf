@@ -100,10 +100,12 @@ def triX (t : Nat) : E :=
 def triTgt (t : Nat) : E :=
   mkBin .and (mkAdd (triX t) (.c (BitVec.ofNat 64 (32 * t) - BitVec.ofNat 64 2048))) (.c (~~~1#64))
 
+def xSteps (t : Nat) : Nat := if t = 0 ∨ t = 7 then 3 else 4
+
 /-- After chain `C` of triple `t`: the extraction and dispatch of triple `t + 1`, or the return. -/
 def xExp (t : Nat) : PRes :=
   if t + 1 < 14 then
-    ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, 4, 4, [], some (triTgt (t + 1))⟩
+    ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, xSteps t, xSteps t, [], some (triTgt (t + 1))⟩
   else
     ⟨⟨RegFile.withKnown chK0, [], []⟩, 0, false, 1, 1, [], some (mkBin .and (.reg .x1) (.c (~~~1#64)))⟩
 

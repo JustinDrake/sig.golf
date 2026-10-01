@@ -70,8 +70,8 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
   rw [cc_bind]
   have hfc := layFC_ok L hL
   have hsA : stepsA L.lay ≤ 15 := by unfold stepsA; split <;> omega
-  have hcB : cyclesB = 28 := rfl
-  have hsB : stepsB = 25 := rfl
+  have hcB : cyclesB = 27 := rfl
+  have hsB : stepsB = 24 := rfl
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
       (cc (match decodeDigits (answerBytes 16 a) with
         | none => pure none
@@ -317,6 +317,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
     exact this.mono (by omega) (by dsimp only; simp only [layersCost]; omega)
 
 /-- The layer cycles: `1561` (layer 4), `3 × 1576`, `1658` (layer 0), and the comparison `9`. -/
-theorem layersCost_5 : layersCost 5 = 7746 := by decide
+theorem layersCost_5 : layersCost 5 = 7726 := by decide
 
 end SigGolfCandidate.Verify

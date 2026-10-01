@@ -32,7 +32,7 @@ def preStart (lay t : Nat) : Nat :=
   else m4Pc (lay + 1) (nCh (lay + 1) - 1) t (chBits (lay + 1) (nCh (lay + 1) - 1) - 1) + 9
 
 /-- Steps of the transition up to the encoding hash (layer 0: two `addi` for the sentinel). -/
-def stepsA (lay : Nat) : Nat := if lay = 0 then 15 else 14
+def stepsA (lay : Nat) : Nat := if lay = 0 then 14 else 13
 def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
 
 /-- Known registers at the transition start. -/
@@ -43,7 +43,7 @@ def preK (lay : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay
 
 /-- Known registers after the encoding hash call. -/
 def bK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay)), (.x10, 0x100), (.x11, 64), (.x12, 0x140)]
+  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)]
 
 def uEr (lay : Nat) : E :=
   .bin .and (.reg (if lay = 4 then .x22 else .x30)) (cw (2 ^ heightL lay - 1))
@@ -66,8 +66,8 @@ def specA (lay t : Nat) : Spec :=
 
 /-! ## The encoding check (`remu x25, x25, x18; bne KT`) and the chain prologue -/
 
-def d0E : E := ldE 320
-def d1E : E := ldE 328
+def d0E : E := ldE 288
+def d1E : E := ldE 296
 def m1E : E := .c M1w
 def m2E : E := .c M2w
 def orE : E := .bin .or d0E d1E
@@ -85,17 +85,17 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E : E := .bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 : E := .bin .and (.bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB : Nat := 25
+def stepsB : Nat := 24
 /-- One REMU costs four cycles rather than one. -/
 def cyclesB : Nat := stepsB + 3
 
 def specBok : Spec :=
-  ⟨[(.x14, x14E), (.x16, d0E), (.x17, d1E)], [], 0, false, stepsB,
+  ⟨[(.x14, x14E), (.x16, d0E), (.x17, d1E), (.x25, swS)], [], 0, false, stepsB,
    [⟨.ne, swS, .c KT, false⟩, ⟨.lt, orE, .c 0, false⟩], some tgt0, cyclesB⟩
 
 /-- Known registers on entry of the chain code (`li s6; sub s9, s11, t3; jalr ra`). -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
-  chK0 ++ [(.x22, BitVec.ofNat 64 (s6N lay)), (.x25, BitVec.ofNat 64 (hWord lay) - K40),
+  chK0 ++ [(.x22, BitVec.ofNat 64 (s6N lay)),
     (.x27, BitVec.ofNat 64 (hWord lay)), (.x1, pcOf (retPc lay c))]
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
