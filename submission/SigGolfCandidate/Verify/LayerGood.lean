@@ -319,6 +319,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
     exact this.mono (by omega) (by dsimp only; simp only [layersCost]; omega)
 
 /-- The layer costs include target183 at layer4 and the eight-cycle comparison. -/
-theorem layersCost_5 : layersCost 5 = 7651 := by decide
+theorem layersCost_5 : layersCost 5 = 7648 := by decide
 
 end SigGolfCandidate.Verify

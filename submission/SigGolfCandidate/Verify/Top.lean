@@ -26,7 +26,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     (stk : List (Val × Nat)) (m : MachineState) (h : TailIn P s0 14 x 2 c ptr E folds node stk m) :
     ((folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧
         fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 11 11 u ∧
+    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 12 12 u ∧
         LayerIn ⟨P.wl, P.pk, 4, P.idx⟩ node u) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
   have hE := h.hE
@@ -145,7 +145,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hregs : KnownOK gkL0 u := by
       intro p hp
       simp only [gkL0, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact hg0.1 p (by simp [rootK, hp])
       · exact hm1
       · exact hm2
@@ -174,18 +174,18 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
 
 /-- Accepting bound after the final-root XOR, one-store guard, reused setup constants,
 and root equality/seed-mask block reductions. These are certified upper bounds. -/
-def cycleBound : Nat := 10571
+def cycleBound : Nat := 10569
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
-def cycleBoundAll : Nat := 16817
+def cycleBoundAll : Nat := 16815
 
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7651 := by decide
-theorem layC_val : layC = 7651 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7648 := by decide
+theorem layC_val : layC = 7648 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -219,7 +219,7 @@ theorem Kr_none (P : PCtx) : Kr P none = pure (false, 0) := by
 
 theorem root_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (x c : Nat) (st : PorsState)
     (u : MachineState) (hT : TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u) :
-    GoodQ u (11 + layC + layN) (11 + layC) (st.folds ≤ 118) (11 + layC) (Kr P (some st)) := by
+    GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 118) (12 + layC) (Kr P (some st)) := by
   obtain ⟨hrej, hacc⟩ := tailF_step P hP s0 x c st.ptr st.E st.folds st.node st.stack u hT
   have hL : layC = layersCost 5 := layC_val.trans layersCost_val.symm
   by_cases hc : st.folds > porsM ∨ st.E ≠ 1 ∨ st.stack ≠ []
@@ -241,7 +241,7 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
       (cc (porsRoot P.idx P.v P.wl) (Klay P)) := by
   have hr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (11 + layC + layN) (11 + layC) (st.folds ≤ 118) (11 + layC) (Kr P (some st)) :=
+      GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 118) (12 + layC) (Kr P (some st)) :=
     fun x c st u hT => root_good P hP s0 x c st u hT
   have hg0 := leaves_good P hP s0 (Kr P) (Kr_none P) hr
   have hg := hg0 15 0 ⟨wStream, 0, 0, 0, [], []⟩ s0 (by rfl) h
@@ -260,8 +260,8 @@ theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 
 
 theorem lrest_0 : lrest 0 = 157 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7742 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2788 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7742 + layC + layN := by
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7743 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2789 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7743 + layC + layN := by
   have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 

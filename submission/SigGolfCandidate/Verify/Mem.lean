@@ -109,11 +109,14 @@ def TTA5 : Word := 0x50000
 def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 
 /-- The exact digit sum, compared after the alias-free reduction modulo 4095. -/
-def KT : Word := BitVec.ofNat 64 targetSum
+def KT : Word := 183
+
+/-- Checksum comparison constant, selected from two retained registers. -/
+def KTFor (lay : Nat) : Word := if 1 ≤ lay ∧ lay < 3 then 182 else KT
 
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the triple-dispatch constants. -/
 def gkL0 : List (Reg × Word) :=
-  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x2, TMASK),
+  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x28, 182), (.x26, 6), (.x2, TMASK),
     (.x15, TTA5)]
 
 /-- The layer phase (the same list: W1a keeps no layer-4-only constant). -/
