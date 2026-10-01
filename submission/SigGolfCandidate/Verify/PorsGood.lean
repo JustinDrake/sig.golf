@@ -9,7 +9,7 @@ The root tail (into the layers), then `GoodQ` for the ladder (`segFolds`), one s
 
 Cycle bounds: a segment with `a` folds costs `15` if `a = 0` (dispatch 4, table slot 3, pending
 hash 8) and `16 + 17 a` if `a ≥ 1` (the slot's inlined parity test adds 1; `17 a` for the folds incl.
-the entry tail), at most `16 + 17 a` in both cases; tails: merge 6, push 4, root 15 (W1a: the root tail also sets `t3`, `sp`, `a5`, `a4`; the masks are loaded from the data words).
+the entry tail), at most `16 + 17 a` in both cases; tails: merge 6, push 4, root 13 (W1a: the root tail sets `sp`, `a5`; the masks are loaded from the data words; `x29` supplies KT).
 -/
 
 set_option linter.unusedSimpArgs false
@@ -209,15 +209,15 @@ def lrest (s : Nat) : Nat := ((List.range' (s + 1) (14 - s)).map leafCost).sum
 def segR (s d : Nat) : Nat := 29 - 2 * s + d
 
 def Cseg (s d : Nat) : Nat :=
-  256 * segR s d + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 15 + layC
+  256 * segR s d + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 13 + layC
 def Aseg (s d F : Nat) : Nat :=
-  16 * segR s d + 17 * (117 - F) + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 15 + layC
+  16 * segR s d + 17 * (117 - F) + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 13 + layC
 def Nseg (s d : Nat) : Nat := Cseg s d + layN
 
 /-- After the leaf's last segment (before the push / root tail). -/
-def CtailPF (s d : Nat) : Nat := if s = 14 then 15 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
+def CtailPF (s d : Nat) : Nat := if s = 14 then 13 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
 def AtailPF (s d F : Nat) : Nat :=
-  if s = 14 then 15 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
+  if s = 14 then 13 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
 def NtailPF (s d : Nat) : Nat := CtailPF s d + layN
 
 /-- Before a merge tail. -/
@@ -349,7 +349,7 @@ theorem leaves_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
     (Kr : Option PorsState → OracleComp HashSpec Obs) (hnone : Kr none = pure (false, 0))
     (hKr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (15 + layC + layN) (15 + layC) (st.folds ≤ 117) (15 + layC) (Kr (some st))) :
+      GoodQ u (13 + layC + layN) (13 + layC) (st.folds ≤ 117) (13 + layC) (Kr (some st))) :
     ∀ n s (st : PorsState) m, s + n = 15 → LeafIn P s0 s st m →
       GoodQ m (leafCost s + Nseg s st.stack.length) (leafCost s + Cseg s st.stack.length) (st.folds ≤ 117)
         (leafCost s + Aseg s st.stack.length st.folds)
