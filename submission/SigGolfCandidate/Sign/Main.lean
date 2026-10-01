@@ -94,7 +94,7 @@ theorem sched_le (N : Nat) (hadm : admissible N = true) :
 
 /-- Cycle bound after the MAC check. -/
 def restW : Nat :=
-  (2 ^ 19 - 1 + 1) * digCyc + 2 + (34 + ((2 ^ 13 * 79 + (1 + 14 * (4 + (2 ^ 13 * 54 + 4)))) +
+  (2 ^ 19 - 1 + 1) * digCyc + 2 + (34 + ((2 ^ 13 * 79 + (1 + 14 * (4 + (2 ^ 13 * 26 + 4)))) +
     (11 + 15 * 345 + (20 + (4 * layCyc + topCyc + (996 + 2))))))
 
 /-- Cycle bound of `signList`. -/

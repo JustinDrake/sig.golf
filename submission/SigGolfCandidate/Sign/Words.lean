@@ -341,7 +341,7 @@ theorem hashInput_eq_digest (t : MachineState) (rho m : List Byte) (hr : rho.len
     wordsOf_append _ _ (by simp [hr]), wordsOf_append _ _ (by simp), wordsOf_tweak]
 
 theorem blocks_fmt_th (t lay tau p j : Nat) (payload : List Byte)
-    (ht : byte t ∉ [byte 1, byte 3, byte 10, byte 12]) :
+    (ht : byte t ∉ [byte 1, byte 3, byte 12]) :
     (addrFmt (thInput (tweak t lay tau p j) payload)).blocks = (pad64 (thInput (tweak t lay tau p j) payload)).blocks := by
   rw [addrFmt_thInput _ _ _ _ _ _ ht]
 

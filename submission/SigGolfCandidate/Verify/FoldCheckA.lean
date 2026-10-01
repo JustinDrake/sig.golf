@@ -1,4 +1,4 @@
-import SigGolfCandidate.Verify.FoldDefs
+import SigGolfCandidate.Verify.FoldRuns
 
 /-! Kernel check of the Merkle shape blocks of layers 0 and 1 (one declaration per chunk). -/
 

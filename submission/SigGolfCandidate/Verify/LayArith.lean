@@ -219,16 +219,6 @@ theorem uHE_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : Mac
     rw [Nat.mul_one] at this
     omega
 
-theorem carryEr_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : MachineState)
-    (h : s.getReg (routeReg lay) = BitVec.ofNat 64 (routeIn idx lay)) :
-    (carryEr lay).eval s = BitVec.ofNat 64
-      (if lay = 0 then idx / 2 ^ layS lay % 2 ^ heightL lay
-       else idx / 2 ^ (layS lay + heightL lay)) := by
-  unfold carryEr
-  split_ifs
-  · exact uEr_eval idx lay hlay hidx s h
-  · exact tauEr_eval idx lay hlay hidx s h
-
 theorem x31Er_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : MachineState)
     (h : s.getReg (routeReg lay) = BitVec.ofNat 64 (routeIn idx lay)) :
     (x31Er lay).eval s = BitVec.ofNat 64 (idx / 2 ^ (layS lay + heightL lay) +
@@ -251,63 +241,59 @@ theorem x31Er_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : M
 
 /-! ## The encoding check -/
 
-def dA (hi : Nat) (s : MachineState) : Nat := ((d0E hi).eval s).toNat
-def dB (hi : Nat) (s : MachineState) : Nat := ((d1E hi).eval s).toNat
+def dA (s : MachineState) : Nat := (s.getMem (BitVec.ofNat 64 288)).toNat
+def dB (s : MachineState) : Nat := (s.getMem (BitVec.ofNat 64 296)).toNat
 
 section
-variable (hi : Nat) (s : MachineState)
+variable (s : MachineState)
 
-theorem swA3_toNat : ((swA3 hi).eval s).toNat = sw1 (dA hi s) (dB hi s) := by
+theorem swA3_toNat : (swA3.eval s).toNat = sw1 (dA s) (dB s) := by
   simp only [swA3, d0E, d1E, m1E, M1w, ldE, cw, Rv.E.eval, BinOp.eval, BitVec.toNat_add,
     BitVec.toNat_and, BitVec.toNat_ushiftRight, BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow, sw1, dA, dB]
   try norm_num
 
-theorem swA4_toNat : ((swA4 hi).eval s).toNat = (sw1 (dA hi s) (dB hi s) + sw1 (dA hi s) (dB hi s) / 64) % 18446744073709551616 := by
-  rw [show (swA4 hi).eval s = (swA3 hi).eval s + ((swA3 hi).eval s >>> ((BitVec.ofNat 64 6).toNat % 64)) from rfl,
+theorem swA4_toNat : (swA4.eval s).toNat = (sw1 (dA s) (dB s) + sw1 (dA s) (dB s) / 64) % 18446744073709551616 := by
+  rw [show swA4.eval s = swA3.eval s + (swA3.eval s >>> ((BitVec.ofNat 64 6).toNat % 64)) from rfl,
     BitVec.toNat_add, BitVec.toNat_ushiftRight, swA3_toNat, Nat.shiftRight_eq_div_pow]
   norm_num
 
-theorem swA5_toNat : ((swA5 hi).eval s).toNat = m3 ((sw1 (dA hi s) (dB hi s) + sw1 (dA hi s) (dB hi s) / 64) % 18446744073709551616) := by
-  rw [show (swA5 hi).eval s = (swA4 hi).eval s &&& 0xf03f03f03f03f03f#64 from rfl, BitVec.toNat_and,
+theorem swA5_toNat : (swA5.eval s).toNat = m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (dB s) / 64) % 18446744073709551616) := by
+  rw [show swA5.eval s = swA4.eval s &&& 0xf03f03f03f03f03f#64 from rfl, BitVec.toNat_and,
     swA4_toNat]
   rfl
 
-theorem swA6_toNat : ((swA6 hi).eval s).toNat = m4 (m3 ((sw1 (dA hi s) (dB hi s) + sw1 (dA hi s) (dB hi s) / 64) % 18446744073709551616)) := by
-  rw [show (swA6 hi).eval s = (swA5 hi).eval s + ((swA5 hi).eval s >>> ((BitVec.ofNat 64 12).toNat % 64)) from rfl,
+theorem swA6_toNat : (swA6.eval s).toNat = m4 (m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (dB s) / 64) % 18446744073709551616)) := by
+  rw [show swA6.eval s = swA5.eval s + (swA5.eval s >>> ((BitVec.ofNat 64 12).toNat % 64)) from rfl,
     BitVec.toNat_add, BitVec.toNat_ushiftRight, swA5_toNat, Nat.shiftRight_eq_div_pow]
   simp only [m4]; norm_num
 
-theorem swA7_toNat : ((swA7 hi).eval s).toNat = m5 (m4 (m3 ((sw1 (dA hi s) (dB hi s) + sw1 (dA hi s) (dB hi s) / 64) % 18446744073709551616))) := by
-  rw [show (swA7 hi).eval s = (swA6 hi).eval s + ((swA6 hi).eval s >>> ((BitVec.ofNat 64 24).toNat % 64)) from rfl,
+theorem swA7_toNat : (swA7.eval s).toNat = m5 (m4 (m3 ((sw1 (dA s) (dB s) + sw1 (dA s) (dB s) / 64) % 18446744073709551616))) := by
+  rw [show swA7.eval s = swA6.eval s + (swA6.eval s >>> ((BitVec.ofNat 64 24).toNat % 64)) from rfl,
     BitVec.toNat_add, BitVec.toNat_ushiftRight, swA6_toNat, Nat.shiftRight_eq_div_pow]
   simp only [m5]; norm_num
 
 def swarOf (a b : Nat) : Nat := m6 (m3 ((sw1 a b + sw1 a b / 64) % 18446744073709551616)) % 4096
 
-theorem swSBase_toNat : ((swSBase hi).eval s).toNat = swarOf (dA hi s) (dB hi s) := by
-  change (rv64_remu ((swA5 hi).eval s) 4095#64).toNat = _
+theorem swS_toNat : (swS.eval s).toNat = swarOf (dA s) (dB s) := by
+  change (rv64_remu (swA5.eval s) 4095#64).toNat = _
   rw [rv64_remu, if_neg (by decide), BitVec.toNat_umod]
-  change ((swA5 hi).eval s).toNat % 4095 = _
+  change (swA5.eval s).toNat % 4095 = _
   rw [swA5_toNat, ← swar_mersenne]
   rfl
 
-theorem swS_toNat (lay : Nat) : ((swS hi lay).eval s).toNat =
-    swarOf (dA hi s) (dB hi s) := swSBase_toNat hi s
-
-theorem swS_eq (lay : Nat) (h0 : dA hi s < 2 ^ 63) (h1 : dB hi s < 2 ^ 63) :
-    (swS hi lay).eval s = KTof lay ↔
-      (digitsOfWord (dA hi s) ++ digitsOfWord (dB hi s)).sum = targetFor lay := by
-  have hs := swar_nat (dA hi s) (dB hi s) h0 h1
+theorem swS_eq (T : Nat) (hT : T < 2 ^ 64) (h0 : dA s < 2 ^ 63) (h1 : dB s < 2 ^ 63) :
+    swS.eval s = BitVec.ofNat 64 T ↔ (digitsOfWord (dA s) ++ digitsOfWord (dB s)).sum = T := by
+  have hs := swar_nat (dA s) (dB s) h0 h1
   rw [← hs]
+  change _ ↔ swarOf (dA s) (dB s) = T
   constructor
   · intro h
-    have hh := congrArg BitVec.toNat h
-    rw [swS_toNat] at hh
-    simpa [swarOf, KTof, KT, KT4, targetFor, SigGolfCandidate.Ref.targetFor, targetSum] using hh
+    have := congrArg BitVec.toNat h
+    rw [swS_toNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hT] at this
+    exact this
   · intro h
     apply BitVec.eq_of_toNat_eq
-    rw [swS_toNat]
-    simpa [swarOf, KTof, KT, KT4, targetFor, SigGolfCandidate.Ref.targetFor, targetSum] using h
+    rw [swS_toNat, h, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hT]
 
 end
 

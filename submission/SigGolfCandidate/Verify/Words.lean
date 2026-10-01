@@ -204,40 +204,6 @@ theorem pad64_porsNodeInput (idx H : Nat) (l r : Val) (hl : l.length = 16)
     wordsOfN_val_append r hr]
   rfl
 
-/-- **The PORS node relabelling** (`AddressFormat.nodeRel`): the query of a node input under heap
-index `H` is the zero-padded input with the 32-bit header field `Rev.efield H`. -/
-theorem addrFmt_porsNodeInput (idx H : Nat) (l r : Val) (hl : l.length = 16)
-    (hr : r.length = 16) :
-    addrFmt (porsNodeInput idx H l r) = queryOfWords 0
-      [BitVec.ofNat 64 (twLo 10 0 idx 0), BitVec.ofNat 64 (twHi idx (Rev.efield H)), 0, 0,
-        vw0 l, vw1 l, vw0 r, vw1 r] := by
-  have hf : fmt (porsNodeInput idx H l r) = pad64 (porsNodeInput idx H l r) :=
-    fmt_thInput _ _ _ _ _ _ (by decide)
-  rw [addrFmt, hf, pad64_porsNodeInput _ _ _ _ hl hr]
-  have hlo : (BitVec.ofNat 64 (twLo 10 0 idx 0)).toNat % 65536 = 2561 := by
-    rw [BitVec.toNat_ofNat]; unfold twLo; omega
-  rw [AddressFormat.queryPerm_node _ _ _ rfl hlo]
-  have hw : (BitVec.ofNat 64 (twHi idx H)).toNat = idx % 4294967296 + 4294967296 * (H % 4294967296) := by
-    rw [BitVec.toNat_ofNat]; unfold twHi; omega
-  have h1 : (BitVec.ofNat 64 (twHi idx H)).toNat % 4294967296 = idx % 4294967296 := by rw [hw]; omega
-  have h2 : (BitVec.ofNat 64 (twHi idx H)).toNat / 4294967296 = H % 2 ^ 32 := by rw [hw]; omega
-  have he := Rev.efield_lt H
-  have key : BitVec.ofNat 64 ((BitVec.ofNat 64 (twHi idx H)).toNat % 4294967296 +
-      4294967296 * Rev.efield ((BitVec.ofNat 64 (twHi idx H)).toNat / 4294967296)) =
-      BitVec.ofNat 64 (twHi idx (Rev.efield H)) := by
-    rw [h1, h2, Rev.efield_mod]
-    generalize Rev.efield H = e at he ⊢
-    unfold twHi
-    congr 1
-    omega
-  rw [key]
-
-/-- The relabelled node query as a padded input: header field `Rev.efield H`. -/
-theorem addrFmt_porsNodeInput_pad (idx H : Nat) (l r : Val) (hl : l.length = 16)
-    (hr : r.length = 16) :
-    addrFmt (porsNodeInput idx H l r) = pad64 (porsNodeInput idx (Rev.efield H) l r) := by
-  rw [addrFmt_porsNodeInput _ _ _ _ hl hr, pad64_porsNodeInput _ _ _ _ hl hr]
-
 theorem pad64_encInput (lay tau e : Nat) (M : Val) (hM : M.length = 16) (c : Nat) :
     pad64 (encInput lay tau e M c) = queryOfWords 0
       [BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0,
