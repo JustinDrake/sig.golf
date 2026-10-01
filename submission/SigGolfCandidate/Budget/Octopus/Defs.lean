@@ -38,17 +38,17 @@ def leavesOf (N : Nat) : List Nat := (List.range 15).map (leafOf N)
 
 /-- The signer's admissibility test on a digest (`ref.admissible`). -/
 def admissible (N : Nat) : Bool :=
-  decide (leavesOf N).Nodup && decide (octopusSize (sortLeaves (leavesOf N)) ≤ 118)
+  decide (leavesOf N).Nodup && decide (octopusSize (sortLeaves (leavesOf N)) ≤ 117)
 
 /-- The exact number of admissible 15-subsets of `[0, 2^14)` (`admit.py`). -/
-def Nadm : Nat := 587603809105224201844661965127195603157454143488
+def Nadm : Nat := 369016871170125924655298054945320253949700980736
 
 /-! ## The packed DP (kernel-evaluated)
 
 The generating polynomial `Q_H = sum_{S ≠ ∅} X^|S| y^oc(S)` (`Split.lean`) satisfies
 `Q_0 = X` and `Q_{H+1} = 2 y Q_H + Q_H^2`. With `y = 2^B` every coefficient of `X^j` is one
-natural number (the octopus-size distribution packed in base `2^B`); modulo `M = y^119` only the
-octopus sizes `≤ 118` survive, and modulo `y - 1` the packed digits add up. `pstep` is one level
+natural number (the octopus-size distribution packed in base `2^B`); modulo `M = y^118` only the
+octopus sizes `≤ 117` survive, and modulo `y - 1` the packed digits add up. `pstep` is one level
 on the rows `j = 0..K`, reduced modulo `M`. -/
 
 /-- One level: row `j` of `2 y Q + Q^2`, modulo `M`. -/
@@ -65,7 +65,7 @@ def piter (K y M : Nat) : Nat → List Nat → List Nat
 def pB : Nat := 224
 
 /-- The packed count: row 15 after 14 levels, digits summed (mod `2^B - 1`). -/
-def packedCount : Nat := ((piter 15 (2 ^ pB) (2 ^ (pB * 119)) 14 [0, 1]).getD 15 0) % (2 ^ pB - 1)
+def packedCount : Nat := ((piter 15 (2 ^ pB) (2 ^ (pB * 118)) 14 [0, 1]).getD 15 0) % (2 ^ pB - 1)
 
 /-- Kernel evaluation (about 1 s). -/
 theorem packedCount_eq : packedCount = Nadm := by decide +kernel

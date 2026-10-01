@@ -6,14 +6,14 @@ import Mathlib.Data.Nat.Choose.Bounds
 # PORS+FP admissibility: the exact number of admissible sets
 
 `packedCount` (kernel-evaluated in `Defs.lean`) is the DP of `Q_{H+1} = 2 y Q_H + Q_H^2` on the
-rows `j ≤ 15`, with `y = 2^224`, modulo `M = y^119`, and then row 15 modulo `y - 1`:
+rows `j ≤ 15`, with `y = 2^224`, modulo `M = y^118`, and then row 15 modulo `y - 1`:
 
-* `rep_piter`: the DP computes `(Q y 14).coeff 15 mod M = (∑_{|S| = 15} y^(oc S)) mod y^119`;
-* `mod_pow_sum`: modulo `y^119` exactly the sets with `oc S ≤ 118` survive (there are fewer than
+* `rep_piter`: the DP computes `(Q y 14).coeff 15 mod M = (∑_{|S| = 15} y^(oc S)) mod y^118`;
+* `mod_pow_sum`: modulo `y^118` exactly the sets with `oc S ≤ 117` survive (there are fewer than
   `y` sets, so no carries);
 * `sum_pow_mod_pred`: modulo `y - 1` every `y^(oc S)` is `1`, so what is left is their number.
 
-Result: `card_admissibleSets` (the number of 15-subsets of `[0, 2^14)` with octopus size `≤ 118`
+Result: `card_admissibleSets` (the number of 15-subsets of `[0, 2^14)` with octopus size `≤ 117`
 is `Nadm`).
 -/
 
@@ -94,17 +94,17 @@ theorem sum_pow_mod_pred {y : ℕ} (hy : 3 ≤ y) (F : Finset (Finset ℕ)) (g :
   simp
 
 /-- **The exact number of admissible sets**: 15-subsets of `[0, 2^14)` whose octopus size (the
-`ref.octopus_size` formula on the sorted list) is at most 118. -/
+`ref.octopus_size` formula on the sorted list) is at most 117. -/
 theorem card_admissibleSets :
-    ((powersetCard 15 (range (2 ^ 14))).filter fun S => octH 14 S.sort ≤ 118).card = Nadm := by
+    ((powersetCard 15 (range (2 ^ 14))).filter fun S => octH 14 S.sort ≤ 117).card = Nadm := by
   rw [← packedCount_eq]
   unfold packedCount
-  have hM : (2 : ℕ) ^ (pB * 119) = (2 ^ pB) ^ 119 := pow_mul 2 pB 119
+  have hM : (2 : ℕ) ^ (pB * 118) = (2 ^ pB) ^ 118 := pow_mul 2 pB 118
   have hy3 : 3 ≤ (2 : ℕ) ^ pB := by unfold pB; norm_num
   have hcard : (powersetCard 15 (range (2 ^ 14))).card < 2 ^ pB - 1 := by
     rw [card_powersetCard, card_range]
     exact lt_of_le_of_lt (Nat.choose_le_pow _ _) (by rw [← pow_mul]; unfold pB; norm_num)
-  have h15 := rep_piter (K := 15) (y := 2 ^ pB) (M := 2 ^ (pB * 119)) 14 0 [0, 1]
+  have h15 := rep_piter (K := 15) (y := 2 ^ pB) (M := 2 ^ (pB * 118)) 14 0 [0, 1]
     (rep_zero 15 _ _ (Nat.one_lt_two_pow (by unfold pB; norm_num))) 15 le_rfl
   rw [Nat.zero_add] at h15
   rw [h15, coeff_Q _ _ _ (by norm_num), hM, mod_pow_sum (by norm_num) _ _ (by omega),
