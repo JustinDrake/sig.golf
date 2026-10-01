@@ -1,6 +1,6 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Base.RomQueryCharge
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.JointProbeMessageReserve
+import SigGolfCandidate.SphincsSecurity.Proof.IdealStatement
 /-!
 # The signing boundary trace
 

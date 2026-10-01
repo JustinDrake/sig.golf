@@ -58,7 +58,6 @@ structure S0 (P : PCtx) (s0 : MachineState) : Prop where
   guard : s0.getMem (BitVec.ofNat 64 0x240) = 0x100000000#64
   pind : ∀ r, r < 16 → s0.getMem (BitVec.ofNat 64 (PIND + 8 * r)) =
     BitVec.ofNat 64 ((P.v ++ [porsT]).getD r 0)
-  rtab : RtabData s0
 
 /-- Common part of the PORS boundaries: constant registers (`x20` = the leaf's table), the frame
 relative to `s0`, the facts at `s0`, `x22 = idx`. -/
@@ -76,7 +75,7 @@ def stkE (stk : List (Val × Nat)) (i : Nat) : Val × Nat := stk.reverse.getD i 
 
 def StackOK (stk : List (Val × Nat)) (m : MachineState) : Prop :=
   ∀ i, i < stk.length →
-    m.getMem (BitVec.ofNat 64 (blkQ i)) = Rev.revWord (stkE stk i).2 ∧
+    m.getMem (BitVec.ofNat 64 (blkQ i)) = BitVec.ofNat 64 (stkE stk i).2 ∧
     m.getMem (BitVec.ofNat 64 (blkL i)) = vw0 (stkE stk i).1 ∧
     m.getMem (BitVec.ofNat 64 (blkL i + 8)) = vw1 (stkE stk i).1 ∧
     (stkE stk i).1.length = 16 ∧ (stkE stk i).2 < 2 ^ 15
@@ -105,7 +104,7 @@ def PendMem (P : PCtx) (node : Val) (d : Nat) (m : MachineState) : Pending → P
     m.getMem (BitVec.ofNat 64 0xE0) = vw0 sec ∧ m.getMem (BitVec.ofNat 64 0xE8) = vw1 sec ∧
     sec.length = 16 ∧ x ≤ 2 ^ 14
   | .merge H l =>
-    m.getMem (BitVec.ofNat 64 (PSB + 80 * d + 8)) = BitVec.ofNat 64 (twHi P.idx (Rev.efield H)) ∧
+    m.getMem (BitVec.ofNat 64 (PSB + 80 * d + 8)) = BitVec.ofNat 64 (twHi P.idx H) ∧
     m.getMem (BitVec.ofNat 64 (PSB + 80 * d + 32)) = vw0 l ∧
     m.getMem (BitVec.ofNat 64 (PSB + 80 * d + 40)) = vw1 l ∧
     m.getMem (BitVec.ofNat 64 (PSB + 80 * d + 48)) = vw0 node ∧
@@ -144,7 +143,7 @@ structure DispIn (P : PCtx) (s0 : MachineState) (s x c ptr E folds : Nat) (pend 
   pc : m.pc = pcOf (dispPc c)
   copy : (c = s ∧ isLeafP pend = true) ∨ (15 ≤ c ∧ c < 18 ∧ isLeafP pend = false)
   fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 336)
-  rE : m.getReg .x23 = Rev.revWord E
+  rE : m.getReg .x23 = BitVec.ofNat 64 E
   sum : m.getReg .x18 = BitVec.ofNat 64 FLIM
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkReg stk.length)
   stack : StackOK stk m
@@ -161,10 +160,10 @@ the node in NB slot `t`, `FR` advanced, in the header's table slot. -/
 structure EntIn (P : PCtx) (s0 : MachineState) (s x V t a ptr E folds : Nat) (node : Val)
     (stk : List (Val × Nat)) (m : MachineState) : Prop where
   pb : PB P s0 m (tbOf s)
-  pc : m.pc = pcOf (slotPc (tsel s) (wbyte P.wl ptr) + 4)
+  pc : m.pc = pcOf (slotPc (tsel s) (wbyte P.wl ptr) + 5)
   slot : segV (tsel s) (wbyte P.wl ptr) = V ∧ segT (wbyte P.wl ptr) = t ∧ segA (wbyte P.wl ptr) = a
   fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 336 + 16 * a + 8)
-  rE : m.getReg .x23 = Rev.revWord E
+  rE : m.getReg .x23 = BitVec.ofNat 64 E
   sum : m.getReg .x18 = BitVec.ofNat 64 FLIM
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkReg stk.length)
   stack : StackOK stk m
@@ -189,7 +188,7 @@ structure PosIn (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) (
   pc : m.pc = pcOf (ladPc V t (14 - a + i))
   a0 : m.getReg .x10 = BitVec.ofNat 64 0x1C0
   fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 336 + 16 * a + 8)
-  rE : m.getReg .x23 = Rev.revWord E
+  rE : m.getReg .x23 = BitVec.ofNat 64 E
   sum : m.getReg .x18 = BitVec.ofNat 64 FLIM
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkReg stk.length)
   stack : StackOK stk m
@@ -217,7 +216,7 @@ structure TailIn (P : PCtx) (s0 : MachineState) (s x V c ptr E folds : Nat) (nod
   pb : PB P s0 m (tbOf s)
   pc : m.pc = pcOf (tailPc V c)
   fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 336)
-  rE : m.getReg .x23 = Rev.revWord E
+  rE : m.getReg .x23 = BitVec.ofNat 64 E
   sum : m.getReg .x18 = BitVec.ofNat 64 FLIM
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkReg stk.length)
   stack : StackOK stk m

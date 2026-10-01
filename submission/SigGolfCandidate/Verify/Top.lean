@@ -1,5 +1,4 @@
 import SigGolfCandidate.Verify.PorsGood
-import SigGolfCandidate.Verify.PorsStart
 import SigGolfCandidate.Verify.LayerGood
 
 /-! # The whole verify program -/
@@ -49,17 +48,13 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     simp only [fBr1, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.fr, BitVec.ult,
       ofNat_toNat_lt _ (show FLIM < 2 ^ 64 by decide), ofNat_toNat_lt _ (show 0x800 + ptr - 336 < 2 ^ 64 by omega)]
     exact eq_comm
-  have heq : (Rev.revWord E != BitVec.ofNat 64 sgn31) = decide (E ≠ 1) := by
-    by_cases h1 : E = 1
-    · have e : Rev.revWord E = BitVec.ofNat 64 sgn31 := (Rev.revWord_eq_one E (by omega)).mpr h1
-      rw [e, bne_self_eq_false]; simp [h1]
-    · have e : Rev.revWord E ≠ BitVec.ofNat 64 sgn31 := fun e => h1 ((Rev.revWord_eq_one E (by omega)).mp e)
-      rw [bne_iff_ne.mpr e]; simp [h1]
   have b2 : ∀ d, Br.holds m (fBr2 d) ↔ d = decide (E ≠ 1) := by
     intro d
-    show CmpOp.eval .ne (m.getReg .x23) (BitVec.ofNat 64 sgn31) = d ↔ _
-    rw [h.rE]
-    show (Rev.revWord E != BitVec.ofNat 64 sgn31) = d ↔ _
+    simp only [fBr2, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.rE]
+    have heq : (BitVec.ofNat 64 E != BitVec.ofNat 64 1) = decide (E ≠ 1) := by
+      rw [Bool.eq_iff_iff]
+      simp only [bne_iff_ne, decide_eq_true_eq, ne_eq,
+        ofNat_eq_iff (by omega : E < 2 ^ 64) (by decide : (1 : Nat) < 2 ^ 64)]
     rw [heq]; exact eq_comm
   have b3 : ∀ d, Br.holds m (fBr3 d) ↔ d = decide (stk ≠ []) := by
     intro d
@@ -162,25 +157,24 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       unfold twLo; omega
 
 
-/-- Universal accepting-run bound: PORS/initialization cost `2824` plus `layersCost 5 = 7535`.
-The relabelled PORS headers (`Ref.Rev.efield`): one `slliw` per fold (`16` per fold instead of `17`), a
-header-table load per leaf (`+2` each), and the table constants in the setup (`+4`). The 15/8 selector takes
-at most seven instructions: AB uses four, gated AB five, and BC/CD seven. Header bias saves one instruction
-per layer and startup saves one; Final.Discharge supplies the additional universal structural credit. This is
-a proof bound, not a profile. -/
-def cycleBound : Nat := 10359
+/-- The cycle bound of accepting runs: `2908 + layersCost 5 = 2908 + 7702` (address headers: one head instruction fewer per chain, `42 · 5 = 210`;
+uniform target 181). The part before the layers
+is `25` (prologue, counter check) `+ 8` (digest) `+ 100` (setup, falling through from the digest HASH, single-store guard) `+ 10 + 157` (leaves) `+ 16 · 29 + 17 · 117`
+(segments with at most `117` folds, the paired-randomizer octopus cap) `+ 6 · 14 + 4 · 14` (merge / push tails) `+ 15` (root tail) `= 2908`;
+an accepting run with `Z` fold-free segments costs `1` less per such segment. Feasible worst case
+(emulator, `F = 117`, `Z = 1`, no digit 7): `2907 + 7702 = 10609`. -/
+def cycleBound : Nat := 10610
 
-/-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
-def cycleBoundAll : Nat := 16894
-
+/-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
+def cycleBoundAll : Nat := 16860
 
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7535 := by decide
-theorem layC_val : layC = 7535 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7702 := by decide
+theorem layC_val : layC = 7702 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -253,11 +247,11 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
 
 theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 1 := rfl
 
-theorem lrest_0 : lrest 0 = 185 := by decide
+theorem lrest_0 : lrest 0 = 157 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7776 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2688 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7776 + layC + layN := by
-  have h0 : leafCost 0 = 12 := rfl
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7746 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2775 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7746 + layC + layN := by
+  have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 
 theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.length = 16)
@@ -277,8 +271,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (104 + (leafCost 0 + Nseg 0 0)) (104 + (leafCost 0 + Cseg 0 0)) True
-        (104 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (100 + (leafCost 0 + Nseg 0 0)) (100 + (leafCost 0 + Cseg 0 0)) True
+        (100 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with
@@ -294,7 +288,7 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
       obtain ⟨u, hsu, hS0, hLI⟩ := setup_step P ⟨hwl, hpk⟩ _ (hpost a)
       have := pors_good P ⟨hwl, hpk⟩ u hLI
       exact (GoodQ.steps hsu this).mono (by omega) (by omega) (fun q => ⟨q, by omega⟩)
-    have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; rw [wRho_eq]; omega
+    have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; omega
     have h3 := GoodQ.hashH (x := digestInput (witRho wl) ml) hf h5 hv hin H
     rw [fmt_digestInput_words _ _ hrho hml, blocks_qT] at h3
     have hN : layN = 25009 := rfl

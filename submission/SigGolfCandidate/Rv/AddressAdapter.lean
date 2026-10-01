@@ -1,4 +1,12 @@
-import SigGolfCandidate.Rv
+import SigGolfCandidate.Rv.Steps
+import SigGolfCandidate.Rv.Expr
+import SigGolfCandidate.Rv.Micro
+import SigGolfCandidate.Rv.Exec
+import SigGolfCandidate.Rv.Sound
+import SigGolfCandidate.Rv.Hash
+import SigGolfCandidate.Rv.Tactic
+import SigGolfCandidate.Rv.SimpAttr
+import SigGolfCandidate.Rv.Api
 import SigGolfCandidate.Ref.AddressQueries
 import SigGolfCandidate.Sign.Base
 
@@ -152,10 +160,9 @@ theorem converted_query (s t : MachineState) (B lay i mu : Nat)
   rw [hashInput_eq_words s 0 s11 (by norm_num) sal,
     hashInput_eq_words t 0 t11 (by norm_num) tal, s10, t10]
   simp only [Nat.reduceAdd, Nat.reduceMul]
-  have hw : oldHeader lay 0 i mu < 2 ^ 64 := by unfold oldHeader; omega
   rw [readWords_ofNat_succ t B 7, readWords_ofNat_succ s B 7, sw,
-    queryPerm_words _ _ (readWords_length _ _ _) (by
-      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold oldHeader; omega)]
+    queryPerm_words _ _ (readWords_length _ _ _)]
+  have hw : oldHeader lay 0 i mu < 2 ^ 64 := by unfold oldHeader; omega
   have hp : wordPerm (BitVec.ofNat 64 (oldHeader lay 0 i mu)).toNat = newHeader lay 0 i mu := by
     rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]
     exact old_header lay 0 i mu hl (by norm_num) hi hm

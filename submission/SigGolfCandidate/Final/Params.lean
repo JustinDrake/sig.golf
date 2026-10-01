@@ -7,15 +7,12 @@ The numeric parameters for the proved bound on accepting verification runs and t
 
 namespace SigGolfCandidate.Final
 
-/-- Universal accepting-run bound from the exact verifier simulation. The mixed
-185/186 layer targets save eighteen chain cycles and retain one zero checksum correction; the relabelled PORS
-headers (`Ref.Rev.efield`) fold with one `slliw` (`-117`) for a header-table load per leaf (`+30`) and the
-table constants (`+4`). -/
-def verifyCycleBound : Nat := 10358
+/-- Proved upper bound on the cycles of every accepting verify run (`Verify.cycleBound`: `2908` for the
+prologue, digest, setup and PORS, plus `layersCost 5 = 7702`; the feasible worst case is `10609`). -/
+def verifyCycleBound : Nat := 10610
 
-/-- The witness charge `⌈16128 / 256⌉` (W1: `rho` and the PORS secrets in layer 0's tweak slots,
-the witness buffer `0x900 .. 0x4800`). -/
-def witnessCharge : Nat := 63
+/-- The witness charge `⌈16384 / 256⌉`. -/
+def witnessCharge : Nat := 64
 
 /-- The claimed verification cost `C`. -/
 def claimedC : Nat := verifyCycleBound + witnessCharge

@@ -105,11 +105,11 @@ theorem ctrOff_bound (lay : Layer) : Ref.ctrOff lay.val + 4 ≤ 16384 := by
 include hl
 
 theorem witRho_eq : Ref.witRho wl = dv (witSig wl).randomness :=
-  (dv_ofList_slice _ _ (by rw [Ref.wRho_eq]; omega)).symm
+  (dv_ofList_slice _ _ (by omega)).symm
 
 theorem witSecret_eq (s : Nat) (hs : s < 15) :
     Ref.witSecret wl s = dv (Ref.ofList 16 (Ref.witSecret wl s)) :=
-  (dv_ofList_slice _ _ (by rw [Ref.wSec_eq]; omega)).symm
+  (dv_ofList_slice _ _ (by unfold Ref.wSec; omega)).symm
 
 theorem witChain_eq (lay : Layer) (i : ChainIndex) :
     Ref.witChain wl lay.val i.val = dv (((witSig wl).layers lay).chainValues i) :=
@@ -298,8 +298,8 @@ theorem verifyLayersP_eq (wl : List Byte) (hl : wl.length = 16384) (index : Inde
     rw [hash16_enc lay, witCounter_eq wl lay]
     simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_
-    rw [decodeDigits_dv lay (SphincsSecurity.selectEncodingDigest d)]
-    cases hd : SphincsSecurity.TargetSum.decodeDigest lay (SphincsSecurity.selectEncodingDigest d) with
+    rw [decodeDigits_dv]
+    cases hd : SphincsSecurity.TargetSum.decodeDigest d with
     | none => simp
     | some enc =>
       simp only [Option.map_some]
@@ -703,15 +703,15 @@ end pors
 
 /-- **verify** (W1a, padded): `verifyRef m pk w` is the relabelled padded abstract verifier on `⟨pk, 0⟩`,
 `witDec w` and the witness pads `padOf (toList w)` (rejecting paths included). -/
-theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 16128) :
+theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 16384) :
     Ref.verifyRef m pk w =
       relabel fmtQ (SphincsSecurity.Concrete.verifyP (m := AComp) ⟨pk, 0⟩ m (witDec w)
-        (padOf (Ref.extW (Ref.toList w)))) := by
-  have hl : (Ref.extW (Ref.toList w)).length = 16384 := by rw [Ref.length_extW, Ref.length_toList]; rfl
+        (padOf (Ref.toList w))) := by
+  have hl : (Ref.toList w).length = 16384 := Ref.length_toList w
   unfold Ref.verifyRef Ref.verifyList SphincsSecurity.Concrete.verifyP SphincsSecurity.Concrete.verifyCoreP
   rw [countersOk_eq _ hl]
   unfold witDec
-  by_cases hc : SphincsSecurity.Concrete.CountersInRange (witSig (Ref.extW (Ref.toList w)))
+  by_cases hc : SphincsSecurity.Concrete.CountersInRange (witSig (Ref.toList w))
   · simp only [hc, decide_true, Bool.not_true, Bool.false_eq_true, if_false, if_true]
     rw [witRho_eq _ hl, digest_eq pk _ m, relabel_bind, bind_map_left]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_

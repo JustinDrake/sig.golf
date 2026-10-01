@@ -1,7 +1,7 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.CacheMessageSignerWeight
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.CachedDigestRate
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.DigestLoopRecord
+import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeSignerView
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeFixedPrehit
 namespace SphincsSecurity.Concrete
 
