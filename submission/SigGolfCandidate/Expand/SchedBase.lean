@@ -52,17 +52,17 @@ def StreamOK (u : MachineState) (l : List Byte) : Prop :=
   ∀ i < 2152, u.getByte (BitVec.ofNat 64 (0x910 + i)) = l.getD i 0
 
 def SigOK (u : MachineState) (sig : List Byte) : Prop :=
-  ∀ j < 6032, u.getByte (BitVec.ofNat 64 (0x24B00 + j)) = sig.getD j 0
+  ∀ j < 6048, u.getByte (BitVec.ofNat 64 (0x24B00 + j)) = sig.getD j 0
 
 theorem SigOK.frame {t u : MachineState} {sig : List Byte} {W : Nat → Prop} (h : SigOK t sig)
-    (hf : Frame t u W) (hW : ∀ a, 0x24B00 ≤ a → a < 0x24B00 + 6032 → ¬ W a) : SigOK u sig := by
+    (hf : Frame t u W) (hW : ∀ a, 0x24B00 ≤ a → a < 0x24B00 + 6048 → ¬ W a) : SigOK u sig := by
   intro j hj
   rw [getByte_ofNat _ _ (by omega), hf _ (by omega) (hW _ (by omega) (by omega)), ← getByte_ofNat _ _ (by omega)]
   exact h j hj
 
 /-- A byte of a signature dword. -/
 theorem sig_dword_byte {t : MachineState} {sig : List Byte} (h : SigOK t sig) (d k : Nat) (hd : d % 8 = 0)
-    (hk : k < 8) (hdk : d + k < 6032) :
+    (hk : k < 8) (hdk : d + k < 6048) :
     extractByte (t.getMem (BitVec.ofNat 64 (0x24B00 + d))) k = sig.getD (d + k) 0 := by
   rw [← h (d + k) hdk, getByte_ofNat _ _ (by omega)]
   congr 3 <;> omega

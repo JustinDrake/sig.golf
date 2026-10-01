@@ -11,11 +11,13 @@ then `C` (head and rungs `d + 1 .. 7`, or the digit-7 copy), then the extraction
 `t + 1` and its `jalr`, or for `t = 13` the return `jalr zero, ra`.
 
 The code is layer independent: it addresses the blocks relative to `s6 = x22` (the layer base
-`blk(lay, 0) + 1344`), bumps the running tweak word 0 in `s9 = x25` by `t3 = 2^40`, and stores
+`blk(lay, 0) + 1344`), initializes the first tweak from `x27`, then bumps the running tweak
+word 0 in `s9 = x25` by `t3 = 2^40`, and stores
 tweak word 1 from `t6 = x31`. Its runs are therefore checked once, with `x22`, `x25`, `x31`,
 `a0 = x10`, `a2 = x12` symbolic; the memory writes and obligations have the base `x22` or `x10`.
 
 * head: `addi a0, s6, off; addi a2, a0, 48; add s9, s9, t3; sd s9, 0(a0); sd t6, 8(a0)`;
+  chain 0 uses `mv s9, s11` instead of the add, including on the digit-7 copy path;
 * rung `mu`: `sb MU_{mu-1}, 4(a0); [li a2, slot_i (mu = 7)]; ecall`;
 * digit 7: `ld gp, off+48(s6); ld a4, off+56(s6); sd gp, slot_i; sd a4, slot_i+8; add s9, s9, t3`.
 -/
@@ -42,7 +44,7 @@ def ldK (i k : Nat) : E := .ld (bk i k).toE
 def posE (d : Nat) : E := .c (BitVec.ofNat 64 d)
 
 /-- The running tweak word 0 after the bump. -/
-def s9E : E := addC (.reg .x25) K40
+def s9E (i : Nat) : E := if i = 0 then addC (.reg .x27) (-256#64) else addC (.reg .x25) K40
 
 /-! ## Code tables -/
 

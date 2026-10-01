@@ -127,7 +127,7 @@ theorem step_body (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e i x 
     congr 1
     norm_num
     omega
-  have aq := expand_address_query t2 (pcOf 2893) (pcOf 2913) (pcOf 2914)
+  have aq := expand_address_query t2 (pcOf 804) (pcOf 824) (pcOf 825)
     Expand.addrHead425 Expand.addrTail425 (Expand.jumpAddress425 t2 p2)
     (fun z hp => by simpa only [p2, show pcOf 425 + 4 = pcOf 426 from rfl] using Expand.returnAddress425 z hp)
     (by rfl) (by rfl) 0x30140 lay i (x + j) (by omega) hi (by omega)

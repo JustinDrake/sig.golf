@@ -518,7 +518,7 @@ theorem hq_ftsNode (index : Index) (tree : FtsTree) (heap : Nat) (l r : Digest) 
 
 theorem hq_encode (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : Digest)
     (c : SphincsSecurity.Counter) : HQ (encode (m := AComp) P lay tree leaf M c) := by
-  refine hq_bind (hq_oracleHash _ ?_) fun _ => hq_pure _
+  refine hq_bind (hq_th _ _ _ ?_) fun _ => hq_pure _
   rw [tweakableHashInput_eq]
   exact honest_tw 4 lay.val tree.val 0 leaf.val P _ (by simp [tagLen, length_bytesLE])
     (fun h => absurd h (by decide)) (fun h => absurd h (by decide)) (fun h => absurd h (by decide))
@@ -995,7 +995,7 @@ theorem hq_aLayers (index : Index) (S0 : Signature) (n : Nat) (M : Digest) :
 
 /-- **expand** (abstract) makes only honest queries: the digest, the PORS stack machine, and per
 layer the counter search, chains, leaf and fold, all with parameter `0`. -/
-theorem hq_aExpand (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6032) :
+theorem hq_aExpand (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6048) :
     HQ (aExpand m pk σ) := by
   unfold aExpand
   refine hq_bind (hq_messageDigest _ rfl _ _ _) fun d => ?_

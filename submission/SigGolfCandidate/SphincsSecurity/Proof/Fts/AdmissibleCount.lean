@@ -5,11 +5,11 @@ import Mathlib.Tactic.IrreducibleDef
 /-!
 # The number of admissible PORS+FP leaf vectors
 
-`AdmissibleLeaves` (distinct leaf indices, octopus of at most 117 nodes) holds for exactly
+`AdmissibleLeaves` (distinct leaf indices, octopus of at most 118 nodes) holds for exactly
 `15! · Nadm` of the `2^210` leaf vectors `IndexGroup → FtsLeaf` (`card_admissibleLeaves`; the count is a
 kernel evaluation in `Octopus/Defs.lean`). The admissibility probability of a raw digest,
 `p = 15! · Nadm / 2^210 ≈ 2^-9.7636`, is sealed as `admissibleProbability` with the bounds
-`1/3410 ≤ p ≤ 1/3409`; only these bounds (and the exact count, for the uniform split of a digest) are used
+`1/2142 ≤ p ≤ 1/2141`; only these bounds (and the exact count, for the uniform split of a digest) are used
 elsewhere.
 -/
 
@@ -44,7 +44,7 @@ theorem octopusSize_eq_reference (sorted : List Nat) : octopusSize sorted = Octo
 theorem card_admissibleLeaves :
     (univ.filter AdmissibleLeaves).card = Nat.factorial 15 * Octopus.Nadm := by
   have hfilter : univ.filter AdmissibleLeaves = univ.filter fun v : IndexGroup → FtsLeaf =>
-      Function.Injective v ∧ Octopus.octopusSize (Octopus.sortLeaves (Octopus.valList v)) ≤ 117 := by
+      Function.Injective v ∧ Octopus.octopusSize (Octopus.sortLeaves (Octopus.valList v)) ≤ 118 := by
     apply filter_congr
     intro leaves _
     unfold AdmissibleLeaves
@@ -58,7 +58,7 @@ theorem card_leafVectors : Fintype.card (IndexGroup → FtsLeaf) = 2 ^ 210 := by
   rfl
 
 theorem admissibleLeafCount_bounds :
-    2 ^ 210 ≤ 3410 * (Nat.factorial 15 * Octopus.Nadm) ∧ 3409 * (Nat.factorial 15 * Octopus.Nadm) ≤ 2 ^ 210 := by
+    2 ^ 210 ≤ 2142 * (Nat.factorial 15 * Octopus.Nadm) ∧ 2141 * (Nat.factorial 15 * Octopus.Nadm) ≤ 2 ^ 210 := by
   unfold Octopus.Nadm
   norm_num [Nat.factorial]
 
@@ -68,7 +68,7 @@ noncomputable irreducible_def admissibleProbability : ENNReal :=
   ((univ.filter AdmissibleLeaves).card : ENNReal) / (Fintype.card (IndexGroup → FtsLeaf) : ENNReal)
 
 open ENNReal in
-theorem admissibleProbability_ge : (3410 : ENNReal)⁻¹ ≤ admissibleProbability := by
+theorem admissibleProbability_ge : (2142 : ENNReal)⁻¹ ≤ admissibleProbability := by
   rw [admissibleProbability_def, card_admissibleLeaves, card_leafVectors]
   rw [ENNReal.le_div_iff_mul_le (Or.inl (by simp)) (Or.inl (by simp)), ← ENNReal.div_eq_inv_mul,
     ENNReal.div_le_iff_le_mul (Or.inl (by simp)) (Or.inl (by simp))]
@@ -77,7 +77,7 @@ theorem admissibleProbability_ge : (3410 : ENNReal)⁻¹ ≤ admissibleProbabili
   exact_mod_cast h
 
 open ENNReal in
-theorem admissibleProbability_le : admissibleProbability ≤ (3409 : ENNReal)⁻¹ := by
+theorem admissibleProbability_le : admissibleProbability ≤ (2141 : ENNReal)⁻¹ := by
   rw [admissibleProbability_def, card_admissibleLeaves, card_leafVectors]
   rw [ENNReal.div_le_iff (by simp) (by simp), ← ENNReal.div_eq_inv_mul,
     ENNReal.le_div_iff_mul_le (Or.inl (by simp)) (Or.inl (by simp))]
@@ -85,7 +85,7 @@ theorem admissibleProbability_le : admissibleProbability ≤ (3409 : ENNReal)⁻
   rw [mul_comm] at h
   exact_mod_cast h
 
-theorem admissibleProbability_inv_le : admissibleProbability⁻¹ ≤ 3410 :=
+theorem admissibleProbability_inv_le : admissibleProbability⁻¹ ≤ 2142 :=
   ENNReal.inv_le_iff_inv_le.mpr admissibleProbability_ge
 
 theorem admissibleProbability_pos : admissibleProbability ≠ 0 :=

@@ -43,11 +43,11 @@ noncomputable def targetCreationMultiplier (key : SecretKey) (cache : QueryCache
 theorem targetCreationMultiplier_sign_le (key : SecretKey) (cache : QueryCache HashSpec) (message : Message) :
     targetCreationMultiplier key cache (.inr message) ≤ ((2 ^ ftsTreeHeight : Nat) : ENNReal) := by
   calc
-    _ ≤ (3410 : ENNReal) * 1 :=
+    _ ≤ (2142 : ENNReal) * 1 :=
       mul_le_mul' admissibleProbability_inv_le (freshDigestSelectionProbability_le_one key message cache)
     _ ≤ _ := by
       rw [mul_one]
-      exact_mod_cast (show 3410 ≤ 2 ^ ftsTreeHeight by decide)
+      exact_mod_cast (show 2142 ≤ 2 ^ ftsTreeHeight by decide)
 
 noncomputable def targetCreationPrice (key : SecretKey) (reuse : ENNReal) (budget signatures : Nat)
     (required : Finset IndexGroup) (state : CoverLogState) : ENNReal :=

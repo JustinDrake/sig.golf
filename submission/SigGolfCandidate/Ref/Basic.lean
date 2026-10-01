@@ -74,7 +74,10 @@ def slice (l : List Byte) (off len : Nat) : List Byte := (l.drop off).take len
 
 def nChains : Nat := 42
 /-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
-def targetSum : Nat := 183
+def targetSum : Nat := 181
+
+/-- Layers three and four use targets one and two larger than the lower layers. -/
+def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 2 else if 0 ≤ lay then 1 else 0
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
 /-- The number of hypertree layers `d`. -/
@@ -89,7 +92,7 @@ def porsK : Nat := 15
 /-- PORS leaves (`POR_T = 2^14`). -/
 def porsT : Nat := 2 ^ porsH
 /-- Authentication-node slots (`POR_M`, the octopus bound). -/
-def porsM : Nat := 117
+def porsM : Nat := 118
 /-- Schedule segments (`POR_SEGS = 2 k - 1`: one per leaf start, one per merge). -/
 def porsSegs : Nat := 2 * porsK - 1
 /-- Digest trials `A_max`. -/
@@ -97,7 +100,7 @@ def aMax : Nat := 2 ^ 19
 /-- The counter limit `C_max`: the signer tries `c < cMax`, the verifier rejects `c ≥ cMax`. -/
 def cMax : Nat := 2 ^ 22
 /-- Signature bytes `S`. -/
-def sigBytes : Nat := 6032
+def sigBytes : Nat := 6048
 /-- Witness bytes `W`. -/
 def witBytes : Nat := 16384
 
@@ -261,17 +264,6 @@ def hash16 (x : List Byte) : OracleComp HashSpec Val := do
   let a ← H x
   pure (answerBytes 16 a)
 
-/-- Encoding-only half selection: keep the low half when its padding bit is clear,
-otherwise use the independent high half. Ordinary hashes are unchanged. -/
-def encodingAnswer (a : BitVec 256) : BitVec 256 :=
-  if a.getLsbD 63 then a >>> 128 else a
-
-def encodingBytes (a : BitVec 256) : Val := answerBytes 16 (encodingAnswer a)
-
-def encodingHash (x : List Byte) : OracleComp HashSpec Val := do
-  let a ← H x
-  pure (encodingBytes a)
-
 /-- `Th(P, tw, payload)`: the first 16 bytes of `H(fmt(tw || 0^16 || payload))`. -/
 def th (tw payload : List Byte) : OracleComp HashSpec Val := hash16 (thInput tw payload)
 
@@ -347,7 +339,7 @@ def bitLen (x : Nat) : Nat := if x = 0 then 0 else Nat.log2 x + 1
 
 /-- `ref.octopus_size vs = 14 + sum_{s ≥ 1} bitlen(vs[s-1] xor vs[s]) - 2 (|vs| - 1)`, written as
 `14 + 2 + sum - 2 |vs|` (equal whenever Python's value is `≥ 0`, which it always is on sorted
-distinct lists; the Nat truncation to `0` does not change any comparison `≤ 117` either). -/
+distinct lists; the Nat truncation to `0` does not change any comparison `≤ 118` either). -/
 def octopusSize (vs : List Nat) : Nat :=
   porsH + 2 + (List.zipWith (fun a b => bitLen (a ^^^ b)) vs vs.tail).sum - 2 * vs.length
 
@@ -355,7 +347,7 @@ def octopusSize (vs : List Nat) : Nat :=
 def sortLeaves (v : List Nat) : List Nat := v.insertionSort (· ≤ ·)
 
 /-- `ref.admissible`: the 15 leaf indices of `N` are pairwise distinct and their octopus (in
-sorted order) has at most `porsM = 117` nodes. -/
+sorted order) has at most `porsM = 118` nodes. -/
 def admissible (N : Nat) : Bool :=
   decide (leavesOf N).Nodup && decide (octopusSize (sortLeaves (leavesOf N)) ≤ porsM)
 
@@ -404,12 +396,12 @@ def digitsOfWord (d : Nat) : List Nat := (List.range 21).map fun r => d / 8 ^ r 
 /-- TargetSum decoding of an encoding output `v` (first 16 bytes): `d0`, `d1` = the two LE 64-bit
 halves; reject if bit 63 of `d0` or of `d1` is set, else the 42 digits (21 of `d0`, then 21 of
 `d1`) if they sum to `targetSum`. -/
-def decodeDigits (v : Val) : Option (List Nat) :=
+def decodeDigits (lay : Nat) (v : Val) : Option (List Nat) :=
   let d0 := leNat (slice v 0 8)
   let d1 := leNat (slice v 8 8)
   if d0 < 2 ^ 63 ∧ d1 < 2 ^ 63 then
     let x := digitsOfWord d0 ++ digitsOfWord d1
-    if x.sum = targetSum then some x else none
+    if x.sum = targetFor lay then some x else none
   else none
 
 end SigGolfCandidate.Ref

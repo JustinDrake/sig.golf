@@ -1,4 +1,4 @@
-import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.PairedSampling
+import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.TrialSampling
 
 open OracleComp OracleSpec
 

@@ -248,7 +248,7 @@ theorem layer_head {img : Image} (hcode : HeadCode img) (idx lay : Nat) (M : Val
   refine ⟨_, _, t4, (hs1.trans (hs2.trans hs3)), by rw [hc1, hc3]; omega,
     by simp only [ht4, blk331.res, rv_simp], by simp only [ht4, blk331.res, rv_simp],
     by rw [r4.get .x9, x9], z13, z30, z31, ?_, ?_, ft4⟩
-  · refine ⟨by omega, htau30, he2048, hh.hM, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · refine ⟨by omega, htau30, he2048, hh.hM, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · simp only [ht4, blk331.res, rv_simp, y8]
       bvsimp [ofNat_eq_iff]
       unfold twWord0; congr 1
@@ -263,6 +263,7 @@ theorem layer_head {img : Image} (hcode : HeadCode img) (idx lay : Nat) (M : Val
     · rw [r4.get .x7, rt2.get .x7, hh.x7]
     · rw [r4.get .x26, rt2.get .x26, hh.x26]
     · rw [r4.get .x27, rt2.get .x27, hh.x27]
+    · rw [r4.get .x8, y8]
   · exact (rt2.trans r4).mono (by decide)
 
 /-- Route and header state at `enc_loop`. -/

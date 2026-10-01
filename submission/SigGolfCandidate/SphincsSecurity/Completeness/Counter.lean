@@ -1,4 +1,5 @@
 import SigGolfCandidate.SphincsSecurity.Completeness.Search
+import SigGolfCandidate.SphincsSecurity.Completeness.Encoding
 
 /-!
 # The counter search
@@ -41,11 +42,12 @@ theorem probEvent_encodingSearch (parameter : PublicParameter) (lay : Layer) (tr
     Pr[fun r => r.1 = none | (simulateQ randomOracle
         (encodingSearch parameter lay tree leaf message encodingAttemptLimit 0
           : OracleComp HashSpec (Option (Counter × Encoding)))).run cache]
-      ≤ failMass (fun out => TargetSum.decodeDigest (selectEncodingDigest out)) ^ encodingAttemptLimit := by
+      ≤ encodingFactor ^ encodingAttemptLimit := by
   have hwrap : encodingAttemptLimit ≤ 2 ^ 32 := by rw [encodingAttemptLimit]; norm_num
   rw [encodingSearch_eq_searchLoop]
-  exact probEvent_searchLoop _ _ _ encodingAttemptLimit
+  refine (probEvent_searchLoop _ _ _ encodingAttemptLimit
     (fun s s' hs hs' heq => encodeInput_inj parameter lay tree leaf message (by omega) (by omega) heq)
-    encodingAttemptLimit 0 (by simp) cache (fun s _ hsb => hfresh s hsb)
+    encodingAttemptLimit 0 (by simp) cache (fun s _ hsb => hfresh s hsb)).trans ?_
+  exact pow_le_pow_left₀ (by positivity) failMass_encoding_le _
 
 end SphincsSecurity.Completeness

@@ -242,34 +242,34 @@ namespace SigGolfCandidate.Sign
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref
 
 private def lowState (t : MachineState) : MachineState :=
-  blk2893.res.toState (blk70.res.toState t)
+  blk3200.res.toState (blk70.res.toState t)
 private def branchState (t : MachineState) : MachineState :=
-  blk2897.res.toState (blk137.res.toState t)
+  blk3204.res.toState (blk137.res.toState t)
 private def highState (t : MachineState) : MachineState :=
-  blk2900.res.toState (branchState t)
+  blk3207.res.toState (branchState t)
 private def nextState (t : MachineState) : MachineState :=
-  blk138.res.toState (blk2898.res.toState t)
+  blk138.res.toState (blk3205.res.toState t)
 
 private theorem low_steps (t : MachineState) (hpc : t.pc = pcOf 70) :
     Steps image t 5 5 (lowState t) := by
   have h0 := symRun_sound blk70 codeAt_70 t hpc (by simp only [blk70.res, rv_simp])
-  have h1 := symRun_sound blk2893 codeAt_2893 (blk70.res.toState t)
-    (by simp only [blk70.res, rv_simp]) (by simp only [blk2893.res, rv_simp])
+  have h1 := symRun_sound blk3200 codeAt_3200 (blk70.res.toState t)
+    (by simp only [blk70.res, rv_simp]) (by simp only [blk3200.res, rv_simp])
   exact h0.trans h1
 
 private theorem branch_steps (t : MachineState) (hpc : t.pc = pcOf 137) :
     Steps image t 2 2 (branchState t) := by
   have h0 := symRun_sound blk137 codeAt_137 t hpc (by simp only [blk137.res, rv_simp])
-  have h1 := symRun_sound blk2897 codeAt_2897 (blk137.res.toState t)
-    (by simp only [blk137.res, rv_simp]) (by simp only [blk2897.res, rv_simp])
+  have h1 := symRun_sound blk3204 codeAt_3204 (blk137.res.toState t)
+    (by simp only [blk137.res, rv_simp]) (by simp only [blk3204.res, rv_simp])
   exact h0.trans h1
 
 private theorem high_steps (t : MachineState) (hpc : t.pc = pcOf 137) (h18 : t.getReg .x18 = 0) :
     Steps image t 6 6 (highState t) := by
   have h0 := branch_steps t hpc
-  have h1 := symRun_sound blk2900 codeAt_2900 (branchState t)
-    (by simp only [branchState, blk2897.res, blk137.res, rv_simp, h18]; decide)
-    (by simp only [blk2900.res, rv_simp])
+  have h1 := symRun_sound blk3207 codeAt_3207 (branchState t)
+    (by simp only [branchState, blk3204.res, blk137.res, rv_simp, h18]; decide)
+    (by simp only [blk3207.res, rv_simp])
   exact h0.trans h1
 
 private theorem low_regs (t : MachineState) : RegsEq t (lowState t) [.x1, .x2, .x18] := by
@@ -288,11 +288,11 @@ private theorem branch_regs (t : MachineState) : RegsEq t (branchState t) [] := 
   cases r <;> rfl
 
 private theorem low_mem (t : MachineState) (x : Word) : (lowState t).getMem x = t.getMem x := by
-  simp only [lowState, blk2893.res, blk70.res, rv_simp]
+  simp only [lowState, blk3200.res, blk70.res, rv_simp]
 private theorem high_mem (t : MachineState) (x : Word) : (highState t).getMem x = t.getMem x := by
-  simp only [highState, branchState, blk2900.res, blk2897.res, blk137.res, rv_simp]
+  simp only [highState, branchState, blk3207.res, blk3204.res, blk137.res, rv_simp]
 private theorem branch_mem (t : MachineState) (x : Word) : (branchState t).getMem x = t.getMem x := by
-  simp only [branchState, blk2897.res, blk137.res, rv_simp]
+  simp only [branchState, blk3204.res, blk137.res, rv_simp]
 
 private theorem eq_of_two_words (l : List Byte) (hl : l.length = 16) (w0 w1 : Word)
     (hw : wordsOf l = [w0, w1]) : valOfWords w0 w1 = l := by
@@ -309,7 +309,7 @@ private theorem eq_of_two_words (l : List Byte) (hl : l.length = 16) (w0 w1 : Wo
 theorem digTrial (sk : SecretKey) (m : Message) (u : MachineState)
     (hmem : DigMem (toList sk) (toList m) u) (hx5 : u.getReg .x5 = 0) (a : Nat) (t : MachineState)
     (hinv : DigInv u a t) (rest : OracleComp HashSpec (Option (Val × Nat))) (Wr : Nat)
-    (hrest : ∀ t', t'.pc = pcOf 2898 → t'.getReg .x6 = BitVec.ofNat 64 a → RegsEq u t' digRegs →
+    (hrest : ∀ t', t'.pc = pcOf 3205 → t'.getReg .x6 = BitVec.ofNat 64 a → RegsEq u t' digRegs →
       Frame u t' digW → lo32 (t'.getMem (BitVec.ofNat 64 0x7b8)) = lo32 (u.getMem (BitVec.ofNat 64 0x7b8)) →
       Sim image t' Wr rest (DigPost u)) :
     Sim image t (60 + 2 * anCyc + Wr) (prf2 (rndInput (toList sk) (toList m) a) >>= fun p =>
@@ -327,10 +327,10 @@ theorem digTrial (sk : SecretKey) (m : Message) (u : MachineState)
   intro ans v vpc v6 vregs vframe vlo vl vh
   have lregs : RegsEq u (lowState v) digRegs := (vregs.trans (low_regs v)).mono (by decide)
   have lframe : Frame u (lowState v) digW := by intro x hx hw; rw [low_mem]; exact vframe x hx hw
-  have lpc : (lowState v).pc = pcOf 72 := by simp only [lowState, blk2893.res, blk70.res, rv_simp]
+  have lpc : (lowState v).pc = pcOf 72 := by simp only [lowState, blk3200.res, blk70.res, rv_simp]
   have lv : valOfWords ((lowState v).getReg .x1) ((lowState v).getReg .x2) = answerBytes 16 ans := by
     apply eq_of_two_words (answerBytes 16 ans) (by simp)
-    simpa only [lowState, blk2893.res, blk70.res, rv_simp, readWords_ofNat_two] using vl.symm
+    simpa only [lowState, blk3200.res, blk70.res, rv_simp, readWords_ofNat_two] using vl.symm
   refine (Sim.steps (low_steps v vpc) (digAttempt sk m u (lowState v) hmem hx5 lpc lregs lframe
     _ (by simp) lv _ (24 + anCyc + Wr) ?_)).mono (by omega) (fun _ _ h => h)
   intro v1 v1pc r1 f1
@@ -339,26 +339,26 @@ theorem digTrial (sk : SecretKey) (m : Message) (u : MachineState)
     intro x hx; simp only [digW, digTryW, anW] at hx ⊢; omega)
   have v118 : v1.getReg .x18 = 0 := by
     rw [r1.get .x18 (by decide)]
-    simp only [lowState, blk2893.res, blk70.res, rv_simp]
+    simp only [lowState, blk3200.res, blk70.res, rv_simp]
   have hregs : RegsEq u (highState v1) digRegs := (v1regs.trans (high_regs v1)).mono (by decide)
   have hframe : Frame u (highState v1) digW := by intro x hx hw; rw [high_mem]; exact v1frame x hx hw
   have hpc : (highState v1).pc = pcOf 72 := by
-    simp only [highState, blk2900.res, rv_simp]
+    simp only [highState, blk3207.res, rv_simp]
   have hv : valOfWords ((highState v1).getReg .x1) ((highState v1).getReg .x2) = hiVal ans := by
     have preserved : v1.readWords (BitVec.ofNat 64 0x150) 2 = wordsOf (hiVal ans) := by
       rw [f1.readWords _ _ (by norm_num) (by intro i hi; simp only [digTryW, anW]; omega)]
       simpa only [readWords_ofNat_two, low_mem] using vh
     apply eq_of_two_words (hiVal ans) (by simp)
-    simpa only [highState, branchState, blk2900.res, blk2897.res, blk137.res, rv_simp,
+    simpa only [highState, branchState, blk3207.res, blk3204.res, blk137.res, rv_simp,
       readWords_ofNat_two] using preserved.symm
   refine (Sim.steps (high_steps v1 v1pc v118) (digAttempt sk m u (highState v1) hmem hx5
     hpc hregs hframe _ (by simp) hv rest (2 + Wr) ?_)).mono (by omega) (fun _ _ h => h)
   intro v2 v2pc r2 f2
   have v218 : v2.getReg .x18 = 1 := by
     rw [r2.get .x18 (by decide)]
-    simp only [highState, blk2900.res, rv_simp]
+    simp only [highState, blk3207.res, rv_simp]
   refine Sim.steps (branch_steps v2 v2pc) (hrest (branchState v2) ?_ ?_ ?_ ?_ ?_)
-  · simp only [branchState, blk2897.res, blk137.res, rv_simp, v218]; decide
+  · simp only [branchState, blk3204.res, blk137.res, rv_simp, v218]; decide
   · rw [(branch_regs v2).get .x6 (by decide), r2.get .x6 (by decide),
       (high_regs v1).get .x6 (by decide), r1.get .x6 (by decide), (low_regs v).get .x6 (by decide), v6]
   · exact ((hregs.trans r2).trans (branch_regs v2)).mono (by decide)
@@ -379,36 +379,41 @@ theorem searchDigestPairs_succ (S mm : List Byte) (a f : Nat) :
   simp only [searchDigestPairs, digest, H, bind_assoc, pure_bind]
   congr 1
   funext p
-  rw [addrFmt_digestInput, addrFmt_digestInput]
+  rw [addrFmt_digestInput]
+  congr 1
+  funext ans
+  split
+  · rfl
+  · rw [addrFmt_digestInput]
 
 /-- Advance to the next pair, or fail when the fixed pair limit is exhausted. -/
 theorem digNext (u : MachineState) (hx7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 19)) (a : Nat)
-    (ha : a < 2 ^ 19) (t : MachineState) (tpc : t.pc = pcOf 2898) (t6 : t.getReg .x6 = BitVec.ofNat 64 a)
+    (ha : a < 2 ^ 19) (t : MachineState) (tpc : t.pc = pcOf 3205) (t6 : t.getReg .x6 = BitVec.ofNat 64 a)
     (tregs : RegsEq u t digRegs) (tframe : Frame u t digW)
     (tlo : lo32 (t.getMem (BitVec.ofNat 64 0x7b8)) = lo32 (u.getMem (BitVec.ofNat 64 0x7b8))) :
     ∃ t', Steps image t 3 3 t' ∧
       (a + 1 < 2 ^ 19 → DigInv u (a + 1) t') ∧ (a + 1 = 2 ^ 19 → t'.pc = pcOf 139) ∧
       RegsEq t t' [.x6] := by
-  have hs0 := symRun_sound blk2898 codeAt_2898 t tpc (by simp only [blk2898.res, rv_simp])
-  have hs1 := symRun_sound blk138 codeAt_138 (blk2898.res.toState t)
-    (by simp only [blk2898.res, rv_simp]) (by simp only [blk138.res, rv_simp])
+  have hs0 := symRun_sound blk3205 codeAt_3205 t tpc (by simp only [blk3205.res, rv_simp])
+  have hs1 := symRun_sound blk138 codeAt_138 (blk3205.res.toState t)
+    (by simp only [blk3205.res, rv_simp]) (by simp only [blk138.res, rv_simp])
   have rr : RegsEq t (nextState t) [.x6] := by
     intro r hr
     simp only [nextState, Result.toState_getReg]
     cases r <;> first | exact absurd (by decide) hr | rfl
   have mm : ∀ x, (nextState t).getMem x = t.getMem x := by
-    intro x; simp only [nextState, blk138.res, blk2898.res, rv_simp]
+    intro x; simp only [nextState, blk138.res, blk3205.res, rv_simp]
   refine ⟨nextState t, hs0.trans hs1, ?_, ?_, rr⟩
   · intro h
     refine ⟨?_, ?_, h, (tregs.trans rr).mono (by decide), ?_, ?_⟩
-    · simp only [nextState, blk138.res, blk2898.res, rv_simp, t6,
+    · simp only [nextState, blk138.res, blk3205.res, rv_simp, t6,
         tregs.get .x7 (by decide), hx7, ofNat_add_ofNat, ofNat_bne_ofNat]
       rw [if_pos (by simp; omega)]
-    · simp only [nextState, blk138.res, blk2898.res, rv_simp, t6, ofNat_add_ofNat]
+    · simp only [nextState, blk138.res, blk3205.res, rv_simp, t6, ofNat_add_ofNat]
     · intro x hx hw; rw [mm]; exact tframe x hx hw
     · rw [mm]; exact tlo
   · intro h
-    simp only [nextState, blk138.res, blk2898.res, rv_simp, t6,
+    simp only [nextState, blk138.res, blk3205.res, rv_simp, t6,
       tregs.get .x7 (by decide), hx7, ofNat_add_ofNat, ofNat_bne_ofNat]
     rw [if_neg (by simp; omega)]
 

@@ -9,7 +9,7 @@ import SigGolfCandidate.Sign.SchedMath
 * keys `keyOf N r = v_r * 256 + 8 r` (`v_r = fieldOf N r`, the 14-bit leaf index of slot `r`);
 * an insertion sort of the 15 keys (`sortKeys`, the machine's in-place shifting insertion);
 * a pass over the sorted keys: reject a duplicate leaf index, else sum the bit lengths of
-  `v_s xor v_{s+1}` and accept iff the sum is `≤ 131` (`admissibleM`).
+  `v_s xor v_{s+1}` and accept iff the sum is `≤ 132` (`admissibleM`).
 
 Facts proved here: the sorted keys are a strictly increasing permutation of the keys
 (`sortKeys_perm`, `sortKeys_sorted`).
@@ -60,7 +60,7 @@ def passSum (l : List Nat) : Nat :=
 
 /-- The machine's decision. -/
 def admissibleM (N : Nat) : Bool :=
-  passOk (sortKeys (keys0 N)) && decide (passSum (sortKeys (keys0 N)) ≤ 131)
+  passOk (sortKeys (keys0 N)) && decide (passSum (sortKeys (keys0 N)) ≤ 132)
 
 /-! ## Sorting facts -/
 
@@ -270,7 +270,7 @@ theorem admissibleM_eq (N : Nat) : admissibleM N = admissible N := by
   rw [hvs] at hsorted
   generalize sortKeys (keys0 N) = L at hlen hsorted ⊢
   rw [passOk_eq L hlen hsorted, octo_eq L hlen]
-  have : decide (passSum L ≤ 131) = decide (16 + passSum L - 30 ≤ porsM) := by
+  have : decide (passSum L ≤ 132) = decide (16 + passSum L - 30 ≤ porsM) := by
     rw [decide_eq_decide]; unfold porsM; omega
   rw [this]
 
