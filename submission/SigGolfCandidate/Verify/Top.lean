@@ -179,7 +179,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
 /-- Universal accepting-run bound. Scaled PIND byte offsets remove one instruction from
 all fifteen leaf headers. The tag-9 address-field rotation is an injective query relabel;
 Final.Discharge supplies the additional universal structural credit. Sparse cap initialization adds one instruction. This is a proof bound. -/
-def cycleBound : Nat := 10287
+def cycleBound : Nat := 10282
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
 def cycleBoundAll : Nat := 16858
@@ -190,8 +190,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7493 := by decide
-theorem layC_val : layC = 7493 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7488 := by decide
+theorem layC_val : layC = 7488 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do

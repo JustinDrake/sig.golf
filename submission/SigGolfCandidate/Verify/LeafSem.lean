@@ -61,9 +61,9 @@ def LeafCarry (L : LCtx) (s : MachineState) : Prop :=
   s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay + 768) ∧ s.getReg .x30 = BitVec.ofNat 64 (if L.lay = 0 then L.e else L.tau) ∧
   CB0 s ∧ Fresh L.wl L.lay 42 s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N L.lay)
 
-/-- The leaf tweak word 0 with byte 1 (the tag 2) replaced by 3: the node tweak word 0. -/
+/-- The leaf tweak word 0 with byte 1 (the tag 4) replaced by 3: the node tweak word 0. -/
 theorem leaf_nb0 (lay : Nat) (hl : lay < 5) :
-    StoreKind.merge .b (BitVec.ofNat 64 (hWord lay + 256)) 1 (BitVec.ofNat 64 3) =
+    StoreKind.merge .b (BitVec.ofNat 64 (hWord lay + 768)) 1 (BitVec.ofNat 64 3) =
       BitVec.ofNat 64 (1 + 256 * 3 + 65536 * lay) := by
   interval_cases lay <;> decide +kernel
 
@@ -76,7 +76,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     (s : MachineState) (hs : ChainNext (L.cctx t a) 42 ends s) :
     ∃ u, Steps image s (leafSteps L.lay + 1) (leafSteps L.lay + 1) u ∧ fetch image u = some (.base .ECALL) ∧
       u.getReg .x5 = 0 ∧ hashArgumentsValid u = true ∧
-      hashInput u = pad64 (leafInput L.lay L.tau L.e ends) ∧
+      hashInput u = addrFmt (leafInput L.lay L.tau L.e ends) ∧
       ∀ ans, FoldInv (layFC L) (writeHash u ans) 0 (answerBytes 16 ans) (writeHash u ans) ∧
         LeafCarry L (writeHash u ans) := by
   obtain ⟨hlay, hidx, hwl⟩ := hL
@@ -153,7 +153,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       (by simp only [hashArgsB, MEMORY_BYTES]; simp; omega), ?_, ?_⟩
   · have hends : ∀ v ∈ ends, v.length = 16 := hvs
     rw [hashInput_ofNat _ 0x340 10 h10 h11 (by decide) (by decide),
-      pad64_leafInput _ _ _ _ (by rw [hlen]) hends]
+      addrFmt_leafInput_words _ _ _ _ (by rw [hlen]) hends]
     congr 1
     rw [show 8 * (10 + 1) = 4 + 84 by rfl, List.range_add, List.map_append]
     congr 1

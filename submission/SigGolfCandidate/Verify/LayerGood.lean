@@ -261,11 +261,11 @@ theorem layer_good (L : LCtx) (hL : L.ok) (X : Val) (Kopt : Option Val → Oracl
                   (foldInv_layerIn L.wl L.pk L.lay L.idx (by omega) hlay hidx hwl _ v u hinv hcar))
                 (heightL L.lay - 1) 0 (by omega) _ _ hfi
               exact hfold.mono (by omega) (by simp [layFC])
-          have h3 := Good.hashP (x := leafInput L.lay L.tau L.e ends) (K := fun leaf => cc (foldPath (nodeInput L.lay L.tau) L.e leaf
+          have h3 := Good.hash (x := leafInput L.lay L.tau L.e ends) (K := fun leaf => cc (foldPath (nodeInput L.lay L.tau) L.e leaf
             (if L.lay = 0 then witPath L.wl L.lay else (witPath L.wl L.lay).take (height L.lay - 1)))
             (fun root => cc (pure (some root)) Kopt))
-            (fmt_th _ _ _ _ _ _ (by decide)) hf3 h53 hv3 hin3 H3
-          rw [pad64_leafInput _ _ _ _ hends hvs, blocks_q] at h3
+            hf3 h53 hv3 hin3 H3
+          rw [addrFmt_leafInput_words _ _ _ _ hends hvs, blocks_q] at h3
           have hls : leafSteps L.lay ≤ 13 := by unfold leafSteps; split <;> omega
           exact Good.steps' hst3 h3 (by omega) (by omega))
         t2 hent
@@ -279,7 +279,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (X : Val) (Kopt : Option Val → Oracl
           let leaf ← verifyLeafP L.wl L.lay L.tau L.e x
           let node ← foldPath (nodeInput L.lay L.tau) L.e leaf
             (if L.lay = 0 then witPath L.wl L.lay else (witPath L.wl L.lay).take (height L.lay - 1))
-          pure (some node)) Kopt) (fmt_enc _ _ _ _ _) hf1 h51 hv1 hin1 H
+          pure (some node)) Kopt) (fmt_enc _ _ _ _ _ hblk1) hf1 h51 hv1 hin1 H
   rw [hblk1] at h3
   exact Good.steps' hst1 h3 (by omega) (by unfold layerCost; omega)
 
@@ -428,6 +428,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The cycles of the five layers and the comparison (`8`). Against the head without the pair
 message: `-14` per lower layer (no root hash) and `+4` in each upper transition (the sibling copy). -/
-theorem layersCost_5 : layersCost 5 = 7493 := by decide
+theorem layersCost_5 : layersCost 5 = 7488 := by decide
 
 end SigGolfCandidate.Verify

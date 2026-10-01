@@ -53,7 +53,7 @@ theorem blk386_run (t : MachineState) (hpc : t.pc = pcOf 386) (lay tau : Nat) (h
       t'.getReg .x20 = BitVec.ofNat 64 (257 + 65536 * lay) ∧ t'.getReg .x21 = BitVec.ofNat 64 (2 ^ 40) ∧
       t'.getReg .x23 = BitVec.ofNat 64 (0x800 + (2992 + 2688 * lay)) ∧
       t'.getReg .x24 = BitVec.ofNat 64 0x30260 ∧
-      t'.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (513 + 65536 * lay) ∧
+      t'.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (1025 + 65536 * lay) ∧
       t'.getMem (BitVec.ofNat 64 0x30248) = t.getReg .x31 ∧
       t'.getMem (BitVec.ofNat 64 0x301C0) = BitVec.ofNat 64 (769 + 65536 * lay) ∧
       t'.getMem (BitVec.ofNat 64 0x30148) = t.getReg .x31 ∧
