@@ -217,8 +217,8 @@ def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 /-- Known at the start of the layer-4 transition. The root sets the triple-table
 base and layer constants; address-format chains require no running-tweak bump. -/
 def rootK : List (Reg × Word) := baseK ++
-  [(.x24, 0x10000), (.x29, KT), (.x28, 182), (.x26, 6), (.x15, TTA5)]
-def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120)]
+  [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x15, TTA5)]
+def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x28, 0xA80)]
 
 def tailFSpec (c : Nat) : Spec :=
   ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8), (.x27, ldE 0xFFFFE0), (.x2, ldE 0xFFFFE8)], [], f4Pc c, false, 12, [fBr3 true, fBr2 true, fBr1 false], none, 12⟩

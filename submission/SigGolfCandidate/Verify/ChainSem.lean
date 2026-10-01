@@ -173,7 +173,7 @@ def CCtx.ok (c : CCtx) : Prop :=
     c.d1.toNat < 2 ^ 63
 
 /-- The unused running-header register remains fixed throughout the chain phase. -/
-def carryW0 (lay : Nat) : Word := KTFor lay
+def carryW0 (_lay : Nat) : Word := KT
 
 /-- The address header before the tree-high byte (zero in these programs). -/
 def newTwW0 (lay i mu : Nat) : Nat := blkN lay i + 2 ^ 32 * mu

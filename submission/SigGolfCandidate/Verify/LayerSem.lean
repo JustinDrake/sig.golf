@@ -277,7 +277,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
           have := (swS_eq s L.lay (by omega) (by omega)).mp h
           rwa [hdA, hdB] at this
         · simp only [Br.holds]; rw [hor]; exact decide_eq_false (by omega))
-      exact ⟨21 + (if L.lay = 0 then 1 else 0), (by split_ifs <;> omega), 24 + (if L.lay = 0 then 1 else 0), (by split_ifs <;> omega), u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
+      exact ⟨21 + (if 1 ≤ L.lay then 1 else 0), (by split_ifs <;> omega), 24 + (if 1 ≤ L.lay then 1 else 0), (by split_ifs <;> omega), u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
         hu.regs (.x10, cw 1) (by simp [specRej2, rejK])⟩
     · obtain ⟨u, hu⟩ := spec_run hR1 s hpc hK (by
         intro b hb
@@ -318,7 +318,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
         · exact hK' (.x27, BitVec.ofNat 64 (hWord L.lay + 256)) (by simp [chKa])
         · exact hK' (.x1, pcOf (retPc L.lay t)) (by simp [chKa])
         · unfold CB0; rw [hmem]; exact hCB
-        · change u.getReg .x25 = KTFor L.lay
+        · change u.getReg .x25 = KT
           rw [hu.regs (.x25, swS L.lay) (by simp [specBok])]
           apply (swS_eq s L.lay (by omega) (by omega)).mpr
           rw [hdA, hdB]; exact hsum

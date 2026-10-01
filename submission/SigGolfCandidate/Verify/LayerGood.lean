@@ -141,7 +141,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
 theorem foldEnd_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7 : lay < 5)
     (u : MachineState) (hu : FoldEndL ⟨wl, pk, lay, idx⟩ u) (a : BitVec 256) :
     LayerIn ⟨wl, pk, lay - 1, idx⟩ (answerBytes 16 a) (writeHash u a) := by
-  obtain ⟨s0, ⟨hG, hK, hF, hpc, -, -⟩, ⟨h27, h30, hCB, hFr⟩⟩ := hu
+  obtain ⟨s0, ⟨hG, hK, hF, hpc, -, -⟩, ⟨h27, h30, hCB, hFr, h22⟩⟩ := hu
   simp only [LCtx.lay, if_neg (show lay ≠ 0 by omega)] at h30
   have hdst : (layFC ⟨wl, pk, lay, idx⟩).dst = 0x120 := by simp [layFC, dstOf]; omega
   have h12 : u.getReg .x12 = BitVec.ofNat 64 0x120 := by
@@ -156,12 +156,13 @@ theorem foldEnd_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
   · simp only [LCtx.lay, preK, if_neg (show lay - 1 ≠ 4 by omega), aK, Nat.sub_add_cancel h1]
     intro p hp
     simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with hp | hp | hp | hp | hp
+    rcases hp with hp | hp | hp | hp | hp | hp
     · rw [writeHash_getReg]; exact hK1 p (by simp [fk, gkOf, hp])
     · subst hp; rw [writeHash_getReg]; exact hK1 _ (by simp [fk, gkOf])
     · subst hp; rw [writeHash_getReg]; exact hK1 _ (by simp [fk, gkOf])
     · subst hp; rw [writeHash_getReg]; exact h12
     · subst hp; rw [kf _ (by simp [fkeep])]; exact h27
+    · subst hp; rw [kf _ (by simp [fkeep])]; exact h22
   · simp only [routeReg, routeIn, if_neg (show lay - 1 ≠ 4 by omega)]
     rw [kf _ (by simp [fkeep]), h30]
     simp only [LCtx.tau]
@@ -319,6 +320,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
     exact this.mono (by omega) (by dsimp only; simp only [layersCost]; omega)
 
 /-- The layer costs include target183 at layer4 and the eight-cycle comparison. -/
-theorem layersCost_5 : layersCost 5 = 7648 := by decide
+theorem layersCost_5 : layersCost 5 = 7647 := by decide
 
 end SigGolfCandidate.Verify
