@@ -137,7 +137,7 @@ theorem monitoredSourceGame_exception_le_history (dummy : OtsReferenceWords) (ad
   exact exceptionHistorySourceGame_exception dummy adversary budget hcost hbudget result hresult hexception
 
 theorem forgeAdvantage_le_native_bound_add_histories (dummy : OtsReferenceWords)
-    (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (dummy lay tree leaf)) (adversary : Adversary)
+    (hdummy : ∀ lay tree leaf, OtsCode.Valid (dummy lay tree leaf)) (adversary : Adversary)
     (budget : Nat) (hcost : HasHashQueryBound scheme adversary budget) (hbudget : budget ≤ 2 ^ 127) :
     forgeAdvantage scheme adversary ≤
       ENNReal.ofReal (2 * ((budget : ℝ) / 2 ^ digestBits) - ((budget : ℝ) / 2 ^ digestBits) ^ 2) +

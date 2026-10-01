@@ -1,5 +1,5 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalPrefixStop
+import SigGolfCandidate.SphincsSecurity.Proof.Fts.CertificateTerminalGame
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.TerminalProposalEnvelope
 namespace SphincsSecurity.Concrete
 

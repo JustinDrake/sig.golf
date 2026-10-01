@@ -1,5 +1,5 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeWitness
+import SigGolfCandidate.SphincsSecurity.Proof.Scheme.Replay
 /-!
 # Probability of a fixed few-time coverage pattern
 
