@@ -18,7 +18,7 @@ theorem referenceContactGame_twoEdge_law (inputs : Finset HashInput)
   funext parameter
   apply congrArg (𝒮[sampleFtsSecrets] >>= ·)
   funext ftsSecret
-  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit] >>= ·)
+  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit] >>= ·)
   funext selections
   let words := referenceFamilyWords selections dummy
   let segment := OtsPrefix.atAddress parameter words address

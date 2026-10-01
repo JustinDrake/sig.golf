@@ -93,11 +93,11 @@ theorem lb_words (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState
     ← hsw, readWords8, readWords_ofNat_two, h.lb0, h8, h.lb16, h.lb24, h.lb48, h.lb56]
   rfl
 
-theorem fmt_porsNode (idx H : Nat) (l r : Val) : addrFmt (porsNodeInput idx H l r) = pad64 (porsNodeInput idx H l r) :=
-  addrFmt_thInput _ _ _ _ _ _ (by decide)
+theorem fmt_porsNode (idx H : Nat) (l r : Val) : fmt (porsNodeInput idx H l r) = pad64 (porsNodeInput idx H l r) :=
+  fmt_thInput _ _ _ _ _ _ (by decide)
 
-theorem fmt_porsLeaf (idx j : Nat) (s : Val) : addrFmt (porsLeafInput idx j s) = pad64 (porsLeafInput idx j s) :=
-  addrFmt_thInput _ _ _ _ _ _ (by decide)
+theorem fmt_porsLeaf (idx j : Nat) (s : Val) : fmt (porsLeafInput idx j s) = pad64 (porsLeafInput idx j s) :=
+  fmt_thInput _ _ _ _ _ _ (by decide)
 
 theorem blocks_porsNode (idx H : Nat) (l r : Val) (hl : l.length = 16) (hr : r.length = 16) :
     (pad64 (porsNodeInput idx H l r)).blocks = 1 :=

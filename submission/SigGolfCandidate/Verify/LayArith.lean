@@ -144,11 +144,24 @@ theorem routeIn_eq (idx lay : Nat) (hlay : lay < 5) : routeIn idx lay = idx / 2 
   · subst_vars; simp [layS]
   · rfl
 
+/-- The last layer consumes all remaining route bits. -/
+theorem routeIn_zero_lt (idx : Nat) (hidx : idx < 2 ^ 34) : idx / 2 ^ layS 0 < 2048 := by
+  change idx / 8388608 < 2048
+  omega
+
 theorem uEr_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : MachineState)
     (h : s.getReg (routeReg lay) = BitVec.ofNat 64 (routeIn idx lay)) :
     (uEr lay).eval s = BitVec.ofNat 64 (idx / 2 ^ layS lay % 2 ^ heightL lay) := by
   have hr := routeIn_lt idx lay hidx
   have hh := heightL_le lay hlay
+  by_cases h0 : lay = 0
+  · subst lay
+    have hr0 := routeIn_zero_lt idx hidx
+    change s.getReg .x30 = BitVec.ofNat 64 (idx / 2 ^ layS 0 % 2048)
+    change s.getReg .x30 = BitVec.ofNat 64 (idx / 2 ^ layS 0) at h
+    rw [Nat.mod_eq_of_lt hr0]
+    exact h
+  simp only [uEr, if_neg h0]
   show (E.bin .and (.reg (routeReg lay)) (cw (2 ^ heightL lay - 1))).eval s = _
   rw [and_mask_eval s _ _ _ (by omega) (by omega) h, routeIn_eq idx lay hlay]
 
@@ -157,6 +170,13 @@ theorem tauEr_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : M
     (tauEr lay).eval s = BitVec.ofNat 64 (idx / 2 ^ (layS lay + heightL lay)) := by
   have hr := routeIn_lt idx lay hidx
   have hh := heightL_le lay hlay
+  by_cases h0 : lay = 0
+  · subst lay
+    have hz : idx / 2 ^ (layS 0 + heightL 0) = 0 := by
+      change idx / 2 ^ 34 = 0
+      exact Nat.div_eq_of_lt hidx
+    simp [tauEr, Rv.E.eval, cw, hz]
+  simp only [tauEr, if_neg h0]
   show (E.bin .srl (.reg (routeReg lay)) (cw (heightL lay))).eval s = _
   rw [srl_reg_eval s _ _ _ (by omega) (by omega) h, routeIn_eq idx lay hlay, Nat.div_div_eq_div_mul,
     ← Nat.pow_add]
@@ -205,7 +225,12 @@ theorem x31Er_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : M
       2 ^ 32 * (idx / 2 ^ layS lay % 2 ^ heightL lay)) := by
   have ht := tau_lt lay idx hlay hidx
   have he := e_lt32 lay idx hlay
-  have h1 : (x31Er lay).eval s = (tauEr lay).eval s + ((uEr lay).eval s <<< ((BitVec.ofNat 64 32).toNat % 64)) := rfl
+  have h1 : (x31Er lay).eval s = (tauEr lay).eval s + ((uEr lay).eval s <<< ((BitVec.ofNat 64 32).toNat % 64)) := by
+    by_cases h0 : lay = 0
+    · subst lay
+      change (s.getReg .x30 <<< 32) = (0#64 + (s.getReg .x30 <<< 32))
+      exact (BitVec.zero_add _).symm
+    · simp only [x31Er, if_neg h0]; rfl
   rw [h1, tauEr_eval idx lay hlay hidx s h, uEr_eval idx lay hlay hidx s h]
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
@@ -216,8 +241,8 @@ theorem x31Er_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : M
 
 /-! ## The encoding check -/
 
-def dA (s : MachineState) : Nat := (s.getMem (BitVec.ofNat 64 320)).toNat
-def dB (s : MachineState) : Nat := (s.getMem (BitVec.ofNat 64 328)).toNat
+def dA (s : MachineState) : Nat := (s.getMem (BitVec.ofNat 64 288)).toNat
+def dB (s : MachineState) : Nat := (s.getMem (BitVec.ofNat 64 296)).toNat
 
 section
 variable (s : MachineState)
@@ -256,20 +281,19 @@ theorem swS_toNat : (swS.eval s).toNat = swarOf (dA s) (dB s) := by
   rw [swA5_toNat, ← swar_mersenne]
   rfl
 
-theorem swS_eq (h0 : dA s < 2 ^ 63) (h1 : dB s < 2 ^ 63) :
-    swS.eval s = KT ↔ (digitsOfWord (dA s) ++ digitsOfWord (dB s)).sum = targetSum := by
+theorem swS_eq (T : Nat) (hT : T < 2 ^ 64) (h0 : dA s < 2 ^ 63) (h1 : dB s < 2 ^ 63) :
+    swS.eval s = BitVec.ofNat 64 T ↔ (digitsOfWord (dA s) ++ digitsOfWord (dB s)).sum = T := by
   have hs := swar_nat (dA s) (dB s) h0 h1
   rw [← hs]
-  change _ ↔ swarOf (dA s) (dB s) = targetSum
+  change _ ↔ swarOf (dA s) (dB s) = T
   constructor
   · intro h
     have := congrArg BitVec.toNat h
-    rw [swS_toNat] at this
+    rw [swS_toNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hT] at this
     exact this
   · intro h
     apply BitVec.eq_of_toNat_eq
-    rw [swS_toNat, h]
-    rfl
+    rw [swS_toNat, h, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hT]
 
 end
 

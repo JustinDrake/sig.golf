@@ -1,6 +1,5 @@
 import SigGolfCandidate.Legacy
 import SigGolfCandidate.CacheBytes
-import SigGolfCandidate.Ref.AddressFormat
 import Mathlib.Data.List.Sort
 
 /-!
@@ -75,6 +74,9 @@ def slice (l : List Byte) (off len : Nat) : List Byte := (l.drop off).take len
 def nChains : Nat := 42
 /-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
 def targetSum : Nat := 181
+
+/-- Layers three and four use targets one and two larger than the lower layers. -/
+def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 2 else if 3 ≤ lay then 1 else 0
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
 /-- The number of hypertree layers `d`. -/
@@ -120,7 +122,10 @@ abbrev topH : Nat := height 0
 def topN (l : Nat) : Nat := ((List.range l).map fun k => 2 ^ (topH - k)).sum
 
 /-- Bytes of the masked-node region (levels `0 .. topH - 1`): `16 * N_topH = 65504`. -/
-def regionBytes : Nat := 16 * topN topH
+def regionBytes : Nat := 16 * (topN topH - topN 1)
+
+/-- Padding before the tag; positive-level node offsets retain their tree-build addresses. -/
+def cachePadBytes : Nat := 16 * topN 1
 
 /-- The cache: tag (32) | region | zeros, `CACHE_BYTES = 2^17` in total. -/
 def cacheBytes : Nat := CACHE_BYTES
@@ -132,10 +137,10 @@ def cacheNodeOff (l j : Nat) : Nat := 32 + 16 * (topN l + j)
 def cacheNode (cache : List Byte) (l j : Nat) : Val := slice cache (cacheNodeOff l j) 16
 
 /-- The cache's MAC tag (bytes `0 .. 32`). -/
-def cacheTag (cache : List Byte) : List Byte := slice cache 0 32
+def cacheTag (cache : List Byte) : List Byte := slice cache cachePadBytes 32
 
 /-- The cache's masked-node region (bytes `32 .. 32 + regionBytes`). -/
-def cacheRegion (cache : List Byte) : List Byte := slice cache 32 regionBytes
+def cacheRegion (cache : List Byte) : List Byte := slice cache (cachePadBytes + 32) regionBytes
 
 /-- Bytewise XOR (the shorter length). -/
 def xorBytes (a b : List Byte) : List Byte := List.zipWith (· ^^^ ·) a b
@@ -238,14 +243,8 @@ def fmtList (x : List Byte) : List Byte :=
   else if IsPadChainFmt x then padChainBlock x
   else padTo64 x
 
-/-- The address-header relabelling. It preserves the oracle query block count. -/
-def addrFmt (x : List Byte) : Query := AddressFormat.queryPerm (fmt x)
-
-@[simp] theorem addrFmt_blocks (x : List Byte) : (addrFmt x).blocks = (fmt x).blocks :=
-  AddressFormat.queryPerm_blocks (fmt x)
-
 /-- One oracle call on `fmt x`. -/
-def H (x : List Byte) : OracleComp HashSpec (BitVec 256) := HashSpec.query (addrFmt x)
+def H (x : List Byte) : OracleComp HashSpec (BitVec 256) := HashSpec.query (fmt x)
 
 /-- One paired seed derivation: the full 32-byte answer on `fmt x` as two 16-byte secrets
 (low half, high half). -/
@@ -390,12 +389,12 @@ def digitsOfWord (d : Nat) : List Nat := (List.range 21).map fun r => d / 8 ^ r 
 /-- TargetSum decoding of an encoding output `v` (first 16 bytes): `d0`, `d1` = the two LE 64-bit
 halves; reject if bit 63 of `d0` or of `d1` is set, else the 42 digits (21 of `d0`, then 21 of
 `d1`) if they sum to `targetSum`. -/
-def decodeDigits (v : Val) : Option (List Nat) :=
+def decodeDigits (lay : Nat) (v : Val) : Option (List Nat) :=
   let d0 := leNat (slice v 0 8)
   let d1 := leNat (slice v 8 8)
   if d0 < 2 ^ 63 ∧ d1 < 2 ^ 63 then
     let x := digitsOfWord d0 ++ digitsOfWord d1
-    if x.sum = targetSum then some x else none
+    if x.sum = targetFor lay then some x else none
   else none
 
 end SigGolfCandidate.Ref

@@ -139,7 +139,7 @@ theorem wbw_frame (bytes : List (BitVec 8)) (s : MachineState) (base : Nat) (hb 
 /-! ## The initial state -/
 
 def InitOK (ml pkl wl : List Byte) (s : MachineState) : Prop :=
-  KnownOK k0 s ∧ s.pc = pcOf 0 ∧ WitAll wl s ∧ PkOK pkl s ∧
+  MaskData s ∧ KnownOK k0 s ∧ s.pc = pcOf 0 ∧ WitAll wl s ∧ PkOK pkl s ∧
   (∀ j, j < 4 → s.getMem (BitVec.ofNat 64 (0x40 + 8 * j)) = w64 (slice ml (8 * j) 8)) ∧
   (∀ A, A < 0x800 → (A < 0x40 ∨ (0x60 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → s.getMem (BitVec.ofNat 64 A) = 0)
 
@@ -149,8 +149,9 @@ theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16384) (s : MachineSta
   unfold initialState at h
   simp only [submission_admissible.2 .verify, if_true, Option.some.injEq] at h
   subst h
-  have e1 : (submission.image .verify).data = [] := rfl
-  simp only [e1, MachineState.writeBytesAsWords_nil]
+  have e1 : (submission.image .verify).data = Images.verifyData := rfl
+  have eb : dataBase (submission.image .verify) = 0xFFFFF0 := rfl
+  rw [e1, eb]
   have hl : inputBuffers submission.sizes submission.layout .verify (m, pk, w) =
       [(0x40, toList m), (0xA0, toList pk), (0x800, toList w)] := rfl
   rw [hl]
@@ -159,20 +160,42 @@ theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16384) (s : MachineSta
   have lp : (toList pk).length = 16 := length_toList pk
   have lw : (toList w).length = 16384 := length_toList w
   set blank : MachineState := { regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 }
-  set s1 := blank.writeBytesAsWords (BitVec.ofNat 64 0x40) (toList m)
+  set withData := blank.writeBytesAsWords (BitVec.ofNat 64 0xFFFFF0) Images.verifyData
+  have dataRegs : withData.regs = blank.regs := wbw_regs 16 _ _ _ (by decide)
+  have dataLow : ∀ A, A < 0xFFFFF0 → withData.getMem (BitVec.ofNat 64 A) = 0 := by
+    intro A hA
+    rw [wbw_frame Images.verifyData blank 0xFFFFF0 (by decide) A (by omega) (Or.inl hA)]
+    rfl
+  have dataMasks : MaskData withData := by
+    constructor
+    · change withData.getMem (BitVec.ofNat 64 (0xFFFFF0 + 8 * 0)) = M1w
+      rw [wbw_word Images.verifyData blank 0xFFFFF0 (by decide) 0 (by decide)]
+      decide +kernel
+    · change withData.getMem (BitVec.ofNat 64 (0xFFFFF0 + 8 * 1)) = M2w
+      rw [wbw_word Images.verifyData blank 0xFFFFF0 (by decide) 1 (by decide)]
+      decide +kernel
+  set s1 := withData.writeBytesAsWords (BitVec.ofNat 64 0x40) (toList m)
   set s2 := s1.writeBytesAsWords (BitVec.ofNat 64 0xA0) (toList pk)
   set s3 := s2.writeBytesAsWords (BitVec.ofNat 64 0x800) (toList w)
-  have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 (dataBase (submission.image .verify)))).getMem A = s3.getMem A :=
+  have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 0xFFFFF0)).getMem A = s3.getMem A :=
     fun A => by simp [MachineState.setReg, MachineState.getMem]
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · have fr : ∀ A, A = 0xFFFFF0 ∨ A = 0xFFFFF8 →
+        (s3.setReg .x2 (BitVec.ofNat 64 0xFFFFF0)).getMem (BitVec.ofNat 64 A) =
+          withData.getMem (BitVec.ofNat 64 A) := by
+      intro A hA
+      rw [gm, wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
+        wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
+        wbw_frame _ _ _ (by omega) _ (by omega) (by omega)]
+    exact ⟨(fr _ (Or.inl rfl)).trans dataMasks.1, (fr _ (Or.inr rfl)).trans dataMasks.2⟩
   · intro p hp
     have hr : s3.regs = blank.regs := by
-      rw [wbw_regs 20000 _ _ _ (by omega), wbw_regs 20000 _ _ _ (by omega), wbw_regs 20000 _ _ _ (by omega)]
+      rw [wbw_regs 20000 _ _ _ (by omega), wbw_regs 20000 _ _ _ (by omega), wbw_regs 20000 _ _ _ (by omega), dataRegs]
     simp only [k0, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
+    rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
       rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
       simp [MachineState.setReg, MachineState.getReg, hr, blank]
-  · simp [MachineState.setReg, blank, s3, s2, s1]; rfl
+  · simp [MachineState.setReg, blank, withData, s3, s2, s1, Images.verifyData, MachineState.writeBytesAsWords]; rfl
   · intro j hj
     rw [gm, show 0x800 + 8 * j = 0x800 + 8 * j from rfl, wbw_word _ _ _ (by omega) j (by omega)]
   · refine ⟨?_, ?_⟩
@@ -189,6 +212,6 @@ theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16384) (s : MachineSta
   · intro A hA hz
     rw [gm, wbw_frame _ _ _ (by omega) _ (by omega) (by omega), wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
       wbw_frame _ _ _ (by omega) _ (by omega) (by omega)]
-    rfl
+    exact dataLow _ (by omega)
 
 end SigGolfCandidate.Verify

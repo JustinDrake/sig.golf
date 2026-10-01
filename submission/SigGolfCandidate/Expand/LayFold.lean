@@ -47,7 +47,7 @@ theorem leaf_sim (w : List Byte) (idx : Nat) (lay tau e : Nat) (hl : lay < 5) (h
   have hb : (pad64 (leafInput lay tau e ends)).blocks = 11 := congrArg (· + 1) hw.1
   refine (Sim.steps hs1 (Sim.of_eq (Sim.hash16_bind (f := pure) (W := 0) e1 (by rw [r1.get .x5, hc.x5])
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) hq (addrFmt_thInput _ _ _ _ _ _ (by decide)) (fun ans => ?_)) (bind_pure _))).mono
+      (by norm_num)) hq (fmt_thInput _ _ _ _ _ _ (by decide)) (fun ans => ?_)) (bind_pure _))).mono
     (by rw [hb]) (fun _ _ h => h)
   refine Sim.pure ⟨by rw [writeHash_pc, p1]; rfl,
     (hc.frame_nil m1 r1).frame (frame_writeHash t1 ans _ x12 (by norm_num)) (regsEq_writeHash t1 ans [])
@@ -77,8 +77,8 @@ theorem hashInput_node (t : MachineState) (lay tau lam j : Nat) (l r : Val) (hl 
     (h11 : t.getReg .x11 = BitVec.ofNat 64 64) (h10 : (t.getReg .x10).toNat % 8 = 0)
     (hw : t.readWords (t.getReg .x10) 8 =
       twWords 3 lay tau 0 (heapIndex (height lay) lam j) ++ [0, 0] ++ wordsOf l ++ wordsOf r) :
-    hashInput t = addrFmt (nodeInput lay tau lam j l r) := by
-  rw [addrFmt_nodeInput, fmt_nodeInput lay tau lam j l r hl hr hlay hlam hj]
+    hashInput t = fmt (nodeInput lay tau lam j l r) := by
+  rw [fmt_nodeInput lay tau lam j l r hl hr hlay hlam hj]
   have hw' := words_th32 3 lay tau 0 (heapIndex (height lay) lam j) l r hl hr
   rw [hashInput_eq_pad64 t _ 0 hw'.1 h11 (by norm_num) h10 (by rw [show 8 * (0 + 1) = 8 from rfl, hw, hw'.2]),
     pad64_eq _ 0 (by simp [hl, hr]) (by simp [hl, hr])]
@@ -152,7 +152,7 @@ theorem fold_step (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : Na
     have c2 := c1.frame f2 r2 (fun a h1 h2 => by unfold lctxA witA at h1; omega)
     obtain ⟨t3, hs3, e3, p3, x10, x11, x12, r3, m3⟩ := blk465_run t2 p2 c2.x25
     have c3 := c2.frame_nil m3 r3
-    have hq : hashInput t3 = addrFmt (nodeInput lay tau (lam + 1) (e / 2 ^ (lam + 1)) l r) := by
+    have hq : hashInput t3 = fmt (nodeInput lay tau (lam + 1) (e / 2 ^ (lam + 1)) l r) := by
       refine hashInput_node t3 lay tau (lam + 1) _ l r hl2 hr2 (by omega) (by omega) hj x11
         (by rw [x10]; decide) ?_
       rw [x10, ← hHdiv, readWords8]

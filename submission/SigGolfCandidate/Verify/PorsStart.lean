@@ -87,17 +87,17 @@ theorem ctr_iff (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (h
 
 /-- After the digest hash (answer `P.a` in DO): the untouched memory below the witness is zero. -/
 def DigestOut (P : PCtx) (s : MachineState) : Prop :=
-  Glob gkD P.wl P.pk s ∧ WitAll P.wl s ∧ KnownOK dgK s ∧
-  (∀ i, i < 4 → s.getMem (BitVec.ofNat 64 (0x160 + 8 * i)) = P.a.extractLsb' (64 * i) 64) ∧
+  MaskData s ∧ Glob gkD P.wl P.pk s ∧ WitAll P.wl s ∧ KnownOK dgK s ∧
+  (∀ i, i < 4 → s.getMem (BitVec.ofNat 64 (8 * i)) = P.a.extractLsb' (64 * i) 64) ∧
   (∀ A, A < 0x800 → A % 8 = 0 → 0x60 ≤ A → A ≠ 0xA0 → A ≠ 0xA8 → (A < 0x160 ∨ 0x180 ≤ A) →
     s.getMem (BitVec.ofNat 64 A) = 0) ∧
-  s.pc = pcOf 28
+  s.pc = pcOf 25
 
 /-- The digest block `tw(12, 0, 0, 0, 0) || rho || m` as words. -/
 theorem fmt_digestInput_words (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
-    addrFmt (digestInput rho m) = queryOfWords 0
+    fmt (digestInput rho m) = queryOfWords 0
       ([BitVec.ofNat 64 (twLo 12 0 0 0), BitVec.ofNat 64 (twHi 0 0), vw0 rho, vw1 rho] ++ wordsOfN 4 m) := by
-  rw [addrFmt_digestInput, fmt_digestInput _ _ hr hm]
+  rw [fmt_digestInput _ _ hr hm]
   have hl : (tweak 12 0 0 0 0 ++ rho ++ m).length ≤ 8 * 8 := by simp [length_tweak, hr, hm]
   have hw : wordsOfN 8 (tweak 12 0 0 0 0 ++ rho ++ m) =
       [BitVec.ofNat 64 (twLo 12 0 0 0), BitVec.ofNat 64 (twHi 0 0), vw0 rho, vw1 rho] ++ wordsOfN 4 m := by
@@ -109,7 +109,7 @@ theorem fmt_digestInput_words (rho m : List Byte) (hr : rho.length = 16) (hm : m
 
 theorem init_glob (ml pkl wl : List Byte) (s : MachineState) (hs : InitOK ml pkl wl s) :
     Glob [] wl pkl s := by
-  obtain ⟨-, -, hW, hPk, -, hZ⟩ := hs
+  obtain ⟨-, -, -, hW, hPk, -, hZ⟩ := hs
   refine ⟨fun p hp => by simp at hp, hW.lo, hPk, ?_⟩
   intro a ha
   simp only [pSlots, List.mem_cons, List.not_mem_nil, or_false] at ha
@@ -118,21 +118,21 @@ theorem init_glob (ml pkl wl : List Byte) (s : MachineState) (hs : InitOK ml pkl
 theorem startCheck_parts :
     specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] = true ∧
     specB [] (runAt k0 [] 0 [.br true]) specStartRej [] [] = true ∧
-    specB gkD (runAt dgK [leafPc 0] 28 []) setupSpec setupPost [] = true := by
+    specB gkD (runAt dgK [leafPc 0] 25 []) setupSpec setupPost [] = true := by
   have := startCheck_ok
   simp only [startCheck, Bool.and_eq_true] at this
   exact ⟨this.1.1, this.1.2, this.2⟩
 
 theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.length = 16384)
     (s : MachineState) (hs : InitOK ml pkl wl s) :
-    (countersOk wl = false → ∃ t, Steps image s 19 19 t ∧ fetch image t = some (.base .ECALL) ∧
+    (countersOk wl = false → ∃ t, Steps image s 18 18 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 1 ∧ t.getReg .x10 = 1) ∧
-    (countersOk wl = true → ∃ t, Steps image s 27 27 t ∧ fetch image t = some (.base .ECALL) ∧
+    (countersOk wl = true → ∃ t, Steps image s 24 24 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 0 ∧ hashArgumentsValid t = true ∧
-        hashInput t = addrFmt (digestInput (witRho wl) ml) ∧
+        hashInput t = fmt (digestInput (witRho wl) ml) ∧
         ∀ a, DigestOut ⟨wl, pkl, a⟩ (writeHash t a)) := by
   have hG0 := init_glob ml pkl wl s hs
-  obtain ⟨hK, hpc, hW, hPk, hM, hZ⟩ := hs
+  obtain ⟨hMask, hK, hpc, hW, hPk, hM, hZ⟩ := hs
   have hctr := ctr_iff wl hwl s hW
   obtain ⟨cOk, cRej, -⟩ := startCheck_parts
   constructor
@@ -156,7 +156,7 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
     have hKd := hu.known
     have h10 : u.getReg .x10 = BitVec.ofNat 64 0x20 := hKd (.x10, 0x20) (by simp [dgK])
     have h11 : u.getReg .x11 = BitVec.ofNat 64 (64 * (0 + 1)) := hKd (.x11, 64) (by simp [dgK])
-    have h12 : u.getReg .x12 = BitVec.ofNat 64 0x160 := hKd (.x12, 0x160) (by simp [dgK])
+    have h12 : u.getReg .x12 = BitVec.ofNat 64 0 := hKd (.x12, 0) (by simp [dgK])
     have hmem := hu.mem
     have mfr : ∀ A, A < 2 ^ 64 → A ≠ 56 → A ≠ 48 → A ≠ 32 →
         u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
@@ -195,12 +195,17 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
       · rw [mfr 80 (by omega) (by omega) (by omega) (by omega), m2]; simp [slice, List.drop_drop]
       · rw [mfr 88 (by omega) (by omega) (by omega) (by omega), m3]; simp [slice, List.drop_drop]
     · intro a
-      have wf := fun A (hA : A < 2 ^ 64) (h : A + 8 ≤ 0x160 ∨ 0x160 + 32 ≤ A) =>
-        writeHash_frame _ a 0x160 A h12 hA (by omega) h
-      refine ⟨Glob_writeHash hG a _ h12 (by decide), WitAll_writeHash (hu.wall _ hW) a _ h12 (by decide),
+      have wf := fun A (hA : A < 2 ^ 64) (h : A + 8 ≤ 0 ∨ 32 ≤ A) =>
+        writeHash_frame _ a 0 A h12 hA (by omega) h
+      refine ⟨?_, Glob_writeHash hG a _ h12 (by decide), WitAll_writeHash (hu.wall _ hW) a _ h12 (by decide),
         Known_writeHash hKd a, ?_, ?_, ?_⟩
+      · constructor
+        · rw [wf 0xFFFFF0 (by decide) (by decide), mfr 0xFFFFF0 (by decide) (by decide) (by decide) (by decide)]
+          exact hMask.1
+        · rw [wf 0xFFFFF8 (by decide) (by decide), mfr 0xFFFFF8 (by decide) (by decide) (by decide) (by decide)]
+          exact hMask.2
       · intro i hi
-        have := writeHash_getMem_ofNat u a 0x160 (0x160 + 8 * i) h12 (by omega) (by omega)
+        have := writeHash_getMem_ofNat u a 0 (8 * i) h12 (by omega) (by omega)
         rw [this]
         interval_cases i <;> simp
       · intro A hA h8 h60 hA0 hA8 hr
@@ -211,7 +216,7 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
 /-! ## The setup -/
 
 theorem wLdE_eval (P : PCtx) (s : MachineState)
-    (hd : ∀ i, i < 4 → s.getMem (BitVec.ofNat 64 (0x160 + 8 * i)) = P.a.extractLsb' (64 * i) 64) :
+    (hd : ∀ i, i < 4 → s.getMem (BitVec.ofNat 64 (8 * i)) = P.a.extractLsb' (64 * i) 64) :
     ∀ i, i < 4 → (wLdE i).eval s = BitVec.ofNat 64 (P.A / 2 ^ (64 * i) % 2 ^ 64) := by
   intro i hi
   apply BitVec.eq_of_toNat_eq
@@ -271,8 +276,8 @@ theorem stW0_low (s : MachineState) (a : Nat) (v : E) (V : Nat) (hv : v.eval s =
   omega
 
 theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P s) :
-    ∃ u, Steps image s 107 107 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
-  obtain ⟨hG, hWA, hK, hd, hZ, hpc⟩ := hs
+    ∃ u, Steps image s 100 100 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
+  obtain ⟨hMask, hG, hWA, hK, hd, hZ, hpc⟩ := hs
   obtain ⟨-, -, cSet⟩ := startCheck_parts
   obtain ⟨u, hu⟩ := spec_run cSet s hpc hK (by simp [setupSpec])
   have hw := wLdE_eval P s hd
@@ -288,7 +293,15 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
     show hiE.eval s + BitVec.ofNat 64 0xA01 = _
     rw [hhi, BitVec.ofNat_add_ofNat, twLo_idx _ _ (by decide) hil]; congr 1; omega
   have S : S0 P u := by
-    refine ⟨hu.wall _ hWA, hGu.2.2.1, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, hu.wall _ hWA, hGu.2.2.1, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · have fr : ∀ A, A = 0xFFFFF0 ∨ A = 0xFFFFF8 →
+          u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
+        intro A hA
+        rw [hlook A (by omega)]
+        have hn : memLook psetupMem A = none := by
+          rcases hA with rfl | rfl <;> decide +kernel
+        rw [hn]
+      exact ⟨(fr _ (Or.inl rfl)).trans hMask.1, (fr _ (Or.inr rfl)).trans hMask.2⟩
     · intro a ha
       have hn := setup_none a ha
       have ha' : a < 2 ^ 64 := by have := zeroP_lt a ha; omega
@@ -317,7 +330,10 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
         · exact (setup_blk i hi).2
       rw [key]
       exact stW0_low s a idxE _ hidx (by omega)
-    · rw [hlook 0x240 (by omega), look_some (e := .c (-1#64)) (by decide +kernel)]; rfl
+    · rw [hlook 0x240 (by omega), look_some (e := stW 0x240 (cw 1)) (by decide +kernel)]
+      change StoreKind.merge .w (s.getMem (BitVec.ofNat 64 0x240)) 4 (1#64) = _
+      rw [hZ 0x240 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
+      rfl
     · intro r hr
       by_cases h15 : r < 15
       · rw [hlook _ (by unfold PIND; omega), setup_pind r h15]
@@ -337,9 +353,9 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
   refine ⟨u, hu.steps, S, ⟨⟨⟨fun p hp => hK' p (by simp [setupPost] at hp ⊢; tauto), PFrame.refl u⟩, S, ?_⟩,
     hu.pc rfl, ?_, ?_, ?_, fun i hi => by simp at hi, fun h => by omega, ?_⟩⟩
   · rw [hu.regs (.x22, idxE) (by simp [setupSpec]), hidx]
-  · rw [hK' (.x14, 0x830) (by simp [setupPost])]; rfl
-  · rw [hK' (.x29, BitVec.ofNat 64 FLIM) (by simp [setupPost])]
-  · rw [hK' (.x15, BitVec.ofNat 64 EMPTY) (by simp [setupPost])]; rfl
+  · rw [hK' (.x14, 0x7B0) (by simp [setupPost])]; rfl
+  · rw [hK' (.x18, BitVec.ofNat 64 FLIM) (by simp [setupPost])]
+  · rw [hK' (.x15, 0) (by simp [setupPost])]; rfl
   · simp [SegBnd, wStream, wSec, porsK]
 
 end SigGolfCandidate.Verify
