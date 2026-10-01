@@ -27,13 +27,12 @@ theorem small_bound_le_security127 (q : Nat) (hq : 1 ≤ q) (hsmall : q ≤ budg
       proposalPrefixExceptionBound + ((q : ENNReal) / 2 ^ 128) ^ 2 / (2 * (1 - (q : ENNReal) / 2 ^ 128) ^ 2) +
       ((2 ^ 128 - q : Nat) : ENNReal)⁻¹ * ((q : ENNReal) * nearCertificateBound q) ≤ (q : ENNReal) / 2 ^ 127 := by
   rw [budgetSplit_def] at hsmall
-  have hcoarse : q ≤ 3 * 2 ^ 114 := hsmall.trans (by norm_num)
   rw [primitiveCoefficient_def, fullCertificateExcessRate_def, proposalPrefixExceptionBound_def]
   have hx : (q : ENNReal) / 2 ^ 128 ≤ 3 / 16384 := by
     apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
     rw [ENNReal.toReal_div, ENNReal.toReal_div, ENNReal.toReal_pow, ENNReal.toReal_natCast, ENNReal.toReal_ofNat,
       ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
-    have hq' : (q : ℝ) ≤ 3 * 2 ^ 114 := by exact_mod_cast hcoarse
+    have hq' : (q : ℝ) ≤ 3 * 2 ^ 114 := by exact_mod_cast hsmall
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith
   have hhalf : (2 : ENNReal)⁻¹ ≤ 1 - (q : ENNReal) / 2 ^ 128 := by
@@ -73,7 +72,7 @@ theorem small_bound_le_security127 (q : Nat) (hq : 1 ≤ q) (hsmall : q ≤ budg
     apply div_le_div_of_nonneg_right _ (by positivity)
     exact_mod_cast hq
   have hhigh : (q : ℝ) / 2 ^ 128 ≤ 3 / 16384 := by
-    have hq' : (q : ℝ) ≤ 3 * 2 ^ 114 := by exact_mod_cast hcoarse
+    have hq' : (q : ℝ) ≤ 3 * 2 ^ 114 := by exact_mod_cast hsmall
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith
   convert smallRangeClosing ((q : ℝ) / 2 ^ 128) hlow hhigh using 1 <;> ring

@@ -8,7 +8,7 @@ open _root_.OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
 set_option backward.isDefEq.respectTransparency false
 
-def decodeEncodingOutput (output : HashOutput) : Option Encoding := OtsCode.decode (selectEncodingDigest output)
+def decodeEncodingOutput (output : HashOutput) : Option Encoding := OtsCode.decode (truncateHash output)
 
 def referenceEncodingTable (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (position : EncodingPosition) (message : Digest) (attempts start : Nat) : Fin attempts → HashOutput :=
@@ -24,7 +24,7 @@ theorem eval_encode_eq_decodeEncodingOutput (parameter : PublicParameter) (f : Q
     evalWithAnswerFn f (encodeAttempt parameter position.lay position.tree position.leafIdx message
       (BitVec.ofNat counterBits counter)) =
         decodeEncodingOutput (f (encodingRetryInput parameter position message counter)) := by
-  simp only [encodeAttempt, evalWithAnswerFn_bind, oracleHash, evalWithAnswerFn_query, evalWithAnswerFn_pure]
+  simp only [encodeAttempt, evalWithAnswerFn_bind, eval_tweakableHash, evalWithAnswerFn_pure]
   rfl
 
 theorem referenceEncodingSearch_eq_table (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
