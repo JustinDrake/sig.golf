@@ -4,9 +4,13 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10899` cycles (verify bound
-`10835` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
+`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10894` cycles (verify bound
+`10830` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 150272, witness 2048.
+
+The initial data pointer supplies the address-base constant in one shift and remains in x2
+through PORS (scratch loads use x4). Root masks load directly through x2. Root constants reuse
+x6 and the biased x27 header, and the digest falls through to setup: five fewer instructions.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
 counter (the signer's own search from 0), running the record verifier's PORS root and layer checks
@@ -73,7 +77,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10899 :=
+theorem certificate : SigGolf.Certificate submission 10894 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
