@@ -995,7 +995,7 @@ theorem hq_aLayers (index : Index) (S0 : Signature) (n : Nat) (M : Digest) :
 
 /-- **expand** (abstract) makes only honest queries: the digest, the PORS stack machine, and per
 layer the counter search, chains, leaf and fold, all with parameter `0`. -/
-theorem hq_aExpand (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6048) :
+theorem hq_aExpand (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6032) :
     HQ (aExpand m pk σ) := by
   unfold aExpand
   refine hq_bind (hq_messageDigest _ rfl _ _ _) fun d => ?_

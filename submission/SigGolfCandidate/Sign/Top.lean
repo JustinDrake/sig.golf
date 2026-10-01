@@ -229,7 +229,7 @@ theorem tstep_body (S : List Byte) (x : List Nat) (tau e i : Nat) (hi : i < 42) 
     simp only [ht1, blk666.res, rv_simp, r0.get .x24, t24, splitP_word i j (by omega) (by omega)]
   have x29 : t1.getReg .x29 = BitVec.ofNat 64 j := by
     simp only [ht1, blk666.res, rv_simp, r0.get .x24, t24, splitP_low i j hi (by omega)]
-  have aq := address_query t1 (pcOf 2910) (pcOf 2929) (pcOf 2932)
+  have aq := address_query t1 (pcOf 3011) (pcOf 3030) (pcOf 3033)
     addrHead672 addrTail672 (jumpAddress672 t1 pc1)
     (fun w hp => by simpa only [pc1, show pcOf 672 + 4 = pcOf 673 from rfl] using returnAddress672 w hp)
     (by rfl) (by rfl) 192 0 i j (by norm_num) hi (by omega)

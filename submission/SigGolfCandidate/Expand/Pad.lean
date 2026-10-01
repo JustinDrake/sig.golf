@@ -4,7 +4,7 @@ import SigGolfCandidate.Expand.SchedRun
 # `expand`: the zero check of the unused auth slots (`pad_loop`, instructions 132 .. 138)
 
 From the first unread auth slot (`t4 = SIG + 256 + 16 n`, `n` = number of reads) to the first layer
-(`SIG + 2144`), every dword must be zero (`PadOK sig n`), else HALT(1).
+(`SIG + 2128`), every dword must be zero (`PadOK sig n`), else HALT(1).
 -/
 
 set_option linter.unusedSimpArgs false
@@ -27,18 +27,18 @@ theorem word_zero_of_bytes (w : Word) (h : ∀ k < 8, extractByte w k = 0) : w =
 
 
 /-- The unused auth slots `n .. 117` of the signature are zero. -/
-def PadOK (sig : List Byte) (n : Nat) : Prop := ∀ j < 2144, 256 + 16 * n ≤ j → sig.getD j 0 = 0
+def PadOK (sig : List Byte) (n : Nat) : Prop := ∀ j < 2128, 256 + 16 * n ≤ j → sig.getD j 0 = 0
 
 
 /-- Pad loop invariant (`m` dwords left). -/
 def PadInv (sig : List Byte) (n : Nat) (u0 : MachineState) (m : Nat) (v : MachineState) : Prop :=
-  m ≤ 236 - 2 * n ∧ ((Final none v ∧ ¬ PadOK sig n) ∨
-    (v.pc = pcOf 134 ∧ v.getReg .x29 = BitVec.ofNat 64 (0x25360 - 8 * m) ∧
-      v.getReg .x25 = BitVec.ofNat 64 0x25360 ∧ (∀ a, v.getMem a = u0.getMem a) ∧
-      ∀ j, 256 + 16 * n ≤ j → j < 2144 - 8 * m → sig.getD j 0 = 0))
+  m ≤ 234 - 2 * n ∧ ((Final none v ∧ ¬ PadOK sig n) ∨
+    (v.pc = pcOf 134 ∧ v.getReg .x29 = BitVec.ofNat 64 (0x25350 - 8 * m) ∧
+      v.getReg .x25 = BitVec.ofNat 64 0x25350 ∧ (∀ a, v.getMem a = u0.getMem a) ∧
+      ∀ j, 256 + 16 * n ≤ j → j < 2128 - 8 * m → sig.getD j 0 = 0))
 
 theorem pad_body (sig : List Byte) (t0 u0 : MachineState) (hsig : SigOK t0 sig) (hfr : Frame t0 u0 SW)
-    (n : Nat) (hn : n ≤ 118) (m : Nat) (v : MachineState) (h : PadInv sig n u0 (m + 1) v) :
+    (n : Nat) (hn : n ≤ 117) (m : Nat) (v : MachineState) (h : PadInv sig n u0 (m + 1) v) :
     Run v 5 (PadInv sig n u0 m) := by
   obtain ⟨hm, hf | ⟨vpc, v29, v25, vm, hz⟩⟩ := h
   · exact Run.done' ⟨by omega, Or.inl hf⟩
@@ -53,8 +53,8 @@ theorem pad_body (sig : List Byte) (t0 u0 : MachineState) (hsig : SigOK t0 sig) 
   refine (Run.blk blk135 codeAt_135 p1 hobl (B := 2) ?_).mono
     (by rw [show blk135.res.cycles = 2 from rfl]) (fun _ h => h)
   set v2 := blk135.res.toState v1 with hv2
-  set d := 2144 - 8 * (m + 1) with hd
-  have hw : v1.getMem (BitVec.ofNat 64 (0x25360 - 8 * (m + 1))) = t0.getMem (BitVec.ofNat 64 (0x24B00 + d)) := by
+  set d := 2128 - 8 * (m + 1) with hd
+  have hw : v1.getMem (BitVec.ofNat 64 (0x25350 - 8 * (m + 1))) = t0.getMem (BitVec.ofNat 64 (0x24B00 + d)) := by
     rw [toState_getMem_nil rfl, vm, hfr _ (by omega) (by unfold SW; omega)]; congr 2; omega
   have hbytes : ∀ k < 8, extractByte (t0.getMem (BitVec.ofNat 64 (0x24B00 + d))) k = sig.getD (d + k) 0 :=
     fun k hk => sig_dword_byte hsig d k (by omega) hk (by omega)
@@ -71,7 +71,7 @@ theorem pad_body (sig : List Byte) (t0 u0 : MachineState) (hsig : SigOK t0 sig) 
     · simp only [blk137.res, rv_simp, hv2, blk135.res, r1.get .x25 List.not_mem_nil, v25]
     · intro a; rw [toState_getMem_nil rfl, hv2, toState_getMem_nil rfl, toState_getMem_nil rfl, vm]
     · intro j h1 h2
-      by_cases hj : j < 2144 - 8 * (m + 1)
+      by_cases hj : j < 2128 - 8 * (m + 1)
       · exact hz j h1 hj
       · have := hzero (j - d) (by omega); rwa [show d + (j - d) = j by omega] at this
   · have hnz : t0.getMem (BitVec.ofNat 64 (0x24B00 + d)) ≠ 0 := by
@@ -83,18 +83,18 @@ theorem pad_body (sig : List Byte) (t0 u0 : MachineState) (hsig : SigOK t0 sig) 
     exact hp (d + k) (by omega) (by omega)
 
 theorem pad_run (sig : List Byte) (t0 u : MachineState) (hsig : SigOK t0 sig) (hfr : Frame t0 u SW)
-    (hpc : u.pc = pcOf 132) (n : Nat) (hn : n ≤ 118) (h29 : u.getReg .x29 = BitVec.ofNat 64 (0x24C00 + 16 * n)) :
-    Run u (2 + (236 - 2 * n) * 5 + 1) (fun v => (PadOK sig n → v.pc = pcOf 139 ∧ ∀ a, v.getMem a = u.getMem a) ∧
+    (hpc : u.pc = pcOf 132) (n : Nat) (hn : n ≤ 117) (h29 : u.getReg .x29 = BitVec.ofNat 64 (0x24C00 + 16 * n)) :
+    Run u (2 + (234 - 2 * n) * 5 + 1) (fun v => (PadOK sig n → v.pc = pcOf 139 ∧ ∀ a, v.getMem a = u.getMem a) ∧
       (¬ PadOK sig n → Final none v)) := by
   have hst := symRun_sound blk132 codeAt_132 u hpc (by simp only [blk132.res, rv_simp])
   rw [show blk132.res.cycles = 2 by kernel_rfl] at hst
-  refine (Run.steps hst (B := (236 - 2 * n) * 5 + 1) ?_).mono (by omega) (fun _ h => h)
+  refine (Run.steps hst (B := (234 - 2 * n) * 5 + 1) ?_).mono (by omega) (fun _ h => h)
   set u1 := blk132.res.toState u with hu1
-  have h0 : PadInv sig n u (236 - 2 * n) u1 := by
+  have h0 : PadInv sig n u (234 - 2 * n) u1 := by
     refine ⟨le_refl _, Or.inr ⟨by simp only [hu1, blk132.res, rv_simp], ?_, by simp only [hu1, blk132.res, rv_simp],
       toState_getMem_nil rfl u, fun j h1 h2 => by omega⟩⟩
     simp only [hu1, blk132.res, rv_simp, h29]; exact ofNat_congr (by omega)
-  have hl := Run.loop (PadInv sig n u) 5 (pad_body sig t0 u hsig hfr n hn) (236 - 2 * n) u1 h0
+  have hl := Run.loop (PadInv sig n u) 5 (pad_body sig t0 u hsig hfr n hn) (234 - 2 * n) u1 h0
   refine Run.bind (B₂ := 1) hl (fun v ⟨_, hv⟩ => ?_)
   rcases hv with ⟨hf, hnp⟩ | ⟨vpc, v29, v25, vm, hz⟩
   · exact Run.done' ⟨fun hp => absurd hp hnp, fun _ => hf⟩

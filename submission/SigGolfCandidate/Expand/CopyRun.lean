@@ -24,7 +24,7 @@ def piF (A : Nat → Nat) (j : Nat) (g : Nat → Byte) : Nat → Byte := fun a =
   if 0x810 ≤ a ∧ a < 0x810 + j then byte (A (a - 0x810)) else g a
 
 /-- Signature offsets of the layer bodies (`sigLayerOff`), witness path offsets (`pathOff`), path words. -/
-def sgOff (lay : Nat) : Nat := [2144, 2992, 3760, 4528, 5296].getD lay 0
+def sgOff (lay : Nat) : Nat := [2128, 2976, 3744, 4512, 5280].getD lay 0
 def pOff (lay : Nat) : Nat := [2400, 2576, 2672, 2768, 2864].getD lay 0
 def pWords (lay : Nat) : Nat := [44, 24, 24, 24, 20].getD lay 0
 

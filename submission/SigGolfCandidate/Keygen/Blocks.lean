@@ -45,13 +45,13 @@ def seg_171 : List (BitVec 32) := [0x00000073]
 def seg_172 : List (BitVec 32) := [0x02c0006f, 0x00000013]
 def seg_174 : List (BitVec 32) := [0x00000073]
 
-def segAddrReturn56 : List (BitVec 32) := [0xda1ff06f]
-
 def seg_149 : List (BitVec 32) := [0x0000deb7, 0xb00e8e93, 0x000011b7, 0xe0118193, 0xfe3eb023, 0x08003083, 0x001eb023, 0x08803083, 0x001eb423, 0x09003083, 0x001eb823, 0x09803083, 0x001ebc23, 0x000a3023, 0x000a3423, 0x000a3823, 0x000a3c23, 0xfe0e8513, 0x000085b7, 0x04058593, 0x0000d637, 0xb0060613]
 def seg_175 : List (BitVec 32) := [0x00005eb7, 0xb00e8e93, 0x0000d1b7, 0xb0018193]
 def seg_179 : List (BitVec 32) := [0x000eb023, 0x008e8e93, 0xfe3e9ce3]
 def seg_182 : List (BitVec 32) := [0xf7dff06f]
 def seg_183 : List (BitVec 32) := [0xfe0eb023, 0x00100293, 0x00000513, 0xfd1ff06f]
+
+def segAddrReturn56 : List (BitVec 32) := [0xda1ff06f]
 
 def L : Rv.Layout := [(0, seg_0), (25, seg_25), (32, seg_32), (34, seg_34), (39, seg_39), (40, seg_40), (49, seg_49), (56, seg_56), (57, seg_57), (60, seg_60), (69, seg_69), (73, seg_73), (74, seg_74), (76, seg_76), (77, seg_77), (85, seg_85), (101, seg_101), (102, seg_102), (104, seg_104), (107, seg_107), (115, seg_115), (118, seg_118), (123, seg_123), (132, seg_132), (133, seg_133), (144, seg_144), (147, seg_147), (149, seg_149), (171, seg_171), (172, seg_172), (174, seg_174), (175, seg_175), (179, seg_179), (182, seg_182), (183, seg_183), (187, AddressAdapter.headCode), (206, AddressAdapter.tailCode), (209, segAddrReturn56)]
 
