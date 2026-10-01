@@ -7,17 +7,15 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] Finset.univ
 
-variable {lay : Layer}
-
-noncomputable def decodingDigests (lay : Layer) (words : Finset Encoding) : Finset Digest :=
-  Finset.univ.filter fun digest => ∃ word ∈ words, decode lay digest = some word
+noncomputable def decodingDigests (words : Finset Encoding) : Finset Digest :=
+  Finset.univ.filter fun digest => ∃ word ∈ words, decode digest = some word
 
 theorem mem_decodingDigests {words : Finset Encoding} {digest : Digest} :
-    digest ∈ decodingDigests lay words ↔ ∃ word ∈ words, decode lay digest = some word := by
+    digest ∈ decodingDigests words ↔ ∃ word ∈ words, decode digest = some word := by
   simp only [decodingDigests, Finset.mem_filter, Finset.mem_univ, true_and]
 
-theorem decodingDigests_card_le (words : Finset Encoding) : (decodingDigests lay words).card ≤ words.card := by
-  apply Finset.card_le_card_of_injOn (fun digest => (decode lay digest).getD (defaultWord lay))
+theorem decodingDigests_card_le (words : Finset Encoding) : (decodingDigests words).card ≤ words.card := by
+  apply Finset.card_le_card_of_injOn (fun digest => (decode digest).getD defaultWord)
   · intro digest hd
     obtain ⟨word, hw, hdecode⟩ := mem_decodingDigests.mp hd
     simpa only [hdecode, Option.getD_some, Finset.mem_coe] using hw
@@ -28,18 +26,19 @@ theorem decodingDigests_card_le (words : Finset Encoding) : (decodingDigests lay
     exact decode_some_injective hleft (by rw [he]; exact hright)
 
 theorem decodingDigests_padding (words : Finset Encoding) :
-    ∀ digest ∈ decodingDigests lay words, (digest.getLsbD 63 || digest.getLsbD 127) = false := by
+    ∀ digest ∈ decodingDigests words,
+      digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false := by
   intro digest hd
   obtain ⟨word, _, hdecode⟩ := mem_decodingDigests.mp hd
   rw [decode_def] at hdecode
   unfold TargetSum.decodeDigest at hdecode
   split at hdecode
   · rename_i hp
-    exact Bool.or_eq_false_iff.mpr ⟨hp.1, hp.2.1⟩
+    exact ⟨hp.1, hp.2.1⟩
   · simp at hdecode
 
 theorem decodingDigests_uniform_le (words : Finset Encoding) :
-    Pr[fun output : HashOutput => selectEncodingDigest output ∈ decodingDigests lay words | ($ᵗ HashOutput : ProbComp HashOutput)] ≤
+    Pr[fun output : HashOutput => selectEncodingDigest output ∈ decodingDigests words | ($ᵗ HashOutput : ProbComp HashOutput)] ≤
       ((7 / 4 : ENNReal) * words.card) / Fintype.card Digest := by
   rw [EncodingSelection.prob_select_mem_of_padding _ (decodingDigests_padding words)]
   calc

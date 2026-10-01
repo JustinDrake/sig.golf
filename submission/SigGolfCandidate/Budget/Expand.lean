@@ -601,7 +601,7 @@ theorem blocksF_searchCounter (f : Hash) (lay tau e : Nat) (M : Val) (hM : M.len
     unfold searchCounter
     rw [blocksF_encodingHash_bind, eval_encodingHash_bind]
     generalize encodingBytes (f (addrFmt (encInput lay tau e M c))) = d
-    cases decodeDigits lay d with
+    cases decodeDigits d with
     | some x' =>
       intro h
       have h' : some (c, x') = some (c', x) := h

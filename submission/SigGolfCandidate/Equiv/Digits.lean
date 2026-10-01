@@ -100,9 +100,9 @@ theorem bit127 (d : Digest) : d.getLsbD 127 = false ↔ d.toNat / 2 ^ 64 < 2 ^ 6
   omega
 
 /-- **Target-sum decoding**: the reference decoder is the abstract one. -/
-theorem decodeDigits_dv (lay : SphincsSecurity.Layer) (d : Digest) :
-    Ref.decodeDigits lay.val (dv d) =
-      (SphincsSecurity.TargetSum.decodeDigest lay d).map (fun enc => List.ofFn fun i => (enc i).val) := by
+theorem decodeDigits_dv (d : Digest) :
+    Ref.decodeDigits (dv d) =
+      (SphincsSecurity.TargetSum.decodeDigest d).map (fun enc => List.ofFn fun i => (enc i).val) := by
   unfold Ref.decodeDigits SphincsSecurity.TargetSum.decodeDigest
   have h0 : Ref.slice (dv d) 0 8 = (dv d).take 8 := by simp [Ref.slice]
   simp only [h0, leNat_take_dv d 8 (by omega), leNat_slice_dv]
@@ -114,7 +114,7 @@ theorem decodeDigits_dv (lay : SphincsSecurity.Layer) (d : Digest) :
         SphincsSecurity.TargetSum.sum (SphincsSecurity.TargetSum.digestEncoding d) := by
       rw [List.sum_ofFn]; rfl
     rw [hs]
-    by_cases hv : SphincsSecurity.TargetSum.Valid lay (SphincsSecurity.TargetSum.digestEncoding d)
+    by_cases hv : SphincsSecurity.TargetSum.Valid (SphincsSecurity.TargetSum.digestEncoding d)
     · rw [if_pos (by exact hv), if_pos ⟨(bit63 d).mpr hb.1, (bit127 d).mpr hb.2, hv⟩]; rfl
     · rw [if_neg (by exact hv), if_neg (fun h => hv h.2.2)]; rfl
   · rw [if_neg hb, if_neg (fun h => hb ⟨(bit63 d).mp h.1, (bit127 d).mp h.2.1⟩)]; rfl
