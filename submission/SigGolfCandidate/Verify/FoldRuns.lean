@@ -159,3 +159,10 @@ def blockCheck (lay ci v : Nat) : Bool :=
 def foldCheck (lay ci a n : Nat) : Bool := (List.range' a n).all (blockCheck lay ci)
 
 end SigGolfCandidate.Verify
+
+namespace SigGolfCandidate.Verify
+
+/-- The shape blocks of chunk `ci` of layer `lay` (all `2 ^ bits` blocks). -/
+def layFoldOk (lay ci : Nat) : Bool := foldCheck lay ci 0 (2 ^ chBits lay ci)
+
+end SigGolfCandidate.Verify

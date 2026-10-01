@@ -109,17 +109,6 @@ theorem spec_hash16_bind {P : Query → Prop} {β : Type} {R : β → Prop} (x :
     (hn : kx + l ≤ n) : Spec P R n (Ref.hash16 x >>= f) :=
   (spec_hash16 x kx hP hk).bind' hf hn
 
-theorem spec_encodingHash {P : Query → Prop} (x : List Byte) (k : Nat) (hP : P (addrFmt x))
-    (hk : (addrFmt x).blocks ≤ k) : Spec P (fun v : Val => v.length = 16) k (encodingHash x) := by
-  show Spec P _ k (qry (addrFmt x) >>= fun a => Pure.pure (encodingBytes a))
-  exact Spec.qry_bind hP (fun u => Spec.pure _ 0 (by simp [encodingBytes])) (by omega)
-
-theorem spec_encodingHash_bind {P : Query → Prop} {β : Type} {R : β → Prop} (x : List Byte)
-    {f : Val → OracleComp HashSpec β} {kx l n : Nat} (hP : P (addrFmt x))
-    (hk : (addrFmt x).blocks ≤ kx) (hf : ∀ v : Val, v.length = 16 → Spec P R l (f v))
-    (hn : kx + l ≤ n) : Spec P R n (Ref.encodingHash x >>= f) :=
-  (spec_encodingHash x kx hP hk).bind' hf hn
-
 /-- Hypertree queries: tweak types `0..3`. -/
 def PT (q : Query) : Prop := qbyte q 1 ≤ 3
 /-- PORS queries: tweak types `8..10`. -/
@@ -456,7 +445,7 @@ theorem spec_searchCounter (lay tau e : Nat) (M : Val) (hM : M.length ≤ 16) (h
     intro c
     unfold searchCounter
     obtain ⟨h1, h2⟩ := enc_ok lay tau e M hM c hlay
-    refine spec_encodingHash_bind _ h1 h2 (l := n) (fun d _ => ?_) (by omega)
+    refine spec_hash16_bind _ h1 h2 (l := n) (fun d _ => ?_) (by omega)
     split
     · next x hx =>
       exact Spec.pure _ _ (by

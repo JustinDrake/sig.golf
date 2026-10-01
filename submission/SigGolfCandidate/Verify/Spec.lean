@@ -92,49 +92,4 @@ theorem spec_run {gk known post : List (Reg × Word)} {stops : List Nat} {n : Na
     rw [PRes.toState_pc _ _ (hspc'.trans hn), BitVec.eq_of_toNat_eq hpc']
   · intro e he; simp [PRes.toState, PRes.finalPc, hspc'.trans he]
 
-/-- A checked run with an explicit, subsequently discharged side-condition list. -/
-def specOB (gk : List (Reg × Word)) (o : Option PRes) (sp : Spec) (obl : List Oblig)
-    (post : List (Reg × Word)) (keep : List Reg) : Bool :=
-  match o with
-  | none => false
-  | some r =>
-    regsB r sp.regs && listBeq pairBeq r.st.mem sp.mem &&
-      (sp.spc.isSome || r.pc.toNat == (pcOf sp.pc).toNat) &&
-      r.ecall == sp.ecall && r.steps == sp.steps && r.cycles == sp.cycles &&
-      listBeq Br.beq r.brs sp.brs && optEBeq r.spc sp.spc && listBeq Oblig.beq r.st.obl obl &&
-      memOK r.st.mem && regsOK gk r.st.regs && knownB post r && keepB keep r
-
-theorem specO_run {gk known post : List (Reg × Word)} {stops : List Nat} {n : Nat} {dirs : List Dir}
-    {sp : Spec} {obl : List Oblig} {keep : List Reg}
-    (h : specOB gk (runAt known stops n dirs) sp obl post keep = true)
-    (s : MachineState) (hpc : s.pc = pcOf n) (hk : KnownOK known s)
-    (hob : ∀ o ∈ obl, o.holds s) (hbr : ∀ b ∈ sp.brs, b.holds s) :
-    ∃ t, SpecRes gk sp post keep s t := by
-  unfold specOB at h
-  split at h
-  · cases h
-  rename_i r hr
-  simp only [Bool.and_eq_true, beq_iff_eq] at h
-  obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨hregs, hmem⟩, hpc'⟩, hec⟩, hst⟩, hcy⟩, hbrs⟩, hspc⟩, hobl⟩, hmok⟩, hrok⟩, hkn⟩,
-    hkeep⟩ := h
-  have hbrs' := listBeq_eq (fun _ _ => Br.beq_eq) hbrs
-  have hmem' := listBeq_eq (fun _ _ => pairBeq_eq) hmem
-  have hspc' := optEBeq_eq hspc
-  have hobl' := listBeq_eq (fun _ _ => Oblig.beq_eq) hobl
-  obtain ⟨hst', hec'⟩ := pathRun_sound hr vlook_ok s hpc hk (by rw [hobl']; exact hob)
-    (by rw [hbrs']; exact hbr)
-  refine ⟨r.toState s, ⟨?_, ?_, ?_, fun wl hW => WitAll_toState hW r.st _ hmok,
-    knownB_ok hkn s, keepB_ok hkeep s, ?_, ?_, ?_, ?_⟩⟩
-  · rw [hcy, hst] at hst'; exact hst'
-  · intro he; exact hec' (hec.trans he)
-  · intro gk0 wl pk hG; exact Glob_toState' hG r.st _ hmok hrok
-  · intro p hp
-    rw [PRes.toState_getReg, E.beq_eq (List.all_eq_true.mp hregs p hp)]
-  · intro A; rw [PRes.toState_getMem, hmem']
-  · intro hn
-    rw [hn] at hpc'
-    simp only [Option.isSome_none, Bool.false_or, beq_iff_eq] at hpc'
-    rw [PRes.toState_pc _ _ (hspc'.trans hn), BitVec.eq_of_toNat_eq hpc']
-  · intro e he; simp [PRes.toState, PRes.finalPc, hspc'.trans he]
-
 end SigGolfCandidate.Verify

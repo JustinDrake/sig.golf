@@ -20,19 +20,19 @@ theorem firstSuccess_allowed_fresh {n : Nat} (index : Fin n) (reference : Encodi
 
 theorem freshEncodingSupport_probability_le (reference : Encoding) (targets : Finset Encoding) (href : reference ∉ targets)
     (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport reference allowed) :
-    Pr[fun output : HashOutput => selectEncodingDigest output ∈ OtsCode.decodingDigests targets | PMF.uniformOfFinset allowed ha] ≤
-      ((7 / 4 : ENNReal) * targets.card) / Fintype.card Digest := by
+    Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests targets | PMF.uniformOfFinset allowed ha] ≤
+      (targets.card : ENNReal) / Fintype.card Digest := by
   rcases hallowed with rfl | hrestricted
   · have h := OtsCode.decodingDigests_uniform_le targets
     simpa only [probEvent_eq_tsum_ite, probOutput_uniformSample, PMF.probOutput_eq_apply, PMF.uniformOfFinset_apply,
       Finset.mem_univ, if_true, Finset.card_univ] using h
-  · have hzero : Pr[fun output : HashOutput => selectEncodingDigest output ∈ OtsCode.decodingDigests targets |
+  · have hzero : Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests targets |
         PMF.uniformOfFinset allowed ha] = 0 := by
       simp only [probEvent_eq_tsum_ite, PMF.probOutput_eq_apply]
       apply ENNReal.tsum_eq_zero.mpr
       intro output
       by_cases hm : output ∈ allowed
-      · have hn : selectEncodingDigest output ∉ OtsCode.decodingDigests targets := by
+      · have hn : truncateHash output ∉ OtsCode.decodingDigests targets := by
           intro hd
           obtain ⟨word, hw, hdecode⟩ := OtsCode.mem_decodingDigests.mp hd
           change decodeEncodingOutput output = some word at hdecode
@@ -48,25 +48,23 @@ theorem freshEncodingSupport_probability_le (reference : Encoding) (targets : Fi
 
 theorem freshEncodingSupport_neighbor_le (reference : Encoding) (lowered : ChainIndex)
     (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport reference allowed) :
-    Pr[fun output : HashOutput => selectEncodingDigest output ∈ OtsCode.decodingDigests (OtsCode.unitNeighbors reference lowered) |
-      PMF.uniformOfFinset allowed ha] ≤ ((7 / 4 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) / (Fintype.card Digest : ENNReal) := by
+    Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests (OtsCode.unitNeighbors reference lowered) |
+      PMF.uniformOfFinset allowed ha] ≤ (OtsCode.unitNeighborBound : ENNReal) / (Fintype.card Digest : ENNReal) := by
   have href : reference ∉ OtsCode.unitNeighbors reference lowered := by
     intro h
     exact (OtsCode.mem_unitNeighbors.mp h).ne rfl
   exact (freshEncodingSupport_probability_le reference _ href allowed ha hallowed).trans
-    (ENNReal.div_le_div_right
-      (mul_le_mul' le_rfl (Nat.cast_le.mpr (OtsCode.unitNeighbors_card_le reference lowered))) _)
+    (ENNReal.div_le_div_right (Nat.cast_le.mpr (OtsCode.unitNeighbors_card_le reference lowered)) _)
 
 theorem freshEncodingSupport_all_neighbors_le (reference : Encoding)
     (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport reference allowed) :
-    Pr[fun output : HashOutput => selectEncodingDigest output ∈ OtsCode.decodingDigests (OtsCode.allUnitNeighbors reference) |
-      PMF.uniformOfFinset allowed ha] ≤ ((7 / 4 : ENNReal) * (OtsCode.neighborBound : ENNReal)) / (Fintype.card Digest : ENNReal) := by
+    Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests (OtsCode.allUnitNeighbors reference) |
+      PMF.uniformOfFinset allowed ha] ≤ (OtsCode.neighborBound : ENNReal) / (Fintype.card Digest : ENNReal) := by
   have href : reference ∉ OtsCode.allUnitNeighbors reference := by
     intro h
     obtain ⟨lowered, ht⟩ := OtsCode.mem_allUnitNeighbors.mp h
     exact ht.ne rfl
   exact (freshEncodingSupport_probability_le reference _ href allowed ha hallowed).trans
-    (ENNReal.div_le_div_right
-      (mul_le_mul' le_rfl (Nat.cast_le.mpr (OtsCode.allUnitNeighbors_card_le reference))) _)
+    (ENNReal.div_le_div_right (Nat.cast_le.mpr (OtsCode.allUnitNeighbors_card_le reference)) _)
 
 end SphincsSecurity.Concrete

@@ -1,4 +1,4 @@
-import SigGolfCandidate.Legacy
+import SigGolfCandidate.Legacy.Statements
 import SigGolfCandidate.CacheBytes
 import SigGolfCandidate.Ref.AddressFormat
 import Mathlib.Data.List.Sort
@@ -74,7 +74,7 @@ def slice (l : List Byte) (off len : Nat) : List Byte := (l.drop off).take len
 
 def nChains : Nat := 42
 /-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
-def targetSum : Nat := 184
+def targetSum : Nat := 181
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
 /-- The number of hypertree layers `d`. -/
@@ -260,17 +260,6 @@ def prf2 (x : List Byte) : OracleComp HashSpec (Val × Val) := do
 def hash16 (x : List Byte) : OracleComp HashSpec Val := do
   let a ← H x
   pure (answerBytes 16 a)
-
-/-- Encoding-only half selection: keep the low half when both padding bits are clear,
-otherwise use the independent high half. Ordinary hashes are unchanged. -/
-def encodingAnswer (a : BitVec 256) : BitVec 256 :=
-  if (a.getLsbD 63 || a.getLsbD 127) then a >>> 128 else a
-
-def encodingBytes (a : BitVec 256) : Val := answerBytes 16 (encodingAnswer a)
-
-def encodingHash (x : List Byte) : OracleComp HashSpec Val := do
-  let a ← H x
-  pure (encodingBytes a)
 
 /-- `Th(P, tw, payload)`: the first 16 bytes of `H(fmt(tw || 0^16 || payload))`. -/
 def th (tw payload : List Byte) : OracleComp HashSpec Val := hash16 (thInput tw payload)
