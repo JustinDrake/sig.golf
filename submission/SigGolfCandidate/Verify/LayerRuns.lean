@@ -37,14 +37,14 @@ def stepsA (lay : Nat) : Nat := if lay = 0 ∨ lay = 4 then 12 else 13
 def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
 
 /-- Known registers at the transition start. -/
-def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40101), (.x14, KT4)]
+def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40201), (.x14, KT4)]
 def aK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, 0x120), (.x27, BitVec.ofNat 64 (hWord (lay + 1)))]
+  gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, 0x120), (.x27, BitVec.ofNat 64 (hWord (lay + 1) + 256))]
 def preK (lay : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay
 
 /-- Known registers after the encoding hash call. -/
 def bK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)] ++
+  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 256)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)] ++
     (if lay = 4 then [(.x14, KT4)] else [])
 
 def uEr (lay : Nat) : E :=
@@ -103,7 +103,7 @@ def specBok (lay : Nat) : Spec :=
 /-- Known registers on entry of the chain code; chain 0 initializes `x25` from `x27`. -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
   chK0 ++ [(.x22, BitVec.ofNat 64 (s6N lay)),
-    (.x27, BitVec.ofNat 64 (hWord lay)), (.x1, pcOf (retPc lay c))]
+    (.x27, BitVec.ofNat 64 (hWord lay + 256)), (.x1, pcOf (retPc lay c))]
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
@@ -115,9 +115,9 @@ def specRej2 (lay : Nat) : Spec :=
 
 /-- The leaf code at the return pc: the leaf tweak, then the dispatch into the shape block of
 chunk 0. -/
-def leafSteps (lay : Nat) : Nat := if lay = 0 then 10 else 9
+def leafSteps (lay : Nat) : Nat := if lay = 0 then 9 else 8
 
-def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, BitVec.ofNat 64 (hWord lay))]
+def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 256))]
 
 def specLeaf (lay : Nat) : Spec :=
   ⟨[(.x10, cw 832), (.x11, cw 704)],
@@ -126,7 +126,7 @@ def specLeaf (lay : Nat) : Spec :=
 
 def leafKeep : List Reg := [.x16, .x17, .x23, .x30, .x31]
 def leafPost (lay : Nat) : List (Reg × Word) :=
-  fk false 0x340 704 ++ [(.x27, BitVec.ofNat 64 (hWord lay))]
+  fk false 0x340 704 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 256))]
 
 /-! ## Compare -/
 
