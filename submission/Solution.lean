@@ -5,9 +5,14 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with two-padding-bit conditional-half encoding
 
 Declared sizes: S = 6032 signature bytes, W = 16384 witness bytes, and K = 131072
-cache bytes. The claim C = 10560 is the certified accepting verifier bound 10496
+cache bytes. The claim C = 10559 is the certified accepting verifier bound 10495
 plus the 64-cycle witness charge. The PORS authentication cap is 117; all five
 WOTS digit-sum targets are 184.
+
+The extra one-cycle credit follows a universal structural fact about the PORS
+authentication stream: an accepting path either has fewer than 117 folds or
+contains a zero-fold segment. The executable images and data layouts are unchanged
+from the promoted two-padding-bit construction.
 
 The encoding selects the upper 128 bits of a 256-bit oracle answer when either
 bit 63 or bit 127 of its lower half is set, otherwise selecting the lower half.
@@ -48,7 +53,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10560 :=
+theorem certificate : SigGolf.Certificate submission 10559 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
