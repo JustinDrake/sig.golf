@@ -14,7 +14,7 @@ theorem referenceEncodingLazyRest_match_le (key : SecretKey) (inputs : Finset Ha
     Pr[fun result => OtsVerifierWitness.EncodingOutputMatch key.parameter (referenceFamilyWords selections dummy)
       (outsideGraphMessage key inputs hencoding outside) selections (result.1.before * result.1.after) |
         referenceEncodingLazyRest contactObserver key inputs hencoding outside selections dummy adversary] ≤
-      ((15 / 8 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ∑' result,
+      ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ∑' result,
         Pr[= result | referenceEncodingLazyRest contactObserver key inputs hencoding outside selections dummy adversary] *
           (EncodingObservation.encodingCalls key.parameter (result.1.before * result.1.after) : ENNReal) := by
   have h := OtsVerifierWitness.encodingMatch_initial_lazyRun_le key.parameter (referenceFamilyWords selections dummy)
@@ -38,7 +38,7 @@ theorem referenceEncodingContextGame_match_le (inputs : Finset HashInput)
     Pr[fun result => OtsVerifierWitness.EncodingOutputMatch result.1 (referenceFamilyWords result.2.1 dummy)
       result.2.2.1 result.2.1 (result.2.2.2.before * result.2.2.2.after) |
         referenceEncodingContextGame contactObserver inputs hencoding dummy adversary] ≤
-      ((15 / 8 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ∑' result,
+      ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ∑' result,
         Pr[= result | referenceEncodingContextGame contactObserver inputs hencoding dummy adversary] *
           (EncodingObservation.encodingCalls result.1 (result.2.2.2.before * result.2.2.2.after) : ENNReal) := by
   rw [referenceEncodingContextGame_lazy contactObserver inputs hencoding hgraph dummy adversary]
@@ -73,7 +73,7 @@ theorem referenceEncodingContextGame_match_le_encodingCost (dummy : OtsReference
       result.2.2.1 result.2.1 (result.2.2.2.before * result.2.2.2.after) |
         referenceEncodingContextGame contactObserver (canonicalGraphGameInputs adversary)
           (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] ≤
-      ((15 / 8 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ∑' result,
+      ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) * ∑' result,
         Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary)
           (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] * (result.encodingCalls : ENNReal) := by
   rw [← referenceEncodingContextGame_expected_encodingCalls]

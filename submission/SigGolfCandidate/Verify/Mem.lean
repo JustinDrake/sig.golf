@@ -103,19 +103,19 @@ def TTA5 : Word := 0x50000
 def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 
 /-- The exact digit sum of every layer, compared after the alias-free reduction modulo 4095. -/
-def KT : Word := BitVec.ofNat 64 (targetSum + 1)
+def KT : Word := BitVec.ofNat 64 (targetSum)
 
 /-- Mixed per-layer target, shared definition with the abstract decoder. -/
 def targetFor (lay : Nat) : Nat := SigGolfCandidate.Ref.targetFor lay
 
-/-- The layer-4 digit sum target `targetFor 4 = 185`, held in `x14` from the PORS root tail to the
+/-- The layer-4 digit sum target `targetFor 4 = 186`, held in `x14` from the PORS root tail to the
 layer-4 encoding check (`x14` is dead there; the chain prologue then loads the triple index into it). -/
 def KT4 : Word := BitVec.ofNat 64 (targetFor 4)
 
 /-- The digit-sum constant the encoding check of layer `lay` compares against. -/
-def KTof (lay : Nat) : Word := BitVec.ofNat 64 (targetFor lay + if lay = 0 then 1 else 0)
+def KTof (lay : Nat) : Word := BitVec.ofNat 64 (targetFor lay + if lay = 0 then 0 else 0)
 
-theorem targetFor_le (lay : Nat) : targetFor lay ≤ 185 := by
+theorem targetFor_le (lay : Nat) : targetFor lay ≤ 186 := by
   unfold targetFor SigGolfCandidate.Ref.targetFor targetSum
   split_ifs <;> omega
 

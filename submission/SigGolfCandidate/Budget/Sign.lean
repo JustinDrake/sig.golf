@@ -7,12 +7,12 @@ From any random-oracle cache without tweak types `4`, `7`, `12` (e.g. after keyg
 queries types `0..3`, `13`, `14`), and for **every** cache argument, the expectation of
 `z ^ (compressions of signRef sk cache m)` is at most
 
-  `z ^ 513 * (bD * (z ^ 40959 * (counterProduct bC 5 * z ^ (73244 + 541))))`,
+  `z ^ 513 * (bD * (z ^ 40959 * (counterProduct bC 5 * z ^ (73244 + 542))))`,
 
 where `bD` bounds the digest search and `bC i` the counter search in layer `i` (`V_signRef`). The
-deterministic part (paired PRF secrets, 5 layers (11,6,6,6,5), targets 184/185) is MAC 513 + PORS tree
-40959 + layers 1..4 73244 + top layer 541 = 115257 blocks (top layer: 21 paired secret queries,
-`targetSum = 184` chain steps, 10 masks, and 326 compressions to rebuild the omitted sibling leaf).
+deterministic part (paired PRF secrets, 5 layers (11,6,6,6,5), targets 185/186) is MAC 513 + PORS tree
+40959 + layers 1..4 73244 + top layer 542 = 115258 blocks (top layer: 21 paired secret queries,
+`targetSum = 185` chain steps, 10 masks, and 326 compressions to rebuild the omitted sibling leaf).
 -/
 
 namespace SigGolfCandidate.Budget
@@ -70,7 +70,7 @@ theorem spec_topPath (S cache : List Byte) (hS : S.length = 32) (e : Nat) :
   exact spec_hash16_bind _ trivial (mask_ok S hS (1 + l) _).2 (fun _ _ => Spec.pure _ 0 trivial) le_rfl
 
 /-- Compressions of the top layer after its counter search. -/
-def topCost : Nat := 21 + 184 + 336
+def topCost : Nat := 21 + 185 + 336
 
 theorem V_signTop (z bC : ℝ≥0∞) (hz : 1 ≤ z) (hbC : 1 ≤ bC)
     (hstepC : z * (rhoC 0 * bC + (1 - rhoC 0)) ≤ bC) (S cache : List Byte) (hS : S.length = 32)
@@ -206,7 +206,7 @@ theorem mac_ok (S cache : List Byte) (hS : S.length = 32) :
 
 /-- The signing bound without the MAC check. -/
 noncomputable abbrev signBound (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) : ℝ≥0∞ :=
-  bD * (z ^ 40959 * (counterProduct bC 5 * z ^ (73244 + 541)))
+  bD * (z ^ 40959 * (counterProduct bC 5 * z ^ (73244 + 542)))
 
 set_option maxRecDepth 100000 in
 /-- The expectation bound for the part of `signList` after the MAC check, from `Inv0`. -/
@@ -226,7 +226,7 @@ theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
         match ← signLayers S cache (idxOf N) (nLayers - 1) M with
         | none => pure none
         | some lays => pure (some (serialize rho fts lays))) c ≤ signBound z bD bC := by
-  have hbig : 1 ≤ z ^ 40959 * (counterProduct bC 5 * z ^ (73244 + 541)) :=
+  have hbig : 1 ≤ z ^ 40959 * (counterProduct bC 5 * z ^ (73244 + 542)) :=
     one_le_mul (one_le_pow₀ hz) (one_le_mul (one_le_counterProduct hbC _) (one_le_pow₀ hz))
   refine (V_bind_le z _ _ c _ fun x hx => ?_).trans (mul_le_mul' ?_ le_rfl)
   · have hx' := (spec_searchDigestPairs S m hS hm aMax 0).support
@@ -236,7 +236,7 @@ theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
     rcases o with _ | ⟨rho, N⟩
     · simpa using hbig
     · dsimp only
-      refine (V_bind_le z _ _ c1 (counterProduct bC 5 * z ^ (73244 + 541)) fun y hy => ?_).trans ?_
+      refine (V_bind_le z _ _ c1 (counterProduct bC 5 * z ^ (73244 + 542)) fun y hy => ?_).trans ?_
       · have hy' := (spec_buildPorsTree S hS (idxOf N)).support (I := fun q => qbyte q 1 ≠ 4)
           (fun q hq => by unfold PP at hq; omega) c1 hx'.2 y hy
         obtain ⟨⟨levels, secrets⟩, c2⟩ := y
@@ -244,7 +244,7 @@ theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
         refine (V_bind_le z _ _ c2 1 fun r _ => ?_).trans ?_
         · obtain ⟨r, _⟩ := r
           rcases r with _ | lays <;> simp
-        · rw [mul_one, ← layerCost_4, show (541 : Nat) = topCost from rfl]
+        · rw [mul_one, ← layerCost_4, show (542 : Nat) = topCost from rfl]
           refine V_signLayers z bC hz hbC hstepC S cache hS (idxOf N) (nLayers - 1) _ c2
             (by decide) hy'.1 ?_
           exact hy'.2.mono fun q h h4 => absurd h4 h

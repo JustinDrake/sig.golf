@@ -5,25 +5,25 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=16384 witness bytes, K=131072 cache bytes.
-The claim C=10408 is accepting verifier bound10344 plus witness charge64.
+The claim C=10403 is accepting verifier bound10339 plus witness charge64.
 PORS has height14,15 openings and authentication cap117. The five WOTS
-checksum targets are[184,185,185,185,185].
+checksum targets are[185,185,185,185,186].
 
 For oracle words A,B,C,D, select AB when B's top bit is clear and A's top
 bit is clear; select BC when B's top bit is clear and A's top bit is set.
-When B's top bit is set, select CD only if either of A's top two bits is
+When B's top bit is set, select CD only if one of A's top four bits is
 set; otherwise retain the invalid AB pair. Every padding-clear output has
-exactly15*2^125 preimages, giving acceptance multiplier15/8. Sign, expand,
+exactly63*2^123 preimages, giving acceptance multiplier63/32. Sign, expand,
 reference and verify all implement this fixed selector.
 
 The proven signing envelope is
-2^(115257/131072)*1.0279*1.00951*1.01132^4 <= 2.
+2^(115258/131072)*1.0279*1.01078^4*1.01290 <= 2.
 The joint security proof uses primitive coefficient253/128 and split65*2^106;
 all primitive, residual and certificate remainder terms are rechecked.
 The verifier selector takes at most seven instructions, with separately
-proved shorter AB paths. Shared target185 needs one correction at layer0.
-Compared with the previous7/4 mixed construction, two target increments
-remove eighteen chain cycles and the selector adds at most five cycles.
+proved shorter AB paths. Layers0..3 compare the shared x29=185 with no correction step;
+layer4 compares x14=186, set in the PORS root tail. The final route is carried physically. The security envelope
+combines fine and coarse first-contact bounds with weights1/16 and15/16.
 
 PORS node headers are relabelled: the tag-10 tweak field carries efield(H),
 the 32-bit bit reversal of the heap index H. The verifier keeps
@@ -37,14 +37,6 @@ eliminating one instruction at all fifteen leaf heads. The tag-9 address field
 is rotated left by three bits through an injective global query permutation;
 for all admitted leaf indices this equals multiplication by eight. Raw secret-PRF
 addresses, abstract leaf selection, sorting and the node-header table are unchanged.
-
-PORS segments with at least three folds carry three natural heap path bits.
-Their table entries compare a static reversed three-bit constant against the
-relabelled heap field, then take two known directions without branch tests.
-Nonroot entries use copied suffixes without a join; the root retains its join.
-Short segments retain parity-only guards and normalize ignored lookahead in
-the abstract signature. The compressed-tree certificate bounds all decoded
-segment costs by2322, including the exact final/root segment exception.
 
 The signer and expander share a straight-line selector in existing padding.
 Including the call jump it executes16 instructions and22 cycles. Counter
@@ -79,7 +71,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10408 :=
+theorem certificate : SigGolf.Certificate submission 10403 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

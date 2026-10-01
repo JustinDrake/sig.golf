@@ -1,5 +1,4 @@
 import SigGolfCandidate.Verify.LayerRuns
-import SigGolfCandidate.Verify.ChainCheckAll
 
 /-! Kernel check of the layer blocks (one declaration per layer). -/
 

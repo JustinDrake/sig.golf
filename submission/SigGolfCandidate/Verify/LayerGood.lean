@@ -323,6 +323,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The layer cycles in order 0 .. 4: `1610` (direct route), `1530`, `1530`, `1530`, `1514` (target 181
 held in `x14`, no hash-length reload), and the comparison `8`. -/
-theorem layersCost_5 : layersCost 5 = 7552 := by decide
+theorem layersCost_5 : layersCost 5 = 7533 := by decide
 
 end SigGolfCandidate.Verify

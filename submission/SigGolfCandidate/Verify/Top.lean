@@ -27,7 +27,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     (stk : List (Val × Nat)) (m : MachineState) (h : TailIn P s0 14 x 2 c ptr E folds node stk m) :
     ((folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧
         fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 11 11 u ∧
+    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 13 13 u ∧
         LayerIn ⟨P.wl, P.pk, 4, P.idx⟩ node u) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
   have hE := h.hE
@@ -154,7 +154,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hknown : KnownOK l4K u := by
       intro p hp
       simp only [l4K, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl | rfl
       · exact hregs p hp
       all_goals first | exact htag | exact hu.known _ (by simp [rootPost])
     have hmem : ∀ A, u.getMem A = m.getMem A := fun A => by rw [hu.mem]; rfl
@@ -173,9 +173,11 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
 
 
 /-- Universal accepting-run bound. Scaled PIND byte offsets remove one instruction from
-all fifteen leaf headers. The tag-9 address-field rotation is an injective query relabel;
-Final.Discharge supplies the additional universal structural credit. This is a proof bound. -/
-def cycleBound : Nat := 10358
+all fifteen leaf headers. The tag-9 address-field rotation is an injective query relabel. The top-4-bit
+selector takes at most seven instructions; checksum targets are 185 in layers 0 .. 3 (shared `x29`) and 186
+in layer 4 (`x14`, set in the root tail). Final.Discharge supplies the additional universal structural
+credit. This is a proof bound. -/
+def cycleBound : Nat := 10340
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
 def cycleBoundAll : Nat := 16875
@@ -186,8 +188,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7552 := by decide
-theorem layC_val : layC = 7552 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7533 := by decide
+theorem layC_val : layC = 7533 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -221,7 +223,7 @@ theorem Kr_none (P : PCtx) : Kr P none = pure (false, 0) := by
 
 theorem root_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (x c : Nat) (st : PorsState)
     (u : MachineState) (hT : TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u) :
-    GoodQ u (11 + layC + layN) (11 + layC) (st.folds ≤ 117) (11 + layC) (Kr P (some st)) := by
+    GoodQ u (13 + layC + layN) (13 + layC) (st.folds ≤ 117) (13 + layC) (Kr P (some st)) := by
   obtain ⟨hrej, hacc⟩ := tailF_step P hP s0 x c st.ptr st.E st.folds st.node st.stack u hT
   have hL : layC = layersCost 5 := layC_val.trans layersCost_val.symm
   by_cases hc : st.folds > porsM ∨ st.E ≠ 1 ∨ st.stack ≠ []
@@ -243,7 +245,7 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
       (cc (porsRoot P.idx P.v P.wl) (Klay P)) := by
   have hr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (11 + layC + layN) (11 + layC) (st.folds ≤ 117) (11 + layC) (Kr P (some st)) :=
+      GoodQ u (13 + layC + layN) (13 + layC) (st.folds ≤ 117) (13 + layC) (Kr P (some st)) :=
     fun x c st u hT => root_good P hP s0 x c st u hT
   have hg0 := leaves_good P hP s0 (Kr P) (Kr_none P) hr
   have hg := hg0 15 0 ⟨wStream, 0, 0, 0, [], []⟩ s0 (by rfl) h
@@ -262,8 +264,8 @@ theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 
 
 theorem lrest_0 : lrest 0 = 171 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7757 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2669 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7757 + layC + layN := by
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7759 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2671 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7759 + layC + layN := by
   have h0 : leafCost 0 = 11 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 
@@ -284,8 +286,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (105 + (leafCost 0 + Nseg 0 0)) (105 + (leafCost 0 + Cseg 0 0)) True
-        (105 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (104 + (leafCost 0 + Nseg 0 0)) (104 + (leafCost 0 + Cseg 0 0)) True
+        (104 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with

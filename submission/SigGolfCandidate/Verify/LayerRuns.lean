@@ -37,7 +37,7 @@ def stepsA (lay : Nat) : Nat := if lay = 0 then 10 else if lay = 4 then 11 else 
 def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
 
 /-- Known registers at the transition start. -/
-def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401)]
+def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401), (.x14, KT4)]
 def aK (lay : Nat) : List (Reg × Word) :=
   gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, 0x120), (.x27, BitVec.ofNat 64 (hWord (lay + 1) + 768)), (.x22, BitVec.ofNat 64 (s6N (lay + 1)))]
 def preK (lay : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay
@@ -45,7 +45,7 @@ def preK (lay : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay
 /-- Known registers after the encoding hash call. -/
 def bK (lay : Nat) : List (Reg × Word) :=
   gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)] ++
-    (if lay = 4 then [] else [(.x22, BitVec.ofNat 64 (s6N (lay + 1)))])
+    (if lay = 4 then [(.x14, KT4)] else [(.x22, BitVec.ofNat 64 (s6N (lay + 1)))])
 
 def uEr (lay : Nat) : E :=
   if lay = 0 then .reg .x30
@@ -73,11 +73,11 @@ def specA (lay t : Nat) : Spec :=
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
 
 /-! ## The encoding check (`remu x25, x25, x18`; layers 0 .. 3 compare `KT`, layer 4 reuses `x14 = KT4`,
-targets184/185, with a one-step positive correction only in layer0) and the chain prologue -/
+targets185/186, retaining a one-step zero correction in layer0) and the chain prologue -/
 
 /-- Four selector paths: AB, gated AB, BC, CD. The gated AB case is rejected by padding. -/
 def selOf (a : BitVec 256) : Nat :=
-  if a.getLsbD 127 then (if a.getLsbD 62 || a.getLsbD 63 then 3 else 1)
+  if a.getLsbD 127 then (if SigGolfCandidate.Ref.encodingGate a then 3 else 1)
   else if a.getLsbD 63 then 2 else 0
 
 def selSteps (hi : Nat) : Nat := if hi = 0 then 4 else if hi = 1 then 5 else 7
@@ -90,7 +90,7 @@ def selSecond (hi : Nat) : Bool := decide (hi = 0 ∨ hi = 1)
 def selDirs (hi : Nat) : List Dir := [.br (selLow hi), .br (selSecond hi)]
 def selBrs (hi : Nat) : List Br :=
   [(if selLow hi then ⟨.ge, ldE 288, cw 0, selSecond hi⟩
-    else ⟨.eq, E.bin .srl (ldE 288) (cw 62), cw 0, selSecond hi⟩),
+    else ⟨.eq, E.bin .srl (ldE 288) (cw 60), cw 0, selSecond hi⟩),
    ⟨.ge, ldE 296, cw 0, selLow hi⟩]
 
 def m1E : E := .c M1w
@@ -104,16 +104,15 @@ def swA5 (hi : Nat) : E := .bin .and (swA4 hi) m2E
 def swA6 (hi : Nat) : E := .bin .add (swA5 hi) (.bin .srl (swA5 hi) (cw 12))
 def swA7 (hi : Nat) : E := .bin .add (swA6 hi) (.bin .srl (swA6 hi) (cw 24))
 def swSBase (hi : Nat) : E := .bin .remu (swA5 hi) (cw 4095)
-def swS (hi : Nat) (lay : Nat) : E :=
-  if lay = 0 then .bin .add (swSBase hi) (cw 1) else swSBase hi
+def swS (hi : Nat) (_lay : Nat) : E := swSBase hi
 
 /-- The table index of triple 0 (`slli a4, a6, 9; and a4, a4, sp; add a4, a4, a5`) and the
 dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E (hi : Nat) : E := .bin .add (.bin .and (.bin .sll (d0E hi) (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 (hi : Nat) : E := .bin .and (.bin .add (.bin .and (.bin .sll (d0E hi) (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB (lay : Nat) : Nat := (if lay = 4 then 29 else 28) + (if lay = 0 then 1 else 0)
-def stepsBPath (hi lay : Nat) : Nat := (if lay = 4 then 22 else 21) + selSteps hi + (if lay = 0 then 1 else 0)
+def stepsB (lay : Nat) : Nat := (if lay = 4 then 29 else 28)
+def stepsBPath (hi lay : Nat) : Nat := (if lay = 4 then 22 else 21) + selSteps hi
 def cyclesBPath (hi lay : Nat) : Nat := stepsBPath hi lay + 3
 
 theorem stepsBPath_le (hi lay : Nat) : stepsBPath hi lay ≤ stepsB lay := by
@@ -136,7 +135,7 @@ def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
 def specRej1 (hi : Nat) : Spec := ⟨rejK, [], rejectPc + 2, true, selSteps hi + 5, [⟨.lt, (orE hi), .c 0, true⟩] ++ selBrs hi, none, selSteps hi + 5⟩
 def specRej2 (hi : Nat) (lay : Nat) : Spec :=
-  ⟨rejK, [], rejectPc + 2, true, 19 + selSteps hi + (if lay = 0 then 1 else 0), [⟨.ne, (swS hi lay), .c (KTof lay), true⟩, ⟨.lt, (orE hi), .c 0, false⟩] ++ selBrs hi, none, 22 + selSteps hi + (if lay = 0 then 1 else 0)⟩
+  ⟨rejK, [], rejectPc + 2, true, 19 + selSteps hi, [⟨.ne, (swS hi lay), .c (KTof lay), true⟩, ⟨.lt, (orE hi), .c 0, false⟩] ++ selBrs hi, none, 22 + selSteps hi⟩
 
 /-! ## Leaf -/
 
