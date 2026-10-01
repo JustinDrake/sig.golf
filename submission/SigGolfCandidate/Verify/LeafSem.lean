@@ -58,7 +58,7 @@ theorem layFC_check (L : LCtx) (hL : L.ok) :
 /-- Carried through the leaf and the fold of layer `lay` to the transition of layer `lay - 1`:
 the tweak word, `tau`, the CB word, and the chain array of the layers `< lay` still the witness. -/
 def LeafCarry (L : LCtx) (s : MachineState) : Prop :=
-  s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay + 768) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧
+  s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay + 768) ∧ s.getReg .x30 = BitVec.ofNat 64 (if L.lay = 0 then L.e else L.tau) ∧
   CB0 s ∧ Fresh L.wl L.lay 42 s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N L.lay)
 
 /-- The leaf tweak word 0 with byte 1 (the tag 2) replaced by 3: the node tweak word 0. -/
@@ -218,7 +218,6 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       exact hCB
     · refine Fresh_frame hF (fun A hA hA' => ?_)
       rw [wf A hA (Or.inr (by omega)), mfr A hA (by omega) (by omega)]
-
     · rw [writeHash_getReg]; exact h22u
 
 end SigGolfCandidate.Verify

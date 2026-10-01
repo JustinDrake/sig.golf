@@ -74,10 +74,10 @@ def slice (l : List Byte) (off len : Nat) : List Byte := (l.drop off).take len
 
 def nChains : Nat := 42
 /-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
-def targetSum : Nat := 184
+def targetSum : Nat := 185
 
 /-- Layers three and four use a target one larger than the top three layers. -/
-def targetFor (lay : Nat) : Nat := targetSum + if 1 ≤ lay then 1 else 0
+def targetFor (_lay : Nat) : Nat := targetSum
 
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
@@ -270,7 +270,7 @@ def hash16 (x : List Byte) : OracleComp HashSpec Val := do
 otherwise use the independent high half. Ordinary hashes are unchanged. -/
 def encodingAnswer (a : BitVec 256) : BitVec 256 :=
   if a.getLsbD 127 then
-    if a.getLsbD 62 || a.getLsbD 63 then a >>> 128 else a
+    if 125 ≤ (a.extractLsb' 55 9).toNat then a >>> 128 else a
   else if a.getLsbD 63 then a >>> 64 else a
 
 def encodingBytes (a : BitVec 256) : Val := answerBytes 16 (encodingAnswer a)

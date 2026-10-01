@@ -11,7 +11,7 @@ namespace SigGolfCandidate.Final
 184/185 layer targets save eighteen chain cycles and cost one checksum correction; the relabelled PORS
 headers (`Ref.Rev.efield`) fold with one `slliw` (`-117`) for a header-table load per leaf (`+30`) and the
 table constants (`+4`). -/
-def verifyCycleBound : Nat := 10376
+def verifyCycleBound : Nat := 10363
 
 /-- The witness charge `⌈16128 / 256⌉` (W1: `rho` and the PORS secrets in layer 0's tweak slots,
 the witness buffer `0x900 .. 0x4800`). -/
