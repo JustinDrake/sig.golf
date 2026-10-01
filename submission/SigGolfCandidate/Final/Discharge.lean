@@ -1418,7 +1418,7 @@ theorem main_good_decoded (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : 
       have := pors_good_decoded P ⟨hwl, hpk⟩ u hLI
       dsimp only [P] at this
       exact (GoodQ.steps hsu this).mono (by omega) (by omega) (fun q => ⟨q, by omega⟩)
-    have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; omega
+    have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; rw [wRho_eq]; omega
     have h3 := GoodQ.hashH (x := digestInput (witRho wl) ml) hf h5 hv hin H
     rw [fmt_digestInput_words _ _ hrho hml, blocks_qT] at h3
     have hN : layN = 25009 := rfl
@@ -1518,7 +1518,8 @@ theorem verify_good_tight (input : SigGolfCandidate.Legacy.Input submission.size
     GoodQ s fuelBound cycleBoundAll True (cycleBound-22)
       (cc (verifyRef input.1 input.2.1 input.2.2) Kb) := by
   obtain ⟨m, pk, w⟩ := input
-  exact main_good_tight _ _ _ (length_toList m) (length_toList pk) (length_toList w) s (init_ok m pk w s hs)
+  exact main_good_tight _ _ _ (length_toList m) (length_toList pk)
+    (by rw [length_extW]; exact congrArg (fun n => witLead + n) (length_toList w)) s (init_ok m pk w s hs)
 
 /-- Every accepting execution of the verifier takes22 fewer cycles than
 its generic bound. This is universal over hash answers and arbitrary witnesses. -/

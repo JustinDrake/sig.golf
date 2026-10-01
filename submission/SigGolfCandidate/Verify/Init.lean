@@ -143,9 +143,26 @@ def InitOK (ml pkl wl : List Byte) (s : MachineState) : Prop :=
   (∀ j, j < 4 → s.getMem (BitVec.ofNat 64 (0x40 + 8 * j)) = w64 (slice ml (8 * j) 8)) ∧
   (∀ A, A < 0x800 → (A < 0x40 ∨ (0x60 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → s.getMem (BitVec.ofNat 64 A) = 0)
 
-theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16384) (s : MachineState)
+/-- The view's zero lead (`0x800 .. 0x900`). -/
+theorem slice_extW_lo (l : List Byte) (j : Nat) (hj : j < 32) : slice (extW l) (8 * j) 8 = zeros 8 := by
+  unfold slice extW
+  rw [List.drop_append_of_le_length (by rw [length_zeros]; unfold witLead; omega)]
+  unfold zeros
+  rw [List.drop_replicate, List.take_append_of_le_length (by rw [List.length_replicate]; unfold witLead; omega),
+    List.take_replicate]
+  congr 1; unfold witLead; omega
+
+/-- The witness words (`0x900 ..`). -/
+theorem slice_extW_hi (l : List Byte) (j : Nat) (hj : 32 ≤ j) :
+    slice (extW l) (8 * j) 8 = slice l (8 * (j - 32)) 8 := by
+  unfold slice extW
+  rw [show 8 * j = (zeros witLead).length + 8 * (j - 32) by rw [length_zeros]; unfold witLead; omega,
+    List.drop_append, List.drop_eq_nil_of_le (by omega), List.nil_append, Nat.add_sub_cancel_left]
+
+/-- The initial state (W1: the witness at `0x900`; the view `extW` of `0x800 .. 0x4800`). -/
+theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16128) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) :
-    InitOK (toList m) (toList pk) (toList w) s := by
+    InitOK (toList m) (toList pk) (extW (toList w)) s := by
   unfold initialState at h
   simp only [submission_admissible.2 .verify, if_true, Option.some.injEq] at h
   subst h
@@ -153,12 +170,12 @@ theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16384) (s : MachineSta
   have eb : dataBase (submission.image .verify) = 0xFFFFE0 := rfl
   rw [e1, eb]
   have hl : inputBuffers submission.sizes submission.layout .verify (m, pk, w) =
-      [(0x40, toList m), (0xA0, toList pk), (0x800, toList w)] := rfl
+      [(0x40, toList m), (0xA0, toList pk), (0x900, toList w)] := rfl
   rw [hl]
   simp only [List.foldl_cons, List.foldl_nil]
   have lm : (toList m).length = 32 := length_toList m
   have lp : (toList pk).length = 16 := length_toList pk
-  have lw : (toList w).length = 16384 := length_toList w
+  have lw : (toList w).length = 16128 := length_toList w
   set blank : MachineState := { regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 }
   set withData := blank.writeBytesAsWords (BitVec.ofNat 64 0xFFFFE0) Images.verifyData
   have dataRegs : withData.regs = blank.regs := wbw_regs 32 _ _ _ (by decide)
@@ -182,7 +199,7 @@ theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16384) (s : MachineSta
       decide +kernel
   set s1 := withData.writeBytesAsWords (BitVec.ofNat 64 0x40) (toList m)
   set s2 := s1.writeBytesAsWords (BitVec.ofNat 64 0xA0) (toList pk)
-  set s3 := s2.writeBytesAsWords (BitVec.ofNat 64 0x800) (toList w)
+  set s3 := s2.writeBytesAsWords (BitVec.ofNat 64 0x900) (toList w)
   have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 0xFFFFE0)).getMem A = s3.getMem A :=
     fun A => by simp [MachineState.setReg, MachineState.getMem]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -204,7 +221,13 @@ theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16384) (s : MachineSta
       simp [MachineState.setReg, MachineState.getReg, hr, blank]
   · simp [MachineState.setReg, blank, withData, s3, s2, s1, Images.verifyData, MachineState.writeBytesAsWords]; rfl
   · intro j hj
-    rw [gm, show 0x800 + 8 * j = 0x800 + 8 * j from rfl, wbw_word _ _ _ (by omega) j (by omega)]
+    by_cases hj32 : j < 32
+    · rw [gm, slice_extW_lo _ j hj32, wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
+        wbw_frame _ _ _ (by omega) _ (by omega) (by omega), wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
+        dataLow _ (by omega)]
+      rfl
+    · rw [gm, slice_extW_hi _ j (by omega), show 0x800 + 8 * j = 0x900 + 8 * (j - 32) by omega,
+        wbw_word _ _ _ (by omega) (j - 32) (by omega)]
   · refine ⟨?_, ?_⟩
     · rw [gm, show (0xA0 : Word) = BitVec.ofNat 64 0xA0 from rfl, wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
         show 0xA0 = 0xA0 + 8 * 0 from rfl, wbw_word _ _ _ (by omega) 0 (by omega)]

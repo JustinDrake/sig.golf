@@ -278,11 +278,12 @@ def tailFCheck (c : Nat) : Bool :=
 
 /-- The register holding leaf `s`'s index (`XA`, `XB` alternate). -/
 def xReg (s : Nat) : Reg := if s % 2 = 0 then .x16 else .x17
-/-- `pi_s & 0x78` (the slot's byte offset in `PIND`). -/
+/-- `pi_s & 0x78` (the slot's byte offset in `PIND`; W1: `pi_s` at `WIT + 256 + s = 0x900 + s`). -/
 def piT (s : Nat) : E :=
-  .bin .and (.un (.ld .bu ((16 + s) % 8)) (ldE (0x800 + 16 + (16 + s) / 8 * 8 - 16))) (cw 0x78)
+  .bin .and (.un (.ld .bu ((256 + s) % 8)) (ldE (0x800 + (256 + s) / 8 * 8))) (cw 0x78)
 def xE (s : Nat) : E := .ld (.bin .add (piT s) (cw PIND))
-def secA (s : Nat) : Nat := 0x800 + 32 + 16 * s
+/-- W1: secret `s` in the tweak slot of chain block `(0, 2 + s)` (`WIT + 3072 + 64 s = 0x1400 + 64 s`). -/
+def secA (s : Nat) : Nat := 0x800 + 3072 + 64 * s
 
 def leafKnown : List (Reg × Word) := gkP ++ [(.x20, BitVec.ofNat 64 tbN)]
 def pleafPost (s : Nat) : List (Reg × Word) := gkP ++ [(.x20, BitVec.ofNat 64 (tbOf s)), (.x10, 0xC0)]
@@ -334,7 +335,7 @@ def ctrX : E := .bin .or (.bin .or (ldE 4992) (ldE 5000)) (.un (.ld .wu 0) (ldE 
 def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
 
 def specStartOk : Spec :=
-  ⟨[], [(⟨none, BitVec.ofNat 64 56⟩, ldE 2056), (⟨none, BitVec.ofNat 64 48⟩, ldE 2048),
+  ⟨[], [(⟨none, BitVec.ofNat 64 56⟩, ldE 5064), (⟨none, BitVec.ofNat 64 48⟩, ldE 5056),
     (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 24, true, 24, [⟨.ne, ctrE', .c 0, false⟩], none, 24⟩
 def specStartRej : Spec :=
   ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 18, [⟨.ne, ctrE', .c 0, true⟩], none, 18⟩
