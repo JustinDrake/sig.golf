@@ -61,7 +61,7 @@ theorem leafHash_query_mem (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex
   simp [leafHash]
 
 theorem otsLeaf_leaf_query_mem (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
-    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) (codeword : Encoding)
+    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (codeword : Encoding)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leafIdx message counter)
       = some codeword) :
     tweakableHashInput parameter (.leaf lay tree leafIdx)
@@ -79,7 +79,7 @@ theorem otsLeaf_leaf_query_mem (lay : Layer) (tree : TreeIndex) (leafIdx : LeafI
         (recoverChain parameter lay tree leafIdx chainIdx (codeword chainIdx) (values chainIdx)))
 
 theorem otsLeaf_chain_query_mem (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
-    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) (codeword : Encoding)
+    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (codeword : Encoding)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leafIdx message counter)
       = some codeword) (chainIdx : ChainIndex) (offset : Nat)
     (hoffset : offset < chainLength - 1 - (codeword chainIdx).val)

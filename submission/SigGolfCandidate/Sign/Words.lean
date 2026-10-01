@@ -343,7 +343,9 @@ theorem hashInput_eq_digest (t : MachineState) (rho m : List Byte) (hr : rho.len
 theorem blocks_fmt_th (t lay tau p j : Nat) (payload : List Byte)
     (ht : byte t ∉ [byte 1, byte 3, byte 10, byte 12]) :
     (addrFmt (thInput (tweak t lay tau p j) payload)).blocks = (pad64 (thInput (tweak t lay tau p j) payload)).blocks := by
-  rw [addrFmt_thInput _ _ _ _ _ _ ht]
+  rw [addrFmt_blocks, fmt_thInput _ _ _ _ _ _ (by
+    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at ht ⊢
+    tauto)]
 
 /-- A 64-byte input `tw | P | l | r` (tree node, FORS node). -/
 theorem words_th32 (t lay tau p j : Nat) (l r : Val) (hl : l.length = 16) (hr : r.length = 16) :
@@ -380,17 +382,17 @@ theorem wordsOf_le32_pad (c : Nat) : wordsOf (le32 c ++ zeros 12) = [BitVec.ofNa
     wordsOf_append _ _ (by simp), wordsOf_eight _ (by simp), wordsOf_zeros]
   simp [leNat_append, leNat_le32, leNat_zeros]
 
-/-- The encoding input of a 32-byte message (the two children of the root of the tree below, or `P ++`
-the PORS root): the message right after the tweak. -/
-theorem words_encInput (lay tau e : Nat) (M : Val) (hM : M.length = 32) (c : Nat) :
+theorem words_encInput (lay tau e : Nat) (M : Val) (hM : M.length = 16) (c : Nat) :
     padBlocks (encInput lay tau e M c).length = 0 ∧
     wordsOf (padTo64 (encInput lay tau e M c)) =
-      twWords 4 lay tau 0 e ++ wordsOf M ++ [BitVec.ofNat 64 (c % 2 ^ 32), 0] := by
-  have hl : (encInput lay tau e M c).length = 52 := by simp [encInput, hM]
-  obtain ⟨h1, h2⟩ := padTo64_eq (encInput lay tau e M c) 0 (by omega) (by omega)
+      twWords 4 lay tau 0 e ++ [0, 0] ++ wordsOf M ++ [BitVec.ofNat 64 (c % 2 ^ 32), 0] := by
+  obtain ⟨h1, h2⟩ := padTo64_eq (encInput lay tau e M c) 0 (by simp [encInput, hM])
+    (by simp [encInput, hM])
   refine ⟨h1, ?_⟩
-  rw [h2, hl, encInput, show 64 * (0 + 1) - 52 = 12 from rfl, List.append_assoc, List.append_assoc,
-    wordsOf_append _ _ (by simp), wordsOf_tweak, wordsOf_append _ _ (by omega), wordsOf_le32_pad]
+  rw [h2, encInput, wordsOf_thInput_pad]
+  simp only [length_thInput, length_tweak, List.length_append, hM, length_le32]
+  rw [show 64 * (0 + 1) - (16 + 16 + (16 + 4)) = 12 from rfl, List.append_assoc M,
+    wordsOf_val_append _ hM, wordsOf_le32_pad]
   simp
 
 theorem words_rndInput (S m : List Byte) (hS : S.length = 32) (hm : m.length = 32) (a : Nat) :

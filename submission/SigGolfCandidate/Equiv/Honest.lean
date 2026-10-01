@@ -516,11 +516,11 @@ theorem hq_ftsNode (index : Index) (tree : FtsTree) (heap : Nat) (l r : Digest) 
     HQ (tweakableHash (m := AComp) P (.ftsNode index tree heap) (nodePayload l r)) :=
   hq_ftsNodeAny P index tree heap _ (by simp [nodePayload, length_bytesLE])
 
-theorem hq_encode (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : SphincsSecurity.EncMessage)
+theorem hq_encode (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : Digest)
     (c : SphincsSecurity.Counter) : HQ (encode (m := AComp) P lay tree leaf M c) := by
   refine hq_bind (hq_oracleHash _ ?_) fun _ => hq_pure _
   rw [tweakableHashInput_eq]
-  exact honest_tw 4 lay.val tree.val 0 leaf.val M.1 _ (by simp [tagLen, length_bytesLE])
+  exact honest_tw 4 lay.val tree.val 0 leaf.val P _ (by simp [tagLen, length_bytesLE])
     (fun h => absurd h (by decide)) (fun h => absurd h (by decide)) (fun h => absurd h (by decide))
 
 theorem hq_ftsLeafHash (index : Index) (tree : FtsTree) (leaf : Nat) (s : Digest) :
@@ -591,7 +591,7 @@ variable (P : SphincsSecurity.PublicParameter)
 
 /-! ### Verification -/
 
-theorem hq_otsLeaf (hP : P = 0) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : SphincsSecurity.EncMessage)
+theorem hq_otsLeaf (hP : P = 0) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : Digest)
     (c : SphincsSecurity.Counter) (values : ChainIndex → Digest) :
     HQ (otsLeaf (m := AComp) P lay tree leaf M c values) := by
   unfold otsLeaf
@@ -685,7 +685,7 @@ theorem hq_ftsRecover (index : Index) (values : SphincsSecurity.SlotCode → Nat
   refine hq_bind (hq_recoverLeaves _ _ _ _ _ _ _ _) fun r => ?_
   repeat (first | exact hq_pure _ | split | dsimp only)
 
-theorem hq_verifyLayers (hP : P = 0) (index : Index) (σ : Signature) (n : Nat) (M : SphincsSecurity.EncMessage) :
+theorem hq_verifyLayers (hP : P = 0) (index : Index) (σ : Signature) (n : Nat) (M : Digest) :
     HQ (verifyLayers (m := AComp) P index σ n M) := by
   induction n generalizing M with
   | zero => exact hq_pure _
@@ -694,15 +694,10 @@ theorem hq_verifyLayers (hP : P = 0) (index : Index) (σ : Signature) (n : Nat) 
     split
     · refine hq_bind (hq_otsLeaf _ hP _ _ _ _ _ _) fun r => ?_
       split
-      · exact hq_bind (hq_treeFold _ _ _ _ _ (Nat.mod_lt _ (Nat.two_pow_pos _)) _ (Nat.sub_le _ _) _)
+      · exact hq_bind (hq_treeFold _ _ _ _ _ (Nat.mod_lt _ (Nat.two_pow_pos _)) _ le_rfl _)
           fun _ => ih _
       · exact hq_pure _
     · exact hq_pure _
-
-/-- The top tree's last hash is an honest query. -/
-theorem hq_topRoot (index : Index) (top : SphincsSecurity.EncMessage) :
-    HQ (topRoot (m := AComp) P index top) :=
-  hq_node _ _ _ _ _ _ _ (by decide) le_rfl (by simp)
 
 /-- **verify** makes only honest queries. -/
 theorem hq_verify (pk : SphincsSecurity.PublicKey) (hP : pk.parameter = 0) (m : Message)
@@ -714,9 +709,7 @@ theorem hq_verify (pk : SphincsSecurity.PublicKey) (hP : pk.parameter = 0) (m : 
     refine hq_bind (hq_ftsRecover _ _ _ _) fun r => ?_
     split
     · refine hq_bind (hq_verifyLayers _ hP _ _ _ _) fun r => ?_
-      split
-      · exact hq_bind (hq_topRoot _ _ _) fun _ => hq_pure _
-      · exact hq_pure _
+      split <;> exact hq_pure _
     · exact hq_pure _
   · exact hq_pure _
 
@@ -783,7 +776,7 @@ theorem hq_buildFtsTree (index : Index) (secret : FtsLeaf → AComp Digest)
       hq_bind (hq_ftsLeafHash _ _ _ _ _) fun _ => hq_pure _) fun _ =>
     hq_bind (hq_buildLevels _ _ (hq_ftsTreeNode _ _) _ _ le_rfl) fun _ => hq_pure _
 
-theorem hq_encodingSearch (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : SphincsSecurity.EncMessage)
+theorem hq_encodingSearch (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : Digest)
     (attempts counter : Nat) : HQ (encodingSearch (m := AComp) P lay tree leaf M attempts counter) := by
   induction attempts generalizing counter with
   | zero => exact hq_pure _
@@ -796,7 +789,7 @@ theorem hq_encodingSearch (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M
 
 theorem hq_signTopLayer (hP : P = 0) (index : Index) (secret : LeafIndex → ChainIndex → AComp Digest)
     (hs : ∀ e c, HQ (secret e c)) (topNode : Nat → Nat → AComp Digest) (ht : ∀ l j, HQ (topNode l j))
-    (M : SphincsSecurity.EncMessage) : HQ (signTopLayer P index secret topNode M) := by
+    (M : Digest) : HQ (signTopLayer P index secret topNode M) := by
   unfold signTopLayer
   refine hq_bind (hq_encodingSearch _ _ _ _ _ _ _) fun r => ?_
   split
@@ -807,7 +800,7 @@ theorem hq_signTopLayer (hP : P = 0) (index : Index) (secret : LeafIndex → Cha
 theorem hq_signLayers (hP : P = 0) (index : Index)
     (secret : Layer → TreeIndex → LeafIndex → ChainIndex → AComp Digest)
     (hs : ∀ a b c d, HQ (secret a b c d)) (topNode : Nat → Nat → AComp Digest)
-    (ht : ∀ l j, HQ (topNode l j)) (n : Nat) (M : SphincsSecurity.EncMessage) :
+    (ht : ∀ l j, HQ (topNode l j)) (n : Nat) (M : Digest) :
     HQ (signLayers P index secret topNode n M) := by
   induction n generalizing M with
   | zero => exact hq_pure _
@@ -869,7 +862,7 @@ theorem hq_buildFtsTreePaired (index : Index)
 theorem hq_signTopLayerPaired (hP : P = 0) (index : Index)
     (secret : LeafIndex → SphincsSecurity.ChainPair → AComp (Digest × Digest))
     (hs : ∀ e c, HQ (secret e c)) (topNode : Nat → Nat → AComp Digest) (ht : ∀ l j, HQ (topNode l j))
-    (M : SphincsSecurity.EncMessage) : HQ (signTopLayerPaired P index secret topNode M) := by
+    (M : Digest) : HQ (signTopLayerPaired P index secret topNode M) := by
   unfold signTopLayerPaired
   refine hq_bind (hq_encodingSearch _ _ _ _ _ _ _) fun r => ?_
   split
@@ -882,7 +875,7 @@ theorem hq_signTopLayerPaired (hP : P = 0) (index : Index)
 theorem hq_signLayersPaired (hP : P = 0) (index : Index)
     (secret : Layer → TreeIndex → LeafIndex → SphincsSecurity.ChainPair → AComp (Digest × Digest))
     (hs : ∀ a b c d, HQ (secret a b c d)) (topNode : Nat → Nat → AComp Digest)
-    (ht : ∀ l j, HQ (topNode l j)) (n : Nat) (M : SphincsSecurity.EncMessage) :
+    (ht : ∀ l j, HQ (topNode l j)) (n : Nat) (M : Digest) :
     HQ (signLayersPaired P index secret topNode n M) := by
   induction n generalizing M with
   | zero => exact hq_pure _
@@ -979,7 +972,7 @@ theorem hq_sign (sk : SphincsSecurity.Seeded.SecretKey) (hP : sk.parameter = 0)
       · exact hq_pure _
   · exact hq_pure _
 
-theorem hq_aLayers (index : Index) (S0 : Signature) (n : Nat) (M : SphincsSecurity.EncMessage) :
+theorem hq_aLayers (index : Index) (S0 : Signature) (n : Nat) (M : Digest) :
     HQ (aLayers index S0 n M) := by
   induction n using Nat.strongRecOn generalizing M with
   | _ n ih =>
@@ -996,10 +989,7 @@ theorem hq_aLayers (index : Index) (S0 : Signature) (n : Nat) (M : SphincsSecuri
       · exact hq_pure _
       · exact hq_bind (hq_sequenceFin _ fun c => hq_chainWalk _ rfl _ _ _ _ _ _ _) fun _ =>
           hq_bind (hq_leafHash _ _ _ _ _) fun _ =>
-          hq_bind (hq_treeFold _ _ _ _ _ (by simp only [SphincsSecurity.Concrete.leafIndexAt]; exact Nat.mod_lt _ (Nat.two_pow_pos _)) _ (Nat.sub_le _ _) _) fun _ =>
-          hq_bind (hq_node _ _ _ _ _ _ _ (by
-            unfold SphincsSecurity.layerHeight SphincsSecurity.maxLayerHeight
-            split <;> (try split) <;> omega) le_rfl (by simp)) fun _ =>
+          hq_bind (hq_treeFold _ _ _ _ _ (by simp only [SphincsSecurity.Concrete.leafIndexAt]; exact Nat.mod_lt _ (Nat.two_pow_pos _)) _ le_rfl _) fun _ =>
           hq_bind (ih (k + 1) (by omega) _) fun r => by split <;> exact hq_pure _
     · exact hq_pure _
 
@@ -1375,7 +1365,7 @@ theorem hqp_chainWalkP (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (c : 
       · exact Or.inr (padHonest_chain lay tree leaf c _ pad hpad prev)
     · exact hqp_pure _
 
-theorem hqp_otsLeafP (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : SphincsSecurity.EncMessage)
+theorem hqp_otsLeafP (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : Digest)
     (c : SphincsSecurity.Counter) (values : ChainIndex → Digest) (pads : ChainIndex → SphincsSecurity.Pad) :
     HQP (SphincsSecurity.Concrete.otsLeafP (m := AComp) 0 lay tree leaf M c values pads) := by
   unfold SphincsSecurity.Concrete.otsLeafP
@@ -1386,7 +1376,7 @@ theorem hqp_otsLeafP (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : Sp
   · exact hqp_pure _
 
 theorem hqp_verifyLayersP (index : Index) (σ : Signature) (pads : SphincsSecurity.ChainPads) (n : Nat)
-    (M : SphincsSecurity.EncMessage) : HQP (SphincsSecurity.Concrete.verifyLayersP (m := AComp) 0 index σ pads n M) := by
+    (M : Digest) : HQP (SphincsSecurity.Concrete.verifyLayersP (m := AComp) 0 index σ pads n M) := by
   induction n generalizing M with
   | zero => exact hqp_pure _
   | succ n ih =>
@@ -1394,7 +1384,7 @@ theorem hqp_verifyLayersP (index : Index) (σ : Signature) (pads : SphincsSecuri
     split
     · refine hqp_bind (hqp_otsLeafP _ _ _ _ _ _ _) fun r => ?_
       split
-      · exact hqp_bind (hqp_of_hq (hq_treeFold _ _ _ _ _ (Nat.mod_lt _ (Nat.two_pow_pos _)) _ (Nat.sub_le _ _) _))
+      · exact hqp_bind (hqp_of_hq (hq_treeFold _ _ _ _ _ (Nat.mod_lt _ (Nat.two_pow_pos _)) _ le_rfl _))
           fun _ => ih _
       · exact hqp_pure _
     · exact hqp_pure _
@@ -1410,9 +1400,7 @@ theorem hq_verifyP (pk : SphincsSecurity.PublicKey) (hP : pk.parameter = 0) (m :
     split
     · rw [hP]
       refine hqp_bind (hqp_verifyLayersP _ _ _ _ _) fun r => ?_
-      split
-      · exact hqp_bind (hqp_of_hq (hq_topRoot _ _ _)) fun _ => hqp_pure _
-      · exact hqp_pure _
+      split <;> exact hqp_pure _
     · exact hqp_pure _
   · exact hqp_pure _
 

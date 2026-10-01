@@ -1,6 +1,9 @@
 import SigGolfCandidate.Verify.PorsRuns
+import SigGolfCandidate.Verify.LayerCheck
 
 /-! Kernel check of the PORS dispatch tables (both tables, 256 slots each). -/
+
+set_option Elab.async false
 
 namespace SigGolfCandidate.Verify
 

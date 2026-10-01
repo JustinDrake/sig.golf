@@ -14,7 +14,7 @@ abbrev decodeEncodingFamily (position : EncodingPosition) : HashOutput → Optio
   decodeEncodingOutput position.lay
 
 def referenceEncodingTable (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
-    (position : EncodingPosition) (message : EncMessage) (attempts start : Nat) : Fin attempts → HashOutput :=
+    (position : EncodingPosition) (message : Digest) (attempts start : Nat) : Fin attempts → HashOutput :=
   fun index => f (encodingRetryInput parameter position message (start + index.val))
 
 def encodingTableResult (lay : Layer) {n : Nat} (table : Fin n → HashOutput) (start : Nat) : Option (Counter × Encoding) × Nat :=
@@ -23,7 +23,7 @@ def encodingTableResult (lay : Layer) {n : Nat} (table : Fin n → HashOutput) (
     result.elim n (fun result => result.1.val + 1))
 
 theorem eval_encode_eq_decodeEncodingOutput (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
-    (position : EncodingPosition) (message : EncMessage) (counter : Nat) :
+    (position : EncodingPosition) (message : Digest) (counter : Nat) :
     evalWithAnswerFn f (encodeAttempt parameter position.lay position.tree position.leafIdx message
       (BitVec.ofNat counterBits counter)) =
         decodeEncodingOutput position.lay (f (encodingRetryInput parameter position message counter)) := by
@@ -31,7 +31,7 @@ theorem eval_encode_eq_decodeEncodingOutput (parameter : PublicParameter) (f : Q
   rfl
 
 theorem referenceEncodingSearch_eq_table (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
-    (position : EncodingPosition) (message : EncMessage) (attempts start : Nat) :
+    (position : EncodingPosition) (message : Digest) (attempts start : Nat) :
     referenceEncodingSearch parameter f position.lay position.tree position.leafIdx message attempts start =
       encodingTableResult position.lay (referenceEncodingTable parameter f position message attempts start) start := by
   induction attempts generalizing start with

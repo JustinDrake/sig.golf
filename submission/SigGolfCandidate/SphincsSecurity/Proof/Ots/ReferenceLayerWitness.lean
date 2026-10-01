@@ -9,30 +9,29 @@ attribute [local instance] Classical.propDecidable
 attribute [local irreducible] chainWalk canonicalEncodingInputs canonicalGraphInputs instFintypePosition
 
 variable (f : QueryImpl HashSpec Id) (parameter : PublicParameter) (words : OtsReferenceWords)
-  (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily)
+  (messages : EncodingPosition → Digest) (selections : ReferenceFamily)
 
 def EncodingOutputMatch (trace : Trace) : Prop :=
   ∃ entry ∈ trace.toList, entry.1 ∈ canonicalEncodingInputs parameter ∧ PublicEncodingMatch.Match parameter messages words selections entry.1 entry.2
 
 theorem equal_word_reference (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) (trace : Trace)
+    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (trace : Trace)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some (words lay tree leaf))
     (hrun : ContainsRun f trace (otsLeafAttempt parameter lay tree leaf message counter values)) :
     (∃ selected, selections ⟨lay, tree, leaf⟩ = some selected ∧ message = messages ⟨lay, tree, leaf⟩ ∧
       counter = BitVec.ofNat counterBits selected.1.val) ∨ EncodingOutputMatch parameter words messages selections trace := by
   let position : EncodingPosition := ⟨lay, tree, leaf⟩
-  let input := tweakableHashInput message.1 position.domain (digestBytes message.2 ++ counterBytes counter)
+  let input := tweakableHashInput parameter position.domain (digestBytes message ++ counterBytes counter)
   by_cases hreference : PublicEncodingMatch.referenceInput parameter messages selections position = some input
   · cases hselected : selections position with
     | none => simp only [PublicEncodingMatch.referenceInput, hselected, Option.map_none, reduceCtorEq] at hreference
     | some selected =>
         have hinput : encodingRetryInput parameter position (messages position) selected.1.val = input := by
           simpa only [PublicEncodingMatch.referenceInput, hselected, Option.map_some, Option.some.injEq] using hreference
-        obtain ⟨_, hfirst, hpayload⟩ := tweakableHashInput_injective' (by trivial) (by trivial) hinput
+        have hpayload := (tweakableHashInput_injective parameter (by trivial) (by trivial) hinput).2
         obtain ⟨hm, hc⟩ := List.append_inj hpayload (by simp [digestBytes_length])
-        exact Or.inl ⟨selected, rfl, (Prod.ext hfirst (digestBytes_injective hm)).symm,
-          (bytesLE_injective hc).symm⟩
-  · refine Or.inr ⟨(input, f input), ?_, ?_, position, ⟨_, _, rfl⟩, hreference, ?_⟩
+        exact Or.inl ⟨selected, rfl, (digestBytes_injective hm).symm, (bytesLE_injective hc).symm⟩
+  · refine Or.inr ⟨(input, f input), ?_, ?_, position, ⟨_, rfl⟩, hreference, ?_⟩
     · apply hrun.bind_left
       simp only [encodeAttempt, queriedInputs_bind, queriedInputs_oracleHash, queriedInputs_pure,
         List.append_nil, List.mem_singleton, input, position, EncodingPosition.domain]
@@ -43,14 +42,13 @@ theorem equal_word_reference (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
 
 theorem layer_reference_classification (lay : Layer) (tree : TreeIndex) (secret : LeafIndex → ChainIndex → Digest)
     (leaf : LeafIndex) (hleafIndex : leaf.val < 2 ^ layerHeight lay) (path : Nat → Digest)
-    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) (candidate : Encoding) (leafValue : Digest) (trace : Trace)
+    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (candidate : Encoding) (leafValue : Digest) (trace : Trace)
     (hvalid : OtsCode.Valid lay (words lay tree leaf))
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some candidate)
     (hots : evalWithAnswerFn f (otsLeafAttempt parameter lay tree leaf message counter values) = some leafValue)
-    (hfold : foldPair f parameter lay tree leaf path leafValue =
-      honestPair f parameter lay tree secret)
+    (hfold : foldValue f parameter lay tree leaf path leafValue (layerHeight lay) = honestNode f parameter lay tree secret (layerHeight lay) 0)
     (hotsRun : ContainsRun f trace (otsLeafAttempt parameter lay tree leaf message counter values))
-    (hfoldRun : ContainsRun f trace (treeFold parameter lay tree leaf path (layerHeight lay - 1) leafValue)) :
+    (hfoldRun : ContainsRun f trace (treeFold parameter lay tree leaf path (layerHeight lay) leafValue)) :
     (∃ selected, selections ⟨lay, tree, leaf⟩ = some selected ∧ message = messages ⟨lay, tree, leaf⟩ ∧
       counter = BitVec.ofNat counterBits selected.1.val ∧ candidate = words lay tree leaf ∧
       (∀ index, values index = frontier f parameter words lay tree leaf (secret leaf) index) ∧
@@ -84,7 +82,7 @@ def PaddedChainMatch (f : QueryImpl HashSpec Id) (parameter : PublicParameter) (
       honestChain f parameter lay tree leaf chainIdx (secret chainIdx) (Position.lastChainStep.val + 1)
 
 theorem containsRun_otsLeafAttempt_of_inactive (f : QueryImpl HashSpec Id) (parameter : PublicParameter)
-    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : EncMessage) (counter : Counter)
+    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : Digest) (counter : Counter)
     (values : ChainIndex → Digest) (pads : ChainIndex → Pad) (codeword : Encoding) (trace : Trace)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some codeword)
     (hinactive : PadsInactive pads codeword)
@@ -100,19 +98,19 @@ theorem containsRun_otsLeafAttempt_of_inactive (f : QueryImpl HashSpec Id) (para
 pads reduce to the record lemma verbatim; an active padded chain gives a tree match, a leaf match, or
 the new `PaddedChainMatch`. -/
 theorem layer_reference_classificationP (f : QueryImpl HashSpec Id) (parameter : PublicParameter)
-    (words : OtsReferenceWords) (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily)
+    (words : OtsReferenceWords) (messages : EncodingPosition → Digest) (selections : ReferenceFamily)
     (lay : Layer) (tree : TreeIndex) (secret : LeafIndex → ChainIndex → Digest)
     (leaf : LeafIndex) (hleafIndex : leaf.val < 2 ^ layerHeight lay) (path : Nat → Digest)
-    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) (pads : ChainIndex → Pad)
+    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (pads : ChainIndex → Pad)
     (candidate : Encoding) (leafValue : Digest) (trace : Trace)
     (hvalid : OtsCode.Valid lay (words lay tree leaf))
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some candidate)
     (hots : evalWithAnswerFn f (otsLeafAttemptP parameter lay tree leaf message counter values pads) =
       some leafValue)
-    (hfold : foldPair f parameter lay tree leaf path leafValue =
-      honestPair f parameter lay tree secret)
+    (hfold : foldValue f parameter lay tree leaf path leafValue (layerHeight lay) =
+      honestNode f parameter lay tree secret (layerHeight lay) 0)
     (hotsRun : ContainsRun f trace (otsLeafAttemptP parameter lay tree leaf message counter values pads))
-    (hfoldRun : ContainsRun f trace (treeFold parameter lay tree leaf path (layerHeight lay - 1) leafValue)) :
+    (hfoldRun : ContainsRun f trace (treeFold parameter lay tree leaf path (layerHeight lay) leafValue)) :
     (PadsInactive pads candidate ∧
       ∃ selected, selections ⟨lay, tree, leaf⟩ = some selected ∧ message = messages ⟨lay, tree, leaf⟩ ∧
         counter = BitVec.ofNat counterBits selected.1.val ∧ candidate = words lay tree leaf ∧
@@ -138,8 +136,11 @@ theorem layer_reference_classificationP (f : QueryImpl HashSpec Id) (parameter :
     · exact Or.inr (Or.inr (Or.inr (Or.inl h)))
     · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))
   · obtain ⟨chainIdx, hpad, hdigit⟩ := exists_active_of_not_inactive hinactive
-    rcases foldPair_extract_all f parameter lay tree secret leaf path hleafIndex (layerHeight_pos lay)
-        leafValue hfold with ⟨hleaf, _⟩ | ⟨level, hl, hh⟩
+    have hroot : foldValue f parameter lay tree leaf path leafValue (layerHeight lay) =
+        honestNode f parameter lay tree secret (layerHeight lay) (leaf.val / 2 ^ layerHeight lay) := by
+      simpa only [Nat.div_eq_of_lt hleafIndex] using hfold
+    rcases treeFold_extract f parameter lay tree secret leaf path leafValue (layerHeight lay) hroot with
+      ⟨hleaf, _⟩ | ⟨level, hl, hh⟩
     · have heval := eval_otsLeafAttemptP f parameter lay tree leaf message counter values pads candidate hencode
       rw [hots, hleaf] at heval
       have hvalue := (Option.some.inj heval).symm
@@ -156,11 +157,10 @@ theorem layer_reference_classificationP (f : QueryImpl HashSpec Id) (parameter :
           hotsRun _ (otsLeafP_leaf_query_mem f parameter lay tree leaf message counter values pads candidate
             hencode), ?_⟩))
         rw [hvalue, canonicalLeaf_eq_honestNode]
-    · have hl' : level < layerHeight lay := Nat.lt_of_lt_of_le hl (Nat.sub_le _ _)
-      refine Or.inr (Or.inl ⟨level, leaf.val / 2 ^ (level + 1), _, orderedPayload_mem_canonicalPayloadInputs _ _ _,
-        hl', ?_, ?_, ?_, hh⟩)
+    · refine Or.inr (Or.inl ⟨level, leaf.val / 2 ^ (level + 1), _, orderedPayload_mem_canonicalPayloadInputs _ _ _,
+        hl, ?_, ?_, ?_, hh⟩)
       · exact (Nat.div_le_self _ _).trans_lt leaf.isLt
-      · exact fold_node_bound maxLayerHeight level leaf.val (hl'.trans_le (layerHeight_le lay)) leaf.isLt
-      · exact hfoldRun _ (treeFold_query_mem f parameter lay tree leaf path leafValue (layerHeight lay - 1) level hl)
+      · exact fold_node_bound maxLayerHeight level leaf.val (hl.trans_le (layerHeight_le lay)) leaf.isLt
+      · exact hfoldRun _ (treeFold_query_mem f parameter lay tree leaf path leafValue (layerHeight lay) level hl)
 
 end SphincsSecurity.Concrete.OtsVerifierWitness

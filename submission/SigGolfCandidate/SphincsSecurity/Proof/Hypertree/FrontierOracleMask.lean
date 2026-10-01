@@ -35,14 +35,6 @@ theorem not_privateOtsPrefixInput_of_tag (parameter : PublicParameter) (words : 
   exact htag (FtsProbeSimulation.tweakableHashInput_tag_eq parameter domain
     (.chain lay tree leaf chainIdx step) payload prefixPayload heq)
 
-/-- The same with any 16 bytes in the parameter slot: an encoding input is no private chain input. -/
-theorem not_privateOtsPrefixInput_of_tag' (parameter first : PublicParameter) (words : OtsReferenceWords)
-    (domain : HashDomain) (htag : (hashDomainFields domain).tag ≠ 1#8) (payload : HashInput) :
-    ¬ PrivateOtsPrefixInput parameter words (tweakableHashInput first domain payload) := by
-  rintro ⟨lay, tree, leaf, chainIdx, step, _, prefixPayload, heq⟩
-  exact htag (FtsProbeSimulation.tweakableHashInput_tag_eq' first parameter domain
-    (.chain lay tree leaf chainIdx step) payload prefixPayload heq)
-
 def AgreeOutsideOtsPrefixes (parameter : PublicParameter) (words : OtsReferenceWords)
     (f g : QueryImpl HashSpec Id) : Prop :=
   ∀ input, ¬ PrivateOtsPrefixInput parameter words input → f input = g input
@@ -62,13 +54,6 @@ theorem AgreeOutsideOtsPrefixes.other {parameter : PublicParameter} {words : Ots
     (domain : HashDomain) (htag : (hashDomainFields domain).tag ≠ 1#8) (payload : HashInput) :
     f (tweakableHashInput parameter domain payload) = g (tweakableHashInput parameter domain payload) :=
   h _ (not_privateOtsPrefixInput_of_tag parameter words domain htag payload)
-
-theorem AgreeOutsideOtsPrefixes.other' {parameter : PublicParameter} {words : OtsReferenceWords}
-    {f g : QueryImpl HashSpec Id} (h : AgreeOutsideOtsPrefixes parameter words f g)
-    (first : PublicParameter) (domain : HashDomain) (htag : (hashDomainFields domain).tag ≠ 1#8)
-    (payload : HashInput) :
-    f (tweakableHashInput first domain payload) = g (tweakableHashInput first domain payload) :=
-  h _ (not_privateOtsPrefixInput_of_tag' parameter first words domain htag payload)
 
 noncomputable def maskOtsPrefixes (parameter : PublicParameter) (words : OtsReferenceWords)
     (f : QueryImpl HashSpec Id) : QueryImpl HashSpec Id :=

@@ -20,12 +20,12 @@ open Concrete
 
 /-- The input the counter search hashes at counter `c`. -/
 def encodeInput (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : EncMessage) (c : Nat) : HashInput :=
-  tweakableHashInput message.1 (.encoding lay tree leaf)
-    (bytesLE 16 message.2 ++ bytesLE 4 (BitVec.ofNat counterBits c))
+    (message : Digest) (c : Nat) : HashInput :=
+  tweakableHashInput parameter (.encoding lay tree leaf)
+    (bytesLE 16 message ++ bytesLE 4 (BitVec.ofNat counterBits c))
 
 theorem encodeInput_inj (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
-    (leaf : LeafIndex) (message : EncMessage) {c c' : Nat}
+    (leaf : LeafIndex) (message : Digest) {c c' : Nat}
     (hc : c < 2 ^ 32) (hc' : c' < 2 ^ 32)
     (h : encodeInput parameter lay tree leaf message c
       = encodeInput parameter lay tree leaf message c') : c = c' := by
@@ -36,7 +36,7 @@ theorem encodeInput_inj (parameter : PublicParameter) (lay : Layer) (tree : Tree
 
 /-- The counter search exhausts its budget with probability at most the rejection share to the budget. -/
 theorem probEvent_encodingSearch (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
-    (leaf : LeafIndex) (message : EncMessage) (cache : QueryCache HashSpec)
+    (leaf : LeafIndex) (message : Digest) (cache : QueryCache HashSpec)
     (hfresh : ∀ c, c < encodingAttemptLimit →
       cache (encodeInput parameter lay tree leaf message c) = none) :
     Pr[fun r => r.1 = none | (simulateQ randomOracle

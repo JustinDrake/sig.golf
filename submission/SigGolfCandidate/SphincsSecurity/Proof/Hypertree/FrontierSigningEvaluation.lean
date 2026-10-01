@@ -8,7 +8,7 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local irreducible] boundaryEval sequenceFin chainWalk
 
 def referenceEncodingSearch (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
-    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : EncMessage) :
+    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : Digest) :
     Nat → Nat → Option (Counter × Encoding) × Nat
   | 0, _ => (none, 0)
   | attempts + 1, counter =>
@@ -19,15 +19,15 @@ def referenceEncodingSearch (parameter : PublicParameter) (f : QueryImpl HashSpe
           (rest.1, 1 + rest.2)
 
 theorem boundaryEval_encode (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
-    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : EncMessage) (counter : Counter) :
+    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : Digest) (counter : Counter) :
     boundaryEval parameter f (encodeAttempt parameter lay tree leaf message counter) =
       (evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter), FreeMonoid.of none) := by
   apply boundaryEval_eq_of_snd
   have hn : ¬ FtsProbeSimulation.MessageHashInput parameter
-      (tweakableHashInput message.1 (.encoding lay tree leaf)
-        (bytesLE 16 message.2 ++ counterBytes counter)) := by
+      (tweakableHashInput parameter (.encoding lay tree leaf)
+        (bytesLE 16 message ++ counterBytes counter)) := by
     rintro ⟨payload, heq⟩
-    have htag := FtsProbeSimulation.tweakableHashInput_tag_eq' message.1 parameter
+    have htag := FtsProbeSimulation.tweakableHashInput_tag_eq parameter
       (.encoding lay tree leaf) .message _ payload heq.symm
     norm_num [hashDomainFields, tweakFields] at htag
     exact (by decide : (4#8 : BitVec 8) ≠ 12#8) htag
@@ -52,7 +52,7 @@ theorem boundaryEval_otsValues (parameter : PublicParameter) (f : QueryImpl Hash
 
 theorem boundaryEval_otsSignFrom_frontier (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (secret frontier : ChainIndex → Digest)
-    (message : EncMessage) (attempts counter : Nat)
+    (message : Digest) (attempts counter : Nat)
     (hfrontier : ∀ c word,
       (referenceEncodingSearch parameter f lay tree leaf message attempts counter).1 = some (c, word) →
       ∀ chainIdx, evalWithAnswerFn f
@@ -92,7 +92,7 @@ theorem boundaryEval_otsSignFrom_frontier (parameter : PublicParameter) (f : Que
 /-! ### The signer's layers and their cost -/
 
 theorem boundaryEval_encodingSearch (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
-    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : EncMessage) (attempts counter : Nat) :
+    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : Digest) (attempts counter : Nat) :
     boundaryEval parameter f (encodingSearch parameter lay tree leaf message attempts counter) =
       ((referenceEncodingSearch parameter f lay tree leaf message attempts counter).1,
         (FreeMonoid.of none) ^ (referenceEncodingSearch parameter f lay tree leaf message attempts counter).2) := by
@@ -109,7 +109,7 @@ theorem boundaryEval_encodingSearch (parameter : PublicParameter) (f : QueryImpl
           simp only [boundaryEval_pure, referenceEncodingSearch, hencode, mul_one, pow_one]
 
 theorem eval_encodingSearch (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
-    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : EncMessage) (attempts counter : Nat) :
+    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : Digest) (attempts counter : Nat) :
     evalWithAnswerFn f (encodingSearch parameter lay tree leaf message attempts counter) =
       (referenceEncodingSearch parameter f lay tree leaf message attempts counter).1 := by
   rw [← boundaryEval_fst parameter f, boundaryEval_encodingSearch]
@@ -127,7 +127,7 @@ noncomputable def specLayerCost (key : SecretKey) (f : QueryImpl HashSpec Id) (i
 /-- The top layer read from the key's table: the counter search, then the chain steps to the word; the
 secrets and the path are table reads. -/
 theorem boundaryEval_signTopLayer (key : SecretKey) (f : QueryImpl HashSpec Id) (index : Index)
-    (message : EncMessage) :
+    (message : Digest) :
     (boundaryEval key.parameter f (signTopLayer key.parameter index
       (fun leaf chainIdx => pure (key.otsSecret topLayer (treeIndexAt index topLayer) leaf chainIdx))
       (fun level nodeIdx => pure (key.top level nodeIdx)) message)).2 =
@@ -152,7 +152,7 @@ theorem boundaryEval_signTopLayer (key : SecretKey) (f : QueryImpl HashSpec Id) 
       simp only [boundaryEval_pure, mul_one, Finset.sum_const_zero, pow_zero, pow_add]
 
 theorem boundaryEval_signLayers (key : SecretKey) (f : QueryImpl HashSpec Id) (index : Index)
-    (remaining : Nat) (hremaining : remaining ≤ numLayers) (message : EncMessage)
+    (remaining : Nat) (hremaining : remaining ≤ numLayers) (message : Digest)
     (hmessage : ∀ h : 0 < remaining,
       message = evalWithAnswerFn f (layerMessage key index ⟨remaining - 1, by omega⟩)) :
     (boundaryEval key.parameter f (signLayers key.parameter index
@@ -197,7 +197,7 @@ theorem boundaryEval_signLayers (key : SecretKey) (f : QueryImpl HashSpec Id) (i
       | some result =>
           obtain ⟨counter, word⟩ := result
           simp only [Option.elim_some, Option.isSome_some, if_true]
-          have hroot := eval_buildLayerTree_top f key.parameter lay (treeIndexAt index lay)
+          have hroot := eval_buildLayerTree_root f key.parameter lay (treeIndexAt index lay)
             (fun leaf chainIdx => pure (key.otsSecret lay (treeIndexAt index lay) leaf chainIdx))
             (leafIndexAt index lay) (leafIndexAt_lt index lay) word
           rw [boundaryEval_bind, boundaryEval_buildLayerTree_pure]
@@ -240,15 +240,14 @@ theorem boundaryEval_signAfterDigest (key : SecretKey) (f : QueryImpl HashSpec I
     rw [Subsingleton.elim tree porsTree]
     rfl
   simp only [htable] at hkey
-  rw [boundaryEval_bind, boundaryEval_signLayers key f index numLayers le_rfl (0, table ftsTreeHeight 0) (by
+  rw [boundaryEval_bind, boundaryEval_signLayers key f index numLayers le_rfl (table ftsTreeHeight 0) (by
     intro _
     rw [hkey]
     change _ = evalWithAnswerFn f (layerMessage key index bottomLayer)
-    rw [layerMessage_bottomLayer_eq]
-    simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure])]
+    rw [layerMessage_bottomLayer_eq])]
   cases evalWithAnswerFn f (signLayers key.parameter index
       (fun lay tree leaf chainIdx => pure (key.otsSecret lay tree leaf chainIdx))
-      (fun level nodeIdx => pure (key.top level nodeIdx)) numLayers (0, table ftsTreeHeight 0)) <;>
+      (fun level nodeIdx => pure (key.top level nodeIdx)) numLayers (table ftsTreeHeight 0)) <;>
     simp only [boundaryEval_pure, mul_one, pow_add, sequenceLayersHashCost]
 
 /-- **The table signer after the digest loop**, for a key whose table is the specification's top tree:

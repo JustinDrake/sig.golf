@@ -102,14 +102,6 @@ theorem avoidsMessage_treeRoot (parameter : PublicParameter) (f : QueryImpl Hash
     AvoidsMessageQueries parameter f (treeRoot parameter lay tree secret) := by
   exact avoidsMessage_treeNode parameter f lay tree secret (layerHeight lay) 0
 
-theorem avoidsMessage_treeTop (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
-    (lay : Layer) (tree : TreeIndex) (secret : LeafIndex → ChainIndex → Digest) :
-    AvoidsMessageQueries parameter f (treeTop parameter lay tree secret) := by
-  unfold treeTop
-  exact AvoidsMessageQueries.bind (avoidsMessage_treeNode parameter f lay tree secret _ _)
-    (AvoidsMessageQueries.bind (avoidsMessage_treeNode parameter f lay tree secret _ _)
-      (AvoidsMessageQueries.pure _ _ _))
-
 theorem avoidsMessage_treePath (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (secret : LeafIndex → ChainIndex → Digest)
     (leafIdx : LeafIndex) :
@@ -122,17 +114,17 @@ theorem avoidsMessage_treePath (parameter : PublicParameter) (f : QueryImpl Hash
 
 theorem avoidsMessage_encode (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
-    (message : EncMessage) (counter : Counter) :
+    (message : Digest) (counter : Counter) :
     AvoidsMessageQueries parameter f (encodeAttempt parameter lay tree leafIdx message counter) := by
   intro payload hmem
   simp only [encodeAttempt, queriedInputs_bind, queriedInputs_oracleHash,
     queriedInputs_pure, List.append_nil, List.mem_singleton] at hmem
-  exact tweakableHashInput_ne_message' message.1 parameter (.encoding lay tree leafIdx) (by simp)
-    (bytesLE 16 message.2 ++ counterBytes counter) payload hmem.symm
+  exact tweakableHashInput_ne_message parameter (.encoding lay tree leafIdx) (by simp)
+    (bytesLE 16 message ++ counterBytes counter) payload hmem.symm
 
 theorem avoidsMessage_otsSignFrom (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
-    (secret : ChainIndex → Digest) (message : EncMessage) (attempts counter : Nat) :
+    (secret : ChainIndex → Digest) (message : Digest) (attempts counter : Nat) :
     AvoidsMessageQueries parameter f
       (otsSignFrom parameter lay tree leafIdx secret message attempts counter) := by
   induction attempts generalizing counter with
@@ -151,7 +143,7 @@ theorem avoidsMessage_otsSignFrom (parameter : PublicParameter) (f : QueryImpl H
 
 theorem avoidsMessage_otsSign (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
-    (secret : ChainIndex → Digest) (message : EncMessage) :
+    (secret : ChainIndex → Digest) (message : Digest) :
     AvoidsMessageQueries parameter f
       (otsSign parameter lay tree leafIdx secret message) := by
   exact avoidsMessage_otsSignFrom parameter f lay tree leafIdx secret message
@@ -197,10 +189,8 @@ theorem avoidsMessage_layerMessage (f : QueryImpl HashSpec Id) (secretKey : Secr
     AvoidsMessageQueries secretKey.parameter f (layerMessage secretKey index lay) := by
   rw [layerMessage]
   split
-  · exact avoidsMessage_treeTop secretKey.parameter f _ _ _
-  · exact AvoidsMessageQueries.bind
-      (avoidsMessage_ftsKey secretKey.parameter f index (secretKey.ftsSecret index))
-      (AvoidsMessageQueries.pure _ _ _)
+  · exact avoidsMessage_treeRoot secretKey.parameter f _ _ _
+  · exact avoidsMessage_ftsKey secretKey.parameter f index (secretKey.ftsSecret index)
 
 theorem avoidsMessage_signLayer (f : QueryImpl HashSpec Id) (secretKey : SecretKey)
     (index : Index) (lay : Layer) :
@@ -298,7 +288,7 @@ theorem avoidsMessage_buildFtsTree (parameter : PublicParameter) (f : QueryImpl 
     fun _ => AvoidsMessageQueries.pure _ _ _
 
 theorem avoidsMessage_encodingSearch (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
-    (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex) (message : EncMessage) (attempts counter : Nat) :
+    (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex) (message : Digest) (attempts counter : Nat) :
     AvoidsMessageQueries parameter f (encodingSearch parameter lay tree leafIdx message attempts counter) := by
   induction attempts generalizing counter with
   | zero => exact AvoidsMessageQueries.pure _ _ _
@@ -327,7 +317,7 @@ theorem avoidsMessage_signTopLayer (parameter : PublicParameter) (f : QueryImpl 
     (hsecret : ∀ leafIdx chainIdx, AvoidsMessageQueries parameter f (secret leafIdx chainIdx))
     (topNode : Nat → Nat → OracleComp HashSpec Digest)
     (htop : ∀ level nodeIdx, AvoidsMessageQueries parameter f (topNode level nodeIdx))
-    (message : EncMessage) :
+    (message : Digest) :
     AvoidsMessageQueries parameter f (signTopLayer parameter index secret topNode message) := by
   unfold signTopLayer
   refine AvoidsMessageQueries.bind_all (avoidsMessage_encodingSearch _ _ _ _ _ _ _ _)
@@ -346,7 +336,7 @@ theorem avoidsMessage_signLayers (parameter : PublicParameter) (f : QueryImpl Ha
       AvoidsMessageQueries parameter f (secret lay tree leafIdx chainIdx))
     (topNode : Nat → Nat → OracleComp HashSpec Digest)
     (htop : ∀ level nodeIdx, AvoidsMessageQueries parameter f (topNode level nodeIdx))
-    (remaining : Nat) (message : EncMessage) :
+    (remaining : Nat) (message : Digest) :
     AvoidsMessageQueries parameter f (signLayers parameter index secret topNode remaining message) := by
   induction remaining generalizing message with
   | zero => exact AvoidsMessageQueries.pure _ _ _
@@ -397,9 +387,9 @@ theorem avoidsMessage_keygenRoot (parameter : PublicParameter) (f : QueryImpl Ha
     (secret : LeafIndex → ChainIndex → Digest) :
     AvoidsMessageQueries parameter f (keygenRoot parameter secret) := by
   unfold keygenRoot
-  refine AvoidsMessageQueries.bind_all (avoidsMessage_buildLayerTable _ _ _ _ _
+  refine AvoidsMessageQueries.bind_all (avoidsMessage_buildLayerTree _ _ _ _ _
     (fun _ _ => AvoidsMessageQueries.pure _ _ _) _ _) fun built => ?_
-  rcases built with ⟨leaves, table⟩
+  rcases built with ⟨values, path, root⟩
   exact AvoidsMessageQueries.pure _ _ _
 
 theorem keygenRoot_cache_message_none (parameter : PublicParameter)

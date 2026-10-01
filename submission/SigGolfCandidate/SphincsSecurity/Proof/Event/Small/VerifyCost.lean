@@ -111,14 +111,14 @@ theorem even_length_flatMap_bytes {n : Nat} (values : Fin n → Digest) :
   exact ⟨8 * (List.ofFn (α := BitVec (8 * 16)) values).length, by ring⟩
 
 theorem evenBound_otsLeaf (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) :
+    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) :
     EvenBound (otsLeaf parameter lay tree leaf message counter values : OracleComp HashSpec (Option Digest))
       (1 + (numChains * (chainLength - 1) + 1)) := by
   rw [otsLeaf]
   refine evenBound_bind (budget := 1) ?_ fun encoded => ?_
   · rw [encode]
-    change EvenBound (liftM (HashSpec.query (tweakableHashInput message.1
-      (.encoding lay tree leaf) (bytesLE 16 message.2 ++ bytesLE 4 counter))) >>= fun answer =>
+    change EvenBound (liftM (HashSpec.query (tweakableHashInput parameter
+      (.encoding lay tree leaf) (bytesLE 16 message ++ bytesLE 4 counter))) >>= fun answer =>
         pure (TargetSum.decodeDigest lay (selectEncodingDigest answer))) 1
     rw [evenBound_query_bind_iff, length_tweakableHashInput]
     refine ⟨⟨?_, by decide⟩, fun _ => trivial⟩
@@ -153,9 +153,9 @@ theorem evenBound_treeFold (parameter : PublicParameter) (lay : Layer) (tree : T
 def layerVerifyBound : Nat := 1 + (numChains * (chainLength - 1) + 1) + maxLayerHeight
 
 theorem evenBound_verifyLayers (parameter : PublicParameter) (index : Index) (signature : Signature)
-    (remaining : Nat) (message : EncMessage) :
-    EvenBound (verifyLayers parameter index signature remaining message : OracleComp HashSpec (Option EncMessage))
-      (remaining * (layerVerifyBound - 1)) := by
+    (remaining : Nat) (message : Digest) :
+    EvenBound (verifyLayers parameter index signature remaining message : OracleComp HashSpec (Option Digest))
+      (remaining * layerVerifyBound) := by
   induction remaining generalizing message with
   | zero => exact evenBound_pure _ _
   | succ remaining ih =>
@@ -163,21 +163,15 @@ theorem evenBound_verifyLayers (parameter : PublicParameter) (index : Index) (si
       split
       · rename_i hlayer
         refine (evenBound_bind (evenBound_otsLeaf _ _ _ _ _ _ _) fun leafValue => ?_ :
-          EvenBound _ (1 + (numChains * (chainLength - 1) + 1) +
-            ((maxLayerHeight - 1) + remaining * (layerVerifyBound - 1)))).mono ?_
+          EvenBound _ (1 + (numChains * (chainLength - 1) + 1) + (maxLayerHeight + remaining * layerVerifyBound))).mono ?_
         · cases leafValue with
           | none => exact evenBound_pure _ _
           | some value =>
-              refine evenBound_bind ((evenBound_treeFold _ _ _ _ _ _ _).mono ?_) fun node => ih _
-              exact Nat.sub_le_sub_right (layerHeight_le _) 1
-        · have hmax : 1 ≤ maxLayerHeight := by decide
-          rw [Nat.succ_mul, layerVerifyBound]
+              refine evenBound_bind ((evenBound_treeFold _ _ _ _ _ _ _).mono ?_) fun root => ih root
+              exact layerHeight_le _
+        · rw [Nat.succ_mul, layerVerifyBound]
           omega
       · exact evenBound_pure _ _
-
-theorem evenBound_topRoot (parameter : PublicParameter) (index : Index) (top : EncMessage) :
-    EvenBound (topRoot parameter index top : OracleComp HashSpec Digest) 1 :=
-  evenBound_tweakableHash _ _ _ (even_length_nodePayload _ _)
 
 theorem even_length_foldPayload (right : Bool) (sibling current : Digest) :
     Even (foldPayload right sibling current).length := by
@@ -294,11 +288,9 @@ theorem evenBound_verify (publicKey : PublicKey) (message : Message) (signature 
     cases key with
     | none => exact (evenBound_pure _ _)
     | some key =>
-        refine (evenBound_bind (evenBound_verifyLayers _ _ _ _ _) fun top => ?_ :
-          EvenBound _ (numLayers * (layerVerifyBound - 1) + (1 + 0))).mono (by decide)
-        cases top with
-        | none => exact evenBound_pure _ _
-        | some top => exact evenBound_bind (evenBound_topRoot _ _ _) fun _ => evenBound_pure _ _
+        refine (evenBound_bind (evenBound_verifyLayers _ _ _ _ _) fun root => ?_ :
+          EvenBound _ (numLayers * layerVerifyBound + 0))
+        cases root <;> exact evenBound_pure _ _
   · exact evenBound_pure _ _
 
 theorem even_length_chainPayload (pad : Pad) (value : Digest) : Even (chainPayload pad value).length := by
@@ -322,14 +314,14 @@ theorem evenBound_chainWalkP (parameter : PublicParameter) (lay : Layer) (tree :
       · exact (evenBound_pure _ _)
 
 theorem evenBound_otsLeafP (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) (pads : ChainIndex → Pad) :
+    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (pads : ChainIndex → Pad) :
     EvenBound (otsLeafP parameter lay tree leaf message counter values pads : OracleComp HashSpec (Option Digest))
       (1 + (numChains * (chainLength - 1) + 1)) := by
   rw [otsLeafP]
   refine evenBound_bind (budget := 1) ?_ fun encoded => ?_
   · rw [encode]
-    change EvenBound (liftM (HashSpec.query (tweakableHashInput message.1
-      (.encoding lay tree leaf) (bytesLE 16 message.2 ++ bytesLE 4 counter))) >>= fun answer =>
+    change EvenBound (liftM (HashSpec.query (tweakableHashInput parameter
+      (.encoding lay tree leaf) (bytesLE 16 message ++ bytesLE 4 counter))) >>= fun answer =>
         pure (TargetSum.decodeDigest lay (selectEncodingDigest answer))) 1
     rw [evenBound_query_bind_iff, length_tweakableHashInput]
     refine ⟨⟨?_, by decide⟩, fun _ => trivial⟩
@@ -344,9 +336,9 @@ theorem evenBound_otsLeafP (parameter : PublicParameter) (lay : Layer) (tree : T
             (fun _ => evenBound_pure _ 0) : EvenBound _ (1 + 0))
 
 theorem evenBound_verifyLayersP (parameter : PublicParameter) (index : Index) (signature : Signature)
-    (pads : ChainPads) (remaining : Nat) (message : EncMessage) :
-    EvenBound (verifyLayersP parameter index signature pads remaining message : OracleComp HashSpec (Option EncMessage))
-      (remaining * (layerVerifyBound - 1)) := by
+    (pads : ChainPads) (remaining : Nat) (message : Digest) :
+    EvenBound (verifyLayersP parameter index signature pads remaining message : OracleComp HashSpec (Option Digest))
+      (remaining * layerVerifyBound) := by
   induction remaining generalizing message with
   | zero => exact evenBound_pure _ _
   | succ remaining ih =>
@@ -354,15 +346,13 @@ theorem evenBound_verifyLayersP (parameter : PublicParameter) (index : Index) (s
       split
       · rename_i hlayer
         refine (evenBound_bind (evenBound_otsLeafP _ _ _ _ _ _ _ _) fun leafValue => ?_ :
-          EvenBound _ (1 + (numChains * (chainLength - 1) + 1) +
-            ((maxLayerHeight - 1) + remaining * (layerVerifyBound - 1)))).mono ?_
+          EvenBound _ (1 + (numChains * (chainLength - 1) + 1) + (maxLayerHeight + remaining * layerVerifyBound))).mono ?_
         · cases leafValue with
           | none => exact evenBound_pure _ _
           | some value =>
-              refine evenBound_bind ((evenBound_treeFold _ _ _ _ _ _ _).mono ?_) fun node => ih _
-              exact Nat.sub_le_sub_right (layerHeight_le _) 1
-        · have hmax : 1 ≤ maxLayerHeight := by decide
-          rw [Nat.succ_mul, layerVerifyBound]
+              refine evenBound_bind ((evenBound_treeFold _ _ _ _ _ _ _).mono ?_) fun root => ih root
+              exact layerHeight_le _
+        · rw [Nat.succ_mul, layerVerifyBound]
           omega
       · exact evenBound_pure _ _
 
@@ -387,11 +377,9 @@ theorem evenBound_verifyP (publicKey : PublicKey) (message : Message) (signature
     cases key with
     | none => exact (evenBound_pure _ _)
     | some key =>
-        refine (evenBound_bind (evenBound_verifyLayersP _ _ _ _ _ _) fun top => ?_ :
-          EvenBound _ (numLayers * (layerVerifyBound - 1) + (1 + 0))).mono (by decide)
-        cases top with
-        | none => exact evenBound_pure _ _
-        | some top => exact evenBound_bind (evenBound_topRoot _ _ _) fun _ => evenBound_pure _ _
+        refine (evenBound_bind (evenBound_verifyLayersP _ _ _ _ _ _) fun root => ?_ :
+          EvenBound _ (numLayers * layerVerifyBound + 0))
+        cases root <;> exact evenBound_pure _ _
   · exact evenBound_pure _ _
 
 theorem verifyHashBound_eq : verifyHashBound = 8061 := by

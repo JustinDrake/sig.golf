@@ -8,7 +8,7 @@ attribute [local irreducible] Finset.univ canonicalEncodingInputs OtsContactTrac
 
 theorem contactBeforeEntry_query_le (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (outside : NonencodingRows parameter inputs hencoding)
-    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (dummy : OtsReferenceWords) (frontier : OtsFrontierValues)
+    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (dummy : OtsReferenceWords) (frontier : OtsFrontierValues)
     (history : OtsContactTrace.Trace) (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed) (input : HashInput) :
     Pr[fun result => ContactBeforeEntry parameter (referenceFamilyWords selections dummy) frontier history (input, result.1) |
@@ -36,7 +36,7 @@ attribute [local instance 10000] Classical.propDecidable
 
 theorem contactMarker_query_potential_le (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (outside : NonencodingRows parameter inputs hencoding)
-    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (dummy : OtsReferenceWords) (frontier : OtsFrontierValues)
+    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (dummy : OtsReferenceWords) (frontier : OtsFrontierValues)
     (history : OtsContactTrace.Trace) (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed) (input : OracleWorld.Domain) :
     (∑' result, Pr[= result | (lazyWorldImpl parameter inputs hencoding outside input).run allowed] *

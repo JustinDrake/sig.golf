@@ -266,7 +266,7 @@ open OracleComp
 
 theorem verifyLayers_succ_extract (f : QueryImpl HashSpec Id) (parameter : PublicParameter)
     (index : Index) (signature : Signature) (remaining : Nat) (hlayer : remaining < numLayers)
-    (message target : EncMessage)
+    (message : Digest) (target : Digest)
     (hverify : evalWithAnswerFn f
         (verifyLayers parameter index signature (remaining + 1) message) = some target) :
     ∃ leafValue, evalWithAnswerFn f (otsLeafAttempt parameter ⟨remaining, hlayer⟩
@@ -274,9 +274,9 @@ theorem verifyLayers_succ_extract (f : QueryImpl HashSpec Id) (parameter : Publi
           (signature.counter ⟨remaining, hlayer⟩) (signature.chainValue ⟨remaining, hlayer⟩))
         = some leafValue
       ∧ evalWithAnswerFn f (verifyLayers parameter index signature remaining
-          (foldPair f parameter ⟨remaining, hlayer⟩ (treeIndexAt index ⟨remaining, hlayer⟩)
+          (foldValue f parameter ⟨remaining, hlayer⟩ (treeIndexAt index ⟨remaining, hlayer⟩)
             (leafIndexAt index ⟨remaining, hlayer⟩) (signaturePath signature ⟨remaining, hlayer⟩)
-            leafValue)) = some target := by
+            leafValue (layerHeight ⟨remaining, hlayer⟩))) = some target := by
   rcases hleaf : evalWithAnswerFn f (otsLeafAttempt parameter ⟨remaining, hlayer⟩
       (treeIndexAt index ⟨remaining, hlayer⟩) (leafIndexAt index ⟨remaining, hlayer⟩) message
       (signature.counter ⟨remaining, hlayer⟩) (signature.chainValue ⟨remaining, hlayer⟩))
@@ -285,7 +285,7 @@ theorem verifyLayers_succ_extract (f : QueryImpl HashSpec Id) (parameter : Publi
     simp at hverify
   · refine ⟨leafValue, rfl, ?_⟩
     rw [verifyLayers_succ_eq, dif_pos hlayer, evalWithAnswerFn_bind, hleaf] at hverify
-    simpa [foldPair, foldValue, evalWithAnswerFn_bind] using hverify
+    simpa [foldValue, evalWithAnswerFn_bind] using hverify
 
 end Concrete
 

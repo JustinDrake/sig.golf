@@ -17,7 +17,7 @@ open SphincsSecurity.Concrete (ScheduleSegment)
 
 /-- The reference's segment byte of an abstract schedule segment (`a | 16 merge | 32 t`, bitwise). -/
 def segByte (s : ScheduleSegment) : Nat :=
-  s.reads.length ||| (if s.merge then 16 else 0) ||| 32 * (if s.parity then 1 else 0)
+  s.reads.length ||| (if s.merge then 16 else 0) ||| 32 * ((if s.parity then 1 else 0) + 2 * s.lookahead.val)
 
 /-! ## The simulation -/
 
@@ -25,6 +25,11 @@ open SphincsSecurity.Concrete (ScheduleState scheduleStep scheduleLeaves)
 
 theorem parity_val (n : Nat) : (if decide (n % 2 = 1) = true then 1 else 0) = n % 2 := by
   rcases Nat.mod_two_eq_zero_or_one n with h | h <;> simp [h]
+
+theorem prefix_val (n : Nat) :
+    (if decide (n % 2 = 1) = true then 1 else 0) + 2 * (n / 2 % 4) = n % 8 := by
+  rw [parity_val]
+  omega
 
 theorem porsT_div (h : Nat) (hh : h ≤ 14) : Ref.porsT / 2 ^ h = 2 ^ (SphincsSecurity.ftsTreeHeight - h) := by
   show 2 ^ 14 / 2 ^ h = 2 ^ (14 - h)
@@ -34,12 +39,12 @@ theorem porsT_div (h : Nat) (hh : h ≤ 14) : Ref.porsT / 2 ^ h = 2 ^ (SphincsSe
 def SimR (x : Ref.SchedState × Nat × Nat × Nat) (c : ScheduleState) : Prop :=
   x.1.segs = c.done.map segByte ∧ x.1.reads = (c.done.map (·.reads)).flatten ++ c.reads ∧
     x.1.stack = c.stack ∧ x.2.1 = c.heap ∧ x.2.2.1 = c.reads.length ∧
-    x.2.2.2 = (if c.parity then 1 else 0)
+    x.2.2.2 = (if c.parity then 1 else 0) + 2 * c.lookahead.val
 
 theorem schedStep_sim (x : Ref.SchedState × Nat × Nat × Nat) (c : ScheduleState) (h : Nat)
     (hh : h ≤ 14) (hR : SimR x c) : SimR (Ref.schedStep x h) (scheduleStep c h) := by
   obtain ⟨⟨segs, reads, stack⟩, E, cnt, t⟩ := x
-  obtain ⟨done, cstack, heap, parity, creads⟩ := c
+  obtain ⟨done, cstack, heap, parity, creads, lookahead⟩ := c
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hR
   simp only at h1 h2 h3 h4 h5 h6
   subst h1 h2 h3 h4 h5 h6
@@ -58,7 +63,7 @@ theorem schedStep_sim (x : Ref.SchedState × Nat × Nat × Nat) (c : ScheduleSta
       refine ⟨?_, ?_, rfl, rfl, rfl, ?_⟩
       · simp [segByte]
       · simp
-      · simp only [parity_val]
+      · simp only [prefix_val]
     · rw [if_neg hQ, if_neg hQ]
       refine ⟨rfl, ?_, rfl, rfl, ?_, rfl⟩
       · simp [hp]
@@ -83,19 +88,20 @@ def SimL (st : Ref.SchedState) (c : ScheduleState) : Prop :=
 
 theorem climb_sim (st : Ref.SchedState) (c : ScheduleState) (hR : SimL st c) (v top : Nat)
     (htop : top ≤ 14) :
-    SimR ((List.range top).foldl Ref.schedStep (st, Ref.porsT ||| v, 0, (Ref.porsT ||| v) % 2))
+    SimR ((List.range top).foldl Ref.schedStep (st, Ref.porsT ||| v, 0, (Ref.porsT ||| v) % 8))
       ((List.range' 0 top).foldl scheduleStep
         ⟨c.done, c.stack, 2 ^ SphincsSecurity.ftsTreeHeight ||| v,
-          decide ((2 ^ SphincsSecurity.ftsTreeHeight ||| v) % 2 = 1), []⟩) := by
+          decide ((2 ^ SphincsSecurity.ftsTreeHeight ||| v) % 2 = 1), [],
+          ⟨(2 ^ SphincsSecurity.ftsTreeHeight ||| v) / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩) := by
   rw [← List.range_eq_range']
   obtain ⟨h1, h2, h3⟩ := hR
   refine foldl_schedStep_sim _ (fun h hh => by rw [List.mem_range] at hh; omega) _ _ ?_
   refine ⟨h1, by simp [h2], h3, rfl, rfl, ?_⟩
-  simp only [parity_val]; rfl
+  simp only [prefix_val]; rfl
 
 theorem post_sim (X : Ref.SchedState × Nat × Nat × Nat) (Y : ScheduleState) (h : SimR X Y) :
-    X.1.segs ++ [X.2.2.1 ||| 32 * X.2.2.2] = (Y.done ++ [(⟨false, Y.parity, Y.reads⟩ : ScheduleSegment)]).map segByte ∧
-    X.1.reads = ((Y.done ++ [(⟨false, Y.parity, Y.reads⟩ : ScheduleSegment)]).map (·.reads)).flatten := by
+    X.1.segs ++ [X.2.2.1 ||| 32 * X.2.2.2] = (Y.done ++ [(⟨false, Y.parity, Y.reads, Y.lookahead⟩ : ScheduleSegment)]).map segByte ∧
+    X.1.reads = ((Y.done ++ [(⟨false, Y.parity, Y.reads, Y.lookahead⟩ : ScheduleSegment)]).map (·.reads)).flatten := by
   obtain ⟨g1, g2, g3, g4, g5, g6⟩ := h
   refine ⟨?_, ?_⟩
   · simp [g1, segByte, g5, g6]
@@ -143,7 +149,7 @@ theorem schedLeaves_sim (vs : List Nat) (hvs : ∀ v ∈ vs, v < 2 ^ 14) :
       have hf := climb_sim st c hR v Ref.porsH (le_refl _)
       revert hf
       generalize (List.range Ref.porsH).foldl Ref.schedStep
-        (st, Ref.porsT ||| v, 0, (Ref.porsT ||| v) % 2) = X
+        (st, Ref.porsT ||| v, 0, (Ref.porsT ||| v) % 8) = X
       intro hf
       obtain ⟨p1, p2⟩ := post_sim X _ hf
       obtain ⟨⟨segs, reads, stack⟩, E, cnt, t⟩ := X
@@ -158,7 +164,7 @@ theorem schedLeaves_sim (vs : List Nat) (hvs : ∀ v ∈ vs, v < 2 ^ 14) :
         (le_trans (Nat.sub_le _ _) (bitLen_lt hv hwlt))
       revert hf
       generalize (List.range (Ref.bitLen (v ^^^ w) - 1)).foldl Ref.schedStep
-        (st, Ref.porsT ||| v, 0, (Ref.porsT ||| v) % 2) = X
+        (st, Ref.porsT ||| v, 0, (Ref.porsT ||| v) % 8) = X
       intro hf
       obtain ⟨p1, p2⟩ := post_sim X _ hf
       obtain ⟨⟨segs, reads, stack⟩, E, cnt, t⟩ := X
@@ -168,7 +174,7 @@ theorem schedLeaves_sim (vs : List Nat) (hvs : ∀ v ∈ vs, v < 2 ^ 14) :
 theorem schedule_ref (vs : List Nat) (hvs : ∀ v ∈ vs, v < 2 ^ 14) :
     Ref.schedule vs = ((SphincsSecurity.Concrete.schedule vs).map segByte,
       ((SphincsSecurity.Concrete.schedule vs).map (·.reads)).flatten) := by
-  have h := schedLeaves_sim vs hvs vs.length 0 ⟨[], [], []⟩ ⟨[], [], 0, false, []⟩ (by omega)
+  have h := schedLeaves_sim vs hvs vs.length 0 ⟨[], [], []⟩ ⟨[], [], 0, false, [], 0⟩ (by omega)
     ⟨rfl, rfl, rfl⟩
   rw [List.drop_zero] at h
   unfold Ref.schedule SphincsSecurity.Concrete.schedule
@@ -309,7 +315,7 @@ theorem schedule_admissible (leaves : IndexGroup → FtsLeaf)
   have hrest : rest.length = 14 := by simp [SphincsSecurity.ftsOpenings] at hlen; omega
   have hsched : SphincsSecurity.Concrete.schedule (v :: rest) =
       SphincsSecurity.Completeness.allSegs (v :: rest) [] := by
-    have := SphincsSecurity.Completeness.scheduleLeaves_eq rest v ⟨[], [], 0, false, []⟩ []
+    have := SphincsSecurity.Completeness.scheduleLeaves_eq rest v ⟨[], [], 0, false, [], 0⟩ []
       hsorted hbound ⟨List.Pairwise.nil, by simp⟩ rfl
     rw [SphincsSecurity.Concrete.schedule, this.1, List.nil_append]
   rw [hsched]

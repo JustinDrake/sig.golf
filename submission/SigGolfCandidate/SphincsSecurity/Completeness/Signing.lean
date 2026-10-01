@@ -40,7 +40,7 @@ theorem EncodingFresh.mono {parameter : PublicParameter} {pending pending' : Lay
 /-- The top layer fails only through its counter search, provided its encoding inputs are uncached. -/
 theorem probEvent_signTopLayer_none (parameter : PublicParameter) (index : Index)
     (secret : LeafIndex → ChainPair → OracleComp HashSpec (Digest × Digest))
-    (topNode : Nat → Nat → OracleComp HashSpec Digest) (message : EncMessage) (cache : QueryCache HashSpec)
+    (topNode : Nat → Nat → OracleComp HashSpec Digest) (message : Digest) (cache : QueryCache HashSpec)
     (hfresh : EncodingFresh parameter (fun l => l.val < 1) cache) :
     Pr[fun r => r.1 = none | (simulateQ (randomOracle : QueryImpl HashSpec _)
       (signTopLayerPaired parameter index secret topNode message
@@ -56,13 +56,13 @@ theorem probEvent_signTopLayer_none (parameter : PublicParameter) (index : Index
     simp
   · rw [add_zero]
     exact probEvent_encodingSearch parameter _ _ _ message cache
-      (fun c _ => hfresh topLayer (by decide) _ _ _ _)
+      (fun c _ => hfresh topLayer (by decide) _ _ _)
 
 /-- The layers `remaining - 1, ..., 0` fail with probability at most `remaining` counter-search
 failures, provided none of their encoding inputs is cached at the start. -/
 theorem probEvent_signLayers_none (sk : Seeded.SecretKey) (index : Index)
     (topNode : Nat → Nat → OracleComp HashSpec Digest) :
-    ∀ (remaining : Nat), remaining ≤ numLayers → ∀ (message : EncMessage) (cache : QueryCache HashSpec),
+    ∀ (remaining : Nat), remaining ≤ numLayers → ∀ (message : Digest) (cache : QueryCache HashSpec),
       EncodingFresh sk.parameter (fun l => l.val < remaining) cache →
       Pr[fun r => r.1 = none | (simulateQ (randomOracle : QueryImpl HashSpec _)
         (signLayersPaired sk.parameter index (Seeded.otsSecret sk.parameter sk.seed) topNode remaining message
@@ -93,13 +93,13 @@ theorem probEvent_signLayers_none (sk : Seeded.SecretKey) (index : Index)
           dsimp only
           have h1 : EncodingFresh sk.parameter (fun l => l.val < r) c1 :=
             (hfresh.mono fun l hl => Nat.lt_succ_of_lt hl).step _ ⟨_, c1⟩ hr
-              (fun f l hl tree leaf first payload => Avoids.encodingSearch f _ _ _ _ _ _
-                (fun _ _ => encodingInput_ne_of_layer_ne _ _
+              (fun f l hl tree leaf payload => Avoids.encodingSearch f _ _ _ _ _ _
+                (fun _ => encodingInput_ne_of_layer_ne _
                   (fun h => by rw [← h] at hl; exact absurd hl (Nat.lt_irrefl _)) _ _ _ _ _ _) _ _)
           refine probEvent_bind_le _ _ _ c1 _ (fun built hbuilt => ?_)
-          have h2 := h1.step _ built hbuilt (fun f l _ tree leaf first payload =>
+          have h2 := h1.step _ built hbuilt (fun f l _ tree leaf payload =>
             Avoids.buildLayerTreePaired_of_structural f _ _ _ _ _ _ _
-              (structural_encoding sk.parameter sk.seed l tree leaf first payload))
+              (structural_encoding sk.parameter sk.seed l tree leaf payload))
           obtain ⟨⟨values, path, root⟩, c2⟩ := built
           dsimp only
           refine le_trans (probEvent_bind_le_add _ _ (fun r => r.1 = none) _ c2 0 ?_) ?_
@@ -111,7 +111,7 @@ theorem probEvent_signLayers_none (sk : Seeded.SecretKey) (index : Index)
         · calc _ ≤ encodingBound + (r : ℝ≥0∞) * encodingBound := by
                 refine add_le_add ?_ le_rfl
                 exact probEvent_encodingSearch sk.parameter _ _ _ message cache
-                  (fun c _ => hfresh _ (Nat.lt_succ_self r) _ _ _ _)
+                  (fun c _ => hfresh _ (Nat.lt_succ_self r) _ _ _)
             _ = ((r + 1 : Nat) : ℝ≥0∞) * encodingBound := by push_cast; ring
       next hlayer => exact absurd (Nat.lt_of_succ_le hrem) hlayer
 
@@ -128,9 +128,9 @@ theorem probEvent_signFrom_none (sk : Seeded.SecretKey) (index : Index)
       ≤ (numLayers : ℝ≥0∞) * encodingBound := by
   rw [signFromPaired]
   refine probEvent_bind_le _ _ _ cache _ (fun tree htree => ?_)
-  have h1 := hfresh.step _ tree htree (fun f l _ t leaf first payload =>
+  have h1 := hfresh.step _ tree htree (fun f l _ t leaf payload =>
     Avoids.buildFtsTreePaired_of_structural f _ _ _ _
-      (structural_encoding sk.parameter sk.seed l t leaf first payload))
+      (structural_encoding sk.parameter sk.seed l t leaf payload))
   obtain ⟨⟨secrets, table⟩, c1⟩ := tree
   dsimp only
   refine le_trans (probEvent_bind_le_add _ _ (fun r => r.1 = none) _ c1 0 ?_) ?_
@@ -138,7 +138,7 @@ theorem probEvent_signFrom_none (sk : Seeded.SecretKey) (index : Index)
     obtain ⟨parts, rfl⟩ := Option.ne_none_iff_exists'.mp hsome
     simp
   · rw [add_zero]
-    exact probEvent_signLayers_none sk index topNode numLayers le_rfl (0, table ftsTreeHeight 0) c1
+    exact probEvent_signLayers_none sk index topNode numLayers le_rfl (table ftsTreeHeight 0) c1
       (h1.mono fun _ _ => trivial)
 
 /-- After the MAC check, signing fails only if the randomizer search or one of the five counter
@@ -158,9 +158,9 @@ theorem probEvent_signChecked_none (sk : Seeded.SecretKey) (topCache : TopCache)
     obtain ⟨⟨randomness, index, leaves⟩, rfl⟩ := Option.ne_none_iff_exists'.mp hsome
     dsimp only
     have h1 : EncodingFresh sk.parameter (fun _ => True) c1 :=
-      henc.step _ ⟨_, c1⟩ hr (fun f l _ tree leaf first payload =>
+      henc.step _ ⟨_, c1⟩ hr (fun f l _ tree leaf payload =>
         Avoids.signDigestPairs_of_structural f _ sk message
-          (structural_encoding sk.parameter sk.seed l tree leaf first payload) _ _)
+          (structural_encoding sk.parameter sk.seed l tree leaf payload) _ _)
     exact probEvent_signFrom_none sk index _ randomness leaves c1 h1
   · exact add_le_add (probEvent_signDigestPairs sk message digestPairLimit 0 cache ∅
       (by rw [digestPairLimit]; omega) (by simp) (fun s _ _ => hrand s) (fun ρ _ => hmsg ρ)) le_rfl

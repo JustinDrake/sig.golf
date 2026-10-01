@@ -24,21 +24,23 @@ theorem canonicalLeaf_eq_honestNode (leaf : LeafIndex) :
   rfl
 
 theorem layer_classification (leaf : LeafIndex) (hleafIndex : leaf.val < 2 ^ layerHeight lay)
-    (path : Nat → Digest) (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest)
+    (path : Nat → Digest) (message : Digest) (counter : Counter) (values : ChainIndex → Digest)
     (candidate : Encoding) (leafValue : Digest) (trace : Trace) (hvalid : OtsCode.Valid lay (words lay tree leaf))
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some candidate)
     (hots : evalWithAnswerFn f (otsLeafAttempt parameter lay tree leaf message counter values) = some leafValue)
-    (hfold : foldPair f parameter lay tree leaf path leafValue =
-      honestPair f parameter lay tree secret)
+    (hfold : foldValue f parameter lay tree leaf path leafValue (layerHeight lay) =
+      honestNode f parameter lay tree secret (layerHeight lay) 0)
     (hotsRun : ContainsRun f trace (otsLeafAttempt parameter lay tree leaf message counter values))
-    (hfoldRun : ContainsRun f trace (treeFold parameter lay tree leaf path (layerHeight lay - 1) leafValue)) :
+    (hfoldRun : ContainsRun f trace (treeFold parameter lay tree leaf path (layerHeight lay) leafValue)) :
     (candidate = words lay tree leaf ∧
       (∀ index, values index = frontier f parameter words lay tree leaf (secret leaf) index) ∧
       ∀ level, level < layerHeight lay → path level = honestNode f parameter lay tree secret level (Nat.xor (leaf.val / 2 ^ level) 1)) ∨
       TreeOutputMatch f parameter lay tree secret trace ∨ LeafOutputMatch f parameter lay tree leaf (secret leaf) trace ∨
         ChainException f parameter words lay tree leaf (secret leaf) trace := by
-  rcases foldPair_extract_all f parameter lay tree secret leaf path hleafIndex (layerHeight_pos lay) leafValue
-      hfold with ⟨hleaf, hpath⟩ | ⟨level, hl, hh⟩
+  have hroot : foldValue f parameter lay tree leaf path leafValue (layerHeight lay) =
+      honestNode f parameter lay tree secret (layerHeight lay) (leaf.val / 2 ^ layerHeight lay) := by
+    simpa only [Nat.div_eq_of_lt hleafIndex] using hfold
+  rcases treeFold_extract f parameter lay tree secret leaf path leafValue (layerHeight lay) hroot with ⟨hleaf, hpath⟩ | ⟨level, hl, hh⟩
   · have hcanonical : evalWithAnswerFn f (otsLeafAttempt parameter lay tree leaf message counter values) =
         some (canonicalLeaf f parameter lay tree leaf (secret leaf)) := by
       rw [canonicalLeaf_eq_honestNode, hots, hleaf]
@@ -47,29 +49,9 @@ theorem layer_classification (leaf : LeafIndex) (hleafIndex : leaf.val < 2 ^ lay
     · exact Or.inl ⟨hword, hvalues, hpath⟩
     · exact Or.inr (Or.inr (Or.inl hleafMatch))
     · exact Or.inr (Or.inr (Or.inr hchains))
-  · have hl' : level < layerHeight lay := Nat.lt_of_lt_of_le hl (Nat.sub_le _ _)
-    refine Or.inr (Or.inl ⟨level, leaf.val / 2 ^ (level + 1), _, orderedPayload_mem_canonicalPayloadInputs _ _ _, hl', ?_, ?_, ?_, hh⟩)
+  · refine Or.inr (Or.inl ⟨level, leaf.val / 2 ^ (level + 1), _, orderedPayload_mem_canonicalPayloadInputs _ _ _, hl, ?_, ?_, ?_, hh⟩)
     · exact (Nat.div_le_self _ _).trans_lt leaf.isLt
-    · exact fold_node_bound maxLayerHeight level leaf.val (hl'.trans_le (layerHeight_le lay)) leaf.isLt
-    · exact hfoldRun _ (treeFold_query_mem f parameter lay tree leaf path leafValue (layerHeight lay - 1) level hl)
-
-/-- The top tree's last hash on a trace: the verifier's pair is the honest pair, or the trace holds a tree
-match at the root. -/
-theorem topRoot_classification (index : Index) (top : EncMessage) (trace : Trace)
-    (hroot : evalWithAnswerFn f (topRoot parameter index top) =
-      honestNode f parameter topLayer rootTree secret (layerHeight topLayer) 0)
-    (hrun : ContainsRun f trace (topRoot parameter index top)) :
-    top = honestPair f parameter topLayer rootTree secret ∨
-      TreeOutputMatch f parameter topLayer rootTree secret trace := by
-  rcases topRoot_extract f parameter secret index top hroot with h | h
-  · exact Or.inl h
-  · refine Or.inr ⟨layerHeight topLayer - 1, 0, _, nodePayload_mem_canonicalPayloadInputs _ _, by decide,
-      by decide, by decide, ?_, h⟩
-    have hmem : tweakableHashInput parameter (.node topLayer rootTree (layerHeight topLayer - 1 + 1) 0)
-        (nodePayload top.1 top.2) ∈ queriedInputs f (topRoot parameter index top) := by
-      rw [topRoot, queriedInputs_tweakableHash,
-        show treeIndexAt index topLayer = rootTree from Fin.ext (treeIndexAt_topLayer index)]
-      exact List.mem_singleton_self _
-    exact hrun _ hmem
+    · exact fold_node_bound maxLayerHeight level leaf.val (hl.trans_le (layerHeight_le lay)) leaf.isLt
+    · exact hfoldRun _ (treeFold_query_mem f parameter lay tree leaf path leafValue (layerHeight lay) level hl)
 
 end SphincsSecurity.Concrete.OtsVerifierWitness

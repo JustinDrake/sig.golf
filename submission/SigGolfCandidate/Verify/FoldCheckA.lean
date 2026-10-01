@@ -1,4 +1,6 @@
 import SigGolfCandidate.Verify.FoldDefs
+import SigGolfCandidate.Verify.Init
+set_option Elab.async false
 
 /-! Kernel check of the Merkle shape blocks of layers 0 and 1 (one declaration per chunk). -/
 

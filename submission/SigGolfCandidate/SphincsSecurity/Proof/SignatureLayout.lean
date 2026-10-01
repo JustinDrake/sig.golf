@@ -9,14 +9,6 @@ theorem layerHeight_le (lay : Layer) : layerHeight lay ≤ maxLayerHeight := by
   unfold layerHeight maxLayerHeight
   split <;> (try split) <;> omega
 
-theorem layerHeight_pos (lay : Layer) : 0 < layerHeight lay := by
-  unfold layerHeight maxLayerHeight
-  split <;> (try split) <;> omega
-
-theorem two_le_layerHeight (lay : Layer) : 2 ≤ layerHeight lay := by
-  unfold layerHeight maxLayerHeight
-  split <;> (try split) <;> omega
-
 abbrev Signature.counter (signature : Signature) (lay : Layer) : Counter :=
   (signature.layers lay).counter
 

@@ -204,12 +204,71 @@ theorem pad64_porsNodeInput (idx H : Nat) (l r : Val) (hl : l.length = 16)
     wordsOfN_val_append r hr]
   rfl
 
+/-! ### The relabelled PORS queries
+
+The relabelling swaps the `p` field (zero in the Ref) and the low half of `tau`: the hashed tweak
+is `tweak t 0 (Ref.tauH idx) idx F`, i.e. word 0 is `twLo t 0 idx idx` (tag, high byte of `tau`, low
+half of `tau` in the `p` slot) and word 1 is `twHi 0 F` (zero, then the relabelled header `F`). -/
+
+/-- The hashed form of a PORS node input (header `F`). -/
+def pNode (idx F : Nat) (l r : Val) : List Byte := thInput (tweak 10 0 (Ref.tauH idx) idx F) (l ++ r)
+/-- The hashed form of a PORS leaf input (header `F`). -/
+def pLeaf (idx F : Nat) (v : Val) : List Byte := thInput (tweak 9 0 (Ref.tauH idx) idx F) v
+
+theorem twLo_tauH (t idx : Nat) : twLo t 0 (Ref.tauH idx) idx = twLo t 0 idx idx := by
+  unfold twLo Ref.tauH; congr 2; omega
+
+theorem twHi_tauH (idx F : Nat) : twHi (Ref.tauH idx) F = twHi 0 F := by
+  unfold twHi Ref.tauH; omega
+
+theorem pad64_pNode (idx F : Nat) (l r : Val) (hl : l.length = 16) (hr : r.length = 16) :
+    pad64 (pNode idx F l r) = queryOfWords 0
+      [BitVec.ofNat 64 (twLo 10 0 idx idx), BitVec.ofNat 64 (twHi 0 F), 0, 0,
+        vw0 l, vw1 l, vw0 r, vw1 r] := by
+  unfold pNode
+  rw [pad64_thInput _ _ (by simp) 0 (by simp [hl, hr]) (by simp [hl, hr]), wordsOfN_tweak, twLo_tauH,
+    twHi_tauH]
+  simp only [List.length_append, hl, hr]
+  rw [show 8 * 0 + 4 = 2 + (2 + 0) by rfl, List.append_assoc l r, wordsOfN_val_append l hl,
+    wordsOfN_val_append r hr]
+  rfl
+
+theorem pad64_pLeaf (idx F : Nat) (v : Val) (hv : v.length = 16) :
+    pad64 (pLeaf idx F v) = queryOfWords 0
+      [BitVec.ofNat 64 (twLo 9 0 idx idx), BitVec.ofNat 64 (twHi 0 F), 0, 0,
+        vw0 v, vw1 v, 0, 0] := by
+  unfold pLeaf
+  rw [pad64_thInput _ _ (by simp) 0 (by omega) (by omega), wordsOfN_tweak, twLo_tauH, twHi_tauH, hv,
+    show 8 * 0 + 4 = 2 + 2 by rfl, wordsOfN_val_append v hv]
+  rfl
+
+/-- The swapped words of a Ref PORS block (tag `t`, `tau = idx`, `p = 0`, header `F`). -/
+theorem swW_pors (t idx F : Nat) (f : Nat → Nat) (hf : ∀ v, v < 4294967296 → f v < 4294967296) :
+    AddressFormat.swW0 (BitVec.ofNat 64 (twLo t 0 idx 0)) (BitVec.ofNat 64 (twHi idx F)) =
+      BitVec.ofNat 64 (twLo t 0 idx idx) ∧
+    AddressFormat.swW1 f (BitVec.ofNat 64 (twLo t 0 idx 0)) (BitVec.ofNat 64 (twHi idx F)) =
+      BitVec.ofNat 64 (twHi 0 (f (F % 2 ^ 32))) := by
+  have hl : (BitVec.ofNat 64 (twLo t 0 idx 0)).toNat = twLo t 0 idx 0 := by
+    rw [BitVec.toNat_ofNat]; apply Nat.mod_eq_of_lt; unfold twLo; omega
+  have hh : (BitVec.ofNat 64 (twHi idx F)).toNat = twHi idx F := by
+    rw [BitVec.toNat_ofNat]; apply Nat.mod_eq_of_lt; unfold twHi; omega
+  unfold AddressFormat.swW0 AddressFormat.swW1
+  rw [hl, hh]
+  have e1 : twHi idx F / 4294967296 = F % 2 ^ 32 := by unfold twHi; omega
+  have e2 : twLo t 0 idx 0 / 4294967296 = 0 := by unfold twLo; omega
+  rw [e1, e2]
+  have he := hf (F % 2 ^ 32) (by omega)
+  generalize f (F % 2 ^ 32) = G at he ⊢
+  constructor
+  · congr 1; unfold twLo twHi; omega
+  · congr 1; unfold twHi; omega
+
 /-- **The PORS node relabelling** (`AddressFormat.nodeRel`): the query of a node input under heap
-index `H` is the zero-padded input with the 32-bit header field `Rev.efield H`. -/
-theorem addrFmt_porsNodeInput (idx H : Nat) (l r : Val) (hl : l.length = 16)
+index `H` has words `twLo 10 0 idx idx`, `twHi 0 (Rev.efield H)`. -/
+theorem addrFmt_porsNodeWords (idx H : Nat) (l r : Val) (hl : l.length = 16)
     (hr : r.length = 16) :
     addrFmt (porsNodeInput idx H l r) = queryOfWords 0
-      [BitVec.ofNat 64 (twLo 10 0 idx 0), BitVec.ofNat 64 (twHi idx (Rev.efield H)), 0, 0,
+      [BitVec.ofNat 64 (twLo 10 0 idx idx), BitVec.ofNat 64 (twHi 0 (Rev.efield H)), 0, 0,
         vw0 l, vw1 l, vw0 r, vw1 r] := by
   have hf : fmt (porsNodeInput idx H l r) = pad64 (porsNodeInput idx H l r) :=
     fmt_thInput _ _ _ _ _ _ (by decide)
@@ -217,47 +276,46 @@ theorem addrFmt_porsNodeInput (idx H : Nat) (l r : Val) (hl : l.length = 16)
   have hlo : (BitVec.ofNat 64 (twLo 10 0 idx 0)).toNat % 65536 = 2561 := by
     rw [BitVec.toNat_ofNat]; unfold twLo; omega
   rw [AddressFormat.queryPerm_node _ _ _ rfl hlo]
-  have hw : (BitVec.ofNat 64 (twHi idx H)).toNat = idx % 4294967296 + 4294967296 * (H % 4294967296) := by
-    rw [BitVec.toNat_ofNat]; unfold twHi; omega
-  have h1 : (BitVec.ofNat 64 (twHi idx H)).toNat % 4294967296 = idx % 4294967296 := by rw [hw]; omega
-  have h2 : (BitVec.ofNat 64 (twHi idx H)).toNat / 4294967296 = H % 2 ^ 32 := by rw [hw]; omega
-  have he := Rev.efield_lt H
-  have key : BitVec.ofNat 64 ((BitVec.ofNat 64 (twHi idx H)).toNat % 4294967296 +
-      4294967296 * Rev.efield ((BitVec.ofNat 64 (twHi idx H)).toNat / 4294967296)) =
-      BitVec.ofNat 64 (twHi idx (Rev.efield H)) := by
-    rw [h1, h2, Rev.efield_mod]
-    generalize Rev.efield H = e at he ⊢
-    unfold twHi
-    congr 1
-    omega
-  rw [key]
+  obtain ⟨k0, k1⟩ := swW_pors 10 idx H Rev.efield AddressFormat.efield_lt'
+  rw [k0, k1, Rev.efield_mod]
 
 /-- The relabelled node query as a padded input: header field `Rev.efield H`. -/
 theorem addrFmt_porsNodeInput_pad (idx H : Nat) (l r : Val) (hl : l.length = 16)
     (hr : r.length = 16) :
-    addrFmt (porsNodeInput idx H l r) = pad64 (porsNodeInput idx (Rev.efield H) l r) := by
-  rw [addrFmt_porsNodeInput _ _ _ _ hl hr, pad64_porsNodeInput _ _ _ _ hl hr]
+    addrFmt (porsNodeInput idx H l r) = pad64 (pNode idx (Rev.efield H) l r) := by
+  rw [addrFmt_porsNodeWords _ _ _ _ hl hr, pad64_pNode _ _ _ _ hl hr]
 
-/-- The encoding input of the 32-byte message `L ++ R` (the two children of the root of the tree below,
-or `P ++` the PORS root): one block, the message in the words 2 .. 5. -/
-theorem pad64_encInput (lay tau e : Nat) (L R : Val) (hL : L.length = 16) (hR : R.length = 16) (c : Nat) :
-    pad64 (encInput lay tau e (L ++ R) c) = queryOfWords 0
-      [BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), vw0 L, vw1 L,
-        vw0 R, vw1 R, BitVec.ofNat 64 (c % 2 ^ 32), 0] := by
-  have hl : (encInput lay tau e (L ++ R) c).length = 52 := by
-    simp [encInput, length_tweak, hL, hR]
-  rw [pad64_eq_words, hl, padBlocks_val 52 0 (by omega) (by omega)]
-  unfold padTo64
-  rw [hl, padBlocks_val 52 0 (by omega) (by omega)]
+theorem addrFmt_porsLeafWords (idx j : Nat) (v : Val) (hv : v.length = 16) :
+    addrFmt (porsLeafInput idx j v) = queryOfWords 0
+      [BitVec.ofNat 64 (twLo 9 0 idx idx), BitVec.ofNat 64 (twHi 0 (LeafScale.left3 (j % 2^32))), 0, 0,
+        vw0 v, vw1 v, 0, 0] := by
+  have hf : fmt (porsLeafInput idx j v) = pad64 (porsLeafInput idx j v) :=
+    fmt_thInput _ _ _ _ _ _ (by decide)
+  rw [addrFmt, hf, pad64_porsLeafInput _ _ _ hv]
+  have hlo : (BitVec.ofNat 64 (twLo 9 0 idx 0)).toNat % 65536 = 2305 := by
+    rw [BitVec.toNat_ofNat]; unfold twLo; omega
+  rw [AddressFormat.queryPerm_leaf _ _ _ rfl hlo]
+  obtain ⟨k0, k1⟩ := swW_pors 9 idx j LeafScale.left3 LeafScale.left3_lt'
+  rw [k0, k1]
+
+theorem addrFmt_porsLeafInput_pad (idx j : Nat) (v : Val) (hv : v.length = 16)
+    (hj : j ≤ 2^14) :
+    addrFmt (porsLeafInput idx j v) = pad64 (pLeaf idx (8*j) v) := by
+  rw [addrFmt_porsLeafWords _ _ _ hv, pad64_pLeaf _ _ _ hv]
+  rw [Nat.mod_eq_of_lt (show j < 2^32 by omega), LeafScale.left3_small j (by omega)]
+
+theorem pad64_encInput (lay tau e : Nat) (M : Val) (hM : M.length = 16) (c : Nat) :
+    pad64 (encInput lay tau e M c) = queryOfWords 0
+      [BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0,
+        vw0 M, vw1 M, BitVec.ofNat 64 (c % 2 ^ 32), 0] := by
   unfold encInput
-  simp only [List.append_assoc]
-  rw [show 8 * (0 + 1) = 2 + (2 + (2 + 2)) by rfl,
-    wordsOfN_append 2 _ (tweak 4 lay tau 0 e) _ (by simp [length_tweak]), wordsOfN_tweak,
-    wordsOfN_val_append L hL, wordsOfN_val_append R hR]
+  rw [pad64_thInput _ _ (by simp) 0 (by simp [hM]) (by simp [hM]), wordsOfN_tweak]
+  simp only [List.length_append, hM, length_le32]
+  rw [show 8 * 0 + 4 = 2 + 2 by rfl, List.append_assoc M, wordsOfN_val_append M hM]
   simp only [wordsOfN]
-  have h1 : (le32 c ++ zeros (64 * (0 + 1) - 52)).take 8 = le32 c ++ zeros 4 := by
+  have h1 : (le32 c ++ zeros (64 * (0 + 1) - (32 + (16 + 4)))).take 8 = le32 c ++ zeros 4 := by
     simp [zeros, List.take_append]
-  have h2 : ((le32 c ++ zeros (64 * (0 + 1) - 52)).drop 8).take 8 = zeros 8 := by
+  have h2 : ((le32 c ++ zeros (64 * (0 + 1) - (32 + (16 + 4)))).drop 8).take 8 = zeros 8 := by
     rw [List.drop_append, List.drop_eq_nil_of_le (by simp : (le32 c).length ≤ 8)]
     simp [zeros, List.take_replicate]
   rw [h1, h2]

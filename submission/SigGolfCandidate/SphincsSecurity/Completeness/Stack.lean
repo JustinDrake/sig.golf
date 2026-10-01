@@ -200,8 +200,9 @@ theorem scheduleStep_fold (state : ScheduleState) (height : Nat)
 theorem scheduleStep_merge (state : ScheduleState) (height : Nat) (rest : List Nat)
     (hstack : state.stack = state.heap :: rest) :
     scheduleStep state height =
-      { state with done := state.done ++ [⟨true, state.parity, state.reads⟩], stack := rest,
-                   heap := state.heap / 2, parity := decide (state.heap / 2 % 2 = 1), reads := [] } := by
+      { state with done := state.done ++ [⟨true, state.parity, state.reads, state.lookahead⟩], stack := rest,
+                   heap := state.heap / 2, parity := decide (state.heap / 2 % 2 = 1), reads := [],
+                   lookahead := ⟨state.heap / 2 / 2 % 4, Nat.mod_lt _ (by decide)⟩ } := by
   unfold scheduleStep
   rw [hstack]
   simp
@@ -216,7 +217,7 @@ theorem foldl_scheduleStep_folds {v : Nat} :
   induction n with
   | zero =>
       intro x state hheap _ _
-      rcases state with ⟨done, stack, heap, parity, reads⟩
+      rcases state with ⟨done, stack, heap, parity, reads, lookahead⟩
       simp only at hheap
       subst hheap
       simp [sibs]
@@ -224,11 +225,11 @@ theorem foldl_scheduleStep_folds {v : Nat} :
       intro x state hheap hbound hnomerge
       rw [List.range'_succ, List.foldl_cons,
         scheduleStep_fold state x (by rw [hheap]; exact hnomerge x le_rfl (by omega))]
-      rcases state with ⟨done, stack, heap, parity, reads⟩
+      rcases state with ⟨done, stack, heap, parity, reads, lookahead⟩
       simp only at hheap hnomerge
       subst hheap
       rw [ih (x + 1) ⟨done, stack, anc v x / 2, parity,
-          reads ++ [(x, (anc v x ^^^ 1) - 2 ^ (ftsTreeHeight - x))]⟩
+          reads ++ [(x, (anc v x ^^^ 1) - 2 ^ (ftsTreeHeight - x))], lookahead⟩
         (anc_div_two (by omega)) (by omega) (fun y hy1 hy2 => hnomerge y (by omega) (by omega))]
       simp only [sibs, List.range'_succ, List.map_cons, List.append_assoc, List.singleton_append,
         anc_xor_one_sub (show x < ftsTreeHeight by omega), sibPos,
@@ -237,8 +238,8 @@ theorem foldl_scheduleStep_folds {v : Nat} :
 /-- The segments of one climb from a segment start at height `x`: a fold run up to each merge height
 of `L`, then a fold run up to `top`, ending the leaf. -/
 def climbSegs (v : Nat) : Nat → List Nat → Nat → List ScheduleSegment
-  | x, [], top => [⟨false, decide (anc v x % 2 = 1), sibs v x (top - x)⟩]
-  | x, y :: L, top => ⟨true, decide (anc v x % 2 = 1), sibs v x (y - x)⟩ :: climbSegs v (y + 1) L top
+  | x, [], top => [⟨false, decide (anc v x % 2 = 1), sibs v x (top - x), ⟨anc v x / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩]
+  | x, y :: L, top => ⟨true, decide (anc v x % 2 = 1), sibs v x (y - x), ⟨anc v x / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩ :: climbSegs v (y + 1) L top
 
 theorem length_le_of_pairwise {L : List Nat} (hsorted : L.Pairwise (· < ·)) :
     ∀ {a b : Nat}, (∀ y ∈ L, a ≤ y ∧ y < b) → L.length ≤ b - a := by
@@ -261,14 +262,15 @@ theorem climb_eq {v : Nat} (hv : v < 2 ^ ftsTreeHeight) {top : Nat} (htop : top 
       (∀ y ∈ L, x ≤ y ∧ y < top) → x ≤ top →
       (∀ q ∈ rest.head?, ∀ y, x ≤ y → y < top → q ≠ anc v y) →
       state.heap = anc v x → state.reads = [] → state.parity = decide (anc v x % 2 = 1) →
+      state.lookahead = ⟨anc v x / 2 % 4, Nat.mod_lt _ (by decide)⟩ →
       state.stack = L.map (anc v) ++ rest →
       let final := (List.range' x (top - x)).foldl scheduleStep state
-      final.done ++ [⟨false, final.parity, final.reads⟩] = state.done ++ climbSegs v x L top
+      final.done ++ [⟨false, final.parity, final.reads, final.lookahead⟩] = state.done ++ climbSegs v x L top
         ∧ final.stack = rest ∧ final.heap = anc v top := by
   intro L
   induction L with
   | nil =>
-      intro x state _ _ hx hrest hheap hreads hparity hstack
+      intro x state _ _ hx hrest hheap hreads hparity hlookahead hstack
       simp only [List.map_nil, List.nil_append] at hstack
       rw [foldl_scheduleStep_folds (top - x) x state hheap (by omega) (fun y hy1 hy2 => by
         rw [hstack]
@@ -277,9 +279,9 @@ theorem climb_eq {v : Nat} (hv : v < 2 ^ ftsTreeHeight) {top : Nat} (htop : top 
         | some q =>
             have := hrest q (by simp [hr]) y hy1 (by omega)
             simp [this])]
-      simp [climbSegs, hreads, hparity, hstack, show x + (top - x) = top by omega]
+      simp [climbSegs, hreads, hparity, hlookahead, hstack, show x + (top - x) = top by omega]
   | cons y L ih =>
-      intro x state hsorted hrange hx hrest hheap hreads hparity hstack
+      intro x state hsorted hrange hx hrest hheap hreads hparity hlookahead hstack
       have hy := hrange y (by simp)
       have hL := (List.pairwise_cons.mp hsorted)
       have hsplit : List.range' x (top - x)
@@ -287,13 +289,15 @@ theorem climb_eq {v : Nat} (hv : v < 2 ^ ftsTreeHeight) {top : Nat} (htop : top 
         have h1 : top - x = (y - x) + (top - y) := by omega
         have h2 : top - y = (top - (y + 1)) + 1 := by omega
         rw [h1, ← List.range'_append_1, h2, List.range'_succ, show x + (y - x) = y by omega]
-      rcases state with ⟨done, stack, heap, parity, reads⟩
-      simp only at hheap hreads hparity hstack
-      subst hheap hreads hparity hstack
-      let st2 : ScheduleState := ⟨done ++ [⟨true, decide (anc v x % 2 = 1), sibs v x (y - x)⟩],
-        L.map (anc v) ++ rest, anc v (y + 1), decide (anc v (y + 1) % 2 = 1), []⟩
+      rcases state with ⟨done, stack, heap, parity, reads, lookahead⟩
+      simp only at hheap hreads hparity hlookahead hstack
+      subst hheap hreads hparity hlookahead hstack
+      let st2 : ScheduleState := ⟨done ++ [⟨true, decide (anc v x % 2 = 1), sibs v x (y - x), ⟨anc v x / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩],
+        L.map (anc v) ++ rest, anc v (y + 1), decide (anc v (y + 1) % 2 = 1), [],
+          ⟨anc v (y + 1) / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩
       have hstep : scheduleStep ((List.range' x (y - x)).foldl scheduleStep
-          ⟨done, (y :: L).map (anc v) ++ rest, anc v x, decide (anc v x % 2 = 1), []⟩) y = st2 := by
+          ⟨done, (y :: L).map (anc v) ++ rest, anc v x, decide (anc v x % 2 = 1), [],
+            ⟨anc v x / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩) y = st2 := by
         rw [foldl_scheduleStep_folds (y - x) x _ rfl (by omega) (fun z hz1 hz2 => by
           simp only [List.map_cons, List.cons_append, List.head?_cons, ne_eq, Option.some.injEq]
           intro heq
@@ -305,7 +309,7 @@ theorem climb_eq {v : Nat} (hv : v < 2 ^ ftsTreeHeight) {top : Nat} (htop : top 
       simp only
       rw [hsplit, List.foldl_append, List.foldl_cons, hstep]
       have := ih (y + 1) st2 hL.2 (fun z hz => ⟨hL.1 z hz, (hrange z (by simp [hz])).2⟩) (by omega)
-        (fun q hq z hz1 hz2 => hrest q hq z (by omega) hz2) rfl rfl rfl rfl
+        (fun q hq z hz1 hz2 => hrest q hq z (by omega) hz2) rfl rfl rfl rfl rfl
       simp only at this
       refine ⟨?_, this.2⟩
       rw [this.1]
@@ -435,12 +439,13 @@ theorem scheduleLeaves_cons (v : Nat) (rest : List Nat) (state : ScheduleState) 
     scheduleLeaves (v :: rest) state =
       let climbed := (List.range' 0 (leafTop v rest)).foldl scheduleStep
         ⟨state.done, state.stack, 2 ^ ftsTreeHeight ||| v,
-          decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), []⟩
+          decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), [],
+          ⟨(2 ^ ftsTreeHeight ||| v) / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩
       scheduleLeaves rest (match rest with
-        | [] => ⟨climbed.done ++ [⟨false, climbed.parity, climbed.reads⟩], climbed.stack, climbed.heap,
-            climbed.parity, climbed.reads⟩
-        | _ :: _ => ⟨climbed.done ++ [⟨false, climbed.parity, climbed.reads⟩],
-            (climbed.heap ^^^ 1) :: climbed.stack, climbed.heap, climbed.parity, climbed.reads⟩) := by
+        | [] => ⟨climbed.done ++ [⟨false, climbed.parity, climbed.reads, climbed.lookahead⟩], climbed.stack, climbed.heap,
+            climbed.parity, climbed.reads, climbed.lookahead⟩
+        | _ :: _ => ⟨climbed.done ++ [⟨false, climbed.parity, climbed.reads, climbed.lookahead⟩],
+            (climbed.heap ^^^ 1) :: climbed.stack, climbed.heap, climbed.parity, climbed.reads, climbed.lookahead⟩) := by
   simp only [scheduleLeaves, leafTop, List.range_eq_range']
   cases rest <;> rfl
 
@@ -466,9 +471,10 @@ theorem scheduleLeaves_eq :
         filter_gt_nil (fun y hy => (hL.2 y hy).1)
       have hclimb := climb_eq hv (le_refl ftsTreeHeight) [] (L.filter (· < leafTop v [])) 0
         ⟨state.done, state.stack, 2 ^ ftsTreeHeight ||| v,
-          decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), []⟩
+          decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), [],
+          ⟨(2 ^ ftsTreeHeight ||| v) / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩
         (hL.1.filter _) (fun y hy => ⟨Nat.zero_le _, (mem_filter_lt hy).2⟩)
-        (Nat.zero_le _) (by simp) (anc_zero hv).symm rfl (by rw [anc_zero hv])
+        (Nat.zero_le _) (by simp) (anc_zero hv).symm rfl (by rw [anc_zero hv]) (by rw [anc_zero hv])
         (by simp only; rw [hstack, List.append_nil]; conv_lhs => rw [hsplit]
             rw [hnone, List.append_nil])
       rw [scheduleLeaves_cons]
@@ -488,7 +494,8 @@ theorem scheduleLeaves_eq :
       have hclimb := climb_eq hv ht.le ((L.filter (leafTop v (w :: rest) < ·)).map (anc v))
         (L.filter (· < leafTop v (w :: rest))) 0
         ⟨state.done, state.stack, 2 ^ ftsTreeHeight ||| v,
-          decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), []⟩
+          decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), [],
+          ⟨(2 ^ ftsTreeHeight ||| v) / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩
         (hL.1.filter _) (fun y hy => ⟨Nat.zero_le _, (mem_filter_lt hy).2⟩)
         (Nat.zero_le _)
         (by
@@ -504,18 +511,19 @@ theorem scheduleLeaves_eq :
               intro heq
               have := anc_injective hv (hL.2 z hz.1).1.le (by omega) heq
               omega)
-        (anc_zero hv).symm rfl (by rw [anc_zero hv])
+        (anc_zero hv).symm rfl (by rw [anc_zero hv]) (by rw [anc_zero hv])
         (by simp only; rw [hstack, ← List.map_append, ← hsplit])
       simp only [Nat.sub_zero] at hclimb
       rw [scheduleLeaves_cons]
       generalize hF : List.foldl scheduleStep
         ⟨state.done, state.stack, 2 ^ ftsTreeHeight ||| v,
-          decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), []⟩
+          decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), [],
+          ⟨(2 ^ ftsTreeHeight ||| v) / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩
         (List.range' 0 (leafTop v (w :: rest))) = F at hclimb ⊢
       obtain ⟨hdone, hst, hheap⟩ := hclimb
       simp only
-      have := ih w ⟨F.done ++ [⟨false, F.parity, F.reads⟩], (F.heap ^^^ 1) :: F.stack, F.heap,
-          F.parity, F.reads⟩ (leafTop v (w :: rest) :: L.filter (leafTop v (w :: rest) < ·))
+      have := ih w ⟨F.done ++ [⟨false, F.parity, F.reads, F.lookahead⟩], (F.heap ^^^ 1) :: F.stack, F.heap,
+          F.parity, F.reads, F.lookahead⟩ (leafTop v (w :: rest) :: L.filter (leafTop v (w :: rest) < ·))
         (List.pairwise_cons.mp hsorted).2 (fun u hu => hbound u (by simp [hu])) hnext (by
           simp only [List.map_cons]; rw [hst, hheap, hpush, hmap])
       rw [this.1]
@@ -595,7 +603,8 @@ theorem eval_recoverSegments_end (segments : Fin ftsSegments → Segment) (fuel 
     (pending : PendingHash) (state : RecoverState) (h : state.segment < ftsSegments)
     (hfolds : ¬ ftsTreeHeight < (segments ⟨state.segment, h⟩).folds.val)
     (hparity : ¬ ((segments ⟨state.segment, h⟩).folds.val ≠ 0 ∧
-      (segments ⟨state.segment, h⟩).parity ≠ decide (state.heap % 2 = 1)))
+      ((segments ⟨state.segment, h⟩).parity ≠ decide (state.heap % 2 = 1) ∨
+       (3 ≤ (segments ⟨state.segment, h⟩).folds.val ∧ (segments ⟨state.segment, h⟩).lookahead.val ≠ state.heap / 2 % 4))))
     (hmerge : (segments ⟨state.segment, h⟩).merge = false) {node : Digest} {heap : Nat}
     (hfold : evalWithAnswerFn f (foldSegment parameter index (segments ⟨state.segment, h⟩)
       (segments ⟨state.segment, h⟩).folds.val 0
@@ -615,7 +624,8 @@ theorem eval_recoverSegments_merge (segments : Fin ftsSegments → Segment) (fue
     (pending : PendingHash) (state : RecoverState) (h : state.segment < ftsSegments)
     (hfolds : ¬ ftsTreeHeight < (segments ⟨state.segment, h⟩).folds.val)
     (hparity : ¬ ((segments ⟨state.segment, h⟩).folds.val ≠ 0 ∧
-      (segments ⟨state.segment, h⟩).parity ≠ decide (state.heap % 2 = 1)))
+      ((segments ⟨state.segment, h⟩).parity ≠ decide (state.heap % 2 = 1) ∨
+       (3 ≤ (segments ⟨state.segment, h⟩).folds.val ∧ (segments ⟨state.segment, h⟩).lookahead.val ≠ state.heap / 2 % 4))))
     (hmerge : (segments ⟨state.segment, h⟩).merge = true) {node left : Digest} {heap : Nat}
     {rest : List (Digest × Nat)} (hstack : state.stack = (left, heap) :: rest)
     (hfold : evalWithAnswerFn f (foldSegment parameter index (segments ⟨state.segment, h⟩)
@@ -687,8 +697,8 @@ theorem eval_foldSegment {node : Nat → Nat → Digest} (hT : HonestTable f par
 /-- The segment the verifier reads at a schedule segment of `v`'s climb: its folds, merge bit, parity
 and nodes. -/
 theorem honestSegments_at (node : Nat → Nat → Digest) (segs : List ScheduleSegment) {j : Nat}
-    (hj : j < ftsSegments) {merge parity : Bool} {v x n : Nat} (hn : n ≤ ftsTreeHeight)
-    (hget : segs.getD j default = ⟨merge, parity, sibs v x n⟩) :
+    (hj : j < ftsSegments) {merge parity : Bool} {lookahead : Fin 4} {v x n : Nat} (hn : n ≤ ftsTreeHeight)
+    (hget : segs.getD j default = ⟨merge, parity, sibs v x n, lookahead⟩) :
     (honestSegments node segs ⟨j, hj⟩).folds.val = n
       ∧ (honestSegments node segs ⟨j, hj⟩).merge = merge
       ∧ (0 < n → (honestSegments node segs ⟨j, hj⟩).parity = parity)
@@ -697,7 +707,7 @@ theorem honestSegments_at (node : Nat → Nat → Digest) (segs : List ScheduleS
     simp only [sibs, List.length_map, List.length_range']
     exact Nat.mod_eq_of_lt (by unfold ftsTreeHeight at hn; omega)
   have hseg : honestSegments node segs ⟨j, hj⟩
-      = (⟨merge, parity, sibs v x n⟩ : ScheduleSegment).toSegment fun i =>
+      = (⟨merge, parity, sibs v x n, lookahead⟩ : ScheduleSegment).toSegment fun i =>
           node ((sibs v x n).getD i.val (0, 0)).1 ((sibs v x n).getD i.val (0, 0)).2 := by
     unfold honestSegments
     dsimp only
@@ -716,6 +726,20 @@ theorem honestSegments_at (node : Nat → Nat → Digest) (segs : List ScheduleS
 theorem getD_append_length {α : Type} (pre post : List α) (a d : α) :
     (pre ++ a :: post).getD pre.length d = a := by
   simp [List.getD_eq_getElem?_getD]
+
+theorem honestSegments_lookahead (node : Nat → Nat → Digest) (segs : List ScheduleSegment) {j : Nat}
+    (hj : j < ftsSegments) {merge parity : Bool} {lookahead : Fin 4} {v x n : Nat}
+    (hn : n ≤ ftsTreeHeight)
+    (hget : segs.getD j default = ⟨merge, parity, sibs v x n, lookahead⟩)
+    (hpos : 3 ≤ n) : (honestSegments node segs ⟨j, hj⟩).lookahead.val = lookahead.val := by
+  have hlen : (sibs v x n).length % 16 = n := by
+    simp only [sibs, List.length_map, List.length_range']
+    exact Nat.mod_eq_of_lt (by unfold ftsTreeHeight at hn; omega)
+  unfold honestSegments
+  dsimp only
+  rw [hget]
+  simp [ScheduleSegment.toSegment, Segment.normalized, ScheduleSegment.folds, hlen,
+    show ¬n < 3 by omega]
 
 theorem getD_climb {v x top : Nat} {L : List Nat} (pre post : List ScheduleSegment) :
     (pre ++ climbSegs v x L top ++ post).getD pre.length default = (climbSegs v x L top).headD default := by
@@ -747,11 +771,19 @@ theorem eval_recoverSegments_climb {node : Nat → Nat → Digest}
       obtain ⟨fuel, rfl⟩ : ∃ k, fuel = k + 1 := ⟨fuel - 1, by simp at hfuel; omega⟩
       have hj : state.segment < ftsSegments := by simp at hlen; omega
       have hget : segs.getD state.segment default
-          = ⟨false, decide (anc v x % 2 = 1), sibs v x (top - x)⟩ := by
+          = ⟨false, decide (anc v x % 2 = 1), sibs v x (top - x), ⟨anc v x / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩ := by
         rw [hsegs, hseg, getD_climb]; rfl
       obtain ⟨hf, hm, hp, hn⟩ := honestSegments_at node segs hj (by omega) hget
+      have hl := honestSegments_lookahead node segs hj (by omega) hget
       rw [eval_recoverSegments_end f parameter index _ fuel pending state hj (by rw [hf]; omega)
-        (by rintro ⟨hne, hpne⟩; exact hpne (by rw [hheap]; exact hp (by rw [hf] at hne; omega))) hm
+        (by
+          rintro ⟨hne, hbad⟩
+          have hpos := hne
+          rw [hf] at hpos
+          rcases hbad with hpne | ⟨hlong, hlne⟩
+          · exact hpne (by rw [hheap]; exact hp (by omega))
+          · rw [hf] at hlong
+            exact hlne (by rw [hheap]; exact hl (by omega))) hm
         (node := node top (v / 2 ^ top)) (heap := anc v top) (by
           rw [hf, hpend, hheap]
           have := eval_foldSegment hT hv (honestSegments node segs ⟨state.segment, hj⟩) (top - x) 0 x
@@ -770,11 +802,19 @@ theorem eval_recoverSegments_climb {node : Nat → Nat → Digest}
         ⟨hL.1 z hz, (hrange z (by simp [hz])).2.1⟩)
       have hj : state.segment < ftsSegments := by simp at hlen; omega
       have hget : segs.getD state.segment default
-          = ⟨true, decide (anc v x % 2 = 1), sibs v x (y - x)⟩ := by
+          = ⟨true, decide (anc v x % 2 = 1), sibs v x (y - x), ⟨anc v x / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩ := by
         rw [hsegs, hseg, getD_climb]; rfl
       obtain ⟨hf, hm, hp, hn⟩ := honestSegments_at node segs hj (by omega) hget
+      have hl := honestSegments_lookahead node segs hj (by omega) hget
       rw [eval_recoverSegments_merge f parameter index _ fuel pending state hj (by rw [hf]; omega)
-        (by rintro ⟨hne, hpne⟩; exact hpne (by rw [hheap]; exact hp (by rw [hf] at hne; omega))) hm
+        (by
+          rintro ⟨hne, hbad⟩
+          have hpos := hne
+          rw [hf] at hpos
+          rcases hbad with hpne | ⟨hlong, hlne⟩
+          · exact hpne (by rw [hheap]; exact hp (by omega))
+          · rw [hf] at hlong
+            exact hlne (by rw [hheap]; exact hl (by omega))) hm
         (node := node y (v / 2 ^ y)) (heap := anc v y) (left := node y (v / 2 ^ y ^^^ 1))
         (rest := vstack node v L ++ hi) (by simp [hstack, vstack]) (by
           rw [hf, hpend, hheap]
@@ -783,7 +823,7 @@ theorem eval_recoverSegments_climb {node : Nat → Nat → Digest}
             (fun _ hpos => hp hpos)
           simpa only [show x + (y - x) = y by omega] using this)]
       have hyh : y < ftsTreeHeight := by omega
-      rw [ih (y + 1) (pre ++ [⟨true, decide (anc v x % 2 = 1), sibs v x (y - x)⟩]) post fuel _ _
+      rw [ih (y + 1) (pre ++ [⟨true, decide (anc v x % 2 = 1), sibs v x (y - x), ⟨anc v x / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩]) post fuel _ _
         hL.2 (fun z hz => ⟨hL.1 z hz, (hrange z (by simp [hz])).2⟩) (by omega)
         (fun e he z hz1 hz2 => hhi e he z (by omega) hz2)
         (by rw [hsegs]; simp [climbSegs])
@@ -1056,7 +1096,7 @@ theorem eval_ftsRecover_honest {node : Nat → Nat → Digest} (hT : HonestTable
   rw [hvr] at hlen hsorted hbound
   have hrest : rest.length = 14 := by simp at hlen; omega
   have hsched : schedule (sortedLeaves leaves) = allSegs (v :: rest) [] := by
-    have := scheduleLeaves_eq rest v ⟨[], [], 0, false, []⟩ [] hsorted hbound
+    have := scheduleLeaves_eq rest v ⟨[], [], 0, false, [], 0⟩ [] hsorted hbound
       ⟨List.Pairwise.nil, by simp⟩ rfl
     rw [schedule, hvr, this.1, List.nil_append]
   have hall := allSegs_length rest v [] hsorted hbound ⟨List.Pairwise.nil, by simp⟩

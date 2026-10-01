@@ -5,11 +5,11 @@ open _root_.OracleComp OracleSpec UniformTableCompletion
 set_option backward.isDefEq.respectTransparency false
 attribute [local irreducible] canonicalEncodingInputs canonicalGraphInputs Finset.univ referenceEncodingRest
 
-abbrev EncodingContextResult (Result : Type) := PublicParameter × ReferenceFamily × (EncodingPosition → EncMessage) × Result
+abbrev EncodingContextResult (Result : Type) := PublicParameter × ReferenceFamily × (EncodingPosition → Digest) × Result
 
 noncomputable def referenceEncodingContextRest {Result : Type} (observer : FrontierObserver Result)
     (key : SecretKey) (inputs : Finset HashInput) (hencoding : canonicalEncodingInputs key.parameter ⊆ inputs)
-    (dummy : OtsReferenceWords) (adversary : Adversary) : SPMF (ReferenceFamily × (EncodingPosition → EncMessage) × Result) := do
+    (dummy : OtsReferenceWords) (adversary : Adversary) : SPMF (ReferenceFamily × (EncodingPosition → Digest) × Result) := do
   let reference ← 𝒮[referenceFamilyOracleSample key inputs hencoding]
   let oracle := finiteHashAnswer ∅ inputs reference.2
   let labels := canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret oracle

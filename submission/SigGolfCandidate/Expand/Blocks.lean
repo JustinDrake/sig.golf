@@ -43,7 +43,7 @@ sym_block blk139 := symRun { noAlias := true } seg139 (pcOf 139) 6
 sym_block blk150 := symRun { noAlias := true } seg150 (pcOf 150) 4
 sym_block blk153 := symRun { noAlias := true } seg153 (pcOf 153) 8
 sym_block blk160 := symRun { noAlias := true } seg160 (pcOf 160) 6
-sym_block blk173 := symRun { noAlias := true } seg173 (pcOf 173) 2
+sym_block blk171 := symRun { noAlias := true } seg171 (pcOf 171) 2
 sym_block blk284 := symRun { noAlias := true } seg284 (pcOf 284) 4
 sym_block blk382 := symRun { noAlias := true } seg382 (pcOf 382) 5
 sym_block blk386 := symRun { noAlias := true } seg386 (pcOf 386) 23
@@ -62,8 +62,6 @@ sym_block blk461 := symRun { noAlias := true } seg461 (pcOf 461) 5
 sym_block blk465 := symRun { noAlias := true } seg465 (pcOf 465) 5
 sym_block blk469 := symRun { noAlias := true } seg469 (pcOf 469) 4
 sym_block blk472 := symRun { noAlias := true } seg472 (pcOf 472) 7
-sym_block blk1820 := symRun { noAlias := true } seg1820 (pcOf 1820) 7
-sym_block blk477 := symRun { noAlias := true } seg477 (pcOf 477) 2
 sym_block blk478 := symRun { noAlias := true } seg478 (pcOf 478) 18
 sym_block blk495 := symRun { noAlias := true } seg495 (pcOf 495) 35
 sym_block blk529 := symRun { noAlias := true } seg529 (pcOf 529) 5
@@ -112,5 +110,12 @@ sym_block blk792 := symRun { noAlias := true } seg792 (pcOf 792) 6
 sym_block blk803 := symRun { noAlias := true } seg803 (pcOf 803) 2
 sym_block blk804 := symRun { noAlias := true } seg804 (pcOf 804) 29
 sym_block blk832 := symRun { noAlias := true } seg832 (pcOf 832) 29
+
+sym_block blk2915 := symRun { noAlias := true } seg2915 (pcOf 2915) 4
+sym_block blk2918 := symRun { noAlias := true } seg2918 (pcOf 2918) 4
+sym_block blk2921 := symRun { noAlias := true } seg2921 (pcOf 2921) 2
+sym_block blk2922 := symRun { noAlias := true } seg2922 (pcOf 2922) 4
+sym_block blk2925 := symRun { noAlias := true } seg2925 (pcOf 2925) 2
+sym_block blk2926 := symRun { noAlias := true } seg2926 (pcOf 2926) 2
 
 end SigGolfCandidate.Expand

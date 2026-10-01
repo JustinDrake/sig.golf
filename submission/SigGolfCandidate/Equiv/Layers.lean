@@ -30,24 +30,24 @@ attribute [local reducible] SphincsSecurity.hashOutputBits SphincsSecurity.diges
 
 /-! ## The counter search -/
 
-theorem hash16_enc (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : SphincsSecurity.EncMessage) (c : Nat) :
-    Ref.encodingHash (Ref.encInput lay tree leaf (dvM M) c) =
+theorem hash16_enc (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : Digest) (c : Nat) :
+    Ref.encodingHash (Ref.encInput lay tree leaf (dv M) c) =
       (fun a => dv (SphincsSecurity.selectEncodingDigest a)) <$>
         relabel fmtQ (SphincsSecurity.Concrete.oracleHash (m := AComp)
-          (SphincsSecurity.tweakableHashInput M.1 (.encoding lay tree leaf)
-            (SphincsSecurity.bytesLE 16 M.2 ++ SphincsSecurity.bytesLE 4 (BitVec.ofNat SphincsSecurity.counterBits c)))) := by
+          (SphincsSecurity.tweakableHashInput 0 (.encoding lay tree leaf)
+            (SphincsSecurity.bytesLE 16 M ++ SphincsSecurity.bytesLE 4 (BitVec.ofNat SphincsSecurity.counterBits c)))) := by
   rw [encodingHash_eq, relabel_oracleHash]
   apply congrArg (fun y => (fun a : BitVec 256 => dv (SphincsSecurity.selectEncodingDigest a)) <$> Ref.H y)
-  simp only [SphincsSecurity.tweakableHashInput, SphincsSecurity.tweakBytes,
-    SphincsSecurity.hashDomainFields, toB_tweakFields, toB_append, toB_dv, Ref.encInput, dvM,
-    List.append_assoc]
+  rw [toB_tweakableHashInput]
+  simp only [SphincsSecurity.tweakBytes, SphincsSecurity.hashDomainFields, toB_tweakFields,
+    toB_append, toB_dv, Ref.encInput, Ref.thInput, List.append_assoc]
   rw [show (BitVec.ofNat SphincsSecurity.counterBits c) = BitVec.ofNat (8 * 4) c from rfl,
     toB_bytesLE_ofNat]
   rfl
 
-theorem searchCounter_eq (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : SphincsSecurity.EncMessage)
+theorem searchCounter_eq (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : Digest)
     (fuel c : Nat) (h : c + fuel ≤ 2 ^ 32) :
-    Ref.searchCounter lay tree leaf (dvM M) c fuel =
+    Ref.searchCounter lay tree leaf (dv M) c fuel =
       Option.map (fun r => (r.1.toNat, List.ofFn fun i => (r.2 i).val)) <$>
         relabel fmtQ (SphincsSecurity.Concrete.encodingSearch (m := AComp) 0 lay tree leaf M fuel c) := by
   induction fuel generalizing c with
@@ -207,8 +207,8 @@ theorem topPath_eq (seed : MasterSeed) (b : SigGolfCandidate.Cache) (e : Nat)
   conv_rhs => rw [List.ofFn_succ]
   rfl
 
-theorem signTop_eq (seed : MasterSeed) (b : SigGolfCandidate.Cache) (index : Index) (M : SphincsSecurity.EncMessage) :
-    Ref.signTop (Ref.toList (n := 32) seed) (Ref.toList b) index (dvM M) =
+theorem signTop_eq (seed : MasterSeed) (b : SigGolfCandidate.Cache) (index : Index) (M : Digest) :
+    Ref.signTop (Ref.toList (n := 32) seed) (Ref.toList b) index (dv M) =
       Option.map (fun o => [layerRef SphincsSecurity.topLayer o]) <$> relabel fmtQ
         (SphincsSecurity.Concrete.signTopLayerPaired (m := AComp) 0 index
           (SphincsSecurity.Seeded.otsSecret 0 seed SphincsSecurity.topLayer
@@ -294,8 +294,8 @@ theorem signTop_eq (seed : MasterSeed) (b : SigGolfCandidate.Cache) (index : Ind
 /-! ### All layers -/
 
 theorem signLayers_eq (seed : MasterSeed) (b : SigGolfCandidate.Cache) (index : Index) (n : Nat)
-    (hn : n + 1 ≤ SphincsSecurity.numLayers) (M : SphincsSecurity.EncMessage) :
-    Ref.signLayers (Ref.toList (n := 32) seed) (Ref.toList b) index n (dvM M) =
+    (hn : n + 1 ≤ SphincsSecurity.numLayers) (M : Digest) :
+    Ref.signLayers (Ref.toList (n := 32) seed) (Ref.toList b) index n (dv M) =
       Option.map (fun parts => List.ofFn fun l : Fin (n + 1) =>
           layerRef (Fin.castLE hn l) (parts (Fin.castLE hn l))) <$>
         relabel fmtQ (SphincsSecurity.Concrete.signLayersPaired (m := AComp) 0 index

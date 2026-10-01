@@ -34,17 +34,17 @@ end UniformTableSplit
 
 abbrev ReferenceFamily := EncodingPosition → ReferenceSelection
 
-noncomputable def referenceFamilyCell (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
+noncomputable def referenceFamilyCell (parameter : PublicParameter) (messages : EncodingPosition → Digest)
     (row : EncodingRow) : canonicalEncodingInputs parameter :=
   referenceCounterCell parameter row.1 (messages row.1) row.2
 
-theorem referenceFamilyCell_injective (parameter : PublicParameter) (messages : EncodingPosition → EncMessage) :
+theorem referenceFamilyCell_injective (parameter : PublicParameter) (messages : EncodingPosition → Digest) :
     Function.Injective (referenceFamilyCell parameter messages) := by
   rintro ⟨left, first⟩ ⟨right, second⟩ heq
   have hbytes := congrArg Subtype.val heq
   have hposition : left = right := atEncodingPosition_unique
-    (show AtEncodingPosition parameter (encodingRetryInput parameter left (messages left) first.val) left from ⟨_, _, rfl⟩)
-    (show AtEncodingPosition parameter (encodingRetryInput parameter left (messages left) first.val) right from ⟨_, _, hbytes⟩)
+    (show AtEncodingPosition parameter (encodingRetryInput parameter left (messages left) first.val) left from ⟨_, rfl⟩)
+    (show AtEncodingPosition parameter (encodingRetryInput parameter left (messages left) first.val) right from ⟨_, hbytes⟩)
   subst right
   exact Prod.ext rfl (referenceCounterCell_injective parameter left (messages left) heq)
 

@@ -74,7 +74,7 @@ def topCost : Nat := 21 + 185 + 336
 
 theorem V_signTop (z bC : ℝ≥0∞) (hz : 1 ≤ z) (hbC : 1 ≤ bC)
     (hstepC : z * (rhoC 0 * bC + (1 - rhoC 0)) ≤ bC) (S cache : List Byte) (hS : S.length = 32)
-    (idx : Nat) (M : Val) (c : RCache) (hM : M.length ≤ 32) (hinv : CacheInv (InvL 1) c) :
+    (idx : Nat) (M : Val) (c : RCache) (hM : M.length ≤ 16) (hinv : CacheInv (InvL 1) c) :
     V z (signTop S cache idx M) c ≤ bC * z ^ topCost := by
   unfold signTop
   rcases hr : route idx 0 with ⟨e, tau⟩
@@ -85,8 +85,8 @@ theorem V_signTop (z bC : ℝ≥0∞) (hz : 1 ≤ z) (hbC : 1 ≤ bC)
     | none => rfl
     | some u =>
       exfalso
-      have h := hinv _ u hq (by rw [qbyte_tag_enc])
-      rw [qbyte_lay_enc] at h; omega
+      have h := hinv _ u hq (by unfold encInput; rw [qbyte_tag])
+      unfold encInput at h; rw [qbyte_lay] at h; omega
   refine (V_bind_le z _ _ c (z ^ topCost) fun x hx => ?_).trans
     (mul_le_mul' (V_searchCounter 0 z bC hz hbC hstepC tau e M hM cMax 0 c (by simp [cMax])
       hfresh) le_rfl)
@@ -132,7 +132,7 @@ theorem one_le_counterProduct {b : Nat → ℝ≥0∞} (hb : ∀ i, 1 ≤ b i) (
 theorem V_signLayers (z : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (hbC : ∀ i, 1 ≤ bC i)
     (hstepC : ∀ i, z * (rhoC i * bC i + (1 - rhoC i)) ≤ bC i) (S cache : List Byte) (hS : S.length = 32)
     (idx : Nat) :
-    ∀ lay (M : Val) (c : RCache), lay ≤ 4 → M.length ≤ 32 → CacheInv (InvL (lay + 1)) c →
+    ∀ lay (M : Val) (c : RCache), lay ≤ 4 → M.length ≤ 16 → CacheInv (InvL (lay + 1)) c →
       V z (signLayers S cache idx lay M) c ≤ counterProduct bC (lay + 1) * z ^ (layerCost lay + topCost) := by
   intro lay
   induction lay with
@@ -142,9 +142,6 @@ theorem V_signLayers (z : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (
     exact V_signTop z (bC 0) hz (hbC 0) (hstepC 0) S cache hS idx M c hM hinv
   | succ lay ih =>
     intro M cache' hlay hM hinv
-    have hpos : 0 < height (lay + 1) := by
-      have h4 : lay < 4 := by omega
-      interval_cases lay <;> decide
     unfold signLayers
     rcases hr : route idx (lay + 1) with ⟨e, tau⟩
     dsimp only
@@ -155,8 +152,8 @@ theorem V_signLayers (z : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (
       | none => rfl
       | some u =>
         exfalso
-        have h := hinv _ u hq (by rw [qbyte_tag_enc])
-        rw [qbyte_lay_enc] at h; omega
+        have h := hinv _ u hq (by unfold encInput; rw [qbyte_tag])
+        unfold encInput at h; rw [qbyte_lay] at h; omega
     refine (V_bind_le z _ _ cache' (counterProduct bC (lay + 1) * z ^ (treeCost (height (lay + 1)) + (layerCost lay + topCost))) fun x hx => ?_).trans ?_
     · have hx' := (spec_searchCounter (lay + 1) tau e M hM (by omega) cMax 0).support
         (I := InvL (lay + 1)) (fun q hq h => by rw [hq.2]) cache'
@@ -168,7 +165,7 @@ theorem V_signLayers (z : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (
       · dsimp only
         refine (V_bind_le z _ _ c1 (counterProduct bC (lay + 1) * z ^ (layerCost lay + topCost))
           fun y hy => ?_).trans ?_
-        · have hy' := (spec_buildTree S hS (lay + 1) tau (height (lay + 1)) e xs hpos).support
+        · have hy' := (spec_buildTree S hS (lay + 1) tau (height (lay + 1)) e xs).support
             (I := InvL (lay + 1)) (fun q hq h => by unfold PT at hq; omega) c1 hx'.2 y hy
           obtain ⟨⟨root, vals, path⟩, c2⟩ := y
           dsimp only
@@ -180,7 +177,7 @@ theorem V_signLayers (z : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (
           calc V z (buildTree S (lay + 1) tau (height (lay + 1)) e xs) c1 *
                 (counterProduct bC (lay + 1) * z ^ (layerCost lay + topCost))
               ≤ z ^ treeCost (height (lay + 1)) * (counterProduct bC (lay + 1) * z ^ (layerCost lay + topCost)) :=
-                mul_le_mul' ((spec_buildTree S hS (lay + 1) tau (height (lay + 1)) e xs hpos).V_le hz c1)
+                mul_le_mul' ((spec_buildTree S hS (lay + 1) tau (height (lay + 1)) e xs).V_le hz c1)
                   le_rfl
             _ = counterProduct bC (lay + 1) * (z ^ treeCost (height (lay + 1)) *
                   z ^ (layerCost lay + topCost)) := by ring
@@ -226,7 +223,7 @@ theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
         let (levels, secrets) ← buildPorsTree S (idxOf N)
         let M := (levels.getD porsH []).getD 0 []
         let fts := porsOpening (sortLeaves (leavesOf N)) levels secrets
-        match ← signLayers S cache (idxOf N) (nLayers - 1) (P ++ M) with
+        match ← signLayers S cache (idxOf N) (nLayers - 1) M with
         | none => pure none
         | some lays => pure (some (serialize rho fts lays))) c ≤ signBound z bD bC := by
   have hbig : 1 ≤ z ^ 40959 * (counterProduct bC 5 * z ^ (73244 + 542)) :=
@@ -249,10 +246,7 @@ theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
           rcases r with _ | lays <;> simp
         · rw [mul_one, ← layerCost_4, show (542 : Nat) = topCost from rfl]
           refine V_signLayers z bC hz hbC hstepC S cache hS (idxOf N) (nLayers - 1) _ c2
-            (by decide) (by
-              have hlen : ((levels.getD porsH []).getD 0 []).length ≤ 16 := hy'.1
-              simp only [List.length_append, P, zeros, List.length_replicate]
-              omega) ?_
+            (by decide) hy'.1 ?_
           exact hy'.2.mono fun q h h4 => absurd h4 h
       · refine mul_le_mul' ?_ le_rfl
         rw [← porsCost_eq]

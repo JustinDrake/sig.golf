@@ -55,7 +55,7 @@ def oneTimePublicKey (parameter : PublicParameter) (lay : Layer) (tree : TreeInd
 
 /-- `OtsSign`: the least admissible counter, and the chain values it dictates. The search starts at `0` and stops after `encodingAttemptLimit` counters. -/
 def otsSignFrom (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (secret : ChainIndex → Digest) (message : EncMessage) :
+    (secret : ChainIndex → Digest) (message : Digest) :
     Nat → Nat → m (Option (Counter × (ChainIndex → Digest)))
   | 0, _ => pure none
   | attempts + 1, counter => do
@@ -67,7 +67,7 @@ def otsSignFrom (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (
       | none => otsSignFrom parameter lay tree leaf secret message attempts (counter + 1)
 
 def otsSign (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (secret : ChainIndex → Digest) (message : EncMessage) :
+    (secret : ChainIndex → Digest) (message : Digest) :
     m (Option (Counter × (ChainIndex → Digest))) :=
   otsSignFrom parameter lay tree leaf secret message encodingAttemptLimit 0
 
@@ -87,14 +87,6 @@ def treeNode (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
 def treeRoot (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
     (secret : LeafIndex → ChainIndex → Digest) : m Digest :=
   treeNode parameter lay tree secret (layerHeight lay) 0
-
-/-- `TreeTop(P, lay, tau) = (X^{lay,tau}_{h_lay - 1, 0}, X^{lay,tau}_{h_lay - 1, 1})`, the root's two children:
-what the layer above signs. -/
-def treeTop (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
-    (secret : LeafIndex → ChainIndex → Digest) : m EncMessage := do
-  let left ← treeNode parameter lay tree secret (layerHeight lay - 1) 0
-  let right ← treeNode parameter lay tree secret (layerHeight lay - 1) 1
-  return (left, right)
 
 /-- `TreePath`: `A_level = X^{lay,tau}_{level, floor(e / 2^level) xor 1}` for the layer's own `h_lay` levels, and nothing above them. -/
 def treePath (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
@@ -152,9 +144,9 @@ noncomputable def sampleFtsSecrets : ProbComp (Index → FtsTree → FtsLeaf →
 
 /-- Key generation's tree: layer `0`'s tree built once from table secrets, exactly as the seeded key generation builds it. -/
 def keygenRoot (parameter : PublicParameter) (secret : LeafIndex → ChainIndex → Digest) : m Digest := do
-  let (_, table) ← buildLayerTable parameter topLayer rootTree
+  let (_, _, root) ← buildLayerTree parameter topLayer rootTree
     (fun leaf chainIdx => pure (secret leaf chainIdx)) ⟨0, Nat.two_pow_pos _⟩ zeroEncoding
-  return table (layerHeight topLayer) 0
+  return root
 
 /-- Key generation's tree kept whole: layer `0`'s node table, built once from table secrets with exactly
 the queries of `keygenRoot`. -/
@@ -198,15 +190,14 @@ noncomputable def signDigestLoop : Nat → SecretKey → Message →
       | some (index, leaves) => pure (some (randomness, index, leaves))
       | none => signDigestLoop attempts secretKey message
 
-/-- The message layer `lay` signs: the two children of the root of the tree below it, or `(0, PORS root)` at the bottom. Every layer's message is fixed by the index alone, which is what makes the layers independent. -/
-def layerMessage (secretKey : SecretKey) (index : Index) (lay : Layer) : m EncMessage :=
+/-- The message layer `lay` signs: the root of the tree below it, or the PORS root at the bottom. Every layer's message is fixed by the index alone, which is what makes the layers independent. -/
+def layerMessage (secretKey : SecretKey) (index : Index) (lay : Layer) : m Digest :=
   if hbelow : lay.val + 1 < numLayers then
     let below : Layer := ⟨lay.val + 1, hbelow⟩
-    treeTop secretKey.parameter below (treeIndexAt index below)
+    treeRoot secretKey.parameter below (treeIndexAt index below)
       (secretKey.otsSecret below (treeIndexAt index below))
-  else do
-    let key ← ftsKey secretKey.parameter index (secretKey.ftsSecret index)
-    return (0, key)
+  else
+    ftsKey secretKey.parameter index (secretKey.ftsSecret index)
 
 /-- One layer's contribution: its counter, its chain values, and its authentication path. -/
 def signLayer (secretKey : SecretKey) (index : Index) (lay : Layer) :

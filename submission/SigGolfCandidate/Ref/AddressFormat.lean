@@ -10,6 +10,199 @@ Honest PORS heap indices `H < 2^15` have `efield H = rev16 H * 2^16`: the parent
 derives both from one `slliw`. `revWord H` is `efield H` sign-extended from bit 31 (the register
 form the verifier keeps). -/
 
+namespace SigGolfCandidate.Ref.LeafScale
+
+def left3 (v : Nat) : Nat := 8 * (v % 536870912) + v / 536870912 % 8
+def right3 (v : Nat) : Nat := v / 8 + 536870912 * (v % 8)
+
+theorem left3_lt (v : Nat) : left3 v < 4294967296 := by
+  unfold left3
+  have := Nat.mod_lt v (show 0 < 536870912 by decide)
+  have := Nat.mod_lt (v / 536870912) (show 0 < 8 by decide)
+  omega
+
+theorem right3_left3 (v : Nat) (hv : v < 4294967296) : right3 (left3 v) = v := by
+  have hq : v / 536870912 < 8 := by omega
+  unfold left3 right3
+  rw [Nat.mod_eq_of_lt hq]
+  have := Nat.mod_lt v (show 0 < 536870912 by decide)
+  have := Nat.mod_lt (v / 536870912) (show 0 < 8 by decide)
+  omega
+
+theorem left3_inj {a b : Nat} (ha : a < 4294967296) (hb : b < 4294967296)
+    (h : left3 a = left3 b) : a = b := by
+  have := congrArg right3 h
+  rwa [right3_left3 a ha, right3_left3 b hb] at this
+
+theorem left3_small (v : Nat) (hv : v < 536870912) : left3 v = 8 * v := by
+  unfold left3
+  rw [Nat.mod_eq_of_lt hv, Nat.div_eq_of_lt hv]
+  simp
+
+/-! ### The header relabelling shape (tags 9 and 10)
+
+`swRel f` swaps the 32-bit fields 1 and 2 (`p` and `tau mod 2^32`) and maps field 3 (the header)
+by `f`: the PORS tweak `tau` then sits in word 0 (one store per buffer, made with the tag) and the
+low half of word 1 is the zero field `p`. -/
+
+/-- Little-endian packing of four 32-bit fields and a tail. -/
+def pack4 (a b c d R : Nat) : Nat :=
+  a + 4294967296 * (b + 4294967296 * (c + 4294967296 * (d + 4294967296 * R)))
+
+theorem pack4_unpack (a b c d R : Nat) (ha : a < 4294967296) (hb : b < 4294967296)
+    (hc : c < 4294967296) (hd : d < 4294967296) :
+    pack4 a b c d R % 4294967296 = a ∧ pack4 a b c d R / 4294967296 % 4294967296 = b ∧
+    pack4 a b c d R / 4294967296 / 4294967296 % 4294967296 = c ∧
+    pack4 a b c d R / 4294967296 / 4294967296 / 4294967296 % 4294967296 = d ∧
+    pack4 a b c d R / 4294967296 / 4294967296 / 4294967296 / 4294967296 = R := by
+  have s : ∀ x y : Nat, x < 4294967296 → (x + 4294967296 * y) % 4294967296 = x ∧
+      (x + 4294967296 * y) / 4294967296 = y := fun x y h => ⟨by omega, by omega⟩
+  obtain ⟨e1, f1⟩ := s a (b + 4294967296 * (c + 4294967296 * (d + 4294967296 * R))) ha
+  obtain ⟨e2, f2⟩ := s b (c + 4294967296 * (d + 4294967296 * R)) hb
+  obtain ⟨e3, f3⟩ := s c (d + 4294967296 * R) hc
+  obtain ⟨e4, f4⟩ := s d R hd
+  unfold pack4
+  rw [f1, f2, f3, f4]
+  exact ⟨e1, e2, e3, e4, rfl⟩
+
+theorem pack4_digits (w : Nat) :
+    pack4 (w % 4294967296) (w / 4294967296 % 4294967296) (w / 4294967296 / 4294967296 % 4294967296)
+      (w / 4294967296 / 4294967296 / 4294967296 % 4294967296)
+      (w / 4294967296 / 4294967296 / 4294967296 / 4294967296) = w := by
+  unfold pack4
+  omega
+
+theorem mod32_lt (x : Nat) : x % 4294967296 < 4294967296 := Nat.mod_lt _ (by decide)
+
+def swRel (f : Nat → Nat) (w : Nat) : Nat :=
+  pack4 (w % 4294967296) (w / 4294967296 / 4294967296 % 4294967296) (w / 4294967296 % 4294967296)
+    (f (w / 4294967296 / 4294967296 / 4294967296 % 4294967296))
+    (w / 4294967296 / 4294967296 / 4294967296 / 4294967296)
+
+theorem swRel_unpack (f : Nat → Nat) (hf : ∀ v, v < 4294967296 → f v < 4294967296) (w : Nat) :
+    swRel f w % 4294967296 = w % 4294967296 ∧
+    swRel f w / 4294967296 % 4294967296 = w / 4294967296 / 4294967296 % 4294967296 ∧
+    swRel f w / 4294967296 / 4294967296 % 4294967296 = w / 4294967296 % 4294967296 ∧
+    swRel f w / 4294967296 / 4294967296 / 4294967296 % 4294967296 =
+      f (w / 4294967296 / 4294967296 / 4294967296 % 4294967296) ∧
+    swRel f w / 4294967296 / 4294967296 / 4294967296 / 4294967296 =
+      w / 4294967296 / 4294967296 / 4294967296 / 4294967296 :=
+  pack4_unpack _ _ _ _ _ (mod32_lt _) (mod32_lt _) (mod32_lt _) (hf _ (mod32_lt _))
+
+/-- `swRel g ∘ swRel f = id` when `g` inverts `f` on 32-bit values. -/
+theorem swRel_swRel (f g : Nat → Nat) (hf : ∀ v, v < 4294967296 → f v < 4294967296)
+    (hgf : ∀ v, v < 4294967296 → g (f v) = v) (w : Nat) : swRel g (swRel f w) = w := by
+  obtain ⟨u1, u2, u3, u4, u5⟩ := swRel_unpack f hf w
+  show pack4 (swRel f w % 4294967296) (swRel f w / 4294967296 / 4294967296 % 4294967296)
+    (swRel f w / 4294967296 % 4294967296)
+    (g (swRel f w / 4294967296 / 4294967296 / 4294967296 % 4294967296))
+    (swRel f w / 4294967296 / 4294967296 / 4294967296 / 4294967296) = w
+  rw [u1, u2, u3, u4, u5, hgf _ (mod32_lt _)]
+  exact pack4_digits w
+
+set_option exponentiation.threshold 1024 in
+theorem swRel_lt (f : Nat → Nat) (hf : ∀ v, v < 4294967296 → f v < 4294967296) (w : Nat)
+    (h : w < 2 ^ 512) : swRel f w < 2 ^ 512 := by
+  have hR : w / 4294967296 / 4294967296 / 4294967296 / 4294967296 < 2 ^ 384 := by
+    norm_num only [Nat.reducePow] at h ⊢
+    omega
+  have h4 := hf (w / 4294967296 / 4294967296 / 4294967296 % 4294967296) (mod32_lt _)
+  unfold swRel pack4
+  generalize f (w / 4294967296 / 4294967296 / 4294967296 % 4294967296) = e at h4 ⊢
+  norm_num only [Nat.reducePow] at hR ⊢
+  have := mod32_lt w
+  have := mod32_lt (w / 4294967296 / 4294967296)
+  have := mod32_lt (w / 4294967296)
+  omega
+
+theorem swRel_class (f : Nat → Nat) (hf : ∀ v, v < 4294967296 → f v < 4294967296) (w : Nat) :
+    swRel f w % 65536 = w % 65536 := by
+  have u1 := (swRel_unpack f hf w).1
+  generalize swRel f w = x at u1 ⊢
+  omega
+
+/-- The swapped words: for a block `a + 2^64 (b + 2^64 R)` (words `a`, `b`), the relabelled words. -/
+theorem swRel_eq (f : Nat → Nat) (a b R : Nat) (ha : a < 18446744073709551616)
+    (hb : b < 18446744073709551616) :
+    swRel f (a + 18446744073709551616 * (b + 18446744073709551616 * R)) =
+      (a % 4294967296 + 4294967296 * (b % 4294967296)) + 18446744073709551616 *
+        (a / 4294967296 + 4294967296 * f (b / 4294967296) + 18446744073709551616 * R) := by
+  have e : a + 18446744073709551616 * (b + 18446744073709551616 * R) =
+      pack4 (a % 4294967296) (a / 4294967296) (b % 4294967296) (b / 4294967296) R := by
+    unfold pack4; omega
+  obtain ⟨u1, u2, u3, u4, u5⟩ := pack4_unpack (a % 4294967296) (a / 4294967296) (b % 4294967296)
+    (b / 4294967296) R (mod32_lt _) (by omega) (mod32_lt _) (by omega)
+  unfold swRel
+  rw [e, u1, u2, u3, u4, u5]
+  unfold pack4
+  omega
+
+theorem left3_lt' : ∀ v, v < 4294967296 → left3 v < 4294967296 := fun v _ => left3_lt v
+
+/-- The tag-9 relabelling: fields 1, 2 swap; the leaf field is scaled (`left3`). -/
+def rel (w : Nat) : Nat := swRel left3 w
+
+def invRel (w : Nat) : Nat := swRel right3 w
+
+theorem invRel_rel (w : Nat) : invRel (rel w) = w :=
+  swRel_swRel left3 right3 left3_lt' right3_left3 w
+
+theorem rel_injective : Function.Injective rel := by
+  intro a b h
+  have := congrArg invRel h
+  rwa [invRel_rel, invRel_rel] at this
+
+theorem rel_class (w : Nat) : rel w % 65536 = w % 65536 := swRel_class left3 left3_lt' w
+
+end SigGolfCandidate.Ref.LeafScale
+
+namespace SigGolfCandidate.Ref.LeafScale
+open SigGolfCandidate.Legacy
+set_option exponentiation.threshold 1024
+
+theorem rel_lt (w : Nat) (hw : w < 2^512) : rel w < 2^512 := swRel_lt left3 left3_lt' w hw
+
+def queryRel : Query → Query
+  | ⟨0,w⟩ => if w.toNat % 65536 = 2305 then ⟨0,BitVec.ofNat 512 (rel w.toNat)⟩ else ⟨0,w⟩
+  | ⟨n+1,w⟩ => ⟨n+1,w⟩
+
+def queryInv : Query → Query
+  | ⟨0,w⟩ => if w.toNat % 65536 = 2305 then ⟨0,BitVec.ofNat 512 (invRel w.toNat)⟩ else ⟨0,w⟩
+  | ⟨n+1,w⟩ => ⟨n+1,w⟩
+
+theorem queryInv_queryRel : Function.LeftInverse queryInv queryRel := by
+  rintro ⟨n,w⟩
+  cases n with
+  | zero =>
+    by_cases h : w.toNat % 65536 = 2305
+    · have hb := rel_lt _ w.isLt
+      have hc : (BitVec.ofNat 512 (rel w.toNat)).toNat % 65536 = 2305 := by
+        rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hb, rel_class]
+        exact h
+      simp only [queryRel, if_pos h, queryInv, if_pos hc]
+      congr 1
+      apply BitVec.eq_of_toNat_eq
+      simp only [BitVec.toNat_ofNat]
+      rw [Nat.mod_eq_of_lt hb, invRel_rel, Nat.mod_eq_of_lt w.isLt]
+    · simp only [queryRel, if_neg h, queryInv]
+  | succ n => rfl
+
+theorem queryRel_injective : Function.Injective queryRel := queryInv_queryRel.injective
+
+theorem queryRel_blocks (q : Query) : (queryRel q).blocks = q.blocks := by
+  rcases q with ⟨n,w⟩
+  cases n with
+  | zero => simp only [queryRel]; split <;> rfl
+  | succ n => rfl
+
+theorem queryRel_fixed (q : Query) (h : q.2.toNat % 65536 ≠ 2305) : queryRel q = q := by
+  rcases q with ⟨n,w⟩
+  cases n with
+  | zero => exact if_neg h
+  | succ n => rfl
+
+end SigGolfCandidate.Ref.LeafScale
+
 namespace SigGolfCandidate.Ref.Rev
 
 /-- Bit reversal of the low `n` bits: bit `i` of `v` goes to bit `n - 1 - i`. -/
@@ -405,44 +598,21 @@ theorem payloadPerm_lt (w : Nat) (h : w < 2 ^ 512) : payloadPerm w < 2 ^ 512 := 
 
 A one-block query whose first two bytes are `1, 10` (a PORS node input, word-0 low half `2561`)
 has its 32-bit header field (bits `96 .. 128`, the heap index `H`) relabelled by `Rev.efield`
-(32-bit bit reversal, an involution). The class is disjoint from both chain-header classes
+(32-bit bit reversal, an involution) and its fields 1, 2 swapped (`LeafScale.swRel`). The class is disjoint from both chain-header classes
 (`wordPerm` maps every word outside `2561` to a word outside `2561`), so the whole map stays an
 involution. -/
 
-def nodeRel (w : Nat) : Nat :=
-  w % 79228162514264337593543950336 +
-    79228162514264337593543950336 * Rev.efield (w / 79228162514264337593543950336 % 4294967296) +
-    340282366920938463463374607431768211456 * (w / 340282366920938463463374607431768211456)
+def nodeRel (w : Nat) : Nat := LeafScale.swRel Rev.efield w
 
-theorem nodeRel_parts (w : Nat) :
-    nodeRel w % 79228162514264337593543950336 = w % 79228162514264337593543950336 ∧
-    nodeRel w / 79228162514264337593543950336 % 4294967296 =
-      Rev.efield (w / 79228162514264337593543950336 % 4294967296) ∧
-    nodeRel w / 340282366920938463463374607431768211456 = w / 340282366920938463463374607431768211456 := by
-  have he := Rev.efield_lt (w / 79228162514264337593543950336 % 4294967296)
-  norm_num only [Nat.reducePow] at he
-  unfold nodeRel
-  refine ⟨?_, ?_, ?_⟩ <;> omega
+theorem efield_lt' : ∀ v, v < 4294967296 → Rev.efield v < 4294967296 := fun v _ => Rev.efield_lt v
 
-theorem nodeRel_involutive : Function.Involutive nodeRel := by
-  intro w
-  obtain ⟨h1, h2, h3⟩ := nodeRel_parts w
-  have hb : w / 79228162514264337593543950336 % 4294967296 < 2 ^ 32 := by
-    norm_num only [Nat.reducePow]; omega
-  generalize nodeRel w = n at h1 h2 h3 ⊢
-  unfold nodeRel
-  rw [h1, h2, h3, Rev.efield_efield _ hb]
-  omega
+theorem nodeRel_involutive : Function.Involutive nodeRel :=
+  LeafScale.swRel_swRel Rev.efield Rev.efield efield_lt' (fun v h => Rev.efield_efield v h)
 
-theorem nodeRel_lt (w : Nat) (h : w < 2 ^ 512) : nodeRel w < 2 ^ 512 := by
-  have he := Rev.efield_lt (w / 79228162514264337593543950336 % 4294967296)
-  norm_num only [Nat.reducePow] at he h ⊢
-  unfold nodeRel
-  omega
+theorem nodeRel_lt (w : Nat) (h : w < 2 ^ 512) : nodeRel w < 2 ^ 512 :=
+  LeafScale.swRel_lt _ efield_lt' w h
 
-theorem nodeRel_class (w : Nat) : nodeRel w % 65536 = w % 65536 := by
-  have := (nodeRel_parts w).1
-  omega
+theorem nodeRel_class (w : Nat) : nodeRel w % 65536 = w % 65536 := LeafScale.swRel_class _ efield_lt' w
 
 theorem wordPerm_class (w : Nat) (h : w % 65536 ≠ 2561) : wordPerm w % 65536 ≠ 2561 := by
   unfold wordPerm
@@ -484,15 +654,15 @@ theorem fullPerm_of_ne (w : Nat) (h : w % 65536 ≠ 2561) : fullPerm w = payload
 theorem fullPerm_of_eq (w : Nat) (h : w % 65536 = 2561) : fullPerm w = nodeRel w := by
   simp only [fullPerm, if_pos h]
 
-def queryPerm : Query → Query
+def baseQueryPerm : Query → Query
   | ⟨0, w⟩ => ⟨0, BitVec.ofNat 512 (fullPerm w.toNat)⟩
   | ⟨n + 1, w⟩ => ⟨n + 1, w⟩
 
-theorem queryPerm_involutive : Function.Involutive queryPerm := by
+theorem baseQueryPerm_involutive : Function.Involutive baseQueryPerm := by
   rintro ⟨n, w⟩
   cases n with
   | zero =>
-    simp only [queryPerm]
+    simp only [baseQueryPerm]
     congr 1
     apply BitVec.eq_of_toNat_eq
     simp only [BitVec.toNat_ofNat]
@@ -500,10 +670,10 @@ theorem queryPerm_involutive : Function.Involutive queryPerm := by
       Nat.mod_eq_of_lt w.isLt]
   | succ n => rfl
 
-theorem queryPerm_injective : Function.Injective queryPerm :=
-  queryPerm_involutive.injective
+theorem baseQueryPerm_injective : Function.Injective baseQueryPerm :=
+  baseQueryPerm_involutive.injective
 
-theorem queryPerm_blocks (q : Query) : (queryPerm q).blocks = q.blocks := by
+theorem baseQueryPerm_blocks (q : Query) : (baseQueryPerm q).blocks = q.blocks := by
   rcases q with ⟨n, w⟩
   cases n <;> rfl
 
@@ -516,8 +686,8 @@ theorem wordPerm_fixed (w : Nat) (h0 : w % 64 ≠ 0) (h1 : w % 65536 ≠ 257) :
     omega
   simp only [wordPerm, if_neg ho, if_neg hn]
 
-theorem queryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
-    (h1 : q.2.toNat % 65536 ≠ 257) (h2 : q.2.toNat % 65536 ≠ 2561) : queryPerm q = q := by
+theorem baseQueryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
+    (h1 : q.2.toNat % 65536 ≠ 257) (h2 : q.2.toNat % 65536 ≠ 2561) : baseQueryPerm q = q := by
   rcases q with ⟨n, w⟩
   cases n with
   | zero =>
@@ -527,7 +697,7 @@ theorem queryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
     have h1' : w.toNat % 18446744073709551616 % 65536 ≠ 257 := by
       rw [Nat.mod_mod_of_dvd _ (by norm_num : 65536 ∣ 18446744073709551616)]
       exact h1
-    simp only [queryPerm]
+    simp only [baseQueryPerm]
     congr 1
     apply BitVec.eq_of_toNat_eq
     simp only [BitVec.toNat_ofNat, fullPerm_of_ne _ h2, payloadPerm, wordPerm_fixed _ h0' h1']
@@ -546,5 +716,30 @@ theorem old_header (lay treeHigh i mu : Nat) (hl : lay < 7) (ht : treeHigh < 4)
     omega
   rw [wordPerm, if_pos h]
   exact (old_fields lay treeHigh i mu hl ht hi hm).2
+
+end SigGolfCandidate.Ref.AddressFormat
+
+namespace SigGolfCandidate.Ref.AddressFormat
+open SigGolfCandidate.Legacy
+
+/-- Compose the previous chain/node relabelling with a bijection on tag-9 leaf fields. -/
+def queryPerm (q : Query) : Query := LeafScale.queryRel (baseQueryPerm q)
+
+/-- The inverse is needed by the budget layer when decoding formatted query bytes. -/
+def queryInverse (q : Query) : Query := baseQueryPerm (LeafScale.queryInv q)
+
+theorem queryInverse_queryPerm (q : Query) : queryInverse (queryPerm q) = q := by
+  rw [queryInverse, queryPerm, LeafScale.queryInv_queryRel, baseQueryPerm_involutive]
+
+theorem queryPerm_injective : Function.Injective queryPerm :=
+  LeafScale.queryRel_injective.comp baseQueryPerm_injective
+
+theorem queryPerm_blocks (q : Query) : (queryPerm q).blocks = q.blocks := by
+  rw [queryPerm, LeafScale.queryRel_blocks, baseQueryPerm_blocks]
+
+theorem queryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
+    (h1 : q.2.toNat % 65536 ≠ 257) (h2 : q.2.toNat % 65536 ≠ 2561)
+    (h9 : q.2.toNat % 65536 ≠ 2305) : queryPerm q = q := by
+  rw [queryPerm, baseQueryPerm_fixed q h0 h1 h2, LeafScale.queryRel_fixed q h9]
 
 end SigGolfCandidate.Ref.AddressFormat
