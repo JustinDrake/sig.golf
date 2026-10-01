@@ -11,7 +11,7 @@ abbrev ReferenceSelection := Option (Fin encodingAttemptLimit × Encoding)
 
 noncomputable def referenceTableSelection (key : SecretKey) (f : QueryImpl HashSpec Id)
     (position : EncodingPosition) : ReferenceSelection :=
-  FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter =>
+  FirstSuccessTable.select decodeEncodingOutput (fun counter =>
     readCanonicalEncodingRows key.parameter (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f)
       f (position, counter))
 
@@ -31,10 +31,10 @@ theorem referenceTableSelection_joinEncodingTable (key : SecretKey) (inputs : Fi
     (encoding : canonicalEncodingInputs key.parameter → HashOutput) (outside : NonencodingRows key.parameter inputs hencoding)
     (position : EncodingPosition) :
     referenceTableSelection key (finiteHashAnswer ∅ inputs (joinEncodingTable key.parameter inputs hencoding encoding outside))
-      position = FirstSuccessTable.select (decodeEncodingOutput position.lay)
+      position = FirstSuccessTable.select decodeEncodingOutput
         (encoding ∘ referenceCounterCell key.parameter position (outsideGraphMessage key inputs hencoding outside position)) := by
   rw [referenceTableSelection, canonicalGraphLabels_joinEncodingTable _ _ _ _ hencoding hgraph]
-  apply congrArg (FirstSuccessTable.select (decodeEncodingOutput position.lay))
+  apply congrArg (FirstSuccessTable.select decodeEncodingOutput)
   funext counter
   change finiteHashAnswer ∅ inputs (joinEncodingTable key.parameter inputs hencoding encoding outside)
     (encodingRetryInput key.parameter position (outsideGraphMessage key inputs hencoding outside position) counter.val) = _

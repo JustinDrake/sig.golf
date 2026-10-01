@@ -16,7 +16,7 @@ theorem referenceTableSelection_prefix (key : SecretKey) (inputs : Finset HashIn
         auxiliary.selections auxiliary.rows auxiliary.seed))) = auxiliary.selections := by
   funext position
   rw [referenceTableSelection_programmedHash key inputs hencoding]
-  apply FirstSuccessPrefix.select_eq_of_kept (decodeEncodingOutput position.lay)
+  apply FirstSuccessPrefix.select_eq_of_kept decodeEncodingOutput
     (fun counter => auxiliary.rows (position, counter)) _ (auxiliary.selections position)
     (referenceAuxiliarySample_select inputs auxiliary hauxiliary position)
   intro counter hkept

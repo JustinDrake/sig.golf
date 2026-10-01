@@ -117,11 +117,7 @@ theorem evenBound_otsLeaf (parameter : PublicParameter) (lay : Layer) (tree : Tr
   rw [otsLeaf]
   refine evenBound_bind (budget := 1) ?_ fun encoded => ?_
   · rw [encode]
-    change EvenBound (liftM (HashSpec.query (tweakableHashInput parameter
-      (.encoding lay tree leaf) (bytesLE 16 message ++ bytesLE 4 counter))) >>= fun answer =>
-        pure (TargetSum.decodeDigest lay (selectEncodingDigest answer))) 1
-    rw [evenBound_query_bind_iff, length_tweakableHashInput]
-    refine ⟨⟨?_, by decide⟩, fun _ => trivial⟩
+    refine (evenBound_bind (evenBound_tweakableHash _ _ _ ?_) (fun _ => evenBound_pure _ 0) : EvenBound _ (1 + 0))
     simp only [List.length_append, bytesLE, List.length_ofFn]
     decide
   · cases encoded with
@@ -320,11 +316,7 @@ theorem evenBound_otsLeafP (parameter : PublicParameter) (lay : Layer) (tree : T
   rw [otsLeafP]
   refine evenBound_bind (budget := 1) ?_ fun encoded => ?_
   · rw [encode]
-    change EvenBound (liftM (HashSpec.query (tweakableHashInput parameter
-      (.encoding lay tree leaf) (bytesLE 16 message ++ bytesLE 4 counter))) >>= fun answer =>
-        pure (TargetSum.decodeDigest lay (selectEncodingDigest answer))) 1
-    rw [evenBound_query_bind_iff, length_tweakableHashInput]
-    refine ⟨⟨?_, by decide⟩, fun _ => trivial⟩
+    refine (evenBound_bind (evenBound_tweakableHash _ _ _ ?_) (fun _ => evenBound_pure _ 0) : EvenBound _ (1 + 0))
     simp only [List.length_append, bytesLE, List.length_ofFn]
     decide
   · cases encoded with

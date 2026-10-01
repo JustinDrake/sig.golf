@@ -171,9 +171,8 @@ theorem expandLayers_succ (w : List Byte) (idx lay : Nat) (M : Val) :
             | none => pure none
             | some cs => pure (some (cs ++ [c]))) := rfl
 
-/-- Cycles per layer (the search dominates: `2^22` trials of 64 cycles, including the
-encoding-half selector; the remaining allowance covers the chain adapter). -/
-def LW : Nat := 2 ^ 22 * 64 + 18000
+/-- Cycles per layer (the search dominates: `2^22` trials of 40 cycles; the chain adapter adds 8000). -/
+def LW : Nat := 2 ^ 22 * 40 + 18000
 
 /-- **The top layer** (`LAY = 0`): header, search, counter, `halt_ok`. -/
 theorem top_layer (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.getD (2396 + j) 0 = 0) (idx : Nat) (M : Val) (above : List Nat)

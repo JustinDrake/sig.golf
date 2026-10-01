@@ -17,7 +17,7 @@ theorem graphReferenceSample_eq_prefixAuxiliary (parameter : PublicParameter) (i
             auxiliary.selections auxiliary.rows auxiliary.seed)))) := by
   rw [graphReferenceSample_eq_auxiliary]
   simp only [referenceAuxiliarySample, PMF.bind_bind, PMF.map, Function.comp_def, PMF.pure_bind]
-  apply congrArg (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).bind
+  apply congrArg (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).bind
   funext selections
   conv_lhs => enter [2, rows]; rw [PMF.bind_comm]
   rw [PMF.bind_comm]

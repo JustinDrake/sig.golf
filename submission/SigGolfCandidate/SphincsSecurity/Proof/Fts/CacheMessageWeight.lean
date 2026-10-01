@@ -1,7 +1,7 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeUniform
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.JointProbeMessageAnswers
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.JointProbeMessageReserve
+import SigGolfCandidate.SphincsSecurity.Proof.IdealStatement
+import SigGolfCandidate.SphincsSecurity.Proof.IdealStatement
 namespace SphincsSecurity.Concrete
 
 open _root_.OracleComp OracleSpec ENNReal

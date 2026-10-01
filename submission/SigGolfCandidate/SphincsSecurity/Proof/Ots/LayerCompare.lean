@@ -16,16 +16,16 @@ theorem decode_of_eval_encode_eq_some (f : QueryImpl HashSpec Id) (parameter : P
     (counter : Counter) (codeword : Encoding)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leafIdx message counter)
       = some codeword) :
-    OtsCode.decode lay (selectEncodingDigest (f (tweakableHashInput parameter
+    OtsCode.decode (truncateHash (f (tweakableHashInput parameter
       (.encoding lay tree leafIdx) (digestBytes message ++ counterBytes counter))))
         = some codeword := by
-  simpa only [encodeAttempt, evalWithAnswerFn_bind, evalWithAnswerFn_pure, oracleHash, evalWithAnswerFn_query] using hencode
+  simpa only [encodeAttempt, evalWithAnswerFn_bind, evalWithAnswerFn_pure, eval_tweakableHash] using hencode
 
 theorem valid_of_eval_encode_eq_some (f : QueryImpl HashSpec Id) (parameter : PublicParameter)
     (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex) (message : Digest)
     (counter : Counter) (codeword : Encoding)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leafIdx message counter)
-      = some codeword) : OtsCode.Valid lay codeword :=
+      = some codeword) : OtsCode.Valid codeword :=
   OtsCode.decode_valid
     (decode_of_eval_encode_eq_some f parameter lay tree leafIdx message counter codeword hencode)
 

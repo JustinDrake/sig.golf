@@ -6,8 +6,6 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] Finset.univ
 
-variable {lay : Layer}
-
 /-- The chain steps an adversary must invert to turn `reference` into `candidate`. -/
 def backwardWeight (reference candidate : Encoding) : Nat :=
   ∑ index : ChainIndex, ((reference index).val - (candidate index).val)
@@ -34,8 +32,8 @@ private theorem single_of_sum_one (f : ChainIndex → Nat) (hsum : (∑ index, f
   omega
 
 theorem unitNeighbor_of_backwardWeight_one {reference candidate : Encoding}
-    (hreference : Valid lay reference) (hcandidate : Valid lay candidate) (hweight : backwardWeight reference candidate = 1) :
-    ∃ lowered, UnitNeighborAt lay reference candidate lowered := by
+    (hreference : Valid reference) (hcandidate : Valid candidate) (hweight : backwardWeight reference candidate = 1) :
+    ∃ lowered, UnitNeighborAt reference candidate lowered := by
   obtain ⟨lowered, hlower, hothers⟩ := single_of_sum_one (fun index => (reference index).val - (candidate index).val) hweight
   refine ⟨lowered, hreference, hcandidate, ?_, fun index hne => ?_⟩
   · omega
@@ -43,7 +41,7 @@ theorem unitNeighbor_of_backwardWeight_one {reference candidate : Encoding}
     omega
 
 theorem eq_of_backwardWeight_zero {reference candidate : Encoding}
-    (hreference : Valid lay reference) (hcandidate : Valid lay candidate) (hweight : backwardWeight reference candidate = 0) :
+    (hreference : Valid reference) (hcandidate : Valid candidate) (hweight : backwardWeight reference candidate = 0) :
     reference = candidate := by
   apply eq_of_le_of_valid hreference hcandidate
   intro index
@@ -83,8 +81,8 @@ theorem backwardWeight_two_witness {reference candidate : Encoding} (hweight : 2
     omega
 
 /-- Two valid words are equal, unit neighbors, or apart by two backward steps on one chain or one step on each of two chains. -/
-theorem valid_encoding_classification {reference candidate : Encoding} (hreference : Valid lay reference) (hcandidate : Valid lay candidate) :
-    reference = candidate ∨ (∃ lowered, UnitNeighborAt lay reference candidate lowered) ∨
+theorem valid_encoding_classification {reference candidate : Encoding} (hreference : Valid reference) (hcandidate : Valid candidate) :
+    reference = candidate ∨ (∃ lowered, UnitNeighborAt reference candidate lowered) ∨
       (∃ index, (candidate index).val + 2 ≤ (reference index).val) ∨
       ∃ left right, left ≠ right ∧ (candidate left).val < (reference left).val ∧ (candidate right).val < (reference right).val := by
   by_cases hzero : backwardWeight reference candidate = 0
