@@ -114,7 +114,7 @@ def KT : Word := BitVec.ofNat 64 targetSum
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the triple-dispatch constants. -/
 def gkL0 : List (Reg × Word) :=
   baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x2, TMASK),
-    (.x15, TTA5)]
+    (.x15, TTA5), (.x28, 0xA80)]
 
 /-- The layer phase (the same list: W1a keeps no layer-4-only constant). -/
 def gkL : List (Reg × Word) := gkL0

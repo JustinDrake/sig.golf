@@ -38,12 +38,14 @@ def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
 /-- Known registers at the transition start. -/
 def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40201)]
 def aK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, 0x120), (.x27, BitVec.ofNat 64 (hWord (lay + 1) + 256))]
+  gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, 0x120), (.x27, BitVec.ofNat 64 (hWord (lay + 1) + 256)),
+    (.x22, BitVec.ofNat 64 (s6N (lay + 1)))]
 def preK (lay : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay
 
 /-- Known registers after the encoding hash call. -/
 def bK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 256)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)]
+  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 256)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)] ++
+    (if lay = 4 then [] else [(.x22, BitVec.ofNat 64 (s6N (lay + 1)))])
 
 def uEr (lay : Nat) : E :=
   if lay = 0 then .reg .x30 else
@@ -92,7 +94,7 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E : E := .bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 : E := .bin .and (.bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB (lay : Nat) : Nat := if 1 ≤ lay then 25 else 24
+def stepsB (lay : Nat) : Nat := if lay = 4 then 25 else if 1 ≤ lay then 24 else 23
 /-- One REMU costs four cycles rather than one. -/
 def cyclesB (lay : Nat) : Nat := stepsB lay + 3
 
@@ -117,7 +119,8 @@ def specRej2 (lay : Nat) : Spec :=
 chunk 0. -/
 def leafSteps (lay : Nat) : Nat := if lay = 0 then 9 else 8
 
-def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 256))]
+def leafK (lay : Nat) : List (Reg × Word) :=
+  chK0 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 256)), (.x22, BitVec.ofNat 64 (s6N lay))]
 
 def leafTauE (lay : Nat) : E := if lay = 0 then cw 0 else .reg .x30
 
@@ -128,7 +131,7 @@ def specLeaf (lay : Nat) : Spec :=
 
 def leafKeep : List Reg := [.x16, .x17, .x23, .x30, .x31]
 def leafPost (lay : Nat) : List (Reg × Word) :=
-  fk false 0x340 704 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 256))]
+  fk false 0x340 704 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 256)), (.x22, BitVec.ofNat 64 (s6N lay))]
 
 /-! ## Compare -/
 
