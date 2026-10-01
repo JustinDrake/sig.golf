@@ -136,7 +136,7 @@ theorem wbw_frame (bytes : List (BitVec 8)) (s : MachineState) (base : Nat) (hb 
     (s.writeBytesAsWords (BitVec.ofNat 64 base) bytes).getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
   rw [wbw_mem ((bytes.length + 7) / 8) bytes s base (by omega) (by omega) _ hA, if_neg (by omega)]
 
-/-! ## The verifier's data: the leaf header table, a zero word, the masks -/
+/-! ## The verifier's data: the leaf header table, the root tag, the masks -/
 
 theorem flatMap8_length {α : Type} (f : Nat → List α) (hf : ∀ n, (f n).length = 8) :
     ∀ N, ((List.range N).flatMap f).length = 8 * N := by
@@ -166,9 +166,9 @@ theorem flatMap8_slice {α : Type} (f : Nat → List α) (hf : ∀ n, (f n).leng
 def rtBlk (n : Nat) : List (BitVec 8) :=
   (List.range 8).map fun k => BitVec.ofNat 8 ((Ref.Rev.revWord (2 ^ 14 ||| n)).toNat / 256 ^ k)
 
-/-- The data after the leaf header table: a zero word and the two mask words. -/
+/-- The data after the leaf header table: the root tag and the two mask words. -/
 def vdTail : List (BitVec 8) :=
-  [0, 0, 0, 0, 0, 0, 0, 0,
+  [1, 4, 4, 0, 0, 0, 0, 0,
    0xc7, 0x71, 0x1c, 0xc7, 0x71, 0x1c, 0xc7, 0x71, 0x3f, 0xf0, 0x03, 0x3f, 0xf0, 0x03, 0x3f, 0xf0]
 
 theorem vd_eq : Images.verifyData = (List.range 16385).flatMap rtBlk ++ vdTail := rfl
@@ -251,12 +251,15 @@ theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16128) (s : MachineSta
     rw [wbw_frame Images.verifyData blank 0xFDFFE0 (by omega) A (by omega) (Or.inl hA)]
     rfl
   have dataMasks : MaskData withData := by
-    constructor
+    refine ⟨?_, ?_, ?_⟩
     · change withData.getMem (BitVec.ofNat 64 (0xFDFFE0 + 8 * 16386)) = M1w
       rw [wbw_word Images.verifyData blank 0xFDFFE0 (by omega) 16386 (by omega), vd_slice_hi 16386 (by omega)]
       decide +kernel
     · change withData.getMem (BitVec.ofNat 64 (0xFDFFE0 + 8 * 16387)) = M2w
       rw [wbw_word Images.verifyData blank 0xFDFFE0 (by omega) 16387 (by omega), vd_slice_hi 16387 (by omega)]
+      decide +kernel
+    · change withData.getMem (BitVec.ofNat 64 (0xFDFFE0 + 8 * 16385)) = 0x40401
+      rw [wbw_word Images.verifyData blank 0xFDFFE0 (by omega) 16385 (by omega), vd_slice_hi 16385 (by omega)]
       decide +kernel
   have dataRt : RtabData withData := by
     intro n hn
@@ -288,7 +291,8 @@ theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16128) (s : MachineSta
       wbw_frame _ _ _ (by omega) _ (by omega) (by omega)]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · exact ⟨(fr 0xFFFFF0 (by decide) (by decide)).trans dataMasks.1,
-      (fr 0xFFFFF8 (by decide) (by decide)).trans dataMasks.2⟩
+      (fr 0xFFFFF8 (by decide) (by decide)).trans dataMasks.2.1,
+      (fr 0xFFFFE8 (by decide) (by decide)).trans dataMasks.2.2⟩
   · intro p hp
     have hx2 : (s3.setReg .x2 (BitVec.ofNat 64 0xFDFFE0)).getReg .x2 = BitVec.ofNat 64 0xFDFFE0 :=
       MachineState.getReg_setReg_eq (by decide)

@@ -75,11 +75,28 @@ theorem encoding_gateZero (a : BitVec 256) :
   rw [encoding_top2]
   cases h62 : a.getLsbD 62 <;> cases h63 : a.getLsbD 63 <;> simp [h62,h63]
 
+theorem encoding_top9_toNat (a : BitVec 256) :
+    (a.extractLsb' 0 64 >>> 55).toNat = (a.extractLsb' 55 9).toNat := by
+  have h : (a.extractLsb' 0 64 >>> 55).setWidth 9 = a.extractLsb' 55 9 := by
+    rw [BitVec.setWidth_ushiftRight_eq_extractLsb]
+    exact BitVec.extractLsb'_extractLsb'_of_le (by decide)
+  have hl : (a.extractLsb' 0 64 >>> 55).toNat < 2 ^ 9 := by
+    rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+    have := (a.extractLsb' 0 64).isLt
+    omega
+  have ht := congrArg BitVec.toNat h
+  simpa only [BitVec.toNat_setWidth, Nat.mod_eq_of_lt hl] using ht
+theorem encoding_top9_bit63 (a : BitVec 256) :
+    (a.extractLsb' 0 64 >>> 55) >>> 8 = a.extractLsb' 0 64 >>> 63 := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  simp [BitVec.getLsbD_ushiftRight, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm]
+
 /-- The selected pair is AB, BC, or CD, with the explicit padding gate. -/
 theorem encoding_word (a : BitVec 256) (i : Nat) (hi : i < 2) :
     (encodingAnswer a).extractLsb' (64 * i) 64 =
       if a.getLsbD 127 then
-        if a.getLsbD 62 || a.getLsbD 63 then a.extractLsb' (128 + 64 * i) 64
+        if 125 ≤ (a.extractLsb' 55 9).toNat then a.extractLsb' (128 + 64 * i) 64
         else a.extractLsb' (64 * i) 64
       else if a.getLsbD 63 then a.extractLsb' (64 + 64 * i) 64
       else a.extractLsb' (64 * i) 64 := by
@@ -104,21 +121,23 @@ theorem encoding_highBit (a : BitVec 256) :
   simpa only [BitVec.getLsbD_ushiftRight, show (64 + 63 : Nat) = 127 from rfl] using h
 
 def encodingOffset (a : BitVec 256) : Word :=
-  let t := a.extractLsb' 0 64 >>> 62
+  let t := a.extractLsb' 0 64 >>> 55
   let b := a.extractLsb' 64 64 >>> 63
-  ((((if (0#64).ult t then (1 : Word) else 0) * b) <<< 1) |||
-    ((t >>> 1) * (b ^^^ 1))) <<< 3
+  (((((if t.ult 125 then (1 : Word) else 0) ^^^ 1) * b) <<< 1) |||
+    ((t >>> 8) * (b ^^^ 1))) <<< 3
 
 theorem encodingOffset_eq (a : BitVec 256) :
     encodingOffset a = if a.getLsbD 127 then
-      (if a.getLsbD 62 || a.getLsbD 63 then 16 else 0)
+      (if 125 ≤ (a.extractLsb' 55 9).toNat then 16 else 0)
       else if a.getLsbD 63 then 8 else 0 := by
-  unfold encodingOffset
-  rw [encoding_top2, encoding_highBit]
-  cases h62 : a.getLsbD 62 <;> cases h63 : a.getLsbD 63 <;> cases h127 : a.getLsbD 127 <;>
-    simp [h62,h63,h127]
+  dsimp only [encodingOffset]
+  rw [encoding_top9_bit63, encoding_bit63, encoding_highBit]
+  simp only [BitVec.ult, encoding_top9_toNat]
+  cases h63 : a.getLsbD 63 <;> cases h127 : a.getLsbD 127 <;>
+    by_cases hg : 125 ≤ a.toNat >>> 55 % 512 <;>
+    simp [h63, h127, hg, show a.toNat >>> 55 % 512 < 125 ↔ ¬125 ≤ a.toNat >>> 55 % 512 by omega]
 
-/-- Fixed branchless selector: sixteen instructions and twenty-two cycles, including caller. -/
+/-- Fixed branchless selector: seventeen instructions and twenty-three cycles, including caller. -/
 theorem encodingSelect_steps {img : Image}
     (hc351 : CodeAt img (pcOf 351) seg351)
     (hc1800 : CodeAt img (pcOf 1800) seg1800)
@@ -127,7 +146,7 @@ theorem encodingSelect_steps {img : Image}
     (w1 : s.getMem 328 = a.extractLsb' 64 64)
     (w2 : s.getMem 336 = a.extractLsb' 128 64)
     (w3 : s.getMem 344 = a.extractLsb' 192 64) :
-    ∃ t, Steps img s 16 22 t ∧ t.pc = pcOf 353 ∧
+    ∃ t, Steps img s 17 23 t ∧ t.pc = pcOf 353 ∧
       t.getReg .x1 = (encodingAnswer a).extractLsb' 0 64 ∧
       t.getReg .x2 = (encodingAnswer a).extractLsb' 64 64 ∧
       RegsEq s t [.x1, .x2, .x3] ∧ Frame s t (fun _ => False) := by
@@ -144,8 +163,9 @@ theorem encodingSelect_steps {img : Image}
     change accessValid (encodingOffset a + 328#64) 8 = true ∧
       accessValid (encodingOffset a + 320#64) 8 = true
     rw [encodingOffset_eq]
-    cases h127 : a.getLsbD 127 <;> cases h63 : a.getLsbD 63 <;> cases h62 : a.getLsbD 62 <;>
-      simp [h127,h63,h62,accessValid,rangeValid,MEMORY_BYTES])
+    cases h127 : a.getLsbD 127 <;> cases h63 : a.getLsbD 63 <;>
+      by_cases hg : 125 ≤ a.toNat >>> 55 % 512 <;>
+      simp [h127,h63,hg,accessValid,rangeValid,MEMORY_BYTES])
   refine ⟨blk1800.res.toState u, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · exact (hjump.trans hstub).of_eq rfl rfl
   · simp only [blk1800.res, rv_simp]
@@ -156,8 +176,9 @@ theorem encodingSelect_steps {img : Image}
     simp only [h0,h1]
     change u.getMem (encodingOffset a + 320#64) = _
     rw [encodingOffset_eq]
-    cases h127 : a.getLsbD 127 <;> cases h63 : a.getLsbD 63 <;> cases h62 : a.getLsbD 62 <;>
-      simp [h127,h63,h62,h0,h1,h2,h3]
+    cases h127 : a.getLsbD 127 <;> cases h63 : a.getLsbD 63 <;>
+      by_cases hg : 125 ≤ a.toNat >>> 55 % 512 <;>
+      simp [h127,h63,hg,h0,h1,h2,h3]
   · have hw := encoding_word a 1 (by decide)
     simp only [Nat.mul_one,Nat.reduceAdd] at hw
     rw [hw]
@@ -165,8 +186,9 @@ theorem encodingSelect_steps {img : Image}
     simp only [h0,h1]
     change u.getMem (encodingOffset a + 328#64) = _
     rw [encodingOffset_eq]
-    cases h127 : a.getLsbD 127 <;> cases h63 : a.getLsbD 63 <;> cases h62 : a.getLsbD 62 <;>
-      simp [h127,h63,h62,h0,h1,h2,h3]
+    cases h127 : a.getLsbD 127 <;> cases h63 : a.getLsbD 63 <;>
+      by_cases hg : 125 ≤ a.toNat >>> 55 % 512 <;>
+      simp [h127,h63,hg,h0,h1,h2,h3]
   · intro r hr
     simp only [Result.toState_getReg,u]
     cases r <;> first | exact absurd (by decide) hr | rfl
@@ -223,8 +245,7 @@ def swarState (t : MachineState) : MachineState :=
 
 theorem swarState_pc_raw (t : MachineState) : (swarState t).pc =
     if (swarW (t.getReg .x1) (t.getReg .x2) (t.getReg .x26) (t.getReg .x27) +
-        BitVec.ofNat 64 (2 ^ 64 - 185) +
-        (if (t.getReg .x8).ult 1 then (1 : Word) else 0) != 0#64) = true then pcOf 377 else pcOf 376 := by
+        BitVec.ofNat 64 (2 ^ 64 - 185) != 0#64) = true then pcOf 377 else pcOf 376 := by
   simp only [swarState, blk375.res, blk1816.res, blk355.res, rv_simp,
     swarW, swF, swS1, BitVec.sub_eq_add_neg]
   rfl
@@ -289,7 +310,7 @@ theorem swar_check (lay a b : Nat) (ha : a < 2 ^ 63) (hb : b < 2 ^ 63) :
   have hle := digits_sum_le a b
   generalize swarW (BitVec.ofNat 64 a) (BitVec.ofNat 64 b) swM1 swM2 = w at h
   have ht : targetFor lay = 184 ∨ targetFor lay = 185 := by
-    unfold targetFor targetSum; split_ifs <;> omega
+    simp [targetFor, targetSum]
   have hc : (BitVec.ofNat 64 (2 ^ 64 - targetFor lay)).toNat = 2 ^ 64 - targetFor lay := by
     rcases ht with h | h <;> rw [h] <;> rfl
   by_cases hs : (digitsOfWord a ++ digitsOfWord b).sum = targetFor lay
@@ -453,7 +474,7 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
   rw [encodingBytes, decodeDigits_answer]
   have hsB := symRun_sound blk353 hcode.c353 tsel pcsel (by simp only [blk353.res, rv_simp])
   set t3 := blk353.res.toState tsel with ht3
-  have hs3 : Steps img t2 18 24 t3 := (hsel.trans hsB).of_eq rfl rfl
+  have hs3 : Steps img t2 19 25 t3 := (hsel.trans hsB).of_eq rfl rfl
   have fB : Frame tsel t3 (fun _ => False) := by
     apply frame_toState; intro x hx hW; simp [blk353.res]
   have f3 : Frame t2 t3 (fun _ => False) := (fsel.trans fB).mono (by simp)
@@ -494,7 +515,7 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
     (by simp only [blk355.res, rv_simp]) (by simp only [blk1816.res, rv_simp])
   have hs52 := symRun_sound blk375 hcode.c375 (blk1816.res.toState (blk355.res.toState t3))
     (by simp only [blk1816.res, rv_simp]) (by simp only [blk375.res, rv_simp])
-  have hs5 : Steps img t3 25 25 (swarState t3) := hs50.trans (hs51.trans hs52)
+  have hs5 : Steps img t3 23 23 (swarState t3) := hs50.trans (hs51.trans hs52)
   set t5 := swarState t3 with ht5
   have f50 : Frame t3 (blk355.res.toState t3) (fun _ => False) := by
     apply frame_toState; intro x hx hW; simp [blk355.res]
@@ -514,15 +535,10 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
     intro x hx; rcases hx with h | h; exact h; exact h.elim)
   have ru5 : RegsEq u t5 encRegs := (ru3.trans r5).mono (by decide)
   have pc5 : t5.pc = if (digitsOfWord d0 ++ digitsOfWord d1).sum = targetFor lay then pcOf 376 else pcOf 377 := by
-    have hx8 : t3.getReg .x8 = BitVec.ofNat 64 lay := by rw [ru3.get .x8, hmem.x8]
-    have htarget : BitVec.ofNat 64 (2 ^ 64 - 185) +
-        (if (BitVec.ofNat 64 lay).ult 1 then (1 : Word) else 0) =
-        BitVec.ofNat 64 (2 ^ 64 - targetFor lay) := by
-      have hl := hmem.hlay
-      interval_cases lay <;> decide
-    rw [ht5, swarState_pc_raw, y1, y2, ru3.get .x26, hmem.x26, ru3.get .x27, hmem.x27, hx8]
-    simp only [BitVec.add_assoc] at htarget ⊢
-    rw [htarget, swar_check lay d0 d1 h0 h1]
+    rw [ht5, swarState_pc_raw, y1, y2, ru3.get .x26, hmem.x26, ru3.get .x27, hmem.x27]
+    change (if (swarW (BitVec.ofNat 64 d0) (BitVec.ofNat 64 d1) swM1 swM2 +
+      BitVec.ofNat 64 (2 ^ 64 - targetFor lay) != 0#64) = true then pcOf 377 else pcOf 376) = _
+    rw [swar_check lay d0 d1 h0 h1]
     by_cases h : (digitsOfWord d0 ++ digitsOfWord d1).sum = targetFor lay
     · rw [if_pos h, if_neg (by rw [decide_eq_true h]; decide)]
     · rw [if_neg h, if_pos (by rw [decide_eq_false h]; rfl)]

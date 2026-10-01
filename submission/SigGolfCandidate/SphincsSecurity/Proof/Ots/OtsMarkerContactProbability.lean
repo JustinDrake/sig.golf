@@ -62,10 +62,10 @@ theorem referenceContactGame_markerContact_shared_bound (dummy : OtsReferenceWor
     ((1 - (budget : ENNReal) / Fintype.card Digest) * (Fintype.card Digest : ENNReal)) *
       Pr[fun result => result.2.2.MarkerContact result.1 (referenceFamilyWords result.2.1 dummy) |
         referenceContactGame (canonicalGraphGameInputs adversary) (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] ≤
-      ((2 * ((15 / 8 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * ((budget : ENNReal) / Fintype.card Digest)) * (∑' result,
+      ((2 * ((1923 / 1024 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * ((budget : ENNReal) / Fintype.card Digest)) * (∑' result,
         Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary) (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] *
           (result.prefixCalls dummy : ENNReal)) +
-      ((2 * ((15 / 8 : ENNReal) * (OtsCode.neighborBound : ENNReal))) * ((budget : ENNReal) / Fintype.card Digest)) * (∑' result,
+      ((2 * ((1923 / 1024 : ENNReal) * (OtsCode.neighborBound : ENNReal))) * ((budget : ENNReal) / Fintype.card Digest)) * (∑' result,
         Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary) (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] *
           (result.encodingCalls : ENNReal)) := by
   have h := mul_le_mul' (le_refl ((1 - (budget : ENNReal) / Fintype.card Digest) * (Fintype.card Digest : ENNReal)))
@@ -79,10 +79,10 @@ theorem referenceContactGame_markerContact_le (dummy : OtsReferenceWords) (adver
     (hprefix : PrefixBudget dummy adversary budget) (hcontact : ContactBudget dummy adversary budget) (hsmall : budget < Fintype.card Digest) :
     Pr[fun result => result.2.2.MarkerContact result.1 (referenceFamilyWords result.2.1 dummy) |
       referenceContactGame (canonicalGraphGameInputs adversary) (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] ≤
-      (((2 * ((15 / 8 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * ((budget : ENNReal) / Fintype.card Digest)) * (∑' result,
+      (((2 * ((1923 / 1024 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * ((budget : ENNReal) / Fintype.card Digest)) * (∑' result,
         Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary) (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] *
           (result.prefixCalls dummy : ENNReal)) +
-       ((2 * ((15 / 8 : ENNReal) * (OtsCode.neighborBound : ENNReal))) * ((budget : ENNReal) / Fintype.card Digest)) * (∑' result,
+       ((2 * ((1923 / 1024 : ENNReal) * (OtsCode.neighborBound : ENNReal))) * ((budget : ENNReal) / Fintype.card Digest)) * (∑' result,
         Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary) (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] *
           (result.encodingCalls : ENNReal))) /
         ((1 - (budget : ENNReal) / Fintype.card Digest) * (Fintype.card Digest : ENNReal)) := by
