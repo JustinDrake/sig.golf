@@ -9,7 +9,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 set_option maxRecDepth 16384
 
 /-- instructions 0 .. 13 (start): lui gp, 0x1; addi gp, gp, -1023; sd gp, 32(zero); sd zero, 40(zero); lui s9, 0x25; addi s9, s9, -1280 ... -/
-def seg0 : List (BitVec 32) := [0x000011b7#32, 0xc0118193#32, 0x02303023#32, 0x02003423#32, 0x00025cb7#32, 0xb00c8c93#32, 0x000cb083#32, 0x008cb103#32, 0x02103823#32, 0x02203c23#32, 0x02000513#32, 0x04000593#32, 0x16000613#32, 0x00000073#32]
+def seg0 : List (BitVec 32) := [0x000011b7#32, 0xc0118193#32, 0x00303023#32, 0x00003423#32, 0x00025cb7#32, 0xb00c8c93#32, 0x000cb083#32, 0x008cb103#32, 0x00103823#32, 0x00203c23#32, 0x00000513#32, 0x04000593#32, 0x16000613#32, 0x00000073#32]
 /-- instructions 14 .. 17: lui tp, 0x400; sd tp, 1880(zero); li s0, 0; li a6, 34 -/
 def seg14 : List (BitVec 32) := [0x00400237#32, 0x74403c23#32, 0x00000413#32, 0x02200813#32]
 /-- instructions 18 .. 24 (da_ext): srli a3, a6, 6; slli a3, a3, 3; ld s1, 352(a3); srl s1, s1, a6; andi tp, a6, 0x3f; li a7, 50 ... -/
