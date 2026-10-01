@@ -119,6 +119,10 @@ theorem targetFor_le (lay : Nat) : targetFor lay ≤ 186 := by
   unfold targetFor SigGolfCandidate.Ref.targetFor targetSum
   split_ifs <;> omega
 
+/-- The pre-mask of the PORS selector bytes (`0x78` in every byte): the verifier's first data word,
+at the data base `0xFDFFB0`. -/
+def PMASK : Word := 0x7878787878787878#64
+
 /-- The verifier's embedded mask words. -/
 def MaskData (s : MachineState) : Prop :=
   s.getMem (BitVec.ofNat 64 0xFFFFF0) = M1w ∧
@@ -126,12 +130,13 @@ def MaskData (s : MachineState) : Prop :=
   s.getMem (BitVec.ofNat 64 0xFDFFC0) = 0x40401#64 ∧
   s.getMem (BitVec.ofNat 64 0xFDFFC8) = 0x3fe00#64 ∧
   s.getMem (BitVec.ofNat 64 0xFDFFD0) = M1w ∧
-  s.getMem (BitVec.ofNat 64 0xFDFFD8) = M2w
+  s.getMem (BitVec.ofNat 64 0xFDFFD8) = M2w ∧
+  s.getMem (BitVec.ofNat 64 0xFDFFB0) = PMASK
 
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
 def gkL0 : List (Reg × Word) :=
   baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x2, TMASK),
-    (.x15, TTA5), (.x4, 0x1000000000000000)]
+    (.x15, TTA5)]
 
 /-- The layer phase (the same list: W1a keeps no layer-4-only constant). -/
 def gkL : List (Reg × Word) := gkL0

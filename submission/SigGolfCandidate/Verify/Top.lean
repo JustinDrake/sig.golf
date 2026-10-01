@@ -27,7 +27,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     (stk : List (Val × Nat)) (m : MachineState) (h : TailIn P s0 14 x 2 c ptr E folds node stk m) :
     ((folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧
         fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 13 13 u ∧
+    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 12 12 u ∧
         LayerIn ⟨P.wl, P.pk, 4, P.idx⟩ node u) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
   have hE := h.hE
@@ -131,7 +131,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       rw [hu.regs (.x21, ldE 0xFDFFD8) (by simp [tailFSpec])]
       change m.getMem (BitVec.ofNat 64 0xFDFFD8) = M2w
       rw [h.pb.prot (by simp [protP])]
-      exact h.pb.s0ok.masks.2.2.2.2.2
+      exact h.pb.s0ok.masks.2.2.2.2.2.1
     have htag : u.getReg .x27 = 0x40401#64 := by
       rw [hu.regs (.x27, ldE 0xFDFFC0) (by simp [tailFSpec])]
       change m.getMem (BitVec.ofNat 64 0xFDFFC0) = 0x40401#64
@@ -145,7 +145,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hregs : KnownOK gkL0 u := by
       intro p hp
       simp only [gkL0, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact hg0.1 p (by simp [rootK, hp])
       · exact hm1
       · exact hm2
@@ -178,8 +178,10 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
 
 /-- Universal accepting-run bound. Scaled PIND byte offsets remove one instruction from
 all fifteen leaf headers. The tag-9 address-field rotation is an injective query relabel;
-Final.Discharge supplies the additional universal structural credit. Sparse cap initialization adds one instruction. This is a proof bound. -/
-def cycleBound : Nat := 10287
+Final.Discharge supplies the additional universal structural credit. Sparse cap initialization adds one instruction.
+The setup pre-masks the two selector words (7 instructions) and the 15 leaf heads drop their `andi`
+(`-8` in total). This is a proof bound. -/
+def cycleBound : Nat := 10279
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
 def cycleBoundAll : Nat := 16858
@@ -190,8 +192,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7478 := by decide
-theorem layC_val : layC = 7478 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7483 := by decide
+theorem layC_val : layC = 7483 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -225,7 +227,7 @@ theorem Kr_none (P : PCtx) : Kr P none = pure (false, 0) := by
 
 theorem root_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (x c : Nat) (st : PorsState)
     (u : MachineState) (hT : TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u) :
-    GoodQ u (13 + layC + layN) (13 + layC) (st.folds ≤ 117) (13 + layC) (Kr P (some st)) := by
+    GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 117) (12 + layC) (Kr P (some st)) := by
   obtain ⟨hrej, hacc⟩ := tailF_step P hP s0 x c st.ptr st.E st.folds st.node st.stack u hT
   have hL : layC = layersCost 5 := layC_val.trans layersCost_val.symm
   by_cases hc : st.folds > porsM ∨ st.E ≠ 1 ∨ st.stack ≠ []
@@ -249,7 +251,7 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
       (cc (porsRoot P.idx P.v P.wl) (Klay P)) := by
   have hr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (13 + layC + layN) (13 + layC) (st.folds ≤ 117) (13 + layC) (Kr P (some st)) :=
+      GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 117) (12 + layC) (Kr P (some st)) :=
     fun x c st u hT => root_good P hP s0 x c st u hT
   have hg0 := leaves_good P hP s0 (Kr P) (Kr_none P) hr
   have hg := hg0 15 0 ⟨wStream, 0, 0, 0, [], []⟩ s0 (by rfl) h
@@ -266,11 +268,11 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
 
 theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 1 := rfl
 
-theorem lrest_0 : lrest 0 = 171 := by decide
+theorem lrest_0 : lrest 0 = 157 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7759 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2671 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7759 + layC + layN := by
-  have h0 : leafCost 0 = 11 := rfl
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7743 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2655 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7743 + layC + layN := by
+  have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 
 theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.length = 16)
@@ -290,8 +292,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (92 + (leafCost 0 + Nseg 0 0)) (92 + (leafCost 0 + Cseg 0 0)) True
-        (92 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (99 + (leafCost 0 + Nseg 0 0)) (99 + (leafCost 0 + Cseg 0 0)) True
+        (99 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with

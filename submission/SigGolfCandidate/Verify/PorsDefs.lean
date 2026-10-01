@@ -59,6 +59,8 @@ structure S0 (P : PCtx) (s0 : MachineState) : Prop where
   pind : ∀ r, r < 16 → s0.getMem (BitVec.ofNat 64 (PIND + 8 * r)) =
     BitVec.ofNat 64 (8 * (P.v ++ [porsT]).getD r 0)
   rtab : RtabData s0
+  /-- The pre-masked selector words (the setup's last two stores). -/
+  pmask : ∀ k, k < 2 → s0.getMem (BitVec.ofNat 64 (PMS + 8 * k)) = w64 (slice P.wl (2304 + 8 * k) 8) &&& PMASK
 
 /-- Common part of the PORS boundaries: constant registers (`x20` = the leaf's table), the frame
 relative to `s0`, the facts at `s0`, `x22 = idx`. -/
