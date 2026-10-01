@@ -133,7 +133,7 @@ theorem pleaf_tail (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
     congrArg (· + 1) (words_th16 9 0 idx 0 j s hs).1
   refine (Sim.steps hs1 (Sim.hash16_bind (W := 2) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by omega) (by omega)
-      (by norm_num)) hq (addrFmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
+      (by norm_num)) hq (fmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
   set t2 := writeHash t1 a with ht2
   have f2 : Frame t1 t2 (fun x => 0x30000 + 16 * j ≤ x ∧ x < 0x30000 + 16 * j + 32) :=
     frame_writeHash t1 a _ x12 (by omega)
@@ -425,7 +425,7 @@ theorem pleaf_pair (S : List Byte) (hS : S.length = 32) (idx : Nat) (L : List Na
     simp [pad64, Query.blocks, (words_porsPrfInput S hS idx q).1]
   refine (Sim.steps hs0 (Sim.steps hs2 (Sim.query_bind (W := 30 + (2 + 30)) e2 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) (hq'.trans (addrFmt_thInput _ _ _ _ _ _ (by decide)).symm) (fun a => ?_)))).mono
+      (by norm_num)) (hq'.trans (fmt_thInput _ _ _ _ _ _ (by decide)).symm) (fun a => ?_)))).mono
     (by rw [show porsPrfInput S idx q = thInput (tweak 8 0 idx 0 q) S from rfl] at *
         rw [blocks_fmt_th _ _ _ _ _ _ (by decide)]; rw [hb]; norm_num)
     (fun _ _ h => h)
