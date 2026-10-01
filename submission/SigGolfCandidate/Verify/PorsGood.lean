@@ -216,7 +216,7 @@ def layN : Nat := 5000 * 5 + 9
 on the layer modules; `Top.layC_val` proves the equality). Irreducible, so that unification never
 evaluates it. -/
 @[irreducible] def layC : Nat := 7478
-def leafCost (s : Nat) : Nat := if s = 0 then 11 else if s = 14 then 15 else 12
+def leafCost (s : Nat) : Nat := if s = 0 then 10 else if s = 14 then 14 else 11
 def lrest (s : Nat) : Nat := ((List.range' (s + 1) (14 - s)).map leafCost).sum
 def segR (s d : Nat) : Nat := 29 - 2 * s + d
 
@@ -239,7 +239,7 @@ def NtailM (s d : Nat) : Nat := CtailM s d + layN
 
 theorem lrest_succ : ∀ s, s < 14 → lrest s = leafCost (s + 1) + lrest (s + 1) := by decide
 theorem lrest_14 : lrest 14 = 0 := rfl
-theorem leafCost_le (s : Nat) : 11 ≤ leafCost s ∧ leafCost s ≤ 15 := by unfold leafCost; split_ifs <;> omega
+theorem leafCost_le (s : Nat) : 10 ≤ leafCost s ∧ leafCost s ≤ 14 := by unfold leafCost; split_ifs <;> omega
 
 /-! ## The segments of a leaf -/
 
@@ -355,7 +355,7 @@ theorem segLoop_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat)
 
 /-! ## The leaves -/
 
-theorem leafCost_eq (s : Nat) : (if s = 0 then 11 else if s = 14 then 15 else 12) = leafCost s := rfl
+theorem leafCost_eq (s : Nat) : (if s = 0 then 10 else if s = 14 then 14 else 11) = leafCost s := rfl
 
 theorem leaves_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
     (Kr : Option PorsState → OracleComp HashSpec Obs) (hnone : Kr none = pure (false, 0))

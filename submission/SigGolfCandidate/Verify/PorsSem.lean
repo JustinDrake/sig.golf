@@ -17,6 +17,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 /-! ## Generic helpers -/
 
 theorem protP_pind : ∀ r, r < 16 → PIND + 8 * r ∈ protP := by decide
+theorem protP_pms : ∀ k, k < 2 → PMS + 8 * k ∈ protP := by decide
 theorem protP_blk : ∀ i, i < 14 → PSB + 80 * i ∈ protP ∧ PSB + 80 * i + 16 ∈ protP ∧
     PSB + 80 * i + 24 ∈ protP := by decide
 theorem halfP_blk : ∀ i, i < 14 → PSB + 80 * i + 8 ∈ halfP := by decide
@@ -211,16 +212,36 @@ theorem land0x78 (b : Nat) (_hb : b < 256) : b &&& 0x78 = 8 * (b / 8 % 16) := by
     · simp [h1, h2, show ¬ (j - 3 < 4) by omega]
   · simp [h1]
 
+theorem and_div_mod_two_pow (A B n m : Nat) :
+    (A &&& B) / 2 ^ n % 2 ^ m = (A / 2 ^ n % 2 ^ m) &&& (B / 2 ^ n % 2 ^ m) := by
+  apply Nat.eq_of_testBit_eq
+  intro j
+  simp only [Nat.testBit_mod_two_pow, Nat.testBit_div_two_pow, Nat.testBit_and]
+  cases Nat.testBit A (j + n) <;> cases Nat.testBit B (j + n) <;> cases decide (j < m) <;> rfl
+
+/-- A byte of a word masked with `PMASK` is the byte masked with `0x78`. -/
+theorem pmask_byte (W : Word) (k : Nat) (hk : k < 8) :
+    (LoadKind.bu.fromWord (W &&& PMASK) k).toNat = (LoadKind.bu.fromWord W k).toNat &&& 0x78 := by
+  have hM : ∀ k, k < 8 → (0x7878787878787878 : Nat) / 2 ^ (k * 8) % 2 ^ 8 = 0x78 := by decide
+  simp only [LoadKind.fromWord, extractByte, BitVec.truncate_eq_setWidth, BitVec.toNat_setWidth,
+    BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow, BitVec.toNat_and]
+  have hP : PMASK.toNat = 0x7878787878787878 := rfl
+  rw [hP, and_div_mod_two_pow, hM k hk]
+  have h1 : W.toNat / 2 ^ (k * 8) % 2 ^ 8 < 2 ^ 64 := lt_trans (Nat.mod_lt _ (by decide)) (by decide)
+  rw [Nat.mod_eq_of_lt h1, Nat.mod_eq_of_lt (lt_of_le_of_lt Nat.and_le_right (by decide))]
+
 theorem piT_eval {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (s : Nat) (hs : s < 15) :
     (piT s).eval m = BitVec.ofNat 64 (8 * (witPi P.wl s / 8 % 16)) := by
-  have hb := wit_byte h.wit (2304 + s) (by omega)
+  have hp : m.getMem (BitVec.ofNat 64 (PMS + 8 * (s / 8))) =
+      w64 (slice P.wl (2304 + 8 * (s / 8)) 8) &&& PMASK :=
+    (h.prot (protP_pms _ (by omega))).trans (h.s0ok.pmask _ (by omega))
   apply BitVec.eq_of_toNat_eq
-  show ((LoadKind.bu.fromWord (m.getMem (BitVec.ofNat 64 (0x800 + (2304 + s) / 8 * 8))) ((2304 + s) % 8)) &&&
-    BitVec.ofNat 64 0x78).toNat = _
-  rw [BitVec.toNat_and, hb]
-  have hw : wbyte P.wl (2304 + s) = witPi P.wl s := rfl
-  rw [hw, ofNat_toNat_lt _ (by decide), land0x78 _ (by unfold witPi; exact (P.wl.getD _ 0).isLt),
-    ofNat_toNat_lt _ (by omega)]
+  show (LoadKind.bu.fromWord (m.getMem (BitVec.ofNat 64 (PMS + 8 * (s / 8)))) (s % 8)).toNat = _
+  rw [hp, pmask_byte _ _ (Nat.mod_lt _ (by decide)), bu_w64 _ _ (by simp [slice]),
+    getD_slice _ _ _ (Nat.mod_lt _ (by decide))]
+  have hw : (P.wl.getD (2304 + 8 * (s / 8) + s % 8) 0).toNat = witPi P.wl s := by
+    unfold witPi; congr 2; unfold wPi; omega
+  rw [hw, land0x78 _ (by unfold witPi; exact (P.wl.getD _ 0).isLt), ofNat_toNat_lt _ (by omega)]
 
 theorem xE_eval {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (s : Nat) (hs : s < 15) :
     (xE s).eval m = BitVec.ofNat 64 (8 * leafX P s) := by
@@ -321,8 +342,8 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
       ∃ u k, k ≤ 11 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (¬ ((s ≠ 0 ∧ ¬ st.prev < leafX P s) ∨ (s = porsK - 1 ∧ ¬ leafX P s < porsT)) →
-      ∃ u, Steps image m (if s = 0 then 11 else if s = 14 then 15 else 12)
-        (if s = 0 then 11 else if s = 14 then 15 else 12) u ∧
+      ∃ u, Steps image m (if s = 0 then 10 else if s = 14 then 14 else 11)
+        (if s = 0 then 10 else if s = 14 then 14 else 11) u ∧
         DispIn P s0 s (leafX P s) s st.ptr (porsT ||| leafX P s) st.folds
           (.leaf (leafX P s) (witSecret P.wl s)) st.node st.stack u) := by
   have hs : s < 15 := h.bnd.1
