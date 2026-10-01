@@ -31,13 +31,11 @@ attribute [local reducible] SphincsSecurity.hashOutputBits SphincsSecurity.diges
 /-! ## The counter search -/
 
 theorem hash16_enc (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : Digest) (c : Nat) :
-    Ref.encodingHash (Ref.encInput lay tree leaf (dv M) c) =
-      (fun a => dv (SphincsSecurity.selectEncodingDigest a)) <$>
-        relabel fmtQ (SphincsSecurity.Concrete.oracleHash (m := AComp)
-          (SphincsSecurity.tweakableHashInput 0 (.encoding lay tree leaf)
-            (SphincsSecurity.bytesLE 16 M ++ SphincsSecurity.bytesLE 4 (BitVec.ofNat SphincsSecurity.counterBits c)))) := by
-  rw [encodingHash_eq, relabel_oracleHash]
-  apply congrArg (fun y => (fun a : BitVec 256 => dv (SphincsSecurity.selectEncodingDigest a)) <$> Ref.H y)
+    Ref.hash16 (Ref.encInput lay tree leaf (dv M) c) =
+      dv <$> relabel fmtQ (SphincsSecurity.Concrete.tweakableHash (m := AComp) 0
+        (.encoding lay tree leaf)
+        (SphincsSecurity.bytesLE 16 M ++ SphincsSecurity.bytesLE 4 (BitVec.ofNat SphincsSecurity.counterBits c))) := by
+  apply hash16_tweakable
   rw [toB_tweakableHashInput]
   simp only [SphincsSecurity.tweakBytes, SphincsSecurity.hashDomainFields, toB_tweakFields,
     toB_append, toB_dv, Ref.encInput, Ref.thInput, List.append_assoc]
@@ -58,7 +56,7 @@ theorem searchCounter_eq (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M 
     simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_
     rw [decodeDigits_dv]
-    cases hd : SphincsSecurity.TargetSum.decodeDigest lay (SphincsSecurity.selectEncodingDigest d) with
+    cases hd : SphincsSecurity.TargetSum.decodeDigest d with
     | none =>
       simp only [Option.map_none]
       rw [ih (c + 1) (by omega)]

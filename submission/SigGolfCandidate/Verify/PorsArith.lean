@@ -9,61 +9,6 @@ set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref
 
-theorem prefixN_le (a : Nat) : prefixN a ≤ 2 := by
-  unfold prefixN; split_ifs <;> omega
-
-theorem prefixN_lt (a : Nat) (ha : 0 < a) : prefixN a < a := by
-  unfold prefixN; split_ifs <;> omega
-
-theorem prefix_tag_slot (a i E bits : Nat) (hi : i ≤ prefixN a)
-    (h : E % 2^(3-i) = bits / 2^i) : E % 2 = bits / 2^i % 2 := by
-  have hn := prefixN_le a
-  have hib : i ≤ 2 := by omega
-  interval_cases i <;> norm_num at * <;> omega
-
-theorem prefix_tag_next (a i E bits : Nat) (hi : i < prefixN a)
-    (h : E % 2^(3-i) = bits / 2^i) :
-    E / 2 % 2^(3-(i+1)) = bits / 2^(i+1) := by
-  have hn := prefixN_le a
-  have hib : i ≤ 2 := by omega
-  interval_cases i <;> norm_num at * <;> omega
-
-theorem prefix_tag_next_slot (a i E bits : Nat) (hi : i < prefixN a)
-    (h : E % 2^(3-i) = bits / 2^i) : E / 2 % 2 = bits / 2^(i+1) % 2 := by
-  exact prefix_tag_slot a (i+1) (E/2) bits (by omega) (prefix_tag_next a i E bits hi h)
-
-theorem foldBudget_step : ∀ V : Fin 3, ∀ a : Fin 15, ∀ i : Fin 15, i.val < a.val →
-    foldBudget V.val a.val i.val = posCycles V.val a.val i.val + 8 + foldBudget V.val a.val (i.val+1) := by
-  decide +kernel
-
-theorem posCycles_le : ∀ V : Fin 3, ∀ a : Fin 15, ∀ i : Fin 15, i.val < a.val → posCycles V.val a.val i.val ≤ 10 := by
-  decide +kernel
-
-theorem foldBudget_start : ∀ V : Fin 3, ∀ a : Fin 15, 0 < a.val →
-    foldBudget V.val a.val 0 = 16*a.val-1-(if 3 ≤ a.val then 1 else 0)-segmentSave V.val a.val := by
-  decide +kernel
-
-theorem foldBudget_old_bound : ∀ V : Fin 3, ∀ a : Fin 15, foldBudget V.val a.val 0 ≤ 16*a.val-1 := by
-  decide +kernel
-
-theorem tailSel_lt : ∀ V : Fin 3, ∀ t : Fin 2, ∀ a : Fin 15, ∀ bits : Fin 8,
-    0 < a.val → tailSel V.val t.val a.val bits.val < tailCopies V.val := by decide +kernel
-
-theorem selected_pos_steps : ∀ V : Fin 3, ∀ t : Fin 2, ∀ a : Fin 15, ∀ i : Fin 15,
-    ∀ bits : Fin 8, ∀ t' : Fin 2, i.val<a.val →
-    (prefixPosSpec V.val t.val a.val i.val bits.val t'.val).steps = posCycles V.val a.val i.val := by decide +kernel
-
-theorem selected_pos_next : ∀ V : Fin 3, ∀ t : Fin 2, ∀ a : Fin 15, ∀ i : Fin 15,
-    ∀ bits : Fin 8, ∀ t' : Fin 2, i.val+1<a.val →
-    (i.val < prefixN a.val → t'.val = bits.val / 2^(i.val+1) % 2) →
-    (prefixPosSpec V.val t.val a.val i.val bits.val t'.val).pc+1 =
-      posCodePc V.val t'.val a.val (i.val+1) bits.val := by decide +kernel
-
-theorem selected_pos_last : ∀ V : Fin 3, ∀ t : Fin 2, ∀ a : Fin 15, ∀ i : Fin 15,
-    ∀ bits : Fin 8, ∀ t' : Fin 2, i.val+1=a.val →
-    (prefixPosSpec V.val t.val a.val i.val bits.val t'.val).pc+1 =
-      tailPc V.val (tailSel V.val t.val a.val bits.val) := by decide +kernel
-
 /-! ## Sub-word stores and counters (copies of `LayArith` facts, so that the PORS part does not
 depend on the layer modules) -/
 
@@ -120,17 +65,6 @@ theorem idxE_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.of
   norm_num
   omega
 
-theorem lo32E_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.ofNat 64 (A % 2 ^ 64)) :
-    lo32E.eval s = BitVec.ofNat 64 (2 ^ 32 * (A % 2 ^ 34 % 2 ^ 32)) := by
-  apply BitVec.eq_of_toNat_eq
-  have e : lo32E.eval s = idxE.eval s <<< ((BitVec.ofNat 64 32).toNat % 64) := rfl
-  rw [e, idxE_eval A s h0]
-  have hX : A % 2 ^ 34 < 2 ^ 34 := Nat.mod_lt _ (by decide)
-  generalize A % 2 ^ 34 = X at *
-  simp only [BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
-  norm_num
-  omega
-
 theorem hiE_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.ofNat 64 (A % 2 ^ 64)) :
     hiE.eval s = BitVec.ofNat 64 (2 ^ 24 * (A % 2 ^ 34 / 2 ^ 32)) := by
   apply BitVec.eq_of_toNat_eq
@@ -177,81 +111,41 @@ theorem field_two (A w b : Nat) (hb1 : 50 < b) (hb2 : b < 64) :
 
 theorem land16383 (n : Nat) : n &&& 16383 = n % 2 ^ 14 := Nat.and_two_pow_sub_one_eq_mod n 14
 
- theorem scaled_field_one (A w b : Nat) (hb0 : 3 ≤ b) (hb : b + 14 ≤ 64) :
-    (A / 2 ^ (64*w) % 2^64 / 2^(b-3)) &&& (16383*2^3) =
-      8 * (A / 2^(64*w+b) % 2^14) := by
-  rw [Nat.mul_comm 8, show (8:Nat)=2^3 from rfl]
-  apply Nat.eq_of_testBit_eq
-  intro j
-  simp only [Nat.testBit_and, Nat.testBit_mod_two_pow, Nat.testBit_div_two_pow, Nat.testBit_mul_two_pow]
-  have hm : (16383 : Nat) = 2^14-1 := rfl
-  rw [hm, Nat.testBit_two_pow_sub_one]
-  by_cases h3 : 3 ≤ j
-  · by_cases h14 : j-3 < 14
-    · have h64 : j+(b-3)<64 := by omega
-      simp only [h3,h14,h64,decide_true,Bool.true_and,Bool.and_true]
-      congr 1; omega
-    · simp [h3,h14]
-  · simp [h3]
- theorem scaled_field_two (A w b : Nat) (hb1 : 50 < b) (hb2 : b < 64) :
-    ((A / 2^(64*w) % 2^64 / 2^(b-3)) |||
-       (A / 2^(64*(w+1)) % 2^64 * 2^(64-b+3) % 2^64)) &&& (16383*2^3) =
-      8 * (A / 2^(64*w+b) % 2^14) := by
-  rw [Nat.mul_comm 8, show (8:Nat)=2^3 from rfl]
-  apply Nat.eq_of_testBit_eq
-  intro j
-  simp only [Nat.testBit_and, Nat.testBit_or, Nat.testBit_mod_two_pow, Nat.testBit_div_two_pow, Nat.testBit_mul_two_pow]
-  have hm : (16383 : Nat) = 2^14-1 := rfl
-  rw [hm, Nat.testBit_two_pow_sub_one]
-  by_cases h3 : 3 ≤ j
-  · by_cases h14 : j-3 < 14
-    · by_cases h64 : j+(b-3)<64
-      · have hfalse : ¬64-b+3≤j := by omega
-        simp only [h3,h14,h64,hfalse,decide_true,decide_false,Bool.true_and,Bool.and_true,Bool.false_and,Bool.or_false,Bool.and_false]
-        congr 1; omega
-      · have htrue : 64-b+3≤j := by omega
-        have hj : j<64 := by omega
-        have hj' : j-(64-b+3)<64 := by omega
-        simp only [h3,h14,h64,htrue,hj,hj',decide_true,decide_false,Bool.true_and,Bool.and_true,Bool.false_and,Bool.false_or]
-        congr 1; omega
-    · simp [h3,h14]
-  · simp [h3]
-/-- The byte offset `8*v_r` computed by the setup. -/
+/-- The leaf index `v_r` computed by the setup (`pindE r`). -/
 theorem pindE_eval (A : Nat) (s : MachineState)
     (hw : ∀ i, i < 4 → (wLdE i).eval s = BitVec.ofNat 64 (A / 2 ^ (64 * i) % 2 ^ 64)) (r : Nat)
-    (hr : r < 15) : (pindE r).eval s = BitVec.ofNat 64 (8 * (A / 2 ^ (34 + 14 * r) % 2 ^ 14)) := by
+    (hr : r < 15) : (pindE r).eval s = BitVec.ofNat 64 (A / 2 ^ (34 + 14 * r) % 2 ^ 14) := by
   apply BitVec.eq_of_toNat_eq
   rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by have := Nat.mod_lt (A / 2 ^ (34 + 14 * r)) (show 2 ^ 14 > 0 by decide); omega)]
   unfold pindE
   dsimp only
   have hp : 34 + 14 * r = 64 * ((34 + 14 * r) / 64) + (34 + 14 * r) % 64 := by omega
   have hwl : (34 + 14 * r) / 64 < 4 := by omega
-  have hb3 : 3 ≤ (34 + 14 * r) % 64 := by interval_cases r <;> decide
   by_cases h : (34 + 14 * r) % 64 + 14 ≤ 64
   · rw [if_pos h]
-    show (((wLdE ((34 + 14 * r) / 64)).eval s >>> ((BitVec.ofNat 64 ((34 + 14 * r) % 64 - 3)).toNat % 64)) &&&
-      BitVec.ofNat 64 131064).toNat = _
+    show (((wLdE ((34 + 14 * r) / 64)).eval s >>> ((BitVec.ofNat 64 ((34 + 14 * r) % 64)).toNat % 64)) &&&
+      BitVec.ofNat 64 16383).toNat = _
     rw [hw _ hwl]
     simp only [BitVec.toNat_and, BitVec.toNat_ushiftRight, BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow]
-    rw [Nat.mod_eq_of_lt (show (34 + 14 * r) % 64 - 3 < 2 ^ 64 by omega),
-      Nat.mod_eq_of_lt (show (34 + 14 * r) % 64 - 3 < 64 by omega), Nat.mod_mod,
-      show 131064 % 2 ^ 64 = 16383*2^3 from rfl, scaled_field_one _ _ _ hb3 h, ← hp]
+    rw [Nat.mod_eq_of_lt (show (34 + 14 * r) % 64 < 2 ^ 64 by omega),
+      Nat.mod_eq_of_lt (show (34 + 14 * r) % 64 < 64 by omega), Nat.mod_mod,
+      show 16383 % 2 ^ 64 = 16383 from rfl, land16383, field_one _ _ _ h, ← hp]
   · rw [if_neg h]
     have hwl1 : (34 + 14 * r) / 64 + 1 < 4 := by
       interval_cases r <;> simp_all
-    show ((((wLdE ((34 + 14 * r) / 64)).eval s >>> ((BitVec.ofNat 64 ((34 + 14 * r) % 64 - 3)).toNat % 64)) |||
-      ((wLdE ((34 + 14 * r) / 64 + 1)).eval s <<< ((BitVec.ofNat 64 (64 - (34 + 14 * r) % 64 + 3)).toNat % 64))) &&&
-      BitVec.ofNat 64 131064).toNat = _
+    show ((((wLdE ((34 + 14 * r) / 64)).eval s >>> ((BitVec.ofNat 64 ((34 + 14 * r) % 64)).toNat % 64)) |||
+      ((wLdE ((34 + 14 * r) / 64 + 1)).eval s <<< ((BitVec.ofNat 64 (64 - (34 + 14 * r) % 64)).toNat % 64))) &&&
+      BitVec.ofNat 64 16383).toNat = _
     rw [hw _ hwl, hw _ hwl1]
     simp only [BitVec.toNat_and, BitVec.toNat_or, BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft,
       BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
-    rw [Nat.mod_eq_of_lt (show (34 + 14 * r) % 64 - 3 < 2 ^ 64 by omega),
-      Nat.mod_eq_of_lt (show (34 + 14 * r) % 64 - 3 < 64 by omega),
-      Nat.mod_eq_of_lt (show 64 - (34 + 14 * r) % 64 + 3 < 2 ^ 64 by omega),
-      Nat.mod_eq_of_lt (show 64 - (34 + 14 * r) % 64 + 3 < 64 by omega),
-      show 131064 % 2 ^ 64 = 16383*2^3 from rfl]
+    rw [Nat.mod_eq_of_lt (show (34 + 14 * r) % 64 < 2 ^ 64 by omega),
+      Nat.mod_eq_of_lt (show (34 + 14 * r) % 64 < 64 by omega),
+      Nat.mod_eq_of_lt (show 64 - (34 + 14 * r) % 64 < 2 ^ 64 by omega),
+      Nat.mod_eq_of_lt (show 64 - (34 + 14 * r) % 64 < 64 by omega),
+      show 16383 % 2 ^ 64 = 16383 from rfl, land16383]
     simp only [Nat.mod_mod]
-    rw [scaled_field_two _ _ _ (by omega) (by omega), ← hp]
+    rw [field_two _ _ _ (by omega) (by omega), ← hp]
 
 theorem sll63_cmp (X : E) (U : Nat) (hU : U < 2 ^ 64) (s : MachineState) (hX : X.eval s = BitVec.ofNat 64 U) :
     CmpOp.lt.eval ((E.bin .sll X (cw 63)).eval s) ((E.c 0).eval s) = decide (U % 2 = 1) ∧
@@ -305,29 +199,5 @@ theorem ctr_shift_iff (x : Nat) (hx : x < 2 ^ 64) :
   · rintro ⟨h1, h2⟩
     have := Nat.or_lt_two_pow h2 h1
     omega
-
-/-- Word 0 of the relabelled node buffers. -/
-theorem nbW0E_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.ofNat 64 (A % 2 ^ 64)) :
-    nbW0E.eval s = BitVec.ofNat 64 (twLo 10 0 (A % 2 ^ 34) (A % 2 ^ 34)) := by
-  have e : nbW0E.eval s = hiE.eval s + BitVec.ofNat 64 0xA01 + lo32E.eval s := rfl
-  rw [e, hiE_eval A s h0, lo32E_eval A s h0, BitVec.ofNat_add_ofNat, BitVec.ofNat_add_ofNat]
-  have hX : A % 2 ^ 34 < 2 ^ 34 := Nat.mod_lt _ (by decide)
-  generalize A % 2 ^ 34 = X at *
-  congr 1
-  unfold twLo
-  omega
-
-/-- Word 0 of the relabelled leaf buffer. -/
-theorem cbW0E_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.ofNat 64 (A % 2 ^ 64)) :
-    cbW0E.eval s = BitVec.ofNat 64 (twLo 9 0 (A % 2 ^ 34) (A % 2 ^ 34)) := by
-  have e : cbW0E.eval s = nbW0E.eval s + BitVec.ofNat 64 18446744073709551360 := rfl
-  rw [e, nbW0E_eval A s h0]
-  have h10 : twLo 10 0 (A % 2 ^ 34) (A % 2 ^ 34) = twLo 9 0 (A % 2 ^ 34) (A % 2 ^ 34) + 256 := by
-    unfold twLo; omega
-  rw [h10]
-  generalize twLo 9 0 (A % 2 ^ 34) (A % 2 ^ 34) = y
-  rw [BitVec.ofNat_add_ofNat, show y + 256 + 18446744073709551360 = y + 2 ^ 64 by omega]
-  apply BitVec.eq_of_toNat_eq
-  simp only [BitVec.toNat_ofNat, Nat.add_mod_right]
 
 end SigGolfCandidate.Verify

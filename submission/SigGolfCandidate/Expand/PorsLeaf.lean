@@ -35,7 +35,7 @@ structure LeafInv (w : List Byte) (idx : Nat) (K : Nat → Nat) (s : Nat) (st : 
   hk : st.stack.length ≤ s
   hk14 : st.stack.length ≤ 14
   hptr : st.ptr % 8 = 0
-  hptr' : st.ptr ≤ 528 + 232 * (2 * s - st.stack.length)
+  hptr' : st.ptr ≤ 272 + 232 * (2 * s - st.stack.length)
   hf : st.folds ≤ 14 * (2 * s - st.stack.length)
   hprev : st.prev < 2 ^ 14
   hE : st.E < 2 ^ 15
@@ -47,10 +47,10 @@ theorem porsT_or (x : Nat) (hx : x < 2 ^ 14) : porsT ||| x = 2 ^ 14 + x := by
 
 set_option maxRecDepth 20000 in
 /-- **The PORS leaf loop** (`Ref.porsLeaves` over `range' s n`). -/
-theorem porsLeaves_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (v : List Nat) (hw : 4096 ≤ w.length)
+theorem porsLeaves_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (v : List Nat) (hw : 272 ≤ w.length)
     (hx : ∀ s < 15, (v ++ [porsT]).getD (witPi w s / 8 % 16) 0 = K s / 256) :
     ∀ n s st t, s + n = 15 → LeafInv w idx K s st t →
-      Sim eimg t (20000 * n) (porsLeaves idx v w (List.range' s n) st) (OPost (LeafInv w idx K 15)) := by
+      Sim eimg t (10000 * n) (porsLeaves idx v w (List.range' s n) st) (OPost (LeafInv w idx K 15)) := by
   intro n
   induction n with
   | zero =>
@@ -129,13 +129,13 @@ theorem porsLeaves_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (v : List N
     have hf := hinv.hf
     have hstk5 : StkOK t5 st.stack := hinv.stk.frame f15 (fun a h1 h2 => by unfold stkA at h1; omega) (by omega)
     have hsec : (witSecret w s).length = 16 := by
-      unfold witSecret; rw [wSec_eq, slice_eq_wbytes _ _ _ (by omega), length_wbytes]
+      unfold witSecret; rw [slice_eq_wbytes _ _ _ (by unfold wSec; omega), length_wbytes]
     have hseg := segLoop_sim w idx K st.stack st.ptr (porsT ||| K s / 256) st.folds (.leaf (K s / 256) (witSecret w s))
       st.node t5 c5 p5 (by rw [R5.get .x9 (by decide), hinv.x9]) y19 (by rw [R5.get .x20 (by decide), hinv.x20])
       (by rw [R5.get .x21 (by decide), hinv.x21]) hstk5 (by omega) hinv.hptr (by omega) (by omega)
       (by rw [porsT_or _ hxlt]; omega)
-      ⟨y24, by omega, hsec, m8, by rw [msec]; unfold witSecret; rw [wSec_eq, slice_eq_wbytes _ _ _ (by omega)]⟩
-    refine (Sim.steps hs1 (Sim.steps hs2 (Sim.steps hs4 (Sim.steps hs5 (Sim.bind hseg (W₂ := 20 + 20000 * n)
+      ⟨y24, by omega, hsec, m8, by rw [msec]; unfold witSecret wSec; rw [slice_eq_wbytes _ _ _ (by omega)]⟩
+    refine (Sim.steps hs1 (Sim.steps hs2 (Sim.steps hs4 (Sim.steps hs5 (Sim.bind hseg (W₂ := 20 + 10000 * n)
       (fun r t6 h6 => ?_)))))).mono (by omega) (fun _ _ h => h)
     rcases r with _ | ⟨ptr', E', folds', node', stk'⟩
     · dsimp only

@@ -82,71 +82,31 @@ theorem blk603_run (t : MachineState) (hpc : t.pc = pcOf 603) (k E Q : Nat) (hk 
 theorem blk606_run (idx : Nat) (t : MachineState) (hpc : t.pc = pcOf 606) (k E : Nat) (hk : k < 15)
     (hE : E < 2 ^ 15) (h19 : t.getReg .x19 = BitVec.ofNat 64 E)
     (h21 : t.getReg .x21 = BitVec.ofNat 64 (0x30540 + 32 * k))
-    (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) (h26 : t.getReg .x26 = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32)) :
-    ∃ t', Steps eimg t 42 42 t' ∧ t'.pc = pcOf 550 ∧ t'.getReg .x19 = BitVec.ofNat 64 (E / 2) ∧
+    (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) (h26 : t.getReg .x26 = BitVec.ofNat 64 (idx % 2 ^ 32)) :
+    ∃ t', Steps eimg t 14 14 t' ∧ t'.pc = pcOf 550 ∧ t'.getReg .x19 = BitVec.ofNat 64 (E / 2) ∧
       t'.getReg .x24 = BitVec.ofNat 64 1 ∧
-      t'.getMem (BitVec.ofNat 64 0x30048) = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * Rev.efield (E / 2)) ∧
+      t'.getMem (BitVec.ofNat 64 0x30048) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * (E / 2)) ∧
       t'.readWords (BitVec.ofNat 64 0x30060) 2 = t.readWords (BitVec.ofNat 64 (0x30540 + 32 * k)) 2 ∧
       t'.readWords (BitVec.ofNat 64 0x30070) 2 = t.readWords (BitVec.ofNat 64 0x30080) 2 ∧
       RegsEq t t' [.x13, .x14, .x15, .x16, .x17, .x19, .x24] ∧
       Frame t t' (fun x => x = 0x30048 ∨ (0x30060 ≤ x ∧ x < 0x30080)) := by
-  have hs1 := symRun_sound Expand.blk606 Expand.codeAt_606 t hpc (by simp only [Expand.blk606.res, rv_simp])
-  set t1 := Expand.blk606.res.toState t with ht1
-  have pc1 : t1.pc = pcOf 832 := by simp only [ht1, Expand.blk606.res, rv_simp]
-  have m1 : ∀ a, t1.getMem a = t.getMem a := fun a => getMem_nil rfl t a
-  have y19 : t1.getReg .x19 = BitVec.ofNat 64 (E / 2) := by
-    simp only [ht1, Expand.blk606.res, rv_simp, h19]
+  refine ⟨_, symRun_sound Expand.blk606 Expand.codeAt_606 t hpc (by pobl [Expand.blk606.res, h21, h25]),
+    by simp only [Expand.blk606.res, rv_simp], ?_, by simp only [Expand.blk606.res, rv_simp], ?_, ?_, ?_,
+    by pregs, ?_⟩
+  · simp only [Expand.blk606.res, rv_simp, h19]
     rw [show (1#64 : Word).toNat % 64 = 1 from rfl, ofNat_ushiftRight _ _ (by omega), pow_one]
-  have g1 : ∀ r, r ≠ .x19 → t1.getReg r = t.getReg r := fun r hr => by
-    rw [ht1]; cases r <;> (try contradiction) <;> simp only [Expand.blk606.res, rv_simp] <;> rfl
-  have hs2 := symRun_sound Expand.blk832 Expand.codeAt_832 t1 pc1 (by simp only [Expand.blk832.res, rv_simp])
-  set t2 := Expand.blk832.res.toState t1 with ht2
-  have pc2 : t2.pc = pcOf 608 := by simp only [ht2, Expand.blk832.res, rv_simp]
-  have m2 : ∀ a, t2.getMem a = t.getMem a := fun a => by rw [ht2, getMem_nil rfl t1 a, m1]
-  have g2 : ∀ r, r ≠ .x13 → r ≠ .x14 → r ≠ .x15 → r ≠ .x19 → t2.getReg r = t.getReg r := fun r a b c d => by
-    rw [ht2, blk832_regs t1 r a b c, g1 r d]
-  have z19 : t2.getReg .x19 = BitVec.ofNat 64 (E / 2) := by
-    rw [ht2, blk832_regs t1 .x19 (by decide) (by decide) (by decide), y19]
-  have x13 : t2.getReg .x13 = BitVec.ofNat 64 (2 ^ 32 * Rev.efield (E / 2)) := by
-    rw [ht2, blk832_x13, y19]
-    exact net48_eq _ (by omega)
-  have q21 : t2.getReg .x21 = BitVec.ofNat 64 (0x30540 + 32 * k) := by
-    rw [g2 .x21 (by decide) (by decide) (by decide) (by decide), h21]
-  have q25 : t2.getReg .x25 = BitVec.ofNat 64 0x30000 := by
-    rw [g2 .x25 (by decide) (by decide) (by decide) (by decide), h25]
-  have q26 : t2.getReg .x26 = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32) := by
-    rw [g2 .x26 (by decide) (by decide) (by decide) (by decide), h26]
-  have hs3 := symRun_sound Expand.blk608 Expand.codeAt_608 t2 pc2 (by pobl [Expand.blk608.res, q21, q25])
-  have f3 : Frame t2 (Expand.blk608.res.toState t2) (fun x => x = 0x30048 ∨ (0x30060 ≤ x ∧ x < 0x30080)) := by
-    apply frame_toState; intro x hx hW
-    simp only [Expand.blk608.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
-      implies_true, and_true, ne_eq, q25, ofNat_add_ofNat, ofNat_eq_iff]
-    bvomega
-  refine ⟨_, Steps.of_eq ((hs1.trans hs2).trans hs3) (by simp only [Expand.blk606.res, Expand.blk832.res,
-      Expand.blk608.res]) (by simp only [Expand.blk606.res, Expand.blk832.res, Expand.blk608.res]),
-    by simp only [Expand.blk608.res, rv_simp], ?_, by simp only [Expand.blk608.res, rv_simp], ?_, ?_, ?_,
-    ?_, ?_⟩
-  · rw [regsEq_toState Expand.blk608.res t2 [.x13, .x14, .x15, .x16, .x17, .x24]
-      (fun x hx => by cases x <;> first | (simp at hx; done) | rfl) .x19 (by decide), z19]
-  · have e : (BitVec.ofNat 64 (2 ^ 32 * Rev.efield (E / 2)) + BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32)) =
-        BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * Rev.efield (E / 2)) := by
-      rw [ofNat_add_ofNat]; exact ofNat_congr (by omega)
-    pnum [Expand.blk608.res, q25, x13, q26, e]
-    try omega
+  · pnum [Expand.blk606.res, h19, h25, h26]
+    bvsimp []
+    exact ofNat_congr (by omega)
   · rw [readWords_ofNat_two, readWords_ofNat_two]
-    pnum [Expand.blk608.res, q21, q25, m2]
+    pnum [Expand.blk606.res, h21, h25]
     try simp (disch := bvomega) only [if_neg]
   · rw [readWords_ofNat_two, readWords_ofNat_two]
-    pnum [Expand.blk608.res, q25, m2]
-  · intro r hr
-    have hr' : r ≠ .x13 ∧ r ≠ .x14 ∧ r ≠ .x15 ∧ r ≠ .x19 := by
-      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hr
-      exact ⟨hr.1, hr.2.1, hr.2.2.1, hr.2.2.2.2.2.1⟩
-    rw [← g2 r hr'.1 hr'.2.1 hr'.2.2.1 hr'.2.2.2]
-    exact regsEq_toState Expand.blk608.res t2 [.x13, .x14, .x15, .x16, .x17, .x19, .x24]
-      (fun x hx => by cases x <;> first | (simp at hx; done) | rfl) r hr
-  · intro a ha hW
-    rw [f3 a ha hW, m2]
+    pnum [Expand.blk606.res, h25]
+  · apply frame_toState; intro x hx hW
+    simp only [Expand.blk606.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
+      implies_true, and_true, ne_eq, h25, ofNat_add_ofNat, ofNat_eq_iff]
+    bvomega
 
 /-! ## `pr_leafend`, `pr_next`, the final checks -/
 
@@ -307,32 +267,31 @@ theorem blk536_run (t : MachineState) (hpc : t.pc = pcOf 536) (x : Nat) (hx : x 
 theorem blk538_run (w : List Byte) (idx : Nat) (t : MachineState) (hpc : t.pc = pcOf 538) (s x : Nat)
     (hs : s < 15) (hx : x < 2 ^ 14) (hw : WitMem w t)
     (h8 : t.getReg .x8 = BitVec.ofNat 64 s) (h23 : t.getReg .x23 = BitVec.ofNat 64 x)
-    (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) (h26 : t.getReg .x26 = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32))
-    (h27 : t.getReg .x27 = BitVec.ofNat 64 0x1000) :
+    (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) (h26 : t.getReg .x26 = BitVec.ofNat 64 (idx % 2 ^ 32))
+    (h27 : t.getReg .x27 = BitVec.ofNat 64 0x800) :
     ∃ t', Steps eimg t 12 12 t' ∧ t'.pc = pcOf 550 ∧ t'.getReg .x19 = BitVec.ofNat 64 (porsT ||| x) ∧
       t'.getReg .x24 = BitVec.ofNat 64 0 ∧
-      t'.getMem (BitVec.ofNat 64 0x30008) = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * (8*x)) ∧
-      t'.readWords (BitVec.ofNat 64 0x30020) 2 = wordsOf (wbytes w (3072 + 64 * s) 16) ∧
+      t'.getMem (BitVec.ofNat 64 0x30008) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * x) ∧
+      t'.readWords (BitVec.ofNat 64 0x30020) 2 = wordsOf (wbytes w (32 + 16 * s) 16) ∧
       RegsEq t t' [.x13, .x14, .x15, .x19, .x24] ∧
       Frame t t' (fun y => y = 0x30008 ∨ y = 0x30020 ∨ y = 0x30028) := by
-  -- W1: secret `s` in the tweak slot of chain block `(0, 2 + s)` (`0x1000 + 64 s + 1024 = 0x1400 + 64 s`)
-  have ha : t.getReg .x8 <<< ((6#64 : Word).toNat % 64) + t.getReg .x27 = BitVec.ofNat 64 (0x1000 + 64 * s) := by
-    rw [h8, h27, show (6#64 : Word).toNat % 64 = 6 from rfl, ofNat_shiftLeft, ofNat_add_ofNat]
+  have ha : t.getReg .x8 <<< ((4#64 : Word).toNat % 64) + t.getReg .x27 = BitVec.ofNat 64 (0x800 + 16 * s) := by
+    rw [h8, h27, show (4#64 : Word).toNat % 64 = 4 from rfl, ofNat_shiftLeft, ofNat_add_ofNat]
     exact ofNat_congr (by ring)
-  have m0 := hw.get (3072 + 64 * s) (by omega) (by omega)
-  have m8 := hw.get (3072 + 64 * s + 8) (by omega) (by omega)
+  have m0 := hw.get (32 + 16 * s) (by omega) (by omega)
+  have m8 := hw.get (32 + 16 * s + 8) (by omega) (by omega)
   refine ⟨_, symRun_sound Expand.blk538 Expand.codeAt_538 t hpc (by pobl [Expand.blk538.res, h8, h27, h25, ofNat_shiftLeft]),
     by simp only [Expand.blk538.res, rv_simp], ?_, by simp only [Expand.blk538.res, rv_simp], ?_, ?_, by pregs, ?_⟩
   · simp only [Expand.blk538.res, rv_simp, h23]
     rw [show (16384#64 : Word) = BitVec.ofNat 64 16384 from rfl, ofNat_or_ofNat _ _ (by omega) (by norm_num)]
     unfold porsT porsH; rw [Nat.or_comm]; rfl
   · pnum [Expand.blk538.res, h23, h25, h26]
-    rw [show (35#64 : Word).toNat % 64 = 35 from rfl, ofNat_shiftLeft, ofNat_add_ofNat]
+    rw [show (32#64 : Word).toNat % 64 = 32 from rfl, ofNat_shiftLeft, ofNat_add_ofNat]
     exact ofNat_congr (by ring)
   · rw [readWords_ofNat_two, wordsOf_wbytes16]
     pnum [Expand.blk538.res, h25, ha]
-    rw [show 0x1000 + 64 * s + 1024 = 0x800 + (3072 + 64 * s) by ring, m0,
-      show 0x1000 + 64 * s + 1032 = 0x800 + (3072 + 64 * s + 8) by ring, m8]
+    rw [show 0x800 + 16 * s + 32 = 0x800 + (32 + 16 * s) by ring, m0,
+      show 0x800 + 16 * s + 40 = 0x800 + (32 + 16 * s + 8) by ring, m8]
   · apply frame_toState; intro y hy hW
     simp only [Expand.blk538.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
       implies_true, and_true, ne_eq, h25, ofNat_add_ofNat, ofNat_eq_iff]
