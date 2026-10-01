@@ -164,10 +164,9 @@ theorem allSucceed_eq_relabel (hK : KeygenRefinementStatement) (hS : SignRefinem
   rw [success_honest_eq_game hK hS hV, ← relabel_val_gameHD, relabel_relabel]
   rfl
 
-/-- The proved per-key failure bound `2^-256` is at most the organizer's `FAILURE`. -/
-theorem failure_ge : ((2 ^ 256 : Nat) : ENNReal)⁻¹ ≤ FAILURE := by
+/-- The proved per-key failure bound meets the organizer's `FAILURE`. -/
+theorem failure_ge : ((2 ^ 128 : Nat) : ENNReal)⁻¹ ≤ FAILURE := by
   rw [FAILURE, one_div, Nat.cast_pow, Nat.cast_ofNat]
-  exact ENNReal.inv_le_inv.mpr (pow_le_pow_right₀ (by norm_num) (by norm_num))
 
 /-- **Completeness** of the submission, given the keygen, sign and verify refinements. -/
 theorem submission_complete (hK : KeygenRefinementStatement) (hS : SignRefinementStatement)

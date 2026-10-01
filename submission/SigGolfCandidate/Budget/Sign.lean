@@ -1,4 +1,4 @@
-import SigGolfCandidate.Budget.Search
+import SigGolfCandidate.Budget.PairedSearch
 
 /-!
 # Budget: the expectation bound for `signRef` (PORS+FP: MAC check, cached top tree)
@@ -71,7 +71,7 @@ theorem spec_topPath (S cache : List Byte) (hS : S.length = 32) (e : Nat) :
 def topCost : Nat := 21 + 181 + 11
 
 theorem V_signTop (z bC : ℝ≥0∞) (hz : 1 ≤ z) (hbC : 1 ≤ bC)
-    (hstepC : z * (rhoC 0 * bC + (1 - rhoC 0)) ≤ bC) (S cache : List Byte) (hS : S.length = 32)
+    (hstepC : z * (rhoC * bC + (1 - rhoC)) ≤ bC) (S cache : List Byte) (hS : S.length = 32)
     (idx : Nat) (M : Val) (c : RCache) (hM : M.length ≤ 16) (hinv : CacheInv (InvL 1) c) :
     V z (signTop S cache idx M) c ≤ bC * z ^ topCost := by
   unfold signTop
@@ -86,7 +86,7 @@ theorem V_signTop (z bC : ℝ≥0∞) (hz : 1 ≤ z) (hbC : 1 ≤ bC)
       have h := hinv _ u hq (by unfold encInput; rw [qbyte_tag])
       unfold encInput at h; rw [qbyte_lay] at h; omega
   refine (V_bind_le z _ _ c (z ^ topCost) fun x hx => ?_).trans
-    (mul_le_mul' (V_searchCounter 0 z bC hz hbC hstepC tau e M hM cMax 0 c (by simp [cMax])
+    (mul_le_mul' (V_searchCounter z bC hz hbC hstepC 0 tau e M hM cMax 0 c (by simp [cMax])
       hfresh) le_rfl)
   have hx' := (spec_searchCounter 0 tau e M hM (by omega) cMax 0).support
     (I := fun _ => True) (fun _ _ => trivial) c (fun _ _ _ => trivial) x hx
@@ -110,34 +110,19 @@ theorem V_signTop (z bC : ℝ≥0∞) (hz : 1 ≤ z) (hbC : 1 ≤ bC)
     · exact (spec_topPath S cache hS e).bind' (l := 0) (fun _ _ => Spec.pure _ 0 trivial) le_rfl
     · have h42 : 2 * (nChains / 2) = xs.length := by rw [hlen]; rfl
       rw [Finset.sum_add_distrib, sum_pairs (fun i => xs.getD i 0), h42, sum_getD, hsum]
-      simp [topCost, targetFor, targetSum, nChains]
+      simp [topCost, targetSum, nChains]
 
-/-- Product of the separate counter-search envelopes. -/
-noncomputable def counterProduct (b : Nat → ℝ≥0∞) (n : Nat) : ℝ≥0∞ :=
-  ∏ i ∈ Finset.range n, b i
-
-@[simp] theorem counterProduct_zero (b : Nat → ℝ≥0∞) : counterProduct b 0 = 1 := by
-  simp [counterProduct]
-
-theorem counterProduct_succ (b : Nat → ℝ≥0∞) (n : Nat) :
-    counterProduct b (n + 1) = counterProduct b n * b n := by
-  exact Finset.prod_range_succ b n
-
-theorem one_le_counterProduct {b : Nat → ℝ≥0∞} (hb : ∀ i, 1 ≤ b i) (n : Nat) :
-    1 ≤ counterProduct b n := by
-  exact Finset.one_le_prod (fun i _ => hb i)
-
-theorem V_signLayers (z : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (hbC : ∀ i, 1 ≤ bC i)
-    (hstepC : ∀ i, z * (rhoC i * bC i + (1 - rhoC i)) ≤ bC i) (S cache : List Byte) (hS : S.length = 32)
+theorem V_signLayers (z bC : ℝ≥0∞) (hz : 1 ≤ z) (hbC : 1 ≤ bC)
+    (hstepC : z * (rhoC * bC + (1 - rhoC)) ≤ bC) (S cache : List Byte) (hS : S.length = 32)
     (idx : Nat) :
     ∀ lay (M : Val) (c : RCache), lay ≤ 4 → M.length ≤ 16 → CacheInv (InvL (lay + 1)) c →
-      V z (signLayers S cache idx lay M) c ≤ counterProduct bC (lay + 1) * z ^ (layerCost lay + topCost) := by
+      V z (signLayers S cache idx lay M) c ≤ bC ^ (lay + 1) * z ^ (layerCost lay + topCost) := by
   intro lay
   induction lay with
   | zero =>
     intro M c _ hM hinv
-    simp only [signLayers, layerCost, Finset.range_zero, Finset.sum_empty, Nat.zero_add, counterProduct_succ, counterProduct_zero, one_mul]
-    exact V_signTop z (bC 0) hz (hbC 0) (hstepC 0) S cache hS idx M c hM hinv
+    simp only [signLayers, layerCost, Finset.range_zero, Finset.sum_empty, Nat.zero_add, pow_one]
+    exact V_signTop z bC hz hbC hstepC S cache hS idx M c hM hinv
   | succ lay ih =>
     intro M cache' hlay hM hinv
     unfold signLayers
@@ -152,16 +137,16 @@ theorem V_signLayers (z : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (
         exfalso
         have h := hinv _ u hq (by unfold encInput; rw [qbyte_tag])
         unfold encInput at h; rw [qbyte_lay] at h; omega
-    refine (V_bind_le z _ _ cache' (counterProduct bC (lay + 1) * z ^ (treeCost (height (lay + 1)) + (layerCost lay + topCost))) fun x hx => ?_).trans ?_
+    refine (V_bind_le z _ _ cache' (bC ^ (lay + 1) * z ^ (treeCost (height (lay + 1)) + (layerCost lay + topCost))) fun x hx => ?_).trans ?_
     · have hx' := (spec_searchCounter (lay + 1) tau e M hM (by omega) cMax 0).support
         (I := InvL (lay + 1)) (fun q hq h => by rw [hq.2]) cache'
         (hinv.mono fun q h h4 => by have := h h4; omega) x hx
       obtain ⟨o, c1⟩ := x
-      have hbig : 1 ≤ counterProduct bC (lay + 1) * z ^ (treeCost (height (lay + 1)) + (layerCost lay + topCost)) := one_le_mul (one_le_counterProduct hbC _) (one_le_pow₀ hz)
+      have hbig : 1 ≤ bC ^ (lay + 1) * z ^ (treeCost (height (lay + 1)) + (layerCost lay + topCost)) := one_le_mul (one_le_pow₀ hbC) (one_le_pow₀ hz)
       rcases o with _ | ⟨cnt, xs⟩
       · simpa using hbig
       · dsimp only
-        refine (V_bind_le z _ _ c1 (counterProduct bC (lay + 1) * z ^ (layerCost lay + topCost))
+        refine (V_bind_le z _ _ c1 (bC ^ (lay + 1) * z ^ (layerCost lay + topCost))
           fun y hy => ?_).trans ?_
         · have hy' := (spec_buildTree S hS (lay + 1) tau (height (lay + 1)) e xs).support
             (I := InvL (lay + 1)) (fun q hq h => by unfold PT at hq; omega) c1 hx'.2 y hy
@@ -173,20 +158,20 @@ theorem V_signLayers (z : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (
           · rw [mul_one]; exact ih root c2 (by omega) hy'.1 hy'.2
         · rw [pow_add z (treeCost (height (lay + 1))) (layerCost lay + topCost)]
           calc V z (buildTree S (lay + 1) tau (height (lay + 1)) e xs) c1 *
-                (counterProduct bC (lay + 1) * z ^ (layerCost lay + topCost))
-              ≤ z ^ treeCost (height (lay + 1)) * (counterProduct bC (lay + 1) * z ^ (layerCost lay + topCost)) :=
+                (bC ^ (lay + 1) * z ^ (layerCost lay + topCost))
+              ≤ z ^ treeCost (height (lay + 1)) * (bC ^ (lay + 1) * z ^ (layerCost lay + topCost)) :=
                 mul_le_mul' ((spec_buildTree S hS (lay + 1) tau (height (lay + 1)) e xs).V_le hz c1)
                   le_rfl
-            _ = counterProduct bC (lay + 1) * (z ^ treeCost (height (lay + 1)) *
+            _ = bC ^ (lay + 1) * (z ^ treeCost (height (lay + 1)) *
                   z ^ (layerCost lay + topCost)) := by ring
     · rw [layerCost_succ]
-      calc V z (searchCounter (lay + 1) tau e M 0 cMax) cache' * (counterProduct bC (lay + 1) * z ^ (treeCost (height (lay + 1)) + (layerCost lay + topCost)))
-          ≤ bC (lay + 1) * (counterProduct bC (lay + 1) * z ^ (treeCost (height (lay + 1)) + (layerCost lay + topCost))) :=
-            mul_le_mul' (V_searchCounter (lay + 1) z (bC (lay + 1)) hz (hbC (lay + 1)) (hstepC (lay + 1)) tau e M hM cMax 0 cache'
+      calc V z (searchCounter (lay + 1) tau e M 0 cMax) cache' * (bC ^ (lay + 1) * z ^ (treeCost (height (lay + 1)) + (layerCost lay + topCost)))
+          ≤ bC * (bC ^ (lay + 1) * z ^ (treeCost (height (lay + 1)) + (layerCost lay + topCost))) :=
+            mul_le_mul' (V_searchCounter z bC hz hbC hstepC (lay + 1) tau e M hM cMax 0 cache'
               (by simp [cMax]) hfresh) le_rfl
-        _ = counterProduct bC (lay + 1 + 1) * z ^ (layerCost lay + treeCost (height (lay + 1)) + topCost) := by
+        _ = bC ^ (lay + 1 + 1) * z ^ (layerCost lay + treeCost (height (lay + 1)) + topCost) := by
             rw [show layerCost lay + treeCost (height (lay + 1)) + topCost =
-              treeCost (height (lay + 1)) + (layerCost lay + topCost) by omega, counterProduct_succ bC (lay + 1)]
+              treeCost (height (lay + 1)) + (layerCost lay + topCost) by omega]
             ring
 
 theorem spec_H {P : Query → Prop} (x : List Byte) (k : Nat) (hP : P (fmt x))
@@ -203,18 +188,19 @@ theorem mac_ok (S cache : List Byte) (hS : S.length = 32) :
   simp only [macInput, length_thInput, length_tweak, List.length_append, hS]; omega
 
 /-- The signing bound without the MAC check. -/
-noncomputable abbrev signBound (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) : ℝ≥0∞ :=
-  bD * (z ^ 40959 * (counterProduct bC 5 * z ^ (73244 + 213)))
+noncomputable abbrev signBound (z bD bC : ℝ≥0∞) : ℝ≥0∞ :=
+  bD * (z ^ 40959 * (bC ^ 5 * z ^ (73244 + 213)))
 
 set_option maxRecDepth 100000 in
 /-- The expectation bound for the part of `signList` after the MAC check, from `Inv0`. -/
-theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (hbD : 1 ≤ bD) (hbC : ∀ i, 1 ≤ bC i)
-    (hstepD : z ^ 2 * ((epsD + rhoD) * bD + (1 - rhoD)) ≤ bD)
-    (hstepC : ∀ i, z * (rhoC i * bC i + (1 - rhoC i)) ≤ bC i)
+theorem V_signBody (z bD bC : ℝ≥0∞) (hz : 1 ≤ z) (hbD : 1 ≤ bD) (hbC : 1 ≤ bC)
+    (hstepD : z ^ 2 * (1 - rhoD) + z ^ 3 * rhoD * (1 - rhoD) +
+      z ^ 3 * (rhoD ^ 2 + 2 * epsP) * bD ≤ bD)
+    (hstepC : z * (rhoC * bC + (1 - rhoC)) ≤ bC)
     (S cache m : List Byte) (hS : S.length = 32) (hm : m.length = 32) (c : RCache)
     (hinv : CacheInv Inv0 c) :
     V z (do
-      match ← searchDigest S m 0 aMax with
+      match ← searchDigestPairs S m 0 aMax with
       | none => pure none
       | some (rho, N) =>
         let (levels, secrets) ← buildPorsTree S (idxOf N)
@@ -223,17 +209,17 @@ theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
         match ← signLayers S cache (idxOf N) (nLayers - 1) M with
         | none => pure none
         | some lays => pure (some (serialize rho fts lays))) c ≤ signBound z bD bC := by
-  have hbig : 1 ≤ z ^ 40959 * (counterProduct bC 5 * z ^ (73244 + 213)) :=
-    one_le_mul (one_le_pow₀ hz) (one_le_mul (one_le_counterProduct hbC _) (one_le_pow₀ hz))
+  have hbig : 1 ≤ z ^ 40959 * (bC ^ 5 * z ^ (73244 + 213)) :=
+    one_le_mul (one_le_pow₀ hz) (one_le_mul (one_le_pow₀ hbC) (one_le_pow₀ hz))
   refine (V_bind_le z _ _ c _ fun x hx => ?_).trans (mul_le_mul' ?_ le_rfl)
-  · have hx' := (spec_searchDigest S m hS hm aMax 0).support
+  · have hx' := (spec_searchDigestPairs S m hS hm aMax 0).support
       (I := fun q => qbyte q 1 ≠ 4) (fun q hq => by unfold PD at hq; omega) c
       (hinv.mono fun q h => h.1) x hx
     obtain ⟨o, c1⟩ := x
     rcases o with _ | ⟨rho, N⟩
     · simpa using hbig
     · dsimp only
-      refine (V_bind_le z _ _ c1 (counterProduct bC 5 * z ^ (73244 + 213)) fun y hy => ?_).trans ?_
+      refine (V_bind_le z _ _ c1 (bC ^ 5 * z ^ (73244 + 213)) fun y hy => ?_).trans ?_
       · have hy' := (spec_buildPorsTree S hS (idxOf N)).support (I := fun q => qbyte q 1 ≠ 4)
           (fun q hq => by unfold PP at hq; omega) c1 hx'.2 y hy
         obtain ⟨⟨levels, secrets⟩, c2⟩ := y
@@ -248,7 +234,7 @@ theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
       · refine mul_le_mul' ?_ le_rfl
         rw [← porsCost_eq]
         exact (spec_buildPorsTree S hS (idxOf N)).V_le hz c1
-  · refine V_searchDigest z bD hz hbD hstepD S m hS hm aMax 0 c ∅ (by simp [aMax]) (by simp)
+  · refine V_searchDigestPairs z bD hz hbD hstepD S m hS hm aMax 0 c ∅ (by simp [aMax]) (by simp)
       (fun a' _ _ => ?_) (fun rho _ _ => ?_)
     · cases hq : c (fmt (rndInput S m a')) with
       | none => rfl
@@ -265,9 +251,10 @@ theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
         exact this rfl
 
 /-- The expectation bound for `signList` (MAC check first), for every cache argument. -/
-theorem V_signList (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (hbD : 1 ≤ bD) (hbC : ∀ i, 1 ≤ bC i)
-    (hstepD : z ^ 2 * ((epsD + rhoD) * bD + (1 - rhoD)) ≤ bD)
-    (hstepC : ∀ i, z * (rhoC i * bC i + (1 - rhoC i)) ≤ bC i)
+theorem V_signList (z bD bC : ℝ≥0∞) (hz : 1 ≤ z) (hbD : 1 ≤ bD) (hbC : 1 ≤ bC)
+    (hstepD : z ^ 2 * (1 - rhoD) + z ^ 3 * rhoD * (1 - rhoD) +
+      z ^ 3 * (rhoD ^ 2 + 2 * epsP) * bD ≤ bD)
+    (hstepC : z * (rhoC * bC + (1 - rhoC)) ≤ bC)
     (S cache m : List Byte) (hS : S.length = 32) (hm : m.length = 32) (c : RCache)
     (hinv : CacheInv Inv0 c) :
     V z (signList S cache m) c ≤ z ^ 1025 * signBound z bD bC := by
@@ -280,12 +267,13 @@ theorem V_signList (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
   split
   · exact V_signBody z bD bC hz hbD hbC hstepD hstepC S cache m hS hm x.2 hx'.2
   · simp only [V_pure]
-    exact one_le_mul hbD (one_le_mul (one_le_pow₀ hz) (one_le_mul (one_le_counterProduct hbC _)
+    exact one_le_mul hbD (one_le_mul (one_le_pow₀ hz) (one_le_mul (one_le_pow₀ hbC)
       (one_le_pow₀ hz)))
 
-theorem V_signRef (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (hbD : 1 ≤ bD) (hbC : ∀ i, 1 ≤ bC i)
-    (hstepD : z ^ 2 * ((epsD + rhoD) * bD + (1 - rhoD)) ≤ bD)
-    (hstepC : ∀ i, z * (rhoC i * bC i + (1 - rhoC i)) ≤ bC i)
+theorem V_signRef (z bD bC : ℝ≥0∞) (hz : 1 ≤ z) (hbD : 1 ≤ bD) (hbC : 1 ≤ bC)
+    (hstepD : z ^ 2 * (1 - rhoD) + z ^ 3 * rhoD * (1 - rhoD) +
+      z ^ 3 * (rhoD ^ 2 + 2 * epsP) * bD ≤ bD)
+    (hstepC : z * (rhoC * bC + (1 - rhoC)) ≤ bC)
     (sk : Bytes 32) (cache : Cache) (m : Bytes 32) (c : RCache) (hinv : CacheInv Inv0 c) :
     V z (signRef sk cache m) c ≤ z ^ 1025 * signBound z bD bC := by
   unfold signRef

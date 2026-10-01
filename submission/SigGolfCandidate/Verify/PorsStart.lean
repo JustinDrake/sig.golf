@@ -353,7 +353,7 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
   refine ⟨u, hu.steps, S, ⟨⟨⟨fun p hp => hK' p (by simp [setupPost] at hp ⊢; tauto), PFrame.refl u⟩, S, ?_⟩,
     hu.pc rfl, ?_, ?_, ?_, fun i hi => by simp at hi, fun h => by omega, ?_⟩⟩
   · rw [hu.regs (.x22, idxE) (by simp [setupSpec]), hidx]
-  · rw [hK' (.x14, 0x7B0) (by simp [setupPost])]; rfl
+  · rw [hK' (.x14, 0x7C0) (by simp [setupPost])]; rfl
   · rw [hK' (.x18, BitVec.ofNat 64 FLIM) (by simp [setupPost])]
   · rw [hK' (.x15, 0) (by simp [setupPost])]; rfl
   · simp [SegBnd, wStream, wSec, porsK]

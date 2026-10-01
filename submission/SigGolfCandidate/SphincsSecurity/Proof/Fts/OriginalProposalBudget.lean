@@ -82,8 +82,8 @@ theorem targetCreationMultiplier_le_record_hashCalls (key : SecretKey)
         (freshDigestSelectionProbability_le_one key message cache)
       calc
         _ ≤ ((2 ^ ftsTreeHeight : Nat) : ENNReal) := by
-          refine (by simpa only [targetCreationMultiplier, mul_one] using hmass : _ ≤ (2142 : ENNReal)).trans ?_
-          exact_mod_cast (show 2142 ≤ 2 ^ ftsTreeHeight by decide)
+          refine (by simpa only [targetCreationMultiplier, mul_one] using hmass : _ ≤ (3410 : ENNReal)).trans ?_
+          exact_mod_cast (show 3410 ≤ 2 ^ ftsTreeHeight by decide)
         _ ≤ (ftsOpenHashCost : ENNReal) := Nat.cast_le.mpr two_pow_ftsTreeHeight_le_ftsOpenHashCost
         _ ≤ record.trace.hashCalls := Nat.cast_le.mpr (originalProposalRecord_sign_hashCalls key message cache record hr)
 

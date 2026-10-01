@@ -21,6 +21,14 @@ open SigGolfCandidate.Legacy
 
 theorem byte_toNat (v : Nat) : (byte v).toNat = v % 256 := by simp [byte]
 
+theorem leNat_append (xs ys : List Byte) :
+    leNat (xs ++ ys) = leNat xs + 256 ^ xs.length * leNat ys := by
+  induction xs with
+  | nil => simp [leNat]
+  | cons b bs ih =>
+    simp only [List.cons_append, leNat, List.length_cons, Nat.pow_succ, ih]
+    ring
+
 theorem leNat_lt (l : List Byte) : leNat l < 256 ^ l.length := by
   induction l with
   | nil => simp [leNat]
@@ -424,9 +432,9 @@ theorem porsSegs_eq : porsSegs = 29 := rfl
 
 /-! ## Signature and witness layout -/
 
-theorem headBytes_eq : headBytes = 2144 := rfl
+theorem headBytes_eq : headBytes = 2128 := rfl
 theorem sigLayerOff_values :
-    (List.range (nLayers + 1)).map sigLayerOff = [2144, 2992, 3760, 4528, 5296, 6048] := by
+    (List.range (nLayers + 1)).map sigLayerOff = [2128, 2976, 3744, 4512, 5280, 6032] := by
   decide
 theorem bodyBytes_eq (lay : Nat) : bodyBytes lay = sigLayerBytes lay - 4 := by
   simp only [bodyBytes, sigLayerBytes]; omega
@@ -472,8 +480,8 @@ private theorem length_flatten_map_range' (n : Nat) (f : Nat → List Byte) (g :
 `sigBytes` bytes and 15 sorted leaves). -/
 theorem length_witnessList (sig : List Byte) (hsig : sig.length = sigBytes) (v vs segs : List Nat)
     (hvs : vs.length = porsK) : (witnessList sig v vs segs).length = witBytes := by
-  have hs : sig.length = 6048 := hsig
-  have hoff : ∀ lay, lay < nLayers → sigLayerOff lay + bodyBytes lay ≤ 6048 := by decide
+  have hs : sig.length = 6032 := hsig
+  have hoff : ∀ lay, lay < nLayers → sigLayerOff lay + bodyBytes lay ≤ 6032 := by decide
   have hitem : ∀ i, i < porsK → (sigItem sig i).length = 16 := fun i hi =>
     length_slice _ _ _ (by rw [hs]; unfold porsK at hi; omega)
   have hpath : ∀ lay, lay < nLayers → (sigPath sig lay).length = 16 * height lay :=

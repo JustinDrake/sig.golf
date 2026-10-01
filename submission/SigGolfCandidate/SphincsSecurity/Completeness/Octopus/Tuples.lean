@@ -6,7 +6,7 @@ import Mathlib.Data.Fintype.Perm
 # PORS+FP admissibility: tuples and digests
 
 * `card_admissibleTuples`: the number of `v : Fin 15 → Fin (2^14)` that are injective with
-  `Concrete.octopusSize (sortLeaves [v_0, ..., v_14]) ≤ 118` is `15! * Nadm` (every admissible set has
+  `Concrete.octopusSize (sortLeaves [v_0, ..., v_14]) ≤ 117` is `15! * Nadm` (every admissible set has
   exactly `15!` orderings, `card_fiber`).
 * `card_admissibleDigests`: among the `N < 2^256`, exactly `2^46 * (15! * Nadm)` are
   `admissible` (the leaf indices are bits `34 .. 243` of `N`; bits `0..33` and `244..255` are
@@ -94,12 +94,12 @@ theorem card_inj_filter (k n : ℕ) (P : Finset ℕ → Prop) [DecidablePred P] 
       simp [valList]
 
 /-- **Admissible tuples**: `15! * Nadm` injective `v : Fin 15 → Fin (2^14)` with octopus size of
-the sorted values `≤ 118`. -/
+the sorted values `≤ 117`. -/
 theorem card_admissibleTuples :
     (univ.filter fun v : Fin 15 → Fin (2 ^ 14) =>
-      Function.Injective v ∧ Concrete.octopusSize (sortLeaves (valList v)) ≤ 118).card =
+      Function.Injective v ∧ Concrete.octopusSize (sortLeaves (valList v)) ≤ 117).card =
       Nat.factorial 15 * Nadm := by
-  have h := card_inj_filter 15 (2 ^ 14) (fun S => octH 14 S.sort ≤ 118)
+  have h := card_inj_filter 15 (2 ^ 14) (fun S => octH 14 S.sort ≤ 117)
   rw [card_admissibleSets] at h
   rw [← h]
   refine congrArg card (filter_congr fun v _ => ?_)
@@ -118,7 +118,7 @@ def fieldsOf (b : ℕ) : List ℕ := (List.range 15).map fun r => b / 2 ^ (14 * 
 
 /-- Admissibility of the leaf-index field `b = N / 2^34`. -/
 def admB (b : ℕ) : Bool :=
-  decide (fieldsOf b).Nodup && decide (Concrete.octopusSize (sortLeaves (fieldsOf b)) ≤ 118)
+  decide (fieldsOf b).Nodup && decide (Concrete.octopusSize (sortLeaves (fieldsOf b)) ≤ 117)
 
 theorem leavesOf_eq (N : ℕ) : leavesOf N = fieldsOf (N / 2 ^ 34) := by
   unfold leavesOf fieldsOf leafOf
@@ -173,7 +173,7 @@ theorem fieldsOf_equiv (v : Fin 15 → Fin (2 ^ 14)) :
 theorem count_fields :
     (∑ c ∈ range (2 ^ 210), if admB c then 1 else 0) =
       (univ.filter fun v : Fin 15 → Fin (2 ^ 14) =>
-        Function.Injective v ∧ Concrete.octopusSize (sortLeaves (valList v)) ≤ 118).card := by
+        Function.Injective v ∧ Concrete.octopusSize (sortLeaves (valList v)) ≤ 117).card := by
   have e : (2 : ℕ) ^ 210 = (2 ^ 14) ^ 15 := by rw [← pow_mul]
   rw [e, sum_range (fun c => if admB c then 1 else 0), card_filter]
   rw [← Equiv.sum_comp finFunctionFinEquiv]

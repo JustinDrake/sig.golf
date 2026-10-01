@@ -12,7 +12,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 def layerSpec (w : List Byte) (idx lay : Nat) (M : Val) : OracleComp HashSpec (Option Val) := do
   let (e, tau) := route idx lay
   let d ← hash16 (encInput lay tau e M (witCounter w lay))
-  match decodeDigits lay d with
+  match decodeDigits d with
   | none => pure none
   | some x => do
     let leaf ← verifyLeafP w lay tau e x
@@ -25,7 +25,7 @@ theorem verifyLayers_succ (w : List Byte) (idx lay : Nat) (M : Val) :
       | some r => verifyLayers w idx lay r := by
   simp only [verifyLayers, layerSpec, bind_assoc]
   congr 1; funext d
-  cases h : decodeDigits lay d <;> simp [h, bind_assoc]
+  cases h : decodeDigits d <;> simp [h, bind_assoc]
 
 def FoldEndL (L : LCtx) (u : MachineState) : Prop :=
   ∃ s0, FoldEnd (layFC L) s0 u ∧ LeafCarry L s0
@@ -73,7 +73,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
   have hcB : cyclesB = 27 := rfl
   have hsB : stepsB = 24 := rfl
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
-      (cc (match decodeDigits L.lay (answerBytes 16 a) with
+      (cc (match decodeDigits (answerBytes 16 a) with
         | none => pure none
         | some x => do
           let leaf ← verifyLeafP L.wl L.lay L.tau L.e x
@@ -81,7 +81,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
           pure (some root)) Kopt) := by
     intro a
     obtain ⟨hrej, hacc⟩ := encpost_step L hL t ht a _ (hpost1 a)
-    cases hd : decodeDigits L.lay (answerBytes 16 a) with
+    cases hd : decodeDigits (answerBytes 16 a) with
     | none =>
       obtain ⟨k, hk, c, hc, u, hst, hf, h5, h10⟩ := hrej hd
       simp only [cc_pure, hnone]
@@ -125,7 +125,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
       rw [e1]
       refine Good.steps' hst2 (hch.congr ?_) (by omega) (by unfold layerCost; omega)
       rfl
-  have h3 := Good.hashP (x := encInput L.lay L.tau L.e M (witCounter L.wl L.lay)) (K := fun d => cc (match decodeDigits L.lay d with
+  have h3 := Good.hashP (x := encInput L.lay L.tau L.e M (witCounter L.wl L.lay)) (K := fun d => cc (match decodeDigits d with
         | none => pure none
         | some x => do
           let leaf ← verifyLeafP L.wl L.lay L.tau L.e x
@@ -315,8 +315,8 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
         | succ m => exact foldEnd_layerIn wl pk (m + 1) idx (by omega) (by omega) u hu a) s hs
     exact this.mono (by omega) (by dsimp only; simp only [layersCost]; omega)
 
-/-- The layer cycles: `1538` (layer 4, target 183, no hash-length reload), `3 × 1572`, `1652`
+/-- The layer cycles: `1556` (layer 4, target 181, no hash-length reload), `3 × 1572`, `1652`
 (layer 0, direct route), and the comparison `8`. -/
-theorem layersCost_5 : layersCost 5 = 7914 := by decide
+theorem layersCost_5 : layersCost 5 = 7932 := by decide
 
 end SigGolfCandidate.Verify

@@ -13,16 +13,16 @@ def EntryMarker (parameter : PublicParameter) (words : OtsReferenceWords) (addre
     (entry : HashInput × HashOutput) : Prop :=
   AtEncodingPosition parameter entry.1 ⟨address.1, address.2.1, address.2.2.1⟩ ∧
     entry.1 ∈ canonicalEncodingInputs parameter ∧
-    ∃ candidate, decodeEncodingOutput address.1 entry.2 = some candidate ∧
-      OtsCode.UnitNeighborAt address.1 (words address.1 address.2.1 address.2.2.1) candidate address.2.2.2
+    ∃ candidate, decodeEncodingOutput entry.2 = some candidate ∧
+      OtsCode.UnitNeighborAt (words address.1 address.2.1 address.2.2.1) candidate address.2.2.2
 
 theorem entryMarker_encoding_iff (parameter : PublicParameter) (words : OtsReferenceWords) (address : OtsPrefix.ChainAddress)
     (message : Digest) (counter : Counter) (output : HashOutput) :
     EntryMarker parameter words address
       (tweakableHashInput parameter (.encoding address.1 address.2.1 address.2.2.1)
         (digestBytes message ++ counterBytes counter), output) ↔
-      ∃ candidate, decodeEncodingOutput address.1 output = some candidate ∧
-        OtsCode.UnitNeighborAt address.1 (words address.1 address.2.1 address.2.2.1) candidate address.2.2.2 := by
+      ∃ candidate, decodeEncodingOutput output = some candidate ∧
+        OtsCode.UnitNeighborAt (words address.1 address.2.1 address.2.2.1) candidate address.2.2.2 := by
   have hcounter : counter.toNat < 2 ^ counterBits := counter.isLt
   have hin := encodingRetryInput_mem_canonicalEncodingInputs_wide parameter
     ⟨address.1, address.2.1, address.2.2.1⟩ message ⟨counter.toNat, hcounter⟩

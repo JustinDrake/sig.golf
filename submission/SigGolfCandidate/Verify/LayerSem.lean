@@ -242,10 +242,10 @@ theorem tgt0_eval (c : CCtx) (s : MachineState) (hD : s.getMem (BitVec.ofNat 64 
 
 theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : BitVec 256) (s : MachineState)
     (hs : EncOut L t a s) :
-    (decodeDigits L.lay (answerBytes 16 a) = none →
+    (decodeDigits (answerBytes 16 a) = none →
       ∃ k, k ≤ 27 ∧ ∃ c, c ≤ 27 ∧ ∃ u, Steps image s k c u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (∀ xs, decodeDigits L.lay (answerBytes 16 a) = some xs →
+    (∀ xs, decodeDigits (answerBytes 16 a) = some xs →
       ∃ u, Steps image s stepsB cyclesB u ∧ ChainIn (L.cctx t a) 0 [] u ∧
         (L.cctx t a).ok ∧ (∀ i < 42, xs.getD i 0 = dig (L.cctx t a) i) ∧ xs.sum = targetFor L.lay ∧
         xs.length = 42) := by
@@ -267,7 +267,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
     by_cases hlt : (a.extractLsb' 0 64).toNat < 2 ^ 63 ∧ (a.extractLsb' 64 64).toNat < 2 ^ 63
     · rw [if_pos hlt] at hnone
       have hsum : ¬ (digitsOfWord (a.extractLsb' 0 64).toNat ++ digitsOfWord (a.extractLsb' 64 64).toNat).sum
-          = targetFor L.lay := by intro h; rw [if_pos h] at hnone; cases hnone
+          = targetSum := by intro h; rw [if_pos h] at hnone; cases hnone
       obtain ⟨u, hu⟩ := spec_run hR2 s hpc hK (by
         intro b hb
         simp only [specRej2, List.mem_cons, List.not_mem_nil, or_false] at hb
@@ -291,7 +291,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
     by_cases hlt : (a.extractLsb' 0 64).toNat < 2 ^ 63 ∧ (a.extractLsb' 64 64).toNat < 2 ^ 63
     · rw [if_pos hlt] at hxs
       by_cases hsum : (digitsOfWord (a.extractLsb' 0 64).toNat ++
-          digitsOfWord (a.extractLsb' 64 64).toNat).sum = targetFor L.lay
+          digitsOfWord (a.extractLsb' 64 64).toNat).sum = targetSum
       · rw [if_pos hsum] at hxs
         cases hxs
         obtain ⟨u, hu⟩ := spec_run hBok s hpc hK (by

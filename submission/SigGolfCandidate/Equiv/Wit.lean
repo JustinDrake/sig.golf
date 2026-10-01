@@ -16,8 +16,8 @@ The abstract `Signature` is witness-shaped (`SphincsSecurity.FtsSignature`: slot
   the paths at `pathOff lay`, the counters at `ctrOff lay` (`c0 .. c3` at `2944 + 4 lay`, `c4` at 2392).
 * `padDec : Bytes 16384 → ChainPads`: the 32 pad bytes `blockOff lay i + 16 .. + 48` of every chain
   block as two digests (`padDec_eq_zero_iff`: the pad is `0` iff the 32 bytes are zero).
-* `compressList` / `compress : Signature → Bytes 6048`: `rho | secrets | the nodes of segments
-  0..28 concatenated, zero padded (or cut) to 118 nodes | per layer chain values, path` (no counters).
+* `compressList` / `compress : Signature → Bytes 6032`: `rho | secrets | the nodes of segments
+  0..28 concatenated, zero padded (or cut) to 117 nodes | per layer chain values, path` (no counters).
 * `aExpand m pk σ`: the digest query of `rho = σ[0..16)` and `m` through the abstract hash, the
   pure partial witness `Ref.expandOf` of the reference, the abstract PORS stack machine on it, then
   per layer the least-counter search (and below the top the verifier's chains, leaf and fold).
@@ -95,15 +95,15 @@ def layerBytes (σ : Signature) (lay : Layer) : List Byte :=
   (List.ofFn fun i => dv ((σ.layers lay).chainValues i)).flatten ++
     (List.ofFn fun j => dv ((σ.layers lay).path j)).flatten
 
-/-- **The compact signature bytes**: `rho | 15 secrets | 118 authentication-node slots (the
-segments' nodes in order, zero padded, cut at 118) | layer bodies 0..4` (no counters). -/
+/-- **The compact signature bytes**: `rho | 15 secrets | 117 authentication-node slots (the
+segments' nodes in order, zero padded, cut at 117) | layer bodies 0..4` (no counters). -/
 def compressList (σ : Signature) : List Byte :=
   dv σ.randomness ++ (List.ofFn fun s => dv (σ.fts.secrets s)).flatten ++
     (((authNodes σ).map dv).flatten ++ Ref.zeros (16 * Ref.porsM)).take (16 * Ref.porsM) ++
     (List.ofFn (layerBytes σ)).flatten
 
 /-- **The compact signature**. -/
-def compress (σ : Signature) : Bytes 6048 := Ref.ofList 6048 (compressList σ)
+def compress (σ : Signature) : Bytes 6032 := Ref.ofList 6032 (compressList σ)
 
 /-! ## The abstract expansion -/
 
@@ -141,7 +141,7 @@ def aLayers (index : SphincsSecurity.Index) (S0 : Signature) : Nat → Digest �
 /-- **The abstract expansion**: the digest of `rho = σ[0..16)` and the message, the reference's
 pure partial witness `Ref.expandOf` (which fails on malformed signatures), the abstract PORS stack
 machine on it (the message of the bottom layer), the counter phase, the counters written. -/
-def aExpand (m : Message) (pk : PublicKey) (σ : Bytes 6048) : AComp (Option (Bytes 16384)) := do
+def aExpand (m : Message) (pk : PublicKey) (σ : Bytes 6032) : AComp (Option (Bytes 16384)) := do
   let d ← SphincsSecurity.Concrete.messageDigest (m := AComp) 0 pk.root m
     (Ref.ofList 16 (Ref.sigRho (Ref.toList σ)))
   match Ref.expandOf (Ref.toList σ) d.toNat with
@@ -170,7 +170,7 @@ theorem length_layerBytes (σ : Signature) (lay : Layer) :
   rw [length_flatten_ofFn _ 16 (fun j => length_dv _), length_flatten_ofFn _ 16 (fun j => length_dv _)]
   fin_cases lay <;> rfl
 
-theorem length_compressList (σ : Signature) : (compressList σ).length = 6048 := by
+theorem length_compressList (σ : Signature) : (compressList σ).length = 6032 := by
   simp only [compressList, List.length_append, length_dv, List.length_take, Ref.zeros,
     List.length_replicate]
   rw [length_flatten_ofFn _ 16 (fun j => length_dv _)]
@@ -183,7 +183,7 @@ theorem length_compressList (σ : Signature) : (compressList σ).length = 6048 :
   omega
 
 theorem toList_compress (σ : Signature) : Ref.toList (compress σ) = compressList σ :=
-  Ref.toList_ofList 6048 _ (length_compressList σ)
+  Ref.toList_ofList 6032 _ (length_compressList σ)
 
 /-! ## The pad decoder -/
 

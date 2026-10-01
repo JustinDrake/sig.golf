@@ -19,11 +19,24 @@ def tableDigestLoop (randomizers : RandomizerOutputs) (secretKey : SphincsSecuri
       | some (index, leaves) => return some (randomness, index, leaves)
       | none => tableDigestLoop randomizers secretKey message attempts (trial + 1)
 
+/-- One table entry supplies two candidates, in low-half then high-half order. -/
+def pairedTableDigestLoop (randomizers : RandomizerOutputs) (secretKey : SphincsSecurity.SecretKey)
+    (message : Message) : Nat → Nat → m (Option (Randomness × Index × (IndexGroup → FtsLeaf)))
+  | 0, _ => pure none
+  | attempts + 1, trial => do
+      let pair := splitSecrets (randomizers (message, BitVec.ofNat 32 trial))
+      match ← Concrete.signAttempt secretKey message pair.1 with
+      | some (index, leaves) => return some (pair.1, index, leaves)
+      | none =>
+          match ← Concrete.signAttempt secretKey message pair.2 with
+          | some (index, leaves) => return some (pair.2, index, leaves)
+          | none => pairedTableDigestLoop randomizers secretKey message attempts (trial + 1)
+
 /-- The deterministic signer from tables: the randomizers from `randomizers`, then the table signer
 after the digest loop. -/
 def tableSign (randomizers : RandomizerOutputs) (secretKey : SphincsSecurity.SecretKey)
     (message : Message) : OracleComp HashSpec (Option Signature) := do
-  match ← tableDigestLoop randomizers secretKey message digestAttemptLimit 0 with
+  match ← pairedTableDigestLoop randomizers secretKey message digestPairLimit 0 with
   | none => return none
   | some (randomness, index, leaves) => Concrete.signAfterDigest secretKey randomness index leaves
 
@@ -54,6 +67,38 @@ theorem erases_deterministicDigestLoop (known : QueryCache HashSpec) (parameter 
       cases attempt with
       | none => exact ih _
       | some result => exact .pure _
+
+theorem erases_deterministicDigestPairs (known : QueryCache HashSpec) (parameter : PublicParameter)
+    (seed : MasterSeed) (top : Nat → Nat → Digest) (outputs : SecretOutputs) (randomizers : RandomizerOutputs)
+    (hknown : ∀ position, known (randomizerInputs parameter seed position) = some (randomizers position))
+    (message : Message) (attempts trial : Nat) :
+    Erases known (signDigestPairs ⟨seed, parameter, top (layerHeight topLayer) 0⟩ message attempts trial :
+        OracleComp HashSpec _)
+      (pairedTableDigestLoop randomizers (tableKey parameter top outputs) message attempts trial) := by
+  induction attempts generalizing trial with
+  | zero => exact .pure _
+  | succ attempts ih =>
+      unfold signDigestPairs pairedTableDigestLoop deriveRandomizerPair Concrete.oracleHash
+      simp only [bind_assoc, pure_bind]
+      apply Erases.skip _ _ (hknown (message, BitVec.ofNat 32 trial))
+      change Erases known (Concrete.signAttempt (tableKey parameter top outputs) message
+        (splitSecrets (randomizers (message, BitVec.ofNat 32 trial))).1 >>= _)
+          (Concrete.signAttempt (tableKey parameter top outputs) message
+            (splitSecrets (randomizers (message, BitVec.ofNat 32 trial))).1 >>= _)
+      apply (Erases.refl known _).bind
+      intro attempt
+      cases attempt with
+      | some result => exact .pure _
+      | none =>
+          change Erases known (Concrete.signAttempt (tableKey parameter top outputs) message
+            (splitSecrets (randomizers (message, BitVec.ofNat 32 trial))).2 >>= _)
+              (Concrete.signAttempt (tableKey parameter top outputs) message
+                (splitSecrets (randomizers (message, BitVec.ofNat 32 trial))).2 >>= _)
+          apply (Erases.refl known _).bind
+          intro attempt
+          cases attempt with
+          | some result => exact .pure _
+          | none => exact ih _
 
 /-! ## The cached signer from tables
 
@@ -93,7 +138,7 @@ with the mask table. -/
 def cachedTableSignChecked (randomizers : RandomizerOutputs) (masks : MaskOutputs)
     (secretKey : SphincsSecurity.SecretKey) (cache : TopCache) (message : Message) :
     OracleComp HashSpec (Option Signature) := do
-  match ← tableDigestLoop randomizers secretKey message digestAttemptLimit 0 with
+  match ← pairedTableDigestLoop randomizers secretKey message digestPairLimit 0 with
   | none => return none
   | some (randomness, index, leaves) =>
       Concrete.signFrom secretKey.parameter index (fun tree leaf => pure (secretKey.ftsSecret index tree leaf))
@@ -153,7 +198,7 @@ theorem erases_signChecked
         OracleComp HashSpec _)
       (cachedTableSignChecked randomizers masks (tableKey parameter top outputs) cache message) := by
   unfold signChecked cachedTableSignChecked
-  apply (erases_deterministicDigestLoop known parameter seed top outputs randomizers hrandomizers message _ _).bind
+  apply (erases_deterministicDigestPairs known parameter seed top outputs randomizers hrandomizers message _ _).bind
   intro attempt
   rcases attempt with _ | ⟨randomness, index, leaves⟩
   · exact .pure _

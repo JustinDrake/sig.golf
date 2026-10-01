@@ -8,13 +8,13 @@ Families (each a list of path runs, checked by `pspecB` in the `PorsCheck*` file
 * `setup`: from the digest's `j pors_setup` to `leaf_0` (leaf index table, tweak words, guard);
 * `leaf s` (`s < 15`): pi byte, `x = PIND[pi & 0x78 / 8]`, the order checks, leaf tweak, secret,
   `E = x | 2^14`, `a0 = CB`, up to the dispatch (the rejects: HALT(1));
-* `disp c` (`c < 18`): the dispatch `lbu T, 352(FR); slli; add TB; jalr` of leaf `c` (link `x24`)
+* `disp c` (`c < 18`): the dispatch `lbu T, 336(FR); slli; add TB; jalr` of leaf `c` (link `x24`)
   or of the merge tail copy `c - 15` (no link), stopping at the symbolic table entry;
 * `tab tb b` (`tb < 2`, `b < 256`): the 8-word table slot `b` (`FR += 16 a + 8`, then for `a = 0`
   `j entry0_V`, for `a ≥ 1` the inlined entry code) up to the pending hash (`a > 14`: HALT(1);
   `a ≥ 1`: the parity test `andi T, E, 1; beq/bne T, x0, slot(b | 15)`, taken: HALT(1));
 * `ent tb b`: after the pending hash in slot `b`, `a0 = NB; j lad_V_t_(14-a)`;
-* `pos V t p t'`: ladder position `p` of stream `t` (sibling from `FR + 128 + 16 p`, `E >>= 1`, heap
+* `pos V t p t'`: ladder position `p` of stream `t` (sibling from `FR + 112 + 16 p`, `E >>= 1`, heap
   index, branch to stream `t'`), up to the next hash (`p = 13`: the variant's destination);
 * tails `tailM c d`, `tailP c d`, `tailF c` (copy `c`: `0`, `1` = after stream `c`'s ladder, `2` = after
   `entry0_V`), with `STK = 80 d` known where the tail writes through it.
@@ -39,7 +39,7 @@ def tailPc (V c : Nat) : Nat := if c = 2 then entry0Pc V + 2 else ladPc V c 13 +
 def tsel (s : Nat) : Nat := if s = 14 then 1 else 0
 
 /-- Reuse `x18 = 4095` as the fold limit. At an empty root, the rebased frame is
-`2200 + 16 * folds`, so `FR ≤ 4095` is equivalent to `folds ≤ 118`. -/
+`2216 + 16 * folds`, so `FR ≤ 4095` is equivalent to `folds ≤ 117`. -/
 def FLIM : Nat := 4095
 
 /-- The dispatch of merge-tail copy `c`. -/
@@ -55,10 +55,10 @@ def f4Pc (c : Nat) : Nat := if c = 2 then layerPcTab.getD 4 [] |>.getD 0 0
 def ldR (r : Reg) (off : Nat) : E := .ld (addC (.reg r) (BitVec.ofNat 64 off))
 def eS : E := .bin .srl (.reg .x23) (cw 1)
 def notOne : E := .c (~~~1#64)
-/-- The table slot address `(lbu (FR + 352) << 5) + TB` (8-word slots). -/
+/-- The table slot address `(lbu (FR + 336) << 5) + TB` (8-word slots). -/
 def dispT (tb : Nat) : E :=
-  .bin .add (.bin .sll (.un (.ld .bu 0) (.ld (.bin .add (.reg .x14) (cw 352)))) (cw 5)) (cw tb)
-def dispObl : List Oblig := [.align8 (.reg .x14), .valid ⟨some (.reg .x14), BitVec.ofNat 64 352⟩ 1]
+  .bin .add (.bin .sll (.un (.ld .bu 0) (.ld (.bin .add (.reg .x14) (cw 336)))) (cw 5)) (cw tb)
+def dispObl : List Oblig := [.align8 (.reg .x14), .valid ⟨some (.reg .x14), BitVec.ofNat 64 336⟩ 1]
 
 /-- The table of leaf `s`. -/
 def tbOf (s : Nat) : Nat := if s = 14 then tbL else tbN
@@ -147,17 +147,17 @@ def posKnown : List (Reg × Word) := gkP ++ [(.x10, 0x1C0)]
 def posKeep : List Reg := [.x14, .x15, .x16, .x17, .x20, .x22, .x24, .x29]
 
 def posMem (t p : Nat) : List (Addr × E) :=
-  [(⟨none, BitVec.ofNat 64 0x1C8⟩, stW 0x1C8 eS), (⟨none, BitVec.ofNat 64 (0x1F8 - 16 * t)⟩, ldR .x14 (128 + 16 * p + 8)),
-    (⟨none, BitVec.ofNat 64 (0x1F0 - 16 * t)⟩, ldR .x14 (128 + 16 * p))]
+  [(⟨none, BitVec.ofNat 64 0x1C8⟩, stW 0x1C8 eS), (⟨none, BitVec.ofNat 64 (0x1F8 - 16 * t)⟩, ldR .x14 (112 + 16 * p + 8)),
+    (⟨none, BitVec.ofNat 64 (0x1F0 - 16 * t)⟩, ldR .x14 (112 + 16 * p))]
 
 def posObl (p : Nat) : List Oblig :=
-  [.valid ⟨some (.reg .x14), BitVec.ofNat 64 (128 + 16 * p + 8)⟩ 8, .valid ⟨some (.reg .x14), BitVec.ofNat 64 (128 + 16 * p)⟩ 8]
+  [.valid ⟨some (.reg .x14), BitVec.ofNat 64 (112 + 16 * p + 8)⟩ 8, .valid ⟨some (.reg .x14), BitVec.ofNat 64 (112 + 16 * p)⟩ 8]
 
 /-- The branch direction from stream `t` to stream `t'`. -/
 def crossDir (t t' : Nat) : Bool := if t = 0 then t' = 1 else t' = 0
 
 def posSpec (V t p t' : Nat) : Spec :=
-  let regs0 := [(.x1, ldR .x14 (128 + 16 * p)), (.x2, ldR .x14 (128 + 16 * p + 8)), ((.x23 : Reg), eS)]
+  let regs0 := [(.x1, ldR .x14 (112 + 16 * p)), (.x2, ldR .x14 (112 + 16 * p + 8)), ((.x23 : Reg), eS)]
   if p = 13 then ⟨regs0 ++ [(.x12, destE V)], posMem t p, ladPc V t p + 7, true, 7, [], none, 7⟩
   else
     ⟨regs0 ++ [(.x3, .bin .sll eS (cw 63)), (.x12, cw (0x1E0 + 16 * t'))], posMem t p,
@@ -321,10 +321,10 @@ def psetupMem : List (Addr × E) :=
     (⟨none, BitVec.ofNat 64 0x7F8⟩, cw 0x4000)] ++
   ((List.range 15).reverse.map fun r => (⟨none, BitVec.ofNat 64 (PIND + 8 * r)⟩, pindE r))
 
-/-- Known after the setup: the PORS constants, `TB = ptab_n`, `FR` (first header at `FR + 352`),
+/-- Known after the setup: the PORS constants, `TB = ptab_n`, `FR` (first header at `FR + 336`),
 the empty stack, the fold limit `FLIM`. -/
 def setupPost : List (Reg × Word) :=
-  gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x7B0), (.x15, 0),
+  gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x7C0), (.x15, 0),
     (.x18, BitVec.ofNat 64 FLIM)]
 
 def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 100, [], none, 100⟩
