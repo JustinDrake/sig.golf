@@ -36,7 +36,7 @@ theorem digest_inverse_le_probeHazard (probes : Nat) :
 
 /-- The encoding selector's enlarged fiber still fits the existing two-label hazard. -/
 theorem encoding_rate_le_probeHazard (probes : Nat) :
-    (3 / 2 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹ ≤ probeHazard probes := by
+    (7 / 4 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹ ≤ probeHazard probes := by
   have hcard : Fintype.card Digest = 2 ^ digestBits := Fintype.card_bitVec digestBits
   have hinv : (Fintype.card Digest : ENNReal)⁻¹ ≤ ((2 ^ digestBits - probes : Nat) : ENNReal)⁻¹ := by
     apply ENNReal.inv_le_inv.mpr

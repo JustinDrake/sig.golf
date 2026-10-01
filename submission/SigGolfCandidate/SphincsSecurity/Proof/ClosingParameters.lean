@@ -13,7 +13,7 @@ open ENNReal
 
 irreducible_def budgetSplit : Nat := 2 ^ 113
 
-noncomputable irreducible_def primitiveCoefficient : ENNReal := 7 / 4
+noncomputable irreducible_def primitiveCoefficient : ENNReal := 31 / 16
 
 theorem budgetSplit_le : budgetSplit ≤ 2 ^ 127 := by
   rw [budgetSplit_def]

@@ -7,9 +7,9 @@ The numeric parameters for the proved bound on accepting verification runs and t
 
 namespace SigGolfCandidate.Final
 
-/-- Proved upper bound on the cycles of every accepting verify run (`Verify.cycleBound`: `2903` for the
-prologue, digest, setup and PORS, plus `layersCost 5 = 7626`; the feasible worst case is `10528`; the universal positive-segment credit in `Final.Discharge` proves `cycleBound - 1`). -/
-def verifyCycleBound : Nat := 10528
+/-- Universal accepting-run bound from the exact verifier simulation. The mixed
+184/185 layer targets save eighteen chain cycles and cost one checksum correction. -/
+def verifyCycleBound : Nat := 10479
 
 /-- The witness charge `⌈16384 / 256⌉`. -/
 def witnessCharge : Nat := 64

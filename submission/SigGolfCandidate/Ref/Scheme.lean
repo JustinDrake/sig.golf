@@ -158,7 +158,7 @@ def buildPorsTree (S : List Byte) (idx : Nat) :
   let levels ← buildAllLevels (porsNodeFmt idx) porsH leaves
   pure (levels, secrets)
 
-/-- The FTS part of the signature (132 items of 16 bytes): the secrets of the sorted leaves
+/-- The FTS part of the signature (133 items of 16 bytes): the secrets of the sorted leaves
 `vs`, the authentication nodes `levels[h][j]` in schedule read order, zero items up to
 `porsK + porsM`. -/
 def porsOpening (vs : List Nat) (levels : List (List Val)) (secrets : List Val) : List Val :=
@@ -173,7 +173,7 @@ def searchCounter (lay tau e : Nat) (M : Val) (c : Nat) :
   | 0 => pure none
   | fuel + 1 => do
     let d ← encodingHash (encInput lay tau e M c)
-    match decodeDigits d with
+    match decodeDigits lay d with
     | some x => pure (some (c, x))
     | none => searchCounter lay tau e M (c + 1) fuel
 
@@ -225,7 +225,7 @@ def signLayers (S cache : List Byte) (idx : Nat) :
       | none => pure none
       | some rest => pure (some (rest ++ [(c, vals, path)]))
 
-/-- Signature bytes: `rho | FTS items (132 × 16) | (vals, path)_{lay=0..4}`. The counters are
+/-- Signature bytes: `rho | FTS items (133 × 16) | (vals, path)_{lay=0..4}`. The counters are
 not part of the signature: expand recomputes each layer's (least) counter. -/
 def serialize (rho : Val) (fts : List Val) (lays : List LayerSig) : List Byte :=
   rho ++ fts.flatten ++
@@ -261,7 +261,7 @@ def sigLayerBytes (lay : Nat) : Nat := 4 + 16 * nChains + 16 * height lay
 def bodyBytes (lay : Nat) : Nat := 16 * nChains + 16 * height lay
 /-- Bytes before the layers (`ref.LAYER0`): `rho` and the 132 FTS items (2128). -/
 def headBytes : Nat := 16 + 16 * (porsK + porsM)
-/-- Offset of layer `lay`'s body in the signature (no counters: 2128, 2992, 3760, 4528, 5296). -/
+/-- Offset of layer `lay`'s body in the signature (no counters: 2128, 2976, 3744, 4512, 5280). -/
 def sigLayerOff (lay : Nat) : Nat := headBytes + ((List.range lay).map bodyBytes).sum
 
 /-- Signature fields (`ref.parse`): `rho`, FTS item `i < 132` (secrets `i < 15`, then auth slots). -/
@@ -516,7 +516,7 @@ def verifyLayers (w : List Byte) (idx : Nat) : Nat → Val → OracleComp HashSp
   | lay + 1, M => do
     let (e, tau) := route idx lay
     let d ← encodingHash (encInput lay tau e M (witCounter w lay))
-    match decodeDigits d with
+    match decodeDigits lay d with
     | none => pure none
     | some x =>
       let leaf ← verifyLeafP w lay tau e x

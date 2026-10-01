@@ -22,7 +22,7 @@ def Match (parameter : PublicParameter) (messages : EncodingPosition → Digest)
     (words : OtsReferenceWords) (selections : ReferenceFamily) (input : HashInput) (answer : HashOutput) : Prop :=
   ∃ position, AtEncodingPosition parameter input position ∧
     referenceInput parameter messages selections position ≠ some input ∧
-    decodeEncodingOutput answer = some (words position.lay position.tree position.leafIdx)
+    decodeEncodingOutput position.lay answer = some (words position.lay position.tree position.leafIdx)
 
 theorem known_eq_original (parameter : PublicParameter) (words : OtsReferenceWords)
     (disclosed : Index → FtsTree → FtsLeaf → Prop) (known : Labels)
@@ -38,7 +38,7 @@ theorem protected_not_match (parameter : PublicParameter) (inputs : Finset HashI
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (known : Labels)
     (words : OtsReferenceWords) (selections : ReferenceFamily) (rows : CanonicalEncodingRows)
     (row : EncodingRow)
-    (hselect : FirstSuccessTable.select decodeEncodingOutput (fun counter => rows (row.1, counter)) = selections row.1)
+    (hselect : FirstSuccessTable.select (decodeEncodingOutput row.1.lay) (fun counter => rows (row.1, counter)) = selections row.1)
     (hkept : FirstSuccessPrefix.familyKept selections row) :
     ¬Match parameter (knownEncodingMessage known) words selections
       (knownEncodingCell parameter inputs hencoding known row).val (rows row) := by
@@ -55,39 +55,39 @@ theorem protected_not_match (parameter : PublicParameter) (inputs : Finset HashI
         have hcounter : selected.1 = row.2 := by simpa only [hselected, Option.map_some, Option.some.injEq] using heq
         simp only [Option.map_some, hcounter]
         rfl
-  have hinvalid := FirstSuccessPrefix.kept_nonselected_invalid decodeEncodingOutput
+  have hinvalid := FirstSuccessPrefix.kept_nonselected_invalid (decodeEncodingOutput row.1.lay)
     (fun counter => rows (row.1, counter)) (selections row.1) hselect row.2 hkept hnot
   rw [hdecode] at hinvalid
   contradiction
 
-theorem prob_decode_word_le (word : Encoding) :
-    Pr[fun answer => decodeEncodingOutput answer = some word | (liftM (PMF.uniformOfFintype HashOutput) : SPMF HashOutput)] ≤
-      ((3 / 2 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
-  by_cases hexists : ∃ digest, OtsCode.decode digest = some word
+theorem prob_decode_word_le (lay : Layer) (word : Encoding) :
+    Pr[fun answer => decodeEncodingOutput lay answer = some word | (liftM (PMF.uniformOfFintype HashOutput) : SPMF HashOutput)] ≤
+      ((7 / 4 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
+  by_cases hexists : ∃ digest, OtsCode.decode lay digest = some word
   · obtain ⟨digest, hdigest⟩ := hexists
     calc
       _ ≤ Pr[fun answer => selectEncodingDigest answer = digest |
           (liftM (PMF.uniformOfFintype HashOutput) : SPMF HashOutput)] :=
         probEvent_mono fun _ _ hdecode => OtsCode.decode_some_injective hdecode hdigest
       _ ≤ _ := EncodingSelection.prob_select_eq_le_pmf digest
-  · have hfalse (answer : HashOutput) : ¬decodeEncodingOutput answer = some word :=
+  · have hfalse (answer : HashOutput) : ¬decodeEncodingOutput lay answer = some word :=
       fun hdecode => hexists ⟨selectEncodingDigest answer, hdecode⟩
     simp only [probEvent_eq_tsum_ite, hfalse, if_false, tsum_zero, zero_le]
 
 theorem prob_match_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
     (words : OtsReferenceWords) (selections : ReferenceFamily) (input : HashInput) :
     Pr[Match parameter messages words selections input | (liftM (PMF.uniformOfFintype HashOutput) : SPMF HashOutput)] ≤
-      ((3 / 2 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
+      ((7 / 4 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
   by_cases hexists : ∃ position, AtEncodingPosition parameter input position
   · obtain ⟨position, hat⟩ := hexists
     calc
-      _ ≤ Pr[fun answer => decodeEncodingOutput answer = some (words position.lay position.tree position.leafIdx) |
+      _ ≤ Pr[fun answer => decodeEncodingOutput position.lay answer = some (words position.lay position.tree position.leafIdx) |
           (liftM (PMF.uniformOfFintype HashOutput) : SPMF HashOutput)] := by
         apply probEvent_mono
         rintro answer _ ⟨other, hother, _, hdecode⟩
         obtain rfl := atEncodingPosition_unique hother hat
         exact hdecode
-      _ ≤ _ := prob_decode_word_le _
+      _ ≤ _ := prob_decode_word_le position.lay _
   · have hfalse (answer : HashOutput) : ¬Match parameter messages words selections input answer := by
       rintro ⟨position, hat, _⟩
       exact hexists ⟨position, hat⟩
