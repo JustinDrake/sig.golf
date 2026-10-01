@@ -10,6 +10,122 @@ Honest PORS heap indices `H < 2^15` have `efield H = rev16 H * 2^16`: the parent
 derives both from one `slliw`. `revWord H` is `efield H` sign-extended from bit 31 (the register
 form the verifier keeps). -/
 
+namespace SigGolfCandidate.Ref.LeafScale
+
+def left3 (v : Nat) : Nat := 8 * (v % 536870912) + v / 536870912 % 8
+def right3 (v : Nat) : Nat := v / 8 + 536870912 * (v % 8)
+
+theorem left3_lt (v : Nat) : left3 v < 4294967296 := by
+  unfold left3
+  have := Nat.mod_lt v (show 0 < 536870912 by decide)
+  have := Nat.mod_lt (v / 536870912) (show 0 < 8 by decide)
+  omega
+
+theorem right3_left3 (v : Nat) (hv : v < 4294967296) : right3 (left3 v) = v := by
+  have hq : v / 536870912 < 8 := by omega
+  unfold left3 right3
+  rw [Nat.mod_eq_of_lt hq]
+  have := Nat.mod_lt v (show 0 < 536870912 by decide)
+  have := Nat.mod_lt (v / 536870912) (show 0 < 8 by decide)
+  omega
+
+theorem left3_inj {a b : Nat} (ha : a < 4294967296) (hb : b < 4294967296)
+    (h : left3 a = left3 b) : a = b := by
+  have := congrArg right3 h
+  rwa [right3_left3 a ha, right3_left3 b hb] at this
+
+theorem left3_small (v : Nat) (hv : v < 536870912) : left3 v = 8 * v := by
+  unfold left3
+  rw [Nat.mod_eq_of_lt hv, Nat.div_eq_of_lt hv]
+  simp
+
+def rel (w : Nat) : Nat :=
+  w % 79228162514264337593543950336 +
+  79228162514264337593543950336 * left3 (w / 79228162514264337593543950336 % 4294967296) +
+  340282366920938463463374607431768211456 * (w / 340282366920938463463374607431768211456)
+
+def invRel (w : Nat) : Nat :=
+  w % 79228162514264337593543950336 +
+  79228162514264337593543950336 * right3 (w / 79228162514264337593543950336 % 4294967296) +
+  340282366920938463463374607431768211456 * (w / 340282366920938463463374607431768211456)
+
+theorem rel_parts (w : Nat) :
+    rel w % 79228162514264337593543950336 = w % 79228162514264337593543950336 ∧
+    rel w / 79228162514264337593543950336 % 4294967296 =
+      left3 (w / 79228162514264337593543950336 % 4294967296) ∧
+    rel w / 340282366920938463463374607431768211456 = w / 340282366920938463463374607431768211456 := by
+  have := left3_lt (w / 79228162514264337593543950336 % 4294967296)
+  unfold rel
+  refine ⟨?_, ?_, ?_⟩ <;> omega
+
+theorem invRel_rel (w : Nat) : invRel (rel w) = w := by
+  obtain ⟨h1,h2,h3⟩ := rel_parts w
+  unfold invRel
+  rw [h1,h2,h3,right3_left3 _ (Nat.mod_lt _ (by decide))]
+  omega
+
+theorem rel_injective : Function.Injective rel := by
+  intro a b h
+  have := congrArg invRel h
+  rwa [invRel_rel, invRel_rel] at this
+
+theorem rel_class (w : Nat) : rel w % 65536 = w % 65536 := by
+  have := (rel_parts w).1
+  omega
+
+end SigGolfCandidate.Ref.LeafScale
+
+namespace SigGolfCandidate.Ref.LeafScale
+open SigGolfCandidate.Legacy
+set_option exponentiation.threshold 1024
+
+theorem rel_lt (w : Nat) (hw : w < 2^512) : rel w < 2^512 := by
+  have := left3_lt (w / 79228162514264337593543950336 % 4294967296)
+  norm_num only [Nat.reducePow] at hw ⊢
+  unfold rel
+  omega
+
+def queryRel : Query → Query
+  | ⟨0,w⟩ => if w.toNat % 65536 = 2305 then ⟨0,BitVec.ofNat 512 (rel w.toNat)⟩ else ⟨0,w⟩
+  | ⟨n+1,w⟩ => ⟨n+1,w⟩
+
+def queryInv : Query → Query
+  | ⟨0,w⟩ => if w.toNat % 65536 = 2305 then ⟨0,BitVec.ofNat 512 (invRel w.toNat)⟩ else ⟨0,w⟩
+  | ⟨n+1,w⟩ => ⟨n+1,w⟩
+
+theorem queryInv_queryRel : Function.LeftInverse queryInv queryRel := by
+  rintro ⟨n,w⟩
+  cases n with
+  | zero =>
+    by_cases h : w.toNat % 65536 = 2305
+    · have hb := rel_lt _ w.isLt
+      have hc : (BitVec.ofNat 512 (rel w.toNat)).toNat % 65536 = 2305 := by
+        rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hb, rel_class]
+        exact h
+      simp only [queryRel, if_pos h, queryInv, if_pos hc]
+      congr 1
+      apply BitVec.eq_of_toNat_eq
+      simp only [BitVec.toNat_ofNat]
+      rw [Nat.mod_eq_of_lt hb, invRel_rel, Nat.mod_eq_of_lt w.isLt]
+    · simp only [queryRel, if_neg h, queryInv]
+  | succ n => rfl
+
+theorem queryRel_injective : Function.Injective queryRel := queryInv_queryRel.injective
+
+theorem queryRel_blocks (q : Query) : (queryRel q).blocks = q.blocks := by
+  rcases q with ⟨n,w⟩
+  cases n with
+  | zero => simp only [queryRel]; split <;> rfl
+  | succ n => rfl
+
+theorem queryRel_fixed (q : Query) (h : q.2.toNat % 65536 ≠ 2305) : queryRel q = q := by
+  rcases q with ⟨n,w⟩
+  cases n with
+  | zero => exact if_neg h
+  | succ n => rfl
+
+end SigGolfCandidate.Ref.LeafScale
+
 namespace SigGolfCandidate.Ref.Rev
 
 /-- Bit reversal of the low `n` bits: bit `i` of `v` goes to bit `n - 1 - i`. -/
@@ -484,15 +600,15 @@ theorem fullPerm_of_ne (w : Nat) (h : w % 65536 ≠ 2561) : fullPerm w = payload
 theorem fullPerm_of_eq (w : Nat) (h : w % 65536 = 2561) : fullPerm w = nodeRel w := by
   simp only [fullPerm, if_pos h]
 
-def queryPerm : Query → Query
+def baseQueryPerm : Query → Query
   | ⟨0, w⟩ => ⟨0, BitVec.ofNat 512 (fullPerm w.toNat)⟩
   | ⟨n + 1, w⟩ => ⟨n + 1, w⟩
 
-theorem queryPerm_involutive : Function.Involutive queryPerm := by
+theorem baseQueryPerm_involutive : Function.Involutive baseQueryPerm := by
   rintro ⟨n, w⟩
   cases n with
   | zero =>
-    simp only [queryPerm]
+    simp only [baseQueryPerm]
     congr 1
     apply BitVec.eq_of_toNat_eq
     simp only [BitVec.toNat_ofNat]
@@ -500,10 +616,10 @@ theorem queryPerm_involutive : Function.Involutive queryPerm := by
       Nat.mod_eq_of_lt w.isLt]
   | succ n => rfl
 
-theorem queryPerm_injective : Function.Injective queryPerm :=
-  queryPerm_involutive.injective
+theorem baseQueryPerm_injective : Function.Injective baseQueryPerm :=
+  baseQueryPerm_involutive.injective
 
-theorem queryPerm_blocks (q : Query) : (queryPerm q).blocks = q.blocks := by
+theorem baseQueryPerm_blocks (q : Query) : (baseQueryPerm q).blocks = q.blocks := by
   rcases q with ⟨n, w⟩
   cases n <;> rfl
 
@@ -516,8 +632,8 @@ theorem wordPerm_fixed (w : Nat) (h0 : w % 64 ≠ 0) (h1 : w % 65536 ≠ 257) :
     omega
   simp only [wordPerm, if_neg ho, if_neg hn]
 
-theorem queryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
-    (h1 : q.2.toNat % 65536 ≠ 257) (h2 : q.2.toNat % 65536 ≠ 2561) : queryPerm q = q := by
+theorem baseQueryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
+    (h1 : q.2.toNat % 65536 ≠ 257) (h2 : q.2.toNat % 65536 ≠ 2561) : baseQueryPerm q = q := by
   rcases q with ⟨n, w⟩
   cases n with
   | zero =>
@@ -527,7 +643,7 @@ theorem queryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
     have h1' : w.toNat % 18446744073709551616 % 65536 ≠ 257 := by
       rw [Nat.mod_mod_of_dvd _ (by norm_num : 65536 ∣ 18446744073709551616)]
       exact h1
-    simp only [queryPerm]
+    simp only [baseQueryPerm]
     congr 1
     apply BitVec.eq_of_toNat_eq
     simp only [BitVec.toNat_ofNat, fullPerm_of_ne _ h2, payloadPerm, wordPerm_fixed _ h0' h1']
@@ -546,5 +662,30 @@ theorem old_header (lay treeHigh i mu : Nat) (hl : lay < 7) (ht : treeHigh < 4)
     omega
   rw [wordPerm, if_pos h]
   exact (old_fields lay treeHigh i mu hl ht hi hm).2
+
+end SigGolfCandidate.Ref.AddressFormat
+
+namespace SigGolfCandidate.Ref.AddressFormat
+open SigGolfCandidate.Legacy
+
+/-- Compose the previous chain/node relabelling with a bijection on tag-9 leaf fields. -/
+def queryPerm (q : Query) : Query := LeafScale.queryRel (baseQueryPerm q)
+
+/-- The inverse is needed by the budget layer when decoding formatted query bytes. -/
+def queryInverse (q : Query) : Query := baseQueryPerm (LeafScale.queryInv q)
+
+theorem queryInverse_queryPerm (q : Query) : queryInverse (queryPerm q) = q := by
+  rw [queryInverse, queryPerm, LeafScale.queryInv_queryRel, baseQueryPerm_involutive]
+
+theorem queryPerm_injective : Function.Injective queryPerm :=
+  LeafScale.queryRel_injective.comp baseQueryPerm_injective
+
+theorem queryPerm_blocks (q : Query) : (queryPerm q).blocks = q.blocks := by
+  rw [queryPerm, LeafScale.queryRel_blocks, baseQueryPerm_blocks]
+
+theorem queryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
+    (h1 : q.2.toNat % 65536 ≠ 257) (h2 : q.2.toNat % 65536 ≠ 2561)
+    (h9 : q.2.toNat % 65536 ≠ 2305) : queryPerm q = q := by
+  rw [queryPerm, baseQueryPerm_fixed q h0 h1 h2, LeafScale.queryRel_fixed q h9]
 
 end SigGolfCandidate.Ref.AddressFormat

@@ -739,7 +739,7 @@ theorem honestSegments_lookahead (node : Nat → Nat → Digest) (segs : List Sc
   dsimp only
   rw [hget]
   simp [ScheduleSegment.toSegment, Segment.normalized, ScheduleSegment.folds, hlen,
-    show ¬ n < 3 by omega]
+    show ¬n < 3 by omega]
 
 theorem getD_climb {v x top : Nat} {L : List Nat} (pre post : List ScheduleSegment) :
     (pre ++ climbSegs v x L top ++ post).getD pre.length default = (climbSegs v x L top).headD default := by
@@ -780,10 +780,10 @@ theorem eval_recoverSegments_climb {node : Nat → Nat → Digest}
           rintro ⟨hne, hbad⟩
           have hpos := hne
           rw [hf] at hpos
-          rcases hbad with hpne | ⟨hlong,hlne⟩
+          rcases hbad with hpne | ⟨hlong, hlne⟩
           · exact hpne (by rw [hheap]; exact hp (by omega))
           · rw [hf] at hlong
-            exact hlne (by rw [hheap]; exact hl hlong)) hm
+            exact hlne (by rw [hheap]; exact hl (by omega))) hm
         (node := node top (v / 2 ^ top)) (heap := anc v top) (by
           rw [hf, hpend, hheap]
           have := eval_foldSegment hT hv (honestSegments node segs ⟨state.segment, hj⟩) (top - x) 0 x
@@ -811,10 +811,10 @@ theorem eval_recoverSegments_climb {node : Nat → Nat → Digest}
           rintro ⟨hne, hbad⟩
           have hpos := hne
           rw [hf] at hpos
-          rcases hbad with hpne | ⟨hlong,hlne⟩
+          rcases hbad with hpne | ⟨hlong, hlne⟩
           · exact hpne (by rw [hheap]; exact hp (by omega))
           · rw [hf] at hlong
-            exact hlne (by rw [hheap]; exact hl hlong)) hm
+            exact hlne (by rw [hheap]; exact hl (by omega))) hm
         (node := node y (v / 2 ^ y)) (heap := anc v y) (left := node y (v / 2 ^ y ^^^ 1))
         (rest := vstack node v L ++ hi) (by simp [hstack, vstack]) (by
           rw [hf, hpend, hheap]

@@ -122,16 +122,20 @@ theorem eq_of_le_of_valid {x y : Encoding} (hx : Valid lay x) (hy : Valid lay y)
   omega
 
 /-- A valid word, used where the proof needs a word before the reference encoding is known. -/
-irreducible_def defaultWord (_lay : Layer) : Encoding :=
+irreducible_def defaultWord (lay : Layer) : Encoding :=
   fun index => if index.val < 26 then ⟨7, by decide⟩ else if index.val = 26 then
-    ⟨3, by decide⟩ else ⟨0, by decide⟩
+    ⟨if 1 ≤ lay.val then 3 else 2, by split_ifs <;> decide⟩ else ⟨0, by decide⟩
 
 theorem defaultWord_valid : Valid lay (defaultWord lay) := by
   rw [Valid_def]
   change (∑ index : ChainIndex, (defaultWord lay index).val) = targetFor lay
-  simp only [defaultWord_def, targetFor, targetSum]
-  change (∑ index : Fin 42, if index.val < 26 then (7 : Nat) else if index.val = 26 then 3 else 0) = 185
-  decide
+  by_cases h : 1 ≤ lay.val
+  · simp only [defaultWord_def, h, if_true, targetFor, targetSum]
+    change (∑ index : Fin 42, if index.val < 26 then (7 : Nat) else if index.val = 26 then 3 else 0) = 185
+    decide
+  · simp only [defaultWord_def, h, if_false, targetFor, targetSum]
+    change (∑ index : Fin 42, if index.val < 26 then (7 : Nat) else if index.val = 26 then 2 else 0) = 184
+    decide
 
 /-- The chain steps a signer walks to reveal a word. -/
 def signingSteps (word : Encoding) : Nat := ∑ index, (word index).val

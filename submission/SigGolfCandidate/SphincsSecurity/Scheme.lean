@@ -31,7 +31,7 @@ def counterBits : Nat := 32
 def winternitzBits : Nat := 3
 def chainLength : Nat := 2 ^ winternitzBits
 def numChains : Nat := 42
-def targetSum : Nat := 185
+def targetSum : Nat := 184
 def numLayers : Nat := 5
 def totalHeight : Nat := 34
 /-- The tallest layer, the top one, `h_0 = 11`, which bounds every layer's leaf index. -/
@@ -65,7 +65,7 @@ abbrev Counter := BitVec counterBits
 abbrev Layer := Fin numLayers
 
 /-- The target sum at a particular one-time-signature layer. -/
-def targetFor (_lay : Layer) : Nat := targetSum
+def targetFor (lay : Layer) : Nat := targetSum + if 1 ≤ lay.val then 1 else 0
 /-- `idx`, which few-time key signs. -/
 abbrev Index := Fin (2 ^ totalHeight)
 /-- `tau`, a tree of any layer. Layer `lay` only uses the values below `2^(sum_{j < lay} h_j)`. -/
@@ -134,7 +134,7 @@ def truncateHash (output : HashOutput) : Digest :=
 /-- Encoding-only gated selection among three overlapping windows; all other hash domains keep their usual truncation. -/
 def selectEncodingAnswer (a : HashOutput) : HashOutput :=
   if a.getLsbD 127 then
-    if 125 ≤ (a.extractLsb' 55 9).toNat then a >>> 128 else a
+    if a.getLsbD 62 || a.getLsbD 63 then a >>> 128 else a
   else if a.getLsbD 63 then a >>> 64 else a
 
 def selectEncodingDigest (a : HashOutput) : Digest :=

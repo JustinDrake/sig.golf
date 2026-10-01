@@ -155,6 +155,7 @@ theorem converted_query (s t : MachineState) (B lay i mu : Nat)
   have hw : oldHeader lay 0 i mu < 2 ^ 64 := by unfold oldHeader; omega
   rw [readWords_ofNat_succ t B 7, readWords_ofNat_succ s B 7, sw,
     queryPerm_words _ _ (readWords_length _ _ _) (by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold oldHeader; omega)]
   have hp : wordPerm (BitVec.ofNat 64 (oldHeader lay 0 i mu)).toNat = newHeader lay 0 i mu := by
     rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]

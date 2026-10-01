@@ -233,7 +233,7 @@ theorem segmentsRun_schedule (fts : FtsSignature) (v : Nat) (hv : v < 2 ^ ftsTre
         apply Fin.ext
         rw [hslookahead]
         by_contra hbad
-        exact hfolds (Or.inr ⟨by omega, Or.inr ⟨hne,hbad⟩⟩)
+        exact hfolds (Or.inr ⟨by omega, Or.inr ⟨hne, hbad⟩⟩)
       set segment := fts.segments ⟨r.segment, hsegment⟩ with hsegmentDef
       set a := segment.folds.val with ha
       set started : Run := { r.hash f (pendingInput parameter index pending r.node) with
@@ -783,10 +783,11 @@ theorem recoverRun_honest (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature)
           Nat.mod_eq_of_lt hlen]
         by_cases hshort : (segments j).folds.val < 3
         · rw [(segments j).lookahead_normal hshort]
-          simp [show sseg.reads.length < 3 by omega]
-        · obtain ⟨heap, hmem, hpar, hl⟩ := hparity (by omega)
-          have : ¬ sseg.reads.length < 3 := by omega
-          simpa [this] using hl (by omega)
+          simp [← hfolds,hshort]
+        · obtain ⟨heap,hmem,hpar,hl⟩ := hparity (by omega)
+          have hlong : 3 ≤ (segments j).folds.val := by omega
+          have : ¬sseg.reads.length < 3 := by omega
+          simpa [this] using hl hlong
       · intro i
         have hmemOr : sseg ∈ schedule (sortedLeaves leaves) ∨ sseg = default := by
           rw [hsseg, List.getD_eq_getElem?_getD]

@@ -177,7 +177,7 @@ theorem Good.encodingHashP {s : MachineState} {N C : Nat} {x : List Byte}
 
 /-- Zero-padded `thInput` for the tags that `addrFmt` leaves alone (not 1, 3, 12). -/
 theorem fmt_th (t lay tau p j : Nat) (payload : List Byte)
-    (ht : byte t ∉ [byte 1, byte 3, byte 10, byte 12]) :
+    (ht : byte t ∉ [byte 1, byte 3, byte 9, byte 10, byte 12]) :
     addrFmt (thInput (tweak t lay tau p j) payload) = pad64 (thInput (tweak t lay tau p j) payload) :=
   addrFmt_thInput t lay tau p j payload ht
 

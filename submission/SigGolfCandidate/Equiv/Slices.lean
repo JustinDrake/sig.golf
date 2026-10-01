@@ -114,7 +114,7 @@ theorem flatten_ofFn_slices_var (l : List Byte) (a : Nat) {n : Nat} (w : Nat →
 
 /-! ### The W1a witness counters (`Ref.withCounters`)
 
-`c4` at `Ref.wC4 = 2648`, `c0 .. c3` at `Ref.wChains = 2944` (the tweak slot of chain block `(0, 0)`). -/
+`c4` at `Ref.wC4 = 2392`, `c0 .. c3` at `Ref.wChains = 2944` (the tweak slot of chain block `(0, 0)`). -/
 
 /-- A slice of `LE32`s at a multiple of 4 is one of them. -/
 theorem slice_le32s (L : List Nat) (j : Nat) (hj : j < L.length) :
@@ -133,7 +133,7 @@ theorem slice_le32s (L : List Nat) (j : Nat) (hj : j < L.length) :
 
 /-- The layout of `Ref.withCounters`: prefix, `c4`, the paths etc., `c0 .. c3`, the rest. -/
 theorem withCounters_eq (w0 : List Byte) (cs : List Nat) :
-    Ref.withCounters w0 cs = w0.take 2648 ++ Ref.le32 (cs.getD 4 0) ++ Ref.slice w0 2652 292 ++
+    Ref.withCounters w0 cs = w0.take 2392 ++ Ref.le32 (cs.getD 4 0) ++ Ref.slice w0 2396 548 ++
       (((List.range 4).map (cs.getD · 0)).map Ref.le32).flatten ++ w0.drop 2960 := by
   unfold Ref.withCounters
   rw [Ref.wC4_eq, Ref.wChains_eq, List.map_map]
@@ -157,8 +157,8 @@ theorem length_withCounters (w0 : List Byte) (cs : List Nat) (h : 2960 ≤ w0.le
 theorem slice_withCounters_ctrOff (w0 : List Byte) (cs : List Nat) (h : 2960 ≤ w0.length)
     (lay : Nat) (hlay : lay < 5) :
     Ref.slice (Ref.withCounters w0 cs) (Ref.ctrOff lay) 4 = Ref.le32 (cs.getD lay 0) := by
-  have ht : (w0.take 2648).length = 2648 := by rw [List.length_take]; omega
-  have hs : (Ref.slice w0 2652 292).length = 292 := by
+  have ht : (w0.take 2392).length = 2392 := by rw [List.length_take]; omega
+  have hs : (Ref.slice w0 2396 548).length = 548 := by
     simp only [Ref.slice, List.length_take, List.length_drop]; omega
   rw [withCounters_eq]
   unfold Ref.ctrOff

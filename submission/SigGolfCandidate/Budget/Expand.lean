@@ -738,8 +738,7 @@ theorem ctrSum_withCounters (w0 : List Byte) (hw : 2960 ≤ w0.length) (cs : Lis
 trials and at most `311` more. -/
 theorem blocksF_expandList_le (f : Hash) (m sig : List Byte) (hm : m.length = 32) (hsig : sig.length = 6032)
     (wit : List Byte) (h : evalWithAnswerFn f (expandList m sig) = some wit) :
-    wit.length = 16384 ∧ wit.take witLead = zeros witLead ∧
-      blocksF f (expandList m sig) ≤ 3356 + ctrSum wit := by
+    wit.length = 16384 ∧ blocksF f (expandList m sig) ≤ 3356 + ctrSum wit := by
   unfold expandList at h ⊢
   unfold digest at h ⊢
   simp only [bind_assoc, pure_bind] at h ⊢
@@ -761,7 +760,7 @@ theorem blocksF_expandList_le (f : Hash) (m sig : List Byte) (hm : m.length = 32
         match r with
         | none => pure none
         | some cs => pure (some (withCounters w0 cs))) = _ at h
-    change _ ∧ _ ∧ _ + blocksF f (porsRoot (idxOf a.toNat) (leavesOf a.toNat) w0 >>= fun r =>
+    change _ ∧ _ + blocksF f (porsRoot (idxOf a.toNat) (leavesOf a.toNat) w0 >>= fun r =>
       match r with
       | none => pure none
       | some M => expandLayers w0 (idxOf a.toNat) nLayers M >>= fun r =>
@@ -780,7 +779,7 @@ theorem blocksF_expandList_le (f : Hash) (m sig : List Byte) (hm : m.length = 32
         match r with
         | none => pure none
         | some cs => pure (some (withCounters w0 cs))) = _ at h
-      change _ ∧ _ ∧ _ + (_ + blocksF f (expandLayers w0 (idxOf a.toNat) nLayers M >>= fun r =>
+      change _ ∧ _ + (_ + blocksF f (expandLayers w0 (idxOf a.toNat) nLayers M >>= fun r =>
         match r with
         | none => pure none
         | some cs => pure (some (withCounters w0 cs)))) ≤ _
@@ -794,10 +793,7 @@ theorem blocksF_expandList_le (f : Hash) (m sig : List Byte) (hm : m.length = 32
         have h' : some (withCounters w0 cs) = some wit := h
         simp only [Option.some.injEq] at h'
         subst h'
-        refine ⟨by rw [Equiv.length_withCounters _ _ (by rw [hl0]; decide), hl0]; rfl, ?_, ?_⟩
-        · obtain ⟨-, -, -, hwl⟩ := Equiv.expandOf_some _ _ _ hx
-          rw [take_withCounters w0 cs (by rw [hl0]; decide), hwl]
-          exact take_witnessList _ _ _ _
+        refine ⟨by rw [Equiv.length_withCounters _ _ (by rw [hl0]; decide), hl0]; rfl, ?_⟩
         rw [ctrSum_withCounters w0 (by rw [hl0]; decide) cs b2 (fun c hc => by have := b3 c hc; omega)]
         show _ + (_ + (_ + 0)) ≤ _
         rw [show (311 : Nat) * nLayers = 1555 from rfl] at b1
@@ -859,11 +855,10 @@ theorem expand_le_sign (f : Hash) (sk : Bytes 32) (m : Bytes 32) (σ : Bytes 603
       rw [hS, blocksF_map]; rfl
     rw [hsign]
     -- the expansion
-    obtain ⟨wl, hwl, hwz, hexp, -⟩ := Final.eval_aExpand_sign' (gF f) sk m hkp hs
+    obtain ⟨wl, hwl, hexp, -⟩ := Final.eval_aExpand_sign' (gF f) sk m hkp hs
     have hE := Equiv.expandRef_eq m (pkA.root : Bytes 16) pkA (Equiv.compress S)
     have hev : evalWithAnswerFn f (expandRef m (pkA.root : Bytes 16) (Equiv.compress S)) =
-        some (Ref.ofList 15872
-          (Ref.cutW (Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S))))) := by
+        some (Ref.ofList 16384 (Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S)))) := by
       rw [hE, eval_relabel, hexp]
     unfold expandRef at hev ⊢
     rw [blocksF_bind, evalWithAnswerFn_bind] at *
@@ -873,16 +868,13 @@ theorem expand_le_sign (f : Hash) (sk : Bytes 32) (m : Bytes 32) (σ : Bytes 603
     | some wit =>
       rw [hl] at hev
       simp only [evalWithAnswerFn_pure, Option.map_some, Option.some.injEq] at hev
-      obtain ⟨hwit, hwitz, hb⟩ := blocksF_expandList_le f _ _ (length_toList m) (length_toList _) wit hl
+      obtain ⟨hwit, hb⟩ := blocksF_expandList_le f _ _ (length_toList m) (length_toList _) wit hl
       have hcs : ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S)).length = 5 := by
         simp [SphincsSecurity.numLayers]
       have hwc : (Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S))).length = 16384 := by
         rw [Equiv.length_withCounters _ _ (by rw [hwl]; decide), hwl]
-      -- W1: both views have the zero lead, so they agree when their witnesses (the views without the
-      -- lead) do
       have hweq : wit = Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S)) := by
-        rw [← extW_toList_cutW wit hwit hwitz, hev,
-          extW_toList_cutW_withCounters wl _ hwc (by rw [hwl]; decide) hwz]
+        rw [← toList_ofList 16384 wit hwit, hev, toList_ofList 16384 _ hwc]
       rw [hweq, ctrSum_withCounters wl (by rw [hwl]; decide) _ hcs (fun c hc => by
         simp only [List.mem_map, List.mem_range] at hc
         obtain ⟨j, hj, rfl⟩ := hc

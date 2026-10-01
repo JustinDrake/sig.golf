@@ -8,8 +8,7 @@ import Mathlib.Tactic.IntervalCases
 The state of the chain phase of layer `lay`:
 * `Fresh wl lay i`: the witness words not yet overwritten by verify: words `2 .. 7` (pad and value)
   of every chain block of the chains `(lay, i ..)` and of the layers `< lay` (processed later), and
-  the counters `c0 .. c3` in the tweak slot of block `(0, 0)` while layer 0's chain 0 has not run,
-  plus lower-layer reserved tweak slots containing paths for the remaining higher folds;
+  the counters `c0 .. c3` in the tweak slot of block `(0, 0)` while layer 0's chain 0 has not run;
 * chain `i`'s head writes its tweak slot, its rungs overwrite the value slot and spill into the next
   block's tweak slot (or the next region's block 0, or past the witness): none of these is fresh
   for `(lay, i + 1)`.
@@ -39,8 +38,7 @@ theorem s6N_eq (lay : Nat) : s6N lay = 6336 + 2688 * lay := by
 
 def FreshW (lay i lay' i' k : Nat) : Prop :=
   lay' < 5 ∧ i' < 42 ∧ k < 8 ∧ (lay' < lay ∨ (lay' = lay ∧ i ≤ i')) ∧
-    (2 ≤ k ∨ (lay' = 0 ∧ i' = 0 ∧ (0 < lay ∨ i = 0)) ∨
-      (lay' < lay ∧ lay' < 4 ∧ 32 ≤ i' ∧ i' < 32 + heightL (lay' + 1)))
+    (2 ≤ k ∨ (lay' = 0 ∧ i' = 0 ∧ (0 < lay ∨ i = 0)))
 
 def Fresh (wl : List Byte) (lay i : Nat) (s : MachineState) : Prop :=
   ∀ lay' i' k, FreshW lay i lay' i' k →
@@ -72,20 +70,18 @@ theorem Fresh_frame {wl : List Byte} {s t : MachineState} {lay i : Nat} (hF : Fr
 theorem FreshW_next {lay i a b k : Nat} (h : FreshW lay (i + 1) a b k) : FreshW lay i a b k := by
   obtain ⟨h1, h2, h3, h4, h5⟩ := h
   refine ⟨h1, h2, h3, by omega, ?_⟩
-  rcases h5 with h5 | ⟨h6, h7, h8⟩ | h5
+  rcases h5 with h5 | ⟨h6, h7, h8⟩
   · exact Or.inl h5
-  · exact Or.inr (Or.inl ⟨h6, h7, by omega⟩)
-  · exact Or.inr (Or.inr h5)
+  · exact Or.inr ⟨h6, h7, by omega⟩
 
 /-- The layer transition: after layer `lay`'s chains, the fresh words of layer `lay - 1`. -/
 theorem FreshW_layer {lay a b k : Nat} (hl : 1 ≤ lay) (h : FreshW (lay - 1) 0 a b k) :
     FreshW lay 42 a b k := by
   obtain ⟨h1, h2, h3, h4, h5⟩ := h
   refine ⟨h1, h2, h3, by omega, ?_⟩
-  rcases h5 with h5 | ⟨h6, h7, _⟩ | ⟨h6, h7, h8, h9⟩
+  rcases h5 with h5 | ⟨h6, h7, _⟩
   · exact Or.inl h5
-  · exact Or.inr (Or.inl ⟨h6, h7, Or.inl (by omega)⟩)
-  · exact Or.inr (Or.inr ⟨by omega, h7, h8, h9⟩)
+  · exact Or.inr ⟨h6, h7, Or.inl (by omega)⟩
 
 /-- A word written by chain `i` (tweak slot, value slot, spill) is not fresh for `(lay, i + 1)`. -/
 theorem fresh_ne {lay i a b k : Nat} (hw : FreshW lay (i + 1) a b k) (hi : i < 42) (d : Nat)
@@ -103,16 +99,7 @@ theorem FreshW_own {lay i k : Nat} (hl : lay < 5) (hi : i < 42) (hk : 2 ≤ k) (
 /-- The counters of layers `0 .. 3` (words 0, 1 of block `(0, 0)`) are fresh at the start of every
 layer's chains. -/
 theorem FreshW_ctr {lay k : Nat} (hl : lay < 5) (hk : k < 2) : FreshW lay 0 0 0 k :=
-  ⟨by omega, by omega, by omega, by omega, Or.inr (Or.inl ⟨rfl, rfl, Or.inr rfl⟩)⟩
-
-/-- Lower paths occupy tweak words of the next layer's future chain blocks. -/
-theorem FreshW_sib {lay lam k : Nat} (hl : lay < 5) (h0 : 0 < lay)
-    (hm : lam < heightL lay) (hk : k < 2) :
-    FreshW lay 42 (lay - 1) (32 + lam) k := by
-  have hh : heightL lay ≤ 11 := by interval_cases lay <;> decide
-  have hh' : heightL lay ≤ 6 := by interval_cases lay <;> decide
-  refine ⟨by omega, by omega, by omega, Or.inl (by omega), Or.inr (Or.inr ?_)⟩
-  exact ⟨by omega, by omega, by omega, by rw [Nat.sub_add_cancel h0]; omega⟩
+  ⟨by omega, by omega, by omega, by omega, Or.inr ⟨rfl, rfl, Or.inr rfl⟩⟩
 
 /-! ## Addresses of the chain code -/
 
@@ -448,6 +435,7 @@ theorem addrFmt_chainInputP_words (lay tau e i mu : Nat) (pad : List Byte) (v : 
   have hw : AddressFormat.oldHeader lay 0 i (mu - 1) < 2 ^ 64 := by unfold AddressFormat.oldHeader; omega
   rw [addrFmt, fmt_chainInputP_words lay tau e i mu pad v hp hv hmu hmu' (by omega), hd,
     AddressFormat.queryPerm_words _ _ rfl (by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega)]
   rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]
   unfold AddressFormat.oldHeader
@@ -719,8 +707,8 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i <
   have a0e : (addC (.reg .x22) (offW i)).eval s = BitVec.ofNat 64 B := by
     have := bke 0 (by omega); unfold bk at this; rw [norm_eval] at this
     rw [addC_eval] at this ⊢; simpa using this
-  have treg : ∀ x, x ≠ .x10 → x ≠ .x12 → t.getReg x = s.getReg x := by
-    intro x h1 h2; rw [ht, PRes.toState_getReg]; simp only [hr, headExp]
+  have treg : ∀ x, x ≠ .x10 → x ≠ .x12 → x ≠ .x25 → t.getReg x = s.getReg x := by
+    intro x h1 h2 h3; rw [ht, PRes.toState_getReg]; simp only [hr, headExp]
     rw [RegFile.get_set_ne _ _ h2, RegFile.get_set_ne _ _ h1, known_eval hK]
   have t10 : t.getReg .x10 = BitVec.ofNat 64 B := by
     rw [ht, PRes.toState_getReg]; simp only [hr, headExp]
@@ -746,8 +734,8 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i <
     intro A hA h1 h2
     rw [tmem, if_neg (fun h => h1 ((ofNat_eq_iff hA (by omega)).mp h)),
       if_neg (fun h => h2 ((ofNat_eq_iff hA (by omega)).mp h))]
-  have gk : ∀ q ∈ gkL, q.1 ≠ .x10 ∧ q.1 ≠ .x12 := by decide
-  have ck : ∀ q ∈ chK0, q.1 ≠ .x10 ∧ q.1 ≠ .x12 := by decide
+  have gk : ∀ q ∈ gkL, q.1 ≠ .x10 ∧ q.1 ≠ .x12 ∧ q.1 ≠ .x25 := by decide
+  have ck : ∀ q ∈ chK0, q.1 ≠ .x10 ∧ q.1 ≠ .x12 ∧ q.1 ≠ .x25 := by decide
   have fr6 : ∀ k, 2 ≤ k → k < 8 → t.getMem (BitVec.ofNat 64 (B + 8 * k)) =
       w64 (slice c.wl (blockOff c.lay i + 8 * k) 8) := fun k hk hk' => by
     rw [tfr _ (by omega) (by omega) (by omega)]; exact hF _ _ _ (FreshW_own hlay hi hk hk')
@@ -755,20 +743,20 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i <
     refine ⟨?_, rfl⟩
     simp only [hr, headExp]; by_cases h : i % 3 = 0 <;> simp [h]
   refine ⟨t, by rw [hn.2, hn.1] at hst; exact hst,
-    ⟨⟨Glob_frameC hG (fun q hq => treg _ (gk q hq).1 (gk q hq).2)
+    ⟨⟨Glob_frameC hG (fun q hq => treg _ (gk q hq).1 (gk q hq).2.1 (gk q hq).2.2)
         (fun A hA => tfr A (by omega) (by omega) (by omega)),
-      fun q hq => (treg _ (ck q hq).1 (ck q hq).2).trans (hK q hq), ?_,
-      (treg _ (by decide) (by decide)).trans h22,
-      (treg _ (by decide) (by decide)).trans h27, (treg _ (by decide) (by decide)).trans h1r,
+      fun q hq => (treg _ (ck q hq).1 (ck q hq).2.1 (ck q hq).2.2).trans (hK q hq), ?_,
+      (treg _ (by decide) (by decide) (by decide)).trans h22,
+      (treg _ (by decide) (by decide) (by decide)).trans h27, (treg _ (by decide) (by decide) (by decide)).trans h1r,
       LBOk_frame hLB (fun j hj => ⟨tfr _ (by omega) (by rw [hlen] at hj; omega) (by rw [hlen] at hj; omega),
         tfr _ (by omega) (by rw [hlen] at hj; omega) (by rw [hlen] at hj; omega)⟩), hlen, hvs,
         by unfold CB0; rw [tfr _ (by omega) (by omega) (by omega)]; exact hCB⟩,
       t25, ?_, fun k hk hk' => fr6 k hk (by omega), ?_, ?_, ?_, ?_, length_witChain c hc i hi, t10, t12, ?_,
       hec rfl⟩⟩
   · obtain ⟨r1, r2, r3, r4, r5⟩ := hR
-    exact ⟨(treg _ (by decide) (by decide)).trans r1, (treg _ (by decide) (by decide)).trans r2,
-      (treg _ (by decide) (by decide)).trans r3, (treg _ (by decide) (by decide)).trans r4,
-      (treg _ (by decide) (by decide)).trans r5⟩
+    exact ⟨(treg _ (by decide) (by decide) (by decide)).trans r1, (treg _ (by decide) (by decide) (by decide)).trans r2,
+      (treg _ (by decide) (by decide) (by decide)).trans r3, (treg _ (by decide) (by decide) (by decide)).trans r4,
+      (treg _ (by decide) (by decide) (by decide)).trans r5⟩
   · intro a' b' k hw
     obtain ⟨n1, n2, -⟩ := fresh_disj hw hi
     rw [tfr _ (by rw [blkN_eq]; obtain ⟨ha5, hb42, hk8, -⟩ := hw; omega) n1 n2]
@@ -814,8 +802,8 @@ theorem copy_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i =
       simpa using this
   obtain ⟨hst, -⟩ := crun hrun s hpc hK hobl (by simp [hr, copyExp])
   set t := r.toState s with ht
-  have treg : ∀ x, x ≠ .x3 → x ≠ .x14 → t.getReg x = s.getReg x := by
-    intro x h1 h2; rw [ht, PRes.toState_getReg]; simp only [hr, copyExp]
+  have treg : ∀ x, x ≠ .x3 → x ≠ .x14 → x ≠ .x25 → t.getReg x = s.getReg x := by
+    intro x h1 h2 h3; rw [ht, PRes.toState_getReg]; simp only [hr, copyExp]
     rw [RegFile.get_set_ne _ _ h2, RegFile.get_set_ne _ _ h1, known_eval hK]
   have ldv : ∀ k, k = 48 ∨ k = 56 → (ldK i k).eval s = s.getMem (BitVec.ofNat 64 (B + k)) := fun k hk =>
     ldK_eval s c.lay i k h22 hlay hi (by omega)
@@ -831,8 +819,8 @@ theorem copy_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i =
     intro A hA h1 h2
     rw [tmem, if_neg (fun h => h2 ((ofNat_eq_iff hA (by omega)).mp h)),
       if_neg (fun h => h1 ((ofNat_eq_iff hA (by omega)).mp h))]
-  have gk : ∀ q ∈ gkL, q.1 ≠ .x3 ∧ q.1 ≠ .x14 := by decide
-  have ck : ∀ q ∈ chK0, q.1 ≠ .x3 ∧ q.1 ≠ .x14 := by decide
+  have gk : ∀ q ∈ gkL, q.1 ≠ .x3 ∧ q.1 ≠ .x14 ∧ q.1 ≠ .x25 := by decide
+  have ck : ∀ q ∈ chK0, q.1 ≠ .x3 ∧ q.1 ≠ .x14 ∧ q.1 ≠ .x25 := by decide
   have fr : ∀ k, 6 ≤ k → k < 8 → s.getMem (BitVec.ofNat 64 (B + 8 * k)) =
       w64 (slice c.wl (blockOff c.lay i + 8 * k) 8) := fun k hk hk' =>
     hF _ _ _ (FreshW_own hlay hi (by omega) hk')
@@ -840,23 +828,23 @@ theorem copy_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i =
     refine ⟨?_, rfl⟩
     simp only [hr, copyExp]; by_cases h : i % 3 = 0 <;> simp [h]
   have hGt : Glob gkL c.wl c.pk t :=
-    Glob_frameS hG (fun q hq => treg _ (gk q hq).1 (gk q hq).2) (fun A hA hp => by
+    Glob_frameS hG (fun q hq => treg _ (gk q hq).1 (gk q hq).2.1 (gk q hq).2.2) (fun A hA hp => by
       have hs1 : A ≠ slotA i ∧ A ≠ slotA i + 8 := by
         unfold slotA; rcases hp with hp | hp | hp | hp
         · simp only [pSlots, List.mem_cons, List.not_mem_nil, or_false] at hp; omega
         all_goals omega
       exact tfr A (by omega) hs1.1 hs1.2)
   refine ⟨t, by rw [hn.2, hn.1] at hst; exact hst,
-    ⟨hGt, fun q hq => (treg _ (ck q hq).1 (ck q hq).2).trans (hK q hq), ?_,
-      (treg _ (by decide) (by decide)).trans h22,
-      (treg _ (by decide) (by decide)).trans h27, (treg _ (by decide) (by decide)).trans h1r,
+    ⟨hGt, fun q hq => (treg _ (ck q hq).1 (ck q hq).2.1 (ck q hq).2.2).trans (hK q hq), ?_,
+      (treg _ (by decide) (by decide) (by decide)).trans h22,
+      (treg _ (by decide) (by decide) (by decide)).trans h27, (treg _ (by decide) (by decide) (by decide)).trans h1r,
       ?_, by simp [hlen], ?_,
       by unfold CB0; rw [tfr _ (by omega) (by unfold slotA; omega) (by unfold slotA; omega)]; exact hCB⟩,
       ?_, ?_, ?_⟩
   · obtain ⟨r1, r2, r3, r4, r5⟩ := hR
-    exact ⟨(treg _ (by decide) (by decide)).trans r1, (treg _ (by decide) (by decide)).trans r2,
-      (treg _ (by decide) (by decide)).trans r3, (treg _ (by decide) (by decide)).trans r4,
-      (treg _ (by decide) (by decide)).trans r5⟩
+    exact ⟨(treg _ (by decide) (by decide) (by decide)).trans r1, (treg _ (by decide) (by decide) (by decide)).trans r2,
+      (treg _ (by decide) (by decide) (by decide)).trans r3, (treg _ (by decide) (by decide) (by decide)).trans r4,
+      (treg _ (by decide) (by decide) (by decide)).trans r5⟩
   · refine LBOk_append (LBOk_frame hLB (fun j hj => ?_)) _ ?_ ?_
     · rw [hlen] at hj
       unfold slotA at tfr

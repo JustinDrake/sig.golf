@@ -27,17 +27,16 @@ def afterW (w0 : List Byte) (idx : Nat) (v : List Nat) : OracleComp HashSpec (Op
     | none => pure none
     | some cs => pure (some (withCounters w0 cs))
 
-/-- A HALT with the outcome `r` (for `some`, the 16384-byte view `0x800 .. 0x4800`; the witness is
-the buffer `0xA00 .. 0x4800`, the view without its lead). -/
+/-- A HALT with the outcome `r` (the witness bytes for `some`). -/
 def QP (r : Option (List Byte)) (t : MachineState) : Prop :=
   fetch eimg t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
-    r.map (fun l => ofList 15872 (cutW l)) = if t.getReg .x10 = 0 then some (readBuffer t 0xA00 15872) else none
+    r.map (ofList 16384) = if t.getReg .x10 = 0 then some (readBuffer t 0x800 16384) else none
 
 theorem qp_fail (t : MachineState) (h : FailSt t) : QP none t :=
   ⟨h.1, h.2.1, by rw [if_neg (by rw [h.2.2]; decide)]; rfl⟩
 
 /-- **Phase 2**. -/
-theorem phase2_sim (w0 : List Byte) (hw : w0.length = 16384) (hz : ∀ j < 4, w0.getD (2652 + j) 0 = 0) (K : Nat → Nat) (v : List Nat) (N : Nat)
+theorem phase2_sim (w0 : List Byte) (hw : w0.length = 16384) (hz : ∀ j < 4, w0.getD (2396 + j) 0 = 0) (K : Nat → Nat) (v : List Nat) (N : Nat)
     (t : MachineState) (hpc : t.pc = pcOf 495)
     (h160 : t.getMem (BitVec.ofNat 64 0x160) = BitVec.ofNat 64 (N % 2 ^ 64)) (hwm : WitMem w0 t)
     (hk : ∀ p < 15, t.getMem (BitVec.ofNat 64 (0x6E0 + 8 * p)) = BitVec.ofNat 64 (K p))
@@ -69,7 +68,6 @@ theorem phase2_sim (w0 : List Byte) (hw : w0.length = 16384) (hz : ∀ j < 4, w0
   · exact Sim.pure (Q := QP) (a := none) (qp_fail t3 h3)
   obtain ⟨hlen, e3, x35, x310, hbuf⟩ := h3
   refine Sim.pure (Q := QP) (a := some (withCounters w0 cs)) ⟨e3, x35, ?_⟩
-  rw [List.append_nil] at hbuf
-  rw [if_pos x310, Option.map_some, readBuffer_cut t3 _ (by rw [length_withCounters_ref w0 cs (by omega), hw]) hbuf]
+  rw [if_pos x310, Option.map_some, hbuf, List.append_nil]
 
 end SigGolfCandidate.ExP

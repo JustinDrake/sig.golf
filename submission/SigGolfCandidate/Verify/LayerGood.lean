@@ -47,7 +47,7 @@ theorem witPath_eq (L : LCtx) (hL : L.lay < 5) : witPath L.wl L.lay = (layFC L).
   simp only [heightL_eq _ hL]
   apply List.map_congr_left
   intro l _
-  simp [witSib, pathOff_eqL _ hL, pathStride, pathStrideL]
+  simp [witSib, pathOff_eqL _ hL]
 
 theorem Good.reject {s : MachineState} (hf : fetch image s = some (.base .ECALL))
     (h5 : s.getReg .x5 = 1) (h10 : s.getReg .x10 = 1) : Good s 1 1 (pure (false, 0)) := by
@@ -72,8 +72,8 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
   have htarget := targetFor_le L.lay
   have hcb : chainsBound L.lay ≥ 1200 := by unfold chainsBound; omega
   have hsA : stepsA L.lay ≤ 15 := by unfold stepsA; split_ifs <;> omega
-  have hcB : cyclesB L.lay ≤ 33 := by unfold cyclesB stepsB; split_ifs <;> omega
-  have hsB : stepsB L.lay ≤ 30 := by unfold stepsB; split_ifs <;> omega
+  have hcB : cyclesB L.lay ≤ 32 := by unfold cyclesB stepsB; split_ifs <;> omega
+  have hsB : stepsB L.lay ≤ 29 := by unfold stepsB; split_ifs <;> omega
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
       (cc (match decodeDigits L.lay (encodingBytes a) with
         | none => pure none
@@ -159,13 +159,12 @@ theorem foldEnd_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     intro p hp
     simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
     rcases hp with hp | hp | hp | hp | hp | hp
-    · rw [writeHash_getReg]; exact hK1 p (by simp [foldK, fk, gkOf, hp])
-    · subst hp; rw [writeHash_getReg]; exact hK1 _ (by simp [foldK, fk, gkOf])
-    · subst hp; rw [writeHash_getReg]; exact hK1 _ (by simp [foldK, fk, gkOf])
+    · rw [writeHash_getReg]; exact hK1 p (by simp [fk, gkOf, hp])
+    · subst hp; rw [writeHash_getReg]; exact hK1 _ (by simp [fk, gkOf])
+    · subst hp; rw [writeHash_getReg]; exact hK1 _ (by simp [fk, gkOf])
     · subst hp; rw [writeHash_getReg]; exact h12
     · subst hp; rw [kf _ (by simp [fkeep])]; exact h27
-    · subst hp; rw [writeHash_getReg]
-      exact hK1 (.x22, BitVec.ofNat 64 (s6N lay)) (by simp [foldK, layFC, s6N_eq])
+    · subst hp; rw [kf _ (by simp [fkeep])]; exact h22
   · simp only [routeReg, routeIn, if_neg (show lay - 1 ≠ 4 by omega)]
     rw [kf _ (by simp [fkeep]), h30]
     simp only [LCtx.tau]
@@ -237,10 +236,7 @@ theorem compare_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (M :
   have hK' : KnownOK cmpK (writeHash u a) := fun p hp => by
     rw [writeHash_getReg]
     simp only [cmpK] at hp
-    apply hK p
-    rcases List.mem_append.mp hp with hp | hp
-    · exact List.mem_append_left _ (List.mem_append_left _ hp)
-    · simpa [layFC, dstOf] using List.mem_append_right (foldK 0 64) hp
+    exact hK p (by simpa [layFC, dstOf] using hp)
   have hpc' : (writeHash u a).pc = pcOf (cmpPc tt) := by
     rw [writeHash_pc, hpc, pcOf_add4, ← cmp_link tt htt2]
     rfl
@@ -325,7 +321,8 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
         | succ m => exact foldEnd_layerIn wl pk (m + 1) idx (by omega) (by omega) u hu a) s hs
     exact this.mono (by omega) (by dsimp only; simp only [layersCost]; omega)
 
-/-- The uniform185 narrow-selector layer bound, including the final comparison. -/
-theorem layersCost_5 : layersCost 5 = 7542 := by decide
+/-- The layer cycles in order 0 .. 4: `1610` (direct route), `1530`, `1530`, `1530`, `1514` (target 181
+held in `x14`, no hash-length reload), and the comparison `8`. -/
+theorem layersCost_5 : layersCost 5 = 7552 := by decide
 
 end SigGolfCandidate.Verify

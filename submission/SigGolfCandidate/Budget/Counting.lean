@@ -249,15 +249,21 @@ variable {lay : Nat}
 
 /-- Number of accepted encodings at the selected layer. -/
 
-def codeCount (_lay : Nat) : Nat := 85765828219404593829886748260228224
+def codeCount (lay : Nat) : Nat :=
+  if 1 ≤ lay then 85765828219404593829886748260228224
+  else 101963205812723399925627924643353984
 
 theorem gfDigit_eq (X : Nat) : gfDigit X = 1 + X + X ^ 2 + X ^ 3 + X ^ 4 + X ^ 5 + X ^ 6 + X ^ 7 := by
   simp [gfDigit, Finset.sum_range_succ]
 
 theorem npair_target : npair 21 (targetFor lay) = codeCount lay := by
-  simp only [targetFor, targetSum, codeCount]
-  rw [npair_coeff 21 185 (2 ^ 128) (by norm_num) (by norm_num), gfDigit_eq]
-  decide
+  by_cases h : 1 ≤ lay
+  · simp only [targetFor, targetSum, h, if_true, Nat.reduceAdd, codeCount]
+    rw [npair_coeff 21 185 (2 ^ 128) (by norm_num) (by norm_num), gfDigit_eq]
+    decide
+  · simp only [targetFor, targetSum, h, if_false, Nat.add_zero, codeCount]
+    rw [npair_coeff 21 184 (2 ^ 128) (by norm_num) (by norm_num), gfDigit_eq]
+    decide
 
 /-- The decoding condition on the low 128 bits `k`. -/
 def Dok (lay k : Nat) : Prop :=
@@ -396,7 +402,7 @@ theorem selected_decode_none_iff (u : BitVec 256) :
 theorem probEvent_selected_decode_none :
     Pr[fun u : BitVec 256 => decodeDigits lay (encodingBytes u) = none |
       ($ᵗ BitVec 256 : ProbComp (BitVec 256))] =
-      1 - ((1923 * 2 ^ 118 * codeCount lay : Nat) : ℝ≥0∞) / (2 ^ 256 : ℝ≥0∞) := by
+      1 - ((15 * 2 ^ 125 * codeCount lay : Nat) : ℝ≥0∞) / (2 ^ 256 : ℝ≥0∞) := by
   let targets : Finset SphincsSecurity.Digest := univ.filter fun d => Dok lay d.toNat
   have hpad : ∀ d ∈ targets, (d.getLsbD 63 || d.getLsbD 127) = false := by
     intro d hd
@@ -414,7 +420,7 @@ theorem probEvent_selected_decode_none :
       omega
   have hcard := SphincsSecurity.EncodingSelection.card_select_mem_of_padding targets hpad
   have ht : targets.card = codeCount lay := count_Dok_128
-  rw [ht, show (2 : Nat) ^ 128 + 2 ^ 127 + 387 * 2 ^ 118 = 1923 * 2 ^ 118 by norm_num] at hcard
+  rw [ht, show (2 : Nat) ^ 128 + 2 ^ 127 + 3 * 2 ^ 125 = 15 * 2 ^ 125 by norm_num] at hcard
   have hc := probEvent_compl ($ᵗ BitVec 256 : ProbComp (BitVec 256))
     (fun u => Dok lay (SphincsSecurity.selectEncodingDigest u).toNat)
   have hfail : Pr[⊥ | ($ᵗ BitVec 256 : ProbComp (BitVec 256))] = 0 := by simp
@@ -426,7 +432,7 @@ theorem probEvent_selected_decode_none :
     SphincsSecurity.Completeness.probEvent_uniform]
   have hcount : ((univ : Finset (BitVec 256)).filter
       fun u => Dok lay (SphincsSecurity.selectEncodingDigest u).toNat).card =
-      1923 * 2 ^ 118 * codeCount lay := by
+      15 * 2 ^ 125 * codeCount lay := by
     simpa only [targets, mem_filter, mem_univ, true_and] using hcard
   rw [hcount]
 

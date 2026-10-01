@@ -90,10 +90,7 @@ section wit
 variable (wl : List Byte) (hl : wl.length = 16384)
 
 theorem path_bound (lay : Layer) :
-    Ref.pathOff lay.val + Ref.pathStride lay.val * SphincsSecurity.layerHeight lay ≤ 16384 := by
-  fin_cases lay <;> decide
-
-theorem pathStride_ge (lay : Layer) : 16 ≤ Ref.pathStride lay.val := by
+    Ref.pathOff lay.val + 16 * SphincsSecurity.layerHeight lay ≤ 2944 := by
   fin_cases lay <;> decide
 
 theorem lay_lt (lay : Layer) : lay.val < 5 := lay.isLt
@@ -108,11 +105,11 @@ theorem ctrOff_bound (lay : Layer) : Ref.ctrOff lay.val + 4 ≤ 16384 := by
 include hl
 
 theorem witRho_eq : Ref.witRho wl = dv (witSig wl).randomness :=
-  (dv_ofList_slice _ _ (by rw [Ref.wRho_eq]; omega)).symm
+  (dv_ofList_slice _ _ (by omega)).symm
 
 theorem witSecret_eq (s : Nat) (hs : s < 15) :
     Ref.witSecret wl s = dv (Ref.ofList 16 (Ref.witSecret wl s)) :=
-  (dv_ofList_slice _ _ (by rw [Ref.wSec_eq]; omega)).symm
+  (dv_ofList_slice _ _ (by unfold Ref.wSec; omega)).symm
 
 theorem witChain_eq (lay : Layer) (i : ChainIndex) :
     Ref.witChain wl lay.val i.val = dv (((witSig wl).layers lay).chainValues i) :=
@@ -129,9 +126,6 @@ theorem witPath_eq (lay : Layer) :
   unfold SphincsSecurity.Concrete.signaturePath
   rw [dif_pos hl2]
   have hb := path_bound lay
-  have hs := pathStride_ge lay
-  have hm := Nat.mul_le_mul_left (Ref.pathStride lay.val) (show l + 1 ≤ SphincsSecurity.layerHeight lay by omega)
-  rw [Nat.mul_add, Nat.mul_one] at hm
   exact (dv_ofList_slice _ _ (by omega)).symm
 
 omit hl in
@@ -453,21 +447,22 @@ theorem segAt_lookahead (p : Nat) : (segAt wl p).lookahead.val =
   split <;> rfl
 
 theorem path_guard_eq (b E : Nat) (hb : b < 256) :
-    (0 < b % 16 ∧ (b / 32 % 2 ≠ E % 2 ∨ (3 ≤ b % 16 ∧ b / 32 ≠ E % 8))) ↔
+    (0 < b % 16 ∧ (b / 32 % 2 ≠ E % 2 ∨ (3 ≤ b % 16 ∧ b / 32 / 2 ≠ E / 2 % 4))) ↔
       (b % 16 ≠ 0 ∧ ((decide (b / 32 % 2 = 1) && decide (b % 16 ≠ 0)) ≠
         decide (E % 2 = 1) ∨ (3 ≤ b % 16 ∧ (if b % 16 < 3 then 0 else b / 64 % 4) ≠ E / 2 % 4))) := by
   by_cases hz : b % 16 = 0
   · simp [hz]
-  · simp only [hz, ne_eq, not_false_eq_true, decide_true, Bool.and_true, if_false, true_and]
+  · simp only [hz,ne_eq,not_false_eq_true,decide_true,Bool.and_true,true_and]
     have hbit : (decide (b / 32 % 2 = 1) ≠ decide (E % 2 = 1)) ↔ b / 32 % 2 ≠ E % 2 := by
       have hb2 := Nat.mod_lt (b / 32) (show 0 < 2 by decide)
       have hE2 := Nat.mod_lt E (show 0 < 2 by decide)
-      by_cases hb1 : b / 32 % 2 = 1 <;> by_cases hE1 : E % 2 = 1 <;> simp [hb1, hE1] <;> omega
+      by_cases hb1 : b / 32 % 2 = 1 <;> by_cases hE1 : E % 2 = 1 <;> simp [hb1,hE1] <;> omega
     simp only [ne_eq] at hbit
     rw [hbit]
     by_cases hs : b % 16 < 3
-    · rw [if_pos hs]; omega
-    · rw [if_neg hs]; omega
+    · simp [hs]; omega
+    · simp only [hs,if_false]
+      omega
 
 theorem segment_eq (j E folds : Nat) (ap : PendingHash) (cur : Digest) :
     Ref.segment index wl (segPtr wl j) E folds (encP ap) (dv cur) =
@@ -490,7 +485,7 @@ theorem segment_eq (j E folds : Nat) (ap : PendingHash) (cur : Digest) :
   · simp [h1]
   · simp only [h1, if_false]
     have hg := path_guard_eq b E hbyte
-    by_cases h2 : 0 < b % 16 ∧ (b / 32 % 2 ≠ E % 2 ∨ (3 ≤ b % 16 ∧ b / 32 ≠ E % 8))
+    by_cases h2 : 0 < b % 16 ∧ (b / 32 % 2 ≠ E % 2 ∨ (3 ≤ b % 16 ∧ b / 32 / 2 ≠ E / 2 % 4))
     · rw [if_pos h2, if_pos (hg.mp h2)]
     · rw [if_neg h2, if_neg (mt hg.mpr h2)]
       have hpar : 0 < b % 16 → (segAt wl (segPtr wl j)).parity = decide (E % 2 = 1) := by
@@ -722,15 +717,15 @@ end pors
 
 /-- **verify** (W1a, padded): `verifyRef m pk w` is the relabelled padded abstract verifier on `⟨pk, 0⟩`,
 `witDec w` and the witness pads `padOf (toList w)` (rejecting paths included). -/
-theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 15872) :
+theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 16384) :
     Ref.verifyRef m pk w =
       relabel fmtQ (SphincsSecurity.Concrete.verifyP (m := AComp) ⟨pk, 0⟩ m (witDec w)
-        (padOf (Ref.extW (Ref.toList w)))) := by
-  have hl : (Ref.extW (Ref.toList w)).length = 16384 := by rw [Ref.length_extW, Ref.length_toList]; rfl
+        (padOf (Ref.toList w))) := by
+  have hl : (Ref.toList w).length = 16384 := Ref.length_toList w
   unfold Ref.verifyRef Ref.verifyList SphincsSecurity.Concrete.verifyP SphincsSecurity.Concrete.verifyCoreP
   rw [countersOk_eq _ hl]
   unfold witDec
-  by_cases hc : SphincsSecurity.Concrete.CountersInRange (witSig (Ref.extW (Ref.toList w)))
+  by_cases hc : SphincsSecurity.Concrete.CountersInRange (witSig (Ref.toList w))
   · simp only [hc, decide_true, Bool.not_true, Bool.false_eq_true, if_false, if_true]
     rw [witRho_eq _ hl, digest_eq pk _ m, relabel_bind, bind_map_left]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_

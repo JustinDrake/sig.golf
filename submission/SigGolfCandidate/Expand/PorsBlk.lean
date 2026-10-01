@@ -53,80 +53,120 @@ theorem blk554_run (t : MachineState) (hpc : t.pc = pcOf 554) (a : Nat) (ha : a 
 
 theorem and7_path (n : Nat) : n &&& 7 = n % 8 := Nat.and_two_pow_sub_one_eq_mod n 3
 
-/-- The hybrid descriptor guard checks parity for short segments and three path bits for long ones. -/
-theorem blk555_run (t : MachineState) (hpc : t.pc = pcOf 555) (b E : Nat) (hb : b < 256) (hE : E < 2 ^ 15)
-    (h6 : t.getReg .x6 = BitVec.ofNat 64 b) (h19 : t.getReg .x19 = BitVec.ofNat 64 E)
-    (h7 : t.getReg .x7 = BitVec.ofNat 64 (b % 16)) :
-    ∃ t', Steps eimg t 8 8 t' ∧
-      t'.pc = (if b / 32 % 2 ≠ E % 2 ∨ (3 ≤ b % 16 ∧ b / 32 ≠ E % 8) then pcOf 284 else pcOf 559) ∧
-      RegsEq t t' [.x13, .x14] ∧ ∀ x, t'.getMem x = t.getMem x := by
-  let u := Expand.blk555.res.toState t
-  have hs1 := symRun_sound Expand.blk555 Expand.codeAt_555 t hpc (by simp only [Expand.blk555.res, rv_simp])
-  have hu : u.pc = pcOf 2915 := by simp only [u, Expand.blk555.res, rv_simp]
-  have ru : RegsEq t u [.x13, .x14] := by pregs
-  have mu : ∀ x, u.getMem x = t.getMem x := getMem_nil rfl t
-  have u13 : u.getReg .x13 = BitVec.ofNat 64 (b / 32) := by
-    simp only [u, Expand.blk555.res, rv_simp, h6]
-    rw [show (5#64 : Word).toNat % 64 = 5 from rfl, ofNat_ushiftRight _ _ (by omega)]
+private theorem guard_ult (a b : Nat) (ha : a < 2^64) (hb : b < 2^64) :
+    BitVec.ult (BitVec.ofNat 64 a) (BitVec.ofNat 64 b) = decide (a<b) := by
+  rw [BitVec.ult, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+    Nat.mod_eq_of_lt ha,Nat.mod_eq_of_lt hb]
+
+private theorem guard_start_run (t : MachineState) (hpc : t.pc=pcOf 555)
+    (b : Nat) (hb : b<256) (h6 : t.getReg .x6=BitVec.ofNat 64 b)
+    (h7 : t.getReg .x7=BitVec.ofNat 64 (b%16)) :
+    ∃ u, Steps eimg t 4 4 u ∧ u.pc=(if b%16<3 then pcOf 2922 else pcOf 2918) ∧
+      u.getReg .x13=BitVec.ofNat 64 (b/32) ∧
+      RegsEq t u [.x13,.x14] ∧ ∀ x, u.getMem x=t.getMem x := by
+  have h1:=symRun_sound Expand.blk555 Expand.codeAt_555 t hpc
+    (by simp only [Expand.blk555.res,rv_simp])
+  let u:=Expand.blk555.res.toState t
+  have p1:u.pc=pcOf 2915 := by simp only [u,Expand.blk555.res,rv_simp]
+  have r1:RegsEq t u [] := by pregs
+  have m1:∀ x,u.getMem x=t.getMem x := getMem_nil rfl t
+  have x6:u.getReg .x6=BitVec.ofNat 64 b := by rw[r1.get .x6,h6]
+  have x7:u.getReg .x7=BitVec.ofNat 64 (b%16) := by rw[r1.get .x7,h7]
+  have h2:=symRun_sound Expand.blk2915 Expand.codeAt_2915 u p1
+    (by simp only [Expand.blk2915.res,rv_simp])
+  have r2:RegsEq u (Expand.blk2915.res.toState u) [.x13,.x14] := by pregs
+  refine ⟨_,h1.trans h2,?_,?_,(r1.trans r2).mono (by decide),?_⟩
+  · simp only [Expand.blk2915.res,rv_simp,x7]
+    rw [show (3#64:Word)=BitVec.ofNat 64 3 from rfl,
+      guard_ult _ _ (by omega) (by norm_num)]
+    by_cases hs:b%16<3 <;> simp [hs]
+  · simp only [Expand.blk2915.res,rv_simp,x6]
+    rw [show (5#64:Word).toNat%64=5 from rfl,ofNat_ushiftRight _ _ (by omega)]
     rfl
-  have u7 : u.getReg .x7 = BitVec.ofNat 64 (b % 16) := by rw [ru.get .x7, h7]
-  let v := Expand.blk2915.res.toState u
-  have hs2 := symRun_sound Expand.blk2915 Expand.codeAt_2915 u hu (by simp only [Expand.blk2915.res, rv_simp])
-  have rv : RegsEq u v [.x13, .x14] := by pregs
-  have mv : ∀ x, v.getMem x = u.getMem x := getMem_nil rfl u
-  have v13 : v.getReg .x13 = BitVec.ofNat 64 (b / 32) := by
-    simp only [v, Expand.blk2915.res, rv_simp, u13]
-  have v19 : v.getReg .x19 = BitVec.ofNat 64 E := by rw [rv.get .x19, ru.get .x19, h19]
-  have vp : v.pc = if b % 16 < 3 then pcOf 2920 else pcOf 2917 := by
-    simp only [v, Expand.blk2915.res, rv_simp, u7, BitVec.ult, BitVec.toNat_ofNat]
-    rw [Nat.mod_eq_of_lt (by omega : b % 16 < 2^64)]
-    by_cases h : b % 16 < 3 <;> simp [h]
-  have finish : ∀ (z : MachineState) (L R : Nat), Steps eimg t 7 7 z → z.pc = pcOf 558 →
-      RegsEq t z [.x13,.x14] → (∀ x, z.getMem x=t.getMem x) →
-      z.getReg .x13=BitVec.ofNat 64 L → z.getReg .x14=BitVec.ofNat 64 R → L<8 → R<8 →
-      (L≠R ↔ b/32%2≠E%2 ∨ (3≤b%16 ∧ b/32≠E%8)) →
-      ∃ t', Steps eimg t 8 8 t' ∧
-        t'.pc=(if b/32%2≠E%2 ∨ (3≤b%16 ∧ b/32≠E%8) then pcOf 284 else pcOf 559) ∧
-        RegsEq t t' [.x13,.x14] ∧ ∀ x,t'.getMem x=t.getMem x := by
-    intro z L R hst hz rz mz z13 z14 hL hR he
-    have hs := symRun_sound Expand.blk558 Expand.codeAt_558 z hz (by simp only [Expand.blk558.res,rv_simp])
-    refine ⟨_, Steps.of_eq (hst.trans hs) (by rfl) (by rfl), ?_,
-      ((rz.trans (show RegsEq z (Expand.blk558.res.toState z) [] by pregs)).mono (by decide)),
-      fun x => by rw [getMem_nil rfl, mz]⟩
-    simp only [Expand.blk558.res,rv_simp,z13,z14,ofNat_bne_ofNat,
-      Nat.mod_eq_of_lt (show L<2^64 by omega),Nat.mod_eq_of_lt (show R<2^64 by omega)]
-    by_cases h : L≠R
-    · rw [if_pos (by simpa using h),if_pos (he.mp h)]
-    · rw [if_neg (by simpa using h),if_neg (fun hh => h (he.mpr hh))]
-  by_cases hshort : b%16<3
-  · rw [if_pos hshort] at vp
-    have hs3 := symRun_sound Expand.blk2920 Expand.codeAt_2920 v vp (by simp only [Expand.blk2920.res,rv_simp])
-    let z := Expand.blk2920.res.toState v
-    have rz : RegsEq v z [.x13,.x14] := by pregs
-    apply finish z (b/32%2) (E%2) (Steps.of_eq ((hs1.trans hs2).trans hs3) (by rfl) (by rfl))
-      (by simp only [z,Expand.blk2920.res,rv_simp]) (((ru.trans rv).trans rz).mono (by decide))
-      (fun x => by rw [getMem_nil rfl, mv, mu])
-    · simp only [z,Expand.blk2920.res,rv_simp,v13]
-      rw [ofNat_and_ofNat _ _ (by omega) (by norm_num),and_one]
-    · simp only [z,Expand.blk2920.res,rv_simp,v19]
-      rw [ofNat_and_ofNat _ _ (by omega) (by norm_num),and_one]
-    · omega
-    · omega
-    · omega
-  · rw [if_neg hshort] at vp
-    have hs3 := symRun_sound Expand.blk2917 Expand.codeAt_2917 v vp (by simp only [Expand.blk2917.res,rv_simp])
-    let z := Expand.blk2917.res.toState v
-    have rz : RegsEq v z [.x13,.x14] := by pregs
-    apply finish z (b/32) (E%8) (Steps.of_eq ((hs1.trans hs2).trans hs3) (by rfl) (by rfl))
-      (by simp only [z,Expand.blk2917.res,rv_simp]) (((ru.trans rv).trans rz).mono (by decide))
-      (fun x => by rw [getMem_nil rfl, mv, mu])
-    · simp only [z,Expand.blk2917.res,rv_simp,v13]
-      rw [ofNat_and_ofNat _ _ (by omega) (by norm_num),and7_path,Nat.mod_eq_of_lt (by omega : b/32<8)]
-    · simp only [z,Expand.blk2917.res,rv_simp,v19]
-      rw [ofNat_and_ofNat _ _ (by omega) (by norm_num),and7_path]
-    · omega
-    · omega
-    · omega
+  · intro x;rw[getMem_nil rfl u x,m1]
+
+private theorem guard_short_run (t : MachineState) (hpc:t.pc=pcOf 2922)
+    (b E:Nat) (hb:b<256) (hE:E<2^15)
+    (h13:t.getReg .x13=BitVec.ofNat 64 (b/32)) (h19:t.getReg .x19=BitVec.ofNat 64 E) :
+    ∃ u,Steps eimg t 3 3 u ∧ u.pc=(if b/32%2≠E%2 then pcOf 2926 else pcOf 2925) ∧
+      RegsEq t u [.x13,.x14] ∧ ∀ x,u.getMem x=t.getMem x := by
+  refine ⟨_,symRun_sound Expand.blk2922 Expand.codeAt_2922 t hpc
+    (by simp only [Expand.blk2922.res,rv_simp]),?_,by pregs,getMem_nil rfl t⟩
+  simp only [Expand.blk2922.res,rv_simp,h13,h19]
+  rw [ofNat_and_ofNat _ _ (by omega) (by norm_num),and_one,
+    ofNat_and_ofNat _ _ (by omega) (by norm_num),and_one,ofNat_bne_ofNat,
+    Nat.mod_eq_of_lt (by omega:b/32%2<2^64),Nat.mod_eq_of_lt (by omega:E%2<2^64)]
+  by_cases hd:b/32%2≠E%2 <;> simp [hd]
+
+private theorem guard_long_run (t : MachineState) (hpc:t.pc=pcOf 2918)
+    (b E:Nat) (hb:b<256) (hE:E<2^15)
+    (h13:t.getReg .x13=BitVec.ofNat 64 (b/32)) (h19:t.getReg .x19=BitVec.ofNat 64 E) :
+    ∃ u,Steps eimg t 3 3 u ∧ u.pc=(if b/32≠E%8 then pcOf 2926 else pcOf 2921) ∧
+      RegsEq t u [.x13,.x14] ∧ ∀ x,u.getMem x=t.getMem x := by
+  refine ⟨_,symRun_sound Expand.blk2918 Expand.codeAt_2918 t hpc
+    (by simp only [Expand.blk2918.res,rv_simp]),?_,by pregs,getMem_nil rfl t⟩
+  simp only [Expand.blk2918.res,rv_simp,h13,h19]
+  rw [ofNat_and_ofNat _ _ (by omega) (by norm_num),and7_path,
+    ofNat_and_ofNat _ _ (by omega) (by norm_num),and7_path,ofNat_bne_ofNat,
+    Nat.mod_eq_of_lt (by omega:b/32%8<2^64),Nat.mod_eq_of_lt (by omega:E%8<2^64)]
+  rw [Nat.mod_eq_of_lt (by omega:b/32<8)]
+  by_cases hd:b/32≠E%8 <;> simp [hd]
+
+private theorem guard_exit_run (t:MachineState) (pc:Nat) (hpc:t.pc=pcOf pc)
+    (hp:pc=2921∨pc=2925∨pc=2926) :
+    ∃ u,Steps eimg t 1 1 u ∧ u.pc=(if pc=2926 then pcOf 284 else pcOf 559) ∧
+      RegsEq t u [] ∧ ∀ x,u.getMem x=t.getMem x := by
+  rcases hp with rfl|rfl|rfl
+  · exact ⟨_,symRun_sound Expand.blk2921 Expand.codeAt_2921 t hpc
+      (by simp only [Expand.blk2921.res,rv_simp]),by simp only [Expand.blk2921.res,rv_simp];rfl,
+      by pregs,getMem_nil rfl t⟩
+  · exact ⟨_,symRun_sound Expand.blk2925 Expand.codeAt_2925 t hpc
+      (by simp only [Expand.blk2925.res,rv_simp]),by simp only [Expand.blk2925.res,rv_simp];rfl,
+      by pregs,getMem_nil rfl t⟩
+  · exact ⟨_,symRun_sound Expand.blk2926 Expand.codeAt_2926 t hpc
+      (by simp only [Expand.blk2926.res,rv_simp]),by simp only [Expand.blk2926.res,rv_simp];rfl,
+      by pregs,getMem_nil rfl t⟩
+
+/-- Short positive segments check parity; long ones check all three path bits.
+The appended guard uses eight ordinary instructions on either outcome. -/
+theorem blk555_run (t : MachineState) (hpc : t.pc = pcOf 555) (b E : Nat) (hb : b < 256) (hE : E < 2^15)
+    (h6 : t.getReg .x6=BitVec.ofNat 64 b) (h7 : t.getReg .x7=BitVec.ofNat 64 (b%16))
+    (h19 : t.getReg .x19=BitVec.ofNat 64 E) :
+    ∃ u,Steps eimg t 8 8 u ∧
+      u.pc=(if b/32%2≠E%2 ∨ (3≤b%16 ∧ b/32/2≠E/2%4) then pcOf 284 else pcOf 559) ∧
+      RegsEq t u [.x13,.x14] ∧ ∀ x,u.getMem x=t.getMem x := by
+  obtain ⟨t1,hs1,p1,x13,r1,m1⟩:=guard_start_run t hpc b hb h6 h7
+  have x19:t1.getReg .x19=BitVec.ofNat 64 E := by rw[r1.get .x19,h19]
+  let bad:=b/32%2≠E%2 ∨ (3≤b%16 ∧ b/32/2≠E/2%4)
+  obtain ⟨t2,ret,hs2,p2,hr,r2,m2⟩ : ∃ t2 ret,Steps eimg t1 3 3 t2 ∧
+      t2.pc=(if bad then pcOf 2926 else pcOf ret) ∧ (ret=2921∨ret=2925) ∧
+      RegsEq t1 t2 [.x13,.x14] ∧ ∀ x,t2.getMem x=t1.getMem x := by
+    by_cases hs:b%16<3
+    · rw[if_pos hs] at p1
+      obtain ⟨t2,st,pc,rr,mm⟩:=guard_short_run t1 p1 b E hb hE x13 x19
+      refine ⟨t2,2925,st,?_,Or.inr rfl,rr,mm⟩
+      simpa [bad,show ¬3≤b%16 by omega] using pc
+    · rw[if_neg hs] at p1
+      obtain ⟨t2,st,pc,rr,mm⟩:=guard_long_run t1 p1 b E hb hE x13 x19
+      refine ⟨t2,2921,st,?_,Or.inl rfl,rr,mm⟩
+      have he:bad ↔ b/32≠E%8 := by dsimp[bad];omega
+      simpa [he] using pc
+  have hret:(if bad then 2926 else ret)=2921∨(if bad then 2926 else ret)=2925∨(if bad then 2926 else ret)=2926 := by
+    by_cases h:bad
+    · simp [h]
+    · simp only [if_neg h]; rcases hr with h|h
+      · exact Or.inl h
+      · exact Or.inr (Or.inl h)
+  have p2':t2.pc=pcOf (if bad then 2926 else ret) := by split_ifs at * <;> assumption
+  obtain ⟨t3,hs3,p3,r3,m3⟩:=guard_exit_run t2 _ p2' hret
+  refine ⟨t3,(hs1.trans hs2).trans hs3,?_,((r1.trans r2).trans r3).mono (by decide),?_⟩
+  · have hn:ret≠2926 := by omega
+    change t3.pc = if bad then pcOf 284 else pcOf 559
+    by_cases hb:bad
+    · simpa only [if_pos hb, if_true] using p3
+    · simpa only [if_neg hb, if_neg hn] using p3
+  · intro x;rw[m3,m2,m1]
+
 
 /-- 559 .. 561: `a0 = LB` (leaf) or `PB` (merge). -/
 theorem blk559_run (t : MachineState) (hpc : t.pc = pcOf 559) (k : Nat) (hk : k < 2)
