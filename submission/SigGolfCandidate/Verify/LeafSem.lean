@@ -58,8 +58,8 @@ theorem layFC_check (L : LCtx) (hL : L.ok) :
 /-- Carried through the leaf and the fold of layer `lay` to the transition of layer `lay - 1`:
 the tweak word, `tau`, the CB word, and the chain array of the layers `< lay` still the witness. -/
 def LeafCarry (L : LCtx) (s : MachineState) : Prop :=
-  s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧
-  CB0 s ∧ Fresh L.wl L.lay 42 s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N L.lay)
+  s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay + 256) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧
+  CB0 s ∧ Fresh L.wl L.lay 42 s
 
 /-- The leaf tweak word 0 with byte 1 (the tag 2) replaced by 3: the node tweak word 0. -/
 theorem leaf_nb0 (lay : Nat) (hl : lay < 5) :
@@ -85,11 +85,10 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
   have hpc' : s.pc = pcOf (retPc L.lay t) := hpc
   have hKl : KnownOK (leafK L.lay) s := by
     intro p hp
-    simp only [leafK, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-    rcases hp with hp | hp | hp
+    simp only [leafK, List.mem_append, List.mem_singleton] at hp
+    rcases hp with hp | hp
     · exact hK p hp
     · subst hp; exact h27
-    · subst hp; exact h22
   have he := e_lt L ⟨hlay, hidx, hwl⟩
   have htau : L.tau < 2 ^ 30 := tau_lt L.lay L.idx hlay hidx
   have hh := heightL_le L.lay hlay
@@ -130,12 +129,9 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       simp only [leafKeep, List.mem_cons, List.not_mem_nil, or_false] at hx
       rcases hx with rfl | rfl | rfl | rfl | rfl <;> simp [fkeep]
     exact (hkeep2 x hx').trans (hu.keep x hx)
-  have h27u : u.getReg .x27 = BitVec.ofNat 64 (hWord L.lay) := by
+  have h27u : u.getReg .x27 = BitVec.ofNat 64 (hWord L.lay + 256) := by
     rw [hkeep2 .x27 (by simp [fkeep])]
-    exact hu.known (.x27, BitVec.ofNat 64 (hWord L.lay)) (by simp [leafPost])
-  have h22u : u.getReg .x22 = BitVec.ofNat 64 (s6N L.lay) := by
-    rw [hkeep2 .x22 (by simp [fkeep])]
-    exact hu.known (.x22, BitVec.ofNat 64 (s6N L.lay)) (by simp [leafPost])
+    exact hu.known (.x27, BitVec.ofNat 64 (hWord L.lay + 256)) (by simp [leafPost])
   have mfr : ∀ A, A < 2 ^ 64 → A ≠ 840 → A ≠ 832 →
       u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA h3 h4
@@ -185,7 +181,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     have hbit : bitOf L.e 0 = L.e % 2 := by simp [bitOf]
     refine ⟨⟨Glob_writeHash hGu ans _ h12 (by
         rcases Nat.mod_two_eq_zero_or_one L.e with h | h <;> rw [h] <;> decide),
-      ?_, ?_, ?_, ?_, ?_, ?_, by simp, ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩
+      ?_, ?_, ?_, ?_, ?_, ?_, by simp, ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩, ?_⟩, ?_, ?_, ?_, ?_⟩
     · have := Known_writeHash hK2'.1 ans
       simpa [lvlK] using this
     · rw [writeHash_getReg, hkp .x23 (by simp [leafKeep])]; exact h23
@@ -218,7 +214,5 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       exact hCB
     · refine Fresh_frame hF (fun A hA hA' => ?_)
       rw [wf A hA (Or.inr (by omega)), mfr A hA (by omega) (by omega)]
-
-    · rw [writeHash_getReg]; exact h22u
 
 end SigGolfCandidate.Verify
