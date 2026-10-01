@@ -195,6 +195,16 @@ theorem e_lt32 (lay idx : Nat) (hlay : lay < 5) : idx / 2 ^ layS lay % 2 ^ heigh
   have : 2 ^ heightL lay ≤ 2048 := by interval_cases lay <;> decide
   omega
 
+theorem carryEr_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : MachineState)
+    (h : s.getReg (routeReg lay) = BitVec.ofNat 64 (routeIn idx lay)) :
+    (carryEr lay).eval s = BitVec.ofNat 64
+      (if lay = 0 then idx / 2 ^ layS lay % 2 ^ heightL lay
+       else idx / 2 ^ (layS lay + heightL lay)) := by
+  unfold carryEr
+  split_ifs
+  · exact uEr_eval idx lay hlay hidx s h
+  · exact tauEr_eval idx lay hlay hidx s h
+
 theorem uHE_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : MachineState)
     (h : s.getReg (routeReg lay) = BitVec.ofNat 64 (routeIn idx lay)) :
     (uHE lay).eval s = BitVec.ofNat 64 (idx / 2 ^ layS lay % 2 ^ heightL lay + 2 ^ heightL lay) := by
@@ -241,11 +251,11 @@ theorem x31Er_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : M
 
 /-! ## The encoding check -/
 
-def dA (hi : Bool) (s : MachineState) : Nat := ((d0E hi).eval s).toNat
-def dB (hi : Bool) (s : MachineState) : Nat := ((d1E hi).eval s).toNat
+def dA (hi : Nat) (s : MachineState) : Nat := ((d0E hi).eval s).toNat
+def dB (hi : Nat) (s : MachineState) : Nat := ((d1E hi).eval s).toNat
 
 section
-variable (hi : Bool) (s : MachineState)
+variable (hi : Nat) (s : MachineState)
 
 theorem swA3_toNat : ((swA3 hi).eval s).toNat = sw1 (dA hi s) (dB hi s) := by
   simp only [swA3, d0E, d1E, m1E, M1w, ldE, cw, Rv.E.eval, BinOp.eval, BitVec.toNat_add,
@@ -282,28 +292,24 @@ theorem swSBase_toNat : ((swSBase hi).eval s).toNat = swarOf (dA hi s) (dB hi s)
   rfl
 
 theorem swS_toNat (lay : Nat) : ((swS hi lay).eval s).toNat =
-    (swarOf (dA hi s) (dB hi s) + 2 ^ 64 - (if lay = 3 then 1 else 0)) % 2 ^ 64 := by
+    (swarOf (dA hi s) (dB hi s) + (if lay = 0 then 1 else 0)) % 2 ^ 64 := by
   unfold swS
-  split_ifs with h3
-  · change ((swSBase hi).eval s + BitVec.ofNat 64 (2 ^ 64 - 1)).toNat = _
-    rw [BitVec.toNat_add, swSBase_toNat, BitVec.toNat_ofNat,
-      Nat.mod_eq_of_lt (show 2 ^ 64 - 1 < 2 ^ 64 by omega)]
-    exact congrArg (fun n : Nat => n % 2 ^ 64)
-      (Nat.add_sub_assoc (by omega) (swarOf (dA hi s) (dB hi s))).symm
+  split_ifs
+  · change ((swSBase hi).eval s + BitVec.ofNat 64 1).toNat = _
+    rw [BitVec.toNat_add, swSBase_toNat]; rfl
   · rw [swSBase_toNat]
     have hsmall : swarOf (dA hi s) (dB hi s) < 4096 := Nat.mod_lt _ (by decide)
     omega
 
 theorem swar_adjust_eq (v T d : Nat) (hv : v < 4096) (hT : 184 ≤ T ∧ T ≤ 185) (hd : d ≤ 1) :
-    (v + 2 ^ 64 - d) % 2 ^ 64 = T - d ↔ v = T := by
-  omega
+    (v + d) % 2 ^ 64 = T + d ↔ v = T := by omega
 
 theorem swS_eq (lay : Nat) (h0 : dA hi s < 2 ^ 63) (h1 : dB hi s < 2 ^ 63) :
     (swS hi lay).eval s = KTof lay ↔
       (digitsOfWord (dA hi s) ++ digitsOfWord (dB hi s)).sum = targetFor lay := by
   have hs := swar_nat (dA hi s) (dB hi s) h0 h1
   have hl : swarOf (dA hi s) (dB hi s) < 4096 := Nat.mod_lt _ (by decide)
-  let delta : Nat := if lay = 3 then 1 else 0
+  let delta : Nat := if lay = 0 then 1 else 0
   have hd : delta ≤ 1 := by dsimp [delta]; split_ifs <;> decide
   have ht : 184 ≤ targetFor lay ∧ targetFor lay ≤ 185 := by
     unfold targetFor SigGolfCandidate.Ref.targetFor targetSum
@@ -315,14 +321,14 @@ theorem swS_eq (lay : Nat) (h0 : dA hi s < 2 ^ 63) (h1 : dB hi s < 2 ^ 63) :
   · intro h
     have hh := congrArg BitVec.toNat h
     rw [swS_toNat] at hh
-    change (swarOf (dA hi s) (dB hi s) + 2 ^ 64 - delta) % 2 ^ 64 = (targetFor lay - delta) % 2 ^ 64 at hh
-    rw [Nat.mod_eq_of_lt (show targetFor lay - delta < 2 ^ 64 by omega)] at hh
+    change (swarOf (dA hi s) (dB hi s) + delta) % 2 ^ 64 = (targetFor lay + delta) % 2 ^ 64 at hh
+    rw [Nat.mod_eq_of_lt (show targetFor lay + delta < 2 ^ 64 by omega)] at hh
     exact adj.mp hh
   · intro h
     apply BitVec.eq_of_toNat_eq
     rw [swS_toNat]
-    change (swarOf (dA hi s) (dB hi s) + 2 ^ 64 - delta) % 2 ^ 64 = (targetFor lay - delta) % 2 ^ 64
-    rw [Nat.mod_eq_of_lt (show targetFor lay - delta < 2 ^ 64 by omega)]
+    change (swarOf (dA hi s) (dB hi s) + delta) % 2 ^ 64 = (targetFor lay + delta) % 2 ^ 64
+    rw [Nat.mod_eq_of_lt (show targetFor lay + delta < 2 ^ 64 by omega)]
     exact adj.mpr h
 
 end

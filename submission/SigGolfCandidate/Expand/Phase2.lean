@@ -27,10 +27,11 @@ def afterW (w0 : List Byte) (idx : Nat) (v : List Nat) : OracleComp HashSpec (Op
     | none => pure none
     | some cs => pure (some (withCounters w0 cs))
 
-/-- A HALT with the outcome `r` (the witness bytes for `some`). -/
+/-- A HALT with the outcome `r` (for `some`, the 16384-byte view `0x800 .. 0x4800`; the witness is
+the buffer `0x900 .. 0x4800`, the view without its lead). -/
 def QP (r : Option (List Byte)) (t : MachineState) : Prop :=
   fetch eimg t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
-    r.map (ofList 16384) = if t.getReg .x10 = 0 then some (readBuffer t 0x800 16384) else none
+    r.map (fun l => ofList 16128 (cutW l)) = if t.getReg .x10 = 0 then some (readBuffer t 0x900 16128) else none
 
 theorem qp_fail (t : MachineState) (h : FailSt t) : QP none t :=
   ⟨h.1, h.2.1, by rw [if_neg (by rw [h.2.2]; decide)]; rfl⟩
@@ -68,6 +69,7 @@ theorem phase2_sim (w0 : List Byte) (hw : w0.length = 16384) (hz : ∀ j < 4, w0
   · exact Sim.pure (Q := QP) (a := none) (qp_fail t3 h3)
   obtain ⟨hlen, e3, x35, x310, hbuf⟩ := h3
   refine Sim.pure (Q := QP) (a := some (withCounters w0 cs)) ⟨e3, x35, ?_⟩
-  rw [if_pos x310, Option.map_some, hbuf, List.append_nil]
+  rw [List.append_nil] at hbuf
+  rw [if_pos x310, Option.map_some, readBuffer_cut t3 _ (by rw [length_withCounters_ref w0 cs (by omega), hw]) hbuf]
 
 end SigGolfCandidate.ExP
