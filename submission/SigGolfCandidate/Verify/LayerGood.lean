@@ -69,7 +69,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
   simp only []
   rw [cc_bind]
   have hfc := layFC_ok L hL
-  have hsA : stepsA L.lay ≤ 15 := by unfold stepsA; split <;> omega
+  have hsA : stepsA L.lay ≤ 15 := by unfold stepsA; split <;> (try split) <;> omega
   have hcB : cyclesB = 27 := rfl
   have hsB : stepsB = 24 := rfl
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
@@ -160,7 +160,9 @@ theorem foldEnd_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     · subst hp; rw [writeHash_getReg]; exact h12
     · subst hp; rw [kf _ (by simp [fkeep])]; exact h27
   · simp only [routeReg, routeIn, if_neg (show lay - 1 ≠ 4 by omega)]
-    rw [kf _ (by simp [fkeep]), h30]
+    have h30' : s0.getReg .x30 = BitVec.ofNat 64 (LCtx.tau ⟨wl, pk, lay, idx⟩) := by
+      simpa [tauCarry, show lay ≠ 0 by omega] using h30
+    rw [kf _ (by simp [fkeep]), h30']
     simp only [LCtx.tau]
     rw [layS_succ (lay - 1) (by omega), Nat.sub_add_cancel h1]
   · rw [writeHash_at0 _ a _ h12 (by omega)]; exact (vw0_answer a).symm
@@ -317,6 +319,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The layer cycles: `1538` (layer 4, target 183, no hash-length reload), `3 × 1572`, `1652`
 (layer 0, direct route), and the comparison `8`. -/
-theorem layersCost_5 : layersCost 5 = 7914 := by decide
+theorem layersCost_5 : layersCost 5 = 7913 := by decide
 
 end SigGolfCandidate.Verify

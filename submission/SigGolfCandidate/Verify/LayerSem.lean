@@ -45,7 +45,7 @@ def LayerIn (L : LCtx) (M : Val) (s : MachineState) : Prop :=
 /-- After the encoding hash of transition copy `t` (answer `a` in EO). -/
 def EncOut (L : LCtx) (t : Nat) (a : BitVec 256) (s : MachineState) : Prop :=
   Glob gkL L.wl L.pk s ∧ KnownOK (bK L.lay) s ∧
-  s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧
+  s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ tauCarry L.lay s = BitVec.ofNat 64 L.tau ∧
   s.getReg .x31 = BitVec.ofNat 64 (L.tau + 2 ^ 32 * L.e) ∧
   s.getMem (BitVec.ofNat 64 288) = a.extractLsb' 0 64 ∧
   s.getMem (BitVec.ofNat 64 296) = a.extractLsb' 64 64 ∧
@@ -178,8 +178,14 @@ theorem enc_step (L : LCtx) (hL : L.ok) (M : Val) (s : MachineState) (hs : Layer
       writeHash_at0 _ a _ h12 (by omega), writeHash_at8 _ a _ h12 (by omega), ?_, ?_, ?_⟩
     · rw [writeHash_getReg, hu.regs (.x23, uHE L.lay) (by simp [specA]), uHE_eval L.idx L.lay hlay hidx s hR]
       rfl
-    · rw [writeHash_getReg, hu.regs (.x30, tauEr L.lay) (by simp [specA]), tauEr_eval L.idx L.lay hlay hidx s hR]
-      rfl
+    · by_cases h0 : L.lay = 0
+      · have ht := tauEr_eval L.idx L.lay hlay hidx s hR
+        simpa [tauCarry, tauEr, h0, cw, E.eval, LCtx.tau] using ht
+      · unfold tauCarry
+        rw [if_neg h0, writeHash_getReg,
+          hu.regs (.x30, tauEr L.lay) (by simp [specA, h0]),
+          tauEr_eval L.idx L.lay hlay hidx s hR]
+        rfl
     · rw [writeHash_getReg, hu.regs (.x31, x31Er L.lay) (by simp [specA]), hx31]
     · unfold CB0
       rw [wf 0xC0 (by omega) (by omega), mfr 0xC0 (by omega) (by omega) (by omega) (by omega) (by omega)]
@@ -313,7 +319,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
         · rw [hu.regs (.x16, d0E) (by simp [specBok])]; exact hD0
         · rw [hu.regs (.x17, d1E) (by simp [specBok])]; exact hD1
         · rw [hu.keep .x23 (by simp)]; exact h23
-        · rw [hu.keep .x30 (by simp)]; exact h30
+        · exact (tauCarry_frame L.lay (hu.keep .x30 (by simp))).trans h30
         · rw [hu.keep .x31 (by simp)]; exact h31
         · exact hK' (.x22, BitVec.ofNat 64 (s6N L.lay)) (by simp [chKa])
         · exact hK' (.x27, BitVec.ofNat 64 (hWord L.lay)) (by simp [chKa])
