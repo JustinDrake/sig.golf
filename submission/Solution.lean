@@ -4,9 +4,14 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6032` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10619` cycles (verify bound
-`10555` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
-public key 160, cache 19200, signature 150272, witness 2048.
+`S = 6032` bytes, `W = 16128` bytes, `K = 131072` bytes (cache), `C = 10618` cycles (verify bound
+`10555` plus the witness charge `⌈16128 / 256⌉ = 63`). Layout (bytes): message 64, secret key 128,
+public key 160, cache 19200, signature 150272, witness 2304.
+
+The witness keeps `rho` and the 15 PORS secrets in the tweak slots of layer 0's chain blocks 1 .. 16,
+which verify reads (digest, PORS root) before layer 0 (the last layer it verifies) writes any tweak;
+the witness buffer starts at `0x900` and keeps its end `0x4800`, so every other witness field keeps
+its address and verify only changes 47 load offsets.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
 counter (the signer's own search from 0), running the record verifier's PORS root and layer checks
@@ -78,15 +83,15 @@ def submission : SigGolf.Submission := SigGolfCandidate.submissionNew
 
 theorem signature_bytes : submission.sizes.signature = 6032 := rfl
 
-theorem witness_bytes : submission.sizes.witness = 16384 := rfl
+theorem witness_bytes : submission.sizes.witness = 16128 := rfl
 
 theorem cache_bytes : submission.sizes.cache = 131072 := rfl
 
 theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
-    cache := 19200, signature := 150272, witness := 2048 } := rfl
+    cache := 19200, signature := 150272, witness := 2304 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10619 :=
+theorem certificate : SigGolf.Certificate submission 10618 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

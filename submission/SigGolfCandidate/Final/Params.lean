@@ -11,8 +11,9 @@ namespace SigGolfCandidate.Final
 prologue, digest, setup and PORS, plus `layersCost 5 = 7647`; the feasible worst case is `10554`). -/
 def verifyCycleBound : Nat := 10555
 
-/-- The witness charge `⌈16384 / 256⌉`. -/
-def witnessCharge : Nat := 64
+/-- The witness charge `⌈16128 / 256⌉` (W1: `rho` and the PORS secrets in layer 0's tweak slots,
+the witness buffer `0x900 .. 0x4800`). -/
+def witnessCharge : Nat := 63
 
 /-- The claimed verification cost `C`. -/
 def claimedC : Nat := verifyCycleBound + witnessCharge
