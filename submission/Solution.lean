@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10690` cycles (verify bound
-`10626` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
+`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10665` cycles (verify bound
+`10601` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 150272, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -19,11 +19,13 @@ pad is hashed as it stands; the abstract game accounts for this through the padd
 (`verifyP`, `Bridge.padDec`). Verify dispatches three chains per table jump. The counters `c0 .. c3`
 sit in the tweak slot of layer 0's first block, `c4` after the PORS stream.
 
-The layer targets are 181,181,181,182,183. An authenticated cache of 2046 internal nodes
+The layer targets are 181,182,182,183,183. An authenticated cache of 2046 internal nodes
 replaces the full-node cache; signing reconstructs the missing leaf sibling. The 187 saved
 deterministic signing compressions fund the additional layer-3 target. The reference, machine
 refinement, security bridge, completeness and moment-budget proofs cover this cache format.
-Layer 3 loads its comparison target explicitly; layer 4 retains the target in a known register.
+Layers 1, 2 and 3 load their comparison targets explicitly; layer 4 retains its target in a known register.
+The signer tests both 128-bit halves of each randomizer answer, stopping after the first success.
+This reduces failed-pair search cost from four compressions to three and funds the stronger targets.
 The existing digest, PORS address, mask-data, root-test and route optimizations are preserved.
 
 The layer-header register holds the leaf header. The encoding prefix adds 512,
@@ -80,7 +82,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10690 :=
+theorem certificate : SigGolf.Certificate submission 10665 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

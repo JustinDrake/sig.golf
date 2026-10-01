@@ -123,16 +123,16 @@ theorem eq_of_le_of_valid {x y : Encoding} (hx : Valid lay x) (hy : Valid lay y)
 
 /-- A valid word, used where the proof needs a word before the reference encoding is known. -/
 irreducible_def defaultWord (lay : Layer) : Encoding :=
-  fun index => if index.val < (if 4 ≤ lay.val then 26 else 25) then ⟨7, by decide⟩ else if index.val = (if 4 ≤ lay.val then 26 else 25) then ⟨if 4 ≤ lay.val then 1 else if 3 ≤ lay.val then 7 else 6, by split_ifs <;> decide⟩ else ⟨0, by decide⟩
+  fun index => if index.val < (if 3 ≤ lay.val then 26 else 25) then ⟨7, by decide⟩ else if index.val = (if 3 ≤ lay.val then 26 else 25) then ⟨if 3 ≤ lay.val then 1 else if 1 ≤ lay.val then 7 else 6, by split_ifs <;> decide⟩ else ⟨0, by decide⟩
 
 theorem defaultWord_valid : Valid lay (defaultWord lay) := by
   rw [Valid_def]
   change (∑ index : ChainIndex, (defaultWord lay index).val) = targetFor lay
-  by_cases h : 4 ≤ lay.val
+  by_cases h : 3 ≤ lay.val
   · simp only [defaultWord_def, h, if_true, targetFor, targetSum]
     change (∑ index : Fin 42, if index.val < 26 then (7 : Nat) else if index.val = 26 then 1 else 0) = 183
     decide
-  · by_cases h3 : 3 ≤ lay.val
+  · by_cases h3 : 1 ≤ lay.val
     · simp only [defaultWord_def, h, h3, if_false, if_true, targetFor, targetSum]
       change (∑ index : Fin 42, if index.val < 25 then (7 : Nat) else if index.val = 25 then 7 else 0) = 182
       decide

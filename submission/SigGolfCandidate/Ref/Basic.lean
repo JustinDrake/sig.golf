@@ -76,7 +76,7 @@ def nChains : Nat := 42
 def targetSum : Nat := 181
 
 /-- Layers three and four use targets one and two larger than the lower layers. -/
-def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 2 else if 3 ≤ lay then 1 else 0
+def targetFor (lay : Nat) : Nat := targetSum + if 3 ≤ lay then 2 else if 1 ≤ lay then 1 else 0
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
 /-- The number of hypertree layers `d`. -/
@@ -95,7 +95,7 @@ def porsM : Nat := 118
 /-- Schedule segments (`POR_SEGS = 2 k - 1`: one per leaf start, one per merge). -/
 def porsSegs : Nat := 2 * porsK - 1
 /-- Digest trials `A_max`. -/
-def aMax : Nat := 2 ^ 20
+def aMax : Nat := 2 ^ 19
 /-- The counter limit `C_max`: the signer tries `c < cMax`, the verifier rejects `c ≥ cMax`. -/
 def cMax : Nat := 2 ^ 22
 /-- Signature bytes `S`. -/

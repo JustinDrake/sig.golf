@@ -66,8 +66,8 @@ def swarState (t : MachineState) : MachineState :=
 theorem swarState_pc_raw (t : MachineState) : (swarState t).pc =
     if (swarW (t.getReg .x1) (t.getReg .x2) (t.getReg .x26) (t.getReg .x27) +
         BitVec.ofNat 64 (2 ^ 64 - 183) +
-        (if (t.getReg .x8).ult 3 then (1 : Word) else 0) +
-        (if (t.getReg .x8).ult 4 then (1 : Word) else 0) != 0#64) = true then pcOf 377 else pcOf 376 := by
+        (if (t.getReg .x8).ult 1 then (1 : Word) else 0) +
+        (if (t.getReg .x8).ult 3 then (1 : Word) else 0) != 0#64) = true then pcOf 377 else pcOf 376 := by
   simp only [swarState, blk375.res, blk2887.res, blk355.res, rv_simp,
     swarW, swF, swS1, BitVec.sub_eq_add_neg]
   rfl
@@ -348,8 +348,8 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
   have pc5 : t5.pc = if (digitsOfWord d0 ++ digitsOfWord d1).sum = targetFor lay then pcOf 376 else pcOf 377 := by
     have hx8 : t3.getReg .x8 = BitVec.ofNat 64 lay := by rw [ru3.get .x8, hmem.x8]
     have htarget : BitVec.ofNat 64 (2 ^ 64 - 183) +
-        (if (BitVec.ofNat 64 lay).ult 3 then (1 : Word) else 0) +
-        (if (BitVec.ofNat 64 lay).ult 4 then (1 : Word) else 0) =
+        (if (BitVec.ofNat 64 lay).ult 1 then (1 : Word) else 0) +
+        (if (BitVec.ofNat 64 lay).ult 3 then (1 : Word) else 0) =
         BitVec.ofNat 64 (2 ^ 64 - targetFor lay) := by
       have hl := hmem.hlay
       interval_cases lay <;> decide

@@ -32,7 +32,7 @@ theorem code1716 : image.code[1716]? = some 0x00000073#32 := by decide +kernel
 
 /-- `signList` after the MAC check. -/
 def signRest (S cache m : List Byte) : OracleComp HashSpec (Option (List Byte)) :=
-  searchDigest S m 0 (2 ^ 20 - 1 + 1) >>= fun r =>
+  searchDigestPairs S m 0 (2 ^ 19 - 1 + 1) >>= fun r =>
     match r with
     | none => pure none
     | some (rho, N) =>
@@ -94,7 +94,7 @@ theorem sched_le (N : Nat) (hadm : admissible N = true) :
 
 /-- Cycle bound after the MAC check. -/
 def restW : Nat :=
-  (2 ^ 20 - 1 + 1) * digCyc + 2 + (34 + ((2 ^ 13 * 79 + (1 + 14 * (4 + (2 ^ 13 * 26 + 4)))) +
+  (2 ^ 19 - 1 + 1) * digCyc + 2 + (34 + ((2 ^ 13 * 79 + (1 + 14 * (4 + (2 ^ 13 * 26 + 4)))) +
     (11 + 15 * 345 + (20 + (4 * layCyc + topCyc + (996 + 2))))))
 
 /-- Cycle bound of `signList`. -/
@@ -120,7 +120,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
   have upbS := hu.pbS
   have fs0 := hu.frame
   unfold signRest restW
-  refine Sim.bind (digLoop_sim sk m u dmem u5 u7 (2 ^ 20 - 1) 0 u (by norm_num) dinv)
+  refine Sim.bind (digLoop_sim sk m u dmem u5 u7 (2 ^ 19 - 1) 0 u (by norm_num) dinv)
     (fun r t h => ?_)
   rcases r with _ | ⟨rho, N⟩
   · obtain ⟨tpc, t5, t10⟩ := h

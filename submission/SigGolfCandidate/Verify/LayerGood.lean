@@ -320,6 +320,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
     exact this.mono (by omega) (by dsimp only; simp only [layersCost]; omega)
 
 /-- Five layers including table-pointer initialization and the final comparison. -/
-theorem layersCost_5 : layersCost 5 = 7701 := by decide
+theorem layersCost_5 : layersCost 5 = 7676 := by decide
 
 end SigGolfCandidate.Verify

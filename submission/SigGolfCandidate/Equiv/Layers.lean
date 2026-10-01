@@ -363,6 +363,17 @@ theorem hash16_rnd (seed : MasterSeed) (m : Message) (a : Nat) :
   simp only [Ref.rndInput]
   rfl
 
+theorem prf2_rnd (seed : MasterSeed) (m : Message) (a : Nat) :
+    Ref.prf2 (Ref.rndInput (Ref.toList (n := 32) seed) (Ref.toList (n := 32) m) a) =
+      (fun p => (dv p.1, dv p.2)) <$> relabel fmtQ
+        (SphincsSecurity.Seeded.deriveRandomizerPair (m := AComp) 0 seed m (BitVec.ofNat 32 a)) := by
+  apply prf2_eq
+  rw [SphincsSecurity.randomizerHashInput]
+  simp only [toB_append]
+  rw [toB_seedPrefix, toB_bytesLE 32 m, toB_bytesLE_ofNat 4 a]
+  simp only [Ref.rndInput]
+  rfl
+
 theorem digest_eq (root rho : Digest) (m : Message) :
     Ref.digest (dv rho) (Ref.toList (n := 32) m) =
       (fun d => d.toNat) <$> relabel fmtQ

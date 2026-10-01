@@ -29,7 +29,7 @@ def pureNode (key : SphincsSecurity.SecretKey) (cache : TopCache) (masks : MaskO
 def checkedSign (randomizers : RandomizerOutputs) (key : SphincsSecurity.SecretKey)
     (topNode : Nat → Nat → OracleComp HashSpec Digest) (message : Message) :
     OracleComp HashSpec (Option Signature) := do
-  match ← tableDigestLoop randomizers key message digestAttemptLimit 0 with
+  match ← pairedTableDigestLoop randomizers key message digestPairLimit 0 with
   | none => pure none
   | some (randomness, index, leaves) =>
       signFrom key.parameter index (fun tree leaf => pure (key.ftsSecret index tree leaf))

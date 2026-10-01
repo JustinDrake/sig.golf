@@ -299,7 +299,7 @@ theorem bR_sign_ge (sk : Seeded.SecretKey) (cache : TopCache) (msg : SphincsSecu
   unfold Seeded.signChecked at h ⊢
   rw [bR_bind]
   rw [evalWithAnswerFn_bind] at h
-  cases hd : evalWithAnswerFn (gF f) (Seeded.signDigestLoop (m := Equiv.AComp) sk msg digestAttemptLimit 0) with
+  cases hd : evalWithAnswerFn (gF f) (Seeded.signDigestPairs (m := Equiv.AComp) sk msg digestPairLimit 0) with
   | none => rw [hd] at h; simp at h
   | some r =>
     obtain ⟨randomness, index, leaves⟩ := r

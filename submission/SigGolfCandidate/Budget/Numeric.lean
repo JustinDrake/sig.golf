@@ -4,18 +4,18 @@ import Mathlib.Analysis.Complex.ExponentialBounds
 /-!
 # Budget: the numbers
 
-With `z = 2 ^ (1 / 2^17)`, the one-block digest search is bounded by `bD = 1.0232` (2
-compressions per trial, exact acceptance probability `p = 15! * Nadm / 2^210 ≈ 1/2141.484`)
+With `z = 2 ^ (1 / 2^17)`, the paired digest search is bounded by `bD = 1.0173` (2 compressions on
+first-half success and 3 otherwise, exact acceptance probability `p = 15! * Nadm / 2^210 ≈ 1/2141.484`)
 and the counter searches use bounds `1.01094`, `1.01284`, and `1.01515` for target sums
-181, 182, and 183 respectively. The five layers use targets `[181,181,181,182,183]`.
+181, 182, and 183 respectively. The five layers use targets `[181,182,182,183,183]`.
 The deterministic part is `2 ^ (115254 / 2^17)` (MAC 513 + PORS tree 40959 +
 layers 1..4 73244 + top layer 538). The proof below bounds the resulting product
-`2 ^ (115254 / 2^17) * 1.0232 * 1.01094^3 * 1.01284 * 1.01515` by 2.
+`2 ^ (115254 / 2^17) * 1.0173 * 1.01094 * 1.01284^2 * 1.01515^2` by 2.
 Keygen: `z_K ^ 672254 ≤ 2` with
 `z_K = 2 ^ (1 / 2^20)` (`V_keygenRef_le_two`).
 
 Real bounds used: `log 2 < 0.6931471808`, `log 2 > 0.6931471803`, `exp x < 1 / (1 - x)` and
-`1 + x + x^2/2 ≤ exp x` (x ≥ 0).
+`1 + x + x^2/2 + x^3/6 ≤ exp x` (x ≥ 0).
 -/
 
 namespace SigGolfCandidate.Budget
@@ -57,13 +57,13 @@ theorem rpow_two_inv_le (B : Nat) (hB : 1 ≤ B) :
 
 /-- `2 ^ y ≥ 1 + x + x^2/2` with `x = 0.6931471803 y`, for `y ≥ 0`. -/
 theorem rpow_two_ge (y : ℝ) (hy : 0 ≤ y) :
-    1 + 0.6931471803 * y + (0.6931471803 * y) ^ 2 / 2 ≤ (2 : ℝ) ^ y := by
+    1 + 0.6931471803 * y + (0.6931471803 * y) ^ 2 / 2 + (0.6931471803 * y) ^ 3 / 6 ≤ (2 : ℝ) ^ y := by
   rw [Real.rpow_def_of_pos (by norm_num)]
-  have hl := Real.log_two_gt_d9
-  have hx : 0.6931471803 * y ≤ Real.log 2 * y := mul_le_mul_of_nonneg_right hl.le hy
-  have hx0 : 0 ≤ 0.6931471803 * y := by positivity
-  have h := Real.quadratic_le_exp_of_nonneg (hx0.trans hx)
-  nlinarith
+  have hx : 0.6931471803 * y ≤ Real.log 2 * y := mul_le_mul_of_nonneg_right Real.log_two_gt_d9.le hy
+  have h := Real.sum_le_exp_of_nonneg (show 0 ≤ 0.6931471803 * y by positivity) 4
+  norm_num [Finset.sum_range_succ, Nat.factorial] at h
+  calc _ ≤ Real.exp (0.6931471803 * y) := by convert h using 1 <;> norm_num <;> ring
+       _ ≤ _ := Real.exp_le_exp.mpr hx
 
 /-! ## The per-trial probabilities as reals -/
 
@@ -106,10 +106,10 @@ theorem epsD_eq : epsD = ENNReal.ofReal (1 / 2 ^ 108) := by
 
 /-! ## The step conditions -/
 
-/-- The one-block digest-search bound. -/
-noncomputable def bD : ℝ≥0∞ := ENNReal.ofReal 1.0232
+/-- The paired digest-search bound. -/
+noncomputable def bD : ℝ≥0∞ := ENNReal.ofReal 1.0173
 /-- The counter-search bound. -/
-noncomputable def bC (lay : Nat) : ℝ≥0∞ := ENNReal.ofReal (if 4 ≤ lay then 1.01515 else if 3 ≤ lay then 1.01284 else 1.01094)
+noncomputable def bC (lay : Nat) : ℝ≥0∞ := ENNReal.ofReal (if 3 ≤ lay then 1.01515 else if 1 ≤ lay then 1.01284 else 1.01094)
 
 theorem zS_le : zOf (2 ^ 17) ≤ ENNReal.ofReal (1 / (1 - 0.6931471808 / 131072)) := by
   unfold zOf
@@ -117,31 +117,41 @@ theorem zS_le : zOf (2 ^ 17) ≤ ENNReal.ofReal (1 / (1 - 0.6931471808 / 131072)
   have := rpow_two_inv_le (2 ^ 17) (by norm_num)
   simpa using this
 
-theorem stepD : zOf (2 ^ 17) ^ 2 * ((epsD + rhoD) * bD + (1 - rhoD)) ≤ bD := by
+theorem epsP_eq : epsP = ENNReal.ofReal (1 / 2 ^ 107) := by
+  unfold epsP
+  rw [show (2 : ℝ≥0∞) ^ 21 / 2 ^ 128 = ((2 ^ 21 : Nat) : ℝ≥0∞) / ((2 ^ 128 : Nat) : ℝ≥0∞) by
+      rw [Nat.cast_pow, Nat.cast_pow, Nat.cast_ofNat],
+    natCast_div_eq_ofReal _ _ (by positivity)]
+  norm_num
+
+theorem stepD : zOf (2 ^ 17) ^ 2 * (1 - rhoD) +
+    zOf (2 ^ 17) ^ 3 * rhoD * (1 - rhoD) +
+    zOf (2 ^ 17) ^ 3 * (rhoD ^ 2 + 2 * epsP) * bD ≤ bD := by
   have hp0 : 0 ≤ (admTuples : ℝ) / 2 ^ 210 := by positivity
   have hp1 : (admTuples : ℝ) / 2 ^ 210 ≤ 1 := by
     rw [div_le_one (by positivity)]; unfold admTuples; norm_num
-  rw [rhoD_eq, epsD_eq, one_sub_ofReal _ (by linarith), bD]
+  rw [rhoD_eq, epsP_eq, one_sub_ofReal _ (by linarith), bD]
   set zb : ℝ := 1 / (1 - 0.6931471808 / 131072)
-  calc zOf (2 ^ 17) ^ 2 * ((ENNReal.ofReal (1 / 2 ^ 108) +
-        ENNReal.ofReal (1 - (admTuples : ℝ) / 2 ^ 210)) * ENNReal.ofReal 1.0232 +
-        ENNReal.ofReal (1 - (1 - (admTuples : ℝ) / 2 ^ 210)))
-      ≤ ENNReal.ofReal zb ^ 2 * ((ENNReal.ofReal (1 / 2 ^ 108) +
-        ENNReal.ofReal (1 - (admTuples : ℝ) / 2 ^ 210)) * ENNReal.ofReal 1.0232 +
-        ENNReal.ofReal (1 - (1 - (admTuples : ℝ) / 2 ^ 210))) := by
-        gcongr; exact zS_le
-    _ = ENNReal.ofReal (zb ^ 2 * ((1 / 2 ^ 108 + (1 - (admTuples : ℝ) / 2 ^ 210)) * 1.0232 +
-          (1 - (1 - (admTuples : ℝ) / 2 ^ 210)))) := by
-        rw [← ENNReal.ofReal_add (by norm_num) (by linarith),
-          ← ENNReal.ofReal_mul (by linarith), ← ENNReal.ofReal_add (by positivity) (by linarith),
-          ← ENNReal.ofReal_pow (by norm_num [zb]), ← ENNReal.ofReal_mul (by norm_num [zb])]
-    _ ≤ ENNReal.ofReal 1.0232 := by
-        refine ENNReal.ofReal_le_ofReal ?_
-        unfold admTuples
-        norm_num [zb]
+  have hzb : 0 ≤ zb := by norm_num [zb]
+  have hr : 0 ≤ 1 - (admTuples : ℝ) / 2 ^ 210 := by linarith
+  have hp : 0 ≤ 1 - (1 - (admTuples : ℝ) / 2 ^ 210) := by linarith
+  calc _ ≤ ENNReal.ofReal zb ^ 2 * ENNReal.ofReal (1 - (1 - (admTuples : ℝ) / 2 ^ 210)) +
+      ENNReal.ofReal zb ^ 3 * ENNReal.ofReal (1 - (admTuples : ℝ) / 2 ^ 210) *
+        ENNReal.ofReal (1 - (1 - (admTuples : ℝ) / 2 ^ 210)) +
+      ENNReal.ofReal zb ^ 3 * (ENNReal.ofReal (1 - (admTuples : ℝ) / 2 ^ 210) ^ 2 +
+        2 * ENNReal.ofReal (1 / 2 ^ 107)) * ENNReal.ofReal 1.0173 := by
+          gcongr <;> exact zS_le
+    _ ≤ ENNReal.ofReal 1.0173 := by
+      rw [show (2 : ℝ≥0∞) = ENNReal.ofReal 2 by simp]
+      simp only [← ENNReal.ofReal_pow hzb, ← ENNReal.ofReal_pow hr]
+      repeat' first
+        | rw [← ENNReal.ofReal_mul (by norm_num [zb, admTuples])]
+        | rw [← ENNReal.ofReal_add (by norm_num [zb, admTuples]) (by norm_num [zb, admTuples])]
+      apply ENNReal.ofReal_le_ofReal
+      norm_num [zb, admTuples]
 
-theorem stepC_low (lay : Nat) (hlay : ¬ 3 ≤ lay) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) ≤ bC lay := by
-  have h4 : ¬ 4 ≤ lay := by omega
+theorem stepC_low (lay : Nat) (hlay : ¬ 1 ≤ lay) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) ≤ bC lay := by
+  have h4 : ¬ 3 ≤ lay := by omega
   have hc0 : 0 ≤ (codeCount lay : ℝ) / 2 ^ 128 := by positivity
   have hc : (codeCount lay : ℝ) / 2 ^ 128 ≤ 1 := by
     rw [div_le_one (by positivity)]; simp [codeCount, hlay, h4]; norm_num
@@ -161,7 +171,7 @@ theorem stepC_low (lay : Nat) (hlay : ¬ 3 ≤ lay) : zOf (2 ^ 17) * (rhoC lay *
         simp only [codeCount, if_neg h4, if_neg hlay]
         norm_num [zb]
 
-theorem stepC_mid (lay : Nat) (hlay : 3 ≤ lay) (h4 : ¬ 4 ≤ lay) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) ≤ bC lay := by
+theorem stepC_mid (lay : Nat) (hlay : 1 ≤ lay) (h4 : ¬ 3 ≤ lay) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) ≤ bC lay := by
   have hc0 : 0 ≤ (codeCount lay : ℝ) / 2 ^ 128 := by positivity
   have hc : (codeCount lay : ℝ) / 2 ^ 128 ≤ 1 := by
     rw [div_le_one (by positivity)]; simp [codeCount, hlay, h4]; norm_num
@@ -181,7 +191,7 @@ theorem stepC_mid (lay : Nat) (hlay : 3 ≤ lay) (h4 : ¬ 4 ≤ lay) : zOf (2 ^ 
         simp only [codeCount, if_neg h4, if_pos hlay]
         norm_num [zb]
 
-theorem stepC_high (lay : Nat) (hlay : 4 ≤ lay) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) ≤ bC lay := by
+theorem stepC_high (lay : Nat) (hlay : 3 ≤ lay) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) ≤ bC lay := by
   have hc0 : 0 ≤ (codeCount lay : ℝ) / 2 ^ 128 := by positivity
   have hc : (codeCount lay : ℝ) / 2 ^ 128 ≤ 1 := by
     rw [div_le_one (by positivity)]; simp [codeCount, hlay]; norm_num
@@ -202,9 +212,9 @@ theorem stepC_high (lay : Nat) (hlay : 4 ≤ lay) : zOf (2 ^ 17) * (rhoC lay * b
         norm_num [zb]
 
 theorem stepC (lay : Nat) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) ≤ bC lay := by
-  by_cases h : 4 ≤ lay
+  by_cases h : 3 ≤ lay
   · exact stepC_high lay h
-  · by_cases h3 : 3 ≤ lay
+  · by_cases h3 : 1 ≤ lay
     · exact stepC_mid lay h3 h
     · exact stepC_low lay h3
 
@@ -213,11 +223,11 @@ theorem stepC (lay : Nat) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) 
 theorem final_sign :
     zOf (2 ^ 17) ^ 513 * signBound (zOf (2 ^ 17)) bD bC ≤ 2 := by
   have e : zOf (2 ^ 17) ^ 513 * signBound (zOf (2 ^ 17)) bD bC =
-      bD * (ENNReal.ofReal 1.01094) ^ 3 * ENNReal.ofReal 1.01284 * ENNReal.ofReal 1.01515 * zOf (2 ^ 17) ^ 115254 := by
+      bD * ENNReal.ofReal 1.01094 * (ENNReal.ofReal 1.01284) ^ 2 * (ENNReal.ofReal 1.01515) ^ 2 * zOf (2 ^ 17) ^ 115254 := by
     rw [show 115254 = 513 + (40959 + (73244 + 538)) by norm_num, pow_add, pow_add]
     norm_num [signBound, counterProduct, Finset.prod_range_succ, bC]
     ring
-  rw [e, zOf_pow, bD, ← ENNReal.ofReal_pow (by norm_num),
+  rw [e, zOf_pow, bD, ← ENNReal.ofReal_pow (by norm_num), ← ENNReal.ofReal_pow (by norm_num),
     ← ENNReal.ofReal_mul (by norm_num),
     ← ENNReal.ofReal_mul (by norm_num), ← ENNReal.ofReal_mul (by norm_num),
     ← ENNReal.ofReal_mul (by norm_num), show (2 : ℝ≥0∞) = ENNReal.ofReal 2 by simp]

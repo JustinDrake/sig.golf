@@ -1,4 +1,4 @@
-import SigGolfCandidate.Budget.Search
+import SigGolfCandidate.Budget.PairedSearch
 
 /-!
 # Budget: the expectation bound for `signRef` (PORS+FP: MAC check, cached top tree)
@@ -211,12 +211,13 @@ noncomputable abbrev signBound (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) : �
 set_option maxRecDepth 100000 in
 /-- The expectation bound for the part of `signList` after the MAC check, from `Inv0`. -/
 theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (hbD : 1 ≤ bD) (hbC : ∀ i, 1 ≤ bC i)
-    (hstepD : z ^ 2 * ((epsD + rhoD) * bD + (1 - rhoD)) ≤ bD)
+    (hstepD : z ^ 2 * (1 - rhoD) + z ^ 3 * rhoD * (1 - rhoD) +
+      z ^ 3 * (rhoD ^ 2 + 2 * epsP) * bD ≤ bD)
     (hstepC : ∀ i, z * (rhoC i * bC i + (1 - rhoC i)) ≤ bC i)
     (S cache m : List Byte) (hS : S.length = 32) (hm : m.length = 32) (c : RCache)
     (hinv : CacheInv Inv0 c) :
     V z (do
-      match ← searchDigest S m 0 aMax with
+      match ← searchDigestPairs S m 0 aMax with
       | none => pure none
       | some (rho, N) =>
         let (levels, secrets) ← buildPorsTree S (idxOf N)
@@ -228,7 +229,7 @@ theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
   have hbig : 1 ≤ z ^ 40959 * (counterProduct bC 5 * z ^ (73244 + 538)) :=
     one_le_mul (one_le_pow₀ hz) (one_le_mul (one_le_counterProduct hbC _) (one_le_pow₀ hz))
   refine (V_bind_le z _ _ c _ fun x hx => ?_).trans (mul_le_mul' ?_ le_rfl)
-  · have hx' := (spec_searchDigest S m hS hm aMax 0).support
+  · have hx' := (spec_searchDigestPairs S m hS hm aMax 0).support
       (I := fun q => qbyte q 1 ≠ 4) (fun q hq => by unfold PD at hq; omega) c
       (hinv.mono fun q h => h.1) x hx
     obtain ⟨o, c1⟩ := x
@@ -250,7 +251,7 @@ theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
       · refine mul_le_mul' ?_ le_rfl
         rw [← porsCost_eq]
         exact (spec_buildPorsTree S hS (idxOf N)).V_le hz c1
-  · refine V_searchDigest z bD hz hbD hstepD S m hS hm aMax 0 c ∅ (by simp [aMax]) (by simp)
+  · refine V_searchDigestPairs z bD hz hbD hstepD S m hS hm aMax 0 c ∅ (by simp [aMax]) (by simp)
       (fun a' _ _ => ?_) (fun rho _ _ => ?_)
     · cases hq : c (fmt (rndInput S m a')) with
       | none => rfl
@@ -268,7 +269,8 @@ theorem V_signBody (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
 
 /-- The expectation bound for `signList` (MAC check first), for every cache argument. -/
 theorem V_signList (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (hbD : 1 ≤ bD) (hbC : ∀ i, 1 ≤ bC i)
-    (hstepD : z ^ 2 * ((epsD + rhoD) * bD + (1 - rhoD)) ≤ bD)
+    (hstepD : z ^ 2 * (1 - rhoD) + z ^ 3 * rhoD * (1 - rhoD) +
+      z ^ 3 * (rhoD ^ 2 + 2 * epsP) * bD ≤ bD)
     (hstepC : ∀ i, z * (rhoC i * bC i + (1 - rhoC i)) ≤ bC i)
     (S cache m : List Byte) (hS : S.length = 32) (hm : m.length = 32) (c : RCache)
     (hinv : CacheInv Inv0 c) :
@@ -286,7 +288,8 @@ theorem V_signList (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) 
       (one_le_pow₀ hz)))
 
 theorem V_signRef (z bD : ℝ≥0∞) (bC : Nat → ℝ≥0∞) (hz : 1 ≤ z) (hbD : 1 ≤ bD) (hbC : ∀ i, 1 ≤ bC i)
-    (hstepD : z ^ 2 * ((epsD + rhoD) * bD + (1 - rhoD)) ≤ bD)
+    (hstepD : z ^ 2 * (1 - rhoD) + z ^ 3 * rhoD * (1 - rhoD) +
+      z ^ 3 * (rhoD ^ 2 + 2 * epsP) * bD ≤ bD)
     (hstepC : ∀ i, z * (rhoC i * bC i + (1 - rhoC i)) ≤ bC i)
     (sk : Bytes 32) (cache : Cache) (m : Bytes 32) (c : RCache) (hinv : CacheInv Inv0 c) :
     V z (signRef sk cache m) c ≤ z ^ 513 * signBound z bD bC := by

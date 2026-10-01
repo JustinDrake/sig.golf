@@ -124,6 +124,18 @@ def searchDigest (S m : List Byte) (a : Nat) : Nat → OracleComp HashSpec (Opti
     let N ← digest rho m
     if admissible N then pure (some (rho, N)) else searchDigest S m (a + 1) fuel
 
+/-- Use both independent halves of each randomizer answer, in order. `fuel`
+counts pairs; a successful first half never evaluates the second digest. -/
+def searchDigestPairs (S m : List Byte) (a : Nat) : Nat → OracleComp HashSpec (Option (Val × Nat))
+  | 0 => pure none
+  | fuel + 1 => do
+    let (rho0, rho1) ← prf2 (rndInput S m a)
+    let N0 ← digest rho0 m
+    if admissible N0 then pure (some (rho0, N0)) else do
+      let N1 ← digest rho1 m
+      if admissible N1 then pure (some (rho1, N1))
+      else searchDigestPairs S m (a + 1) fuel
+
 /-- PORS leaves of instance `idx` (`ref.sign` step 2): for pairs `q = 0 .. 2^13 - 1`, the paired
 secret query `prf2 (tw(8, 0, idx, 0, q) || P || S)`, then leaf `2q`, then leaf `2q+1` (tag 9).
 Returns `(leaves, secrets)` (both of length `2^14`, index = leaf index). -/
@@ -224,7 +236,7 @@ the PORS tree of `idx` (its root is the message of the bottom layer), the layers
 def signList (S cache m : List Byte) : OracleComp HashSpec (Option (List Byte)) := do
   let tag ← H (macInput S (cacheRegion cache))
   if toList (n := 32) tag = cacheTag cache then
-    match ← searchDigest S m 0 aMax with
+    match ← searchDigestPairs S m 0 aMax with
     | none => pure none
     | some (rho, N) =>
       let (levels, secrets) ← buildPorsTree S (idxOf N)
@@ -247,12 +259,12 @@ witness keeps the body, `sigLayerBytes lay - 4` bytes, and the counters separate
 def sigLayerBytes (lay : Nat) : Nat := 4 + 16 * nChains + 16 * height lay
 /-- Bytes of layer `lay`'s body in the signature (and in the witness): chain values and path. -/
 def bodyBytes (lay : Nat) : Nat := 16 * nChains + 16 * height lay
-/-- Bytes before the layers (`ref.LAYER0`): `rho` and the 133 FTS items (2144). -/
+/-- Bytes before the layers (`ref.LAYER0`): `rho` and the 132 FTS items (2144). -/
 def headBytes : Nat := 16 + 16 * (porsK + porsM)
 /-- Offset of layer `lay`'s body in the signature (no counters: 2144, 2992, 3760, 4528, 5296). -/
 def sigLayerOff (lay : Nat) : Nat := headBytes + ((List.range lay).map bodyBytes).sum
 
-/-- Signature fields (`ref.parse`): `rho`, FTS item `i < 133` (secrets `i < 15`, then auth slots). -/
+/-- Signature fields (`ref.parse`): `rho`, FTS item `i < 132` (secrets `i < 15`, then auth slots). -/
 def sigRho (sig : List Byte) : Val := slice sig 0 16
 def sigItem (sig : List Byte) (i : Nat) : Val := slice sig (16 + 16 * i) 16
 def sigAuth (sig : List Byte) (i : Nat) : Val := sigItem sig (porsK + i)
@@ -271,7 +283,8 @@ last encoding). -/
 def wPi : Nat := 16
 def wSec : Nat := 32
 def wStream : Nat := wSec + 16 * porsK
-def streamBytes : Nat := 8 * porsSegs + 16 * porsM
+/-- Fixed allocation preserves the in-place WOTS witness addresses when the auth cap is 118. -/
+def streamBytes : Nat := 8 * porsSegs + 16 * 118
 /-- Counter `c4` (layer 4) at 2392, then 4 zero bytes. -/
 def wC4 : Nat := wStream + streamBytes
 /-- The paths, layer 0 first (2400). -/
@@ -323,7 +336,7 @@ def witnessList (sig : List Byte) (v vs segs : List Nat) : List Byte :=
 
 /-- The part of expand after the digest query that makes no queries: `none` unless the 15 leaf
 indices of `N` are distinct, their octopus has `≤ 118` nodes and the unused auth slots
-`n .. 117` (`n` = the octopus size = the number of reads) are zero; else the partial witness. -/
+`n .. 118` (`n` = the octopus size = the number of reads) are zero; else the partial witness. -/
 def expandOf (sig : List Byte) (N : Nat) : Option (List Byte) :=
   let v := leavesOf N
   if !decide v.Nodup then none

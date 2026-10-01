@@ -113,4 +113,11 @@ sym_block blk2980 := symRun { noAlias := true } seg2980 (pcOf 2980) 2
 sym_block blk2981 := symRun { noAlias := true } seg2981 (pcOf 2981) 6
 sym_block blk2986 := symRun { noAlias := true } seg2986 (pcOf 2986) 3
 
+sym_block blk72 := symRun { noAlias := true } seg72 (pcOf 72) 7
+sym_block blk138 := symRun { noAlias := true } seg138 (pcOf 138) 2
+sym_block blk3200 := symRun { noAlias := true } seg3200 (pcOf 3200) 5
+sym_block blk3204 := symRun { noAlias := true } seg3204 (pcOf 3204) 2
+sym_block blk3205 := symRun { noAlias := true } seg3205 (pcOf 3205) 3
+sym_block blk3207 := symRun { noAlias := true } seg3207 (pcOf 3207) 5
+
 end SigGolfCandidate.Sign

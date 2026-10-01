@@ -47,8 +47,10 @@ def ftsAuthCapacity : Nat := 118
 def ftsSegments : Nat := 2 * ftsOpenings - 1
 /-- Signatures allowed per key pair, `q_s`. -/
 def signatureLimit : Nat := 2 ^ 32
-/-- Digest attempts per signature, `A_max`. -/
+/-- Digest attempts per signature. Each derived randomizer pair supplies two attempts. -/
 def digestAttemptLimit : Nat := 2 ^ 20
+/-- Randomizer derivation pairs per signature. -/
+def digestPairLimit : Nat := 2 ^ 19
 /-- Encoding counters tried per layer, `C_max`. -/
 def encodingAttemptLimit : Nat := 2 ^ 22
 
@@ -63,7 +65,7 @@ abbrev Counter := BitVec counterBits
 abbrev Layer := Fin numLayers
 
 /-- The target sum at a particular one-time-signature layer. -/
-def targetFor (lay : Layer) : Nat := targetSum + if 4 ≤ lay.val then 2 else if 3 ≤ lay.val then 1 else 0
+def targetFor (lay : Layer) : Nat := targetSum + if 3 ≤ lay.val then 2 else if 1 ≤ lay.val then 1 else 0
 /-- `idx`, which few-time key signs. -/
 abbrev Index := Fin (2 ^ totalHeight)
 /-- `tau`, a tree of any layer. Layer `lay` only uses the values below `2^(sum_{j < lay} h_j)`. -/
@@ -1181,6 +1183,11 @@ variable {m : Type → Type} [Monad m] [HasQuery HashSpec m]
 def splitSecrets (output : HashOutput) : Digest × Digest :=
   (truncateHash output, output.extractLsb' digestBits digestBits)
 
+/-- A single compression supplies two independent randomizer candidates. -/
+def deriveRandomizerPair (parameter : PublicParameter) (seed : MasterSeed)
+    (message : Message) (trial : BitVec 32) : m (Randomness × Randomness) := do
+  return splitSecrets (← Concrete.oracleHash (randomizerHashInput parameter seed message trial))
+
 /-- `sk_{lay,tau,e,2k}` and `sk_{lay,tau,e,2k+1}`, derived from the seed with one query. -/
 def otsSecret (parameter : PublicParameter) (seed : MasterSeed) (lay : Layer) (tree : TreeIndex)
     (leaf : LeafIndex) (pair : ChainPair) : m (Digest × Digest) := do
@@ -1251,10 +1258,24 @@ def signDigestLoop (secretKey : SecretKey) (message : Message) : Nat → Nat →
       | some (index, leaves) => return some (randomness, index, leaves)
       | none => signDigestLoop secretKey message attempts (trial + 1)
 
+/-- Digest search in pairs. The counter names a derivation answer; each answer
+is consumed low-half first, high-half second, stopping at the first success. -/
+def signDigestPairs (secretKey : SecretKey) (message : Message) : Nat → Nat →
+    m (Option (Randomness × Index × (IndexGroup → FtsLeaf)))
+  | 0, _ => pure none
+  | attempts + 1, trial => do
+      let pair ← deriveRandomizerPair secretKey.parameter secretKey.seed message (BitVec.ofNat 32 trial)
+      match ← signAttempt secretKey message pair.1 with
+      | some (index, leaves) => return some (pair.1, index, leaves)
+      | none =>
+          match ← signAttempt secretKey message pair.2 with
+          | some (index, leaves) => return some (pair.2, index, leaves)
+          | none => signDigestPairs secretKey message attempts (trial + 1)
+
 /-- `Sig(sk, m)` after the MAC check: the digest loop, the PORS tree built once, then the layers from the
 bottom up, each a counter search followed by its tree built once, and the top layer from the cache. -/
 def signChecked (secretKey : SecretKey) (cache : TopCache) (message : Message) : m (Option Signature) := do
-  let some (randomness, index, leaves) ← signDigestLoop secretKey message digestAttemptLimit 0
+  let some (randomness, index, leaves) ← signDigestPairs secretKey message digestPairLimit 0
     | return none
   signFromPaired secretKey.parameter index (ftsSecret secretKey.parameter secretKey.seed index)
     (otsSecret secretKey.parameter secretKey.seed)

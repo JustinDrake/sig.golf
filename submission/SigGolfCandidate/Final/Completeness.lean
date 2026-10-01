@@ -7,7 +7,7 @@ import Mathlib.Data.Set.Finite.List
 # Completeness
 
 `submission_complete`: for every secret key, all `2^256` honest pipelines, run against one shared
-lazy random oracle, succeed with probability at least `1 - 2^-256`.
+lazy random oracle, succeed with probability at least `1 - 2^-128`.
 
 1. The `allSucceed` bit of `allMessages` is the conjunction fold (`foldAll`) of the success bits
    of the honest pipelines (`allSucceed_allMessages`).
@@ -19,7 +19,7 @@ lazy random oracle, succeed with probability at least `1 - 2^-256`.
    failure probability by the sum of the per-message failure probabilities
    (`probOutput_false_foldAll_le`), each of which is that of the seeded completeness experiment.
 5. Per-seed completeness (`Completeness.complete_seeded`, i.e. `sphincs_is_complete_for_every_seed`)
-   bounds the sum by `2^-256`.
+   bounds the sum by `2^-128`.
 -/
 
 open OracleComp OracleSpec
@@ -164,10 +164,9 @@ theorem allSucceed_eq_relabel (hK : KeygenRefinementStatement) (hS : SignRefinem
   rw [success_honest_eq_game hK hS hV, ← relabel_val_gameHD, relabel_relabel]
   rfl
 
-/-- The proved per-key failure bound `2^-256` is at most the organizer's `FAILURE`. -/
-theorem failure_ge : ((2 ^ 256 : Nat) : ENNReal)⁻¹ ≤ FAILURE := by
+/-- The proved per-key failure bound `2^-128` is at most the organizer's `FAILURE`. -/
+theorem failure_ge : ((2 ^ 128 : Nat) : ENNReal)⁻¹ ≤ FAILURE := by
   rw [FAILURE, one_div, Nat.cast_pow, Nat.cast_ofNat]
-  exact ENNReal.inv_le_inv.mpr (pow_le_pow_right₀ (by norm_num) (by norm_num))
 
 /-- **Completeness** of the submission, given the keygen, sign and verify refinements. -/
 theorem submission_complete (hK : KeygenRefinementStatement) (hS : SignRefinementStatement)
