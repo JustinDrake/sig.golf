@@ -304,7 +304,7 @@ theorem chains_good0 (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (
     (hs : ChainIn c 0 [] s) :
     Good s (N + 40 * 42) (C + chainsCost c 0 42) (cc ((List.range 42).foldlM (chainF c xs) []) K) := by
   have := chains_good c hc hret xs hxs K N C hK 42 0 rfl [] s (by unfold ChainNext; rwa [if_pos (by omega)])
-  rwa [List.range_eq_range']
+  rwa [List.range_eq_range'] 
 
 theorem sum_eq_getD (l : List Nat) : l.sum = ((List.range l.length).map (l.getD · 0)).sum := by
   induction l with

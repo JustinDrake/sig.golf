@@ -215,17 +215,17 @@ def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw 0, d⟩
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
 /-- Known at the start of the layer-4 transition: the layer constants the root tail sets (W1a: also
-`t3 = 2^40`, `sp = TMASK`, `a5 = ttab + 2048`, and `a4 = KT4`); the masks `x20`, `x21` are loaded from
+`sp = TMASK`, `a5 = ttab + 2048`); the masks `x20`, `x21` are loaded from
 the verifier's data words and resolved from protected memory in `tailF_step`.
-`t3` reuses `x6 = 1` in one shift; `sp = 0x3FE00` reuses `x27 = 0x40101` in one
-addition of `-0x301`, so the accepting tail takes 15 instructions. -/
+`sp = 0x3FE00` reuses `x27 = 0x40401` in one
+addition of `-0x601`, so the accepting tail takes 13 instructions. -/
 def rootK : List (Reg × Word) :=
-  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, K40), (.x2, TMASK), (.x15, TTA5)]
-def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401), (.x14, KT4)]
+  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x2, TMASK), (.x15, TTA5)]
+def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 15,
-    [fBr3 false, fBr2 false, fBr1 false], none, 15⟩
+  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 13,
+    [fBr3 false, fBr2 false, fBr1 false], none, 13⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
