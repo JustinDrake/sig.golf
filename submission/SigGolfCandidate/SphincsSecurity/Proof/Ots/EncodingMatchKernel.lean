@@ -7,18 +7,18 @@ attribute [local instance] Classical.propDecidable
 attribute [local irreducible] Finset.univ canonicalEncodingInputs canonicalGraphInputs
 set_option backward.isDefEq.respectTransparency false
 
-theorem reference_cell_not_match (parameter : PublicParameter) (messages : EncodingPosition → Digest)
+theorem reference_cell_not_match (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
     (words : OtsReferenceWords) (selections : ReferenceFamily) (row : EncodingRow) (word : Encoding)
     (hselected : selections row.1 = some (row.2, word)) (answer : HashOutput) :
     ¬Match parameter messages words selections (referenceFamilyCell parameter messages row).val answer := by
   rintro ⟨position, hat, hnonreference, _⟩
-  have hp : AtEncodingPosition parameter (referenceFamilyCell parameter messages row).val row.1 := ⟨_, rfl⟩
+  have hp : AtEncodingPosition parameter (referenceFamilyCell parameter messages row).val row.1 := ⟨_, _, rfl⟩
   obtain rfl := atEncodingPosition_unique hat hp
   apply hnonreference
   rw [referenceInput, hselected]
   rfl
 
-theorem match_allowed_cases (parameter : PublicParameter) (messages : EncodingPosition → Digest)
+theorem match_allowed_cases (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
     (words : OtsReferenceWords) (selections : ReferenceFamily) (cell : canonicalEncodingInputs parameter) :
     referenceEncodingAllowed parameter messages selections cell = Finset.univ ∨
       ∀ answer ∈ referenceEncodingAllowed parameter messages selections cell,
@@ -35,7 +35,7 @@ theorem match_allowed_cases (parameter : PublicParameter) (messages : EncodingPo
         intro answer ha hm
         have hi := (FirstSuccessTable.mem_invalid (decodeEncodingOutput row.1.lay) answer).mp ha
         obtain ⟨position, hat, _, hd⟩ := hm
-        have hp : AtEncodingPosition parameter (referenceFamilyCell parameter messages row).val row.1 := ⟨_, rfl⟩
+        have hp : AtEncodingPosition parameter (referenceFamilyCell parameter messages row).val row.1 := ⟨_, _, rfl⟩
         obtain rfl := atEncodingPosition_unique hat hp
         rw [hi] at hd
         contradiction
@@ -48,7 +48,7 @@ theorem match_allowed_cases (parameter : PublicParameter) (messages : EncodingPo
           intro answer ha hm
           have hi := (FirstSuccessTable.mem_invalid (decodeEncodingOutput row.1.lay) answer).mp ha
           obtain ⟨position, hat, _, hd⟩ := hm
-          have hp : AtEncodingPosition parameter (referenceFamilyCell parameter messages row).val row.1 := ⟨_, rfl⟩
+          have hp : AtEncodingPosition parameter (referenceFamilyCell parameter messages row).val row.1 := ⟨_, _, rfl⟩
           obtain rfl := atEncodingPosition_unique hat hp
           rw [hi] at hd
           contradiction
@@ -62,7 +62,7 @@ theorem match_allowed_cases (parameter : PublicParameter) (messages : EncodingPo
       (referenceFamilyCell_injective parameter messages) (encodingFamilyAllowed selections) (fun _ => Finset.univ)
       (⟨cell, hc⟩ : UniformTableSplit.Outside (referenceFamilyCell parameter messages))
 
-theorem match_allowed_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
+theorem match_allowed_le (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
     (words : OtsReferenceWords) (selections : ReferenceFamily) (cell : canonicalEncodingInputs parameter) :
     Pr[Match parameter messages words selections cell.val |
       PMF.uniformOfFinset (referenceEncodingAllowed parameter messages selections cell)

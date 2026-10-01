@@ -95,26 +95,32 @@ def FdInv (w : List Byte) (idx : Nat) (u : MachineState) (lay e lam : Nat) (v : 
     Prop :=
   t.pc = (if lam < height lay then pcOf 446 else pcOf 472) ∧ LCtx w idx t ∧ lam ≤ height lay ∧
   t.getReg .x18 = BitVec.ofNat 64 (2 ^ (height lay - lam) + e / 2 ^ lam) ∧ t.getReg .x19 = BitVec.ofNat 64 lam ∧
-  t.getReg .x23 = BitVec.ofNat 64 (0x800 + pathOff lay + 16 * lam) ∧ v.length = 16 ∧
+  t.getReg .x23 = BitVec.ofNat 64 (0x800 + pathOff lay + pathStride lay * lam) ∧ v.length = 16 ∧
   t.readWords (BitVec.ofNat 64 0x30200) 2 = wordsOf v ∧ RegsEq u t fdRegs ∧ Frame u t fdW
 
-/-- W1a: the paths sit at `pathOff lay` (layer 0 first), below the chain array. -/
+/-- W1a: the paths sit at `pathOff lay`, with lower paths scattered through chain tweak slots. -/
 theorem pathOff_le (lay : Nat) (h : lay < 5) :
-    pathOff lay + 16 * height lay ≤ 2944 ∧ pathOff lay % 8 = 0 := by
+    pathOff lay + pathStride lay * height lay ≤ 16384 ∧ pathOff lay % 8 = 0 := by
   interval_cases lay <;> decide
 
 theorem height_le (lay : Nat) (hl : 1 ≤ lay) (hl' : lay < 5) : 5 ≤ height lay ∧ height lay ≤ 6 := by
   interval_cases lay <;> decide
 
-theorem fold_step (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : Nat) (hl : 1 ≤ lay) (hl' : lay < 5)
+/-- One fold; afterwards the node buffer still holds the two inputs of its hash (for the last level: the
+root's two children). -/
+theorem fold_step2 (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : Nat) (hl : 1 ≤ lay) (hl' : lay < 5)
     (htau : tau < 2 ^ 30) (he : e < 2 ^ height lay) (hw : w.length = 16384)
     (u9 : u.getReg .x9 = BitVec.ofNat 64 (height lay)) (u30 : u.getReg .x30 = BitVec.ofNat 64 tau)
     (u1C0 : u.getMem (BitVec.ofNat 64 0x301C0) = BitVec.ofNat 64 (769 + 65536 * lay)) :
     ∀ lam < height lay, ∀ (v : Val) (t : MachineState), FdInv w idx u lay e lam v t →
-      Sim eimg t 30 (fdF w lay tau e v lam) (FdInv w idx u lay e (lam + 1)) := by
+      Sim eimg t 30 (fdF w lay tau e v lam) (fun v' t' => FdInv w idx u lay e (lam + 1) v' t' ∧
+        t'.readWords (BitVec.ofNat 64 0x301E0) 4 = wordsOf (if e / 2 ^ lam % 2 = 1
+          then (witPath w lay).getD lam [] ++ v else v ++ (witPath w lay).getD lam [])) := by
   intro lam hlam v t ⟨tpc, tc, hlh, t18, t19, t23, hv, tv, tregs, tframe⟩
   have hh := height_le lay hl hl'
+  have hs64 : pathStride lay = 64 := by unfold pathStride; rw [if_neg (by omega)]
   have hwl := pathOff_le lay hl'
+  rw [hs64] at t23 hwl
   rw [if_pos hlam] at tpc
   set H := 2 ^ (height lay - lam) + e / 2 ^ lam with hH
   have hHlt : H < 2 ^ 32 := by
@@ -122,7 +128,7 @@ theorem fold_step (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : Na
     have : e / 2 ^ lam ≤ e := Nat.div_le_self _ _
     have : 2 ^ height lay ≤ 2 ^ 6 := Nat.pow_le_pow_right (by norm_num) (by omega)
     omega
-  set o := pathOff lay + 16 * lam with ho
+  set o := pathOff lay + 64 * lam with ho
   obtain ⟨t1, hs1, p1, y18, y16, y17, y28, y29, m1C8, r1, f1⟩ := blk446_run w t tpc H tau o hHlt (by omega)
     (by omega) (by omega) tc.wit t18 (by rw [t23]; exact ofNat_congr (by omega)) tc.x25
     (by rw [tregs.get .x30 (by decide), u30])
@@ -135,7 +141,7 @@ theorem fold_step (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : Na
     unfold heapIndex; rw [hH, hpow, Nat.pow_succ, ← Nat.div_div_eq_div_mul]; omega
   have hsib : (witPath w lay).getD lam [] = wbytes w o 16 := by
     simp only [witPath, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range hlam,
-      Option.map_some, Option.getD_some, witSib]
+      Option.map_some, Option.getD_some, witSib, hs64]
     rw [slice_eq_wbytes _ _ _ (by omega)]
   have hsl : (wbytes w o 16).length = 16 := length_wbytes _ _ _
   have hj : e / 2 ^ (lam + 1) < 2 ^ 32 := lt_of_le_of_lt (Nat.div_le_self _ _) (by
@@ -147,7 +153,8 @@ theorem fold_step (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : Na
       t2.readWords (BitVec.ofNat 64 0x301E0) 2 = wordsOf l → t2.readWords (BitVec.ofNat 64 0x301F0) 2 = wordsOf r →
       RegsEq t1 t2 [] → Frame t1 t2 (fun x => 0x301E0 ≤ x ∧ x < 0x30200) →
       Sim eimg t 30 (hash16 (nodeInput lay tau (lam + 1) (e / 2 ^ (lam + 1)) l r))
-        (FdInv w idx u lay e (lam + 1)) := by
+        (fun v' t' => FdInv w idx u lay e (lam + 1) v' t' ∧
+          t'.readWords (BitVec.ofNat 64 0x301E0) 4 = wordsOf (l ++ r)) := by
     intro t2 k2 l r hs2 hk2 p2 hl2 hr2 w2l w2r r2 f2
     have c2 := c1.frame f2 r2 (fun a h1 h2 => by unfold lctxA witA at h1; omega)
     obtain ⟨t3, hs3, e3, p3, x10, x11, x12, r3, m3⟩ := blk465_run t2 p2 c2.x25
@@ -185,11 +192,12 @@ theorem fold_step (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : Na
       (by omega) (by rw [R3.get .x23 (by decide), t23]; exact ofNat_congr (by omega))
       (by rw [R3.get .x19 (by decide), t19]) (by rw [R3.get .x9 (by decide), tregs.get .x9 (by decide), u9])
     have f4 : Frame t3 t4 (fun a => 0x30200 ≤ a ∧ a < 0x30200 + 32) := frame_writeHash t3 ans _ x12 (by norm_num)
-    refine Sim.pure_steps hs5 ⟨?_, (c3.frame f4 (regsEq_writeHash t3 ans []) (fun a h1 h2 => by
-        unfold lctxA witA at h1; omega)).frame_nil m5 r5, by omega, ?_, y19, ?_, by simp [answerBytes], ?_, ?_, ?_⟩
+    refine Sim.pure_steps hs5 ⟨⟨?_, (c3.frame f4 (regsEq_writeHash t3 ans []) (fun a h1 h2 => by
+        unfold lctxA witA at h1; omega)).frame_nil m5 r5, by omega, ?_, y19, ?_, by simp [answerBytes], ?_, ?_, ?_⟩,
+      ?_⟩
     · rw [p5]; split <;> split <;> first | rfl | omega
     · rw [r5.get .x18, ht4, writeHash_getReg, r3.get .x18, r2.get .x18, y18, hHdiv]; unfold heapIndex; rfl
-    · rw [y23]; exact ofNat_congr (by omega)
+    · rw [y23, hs64]; exact ofNat_congr (by omega)
     · rw [readWords_ofNat_two, m5, m5, ← readWords_ofNat_two, ht4, writeHash_readWords_val t3 ans _ x12 (by norm_num)]
     · exact ((tregs.trans R3).trans r5).mono (by decide)
     · have f23 : Frame t2 t3 (fun _ => False) := fun a _ _ => m3 _
@@ -198,19 +206,83 @@ theorem fold_step (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : Na
         ((((f1.trans f2).trans f23).trans f4).trans f45).mono (by
             intro a ha; simp only [or_false] at ha; omega)
       exact (tframe.trans f15).mono (by intro a ha; simp only [fdW] at ha ⊢; omega)
+    · have e4 := readWords_ofNat_add t5 0x301E0 2 2
+      rw [show (2 + 2 : Nat) = 4 from rfl, show (0x301E0 + 8 * 2 : Nat) = 0x301F0 from rfl] at e4
+      rw [e4, wordsOf_append _ _ (by omega), ← w2l, ← w2r]
+      congr 1
+      · exact readWords_congr t2 t5 _ 2 (fun i hi => by
+          rw [m5, f4.getMem (by omega) (by omega), m3])
+      · exact readWords_congr t2 t5 _ 2 (fun i hi => by
+          rw [m5, f4.getMem (by omega) (by omega), m3])
   unfold fdF
   dsimp only
   rw [hsib]
   by_cases hbit : e / 2 ^ lam % 2 = 1
-  · rw [if_pos hbit]
+  · simp only [if_pos hbit]
     rw [if_neg (by omega)] at p1
     obtain ⟨t2, hs2, p2, w2l, w2r, r2, f2⟩ := blk456_run t1 p1 c1.x25
     exact tail t2 5 _ _ hs2 le_rfl p2 hsl hv (by rw [w2l, y16, y17, wordsOf_wbytes16])
       (by rw [w2r, y28, y29, hnode]) r2 f2
-  · rw [if_neg hbit]
+  · simp only [if_neg hbit]
     rw [if_pos (by omega)] at p1
     obtain ⟨t2, hs2, p2, w2l, w2r, r2, f2⟩ := blk461_run t1 p1 c1.x25
     exact tail t2 4 _ _ hs2 (by norm_num) p2 hv hsl (by rw [w2l, y28, y29, hnode])
       (by rw [w2r, y16, y17, wordsOf_wbytes16]) r2 f2
+
+theorem fold_step (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : Nat) (hl : 1 ≤ lay) (hl' : lay < 5)
+    (htau : tau < 2 ^ 30) (he : e < 2 ^ height lay) (hw : w.length = 16384)
+    (u9 : u.getReg .x9 = BitVec.ofNat 64 (height lay)) (u30 : u.getReg .x30 = BitVec.ofNat 64 tau)
+    (u1C0 : u.getMem (BitVec.ofNat 64 0x301C0) = BitVec.ofNat 64 (769 + 65536 * lay)) :
+    ∀ lam < height lay, ∀ (v : Val) (t : MachineState), FdInv w idx u lay e lam v t →
+      Sim eimg t 30 (fdF w lay tau e v lam) (FdInv w idx u lay e (lam + 1)) :=
+  fun lam hlam v t h =>
+    (fold_step2 w idx u lay tau e hl hl' htau he hw u9 u30 u1C0 lam hlam v t h).mono le_rfl
+      (fun _ _ h => h.1)
+
+/-- The folds below the root: the fold over the first `height lay - 1` siblings of the path. -/
+theorem foldPath_take_eq (w : List Byte) (lay tau e : Nat) (leaf : Val) :
+    foldPath (nodeInput lay tau) e leaf ((witPath w lay).take (height lay - 1)) =
+      (List.range (height lay - 1)).foldlM (fdF w lay tau e) leaf := by
+  have hlen : ((witPath w lay).take (height lay - 1)).length = height lay - 1 := by
+    simp [witPath]
+  unfold foldPath
+  rw [hlen]
+  have key : ∀ (l : List Nat) (v : Val), (∀ lam ∈ l, lam < height lay - 1) →
+      l.foldlM (fun v lam =>
+        let sib := ((witPath w lay).take (height lay - 1)).getD lam []
+        let j := e / 2 ^ (lam + 1)
+        if e / 2 ^ lam % 2 = 1 then hash16 (nodeInput lay tau (lam + 1) j sib v)
+        else hash16 (nodeInput lay tau (lam + 1) j v sib)) v = l.foldlM (fdF w lay tau e) v := by
+    intro l
+    induction l with
+    | nil => intro v _; rfl
+    | cons a l ih =>
+      intro v h
+      have ha : a < height lay - 1 := h a (List.mem_cons_self ..)
+      have e1 : ((witPath w lay).take (height lay - 1)).getD a [] = (witPath w lay).getD a [] := by
+        simp [List.getD_eq_getElem?_getD, List.getElem?_take, ha]
+      simp only [List.foldlM_cons, fdF, e1]
+      congr 1; funext v'
+      exact ih v' (fun lam hlam => h lam (List.mem_cons_of_mem _ hlam))
+  exact key _ leaf (fun lam hlam => by simpa using hlam)
+
+/-- The dead root hash of `expandLayers` is the last fold. -/
+theorem fdF_last (w : List Byte) (lay tau e : Nat) (he : e < 2 ^ height lay) (hh : 1 ≤ height lay)
+    (node : Val) (hn : node.length = 16) (hs : (witSib w lay (height lay - 1)).length = 16) :
+    hash16 (nodeInput lay tau (height lay) 0
+        ((topPair e (height lay) node (witSib w lay (height lay - 1))).take 16)
+        ((topPair e (height lay) node (witSib w lay (height lay - 1))).drop 16)) =
+      fdF w lay tau e node (height lay - 1) := by
+  have hsib : (witPath w lay).getD (height lay - 1) [] = witSib w lay (height lay - 1) := by
+    simp [witPath, List.getD_eq_getElem?_getD, List.getElem?_map,
+      List.getElem?_range (show height lay - 1 < height lay by omega)]
+  have hj : e / 2 ^ (height lay - 1 + 1) = 0 := by
+    rw [show height lay - 1 + 1 = height lay by omega]; exact Nat.div_eq_of_lt he
+  unfold fdF topPair
+  dsimp only
+  rw [hsib, hj, show height lay - 1 + 1 = height lay by omega]
+  split
+  · rw [List.take_left' hs, List.drop_left' hs]
+  · rw [List.take_left' hn, List.drop_left' hn]
 
 end SigGolfCandidate.ExP

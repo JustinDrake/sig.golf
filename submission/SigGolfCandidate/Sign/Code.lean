@@ -65,7 +65,7 @@ def seg139 : List (BitVec 32) := [0x00100293#32, 0x00100513#32, 0x00000073#32]
 /-- instructions 142 .. 144 (fail_mac): addi t0, x0, 1; addi a0, x0, 1; ecall  -/
 def seg142 : List (BitVec 32) := [0x00100293#32, 0x00100513#32, 0x00000073#32]
 /-- instructions 145 .. 178 (dig_ok): lui s2, 0x25; addi s2, s2, -1280; ld ra, 48(zero); ld sp, 56(zero); sd ra, 0(s2); sd sp, 8(s2) ... -/
-def seg145 : List (BitVec 32) := [0x00025937#32, 0xb0090913#32, 0x03003083#32, 0x03803103#32, 0x00193023#32, 0x00293423#32, 0x16003b03#32, 0x01eb1b13#32, 0x01eb5b13#32, 0x020b5193#32, 0x01819193#32, 0x00001eb7#32, 0x801e8e93#32, 0x003eeeb3#32, 0x6bd03023#32, 0x6b602423#32, 0x020b1e93#32, 0x003e8eb3#32, 0x7ffe8e93#32, 0x102e8e93#32, 0x0dd03023#32, 0x100e8e93#32, 0x1dd03023#32, 0x0c002423#32, 0x1c002423#32, 0x00000013#32, 0x000309b7#32, 0x000048b7#32, 0x00025937#32, 0xb1090913#32, 0x6e000a13#32, 0x000a3683#32, 0x0086d693#32, 0x00000493#32]
+def seg145 : List (BitVec 32) := [0x00025937#32, 0xb0090913#32, 0x03003083#32, 0x03803103#32, 0x00193023#32, 0x00293423#32, 0x16003b03#32, 0x01eb1b13#32, 0x01eb5b13#32, 0x020b5193#32, 0x01819193#32, 0x00001eb7#32, 0x801e8e93#32, 0x003eeeb3#32, 0x6bd03023#32, 0x6b602423#32, 0x00001eb7#32, 0x901e8e93#32, 0x003eeeb3#32, 0x0dd03023#32, 0x0d602423#32, 0x00001eb7#32, 0xa01e8e93#32, 0x003eeeb3#32, 0x1dd03023#32, 0x1d602423#32, 0x000309b7#32, 0x000048b7#32, 0x00025937#32, 0xb1090913#32, 0x6e000a13#32, 0x000a3683#32, 0x0086d693#32, 0x00000493#32]
 /-- instructions 179 .. 180 (por_leaf_loop): andi gp, s1, 1; bne gp, x0, +28 -/
 def seg179 : List (BitVec 32) := [0x0014f193#32, 0x00019e63#32]
 /-- instructions 181 .. 186: srli gp, s1, 1; sw gp, 1708(x0); addi a0, x0, 1696; addi a1, x0, 64; addi a2, x0, 320; ecall  -/
@@ -75,7 +75,7 @@ def seg187 : List (BitVec 32) := [0x0014f193#32, 0x00419193#32, 0x1401b083#32, 0
 /-- instructions 194 .. 201: ld ra, 224(x0); ld sp, 232(x0); sd ra, 0(s2); sd sp, 8(s2); addi s2, s2, 16; addi s4, s4, 8 ... -/
 def seg194 : List (BitVec 32) := [0x0e003083#32, 0x0e803103#32, 0x00193023#32, 0x00293423#32, 0x01090913#32, 0x008a0a13#32, 0x000a3683#32, 0x0086d693#32]
 /-- instructions 202 .. 207 (por_nocap): sw s1, 204(x0); addi a0, x0, 192; addi a1, x0, 64; slli gp, s1, 4; add a2, s3, gp; ecall  -/
-def seg202 : List (BitVec 32) := [0x00349193#32, 0x0c000513#32, 0x0c302623#32, 0x00449193#32, 0x00398633#32, 0x00000073#32]
+def seg202 : List (BitVec 32) := [0x0c902623#32, 0x0c000513#32, 0x04000593#32, 0x00449193#32, 0x00398633#32, 0x00000073#32]
 /-- instructions 208 .. 209: addi s1, s1, 1; bne s1, a7, -120 -/
 def seg208 : List (BitVec 32) := [0x00148493#32, 0xf91494e3#32]
 /-- instructions 210 .. 210: addi a5, x0, 1 -/
@@ -132,6 +132,11 @@ def seg351 : List (BitVec 32) := [0x6a40106f#32, 0x14803103#32, 0x0020e1b3#32, 0
 def seg355 : List (BitVec 32) := [0x0030de13#32, 0x01ae7e33#32, 0x01a0feb3#32, 0x01de0e33#32, 0x00315e93#32, 0x01aefeb3#32, 0x01de0e33#32, 0x01a17eb3#32, 0x01de0e33#32, 0x006e5e93#32, 0x01de0e33#32, 0x01be7e33#32, 0x00ce5e93#32, 0x01de0e33#32, 0x018e5e93#32, 0x01de0e33#32, 0x030e5e93#32, 0x01de0e33#32, 0x7ffe7e13#32, 0x6880106f#32]
 /-- instructions 376 .. 376: jal x0, +24 -/
 def seg375 : List (BitVec 32) := [0x000e1463#32]
+/-- instructions 1820 .. 1825 (the detour of the layer end, in the dead area): the root's right child
+(node buffer `0x1f0`) → `EB+32`; `SIGL -= 856`; back to 635. -/
+def seg1820 : List (BitVec 32) := [0x1f003083#32, 0x1f803103#32, 0x12103023#32, 0x12203423#32, 0xca890913#32, 0xd69fe06f#32]
+/-- instructions 635 .. 636: `LAY -= 1`; `j layer_loop`. -/
+def seg635 : List (BitVec 32) := [0xfff40413#32, 0xb01ff06f#32]
 def seg1816 : List (BitVec 32) := [0xf46e0e13#32, 0x00443e93#32, 0x01de0e33#32, 0x971fe06f#32]
 
 def seg376 : List (BitVec 32) := [0x0180006f#32]
@@ -182,7 +187,7 @@ def seg626 : List (BitVec 32) := [0x00180813#32, 0xfb181ce3#32]
 /-- instructions 628 .. 629: addi a5, a5, 1; bge s1, a5, -148 -/
 def seg628 : List (BitVec 32) := [0x00178793#32, 0xf6f4d6e3#32]
 /-- instructions 630 .. 636: ld ra, 0(s3); ld sp, 8(s3); sd ra, 288(x0); sd sp, 296(x0); addi s2, s2, -856; addi s0, s0, -1 ... -/
-def seg630 : List (BitVec 32) := [0x0009b083#32, 0x0089b103#32, 0x12103023#32, 0x12203423#32, 0xca890913#32, 0xfff40413#32, 0xb01ff06f#32]
+def seg630 : List (BitVec 32) := [0x1e003083#32, 0x1e803103#32, 0x10103823#32, 0x10203c23#32, 0x2880106f#32, 0xfff40413#32, 0xb01ff06f#32]
 /-- instructions 637 .. 645 (top_layer): addi gp, x0, 1; sd gp, 1696(x0); sd t6, 1704(x0); addi gp, x0, 257; sw gp, 192(x0); sd t6, 200(x0) ... -/
 def seg637 : List (BitVec 32) := [0x00100193#32, 0x6a303023#32, 0x6bf03423#32, 0x10100193#32, 0x0c302023#32, 0x0df03423#32, 0x0e003023#32, 0x0e003423#32, 0x00000a93#32]
 /-- instructions 646 .. 647 (top_chain_loop): andi gp, s5, 1; bne gp, x0, +28 -/
@@ -244,7 +249,7 @@ def seg215 : List (BitVec 32) := [0x7780106f#32]
 def seg216 : List (BitVec 32) := [0x1c202623#32, 0x00581193#32, 0x013181b3#32, 0x0001b083#32, 0x1e103023#32, 0x0081b083#32, 0x1e103423#32, 0x0101b083#32, 0x1e103823#32, 0x0181b083#32, 0x1e103c23#32, 0x1c000513#32, 0x04000593#32, 0x00481193#32, 0x003c8633#32, 0x00000073#32]
 def seg1717 : List (BitVec 32) := [0x01180133#32, 0x0ff17193#32, 0x00819193#32, 0x00815113#32, 0x00316133#32, 0x000010b7#32, 0xf0f08093#32, 0x001171b3#32, 0x00419193#32, 0x00415113#32, 0x00117133#32, 0x00316133#32, 0x000030b7#32, 0x33308093#32, 0x001171b3#32, 0x00219193#32, 0x00215113#32, 0x00117133#32, 0x00316133#32, 0x000050b7#32, 0x55508093#32, 0x001171b3#32, 0x00119193#32, 0x00115113#32, 0x00117133#32, 0x00316133#32, 0x01011113#32, 0x821fe06f#32]
 
-def L : Rv.Layout := [(0, seg0), (55, seg55), (57, seg57), (59, seg59), (61, seg61), (63, seg63), (65, seg65), (70, seg70), (78, seg78), (82, seg82), (89, seg89), (94, seg94), (104, seg104), (105, seg105), (108, seg108), (110, seg110), (112, seg112), (115, seg115), (119, seg119), (121, seg121), (128, seg128), (131, seg131), (134, seg134), (136, seg136), (137, seg137), (139, seg139), (142, seg142), (145, seg145), (179, seg179), (181, seg181), (187, seg187), (194, seg194), (202, seg202), (208, seg208), (210, seg210), (211, seg211), (215, seg215), (216, seg216), (232, seg232), (234, seg234), (238, seg238), (249, seg249), (256, seg256), (259, seg259), (263, seg263), (264, seg264), (266, seg266), (271, seg271), (286, seg286), (288, seg288), (290, seg290), (293, seg293), (296, seg296), (316, seg316), (318, seg318), (321, seg321), (322, seg322), (329, seg329), (331, seg331), (346, seg346), (351, seg351), (355, seg355), (375, seg375), (376, seg376), (377, seg377), (379, seg379), (382, seg382), (509, seg509), (522, seg522), (529, seg529), (531, seg531), (537, seg537), (549, seg549), (550, seg550), (556, seg556), (564, seg564), (566, seg566), (567, seg567), (573, seg573), (575, seg575), (584, seg584), (589, seg589), (591, seg591), (592, seg592), (609, seg609), (626, seg626), (628, seg628), (630, seg630), (637, seg637), (646, seg646), (648, seg648), (654, seg654), (665, seg665), (666, seg666), (673, seg673), (676, seg676), (685, seg685), (689, seg689), (701, seg701), (718, seg718), (934, seg934), (1130, seg1130), (1326, seg1326), (1522, seg1522), (1714, seg1714), (1717, seg1717), (1745, List.replicate 55 0x00000013 ++ seg1800 ++ List.replicate 1 0x00000013 ++ seg1816 ++ List.replicate 1024 0x00000013), (2844, seg2844), (2887, List.replicate 6 0x00000013), (2893, seg2893), (2897, seg2897), (2898, seg2898), (2900, seg2900), (2904, List.replicate 67 0x00000013), (2971, seg2971), (2980, seg2980), (2981, seg2981), (2986, seg2986), (2988, AddressAdapter.headCode), (3007, AddressAdapter.tailCode), (3010, segAddrReturn563), (3011, AddressAdapter.headCode), (3030, AddressAdapter.tailCode), (3033, segAddrReturn672)]
+def L : Rv.Layout := [(0, seg0), (55, seg55), (57, seg57), (59, seg59), (61, seg61), (63, seg63), (65, seg65), (70, seg70), (78, seg78), (82, seg82), (89, seg89), (94, seg94), (104, seg104), (105, seg105), (108, seg108), (110, seg110), (112, seg112), (115, seg115), (119, seg119), (121, seg121), (128, seg128), (131, seg131), (134, seg134), (136, seg136), (137, seg137), (139, seg139), (142, seg142), (145, seg145), (179, seg179), (181, seg181), (187, seg187), (194, seg194), (202, seg202), (208, seg208), (210, seg210), (211, seg211), (215, seg215), (216, seg216), (232, seg232), (234, seg234), (238, seg238), (249, seg249), (256, seg256), (259, seg259), (263, seg263), (264, seg264), (266, seg266), (271, seg271), (286, seg286), (288, seg288), (290, seg290), (293, seg293), (296, seg296), (316, seg316), (318, seg318), (321, seg321), (322, seg322), (329, seg329), (331, seg331), (346, seg346), (351, seg351), (355, seg355), (375, seg375), (376, seg376), (377, seg377), (379, seg379), (382, seg382), (509, seg509), (522, seg522), (529, seg529), (531, seg531), (537, seg537), (549, seg549), (550, seg550), (556, seg556), (564, seg564), (566, seg566), (567, seg567), (573, seg573), (575, seg575), (584, seg584), (589, seg589), (591, seg591), (592, seg592), (609, seg609), (626, seg626), (628, seg628), (630, seg630), (637, seg637), (646, seg646), (648, seg648), (654, seg654), (665, seg665), (666, seg666), (673, seg673), (676, seg676), (685, seg685), (689, seg689), (701, seg701), (718, seg718), (934, seg934), (1130, seg1130), (1326, seg1326), (1522, seg1522), (1714, seg1714), (1717, seg1717), (1745, List.replicate 55 0x00000013 ++ seg1800 ++ List.replicate 1 0x00000013 ++ seg1816 ++ seg1820 ++ List.replicate 1018 0x00000013), (2844, seg2844), (2887, List.replicate 6 0x00000013), (2893, seg2893), (2897, seg2897), (2898, seg2898), (2900, seg2900), (2904, List.replicate 67 0x00000013), (2971, seg2971), (2980, seg2980), (2981, seg2981), (2986, seg2986), (2988, AddressAdapter.headCode), (3007, AddressAdapter.tailCode), (3010, segAddrReturn563), (3011, AddressAdapter.headCode), (3030, AddressAdapter.tailCode), (3033, segAddrReturn672)]
 
 theorem layout_ok : layoutOk 0 L = true := by decide +kernel
 
@@ -525,5 +530,7 @@ theorem codeAt_138 : CodeAt image (pcOf 138) seg138 := codeAt_137.tail
 
 theorem codeAt_375 : CodeAt image (pcOf 375) seg375 := by unfold CodeAt; decide +kernel
 theorem codeAt_1816 : CodeAt image (pcOf 1816) seg1816 := by unfold CodeAt; decide +kernel
+theorem codeAt_1820 : CodeAt image (pcOf 1820) seg1820 := by unfold CodeAt; decide +kernel
+theorem codeAt_635 : CodeAt image (pcOf 635) seg635 := by unfold CodeAt; decide +kernel
 
 end SigGolfCandidate.Sign

@@ -102,7 +102,8 @@ def aMax : Nat := 2 ^ 19
 def cMax : Nat := 2 ^ 22
 /-- Signature bytes `S`. -/
 def sigBytes : Nat := 6032
-/-- Witness bytes `W`. -/
+/-- Bytes of the witness view `0x800 .. 0x4800` the reference reads (the witness `W = 15872`
+sits at `0xA00`, after the view's 512-byte zero lead; `Ref.extW`). -/
 def witBytes : Nat := 16384
 
 /-- Height of hypertree layer `lay` (layer 0 = top): `heights[lay]`. -/
@@ -304,9 +305,11 @@ def leafInput (lay tau e : Nat) (ends : List Val) : List Byte :=
 def nodeInput (lay tau lam j : Nat) (l r : Val) : List Byte :=
   thInput (tweak 3 lay tau lam j) (l ++ r)
 
-/-- Encoding of `M` with counter `c`: `tw(4, lay, tau, 0, e) || P || M || LE32 c` (52 bytes). -/
+/-- Encoding of the 32-byte message `M` with counter `c`: `tw(4, lay, tau, 0, e) || M || LE32 c`
+(52 bytes). `M` is `L || R`, the two children of the root of the tree below, and sits where the other
+hashes carry `P || payload`; the bottom layer signs `P || PORS root`. -/
 def encInput (lay tau e : Nat) (M : Val) (c : Nat) : List Byte :=
-  thInput (tweak 4 lay tau 0 e) (M ++ le32 c)
+  tweak 4 lay tau 0 e ++ M ++ le32 c
 
 /-- One-block randomizer trial: domain bytes `1,7`, 26 secret bytes, the message and `LE32 a`. -/
 def rndInput (S m : List Byte) (a : Nat) : List Byte :=
@@ -323,9 +326,6 @@ def porsLeafInput (idx j : Nat) (s : Val) : List Byte := thInput (tweak 9 0 idx 
 real block of `ref.node_query` (for every `H`; `le32` keeps `H mod 2^32`), and of the signer's
 node `(lam, j)` after `ref.f_query` for `H = 2^(14 - lam) + j`. -/
 def porsNodeInput (idx H : Nat) (l r : Val) : List Byte := thInput (tweak 10 0 idx 0 H) (l ++ r)
-
-/-- `tau` with its low half cleared (the relabelled PORS tweaks carry `tau mod 2^32` in the `p` slot). -/
-def tauH (idx : Nat) : Nat := idx / 2 ^ 32 * 2 ^ 32
 
 /-- Message digest: `tw(12, 0, 0, 0, 0) || P || rho || 0^16 || m` (96 bytes). -/
 def digestInput (rho m : List Byte) : List Byte := thInput (tweak 12 0 0 0 0) (rho ++ zeros 16 ++ m)

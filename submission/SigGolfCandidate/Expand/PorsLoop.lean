@@ -8,7 +8,7 @@ import SigGolfCandidate.Expand.PorsBlk2
 * `porsEnd_sim` : the final checks of `Ref.porsRoot` (folds, `E = 1`, empty stack).
 
 The stack lives at `STK = X + 1344` (`StkOK`); the segment pointer stays below
-`272 + 232 (2 s - k)` (`s` leaves done, `k` entries on the stack: one segment per leaf start and
+`528 + 232 (2 s - k)` (`s` leaves done, `k` entries on the stack: one segment per leaf start and
 one per merge, each at most 232 bytes), so every read stays inside the witness buffer.
 -/
 

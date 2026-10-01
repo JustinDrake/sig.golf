@@ -180,12 +180,12 @@ theorem blk832_regs (u : MachineState) (r : Reg) (h1 : r ≠ .x13) (h2 : r ≠ .
 theorem blk568_run (w : List Byte) (idx : Nat) (t : MachineState) (hpc : t.pc = pcOf 568) (E o : Nat)
     (hE : E < 2 ^ 15) (ho : o % 8 = 0) (ho' : o + 16 ≤ 0x4000) (hw : WitMem w t)
     (h19 : t.getReg .x19 = BitVec.ofNat 64 E) (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000)
-    (h26 : t.getReg .x26 = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32))
+    (h26 : t.getReg .x26 = BitVec.ofNat 64 (idx % 2 ^ 32))
     (h28 : t.getReg .x28 = BitVec.ofNat 64 (0x800 + o)) :
     ∃ t', Steps eimg t 37 37 t' ∧ t'.pc = (if E % 2 = 0 then pcOf 583 else pcOf 578) ∧
       t'.getReg .x14 = wword w o ∧ t'.getReg .x15 = wword w (o + 8) ∧
       t'.getReg .x16 = t.getMem (BitVec.ofNat 64 0x30080) ∧ t'.getReg .x17 = t.getMem (BitVec.ofNat 64 0x30088) ∧
-      t'.getMem (BitVec.ofNat 64 0x30048) = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * Rev.efield (E / 2)) ∧
+      t'.getMem (BitVec.ofNat 64 0x30048) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * Rev.efield (E / 2)) ∧
       RegsEq t t' [.x13, .x14, .x15, .x16, .x17] ∧ Frame t t' (fun x => x = 0x30048) := by
   have hs1 := symRun_sound Expand.blk568 Expand.codeAt_568 t hpc (by simp only [Expand.blk568.res, rv_simp])
   set t1 := Expand.blk568.res.toState t with ht1
@@ -211,7 +211,7 @@ theorem blk568_run (w : List Byte) (idx : Nat) (t : MachineState) (hpc : t.pc = 
   have hw2 : ∀ a, t2.getMem a = t.getMem a := fun a => by rw [m2, m1]
   have q25 : t2.getReg .x25 = BitVec.ofNat 64 0x30000 := by rw [g2 .x25 (by decide) (by decide) (by decide), h25]
   have q28 : t2.getReg .x28 = BitVec.ofNat 64 (0x800 + o) := by rw [g2 .x28 (by decide) (by decide) (by decide), h28]
-  have q26 : t2.getReg .x26 = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32) := by
+  have q26 : t2.getReg .x26 = BitVec.ofNat 64 (idx % 2 ^ 32) := by
     rw [g2 .x26 (by decide) (by decide) (by decide), h26]
   have q19 : t2.getReg .x19 = BitVec.ofNat 64 E := by rw [g2 .x19 (by decide) (by decide) (by decide), h19]
   have hs3 := symRun_sound Expand.blk570 Expand.codeAt_570 t2 pc2 (by pobl [Expand.blk570.res, q25, q28])
@@ -228,8 +228,8 @@ theorem blk568_run (w : List Byte) (idx : Nat) (t : MachineState) (hpc : t.pc = 
   · pnum [Expand.blk570.res, q25, hw2]
   · pnum [Expand.blk570.res, q25, hw2]
   · have hE2 := Rev.efield_lt (E / 2)
-    have e : (BitVec.ofNat 64 (2 ^ 32 * Rev.efield (E / 2)) + BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32)) =
-        BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * Rev.efield (E / 2)) := by
+    have e : (BitVec.ofNat 64 (2 ^ 32 * Rev.efield (E / 2)) + BitVec.ofNat 64 (idx % 2 ^ 32)) =
+        BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * Rev.efield (E / 2)) := by
       rw [ofNat_add_ofNat]; exact ofNat_congr (by omega)
     pnum [Expand.blk570.res, q25, x13, q26, e]
     omega

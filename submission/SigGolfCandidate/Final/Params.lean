@@ -7,15 +7,15 @@ The numeric parameters for the proved bound on accepting verification runs and t
 
 namespace SigGolfCandidate.Final
 
-/-- Universal accepting-run bound after fifteen leaf-offset instruction eliminations,
-three static root-header loads, one retained top-layer base, and the exact structural
-PORS segment credit. Query formatting is an injective global relabel. The top-4-bit selector
-with targets [185,185,185,185,186] (layer-4 target set in the root tail) saves eighteen further
-cycles; the PORS tweak field swap (tags 9/10) saves fourteen setup stores. -/
-def verifyCycleBound : Nat := 10325
+/-- Universal accepting-run bound from the exact verifier simulation. The mixed
+185/186 layer targets save eighteen chain cycles and retain one zero checksum correction; the relabelled PORS
+headers (`Ref.Rev.efield`) fold with one `slliw` (`-117`) for a header-table load per leaf (`+30`) and the
+table constants (`+4`). -/
+def verifyCycleBound : Nat := 10318
 
-/-- The witness charge `⌈16384 / 256⌉`. -/
-def witnessCharge : Nat := 64
+/-- The witness charge `⌈15872 / 256⌉`: consumed lower-layer tweak slots hold
+authentication paths, and the witness buffer is `0xa00 .. 0x4800`. -/
+def witnessCharge : Nat := 62
 
 /-- The claimed verification cost `C`. -/
 def claimedC : Nat := verifyCycleBound + witnessCharge

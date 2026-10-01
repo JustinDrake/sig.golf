@@ -87,8 +87,8 @@ theorem fold_body (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineStat
     have c3 : PCtx w idx K t3 := c2.frame f3 r3 (fun a h1 h2 => by unfold pctxA witA at h1; omega)
     obtain ⟨t4, hs4, e4, p4, x10, x11, x12, r4, m4⟩ := blk587_run t3 p3 c3.x25
     have c4 : PCtx w idx K t4 := c3.frame (W := fun _ => False) (fun x _ _ => m4 _) r4 (fun _ _ h => h)
-    have hq : hashInput t4 = pad64 (Verify.pNode idx (Rev.efield (E / 2)) l r) := by
-      refine hashInput_eq_pad64 t4 _ 0 (words_th32 10 0 (Ref.tauH idx) idx (Rev.efield (E / 2)) l r hl' hr').1 x11 (by norm_num)
+    have hq : hashInput t4 = pad64 (porsNodeInput idx (Rev.efield (E / 2)) l r) := by
+      refine hashInput_eq_pad64 t4 _ 0 (words_th32 10 0 idx 0 (Rev.efield (E / 2)) l r hl' hr').1 x11 (by norm_num)
         (by rw [x10]; decide) ?_
       rw [x10]
       refine pb_words w idx K t4 c4 (Rev.efield (E / 2)) hH l r hl' hr' ?_ ?_ ?_
@@ -148,11 +148,11 @@ theorem fold_body (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineStat
 /-- The pending hash of a segment, staged: a leaf in `LB` (`s8 = 0`: word 1, secret) or a merge in
 `PB` (`s8 = 1`: word 1, the popped node, the current node). -/
 def PendOK (idx : Nat) (node : Val) : Pending → MachineState → Prop
-  | .leaf x s, t => t.getReg .x24 = BitVec.ofNat 64 0 ∧ x < 2 ^ 14 ∧ s.length = 16 ∧
-      t.getMem (BitVec.ofNat 64 0x30008) = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * (8*x)) ∧
+  | .leaf x s, t => t.getReg .x24 = BitVec.ofNat 64 0 ∧ x < 2 ^ 32 ∧ s.length = 16 ∧
+      t.getMem (BitVec.ofNat 64 0x30008) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * x) ∧
       t.readWords (BitVec.ofNat 64 0x30020) 2 = wordsOf s
   | .merge H l, t => t.getReg .x24 = BitVec.ofNat 64 1 ∧ H < 2 ^ 32 ∧ l.length = 16 ∧ node.length = 16 ∧
-      t.getMem (BitVec.ofNat 64 0x30048) = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * Rev.efield H) ∧
+      t.getMem (BitVec.ofNat 64 0x30048) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * Rev.efield H) ∧
       t.readWords (BitVec.ofNat 64 0x30060) 2 = wordsOf l ∧
       t.readWords (BitVec.ofNat 64 0x30070) 2 = wordsOf node
 
@@ -296,15 +296,15 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
     have c4 : PCtx w idx K t4 := (c2.frame (W := fun _ => False) (fun x _ _ => m3 _) r3 (fun _ _ h => h)).frame
       (W := fun _ => False) (fun x _ _ => m4 _) r4 (fun _ _ h => h)
     have g4 : ∀ x, t4.getMem x = t.getMem x := fun x => by rw [m4, m3, g2]
-    have hq : hashInput t4 = pad64 (Verify.pLeaf idx (8*x) s) := by
-      refine hashInput_eq_pad64 t4 _ 0 (words_th16 9 0 (Ref.tauH idx) idx (8*x) s hs).1 x11 (by norm_num)
+    have hq : hashInput t4 = pad64 (porsLeafInput idx x s) := by
+      refine hashInput_eq_pad64 t4 _ 0 (words_th16 9 0 idx 0 x s hs).1 x11 (by norm_num)
         (by rw [x10']; decide) ?_
       rw [x10']
-      refine lb_words w idx K t4 c4 (8*x) (by omega) s hs (by rw [g4, m8]) ?_
+      refine lb_words w idx K t4 c4 x hx s hs (by rw [g4, m8]) ?_
       rw [readWords_ofNat_two, g4, g4, ← readWords_ofNat_two, msec]
     simp only [pendingHash]
     exact after t4 _ _ [] _ _ (hs3.trans hs4) (by omega) e4 p4 (Or.inl x10') x11 x12
-      ((r3.trans r4).mono (by decide)) (fun x => by rw [m4, m3]) hq (fmt_porsLeaf _ _ _ hs (by omega))
+      ((r3.trans r4).mono (by decide)) (fun x => by rw [m4, m3]) hq (fmt_porsLeaf _ _ _)
       (blocks_porsLeaf _ _ _ hs)
   | merge H l =>
     obtain ⟨k24, hH, hl, hn, m72, ml, mn⟩ := hpend
@@ -315,8 +315,8 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
     have c4 : PCtx w idx K t4 := (c2.frame (W := fun _ => False) (fun x _ _ => m3 _) r3 (fun _ _ h => h)).frame
       (W := fun _ => False) (fun x _ _ => m4 _) r4 (fun _ _ h => h)
     have g4 : ∀ x, t4.getMem x = t.getMem x := fun x => by rw [m4, m3, g2]
-    have hq : hashInput t4 = pad64 (Verify.pNode idx (Rev.efield H) l node) := by
-      refine hashInput_eq_pad64 t4 _ 0 (words_th32 10 0 (Ref.tauH idx) idx (Rev.efield H) l node hl hn).1 x11 (by norm_num)
+    have hq : hashInput t4 = pad64 (porsNodeInput idx (Rev.efield H) l node) := by
+      refine hashInput_eq_pad64 t4 _ 0 (words_th32 10 0 idx 0 (Rev.efield H) l node hl hn).1 x11 (by norm_num)
         (by rw [x10']; decide) ?_
       rw [x10']
       refine pb_words w idx K t4 c4 (Rev.efield H) (Rev.efield_lt H) l node hl hn (by rw [g4, m72]) ?_ ?_

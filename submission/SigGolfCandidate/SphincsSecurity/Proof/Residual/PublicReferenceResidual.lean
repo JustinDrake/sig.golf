@@ -9,14 +9,21 @@ attribute [local instance] Classical.propDecidable
 attribute [local irreducible] canonicalEncodingInputs canonicalGraphInputs instFintypePosition
 set_option backward.isDefEq.respectTransparency false
 
-theorem layerMessagePosition_public (words : OtsReferenceWords)
+theorem layerMessagePositions_public (words : OtsReferenceWords)
     (disclosed : Index → FtsTree → FtsLeaf → Prop) (index : Index) (lay : Layer) :
-    ¬CanonicalCoordinate.Hidden words disclosed (.graph (layerMessagePosition index lay)) := by
-  unfold layerMessagePosition
-  split_ifs <;> simp only [CanonicalCoordinate.Hidden, Position.ftsRoot, not_false_eq_true]
+    ∀ position ∈ layerMessagePositions index lay,
+      ¬CanonicalCoordinate.Hidden words disclosed (.graph position) := by
+  intro position hposition
+  unfold layerMessagePositions at hposition
+  split_ifs at hposition
+  · rcases List.mem_pair.mp hposition with rfl | rfl <;>
+      simp only [layerTopPosition, CanonicalCoordinate.Hidden, not_false_eq_true]
+  · rw [List.mem_singleton.mp hposition]
+    simp only [CanonicalCoordinate.Hidden, Position.ftsRoot, not_false_eq_true]
 
-noncomputable def knownEncodingMessage (known : Labels) (position : EncodingPosition) : Digest :=
-  known (.graph (layerMessagePosition (referenceIndex position.lay position.tree position.leafIdx) position.lay))
+noncomputable def knownEncodingMessage (known : Labels) (position : EncodingPosition) : EncMessage :=
+  layerMessageOf (fun graphPosition => known (.graph graphPosition))
+    (referenceIndex position.lay position.tree position.leafIdx) position.lay
 
 theorem knownEncodingMessage_eq (words : OtsReferenceWords) (disclosed : Index → FtsTree → FtsLeaf → Prop)
     (known : Labels) (otsSecret : Layer → TreeIndex → LeafIndex → ChainIndex → Digest)
@@ -24,7 +31,8 @@ theorem knownEncodingMessage_eq (words : OtsReferenceWords) (disclosed : Index �
     (hagrees : PublicAgreement words disclosed known (CanonicalCoordinate.value otsSecret ftsSecret labels)) :
     knownEncodingMessage known = canonicalGraphMessage labels := by
   funext position
-  exact hagrees _ (layerMessagePosition_public words disclosed _ _)
+  exact layerMessageOf_congr fun graphPosition hmem =>
+    hagrees _ (layerMessagePositions_public words disclosed _ _ _ hmem)
 
 noncomputable def knownEncodingCell (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (known : Labels) : EncodingRow → inputs :=
@@ -80,7 +88,7 @@ theorem knownEncodingCell_not_structural (parameter : PublicParameter) (inputs :
     input ∉ Set.range (knownEncodingCell parameter inputs hencoding known) := by
   rintro ⟨row, heq⟩
   have hencoding : AtEncodingPosition parameter
-      (knownEncodingCell parameter inputs hencoding known row).val row.1 := ⟨_, rfl⟩
+      (knownEncodingCell parameter inputs hencoding known row).val row.1 := ⟨_, _, rfl⟩
   rw [heq] at hencoding
   exact hencoding.not_atPosition position hat
 

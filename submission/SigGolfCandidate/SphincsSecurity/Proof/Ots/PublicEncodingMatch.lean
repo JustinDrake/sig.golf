@@ -14,11 +14,11 @@ attribute [local instance] Classical.propDecidable
 attribute [local irreducible] canonicalEncodingInputs canonicalGraphInputs instFintypePosition
 set_option backward.isDefEq.respectTransparency false
 
-def referenceInput (parameter : PublicParameter) (messages : EncodingPosition → Digest)
+def referenceInput (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
     (selections : ReferenceFamily) (position : EncodingPosition) : Option HashInput :=
   (selections position).map (fun selected => encodingRetryInput parameter position (messages position) selected.1.val)
 
-def Match (parameter : PublicParameter) (messages : EncodingPosition → Digest)
+def Match (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
     (words : OtsReferenceWords) (selections : ReferenceFamily) (input : HashInput) (answer : HashOutput) : Prop :=
   ∃ position, AtEncodingPosition parameter input position ∧
     referenceInput parameter messages selections position ≠ some input ∧
@@ -43,7 +43,7 @@ theorem protected_not_match (parameter : PublicParameter) (inputs : Finset HashI
     ¬Match parameter (knownEncodingMessage known) words selections
       (knownEncodingCell parameter inputs hencoding known row).val (rows row) := by
   rintro ⟨position, hat, hnonreference, hdecode⟩
-  have hrow : AtEncodingPosition parameter (knownEncodingCell parameter inputs hencoding known row).val row.1 := ⟨_, rfl⟩
+  have hrow : AtEncodingPosition parameter (knownEncodingCell parameter inputs hencoding known row).val row.1 := ⟨_, _, rfl⟩
   obtain rfl := atEncodingPosition_unique hat hrow
   have hnot : (selections row.1).map Prod.fst ≠ some row.2 := by
     intro heq
@@ -74,7 +74,7 @@ theorem prob_decode_word_le (lay : Layer) (word : Encoding) :
       fun hdecode => hexists ⟨selectEncodingDigest answer, hdecode⟩
     simp only [probEvent_eq_tsum_ite, hfalse, if_false, tsum_zero, zero_le]
 
-theorem prob_match_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
+theorem prob_match_le (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
     (words : OtsReferenceWords) (selections : ReferenceFamily) (input : HashInput) :
     Pr[Match parameter messages words selections input | (liftM (PMF.uniformOfFintype HashOutput) : SPMF HashOutput)] ≤
       ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by

@@ -9,7 +9,7 @@ attribute [local instance] Classical.propDecidable
 attribute [local irreducible] Finset.univ canonicalEncodingInputs
 
 variable (parameter : PublicParameter) (words : OtsReferenceWords)
-  (messages : EncodingPosition → Digest) (selections : ReferenceFamily)
+  (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily)
 
 theorem encodingOutputMatch_one : ¬EncodingOutputMatch parameter words messages selections 1 := by
   simp [EncodingOutputMatch]

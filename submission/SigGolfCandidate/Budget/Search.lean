@@ -50,8 +50,9 @@ theorem probEvent_not_uniform (P : BitVec 256 → Prop) [DecidablePred P] :
 /-! ## Counter search -/
 
 theorem fmt_encInput (lay tau e : Nat) (M : Val) (c : Nat) :
-    addrFmt (encInput lay tau e M c) = pad64 (encInput lay tau e M c) :=
-  fmt_eq_pad64 _ _ _ _ _ _ (by decide)
+    addrFmt (encInput lay tau e M c) = pad64 (encInput lay tau e M c) := by
+  rw [addrFmt_encInput]
+  exact Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide)
 
 theorem fmt_rndInput (S m : List Byte) (a : Nat) : addrFmt (rndInput S m a) = pad64 (rndInput S m a) :=
   by rw [addrFmt_rndInput]; simp [fmt, IsChainFmt, IsNodeFmt, IsDigestFmt, IsPadChainFmt, rndInput, byte]
@@ -60,7 +61,7 @@ theorem enc_inj (lay tau e : Nat) (M : Val) {c c' : Nat} (hc : c < 2 ^ 32) (hc' 
     (h : addrFmt (encInput lay tau e M c) = addrFmt (encInput lay tau e M c')) : c = c' := by
   rw [fmt_encInput, fmt_encInput] at h
   have h2 := pad64_inj (by simp [encInput]) h
-  simp only [encInput, thInput, List.append_assoc, List.append_cancel_left_eq] at h2
+  simp only [encInput, List.append_assoc, List.append_cancel_left_eq] at h2
   exact le32_inj hc hc' h2
 
 /-- The rejection probability of one fresh encoding. -/
@@ -70,7 +71,7 @@ noncomputable def rhoC (lay : Nat) : ℝ≥0∞ :=
 
 theorem V_searchCounter (lay : Nat) (z b : ℝ≥0∞) (hz : 1 ≤ z) (hb : 1 ≤ b)
     (hstep : z * (rhoC lay * b + (1 - rhoC lay)) ≤ b)
-    (tau e : Nat) (M : Val) (hM : M.length ≤ 16) :
+    (tau e : Nat) (M : Val) (hM : M.length ≤ 32) :
     ∀ fuel c (cache : RCache), c + fuel ≤ 2 ^ 32 →
       (∀ c', c ≤ c' → c' < 2 ^ 32 → cache (addrFmt (encInput lay tau e M c')) = none) →
       V z (searchCounter lay tau e M c fuel) cache ≤ b := by

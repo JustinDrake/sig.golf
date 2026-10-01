@@ -63,7 +63,7 @@ theorem encodingCalls_step (parameter : PublicParameter) (input : OracleWorld.Do
 
 theorem markers_lazyRun_le {Result : Type} (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (outside : NonencodingRows parameter inputs hencoding)
-    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (dummy : OtsReferenceWords)
+    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (dummy : OtsReferenceWords)
     (computation : OracleComp OracleWorld Result) (history : OtsContactTrace.Trace)
     (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed)
@@ -92,7 +92,7 @@ theorem markers_lazyRun_le {Result : Type} (parameter : PublicParameter) (inputs
 
 theorem markers_initial_lazyRun_le {Result : Type} (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (outside : NonencodingRows parameter inputs hencoding)
-    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (dummy : OtsReferenceWords)
+    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (dummy : OtsReferenceWords)
     (computation : OracleComp OracleWorld Result) :
     (∑' result, Pr[= result | lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation)
       (referenceEncodingAllowed parameter messages selections)] *

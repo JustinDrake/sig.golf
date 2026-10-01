@@ -127,4 +127,120 @@ theorem treeFold_extract (value : Digest) (levels : Nat)
       · right
         exact ⟨levels, by omega, by rw [hj]; exact hagree, hhash⟩
 
+/-! ### The root's two children
+
+The fold stops below the root: what it hands the layer above is the node it reached and the path's top
+sibling, in order. If that pair is the honest one, the fold reached the honest node below the root and
+the top sibling is honest, and the extraction continues from there. -/
+
+/-- The honest tree's two children of the root. -/
+def honestPair : EncMessage :=
+  (honestNode f parameter lay tree secret (layerHeight lay - 1) 0,
+    honestNode f parameter lay tree secret (layerHeight lay - 1) 1)
+
+theorem eval_treeTop :
+    evalWithAnswerFn f (treeTop parameter lay tree secret) = honestPair f parameter lay tree secret := by
+  simp only [treeTop, evalWithAnswerFn_bind, evalWithAnswerFn_pure, honestNode, honestPair]
+
+/-- What the fold hands the layer above: the node after `h - 1` levels and the path's top sibling, in
+order. -/
+def foldPair (value : Digest) : EncMessage :=
+  topPair (leaf.val.testBit (layerHeight lay - 1))
+    (foldValue f parameter lay tree leaf path value (layerHeight lay - 1)) (path (layerHeight lay - 1))
+
+/-- A fold that hands up the honest pair reached the honest node below the root, next to the honest top
+sibling. -/
+theorem foldPair_extract (hleaf : leaf.val < 2 ^ layerHeight lay) (hheight : 0 < layerHeight lay)
+    (value : Digest)
+    (htop : foldPair f parameter lay tree leaf path value = honestPair f parameter lay tree secret) :
+    foldValue f parameter lay tree leaf path value (layerHeight lay - 1)
+        = honestNode f parameter lay tree secret (layerHeight lay - 1)
+            (leaf.val / 2 ^ (layerHeight lay - 1))
+      ∧ path (layerHeight lay - 1)
+        = honestNode f parameter lay tree secret (layerHeight lay - 1)
+            (Nat.xor (leaf.val / 2 ^ (layerHeight lay - 1)) 1) := by
+  have hpow : 2 * 2 ^ (layerHeight lay - 1) = 2 ^ layerHeight lay := by
+    conv_rhs => rw [← Nat.sub_add_cancel hheight, Nat.pow_succ']
+  have hlt : leaf.val / 2 ^ (layerHeight lay - 1) < 2 := by
+    rw [Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _), hpow]
+    exact hleaf
+  simp only [foldPair, honestPair, topPair] at htop
+  rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with h0 | h1
+  · have hzero : leaf.val / 2 ^ (layerHeight lay - 1) = 0 := Nat.lt_one_iff.mp h0
+    rw [show leaf.val.testBit (layerHeight lay - 1) = false by
+      rw [Bool.eq_false_iff, ne_eq, testBit_iff_div_mod, hzero]; decide] at htop
+    rw [hzero]
+    simp only [Bool.false_eq_true, if_false, Prod.mk.injEq] at htop
+    exact ⟨htop.1, htop.2⟩
+  · rw [show leaf.val.testBit (layerHeight lay - 1) = true by
+      rw [testBit_iff_div_mod, h1]] at htop
+    rw [h1]
+    simp only [if_true, Prod.mk.injEq] at htop
+    exact ⟨htop.2, htop.1⟩
+
+/-- **The first divergence below the root.** A fold that hands up the honest pair either used the honest
+leaf and the honest siblings at every level, the top sibling included, or hit a node value at some level
+below the root. -/
+theorem foldPair_extract_all (hleaf : leaf.val < 2 ^ layerHeight lay) (hheight : 0 < layerHeight lay)
+    (value : Digest)
+    (htop : foldPair f parameter lay tree leaf path value = honestPair f parameter lay tree secret) :
+    (value = honestNode f parameter lay tree secret 0 leaf.val
+        ∧ ∀ level, level < layerHeight lay → path level
+            = honestNode f parameter lay tree secret level (Nat.xor (leaf.val / 2 ^ level) 1))
+      ∨ ∃ level, level < layerHeight lay - 1
+          ∧ NodeHit f parameter lay tree secret level (leaf.val / 2 ^ (level + 1))
+              (treeFoldPayload f parameter lay tree leaf path value level) := by
+  obtain ⟨hnode, hsibling⟩ := foldPair_extract f parameter lay tree secret leaf path hleaf hheight value htop
+  rcases treeFold_extract f parameter lay tree secret leaf path value (layerHeight lay - 1) hnode with
+    ⟨hvalue, hpath⟩ | hhit
+  · refine Or.inl ⟨hvalue, fun level hlevel => ?_⟩
+    rcases Nat.lt_or_ge level (layerHeight lay - 1) with hlt | hge
+    · exact hpath level hlt
+    · have hlast : level = layerHeight lay - 1 := by omega
+      rw [hlast]
+      exact hsibling
+  · exact Or.inr hhit
+
+/-- **The top tree's last hash.** A pair that hashes to the honest root is the honest pair, or a hit at
+the root. -/
+theorem topRoot_extract (index : Index) (top : EncMessage)
+    (hroot : evalWithAnswerFn f (topRoot parameter index top) =
+      honestNode f parameter topLayer rootTree secret (layerHeight topLayer) 0) :
+    top = honestPair f parameter topLayer rootTree secret
+      ∨ NodeHit f parameter topLayer rootTree secret (layerHeight topLayer - 1) 0
+          (nodePayload top.1 top.2) := by
+  have htree : treeIndexAt index topLayer = rootTree := Fin.ext (treeIndexAt_topLayer index)
+  rw [topRoot, eval_tweakableHash, htree] at hroot
+  by_cases hagree : nodePayload top.1 top.2 =
+      nodePayload (honestNode f parameter topLayer rootTree secret (layerHeight topLayer - 1) (2 * 0))
+        (honestNode f parameter topLayer rootTree secret (layerHeight topLayer - 1) (2 * 0 + 1))
+  · left
+    obtain ⟨h1, h2⟩ := nodePayload_injective hagree
+    exact Prod.ext h1 h2
+  · right
+    exact ⟨hagree, hroot⟩
+
+/-- The converse: the honest node below the root and its honest sibling, in order, are the honest pair. -/
+theorem topPair_honest (hleaf : leaf.val < 2 ^ layerHeight lay) (hheight : 0 < layerHeight lay) :
+    topPair (leaf.val.testBit (layerHeight lay - 1))
+        (honestNode f parameter lay tree secret (layerHeight lay - 1)
+          (leaf.val / 2 ^ (layerHeight lay - 1)))
+        (honestNode f parameter lay tree secret (layerHeight lay - 1)
+          (Nat.xor (leaf.val / 2 ^ (layerHeight lay - 1)) 1))
+      = honestPair f parameter lay tree secret := by
+  have hpow : 2 * 2 ^ (layerHeight lay - 1) = 2 ^ layerHeight lay := by
+    conv_rhs => rw [← Nat.sub_add_cancel hheight, Nat.pow_succ']
+  have hlt : leaf.val / 2 ^ (layerHeight lay - 1) < 2 := by
+    rw [Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _), hpow]
+    exact hleaf
+  simp only [honestPair, topPair]
+  rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with h0 | h1
+  · have hzero : leaf.val / 2 ^ (layerHeight lay - 1) = 0 := Nat.lt_one_iff.mp h0
+    rw [show leaf.val.testBit (layerHeight lay - 1) = false by
+      rw [Bool.eq_false_iff, ne_eq, testBit_iff_div_mod, hzero]; decide, hzero]
+    rfl
+  · rw [show leaf.val.testBit (layerHeight lay - 1) = true by
+      rw [testBit_iff_div_mod, h1], h1]
+    rfl
+
 end SphincsSecurity.Concrete

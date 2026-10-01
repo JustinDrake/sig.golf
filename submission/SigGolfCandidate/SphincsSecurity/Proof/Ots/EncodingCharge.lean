@@ -21,16 +21,18 @@ structure EncodingPosition where
 def EncodingPosition.domain (position : EncodingPosition) : HashDomain :=
   .encoding position.lay position.tree position.leafIdx
 
-def AtEncodingPosition (parameter : PublicParameter) (input : HashInput)
+/-- An encoding input at `position`: the encoding tweak, then any 16 bytes in the parameter slot (the
+first half of the message) and any payload. The parameter is not used. -/
+def AtEncodingPosition (_parameter : PublicParameter) (input : HashInput)
     (position : EncodingPosition) : Prop :=
-  ∃ payload, input = tweakableHashInput parameter position.domain payload
+  ∃ first payload, input = tweakableHashInput first position.domain payload
 
 theorem atEncodingPosition_unique {parameter : PublicParameter} {input : HashInput}
     {left right : EncodingPosition} (hleft : AtEncodingPosition parameter input left)
     (hright : AtEncodingPosition parameter input right) : left = right := by
-  obtain ⟨leftPayload, hleft⟩ := hleft
-  obtain ⟨rightPayload, hright⟩ := hright
-  have hdomain := (tweakableHashInput_injective parameter (by trivial) (by trivial)
+  obtain ⟨leftFirst, leftPayload, hleft⟩ := hleft
+  obtain ⟨rightFirst, rightPayload, hright⟩ := hright
+  have hdomain := (tweakableHashInput_injective' (by trivial) (by trivial)
     (hleft.symm.trans hright)).1
   obtain ⟨leftLay, leftTree, leftLeaf⟩ := left
   obtain ⟨rightLay, rightTree, rightLeaf⟩ := right
@@ -42,8 +44,8 @@ theorem AtEncodingPosition.not_atPosition {parameter : PublicParameter} {input :
     {encodingPosition : EncodingPosition} (hencoding : AtEncodingPosition parameter input encodingPosition)
     (position : Position) : ¬ AtPosition parameter input position := by
   rintro ⟨structuralPayload, hstructural⟩
-  obtain ⟨encodingPayload, hencodingInput⟩ := hencoding
-  have hdomain := (tweakableHashInput_injective parameter (by trivial)
+  obtain ⟨encodingFirst, encodingPayload, hencodingInput⟩ := hencoding
+  have hdomain := (tweakableHashInput_injective' (by trivial)
     position.domain_inRange (hencodingInput.symm.trans hstructural)).1
   cases position <;> simp [EncodingPosition.domain, Position.domain] at hdomain
 

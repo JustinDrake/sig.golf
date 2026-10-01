@@ -2,8 +2,6 @@ import SigGolfCandidate.Verify.LayerRuns
 
 /-! Kernel check of the layer blocks (one declaration per layer). -/
 
-set_option Elab.async false
-
 namespace SigGolfCandidate.Verify
 
 theorem layerCheck_0 : layerCheck 0 = true := by decide +kernel

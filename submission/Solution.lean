@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
-S=6032 signature bytes, W=16384 witness bytes, K=131072 cache bytes.
-The claim C=10389 is accepting verifier bound10325 plus witness charge64.
+S=6032 signature bytes, W=15872 witness bytes, K=131072 cache bytes.
+The claim C=10380 is accepting verifier bound10318 plus witness charge62.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[185,185,185,185,186].
 
@@ -21,8 +21,9 @@ The proven signing envelope is
 The joint security proof uses primitive coefficient253/128 and split65*2^106;
 all primitive, residual and certificate remainder terms are rechecked.
 The verifier selector takes at most seven instructions, with separately
-proved shorter AB paths. Layers0..3 compare the shared x29=185 with no correction step;
-layer4 compares x14=186, set in the PORS root tail. The final route is carried physically. The security envelope
+proved shorter AB paths. Shared target185 retains a zero correction at layer0; layer4 uses186.
+Compared with the f3569 construction, two target increments remove eighteen
+chain cycles without increasing selector instruction cost. The security envelope
 combines fine and coarse first-contact bounds with weights1/16 and15/16.
 
 PORS node headers are relabelled: the tag-10 tweak field carries efield(H),
@@ -31,17 +32,22 @@ sext32(efield(H)), so one slliw yields the parent field and its sign bit
 is the direction; each leaf loads its relabelled header from a data table
 of 2^14+1 words. Sign and expand compute the header with a rev16 network.
 
-Leaf indices in the verifier's PIND table are stored as eight times the raw index.
-Each selected index is therefore already the offset into the node-header table,
-eliminating one instruction at all fifteen leaf heads. The tag-9 address field
-is rotated left by three bits through an injective global query permutation;
-for all admitted leaf indices this equals multiplication by eight. Raw secret-PRF
-addresses, abstract leaf selection, sorting and the node-header table are unchanged.
-
 The signer and expander share a straight-line selector in existing padding.
 Including the call jump it executes16 instructions and22 cycles. Counter
 search termination accounts for64 cycles per trial. Their oracle-query
 sequences match the byte reference; no extra hash queries are introduced.
+
+Lower authentication paths occupy future tweak slots; the external witness begins at0xa00
+and has15872 bytes, reducing its charge to62 without adding verifier instructions.
+
+Layers0..3 sign the two children(L,R) of the root of the tree below instead of
+that root: the encoding input is tweak||L||R||counter, with L in the slot that
+held the zero parameter; the bottom layer still signs(0,PORS root), the same
+bytes as before. The verifier folds each lower tree only to the node under its
+root, copies the top sibling of the path next to it and hashes no lower root:
+14 cycles fewer per lower layer and4 more per upper transition,40 fewer in all.
+Only the top tree's root is hashed and compared with the public key. The signer
+and the expander still hash every root, so their oracle-query counts are unchanged.
 
 Inherited machine improvements include four lower-layer SUB base updates,
 startup stack-pointer reuse, five retained-header instruction reductions,
@@ -63,15 +69,15 @@ def submission : SigGolf.Submission := SigGolfCandidate.submissionNew
 
 theorem signature_bytes : submission.sizes.signature = 6032 := rfl
 
-theorem witness_bytes : submission.sizes.witness = 16384 := rfl
+theorem witness_bytes : submission.sizes.witness = 15872 := rfl
 
 theorem cache_bytes : submission.sizes.cache = 131072 := rfl
 
 theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
-    cache := 19200, signature := 150272, witness := 2048 } := rfl
+    cache := 19200, signature := 150272, witness := 2560 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10389 :=
+theorem certificate : SigGolf.Certificate submission 10380 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

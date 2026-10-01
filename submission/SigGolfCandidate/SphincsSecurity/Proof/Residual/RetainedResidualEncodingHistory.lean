@@ -14,7 +14,7 @@ set_option backward.isDefEq.respectTransparency false
 theorem knownEncodingMessage_afterSigning (routing : Routing) (record : SigningRecord) :
     knownEncodingMessage (routing.afterSigning record).known = knownEncodingMessage routing.known := by
   funext position
-  exact routing.afterSigning_graph record _
+  exact layerMessageOf_congr fun graphPosition _ => routing.afterSigning_graph record graphPosition
 
 section Local
 

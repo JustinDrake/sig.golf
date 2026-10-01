@@ -11,7 +11,7 @@ variable (segment : OtsPrefix) (inputs : Finset HashInput)
   (hencoding : canonicalEncodingInputs segment.parameter ⊆ inputs)
   (hgraph : canonicalGraphInputs segment.parameter ⊆ inputs)
 
-noncomputable def encodingFromMessages (parameter : PublicParameter) (messages : EncodingPosition → Digest)
+noncomputable def encodingFromMessages (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
     (rows : EncodingPosition → Fin encodingAttemptLimit → HashOutput)
     (seed : canonicalEncodingInputs parameter → HashOutput) : canonicalEncodingInputs parameter → HashOutput :=
   UniformTableSplit.join (referenceFamilyCell parameter messages) (referenceFamilyCell_injective parameter messages)
@@ -26,7 +26,7 @@ noncomputable def seedFrontier (auxiliary : segment.ReferenceAuxSeed inputs henc
 
 noncomputable def seedMessages (auxiliary : segment.ReferenceAuxSeed inputs hencoding hgraph)
     (secrets : OtsFrontierValues) (ftsSecret : Index → FtsTree → FtsLeaf → Digest)
-    (words : OtsReferenceWords) (endpoint : Digest) : EncodingPosition → Digest :=
+    (words : OtsReferenceWords) (endpoint : Digest) : EncodingPosition → EncMessage :=
   fun position => evalWithAnswerFn (segment.seedBaseOracle inputs hencoding hgraph auxiliary)
     (frontierLayerMessage segment.parameter ftsSecret words
       (segment.seedFrontier inputs hencoding hgraph auxiliary secrets words endpoint)

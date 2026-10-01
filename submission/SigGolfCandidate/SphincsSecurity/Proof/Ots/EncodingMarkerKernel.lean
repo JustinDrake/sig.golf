@@ -7,7 +7,7 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] Finset.univ canonicalEncodingInputs
 
-theorem entryMarker_allowed_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
+theorem entryMarker_allowed_le (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
     (selections : ReferenceFamily) (dummy : OtsReferenceWords) (address : OtsPrefix.ChainAddress)
     (cell : canonicalEncodingInputs parameter) :
     Pr[fun output : HashOutput => EntryMarker parameter (referenceFamilyWords selections dummy) address (cell.val, output) |
@@ -34,9 +34,9 @@ theorem encodingInput_position (parameter : PublicParameter) (input : HashInput)
   rw [canonicalEncodingInputs] at hc
   simp only [Finset.mem_biUnion, Finset.mem_univ, true_and, Finset.mem_image] at hc
   obtain ⟨position, pair, hinput⟩ := hc
-  exact ⟨position, _, hinput.symm⟩
+  exact ⟨position, _, _, hinput.symm⟩
 
-theorem entryMarker_any_allowed_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
+theorem entryMarker_any_allowed_le (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
     (selections : ReferenceFamily) (dummy : OtsReferenceWords) (cell : canonicalEncodingInputs parameter) :
     Pr[fun output : HashOutput => ∃ address, EntryMarker parameter (referenceFamilyWords selections dummy) address (cell.val, output) |
       PMF.uniformOfFinset (referenceEncodingAllowed parameter messages selections cell)

@@ -65,18 +65,19 @@ theorem eval_frontierLayerMessage_eq_of_agree (ftsSecret : Index → FtsTree →
       evalWithAnswerFn g (frontierLayerMessage parameter ftsSecret words frontier index lay) := by
   unfold frontierLayerMessage
   split_ifs
-  · exact eval_frontierTreeNode_eq_of_agree parameter words f g h _ _ _ _ _
-  · exact eval_ftsKey_eq_of_agree parameter words f g h _ _
+  · simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure,
+      eval_frontierTreeNode_eq_of_agree parameter words f g h]
+  · simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure, eval_ftsKey_eq_of_agree parameter words f g h]
 
 theorem eval_encode_eq_of_agree (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : Digest) (counter : Counter) :
+    (message : EncMessage) (counter : Counter) :
     evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) =
       evalWithAnswerFn g (encodeAttempt parameter lay tree leaf message counter) := by
   simp only [encodeAttempt, evalWithAnswerFn_bind, evalWithAnswerFn_pure, oracleHash, evalWithAnswerFn_query,
-    h.other (.encoding lay tree leaf) (by simp only [hashDomainFields, tweakFields]; decide)]
+    h.other' message.1 (.encoding lay tree leaf) (by simp only [hashDomainFields, tweakFields]; decide)]
 
 theorem referenceEncodingSearch_eq_of_agree (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : Digest) (attempts start : Nat) :
+    (message : EncMessage) (attempts start : Nat) :
     referenceEncodingSearch parameter f lay tree leaf message attempts start =
       referenceEncodingSearch parameter g lay tree leaf message attempts start := by
   induction attempts generalizing start with

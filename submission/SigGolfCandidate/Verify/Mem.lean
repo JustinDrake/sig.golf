@@ -122,11 +122,7 @@ theorem targetFor_le (lay : Nat) : targetFor lay ≤ 186 := by
 /-- The verifier's embedded mask words. -/
 def MaskData (s : MachineState) : Prop :=
   s.getMem (BitVec.ofNat 64 0xFFFFF0) = M1w ∧
-  s.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w ∧
-  s.getMem (BitVec.ofNat 64 0xFDFFC0) = 0x40401#64 ∧
-  s.getMem (BitVec.ofNat 64 0xFDFFC8) = 0x3fe00#64 ∧
-  s.getMem (BitVec.ofNat 64 0xFDFFD0) = M1w ∧
-  s.getMem (BitVec.ofNat 64 0xFDFFD8) = M2w
+  s.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w
 
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
 def gkL0 : List (Reg × Word) :=
@@ -136,8 +132,9 @@ def gkL0 : List (Reg × Word) :=
 /-- The layer phase (the same list: W1a keeps no layer-4-only constant). -/
 def gkL : List (Reg × Word) := gkL0
 
-/-- The `P` slots (`+16 .. +32`) of the hash buffers CB, EB, NB, RB2, LB. -/
-def pSlots : List Nat := [0xD0, 0xD8, 0x110, 0x118, 0x1D0, 0x1D8, 0x230, 0x238,
+/-- The `P` slots (`+16 .. +32`) of the hash buffers CB, NB, RB2, LB. (The encoding block carries its
+32-byte message there: no `P` slot.) -/
+def pSlots : List Nat := [0xD0, 0xD8, 0x1D0, 0x1D8, 0x230, 0x238,
   0x350, 0x358]
 
 /-- The witness words below the chain array (`[0, 2944)`: rho, pi, secrets, stream, `c4`, paths), which

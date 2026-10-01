@@ -81,7 +81,7 @@ theorem signCharge_le_digestAttemptLimit : signCharge ≤ digestAttemptLimit := 
   norm_num
 
 theorem referenceEncodingSearch_none_cost (parameter : PublicParameter) (f : QueryImpl HashSpec Id) (lay : Layer)
-    (tree : TreeIndex) (leaf : LeafIndex) (message : Digest) (attempts counter : Nat)
+    (tree : TreeIndex) (leaf : LeafIndex) (message : EncMessage) (attempts counter : Nat)
     (hnone : (referenceEncodingSearch parameter f lay tree leaf message attempts counter).1 = none) :
     (referenceEncodingSearch parameter f lay tree leaf message attempts counter).2 = attempts := by
   induction attempts generalizing counter with

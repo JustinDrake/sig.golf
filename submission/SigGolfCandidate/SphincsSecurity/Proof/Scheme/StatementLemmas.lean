@@ -67,11 +67,11 @@ theorem treeFold_succ_eq (parameter : PublicParameter) (lay : Layer) (tree : Tre
 
 @[simp]
 theorem verifyLayers_zero_eq (parameter : PublicParameter) (index : Index) (signature : Signature)
-    (message : Digest) :
+    (message : EncMessage) :
     verifyLayers (m := m) parameter index signature 0 message = pure (some message) := rfl
 
 theorem verifyLayers_succ_eq (parameter : PublicParameter) (index : Index) (signature : Signature)
-    (remaining : Nat) (message : Digest) :
+    (remaining : Nat) (message : EncMessage) :
     verifyLayers (m := m) parameter index signature (remaining + 1) message
       = (if hlayer : remaining < numLayers then
           (do
@@ -81,11 +81,14 @@ theorem verifyLayers_succ_eq (parameter : PublicParameter) (index : Index) (sign
                 (signature.chainValue ⟨remaining, hlayer⟩) with
             | none => pure none
             | some value => do
-                let root ← treeFold parameter ⟨remaining, hlayer⟩
+                let node ← treeFold parameter ⟨remaining, hlayer⟩
                   (treeIndexAt index ⟨remaining, hlayer⟩) (leafIndexAt index ⟨remaining, hlayer⟩)
-                  (signaturePath signature ⟨remaining, hlayer⟩) (layerHeight ⟨remaining, hlayer⟩)
+                  (signaturePath signature ⟨remaining, hlayer⟩) (layerHeight ⟨remaining, hlayer⟩ - 1)
                   value
-                verifyLayers parameter index signature remaining root)
+                verifyLayers parameter index signature remaining
+                  (topPair ((leafIndexAt index ⟨remaining, hlayer⟩).val.testBit
+                      (layerHeight ⟨remaining, hlayer⟩ - 1)) node
+                    (signaturePath signature ⟨remaining, hlayer⟩ (layerHeight ⟨remaining, hlayer⟩ - 1))))
         else pure none) := by
   rw [verifyLayers]
   split
@@ -106,9 +109,11 @@ theorem verifyCore_eq (publicKey : PublicKey) (message : Message) (signature : S
           | none => return false
           | some ftsPublicKey =>
               match ← verifyLayers publicKey.parameter (digestIndex digest) signature numLayers
-                  ftsPublicKey with
+                  (0, ftsPublicKey) with
               | none => return false
-              | some root => return decide (root = publicKey.root)) := by
+              | some top => do
+                  let root ← topRoot publicKey.parameter (digestIndex digest) top
+                  return decide (root = publicKey.root)) := by
   unfold verifyCore
   apply bind_congr
   intro digest
@@ -135,9 +140,11 @@ theorem verify_eq (publicKey : PublicKey) (message : Message) (signature : Signa
           | none => return false
           | some ftsPublicKey =>
               match ← verifyLayers publicKey.parameter (digestIndex digest) signature numLayers
-                  ftsPublicKey with
+                  (0, ftsPublicKey) with
               | none => return false
-              | some root => return decide (root = publicKey.root)) := by
+              | some top => do
+                  let root ← topRoot publicKey.parameter (digestIndex digest) top
+                  return decide (root = publicKey.root)) := by
   rw [verify_eq_ite, if_pos hcounters, verifyCore_eq]
 
 theorem verify_eq_of_not_counters (publicKey : PublicKey) (message : Message) (signature : Signature)

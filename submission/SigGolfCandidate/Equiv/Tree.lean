@@ -533,16 +533,81 @@ theorem buildLevels_steps (h cap : Nat) (hcap : cap < 2 ^ h) (leaves : Nat → D
       · simp
 
 include hnode in
-theorem buildLevels_eq (h cap : Nat) (hcap : cap < 2 ^ h) (leaves : Nat → Digest) :
+/-- One level, from the table of the levels below it: the pointwise form of the step of
+`buildLevels_steps`. -/
+theorem levelStep_eq (h cap : Nat) (hcap : cap < 2 ^ h) (L : Nat) (hL : L + 1 ≤ h)
+    (T : Nat → Nat → Digest) :
+    Ref.levelStep node cap (List.ofFn (fun j : Fin (2 ^ (h - L)) => dv (T L j)),
+        (List.range L).map (fun l => dv (T l (Nat.xor (cap / 2 ^ l) 1)))) (1 + L) =
+      (fun T' : Nat → Nat → Digest =>
+          (List.ofFn (fun j : Fin (2 ^ (h - (L + 1))) => dv (T' (L + 1) j)),
+            (List.range (L + 1)).map (fun l => dv (T' l (Nat.xor (cap / 2 ^ l) 1))))) <$>
+        relabel fmtQ (do
+          let row ← SphincsSecurity.Concrete.buildLevel (hashNode (L + 1)) (2 ^ (h - (L + 1))) (T L)
+          return fun level nodeIdx => if level = L + 1 then row nodeIdx else T level nodeIdx) := by
+  simp only [relabel_bind, relabel_pure, map_bind, map_pure]
+  unfold Ref.levelStep Ref.buildLevel SphincsSecurity.Concrete.buildLevel
+  simp only [Nat.one_mul, Nat.add_sub_cancel_left, List.length_ofFn]
+  have hw : 2 ^ (h - L) / 2 = 2 ^ (h - (L + 1)) := by
+    rw [show h - L = (h - (L + 1)) + 1 by omega, Nat.pow_succ, Nat.mul_div_cancel _ (by omega)]
+  rw [hw, show 1 + L = L + 1 by omega]
+  have hpow : 2 ^ (h - L) = 2 * 2 ^ (h - (L + 1)) := by
+    rw [← Nat.pow_succ']; congr 1; omega
+  have hb : ∀ j (hj : j < 2 ^ (h - (L + 1))),
+      Ref.hash16 (node (L + 1) j
+        ((List.ofFn fun j : Fin (2 ^ (h - L)) => dv (T L j)).getD (2 * j) [])
+        ((List.ofFn fun j : Fin (2 ^ (h - L)) => dv (T L j)).getD (2 * j + 1) [])) =
+      dv <$> relabel fmtQ (hashNode (L + 1) j (T L (2 * j)) (T L (2 * j + 1))) := by
+    intro j hj
+    rw [getD_ofFn, getD_ofFn, dif_pos (by omega), dif_pos (by omega)]
+    exact hnode _ _ _ _
+  rw [foldlM_range_seq (fun j : Fin (2 ^ (h - (L + 1))) =>
+      relabel fmtQ (hashNode (L + 1) j (T L (2 * j)) (T L (2 * j + 1)))) _ dv (fun j hj => hb j hj)]
+  simp only [relabel_bind, relabel_pure, relabel_sequenceFin, map_bind, map_pure, Functor.map_map,
+    bind_map_left, bind_assoc, pure_bind]
+  refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun row => ?_
+  congr 1
+  rw [foldl_finRange_append, List.nil_append, getD_ofFn]
+  have hk : (cap / 2 ^ L) ^^^ 1 < 2 ^ (h - L) := by
+    have h1 : cap / 2 ^ L < 2 ^ (h - L) := by
+      rw [Nat.div_lt_iff_lt_mul (by positivity), ← Nat.pow_add, show h - L + L = h by omega]
+      exact hcap
+    exact Nat.xor_lt_two_pow h1 (Nat.one_lt_two_pow (by omega))
+  rw [dif_pos hk]
+  simp only [Prod.mk.injEq]
+  constructor
+  · congr 1; funext j; simp [j.isLt]
+  · rw [List.range_succ, List.map_append]
+    simp only [List.map_cons, List.map_nil]
+    congr 1
+    · apply List.map_congr_left
+      intro l hl
+      rw [List.mem_range] at hl
+      simp [show l ≠ L + 1 by omega]
+    · simp
+
+include hnode in
+theorem buildLevels_eq (h cap : Nat) (hh : 0 < h) (hcap : cap < 2 ^ h) (leaves : Nat → Digest) :
     Ref.buildLevels node cap h (List.ofFn (fun j : Fin (2 ^ h) => dv (leaves j))) =
-      (fun T => (dv (T h 0), (List.range h).map (fun l => dv (T l (Nat.xor (cap / 2 ^ l) 1))))) <$>
+      (fun T => (dv (T h 0), (List.range h).map (fun l => dv (T l (Nat.xor (cap / 2 ^ l) 1))),
+          dv (T (h - 1) 0) ++ dv (T (h - 1) 1))) <$>
         relabel fmtQ (SphincsSecurity.Concrete.buildLevels hashNode h leaves h) := by
+  obtain ⟨k, rfl⟩ : ∃ k, h = k + 1 := ⟨h - 1, by omega⟩
   unfold Ref.buildLevels
-  rw [buildLevels_steps node hashNode hnode h cap hcap leaves h le_rfl]
-  simp only [map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp]
+  rw [Nat.add_sub_cancel, buildLevels_steps node hashNode hnode (k + 1) cap hcap leaves k (by omega)]
+  simp only [SphincsSecurity.Concrete.buildLevels, relabel_bind, relabel_pure, map_bind, bind_map_left,
+    bind_assoc, map_pure, pure_bind]
   refine bind_congr fun T => ?_
-  rw [getD_ofFn, dif_pos (by simp)]
-  rfl
+  have hstep := levelStep_eq node hashNode hnode (k + 1) cap hcap k (by omega) T
+  rw [Nat.add_comm 1 k] at hstep
+  rw [hstep]
+  simp only [relabel_bind, relabel_pure, map_bind, map_pure, bind_map_left, bind_assoc, pure_bind]
+  refine bind_congr fun row => ?_
+  have h0 : (0 : Nat) < 2 ^ (k + 1 - (k + 1)) := by simp
+  have h1 : (0 : Nat) < 2 ^ (k + 1 - k) := by rw [Nat.add_sub_cancel_left]; decide
+  have h2 : (1 : Nat) < 2 ^ (k + 1 - k) := by rw [Nat.add_sub_cancel_left]; decide
+  rw [getD_ofFn, getD_ofFn, getD_ofFn, dif_pos h0, dif_pos h1, dif_pos h2]
+  simp
 
 end levels
 
@@ -567,7 +632,7 @@ theorem buildTree_eq (seed : MasterSeed) (lay : Layer) (tree : TreeIndex) (leaf 
     (hcap : leaf.val < 2 ^ SphincsSecurity.layerHeight lay)
     (digits : Encoding) (x : List Nat) (hx : ∀ i : ChainIndex, x.getD i 0 = (digits i).val) :
     Ref.buildTree (Ref.toList (n := 32) seed) lay tree (SphincsSecurity.layerHeight lay) leaf x =
-      (fun r => (dv r.2.2, List.ofFn (fun i => dv (r.1 i)),
+      (fun r => (dvM r.2.2, List.ofFn (fun i => dv (r.1 i)),
           (List.range (SphincsSecurity.layerHeight lay)).map (fun l => dv (r.2.1 l)))) <$>
         relabel fmtQ (SphincsSecurity.Concrete.buildLayerTreePaired (m := AComp) 0 lay tree
           (SphincsSecurity.Seeded.otsSecret 0 seed lay tree) leaf digits) := by
@@ -579,10 +644,12 @@ theorem buildTree_eq (seed : MasterSeed) (lay : Layer) (tree : TreeIndex) (leaf 
   rw [ofFn_leaves f Prod.snd]
   rw [buildLevels_eq (Ref.nodeInput lay tree) (fun level nodeIdx left right =>
       SphincsSecurity.Concrete.tweakableHash (m := AComp) 0 (.node lay tree level nodeIdx)
-        (SphincsSecurity.Concrete.nodePayload left right)) (hash16_node lay tree) _ _ hcap
+        (SphincsSecurity.Concrete.nodePayload left right)) (hash16_node lay tree) _ _
+      (by unfold SphincsSecurity.layerHeight SphincsSecurity.maxLayerHeight; split <;> (try split) <;> omega)
+      hcap
       (fun k => if h : k < 2 ^ SphincsSecurity.layerHeight lay then (f ⟨k, h⟩).2 else 0)]
   simp only [map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp]
   refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun T => ?_
-  simp [hcap]
+  simp [hcap, SphincsSecurity.Concrete.tableTop, dvM]
 
 end SigGolfCandidate.Equiv

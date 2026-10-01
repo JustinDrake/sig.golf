@@ -326,11 +326,10 @@ structure EncMem (lay tau e : Nat) (M : Val) (u : MachineState) : Prop where
   hlay : lay < 6
   htau : tau < 2 ^ 30
   he : e < 2048
-  hM : M.length = 16
+  hM : M.length = 32
   eb0 : u.getMem (BitVec.ofNat 64 0x100) = twWord0 4 lay tau 0
   eb8 : u.getMem (BitVec.ofNat 64 0x108) = BitVec.ofNat 64 (tau + 2 ^ 32 * e)
-  ebP : u.readWords (BitVec.ofNat 64 0x110) 2 = [0, 0]
-  ebM : u.readWords (BitVec.ofNat 64 0x120) 2 = wordsOf M
+  ebM : u.readWords (BitVec.ofNat 64 0x110) 4 = wordsOf M
   eb56 : u.getMem (BitVec.ofNat 64 0x138) = 0
   x5 : u.getReg .x5 = 0
   x7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 22)
@@ -410,17 +409,14 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
   have hq : hashInput t1 = pad64 (encInput lay tau e M c) := by
     obtain ⟨hn, hw⟩ := words_encInput lay tau e M hmem.hM c
     refine hashInput_eq_pad64 t1 _ 0 hn (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
-    rw [hw, x10, show 8 * (0 + 1) = 1 + 1 + 2 + 2 + 1 + 1 from rfl]
-    rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add,
-      readWords_ofNat_add]
+    rw [hw, x10, show 8 * (0 + 1) = 1 + 1 + 4 + 1 + 1 from rfl]
+    rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add]
     simp only [Nat.reduceMul, Nat.reduceAdd]
     rw [readWords_ofNat_one, readWords_ofNat_one, readWords_ofNat_one, readWords_ofNat_one,
       f1.getMem (a := 0x100) (by norm_num) (by norm_num),
       tframe.getMem (a := 0x100) (by norm_num) (by simp only [encW]; omega),
       hmem.eb0, f1.getMem (a := 0x108) (by norm_num) (by norm_num),
       tframe.getMem (a := 0x108) (by norm_num) (by simp only [encW]; omega), hmem.eb8,
-      f1.readWords _ _ (by norm_num) (by intro i hi; omega),
-      tframe.readWords _ _ (by norm_num) (by intro i hi; simp only [encW]; omega), hmem.ebP,
       f1.readWords _ _ (by norm_num) (by intro i hi; omega),
       tframe.readWords _ _ (by norm_num) (by intro i hi; simp only [encW]; omega), hmem.ebM,
       f1.getMem (a := 0x138) (by norm_num) (by norm_num),
@@ -435,7 +431,8 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
     congrArg (· + 1) (words_encInput lay tau e M hmem.hM c).1
   refine (Sim.steps hs1 (Sim.encodingHash_bind (W := 50 + Wr) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) hq (addrFmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]; omega) (fun _ _ h => h)
+      (by norm_num)) hq (by rw [addrFmt_encInput]; exact Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide))
+        (fun a => ?_))).mono (by rw [hb]; omega) (fun _ _ h => h)
   set t2 := writeHash t1 a with ht2
   have f2 : Frame t1 t2 (fun x => 0x140 ≤ x ∧ x < 0x140 + 32) := frame_writeHash t1 a _ x12 (by norm_num)
   have pc2 : t2.pc = pcOf 351 := by rw [ht2, writeHash_pc, pc1]; apply BitVec.eq_of_toNat_eq; simp

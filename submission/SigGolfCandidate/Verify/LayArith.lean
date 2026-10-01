@@ -219,16 +219,6 @@ theorem uHE_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : Mac
     rw [Nat.mul_one] at this
     omega
 
-theorem carryEr_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : MachineState)
-    (h : s.getReg (routeReg lay) = BitVec.ofNat 64 (routeIn idx lay)) :
-    (carryEr lay).eval s = BitVec.ofNat 64
-      (if lay = 0 then idx / 2 ^ layS lay % 2 ^ heightL lay
-       else idx / 2 ^ (layS lay + heightL lay)) := by
-  unfold carryEr
-  split_ifs
-  · exact uEr_eval idx lay hlay hidx s h
-  · exact tauEr_eval idx lay hlay hidx s h
-
 theorem x31Er_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : MachineState)
     (h : s.getReg (routeReg lay) = BitVec.ofNat 64 (routeIn idx lay)) :
     (x31Er lay).eval s = BitVec.ofNat 64 (idx / 2 ^ (layS lay + heightL lay) +
