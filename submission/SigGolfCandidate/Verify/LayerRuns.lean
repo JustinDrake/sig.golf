@@ -33,19 +33,18 @@ def preStart (lay t : Nat) : Nat :=
 
 /-- Steps of the transition up to the encoding hash: layer 0 consumes the remaining route bits
 directly (two `addi` for the sentinel, no mask/shift); layer 4 reuses the known hash length. -/
-def stepsA (lay : Nat) : Nat := if lay = 0 ∨ lay = 4 then 11 else 12
+def stepsA (lay : Nat) : Nat := if lay = 0 ∨ lay = 4 then 12 else 13
 def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
 
 /-- Known registers at the transition start. -/
-def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401), (.x14, KT4)]
+def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40101)]
 def aK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, 0x120), (.x27, BitVec.ofNat 64 (hWord (lay + 1) + 768))]
+  gkL ++ [(.x10, 0x1C0), (.x11, 64), (.x12, 0x120), (.x27, BitVec.ofNat 64 (hWord (lay + 1)))]
 def preK (lay : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay
 
 /-- Known registers after the encoding hash call. -/
 def bK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)] ++
-    (if lay = 4 then [(.x14, KT4)] else [])
+  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)]
 
 def uEr (lay : Nat) : E :=
   if lay = 0 then .reg .x30
@@ -70,7 +69,7 @@ def specA (lay t : Nat) : Spec :=
     (⟨none, BitVec.ofNat 64 264⟩, x31Er lay), (⟨none, BitVec.ofNat 64 256⟩, cw (hWord lay + 768))],
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
 
-/-! ## The encoding check (`remu x25, x25, x18`; layers 0 .. 3 compare `KT`, layer 4 reuses `x14 = KT4`,
+/-! ## The encoding check (`remu x25, x25, x18`; all layers compare `x29 = KT`,
 all targets 181) and the chain prologue -/
 
 def d0E : E := ldE 288
@@ -103,7 +102,7 @@ def specBok (lay : Nat) : Spec :=
 /-- Known registers on entry of the chain code; chain 0 initializes `x25` from `x27`. -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
   chK0 ++ [(.x22, BitVec.ofNat 64 (s6N lay)),
-    (.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x1, pcOf (retPc lay c))]
+    (.x27, BitVec.ofNat 64 (hWord lay)), (.x1, pcOf (retPc lay c))]
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
@@ -115,23 +114,24 @@ def specRej2 (lay : Nat) : Spec :=
 
 /-- The leaf code at the return pc: the leaf tweak, then the dispatch into the shape block of
 chunk 0. -/
-def leafSteps (lay : Nat) : Nat := if lay = 0 then 10 else 9
+def leafSteps (lay : Nat) : Nat := if lay = 0 then 13 else 12
 
-def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768))]
+def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, BitVec.ofNat 64 (hWord lay))]
 
 def specLeaf (lay : Nat) : Spec :=
   ⟨[(.x10, cw 832), (.x11, cw 704)],
-   [(⟨none, BitVec.ofNat 64 840⟩, .reg .x31), (⟨none, BitVec.ofNat 64 832⟩, cw (hWord lay + 256))],
+   [(⟨none, BitVec.ofNat 64 456⟩, stW0 456 (.reg .x30)), (⟨none, BitVec.ofNat 64 448⟩, cw (hWord lay + 512)),
+    (⟨none, BitVec.ofNat 64 840⟩, .reg .x31), (⟨none, BitVec.ofNat 64 832⟩, cw (hWord lay + 256))],
    0, false, leafSteps lay, [], some (dispTgt lay 0), leafSteps lay⟩
 
 def leafKeep : List Reg := [.x16, .x17, .x23, .x30, .x31]
 def leafPost (lay : Nat) : List (Reg × Word) :=
-  fk false 0x340 704 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768))]
+  fk false 0x340 704 ++ [(.x27, BitVec.ofNat 64 (hWord lay))]
 
 /-! ## Compare -/
 
 def cmpPc (t : Nat) : Nat := compareTab.getD t 0
-def cmpK : List (Reg × Word) := fk false 0x340 64 ++ [(.x12, 0x180)]
+def cmpK : List (Reg × Word) := fk false 0x1C0 64 ++ [(.x12, 0x180)]
 def cmpDiff : E := .bin .sub (ldE 392) (ldE 168)
 def specAcc (t : Nat) : Spec :=
   ⟨[(.x5, cw 1), (.x10, cmpDiff)], [], cmpPc t + 7, true, 7,
