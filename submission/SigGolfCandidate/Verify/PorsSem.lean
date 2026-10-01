@@ -178,12 +178,12 @@ theorem land0x78 (b : Nat) (_hb : b < 256) : b &&& 0x78 = 8 * (b / 8 % 16) := by
 
 theorem piT_eval {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (s : Nat) (hs : s < 15) :
     (piT s).eval m = BitVec.ofNat 64 (8 * (witPi P.wl s / 8 % 16)) := by
-  have hb := wit_byte h.wit (256 + s) (by omega)
+  have hb := wit_byte h.wit (16 + s) (by omega)
   apply BitVec.eq_of_toNat_eq
-  show ((LoadKind.bu.fromWord (m.getMem (BitVec.ofNat 64 (0x800 + (256 + s) / 8 * 8))) ((256 + s) % 8)) &&&
+  show ((LoadKind.bu.fromWord (m.getMem (BitVec.ofNat 64 (0x800 + 16 + (16 + s) / 8 * 8 - 16))) ((16 + s) % 8)) &&&
     BitVec.ofNat 64 0x78).toNat = _
-  rw [BitVec.toNat_and, hb]
-  have hw : wbyte P.wl (256 + s) = witPi P.wl s := rfl
+  rw [show 0x800 + 16 + (16 + s) / 8 * 8 - 16 = 0x800 + (16 + s) / 8 * 8 by omega, BitVec.toNat_and, hb]
+  have hw : wbyte P.wl (16 + s) = witPi P.wl s := rfl
   rw [hw, ofNat_toNat_lt _ (by decide), land0x78 _ (by unfold witPi; exact (P.wl.getD _ 0).isLt),
     ofNat_toNat_lt _ (by omega)]
 
@@ -313,11 +313,11 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
     have hsec : ∀ k, k < 2 → m.getMem (BitVec.ofNat 64 (secA s + 8 * k)) =
         (if k = 0 then vw0 else vw1) (witSecret P.wl s) := by
       intro k hk
-      rw [show secA s + 8 * k = 0x800 + (3072 + 64 * s + 8 * k) by unfold secA; omega,
+      rw [show secA s + 8 * k = 0x800 + (32 + 16 * s + 8 * k) by unfold secA; omega,
         wit_word_all h.pb.wit _ (by omega) (by omega)]
       interval_cases k
-      · simp [witSecret, vw0_slice, wSec_eq]
-      · simp [witSecret, vw1_slice, wSec_eq]
+      · simp [witSecret, vw0_slice, wSec]
+      · simp [witSecret, vw1_slice, wSec]
     refine ⟨u, ?_, ⟨pb, ?_, Or.inl ⟨rfl, rfl⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun h => by omega,
       h.bnd, ?_, hxl⟩⟩
     · have := hu.steps; simp only [leafSpec] at this; exact this
@@ -360,7 +360,7 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
         dsimp only
         have := hsec 1 (by decide)
         simpa [ldE, cw, E.eval] using this
-      · unfold witSecret; apply length_slice16; rw [hP.1, wSec_eq]; omega
+      · unfold witSecret; apply length_slice16; rw [hP.1]; unfold wSec; omega
     · rw [hu.regs (xReg s, xE s) (by simp [leafSpec]), hx]
     · exact Nat.or_lt_two_pow (show porsT < 2 ^ 15 by decide) (show leafX P s < 2 ^ 15 by omega)
 
@@ -459,7 +459,7 @@ theorem pend_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0
 theorem tbOf_tsel (s : Nat) : tbOf s = 0x1000 + 4 * tabBase (tsel s) := by
   by_cases h : s = 14 <;> simp [tbOf, tsel, tabBase, h, tbL, tbN]
 
-theorem dispCheck2_ok (c tb : Nat) (hc : c < 18) (h1 : c < 15 → tb = tbOf c) (h2 : tb = tbN ∨ tb = tbL) :
+theorem dispCheck2_ok (c tb : Nat) (hc : c < 226) (h1 : c < 15 → tb = tbOf c) (h2 : tb = tbN ∨ tb = tbL) :
     dispCheck2 c tb = true := by
   have := List.all_eq_true.mp dispCheck_all c (List.mem_range.mpr hc)
   unfold dispCheck at this
@@ -560,7 +560,7 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
   set b := wbyte P.wl ptr with hbdef
   have hbl : b < 256 := wbyte_lt P.wl ptr
   have htb : tbOf s = tbN ∨ tbOf s = tbL := by unfold tbOf; split_ifs <;> simp
-  have hc18 : c < 18 := by rcases h.copy with ⟨h1, -⟩ | ⟨-, h2, -⟩ <;> omega
+  have hc18 : c < 226 := by rcases h.copy with ⟨h1, -⟩ | ⟨-, h2, -⟩ <;> omega
   have cD := dispCheck2_ok c (tbOf s) hc18 (fun hc => by rcases h.copy with ⟨h1, -⟩ | ⟨h1, -, -⟩ <;> [rw [h1]; omega]) htb
   obtain ⟨u1, hu1⟩ := pspec_run cD m h.pc h.pb.known (by simp [dispSpec])
     (dispObl_holds ptr h.fr hp hp8 hp2)
@@ -677,9 +677,10 @@ theorem seg_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E folds 
         (writeHash_at0 _ ans _ hd0 hdl').trans (vw0_answer ans).symm,
         (writeHash_at8 _ ans _ hd0 hdl').trans (vw1_answer ans).symm, by simp,
         by rw [writeHash_getReg]; exact hd0, ?_, h.hE, h.hx,
-        by decide, segV_lt _ _, hV1⟩
+        by unfold tailCopies; split_ifs <;> decide, segV_lt _ _, hV1⟩
       · rw [writeHash_pc, hu.pc (by rw [hsp]), hsp]
-        simp only [if_pos h0, pcOf_add4, tailPc, if_true]
+        simp only [if_pos h0, tailPc, show (2:Nat)<3 by decide, if_true]
+        simpa only [Nat.add_assoc, Nat.reduceAdd] using pcOf_add4 (entry0Pc (segV (tsel s) b)+1)
       · rw [writeHash_getReg, hu.regs (.x14, addC (.reg .x14) (BitVec.ofNat 64 (16 * (b % 16) + 8))) (by rw [hsp]; simp)]
         simp only [addC_eval, Rv.E.eval, hkeep1 .x14 (by simp [dispKeep]), h.fr, h0]
         rw [BitVec.ofNat_add_ofNat]; congr 1; omega
@@ -839,6 +840,18 @@ theorem prefixCheck_at (V : Nat) (hV : V < 3) :
   have h := hc a ⟨a-2, by omega, by omega⟩ bits hb
   exact ⟨h.1, fun t' ht' hbad => (h.2 t' ht').resolve_left hbad⟩
 
+theorem nojoinCheck_at (V a bits i t t' : Nat) (hV : V < 2) (ha : 2 ≤ a)
+    (ha14 : a ≤ 14) (hb : bits < 8) (hi : i < a) (hn : ¬ i < prefixN a)
+    (ht : t < 2) (ht' : t' < 2) (hl : ¬ (i+1=a ∧ t'=1)) :
+    pspecB gkP (runAt posKnown [] (posCodePc V t a i bits) (posDirs t (14-a+i) t'))
+      (prefixPosSpec V t a i bits t') (posObl (14-a+i)) posKnown posKeep = true := by
+  have hc : nojoinCheck V = true := by
+    rcases (show V=0 ∨ V=1 by omega) with rfl | rfl
+    exacts [nojoinCheck_0, nojoinCheck_1]
+  simp only [nojoinCheck, List.all_eq_true, List.mem_range', List.mem_range,
+    Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq] at hc
+  exact (((hc a ⟨a-2, by omega, by omega⟩ bits hb i hi).resolve_left hn) t ht t' ht').resolve_left hl
+
 /-- The fold input of a ladder position (current node in slot `t`). -/
 def foldInput (P : PCtx) (E t : Nat) (sib node : Val) : List Byte :=
   if t = 1 then porsNodeInput P.idx (E / 2) sib node else porsNodeInput P.idx (E / 2) node sib
@@ -876,13 +889,13 @@ theorem eS_eval {m : MachineState} {E : Nat} (h : m.getReg .x23 = BitVec.ofNat 6
 slot `(E / 2) mod 2` of NB (or into the variant's destination at the last position). -/
 theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) (node : Val)
     (stk : List (Val × Nat)) (m : MachineState) (h : PosIn P s0 s x V t a i ptr E folds node stk m) :
-    ∃ u, Steps image m (posCycles a i) (posCycles a i) u ∧
+    ∃ u, Steps image m (posCycles V a i) (posCycles V a i) u ∧
       fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 0 ∧ hashArgumentsValid u = true ∧
       hashInput u = addrFmt (foldInput P E t (wbytes P.wl (ptr + 8 + 16 * i) 16) node) ∧
       (addrFmt (foldInput P E t (wbytes P.wl (ptr + 8 + 16 * i) 16) node)).blocks = 1 ∧
       ∀ ans, (i + 1 < a → PosIn P s0 s x V (E / 2 % 2) a (i + 1) ptr (E / 2) folds (answerBytes 16 ans) stk
           (writeHash u ans)) ∧
-        (i + 1 = a → TailIn P s0 s x V t (ptr + 8 + 16 * a) (E / 2) (folds + a) (answerBytes 16 ans) stk
+        (i + 1 = a → TailIn P s0 s x V (tailSel V t a (segBits (wbyte P.wl ptr))) (ptr + 8 + 16 * a) (E / 2) (folds + a) (answerBytes 16 ans) stk
           (writeHash u ans)) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
   obtain ⟨hi1, ha14⟩ := h.ha
@@ -916,9 +929,11 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
       · have hi : i = prefixN a := by omega
         simpa only [if_neg hp, htbits, hi, Nat.lt_irrefl, if_false] using hc.2 t' ht'2 (by simpa only [← hi] using ht'13)
     · have hp : ¬ i < prefixN a := by unfold prefixN at hh ⊢; split_ifs at * <;> omega
-      simpa only [posCheck1, posCodePc, if_neg hh, prefixPosSpec, if_neg hp,
-        if_neg (show ¬ (2 ≤ a ∧ i = prefixN a) by omega)] using
-        posCheck_at V t (14-a+i) t' h.hV h.ht hp14 ht'2 ht'13
+      by_cases hnj : noJoin V a
+      · simpa only [if_neg hp] using nojoinCheck_at V a bits i t t' hnj.1 hnj.2 ha14 hbits hi1 hp h.ht ht'2 (by omega)
+      · simpa only [posCheck1, posCodePc, if_neg hnj, if_neg hh, prefixPosSpec, if_neg hp,
+          if_neg (show ¬ (2 ≤ a ∧ i = prefixN a) by omega)] using
+          posCheck_at V t (14-a+i) t' h.hV h.ht hp14 ht'2 ht'13
   have hfr' : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr + 8 + 16 * i - (112 + 16 * (14 - a + i))) := by
     rw [h.fr]; congr 1; omega
   have hsa : ∀ q, q = 0 ∨ q = 8 → (addC (.reg .x14) (BitVec.ofNat 64 (112 + 16 * (14 - a + i) + q))).eval m =
@@ -936,9 +951,10 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
   obtain ⟨u, hu⟩ := pspec_run c m h.pc hK (by
       intro br hbr
       by_cases hpre : i < prefixN a
-      · simp [prefixPosSpec, hpre] at hbr
+      · simp only [prefixPosSpec, njPosSpec, if_pos hpre] at hbr
+        split_ifs at hbr <;> simp at hbr
       · have hbr' : br ∈ (posSpec V t (14-a+i) t').brs := by
-          simp only [prefixPosSpec, if_neg hpre] at hbr
+          simp only [prefixPosSpec, njPosSpec, if_neg hpre] at hbr
           split_ifs at hbr <;> exact hbr
         by_cases h13 : 14 - a + i = 13
         · simp [posSpec, h13] at hbr'
@@ -976,7 +992,7 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
     rw [hsa 8 (Or.inr rfl)]; exact sb1
   have ht := h.ht
   have hpm : (prefixPosSpec V t a i bits t').mem = posMem t (14 - a + i) := by
-    unfold prefixPosSpec; split_ifs <;> simp [posSpec] <;> split_ifs <;> rfl
+    unfold prefixPosSpec njPosSpec; split_ifs <;> simp [posSpec] <;> split_ifs <;> rfl
   have mem8 : u.getMem (BitVec.ofNat 64 0x1C8) = BitVec.ofNat 64 (twHi P.idx (E / 2)) := by
     rw [hlook 0x1C8 (by omega), hpm]
     simp only [posMem]
@@ -1022,10 +1038,10 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
   have r15 : u.getReg .x15 = BitVec.ofNat 64 (stkReg stk.length) := by rw [kp .x15 (by simp [posKeep])]; exact h.rS
   have r12 : u.getReg .x12 = BitVec.ofNat 64 (if i + 1 = a then destOf V stk.length else 0x1E0 + 16 * t') := by
     by_cases hl : i + 1 = a
-    · rw [hu.regs (.x12, destE V) (by simp [prefixPosSpec, show ¬ i < prefixN a by omega, posSpec, show 14 - a + i = 13 by omega]; split_ifs <;> simp), if_pos hl]
+    · rw [hu.regs (.x12, destE V) (by simp [prefixPosSpec, njPosSpec, show ¬ i < prefixN a by omega, posSpec, show 14 - a + i = 13 by omega]; split_ifs <;> simp), if_pos hl]
       unfold destE destOf
       split_ifs <;> simp [Rv.E.eval, BinOp.eval, cw, h.rS, BitVec.ofNat_add_ofNat, stkReg, stkOf', Nat.add_assoc, Nat.add_comm, Nat.add_left_comm]
-    · rw [hu.regs (.x12, cw (0x1E0 + 16 * t')) (by simp [prefixPosSpec, posSpec, show ¬ 14 - a + i = 13 by omega]; split_ifs <;> simp), if_neg hl]
+    · rw [hu.regs (.x12, cw (0x1E0 + 16 * t')) (by simp [prefixPosSpec, njPosSpec, posSpec, show ¬ 14 - a + i = 13 by omega]; split_ifs <;> simp), if_neg hl]
       rfl
   have hdl : stk.length ≤ 14 := by omega
   have hdst : (if i + 1 = a then destOf V stk.length else 0x1E0 + 16 * t') + 32 ≤ 0x800 ∧
@@ -1042,17 +1058,13 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
       Nat.reduceMul, Nat.reduceAdd]
     refine ⟨⟨⟨⟨by decide, ?_, trivial⟩, decide_eq_true ?_⟩, decide_eq_true (And.intro ?_ hdst.2)⟩,
       decide_eq_true ?_⟩ <;> omega
-  have hsteps : (prefixPosSpec V t a i bits t').steps = posCycles a i := by
-    unfold prefixPosSpec posCycles
-    by_cases hpre : i < prefixN a
-    · simp [hpre, show ¬ i+1=a by omega, show ¬ (2 ≤ a ∧ i = prefixN a) by omega]
-    · simp only [if_neg hpre, Nat.sub_zero]
-      by_cases hl : i+1=a <;>
-        simp [posSpec, hl, show (14-a+i=13) ↔ i+1=a by omega] <;> split_ifs <;> rfl
+  have hsteps : (prefixPosSpec V t a i bits t').steps = posCycles V a i :=
+    selected_pos_steps ⟨V,h.hV⟩ ⟨t,h.ht⟩ ⟨a,by omega⟩ ⟨i,by omega⟩
+      ⟨bits,hbits⟩ ⟨t',ht'2⟩ hi1
   have hcycles : (prefixPosSpec V t a i bits t').cycles = (prefixPosSpec V t a i bits t').steps := by
-    simp [prefixPosSpec, posSpec]; split_ifs <;> rfl
+    simp [prefixPosSpec, njPosSpec, posSpec]; split_ifs <;> rfl
   refine ⟨u, hu.steps.of_eq hsteps (hcycles.trans hsteps),
-    hu.ecall (by simp [prefixPosSpec, posSpec]; split_ifs <;> rfl),
+    hu.ecall (by simp [prefixPosSpec, njPosSpec, posSpec]; split_ifs <;> rfl),
     pb.reg (by simp [gkP, baseK]), hashArgs_ofNat _ _ _ _ r10 r11 r12 (by omega) (by omega) (by omega) hargs,
     hin.1, hin.2, fun ans => ⟨fun hlt => ?_, fun hl => ?_⟩⟩
   · -- the next position
@@ -1062,24 +1074,17 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
     refine ⟨pb.hash ans _ r12' (safe_nb _ ht'2), ?_, by rw [writeHash_getReg]; exact r10, ?_, ?_, ?_, ?_, ?_, ?_,
       ?_, (writeHash_at0 _ ans _ r12' (by omega)).trans (vw0_answer ans).symm, ?_, by simp,
       ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩, by omega, h.hx, ⟨hlt, ha14⟩, ht'2, h.hV, h.hd, ht'v, ?_⟩
-    · rw [writeHash_pc, hu.pc (by simp [prefixPosSpec, posSpec]; split_ifs <;> rfl), pcOf_add4]
-      by_cases hpre : i < prefixN a
-      · have ha2 : 2 ≤ a := by
-          by_contra hlt
-          have hz : prefixN a = 0 := by simp [prefixN, show a < 2 by omega]
-          omega
-        change pcOf ((prefixPosSpec V t a i bits t').pc + 1) =
-          pcOf (posCodePc V t' a (i+1) bits)
-        simp only [prefixPosSpec, if_pos hpre, posCodePc,
-          if_pos (show 2 ≤ a ∧ i+1 ≤ prefixN a from ⟨ha2, by omega⟩)]
-        congr 1
-      · have hh : ¬ (2 ≤ a ∧ i+1 ≤ prefixN a) := by omega
-        simp only [prefixPosSpec, if_neg hpre, posCodePc, if_neg hh]
-        split_ifs <;> simp only [posSpec, if_neg (show ¬14-a+i=13 by omega)] <;>
-          rw [lbr_lad V h.hV t' ht'2 (14-a+i) (by omega),
-            show 14-a+i+1=14-a+(i+1) by omega]
+    · rw [writeHash_pc, hu.pc (by simp [prefixPosSpec, njPosSpec, posSpec]; split_ifs <;> rfl), pcOf_add4]
+      change pcOf ((prefixPosSpec V t a i bits t').pc+1) = pcOf (posCodePc V t' a (i+1) bits)
+      congr 1
+      exact selected_pos_next ⟨V,h.hV⟩ ⟨t,h.ht⟩ ⟨a,by omega⟩ ⟨i,by omega⟩
+        ⟨bits,hbits⟩ ⟨t',ht'2⟩ hlt (fun hi => by
+          change i < prefixN a at hi
+          change t' = bits / 2^(i+1) % 2
+          rw [ht', if_neg (by omega)]
+          exact prefix_tag_next_slot a i E bits hi (h.tag (by omega)))
     · rw [writeHash_getReg, kp .x14 (by simp [posKeep])]; exact h.fr
-    · rw [writeHash_getReg, hu.regs (.x23, eS) (by simp [prefixPosSpec, posSpec]; split_ifs <;> simp), hEs]
+    · rw [writeHash_getReg, hu.regs (.x23, eS) (by simp [prefixPosSpec, njPosSpec, posSpec]; split_ifs <;> simp), hEs]
     · rw [writeHash_getReg]; exact pb.reg (by simp [gkP, baseK, FLIM])
     · rw [writeHash_getReg]; exact r15
     · apply StackOK.hash _ ans _ r12' (by omega) (fun i hi => by unfold blkQ blkL PSB; omega) hdl
@@ -1099,13 +1104,14 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
       (writeHash_at0 _ ans _ r12' hdl').trans (vw0_answer ans).symm,
       (writeHash_at8 _ ans _ r12' hdl').trans (vw1_answer ans).symm, by simp,
       by rw [writeHash_getReg]; exact r12', ?_, by omega, h.hx,
-      by omega, h.hV, h.hd⟩
-    · rw [writeHash_pc, hu.pc (by simp [prefixPosSpec, posSpec]; split_ifs <;> rfl), pcOf_add4]
-      simp only [prefixPosSpec, if_neg (show ¬i<prefixN a by omega)]
-      split_ifs <;> simp [posSpec, show 14-a+i=13 by omega, tailPc,
-        show ¬t=2 by omega, Nat.add_assoc]
+      tailSel_lt ⟨V,h.hV⟩ ⟨t,h.ht⟩ ⟨a,by omega⟩ ⟨bits,hbits⟩ (show 0<a by omega), h.hV, h.hd⟩
+    · rw [writeHash_pc, hu.pc (by simp [prefixPosSpec, njPosSpec, posSpec]; split_ifs <;> rfl), pcOf_add4]
+      change pcOf ((prefixPosSpec V t a i bits t').pc+1) = pcOf (tailPc V (tailSel V t a bits))
+      congr 1
+      exact selected_pos_last ⟨V,h.hV⟩ ⟨t,h.ht⟩ ⟨a,by omega⟩ ⟨i,by omega⟩
+        ⟨bits,hbits⟩ ⟨t',ht'2⟩ hl
     · rw [writeHash_getReg, kp .x14 (by simp [posKeep]), h.fr]; congr 1; omega
-    · rw [writeHash_getReg, hu.regs (.x23, eS) (by simp [prefixPosSpec, posSpec]; split_ifs <;> simp), hEs]
+    · rw [writeHash_getReg, hu.regs (.x23, eS) (by simp [prefixPosSpec, njPosSpec, posSpec]; split_ifs <;> simp), hEs]
     · rw [writeHash_getReg]; exact pb.reg (by simp [gkP, baseK, FLIM])
     · rw [writeHash_getReg]; exact r15
     · apply StackOK.hash _ ans _ r12' (by unfold destOf stkOf' EMPTY; split_ifs <;> omega)
@@ -1120,7 +1126,7 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
 
 /-! ## Tails -/
 
-theorem tailCheck_parts (c : Nat) (hc : c < 3) :
+theorem tailCheck_parts (c : Nat) (hc : c < 211) :
     (∀ d, d < 15 →
       pspecB gkP (runAt (tailKnown d) [dispTailPc c] (tailPc 0 c) [.br false]) (tailMSpec c d) []
         (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (stkReg d) - 80) else p)
@@ -1180,7 +1186,7 @@ theorem tailM_step (P : PCtx) (s0 : MachineState) (s x c ptr E folds : Nat) (nod
       ∃ u, Steps image m 6 6 u ∧ DispIn P s0 s x (15 + c) ptr (E / 2) folds (.merge (E / 2) pnode) node rest u) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
   have hE := h.hE
-  have hc := h.hc
+  have hc : c < 211 := h.hc
   have hd15 : stk.length < 15 := by omega
   obtain ⟨cM, -⟩ := tailCheck_parts c hc
   obtain ⟨cAcc, cRej⟩ := cM stk.length hd15

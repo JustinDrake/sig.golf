@@ -141,7 +141,7 @@ structure DispIn (P : PCtx) (s0 : MachineState) (s x c ptr E folds : Nat) (pend 
     (node : Val) (stk : List (Val × Nat)) (m : MachineState) : Prop where
   pb : PB P s0 m (tbOf s)
   pc : m.pc = pcOf (dispPc c)
-  copy : (c = s ∧ isLeafP pend = true) ∨ (15 ≤ c ∧ c < 18 ∧ isLeafP pend = false)
+  copy : (c = s ∧ isLeafP pend = true) ∨ (15 ≤ c ∧ c < 226 ∧ isLeafP pend = false)
   fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 336)
   rE : m.getReg .x23 = BitVec.ofNat 64 E
   sum : m.getReg .x18 = BitVec.ofNat 64 FLIM
@@ -232,7 +232,7 @@ structure TailIn (P : PCtx) (s0 : MachineState) (s x V c ptr E folds : Nat) (nod
   bnd : TailBnd s stk.length ptr folds
   hE : E < 2 ^ 15
   hx : x ≤ 2 ^ 14
-  hc : c < 3
+  hc : c < tailCopies V
   hV : V < 3
   hd : V = 1 → stk.length < 14
 

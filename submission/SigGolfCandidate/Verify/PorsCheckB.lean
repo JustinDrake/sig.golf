@@ -7,7 +7,7 @@ namespace SigGolfCandidate.Verify
 
 theorem startCheck_ok : startCheck = true := by decide +kernel
 theorem leafCheck_all : (List.range 15).all leafCheck = true := by decide +kernel
-theorem dispCheck_all : (List.range 18).all dispCheck = true := by decide +kernel
+theorem dispCheck_all : (List.range 226).all dispCheck = true := by decide +kernel
 theorem pentCheck_ok : pentCheck = true := by decide +kernel
 theorem posCheck_0 : posCheck 0 = true := by decide +kernel
 theorem posCheck_1 : posCheck 1 = true := by decide +kernel
@@ -15,7 +15,9 @@ theorem posCheck_2 : posCheck 2 = true := by decide +kernel
 theorem prefixCheck_0 : prefixCheck 0 = true := by decide +kernel
 theorem prefixCheck_1 : prefixCheck 1 = true := by decide +kernel
 theorem prefixCheck_2 : prefixCheck 2 = true := by decide +kernel
-theorem tailCheck_all : (List.range 3).all tailCheck = true := by decide +kernel
+theorem nojoinCheck_0 : nojoinCheck 0 = true := by decide +kernel
+theorem nojoinCheck_1 : nojoinCheck 1 = true := by decide +kernel
+theorem tailCheck_all : (List.range 211).all tailCheck = true := by decide +kernel
 theorem tailFCheck_all : (List.range 3).all tailFCheck = true := by decide +kernel
 
 end SigGolfCandidate.Verify

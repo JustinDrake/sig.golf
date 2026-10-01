@@ -62,7 +62,7 @@ theorem folds_good (P : PCtx) (s0 : MachineState) (s x V a ptr folds : Nat)
       TailIn P s0 s x V t (ptr + 8 + 16 * a) E (folds + a) node stk u → GoodQ u NT CT QT AT (K (node, E))) :
     ∀ r i t E node m, i + r = a → PosIn P s0 s x V t a i ptr E folds node stk m →
       t = E % 2 →
-      GoodQ m (NT + 17 * r) (CT + foldBudget a i) QT (AT + foldBudget a i)
+      GoodQ m (NT + 17 * r) (CT + foldBudget V a i) QT (AT + foldBudget V a i)
         (cc ((List.range' i r).foldlM (foldBody P.idx P.wl ptr) (node, E)) K) := by
   intro r
   induction r with
@@ -72,7 +72,7 @@ theorem folds_good (P : PCtx) (s0 : MachineState) (s x V a ptr folds : Nat)
     obtain ⟨u, hst, hf, h5, hv, hin, hbl, hpost⟩ := pos_step P s0 s x V t a i ptr E folds node stk m h
     rw [List.range'_succ, List.foldlM_cons, cc_bind, foldBody_eq P ptr node E i t ht, cc_bind]
     have H : ∀ ans, GoodQ (writeHash u ans) (if i + 1 = a then NT else NT + 17 * k)
-        (CT + foldBudget a (i+1)) QT (AT + foldBudget a (i+1))
+        (CT + foldBudget V a (i+1)) QT (AT + foldBudget V a (i+1))
         ((fun v => cc (pure (v, E / 2)) fun st =>
           cc ((List.range' (i + 1) k).foldlM (foldBody P.idx P.wl ptr) st) K) (answerBytes 16 ans)) := by
       intro ans
@@ -82,7 +82,7 @@ theorem folds_good (P : PCtx) (s0 : MachineState) (s x V a ptr folds : Nat)
         subst hk
         simp only [List.range'_zero, List.foldlM_nil, cc_pure, if_pos hl, foldBudget,
           if_neg (show ¬ i+1<a by omega), Nat.add_zero]
-        exact hK t _ _ _ ((hpost ans).2 hl)
+        exact hK _ _ _ _ ((hpost ans).2 hl)
       · simp only [if_neg hl]
         exact ih (i + 1) (E / 2 % 2) (E / 2) (answerBytes 16 ans) (writeHash u ans) (by omega)
           ((hpost ans).1 (by have := h.ha; omega)) rfl
@@ -91,8 +91,8 @@ theorem folds_good (P : PCtx) (s0 : MachineState) (s x V a ptr folds : Nat)
           cc ((List.range' (i + 1) k).foldlM (foldBody P.idx P.wl ptr) st) K) hf h5 hv hin H
     rw [hbl] at h3
     have ha := h.ha
-    have hrec := foldBudget_step ⟨a, by omega⟩ ⟨i, by omega⟩ ha.1
-    have hcycles := posCycles_le ⟨a, by omega⟩ ⟨i, by omega⟩ ha.1
+    have hrec := foldBudget_step ⟨V,h.hV⟩ ⟨a, by omega⟩ ⟨i, by omega⟩ ha.1
+    have hcycles := posCycles_le ⟨V,h.hV⟩ ⟨a, by omega⟩ ⟨i, by omega⟩ ha.1
     simp only at hrec hcycles
     refine GoodQ.steps' hst h3 ?_ (by omega) (fun q => ⟨q, by omega⟩)
     · split_ifs <;> omega
@@ -167,7 +167,7 @@ theorem segment_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr E fol
           (NT V) (CT V) (AT V (folds + a)) (folds + a ≤ 117)
           (fun t node' E' u' hT => hK a V t E' node' u' ha14 rfl rfl hT) a 0 (segT b) E (answerBytes 16 ans)
           u2 (by omega) hP2 hP2.parity
-        have hbudget := foldBudget_old_bound ⟨a, by omega⟩
+        have hbudget := foldBudget_old_bound ⟨V, hVl⟩ ⟨a, by omega⟩
         simp only at hbudget
         refine GoodQ.steps' hst2 this (by omega) (by omega) (fun q => ⟨by omega, by omega⟩)
     have h3 := GoodQ.hash (x := pendInput P node pend)

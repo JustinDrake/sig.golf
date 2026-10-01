@@ -32,19 +32,37 @@ theorem prefix_tag_next_slot (a i E bits : Nat) (hi : i < prefixN a)
     (h : E % 2^(3-i) = bits / 2^i) : E / 2 % 2 = bits / 2^(i+1) % 2 := by
   exact prefix_tag_slot a (i+1) (E/2) bits (by omega) (prefix_tag_next a i E bits hi h)
 
-theorem foldBudget_step : ∀ a : Fin 15, ∀ i : Fin 15, i.val < a.val →
-    foldBudget a.val i.val = posCycles a.val i.val + 8 + foldBudget a.val (i.val+1) := by
+theorem foldBudget_step : ∀ V : Fin 3, ∀ a : Fin 15, ∀ i : Fin 15, i.val < a.val →
+    foldBudget V.val a.val i.val = posCycles V.val a.val i.val + 8 + foldBudget V.val a.val (i.val+1) := by
   decide +kernel
 
-theorem posCycles_le : ∀ a : Fin 15, ∀ i : Fin 15, i.val < a.val → posCycles a.val i.val ≤ 10 := by
+theorem posCycles_le : ∀ V : Fin 3, ∀ a : Fin 15, ∀ i : Fin 15, i.val < a.val → posCycles V.val a.val i.val ≤ 10 := by
   decide +kernel
 
-theorem foldBudget_start (a : Nat) (ha : 0 < a) :
-    foldBudget a 0 = 17*a-2-prefixSave a := by
+theorem foldBudget_start (V a : Nat) (ha : 0 < a) :
+    foldBudget V a 0 = 17*a-2-segmentSave V a := by
   simp [foldBudget, prefixBefore, ha]
 
-theorem foldBudget_old_bound : ∀ a : Fin 15, foldBudget a.val 0 ≤ 17*a.val-2 := by
+theorem foldBudget_old_bound : ∀ V : Fin 3, ∀ a : Fin 15, foldBudget V.val a.val 0 ≤ 17*a.val-2 := by
   decide +kernel
+
+theorem tailSel_lt : ∀ V : Fin 3, ∀ t : Fin 2, ∀ a : Fin 15, ∀ bits : Fin 8,
+    0 < a.val → tailSel V.val t.val a.val bits.val < tailCopies V.val := by decide +kernel
+
+theorem selected_pos_steps : ∀ V : Fin 3, ∀ t : Fin 2, ∀ a : Fin 15, ∀ i : Fin 15,
+    ∀ bits : Fin 8, ∀ t' : Fin 2, i.val<a.val →
+    (prefixPosSpec V.val t.val a.val i.val bits.val t'.val).steps = posCycles V.val a.val i.val := by decide +kernel
+
+theorem selected_pos_next : ∀ V : Fin 3, ∀ t : Fin 2, ∀ a : Fin 15, ∀ i : Fin 15,
+    ∀ bits : Fin 8, ∀ t' : Fin 2, i.val+1<a.val →
+    (i.val < prefixN a.val → t'.val = bits.val / 2^(i.val+1) % 2) →
+    (prefixPosSpec V.val t.val a.val i.val bits.val t'.val).pc+1 =
+      posCodePc V.val t'.val a.val (i.val+1) bits.val := by decide +kernel
+
+theorem selected_pos_last : ∀ V : Fin 3, ∀ t : Fin 2, ∀ a : Fin 15, ∀ i : Fin 15,
+    ∀ bits : Fin 8, ∀ t' : Fin 2, i.val+1=a.val →
+    (prefixPosSpec V.val t.val a.val i.val bits.val t'.val).pc+1 =
+      tailPc V.val (tailSel V.val t.val a.val bits.val) := by decide +kernel
 
 theorem prefixSave_eq : ∀ a : Nat, prefixSave a = if a < 2 then 0 else 2 * min (a - 1) 2 - 1 := by
   intro a
