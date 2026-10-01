@@ -119,6 +119,17 @@ theorem wordPerm_encoding_class (w : Nat) (h : w % 65536 ≠ 1025) : wordPerm w 
     omega
   · exact h
 
+theorem wordPerm_marker_class (w : Nat) (h : w % 65536 ≠ 769) : wordPerm w % 65536 ≠ 769 := by
+  unfold wordPerm
+  split_ifs with ho hn
+  · simp only [oldValid] at ho
+    unfold oldToNew
+    omega
+  · simp only [newValid] at hn
+    dsimp only [newToOld]
+    omega
+  · exact h
+
 theorem queryPerm_node (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
     (hc : w0.toNat % 65536 = 2561) :
     queryPerm (queryOfWords 0 (w0 :: w1 :: ws)) =
@@ -134,11 +145,12 @@ theorem queryPerm_node (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
   rw [queryPerm, baseQueryPerm_node w0 w1 ws hlen hc,
     LeafScale.queryRel_fixed _ (by rw [hcls]; decide),
     EncodingRotate.query_fixed _ (by rw [hcls]; decide),
+    EncodingMarker.other_class_fixed _ (by norm_num only [Nat.reducePow]; rw [hcls]; decide) (by norm_num only [Nat.reducePow]; rw [hcls]; decide),
     LeafClass.query_fixed_length _ (by change (0:Nat)≠10; decide)]
 
 theorem queryPerm_words (w : Word) (ws : List Word) (hlen : ws.length = 7)
     (hc : w.toNat % 65536 ≠ 2561) (h9 : w.toNat % 65536 ≠ 2305)
-    (h4 : w.toNat % 65536 ≠ 1025) :
+    (h4 : w.toNat % 65536 ≠ 1025) (h3 : w.toNat % 65536 ≠ 769) :
     queryPerm (queryOfWords 0 (w :: ws)) =
       queryOfWords 0 (BitVec.ofNat 64 (wordPerm w.toNat) :: ws) := by
   have hleaf : (queryOfWords 0 (BitVec.ofNat 64 (wordPerm w.toNat) :: ws)).2.toNat%65536≠2305 := by
@@ -147,7 +159,10 @@ theorem queryPerm_words (w : Word) (ws : List Word) (hlen : ws.length = 7)
   have henc : (queryOfWords 0 (BitVec.ofNat 64 (wordPerm w.toNat) :: ws)).2.toNat%65536≠1025 := by
     rw [queryOfWords_class, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (wordPerm_lt _ w.isLt)]
     exact wordPerm_encoding_class _ h4
-  rw [queryPerm,baseQueryPerm_words w ws hlen hc,LeafScale.queryRel_fixed _ hleaf,EncodingRotate.query_fixed _ henc,LeafClass.query_fixed_length _ (by change (0:Nat)≠10;decide)]
+  have hmark : (queryOfWords 0 (BitVec.ofNat 64 (wordPerm w.toNat) :: ws)).2.toNat%65536≠769 := by
+    rw [queryOfWords_class, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (wordPerm_lt _ w.isLt)]
+    exact wordPerm_marker_class _ h3
+  rw [queryPerm,baseQueryPerm_words w ws hlen hc,LeafScale.queryRel_fixed _ hleaf,EncodingRotate.query_fixed _ henc,EncodingMarker.other_class_fixed _ henc hmark,LeafClass.query_fixed_length _ (by change (0:Nat)≠10;decide)]
 
 theorem queryPerm_leaf (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
     (hc : w0.toNat % 65536 = 2305) :
@@ -160,6 +175,7 @@ theorem queryPerm_leaf (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
     apply baseQueryPerm_fixed <;> omega
   rw [queryPerm, hbase, EncodingRotate.query_fixed _ (by
     rw [LeafScale.queryRel_class, queryOfWords_class, hc]; decide),
+    EncodingMarker.other_class_fixed _ (by norm_num only [Nat.reducePow]; rw [LeafScale.queryRel_class, queryOfWords_class, hc]; decide) (by norm_num only [Nat.reducePow]; rw [LeafScale.queryRel_class, queryOfWords_class, hc]; decide),
     LeafClass.query_fixed_length _ (by simp only [LeafScale.queryRel, queryOfWords]; split <;> change (0:Nat)≠10 <;> decide)]
   have hred : LeafScale.queryRel (queryOfWords 0 (w0 :: w1 :: ws)) =
       ⟨0, BitVec.ofNat 512 (LeafScale.rel (queryOfWords 0 (w0 :: w1 :: ws)).2.toNat)⟩ := by
@@ -197,7 +213,8 @@ theorem addrFmt_eq_of_prefix (x : List Byte)
     (h2 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 2561)
     (h9 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 2305)
     (h4 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 1025)
-    (hL : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 513) :
+    (hL : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 513)
+    (h3 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 769) :
     addrFmt x = fmt x := by
   apply AddressFormat.queryPerm_fixed
   · have h := (fmt_low_bytes x).1
@@ -214,8 +231,11 @@ theorem addrFmt_eq_of_prefix (x : List Byte)
   · have h := fmt_low_bytes x
     omega
 
+  · have h := fmt_low_bytes x
+    omega
+
 theorem addrFmt_eq_th (t lay tau p j : Nat) (payload : List Byte)
-    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 4 ∧ t % 256 ≠ 2) :
+    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 4 ∧ t % 256 ≠ 2 ∧ t % 256 ≠ 3) :
     addrFmt (thInput (tweak t lay tau p j) payload) =
       fmt (thInput (tweak t lay tau p j) payload) := by
   apply addrFmt_eq_of_prefix
@@ -232,6 +252,9 @@ theorem addrFmt_eq_th (t lay tau p j : Nat) (payload : List Byte)
   · simp [thInput, tweak, byte_toNat]
     omega
 
+  · simp [thInput, tweak, byte_toNat]
+    omega
+
 theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
     (ht : byte t ∉ [byte 1, byte 2, byte 3, byte 4, byte 9, byte 10, byte 12]) :
     addrFmt (thInput (tweak t lay tau p j) payload) =
@@ -241,17 +264,18 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
     have := congrArg BitVec.toNat h
     simp only [byte_toNat] at this
     omega
-  have h1 : t % 256 ≠ 1 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 4 ∧ t % 256 ≠ 2 := by
+  have h1 : t % 256 ≠ 1 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 4 ∧ t % 256 ≠ 2 ∧ t % 256 ≠ 3 := by
     have heq : ∀ k, t % 256 = k → byte t = byte k := by
       intro k h
       apply BitVec.eq_of_toNat_eq
       simp [byte_toNat, h, Nat.mod_eq_of_lt (show k < 256 by omega)]
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
     · intro h; apply ht; simp [heq 1 h]
     · intro h; apply ht; simp [heq 10 h]
     · intro h; apply ht; simp [heq 9 h]
     · intro h; apply ht; simp [heq 4 h]
     · intro h; apply ht; simp [heq 2 h]
+    · intro h; apply ht; simp [heq 3 h]
   have ht' : byte t ∉ [byte 1, byte 3, byte 12] := by
     intro hm; apply ht; simp only [List.mem_cons, List.not_mem_nil, or_false] at hm ⊢; tauto
   rw [addrFmt_eq_th _ _ _ _ _ _ h1, fmt_thInput _ _ _ _ _ _ ht']
@@ -269,16 +293,23 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
     have h := fmt_low_bytes (leafInput lay tau e ends)
     simp [leafInput,thInput,tweak,byte_toNat] at h ⊢;omega
   rw [AddressFormat.baseQueryPerm_fixed _ (by omega) (by omega) (by omega),
-    LeafScale.queryRel_fixed _ (by omega),EncodingRotate.query_fixed _ (by omega)]
+    LeafScale.queryRel_fixed _ (by omega),EncodingRotate.query_fixed _ (by omega),
+    EncodingMarker.other_class_fixed _ (by omega) (by omega)]
 
 @[simp] theorem addrFmt_nodeInput (lay tau lam j : Nat) (l r : Val) :
-    addrFmt (nodeInput lay tau lam j l r) = fmt (nodeInput lay tau lam j l r) := by
-  unfold nodeInput
-  exact addrFmt_eq_th _ _ _ _ _ _ (by decide)
+    addrFmt (nodeInput lay tau lam j l r) =
+      LeafClass.query (EncodingMarker.query (fmt (nodeInput lay tau lam j l r))) := by
+  have hc : (fmt (nodeInput lay tau lam j l r)).2.toNat%65536=769 := by
+    have h := fmt_low_bytes (nodeInput lay tau lam j l r)
+    simp [nodeInput,thInput,tweak,byte_toNat] at h ⊢;omega
+  unfold addrFmt AddressFormat.queryPerm
+  rw [AddressFormat.baseQueryPerm_fixed _ (by omega) (by omega) (by omega),
+    LeafScale.queryRel_fixed _ (by omega),EncodingRotate.query_fixed _ (by omega)]
 
 @[simp] theorem addrFmt_encInput (lay tau e : Nat) (M : Val) (c : Nat) :
-    addrFmt (encInput lay tau e M c) = LeafClass.query (EncodingRotate.query (fmt (encInput lay tau e M c))) := by
+    addrFmt (encInput lay tau e M c) = LeafClass.query (EncodingMarker.query (EncodingRotate.query (fmt (encInput lay tau e M c)))) := by
   unfold addrFmt AddressFormat.queryPerm
+  congr 1
   congr 1
   congr 1
   rw [AddressFormat.baseQueryPerm_fixed _ (by
@@ -309,7 +340,7 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
     rw [LeafScale.queryRel_class]
     simp [porsLeafInput,thInput,tweak,byte_toNat] at h ⊢;omega
   unfold addrFmt AddressFormat.queryPerm
-  rw [hbase,EncodingRotate.query_fixed _ (by omega),LeafClass.query_fixed _ (by omega) (by omega)]
+  rw [hbase,EncodingRotate.query_fixed _ (by omega),EncodingMarker.other_class_fixed _ (by omega) (by omega),LeafClass.query_fixed _ (by omega) (by omega)]
 
 -- `addrFmt (porsNodeInput ..)` relabels the header field: see `Verify.Words.addrFmt_porsNodeInput`.
 
@@ -368,16 +399,16 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Rv SigGolfCandidate.Ref.AddressFor
 set_option exponentiation.threshold 8192
 set_option maxRecDepth 10000
 
-theorem word_of_class (w : Nat) (hc : w%65536=513) : word w=w+512 := by
+theorem word_of_class (w : Nat) (hc : w%65536=513) : word w=w+256 := by
   unfold word header
   rw [hc]
   norm_num
   omega
 
 theorem query_pad_tag (rest : List Byte) (hlen : rest.length=702) :
-    query (pad64 (byte 1::byte 2::rest))=pad64 (byte 1::byte 4::rest) := by
+    query (pad64 (byte 1::byte 2::rest))=pad64 (byte 1::byte 3::rest) := by
   have h2 : (byte 1::byte 2::rest).length=704 := by simp [hlen]
-  have h4 : (byte 1::byte 4::rest).length=704 := by simp [hlen]
+  have h4 : (byte 1::byte 3::rest).length=704 := by simp [hlen]
   have hn : leNat (byte 1::byte 2::rest)<2^5632 := by
     have h := leNat_lt (byte 1::byte 2::rest)
     rw [h2] at h
@@ -387,7 +418,7 @@ theorem query_pad_tag (rest : List Byte) (hlen : rest.length=702) :
   rw [pad64_eq _ 10 (by omega) (by omega),pad64_eq _ 10 (by omega) (by omega)]
   simp only [h2,h4,Nat.reduceAdd,Nat.reduceMul,Nat.sub_self,zeros,List.replicate_zero,List.append_nil]
   change (⟨10,BitVec.ofNat 5632 (word (BitVec.ofNat 5632 (leNat (byte 1::byte 2::rest))).toNat)⟩ : Query)=
-    ⟨10,BitVec.ofNat 5632 (leNat (byte 1::byte 4::rest))⟩
+    ⟨10,BitVec.ofNat 5632 (leNat (byte 1::byte 3::rest))⟩
   congr 1
   rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt hn,word_of_class _ hc]
   congr 1
@@ -397,12 +428,12 @@ theorem query_pad_tag (rest : List Byte) (hlen : rest.length=702) :
 theorem query_words (w : Word) (ws : List Word) (hlen : ws.length=87)
     (hc : w.toNat%65536=513) :
     query (queryOfWords 10 (w::ws))=
-      queryOfWords 10 (BitVec.ofNat 64 (w.toNat+512)::ws) := by
+      queryOfWords 10 (BitVec.ofNat 64 (w.toNat+256)::ws) := by
   have hn : wordsToNat (w::ws)<2^5632 := by
     have h := wordsToNat_lt (w::ws)
     simpa only [List.length_cons,hlen,Nat.reduceAdd,Nat.reduceMul] using h
   have hw := w.isLt
-  have hp : w.toNat+512<2^64 := by
+  have hp : w.toNat+256<2^64 := by
     norm_num only [Nat.reducePow] at hw ⊢
     omega
   have hc' : wordsToNat (w::ws)%65536=513 := by
@@ -421,9 +452,9 @@ namespace SigGolfCandidate.Ref
 open SigGolfCandidate.Legacy SigGolfCandidate.Rv
 set_option exponentiation.threshold 8192
 
-theorem addrFmt_leafInput_tag4 (lay tau e : Nat) (ends : List Val) (hl : ends.length=42)
+theorem addrFmt_leafInput_tag3 (lay tau e : Nat) (ends : List Val) (hl : ends.length=42)
     (hv : ∀ v∈ends, v.length=16) :
-    addrFmt (leafInput lay tau e ends)=pad64 (thInput (tweak 4 lay tau 0 e) ends.flatten) := by
+    addrFmt (leafInput lay tau e ends)=pad64 (thInput (tweak 3 lay tau 0 e) ends.flatten) := by
   have hflat : ends.flatten.length=672 := by
     rw [List.length_flatten]
     have : ends.map List.length=List.replicate 42 16 := by
@@ -435,18 +466,69 @@ theorem addrFmt_leafInput_tag4 (lay tau e : Nat) (ends : List Val) (hl : ends.le
   rw [addrFmt_leafInput]
   unfold leafInput
   rw [fmt_thInput _ _ _ _ _ _ (by decide)]
-  change LeafClass.query (pad64 (byte 1::byte 2::_))=pad64 (byte 1::byte 4::_)
+  change LeafClass.query (pad64 (byte 1::byte 2::_))=pad64 (byte 1::byte 3::_)
   apply LeafClass.query_pad_tag
   simp [thInput,tweak,P,hflat]
 
 theorem addrFmt_encInput_valid (lay tau e : Nat) (M : Val) (hM : M.length=32) (c : Nat) :
-    addrFmt (encInput lay tau e M c)=EncodingRotate.query (fmt (encInput lay tau e M c)) := by
+    addrFmt (encInput lay tau e M c)=EncodingMarker.query (EncodingRotate.query (fmt (encInput lay tau e M c))) := by
   rw [addrFmt_encInput]
   apply LeafClass.query_fixed_length
-  have hb := EncodingRotate.query_blocks (fmt (encInput lay tau e M c))
+  have hb := EncodingMarker.query_blocks (EncodingRotate.query (fmt (encInput lay tau e M c)))
+  rw [EncodingRotate.query_blocks] at hb
   have hn : (fmt (encInput lay tau e M c)).1=0 := by
     rw [Ref.fmt_of_tag _ (by simp [encInput,tweak]; decide)]
     simp [pad64,padBlocks,encInput,hM]
-  change (EncodingRotate.query (fmt (encInput lay tau e M c))).1+1=(fmt (encInput lay tau e M c)).1+1 at hb
+  change (EncodingMarker.query (EncodingRotate.query (fmt (encInput lay tau e M c)))).1+1=(fmt (encInput lay tau e M c)).1+1 at hb
   omega
 end SigGolfCandidate.Ref
+
+namespace SigGolfCandidate.Ref.EncodingMarker
+open SigGolfCandidate.Legacy SigGolfCandidate.Rv SigGolfCandidate.Ref.AddressFormat
+set_option exponentiation.threshold 8192
+set_option Elab.async false
+set_option maxRecDepth 10000
+
+theorem words_marker_zero (w0 w1 w2 w4 w5 w6 w7 : Word) :
+    wordsToNat [w0,w1,w2,0,w4,w5,w6,w7]/2^192%2^64=0 := by
+  have h0 := w0.isLt
+  have h1 := w1.isLt
+  have h2 := w2.isLt
+  have hz : (0:Word).toNat=0 := rfl
+  simp only [wordsToNat,hz]
+  norm_num only [Nat.reducePow] at *
+  omega
+
+theorem query_words (w0 w1 w2 w4 w5 w6 w7 : Word) (hc : w0.toNat%65536=1025) :
+    query (queryOfWords 0 [w0,w1,w2,0,w4,w5,w6,w7]) =
+      queryOfWords 0 [BitVec.ofNat 64 (w0.toNat-256),w1,w2,1,w4,w5,w6,w7] := by
+  have hn : wordsToNat [w0,w1,w2,0,w4,w5,w6,w7]<2^512 := wordsToNat_lt _
+  have hw := w0.isLt
+  have hh : w0.toNat-256<2^64 := by omega
+  have hc' : wordsToNat [w0,w1,w2,0,w4,w5,w6,w7]%2^16=1025 := by
+    simp only [wordsToNat]
+    norm_num only [Nat.reducePow]
+    omega
+  have hm := words_marker_zero w0 w1 w2 w4 w5 w6 w7
+  have hout : word (wordsToNat [w0,w1,w2,0,w4,w5,w6,w7]) =
+      wordsToNat [BitVec.ofNat 64 (w0.toNat-256),w1,w2,1,w4,w5,w6,w7] := by
+    rw [word_encoding _ hc' hm]
+    have hz : (0:Word).toNat=0 := rfl
+    have ho : (1:Word).toNat=1 := rfl
+    simp only [wordsToNat,hz,ho,BitVec.toNat_ofNat,Nat.mod_eq_of_lt hh]
+    norm_num only [Nat.reducePow]
+    omega
+  change (⟨0,BitVec.ofNat 512 (word (BitVec.ofNat 512 (wordsToNat [w0,w1,w2,0,w4,w5,w6,w7])).toNat)⟩ : Query)=_
+  rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt hn,hout]
+  rfl
+
+theorem query_node_words (w0 w1 w4 w5 w6 w7 : Word) (hc : w0.toNat%65536=769) :
+    query (queryOfWords 0 [w0,w1,0,0,w4,w5,w6,w7]) =
+      queryOfWords 0 [w0,w1,0,0,w4,w5,w6,w7] := by
+  apply native_node_fixed
+  · change (queryOfWords 0 [w0,w1,0,0,w4,w5,w6,w7]).2.toNat%65536=769
+    rw [queryOfWords_class,hc]
+  · change (BitVec.ofNat 512 (wordsToNat [w0,w1,0,0,w4,w5,w6,w7])).toNat/2^192%2^64=0
+    rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt (show wordsToNat [w0,w1,0,0,w4,w5,w6,w7]<2^512 from wordsToNat_lt _)]
+    exact words_marker_zero w0 w1 0 w4 w5 w6 w7
+end SigGolfCandidate.Ref.EncodingMarker

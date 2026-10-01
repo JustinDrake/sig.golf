@@ -87,7 +87,7 @@ theorem ctr_iff (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (h
 
 /-- After the digest hash (answer `P.a` in DO): the untouched memory below the witness is zero. -/
 def DigestOut (P : PCtx) (s : MachineState) : Prop :=
-  MaskData s ∧ RtabData s ∧ Glob gkD P.wl P.pk s ∧ WitAll P.wl s ∧ KnownOK dgK s ∧
+  MaskData s ∧ RtabData s ∧ Glob gkD P.wl P.pk s 0 ∧ WitAll P.wl s ∧ KnownOK dgK s ∧
   (∀ i, i < 4 → s.getMem (BitVec.ofNat 64 (8 * i)) = P.a.extractLsb' (64 * i) 64) ∧
   (∀ A, A < 0x800 → A % 8 = 0 → 0x60 ≤ A → A ≠ 0xA0 → A ≠ 0xA8 → (A < 0x160 ∨ 0x180 ≤ A) →
     s.getMem (BitVec.ofNat 64 A) = 0) ∧
@@ -108,12 +108,12 @@ theorem fmt_digestInput_words (rho m : List Byte) (hr : rho.length = 16) (hm : m
   rw [← hw, wordsToNat_wordsOfN 8 _ hl]
 
 theorem init_glob (ml pkl wl : List Byte) (s : MachineState) (hs : InitOK ml pkl wl s) :
-    Glob [] wl pkl s := by
+    Glob [] wl pkl s 0 := by
   obtain ⟨-, -, -, hW, hPk, -, hZ, -⟩ := hs
   refine ⟨fun p hp => by simp at hp, hW.lo, hPk, ?_⟩
   intro a ha
   simp only [pSlots, List.mem_cons, List.not_mem_nil, or_false] at ha
-  exact hZ a (by omega) (by omega)
+  simpa [pValue] using hZ a (by omega) (by omega)
 
 theorem startCheck_parts :
     specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] = true ∧
@@ -164,7 +164,7 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
       rw [hmem, memEval_frame_ofNat _ _ _ hA (by
         simp only [specStartOk, List.mem_cons, List.not_mem_nil, or_false]
         rintro p (rfl | rfl | rfl) <;> simp <;> omega)]
-    have hG : Glob gkD wl pkl u := hu.glob _ _ _ hG0
+    have hG : Glob gkD wl pkl u 0 := hu.glob _ _ _ hG0
     refine ⟨u, hu.steps, hu.ecall rfl, hKd (.x5, 0) (by simp [dgK, gkD, baseK]),
       hashArgs_ofNat _ _ _ _ h10 h11 h12 (by omega) (by omega) (by omega) (by decide), ?_, ?_⟩
     · have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; rw [wRho_eq]; omega
@@ -329,7 +329,7 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
     hiE_eval P.A s (by simpa using hw 0 (by decide))
   have hil := P.idx_lt
   have hlook := setup_look s u hu.mem
-  have hGu : Glob gkD P.wl P.pk u := hu.glob _ _ _ hG
+  have hGu : Glob gkD P.wl P.pk u 0 := hu.glob _ _ _ hG
   have hK' := hu.known
   have hidxA : P.idx = P.A % 2 ^ 34 := rfl
   have nbw : nbW0E.eval s = BitVec.ofNat 64 (twLo 10 0 P.idx P.idx) := by
@@ -358,7 +358,7 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
       split
       · rename_i v hv; rw [hv] at hn; cases hn
       · by_cases hp : a ∈ pSlots
-        · exact hG.2.2.2 a hp
+        · simpa [pValue] using hG.2.2.2 a hp
         · obtain ⟨h1, h2, h3, h4, h5⟩ := zeroP_rest a ha hp
           exact hZ a (zeroP_lt a ha) h1 h2 h3 h4 h5
     · rw [hlook 0xC0 (by omega), look_some (e := cbW0E) (by decide +kernel)]; exact cbw

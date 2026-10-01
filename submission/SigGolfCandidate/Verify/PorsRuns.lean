@@ -79,6 +79,9 @@ def dispPc (c : Nat) : Nat := if c < 15 then dispLeafPc c else dispTailPc (c - 1
 def f4Pc (c : Nat) : Nat := if c = 2 then layerPcTab.getD 4 [] |>.getD 0 0
   else if c = 1 then (layerPcTab.getD 4 []).getD 1 0 else (layerPcTab.getD 4 []).getD 2 0
 
+/-- Post-PORS protected marker initialization precedes the layer precode. -/
+def markerPc (c : Nat) : Nat := f4Pc c - 1
+
 /-! ## Expressions -/
 
 def ldR (r : Reg) (off : Nat) : E := .ld (addC (.reg r) (BitVec.ofNat 64 off))
@@ -303,24 +306,32 @@ def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw 0, d⟩
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x130)]
 
 /-- Known at the start of the layer-4 transition: the layer constants the root tail sets
-(`a5 = ttab + 2048`). The masks `x20`, `x21`, the header word `x27 = 0x40401` and the dispatch
+(`a5 = ttab + 2048`). The masks `x20`, `x21`, the header word `x27 = 0x40301` and the dispatch
 mask `sp = TMASK` are loaded from the verifier's data words through `sp = dataBase` and resolved
 from protected memory in `tailF_step`. Retaining the x28=2688 initializer for carried-base subtraction makes the accepting tail take12 instructions. -/
 def rootK : List (Reg × Word) :=
-  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x14, KT4)]
+  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x14, KT4), (.x4, 0x1000000000000000)]
 def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x130)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFDFFD0), (.x21, ldE 0xFDFFD8), (.x27, ldE 0xFDFFC0), (.x2, ldE 0xFDFFC8)], [], f4Pc c, false, 12,
-    [fBr3 false, fBr2 false, fBr1 false], none, 12⟩
+  ⟨[(.x20, ldE 0xFDFFD0), (.x21, ldE 0xFDFFD8), (.x27, ldE 0xFDFFC0), (.x2, ldE 0xFDFFC8)], [], markerPc c, false, 13,
+    [fBr3 false, fBr2 false, fBr1 false], none, 13⟩
 
 def tailFCheck (c : Nat) : Bool :=
-  pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
+  pspecB rootK (runAt tailFKnown [markerPc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
     rootPost [.x22] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br true]) (rejSpec 4 [fBr1 true]) [] [] [] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br true]) (rejSpec 5 [fBr2 true, fBr1 false]) [] [] [] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br false, .br true])
     (rejSpec 6 [fBr3 true, fBr2 false, fBr1 false]) [] [] []
+
+/-- Exact one-instruction transition from PORS's zero marker to the layer marker. -/
+def markerKnown : List (Reg × Word) := [(.x6, 1)]
+def markerRes (c : Nat) : PRes :=
+  ⟨⟨RegFile.withKnown markerKnown, [(⟨none, 0x118⟩, cw 1)], []⟩,
+    pcOf (f4Pc c), false, 1, 1, [], none⟩
+def markerCheck (c : Nat) : Bool :=
+  optBeq (runAt markerKnown [f4Pc c] (markerPc c) []) (markerRes c)
 
 /-! ## Leaves -/
 

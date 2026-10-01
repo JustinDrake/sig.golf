@@ -123,7 +123,7 @@ theorem targetFor_le (lay : Nat) : targetFor lay ≤ 186 := by
 def MaskData (s : MachineState) : Prop :=
   s.getMem (BitVec.ofNat 64 0xFFFFF0) = M1w ∧
   s.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w ∧
-  s.getMem (BitVec.ofNat 64 0xFDFFC0) = 0x40401#64 ∧
+  s.getMem (BitVec.ofNat 64 0xFDFFC0) = 0x40301#64 ∧
   s.getMem (BitVec.ofNat 64 0xFDFFC8) = 0x3fe00#64 ∧
   s.getMem (BitVec.ofNat 64 0xFDFFD0) = M1w ∧
   s.getMem (BitVec.ofNat 64 0xFDFFD8) = M2w
@@ -131,7 +131,7 @@ def MaskData (s : MachineState) : Prop :=
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
 def gkL0 : List (Reg × Word) :=
   baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x2, TMASK),
-    (.x15, TTA5)]
+    (.x15, TTA5), (.x4, 0x1000000000000000)]
 
 /-- The layer phase (the same list: W1a keeps no layer-4-only constant). -/
 def gkL : List (Reg × Word) := gkL0
@@ -156,10 +156,13 @@ theorem WitAll.lo {wl : List Byte} {s : MachineState} (h : WitAll wl s) : WitOK 
 def PkOK (pk : List Byte) (s : MachineState) : Prop :=
   s.getMem 0xA0 = w64 (pk.take 8) ∧ s.getMem 0xA8 = w64 (pk.drop 8)
 
-def PZero (s : MachineState) : Prop := ∀ a ∈ pSlots, s.getMem (BitVec.ofNat 64 a) = 0
+/-- Protected layer marker and node-padding words. PORS retains its separate all-zero invariant. -/
+def pValue (a : Nat) (marker : Word := 1) : Word := if a = 0x118 then marker else 0
 
-def Glob (gk : List (Reg × Word)) (wl pk : List Byte) (s : MachineState) : Prop :=
-  (∀ p ∈ gk, s.getReg p.1 = p.2) ∧ WitOK wl s ∧ PkOK pk s ∧ PZero s
+def PZero (s : MachineState) (marker : Word := 1) : Prop := ∀ a ∈ pSlots, s.getMem (BitVec.ofNat 64 a) = pValue a marker
+
+def Glob (gk : List (Reg × Word)) (wl pk : List Byte) (s : MachineState) (marker : Word := 1) : Prop :=
+  (∀ p ∈ gk, s.getReg p.1 = p.2) ∧ WitOK wl s ∧ PkOK pk s ∧ PZero s marker
 
 /-- A doubleword address that no block may write. -/
 def safeAddr (n : Nat) : Bool :=
@@ -195,10 +198,10 @@ theorem memOK_ne {ws : SymMem} (h : memOK ws = true) (s : MachineState) (A : Nat
     · exact h4 h
   · simp at this
 
-theorem Glob_toState {gk : List (Reg × Word)} {wl pk : List Byte} {s : MachineState}
-    (hG : Glob gk wl pk s) (σ : SymState)
+theorem Glob_toState {gk : List (Reg × Word)} {wl pk : List Byte} {s : MachineState} {marker : Word}
+    (hG : Glob gk wl pk s marker) (σ : SymState)
     (pc : Word) (hm : memOK σ.mem = true) (hr : regsOK gk σ.regs = true) :
-    Glob gk wl pk (σ.toState s pc) := by
+    Glob gk wl pk (σ.toState s pc) marker := by
   obtain ⟨h1, h2, h3, h4⟩ := hG
   have fr : ∀ A, A < 2 ^ 64 → (0x800 ≤ A ∨ A ∈ pSlots ∨ A = 0xA0 ∨ A = 0xA8) →
       (σ.toState s pc).getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
@@ -231,10 +234,10 @@ theorem WitAll_writeHash {wl : List Byte} {s : MachineState} (hW : WitAll wl s)
     if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega)]
   exact hW j hj
 
-theorem Glob_writeHash {gk : List (Reg × Word)} {wl pk : List Byte} {s : MachineState}
-    (hG : Glob gk wl pk s)
+theorem Glob_writeHash {gk : List (Reg × Word)} {wl pk : List Byte} {s : MachineState} {marker : Word}
+    (hG : Glob gk wl pk s marker)
     (ans : BitVec 256) (d : Nat) (hd : s.getReg .x12 = BitVec.ofNat 64 d)
-    (hsafe : safeDest d = true) : Glob gk wl pk (writeHash s ans) := by
+    (hsafe : safeDest d = true) : Glob gk wl pk (writeHash s ans) marker := by
   obtain ⟨h1, h2, h3, h4⟩ := hG
   simp only [safeDest, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true] at hsafe
   obtain ⟨⟨⟨-, hd1⟩, hd2⟩, hd3⟩ := hsafe

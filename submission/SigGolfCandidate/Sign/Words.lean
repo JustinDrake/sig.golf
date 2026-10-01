@@ -382,6 +382,30 @@ theorem wordsOf_le32_pad (c : Nat) : wordsOf (le32 c ++ zeros 12) = [BitVec.ofNa
     wordsOf_append _ _ (by simp), wordsOf_eight _ (by simp), wordsOf_zeros]
   simp [leNat_append, leNat_le32, leNat_zeros]
 
+/-- Native one-block node queries keep their zero public-parameter padding. -/
+theorem marker_node_pad_fixed (lay tau j : Nat) (l r : Val)
+    (hl : l.length=16) (hr : r.length=16) :
+    LeafClass.query (EncodingMarker.query (pad64 (thInput (tweak 3 lay tau 0 j) (l++r)))) =
+      pad64 (thInput (tweak 3 lay tau 0 j) (l++r)) := by
+  obtain ⟨hb,hw⟩ := words_th32 3 lay tau 0 j l r hl hr
+  obtain ⟨l0,l1,hlw⟩ := List.length_eq_two.mp (length_wordsOf_16 l hl)
+  obtain ⟨r0,r1,hrw⟩ := List.length_eq_two.mp (length_wordsOf_16 r hr)
+  rw [pad64_eq_query,hb,hw,hlw,hrw]
+  simp only [twWords,List.cons_append,List.nil_append]
+  rw [EncodingMarker.query_node_words _ _ _ _ _ _ (by
+    simp only [BitVec.toNat_ofNat,Nat.reducePow]
+    omega)]
+  exact LeafClass.query_fixed_length _ (by change (0:Nat)≠10; decide)
+
+theorem addrFmt_nodeInput_valid (lay tau lam j : Nat) (l r : Val)
+    (hl : l.length=16) (hr : r.length=16) (hlay : lay<256)
+    (hlam : lam<2^32) (hj : j<2^32) :
+    addrFmt (nodeInput lay tau lam j l r)=fmt (nodeInput lay tau lam j l r) := by
+  rw [Ref.addrFmt_nodeInput,fmt_nodeInput lay tau lam j l r hl hr hlay hlam hj]
+  have h := marker_node_pad_fixed lay tau (heapIndex (height lay) lam j) l r hl hr
+  rw [pad64_eq _ 0 (by simp [hl,hr]) (by simp [hl,hr])] at h
+  simpa [hl,hr,zeros] using h
+
 /-- The encoding input of a 32-byte message (the two children of the root of the tree below, or `P ++`
 the PORS root): the message right after the tweak. -/
 theorem words_encInput (lay tau e : Nat) (M : Val) (hM : M.length = 32) (c : Nat) :
@@ -395,10 +419,11 @@ theorem words_encInput (lay tau e : Nat) (M : Val) (hM : M.length = 32) (c : Nat
     wordsOf_append _ _ (by simp), wordsOf_tweak, wordsOf_append _ _ (by omega), wordsOf_le32_pad]
   simp
 
+set_option maxRecDepth 10000 in
 /-- The complete child pair follows the padded counter after the encoding-only rotation. -/
 theorem addrFmt_encInput_words (lay tau e : Nat) (M : Val) (hM : M.length = 32) (c : Nat) :
     addrFmt (encInput lay tau e M c) = queryOfWords 0
-      (twWords 4 lay tau 0 e ++ [BitVec.ofNat 64 (c % 2^32),0] ++ wordsOf M) := by
+      (twWords 3 lay tau 0 e ++ [BitVec.ofNat 64 (c % 2^32),1] ++ wordsOf M) := by
   obtain ⟨hn,hw⟩ := words_encInput lay tau e M hM c
   have hlen : (wordsOf M).length = 4 := by
     rw [← List.take_append_drop 16 M, wordsOf_append _ _ (by simp; omega), List.length_append,
@@ -409,8 +434,15 @@ theorem addrFmt_encInput_words (lay tau e : Nat) (M : Val) (hM : M.length = 32) 
   rw [addrFmt_encInput_valid lay tau e M hM c,hf,pad64_eq_query,hn,hw,hm]
   simp only [twWords,Nat.reduceMod,Nat.zero_mod,Nat.mul_zero,Nat.add_zero,
     List.cons_append,List.nil_append]
-  apply EncodingRotate.query_words
+  rw [EncodingRotate.query_words _ _ _ _ _ _ _ _ (by
+    simp only [BitVec.toNat_ofNat,Nat.reducePow];omega),
+    EncodingMarker.query_words _ _ _ _ _ _ _ (by
+    simp only [BitVec.toNat_ofNat,Nat.reducePow];omega)]
+  congr 2
   simp only [BitVec.toNat_ofNat,Nat.reducePow]
+  have ht : tau/2^32%256<256 := Nat.mod_lt _ (by decide)
+  have hl : lay%256<256 := Nat.mod_lt _ (by decide)
+  congr 1
   omega
 
 theorem words_rndInput (S m : List Byte) (hS : S.length = 32) (hm : m.length = 32) (a : Nat) :

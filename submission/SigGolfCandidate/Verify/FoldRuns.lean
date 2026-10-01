@@ -30,7 +30,7 @@ def fk (kind : Bool) (a0 a1 : Nat) : List (Reg × Word) :=
 
 def fkeep (kind : Bool) : List Reg :=
   if kind then [.x16, .x17, .x22, .x23, .x25, .x27, .x28, .x29, .x30, .x31]
-  else [.x14, .x16, .x17, .x23, .x25, .x27, .x30, .x31]
+  else [.x14, .x16, .x17, .x23, .x27, .x30, .x31]
 
 def okFold (kind : Bool) (o : Option PRes) (e : PRes) (post : List (Reg × Word)) : Bool :=
   optBeq o e && resOK (gkOf kind) e && knownB post e && keepB (fkeep kind) e
@@ -106,8 +106,7 @@ def lvlNb (lay ci v kk : Nat) : E :=
 def lvlMem (lay lam t : Nat) (nb : E) : List (Addr × E) :=
   [(⟨none, BitVec.ofNat 64 0x348⟩, stW 0x348 nb),
    (⟨none, BitVec.ofNat 64 (0x370 - 16 * t + 8)⟩, ldE (sibAddr lay lam + 8)),
-   (⟨none, BitVec.ofNat 64 (0x370 - 16 * t)⟩, ldE (sibAddr lay lam))] ++
-  (if lam = 0 then [(⟨none, BitVec.ofNat 64 0x340⟩, .bin (.st .b 1) (ldE 0x340) (cw 3))] else [])
+   (⟨none, BitVec.ofNat 64 (0x370 - 16 * t)⟩, ldE (sibAddr lay lam))]
 
 /-- Known registers at the start of level `lam`. -/
 def foldK (lay len : Nat) : List (Reg × Word) :=
@@ -130,17 +129,17 @@ into chunk 1 (a jump to a symbolic target), or for the root `li a2, dst` and its
 def lvlExp (lay ci v kk : Nat) : PRes :=
   let lam := chB0 lay ci + kk
   let mem := lvlMem lay lam (v / 2 ^ kk % 2) (lvlNb lay ci v kk)
-  let hs := if lam = 0 then 2 else 0
+  let hs := if lam = 0 then 1 else 0
   if lam + 1 = heightL lay then
     ⟨⟨(lvlRegs lay lam).set .x12 (cw (dstOf lay)), mem, []⟩, pcOf (m4Pc lay ci v kk + 8), true, 6, 6, [], none⟩
   else if kk + 1 < chBits lay ci then
     let rf := if isConstLvl lay lam then lvlRegs lay lam
-      else (lvlRegs lay lam).set .x4 (.bin .srl (.reg .x23) (cw (lam + 1)))
+      else (lvlRegs lay lam).set .x25 (.bin .srl (.reg .x23) (cw (lam + 1)))
     let n := hs + (if isConstLvl lay lam then 6 else 7)
     ⟨⟨rf.set .x12 (cw (nodeDst lay (lam + 1) (v / 2 ^ (kk + 1) % 2))), mem, []⟩,
       pcOf (m4Pc lay ci v (kk + 1) + 1), true, n, n, [], none⟩
   else
-    ⟨⟨((lvlRegs lay lam).set .x4 (cw (m4Hi lay (ci + 1)))).set .x3 (dispGp lay (ci + 1)), mem, []⟩,
+    ⟨⟨((lvlRegs lay lam).set .x25 (cw (m4Hi lay (ci + 1)))).set .x3 (dispGp lay (ci + 1)), mem, []⟩,
       0, false, hs + 11, hs + 11, [], some (dispTgt lay (ci + 1))⟩
 
 /-- Direction list of a level run: stop at the dispatch jump at the end of a chunk. -/

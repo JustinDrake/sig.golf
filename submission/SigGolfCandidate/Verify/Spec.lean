@@ -28,10 +28,10 @@ def specB (gk : List (Reg × Word)) (o : Option PRes) (sp : Spec) (post : List (
       listBeq Br.beq r.brs sp.brs && optEBeq r.spc sp.spc && resOK gk r && knownB post r &&
       keepB keep r
 
-theorem Glob_toState' {gk0 gk : List (Reg × Word)} {wl pk : List Byte} {s : MachineState}
-    (hG : Glob gk0 wl pk s) (σ : SymState)
+theorem Glob_toState' {gk0 gk : List (Reg × Word)} {wl pk : List Byte} {s : MachineState} {marker : Word}
+    (hG : Glob gk0 wl pk s marker) (σ : SymState)
     (pc : Word) (hm : memOK σ.mem = true) (hr : regsOK gk σ.regs = true) :
-    Glob gk wl pk (σ.toState s pc) := by
+    Glob gk wl pk (σ.toState s pc) marker := by
   obtain ⟨h1, h2, h3, h4⟩ := hG
   have fr : ∀ A, A < 2 ^ 64 → (0x800 ≤ A ∨ A ∈ pSlots ∨ A = 0xA0 ∨ A = 0xA8) →
       (σ.toState s pc).getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
@@ -54,7 +54,7 @@ structure SpecRes (gk : List (Reg × Word)) (sp : Spec) (post : List (Reg × Wor
     (s t : MachineState) : Prop where
   steps : Steps image s sp.steps sp.cycles t
   ecall : sp.ecall = true → fetch image t = some (.base .ECALL)
-  glob : ∀ gk0 wl pk, Glob gk0 wl pk s → Glob gk wl pk t
+  glob : ∀ {marker : Word} gk0 wl pk, Glob gk0 wl pk s marker → Glob gk wl pk t marker
   wall : ∀ wl, WitAll wl s → WitAll wl t
   known : KnownOK post t
   keep : ∀ x ∈ keep, t.getReg x = s.getReg x
@@ -82,7 +82,7 @@ theorem spec_run {gk known post : List (Reg × Word)} {stops : List Nat} {n : Na
     keepB_ok hkeep s, ?_, ?_, ?_, ?_⟩⟩
   · rw [hcy, hst] at hst'; exact hst'
   · intro he; exact hec' (hec.trans he)
-  · intro gk0 wl pk hG; exact Glob_toState' hG r.st _ hok.1.1 hok.1.2
+  · intro marker gk0 wl pk hG; exact Glob_toState' hG r.st _ hok.1.1 hok.1.2
   · intro p hp
     rw [PRes.toState_getReg, E.beq_eq (List.all_eq_true.mp hregs p hp)]
   · intro A; rw [PRes.toState_getMem, hmem']
@@ -127,7 +127,7 @@ theorem specO_run {gk known post : List (Reg × Word)} {stops : List Nat} {n : N
     knownB_ok hkn s, keepB_ok hkeep s, ?_, ?_, ?_, ?_⟩⟩
   · rw [hcy, hst] at hst'; exact hst'
   · intro he; exact hec' (hec.trans he)
-  · intro gk0 wl pk hG; exact Glob_toState' hG r.st _ hmok hrok
+  · intro marker gk0 wl pk hG; exact Glob_toState' hG r.st _ hmok hrok
   · intro p hp
     rw [PRes.toState_getReg, E.beq_eq (List.all_eq_true.mp hregs p hp)]
   · intro A; rw [PRes.toState_getMem, hmem']

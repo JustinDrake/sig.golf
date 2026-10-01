@@ -173,7 +173,7 @@ def vdTail : List (BitVec 8) :=
   [0, 0, 0, 0, 0, 0, 0, 0,
    0xc7, 0x71, 0x1c, 0xc7, 0x71, 0x1c, 0xc7, 0x71, 0x3f, 0xf0, 0x03, 0x3f, 0xf0, 0x03, 0x3f, 0xf0]
 
-def vdRoot : List (BitVec 8) := [1, 4, 4, 0, 0, 0, 0, 0, 0, 254, 3, 0, 0, 0, 0, 0, 199, 113, 28, 199, 113, 28, 199, 113, 63, 240, 3, 63, 240, 3, 63, 240]
+def vdRoot : List (BitVec 8) := [1, 3, 4, 0, 0, 0, 0, 0, 0, 254, 3, 0, 0, 0, 0, 0, 199, 113, 28, 199, 113, 28, 199, 113, 63, 240, 3, 63, 240, 3, 63, 240]
 
 theorem vdRoot_length : vdRoot.length = 32 := rfl
 
@@ -281,7 +281,7 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
     · change withData.getMem (BitVec.ofNat 64 (0xFDFFC0+8*16391)) = M2w
       rw [wbw_word vdata blank 0xFDFFC0 (by omega) 16391 (by omega), vdata_slice_hi 16391 (by omega)]
       decide +kernel
-    · change withData.getMem (BitVec.ofNat 64 (0xFDFFC0+8*0)) = 0x40401#64
+    · change withData.getMem (BitVec.ofNat 64 (0xFDFFC0+8*0)) = 0x40301#64
       rw [wbw_word vdata blank 0xFDFFC0 (by omega) 0 (by omega), vdata_slice_root 0 (by decide)]
       decide +kernel
     · change withData.getMem (BitVec.ofNat 64 (0xFDFFC0+8*1)) = 0x3fe00#64

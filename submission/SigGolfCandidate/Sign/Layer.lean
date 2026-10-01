@@ -422,7 +422,7 @@ theorem tree_setup (S : List Byte) (lay tau h e d0 d1 : Nat) (hlay : lay < 6) (h
     simp only [htt, blk509.res, rv_simp]; rfl
   · simp only [htt, blk509.res, rv_simp, t8]
     bvsimp [ofNat_eq_iff]
-    rw [ofNat_or_disjoint (lay * 65536) 1025 16 (by omega) (by norm_num) (by omega)]
+    rw [ofNat_or_disjoint (lay * 65536) 769 16 (by omega) (by norm_num) (by omega)]
     unfold twWord0; congr 1
     rw [Nat.div_eq_of_lt (by omega : tau < 2 ^ 32), Nat.mod_eq_of_lt (a := lay) (by omega)]; omega
   · rw [f.readWords _ _ (by norm_num) (by intro i hi; omega), tst.lbP]

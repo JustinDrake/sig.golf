@@ -27,12 +27,12 @@ def LeafOut (w : List Byte) (idx : Nat) (u : MachineState) (v : Val) (t : Machin
 theorem leaf_sim (w : List Byte) (idx : Nat) (lay tau e : Nat) (hl : lay < 5) (htau : tau < 2 ^ 30)
     (he : e < 2048) (ends : List Val) (hlen : ends.length = 42) (hv : ∀ v ∈ ends, v.length = 16)
     (t : MachineState) (hpc : t.pc = pcOf 438) (hc : LCtx w idx t) (hs : Slots t 0x30260 ends)
-    (m0 : t.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (1025 + 65536 * lay))
+    (m0 : t.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (769 + 65536 * lay))
     (m8 : t.getMem (BitVec.ofNat 64 0x30248) = BitVec.ofNat 64 (tau + 2 ^ 32 * e)) :
     Sim eimg t 91 (hash16 (leafInput lay tau e ends)) (LeafOut w idx t) := by
   obtain ⟨t1, hs1, e1, p1, x10, x11, x12, r1, m1⟩ := blk438_run t hpc hc.x25
-  have hw := words_thVals 4 lay tau 0 e ends hv 10 (by rw [hlen])
-  have hq : hashInput t1 = pad64 (thInput (tweak 4 lay tau 0 e) ends.flatten) := by
+  have hw := words_thVals 3 lay tau 0 e ends hv 10 (by rw [hlen])
+  have hq : hashInput t1 = pad64 (thInput (tweak 3 lay tau 0 e) ends.flatten) := by
     refine hashInput_eq_pad64 t1 _ 10 hw.1 (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
     rw [x10, hw.2, show 8 * (10 + 1) = 2 + (2 + 2 * ends.length) by rw [hlen],
       readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_two]
@@ -44,7 +44,7 @@ theorem leaf_sim (w : List Byte) (idx : Nat) (lay tau e : Nat) (hl : lay < 5) (h
       Nat.mod_eq_of_lt (by omega : tau < 2 ^ 32), Nat.mod_eq_of_lt (by omega : e < 2 ^ 32)]
     simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true]
     exact ofNat_congr (by ring)
-  have haddr := addrFmt_leafInput_tag4 lay tau e ends hlen hv
+  have haddr := addrFmt_leafInput_tag3 lay tau e ends hlen hv
   have hq' : hashInput t1 = addrFmt (leafInput lay tau e ends) := hq.trans haddr.symm
   have hb : (fmt (leafInput lay tau e ends)).blocks = 11 := by
     rw [← addrFmt_blocks, haddr]
@@ -82,7 +82,7 @@ theorem hashInput_node (t : MachineState) (lay tau lam j : Nat) (l r : Val) (hl 
     (hw : t.readWords (t.getReg .x10) 8 =
       twWords 3 lay tau 0 (heapIndex (height lay) lam j) ++ [0, 0] ++ wordsOf l ++ wordsOf r) :
     hashInput t = addrFmt (nodeInput lay tau lam j l r) := by
-  rw [addrFmt_nodeInput, fmt_nodeInput lay tau lam j l r hl hr hlay hlam hj]
+  rw [addrFmt_nodeInput_valid _ _ _ _ _ _ hl hr hlay hlam hj, fmt_nodeInput lay tau lam j l r hl hr hlay hlam hj]
   have hw' := words_th32 3 lay tau 0 (heapIndex (height lay) lam j) l r hl hr
   rw [hashInput_eq_pad64 t _ 0 hw'.1 h11 (by norm_num) h10 (by rw [show 8 * (0 + 1) = 8 from rfl, hw, hw'.2]),
     pad64_eq _ 0 (by simp [hl, hr]) (by simp [hl, hr])]

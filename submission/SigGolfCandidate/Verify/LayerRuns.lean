@@ -50,14 +50,14 @@ def sibSlot (lay t : Nat) : Nat := if xLeft lay t then 0x130 else 0x120
 def topSib (lay : Nat) : Nat := sibAddr (lay + 1) (heightL (lay + 1) - 1)
 
 /-- Known registers at the transition start. -/
-def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x130), (.x27, 0x40401), (.x14, KT4)]
+def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x130), (.x27, 0x40301), (.x14, KT4)]
 def aK (lay t : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, BitVec.ofNat 64 (encD lay t)), (.x27, BitVec.ofNat 64 (hWord (lay + 1) + 768)), (.x22, BitVec.ofNat 64 (s6N (lay + 1)))]
+  gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, BitVec.ofNat 64 (encD lay t)), (.x27, BitVec.ofNat 64 (hWord (lay + 1) + 512)), (.x22, BitVec.ofNat 64 (s6N (lay + 1)))]
 def preK (lay t : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay t
 
 /-- Known registers after the encoding hash call of transition copy `t`. -/
 def bK (lay t : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x10, BitVec.ofNat 64 (encB lay t)), (.x11, 64),
+  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 512)), (.x10, BitVec.ofNat 64 (encB lay t)), (.x11, 64),
       (.x12, BitVec.ofNat 64 (encD lay t))] ++
     (if lay = 4 then [(.x14, KT4)] else [(.x22, BitVec.ofNat 64 (s6N (lay + 1)))])
 
@@ -84,7 +84,7 @@ def specA (lay t : Nat) : Spec :=
   ⟨[(.x23, uHE lay), (.x30, carryEr lay), (.x31, x31Er lay)],
    [(⟨none, BitVec.ofNat 64 (encB lay t + 16)⟩, ctrE lay),
     (⟨none, BitVec.ofNat 64 (encB lay t + 8)⟩, x31Er lay),
-    (⟨none, BitVec.ofNat 64 (encB lay t)⟩, cw (hWord lay + 768))] ++
+    (⟨none, BitVec.ofNat 64 (encB lay t)⟩, cw (hWord lay + 512))] ++
    (if lay = 4 then [] else
      [(⟨none, BitVec.ofNat 64 (sibSlot lay t + 8)⟩, ldE (topSib lay + 8)),
       (⟨none, BitVec.ofNat 64 (sibSlot lay t)⟩, ldE (topSib lay))]),
@@ -98,17 +98,17 @@ def selOf (a : BitVec 256) : Nat :=
   if a.getLsbD 127 then (if SigGolfCandidate.Ref.encodingGate a then 3 else 1)
   else if a.getLsbD 63 then 2 else 0
 
-def selSteps (hi : Nat) : Nat := if hi = 0 then 4 else if hi = 1 then 5 else 7
+def selSteps (hi : Nat) : Nat := if hi = 0 then 2 else if hi = 2 then 5 else 6
 def d0E (out hi : Nat) : E := ldE (out + (if hi = 2 then 8 else if hi = 3 then 16 else 0))
 def d1E (out hi : Nat) : E := ldE (out + (if hi = 2 then 16 else if hi = 3 then 24 else 8))
 def encObligs : List Oblig := []
 theorem encObligs_holds (s : MachineState) : ∀ o ∈ encObligs, o.holds s := by simp [encObligs]
 def selLow (hi : Nat) : Bool := decide (hi = 0 ∨ hi = 2)
 def selSecond (hi : Nat) : Bool := decide (hi = 0 ∨ hi = 1)
-def selDirs (hi : Nat) : List Dir := [.br (selLow hi), .br (selSecond hi)]
+def selDirs (hi : Nat) : List Dir := [.br (selLow hi), .br (if selLow hi then selSecond hi else decide (hi = 3))]
 def selBrs (out hi : Nat) : List Br :=
   [(if selLow hi then ⟨.ge, ldE out, cw 0, selSecond hi⟩
-    else ⟨.eq, E.bin .srl (ldE out) (cw 60), cw 0, selSecond hi⟩),
+    else ⟨.geu, ldE out, cw (2 ^ 60), decide (hi = 3)⟩),
    ⟨.ge, ldE (out + 8), cw 0, selLow hi⟩]
 
 def m1E : E := .c M1w
@@ -129,7 +129,7 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E (out hi : Nat) : E := .bin .add (.bin .and (.bin .sll (d0E out hi) (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 (out hi : Nat) : E := .bin .and (.bin .add (.bin .and (.bin .sll (d0E out hi) (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB (lay : Nat) : Nat := (if lay = 4 then 29 else 28)
+def stepsB (lay : Nat) : Nat := (if lay = 4 then 28 else 27)
 def stepsBPath (hi lay : Nat) : Nat := (if lay = 4 then 22 else 21) + selSteps hi
 def cyclesBPath (hi lay : Nat) : Nat := stepsBPath hi lay + 3
 
@@ -140,20 +140,31 @@ theorem cyclesBPath_le (hi lay : Nat) : cyclesBPath hi lay ≤ stepsB lay + 3 :=
 /-- One REMU costs four cycles rather than one. -/
 def cyclesB (lay : Nat) : Nat := stepsB lay + 3
 
+/-- AB has already checked both padding bits. BC checks its new high word; CD checks the OR. -/
+def padDirs (hi : Nat) (bad : Bool) : List Dir :=
+  if hi = 0 ∨ hi = 1 then [] else [.br (if hi = 2 then !bad else bad)]
+def padBrs (out hi : Nat) (bad : Bool) : List Br :=
+  if hi = 0 ∨ hi = 1 then [] else
+    [if hi = 2 then ⟨.ge, d1E out hi, cw 0, !bad⟩ else ⟨.lt, orE out hi, cw 0, bad⟩]
+
 def specBok (out hi : Nat) (lay : Nat) : Spec :=
   ⟨[(.x14, (x14E out hi)), (.x16, (d0E out hi)), (.x17, (d1E out hi))], [], 0, false, stepsBPath hi lay,
-   ([⟨.ne, (swS out hi lay), .c (KTof lay), false⟩, ⟨.lt, (orE out hi), .c 0, false⟩] ++ selBrs out hi), some (tgt0 out hi), cyclesBPath hi lay⟩
+   ([⟨.ne, (swS out hi lay), .c (KTof lay), false⟩] ++ padBrs out hi false ++ selBrs out hi), some (tgt0 out hi), cyclesBPath hi lay⟩
 
 /-- Known registers on entry of the chain code; chain 0 initializes `x25` from `x27`. -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
   chK0 ++ [(.x22, BitVec.ofNat 64 (s6N lay)),
-    (.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x1, pcOf (retPc lay c))]
+    (.x27, BitVec.ofNat 64 (hWord lay + 512)), (.x1, pcOf (retPc lay c))]
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
-def specRej1 (out hi : Nat) : Spec := ⟨rejK, [], rejectPc + 2, true, selSteps hi + 5, [⟨.lt, (orE out hi), .c 0, true⟩] ++ selBrs out hi, none, selSteps hi + 5⟩
+def rej1Steps (hi : Nat) : Nat := if hi = 1 then 8 else 11
+def specRej1 (out hi : Nat) : Spec := ⟨rejK, [], rejectPc + 2, true, rej1Steps hi,
+  padBrs out hi true ++ selBrs out hi, none, rej1Steps hi⟩
 def specRej2 (out hi : Nat) (lay : Nat) : Spec :=
-  ⟨rejK, [], rejectPc + 2, true, 19 + selSteps hi, [⟨.ne, (swS out hi lay), .c (KTof lay), true⟩, ⟨.lt, (orE out hi), .c 0, false⟩] ++ selBrs out hi, none, 22 + selSteps hi⟩
+  ⟨rejK, [], rejectPc + 2, true, 19 + selSteps hi,
+    [⟨.ne, (swS out hi lay), .c (KTof lay), true⟩] ++ padBrs out hi false ++ selBrs out hi,
+    none, 22 + selSteps hi⟩
 
 /-! ## Leaf -/
 
@@ -161,16 +172,16 @@ def specRej2 (out hi : Nat) (lay : Nat) : Spec :=
 chunk 0. -/
 def leafSteps (lay : Nat) : Nat := if lay = 0 then 9 else 8
 
-def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x22, BitVec.ofNat 64 (s6N lay))]
+def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 512)), (.x22, BitVec.ofNat 64 (s6N lay))]
 
 def specLeaf (lay : Nat) : Spec :=
   ⟨[(.x10, cw 832), (.x11, cw 704)],
-   [(⟨none, BitVec.ofNat 64 840⟩, .reg .x31), (⟨none, BitVec.ofNat 64 832⟩, cw (hWord lay + 768))],
+   [(⟨none, BitVec.ofNat 64 840⟩, .reg .x31), (⟨none, BitVec.ofNat 64 832⟩, cw (hWord lay + 512))],
    0, false, leafSteps lay, [], some (dispTgt lay 0), leafSteps lay⟩
 
 def leafKeep : List Reg := [.x16, .x17, .x23, .x30, .x31]
 def leafPost (lay : Nat) : List (Reg × Word) :=
-  fk false 0x340 704 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x22, BitVec.ofNat 64 (s6N lay))]
+  fk false 0x340 704 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 512)), (.x22, BitVec.ofNat 64 (s6N lay))]
 
 /-! ## Compare -/
 
@@ -188,10 +199,13 @@ def specCR1 (t : Nat) : Spec :=
 
 /-- Everything of transition copy `t` of layer `lay`. -/
 def halfCheck (lay t : Nat) (hi : Nat) : Bool :=
-  specOB gkL (runAt (bK lay t) [] (encPc lay t + 1) (selDirs hi ++ [.br false, .br false, .jmp])) (specBok (encD lay t) hi lay) encObligs
-    (chKa lay t) [.x23, .x30, .x31] &&
-  specOB [] (runAt (bK lay t) [] (encPc lay t + 1) (selDirs hi ++ [.br true])) (specRej1 (encD lay t) hi) encObligs [] [] &&
-  specOB [] (runAt (bK lay t) [] (encPc lay t + 1) (selDirs hi ++ [.br false, .br true])) (specRej2 (encD lay t) hi lay) encObligs [] []
+  if hi = 1 then
+    specOB [] (runAt (bK lay t) [] (encPc lay t + 1) (selDirs hi)) (specRej1 (encD lay t) hi) encObligs [] []
+  else
+    specOB gkL (runAt (bK lay t) [] (encPc lay t + 1) (selDirs hi ++ padDirs hi false ++ [.br false, .jmp])) (specBok (encD lay t) hi lay) encObligs
+      (chKa lay t) [.x23, .x30, .x31] &&
+    (hi == 0 || specOB [] (runAt (bK lay t) [] (encPc lay t + 1) (selDirs hi ++ padDirs hi true)) (specRej1 (encD lay t) hi) encObligs [] []) &&
+    specOB [] (runAt (bK lay t) [] (encPc lay t + 1) (selDirs hi ++ padDirs hi false ++ [.br true])) (specRej2 (encD lay t) hi lay) encObligs [] []
 
 def copyCheck (lay t : Nat) : Bool :=
   specB gkL (runAt (preK lay t) [] (preStart lay t) []) (specA lay t) (bK lay t) [] &&

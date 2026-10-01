@@ -58,12 +58,12 @@ theorem layFC_check (L : LCtx) (hL : L.ok) :
 /-- Carried through the leaf and the fold of layer `lay` to the transition of layer `lay - 1`:
 the tweak word, `tau`, the CB word, and the chain array of the layers `< lay` still the witness. -/
 def LeafCarry (L : LCtx) (s : MachineState) : Prop :=
-  s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay + 768) ∧ s.getReg .x30 = BitVec.ofNat 64 (if L.lay = 0 then L.e else L.tau) ∧
+  s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay + 512) ∧ s.getReg .x30 = BitVec.ofNat 64 (if L.lay = 0 then L.e else L.tau) ∧
   CB0 s ∧ Fresh L.wl L.lay 42 s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N L.lay)
 
 /-- The leaf tweak word 0 with byte 1 (the tag 2) replaced by 3: the node tweak word 0. -/
 theorem leaf_nb0 (lay : Nat) (hl : lay < 5) :
-    StoreKind.merge .b (BitVec.ofNat 64 (hWord lay + 768)) 1 (BitVec.ofNat 64 3) =
+    BitVec.ofNat 64 (hWord lay + 512) =
       BitVec.ofNat 64 (1 + 256 * 3 + 65536 * lay) := by
   interval_cases lay <;> decide +kernel
 
@@ -134,9 +134,9 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       simp only [leafKeep, List.mem_cons, List.not_mem_nil, or_false] at hx
       rcases hx with rfl | rfl | rfl | rfl | rfl <;> simp [fkeep]
     exact (hkeep2 x hx').trans (hu.keep x hx)
-  have h27u : u.getReg .x27 = BitVec.ofNat 64 (hWord L.lay + 768) := by
+  have h27u : u.getReg .x27 = BitVec.ofNat 64 (hWord L.lay + 512) := by
     rw [hkeep2 .x27 (by simp [fkeep])]
-    exact hu.known (.x27, BitVec.ofNat 64 (hWord L.lay + 768)) (by simp [leafPost])
+    exact hu.known (.x27, BitVec.ofNat 64 (hWord L.lay + 512)) (by simp [leafPost])
   have h22u : u.getReg .x22 = BitVec.ofNat 64 (s6N L.lay) := by
     rw [s6N_eq]
     exact hK2'.1 (.x22, BitVec.ofNat 64 (6336 + 2688 * L.lay)) (by simp [foldK])
@@ -146,7 +146,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     rw [hmem, memEval_frame_ofNat _ _ _ hA (by
       simp only [specLeaf, List.mem_cons, List.not_mem_nil, or_false]
       rintro p (rfl | rfl) <;> simp <;> omega)]
-  have hP : ∀ a ∈ pSlots, s.getMem (BitVec.ofNat 64 a) = 0 := hG.2.2.2
+  have hP : PZero s := hG.2.2.2
   have hGu : Glob gkL L.wl L.pk u := hglob2 _ _ (hu.glob _ _ _ hG)
   refine ⟨u, hu.steps.trans hst2, hec2, hK2'.1 (.x5, 0) (by simp [foldK, fk, gkOf, gkL, gkL0, baseK]),
     hashArgs_ofNat _ _ _ _ h10 h11 h12 (by omega) (by omega) (by omega)

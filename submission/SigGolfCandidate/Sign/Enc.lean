@@ -327,10 +327,10 @@ structure EncMem (lay tau e : Nat) (M : Val) (u : MachineState) : Prop where
   htau : tau < 2 ^ 30
   he : e < 2048
   hM : M.length = 32
-  eb0 : u.getMem (BitVec.ofNat 64 0x100) = twWord0 4 lay tau 0
+  eb0 : u.getMem (BitVec.ofNat 64 0x100) = twWord0 3 lay tau 0
   eb8 : u.getMem (BitVec.ofNat 64 0x108) = BitVec.ofNat 64 (tau + 2 ^ 32 * e)
   ebM : u.readWords (BitVec.ofNat 64 0x120) 4 = wordsOf M
-  eb56 : u.getMem (BitVec.ofNat 64 0x118) = 0
+  eb56 : u.getMem (BitVec.ofNat 64 0x118) = 1
   x5 : u.getReg .x5 = 0
   x7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 22)
   x26 : u.getReg .x26 = swM1

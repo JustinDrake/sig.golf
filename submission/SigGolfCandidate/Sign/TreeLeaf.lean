@@ -45,7 +45,7 @@ structure TreeCtx (S : List Byte) (x : List Nat) (p : TreePar) (tt : MachineStat
   pbS : tt.readWords (BitVec.ofNat 64 0x6C0) 4 = wordsOf S
   cb0 : lo32 (tt.getMem (BitVec.ofNat 64 0xC0)) = BitVec.ofNat 32 (0x101 + 65536 * p.lay)
   cbP : tt.readWords (BitVec.ofNat 64 0xD0) 4 = [0, 0, 0, 0]
-  lb0 : tt.getMem (BitVec.ofNat 64 0x340) = twWord0 4 p.lay p.tau 0
+  lb0 : tt.getMem (BitVec.ofNat 64 0x340) = twWord0 3 p.lay p.tau 0
   lbP : tt.readWords (BitVec.ofNat 64 0x350) 2 = [0, 0]
   nbP : tt.readWords (BitVec.ofNat 64 0x1D0) 2 = [0, 0]
 
@@ -167,8 +167,8 @@ theorem tleaf_body (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : Tree
   have pc3 : t3.pc = pcOf 588 := by simp only [ht3, blk584.res, rv_simp]
   have fl3 : Frame tl t3 (chainW ⟨p.lay, p.tau, p.e, j, p.sigl⟩) := (cframe.trans f3).mono (by
     intro x hx; rcases hx with h | h; exact h; exact h.elim)
-  have hq : hashInput t3 = pad64 (thInput (tweak 4 p.lay p.tau 0 j) cs.1.flatten) := by
-    obtain ⟨hn, hw'⟩ := words_thVals 4 p.lay p.tau 0 j cs.1 hcv1 10 (by rw [hc1'])
+  have hq : hashInput t3 = pad64 (thInput (tweak 3 p.lay p.tau 0 j) cs.1.flatten) := by
+    obtain ⟨hn, hw'⟩ := words_thVals 3 p.lay p.tau 0 j cs.1 hcv1 10 (by rw [hc1'])
     refine hashInput_eq_pad64 t3 _ 10 hn (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
     rw [hw', x10, show 8 * (10 + 1) = 1 + 1 + 2 + 2 * 42 from rfl]
     rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add]
@@ -190,7 +190,7 @@ theorem tleaf_body (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : Tree
     exact congrArg (· + 1) (words_thVals 2 p.lay p.tau 0 j cs.1 hcv1 10 (by rw [hc1'])).1
   refine (Sim.steps hs3 (Sim.hash16_bindF (W := 2) e3 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by omega) (by omega)
-      (by norm_num)) (hq.trans (addrFmt_leafInput_tag4 p.lay p.tau j cs.1 hc1' hcv1).symm) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
+      (by norm_num)) (hq.trans (addrFmt_leafInput_tag3 p.lay p.tau j cs.1 hc1' hcv1).symm) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
   set t4 := writeHash t3 a with ht4
   have f4 : Frame t3 t4 (fun x => 0xB0000 + 16 * j ≤ x ∧ x < 0xB0000 + 16 * j + 32) :=
     frame_writeHash t3 a _ x12 (by omega)

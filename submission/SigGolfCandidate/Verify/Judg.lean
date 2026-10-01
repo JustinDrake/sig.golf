@@ -188,7 +188,7 @@ theorem Good.encodingHashF {s : MachineState} {N C : Nat} {x : List Byte}
 /-- Total encoding formatting, including malformed message lengths. -/
 theorem fmt_enc (lay tau e : Nat) (M : Val) (c : Nat) :
     addrFmt (encInput lay tau e M c) =
-      LeafClass.query (EncodingRotate.query (pad64 (encInput lay tau e M c))) := by
+      LeafClass.query (EncodingMarker.query (EncodingRotate.query (pad64 (encInput lay tau e M c)))) := by
   rw [addrFmt_encInput, Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide)]
 
 /-- Zero-padded `thInput` for the tags that `addrFmt` leaves alone (not 1, 3, 12). -/

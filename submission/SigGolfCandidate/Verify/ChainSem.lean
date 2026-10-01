@@ -233,7 +233,7 @@ def CB0 (s : MachineState) : Prop := (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2
 /-- The registers and buffers common to the whole chain phase (`acc` = the chain ends so far). -/
 def ChBase (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
   Glob gkL c.wl c.pk s ∧ KnownOK chK0 s ∧ c.Regs s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N c.lay) ∧
-  s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay + 768) ∧ s.getReg .x1 = c.ret ∧ LBOk acc s ∧
+  s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay + 512) ∧ s.getReg .x1 = c.ret ∧ LBOk acc s ∧
   acc.length = i ∧ (∀ v ∈ acc, v.length = 16) ∧ CB0 s
 
 /-- Before chain `i`'s code (`x25` = the previous chain's tweak word 0). -/
@@ -448,6 +448,7 @@ theorem addrFmt_chainInputP_words (lay tau e i mu : Nat) (pad : List Byte) (v : 
   have hw : AddressFormat.oldHeader lay 0 i (mu - 1) < 2 ^ 64 := by unfold AddressFormat.oldHeader; omega
   rw [addrFmt, fmt_chainInputP_words lay tau e i mu pad v hp hv hmu hmu' (by omega), hd,
     AddressFormat.queryPerm_words _ _ rfl (by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega)]

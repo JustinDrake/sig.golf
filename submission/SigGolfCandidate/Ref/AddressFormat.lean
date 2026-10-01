@@ -838,11 +838,132 @@ theorem query_fixed (q : Query) (h : q.2.toNat%65536≠1025) : query q=q := by
   | succ n => rfl
 end SigGolfCandidate.Ref.EncodingRotate
 
+namespace SigGolfCandidate.Ref.EncodingMarker
+open SigGolfCandidate.Legacy
+
+def pair (h m : Nat) : Nat × Nat :=
+  if h=1025 ∧ m=0 then (769,1)
+  else if h=769 ∧ m=1 then (1025,0) else (h,m)
+
+theorem pair_involutive (h m : Nat) : pair (pair h m).1 (pair h m).2 = (h,m) := by
+  unfold pair
+  split_ifs <;> simp_all <;> omega
+
+theorem pair_bounds (h m : Nat) (hh : h<2^16) (hm : m<2^64) :
+    (pair h m).1<2^16 ∧ (pair h m).2<2^64 := by
+  unfold pair
+  split_ifs <;> simp_all <;> norm_num
+
+def word (w : Nat) : Nat :=
+  (pair (w%2^16) (w/2^192%2^64)).1 +
+  2^16*(w/2^16%2^176) +
+  2^192*(pair (w%2^16) (w/2^192%2^64)).2 +
+  2^256*(w/2^256)
+
+theorem decompose (w : Nat) :
+    w=w%2^16 + 2^16*(w/2^16%2^176) + 2^192*(w/2^192%2^64) + 2^256*(w/2^256) := by
+  have h1 : w/2^16/2^176=w/2^192 := by rw [Nat.div_div_eq_div_mul, ←Nat.pow_add]
+  have h2 : w/2^192/2^64=w/2^256 := by rw [Nat.div_div_eq_div_mul, ←Nat.pow_add]
+  norm_num at h1 h2 ⊢
+  omega
+
+theorem word_parts (w : Nat) :
+    word w%2^16=(pair (w%2^16) (w/2^192%2^64)).1 ∧
+    word w/2^16%2^176=w/2^16%2^176 ∧
+    word w/2^192%2^64=(pair (w%2^16) (w/2^192%2^64)).2 ∧
+    word w/2^256=w/2^256 := by
+  have hh : w%2^16<2^16 := Nat.mod_lt _ (by decide)
+  have hm : w/2^192%2^64<2^64 := Nat.mod_lt _ (by decide)
+  have hc : w/2^16%2^176<2^176 := Nat.mod_lt _ (by decide)
+  have hb := pair_bounds _ _ hh hm
+  dsimp [word]
+  norm_num at hb hc ⊢
+  omega
+
+theorem word_involutive (w : Nat) : word (word w)=w := by
+  obtain ⟨h0,h1,h2,h3⟩ := word_parts w
+  change (pair (word w%2^16) (word w/2^192%2^64)).1 +
+    2^16*(word w/2^16%2^176) +
+    2^192*(pair (word w%2^16) (word w/2^192%2^64)).2 +
+    2^256*(word w/2^256)=w
+  rw [h0,h1,h2,h3,pair_involutive]
+  exact (decompose w).symm
+
+theorem word_lt (w : Nat) (hw : w<2^512) : word w<2^512 := by
+  have h := (word_parts w).2.2.2
+  norm_num at hw h ⊢
+  omega
+
+/-- Query length index0 is one64-byte block. -/
+def query : Query → Query
+  | ⟨0,w⟩ => ⟨0,BitVec.ofNat 512 (word w.toNat)⟩
+  | ⟨n+1,w⟩ => ⟨n+1,w⟩
+
+theorem query_involutive : Function.Involutive query := by
+  rintro ⟨n,w⟩
+  cases n with
+  | zero =>
+    change (⟨0,BitVec.ofNat 512 (word (BitVec.ofNat 512 (word w.toNat)).toNat)⟩ : Query)=⟨0,w⟩
+    congr 1
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.toNat_ofNat]
+    rw [Nat.mod_eq_of_lt (word_lt _ w.isLt),word_involutive,Nat.mod_eq_of_lt w.isLt]
+  | succ n => rfl
+
+theorem word_encoding (w : Nat) (hc : w%2^16=1025)
+    (hm : w/2^192%2^64=0) : word w=w-256+2^192 := by
+  have hd := decompose w
+  unfold word
+  rw [hc,hm]
+  norm_num [pair] at hd ⊢
+  omega
+
+theorem query_injective : Function.Injective query := query_involutive.injective
+
+theorem query_blocks (q : Query) : (query q).blocks=q.blocks := by
+  rcases q with ⟨n,w⟩
+  cases n <;> rfl
+
+theorem word_fixed (w : Nat)
+    (h4 : ¬(w%2^16=1025 ∧ w/2^192%2^64=0))
+    (h3 : ¬(w%2^16=769 ∧ w/2^192%2^64=1)) : word w=w := by
+  unfold word
+  rw [show pair (w%2^16) (w/2^192%2^64) = (w%2^16,w/2^192%2^64) by
+    simp only [pair,if_neg h4,if_neg h3]]
+  exact (decompose w).symm
+
+theorem query_fixed (q : Query)
+    (h4 : ¬(q.2.toNat%2^16=1025 ∧ q.2.toNat/2^192%2^64=0))
+    (h3 : ¬(q.2.toNat%2^16=769 ∧ q.2.toNat/2^192%2^64=1)) : query q=q := by
+  rcases q with ⟨n,w⟩
+  cases n with
+  | zero =>
+    change (⟨0,BitVec.ofNat 512 (word w.toNat)⟩ : Query)=⟨0,w⟩
+    rw [word_fixed _ h4 h3]
+    congr 1
+    simp
+  | succ n => rfl
+
+theorem native_node_fixed (w : BitVec 512)
+    (hc : w.toNat%2^16=769) (hm : w.toNat/2^192%2^64=0) :
+    query ⟨0,w⟩=⟨0,w⟩ := by
+  apply query_fixed
+  · change ¬(w.toNat%2^16=1025 ∧ w.toNat/2^192%2^64=0)
+    rw [hc,hm]; decide
+  · change ¬(w.toNat%2^16=769 ∧ w.toNat/2^192%2^64=1)
+    rw [hc,hm]; decide
+
+theorem other_class_fixed (q : Query) (h4 : q.2.toNat%2^16≠1025)
+    (h3 : q.2.toNat%2^16≠769) : query q=q := by
+  apply query_fixed <;> simp_all
+
+end SigGolfCandidate.Ref.EncodingMarker
+
 namespace SigGolfCandidate.Ref.LeafClass
 open SigGolfCandidate.Legacy
 set_option exponentiation.threshold 8192
 
-def header (h : Nat) : Nat := if h=513 then 1025 else if h=1025 then 513 else h
+def header (h : Nat) : Nat := if h=513 then 769 else if h=769 then 513 else h
 
 theorem header_lt {h : Nat} (hh : h<65536) : header h<65536 := by
   unfold header;split_ifs <;> omega
@@ -877,7 +998,7 @@ theorem word_lt (w : Nat) (hw : w<2^5632) : word w<2^5632 := by
   rw [hp] at hw ⊢
   exact word_lt_mul hw
 
-/-- Transpose only the tag2/tag4 classes of exact11-block queries. Every other
+/-- Transpose only the tag2/tag3 classes of exact11-block queries. Every other
 length and every malformed header outside these two classes is fixed. -/
 def query (q : Query) : Query :=
   if q.1=10 then ⟨q.1,BitVec.ofNat (8*(64*(q.1+1))) (word q.2.toNat)⟩ else q
@@ -901,12 +1022,12 @@ theorem query_fixed_length (q : Query) (h:q.1≠10) : query q=q := by
   rcases q with ⟨n,w⟩
   exact if_neg h
 
-theorem word_fixed (w : Nat) (h2:w%65536≠513) (h4:w%65536≠1025) : word w=w := by
+theorem word_fixed (w : Nat) (h2:w%65536≠513) (h4:w%65536≠769) : word w=w := by
   unfold word header
   rw [if_neg h2,if_neg h4]
   omega
 
-theorem query_fixed (q : Query) (h2:q.2.toNat%65536≠513) (h4:q.2.toNat%65536≠1025) : query q=q := by
+theorem query_fixed (q : Query) (h2:q.2.toNat%65536≠513) (h4:q.2.toNat%65536≠769) : query q=q := by
   rcases q with ⟨n,w⟩
   unfold query
   split
@@ -921,23 +1042,23 @@ namespace SigGolfCandidate.Ref.AddressFormat
 open SigGolfCandidate.Legacy
 
 /-- Compose the previous chain/node relabelling with a bijection on tag-9 leaf fields. -/
-def queryPerm (q : Query) : Query := LeafClass.query (EncodingRotate.query (LeafScale.queryRel (baseQueryPerm q)))
+def queryPerm (q : Query) : Query := LeafClass.query (EncodingMarker.query (EncodingRotate.query (LeafScale.queryRel (baseQueryPerm q))))
 
 /-- The inverse is needed by the budget layer when decoding formatted query bytes. -/
-def queryInverse (q : Query) : Query := baseQueryPerm (LeafScale.queryInv (EncodingRotate.queryInverse (LeafClass.query q)))
+def queryInverse (q : Query) : Query := baseQueryPerm (LeafScale.queryInv (EncodingRotate.queryInverse (EncodingMarker.query (LeafClass.query q))))
 
 theorem queryInverse_queryPerm (q : Query) : queryInverse (queryPerm q) = q := by
-  rw [queryInverse, queryPerm, LeafClass.query_involutive, EncodingRotate.queryInverse_query, LeafScale.queryInv_queryRel, baseQueryPerm_involutive]
+  rw [queryInverse, queryPerm, LeafClass.query_involutive, EncodingMarker.query_involutive, EncodingRotate.queryInverse_query, LeafScale.queryInv_queryRel, baseQueryPerm_involutive]
 
 theorem queryPerm_injective : Function.Injective queryPerm :=
-  LeafClass.query_involutive.injective.comp (EncodingRotate.query_injective.comp (LeafScale.queryRel_injective.comp baseQueryPerm_injective))
+  LeafClass.query_involutive.injective.comp (EncodingMarker.query_injective.comp (EncodingRotate.query_injective.comp (LeafScale.queryRel_injective.comp baseQueryPerm_injective)))
 
 theorem queryPerm_blocks (q : Query) : (queryPerm q).blocks = q.blocks := by
-  rw [queryPerm, LeafClass.query_blocks, EncodingRotate.query_blocks, LeafScale.queryRel_blocks, baseQueryPerm_blocks]
+  rw [queryPerm, LeafClass.query_blocks, EncodingMarker.query_blocks, EncodingRotate.query_blocks, LeafScale.queryRel_blocks, baseQueryPerm_blocks]
 
 theorem queryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
     (h1 : q.2.toNat % 65536 ≠ 257) (h2 : q.2.toNat % 65536 ≠ 2561)
-    (h9 : q.2.toNat % 65536 ≠ 2305) (h4 : q.2.toNat % 65536 ≠ 1025) (h2leaf : q.2.toNat % 65536 ≠ 513) : queryPerm q = q := by
-  rw [queryPerm, baseQueryPerm_fixed q h0 h1 h2, LeafScale.queryRel_fixed q h9, EncodingRotate.query_fixed q h4, LeafClass.query_fixed q h2leaf h4]
+    (h9 : q.2.toNat % 65536 ≠ 2305) (h4 : q.2.toNat % 65536 ≠ 1025) (h2leaf : q.2.toNat % 65536 ≠ 513) (h3 : q.2.toNat % 65536 ≠ 769) : queryPerm q = q := by
+  rw [queryPerm, baseQueryPerm_fixed q h0 h1 h2, LeafScale.queryRel_fixed q h9, EncodingRotate.query_fixed q h4, EncodingMarker.other_class_fixed q h4 h3, LeafClass.query_fixed q h2leaf h3]
 
 end SigGolfCandidate.Ref.AddressFormat

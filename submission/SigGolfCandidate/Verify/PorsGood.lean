@@ -20,12 +20,25 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 /-! ## The root tail -/
 
-theorem PB.glob_layers {P : PCtx} {s0 u : MachineState} {gk : List (Reg × Word)}
-    (hg : GlobP gk s0 u) (hs0 : S0 P s0) : Glob gk P.wl P.pk u := by
-  refine ⟨hg.1, fun j hj => (hg.2.2.2 j (by unfold NW; omega)).trans (hs0.wit j (by omega)), ?_, ?_⟩
-  · exact ⟨(hg.2.1 0xA0 (by decide)).trans hs0.pk.1, (hg.2.1 0xA8 (by decide)).trans hs0.pk.2⟩
+/-- The boundary store changes only the marker; all PORS protected memory remains
+zero until this separate step, and the layer phase requires marker one. -/
+theorem PB.glob_layers {P : PCtx} {s0 u v : MachineState} {gk : List (Reg × Word)}
+    (hg : GlobP gk s0 u) (hs0 : S0 P s0)
+    (hr : ∀ x, v.getReg x = u.getReg x)
+    (hm : ∀ A, A ≠ 0x118 → v.getMem A = u.getMem A)
+    (hmark : v.getMem 0x118 = 1) : Glob gk P.wl P.pk v := by
+  refine ⟨fun p hp => (hr p.1).trans (hg.1 p hp), ?_, ?_, ?_⟩
+  · intro j hj
+    rw [hm _ (by bvne)]
+    exact (hg.2.2.2 j (by unfold NW; omega)).trans (hs0.wit j (by omega))
+  · exact ⟨(hm 0xA0 (by decide)).trans ((hg.2.1 0xA0 (by decide)).trans hs0.pk.1),
+      (hm 0xA8 (by decide)).trans ((hg.2.1 0xA8 (by decide)).trans hs0.pk.2)⟩
   · intro a ha
-    exact (hg.2.1 a (zeroP_sub a (pSlots_sub a ha))).trans (hs0.zero a (pSlots_sub a ha))
+    by_cases h : a = 0x118
+    · subst a; exact hmark
+    · have hab : a < 2^64 := by simp [pSlots] at ha; omega
+      rw [show pValue a = 0 by simp [pValue, h], hm _ (ofNat_ne hab (by decide) h)]
+      exact (hg.2.1 a (zeroP_sub a (pSlots_sub a ha))).trans (hs0.zero a (pSlots_sub a ha))
 
 /-- The PORS phase does not write the witness: the whole witness is intact when the layers start. -/
 theorem PB.witAll_layers {P : PCtx} {s0 u : MachineState} {gk : List (Reg × Word)}
@@ -215,21 +228,21 @@ def layN : Nat := 5000 * 5 + 9
 /-- The layers' cost `LayerGood.layersCost 5` (a literal here, so that the PORS part does not depend
 on the layer modules; `Top.layC_val` proves the equality). Irreducible, so that unification never
 evaluates it. -/
-@[irreducible] def layC : Nat := 7483
+@[irreducible] def layC : Nat := 7473
 def leafCost (s : Nat) : Nat := if s = 0 then 11 else if s = 14 then 15 else 12
 def lrest (s : Nat) : Nat := ((List.range' (s + 1) (14 - s)).map leafCost).sum
 def segR (s d : Nat) : Nat := 29 - 2 * s + d
 
 def Cseg (s d : Nat) : Nat :=
-  256 * segR s d + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 12 + layC
+  256 * segR s d + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 14 + layC
 def Aseg (s d F : Nat) : Nat :=
-  16 * segR s d + 16 * (117 - F) + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 12 + layC
+  16 * segR s d + 16 * (117 - F) + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 14 + layC
 def Nseg (s d : Nat) : Nat := Cseg s d + layN
 
 /-- After the leaf's last segment (before the push / root tail). -/
-def CtailPF (s d : Nat) : Nat := if s = 14 then 12 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
+def CtailPF (s d : Nat) : Nat := if s = 14 then 14 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
 def AtailPF (s d F : Nat) : Nat :=
-  if s = 14 then 12 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
+  if s = 14 then 14 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
 def NtailPF (s d : Nat) : Nat := CtailPF s d + layN
 
 /-- Before a merge tail. -/
@@ -361,7 +374,7 @@ theorem leaves_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
     (Kr : Option PorsState → OracleComp HashSpec Obs) (hnone : Kr none = pure (false, 0))
     (hKr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 117) (12 + layC) (Kr (some st))) :
+      GoodQ u (14 + layC + layN) (14 + layC) (st.folds ≤ 117) (14 + layC) (Kr (some st))) :
     ∀ n s (st : PorsState) m, s + n = 15 → LeafIn P s0 s st m →
       GoodQ m (leafCost s + Nseg s st.stack.length) (leafCost s + Cseg s st.stack.length) (st.folds ≤ 117)
         (leafCost s + Aseg s st.stack.length st.folds)

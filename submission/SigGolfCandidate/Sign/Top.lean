@@ -862,7 +862,7 @@ theorem topSibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau 
     simp only [htl, topSiblingEntry, blk522.res, blk2971.res, blk685.res, rv_simp, hx, hm.x18]
     bvsimp []
     rw [show ep * 16 = 16 * ep by omega]
-  have lb0 : tl.getMem (BitVec.ofNat 64 0x340) = twWord0 4 0 0 0 := by
+  have lb0 : tl.getMem (BitVec.ofNat 64 0x340) = twWord0 3 0 0 0 := by
     simp only [htl, topSiblingEntry, blk522.res, blk2971.res, blk685.res, rv_simp]
     rfl
   refine Sim.steps hs ((sibling_sim S hS x e ep hne tl ctx hp hx21 hx24

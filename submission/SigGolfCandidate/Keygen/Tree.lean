@@ -137,7 +137,7 @@ theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List V
     have hlen64 : (thInput (tweak 3 0 0 0 (heapIndex (height 0) (k + 1) j))
         (((levels.getD k []).getD (2 * j) []) ++ ((levels.getD k []).getD (2 * j + 1) []))).length = 64 := by
       simp only [thInput, List.length_append, length_tweak, length_P, hll, hrl]
-    rw [addrFmt_nodeInput, fmt_nodeInput _ _ _ _ _ _ hll hrl (by norm_num) (by omega) (by omega), ← pad64_of_len64 _ hlen64]
+    rw [Sign.addrFmt_nodeInput_valid _ _ _ _ _ _ hll hrl (by norm_num) (by omega) (by omega), fmt_nodeInput _ _ _ _ _ _ hll hrl (by norm_num) (by omega) (by omega), ← pad64_of_len64 _ hlen64]
     refine hashInput_eq_pad64 u 0 448 _ (by rw [u11]) (by norm_num) u10
       (by norm_num) (by norm_num)
       (by simp only [thInput, List.length_append, length_tweak, length_P, hll, hrl]; norm_num)

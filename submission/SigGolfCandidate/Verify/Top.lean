@@ -20,6 +20,29 @@ theorem f4Pc_pre (c : Nat) (hc : c < 3) : ∃ t, t < nCopy 4 ∧ f4Pc c = preSta
   · exact ⟨1, by decide, rfl⟩
   · exact ⟨0, by decide, rfl⟩
 
+/-- Kernel-checked boundary store, separate from PORS's all-zero frame. -/
+theorem markerCheck_at (c : Nat) (hc : c < 3) : markerCheck c = true := by
+  interval_cases c <;> decide +kernel
+
+theorem marker_step (c : Nat) (hc : c < 3) (s : MachineState)
+    (hp : s.pc = pcOf (markerPc c)) (h6 : s.getReg .x6 = 1) :
+    ∃ u, Steps image s 1 1 u ∧ u.pc = pcOf (f4Pc c) ∧
+      (∀ x, u.getReg x = s.getReg x) ∧ u.getMem 0x118 = 1 ∧
+      (∀ A, A ≠ 0x118 → u.getMem A = s.getMem A) := by
+  have hk : KnownOK markerKnown s := by
+    intro p hp; simp only [markerKnown, List.mem_singleton] at hp; subst p; exact h6
+  have run := optBeq_eq (markerCheck_at c hc)
+  obtain ⟨hst, _⟩ := run_post' run rfl s hp hk (by simp [markerRes])
+  refine ⟨(markerRes c).toState s, hst, PRes.toState_pc _ _ rfl, ?_, ?_, ?_⟩
+  · intro x
+    rw [PRes.toState_getReg]
+    exact RegFile.withKnown_eval s markerKnown hk x
+  · rw [PRes.toState_getMem]
+    exact memEval_cons_eq s _ _ _ _ rfl
+  · intro A hA
+    rw [PRes.toState_getMem]
+    exact memEval_cons_ne s _ _ _ _ hA
+
 /-- The root tail: the fold limit `FR ≤ FLIM` (with an empty stack exactly `folds ≤ 117`), `E = 1`,
 empty stack (else HALT(1)); the layer constants; the precode of layer 4 with the PORS root as its
 message. -/
@@ -27,7 +50,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     (stk : List (Val × Nat)) (m : MachineState) (h : TailIn P s0 14 x 2 c ptr E folds node stk m) :
     ((folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧
         fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 12 12 u ∧
+    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 14 14 u ∧
         LayerIn ⟨P.wl, P.pk, 4, P.idx⟩ node u) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
   have hE := h.hE
@@ -132,9 +155,9 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       change m.getMem (BitVec.ofNat 64 0xFDFFD8) = M2w
       rw [h.pb.prot (by simp [protP])]
       exact h.pb.s0ok.masks.2.2.2.2.2
-    have htag : u.getReg .x27 = 0x40401#64 := by
+    have htag : u.getReg .x27 = 0x40301#64 := by
       rw [hu.regs (.x27, ldE 0xFDFFC0) (by simp [tailFSpec])]
-      change m.getMem (BitVec.ofNat 64 0xFDFFC0) = 0x40401#64
+      change m.getMem (BitVec.ofNat 64 0xFDFFC0) = 0x40301#64
       rw [h.pb.prot (by simp [protP])]
       exact h.pb.s0ok.masks.2.2.1
     have htmask : u.getReg .x2 = TMASK := by
@@ -145,7 +168,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hregs : KnownOK gkL0 u := by
       intro p hp
       simp only [gkL0, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact hg0.1 p (by simp [rootK, hp])
       · exact hm1
       · exact hm2
@@ -157,23 +180,31 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       rcases hp with hp | rfl | rfl | rfl | rfl
       · exact hregs p hp
       all_goals first | exact htag | exact hu.known _ (by simp [rootPost, rootK])
-    have hmem : ∀ A, u.getMem A = m.getMem A := fun A => by rw [hu.mem]; rfl
+    have hmem0 : ∀ A, u.getMem A = m.getMem A := fun A => by rw [hu.mem]; rfl
+    obtain ⟨v, hmarkstep, hmarkpc, hmarkreg, hmarker, hmarkmem⟩ := marker_step c hc u (hu.pc rfl)
+      (hregs (.x6, 1) (by simp [gkL0, baseK]))
+    have hmem : ∀ A, A ≠ 0x118 → v.getMem A = m.getMem A :=
+      fun A hA => (hmarkmem A hA).trans (hmem0 A)
+    have hknownV : KnownOK l4K v := fun p hp => (hmarkreg p.1).trans (hknown p hp)
     have n0 := h.node0; have n1 := h.node1
     simp only [destOf, show (2 : Nat) ≠ 0 by decide, show (2 : Nat) ≠ 1 by decide, if_false] at n0 n1
     obtain ⟨t, ht, hpt⟩ := f4Pc_pre c hc
-    -- W1a: the chain array is untouched by the PORS phase (`Fresh` at layer 4, chain 0).
-    have hWA := PB.witAll_layers hg h.pb.s0ok
-    refine ⟨u, hu.steps, PB.glob_layers hg h.pb.s0ok, hknown, ?_, by rw [hmem]; exact n0,
-      by rw [hmem]; exact n1, h.nodeLen, fun h => absurd h (lt_irrefl 4), ?_, Fresh_of_all hWA 4 0,
-      fun _ => ⟨?_, ?_⟩, fun h => absurd rfl h, t, ht, by rw [hu.pc rfl, ← hpt]; rfl,
+    have hWA0 := PB.witAll_layers hg h.pb.s0ok
+    have hWA : WitAll P.wl v := by
+      intro j hj; rw [hmarkmem _ (by bvne)]; exact hWA0 j hj
+    refine ⟨v, hu.steps.trans hmarkstep, PB.glob_layers hg h.pb.s0ok hmarkreg hmarkmem hmarker,
+      hknownV, ?_, by rw [hmem _ (by change (0x130 : Word) ≠ 0x118; decide)]; exact n0,
+      by rw [hmem _ (by change (0x138 : Word) ≠ 0x118; decide)]; exact n1, h.nodeLen, fun h => absurd h (lt_irrefl 4), ?_, Fresh_of_all hWA 4 0,
+      fun _ => ⟨?_, ?_⟩, fun h => absurd rfl h, t, ht, by rw [hmarkpc, ← hpt],
       fun h => absurd rfl h⟩
-    · show u.getReg .x22 = BitVec.ofNat 64 (routeIn P.idx 4)
-      rw [hu.keep .x22 (by simp), h.pb.idx]; rfl
+    · show v.getReg .x22 = BitVec.ofNat 64 (routeIn P.idx 4)
+      rw [hmarkreg, hu.keep .x22 (by simp), h.pb.idx]; rfl
     · have := P.idx_lt
-      rw [hmem, h.pb.prot (by decide), h.pb.s0ok.cb0, ofNat_toNat_lt _ (by unfold twLo; omega)]
+      rw [hmem _ (by decide), h.pb.prot (by decide), h.pb.s0ok.cb0, ofNat_toNat_lt _ (by unfold twLo; omega)]
       unfold twLo; omega
-    · rw [hmem, h.pb.prot (by decide)]; exact h.pb.s0ok.zero _ (by decide)
-    · rw [hmem, h.pb.prot (by decide)]; exact h.pb.s0ok.zero _ (by decide)
+    · rw [hmem _ (by decide), h.pb.prot (by decide)]; exact h.pb.s0ok.zero _ (by decide)
+    · rw [hmem _ (by decide), h.pb.prot (by decide)]; exact h.pb.s0ok.zero _ (by decide)
+
 
 
 /-- Universal accepting-run bound. Scaled PIND byte offsets remove one instruction from
@@ -190,8 +221,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7483 := by decide
-theorem layC_val : layC = 7483 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7473 := by decide
+theorem layC_val : layC = 7473 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -225,7 +256,7 @@ theorem Kr_none (P : PCtx) : Kr P none = pure (false, 0) := by
 
 theorem root_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (x c : Nat) (st : PorsState)
     (u : MachineState) (hT : TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u) :
-    GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 117) (12 + layC) (Kr P (some st)) := by
+    GoodQ u (14 + layC + layN) (14 + layC) (st.folds ≤ 117) (14 + layC) (Kr P (some st)) := by
   obtain ⟨hrej, hacc⟩ := tailF_step P hP s0 x c st.ptr st.E st.folds st.node st.stack u hT
   have hL : layC = layersCost 5 := layC_val.trans layersCost_val.symm
   by_cases hc : st.folds > porsM ∨ st.E ≠ 1 ∨ st.stack ≠ []
@@ -249,7 +280,7 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
       (cc (porsRoot P.idx P.v P.wl) (Klay P)) := by
   have hr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 117) (12 + layC) (Kr P (some st)) :=
+      GoodQ u (14 + layC + layN) (14 + layC) (st.folds ≤ 117) (14 + layC) (Kr P (some st)) :=
     fun x c st u hT => root_good P hP s0 x c st u hT
   have hg0 := leaves_good P hP s0 (Kr P) (Kr_none P) hr
   have hg := hg0 15 0 ⟨wStream, 0, 0, 0, [], []⟩ s0 (by rfl) h
@@ -268,8 +299,8 @@ theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 
 
 theorem lrest_0 : lrest 0 = 171 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7758 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2670 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7758 + layC + layN := by
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7760 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2672 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7760 + layC + layN := by
   have h0 : leafCost 0 = 11 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 

@@ -31,7 +31,7 @@ theorem sibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (e ep : 
     (hpc : tl.pc = pcOf 529) (h21 : tl.getReg .x21 = 0) (h24 : tl.getReg .x24 = 0)
     (h8 : tl.getReg .x8 = 0) (h17 : tl.getReg .x17 = BitVec.ofNat 64 (ep + 1))
     (h19 : tl.getReg .x19 = BitVec.ofNat 64 0xBA8 - BitVec.ofNat 64 (16 * ep))
-    (hlb0 : tl.getMem (BitVec.ofNat 64 0x340) = twWord0 4 0 0 0)
+    (hlb0 : tl.getMem (BitVec.ofNat 64 0x340) = twWord0 3 0 0 0)
     (hlb8 : tl.getMem (BitVec.ofNat 64 0x348) = BitVec.ofNat 64 (2 ^ 32 * ep))
     (hlbP : tl.readWords (BitVec.ofNat 64 0x350) 2 = [0, 0]) :
     Sim image tl (21 * 844 + (4 + (88 + 9)))
@@ -67,8 +67,8 @@ theorem sibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (e ep : 
   have pc3 : t3.pc = pcOf 588 := by simp only [ht3, blk584.res, rv_simp]
   have fl3 : Frame tl t3 (chainW ⟨0, 0, e, ep, 0x900⟩) := (cf.trans f3).mono (by
     intro a ha; rcases ha with h | h; exact h; exact h.elim)
-  have hq : hashInput t3 = pad64 (thInput (tweak 4 0 0 0 ep) cs.1.flatten) := by
-    obtain ⟨hn, hw⟩ := words_thVals 4 0 0 0 ep cs.1 hv1 10 (by rw [hc1])
+  have hq : hashInput t3 = pad64 (thInput (tweak 3 0 0 0 ep) cs.1.flatten) := by
+    obtain ⟨hn, hw⟩ := words_thVals 3 0 0 0 ep cs.1 hv1 10 (by rw [hc1])
     refine hashInput_eq_pad64 t3 _ 10 hn (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
     rw [hw, x10, show 8 * (10 + 1) = 1 + 1 + 2 + 2 * 42 from rfl]
     rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add]
@@ -90,7 +90,7 @@ theorem sibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (e ep : 
     exact congrArg (· + 1) (words_thVals 2 0 0 0 ep cs.1 hv1 10 (by rw [hc1])).1
   refine (Sim.steps hs3 (Sim.hash16_bindF (W := 9) e3 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num) (by norm_num) (by norm_num)) (hq.trans (addrFmt_leafInput_tag4 0 0 ep cs.1 hc1 hv1).symm) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
+      (by norm_num) (by norm_num) (by norm_num)) (hq.trans (addrFmt_leafInput_tag3 0 0 ep cs.1 hc1 hv1).symm) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
   set t4 := writeHash t3 a with ht4
   have f4 : Frame t3 t4 (fun z => 0xBA8 ≤ z ∧ z < 0xBC8) :=
     frame_writeHash t3 a _ x12 (by norm_num)

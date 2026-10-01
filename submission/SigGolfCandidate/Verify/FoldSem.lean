@@ -71,7 +71,7 @@ def FrameOK (s0 s : MachineState) : Prop :=
 /-- Tweak word 0 of the node inputs (`p = 0`) at NB (= LB): before level 0 it still holds the leaf
 tweak, whose byte 1 (the tag 2) level 0 overwrites with 3. -/
 def NBhdr (fc : FCtx) (lam : Nat) (s : MachineState) : Prop :=
-  (lam = 0 → StoreKind.merge .b (s.getMem (BitVec.ofNat 64 0x340)) 1 (BitVec.ofNat 64 3) = BitVec.ofNat 64 fc.lo0) ∧
+  (lam = 0 → s.getMem (BitVec.ofNat 64 0x340) = BitVec.ofNat 64 fc.lo0) ∧
   (lam ≠ 0 → s.getMem (BitVec.ofNat 64 0x340) = BitVec.ofNat 64 fc.lo0)
 
 /-- Where the path node of level `lam` is (the output address of the hash that made it, still in `a2`). -/
@@ -282,10 +282,16 @@ theorem fmt_input (fc : FCtx) (hfc : fc.ok) (hn : NodeH fc) (lam : Nat) (hlam : 
   unfold FCtx.input FCtx.hinput FCtx.node nodeF
   rw [ht]
   split
-  · rw [addrFmt_eq_th _ _ _ _ _ _ (by decide), fmt_thInput_node _ _ _ _ _ (by simp [hs, hv]) (by have := hfc.2.1; omega) hj, ← hH,
+  · change addrFmt (nodeInput fc.f2 fc.tau (lam+1) (fc.E / 2^(lam+1)) (fc.sib lam) v) = _
+    rw [addrFmt_nodeInput_valid fc.f2 fc.tau (lam+1) _ _ _ hs hv (by have := hfc.2.2.2.2.1; omega) (by have := hfc.2.1; omega) hj]
+    unfold nodeInput
+    rw [fmt_thInput_node _ _ _ _ _ (by simp [hs, hv]) (by have := hfc.2.1; omega) hj, ← hH,
       blk_eq_pad64 _ (by simp [hs, hv])]
     rfl
-  · rw [addrFmt_eq_th _ _ _ _ _ _ (by decide), fmt_thInput_node _ _ _ _ _ (by simp [hs, hv]) (by have := hfc.2.1; omega) hj, ← hH,
+  · change addrFmt (nodeInput fc.f2 fc.tau (lam+1) (fc.E / 2^(lam+1)) v (fc.sib lam)) = _
+    rw [addrFmt_nodeInput_valid fc.f2 fc.tau (lam+1) _ _ _ hv hs (by have := hfc.2.2.2.2.1; omega) (by have := hfc.2.1; omega) hj]
+    unfold nodeInput
+    rw [fmt_thInput_node _ _ _ _ _ (by simp [hs, hv]) (by have := hfc.2.1; omega) hj, ← hH,
       blk_eq_pad64 _ (by simp [hs, hv])]
     rfl
 
@@ -329,16 +335,13 @@ theorem lvlExp_mem (lay ci v kk : Nat) :
 theorem lvlMem_1C8 (lay lam t : Nat) (nb : E) (s : MachineState) :
     memEval s (lvlMem lay lam t nb) (BitVec.ofNat 64 0x348) =
       StoreKind.merge .w (s.getMem (BitVec.ofNat 64 0x348)) 4 (nb.eval s) := by
-  unfold lvlMem; rw [List.cons_append]; rw [memEval_cons_eq _ _ _ _ _ rfl, stW_eval]
+  unfold lvlMem; rw [memEval_cons_eq _ _ _ _ _ rfl, stW_eval]
 
 theorem lvlMem_340 (lay lam t : Nat) (ht : t < 2) (hl : lam = 0) (nb : E) (s : MachineState) :
-    memEval s (lvlMem lay lam t nb) (BitVec.ofNat 64 0x340) =
-      StoreKind.merge .b (s.getMem (BitVec.ofNat 64 0x340)) 1 (BitVec.ofNat 64 3) := by
-  unfold lvlMem
-  rw [if_pos hl, List.cons_append, List.cons_append, List.cons_append, List.nil_append,
-    memEval_cons_ne _ _ _ _ _ (by bvne), memEval_cons_ne _ _ _ _ _ (by bvne),
-    memEval_cons_ne _ _ _ _ _ (by bvne), memEval_cons_eq _ _ _ _ _ rfl]
-  rfl
+    memEval s (lvlMem lay lam t nb) (BitVec.ofNat 64 0x340) = s.getMem (BitVec.ofNat 64 0x340) := by
+  apply memEval_frame_ofNat _ _ _ (by decide)
+  simp only [lvlMem, List.mem_cons, List.not_mem_nil, or_false]
+  rintro p (rfl | rfl | rfl) <;> simp <;> omega
 
 theorem lvlMem_sib (lay lam t : Nat) (ht : t < 2) (nb : E) (s : MachineState) :
     memEval s (lvlMem lay lam t nb) (BitVec.ofNat 64 (0x370 - 16 * t)) =
@@ -346,7 +349,6 @@ theorem lvlMem_sib (lay lam t : Nat) (ht : t < 2) (nb : E) (s : MachineState) :
     memEval s (lvlMem lay lam t nb) (BitVec.ofNat 64 (0x370 - 16 * t + 8)) =
       s.getMem (BitVec.ofNat 64 (sibAddr lay lam + 8)) := by
   unfold lvlMem
-  rw [List.cons_append, List.cons_append, List.cons_append]
   constructor
   · rw [memEval_cons_ne _ _ _ _ _ (by bvne), memEval_cons_ne _ _ _ _ _ (by bvne),
       memEval_cons_eq _ _ _ _ _ rfl]; rfl
@@ -356,15 +358,8 @@ theorem lvlMem_frame (lay lam t : Nat) (nb : E) (s : MachineState) (A : Nat) (hA
     (h0 : lam ≠ 0 ∨ A ≠ 0x340) (h1 : A ≠ 0x348) (h3 : A ≠ 0x370 - 16 * t + 8) (h4 : A ≠ 0x370 - 16 * t) :
     memEval s (lvlMem lay lam t nb) (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
   apply memEval_frame_ofNat _ _ _ hA
-  unfold lvlMem
-  by_cases hl : lam = 0
-  · rw [if_pos hl]
-    have h0' : A ≠ 0x340 := by omega
-    simp only [List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil, or_false]
-    rintro p (rfl | rfl | rfl | rfl) <;> simp <;> omega
-  · rw [if_neg hl]
-    simp only [List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil, or_false]
-    rintro p (rfl | rfl | rfl) <;> simp <;> omega
+  simp only [lvlMem, List.mem_cons, List.not_mem_nil, or_false]
+  rintro p (rfl | rfl | rfl) <;> simp <;> omega
 
 /-! ## One level -/
 
@@ -461,8 +456,8 @@ theorem blk_entry_run (lay ci v : Nat) (hc : blockCheck lay ci v = true) (s : Ma
 def levelCost (lay lam : Nat) : Nat :=
   if lam + 1 = heightL lay then 14
   else if lam - chB0 lay (chOf lay lam) + 1 < chBits lay (chOf lay lam) then
-    (if lam = 0 then 2 else 0) + (if isConstLvl lay lam then 6 else 7) + 8
-  else (if lam = 0 then 2 else 0) + 12 + 8
+    (if lam = 0 then 1 else 0) + (if isConstLvl lay lam then 6 else 7) + 8
+  else (if lam = 0 then 1 else 0) + 12 + 8
 
 theorem levelCost_le (lay lam : Nat) : levelCost lay lam ≤ 22 := by
   unfold levelCost; split_ifs <;> omega
@@ -504,7 +499,7 @@ theorem level_lt (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam + 1 < fc.h)
     · rw [h]; rcases (show b' = 0 ∨ b' = 1 by omega) with h | h <;> rw [h] <;> decide
   have hsl := sib_words fc hfc lam (by omega) s hG hFresh
   have hnb := lvlNb_eval fc hfc lam hlam s h23
-  have hP : ∀ a ∈ pSlots, s.getMem (BitVec.ofNat 64 a) = 0 := hG.2.2.2
+  have hP : PZero s := hG.2.2.2
   have hroot : ¬ (chB0 fc.lay (fc.ci lam) + fc.kk lam + 1 = heightL fc.lay) := by
     simp only [FCtx.kk, FCtx.ci] at hsum ⊢; rw [hsum]; omega
   -- facts about the state after the level's hash call `t`, shared by both cases
@@ -554,10 +549,10 @@ theorem level_lt (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam + 1 < fc.h)
       · rw [h0] at mv0 mv1 msib0 msib1
         simp only [Nat.mul_zero, Nat.add_zero, Nat.sub_zero, Nat.reduceAdd, Nat.reduceMul,
           Nat.reduceSub] at mv0 mv1 msib0 msib1
-        rw [mv0, mv1, msib0, msib1]; simp [← hbdef, h0]
+        rw [mv0, mv1, msib0, msib1]; simp [pValue, ← hbdef, h0]
       · rw [h1] at mv0 mv1 msib0 msib1
         simp only [Nat.mul_one, Nat.reduceAdd, Nat.reduceMul, Nat.reduceSub] at mv0 mv1 msib0 msib1
-        rw [mv0, mv1, msib0, msib1]; simp [← hbdef, h1]
+        rw [mv0, mv1, msib0, msib1]; simp [pValue, ← hbdef, h1]
     · intro a
       have wf := fun A (hA : A < 2 ^ 64) (h : A + 8 ≤ fc.vA (lam + 1) ∨ fc.vA (lam + 1) + 32 ≤ A) =>
         writeHash_frame _ a _ A h12 hA (by omega) h
@@ -590,7 +585,7 @@ theorem level_lt (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam + 1 < fc.h)
       rw [hb'def]
       unfold FCtx.blk FCtx.kk FCtx.ci bitOf
       rw [blk_bit _ _ _ _ hmid', ← Nat.add_assoc, hsum]
-    have hn : r.steps = (if lam = 0 then 2 else 0) + (if isConstLvl fc.lay lam then 6 else 7) ∧
+    have hn : r.steps = (if lam = 0 then 1 else 0) + (if isConstLvl fc.lay lam then 6 else 7) ∧
         r.cycles = r.steps ∧ r.ecall = true ∧ r.spc = none ∧
         r.pc = pcOf (m4Pc fc.lay (fc.ci lam) (fc.blk (fc.ci lam)) (fc.kk lam + 1) + 1) := by
       have hsum' : chB0 fc.lay (fc.ci lam) + fc.kk lam = lam := hsum
@@ -703,7 +698,7 @@ theorem level_last (fc : FCtx) (hfc : fc.ok) (h0 : fc.lay = 0) (lam : Nat) (hlam
     fun A hA h1 h3 h4 => level_frame hmem A hA (Or.inl hl0) h1 h3 h4
   have m1C8 : (r.toState s).getMem (BitVec.ofNat 64 0x348) = BitVec.ofNat 64 (fc.tau % 2 ^ 32 + 2 ^ 32 * 1) := by
     rw [hmem, lvlMem_1C8, hnb, stMerge_eval _ _ _ (by omega) hN8]
-  have hP : ∀ a ∈ pSlots, s.getMem (BitVec.ofNat 64 a) = 0 := hG.2.2.2
+  have hP : PZero s := hG.2.2.2
   have msib0 : (r.toState s).getMem (BitVec.ofNat 64 (0x370 - 16 * b)) = vw0 (fc.sib lam) := by
     rw [hmem, (lvlMem_sib _ _ _ hb2 _ s).1]; exact hsl.1
   have msib1 : (r.toState s).getMem (BitVec.ofNat 64 (0x370 - 16 * b + 8)) = vw1 (fc.sib lam) := by
@@ -736,10 +731,10 @@ theorem level_last (fc : FCtx) (hfc : fc.ok) (h0 : fc.lay = 0) (lam : Nat) (hlam
     · rw [h0] at mv0 mv1 msib0 msib1
       simp only [Nat.mul_zero, Nat.add_zero, Nat.sub_zero, Nat.reduceAdd, Nat.reduceMul,
         Nat.reduceSub] at mv0 mv1 msib0 msib1
-      rw [mv0, mv1, msib0, msib1]; simp [← hbdef, h0]
+      rw [mv0, mv1, msib0, msib1]; simp [pValue, ← hbdef, h0]
     · rw [h1] at mv0 mv1 msib0 msib1
       simp only [Nat.mul_one, Nat.reduceAdd, Nat.reduceMul, Nat.reduceSub] at mv0 mv1 msib0 msib1
-      rw [mv0, mv1, msib0, msib1]; simp [← hbdef, h1]
+      rw [mv0, mv1, msib0, msib1]; simp [pValue, ← hbdef, h1]
   · refine ⟨hglob, hKp, FrameOK.trans hF (fun r hr => hkeep' r hr) (fun A hA hA' => ?_), ?_,
       hec hn3, by rw [m1C8, BitVec.toNat_ofNat]; omega⟩
     · exact mfr A hA (by omega) (by omega) (by omega)

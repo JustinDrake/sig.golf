@@ -330,20 +330,49 @@ theorem pad64_encInput (lay tau e : Nat) (L R : Val) (hL : L.length = 16) (hR : 
   simp only [w64, leNat_append, leNat_le32, leNat_zeros, Nat.mul_zero, Nat.add_zero]
   rfl
 
+/-- The new leaf class and marker leave valid native node blocks unchanged. -/
+theorem marker_node_pad_fixed (lay tau j : Nat) (L R : Val)
+    (hL : L.length=16) (hR : R.length=16) :
+    LeafClass.query (EncodingMarker.query (pad64 (thInput (tweak 3 lay tau 0 j) (L++R)))) =
+      pad64 (thInput (tweak 3 lay tau 0 j) (L++R)) := by
+  change LeafClass.query (EncodingMarker.query (pad64 (nodeInput lay tau 0 j L R))) =
+    pad64 (nodeInput lay tau 0 j L R)
+  rw [pad64_nodeInput lay tau 0 j L R hL hR]
+  rw [EncodingMarker.query_node_words _ _ _ _ _ _ (by
+    simp only [BitVec.toNat_ofNat];unfold twLo;omega)]
+  exact LeafClass.query_fixed_length _ (by change (0:Nat)≠10; decide)
+
+theorem addrFmt_nodeInput_valid (lay tau lam j : Nat) (L R : Val)
+    (hL : L.length=16) (hR : R.length=16) (hlay : lay<256)
+    (hlam : lam<2^32) (hj : j<2^32) :
+    addrFmt (nodeInput lay tau lam j L R)=fmt (nodeInput lay tau lam j L R) := by
+  rw [Ref.addrFmt_nodeInput,fmt_nodeInput lay tau lam j L R hL hR hlay hlam hj]
+  have h := marker_node_pad_fixed lay tau (heapIndex (height lay) lam j) L R hL hR
+  rw [pad64_eq _ 0 (by simp [hL,hR]) (by simp [hL,hR])] at h
+  simpa [hL,hR,zeros] using h
+
+set_option maxRecDepth 10000 in
 /-- The rotated one-block encoding query for the ordered pair of children. -/
 theorem addrFmt_encInput_words (lay tau e : Nat) (L R : Val)
     (hL : L.length = 16) (hR : R.length = 16) (c : Nat) :
     addrFmt (encInput lay tau e (L ++ R) c) = queryOfWords 0
-      [BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e),
-        BitVec.ofNat 64 (c % 2 ^ 32), 0, vw0 L, vw1 L, vw0 R, vw1 R] := by
+      [BitVec.ofNat 64 (twLo 3 lay tau 0), BitVec.ofNat 64 (twHi tau e),
+        BitVec.ofNat 64 (c % 2 ^ 32), 1, vw0 L, vw1 L, vw0 R, vw1 R] := by
   have hf : fmt (encInput lay tau e (L ++ R) c) = pad64 (encInput lay tau e (L ++ R) c) :=
     Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide)
   rw [addrFmt_encInput_valid _ _ _ _ (by simp [hL, hR]), hf,
     pad64_encInput lay tau e L R hL hR c]
-  apply EncodingRotate.query_words
+  have hc : (BitVec.ofNat 64 (twLo 4 lay tau 0)).toNat%65536=1025 := by
+    simp only [BitVec.toNat_ofNat]
+    rw [Nat.mod_mod_of_dvd _ (by decide : 65536 ∣ 2^64)]
+    unfold twLo
+    omega
+  rw [EncodingRotate.query_words _ _ _ _ _ _ _ _ hc,
+    EncodingMarker.query_words _ _ _ _ _ _ _ hc]
+  congr 2
   simp only [BitVec.toNat_ofNat]
-  rw [Nat.mod_mod_of_dvd _ (by decide : 65536 ∣ 2 ^ 64)]
   unfold twLo
+  congr 1
   omega
 
 theorem pad64_leafInput (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
@@ -364,10 +393,10 @@ theorem pad64_leafInput (lay tau e : Nat) (ends : List Val) (hl : ends.length = 
     show 8 * 10 + 4 = 2 * ends.length + 0 by omega, wordsOfN_flatten_append ends hv]
   simp [wordsOfN]
 
-theorem pad64_leafPayload4 (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
+theorem pad64_leafPayload3 (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
     (hv : ∀ v ∈ ends, v.length = 16) :
-    pad64 (thInput (tweak 4 lay tau 0 e) ends.flatten) = queryOfWords 10
-      ([BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0] ++
+    pad64 (thInput (tweak 3 lay tau 0 e) ends.flatten) = queryOfWords 10
+      ([BitVec.ofNat 64 (twLo 3 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0] ++
         (ends.map fun v => [vw0 v, vw1 v]).flatten) := by
   have hflat : ends.flatten.length = 672 := by
     rw [List.length_flatten]
@@ -385,9 +414,9 @@ theorem pad64_leafPayload4 (lay tau e : Nat) (ends : List Val) (hl : ends.length
 theorem addrFmt_leafInput_words (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
     (hv : ∀ v ∈ ends, v.length = 16) :
     addrFmt (leafInput lay tau e ends) = queryOfWords 10
-      ([BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0] ++
+      ([BitVec.ofNat 64 (twLo 3 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0] ++
         (ends.map fun v => [vw0 v, vw1 v]).flatten) := by
-  rw [addrFmt_leafInput_tag4 lay tau e ends hl hv, pad64_leafPayload4 lay tau e ends hl hv]
+  rw [addrFmt_leafInput_tag3 lay tau e ends hl hv, pad64_leafPayload3 lay tau e ends hl hv]
 
 theorem pad64_digestInput (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
     pad64 (digestInput rho m) = queryOfWords 1

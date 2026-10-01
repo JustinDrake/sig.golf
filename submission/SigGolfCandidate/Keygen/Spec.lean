@@ -113,7 +113,7 @@ theorem spec_0 (s : MachineState) (hpc : s.pc = BitVec.ofNat 64 (0x1000 + 4 * 0)
       t.getMem (BitVec.ofNat 64 1752) = s.getMem (BitVec.ofNat 64 152) ∧
       (t.getMem (BitVec.ofNat 64 1696)).toNat % 2 ^ 32 = 1 ∧
       (t.getMem (BitVec.ofNat 64 192)).toNat % 2 ^ 32 = 257 ∧
-      t.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 1025 ∧
+      t.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 769 ∧
       t.getMem (BitVec.ofNat 64 224) = 0 ∧ t.getMem (BitVec.ofNat 64 232) = 0 ∧
       Frame s t [1728, 1736, 1744, 1752, 1696, 192, 832, 224, 232] := by
   have hobl : blk_0.res.obligs s := by simp only [blk_0.res, rv_simp]
