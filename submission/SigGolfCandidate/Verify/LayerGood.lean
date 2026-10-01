@@ -47,7 +47,7 @@ theorem witPath_eq (L : LCtx) (hL : L.lay < 5) : witPath L.wl L.lay = (layFC L).
   simp only [heightL_eq _ hL]
   apply List.map_congr_left
   intro l _
-  simp [witSib, pathOff_eqL _ hL]
+  simp [witSib, pathOff_eqL _ hL, pathStride, pathStrideL]
 
 theorem Good.reject {s : MachineState} (hf : fetch image s = some (.base .ECALL))
     (h5 : s.getReg .x5 = 1) (h10 : s.getReg .x10 = 1) : Good s 1 1 (pure (false, 0)) := by
@@ -158,12 +158,13 @@ theorem foldEnd_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     intro p hp
     simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
     rcases hp with hp | hp | hp | hp | hp | hp
-    · rw [writeHash_getReg]; exact hK1 p (by simp [fk, gkOf, hp])
-    · subst hp; rw [writeHash_getReg]; exact hK1 _ (by simp [fk, gkOf])
-    · subst hp; rw [writeHash_getReg]; exact hK1 _ (by simp [fk, gkOf])
+    · rw [writeHash_getReg]; exact hK1 p (by simp [foldK, fk, gkOf, hp])
+    · subst hp; rw [writeHash_getReg]; exact hK1 _ (by simp [foldK, fk, gkOf])
+    · subst hp; rw [writeHash_getReg]; exact hK1 _ (by simp [foldK, fk, gkOf])
     · subst hp; rw [writeHash_getReg]; exact h12
     · subst hp; rw [kf _ (by simp [fkeep])]; exact h27
-    · subst hp; rw [kf _ (by simp [fkeep])]; exact h22
+    · subst hp; rw [writeHash_getReg]
+      exact hK1 (.x22, BitVec.ofNat 64 (s6N lay)) (by simp [foldK, layFC, s6N_eq])
   · simp only [routeReg, routeIn, if_neg (show lay - 1 ≠ 4 by omega)]
     rw [kf _ (by simp [fkeep]), h30]
     simp only [LCtx.tau]
@@ -235,7 +236,10 @@ theorem compare_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (M :
   have hK' : KnownOK cmpK (writeHash u a) := fun p hp => by
     rw [writeHash_getReg]
     simp only [cmpK] at hp
-    exact hK p (by simpa [layFC, dstOf] using hp)
+    apply hK p
+    rcases List.mem_append.mp hp with hp | hp
+    · exact List.mem_append_left _ (List.mem_append_left _ hp)
+    · simpa [layFC, dstOf] using List.mem_append_right (foldK 0 64) hp
   have hpc' : (writeHash u a).pc = pcOf (cmpPc tt) := by
     rw [writeHash_pc, hpc, pcOf_add4, ← cmp_link tt htt2]
     rfl

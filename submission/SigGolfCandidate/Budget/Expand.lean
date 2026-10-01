@@ -862,7 +862,7 @@ theorem expand_le_sign (f : Hash) (sk : Bytes 32) (m : Bytes 32) (σ : Bytes 603
     obtain ⟨wl, hwl, hwz, hexp, -⟩ := Final.eval_aExpand_sign' (gF f) sk m hkp hs
     have hE := Equiv.expandRef_eq m (pkA.root : Bytes 16) pkA (Equiv.compress S)
     have hev : evalWithAnswerFn f (expandRef m (pkA.root : Bytes 16) (Equiv.compress S)) =
-        some (Ref.ofList 16128
+        some (Ref.ofList 15872
           (Ref.cutW (Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S))))) := by
       rw [hE, eval_relabel, hexp]
     unfold expandRef at hev ⊢

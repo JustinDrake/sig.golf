@@ -7,7 +7,7 @@ import SigGolfCandidate.Verify.PorsTab
 Every start of layer `lay` (layer 4: a PORS root tail; below: a block of the last fold chunk of
 layer `lay + 1`) runs its own copy of the transition (`trPc lay c`):
 * route and encoding (`stepsA` steps up to the encoding `ecall`; the counter is read from the
-  witness, `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `2392`);
+  witness, `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `2648`);
 * the encoding check (`or; blt` for the top bits, the SWAR digit sum, `remu` by `x18 = 4095`,
   `bne KT`), then the chain prologue `li s6, base`, the extraction of triple 0
   and `jalr ra` into the layer-shared chain code (24 steps, 27 cycles);
@@ -59,9 +59,9 @@ def x31Er (lay : Nat) : E :=
 def uHE (lay : Nat) : E :=
   if lay = 0 then .bin .add (uEr lay) (cw 2048) else .bin .or (uEr lay) (cw (2 ^ heightL lay))
 
-/-- The doubleword holding layer `lay`'s counter (`c4` at witness 2392, `c0 .. c3` in the tweak
+/-- The doubleword holding layer `lay`'s counter (`c4` at witness 2648, `c0 .. c3` in the tweak
 slot of chain block `(0, 0)` at witness 2944). -/
-def ctrA (lay : Nat) : Nat := if lay = 4 then 0x800 + 2392 else 0x800 + 2944 + 8 * (lay / 2)
+def ctrA (lay : Nat) : Nat := if lay = 4 then 0x800 + 2648 else 0x800 + 2944 + 8 * (lay / 2)
 def ctrE (lay : Nat) : E := .un (.ld .wu (4 * (lay % 2))) (ldE (ctrA lay))
 
 def specA (lay t : Nat) : Spec :=
