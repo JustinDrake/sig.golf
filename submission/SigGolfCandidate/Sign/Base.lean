@@ -75,6 +75,12 @@ theorem ofNat_shiftLeft (a k : Nat) :
   apply BitVec.eq_of_toNat_eq
   simp [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, Nat.mul_mod]
 
+/-- `x << 32` keeps the low half of `x` (no wrap left in the result). -/
+theorem shl32_ofNat (x : Nat) : BitVec.ofNat 64 x <<< 32 = BitVec.ofNat 64 (x % 2 ^ 32 * 2 ^ 32) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
+  omega
+
 theorem ofNat_ushiftRight (a k : Nat) (ha : a < 2 ^ 64) :
     BitVec.ofNat 64 a >>> k = BitVec.ofNat 64 (a / 2 ^ k) := by
   apply BitVec.eq_of_toNat_eq

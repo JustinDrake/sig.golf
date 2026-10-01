@@ -133,12 +133,12 @@ theorem filter_ge_step {G : List Nat} (hG : G.Pairwise (· < ·)) (h : Nat) :
 theorem inner_fold {v : Nat} (hv : v < porsT) {G : List Nat} (hG : G.Pairwise (· < ·))
     (hG14 : ∀ g ∈ G, g ≤ porsH) (st : SchedState) (hst : st.stack = G.map (anc v)) :
     ∀ h ≤ porsH,
-      ((List.range h).foldl schedStep (st, porsT + v, 0, (porsT + v) % 8)).1.stack =
+      ((List.range h).foldl schedStep (st, porsT + v, 0, (porsT + v) % 2)).1.stack =
           (G.filter (fun g => decide (h ≤ g))).map (anc v) ∧
-        ((List.range h).foldl schedStep (st, porsT + v, 0, (porsT + v) % 8)).2.1 = anc v h ∧
-        ((List.range h).foldl schedStep (st, porsT + v, 0, (porsT + v) % 8)).1.reads.length + G.length =
+        ((List.range h).foldl schedStep (st, porsT + v, 0, (porsT + v) % 2)).2.1 = anc v h ∧
+        ((List.range h).foldl schedStep (st, porsT + v, 0, (porsT + v) % 2)).1.reads.length + G.length =
           st.reads.length + h + (G.filter (fun g => decide (h ≤ g))).length ∧
-        ((List.range h).foldl schedStep (st, porsT + v, 0, (porsT + v) % 8)).1.segs.length +
+        ((List.range h).foldl schedStep (st, porsT + v, 0, (porsT + v) % 2)).1.segs.length +
           (G.filter (fun g => decide (h ≤ g))).length = st.segs.length + G.length := by
   intro h
   induction h with
@@ -151,7 +151,7 @@ theorem inner_fold {v : Nat} (hv : v < porsT) {G : List Nat} (hG : G.Pairwise (�
     intro hh
     obtain ⟨h1, h2, h3, h4⟩ := ih (by omega)
     rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
-    generalize (List.range h).foldl schedStep (st, porsT + v, 0, (porsT + v) % 8) = x at h1 h2 h3 h4 ⊢
+    generalize (List.range h).foldl schedStep (st, porsT + v, 0, (porsT + v) % 2) = x at h1 h2 h3 h4 ⊢
     obtain ⟨st', E, cnt, t⟩ := x
     simp only at h1 h2 h3 h4
     have hf := filter_ge_step hG h
@@ -253,7 +253,7 @@ theorem leaf_step {vs : List Nat} (hv : Leaves vs) {s : Nat} (hs1 : s + 1 < vs.l
   simp only [if_pos hs1]
   rw [or_porsT haT, show bitLen (vs.getD s 0 ^^^ vs.getD (s + 1) 0) - 1 = t by
     rw [← ha, ← hb, bitLen_pos hx]; omega]
-  generalize (List.range t).foldl schedStep (st, porsT + a, 0, (porsT + a) % 8) = y at i1 i2 i3 i4 ⊢
+  generalize (List.range t).foldl schedStep (st, porsT + a, 0, (porsT + a) % 2) = y at i1 i2 i3 i4 ⊢
   obtain ⟨st', E, cnt, tt⟩ := y
   simp only at i1 i2 i3 i4 ⊢
   refine ⟨t :: F, ?_, ?_, ?_, ?_, ?_⟩
@@ -312,7 +312,7 @@ theorem leaf_last {vs : List Nat} (hv : Leaves vs) {s : Nat} (hs : s + 1 = vs.le
   unfold schedLeaf
   simp only [show ¬ (s + 1 < vs.length) by omega, if_false]
   rw [or_porsT haT]
-  generalize (List.range porsH).foldl schedStep (st, porsT + vs.getD s 0, 0, (porsT + vs.getD s 0) % 8) = y
+  generalize (List.range porsH).foldl schedStep (st, porsT + vs.getD s 0, 0, (porsT + vs.getD s 0) % 2) = y
     at i1 i2 i3 i4 ⊢
   obtain ⟨st', E, cnt, tt⟩ := y
   simp only [List.map_nil, List.length_nil] at i1 i2 i3 i4 ⊢

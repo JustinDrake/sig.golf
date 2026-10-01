@@ -82,10 +82,10 @@ theorem blk603_run (t : MachineState) (hpc : t.pc = pcOf 603) (k E Q : Nat) (hk 
 theorem blk606_run (idx : Nat) (t : MachineState) (hpc : t.pc = pcOf 606) (k E : Nat) (hk : k < 15)
     (hE : E < 2 ^ 15) (h19 : t.getReg .x19 = BitVec.ofNat 64 E)
     (h21 : t.getReg .x21 = BitVec.ofNat 64 (0x30540 + 32 * k))
-    (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) (h26 : t.getReg .x26 = BitVec.ofNat 64 (idx % 2 ^ 32)) :
+    (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) (h26 : t.getReg .x26 = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32)) :
     ∃ t', Steps eimg t 42 42 t' ∧ t'.pc = pcOf 550 ∧ t'.getReg .x19 = BitVec.ofNat 64 (E / 2) ∧
       t'.getReg .x24 = BitVec.ofNat 64 1 ∧
-      t'.getMem (BitVec.ofNat 64 0x30048) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * Rev.efield (E / 2)) ∧
+      t'.getMem (BitVec.ofNat 64 0x30048) = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * Rev.efield (E / 2)) ∧
       t'.readWords (BitVec.ofNat 64 0x30060) 2 = t.readWords (BitVec.ofNat 64 (0x30540 + 32 * k)) 2 ∧
       t'.readWords (BitVec.ofNat 64 0x30070) 2 = t.readWords (BitVec.ofNat 64 0x30080) 2 ∧
       RegsEq t t' [.x13, .x14, .x15, .x16, .x17, .x19, .x24] ∧
@@ -114,7 +114,7 @@ theorem blk606_run (idx : Nat) (t : MachineState) (hpc : t.pc = pcOf 606) (k E :
     rw [g2 .x21 (by decide) (by decide) (by decide) (by decide), h21]
   have q25 : t2.getReg .x25 = BitVec.ofNat 64 0x30000 := by
     rw [g2 .x25 (by decide) (by decide) (by decide) (by decide), h25]
-  have q26 : t2.getReg .x26 = BitVec.ofNat 64 (idx % 2 ^ 32) := by
+  have q26 : t2.getReg .x26 = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32) := by
     rw [g2 .x26 (by decide) (by decide) (by decide) (by decide), h26]
   have hs3 := symRun_sound Expand.blk608 Expand.codeAt_608 t2 pc2 (by pobl [Expand.blk608.res, q21, q25])
   have f3 : Frame t2 (Expand.blk608.res.toState t2) (fun x => x = 0x30048 ∨ (0x30060 ≤ x ∧ x < 0x30080)) := by
@@ -128,8 +128,8 @@ theorem blk606_run (idx : Nat) (t : MachineState) (hpc : t.pc = pcOf 606) (k E :
     ?_, ?_⟩
   · rw [regsEq_toState Expand.blk608.res t2 [.x13, .x14, .x15, .x16, .x17, .x24]
       (fun x hx => by cases x <;> first | (simp at hx; done) | rfl) .x19 (by decide), z19]
-  · have e : (BitVec.ofNat 64 (2 ^ 32 * Rev.efield (E / 2)) + BitVec.ofNat 64 (idx % 2 ^ 32)) =
-        BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * Rev.efield (E / 2)) := by
+  · have e : (BitVec.ofNat 64 (2 ^ 32 * Rev.efield (E / 2)) + BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32)) =
+        BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * Rev.efield (E / 2)) := by
       rw [ofNat_add_ofNat]; exact ofNat_congr (by omega)
     pnum [Expand.blk608.res, q25, x13, q26, e]
     try omega
@@ -307,11 +307,11 @@ theorem blk536_run (t : MachineState) (hpc : t.pc = pcOf 536) (x : Nat) (hx : x 
 theorem blk538_run (w : List Byte) (idx : Nat) (t : MachineState) (hpc : t.pc = pcOf 538) (s x : Nat)
     (hs : s < 15) (hx : x < 2 ^ 14) (hw : WitMem w t)
     (h8 : t.getReg .x8 = BitVec.ofNat 64 s) (h23 : t.getReg .x23 = BitVec.ofNat 64 x)
-    (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) (h26 : t.getReg .x26 = BitVec.ofNat 64 (idx % 2 ^ 32))
+    (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) (h26 : t.getReg .x26 = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32))
     (h27 : t.getReg .x27 = BitVec.ofNat 64 0x800) :
     ∃ t', Steps eimg t 12 12 t' ∧ t'.pc = pcOf 550 ∧ t'.getReg .x19 = BitVec.ofNat 64 (porsT ||| x) ∧
       t'.getReg .x24 = BitVec.ofNat 64 0 ∧
-      t'.getMem (BitVec.ofNat 64 0x30008) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * (8*x)) ∧
+      t'.getMem (BitVec.ofNat 64 0x30008) = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * (8*x)) ∧
       t'.readWords (BitVec.ofNat 64 0x30020) 2 = wordsOf (wbytes w (32 + 16 * s) 16) ∧
       RegsEq t t' [.x13, .x14, .x15, .x19, .x24] ∧
       Frame t t' (fun y => y = 0x30008 ∨ y = 0x30020 ∨ y = 0x30028) := by

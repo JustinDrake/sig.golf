@@ -16,53 +16,54 @@ theorem wordsToNat_lt (ws : List Word) : wordsToNat ws < 2 ^ (64 * ws.length) :=
     rw [show 64 * (ws.length + 1) = 64 + 64 * ws.length by omega, Nat.pow_add]
     omega
 
-/-- The tag-10 (PORS node) class: the header field (high half of word 1) is relabelled. -/
-theorem nodeRel_eq (a b R : Nat) (ha : a < 18446744073709551616) (hb : b < 18446744073709551616) :
-    nodeRel (a + 18446744073709551616 * (b + 18446744073709551616 * R)) =
-      a + 18446744073709551616 * (b % 4294967296 + 4294967296 * Rev.efield (b / 4294967296) +
-        18446744073709551616 * R) := by
-  unfold nodeRel
-  have q2 : (a + 18446744073709551616 * (b + 18446744073709551616 * R)) / 79228162514264337593543950336 %
-      4294967296 = b / 4294967296 := by omega
-  rw [q2]
-  generalize Rev.efield (b / 4294967296) = e
+/-- The swapped header words (`LeafScale.swRel f`) of a block with words `w0`, `w1`. -/
+def swW0 (w0 w1 : Word) : Word := BitVec.ofNat 64 (w0.toNat % 4294967296 + 4294967296 * (w1.toNat % 4294967296))
+def swW1 (f : Nat → Nat) (w0 w1 : Word) : Word :=
+  BitVec.ofNat 64 (w0.toNat / 4294967296 + 4294967296 * f (w1.toNat / 4294967296))
+
+theorem swRel_words (f : Nat → Nat) (hf : ∀ v, v < 4294967296 → f v < 4294967296)
+    (w0 w1 : Word) (ws : List Word) :
+    LeafScale.swRel f (wordsToNat (w0 :: w1 :: ws)) = wordsToNat (swW0 w0 w1 :: swW1 f w0 w1 :: ws) := by
+  have h0 := w0.isLt
+  have h1 := w1.isLt
+  have he := hf (w1.toNat / 4294967296) (by norm_num only [Nat.reducePow] at h1; omega)
+  norm_num only [Nat.reducePow] at h0 h1
+  have hx0 : w0.toNat % 4294967296 + 4294967296 * (w1.toNat % 4294967296) < 18446744073709551616 := by omega
+  have hx1 : w0.toNat / 4294967296 + 4294967296 * f (w1.toNat / 4294967296) < 18446744073709551616 := by
+    omega
+  have e1 : wordsToNat (w0 :: w1 :: ws) =
+      w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws) := rfl
+  have e2 : wordsToNat (swW0 w0 w1 :: swW1 f w0 w1 :: ws) =
+      (w0.toNat % 4294967296 + 4294967296 * (w1.toNat % 4294967296)) + 18446744073709551616 *
+        (w0.toNat / 4294967296 + 4294967296 * f (w1.toNat / 4294967296) +
+          18446744073709551616 * wordsToNat ws) := by
+    show (BitVec.ofNat 64 _).toNat + 18446744073709551616 * ((BitVec.ofNat 64 _).toNat +
+      18446744073709551616 * wordsToNat ws) = _
+    rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hx0, Nat.mod_eq_of_lt hx1]
+  rw [e1, e2, LeafScale.swRel_eq f _ _ _ h0 h1]
+
+theorem wordsToNat_lt8 (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6) :
+    wordsToNat (w0 :: w1 :: ws) < 2 ^ 512 := by
+  have := wordsToNat_lt (w0 :: w1 :: ws)
+  simpa [hlen] using this
+
+theorem wordsToNat_class (w0 : Word) (ws : List Word) :
+    wordsToNat (w0 :: ws) % 65536 = w0.toNat % 65536 := by
+  show (w0.toNat + 18446744073709551616 * wordsToNat ws) % 65536 = _
   omega
 
+/-- The tag-10 (PORS node) class: fields 1, 2 swap, the header field is relabelled by `Rev.efield`. -/
 theorem baseQueryPerm_node (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
     (hc : w0.toNat % 65536 = 2561) :
     baseQueryPerm (queryOfWords 0 (w0 :: w1 :: ws)) =
-      queryOfWords 0 (w0 :: BitVec.ofNat 64 (w1.toNat % 4294967296 +
-        4294967296 * Rev.efield (w1.toNat / 4294967296)) :: ws) := by
-  have hR := wordsToNat_lt ws
-  rw [hlen] at hR
-  norm_num only [Nat.reduceMul, Nat.reducePow] at hR
-  have h0 := w0.isLt
-  have h1 := w1.isLt
-  have he := Rev.efield_lt (w1.toNat / 4294967296)
-  norm_num only [Nat.reducePow] at h0 h1 he
-  have hx : w1.toNat % 4294967296 + 4294967296 * Rev.efield (w1.toNat / 4294967296) <
-      18446744073709551616 := by omega
-  have e1 : wordsToNat (w0 :: w1 :: ws) =
-      w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws) := rfl
-  have e2 : wordsToNat (w0 :: BitVec.ofNat 64 (w1.toNat % 4294967296 +
-        4294967296 * Rev.efield (w1.toNat / 4294967296)) :: ws) =
-      w0.toNat + 18446744073709551616 * (w1.toNat % 4294967296 +
-        4294967296 * Rev.efield (w1.toNat / 4294967296) + 18446744073709551616 * wordsToNat ws) := by
-    show w0.toNat + 18446744073709551616 * ((BitVec.ofNat 64 _).toNat +
-      18446744073709551616 * wordsToNat ws) = _
-    rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hx]
-  have hN : w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws) < 2 ^ 512 := by
-    norm_num only [Nat.reducePow]; omega
-  have hcls : (w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws)) % 65536
-      = 2561 := by omega
-  have key : fullPerm (w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws)) =
-      w0.toNat + 18446744073709551616 * (w1.toNat % 4294967296 +
-        4294967296 * Rev.efield (w1.toNat / 4294967296) + 18446744073709551616 * wordsToNat ws) := by
-    rw [fullPerm_of_eq _ hcls, nodeRel_eq _ _ _ h0 h1]
+      queryOfWords 0 (swW0 w0 w1 :: swW1 Rev.efield w0 w1 :: ws) := by
+  have hN := wordsToNat_lt8 w0 w1 ws hlen
+  have hcls : wordsToNat (w0 :: w1 :: ws) % 65536 = 2561 := (wordsToNat_class _ _).trans hc
   simp only [queryOfWords, baseQueryPerm]
   congr 1
   apply BitVec.eq_of_toNat_eq
-  rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat, e1, e2, Nat.mod_eq_of_lt hN, key]
+  rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hN,
+    fullPerm_of_eq _ hcls, nodeRel, swRel_words _ efield_lt']
 
 theorem baseQueryPerm_words (w : Word) (ws : List Word) (hlen : ws.length = 7)
     (hc : w.toNat % 65536 ≠ 2561) :
@@ -110,12 +111,16 @@ theorem wordPerm_leaf_class (w : Nat) (h : w % 65536 ≠ 2305) : wordPerm w % 65
 theorem queryPerm_node (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
     (hc : w0.toNat % 65536 = 2561) :
     queryPerm (queryOfWords 0 (w0 :: w1 :: ws)) =
-      queryOfWords 0 (w0 :: BitVec.ofNat 64 (w1.toNat % 4294967296 +
-        4294967296 * Rev.efield (w1.toNat / 4294967296)) :: ws) := by
+      queryOfWords 0 (swW0 w0 w1 :: swW1 Rev.efield w0 w1 :: ws) := by
   rw [queryPerm, baseQueryPerm_node w0 w1 ws hlen hc]
   apply LeafScale.queryRel_fixed
-  rw [queryOfWords_class, hc]
-  decide
+  rw [queryOfWords_class]
+  unfold swW0
+  rw [BitVec.toNat_ofNat]
+  have := w0.isLt
+  have := w1.isLt
+  norm_num only [Nat.reducePow] at *
+  omega
 
 theorem queryPerm_words (w : Word) (ws : List Word) (hlen : ws.length = 7)
     (hc : w.toNat % 65536 ≠ 2561) (h9 : w.toNat % 65536 ≠ 2305) :
@@ -126,48 +131,11 @@ theorem queryPerm_words (w : Word) (ws : List Word) (hlen : ws.length = 7)
   rw [queryOfWords_class, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (wordPerm_lt _ w.isLt)]
   exact wordPerm_leaf_class _ h9
 
-theorem leafRel_eq (a b R : Nat) (ha : a < 18446744073709551616) (hb : b < 18446744073709551616) :
-    LeafScale.rel (a + 18446744073709551616 * (b + 18446744073709551616 * R)) =
-      a + 18446744073709551616 * (b % 4294967296 + 4294967296 * LeafScale.left3 (b / 4294967296) +
-        18446744073709551616 * R) := by
-  unfold LeafScale.rel
-  have q2 : (a + 18446744073709551616 * (b + 18446744073709551616 * R)) / 79228162514264337593543950336 %
-      4294967296 = b / 4294967296 := by omega
-  rw [q2]
-  generalize LeafScale.left3 (b / 4294967296) = e
-  omega
-
 theorem queryPerm_leaf (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
     (hc : w0.toNat % 65536 = 2305) :
     queryPerm (queryOfWords 0 (w0 :: w1 :: ws)) =
-      queryOfWords 0 (w0 :: BitVec.ofNat 64 (w1.toNat % 4294967296 +
-        4294967296 * LeafScale.left3 (w1.toNat / 4294967296)) :: ws) := by
-  have hR := wordsToNat_lt ws
-  rw [hlen] at hR
-  norm_num only [Nat.reduceMul, Nat.reducePow] at hR
-  have h0 := w0.isLt
-  have h1 := w1.isLt
-  have he := LeafScale.left3_lt (w1.toNat / 4294967296)
-  norm_num only [Nat.reducePow] at h0 h1 he
-  have hx : w1.toNat % 4294967296 + 4294967296 * LeafScale.left3 (w1.toNat / 4294967296) <
-      18446744073709551616 := by omega
-  have e1 : wordsToNat (w0 :: w1 :: ws) =
-      w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws) := rfl
-  have e2 : wordsToNat (w0 :: BitVec.ofNat 64 (w1.toNat % 4294967296 +
-        4294967296 * LeafScale.left3 (w1.toNat / 4294967296)) :: ws) =
-      w0.toNat + 18446744073709551616 * (w1.toNat % 4294967296 +
-        4294967296 * LeafScale.left3 (w1.toNat / 4294967296) + 18446744073709551616 * wordsToNat ws) := by
-    show w0.toNat + 18446744073709551616 * ((BitVec.ofNat 64 _).toNat +
-      18446744073709551616 * wordsToNat ws) = _
-    rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hx]
-  have hN : w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws) < 2 ^ 512 := by
-    norm_num only [Nat.reducePow]; omega
-  have hcls : (w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws)) % 65536
-      = 2305 := by omega
-  have key : LeafScale.rel (w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws)) =
-      w0.toNat + 18446744073709551616 * (w1.toNat % 4294967296 +
-        4294967296 * LeafScale.left3 (w1.toNat / 4294967296) + 18446744073709551616 * wordsToNat ws) := by
-    exact leafRel_eq _ _ _ h0 h1
+      queryOfWords 0 (swW0 w0 w1 :: swW1 LeafScale.left3 w0 w1 :: ws) := by
+  have hN := wordsToNat_lt8 w0 w1 ws hlen
   have hclsQ : (queryOfWords 0 (w0 :: w1 :: ws)).2.toNat % 65536 = 2305 := by
     rw [queryOfWords_class, hc]
   have hbase : baseQueryPerm (queryOfWords 0 (w0 :: w1 :: ws)) = queryOfWords 0 (w0 :: w1 :: ws) := by
@@ -181,7 +149,8 @@ theorem queryPerm_leaf (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
   simp only [queryOfWords]
   congr 1
   apply BitVec.eq_of_toNat_eq
-  rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat, e1, e2, Nat.mod_eq_of_lt hN, key]
+  rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hN, LeafScale.rel,
+    swRel_words _ LeafScale.left3_lt']
 
 end SigGolfCandidate.Ref.AddressFormat
 

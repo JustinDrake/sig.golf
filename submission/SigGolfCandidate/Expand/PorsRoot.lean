@@ -58,13 +58,16 @@ theorem blk495_run (w : List Byte) (K : Nat → Nat) (t : MachineState) (hpc : t
     by simp only [Expand.blk495.res, rv_simp], by simp only [Expand.blk495.res, rv_simp],
     by pnum [Expand.blk495.res, List.length_nil], fun j hj => by simp at hj, le_refl _, by simp, rfl, by simp, by simp,
     by norm_num, by norm_num, fun h => absurd h (by norm_num)⟩, hfr⟩
-  · simp only [Expand.blk495.res, rv_simp, h160, show (30#64 : Word).toNat % 64 = 30 from rfl,
-      show (32#64 : Word).toNat % 64 = 32 from rfl]
-    rw [shl_shr _ _ hN0 (by norm_num), shl_shr _ _ (by omega) (by norm_num)]
+  · simp only [Expand.blk495.res, rv_simp]
+    apply BitVec.eq_of_toNat_eq
+    unfold Ref.tauH
+    simp only [BitVec.toNat_ofNat, BitVec.toNat_zero]
+    omega
   · pnum [Expand.blk495.res, h160, show (30#64 : Word).toNat % 64 = 30 from rfl,
       show (32#64 : Word).toNat % 64 = 32 from rfl, show (24#64 : Word).toNat % 64 = 24 from rfl,
       show (8#64 : Word).toNat % 64 = 8 from rfl]
     rw [shl_shr _ _ hN0 (by norm_num)]
+    try rw [shl32_ofNat]
     bvsimp []
     exact ofNat_congr (by omega)
   · pnum [Expand.blk495.res]
@@ -75,6 +78,7 @@ theorem blk495_run (w : List Byte) (K : Nat → Nat) (t : MachineState) (hpc : t
       show (32#64 : Word).toNat % 64 = 32 from rfl, show (24#64 : Word).toNat % 64 = 24 from rfl,
       show (8#64 : Word).toNat % 64 = 8 from rfl]
     rw [shl_shr _ _ hN0 (by norm_num)]
+    try rw [shl32_ofNat]
     bvsimp []
     exact ofNat_congr (by omega)
   · pnum [Expand.blk495.res]

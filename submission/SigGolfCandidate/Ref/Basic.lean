@@ -76,7 +76,7 @@ def nChains : Nat := 42
 /-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
 def targetSum : Nat := 185
 
-/-- Layer four uses a target one larger than the top four layers. -/
+/-- Layers three and four use a target one larger than the top three layers. -/
 def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 1 else 0
 
 /-- Old name of `targetSum`. -/
@@ -324,6 +324,9 @@ real block of `ref.node_query` (for every `H`; `le32` keeps `H mod 2^32`), and o
 node `(lam, j)` after `ref.f_query` for `H = 2^(14 - lam) + j`. -/
 def porsNodeInput (idx H : Nat) (l r : Val) : List Byte := thInput (tweak 10 0 idx 0 H) (l ++ r)
 
+/-- `tau` with its low half cleared (the relabelled PORS tweaks carry `tau mod 2^32` in the `p` slot). -/
+def tauH (idx : Nat) : Nat := idx / 2 ^ 32 * 2 ^ 32
+
 /-- Message digest: `tw(12, 0, 0, 0, 0) || P || rho || 0^16 || m` (96 bytes). -/
 def digestInput (rho m : List Byte) : List Byte := thInput (tweak 12 0 0 0 0) (rho ++ zeros 16 ++ m)
 
@@ -379,14 +382,14 @@ deriving DecidableEq, Repr
 
 /-- One height `h` of the inner `while h < top` loop of leaf processing; state
 `(st, E, cnt, t)`. If the stack top equals `E`: emit the segment `cnt | 16 | 32 t`, pop, go up
-(`t` = the low three bits of the new `E`); else record the witness sibling `(h, (E xor 1) - 2^14 / 2^h)`,
+(`t` = bit 0 of the new `E`); else record the witness sibling `(h, (E xor 1) - 2^14 / 2^h)`,
 count it, go up. -/
 def schedStep (x : SchedState × Nat × Nat × Nat) (h : Nat) : SchedState × Nat × Nat × Nat :=
   let (st, E, cnt, t) := x
   match st.stack with
   | Q :: rest =>
     if Q = E then ({ st with segs := st.segs ++ [cnt ||| 16 ||| 32 * t], stack := rest },
-      E / 2, 0, E / 2 % 8)
+      E / 2, 0, E / 2 % 2)
     else ({ st with reads := st.reads ++ [(h, (E ^^^ 1) - porsT / 2 ^ h)] }, E / 2, cnt + 1, t)
   | [] => ({ st with reads := st.reads ++ [(h, (E ^^^ 1) - porsT / 2 ^ h)] }, E / 2, cnt + 1, t)
 
@@ -397,7 +400,7 @@ def schedLeaf (vs : List Nat) (st : SchedState) (s : Nat) : SchedState :=
   let k := vs.length
   let E := porsT ||| vs.getD s 0
   let top := if s + 1 < k then bitLen (vs.getD s 0 ^^^ vs.getD (s + 1) 0) - 1 else porsH
-  let (st, E, cnt, t) := (List.range top).foldl schedStep (st, E, 0, E % 8)
+  let (st, E, cnt, t) := (List.range top).foldl schedStep (st, E, 0, E % 2)
   let st := { st with segs := st.segs ++ [cnt ||| 32 * t] }
   if s + 1 < k then { st with stack := (E ^^^ 1) :: st.stack } else st
 

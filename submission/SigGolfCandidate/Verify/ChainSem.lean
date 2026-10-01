@@ -215,7 +215,7 @@ def endPc (c : CCtx) (i : Nat) : Nat :=
 /-- Bytes 6, 7 of the word at CB (`0xC0`) are zero. A t0 conjunct of `LayerIn` (there the chain
 tweak was built in CB); W1a's layers neither read nor write CB, and the conjunct is only carried
 through the chain phase so that the interface of `LayerGood` with `Top` keeps its shape. -/
-def CB0 (s : MachineState) : Prop := (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2 ^ 48 = 0
+def CB0 (s : MachineState) : Prop := (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2 ^ 64 = 0
 
 /-- The registers and buffers common to the whole chain phase (`acc` = the chain ends so far). -/
 def ChBase (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=

@@ -259,6 +259,7 @@ structure NodeCtxD where
   tt : Nat
   lay : Nat
   tau : Nat
+  p : Nat
   lam : Nat
   B : Nat
   D : Nat
@@ -292,8 +293,8 @@ theorem nodeLoopD_sim (node : NodeFmt) (c : NodeCtxD) (lvl : List Val)
     (h25 : s.getReg .x25 = BitVec.ofNat 64 c.D)
     (h5 : s.getReg .x5 = 0) (hm14 : 2 * c.m ≤ 2 ^ 14)
     (hfmt : ∀ j l r, j < c.m → l.length = 16 → r.length = 16 →
-      addrFmt (node c.lam j l r) = pad64 (nodeFmt c.tt c.lay c.tau 0 (Rev.efield (c.m + j)) l r))
-    (hw0 : s.getMem (BitVec.ofNat 64 448) = twWord0 c.tt c.lay c.tau 0)
+      addrFmt (node c.lam j l r) = pad64 (nodeFmt c.tt c.lay c.tau c.p (Rev.efield (c.m + j)) l r))
+    (hw0 : s.getMem (BitVec.ofNat 64 448) = twWord0 c.tt c.lay c.tau c.p)
     (hw1 : lo32 (s.getMem (BitVec.ofNat 64 456)) = BitVec.ofNat 32 c.tau)
     (hz0 : s.getMem (BitVec.ofNat 64 464) = 0) (hz1 : s.getMem (BitVec.ofNat 64 472) = 0)
     (hslots : ∀ i (hi : i < lvl.length), s.readWords (BitVec.ofNat 64 (c.B + 16 * i)) 2 = wordsOf lvl[i]) :
@@ -321,7 +322,7 @@ theorem nodeLoopD_sim (node : NodeFmt) (c : NodeCtxD) (lvl : List Val)
       intro a ha hBa
       rw [mem1 a ha, if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega),
         if_neg (by omega)]
-    have hq : hashInput t1 = pad64 (nodeFmt c.tt c.lay c.tau 0 (Rev.efield (c.m + j)) (lvl.getD (2 * j) [])
+    have hq : hashInput t1 = pad64 (nodeFmt c.tt c.lay c.tau c.p (Rev.efield (c.m + j)) (lvl.getD (2 * j) [])
         (lvl.getD (2 * j + 1) [])) := by
       apply node_hashInput t1 _ _ _ _ _ _ _ hl hr (by rw [a10]) (by rw [a11])
       · rw [mem1 _ (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num)]
@@ -392,7 +393,7 @@ theorem nodeLoopD_sim (node : NodeFmt) (c : NodeCtxD) (lvl : List Val)
             if_true, lo32_replace1]
           exact tframe.2))
     refine this.mono ?_ (fun _ _ h => h)
-    rw [← addrFmt_blocks, hfmt j _ _ hj hl hr, nodeFmt, pad64_blocks_one _ (words_th32 c.tt c.lay c.tau 0 (Rev.efield (c.m + j)) _ _ hl hr).1]
+    rw [← addrFmt_blocks, hfmt j _ _ hj hl hr, nodeFmt, pad64_blocks_one _ (words_th32 c.tt c.lay c.tau c.p (Rev.efield (c.m + j)) _ _ hl hr).1]
   · refine ⟨Nat.zero_le _, rfl, by simp, by simp, fun i hi => hslots i hi, by simp [hpc, hm],
       by simpa using h16, fun r _ _ _ _ _ _ _ => rfl, fun a _ _ _ _ _ _ _ => rfl, rfl⟩
 
@@ -436,8 +437,8 @@ theorem lvBase_mono {a b : Nat} (h : a ≤ b) (hb : b ≤ 15) : lvBase a + 16 * 
 /-- Facts at the start of the level loop. -/
 structure PLevCtx (idx : Nat) (t0 : MachineState) : Prop where
   x5 : t0.getReg .x5 = 0
-  nb0 : t0.getMem (BitVec.ofNat 64 448) = twWord0 10 0 idx 0
-  nb8 : lo32 (t0.getMem (BitVec.ofNat 64 456)) = BitVec.ofNat 32 idx
+  nb0 : t0.getMem (BitVec.ofNat 64 448) = twWord0 10 0 idx idx
+  nb8 : lo32 (t0.getMem (BitVec.ofNat 64 456)) = BitVec.ofNat 32 0
   nbP : t0.readWords (BitVec.ofNat 64 0x1D0) 2 = [0, 0]
 
 def plevW (a : Nat) : Prop :=
@@ -488,7 +489,7 @@ theorem plev_body (idx : Nat) (t0 : MachineState) (ctx : PLevCtx idx t0) (j : Na
   have pc1 : t1.pc = pcOf 215 := by simp only [ht1, blk211.res, rv_simp]
   have hc1 : blk211.res.cycles = 4 := rfl
   rw [hc1] at hs1
-  let c : NodeCtxD := ⟨10, 0, idx, 1 + j, lvBase j, lvBase (j + 1), 2 ^ (13 - j)⟩
+  let c : NodeCtxD := ⟨10, 0, Ref.tauH idx, idx, 1 + j, lvBase j, lvBase (j + 1), 2 ^ (13 - j)⟩
   have hbase := lvBase_succ j (by omega)
   have hge := lvBase_ge j
   have hle := lvBase_le (j + 1) (by omega)
@@ -501,10 +502,11 @@ theorem plev_body (idx : Nat) (t0 : MachineState) (ctx : PLevCtx idx t0) (j : Na
     (fun jj l r hjj hl hr => by
       simp only [c, porsNodeFmt]
       rw [Verify.addrFmt_porsNodeInput_pad _ _ _ _ hl hr]
-      simp only [porsNodeInput, heapIndex, porsH, nodeFmt]
+      simp only [Verify.pNode, heapIndex, porsH, nodeFmt]
       rw [show 14 - (1 + j) = 13 - j by omega])
-    (by simp only [c]; rw [m1, tframe.getMem (by norm_num) (by simp only [plevW, lvBase]; omega), ctx.nb0])
-    (by simp only [c]; rw [m1, tlo, ctx.nb8])
+    (by simp only [c]; rw [m1, tframe.getMem (by norm_num) (by simp only [plevW, lvBase]; omega), ctx.nb0,
+          twWord0_tauH])
+    (by simp only [c]; rw [m1, tlo, ctx.nb8]; apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_ofNat]; unfold Ref.tauH; omega)
     (by rw [m1, tframe.getMem (by norm_num) (by simp only [plevW, lvBase]; omega)]
         exact (getMem_of_readWords t0 2 0x1D0 0 _ ctx.nbP (by norm_num)))
     (by rw [m1, tframe.getMem (by norm_num) (by simp only [plevW, lvBase]; omega)]

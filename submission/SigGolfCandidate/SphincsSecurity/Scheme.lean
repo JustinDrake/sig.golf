@@ -176,18 +176,13 @@ structure Segment where
   parity : Bool
   nodes : Fin folds.val → Digest
   parity_normal : folds.val = 0 → parity = false
-  lookahead : Fin 4
-  lookahead_normal : folds.val < 3 → lookahead = 0
 deriving DecidableEq
 
 /-- A segment with `parity` normalised: kept when there is a fold, `false` otherwise. -/
-def Segment.normalized (folds : Fin 16) (merge parity : Bool) (nodes : Fin folds.val → Digest)
-    (lookahead : Fin 4 := 0) : Segment :=
-  ⟨folds, merge, parity && decide (folds.val ≠ 0), nodes, (fun h => by simp [h]),
-    (if folds.val < 3 then 0 else lookahead), fun h => by simp [h]⟩
+def Segment.normalized (folds : Fin 16) (merge parity : Bool) (nodes : Fin folds.val → Digest) : Segment :=
+  ⟨folds, merge, parity && decide (folds.val ≠ 0), nodes, fun h => by simp [h]⟩
 
-instance : Inhabited Segment := ⟨⟨0, false, false, fun index => index.elim0,
-  (fun _ => rfl), 0, fun _ => rfl⟩⟩
+instance : Inhabited Segment := ⟨⟨0, false, false, fun index => index.elim0, fun _ => rfl⟩⟩
 
 /-- The node `i` of a segment, or zero past its folds. -/
 def Segment.node (segment : Segment) (i : Nat) : Digest :=
@@ -553,8 +548,7 @@ def recoverSegments (parameter : PublicParameter) (index : Index) (segments : Fi
         let segment := segments ⟨state.segment, hsegment⟩
         if ftsTreeHeight < segment.folds.val then
           return none
-        else if segment.folds.val ≠ 0 ∧ (segment.parity ≠ decide (state.heap % 2 = 1) ∨
-            (3 ≤ segment.folds.val ∧ segment.lookahead.val ≠ state.heap / 2 % 4)) then
+        else if segment.folds.val ≠ 0 ∧ segment.parity ≠ decide (state.heap % 2 = 1) then
           return none
         else
           let start ← match pending with
@@ -683,7 +677,6 @@ structure ScheduleSegment where
   merge : Bool
   parity : Bool
   reads : List (Nat × Nat)
-  lookahead : Fin 4
 deriving DecidableEq, Inhabited
 
 /-- The schedule's state: the finished segments, the stack of sibling heap indices the pending nodes wait
@@ -694,7 +687,6 @@ structure ScheduleState where
   heap : Nat
   parity : Bool
   reads : List (Nat × Nat)
-  lookahead : Fin 4
 
 /-- One height of a leaf's climb: merge if the stack's top waits for the current node (the open segment
 ends with a merge, and the next one starts one level up), else fold with the witness sibling. -/
@@ -705,9 +697,8 @@ def scheduleStep (state : ScheduleState) (height : Nat) : ScheduleState :=
   match state.stack with
   | top :: rest =>
       if top = state.heap then
-        { state with done := state.done ++ [⟨true, state.parity, state.reads, state.lookahead⟩], stack := rest,
-                     heap := state.heap / 2, parity := decide (state.heap / 2 % 2 = 1), reads := [],
-                     lookahead := ⟨state.heap / 2 / 2 % 4, Nat.mod_lt _ (by decide)⟩ }
+        { state with done := state.done ++ [⟨true, state.parity, state.reads⟩], stack := rest,
+                     heap := state.heap / 2, parity := decide (state.heap / 2 % 2 = 1), reads := [] }
       else fold
   | [] => fold
 
@@ -722,9 +713,8 @@ def scheduleLeaves : List Nat → ScheduleState → ScheduleState
         | [] => ftsTreeHeight
         | w :: _ => bitLength (v ^^^ w) - 1
       let state := (List.range top).foldl scheduleStep
-        { state with heap := heap, parity := decide (heap % 2 = 1), reads := [],
-                     lookahead := ⟨heap / 2 % 4, Nat.mod_lt _ (by decide)⟩ }
-      let state := { state with done := state.done ++ [⟨false, state.parity, state.reads, state.lookahead⟩] }
+        { state with heap := heap, parity := decide (heap % 2 = 1), reads := [] }
+      let state := { state with done := state.done ++ [⟨false, state.parity, state.reads⟩] }
       scheduleLeaves rest (match rest with
         | [] => state
         | _ :: _ => { state with stack := (state.heap ^^^ 1) :: state.stack })
@@ -732,7 +722,7 @@ def scheduleLeaves : List Nat → ScheduleState → ScheduleState
 /-- `ref.schedule`: the honest segments of the sorted leaves. For an admissible digest there are `29` of
 them, each with at most `14` reads, and `octopusSize` reads in all. -/
 def schedule (sorted : List Nat) : List ScheduleSegment :=
-  (scheduleLeaves sorted ⟨[], [], 0, false, [], 0⟩).done
+  (scheduleLeaves sorted ⟨[], [], 0, false, []⟩).done
 
 /-- The number of folds of a schedule segment, as a segment field. -/
 def ScheduleSegment.folds (segment : ScheduleSegment) : Fin 16 :=
@@ -740,13 +730,12 @@ def ScheduleSegment.folds (segment : ScheduleSegment) : Fin 16 :=
 
 /-- `ref.schedule`'s segment byte `a | 16 merge | 32 t` (before normalisation). -/
 def ScheduleSegment.byte (segment : ScheduleSegment) : Nat :=
-  segment.reads.length + 16 * (if segment.merge then 1 else 0) +
-    32 * (if segment.parity then 1 else 0) + 64 * segment.lookahead.val
+  segment.reads.length + 16 * (if segment.merge then 1 else 0) + 32 * (if segment.parity then 1 else 0)
 
 /-- The segment with the given nodes, its parity normalised. -/
 def ScheduleSegment.toSegment (segment : ScheduleSegment) (nodes : Fin segment.folds.val → Digest) :
     Segment :=
-  Segment.normalized segment.folds segment.merge segment.parity nodes segment.lookahead
+  Segment.normalized segment.folds segment.merge segment.parity nodes
 
 /-- The honest PORS signature of the digest's leaves: the slots in the order of their leaves, the leaves'
 secrets, and the schedule's segments with the tree's nodes (`node level nodeIdx`) at their read positions. -/

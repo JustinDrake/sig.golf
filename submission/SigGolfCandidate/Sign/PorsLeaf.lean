@@ -35,8 +35,8 @@ structure PLeafCtx (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
   pb8 : lo32 (t0.getMem (BitVec.ofNat 64 0x6A8)) = BitVec.ofNat 32 idx
   pbP : t0.readWords (BitVec.ofNat 64 0x6B0) 2 = [0, 0]
   pbS : t0.readWords (BitVec.ofNat 64 0x6C0) 4 = wordsOf S
-  cb0 : t0.getMem (BitVec.ofNat 64 0xC0) = twWord0 9 0 idx 0
-  cb8 : lo32 (t0.getMem (BitVec.ofNat 64 0xC8)) = BitVec.ofNat 32 idx
+  cb0 : t0.getMem (BitVec.ofNat 64 0xC0) = twWord0 9 0 idx idx
+  cb8 : lo32 (t0.getMem (BitVec.ofNat 64 0xC8)) = BitVec.ofNat 32 0
   cbP : t0.readWords (BitVec.ofNat 64 0xD0) 2 = [0, 0]
   cbZ : t0.readWords (BitVec.ofNat 64 0xF0) 2 = [0, 0]
   x5 : t0.getReg .x5 = 0
@@ -56,6 +56,9 @@ def CapInv (vs : List Nat) (j : Nat) (secs : List Val) (t : MachineState) (c : N
   (∀ s < c, t.readWords (BitVec.ofNat 64 (0x24B10 + 16 * s)) 2 = wordsOf (secs.getD (vs.getD s 0) [])) ∧
   t.getReg .x18 = BitVec.ofNat 64 (0x24B10 + 16 * c) ∧ t.getReg .x20 = BitVec.ofNat 64 (0x6E0 + 8 * c) ∧
   t.getReg .x13 = BitVec.ofNat 64 (vsAt vs c)
+
+theorem twWord0_tauH (t idx : Nat) : twWord0 t 0 (Ref.tauH idx) idx = twWord0 t 0 idx idx := by
+  unfold twWord0 Ref.tauH; congr 1; omega
 
 /-- Invariant after `j` leaves. -/
 def PLeafInv (L : List Nat) (t0 : MachineState) (j : Nat) (st : List Val × List Val) (t : MachineState) :
@@ -115,13 +118,15 @@ theorem pleaf_tail (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
   have x5 : t1.getReg .x5 = 0 := by rw [r1.get .x5, tx5]
   have pc1 : t1.pc = pcOf 207 := by simp only [ht1, blk202.res, rv_simp]
   have mC8 : t1.getMem (BitVec.ofNat 64 0xC8) =
-      BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * ((8*j) % 2 ^ 32)) := by
+      BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * ((8*j) % 2 ^ 32)) := by
     rvs [ht1, blk202.res, t9]
-    exact word_of_halves _ idx (8*j) (by rw [lo32_replace1, tlo2, ctx.cb8]) (by rw [hi32_replace1]; congr 1; ring)
-  have hq : hashInput t1 = pad64 (porsLeafInput idx (8*j) s) := by
-    obtain ⟨hn, hw⟩ := words_th16 9 0 idx 0 (8*j) s hs
+    exact word_of_halves _ (Ref.tauH idx) (8*j)
+      (by rw [lo32_replace1, tlo2, ctx.cb8]; apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_ofNat]; unfold Ref.tauH; omega)
+      (by rw [hi32_replace1]; congr 1; ring)
+  have hq : hashInput t1 = pad64 (Verify.pLeaf idx (8*j) s) := by
+    obtain ⟨hn, hw⟩ := words_th16 9 0 (Ref.tauH idx) idx (8*j) s hs
     refine hashInput_eq_pad64 t1 _ 0 hn (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
-    rw [porsLeafInput, hw, x10, show 8 * (0 + 1) = 1 + 1 + 2 + 2 + 2 from rfl]
+    rw [Verify.pLeaf, hw, x10, show 8 * (0 + 1) = 1 + 1 + 2 + 2 + 2 from rfl]
     rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add]
     simp only [Nat.reduceMul, Nat.reduceAdd]
     rw [readWords_ofNat_one, readWords_ofNat_one, mC8, f1.getMem (by norm_num) (by norm_num),
@@ -130,10 +135,10 @@ theorem pleaf_tail (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
       f1.readWords _ _ (by norm_num) (by intro i hi; omega),
       f1.readWords _ _ (by norm_num) (by intro i hi; omega),
       tframe.readWords _ _ (by norm_num) (by intro i hi; simp only [pleafW]; omega), ctx.cbP, tsv, tz]
-    simp [twWords_eq]
+    simp [twWords_eq, twWord0_tauH]
   have hb : (fmt (porsLeafInput idx j s)).blocks = 1 := by
     rw [← addrFmt_blocks, Verify.addrFmt_porsLeafInput_pad idx j s hs (by omega)]
-    exact congrArg (· + 1) (words_th16 9 0 idx 0 (8*j) s hs).1
+    exact congrArg (· + 1) (words_th16 9 0 (Ref.tauH idx) idx (8*j) s hs).1
   refine (Sim.steps hs1 (Sim.hash16_bindF (W := 2) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by omega) (by omega)
       (by norm_num)) (hq.trans (Verify.addrFmt_porsLeafInput_pad idx j s hs (by omega)).symm) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)

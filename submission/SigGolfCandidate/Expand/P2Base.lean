@@ -186,10 +186,12 @@ theorem ofNat_beq_zero (n : Nat) (h : n < 2 ^ 64) : (BitVec.ofNat 64 n == 0#64) 
 
 /-- The tweak words of a PORS input (`lay = 0`, `p = 0`, instance `idx < 2^34`). -/
 theorem twWords_pors (tg idx j : Nat) (ht : tg < 256) (hidx : idx < 2 ^ 34) (hj : j < 2 ^ 32) :
-    twWords tg 0 idx 0 j =
-      [BitVec.ofNat 64 (1 + 256 * tg + 2 ^ 24 * (idx / 2 ^ 32)), BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * j)] := by
+    twWords tg 0 (Ref.tauH idx) idx j =
+      [BitVec.ofNat 64 (1 + 256 * tg + 2 ^ 24 * (idx / 2 ^ 32) + 2 ^ 32 * (idx % 2 ^ 32)),
+        BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * j)] := by
   unfold twWords
-  rw [Nat.mod_eq_of_lt ht, Nat.mod_eq_of_lt (by omega : idx / 2 ^ 32 < 256), Nat.mod_eq_of_lt hj]
+  have e1 : Ref.tauH idx / 2 ^ 32 % 256 = idx / 2 ^ 32 := by unfold Ref.tauH; omega
+  rw [Nat.mod_eq_of_lt ht, e1, Nat.mod_eq_of_lt hj]
   simp
 
 end SigGolfCandidate.ExP

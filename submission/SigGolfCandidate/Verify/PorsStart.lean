@@ -249,6 +249,8 @@ theorem setup_look (s : MachineState) (u : MachineState)
 theorem setup_none : ∀ a ∈ zeroP, (memLook psetupMem a).isNone = true := by decide +kernel
 
 theorem halfP_lt : ∀ a ∈ halfP, a < 0x800 := by decide
+theorem halfP_zero : ∀ a ∈ halfP,
+    a % 8 = 0 ∧ 0x60 ≤ a ∧ a ≠ 0xA0 ∧ a ≠ 0xA8 ∧ (a < 0x160 ∨ 0x180 ≤ a) := by decide
 theorem zeroP_lt : ∀ a ∈ zeroP, a < 0x800 := by decide
 theorem zeroP_rest : ∀ a ∈ zeroP, a ∉ pSlots →
     a % 8 = 0 ∧ 0x60 ≤ a ∧ a ≠ 0xA0 ∧ a ≠ 0xA8 ∧ (a < 0x160 ∨ 0x180 ≤ a) := by decide
@@ -266,12 +268,13 @@ theorem look_some {ws : SymMem} {A : Nat} {e : E} (h : memLookB ws A e = true) :
   · rename_i v hv; rw [hv, E.beq_eq h]
   · cases h
 
-theorem setup_blkB : ∀ i, i < 14 → memLookB psetupMem (PSB + 80 * i) nbW0E = true ∧
-    memLookB psetupMem (PSB + 80 * i + 8) (stW0 (PSB + 80 * i + 8) idxE) = true := by decide +kernel
+theorem setup_blkB : ∀ i, i < 14 → memLookB psetupMem (PSB + 80 * i) nbW0E = true := by decide +kernel
 
-theorem setup_blk (i : Nat) (hi : i < 14) : memLook psetupMem (PSB + 80 * i) = some nbW0E ∧
-    memLook psetupMem (PSB + 80 * i + 8) = some (stW0 (PSB + 80 * i + 8) idxE) :=
-  ⟨look_some (setup_blkB i hi).1, look_some (setup_blkB i hi).2⟩
+theorem setup_blk (i : Nat) (hi : i < 14) : memLook psetupMem (PSB + 80 * i) = some nbW0E :=
+  look_some (setup_blkB i hi)
+
+/-- The setup does not write the word-1 slots (their low halves stay zero). -/
+theorem setup_halfB : ∀ a ∈ halfP, (memLook psetupMem a).isNone = true := by decide +kernel
 
 theorem setup_pindB : ∀ r, r < 15 → memLookB psetupMem (PIND + 8 * r) (pindE r) = true := by decide +kernel
 
@@ -307,7 +310,7 @@ theorem memLook_none_hi : ∀ (ws : SymMem) (A : Nat), (ws.all fun p => decide (
     exact memLook_none_hi ws A h2 hA
 
 theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P s) :
-    ∃ u, Steps image s 105 105 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
+    ∃ u, Steps image s 90 90 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
   obtain ⟨hMask, hRt, hG, hWA, hK, hd, hZ, hpc⟩ := hs
   obtain ⟨-, -, cSet⟩ := startCheck_parts
   obtain ⟨u, hu⟩ := spec_run cSet s hpc hK (by simp [setupSpec])
@@ -320,9 +323,11 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
   have hlook := setup_look s u hu.mem
   have hGu : Glob gkD P.wl P.pk u := hu.glob _ _ _ hG
   have hK' := hu.known
-  have nbw : nbW0E.eval s = BitVec.ofNat 64 (twLo 10 0 P.idx 0) := by
-    show hiE.eval s + BitVec.ofNat 64 0xA01 = _
-    rw [hhi, BitVec.ofNat_add_ofNat, twLo_idx _ _ (by decide) hil]; congr 1; omega
+  have hidxA : P.idx = P.A % 2 ^ 34 := rfl
+  have nbw : nbW0E.eval s = BitVec.ofNat 64 (twLo 10 0 P.idx P.idx) := by
+    rw [hidxA]; exact nbW0E_eval P.A s (by simpa using hw 0 (by decide))
+  have cbw : cbW0E.eval s = BitVec.ofNat 64 (twLo 9 0 P.idx P.idx) := by
+    rw [hidxA]; exact cbW0E_eval P.A s (by simpa using hw 0 (by decide))
   have S : S0 P u := by
     refine ⟨?_, hu.wall _ hWA, hGu.2.2.1, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · have fr : ∀ A, A = 0xFFFFF0 ∨ A = 0xFFFFF8 ∨ A = 0xFDFFC0 ∨ A = 0xFDFFC8 ∨ A = 0xFDFFD0 ∨ A = 0xFDFFD8 →
@@ -348,24 +353,19 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
         · exact hG.2.2.2 a hp
         · obtain ⟨h1, h2, h3, h4, h5⟩ := zeroP_rest a ha hp
           exact hZ a (zeroP_lt a ha) h1 h2 h3 h4 h5
-    · rw [hlook 0xC0 (by omega), look_some (e := .bin .add hiE (cw 0x901)) (by decide +kernel)]
-      show hiE.eval s + BitVec.ofNat 64 0x901 = _
-      rw [hhi, BitVec.ofNat_add_ofNat, twLo_idx _ _ (by decide) hil]; congr 1; omega
+    · rw [hlook 0xC0 (by omega), look_some (e := cbW0E) (by decide +kernel)]; exact cbw
     · rw [hlook 0x1C0 (by omega), look_some (e := nbW0E) (by decide +kernel)]; exact nbw
     · intro i hi
-      rw [hlook _ (by unfold PSB; omega), (setup_blk i hi).1]; exact nbw
+      rw [hlook _ (by unfold PSB; omega), setup_blk i hi]; exact nbw
     · intro a ha
       have ha' : a < 2 ^ 64 := by have := halfP_lt a ha; omega
       rw [hlook a ha']
-      have key : memLook psetupMem a = some (stW0 a idxE) := by
-        simp only [halfP, List.mem_append, List.mem_cons, List.not_mem_nil, or_false, List.mem_map,
-          List.mem_range] at ha
-        rcases ha with (rfl | rfl) | ⟨i, hi, rfl⟩
-        · exact look_some (by decide +kernel)
-        · exact look_some (by decide +kernel)
-        · exact (setup_blk i hi).2
-      rw [key]
-      exact stW0_low s a idxE _ hidx (by omega)
+      have hn := setup_halfB a ha
+      split
+      · rename_i v hv; rw [hv] at hn; cases hn
+      · have hz := halfP_zero a ha
+        rw [hZ a (halfP_lt a ha) hz.1 hz.2.1 hz.2.2.1 hz.2.2.2.1 hz.2.2.2.2]
+        rfl
     · rw [hlook 0x240 (by omega), look_some (e := stW 0x240 (cw 1)) (by decide +kernel)]
       change StoreKind.merge .w (s.getMem (BitVec.ofNat 64 0x240)) 4 (1#64) = _
       rw [hZ 0x240 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
