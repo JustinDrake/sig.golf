@@ -742,10 +742,10 @@ theorem analysis_run (ans : BitVec 256) (t : MachineState) (hpc : t.pc = pcOf 78
     have hs6 := symRun_sound blk134 codeAt_134 t5 pc5 (by simp only [blk134.res, rv_simp])
     set t6 := blk134.res.toState t5 with ht6
     have hpp := passPart_le L hbL 14
-    have pc6 : t6.pc = if passPart L 14 ≤ 132 then pcOf 136 else pcOf 137 := by
+    have pc6 : t6.pc = if passPart L 14 ≤ 131 then pcOf 136 else pcOf 137 := by
       simp only [ht6, blk134.res, rv_simp, x15]
-      rw [show (132#64 : Word) = BitVec.ofNat 64 132 from rfl, ofNat_slt_ofNat _ _ (by norm_num) (by omega)]
-      by_cases h : passPart L 14 ≤ 132
+      rw [show (131#64 : Word) = BitVec.ofNat 64 131 from rfl, ofNat_slt_ofNat _ _ (by norm_num) (by omega)]
+      by_cases h : passPart L 14 ≤ 131
       · rw [if_pos h, if_neg (by simp; omega)]
       · rw [if_neg h, if_pos (by simp; omega)]
     have m6 : ∀ z, t6.getMem z = t5.getMem z := fun z => by
@@ -753,14 +753,14 @@ theorem analysis_run (ans : BitVec 256) (t : MachineState) (hpc : t.pc = pcOf 78
     have r6 : RegsEq t5 t6 [.x17] := by
       intro q hq; rw [ht6, Result.toState_getReg]
       cases q <;> first | exact absurd (by decide) hq | rfl
-    have hadm : admissibleM N = decide (passPart L 14 ≤ 132) := by
+    have hadm : admissibleM N = decide (passPart L 14 ≤ 131) := by
       unfold admissibleM; rw [(passOk_iff L).mpr hall, passSum_eq, Bool.true_and]
     have keys6 : KeysAt t6 L := fun i hi => by rw [m6]; exact keys5 i hi
     have sent6 : t6.getMem (BitVec.ofNat 64 0x758) = BitVec.ofNat 64 (2 ^ 22) := by
       rw [m6, mem5, m4, sent3]
     have fr6 : Frame t t6 anW := fun a ha hW => by rw [m6, mem5, m4, fr03 a ha hW]
     have rg6 : RegsEq t t6 anRegs := (((rg3.trans r4).trans regs5).trans r6).mono (by decide)
-    by_cases hsum : passPart L 14 ≤ 132
+    by_cases hsum : passPart L 14 ≤ 131
     · have hs7 := symRun_sound blk136 codeAt_136 t6 (by rw [pc6, if_pos hsum]) (by simp only [blk136.res, rv_simp])
       set t7 := blk136.res.toState t6 with ht7
       have m7 : ∀ z, t7.getMem z = t6.getMem z := fun z => by

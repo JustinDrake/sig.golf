@@ -23,8 +23,17 @@ theorem boundaryEval_encode (parameter : PublicParameter) (f : QueryImpl HashSpe
     boundaryEval parameter f (encodeAttempt parameter lay tree leaf message counter) =
       (evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter), FreeMonoid.of none) := by
   apply boundaryEval_eq_of_snd
-  rw [encodeAttempt, boundaryEval_bind,
-    boundaryEval_tweakableHash _ _ _ _ (by simp [hashDomainFields, tweakFields]), boundaryEval_pure, mul_one]
+  have hn : ¬ FtsProbeSimulation.MessageHashInput parameter
+      (tweakableHashInput parameter (.encoding lay tree leaf)
+        (bytesLE 16 message ++ counterBytes counter)) := by
+    rintro ⟨payload, heq⟩
+    have htag := FtsProbeSimulation.tweakableHashInput_tag_eq parameter
+      (.encoding lay tree leaf) .message _ payload heq.symm
+    norm_num [hashDomainFields, tweakFields] at htag
+    exact (by decide : (4#8 : BitVec 8) ≠ 12#8) htag
+  simp [boundaryEval, encodeAttempt, oracleHash, QueryImpl.withTrace_apply,
+    signingBoundaryTrace_nonmessage _ _ _ hn]
+  rfl
 
 theorem boundaryEval_otsValues (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (secret : ChainIndex → Digest) (word : Encoding) :

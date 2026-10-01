@@ -161,6 +161,18 @@ theorem hash16_eq (y : List Byte) :
   simp only [Ref.hash16, answerBytes_eq]
   rw [map_eq_bind_pure_comp]; rfl
 
+theorem encodingBytes_eq (a : BitVec 256) :
+    Ref.encodingBytes a = dv (SphincsSecurity.selectEncodingDigest a) := by
+  change Ref.answerBytes 16 (Ref.encodingAnswer a) = _
+  rw [answerBytes_eq]
+  rfl
+
+/-- A reference encoding call retains the full oracle answer before selecting its half. -/
+theorem encodingHash_eq (y : List Byte) :
+    Ref.encodingHash y = (fun a => dv (SphincsSecurity.selectEncodingDigest a)) <$> Ref.H y := by
+  simp only [Ref.encodingHash, encodingBytes_eq]
+  rw [map_eq_bind_pure_comp]; rfl
+
 /-- A reference `Th` call is the relabelled abstract tweakable hash, when the inputs agree. -/
 theorem hash16_tweakable (P : SphincsSecurity.PublicParameter) (dom : SphincsSecurity.HashDomain)
     (payload : List UInt8) (y : List Byte)

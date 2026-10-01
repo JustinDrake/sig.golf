@@ -5,16 +5,16 @@ import SigGolfCandidate.Verify.PorsMem
 
 Families (each a list of path runs, checked by `pspecB` in the `PorsCheck*` files):
 
-* `setup`: from the digest's `j pors_setup` to `leaf_0` (leaf index table, tweak words, guard);
+* `setup`: falling through from the digest HASH to `leaf_0` (leaf index table, tweak words, guard);
 * `leaf s` (`s < 15`): pi byte, `x = PIND[pi & 0x78 / 8]`, the order checks, leaf tweak, secret,
   `E = x | 2^14`, `a0 = CB`, up to the dispatch (the rejects: HALT(1));
-* `disp c` (`c < 18`): the dispatch `lbu T, 352(FR); slli; add TB; jalr` of leaf `c` (link `x24`)
+* `disp c` (`c < 18`): the dispatch `lbu T, 336(FR); slli; add TB; jalr` of leaf `c` (link `x24`)
   or of the merge tail copy `c - 15` (no link), stopping at the symbolic table entry;
 * `tab tb b` (`tb < 2`, `b < 256`): the 8-word table slot `b` (`FR += 16 a + 8`, then for `a = 0`
   `j entry0_V`, for `a ≥ 1` the inlined entry code) up to the pending hash (`a > 14`: HALT(1);
   `a ≥ 1`: the parity test `andi T, E, 1; beq/bne T, x0, slot(b | 15)`, taken: HALT(1));
 * `ent tb b`: after the pending hash in slot `b`, `a0 = NB; j lad_V_t_(14-a)`;
-* `pos V t p t'`: ladder position `p` of stream `t` (sibling from `FR + 16 p`, `E >>= 1`, heap
+* `pos V t p t'`: ladder position `p` of stream `t` (sibling from `FR + 112 + 16 p`, `E >>= 1`, heap
   index, branch to stream `t'`), up to the next hash (`p = 13`: the variant's destination);
 * tails `tailM c d`, `tailP c d`, `tailF c` (copy `c`: `0`, `1` = after stream `c`'s ladder, `2` = after
   `entry0_V`), with `STK = 80 d` known where the tail writes through it.
@@ -38,8 +38,8 @@ def tailPc (V c : Nat) : Nat := if c = 2 then entry0Pc V + 2 else ladPc V c 13 +
 /-- The table of leaf `s` (`0` = normal, `1` = last leaf). -/
 def tsel (s : Nat) : Nat := if s = 14 then 1 else 0
 
-/-- The fold limit through the stream pointer: `FR` after `2 K - 1 = 29` segments with `118` folds
-in total (`t4 = x29` holds it through the PORS phase). -/
+/-- Reuse `x18 = 4095` as the fold limit. At an empty root, the rebased frame is
+`2216 + 16 * folds`, so `FR ≤ 4095` is equivalent to `folds ≤ 117`. -/
 def FLIM : Nat := 4095
 
 /-- The dispatch of merge-tail copy `c`. -/
@@ -55,10 +55,10 @@ def f4Pc (c : Nat) : Nat := if c = 2 then layerPcTab.getD 4 [] |>.getD 0 0
 def ldR (r : Reg) (off : Nat) : E := .ld (addC (.reg r) (BitVec.ofNat 64 off))
 def eS : E := .bin .srl (.reg .x23) (cw 1)
 def notOne : E := .c (~~~1#64)
-/-- The table slot address `(lbu (FR + 352) << 5) + TB` (8-word slots). -/
+/-- The table slot address `(lbu (FR + 336) << 5) + TB` (8-word slots). -/
 def dispT (tb : Nat) : E :=
-  .bin .add (.bin .sll (.un (.ld .bu 0) (.ld (.bin .add (.reg .x14) (cw 352)))) (cw 5)) (cw tb)
-def dispObl : List Oblig := [.align8 (.reg .x14), .valid ⟨some (.reg .x14), BitVec.ofNat 64 352⟩ 1]
+  .bin .add (.bin .sll (.un (.ld .bu 0) (.ld (.bin .add (.reg .x14) (cw 336)))) (cw 5)) (cw tb)
+def dispObl : List Oblig := [.align8 (.reg .x14), .valid ⟨some (.reg .x14), BitVec.ofNat 64 336⟩ 1]
 
 /-- The table of leaf `s`. -/
 def tbOf (s : Nat) : Nat := if s = 14 then tbL else tbN
@@ -147,17 +147,17 @@ def posKnown : List (Reg × Word) := gkP ++ [(.x10, 0x1C0)]
 def posKeep : List Reg := [.x14, .x15, .x16, .x17, .x20, .x22, .x24, .x29]
 
 def posMem (t p : Nat) : List (Addr × E) :=
-  [(⟨none, BitVec.ofNat 64 0x1C8⟩, stW 0x1C8 eS), (⟨none, BitVec.ofNat 64 (0x1F8 - 16 * t)⟩, ldR .x14 (128 + 16 * p + 8)),
-    (⟨none, BitVec.ofNat 64 (0x1F0 - 16 * t)⟩, ldR .x14 (128 + 16 * p))]
+  [(⟨none, BitVec.ofNat 64 0x1C8⟩, stW 0x1C8 eS), (⟨none, BitVec.ofNat 64 (0x1F8 - 16 * t)⟩, ldR .x14 (112 + 16 * p + 8)),
+    (⟨none, BitVec.ofNat 64 (0x1F0 - 16 * t)⟩, ldR .x14 (112 + 16 * p))]
 
 def posObl (p : Nat) : List Oblig :=
-  [.valid ⟨some (.reg .x14), BitVec.ofNat 64 (128 + 16 * p + 8)⟩ 8, .valid ⟨some (.reg .x14), BitVec.ofNat 64 (128 + 16 * p)⟩ 8]
+  [.valid ⟨some (.reg .x14), BitVec.ofNat 64 (112 + 16 * p + 8)⟩ 8, .valid ⟨some (.reg .x14), BitVec.ofNat 64 (112 + 16 * p)⟩ 8]
 
 /-- The branch direction from stream `t` to stream `t'`. -/
 def crossDir (t t' : Nat) : Bool := if t = 0 then t' = 1 else t' = 0
 
 def posSpec (V t p t' : Nat) : Spec :=
-  let regs0 := [(.x1, ldR .x14 (128 + 16 * p)), (.x30, ldR .x14 (128 + 16 * p + 8)), ((.x23 : Reg), eS)]
+  let regs0 := [(.x1, ldR .x14 (112 + 16 * p)), (.x2, ldR .x14 (112 + 16 * p + 8)), ((.x23 : Reg), eS)]
   if p = 13 then ⟨regs0 ++ [(.x12, destE V)], posMem t p, ladPc V t p + 7, true, 7, [], none, 7⟩
   else
     ⟨regs0 ++ [(.x3, .bin .sll eS (cw 63)), (.x12, cw (0x1E0 + 16 * t'))], posMem t p,
@@ -176,7 +176,7 @@ def posCheck (V : Nat) : Bool :=
 
 /-! ## Tails -/
 
-/-- Stack register offsets; physical addresses retain the EMPTY base. -/
+/-- The stack register is an offset; memory addresses retain the fixed EMPTY base. -/
 def stkReg (d : Nat) : Nat := 80 * d
 def stkOf (d : Nat) : Nat := EMPTY + 80 * d
 def tailKnown (d : Nat) : List (Reg × Word) := gkP ++ [(.x15, BitVec.ofNat 64 (stkReg d))]
@@ -207,29 +207,33 @@ def tailCheck (c : Nat) : Bool :=
 
 /-! ### The root tail (checks, layer constants) -/
 
-/-- The fold limit: `bltu t4, a4` (`FR` beyond `FLIM`). -/
+/-- The fold limit: `bltu x18, x14` (`FR` beyond `FLIM`). -/
 def fBr1 (d : Bool) : Br := ⟨.ltu, cw FLIM, .reg .x14, d⟩
-def fBr2 (d : Bool) : Br := ⟨.eq, .reg .x23, cw 1, d⟩
-def fBr3 (d : Bool) : Br := ⟨.eq, .reg .x15, cw 0, d⟩
+def fBr2 (d : Bool) : Br := ⟨.ne, .reg .x23, cw 1, d⟩
+def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw 0, d⟩
 
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
-/-- Known at the start of the layer-4 transition. The root sets the triple-table
-base and layer constants; address-format chains require no running-tweak bump. -/
-def rootK : List (Reg × Word) := baseK ++
-  [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x15, TTA5)]
-def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x28, 0xA80)]
+/-- Known at the start of the layer-4 transition: the layer constants the root tail sets (W1a: also
+`t3 = 2^40`, `sp = TMASK`, `a5 = ttab + 2048`, and `a4 = KT4`); the masks `x20`, `x21` are loaded from
+the verifier's data words and resolved from protected memory in `tailF_step`.
+`t3` reuses `x6 = 1` in one shift; `sp = 0x3FE00` reuses `x27 = 0x40101` in one
+addition of `-0x301`, so the accepting tail takes 15 instructions. -/
+def rootK : List (Reg × Word) :=
+  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, K40), (.x2, TMASK), (.x15, TTA5)]
+def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40101), (.x14, KT4)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8), (.x27, ldE 0xFFFFE0), (.x2, ldE 0xFFFFE8)], [], f4Pc c, false, 12, [fBr3 true, fBr2 true, fBr1 false], none, 12⟩
+  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 15,
+    [fBr3 false, fBr2 false, fBr1 false], none, 15⟩
 
 def tailFCheck (c : Nat) : Bool :=
-  pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br true, .br true]) (tailFSpec c) []
+  pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
     rootPost [.x22] &&
   pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br true]) (rejSpec 4 [fBr1 true]) [] [] [] &&
-  pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br false]) (rejSpec 6 [fBr2 false, fBr1 false]) [] [] [] &&
-  pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br true, .br false])
-    (rejSpec 7 [fBr3 false, fBr2 true, fBr1 false]) [] [] []
+  pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br true]) (rejSpec 5 [fBr2 true, fBr1 false]) [] [] [] &&
+  pspecB [] (runAt tailFKnown [] (tailPc 2 c) [.br false, .br false, .br true])
+    (rejSpec 6 [fBr3 true, fBr2 false, fBr1 false]) [] [] []
 
 /-! ## Leaves -/
 
@@ -250,7 +254,7 @@ def leafBrs (s : Nat) (d1 d2 : Bool) : List Br :=
   (if s = 0 then [] else [⟨.geu, .reg (xReg (s + 1)), xE s, d1⟩])
 
 def leafSpec (s : Nat) : Spec :=
-  ⟨[(xReg s, xE s), (.x23, .bin .or (xE s) (cw 0x4000)), (.x1, ldE (secA s)), (.x30, ldE (secA s + 8))],
+  ⟨[(xReg s, xE s), (.x23, .bin .or (xE s) (cw 0x4000)), (.x1, ldE (secA s)), (.x2, ldE (secA s + 8))],
     [(⟨none, BitVec.ofNat 64 0xE8⟩, ldE (secA s + 8)), (⟨none, BitVec.ofNat 64 0xE0⟩, ldE (secA s)),
       (⟨none, BitVec.ofNat 64 0xC8⟩, stW 0xC8 (xE s))],
     dispLeafPc s, false, if s = 0 then 10 else if s = 14 then 14 else 11, leafBrs s false false, none, if s = 0 then 10 else if s = 14 then 14 else 11⟩
@@ -280,10 +284,10 @@ def k0 : List (Reg × Word) :=
   [(.x1, 0), (.x3, 0), (.x4, 0), (.x5, 0), (.x6, 0), (.x7, 0), (.x8, 0), (.x9, 0), (.x10, 0), (.x11, 0),
    (.x12, 0), (.x13, 0), (.x14, 0), (.x15, 0), (.x16, 0), (.x17, 0), (.x18, 0), (.x19, 0), (.x20, 0),
    (.x21, 0), (.x22, 0), (.x23, 0), (.x24, 0), (.x25, 0), (.x26, 0), (.x27, 0), (.x28, 0), (.x29, 0),
-   (.x30, 0), (.x31, 0), (.x2, 0xFFFFE0)]
+   (.x30, 0), (.x31, 0)]
 
 /-- Digest phase: witness bases and `P1 .. P5`. -/
-def gkD : List (Reg × Word) := baseK ++ [(.x2, 0xFFFFE0)]
+def gkD : List (Reg × Word) := baseK
 def dgK : List (Reg × Word) := gkD ++ [(.x10, 0x20), (.x11, 64), (.x12, 0), (.x15, 0)]
 
 /-- The counters (W1a): `c0 .. c3` as two doublewords at `WIT + 2944`, `c4` as a word at `WIT + 2392`. -/
@@ -292,9 +296,9 @@ def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
 
 def specStartOk : Spec :=
   ⟨[], [(⟨none, BitVec.ofNat 64 56⟩, ldE 2056), (⟨none, BitVec.ofNat 64 48⟩, ldE 2048),
-    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 24, true, 24, [⟨.ne, ctrE', .c 0, false⟩], none, 24⟩
+    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 25, true, 25, [⟨.ne, ctrE', .c 0, false⟩], none, 25⟩
 def specStartRej : Spec :=
-  ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 18, [⟨.ne, ctrE', .c 0, true⟩], none, 18⟩
+  ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 19, [⟨.ne, ctrE', .c 0, true⟩], none, 19⟩
 
 def wLdE (i : Nat) : E := ldE (8 * i)
 def idxE : E := .bin .srl (.bin .sll (wLdE 0) (cw 30)) (cw 30)
@@ -319,10 +323,10 @@ def psetupMem : List (Addr × E) :=
     (⟨none, BitVec.ofNat 64 0x7F8⟩, cw 0x4000)] ++
   ((List.range 15).reverse.map fun r => (⟨none, BitVec.ofNat 64 (PIND + 8 * r)⟩, pindE r))
 
-/-- Known after the setup: the PORS constants, `TB = ptab_n`, `FR` (first header at `FR + 352`),
+/-- Known after the setup: the PORS constants, `TB = ptab_n`, `FR` (first header at `FR + 336`),
 the empty stack, the fold limit `FLIM`. -/
 def setupPost : List (Reg × Word) :=
-  gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x7B0), (.x15, 0),
+  gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x7C0), (.x15, 0),
     (.x18, BitVec.ofNat 64 FLIM)]
 
 def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 100, [], none, 100⟩
@@ -330,6 +334,6 @@ def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 100, [], 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&
   specB [] (runAt k0 [] 0 [.br true]) specStartRej [] [] &&
-  specB gkD (runAt dgK [leafPc 0] 25 []) setupSpec setupPost []
+  specB gkD (runAt dgK [leafPc 0] 26 []) setupSpec setupPost []
 
 end SigGolfCandidate.Verify

@@ -502,7 +502,7 @@ theorem Avoids.encodingSearch (parameter : PublicParameter) (lay : Layer) (tree 
       refine Avoids.bind f target ?_ ?_
       · rw [Concrete.encode]
         exact Avoids.bind f target
-          (Avoids.tweakableHash f target parameter _ _ (hencode _)) (Avoids.pure' f target _)
+          (Avoids.oracleHash f target _ (hencode _)) (Avoids.pure' f target _)
       · split
         · exact Avoids.pure' f target _
         · exact ih _

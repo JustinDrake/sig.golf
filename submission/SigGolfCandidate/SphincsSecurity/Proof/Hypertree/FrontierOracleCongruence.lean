@@ -72,7 +72,7 @@ theorem eval_encode_eq_of_agree (lay : Layer) (tree : TreeIndex) (leaf : LeafInd
     (message : Digest) (counter : Counter) :
     evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) =
       evalWithAnswerFn g (encodeAttempt parameter lay tree leaf message counter) := by
-  simp only [encodeAttempt, evalWithAnswerFn_bind, evalWithAnswerFn_pure, eval_tweakableHash,
+  simp only [encodeAttempt, evalWithAnswerFn_bind, evalWithAnswerFn_pure, oracleHash, evalWithAnswerFn_query,
     h.other (.encoding lay tree leaf) (by simp only [hashDomainFields, tweakFields]; decide)]
 
 theorem referenceEncodingSearch_eq_of_agree (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)

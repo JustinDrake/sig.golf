@@ -3,7 +3,7 @@ namespace SphincsSecurity.Concrete
 
 open _root_.OracleComp OracleSpec ENNReal
 
-private theorem largeRangeClosing (x : ℝ) (hx : 3 / 16384 ≤ x) :
+private theorem largeRangeClosing (x : ℝ) (hx : 1 / 32768 ≤ x) :
     2 * x - x ^ 2 + (1 / 65536) * x + (x / 2 ^ 25 + 1 / 2 ^ 700) +
       x / 2 ^ 72 ≤ 2 * x := by
   have hn : 0 ≤ x := le_trans (by norm_num) hx
@@ -27,8 +27,8 @@ theorem native_bound_plus_le_security127 (q : Nat) (hlarge : budgetSplit ≤ q) 
     (add_le_add (mul_le_mul' le_rfl certificateCacheExceptionRate_le) le_rfl)) le_rfl) ?_
   rw [fullCertificateExcessRate_def, proposalPrefixExceptionBound_def]
   let x : ℝ := (q : ℝ) / 2 ^ 128
-  have hx : 3 / 16384 ≤ x := by
-    have hq : (3 * 2 ^ 114 : ℝ) ≤ q := by exact_mod_cast hlarge
+  have hx : 1 / 32768 ≤ x := by
+    have hq : (2 ^ 113 : ℝ) ≤ q := by exact_mod_cast hlarge
     apply (le_div_iff₀ (by positivity)).mpr
     norm_num at hq ⊢
     exact hq
@@ -58,7 +58,7 @@ theorem security127_of_large_budget (q : Nat) (hlarge : budgetSplit ≤ q) (adve
     (hcost : HasHashQueryBound scheme adversary q) : forgeAdvantage scheme adversary ≤ (q : ENNReal) / 2 ^ 127 := by
   by_cases hsmall : q ≤ 2 ^ 127
   · exact (RetainedResidual.forgeAdvantage_le_native_bound fixedReferenceDummy
-      (fun lay _ _ => fixedReferenceDummyWord_valid lay) adversary q hcost hsmall).trans
+      (fun _ _ _ => fixedReferenceDummyWord_valid) adversary q hcost hsmall).trans
         (native_bound_le_security127 q hlarge hsmall)
   · apply probOutput_le_one.trans
     calc

@@ -53,7 +53,7 @@ def ListPost (r : Option (List Byte)) (t : MachineState) : Prop :=
   fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
   match r with
   | none => t.getReg .x10 = 1
-  | some l => t.getReg .x10 = 0 ∧ readBuffer t 0x24B00 6048 = ofList 6048 l
+  | some l => t.getReg .x10 = 0 ∧ readBuffer t 0x24B00 6032 = ofList 6032 l
 
 /-- The zero buffers used as P slots / padding, never written by `sign` after the setup. -/
 def ZA (a : Nat) : Prop :=
@@ -83,7 +83,7 @@ theorem keys_facts (N : Nat) (hadm : admissible N = true) :
     have := hb k hk; unfold keyV; omega
 
 theorem sched_le (N : Nat) (hadm : admissible N = true) :
-    (schedule (sortLeaves (leavesOf N))).2.length ≤ 118 := by
+    (schedule (sortLeaves (leavesOf N))).2.length ≤ 117 := by
   obtain ⟨hl, hs, hlt, -, hvs⟩ := keys_facts N hadm
   rw [← hvs]
   refine SchedMath.schedule_reads_le _ (by rw [List.length_map, hl]) hs hlt ?_
@@ -230,12 +230,12 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
   have hc7 : 996 + blk1714.res.cycles = 996 + 2 := rfl
   have mem7 : ∀ a, t7.getMem a = t6.getMem a := by
     intro a; rw [ht7, Result.toState_getMem, show blk1714.res.st.mem = [] from rfl, memEval_nil]
-  have by7 : bytesAt t7 0x24B00 6048 = bytesAt t6 0x24B00 6048 := by
+  have by7 : bytesAt t7 0x24B00 6032 = bytesAt t6 0x24B00 6032 := by
     unfold bytesAt; apply List.map_congr_left; intro i _
     simp only [MachineState.getByte, mem7]
   -- the frame from `t3` to `t5`
   have f35 : Frame t3 t5 (layW 4) := fun a ha hW => by rw [lframe a ha hW, m4]
-  have nlay : ∀ a, 0x24B00 ≤ a → a < 0x24B00 + 2144 → ¬ layW 4 a := by
+  have nlay : ∀ a, 0x24B00 ≤ a → a < 0x24B00 + 2128 → ¬ layW 4 a := by
     intro a h1 h2; simp only [layW]; omega
   -- the head facts at `t5`
   have hrho5 : t5.readWords (BitVec.ofNat 64 0x24B00) 2 = wordsOf rho := by
@@ -252,7 +252,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
     intro r hr
     rw [f35.readWords _ _ (by omega) (fun i hi => nlay _ (by omega) (by omega))]
     exact rd3.2.2.1 r hr
-  have hz5 : ∀ i, (schedule vs).2.length ≤ i → i < 118 →
+  have hz5 : ∀ i, (schedule vs).2.length ≤ i → i < 117 →
       t5.readWords (BitVec.ofNat 64 (0x24C00 + 16 * i)) 2 = [0, 0] := by
     intro i h1 h2
     have hnw : ∀ k < 2, ¬ ((macW (0x24C00 + 16 * i + 8 * k) ∨ digW (0x24C00 + 16 * i + 8 * k)) ∨
@@ -286,9 +286,9 @@ theorem signList_sim (sk : SecretKey) (cache : Cache) (m : Message) :
 
 
 /-- Final states: at a HALT whose output is `signRef`'s value. -/
-def SignPost (a : Option (Bytes 6048)) (t : MachineState) : Prop :=
+def SignPost (a : Option (Bytes 6032)) (t : MachineState) : Prop :=
   fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
-  a = if t.getReg .x10 = 0 then some (readBuffer t 0x24B00 6048) else none
+  a = if t.getReg .x10 = 0 then some (readBuffer t 0x24B00 6032) else none
 set_option maxRecDepth 100000 in
 
 theorem signRef_sim (sk : SecretKey) (cache : Cache) (m : Message) :
