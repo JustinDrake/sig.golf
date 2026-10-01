@@ -8,7 +8,7 @@ import SigGolfCandidate.Expand.PorsBlk2
 * `porsEnd_sim` : the final checks of `Ref.porsRoot` (folds, `E = 1`, empty stack).
 
 The stack lives at `STK = X + 1344` (`StkOK`); the segment pointer stays below
-`528 + 232 (2 s - k)` (`s` leaves done, `k` entries on the stack: one segment per leaf start and
+`272 + 232 (2 s - k)` (`s` leaves done, `k` entries on the stack: one segment per leaf start and
 one per merge, each at most 232 bytes), so every read stays inside the witness buffer.
 -/
 
@@ -103,7 +103,7 @@ theorem segLoop_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) :
     t.getReg .x21 = BitVec.ofNat 64 (0x30540 + 32 * stk.length) → StkOK t stk → stk.length ≤ 15 →
     ptr % 8 = 0 → ptr + 232 * (stk.length + 1) ≤ 0x4000 → folds + 14 * (stk.length + 1) < 2 ^ 30 → E < 2 ^ 15 →
     PendOK idx node pending t →
-    Sim eimg t (1100 * (stk.length + 1)) (segLoop idx w ptr E folds pending node stk)
+    Sim eimg t (600 * (stk.length + 1)) (segLoop idx w ptr E folds pending node stk)
       (OPost (LoopOut w idx K t ptr folds stk.length)) := by
   intro stk
   induction stk with
@@ -145,7 +145,7 @@ theorem segLoop_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) :
     simp only [List.length_cons] at h21 hk hptr' hf ⊢
     simp only [segLoop]
     refine (Sim.bind (segment_sim w idx K ptr E folds pending node t hc hpc h9 h19 hptr (by omega)
-      hE hpend) (W₂ := 1100 * (rest.length + 1) + 100) (fun r t1 h1 => ?_)).mono (by ring_nf; omega)
+      hE hpend) (W₂ := 600 * (rest.length + 1) + 100) (fun r t1 h1 => ?_)).mono (by ring_nf; omega)
       (fun _ _ h => h)
     rcases r with _ | ⟨ptr', E', folds', node', merge⟩
     · dsimp only

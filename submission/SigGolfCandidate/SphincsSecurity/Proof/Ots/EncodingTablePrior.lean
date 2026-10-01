@@ -18,7 +18,7 @@ theorem referenceEncodingAllowed_nonempty (parameter : PublicParameter) (message
 
 noncomputable def referenceEncodingPrior (parameter : PublicParameter) (messages : EncodingPosition → Digest)
     (selections : ReferenceFamily) : PMF (canonicalEncodingInputs parameter → HashOutput) :=
-  (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections).bind
+  (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections).bind
     (fun rows => (PMF.uniformOfFintype (UniformTableSplit.Outside (referenceFamilyCell parameter messages) → HashOutput)).map
       (UniformTableSplit.join (referenceFamilyCell parameter messages) (referenceFamilyCell_injective parameter messages)
         (Function.uncurry rows)))
@@ -42,7 +42,7 @@ theorem referenceEncodingPrior_complete (parameter : PublicParameter) (messages 
 theorem referenceEncodingAllowed_fresh (parameter : PublicParameter) (messages : EncodingPosition → Digest)
     (selections : ReferenceFamily) (dummy : OtsReferenceWords) (cell : canonicalEncodingInputs parameter)
     (position : EncodingPosition) (hposition : AtEncodingPosition parameter cell.val position) :
-    FreshEncodingSupport position.lay (referenceFamilyWords selections dummy position.lay position.tree position.leafIdx)
+    FreshEncodingSupport (referenceFamilyWords selections dummy position.lay position.tree position.leafIdx)
       (referenceEncodingAllowed parameter messages selections cell) := by
   by_cases hc : cell ∈ Set.range (referenceFamilyCell parameter messages)
   · obtain ⟨row, rfl⟩ := hc
