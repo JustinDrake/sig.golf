@@ -203,21 +203,21 @@ def layN : Nat := 5000 * 5 + 9
 /-- The layers' cost `LayerGood.layersCost 5` (a literal here, so that the PORS part does not depend
 on the layer modules; `Top.layC_val` proves the equality). Irreducible, so that unification never
 evaluates it. -/
-@[irreducible] def layC : Nat := 7647
+@[irreducible] def layC : Nat := 7641
 def leafCost (s : Nat) : Nat := if s = 0 then 10 else if s = 14 then 14 else 11
 def lrest (s : Nat) : Nat := ((List.range' (s + 1) (14 - s)).map leafCost).sum
 def segR (s d : Nat) : Nat := 29 - 2 * s + d
 
 def Cseg (s d : Nat) : Nat :=
-  256 * segR s d + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 15 + layC
+  256 * segR s d + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 11 + layC
 def Aseg (s d F : Nat) : Nat :=
-  16 * segR s d + 17 * (117 - F) + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 15 + layC
+  16 * segR s d + 17 * (117 - F) + 6 * (d + 14 - s) + 4 * (14 - s) + lrest s + 11 + layC
 def Nseg (s d : Nat) : Nat := Cseg s d + layN
 
 /-- After the leaf's last segment (before the push / root tail). -/
-def CtailPF (s d : Nat) : Nat := if s = 14 then 15 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
+def CtailPF (s d : Nat) : Nat := if s = 14 then 11 + layC else 4 + leafCost (s + 1) + Cseg (s + 1) (d + 1)
 def AtailPF (s d F : Nat) : Nat :=
-  if s = 14 then 15 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
+  if s = 14 then 11 + layC else 4 + leafCost (s + 1) + Aseg (s + 1) (d + 1) F
 def NtailPF (s d : Nat) : Nat := CtailPF s d + layN
 
 /-- Before a merge tail. -/
@@ -349,7 +349,7 @@ theorem leaves_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
     (Kr : Option PorsState → OracleComp HashSpec Obs) (hnone : Kr none = pure (false, 0))
     (hKr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (15 + layC + layN) (15 + layC) (st.folds ≤ 117) (15 + layC) (Kr (some st))) :
+      GoodQ u (11 + layC + layN) (11 + layC) (st.folds ≤ 117) (11 + layC) (Kr (some st))) :
     ∀ n s (st : PorsState) m, s + n = 15 → LeafIn P s0 s st m →
       GoodQ m (leafCost s + Nseg s st.stack.length) (leafCost s + Cseg s st.stack.length) (st.folds ≤ 117)
         (leafCost s + Aseg s st.stack.length st.folds)

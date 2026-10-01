@@ -121,11 +121,13 @@ theorem targetFor_le (lay : Nat) : targetFor lay ≤ 183 := by
 /-- The verifier's embedded mask words. -/
 def MaskData (s : MachineState) : Prop :=
   s.getMem (BitVec.ofNat 64 0xFFFFF0) = M1w ∧
-  s.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w
+  s.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w ∧
+  s.getMem (BitVec.ofNat 64 0xFFFFE0) = 0x40401#64 ∧
+  s.getMem (BitVec.ofNat 64 0xFFFFE8) = 0x3fe00#64
 
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
 def gkL0 : List (Reg × Word) :=
-  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, K40), (.x2, TMASK),
+  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x2, TMASK),
     (.x15, TTA5)]
 
 /-- The layer phase (the same list: W1a keeps no layer-4-only constant). -/

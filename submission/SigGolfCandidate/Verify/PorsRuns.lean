@@ -157,7 +157,7 @@ def posObl (p : Nat) : List Oblig :=
 def crossDir (t t' : Nat) : Bool := if t = 0 then t' = 1 else t' = 0
 
 def posSpec (V t p t' : Nat) : Spec :=
-  let regs0 := [(.x1, ldR .x14 (112 + 16 * p)), (.x2, ldR .x14 (112 + 16 * p + 8)), ((.x23 : Reg), eS)]
+  let regs0 := [(.x1, ldR .x14 (112 + 16 * p)), (.x30, ldR .x14 (112 + 16 * p + 8)), ((.x23 : Reg), eS)]
   if p = 13 then ⟨regs0 ++ [(.x12, destE V)], posMem t p, ladPc V t p + 7, true, 7, [], none, 7⟩
   else
     ⟨regs0 ++ [(.x3, .bin .sll eS (cw 63)), (.x12, cw (0x1E0 + 16 * t'))], posMem t p,
@@ -214,18 +214,17 @@ def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw 0, d⟩
 
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
-/-- Known at the start of the layer-4 transition: the layer constants the root tail sets (W1a: also
-`t3 = 2^40`, `sp = TMASK`, `a5 = ttab + 2048`, and `a4 = KT4`); the masks `x20`, `x21` are loaded from
-the verifier's data words and resolved from protected memory in `tailF_step`.
-`t3` reuses `x6 = 1` in one shift; `sp = 0x3FE00` reuses `x27 = 0x40101` in one
-addition of `-0x301`, so the accepting tail takes 15 instructions. -/
+/-- Known at the start of the layer-4 transition: the layer constants the root tail sets
+(`a5 = ttab + 2048`). The masks `x20`, `x21`, the header word `x27 = 0x40401` and the dispatch
+mask `sp = TMASK` are loaded from the verifier's data words through `sp = dataBase` and resolved
+from protected memory in `tailF_step`, so the accepting tail takes 11 instructions. -/
 def rootK : List (Reg × Word) :=
-  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, K40), (.x2, TMASK), (.x15, TTA5)]
-def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40101), (.x14, KT4)]
+  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x15, TTA5)]
+def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 15,
-    [fBr3 false, fBr2 false, fBr1 false], none, 15⟩
+  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8), (.x27, ldE 0xFFFFE0), (.x2, ldE 0xFFFFE8)], [], f4Pc c, false, 11,
+    [fBr3 false, fBr2 false, fBr1 false], none, 11⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
@@ -254,7 +253,7 @@ def leafBrs (s : Nat) (d1 d2 : Bool) : List Br :=
   (if s = 0 then [] else [⟨.geu, .reg (xReg (s + 1)), xE s, d1⟩])
 
 def leafSpec (s : Nat) : Spec :=
-  ⟨[(xReg s, xE s), (.x23, .bin .or (xE s) (cw 0x4000)), (.x1, ldE (secA s)), (.x2, ldE (secA s + 8))],
+  ⟨[(xReg s, xE s), (.x23, .bin .or (xE s) (cw 0x4000)), (.x1, ldE (secA s)), (.x30, ldE (secA s + 8))],
     [(⟨none, BitVec.ofNat 64 0xE8⟩, ldE (secA s + 8)), (⟨none, BitVec.ofNat 64 0xE0⟩, ldE (secA s)),
       (⟨none, BitVec.ofNat 64 0xC8⟩, stW 0xC8 (xE s))],
     dispLeafPc s, false, if s = 0 then 10 else if s = 14 then 14 else 11, leafBrs s false false, none, if s = 0 then 10 else if s = 14 then 14 else 11⟩
@@ -284,10 +283,10 @@ def k0 : List (Reg × Word) :=
   [(.x1, 0), (.x3, 0), (.x4, 0), (.x5, 0), (.x6, 0), (.x7, 0), (.x8, 0), (.x9, 0), (.x10, 0), (.x11, 0),
    (.x12, 0), (.x13, 0), (.x14, 0), (.x15, 0), (.x16, 0), (.x17, 0), (.x18, 0), (.x19, 0), (.x20, 0),
    (.x21, 0), (.x22, 0), (.x23, 0), (.x24, 0), (.x25, 0), (.x26, 0), (.x27, 0), (.x28, 0), (.x29, 0),
-   (.x30, 0), (.x31, 0)]
+   (.x30, 0), (.x31, 0), (.x2, 0xFFFFE0)]
 
 /-- Digest phase: witness bases and `P1 .. P5`. -/
-def gkD : List (Reg × Word) := baseK
+def gkD : List (Reg × Word) := baseK ++ [(.x2, 0xFFFFE0)]
 def dgK : List (Reg × Word) := gkD ++ [(.x10, 0x20), (.x11, 64), (.x12, 0), (.x15, 0)]
 
 /-- The counters (W1a): `c0 .. c3` as two doublewords at `WIT + 2944`, `c4` as a word at `WIT + 2392`. -/
@@ -296,9 +295,9 @@ def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
 
 def specStartOk : Spec :=
   ⟨[], [(⟨none, BitVec.ofNat 64 56⟩, ldE 2056), (⟨none, BitVec.ofNat 64 48⟩, ldE 2048),
-    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 25, true, 25, [⟨.ne, ctrE', .c 0, false⟩], none, 25⟩
+    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 24, true, 24, [⟨.ne, ctrE', .c 0, false⟩], none, 24⟩
 def specStartRej : Spec :=
-  ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 19, [⟨.ne, ctrE', .c 0, true⟩], none, 19⟩
+  ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 18, [⟨.ne, ctrE', .c 0, true⟩], none, 18⟩
 
 def wLdE (i : Nat) : E := ldE (8 * i)
 def idxE : E := .bin .srl (.bin .sll (wLdE 0) (cw 30)) (cw 30)
@@ -334,6 +333,6 @@ def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 100, [], 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&
   specB [] (runAt k0 [] 0 [.br true]) specStartRej [] [] &&
-  specB gkD (runAt dgK [leafPc 0] 26 []) setupSpec setupPost []
+  specB gkD (runAt dgK [leafPc 0] 25 []) setupSpec setupPost []
 
 end SigGolfCandidate.Verify

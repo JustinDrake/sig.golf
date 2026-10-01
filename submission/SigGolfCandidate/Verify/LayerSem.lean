@@ -25,7 +25,7 @@ def LCtx.ok (L : LCtx) : Prop := L.lay < 5 ∧ L.idx < 2 ^ 34 ∧ L.wl.length = 
 def LCtx.e (L : LCtx) : Nat := L.idx / 2 ^ layS L.lay % 2 ^ heightL L.lay
 def LCtx.tau (L : LCtx) : Nat := L.idx / 2 ^ (layS L.lay + heightL L.lay)
 /-- Known registers on entry of a layer (W1a: one list `gkL = gkL0` for all layers; the chain
-constants `K40`, `TMASK`, `TTA5` are set once, before layer 4). -/
+constants `TMASK`, `TTA5` are set once, before layer 4). -/
 def LCtx.gk (_L : LCtx) : List (Reg × Word) := gkL0
 
 /-- t0's `CB + 32 .. CB + 48 = 0` (the zero pad of the chain buffer). W1a hashes the chains in place
@@ -46,7 +46,7 @@ def LayerIn (L : LCtx) (M : Val) (s : MachineState) : Prop :=
 /-- After the encoding hash of transition copy `t` (answer `a` in EO). -/
 def EncOut (L : LCtx) (t : Nat) (a : BitVec 256) (s : MachineState) : Prop :=
   Glob gkL L.wl L.pk s ∧ KnownOK (bK L.lay) s ∧
-  s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧
+  s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 (if L.lay = 0 then L.e else L.tau) ∧
   s.getReg .x31 = BitVec.ofNat 64 (L.tau + 2 ^ 32 * L.e) ∧
   s.getMem (BitVec.ofNat 64 288) = a.extractLsb' 0 64 ∧
   s.getMem (BitVec.ofNat 64 296) = a.extractLsb' 64 64 ∧
@@ -183,7 +183,7 @@ theorem enc_step (L : LCtx) (hL : L.ok) (M : Val) (s : MachineState) (hs : Layer
       by simpa using writeHash_getMem_ofNat u a 288 312 h12 (by decide) (by decide), ?_, ?_, ?_⟩
     · rw [writeHash_getReg, hu.regs (.x23, uHE L.lay) (by simp [specA]), uHE_eval L.idx L.lay hlay hidx s hR]
       rfl
-    · rw [writeHash_getReg, hu.regs (.x30, tauEr L.lay) (by simp [specA]), tauEr_eval L.idx L.lay hlay hidx s hR]
+    · rw [writeHash_getReg, hu.regs (.x30, carryEr L.lay) (by simp [specA]), carryEr_eval L.idx L.lay hlay hidx s hR]
       rfl
     · rw [writeHash_getReg, hu.regs (.x31, x31Er L.lay) (by simp [specA]), hx31]
     · unfold CB0
@@ -339,7 +339,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
         · rw [hu.keep .x30 (by simp)]; exact h30
         · rw [hu.keep .x31 (by simp)]; exact h31
         · exact hK' (.x22, BitVec.ofNat 64 (s6N L.lay)) (by simp [chKa])
-        · exact hK' (.x27, BitVec.ofNat 64 (hWord L.lay)) (by simp [chKa])
+        · exact hK' (.x27, BitVec.ofNat 64 (hWord L.lay + 768)) (by simp [chKa])
         · exact hK' (.x1, pcOf (retPc L.lay t)) (by simp [chKa])
         · unfold CB0; rw [hmem]; exact hCB
         · trivial
