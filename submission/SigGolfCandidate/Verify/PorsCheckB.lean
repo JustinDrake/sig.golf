@@ -12,9 +12,6 @@ theorem pentCheck_ok : pentCheck = true := by decide +kernel
 theorem posCheck_0 : posCheck 0 = true := by decide +kernel
 theorem posCheck_1 : posCheck 1 = true := by decide +kernel
 theorem posCheck_2 : posCheck 2 = true := by decide +kernel
-theorem prefixCheck_0 : prefixCheck 0 = true := by decide +kernel
-theorem prefixCheck_1 : prefixCheck 1 = true := by decide +kernel
-theorem prefixCheck_2 : prefixCheck 2 = true := by decide +kernel
 theorem tailCheck_all : (List.range 3).all tailCheck = true := by decide +kernel
 theorem tailFCheck_all : (List.range 3).all tailFCheck = true := by decide +kernel
 

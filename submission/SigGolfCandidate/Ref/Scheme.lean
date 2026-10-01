@@ -158,7 +158,7 @@ def buildPorsTree (S : List Byte) (idx : Nat) :
   let levels ← buildAllLevels (porsNodeFmt idx) porsH leaves
   pure (levels, secrets)
 
-/-- The FTS part of the signature (133 items of 16 bytes): the secrets of the sorted leaves
+/-- The FTS part of the signature (132 items of 16 bytes): the secrets of the sorted leaves
 `vs`, the authentication nodes `levels[h][j]` in schedule read order, zero items up to
 `porsK + porsM`. -/
 def porsOpening (vs : List Nat) (levels : List (List Val)) (secrets : List Val) : List Val :=
@@ -172,8 +172,8 @@ def searchCounter (lay tau e : Nat) (M : Val) (c : Nat) :
     Nat → OracleComp HashSpec (Option (Nat × List Nat))
   | 0 => pure none
   | fuel + 1 => do
-    let d ← encodingHash (encInput lay tau e M c)
-    match decodeDigits lay d with
+    let d ← hash16 (encInput lay tau e M c)
+    match decodeDigits d with
     | some x => pure (some (c, x))
     | none => searchCounter lay tau e M (c + 1) fuel
 
@@ -225,7 +225,7 @@ def signLayers (S cache : List Byte) (idx : Nat) :
       | none => pure none
       | some rest => pure (some (rest ++ [(c, vals, path)]))
 
-/-- Signature bytes: `rho | FTS items (133 × 16) | (vals, path)_{lay=0..4}`. The counters are
+/-- Signature bytes: `rho | FTS items (132 × 16) | (vals, path)_{lay=0..4}`. The counters are
 not part of the signature: expand recomputes each layer's (least) counter. -/
 def serialize (rho : Val) (fts : List Val) (lays : List LayerSig) : List Byte :=
   rho ++ fts.flatten ++
@@ -261,7 +261,7 @@ def sigLayerBytes (lay : Nat) : Nat := 4 + 16 * nChains + 16 * height lay
 def bodyBytes (lay : Nat) : Nat := 16 * nChains + 16 * height lay
 /-- Bytes before the layers (`ref.LAYER0`): `rho` and the 132 FTS items (2128). -/
 def headBytes : Nat := 16 + 16 * (porsK + porsM)
-/-- Offset of layer `lay`'s body in the signature (no counters: 2128, 2976, 3744, 4512, 5280). -/
+/-- Offset of layer `lay`'s body in the signature (no counters: 2128, 2992, 3760, 4528, 5296). -/
 def sigLayerOff (lay : Nat) : Nat := headBytes + ((List.range lay).map bodyBytes).sum
 
 /-- Signature fields (`ref.parse`): `rho`, FTS item `i < 132` (secrets `i < 15`, then auth slots). -/
@@ -271,20 +271,18 @@ def sigAuth (sig : List Byte) (i : Nat) : Val := sigItem sig (porsK + i)
 /-- The body (chain values, path) of layer `lay` in the signature. -/
 def sigLayerBody (sig : List Byte) (lay : Nat) : List Byte := slice sig (sigLayerOff lay) (bodyBytes lay)
 
-/-! ### The W1 witness (`W = 16128` at `0x900`)
+/-! ### The W1a witness (`W = 16384`)
 
-The reference reads the witness through the 16384-byte view of `0x800 .. 0x4800` (`extW`: 256 zero
-bytes, then the witness), so every offset below is relative to `0x800`:
-`0^256 | pi (15) | 0 | segment stream (STREAM_BYTES = 8 * 29 + 16 * 118) | c4 (LE32) | 0^4 | paths
-(layers 0 .. 4, `16 h` bytes each) | chain array`. The chain array has one region of 42 blocks of 64
-bytes per layer (layer 0 first); block `(lay, i)` is `[tweak slot 16 | pad 32 | value 16]`: verify
-hashes the chains in place (it writes the tweak into the slot and the chain step outputs over the
-value), so a nonzero pad is hashed as it stands (the padded chain query `chainInputP`). The counters
-`c0 .. c3` sit in the tweak slot of block `(0, 0)` (dead until layer 0's chain 0, after the last
-encoding). W1: `rho` sits in the tweak slot of block `(0, 1)` and secret `s` in that of block
-`(0, 2 + s)`; verify reads them in the digest and the PORS root, before layer 0 writes any tweak. -/
-def wPi : Nat := 256
-def wStream : Nat := wPi + 16
+`rho (16) | pi (15) | 0 | secrets (240) | segment stream (STREAM_BYTES = 8 * 29 + 16 * 118) | c4 (LE32) |
+0^4 | paths (layers 0 .. 4, `16 h` bytes each) | chain array`. The chain array has one region of 42
+blocks of 64 bytes per layer (layer 0 first); block `(lay, i)` is `[tweak slot 16 | pad 32 | value 16]`:
+verify hashes the chains in place (it writes the tweak into the slot and the chain step outputs over
+the value), so a nonzero pad is hashed as it stands (the padded chain query `chainInputP`). The
+counters `c0 .. c3` sit in the tweak slot of block `(0, 0)` (dead until layer 0's chain 0, after the
+last encoding). -/
+def wPi : Nat := 16
+def wSec : Nat := 32
+def wStream : Nat := wSec + 16 * porsK
 /-- Fixed allocation preserves the in-place WOTS witness addresses when the auth cap is 117. -/
 def streamBytes : Nat := 8 * porsSegs + 16 * 118
 /-- Counter `c4` (layer 4) at 2392, then 4 zero bytes. -/
@@ -299,19 +297,6 @@ def wChains : Nat := pathOff nLayers
 def blockOff (lay i : Nat) : Nat := wChains + 64 * nChains * lay + 64 * i
 /-- Offset of the counter of layer `lay`: `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `wC4`. -/
 def ctrOff (lay : Nat) : Nat := if lay < 4 then wChains + 4 * lay else wC4
-/-- W1: `rho` in the tweak slot of chain block `(0, 1)` (3008, the address `0x13C0`). -/
-def wRho : Nat := blockOff 0 1
-/-- W1: secret `s` in the tweak slot of chain block `(0, 2 + s)` (`3072 + 64 s`, the address `0x1400 + 64 s`). -/
-def wSec (s : Nat) : Nat := blockOff 0 (2 + s)
-
-/-- The 256 bytes `0x800 .. 0x900` in front of the witness buffer (zero, the view's lead). -/
-def witLead : Nat := 256
-/-- The witness bytes `W` (the buffer `0x900 .. 0x4800`). -/
-def witLen : Nat := 16128
-/-- The 16384-byte view of a witness (`0x800 .. 0x4800`). -/
-def extW (w : List Byte) : List Byte := zeros witLead ++ w
-/-- The witness of a 16384-byte view. -/
-def cutW (w : List Byte) : List Byte := w.drop witLead
 
 /-! ## expand: the partial witness (no queries), then the counter phase (queries) -/
 
@@ -329,22 +314,15 @@ def sigChain (sig : List Byte) (lay i : Nat) : Val := slice sig (sigLayerOff lay
 def sigPath (sig : List Byte) (lay : Nat) : List Byte :=
   slice sig (sigLayerOff lay + 16 * nChains) (16 * height lay)
 
-/-- The tweak slot of chain block `(lay, i)` in the partial witness (W1): `rho` in block `(0, 1)`,
-secret `s` in block `(0, 2 + s)`, else zero. -/
-def slotOf (sig : List Byte) (lay i : Nat) : List Byte :=
-  if lay = 0 ∧ i = 1 then sigRho sig
-  else if lay = 0 ∧ 2 ≤ i ∧ i < 2 + porsK then sigItem sig (i - 2)
-  else zeros 16
-
-/-- The chain region of layer `lay` in the partial witness: block `i` = `slot | 0^32 | chain value i`. -/
+/-- The chain region of layer `lay` in the partial witness: block `i` = `0^48 | chain value i`. -/
 def chainRegion (sig : List Byte) (lay : Nat) : List Byte :=
-  ((List.range nChains).map fun i => slotOf sig lay i ++ zeros 32 ++ sigChain sig lay i).flatten
+  ((List.range nChains).map fun i => zeros 48 ++ sigChain sig lay i).flatten
 
-/-- The partial witness bytes (W1, the 16384-byte view, zero counters and pads): `0^256 | pi | 0 |
-stream, zero padded to STREAM_BYTES | 0^8 | paths 0..4 | chain regions 0..4` (`rho` and the secrets
-in the tweak slots of layer 0, `slotOf`). -/
+/-- The partial witness bytes (W1a, zero counters and pads): `rho | pi | 0 | secrets | stream, zero padded
+to STREAM_BYTES | 0^8 | paths 0..4 | chain regions 0..4`. -/
 def witnessBody (sig : List Byte) (v vs segs : List Nat) : List Byte :=
-  zeros wPi ++ vs.map (fun x => byte (8 * v.idxOf x)) ++ zeros (wStream - wPi - porsK) ++
+  sigRho sig ++ vs.map (fun x => byte (8 * v.idxOf x)) ++ zeros (wSec - wPi - porsK) ++
+    ((List.range porsK).map (sigItem sig)).flatten ++
     (segStream sig segs ++ zeros streamBytes).take streamBytes ++ zeros 8 ++
     ((List.range nLayers).map (sigPath sig)).flatten ++
     ((List.range nLayers).map (chainRegion sig)).flatten
@@ -374,9 +352,9 @@ def expandOf (sig : List Byte) (N : Nat) : Option (List Byte) :=
 /-! ## verify (on the witness, in the bytecode's order) -/
 
 /-- Witness fields. `wbyte` / `wbytes` read zero beyond the witness (`ref.wbyte`). -/
-def witRho (w : List Byte) : Val := slice w wRho 16
+def witRho (w : List Byte) : Val := slice w 0 16
 def witPi (w : List Byte) (s : Nat) : Nat := (w.getD (wPi + s) 0).toNat
-def witSecret (w : List Byte) (s : Nat) : Val := slice w (wSec s) 16
+def witSecret (w : List Byte) (s : Nat) : Val := slice w (wSec + 16 * s) 16
 def wbyte (w : List Byte) (off : Nat) : Nat := (w.getD off 0).toNat
 def wbytes (w : List Byte) (off n : Nat) : Val := (List.range n).map fun i => w.getD (off + i) 0
 def witChain (w : List Byte) (lay i : Nat) : Val := slice w (blockOff lay i + 48) 16
@@ -426,17 +404,17 @@ def segFolds (idx : Nat) (w : List Byte) (ptr a : Nat) (node : Val) (E : Nat) :
       pure (v, st.2 / 2)) (node, E)
 
 /-- One segment of the stack machine (header at `ptr`): read the header byte `b = wbyte w ptr`
-(`a = b mod 16`, `merge` = bit 4, `t` = bits 5..7); reject (`none`, no query) if
-`a > 14`, or if `a > 0` and `t` differs from `E % 8` (the heap index at the segment's start);
+(`a = b mod 16`, `merge` = bit 4, `t` = bit 5, bits 6..7 ignored); reject (`none`, no query) if
+`a > 14`, or if `a > 0` and `t` differs from bit 0 of `E` (the heap index at the segment's start);
 the pending hash; the `a` folds (`segFolds`). Returns `(ptr + 8 + 16 a, E, folds + a, node, merge = 1)`. -/
 def segment (idx : Nat) (w : List Byte) (ptr E folds : Nat) (pending : Pending) (node : Val) :
     OracleComp HashSpec (Option (Nat × Nat × Nat × Val × Bool)) := do
   let b := wbyte w ptr
   let a := b % 16
   let merge := b / 16 % 2
-  let t := b / 32
+  let t := b / 32 % 2
   if a > porsH then pure none
-  else if 0 < a ∧ t ≠ E % 8 then pure none
+  else if 0 < a ∧ t ≠ E % 2 then pure none
   else
     let node ← pendingHash idx node pending
     let (node, E) ← segFolds idx w ptr a node E
@@ -537,8 +515,8 @@ def verifyLayers (w : List Byte) (idx : Nat) : Nat → Val → OracleComp HashSp
   | 0, M => pure (some M)
   | lay + 1, M => do
     let (e, tau) := route idx lay
-    let d ← encodingHash (encInput lay tau e M (witCounter w lay))
-    match decodeDigits lay d with
+    let d ← hash16 (encInput lay tau e M (witCounter w lay))
+    match decodeDigits d with
     | none => pure none
     | some x =>
       let leaf ← verifyLeafP w lay tau e x
@@ -558,9 +536,8 @@ def verifyList (m pk w : List Byte) : OracleComp HashSpec Bool := do
     | none => pure false
     | some root => pure (root == pk)
 
-/-- Verification of a witness (`W = 16128` bytes), read through its 16384-byte view `extW`. -/
-def verifyRef (m : Bytes 32) (pk : Bytes 16) (w : Bytes 16128) : OracleComp HashSpec Bool :=
-  verifyList (toList m) (toList pk) (extW (toList w))
+def verifyRef (m : Bytes 32) (pk : Bytes 16) (w : Bytes 16384) : OracleComp HashSpec Bool :=
+  verifyList (toList m) (toList pk) (toList w)
 
 /-! ## expand: the counter phase -/
 
@@ -606,12 +583,11 @@ def expandList (m sig : List Byte) : OracleComp HashSpec (Option (List Byte)) :=
       | none => pure none
       | some cs => pure (some (withCounters w0 cs))
 
-/-- `ref.expand(pk, m, sig)` (the public key is unused): the witness is the 16384-byte view without
-its 256-byte lead (`cutW`). -/
+/-- `ref.expand(pk, m, sig)` (the public key is unused). -/
 def expandRef (m : Bytes 32) (_pk : Bytes 16) (sig : Bytes 6032) :
-    OracleComp HashSpec (Option (Bytes 16128)) := do
+    OracleComp HashSpec (Option (Bytes 16384)) := do
   let r ← expandList (toList m) (toList sig)
-  pure (r.map fun l => ofList 16128 (cutW l))
+  pure (r.map (ofList 16384))
 
 /-- `ref.verify`: expand, then verify the witness (`false` if expand fails). -/
 def verifySigRef (m : Bytes 32) (pk : Bytes 16) (sig : Bytes 6032) : OracleComp HashSpec Bool := do
