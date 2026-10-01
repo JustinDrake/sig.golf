@@ -165,7 +165,7 @@ def posObl (p : Nat) : List Oblig :=
 def crossDir (t t' : Nat) : Bool := if t = 0 then t' = 1 else t' = 0
 
 def posSpec (V t p t' : Nat) : Spec :=
-  let regs0 := [(.x1, ldR .x14 (368 + 16 * p)), (.x2, ldR .x14 (368 + 16 * p + 8)), ((.x23 : Reg), eS)]
+  let regs0 := [(.x1, ldR .x14 (368 + 16 * p)), (.x30, ldR .x14 (368 + 16 * p + 8)), ((.x23 : Reg), eS)]
   if p = 13 then ⟨regs0 ++ [(.x12, destE V)], posMem t p, ladPc V t p + 7, true, 7, [], none, 7⟩
   else
     ⟨regs0 ++ [(.x12, cw (0x1E0 + 16 * t'))], posMem t p,
@@ -227,12 +227,12 @@ def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 `sp = 0x3FE00` reuses the constructed header constant. The accepting tail takes
 13 instructions, including its branch checks and mask loads. -/
 def rootK : List (Reg × Word) :=
-  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5)]
+  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x25, 125)]
 def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8), (.x27, ldE 0xFFFFE8),
-      (.x2, .bin .add (ldE 0xFFFFE8) (cw 18446744073709550079))], [], f4Pc c, false, 13,
+  ⟨[(.x20, ldE 0xFDFFC0), (.x21, ldE 0xFDFFC8), (.x27, ldE 0xFDFFD0),
+      (.x2, .bin .add (ldE 0xFDFFD0) (cw 18446744073709550079))], [], f4Pc c, false, 13,
     [fBr3 false, fBr2 false, fBr1 false], none, 13⟩
 
 def tailFCheck (c : Nat) : Bool :=
@@ -266,7 +266,7 @@ def leafBrs (s : Nat) (d1 d2 : Bool) : List Br :=
 def rtE (s : Nat) : E := .bin .add (.bin .sll (xE s) (cw 3)) (cw RTAB)
 
 def leafSpec (s : Nat) : Spec :=
-  ⟨[(xReg s, xE s), (.x23, .ld (rtE s)), (.x1, ldE (secA s)), (.x2, ldE (secA s + 8))],
+  ⟨[(xReg s, xE s), (.x23, .ld (rtE s)), (.x1, ldE (secA s)), (.x30, ldE (secA s + 8))],
     [(⟨none, BitVec.ofNat 64 0xE8⟩, ldE (secA s + 8)), (⟨none, BitVec.ofNat 64 0xE0⟩, ldE (secA s)),
       (⟨none, BitVec.ofNat 64 0xC8⟩, stW 0xC8 (xE s))],
     dispLeafPc s, false, if s = 0 then 12 else if s = 14 then 16 else 13, leafBrs s false false, none, if s = 0 then 12 else if s = 14 then 16 else 13⟩
@@ -300,11 +300,11 @@ def k0 : List (Reg × Word) :=
   [(.x1, 0), (.x3, 0), (.x4, 0), (.x5, 0), (.x6, 0), (.x7, 0), (.x8, 0), (.x9, 0), (.x10, 0), (.x11, 0),
    (.x12, 0), (.x13, 0), (.x14, 0), (.x15, 0), (.x16, 0), (.x17, 0), (.x18, 0), (.x19, 0), (.x20, 0),
    (.x21, 0), (.x22, 0), (.x23, 0), (.x24, 0), (.x25, 0), (.x26, 0), (.x27, 0), (.x28, 0), (.x29, 0),
-   (.x30, 0), (.x31, 0), (.x2, 0xFDFFE0)]
+   (.x30, 0), (.x31, 0), (.x2, 0xFDFFC0)]
 
-/-- Digest phase: witness bases and `P1 .. P5`. Before the PORS leaves `x18 = 0xFDF` (the data base `0xFDFFE0 >> 12`; the prologue's `x18`-relative
+/-- Digest phase: witness bases and `P1 .. P5`. Before the PORS leaves `x18 = 0xFDF` (the data base `0xFDFFC0 >> 12`; the prologue's `x18`-relative
 offsets are rebased by `+32`); the relocated leaf head restores `x18 = 0xFFF` (`baseK`). -/
-def gkD : List (Reg × Word) := [(.x5, 0), (.x19, 7), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
+def gkD : List (Reg × Word) := [(.x5, 0), (.x19, 7), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x2, 0xFDFFC0)]
 def dgK : List (Reg × Word) := gkD ++ [(.x18, 0xFDF), (.x10, 0x20), (.x11, 64), (.x12, 0), (.x15, 0)]
 
 /-- The counters (W1a): `c0 .. c3` as two doublewords at `WIT + 2944`, `c4` as a word at `WIT + 2648`. -/

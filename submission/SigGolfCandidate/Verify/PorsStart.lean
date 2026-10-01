@@ -200,11 +200,11 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
       refine ⟨?_, ?_, Glob_writeHash hG a _ h12 (by decide), WitAll_writeHash (hu.wall _ hW) a _ h12 (by decide),
         Known_writeHash hKd a, ?_, ?_, ?_⟩
       · refine ⟨?_, ?_, ?_⟩
-        · rw [wf 0xFFFFF0 (by decide) (by decide), mfr 0xFFFFF0 (by decide) (by decide) (by decide) (by decide)]
+        · rw [wf 0xFDFFC0 (by decide) (by decide), mfr 0xFDFFC0 (by decide) (by decide) (by decide) (by decide)]
           exact hMask.1
-        · rw [wf 0xFFFFF8 (by decide) (by decide), mfr 0xFFFFF8 (by decide) (by decide) (by decide) (by decide)]
+        · rw [wf 0xFDFFC8 (by decide) (by decide), mfr 0xFDFFC8 (by decide) (by decide) (by decide) (by decide)]
           exact hMask.2.1
-        · rw [wf 0xFFFFE8 (by decide) (by decide), mfr 0xFFFFE8 (by decide) (by decide) (by decide) (by decide)]
+        · rw [wf 0xFDFFD0 (by decide) (by decide), mfr 0xFDFFD0 (by decide) (by decide) (by decide) (by decide)]
           exact hMask.2.2
       · intro n hn
         have hR : RTAB = 0xFDFFE0 := rfl
@@ -319,7 +319,7 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
     rw [hhi, BitVec.ofNat_add_ofNat, twLo_idx _ _ (by decide) hil]; congr 1; omega
   have S : S0 P u := by
     refine ⟨?_, hu.wall _ hWA, hGu.2.2.1, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · have fr : ∀ A, A = 0xFFFFF0 ∨ A = 0xFFFFF8 ∨ A = 0xFFFFE8 →
+    · have fr : ∀ A, A = 0xFDFFC0 ∨ A = 0xFDFFC8 ∨ A = 0xFDFFD0 →
           u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
         intro A hA
         rw [hlook A (by omega)]

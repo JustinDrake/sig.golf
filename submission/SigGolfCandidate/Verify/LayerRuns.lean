@@ -79,7 +79,7 @@ def selOf (a : BitVec 256) : Nat :=
   if a.getLsbD 127 then (if 125 ≤ (a.extractLsb' 55 9).toNat then 3 else 1)
   else if a.getLsbD 63 then 2 else 0
 
-def selSteps (hi : Nat) : Nat := if hi = 0 then 4 else if hi = 1 then 6 else if hi = 2 then 7 else 8
+def selSteps (hi : Nat) : Nat := if hi = 0 then 4 else if hi = 1 then 5 else if hi = 2 then 7 else 7
 def d0E (hi : Nat) : E := ldE (if hi = 2 then 296 else if hi = 3 then 304 else 288)
 def d1E (hi : Nat) : E := ldE (if hi = 2 then 304 else if hi = 3 then 312 else 296)
 def encObligs : List Oblig := []
@@ -89,7 +89,7 @@ def selSecond (hi : Nat) : Bool := decide (hi = 0 ∨ hi = 1)
 def selDirs (hi : Nat) : List Dir := [.br (selLow hi), .br (selSecond hi)]
 def selBrs (hi : Nat) : List Br :=
   [(if selLow hi then ⟨.ge, ldE 288, cw 0, selSecond hi⟩
-    else ⟨.ne, E.bin .sltu (E.bin .srl (ldE 288) (cw 55)) (cw 125), cw 0, selSecond hi⟩),
+    else ⟨.ltu, E.bin .srl (ldE 288) (cw 55), cw 125, selSecond hi⟩),
    ⟨.ge, ldE 296, cw 0, selLow hi⟩]
 
 def m1E : E := .c M1w
@@ -110,7 +110,7 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E (hi : Nat) : E := .bin .add (.bin .and (.bin .sll (d0E hi) (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 (hi : Nat) : E := .bin .and (.bin .add (.bin .and (.bin .sll (d0E hi) (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB (lay : Nat) : Nat := (if lay = 4 then 30 else 29)
+def stepsB (lay : Nat) : Nat := (if lay = 4 then 29 else 28)
 def stepsBPath (hi lay : Nat) : Nat := (if lay = 4 then 22 else 21) + selSteps hi
 def cyclesBPath (hi lay : Nat) : Nat := stepsBPath hi lay + 3
 
@@ -125,7 +125,7 @@ def specBok (hi : Nat) (lay : Nat) : Spec :=
   ⟨[(.x14, (x14E hi)), (.x16, (d0E hi)), (.x17, (d1E hi))], [], 0, false, stepsBPath hi lay,
    ([⟨.ne, (swS hi lay), .c (KTof lay), false⟩, ⟨.lt, (orE hi), .c 0, false⟩] ++ selBrs hi), some (tgt0 hi), cyclesBPath hi lay⟩
 
-/-- Known registers on entry of the chain code; chain 0 initializes `x25` from `x27`. -/
+/-- Known registers on entry of the chain code, including preserved threshold `x25 = 125`. -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
   chK0 ++ [(.x22, BitVec.ofNat 64 (s6N lay)),
     (.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x1, pcOf (retPc lay c))]

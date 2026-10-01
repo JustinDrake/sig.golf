@@ -7,7 +7,7 @@ import SigGolfCandidate.Verify.Top
   as an equality of oracle computations.
 * `verify_terminates`: for every fixed oracle and input, the run finishes within `cycleBoundAll`
   (= 16894) cycles (in particular `< CYCLE_LIMIT`).
-* `verify_accept_cycles`: accepting runs take at most `cycleBound` (= 10369) cycles.
+* `verify_accept_cycles`: accepting runs take at most `cycleBound` (= 10364) cycles.
 -/
 
 namespace SigGolfCandidate.Verify

@@ -258,7 +258,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
   obtain ⟨hlay, hidx, hwl⟩ := hL
   let hi := selOf a
   have hhi : hi < 4 := by unfold hi selOf; split_ifs <;> omega
-  have hsteps : selSteps hi ≤ 8 := by unfold selSteps; split_ifs <;> omega
+  have hsteps : selSteps hi ≤ 7 := by unfold selSteps; split_ifs <;> omega
   obtain ⟨hBok, hR1, hR2⟩ := lc_enc hlay hi hhi ht
   obtain ⟨hG, hK, h23, h30, h31, w0, w1, w2, w3, hCB, hF, hpc⟩ := hs
   have hD0 : (d0E hi).eval s = (encodingAnswer a).extractLsb' 0 64 := by

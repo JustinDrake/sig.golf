@@ -5,7 +5,7 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with narrow gated overlapping-window encoding
 
 S=6032 signature bytes, W=15872 witness bytes, K=131072 cache bytes.
-The claim C=10430 is accepting verifier bound10368 plus witness charge62.
+The claim C=10425 is accepting verifier bound10363 plus witness charge62.
 PORS has height14,15 openings and authentication cap117. Every WOTS checksum target is185.
 
 For oracle words A,B,C,D, select AB when B's top bit is clear and A's top bit is clear;
@@ -16,7 +16,12 @@ selector, completeness, and encoding-risk proofs use this same gate.
 
 PORS uses bit-reversed heap headers and the physical leaf-header lookup table. The final
 route remains in its physical register, the root checksum reuses x29=185, and the root tag
-is loaded from the protected word at0xFFFFE8. The root transition takes13 instructions.
+is loaded from the protected word at0xFDFFD0. The root transition takes13 instructions, including the shared x25=125 threshold initialization.
+The gate compares x14 directly against preserved x25; selector/checksum scratch uses x14.
+Each worst-case layer path saves one instruction, for a net four-cycle improvement.
+A32-byte data prefix duplicates the masks and root tag. Preserving the initial stack
+pointer through PORS lets the root load these words directly, eliminating its mask-base
+LUI. The original leaf-table physical addresses and all original data bytes are unchanged.
 The external witness omits the two internal cache words; the unchanged internal verifier
 semantics are connected by the proved witness transport. Lower-layer authentication paths
 occupy consumed tweak slots of the next layer verified, so the input starts at0xa00 and
@@ -44,7 +49,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2560 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10430 :=
+theorem certificate : SigGolf.Certificate submission 10425 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

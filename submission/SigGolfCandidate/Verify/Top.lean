@@ -123,30 +123,30 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hg0 := hu.glob _ _ h.pb.glob
     -- the masks: loaded from the image's data words, which the PORS phase never writes
     have hm1 : u.getReg .x20 = M1w := by
-      rw [hu.regs (.x20, ldE 0xFFFFF0) (by simp [tailFSpec])]
-      change m.getMem (BitVec.ofNat 64 0xFFFFF0) = M1w
+      rw [hu.regs (.x20, ldE 0xFDFFC0) (by simp [tailFSpec])]
+      change m.getMem (BitVec.ofNat 64 0xFDFFC0) = M1w
       rw [h.pb.prot (by simp [protP])]
       exact h.pb.s0ok.masks.1
     have hm2 : u.getReg .x21 = M2w := by
-      rw [hu.regs (.x21, ldE 0xFFFFF8) (by simp [tailFSpec])]
-      change m.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w
+      rw [hu.regs (.x21, ldE 0xFDFFC8) (by simp [tailFSpec])]
+      change m.getMem (BitVec.ofNat 64 0xFDFFC8) = M2w
       rw [h.pb.prot (by simp [protP])]
       exact h.pb.s0ok.masks.2.1
-    have htmem : m.getMem (BitVec.ofNat 64 0xFFFFE8) = 0x40401 := by
+    have htmem : m.getMem (BitVec.ofNat 64 0xFDFFD0) = 0x40401 := by
       rw [h.pb.prot (by simp [protP])]
       exact h.pb.s0ok.masks.2.2
     have htag : u.getReg .x27 = 0x40401 := by
-      rw [hu.regs (.x27, ldE 0xFFFFE8) (by simp [tailFSpec])]
+      rw [hu.regs (.x27, ldE 0xFDFFD0) (by simp [tailFSpec])]
       exact htmem
     have hsp : u.getReg .x2 = TMASK := by
-      rw [hu.regs (.x2, .bin .add (ldE 0xFFFFE8) (cw 18446744073709550079)) (by simp [tailFSpec])]
-      change m.getMem (BitVec.ofNat 64 0xFFFFE8) + BitVec.ofNat 64 18446744073709550079 = TMASK
+      rw [hu.regs (.x2, .bin .add (ldE 0xFDFFD0) (cw 18446744073709550079)) (by simp [tailFSpec])]
+      change m.getMem (BitVec.ofNat 64 0xFDFFD0) + BitVec.ofNat 64 18446744073709550079 = TMASK
       rw [htmem]
       rfl
     have hregs : KnownOK gkL0 u := by
       intro p hp
       simp only [gkL0, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact hg0.1 p (by simp [rootK, hp])
       · exact hm1
       · exact hm2
@@ -173,12 +173,12 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       unfold twLo; omega
 
 
-/-- Universal accepting-run bound: PORS/initialization cost `2822` plus `layersCost 5 = 7547`.
+/-- Universal accepting-run bound: PORS/initialization cost `2822` plus `layersCost 5 = 7542`.
 PORS uses bit-reversed headers with sixteen cycles per fold. The 1923/1024 selector takes
-at most eight ordinary instructions, and every checksum target is185. The root uses thirteen
+at most seven ordinary instructions, and every checksum target is185. The root uses thirteen
 instructions and the final route is carried physically. Final.Discharge supplies the universal
 one-cycle structural credit. These are proof bounds, not accepting-run measurements. -/
-def cycleBound : Nat := 10369
+def cycleBound : Nat := 10364
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
 def cycleBoundAll : Nat := 16894
@@ -189,8 +189,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7547 := by decide
-theorem layC_val : layC = 7547 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7542 := by decide
+theorem layC_val : layC = 7542 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
