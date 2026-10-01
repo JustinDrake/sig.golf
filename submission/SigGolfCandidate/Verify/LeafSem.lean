@@ -58,7 +58,7 @@ theorem layFC_check (L : LCtx) (hL : L.ok) :
 /-- Carried through the leaf and the fold of layer `lay` to the transition of layer `lay - 1`:
 the tweak word, `tau`, the CB word, and the chain array of the layers `< lay` still the witness. -/
 def LeafCarry (L : LCtx) (s : MachineState) : Prop :=
-  s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧
+  s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay) ∧ tauCarry L.lay s = BitVec.ofNat 64 L.tau ∧
   CB0 s ∧ Fresh L.wl L.lay 42 s
 
 /-- After the return of the chain code. -/
@@ -190,7 +190,9 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     · rw [wf 0x1C8 (by omega) (by omega), hmem]; simp only [specLeaf, layFC]
       rw [memEval_cons_eq _ _ _ _ _ rfl]
       simp only [stW0, ldE, cw, Rv.E.eval, BinOp.eval]
-      rw [merge_w0_toNat, h30, BitVec.toNat_ofNat]
+      have htau : ((if L.lay = 0 then cw 0 else E.reg .x30).eval s) = BitVec.ofNat 64 L.tau := by
+        by_cases h0 : L.lay = 0 <;> simpa [LCtx.cctx, tauCarry, E.eval, cw, h0] using h30
+      rw [merge_w0_toNat, htau, BitVec.toNat_ofNat]
       simp only [LCtx.cctx]
       norm_num
     · simp only [layFC, hbit]
@@ -203,7 +205,8 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       simp only [FCtx.X, FCtx.ci, FCtx.kk, FCtx.blk, layFC, hc0, Nat.zero_sub]
       try rfl
     · rw [writeHash_getReg]; exact h27u
-    · rw [writeHash_getReg, hkp .x30 (by simp [leafKeep])]; exact h30
+    · exact (tauCarry_frame L.lay (by
+        rw [writeHash_getReg, hkp .x30 (by simp [leafKeep])])).trans h30
     · unfold CB0
       rw [wf 0xC0 (by omega) (by omega), mfr 0xC0 (by omega) (by omega) (by omega) (by omega) (by omega)]
       exact hCB

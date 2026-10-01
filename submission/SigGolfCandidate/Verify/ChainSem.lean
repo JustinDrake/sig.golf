@@ -150,6 +150,17 @@ theorem s6N_mod8 (lay : Nat) : s6N lay % 8 = 0 := by rw [s6N_eq]; omega
 
 /-! ## The chain context -/
 
+/-- The final layer has no remaining route; its tweak reads literal zero. -/
+def tauCarry (lay : Nat) (s : MachineState) : Word :=
+  if lay = 0 then 0 else s.getReg .x30
+
+theorem tauCarry_frame (lay : Nat) {s t : MachineState}
+    (h : t.getReg .x30 = s.getReg .x30) : tauCarry lay t = tauCarry lay s := by
+  unfold tauCarry
+  split
+  · rfl
+  · exact h
+
 structure CCtx where
   wl : List Byte
   pk : List Byte
@@ -165,7 +176,7 @@ def CCtx.x31 (c : CCtx) : Word := BitVec.ofNat 64 (c.tau + 2 ^ 32 * c.e)
 
 def CCtx.Regs (c : CCtx) (s : MachineState) : Prop :=
   s.getReg .x16 = c.d0 ∧ s.getReg .x17 = c.d1 ∧
-  s.getReg .x23 = BitVec.ofNat 64 (c.e + 2 ^ heightL c.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 c.tau ∧
+  s.getReg .x23 = BitVec.ofNat 64 (c.e + 2 ^ heightL c.lay) ∧ tauCarry c.lay s = BitVec.ofNat 64 c.tau ∧
   s.getReg .x31 = c.x31
 
 def CCtx.ok (c : CCtx) : Prop :=
@@ -484,7 +495,7 @@ theorem prehash_step (c : CCtx) (hc : c.ok) (i mu : Nat) (hi : i < 42) (h1 : 1 �
   · intro a
     have gk12 : ∀ q ∈ gkL, q.1 ≠ .x12 := by decide
     have hK' : KnownOK chK0 (writeHash t a) := Known_writeHash hK a
-    have hR' : c.Regs (writeHash t a) := by simp only [CCtx.Regs, writeHash_getReg]; exact hR
+    have hR' : c.Regs (writeHash t a) := by simp only [CCtx.Regs, tauCarry, writeHash_getReg]; exact hR
     refine ⟨fun hmu => ?_, fun hmu => ?_⟩
     · -- the next rung
       have d12 : t.getReg .x12 = BitVec.ofNat 64 (blkN c.lay i + 48) := by rw [t12, if_neg (by omega)]
@@ -600,7 +611,7 @@ theorem rung_step (c : CCtx) (hc : c.ok) (i mu p : Nat) (hi : i < 42) (h1 : 1 �
       (tfr _ (by omega) (by omega)).trans hv1, hvl, (treg _ (by decide)).trans h10, t12, ?_, hec rfl⟩⟩
   · obtain ⟨r1, r2, r3, r4, r5⟩ := hR
     exact ⟨(treg _ (by decide)).trans r1, (treg _ (by decide)).trans r2, (treg _ (by decide)).trans r3,
-      (treg _ (by decide)).trans r4, (treg _ (by decide)).trans r5⟩
+      (tauCarry_frame c.lay (treg .x30 (by decide))).trans r4, (treg _ (by decide)).trans r5⟩
   · intro a' b' k hw
     obtain ⟨n1, -, -⟩ := fresh_disj hw hi
     rw [tfr _ (by rw [blkN_eq]; obtain ⟨ha5, hb42, hk8, -⟩ := hw; omega) n1]
@@ -723,7 +734,7 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i <
       hec rfl⟩⟩
   · obtain ⟨r1, r2, r3, r4, r5⟩ := hR
     exact ⟨(treg _ (by decide) (by decide) (by decide)).trans r1, (treg _ (by decide) (by decide) (by decide)).trans r2,
-      (treg _ (by decide) (by decide) (by decide)).trans r3, (treg _ (by decide) (by decide) (by decide)).trans r4,
+      (treg _ (by decide) (by decide) (by decide)).trans r3, (tauCarry_frame c.lay (treg .x30 (by decide) (by decide) (by decide))).trans r4,
       (treg _ (by decide) (by decide) (by decide)).trans r5⟩
   · intro a' b' k hw
     obtain ⟨n1, n2, -⟩ := fresh_disj hw hi
@@ -806,7 +817,7 @@ theorem copy_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i =
       ?_, ?_, ?_⟩
   · obtain ⟨r1, r2, r3, r4, r5⟩ := hR
     exact ⟨(treg _ (by decide) (by decide) (by decide)).trans r1, (treg _ (by decide) (by decide) (by decide)).trans r2,
-      (treg _ (by decide) (by decide) (by decide)).trans r3, (treg _ (by decide) (by decide) (by decide)).trans r4,
+      (treg _ (by decide) (by decide) (by decide)).trans r3, (tauCarry_frame c.lay (treg .x30 (by decide) (by decide) (by decide))).trans r4,
       (treg _ (by decide) (by decide) (by decide)).trans r5⟩
   · refine LBOk_append (LBOk_frame hLB (fun j hj => ?_)) _ ?_ ?_
     · rw [hlen] at hj
@@ -996,7 +1007,7 @@ theorem x_step (c : CCtx) (hc : c.ok) (t : Nat) (ht : t < 14) (acc : List Val)
       fun a b k hw => (umem _).trans (hF a b k (by simpa using hw)), ?_⟩
     · obtain ⟨r1, r2, r3, r4, r5⟩ := hR
       exact ⟨(ureg _ (by decide)).trans r1, (ureg _ (by decide)).trans r2, (ureg _ (by decide)).trans r3,
-        (ureg _ (by decide)).trans r4, (ureg _ (by decide)).trans r5⟩
+        (tauCarry_frame c.lay (ureg .x30 (by decide))).trans r4, (ureg _ (by decide)).trans r5⟩
     · intro _; rw [ureg _ (by decide), h25, show 3 * t + 3 = (3 * t + 2) + 1 by omega, twW0_succ _ _ hc.1 (by omega)]
     · rw [hu, PRes.toState_pc_some _ _ _ rfl, triTgt_eval c hc (t + 1) h1 s hRs]
       unfold startPc; rw [if_pos (by omega), show (3 * t + 3) / 3 = t + 1 by omega]
@@ -1015,7 +1026,7 @@ theorem x_step (c : CCtx) (hc : c.ok) (t : Nat) (ht : t < 14) (acc : List Val)
       LBOk_frame hLB (fun j _ => ⟨umem _, umem _⟩), by rw [hlen], hvs, by unfold CB0; rw [umem]; exact hCB⟩,
       fun a b k hw => (umem _).trans (hF a b k (by simpa using hw)), ?_⟩
     · obtain ⟨r1, r2, r3, r4, r5⟩ := hR
-      exact ⟨(ureg _).trans r1, (ureg _).trans r2, (ureg _).trans r3, (ureg _).trans r4, (ureg _).trans r5⟩
+      exact ⟨(ureg _).trans r1, (ureg _).trans r2, (ureg _).trans r3, (tauCarry_frame c.lay (ureg .x30)).trans r4, (ureg _).trans r5⟩
     · rw [hu, PRes.toState_pc_some _ _ _ rfl]
       simp only [mkBin_eval, E.eval, BinOp.eval, h1r, hret]
 
