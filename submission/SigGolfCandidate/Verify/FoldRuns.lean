@@ -28,10 +28,9 @@ def gkOf (kind : Bool) : List (Reg × Word) := if kind then gkF else gkL
 def fk (kind : Bool) (a0 a1 : Nat) : List (Reg × Word) :=
   gkOf kind ++ [(.x10, BitVec.ofNat 64 a0), (.x11, BitVec.ofNat 64 a1)]
 
-/-- Layer x25 is preserved as the known constant125 through gkL, rather than a symbolic frame entry. -/
 def fkeep (kind : Bool) : List Reg :=
   if kind then [.x16, .x17, .x22, .x23, .x25, .x27, .x28, .x29, .x30, .x31]
-  else [.x14, .x16, .x17, .x23, .x27, .x30, .x31]
+  else [.x14, .x16, .x17, .x23, .x25, .x27, .x30, .x31]
 
 def okFold (kind : Bool) (o : Option PRes) (e : PRes) (post : List (Reg × Word)) : Bool :=
   optBeq o e && resOK (gkOf kind) e && knownB post e && keepB (fkeep kind) e

@@ -292,22 +292,41 @@ theorem swSBase_toNat : ((swSBase hi).eval s).toNat = swarOf (dA hi s) (dB hi s)
   rfl
 
 theorem swS_toNat (lay : Nat) : ((swS hi lay).eval s).toNat =
-    swarOf (dA hi s) (dB hi s) := swSBase_toNat hi s
+    (swarOf (dA hi s) (dB hi s) + (if lay = 0 then 0 else 0)) % 2 ^ 64 := by
+  rw [swS, swSBase_toNat]
+  have hsmall : swarOf (dA hi s) (dB hi s) < 4096 := Nat.mod_lt _ (by decide)
+  simp only [ite_self, Nat.add_zero]
+  omega
+
+theorem swar_adjust_eq (v T d : Nat) (hv : v < 4096) (hT : 185 ≤ T ∧ T ≤ 186) (hd : d ≤ 1) :
+    (v + d) % 2 ^ 64 = T + d ↔ v = T := by omega
 
 theorem swS_eq (lay : Nat) (h0 : dA hi s < 2 ^ 63) (h1 : dB hi s < 2 ^ 63) :
     (swS hi lay).eval s = KTof lay ↔
       (digitsOfWord (dA hi s) ++ digitsOfWord (dB hi s)).sum = targetFor lay := by
   have hs := swar_nat (dA hi s) (dB hi s) h0 h1
+  have hl : swarOf (dA hi s) (dB hi s) < 4096 := Nat.mod_lt _ (by decide)
+  let delta : Nat := if lay = 0 then 0 else 0
+  have hd : delta ≤ 1 := by dsimp [delta]; split_ifs <;> decide
+  have ht : 185 ≤ targetFor lay ∧ targetFor lay ≤ 186 := by
+    unfold targetFor SigGolfCandidate.Ref.targetFor targetSum
+    split_ifs <;> omega
+  have adj := swar_adjust_eq (swarOf (dA hi s) (dB hi s)) (targetFor lay) delta hl ht hd
   rw [← hs]
+  change _ ↔ swarOf (dA hi s) (dB hi s) = targetFor lay
   constructor
   · intro h
     have hh := congrArg BitVec.toNat h
     rw [swS_toNat] at hh
-    simpa [swarOf, KTof, KT, KT4, targetFor, SigGolfCandidate.Ref.targetFor, targetSum] using hh
+    change (swarOf (dA hi s) (dB hi s) + delta) % 2 ^ 64 = (targetFor lay + delta) % 2 ^ 64 at hh
+    rw [Nat.mod_eq_of_lt (show targetFor lay + delta < 2 ^ 64 by omega)] at hh
+    exact adj.mp hh
   · intro h
     apply BitVec.eq_of_toNat_eq
     rw [swS_toNat]
-    simpa [swarOf, KTof, KT, KT4, targetFor, SigGolfCandidate.Ref.targetFor, targetSum] using h
+    change (swarOf (dA hi s) (dB hi s) + delta) % 2 ^ 64 = (targetFor lay + delta) % 2 ^ 64
+    rw [Nat.mod_eq_of_lt (show targetFor lay + delta < 2 ^ 64 by omega)]
+    exact adj.mpr h
 
 end
 

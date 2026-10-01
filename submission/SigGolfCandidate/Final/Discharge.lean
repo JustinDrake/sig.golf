@@ -11,942 +11,18 @@ import SigGolfCandidate.Equiv.Wit
 import SigGolfCandidate.Equiv.Verify
 import SigGolfCandidate.Final.RO
 
-
-/-! Root-aware accepted-schedule potential for the no-join copied-prefix design.
-The separate root weight charges its retained join and the long-descriptor check.
-This arithmetic certificate is connected to the exact machine cost below. -/
-namespace SigGolfCandidate.Research.NoJoin
-
-set_option Elab.async false
-namespace GeneralTreeProbe
-open SphincsSecurity SphincsSecurity.Concrete SphincsSecurity.Completeness
-
-/-- Zero-length unary runs are allowed; every tree node emits one segment. -/
-inductive Tree (weight : Nat → Nat) : Nat → Nat → Nat → Nat → Prop
-  | leaf (h : Nat) : Tree weight h 1 h (weight h)
-  | fork (h k j a l r lc rc : Nat) (hj : j < h) (ha : 1 ≤ a) (hak : a < k)
-      (left : Tree weight (h-j-1) a l lc)
-      (right : Tree weight (h-j-1) (k-a) r rc) :
-      Tree weight h k (j+l+r) (weight j+lc+rc)
-
-inductive PendingTree (weight : Nat → Nat) : Nat → Nat → Nat → Nat → Prop
-  | leaf : PendingTree weight 0 1 0 0
-  | merge {h a b l r lc rc : Nat} (left : Tree weight h a l lc)
-      (right : Tree weight h b r rc) : PendingTree weight (h+1) (a+b) (l+r) (lc+rc)
-
-theorem Tree.leaves_pos {w h k f c} (ht : Tree w h k f c) : 0 < k := by
-  cases ht <;> omega
-
-theorem Tree.leaves_le {w h k f c} (ht : Tree w h k f c) : k ≤ 2^h := by
-  induction ht with
-  | leaf h => exact Nat.one_le_pow h 2 (by decide)
-  | fork h k j a l r lc rc hj ha hak left right ihl ihr =>
-      have hm : h-j-1+1 ≤ h := by omega
-      have hp : 2^(h-j-1)+2^(h-j-1) ≤ 2^h := by
-        calc
-          _ = 2^(h-j-1+1) := by rw [pow_succ]; omega
-          _ ≤ _ := Nat.pow_le_pow_right (by decide) hm
-      omega
-
-theorem PendingTree.fold {w x k f c top} (ht : PendingTree w x k f c) (hx : x ≤ top) :
-    Tree w top k (f+(top-x)) (c+w (top-x)) := by
-  cases ht with
-  | leaf => simpa using Tree.leaf (weight := w) top
-  | @merge h a b l r lc rc left right =>
-      have ha := left.leaves_pos
-      have hb := right.leaves_pos
-      have eh : top-(top-(h+1))-1 = h := by omega
-      have hl : Tree w (top-(top-(h+1))-1) a l lc := by simpa [eh] using left
-      have hr : Tree w (top-(top-(h+1))-1) ((a+b)-a) r rc := by
-        simpa [eh, Nat.add_sub_cancel_left] using right
-      have q := Tree.fork top (a+b) (top-(h+1)) a l r lc rc (by omega) (by omega) (by omega) hl hr
-      convert q using 1 <;> omega
-
-structure Node (weight : Nat → Nat) where
-  height : Nat
-  leaves : Nat
-  folds : Nat
-  credit : Nat
-  tree : Tree weight height leaves folds credit
-
-def leafSum {w} (stack : List (Node w)) : Nat := (stack.map Node.leaves).sum
-def foldSum {w} (stack : List (Node w)) : Nat := (stack.map Node.folds).sum
-def creditSum {w} (stack : List (Node w)) : Nat := (stack.map Node.credit).sum
-
-def Runs : Nat → List Nat → Nat → Prop
-  | x, [], top => x ≤ top
-  | x, y::ys, top => x ≤ y ∧ Runs (y+1) ys top
-
-def runWeight (w : Nat → Nat) : Nat → List Nat → Nat → Nat
-  | x, [], top => w (top-x)
-  | x, y::ys, top => w (y-x)+runWeight w (y+1) ys top
-
-theorem runs_of_order (L : List Nat) (x top : Nat) (hs : L.Pairwise (· < ·))
-    (hb : ∀ y ∈ L, x ≤ y ∧ y < top) (hx : x ≤ top) : Runs x L top := by
-  induction L generalizing x with
-  | nil => exact hx
-  | cons y ys ih =>
-      obtain ⟨hxy, hyt⟩ := hb y (by simp)
-      refine ⟨hxy, ih (y+1) (List.pairwise_cons.mp hs).2 ?_ (by omega)⟩
-      intro z hz
-      have hyz := (List.pairwise_cons.mp hs).1 z hz
-      have hzt := (hb z (by simp [hz])).2
-      omega
-
-theorem Runs.length_le {x top : Nat} {heights : List Nat}
-    (hp : Runs x heights top) : x+heights.length ≤ top := by
-  induction heights generalizing x with
-  | nil => simpa [Runs] using hp
-  | cons y ys ih =>
-      obtain ⟨hxy,hp⟩ := hp
-      have h := ih hp
-      simp only [List.length_cons]
-      omega
-
-theorem climb {w} (stack : List (Node w)) : ∀ x k f c top,
-    PendingTree w x k f c → Runs x (stack.map Node.height) top →
-    ∃ total cost, Tree w top (k+leafSum stack) total cost ∧
-      total+x+stack.length = f+top+foldSum stack ∧
-      cost = c+creditSum stack+runWeight w x (stack.map Node.height) top := by
-  induction stack with
-  | nil =>
-      intro x k f c top ht hp
-      have hx : x ≤ top := hp
-      refine ⟨f+(top-x), c+w (top-x), ?_, ?_, ?_⟩
-      · simpa [leafSum] using ht.fold hx
-      · simp only [List.length_nil, foldSum, List.map_nil, List.sum_nil]; omega
-      · simp [creditSum, runWeight]
-  | cons node rest ih =>
-      intro x k f c top ht hp
-      have hp' : x ≤ node.height ∧ Runs (node.height+1) (rest.map Node.height) top := hp
-      have hcurrent := ht.fold hp'.1
-      have hnext := PendingTree.merge node.tree hcurrent
-      obtain ⟨total,cost,htree,heq,hcost⟩ := ih (node.height+1) (node.leaves+k)
-        (node.folds+(f+(node.height-x))) (node.credit+(c+w (node.height-x))) top hnext hp'.2
-      refine ⟨total,cost,?_,?_,?_⟩
-      · have e : node.leaves+k+leafSum rest = k+leafSum (node::rest) := by
-          simp only [leafSum,List.map_cons,List.sum_cons]; omega
-        rwa [e] at htree
-      · simp only [List.length_cons,foldSum,List.map_cons,List.sum_cons] at heq ⊢; omega
-      · simp only [creditSum,List.map_cons,List.sum_cons,runWeight] at hcost ⊢; omega
-
-inductive Trace (w : Nat → Nat) : List Nat → Nat → Nat → Nat → Nat → Prop
-  | last (heights : List Nat) (top : Nat) (hp : Runs 0 heights top) :
-      Trace w heights 1 top (top-heights.length) (runWeight w 0 heights top)
-  | next (lo hi : List Nat) (t n top f c : Nat) (hp : Runs 0 lo t)
-      (tail : Trace w (t::hi) n top f c) :
-      Trace w (lo++hi) (n+1) top ((t-lo.length)+f) (runWeight w 0 lo t+c)
-
-theorem trace_tree {w heights n top f c} (ht : Trace w heights n top f c) :
-    ∀ stack : List (Node w), stack.map Node.height = heights →
-      Tree w top (n+leafSum stack) (f+foldSum stack) (c+creditSum stack) := by
-  induction ht with
-  | last heights top hp =>
-      intro stack hmap
-      have hp' : Runs 0 (stack.map Node.height) top := by simpa [hmap] using hp
-      obtain ⟨total,cost,htree,heq,hcost⟩ := climb stack 0 1 0 0 top PendingTree.leaf hp'
-      have hlen : stack.length = heights.length := by
-        have h := congrArg List.length hmap; simpa only [List.length_map] using h
-      have hbound := hp.length_le
-      have e : total = top-heights.length+foldSum stack := by omega
-      have ec : cost = runWeight w 0 heights top+creditSum stack := by rw [hmap] at hcost; omega
-      simpa only [e,ec] using htree
-  | next lo hi t n top f c hp tail ih =>
-      intro stack hmap
-      obtain ⟨low,high,hs,hl,hh⟩ := List.map_eq_append_iff.mp hmap
-      subst stack
-      have hp' : Runs 0 (low.map Node.height) t := by simpa [hl] using hp
-      obtain ⟨total,cost,htree,heq,hcost⟩ := climb low 0 1 0 0 t PendingTree.leaf hp'
-      let node : Node w := ⟨t,1+leafSum low,total,cost,htree⟩
-      have hmap' : (node::high).map Node.height = t::hi := by simp only [List.map_cons,node,hh]
-      have hresult := ih (node::high) hmap'
-      have hlen : low.length = lo.length := by
-        have h := congrArg List.length hl; simpa only [List.length_map] using h
-      have hbound := hp.length_le
-      have etotal : total = t-lo.length+foldSum low := by omega
-      have ecost : cost = runWeight w 0 lo t+creditSum low := by rw [hl] at hcost; omega
-      have eleaves : n+leafSum (node::high) = (n+1)+leafSum (low++high) := by
-        simp only [leafSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node]; omega
-      have efolds : f+foldSum (node::high) = (t-lo.length+f)+foldSum (low++high) := by
-        simp only [foldSum] at etotal
-        simp only [foldSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node]; omega
-      have ec : c+creditSum (node::high) = (runWeight w 0 lo t+c)+creditSum (low++high) := by
-        simp only [creditSum] at ecost
-        simp only [creditSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node]; omega
-      rwa [eleaves,efolds,ec] at hresult
-
-def readSum (ss : List ScheduleSegment) : Nat := (ss.map (·.reads.length)).sum
-def weightSum (w : Nat → Nat) (ss : List ScheduleSegment) : Nat := (ss.map (fun s => w s.reads.length)).sum
-
-theorem climbSegs_readSum (v x top : Nat) (L : List Nat) (hp : Runs x L top) :
-    readSum (climbSegs v x L top)+x+L.length=top := by
-  induction L generalizing x with
-  | nil =>
-      have hx : x ≤ top := hp
-      simp only [climbSegs,readSum,List.map_cons,List.map_nil,List.sum_cons,List.sum_nil,
-        sibs,List.length_map,List.length_range',List.length_nil]; omega
-  | cons y L ih =>
-      obtain ⟨hxy,hp⟩ := hp
-      have h := ih (y+1) hp
-      simp only [climbSegs,readSum,List.map_cons,List.sum_cons,sibs,List.length_map,
-        List.length_range',List.length_cons] at *; omega
-
-theorem climbSegs_weightSum (w : Nat → Nat) (v x top : Nat) (L : List Nat) :
-    weightSum w (climbSegs v x L top)=runWeight w x L top := by
-  induction L generalizing x with
-  | nil => simp [weightSum,climbSegs,sibs,runWeight]
-  | cons y L ih => simpa [weightSum,climbSegs,sibs,runWeight] using ih (y+1)
-
-theorem allSegs_trace (wgt : Nat → Nat) (v : Nat) (rest L : List Nat)
-    (hs : (v::rest).Pairwise (· < ·))
-    (hb : ∀ w ∈ v::rest, w < 2^ftsTreeHeight) (hL : Pending v L) :
-    Trace wgt L (v::rest).length 14 (readSum (allSegs (v::rest) L))
-      (weightSum wgt (allSegs (v::rest) L)) := by
-  induction rest generalizing v L with
-  | nil =>
-      have hf : L.filter (· < ftsTreeHeight) = L := by
-        apply List.filter_eq_self.mpr
-        intro y hy
-        simpa using (hL.2 y hy).1
-      have he : allSegs [v] L = climbSegs v 0 L 14 := by
-        change climbSegs v 0 (L.filter (· < ftsTreeHeight)) ftsTreeHeight ++ [] = _
-        rw [hf,List.append_nil]
-        rfl
-      rw [he]
-      have hr : Runs 0 L 14 := runs_of_order L 0 14 hL.1
-        (fun y hy => ⟨Nat.zero_le _, (hL.2 y hy).1⟩) (by omega)
-      have hsum := climbSegs_readSum v 0 14 L hr
-      have heq : readSum (climbSegs v 0 L 14) = 14-L.length := by omega
-      simpa only [List.length_cons,List.length_nil,heq,climbSegs_weightSum] using Trace.last (w := wgt) L 14 hr
-  | cons next rest ih =>
-      let t := leafTop v (next::rest)
-      let lo := L.filter (· < t)
-      let hi := L.filter (t < ·)
-      have hsplit : L = lo++hi := pending_split hL hs hb
-      have hn : Pending next (t::hi) :=
-        (pending_next ((List.pairwise_cons.mp hs).1 next (by simp))
-          (hb next (by simp)) (by rfl) hL).1
-      have ht := ih next (t::hi) (List.pairwise_cons.mp hs).2
-        (fun z hz => hb z (List.mem_cons_of_mem v hz)) hn
-      have hr : Runs 0 lo t := by
-        apply runs_of_order lo 0 t (hL.1.filter _) ?_ (Nat.zero_le _)
-        intro y hy
-        exact ⟨Nat.zero_le _,(mem_filter_lt hy).2⟩
-      have hsum := climbSegs_readSum v 0 t lo hr
-      have heq : readSum (climbSegs v 0 lo t) = t-lo.length := by omega
-      have htrace := Trace.next lo hi t (next::rest).length 14
-        (readSum (allSegs (next::rest) (t::hi)))
-        (weightSum wgt (allSegs (next::rest) (t::hi))) hr ht
-      rw [←hsplit] at htrace
-      change Trace wgt L (v::next::rest).length 14
-        (readSum (climbSegs v 0 lo t ++ allSegs (next::rest) (t::hi)))
-        (weightSum wgt (climbSegs v 0 lo t ++ allSegs (next::rest) (t::hi)))
-      have rs : ∀ a b, readSum (a++b) = readSum a+readSum b := by
-        intros; simp [readSum]
-      have ws : ∀ a b, weightSum wgt (a++b) = weightSum wgt a+weightSum wgt b := by
-        intros; simp [weightSum]
-      rw [rs,ws,heq,climbSegs_weightSum]
-      exact htrace
-
-theorem schedule_tree (weight : Nat → Nat) (leaves : IndexGroup → FtsLeaf)
-    (hinj : Function.Injective leaves) :
-    Tree weight 14 15 (readSum (schedule (sortedLeaves leaves)))
-      (weightSum weight (schedule (sortedLeaves leaves))) := by
-  obtain ⟨hlen,hs,hb⟩ := sortedLeaves_facts leaves hinj
-  obtain ⟨v,rest,he⟩ : ∃ v rest, sortedLeaves leaves = v::rest := by
-    cases h : sortedLeaves leaves with
-    | nil => rw [h] at hlen; simp [ftsOpenings] at hlen
-    | cons v rest => exact ⟨v,rest,rfl⟩
-  rw [he] at hlen hs hb
-  have hL : Pending v [] := ⟨List.Pairwise.nil,by simp⟩
-  have hsch : schedule (sortedLeaves leaves) = allSegs (v::rest) [] := by
-    have h := scheduleLeaves_eq rest v ⟨[],[],0,false,[],0⟩ [] hs hb hL rfl
-    rw [schedule,he,h.1,List.nil_append]
-  rw [hsch]
-  have ht := allSegs_trace weight v rest [] hs hb hL
-  rw [hlen] at ht
-  have hh := trace_tree ht [] rfl
-  simpa only [leafSum,foldSum,creditSum,List.map_nil,List.sum_nil,Nat.add_zero,ftsOpenings] using hh
-
-open OracleComp
-
-def decodedFolds (fts : FtsSignature) : List Nat :=
-  List.ofFn fun j : Fin ftsSegments => (fts.segments j).folds.val
-
-theorem schedule_length_of_injective (leaves : IndexGroup → FtsLeaf)
-    (hinj : Function.Injective leaves) : (schedule (sortedLeaves leaves)).length = ftsSegments := by
-  obtain ⟨hlen, hs, hb⟩ := sortedLeaves_facts leaves hinj
-  obtain ⟨v, rest, he⟩ : ∃ v rest, sortedLeaves leaves = v::rest := by
-    cases h : sortedLeaves leaves with
-    | nil => rw [h] at hlen; simp [ftsOpenings] at hlen
-    | cons v rest => exact ⟨v, rest, rfl⟩
-  rw [he] at hlen hs hb
-  have hL : Pending v [] := ⟨List.Pairwise.nil, by simp⟩
-  have hsch : schedule (sortedLeaves leaves) = allSegs (v::rest) [] := by
-    have h := scheduleLeaves_eq rest v ⟨[], [], 0, false, [], 0⟩ [] hs hb hL rfl
-    rw [schedule, he, h.1, List.nil_append]
-  rw [hsch, allSegs_length rest v [] hs hb hL]
-  simp only [List.length_nil, List.length_cons, ftsOpenings, ftsSegments] at hlen ⊢
-  omega
-
-theorem recover_tree (weight : Nat → Nat) (f : QueryImpl HashSpec Id)
-    (parameter : PublicParameter) (index : Index) (leaves : IndexGroup → FtsLeaf)
-    (fts : FtsSignature) (r : PorsMachine.Run)
-    (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
-    Tree weight 14 15 (decodedFolds fts).sum ((decodedFolds fts).map weight).sum := by
-  obtain ⟨slot,hperm,hsorted,hsegments,hfolds,hadm,hbij⟩ :=
-    PorsMachine.recoverRun_structure f parameter index leaves fts r hrun
-  have hlen := schedule_length_of_injective leaves hadm.1
-  have hm := (PorsMachine.recoverRun_schedule f parameter index leaves fts r hrun).1
-  have he : decodedFolds fts = (schedule (sortedLeaves leaves)).map (·.reads.length) := by
-    apply List.ext_getElem
-    · simp only [decodedFolds,List.length_ofFn,List.length_map,hlen]
-    · intro i hi hj
-      have hilt : i < ftsSegments := by simpa only [decodedFolds,List.length_ofFn] using hi
-      have hil : i < (schedule (sortedLeaves leaves)).length := by omega
-      have h := (hm ⟨i,hilt⟩).1
-      simpa only [decodedFolds,List.getElem_ofFn,List.getElem_map,List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem hil,Option.getD_some] using h
-  rw [he]
-  simpa only [readSum,weightSum,List.map_map,Function.comp_def] using schedule_tree weight leaves hadm.1
-
-end GeneralTreeProbe
-
-set_option Elab.async false
-namespace AdjustedPotential
-set_option maxRecDepth 10000
-set_option maxHeartbeats 0
- def credit (j : Nat) : Nat := if j=0 ∨ 3≤j then 1 else 0
-def row0 (k : Nat) : Int := match k with
- | 1 => -4
- | _ => 0
-def row1 (k : Nat) : Int := match k with
- | 1 => 1
- | 2 => -12
- | _ => 0
-def row2 (k : Nat) : Int := match k with
- | 1 => 2
- | 2 => -2
- | 3 => -15
- | 4 => -28
- | _ => 0
-def row3 (k : Nat) : Int := match k with
- | 1 => -1
- | 2 => 3
- | 3 => -4
- | 4 => -8
- | 5 => -21
- | 6 => -34
- | 7 => -47
- | 8 => -60
- | _ => 0
-def row4 (k : Nat) : Int := match k with
- | 1 => 0
- | 2 => 5
- | 3 => 1
- | 4 => 2
- | 5 => -5
- | 6 => -9
- | 7 => -16
- | 8 => -20
- | 9 => -33
- | 10 => -46
- | 11 => -59
- | 12 => -72
- | 13 => -85
- | 14 => -98
- | 15 => -111
- | _ => 0
-def row5 (k : Nat) : Int := match k with
- | 1 => 1
- | 2 => 6
- | 3 => 3
- | 4 => 7
- | 5 => 2
- | 6 => 3
- | 7 => -1
- | 8 => 0
- | 9 => -7
- | 10 => -11
- | 11 => -18
- | 12 => -22
- | 13 => -29
- | 14 => -33
- | 15 => -40
- | _ => 0
-def row6 (k : Nat) : Int := match k with
- | 1 => 2
- | 2 => 3
- | 3 => 6
- | 4 => 11
- | 5 => 7
- | 6 => 9
- | 7 => 6
- | 8 => 10
- | 9 => 5
- | 10 => 6
- | 11 => 2
- | 12 => 3
- | 13 => -2
- | 14 => -1
- | 15 => -5
- | _ => 0
-def row7 (k : Nat) : Int := match k with
- | 1 => 3
- | 2 => 4
- | 3 => 8
- | 4 => 13
- | 5 => 10
- | 6 => 14
- | 7 => 13
- | 8 => 18
- | 9 => 14
- | 10 => 16
- | 11 => 13
- | 12 => 17
- | 13 => 13
- | 14 => 15
- | 15 => 12
- | _ => 0
-def row8 (k : Nat) : Int := match k with
- | 1 => 4
- | 2 => 5
- | 3 => 9
- | 4 => 14
- | 5 => 14
- | 6 => 15
- | 7 => 18
- | 8 => 23
- | 9 => 19
- | 10 => 23
- | 11 => 22
- | 12 => 27
- | 13 => 24
- | 14 => 28
- | 15 => 27
- | _ => 0
-def row9 (k : Nat) : Int := match k with
- | 1 => 5
- | 2 => 7
- | 3 => 8
- | 4 => 12
- | 5 => 17
- | 6 => 18
- | 7 => 22
- | 8 => 27
- | 9 => 24
- | 10 => 28
- | 11 => 28
- | 12 => 33
- | 13 => 33
- | 14 => 34
- | 15 => 37
- | _ => 0
-def row10 (k : Nat) : Int := match k with
- | 1 => 6
- | 2 => 9
- | 3 => 10
- | 4 => 14
- | 5 => 19
- | 6 => 20
- | 7 => 24
- | 8 => 29
- | 9 => 29
- | 10 => 30
- | 11 => 33
- | 12 => 38
- | 13 => 40
- | 14 => 41
- | 15 => 45
- | _ => 0
-def row11 (k : Nat) : Int := match k with
- | 1 => 7
- | 2 => 11
- | 3 => 13
- | 4 => 15
- | 5 => 20
- | 6 => 23
- | 7 => 25
- | 8 => 30
- | 9 => 33
- | 10 => 35
- | 11 => 36
- | 12 => 40
- | 13 => 45
- | 14 => 46
- | 15 => 50
- | _ => 0
-def row12 (k : Nat) : Int := match k with
- | 1 => 8
- | 2 => 13
- | 3 => 16
- | 4 => 19
- | 5 => 21
- | 6 => 26
- | 7 => 29
- | 8 => 31
- | 9 => 36
- | 10 => 39
- | 11 => 40
- | 12 => 44
- | 13 => 49
- | 14 => 50
- | 15 => 54
- | _ => 0
-def row13 (k : Nat) : Int := match k with
- | 1 => 9
- | 2 => 15
- | 3 => 19
- | 4 => 23
- | 5 => 25
- | 6 => 28
- | 7 => 32
- | 8 => 35
- | 9 => 38
- | 10 => 42
- | 11 => 45
- | 12 => 48
- | 13 => 51
- | 14 => 54
- | 15 => 58
- | _ => 0
-def row14 (k : Nat) : Int := match k with
- | 1 => 10
- | 2 => 17
- | 3 => 22
- | 4 => 27
- | 5 => 30
- | 6 => 34
- | 7 => 38
- | 8 => 42
- | 9 => 44
- | 10 => 47
- | 11 => 51
- | 12 => 54
- | 13 => 57
- | 14 => 61
- | 15 => 64
- | _ => 0
-def potential (h k : Nat) : Int := match h with
- | 0 => row0 k
- | 1 => row1 k
- | 2 => row2 k
- | 3 => row3 k
- | 4 => row4 k
- | 5 => row5 k
- | 6 => row6 k
- | 7 => row7 k
- | 8 => row8 k
- | 9 => row9 k
- | 10 => row10 k
- | 11 => row11 k
- | 12 => row12 k
- | 13 => row13 k
- | 14 => row14 k
- | _ => 0
-
-def checkForks (h k : Nat) : Bool := (List.range h).all fun j =>
-  (List.range k).all fun a =>
-    if a=0 ∨ a>2^(h-j-1) ∨ k-a>2^(h-j-1) then true else
-      decide ((j:Int)-4*(credit j:Int)+potential (h-j-1) a+
-        potential (h-j-1) (k-a) ≤ potential h k)
-
-theorem check_0 : ((List.range 16).all fun k => checkForks 0 k)=true := by decide +kernel
-theorem check_1 : ((List.range 16).all fun k => checkForks 1 k)=true := by decide +kernel
-theorem check_2 : ((List.range 16).all fun k => checkForks 2 k)=true := by decide +kernel
-theorem check_3 : ((List.range 16).all fun k => checkForks 3 k)=true := by decide +kernel
-theorem check_4 : ((List.range 16).all fun k => checkForks 4 k)=true := by decide +kernel
-theorem check_5 : ((List.range 16).all fun k => checkForks 5 k)=true := by decide +kernel
-theorem check_6 : ((List.range 16).all fun k => checkForks 6 k)=true := by decide +kernel
-theorem check_7 : ((List.range 16).all fun k => checkForks 7 k)=true := by decide +kernel
-theorem check_8 : ((List.range 16).all fun k => checkForks 8 k)=true := by decide +kernel
-theorem check_9 : ((List.range 16).all fun k => checkForks 9 k)=true := by decide +kernel
-theorem check_10 : ((List.range 16).all fun k => checkForks 10 k)=true := by decide +kernel
-theorem check_11 : ((List.range 16).all fun k => checkForks 11 k)=true := by decide +kernel
-theorem check_12 : ((List.range 16).all fun k => checkForks 12 k)=true := by decide +kernel
-theorem check_13 : ((List.range 16).all fun k => checkForks 13 k)=true := by decide +kernel
-theorem check_14 : ((List.range 16).all fun k => checkForks 14 k)=true := by decide +kernel
-theorem checks (h : Fin 15) : ((List.range 16).all fun k => checkForks h.val k)=true := by
- fin_cases h
- · exact check_0
- · exact check_1
- · exact check_2
- · exact check_3
- · exact check_4
- · exact check_5
- · exact check_6
- · exact check_7
- · exact check_8
- · exact check_9
- · exact check_10
- · exact check_11
- · exact check_12
- · exact check_13
- · exact check_14
-theorem leaf_cert : ∀ h : Fin 15, (h.val:Int)-4*(credit h.val:Int) ≤ potential h.val 1 := by decide +kernel
-
-theorem fork_cert (h k j a : Nat) (hh : h <15) (hk : k<16)
-    (hj : j<h) (ha : 1≤a) (hak : a<k)
-    (hal : a≤2^(h-j-1)) (har : k-a≤2^(h-j-1)) :
-    (j:Int)-4*(credit j:Int)+potential (h-j-1) a+
-      potential (h-j-1) (k-a) ≤ potential h k := by
-  have H := List.all_eq_true.mp (checks ⟨h,hh⟩) k (List.mem_range.mpr hk)
-  have H := List.all_eq_true.mp H j (List.mem_range.mpr hj)
-  have H := List.all_eq_true.mp H a (List.mem_range.mpr hak)
-  have hn : ¬ (a=0 ∨ a>2^(h-j-1) ∨ k-a>2^(h-j-1)) := by omega
-  simpa only [hn, if_false, decide_eq_true_eq] using H
-end AdjustedPotential
-
-namespace AdjustedPotential
-theorem tree_potential {h k f c : Nat} (ht : GeneralTreeProbe.Tree credit h k f c)
-    (hh : h ≤ 14) (hk : k ≤ 15) :
-    (f:Int)-4*(c:Int) ≤ potential h k := by
-  induction ht with
-  | leaf h => exact leaf_cert ⟨h,by omega⟩
-  | fork h k j a l r lc rc hj ha hak left right ihl ihr =>
-    have hml : h-j-1 ≤ 14 := by omega
-    have hal : a ≤ 15 := by omega
-    have hkr : k-a ≤ 15 := by omega
-    have hl := ihl hml hal
-    have hr := ihr hml hkr
-    have hb := fork_cert h k j a (by omega) (by omega)
-      hj ha hak left.leaves_le right.leaves_le
-    push_cast
-    omega
-
-theorem root_potential {f c : Nat} (ht : GeneralTreeProbe.Tree credit 14 15 f c) :
-    (f:Int)-4*(c:Int) ≤ 64 := by
-  have h := tree_potential ht (by decide) (by decide)
-  have hp : potential 14 15 = 64 := by decide +kernel
-  rwa [hp] at h
-
-theorem final_numeric (f c cost q : Nat) (hf : f ≤ 117) (hq : 1 ≤ q)
-    (hp : (f:Int)-4*(c:Int) ≤ 64)
-    (he : cost+c = 464+q*f) : cost ≤ 464+q*117-14 := by
-  have hmul : q*f+q*(117-f) = q*117 := by rw [←Nat.mul_add]; congr 1; omega
-  have hgap : 117-f ≤ q*(117-f) := by nlinarith
-  omega
-
-open SphincsSecurity SphincsSecurity.Concrete SphincsSecurity.Completeness OracleComp
- theorem recover_potential (f : QueryImpl HashSpec Id)
-    (parameter : PublicParameter) (index : Index) (leaves : IndexGroup → FtsLeaf)
-    (fts : FtsSignature) (r : PorsMachine.Run)
-    (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
-    ((GeneralTreeProbe.decodedFolds fts).sum:Int)-
-      4*(((GeneralTreeProbe.decodedFolds fts).map credit).sum:Int) ≤ 64 :=
-  root_potential (GeneralTreeProbe.recover_tree credit f parameter index leaves fts r hrun)
-
-end AdjustedPotential
-
-namespace RootAware
-open GeneralTreeProbe SphincsSecurity SphincsSecurity.Concrete SphincsSecurity.Completeness
-set_option Elab.async false
-set_option maxHeartbeats 0
-set_option maxRecDepth 10000
-
-inductive RootTree (w wr : Nat → Nat) : Nat → Nat → Nat → Nat → Prop
- | leaf (h : Nat) : RootTree w wr h 1 h (wr h)
- | fork (h k j a l r lc rc : Nat) (hj : j<h) (ha : 1≤a) (hak : a<k)
-     (left : Tree w (h-j-1) a l lc) (right : Tree w (h-j-1) (k-a) r rc) :
-     RootTree w wr h k (j+l+r) (wr j+lc+rc)
-
-def lastWeight (w wr : Nat → Nat) : List Nat → Nat
- | [] => 0
- | [a] => wr a
- | a::b::xs => w a + lastWeight w wr (b::xs)
-
-def rootWeightSum (w wr : Nat → Nat) (ss : List ScheduleSegment) : Nat :=
- lastWeight w wr (ss.map (·.reads.length))
-
-theorem lastWeight_append (w wr : Nat → Nat) (xs ys : List Nat) (hy : ys ≠ []) :
- lastWeight w wr (xs++ys) = (xs.map w).sum + lastWeight w wr ys := by
- induction xs with
- | nil => simp [lastWeight]
- | cons a xs ih =>
-   cases xs with
-   | nil => cases ys with
-     | nil => contradiction
-     | cons b ys => simp [lastWeight]
-   | cons b xs => simp only [List.cons_append, lastWeight, List.map_cons, List.sum_cons] at ih ⊢; omega
-
-theorem rootWeightSum_append (w wr : Nat → Nat) (xs ys : List ScheduleSegment) (hy : ys ≠ []) :
- rootWeightSum w wr (xs++ys) = weightSum w xs + rootWeightSum w wr ys := by
- unfold rootWeightSum weightSum
- rw [List.map_append, lastWeight_append w wr _ _ (by simpa)]
- simp only [List.map_map, Function.comp_def]
-
-def runRootWeight (w wr : Nat → Nat) : Nat → List Nat → Nat → Nat
- | x, [] ,top => wr (top-x)
- | x, y::ys, top => w (y-x)+runRootWeight w wr (y+1) ys top
-theorem pending_rootFold {wr w x k f c top} (ht : PendingTree w x k f c) (hx : x ≤ top) :
-    RootTree w wr top k (f+(top-x)) (c+wr (top-x)) := by
-  cases ht with
-  | leaf => simpa using RootTree.leaf (w := w) (wr := wr) top
-  | @merge h a b l r lc rc left right =>
-      have ha := left.leaves_pos
-      have hb := right.leaves_pos
-      have eh : top-(top-(h+1))-1 = h := by omega
-      have hl : Tree w (top-(top-(h+1))-1) a l lc := by simpa [eh] using left
-      have hr : Tree w (top-(top-(h+1))-1) ((a+b)-a) r rc := by
-        simpa [eh, Nat.add_sub_cancel_left] using right
-      have q := RootTree.fork (wr := wr) top (a+b) (top-(h+1)) a l r lc rc (by omega) (by omega) (by omega) hl hr
-      convert q using 1 <;> omega
-
-theorem climb_root {w wr} (stack : List (Node w)) : ∀ x k f c top,
-    PendingTree w x k f c → Runs x (stack.map Node.height) top →
-    ∃ total cost, RootTree w wr top (k+leafSum stack) total cost ∧
-      total+x+stack.length = f+top+foldSum stack ∧
-      cost = c+creditSum stack+runRootWeight w wr x (stack.map Node.height) top := by
-  induction stack with
-  | nil =>
-      intro x k f c top ht hp
-      have hx : x ≤ top := hp
-      refine ⟨f+(top-x), c+wr (top-x), ?_, ?_, ?_⟩
-      · simpa [leafSum] using pending_rootFold (wr := wr) ht hx
-      · simp only [List.length_nil, foldSum, List.map_nil, List.sum_nil]; omega
-      · simp [creditSum, runRootWeight]
-  | cons node rest ih =>
-      intro x k f c top ht hp
-      have hp' : x ≤ node.height ∧ Runs (node.height+1) (rest.map Node.height) top := hp
-      have hcurrent := ht.fold hp'.1
-      have hnext := PendingTree.merge node.tree hcurrent
-      obtain ⟨total,cost,htree,heq,hcost⟩ := ih (node.height+1) (node.leaves+k)
-        (node.folds+(f+(node.height-x))) (node.credit+(c+w (node.height-x))) top hnext hp'.2
-      refine ⟨total,cost,?_,?_,?_⟩
-      · have e : node.leaves+k+leafSum rest = k+leafSum (node::rest) := by
-          simp only [leafSum,List.map_cons,List.sum_cons]; omega
-        rwa [e] at htree
-      · simp only [List.length_cons,foldSum,List.map_cons,List.sum_cons] at heq ⊢; omega
-      · simp only [creditSum,List.map_cons,List.sum_cons,runRootWeight] at hcost ⊢; omega
-
-inductive RootTrace (w wr : Nat → Nat) : List Nat → Nat → Nat → Nat → Nat → Prop
-  | last (heights : List Nat) (top : Nat) (hp : Runs 0 heights top) :
-      RootTrace w wr heights 1 top (top-heights.length) (runRootWeight w wr 0 heights top)
-  | next (lo hi : List Nat) (t n top f c : Nat) (hp : Runs 0 lo t)
-      (tail : RootTrace w wr (t::hi) n top f c) :
-      RootTrace w wr (lo++hi) (n+1) top ((t-lo.length)+f) (runWeight w 0 lo t+c)
-
-theorem root_trace_tree {w wr heights n top f c} (ht : RootTrace w wr heights n top f c) :
-    ∀ stack : List (Node w), stack.map Node.height = heights →
-      RootTree w wr top (n+leafSum stack) (f+foldSum stack) (c+creditSum stack) := by
-  induction ht with
-  | last heights top hp =>
-      intro stack hmap
-      have hp' : Runs 0 (stack.map Node.height) top := by simpa [hmap] using hp
-      obtain ⟨total,cost,htree,heq,hcost⟩ := climb_root (wr := wr) stack 0 1 0 0 top PendingTree.leaf hp'
-      have hlen : stack.length = heights.length := by
-        have h := congrArg List.length hmap; simpa only [List.length_map] using h
-      have hbound := hp.length_le
-      have e : total = top-heights.length+foldSum stack := by omega
-      have ec : cost = runRootWeight w wr 0 heights top+creditSum stack := by rw [hmap] at hcost; omega
-      simpa only [e,ec] using htree
-  | next lo hi t n top f c hp tail ih =>
-      intro stack hmap
-      obtain ⟨low,high,hs,hl,hh⟩ := List.map_eq_append_iff.mp hmap
-      subst stack
-      have hp' : Runs 0 (low.map Node.height) t := by simpa [hl] using hp
-      obtain ⟨total,cost,htree,heq,hcost⟩ := climb low 0 1 0 0 t PendingTree.leaf hp'
-      let node : Node w := ⟨t,1+leafSum low,total,cost,htree⟩
-      have hmap' : (node::high).map Node.height = t::hi := by simp only [List.map_cons,node,hh]
-      have hresult := ih (node::high) hmap'
-      have hlen : low.length = lo.length := by
-        have h := congrArg List.length hl; simpa only [List.length_map] using h
-      have hbound := hp.length_le
-      have etotal : total = t-lo.length+foldSum low := by omega
-      have ecost : cost = runWeight w 0 lo t+creditSum low := by rw [hl] at hcost; omega
-      have eleaves : n+leafSum (node::high) = (n+1)+leafSum (low++high) := by
-        simp only [leafSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node]; omega
-      have efolds : f+foldSum (node::high) = (t-lo.length+f)+foldSum (low++high) := by
-        simp only [foldSum] at etotal
-        simp only [foldSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node]; omega
-      have ec : c+creditSum (node::high) = (runWeight w 0 lo t+c)+creditSum (low++high) := by
-        simp only [creditSum] at ecost
-        simp only [creditSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node]; omega
-      rwa [eleaves,efolds,ec] at hresult
-
-
-theorem climbSegs_nonempty (v x top : Nat) (L : List Nat) : climbSegs v x L top ≠ [] := by
- cases L <;> simp [climbSegs]
-
-theorem allSegs_nonempty (v : Nat) (rest L : List Nat) : allSegs (v::rest) L ≠ [] := by
- intro h
- have e := (List.append_eq_nil_iff.mp h).1
- exact climbSegs_nonempty _ _ _ _ e
-
-theorem climbSegs_rootWeightSum (w wr : Nat → Nat) (v x top : Nat) (L : List Nat) :
- rootWeightSum w wr (climbSegs v x L top) = runRootWeight w wr x L top := by
- induction L generalizing x with
- | nil => simp [rootWeightSum,lastWeight,climbSegs,sibs,runRootWeight]
- | cons y L ih =>
-   have he : lastWeight w wr ((y-x)::((climbSegs v (y+1) L top).map (·.reads.length))) =
-       w (y-x) + rootWeightSum w wr (climbSegs v (y+1) L top) := by
-     have h := lastWeight_append w wr [y-x] ((climbSegs v (y+1) L top).map (·.reads.length))
-       (by simpa using climbSegs_nonempty v (y+1) top L)
-     simpa [rootWeightSum] using h
-   simp only [climbSegs,rootWeightSum,List.map_cons,sibs,List.length_map,List.length_range',runRootWeight]
-   rw [he]
-   exact congrArg (w (y-x) + ·) (ih (y+1))
-theorem allSegs_rootTrace (wgt wr : Nat → Nat) (v : Nat) (rest L : List Nat)
-    (hs : (v::rest).Pairwise (· < ·))
-    (hb : ∀ w ∈ v::rest, w < 2^ftsTreeHeight) (hL : Pending v L) :
-    RootTrace wgt wr L (v::rest).length 14 (readSum (allSegs (v::rest) L))
-      (rootWeightSum wgt wr (allSegs (v::rest) L)) := by
-  induction rest generalizing v L with
-  | nil =>
-      have hf : L.filter (· < ftsTreeHeight) = L := by
-        apply List.filter_eq_self.mpr
-        intro y hy
-        simpa using (hL.2 y hy).1
-      have he : allSegs [v] L = climbSegs v 0 L 14 := by
-        change climbSegs v 0 (L.filter (· < ftsTreeHeight)) ftsTreeHeight ++ [] = _
-        rw [hf,List.append_nil]
-        rfl
-      rw [he]
-      have hr : Runs 0 L 14 := runs_of_order L 0 14 hL.1
-        (fun y hy => ⟨Nat.zero_le _, (hL.2 y hy).1⟩) (by omega)
-      have hsum := climbSegs_readSum v 0 14 L hr
-      have heq : readSum (climbSegs v 0 L 14) = 14-L.length := by omega
-      simpa only [List.length_cons,List.length_nil,heq,climbSegs_rootWeightSum] using RootTrace.last (w := wgt) (wr := wr) L 14 hr
-  | cons next rest ih =>
-      let t := leafTop v (next::rest)
-      let lo := L.filter (· < t)
-      let hi := L.filter (t < ·)
-      have hsplit : L = lo++hi := pending_split hL hs hb
-      have hn : Pending next (t::hi) :=
-        (pending_next ((List.pairwise_cons.mp hs).1 next (by simp))
-          (hb next (by simp)) (by rfl) hL).1
-      have ht := ih next (t::hi) (List.pairwise_cons.mp hs).2
-        (fun z hz => hb z (List.mem_cons_of_mem v hz)) hn
-      have hr : Runs 0 lo t := by
-        apply runs_of_order lo 0 t (hL.1.filter _) ?_ (Nat.zero_le _)
-        intro y hy
-        exact ⟨Nat.zero_le _,(mem_filter_lt hy).2⟩
-      have hsum := climbSegs_readSum v 0 t lo hr
-      have heq : readSum (climbSegs v 0 lo t) = t-lo.length := by omega
-      have htrace := RootTrace.next lo hi t (next::rest).length 14
-        (readSum (allSegs (next::rest) (t::hi)))
-        (rootWeightSum wgt wr (allSegs (next::rest) (t::hi))) hr ht
-      rw [←hsplit] at htrace
-      change RootTrace wgt wr L (v::next::rest).length 14
-        (readSum (climbSegs v 0 lo t ++ allSegs (next::rest) (t::hi)))
-        (rootWeightSum wgt wr (climbSegs v 0 lo t ++ allSegs (next::rest) (t::hi)))
-      have rs : ∀ a b, readSum (a++b) = readSum a+readSum b := by
-        intros; simp [readSum]
-      rw [rs,rootWeightSum_append wgt wr _ _ (allSegs_nonempty next rest (t::hi)),
-        heq,climbSegs_weightSum]
-      exact htrace
-
-theorem schedule_rootTree (weight wr : Nat → Nat) (leaves : IndexGroup → FtsLeaf)
-    (hinj : Function.Injective leaves) :
-    RootTree weight wr 14 15 (readSum (schedule (sortedLeaves leaves)))
-      (rootWeightSum weight wr (schedule (sortedLeaves leaves))) := by
-  obtain ⟨hlen,hs,hb⟩ := sortedLeaves_facts leaves hinj
-  obtain ⟨v,rest,he⟩ : ∃ v rest, sortedLeaves leaves = v::rest := by
-    cases h : sortedLeaves leaves with
-    | nil => rw [h] at hlen; simp [ftsOpenings] at hlen
-    | cons v rest => exact ⟨v,rest,rfl⟩
-  rw [he] at hlen hs hb
-  have hL : Pending v [] := ⟨List.Pairwise.nil,by simp⟩
-  have hsch : schedule (sortedLeaves leaves) = allSegs (v::rest) [] := by
-    have h := scheduleLeaves_eq rest v ⟨[],[],0,false,[],0⟩ [] hs hb hL rfl
-    rw [schedule,he,h.1,List.nil_append]
-  rw [hsch]
-  have ht := allSegs_rootTrace weight wr v rest [] hs hb hL
-  rw [hlen] at ht
-  have hh := root_trace_tree ht [] rfl
-  simpa only [leafSum,foldSum,creditSum,List.map_nil,List.sum_nil,Nat.add_zero,ftsOpenings] using hh
-
-open OracleComp
-theorem recover_rootTree (weight wr : Nat → Nat) (f : QueryImpl HashSpec Id)
-    (parameter : PublicParameter) (index : Index) (leaves : IndexGroup → FtsLeaf)
-    (fts : FtsSignature) (r : PorsMachine.Run)
-    (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
-    RootTree weight wr 14 15 (decodedFolds fts).sum (lastWeight weight wr (decodedFolds fts)) := by
-  obtain ⟨slot,hperm,hsorted,hsegments,hfolds,hadm,hbij⟩ :=
-    PorsMachine.recoverRun_structure f parameter index leaves fts r hrun
-  have hlen := schedule_length_of_injective leaves hadm.1
-  have hm := (PorsMachine.recoverRun_schedule f parameter index leaves fts r hrun).1
-  have he : decodedFolds fts = (schedule (sortedLeaves leaves)).map (·.reads.length) := by
-    apply List.ext_getElem
-    · simp only [decodedFolds,List.length_ofFn,List.length_map,hlen]
-    · intro i hi hj
-      have hilt : i < ftsSegments := by simpa only [decodedFolds,List.length_ofFn] using hi
-      have hil : i < (schedule (sortedLeaves leaves)).length := by omega
-      have h := (hm ⟨i,hilt⟩).1
-      simpa only [decodedFolds,List.getElem_ofFn,List.getElem_map,List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem hil,Option.getD_some] using h
-  rw [he]
-  simpa only [readSum,rootWeightSum] using schedule_rootTree weight wr leaves hadm.1
-
-
-def rootCredit (j : Nat) : Nat := if j=0 then 1 else 0
-
-def checkRoot : Bool := (List.range 14).all fun j => (List.range 15).all fun a =>
- if a=0 ∨ a>2^(13-j) ∨ 15-a>2^(13-j) then true else
- decide ((j:Int)-4*(rootCredit j:Int)+AdjustedPotential.potential (13-j) a+
-     AdjustedPotential.potential (13-j) (15-a) ≤ 64)
-
-theorem check_root : checkRoot = true := by decide +kernel
-
-theorem root_potential {f c : Nat} (ht : RootTree AdjustedPotential.credit rootCredit 14 15 f c) :
- (f:Int)-4*(c:Int) ≤ 64 := by
- cases ht
- rename_i j a l r lc rc hj ha left hak right
- have hl := AdjustedPotential.tree_potential left (by omega) (by omega)
- have hr := AdjustedPotential.tree_potential right (by omega) (by omega)
- have hal := left.leaves_le
- have har := right.leaves_le
- have H := List.all_eq_true.mp check_root j (List.mem_range.mpr hj)
- have H := List.all_eq_true.mp H a (List.mem_range.mpr hak)
- have hm : 14-j-1 = 13-j := by omega
- have hn : ¬ (a=0 ∨ a>2^(13-j) ∨ 15-a>2^(13-j)) := by rw [hm] at hal har; omega
- simp only [hn,if_false,decide_eq_true_eq] at H
- rw [hm] at hl hr
- push_cast
- omega
-
-theorem recover_potential (f : QueryImpl HashSpec Id)
- (parameter : PublicParameter) (index : Index) (leaves : IndexGroup → FtsLeaf)
- (fts : FtsSignature) (r : PorsMachine.Run)
- (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
- ((decodedFolds fts).sum:Int)-4*(lastWeight AdjustedPotential.credit rootCredit (decodedFolds fts):Int) ≤ 64 :=
- root_potential (recover_rootTree AdjustedPotential.credit rootCredit f parameter index leaves fts r hrun)
-
-theorem conditional_cost (f c cost : Nat) (hf : f≤117)
- (ht : RootTree AdjustedPotential.credit rootCredit 14 15 f c)
- (he : cost+c=464+16*f) : cost≤2322 := by
- exact AdjustedPotential.final_numeric f c cost 16 hf (by decide) (root_potential ht) he
-
-theorem lastWeight_terminal (w wr : Nat → Nat) (xs : List Nat) (a : Nat) :
- lastWeight w wr (xs++[a]) = (xs.map w).sum+wr a := by
- simpa only [lastWeight] using lastWeight_append w wr xs [a] (by simp)
-
-theorem credit_at_cap {f c : Nat} (ht : RootTree AdjustedPotential.credit rootCredit 14 15 f c)
- (hf : f=117) : 14≤c := by
- have hp := root_potential ht
- omega
-
-theorem recover_cost (f : QueryImpl HashSpec Id)
- (parameter : PublicParameter) (index : Index) (leaves : IndexGroup → FtsLeaf)
- (fts : FtsSignature) (r : PorsMachine.Run)
- (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r)
- (cost : Nat) (hcap : (decodedFolds fts).sum≤117)
- (hcost : cost+lastWeight AdjustedPotential.credit rootCredit (decodedFolds fts)
-   =464+16*(decodedFolds fts).sum) : cost≤2322 :=
- conditional_cost _ _ _ hcap
-   (recover_rootTree AdjustedPotential.credit rootCredit f parameter index leaves fts r hrun) hcost
-
-
-end RootAware
-end SigGolfCandidate.Research.NoJoin
-
 section StructuralCostCertificate
+
+/-! Universal structural PORS segment credit and exact accepting-run accounting.
+The compressed-tree certificate accounts for zero-length segments and restores the
+actual final/root segment's branch cost. Its numeric table is checked in Params. -/
 
 /-! ## PorsDecodedCounts -/
 namespace SigGolfCandidate.Research.PorsPositiveBound
 open SphincsSecurity SphincsSecurity.Concrete SphincsSecurity.Completeness
 open OracleComp
-open SigGolfCandidate.Research.NoJoin.GeneralTreeProbe
+
+def readSum (ss : List ScheduleSegment) : Nat := (ss.map (·.reads.length)).sum
 
 theorem climbSegs_readSum_general (v top : Nat) (L : List Nat) : ∀ x,
     L.Pairwise (· < ·) → (∀ y ∈ L, x ≤ y ∧ y < top) → x ≤ top →
@@ -1028,6 +104,22 @@ theorem schedule_readSum_eq_octopus (leaves : IndexGroup → FtsLeaf)
 def decodedFolds (fts : FtsSignature) : List Nat :=
   List.ofFn fun j : Fin ftsSegments => (fts.segments j).folds.val
 
+theorem schedule_length_of_injective (leaves : IndexGroup → FtsLeaf)
+    (hinj : Function.Injective leaves) : (schedule (sortedLeaves leaves)).length = ftsSegments := by
+  obtain ⟨hlen, hs, hb⟩ := sortedLeaves_facts leaves hinj
+  obtain ⟨v, rest, he⟩ : ∃ v rest, sortedLeaves leaves = v::rest := by
+    cases h : sortedLeaves leaves with
+    | nil => rw [h] at hlen; simp [ftsOpenings] at hlen
+    | cons v rest => exact ⟨v, rest, rfl⟩
+  rw [he] at hlen hs hb
+  have hL : Pending v [] := ⟨List.Pairwise.nil, by simp⟩
+  have hsch : schedule (sortedLeaves leaves) = allSegs (v::rest) [] := by
+    have h := scheduleLeaves_eq rest v ⟨[], [], 0, false, [], 0⟩ [] hs hb hL rfl
+    rw [schedule, he, h.1, List.nil_append]
+  rw [hsch, allSegs_length rest v [] hs hb hL]
+  simp only [List.length_nil, List.length_cons, ftsOpenings, ftsSegments] at hlen ⊢
+  omega
+
 theorem recoverRun_decodedFolds_sum (f : QueryImpl HashSpec Id)
     (parameter : PublicParameter) (index : Index)
     (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
@@ -1049,46 +141,630 @@ theorem recoverRun_decodedFolds_sum (f : QueryImpl HashSpec Id)
   rw [he, hfolds]
   exact schedule_readSum_eq_octopus leaves hadm.1
 
+
 end SigGolfCandidate.Research.PorsPositiveBound
+
+
+namespace SiggolfReverseSchedule
+open SiggolfPrefixCertificate
+
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 4096
+
+variable (credit : Nat → Nat)
+
+/-- A pending leaf or binary hash before the following unary run is emitted. -/
+inductive PendingTree (credit : Nat → Nat) : Nat → Nat → Nat → Nat → Prop
+  | leaf : PendingTree credit 0 1 0 0
+  | merge {h a b fl fr cl cr : Nat}
+      (left : Tree credit h a fl cl) (right : Tree credit h b fr cr) :
+      PendingTree credit (h+1) (a+b) (fl+fr) (cl+cr)
+
+theorem PendingTree.fold {x k f c top : Nat} (ht : PendingTree credit x k f c)
+    (hx : x ≤ top) : Tree credit top k (f+(top-x)) (c+credit (top-x)) := by
+  cases ht with
+  | leaf => simpa using Tree.leaf (credit := credit) top
+  | @merge h a b fl fr cl cr left right =>
+      have eh : top-(top-(h+1))-1 = h := by omega
+      have hl : Tree credit (top-(top-(h+1))-1) a fl cl := by simpa [eh] using left
+      have hr : Tree credit (top-(top-(h+1))-1) b fr cr := by simpa [eh] using right
+      have q := Tree.fork top (top-(h+1)) a b fl fr cl cr (by omega) hl hr
+      convert q using 1 <;> omega
+
+structure Node where
+  height : Nat
+  leaves : Nat
+  folds : Nat
+  credits : Nat
+  tree : Tree credit height leaves folds credits
+
+def leafSum (stack : List (Node credit)) : Nat := (stack.map Node.leaves).sum
+def foldSum (stack : List (Node credit)) : Nat := (stack.map Node.folds).sum
+def creditSum (stack : List (Node credit)) : Nat := (stack.map Node.credits).sum
+
+/-- Zero folds are allowed before a merge and at the end of a climb. -/
+def Runs : Nat → List Nat → Nat → Prop
+  | x, [], top => x ≤ top
+  | x, y::ys, top => x ≤ y ∧ Runs (y+1) ys top
+
+def climbCredit : Nat → List Nat → Nat → Nat
+  | x, [], top => credit (top-x)
+  | x, y::ys, top => credit (y-x) + climbCredit (y+1) ys top
+
+theorem Runs.length_le {x top : Nat} {heights : List Nat}
+    (hp : Runs x heights top) : x+heights.length ≤ top := by
+  induction heights generalizing x with
+  | nil => simpa [Runs] using hp
+  | cons y ys ih =>
+      obtain ⟨hxy,hp⟩ := hp
+      have h := ih hp
+      simp only [List.length_cons]
+      omega
+
+theorem runs_of_bounds (heights : List Nat) : ∀ x top,
+    heights.Pairwise (· < ·) → (∀ y ∈ heights, x ≤ y ∧ y < top) → x ≤ top →
+    Runs x heights top := by
+  induction heights with
+  | nil => intro x top _ _ hx; exact hx
+  | cons y ys ih =>
+      intro x top hs hb hx
+      have hy := hb y (by simp)
+      refine ⟨hy.1, ih (y+1) top (List.pairwise_cons.mp hs).2 ?_ (by omega)⟩
+      intro z hz
+      exact ⟨(List.pairwise_cons.mp hs).1 z hz, (hb z (by simp [hz])).2⟩
+
+theorem climb (stack : List (Node credit)) : ∀ (x k f c top : Nat),
+    PendingTree credit x k f c → Runs x (stack.map Node.height) top →
+    ∃ total, Tree credit top (k+leafSum credit stack) total
+      (c+creditSum credit stack+climbCredit credit x (stack.map Node.height) top) ∧
+      total+x+stack.length = f+top+foldSum credit stack := by
+  induction stack with
+  | nil =>
+      intro x k f c top ht hp
+      have hx : x ≤ top := hp
+      refine ⟨f+(top-x), ?_, ?_⟩
+      · simpa [leafSum,creditSum,climbCredit] using ht.fold credit hx
+      · simp only [List.length_nil,foldSum,List.map_nil,List.sum_nil]; omega
+  | cons node rest ih =>
+      intro x k f c top ht hp
+      have hp' : x ≤ node.height ∧ Runs (node.height+1) (rest.map Node.height) top := hp
+      have hcurrent := ht.fold credit hp'.1
+      have hnext := PendingTree.merge node.tree hcurrent
+      obtain ⟨total,htree,heq⟩ := ih (node.height+1) (node.leaves+k)
+        (node.folds+(f+(node.height-x))) (node.credits+(c+credit (node.height-x)))
+        top hnext hp'.2
+      refine ⟨total, ?_, ?_⟩
+      · have eleaves : node.leaves+k+leafSum credit rest = k+leafSum credit (node::rest) := by
+          simp only [leafSum,List.map_cons,List.sum_cons]; omega
+        have ecredit : node.credits+(c+credit (node.height-x))+creditSum credit rest+
+              climbCredit credit (node.height+1) (rest.map Node.height) top =
+            c+creditSum credit (node::rest)+climbCredit credit x ((node::rest).map Node.height) top := by
+          simp only [creditSum,List.map_cons,List.sum_cons,climbCredit]; omega
+        rwa [eleaves,ecredit] at htree
+      · simp only [List.length_cons,foldSum,List.map_cons,List.sum_cons] at heq ⊢; omega
+
+inductive Trace (credit : Nat → Nat) : List Nat → Nat → Nat → Nat → Nat → Prop
+  | last (heights : List Nat) (top : Nat) (hp : Runs 0 heights top) :
+      Trace credit heights 1 top (top-heights.length) (climbCredit credit 0 heights top)
+  | next (lo hi : List Nat) (t n top f c : Nat) (hp : Runs 0 lo t)
+      (tail : Trace credit (t::hi) n top f c) :
+      Trace credit (lo++hi) (n+1) top ((t-lo.length)+f) (climbCredit credit 0 lo t+c)
+
+theorem trace_tree {heights : List Nat} {n top f c : Nat}
+    (ht : Trace credit heights n top f c) : ∀ stack : List (Node credit),
+    stack.map Node.height = heights →
+    Tree credit top (n+leafSum credit stack) (f+foldSum credit stack) (c+creditSum credit stack) := by
+  induction ht with
+  | last heights top hp =>
+      intro stack hmap
+      have hp' : Runs 0 (stack.map Node.height) top := by simpa [hmap] using hp
+      obtain ⟨total,htree,heq⟩ := climb credit stack 0 1 0 0 top (PendingTree.leaf (credit := credit)) hp'
+      have hlen : stack.length = heights.length := by
+        have h := congrArg List.length hmap; simpa only [List.length_map] using h
+      have hbound := hp.length_le
+      have e : total = top-heights.length+foldSum credit stack := by omega
+      simpa only [e,hmap,Nat.zero_add,Nat.add_comm] using htree
+  | next lo hi t n top f c hp tail ih =>
+      intro stack hmap
+      obtain ⟨low,high,hs,hl,hh⟩ := List.map_eq_append_iff.mp hmap
+      subst stack
+      have hp' : Runs 0 (low.map Node.height) t := by simpa [hl] using hp
+      obtain ⟨total,htree,heq⟩ := climb credit low 0 1 0 0 t (PendingTree.leaf (credit := credit)) hp'
+      let node : Node credit := ⟨t,1+leafSum credit low,total,
+        creditSum credit low+climbCredit credit 0 (low.map Node.height) t,by simpa using htree⟩
+      have hmap' : (node::high).map Node.height = t::hi := by simp only [List.map_cons,node,hh]
+      have hresult := ih (node::high) hmap'
+      have hlen : low.length = lo.length := by
+        have h := congrArg List.length hl; simpa only [List.length_map] using h
+      have hbound := hp.length_le
+      have etotal : total = t-lo.length+foldSum credit low := by omega
+      have eleaves : n+leafSum credit (node::high) = (n+1)+leafSum credit (low++high) := by
+        simp only [leafSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node]; omega
+      have efolds : f+foldSum credit (node::high) = (t-lo.length+f)+foldSum credit (low++high) := by
+        simp only [foldSum] at etotal
+        simp only [foldSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node]; omega
+      have ecredits : c+creditSum credit (node::high) =
+          (climbCredit credit 0 lo t+c)+creditSum credit (low++high) := by
+        simp only [creditSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node,hl]; omega
+      rwa [eleaves,efolds,ecredits] at hresult
+
+open SphincsSecurity SphincsSecurity.Concrete SphincsSecurity.Completeness
+open SigGolfCandidate.Research.PorsPositiveBound
+
+def scheduleCredit (ss : List ScheduleSegment) : Nat := (ss.map fun s => credit s.reads.length).sum
+
+theorem climbSegs_credit (v x top : Nat) (L : List Nat) :
+    scheduleCredit credit (climbSegs v x L top) = climbCredit credit x L top := by
+  induction L generalizing x with
+  | nil => simp [scheduleCredit,climbSegs,climbCredit,sibs]
+  | cons y ys ih =>
+      simp only [climbSegs,scheduleCredit,List.map_cons,List.sum_cons,sibs,
+        List.length_map,List.length_range',climbCredit]
+      exact congrArg (credit (y-x)+·) (ih (y+1))
+
+theorem climbSegs_readSum_runs (v x top : Nat) (L : List Nat) (hp : Runs x L top) :
+    readSum (climbSegs v x L top)+x+L.length = top := by
+  induction L generalizing x with
+  | nil =>
+      have hx : x ≤ top := hp
+      simp only [climbSegs,readSum,List.map_cons,List.map_nil,List.sum_cons,List.sum_nil,
+        sibs,List.length_map,List.length_range',List.length_nil]
+      omega
+  | cons y ys ih =>
+      obtain ⟨hxy,hp⟩ := hp
+      have h := ih (y+1) hp
+      simp only [climbSegs,readSum,List.map_cons,List.sum_cons,sibs,
+        List.length_map,List.length_range',List.length_cons] at *
+      omega
+
+theorem allSegs_trace (v : Nat) (rest L : List Nat)
+    (hs : (v::rest).Pairwise (· < ·))
+    (hb : ∀ w ∈ v::rest, w < 2^ftsTreeHeight) (hL : Pending v L) :
+    Trace credit L (v::rest).length 14 (readSum (allSegs (v::rest) L))
+      (scheduleCredit credit (allSegs (v::rest) L)) := by
+  induction rest generalizing v L with
+  | nil =>
+      have hf : L.filter (· < ftsTreeHeight) = L := by
+        apply List.filter_eq_self.mpr
+        intro y hy
+        simpa using (hL.2 y hy).1
+      have he : allSegs [v] L = climbSegs v 0 L 14 := by
+        change climbSegs v 0 (L.filter (· < ftsTreeHeight)) ftsTreeHeight ++ [] = _
+        rw [hf,List.append_nil]
+        rfl
+      rw [he]
+      have hr : Runs 0 L 14 := runs_of_bounds L 0 14 hL.1
+        (fun y hy => ⟨Nat.zero_le y,(hL.2 y hy).1⟩) (by omega)
+      have hsum := climbSegs_readSum_runs v 0 14 L hr
+      have heq : readSum (climbSegs v 0 L 14) = 14-L.length := by omega
+      simpa only [List.length_cons,List.length_nil,heq,climbSegs_credit] using Trace.last L 14 hr
+  | cons w rest ih =>
+      let t := leafTop v (w::rest)
+      let lo := L.filter (· < t)
+      let hi := L.filter (t < ·)
+      have hsplit : L = lo++hi := pending_split hL hs hb
+      have hn : Pending w (t::hi) :=
+        (pending_next ((List.pairwise_cons.mp hs).1 w (by simp))
+          (hb w (by simp)) (by rfl) hL).1
+      have ht := ih w (t::hi) (List.pairwise_cons.mp hs).2
+        (fun z hz => hb z (List.mem_cons_of_mem v hz)) hn
+      have hr : Runs 0 lo t := runs_of_bounds lo 0 t (hL.1.filter _)
+        (fun y hy => ⟨Nat.zero_le y,(mem_filter_lt hy).2⟩) (Nat.zero_le _)
+      have hsum := climbSegs_readSum_runs v 0 t lo hr
+      have heq : readSum (climbSegs v 0 lo t) = t-lo.length := by omega
+      have htrace := Trace.next lo hi t (w::rest).length 14
+        (readSum (allSegs (w::rest) (t::hi)))
+        (scheduleCredit credit (allSegs (w::rest) (t::hi))) hr ht
+      rw [←hsplit] at htrace
+      change Trace credit L ((v::w::rest).length) 14
+        (readSum (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)))
+        (scheduleCredit credit (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)))
+      have hread : readSum (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)) =
+          (t-lo.length)+readSum (allSegs (w::rest) (t::hi)) := by
+        simp only [readSum,List.map_append,List.sum_append] at heq ⊢
+        rw [heq]
+      have hcredit : scheduleCredit credit (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)) =
+          climbCredit credit 0 lo t+scheduleCredit credit (allSegs (w::rest) (t::hi)) := by
+        simpa only [scheduleCredit,List.map_append,List.sum_append] using
+          congrArg (fun n => n+scheduleCredit credit (allSegs (w::rest) (t::hi)))
+            (climbSegs_credit credit v 0 t lo)
+      rw [hread,hcredit]
+      exact htrace
+
+theorem schedule_tree (leaves : IndexGroup → FtsLeaf) (hinj : Function.Injective leaves) :
+    Tree credit 14 15 (readSum (schedule (sortedLeaves leaves)))
+      (scheduleCredit credit (schedule (sortedLeaves leaves))) := by
+  obtain ⟨hlen,hs,hb⟩ := sortedLeaves_facts leaves hinj
+  obtain ⟨v,rest,he⟩ : ∃ v rest, sortedLeaves leaves = v::rest := by
+    cases h : sortedLeaves leaves with
+    | nil => rw [h] at hlen; simp [ftsOpenings] at hlen
+    | cons v rest => exact ⟨v,rest,rfl⟩
+  rw [he] at hlen hs hb
+  have hL : Pending v [] := ⟨List.Pairwise.nil,by simp⟩
+  have hsch : schedule (sortedLeaves leaves) = allSegs (v::rest) [] := by
+    have h := scheduleLeaves_eq rest v ⟨[],[],0,false,[],0⟩ [] hs hb hL rfl
+    rw [schedule,he,h.1,List.nil_append]
+  have ht := allSegs_trace credit v rest [] hs hb hL
+  have htree := trace_tree credit ht [] rfl
+  rw [hlen] at htree
+  simpa only [hsch,leafSum,foldSum,creditSum,List.map_nil,List.sum_nil,Nat.add_zero,ftsOpenings] using htree
+
+open OracleComp
+
+theorem recoverRun_decodedFolds_eq (f : QueryImpl HashSpec Id)
+    (parameter : PublicParameter) (index : Index)
+    (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
+    (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
+    decodedFolds fts = (schedule (sortedLeaves leaves)).map (·.reads.length) := by
+  obtain ⟨slot,hperm,hsorted,hsegments,hfolds,hadm,hbij⟩ :=
+    PorsMachine.recoverRun_structure f parameter index leaves fts r hrun
+  have hlen := schedule_length_of_injective leaves hadm.1
+  have hm := (PorsMachine.recoverRun_schedule f parameter index leaves fts r hrun).1
+  apply List.ext_getElem
+  · simp only [decodedFolds,List.length_ofFn,List.length_map,hlen]
+  · intro i hi hj
+    have hilt : i < ftsSegments := by simpa only [decodedFolds,List.length_ofFn] using hi
+    have hil : i < (schedule (sortedLeaves leaves)).length := by omega
+    have h := (hm ⟨i,hilt⟩).1
+    simpa only [decodedFolds,List.getElem_ofFn,List.getElem_map,List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem hil,Option.getD_some] using h
+
+/-- Every accepted PORS witness has a zero-inclusive tree with the exact decoded
+fold total and exact total of any per-segment credit function. -/
+theorem recoverRun_tree (f : QueryImpl HashSpec Id)
+    (parameter : PublicParameter) (index : Index)
+    (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
+    (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
+    Tree credit 14 15 r.folds (((decodedFolds fts).map credit).sum) := by
+  obtain ⟨slot,hperm,hsorted,hsegments,hfolds,hadm,hbij⟩ :=
+    PorsMachine.recoverRun_structure f parameter index leaves fts r hrun
+  have ht := schedule_tree credit leaves hadm.1
+  have he := recoverRun_decodedFolds_eq f parameter index leaves fts r hrun
+  have hc : scheduleCredit credit (schedule (sortedLeaves leaves)) =
+      ((decodedFolds fts).map credit).sum := by
+    rw [he,List.map_map]
+    rfl
+  have hf : readSum (schedule (sortedLeaves leaves)) = r.folds := by
+    rw [readSum,←he]
+    exact recoverRun_decodedFolds_sum f parameter index leaves fts r hrun
+  rwa [hc,hf] at ht
+
+
+end SiggolfReverseSchedule
+
+
+namespace SiggolfReverseRootLast
+open SiggolfPrefixCertificate SiggolfReverseSchedule
+set_option maxHeartbeats 2000000
+set_option maxRecDepth 20000
+variable (credit : Nat → Nat)
+
+/-- The ordinary tree witness, retaining its final/root unary-run length. -/
+inductive RootedTree (credit : Nat → Nat) : Nat → Nat → Nat → Nat → Nat → Prop
+  | leaf (h : Nat) : RootedTree credit h 1 h (credit h) h
+  | fork (h a p q fl fr cl cr : Nat) (ha : a<h)
+      (left : Tree credit (h-a-1) p fl cl) (right : Tree credit (h-a-1) q fr cr) :
+      RootedTree credit h (p+q) (a+fl+fr) (credit a+cl+cr) a
+
+theorem fold_root {x k f c top : Nat} (ht : PendingTree credit x k f c)
+    (hx : x≤top) : RootedTree credit top k (f+(top-x)) (c+credit (top-x)) (top-x) := by
+  cases ht with
+  | leaf => simpa using RootedTree.leaf (credit := credit) top
+  | @merge h a b fl fr cl cr left right =>
+      have eh : top-(top-(h+1))-1=h := by omega
+      have hl : Tree credit (top-(top-(h+1))-1) a fl cl := by simpa [eh] using left
+      have hr : Tree credit (top-(top-(h+1))-1) b fr cr := by simpa [eh] using right
+      have ht := RootedTree.fork top (top-(h+1)) a b fl fr cl cr (by omega) hl hr
+      convert ht using 1 <;> omega
+
+def lastRun : Nat → List Nat → Nat → Nat
+  | x, [], top => top-x
+  | _, y::ys, top => lastRun (y+1) ys top
+
+theorem climb_root (stack : List (Node credit)) : ∀ (x k f c top : Nat),
+    PendingTree credit x k f c → Runs x (stack.map Node.height) top →
+    ∃ total, RootedTree credit top (k+leafSum credit stack) total
+      (c+creditSum credit stack+climbCredit credit x (stack.map Node.height) top)
+      (lastRun x (stack.map Node.height) top) ∧
+      total+x+stack.length = f+top+foldSum credit stack := by
+  induction stack with
+  | nil =>
+      intro x k f c top ht hp
+      have hx : x≤top := hp
+      refine ⟨f+(top-x), ?_, ?_⟩
+      · simpa [leafSum,creditSum,climbCredit,lastRun] using fold_root credit ht hx
+      · simp only [List.length_nil,foldSum,List.map_nil,List.sum_nil]; omega
+  | cons node rest ih =>
+      intro x k f c top ht hp
+      have hp' : x≤node.height ∧ Runs (node.height+1) (rest.map Node.height) top := hp
+      have hcurrent := ht.fold credit hp'.1
+      have hnext := PendingTree.merge node.tree hcurrent
+      obtain ⟨total,htree,heq⟩ := ih (node.height+1) (node.leaves+k)
+        (node.folds+(f+(node.height-x))) (node.credits+(c+credit (node.height-x)))
+        top hnext hp'.2
+      refine ⟨total, ?_, ?_⟩
+      · have eleaves : node.leaves+k+leafSum credit rest=k+leafSum credit (node::rest) := by
+          simp only [leafSum,List.map_cons,List.sum_cons]; omega
+        have ecredit : node.credits+(c+credit (node.height-x))+creditSum credit rest+
+              climbCredit credit (node.height+1) (rest.map Node.height) top =
+            c+creditSum credit (node::rest)+climbCredit credit x ((node::rest).map Node.height) top := by
+          simp only [creditSum,List.map_cons,List.sum_cons,climbCredit]; omega
+        rw [eleaves,ecredit] at htree
+        simpa only [List.map_cons,lastRun] using htree
+      · simp only [List.length_cons,foldSum,List.map_cons,List.sum_cons] at heq ⊢; omega
+
+inductive TraceRoot (credit : Nat → Nat) : List Nat → Nat → Nat → Nat → Nat → Nat → Prop
+  | last (heights : List Nat) (top : Nat) (hp : Runs 0 heights top) :
+      TraceRoot credit heights 1 top (top-heights.length) (climbCredit credit 0 heights top)
+        (lastRun 0 heights top)
+  | next (lo hi : List Nat) (t n top f c a : Nat) (hp : Runs 0 lo t)
+      (tail : TraceRoot credit (t::hi) n top f c a) :
+      TraceRoot credit (lo++hi) (n+1) top ((t-lo.length)+f) (climbCredit credit 0 lo t+c) a
+
+theorem trace_root {heights : List Nat} {n top f c a : Nat}
+    (ht : TraceRoot credit heights n top f c a) : ∀ stack : List (Node credit),
+    stack.map Node.height=heights →
+    RootedTree credit top (n+leafSum credit stack) (f+foldSum credit stack)
+      (c+creditSum credit stack) a := by
+  induction ht with
+  | last heights top hp =>
+      intro stack hmap
+      have hp' : Runs 0 (stack.map Node.height) top := by simpa [hmap] using hp
+      obtain ⟨total,htree,heq⟩ := climb_root credit stack 0 1 0 0 top (PendingTree.leaf (credit := credit)) hp'
+      have hlen : stack.length=heights.length := by
+        have h := congrArg List.length hmap; simpa only [List.length_map] using h
+      have hbound := hp.length_le
+      have e : total=top-heights.length+foldSum credit stack := by omega
+      simpa only [e,hmap,Nat.zero_add,Nat.add_comm] using htree
+  | next lo hi t n top f c a hp tail ih =>
+      intro stack hmap
+      obtain ⟨low,high,hs,hl,hh⟩ := List.map_eq_append_iff.mp hmap
+      subst stack
+      have hp' : Runs 0 (low.map Node.height) t := by simpa [hl] using hp
+      obtain ⟨total,htree,heq⟩ := climb credit low 0 1 0 0 t (PendingTree.leaf (credit := credit)) hp'
+      let node : Node credit := ⟨t,1+leafSum credit low,total,
+        creditSum credit low+climbCredit credit 0 (low.map Node.height) t,by simpa using htree⟩
+      have hmap' : (node::high).map Node.height=t::hi := by simp only [List.map_cons,node,hh]
+      have hresult := ih (node::high) hmap'
+      have hlen : low.length=lo.length := by
+        have h := congrArg List.length hl; simpa only [List.length_map] using h
+      have hbound := hp.length_le
+      have etotal : total=t-lo.length+foldSum credit low := by omega
+      have eleaves : n+leafSum credit (node::high)=(n+1)+leafSum credit (low++high) := by
+        simp only [leafSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node]; omega
+      have efolds : f+foldSum credit (node::high)=(t-lo.length+f)+foldSum credit (low++high) := by
+        simp only [foldSum] at etotal
+        simp only [foldSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node]; omega
+      have ecredits : c+creditSum credit (node::high)=
+          (climbCredit credit 0 lo t+c)+creditSum credit (low++high) := by
+        simp only [creditSum,List.map_cons,List.map_append,List.sum_cons,List.sum_append,node,hl]; omega
+      rwa [eleaves,efolds,ecredits] at hresult
+
+open SphincsSecurity SphincsSecurity.Concrete SphincsSecurity.Completeness
+open SigGolfCandidate.Research.PorsPositiveBound
+
+def lastFold (ss : List ScheduleSegment) : Nat := (ss.map (·.reads.length)).getLastD 0
+
+theorem lastFold_append_right (xs ys : List ScheduleSegment) (hy : ys≠[]) :
+    lastFold (xs++ys)=lastFold ys := by
+  have hm : ys.map (·.reads.length)≠[] := by simpa
+  simp only [lastFold,List.map_append,List.getLastD_eq_getLast?,List.getLast?_append,
+    List.getLast?_eq_some_getLast hm,Option.some_or,Option.getD_some]
+
+theorem lastFold_cons (seg : ScheduleSegment) (xs : List ScheduleSegment) (hx : xs≠[]) :
+    lastFold (seg::xs)=lastFold xs := lastFold_append_right [seg] xs hx
+
+theorem climbSegs_nonempty (v x top : Nat) (L : List Nat) : climbSegs v x L top≠[] := by
+  cases L <;> simp [climbSegs]
+
+theorem climbSegs_last (v x top : Nat) (L : List Nat) :
+    lastFold (climbSegs v x L top)=lastRun x L top := by
+  induction L generalizing x with
+  | nil => simp [climbSegs,lastFold,lastRun,sibs]
+  | cons y ys ih =>
+      change lastFold (_ :: climbSegs v (y+1) ys top)=_
+      rw [lastFold_cons _ _ (climbSegs_nonempty _ _ _ _)]
+      exact ih (y+1)
+
+theorem allSegs_nonempty (v : Nat) (rest L : List Nat) : allSegs (v::rest) L≠[] := by
+  rw [allSegs_cons]
+  exact List.append_ne_nil_of_left_ne_nil (climbSegs_nonempty _ _ _ _) _
+
+theorem allSegs_trace_root (v : Nat) (rest L : List Nat)
+    (hs : (v::rest).Pairwise (· < ·))
+    (hb : ∀ w ∈ v::rest, w < 2^ftsTreeHeight) (hL : Pending v L) :
+    TraceRoot credit L (v::rest).length 14 (readSum (allSegs (v::rest) L))
+      (scheduleCredit credit (allSegs (v::rest) L)) (lastFold (allSegs (v::rest) L)) := by
+  induction rest generalizing v L with
+  | nil =>
+      have hf : L.filter (· < ftsTreeHeight) = L := by
+        apply List.filter_eq_self.mpr
+        intro y hy
+        simpa using (hL.2 y hy).1
+      have he : allSegs [v] L = climbSegs v 0 L 14 := by
+        change climbSegs v 0 (L.filter (· < ftsTreeHeight)) ftsTreeHeight ++ [] = _
+        rw [hf,List.append_nil]
+        rfl
+      rw [he]
+      have hr : Runs 0 L 14 := runs_of_bounds L 0 14 hL.1
+        (fun y hy => ⟨Nat.zero_le y,(hL.2 y hy).1⟩) (by omega)
+      have hsum := climbSegs_readSum_runs v 0 14 L hr
+      have heq : readSum (climbSegs v 0 L 14) = 14-L.length := by omega
+      simpa only [List.length_cons,List.length_nil,heq,climbSegs_credit,climbSegs_last] using TraceRoot.last L 14 hr
+  | cons w rest ih =>
+      let t := leafTop v (w::rest)
+      let lo := L.filter (· < t)
+      let hi := L.filter (t < ·)
+      have hsplit : L = lo++hi := pending_split hL hs hb
+      have hn : Pending w (t::hi) :=
+        (pending_next ((List.pairwise_cons.mp hs).1 w (by simp))
+          (hb w (by simp)) (by rfl) hL).1
+      have ht := ih w (t::hi) (List.pairwise_cons.mp hs).2
+        (fun z hz => hb z (List.mem_cons_of_mem v hz)) hn
+      have hr : Runs 0 lo t := runs_of_bounds lo 0 t (hL.1.filter _)
+        (fun y hy => ⟨Nat.zero_le y,(mem_filter_lt hy).2⟩) (Nat.zero_le _)
+      have hsum := climbSegs_readSum_runs v 0 t lo hr
+      have heq : readSum (climbSegs v 0 lo t) = t-lo.length := by omega
+      have htrace := TraceRoot.next lo hi t (w::rest).length 14
+        (readSum (allSegs (w::rest) (t::hi)))
+        (scheduleCredit credit (allSegs (w::rest) (t::hi)))
+        (lastFold (allSegs (w::rest) (t::hi))) hr ht
+      rw [←hsplit] at htrace
+      change TraceRoot credit L ((v::w::rest).length) 14
+        (readSum (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)))
+        (scheduleCredit credit (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)))
+        (lastFold (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)))
+      have hread : readSum (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)) =
+          (t-lo.length)+readSum (allSegs (w::rest) (t::hi)) := by
+        simp only [readSum,List.map_append,List.sum_append] at heq ⊢
+        rw [heq]
+      have hcredit : scheduleCredit credit (climbSegs v 0 lo t ++ allSegs (w::rest) (t::hi)) =
+          climbCredit credit 0 lo t+scheduleCredit credit (allSegs (w::rest) (t::hi)) := by
+        simpa only [scheduleCredit,List.map_append,List.sum_append] using
+          congrArg (fun n => n+scheduleCredit credit (allSegs (w::rest) (t::hi)))
+            (climbSegs_credit credit v 0 t lo)
+      rw [hread,hcredit,lastFold_append_right _ _ (allSegs_nonempty _ _ _)]
+      exact htrace
+
+theorem schedule_rooted (leaves : IndexGroup → FtsLeaf) (hinj : Function.Injective leaves) :
+    RootedTree credit 14 15 (readSum (schedule (sortedLeaves leaves)))
+      (scheduleCredit credit (schedule (sortedLeaves leaves)))
+      (lastFold (schedule (sortedLeaves leaves))) := by
+  obtain ⟨hlen,hs,hb⟩ := sortedLeaves_facts leaves hinj
+  obtain ⟨v,rest,he⟩ : ∃ v rest, sortedLeaves leaves = v::rest := by
+    cases h : sortedLeaves leaves with
+    | nil => rw [h] at hlen; simp [ftsOpenings] at hlen
+    | cons v rest => exact ⟨v,rest,rfl⟩
+  rw [he] at hlen hs hb
+  have hL : Pending v [] := ⟨List.Pairwise.nil,by simp⟩
+  have hsch : schedule (sortedLeaves leaves) = allSegs (v::rest) [] := by
+    have h := scheduleLeaves_eq rest v ⟨[],[],0,false,[],0⟩ [] hs hb hL rfl
+    rw [schedule,he,h.1,List.nil_append]
+  have ht := allSegs_trace_root credit v rest [] hs hb hL
+  have htree := trace_root credit ht [] rfl
+  rw [hlen] at htree
+  simpa only [hsch,SiggolfReverseSchedule.leafSum,SiggolfReverseSchedule.foldSum,creditSum,List.map_nil,List.sum_nil,Nat.add_zero,ftsOpenings] using htree
+
+open OracleComp
+
+theorem recoverRun_rooted (f : QueryImpl HashSpec Id)
+    (parameter : PublicParameter) (index : Index)
+    (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
+    (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
+    RootedTree credit 14 15 r.folds (((decodedFolds fts).map credit).sum)
+      ((decodedFolds fts).getLastD 0) := by
+  obtain ⟨slot,hperm,hsorted,hsegments,hfolds,hadm,hbij⟩ :=
+    PorsMachine.recoverRun_structure f parameter index leaves fts r hrun
+  have ht := schedule_rooted credit leaves hadm.1
+  have he := recoverRun_decodedFolds_eq f parameter index leaves fts r hrun
+  have hc : scheduleCredit credit (schedule (sortedLeaves leaves)) =
+      ((decodedFolds fts).map credit).sum := by
+    rw [he,List.map_map]
+    rfl
+  have hf : readSum (schedule (sortedLeaves leaves))=r.folds := by
+    rw [readSum,←he]
+    exact recoverRun_decodedFolds_sum f parameter index leaves fts r hrun
+  have hl : lastFold (schedule (sortedLeaves leaves))=(decodedFolds fts).getLastD 0 := by
+    rw [he]; rfl
+  rwa [hc,hf,hl] at ht
+
+theorem rooted_decomposition {h k f c a : Nat} (ht : RootedTree credit h k f c a)
+    (hk : 2≤k) :
+    ∃ p q fl fr cl cr, a<h ∧ p+q=k ∧ Tree credit (h-a-1) p fl cl ∧
+      Tree credit (h-a-1) q fr cr ∧ f=a+fl+fr ∧ c=credit a+cl+cr := by
+  cases ht with
+  | leaf => omega
+  | fork a p q fl fr cl cr ha left right =>
+      exact ⟨p,q,fl,fr,cl,cr,ha,rfl,left,right,rfl,rfl⟩
+
+/-- Accepted decoding identifies the root unary prefix with the LAST segment. -/
+theorem recoverRun_root_decomposition (f : QueryImpl HashSpec Id)
+    (parameter : PublicParameter) (index : Index)
+    (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
+    (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
+    let a := (decodedFolds fts).getLastD 0
+    ∃ p q fl fr cl cr,
+      a<14 ∧ p+q=15 ∧ Tree credit (14-a-1) p fl cl ∧ Tree credit (14-a-1) q fr cr ∧
+      r.folds=a+fl+fr ∧ ((decodedFolds fts).map credit).sum=credit a+cl+cr := by
+  dsimp only
+  have ht := recoverRun_rooted credit f parameter index leaves fts r hrun
+  exact rooted_decomposition credit ht (by decide)
+
+end SiggolfReverseRootLast
+
+
+namespace SiggolfReverse2322CostBridge
+open OracleComp SphincsSecurity SphincsSecurity.Concrete SphincsSecurity.Completeness
+open SigGolfCandidate.Research.PorsPositiveBound
+open SiggolfPrefixCertificate SiggolfReverse2322
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 20000
+
+def extra (a : Nat) : Nat := if 3≤a then 1 else 0
+
+def cheapSegment (a : Nat) : Nat := 16+16*a-credit a
+
+def cheapSegments (as : List Nat) : Nat := (as.map cheapSegment).sum
+
+theorem segment_add_credit (a : Nat) : cheapSegment a+credit a=16+16*a := by
+  unfold cheapSegment credit oldCredit
+  split <;> split <;> omega
+
+theorem segments_add_credit (as : List Nat) :
+    cheapSegments as+(as.map credit).sum=16*as.length+16*as.sum := by
+  induction as with
+  | nil => rfl
+  | cons a as ih =>
+    have h:=segment_add_credit a
+    simp only [cheapSegments,List.map_cons,List.sum_cons,List.length_cons] at *
+    omega
+
+/-- Universal accepted-schedule bound. The last/root segment receives no
+lookahead branch saving, hence its one-cycle reserve is restored exactly.
+This theorem does not assert any machine implementation of cheapSegment. -/
+theorem recoverRun_cost_le (f : QueryImpl HashSpec Id)
+    (parameter : PublicParameter) (index : Index)
+    (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
+    (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
+    cheapSegments (decodedFolds fts)+extra ((decodedFolds fts).getLastD 0)≤2322 := by
+  obtain ⟨p,q,fl,fr,cl,cr,ha,hk,left,right,hfold,hcred⟩ :=
+    SiggolfReverseRootLast.recoverRun_root_decomposition credit f parameter index leaves fts r hrun
+  obtain ⟨slot,hperm,hsorted,hsegments,hfolds,hadm,hbij⟩ :=
+    PorsMachine.recoverRun_structure f parameter index leaves fts r hrun
+  have hf : r.folds≤117 := by rw [hfolds]; exact hadm.2
+  have hb := root_bound ha hk left right (by omega)
+  have hc := segments_add_credit (decodedFolds fts)
+  have hsum := recoverRun_decodedFolds_sum f parameter index leaves fts r hrun
+  have hlen : (decodedFolds fts).length=29 := by simp [decodedFolds,ftsSegments,ftsOpenings]
+  rw [hsum,hlen] at hc
+  have hcr : credit ((decodedFolds fts).getLastD 0)=oldCredit ((decodedFolds fts).getLastD 0)+extra ((decodedFolds fts).getLastD 0) := rfl
+  rw [hcr] at hcred
+  omega
+
+end SiggolfReverse2322CostBridge
+
+namespace SigGolfCandidate.Research.PorsPositiveBound
+/-- The root segment does not use a copied suffix and retains the branch cycle. -/
+def exactSegmentCost (a : Nat) : Nat := if a = 0 then 15 else 16+16*a
+end SigGolfCandidate.Research.PorsPositiveBound
+
+namespace SiggolfReverse2322CostBridge
+open SigGolfCandidate.Research.PorsPositiveBound
+theorem cheapSegment_add_extra (a : Nat) : cheapSegment a + extra a = exactSegmentCost a := by
+  unfold cheapSegment extra exactSegmentCost SiggolfReverse2322.credit SiggolfReverse2322.oldCredit
+  split_ifs <;> omega
+end SiggolfReverse2322CostBridge
 
 /-! ## PorsExactMachine -/
 set_option maxRecDepth 20000
 set_option linter.unusedSimpArgs false
-
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp
 
-def noJoinSegmentCost (V a : Nat) : Nat := if a=0 then 15 else 16+16*a-segmentSave V a
+theorem exactSegmentCost_identity : ∀ V : Fin 3, ∀ a : Fin 15,
+    4+(if a.val<3 then 3 else 4)+8+(if a.val=0 then 0 else 2+foldBudget V.val a.val 0) =
+      (if a.val=0 then 15 else 16+16*a.val-segmentSave V.val a.val) := by decide +kernel
 
-theorem segmentSave_le (V a : Nat) : segmentSave V a ≤ 1 := by
-  unfold segmentSave
-  split <;> omega
-
-theorem foldSave_eq (V a : Nat) : foldSave V a = tabExtra a+segmentSave V a := by
-  by_cases ha : a<3
-  · have hn : ¬3≤a := by omega
-    have hnj : ¬noJoin V a := by unfold noJoin; omega
-    rw [foldSave,if_pos ha,tabExtra,if_neg hn,segmentSave,if_neg hnj]
-  · have hp : 3≤a := by omega
-    rw [foldSave,if_neg ha,tabExtra,if_pos hp]
-    by_cases hV : V<2
-    · have hnj : noJoin V a := ⟨hV,hp⟩
-      rw [if_pos hV,segmentSave,if_pos hnj]
-    · have hnj : ¬noJoin V a := by unfold noJoin; omega
-      rw [if_neg hV,segmentSave,if_neg hnj]
-
-theorem noJoinSegmentCost_eq (V a : Nat) :
-    7+tabExtra a+8+(if a=0 then 0 else 2+foldBudget V a 0) = noJoinSegmentCost V a := by
-  by_cases hz : a=0
-  · subst a
-    simp [tabExtra,noJoinSegmentCost]
-  · have hp : 0<a := by omega
-    have he : prefixBefore V a 0=0 := by simp [prefixBefore]
-    rw [if_neg hz,foldBudget,if_pos hp,he,Nat.sub_zero,Nat.add_zero,foldSave_eq,
-      noJoinSegmentCost,if_neg hz]
-    have hs := segmentSave_le V a
-    have ht : tabExtra a ≤ 1 := by unfold tabExtra; split <;> omega
-    omega
 
 theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr E folds : Nat) (pend : Pending)
     (node : Val) (stk : List (Val × Nat)) (m : MachineState) (h : DispIn P s0 s x c ptr E folds pend node stk m)
@@ -1100,8 +776,8 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
       GoodQ u (NT V) (CT V) (folds + a ≤ 117) (AT V (folds + a))
         (K (some (ptr + 8 + 16 * a, E', folds + a, node', decide (wbyte P.wl ptr / 16 % 2 = 1)))))
     (hN : ∀ V, V < 3 → 18 + 17 * 14 + NT V ≤ N) (hC : ∀ V a, V < 3 → a ≤ 14 → 18 + 17 * a + CT V ≤ C)
-    (hA : ∀ V a, V < 3 → a ≤ 14 → V = segV (tsel s) (wbyte P.wl ptr) →
-      a = wbyte P.wl ptr % 16 → folds + a ≤ 117 → noJoinSegmentCost V a + AT V (folds + a) ≤ A)
+    (hA : ∀ V a, V < 3 → a ≤ 14 → V = segV (tsel s) (wbyte P.wl ptr) → a = wbyte P.wl ptr % 16 → folds + a ≤ 117 →
+      (if a = 0 then 15 else 16+16*a-segmentSave V a) + AT V (folds + a) ≤ A)
     (h9 : 13 ≤ N ∧ 13 ≤ C ∧ 13 ≤ A) :
     GoodQ m N C (folds ≤ 117) A (cc (Ref.segment P.idx P.wl ptr E folds pend node) K) := by
   obtain ⟨hrej, hpar, hacc⟩ := seg_step P hP s0 s x c ptr E folds pend node stk m h
@@ -1115,20 +791,24 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
       (fun q => ⟨q, by omega⟩)
   rw [if_neg ha]
   have ha14 : b % 16 ≤ 14 := by unfold porsH at ha; omega
-  by_cases hp : 0 < b % 16 ∧ (b / 32 % 2 ≠ E % 2 ∨ (3 ≤ b % 16 ∧ b / 32 ≠ E % 8))
+  have hbl : b < 256 := wbyte_lt _ _
+  by_cases hp : 0 < b % 16 ∧ (b / 32 % 2 ≠ E % 2 ∨ (3 ≤ b % 16 ∧ b / 32 / 2 ≠ E / 2 % 4))
   · rw [if_pos hp, cc_pure, hnone]
-    obtain ⟨u, hst, hf, h5, h10⟩ := hpar (by omega) ha14 hp.2
+    obtain ⟨k, u, hk, hst, hf, h5, h10⟩ := hpar (by omega) ha14 (by
+      rw [guardTag_iff b E hbl]
+      omega)
     exact GoodQ.steps' hst (GoodQ.reject (Q := folds ≤ 117) (A := 0) hf h5 h10) (by omega) (by omega)
       (fun q => ⟨q, by omega⟩)
   · rw [if_neg hp, cc_bind, pendingHash_eq]
-    have hpar' : b % 16 = 0 ∨ (segBits b % 2 = E % 2 ∧ (3 ≤ b % 16 → segBits b = E % 8)) := by unfold segBits; omega
+    have hpar' : b % 16 = 0 ∨ guardTag b E := by
+      rw [guardTag_iff b E hbl]
+      omega
     obtain ⟨k, u, hk, hst, hf, h5, hv, hin, hbl, hpost⟩ := hacc ha14 hpar'
     have hVl := segV_lt (tsel s) b
-    have hextra := tabExtra_le (b % 16)
     set a := b % 16 with hadef
     set V := segV (tsel s) b with hV
     -- after the pending hash
-    have H : ∀ ans, GoodQ (writeHash u ans) (NT V + 17 * 14 + 2) (CT V + 17 * a) (folds + a ≤ 117) (AT V (folds + a) + (if a = 0 then 0 else 2 + foldBudget V a 0))
+    have H : ∀ ans, GoodQ (writeHash u ans) (NT V + 17 * 14 + 2) (CT V + 17 * a) (folds + a ≤ 117) (AT V (folds + a) + (if a=0 then 0 else 2+foldBudget V a 0))
         ((fun v => cc (segFolds P.idx P.wl ptr a v E) fun p =>
           match p with
           | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1))))
@@ -1141,7 +821,7 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
         have hT := (hpost ans).1 ha0
         have := hK 0 V 2 E (answerBytes 16 ans) (writeHash u ans) (by omega) rfl (by omega) (by simpa using hT)
         simp only [Nat.mul_zero, Nat.add_zero] at this
-        simp only [ha0, Nat.mul_zero, Nat.add_zero, if_true]
+        simp only [ha0, Nat.mul_zero, Nat.add_zero]
         exact this.mono (by omega) (by omega) (fun q => ⟨by omega, by omega⟩)
       · have hE := (hpost ans).2 (by omega)
         obtain ⟨u2, hst2, hP2⟩ := ent_step P s0 s x V (segT b) a ptr E folds (answerBytes 16 ans) stk _ hE
@@ -1152,9 +832,9 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
           (NT V) (CT V) (AT V (folds + a)) (folds + a ≤ 117)
           (fun t node' E' u' hT => hK a V t E' node' u' ha14 rfl rfl hT) a 0 (segT b) E (answerBytes 16 ans)
           u2 (by omega) hP2 hP2.parity
-        have hbudget := foldBudget_old_bound ⟨V, hVl⟩ ⟨a, by omega⟩
-        simp only at hbudget
-        simp only [if_neg ha0]
+        have hb := foldBudget_old_bound ⟨V,hVl⟩ ⟨a,by omega⟩
+        simp only at hb
+        rw [if_neg ha0]
         refine GoodQ.steps' hst2 this (by omega) (by omega) (fun q => ⟨by omega, by omega⟩)
     have h3 := GoodQ.hash (x := pendInput P node pend)
       (K := fun v => cc (segFolds P.idx P.wl ptr a v E) fun p =>
@@ -1169,11 +849,15 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
           | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) := by
       funext v; rw [cc_bind]; congr 1; funext p; obtain ⟨n1, e1⟩ := p; simp only [cc_pure]
     rw [e2]
-    exact GoodQ.steps' hst h3 (by have := hN V hVl; omega) (by have := hC V a hVl ha14; omega)
-      (fun q => ⟨by omega, by
-        have hbudget := hA V a hVl ha14 rfl rfl q
-        have he := noJoinSegmentCost_eq V a
-        omega⟩)
+    have hk8 : k ≤ 8 := by unfold tabCycles at hk; split_ifs at hk <;> omega
+    refine GoodQ.steps' hst h3 (by have := hN V hVl; omega) (by have := hC V a hVl ha14; omega) ?_
+    intro q
+    refine ⟨by omega, ?_⟩
+    have hcost := hA V a hVl ha14 rfl rfl q
+    have hk' : k ≤ 4+(if a<3 then 3 else 4) := by simpa only [tabCycles,segA,←hadef] using hk
+    have hid := exactSegmentCost_identity ⟨V,hVl⟩ ⟨a,by omega⟩
+    simp only at hid
+    omega
 
 end SigGolfCandidate.Verify
 
@@ -1184,107 +868,32 @@ namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp
 open SigGolfCandidate.Research.PorsPositiveBound
 
+open SiggolfReverse2322CostBridge
+
 def decodedFold (wl : List Byte) (j : Nat) : Nat := wbyte wl (Equiv.segPtr wl j) % 16
-def indexedSegmentCost (j a : Nat) : Nat := noJoinSegmentCost (if j=28 then 2 else 0) a
-
-open SigGolfCandidate.Research.NoJoin
-
-def rootListCost (xs : List Nat) : Nat :=
- RootAware.lastWeight (noJoinSegmentCost 0) (noJoinSegmentCost 2) xs
-
-theorem rootCost_balance (a : Nat) : noJoinSegmentCost 2 a+RootAware.rootCredit a=16+16*a := by
- by_cases hz : a=0
- · simp [noJoinSegmentCost,RootAware.rootCredit,hz]
- · simp [noJoinSegmentCost,segmentSave,noJoin,RootAware.rootCredit,hz]
-
-theorem nonrootCost_balance (a : Nat) : noJoinSegmentCost 0 a+AdjustedPotential.credit a=16+16*a := by
- by_cases hz : a=0
- · simp [noJoinSegmentCost,AdjustedPotential.credit,hz]
- · by_cases ha : 3≤a
-   · simp [noJoinSegmentCost,segmentSave,noJoin,AdjustedPotential.credit,hz,ha]; omega
-   · simp [noJoinSegmentCost,segmentSave,noJoin,AdjustedPotential.credit,hz,ha]
-
-theorem rootListCost_balance (xs : List Nat) :
- rootListCost xs+RootAware.lastWeight AdjustedPotential.credit RootAware.rootCredit xs =16*xs.length+16*xs.sum := by
- induction xs with
- | nil => rfl
- | cons a xs ih =>
-   cases xs with
-   | nil => simpa [rootListCost,RootAware.lastWeight] using rootCost_balance a
-   | cons b xs =>
-     have h := nonrootCost_balance a
-     simp only [rootListCost,RootAware.lastWeight,List.length_cons,List.sum_cons] at ih ⊢
-     omega
-
-theorem indexedCost_last (f : Nat→Nat) (j n : Nat) (he : j+n=29) :
- ((List.range' j n).map fun k => indexedSegmentCost k (f k)).sum =
- rootListCost ((List.range' j n).map f) := by
- induction n generalizing j with
- | zero => simp [rootListCost,RootAware.lastWeight]
- | succ n ih =>
-   cases n with
-   | zero =>
-     have hj : j=28 := by omega
-     subst j
-     simp [List.range'_succ,rootListCost,RootAware.lastWeight,indexedSegmentCost]
-   | succ n =>
-     have hj : j≠28 := by omega
-     have hi := ih (j+1) (by omega)
-     rw [List.range'_succ,List.map_cons,List.sum_cons,List.map_cons]
-     have hn : ((List.range' (j+1) (n+1)).map f) ≠ [] := by simp
-     have hc : rootListCost (f j :: ((List.range' (j+1) (n+1)).map f)) =
-         noJoinSegmentCost 0 (f j)+rootListCost ((List.range' (j+1) (n+1)).map f) := by
-       cases he : ((List.range' (j+1) (n+1)).map f) with
-       | nil => exact False.elim (hn he)
-       | cons b bs => rfl
-     rw [hc,←hi]
-     simp only [indexedSegmentCost,if_neg hj]
-
-
 def decodedCostFrom (wl : List Byte) (j n : Nat) : Nat :=
-  ((List.range' j n).map fun k => indexedSegmentCost k (decodedFold wl k)).sum
-def decodedCostRem (wl : List Byte) (j : Nat) : Nat := decodedCostFrom wl j (29-j)
+  ((List.range' j n).map fun k => cheapSegment (decodedFold wl k)).sum
+def decodedCostRem (wl : List Byte) (j : Nat) : Nat := decodedCostFrom wl j (29-j) + SiggolfReverse2322CostBridge.extra (decodedFold wl 28)
 
 theorem decodedCostFrom_succ (wl : List Byte) (j n : Nat) :
-    decodedCostFrom wl j (n+1) = indexedSegmentCost j (decodedFold wl j) + decodedCostFrom wl (j+1) n := by
+    decodedCostFrom wl j (n+1) = cheapSegment (decodedFold wl j) + decodedCostFrom wl (j+1) n := by
   simp [decodedCostFrom, List.range'_succ]
 
 theorem decodedCostRem_succ (wl : List Byte) (j : Nat) (hj : j < 29) :
-    decodedCostRem wl j = indexedSegmentCost j (decodedFold wl j) + decodedCostRem wl (j+1) := by
+    decodedCostRem wl j = cheapSegment (decodedFold wl j) + decodedCostRem wl (j+1) := by
   unfold decodedCostRem
   have h : 29-j = (29-(j+1))+1 := by omega
   rw [h, decodedCostFrom_succ]
+  omega
 
-theorem noJoinSegmentCost_ge (V a : Nat) : 15 ≤ noJoinSegmentCost V a := by
-  have hs := segmentSave_le V a
-  unfold noJoinSegmentCost
-  split <;> omega
-
-theorem noJoinSegmentCost_nonroot (V a : Nat) (hV : V<2) :
-    noJoinSegmentCost V a = noJoinSegmentCost 0 a := by
-  simp [noJoinSegmentCost, segmentSave, noJoin, hV]
-
-theorem noJoinSegmentCost_zero_le (V a : Nat) :
-    noJoinSegmentCost 0 a ≤ noJoinSegmentCost V a := by
-  have hs : segmentSave V a ≤ segmentSave 0 a := by
-    by_cases hn : noJoin V a
-    · have hz : noJoin 0 a := ⟨by decide,hn.2⟩
-      rw [segmentSave,if_pos hn,segmentSave,if_pos hz]
-    · rw [segmentSave,if_neg hn]; omega
-  unfold noJoinSegmentCost
-  split <;> omega
-
-theorem noJoinSegmentCost_le_succ (V a : Nat) :
-    noJoinSegmentCost V a ≤ noJoinSegmentCost 0 a+1 := by
-  have hs := segmentSave_le 0 a
-  unfold noJoinSegmentCost
-  split <;> omega
+theorem cheapSegment_ge (a : Nat) : 15 ≤ cheapSegment a := by
+  unfold cheapSegment SiggolfReverse2322.credit SiggolfReverse2322.oldCredit
+  split_ifs <;> omega
 
 theorem decodedCostRem_ge (wl : List Byte) (j : Nat) (hj : j < 29) :
     15 ≤ decodedCostRem wl j := by
   rw [decodedCostRem_succ wl j hj]
-  have h := noJoinSegmentCost_ge (if j=28 then 2 else 0) (decodedFold wl j)
-  change 15 ≤ indexedSegmentCost j (decodedFold wl j) at h
+  have := cheapSegment_ge (decodedFold wl j)
   omega
 
 /-- A witness-dependent accepting budget. It retains every zero-segment saving
@@ -1294,11 +903,12 @@ def Aexact (wl : List Byte) (s d : Nat) : Nat :=
 def AexactPF (wl : List Byte) (s d : Nat) : Nat :=
   if s = 14 then 12 + layC else 4+leafCost (s+1)+Aexact wl (s+1) (d+1)
 def AexactM (wl : List Byte) (s d : Nat) : Nat :=
-  if d = 0 then 7 else 6+Aexact wl s (d-1)
+  if d = 0 then 6 else 6+Aexact wl s (d-1)
 
 theorem exact_seg_budget (wl : List Byte) (s d : Nat) (hs : s < 15) (hd : d ≤ s) :
-    (∀ a, a = decodedFold wl (2*s-d) → noJoinSegmentCost 0 a + AexactM wl s d ≤ Aexact wl s d) ∧
-    (∀ a, a = decodedFold wl (2*s-d) → noJoinSegmentCost (if s=14 then 2 else 1) a + AexactPF wl s d ≤ Aexact wl s d) ∧
+    (∀ a, a = decodedFold wl (2*s-d) → cheapSegment a + AexactM wl s d ≤ Aexact wl s d) ∧
+    (∀ a, a = decodedFold wl (2*s-d) →
+      (if s=14 then exactSegmentCost a else cheapSegment a) + AexactPF wl s d ≤ Aexact wl s d) ∧
     13 ≤ Aexact wl s d := by
   have hj : 2*s-d < 29 := by omega
   have hrec := decodedCostRem_succ wl (2*s-d) hj
@@ -1306,8 +916,6 @@ theorem exact_seg_budget (wl : List Byte) (s d : Nat) (hs : s < 15) (hd : d ≤ 
   refine ⟨?_, ?_, ?_⟩
   · intro a ha
     subst a
-    have hc := noJoinSegmentCost_zero_le (if 2*s-d=28 then 2 else 0) (decodedFold wl (2*s-d))
-    change noJoinSegmentCost 0 (decodedFold wl (2*s-d)) ≤ indexedSegmentCost (2*s-d) (decodedFold wl (2*s-d)) at hc
     by_cases hz : d = 0
     · simp only [AexactM, if_pos hz, Aexact]
       omega
@@ -1317,24 +925,37 @@ theorem exact_seg_budget (wl : List Byte) (s d : Nat) (hs : s < 15) (hd : d ≤ 
   · intro a ha
     subst a
     by_cases h14 : s = 14
-    · simp only [AexactPF, if_pos h14, Aexact]
-      by_cases hz : d=0
-      · have he : 2*s-d=28 := by omega
-        simp only [he] at *
-        simp only [indexedSegmentCost,if_true] at hrec
+    · have he := cheapSegment_add_extra (decodedFold wl (2*s-d))
+      by_cases hd0 : d=0
+      · have hj0 : 2*s-d=28 := by omega
+        have hrem : decodedCostRem wl (2*s-d+1)=SiggolfReverse2322CostBridge.extra (decodedFold wl (2*s-d)) := by
+          rw [hj0]
+          simp [decodedCostRem,decodedCostFrom]
+        simp only [AexactPF,if_pos h14,Aexact]
         omega
-      · have he : 2*s-d≠28 := by omega
-        simp only [indexedSegmentCost,if_neg he] at hrec
-        have hc := noJoinSegmentCost_le_succ 2 (decodedFold wl (2*s-d))
+      · have hrem := decodedCostRem_ge wl (2*s-d+1) (by omega)
+        have hx : SiggolfReverse2322CostBridge.extra (decodedFold wl (2*s-d))≤1 := by
+          unfold SiggolfReverse2322CostBridge.extra; split_ifs <;> omega
+        simp only [AexactPF,if_pos h14,Aexact]
         omega
     · have he : 2*(s+1)-(d+1) = 2*s-d+1 := by omega
-      have hj' : 2*s-d≠28 := by omega
-      simp only [indexedSegmentCost,if_neg hj'] at hrec
       have hl := lrest_succ s (by omega)
       simp only [AexactPF, if_neg h14, Aexact, he]
-      rw [noJoinSegmentCost_nonroot 1 _ (by decide)]
       omega
   · unfold Aexact; omega
+
+
+theorem machineSegmentCost_M (a : Nat) :
+    (if a=0 then 15 else 16+16*a-segmentSave 0 a) = cheapSegment a := by
+  unfold cheapSegment segmentSave noJoin SiggolfReverse2322.credit SiggolfReverse2322.oldCredit
+  simp only [show (0 : Nat) < 2 by decide, true_and]
+  split_ifs <;> omega
+
+theorem machineSegmentCost_PF (s a : Nat) :
+    (if a=0 then 15 else 16+16*a-segmentSave (if s=14 then 2 else 1) a) =
+      (if s=14 then exactSegmentCost a else cheapSegment a) := by
+  unfold cheapSegment exactSegmentCost segmentSave noJoin SiggolfReverse2322.credit SiggolfReverse2322.oldCredit
+  split_ifs <;> omega
 
 theorem decoded_ptr_next (wl : List Byte) (ptr j a : Nat)
     (hp : ptr = Equiv.segPtr wl j) (ha : a = wbyte wl ptr % 16) :
@@ -1366,14 +987,15 @@ theorem segLoop_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat
       (fun V => if V = 0 then NtailM s 0 else NtailPF s 0) (fun V => if V = 0 then CtailM s 0 else CtailPF s 0)
       (fun V F => if V = 0 then AexactM P.wl s 0 else AexactPF P.wl s 0) ?_
       (fun V _ => by split_ifs <;> omega) (fun V a _ ha => by split_ifs <;> [exact bM a ha; exact bPF a ha])
-      (fun V a hVl ha hV haw hF => by
+      (fun V a _ ha hV haw hF => by
         have he : a = decodedFold P.wl (2*s-0) := by unfold decodedFold; rw [← hptr]; exact haw
-        by_cases hV0 : V=0
-        · simp only [hV0,if_true]; exact bAMX a he
-        · have hVe := (segV_PF s _ (hV ▸ hV0)).1
-          have hv : V = if s=14 then 2 else 1 := hV.trans hVe
-          simp only [if_neg hV0]
-          rw [hv]
+        by_cases h0 : V=0
+        · simp only [h0, if_pos rfl]
+          rw [machineSegmentCost_M]
+          exact bAMX a he
+        · obtain ⟨hVe, hm⟩ := segV_PF s _ (hV ▸ h0)
+          simp only [if_neg h0]
+          rw [hV, hVe, machineSegmentCost_PF]
           exact bAPFX a he)
       ⟨(b9 folds).1, (b9 folds).2.1, b13X⟩
     intro a V c' E' node' u ha hV haw hT
@@ -1385,7 +1007,7 @@ theorem segLoop_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat
       rw [hV0] at hT
       obtain ⟨u2, hst2, hf2, h52, h102⟩ := (tailM_step P s0 s x c' _ E' _ node' [] u hT).2.1 rfl
       exact GoodQ.steps' hst2 (GoodQ.reject (Q := folds + a ≤ 117) (A := 0) hf2 h52 h102)
-        (by unfold NtailM CtailM; split_ifs <;> omega) (by unfold CtailM; split_ifs <;> omega) (fun q => ⟨q, by unfold AexactM; split_ifs <;> omega⟩)
+        (by unfold NtailM CtailM; simp) (by unfold CtailM; simp) (fun q => ⟨q, by unfold AexactM; simp⟩)
     · obtain ⟨hVe, hm⟩ := segV_PF s _ (hV ▸ hV0)
       simp only [hV0, if_false, hm, decide_false, Bool.false_eq_true, cc_pure]
       rw [hV, hVe] at hT
@@ -1405,14 +1027,15 @@ theorem segLoop_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat
       (fun V => if V = 0 then CtailM s (rest.length + 1) else CtailPF s (rest.length + 1))
       (fun V F => if V = 0 then AexactM P.wl s (rest.length + 1) else AexactPF P.wl s (rest.length + 1)) ?_
       (fun V _ => by split_ifs <;> omega) (fun V a _ ha => by split_ifs <;> [exact bM a ha; exact bPF a ha])
-      (fun V a hVl ha hV haw hF => by
+      (fun V a _ ha hV haw hF => by
         have he : a = decodedFold P.wl (2*s-(rest.length+1)) := by unfold decodedFold; rw [← hptr]; exact haw
-        by_cases hV0 : V=0
-        · simp only [hV0,if_true]; exact bAMX a he
-        · have hVe := (segV_PF s _ (hV ▸ hV0)).1
-          have hv : V = if s=14 then 2 else 1 := hV.trans hVe
-          simp only [if_neg hV0]
-          rw [hv]
+        by_cases h0 : V=0
+        · simp only [h0, if_pos rfl]
+          rw [machineSegmentCost_M]
+          exact bAMX a he
+        · obtain ⟨hVe, hm⟩ := segV_PF s _ (hV ▸ h0)
+          simp only [if_neg h0]
+          rw [hV, hVe, machineSegmentCost_PF]
           exact bAPFX a he)
       ⟨(b9 folds).1, (b9 folds).2.1, b13X⟩
     intro a V c' E' node' u ha hV haw hT
@@ -1434,8 +1057,8 @@ theorem segLoop_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat
       · simp only [ne_eq, hQ, not_false_eq_true, if_true, cc_pure, hnone]
         obtain ⟨u2, hst2, hf2, h52, h102⟩ := tM.1 pnode Q rest rfl hQ
         exact GoodQ.steps' hst2 (GoodQ.reject (Q := folds + a ≤ 117) (A := 0) hf2 h52 h102)
-          (by unfold NtailM CtailM Cseg; split_ifs <;> omega) (by unfold CtailM Cseg; split_ifs <;> omega)
-          (fun q => ⟨q, by unfold AexactM Aexact; split_ifs <;> omega⟩)
+          (by unfold NtailM CtailM; split_ifs <;> omega) (by unfold CtailM; split_ifs <;> omega)
+          (fun q => ⟨q, by unfold AexactM; split_ifs <;> omega⟩)
     · obtain ⟨hVe, hm⟩ := segV_PF s _ (hV ▸ hV0)
       simp only [hV0, if_false, hm, decide_false, Bool.not_false, if_true, cc_pure]
       rw [hV, hVe] at hT
@@ -1543,11 +1166,11 @@ theorem pors_good_decoded (P : PCtx) (hP : P.ok) (s0 : MachineState)
   rw [l0] at hg
   exact hg.mono (le_refl _) (le_refl _) (fun _ => ⟨trivial, le_refl _⟩)
 
-def cycleBoundDecoded (wl : List Byte) : Nat := 486 + layC + decodedCostRem wl 0
+def cycleBoundDecoded (wl : List Byte) : Nat := 471 + layC + decodedCostRem wl 0
 
 theorem exact_cost_vals (wl : List Byte) :
-    leafCost 0 + Aexact wl 0 0 = 349 + layC + decodedCostRem wl 0 := by
-  have h0 : leafCost 0 = 12 := rfl
+    leafCost 0 + Aexact wl 0 0 = 334 + layC + decodedCostRem wl 0 := by
+  have h0 : leafCost 0 = 11 := rfl
   simp only [Aexact, lrest_0, h0, Nat.mul_zero, Nat.sub_self]
   omega
 
@@ -1606,11 +1229,24 @@ set_option allowUnsafeReducibility true in
 attribute [local reducible] SphincsSecurity.hashOutputBits SphincsSecurity.digestBits
   SphincsSecurity.messageBits SphincsSecurity.publicParameterBits SphincsSecurity.counterBits
 
+open SiggolfReverse2322CostBridge
+
+theorem decodedLast_eq (wl : List Byte) :
+    (decodedFolds (Equiv.witFts wl)).getLastD 0=decodedFold wl 28 := by
+  have hn : decodedFolds (Equiv.witFts wl)≠[] := by
+    simp [decodedFolds,SphincsSecurity.ftsSegments,SphincsSecurity.ftsOpenings]
+  rw [List.getLastD_eq_getLast?,List.getLast?_eq_some_getLast hn,Option.getD_some]
+  unfold decodedFolds at hn ⊢
+  rw [List.getLast_ofFn]
+  rfl
+
 theorem decodedCostRem_eq (wl : List Byte) :
-    decodedCostRem wl 0 = rootListCost (decodedFolds (witFts wl)) := by
-  unfold decodedCostRem decodedCostFrom
-  rw [indexedCost_last _ 0 29 rfl]
+    decodedCostRem wl 0 = cheapSegments (decodedFolds (Equiv.witFts wl)) +
+      SiggolfReverse2322CostBridge.extra ((decodedFolds (Equiv.witFts wl)).getLastD 0) := by
+  rw [decodedLast_eq]
+  unfold decodedCostRem decodedCostFrom cheapSegments
   congr 1
+
 
 /-- Every accepted reference PORS computation has exact segment cost below the
 former uniform envelope. This statement is independent of sampled executions. -/
@@ -1630,14 +1266,7 @@ theorem porsRoot_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
   | none => rw [hr] at he; contradiction
   | some r =>
       rw [decodedCostRem_eq]
-      have hsum := recoverRun_decodedFolds_sum f 0 index leaves (witFts wl) r hr
-      obtain ⟨slot, hperm, hsorted, hsegments, hfolds, hadm, hbij⟩ :=
-        PorsMachine.recoverRun_structure f 0 index leaves (witFts wl) r hr
-      have hcap : (decodedFolds (witFts wl)).sum ≤ 117 := by
-        rw [hsum,hfolds]; exact hadm.2
-      apply SigGolfCandidate.Research.NoJoin.RootAware.recover_cost f 0 index leaves (witFts wl) r hr _ hcap
-      have hbalance := rootListCost_balance (decodedFolds (witFts wl))
-      simpa only [decodedFolds,SigGolfCandidate.Research.NoJoin.GeneralTreeProbe.decodedFolds,List.length_ofFn,show ftsSegments=29 by rfl,show 16*(29:Nat)=464 by decide] using hbalance
+      exact SiggolfReverse2322CostBridge.recoverRun_cost_le f 0 index leaves (witFts wl) r hr
 
 theorem verifyList_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
     (ml pkl wl : List Byte) (hl : wl.length = 16384)
@@ -1670,11 +1299,11 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 open SigGolfCandidate.Research.PorsPositiveBound
 
 /-- Tighten the accepting bound using the exact decoded witness budget and the
-universal positive-segment structural theorem. All-input bounds are unchanged. -/
+zero-inclusive compressed-tree certificate, with the final root cost restored. -/
 theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
     (hpk : pkl.length = 16) (hwl : wl.length = 16384) (s : MachineState)
     (hs : InitOK ml pkl wl s) :
-    GoodQ s fuelBound cycleBoundAll True (cycleBound-14) (cc (verifyList ml pkl wl) Kb) := by
+    GoodQ s fuelBound cycleBoundAll True 10326 (cc (verifyList ml pkl wl) Kb) := by
   intro F hF
   have hg := main_good_decoded ml pkl wl hml hpk hwl s hs F hF
   refine ⟨hg.1, fun hash => ⟨(hg.2 hash).1, (hg.2 hash).2.1, fun hsucc => ⟨trivial, ?_⟩⟩⟩
@@ -1687,23 +1316,22 @@ theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
   have hcycles := ((hg.2 hash).2.2 hsucc).2
   have hL := layC_val
   unfold cycleBoundDecoded at hcycles
-  unfold cycleBound
   omega
 
 theorem verify_good_tight (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (s : MachineState) (hs : initialState submission .verify input = some s) :
-    GoodQ s fuelBound cycleBoundAll True (cycleBound-14)
+    GoodQ s fuelBound cycleBoundAll True 10326
       (cc (verifyRef input.1 input.2.1 input.2.2) Kb) := by
   obtain ⟨m, pk, w⟩ := input
   exact main_good_tight _ _ _ (length_toList m) (length_toList pk)
     (by rw [length_extW]; exact congrArg (fun n => witLead + n) (length_toList w)) s (init_ok m pk w s hs)
 
-/-- Every accepting execution of the frozen verifier takes one fewer cycle than
-its previous bound. This is universal over hash answers and arbitrary witnesses. -/
+/-- Every accepting execution uses at most10,344 machine cycles, universally
+over hash answers and arbitrary witnesses. The witness charge is separate. -/
 theorem verify_accept_cycles_tight (hash : Hash)
     (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (h : (submission.runWith hash .verify input).value = some ()) :
-    (submission.runWith hash .verify input).cycles ≤ cycleBound-14 := by
+    (submission.runWith hash .verify input).cycles ≤ 10326 := by
   obtain ⟨s, hs⟩ := init_exists input
   have hg := (verify_good_tight input s hs CYCLE_LIMIT (by unfold CYCLE_LIMIT fuelBound; norm_num)).2 hash
   rw [runWith_eq submission hash .verify input s hs, image_eq] at h ⊢
@@ -1752,10 +1380,10 @@ theorem verifyTermination : VerifyTerminationStatement := fun hash m pk w =>
   ⟨(Verify.verify_terminates hash (m, pk, w)).1, (Verify.verify_terminates hash (m, pk, w)).2.2⟩
 
 theorem verifyCycles : VerifyCyclesStatement := fun hash m pk w h =>
-  Verify.verify_accept_cycles_tight hash (m, pk, w) (by
+  Nat.le_trans (Verify.verify_accept_cycles_tight hash (m, pk, w) (by
     cases hv : (submission.runWith hash .verify (m, pk, w)).value with
     | none => simp [hv] at h
-    | some u => cases u; rfl)
+    | some u => cases u; rfl)) (by decide +kernel)
 
 theorem eventSecurity : EventSecurityStatement := fun q hq adversary =>
   SphincsSecurity.security127_event q hq adversary

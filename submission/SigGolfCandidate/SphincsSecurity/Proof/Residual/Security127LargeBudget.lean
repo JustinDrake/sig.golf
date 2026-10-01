@@ -3,15 +3,15 @@ namespace SphincsSecurity.Concrete
 
 open _root_.OracleComp OracleSpec ENNReal
 
-private theorem largeRangeClosing (x : ℝ) (hx : 1027 / 67108864 ≤ x) :
+private theorem largeRangeClosing (x : ℝ) (hx : 65 / 4194304 ≤ x) :
     2 * x - x ^ 2 + (1 / 65536) * x + (x / 2 ^ 25 + 1 / 2 ^ 700) +
       x / 2 ^ 72 ≤ 2 * x := by
   have hn : 0 ≤ x := le_trans (by norm_num) hx
   have hs := mul_nonneg (sub_nonneg.mpr hx) hn
-  have he : (1 : ℝ) / 2 ^ 700 ≤ 1 / 281474976710656 := by
+  have he : (1 : ℝ) / 2 ^ 700 ≤ 1 / 1099511627776 := by
     calc
-      _ ≤ 1 / (2 : ℝ) ^ 48 := one_div_le_one_div_of_le (by positivity)
-        (pow_le_pow_right₀ (by norm_num) (by decide : 48 ≤ 700))
+      _ ≤ 1 / (2 : ℝ) ^ 40 := one_div_le_one_div_of_le (by positivity)
+        (pow_le_pow_right₀ (by norm_num) (by decide : 40 ≤ 700))
       _ = _ := by norm_num
   apply le_trans (add_le_add (add_le_add le_rfl (add_le_add le_rfl he)) le_rfl)
   norm_num at hx hs ⊢
@@ -27,8 +27,8 @@ theorem native_bound_plus_le_security127 (q : Nat) (hlarge : budgetSplit ≤ q) 
     (add_le_add (mul_le_mul' le_rfl certificateCacheExceptionRate_le) le_rfl)) le_rfl) ?_
   rw [fullCertificateExcessRate_def, proposalPrefixExceptionBound_def]
   let x : ℝ := (q : ℝ) / 2 ^ 128
-  have hx : 1027 / 67108864 ≤ x := by
-    have hq : ((1027 * 2 ^ 102) : ℝ) ≤ q := by exact_mod_cast hlarge
+  have hx : 65 / 4194304 ≤ x := by
+    have hq : ((65 * 2 ^ 106) : ℝ) ≤ q := by exact_mod_cast hlarge
     apply (le_div_iff₀ (by positivity)).mpr
     norm_num at hq ⊢
     exact hq

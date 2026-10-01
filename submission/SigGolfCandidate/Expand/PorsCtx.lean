@@ -142,8 +142,9 @@ theorem fmt_porsNode (idx H : Nat) (l r : Val) (hl : l.length = 16) (hr : r.leng
     addrFmt (porsNodeInput idx H l r) = pad64 (porsNodeInput idx (Rev.efield H) l r) :=
   Verify.addrFmt_porsNodeInput_pad idx H l r hl hr
 
-theorem fmt_porsLeaf (idx j : Nat) (s : Val) : addrFmt (porsLeafInput idx j s) = pad64 (porsLeafInput idx j s) :=
-  addrFmt_thInput _ _ _ _ _ _ (by decide)
+theorem fmt_porsLeaf (idx j : Nat) (s : Val) (hs : s.length = 16) (hj : j ≤ 2^14) :
+    addrFmt (porsLeafInput idx j s) = pad64 (porsLeafInput idx (8*j) s) :=
+  Verify.addrFmt_porsLeafInput_pad idx j s hs hj
 
 theorem blocks_porsNode (idx H : Nat) (l r : Val) (hl : l.length = 16) (hr : r.length = 16) :
     (pad64 (porsNodeInput idx H l r)).blocks = 1 :=

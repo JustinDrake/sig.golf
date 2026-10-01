@@ -441,7 +441,7 @@ def segment (idx : Nat) (w : List Byte) (ptr E folds : Nat) (pending : Pending) 
   let merge := b / 16 % 2
   let t := b / 32
   if a > porsH then pure none
-  else if 0 < a ∧ (t % 2 ≠ E % 2 ∨ (3 ≤ a ∧ t ≠ E % 8)) then pure none
+  else if 0 < a ∧ (t % 2 ≠ E % 2 ∨ (3 ≤ a ∧ t / 2 ≠ E / 2 % 4)) then pure none
   else
     let node ← pendingHash idx node pending
     let (node, E) ← segFolds idx w ptr a node E

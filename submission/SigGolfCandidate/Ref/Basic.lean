@@ -76,8 +76,8 @@ def nChains : Nat := 42
 /-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
 def targetSum : Nat := 185
 
-/-- Layers three and four use a target one larger than the top three layers. -/
-def targetFor (_lay : Nat) : Nat := targetSum
+/-- Layer four uses a target one larger than the top four layers. -/
+def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 1 else 0
 
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
@@ -268,9 +268,11 @@ def hash16 (x : List Byte) : OracleComp HashSpec Val := do
 
 /-- Encoding-only half selection: keep the low half when its padding bit is clear,
 otherwise use the independent high half. Ordinary hashes are unchanged. -/
+def encodingGate {n : Nat} (a : BitVec n) : Bool := !(a.extractLsb' 60 4).ult 1#4
+
 def encodingAnswer (a : BitVec 256) : BitVec 256 :=
   if a.getLsbD 127 then
-    if 125 ≤ (a.extractLsb' 55 9).toNat then a >>> 128 else a
+    if encodingGate a then a >>> 128 else a
   else if a.getLsbD 63 then a >>> 64 else a
 
 def encodingBytes (a : BitVec 256) : Val := answerBytes 16 (encodingAnswer a)

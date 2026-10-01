@@ -7,10 +7,9 @@ The root tail (into the layers), then `GoodQ` for the ladder (`segFolds`), one s
 (`segment`), the segments of a leaf (`segLoop`, by induction on the stack), the leaves
 (`porsLeaves`) and `porsRoot`.
 
-Cycle bounds: a zero-fold segment costs 15. A positive segment costs
-`16 + 16*a - segmentSave V a`: for a≥3 the three-bit check costs one extra instruction,
-the two specialized folds save two, and the root variant keeps one join. Nonroot copied
-suffixes fall directly into their tails. Tails cost merge6, push4, root12; setup105.
+Cycle bounds: a segment with `a` folds costs `15` if `a = 0` (dispatch 4, table slot 3, pending
+hash 8) and `16 + 17 a` if `a ≥ 1` (the slot's inlined parity test adds 1; `17 a` for the folds incl.
+the entry tail), at most `16 + 17 a` in both cases; tails: merge 6, push 4, root 15 (W1a: the root tail also sets `t3`, `sp`, `a5`, `a4`; the masks are loaded from the data words).
 -/
 
 set_option linter.unusedSimpArgs false
@@ -132,20 +131,25 @@ theorem segment_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr E fol
       (fun q => ⟨q, by omega⟩)
   rw [if_neg ha]
   have ha14 : b % 16 ≤ 14 := by unfold porsH at ha; omega
-  by_cases hp : 0 < b % 16 ∧ (b / 32 % 2 ≠ E % 2 ∨ (3 ≤ b % 16 ∧ b / 32 ≠ E % 8))
+  have hbl : b < 256 := wbyte_lt _ _
+  by_cases hp : 0 < b % 16 ∧ (b / 32 % 2 ≠ E % 2 ∨ (3 ≤ b % 16 ∧ b / 32 / 2 ≠ E / 2 % 4))
   · rw [if_pos hp, cc_pure, hnone]
-    obtain ⟨u, hst, hf, h5, h10⟩ := hpar (by omega) ha14 hp.2
+    obtain ⟨k, u, hk, hst, hf, h5, h10⟩ := hpar (by omega) ha14 (by
+      rw [guardTag_iff b E hbl]
+      omega)
     exact GoodQ.steps' hst (GoodQ.reject (Q := folds ≤ 117) (A := 0) hf h5 h10) (by omega) (by omega)
       (fun q => ⟨q, by omega⟩)
   · rw [if_neg hp, cc_bind, pendingHash_eq]
-    have hpar' : b % 16 = 0 ∨ (segBits b % 2 = E % 2 ∧ (3 ≤ b % 16 → segBits b = E % 8)) := by unfold segBits; omega
+    have hpar' : b % 16 = 0 ∨ guardTag b E := by
+      rw [guardTag_iff b E hbl]
+      omega
     obtain ⟨k, u, hk, hst, hf, h5, hv, hin, hbl, hpost⟩ := hacc ha14 hpar'
     have hVl := segV_lt (tsel s) b
-    have hextra := tabExtra_le (b % 16)
     set a := b % 16 with hadef
+    have hal : a ≤ 14 := ha14
     set V := segV (tsel s) b with hV
     -- after the pending hash
-    have H : ∀ ans, GoodQ (writeHash u ans) (NT V + 17 * 14 + 2) (CT V + 17 * a) (folds + a ≤ 117) (AT V (folds + a) + (16 * a + 1 - tabExtra a))
+    have H : ∀ ans, GoodQ (writeHash u ans) (NT V + 17 * 14 + 2) (CT V + 17 * a) (folds + a ≤ 117) (AT V (folds + a) + 16 * a + (if a < 3 then 1 else 0))
         ((fun v => cc (segFolds P.idx P.wl ptr a v E) fun p =>
           match p with
           | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1))))
@@ -158,7 +162,7 @@ theorem segment_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr E fol
         have hT := (hpost ans).1 ha0
         have := hK 0 V 2 E (answerBytes 16 ans) (writeHash u ans) (by omega) rfl (by omega) (by simpa using hT)
         simp only [Nat.mul_zero, Nat.add_zero] at this
-        simp only [ha0, Nat.mul_zero, Nat.add_zero, tabExtra, show ¬3≤(0:Nat) by decide, if_neg, Nat.sub_zero]
+        simp only [ha0, Nat.mul_zero, Nat.add_zero]
         exact this.mono (by omega) (by omega) (fun q => ⟨by omega, by omega⟩)
       · have hE := (hpost ans).2 (by omega)
         obtain ⟨u2, hst2, hP2⟩ := ent_step P s0 s x V (segT b) a ptr E folds (answerBytes 16 ans) stk _ hE
@@ -169,8 +173,13 @@ theorem segment_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr E fol
           (NT V) (CT V) (AT V (folds + a)) (folds + a ≤ 117)
           (fun t node' E' u' hT => hK a V t E' node' u' ha14 rfl rfl hT) a 0 (segT b) E (answerBytes 16 ans)
           u2 (by omega) hP2 hP2.parity
-        have hbudget := foldBudget_old_bound ⟨V, hVl⟩ ⟨a, by omega⟩
-        simp only at hbudget
+        have hb := foldBudget_old_bound ⟨V,hVl⟩ ⟨a,by omega⟩
+        have hba : foldBudget V a 0 + 2 ≤ 16*a+(if a<3 then 1 else 0) := by
+          have hbs := foldBudget_start ⟨V,hVl⟩ ⟨a,by omega⟩ (show 0 < a from Nat.pos_of_ne_zero ha0)
+          simp only at hbs
+          unfold segmentSave noJoin at hbs
+          split_ifs at * <;> omega
+        simp only at hb
         refine GoodQ.steps' hst2 this (by omega) (by omega) (fun q => ⟨by omega, by omega⟩)
     have h3 := GoodQ.hash (x := pendInput P node pend)
       (K := fun v => cc (segFolds P.idx P.wl ptr a v E) fun p =>
@@ -185,8 +194,13 @@ theorem segment_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr E fol
           | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) := by
       funext v; rw [cc_bind]; congr 1; funext p; obtain ⟨n1, e1⟩ := p; simp only [cc_pure]
     rw [e2]
+    have hk8 : k ≤ 8 := by unfold tabCycles at hk; split_ifs at hk <;> omega
     exact GoodQ.steps' hst h3 (by have := hN V hVl; omega) (by have := hC V a hVl ha14; omega)
-      (fun q => ⟨by omega, by have := hA V a hVl ha14 q; omega⟩)
+      (fun q => ⟨by omega, by
+        have := hA V a hVl ha14 q
+        unfold tabCycles segA at hk
+        change k ≤ 4 + if a < 3 then 3 else 4 at hk
+        split_ifs at * <;> omega⟩)
 
 
 /-! ## Budgets
@@ -201,8 +215,8 @@ def layN : Nat := 5000 * 5 + 9
 /-- The layers' cost `LayerGood.layersCost 5` (a literal here, so that the PORS part does not depend
 on the layer modules; `Top.layC_val` proves the equality). Irreducible, so that unification never
 evaluates it. -/
-@[irreducible] def layC : Nat := 7542
-def leafCost (s : Nat) : Nat := if s = 0 then 12 else if s = 14 then 16 else 13
+@[irreducible] def layC : Nat := 7533
+def leafCost (s : Nat) : Nat := if s = 0 then 11 else if s = 14 then 15 else 12
 def lrest (s : Nat) : Nat := ((List.range' (s + 1) (14 - s)).map leafCost).sum
 def segR (s d : Nat) : Nat := 29 - 2 * s + d
 
@@ -219,13 +233,13 @@ def AtailPF (s d F : Nat) : Nat :=
 def NtailPF (s d : Nat) : Nat := CtailPF s d + layN
 
 /-- Before a merge tail. -/
-def CtailM (s d : Nat) : Nat := if d = 0 then 7 else 6 + Cseg s (d - 1)
-def AtailM (s d F : Nat) : Nat := if d = 0 then 7 else 6 + Aseg s (d - 1) F
+def CtailM (s d : Nat) : Nat := if d = 0 then 6 else 6 + Cseg s (d - 1)
+def AtailM (s d F : Nat) : Nat := if d = 0 then 6 else 6 + Aseg s (d - 1) F
 def NtailM (s d : Nat) : Nat := CtailM s d + layN
 
 theorem lrest_succ : ∀ s, s < 14 → lrest s = leafCost (s + 1) + lrest (s + 1) := by decide
 theorem lrest_14 : lrest 14 = 0 := rfl
-theorem leafCost_le (s : Nat) : 12 ≤ leafCost s ∧ leafCost s ≤ 16 := by unfold leafCost; split_ifs <;> omega
+theorem leafCost_le (s : Nat) : 11 ≤ leafCost s ∧ leafCost s ≤ 15 := by unfold leafCost; split_ifs <;> omega
 
 /-! ## The segments of a leaf -/
 
@@ -294,7 +308,7 @@ theorem segLoop_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat)
       rw [hV0] at hT
       obtain ⟨u2, hst2, hf2, h52, h102⟩ := (tailM_step P s0 s x c' _ E' _ node' [] u hT).2.1 rfl
       exact GoodQ.steps' hst2 (GoodQ.reject (Q := folds + a ≤ 117) (A := 0) hf2 h52 h102)
-        (by unfold NtailM CtailM Cseg; split_ifs <;> omega) (by unfold CtailM Cseg; split_ifs <;> omega) (fun q => ⟨q, by unfold AtailM Aseg; split_ifs <;> omega⟩)
+        (by unfold NtailM CtailM; simp) (by unfold CtailM; simp) (fun q => ⟨q, by unfold AtailM; simp⟩)
     · obtain ⟨hVe, hm⟩ := segV_PF s _ (hV ▸ hV0)
       simp only [hV0, if_false, hm, decide_false, Bool.false_eq_true, cc_pure]
       rw [hV, hVe] at hT
@@ -330,8 +344,8 @@ theorem segLoop_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat)
       · simp only [ne_eq, hQ, not_false_eq_true, if_true, cc_pure, hnone]
         obtain ⟨u2, hst2, hf2, h52, h102⟩ := tM.1 pnode Q rest rfl hQ
         exact GoodQ.steps' hst2 (GoodQ.reject (Q := folds + a ≤ 117) (A := 0) hf2 h52 h102)
-          (by unfold NtailM CtailM Cseg; split_ifs <;> omega) (by unfold CtailM Cseg; split_ifs <;> omega)
-          (fun q => ⟨q, by unfold AtailM Aseg; split_ifs <;> omega⟩)
+          (by unfold NtailM CtailM; split_ifs <;> omega) (by unfold CtailM; split_ifs <;> omega)
+          (fun q => ⟨q, by unfold AtailM; split_ifs <;> omega⟩)
     · obtain ⟨hVe, hm⟩ := segV_PF s _ (hV ▸ hV0)
       simp only [hV0, if_false, hm, decide_false, Bool.not_false, if_true, cc_pure]
       rw [hV, hVe] at hT
@@ -341,7 +355,7 @@ theorem segLoop_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat)
 
 /-! ## The leaves -/
 
-theorem leafCost_eq (s : Nat) : (if s = 0 then 12 else if s = 14 then 16 else 13) = leafCost s := rfl
+theorem leafCost_eq (s : Nat) : (if s = 0 then 11 else if s = 14 then 15 else 12) = leafCost s := rfl
 
 theorem leaves_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
     (Kr : Option PorsState → OracleComp HashSpec Obs) (hnone : Kr none = pure (false, 0))
