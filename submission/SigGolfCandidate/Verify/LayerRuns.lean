@@ -33,7 +33,7 @@ def preStart (lay t : Nat) : Nat :=
 
 /-- Steps of the transition up to the encoding hash: layer 0 consumes the remaining route bits
 directly (two `addi` for the sentinel, no mask/shift); layer 4 reuses the known hash length. -/
-def stepsA (lay : Nat) : Nat := if lay = 0 ∨ lay = 4 then 11 else 12
+def stepsA (lay : Nat) : Nat := if lay = 0 then 10 else if lay = 4 then 11 else 12
 def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
 
 /-- Known registers at the transition start. -/
@@ -51,6 +51,8 @@ def uEr (lay : Nat) : E :=
   else .bin .and (.reg (if lay = 4 then .x22 else .x30)) (cw (2 ^ heightL lay - 1))
 def tauEr (lay : Nat) : E :=
   if lay = 0 then cw 0 else .bin .srl (.reg (if lay = 4 then .x22 else .x30)) (cw (heightL lay))
+/-- Physical x30 keeps the final leaf index after the top tree address is known zero. -/
+def carryEr (lay : Nat) : E := if lay = 0 then uEr lay else tauEr lay
 def x31Er (lay : Nat) : E :=
   if lay = 0 then .bin .sll (.reg .x30) (cw 32)
   else .bin .add (tauEr lay) (.bin .sll (uEr lay) (cw 32))
@@ -64,7 +66,7 @@ def ctrA (lay : Nat) : Nat := if lay = 4 then 0x800 + 2392 else 0x800 + 2944 + 8
 def ctrE (lay : Nat) : E := .un (.ld .wu (4 * (lay % 2))) (ldE (ctrA lay))
 
 def specA (lay t : Nat) : Spec :=
-  ⟨[(.x23, uHE lay), (.x30, tauEr lay), (.x31, x31Er lay)],
+  ⟨[(.x23, uHE lay), (.x30, carryEr lay), (.x31, x31Er lay)],
    [(⟨none, BitVec.ofNat 64 312⟩, .c 0), (⟨none, BitVec.ofNat 64 304⟩, ctrE lay),
     (⟨none, BitVec.ofNat 64 264⟩, x31Er lay), (⟨none, BitVec.ofNat 64 256⟩, cw (hWord lay + 768))],
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
