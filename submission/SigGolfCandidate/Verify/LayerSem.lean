@@ -248,10 +248,10 @@ theorem tgt0_eval (hi : Bool) (c : CCtx) (s : MachineState) (hD : (d0E hi).eval 
 
 theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : BitVec 256) (s : MachineState)
     (hs : EncOut L t a s) :
-    (decodeDigits (encodingBytes a) = none →
+    (decodeDigits L.lay (encodingBytes a) = none →
       ∃ k, k ≤ 33 ∧ ∃ c, c ≤ 33 ∧ ∃ u, Steps image s k c u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (∀ xs, decodeDigits (encodingBytes a) = some xs →
+    (∀ xs, decodeDigits L.lay (encodingBytes a) = some xs →
       ∃ u, Steps image s (stepsB L.lay) (cyclesB L.lay) u ∧ ChainIn (L.cctx t a) 0 [] u ∧
         (L.cctx t a).ok ∧ (∀ i < 42, xs.getD i 0 = dig (L.cctx t a) i) ∧ xs.sum = targetFor L.lay ∧
         xs.length = 42) := by
@@ -297,12 +297,13 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
   have hT : targetFor L.lay < 2 ^ 64 := by have := targetFor_le L.lay; omega
   unfold encodingBytes decodeDigits
   simp only [slice0_answer, slice8_answer]
+  simp only [← show targetFor L.lay = Ref.targetFor L.lay from rfl]
   constructor
   · intro hnone
     by_cases hlt : ((encodingAnswer a).extractLsb' 0 64).toNat < 2 ^ 63 ∧ ((encodingAnswer a).extractLsb' 64 64).toNat < 2 ^ 63
     · rw [if_pos hlt] at hnone
       have hsum : ¬ (digitsOfWord ((encodingAnswer a).extractLsb' 0 64).toNat ++ digitsOfWord ((encodingAnswer a).extractLsb' 64 64).toNat).sum
-          = targetSum := by intro h; rw [if_pos h] at hnone; cases hnone
+          = targetFor L.lay := by intro h; rw [if_pos h] at hnone; cases hnone
       obtain ⟨u, hu⟩ := specO_run hR2 s hpc hK (encObligs_holds s) (by
         intro b hb
         simp only [specRej2, List.mem_cons, List.not_mem_nil, or_false] at hb
@@ -310,11 +311,12 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
         · simp only [Br.holds, CmpOp.eval, bne_iff_ne, ne_eq]
           intro h
           apply hsum
-          have := (swS_eq hi s (targetFor L.lay) hT (by omega) (by omega)).mp h
+          have := (swS_eq hi s L.lay (by omega) (by omega)).mp h
           rwa [hdA, hdB] at this
         · simp only [Br.holds]; rw [hor]; exact decide_eq_false (by omega)
         · exact hsel)
-      exact ⟨25, by decide, 28, by decide, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
+      exact ⟨25 + (if L.lay = 3 then 1 else 0), by split_ifs <;> omega,
+        28 + (if L.lay = 3 then 1 else 0), by split_ifs <;> omega, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
         hu.regs (.x10, cw 1) (by simp [specRej2, rejK])⟩
     · obtain ⟨u, hu⟩ := specO_run hR1 s hpc hK (encObligs_holds s) (by
         intro b hb
@@ -328,7 +330,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
     by_cases hlt : ((encodingAnswer a).extractLsb' 0 64).toNat < 2 ^ 63 ∧ ((encodingAnswer a).extractLsb' 64 64).toNat < 2 ^ 63
     · rw [if_pos hlt] at hxs
       by_cases hsum : (digitsOfWord ((encodingAnswer a).extractLsb' 0 64).toNat ++
-          digitsOfWord ((encodingAnswer a).extractLsb' 64 64).toNat).sum = targetSum
+          digitsOfWord ((encodingAnswer a).extractLsb' 64 64).toNat).sum = targetFor L.lay
       · rw [if_pos hsum] at hxs
         cases hxs
         obtain ⟨u, hu⟩ := specO_run hBok s hpc hK (encObligs_holds s) (by
@@ -336,7 +338,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
           simp only [specBok, List.mem_cons, List.not_mem_nil, or_false] at hb
           rcases hb with rfl | rfl | rfl
           · simp only [Br.holds, CmpOp.eval, bne_eq_false_iff_eq]
-            apply (swS_eq hi s (targetFor L.lay) hT (by omega) (by omega)).mpr
+            apply (swS_eq hi s L.lay (by omega) (by omega)).mpr
             rw [hdA, hdB]; exact hsum
           · simp only [Br.holds]; rw [hor]; exact decide_eq_false (by omega)
           · exact hsel)
@@ -354,7 +356,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
         · rw [hu.keep .x30 (by simp)]; exact h30
         · rw [hu.keep .x31 (by simp)]; exact h31
         · exact hK' (.x22, BitVec.ofNat 64 (s6N L.lay)) (by simp [chKa])
-        · exact hK' (.x27, BitVec.ofNat 64 (hWord L.lay)) (by simp [chKa])
+        · exact hK' (.x27, BitVec.ofNat 64 (hWord L.lay + 768)) (by simp [chKa])
         · exact hK' (.x1, pcOf (retPc L.lay t)) (by simp [chKa])
         · unfold CB0; rw [hmem]; exact hCB
         · trivial

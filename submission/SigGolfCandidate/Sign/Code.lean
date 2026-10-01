@@ -131,8 +131,11 @@ def seg346 : List (BitVec 32) := [0x12603823#32, 0x10000513#32, 0x04000593#32, 0
 /-- instructions 351 .. 354: ld ra, 320(x0); ld sp, 328(x0); or gp, ra, sp; blt gp, x0, +92 -/
 def seg351 : List (BitVec 32) := [0x6a40106f#32, 0x14803103#32, 0x0020e1b3#32, 0x0401ce63#32]
 /-- instructions 355 .. 375: srli t3, ra, 3; and t3, t3, s10; and t4, ra, s10; add t3, t3, t4; srli t4, sp, 3; and t4, t4, s10 ... -/
-def seg355 : List (BitVec 32) := [0x0030de13#32, 0x01ae7e33#32, 0x01a0feb3#32, 0x01de0e33#32, 0x00315e93#32, 0x01aefeb3#32, 0x01de0e33#32, 0x01a17eb3#32, 0x01de0e33#32, 0x006e5e93#32, 0x01de0e33#32, 0x01be7e33#32, 0x00ce5e93#32, 0x01de0e33#32, 0x018e5e93#32, 0x01de0e33#32, 0x030e5e93#32, 0x01de0e33#32, 0x7ffe7e13#32, 0xf48e0e13#32, 0x000e1463#32]
+def seg355 : List (BitVec 32) := [0x0030de13#32, 0x01ae7e33#32, 0x01a0feb3#32, 0x01de0e33#32, 0x00315e93#32, 0x01aefeb3#32, 0x01de0e33#32, 0x01a17eb3#32, 0x01de0e33#32, 0x006e5e93#32, 0x01de0e33#32, 0x01be7e33#32, 0x00ce5e93#32, 0x01de0e33#32, 0x018e5e93#32, 0x01de0e33#32, 0x030e5e93#32, 0x01de0e33#32, 0x7ffe7e13#32, 0x6880106f#32]
 /-- instructions 376 .. 376: jal x0, +24 -/
+def seg375 : List (BitVec 32) := [0x000e1463#32]
+def seg1816 : List (BitVec 32) := [0xf47e0e13#32, 0x00343e93#32, 0x01de0e33#32, 0x971fe06f#32]
+
 def seg376 : List (BitVec 32) := [0x0180006f#32]
 /-- instructions 377 .. 378 (enc_next): addi t1, t1, 1; bne t1, t2, -128 -/
 def seg377 : List (BitVec 32) := [0x00130313#32, 0xf87310e3#32]
@@ -239,7 +242,7 @@ def seg1800 : List (BitVec 32) := [0x14003083#32, 0x14803103#32, 0x0020e1b3#32, 
 
 def seg353 : List (BitVec 32) := [0x0020e1b3#32, 0x0401ce63#32]
 
-def L : Rv.Layout := [(0, seg0), (55, seg55), (57, seg57), (59, seg59), (61, seg61), (63, seg63), (65, seg65), (70, seg70), (78, seg78), (82, seg82), (89, seg89), (94, seg94), (104, seg104), (105, seg105), (108, seg108), (110, seg110), (112, seg112), (115, seg115), (119, seg119), (121, seg121), (128, seg128), (131, seg131), (134, seg134), (136, seg136), (137, seg137), (139, seg139), (142, seg142), (145, seg145), (179, seg179), (181, seg181), (187, seg187), (194, seg194), (202, seg202), (208, seg208), (210, seg210), (211, seg211), (215, seg215), (232, seg232), (234, seg234), (238, seg238), (249, seg249), (256, seg256), (259, seg259), (263, seg263), (264, seg264), (266, seg266), (271, seg271), (286, seg286), (288, seg288), (290, seg290), (293, seg293), (296, seg296), (316, seg316), (318, seg318), (321, seg321), (322, seg322), (329, seg329), (331, seg331), (346, seg346), (351, seg351), (355, seg355), (376, seg376), (377, seg377), (379, seg379), (382, seg382), (509, seg509), (522, seg522), (529, seg529), (531, seg531), (537, seg537), (549, seg549), (550, seg550), (556, seg556), (564, seg564), (566, seg566), (567, seg567), (573, seg573), (575, seg575), (584, seg584), (589, seg589), (591, seg591), (592, seg592), (609, seg609), (626, seg626), (628, seg628), (630, seg630), (637, seg637), (646, seg646), (648, seg648), (654, seg654), (665, seg665), (666, seg666), (673, seg673), (676, seg676), (685, seg685), (689, seg689), (701, seg701), (718, seg718), (934, seg934), (1130, seg1130), (1326, seg1326), (1522, seg1522), (1714, seg1714), (1717, List.replicate 83 0x00000013 ++ seg1800 ++ List.replicate 1035 0x00000013), (2844, seg2844), (2887, List.replicate 6 0x00000013), (2893, seg2893), (2897, seg2897), (2898, seg2898), (2900, seg2900), (2904, List.replicate 67 0x00000013), (2971, seg2971), (2980, seg2980), (2981, seg2981), (2986, seg2986), (2988, AddressAdapter.headCode), (3007, AddressAdapter.tailCode), (3010, segAddrReturn563), (3011, AddressAdapter.headCode), (3030, AddressAdapter.tailCode), (3033, segAddrReturn672)]
+def L : Rv.Layout := [(0, seg0), (55, seg55), (57, seg57), (59, seg59), (61, seg61), (63, seg63), (65, seg65), (70, seg70), (78, seg78), (82, seg82), (89, seg89), (94, seg94), (104, seg104), (105, seg105), (108, seg108), (110, seg110), (112, seg112), (115, seg115), (119, seg119), (121, seg121), (128, seg128), (131, seg131), (134, seg134), (136, seg136), (137, seg137), (139, seg139), (142, seg142), (145, seg145), (179, seg179), (181, seg181), (187, seg187), (194, seg194), (202, seg202), (208, seg208), (210, seg210), (211, seg211), (215, seg215), (232, seg232), (234, seg234), (238, seg238), (249, seg249), (256, seg256), (259, seg259), (263, seg263), (264, seg264), (266, seg266), (271, seg271), (286, seg286), (288, seg288), (290, seg290), (293, seg293), (296, seg296), (316, seg316), (318, seg318), (321, seg321), (322, seg322), (329, seg329), (331, seg331), (346, seg346), (351, seg351), (355, seg355), (375, seg375), (376, seg376), (377, seg377), (379, seg379), (382, seg382), (509, seg509), (522, seg522), (529, seg529), (531, seg531), (537, seg537), (549, seg549), (550, seg550), (556, seg556), (564, seg564), (566, seg566), (567, seg567), (573, seg573), (575, seg575), (584, seg584), (589, seg589), (591, seg591), (592, seg592), (609, seg609), (626, seg626), (628, seg628), (630, seg630), (637, seg637), (646, seg646), (648, seg648), (654, seg654), (665, seg665), (666, seg666), (673, seg673), (676, seg676), (685, seg685), (689, seg689), (701, seg701), (718, seg718), (934, seg934), (1130, seg1130), (1326, seg1326), (1522, seg1522), (1714, seg1714), (1717, List.replicate 83 0x00000013 ++ seg1800 ++ List.replicate 7 0x00000013 ++ seg1816 ++ List.replicate 1024 0x00000013), (2844, seg2844), (2887, List.replicate 6 0x00000013), (2893, seg2893), (2897, seg2897), (2898, seg2898), (2900, seg2900), (2904, List.replicate 67 0x00000013), (2971, seg2971), (2980, seg2980), (2981, seg2981), (2986, seg2986), (2988, AddressAdapter.headCode), (3007, AddressAdapter.tailCode), (3010, segAddrReturn563), (3011, AddressAdapter.headCode), (3030, AddressAdapter.tailCode), (3033, segAddrReturn672)]
 
 theorem layout_ok : layoutOk 0 L = true := by decide +kernel
 
@@ -378,113 +381,113 @@ theorem codeAt_1800 : CodeAt image (pcOf 1800) seg1800 := by unfold CodeAt; deci
 theorem codeAt_355 : CodeAt image (pcOf 355) seg355 :=
   codeAt_layout code_eq layout_ok (i := 60) (by kernel_rfl) (by decide)
 theorem codeAt_376 : CodeAt image (pcOf 376) seg376 :=
-  codeAt_layout code_eq layout_ok (i := 61) (by kernel_rfl) (by decide)
-theorem codeAt_377 : CodeAt image (pcOf 377) seg377 :=
   codeAt_layout code_eq layout_ok (i := 62) (by kernel_rfl) (by decide)
-theorem codeAt_379 : CodeAt image (pcOf 379) seg379 :=
+theorem codeAt_377 : CodeAt image (pcOf 377) seg377 :=
   codeAt_layout code_eq layout_ok (i := 63) (by kernel_rfl) (by decide)
-theorem codeAt_382 : CodeAt image (pcOf 382) seg382 :=
+theorem codeAt_379 : CodeAt image (pcOf 379) seg379 :=
   codeAt_layout code_eq layout_ok (i := 64) (by kernel_rfl) (by decide)
-theorem codeAt_509 : CodeAt image (pcOf 509) seg509 :=
+theorem codeAt_382 : CodeAt image (pcOf 382) seg382 :=
   codeAt_layout code_eq layout_ok (i := 65) (by kernel_rfl) (by decide)
-theorem codeAt_522 : CodeAt image (pcOf 522) seg522 :=
+theorem codeAt_509 : CodeAt image (pcOf 509) seg509 :=
   codeAt_layout code_eq layout_ok (i := 66) (by kernel_rfl) (by decide)
-theorem codeAt_529 : CodeAt image (pcOf 529) seg529 :=
+theorem codeAt_522 : CodeAt image (pcOf 522) seg522 :=
   codeAt_layout code_eq layout_ok (i := 67) (by kernel_rfl) (by decide)
-theorem codeAt_531 : CodeAt image (pcOf 531) seg531 :=
+theorem codeAt_529 : CodeAt image (pcOf 529) seg529 :=
   codeAt_layout code_eq layout_ok (i := 68) (by kernel_rfl) (by decide)
-theorem codeAt_537 : CodeAt image (pcOf 537) seg537 :=
+theorem codeAt_531 : CodeAt image (pcOf 531) seg531 :=
   codeAt_layout code_eq layout_ok (i := 69) (by kernel_rfl) (by decide)
-theorem codeAt_549 : CodeAt image (pcOf 549) seg549 :=
+theorem codeAt_537 : CodeAt image (pcOf 537) seg537 :=
   codeAt_layout code_eq layout_ok (i := 70) (by kernel_rfl) (by decide)
-theorem codeAt_550 : CodeAt image (pcOf 550) seg550 :=
+theorem codeAt_549 : CodeAt image (pcOf 549) seg549 :=
   codeAt_layout code_eq layout_ok (i := 71) (by kernel_rfl) (by decide)
-theorem codeAt_556 : CodeAt image (pcOf 556) seg556 :=
+theorem codeAt_550 : CodeAt image (pcOf 550) seg550 :=
   codeAt_layout code_eq layout_ok (i := 72) (by kernel_rfl) (by decide)
-theorem codeAt_564 : CodeAt image (pcOf 564) seg564 :=
+theorem codeAt_556 : CodeAt image (pcOf 556) seg556 :=
   codeAt_layout code_eq layout_ok (i := 73) (by kernel_rfl) (by decide)
-theorem codeAt_566 : CodeAt image (pcOf 566) seg566 :=
+theorem codeAt_564 : CodeAt image (pcOf 564) seg564 :=
   codeAt_layout code_eq layout_ok (i := 74) (by kernel_rfl) (by decide)
-theorem codeAt_567 : CodeAt image (pcOf 567) seg567 :=
+theorem codeAt_566 : CodeAt image (pcOf 566) seg566 :=
   codeAt_layout code_eq layout_ok (i := 75) (by kernel_rfl) (by decide)
-theorem codeAt_573 : CodeAt image (pcOf 573) seg573 :=
+theorem codeAt_567 : CodeAt image (pcOf 567) seg567 :=
   codeAt_layout code_eq layout_ok (i := 76) (by kernel_rfl) (by decide)
-theorem codeAt_575 : CodeAt image (pcOf 575) seg575 :=
+theorem codeAt_573 : CodeAt image (pcOf 573) seg573 :=
   codeAt_layout code_eq layout_ok (i := 77) (by kernel_rfl) (by decide)
-theorem codeAt_584 : CodeAt image (pcOf 584) seg584 :=
+theorem codeAt_575 : CodeAt image (pcOf 575) seg575 :=
   codeAt_layout code_eq layout_ok (i := 78) (by kernel_rfl) (by decide)
-theorem codeAt_589 : CodeAt image (pcOf 589) seg589 :=
+theorem codeAt_584 : CodeAt image (pcOf 584) seg584 :=
   codeAt_layout code_eq layout_ok (i := 79) (by kernel_rfl) (by decide)
-theorem codeAt_591 : CodeAt image (pcOf 591) seg591 :=
+theorem codeAt_589 : CodeAt image (pcOf 589) seg589 :=
   codeAt_layout code_eq layout_ok (i := 80) (by kernel_rfl) (by decide)
-theorem codeAt_592 : CodeAt image (pcOf 592) seg592 :=
+theorem codeAt_591 : CodeAt image (pcOf 591) seg591 :=
   codeAt_layout code_eq layout_ok (i := 81) (by kernel_rfl) (by decide)
-theorem codeAt_609 : CodeAt image (pcOf 609) seg609 :=
+theorem codeAt_592 : CodeAt image (pcOf 592) seg592 :=
   codeAt_layout code_eq layout_ok (i := 82) (by kernel_rfl) (by decide)
-theorem codeAt_626 : CodeAt image (pcOf 626) seg626 :=
+theorem codeAt_609 : CodeAt image (pcOf 609) seg609 :=
   codeAt_layout code_eq layout_ok (i := 83) (by kernel_rfl) (by decide)
-theorem codeAt_628 : CodeAt image (pcOf 628) seg628 :=
+theorem codeAt_626 : CodeAt image (pcOf 626) seg626 :=
   codeAt_layout code_eq layout_ok (i := 84) (by kernel_rfl) (by decide)
-theorem codeAt_630 : CodeAt image (pcOf 630) seg630 :=
+theorem codeAt_628 : CodeAt image (pcOf 628) seg628 :=
   codeAt_layout code_eq layout_ok (i := 85) (by kernel_rfl) (by decide)
-theorem codeAt_637 : CodeAt image (pcOf 637) seg637 :=
+theorem codeAt_630 : CodeAt image (pcOf 630) seg630 :=
   codeAt_layout code_eq layout_ok (i := 86) (by kernel_rfl) (by decide)
-theorem codeAt_646 : CodeAt image (pcOf 646) seg646 :=
+theorem codeAt_637 : CodeAt image (pcOf 637) seg637 :=
   codeAt_layout code_eq layout_ok (i := 87) (by kernel_rfl) (by decide)
-theorem codeAt_648 : CodeAt image (pcOf 648) seg648 :=
+theorem codeAt_646 : CodeAt image (pcOf 646) seg646 :=
   codeAt_layout code_eq layout_ok (i := 88) (by kernel_rfl) (by decide)
-theorem codeAt_654 : CodeAt image (pcOf 654) seg654 :=
+theorem codeAt_648 : CodeAt image (pcOf 648) seg648 :=
   codeAt_layout code_eq layout_ok (i := 89) (by kernel_rfl) (by decide)
-theorem codeAt_665 : CodeAt image (pcOf 665) seg665 :=
+theorem codeAt_654 : CodeAt image (pcOf 654) seg654 :=
   codeAt_layout code_eq layout_ok (i := 90) (by kernel_rfl) (by decide)
-theorem codeAt_666 : CodeAt image (pcOf 666) seg666 :=
+theorem codeAt_665 : CodeAt image (pcOf 665) seg665 :=
   codeAt_layout code_eq layout_ok (i := 91) (by kernel_rfl) (by decide)
-theorem codeAt_673 : CodeAt image (pcOf 673) seg673 :=
+theorem codeAt_666 : CodeAt image (pcOf 666) seg666 :=
   codeAt_layout code_eq layout_ok (i := 92) (by kernel_rfl) (by decide)
-theorem codeAt_676 : CodeAt image (pcOf 676) seg676 :=
+theorem codeAt_673 : CodeAt image (pcOf 673) seg673 :=
   codeAt_layout code_eq layout_ok (i := 93) (by kernel_rfl) (by decide)
-theorem codeAt_685 : CodeAt image (pcOf 685) seg685 :=
+theorem codeAt_676 : CodeAt image (pcOf 676) seg676 :=
   codeAt_layout code_eq layout_ok (i := 94) (by kernel_rfl) (by decide)
-theorem codeAt_689 : CodeAt image (pcOf 689) seg689 :=
+theorem codeAt_685 : CodeAt image (pcOf 685) seg685 :=
   codeAt_layout code_eq layout_ok (i := 95) (by kernel_rfl) (by decide)
-theorem codeAt_701 : CodeAt image (pcOf 701) seg701 :=
+theorem codeAt_689 : CodeAt image (pcOf 689) seg689 :=
   codeAt_layout code_eq layout_ok (i := 96) (by kernel_rfl) (by decide)
-theorem codeAt_718 : CodeAt image (pcOf 718) seg718 :=
+theorem codeAt_701 : CodeAt image (pcOf 701) seg701 :=
   codeAt_layout code_eq layout_ok (i := 97) (by kernel_rfl) (by decide)
-theorem codeAt_934 : CodeAt image (pcOf 934) seg934 :=
+theorem codeAt_718 : CodeAt image (pcOf 718) seg718 :=
   codeAt_layout code_eq layout_ok (i := 98) (by kernel_rfl) (by decide)
-theorem codeAt_1130 : CodeAt image (pcOf 1130) seg1130 :=
+theorem codeAt_934 : CodeAt image (pcOf 934) seg934 :=
   codeAt_layout code_eq layout_ok (i := 99) (by kernel_rfl) (by decide)
-theorem codeAt_1326 : CodeAt image (pcOf 1326) seg1326 :=
+theorem codeAt_1130 : CodeAt image (pcOf 1130) seg1130 :=
   codeAt_layout code_eq layout_ok (i := 100) (by kernel_rfl) (by decide)
-theorem codeAt_1522 : CodeAt image (pcOf 1522) seg1522 :=
+theorem codeAt_1326 : CodeAt image (pcOf 1326) seg1326 :=
   codeAt_layout code_eq layout_ok (i := 101) (by kernel_rfl) (by decide)
-theorem codeAt_1714 : CodeAt image (pcOf 1714) seg1714 :=
+theorem codeAt_1522 : CodeAt image (pcOf 1522) seg1522 :=
   codeAt_layout code_eq layout_ok (i := 102) (by kernel_rfl) (by decide)
+theorem codeAt_1714 : CodeAt image (pcOf 1714) seg1714 :=
+  codeAt_layout code_eq layout_ok (i := 103) (by kernel_rfl) (by decide)
 
 theorem codeAt_2844 : CodeAt image (pcOf 2844) seg2844 :=
-  codeAt_layout code_eq layout_ok (i := 104) (by kernel_rfl) (by decide)
+  codeAt_layout code_eq layout_ok (i := 105) (by kernel_rfl) (by decide)
 
 theorem codeAt_2893 : CodeAt image (pcOf 2893) seg2893 :=
-  codeAt_layout code_eq layout_ok (i := 106) (by kernel_rfl) (by decide)
-theorem codeAt_2897 : CodeAt image (pcOf 2897) seg2897 :=
   codeAt_layout code_eq layout_ok (i := 107) (by kernel_rfl) (by decide)
-theorem codeAt_2898 : CodeAt image (pcOf 2898) seg2898 :=
+theorem codeAt_2897 : CodeAt image (pcOf 2897) seg2897 :=
   codeAt_layout code_eq layout_ok (i := 108) (by kernel_rfl) (by decide)
-theorem codeAt_2900 : CodeAt image (pcOf 2900) seg2900 :=
+theorem codeAt_2898 : CodeAt image (pcOf 2898) seg2898 :=
   codeAt_layout code_eq layout_ok (i := 109) (by kernel_rfl) (by decide)
+theorem codeAt_2900 : CodeAt image (pcOf 2900) seg2900 :=
+  codeAt_layout code_eq layout_ok (i := 110) (by kernel_rfl) (by decide)
 
 theorem codeAt_2971 : CodeAt image (pcOf 2971) seg2971 :=
-  codeAt_layout code_eq layout_ok (i := 111) (by kernel_rfl) (by decide)
-
-theorem codeAt_2980 : CodeAt image (pcOf 2980) seg2980 :=
   codeAt_layout code_eq layout_ok (i := 112) (by kernel_rfl) (by decide)
 
-theorem codeAt_2981 : CodeAt image (pcOf 2981) seg2981 :=
+theorem codeAt_2980 : CodeAt image (pcOf 2980) seg2980 :=
   codeAt_layout code_eq layout_ok (i := 113) (by kernel_rfl) (by decide)
 
-theorem codeAt_2986 : CodeAt image (pcOf 2986) seg2986 :=
+theorem codeAt_2981 : CodeAt image (pcOf 2981) seg2981 :=
   codeAt_layout code_eq layout_ok (i := 114) (by kernel_rfl) (by decide)
+
+theorem codeAt_2986 : CodeAt image (pcOf 2986) seg2986 :=
+  codeAt_layout code_eq layout_ok (i := 115) (by kernel_rfl) (by decide)
 
 theorem addrHead563 : CodeAt image (pcOf 2988) AddressAdapter.headCode := by unfold CodeAt; decide +kernel
 theorem addrTail563 : CodeAt image (pcOf 3007) AddressAdapter.tailCode := by unfold CodeAt; decide +kernel
@@ -513,5 +516,8 @@ theorem returnAddress672 (s : MachineState) (hpc : s.pc = pcOf 3033) :
 
 theorem codeAt_72 : CodeAt image (pcOf 72) seg72 := codeAt_70.tail.tail
 theorem codeAt_138 : CodeAt image (pcOf 138) seg138 := codeAt_137.tail
+
+theorem codeAt_375 : CodeAt image (pcOf 375) seg375 := by unfold CodeAt; decide +kernel
+theorem codeAt_1816 : CodeAt image (pcOf 1816) seg1816 := by unfold CodeAt; decide +kernel
 
 end SigGolfCandidate.Sign

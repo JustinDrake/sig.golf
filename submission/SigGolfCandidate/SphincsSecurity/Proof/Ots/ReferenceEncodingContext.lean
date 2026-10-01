@@ -20,7 +20,7 @@ theorem referenceEncodingContextRest_lazy {Result : Type} (observer : FrontierOb
     (key : SecretKey) (inputs : Finset HashInput) (hencoding : canonicalEncodingInputs key.parameter ⊆ inputs)
     (hgraph : canonicalGraphInputs key.parameter ⊆ inputs) (dummy : OtsReferenceWords) (adversary : Adversary) :
     referenceEncodingContextRest observer key inputs hencoding dummy adversary = (do
-      let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]
+      let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]
       let outside ← 𝒮[PMF.uniformOfFintype (NonencodingRows key.parameter inputs hencoding)]
       let result ← Prod.fst <$> referenceEncodingLazyRest observer key inputs hencoding outside selections dummy adversary
       pure (selections, outsideGraphMessage key inputs hencoding outside, result)) := by
@@ -41,7 +41,7 @@ theorem referenceEncodingContextRest_lazy {Result : Type} (observer : FrontierOb
   simp only [referenceFamilyOracleSample, ← PMF.monad_bind_eq_bind, ← PMF.monad_map_eq_map,
     evalSPMF_bind, evalSPMF_map, bind_assoc, bind_map_left, referenceFamilyOracleTable,
     referenceEncodingRest_join, canonicalGraphLabels_joinEncodingTable _ _ _ _ hencoding hgraph]
-  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit] >>= ·)
+  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit] >>= ·)
   funext selections
   apply congrArg (𝒮[PMF.uniformOfFintype (NonencodingRows key.parameter inputs hencoding)] >>= ·)
   funext outside
@@ -81,7 +81,7 @@ theorem referenceEncodingContextGame_lazy {Result : Type} (observer : FrontierOb
       let otsSecret ← 𝒮[sampleOtsSecrets]
       let ftsSecret ← 𝒮[sampleFtsSecrets]
       let key : SecretKey := ⟨parameter, 0, otsSecret, ftsSecret, fun _ _ => 0⟩
-      let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]
+      let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]
       let outside ← 𝒮[PMF.uniformOfFintype (NonencodingRows parameter inputs (hencoding parameter))]
       let result ← Prod.fst <$> referenceEncodingLazyRest observer key inputs (hencoding parameter) outside selections dummy adversary
       pure (parameter, selections, outsideGraphMessage key inputs (hencoding parameter) outside, result)) := by

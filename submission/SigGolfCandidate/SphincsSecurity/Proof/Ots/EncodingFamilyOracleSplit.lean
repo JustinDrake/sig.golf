@@ -13,10 +13,10 @@ namespace UniformTableSplit
 theorem uniform_bind_firstSuccessFamily {Index Cell Answer Value Result : Type}
     [Fintype Index] [DecidableEq Index] [Fintype Cell] [DecidableEq Cell]
     [Fintype Answer] [DecidableEq Answer] [Nonempty Answer] [Fintype Value] {n : Nat}
-    (embed : Index × Fin n → Cell) (hinj : Function.Injective embed) (decode : Answer → Option Value)
+    (embed : Index × Fin n → Cell) (hinj : Function.Injective embed) (decode : Index → Answer → Option Value)
     (next : (Index → Option (Fin n × Value)) → (Cell → Answer) → PMF Result) :
     (PMF.uniformOfFintype (Cell → Answer)).bind (fun table =>
-        next (fun index => FirstSuccessTable.select decode (fun counter => table (embed (index, counter)))) table) =
+        next (fun index => FirstSuccessTable.select (decode index) (fun counter => table (embed (index, counter)))) table) =
       (FirstSuccessFamily.selected decode n).bind (fun results =>
         (FirstSuccessFamily.afterSelect decode n results).bind (fun rows =>
           (PMF.uniformOfFintype (Outside embed → Answer)).bind

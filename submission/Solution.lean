@@ -5,21 +5,23 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with two-padding-bit conditional-half encoding
 
 Declared sizes: S = 6032 signature bytes, W = 16384 witness bytes, and K = 131072
-cache bytes. The claim C = 10560 is the certified accepting verifier bound 10496
-plus the 64-cycle witness charge. The PORS authentication cap is 117; all five
-WOTS digit-sum targets are 184.
+cache bytes. The claim C = 10536 is the certified accepting verifier bound 10472
+plus the 64-cycle witness charge. The PORS authentication cap is 117; the five
+WOTS digit-sum targets are [184, 184, 184, 185, 185].
 
 The encoding selects the upper 128 bits of a 256-bit oracle answer when either
 bit 63 or bit 127 of its lower half is set, otherwise selecting the lower half.
 Every padding-clear word has exactly seven quarter-digest spaces of preimages:
 2^128 + 3 * 2^126. Thus valid-word acceptance has the exact multiplier 7/4.
 Signer, expander, reference and verifier use this same fixed selection rule.
-The rounded signing envelope is 2^(115257/131072) * 1.0279 * 1.011^5 <= 2.
+The rounded signing envelope is 2^(115257/131072) * 1.0279 * 1.01019^3 * 1.01214^2 <= 2.
 
 The verifier selector uses six instructions on either branch. All 227 copies
 are checked for both selector branches and both rejection conditions. Compared
 with the original eight-instruction selector, ten instructions are removed
-across the five layers. Uniform target184 removes forty-five chain cycles.
+across the five layers. The mixed targets remove eighteen more chain cycles than uniform184.
+Layer4 uses its separate target register; only layer3 needs one extra checksum
+correction. The signer and expander select the same target from the layer index.
 
 The carried witness-chain base replaces four lower-layer LUI/ADDI pairs with
 SUB instructions. The existing obsolete x28 root initializer becomes x28=2688,
@@ -29,6 +31,15 @@ x28 across each leaf and Merkle fold.
 The predecessor conditional-half construction is public source
 47ecb4bca5558562f3576fd6bfe687e9f2a8ab2f by patternrecognition9-del. Base reuse
 follows Gopi's promoted 4528ff23136b01e342c77eedaf2f6d74ad961d15.
+The verifier additionally carries three promoted improvements from public source
+0ba3dc24993dd3491a0a6a064c7cd9fbb9aa6439. Startup derives 4095 by shifting the
+loader stack pointer, saving one instruction. A retained header value hWord+768
+removes one encoding-header ADDI per layer; the leaf uses -512 and the root
+mask setup uses -1537 to preserve the original hash headers and dispatch mask.
+A universal PORS argument tightens the accepting bound by one further cycle.
+Together these changes reduce the certified bound by seven cycles while
+preserving the mixed targets, two-padding-bit selector, and abstract scheme.
+
 The four-image certificate covers image admission, universal termination,
 per-seed completeness, compression budgets, 127-bit event security and verifier
 cycles under the pinned contract. No measured instruction or HASH profile is claimed.
@@ -48,7 +59,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10560 :=
+theorem certificate : SigGolf.Certificate submission 10536 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
