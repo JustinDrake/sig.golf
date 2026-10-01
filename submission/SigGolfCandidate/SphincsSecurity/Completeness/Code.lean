@@ -100,15 +100,15 @@ theorem weight_eq : (∑ d : Digit, base ^ d.val) = (base ^ 8 - 1) / (base - 1) 
 theorem codeCount_target :
     codeCount (targetFor lay) = (∑ d : Digit, base ^ d.val) ^ numChains / base ^ (targetFor lay) % base := by
   rw [weight_pow, sum_encoding_pow]
-  exact (digit_of_sum base (by decide) codeCount codeCount_lt_base 295 (targetFor lay) (by unfold targetFor; split_ifs <;> decide)).symm
+  exact (digit_of_sum base (by decide) codeCount codeCount_lt_base 295 (targetFor lay) (by unfold targetFor; split <;> decide)).symm
 
 /-- One digest in `codeShare` or more is a codeword. -/
 def codeShare : Nat := 2822
 
 theorem digests_le_codeShare_mul_codeCount : 2 ^ 128 ≤ codeShare * codeCount (targetFor lay) := by
   rw [codeCount_target, weight_eq]
-  unfold targetFor
-  split_ifs <;> decide
+  by_cases h : 4 ≤ lay.val <;> simp only [targetFor, targetSum, h, if_true, if_false, Nat.reduceAdd]
+  all_goals decide
 
 
 /-- A bounded-digit sum stays below the next power. -/

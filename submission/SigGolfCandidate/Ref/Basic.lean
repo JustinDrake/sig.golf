@@ -72,11 +72,11 @@ def slice (l : List Byte) (off len : Nat) : List Byte := (l.drop off).take len
 /-! ## Parameters (SPEC-pors.md) -/
 
 def nChains : Nat := 42
-/-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
+/-- The baseline WOTS target sum used by layers zero through three. -/
 def targetSum : Nat := 181
 
-/-- Layers three and four use targets one and two larger than the lower layers. -/
-def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 2 else if 3 ≤ lay then 1 else 0
+/-- Layer-dependent WOTS target: layer four (the bottom layer) uses 183. -/
+def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 2 else 0
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
 /-- The number of hypertree layers `d`. -/
@@ -122,10 +122,7 @@ abbrev topH : Nat := height 0
 def topN (l : Nat) : Nat := ((List.range l).map fun k => 2 ^ (topH - k)).sum
 
 /-- Bytes of the masked-node region (levels `0 .. topH - 1`): `16 * N_topH = 65504`. -/
-def regionBytes : Nat := 16 * (topN topH - topN 1)
-
-/-- Padding before the tag; positive-level node offsets retain their tree-build addresses. -/
-def cachePadBytes : Nat := 16 * topN 1
+def regionBytes : Nat := 16 * topN topH
 
 /-- The cache: tag (32) | region | zeros, `CACHE_BYTES = 2^17` in total. -/
 def cacheBytes : Nat := CACHE_BYTES
@@ -137,10 +134,10 @@ def cacheNodeOff (l j : Nat) : Nat := 32 + 16 * (topN l + j)
 def cacheNode (cache : List Byte) (l j : Nat) : Val := slice cache (cacheNodeOff l j) 16
 
 /-- The cache's MAC tag (bytes `0 .. 32`). -/
-def cacheTag (cache : List Byte) : List Byte := slice cache cachePadBytes 32
+def cacheTag (cache : List Byte) : List Byte := slice cache 0 32
 
 /-- The cache's masked-node region (bytes `32 .. 32 + regionBytes`). -/
-def cacheRegion (cache : List Byte) : List Byte := slice cache (cachePadBytes + 32) regionBytes
+def cacheRegion (cache : List Byte) : List Byte := slice cache 32 regionBytes
 
 /-- Bytewise XOR (the shorter length). -/
 def xorBytes (a b : List Byte) : List Byte := List.zipWith (· ^^^ ·) a b
@@ -388,7 +385,7 @@ def digitsOfWord (d : Nat) : List Nat := (List.range 21).map fun r => d / 8 ^ r 
 
 /-- TargetSum decoding of an encoding output `v` (first 16 bytes): `d0`, `d1` = the two LE 64-bit
 halves; reject if bit 63 of `d0` or of `d1` is set, else the 42 digits (21 of `d0`, then 21 of
-`d1`) if they sum to `targetSum`. -/
+`d1`) if they sum to the target of the selected layer. -/
 def decodeDigits (lay : Nat) (v : Val) : Option (List Nat) :=
   let d0 := leNat (slice v 0 8)
   let d1 := leNat (slice v 8 8)

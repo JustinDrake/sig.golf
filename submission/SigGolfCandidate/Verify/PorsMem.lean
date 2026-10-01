@@ -39,8 +39,8 @@ def tbN : Nat := 0x1000 + 4 * ptabN
 def tbL : Nat := 0x1000 + 4 * ptabL
 
 /-- Constant registers of the PORS phase: `x5 = 0`, witness bases, `P1..P5`, `K14 = 2^14`,
-`MASK = 2^14 - 1`, `a1 = 64`. -/
-def gkP : List (Reg × Word) := baseK ++ [(.x25, 0x4000), (.x26, 0x3FFF), (.x11, 64)]
+`MASK = 2^14 - 1`, `a1 = 64`, and the initial data pointer `x2 = 0xFFFFF0`. -/
+def gkP : List (Reg × Word) := baseK ++ [(.x2, 0xFFFFF0), (.x25, 0x4000), (.x26, 0x3FFF), (.x11, 64)]
 
 /-- Words never written in the PORS phase. -/
 def protP : List Nat :=

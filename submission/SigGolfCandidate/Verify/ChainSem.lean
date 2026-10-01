@@ -207,7 +207,7 @@ def CB0 (s : MachineState) : Prop := (s.getMem (BitVec.ofNat 64 0xC0)).toNat / 2
 /-- The registers and buffers common to the whole chain phase (`acc` = the chain ends so far). -/
 def ChBase (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
   Glob gkL c.wl c.pk s ∧ KnownOK chK0 s ∧ c.Regs s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N c.lay) ∧
-  s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay + 256) ∧ s.getReg .x1 = c.ret ∧ LBOk acc s ∧
+  s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay) ∧ s.getReg .x1 = c.ret ∧ LBOk acc s ∧
   acc.length = i ∧ (∀ v ∈ acc, v.length = 16) ∧ CB0 s
 
 /-- Before chain `i`: chain 0 initializes `x25`; later chains receive the previous tweak. -/
@@ -623,10 +623,10 @@ theorem twW0_bump (lay i : Nat) (hl : lay < 5) (hi : i < 42) :
 
 theorem s9E_eval (c : CCtx) (i : Nat) (s : MachineState) (hl : c.lay < 5) (hi : i < 42)
     (h25 : i ≠ 0 → s.getReg .x25 = BitVec.ofNat 64 (twW0 c.lay i) - K40)
-    (h27 : s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay + 256)) :
+    (h27 : s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay)) :
     (s9E i).eval s = BitVec.ofNat 64 (twW0 c.lay i) := by
   by_cases h : i = 0
-  · subst i; simp [s9E, addC_eval, E.eval, h27, twW0, BitVec.ofNat_add, BitVec.add_assoc]
+  · subst i; simp [s9E, E.eval, h27, twW0]
   · simp only [s9E, if_neg h, addC_eval, E.eval, h25 h]
     exact twW0_bump _ _ hl hi
 
