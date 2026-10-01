@@ -36,7 +36,7 @@ theorem layer_frame_reference (f : QueryImpl HashSpec Id) (key : SecretKey) (wor
     (messages : EncodingPosition → Digest) (selections : ReferenceFamily)
     (index : Index) (signature : Signature) (pads : ChainPads) (lay : Layer) (message target leafValue : Digest)
     (trace : Trace)
-    (hvalid : OtsCode.Valid lay (words lay (treeIndexAt index lay) (leafIndexAt index lay)))
+    (hvalid : OtsCode.Valid (words lay (treeIndexAt index lay) (leafIndexAt index lay)))
     (hmessages : messages ⟨lay, treeIndexAt index lay, leafIndexAt index lay⟩ = evalWithAnswerFn f (layerMessage key index lay))
     (hclean : ¬LayerException f key words messages selections trace)
     (hframe : LayerFrameP f (recordedCache f trace) key.parameter index signature pads lay message target leafValue)

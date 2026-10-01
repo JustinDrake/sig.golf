@@ -21,7 +21,7 @@ noncomputable def referenceAuxSeedLaw (segment : OtsPrefix) (inputs : Finset Has
     PMF (segment.ReferenceAuxSeed inputs hencoding hgraph) :=
   (PMF.uniformOfFintype (segment.Query → High)).bind (fun high =>
     (PMF.uniformOfFintype (segment.RemainingRows inputs hencoding hgraph)).bind (fun remaining =>
-      (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections).bind
+      (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections).bind
         (fun selectedRows => (PMF.uniformOfFintype (canonicalEncodingInputs segment.parameter → HashOutput)).map
           (fun encoding => ⟨high, remaining, selectedRows, encoding⟩))))
 
@@ -51,14 +51,14 @@ theorem referenceFamilyOracleSample_eq_prefixSeed (key : SecretKey) (inputs : Fi
     (hgraph : canonicalGraphInputs key.parameter ⊆ inputs)
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (chainIdx : ChainIndex) (digit : ReferenceFamily → Digit) :
     referenceFamilyOracleSample key inputs hencoding =
-      (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).bind (fun selections =>
+      (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).bind (fun selections =>
         let segment : OtsPrefix := ⟨key.parameter, lay, tree, leaf, chainIdx, digit selections⟩
         (PMF.uniformOfFintype (Fin segment.digit.val → Digest → Digest)).bind (fun tables =>
           (segment.referenceAuxSeedLaw inputs hencoding hgraph selections).map (fun auxiliary =>
             (selections, referenceFamilySeedTable key inputs hencoding
               (segment.referenceSeed inputs hencoding hgraph selections tables auxiliary))))) := by
   rw [referenceFamilyOracleSample_eq_seed, referenceFamilySeedLaw, PMF.map_bind]
-  apply congrArg (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).bind
+  apply congrArg (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).bind
   funext selections
   rw [OtsPrefix.referenceFamilySeedLawAt_eq_prefix
     ⟨key.parameter, lay, tree, leaf, chainIdx, digit selections⟩ inputs hencoding hgraph selections]

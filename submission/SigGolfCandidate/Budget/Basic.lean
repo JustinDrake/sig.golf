@@ -1,4 +1,9 @@
-import SigGolfCandidate.Ref
+import SigGolfCandidate.Ref.Basic
+import SigGolfCandidate.Ref.Scheme
+import SigGolfCandidate.Ref.Count
+import SigGolfCandidate.Ref.Lemmas
+
+import SigGolfCandidate.Ref.AddressQueries
 import VCVio.EvalDist.Expectation
 
 /-!
