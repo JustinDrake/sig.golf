@@ -518,7 +518,7 @@ theorem hq_ftsNode (index : Index) (tree : FtsTree) (heap : Nat) (l r : Digest) 
 
 theorem hq_encode (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M : Digest)
     (c : SphincsSecurity.Counter) : HQ (encode (m := AComp) P lay tree leaf M c) := by
-  refine hq_bind (hq_oracleHash _ ?_) fun _ => hq_pure _
+  refine hq_bind (hq_th _ _ _ ?_) fun _ => hq_pure _
   rw [tweakableHashInput_eq]
   exact honest_tw 4 lay.val tree.val 0 leaf.val P _ (by simp [tagLen, length_bytesLE])
     (fun h => absurd h (by decide)) (fun h => absurd h (by decide)) (fun h => absurd h (by decide))

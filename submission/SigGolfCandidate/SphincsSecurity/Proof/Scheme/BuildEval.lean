@@ -2,7 +2,7 @@ import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Ots.ExtractOts
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.HonestFts
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.Schedule
-import SigGolfCandidate.SphincsSecurity.Proof.LayerAssembly
+import SigGolfCandidate.SphincsSecurity.Proof.SignatureLayout
 /-!
 # The builders compute the specification
 

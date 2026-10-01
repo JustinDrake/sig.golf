@@ -13,8 +13,8 @@ theorem uniform_bind_referenceFamily {Result : Type} (key : SecretKey) (inputs :
     (PMF.uniformOfFintype (inputs → HashOutput)).bind
         (fun table => next (referenceTableSelection key (finiteHashAnswer ∅ inputs table)) table) =
       (PMF.uniformOfFintype (NonencodingRows key.parameter inputs hencoding)).bind (fun outside =>
-        (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).bind (fun results =>
-          (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit results).bind
+        (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).bind (fun results =>
+          (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit results).bind
             (fun rows => (PMF.uniformOfFintype (UniformTableSplit.Outside
               (referenceFamilyCell key.parameter (outsideGraphMessage key inputs hencoding outside)) → HashOutput)).bind
                 (fun remaining => next results (referenceFamilyOracleTable key inputs hencoding outside rows remaining))))) := by
@@ -30,14 +30,14 @@ theorem uniform_bind_referenceFamily {Result : Type} (key : SecretKey) (inputs :
   exact UniformTableSplit.uniform_bind_firstSuccessFamily
     (referenceFamilyCell key.parameter (outsideGraphMessage key inputs hencoding outside))
     (referenceFamilyCell_injective key.parameter (outsideGraphMessage key inputs hencoding outside))
-    decodeEncodingFamily
+    decodeEncodingOutput
     (fun results encoding => next results (joinEncodingTable key.parameter inputs hencoding encoding outside))
 
 noncomputable def referenceFamilyOracleSample (key : SecretKey) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs key.parameter ⊆ inputs) : PMF (ReferenceFamily × (inputs → HashOutput)) :=
-  (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).bind (fun results =>
+  (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).bind (fun results =>
     (PMF.uniformOfFintype (NonencodingRows key.parameter inputs hencoding)).bind (fun outside =>
-      (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit results).bind
+      (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit results).bind
         (fun rows => (PMF.uniformOfFintype (UniformTableSplit.Outside
           (referenceFamilyCell key.parameter (outsideGraphMessage key inputs hencoding outside)) → HashOutput)).map
             (fun remaining => (results, referenceFamilyOracleTable key inputs hencoding outside rows remaining)))))
