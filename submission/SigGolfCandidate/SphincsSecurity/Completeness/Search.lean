@@ -188,7 +188,7 @@ theorem encodingSearch_eq_searchLoop (parameter : PublicParameter) (lay : Layer)
         = searchLoop
             (fun c => tweakableHashInput parameter (.encoding lay tree leaf)
               (bytesLE 16 message ++ bytesLE 4 (BitVec.ofNat counterBits c)))
-            (fun out => TargetSum.decodeDigest lay (selectEncodingDigest out))
+            (fun out => TargetSum.decodeDigest (selectEncodingDigest out))
             (fun c encoding => pure (BitVec.ofNat counterBits c, encoding))
             n t := by
   intro n
@@ -199,6 +199,6 @@ theorem encodingSearch_eq_searchLoop (parameter : PublicParameter) (lay : Layer)
       rw [encodingSearch, searchLoop]
       simp only [encode, oracleHash, bind_assoc, pure_bind, ih]
       refine bind_congr fun answer => ?_
-      cases TargetSum.decodeDigest lay (selectEncodingDigest answer) <;> rfl
+      cases TargetSum.decodeDigest (selectEncodingDigest answer) <;> rfl
 
 end SphincsSecurity.Completeness

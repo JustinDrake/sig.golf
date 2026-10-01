@@ -33,10 +33,8 @@ theorem match_allowed_cases (parameter : PublicParameter) (messages : EncodingPo
     | none =>
         right
         intro answer ha hm
-        have hi := (FirstSuccessTable.mem_invalid (decodeEncodingOutput row.1.lay) answer).mp ha
-        obtain ⟨position, hat, _, hd⟩ := hm
-        have hp : AtEncodingPosition parameter (referenceFamilyCell parameter messages row).val row.1 := ⟨_, rfl⟩
-        obtain rfl := atEncodingPosition_unique hat hp
+        have hi := (FirstSuccessTable.mem_invalid decodeEncodingOutput answer).mp ha
+        obtain ⟨_, _, _, hd⟩ := hm
         rw [hi] at hd
         contradiction
     | some selected =>
@@ -46,10 +44,8 @@ theorem match_allowed_cases (parameter : PublicParameter) (messages : EncodingPo
         split_ifs with hlt heq
         · right
           intro answer ha hm
-          have hi := (FirstSuccessTable.mem_invalid (decodeEncodingOutput row.1.lay) answer).mp ha
-          obtain ⟨position, hat, _, hd⟩ := hm
-          have hp : AtEncodingPosition parameter (referenceFamilyCell parameter messages row).val row.1 := ⟨_, rfl⟩
-          obtain rfl := atEncodingPosition_unique hat hp
+          have hi := (FirstSuccessTable.mem_invalid decodeEncodingOutput answer).mp ha
+          obtain ⟨_, _, _, hd⟩ := hm
           rw [hi] at hd
           contradiction
         · right

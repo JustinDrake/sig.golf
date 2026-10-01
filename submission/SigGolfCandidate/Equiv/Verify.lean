@@ -23,7 +23,6 @@ set_option linter.unusedSimpArgs false
 set_option allowUnsafeReducibility true in
 attribute [local reducible] SphincsSecurity.hashOutputBits SphincsSecurity.digestBits
   SphincsSecurity.messageBits SphincsSecurity.publicParameterBits SphincsSecurity.counterBits
-  SphincsSecurity.numLayers
 
 /-! ## Folding a path -/
 
@@ -299,8 +298,8 @@ theorem verifyLayersP_eq (wl : List Byte) (hl : wl.length = 16384) (index : Inde
     rw [hash16_enc lay, witCounter_eq wl lay]
     simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_
-    rw [decodeDigits_dv lay (SphincsSecurity.selectEncodingDigest d)]
-    cases hd : SphincsSecurity.TargetSum.decodeDigest lay (SphincsSecurity.selectEncodingDigest d) with
+    rw [decodeDigits_dv]
+    cases hd : SphincsSecurity.TargetSum.decodeDigest (SphincsSecurity.selectEncodingDigest d) with
     | none => simp
     | some enc =>
       simp only [Option.map_some]
