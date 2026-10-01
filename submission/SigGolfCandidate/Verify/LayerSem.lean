@@ -321,8 +321,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
         · exact hK' (.x27, BitVec.ofNat 64 (hWord L.lay)) (by simp [chKa])
         · exact hK' (.x1, pcOf (retPc L.lay t)) (by simp [chKa])
         · unfold CB0; rw [hmem]; exact hCB
-        · rw [hK' (.x25, BitVec.ofNat 64 (hWord L.lay) - K40) (by simp [chKa])]
-          simp [LCtx.cctx, twW0]
+        · intro h; exact (h rfl).elim
         · exact Fresh_frame hF (fun A _ _ => hmem _)
         · rw [hu.spc _ rfl, tgt0_eval (L.cctx t a) s hD0]
           simp [startPc]

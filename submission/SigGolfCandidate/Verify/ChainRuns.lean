@@ -11,11 +11,13 @@ then `C` (head and rungs `d + 1 .. 7`, or the digit-7 copy), then the extraction
 `t + 1` and its `jalr`, or for `t = 13` the return `jalr zero, ra`.
 
 The code is layer independent: it addresses the blocks relative to `s6 = x22` (the layer base
-`blk(lay, 0) + 1344`), bumps the running tweak word 0 in `s9 = x25` by `t3 = 2^40`, and stores
+`blk(lay, 0) + 1344`), initializes the first tweak from `x27`, then bumps the running tweak
+word 0 in `s9 = x25` by `t3 = 2^40`, and stores
 tweak word 1 from `t6 = x31`. Its runs are therefore checked once, with `x22`, `x25`, `x31`,
 `a0 = x10`, `a2 = x12` symbolic; the memory writes and obligations have the base `x22` or `x10`.
 
 * head: `addi a0, s6, off; addi a2, a0, 48; add s9, s9, t3; sd s9, 0(a0); sd t6, 8(a0)`;
+  chain 0 uses `mv s9, s11` instead of the add, including on the digit-7 copy path;
 * rung `mu`: `sb MU_{mu-1}, 4(a0); [li a2, slot_i (mu = 7)]; ecall`;
 * digit 7: `ld gp, off+48(s6); ld a4, off+56(s6); sd gp, slot_i; sd a4, slot_i+8; add s9, s9, t3`.
 -/
@@ -42,7 +44,7 @@ def ldK (i k : Nat) : E := .ld (bk i k).toE
 def posE (d : Nat) : E := .c (BitVec.ofNat 64 d)
 
 /-- The running tweak word 0 after the bump. -/
-def s9E : E := addC (.reg .x25) K40
+def s9E (i : Nat) : E := if i = 0 then .reg .x27 else addC (.reg .x25) K40
 
 /-! ## Code tables -/
 
@@ -72,10 +74,10 @@ def rungExp (i mu p : Nat) : PRes :=
 the rung's `ecall`; `j` = the table entry's jump in between (chain `A`). -/
 def headExp (i d p : Nat) (j : Bool) : PRes :=
   let a0 : E := addC (.reg .x22) (offW i)
-  let rf := ((RegFile.withKnown chK0).set .x10 a0).set .x25 s9E
+  let rf := ((RegFile.withKnown chK0).set .x10 a0).set .x25 (s9E i)
   let n := 5 + (if j then 1 else 0) + (if d = 6 then 2 else 1)
   ⟨⟨rf.set .x12 (if d = 6 then cw (slotA i) else addC a0 48),
-    [(bk i 0, .bin (.st .b 4) s9E (posE d)), (bk i 8, .reg .x31)],
+    [(bk i 0, .bin (.st .b 4) (s9E i) (posE d)), (bk i 8, .reg .x31)],
     [.align8 (.reg .x22), .valid (bk i 4) 1, .valid (bk i 8) 8, .valid (bk i 0) 8]⟩,
     pcOf (rungEnd p (d + 1)), true, n, n, [], none⟩
 
@@ -83,7 +85,7 @@ def headExp (i d p : Nat) (j : Bool) : PRes :=
 `j` = the table entry's jump. -/
 def copyExp (i q : Nat) (j : Bool) : PRes :=
   let n := 5 + (if j then 1 else 0)
-  ⟨⟨(((RegFile.withKnown chK0).set .x3 (ldK i 48)).set .x14 (ldK i 56)).set .x25 s9E,
+  ⟨⟨(((RegFile.withKnown chK0).set .x3 (ldK i 48)).set .x14 (ldK i 56)).set .x25 (s9E i),
     [(⟨none, BitVec.ofNat 64 (slotA i + 8)⟩, ldK i 56), (⟨none, BitVec.ofNat 64 (slotA i)⟩, ldK i 48)],
     [.valid (bk i 56) 8, .valid (bk i 48) 8]⟩,
     pcOf q, false, n, n, [], none⟩
@@ -100,10 +102,13 @@ def triX (t : Nat) : E :=
 def triTgt (t : Nat) : E :=
   mkBin .and (mkAdd (triX t) (.c (BitVec.ofNat 64 (32 * t) - BitVec.ofNat 64 2048))) (.c (~~~1#64))
 
+/-- Dispatch omits the register copy when the digit shift is zero. -/
+def xSteps (t : Nat) : Nat := if t % 7 = 0 then 3 else 4
+
 /-- After chain `C` of triple `t`: the extraction and dispatch of triple `t + 1`, or the return. -/
 def xExp (t : Nat) : PRes :=
   if t + 1 < 14 then
-    ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, 4, 4, [], some (triTgt (t + 1))⟩
+    ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, xSteps t, xSteps t, [], some (triTgt (t + 1))⟩
   else
     ⟨⟨RegFile.withKnown chK0, [], []⟩, 0, false, 1, 1, [], some (mkBin .and (.reg .x1) (.c (~~~1#64)))⟩
 

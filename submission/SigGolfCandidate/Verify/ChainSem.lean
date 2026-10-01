@@ -210,9 +210,9 @@ def ChBase (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
   s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay) ∧ s.getReg .x1 = c.ret ∧ LBOk acc s ∧
   acc.length = i ∧ (∀ v ∈ acc, v.length = 16) ∧ CB0 s
 
-/-- Before chain `i`'s code (`x25` = the previous chain's tweak word 0). -/
+/-- Before chain `i`: chain 0 initializes `x25`; later chains receive the previous tweak. -/
 def ChainIn (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
-  ChBase c i acc s ∧ s.getReg .x25 = BitVec.ofNat 64 (twW0 c.lay i) - K40 ∧ Fresh c.wl c.lay i s ∧
+  ChBase c i acc s ∧ (i ≠ 0 → s.getReg .x25 = BitVec.ofNat 64 (twW0 c.lay i) - K40) ∧ Fresh c.wl c.lay i s ∧
   s.pc = pcOf (startPc c i)
 
 /-- Chain `i`'s tweak slot: word 0 with the layer and the chain (byte 4, the step, free), word 1. -/
@@ -621,6 +621,15 @@ theorem twW0_bump (lay i : Nat) (hl : lay < 5) (hi : i < 42) :
     BitVec.ofNat 64 (twW0 lay i) - K40 + K40 = BitVec.ofNat 64 (twW0 lay i) := by
   rw [BitVec.sub_add_cancel]
 
+theorem s9E_eval (c : CCtx) (i : Nat) (s : MachineState) (hl : c.lay < 5) (hi : i < 42)
+    (h25 : i ≠ 0 → s.getReg .x25 = BitVec.ofNat 64 (twW0 c.lay i) - K40)
+    (h27 : s.getReg .x27 = BitVec.ofNat 64 (hWord c.lay)) :
+    (s9E i).eval s = BitVec.ofNat 64 (twW0 c.lay i) := by
+  by_cases h : i = 0
+  · subst i; simp [s9E, E.eval, h27, twW0]
+  · simp only [s9E, if_neg h, addC_eval, E.eval, h25 h]
+    exact twW0_bump _ _ hl hi
+
 theorem K40_eq : K40 = BitVec.ofNat 64 (2 ^ 40) := rfl
 
 theorem twW0_succ (lay i : Nat) (hl : lay < 5) (hi : i < 42) :
@@ -679,15 +688,15 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i <
   have t25 : t.getReg .x25 = BitVec.ofNat 64 (twW0 c.lay i) := by
     rw [ht, PRes.toState_getReg]; simp only [hr, headExp]
     rw [RegFile.get_set_ne _ _ (by decide), RegFile.get_set_self _ _ (by decide)]
-    simp only [s9E, addC_eval, E.eval, h25]; exact twW0_bump _ _ hlay hi
+    exact s9E_eval c i s hlay hi h25 h27
   have tmem : ∀ A, t.getMem A = if A = BitVec.ofNat 64 B then
       StoreKind.merge .b (BitVec.ofNat 64 (twW0 c.lay i)) 4 (BitVec.ofNat 64 d)
       else if A = BitVec.ofNat 64 (B + 8) then c.x31 else s.getMem A := by
     intro A
     rw [ht, PRes.toState_getMem]
-    show memEval s [(bk i 0, .bin (.st .b 4) s9E (posE d)), (bk i 8, .reg .x31)] A = _
+    show memEval s [(bk i 0, .bin (.st .b 4) (s9E i) (posE d)), (bk i 8, .reg .x31)] A = _
     rw [memEval_cons, memEval_cons, bke 0 (by omega), bke 8 (by omega)]
-    simp only [E.eval, BinOp.eval, posE, Nat.add_zero, s9E, addC_eval, h25, twW0_bump _ _ hlay hi, hR.2.2.2.2]
+    simp only [E.eval, BinOp.eval, posE, Nat.add_zero, s9E_eval c i s hlay hi h25 h27, hR.2.2.2.2]
     rfl
   have tfr : ∀ A, A < 2 ^ 64 → A ≠ B → A ≠ B + 8 → t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA h1 h2
@@ -814,7 +823,7 @@ theorem copy_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i =
     · rw [List.mem_singleton.mp h]; exact length_witChain c hc i hi
   · rw [ht, PRes.toState_getReg]; simp only [hr, copyExp]
     rw [RegFile.get_set_self _ _ (by decide)]
-    simp only [s9E, addC_eval, E.eval, h25]; exact twW0_bump _ _ hlay hi
+    exact s9E_eval c i s hlay hi h25 h27
   · intro a' b' k hw
     rw [tfr _ (by rw [blkN_eq]; obtain ⟨ha5, hb42, hk8, -⟩ := hw; omega)
       (by unfold slotA; rw [blkN_eq]; omega) (by unfold slotA; rw [blkN_eq]; omega)]
@@ -961,7 +970,7 @@ theorem triTgt_eval (c : CCtx) (hc : c.ok) (t : Nat) (ht : t < 14) (s : MachineS
 theorem x_step (c : CCtx) (hc : c.ok) (t : Nat) (ht : t < 14) (acc : List Val)
     (hrun : runAt chK0 [] (tX c (3 * t + 2)) [.jmp] = some (xExp t))
     (hret : c.ret &&& ~~~1#64 = c.ret) (s : MachineState) (hs : EndInv c (3 * t + 2) acc s) :
-    (t + 1 < 14 → ∃ u, Steps image s 4 4 u ∧ ChainIn c (3 * t + 3) acc u) ∧
+    (t + 1 < 14 → ∃ u, Steps image s (xSteps t) (xSteps t) u ∧ ChainIn c (3 * t + 3) acc u) ∧
       (t = 13 → ∃ u, Steps image s 1 1 u ∧ ChBase c 42 acc u ∧ Fresh c.wl c.lay 42 u ∧ u.pc = c.ret) := by
   obtain ⟨hB, h25, hF, hpc⟩ := hs
   have hpc' : s.pc = pcOf (tX c (3 * t + 2)) := by
@@ -969,10 +978,10 @@ theorem x_step (c : CCtx) (hc : c.ok) (t : Nat) (ht : t < 14) (acc : List Val)
   obtain ⟨hst, -⟩ := crun hrun s hpc' hB.2.1 (by simp [xExp]; split <;> simp) (by simp [xExp]; split <;> simp)
   have hRs := hB.2.2.1
   refine ⟨fun h1 => ?_, fun h13 => ?_⟩
-  · have hx : xExp t = ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, 4, 4, [],
+  · have hx : xExp t = ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, xSteps t, xSteps t, [],
         some (triTgt (t + 1))⟩ := by simp [xExp, h1]
     rw [hx] at hst
-    set u := PRes.toState ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, 4, 4, [],
+    set u := PRes.toState ⟨⟨(RegFile.withKnown chK0).set .x14 (triX (t + 1)), [], []⟩, 0, false, xSteps t, xSteps t, [],
         some (triTgt (t + 1))⟩ s with hu
     have ureg : ∀ x, x ≠ .x14 → u.getReg x = s.getReg x := by
       intro x hx; rw [hu, PRes.toState_getReg, RegFile.get_set_ne _ _ hx, known_eval hB.2.1]
@@ -988,7 +997,7 @@ theorem x_step (c : CCtx) (hc : c.ok) (t : Nat) (ht : t < 14) (acc : List Val)
     · obtain ⟨r1, r2, r3, r4, r5⟩ := hR
       exact ⟨(ureg _ (by decide)).trans r1, (ureg _ (by decide)).trans r2, (ureg _ (by decide)).trans r3,
         (ureg _ (by decide)).trans r4, (ureg _ (by decide)).trans r5⟩
-    · rw [ureg _ (by decide), h25, show 3 * t + 3 = (3 * t + 2) + 1 by omega, twW0_succ _ _ hc.1 (by omega)]
+    · intro _; rw [ureg _ (by decide), h25, show 3 * t + 3 = (3 * t + 2) + 1 by omega, twW0_succ _ _ hc.1 (by omega)]
     · rw [hu, PRes.toState_pc_some _ _ _ rfl, triTgt_eval c hc (t + 1) h1 s hRs]
       unfold startPc; rw [if_pos (by omega), show (3 * t + 3) / 3 = t + 1 by omega]
   · subst h13

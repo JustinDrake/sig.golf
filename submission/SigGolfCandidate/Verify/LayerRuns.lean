@@ -9,8 +9,8 @@ layer `lay + 1`) runs its own copy of the transition (`trPc lay c`):
 * route and encoding (`stepsA` steps up to the encoding `ecall`; the counter is read from the
   witness, `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `2392`);
 * the encoding check (`or; blt` for the top bits, the SWAR digit sum, `remu` by `x18 = 4095`,
-  `bne KT`), then the chain prologue `li s6, base; sub s9, s11, t3`, the extraction of triple 0
-  and `jalr ra` into the layer-shared chain code (25 steps, 28 cycles);
+  `bne KT`), then the chain prologue `li s6, base`, the extraction of triple 0
+  and `jalr ra` into the layer-shared chain code (24 steps, 27 cycles);
 * at the return pc `retPc lay c`: the leaf tweak and the dispatch into the fold's shape block. -/
 
 namespace SigGolfCandidate.Verify
@@ -91,7 +91,7 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E : E := .bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 : E := .bin .and (.bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB : Nat := 25
+def stepsB : Nat := 24
 /-- One REMU costs four cycles rather than one. -/
 def cyclesB : Nat := stepsB + 3
 
@@ -99,9 +99,9 @@ def specBok (lay : Nat) : Spec :=
   ⟨[(.x14, x14E), (.x16, d0E), (.x17, d1E)], [], 0, false, stepsB,
    [⟨.ne, swS, .c (KTof lay), false⟩, ⟨.lt, orE, .c 0, false⟩], some tgt0, cyclesB⟩
 
-/-- Known registers on entry of the chain code (`li s6; sub s9, s11, t3; jalr ra`). -/
+/-- Known registers on entry of the chain code; chain 0 initializes `x25` from `x27`. -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
-  chK0 ++ [(.x22, BitVec.ofNat 64 (s6N lay)), (.x25, BitVec.ofNat 64 (hWord lay) - K40),
+  chK0 ++ [(.x22, BitVec.ofNat 64 (s6N lay)),
     (.x27, BitVec.ofNat 64 (hWord lay)), (.x1, pcOf (retPc lay c))]
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
