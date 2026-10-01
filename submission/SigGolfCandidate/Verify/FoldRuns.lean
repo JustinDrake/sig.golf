@@ -29,7 +29,7 @@ def fk (kind : Bool) (a0 a1 : Nat) : List (Reg × Word) :=
 
 def fkeep (kind : Bool) : List Reg :=
   if kind then [.x16, .x17, .x22, .x23, .x25, .x27, .x28, .x29, .x30, .x31]
-  else [.x14, .x16, .x17, .x22, .x23, .x25, .x27, .x30, .x31]
+  else [.x14, .x16, .x17, .x23, .x25, .x27, .x30, .x31]
 
 def okFold (kind : Bool) (o : Option PRes) (e : PRes) (post : List (Reg × Word)) : Bool :=
   optBeq o e && resOK (gkOf kind) e && knownB post e && keepB (fkeep kind) e
@@ -157,5 +157,12 @@ def blockCheck (lay ci v : Nat) : Bool :=
 
 /-- Blocks `a .. a + n - 1` of chunk `ci` of layer `lay`. -/
 def foldCheck (lay ci a n : Nat) : Bool := (List.range' a n).all (blockCheck lay ci)
+
+end SigGolfCandidate.Verify
+
+namespace SigGolfCandidate.Verify
+
+/-- The shape blocks of chunk `ci` of layer `lay` (all `2 ^ bits` blocks). -/
+def layFoldOk (lay ci : Nat) : Bool := foldCheck lay ci 0 (2 ^ chBits lay ci)
 
 end SigGolfCandidate.Verify

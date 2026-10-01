@@ -144,7 +144,7 @@ theorem lazyImpl_rowsCovered (input : (World inputs).Domain) (state : State inpu
 omit actions in
 theorem prefix_encoding_actions (hencoding : canonicalEncodingInputs parameter ⊆ inputs)
     (publicReplies : CanonicalGraphLabels) (selections : ReferenceFamily) (rows : CanonicalEncodingRows)
-    (hselect : ∀ position, FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter => rows (position, counter)) = selections position)
+    (hselect : ∀ position, FirstSuccessTable.select decodeEncodingOutput (fun counter => rows (position, counter)) = selections position)
     (input : inputs) (position : EncodingPosition) (hat : AtEncodingPosition parameter input.val position) :
     (∃ answer, freshPrefix parameter inputs hencoding words disclosed known publicReplies selections rows input = .known answer ∧
       ¬PublicEncodingMatch.Match parameter (knownEncodingMessage known) words selections input.val answer) ∨
@@ -170,13 +170,13 @@ theorem prefix_encoding_actions (hencoding : canonicalEncodingInputs parameter �
 omit actions in
 theorem prob_prefixHashQuery_encodingMatch_le (hencoding : canonicalEncodingInputs parameter ⊆ inputs)
     (publicReplies : CanonicalGraphLabels) (selections : ReferenceFamily) (rows : CanonicalEncodingRows)
-    (hselect : ∀ position, FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter => rows (position, counter)) = selections position)
+    (hselect : ∀ position, FirstSuccessTable.select decodeEncodingOutput (fun counter => rows (position, counter)) = selections position)
     (input : inputs) (state : State inputs) (hcovered : RowsCovered inputs state)
     (hclean : ReplyClean (PublicEncodingMatch.Match parameter (knownEncodingMessage known) words selections) state.memory.cache) :
     Pr[ReturnedMatch (PublicEncodingMatch.Match parameter (knownEncodingMessage known) words selections) input.val |
       AdaptiveResidualLabels.lazyRun
         (prefixEnvironment parameter inputs hencoding words disclosed known publicReplies selections rows) (hashQuery input) state] ≤
-      ((7 / 4 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
+      (Fintype.card Digest : ENNReal)⁻¹ := by
   by_cases hexists : ∃ position, AtEncodingPosition parameter input.val position
   · obtain ⟨position, hat⟩ := hexists
     rw [hashQuery, lazyRun_prepare_bind]

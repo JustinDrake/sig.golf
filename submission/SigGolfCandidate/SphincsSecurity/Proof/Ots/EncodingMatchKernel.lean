@@ -33,10 +33,8 @@ theorem match_allowed_cases (parameter : PublicParameter) (messages : EncodingPo
     | none =>
         right
         intro answer ha hm
-        have hi := (FirstSuccessTable.mem_invalid (decodeEncodingOutput row.1.lay) answer).mp ha
-        obtain ⟨position, hat, _, hd⟩ := hm
-        have hp : AtEncodingPosition parameter (referenceFamilyCell parameter messages row).val row.1 := ⟨_, rfl⟩
-        obtain rfl := atEncodingPosition_unique hat hp
+        have hi := (FirstSuccessTable.mem_invalid decodeEncodingOutput answer).mp ha
+        obtain ⟨_, _, _, hd⟩ := hm
         rw [hi] at hd
         contradiction
     | some selected =>
@@ -46,10 +44,8 @@ theorem match_allowed_cases (parameter : PublicParameter) (messages : EncodingPo
         split_ifs with hlt heq
         · right
           intro answer ha hm
-          have hi := (FirstSuccessTable.mem_invalid (decodeEncodingOutput row.1.lay) answer).mp ha
-          obtain ⟨position, hat, _, hd⟩ := hm
-          have hp : AtEncodingPosition parameter (referenceFamilyCell parameter messages row).val row.1 := ⟨_, rfl⟩
-          obtain rfl := atEncodingPosition_unique hat hp
+          have hi := (FirstSuccessTable.mem_invalid decodeEncodingOutput answer).mp ha
+          obtain ⟨_, _, _, hd⟩ := hm
           rw [hi] at hd
           contradiction
         · right
@@ -66,7 +62,7 @@ theorem match_allowed_le (parameter : PublicParameter) (messages : EncodingPosit
     (words : OtsReferenceWords) (selections : ReferenceFamily) (cell : canonicalEncodingInputs parameter) :
     Pr[Match parameter messages words selections cell.val |
       PMF.uniformOfFinset (referenceEncodingAllowed parameter messages selections cell)
-        (referenceEncodingAllowed_nonempty parameter messages selections cell)] ≤ ((7 / 4 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
+        (referenceEncodingAllowed_nonempty parameter messages selections cell)] ≤ (Fintype.card Digest : ENNReal)⁻¹ := by
   rcases match_allowed_cases parameter messages words selections cell with hfull | hnone
   · simpa only [probEvent_eq_tsum_ite, PMF.probOutput_eq_apply, PMF.uniformOfFinset_apply,
       hfull, Finset.mem_univ, if_true, Finset.card_univ, SPMF.probOutput_liftM, PMF.uniformOfFintype_apply] using

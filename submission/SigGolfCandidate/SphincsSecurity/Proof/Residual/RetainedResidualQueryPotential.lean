@@ -30,7 +30,7 @@ theorem prob_checkedHashQuery_message_stop (routing : Routing) (input : inputs) 
   simp only [Function.comp_def, reduceCtorEq, probEvent_False]
 
 theorem checkedHashQuery_joint_payment (routing : Routing) (input : inputs) (state : State inputs) (q : Nat)
-    (hselect : ∀ position, FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter => rows (position, counter)) = selections position)
+    (hselect : ∀ position, FirstSuccessTable.select decodeEncodingOutput (fun counter => rows (position, counter)) = selections position)
     (ha : ∀ coordinate, (state.candidates coordinate).Nonempty)
     (hcovered : ResidualByteFrontend.RowsCovered inputs (project state))
     (hcandidates : HiddenCandidateBound words routing.disclosed (project state))

@@ -11,9 +11,9 @@ namespace SphincsSecurity.Concrete
 
 open ENNReal
 
-irreducible_def budgetSplit : Nat := 2 ^ 113
+irreducible_def budgetSplit : Nat := 3 * 2 ^ 114
 
-noncomputable irreducible_def primitiveCoefficient : ENNReal := 31 / 16
+noncomputable irreducible_def primitiveCoefficient : ENNReal := 7 / 4
 
 theorem budgetSplit_le : budgetSplit ≤ 2 ^ 127 := by
   rw [budgetSplit_def]

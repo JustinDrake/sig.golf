@@ -193,7 +193,7 @@ theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16384) (s : MachineSta
       rw [wbw_regs 20000 _ _ _ (by omega), wbw_regs 20000 _ _ _ (by omega), wbw_regs 20000 _ _ _ (by omega), dataRegs]
     simp only [k0, List.mem_cons, List.not_mem_nil, or_false] at hp
     rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
-      rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+      rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
       simp [MachineState.setReg, MachineState.getReg, hr, blank]
   · simp [MachineState.setReg, blank, withData, s3, s2, s1, Images.verifyData, MachineState.writeBytesAsWords]; rfl
   · intro j hj
