@@ -7,7 +7,7 @@ For the machine's sorted key array `A` (a strictly increasing permutation of the
 `keyOf N r = v_r · 256 + 8 r`):
 
 * `vsOf_eq` : the leaf values `A s / 256` are `sortLeaves (leavesOf N)`;
-* `passOK_iff` : the pass test is `ref.admissible`'s (distinct leaves, octopus `≤ 118`);
+* `passOK_iff` : the pass test is `ref.admissible`'s (distinct leaves, octopus `≤ 117`);
 * `leaves_vsOf` : then the sorted leaves are strictly increasing below `2^14` (`Leaves`);
 * `idxOf_lv` : the pi byte `A s mod 256 = 8 r` is `8 · (index of v_s in the digest)`.
 -/
