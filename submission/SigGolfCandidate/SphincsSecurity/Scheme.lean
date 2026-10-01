@@ -5,7 +5,7 @@ import VCVio.OracleComp.QueryTracking.RandomOracle.Simulation
 /-!
 # SPHINCS+ scheme
 
-Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sums `[184,185,185,185,185]`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
+Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sum `181`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
 
 The few-time signature is PORS+FP (`work/design/SPEC-pors.md`, reference `work/py-pors/ref.py`): one Merkle
 tree of height `14` per instance `idx`, the full 256-bit digest split into `idx` (34 bits) and `k = 15`
@@ -31,7 +31,7 @@ def counterBits : Nat := 32
 def winternitzBits : Nat := 3
 def chainLength : Nat := 2 ^ winternitzBits
 def numChains : Nat := 42
-def targetSum : Nat := 185
+def targetSum : Nat := 181
 def numLayers : Nat := 5
 def totalHeight : Nat := 34
 /-- The tallest layer, the top one, `h_0 = 11`, which bounds every layer's leaf index. -/
@@ -63,9 +63,6 @@ abbrev PublicParameter := BitVec publicParameterBits
 abbrev Randomness := Digest
 abbrev Counter := BitVec counterBits
 abbrev Layer := Fin numLayers
-
-/-- The target sum at a particular one-time-signature layer. -/
-def targetFor (_lay : Layer) : Nat := targetSum
 /-- `idx`, which few-time key signs. -/
 abbrev Index := Fin (2 ^ totalHeight)
 /-- `tau`, a tree of any layer. Layer `lay` only uses the values below `2^(sum_{j < lay} h_j)`. -/
@@ -131,15 +128,6 @@ def heightBelow (lay : Layer) : Nat := totalHeight - heightAbove lay - layerHeig
 def truncateHash (output : HashOutput) : Digest :=
   output.extractLsb' 0 digestBits
 
-/-- Encoding-only gated selection among three overlapping windows; all other hash domains keep their usual truncation. -/
-def selectEncodingAnswer (a : HashOutput) : HashOutput :=
-  if a.getLsbD 127 then
-    if 125 ≤ (a.extractLsb' 55 9).toNat then a >>> 128 else a
-  else if a.getLsbD 63 then a >>> 64 else a
-
-def selectEncodingDigest (a : HashOutput) : Digest :=
-  truncateHash (selectEncodingAnswer a)
-
 /-- The message digest is the full 256-bit answer: the index (`h = 34` bits), the `k = 15` leaf indices of
 `14` bits each, and `12` unused bits. -/
 def messageDigestBits : Nat := hashOutputBits
@@ -174,18 +162,13 @@ structure Segment where
   parity : Bool
   nodes : Fin folds.val → Digest
   parity_normal : folds.val = 0 → parity = false
-  lookahead : Fin 4
-  lookahead_normal : folds.val = 0 → lookahead = 0
 deriving DecidableEq
 
 /-- A segment with `parity` normalised: kept when there is a fold, `false` otherwise. -/
-def Segment.normalized (folds : Fin 16) (merge parity : Bool) (nodes : Fin folds.val → Digest)
-    (lookahead : Fin 4 := 0) : Segment :=
-  ⟨folds, merge, parity && decide (folds.val ≠ 0), nodes, (fun h => by simp [h]),
-    (if folds.val = 0 then 0 else lookahead), fun h => by simp [h]⟩
+def Segment.normalized (folds : Fin 16) (merge parity : Bool) (nodes : Fin folds.val → Digest) : Segment :=
+  ⟨folds, merge, parity && decide (folds.val ≠ 0), nodes, fun h => by simp [h]⟩
 
-instance : Inhabited Segment := ⟨⟨0, false, false, fun index => index.elim0,
-  (fun _ => rfl), 0, fun _ => rfl⟩⟩
+instance : Inhabited Segment := ⟨⟨0, false, false, fun index => index.elim0, fun _ => rfl⟩⟩
 
 /-- The node `i` of a segment, or zero past its folds. -/
 def Segment.node (segment : Segment) (i : Nat) : Digest :=
@@ -330,7 +313,7 @@ def macHashInput (parameter : PublicParameter) (seed : MasterSeed) (region : Top
 
 /-! ### The target-sum code
 
-`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and the code is the words of digit sum `T = 184`. Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
+`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and the code is the words of digit sum `T = 181`. Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
 
 namespace TargetSum
 
@@ -338,10 +321,10 @@ namespace TargetSum
 def sum (x : Encoding) : Nat := ∑ i, (x i).val
 
 /-- Membership in the code `C`: digit sum `T`. -/
-def Valid (lay : Layer) (x : Encoding) : Prop := sum x = targetFor lay
+def Valid (x : Encoding) : Prop := sum x = targetSum
 
-instance (lay : Layer) : DecidablePred (Valid lay) :=
-  fun x => inferInstanceAs (Decidable (sum x = targetFor lay))
+instance : DecidablePred Valid :=
+  fun x => inferInstanceAs (Decidable (sum x = targetSum))
 
 /-- `v / 2 = 21` digits in each half of the digest. -/
 def digitsPerHalf : Nat := numChains / 2
@@ -355,8 +338,8 @@ def digestEncoding (digest : Digest) : Encoding :=
   fun i => (digest.extractLsb' (digitOffset i) winternitzBits).toFin
 
 /-- Decode the concrete little-endian layout: 21 three-bit digits, padding bit 63, 21 digits, and padding bit 127. A digest decodes exactly when both padding bits are clear and the digits reach the target sum. -/
-def decodeDigest (lay : Layer) (digest : Digest) : Option Encoding :=
-  if digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false ∧ Valid lay (digestEncoding digest)
+def decodeDigest (digest : Digest) : Option Encoding :=
+  if digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false ∧ Valid (digestEncoding digest)
   then some (digestEncoding digest) else none
 
 end TargetSum
@@ -450,9 +433,9 @@ def leafHash (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (lea
 /-- `Enc(P, lay, tau, e, M, c)`: hash the message with the counter under the leaf's encoding tweak, and decode. -/
 def encode (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
     (message : Digest) (counter : Counter) : m (Option Encoding) := do
-  let answer ← oracleHash (tweakableHashInput parameter (.encoding lay tree leaf)
-    (bytesLE 16 message ++ bytesLE 4 counter))
-  return TargetSum.decodeDigest lay (selectEncodingDigest answer)
+  let digest ← tweakableHash parameter (.encoding lay tree leaf)
+    (bytesLE 16 message ++ bytesLE 4 counter)
+  return TargetSum.decodeDigest digest
 
 /-- `OtsLeaf`: the verifier's leaf, or nothing if the counter does not encode the message. -/
 def otsLeaf (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
@@ -551,8 +534,7 @@ def recoverSegments (parameter : PublicParameter) (index : Index) (segments : Fi
         let segment := segments ⟨state.segment, hsegment⟩
         if ftsTreeHeight < segment.folds.val then
           return none
-        else if segment.folds.val ≠ 0 ∧ (segment.parity ≠ decide (state.heap % 2 = 1) ∨
-            segment.lookahead.val ≠ state.heap / 2 % 4) then
+        else if segment.folds.val ≠ 0 ∧ segment.parity ≠ decide (state.heap % 2 = 1) then
           return none
         else
           let start ← match pending with
@@ -681,7 +663,6 @@ structure ScheduleSegment where
   merge : Bool
   parity : Bool
   reads : List (Nat × Nat)
-  lookahead : Fin 4
 deriving DecidableEq, Inhabited
 
 /-- The schedule's state: the finished segments, the stack of sibling heap indices the pending nodes wait
@@ -692,7 +673,6 @@ structure ScheduleState where
   heap : Nat
   parity : Bool
   reads : List (Nat × Nat)
-  lookahead : Fin 4
 
 /-- One height of a leaf's climb: merge if the stack's top waits for the current node (the open segment
 ends with a merge, and the next one starts one level up), else fold with the witness sibling. -/
@@ -703,9 +683,8 @@ def scheduleStep (state : ScheduleState) (height : Nat) : ScheduleState :=
   match state.stack with
   | top :: rest =>
       if top = state.heap then
-        { state with done := state.done ++ [⟨true, state.parity, state.reads, state.lookahead⟩], stack := rest,
-                     heap := state.heap / 2, parity := decide (state.heap / 2 % 2 = 1), reads := [],
-                     lookahead := ⟨state.heap / 2 / 2 % 4, Nat.mod_lt _ (by decide)⟩ }
+        { state with done := state.done ++ [⟨true, state.parity, state.reads⟩], stack := rest,
+                     heap := state.heap / 2, parity := decide (state.heap / 2 % 2 = 1), reads := [] }
       else fold
   | [] => fold
 
@@ -720,9 +699,8 @@ def scheduleLeaves : List Nat → ScheduleState → ScheduleState
         | [] => ftsTreeHeight
         | w :: _ => bitLength (v ^^^ w) - 1
       let state := (List.range top).foldl scheduleStep
-        { state with heap := heap, parity := decide (heap % 2 = 1), reads := [],
-                     lookahead := ⟨heap / 2 % 4, Nat.mod_lt _ (by decide)⟩ }
-      let state := { state with done := state.done ++ [⟨false, state.parity, state.reads, state.lookahead⟩] }
+        { state with heap := heap, parity := decide (heap % 2 = 1), reads := [] }
+      let state := { state with done := state.done ++ [⟨false, state.parity, state.reads⟩] }
       scheduleLeaves rest (match rest with
         | [] => state
         | _ :: _ => { state with stack := (state.heap ^^^ 1) :: state.stack })
@@ -730,7 +708,7 @@ def scheduleLeaves : List Nat → ScheduleState → ScheduleState
 /-- `ref.schedule`: the honest segments of the sorted leaves. For an admissible digest there are `29` of
 them, each with at most `14` reads, and `octopusSize` reads in all. -/
 def schedule (sorted : List Nat) : List ScheduleSegment :=
-  (scheduleLeaves sorted ⟨[], [], 0, false, [], 0⟩).done
+  (scheduleLeaves sorted ⟨[], [], 0, false, []⟩).done
 
 /-- The number of folds of a schedule segment, as a segment field. -/
 def ScheduleSegment.folds (segment : ScheduleSegment) : Fin 16 :=
@@ -738,13 +716,12 @@ def ScheduleSegment.folds (segment : ScheduleSegment) : Fin 16 :=
 
 /-- `ref.schedule`'s segment byte `a | 16 merge | 32 t` (before normalisation). -/
 def ScheduleSegment.byte (segment : ScheduleSegment) : Nat :=
-  segment.reads.length + 16 * (if segment.merge then 1 else 0) +
-    32 * (if segment.parity then 1 else 0) + 64 * segment.lookahead.val
+  segment.reads.length + 16 * (if segment.merge then 1 else 0) + 32 * (if segment.parity then 1 else 0)
 
 /-- The segment with the given nodes, its parity normalised. -/
 def ScheduleSegment.toSegment (segment : ScheduleSegment) (nodes : Fin segment.folds.val → Digest) :
     Segment :=
-  Segment.normalized segment.folds segment.merge segment.parity nodes segment.lookahead
+  Segment.normalized segment.folds segment.merge segment.parity nodes
 
 /-- The honest PORS signature of the digest's leaves: the slots in the order of their leaves, the leaves'
 secrets, and the schedule's segments with the tree's nodes (`node level nodeIdx`) at their read positions. -/
