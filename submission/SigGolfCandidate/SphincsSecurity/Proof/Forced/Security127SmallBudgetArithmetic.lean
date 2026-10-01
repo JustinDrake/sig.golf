@@ -27,7 +27,7 @@ theorem small_bound_le_security127 (q : Nat) (hq : 1 ≤ q) (hsmall : q ≤ budg
       proposalPrefixExceptionBound + ((q : ENNReal) / 2 ^ 128) ^ 2 / (2 * (1 - (q : ENNReal) / 2 ^ 128) ^ 2) +
       ((2 ^ 128 - q : Nat) : ENNReal)⁻¹ * ((q : ENNReal) * nearCertificateBound q) ≤ (q : ENNReal) / 2 ^ 127 := by
   rw [budgetSplit_def] at hsmall
-  have hcoarse : q ≤ 2 ^ 113 := hsmall.trans (by norm_num)
+  have hcoarse : q ≤ 2 ^ 113 := hsmall
   rw [primitiveCoefficient_def, fullCertificateExcessRate_def, proposalPrefixExceptionBound_def]
   have hx : (q : ENNReal) / 2 ^ 128 ≤ 1 / 32768 := by
     apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp

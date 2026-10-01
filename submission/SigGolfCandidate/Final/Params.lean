@@ -7,9 +7,9 @@ The numeric parameters for the proved bound on accepting verification runs and t
 
 namespace SigGolfCandidate.Final
 
-/-- Universal accepting-run bound from the exact verifier simulation. The four-instruction
-conditional-half selector saves twenty cycles over the inherited bound. -/
-def verifyCycleBound : Nat := 10496
+/-- Proved upper bound on the cycles of every accepting verify run (`Verify.cycleBound`: `2903` for the
+prologue, digest, setup and PORS, plus `layersCost 5 = 7591`; the feasible worst case is `10493`; the universal positive-segment credit in `Final.Discharge` proves `cycleBound - 1`). -/
+def verifyCycleBound : Nat := 10493
 
 /-- The witness charge `⌈16384 / 256⌉`. -/
 def witnessCharge : Nat := 64

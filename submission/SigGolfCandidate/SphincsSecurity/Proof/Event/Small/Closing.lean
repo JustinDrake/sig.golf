@@ -5,7 +5,7 @@ import SigGolfCandidate.SphincsSecurity.Proof.Event.Small.SmallBound
 At budget `q + 1` with `keygenHashCost ≤ q < budgetSplit`, the small-budget bound of the capped adversary
 is at most `q / 2^127`. Compared with the query-bounded closing, the full-certificate excess is paid at
 the crude budget `265 (q + 1)` (per request, at most 265 times the least signing cost `signCharge`), and the
-near-certificate term (15 slots, price `1241/15`) leaves about `0.0206 x` of slack at the split; the extra query
+near-certificate term (15 slots, price `1241/15`) leaves over `0.020 x` of slack at the split; the extra query
 of the marker costs `2^-127`, which the slack absorbs since `q ≥ keygenHashCost`.
 -/
 
@@ -35,7 +35,7 @@ private theorem visRangeClosing (x : ℝ) (hlow : 606208 / 2 ^ 128 ≤ x) (hhigh
 theorem visSmallBound_plus_le (q : Nat) (hq : keygenHashCost ≤ q) (hsmall : q + 1 ≤ budgetSplit) :
     visSmallBound (q + 1) + ((q + 1 : Nat) : ENNReal) / 2 ^ 200 ≤ (q : ENNReal) / 2 ^ 127 := by
   rw [budgetSplit_def] at hsmall
-  have hcoarse : q + 1 ≤ 2 ^ 113 := hsmall.trans (by norm_num)
+  have hcoarse : q + 1 ≤ 2 ^ 113 := hsmall
   rw [keygenHashCost_eq] at hq
   unfold visSmallBound FtsGuessHash.nearMixedBound
   rw [primitiveCoefficient_def, fullCertificateExcessRate_def, proposalPrefixExceptionBound_def, nearCertificatePrice_def,

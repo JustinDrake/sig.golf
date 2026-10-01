@@ -13,9 +13,9 @@ For a uniform answer `u : BitVec 256`:
 * the randomizer lands in a set `R` of values with probability at most `|R| / 2^128`
   (`probEvent_answerBytes_mem_le`);
 * ordinary low-half encoding decodes with probability exactly `codeCount / 2^128`, where
-  `codeCount = 101963205812723399925627924643353984` is the number of pairs of 21-digit octal
-  words with digit sum `targetSum` (184) (`probEvent_decode_none`). The actual conditional-half
-  selector multiplies this probability by `7/4` (`probEvent_selected_decode_none`). The count is a generating-function identity
+  `codeCount = 120626508116675256487918723077579392` is the number of pairs of 21-digit octal
+  words with digit sum `targetSum` (183) (`probEvent_decode_none`). The actual conditional-half
+  selector multiplies this probability by `3/2` (`probEvent_selected_decode_none`). The count is a generating-function identity
   evaluated by the kernel (`codeCount_eq`), as in the leanVM completeness proof.
 -/
 
@@ -396,11 +396,11 @@ theorem probEvent_selected_decode_none :
       ($ᵗ BitVec 256 : ProbComp (BitVec 256))] =
       1 - ((7 * 2 ^ 126 * codeCount : Nat) : ℝ≥0∞) / (2 ^ 256 : ℝ≥0∞) := by
   let targets : Finset SphincsSecurity.Digest := univ.filter fun d => Dok d.toNat
-  have hpad : ∀ d ∈ targets, (d.getLsbD 63 || d.getLsbD 127) = false := by
+  have hpad : ∀ d ∈ targets, d.getLsbD 63 = false ∧ d.getLsbD 127 = false := by
     intro d hd
     have hlow := ((mem_filter.mp hd).2 : Dok d.toNat).1
     have hhigh := ((mem_filter.mp hd).2 : Dok d.toNat).2.1
-    apply Bool.or_eq_false_iff.mpr
+    have hlt := d.isLt
     constructor
     · rw [BitVec.getLsbD, Nat.testBit_eq_decide_div_mod_eq]
       simp only [decide_eq_false_iff_not]
@@ -408,7 +408,7 @@ theorem probEvent_selected_decode_none :
       omega
     · rw [BitVec.getLsbD, Nat.testBit_eq_decide_div_mod_eq]
       simp only [decide_eq_false_iff_not]
-      norm_num at hhigh ⊢
+      norm_num at hhigh hlt ⊢
       omega
   have hcard := SphincsSecurity.EncodingSelection.card_select_mem_of_padding targets hpad
   have ht : targets.card = codeCount := count_Dok_128

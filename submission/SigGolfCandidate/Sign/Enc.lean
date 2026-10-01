@@ -22,35 +22,21 @@ theorem slice_valOfWords_0 (w0 w1 : Word) : slice (valOfWords w0 w1) 0 8 = bytes
 theorem slice_valOfWords_8 (w0 w1 : Word) : slice (valOfWords w0 w1) 8 8 = bytesOfWord w1 := by
   simp [slice, valOfWords, List.drop_append_of_le_length]
 
-/-- The selector uses only the otherwise forbidden padding bit of the low half. -/
+/-- The selector tests both otherwise forbidden padding bits of the low half. -/
 theorem encoding_bit63 (a : BitVec 256) :
-    (a.extractLsb' 0 64 >>> 63) =
-      if a.getLsbD 63 then (1 : Word) else 0 := by
+    ((a.extractLsb' 0 64 ||| a.extractLsb' 64 64) >>> 63) =
+      if (a.getLsbD 63 || a.getLsbD 127) then (1 : Word) else 0 := by
   apply BitVec.eq_of_getLsbD_eq
   intro i hi
   by_cases hz : i = 0
   · subst i
-    cases h : a.getLsbD 63 <;>
-      simp [BitVec.getLsbD_extractLsb', BitVec.getLsbD_ushiftRight, h]
-    · simpa only [← BitVec.getLsbD_eq_getElem] using h
+    cases h0 : a.getLsbD 63 <;> cases h1 : a.getLsbD 127 <;>
+      simp [BitVec.getLsbD_extractLsb', BitVec.getLsbD_ushiftRight,
+        BitVec.getLsbD_or, ← BitVec.getLsbD_eq_getElem, h0, h1]
   · have hlt : ¬ 63 + i < 64 := by omega
-    cases h : a.getLsbD 63 <;>
-      simp [BitVec.getLsbD_extractLsb', BitVec.getLsbD_ushiftRight, h, hz, hlt]
-
-/-- The encoding selector checks both otherwise forbidden low-half padding bits. -/
-theorem encoding_paddingSelector (a : BitVec 256) :
-    ((a.extractLsb' 0 64 ||| a.extractLsb' 64 64) >>> 63) =
-      if a.getLsbD 63 || a.getLsbD 127 then (1 : Word) else 0 := by
-  have h0 := encoding_bit63 a
-  have h1 := encoding_bit63 (a >>> 64)
-  have he : (a >>> 64).extractLsb' 0 64 = a.extractLsb' 64 64 := by
-    apply BitVec.eq_of_getLsbD_eq
-    intro i hi
-    simp [BitVec.getLsbD_extractLsb', BitVec.getLsbD_ushiftRight, hi]
-  rw [he] at h1
-  simp only [BitVec.getLsbD_ushiftRight, show (64 + 63 : Nat) = 127 from rfl] at h1
-  rw [BitVec.ushiftRight_or_distrib, h0, h1]
-  cases h63 : a.getLsbD 63 <;> cases h127 : a.getLsbD 127 <;> simp [h63, h127]
+    cases h0 : a.getLsbD 63 <;> cases h1 : a.getLsbD 127 <;>
+      simp [BitVec.getLsbD_extractLsb', BitVec.getLsbD_ushiftRight,
+        BitVec.getLsbD_or, h0, h1, hz, hlt]
 
 /-- The two selected dwords, without changing any nonencoding hash semantics. -/
 theorem encoding_word (a : BitVec 256) (i : Nat) (hi : i < 2) :
@@ -93,7 +79,7 @@ theorem encodingSelect_steps {img : Image}
     rw [h0raw, h1raw]
     change accessValid (((a.extractLsb' 0 64 ||| a.extractLsb' 64 64) >>> 63) <<< 4 + 328#64) 8 = true ∧
       accessValid (((a.extractLsb' 0 64 ||| a.extractLsb' 64 64) >>> 63) <<< 4 + 320#64) 8 = true
-    rw [encoding_paddingSelector]
+    rw [encoding_bit63]
     cases hb : (a.getLsbD 63 || a.getLsbD 127) <;> simp [hb, accessValid, rangeValid, MEMORY_BYTES])
   refine ⟨blk1800.res.toState u, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · exact (hjump.trans hstub).of_eq rfl rfl
@@ -104,7 +90,7 @@ theorem encodingSelect_steps {img : Image}
     simp only [blk1800.res, rv_simp]
     rw [h0raw, h1raw]
     change u.getMem (((a.extractLsb' 0 64 ||| a.extractLsb' 64 64) >>> 63) <<< 4 + 320#64) = _
-    rw [encoding_paddingSelector]
+    rw [encoding_bit63]
     cases hb : (a.getLsbD 63 || a.getLsbD 127) <;> simp [hb, BitVec.ofNat_eq_ofNat, h0, h2]
     · exact h0
     · exact h2
@@ -114,7 +100,7 @@ theorem encodingSelect_steps {img : Image}
     simp only [blk1800.res, rv_simp]
     rw [h0raw, h1raw]
     change u.getMem (((a.extractLsb' 0 64 ||| a.extractLsb' 64 64) >>> 63) <<< 4 + 328#64) = _
-    rw [encoding_paddingSelector]
+    rw [encoding_bit63]
     cases hb : (a.getLsbD 63 || a.getLsbD 127) <;> simp [hb, BitVec.ofNat_eq_ofNat, h1, h3]
     · exact h1
     · exact h3

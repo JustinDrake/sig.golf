@@ -7,10 +7,10 @@ import Mathlib.Analysis.Complex.ExponentialBounds
 With `z = 2 ^ (1 / 2^17)`, paired digest search is bounded by `bD = 1.0279` (3
 compressions per failed pair, acceptance probability `p = 15! * Nadm / 2^210 ≈ 1/3409.991`)
 and each counter search by `bC = 1.011` (target sum 184, selected acceptance
-`7 * codeCount / 2^130 ≈ 1/1907.032`). The deterministic part is
+`7 * codeCount / 2^130 (seven-quarter selector)`). The deterministic part is
 `2 ^ (115257 / 2^17)` (MAC 513 + PORS tree 40959 + layers 1..4 73244 + top layer 541, the
 internal-node cache with the rebuilt sibling leaf),
-and `2 ^ (115257 / 2^17) * 1.0279 * 1.011^5 ≈ 1.997168 ≤ 2` (`V_signRef_le_two`).
+and `2 ^ (115257 / 2^17) * 1.0279 * 1.011^5 ≈ 1.997169 ≤ 2` (`V_signRef_le_two`).
 Keygen: `z_K ^ 672254 ≤ 2` with
 `z_K = 2 ^ (1 / 2^20)` (`V_keygenRef_le_two`).
 

@@ -261,10 +261,10 @@ def hash16 (x : List Byte) : OracleComp HashSpec Val := do
   let a ← H x
   pure (answerBytes 16 a)
 
-/-- Encoding-only half selection: keep the low half when its padding bit is clear,
+/-- Encoding-only half selection: keep the low half when both padding bits are clear,
 otherwise use the independent high half. Ordinary hashes are unchanged. -/
 def encodingAnswer (a : BitVec 256) : BitVec 256 :=
-  if a.getLsbD 63 || a.getLsbD 127 then a >>> 128 else a
+  if (a.getLsbD 63 || a.getLsbD 127) then a >>> 128 else a
 
 def encodingBytes (a : BitVec 256) : Val := answerBytes 16 (encodingAnswer a)
 

@@ -26,14 +26,15 @@ theorem decodingDigests_card_le (words : Finset Encoding) : (decodingDigests wor
     exact decode_some_injective hleft (by rw [he]; exact hright)
 
 theorem decodingDigests_padding (words : Finset Encoding) :
-    ∀ digest ∈ decodingDigests words, (digest.getLsbD 63 || digest.getLsbD 127) = false := by
+    ∀ digest ∈ decodingDigests words,
+      digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false := by
   intro digest hd
   obtain ⟨word, _, hdecode⟩ := mem_decodingDigests.mp hd
   rw [decode_def] at hdecode
   unfold TargetSum.decodeDigest at hdecode
   split at hdecode
   · rename_i hp
-    exact Bool.or_eq_false_iff.mpr ⟨hp.1, hp.2.1⟩
+    exact ⟨hp.1, hp.2.1⟩
   · simp at hdecode
 
 theorem decodingDigests_uniform_le (words : Finset Encoding) :

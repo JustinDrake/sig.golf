@@ -38,13 +38,13 @@ theorem probEvent_selected_accept :
         (((univ.filter fun d : Digest => (decodeDigest d).isSome).card : ℝ≥0∞)
           / (Fintype.card Digest : ℝ≥0∞)) := by
   have hpad : ∀ d ∈ (univ.filter fun d : Digest => (decodeDigest d).isSome),
-      (d.getLsbD 63 || d.getLsbD 127) = false := by
+      d.getLsbD 63 = false ∧ d.getLsbD 127 = false := by
     intro d hd
     have hd' := (mem_filter.mp hd).2
     unfold decodeDigest at hd'
     split at hd'
     · rename_i hp
-      exact Bool.or_eq_false_iff.mpr ⟨hp.1, hp.2.1⟩
+      exact ⟨hp.1, hp.2.1⟩
     · simp at hd'
   simpa only [mem_filter, mem_univ, true_and] using
     EncodingSelection.prob_select_mem_of_padding

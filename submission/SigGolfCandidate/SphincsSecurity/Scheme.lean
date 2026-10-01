@@ -5,7 +5,7 @@ import VCVio.OracleComp.QueryTracking.RandomOracle.Simulation
 /-!
 # SPHINCS+ scheme
 
-Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sum `184`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
+Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sum `183`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
 
 The few-time signature is PORS+FP (`work/design/SPEC-pors.md`, reference `work/py-pors/ref.py`): one Merkle
 tree of height `14` per instance `idx`, the full 256-bit digest split into `idx` (34 bits) and `k = 15`
@@ -130,7 +130,7 @@ def truncateHash (output : HashOutput) : Digest :=
 
 /-- Encoding-only conditional half selection; all other hash domains keep their usual truncation. -/
 def selectEncodingAnswer (a : HashOutput) : HashOutput :=
-  if a.getLsbD 63 || a.getLsbD 127 then a >>> 128 else a
+  if (a.getLsbD 63 || a.getLsbD 127) then a >>> 128 else a
 
 def selectEncodingDigest (a : HashOutput) : Digest :=
   truncateHash (selectEncodingAnswer a)
@@ -320,7 +320,7 @@ def macHashInput (parameter : PublicParameter) (seed : MasterSeed) (region : Top
 
 /-! ### The target-sum code
 
-`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and the code is the words of digit sum `T = 184`. Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
+`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and the code is the words of digit sum `T = 183`. Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
 
 namespace TargetSum
 

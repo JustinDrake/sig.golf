@@ -4,9 +4,10 @@ import SigGolfCandidate.SphincsSecurity.Proof.Ots.EncodingProbability
 /-!
 # Encoding-only conditional half selection
 
-Either padding bit (63 or 127) of the low half selects the high half when set.
-The two disjoint contributions are counted before decoding: every padding-clear
-digest has `2^128 + 3*2^126 = 7*2^126` preimages, and no digest has more. Nothing here changes the ordinary hash truncation law.
+Either padding bit (63 or 127) of the low half selects the high half when set. The
+two contributions are counted before decoding: every padding-clear digest has
+`2^128 + 3 * 2^126` preimages,
+and no digest has more. Nothing here changes the ordinary hash truncation law.
 -/
 
 namespace SphincsSecurity
@@ -17,9 +18,7 @@ open Completeness
 set_option allowUnsafeReducibility true in
 attribute [local reducible] hashOutputBits digestBits
 
-set_option maxRecDepth 10000
-set_option maxHeartbeats 200000
-
+set_option maxRecDepth 4096
 
 @[simp] theorem truncateHash_getLsbD_63 (a : HashOutput) :
     (truncateHash a).getLsbD 63 = a.getLsbD 63 := by
@@ -39,47 +38,60 @@ theorem truncateHash_shiftRight_128 (a : HashOutput) :
 
 theorem selectEncodingDigest_eq (a : HashOutput) :
     selectEncodingDigest a =
-      if ((truncateHash a).getLsbD 63 || (truncateHash a).getLsbD 127) then a.extractLsb' 128 digestBits else truncateHash a := by
-  simp only [selectEncodingDigest, selectEncodingAnswer, truncateHash_getLsbD_63, truncateHash_getLsbD_127]
+      if ((truncateHash a).getLsbD 63 || (truncateHash a).getLsbD 127) then
+        a.extractLsb' 128 digestBits else truncateHash a := by
+  simp only [selectEncodingDigest, selectEncodingAnswer, truncateHash_getLsbD_63,
+    truncateHash_getLsbD_127]
   split <;> simp only [truncateHash_shiftRight_128]
 
 namespace EncodingSelection
 
+/-- Each value of the top bit occurs in half of the 64-bit words. -/
+theorem card_half_padding_set (b : Bool) :
+    (univ.filter fun d : BitVec 64 => d.getLsbD 63 = b).card = 2 ^ 63 := by
+  have hbit : (univ.filter fun d : BitVec 1 => d.getLsbD 0 = b).card = 1 := by
+    cases b <;> decide
+  have h64 := card_filter_high (n := 64) (w := 63) (by decide)
+    (fun d : BitVec (64 - 63) => d.getLsbD 0 = b)
+  simpa only [BitVec.getLsbD_extractLsb', show (0 : Nat) < 64 - 63 by decide,
+    decide_true, Bool.true_and, Nat.add_zero, hbit, mul_one] using h64
+
 set_option linter.constructorNameAsVariable false in
 /-- Exactly three quarters of the low digests select the upper half. -/
 theorem card_selector_set :
-    (univ.filter fun d : Digest => (d.getLsbD 63 || d.getLsbD 127) = true).card = 3 * 2 ^ 126 := by
+    (univ.filter fun d : Digest => (d.getLsbD 63 || d.getLsbD 127) = true).card =
+      3 * 2 ^ 126 := by
   classical
-  have h64 (v : Bool) : (univ.filter fun d : BitVec 64 => d.getLsbD 63 = v).card = 2 ^ 63 := by
-    have hbit : (univ.filter fun b : BitVec 1 => b.getLsbD 0 = v).card = 1 := by cases v <;> decide
-    have h := card_filter_high (n := 64) (w := 63) (by decide)
-      (fun b : BitVec (64 - 63) => b.getLsbD 0 = v)
-    simpa only [BitVec.getLsbD_extractLsb', show (0 : Nat) < 64 - 63 by decide,
-      decide_true, Bool.true_and, Nat.add_zero, hbit, mul_one] using h
   let A : Finset (BitVec 64) := univ.filter fun d => d.getLsbD 63 = false
   let B : Finset (BitVec 64) := univ.filter fun d => d.getLsbD 63 = true
   have hsplit := card_filter_splitBits (n := 128) (w := 64) (by decide)
     (fun p => (p.1.getLsbD 63 || p.2.getLsbD 63) = true)
-  have hpre : (univ.filter fun d : Digest => (d.getLsbD 63 || d.getLsbD 127) = true) =
-      (univ.filter fun d : BitVec 128 =>
-        ((splitBits 128 64 d).1.getLsbD 63 || (splitBits 128 64 d).2.getLsbD 63) = true) := by
+  have hpre :
+      (univ.filter fun d : Digest => (d.getLsbD 63 || d.getLsbD 127) = true) =
+        (univ.filter fun d : BitVec 128 =>
+          ((splitBits 128 64 d).1.getLsbD 63 ||
+            (splitBits 128 64 d).2.getLsbD 63) = true) := by
     ext d
     simp only [mem_filter, mem_univ, true_and, splitBits, BitVec.getLsbD_extractLsb']
-    norm_num
-  have hpairs : (univ.filter fun p : BitVec 64 × BitVec 64 =>
-      (p.1.getLsbD 63 || p.2.getLsbD 63) = true) = (B ×ˢ univ) ∪ (A ×ˢ B) := by
+    norm_num only
+    simp only [decide_true, Bool.true_and]
+  have hpairs :
+      (univ.filter fun p : BitVec 64 × BitVec 64 =>
+        (p.1.getLsbD 63 || p.2.getLsbD 63) = true) =
+          (B ×ˢ univ) ∪ (A ×ˢ B) := by
     ext p
-    simp only [A, B, mem_filter, mem_univ, true_and, mem_union, mem_product, and_true]
-    cases h1 : p.1.getLsbD 63 <;> cases h2 : p.2.getLsbD 63 <;> simp [h1,h2]
+    cases hl : p.1.getLsbD 63 <;> cases hh : p.2.getLsbD 63 <;>
+      simp only [A, B, mem_filter, mem_univ, true_and, mem_union, mem_product, hl, hh] <;>
+      simp
   have hdisj : Disjoint (B ×ˢ (univ : Finset (BitVec 64))) (A ×ˢ B) := by
     apply Finset.disjoint_left.mpr
     intro p hp hq
     simp only [A, B, mem_product, mem_filter, mem_univ, true_and, and_true] at hp hq
-    exact Bool.noConfusion (hq.1.symm.trans hp)
+    have ht : p.1.getLsbD 63 = true := hp
+    have hf : p.1.getLsbD 63 = false := hq.1
+    exact Bool.noConfusion (hf.symm.trans ht)
   rw [hpre, hsplit, hpairs, card_union_of_disjoint hdisj, card_product, card_product]
-  have hA : A.card = 2 ^ 63 := h64 false
-  have hB : B.card = 2 ^ 63 := h64 true
-  rw [hA,hB]
+  simp only [A, B, card_univ, Fintype.card_bitVec, card_half_padding_set]
   norm_num
 
 set_option linter.constructorNameAsVariable false in
@@ -96,12 +108,14 @@ theorem card_select_mem (targets : Finset Digest) :
   have hpre :
       (univ.filter fun a : HashOutput => selectEncodingDigest a ∈ targets) =
         (univ.filter fun a : BitVec 256 =>
-          (if ((splitBits 256 128 a).1.getLsbD 63 || (splitBits 256 128 a).1.getLsbD 127) then
+          (if ((splitBits 256 128 a).1.getLsbD 63 ||
+              (splitBits 256 128 a).1.getLsbD 127) then
             (splitBits 256 128 a).2 else (splitBits 256 128 a).1) ∈ targets) := by
     ext a
     simp only [mem_filter, mem_univ, true_and]
     change selectEncodingDigest a ∈ targets ↔
-      (if ((splitBits 256 128 a).1.getLsbD 63 || (splitBits 256 128 a).1.getLsbD 127) then
+      (if ((splitBits 256 128 a).1.getLsbD 63 ||
+          (splitBits 256 128 a).1.getLsbD 127) then
         (splitBits 256 128 a).2 else (splitBits 256 128 a).1) ∈ targets
     rw [selectEncodingDigest_eq]
     rfl
@@ -110,8 +124,9 @@ theorem card_select_mem (targets : Finset Digest) :
         (if (p.1.getLsbD 63 || p.1.getLsbD 127) then p.2 else p.1) ∈ targets) =
           (A ×ˢ univ) ∪ (B ×ˢ targets) := by
     ext p
-    simp only [A, B, mem_filter, mem_univ, true_and, mem_union, mem_product, and_true]
-    cases hb : (p.1.getLsbD 63 || p.1.getLsbD 127) <;> simp only [hb, Bool.false_eq_true, Bool.true_eq_false, if_true, if_false, and_true, and_false, false_and, true_and, false_or, or_false]
+    cases hb : (p.1.getLsbD 63 || p.1.getLsbD 127) <;>
+      simp only [A, B, mem_filter, mem_univ, true_and, mem_union, mem_product, hb] <;>
+      simp
   have hdisj : Disjoint (A ×ˢ (univ : Finset Digest)) (B ×ˢ targets) := by
     apply Finset.disjoint_left.mpr
     intro p hp hq
@@ -124,14 +139,17 @@ theorem card_select_mem (targets : Finset Digest) :
 
 /-- Padding-clear sets get precisely the `7/4` acceptance multiplier. -/
 theorem card_select_mem_of_padding (targets : Finset Digest)
-    (hpad : ∀ d ∈ targets, (d.getLsbD 63 || d.getLsbD 127) = false) :
+    (hpad : ∀ d ∈ targets, d.getLsbD 63 = false ∧ d.getLsbD 127 = false) :
     (univ.filter fun a : HashOutput => selectEncodingDigest a ∈ targets).card =
       (2 ^ 128 + 3 * 2 ^ 126) * targets.card := by
-  rw [card_select_mem, filter_eq_self.mpr hpad]
+  rw [card_select_mem, filter_eq_self.mpr (by
+    intro d hd
+    obtain ⟨hl, hh⟩ := hpad d hd
+    simp only [hl, hh, Bool.false_or])]
   ring
 
 theorem prob_select_mem_of_padding (targets : Finset Digest)
-    (hpad : ∀ d ∈ targets, (d.getLsbD 63 || d.getLsbD 127) = false) :
+    (hpad : ∀ d ∈ targets, d.getLsbD 63 = false ∧ d.getLsbD 127 = false) :
     Pr[fun a : HashOutput => selectEncodingDigest a ∈ targets |
       ($ᵗ HashOutput : ProbComp HashOutput)] =
         (7 / 4 : ENNReal) * ((targets.card : ENNReal) / (Fintype.card Digest : ENNReal)) := by
@@ -150,7 +168,8 @@ theorem card_select_eq_le (target : Digest) :
   have h := card_select_mem ({target} : Finset Digest)
   simp only [mem_singleton, card_singleton, mul_one] at h
   rw [h]
-  have hc : (({target} : Finset Digest).filter fun d => (d.getLsbD 63 || d.getLsbD 127) = false).card ≤ 1 :=
+  have hc : (({target} : Finset Digest).filter fun d =>
+      (d.getLsbD 63 || d.getLsbD 127) = false).card ≤ 1 :=
     (card_filter_le _ _).trans_eq (card_singleton _)
   nlinarith
 

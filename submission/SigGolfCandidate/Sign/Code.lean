@@ -235,7 +235,7 @@ def seg2900 : List (BitVec 32) := [0x00100913#32, 0x15003083#32, 0x15803103#32, 
 def segAddrReturn563 : List (BitVec 32) := [0x9c9fd06f]
 def segAddrReturn672 : List (BitVec 32) := [0xb21fd06f]
 
-def seg1800 : List (BitVec 32) := [0x14003083#32, 0x14803103#32, 0x0020e1b3#32, 0x03f1d193#32, 0x00419193#32, 0x14018193#32, 0x0001b083#32, 0x0081b103#32, 0x945fe06f#32]
+def seg1800 : List (BitVec 32) := [0x14003083#32, 0x14803103#32, 0x0020e0b3#32, 0x03f0d193#32, 0x00419193#32, 0x14018193#32, 0x0001b083#32, 0x0081b103#32, 0x945fe06f#32]
 
 def seg353 : List (BitVec 32) := [0x0020e1b3#32, 0x0401ce63#32]
 
