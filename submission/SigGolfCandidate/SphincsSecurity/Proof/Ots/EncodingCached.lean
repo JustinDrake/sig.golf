@@ -19,7 +19,7 @@ theorem CachedRun.encode_cached {f : QueryImpl HashSpec Id}
   apply hrun
   rw [encodeAttempt]
   apply queriedInputs_mono_bind_left
-  simp only [queriedInputs_oracleHash, List.mem_singleton]
+  simp only [queriedInputs_tweakableHash, List.mem_singleton]
 
 theorem CachedRun.otsLeaf_encode_cached {f : QueryImpl HashSpec Id}
     {cache : QueryCache HashSpec} {parameter : PublicParameter} {lay : Layer}

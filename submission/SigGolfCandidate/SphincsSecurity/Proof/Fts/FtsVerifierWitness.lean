@@ -1,5 +1,5 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Reference.VerifierTraceDescent
-import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.TreeFoldBound
+import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.GraphPayloadInputs
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ExtractFts
 /-!

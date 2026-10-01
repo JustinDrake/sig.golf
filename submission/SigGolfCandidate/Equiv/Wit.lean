@@ -48,7 +48,6 @@ def segAt (w : List Byte) (p : Nat) : Segment :=
   Segment.normalized ⟨Ref.wbyte w p % 16, Nat.mod_lt _ (by decide)⟩
     (decide (Ref.wbyte w p / 16 % 2 = 1)) (decide (Ref.wbyte w p / 32 % 2 = 1))
     (fun i => wdig w (p + 8 + 16 * i.val))
-    ⟨Ref.wbyte w p / 64 % 4, Nat.mod_lt _ (by decide)⟩
 
 /-- The header position of segment `j`: `Ref.wStream`, then `+ 8 + 16 a` per segment. -/
 def segPtr (w : List Byte) : Nat → Nat

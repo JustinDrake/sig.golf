@@ -1,5 +1,5 @@
 import SigGolf
-import SigGolfCandidate.Legacy
+import SigGolfCandidate.Legacy.Statements
 
 /-!
 # Transfer from the legacy contract (70ba436) to the current one (51ea544)

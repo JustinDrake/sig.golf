@@ -59,13 +59,13 @@ theorem knownPrefixResidual_structural (parameter : PublicParameter) (inputs : F
 
 theorem canonicalReferenceResidual_prefix_law (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (labels : CanonicalGraphLabels) (selections : ReferenceFamily) :
-    (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections).bind
+    (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections).bind
       (fun rows => (PMF.uniformOfFintype (inputs → HashOutput)).map
         (fun seed => canonicalReferenceResidual parameter inputs hencoding labels (Function.uncurry rows) seed)) =
-    (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections).bind
+    (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections).bind
       (fun rows => (PMF.uniformOfFintype (inputs → HashOutput)).map
         (fun seed => canonicalPrefixResidual parameter inputs hencoding labels selections (Function.uncurry rows) seed)) :=
-  FirstSuccessPrefix.overwrite_table_eq_prefix decodeEncodingFamily encodingAttemptLimit
+  FirstSuccessPrefix.overwrite_table_eq_prefix decodeEncodingOutput encodingAttemptLimit
     selections (canonicalEncodingCell parameter inputs hencoding labels) (canonicalEncodingCell_injective parameter inputs hencoding labels)
 
 end SphincsSecurity.Concrete
