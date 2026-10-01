@@ -307,12 +307,12 @@ def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x130)]
 mask `sp = TMASK` are loaded from the verifier's data words through `sp = dataBase` and resolved
 from protected memory in `tailF_step`. Retaining the x28=2688 initializer for carried-base subtraction makes the accepting tail take12 instructions. -/
 def rootK : List (Reg × Word) :=
-  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x14, KT4)]
+  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x14, KT4), (.x4, 0x1000000000000000)]
 def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x130)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFDFFD0), (.x21, ldE 0xFDFFD8), (.x27, ldE 0xFDFFC0), (.x2, ldE 0xFDFFC8)], [], f4Pc c, false, 12,
-    [fBr3 false, fBr2 false, fBr1 false], none, 12⟩
+  ⟨[(.x20, ldE 0xFDFFD0), (.x21, ldE 0xFDFFD8), (.x27, ldE 0xFDFFC0), (.x2, ldE 0xFDFFC8)], [], f4Pc c, false, 13,
+    [fBr3 false, fBr2 false, fBr1 false], none, 13⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []

@@ -46,7 +46,12 @@ sym_block blk160 := symRun { noAlias := true } seg160 (pcOf 160) 6
 sym_block blk173 := symRun { noAlias := true } seg173 (pcOf 173) 2
 sym_block blk284 := symRun { noAlias := true } seg284 (pcOf 284) 4
 sym_block blk382 := symRun { noAlias := true } seg382 (pcOf 382) 5
-sym_block blk386 := symRun { noAlias := true } seg386 (pcOf 386) 23
+sym_block blkCarryHead386 := symRun { noAlias := true } seg386 (pcOf 386) 100
+sym_block blkCarryTest386 := symRunAux { noAlias := true } segCarryTest386 (pcOf 2927) 100 blkCarryHead386.res.st
+sym_block blkCarryLow386 := symRunAux { noAlias := true } segCarryLow386 (pcOf 2930) 100 blkCarryTest386.res.st
+sym_block blkCarryHigh386 := symRunAux { noAlias := true } segCarryHigh386 (pcOf 2933) 100 blkCarryTest386.res.st
+sym_block blk386low := symRunAux { noAlias := true } segCarryReturn386 (pcOf 392) 100 blkCarryLow386.res.st
+sym_block blk386high := symRunAux { noAlias := true } segCarryReturn386 (pcOf 392) 100 blkCarryHigh386.res.st
 sym_block blk408 := symRun { noAlias := true } seg408 (pcOf 408) 5
 sym_block blk412 := symRun { noAlias := true } seg412 (pcOf 412) 2
 sym_block blk413 := symRun { noAlias := true } seg413 (pcOf 413) 5
@@ -119,5 +124,55 @@ sym_block blk2921 := symRun { noAlias := true } seg2921 (pcOf 2921) 2
 sym_block blk2922 := symRun { noAlias := true } seg2922 (pcOf 2922) 4
 sym_block blk2925 := symRun { noAlias := true } seg2925 (pcOf 2925) 2
 sym_block blk2926 := symRun { noAlias := true } seg2926 (pcOf 2926) 2
+
+
+theorem carryRun386Low (s : MachineState) (hpc : s.pc=pcOf 386)
+    (h4:s.getReg .x8 ≠ 4#64) (hobl : blk386low.res.obligs s) :
+    Steps image s 29 32 (blk386low.res.toState s) := by
+  have ho := (Oblig.all_iff s _).mp hobl
+  have h3:=symRunAux_sound {noAlias:=true} image s segCarryReturn386 (pcOf 392) 100
+    blkCarryLow386.res.st _ blk386low codeAt_carryReturn386 ho
+  have h2:=symRunAux_sound {noAlias:=true} image s segCarryLow386 (pcOf 2930) 100
+    blkCarryTest386.res.st _ blkCarryLow386 codeAt_carryLow386 (fun o h=>ho o (h3.2.1 h))
+  have h1:=symRunAux_sound {noAlias:=true} image s segCarryTest386 (pcOf 2927) 100
+    blkCarryHead386.res.st _ blkCarryTest386 codeAt_carryTest386 (fun o h=>ho o (h3.2.1 (h2.2.1 h)))
+  have h0:=symRun_sound blkCarryHead386 codeAt_386 s hpc
+    ((Oblig.all_iff s _).mpr (fun o h=>ho o (h3.2.1 (h2.2.1 (h1.2.1 h)))))
+  have hs1:=h1.1
+  change Steps image (blkCarryHead386.res.toState s) _ _ _ at hs1
+  have hp:blkCarryTest386.res.pc.eval s=pcOf 2930 := by
+    simp [blkCarryTest386.res,rv_simp,h4]
+  have he:blkCarryTest386.res.toState s=blkCarryTest386.res.st.toState s (pcOf 2930) := by
+    simp only [Result.toState,hp]
+  have hs2:=h2.1
+  rw [←he] at hs2
+  have hs3:=h3.1
+  change Steps image (blkCarryLow386.res.toState s) _ _ _ at hs3
+  exact h0.trans (hs1.trans (hs2.trans hs3))
+
+
+theorem carryRun386High (s : MachineState) (hpc : s.pc=pcOf 386)
+    (h4:s.getReg .x8 = 4#64) (hobl : blk386high.res.obligs s) :
+    Steps image s 26 29 (blk386high.res.toState s) := by
+  have ho := (Oblig.all_iff s _).mp hobl
+  have h3:=symRunAux_sound {noAlias:=true} image s segCarryReturn386 (pcOf 392) 100
+    blkCarryHigh386.res.st _ blk386high codeAt_carryReturn386 ho
+  have h2:=symRunAux_sound {noAlias:=true} image s segCarryHigh386 (pcOf 2933) 100
+    blkCarryTest386.res.st _ blkCarryHigh386 codeAt_carryHigh386 (fun o h=>ho o (h3.2.1 h))
+  have h1:=symRunAux_sound {noAlias:=true} image s segCarryTest386 (pcOf 2927) 100
+    blkCarryHead386.res.st _ blkCarryTest386 codeAt_carryTest386 (fun o h=>ho o (h3.2.1 (h2.2.1 h)))
+  have h0:=symRun_sound blkCarryHead386 codeAt_386 s hpc
+    ((Oblig.all_iff s _).mpr (fun o h=>ho o (h3.2.1 (h2.2.1 (h1.2.1 h)))))
+  have hs1:=h1.1
+  change Steps image (blkCarryHead386.res.toState s) _ _ _ at hs1
+  have hp:blkCarryTest386.res.pc.eval s=pcOf 2933 := by
+    simp [blkCarryTest386.res,rv_simp,h4]
+  have he:blkCarryTest386.res.toState s=blkCarryTest386.res.st.toState s (pcOf 2933) := by
+    simp only [Result.toState,hp]
+  have hs2:=h2.1
+  rw [←he] at hs2
+  have hs3:=h3.1
+  change Steps image (blkCarryHigh386.res.toState s) _ _ _ at hs3
+  exact h0.trans (hs1.trans (hs2.trans hs3))
 
 end SigGolfCandidate.Expand

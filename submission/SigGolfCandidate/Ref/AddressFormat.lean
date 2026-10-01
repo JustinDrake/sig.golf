@@ -195,17 +195,6 @@ theorem queryRel_blocks (q : Query) : (queryRel q).blocks = q.blocks := by
   | zero => simp only [queryRel]; split <;> rfl
   | succ n => rfl
 
-theorem queryRel_class (q : Query) : (queryRel q).2.toNat%65536=q.2.toNat%65536 := by
-  rcases q with ⟨n,w⟩
-  cases n with
-  | zero =>
-    by_cases h : w.toNat%65536=2305
-    · rw [show queryRel ⟨0,w⟩ = ⟨0,BitVec.ofNat 512 (rel w.toNat)⟩ from if_pos h]
-      change (BitVec.ofNat 512 (rel w.toNat)).toNat%65536=w.toNat%65536
-      rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt (rel_lt _ w.isLt),rel_class]
-    · rw [show queryRel ⟨0,w⟩ = ⟨0,w⟩ from if_neg h]
-  | succ n => rfl
-
 theorem queryRel_fixed (q : Query) (h : q.2.toNat % 65536 ≠ 2305) : queryRel q = q := by
   rcases q with ⟨n,w⟩
   cases n with
@@ -730,6 +719,342 @@ theorem old_header (lay treeHigh i mu : Nat) (hl : lay < 7) (ht : treeHigh < 4)
 
 end SigGolfCandidate.Ref.AddressFormat
 
+namespace SigGolfCandidate.Ref.LeafClass
+open SigGolfCandidate.Legacy
+set_option exponentiation.threshold 8192
+
+def header (h : Nat) : Nat := if h=513 then 1025 else if h=1025 then 513 else h
+
+theorem header_lt {h : Nat} (hh : h<65536) : header h<65536 := by
+  unfold header;split_ifs <;> omega
+
+theorem header_involutive : Function.Involutive header := by
+  intro h
+  unfold header
+  split_ifs <;> omega
+
+def word (w : Nat) : Nat := header (w%65536)+65536*(w/65536)
+
+theorem word_parts (w : Nat) : word w%65536= header (w%65536) ∧ word w/65536=w/65536 := by
+  have hh := header_lt (Nat.mod_lt w (by decide))
+  unfold word
+  omega
+
+theorem word_involutive : Function.Involutive word := by
+  intro w
+  obtain ⟨hc,hq⟩ := word_parts w
+  change header (word w%65536)+65536*(word w/65536)=w
+  rw [hc,hq,header_involutive]
+  omega
+
+theorem word_lt_mul {w cap : Nat} (hw : w<65536*cap) : word w<65536*cap := by
+  have hh := header_lt (Nat.mod_lt w (by decide))
+  unfold word
+  omega
+
+theorem word_lt (w : Nat) (hw : w<2^5632) : word w<2^5632 := by
+  have hp : (2:Nat)^5632=65536*2^5616 := by
+    rw [show (5632:Nat)=16+5616 by decide,Nat.pow_add]
+  rw [hp] at hw ⊢
+  exact word_lt_mul hw
+
+/-- Transpose only the tag2/tag4 classes of exact11-block queries. Every other
+length and every malformed header outside these two classes is fixed. -/
+def query (q : Query) : Query :=
+  if q.1=10 then ⟨q.1,BitVec.ofNat (8*(64*(q.1+1))) (word q.2.toNat)⟩ else q
+
+theorem query_involutive : Function.Involutive query := by
+  rintro ⟨n,w⟩
+  by_cases hn:n=10
+  · subst n
+    change (⟨10,BitVec.ofNat 5632 (word (BitVec.ofNat 5632 (word w.toNat)).toNat)⟩ : Query)=⟨10,w⟩
+    congr 1
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.toNat_ofNat]
+    rw [Nat.mod_eq_of_lt (word_lt _ w.isLt),word_involutive,Nat.mod_eq_of_lt w.isLt]
+  · simp only [query,if_neg hn]
+
+theorem query_blocks (q : Query) : (query q).blocks=q.blocks := by
+  rcases q with ⟨n,w⟩
+  simp only [query];split <;> rfl
+
+theorem query_fixed_length (q : Query) (h:q.1≠10) : query q=q := by
+  rcases q with ⟨n,w⟩
+  exact if_neg h
+
+theorem word_fixed (w : Nat) (h2:w%65536≠513) (h4:w%65536≠1025) : word w=w := by
+  unfold word header
+  rw [if_neg h2,if_neg h4]
+  omega
+
+theorem query_fixed (q : Query) (h2:q.2.toNat%65536≠513) (h4:q.2.toNat%65536≠1025) : query q=q := by
+  rcases q with ⟨n,w⟩
+  unfold query
+  split
+  · rw [word_fixed _ h2 h4]
+    congr 1
+    apply BitVec.eq_of_toNat_eq
+    exact Nat.mod_eq_of_lt w.isLt
+  · rfl
+end SigGolfCandidate.Ref.LeafClass
+
+namespace SigGolfCandidate.Ref.TopHeap
+open SigGolfCandidate.Legacy
+set_option exponentiation.threshold 8192
+set_option maxHeartbeats 1000000
+
+def mirror (e : Nat) : Nat :=
+  if e<2 then e else
+  if e<4 then 5-e else
+  if e<8 then 11-e else
+  if e<16 then 23-e else
+  if e<32 then 47-e else
+  if e<64 then 95-e else
+  if e<128 then 191-e else
+  if e<256 then 383-e else
+  if e<512 then 767-e else
+  if e<1024 then 1535-e else
+  if e<2048 then 3071-e else
+  e
+
+theorem mirror_involutive : Function.Involutive mirror := by
+  intro e
+  by_cases h0:e<2
+  · have hm:mirror e=e := by simp only [mirror,if_pos h0]
+    rw [hm,hm]
+  by_cases h1:e<4
+  · have hm:mirror e=5-e := by simp only [mirror,if_neg h0,if_pos h1]
+    have hmlo:2≤5-e := by omega
+    have hmhi:5-e<4 := by omega
+    rw [hm]
+    unfold mirror
+    rw [if_neg (show ¬(5-e<2) by omega)]
+    rw [if_pos hmhi]
+    omega
+  by_cases h2:e<8
+  · have hm:mirror e=11-e := by simp only [mirror,if_neg h0,if_neg h1,if_pos h2]
+    have hmlo:4≤11-e := by omega
+    have hmhi:11-e<8 := by omega
+    rw [hm]
+    unfold mirror
+    rw [if_neg (show ¬(11-e<2) by omega)]
+    rw [if_neg (show ¬(11-e<4) by omega)]
+    rw [if_pos hmhi]
+    omega
+  by_cases h3:e<16
+  · have hm:mirror e=23-e := by simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_pos h3]
+    have hmlo:8≤23-e := by omega
+    have hmhi:23-e<16 := by omega
+    rw [hm]
+    unfold mirror
+    rw [if_neg (show ¬(23-e<2) by omega)]
+    rw [if_neg (show ¬(23-e<4) by omega)]
+    rw [if_neg (show ¬(23-e<8) by omega)]
+    rw [if_pos hmhi]
+    omega
+  by_cases h4:e<32
+  · have hm:mirror e=47-e := by simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_pos h4]
+    have hmlo:16≤47-e := by omega
+    have hmhi:47-e<32 := by omega
+    rw [hm]
+    unfold mirror
+    rw [if_neg (show ¬(47-e<2) by omega)]
+    rw [if_neg (show ¬(47-e<4) by omega)]
+    rw [if_neg (show ¬(47-e<8) by omega)]
+    rw [if_neg (show ¬(47-e<16) by omega)]
+    rw [if_pos hmhi]
+    omega
+  by_cases h5:e<64
+  · have hm:mirror e=95-e := by simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_pos h5]
+    have hmlo:32≤95-e := by omega
+    have hmhi:95-e<64 := by omega
+    rw [hm]
+    unfold mirror
+    rw [if_neg (show ¬(95-e<2) by omega)]
+    rw [if_neg (show ¬(95-e<4) by omega)]
+    rw [if_neg (show ¬(95-e<8) by omega)]
+    rw [if_neg (show ¬(95-e<16) by omega)]
+    rw [if_neg (show ¬(95-e<32) by omega)]
+    rw [if_pos hmhi]
+    omega
+  by_cases h6:e<128
+  · have hm:mirror e=191-e := by simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_pos h6]
+    have hmlo:64≤191-e := by omega
+    have hmhi:191-e<128 := by omega
+    rw [hm]
+    unfold mirror
+    rw [if_neg (show ¬(191-e<2) by omega)]
+    rw [if_neg (show ¬(191-e<4) by omega)]
+    rw [if_neg (show ¬(191-e<8) by omega)]
+    rw [if_neg (show ¬(191-e<16) by omega)]
+    rw [if_neg (show ¬(191-e<32) by omega)]
+    rw [if_neg (show ¬(191-e<64) by omega)]
+    rw [if_pos hmhi]
+    omega
+  by_cases h7:e<256
+  · have hm:mirror e=383-e := by simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_pos h7]
+    have hmlo:128≤383-e := by omega
+    have hmhi:383-e<256 := by omega
+    rw [hm]
+    unfold mirror
+    rw [if_neg (show ¬(383-e<2) by omega)]
+    rw [if_neg (show ¬(383-e<4) by omega)]
+    rw [if_neg (show ¬(383-e<8) by omega)]
+    rw [if_neg (show ¬(383-e<16) by omega)]
+    rw [if_neg (show ¬(383-e<32) by omega)]
+    rw [if_neg (show ¬(383-e<64) by omega)]
+    rw [if_neg (show ¬(383-e<128) by omega)]
+    rw [if_pos hmhi]
+    omega
+  by_cases h8:e<512
+  · have hm:mirror e=767-e := by simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_pos h8]
+    have hmlo:256≤767-e := by omega
+    have hmhi:767-e<512 := by omega
+    rw [hm]
+    unfold mirror
+    rw [if_neg (show ¬(767-e<2) by omega)]
+    rw [if_neg (show ¬(767-e<4) by omega)]
+    rw [if_neg (show ¬(767-e<8) by omega)]
+    rw [if_neg (show ¬(767-e<16) by omega)]
+    rw [if_neg (show ¬(767-e<32) by omega)]
+    rw [if_neg (show ¬(767-e<64) by omega)]
+    rw [if_neg (show ¬(767-e<128) by omega)]
+    rw [if_neg (show ¬(767-e<256) by omega)]
+    rw [if_pos hmhi]
+    omega
+  by_cases h9:e<1024
+  · have hm:mirror e=1535-e := by simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_pos h9]
+    have hmlo:512≤1535-e := by omega
+    have hmhi:1535-e<1024 := by omega
+    rw [hm]
+    unfold mirror
+    rw [if_neg (show ¬(1535-e<2) by omega)]
+    rw [if_neg (show ¬(1535-e<4) by omega)]
+    rw [if_neg (show ¬(1535-e<8) by omega)]
+    rw [if_neg (show ¬(1535-e<16) by omega)]
+    rw [if_neg (show ¬(1535-e<32) by omega)]
+    rw [if_neg (show ¬(1535-e<64) by omega)]
+    rw [if_neg (show ¬(1535-e<128) by omega)]
+    rw [if_neg (show ¬(1535-e<256) by omega)]
+    rw [if_neg (show ¬(1535-e<512) by omega)]
+    rw [if_pos hmhi]
+    omega
+  by_cases h10:e<2048
+  · have hm:mirror e=3071-e := by simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_pos h10]
+    have hmlo:1024≤3071-e := by omega
+    have hmhi:3071-e<2048 := by omega
+    rw [hm]
+    unfold mirror
+    rw [if_neg (show ¬(3071-e<2) by omega)]
+    rw [if_neg (show ¬(3071-e<4) by omega)]
+    rw [if_neg (show ¬(3071-e<8) by omega)]
+    rw [if_neg (show ¬(3071-e<16) by omega)]
+    rw [if_neg (show ¬(3071-e<32) by omega)]
+    rw [if_neg (show ¬(3071-e<64) by omega)]
+    rw [if_neg (show ¬(3071-e<128) by omega)]
+    rw [if_neg (show ¬(3071-e<256) by omega)]
+    rw [if_neg (show ¬(3071-e<512) by omega)]
+    rw [if_neg (show ¬(3071-e<1024) by omega)]
+    rw [if_pos hmhi]
+    omega
+  have hm:mirror e=e := by simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10]
+  rw [hm,hm]
+
+theorem mirror_lt : ∀e:Nat,e<4294967296 → mirror e<4294967296 := by
+  intro e he
+  by_cases h0:e<2
+  · simp only [mirror,if_pos h0];omega
+  by_cases h1:e<4
+  · simp only [mirror,if_neg h0,if_pos h1];omega
+  by_cases h2:e<8
+  · simp only [mirror,if_neg h0,if_neg h1,if_pos h2];omega
+  by_cases h3:e<16
+  · simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_pos h3];omega
+  by_cases h4:e<32
+  · simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_pos h4];omega
+  by_cases h5:e<64
+  · simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_pos h5];omega
+  by_cases h6:e<128
+  · simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_pos h6];omega
+  by_cases h7:e<256
+  · simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_pos h7];omega
+  by_cases h8:e<512
+  · simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_pos h8];omega
+  by_cases h9:e<1024
+  · simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_pos h9];omega
+  by_cases h10:e<2048
+  · simp only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_pos h10];omega
+  simpa only [mirror,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10] using he
+
+def word (w : Nat) : Nat := LeafScale.pack4 (w%4294967296) (w/4294967296%4294967296)
+  (w/4294967296/4294967296%4294967296) (mirror (w/4294967296/4294967296/4294967296%4294967296))
+  (w/4294967296/4294967296/4294967296/4294967296)
+
+theorem word_parts (w : Nat) :
+    word w%4294967296=w%4294967296 ∧
+    word w/4294967296%4294967296=w/4294967296%4294967296 ∧
+    word w/4294967296/4294967296%4294967296=w/4294967296/4294967296%4294967296 ∧
+    word w/4294967296/4294967296/4294967296%4294967296=mirror (w/4294967296/4294967296/4294967296%4294967296) ∧
+    word w/4294967296/4294967296/4294967296/4294967296=w/4294967296/4294967296/4294967296/4294967296 :=
+  LeafScale.pack4_unpack _ _ _ _ _ (LeafScale.mod32_lt _) (LeafScale.mod32_lt _) (LeafScale.mod32_lt _) (mirror_lt _ (LeafScale.mod32_lt _))
+
+theorem word_involutive : Function.Involutive word := by
+  intro w
+  obtain ⟨a,b,c,d,e⟩ := word_parts w
+  change LeafScale.pack4 (word w%4294967296) (word w/4294967296%4294967296)
+    (word w/4294967296/4294967296%4294967296) (mirror (word w/4294967296/4294967296/4294967296%4294967296))
+    (word w/4294967296/4294967296/4294967296/4294967296)=w
+  rw [a,b,c,d,e,mirror_involutive]
+  exact LeafScale.pack4_digits w
+
+theorem word_header (w : Nat) : word w%18446744073709551616=w%18446744073709551616 := by
+  obtain ⟨a,b,c,d,e⟩ := word_parts w
+  omega
+
+theorem word_lt (w : Nat) (hw:w<2^512) : word w<2^512 := by
+  have h := (word_parts w).2.2.2.2
+  simp only [Nat.div_div_eq_div_mul] at h
+  norm_num only [Nat.reduceMul,Nat.reducePow] at h hw ⊢
+  omega
+
+def query : Query → Query
+  | ⟨0,w⟩ => if w.toNat%18446744073709551616=769 then ⟨0,BitVec.ofNat 512 (word w.toNat)⟩ else ⟨0,w⟩
+  | ⟨n+1,w⟩ => ⟨n+1,w⟩
+
+theorem query_involutive : Function.Involutive query := by
+  rintro ⟨n,w⟩
+  cases n with
+  | zero =>
+      by_cases h:w.toNat%18446744073709551616=769
+      · have hw := word_lt _ w.isLt
+        have hc : (BitVec.ofNat 512 (word w.toNat)).toNat%18446744073709551616=769 := by
+          rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt hw,word_header];exact h
+        simp only [query,if_pos h,if_pos hc]
+        congr 1
+        apply BitVec.eq_of_toNat_eq
+        simp only [BitVec.toNat_ofNat]
+        rw [Nat.mod_eq_of_lt hw,word_involutive,Nat.mod_eq_of_lt w.isLt]
+      · simp only [query,if_neg h]
+  | succ n => rfl
+
+theorem query_blocks (q : Query) : (query q).blocks=q.blocks := by
+  rcases q with ⟨n,w⟩
+  cases n with
+  | zero => simp only [query];split <;> rfl
+  | succ n => rfl
+
+theorem query_fixed (q : Query) (h:q.2.toNat%18446744073709551616≠769) : query q=q := by
+  rcases q with ⟨n,w⟩
+  cases n with
+  | zero => exact if_neg h
+  | succ n => rfl
+
+theorem query_fixed_class (q : Query) (h0:q.2.toNat%65536≠769) : query q=q := by
+  apply query_fixed
+  omega
+
+end SigGolfCandidate.Ref.TopHeap
+
 namespace SigGolfCandidate.Ref.EncodingRotate
 set_option Elab.async false
 set_option maxRecDepth 10000
@@ -838,23 +1163,45 @@ theorem query_fixed (q : Query) (h : q.2.toNat%65536≠1025) : query q=q := by
   | succ n => rfl
 end SigGolfCandidate.Ref.EncodingRotate
 
-namespace SigGolfCandidate.Ref.LeafClass
+namespace SigGolfCandidate.Ref.LeafCarry
 open SigGolfCandidate.Legacy
 set_option exponentiation.threshold 8192
+set_option maxHeartbeats 1000000
 
-def header (h : Nat) : Nat := if h=513 then 1025 else if h=1025 then 513 else h
+def header (h : Nat) : Nat :=
+  if h=1025 then 66305 else if h=66305 then 1025 else
+  if h=66561 then 131841 else if h=131841 then 66561 else
+  if h=132097 then 197377 else if h=197377 then 132097 else
+  if h=197633 then 262913 else if h=262913 then 197633 else h
 
-theorem header_lt {h : Nat} (hh : h<65536) : header h<65536 := by
+theorem header_lt {h : Nat} (hh:h<18446744073709551616) : header h<18446744073709551616 := by
   unfold header;split_ifs <;> omega
 
 theorem header_involutive : Function.Involutive header := by
   intro h
-  unfold header
-  split_ifs <;> omega
+  by_cases h0:h=1025
+  · subst h;decide
+  by_cases h1:h=66305
+  · subst h;decide
+  by_cases h2:h=66561
+  · subst h;decide
+  by_cases h3:h=131841
+  · subst h;decide
+  by_cases h4:h=132097
+  · subst h;decide
+  by_cases h5:h=197377
+  · subst h;decide
+  by_cases h6:h=197633
+  · subst h;decide
+  by_cases h7:h=262913
+  · subst h;decide
+  simp only [header,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7]
 
-def word (w : Nat) : Nat := header (w%65536)+65536*(w/65536)
+def word (w : Nat) : Nat := header (w%18446744073709551616)+18446744073709551616*(w/18446744073709551616)
 
-theorem word_parts (w : Nat) : word w%65536= header (w%65536) ∧ word w/65536=w/65536 := by
+theorem word_parts (w : Nat) :
+    word w%18446744073709551616=header (w%18446744073709551616) ∧
+    word w/18446744073709551616=w/18446744073709551616 := by
   have hh := header_lt (Nat.mod_lt w (by decide))
   unfold word
   omega
@@ -862,23 +1209,18 @@ theorem word_parts (w : Nat) : word w%65536= header (w%65536) ∧ word w/65536=w
 theorem word_involutive : Function.Involutive word := by
   intro w
   obtain ⟨hc,hq⟩ := word_parts w
-  change header (word w%65536)+65536*(word w/65536)=w
+  change header (word w%18446744073709551616)+18446744073709551616*(word w/18446744073709551616)=w
   rw [hc,hq,header_involutive]
   omega
 
-theorem word_lt_mul {w cap : Nat} (hw : w<65536*cap) : word w<65536*cap := by
-  have hh := header_lt (Nat.mod_lt w (by decide))
-  unfold word
+theorem word_lt (w : Nat) (hw:w<2^5632) : word w<2^5632 := by
+  have hq := (word_parts w).2
+  have hp : (2:Nat)^5632=18446744073709551616*2^5568 := by
+    rw [show (5632:Nat)=64+5568 by decide,Nat.pow_add]
+  rw [hp] at hw ⊢
   omega
 
-theorem word_lt (w : Nat) (hw : w<2^5632) : word w<2^5632 := by
-  have hp : (2:Nat)^5632=65536*2^5616 := by
-    rw [show (5632:Nat)=16+5616 by decide,Nat.pow_add]
-  rw [hp] at hw ⊢
-  exact word_lt_mul hw
-
-/-- Transpose only the tag2/tag4 classes of exact11-block queries. Every other
-length and every malformed header outside these two classes is fixed. -/
+/-- Four complete-header transpositions on704-byte queries only. -/
 def query (q : Query) : Query :=
   if q.1=10 then ⟨q.1,BitVec.ofNat (8*(64*(q.1+1))) (word q.2.toNat)⟩ else q
 
@@ -901,43 +1243,53 @@ theorem query_fixed_length (q : Query) (h:q.1≠10) : query q=q := by
   rcases q with ⟨n,w⟩
   exact if_neg h
 
-theorem word_fixed (w : Nat) (h2:w%65536≠513) (h4:w%65536≠1025) : word w=w := by
+theorem word_fixed_classes (w : Nat) (h3:w%65536≠769) (h4:w%65536≠1025) : word w=w := by
+  have hm : w%18446744073709551616%65536=w%65536 := by
+    rw [Nat.mod_mod_of_dvd _ (by decide : 65536 ∣18446744073709551616)]
   unfold word header
-  rw [if_neg h2,if_neg h4]
-  omega
+  split_ifs <;> omega
 
-theorem query_fixed (q : Query) (h2:q.2.toNat%65536≠513) (h4:q.2.toNat%65536≠1025) : query q=q := by
+theorem query_fixed_classes (q : Query) (h3:q.2.toNat%65536≠769)
+    (h4:q.2.toNat%65536≠1025) : query q=q := by
   rcases q with ⟨n,w⟩
   unfold query
   split
-  · rw [word_fixed _ h2 h4]
+  · rw [word_fixed_classes _ h3 h4]
     congr 1
     apply BitVec.eq_of_toNat_eq
     exact Nat.mod_eq_of_lt w.isLt
   · rfl
-end SigGolfCandidate.Ref.LeafClass
+
+def leafHeader (lay : Nat) : Nat :=
+  if lay<4 then 769+65536*(lay+1) else 1025+65536*lay
+
+theorem header_leaf (lay : Nat) (hl:lay<5) : header (1025+65536*lay)=leafHeader lay := by
+  interval_cases lay <;> decide
+end SigGolfCandidate.Ref.LeafCarry
 
 namespace SigGolfCandidate.Ref.AddressFormat
 open SigGolfCandidate.Legacy
 
-/-- Compose the previous chain/node relabelling with a bijection on tag-9 leaf fields. -/
-def queryPerm (q : Query) : Query := LeafClass.query (EncodingRotate.query (LeafScale.queryRel (baseQueryPerm q)))
-
-/-- The inverse is needed by the budget layer when decoding formatted query bytes. -/
-def queryInverse (q : Query) : Query := baseQueryPerm (LeafScale.queryInv (EncodingRotate.queryInverse (LeafClass.query q)))
+/-- Native-query permutation preserving the accepted root-pair construction. -/
+def queryPerm (q : Query) : Query := EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (LeafScale.queryRel (baseQueryPerm q)))))
+def queryInverse (q : Query) : Query := baseQueryPerm (LeafScale.queryInv (LeafClass.query (TopHeap.query (LeafCarry.query (EncodingRotate.queryInverse q)))))
 
 theorem queryInverse_queryPerm (q : Query) : queryInverse (queryPerm q) = q := by
-  rw [queryInverse, queryPerm, LeafClass.query_involutive, EncodingRotate.queryInverse_query, LeafScale.queryInv_queryRel, baseQueryPerm_involutive]
+  rw [queryInverse, queryPerm, EncodingRotate.queryInverse_query, LeafCarry.query_involutive, TopHeap.query_involutive, LeafClass.query_involutive,
+    LeafScale.queryInv_queryRel, baseQueryPerm_involutive]
 
 theorem queryPerm_injective : Function.Injective queryPerm :=
-  LeafClass.query_involutive.injective.comp (EncodingRotate.query_injective.comp (LeafScale.queryRel_injective.comp baseQueryPerm_injective))
+  EncodingRotate.query_injective.comp (LeafCarry.query_involutive.injective.comp (TopHeap.query_involutive.injective.comp (LeafClass.query_involutive.injective.comp
+    (LeafScale.queryRel_injective.comp baseQueryPerm_injective))))
 
 theorem queryPerm_blocks (q : Query) : (queryPerm q).blocks = q.blocks := by
-  rw [queryPerm, LeafClass.query_blocks, EncodingRotate.query_blocks, LeafScale.queryRel_blocks, baseQueryPerm_blocks]
+  rw [queryPerm, EncodingRotate.query_blocks, LeafCarry.query_blocks, TopHeap.query_blocks, LeafClass.query_blocks, LeafScale.queryRel_blocks, baseQueryPerm_blocks]
 
 theorem queryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
     (h1 : q.2.toNat % 65536 ≠ 257) (h2 : q.2.toNat % 65536 ≠ 2561)
-    (h9 : q.2.toNat % 65536 ≠ 2305) (h4 : q.2.toNat % 65536 ≠ 1025) (h2leaf : q.2.toNat % 65536 ≠ 513) : queryPerm q = q := by
-  rw [queryPerm, baseQueryPerm_fixed q h0 h1 h2, LeafScale.queryRel_fixed q h9, EncodingRotate.query_fixed q h4, LeafClass.query_fixed q h2leaf h4]
+    (h9 : q.2.toNat % 65536 ≠ 2305) (h4 : q.2.toNat % 65536 ≠ 1025)
+    (hL : q.2.toNat % 65536 ≠ 513) (h3:q.2.toNat%65536≠769) : queryPerm q = q := by
+  rw [queryPerm, baseQueryPerm_fixed q h0 h1 h2, LeafScale.queryRel_fixed q h9,
+    LeafClass.query_fixed q hL h4, TopHeap.query_fixed_class q h3, LeafCarry.query_fixed_classes q h3 h4, EncodingRotate.query_fixed q h4]
 
 end SigGolfCandidate.Ref.AddressFormat

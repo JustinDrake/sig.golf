@@ -467,6 +467,7 @@ theorem even_andNot1' (n : Nat) (h : n % 2 = 0) :
   · subst h0; simp; rw [← BitVec.getLsbD_eq_getElem, BitVec.getLsbD_ofNat, Nat.testBit_zero]; simp [h]
   · simp [h0, hj]
 
+set_option maxHeartbeats 800000 in
 theorem pend_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0 u tb) (pend : Pending)
     (node : Val) (d : Nat) (h10 : u.getReg .x10 = BitVec.ofNat 64 (pendAddr pend d))
     (h11 : u.getReg .x11 = BitVec.ofNat 64 (64 * (0 + 1))) (hpm : PendMem P node d u pend) :
