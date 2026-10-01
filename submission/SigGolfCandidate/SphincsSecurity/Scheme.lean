@@ -5,7 +5,7 @@ import VCVio.OracleComp.QueryTracking.RandomOracle.Simulation
 /-!
 # SPHINCS+ scheme
 
-Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sums `[183,183,184,184,184]`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
+Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sum `181`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
 
 The few-time signature is PORS+FP (`work/design/SPEC-pors.md`, reference `work/py-pors/ref.py`): one Merkle
 tree of height `14` per instance `idx`, the full 256-bit digest split into `idx` (34 bits) and `k = 15`
@@ -31,7 +31,7 @@ def counterBits : Nat := 32
 def winternitzBits : Nat := 3
 def chainLength : Nat := 2 ^ winternitzBits
 def numChains : Nat := 42
-def targetSum : Nat := 183
+def targetSum : Nat := 181
 def numLayers : Nat := 5
 def totalHeight : Nat := 34
 /-- The tallest layer, the top one, `h_0 = 11`, which bounds every layer's leaf index. -/
@@ -63,9 +63,6 @@ abbrev PublicParameter := BitVec publicParameterBits
 abbrev Randomness := Digest
 abbrev Counter := BitVec counterBits
 abbrev Layer := Fin numLayers
-
-/-- Fixed target sum for each WOTS layer (cached top layer first). -/
-def targetFor (lay : Layer) : Nat := targetSum + if 2 ≤ lay.val then 1 else 0
 /-- `idx`, which few-time key signs. -/
 abbrev Index := Fin (2 ^ totalHeight)
 /-- `tau`, a tree of any layer. Layer `lay` only uses the values below `2^(sum_{j < lay} h_j)`. -/
@@ -130,13 +127,6 @@ def heightBelow (lay : Layer) : Nat := totalHeight - heightAbove lay - layerHeig
 /-- Keep the first 128 output bits, the low bits of the little-endian bit vector. -/
 def truncateHash (output : HashOutput) : Digest :=
   output.extractLsb' 0 digestBits
-
-/-- Encoding-only conditional half selection; all other hash domains keep their usual truncation. -/
-def selectEncodingAnswer (a : HashOutput) : HashOutput :=
-  if a.getLsbD 63 then a >>> 128 else a
-
-def selectEncodingDigest (a : HashOutput) : Digest :=
-  truncateHash (selectEncodingAnswer a)
 
 /-- The message digest is the full 256-bit answer: the index (`h = 34` bits), the `k = 15` leaf indices of
 `14` bits each, and `12` unused bits. -/
@@ -323,7 +313,7 @@ def macHashInput (parameter : PublicParameter) (seed : MasterSeed) (region : Top
 
 /-! ### The target-sum code
 
-`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and each layer uses the codewords of its fixed sum (`183` on layers zero and one, `184` thereafter). Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
+`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and the code is the words of digit sum `T = 181`. Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
 
 namespace TargetSum
 
@@ -331,10 +321,10 @@ namespace TargetSum
 def sum (x : Encoding) : Nat := ∑ i, (x i).val
 
 /-- Membership in the code `C`: digit sum `T`. -/
-def Valid (lay : Layer) (x : Encoding) : Prop := sum x = targetFor lay
+def Valid (x : Encoding) : Prop := sum x = targetSum
 
-instance (lay : Layer) : DecidablePred (Valid lay) :=
-  fun x => inferInstanceAs (Decidable (sum x = targetFor lay))
+instance : DecidablePred Valid :=
+  fun x => inferInstanceAs (Decidable (sum x = targetSum))
 
 /-- `v / 2 = 21` digits in each half of the digest. -/
 def digitsPerHalf : Nat := numChains / 2
@@ -348,8 +338,8 @@ def digestEncoding (digest : Digest) : Encoding :=
   fun i => (digest.extractLsb' (digitOffset i) winternitzBits).toFin
 
 /-- Decode the concrete little-endian layout: 21 three-bit digits, padding bit 63, 21 digits, and padding bit 127. A digest decodes exactly when both padding bits are clear and the digits reach the target sum. -/
-def decodeDigest (lay : Layer) (digest : Digest) : Option Encoding :=
-  if digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false ∧ Valid lay (digestEncoding digest)
+def decodeDigest (digest : Digest) : Option Encoding :=
+  if digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false ∧ Valid (digestEncoding digest)
   then some (digestEncoding digest) else none
 
 end TargetSum
@@ -443,9 +433,9 @@ def leafHash (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (lea
 /-- `Enc(P, lay, tau, e, M, c)`: hash the message with the counter under the leaf's encoding tweak, and decode. -/
 def encode (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
     (message : Digest) (counter : Counter) : m (Option Encoding) := do
-  let answer ← oracleHash (tweakableHashInput parameter (.encoding lay tree leaf)
-    (bytesLE 16 message ++ bytesLE 4 counter))
-  return TargetSum.decodeDigest lay (selectEncodingDigest answer)
+  let digest ← tweakableHash parameter (.encoding lay tree leaf)
+    (bytesLE 16 message ++ bytesLE 4 counter)
+  return TargetSum.decodeDigest digest
 
 /-- `OtsLeaf`: the verifier's leaf, or nothing if the counter does not encode the message. -/
 def otsLeaf (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)

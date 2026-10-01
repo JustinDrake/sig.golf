@@ -1,4 +1,4 @@
-import SigGolfCandidate.Legacy
+import SigGolfCandidate.Legacy.Statements
 import SigGolfCandidate.CacheBytes
 import SigGolfCandidate.Ref.AddressFormat
 import Mathlib.Data.List.Sort
@@ -74,9 +74,7 @@ def slice (l : List Byte) (off len : Nat) : List Byte := (l.drop off).take len
 
 def nChains : Nat := 42
 /-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
-def targetSum : Nat := 183
-/-- Layer-specific targets, cached top layer first: 183, 183, 184, 184, 184. -/
-def targetFor (lay : Nat) : Nat := targetSum + if 2 ≤ lay then 1 else 0
+def targetSum : Nat := 181
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
 /-- The number of hypertree layers `d`. -/
@@ -263,17 +261,6 @@ def hash16 (x : List Byte) : OracleComp HashSpec Val := do
   let a ← H x
   pure (answerBytes 16 a)
 
-/-- Encoding-only half selection: keep the low half when its padding bit is clear,
-otherwise use the independent high half. Ordinary hashes are unchanged. -/
-def encodingAnswer (a : BitVec 256) : BitVec 256 :=
-  if a.getLsbD 63 then a >>> 128 else a
-
-def encodingBytes (a : BitVec 256) : Val := answerBytes 16 (encodingAnswer a)
-
-def encodingHash (x : List Byte) : OracleComp HashSpec Val := do
-  let a ← H x
-  pure (encodingBytes a)
-
 /-- `Th(P, tw, payload)`: the first 16 bytes of `H(fmt(tw || 0^16 || payload))`. -/
 def th (tw payload : List Byte) : OracleComp HashSpec Val := hash16 (thInput tw payload)
 
@@ -405,13 +392,13 @@ def digitsOfWord (d : Nat) : List Nat := (List.range 21).map fun r => d / 8 ^ r 
 
 /-- TargetSum decoding of an encoding output `v` (first 16 bytes): `d0`, `d1` = the two LE 64-bit
 halves; reject if bit 63 of `d0` or of `d1` is set, else the 42 digits (21 of `d0`, then 21 of
-`d1`) if they sum to the layer's target. -/
-def decodeDigits (lay : Nat) (v : Val) : Option (List Nat) :=
+`d1`) if they sum to `targetSum`. -/
+def decodeDigits (v : Val) : Option (List Nat) :=
   let d0 := leNat (slice v 0 8)
   let d1 := leNat (slice v 8 8)
   if d0 < 2 ^ 63 ∧ d1 < 2 ^ 63 then
     let x := digitsOfWord d0 ++ digitsOfWord d1
-    if x.sum = targetFor lay then some x else none
+    if x.sum = targetSum then some x else none
   else none
 
 end SigGolfCandidate.Ref

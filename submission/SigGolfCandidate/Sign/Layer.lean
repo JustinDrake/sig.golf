@@ -248,7 +248,7 @@ theorem layer_head {img : Image} (hcode : HeadCode img) (idx lay : Nat) (M : Val
   refine ⟨_, _, t4, (hs1.trans (hs2.trans hs3)), by rw [hc1, hc3]; omega,
     by simp only [ht4, blk331.res, rv_simp], by simp only [ht4, blk331.res, rv_simp],
     by rw [r4.get .x9, x9], z13, z30, z31, ?_, ?_, ft4⟩
-  · refine ⟨by omega, htau30, he2048, hh.hM, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · refine ⟨by omega, htau30, he2048, hh.hM, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · simp only [ht4, blk331.res, rv_simp, y8]
       bvsimp [ofNat_eq_iff]
       unfold twWord0; congr 1
@@ -263,7 +263,6 @@ theorem layer_head {img : Image} (hcode : HeadCode img) (idx lay : Nat) (M : Val
     · rw [r4.get .x7, rt2.get .x7, hh.x7]
     · rw [r4.get .x26, rt2.get .x26, hh.x26]
     · rw [r4.get .x27, rt2.get .x27, hh.x27]
-    · rw [r4.get .x8, y8]
   · exact (rt2.trans r4).mono (by decide)
 
 /-- Route and header state at `enc_loop`. -/
@@ -499,10 +498,10 @@ def LaysPost (t0 : MachineState) (n : Nat) : Option (List LayerSig) → MachineS
       t.pc = pcOf 718 ∧ t.getReg .x5 = 0 ∧ Frame t0 t (layW n)
 
 /-- Cycle bound of one layer below the top. -/
-def layCyc : Nat := 26 + ((2 ^ 22) * 50 + 2) + (127 + (13 + (treeCyc + 7)))
+def layCyc : Nat := 26 + ((2 ^ 22) * 40 + 2) + (127 + (13 + (treeCyc + 7)))
 
 /-- Cycle bound of the top layer. -/
-def topCyc : Nat := 26 + ((2 ^ 22) * 50 + 2) + (127 + (9 + (21 * 684 + ((17 + (21 * 844 + (4 + (88 + 9)))) + 10 * 36))))
+def topCyc : Nat := 26 + ((2 ^ 22) * 40 + 2) + (127 + (9 + (21 * 684 + ((17 + (21 * 844 + (4 + (88 + 9)))) + 10 * 36))))
 
 /-- End of a layer (instructions 565 .. 571): root → `EB+32`, next layer. -/
 theorem layer_tail (lay : Nat) (hlay : lay < 6) (h1 : 1 ≤ lay) (t : MachineState) (tpc : t.pc = pcOf 630)
@@ -614,9 +613,9 @@ theorem layers_sim (S cache : List Byte) (hS : S.length = 32) (hcache : cache.le
     rw [signLayers_succ, show cMax = 2 ^ 22 - 1 + 1 from rfl]
     have henc := encLoop_sim encCode (n + 1) tau e M t4 emem (2 ^ 22 - 1) 0 t4 (by norm_num)
       ⟨pc4, x46, by norm_num, RegsEq.refl _ _, Frame.refl _ _⟩
-    have hW : c0 + ((2 ^ 22 - 1 + 1) * 50 + 2 + (127 + (13 + (treeCyc + (7 + (n * layCyc + topCyc + 0)))))) ≤
+    have hW : c0 + ((2 ^ 22 - 1 + 1) * 40 + 2 + (127 + (13 + (treeCyc + (7 + (n * layCyc + topCyc + 0)))))) ≤
         (n + 1) * layCyc + topCyc := by
-      have hL : 26 + ((2 ^ 22) * 50 + 2) + (127 + (13 + (treeCyc + 7))) = layCyc := rfl
+      have hL : 26 + ((2 ^ 22) * 40 + 2) + (127 + (13 + (treeCyc + 7))) = layCyc := rfl
       rw [Nat.add_mul n 1 layCyc, Nat.one_mul]; omega
     refine (Sim.steps hs4 (Sim.bind henc (fun r t5 h5 => ?_))).mono hW (fun _ _ h => h)
     rcases r with _ | ⟨c, x⟩

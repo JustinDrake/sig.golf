@@ -105,19 +105,18 @@ def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 /-- The exact digit sum of every layer, compared after the alias-free reduction modulo 4095. -/
 def KT : Word := BitVec.ofNat 64 targetSum
 
-/-- Top-first mixed targets, shared with the reference signer and decoder. -/
-def targetFor (lay : Nat) : Nat := SigGolfCandidate.Ref.targetFor lay
+/-- Uniform target, retaining the existing layer-indexed verifier interfaces. -/
+def targetFor (_lay : Nat) : Nat := targetSum
 
-/-- The layer-4 digit sum target `targetFor 4 = 184`, held in `x14` from the PORS root tail to the
+/-- The layer-4 digit sum target `targetFor 4 = 181`, held in `x14` from the PORS root tail to the
 layer-4 encoding check (`x14` is dead there; the chain prologue then loads the triple index into it). -/
 def KT4 : Word := BitVec.ofNat 64 (targetFor 4)
 
 /-- The digit-sum constant the encoding check of layer `lay` compares against. -/
 def KTof (lay : Nat) : Word := BitVec.ofNat 64 (targetFor lay)
 
-theorem targetFor_le (lay : Nat) : targetFor lay ≤ 184 := by
-  unfold targetFor SigGolfCandidate.Ref.targetFor targetSum
-  split <;> omega
+theorem targetFor_le (lay : Nat) : targetFor lay ≤ 181 := by
+  simp [targetFor, targetSum]
 
 /-- The verifier's embedded mask words. -/
 def MaskData (s : MachineState) : Prop :=

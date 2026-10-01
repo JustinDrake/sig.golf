@@ -57,9 +57,6 @@ theorem queriedInputs_mono_bind_right {alpha beta : Type} (f : QueryImpl HashSpe
   rw [queriedInputs_bind]
   exact List.mem_append_right _ hinput
 
-@[simp] theorem queriedInputs_oracleHash (f : QueryImpl HashSpec Id) (input : HashInput) :
-    queriedInputs f (Concrete.oracleHash input : OracleComp HashSpec HashOutput) = [input] := rfl
-
 @[simp] theorem queriedInputs_tweakableHash (f : QueryImpl HashSpec Id)
     (parameter : PublicParameter) (domain : HashDomain) (payload : HashInput) :
     queriedInputs f (Concrete.tweakableHash parameter domain payload)
