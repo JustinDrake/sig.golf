@@ -3,10 +3,10 @@ import SigGolfCandidate.SphincsSecurity.Scheme
 /-!
 # How many digests the target-sum code accepts
 
-The signer's counter search accepts 42 three-bit digits with sum 184 in layers 0..2 and
-185 in layers 3..4, with both padding bits clear. The counts are the coefficients of
+The signer's counter search accepts 42 three-bit digits with sum 184 in layer 0 and
+185 in layers 1..4, with both padding bits clear. The counts are the coefficients of
 `z^184` and `z^185` in `(1 + z + ... + z^7)^42`. The selected-half oracle law
-multiplies their ordinary digest probability by 7/4, giving success probability at
+multiplies their ordinary digest probability by 15/8, giving success probability at
 least `1 / codeShare`, where `codeShare = 2397`, in every layer.
 
 Counting it is one identity and one division. Packing the polynomial into a single natural number
@@ -106,7 +106,7 @@ theorem codeCount_target :
 /-- One digest in `codeShare` or more is a codeword. -/
 def codeShare : Nat := 2397
 
-theorem digests_le_codeShare_mul_codeCount : 4 * 2 ^ 128 ≤ (7 * codeShare) * codeCount (targetFor lay) := by
+theorem digests_le_codeShare_mul_codeCount : 8 * 2 ^ 128 ≤ (15 * codeShare) * codeCount (targetFor lay) := by
   rw [codeCount_target, weight_eq]
   unfold targetFor
   split_ifs <;> decide
@@ -262,7 +262,7 @@ theorem decodeDigest_pack (x : Encoding) (hx : Valid lay x) : decodeDigest lay (
 
 /-- The signer's counter search accepts at least one in `codeShare` of the `2^128` digests. -/
 theorem digests_le_codeShare_mul_card_accepting :
-    4 * 2 ^ 128 ≤ (7 * codeShare) * (Finset.univ.filter fun d : Digest => (decodeDigest lay d).isSome).card := by
+    8 * 2 ^ 128 ≤ (15 * codeShare) * (Finset.univ.filter fun d : Digest => (decodeDigest lay d).isSome).card := by
   refine le_trans (digests_le_codeShare_mul_codeCount (lay := lay)) (Nat.mul_le_mul_left _ ?_)
   rw [codeCount]
   apply Finset.card_le_card_of_injOn pack

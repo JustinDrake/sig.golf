@@ -5,7 +5,7 @@ import SigGolfCandidate.SphincsSecurity.Proof.Event.Small.SmallBound
 At budget `q + 1` with `keygenHashCost ≤ q < budgetSplit`, the small-budget bound of the capped adversary
 is at most `q / 2^127`. Compared with the query-bounded closing, the full-certificate excess is paid at
 the crude budget `265 (q + 1)` (per request, at most 265 times the least signing cost `signCharge`), and the
-near-certificate term (15 slots, price `1241/15`) leaves about `0.0206 x` of slack at the split; the extra query
+near-certificate term (15 slots, price `1241/15`) leaves positive slack at the split; the extra query
 of the marker costs `2^-127`, which the slack absorbs since `q ≥ keygenHashCost`.
 -/
 
@@ -15,12 +15,12 @@ open ENNReal
 
 set_option exponentiation.threshold 1024
 
-private theorem visRangeClosing (x : ℝ) (hlow : 606208 / 2 ^ 128 ≤ x) (hhigh : x ≤ 1 / 32768) :
-    31 / 16 * x + 265 * 1 / 2 ^ 16 * x + 1 / 2 ^ 700 + x ^ 2 * 2 +
+private theorem visRangeClosing (x : ℝ) (hlow : 606208 / 2 ^ 128 ≤ x) (hhigh : x ≤ 65 / 4194304) :
+    253 / 128 * x + 265 * 1 / 2 ^ 16 * x + 1 / 2 ^ 700 + x ^ 2 * 2 +
       16384 / 16381 * x * (1241 * x + 15 * (265 * x / 2 ^ 25) + 15 / 2 ^ 700) +
       x / 2 ^ 72 ≤ 2 * x - 2 / 2 ^ 128 := by
   have hn : 0 ≤ x := le_trans (by positivity) hlow
-  have hsq : x * x ≤ x * (1 / 32768) := mul_le_mul_of_nonneg_left hhigh hn
+  have hsq : x * x ≤ x * (65 / 4194304) := mul_le_mul_of_nonneg_left hhigh hn
   have htail : (1 : ℝ) / 2 ^ 700 ≤ x / 2 ^ 572 := by
     calc
       (1 : ℝ) / 2 ^ 700 = (1 / 2 ^ 128) / 2 ^ 572 := by norm_num
@@ -35,17 +35,17 @@ private theorem visRangeClosing (x : ℝ) (hlow : 606208 / 2 ^ 128 ≤ x) (hhigh
 theorem visSmallBound_plus_le (q : Nat) (hq : keygenHashCost ≤ q) (hsmall : q + 1 ≤ budgetSplit) :
     visSmallBound (q + 1) + ((q + 1 : Nat) : ENNReal) / 2 ^ 200 ≤ (q : ENNReal) / 2 ^ 127 := by
   rw [budgetSplit_def] at hsmall
-  have hcoarse : q + 1 ≤ 2 ^ 113 := hsmall.trans (by norm_num)
+  have hcoarse : q + 1 ≤ (65 * 2 ^ 106) := hsmall.trans (by norm_num)
   rw [keygenHashCost_eq] at hq
   unfold visSmallBound FtsGuessHash.nearMixedBound
   rw [primitiveCoefficient_def, fullCertificateExcessRate_def, proposalPrefixExceptionBound_def, nearCertificatePrice_def,
     show Fintype.card IndexGroup = 15 from Fintype.card_fin _, signRatio]
   set b := q + 1 with hbdef
-  have hx : ((b : Nat) : ENNReal) / 2 ^ 128 ≤ 1 / 32768 := by
+  have hx : ((b : Nat) : ENNReal) / 2 ^ 128 ≤ 65 / 4194304 := by
     apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
     simp only [ENNReal.toReal_div, ENNReal.toReal_pow, ENNReal.toReal_natCast,
       ENNReal.toReal_ofNat, ENNReal.toReal_one]
-    have hq' : ((b : Nat) : ℝ) ≤ 2 ^ 113 := by exact_mod_cast hcoarse
+    have hq' : ((b : Nat) : ℝ) ≤ (65 * 2 ^ 106) := by exact_mod_cast hcoarse
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith
   have hhalf : (2 : ENNReal)⁻¹ ≤ 1 - ((b : Nat) : ENNReal) / 2 ^ 128 := by
@@ -80,8 +80,8 @@ theorem visSmallBound_plus_le (q : Nat) (hq : keygenHashCost ≤ q) (hsmall : q 
   have hlow : 606208 / 2 ^ 128 ≤ ((b : Nat) : ℝ) / 2 ^ 128 := by
     apply div_le_div_of_nonneg_right _ (by positivity)
     exact_mod_cast (show 606208 ≤ b by omega)
-  have hhigh : ((b : Nat) : ℝ) / 2 ^ 128 ≤ 1 / 32768 := by
-    have hq' : ((b : Nat) : ℝ) ≤ 2 ^ 113 := by exact_mod_cast hcoarse
+  have hhigh : ((b : Nat) : ℝ) / 2 ^ 128 ≤ 65 / 4194304 := by
+    have hq' : ((b : Nat) : ℝ) ≤ (65 * 2 ^ 106) := by exact_mod_cast hcoarse
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith
   have hqb : (q : ℝ) = ((b : Nat) : ℝ) - 1 := by

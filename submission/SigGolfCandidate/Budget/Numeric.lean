@@ -5,11 +5,11 @@ import Mathlib.Analysis.Complex.ExponentialBounds
 # Budget: the numbers
 
 With `z = 2 ^ (1 / 2^17)`, the paired cap117 digest search uses `bD = 1.0279`.
-The five target sums are `[184,184,184,185,185]`; exact selected acceptance
-is `(7/4) * codeCount lay / 2^128`. Counter moment bounds are `1.01019` and `1.01214`.
-The top target remains184, so deterministic compression work is115257.
+The five target sums are `[184,185,185,185,185]`; exact selected acceptance
+is `(15/8) * codeCount lay / 2^128`. Counter moment bounds are `1.00951` and `1.01132`.
+The top target remains 184, so deterministic compression work is 115257.
 The resulting certified moment is
-`2 ^ (115257 / 2^17) * 1.0279 * 1.01019^3 * 1.01214^2 ≈ 1.9968677068 ≤ 2`.
+`2 ^ (115257 / 2^17) * 1.0279 * 1.00951 * 1.01132^4 ≈ 1.9967510917 ≤ 2`.
 Keygen: `z_K ^ 672254 ≤ 2` with
 `z_K = 2 ^ (1 / 2^20)` (`V_keygenRef_le_two`).
 
@@ -86,7 +86,7 @@ theorem rhoD_eq : rhoD = ENNReal.ofReal (1 - (admTuples : ℝ) / 2 ^ 210) := by
   unfold admTuples
   norm_num
 
-theorem rhoC_eq (lay : Nat) : rhoC lay = ENNReal.ofReal (1 - (7 * codeCount lay : ℝ) / 2 ^ 130) := by
+theorem rhoC_eq (lay : Nat) : rhoC lay = ENNReal.ofReal (1 - (15 * codeCount lay : ℝ) / 2 ^ 131) := by
   unfold rhoC
   rw [probEvent_selected_decode_none,
     show (2 : ℝ≥0∞) ^ 256 = ((2 ^ 256 : Nat) : ℝ≥0∞) by rw [Nat.cast_pow, Nat.cast_ofNat],
@@ -108,7 +108,7 @@ theorem epsD_eq : epsD = ENNReal.ofReal (1 / 2 ^ 108) := by
 /-- The paired one-block digest-search bound (also valid for cap117). -/
 noncomputable def bD : ℝ≥0∞ := ENNReal.ofReal 1.0279
 /-- The counter-search bound. -/
-noncomputable def bC (lay : Nat) : ℝ≥0∞ := ENNReal.ofReal (if 3 ≤ lay then 1.01214 else 1.01019)
+noncomputable def bC (lay : Nat) : ℝ≥0∞ := ENNReal.ofReal (if 1 ≤ lay then 1.01132 else 1.00951)
 
 theorem zS_le : zOf (2 ^ 17) ≤ ENNReal.ofReal (1 / (1 - 0.6931471808 / 131072)) := by
   unfold zOf
@@ -149,48 +149,48 @@ theorem stepD : zOf (2 ^ 17) ^ 2 * (1 - rhoD) +
       apply ENNReal.ofReal_le_ofReal
       norm_num [zb, admTuples]
 
-theorem stepC_low (lay : Nat) (hlay : ¬ 3 ≤ lay) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) ≤ bC lay := by
-  have hc0 : 0 ≤ (7 * codeCount lay : ℝ) / 2 ^ 130 := by positivity
-  have hc : (7 * codeCount lay : ℝ) / 2 ^ 130 ≤ 1 := by
+theorem stepC_low (lay : Nat) (hlay : ¬ 1 ≤ lay) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) ≤ bC lay := by
+  have hc0 : 0 ≤ (15 * codeCount lay : ℝ) / 2 ^ 131 := by positivity
+  have hc : (15 * codeCount lay : ℝ) / 2 ^ 131 ≤ 1 := by
     rw [div_le_one (by positivity)]; simp [codeCount, hlay]; norm_num
   rw [rhoC_eq, one_sub_ofReal _ (by linarith), bC, if_neg hlay]
   set zb : ℝ := 1 / (1 - 0.6931471808 / 131072)
-  calc zOf (2 ^ 17) * (ENNReal.ofReal (1 - (7 * codeCount lay : ℝ) / 2 ^ 130) * ENNReal.ofReal 1.01019 +
-        ENNReal.ofReal (1 - (1 - (7 * codeCount lay : ℝ) / 2 ^ 130)))
-      ≤ ENNReal.ofReal zb * (ENNReal.ofReal (1 - (7 * codeCount lay : ℝ) / 2 ^ 130) *
-        ENNReal.ofReal 1.01019 + ENNReal.ofReal (1 - (1 - (7 * codeCount lay : ℝ) / 2 ^ 130))) := by
+  calc zOf (2 ^ 17) * (ENNReal.ofReal (1 - (15 * codeCount lay : ℝ) / 2 ^ 131) * ENNReal.ofReal 1.00951 +
+        ENNReal.ofReal (1 - (1 - (15 * codeCount lay : ℝ) / 2 ^ 131)))
+      ≤ ENNReal.ofReal zb * (ENNReal.ofReal (1 - (15 * codeCount lay : ℝ) / 2 ^ 131) *
+        ENNReal.ofReal 1.00951 + ENNReal.ofReal (1 - (1 - (15 * codeCount lay : ℝ) / 2 ^ 131))) := by
         gcongr; exact zS_le
-    _ = ENNReal.ofReal (zb * ((1 - (7 * codeCount lay : ℝ) / 2 ^ 130) * 1.01019 +
-          (1 - (1 - (7 * codeCount lay : ℝ) / 2 ^ 130)))) := by
+    _ = ENNReal.ofReal (zb * ((1 - (15 * codeCount lay : ℝ) / 2 ^ 131) * 1.00951 +
+          (1 - (1 - (15 * codeCount lay : ℝ) / 2 ^ 131)))) := by
         rw [← ENNReal.ofReal_mul (by linarith), ← ENNReal.ofReal_add (by positivity) (by linarith),
           ← ENNReal.ofReal_mul (by norm_num [zb])]
-    _ ≤ ENNReal.ofReal 1.01019 := by
+    _ ≤ ENNReal.ofReal 1.00951 := by
         refine ENNReal.ofReal_le_ofReal ?_
         simp only [codeCount, if_neg hlay]
         norm_num [zb]
 
-theorem stepC_high (lay : Nat) (hlay : 3 ≤ lay) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) ≤ bC lay := by
-  have hc0 : 0 ≤ (7 * codeCount lay : ℝ) / 2 ^ 130 := by positivity
-  have hc : (7 * codeCount lay : ℝ) / 2 ^ 130 ≤ 1 := by
+theorem stepC_high (lay : Nat) (hlay : 1 ≤ lay) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) ≤ bC lay := by
+  have hc0 : 0 ≤ (15 * codeCount lay : ℝ) / 2 ^ 131 := by positivity
+  have hc : (15 * codeCount lay : ℝ) / 2 ^ 131 ≤ 1 := by
     rw [div_le_one (by positivity)]; simp [codeCount, hlay]; norm_num
   rw [rhoC_eq, one_sub_ofReal _ (by linarith), bC, if_pos hlay]
   set zb : ℝ := 1 / (1 - 0.6931471808 / 131072)
-  calc zOf (2 ^ 17) * (ENNReal.ofReal (1 - (7 * codeCount lay : ℝ) / 2 ^ 130) * ENNReal.ofReal 1.01214 +
-        ENNReal.ofReal (1 - (1 - (7 * codeCount lay : ℝ) / 2 ^ 130)))
-      ≤ ENNReal.ofReal zb * (ENNReal.ofReal (1 - (7 * codeCount lay : ℝ) / 2 ^ 130) *
-        ENNReal.ofReal 1.01214 + ENNReal.ofReal (1 - (1 - (7 * codeCount lay : ℝ) / 2 ^ 130))) := by
+  calc zOf (2 ^ 17) * (ENNReal.ofReal (1 - (15 * codeCount lay : ℝ) / 2 ^ 131) * ENNReal.ofReal 1.01132 +
+        ENNReal.ofReal (1 - (1 - (15 * codeCount lay : ℝ) / 2 ^ 131)))
+      ≤ ENNReal.ofReal zb * (ENNReal.ofReal (1 - (15 * codeCount lay : ℝ) / 2 ^ 131) *
+        ENNReal.ofReal 1.01132 + ENNReal.ofReal (1 - (1 - (15 * codeCount lay : ℝ) / 2 ^ 131))) := by
         gcongr; exact zS_le
-    _ = ENNReal.ofReal (zb * ((1 - (7 * codeCount lay : ℝ) / 2 ^ 130) * 1.01214 +
-          (1 - (1 - (7 * codeCount lay : ℝ) / 2 ^ 130)))) := by
+    _ = ENNReal.ofReal (zb * ((1 - (15 * codeCount lay : ℝ) / 2 ^ 131) * 1.01132 +
+          (1 - (1 - (15 * codeCount lay : ℝ) / 2 ^ 131)))) := by
         rw [← ENNReal.ofReal_mul (by linarith), ← ENNReal.ofReal_add (by positivity) (by linarith),
           ← ENNReal.ofReal_mul (by norm_num [zb])]
-    _ ≤ ENNReal.ofReal 1.01214 := by
+    _ ≤ ENNReal.ofReal 1.01132 := by
         refine ENNReal.ofReal_le_ofReal ?_
         simp only [codeCount, if_pos hlay]
         norm_num [zb]
 
 theorem stepC (lay : Nat) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) ≤ bC lay := by
-  by_cases h : 3 ≤ lay
+  by_cases h : 1 ≤ lay
   · exact stepC_high lay h
   · exact stepC_low lay h
 
@@ -199,7 +199,7 @@ theorem stepC (lay : Nat) : zOf (2 ^ 17) * (rhoC lay * bC lay + (1 - rhoC lay)) 
 theorem final_sign :
     zOf (2 ^ 17) ^ 513 * signBound (zOf (2 ^ 17)) bD bC ≤ 2 := by
   have e : zOf (2 ^ 17) ^ 513 * signBound (zOf (2 ^ 17)) bD bC =
-      bD * (ENNReal.ofReal 1.01019) ^ 3 * (ENNReal.ofReal 1.01214) ^ 2 * zOf (2 ^ 17) ^ 115257 := by
+      bD * (ENNReal.ofReal 1.00951) ^ 1 * (ENNReal.ofReal 1.01132) ^ 4 * zOf (2 ^ 17) ^ 115257 := by
     rw [show 115257 = 513 + (40959 + (73244 + 541)) by norm_num, pow_add, pow_add]
     norm_num [signBound, counterProduct, Finset.prod_range_succ, bC]
     ring
