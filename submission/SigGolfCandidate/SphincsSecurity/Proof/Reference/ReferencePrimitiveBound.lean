@@ -50,12 +50,12 @@ theorem graphPrimitiveEvent_of_outcome (key : SecretKey) (f : QueryImpl HashSpec
 noncomputable def primitivePrefixRate (q : Nat) : ENNReal :=
   let n : ENNReal := Fintype.card Digest
   let x := (q : ENNReal) / n
-  prefixTwoEdgeRate q / (1 - x) + (4 * x) / ((1 - x)^2 * n) + ((2 * ((7 / 4 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * x) / ((1 - x) * n)
+  prefixTwoEdgeRate q / (1 - x) + (4 * x) / ((1 - x)^2 * n) + ((2 * (OtsCode.unitNeighborBound : ENNReal)) * x) / ((1 - x) * n)
 
 noncomputable def primitiveEncodingRate (q : Nat) : ENNReal :=
   let n : ENNReal := Fintype.card Digest
   let x := (q : ENNReal) / n
-  (7 / 4 : ENNReal) * n⁻¹ + ((2 * ((7 / 4 : ENNReal) * (OtsCode.neighborBound : ENNReal))) * x) / ((1 - x) * n)
+  n⁻¹ + ((2 * (OtsCode.neighborBound : ENNReal)) * x) / ((1 - x) * n)
 
 theorem primitivePrefixRate_mono {q r : Nat} (h : q ≤ r) : primitivePrefixRate q ≤ primitivePrefixRate r := by
   dsimp only [primitivePrefixRate, prefixTwoEdgeRate]
@@ -72,10 +72,10 @@ theorem primitive_rates_small (q : Nat) (hq : q ≤ budgetSplit) :
   rw [primitiveCoefficient_def]
   have hcard : Fintype.card Digest = 2 ^ 128 := by simp [digestBits]
   have hn : (Fintype.card Digest : ENNReal) ≠ 0 := by positivity
-  have hx : ((2 ^ 113 : Nat) : ENNReal) / Fintype.card Digest < 1 := by
+  have hx : ((3 * 2 ^ 114 : Nat) : ENNReal) / Fintype.card Digest < 1 := by
     rw [ENNReal.div_lt_iff (Or.inl hn) (Or.inl (by finiteness)), one_mul]
-    exact_mod_cast (show 2 ^ 113 < Fintype.card Digest by rw [hcard]; norm_num)
-  have hd : 1 - ((2 ^ 113 : Nat) : ENNReal) / Fintype.card Digest ≠ 0 := ne_of_gt (tsub_pos_iff_lt.mpr hx)
+    exact_mod_cast (show 3 * 2 ^ 114 < Fintype.card Digest by rw [hcard]; norm_num)
+  have hd : 1 - ((3 * 2 ^ 114 : Nat) : ENNReal) / Fintype.card Digest ≠ 0 := ne_of_gt (tsub_pos_iff_lt.mpr hx)
   have hs := ENNReal.toReal_sub_of_le hx.le (show (1 : ENNReal) ≠ ⊤ by finiteness)
   constructor
   · apply (primitivePrefixRate_mono hq).trans

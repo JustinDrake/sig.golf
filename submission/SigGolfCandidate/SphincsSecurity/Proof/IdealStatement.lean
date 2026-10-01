@@ -243,3 +243,25 @@ abbrev IndependentSecurityStatement : Prop :=
   HasClassicalSecurityBits Concrete.scheme 127
 
 end SphincsSecurity
+
+
+namespace SphincsSecurity.Concrete.FtsProbeSimulation
+
+open _root_.OracleComp OracleSpec ENNReal
+
+noncomputable def messageAnswers (parameter : PublicParameter) (cache : QueryCache HashSpec) : HashInput → Option HashOutput :=
+  fun payload => cache (tweakableHashInput parameter .message payload)
+
+end SphincsSecurity.Concrete.FtsProbeSimulation
+
+
+namespace SphincsSecurity.Concrete.FtsProbeSimulation
+
+open _root_.OracleComp OracleSpec ENNReal
+attribute [local instance] Classical.propDecidable
+set_option backward.isDefEq.respectTransparency false
+
+def MessageHashInput (parameter : PublicParameter) (input : HashInput) : Prop :=
+  ∃ payload, tweakableHashInput parameter .message payload = input
+
+end SphincsSecurity.Concrete.FtsProbeSimulation

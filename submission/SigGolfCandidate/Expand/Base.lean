@@ -1,5 +1,18 @@
-import SigGolfCandidate.Ref
-import SigGolfCandidate.Rv
+import SigGolfCandidate.Ref.Basic
+import SigGolfCandidate.Ref.Scheme
+import SigGolfCandidate.Ref.Count
+import SigGolfCandidate.Ref.Lemmas
+
+import SigGolfCandidate.Ref.AddressQueries
+import SigGolfCandidate.Rv.Steps
+import SigGolfCandidate.Rv.Expr
+import SigGolfCandidate.Rv.Micro
+import SigGolfCandidate.Rv.Exec
+import SigGolfCandidate.Rv.Sound
+import SigGolfCandidate.Rv.Hash
+import SigGolfCandidate.Rv.Tactic
+import SigGolfCandidate.Rv.SimpAttr
+import SigGolfCandidate.Rv.Api
 
 /-!
 # Generic helpers for the expand proof (local copies of `Sign/Base`, `Sign/Inv`, `Sign/Words`)

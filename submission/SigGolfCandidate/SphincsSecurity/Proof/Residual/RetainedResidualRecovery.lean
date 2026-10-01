@@ -111,15 +111,15 @@ theorem Compatible.no_hidden_input {inputs : Finset HashInput} {context : Contex
   exact hcompatible.structural _ _ hanswer ⟨position, ⟨_, rfl⟩, Or.inl ⟨hhidden, rfl⟩⟩
 
 theorem Context.words_valid {inputs : Finset HashInput} (context : Context inputs)
-    (hdummy : ∀ lay tree leaf, OtsCode.Valid lay (context.dummy lay tree leaf)) :
-    ∀ lay tree leaf, OtsCode.Valid lay (context.words lay tree leaf) := by
+    (hdummy : ∀ lay tree leaf, OtsCode.Valid (context.dummy lay tree leaf)) :
+    ∀ lay tree leaf, OtsCode.Valid (context.words lay tree leaf) := by
   rw [Context.words, referencePrefix_words context.key inputs context.encoding context.graph context.auxiliary context.auxiliary_valid]
   exact canonicalReferenceWords_valid context.key context.oracle context.dummy hdummy
 
 theorem Compatible.layer_word {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
     (hcompatible : Compatible context memory) (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
     (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (codeword : Encoding)
-    (hword : OtsCode.Valid lay (context.words lay tree leafIdx))
+    (hword : OtsCode.Valid (context.words lay tree leafIdx))
     (hencode : evalWithAnswerFn context.oracle (encodeAttempt context.key.parameter lay tree leafIdx message counter) = some codeword)
     (hvalues : ∀ chain, values chain = honestChain context.oracle context.key.parameter lay tree leafIdx chain
       (context.key.otsSecret lay tree leafIdx chain) (codeword chain).val)
@@ -153,7 +153,7 @@ theorem Compatible.layer_word {inputs : Finset HashInput} {context : Context inp
 theorem Compatible.layer_reference {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
     (hcompatible : Compatible context memory) (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
     (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (path : Nat → Digest)
-    (hword : OtsCode.Valid lay (context.words lay tree leafIdx))
+    (hword : OtsCode.Valid (context.words lay tree leafIdx))
     (hhonest : HonestLayerOpening context.oracle context.key.parameter context.key.otsSecret lay tree leafIdx message counter values path)
     (hrun : CachedRun memory.external.cache context.oracle (otsLeafAttempt context.key.parameter lay tree leafIdx message counter values)) :
     ∃ selected, context.auxiliary.selections ⟨lay, tree, leafIdx⟩ = some selected ∧
