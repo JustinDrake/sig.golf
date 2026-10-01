@@ -211,12 +211,12 @@ theorem land0x78 (b : Nat) (_hb : b < 256) : b &&& 0x78 = 8 * (b / 8 % 16) := by
 
 theorem piT_eval {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (s : Nat) (hs : s < 15) :
     (piT s).eval m = BitVec.ofNat 64 (8 * (witPi P.wl s / 8 % 16)) := by
-  have hb := wit_byte h.wit (16 + s) (by omega)
+  have hb := wit_byte h.wit (256 + s) (by omega)
   apply BitVec.eq_of_toNat_eq
-  show ((LoadKind.bu.fromWord (m.getMem (BitVec.ofNat 64 (0x800 + 16 + (16 + s) / 8 * 8 - 16))) ((16 + s) % 8)) &&&
+  show ((LoadKind.bu.fromWord (m.getMem (BitVec.ofNat 64 (0x800 + (256 + s) / 8 * 8))) ((256 + s) % 8)) &&&
     BitVec.ofNat 64 0x78).toNat = _
-  rw [show 0x800 + 16 + (16 + s) / 8 * 8 - 16 = 0x800 + (16 + s) / 8 * 8 by omega, BitVec.toNat_and, hb]
-  have hw : wbyte P.wl (16 + s) = witPi P.wl s := rfl
+  rw [BitVec.toNat_and, hb]
+  have hw : wbyte P.wl (256 + s) = witPi P.wl s := rfl
   rw [hw, ofNat_toNat_lt _ (by decide), land0x78 _ (by unfold witPi; exact (P.wl.getD _ 0).isLt),
     ofNat_toNat_lt _ (by omega)]
 
@@ -384,11 +384,11 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
     have hsec : ∀ k, k < 2 → m.getMem (BitVec.ofNat 64 (secA s + 8 * k)) =
         (if k = 0 then vw0 else vw1) (witSecret P.wl s) := by
       intro k hk
-      rw [show secA s + 8 * k = 0x800 + (32 + 16 * s + 8 * k) by unfold secA; omega,
+      rw [show secA s + 8 * k = 0x800 + (3072 + 64 * s + 8 * k) by unfold secA; omega,
         wit_word_all h.pb.wit _ (by omega) (by omega)]
       interval_cases k
-      · simp [witSecret, vw0_slice, wSec]
-      · simp [witSecret, vw1_slice, wSec]
+      · simp [witSecret, vw0_slice, wSec_eq]
+      · simp [witSecret, vw1_slice, wSec_eq]
     refine ⟨u, ?_, ⟨pb, ?_, Or.inl ⟨rfl, rfl⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun h => by omega,
       h.bnd, ?_, hxl⟩⟩
     · have := hu.steps; simp only [leafSpec] at this; exact this
@@ -430,7 +430,7 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
         dsimp only
         have := hsec 1 (by decide)
         simpa [ldE, cw, E.eval] using this
-      · unfold witSecret; apply length_slice16; rw [hP.1]; unfold wSec; omega
+      · unfold witSecret; apply length_slice16; rw [hP.1, wSec_eq]; omega
     · rw [hu.regs (xReg s, xE s) (by simp [leafSpec]), hx]
     · exact Nat.or_lt_two_pow (show porsT < 2 ^ 15 by decide) (show leafX P s < 2 ^ 15 by omega)
 
