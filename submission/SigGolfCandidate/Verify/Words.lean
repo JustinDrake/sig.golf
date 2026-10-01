@@ -330,6 +330,22 @@ theorem pad64_encInput (lay tau e : Nat) (L R : Val) (hL : L.length = 16) (hR : 
   simp only [w64, leNat_append, leNat_le32, leNat_zeros, Nat.mul_zero, Nat.add_zero]
   rfl
 
+/-- The rotated one-block encoding query for the ordered pair of children. -/
+theorem addrFmt_encInput_words (lay tau e : Nat) (L R : Val)
+    (hL : L.length = 16) (hR : R.length = 16) (c : Nat) :
+    addrFmt (encInput lay tau e (L ++ R) c) = queryOfWords 0
+      [BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e),
+        BitVec.ofNat 64 (c % 2 ^ 32), 0, vw0 L, vw1 L, vw0 R, vw1 R] := by
+  have hf : fmt (encInput lay tau e (L ++ R) c) = pad64 (encInput lay tau e (L ++ R) c) :=
+    Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide)
+  rw [addrFmt_encInput_valid _ _ _ _ (by simp [hL, hR]), hf,
+    pad64_encInput lay tau e L R hL hR c]
+  apply EncodingRotate.query_words
+  simp only [BitVec.toNat_ofNat]
+  rw [Nat.mod_mod_of_dvd _ (by decide : 65536 ∣ 2 ^ 64)]
+  unfold twLo
+  omega
+
 theorem pad64_leafInput (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
     (hv : ∀ v ∈ ends, v.length = 16) :
     pad64 (leafInput lay tau e ends) = queryOfWords 10
@@ -347,6 +363,31 @@ theorem pad64_leafInput (lay tau e : Nat) (ends : List Val) (hl : ends.length = 
   rw [pad64_thInput _ _ (by simp) 10 (by omega) (by omega), wordsOfN_tweak, hflat,
     show 8 * 10 + 4 = 2 * ends.length + 0 by omega, wordsOfN_flatten_append ends hv]
   simp [wordsOfN]
+
+theorem pad64_leafPayload4 (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
+    (hv : ∀ v ∈ ends, v.length = 16) :
+    pad64 (thInput (tweak 4 lay tau 0 e) ends.flatten) = queryOfWords 10
+      ([BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0] ++
+        (ends.map fun v => [vw0 v, vw1 v]).flatten) := by
+  have hflat : ends.flatten.length = 672 := by
+    rw [List.length_flatten]
+    have : ends.map List.length = List.replicate 42 16 := by
+      apply List.ext_getElem (by simp [hl])
+      intro i h1 h2
+      simp only [List.getElem_map, List.getElem_replicate]
+      exact hv _ (List.getElem_mem _)
+    rw [this]; decide
+  rw [pad64_thInput _ _ (by simp) 10 (by omega) (by omega), wordsOfN_tweak, hflat,
+    show 8 * 10 + 4 = 2 * ends.length + 0 by omega, wordsOfN_flatten_append ends hv]
+  simp [wordsOfN]
+
+/-- The eleven-block WOTS leaf class uses the cached encoding-header tag. -/
+theorem addrFmt_leafInput_words (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
+    (hv : ∀ v ∈ ends, v.length = 16) :
+    addrFmt (leafInput lay tau e ends) = queryOfWords 10
+      ([BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0] ++
+        (ends.map fun v => [vw0 v, vw1 v]).flatten) := by
+  rw [addrFmt_leafInput_tag4 lay tau e ends hl hv, pad64_leafPayload4 lay tau e ends hl hv]
 
 theorem pad64_digestInput (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
     pad64 (digestInput rho m) = queryOfWords 1

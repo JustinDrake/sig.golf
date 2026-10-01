@@ -104,7 +104,7 @@ def tbOf (s : Nat) : Nat := if s = 14 then tbL else tbN
 /-- The destination of the last hash of a segment of variant `V`. -/
 def destE (V : Nat) : E :=
   if V = 0 then .bin .add (.reg .x15) (cw (EMPTY + 48)) else if V = 1 then .bin .add (.reg .x15) (cw (EMPTY + 112))
-  else cw 0x120
+  else cw 0x130
 
 def rejSpec (steps : Nat) (brs : List Br) : Spec :=
   ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, steps, brs, none, steps⟩
@@ -300,7 +300,7 @@ def fBr1 (d : Bool) : Br := ⟨.ltu, cw 14336, .reg .x14, d⟩
 def fBr2 (d : Bool) : Br := ⟨.ne, .reg .x23, cw sgn31, d⟩
 def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw 0, d⟩
 
-def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
+def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x130)]
 
 /-- Known at the start of the layer-4 transition: the layer constants the root tail sets
 (`a5 = ttab + 2048`). The masks `x20`, `x21`, the header word `x27 = 0x40401` and the dispatch
@@ -308,7 +308,7 @@ mask `sp = TMASK` are loaded from the verifier's data words through `sp = dataBa
 from protected memory in `tailF_step`. Retaining the x28=2688 initializer for carried-base subtraction makes the accepting tail take12 instructions. -/
 def rootK : List (Reg × Word) :=
   baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x14, KT4)]
-def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120)]
+def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x130)]
 
 def tailFSpec (c : Nat) : Spec :=
   ⟨[(.x20, ldE 0xFDFFD0), (.x21, ldE 0xFDFFD8), (.x27, ldE 0xFDFFC0), (.x2, ldE 0xFDFFC8)], [], f4Pc c, false, 12,

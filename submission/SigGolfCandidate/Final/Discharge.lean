@@ -1263,7 +1263,7 @@ theorem porsRoot_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
   change some node = Option.map dv (Option.map (fun r : PorsMachine.Run => r.node)
     (PorsMachine.recoverRun f 0 index (slotValue leaves) (witFts wl))) at he
   cases hr : PorsMachine.recoverRun f 0 index (slotValue leaves) (witFts wl) with
-  | none => rw [hr] at he; contradiction
+  | none => rw [hr] at he; change some node = (none : Option Ref.Val) at he; cases he
   | some r =>
       rw [decodedCostRem_eq]
       exact SiggolfReverse2322CostBridge.recoverRun_cost_le f 0 index leaves (witFts wl) r hr
@@ -1284,7 +1284,7 @@ theorem verifyList_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
         rfl
       rw [hdig, evalWithAnswerFn_bind] at hverify
       cases hr : evalWithAnswerFn hash (Ref.porsRoot (Ref.idxOf a.toNat) (Ref.leavesOf a.toNat) wl) with
-      | none => rw [hr] at hverify; contradiction
+      | none => rw [hr] at hverify; change false = true at hverify; cases hverify
       | some node =>
           let d := SphincsSecurity.truncateMessageDigest a
           have hd : d.toNat = a.toNat := truncateMessageDigest_toNat a
@@ -1303,7 +1303,7 @@ zero-inclusive compressed-tree certificate, with the final root cost restored. -
 theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
     (hpk : pkl.length = 16) (hwl : wl.length = 16384) (s : MachineState)
     (hs : InitOK ml pkl wl s) :
-    GoodQ s fuelBound cycleBoundAll True 10273 (cc (verifyList ml pkl wl) Kb) := by
+    GoodQ s fuelBound cycleBoundAll True 10263 (cc (verifyList ml pkl wl) Kb) := by
   intro F hF
   have hg := main_good_decoded ml pkl wl hml hpk hwl s hs F hF
   refine ⟨hg.1, fun hash => ⟨(hg.2 hash).1, (hg.2 hash).2.1, fun hsucc => ⟨trivial, ?_⟩⟩⟩
@@ -1320,7 +1320,7 @@ theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
 
 theorem verify_good_tight (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (s : MachineState) (hs : initialState submission .verify input = some s) :
-    GoodQ s fuelBound cycleBoundAll True 10273
+    GoodQ s fuelBound cycleBoundAll True 10263
       (cc (verifyRef input.1 input.2.1 input.2.2) Kb) := by
   obtain ⟨m, pk, w⟩ := input
   exact main_good_tight _ _ _ (length_toList m) (length_toList pk)
@@ -1331,7 +1331,7 @@ over hash answers and arbitrary witnesses. The witness charge is separate. -/
 theorem verify_accept_cycles_tight (hash : Hash)
     (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (h : (submission.runWith hash .verify input).value = some ()) :
-    (submission.runWith hash .verify input).cycles ≤ 10273 := by
+    (submission.runWith hash .verify input).cycles ≤ 10263 := by
   obtain ⟨s, hs⟩ := init_exists input
   have hg := (verify_good_tight input s hs CYCLE_LIMIT (by unfold CYCLE_LIMIT fuelBound; norm_num)).2 hash
   rw [runWith_eq submission hash .verify input s hs, image_eq] at h ⊢

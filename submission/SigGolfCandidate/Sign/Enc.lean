@@ -329,15 +329,15 @@ structure EncMem (lay tau e : Nat) (M : Val) (u : MachineState) : Prop where
   hM : M.length = 32
   eb0 : u.getMem (BitVec.ofNat 64 0x100) = twWord0 4 lay tau 0
   eb8 : u.getMem (BitVec.ofNat 64 0x108) = BitVec.ofNat 64 (tau + 2 ^ 32 * e)
-  ebM : u.readWords (BitVec.ofNat 64 0x110) 4 = wordsOf M
-  eb56 : u.getMem (BitVec.ofNat 64 0x138) = 0
+  ebM : u.readWords (BitVec.ofNat 64 0x120) 4 = wordsOf M
+  eb56 : u.getMem (BitVec.ofNat 64 0x118) = 0
   x5 : u.getReg .x5 = 0
   x7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 22)
   x26 : u.getReg .x26 = swM1
   x27 : u.getReg .x27 = swM2
   x8 : u.getReg .x8 = BitVec.ofNat 64 lay
 
-def encW (a : Nat) : Prop := a = 0x130 ∨ (0x140 ≤ a ∧ a < 0x160)
+def encW (a : Nat) : Prop := a = 0x110 ∨ (0x140 ≤ a ∧ a < 0x160)
 
 def encRegs : List Reg := [.x1, .x2, .x3, .x6, .x10, .x11, .x12, .x28, .x29]
 
@@ -392,7 +392,7 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
   have hc1 : blk346.res.cycles = 4 := rfl
   rw [hc1] at hs1
   set t1 := blk346.res.toState t with ht1
-  have f1 : Frame t t1 (fun x => x = 0x130) := by
+  have f1 : Frame t t1 (fun x => x = 0x110) := by
     apply frame_toState; intro x hx hW
     simp only [blk346.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
       implies_true, and_true, ne_eq, ofNat_eq_iff]
@@ -406,10 +406,11 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
   have x12 : t1.getReg .x12 = BitVec.ofNat 64 0x140 := by simp only [ht1, blk346.res, rv_simp]
   have x5 : t1.getReg .x5 = 0 := by rw [r1.get .x5, tregs.get .x5, hmem.x5]
   have pc1 : t1.pc = pcOf 350 := by simp only [ht1, blk346.res, rv_simp]
-  have hq : hashInput t1 = pad64 (encInput lay tau e M c) := by
-    obtain ⟨hn, hw⟩ := words_encInput lay tau e M hmem.hM c
-    refine hashInput_eq_pad64 t1 _ 0 hn (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
-    rw [hw, x10, show 8 * (0 + 1) = 1 + 1 + 4 + 1 + 1 from rfl]
+  have hq : hashInput t1 = addrFmt (encInput lay tau e M c) := by
+    rw [hashInput_eq_words t1 0 (by simpa using x11) (by norm_num) (by rw [x10]; decide),
+      addrFmt_encInput_words lay tau e M hmem.hM c]
+    apply congrArg (queryOfWords 0)
+    rw [x10, show 8 * (0 + 1) = 1 + 1 + 1 + 1 + 4 from rfl]
     rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add]
     simp only [Nat.reduceMul, Nat.reduceAdd]
     rw [readWords_ofNat_one, readWords_ofNat_one, readWords_ofNat_one, readWords_ofNat_one,
@@ -417,21 +418,22 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
       tframe.getMem (a := 0x100) (by norm_num) (by simp only [encW]; omega),
       hmem.eb0, f1.getMem (a := 0x108) (by norm_num) (by norm_num),
       tframe.getMem (a := 0x108) (by norm_num) (by simp only [encW]; omega), hmem.eb8,
+      f1.getMem (a := 0x118) (by norm_num) (by norm_num),
+      tframe.getMem (a := 0x118) (by norm_num) (by simp only [encW]; omega), hmem.eb56,
       f1.readWords _ _ (by norm_num) (by intro i hi; omega),
-      tframe.readWords _ _ (by norm_num) (by intro i hi; simp only [encW]; omega), hmem.ebM,
-      f1.getMem (a := 0x138) (by norm_num) (by norm_num),
-      tframe.getMem (a := 0x138) (by norm_num) (by simp only [encW]; omega), hmem.eb56]
+      tframe.readWords _ _ (by norm_num) (by intro i hi; simp only [encW]; omega), hmem.ebM]
     simp only [ht1, blk346.res, rv_simp, t6]
     simp only [twWords_eq, List.cons_append, List.nil_append, List.append_assoc, List.cons.injEq,
       true_and, and_true]
     refine ⟨?_, ?_⟩
     · congr 1; rw [Nat.mod_eq_of_lt (by omega : tau < 2 ^ 32), Nat.mod_eq_of_lt (by omega : e < 2 ^ 32)]
     · rw [if_pos trivial, Nat.mod_eq_of_lt (by omega : c < 2 ^ 32)]
-  have hb : (pad64 (encInput lay tau e M c)).blocks = 1 :=
-    congrArg (· + 1) (words_encInput lay tau e M hmem.hM c).1
-  refine (Sim.steps hs1 (Sim.encodingHash_bind (W := 50 + Wr) e1 x5
+  have hb : (addrFmt (encInput lay tau e M c)).blocks = 1 := by
+    rw [addrFmt_blocks, Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide)]
+    exact congrArg (· + 1) (words_encInput lay tau e M hmem.hM c).1
+  refine (Sim.steps hs1 (Sim.encodingHash_bindF (W := 50 + Wr) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) hq (by rw [addrFmt_encInput]; exact Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide))
+      (by norm_num)) hq
         (fun a => ?_))).mono (by rw [hb]; omega) (fun _ _ h => h)
   set t2 := writeHash t1 a with ht2
   have f2 : Frame t1 t2 (fun x => 0x140 ≤ x ∧ x < 0x140 + 32) := frame_writeHash t1 a _ x12 (by norm_num)

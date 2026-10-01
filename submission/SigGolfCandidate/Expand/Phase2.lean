@@ -62,9 +62,9 @@ theorem phase2_sim (w0 : List Byte) (hw : w0.length = 16384) (hz : ∀ j < 4, w0
     have c2 : LCtx w0 (idxOf N) t2 := ⟨hidx34, by rw [r2.get .x5 (by decide), c1.x5], x7,
       by rw [x22, c1.x4], by rw [r2.get .x25 (by decide), c1.x25], x26, x27, ecb, elf, enb, hw2⟩
     have hPM : (P ++ M).length = 32 := by simp [P, zeros, hM]
-    have heb : t2.readWords (BitVec.ofNat 64 0x110) 4 = wordsOf (P ++ M) := by
-      have e4 := readWords_ofNat_add t2 0x110 2 2
-      rw [show (2 + 2 : Nat) = 4 from rfl, show (0x110 + 8 * 2 : Nat) = 0x120 from rfl] at e4
+    have heb : t2.readWords (BitVec.ofNat 64 0x120) 4 = wordsOf (P ++ M) := by
+      have e4 := readWords_ofNat_add t2 0x120 2 2
+      rw [show (2 + 2 : Nat) = 4 from rfl, show (0x120 + 8 * 2 : Nat) = 0x130 from rfl] at e4
       rw [e4, eP, eM, o1, wordsOf_append _ _ (by simp [P, zeros]),
         show wordsOf P = [0, 0] from wordsOf_zeros 2]
     exact ⟨c2, ⟨by norm_num, hidx34, hPM, p2, c2.x5, x7, x8, c2.x22, x26, x27, heb⟩,

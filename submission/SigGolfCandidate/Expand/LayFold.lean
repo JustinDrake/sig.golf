@@ -27,14 +27,14 @@ def LeafOut (w : List Byte) (idx : Nat) (u : MachineState) (v : Val) (t : Machin
 theorem leaf_sim (w : List Byte) (idx : Nat) (lay tau e : Nat) (hl : lay < 5) (htau : tau < 2 ^ 30)
     (he : e < 2048) (ends : List Val) (hlen : ends.length = 42) (hv : ∀ v ∈ ends, v.length = 16)
     (t : MachineState) (hpc : t.pc = pcOf 438) (hc : LCtx w idx t) (hs : Slots t 0x30260 ends)
-    (m0 : t.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (513 + 65536 * lay))
+    (m0 : t.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (1025 + 65536 * lay))
     (m8 : t.getMem (BitVec.ofNat 64 0x30248) = BitVec.ofNat 64 (tau + 2 ^ 32 * e)) :
     Sim eimg t 91 (hash16 (leafInput lay tau e ends)) (LeafOut w idx t) := by
   obtain ⟨t1, hs1, e1, p1, x10, x11, x12, r1, m1⟩ := blk438_run t hpc hc.x25
-  have hw := words_thVals 2 lay tau 0 e ends hv 10 (by rw [hlen])
-  have hq : hashInput t1 = pad64 (leafInput lay tau e ends) := by
+  have hw := words_thVals 4 lay tau 0 e ends hv 10 (by rw [hlen])
+  have hq : hashInput t1 = pad64 (thInput (tweak 4 lay tau 0 e) ends.flatten) := by
     refine hashInput_eq_pad64 t1 _ 10 hw.1 (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
-    rw [x10, leafInput, hw.2, show 8 * (10 + 1) = 2 + (2 + 2 * ends.length) by rw [hlen],
+    rw [x10, hw.2, show 8 * (10 + 1) = 2 + (2 + 2 * ends.length) by rw [hlen],
       readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_two]
     simp only [Nat.reduceMul, Nat.reduceAdd]
     rw [m1, m1, m0, m8, readWords_congr _ _ _ _ (fun i _ => m1 _), hc.lfz,
@@ -44,10 +44,14 @@ theorem leaf_sim (w : List Byte) (idx : Nat) (lay tau e : Nat) (hl : lay < 5) (h
       Nat.mod_eq_of_lt (by omega : tau < 2 ^ 32), Nat.mod_eq_of_lt (by omega : e < 2 ^ 32)]
     simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true]
     exact ofNat_congr (by ring)
-  have hb : (pad64 (leafInput lay tau e ends)).blocks = 11 := congrArg (· + 1) hw.1
-  refine (Sim.steps hs1 (Sim.of_eq (Sim.hash16_bind (f := pure) (W := 0) e1 (by rw [r1.get .x5, hc.x5])
+  have haddr := addrFmt_leafInput_tag4 lay tau e ends hlen hv
+  have hq' : hashInput t1 = addrFmt (leafInput lay tau e ends) := hq.trans haddr.symm
+  have hb : (fmt (leafInput lay tau e ends)).blocks = 11 := by
+    rw [← addrFmt_blocks, haddr]
+    exact congrArg (· + 1) hw.1
+  refine (Sim.steps hs1 (Sim.of_eq (Sim.hash16_bindF (f := pure) (W := 0) e1 (by rw [r1.get .x5, hc.x5])
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) hq (addrFmt_thInput _ _ _ _ _ _ (by decide)) (fun ans => ?_)) (bind_pure _))).mono
+      (by norm_num)) hq' (fun ans => ?_)) (bind_pure _))).mono
     (by rw [hb]) (fun _ _ h => h)
   refine Sim.pure ⟨by rw [writeHash_pc, p1]; rfl,
     (hc.frame_nil m1 r1).frame (frame_writeHash t1 ans _ x12 (by norm_num)) (regsEq_writeHash t1 ans [])
@@ -237,6 +241,19 @@ theorem fold_step (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : Na
     (fold_step2 w idx u lay tau e hl hl' htau he hw u9 u30 u1C0 lam hlam v t h).mono le_rfl
       (fun _ _ h => h.1)
 
+/-- Congruence on visited entries keeps the hash formatter opaque. -/
+private theorem foldlM_congr_on {α β : Type} (f g : α → β → OracleComp HashSpec α)
+    (xs : List β) (a : α) (h : ∀ x ∈ xs, ∀ v, f v x = g v x) :
+    xs.foldlM f a = xs.foldlM g a := by
+  induction xs generalizing a with
+  | nil => simp only [List.foldlM_nil]
+  | cons x xs ih =>
+    simp only [List.foldlM_cons]
+    rw [h x (List.mem_cons_self ..) a]
+    congr 1
+    funext v
+    exact ih v (fun x hx => h x (List.mem_cons_of_mem _ hx))
+
 /-- The folds below the root: the fold over the first `height lay - 1` siblings of the path. -/
 theorem foldPath_take_eq (w : List Byte) (lay tau e : Nat) (leaf : Val) :
     foldPath (nodeInput lay tau) e leaf ((witPath w lay).take (height lay - 1)) =
@@ -245,24 +262,14 @@ theorem foldPath_take_eq (w : List Byte) (lay tau e : Nat) (leaf : Val) :
     simp [witPath]
   unfold foldPath
   rw [hlen]
-  have key : ∀ (l : List Nat) (v : Val), (∀ lam ∈ l, lam < height lay - 1) →
-      l.foldlM (fun v lam =>
-        let sib := ((witPath w lay).take (height lay - 1)).getD lam []
-        let j := e / 2 ^ (lam + 1)
-        if e / 2 ^ lam % 2 = 1 then hash16 (nodeInput lay tau (lam + 1) j sib v)
-        else hash16 (nodeInput lay tau (lam + 1) j v sib)) v = l.foldlM (fdF w lay tau e) v := by
-    intro l
-    induction l with
-    | nil => intro v _; rfl
-    | cons a l ih =>
-      intro v h
-      have ha : a < height lay - 1 := h a (List.mem_cons_self ..)
-      have e1 : ((witPath w lay).take (height lay - 1)).getD a [] = (witPath w lay).getD a [] := by
-        simp [List.getD_eq_getElem?_getD, List.getElem?_take, ha]
-      simp only [List.foldlM_cons, fdF, e1]
-      congr 1; funext v'
-      exact ih v' (fun lam hlam => h lam (List.mem_cons_of_mem _ hlam))
-  exact key _ leaf (fun lam hlam => by simpa using hlam)
+  apply foldlM_congr_on
+  intro lam hlam v
+  have ha : lam < height lay - 1 := List.mem_range.mp hlam
+  have e1 : ((witPath w lay).take (height lay - 1)).getD lam [] = (witPath w lay).getD lam [] := by
+    simp [List.getD_eq_getElem?_getD, List.getElem?_take, ha]
+  dsimp only
+  rw [e1]
+  rfl
 
 /-- The dead root hash of `expandLayers` is the last fold. -/
 theorem fdF_last (w : List Byte) (lay tau e : Nat) (he : e < 2 ^ height lay) (hh : 1 ≤ height lay)

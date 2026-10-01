@@ -68,7 +68,7 @@ structure LayHead (S cache : List Byte) (idx lay : Nat) (M : Val) (t : MachineSt
   x22 : t.getReg .x22 = BitVec.ofNat 64 idx
   x26 : t.getReg .x26 = swM1
   x27 : t.getReg .x27 = swM2
-  ebM : t.readWords (BitVec.ofNat 64 0x110) 4 = wordsOf M
+  ebM : t.readWords (BitVec.ofNat 64 0x120) 4 = wordsOf M
   st : Statics S t
   region : RegionOk cache t
 
@@ -97,7 +97,7 @@ structure HeadRegs (idx lay : Nat) (M : Val) (t : MachineState) : Prop where
   x22 : t.getReg .x22 = BitVec.ofNat 64 idx
   x26 : t.getReg .x26 = swM1
   x27 : t.getReg .x27 = swM2
-  ebM : t.readWords (BitVec.ofNat 64 0x110) 4 = wordsOf M
+  ebM : t.readWords (BitVec.ofNat 64 0x120) 4 = wordsOf M
 
 theorem LayHead.toHeadRegs {S cache : List Byte} {idx lay : Nat} {M : Val} {t : MachineState}
     (hh : LayHead S cache idx lay M t) : HeadRegs idx lay M t :=
@@ -127,7 +127,7 @@ theorem layer_head {img : Image} (hcode : HeadCode img) (idx lay : Nat) (M : Val
       t4.getReg .x31 = BitVec.ofNat 64 ((route idx lay).2 + 2 ^ 32 * (route idx lay).1) ∧
       EncMem lay (route idx lay).2 (route idx lay).1 M t4 ∧
       RegsEq t t4 [.x3, .x6, .x9, .x13, .x28, .x29, .x30, .x31] ∧
-      Frame t t4 (fun a => a = 0x100 ∨ a = 0x108 ∨ a = 0x138) := by
+      Frame t t4 (fun a => a = 0x100 ∨ a = 0x108 ∨ a = 0x118) := by
   have hl := hh.hlay
   have hidx := hh.hidx
   obtain ⟨hsh1, hsh2, hsb, hhg1, hhg2⟩ := shiftBelow_add lay hl
@@ -230,7 +230,7 @@ theorem layer_head {img : Image} (hcode : HeadCode img) (idx lay : Nat) (M : Val
     simp only [ht4, blk331.res, rv_simp, y22, x28, x9]
     bvsimp [ofNat_eq_iff, Nat.one_mul, Nat.and_two_pow_sub_one_eq_mod]
     rw [htau', he']; congr 1; ring
-  have f4 : Frame t2 t4 (fun a => a = 0x100 ∨ a = 0x108 ∨ a = 0x138) := by
+  have f4 : Frame t2 t4 (fun a => a = 0x100 ∨ a = 0x108 ∨ a = 0x118) := by
     apply frame_toState; intro x hx hW
     simp only [blk331.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
       implies_true, and_true, ne_eq, ofNat_eq_iff]
@@ -238,7 +238,7 @@ theorem layer_head {img : Image} (hcode : HeadCode img) (idx lay : Nat) (M : Val
   have r4 : RegsEq t2 t4 [.x3, .x6, .x13, .x29, .x30, .x31] := by
     intro r hr; rw [ht4, Result.toState_getReg]
     cases r <;> first | exact absurd (by decide) hr | rfl
-  have ft4 : Frame t t4 (fun a => a = 0x100 ∨ a = 0x108 ∨ a = 0x138) :=
+  have ft4 : Frame t t4 (fun a => a = 0x100 ∨ a = 0x108 ∨ a = 0x118) :=
     (f1.trans (f2.trans f4)).mono (by intro x hx; rcases hx with h | h | h; exact h.elim; exact h.elim; exact h)
   have hc3 : blk331.res.cycles = 15 := rfl
   have hc1 : blk316.res.cycles = 2 := rfl
@@ -272,7 +272,7 @@ theorem layer_header (S cache : List Byte) (idx lay : Nat) (M : Val) (t : Machin
       t4.getReg .x31 = BitVec.ofNat 64 ((route idx lay).2 + 2 ^ 32 * (route idx lay).1) ∧
       EncMem lay (route idx lay).2 (route idx lay).1 M t4 ∧
       RegsEq t t4 [.x3, .x6, .x9, .x13, .x28, .x29, .x30, .x31] ∧
-      Frame t t4 (fun a => a = 0x100 ∨ a = 0x108 ∨ a = 0x138) :=
+      Frame t t4 (fun a => a = 0x100 ∨ a = 0x108 ∨ a = 0x118) :=
   layer_head headCode idx lay M t hh.toHeadRegs
 
 /-! ## `enc_ok`: counter, digits, tree setup (instructions 370 .. 507) -/
@@ -422,7 +422,7 @@ theorem tree_setup (S : List Byte) (lay tau h e d0 d1 : Nat) (hlay : lay < 6) (h
     simp only [htt, blk509.res, rv_simp]; rfl
   · simp only [htt, blk509.res, rv_simp, t8]
     bvsimp [ofNat_eq_iff]
-    rw [ofNat_or_disjoint (lay * 65536) 513 16 (by omega) (by norm_num) (by omega)]
+    rw [ofNat_or_disjoint (lay * 65536) 1025 16 (by omega) (by norm_num) (by omega)]
     unfold twWord0; congr 1
     rw [Nat.div_eq_of_lt (by omega : tau < 2 ^ 32), Nat.mod_eq_of_lt (a := lay) (by omega)]; omega
   · rw [f.readWords _ _ (by norm_num) (by intro i hi; omega), tst.lbP]
@@ -506,8 +506,8 @@ theorem layer_tail (lay : Nat) (hlay : lay < 6) (h1 : 1 ≤ lay) (t : MachineSta
     (t8 : t.getReg .x8 = BitVec.ofNat 64 lay) (t18 : t.getReg .x18 = BitVec.ofNat 64 (0x900 + 856 * lay)) :
     ∃ t', Steps image t 13 13 t' ∧ t'.pc = pcOf 316 ∧ t'.getReg .x8 = BitVec.ofNat 64 (lay - 1) ∧
       t'.getReg .x18 = BitVec.ofNat 64 (0x900 + 856 * (lay - 1)) ∧
-      t'.readWords (BitVec.ofNat 64 0x110) 4 = t.readWords (BitVec.ofNat 64 0x1E0) 4 ∧
-      RegsEq t t' [.x1, .x2, .x8, .x18] ∧ Frame t t' (fun a => 0x110 ≤ a ∧ a < 0x130) := by
+      t'.readWords (BitVec.ofNat 64 0x120) 4 = t.readWords (BitVec.ofNat 64 0x1E0) 4 ∧
+      RegsEq t t' [.x1, .x2, .x8, .x18] ∧ Frame t t' (fun a => 0x120 ≤ a ∧ a < 0x140) := by
   have hs1 := symRun_sound blk630 codeAt_630 t tpc (by simp only [blk630.res, rv_simp])
   set t1 := blk630.res.toState t with ht1
   have pc1 : t1.pc = pcOf 1820 := by simp only [ht1, blk630.res, rv_simp]
@@ -526,33 +526,33 @@ theorem layer_tail (lay : Nat) (hlay : lay < 6) (h1 : 1 ≤ lay) (t : MachineSta
   have r3 : RegsEq t2 t3 [.x8] := by
     intro r hr; rw [ht3, Result.toState_getReg]
     cases r <;> first | exact absurd (by decide) hr | rfl
-  have f1 : Frame t t1 (fun a => a = 0x110 ∨ a = 0x118) := by
+  have f1 : Frame t t1 (fun a => a = 0x120 ∨ a = 0x128) := by
     apply frame_toState; intro x hx hW
     simp only [blk630.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
       implies_true, and_true, ne_eq, ofNat_eq_iff]
     omega
-  have f2 : Frame t1 t2 (fun a => a = 0x120 ∨ a = 0x128) := by
+  have f2 : Frame t1 t2 (fun a => a = 0x130 ∨ a = 0x138) := by
     apply frame_toState; intro x hx hW
     simp only [blk1820.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
       implies_true, and_true, ne_eq, ofNat_eq_iff]
     omega
   have f3 : Frame t2 t3 (fun _ => False) := by
     apply frame_toState; intro x hx hW; simp [blk635.res]
-  have w110 : t1.getMem (BitVec.ofNat 64 0x110) = t.getMem (BitVec.ofNat 64 0x1E0) := by
+  have w110 : t1.getMem (BitVec.ofNat 64 0x120) = t.getMem (BitVec.ofNat 64 0x1E0) := by
     simp (config := { decide := true }) only [ht1, blk630.res, rv_simp, ↓reduceIte]
-  have w118 : t1.getMem (BitVec.ofNat 64 0x118) = t.getMem (BitVec.ofNat 64 0x1E8) := by
+  have w118 : t1.getMem (BitVec.ofNat 64 0x128) = t.getMem (BitVec.ofNat 64 0x1E8) := by
     simp (config := { decide := true }) only [ht1, blk630.res, rv_simp, ↓reduceIte]
-  have w120 : t2.getMem (BitVec.ofNat 64 0x120) = t1.getMem (BitVec.ofNat 64 0x1F0) := by
+  have w120 : t2.getMem (BitVec.ofNat 64 0x130) = t1.getMem (BitVec.ofNat 64 0x1F0) := by
     simp (config := { decide := true }) only [ht2, blk1820.res, rv_simp, ↓reduceIte]
-  have w128 : t2.getMem (BitVec.ofNat 64 0x128) = t1.getMem (BitVec.ofNat 64 0x1F8) := by
+  have w128 : t2.getMem (BitVec.ofNat 64 0x138) = t1.getMem (BitVec.ofNat 64 0x1F8) := by
     simp (config := { decide := true }) only [ht2, blk1820.res, rv_simp, ↓reduceIte]
-  have e110 : t3.getMem (BitVec.ofNat 64 0x110) = t.getMem (BitVec.ofNat 64 0x1E0) := by
+  have e110 : t3.getMem (BitVec.ofNat 64 0x120) = t.getMem (BitVec.ofNat 64 0x1E0) := by
     rw [f3.getMem (by norm_num) (by simp), f2.getMem (by norm_num) (by omega), w110]
-  have e118 : t3.getMem (BitVec.ofNat 64 0x118) = t.getMem (BitVec.ofNat 64 0x1E8) := by
+  have e118 : t3.getMem (BitVec.ofNat 64 0x128) = t.getMem (BitVec.ofNat 64 0x1E8) := by
     rw [f3.getMem (by norm_num) (by simp), f2.getMem (by norm_num) (by omega), w118]
-  have e120 : t3.getMem (BitVec.ofNat 64 0x120) = t.getMem (BitVec.ofNat 64 0x1F0) := by
+  have e120 : t3.getMem (BitVec.ofNat 64 0x130) = t.getMem (BitVec.ofNat 64 0x1F0) := by
     rw [f3.getMem (by norm_num) (by simp), w120, f1.getMem (by norm_num) (by omega)]
-  have e128 : t3.getMem (BitVec.ofNat 64 0x128) = t.getMem (BitVec.ofNat 64 0x1F8) := by
+  have e128 : t3.getMem (BitVec.ofNat 64 0x138) = t.getMem (BitVec.ofNat 64 0x1F8) := by
     rw [f3.getMem (by norm_num) (by simp), w128, f1.getMem (by norm_num) (by omega)]
   have x82 : t2.getReg .x8 = BitVec.ofNat 64 lay := by rw [r2.get .x8, r1.get .x8, t8]
   have x181 : t1.getReg .x18 = BitVec.ofNat 64 (0x900 + 856 * lay) := by rw [r1.get .x18, t18]
@@ -601,12 +601,12 @@ theorem top_layer_sim (S cache : List Byte) (hS : S.length = 32) (hcache : cache
   obtain ⟨pc5, x56, hc, ⟨d0, d1, hd0, hd1, hx, hsum, x51, x52⟩, r5, f5⟩ := h5
   subst hx
   have rt5 : RegsEq t t5 ([.x3, .x6, .x9, .x13, .x28, .x29, .x30, .x31] ++ encRegs) := r4.trans r5
-  have ft5 : Frame t t5 (fun a => (a = 0x100 ∨ a = 0x108 ∨ a = 0x138) ∨ encW a) := f4.trans f5
+  have ft5 : Frame t t5 (fun a => (a = 0x100 ∨ a = 0x108 ∨ a = 0x118) ∨ encW a) := f4.trans f5
   obtain ⟨u, hsu, pcu, digu, cntu, ru, fu⟩ := enc_digits 0 c d0 d1 (by norm_num) hd0 hd1 t5 pc5 x51 x52 x56
     (by rw [rt5.get .x8, hh.x8]) (by rw [rt5.get .x18, hh.x18])
   rw [if_pos rfl] at pcu
   have rtu : RegsEq t u (([.x3, .x6, .x9, .x13, .x28, .x29, .x30, .x31] ++ encRegs) ++ [.x3, .x14]) := rt5.trans ru
-  have ftu : Frame t u (fun a => ((a = 0x100 ∨ a = 0x108 ∨ a = 0x138) ∨ encW a) ∨
+  have ftu : Frame t u (fun a => ((a = 0x100 ∨ a = 0x108 ∨ a = 0x118) ∨ encW a) ∨
       (a = 0x900 + 856 * 0 ∨ (0x780 ≤ a ∧ a < 0x8D0))) := ft5.trans fu
   have tctx : TopCtx S cache (digitsOfWord d0 ++ digitsOfWord d1) tau e u := by
     refine ⟨htau30, he2048, fun i => digits_lt d0 d1 i, by rw [rtu.get .x5, hh.x5],
@@ -669,7 +669,7 @@ theorem layers_sim (S cache : List Byte) (hS : S.length = 32) (hcache : cache.le
     · obtain ⟨pc5, x56, hc, ⟨d0, d1, hd0, hd1, hx, hsum, x51, x52⟩, r5, f5⟩ := h5
       subst hx
       have rt5 : RegsEq t t5 ([.x3, .x6, .x9, .x13, .x28, .x29, .x30, .x31] ++ encRegs) := r4.trans r5
-      have ft5 : Frame t t5 (fun a => (a = 0x100 ∨ a = 0x108 ∨ a = 0x138) ∨ encW a) := f4.trans f5
+      have ft5 : Frame t t5 (fun a => (a = 0x100 ∨ a = 0x108 ∨ a = 0x118) ∨ encW a) := f4.trans f5
       obtain ⟨u, hsu, pcu, digu, cntu, ru, fu⟩ := enc_digits (n + 1) c d0 d1 (by omega) hd0 hd1 t5 pc5 x51 x52 x56
         (by rw [rt5.get .x8, hh.x8]) (by rw [rt5.get .x18, hh.x18])
       rw [if_neg (by omega)] at pcu

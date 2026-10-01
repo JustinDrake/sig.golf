@@ -4,6 +4,7 @@ import Mathlib.Tactic.Ring
 
 /-! # Digest-word arithmetic for the PORS phase: idx, the leaf indices, tweak words, counters -/
 
+set_option Elab.async false
 set_option linter.unusedSimpArgs false
 
 namespace SigGolfCandidate.Verify

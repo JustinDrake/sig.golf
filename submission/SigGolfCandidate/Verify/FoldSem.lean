@@ -78,7 +78,7 @@ def NBhdr (fc : FCtx) (lam : Nat) (s : MachineState) : Prop :=
 def FCtx.vA (fc : FCtx) (lam : Nat) : Nat := nodeDst fc.lay lam (bitOf fc.E lam)
 
 theorem FCtx.vA_cases (fc : FCtx) (lam : Nat) :
-    fc.vA lam = 0x120 ∨ fc.vA lam = 0x360 + 16 * bitOf fc.E lam := by
+    fc.vA lam = 0x120 + 16 * bitOf fc.E lam ∨ fc.vA lam = 0x360 + 16 * bitOf fc.E lam := by
   unfold FCtx.vA nodeDst; split <;> simp
 
 theorem FCtx.vA_zero (fc : FCtx) (h0 : fc.lay = 0) (lam : Nat) :
@@ -494,13 +494,13 @@ theorem level_lt (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam + 1 < fc.h)
   have hvA := fc.vA_lt hfc lam hlam
   rw [hvA] at hv0
   rw [hvA, show 0x360 + 16 * bitOf fc.E lam + 8 = 0x368 + 16 * bitOf fc.E lam by omega] at hv1
-  have hd : fc.vA (lam + 1) = 0x120 ∨ fc.vA (lam + 1) = 0x360 + 16 * b' := fc.vA_cases (lam + 1)
+  have hd : fc.vA (lam + 1) = 0x120 + 16 * b' ∨ fc.vA (lam + 1) = 0x360 + 16 * b' := fc.vA_cases (lam + 1)
   have hd1 : 0x120 ≤ fc.vA (lam + 1) ∧ fc.vA (lam + 1) + 32 ≤ 0x390 ∧ fc.vA (lam + 1) % 8 = 0 ∧
       (fc.vA (lam + 1) + 32 ≤ 0x340 ∨ 0x360 ≤ fc.vA (lam + 1)) := by
     rcases hd with h | h <;> rw [h] <;> omega
   have hsd : safeDest (fc.vA (lam + 1)) = true := by
     rcases hd with h | h
-    · rw [h]; decide
+    · rw [h]; rcases (show b' = 0 ∨ b' = 1 by omega) with h | h <;> rw [h] <;> decide
     · rw [h]; rcases (show b' = 0 ∨ b' = 1 by omega) with h | h <;> rw [h] <;> decide
   have hsl := sib_words fc hfc lam (by omega) s hG hFresh
   have hnb := lvlNb_eval fc hfc lam hlam s h23

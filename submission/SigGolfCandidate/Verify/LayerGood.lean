@@ -122,9 +122,15 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     (by show heightL lay - 1 < heightL lay; omega) u hG hFresh
   have hsl := length_sib (layFC ⟨wl, pk, lay, idx⟩) hfc (heightL lay - 1)
     (by show heightL lay - 1 < heightL lay; omega)
-  have hvA : (layFC ⟨wl, pk, lay, idx⟩).vA (heightL lay - 1) = 0x120 := by
+  have hvA : (layFC ⟨wl, pk, lay, idx⟩).vA (heightL lay - 1) =
+      encD (lay - 1) (LCtx.sub ⟨wl, pk, lay - 1, idx⟩).e := by
     unfold FCtx.vA nodeDst
     rw [if_pos ⟨by simp only [layFC]; omega, by simp only [layFC]; omega⟩]
+    simp only [layFC, LCtx.lay, LCtx.sub, LCtx.e, encD, xLeft, Nat.sub_add_cancel h1,
+      show (lay - 1 != 4) = true by simp; omega, Bool.true_and]
+    have hb := bitOf_lt (idx / 2 ^ layS lay % 2 ^ heightL lay) (heightL lay - 1)
+    unfold bitOf at hb ⊢
+    split <;> rename_i h <;> simp_all <;> omega
   rw [hvA] at hm0 hm8 h12
   have hK1 : KnownOK (foldK lay 64) u := by
     have e : lvlK lay (heightL lay - 1) = foldK lay 64 := by
@@ -261,11 +267,11 @@ theorem layer_good (L : LCtx) (hL : L.ok) (X : Val) (Kopt : Option Val → Oracl
                   (foldInv_layerIn L.wl L.pk L.lay L.idx (by omega) hlay hidx hwl _ v u hinv hcar))
                 (heightL L.lay - 1) 0 (by omega) _ _ hfi
               exact hfold.mono (by omega) (by simp [layFC])
-          have h3 := Good.hashP (x := leafInput L.lay L.tau L.e ends) (K := fun leaf => cc (foldPath (nodeInput L.lay L.tau) L.e leaf
+          have h3 := Good.hash (x := leafInput L.lay L.tau L.e ends) (K := fun leaf => cc (foldPath (nodeInput L.lay L.tau) L.e leaf
             (if L.lay = 0 then witPath L.wl L.lay else (witPath L.wl L.lay).take (height L.lay - 1)))
             (fun root => cc (pure (some root)) Kopt))
-            (fmt_th _ _ _ _ _ _ (by decide)) hf3 h53 hv3 hin3 H3
-          rw [pad64_leafInput _ _ _ _ hends hvs, blocks_q] at h3
+            hf3 h53 hv3 hin3 H3
+          rw [addrFmt_leafInput_words _ _ _ _ hends hvs, blocks_q] at h3
           have hls : leafSteps L.lay ≤ 13 := by unfold leafSteps; split <;> omega
           exact Good.steps' hst3 h3 (by omega) (by omega))
         t2 hent
@@ -273,13 +279,13 @@ theorem layer_good (L : LCtx) (hL : L.ok) (X : Val) (Kopt : Option Val → Oracl
       rw [e1]
       refine Good.steps' hst2 (hch.congr ?_) (by omega) (by unfold layerCost; omega)
       rfl
-  have h3 := Good.encodingHashP (x := encInput L.lay L.tau L.e (L.msg X) (witCounter L.wl L.lay)) (K := fun d => cc (match decodeDigits L.lay d with
+  have h3 := Good.encodingHashF (x := encInput L.lay L.tau L.e (L.msg X) (witCounter L.wl L.lay)) (K := fun d => cc (match decodeDigits L.lay d with
         | none => pure none
         | some x => do
           let leaf ← verifyLeafP L.wl L.lay L.tau L.e x
           let node ← foldPath (nodeInput L.lay L.tau) L.e leaf
             (if L.lay = 0 then witPath L.wl L.lay else (witPath L.wl L.lay).take (height L.lay - 1))
-          pure (some node)) Kopt) (fmt_enc _ _ _ _ _) hf1 h51 hv1 hin1 H
+          pure (some node)) Kopt) hf1 h51 hv1 hin1 H
   rw [hblk1] at h3
   exact Good.steps' hst1 h3 (by omega) (by unfold layerCost; omega)
 
@@ -428,6 +434,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The cycles of the five layers and the comparison (`8`). Against the head without the pair
 message: `-14` per lower layer (no root hash) and `+4` in each upper transition (the sibling copy). -/
-theorem layersCost_5 : layersCost 5 = 7493 := by decide
+theorem layersCost_5 : layersCost 5 = 7483 := by decide
 
 end SigGolfCandidate.Verify

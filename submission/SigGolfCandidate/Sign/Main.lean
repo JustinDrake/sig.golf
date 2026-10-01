@@ -57,7 +57,7 @@ def ListPost (r : Option (List Byte)) (t : MachineState) : Prop :=
 
 /-- The zero buffers used as P slots / padding, never written by `sign` after the setup. -/
 def ZA (a : Nat) : Prop :=
-  (0x110 ≤ a ∧ a < 0x120) ∨ (0x6B0 ≤ a ∧ a < 0x6C0) ∨ (0xD0 ≤ a ∧ a < 0xE0) ∨
+  (0x120 ≤ a ∧ a < 0x130) ∨ (0x6B0 ≤ a ∧ a < 0x6C0) ∨ (0xD0 ≤ a ∧ a < 0xE0) ∨
     (0x350 ≤ a ∧ a < 0x360) ∨ (0x1D0 ≤ a ∧ a < 0x1E0) ∨ (0xF0 ≤ a ∧ a < 0x100)
 
 /-- The sorted keys give the sorted leaf indices, strictly increasing and `< 2^14`. -/
@@ -171,11 +171,11 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
     obtain ⟨a1, a2, -⟩ := hlv 14 (by norm_num)
     rw [hMdef, show porsH = 14 from rfl, getD_of_lt (by rw [a1]; norm_num)]
     exact a2 _ (List.getElem_mem _)
-  have f03 : Frame t t3 (fun a => (digokW a ∨ porsW a) ∨ ((0x120 ≤ a ∧ a < 0x130) ∨
+  have f03 : Frame t t3 (fun a => (digokW a ∨ porsW a) ∨ ((0x130 ≤ a ∧ a < 0x140) ∨
       schW' (schedule (sortLeaves (leavesOf N))).2.length a)) := f02.trans f3
-  have fs3 : Frame (s0 sk cache m) t3 (fun a => (macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x120 ≤ a ∧ a < 0x130) ∨
+  have fs3 : Frame (s0 sk cache m) t3 (fun a => (macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x130 ≤ a ∧ a < 0x140) ∨
       schW' (schedule (sortLeaves (leavesOf N))).2.length a))) := fst.trans f03
-  have hW3 : ∀ a, ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x120 ≤ a ∧ a < 0x130) ∨
+  have hW3 : ∀ a, ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x130 ≤ a ∧ a < 0x140) ∨
       schW' (schedule (sortLeaves (leavesOf N))).2.length a))) →
       a < 0x900 ∨ (0x24B00 ≤ a ∧ a < 0x24C00 + 16 * 120) ∨ 0x30000 ≤ a ∨ (0xCAE0 ≤ a ∧ a < 0xCB20) ∨
         (0x14B00 ≤ a ∧ a < 0x14B20) := by
@@ -184,7 +184,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
     omega
   have z3 : ∀ a, a % 8 = 0 → ZA a → t3.getMem (BitVec.ofNat 64 a) = 0 := by
     intro a h8 hz
-    have hnw : ¬ ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x120 ≤ a ∧ a < 0x130) ∨
+    have hnw : ¬ ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x130 ≤ a ∧ a < 0x140) ∨
         schW' (schedule (sortLeaves (leavesOf N))).2.length a))) := by
       simp only [ZA] at hz
       simp only [macW, setupW, digW, anW, digokW, porsW, schW']
@@ -198,7 +198,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
       ?_, z3rw _ (by norm_num) (by simp [ZA]) (by simp [ZA]), z3rw _ (by norm_num) (by simp [ZA]) (by simp [ZA]),
       z3rw _ (by norm_num) (by simp [ZA]) (by simp [ZA])⟩
     rw [f03.readWords _ _ (by norm_num) (by intro i hi; simp only [digokW, porsW, schW']; omega), tS]
-  have rgW : ∀ a, regionA a → ¬ ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x120 ≤ a ∧ a < 0x130) ∨
+  have rgW : ∀ a, regionA a → ¬ ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x130 ≤ a ∧ a < 0x140) ∨
       schW' (schedule (sortLeaves (leavesOf N))).2.length a))) := by
     intro a ha
     simp only [regionA] at ha
@@ -209,10 +209,10 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
   have x22_3 : t3.getReg .x22 = BitVec.ofNat 64 idx := by
     rw [r3.get .x22, r2.get .x22 (by decide), x22F]
   have hPM : (P ++ M).length = 32 := by simp [P, zeros, hM]
-  have heb32 : t3.readWords (BitVec.ofNat 64 0x110) 4 = wordsOf (P ++ M) := by
-    have e := readWords_ofNat_add t3 0x110 2 2
-    rw [show (2 + 2 : Nat) = 4 from rfl, show (0x110 + 8 * 2 : Nat) = 0x120 from rfl] at e
-    rw [e, z3rw 0x110 (by norm_num) (by simp [ZA]) (by simp [ZA]), heb3,
+  have heb32 : t3.readWords (BitVec.ofNat 64 0x120) 4 = wordsOf (P ++ M) := by
+    have e := readWords_ofNat_add t3 0x120 2 2
+    rw [show (2 + 2 : Nat) = 4 from rfl, show (0x120 + 8 * 2 : Nat) = 0x130 from rfl] at e
+    rw [e, z3rw 0x120 (by norm_num) (by simp [ZA]) (by simp [ZA]), heb3,
       wordsOf_append _ _ (by simp [P, zeros]), show wordsOf P = [0, 0] from wordsOf_zeros 2]
     rfl
   obtain ⟨t4, hs4, hhead, m4, r4⟩ := layer_entry (toList sk) (toList cache) idx hidx (P ++ M) hPM t3 pc3
@@ -264,7 +264,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
     intro i h1 h2
     have hnw : ∀ k < 2, ¬ ((macW (0x24C00 + 16 * i + 8 * k) ∨ digW (0x24C00 + 16 * i + 8 * k)) ∨
         ((digokW (0x24C00 + 16 * i + 8 * k) ∨ porsW (0x24C00 + 16 * i + 8 * k)) ∨
-        ((0x120 ≤ 0x24C00 + 16 * i + 8 * k ∧ 0x24C00 + 16 * i + 8 * k < 0x130) ∨
+        ((0x130 ≤ 0x24C00 + 16 * i + 8 * k ∧ 0x24C00 + 16 * i + 8 * k < 0x140) ∨
         schW' (schedule vs).2.length (0x24C00 + 16 * i + 8 * k)))) := by
       intro k hk
       simp only [macW, setupW, digW, anW, digokW, porsW, schW']

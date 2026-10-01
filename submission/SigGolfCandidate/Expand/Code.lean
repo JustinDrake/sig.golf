@@ -97,7 +97,7 @@ def seg287 : List (BitVec 32) := [0x00000013#32, 0x00000013#32, 0x00000013#32, 0
 /-- instructions 382 .. 385 (enc_ok): slli a4, s0, 3; add a4, a4, s9; sd t1, 1920(a4); beq s0, zero, 478 -/
 def seg382 : List (BitVec 32) := [0x00341713#32, 0x01970733#32, 0x78673023#32, 0x16040a63#32]
 /-- instructions 386 .. 407: srli a5, t5, 32; slli a5, a5, 24; slli a6, s0, 16; add a5, a5, a6; addi s4, a5, 257; addi a6, a5, 513 ... -/
-def seg386 : List (BitVec 32) := [0x020f5793#32, 0x01879793#32, 0x01041813#32, 0x010787b3#32, 0x10178a13#32, 0x20178813#32, 0x250cb023#32, 0x25fcb423#32, 0x30178813#32, 0x1d0cb023#32, 0x15fcb423#32, 0x54000893#32, 0x03140833#32, 0x00181813#32, 0x000018b7#32, 0x3b088893#32, 0x01180bb3#32, 0x260c8c13#32, 0x00100a93#32, 0x028a9a93#32, 0x00000913#32, 0x00008993#32]
+def seg386 : List (BitVec 32) := [0x020f5793#32, 0x01879793#32, 0x01041813#32, 0x010787b3#32, 0x10178a13#32, 0x40178813#32, 0x250cb023#32, 0x25fcb423#32, 0x30178813#32, 0x1d0cb023#32, 0x15fcb423#32, 0x54000893#32, 0x03140833#32, 0x00181813#32, 0x000018b7#32, 0x3b088893#32, 0x01180bb3#32, 0x260c8c13#32, 0x00100a93#32, 0x028a9a93#32, 0x00000913#32, 0x00008993#32]
 /-- instructions 408 .. 411 (ch_loop): andi t3, s3, 0x7; srli s3, s3, 3; li a4, 20; bne s2, a4, 413 -/
 def seg408 : List (BitVec 32) := [0x0079fe13#32, 0x0039d993#32, 0x01400713#32, 0x00e91463#32]
 /-- instructions 412 .. 412: mv s3, sp -/
@@ -129,7 +129,7 @@ def seg465 : List (BitVec 32) := [0x1c0c8513#32, 0x04000593#32, 0x200c8613#32, 0
 /-- instructions 469 .. 471: addi s7, s7, 16; addi s3, s3, 1; bne s3, s1, 446 -/
 def seg469 : List (BitVec 32) := [0x010b8b93#32, 0x00198993#32, 0xf8999ee3#32]
 /-- instructions 472 .. 477: ld a4, 512(s9); ld a5, 520(s9); sd a4, 288(zero); sd a5, 296(zero); addi s0, s0, -1; j 316 -/
-def seg472 : List (BitVec 32) := [0x1e0cb703#32, 0x1e8cb783#32, 0x10e03823#32, 0x10f03c23#32, 0x5000106f#32, 0xd7dff06f#32]
+def seg472 : List (BitVec 32) := [0x1e0cb703#32, 0x1e8cb783#32, 0x12e03023#32, 0x12f03423#32, 0x5000106f#32, 0xd7dff06f#32]
 /-- instructions 478 .. 494 (halt_ok): ld a4, 1920(s9); ld a5, 1928(s9); slli a5, a5, 32; add a4, a4, a5; lui a6, 0x1; addi a6, a6, 896 ... -/
 def seg478 : List (BitVec 32) := [0x780cb703#32, 0x788cb783#32, 0x02079793#32, 0x00f70733#32, 0x00001837#32, 0x38080813#32, 0x00e83023#32, 0x790cb703#32, 0x798cb783#32, 0x02079793#32, 0x00f70733#32, 0x00e83423#32, 0x7a0cb703#32, 0xd8e83823#32, 0x00100293#32, 0x00000513#32, 0x00000073#32]
 /-- instructions 495 .. 528 (pors_init): li t0, 0; lui s9, 0x30; ld tp, 352(zero); slli tp, tp, 30; srli tp, tp, 30; slli s10, tp, 32 ...
@@ -191,7 +191,7 @@ def seg637 : List (BitVec 32) := [0xa76a9ee3#32]
 /-- instructions 638 .. 638: j 639 -/
 def seg638 : List (BitVec 32) := [0x0040006f#32]
 /-- instructions 639 .. 672 (pors_ok): ld a4, 128(s9); ld a5, 136(s9); sd a4, 288(zero); sd a5, 296(zero); sd zero, 272(zero); sd zero, 280(zero) ... -/
-def seg639 : List (BitVec 32) := [0x080cb703#32, 0x088cb783#32, 0x12e03023#32, 0x12f03423#32, 0x10003823#32, 0x10003c23#32, 0x140cb823#32, 0x140cbc23#32, 0x160cb023#32, 0x160cb423#32, 0x240cb823#32, 0x240cbc23#32, 0x1c0cb823#32, 0x1c0cbc23#32, 0x00020b13#32, 0x00400413#32, 0x004003b7#32, 0x071c7d37#32, 0x1c7d0d13#32, 0x00cd1d13#32, 0x1c7d0d13#32, 0x00cd1d13#32, 0x1c7d0d13#32, 0x00cd1d13#32, 0x1c7d0d13#32, 0xff03fdb7#32, 0x03fd8d93#32, 0x00cd9d93#32, 0x03fd8d93#32, 0x00cd9d93#32, 0x03fd8d93#32, 0x00cd9d93#32, 0x03fd8d93#32, 0xa71ff06f#32]
+def seg639 : List (BitVec 32) := [0x080cb703#32, 0x088cb783#32, 0x12e03823#32, 0x12f03c23#32, 0x12003023#32, 0x12003423#32, 0x140cb823#32, 0x140cbc23#32, 0x160cb023#32, 0x160cb423#32, 0x240cb823#32, 0x240cbc23#32, 0x1c0cb823#32, 0x1c0cbc23#32, 0x00020b13#32, 0x00400413#32, 0x004003b7#32, 0x071c7d37#32, 0x1c7d0d13#32, 0x00cd1d13#32, 0x1c7d0d13#32, 0x00cd1d13#32, 0x1c7d0d13#32, 0x00cd1d13#32, 0x1c7d0d13#32, 0xff03fdb7#32, 0x03fd8d93#32, 0x00cd9d93#32, 0x03fd8d93#32, 0x00cd9d93#32, 0x03fd8d93#32, 0x00cd9d93#32, 0x03fd8d93#32, 0xa71ff06f#32]
 /-- instructions 673 .. 682 (fold_pre): li a4, 96; mul a4, s0, a4; lui a5, 0x1; addi a5, a5, 432; add s7, a4, a5; li a4, 1 ... -/
 def seg673 : List (BitVec 32) := [0x06000713#32, 0x02e40733#32, 0x000017b7#32, 0x17078793#32, 0x00f70bb3#32, 0x00100713#32, 0x00971733#32, 0x00d76933#32, 0x00000993#32, 0xc51ff06f#32]
 /-- instructions 683 .. 687 (scatter): lui t1, 0x25; addi t1, t1, 864; lui t2, 0x1; addi t2, t2, 944; li s6, 42 -/
@@ -257,7 +257,7 @@ def segAddrReturn425 : List (BitVec 32) := [0x921fd06f]
 
 /-- instructions 1820 .. 1825 (the detour of the layer end, in the dead area): the root's right child
 (node buffer `0x1f0(s9)`) → `EB+32`; `LAY -= 1`; back to 477. -/
-def seg1820 : List (BitVec 32) := [0x1f0cb703#32, 0x1f8cb783#32, 0x12e03023#32, 0x12f03423#32, 0xfff40413#32, 0xaf1fe06f#32]
+def seg1820 : List (BitVec 32) := [0x1f0cb703#32, 0x1f8cb783#32, 0x12e03823#32, 0x12f03c23#32, 0xfff40413#32, 0xaf1fe06f#32]
 /-- instruction 477: `j layer_loop`. -/
 def seg477 : List (BitVec 32) := [0xd7dff06f#32]
 

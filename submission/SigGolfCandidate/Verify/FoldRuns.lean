@@ -73,7 +73,7 @@ def dstOf (lay : Nat) : Nat := if lay = 0 then 0x180 else 0x120
 of the node buffer, except below the top layer for the node under the root, which goes straight into
 the next layer's encoding block (`0x120`; the root's other child is copied next to it by the transition). -/
 def nodeDst (lay lam t : Nat) : Nat :=
-  if lay ≠ 0 ∧ lam + 1 = heightL lay then 0x120 else 0x360 + 16 * t
+  if lay ≠ 0 ∧ lam + 1 = heightL lay then 0x120 + 16 * t else 0x360 + 16 * t
 
 /-- The number of level runs of a block of chunk `ci`: below the top layer the last level (the root) has
 none. -/

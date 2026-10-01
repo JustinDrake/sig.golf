@@ -72,9 +72,9 @@ theorem qbyte_fmt (x : List Byte) (i : Nat) (hi : i < 4) : qbyte (addrFmt x) i =
 
 /-- Inputs of a tag other than `1, 3, 12` are zero padded. -/
 theorem fmt_eq_pad64 (t lay tau p j : Nat) (pl : List Byte)
-    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 12 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9) :
+    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 12 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 4 ∧ t % 256 ≠ 2) :
     addrFmt (thInput (tweak t lay tau p j) pl) = pad64 (thInput (tweak t lay tau p j) pl) := by
-  rw [addrFmt_eq_th _ _ _ _ _ _ ⟨ht.1, ht.2.2.2.1, ht.2.2.2.2⟩]
+  rw [addrFmt_eq_th _ _ _ _ _ _ ⟨ht.1, ht.2.2.2.1, ht.2.2.2.2.1, ht.2.2.2.2.2.1, ht.2.2.2.2.2.2⟩]
   refine fmt_thInput _ _ _ _ _ _ ?_
   simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
   refine ⟨?_, ?_, ?_⟩ <;> intro h <;> have := congrArg BitVec.toNat h <;>
