@@ -32,9 +32,8 @@ def PSB : Nat := 0x2A0
 /-- `STK` of the empty stack; its `Q` word is the guard at `EMPTY - 16 = 0x240`. -/
 def EMPTY : Nat := 0x250
 def PIND : Nat := 0x780
-/-- The protected doubleword range from witness base through the top of memory.
-It includes the embedded tweak table; this is a frame bound, not the witness size. -/
-def NW : Nat := 2096896
+/-- The number of witness doublewords the verifier may read (the stream reads up to 7000 bytes). -/
+def NW : Nat := 2048
 
 def tbN : Nat := 0x1000 + 4 * ptabN
 def tbL : Nat := 0x1000 + 4 * ptabL
@@ -45,7 +44,7 @@ def gkP : List (Reg × Word) := baseK ++ [(.x25, 0x4000), (.x26, 0x3FFF), (.x11,
 
 /-- Words never written in the PORS phase. -/
 def protP : List Nat :=
-  [0xFFFFF0, 0xFFFFF8, 0x10, 0x18, 0xA0, 0xA8, 0xC0, 0xD0, 0xD8, 0xF0, 0xF8, 0x110, 0x118, 0x1C0, 0x1D0, 0x1D8, 0x230,
+  [0x10, 0x18, 0xA0, 0xA8, 0xC0, 0xD0, 0xD8, 0xF0, 0xF8, 0x110, 0x118, 0x1C0, 0x1D0, 0x1D8, 0x230,
     0x238, 0x240] ++
   (List.range 14).flatMap (fun i => [PSB + 80 * i, PSB + 80 * i + 16, PSB + 80 * i + 24]) ++
   (List.range 16).map (fun r => PIND + 8 * r)

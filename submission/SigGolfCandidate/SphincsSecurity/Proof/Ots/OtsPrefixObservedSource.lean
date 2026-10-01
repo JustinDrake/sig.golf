@@ -37,7 +37,7 @@ noncomputable def prefixObservedSourceGame (inputs : Finset HashInput)
     (dummy : OtsReferenceWords) (adversary : Adversary) : SPMF (ReferenceFamily × (Bool × SigningBoundaryTrace)) := do
   let parameter ← 𝒮[sampleParameter]
   let ftsSecret ← 𝒮[sampleFtsSecrets]
-  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]
+  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]
   let words := referenceFamilyWords selections dummy
   let segment : OtsPrefix := ⟨parameter, lay, tree, leaf, chainIdx, words lay tree leaf chainIdx⟩
   let other ← 𝒮[PMF.uniformOfFintype segment.ErasedSecrets]
@@ -62,8 +62,8 @@ theorem prefixObservedSourceGame_eq (inputs : Finset HashInput)
   apply congrArg (𝒮[sampleFtsSecrets] >>= ·)
   funext ftsSecret
   rw [swap_samples 𝒮[sampleOtsSecrets]
-    𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]]
-  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit] >>= ·)
+    𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]]
+  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit] >>= ·)
   funext selections
   let words := referenceFamilyWords selections dummy
   let segment : OtsPrefix := ⟨parameter, lay, tree, leaf, chainIdx, words lay tree leaf chainIdx⟩

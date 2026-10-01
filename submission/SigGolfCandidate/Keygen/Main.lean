@@ -5,9 +5,9 @@ import SigGolfCandidate.Keygen.Output
 # `keygen` refines `keygenRef`
 
 `keygen_run` : for every secret key `sk`,
-`submission.run .keygen sk = (fun o => ⟨some o, true, 13451462, 651262, 672254⟩) <$> keygenRef sk`:
+`submission.run .keygen sk = (fun o => ⟨some o, true, 29155527, 653310, 674814⟩) <$> keygenRef sk`:
 the machine makes exactly the oracle queries of `keygenRef sk` (in order), outputs its public key
-and cache, and always takes 13451462 cycles, 651262 calls and 672254 compressions.
+and cache, and always takes 29155527 cycles, 653310 calls and 674814 compressions.
 -/
 
 namespace SigGolfCandidate.Keygen
@@ -81,7 +81,7 @@ theorem kW_skOk (sk : SecretKey) : SkOk (kW sk) (toList sk) := by
   rfl
 
 theorem leaves_xsim (sk : SecretKey) :
-    XSim image (kInit sk) (25 + sumTo (fun _ => 4214) (2 ^ 11)) (25 + sumTo (fun _ => 6506) (2 ^ 11))
+    XSim image (kInit sk) (25 + sumTo (fun _ => 10976) (2 ^ 11)) (25 + sumTo (fun _ => 14150) (2 ^ 11))
       (sumTo (fun _ => 316) (2 ^ 11)) (sumTo (fun _ => 326) (2 ^ 11))
       (buildLeaves (toList sk) 0 0 11 0 [])
       (fun p u => LCtx (kW sk) (2 ^ 11) p.1 u ∧ u.pc = if 2 ^ 11 < 2048 then pcOf 25 else pcOf 76) := by
@@ -114,7 +114,7 @@ theorem leaves_xsim (sk : SecretKey) :
   unfold buildLeaves
   refine XSim.steps hst (XSim.foldlM_range (2 ^ 11) _ ([], [])
     (fun e acc u => LCtx (kW sk) e acc.1 u ∧ u.pc = if e < 2048 then pcOf 25 else pcOf 76)
-    (fun _ => 4214) (fun _ => 6506) (fun _ => 316) (fun _ => 326)
+    (fun _ => 10976) (fun _ => 14150) (fun _ => 316) (fun _ => 326)
     (fun e he acc u hu => leaf_xsim (kW sk) (toList sk) (kW_skOk sk) e (by norm_num at he; omega)
       acc u hu.1 (by rw [hu.2, if_pos (by norm_num at he; omega)])) ⟨h0, by rw [tpc]; rfl⟩)
 
@@ -145,77 +145,55 @@ theorem levels_xsim (W : List Word) (leaves : List Val) (u : MachineState)
       (fun k hk levels w hw => level_xsim W k hk levels w hw.1 (by rw [hw.2, if_pos hk]))
       ⟨h0, by rw [vpc]; rfl⟩)).mono (fun levels w hw => ⟨hw.1, by rw [hw.2]; rfl⟩)
 
-/-- The MAC and the final HALT, from instruction 147. -/
+/-- The MAC and the final HALT, from instruction 133. -/
 theorem mac_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels : List (List Val))
-    (root : Val) (maskedAll : List Val) (t : MachineState) (h : OCtx W levels root 11 maskedAll t)
+    (root : Val) (masked : List Val) (t : MachineState) (h : OCtx W levels root 11 masked t)
     (hpc : t.pc = pcOf 147) :
-    XSim image t 12322 16425 1 513 (H (macInput S (maskedAll.drop 2048).flatten))
+    XSim image t 27 8226 1 1025 (H (macInput S masked.flatten))
       (fun a w => fetch image w = some (.base .ECALL) ∧ w.getReg .x5 = 1 ∧ w.getReg .x10 = 0 ∧
-        ValAt w 160 root ∧ Vals w 0xCB20 (maskedAll.drop 2048) ∧
-        (∀ k < 4, w.getMem (BitVec.ofNat 64 (0xCB00 + 8 * k)) = a.extractLsb' (64 * k) 64) ∧
-        (∀ A, 0x4B00 ≤ A → A < 0xCB00 → A % 8 = 0 → w.getMem (BitVec.ofNat 64 A) = 0) ∧
+        ValAt w 160 root ∧ Vals w REGION masked ∧
+        (∀ k < 4, w.getMem (BitVec.ofNat 64 (0x4B00 + 8 * k)) = a.extractLsb' (64 * k) 64) ∧
         ∀ A, 0x14B00 ≤ A → A < 0x24B00 → A % 8 = 0 → w.getMem (BitVec.ofNat 64 A) = 0) := by
-  let masked := maskedAll.drop 2048
-  have hmlAll : maskedAll.length = 4094 := by rw [h.mlen, lvOff_11]
+  have hml : masked.length = 4094 := by rw [h.mlen, lvOff_11]
   have hs := h.shape
-  have hvmAll : Vals t REGION maskedAll := by
-    have hv := h.lv
-    rw [lvOff_11, List.drop_eq_nil_of_le (by rw [nodes_length levels hs]), List.append_nil] at hv
-    exact hv
-  have hml : masked.length = 2046 := by simp [masked, hmlAll]
-  have hvm : Vals t 0xCB20 masked := hvmAll.drop 2048
-  obtain ⟨c, hclear, cpc, c29, cr, cm⟩ := spec_147 t hpc
-  have c20 : c.getReg .x20 = BitVec.ofNat 64 0x14B00 := by
-    rw [cr _ (by decide) (by decide), h.r20, lvOff_11]
-  have cmout : ∀ A < 2 ^ 64, (A < 0x4B00 ∨ 0xCB00 ≤ A) →
-      c.getMem (BitVec.ofNat 64 A) = t.getMem (BitVec.ofNat 64 A) := by
-    intro A hA ho; rw [cm A hA, if_neg (by omega)]
-  have hcv : Vals c 0xCB20 masked := by
-    refine ⟨hvm.1, fun i hi => ?_⟩
-    have hv := hvm.2 i hi
-    constructor
-    · rw [cmout _ (by rw [hml] at hi; omega) (by omega)]; exact hv.1
-    · rw [cmout _ (by rw [hml] at hi; omega) (by omega)]; exact hv.2
-  have cpk : ValAt c 160 root := by
-    constructor
-    · rw [cmout _ (by norm_num) (by omega)]; exact h.out.pk.1
-    · rw [cmout _ (by norm_num) (by omega)]; exact h.out.pk.2
-  have csk : ∀ k < 4, c.getMem (BitVec.ofNat 64 (128 + 8 * k)) = W.getD k 0 := by
-    intro k hk; rw [cmout _ (by omega) (by omega), h.base.skIn k hk]
-  obtain ⟨u, hst, upc, u10, u11, u12, u29, uun, u4AE0, u4B00, u4B08, u4B10, u4B18, uz0, uz1, uz2, uz3, ufr⟩ :=
-    spec_149 c cpc c20
-  have ux : ∀ r, r ≠ .x1 ∧ r ≠ .x3 ∧ r ≠ .x10 ∧ r ≠ .x11 ∧ r ≠ .x12 ∧ r ≠ .x29 → u.getReg r = c.getReg r :=
+  have hvm : Vals t REGION masked := by
+    have := h.lv
+    rw [lvOff_11, List.drop_eq_nil_of_le (by rw [nodes_length levels hs]), List.append_nil] at this
+    exact this
+  obtain ⟨u, hst, upc, u10, u11, u12, uun, u4AE0, u4B00, u4B08, u4B10, u4B18, uz0, uz1, uz2, uz3, ufr⟩ :=
+    spec_147 t hpc
+  have ux : ∀ r, r ≠ .x1 ∧ r ≠ .x3 ∧ r ≠ .x10 ∧ r ≠ .x11 ∧ r ≠ .x12 ∧ r ≠ .x29 → u.getReg r = t.getReg r :=
     fun r hr => uun r hr.1 hr.2.1 hr.2.2.1 hr.2.2.2.1 hr.2.2.2.2.1 hr.2.2.2.2.2
-  have hvu : Vals u 0xCB20 masked := ⟨hcv.1, fun i hi => (hcv.2 i hi).frame ufr
-    (by rw [hml] at hi; omega) (fun k hk => by simp at hk; rw [hml] at hi; omega)⟩
-  have hfl : masked.flatten.length = 32736 := by rw [length_flatten16 _ hvm.1, hml]
-  have hxl : (macInput S masked.flatten).length = 32800 := by
+  have hvu : Vals u REGION masked := ⟨hvm.1, fun i hi => (hvm.2 i hi).frame ufr
+    (by rw [hml] at hi; unfold REGION; omega) (fun k hk => by simp at hk; rw [hml] at hi; unfold REGION; omega)⟩
+  have hfl : masked.flatten.length = 65504 := by rw [length_flatten16 _ hvm.1, hml]
+  have hxl : (macInput S masked.flatten).length = 65568 := by
     simp [macInput, thInput, hS.1, hfl]
   have hq : hashInput u = pad64 (macInput S masked.flatten) := by
-    refine hashInput_eq_pad64 u 512 0xCAE0 _ (by rw [u11]) (by norm_num) u10
+    refine hashInput_eq_pad64 u 1024 0x4AE0 _ (by rw [u11]) (by norm_num) u10
       (by norm_num) (by norm_num) (by omega) (by omega) ?_
-    rw [show 8 * (512 + 1) = 2 + (2 + (4 + (2 * masked.length + 4))) by rw [hml],
+    rw [show 8 * (1024 + 1) = 2 + (2 + (4 + (2 * masked.length + 4))) by rw [hml],
       readWords_add, readWords_add, readWords_add, readWords_add, wordsToNat_append, wordsToNat_append,
       wordsToNat_append, wordsToNat_append, readWords_length, readWords_length, readWords_length,
       readWords_length]
-    have hg : ∀ A ∈ [0xCAE8, 0xCAF0, 0xCAF8],
+    have hg : ∀ A ∈ [0x4AE8, 0x4AF0, 0x4AF8],
         u.getMem (BitVec.ofNat 64 A) = 0 := by
       intro A hA
       rw [getMem_frame ufr (by simp at hA; omega) (by simp at hA ⊢; omega)]
-      rw [cm A (by simp at hA; omega), if_pos (by simp at hA; omega)]
-    have p1 : wordsToNat (u.readWords (BitVec.ofNat 64 0xCAE0) 2) = 3585 := by
-      rw [readWords_two, u4AE0, hg 0xCAE8 (by simp)]; rfl
-    have p2 : wordsToNat (u.readWords (BitVec.ofNat 64 (0xCAE0 + 8 * 2)) 2) = 0 := by
-      rw [readWords_two, hg 0xCAF0 (by simp), hg 0xCAF8 (by simp)]; rfl
-    have p3 : wordsToNat (u.readWords (BitVec.ofNat 64 (0xCAE0 + 8 * 2 + 8 * 2)) 4) = leNat S := by
+      exact h.base.zero A (by simp [zeroKeys] at hA ⊢; omega)
+    have p1 : wordsToNat (u.readWords (BitVec.ofNat 64 0x4AE0) 2) = 3585 := by
+      rw [readWords_two, u4AE0, hg 0x4AE8 (by simp)]; rfl
+    have p2 : wordsToNat (u.readWords (BitVec.ofNat 64 (0x4AE0 + 8 * 2)) 2) = 0 := by
+      rw [readWords_two, hg 0x4AF0 (by simp), hg 0x4AF8 (by simp)]; rfl
+    have p3 : wordsToNat (u.readWords (BitVec.ofNat 64 (0x4AE0 + 8 * 2 + 8 * 2)) 4) = leNat S := by
       rw [← hS.2]
       simp only [MachineState.readWords, ofNat_add8, Nat.reduceAdd, Nat.reduceMul, wordsToNat]
-      rw [u4B00, u4B08, u4B10, u4B18, csk 0 (by norm_num), csk 1 (by norm_num),
-        csk 2 (by norm_num), csk 3 (by norm_num)]
+      rw [u4B00, u4B08, u4B10, u4B18, h.base.skIn 0 (by norm_num), h.base.skIn 1 (by norm_num),
+        h.base.skIn 2 (by norm_num), h.base.skIn 3 (by norm_num)]
       ring
-    have p4 : wordsToNat (u.readWords (BitVec.ofNat 64 (0xCAE0 + 8 * 2 + 8 * 2 + 8 * 4))
+    have p4 : wordsToNat (u.readWords (BitVec.ofNat 64 (0x4AE0 + 8 * 2 + 8 * 2 + 8 * 4))
         (2 * masked.length)) = leNat masked.flatten := wordsToNat_vals u _ masked hvu.1 hvu.2
-    have p5 : wordsToNat (u.readWords (BitVec.ofNat 64 (0xCAE0 + 8 * 2 + 8 * 2 + 8 * 4 +
+    have p5 : wordsToNat (u.readWords (BitVec.ofNat 64 (0x4AE0 + 8 * 2 + 8 * 2 + 8 * 4 +
         8 * (2 * masked.length))) 4) = 0 := by
       rw [hml]
       simp only [MachineState.readWords, ofNat_add8, Nat.reduceAdd, Nat.reduceMul, wordsToNat]
@@ -227,41 +205,35 @@ theorem mac_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels : List 
     generalize leNat S = X
     norm_num
     ring
-  have hblk : (fmt (macInput S masked.flatten)).blocks = 513 := by
-    rw [blocks_fmt (macInput S masked.flatten) (not_digest_thInput 14 0 0 0 0 _ (by decide))
+  have hblk : (addrFmt (macInput S masked.flatten)).blocks = 1025 := by
+    rw [addrFmt_macInput, blocks_fmt (macInput S masked.flatten) (not_digest_thInput 14 0 0 0 0 _ (by decide))
       (not_padChain_thInput 14 0 0 0 0 _ (by decide))]; simp [Query.blocks, pad64, padBlocks, hxl]
-  have hq' : hashInput u = fmt (macInput S masked.flatten) :=
-    hq.trans (fmt_thInput 14 0 0 0 0 _ (by decide)).symm
+  have hq' : hashInput u = addrFmt (macInput S masked.flatten) :=
+    hq.trans (addrFmt_thInput 14 0 0 0 0 _ (by decide)).symm
   have hv : hashArgumentsValid u = true :=
-    hashArgs_const u 0xCAE0 32832 0xCB00 u10 u11 u12 (by norm_num) (by norm_num) (by norm_num)
+    hashArgs_const u 0x4AE0 65600 0x4B00 u10 u11 u12 (by norm_num) (by norm_num) (by norm_num)
       (by norm_num) (by norm_num)
-  refine (XSim.steps hclear (XSim.steps hst (XSim.bind (k₂ := 5) (c₂ := 5) (n₂ := 0) (b₂ := 0)
-    (XSim.query ((codeAt_171.fetch u upc).trans rfl) (by rw [ux _ (by simp), cr _ (by decide) (by decide)]; exact h.base.r5) hv hq')
-    (fun a w hw => ?_)))).of_eq (by simp only [H, bind_pure]; rfl) (by rfl) (by rw [hblk]) (by rfl)
+  refine (XSim.steps hst (XSim.bind (k₂ := 2) (c₂ := 2) (n₂ := 0) (b₂ := 0)
+    (XSim.query ((codeAt_171.fetch u upc).trans rfl) (by rw [ux _ (by simp)]; exact h.base.r5) hv hq')
+    (fun a w hw => ?_))).of_eq (by simp only [H, bind_pure]; rfl) (by rfl) (by rw [hblk]) (by rfl)
     (by rw [hblk])
   subst hw
   have wpc : (writeHash u a).pc = pcOf 172 := by rw [pc_writeHash, upc]; rfl
-  obtain ⟨x, xst, xpc, x5, x10, xfr, xzero⟩ := spec_172 (writeHash u a) wpc (by rw [getReg_writeHash, u29])
-  have hwf := Frame.writeHash u a 0xCB00 u12 (by norm_num) (by norm_num)
-  have xm : ∀ A < 2 ^ 64, A ≠ 0xCAE0 → x.getMem (BitVec.ofNat 64 A) = (writeHash u a).getMem (BitVec.ofNat 64 A) :=
-    fun A hA hn => xfr A hA (by simpa)
-  refine XSim.pure_steps xst ⟨(codeAt_174.fetch x xpc).trans rfl, x5, x10, ?_, ?_, ?_, ?_, ?_⟩
-  · exact (cpk.frame (ufr.trans hwf) (by norm_num) (fun k hk => by simp at hk; omega)).frame xfr
+  obtain ⟨x, xst, xpc, x5, x10, xfr⟩ := spec_172 (writeHash u a) wpc
+  have hwf := Frame.writeHash u a 0x4B00 u12 (by norm_num) (by norm_num)
+  have xm : ∀ A < 2 ^ 64, x.getMem (BitVec.ofNat 64 A) = (writeHash u a).getMem (BitVec.ofNat 64 A) :=
+    fun A hA => xfr A hA (by simp)
+  refine XSim.pure_steps xst ⟨(codeAt_174.fetch x xpc).trans rfl, x5, x10, ?_, ?_, ?_, ?_⟩
+  · exact (h.out.pk.frame (ufr.trans hwf) (by norm_num) (fun k hk => by simp at hk; omega)).frame xfr
       (by norm_num) (by simp)
-  · exact ⟨hvu.1, fun i hi => ((hvu.2 i hi).frame hwf (by rw [hml] at hi; omega)
-      (fun k hk => by simp at hk; omega)).frame xfr
-      (by rw [hml] at hi; omega) (by simp; omega)⟩
+  · exact ⟨hvu.1, fun i hi => ((hvu.2 i hi).frame hwf (by rw [hml] at hi; unfold REGION; omega)
+      (fun k hk => by simp at hk; unfold REGION; omega)).frame xfr
+      (by rw [hml] at hi; unfold REGION; omega) (by simp)⟩
   · intro k hk
-    rw [xm _ (by omega) (by omega), getMem_writeHash u a 0xCB00 _ u12 (by norm_num) (by omega)]
+    rw [xm _ (by omega), getMem_writeHash u a 0x4B00 _ u12 (by norm_num) (by omega)]
     interval_cases k <;> simp
   · intro A h1 h2 h8
-    by_cases ha : A = 0xCAE0
-    · subst A; exact xzero
-    rw [xm _ (by omega) ha, getMem_writeHash u a 0xCB00 _ u12 (by norm_num) (by omega),
-      if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega)]
-    rw [getMem_frame ufr (by omega) (by simp; omega), cm A (by omega), if_pos ⟨h1, h2, h8⟩]
-  · intro A h1 h2 h8
-    rw [xm _ (by omega) (by omega), getMem_writeHash u a 0xCB00 _ u12 (by norm_num) (by omega), if_neg (by omega),
+    rw [xm _ (by omega), getMem_writeHash u a 0x4B00 _ u12 (by norm_num) (by omega), if_neg (by omega),
       if_neg (by omega), if_neg (by omega), if_neg (by omega)]
     by_cases hA : A < 0x14B20
     · have : A = 0x14B00 ∨ A = 0x14B08 ∨ A = 0x14B10 ∨ A = 0x14B18 := by omega
@@ -271,25 +243,24 @@ theorem mac_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels : List 
       · exact uz2
       · exact uz3
     · rw [getMem_frame ufr (by omega) (by simp; omega)]
-      rw [cmout A (by omega) (by omega)]
       exact h.base.tail A (by omega) h2
 
 /-- The whole of `keygenList`, from the initial state to the final HALT. -/
 theorem keygenList_xsim (sk : SecretKey) :
-    XSim image (kInit sk) 8724691 13451461 651262 672254 (keygenList (toList sk))
+    XSim image (kInit sk) 22603988 29155526 653310 674814 (keygenList (toList sk))
       (fun r t => fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 0 ∧
         ValAt t 160 r.1 ∧ r.1.length = 16 ∧ readBuffer t 0x4B00 CACHE_BYTES = ofList CACHE_BYTES r.2) := by
   have hS := kW_skOk sk
   unfold keygenList
-  refine (XSim.bind (k₂ := 39015 + (8 + (43049 + 12322))) (c₂ := 53344 + (8 + (57371 + 16425)))
-    (n₂ := 2047 + (2046 + 1)) (b₂ := 2047 + (2046 + 513)) (leaves_xsim sk)
+  refine (XSim.bind (k₂ := 39015 + (8 + (86065 + 27))) (c₂ := 53344 + (8 + (114723 + 8226)))
+    (n₂ := 2047 + (4094 + 1)) (b₂ := 2047 + (4094 + 1025)) (leaves_xsim sk)
     (fun p u hu => ?_)).of_eq rfl (by simp only [sumTo_const]; norm_num)
     (by simp only [sumTo_const]; norm_num) (by simp only [sumTo_const]; norm_num)
     (by simp only [sumTo_const]; norm_num)
   obtain ⟨leaves, c⟩ := p
   obtain ⟨hl, hpc⟩ := hu
-  refine (XSim.bind (k₂ := 8 + (43049 + 12322)) (c₂ := 8 + (57371 + 16425))
-    (n₂ := 2046 + 1) (b₂ := 2046 + 513)
+  refine (XSim.bind (k₂ := 8 + (86065 + 27)) (c₂ := 8 + (114723 + 8226))
+    (n₂ := 4094 + 1) (b₂ := 4094 + 1025)
     (levels_xsim (kW sk) leaves u hl (by rw [hpc]; rfl)) (fun levels v hv => ?_)).of_eq rfl
       (by decide) (by decide) (by decide) (by decide)
   obtain ⟨hvc, vpc⟩ := hv
@@ -324,25 +295,20 @@ theorem keygenList_xsim (sk : SecretKey) :
       simp only [nodes, List.getD_eq_getElem?_getD, List.getElem?_take_of_lt hi]
     rw [e]
     exact this.frame wfr (by unfold REGION; omega) (fun k hk => by simp at hk; unfold REGION; omega)
-  have hpLen : ((nodes levels).take 2048).length = 2048 := by
-    rw [List.length_take, nodes_length levels hs]; rfl
-  simp only [show topH = 11 from rfl, Nat.reduceSub]
-  rw [← mask_fold_drop (toList sk) levels (List.range' 1 10) ((nodes levels).take 2048),
-    hpLen, bind_map_left]
-  refine XSim.steps wst ((XSim.bind (k₂ := 12322) (c₂ := 16425) (n₂ := 1) (b₂ := 513)
+  refine XSim.steps wst ((XSim.bind (k₂ := 27) (c₂ := 8226) (n₂ := 1) (b₂ := 1025)
     (masks_xsim (kW sk) (toList sk) hS levels root w hbw hs hnv hout (by rw [wpc]))
     (fun masked x hx => ?_)).of_eq rfl (by decide) (by decide) (by decide) (by decide))
   obtain ⟨hoc, xpc⟩ := hx
   refine (XSim.bind (k₂ := 0) (c₂ := 0) (n₂ := 0) (b₂ := 0)
     (mac_xsim (kW sk) (toList sk) hS levels root masked x hoc xpc)
     (fun a y hy => XSim.pure ?_)).of_eq rfl rfl rfl rfl rfl
-  obtain ⟨y1, y5, y10, ypk, yreg, ytag, yp, yz⟩ := hy
+  obtain ⟨y1, y5, y10, ypk, yreg, ytag, yz⟩ := hy
   have hml : masked.length = 4094 := by rw [hoc.mlen, lvOff_11]
-  exact ⟨y1, y5, y10, ypk, hrl, (readBuffer_cache_eq y a (masked.drop 2048) (by simp [hml]) ytag yreg yp yz).symm ▸ rfl⟩
+  exact ⟨y1, y5, y10, ypk, hrl, (readBuffer_cache_eq y a masked hml ytag yreg yz).symm ▸ rfl⟩
 
 /-- The whole of `keygen`. -/
 theorem keygen_xsim (sk : SecretKey) :
-    XSim image (kInit sk) 8724691 13451461 651262 672254 (keygenRef sk)
+    XSim image (kInit sk) 22603988 29155526 653310 674814 (keygenRef sk)
       (fun o t => fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 0 ∧
         readOutput submission.sizes submission.layout .keygen t = o) := by
   unfold keygenRef
@@ -355,23 +321,23 @@ theorem keygen_xsim (sk : SecretKey) :
   rw [readBuffer_val t 160 root trl (by norm_num) (by norm_num) tpk, tc]
 
 /-- **keygen**: for every secret key, one run makes exactly the oracle queries of
-`keygenRef sk`, outputs its public key and cache, and always takes 13451462 cycles, 651262 calls
-and 672254 compressions. -/
+`keygenRef sk`, outputs its public key and cache, and always takes 29155527 cycles, 653310 calls
+and 674814 compressions. -/
 theorem keygen_run (sk : SecretKey) :
     submission.run .keygen sk =
-      (fun o => ⟨some o, true, 13451462, 651262, 672254⟩) <$> keygenRef sk :=
+      (fun o => ⟨some o, true, 29155527, 653310, 674814⟩) <$> keygenRef sk :=
   XSim.run_eq submission .keygen sk (kInit_eq sk) (keygen_xsim sk) (by decide) id
     (fun _ _ h => h)
 
-/-- The reference makes exactly 651262 calls and 672254 compressions. -/
+/-- The reference makes exactly 653310 calls and 674814 compressions. -/
 theorem keygenRef_counts (sk : SecretKey) :
-    countCalls (keygenRef sk) = (fun a => (a, 651262)) <$> keygenRef sk ∧
-      countBlocks (keygenRef sk) = (fun a => (a, 672254)) <$> keygenRef sk :=
+    countCalls (keygenRef sk) = (fun a => (a, 653310)) <$> keygenRef sk ∧
+      countBlocks (keygenRef sk) = (fun a => (a, 674814)) <$> keygenRef sk :=
   (keygen_xsim sk).count_eq
 
 /-- The joint call / compression count of the reference is constant. -/
 theorem keygenRef_countBoth (sk : SecretKey) :
-    Sign.countBoth (keygenRef sk) = (fun a => (a, 651262, 672254)) <$> keygenRef sk :=
+    Sign.countBoth (keygenRef sk) = (fun a => (a, 653310, 674814)) <$> keygenRef sk :=
   (keygen_xsim sk).countBoth_eq
 
 /-- Value, calls and compressions of the run = the reference's value with its joint
@@ -381,10 +347,10 @@ theorem keygen_run_counts (sk : SecretKey) :
       (fun p => (some p.1, p.2.1, p.2.2)) <$> Sign.countBoth (keygenRef sk) := by
   rw [keygen_run, keygenRef_countBoth, Functor.map_map, Functor.map_map]; rfl
 
-/-- Fixed-oracle form: finished, exactly 13451462 cycles (`< 2^32`), for every oracle. -/
+/-- Fixed-oracle form: finished, exactly 29155527 cycles (`< 2^32`), for every oracle. -/
 theorem keygen_runWith (hash : Hash) (sk : SecretKey) :
     submission.runWith hash .keygen sk =
-      ⟨some (evalWithAnswerFn hash (keygenRef sk)), true, 13451462, 651262, 672254⟩ := by
+      ⟨some (evalWithAnswerFn hash (keygenRef sk)), true, 29155527, 653310, 674814⟩ := by
   unfold Submission.runWith
   rw [keygen_run, evalWithAnswerFn_map]
   rfl
