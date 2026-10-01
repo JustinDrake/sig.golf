@@ -305,9 +305,11 @@ def leafInput (lay tau e : Nat) (ends : List Val) : List Byte :=
 def nodeInput (lay tau lam j : Nat) (l r : Val) : List Byte :=
   thInput (tweak 3 lay tau lam j) (l ++ r)
 
-/-- Encoding of `M` with counter `c`: `tw(4, lay, tau, 0, e) || P || M || LE32 c` (52 bytes). -/
+/-- Encoding of the 32-byte message `M` with counter `c`: `tw(4, lay, tau, 0, e) || M || LE32 c`
+(52 bytes). `M` is `L || R`, the two children of the root of the tree below, and sits where the other
+hashes carry `P || payload`; the bottom layer signs `P || PORS root`. -/
 def encInput (lay tau e : Nat) (M : Val) (c : Nat) : List Byte :=
-  thInput (tweak 4 lay tau 0 e) (M ++ le32 c)
+  tweak 4 lay tau 0 e ++ M ++ le32 c
 
 /-- One-block randomizer trial: domain bytes `1,7`, 26 secret bytes, the message and `LE32 a`. -/
 def rndInput (S m : List Byte) (a : Nat) : List Byte :=

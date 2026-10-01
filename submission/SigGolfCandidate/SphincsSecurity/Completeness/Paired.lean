@@ -136,7 +136,7 @@ theorem eval_buildFtsTreePaired (parameter : PublicParameter) (index : Index)
 
 theorem eval_signTopLayerPaired (parameter : PublicParameter) (index : Index)
     (g : LeafIndex → ChainPair → OracleComp HashSpec (Digest × Digest))
-    (topNode : Nat → Nat → OracleComp HashSpec Digest) (message : Digest) :
+    (topNode : Nat → Nat → OracleComp HashSpec Digest) (message : EncMessage) :
     evalWithAnswerFn f (signTopLayerPaired parameter index g topNode message)
       = evalWithAnswerFn f (signTopLayer parameter index
           (fun leaf chainIdx => pure (unpairedOts f (g leaf) chainIdx)) topNode message) := by
@@ -165,7 +165,7 @@ theorem eval_signTopLayerPaired (parameter : PublicParameter) (index : Index)
 theorem eval_signLayersPaired (parameter : PublicParameter) (index : Index)
     (g : Layer → TreeIndex → LeafIndex → ChainPair → OracleComp HashSpec (Digest × Digest))
     (topNode : Nat → Nat → OracleComp HashSpec Digest) :
-    ∀ (remaining : Nat) (message : Digest),
+    ∀ (remaining : Nat) (message : EncMessage),
       evalWithAnswerFn f (signLayersPaired parameter index g topNode remaining message)
         = evalWithAnswerFn f (signLayers parameter index
             (fun lay tree leaf chainIdx => pure (unpairedOts f (g lay tree leaf) chainIdx))

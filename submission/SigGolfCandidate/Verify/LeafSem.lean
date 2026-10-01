@@ -61,9 +61,9 @@ def LeafCarry (L : LCtx) (s : MachineState) : Prop :=
   s.getReg .x27 = BitVec.ofNat 64 (hWord L.lay + 768) ∧ s.getReg .x30 = BitVec.ofNat 64 (if L.lay = 0 then L.e else L.tau) ∧
   CB0 s ∧ Fresh L.wl L.lay 42 s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N L.lay)
 
-/-- The leaf tweak word 0 with byte 1 (the tag 2) replaced by 3: the node tweak word 0. -/
+/-- The leaf tweak word 0 with byte 1 (the tag 4) replaced by 3: the node tweak word 0. -/
 theorem leaf_nb0 (lay : Nat) (hl : lay < 5) :
-    StoreKind.merge .b (BitVec.ofNat 64 (hWord lay + 256)) 1 (BitVec.ofNat 64 3) =
+    StoreKind.merge .b (BitVec.ofNat 64 (hWord lay + 768)) 1 (BitVec.ofNat 64 3) =
       BitVec.ofNat 64 (1 + 256 * 3 + 65536 * lay) := by
   interval_cases lay <;> decide +kernel
 
@@ -76,7 +76,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     (s : MachineState) (hs : ChainNext (L.cctx t a) 42 ends s) :
     ∃ u, Steps image s (leafSteps L.lay + 1) (leafSteps L.lay + 1) u ∧ fetch image u = some (.base .ECALL) ∧
       u.getReg .x5 = 0 ∧ hashArgumentsValid u = true ∧
-      hashInput u = pad64 (leafInput L.lay L.tau L.e ends) ∧
+      hashInput u = addrFmt (leafInput L.lay L.tau L.e ends) ∧
       ∀ ans, FoldInv (layFC L) (writeHash u ans) 0 (answerBytes 16 ans) (writeHash u ans) ∧
         LeafCarry L (writeHash u ans) := by
   obtain ⟨hlay, hidx, hwl⟩ := hL
@@ -153,7 +153,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       (by simp only [hashArgsB, MEMORY_BYTES]; simp; omega), ?_, ?_⟩
   · have hends : ∀ v ∈ ends, v.length = 16 := hvs
     rw [hashInput_ofNat _ 0x340 10 h10 h11 (by decide) (by decide),
-      pad64_leafInput _ _ _ _ (by rw [hlen]) hends]
+      addrFmt_leafInput_words _ _ _ _ (by rw [hlen]) hends]
     congr 1
     rw [show 8 * (10 + 1) = 4 + 84 by rfl, List.range_add, List.map_append]
     congr 1
@@ -190,9 +190,12 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     have hFresh : Fresh L.wl L.lay 42 (writeHash u ans) := by
       refine Fresh_frame hF (fun A hA hA' => ?_)
       rw [wf A hA (Or.inr (by omega)), mfr A hA (by omega) (by omega)]
+    have hvA : (layFC L).vA 0 = 0x360 + 16 * (L.e % 2) := by
+      rw [FCtx.vA_lt _ (layFC_ok L ⟨hlay, hidx, hwl⟩) 0 (by simp only [layFC]; omega)]
+      simp only [layFC, hbit]
     refine ⟨⟨Glob_writeHash hGu ans _ h12 (by
         rcases Nat.mod_two_eq_zero_or_one L.e with h | h <;> rw [h] <;> decide),
-      ?_, ?_, ?_, ?_, ?_, ?_, by simp, ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩, ?_, hFresh⟩, ?_, ?_, ?_, hFresh, ?_⟩
+      ?_, ?_, ?_, ?_, ?_, ?_, by simp, ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩, ?_, hFresh, ?_⟩, ?_, ?_, ?_, hFresh, ?_⟩
     · have := Known_writeHash hK2'.1 ans
       simpa [lvlK, layFC] using this
     · rw [writeHash_getReg, hkp .x23 (by simp [leafKeep])]; exact h23
@@ -209,15 +212,13 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       (try simp only [Rv.E.eval]); rw [h31]
       simp only [CCtx.x31, LCtx.cctx, BitVec.toNat_ofNat]
       omega
-    · simp only [layFC, hbit]
-      rw [writeHash_at0 _ ans _ h12 (by omega)]; exact (vw0_answer ans).symm
-    · simp only [layFC, hbit]
-      rw [show 0x368 + 16 * (L.e % 2) = 0x360 + 16 * (L.e % 2) + 8 by omega,
-        writeHash_at8 _ ans _ h12 (by omega)]; exact (vw1_answer ans).symm
+    · rw [hvA, writeHash_at0 _ ans _ h12 (by omega)]; exact (vw0_answer ans).symm
+    · rw [hvA, writeHash_at8 _ ans _ h12 (by omega)]; exact (vw1_answer ans).symm
     · have hc0 : chOf L.lay 0 = 0 := by simp [chOf]
       rw [writeHash_pc, hpc2, pcOf_add4]
       simp only [FCtx.X, FCtx.ci, FCtx.kk, FCtx.blk, layFC, hc0, Nat.zero_sub]
       try rfl
+    · rw [hvA, writeHash_getReg]; exact h12
     · rw [writeHash_getReg]; exact h27u
     · rw [writeHash_getReg, hkp .x30 (by simp [leafKeep])]; exact h30
     · unfold CB0

@@ -16,7 +16,7 @@ theorem NewMarker.not_mem {parameter : PublicParameter} {words : OtsReferenceWor
     (h : NewMarker parameter words history address entry) : entry ∉ history.toList :=
   fun hin => h.2 ⟨entry, hin, h.1⟩
 
-theorem newMarker_cell_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
+theorem newMarker_cell_le (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
     (selections : ReferenceFamily) (dummy : OtsReferenceWords) (history : OtsContactTrace.Trace)
     (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed)
@@ -29,7 +29,7 @@ theorem newMarker_cell_le (parameter : PublicParameter) (messages : EncodingPosi
   simpa only [cell, dif_pos (referenceEncodingAllowed_nonempty parameter messages selections row), SPMF.probEvent_liftM] using
     entryMarker_allowed_le parameter messages selections dummy address row
 
-theorem newMarker_subset_cell_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
+theorem newMarker_subset_cell_le (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
     (selections : ReferenceFamily) (dummy : OtsReferenceWords) (history : OtsContactTrace.Trace)
     (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed)
@@ -41,7 +41,7 @@ theorem newMarker_subset_cell_le (parameter : PublicParameter) (messages : Encod
     (Finset.sum_le_sum fun address _ => newMarker_cell_le parameter messages selections dummy history allowed hc address row)
   simpa only [Finset.sum_const, nsmul_eq_mul, div_eq_mul_inv, mul_comm, mul_left_comm, mul_assoc] using h
 
-theorem newMarker_any_cell_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
+theorem newMarker_any_cell_le (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
     (selections : ReferenceFamily) (dummy : OtsReferenceWords) (history : OtsContactTrace.Trace)
     (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed)

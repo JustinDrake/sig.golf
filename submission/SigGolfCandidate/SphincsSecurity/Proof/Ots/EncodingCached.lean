@@ -12,10 +12,10 @@ open OracleComp OracleSpec
 
 theorem CachedRun.encode_cached {f : QueryImpl HashSpec Id}
     {cache : QueryCache HashSpec} {parameter : PublicParameter} {lay : Layer}
-    {tree : TreeIndex} {leafIdx : LeafIndex} {message : Digest} {counter : Counter}
+    {tree : TreeIndex} {leafIdx : LeafIndex} {message : EncMessage} {counter : Counter}
     (hrun : CachedRun cache f (encodeAttempt parameter lay tree leafIdx message counter)) :
-    cache (tweakableHashInput parameter (.encoding lay tree leafIdx)
-      (digestBytes message ++ counterBytes counter)) ≠ none := by
+    cache (tweakableHashInput message.1 (.encoding lay tree leafIdx)
+      (digestBytes message.2 ++ counterBytes counter)) ≠ none := by
   apply hrun
   rw [encodeAttempt]
   apply queriedInputs_mono_bind_left
@@ -23,11 +23,11 @@ theorem CachedRun.encode_cached {f : QueryImpl HashSpec Id}
 
 theorem CachedRun.otsLeaf_encode_cached {f : QueryImpl HashSpec Id}
     {cache : QueryCache HashSpec} {parameter : PublicParameter} {lay : Layer}
-    {tree : TreeIndex} {leafIdx : LeafIndex} {message : Digest} {counter : Counter}
+    {tree : TreeIndex} {leafIdx : LeafIndex} {message : EncMessage} {counter : Counter}
     {values : ChainIndex → Digest}
     (hrun : CachedRun cache f (otsLeafAttempt parameter lay tree leafIdx message counter values)) :
-    cache (tweakableHashInput parameter (.encoding lay tree leafIdx)
-      (digestBytes message ++ counterBytes counter)) ≠ none :=
+    cache (tweakableHashInput message.1 (.encoding lay tree leafIdx)
+      (digestBytes message.2 ++ counterBytes counter)) ≠ none :=
   CachedRun.encode_cached hrun.bind_left
 
 end SphincsSecurity.Concrete

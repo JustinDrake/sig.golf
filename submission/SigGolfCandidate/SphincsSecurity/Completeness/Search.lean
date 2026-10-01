@@ -181,13 +181,13 @@ search over the encoding inputs. -/
 open Concrete in
 /-- The counter search, as a search over its encoding inputs. -/
 theorem encodingSearch_eq_searchLoop (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
-    (leaf : LeafIndex) (message : Digest) :
+    (leaf : LeafIndex) (message : EncMessage) :
     ∀ (n t : Nat),
       (encodingSearch parameter lay tree leaf message n t
         : OracleComp HashSpec (Option (Counter × Encoding)))
         = searchLoop
-            (fun c => tweakableHashInput parameter (.encoding lay tree leaf)
-              (bytesLE 16 message ++ bytesLE 4 (BitVec.ofNat counterBits c)))
+            (fun c => tweakableHashInput message.1 (.encoding lay tree leaf)
+              (bytesLE 16 message.2 ++ bytesLE 4 (BitVec.ofNat counterBits c)))
             (fun out => TargetSum.decodeDigest lay (selectEncodingDigest out))
             (fun c encoding => pure (BitVec.ofNat counterBits c, encoding))
             n t := by

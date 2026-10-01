@@ -304,18 +304,26 @@ theorem addrFmt_porsLeafInput_pad (idx j : Nat) (v : Val) (hv : v.length = 16)
   rw [addrFmt_porsLeafWords _ _ _ hv, pad64_pLeaf _ _ _ hv]
   rw [Nat.mod_eq_of_lt (show j < 2^32 by omega), LeafScale.left3_small j (by omega)]
 
-theorem pad64_encInput (lay tau e : Nat) (M : Val) (hM : M.length = 16) (c : Nat) :
-    pad64 (encInput lay tau e M c) = queryOfWords 0
-      [BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0,
-        vw0 M, vw1 M, BitVec.ofNat 64 (c % 2 ^ 32), 0] := by
+/-- The encoding input of the 32-byte message `L ++ R` (the two children of the root of the tree below,
+or `P ++` the PORS root): one block, the message in the words 2 .. 5. -/
+theorem pad64_encInput (lay tau e : Nat) (L R : Val) (hL : L.length = 16) (hR : R.length = 16) (c : Nat) :
+    pad64 (encInput lay tau e (L ++ R) c) = queryOfWords 0
+      [BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), vw0 L, vw1 L,
+        vw0 R, vw1 R, BitVec.ofNat 64 (c % 2 ^ 32), 0] := by
+  have hl : (encInput lay tau e (L ++ R) c).length = 52 := by
+    simp [encInput, length_tweak, hL, hR]
+  rw [pad64_eq_words, hl, padBlocks_val 52 0 (by omega) (by omega)]
+  unfold padTo64
+  rw [hl, padBlocks_val 52 0 (by omega) (by omega)]
   unfold encInput
-  rw [pad64_thInput _ _ (by simp) 0 (by simp [hM]) (by simp [hM]), wordsOfN_tweak]
-  simp only [List.length_append, hM, length_le32]
-  rw [show 8 * 0 + 4 = 2 + 2 by rfl, List.append_assoc M, wordsOfN_val_append M hM]
+  simp only [List.append_assoc]
+  rw [show 8 * (0 + 1) = 2 + (2 + (2 + 2)) by rfl,
+    wordsOfN_append 2 _ (tweak 4 lay tau 0 e) _ (by simp [length_tweak]), wordsOfN_tweak,
+    wordsOfN_val_append L hL, wordsOfN_val_append R hR]
   simp only [wordsOfN]
-  have h1 : (le32 c ++ zeros (64 * (0 + 1) - (32 + (16 + 4)))).take 8 = le32 c ++ zeros 4 := by
+  have h1 : (le32 c ++ zeros (64 * (0 + 1) - 52)).take 8 = le32 c ++ zeros 4 := by
     simp [zeros, List.take_append]
-  have h2 : ((le32 c ++ zeros (64 * (0 + 1) - (32 + (16 + 4)))).drop 8).take 8 = zeros 8 := by
+  have h2 : ((le32 c ++ zeros (64 * (0 + 1) - 52)).drop 8).take 8 = zeros 8 := by
     rw [List.drop_append, List.drop_eq_nil_of_le (by simp : (le32 c).length ≤ 8)]
     simp [zeros, List.take_replicate]
   rw [h1, h2]
@@ -339,6 +347,31 @@ theorem pad64_leafInput (lay tau e : Nat) (ends : List Val) (hl : ends.length = 
   rw [pad64_thInput _ _ (by simp) 10 (by omega) (by omega), wordsOfN_tweak, hflat,
     show 8 * 10 + 4 = 2 * ends.length + 0 by omega, wordsOfN_flatten_append ends hv]
   simp [wordsOfN]
+
+theorem pad64_leafPayload4 (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
+    (hv : ∀ v ∈ ends, v.length = 16) :
+    pad64 (thInput (tweak 4 lay tau 0 e) ends.flatten) = queryOfWords 10
+      ([BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0] ++
+        (ends.map fun v => [vw0 v, vw1 v]).flatten) := by
+  have hflat : ends.flatten.length = 672 := by
+    rw [List.length_flatten]
+    have : ends.map List.length = List.replicate 42 16 := by
+      apply List.ext_getElem (by simp [hl])
+      intro i h1 h2
+      simp only [List.getElem_map, List.getElem_replicate]
+      exact hv _ (List.getElem_mem _)
+    rw [this]; decide
+  rw [pad64_thInput _ _ (by simp) 10 (by omega) (by omega), wordsOfN_tweak, hflat,
+    show 8 * 10 + 4 = 2 * ends.length + 0 by omega, wordsOfN_flatten_append ends hv]
+  simp [wordsOfN]
+
+/-- The eleven-block WOTS leaf class uses the cached encoding-header tag. -/
+theorem addrFmt_leafInput_words (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
+    (hv : ∀ v ∈ ends, v.length = 16) :
+    addrFmt (leafInput lay tau e ends) = queryOfWords 10
+      ([BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0] ++
+        (ends.map fun v => [vw0 v, vw1 v]).flatten) := by
+  rw [addrFmt_leafInput_tag4 lay tau e ends hl hv, pad64_leafPayload4 lay tau e ends hl hv]
 
 theorem pad64_digestInput (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
     pad64 (digestInput rho m) = queryOfWords 1

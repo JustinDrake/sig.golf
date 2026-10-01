@@ -4,7 +4,7 @@ namespace SigGolfCandidate.Verify
 /-- M4 shape blocks [lay][chunk] = [base, sh, b0, bits, hi, doff]: block `v` of a chunk starts
 at word `base + v * 2^sh` and runs the levels `b0 .. b0 + bits - 1` for direction bits `v`; the
 dispatch into it adds `doff` (`lui` value `hi`) to the index shifted by `sh + 2`. -/
-def m4Tab : List (List (List Nat)) := [[[74181, 6, 0, 6, 299008, 300820], [78277, 6, 6, 5, 307200, 309012]], [[65983, 7, 0, 6, 233472, 235260]], [[57786, 7, 0, 6, 200704, 202472]], [[49589, 7, 0, 6, 167936, 169684]], [[45488, 7, 0, 5, 167936, 169664]]]
+def m4Tab : List (List (List Nat)) := [[[74181, 6, 0, 6, 299008, 300820], [78277, 6, 6, 5, 307200, 309012]], [[65986, 7, 0, 6, 233472, 235272]], [[57789, 7, 0, 6, 200704, 202484]], [[49592, 7, 0, 6, 167936, 169696]], [[45491, 7, 0, 5, 167936, 169676]]]
 /-- Offsets of the levels in a block [lay][chunk][kk] (the `li a2; ecall` of level `b0 + kk`). -/
 def m4OffTab : List (List (List Nat)) := [[[0, 10, 18, 26, 34, 42], [0, 8, 16, 23, 30]], [[0, 10, 18, 26, 33, 40]], [[0, 10, 18, 26, 33, 40]], [[0, 10, 18, 26, 33, 40]], [[0, 10, 18, 25, 32]]]
 /-- Transition copies [lay][copy] (start pc). -/

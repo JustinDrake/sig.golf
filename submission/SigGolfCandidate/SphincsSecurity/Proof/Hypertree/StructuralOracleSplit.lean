@@ -77,7 +77,7 @@ theorem structuralAnswer_selections (key : SecretKey) (inputs : Finset HashInput
   apply structuralAnswer_nonstructural
   rintro ⟨other, ho⟩
   exact (show AtEncodingPosition key.parameter (canonicalEncodingRowInput key.parameter labels (position, counter)) position from
-    ⟨_, rfl⟩).not_atPosition other ho
+    ⟨_, _, rfl⟩).not_atPosition other ho
 
 theorem structuralAnswer_message (key : SecretKey) (inputs : Finset HashInput) (labels : CanonicalGraphLabels)
     (outside : NonstructuralRows key.parameter inputs) (left right : structuralInputs key.parameter inputs → HashOutput)

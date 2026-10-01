@@ -17,7 +17,7 @@ def StructuralMatch (key : SecretKey) (f : QueryImpl HashSpec Id) (words : OtsRe
     ∃ lay tree leaf, PaddedChainMatch f key.parameter lay tree leaf (key.otsSecret lay tree leaf) trace
 
 def Outcome (key : SecretKey) (f : QueryImpl HashSpec Id) (words : OtsReferenceWords)
-    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (result : ContactResult) : Prop :=
+    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (result : ContactResult) : Prop :=
   EncodingOutputMatch key.parameter words messages selections (result.before * result.after) ∨
     StructuralMatch key f words (result.before * result.after) ∨ result.TwoEdge key.parameter words ∨
       result.TwoContacts key.parameter words ∨ result.MarkerContact key.parameter words
@@ -52,7 +52,7 @@ theorem fts_exception (key : SecretKey) (f : QueryImpl HashSpec Id) (words : Ots
   cases position <;> simp_all only [FtsVerifierWitness.AtIndex, AboveFrontier]
 
 theorem layer_exception (key : SecretKey) (f : QueryImpl HashSpec Id) (words : OtsReferenceWords)
-    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (result : ContactResult)
+    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (result : ContactResult)
     (hfrontier : ∀ lay tree leaf chain, result.frontier lay tree leaf chain = frontier f key.parameter words lay tree leaf (key.otsSecret lay tree leaf) chain)
     (h : LayerException f key words messages selections (result.before * result.after)) : Outcome key f words messages selections result := by
   rcases h with (hencoding | ⟨lay, tree, leaf, htree | hleaf | hchain⟩) | ⟨lay, tree, leaf, hpad⟩

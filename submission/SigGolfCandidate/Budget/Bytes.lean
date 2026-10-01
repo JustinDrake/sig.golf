@@ -72,9 +72,9 @@ theorem qbyte_fmt (x : List Byte) (i : Nat) (hi : i < 4) : qbyte (addrFmt x) i =
 
 /-- Inputs of a tag other than `1, 3, 12` are zero padded. -/
 theorem fmt_eq_pad64 (t lay tau p j : Nat) (pl : List Byte)
-    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 12 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9) :
+    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 12 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 4 ∧ t % 256 ≠ 2) :
     addrFmt (thInput (tweak t lay tau p j) pl) = pad64 (thInput (tweak t lay tau p j) pl) := by
-  rw [addrFmt_eq_th _ _ _ _ _ _ ⟨ht.1, ht.2.2.2.1, ht.2.2.2.2⟩]
+  rw [addrFmt_eq_th _ _ _ _ _ _ ⟨ht.1, ht.2.2.2.1, ht.2.2.2.2.1, ht.2.2.2.2.2.1, ht.2.2.2.2.2.2⟩]
   refine fmt_thInput _ _ _ _ _ _ ?_
   simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
   refine ⟨?_, ?_, ?_⟩ <;> intro h <;> have := congrArg BitVec.toNat h <;>
@@ -89,6 +89,16 @@ theorem qbyte_tag (t lay tau p j : Nat) (pl : List Byte) :
 theorem qbyte_lay (t lay tau p j : Nat) (pl : List Byte) :
     qbyte (addrFmt (thInput (tweak t lay tau p j) pl)) 2 = lay % 256 := by
   rw [qbyte_fmt _ _ (by omega)]; simp [thInput, tweak, byte_toNat]
+
+/-- The encoding input carries its message right after the tweak; its tag and layer bytes are the
+tweak's. -/
+theorem qbyte_tag_enc (lay tau e : Nat) (M : Val) (c : Nat) :
+    qbyte (addrFmt (encInput lay tau e M c)) 1 = 4 := by
+  rw [qbyte_fmt _ _ (by omega)]; simp [encInput, tweak, byte_toNat]
+
+theorem qbyte_lay_enc (lay tau e : Nat) (M : Val) (c : Nat) :
+    qbyte (addrFmt (encInput lay tau e M c)) 2 = lay % 256 := by
+  rw [qbyte_fmt _ _ (by omega)]; simp [encInput, tweak, byte_toNat]
 
 theorem leNat_leBytes (k v : Nat) : leNat (leBytes k v) = v % 256 ^ k := leNat_map_range k v
 

@@ -16,14 +16,14 @@ theorem Context.root_value {inputs : Finset HashInput} (context : Context inputs
 
 theorem Compatible.layer_frame_reference {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
     (hcompatible : Compatible context memory) (index : Index) (signature : Signature) (pads : ChainPads) (lay : Layer)
-    (message target leafValue : Digest)
+    (message target : EncMessage) (leafValue : Digest)
     (hword : OtsCode.Valid lay (context.words lay (treeIndexAt index lay) (leafIndexAt index lay)))
     (hframe : LayerFrameP context.oracle memory.external.cache context.key.parameter index signature pads lay message
       target leafValue)
-    (hfold : foldValue context.oracle context.key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
-      (signaturePath signature lay) leafValue (layerHeight lay) =
-      honestNode context.oracle context.key.parameter lay (treeIndexAt index lay)
-        (context.key.otsSecret lay (treeIndexAt index lay)) (layerHeight lay) 0) :
+    (hfold : foldPair context.oracle context.key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
+      (signaturePath signature lay) leafValue =
+      honestPair context.oracle context.key.parameter lay (treeIndexAt index lay)
+        (context.key.otsSecret lay (treeIndexAt index lay))) :
     message = evalWithAnswerFn context.oracle (layerMessage context.key index lay) ∧
       HonestLayerOpening context.oracle context.key.parameter context.key.otsSecret lay
         (treeIndexAt index lay) (leafIndexAt index lay) (evalWithAnswerFn context.oracle (layerMessage context.key index lay))
@@ -54,8 +54,10 @@ theorem Compatible.verify_honest {inputs : Finset HashInput} {context : Context 
       Admissible digest ∧
       FullyHonestOpening context.oracle memory.external.cache context.key (digestIndex digest) (digestLeaves digest) signature ∧
       ∀ slot, memory.routing.disclosed (digestIndex digest) porsTree (digestLeaves digest slot) := by
-  obtain ⟨digest, hdigest, hdigestRun, ftsPublicKey, hfts, hlayers, hftsRun, hlayersRun⟩ :=
+  obtain ⟨digest, hdigest, hdigestRun, ftsPublicKey, top, hfts, hlayers, htopRoot, hftsRun, hlayersRun, htopRun⟩ :=
     verifyP_extract ⟨context.key.root, context.key.parameter⟩ message signature pads hverify hrun
+  have htop := hcompatible.topRoot_honest (digestIndex digest) top
+    (by rw [htopRoot, hroot, context.root_value]) htopRun
   have hwalk := hypertree_walkP (f := context.oracle) (cache := memory.external.cache) context.key (digestIndex digest)
     signature pads
     (fun lay => HonestLayerOpening context.oracle context.key.parameter context.key.otsSecret lay
@@ -66,14 +68,17 @@ theorem Compatible.verify_honest {inputs : Finset HashInput} {context : Context 
         (treeIndexAt (digestIndex digest) lay) (leafIndexAt (digestIndex digest) lay)
         (evalWithAnswerFn context.oracle (layerMessage context.key (digestIndex digest) lay))
         (signature.counter lay) (signature.chainValue lay)))
+    top
     (fun lay message leafValue hframe hfold =>
-      hcompatible.layer_frame_reference (digestIndex digest) signature pads lay message context.key.root leafValue
+      hcompatible.layer_frame_reference (digestIndex digest) signature pads lay message top leafValue
         (context.words_valid hdummy _ _ _) hframe hfold)
-    (by rw [hroot, context.root_value]) ftsPublicKey hlayers hlayersRun
+    htop ftsPublicKey hlayers hlayersRun
   have hftsKey : ftsPublicKey = honestFtsKey context.oracle context.key.parameter (digestIndex digest)
       (context.key.ftsSecret (digestIndex digest)) := by
-    rw [hwalk.2, layerMessage_bottomLayer]
-    rfl
+    have hbottom := hwalk.2
+    rw [layerMessage_bottomLayer] at hbottom
+    simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure] at hbottom
+    exact (Prod.mk.inj hbottom).2
   rw [hftsKey] at hfts
   obtain ⟨hadmissible, hftsHonest, _⟩ := hcompatible.ftsRecover_honest (digestIndex digest) (digestLeaves digest)
     signature.fts hfts hftsRun

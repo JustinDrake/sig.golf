@@ -17,7 +17,7 @@ theorem readCanonicalEncodingRows_programmedHash (parameter : PublicParameter)
   funext row
   apply programmedHash_other
   intro position heq
-  have hencoding : AtEncodingPosition parameter (canonicalEncodingRowInput parameter encodingLabels row) row.1 := ⟨_, rfl⟩
+  have hencoding : AtEncodingPosition parameter (canonicalEncodingRowInput parameter encodingLabels row) row.1 := ⟨_, _, rfl⟩
   exact hencoding.not_atPosition position ⟨_, heq⟩
 
 theorem referenceTableSelection_programmedHash (key : SecretKey) (inputs : Finset HashInput)

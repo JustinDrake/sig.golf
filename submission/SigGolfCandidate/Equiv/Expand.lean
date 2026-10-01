@@ -40,8 +40,8 @@ attribute [local reducible] SphincsSecurity.hashOutputBits SphincsSecurity.diges
 /-- **The counter phase**: on any 16384-byte partial witness, the reference counter phase is the
 relabelled abstract one (`searchCounter_eq`, `verifyLeaf_eq`, `foldPath_eq`). -/
 theorem expandLayers_eq (wl : List Byte) (hl : wl.length = 16384) (index : Index) (n : Nat)
-    (hn : n ≤ 5) (M : Digest) :
-    Ref.expandLayers wl index n (dv M) = relabel fmtQ (aLayers index (witSig wl) n M) := by
+    (hn : n ≤ 5) (M : SphincsSecurity.EncMessage) :
+    Ref.expandLayers wl index n (dvM M) = relabel fmtQ (aLayers index (witSig wl) n M) := by
   induction n using Nat.strongRecOn generalizing M with
   | _ n ih =>
   match n, hn with
@@ -82,17 +82,31 @@ theorem expandLayers_eq (wl : List Byte) (hl : wl.length = 16384) (index : Index
       simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun ends => ?_
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun v => ?_
-      rw [hp]
+      have hpos : 0 < SphincsSecurity.layerHeight lay := by
+        unfold SphincsSecurity.layerHeight SphincsSecurity.maxLayerHeight
+        split <;> (try split) <;> omega
+      have hh := height_eq lay
+      have hsib := witSib_eq wl hl lay (SphincsSecurity.layerHeight lay - 1) (by omega)
+      simp only [lay, Fin.val_mk] at hh hsib
+      rw [hp, hh, take_map_range _ _ _ (Nat.sub_le _ _), hsib]
       have hfold := foldPath_eq (Ref.nodeInput lay (treeIndexAt index lay))
         (fun lam j l r => SphincsSecurity.Concrete.tweakableHash (m := AComp) 0
           (.node lay (treeIndexAt index lay) lam j) (SphincsSecurity.Concrete.nodePayload l r))
         (hash16_node lay _) (leafIndexAt index lay) (signaturePath (witSig wl) lay)
         (fun k v => treeFold (m := AComp) 0 lay (treeIndexAt index lay) (leafIndexAt index lay)
           (signaturePath (witSig wl) lay) k v)
-        (fun v => rfl) (fun l v => rfl) (SphincsSecurity.layerHeight lay) v
+        (fun v => rfl) (fun l v => rfl) (SphincsSecurity.layerHeight lay - 1) v
       rw [hfold, bind_map_left]
-      refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun root => ?_
-      rw [ih (k + 1) (by omega) (by omega) root]
+      refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun node => ?_
+      rw [topPair_eq]
+      simp only [dvM, List.take_left' (length_dv _), List.drop_left' (length_dv _)]
+      have hroot := hash16_node lay (treeIndexAt index lay) (SphincsSecurity.layerHeight lay) 0
+      simp only [lay, Fin.val_mk] at hroot
+      rw [hroot, bind_map_left]
+      refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun _ => ?_
+      have hnext := ih (k + 1) (by omega) (by omega)
+      simp only [dvM] at hnext
+      rw [hnext]
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun r => ?_
       rcases r with _ | cs <;> rfl
 
@@ -120,7 +134,7 @@ theorem expandRef_eq (m : Bytes 32) (pk : Bytes 16) (pk' : SphincsSecurity.Publi
     rcases r with _ | M
     · simp
     · simp only [Option.map_some]
-      rw [show Ref.nLayers = SphincsSecurity.numLayers from rfl,
+      rw [show Ref.nLayers = SphincsSecurity.numLayers from rfl, ← dvM_zero,
         expandLayers_eq w0 hl _ SphincsSecurity.numLayers (le_refl 5)]
       simp only [relabel_bind, bind_assoc]
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun r => ?_
@@ -1066,7 +1080,7 @@ theorem compressList_expandOf (sig : List Byte) (hsig : sig.length = 6032) (N : 
 
 /-- The counter phase returns one counter per layer. -/
 theorem aLayers_length (index : Index) (S0 : Signature) :
-    ∀ n (M : Digest) (cs : List Nat), some cs ∈ support (aLayers index S0 n M) → cs.length = n := by
+    ∀ n (M : SphincsSecurity.EncMessage) (cs : List Nat), some cs ∈ support (aLayers index S0 n M) → cs.length = n := by
   intro n
   induction n using Nat.strongRecOn with
   | _ n ih =>
@@ -1092,12 +1106,12 @@ theorem aLayers_length (index : Index) (S0 : Signature) :
       rcases r with _ | ⟨c, enc⟩
       · simp at hr
       · simp only [support_bind, Set.mem_iUnion, exists_prop] at hr
-        obtain ⟨ends, -, leaf, -, root, -, r2, hr2, hr3⟩ := hr
+        obtain ⟨ends, -, leaf, -, node, -, dead, -, r2, hr2, hr3⟩ := hr
         rcases r2 with _ | cs'
         · simp at hr3
         · simp only [support_pure, Set.mem_singleton_iff, Option.some.injEq] at hr3
           subst hr3
-          rw [List.length_append, ih (k + 1) (by omega) root cs' hr2]; rfl
+          rw [List.length_append, ih (k + 1) (by omega) _ cs' hr2]; rfl
     · simp at h
 
 /-- What a `some` output of the abstract expansion is: the partial witness of a successful

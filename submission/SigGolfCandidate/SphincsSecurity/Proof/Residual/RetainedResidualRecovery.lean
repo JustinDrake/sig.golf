@@ -58,24 +58,24 @@ private theorem foldPosition_bound (height level index : Nat) (hlevel : level < 
 
 theorem Compatible.layer_honest {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
     (hcompatible : Compatible context memory) (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
-    (hleafIdx : leafIdx.val < 2 ^ layerHeight lay) (message : Digest) (counter : Counter)
+    (hleafIdx : leafIdx.val < 2 ^ layerHeight lay) (message : EncMessage) (counter : Counter)
     (values : ChainIndex → Digest) (path : Nat → Digest) (leafValue : Digest)
     (hleaf : evalWithAnswerFn context.oracle
       (otsLeafAttempt context.key.parameter lay tree leafIdx message counter values) = some leafValue)
-    (hfold : foldValue context.oracle context.key.parameter lay tree leafIdx path leafValue (layerHeight lay) =
-      honestNode context.oracle context.key.parameter lay tree (context.key.otsSecret lay tree) (layerHeight lay) 0)
+    (hfold : foldPair context.oracle context.key.parameter lay tree leafIdx path leafValue =
+      honestPair context.oracle context.key.parameter lay tree (context.key.otsSecret lay tree))
     (hotsRun : CachedRun memory.external.cache context.oracle
       (otsLeafAttempt context.key.parameter lay tree leafIdx message counter values))
     (hfoldRun : CachedRun memory.external.cache context.oracle
-      (treeFold context.key.parameter lay tree leafIdx path (layerHeight lay) leafValue)) :
+      (treeFold context.key.parameter lay tree leafIdx path (layerHeight lay - 1) leafValue)) :
     HonestLayerOpening context.oracle context.key.parameter context.key.otsSecret lay tree leafIdx message counter values path := by
   cases hencode : evalWithAnswerFn context.oracle (encodeAttempt context.key.parameter lay tree leafIdx message counter) with
   | none =>
       simp only [otsLeafAttempt, evalWithAnswerFn_bind, hencode, evalWithAnswerFn_pure, reduceCtorEq] at hleaf
   | some codeword =>
-      rcases treeFold_extract context.oracle context.key.parameter lay tree (context.key.otsSecret lay tree) leafIdx path leafValue
-          (layerHeight lay) (by simpa only [Nat.div_eq_of_lt hleafIdx] using hfold) with
-        ⟨hleafValue, hpath⟩ | ⟨level, hlevel, hhit⟩
+      rcases foldPair_extract_all context.oracle context.key.parameter lay tree (context.key.otsSecret lay tree) leafIdx path
+          hleafIdx (layerHeight_pos lay) leafValue hfold with
+        ⟨hleafValue, hpath⟩ | ⟨level, hlevel', hhit⟩
       · have hleafHonest : evalWithAnswerFn context.oracle
             (otsLeafAttempt context.key.parameter lay tree leafIdx message counter values) =
             some (honestNode context.oracle context.key.parameter lay tree (context.key.otsSecret lay tree) 0 leafIdx.val) := by
@@ -92,14 +92,15 @@ theorem Compatible.layer_honest {inputs : Finset HashInput} {context : Context i
           · exact hotsRun _ (otsLeaf_chain_query_mem context.oracle context.key.parameter lay tree leafIdx message counter values
               codeword hencode chainIdx offset hoffset hrange)
           · simpa only [Position.domain, honestValue_chain] using hhit.2
-      · have hlevelMax : level < maxLayerHeight := lt_of_lt_of_le hlevel (layerHeight_le lay)
+      · have hlevel : level < layerHeight lay := Nat.lt_of_lt_of_le hlevel' (Nat.sub_le _ _)
+        have hlevelMax : level < maxLayerHeight := lt_of_lt_of_le hlevel (layerHeight_le lay)
         have hnodeIdx : leafIdx.val / 2 ^ (level + 1) < 2 ^ maxLayerHeight :=
           lt_of_le_of_lt (Nat.div_le_self _ _) leafIdx.isLt
         apply False.elim
         apply hcompatible.not_payload_collision (.node lay tree ⟨level, hlevelMax⟩ ⟨_, hnodeIdx⟩)
           (foldPosition_bound maxLayerHeight level leafIdx.val hlevelMax leafIdx.isLt) _ hhit.1
         · exact hfoldRun _ (treeFold_query_mem context.oracle context.key.parameter lay tree leafIdx path leafValue
-            (layerHeight lay) level hlevel)
+            (layerHeight lay - 1) level hlevel')
         · simpa only [Position.domain, honestValue_node] using hhit.2
 
 theorem Compatible.no_hidden_input {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
@@ -118,7 +119,7 @@ theorem Context.words_valid {inputs : Finset HashInput} (context : Context input
 
 theorem Compatible.layer_word {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
     (hcompatible : Compatible context memory) (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
-    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (codeword : Encoding)
+    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) (codeword : Encoding)
     (hword : OtsCode.Valid lay (context.words lay tree leafIdx))
     (hencode : evalWithAnswerFn context.oracle (encodeAttempt context.key.parameter lay tree leafIdx message counter) = some codeword)
     (hvalues : ∀ chain, values chain = honestChain context.oracle context.key.parameter lay tree leafIdx chain
@@ -152,7 +153,7 @@ theorem Compatible.layer_word {inputs : Finset HashInput} {context : Context inp
 
 theorem Compatible.layer_reference {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
     (hcompatible : Compatible context memory) (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
-    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (path : Nat → Digest)
+    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) (path : Nat → Digest)
     (hword : OtsCode.Valid lay (context.words lay tree leafIdx))
     (hhonest : HonestLayerOpening context.oracle context.key.parameter context.key.otsSecret lay tree leafIdx message counter values path)
     (hrun : CachedRun memory.external.cache context.oracle (otsLeafAttempt context.key.parameter lay tree leafIdx message counter values)) :
@@ -168,13 +169,13 @@ theorem Compatible.layer_reference {inputs : Finset HashInput} {context : Contex
   have hcodeword := hcompatible.layer_word lay tree leafIdx message counter values codeword hword hencode hvalues hrun
   rw [hcodeword] at hencode hvalues
   let position : EncodingPosition := ⟨lay, tree, leafIdx⟩
-  let input := tweakableHashInput context.key.parameter position.domain (digestBytes message ++ counterBytes counter)
+  let input := tweakableHashInput message.1 position.domain (digestBytes message.2 ++ counterBytes counter)
   have hreference : PublicEncodingMatch.referenceInput context.key.parameter (canonicalGraphMessage context.graph)
       context.auxiliary.selections position = some input := by
     by_contra hnot
     obtain ⟨answer, hanswer⟩ := Option.ne_none_iff_exists'.mp (CachedRun.otsLeaf_encode_cached hrun)
     apply hcompatible.encoding _ _ hanswer
-    refine ⟨position, ⟨_, rfl⟩, hnot, ?_⟩
+    refine ⟨position, ⟨_, _, rfl⟩, hnot, ?_⟩
     rw [hcompatible.cached _ _ hanswer]
     exact decode_of_eval_encode_eq_some _ _ _ _ _ _ _ _ hencode
   cases hselected : context.auxiliary.selections position with
@@ -182,9 +183,10 @@ theorem Compatible.layer_reference {inputs : Finset HashInput} {context : Contex
   | some selected =>
       have hinput : encodingRetryInput context.key.parameter position (canonicalGraphMessage context.graph position) selected.1.val = input := by
         simpa only [PublicEncodingMatch.referenceInput, hselected, Option.map_some, Option.some.injEq] using hreference
-      have hpayload := (tweakableHashInput_injective context.key.parameter (by trivial) (by trivial) hinput).2
+      obtain ⟨_, hfirst, hpayload⟩ := tweakableHashInput_injective' (by trivial) (by trivial) hinput
       obtain ⟨hmessage, hcounter⟩ := List.append_inj hpayload (by simp [digestBytes_length])
-      exact ⟨selected, rfl, (digestBytes_injective hmessage).symm, (bytesLE_injective hcounter).symm, hvalues, hpath⟩
+      exact ⟨selected, rfl, (Prod.ext hfirst (digestBytes_injective hmessage)).symm,
+        (bytesLE_injective hcounter).symm, hvalues, hpath⟩
 
 /-- The stack machine's hits are structural matches, which a compatible memory does not hold. -/
 theorem Compatible.not_ftsHit {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
@@ -248,16 +250,16 @@ no structural collision, so an active padded chain is impossible, and with inact
 record's (its value and its cached run included, which is what `layer_reference` consumes). -/
 theorem Compatible.layer_honestP {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
     (hcompatible : Compatible context memory) (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
-    (hleafIdx : leafIdx.val < 2 ^ layerHeight lay) (message : Digest) (counter : Counter)
+    (hleafIdx : leafIdx.val < 2 ^ layerHeight lay) (message : EncMessage) (counter : Counter)
     (values : ChainIndex → Digest) (pads : ChainIndex → Pad) (path : Nat → Digest) (leafValue : Digest)
     (hleaf : evalWithAnswerFn context.oracle
       (otsLeafAttemptP context.key.parameter lay tree leafIdx message counter values pads) = some leafValue)
-    (hfold : foldValue context.oracle context.key.parameter lay tree leafIdx path leafValue (layerHeight lay) =
-      honestNode context.oracle context.key.parameter lay tree (context.key.otsSecret lay tree) (layerHeight lay) 0)
+    (hfold : foldPair context.oracle context.key.parameter lay tree leafIdx path leafValue =
+      honestPair context.oracle context.key.parameter lay tree (context.key.otsSecret lay tree))
     (hotsRun : CachedRun memory.external.cache context.oracle
       (otsLeafAttemptP context.key.parameter lay tree leafIdx message counter values pads))
     (hfoldRun : CachedRun memory.external.cache context.oracle
-      (treeFold context.key.parameter lay tree leafIdx path (layerHeight lay) leafValue)) :
+      (treeFold context.key.parameter lay tree leafIdx path (layerHeight lay - 1) leafValue)) :
     HonestLayerOpening context.oracle context.key.parameter context.key.otsSecret lay tree leafIdx message
         counter values path ∧
       evalWithAnswerFn context.oracle (otsLeafAttempt context.key.parameter lay tree leafIdx message counter values)
@@ -280,9 +282,9 @@ theorem Compatible.layer_honestP {inputs : Finset HashInput} {context : Context 
           (heval ▸ hleaf) hfold hrun hfoldRun, heval ▸ hleaf, hrun⟩
       · exfalso
         obtain ⟨chainIdx, hpad, hdigit⟩ := exists_active_of_not_inactive hinactive
-        rcases treeFold_extract context.oracle context.key.parameter lay tree (context.key.otsSecret lay tree) leafIdx
-            path leafValue (layerHeight lay) (by simpa only [Nat.div_eq_of_lt hleafIdx] using hfold) with
-          ⟨hleafValue, _⟩ | ⟨level, hlevel, hhit⟩
+        rcases foldPair_extract_all context.oracle context.key.parameter lay tree (context.key.otsSecret lay tree) leafIdx
+            path hleafIdx (layerHeight_pos lay) leafValue hfold with
+          ⟨hleafValue, _⟩ | ⟨level, hlevel', hhit⟩
         · have heval := eval_otsLeafAttemptP context.oracle context.key.parameter lay tree leafIdx message counter
             values pads codeword hencode
           rw [hleaf, hleafValue] at heval
@@ -306,13 +308,37 @@ theorem Compatible.layer_honestP {inputs : Finset HashInput} {context : Context 
                 counter values pads codeword hencode)
             · rw [honestValue_leaf]
               exact hvalue
-        · have hlevelMax : level < maxLayerHeight := lt_of_lt_of_le hlevel (layerHeight_le lay)
+        · have hlevel : level < layerHeight lay := Nat.lt_of_lt_of_le hlevel' (Nat.sub_le _ _)
+          have hlevelMax : level < maxLayerHeight := lt_of_lt_of_le hlevel (layerHeight_le lay)
           have hnodeIdx : leafIdx.val / 2 ^ (level + 1) < 2 ^ maxLayerHeight :=
             lt_of_le_of_lt (Nat.div_le_self _ _) leafIdx.isLt
           apply hcompatible.not_payload_collision (.node lay tree ⟨level, hlevelMax⟩ ⟨_, hnodeIdx⟩)
             (fold_node_bound maxLayerHeight level leafIdx.val hlevelMax leafIdx.isLt) _ hhit.1
           · exact hfoldRun _ (treeFold_query_mem context.oracle context.key.parameter lay tree leafIdx path leafValue
-              (layerHeight lay) level hlevel)
+              (layerHeight lay - 1) level hlevel')
           · simpa only [Position.domain, honestValue_node] using hhit.2
+
+/-- The top tree's last hash in a compatible memory: the verifier's pair is the honest pair. -/
+theorem Compatible.topRoot_honest {inputs : Finset HashInput} {context : Context inputs} {memory : Memory}
+    (hcompatible : Compatible context memory) (index : Index) (top : EncMessage)
+    (hroot : evalWithAnswerFn context.oracle (topRoot context.key.parameter index top) =
+      honestNode context.oracle context.key.parameter topLayer rootTree (context.key.otsSecret topLayer rootTree)
+        (layerHeight topLayer) 0)
+    (hrun : CachedRun memory.external.cache context.oracle (topRoot context.key.parameter index top)) :
+    top = honestPair context.oracle context.key.parameter topLayer rootTree
+      (context.key.otsSecret topLayer rootTree) := by
+  rcases topRoot_extract context.oracle context.key.parameter (context.key.otsSecret topLayer rootTree) index top
+      hroot with h | h
+  · exact h
+  · exfalso
+    apply hcompatible.not_payload_collision
+      (.node topLayer rootTree ⟨maxLayerHeight - 1, by decide⟩ ⟨0, by positivity⟩)
+      (by norm_num [Position.TreeBound, maxLayerHeight]) _ h.1
+    · apply hrun
+      rw [topRoot, queriedInputs_tweakableHash,
+        show treeIndexAt index topLayer = rootTree from Fin.ext (treeIndexAt_topLayer index)]
+      exact List.mem_singleton_self _
+    · rw [honestValue_node]
+      exact h.2
 
 end SphincsSecurity.Concrete.RetainedResidual

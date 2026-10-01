@@ -134,7 +134,15 @@ abbrev AComp := OracleComp SphincsSecurity.HashSpec
 /-- A 16-byte abstract value as reference bytes. -/
 def dv (d : SphincsSecurity.Digest) : Ref.Val := Ref.toList (n := 16) d
 
+/-- A layer message as 32 bytes, `L || R` (the bottom layer's is `P || PORS root`). -/
+def dvM (M : SphincsSecurity.EncMessage) : Ref.Val := dv M.1 ++ dv M.2
+
 @[simp] theorem length_dv (d : SphincsSecurity.Digest) : (dv d).length = 16 := Ref.length_toList (n := 16) d
+
+/-- The bottom layer's message: `P || PORS root`. -/
+theorem dvM_zero (d : SphincsSecurity.Digest) : dvM (0, d) = Ref.P ++ dv d := by
+  have h : dv 0 = Ref.P := by decide
+  simp only [dvM, h]
 
 theorem dv_injective : Function.Injective dv := by
   intro a b h

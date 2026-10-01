@@ -22,9 +22,9 @@ theorem encoding_nonmessage (parameter : PublicParameter) (input : OracleWorld.D
   cases input with
   | inl input => exact False.elim hencoding
   | inr input =>
-      obtain ⟨position, payload, hinput⟩ := hencoding
+      obtain ⟨position, first, payload, hinput⟩ := hencoding
       rintro ⟨message, hmessage⟩
-      have hdomain := (tweakableHashInput_injective parameter (by trivial) (by trivial) (hinput.symm.trans hmessage.symm)).1
+      have hdomain := (tweakableHashInput_injective' (by trivial) (by trivial) (hinput.symm.trans hmessage.symm)).1
       simp only [EncodingPosition.domain, reduceCtorEq] at hdomain
 
 theorem prefix_nonmessage (segment : OtsPrefix) (input : OracleWorld.Domain) (hprefix : segment.Selects input) :

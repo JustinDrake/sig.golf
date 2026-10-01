@@ -315,16 +315,17 @@ variable {m : Type → Type} [Monad m] [HasQuery HashSpec m]
 
 abbrev counterBytes (counter : Counter) : HashInput := bytesLE 4 counter
 
-/-- Hash the message with the counter under the leaf's encoding tweak, and decode. -/
-def encodeAttempt (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : Digest) (counter : Counter) : m (Option Encoding) := do
-  let answer ← oracleHash (tweakableHashInput parameter (.encoding lay tree leaf)
-    (bytesLE 16 message ++ counterBytes counter))
+/-- Hash the message with the counter under the leaf's encoding tweak, and decode. The message's first
+half sits in the parameter slot of the input; the parameter is not used. -/
+def encodeAttempt (_parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
+    (message : EncMessage) (counter : Counter) : m (Option Encoding) := do
+  let answer ← oracleHash (tweakableHashInput message.1 (.encoding lay tree leaf)
+    (bytesLE 16 message.2 ++ counterBytes counter))
   return OtsCode.decode lay (selectEncodingDigest answer)
 
 /-- The verifier's one-time leaf, or nothing if the counter does not encode the message. -/
 def otsLeafAttempt (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) : m (Option Digest) := do
+    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) : m (Option Digest) := do
   let some encoding ← encodeAttempt parameter lay tree leaf message counter | return none
   let endpoints ← sequenceFin fun chainIdx =>
     recoverChain parameter lay tree leaf chainIdx (encoding chainIdx) (values chainIdx)
@@ -332,12 +333,12 @@ def otsLeafAttempt (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex
   return some value
 
 theorem encode_eq (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : Digest) (counter : Counter) :
+    (message : EncMessage) (counter : Counter) :
     encode (m := m) parameter lay tree leaf message counter = encodeAttempt parameter lay tree leaf message counter := by
   simp only [encode, encodeAttempt, OtsCode.decode_def]
 
 theorem otsLeaf_eq (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) :
+    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) :
     otsLeaf (m := m) parameter lay tree leaf message counter values =
       otsLeafAttempt parameter lay tree leaf message counter values := by
   simp only [otsLeaf, otsLeafAttempt, encode_eq]
@@ -347,7 +348,7 @@ theorem otsLeaf_eq (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex
 
 /-- The padded verifier's one-time leaf over the sealed code (`otsLeafP` with `encodeAttempt`). -/
 def otsLeafAttemptP (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (pads : ChainIndex → Pad) :
+    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) (pads : ChainIndex → Pad) :
     m (Option Digest) := do
   let some encoding ← encodeAttempt parameter lay tree leaf message counter | return none
   let endpoints ← sequenceFin fun chainIdx =>
@@ -356,7 +357,7 @@ def otsLeafAttemptP (parameter : PublicParameter) (lay : Layer) (tree : TreeInde
   return some value
 
 theorem otsLeafP_eq (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) (pads : ChainIndex → Pad) :
+    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) (pads : ChainIndex → Pad) :
     otsLeafP (m := m) parameter lay tree leaf message counter values pads =
       otsLeafAttemptP parameter lay tree leaf message counter values pads := by
   simp only [otsLeafP, otsLeafAttemptP, encode_eq]

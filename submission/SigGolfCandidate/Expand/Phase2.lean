@@ -23,7 +23,7 @@ def afterW (w0 : List Byte) (idx : Nat) (v : List Nat) : OracleComp HashSpec (Op
   match ← porsRoot idx v w0 with
   | none => pure none
   | some M =>
-    match ← expandLayers w0 idx nLayers M with
+    match ← expandLayers w0 idx nLayers (P ++ M) with
     | none => pure none
     | some cs => pure (some (withCounters w0 cs))
 
@@ -57,13 +57,19 @@ theorem phase2_sim (w0 : List Byte) (hw : w0.length = 16384) (hz : ∀ j < 4, w0
   dsimp only
   obtain ⟨t2, hs2, p2, x7, x8, x22, x26, x27, eM, eP, ecb, elf, enb, r2, f2⟩ := blk639_run t1 p1 c1.x25
   have hidx34 : idxOf N < 2 ^ 34 := by unfold idxOf totalH; exact Nat.mod_lt _ (by norm_num)
-  have hl : LayInv w0 (idxOf N) 4 M [] t2 := by
+  have hl : LayInv w0 (idxOf N) 4 (P ++ M) [] t2 := by
     have hw2 : WitMem w0 t2 := c1.wit.frame f2 (fun a h1 h2 => by unfold witA at h1; omega)
     have c2 : LCtx w0 (idxOf N) t2 := ⟨hidx34, by rw [r2.get .x5 (by decide), c1.x5], x7,
-      by rw [x22, c1.x4], by rw [r2.get .x25 (by decide), c1.x25], x26, x27, eP, ecb, elf, enb, hw2⟩
-    exact ⟨c2, ⟨by norm_num, hidx34, hM, p2, c2.x5, x7, x8, c2.x22, x26, x27, by rw [eM, o1], eP⟩,
+      by rw [x22, c1.x4], by rw [r2.get .x25 (by decide), c1.x25], x26, x27, ecb, elf, enb, hw2⟩
+    have hPM : (P ++ M).length = 32 := by simp [P, zeros, hM]
+    have heb : t2.readWords (BitVec.ofNat 64 0x110) 4 = wordsOf (P ++ M) := by
+      have e4 := readWords_ofNat_add t2 0x110 2 2
+      rw [show (2 + 2 : Nat) = 4 from rfl, show (0x110 + 8 * 2 : Nat) = 0x120 from rfl] at e4
+      rw [e4, eP, eM, o1, wordsOf_append _ _ (by simp [P, zeros]),
+        show wordsOf P = [0, 0] from wordsOf_zeros 2]
+    exact ⟨c2, ⟨by norm_num, hidx34, hPM, p2, c2.x5, x7, x8, c2.x22, x26, x27, heb⟩,
       rfl, fun j hj => by simp at hj, fun j hj => by simp at hj⟩
-  have hlay := layers_sim w0 hw hz (idxOf N) 4 (by norm_num) M [] t2 hl
+  have hlay := layers_sim w0 hw hz (idxOf N) 4 (by norm_num) (P ++ M) [] t2 hl
   refine (Sim.steps hs2 (Sim.bind hlay (W₂ := 0) (fun r2 t3 h3 => ?_))).mono (by omega) (fun _ _ h => h)
   rcases r2 with _ | cs
   · exact Sim.pure (Q := QP) (a := none) (qp_fail t3 h3)

@@ -84,12 +84,12 @@ theorem message_not_encoding (parameter : PublicParameter) (input : HashInput)
     (hmessage : FtsProbeSimulation.MessageHashInput parameter input) (position : EncodingPosition) :
     ¬AtEncodingPosition parameter input position := by
   obtain ⟨payload, rfl⟩ := hmessage
-  rintro ⟨other, heq⟩
-  have hdomain := (tweakableHashInput_injective parameter (by trivial) (by trivial) heq).1
+  rintro ⟨first, other, heq⟩
+  have hdomain := (tweakableHashInput_injective' (by trivial) (by trivial) heq).1
   simp only [EncodingPosition.domain, reduceCtorEq] at hdomain
 
 theorem checkedFixedStep_message (parameter : PublicParameter) (words : OtsReferenceWords)
-    (disclosed : Index → FtsTree → FtsLeaf → Prop) (known actual : Labels) (messages : EncodingPosition → Digest)
+    (disclosed : Index → FtsTree → FtsLeaf → Prop) (known actual : Labels) (messages : EncodingPosition → EncMessage)
     (selections : ReferenceFamily) (oracle : QueryImpl HashSpec Id) (input : HashInput)
     (hmessage : FtsProbeSimulation.MessageHashInput parameter input) (memory : ExternalMemory) :
     checkedResult (PublicEncodingMatch.Match parameter messages words selections) input

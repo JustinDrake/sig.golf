@@ -21,7 +21,7 @@ theorem input_not_encoding (segment : OtsPrefix) (query : segment.Query) :
   rw [canonicalEncodingInputs] at h
   simp only [Finset.mem_biUnion, Finset.mem_univ, true_and, Finset.mem_image] at h
   obtain ⟨position, pair, heq⟩ := h
-  have hencoding : AtEncodingPosition segment.parameter (segment.input query) position := ⟨_, heq.symm⟩
+  have hencoding : AtEncodingPosition segment.parameter (segment.input query) position := ⟨_, _, heq.symm⟩
   exact hencoding.not_atPosition
     (.chain segment.lay segment.tree segment.leaf segment.chainIdx (segment.step query.1)) ⟨digestBytes query.2, rfl⟩
 

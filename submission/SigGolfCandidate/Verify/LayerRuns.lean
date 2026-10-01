@@ -25,16 +25,28 @@ def trPc (lay c : Nat) : Nat := (layerPcTab.getD lay []).getD c 0
 /-- The return pc of transition copy `c` (its leaf block, after `jalr ra`). -/
 def retPc (lay c : Nat) : Nat := (retTab.getD lay []).getD c 0
 
-/-- Start `t` of layer `lay`: a PORS root tail's copy (layer 4) or right after the root hash of
-block `t` of the last chunk of layer `lay + 1`. -/
+/-- Start `t` of layer `lay`: a PORS root tail's copy (layer 4) or, in block `t` of the last fold chunk
+of layer `lay + 1`, right after the hash of the node under the root: the fold stops there, the copy of
+the root's other child into the encoding block (4 steps) and the transition follow. -/
 def preStart (lay t : Nat) : Nat :=
   if lay = 4 then trPc 4 t
-  else m4Pc (lay + 1) (nCh (lay + 1) - 1) t (chBits (lay + 1) (nCh (lay + 1) - 1) - 1) + 9
+  else m4Pc (lay + 1) (nCh (lay + 1) - 1) t (chBits (lay + 1) (nCh (lay + 1) - 1) - 1) + 2
 
-/-- Steps of the transition up to the encoding hash: layer 0 consumes the remaining route bits
+/-- Steps of the transition proper up to the encoding hash: layer 0 consumes the remaining route bits
 directly (two `addi` for the sentinel, no mask/shift); layer 4 reuses the known hash length. -/
-def stepsA (lay : Nat) : Nat := if lay = 0 then 10 else if lay = 4 then 11 else 12
-def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
+def stepsT (lay : Nat) : Nat := if lay = 0 then 10 else if lay = 4 then 11 else 12
+/-- Steps from `preStart` to the encoding hash: below layer 4, the 4 steps of the sibling copy first. -/
+def stepsA (lay : Nat) : Nat := stepsT lay + (if lay = 4 then 0 else 4)
+def encPc (lay t : Nat) : Nat := trPc lay t + stepsT lay
+
+/-- The node under the root of the tree below (in EB+32 = `0x120`) is the root's left child: then the
+encoding block is `0x110 ..` (`tweak | node | sibling | counter`), else `0x100 ..`
+(`tweak | sibling | node | counter`; layer 4: `tweak | 0 | PORS root | counter`). -/
+def xLeft (lay t : Nat) : Bool := lay != 4 && t / 2 ^ (heightL (lay + 1) - 1) % 2 == 0
+def encB (lay t : Nat) : Nat := if xLeft lay t then 0x110 else 0x100
+/-- Where the root's other child (the top sibling of the path of layer `lay + 1`) goes. -/
+def sibSlot (lay t : Nat) : Nat := if xLeft lay t then 0x130 else 0x110
+def topSib (lay : Nat) : Nat := sibAddr (lay + 1) (heightL (lay + 1) - 1)
 
 /-- Known registers at the transition start. -/
 def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401), (.x14, KT4)]
@@ -42,9 +54,10 @@ def aK (lay : Nat) : List (Reg × Word) :=
   gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, 0x120), (.x27, BitVec.ofNat 64 (hWord (lay + 1) + 768)), (.x22, BitVec.ofNat 64 (s6N (lay + 1)))]
 def preK (lay : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay
 
-/-- Known registers after the encoding hash call. -/
-def bK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)] ++
+/-- Known registers after the encoding hash call of transition copy `t`. -/
+def bK (lay t : Nat) : List (Reg × Word) :=
+  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x10, BitVec.ofNat 64 (encB lay t)), (.x11, 64),
+      (.x12, 0x120)] ++
     (if lay = 4 then [(.x14, KT4)] else [(.x22, BitVec.ofNat 64 (s6N (lay + 1)))])
 
 def uEr (lay : Nat) : E :=
@@ -68,8 +81,12 @@ def ctrE (lay : Nat) : E := .un (.ld .wu (4 * (lay % 2))) (ldE (ctrA lay))
 
 def specA (lay t : Nat) : Spec :=
   ⟨[(.x23, uHE lay), (.x30, carryEr lay), (.x31, x31Er lay)],
-   [(⟨none, BitVec.ofNat 64 312⟩, .c 0), (⟨none, BitVec.ofNat 64 304⟩, ctrE lay),
-    (⟨none, BitVec.ofNat 64 264⟩, x31Er lay), (⟨none, BitVec.ofNat 64 256⟩, cw (hWord lay + 768))],
+   [(⟨none, BitVec.ofNat 64 (encB lay t + 56)⟩, .c 0), (⟨none, BitVec.ofNat 64 (encB lay t + 48)⟩, ctrE lay),
+    (⟨none, BitVec.ofNat 64 (encB lay t + 8)⟩, x31Er lay),
+    (⟨none, BitVec.ofNat 64 (encB lay t)⟩, cw (hWord lay + 768))] ++
+   (if lay = 4 then [] else
+     [(⟨none, BitVec.ofNat 64 (sibSlot lay t + 8)⟩, ldE (topSib lay + 8)),
+      (⟨none, BitVec.ofNat 64 (sibSlot lay t)⟩, ldE (topSib lay))]),
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
 
 /-! ## The encoding check (`remu x25, x25, x18`; layers 0 .. 3 compare `KT`, layer 4 reuses `x14 = KT4`,
@@ -141,13 +158,13 @@ def specRej2 (hi : Nat) (lay : Nat) : Spec :=
 
 /-- The leaf code at the return pc: the leaf tweak, then the dispatch into the shape block of
 chunk 0. -/
-def leafSteps (lay : Nat) : Nat := if lay = 0 then 10 else 9
+def leafSteps (lay : Nat) : Nat := if lay = 0 then 9 else 8
 
 def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, BitVec.ofNat 64 (hWord lay + 768)), (.x22, BitVec.ofNat 64 (s6N lay))]
 
 def specLeaf (lay : Nat) : Spec :=
   ⟨[(.x10, cw 832), (.x11, cw 704)],
-   [(⟨none, BitVec.ofNat 64 840⟩, .reg .x31), (⟨none, BitVec.ofNat 64 832⟩, cw (hWord lay + 256))],
+   [(⟨none, BitVec.ofNat 64 840⟩, .reg .x31), (⟨none, BitVec.ofNat 64 832⟩, cw (hWord lay + 768))],
    0, false, leafSteps lay, [], some (dispTgt lay 0), leafSteps lay⟩
 
 def leafKeep : List Reg := [.x16, .x17, .x23, .x30, .x31]
@@ -170,13 +187,13 @@ def specCR1 (t : Nat) : Spec :=
 
 /-- Everything of transition copy `t` of layer `lay`. -/
 def halfCheck (lay t : Nat) (hi : Nat) : Bool :=
-  specOB gkL (runAt (bK lay) [] (encPc lay t + 1) (selDirs hi ++ [.br false, .br false, .jmp])) (specBok hi lay) encObligs
+  specOB gkL (runAt (bK lay t) [] (encPc lay t + 1) (selDirs hi ++ [.br false, .br false, .jmp])) (specBok hi lay) encObligs
     (chKa lay t) [.x23, .x30, .x31] &&
-  specOB [] (runAt (bK lay) [] (encPc lay t + 1) (selDirs hi ++ [.br true])) (specRej1 hi) encObligs [] [] &&
-  specOB [] (runAt (bK lay) [] (encPc lay t + 1) (selDirs hi ++ [.br false, .br true])) (specRej2 hi lay) encObligs [] []
+  specOB [] (runAt (bK lay t) [] (encPc lay t + 1) (selDirs hi ++ [.br true])) (specRej1 hi) encObligs [] [] &&
+  specOB [] (runAt (bK lay t) [] (encPc lay t + 1) (selDirs hi ++ [.br false, .br true])) (specRej2 hi lay) encObligs [] []
 
 def copyCheck (lay t : Nat) : Bool :=
-  specB gkL (runAt (preK lay) [] (preStart lay t) []) (specA lay t) (bK lay) [] &&
+  specB gkL (runAt (preK lay) [] (preStart lay t) []) (specA lay t) (bK lay t) [] &&
   ((List.range 4).all (halfCheck lay t)) &&
   specB gkL (runAt (leafK lay) [] (retPc lay t) [.jmp]) (specLeaf lay) (leafPost lay) leafKeep
 
