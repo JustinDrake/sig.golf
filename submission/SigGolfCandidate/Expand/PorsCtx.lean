@@ -63,7 +63,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
   SigGolfCandidate.Sign
 
 /-- The constant part of the PORS phase: `tp = idx`, `t0 = 0`, `s6 = STK`, `s9 = X`,
-`s10 = idx mod 2^32`, `s11 = 0x800` (the witness); the first word and the zero words of `LB` and
+`s10 = idx mod 2^32`, `s11 = 0x1000` (W1: the secrets at `s11 + 1024 + 64 s`); the first word and the zero words of `LB` and
 `PB`; the witness buffer; the sorted keys `K` at `0x6E0`. -/
 structure PCtx (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState) : Prop where
   hidx : idx < 2 ^ 34
@@ -72,7 +72,7 @@ structure PCtx (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState) 
   x22 : t.getReg .x22 = BitVec.ofNat 64 0x30540
   x25 : t.getReg .x25 = BitVec.ofNat 64 0x30000
   x26 : t.getReg .x26 = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32)
-  x27 : t.getReg .x27 = BitVec.ofNat 64 0x800
+  x27 : t.getReg .x27 = BitVec.ofNat 64 0x1000
   lb0 : t.getMem (BitVec.ofNat 64 0x30000) = BitVec.ofNat 64 (1 + 256 * 9 + 2 ^ 24 * (idx / 2 ^ 32) + 2 ^ 32 * (idx % 2 ^ 32))
   lb16 : t.getMem (BitVec.ofNat 64 0x30010) = 0
   lb24 : t.getMem (BitVec.ofNat 64 0x30018) = 0

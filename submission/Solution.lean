@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
-S=6032 signature bytes, W=16384 witness bytes, K=131072 cache bytes.
-The claim C=10376 is accepting verifier bound10312 plus witness charge64.
+S=6032 signature bytes, W=15872 witness bytes, K=131072 cache bytes.
+The claim C=10374 is accepting verifier bound10312 plus witness charge62.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[185,185,185,185,186].
 
@@ -62,6 +62,9 @@ c216d85858f8a7dcd68a2782cc27cfd057d45b67. Earlier public sources include
 4528ff23136b01e342c77eedaf2f6d74ad961d15, and
 0ba3dc24993dd3491a0a6a064c7cd9fbb9aa6439.
 
+The external witness omits the two internal cache words and packs lower authentication
+paths into consumed tweak slots. It begins at0xa00 and has15872bytes, with charge62.
+
 The certificate covers all four images, universal termination, per-seed
 completeness, honest compression budgets,127-bit security and accepting
 verifier cycles under the pinned contract. No measured profile is claimed.
@@ -73,15 +76,15 @@ def submission : SigGolf.Submission := SigGolfCandidate.submissionNew
 
 theorem signature_bytes : submission.sizes.signature = 6032 := rfl
 
-theorem witness_bytes : submission.sizes.witness = 16384 := rfl
+theorem witness_bytes : submission.sizes.witness = 15872 := rfl
 
 theorem cache_bytes : submission.sizes.cache = 131072 := rfl
 
 theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
-    cache := 19200, signature := 150272, witness := 2048 } := rfl
+    cache := 19200, signature := 150272, witness := 2560 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10376 :=
+theorem certificate : SigGolf.Certificate submission 10374 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
