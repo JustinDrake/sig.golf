@@ -103,7 +103,7 @@ def TTA5 : Word := 0x50000
 def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 
 /-- The exact digit sum of every layer, compared after the alias-free reduction modulo 4095. -/
-def KT : Word := BitVec.ofNat 64 targetSum
+def KT : Word := BitVec.ofNat 64 (targetSum + 1)
 
 /-- Mixed per-layer target, shared definition with the abstract decoder. -/
 def targetFor (lay : Nat) : Nat := SigGolfCandidate.Ref.targetFor lay
@@ -113,18 +113,16 @@ layer-4 encoding check (`x14` is dead there; the chain prologue then loads the t
 def KT4 : Word := BitVec.ofNat 64 (targetFor 4)
 
 /-- The digit-sum constant the encoding check of layer `lay` compares against. -/
-def KTof (lay : Nat) : Word := BitVec.ofNat 64 (targetFor lay)
+def KTof (lay : Nat) : Word := BitVec.ofNat 64 (targetFor lay + if lay = 0 then 1 else 0)
 
 theorem targetFor_le (lay : Nat) : targetFor lay ≤ 185 := by
   unfold targetFor SigGolfCandidate.Ref.targetFor targetSum
-  omega
+  split_ifs <;> omega
 
 /-- The verifier's embedded mask words. -/
 def MaskData (s : MachineState) : Prop :=
   s.getMem (BitVec.ofNat 64 0xFFFFF0) = M1w ∧
-  s.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w ∧
-  s.getMem (BitVec.ofNat 64 0xFFFFE0) = 0x40401#64 ∧
-  s.getMem (BitVec.ofNat 64 0xFFFFE8) = 0x3fe00#64
+  s.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w
 
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
 def gkL0 : List (Reg × Word) :=

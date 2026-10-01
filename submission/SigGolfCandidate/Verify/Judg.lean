@@ -177,16 +177,9 @@ theorem Good.encodingHashP {s : MachineState} {N C : Nat} {x : List Byte}
 
 /-- Zero-padded `thInput` for the tags that `addrFmt` leaves alone (not 1, 3, 12). -/
 theorem fmt_th (t lay tau p j : Nat) (payload : List Byte)
-    (ht : byte t ∉ [byte 1, byte 3, byte 12]) :
+    (ht : byte t ∉ [byte 1, byte 3, byte 10, byte 12]) :
     addrFmt (thInput (tweak t lay tau p j) payload) = pad64 (thInput (tweak t lay tau p j) payload) :=
-  by
-    have h1 : t % 256 ≠ 1 := by
-      intro he
-      apply ht
-      have hb : byte t = byte 1 := by apply BitVec.eq_of_toNat_eq; simp [byte_toNat, he]
-      rw [hb]; exact List.mem_cons_self
-    rw [addrFmt_eq_th _ _ _ _ _ _ h1]
-    exact fmt_thInput t lay tau p j payload ht
+  addrFmt_thInput t lay tau p j payload ht
 
 end SigGolfCandidate.Verify
 

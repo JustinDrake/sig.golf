@@ -12,7 +12,7 @@ theorem entryMarker_allowed_le (parameter : PublicParameter) (messages : Encodin
     (cell : canonicalEncodingInputs parameter) :
     Pr[fun output : HashOutput => EntryMarker parameter (referenceFamilyWords selections dummy) address (cell.val, output) |
       PMF.uniformOfFinset (referenceEncodingAllowed parameter messages selections cell)
-        (referenceEncodingAllowed_nonempty parameter messages selections cell)] ≤ ((1923 / 1024 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) / (Fintype.card Digest : ENNReal) := by
+        (referenceEncodingAllowed_nonempty parameter messages selections cell)] ≤ ((15 / 8 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) / (Fintype.card Digest : ENNReal) := by
   by_cases hp : AtEncodingPosition parameter cell.val ⟨address.1, address.2.1, address.2.2.1⟩
   · refine (_root_.probEvent_mono (mx := (liftM (PMF.uniformOfFinset (referenceEncodingAllowed parameter messages selections cell)
       (referenceEncodingAllowed_nonempty parameter messages selections cell)) : SPMF HashOutput)) ?_).trans (freshEncodingSupport_neighbor_le
@@ -40,7 +40,7 @@ theorem entryMarker_any_allowed_le (parameter : PublicParameter) (messages : Enc
     (selections : ReferenceFamily) (dummy : OtsReferenceWords) (cell : canonicalEncodingInputs parameter) :
     Pr[fun output : HashOutput => ∃ address, EntryMarker parameter (referenceFamilyWords selections dummy) address (cell.val, output) |
       PMF.uniformOfFinset (referenceEncodingAllowed parameter messages selections cell)
-        (referenceEncodingAllowed_nonempty parameter messages selections cell)] ≤ ((1923 / 1024 : ENNReal) * (OtsCode.neighborBound : ENNReal)) / (Fintype.card Digest : ENNReal) := by
+        (referenceEncodingAllowed_nonempty parameter messages selections cell)] ≤ ((15 / 8 : ENNReal) * (OtsCode.neighborBound : ENNReal)) / (Fintype.card Digest : ENNReal) := by
   obtain ⟨position, hp⟩ := encodingInput_position parameter cell.val cell.property
   refine (_root_.probEvent_mono (mx := (liftM (PMF.uniformOfFinset (referenceEncodingAllowed parameter messages selections cell)
       (referenceEncodingAllowed_nonempty parameter messages selections cell)) : SPMF HashOutput)) ?_).trans (freshEncodingSupport_all_neighbors_le

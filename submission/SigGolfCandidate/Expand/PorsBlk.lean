@@ -1,4 +1,5 @@
 import SigGolfCandidate.Expand.PorsCtx
+import SigGolfCandidate.Sign.PorsLevel
 
 /-!
 # `expand`, phase 2: the blocks of a PORS segment (instructions 550 .. 594)
@@ -50,23 +51,20 @@ theorem blk554_run (t : MachineState) (hpc : t.pc = pcOf 554) (a : Nat) (ha : a 
   · rw [if_pos (by simpa using h), if_pos h]
   · rw [if_neg (by simpa using h), if_neg h]
 
-theorem and7_path (n : Nat) : n &&& 7 = n % 8 := Nat.and_two_pow_sub_one_eq_mod n 3
-
-/-- 555 .. 558: the low-three-bit path `b >> 5` against `E & 7`. -/
+/-- 555 .. 558: the direction bit `t = b >> 5 & 1` against `E & 1`. -/
 theorem blk555_run (t : MachineState) (hpc : t.pc = pcOf 555) (b E : Nat) (hb : b < 256) (hE : E < 2 ^ 15)
     (h6 : t.getReg .x6 = BitVec.ofNat 64 b) (h19 : t.getReg .x19 = BitVec.ofNat 64 E) :
-    ∃ t', Steps eimg t 4 4 t' ∧ t'.pc = (if b / 32 ≠ E % 8 then pcOf 284 else pcOf 559) ∧
+    ∃ t', Steps eimg t 4 4 t' ∧ t'.pc = (if b / 32 % 2 ≠ E % 2 then pcOf 284 else pcOf 559) ∧
       RegsEq t t' [.x13, .x14] ∧ ∀ x, t'.getMem x = t.getMem x := by
   refine ⟨_, symRun_sound Expand.blk555 Expand.codeAt_555 t hpc (by simp only [Expand.blk555.res, rv_simp]),
     ?_, by pregs, getMem_nil rfl t⟩
   simp only [Expand.blk555.res, rv_simp, h6, h19]
   rw [show (5#64 : Word).toNat % 64 = 5 from rfl, ofNat_ushiftRight _ _ (by omega),
-    ofNat_and_ofNat _ _ (by omega) (by norm_num), and7_path,
-    ofNat_and_ofNat _ _ (by omega) (by norm_num), and7_path, ofNat_bne_ofNat,
-    Nat.mod_eq_of_lt (by omega : b / 2 ^ 5 % 8 < 2 ^ 64),
-    Nat.mod_eq_of_lt (by omega : E % 8 < 2 ^ 64)]
-  rw [Nat.mod_eq_of_lt (by omega : b / 2 ^ 5 < 8)]
-  by_cases h : b / 32 ≠ E % 8
+    ofNat_and_ofNat _ _ (by omega) (by norm_num), and_one,
+    ofNat_and_ofNat _ _ (by omega) (by norm_num), and_one, ofNat_bne_ofNat,
+    Nat.mod_eq_of_lt (by omega : b / 2 ^ 5 % 2 < 2 ^ 64),
+    Nat.mod_eq_of_lt (by omega : E % 2 < 2 ^ 64)]
+  by_cases h : b / 32 % 2 ≠ E % 2
   · rw [if_pos (by simpa using h), if_pos h]
   · rw [if_neg (by simpa using h), if_neg h]
 
@@ -129,38 +127,125 @@ theorem blk567_run (t : MachineState) (hpc : t.pc = pcOf 567) (n : Nat) (hn : n 
   · rw [if_pos (by simpa using h), if_pos h]
   · rw [if_neg (by simpa using h), if_neg h]
 
-/-- 568 .. 577: `PB` word 1 = heap index `E / 2`, load the sibling and the node, test `E & 1`. -/
+/-! ## The rev16 trampolines (`804 .. 831`, `832 .. 859`) -/
+
+/-- `x13` after a rev16 trampoline: the network of `Sign.Rev16`, shifted by `48` instead of `16`. -/
+def net48 (x : BitVec 64) : BitVec 64 :=
+  BinOp.eval .sll (Rev16.bvS 1#64 21845#64 (Rev16.bvS 2#64 13107#64 (Rev16.bvS 4#64 3855#64 (Rev16.bvA x)))) 48#64
+
+/-- The trampoline network puts the relabelled field in the high half: `net48 v = 2^32 * efield v`. -/
+theorem net48_eq (v : Nat) (hv : v < 2 ^ 14) :
+    net48 (BitVec.ofNat 64 v) = BitVec.ofNat 64 (2 ^ 32 * Rev.efield v) := by
+  set y := Rev16.bvS 1#64 21845#64 (Rev16.bvS 2#64 13107#64 (Rev16.bvS 4#64 3855#64
+    (Rev16.bvA (BitVec.ofNat 64 v)))) with hy
+  have h16 : Rev16.revNetBV (BitVec.ofNat 64 v) = BitVec.ofNat 64 (Rev.efield v) := Rev16.revNetBV_eq v hv
+  have hE := Rev.efield_lt v
+  have e16 : (Rev16.revNetBV (BitVec.ofNat 64 v)).toNat = y.toNat * 2 ^ 16 % 2 ^ 64 := by
+    show (BinOp.eval .sll y 16#64).toNat = _
+    simp only [BinOp.eval, BitVec.toNat_shiftLeft, Nat.shiftLeft_eq]
+    rfl
+  have hy16 : y.toNat < 2 ^ 16 := by
+    have := Rev16.rvS_lt 1 21845 (Rev16.bvS 2#64 13107#64 (Rev16.bvS 4#64 3855#64
+      (Rev16.bvA (BitVec.ofNat 64 v)))).toNat (by omega) (by omega)
+    rw [hy, Rev16.bvS_toNat 1 21845 _ (by omega) (by omega) (by omega)]
+    exact this
+  have hyE : y.toNat * 2 ^ 16 = Rev.efield v := by
+    have := congrArg BitVec.toNat h16
+    rw [e16, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at this
+    exact this
+  apply BitVec.eq_of_toNat_eq
+  show (BinOp.eval .sll y 48#64).toNat = _
+  simp only [BinOp.eval, BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, BitVec.toNat_ofNat]
+  rw [show (48 : Nat) % 2 ^ 64 % 64 = 48 from rfl, show (2 : Nat) ^ 48 = 2 ^ 16 * 2 ^ 32 by norm_num,
+    ← Nat.mul_assoc, hyE, Nat.mul_comm]
+
+theorem blk804_x13 (u : MachineState) :
+    (Expand.blk804.res.toState u).getReg .x13 = net48 (BinOp.eval .srl (u.getReg .x19) 1#64) := by
+  rw [Result.toState_getReg]; rfl
+
+theorem blk832_x13 (u : MachineState) :
+    (Expand.blk832.res.toState u).getReg .x13 = net48 (u.getReg .x19) := by
+  rw [Result.toState_getReg]; rfl
+
+theorem blk804_regs (u : MachineState) (r : Reg) (h1 : r ≠ .x13) (h2 : r ≠ .x14) (h3 : r ≠ .x15) :
+    (Expand.blk804.res.toState u).getReg r = u.getReg r := by
+  cases r <;> (try contradiction) <;> simp only [Expand.blk804.res, rv_simp] <;> rfl
+
+theorem blk832_regs (u : MachineState) (r : Reg) (h1 : r ≠ .x13) (h2 : r ≠ .x14) (h3 : r ≠ .x15) :
+    (Expand.blk832.res.toState u).getReg r = u.getReg r := by
+  cases r <;> (try contradiction) <;> simp only [Expand.blk832.res, rv_simp] <;> rfl
+
+/-- 568 (`j 804`), the network `804 .. 831` on `x19 >> 1`, back to `570 .. 577`: `PB` word 1 =
+`idx | efield (E / 2) << 32`, load the sibling and the node, test `E & 1`. -/
 theorem blk568_run (w : List Byte) (idx : Nat) (t : MachineState) (hpc : t.pc = pcOf 568) (E o : Nat)
     (hE : E < 2 ^ 15) (ho : o % 8 = 0) (ho' : o + 16 ≤ 0x4000) (hw : WitMem w t)
     (h19 : t.getReg .x19 = BitVec.ofNat 64 E) (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000)
     (h26 : t.getReg .x26 = BitVec.ofNat 64 (idx % 2 ^ 32))
     (h28 : t.getReg .x28 = BitVec.ofNat 64 (0x800 + o)) :
-    ∃ t', Steps eimg t 10 10 t' ∧ t'.pc = (if E % 2 = 0 then pcOf 583 else pcOf 578) ∧
+    ∃ t', Steps eimg t 37 37 t' ∧ t'.pc = (if E % 2 = 0 then pcOf 583 else pcOf 578) ∧
       t'.getReg .x14 = wword w o ∧ t'.getReg .x15 = wword w (o + 8) ∧
       t'.getReg .x16 = t.getMem (BitVec.ofNat 64 0x30080) ∧ t'.getReg .x17 = t.getMem (BitVec.ofNat 64 0x30088) ∧
-      t'.getMem (BitVec.ofNat 64 0x30048) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * (E / 2)) ∧
+      t'.getMem (BitVec.ofNat 64 0x30048) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * Rev.efield (E / 2)) ∧
       RegsEq t t' [.x13, .x14, .x15, .x16, .x17] ∧ Frame t t' (fun x => x = 0x30048) := by
+  have hs1 := symRun_sound Expand.blk568 Expand.codeAt_568 t hpc (by simp only [Expand.blk568.res, rv_simp])
+  set t1 := Expand.blk568.res.toState t with ht1
+  have pc1 : t1.pc = pcOf 804 := by simp only [ht1, Expand.blk568.res, rv_simp]
+  have g1 : ∀ r, t1.getReg r = t.getReg r := fun r => by
+    rw [ht1]; cases r <;> simp only [Expand.blk568.res, rv_simp] <;> rfl
+  have m1 : ∀ a, t1.getMem a = t.getMem a := fun a => getMem_nil rfl t a
+  have hs2 := symRun_sound Expand.blk804 Expand.codeAt_804 t1 pc1 (by simp only [Expand.blk804.res, rv_simp])
+  set t2 := Expand.blk804.res.toState t1 with ht2
+  have pc2 : t2.pc = pcOf 570 := by simp only [ht2, Expand.blk804.res, rv_simp]
+  have m2 : ∀ a, t2.getMem a = t1.getMem a := fun a => getMem_nil rfl t1 a
+  have g2 : ∀ r, r ≠ .x13 → r ≠ .x14 → r ≠ .x15 → t2.getReg r = t.getReg r := fun r a b c => by
+    rw [ht2, blk804_regs t1 r a b c, g1]
+  have x13 : t2.getReg .x13 = BitVec.ofNat 64 (2 ^ 32 * Rev.efield (E / 2)) := by
+    rw [ht2, blk804_x13, g1, h19]
+    rw [show BinOp.eval .srl (BitVec.ofNat 64 E) 1#64 = BitVec.ofNat 64 (E / 2) by
+      rw [show BinOp.eval .srl (BitVec.ofNat 64 E) 1#64 = BitVec.ofNat 64 E >>> 1 from rfl,
+        ofNat_ushiftRight _ _ (by omega), pow_one]]
+    exact net48_eq _ (by omega)
   have m0 := hw.get o ho (by omega)
   have m8 := hw.get (o + 8) (by omega) (by omega)
   rw [show 0x800 + (o + 8) = 0x800 + o + 8 by omega] at m8
-  refine ⟨_, symRun_sound Expand.blk568 Expand.codeAt_568 t hpc (by pobl [Expand.blk568.res, h25, h28]),
-    ?_, ?_, ?_, ?_, ?_, ?_, by pregs, ?_⟩
-  · simp only [Expand.blk568.res, rv_simp, h19]
+  have hw2 : ∀ a, t2.getMem a = t.getMem a := fun a => by rw [m2, m1]
+  have q25 : t2.getReg .x25 = BitVec.ofNat 64 0x30000 := by rw [g2 .x25 (by decide) (by decide) (by decide), h25]
+  have q28 : t2.getReg .x28 = BitVec.ofNat 64 (0x800 + o) := by rw [g2 .x28 (by decide) (by decide) (by decide), h28]
+  have q26 : t2.getReg .x26 = BitVec.ofNat 64 (idx % 2 ^ 32) := by
+    rw [g2 .x26 (by decide) (by decide) (by decide), h26]
+  have q19 : t2.getReg .x19 = BitVec.ofNat 64 E := by rw [g2 .x19 (by decide) (by decide) (by decide), h19]
+  have hs3 := symRun_sound Expand.blk570 Expand.codeAt_570 t2 pc2 (by pobl [Expand.blk570.res, q25, q28])
+  refine ⟨_, Steps.of_eq ((hs1.trans hs2).trans hs3) (by simp only [Expand.blk568.res, Expand.blk804.res,
+      Expand.blk570.res]) (by simp only [Expand.blk568.res, Expand.blk804.res, Expand.blk570.res]),
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp only [Expand.blk570.res, rv_simp, q19]
     rw [ofNat_and_ofNat _ _ (by omega) (by norm_num), and_one, ofNat_beq_zero _ (by omega)]
     by_cases h : E % 2 = 0
     · rw [if_pos (by simpa using h), if_pos h]
     · rw [if_neg (by simpa using h), if_neg h]
-  · simp only [Expand.blk568.res, rv_simp, h28, m0]
-  · pnum [Expand.blk568.res, h28, m8]
-  · pnum [Expand.blk568.res, h25]
-  · pnum [Expand.blk568.res, h25]
-  · simp only [Expand.blk568.res, rv_simp, h25, h19, h26, ofNat_add_ofNat]
-    bvsimp [ofNat_eq_iff]
+  · simp only [Expand.blk570.res, rv_simp, q28, hw2, m0]
+  · pnum [Expand.blk570.res, q28, hw2, m8]
+  · pnum [Expand.blk570.res, q25, hw2]
+  · pnum [Expand.blk570.res, q25, hw2]
+  · have hE2 := Rev.efield_lt (E / 2)
+    have e : (BitVec.ofNat 64 (2 ^ 32 * Rev.efield (E / 2)) + BitVec.ofNat 64 (idx % 2 ^ 32)) =
+        BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * Rev.efield (E / 2)) := by
+      rw [ofNat_add_ofNat]; exact ofNat_congr (by omega)
+    pnum [Expand.blk570.res, q25, x13, q26, e]
     omega
-  · apply frame_toState; intro x hx hW
-    simp only [Expand.blk568.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
-      implies_true, and_true, ne_eq, h25, ofNat_add_ofNat, ofNat_eq_iff]
-    bvomega
+  · intro r hr
+    have hr' : r ≠ .x13 ∧ r ≠ .x14 ∧ r ≠ .x15 ∧ r ≠ .x16 ∧ r ≠ .x17 := by
+      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hr; exact hr
+    rw [← g2 r hr'.1 hr'.2.1 hr'.2.2.1]
+    exact regsEq_toState Expand.blk570.res t2 [.x13, .x14, .x15, .x16, .x17]
+      (fun x hx => by cases x <;> first | (simp at hx; done) | rfl) r hr
+  · have f3 : Frame t2 (Expand.blk570.res.toState t2) (fun x => x = 0x30048) := by
+      apply frame_toState; intro x hx hW
+      simp only [Expand.blk570.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
+        implies_true, and_true, ne_eq, q25, ofNat_add_ofNat, ofNat_eq_iff]
+      bvomega
+    intro a ha hW
+    rw [f3 a ha hW, hw2]
 
 /-- 578 .. 582 (`E` odd): the sibling left, the node right. -/
 theorem blk578_run (t : MachineState) (hpc : t.pc = pcOf 578) (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) :

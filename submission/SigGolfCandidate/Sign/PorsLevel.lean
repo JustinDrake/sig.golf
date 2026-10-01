@@ -1,5 +1,165 @@
 import SigGolfCandidate.Sign.PorsLeaf
 import SigGolfCandidate.Sign.TreeBuildNode
+import SigGolfCandidate.Verify.Words
+import SigGolfCandidate.Rv.Expr
+import SigGolfCandidate.Ref.AddressFormat
+
+/-!
+# The rev16 network of the PORS node header (`sign` 1717 .. 1743)
+
+For `v = j + m < 2^14` the trampoline computes, in `x2`,
+```
+a = (v >> 8) | ((v & 0xFF) << 8)
+b = ((a >> 4) & 0x0F0F) | ((a & 0x0F0F) << 4)
+c = ((b >> 2) & 0x3333) | ((b & 0x3333) << 2)
+d = ((c >> 1) & 0x5555) | ((c & 0x5555) << 1)
+x2 = d << 16
+```
+which is `Rev.efield v = rev16 v * 2^16`. `revNetBV` is that computation in the executor's
+`BinOp.eval` form (so the symbolic result of `blk1717` evaluates to it by `rfl`); `revNetBV_eq`
+proves it correct. The `Nat` network `rvNat` is checked against `revBits 16` on `[0, 2^14)` by
+`decide +kernel` (eight chunks of `2^11`).
+-/
+
+namespace SigGolfCandidate.Sign.Rev16
+open SigGolfCandidate.Rv SigGolfCandidate.Ref.Rev
+
+/-- One swap stage on `Nat`. -/
+def rvS (k M a : Nat) : Nat := ((a >>> k) &&& M) ||| ((a &&& M) <<< k)
+
+/-- The `Nat` rev16 network. -/
+def rvNat (v : Nat) : Nat :=
+  rvS 1 21845 (rvS 2 13107 (rvS 4 3855 ((v >>> 8) ||| ((v &&& 255) <<< 8))))
+
+/-- `rvNat (b + i) = revBits 16 (b + i)` for `i < n`. -/
+def rvChk (b : Nat) : Nat → Bool
+  | 0 => true
+  | n + 1 => (rvNat (b + n) == revBits 16 (b + n)) && rvChk b n
+
+theorem rvChk_sound (b : Nat) : ∀ n, rvChk b n = true → ∀ v, b ≤ v → v < b + n →
+    rvNat v = revBits 16 v
+  | 0, _, v, h1, h2 => absurd h2 (by omega)
+  | n + 1, h, v, h1, h2 => by
+    simp only [rvChk, Bool.and_eq_true, beq_iff_eq] at h
+    by_cases hv : v = b + n
+    · subst hv; exact h.1
+    · exact rvChk_sound b n h.2 v h1 (by omega)
+
+theorem rvChk0 : rvChk 0 2048 = true := by decide +kernel
+theorem rvChk1 : rvChk 2048 2048 = true := by decide +kernel
+theorem rvChk2 : rvChk 4096 2048 = true := by decide +kernel
+theorem rvChk3 : rvChk 6144 2048 = true := by decide +kernel
+theorem rvChk4 : rvChk 8192 2048 = true := by decide +kernel
+theorem rvChk5 : rvChk 10240 2048 = true := by decide +kernel
+theorem rvChk6 : rvChk 12288 2048 = true := by decide +kernel
+theorem rvChk7 : rvChk 14336 2048 = true := by decide +kernel
+
+theorem rvNat_eq (v : Nat) (hv : v < 2 ^ 14) : rvNat v = revBits 16 v := by
+  rcases (show v < 2048 ∨ (2048 ≤ v ∧ v < 4096) ∨ (4096 ≤ v ∧ v < 6144) ∨
+      (6144 ≤ v ∧ v < 8192) ∨ (8192 ≤ v ∧ v < 10240) ∨ (10240 ≤ v ∧ v < 12288) ∨
+      (12288 ≤ v ∧ v < 14336) ∨ (14336 ≤ v ∧ v < 16384) by omega) with
+    h | h | h | h | h | h | h | h
+  · exact rvChk_sound 0 2048 rvChk0 v (by omega) (by omega)
+  · exact rvChk_sound 2048 2048 rvChk1 v h.1 (by omega)
+  · exact rvChk_sound 4096 2048 rvChk2 v h.1 (by omega)
+  · exact rvChk_sound 6144 2048 rvChk3 v h.1 (by omega)
+  · exact rvChk_sound 8192 2048 rvChk4 v h.1 (by omega)
+  · exact rvChk_sound 10240 2048 rvChk5 v h.1 (by omega)
+  · exact rvChk_sound 12288 2048 rvChk6 v h.1 (by omega)
+  · exact rvChk_sound 14336 2048 rvChk7 v h.1 (by omega)
+
+theorem revBits_16_add (v : Nat) (hv : v < 2 ^ 16) :
+    ∀ k, revBits (16 + k) v = 2 ^ k * revBits 16 v
+  | 0 => by simp
+  | k + 1 => by
+    rw [show 16 + (k + 1) = (16 + k) + 1 by omega, revBits_succ', revBits_16_add v hv k]
+    have h : v / 2 ^ (16 + k) = 0 :=
+      Nat.div_eq_of_lt (Nat.lt_of_lt_of_le hv (Nat.pow_le_pow_right (by omega) (by omega)))
+    rw [h, Nat.zero_mod, Nat.add_zero, Nat.pow_succ, Nat.mul_comm (2 ^ k) 2, Nat.mul_assoc]
+
+theorem efield_rvNat (v : Nat) (hv : v < 2 ^ 14) : efield v = rvNat v * 65536 := by
+  unfold efield
+  rw [revBits_16_add v (by omega) 16, rvNat_eq v hv, Nat.mul_comm]
+  all_goals rfl
+
+/-! ## The network in the executor's `BinOp.eval` form -/
+
+/-- Stage 1: swap the two bytes. -/
+def bvA (x : BitVec 64) : BitVec 64 :=
+  BinOp.eval .or (BinOp.eval .srl x 8#64) (BinOp.eval .sll (BinOp.eval .and x 255#64) 8#64)
+
+/-- A swap stage with shift `k` and mask `M`. -/
+def bvS (k M x : BitVec 64) : BitVec 64 :=
+  BinOp.eval .or (BinOp.eval .and (BinOp.eval .srl x k) M) (BinOp.eval .sll (BinOp.eval .and x M) k)
+
+/-- `x2` after instruction 1743 (`x = x16 + x17`). -/
+def revNetBV (x : BitVec 64) : BitVec 64 :=
+  BinOp.eval .sll (bvS 1#64 21845#64 (bvS 2#64 13107#64 (bvS 4#64 3855#64 (bvA x)))) 16#64
+
+theorem rvS_lt (k M a : Nat) (hM : M < 2 ^ 16) (hMk : M * 2 ^ k < 2 ^ 16) : rvS k M a < 2 ^ 16 := by
+  unfold rvS
+  apply Nat.or_lt_two_pow
+  · exact Nat.lt_of_le_of_lt Nat.and_le_right hM
+  · rw [Nat.shiftLeft_eq]
+    exact Nat.lt_of_le_of_lt (Nat.mul_le_mul_right _ Nat.and_le_right) hMk
+
+theorem bvS_toNat (k M : Nat) (x : BitVec 64) (hk : k < 16) (hM : M < 2 ^ 16)
+    (hMk : M * 2 ^ k < 2 ^ 16) :
+    (bvS (BitVec.ofNat 64 k) (BitVec.ofNat 64 M) x).toNat = rvS k M x.toNat := by
+  have hk' : k % 2 ^ 64 % 64 = k := by omega
+  have hM' : M % 2 ^ 64 = M := by omega
+  have hsh : (x.toNat &&& M) <<< k % 2 ^ 64 = (x.toNat &&& M) <<< k := by
+    rw [Nat.shiftLeft_eq]
+    apply Nat.mod_eq_of_lt
+    have := Nat.mul_le_mul_right (2 ^ k) (Nat.and_le_right (n := x.toNat) (m := M))
+    omega
+  simp only [bvS, BinOp.eval, BitVec.toNat_or, BitVec.toNat_and, BitVec.toNat_ushiftRight,
+    BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, hk', hM', hsh, rvS]
+
+theorem bvA_toNat (x : BitVec 64) (_hx : x.toNat < 2 ^ 16) :
+    (bvA x).toNat = (x.toNat >>> 8) ||| ((x.toNat &&& 255) <<< 8) := by
+  have hsh : (x.toNat &&& 255) <<< 8 % 2 ^ 64 = (x.toNat &&& 255) <<< 8 := by
+    rw [Nat.shiftLeft_eq]
+    apply Nat.mod_eq_of_lt
+    have := Nat.mul_le_mul_right (2 ^ 8) (Nat.and_le_right (n := x.toNat) (m := 255))
+    omega
+  simp only [bvA, BinOp.eval, BitVec.toNat_or, BitVec.toNat_and, BitVec.toNat_ushiftRight,
+    BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, hsh]
+
+/-- **The rev16 network is the header relabelling** on `[0, 2^14)`. -/
+theorem revNetBV_eq (v : Nat) (hv : v < 2 ^ 14) :
+    revNetBV (BitVec.ofNat 64 v) = BitVec.ofNat 64 (efield v) := by
+  have hx : (BitVec.ofNat 64 v).toNat = v := by simp; omega
+  have hA : (bvA (BitVec.ofNat 64 v)).toNat < 2 ^ 16 := by
+    rw [bvA_toNat _ (by omega), hx]
+    apply Nat.or_lt_two_pow
+    · rw [Nat.shiftRight_eq_div_pow]; exact Nat.lt_of_le_of_lt (Nat.div_le_self _ _) (by omega)
+    · rw [Nat.shiftLeft_eq]
+      have := Nat.and_le_right (n := v) (m := 255)
+      omega
+  apply BitVec.eq_of_toNat_eq
+  have e1 := bvS_toNat 4 3855 (bvA (BitVec.ofNat 64 v)) (by omega) (by omega) (by omega)
+  have b1 := rvS_lt 4 3855 (bvA (BitVec.ofNat 64 v)).toNat (by omega) (by omega)
+  rw [← e1] at b1
+  have e2 := bvS_toNat 2 13107 (bvS 4#64 3855#64 (bvA (BitVec.ofNat 64 v))) (by omega) (by omega)
+    (by omega)
+  have b2 := rvS_lt 2 13107 (bvS 4#64 3855#64 (bvA (BitVec.ofNat 64 v))).toNat (by omega) (by omega)
+  rw [← e2] at b2
+  have e3 := bvS_toNat 1 21845 (bvS 2#64 13107#64 (bvS 4#64 3855#64 (bvA (BitVec.ofNat 64 v))))
+    (by omega) (by omega) (by omega)
+  have b3 := rvS_lt 1 21845 (bvS 2#64 13107#64 (bvS 4#64 3855#64 (bvA (BitVec.ofNat 64 v)))).toNat
+    (by omega) (by omega)
+  rw [← e3] at b3
+  have hR : (bvS 1#64 21845#64 (bvS 2#64 13107#64 (bvS 4#64 3855#64
+      (bvA (BitVec.ofNat 64 v))))).toNat = rvNat v := by
+    rw [e3, e2, e1, bvA_toNat _ (by omega), hx]; rfl
+  have hE : efield v < 2 ^ 64 := by rw [efield_rvNat v hv]; rw [← hR]; omega
+  rw [efield_rvNat v hv]
+  simp only [revNetBV, BinOp.eval, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, hR]
+  rw [← hR]
+  rw [Nat.shiftLeft_eq]
+
+end SigGolfCandidate.Sign.Rev16
 
 /-!
 # `sign`, the PORS levels (`por_level_loop`, instructions 210 .. 237)
@@ -17,23 +177,29 @@ set_option linter.unnecessarySeqFocus false
 namespace SigGolfCandidate.Sign
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref
 
-/-- `node_hash` with the destination in `x25` (`add a2, s9, gp`). -/
-def nodeSegD : List (BitVec 32) := [0x01180133#32, 0x1c202623#32, 0x00581193#32, 0x013181b3#32, 0x0001b083#32,
-  0x1e103023#32, 0x0081b083#32, 0x1e103423#32, 0x0101b083#32, 0x1e103823#32, 0x0181b083#32,
-  0x1e103c23#32, 0x1c000513#32, 0x04000593#32, 0x00481193#32, 0x003c8633#32, 0x00000073#32]
-
-theorem seg215_eq : seg215 = nodeSegD := rfl
+/-- `node_hash` with the destination in `x25`: `215: j 1717`, the rev16 network `1717 .. 1744`
+(`x2 = Rev.efield (j + m)`), then `216 .. 230` up to the `ecall` at `231`. -/
 theorem seg232_eq : seg232 = nodeSegB := rfl
-theorem codeAt_nodeD : CodeAt image (pcOf 215) nodeSegD := seg215_eq ▸ codeAt_215
 theorem codeAt_nodeD2 : CodeAt image (pcOf (215 + 17)) nodeSegB := seg232_eq ▸ codeAt_232
+
+theorem blk215_regs (u : MachineState) (r : Reg) : (blk215.res.toState u).getReg r = u.getReg r := by
+  cases r <;> simp only [blk215.res, rv_simp] <;> rfl
+
+theorem blk1717_regs (u : MachineState) (r : Reg) (h1 : r ≠ .x1) (h2 : r ≠ .x2) (h3 : r ≠ .x3) :
+    (blk1717.res.toState u).getReg r = u.getReg r := by
+  cases r <;> (try contradiction) <;> simp only [blk1717.res, rv_simp] <;> rfl
+
+theorem blk1717_x2 (u : MachineState) :
+    (blk1717.res.toState u).getReg .x2 = Rev16.revNetBV (u.getReg .x16 + u.getReg .x17) := by
+  rw [Result.toState_getReg]; rfl
 
 theorem nodeD_spec (s : MachineState) (hpc : s.pc = pcOf 215) (j m B D : Nat)
     (h16 : s.getReg .x16 = BitVec.ofNat 64 j)
-    (h17 : s.getReg .x17 = BitVec.ofNat 64 m) (hjm : j + m < 2 ^ 32)
+    (h17 : s.getReg .x17 = BitVec.ofNat 64 m) (hjm : j + m < 2 ^ 14)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 B) (h25 : s.getReg .x25 = BitVec.ofNat 64 D)
     (hB : 0x210 ≤ B) (hB8 : B % 8 = 0) (hjB : B + 32 * j + 32 ≤ 2 ^ 24) (hD8 : D % 8 = 0)
     (hjD : D + 16 * j + 32 ≤ 2 ^ 24) :
-    ∃ t, Steps image s 16 16 t ∧ fetch image t = some (.base .ECALL) ∧ t.pc = pcOf 231 ∧
+    ∃ t, Steps image s 44 44 t ∧ fetch image t = some (.base .ECALL) ∧ t.pc = pcOf 231 ∧
       t.getReg .x10 = BitVec.ofNat 64 448 ∧ t.getReg .x11 = BitVec.ofNat 64 64 ∧
       t.getReg .x12 = BitVec.ofNat 64 (D + 16 * j) ∧
       (∀ r, r ≠ .x1 → r ≠ .x2 → r ≠ .x3 → r ≠ .x10 → r ≠ .x11 → r ≠ .x12 → t.getReg r = s.getReg r) ∧
@@ -42,25 +208,49 @@ theorem nodeD_spec (s : MachineState) (hpc : s.pc = pcOf 215) (j m B D : Nat)
         else if a = 496 then s.getMem (BitVec.ofNat 64 (B + 32 * j + 16))
         else if a = 488 then s.getMem (BitVec.ofNat 64 (B + 32 * j + 8))
         else if a = 480 then s.getMem (BitVec.ofNat 64 (B + 32 * j))
-        else if a = 456 then replaceWord32 (s.getMem (BitVec.ofNat 64 456)) 1 (BitVec.ofNat 32 (j + m))
+        else if a = 456 then
+          replaceWord32 (s.getMem (BitVec.ofNat 64 456)) 1 (BitVec.ofNat 32 (Rev.efield (j + m)))
         else s.getMem (BitVec.ofNat 64 a) := by
-  have hobl : blk215.res.obligs s := by
-    simp only [blk215.res, rv_simp, h16, h19, ofNat_shiftLeft, ofNat_add_ofNat,
+  have hs1 := symRun_sound blk215 codeAt_215 s hpc (by simp only [blk215.res, rv_simp])
+  have pc1 : (blk215.res.toState s).pc = pcOf 1717 := by simp only [blk215.res, rv_simp]
+  have hs2 := symRun_sound blk1717 codeAt_1717 _ pc1 (by simp only [blk1717.res, rv_simp])
+  have pc2 : (blk1717.res.toState (blk215.res.toState s)).pc = pcOf 216 := by
+    simp only [blk1717.res, rv_simp]
+  set t1 := blk215.res.toState s with ht1
+  set t2 := blk1717.res.toState t1 with ht2
+  have mm : ∀ z, t2.getMem z = s.getMem z := fun z => by
+    rw [ht2, Result.toState_getMem, show blk1717.res.st.mem = [] from rfl, memEval_nil, ht1,
+      Result.toState_getMem, show blk215.res.st.mem = [] from rfl, memEval_nil]
+  have gg : ∀ r, r ≠ .x1 → r ≠ .x2 → r ≠ .x3 → t2.getReg r = s.getReg r := fun r h1 h2 h3 => by
+    rw [ht2, blk1717_regs _ r h1 h2 h3, ht1, blk215_regs]
+  have t16 : t2.getReg .x16 = BitVec.ofNat 64 j := by
+    rw [gg .x16 (by decide) (by decide) (by decide), h16]
+  have t19 : t2.getReg .x19 = BitVec.ofNat 64 B := by
+    rw [gg .x19 (by decide) (by decide) (by decide), h19]
+  have t25 : t2.getReg .x25 = BitVec.ofNat 64 D := by
+    rw [gg .x25 (by decide) (by decide) (by decide), h25]
+  have x2v : t2.getReg .x2 = BitVec.ofNat 64 (Rev.efield (j + m)) := by
+    rw [ht2, blk1717_x2, ht1, blk215_regs, blk215_regs, h16, h17, ofNat_add_ofNat]
+    exact Rev16.revNetBV_eq _ hjm
+  have hobl : blk216.res.obligs t2 := by
+    simp only [blk216.res, rv_simp, t16, t19, ofNat_shiftLeft, ofNat_add_ofNat,
       ne_eq, ofNat_eq_iff, accessValid_ofNat, BitVec.toNat_ofNat]
     norm_num
     omega
-  refine ⟨_, symRun_sound blk215 codeAt_215 s hpc hobl, symRun_ecall blk215 codeAt_215 s hobl rfl,
-    ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simp only [blk215.res, rv_simp]
-  · simp only [blk215.res, rv_simp]
-  · simp only [blk215.res, rv_simp]
-  · simp only [blk215.res, rv_simp, h16, h25, ofNat_shiftLeft, ofNat_add_ofNat,
+  refine ⟨_, Steps.of_eq ((hs1.trans hs2).trans (symRun_sound blk216 codeAt_216 t2 pc2 hobl))
+    rfl rfl, symRun_ecall blk216 codeAt_216 t2 hobl rfl, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp only [blk216.res, rv_simp]
+  · simp only [blk216.res, rv_simp]
+  · simp only [blk216.res, rv_simp]
+  · simp only [blk216.res, rv_simp, t16, t25, ofNat_shiftLeft, ofNat_add_ofNat,
       BitVec.toNat_ofNat, Nat.reduceMod, Nat.reducePow]
     congr 1; ring
   · intro r h1 h2 h3 h10 h11 h12
-    cases r <;> (try contradiction) <;> simp only [blk215.res, rv_simp] <;> rfl
+    have e : (blk216.res.toState t2).getReg r = t2.getReg r := by
+      cases r <;> (try contradiction) <;> simp only [blk216.res, rv_simp] <;> rfl
+    rw [e, gg r h1 h2 h3]
   · intro a ha
-    simp only [blk215.res, rv_simp, h16, h17, h19, ofNat_shiftLeft, ofNat_add_ofNat,
+    simp only [blk216.res, rv_simp, t16, t19, x2v, mm, ofNat_shiftLeft, ofNat_add_ofNat,
       ofNat_eq_iff, BitVec.toNat_ofNat, Nat.reduceMod, Nat.reducePow, truncate32_ofNat]
     split_ifs <;> first | rfl | (exfalso; omega) | (congr 2; omega)
 
@@ -91,7 +281,8 @@ def NodeInvD (c : NodeCtxD) (lvl : List Val) (s : MachineState) (j : Nat) (acc :
   t.getReg .x16 = BitVec.ofNat 64 j ∧ NodeRegs s t ∧ NodeFrameD c s t
 
 /-- **Node loop** (separate destination): `m` nodes of level `lam` from the `2m` values `lvl` in
-slots `B + 16 i`; the results land in slots `D + 16 j`; `26 m` cycles. -/
+slots `B + 16 i`; the results land in slots `D + 16 j`; `54 m` cycles. The hashed header field
+of node `j` is `Rev.efield (m + j)`. -/
 theorem nodeLoopD_sim (node : NodeFmt) (c : NodeCtxD) (lvl : List Val)
     (hlen : lvl.length = 2 * c.m) (hvals : ∀ v ∈ lvl, v.length = 16) (hm : 0 < c.m)
     (hB0 : 0x210 ≤ c.B) (hB8 : c.B % 8 = 0) (hBD : c.B + 32 * c.m ≤ c.D) (hD8 : c.D % 8 = 0)
@@ -99,17 +290,17 @@ theorem nodeLoopD_sim (node : NodeFmt) (c : NodeCtxD) (lvl : List Val)
     (s : MachineState) (hpc : s.pc = pcOf 215) (h16 : s.getReg .x16 = 0)
     (h17 : s.getReg .x17 = BitVec.ofNat 64 c.m) (h19 : s.getReg .x19 = BitVec.ofNat 64 c.B)
     (h25 : s.getReg .x25 = BitVec.ofNat 64 c.D)
-    (h5 : s.getReg .x5 = 0) (hm32 : 2 * c.m < 2 ^ 32)
+    (h5 : s.getReg .x5 = 0) (hm14 : 2 * c.m ≤ 2 ^ 14)
     (hfmt : ∀ j l r, j < c.m → l.length = 16 → r.length = 16 →
-      addrFmt (node c.lam j l r) = pad64 (nodeFmt c.tt c.lay c.tau 0 (c.m + j) l r))
+      addrFmt (node c.lam j l r) = pad64 (nodeFmt c.tt c.lay c.tau 0 (Rev.efield (c.m + j)) l r))
     (hw0 : s.getMem (BitVec.ofNat 64 448) = twWord0 c.tt c.lay c.tau 0)
     (hw1 : lo32 (s.getMem (BitVec.ofNat 64 456)) = BitVec.ofNat 32 c.tau)
     (hz0 : s.getMem (BitVec.ofNat 64 464) = 0) (hz1 : s.getMem (BitVec.ofNat 64 472) = 0)
     (hslots : ∀ i (hi : i < lvl.length), s.readWords (BitVec.ofNat 64 (c.B + 16 * i)) 2 = wordsOf lvl[i]) :
-    Sim image s (c.m * 26) (buildLevel node c.lam lvl) (NodeInvD c lvl s c.m) := by
+    Sim image s (c.m * 54) (buildLevel node c.lam lvl) (NodeInvD c lvl s c.m) := by
   unfold buildLevel
   rw [hlen, show 2 * c.m / 2 = c.m by omega]
-  apply Sim.foldlM_range c.m _ [] (NodeInvD c lvl s) 26
+  apply Sim.foldlM_range c.m _ [] (NodeInvD c lvl s) 54
   · intro j hj acc t ⟨hjm, hacc, haccv, hslot, hlvl, tpc, t16, tregs, tframe⟩
     have t19 : t.getReg .x19 = BitVec.ofNat 64 c.B := by rw [tregs .x19 (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide), h19]
@@ -130,7 +321,7 @@ theorem nodeLoopD_sim (node : NodeFmt) (c : NodeCtxD) (lvl : List Val)
       intro a ha hBa
       rw [mem1 a ha, if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega),
         if_neg (by omega)]
-    have hq : hashInput t1 = pad64 (nodeFmt c.tt c.lay c.tau 0 (c.m + j) (lvl.getD (2 * j) [])
+    have hq : hashInput t1 = pad64 (nodeFmt c.tt c.lay c.tau 0 (Rev.efield (c.m + j)) (lvl.getD (2 * j) [])
         (lvl.getD (2 * j + 1) [])) := by
       apply node_hashInput t1 _ _ _ _ _ _ _ hl hr (by rw [a10]) (by rw [a11])
       · rw [mem1 _ (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num)]
@@ -138,7 +329,7 @@ theorem nodeLoopD_sim (node : NodeFmt) (c : NodeCtxD) (lvl : List Val)
           (by norm_num) (by norm_num), hw0]
       · rw [mem1 _ (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num),
           if_neg (by norm_num), if_pos rfl]
-        exact word_of_halves _ c.tau (c.m + j) (by rw [lo32_replace1, tframe.2, hw1])
+        exact word_of_halves _ c.tau (Rev.efield (c.m + j)) (by rw [lo32_replace1, tframe.2, hw1])
           (by rw [hi32_replace1, Nat.add_comm])
       · rw [mem1 _ (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num)]
         rw [tframe.1 464 (by norm_num) (by omega) (by norm_num) (by norm_num) (by norm_num)
@@ -201,7 +392,7 @@ theorem nodeLoopD_sim (node : NodeFmt) (c : NodeCtxD) (lvl : List Val)
             if_true, lo32_replace1]
           exact tframe.2))
     refine this.mono ?_ (fun _ _ h => h)
-    rw [← addrFmt_blocks, hfmt j _ _ hj hl hr, nodeFmt, pad64_blocks_one _ (words_th32 c.tt c.lay c.tau 0 (c.m + j) _ _ hl hr).1]
+    rw [← addrFmt_blocks, hfmt j _ _ hj hl hr, nodeFmt, pad64_blocks_one _ (words_th32 c.tt c.lay c.tau 0 (Rev.efield (c.m + j)) _ _ hl hr).1]
   · refine ⟨Nat.zero_le _, rfl, by simp, by simp, fun i hi => hslots i hi, by simp [hpc, hm],
       by simpa using h16, fun r _ _ _ _ _ _ _ => rfl, fun a _ _ _ _ _ _ _ => rfl, rfl⟩
 
@@ -269,7 +460,7 @@ theorem getD_levels {levels : List (List Val)} {j : Nat} (h : j < levels.length)
 
 theorem plev_body (idx : Nat) (t0 : MachineState) (ctx : PLevCtx idx t0) (j : Nat) (hj : j < 14)
     (levels : List (List Val)) (t : MachineState) (h : PLevInv t0 j levels t) :
-    Sim image t (4 + (2 ^ 13 * 26 + 4))
+    Sim image t (4 + (2 ^ 13 * 54 + 4))
       (buildLevel (porsNodeFmt idx) (1 + j) (levels.getD (1 + j - 1) []) >>= fun level =>
         pure (levels ++ [level])) (PLevInv t0 (j + 1)) := by
   obtain ⟨-, hlen, hlv, tpc, t15, t17, t19, tregs, tframe, tlo⟩ := h
@@ -308,8 +499,10 @@ theorem plev_body (idx : Nat) (t0 : MachineState) (ctx : PLevCtx idx t0) (j : Na
     t1 pc1 x16 x17 (by rw [r1.get .x19, t19]) x25
     (by rw [r1.get .x5, tregs.get .x5 (by simp [plevRegs]), ctx.x5]) (by simp only [c]; omega)
     (fun jj l r hjj hl hr => by
-      simp only [c, porsNodeFmt, porsNodeInput, heapIndex, porsH, nodeFmt]
-      rw [addrFmt_thInput _ _ _ _ _ _ (by decide), show 14 - (1 + j) = 13 - j by omega])
+      simp only [c, porsNodeFmt]
+      rw [Verify.addrFmt_porsNodeInput_pad _ _ _ _ hl hr]
+      simp only [porsNodeInput, heapIndex, porsH, nodeFmt]
+      rw [show 14 - (1 + j) = 13 - j by omega])
     (by simp only [c]; rw [m1, tframe.getMem (by norm_num) (by simp only [plevW, lvBase]; omega), ctx.nb0])
     (by simp only [c]; rw [m1, tlo, ctx.nb8])
     (by rw [m1, tframe.getMem (by norm_num) (by simp only [plevW, lvBase]; omega)]
@@ -319,7 +512,7 @@ theorem plev_body (idx : Nat) (t0 : MachineState) (ctx : PLevCtx idx t0) (j : Na
     (fun i hi => by
       rw [show c.B = lvBase j from rfl, readWords_congr t t1 _ 2 (fun k _ => m1 _)]; exact hs0 i hi)
   refine (Sim.steps hs1 (Sim.bind (W₂ := 4) hnode (fun level t2 h2 => ?_))).mono (by
-    have : c.m * 26 ≤ 2 ^ 13 * 26 := by simp only [c]; omega
+    have : c.m * 54 ≤ 2 ^ 13 * 54 := by simp only [c]; omega
     omega) (fun _ _ h => h)
   obtain ⟨-, hlev, hlevv, hacc, hsrc, pc2, -, regs2, fr2⟩ := h2
   simp only [c, show (if 2 ^ (13 - j) < 2 ^ (13 - j) then pcOf 215 else pcOf 234) = pcOf 234 by simp] at pc2
@@ -384,7 +577,7 @@ theorem porsLevels_sim (idx : Nat) (t0 : MachineState) (ctx : PLevCtx idx t0) (l
     (hslots : Slots t0 (lvBase 0) leaves) (hpc : t0.pc = pcOf 211)
     (h15 : t0.getReg .x15 = BitVec.ofNat 64 1) (h17 : t0.getReg .x17 = BitVec.ofNat 64 (2 ^ 14))
     (h19 : t0.getReg .x19 = BitVec.ofNat 64 (lvBase 0)) :
-    Sim image t0 (14 * (4 + (2 ^ 13 * 26 + 4))) (buildAllLevels (porsNodeFmt idx) porsH leaves)
+    Sim image t0 (14 * (4 + (2 ^ 13 * 54 + 4))) (buildAllLevels (porsNodeFmt idx) porsH leaves)
       (PLevInv t0 14) := by
   unfold buildAllLevels porsH
   apply Sim.foldlM_range' 1 14 _ [leaves] (PLevInv t0) _ (fun j hj acc t h => plev_body idx t0 ctx j hj acc t h)

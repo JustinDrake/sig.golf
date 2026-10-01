@@ -15,8 +15,7 @@ section StructuralCostCertificate
 
 /-! Universal structural PORS segment credit and exact accepting-run accounting.
 Consolidated from twelve independently checked research modules to respect the
-submission entry limit. The checked three-bit path prefixes have an exact
-per-segment saving that is aggregated over every accepting witness. -/
+submission entry limit. The executable image and verification predicate are unchanged. -/
 
 /-! ## PorsPositiveBound -/
 /- Standalone finite upper-bound certificate. This does not connect the relation below
@@ -239,10 +238,10 @@ theorem climbSegs_positive (v x top : Nat) (L : List Nat)
     PositiveRuns x L top := by
   induction L generalizing x with
   | nil =>
-      have h := hp ⟨false, decide (anc v x % 2 = 1), sibs v x (top-x), ⟨anc v x / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩ (by simp [climbSegs])
+      have h := hp ⟨false, decide (anc v x % 2 = 1), sibs v x (top-x)⟩ (by simp [climbSegs])
       simpa [PositiveRuns, sibs] using h
   | cons y L ih =>
-      have h := hp ⟨true, decide (anc v x % 2 = 1), sibs v x (y-x), ⟨anc v x / 2 % 4, Nat.mod_lt _ (by decide)⟩⟩ (by simp [climbSegs])
+      have h := hp ⟨true, decide (anc v x % 2 = 1), sibs v x (y-x)⟩ (by simp [climbSegs])
       refine ⟨?_, ih (y+1) (fun s hs => hp s (by simp [climbSegs, hs]))⟩
       simpa [sibs] using h
 
@@ -365,7 +364,7 @@ theorem schedule_positive_readSum (leaves : IndexGroup → FtsLeaf)
   rw [he] at hlen hs hb
   have hL : Pending v [] := ⟨List.Pairwise.nil, by simp⟩
   have hsch : schedule (sortedLeaves leaves) = allSegs (v::rest) [] := by
-    have h := scheduleLeaves_eq rest v ⟨[], [], 0, false, [], 0⟩ [] hs hb hL rfl
+    have h := scheduleLeaves_eq rest v ⟨[], [], 0, false, []⟩ [] hs hb hL rfl
     rw [schedule, he, h.1, List.nil_append]
   rw [hsch] at hp ⊢
   have ht := allSegs_positiveTrace v rest [] hs hb hL hp
@@ -385,7 +384,7 @@ theorem schedule_positive_octopus (leaves : IndexGroup → FtsLeaf)
   rw [he] at hlen hs hb
   have hL : Pending v [] := ⟨List.Pairwise.nil, by simp⟩
   have hsch : schedule (sortedLeaves leaves) = allSegs (v::rest) [] := by
-    have h := scheduleLeaves_eq rest v ⟨[], [], 0, false, [], 0⟩ [] hs hb hL rfl
+    have h := scheduleLeaves_eq rest v ⟨[], [], 0, false, []⟩ [] hs hb hL rfl
     rw [schedule, he, h.1, List.nil_append]
   rw [hsch] at hp hbound
   have hsum := allSegs_positive_readSum v rest [] hs hb hL hp
@@ -411,7 +410,7 @@ theorem schedule_length_of_injective (leaves : IndexGroup → FtsLeaf)
   rw [he] at hlen hs hb
   have hL : Pending v [] := ⟨List.Pairwise.nil, by simp⟩
   have hsch : schedule (sortedLeaves leaves) = allSegs (v::rest) [] := by
-    have h := scheduleLeaves_eq rest v ⟨[], [], 0, false, [], 0⟩ [] hs hb hL rfl
+    have h := scheduleLeaves_eq rest v ⟨[], [], 0, false, []⟩ [] hs hb hL rfl
     rw [schedule, he, h.1, List.nil_append]
   rw [hsch, allSegs_length rest v [] hs hb hL]
   simp only [List.length_nil, List.length_cons, ftsOpenings, ftsSegments] at hlen ⊢
@@ -462,109 +461,10 @@ theorem segment_cost_envelope (F Z cap : Nat) (hcap : 107 ≤ cap) (hF : F ≤ c
 
 end SigGolfCandidate.Research.PorsPositiveBound
 
-namespace SigGolfCandidate.Research.PorsPrefixCredit
-
-/-- Cycles saved by inlining at most two nonfinal folds. -/
-def prefixSave (a : Nat) : Nat := if a < 2 then 0 else 2 * min (a - 1) 2 - 1
-
-def zeroIndicator (a : Nat) : Nat := if a = 0 then 1 else 0
-
-def credit (a : Nat) : Nat := zeroIndicator a + prefixSave a
-
-def segmentCost (a : Nat) : Nat := 16 + 17 * a - credit a
-
-def totalCredit (as : List Nat) : Nat := (as.map credit).sum
-
-def totalZeros (as : List Nat) : Nat := (as.map zeroIndicator).sum
-
-def segmentsCost (as : List Nat) : Nat := (as.map segmentCost).sum
-
-/-- The scalar inequality is tight at lengths 0, 1 and 14. -/
-theorem scalar_credit (a : Nat) (ha : a ≤ 14) :
-    3 * a + 16 * zeroIndicator a ≤ 13 * credit a + 3 := by
-  unfold credit zeroIndicator prefixSave
-  split_ifs <;> omega
-
-theorem credit_le_base (a : Nat) : credit a ≤ 16 + 17 * a := by
-  unfold credit zeroIndicator prefixSave
-  split_ifs <;> omega
-
-/-- Same natural subtraction order as the proposed machine segment accounting. -/
-theorem segmentCost_eq_subtractions (a : Nat) :
-    segmentCost a = 16 + 17 * a - zeroIndicator a - prefixSave a := by
-  simp only [segmentCost, credit, Nat.sub_sub]
-
-theorem cost_add_credit (a : Nat) : segmentCost a + credit a = 16 + 17 * a := by
-  exact Nat.sub_add_cancel (credit_le_base a)
-
-theorem total_scalar_credit (as : List Nat) (ha : ∀ a ∈ as, a ≤ 14) :
-    3 * as.sum + 16 * totalZeros as ≤ 13 * totalCredit as + 3 * as.length := by
-  induction as with
-  | nil => simp [totalZeros, totalCredit]
-  | cons a as ih =>
-      have hs := scalar_credit a (ha a (by simp))
-      have ht := ih (fun b hb => ha b (by simp [hb]))
-      simp only [totalZeros, totalCredit, List.map_cons, List.sum_cons, List.length_cons] at *
-      omega
-
-theorem segmentsCost_add_credit (as : List Nat) :
-    segmentsCost as + totalCredit as = 16 * as.length + 17 * as.sum := by
-  induction as with
-  | nil => simp [segmentsCost, totalCredit]
-  | cons a as ih =>
-      have hs := cost_add_credit a
-      simp only [segmentsCost, totalCredit, List.map_cons, List.sum_cons, List.length_cons] at *
-      omega
-
-theorem totalZeros_pos (as : List Nat) (hz : 0 ∈ as) : 1 ≤ totalZeros as := by
-  induction as with
-  | nil => simp at hz
-  | cons a as ih =>
-      simp only [List.mem_cons] at hz
-      rcases hz with h | h
-      · subst a
-        simp [totalZeros, zeroIndicator]
-      · have ht := ih h
-        simp only [totalZeros, List.map_cons, List.sum_cons] at *
-        omega
-
-/-- Includes the one-time constant-register initializer. It permits fewer than29
-segments as well, so the caller need only supply an upper length bound. -/
-theorem segmentsCost_with_initializer_le (as : List Nat)
-    (hlen : as.length ≤ 29) (ha : ∀ a ∈ as, a ≤ 14)
-    (hsum : as.sum ≤ 117) (hz : 0 ∈ as) :
-    segmentsCost as + 1 ≤ 2432 := by
-  have hp := total_scalar_credit as ha
-  have hc := segmentsCost_add_credit as
-  have hzero := totalZeros_pos as hz
-  omega
-
-/-- Handles the all-positive structural branch supplied by the existing
-`positiveTree_14_15` / schedule certificate, where folds are at most106. -/
-theorem segmentsCost_low_folds_le (as : List Nat)
-    (hlen : as.length ≤ 29) (hsum : as.sum ≤ 106) :
-    segmentsCost as + 1 ≤ 2267 := by
-  have hc := segmentsCost_add_credit as
-  omega
-
-/-- Direct bridge for the existing structural dichotomy: either the fold count
-is at most106 or the schedule has a zero-fold segment. -/
-theorem segmentsCost_structural_le (as : List Nat)
-    (hlen : as.length ≤ 29) (ha : ∀ a ∈ as, a ≤ 14)
-    (hsum : as.sum ≤ 117) (hstructure : as.sum ≤ 106 ∨ 0 ∈ as) :
-    segmentsCost as + 1 ≤ 2432 := by
-  rcases hstructure with hlow | hzero
-  · have h := segmentsCost_low_folds_le as hlen hlow
-    omega
-  · exact segmentsCost_with_initializer_le as hlen ha hsum hzero
-
-
-end SigGolfCandidate.Research.PorsPrefixCredit
-
 /-! ## PorsExactSegmentBudget -/
 namespace SigGolfCandidate.Research.PorsPositiveBound
 
-def exactSegmentCost (a : Nat) : Nat := if a = 0 then 15 else 16+17*a-Verify.prefixSave a
+def exactSegmentCost (a : Nat) : Nat := if a = 0 then 15 else 16+16*a
 def exactSegmentsCost (as : List Nat) : Nat := (as.map exactSegmentCost).sum
 def zeroSegments : List Nat → Nat
   | [] => 0
@@ -574,9 +474,9 @@ theorem exactSegmentsCost_cons (a : Nat) (as : List Nat) :
     exactSegmentsCost (a::as) = exactSegmentCost a + exactSegmentsCost as := rfl
 
 theorem exactSegmentsCost_add_zeros (as : List Nat) :
-    exactSegmentsCost as + zeroSegments as ≤ 16*as.length + 17*as.sum := by
+    exactSegmentsCost as + zeroSegments as = 16*as.length + 16*as.sum := by
   induction as with
-  | nil => exact Nat.le_refl 0
+  | nil => rfl
   | cons a as ih =>
       simp only [exactSegmentsCost_cons, zeroSegments, exactSegmentCost, List.length_cons,
         List.sum_cons]
@@ -600,41 +500,12 @@ The structural premise concerns all positive segments, not an honest-witness pat
 theorem exactSegmentsCost_envelope (as : List Nat) (cap : Nat)
     (hlen : as.length = 29) (hcap : 107 ≤ cap) (hfolds : as.sum ≤ cap)
     (hpositive : (∀ a ∈ as, 0 < a) → as.sum ≤ 106) :
-    exactSegmentsCost as ≤ 16*29 + 17*cap - 1 := by
+    exactSegmentsCost as ≤ 16*29 + 16*cap - 1 := by
   have h := exactSegmentsCost_add_zeros as
   by_cases hz : zeroSegments as = 0
   · have hp := hpositive ((zeroSegments_eq_zero_iff as).mp hz)
     omega
   · omega
-
-
-theorem exactSegmentsCost_prefix_eq (as : List Nat) :
-    exactSegmentsCost as = PorsPrefixCredit.segmentsCost as := by
-  unfold exactSegmentsCost PorsPrefixCredit.segmentsCost
-  congr 1
-  apply List.map_congr_left
-  intro a _
-  unfold exactSegmentCost PorsPrefixCredit.segmentCost PorsPrefixCredit.credit
-    PorsPrefixCredit.zeroIndicator PorsPrefixCredit.prefixSave
-  rw [Verify.prefixSave_eq]
-  split_ifs <;> omega
-
-/-- The checked two-fold prefixes improve the universal segment envelope by22
-cycles. The premise applies to arbitrary accepted witnesses. -/
-theorem exactSegmentsCost_prefix_envelope (as : List Nat)
-    (hlen : as.length = 29) (ha : ∀ a ∈ as, a ≤ 14) (hfolds : as.sum ≤ 117)
-    (hpositive : (∀ a ∈ as, 0 < a) → as.sum ≤ 106) :
-    exactSegmentsCost as ≤ 16*29 + 17*117 - 22 := by
-  have hstructure : as.sum ≤ 106 ∨ 0 ∈ as := by
-    by_cases hz : 0 ∈ as
-    · exact Or.inr hz
-    · exact Or.inl (hpositive (fun a ha => by
-        have hn : a ≠ 0 := fun h => hz (h ▸ ha)
-        omega))
-  have h := PorsPrefixCredit.segmentsCost_structural_le as (by omega) ha hfolds hstructure
-  rw [exactSegmentsCost_prefix_eq]
-  omega
-
 
 end SigGolfCandidate.Research.PorsPositiveBound
 
@@ -712,7 +583,7 @@ theorem schedule_readSum_eq_octopus (leaves : IndexGroup → FtsLeaf)
   rw [he] at hlen hs hb
   have hL : Pending v [] := ⟨List.Pairwise.nil, by simp⟩
   have hsch : schedule (sortedLeaves leaves) = allSegs (v::rest) [] := by
-    have h := scheduleLeaves_eq rest v ⟨[], [], 0, false, [], 0⟩ [] hs hb hL rfl
+    have h := scheduleLeaves_eq rest v ⟨[], [], 0, false, []⟩ [] hs hb hL rfl
     rw [schedule, he, h.1, List.nil_append]
   have hsum := allSegs_readSum_general v rest [] hs hb hL
   have htop := sumTops_add (v::rest) (by simp) hs
@@ -748,72 +619,13 @@ theorem recoverRun_exactSegmentsCost (f : QueryImpl HashSpec Id)
     (parameter : PublicParameter) (index : Index)
     (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
     (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
-    exactSegmentsCost (decodedFolds fts) ≤ 16*29 + 17*117 - 22 := by
+    exactSegmentsCost (decodedFolds fts) ≤ 16*29 + 16*117 - 1 := by
   have hsum := recoverRun_decodedFolds_sum f parameter index leaves fts r hrun
   obtain ⟨slot, hperm, hsorted, hsegments, hfolds, hadm, hbij⟩ :=
     PorsMachine.recoverRun_structure f parameter index leaves fts r hrun
-  apply exactSegmentsCost_prefix_envelope (decodedFolds fts)
+  apply exactSegmentsCost_envelope (decodedFolds fts) 117
   · simp [decodedFolds, ftsSegments, ftsOpenings]
-  · intro a ha
-    obtain ⟨j, rfl⟩ := List.mem_ofFn.mp ha
-    have hclimb : ∀ (L : List Nat) (v x top : Nat), top ≤ 14 →
-        (∀ y ∈ L, y ≤ 14) → ∀ seg ∈ climbSegs v x L top, seg.reads.length ≤ 14 := by
-      intro L
-      induction L with
-      | nil =>
-          intro v x top ht hL seg hs
-          simp only [climbSegs, List.mem_singleton] at hs
-          subst seg
-          simp only [sibs, List.length_map, List.length_range']
-          omega
-      | cons y L ih =>
-          intro v x top ht hL seg hs
-          simp only [climbSegs, List.mem_cons] at hs
-          rcases hs with rfl | hs
-          · have hy := hL y (by simp)
-            simp only [sibs, List.length_map, List.length_range']
-            omega
-          · exact ih v (y+1) top ht (fun z hz => hL z (by simp [hz])) seg hs
-    have hall : ∀ (vs : List Nat), (∀ v ∈ vs, v < 2^ftsTreeHeight) →
-        ∀ (L : List Nat) seg, seg ∈ allSegs vs L → seg.reads.length ≤ 14 := by
-      intro vs
-      induction vs with
-      | nil => intro hv L seg hs; simp [allSegs] at hs
-      | cons v rest ih =>
-          intro hv L seg hs
-          have htop : leafTop v rest ≤ 14 := by
-            cases rest with
-            | nil => simp [leafTop, ftsTreeHeight]
-            | cons w rest =>
-                have hh := bitLength_xor_le v w (hv v (by simp)) (hv w (by simp))
-                simp only [leafTop]
-                change bitLength (v ^^^ w) ≤ 14 at hh
-                omega
-          rw [allSegs_cons] at hs
-          rcases List.mem_append.mp hs with hs | hs
-          · exact hclimb _ v 0 _ htop (fun y hy => by
-              have hh := (mem_filter_lt hy).2
-              omega) seg hs
-          · exact ih (fun w hw => hv w (by simp [hw])) _ seg hs
-    obtain ⟨hlen, hsorted', hbound⟩ := sortedLeaves_facts leaves hadm.1
-    obtain ⟨v, rest, he⟩ : ∃ v rest, sortedLeaves leaves = v::rest := by
-      cases h : sortedLeaves leaves with
-      | nil => rw [h] at hlen; simp [ftsOpenings] at hlen
-      | cons v rest => exact ⟨v, rest, rfl⟩
-    have hsch : schedule (sortedLeaves leaves) = allSegs (sortedLeaves leaves) [] := by
-      rw [he] at hsorted' hbound ⊢
-      have hh := scheduleLeaves_eq rest v ⟨[], [], 0, false, [], 0⟩ [] hsorted' hbound
-        ⟨List.Pairwise.nil, by simp⟩ rfl
-      simpa only [schedule, List.nil_append] using hh.1
-    have hmatch := ((PorsMachine.recoverRun_schedule f parameter index leaves fts r hrun).1 j).1
-    rw [hmatch]
-    have hlen' := schedule_length_of_injective leaves hadm.1
-    have hj : j.val < (schedule (sortedLeaves leaves)).length := by rw [hlen']; exact j.isLt
-    have hmem : (schedule (sortedLeaves leaves)).getD j.val default ∈ schedule (sortedLeaves leaves) := by
-      simpa only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj, Option.getD_some]
-        using List.getElem_mem hj
-    rw [hsch] at hmem ⊢
-    exact hall (sortedLeaves leaves) (sortedLeaves_lt leaves) [] _ hmem
+  · omega
   · rw [hsum, hfolds]; exact hadm.2
   · intro hp
     rw [hsum]
@@ -834,11 +646,11 @@ theorem seg_step_exact (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E 
     (node : Val) (stk : List (Val × Nat)) (m : MachineState) (h : DispIn P s0 s x c ptr E folds pend node stk m) :
     (14 < wbyte P.wl ptr % 16 → ∃ u, Steps image m 8 8 u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (1 ≤ wbyte P.wl ptr % 16 → wbyte P.wl ptr % 16 ≤ 14 → segBits (wbyte P.wl ptr) ≠ E % 8 →
-        ∃ u, Steps image m 11 11 u ∧ fetch image u = some (.base .ECALL) ∧
+    (1 ≤ wbyte P.wl ptr % 16 → wbyte P.wl ptr % 16 ≤ 14 → segT (wbyte P.wl ptr) ≠ E % 2 →
+        ∃ u, Steps image m 10 10 u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (wbyte P.wl ptr % 16 ≤ 14 → (wbyte P.wl ptr % 16 = 0 ∨ segBits (wbyte P.wl ptr) = E % 8) →
-        ∃ k u, k = 4 + (if wbyte P.wl ptr % 16 = 0 then 3 else 4) ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
+    (wbyte P.wl ptr % 16 ≤ 14 → (wbyte P.wl ptr % 16 = 0 ∨ segT (wbyte P.wl ptr) = E % 2) →
+        ∃ k u, k = 4 + 3 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 0 ∧ hashArgumentsValid u = true ∧ hashInput u = addrFmt (pendInput P node pend) ∧
         (addrFmt (pendInput P node pend)).blocks = 1 ∧
         ∀ ans, (wbyte P.wl ptr % 16 = 0 → TailIn P s0 s x (segV (tsel s) (wbyte P.wl ptr)) 2 (ptr + 8) E folds
@@ -864,9 +676,8 @@ theorem seg_step_exact (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E 
   have pb1 := h.pb.run hu1 (hu1.known (.x20, BitVec.ofNat 64 (tbOf s)) (by simp [dispKnown])) (by simp [dispKeep])
   have hts : tsel s < 2 := by unfold tsel; split_ifs <;> omega
   obtain ⟨cRej, cOk, cPar⟩ := tabCheck1_parts (tsel s) b hts hbl
-  have hE1 : u1.getReg .x23 = BitVec.ofNat 64 E := by rw [hu1.keep .x23 (by simp [dispKeep])]; exact h.rE
+  have hE1 : u1.getReg .x23 = Rev.revWord E := by rw [hu1.keep .x23 (by simp [dispKeep])]; exact h.rE
   have ht : segT b < 2 := by unfold segT; omega
-  have hbits : segBits b < 8 := by unfold segBits; omega
   refine ⟨?_, ?_, ?_⟩
   · intro ha
     have ha1 : segA b > 14 := ha
@@ -880,7 +691,7 @@ theorem seg_step_exact (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E 
     obtain ⟨u, hu⟩ := pspec_run (cPar h1 h14) u1 hpc1 (fun p hp => pb1.known p (List.mem_append_left _ hp))
       (by
         intro br hbr; simp only [tabRej, rejSpec, List.mem_singleton] at hbr; subst hbr
-        exact (parBr_holds hE1 _ hbits true).mpr (by simp [Ne.symm hne])) (by simp)
+        exact (parBr_holds hE1 _ ht true).mpr (by simp [Ne.symm hne])) (by simp)
     refine ⟨u, (hu1.steps.trans hu.steps).of_eq (by simp [dispSpec, tabRej, rejSpec])
         (by simp [dispSpec, tabRej, rejSpec]),
       hu.ecall (by simp [tabRej, rejSpec]), hu.regs (.x5, cw 1) (by simp [tabRej, rejSpec]),
@@ -889,9 +700,8 @@ theorem seg_step_exact (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E 
     have ha' : ¬ segA b > 14 := by unfold segA; omega
     have hsp : tabSpec (tsel s) b = ⟨[(.x14, addC (.reg .x14) (BitVec.ofNat 64 (16 * (b % 16) + 8))),
         (.x12, if b % 16 = 0 then destE (segV (tsel s) b) else cw (0x1E0 + 16 * segT b))], [],
-        if b % 16 = 0 then entry0Pc (segV (tsel s) b) + 1 else slotPc (tsel s) b + 4,
-        true, if b % 16 = 0 then 3 else 4, if b % 16 = 0 then [] else [parBr (segBits b) false], none,
-        if b % 16 = 0 then 3 else 4⟩ := by
+        if b % 16 = 0 then entry0Pc (segV (tsel s) b) + 1 else slotPc (tsel s) b + 3,
+        true, 3, if b % 16 = 0 then [] else [parBr (segT b) false], none, 3⟩ := by
       unfold tabSpec; rw [if_neg ha']; rfl
     obtain ⟨u, hu⟩ := pspec_run (cOk (by unfold segA; omega)) u1 hpc1 (fun p hp => pb1.known p (List.mem_append_left _ hp))
       (by
@@ -899,7 +709,7 @@ theorem seg_step_exact (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E 
         by_cases h0 : b % 16 = 0
         · simp [h0] at hbr
         · simp only [if_neg h0, List.mem_singleton] at hbr; subst hbr
-          exact (parBr_holds hE1 _ hbits false).mpr (by
+          exact (parBr_holds hE1 _ ht false).mpr (by
             rcases hpar with e | e
             · exact absurd e h0
             · simp [e])) (by simp)
@@ -953,7 +763,7 @@ theorem seg_step_exact (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E 
       simp only [hashArgsB, MEMORY_BYTES, Bool.and_eq_true, decide_eq_true_eq, Nat.reducePow,
         Nat.reduceMul, Nat.reduceAdd]
       refine ⟨⟨⟨⟨hpa.1, ?_, trivial⟩, decide_eq_true ?_⟩, decide_eq_true (And.intro ?_ hda.1)⟩, decide_eq_true ?_⟩ <;> omega
-    refine ⟨4 + (if b % 16 = 0 then 3 else 4), u, rfl,
+    refine ⟨4 + 3, u, rfl,
       (hu1.steps.trans hu.steps).of_eq (by simp [dispSpec, hsp]) (by simp [dispSpec, hsp]),
       hu.ecall (by simp [hsp]), pb.reg (by simp [gkP, baseK]),
       hashArgs_ofNat _ _ _ _ r10 r11 hdest (by omega) (by omega) (by omega) hargs,
@@ -992,10 +802,7 @@ theorem seg_step_exact (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E 
         rw [hdest, if_neg (by omega)]
       refine ⟨pb.hash ans _ hdn (safe_nb _ ht), ?_, ⟨rfl, rfl, rfl⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
         (writeHash_at0 _ ans _ hdn (by omega)).trans (vw0_answer ans).symm, ?_, by simp, h.bnd, h.hE, h.hx,
-        ⟨h1, by omega⟩, ht, segV_lt _ _, hV1, by
-          rcases hpar with hh | hh
-          · exact False.elim (by omega)
-          · exact hh.symm⟩
+        ⟨h1, by omega⟩, ht, segV_lt _ _, hV1⟩
       · rw [writeHash_pc, hu.pc (by rw [hsp]), hsp]
         simp only [if_neg (show ¬ b % 16 = 0 by omega), pcOf_add4]
         rfl
@@ -1017,7 +824,9 @@ theorem seg_step_exact (P : PCtx) (_hP : P.ok) (s0 : MachineState) (s x c ptr E 
       · rw [show 0x1E8 + 16 * segT b = 0x1E0 + 16 * segT b + 8 by omega]
         exact (writeHash_at8 _ ans _ hdn (by omega)).trans (vw1_answer ans).symm
 
+
 /-! ## Entry tails and ladder positions -/
+
 
 theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr E folds : Nat) (pend : Pending)
     (node : Val) (stk : List (Val × Nat)) (m : MachineState) (h : DispIn P s0 s x c ptr E folds pend node stk m)
@@ -1044,20 +853,21 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
       (fun q => ⟨q, by omega⟩)
   rw [if_neg ha]
   have ha14 : b % 16 ≤ 14 := by unfold porsH at ha; omega
-  by_cases hp : 0 < b % 16 ∧ b / 32 ≠ E % 8
+  by_cases hp : 0 < b % 16 ∧ b / 32 % 2 ≠ E % 2
   · rw [if_pos hp, cc_pure, hnone]
     obtain ⟨u, hst, hf, h5, h10⟩ := hpar (by omega) ha14 hp.2
     exact GoodQ.steps' hst (GoodQ.reject (Q := folds ≤ 117) (A := 0) hf h5 h10) (by omega) (by omega)
       (fun q => ⟨q, by omega⟩)
   · rw [if_neg hp, cc_bind, pendingHash_eq]
-    have hpar' : b % 16 = 0 ∨ segBits b = E % 8 := by unfold segBits; omega
+    have hpar' : b % 16 = 0 ∨ segT b = E % 2 := by unfold segT; omega
     obtain ⟨k, u, hkeq, hst, hf, h5, hv, hin, hbl, hpost⟩ := hacc ha14 hpar'
-    have hk : k ≤ 8 := by rw [hkeq]; split_ifs <;> omega
+    have hk : k ≤ 8 := by omega
     have hVl := segV_lt (tsel s) b
     set a := b % 16 with hadef
     set V := segV (tsel s) b with hV
     -- after the pending hash
-    have H : ∀ ans, GoodQ (writeHash u ans) (NT V + 17 * 14 + 2) (CT V + 17 * a) (folds + a ≤ 117) (AT V (folds + a) + (17 * a - prefixSave a))
+    have H : ∀ ans, GoodQ (writeHash u ans) (NT V + 17 * 14 + 2) (CT V + 17 * a) (folds + a ≤ 117)
+        (AT V (folds + a) + 16 * a + min a 1)
         ((fun v => cc (segFolds P.idx P.wl ptr a v E) fun p =>
           match p with
           | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1))))
@@ -1070,7 +880,7 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
         have hT := (hpost ans).1 ha0
         have := hK 0 V 2 E (answerBytes 16 ans) (writeHash u ans) (by omega) rfl (by omega) (by simpa using hT)
         simp only [Nat.mul_zero, Nat.add_zero] at this
-        simp only [ha0, prefixSave, Nat.reduceLT, if_true, Nat.mul_zero, Nat.sub_self, Nat.add_zero]
+        simp only [ha0, Nat.mul_zero, Nat.add_zero]
         exact this.mono (by omega) (by omega) (fun q => ⟨by omega, by omega⟩)
       · have hE := (hpost ans).2 (by omega)
         obtain ⟨u2, hst2, hP2⟩ := ent_step P s0 s x V (segT b) a ptr E folds (answerBytes 16 ans) stk _ hE
@@ -1080,10 +890,7 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
             | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1))))
           (NT V) (CT V) (AT V (folds + a)) (folds + a ≤ 117)
           (fun t node' E' u' hT => hK a V t E' node' u' ha14 rfl rfl hT) a 0 (segT b) E (answerBytes 16 ans)
-          u2 (by omega) hP2 hP2.parity
-        have hstart := foldBudget_start a (by omega)
-        have hsave : prefixSave a ≤ 3 := by
-          rw [prefixSave_eq]; split_ifs <;> omega
+          u2 (by omega) hP2 (by rcases hpar' with e | e <;> [omega; exact e])
         refine GoodQ.steps' hst2 this (by omega) (by omega) (fun q => ⟨by omega, by omega⟩)
     have h3 := GoodQ.hash (x := pendInput P node pend)
       (K := fun v => cc (segFolds P.idx P.wl ptr a v E) fun p =>
@@ -1102,13 +909,9 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
       (fun q => ⟨by omega, by
         have hbudget := hA V a hVl ha14 rfl q
         unfold SigGolfCandidate.Research.PorsPositiveBound.exactSegmentCost at hbudget
-        change k = 4 + (if a = 0 then 3 else 4) at hkeq
         by_cases hz : a = 0
-        · simp only [if_pos hz] at hbudget hkeq; omega
-        · simp only [if_neg hz] at hbudget hkeq
-          have hsave : prefixSave a ≤ 3 := by
-            rw [prefixSave_eq]; split_ifs <;> omega
-          omega⟩)
+        · simp only [if_pos hz] at hbudget; omega
+        · simp only [if_neg hz] at hbudget; omega⟩)
 
 end SigGolfCandidate.Verify
 
@@ -1135,7 +938,7 @@ theorem decodedCostRem_succ (wl : List Byte) (j : Nat) (hj : j < 29) :
   rw [h, decodedCostFrom_succ]
 
 theorem exactSegmentCost_ge (a : Nat) : 15 ≤ exactSegmentCost a := by
-  unfold exactSegmentCost Verify.prefixSave Verify.prefixN; split_ifs <;> omega
+  unfold exactSegmentCost; split_ifs <;> omega
 
 theorem decodedCostRem_ge (wl : List Byte) (j : Nat) (hj : j < 29) :
     15 ≤ decodedCostRem wl j := by
@@ -1146,9 +949,9 @@ theorem decodedCostRem_ge (wl : List Byte) (j : Nat) (hj : j < 29) :
 /-- A witness-dependent accepting budget. It retains every zero-segment saving
 and the actual remaining decoded folds, independent of the final fold cap. -/
 def Aexact (wl : List Byte) (s d : Nat) : Nat :=
-  decodedCostRem wl (2*s-d) + 6*(d+14-s) + 4*(14-s) + lrest s + 11 + layC
+  decodedCostRem wl (2*s-d) + 6*(d+14-s) + 4*(14-s) + lrest s + 15 + layC
 def AexactPF (wl : List Byte) (s d : Nat) : Nat :=
-  if s = 14 then 11 + layC else 4+leafCost (s+1)+Aexact wl (s+1) (d+1)
+  if s = 14 then 15 + layC else 4+leafCost (s+1)+Aexact wl (s+1) (d+1)
 def AexactM (wl : List Byte) (s d : Nat) : Nat :=
   if d = 0 then 6 else 6+Aexact wl s (d-1)
 
@@ -1278,7 +1081,7 @@ theorem leaves_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState)
     (hKr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
       st.ptr = Equiv.segPtr P.wl (29-st.stack.length) →
-      GoodQ u (11 + layC + layN) (11 + layC) (st.folds ≤ 117) (11 + layC) (Kr (some st))) :
+      GoodQ u (15 + layC + layN) (15 + layC) (st.folds ≤ 117) (15 + layC) (Kr (some st))) :
     ∀ n s (st : PorsState) m, s + n = 15 → LeafIn P s0 s st m →
       st.ptr = Equiv.segPtr P.wl (2*s-st.stack.length) →
       GoodQ m (leafCost s + Nseg s st.stack.length) (leafCost s + Cseg s st.stack.length) (st.folds ≤ 117)
@@ -1359,7 +1162,7 @@ theorem pors_good_decoded (P : PCtx) (hP : P.ok) (s0 : MachineState)
       (cc (porsRoot P.idx P.v P.wl) (Klay P)) := by
   have hr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (11 + layC + layN) (11 + layC) (st.folds ≤ 117) (11 + layC) (Kr P (some st)) :=
+      GoodQ u (15 + layC + layN) (15 + layC) (st.folds ≤ 117) (15 + layC) (Kr P (some st)) :=
     fun x c st u hT => root_good P hP s0 x c st u hT
   have hg0 := leaves_good_exact P hP s0 (Kr P) (Kr_none P) (fun x c st u hT _ => hr x c st u hT)
   have hg := hg0 15 0 ⟨wStream, 0, 0, 0, [], []⟩ s0 (by rfl) h rfl
@@ -1374,11 +1177,11 @@ theorem pors_good_decoded (P : PCtx) (hP : P.ok) (s0 : MachineState)
   rw [l0] at hg
   exact hg.mono (le_refl _) (le_refl _) (fun _ => ⟨trivial, le_refl _⟩)
 
-def cycleBoundDecoded (wl : List Byte) : Nat := 451 + layC + decodedCostRem wl 0
+def cycleBoundDecoded (wl : List Byte) : Nat := 488 + layC + decodedCostRem wl 0
 
 theorem exact_cost_vals (wl : List Byte) :
-    leafCost 0 + Aexact wl 0 0 = 318 + layC + decodedCostRem wl 0 := by
-  have h0 : leafCost 0 = 10 := rfl
+    leafCost 0 + Aexact wl 0 0 = 352 + layC + decodedCostRem wl 0 := by
+  have h0 : leafCost 0 = 12 := rfl
   simp only [Aexact, lrest_0, h0, Nat.mul_zero, Nat.sub_self]
   omega
 
@@ -1400,8 +1203,8 @@ theorem main_good_decoded (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : 
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (101 + (leafCost 0 + Nseg 0 0)) (101 + (leafCost 0 + Cseg 0 0)) True
-        (101 + (leafCost 0 + Aexact wl 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (104 + (leafCost 0 + Nseg 0 0)) (104 + (leafCost 0 + Cseg 0 0)) True
+        (104 + (leafCost 0 + Aexact wl 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with
@@ -1418,7 +1221,7 @@ theorem main_good_decoded (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : 
       have := pors_good_decoded P ⟨hwl, hpk⟩ u hLI
       dsimp only [P] at this
       exact (GoodQ.steps hsu this).mono (by omega) (by omega) (fun q => ⟨q, by omega⟩)
-    have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; rw [wRho_eq]; omega
+    have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; omega
     have h3 := GoodQ.hashH (x := digestInput (witRho wl) ml) hf h5 hv hin H
     rw [fmt_digestInput_words _ _ hrho hml, blocks_qT] at h3
     have hN : layN = 25009 := rfl
@@ -1449,7 +1252,7 @@ theorem porsRoot_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
     (leaves : IndexGroup → FtsLeaf) (node : Ref.Val)
     (hrun : evalWithAnswerFn hash
       (Ref.porsRoot index (List.ofFn fun r => (leaves r).val) wl) = some node) :
-    decodedCostRem wl 0 ≤ 16*29 + 17*117 - 22 := by
+    decodedCostRem wl 0 ≤ 16*29 + 16*117 - 1 := by
   let f : QueryImpl SphincsSecurity.HashSpec Id := fun q => hash (fmtQ q)
   have he := congrArg (evalWithAnswerFn hash) (porsRoot_eq index wl hl leaves)
   rw [hrun, evalWithAnswerFn_map, Final.evalWithAnswerFn_relabel,
@@ -1465,7 +1268,7 @@ theorem porsRoot_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
 theorem verifyList_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
     (ml pkl wl : List Byte) (hl : wl.length = 16384)
     (hverify : evalWithAnswerFn hash (Ref.verifyList ml pkl wl) = true) :
-    decodedCostRem wl 0 ≤ 16*29 + 17*117 - 22 := by
+    decodedCostRem wl 0 ≤ 16*29 + 16*117 - 1 := by
   unfold Ref.verifyList at hverify
   cases hc : Ref.countersOk wl with
   | false => simp [hc] at hverify
@@ -1497,7 +1300,7 @@ universal positive-segment structural theorem. All-input bounds are unchanged. -
 theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
     (hpk : pkl.length = 16) (hwl : wl.length = 16384) (s : MachineState)
     (hs : InitOK ml pkl wl s) :
-    GoodQ s fuelBound cycleBoundAll True (cycleBound-22) (cc (verifyList ml pkl wl) Kb) := by
+    GoodQ s fuelBound cycleBoundAll True (cycleBound-1) (cc (verifyList ml pkl wl) Kb) := by
   intro F hF
   have hg := main_good_decoded ml pkl wl hml hpk hwl s hs F hF
   refine ⟨hg.1, fun hash => ⟨(hg.2 hash).1, (hg.2 hash).2.1, fun hsucc => ⟨trivial, ?_⟩⟩⟩
@@ -1515,18 +1318,17 @@ theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
 
 theorem verify_good_tight (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (s : MachineState) (hs : initialState submission .verify input = some s) :
-    GoodQ s fuelBound cycleBoundAll True (cycleBound-22)
+    GoodQ s fuelBound cycleBoundAll True (cycleBound-1)
       (cc (verifyRef input.1 input.2.1 input.2.2) Kb) := by
   obtain ⟨m, pk, w⟩ := input
-  exact main_good_tight _ _ _ (length_toList m) (length_toList pk)
-    (by rw [length_extW]; exact congrArg (fun n => witLead + n) (length_toList w)) s (init_ok m pk w s hs)
+  exact main_good_tight _ _ _ (length_toList m) (length_toList pk) (length_toList w) s (init_ok m pk w s hs)
 
-/-- Every accepting execution of the verifier takes22 fewer cycles than
-its generic bound. This is universal over hash answers and arbitrary witnesses. -/
+/-- Every accepting execution of the frozen verifier takes one fewer cycle than
+its previous bound. This is universal over hash answers and arbitrary witnesses. -/
 theorem verify_accept_cycles_tight (hash : Hash)
     (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (h : (submission.runWith hash .verify input).value = some ()) :
-    (submission.runWith hash .verify input).cycles ≤ cycleBound-22 := by
+    (submission.runWith hash .verify input).cycles ≤ cycleBound-1 := by
   obtain ⟨s, hs⟩ := init_exists input
   have hg := (verify_good_tight input s hs CYCLE_LIMIT (by unfold CYCLE_LIMIT fuelBound; norm_num)).2 hash
   rw [runWith_eq submission hash .verify input s hs, image_eq] at h ⊢

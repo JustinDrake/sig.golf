@@ -90,9 +90,9 @@ def RootOut (w : List Byte) (idx : Nat) (K : Nat → Nat) (M : Val) (t : Machine
 theorem porsRoot_sim (w : List Byte) (K : Nat → Nat) (v : List Nat) (t : MachineState) (hpc : t.pc = pcOf 495)
     (N0 : Nat) (hN0 : N0 < 2 ^ 64) (h160 : t.getMem (BitVec.ofNat 64 0x160) = BitVec.ofNat 64 N0)
     (hw : WitMem w t) (hk : ∀ p < 15, t.getMem (BitVec.ofNat 64 (0x6E0 + 8 * p)) = BitVec.ofNat 64 (K p))
-    (hkl : ∀ p < 15, K p < 2 ^ 22) (hwl : 4096 ≤ w.length)
+    (hkl : ∀ p < 15, K p < 2 ^ 22) (hwl : 272 ≤ w.length)
     (hx : ∀ s < 15, (v ++ [porsT]).getD (witPi w s / 8 % 16) 0 = K s / 256) :
-    Sim eimg t 200000 (porsRoot (N0 % 2 ^ 34) v w) (OPost (RootOut w (N0 % 2 ^ 34) K)) := by
+    Sim eimg t 400000 (porsRoot (N0 % 2 ^ 34) v w) (OPost (RootOut w (N0 % 2 ^ 34) K)) := by
   obtain ⟨t1, hs1, hinv, hfr⟩ := blk495_run w K t hpc N0 hN0 h160 hw hk hkl
   have hl := porsLeaves_sim w (N0 % 2 ^ 34) K v hwl hx 15 0 ⟨272, 0, 0, 0, [], []⟩ t1 (by norm_num) hinv
   unfold porsRoot

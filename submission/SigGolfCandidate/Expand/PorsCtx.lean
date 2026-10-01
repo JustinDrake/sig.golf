@@ -1,4 +1,48 @@
 import SigGolfCandidate.Expand.P2Base
+import SigGolfCandidate.Verify.Words
+import SigGolfCandidate.Ref.AddressFormat
+
+/-!
+# `expand`, phase 2: the rev16 network of the fold trampolines (804 .. 831, 832 .. 859)
+
+`netN v` is the `Nat` model of the 24-instruction swap network on `v < 2^16` (before the final
+`slli 48`): it reverses the low 16 bits, so `netN v * 2^16 = Rev.efield v` for heap indices
+`v < 2^14` (checked by `decide +kernel`, `Nat` bitwise ops are kernel-accelerated).
+-/
+
+namespace SigGolfCandidate.ExP
+open SigGolfCandidate.Ref
+
+/-- `Nat` model of the rev16 swap network (bytes, nibbles, pairs, bits). -/
+def netN (v : Nat) : Nat :=
+  let r := v / 256 ||| (v &&& 255) * 256
+  let r := (r / 16 &&& 3855) ||| (r &&& 3855) * 16
+  let r := (r / 4 &&& 13107) ||| (r &&& 13107) * 4
+  (r / 2 &&& 21845) ||| (r &&& 21845) * 2
+
+/-- `P i ∧ P (i+1) ∧ … ∧ P (i+k-1)`, evaluated by the kernel. -/
+def chkFrom (P : Nat → Bool) : Nat → Nat → Bool
+  | 0, _ => true
+  | k + 1, i => P i && chkFrom P k (i + 1)
+
+theorem chkFrom_spec (P : Nat → Bool) :
+    ∀ k i, chkFrom P k i = true → ∀ j, i ≤ j → j < i + k → P j = true
+  | 0, i, _, j, h1, h2 => absurd h2 (by omega)
+  | k + 1, i, h, j, h1, h2 => by
+    simp only [chkFrom, Bool.and_eq_true] at h
+    by_cases hj : j = i
+    · subst hj; exact h.1
+    · exact chkFrom_spec P k (i + 1) h.2 j (by omega) (by omega)
+
+theorem netN_chk : chkFrom (fun v => netN v * 65536 == Rev.efield v) 16384 0 = true := by
+  decide +kernel
+
+/-- The network computes the relabelled header field of every PORS heap index `v < 2^14`. -/
+theorem netN_efield (v : Nat) (hv : v < 2 ^ 14) : netN v * 65536 = Rev.efield v := by
+  have := chkFrom_spec _ _ _ netN_chk v (Nat.zero_le _) (by omega)
+  simpa using this
+
+end SigGolfCandidate.ExP
 
 /-!
 # `expand`, phase 2: the PORS context
@@ -19,7 +63,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
   SigGolfCandidate.Sign
 
 /-- The constant part of the PORS phase: `tp = idx`, `t0 = 0`, `s6 = STK`, `s9 = X`,
-`s10 = idx mod 2^32`, `s11 = 0x1000` (W1: the secrets at `s11 + 1024 + 64 s`); the first word and the zero words of `LB` and
+`s10 = idx mod 2^32`, `s11 = 0x800` (the witness); the first word and the zero words of `LB` and
 `PB`; the witness buffer; the sorted keys `K` at `0x6E0`. -/
 structure PCtx (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState) : Prop where
   hidx : idx < 2 ^ 34
@@ -28,7 +72,7 @@ structure PCtx (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState) 
   x22 : t.getReg .x22 = BitVec.ofNat 64 0x30540
   x25 : t.getReg .x25 = BitVec.ofNat 64 0x30000
   x26 : t.getReg .x26 = BitVec.ofNat 64 (idx % 2 ^ 32)
-  x27 : t.getReg .x27 = BitVec.ofNat 64 0x1000
+  x27 : t.getReg .x27 = BitVec.ofNat 64 0x800
   lb0 : t.getMem (BitVec.ofNat 64 0x30000) = BitVec.ofNat 64 (1 + 256 * 9 + 2 ^ 24 * (idx / 2 ^ 32))
   lb16 : t.getMem (BitVec.ofNat 64 0x30010) = 0
   lb24 : t.getMem (BitVec.ofNat 64 0x30018) = 0
@@ -93,8 +137,10 @@ theorem lb_words (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState
     ← hsw, readWords8, readWords_ofNat_two, h.lb0, h8, h.lb16, h.lb24, h.lb48, h.lb56]
   rfl
 
-theorem fmt_porsNode (idx H : Nat) (l r : Val) : addrFmt (porsNodeInput idx H l r) = pad64 (porsNodeInput idx H l r) :=
-  addrFmt_thInput _ _ _ _ _ _ (by decide)
+/-- The PORS node query relabels the header field: `Rev.efield H`. -/
+theorem fmt_porsNode (idx H : Nat) (l r : Val) (hl : l.length = 16) (hr : r.length = 16) :
+    addrFmt (porsNodeInput idx H l r) = pad64 (porsNodeInput idx (Rev.efield H) l r) :=
+  Verify.addrFmt_porsNodeInput_pad idx H l r hl hr
 
 theorem fmt_porsLeaf (idx j : Nat) (s : Val) : addrFmt (porsLeafInput idx j s) = pad64 (porsLeafInput idx j s) :=
   addrFmt_thInput _ _ _ _ _ _ (by decide)
