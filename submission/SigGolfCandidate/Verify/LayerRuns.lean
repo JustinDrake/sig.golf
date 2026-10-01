@@ -7,7 +7,7 @@ import SigGolfCandidate.Verify.PorsTab
 Every start of layer `lay` (layer 4: a PORS root tail; below: a block of the last fold chunk of
 layer `lay + 1`) runs its own copy of the transition (`trPc lay c`):
 * route and encoding (`stepsA` steps up to the encoding `ecall`; the counter is read from the
-  witness, `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `2392`);
+  witness, `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `2648`);
 * the encoding check (`or; blt` for the top bits, the SWAR digit sum, `remu` by `x18 = 4095`,
   `bne KT`), then the chain prologue `li s6, base`, the extraction of triple 0
   and `jalr ra` into the layer-shared chain code (24 steps, 27 cycles);
@@ -59,9 +59,9 @@ def x31Er (lay : Nat) : E :=
 def uHE (lay : Nat) : E :=
   if lay = 0 then .bin .add (uEr lay) (cw 2048) else .bin .or (uEr lay) (cw (2 ^ heightL lay))
 
-/-- The doubleword holding layer `lay`'s counter (`c4` at witness 2392, `c0 .. c3` in the tweak
+/-- The doubleword holding layer `lay`'s counter (`c4` at witness 2648, `c0 .. c3` in the tweak
 slot of chain block `(0, 0)` at witness 2944). -/
-def ctrA (lay : Nat) : Nat := if lay = 4 then 0x800 + 2392 else 0x800 + 2944 + 8 * (lay / 2)
+def ctrA (lay : Nat) : Nat := if lay = 4 then 0x800 + 2648 else 0x800 + 2944 + 8 * (lay / 2)
 def ctrE (lay : Nat) : E := .un (.ld .wu (4 * (lay % 2))) (ldE (ctrA lay))
 
 def specA (lay t : Nat) : Spec :=
@@ -71,7 +71,7 @@ def specA (lay t : Nat) : Spec :=
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
 
 /-! ## The encoding check (`remu x25, x25, x18`; layers 0 .. 3 compare `KT`, layer 4 reuses `x14 = KT4`,
-targets185/186, retaining a one-step zero correction in layer0) and the chain prologue -/
+targets185/186, with the layer0 zero correction removed) and the chain prologue -/
 
 /-- Four selector paths: AB, gated AB, BC, CD. The gated AB case is rejected by padding. -/
 def selOf (a : BitVec 256) : Nat :=
@@ -109,8 +109,8 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E (hi : Nat) : E := .bin .add (.bin .and (.bin .sll (d0E hi) (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 (hi : Nat) : E := .bin .and (.bin .add (.bin .and (.bin .sll (d0E hi) (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB (lay : Nat) : Nat := (if lay = 4 then 29 else 28) + (if lay = 0 then 1 else 0)
-def stepsBPath (hi lay : Nat) : Nat := (if lay = 4 then 22 else 21) + selSteps hi + (if lay = 0 then 1 else 0)
+def stepsB (lay : Nat) : Nat := (if lay = 4 then 29 else 28)
+def stepsBPath (hi lay : Nat) : Nat := (if lay = 4 then 22 else 21) + selSteps hi
 def cyclesBPath (hi lay : Nat) : Nat := stepsBPath hi lay + 3
 
 theorem stepsBPath_le (hi lay : Nat) : stepsBPath hi lay ≤ stepsB lay := by
@@ -133,7 +133,7 @@ def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
 def specRej1 (hi : Nat) : Spec := ⟨rejK, [], rejectPc + 2, true, selSteps hi + 5, [⟨.lt, (orE hi), .c 0, true⟩] ++ selBrs hi, none, selSteps hi + 5⟩
 def specRej2 (hi : Nat) (lay : Nat) : Spec :=
-  ⟨rejK, [], rejectPc + 2, true, 19 + selSteps hi + (if lay = 0 then 1 else 0), [⟨.ne, (swS hi lay), .c (KTof lay), true⟩, ⟨.lt, (orE hi), .c 0, false⟩] ++ selBrs hi, none, 22 + selSteps hi + (if lay = 0 then 1 else 0)⟩
+  ⟨rejK, [], rejectPc + 2, true, 19 + selSteps hi, [⟨.ne, (swS hi lay), .c (KTof lay), true⟩, ⟨.lt, (orE hi), .c 0, false⟩] ++ selBrs hi, none, 22 + selSteps hi⟩
 
 /-! ## Leaf -/
 
