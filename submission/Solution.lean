@@ -2,47 +2,46 @@ import SigGolf
 import SigGolfCandidate.Transfer.Final
 
 /-!
-# Stateless SPHINCS+ with two-padding-bit conditional-half encoding
+# Stateless SPHINCS+ with gated overlapping-window encoding
 
-Declared sizes: S = 6032 signature bytes, W = 16384 witness bytes, and K = 131072
-cache bytes. The claim C = 10536 is the certified accepting verifier bound 10472
-plus the 64-cycle witness charge. The PORS authentication cap is 117; the five
-WOTS digit-sum targets are [184, 184, 184, 185, 185].
+S=6032 signature bytes, W=16384 witness bytes, K=131072 cache bytes.
+The claim C=10523 is accepting verifier bound10459 plus witness charge64.
+PORS has height14,15 openings and authentication cap117. The five WOTS
+checksum targets are[184,185,185,185,185].
 
-The encoding selects the upper 128 bits of a 256-bit oracle answer when either
-bit 63 or bit 127 of its lower half is set, otherwise selecting the lower half.
-Every padding-clear word has exactly seven quarter-digest spaces of preimages:
-2^128 + 3 * 2^126. Thus valid-word acceptance has the exact multiplier 7/4.
-Signer, expander, reference and verifier use this same fixed selection rule.
-The rounded signing envelope is 2^(115257/131072) * 1.0279 * 1.01019^3 * 1.01214^2 <= 2.
+For oracle words A,B,C,D, select AB when B's top bit is clear and A's top
+bit is clear; select BC when B's top bit is clear and A's top bit is set.
+When B's top bit is set, select CD only if either of A's top two bits is
+set; otherwise retain the invalid AB pair. Every padding-clear output has
+exactly15*2^125 preimages, giving acceptance multiplier15/8. Sign, expand,
+reference and verify all implement this fixed selector.
 
-The verifier selector uses six instructions on either branch. All 227 copies
-are checked for both selector branches and both rejection conditions. Compared
-with the original eight-instruction selector, ten instructions are removed
-across the five layers. The mixed targets remove eighteen more chain cycles than uniform184.
-Layer4 uses its separate target register; only layer3 needs one extra checksum
-correction. The signer and expander select the same target from the layer index.
+The proven signing envelope is
+2^(115257/131072)*1.0279*1.00951*1.01132^4 <= 2.
+The joint security proof uses primitive coefficient253/128 and split65*2^106;
+all primitive, residual and certificate remainder terms are rechecked.
+The verifier selector takes at most seven instructions, with separately
+proved shorter AB paths. Shared target185 needs one correction at layer0.
+Compared with the previous7/4 mixed construction, two target increments
+remove eighteen chain cycles and the selector adds at most five cycles.
 
-The carried witness-chain base replaces four lower-layer LUI/ADDI pairs with
-SUB instructions. The existing obsolete x28 root initializer becomes x28=2688,
-so no extra initializer is required. Register-frame proofs preserve x22 and
-x28 across each leaf and Merkle fold.
+The signer and expander share a straight-line selector in existing padding.
+Including the call jump it executes16 instructions and22 cycles. Counter
+search termination accounts for64 cycles per trial. Their oracle-query
+sequences match the byte reference; no extra hash queries are introduced.
 
-The predecessor conditional-half construction is public source
-47ecb4bca5558562f3576fd6bfe687e9f2a8ab2f by patternrecognition9-del. Base reuse
-follows Gopi's promoted 4528ff23136b01e342c77eedaf2f6d74ad961d15.
-The verifier additionally carries three promoted improvements from public source
-0ba3dc24993dd3491a0a6a064c7cd9fbb9aa6439. Startup derives 4095 by shifting the
-loader stack pointer, saving one instruction. A retained header value hWord+768
-removes one encoding-header ADDI per layer; the leaf uses -512 and the root
-mask setup uses -1537 to preserve the original hash headers and dispatch mask.
-A universal PORS argument tightens the accepting bound by one further cycle.
-Together these changes reduce the certified bound by seven cycles while
-preserving the mixed targets, two-padding-bit selector, and abstract scheme.
+Inherited machine improvements include four lower-layer SUB base updates,
+startup stack-pointer reuse, five retained-header instruction reductions,
+and the universal one-cycle PORS accepting-bound refinement.
 
-The four-image certificate covers image admission, universal termination,
-per-seed completeness, compression budgets, 127-bit event security and verifier
-cycles under the pinned contract. No measured instruction or HASH profile is claimed.
+Prior public construction sources include47ecb4bca5558562f3576fd6bfe687e9f2a8ab2f
+by patternrecognition9-del, Gopi's4528ff23136b01e342c77eedaf2f6d74ad961d15,
+and0ba3dc24993dd3491a0a6a064c7cd9fbb9aa6439. This source extends the previously
+certified two-padding-bit selector and layer-specific target proofs.
+
+The certificate covers all four images, universal termination, per-seed
+completeness, honest compression budgets,127-bit security and accepting
+verifier cycles under the pinned contract. No measured profile is claimed.
 -/
 
 namespace SigGolf.Challenge
@@ -59,7 +58,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10536 :=
+theorem certificate : SigGolf.Certificate submission 10523 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

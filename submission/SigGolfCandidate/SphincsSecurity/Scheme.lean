@@ -5,7 +5,7 @@ import VCVio.OracleComp.QueryTracking.RandomOracle.Simulation
 /-!
 # SPHINCS+ scheme
 
-Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sums `[184,184,184,185,185]`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
+Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sums `[184,185,185,185,185]`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
 
 The few-time signature is PORS+FP (`work/design/SPEC-pors.md`, reference `work/py-pors/ref.py`): one Merkle
 tree of height `14` per instance `idx`, the full 256-bit digest split into `idx` (34 bits) and `k = 15`
@@ -65,7 +65,7 @@ abbrev Counter := BitVec counterBits
 abbrev Layer := Fin numLayers
 
 /-- The target sum at a particular one-time-signature layer. -/
-def targetFor (lay : Layer) : Nat := targetSum + if 3 ≤ lay.val then 1 else 0
+def targetFor (lay : Layer) : Nat := targetSum + if 1 ≤ lay.val then 1 else 0
 /-- `idx`, which few-time key signs. -/
 abbrev Index := Fin (2 ^ totalHeight)
 /-- `tau`, a tree of any layer. Layer `lay` only uses the values below `2^(sum_{j < lay} h_j)`. -/
@@ -131,9 +131,11 @@ def heightBelow (lay : Layer) : Nat := totalHeight - heightAbove lay - layerHeig
 def truncateHash (output : HashOutput) : Digest :=
   output.extractLsb' 0 digestBits
 
-/-- Encoding-only conditional half selection; all other hash domains keep their usual truncation. -/
+/-- Encoding-only gated selection among three overlapping windows; all other hash domains keep their usual truncation. -/
 def selectEncodingAnswer (a : HashOutput) : HashOutput :=
-  if a.getLsbD 63 || a.getLsbD 127 then a >>> 128 else a
+  if a.getLsbD 127 then
+    if a.getLsbD 62 || a.getLsbD 63 then a >>> 128 else a
+  else if a.getLsbD 63 then a >>> 64 else a
 
 def selectEncodingDigest (a : HashOutput) : Digest :=
   truncateHash (selectEncodingAnswer a)
