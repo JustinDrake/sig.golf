@@ -123,7 +123,7 @@ theorem tleaf_body (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : Tree
     intro x hx; simp only [leavesW] at hx ⊢; omega)
   have rt1 : RegsEq tt tl leavesRegs := (tregs.trans r1).mono (by decide)
   have cctx : ChainCtx S x ⟨p.lay, p.tau, p.e, j, p.sigl⟩ tl := by
-    refine ⟨hl, htau, show p.e < 64 by omega, show j < 64 by omega, hsig, ctx.hx, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨hl, htau, show p.e < 2048 by omega, show j < 2048 by omega, hsig, ctx.hx, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [rt1.get .x5, ctx.x5]
     · rw [rt1.get .x13, ctx.x13]
     · rw [rt1.get .x18, ctx.x18]

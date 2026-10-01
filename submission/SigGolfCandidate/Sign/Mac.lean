@@ -14,17 +14,17 @@ set_option linter.unusedVariables false
 namespace SigGolfCandidate.Sign
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref SigGolfCandidate.Mem
 
-theorem words_macInput (S region : List Byte) (hS : S.length = 32) (hR : region.length = 65504) :
-    padBlocks (macInput S region).length = 1024 ∧
+theorem words_macInput (S region : List Byte) (hS : S.length = 32) (hR : region.length = 32736) :
+    padBlocks (macInput S region).length = 512 ∧
     wordsOf (padTo64 (macInput S region)) =
       twWords 14 0 0 0 0 ++ [0, 0] ++ wordsOf S ++ wordsOf region ++ [0, 0, 0, 0] := by
-  obtain ⟨h1, h2⟩ := padTo64_eq (macInput S region) 1024 (by simp [macInput, hS, hR])
+  obtain ⟨h1, h2⟩ := padTo64_eq (macInput S region) 512 (by simp [macInput, hS, hR])
     (by simp [macInput, hS, hR])
   refine ⟨h1, ?_⟩
   rw [h2, macInput, wordsOf_thInput_pad]
   simp only [length_thInput, length_tweak, List.length_append, hS, hR]
   rw [List.append_assoc S, wordsOf_append _ _ (by omega), wordsOf_append _ _ (by omega),
-    show 64 * (1024 + 1) - (16 + 16 + (32 + 65504)) = 8 * 4 from rfl, wordsOf_zeros]
+    show 64 * (512 + 1) - (16 + 16 + (32 + 32736)) = 8 * 4 from rfl, wordsOf_zeros]
   simp
 
 theorem answerBytes_32 (a : BitVec 256) :

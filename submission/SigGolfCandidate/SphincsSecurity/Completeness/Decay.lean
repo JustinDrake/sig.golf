@@ -4,7 +4,7 @@ import SigGolfCandidate.SphincsSecurity.Scheme
 # A search that beats its own odds
 
 The signer's searches are long: `2 ^ 20` randomizer trials accepted with probability at least `2 ^ -10`
-each, and `2 ^ 20` counter trials accepted with probability at least `1/2397` each.
+each, and at least `2 ^ 20` counter trials accepted with probability at least `1/2822` each.
 What that buys is stated here, in the elementary form the bound needs. A trial rejected with
 probability at most `1 - 1/m` leaves at most `1/2` after `m` trials, because `(1-a)(1+a) ≤ 1` caps
 the product while Bernoulli's inequality puts `(1+a)^m` above `1 + m a = 2`.

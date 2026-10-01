@@ -93,6 +93,14 @@ theorem Vals.frame {s t : MachineState} {keys : List Nat} {A : Nat} {vs : List V
   have := hk k hk'
   omega
 
+theorem Vals.drop {t : MachineState} {A : Nat} {vs : List Val}
+    (h : Vals t A vs) (n : Nat) : Vals t (A + 16 * n) (vs.drop n) := by
+  refine ⟨fun v hv => h.1 v (List.mem_of_mem_drop hv), fun i hi => ?_⟩
+  have hni : n + i < vs.length := by rw [List.length_drop] at hi; omega
+  have hv := h.2 (n + i) hni
+  rw [show A + 16 * n + 16 * i = A + 16 * (n + i) by omega]
+  simpa only [List.getD_eq_getElem?_getD, List.getElem?_drop] using hv
+
 theorem Vals.snoc {t : MachineState} {A : Nat} {vs : List Val} {v : Val} (h : Vals t A vs)
     (hv : ValAt t (A + 16 * vs.length) v) (hl : v.length = 16) : Vals t A (vs ++ [v]) := by
   refine ⟨fun w hw => ?_, fun i hi => ?_⟩

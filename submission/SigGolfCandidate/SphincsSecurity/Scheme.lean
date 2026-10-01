@@ -5,7 +5,7 @@ import VCVio.OracleComp.QueryTracking.RandomOracle.Simulation
 /-!
 # SPHINCS+ scheme
 
-Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sums `181` on layers zero through three and `182` on layer four, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
+Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sums `181` on layers zero through two, `182` on layer three, and `183` on layer four, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
 
 The few-time signature is PORS+FP (`work/design/SPEC-pors.md`, reference `work/py-pors/ref.py`): one Merkle
 tree of height `14` per instance `idx`, the full 256-bit digest split into `idx` (34 bits) and `k = 15`
@@ -63,7 +63,7 @@ abbrev Counter := BitVec counterBits
 abbrev Layer := Fin numLayers
 
 /-- The target sum at a particular one-time-signature layer. -/
-def targetFor (lay : Layer) : Nat := targetSum + if 4 ≤ lay.val then 2 else 0
+def targetFor (lay : Layer) : Nat := targetSum + if 4 ≤ lay.val then 2 else if 3 ≤ lay.val then 1 else 0
 /-- `idx`, which few-time key signs. -/
 abbrev Index := Fin (2 ^ totalHeight)
 /-- `tau`, a tree of any layer. Layer `lay` only uses the values below `2^(sum_{j < lay} h_j)`. -/
@@ -282,11 +282,11 @@ def keygenHashInput (parameter : PublicParameter) (domain : KeygenDomain)
 /-! ### The cache
 
 Key generation publishes a 128 KiB cache: the 32-byte MAC tag, then the masked nodes of the top tree at
-levels `0, ..., 10` (level ascending, index ascending within a level). The root is not stored; it is the
+levels `1, ..., 10` (level ascending, index ascending within a level). The root is not stored; it is the
 public key. The signer reads the top layer's authentication path from the cache after checking the tag. -/
 
-/-- The masked nodes of the top tree below its root: level `l < 11` holds `2^(11 - l)` nodes. -/
-abbrev TopRegion := (level : Fin maxLayerHeight) → Fin (2 ^ (maxLayerHeight - level.val)) → Digest
+/-- The masked internal nodes below the root: rowr stores levelr+1, with2^(10-r) nodes. -/
+abbrev TopRegion := (level : Fin (maxLayerHeight - 1)) → Fin (2 ^ (maxLayerHeight - (level.val + 1))) → Digest
 
 /-- The cache: the MAC tag (the full 256-bit hash answer) and the masked-node region. Unused bytes of the
 128 KiB buffer are zero and not part of the abstract cache. -/
@@ -297,14 +297,16 @@ deriving DecidableEq
 
 /-- The masked node `(level, nodeIdx)`, or zero outside the region. -/
 def TopCache.node (cache : TopCache) (level nodeIdx : Nat) : Digest :=
-  if hlevel : level < maxLayerHeight then
-    if hnode : nodeIdx < 2 ^ (maxLayerHeight - level) then cache.region ⟨level, hlevel⟩ ⟨nodeIdx, hnode⟩
+  if hlevel : 0 < level ∧ level < maxLayerHeight then
+    if hnode : nodeIdx < 2 ^ (maxLayerHeight - level) then
+      cache.region ⟨level - 1, by omega⟩ ⟨nodeIdx, by
+        simpa only [Nat.sub_add_cancel (by omega : 1 ≤ level)] using hnode⟩
     else 0
   else 0
 
-/-- The region's bytes: level by level, each node as 16 bytes, `65504` bytes in all. -/
+/-- The internal region's bytes: levels1..10, each node as16 bytes,32736 bytes in all. -/
 def regionBytes (region : TopRegion) : HashInput :=
-  (List.ofFn fun level : Fin maxLayerHeight => (List.ofFn (region level)).flatMap (bytesLE 16)).flatten
+  (List.ofFn fun level : Fin (maxLayerHeight - 1) => (List.ofFn (region level)).flatMap (bytesLE 16)).flatten
 
 /-- `tweak(14, 0, 0, 0, 0) || P || S || region`: the MAC over the region, keyed by the master seed. -/
 def macHashInput (parameter : PublicParameter) (seed : MasterSeed) (region : TopRegion) : HashInput :=
@@ -312,7 +314,7 @@ def macHashInput (parameter : PublicParameter) (seed : MasterSeed) (region : Top
 
 /-! ### The target-sum code
 
-`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and each layer uses the words of its fixed digit sum (`181`, or `182` on layer four). Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
+`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and each layer uses the words of its fixed digit sum (`181`, `182` on layer three, or `183` on layer four). Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
 
 namespace TargetSum
 
@@ -1203,19 +1205,23 @@ in turn. -/
 def maskRegion (parameter : PublicParameter) (seed : MasterSeed) (table : Nat → Nat → Digest) :
     m TopRegion :=
   do
-  let rows ← sequenceFin fun level : Fin maxLayerHeight => do
-    let row ← sequenceFin fun nodeIdx : Fin (2 ^ (maxLayerHeight - level.val)) => do
-      let mask ← maskSecret parameter seed level.val nodeIdx.val
-      return table level.val nodeIdx.val ^^^ mask
-    return fun nodeIdx : Nat => if h : nodeIdx < 2 ^ (maxLayerHeight - level.val) then row ⟨nodeIdx, h⟩ else 0
+  let rows ← sequenceFin fun level : Fin (maxLayerHeight - 1) => do
+    let row ← sequenceFin fun nodeIdx : Fin (2 ^ (maxLayerHeight - (level.val + 1))) => do
+      let mask ← maskSecret parameter seed (level.val + 1) nodeIdx.val
+      return table (level.val + 1) nodeIdx.val ^^^ mask
+    return fun nodeIdx : Nat => if h : nodeIdx < 2 ^ (maxLayerHeight - (level.val + 1)) then row ⟨nodeIdx, h⟩ else 0
   return fun level nodeIdx => rows level nodeIdx.val
 
 /-- The top tree's node `(l, j)` as the signer reads it: the cached masked node, unmasked with a freshly
 derived mask. -/
 def cachedTopNode (parameter : PublicParameter) (seed : MasterSeed) (cache : TopCache) (level nodeIdx : Nat) :
     m Digest := do
-  let mask ← maskSecret parameter seed level nodeIdx
-  return cache.node level nodeIdx ^^^ mask
+  if level = 0 then
+    return (← buildLeafPaired parameter topLayer rootTree (leafOfNat nodeIdx)
+      (otsSecret parameter seed topLayer rootTree (leafOfNat nodeIdx)) zeroEncoding).2
+  else
+    let mask ← maskSecret parameter seed level nodeIdx
+    return cache.node level nodeIdx ^^^ mask
 
 /-- Build the top tree from the supplied seed (its root is the public key), mask its nodes below the root,
 and authenticate the masked region with the MAC. There is no parameter derivation: `P = 0`. -/
