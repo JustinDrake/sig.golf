@@ -5,7 +5,7 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=15872 witness bytes, K=131072 cache bytes.
-The claim C=10420 is accepting verifier bound10358 plus witness charge62.
+The claim C=10419 is accepting verifier bound 10357 plus witness charge62.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[185,185,185,185,186].
 
@@ -21,7 +21,7 @@ The proven signing envelope is
 The joint security proof uses primitive coefficient253/128 and split65*2^106;
 all primitive, residual and certificate remainder terms are rechecked.
 The verifier selector takes at most seven instructions, with separately
-proved shorter AB paths. Shared target185 retains a zero correction at layer0; layer4 uses186.
+proved shorter AB paths. Layer0 no longer retains the inherited zero checksum correction; layer4 uses target186.
 Compared with the f3569 construction, two target increments remove eighteen
 chain cycles without increasing selector instruction cost. The security envelope
 combines fine and coarse first-contact bounds with weights1/16 and15/16.
@@ -68,7 +68,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2560 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10420 :=
+theorem certificate : SigGolf.Certificate submission 10419 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

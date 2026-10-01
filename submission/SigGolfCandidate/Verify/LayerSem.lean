@@ -310,8 +310,8 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
           rwa [hdA, hdB] at this
         · simp only [Br.holds]; rw [hor]; exact decide_eq_false (by omega)
         · exact hsel _ hb)
-      exact ⟨19 + selSteps hi + (if L.lay = 0 then 1 else 0), by split_ifs <;> omega,
-        22 + selSteps hi + (if L.lay = 0 then 1 else 0), by split_ifs <;> omega, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
+      exact ⟨19 + selSteps hi, by split_ifs <;> omega,
+        22 + selSteps hi, by split_ifs <;> omega, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
         hu.regs (.x10, cw 1) (by simp [specRej2, rejK])⟩
     · obtain ⟨u, hu⟩ := specO_run hR1 s hpc hK (encObligs_holds s) (by
         intro b hb

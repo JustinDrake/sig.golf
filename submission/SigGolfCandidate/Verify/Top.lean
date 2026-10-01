@@ -162,13 +162,13 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       unfold twLo; omega
 
 
-/-- Universal accepting-run bound: PORS/initialization cost `2824` plus `layersCost 5 = 7535`.
+/-- Universal accepting-run bound: PORS/initialization cost `2824` plus `layersCost 5 = 7534`.
 The relabelled PORS headers (`Ref.Rev.efield`): one `slliw` per fold (`16` per fold instead of `17`), a
 header-table load per leaf (`+2` each), and the table constants in the setup (`+4`). The 15/8 selector takes
 at most seven instructions: AB uses four, gated AB five, and BC/CD seven. Header bias saves one instruction
 per layer and startup saves one; Final.Discharge supplies the additional universal structural credit. This is
 a proof bound, not a profile. -/
-def cycleBound : Nat := 10359
+def cycleBound : Nat := 10358
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
 def cycleBoundAll : Nat := 16894
@@ -179,8 +179,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7535 := by decide
-theorem layC_val : layC = 7535 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7534 := by decide
+theorem layC_val : layC = 7534 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
