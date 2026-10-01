@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6032` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10592` cycles (verify bound
-`10528` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
+`S = 6032` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10589` cycles (verify bound
+`10525` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 150272, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -28,12 +28,15 @@ convert their chain queries through small adapter blocks.
 The signer derives two candidate randomizers from each private randomizer answer (paired M117,
 patternrecognition9-del): the saved digest-search budget lowers the octopus authentication cap from 118 to
 117 nodes, one 16-byte authentication slot leaves the signature (6048 → 6032 bytes) and the verifier's
-longest honest path loses one fold (17 cycles). All five WOTS layers use the uniform target sum 181,
-which restores the five counter-search factors 1.011 in the signing-budget proof. The cache
+longest honest path loses one fold (17 cycles). The current conditional-half encoding uses targets [183,183,184,184,184]. It selects the
+high 128-bit half exactly when bit 63 of the low half is set; otherwise it selects the low half.
+The selected half must pass the unchanged padding and digit-sum checks. Its exact 3/2
+acceptance multiplier is accounted for in the inherited budget and security proofs. The cache
 authenticates only the 2,046 masked internal top-tree nodes (513 MAC blocks); signing rebuilds the
-omitted leaf sibling in 326 compressions (187 fewer deterministic compressions). The signing-budget
-product is `2^(115254/131072) * 1.0279 * 1.011^5 ≤ 2`. The verifier keeps the bottom-layer target in a
-register that is dead between the PORS root tail and the layer-4 encoding check, now 181. Verifier micro-savings (18 cycles): the digest
+omitted leaf sibling in 326 compressions (187 fewer deterministic compressions). The current
+signing-budget envelope is `2^(115256/131072) * 1.02781 * 1.010046^2 * 1.011906^3 <= 2`.
+The verifier keeps the bottom-layer target 184 in a register that is dead between the PORS root
+tail and the layer-4 encoding check. Verifier micro-savings (18 cycles): the digest
 hashes to address 0 so its output register needs no load, the PORS stack register is zero-based and
 its frame is rebased by 336 so the fold limit is the existing `x18 = 4095`, the SWAR masks are two
 data words of the image loaded in the root tails, the root's `E = 1` and empty-stack checks compare
@@ -61,6 +64,11 @@ checked once through the stream pointer instead of a per-segment counter. The st
 the address base and the digest's known input length, saving four more instructions on
 accepting runs. These verifier changes preserve the promoted scheme's hash queries and formats.
 
+Both conditional-half verifier selector routines use load offsets 288 and 296 directly
+from the 0-or-16 selector value. The intermediate pointer ADDI is omitted, saving one
+ordinary instruction in each of the five executed layers. The specialized target-184
+load and all target checks are preserved.
+
 The certificate is `SigGolfCandidate.certificateNew`. It is transferred from
 `SigGolfCandidate.Final.certificate`, a certificate for the same images under the previous
 organizer contract (70ba436, kept verbatim as `SigGolfCandidate.Legacy`): `SigGolfCandidate.Transfer`
@@ -86,7 +94,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10592 :=
+theorem certificate : SigGolf.Certificate submission 10589 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

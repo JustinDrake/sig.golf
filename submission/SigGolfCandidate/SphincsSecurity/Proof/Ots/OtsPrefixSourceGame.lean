@@ -10,7 +10,7 @@ noncomputable def prefixSeedRest (key : SecretKey) (inputs : Finset HashInput)
     (hgraph : canonicalGraphInputs key.parameter ⊆ inputs)
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (chainIdx : ChainIndex)
     (dummy : OtsReferenceWords) (adversary : Adversary) : SPMF (ReferenceFamily × (Bool × SigningBoundaryTrace)) := do
-  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]
+  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]
   let words := referenceFamilyWords selections dummy
   let segment : OtsPrefix := ⟨key.parameter, lay, tree, leaf, chainIdx, words lay tree leaf chainIdx⟩
   let tables ← 𝒮[PMF.uniformOfFintype (Fin segment.digit.val → Digest → Digest)]
@@ -36,7 +36,7 @@ theorem prefixSeedRest_eq (key : SecretKey) (inputs : Finset HashInput)
   simp only [← PMF.monad_bind_eq_bind, ← PMF.monad_map_eq_map, evalSPMF_bind, evalSPMF_map,
     bind_assoc, bind_map_left]
   unfold prefixSeedRest
-  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit] >>= ·)
+  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit] >>= ·)
   funext selections
   let words := referenceFamilyWords selections dummy
   let segment : OtsPrefix := ⟨key.parameter, lay, tree, leaf, chainIdx, words lay tree leaf chainIdx⟩

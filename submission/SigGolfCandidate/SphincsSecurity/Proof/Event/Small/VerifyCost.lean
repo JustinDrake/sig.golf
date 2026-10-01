@@ -119,7 +119,7 @@ theorem evenBound_otsLeaf (parameter : PublicParameter) (lay : Layer) (tree : Tr
   · rw [encode]
     change EvenBound (liftM (HashSpec.query (tweakableHashInput parameter
       (.encoding lay tree leaf) (bytesLE 16 message ++ bytesLE 4 counter))) >>= fun answer =>
-        pure (TargetSum.decodeDigest (selectEncodingDigest answer))) 1
+        pure (TargetSum.decodeDigest lay (selectEncodingDigest answer))) 1
     rw [evenBound_query_bind_iff, length_tweakableHashInput]
     refine ⟨⟨?_, by decide⟩, fun _ => trivial⟩
     simp only [List.length_append, bytesLE, List.length_ofFn]
@@ -322,7 +322,7 @@ theorem evenBound_otsLeafP (parameter : PublicParameter) (lay : Layer) (tree : T
   · rw [encode]
     change EvenBound (liftM (HashSpec.query (tweakableHashInput parameter
       (.encoding lay tree leaf) (bytesLE 16 message ++ bytesLE 4 counter))) >>= fun answer =>
-        pure (TargetSum.decodeDigest (selectEncodingDigest answer))) 1
+        pure (TargetSum.decodeDigest lay (selectEncodingDigest answer))) 1
     rw [evenBound_query_bind_iff, length_tweakableHashInput]
     refine ⟨⟨?_, by decide⟩, fun _ => trivial⟩
     simp only [List.length_append, bytesLE, List.length_ofFn]

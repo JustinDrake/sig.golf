@@ -4,8 +4,8 @@ import SigGolfCandidate.SphincsSecurity.Scheme
 # How many digests the target-sum code accepts
 
 The signer's counter search succeeds on a selected digest whose 42 three-bit digits sum to
-`T = 183` and whose two padding bits are clear. The digest count is the coefficient of
-`z^183` in `(1 + z + ... + z^7)^42`. Conditional-half selection multiplies its raw-answer
+the layer target (`183` or `184`) and whose two padding bits are clear. The digest count is the coefficient of
+`z^(targetFor lay)` in `(1 + z + ... + z^7)^42`. Conditional-half selection multiplies its raw-answer
 acceptance probability by `3/2`, giving at least one success in `codeShare = 2397` trials.
 
 Counting it is one identity and one division. Packing the polynomial into a single natural number
@@ -21,6 +21,8 @@ set_option maxRecDepth 100000
 namespace SphincsSecurity.Completeness
 
 open TargetSum
+
+variable {lay : Layer}
 
 
 /-- A base above every coefficient, so the coefficients are the digits. -/
@@ -96,23 +98,26 @@ theorem codeCount_lt_base (s : Nat) : codeCount s < base := by
 theorem weight_eq : (∑ d : Digit, base ^ d.val) = (base ^ 8 - 1) / (base - 1) := by decide
 
 theorem codeCount_target :
-    codeCount targetSum = (∑ d : Digit, base ^ d.val) ^ numChains / base ^ targetSum % base := by
+    codeCount (targetFor lay) = (∑ d : Digit, base ^ d.val) ^ numChains / base ^ (targetFor lay) % base := by
   rw [weight_pow, sum_encoding_pow]
-  exact (digit_of_sum base (by decide) codeCount codeCount_lt_base 295 targetSum (by decide)).symm
+  exact (digit_of_sum base (by decide) codeCount codeCount_lt_base 295 (targetFor lay) (by unfold targetFor; split <;> decide)).symm
 
 /-- A selected raw answer succeeds at least once in `codeShare` trials. -/
 def codeShare : Nat := 2397
 
-/-- The exact target-183 coefficient, evaluated as ordinary natural arithmetic. -/
-theorem codeCount_target_eq : codeCount targetSum = 120626508116675256487918723077579392 := by
+/-- Both exact layer coefficients, evaluated as ordinary natural arithmetic. -/
+theorem codeCount_target_eq : codeCount (targetFor lay) =
+    (if 2 ≤ lay.val then 101963205812723399925627924643353984
+      else 120626508116675256487918723077579392) := by
   rw [codeCount_target, weight_eq]
-  decide
+  by_cases h : 2 ≤ lay.val <;> simp only [targetFor, targetSum, h, if_true, if_false, Nat.reduceAdd]
+  all_goals decide
 
 /-- The `3/2` selector multiplier, not the old target-181 count, supplies this bound. -/
 theorem digests_le_codeShare_mul_codeCount :
-    2 * 2 ^ 128 ≤ (3 * codeShare) * codeCount targetSum := by
+    2 * 2 ^ 128 ≤ (3 * codeShare) * codeCount (targetFor lay) := by
   rw [codeCount_target_eq]
-  norm_num [codeShare]
+  split <;> norm_num [codeShare]
 
 
 /-- A bounded-digit sum stays below the next power. -/
@@ -259,23 +264,23 @@ theorem digestEncoding_pack (x : Encoding) : digestEncoding (pack x) = x := by
     congr 1
     exact congrArg x (Fin.ext (show 21 + (i.val - 21) = i.val by omega))
 
-theorem decodeDigest_pack (x : Encoding) (hx : Valid x) : decodeDigest (pack x) = some x := by
+theorem decodeDigest_pack (x : Encoding) (hx : Valid lay x) : decodeDigest lay (pack x) = some x := by
   rw [decodeDigest, if_pos ⟨pack_padding_low x, pack_padding_high x, by rw [digestEncoding_pack]; exact hx⟩,
     digestEncoding_pack]
 
 /-- The accepted digest count, with its `3/2` raw-answer fiber multiplier. -/
 theorem digests_le_codeShare_mul_card_accepting :
     2 * 2 ^ 128 ≤ (3 * codeShare) *
-      (Finset.univ.filter fun d : Digest => (decodeDigest d).isSome).card := by
-  refine le_trans digests_le_codeShare_mul_codeCount (Nat.mul_le_mul_left _ ?_)
+      (Finset.univ.filter fun d : Digest => (decodeDigest lay d).isSome).card := by
+  refine le_trans (digests_le_codeShare_mul_codeCount (lay := lay)) (Nat.mul_le_mul_left _ ?_)
   rw [codeCount]
   apply Finset.card_le_card_of_injOn pack
   · intro x hx
-    have hvalid : Valid x := (Finset.mem_filter.mp hx).2
+    have hvalid : Valid lay x := (Finset.mem_filter.mp hx).2
     simp [decodeDigest_pack x hvalid]
   · intro left hleft right hright heq
-    have hl : Valid left := (Finset.mem_filter.mp hleft).2
-    have hr : Valid right := (Finset.mem_filter.mp hright).2
+    have hl : Valid lay left := (Finset.mem_filter.mp hleft).2
+    have hr : Valid lay right := (Finset.mem_filter.mp hright).2
     have := decodeDigest_pack left hl
     rw [heq, decodeDigest_pack right hr] at this
     exact (Option.some.inj this).symm
