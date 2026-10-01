@@ -1177,11 +1177,11 @@ theorem pors_good_decoded (P : PCtx) (hP : P.ok) (s0 : MachineState)
   rw [l0] at hg
   exact hg.mono (le_refl _) (le_refl _) (fun _ => ⟨trivial, le_refl _⟩)
 
-def cycleBoundDecoded (wl : List Byte) : Nat := 488 + layC + decodedCostRem wl 0
+def cycleBoundDecoded (wl : List Byte) : Nat := 473 + layC + decodedCostRem wl 0
 
 theorem exact_cost_vals (wl : List Byte) :
-    leafCost 0 + Aexact wl 0 0 = 352 + layC + decodedCostRem wl 0 := by
-  have h0 : leafCost 0 = 12 := rfl
+    leafCost 0 + Aexact wl 0 0 = 337 + layC + decodedCostRem wl 0 := by
+  have h0 : leafCost 0 = 11 := rfl
   simp only [Aexact, lrest_0, h0, Nat.mul_zero, Nat.sub_self]
   omega
 

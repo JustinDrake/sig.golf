@@ -238,6 +238,37 @@ theorem addrFmt_porsNodeInput_pad (idx H : Nat) (l r : Val) (hl : l.length = 16)
     addrFmt (porsNodeInput idx H l r) = pad64 (porsNodeInput idx (Rev.efield H) l r) := by
   rw [addrFmt_porsNodeInput _ _ _ _ hl hr, pad64_porsNodeInput _ _ _ _ hl hr]
 
+theorem addrFmt_porsLeafWords (idx j : Nat) (v : Val) (hv : v.length = 16) :
+    addrFmt (porsLeafInput idx j v) = queryOfWords 0
+      [BitVec.ofNat 64 (twLo 9 0 idx 0), BitVec.ofNat 64 (twHi idx (LeafScale.left3 (j % 2^32))), 0, 0,
+        vw0 v, vw1 v, 0, 0] := by
+  have hf : fmt (porsLeafInput idx j v) = pad64 (porsLeafInput idx j v) :=
+    fmt_thInput _ _ _ _ _ _ (by decide)
+  rw [addrFmt, hf, pad64_porsLeafInput _ _ _ hv]
+  have hlo : (BitVec.ofNat 64 (twLo 9 0 idx 0)).toNat % 65536 = 2305 := by
+    rw [BitVec.toNat_ofNat]; unfold twLo; omega
+  rw [AddressFormat.queryPerm_leaf _ _ _ rfl hlo]
+  have hw : (BitVec.ofNat 64 (twHi idx j)).toNat = idx % 4294967296 + 4294967296 * (j % 4294967296) := by
+    rw [BitVec.toNat_ofNat]; unfold twHi; omega
+  have h1 : (BitVec.ofNat 64 (twHi idx j)).toNat % 4294967296 = idx % 4294967296 := by rw [hw]; omega
+  have h2 : (BitVec.ofNat 64 (twHi idx j)).toNat / 4294967296 = j % 2 ^ 32 := by rw [hw]; omega
+  have he := LeafScale.left3_lt (j % 2^32)
+  have key : BitVec.ofNat 64 ((BitVec.ofNat 64 (twHi idx j)).toNat % 4294967296 +
+      4294967296 * LeafScale.left3 ((BitVec.ofNat 64 (twHi idx j)).toNat / 4294967296)) =
+      BitVec.ofNat 64 (twHi idx (LeafScale.left3 (j % 2^32))) := by
+    rw [h1, h2]
+    generalize LeafScale.left3 (j % 2^32) = e at he ⊢
+    unfold twHi
+    congr 1
+    omega
+  rw [key]
+
+theorem addrFmt_porsLeafInput_pad (idx j : Nat) (v : Val) (hv : v.length = 16)
+    (hj : j ≤ 2^14) :
+    addrFmt (porsLeafInput idx j v) = pad64 (porsLeafInput idx (8*j) v) := by
+  rw [addrFmt_porsLeafWords _ _ _ hv, pad64_porsLeafInput _ _ _ hv]
+  rw [Nat.mod_eq_of_lt (show j < 2^32 by omega), LeafScale.left3_small j (by omega)]
+
 theorem pad64_encInput (lay tau e : Nat) (M : Val) (hM : M.length = 16) (c : Nat) :
     pad64 (encInput lay tau e M c) = queryOfWords 0
       [BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0,

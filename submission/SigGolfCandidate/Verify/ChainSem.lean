@@ -448,6 +448,7 @@ theorem addrFmt_chainInputP_words (lay tau e i mu : Nat) (pad : List Byte) (v : 
   have hw : AddressFormat.oldHeader lay 0 i (mu - 1) < 2 ^ 64 := by unfold AddressFormat.oldHeader; omega
   rw [addrFmt, fmt_chainInputP_words lay tau e i mu pad v hp hv hmu hmu' (by omega), hd,
     AddressFormat.queryPerm_words _ _ rfl (by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega)]
   rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]
   unfold AddressFormat.oldHeader

@@ -75,7 +75,7 @@ def seg187 : List (BitVec 32) := [0x0014f193#32, 0x00419193#32, 0x1401b083#32, 0
 /-- instructions 194 .. 201: ld ra, 224(x0); ld sp, 232(x0); sd ra, 0(s2); sd sp, 8(s2); addi s2, s2, 16; addi s4, s4, 8 ... -/
 def seg194 : List (BitVec 32) := [0x0e003083#32, 0x0e803103#32, 0x00193023#32, 0x00293423#32, 0x01090913#32, 0x008a0a13#32, 0x000a3683#32, 0x0086d693#32]
 /-- instructions 202 .. 207 (por_nocap): sw s1, 204(x0); addi a0, x0, 192; addi a1, x0, 64; slli gp, s1, 4; add a2, s3, gp; ecall  -/
-def seg202 : List (BitVec 32) := [0x0c902623#32, 0x0c000513#32, 0x04000593#32, 0x00449193#32, 0x00398633#32, 0x00000073#32]
+def seg202 : List (BitVec 32) := [0x00349193#32, 0x0c000513#32, 0x0c302623#32, 0x00449193#32, 0x00398633#32, 0x00000073#32]
 /-- instructions 208 .. 209: addi s1, s1, 1; bne s1, a7, -120 -/
 def seg208 : List (BitVec 32) := [0x00148493#32, 0xf91494e3#32]
 /-- instructions 210 .. 210: addi a5, x0, 1 -/

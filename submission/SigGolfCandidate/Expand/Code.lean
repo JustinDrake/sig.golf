@@ -143,9 +143,9 @@ def seg533 : List (BitVec 32) := [0xc1797ee3#32]
 def seg534 : List (BitVec 32) := [0x00e00893#32, 0x01141663#32]
 /-- instructions 536 .. 537: lui a3, 0x4; bgeu s7, a3, 284 -/
 def seg536 : List (BitVec 32) := [0x000046b7#32, 0xc0dbf6e3#32]
-/-- instructions 538 .. 549 (pr_notlast): lui a3, 0x4; or s3, s7, a3; slli a3, s7, 32; add a3, a3, s10; sd a3, 8(s9); slli a3, s0, 6 ...
+/-- instructions 538 .. 549 (pr_notlast): lui a3, 0x4; or s3, s7, a3; slli a3, s7, 35; add a3, a3, s10; sd a3, 8(s9); slli a3, s0, 6 ...
 (W1: secret `s` loaded from `s11 + 64 s + 1024 = 0x1400 + 64 s`) -/
-def seg538 : List (BitVec 32) := [0x000046b7#32, 0x00dbe9b3#32, 0x020b9693#32, 0x01a686b3#32, 0x00dcb423#32, 0x00641693#32, 0x01b686b3#32, 0x4006b703#32, 0x4086b783#32, 0x02ecb023#32, 0x02fcb423#32, 0x00000c13#32]
+def seg538 : List (BitVec 32) := [0x000046b7#32, 0x00dbe9b3#32, 0x023b9693#32, 0x01a686b3#32, 0x00dcb423#32, 0x00641693#32, 0x01b686b3#32, 0x4006b703#32, 0x4086b783#32, 0x02ecb023#32, 0x02fcb423#32, 0x00000c13#32]
 /-- instructions 550 .. 553 (pr_seg): lbu t1, 0(s1); andi t2, t1, 0xf; li a7, 14; blt a7, t2, 284 -/
 def seg550 : List (BitVec 32) := [0x0004c303#32, 0x00f37393#32, 0x00e00893#32, 0xbc78c6e3#32]
 /-- instructions 554 .. 554: beq t2, zero, 559 -/

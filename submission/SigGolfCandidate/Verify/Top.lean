@@ -162,13 +162,11 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       unfold twLo; omega
 
 
-/-- Universal accepting-run bound: PORS/initialization cost `2824` plus `layersCost 5 = 7535`.
-The relabelled PORS headers (`Ref.Rev.efield`): one `slliw` per fold (`16` per fold instead of `17`), a
-header-table load per leaf (`+2` each), and the table constants in the setup (`+4`). The 15/8 selector takes
-at most seven instructions: AB uses four, gated AB five, and BC/CD seven. Header bias saves one instruction
-per layer and startup saves one; Final.Discharge supplies the additional universal structural credit. This is
-a proof bound, not a profile. -/
-def cycleBound : Nat := 10359
+/-- Universal accepting-run bound: scaled PIND byte offsets remove one executed shift
+from each of15 PORS leaves. The four-bit selector and targets[185,185,185,185,186]
+retain their previous7535-layer envelope. Final.Discharge supplies the universal
+one-cycle structural credit. This is a proof bound, not an accepting profile. -/
+def cycleBound : Nat := 10344
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
 def cycleBoundAll : Nat := 16894
@@ -253,11 +251,11 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
 
 theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 1 := rfl
 
-theorem lrest_0 : lrest 0 = 185 := by decide
+theorem lrest_0 : lrest 0 = 171 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7776 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2688 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7776 + layC + layN := by
-  have h0 : leafCost 0 = 12 := rfl
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7761 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2673 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7761 + layC + layN := by
+  have h0 : leafCost 0 = 11 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 
 theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.length = 16)

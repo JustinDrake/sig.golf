@@ -29,7 +29,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 def leafPc (s : Nat) : Nat := leafTab.getD s 0
 /-- The dispatch of leaf `s` (after the leaf code). -/
-def dispLeafPc (s : Nat) : Nat := leafPc s + (if s = 0 then 12 else if s = 14 then 16 else 13)
+def dispLeafPc (s : Nat) : Nat := leafPc s + (if s = 0 then 11 else if s = 14 then 15 else 12)
 def entry0Pc (V : Nat) : Nat := entry0Tab.getD V 0
 def ladPc (V t p : Nat) : Nat := ((ladTab.getD V []).getD t []).getD p 0
 def lbrPc (V t p : Nat) : Nat := ((lbrTab.getD V []).getD t []).getD p 0
@@ -258,23 +258,23 @@ def pleafPost (s : Nat) : List (Reg × Word) := gkP ++ [(.x20, BitVec.ofNat 64 (
 def pleafKeep (s : Nat) : List Reg := [xReg (s + 1), .x14, .x15, .x22, .x24, .x29]
 
 def leafBrs (s : Nat) (d1 d2 : Bool) : List Br :=
-  (if s = 14 then [⟨.geu, xE s, cw 0x4000, d2⟩] else []) ++
+  (if s = 14 then [⟨.geu, xE s, cw 0x20000, d2⟩] else []) ++
   (if s = 0 then [] else [⟨.geu, .reg (xReg (s + 1)), xE s, d1⟩])
 
 /-- The table address `8 x + RTAB` of leaf `s`'s header. -/
-def rtE (s : Nat) : E := .bin .add (.bin .sll (xE s) (cw 3)) (cw RTAB)
+def rtE (s : Nat) : E := .bin .add (xE s) (cw RTAB)
 
 def leafSpec (s : Nat) : Spec :=
   ⟨[(xReg s, xE s), (.x23, .ld (rtE s)), (.x1, ldE (secA s)), (.x2, ldE (secA s + 8))],
     [(⟨none, BitVec.ofNat 64 0xE8⟩, ldE (secA s + 8)), (⟨none, BitVec.ofNat 64 0xE0⟩, ldE (secA s)),
       (⟨none, BitVec.ofNat 64 0xC8⟩, stW 0xC8 (xE s))],
-    dispLeafPc s, false, if s = 0 then 12 else if s = 14 then 16 else 13, leafBrs s false false, none, if s = 0 then 12 else if s = 14 then 16 else 13⟩
+    dispLeafPc s, false, if s = 0 then 11 else if s = 14 then 15 else 12, leafBrs s false false, none, if s = 0 then 11 else if s = 14 then 15 else 12⟩
 
 /-- The `PIND` read (all paths). -/
 def leafObl1 (s : Nat) : List Oblig := [.valid ⟨some (piT s), BitVec.ofNat 64 PIND⟩ 8]
 /-- Accepting path: also the table read. -/
 def leafObl (s : Nat) : List Oblig :=
-  .valid ⟨some (.bin .sll (xE s) (cw 3)), BitVec.ofNat 64 RTAB⟩ 8 :: leafObl1 s
+  .valid ⟨some (xE s), BitVec.ofNat 64 RTAB⟩ 8 :: leafObl1 s
 
 def leafDirs (s : Nat) : List Dir :=
   if s = 0 then [] else if s = 14 then [.br false, .br false] else [.br false]
@@ -323,9 +323,9 @@ def hiE : E := .bin .sll (.bin .srl idxE (cw 32)) (cw 24)
 /-- Leaf index `v_r` (bits `34 + 14 r ..` of the digest). -/
 def pindE (r : Nat) : E :=
   let p := 34 + 14 * r
-  let lo : E := .bin .srl (wLdE (p / 64)) (cw (p % 64))
-  .bin .and (if p % 64 + 14 ≤ 64 then lo else .bin .or lo (.bin .sll (wLdE (p / 64 + 1)) (cw (64 - p % 64))))
-    (cw 0x3FFF)
+  let lo : E := .bin .srl (wLdE (p / 64)) (cw (p % 64 - 3))
+  .bin .and (if p % 64 + 14 ≤ 64 then lo else .bin .or lo (.bin .sll (wLdE (p / 64 + 1)) (cw (64 - p % 64 + 3))))
+    (cw 0x1FFF8)
 
 def nbW0E : E := .bin .add hiE (cw 0xA01)
 
@@ -336,7 +336,7 @@ def psetupMem : List (Addr × E) :=
     [(⟨none, BitVec.ofNat 64 (PSB + 80 * i + 8)⟩, stW0 (PSB + 80 * i + 8) idxE),
       (⟨none, BitVec.ofNat 64 (PSB + 80 * i)⟩, nbW0E)]) ++
   [(⟨none, BitVec.ofNat 64 0x1C8⟩, stW0 0x1C8 idxE), (⟨none, BitVec.ofNat 64 0x1C0⟩, nbW0E),
-    (⟨none, BitVec.ofNat 64 0x7F8⟩, cw 0x4000)] ++
+    (⟨none, BitVec.ofNat 64 0x7F8⟩, cw 0x20000)] ++
   ((List.range 15).reverse.map fun r => (⟨none, BitVec.ofNat 64 (PIND + 8 * r)⟩, pindE r))
 
 /-- Known after the setup: the PORS constants, `TB = ptab_n`, `FR` (first header at `FR + 592`),

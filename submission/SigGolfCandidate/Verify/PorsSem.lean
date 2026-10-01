@@ -221,7 +221,7 @@ theorem piT_eval {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) 
     ofNat_toNat_lt _ (by omega)]
 
 theorem xE_eval {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (s : Nat) (hs : s < 15) :
-    (xE s).eval m = BitVec.ofNat 64 (leafX P s) := by
+    (xE s).eval m = BitVec.ofNat 64 (8 * leafX P s) := by
   show m.getMem ((piT s).eval m + BitVec.ofNat 64 PIND) = _
   rw [piT_eval h s hs, BitVec.ofNat_add_ofNat, show 8 * (witPi P.wl s / 8 % 16) + PIND =
     PIND + 8 * (witPi P.wl s / 8 % 16) by omega, h.prot (protP_pind _ (Nat.mod_lt _ (by decide))),
@@ -229,13 +229,9 @@ theorem xE_eval {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (
   rfl
 
 /-- The table address of leaf index `x`. -/
-theorem rt_addr (x : Nat) (hx : x ≤ 2 ^ 14) :
-    BitVec.ofNat 64 x <<< 3 + BitVec.ofNat 64 RTAB = BitVec.ofNat 64 (RTAB + 8 * x) := by
-  apply BitVec.eq_of_toNat_eq
-  have hR : RTAB = 16646112 := rfl
-  rw [BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
-    Nat.shiftLeft_eq, hR]
-  omega
+theorem rt_addr (x : Nat) (_hx : x ≤ 2 ^ 14) :
+    BitVec.ofNat 64 (8 * x) + BitVec.ofNat 64 RTAB = BitVec.ofNat 64 (RTAB + 8 * x) := by
+  rw [BitVec.ofNat_add_ofNat, Nat.add_comm]
 
 theorem rt_valid (x : Nat) (hx : x ≤ 2 ^ 14) : accessValid (BitVec.ofNat 64 (RTAB + 8 * x)) 8 = true := by
   have hR : RTAB = 16646112 := rfl
@@ -245,11 +241,6 @@ theorem rt_valid (x : Nat) (hx : x ≤ 2 ^ 14) : accessValid (BitVec.ofNat 64 (R
   rw [ht, Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq]
   exact ⟨by unfold MEMORY_BYTES; omega, by omega⟩
 
-theorem rt_addr' (x : Nat) (hx : x ≤ 2 ^ 14) :
-    BitVec.ofNat 64 x <<< ((BitVec.ofNat 64 3 : Word).toNat % 64) + BitVec.ofNat 64 RTAB =
-      BitVec.ofNat 64 (RTAB + 8 * x) := by
-  have e3 : ((BitVec.ofNat 64 3 : Word).toNat % 64) = 3 := by decide
-  rw [e3]; exact rt_addr x hx
 
 theorem leafObl1_holds {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (s : Nat)
     (hs : s < 15) : ∀ o ∈ leafObl1 s, o.holds m := by
@@ -270,9 +261,7 @@ theorem leafObl_holds {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m
   · have hx := xE_eval h s hs
     have hxl := leafX_le P s
     simp only [Oblig.holds, Addr.eval, E.eval, BinOp.eval, cw, hx]
-    first
-    | rw [rt_addr' _ hxl]
-    | rw [rt_addr _ hxl]
+    rw [rt_addr _ hxl]
     exact rt_valid _ hxl
   · exact leafObl1_holds h s hs o ho
 
@@ -297,7 +286,7 @@ theorem srl14_ne (x : Nat) (hx : x ≤ 2 ^ 14) :
     subst this; decide
 
 theorem leaf_brs_iff {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (s : Nat) (hs : s < 15)
-    (prev : Nat) (hp : 0 < s → m.getReg (xReg (s + 1)) = BitVec.ofNat 64 prev ∧ prev ≤ 2 ^ 14)
+    (prev : Nat) (hp : 0 < s → m.getReg (xReg (s + 1)) = BitVec.ofNat 64 (8 * prev) ∧ prev ≤ 2 ^ 14)
     (d1 d2 : Bool) :
     (∀ b ∈ leafBrs s d1 d2, b.holds m) ↔
       ((s ≠ 0 → d1 = decide (¬ prev < leafX P s)) ∧ (s = 14 → d2 = decide (¬ leafX P s < porsT))) := by
@@ -308,14 +297,15 @@ theorem leaf_brs_iff {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m 
   · subst h0; simp
   · have hpv := hp (by omega)
     have hg : Br.holds m ⟨.geu, .reg (xReg (s + 1)), xE s, d1⟩ ↔ d1 = decide (¬ prev < leafX P s) := by
-      simp only [Br.holds, E.eval, hpv.1, hx, geu_iff prev (leafX P s) (by omega) (by omega)]
+      simp only [Br.holds, E.eval, hpv.1, hx, geu_iff (8 * prev) (8 * leafX P s) (by omega) (by omega), Nat.mul_lt_mul_left (by decide : 0 < 8)]
       constructor <;> intro e <;> exact e.symm
     by_cases h14 : s = 14
     · subst h14
-      have hn : Br.holds m ⟨.geu, xE 14, cw 0x4000, d2⟩ ↔ d2 = decide (¬ leafX P 14 < porsT) := by
+      have hn : Br.holds m ⟨.geu, xE 14, cw 0x20000, d2⟩ ↔ d2 = decide (¬ leafX P 14 < porsT) := by
         simp only [Br.holds, E.eval, BinOp.eval, cw, hx]
         rw [geu_iff _ _ (by omega) (by decide)]
-        constructor <;> intro e <;> exact e.symm
+        have he : (¬ 8 * leafX P 14 < 131072) ↔ ¬ leafX P 14 < porsT := by unfold porsT porsH; omega
+        simpa only [he] using (eq_comm : _ = _ ↔ _ = _)
       simp only [if_true, if_false, show (14 : Nat) ≠ 0 by decide, List.cons_append, List.nil_append,
         List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq, hn, hg]
       simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, forall_const, and_comm]
@@ -329,8 +319,8 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
       ∃ u k, k ≤ 11 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (¬ ((s ≠ 0 ∧ ¬ st.prev < leafX P s) ∨ (s = porsK - 1 ∧ ¬ leafX P s < porsT)) →
-      ∃ u, Steps image m (if s = 0 then 12 else if s = 14 then 16 else 13)
-        (if s = 0 then 12 else if s = 14 then 16 else 13) u ∧
+      ∃ u, Steps image m (if s = 0 then 11 else if s = 14 then 15 else 12)
+        (if s = 0 then 11 else if s = 14 then 15 else 12) u ∧
         DispIn P s0 s (leafX P s) s st.ptr (porsT ||| leafX P s) st.folds
           (.leaf (leafX P s) (witSecret P.wl s)) st.node st.stack u) := by
   have hs : s < 15 := h.bnd.1
@@ -352,7 +342,7 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
         subst hb
         have := (hbr true false).mp
         have hp := h.prev (by omega)
-        simp only [Br.holds, E.eval, hp.1, xE_eval h.pb s hs, geu_iff st.prev (leafX P s) (by omega) (by omega)]
+        simp only [Br.holds, E.eval, hp.1, xE_eval h.pb s hs, geu_iff (8 * st.prev) (8 * leafX P s) (by omega) (by omega), Nat.mul_lt_mul_left (by decide : 0 < 8)]
         simp [h1.2]) hob1
       exact ⟨u, _, by simp only [rejSpec]; split_ifs <;> omega, hu.steps, hu.ecall rfl,
         hu.regs (.x5, cw 1) (by simp [rejSpec]), hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
@@ -396,9 +386,7 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
     · rw [hu.keep .x14 (by simp [pleafKeep])]; exact h.fr
     · rw [hu.regs (.x23, .ld (rtE s)) (by simp [leafSpec])]
       simp only [rtE, E.eval, BinOp.eval, cw, hx]
-      first
-      | rw [rt_addr' _ hxl]
-      | rw [rt_addr _ hxl]
+      rw [rt_addr _ hxl]
       rw [h.pb.rtab _ hxl, show porsT = 2 ^ 14 from rfl]
 
     · exact pb.reg (by simp [gkP, baseK, FLIM])
@@ -485,11 +473,9 @@ theorem pend_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0
   | leaf x sec =>
     obtain ⟨m8, m32, m40, hsl, hx⟩ := hpm
     have hf : addrFmt (pendInput P node (.leaf x sec)) = queryOfWords 0
-        [BitVec.ofNat 64 (twLo 9 0 P.idx 0), BitVec.ofNat 64 (twHi P.idx x), 0, 0, vw0 sec, vw1 sec, 0, 0] := by
+        [BitVec.ofNat 64 (twLo 9 0 P.idx 0), BitVec.ofNat 64 (twHi P.idx (8 * x)), 0, 0, vw0 sec, vw1 sec, 0, 0] := by
       simp only [pendInput]
-      rw [show porsLeafInput P.idx x sec = thInput (tweak 9 0 P.idx 0 x) sec from rfl,
-        fmt_th _ _ _ _ _ _ (by decide), ← show porsLeafInput P.idx x sec = thInput (tweak 9 0 P.idx 0 x) sec from rfl,
-        pad64_porsLeafInput _ _ _ hsl]
+      rw [addrFmt_porsLeafInput_pad _ _ _ hsl hx, pad64_porsLeafInput _ _ _ hsl]
     refine ⟨?_, by rw [hf]; rfl⟩
     rw [hf, hashInput_ofNat u 0xC0 0 h10 h11 (by decide) (by decide)]
     congr 1

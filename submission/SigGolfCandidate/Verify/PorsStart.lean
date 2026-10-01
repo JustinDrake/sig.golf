@@ -369,7 +369,7 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
         simp [leafOf, totalH, porsH]
       · have : r = 15 := by omega
         subst this
-        rw [hlook _ (by unfold PIND; omega), look_some (e := cw 0x4000) (by decide +kernel)]
+        rw [hlook _ (by unfold PIND; omega), look_some (e := cw 0x20000) (by decide +kernel)]
         simp only [PCtx.v, leavesOf, porsK, cw, Rv.E.eval]
         rw [List.getD_append_right _ _ _ _ (by simp)]
         simp [porsT, porsH]
