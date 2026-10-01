@@ -6,7 +6,7 @@ import SigGolfCandidate.Expand.Sched
 
 On the sorted keys `A` (leaf values `A s / 256`): for `s = 0 .. 13` fail on equal neighbours,
 else add `bitLen (v_s xor v_{s+1})` (the `bitlen_1` do-while loop) to `SUM`; fail if
-`SUM > 132` (octopus `SUM - 14 > 118`).
+`SUM > 131` (octopus `SUM - 14 > 117`).
 -/
 
 set_option linter.unusedSimpArgs false
@@ -47,7 +47,7 @@ def pairBits (A : Nat → Nat) (s : Nat) : Nat := bitLen (lv A s ^^^ lv A (s + 1
 def pairSum (A : Nat → Nat) (n : Nat) : Nat := ((List.range n).map (pairBits A)).sum
 
 /-- The program's admissibility test on the sorted keys. -/
-def PassOK (A : Nat → Nat) : Prop := (∀ s < 14, lv A s ≠ lv A (s + 1)) ∧ pairSum A 14 ≤ 132
+def PassOK (A : Nat → Nat) : Prop := (∀ s < 14, lv A s ≠ lv A (s + 1)) ∧ pairSum A 14 ≤ 131
 
 instance (A : Nat → Nat) : Decidable (PassOK A) := by unfold PassOK; infer_instance
 
@@ -192,11 +192,11 @@ theorem pass_run (A : Nat → Nat) (hlt : ∀ p < 15, A p < 2 ^ 22) (t : Machine
     refine (Run.blk blk70 codeAt_70 upc (by simp only [blk70.res, rv_simp]) (B := 2) ?_).mono
       (by rw [show blk70.res.cycles = 2 from rfl]) (fun _ h => h)
     set v := blk70.res.toState u with hv
-    have vpc : v.pc = if pairSum A 14 ≤ 132 then pcOf 72 else pcOf 284 := by
+    have vpc : v.pc = if pairSum A 14 ≤ 131 then pcOf 72 else pcOf 284 := by
       simp only [hv, blk70.res, rv_simp, u15]; ex_bvsimp []
       rw [ofNat_slt_ofNat _ _ (by norm_num) (by omega)]
-      by_cases h : pairSum A 14 ≤ 132 <;> simp [h] <;> omega
-    by_cases hp : pairSum A 14 ≤ 132
+      by_cases h : pairSum A 14 ≤ 131 <;> simp [h] <;> omega
+    by_cases hp : pairSum A 14 ≤ 131
     · rw [if_pos hp] at vpc
       refine Run.done' ?_
       beta_reduce; rw [if_pos ⟨fun s hs => hd s (by omega), hp⟩]

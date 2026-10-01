@@ -26,10 +26,10 @@ theorem ftsOpenHashCost_le_digestAttemptLimit : ftsOpenHashCost ≤ digestAttemp
   decide
 
 /-- The length of the uniform proposal word that both budget routes price certificates against. -/
-irreducible_def fixedProposalLength : Nat := 6455164942
+irreducible_def fixedProposalLength : Nat := 6465126414
 
 /-- How far a proposal-word prefix may run ahead of its expected length before the monitor stops. -/
-irreducible_def proposalPrefixSlack : Nat := 2 ^ 23
+irreducible_def proposalPrefixSlack : Nat := 2 ^ 24
 
 /-- Per query, the expected excess of the full certificate price over the price of one fresh digest. -/
 noncomputable irreducible_def fullCertificateExcessRate : ENNReal := 1 / 2 ^ 144

@@ -12,7 +12,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 def layerSpec (w : List Byte) (idx lay : Nat) (M : Val) : OracleComp HashSpec (Option Val) := do
   let (e, tau) := route idx lay
   let d ← hash16 (encInput lay tau e M (witCounter w lay))
-  match decodeDigits lay d with
+  match decodeDigits d with
   | none => pure none
   | some x => do
     let leaf ← verifyLeafP w lay tau e x
@@ -25,17 +25,17 @@ theorem verifyLayers_succ (w : List Byte) (idx lay : Nat) (M : Val) :
       | some r => verifyLayers w idx lay r := by
   simp only [verifyLayers, layerSpec, bind_assoc]
   congr 1; funext d
-  cases h : decodeDigits lay d <;> simp [h, bind_assoc]
+  cases h : decodeDigits d <;> simp [h, bind_assoc]
 
 def FoldEndL (L : LCtx) (u : MachineState) : Prop :=
   ∃ s0, FoldEnd (layFC L) s0 u ∧ LeafCarry L s0
 
 /-- Cycles of layer `lay` (an upper bound: each digit-7 chain saves one more cycle): the transition
 up to the encoding hash, the hash, the check and chain prologue (`remu` 4 cycles), the 42 chains
-(`chainsBound`, the digit sum being `targetSum`), the leaf tweak and dispatch, the leaf hash
+(`chainsBound lay`, the digit sum being `targetFor lay`), the leaf tweak and dispatch, the leaf hash
 (11 blocks), the fold. -/
 def layerCost (lay : Nat) : Nat :=
-  stepsA lay + 8 + cyclesB lay + chainsBound lay + (leafSteps lay + 1) + 88 + foldCost lay 0 (heightL lay)
+  stepsA lay + 8 + cyclesB + chainsBound lay + (leafSteps lay + 1) + 88 + foldCost lay 0 (heightL lay)
 
 theorem blocks_q (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 1 := rfl
 
@@ -69,13 +69,13 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
   simp only []
   rw [cc_bind]
   have hfc := layFC_ok L hL
-  have htarget : targetFor L.lay ≤ 183 := by unfold targetFor targetSum; split_ifs <;> omega
-  have hcb : chainsBound L.lay ≥ 1274 := by unfold chainsBound; omega
-  have hsA : stepsA L.lay ≤ 15 := by unfold stepsA; split_ifs <;> omega
-  have hcB : cyclesB L.lay ≤ 28 := by unfold cyclesB stepsB; split_ifs <;> omega
-  have hsB : stepsB L.lay ≤ 25 := by unfold stepsB; split_ifs <;> omega
+  have htarget := targetFor_le L.lay
+  have hcb : chainsBound L.lay ≥ 1200 := by unfold chainsBound; omega
+  have hsA : stepsA L.lay ≤ 15 := by unfold stepsA; split <;> omega
+  have hcB : cyclesB = 27 := rfl
+  have hsB : stepsB = 24 := rfl
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
-      (cc (match decodeDigits L.lay (answerBytes 16 a) with
+      (cc (match decodeDigits (answerBytes 16 a) with
         | none => pure none
         | some x => do
           let leaf ← verifyLeafP L.wl L.lay L.tau L.e x
@@ -83,7 +83,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
           pure (some root)) Kopt) := by
     intro a
     obtain ⟨hrej, hacc⟩ := encpost_step L hL t ht a _ (hpost1 a)
-    cases hd : decodeDigits L.lay (answerBytes 16 a) with
+    cases hd : decodeDigits (answerBytes 16 a) with
     | none =>
       obtain ⟨k, hk, c, hc, u, hst, hf, h5, h10⟩ := hrej hd
       simp only [cc_pure, hnone]
@@ -91,7 +91,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
     | some xs =>
       obtain ⟨t2, hst2, hent, hcok, hxs, hsum, hlen⟩ := hacc xs hd
       simp only [verifyLeafP, bind_assoc, cc_bind]
-      have hcost := chainsCost_le L.lay (L.cctx t a) xs hlen hxs hsum
+      have hcost : chainsCost (L.cctx t a) 0 42 ≤ chainsBound L.lay := chainsCost_le (L.cctx t a) xs hlen hxs hsum
       have hch := chains_good0 (L.cctx t a) hcok (pcOf_even _) xs hxs
         (fun ends => cc (hash16 (leafInput L.lay L.tau L.e ends)) (fun leaf =>
           cc (foldPath (nodeInput L.lay L.tau) L.e leaf (witPath L.wl L.lay)) (fun root =>
@@ -127,7 +127,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
       rw [e1]
       refine Good.steps' hst2 (hch.congr ?_) (by omega) (by unfold layerCost; omega)
       rfl
-  have h3 := Good.hashP (x := encInput L.lay L.tau L.e M (witCounter L.wl L.lay)) (K := fun d => cc (match decodeDigits L.lay d with
+  have h3 := Good.hashP (x := encInput L.lay L.tau L.e M (witCounter L.wl L.lay)) (K := fun d => cc (match decodeDigits d with
         | none => pure none
         | some x => do
           let leaf ← verifyLeafP L.wl L.lay L.tau L.e x
@@ -142,7 +142,6 @@ theorem foldEnd_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     (u : MachineState) (hu : FoldEndL ⟨wl, pk, lay, idx⟩ u) (a : BitVec 256) :
     LayerIn ⟨wl, pk, lay - 1, idx⟩ (answerBytes 16 a) (writeHash u a) := by
   obtain ⟨s0, ⟨hG, hK, hF, hpc, -, -⟩, ⟨h27, h30, hCB, hFr⟩⟩ := hu
-  simp only [LCtx.lay, if_neg (show lay ≠ 0 by omega)] at h30
   have hdst : (layFC ⟨wl, pk, lay, idx⟩).dst = 0x120 := by simp [layFC, dstOf]; omega
   have h12 : u.getReg .x12 = BitVec.ofNat 64 0x120 := by
     rw [← hdst]; exact hK (.x12, _) (List.mem_append_right _ (List.mem_singleton_self _))
@@ -222,7 +221,7 @@ def FinalIn (wl pk : List Byte) (idx : Nat) (M : Val) (s : MachineState) : Prop 
 theorem cmp_link : ∀ t, t < 32 → m4Pc 0 1 t 4 + 8 + 1 = cmpPc t := by decide
 
 theorem compare_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (M : Val)
-    (s : MachineState) (hs : FinalIn wl pk idx M s) : Good s 9 8 (pure (M == pk, 0)) := by
+    (s : MachineState) (hs : FinalIn wl pk idx M s) : Good s 8 8 (pure (M == pk, 0)) := by
   obtain ⟨u, a, ⟨s0, ⟨hG, hK, hF, hpc, -, -⟩, -⟩, rfl, rfl⟩ := hs
   have hdst : (layFC ⟨wl, pk, 0, idx⟩).dst = 0x180 := by simp [layFC, dstOf]
   have h12 : u.getReg .x12 = BitVec.ofNat 64 0x180 := by
@@ -248,24 +247,24 @@ theorem compare_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (M :
   by_cases e0 : vw0 (answerBytes 16 a) = w64 (pk.take 8)
   · obtain ⟨v, hv⟩ := spec_run r1 _ hpc' hK' (by
       intro b hb
-      simp only [specAcc, List.mem_cons, List.not_mem_nil, or_false] at hb
+      simp only [specAcc, List.mem_singleton] at hb
       subst hb
       simp only [Br.holds, CmpOp.eval, Rv.E.eval, ldE, cw, m0, p0, e0, bne_self_eq_false])
-    have hx : v.getReg .x10 = vw1 (answerBytes 16 a) ^^^ w64 (pk.drop 8) := by
-      rw [hv.regs (.x10, .bin .xor (ldE 392) (ldE 168)) (by simp [specAcc])]
-      simp only [Rv.E.eval, ldE, cw, BinOp.eval, m1, p1]
-    have hz : (v.getReg .x10 = 0) ↔ answerBytes 16 a = pk := by
-      rw [hx]
-      calc
-        _ ↔ vw1 (answerBytes 16 a) = w64 (pk.drop 8) := BitVec.xor_eq_zero_iff
-        _ ↔ answerBytes 16 a = pk := by rw [heq]; simp only [e0, true_and]
-    have hhalt := Good.steps hv.steps
-      (Good.halt (hv.ecall rfl) (hv.regs (.x5, cw 1) (by simp [specAcc])))
-    have hb : decide (v.getReg .x10 = 0) = (answerBytes 16 a == pk) := by
+    have hsub : ∀ x y : Word, x - y = 0 ↔ x = y := fun x y => by
+      constructor
+      · intro h; have := congrArg (· + y) h; simpa [BitVec.sub_add_cancel] using this
+      · intro h; subst h; exact BitVec.sub_self x
+    have hdiff : cmpDiff.eval (writeHash u a) = vw1 (answerBytes 16 a) - w64 (pk.drop 8) := by
+      simp only [cmpDiff, Rv.E.eval, ldE, cw, m1, p1]
+      rfl
+    have hret : decide (v.getReg .x10 = 0) = (answerBytes 16 a == pk) := by
       apply Bool.eq_iff_iff.mpr
-      simpa only [decide_eq_true_eq, beq_iff_eq] using hz
-    rw [hb] at hhalt
-    exact hhalt.mono (by simp [specAcc]) (by simp [specAcc])
+      simp only [decide_eq_true_eq, beq_iff_eq]
+      rw [hv.regs (.x10, cmpDiff) (by simp [specAcc]), hdiff, hsub, heq]
+      simp only [e0, true_and]
+    have := Good.steps hv.steps (Good.halt (hv.ecall rfl) (hv.regs (.x5, cw 1) (by simp [specAcc])))
+    rw [hret] at this
+    exact this.mono (by simp [specAcc]) (by simp [specAcc])
   · obtain ⟨v, hv⟩ := spec_run r2 _ hpc' hK' (by
       intro b hb
       simp only [specCR1, List.mem_cons, List.not_mem_nil, or_false] at hb
@@ -300,7 +299,7 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
   | zero =>
     intro _ M s hs
     simp only [verifyLayers, cc_pure, Kfin, layersCost]
-    exact compare_good wl pk hpk idx M s hs
+    exact (compare_good wl pk hpk idx M s hs).mono (by omega) (le_refl _)
   | succ n ih =>
     intro hn M s hs
     rw [verifyLayers_succ, cc_bind]
@@ -318,7 +317,8 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
         | succ m => exact foldEnd_layerIn wl pk (m + 1) idx (by omega) (by omega) u hu a) s hs
     exact this.mono (by omega) (by dsimp only; simp only [layersCost]; omega)
 
-/-- The layer costs include target183 at layer4 and the eight-cycle comparison. -/
-theorem layersCost_5 : layersCost 5 = 7651 := by decide
+/-- The layer cycles in order 0 .. 4: `1610` (direct route), `1530`, `1530`, `1530`, `1514` (target 181
+held in `x14`, no hash-length reload), and the comparison `8`. -/
+theorem layersCost_5 : layersCost 5 = 7702 := by decide
 
 end SigGolfCandidate.Verify

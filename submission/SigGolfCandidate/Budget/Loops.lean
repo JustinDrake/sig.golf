@@ -424,8 +424,8 @@ theorem enc_ok (lay tau e : Nat) (M : Val) (hM : M.length ≤ 16) (c : Nat) (hla
   · unfold encInput; rw [qbyte_tag]
   · unfold encInput; rw [qbyte_lay]; omega
 
-theorem decodeDigits_some {lay : Nat} {v : Val} {x : List Nat} (h : decodeDigits lay v = some x) :
-    x.length = 42 ∧ x.sum = targetFor lay := by
+theorem decodeDigits_some {v : Val} {x : List Nat} (h : decodeDigits v = some x) :
+    x.length = 42 ∧ x.sum = targetSum := by
   unfold decodeDigits at h
   simp only at h
   split_ifs at h with h1 h2
@@ -433,11 +433,11 @@ theorem decodeDigits_some {lay : Nat} {v : Val} {x : List Nat} (h : decodeDigits
   exact ⟨by simp [digitsOfWord], h2⟩
 
 /-- The counter search's results: accepted digit words. -/
-def DigOK (lay : Nat) (o : Option (Nat × List Nat)) : Prop :=
-  ∀ c x, o = some (c, x) → x.length = 42 ∧ x.sum = targetFor lay
+def DigOK (o : Option (Nat × List Nat)) : Prop :=
+  ∀ c x, o = some (c, x) → x.length = 42 ∧ x.sum = targetSum
 
 theorem spec_searchCounter (lay tau e : Nat) (M : Val) (hM : M.length ≤ 16) (hlay : lay < 256) :
-    ∀ fuel c, Spec (PC lay) (DigOK lay) fuel (searchCounter lay tau e M c fuel) := by
+    ∀ fuel c, Spec (PC lay) DigOK fuel (searchCounter lay tau e M c fuel) := by
   intro fuel
   induction fuel with
   | zero => intro c; exact Spec.pure _ _ (by simp [DigOK])

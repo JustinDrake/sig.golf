@@ -39,7 +39,7 @@ theorem PCtx.idx_lt (P : PCtx) : P.idx < 2 ^ 34 := Nat.mod_lt _ (by decide)
 
 /-- Zero words (the `P` slots of all hash buffers and stack blocks, `CB + 48 .. 64`). -/
 def zeroP : List Nat :=
-  [ 0xD0, 0xD8, 0xF0, 0xF8, 0x110, 0x118, 0x1D0, 0x1D8, 0x230, 0x238] ++
+  [0xD0, 0xD8, 0xF0, 0xF8, 0x110, 0x118, 0x1D0, 0x1D8, 0x230, 0x238] ++
     (List.range 14).flatMap fun i => [PSB + 80 * i + 16, PSB + 80 * i + 24]
 
 theorem zeroP_sub : ∀ a ∈ zeroP, a ∈ protP := by decide
@@ -80,7 +80,7 @@ def StackOK (stk : List (Val × Nat)) (m : MachineState) : Prop :=
     m.getMem (BitVec.ofNat 64 (blkL i + 8)) = vw1 (stkE stk i).1 ∧
     (stkE stk i).1.length = 16 ∧ (stkE stk i).2 < 2 ^ 15
 
-/-- `STK` at depth `d`. -/
+/-- Physical stack address at depth `d`; the register itself holds `stkReg d`. -/
 def stkOf' (d : Nat) : Nat := EMPTY + 80 * d
 
 /-! ## Pending hash inputs -/
@@ -130,7 +130,7 @@ def TailBnd (s d ptr folds : Nat) : Prop :=
 structure LeafIn (P : PCtx) (s0 : MachineState) (s : Nat) (st : PorsState) (m : MachineState) : Prop where
   pb : PB P s0 m tbN
   pc : m.pc = pcOf (leafPc s)
-  fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + st.ptr - 352)
+  fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + st.ptr - 336)
   sum : m.getReg .x18 = BitVec.ofNat 64 FLIM
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkReg st.stack.length)
   stack : StackOK st.stack m
@@ -142,7 +142,7 @@ structure DispIn (P : PCtx) (s0 : MachineState) (s x c ptr E folds : Nat) (pend 
   pb : PB P s0 m (tbOf s)
   pc : m.pc = pcOf (dispPc c)
   copy : (c = s ∧ isLeafP pend = true) ∨ (15 ≤ c ∧ c < 18 ∧ isLeafP pend = false)
-  fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 352)
+  fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 336)
   rE : m.getReg .x23 = BitVec.ofNat 64 E
   sum : m.getReg .x18 = BitVec.ofNat 64 FLIM
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkReg stk.length)
@@ -162,7 +162,7 @@ structure EntIn (P : PCtx) (s0 : MachineState) (s x V t a ptr E folds : Nat) (no
   pb : PB P s0 m (tbOf s)
   pc : m.pc = pcOf (slotPc (tsel s) (wbyte P.wl ptr) + 5)
   slot : segV (tsel s) (wbyte P.wl ptr) = V ∧ segT (wbyte P.wl ptr) = t ∧ segA (wbyte P.wl ptr) = a
-  fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 352 + 16 * a + 8)
+  fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 336 + 16 * a + 8)
   rE : m.getReg .x23 = BitVec.ofNat 64 E
   sum : m.getReg .x18 = BitVec.ofNat 64 FLIM
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkReg stk.length)
@@ -187,7 +187,7 @@ structure PosIn (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) (
   pb : PB P s0 m (tbOf s)
   pc : m.pc = pcOf (ladPc V t (14 - a + i))
   a0 : m.getReg .x10 = BitVec.ofNat 64 0x1C0
-  fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 352 + 16 * a + 8)
+  fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 336 + 16 * a + 8)
   rE : m.getReg .x23 = BitVec.ofNat 64 E
   sum : m.getReg .x18 = BitVec.ofNat 64 FLIM
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkReg stk.length)
@@ -215,7 +215,7 @@ structure TailIn (P : PCtx) (s0 : MachineState) (s x V c ptr E folds : Nat) (nod
     (stk : List (Val × Nat)) (m : MachineState) : Prop where
   pb : PB P s0 m (tbOf s)
   pc : m.pc = pcOf (tailPc V c)
-  fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 352)
+  fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 336)
   rE : m.getReg .x23 = BitVec.ofNat 64 E
   sum : m.getReg .x18 = BitVec.ofNat 64 FLIM
   rS : m.getReg .x15 = BitVec.ofNat 64 (stkReg stk.length)
