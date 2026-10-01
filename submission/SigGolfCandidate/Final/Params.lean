@@ -8,8 +8,8 @@ The numeric parameters for the proved bound on accepting verification runs and t
 namespace SigGolfCandidate.Final
 
 /-- Proved upper bound on the cycles of every accepting verify run (`Verify.cycleBound`: `2945` for the
-prologue, digest, setup and PORS, plus `layersCost 5 = 7946`). -/
-def verifyCycleBound : Nat := 10891
+prologue, digest, setup and PORS, plus `layersCost 5 = 7938`; the feasible worst case is `10882`). -/
+def verifyCycleBound : Nat := 10883
 
 /-- The witness charge `⌈16384 / 256⌉`. -/
 def witnessCharge : Nat := 64

@@ -52,7 +52,7 @@ theorem fresh_run (input : HashInput) (cache : QueryCache HashSpec) (hfresh : ca
     from rfl, probEvent_bind_eq_tsum]
   exact tsum_congr fun u => by rw [probOutput_uniformSample]
 
-/-- A search over fresh inputs, distinct below `bound`, exhausts all `n` trials with probability at most the per-trial rejection share to the `n`. The bound is what the counter search needs: its inputs carry a 32-bit counter, so they repeat only after `2 ^ 32` trials, well past its `2 ^ 20`-trial budget. -/
+/-- A search over fresh inputs, distinct below `bound`, exhausts all `n` trials with probability at most the per-trial rejection share to the `n`. The bound is what the counter search needs: its inputs carry a 32-bit counter, so they repeat only after `2 ^ 32` trials, well past its `2 ^ 22`-trial budget. -/
 theorem probEvent_searchLoop (inputs : Nat → HashInput) (decode : HashOutput → Option β)
     (success : Nat → β → OracleComp HashSpec γ) (bound : Nat)
     (hinj : ∀ s s', s < bound → s' < bound → inputs s = inputs s' → s = s') :
@@ -188,7 +188,7 @@ theorem encodingSearch_eq_searchLoop (parameter : PublicParameter) (lay : Layer)
         = searchLoop
             (fun c => tweakableHashInput parameter (.encoding lay tree leaf)
               (bytesLE 16 message ++ bytesLE 4 (BitVec.ofNat counterBits c)))
-            (fun out => TargetSum.decodeDigest (truncateHash out))
+            (fun out => TargetSum.decodeDigest lay (truncateHash out))
             (fun c encoding => pure (BitVec.ofNat counterBits c, encoding))
             n t := by
   intro n
@@ -199,6 +199,6 @@ theorem encodingSearch_eq_searchLoop (parameter : PublicParameter) (lay : Layer)
       rw [encodingSearch, searchLoop]
       simp only [encode, tweakableHash, oracleHash, bind_assoc, pure_bind, ih]
       refine bind_congr fun answer => ?_
-      cases TargetSum.decodeDigest (truncateHash answer) <;> rfl
+      cases TargetSum.decodeDigest lay (truncateHash answer) <;> rfl
 
 end SphincsSecurity.Completeness

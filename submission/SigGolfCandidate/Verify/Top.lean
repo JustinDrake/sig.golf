@@ -138,11 +138,12 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       unfold twLo; omega
 
 
-/-- The cycle bound of accepting runs: `2945 + layersCost 5 = 2945 + 7946`. The part before the layers
+/-- The cycle bound of accepting runs: `2945 + layersCost 5 = 2945 + 7938`. The part before the layers
 is `27` (prologue, counter check) `+ 8` (digest) `+ 107` (setup) `+ 10 + 158` (leaves) `+ 16 · 29 + 17 · 118`
 (segments with at most `118` folds) `+ 6 · 14 + 4 · 14` (merge / push tails) `+ 25` (root tail) `= 2945`;
-an accepting run with `Z` fold-free segments costs `1` less per such segment. -/
-def cycleBound : Nat := 10891
+an accepting run with `Z` fold-free segments costs `1` less per such segment. Feasible worst case
+(emulator, `F = 118`, `Z = 1`, no digit 7): `2944 + 7938 = 10882`. -/
+def cycleBound : Nat := 10883
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
 def cycleBoundAll : Nat := 16834
@@ -152,8 +153,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7946 := by decide
-theorem layC_val : layC = 7946 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7938 := by decide
+theorem layC_val : layC = 7938 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do

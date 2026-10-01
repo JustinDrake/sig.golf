@@ -11,7 +11,7 @@ variable {Result : Type} (observer : FrontierObserver Result)
 noncomputable def prefixInstrumentedSeedRest (key : SecretKey) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs key.parameter ⊆ inputs) (hgraph : canonicalGraphInputs key.parameter ⊆ inputs)
     (address : OtsPrefix.ChainAddress) (dummy : OtsReferenceWords) (adversary : Adversary) : SPMF (InstrumentedResult Result) := do
-  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]
+  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]
   let words := referenceFamilyWords selections dummy
   let segment := OtsPrefix.atAddress key.parameter words address
   let tables ← 𝒮[PMF.uniformOfFintype (Fin segment.digit.val → Digest → Digest)]
@@ -34,7 +34,7 @@ theorem prefixInstrumentedSeedRest_eq (key : SecretKey) (inputs : Finset HashInp
     (fun selections => referenceFamilyWords selections dummy address.1 address.2.1 address.2.2.1 address.2.2.2)]
   simp only [← PMF.monad_bind_eq_bind, ← PMF.monad_map_eq_map, evalSPMF_bind, evalSPMF_map, bind_assoc, bind_map_left]
   unfold prefixInstrumentedSeedRest
-  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit] >>= ·)
+  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit] >>= ·)
   funext selections
   let words := referenceFamilyWords selections dummy
   let segment := OtsPrefix.atAddress key.parameter words address
@@ -65,7 +65,7 @@ noncomputable def prefixInstrumentedObservedGame (inputs : Finset HashInput)
     (address : OtsPrefix.ChainAddress) (dummy : OtsReferenceWords) (adversary : Adversary) : SPMF (InstrumentedResult Result) := do
   let parameter ← 𝒮[sampleParameter]
   let ftsSecret ← 𝒮[sampleFtsSecrets]
-  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]
+  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]
   let words := referenceFamilyWords selections dummy
   let segment := OtsPrefix.atAddress parameter words address
   let other ← 𝒮[PMF.uniformOfFintype segment.ErasedSecrets]
@@ -88,8 +88,8 @@ theorem prefixInstrumentedObservedGame_eq (inputs : Finset HashInput)
   rw [swap_samples 𝒮[sampleOtsSecrets] 𝒮[sampleFtsSecrets]]
   apply congrArg (𝒮[sampleFtsSecrets] >>= ·)
   funext ftsSecret
-  rw [swap_samples 𝒮[sampleOtsSecrets] 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]]
-  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit] >>= ·)
+  rw [swap_samples 𝒮[sampleOtsSecrets] 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]]
+  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit] >>= ·)
   funext selections
   let words := referenceFamilyWords selections dummy
   let segment := OtsPrefix.atAddress parameter words address

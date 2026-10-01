@@ -148,9 +148,9 @@ def ChainNext (c : CCtx) (j : Nat) (acc : List Val) (s : MachineState) : Prop :=
 
 /-- The dispatch cost after chain `i`: the next triple's extraction and `jalr` after a triple's `C`,
 the return after chain 41. -/
-def xCost (i : Nat) : Nat := if i % 3 = 2 then (if i = 41 then 1 else xSteps (i / 3)) else 0
+def xCost (i : Nat) : Nat := if i % 3 = 2 then (if i = 41 then 1 else 4) else 0
 
-theorem xCost_le (i : Nat) : xCost i ≤ 4 := by unfold xCost xSteps; split_ifs <;> omega
+theorem xCost_le (i : Nat) : xCost i ≤ 4 := by unfold xCost; split_ifs <;> omega
 
 theorem end_next (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (i : Nat) (hi : i < 42)
     (acc : List Val) (s : MachineState) (hs : EndInv c i acc s) :
@@ -304,7 +304,7 @@ theorem chains_good0 (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (
     (hs : ChainIn c 0 [] s) :
     Good s (N + 40 * 42) (C + chainsCost c 0 42) (cc ((List.range 42).foldlM (chainF c xs) []) K) := by
   have := chains_good c hc hret xs hxs K N C hK 42 0 rfl [] s (by unfold ChainNext; rwa [if_pos (by omega)])
-  rwa [List.range_eq_range']
+  rwa [List.range_eq_range'] 
 
 theorem sum_eq_getD (l : List Nat) : l.sum = ((List.range l.length).map (l.getD · 0)).sum := by
   induction l with
@@ -336,21 +336,21 @@ theorem chainsCost_aux (c : CCtx) : ∀ k i,
     omega
 
 /-- The chain-phase cycles of a layer (at most; each digit-7 chain saves one more cycle). -/
-def chainsBound : Nat := 42 * 69 - 9 * targetSum + 65
+def chainsBound (lay : Nat) : Nat := 42 * 69 - 9 * targetFor lay + 67
 
-theorem chainsCost_le (c : CCtx) (xs : List Nat) (hlen : xs.length = 42)
-    (hxs : ∀ i < 42, xs.getD i 0 = dig c i) (hsum : xs.sum = targetSum) :
-    chainsCost c 0 42 ≤ chainsBound := by
-  have hs : ((List.range' 0 42).map (dig c)).sum = targetSum := by
+theorem chainsCost_le (lay : Nat) (c : CCtx) (xs : List Nat) (hlen : xs.length = 42)
+    (hxs : ∀ i < 42, xs.getD i 0 = dig c i) (hsum : xs.sum = targetFor lay) :
+    chainsCost c 0 42 ≤ chainsBound lay := by
+  have hs : ((List.range' 0 42).map (dig c)).sum = targetFor lay := by
     rw [← hsum, sum_eq_getD xs, hlen, List.range_eq_range']
     congr 1
     apply List.map_congr_left
     intro i hi
     rw [hxs i (by simp at hi; omega)]
   have := chainsCost_aux c 42 0
-  rw [hs, show ((List.range' 0 42).map xtra).sum = 65 by decide] at this
+  rw [hs, show ((List.range' 0 42).map xtra).sum = 67 by decide] at this
   unfold chainsCost chainsBound
-  simp only [targetSum] at this ⊢
+  have ht : targetFor lay ≤ 183 := by unfold targetFor targetSum; split_ifs <;> omega
   omega
 
 end SigGolfCandidate.Verify

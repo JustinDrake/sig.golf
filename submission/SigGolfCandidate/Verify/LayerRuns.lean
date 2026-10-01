@@ -32,7 +32,7 @@ def preStart (lay t : Nat) : Nat :=
   else m4Pc (lay + 1) (nCh (lay + 1) - 1) t (chBits (lay + 1) (nCh (lay + 1) - 1) - 1) + 9
 
 /-- Steps of the transition up to the encoding hash (layer 0: two `addi` for the sentinel). -/
-def stepsA (lay : Nat) : Nat := if lay = 0 then 15 else 14
+def stepsA (lay : Nat) : Nat := if lay = 0 then 15 else if lay = 4 then 13 else 14
 def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
 
 /-- Known registers at the transition start. -/
@@ -78,20 +78,22 @@ def swA4 : E := .bin .add swA3 (.bin .srl swA3 (cw 6))
 def swA5 : E := .bin .and swA4 m2E
 def swA6 : E := .bin .add swA5 (.bin .srl swA5 (cw 12))
 def swA7 : E := .bin .add swA6 (.bin .srl swA6 (cw 24))
-def swS : E := .bin .remu swA5 (cw 4095)
+def swSBase : E := .bin .remu swA5 (cw 4095)
+def swS (lay : Nat) : E :=
+  if 4 ≤ lay then .bin .add swSBase (cw (2 ^ 64 - 2)) else swSBase
 
 /-- The table index of triple 0 (`slli a4, a6, 9; and a4, a4, sp; add a4, a4, a5`) and the
 dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E : E := .bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 : E := .bin .and (.bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB : Nat := 25
+def stepsB (lay : Nat) : Nat := if lay = 4 then 26 else 25
 /-- One REMU costs four cycles rather than one. -/
-def cyclesB : Nat := stepsB + 3
+def cyclesB (lay : Nat) : Nat := stepsB lay + 3
 
-def specBok : Spec :=
-  ⟨[(.x14, x14E), (.x16, d0E), (.x17, d1E)], [], 0, false, stepsB,
-   [⟨.ne, swS, .c KT, false⟩, ⟨.lt, orE, .c 0, false⟩], some tgt0, cyclesB⟩
+def specBok (lay : Nat) : Spec :=
+  ⟨[(.x14, x14E), (.x16, d0E), (.x17, d1E)], [], 0, false, stepsB lay,
+   [⟨.ne, swS lay, .c KT, false⟩, ⟨.lt, orE, .c 0, false⟩], some tgt0, cyclesB lay⟩
 
 /-- Known registers on entry of the chain code (`li s6; sub s9, s11, t3; jalr ra`). -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
@@ -101,8 +103,8 @@ def chKa (lay c : Nat) : List (Reg × Word) :=
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
 def specRej1 : Spec := ⟨rejK, [], rejectPc + 2, true, 7, [⟨.lt, orE, .c 0, true⟩], none, 7⟩
-def specRej2 : Spec :=
-  ⟨rejK, [], rejectPc + 2, true, 21, [⟨.ne, swS, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24⟩
+def specRej2 (lay : Nat) : Spec :=
+  ⟨rejK, [], rejectPc + 2, true, 21 + (if 4 ≤ lay then 1 else 0), [⟨.ne, swS lay, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24 + (if 4 ≤ lay then 1 else 0)⟩
 
 /-! ## Leaf -/
 
@@ -139,10 +141,10 @@ def specCR2 (t : Nat) : Spec :=
 /-- Everything of transition copy `t` of layer `lay`. -/
 def copyCheck (lay t : Nat) : Bool :=
   specB gkL (runAt (preK lay) [] (preStart lay t) []) (specA lay t) (bK lay) [] &&
-  specB gkL (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br false, .jmp]) specBok
+  specB gkL (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br false, .jmp]) (specBok lay)
     (chKa lay t) [.x23, .x30, .x31] &&
   specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br true]) specRej1 [] [] &&
-  specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) specRej2 [] [] &&
+  specB [] (runAt (bK lay) [] (encPc lay t + 1) [.br false, .br true]) (specRej2 lay) [] [] &&
   specB gkL (runAt (leafK lay) [] (retPc lay t) [.jmp]) (specLeaf lay) (leafPost lay) leafKeep
 
 def layerCheck (lay : Nat) : Bool :=

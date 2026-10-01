@@ -161,7 +161,7 @@ def searchCounter (lay tau e : Nat) (M : Val) (c : Nat) :
   | 0 => pure none
   | fuel + 1 => do
     let d ← hash16 (encInput lay tau e M c)
-    match decodeDigits d with
+    match decodeDigits lay d with
     | some x => pure (some (c, x))
     | none => searchCounter lay tau e M (c + 1) fuel
 
@@ -502,7 +502,7 @@ def verifyLayers (w : List Byte) (idx : Nat) : Nat → Val → OracleComp HashSp
   | lay + 1, M => do
     let (e, tau) := route idx lay
     let d ← hash16 (encInput lay tau e M (witCounter w lay))
-    match decodeDigits d with
+    match decodeDigits lay d with
     | none => pure none
     | some x =>
       let leaf ← verifyLeafP w lay tau e x
