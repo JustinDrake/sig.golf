@@ -21,7 +21,7 @@ holds for every seed (`complete_seeded`), and averaging over the seed gives `com
 The numbers: digest admissibility has probability at least `1/3410`; after the collision allowance
 `2²²/2¹²⁸`, each randomizer pair still succeeds with probability at least `1/1706`.
 Each block of `1250` pairs halves the failure probability, and `2¹⁹ ≥ 1250 · 419` gives failure at most
-`2⁻⁴¹⁹`. A selected counter trial accepts at least one in `codeShare = 2397` of the raw answers, so
+`2⁻⁴¹⁹`. A counter trial accepts at least one in `codeShare = 2397` of the `2¹²⁸` digests, so
 `2²² ≥ 2397 · 1749` counters all fail with probability at most `2⁻¹⁷⁴⁹`. Over `2²⁵⁶` messages,
 `2²⁵⁶ · (2⁻⁴¹⁹ + 5 · 2⁻¹⁷⁴⁹) ≤ 2⁻¹²⁸`.
 -/
@@ -47,13 +47,13 @@ theorem digestFactor_pow_le : pairedDigestFactor ^ digestPairLimit ≤ (2⁻¹ :
 theorem encoding_pow_le : encodingBound ≤ (2⁻¹ : ℝ≥0∞) ^ 1749 := by
   have hroom := failMass_encoding_add_le
   have hhalf := pow_le_half_ennreal codeShare (by decide) _ hroom
-  have hone : failMass (fun out => TargetSum.decodeDigest (selectEncodingDigest out)) ≤ 1 :=
+  have hone : failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ≤ 1 :=
     le_trans le_self_add hroom
   rw [encodingBound]
-  calc failMass (fun out => TargetSum.decodeDigest (selectEncodingDigest out)) ^ encodingAttemptLimit
-        ≤ failMass (fun out => TargetSum.decodeDigest (selectEncodingDigest out)) ^ (codeShare * 1749) :=
+  calc failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ encodingAttemptLimit
+        ≤ failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ (codeShare * 1749) :=
           pow_le_pow_right_of_le_one' hone (by rw [encodingAttemptLimit, codeShare]; norm_num)
-    _ = (failMass (fun out => TargetSum.decodeDigest (selectEncodingDigest out)) ^ codeShare) ^ 1749 :=
+    _ = (failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ codeShare) ^ 1749 :=
           pow_mul _ _ _
     _ ≤ (2⁻¹ : ℝ≥0∞) ^ 1749 := pow_le_pow_left₀ (by positivity) hhalf _
 
