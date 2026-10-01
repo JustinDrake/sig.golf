@@ -217,7 +217,7 @@ constants `t3 = 2^40`, `sp = TMASK`, `a5 = ttab + 2048` that the root tail sets)
 def tailFK : List (Reg × Word) := gkL0 ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40101)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[], [], f4Pc c, false, 25, [fBr3 false, fBr2 false, fBr1 false], none, 25⟩
+  ⟨[], [], f4Pc c, false, 24, [fBr3 false, fBr2 false, fBr1 false], none, 24⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB gkL0 (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
