@@ -44,10 +44,10 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       have := h.a2; simp only [destOf, show (2 : Nat) ≠ 0 by decide, show (2 : Nat) ≠ 1 by decide,
         if_false] at this
       exact this
-  have b1 : ∀ d, Br.holds m (fBr1 d) ↔ d = decide (FLIM < 0x800 + ptr - 592) := by
+  have b1 : ∀ d, Br.holds m (fBr1 d) ↔ d = decide (14336 < ptr + 960) := by
     intro d
     simp only [fBr1, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.fr, BitVec.ult,
-      ofNat_toNat_lt _ (show FLIM < 2 ^ 64 by decide), ofNat_toNat_lt _ (show 0x800 + ptr - 592 < 2 ^ 64 by omega)]
+      ofNat_toNat_lt _ (show 14336 < 2 ^ 64 by decide), ofNat_toNat_lt _ (show ptr + 960 < 2 ^ 64 by omega)]
     exact eq_comm
   have heq : (Rev.revWord E != BitVec.ofNat 64 sgn31) = decide (E ≠ 1) := by
     by_cases h1 : E = 1
@@ -74,10 +74,10 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
         simp
     rw [this]; exact eq_comm
   have hpM : porsM = 117 := rfl
-  have hfl : FLIM = 4095 := rfl
+  have hfl : (14336 : Nat) = 14336 := rfl
   constructor
   · intro hrej
-    by_cases h1 : FLIM < 0x800 + ptr - 592
+    by_cases h1 : 14336 < ptr + 960
     · obtain ⟨u, hu⟩ := pspec_run cR1 m h.pc hK (by
         intro b hb; simp only [rejSpec, List.mem_singleton] at hb; subst hb
         exact (b1 true).mpr (by simp [h1])) (by simp)
@@ -95,7 +95,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
           rcases hrej with h' | h' | h'
           · intro hnil
             have hl0 : stk.length = 0 := by rw [hnil]; rfl
-            rw [hpM] at h'; rw [hfl] at h1; omega
+            rw [hpM] at h'; omega
           · exact absurd h' h2
           · exact h'
         obtain ⟨u, hu⟩ := pspec_run cR3 m h.pc hK (by
@@ -109,11 +109,11 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
   · intro hacc
     have h2 : ¬ E ≠ 1 := fun e => hacc (Or.inr (Or.inl e))
     have h3 : ¬ stk ≠ [] := fun e => hacc (Or.inr (Or.inr e))
-    have h1 : ¬ FLIM < 0x800 + ptr - 592 := by
+    have h1 : ¬ 14336 < ptr + 960 := by
       have hf : ¬ folds > porsM := fun e => hacc (Or.inl e)
       have hnil : stk = [] := by by_contra hc; exact h3 hc
       have hl0 : stk.length = 0 := by rw [hnil]; rfl
-      rw [hpM] at hf; rw [hfl]; omega
+      rw [hpM] at hf; omega
     obtain ⟨u, hu⟩ := pspec_run cAcc m h.pc hK (by
       intro b hb; simp only [tailFSpec, List.mem_cons, List.not_mem_nil, or_false] at hb
       rcases hb with rfl | rfl | rfl
@@ -178,11 +178,11 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
 
 /-- Universal accepting-run bound. Scaled PIND byte offsets remove one instruction from
 all fifteen leaf headers. The tag-9 address-field rotation is an injective query relabel;
-Final.Discharge supplies the additional universal structural credit. This is a proof bound. -/
-def cycleBound : Nat := 10286
+Final.Discharge supplies the additional universal structural credit. Sparse cap initialization adds one instruction. This is a proof bound. -/
+def cycleBound : Nat := 10287
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
-def cycleBoundAll : Nat := 16857
+def cycleBoundAll : Nat := 16858
 
 
 /-- A step bound (fuel) sufficient for every run. -/
@@ -290,8 +290,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (91 + (leafCost 0 + Nseg 0 0)) (91 + (leafCost 0 + Cseg 0 0)) True
-        (91 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (92 + (leafCost 0 + Nseg 0 0)) (92 + (leafCost 0 + Cseg 0 0)) True
+        (92 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with

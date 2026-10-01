@@ -90,10 +90,7 @@ section wit
 variable (wl : List Byte) (hl : wl.length = 16384)
 
 theorem path_bound (lay : Layer) :
-    Ref.pathOff lay.val + Ref.pathStride lay.val * SphincsSecurity.layerHeight lay ≤ 16384 := by
-  fin_cases lay <;> decide
-
-theorem pathStride_ge (lay : Layer) : 16 ≤ Ref.pathStride lay.val := by
+    Ref.pathOff lay.val + 16 * SphincsSecurity.layerHeight lay ≤ 2944 := by
   fin_cases lay <;> decide
 
 theorem lay_lt (lay : Layer) : lay.val < 5 := lay.isLt
@@ -129,9 +126,6 @@ theorem witPath_eq (lay : Layer) :
   unfold SphincsSecurity.Concrete.signaturePath
   rw [dif_pos hl2]
   have hb := path_bound lay
-  have hs := pathStride_ge lay
-  have hm := Nat.mul_le_mul_left (Ref.pathStride lay.val) (show l + 1 ≤ SphincsSecurity.layerHeight lay by omega)
-  rw [Nat.mul_add, Nat.mul_one] at hm
   exact (dv_ofList_slice _ _ (by omega)).symm
 
 omit hl in
@@ -296,8 +290,7 @@ theorem witSib_eq (wl : List Byte) (hl : wl.length = 16384) (lay : Layer) (l : N
   unfold SphincsSecurity.Concrete.signaturePath
   rw [dif_pos hl2]
   have hb := path_bound lay
-  have hs := pathStride_ge lay
-  have hm := Nat.mul_le_mul_left (Ref.pathStride lay.val) (show l + 1 ≤ SphincsSecurity.layerHeight lay by omega)
+  have hm := Nat.mul_le_mul_left 16 (show l + 1 ≤ SphincsSecurity.layerHeight lay by omega)
   rw [Nat.mul_add, Nat.mul_one] at hm
   exact (dv_ofList_slice _ _ (by omega)).symm
 
@@ -437,11 +430,11 @@ variable (index : Index) (wl : List Byte)
 
 /-- A segment fold, as `Ref.segFolds` does it. -/
 theorem segFolds_aux (seg : SphincsSecurity.Segment) (ptr : Nat)
-    (hnodes : ∀ i (h : i < seg.folds.val), seg.nodes ⟨i, h⟩ = wdig wl (ptr + 8 + 16 * i)) :
+    (hnodes : ∀ i (h : i < seg.folds.val), seg.nodes ⟨i, h⟩ = wdig wl (ptr + 64 + 64 * i)) :
     ∀ (r p : Nat) (cur : Digest) (E : Nat), p + r ≤ seg.folds.val →
       (p = 0 → 0 < r → seg.parity = decide (E % 2 = 1)) →
       (List.range' p r).foldlM (fun (st : Ref.Val × Nat) i =>
-        let sib := Ref.wbytes wl (ptr + 8 + 16 * i) 16
+        let sib := Ref.wbytes wl (ptr + 64 + 64 * i) 16
         if st.2 % 2 = 1 then do
           let v ← Ref.hash16 (Ref.porsNodeInput index (st.2 / 2) sib st.1)
           pure (v, st.2 / 2)
@@ -456,7 +449,7 @@ theorem segFolds_aux (seg : SphincsSecurity.Segment) (ptr : Nat)
   | succ r ih =>
     intro p cur E hpr hpar
     rw [List.range'_succ, List.foldlM_cons]
-    have hsib : Ref.wbytes wl (ptr + 8 + 16 * p) 16 = dv (seg.node p) := by
+    have hsib : Ref.wbytes wl (ptr + 64 + 64 * p) 16 = dv (seg.node p) := by
       unfold SphincsSecurity.Segment.node
       rw [dif_pos (by omega), hnodes p (by omega), dv_wdig]
     have hright : (if p = 0 then seg.parity else decide (E % 2 = 1)) = decide (E % 2 = 1) := by
@@ -477,7 +470,7 @@ theorem segFolds_aux (seg : SphincsSecurity.Segment) (ptr : Nat)
       exact ih (p + 1) v (E / 2) (by omega) (fun h => absurd h (by omega))
 
 theorem segFolds_eq (seg : SphincsSecurity.Segment) (ptr : Nat)
-    (hnodes : ∀ i (h : i < seg.folds.val), seg.nodes ⟨i, h⟩ = wdig wl (ptr + 8 + 16 * i))
+    (hnodes : ∀ i (h : i < seg.folds.val), seg.nodes ⟨i, h⟩ = wdig wl (ptr + 64 + 64 * i))
     (a : Nat) (cur : Digest) (E : Nat) (ha : a = seg.folds.val)
     (hpar : 0 < a → seg.parity = decide (E % 2 = 1)) :
     Ref.segFolds index wl ptr a (dv cur) E =
@@ -605,7 +598,7 @@ theorem segment_eq (j E folds : Nat) (ap : PendingHash) (cur : Digest) :
         (by rw [segAt_folds, hb]) hpar]
       rw [bind_map_left, map_eq_bind_pure_comp]
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun x => ?_
-      have hp : segPtr wl (j + 1) = segPtr wl j + 8 + 16 * (b % 16) := by
+      have hp : segPtr wl (j + 1) = segPtr wl j + 64 + 64 * (b % 16) := by
         rw [segPtr, hb]
       simp only [Function.comp, hp]
 
@@ -821,7 +814,7 @@ end pors
 
 /-- **verify** (W1a, padded): `verifyRef m pk w` is the relabelled padded abstract verifier on `⟨pk, 0⟩`,
 `witDec w` and the witness pads `padOf (toList w)` (rejecting paths included). -/
-theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 15872) :
+theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 14080) :
     Ref.verifyRef m pk w =
       relabel fmtQ (SphincsSecurity.Concrete.verifyP (m := AComp) ⟨pk, 0⟩ m (witDec w)
         (padOf (Ref.extW (Ref.toList w)))) := by

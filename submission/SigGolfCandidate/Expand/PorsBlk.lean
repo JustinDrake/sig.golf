@@ -19,7 +19,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 /-- `pr_seg` (550 .. 553): the header byte `b`, `a = b & 15`, reject `a > 14`. -/
 theorem blk550_run (w : List Byte) (t : MachineState) (ptr : Nat) (hpc : t.pc = pcOf 550)
-    (h9 : t.getReg .x9 = BitVec.ofNat 64 (0x800 + ptr)) (hptr : ptr % 8 = 0) (hptr' : ptr < 0x4000)
+    (h9 : t.getReg .x9 = BitVec.ofNat 64 (0x800 + ptr)) (hptr : ptr % 8 = 0) (hptr' : ptr < 0x10000)
     (hw : WitMem w t) :
     ∃ t', Steps eimg t 4 4 t' ∧
       t'.pc = (if 14 < wbyte w ptr % 16 then pcOf 284 else pcOf 554) ∧
@@ -208,7 +208,7 @@ theorem blk562_run (t : MachineState) (hpc : t.pc = pcOf 562) (h25 : t.getReg .x
 theorem blk565_run (t : MachineState) (hpc : t.pc = pcOf 565) (ptr a : Nat)
     (h9 : t.getReg .x9 = BitVec.ofNat 64 (0x800 + ptr)) (h7 : t.getReg .x7 = BitVec.ofNat 64 a) :
     ∃ t', Steps eimg t 2 2 t' ∧ t'.pc = pcOf 567 ∧
-      t'.getReg .x28 = BitVec.ofNat 64 (0x800 + ptr + 8 + 16 * 0) ∧ t'.getReg .x29 = BitVec.ofNat 64 (a - 0) ∧
+      t'.getReg .x28 = BitVec.ofNat 64 (0x800 + ptr + 64 + 64 * 0) ∧ t'.getReg .x29 = BitVec.ofNat 64 (a - 0) ∧
       RegsEq t t' [.x28, .x29] ∧ ∀ x, t'.getMem x = t.getMem x := by
   refine ⟨_, symRun_sound Expand.blk565 Expand.codeAt_565 t hpc (by simp only [Expand.blk565.res, rv_simp]),
     by simp only [Expand.blk565.res, rv_simp], ?_, ?_, by pregs, getMem_nil rfl t⟩
@@ -278,7 +278,7 @@ theorem blk832_regs (u : MachineState) (r : Reg) (h1 : r ≠ .x13) (h2 : r ≠ .
 /-- 568 (`j 804`), the network `804 .. 831` on `x19 >> 1`, back to `570 .. 577`: `PB` word 1 =
 `idx | efield (E / 2) << 32`, load the sibling and the node, test `E & 1`. -/
 theorem blk568_run (w : List Byte) (idx : Nat) (t : MachineState) (hpc : t.pc = pcOf 568) (E o : Nat)
-    (hE : E < 2 ^ 15) (ho : o % 8 = 0) (ho' : o + 16 ≤ 0x4000) (hw : WitMem w t)
+    (hE : E < 2 ^ 15) (ho : o % 8 = 0) (ho' : o + 16 ≤ 0x10000) (hw : WitMem w t)
     (h19 : t.getReg .x19 = BitVec.ofNat 64 E) (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000)
     (h26 : t.getReg .x26 = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32))
     (h28 : t.getReg .x28 = BitVec.ofNat 64 (0x800 + o)) :
@@ -395,7 +395,7 @@ theorem blk591_run (t : MachineState) (hpc : t.pc = pcOf 591) (E p n : Nat) (hE 
     (h19 : t.getReg .x19 = BitVec.ofNat 64 E) (h28 : t.getReg .x28 = BitVec.ofNat 64 p)
     (h29 : t.getReg .x29 = BitVec.ofNat 64 n) :
     ∃ t', Steps eimg t 4 4 t' ∧ t'.pc = pcOf 567 ∧ t'.getReg .x19 = BitVec.ofNat 64 (E / 2) ∧
-      t'.getReg .x28 = BitVec.ofNat 64 (p + 16) ∧ t'.getReg .x29 = BitVec.ofNat 64 (n - 1) ∧
+      t'.getReg .x28 = BitVec.ofNat 64 (p + 64) ∧ t'.getReg .x29 = BitVec.ofNat 64 (n - 1) ∧
       RegsEq t t' [.x19, .x28, .x29] ∧ ∀ x, t'.getMem x = t.getMem x := by
   refine ⟨_, symRun_sound Expand.blk591 Expand.codeAt_591 t hpc (by simp only [Expand.blk591.res, rv_simp]),
     by simp only [Expand.blk591.res, rv_simp], ?_, ?_, ?_, by pregs, getMem_nil rfl t⟩

@@ -772,9 +772,9 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
     (N C A : Nat) (NT CT : Nat → Nat) (AT : Nat → Nat → Nat)
     (hK : ∀ (a V c' E' : Nat) (node' : Val) (u : MachineState), a ≤ 14 →
       V = segV (tsel s) (wbyte P.wl ptr) → a = wbyte P.wl ptr % 16 →
-      TailIn P s0 s x V c' (ptr + 8 + 16 * a) E' (folds + a) node' stk u →
+      TailIn P s0 s x V c' (ptr + 64 + 64 * a) E' (folds + a) node' stk u →
       GoodQ u (NT V) (CT V) (folds + a ≤ 117) (AT V (folds + a))
-        (K (some (ptr + 8 + 16 * a, E', folds + a, node', decide (wbyte P.wl ptr / 16 % 2 = 1)))))
+        (K (some (ptr + 64 + 64 * a, E', folds + a, node', decide (wbyte P.wl ptr / 16 % 2 = 1)))))
     (hN : ∀ V, V < 3 → 18 + 17 * 14 + NT V ≤ N) (hC : ∀ V a, V < 3 → a ≤ 14 → 18 + 17 * a + CT V ≤ C)
     (hA : ∀ V a, V < 3 → a ≤ 14 → V = segV (tsel s) (wbyte P.wl ptr) → a = wbyte P.wl ptr % 16 → folds + a ≤ 117 →
       (if a = 0 then 15 else 16+16*a-segmentSave V a) + AT V (folds + a) ≤ A)
@@ -811,7 +811,7 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
     have H : ∀ ans, GoodQ (writeHash u ans) (NT V + 17 * 14 + 2) (CT V + 17 * a) (folds + a ≤ 117) (AT V (folds + a) + (if a=0 then 0 else 2+foldBudget V a 0))
         ((fun v => cc (segFolds P.idx P.wl ptr a v E) fun p =>
           match p with
-          | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1))))
+          | (node, E) => K (some (ptr + 64 + 64 * a, E, folds + a, node, decide (b / 16 % 2 = 1))))
           (answerBytes 16 ans)) := by
       intro ans
       simp only []
@@ -828,7 +828,7 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
         rw [segFolds_eq, List.range_eq_range']
         have := folds_good P s0 s x V a ptr folds stk
           (fun p => match p with
-            | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1))))
+            | (node, E) => K (some (ptr + 64 + 64 * a, E, folds + a, node, decide (b / 16 % 2 = 1))))
           (NT V) (CT V) (AT V (folds + a)) (folds + a ≤ 117)
           (fun t node' E' u' hT => hK a V t E' node' u' ha14 rfl rfl hT) a 0 (segT b) E (answerBytes 16 ans)
           u2 (by omega) hP2 hP2.parity
@@ -839,14 +839,14 @@ theorem segment_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x c ptr
     have h3 := GoodQ.hash (x := pendInput P node pend)
       (K := fun v => cc (segFolds P.idx P.wl ptr a v E) fun p =>
           match p with
-          | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) hf h5 hv hin H
+          | (node, E) => K (some (ptr + 64 + 64 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) hf h5 hv hin H
     rw [hbl] at h3
     have e2 : (fun node' => cc (segFolds P.idx P.wl ptr a node' E >>= fun x =>
           match x with
-          | (node, E) => pure (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) K) =
+          | (node, E) => pure (some (ptr + 64 + 64 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) K) =
         (fun v => cc (segFolds P.idx P.wl ptr a v E) fun p =>
           match p with
-          | (node, E) => K (some (ptr + 8 + 16 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) := by
+          | (node, E) => K (some (ptr + 64 + 64 * a, E, folds + a, node, decide (b / 16 % 2 = 1)))) := by
       funext v; rw [cc_bind]; congr 1; funext p; obtain ⟨n1, e1⟩ := p; simp only [cc_pure]
     rw [e2]
     have hk8 : k ≤ 8 := by unfold tabCycles at hk; split_ifs at hk <;> omega
@@ -959,7 +959,7 @@ theorem machineSegmentCost_PF (s a : Nat) :
 
 theorem decoded_ptr_next (wl : List Byte) (ptr j a : Nat)
     (hp : ptr = Equiv.segPtr wl j) (ha : a = wbyte wl ptr % 16) :
-    ptr+8+16*a = Equiv.segPtr wl (j+1) := by
+    ptr+64+64*a = Equiv.segPtr wl (j+1) := by
   rw [Equiv.segPtr, ← hp, ← ha]
 
 theorem segLoop_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat)
@@ -1011,7 +1011,7 @@ theorem segLoop_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat
     · obtain ⟨hVe, hm⟩ := segV_PF s _ (hV ▸ hV0)
       simp only [hV0, if_false, hm, decide_false, Bool.false_eq_true, cc_pure]
       rw [hV, hVe] at hT
-      have hh := hK (ptr + 8 + 16 * a) E' (folds + a) node' [] c' u hT hpnext
+      have hh := hK (ptr + 64 + 64 * a) E' (folds + a) node' [] c' u hT hpnext
       exact hh
   | cons e rest ih =>
     intro ptr E folds pend node c m h hptr
@@ -1049,7 +1049,7 @@ theorem segLoop_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat
       · subst hQ
         simp only [ne_eq, not_true_eq_false, if_false]
         obtain ⟨u2, hst2, hD⟩ := tM.2.2 pnode rest rfl
-        have hpnext' : ptr+8+16*a = Equiv.segPtr P.wl (2*s-rest.length) := by
+        have hpnext' : ptr+64+64*a = Equiv.segPtr P.wl (2*s-rest.length) := by
           convert hpnext using 2 <;> omega
         have := ih _ _ _ _ _ _ u2 hD hpnext'
         simp only [NtailM, CtailM, AexactM, Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel]
@@ -1062,7 +1062,7 @@ theorem segLoop_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState) (s x : Nat
     · obtain ⟨hVe, hm⟩ := segV_PF s _ (hV ▸ hV0)
       simp only [hV0, if_false, hm, decide_false, Bool.not_false, if_true, cc_pure]
       rw [hV, hVe] at hT
-      have hh := hK (ptr + 8 + 16 * a) E' (folds + a) node' ((pnode, Q) :: rest) c' u hT hpnext
+      have hh := hK (ptr + 64 + 64 * a) E' (folds + a) node' ((pnode, Q) :: rest) c' u hT hpnext
       exact hh
 
 theorem leaves_good_exact (P : PCtx) (hP : P.ok) (s0 : MachineState)
@@ -1166,7 +1166,7 @@ theorem pors_good_decoded (P : PCtx) (hP : P.ok) (s0 : MachineState)
   rw [l0] at hg
   exact hg.mono (le_refl _) (le_refl _) (fun _ => ⟨trivial, le_refl _⟩)
 
-def cycleBoundDecoded (wl : List Byte) : Nat := 457 + layC + decodedCostRem wl 0
+def cycleBoundDecoded (wl : List Byte) : Nat := 458 + layC + decodedCostRem wl 0
 
 theorem exact_cost_vals (wl : List Byte) :
     leafCost 0 + Aexact wl 0 0 = 334 + layC + decodedCostRem wl 0 := by
@@ -1192,8 +1192,8 @@ theorem main_good_decoded (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : 
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (91 + (leafCost 0 + Nseg 0 0)) (91 + (leafCost 0 + Cseg 0 0)) True
-        (91 + (leafCost 0 + Aexact wl 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (92 + (leafCost 0 + Nseg 0 0)) (92 + (leafCost 0 + Cseg 0 0)) True
+        (92 + (leafCost 0 + Aexact wl 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with
@@ -1303,7 +1303,7 @@ zero-inclusive compressed-tree certificate, with the final root cost restored. -
 theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
     (hpk : pkl.length = 16) (hwl : wl.length = 16384) (s : MachineState)
     (hs : InitOK ml pkl wl s) :
-    GoodQ s fuelBound cycleBoundAll True 10272 (cc (verifyList ml pkl wl) Kb) := by
+    GoodQ s fuelBound cycleBoundAll True 10273 (cc (verifyList ml pkl wl) Kb) := by
   intro F hF
   have hg := main_good_decoded ml pkl wl hml hpk hwl s hs F hF
   refine ⟨hg.1, fun hash => ⟨(hg.2 hash).1, (hg.2 hash).2.1, fun hsucc => ⟨trivial, ?_⟩⟩⟩
@@ -1320,7 +1320,7 @@ theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
 
 theorem verify_good_tight (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (s : MachineState) (hs : initialState submission .verify input = some s) :
-    GoodQ s fuelBound cycleBoundAll True 10272
+    GoodQ s fuelBound cycleBoundAll True 10273
       (cc (verifyRef input.1 input.2.1 input.2.2) Kb) := by
   obtain ⟨m, pk, w⟩ := input
   exact main_good_tight _ _ _ (length_toList m) (length_toList pk)
@@ -1331,7 +1331,7 @@ over hash answers and arbitrary witnesses. The witness charge is separate. -/
 theorem verify_accept_cycles_tight (hash : Hash)
     (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (h : (submission.runWith hash .verify input).value = some ()) :
-    (submission.runWith hash .verify input).cycles ≤ 10272 := by
+    (submission.runWith hash .verify input).cycles ≤ 10273 := by
   obtain ⟨s, hs⟩ := init_exists input
   have hg := (verify_good_tight input s hs CYCLE_LIMIT (by unfold CYCLE_LIMIT fuelBound; norm_num)).2 hash
   rw [runWith_eq submission hash .verify input s hs, image_eq] at h ⊢

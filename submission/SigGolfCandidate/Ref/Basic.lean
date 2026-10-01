@@ -102,8 +102,8 @@ def aMax : Nat := 2 ^ 19
 def cMax : Nat := 2 ^ 22
 /-- Signature bytes `S`. -/
 def sigBytes : Nat := 6032
-/-- Bytes of the witness view `0x800 .. 0x4800` the reference reads (the witness `W = 15872`
-sits at `0xA00`, after the view's 512-byte zero lead; `Ref.extW`). -/
+/-- Bytes of the witness view `0x800 .. 0x4800` the reference reads (W1: the witness `W = 16128`
+sits at `0x900`, after the view's 256-byte zero lead; `Ref.extW`). -/
 def witBytes : Nat := 16384
 
 /-- Height of hypertree layer `lay` (layer 0 = top): `heights[lay]`. -/

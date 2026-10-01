@@ -42,7 +42,7 @@ structure FCtx where
 
 def FCtx.ok (fc : FCtx) : Prop :=
   2 ≤ fc.h ∧ fc.h ≤ 11 ∧ fc.E < 2 ^ fc.h ∧ fc.t < 256 ∧ fc.f2 < 256 ∧ fc.wl.length = 16384 ∧
-  fc.sibOff % 8 = 0 ∧ fc.sibOff + pathStrideL fc.lay * fc.h ≤ 16384 ∧ safeDest fc.dst = true ∧
+  fc.sibOff % 8 = 0 ∧ fc.sibOff + pathStrideL fc.lay * fc.h ≤ 2944 ∧ safeDest fc.dst = true ∧
   (fc.dst + 32 ≤ 0x340 ∨ 0x390 ≤ fc.dst) ∧ fc.lay < 5 ∧ fc.h = heightL fc.lay ∧
   fc.sibOff = pathOffL fc.lay ∧ fc.dst = dstOf fc.lay
 
@@ -227,32 +227,15 @@ theorem FrameOK.trans {s0 s t : MachineState} (h1 : FrameOK s0 s)
 def FCtx.sib (fc : FCtx) (lam : Nat) : Val := slice fc.wl (fc.sibOff + pathStrideL fc.lay * lam) 16
 
 theorem sib_words (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam < fc.h) (s : MachineState)
-    (hG : Glob gkL fc.wl fc.pk s) (hF : Fresh fc.wl fc.lay 42 s) :
+    (hG : Glob gkL fc.wl fc.pk s) (_hF : Fresh fc.wl fc.lay 42 s) :
     s.getMem (BitVec.ofNat 64 (sibAddr fc.lay lam)) = vw0 (fc.sib lam) ∧
     s.getMem (BitVec.ofNat 64 (sibAddr fc.lay lam + 8)) = vw1 (fc.sib lam) := by
-  obtain ⟨-, h10, -, -, -, hwl, h8, hsz, -, -, hl, hh, hso, -⟩ := hfc
-  by_cases h0 : fc.lay = 0
-  · have hso' : fc.sibOff = 2656 := by simpa [pathOffL, h0] using hso
-    simp only [sibAddr, FCtx.sib, h0, pathOffL, pathStrideL, if_true, hso', vw0_slice, vw1_slice]
-    have hm : lam < 11 := by simpa [hh, h0, heightL] using hlam
-    constructor
-    · simpa only [Nat.add_assoc] using wit_word hG.2.1 (2656 + 16 * lam) (by omega) (by omega)
-    · simpa only [Nat.add_assoc] using wit_word hG.2.1 (2656 + 16 * lam + 8) (by omega) (by omega)
-  · have h0' : 0 < fc.lay := by omega
-    have ha : sibAddr fc.lay lam = blkN (fc.lay - 1) (32 + lam) := by
-      simp only [sibAddr, pathOffL, pathStrideL, if_neg h0, blkN_eq]
-      omega
-    have ho : fc.sibOff + pathStrideL fc.lay * lam = blockOff (fc.lay - 1) (32 + lam) := by
-      simp only [hso, pathOffL, pathStrideL, if_neg h0, blockOff_eq]
-      omega
-    have hw : ∀ k, k < 2 →
-        s.getMem (BitVec.ofNat 64 (sibAddr fc.lay lam + 8 * k)) =
-          w64 (slice fc.wl (fc.sibOff + pathStrideL fc.lay * lam + 8 * k) 8) := by
-      intro k hk
-      rw [ha, ho]
-      exact hF (fc.lay - 1) (32 + lam) k (FreshW_sib hl h0' (by omega) hk)
-    rw [FCtx.sib, vw0_slice, vw1_slice]
-    exact ⟨by simpa using hw 0 (by omega), by simpa using hw 1 (by omega)⟩
+  obtain ⟨-, h10, -, -, -, hwl, h8, hsz, -, -, -, -, hso, -⟩ := hfc
+  unfold pathStrideL at hsz
+  unfold sibAddr FCtx.sib pathStrideL
+  rw [vw0_slice, vw1_slice, ← hso, show 0x800 + fc.sibOff + 16 * lam = 0x800 + (fc.sibOff + 16 * lam) by omega,
+    show 0x800 + (fc.sibOff + 16 * lam) + 8 = 0x800 + (fc.sibOff + 16 * lam + 8) by omega]
+  exact ⟨wit_word hG.2.1 _ (by omega) (by omega), wit_word hG.2.1 _ (by omega) (by omega)⟩
 
 /-- The spec's input of fold level `lam` with current value `v`. -/
 def FCtx.input (fc : FCtx) (lam : Nat) (v : Val) : List Byte :=
@@ -264,7 +247,7 @@ theorem length_sib (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam < fc.h) :
   obtain ⟨-, h10, -, -, -, hwl, h8, hsz, -⟩ := hfc
   unfold FCtx.sib; apply length_slice16
   unfold pathStrideL at hsz ⊢
-  split_ifs at * <;> omega
+  omega
 
 /-- The heap index of the output node of level `lam`. -/
 def FCtx.heap (fc : FCtx) (lam : Nat) : Nat := 2 ^ (fc.h - (lam + 1)) + fc.E / 2 ^ (lam + 1)

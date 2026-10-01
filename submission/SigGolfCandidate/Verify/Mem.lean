@@ -146,9 +146,9 @@ no block writes. -/
 def WitOK (wl : List Byte) (s : MachineState) : Prop :=
   ∀ j, j < 368 → s.getMem (BitVec.ofNat 64 (0x800 + 8 * j)) = w64 (slice wl (8 * j) 8)
 
-/-- The whole witness (`W = 16384`), as long as verify has not written the chain array (PORS phase). -/
+/-- The witness and its zero-extended read view (`65536` bytes), as long as verify has not written the chain array (PORS phase). -/
 def WitAll (wl : List Byte) (s : MachineState) : Prop :=
-  ∀ j, j < 2048 → s.getMem (BitVec.ofNat 64 (0x800 + 8 * j)) = w64 (slice wl (8 * j) 8)
+  ∀ j, j < 8192 → s.getMem (BitVec.ofNat 64 (0x800 + 8 * j)) = w64 (slice wl (8 * j) 8)
 
 theorem WitAll.lo {wl : List Byte} {s : MachineState} (h : WitAll wl s) : WitOK wl s :=
   fun j hj => h j (by omega)

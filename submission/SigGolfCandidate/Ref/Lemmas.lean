@@ -441,38 +441,20 @@ theorem sigLayerOff_values :
 theorem bodyBytes_eq (lay : Nat) : bodyBytes lay = sigLayerBytes lay - 4 := by
   simp only [bodyBytes, sigLayerBytes]; omega
 theorem sigBytes_eq_sigLayerOff : sigBytes = sigLayerOff nLayers := by decide
-theorem wStream_eq : wStream = 528 := rfl
-theorem streamBytes_eq : streamBytes = 2120 := rfl
-theorem wC4_eq : wC4 = 2648 := rfl
-theorem wPaths_eq : wPaths = 2656 := rfl
+theorem wStream_eq : wStream = 4032 := rfl
+theorem streamBytes_eq : streamBytes = 9344 := rfl
+theorem wC4_eq : wC4 = 2320 := rfl
+theorem wPaths_eq : wPaths = 2336 := rfl
 theorem pathOff_values :
-    (List.range (nLayers + 1)).map pathOff = [2656, 4992, 7680, 10368, 13056, 15744] := by
+    (List.range (nLayers + 1)).map pathOff = [2336, 2512, 2608, 2704, 2800, 2880] := by
   decide
 theorem wChains_eq : wChains = 2944 := by decide
 theorem blockOff_eq (lay i : Nat) : blockOff lay i = 2944 + 2688 * lay + 64 * i := by
   simp only [blockOff, wChains_eq, nChains]
 theorem witBytes_eq : witBytes = blockOff nLayers 0 := by decide
-theorem wPi_eq : wPi = 512 := rfl
+theorem wPi_eq : wPi = 2304 := rfl
 theorem wRho_eq : wRho = 3008 := by unfold wRho; rw [blockOff_eq]
 theorem wSec_eq (s : Nat) : wSec s = 3072 + 64 * s := by unfold wSec; rw [blockOff_eq]; omega
-
-/-- A lower sibling occupies a preceding-layer tweak slot, not a chain pad or value. -/
-theorem lower_path_addr (lay l : Nat) (hlay : 0 < lay) :
-    pathOff lay + pathStride lay * l = blockOff (lay - 1) (32 + l) := by
-  simp only [pathOff, pathStride, if_neg (by omega : lay ≠ 0), blockOff_eq, wChains_eq]
-  omega
-
-theorem slotOf_path (sig : List Byte) (lay l : Nat) (hlay : lay < 4)
-    (hl : l < height (lay + 1)) :
-    slotOf sig lay (32 + l) = slice (sigPath sig (lay + 1)) (16 * l) 16 := by
-  unfold slotOf
-  rw [if_neg (by omega), if_neg (by unfold porsK; omega), if_pos (by omega)]
-  congr 2; omega
-
-theorem witSib_lower (w : List Byte) (lay l : Nat) (hlay : 0 < lay) :
-    witSib w lay l = slice w (blockOff (lay - 1) (32 + l)) 16 := by
-  unfold witSib
-  rw [lower_path_addr lay l hlay]
 
 /-! ## expand: witness length -/
 
@@ -511,7 +493,7 @@ theorem length_witnessList (sig : List Byte) (hsig : sig.length = sigBytes) (v v
     fun lay hl => length_slice _ _ _ (by
       have := hoff lay hl; rw [hs]; simp only [bodyBytes] at this; omega)
   have hrho : (sigRho sig).length = 16 := length_slice _ _ _ (by rw [hs]; decide)
-  have hslot : ∀ lay i, (slotOf sig lay i).length = 16 := by
+  have hslot : ∀ lay i, (slotOf sig segs lay i).length = 16 := by
     intro lay i
     unfold slotOf
     split
@@ -519,10 +501,9 @@ theorem length_witnessList (sig : List Byte) (hsig : sig.length = sigBytes) (v v
     · split
       · exact hitem _ (by unfold porsK at *; omega)
       · split
-        · rename_i hp
-          exact length_slice _ _ _ (by rw [hpath _ (by unfold nLayers; omega)]; omega)
+        · simp
         · exact length_zeros 16
-  have hchain : ∀ lay, lay < nLayers → (chainRegion sig lay).length = 2688 := by
+  have hchain : ∀ lay, lay < nLayers → (chainRegion sig segs lay).length = 2688 := by
     intro lay hl
     unfold chainRegion
     rw [length_flatten_map_range _ 64 _ (fun i hi => by
@@ -531,9 +512,9 @@ theorem length_witnessList (sig : List Byte) (hsig : sig.length = sigBytes) (v v
         have := hoff lay hl; rw [hs]; simp only [bodyBytes, nChains] at this hi; omega)])]
     rfl
   unfold witnessList witnessBody
-  simp only [List.length_append, List.length_map, List.length_take, length_zeros, hvs,
-    hpath 0 (by decide), length_flatten_map_range _ _ _ hchain]
-  have : min streamBytes ((segStream sig segs).length + streamBytes) = streamBytes := by omega
+  simp only [List.length_append, List.length_map, length_zeros, hvs,
+    length_flatten_map_range' _ _ _ hpath, length_flatten_map_range _ _ _ hchain]
+  have : ((List.range nLayers).map fun lay => 16 * height lay).sum = 544 := by decide
   rw [this]
   decide
 
@@ -581,8 +562,8 @@ theorem take_withCounters (w0 : List Byte) (cs : List Nat) (hw : wC4 ≤ w0.leng
     List.take_take, show min witLead wC4 = witLead from rfl]
 
 /-- A tweak slot of the partial witness has 16 bytes. -/
-theorem length_slotOf (sig : List Byte) (hsig : sig.length = sigBytes) (lay i : Nat) :
-    (slotOf sig lay i).length = 16 := by
+theorem length_slotOf (sig : List Byte) (hsig : sig.length = sigBytes) (segs : List Nat) (lay i : Nat) :
+    (slotOf sig segs lay i).length = 16 := by
   have hs : sig.length = 6032 := hsig
   unfold slotOf
   split
@@ -590,25 +571,18 @@ theorem length_slotOf (sig : List Byte) (hsig : sig.length = sigBytes) (lay i : 
   · split
     · rename_i h; unfold sigItem; exact length_slice _ _ _ (by rw [hs]; unfold porsK at h; omega)
     · split
-      · rename_i hp
-        apply length_slice
-        have hoff : ∀ lay, lay < nLayers → sigLayerOff lay + bodyBytes lay ≤ 6032 := by decide
-        have hpath : (sigPath sig (lay + 1)).length = 16 * height (lay + 1) := by
-          apply length_slice
-          have := hoff (lay + 1) (by unfold nLayers; omega)
-          rw [hs]; simp only [bodyBytes] at this; omega
-        rw [hpath]; omega
+      · simp
       · exact length_zeros 16
 
 /-- The 16384-byte view of the witness cut out of a view with a zero lead is that view. -/
 theorem extW_toList_cutW (w : List Byte) (hl : w.length = 16384) (hz : w.take witLead = zeros witLead) :
-    extW (toList (ofList 15872 (cutW w))) = w := by
-  rw [toList_ofList 15872 _ (by rw [length_cutW, hl]; rfl), extW_cutW w hz]
+    extW (toList (ofList 14080 (cutW w))) = w := by
+  rw [toList_ofList 14080 _ (by rw [length_cutW, hl]; rfl), extW_cutW w hz]
 
 /-- The view of a honest witness (the partial witness with its counters). -/
 theorem extW_toList_cutW_withCounters (w0 : List Byte) (cs : List Nat) (hl : (withCounters w0 cs).length = 16384)
     (hw : wC4 ≤ w0.length) (hz : w0.take witLead = zeros witLead) :
-    extW (toList (ofList 15872 (cutW (withCounters w0 cs)))) = withCounters w0 cs :=
+    extW (toList (ofList 14080 (cutW (withCounters w0 cs)))) = withCounters w0 cs :=
   extW_toList_cutW _ hl (by rw [take_withCounters w0 cs hw, hz])
 
 

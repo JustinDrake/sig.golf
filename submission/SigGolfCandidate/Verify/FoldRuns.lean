@@ -19,8 +19,8 @@ def stW0 (a : Nat) (v : E) : E := .bin (.st .w 0) (ldE a) v
 
 /-- Layer heights (layer 0 = top) and witness offsets of the paths (W1a, `Ref.pathOff`). -/
 def heightL (lay : Nat) : Nat := [11, 6, 6, 6, 5].getD lay 0
-def pathOffL (lay : Nat) : Nat := if lay = 0 then 2656 else 2944 + 2688 * (lay - 1) + 64 * 32
-def pathStrideL (lay : Nat) : Nat := if lay = 0 then 16 else 64
+def pathOffL (lay : Nat) : Nat := [2336, 2512, 2608, 2704, 2800].getD lay 0
+def pathStrideL (_lay : Nat) : Nat := 16
 
 /-- Known registers: FORS (`kind = true`) or layers. -/
 def gkOf (kind : Bool) : List (Reg × Word) := if kind then gkF else gkL

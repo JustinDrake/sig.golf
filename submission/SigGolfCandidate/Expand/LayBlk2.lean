@@ -12,14 +12,13 @@ namespace SigGolfCandidate.ExP
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref
   SigGolfCandidate.Sign
 
-/-- 442 (`j fold_pre`), then 673 .. 682 (`fold_pre`): the path pointer `W + 2304 + 2688 lay` (the scattered path of
+/-- 442 (`j fold_pre`), then 673 .. 682 (`fold_pre`): the path pointer `W + 2416 + 96 lay` (the path of
 layer `lay ≥ 1` at `pathOff lay`), the heap index `2^h | e` of the leaf, level 0; `j fd_loop`. -/
 theorem blk442_run (t : MachineState) (hpc : t.pc = pcOf 442) (h e lay : Nat) (hh : h ≤ 11) (he : e < 2 ^ h)
     (hl : lay < 5) (h8 : t.getReg .x8 = BitVec.ofNat 64 lay)
-    (h9 : t.getReg .x9 = BitVec.ofNat 64 h) (h13 : t.getReg .x13 = BitVec.ofNat 64 e)
-    (h23 : t.getReg .x23 = BitVec.ofNat 64 (0x800 + 2992 + 2688 * lay + 64 * 42)) :
-    ∃ t', Steps eimg t 11 11 t' ∧ t'.pc = pcOf 446 ∧ t'.getReg .x18 = BitVec.ofNat 64 (2 ^ h + e) ∧
-      t'.getReg .x19 = BitVec.ofNat 64 0 ∧ t'.getReg .x23 = BitVec.ofNat 64 (0x800 + 2304 + 2688 * lay) ∧
+    (h9 : t.getReg .x9 = BitVec.ofNat 64 h) (h13 : t.getReg .x13 = BitVec.ofNat 64 e) :
+    ∃ t', Steps eimg t 11 14 t' ∧ t'.pc = pcOf 446 ∧ t'.getReg .x18 = BitVec.ofNat 64 (2 ^ h + e) ∧
+      t'.getReg .x19 = BitVec.ofNat 64 0 ∧ t'.getReg .x23 = BitVec.ofNat 64 (0x800 + (2416 + 96 * lay)) ∧
       RegsEq t t' [.x14, .x15, .x18, .x19, .x23] ∧ ∀ x, t'.getMem x = t.getMem x := by
   have s1 := symRun_sound Expand.blk442 Expand.codeAt_442 t hpc (by simp only [Expand.blk442.res, rv_simp])
   set t1 := Expand.blk442.res.toState t with ht1
@@ -38,9 +37,9 @@ theorem blk442_run (t : MachineState) (hpc : t.pc = pcOf 442) (h e lay : Nat) (h
     congr 1
     have := Nat.two_pow_add_eq_or_of_lt he 1
     simpa using this.symm
-  · simp only [Expand.blk673.res, rv_simp, r1.get .x23 (by simp), h23]
-    bvsimp []
-    exact ofNat_congr (by omega)
+  · simp only [Expand.blk673.res, rv_simp, r1.get .x8 (by simp), h8,
+      show (96#64 : Word) = BitVec.ofNat 64 96 from rfl, ofNat_mul_ofNat', ofNat_add_ofNat]
+    exact ofNat_congr (by ring)
 
 /-- 446 .. 455 (`fd_loop`): the direction bit, the parent heap index into `NB` word 1, the
 sibling and the node. -/
@@ -128,7 +127,7 @@ theorem blk469_run (t : MachineState) (hpc : t.pc = pcOf 469) (o lam h : Nat) (h
     (h23 : t.getReg .x23 = BitVec.ofNat 64 o) (h19 : t.getReg .x19 = BitVec.ofNat 64 lam)
     (h9 : t.getReg .x9 = BitVec.ofNat 64 h) :
     ∃ t', Steps eimg t 3 3 t' ∧ t'.pc = (if lam + 1 = h then pcOf 472 else pcOf 446) ∧
-      t'.getReg .x23 = BitVec.ofNat 64 (o + 64) ∧ t'.getReg .x19 = BitVec.ofNat 64 (lam + 1) ∧
+      t'.getReg .x23 = BitVec.ofNat 64 (o + 16) ∧ t'.getReg .x19 = BitVec.ofNat 64 (lam + 1) ∧
       RegsEq t t' [.x19, .x23] ∧ ∀ x, t'.getMem x = t.getMem x := by
   refine ⟨_, symRun_sound Expand.blk469 Expand.codeAt_469 t hpc (by simp only [Expand.blk469.res, rv_simp]),
     ?_, by pnum [Expand.blk469.res, h23], by pnum [Expand.blk469.res, h19], by pregs, getMem_nil rfl t⟩
@@ -197,7 +196,7 @@ theorem blk472_run (t : MachineState) (hpc : t.pc = pcOf 472) (lay : Nat) (hl : 
       · exact h.elim)
 
 /-- 478 .. 494 (`halt_ok`): the five counters into the witness (W1a: `c0 .. c3` as two dwords at
-`W + 2944` (the tweak slot of block `(0, 0)`), `c4` as a dword at `W + 2648`); HALT(0). -/
+`W + 2944` (the tweak slot of block `(0, 0)`), `c4` as a dword at `W + 2392`); HALT(0). -/
 theorem blk478_run (t : MachineState) (hpc : t.pc = pcOf 478) (c : Nat → Nat) (hc : ∀ l < 5, c l < 2 ^ 22)
     (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000)
     (hct : ∀ l < 5, t.getMem (BitVec.ofNat 64 (0x30780 + 8 * l)) = BitVec.ofNat 64 (c l)) :
@@ -205,8 +204,8 @@ theorem blk478_run (t : MachineState) (hpc : t.pc = pcOf 478) (c : Nat → Nat) 
       t'.getReg .x10 = 0 ∧
       t'.getMem (BitVec.ofNat 64 0x1380) = BitVec.ofNat 64 (c 0 + 2 ^ 32 * c 1) ∧
       t'.getMem (BitVec.ofNat 64 0x1388) = BitVec.ofNat 64 (c 2 + 2 ^ 32 * c 3) ∧
-      t'.getMem (BitVec.ofNat 64 0x1258) = BitVec.ofNat 64 (c 4) ∧
-      Frame t t' (fun x => x = 0x1380 ∨ x = 0x1388 ∨ x = 0x1258) := by
+      t'.getMem (BitVec.ofNat 64 0x1110) = BitVec.ofNat 64 (c 4) ∧
+      Frame t t' (fun x => x = 0x1380 ∨ x = 0x1388 ∨ x = 0x1110) := by
   have c0 := hct 0 (by norm_num)
   have c1 := hct 1 (by norm_num)
   have c2 := hct 2 (by norm_num)

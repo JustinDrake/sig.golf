@@ -131,8 +131,8 @@ theorem ctrA_word (L : LCtx) (hL : L.ok) (s : MachineState) (hW : WitOK L.wl s)
     s.getMem (BitVec.ofNat 64 (ctrA L.lay)) = w64 (slice L.wl (ctrA L.lay - 0x800) 8) := by
   obtain ⟨hlay, -, -⟩ := hL
   by_cases h4 : L.lay = 4
-  · rw [show ctrA L.lay = 0x800 + 2648 by simp [ctrA, h4]]
-    exact wit_word hW 2648 (by decide) (by decide)
+  · rw [show ctrA L.lay = 0x800 + 2320 by simp [ctrA, h4]]
+    exact wit_word hW 2320 (by decide) (by decide)
   · have e : ctrA L.lay = blkN 0 0 + 8 * (L.lay / 2) := by
       rw [blkN_eq]; simp only [ctrA, if_neg h4] <;> omega
     have e2 : ctrA L.lay - 0x800 = blockOff 0 0 + 8 * (L.lay / 2) := by

@@ -65,7 +65,7 @@ theorem witPath_eq (L : LCtx) (hL : L.lay < 5) : witPath L.wl L.lay = (layFC L).
   simp only [heightL_eq _ hL]
   apply List.map_congr_left
   intro l _
-  simp [witSib, pathOff_eqL _ hL, pathStride, pathStrideL]
+  simp [witSib, pathOff_eqL _ hL, pathStrideL]
 
 theorem Good.reject {s : MachineState} (hf : fetch image s = some (.base .ECALL))
     (h5 : s.getReg .x5 = 1) (h10 : s.getReg .x10 = 1) : Good s 1 1 (pure (false, 0)) := by
@@ -160,7 +160,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     have e2 : witSib wl (lay - 1 + 1) (heightL (lay - 1 + 1) - 1) =
         (layFC ⟨wl, pk, lay, idx⟩).sib (heightL lay - 1) := by
       rw [Nat.sub_add_cancel h1]
-      simp [witSib, FCtx.sib, layFC, pathOff_eqL _ h7, pathStride, pathStrideL, show lay ≠ 0 by omega]
+      simp [witSib, FCtx.sib, layFC, pathOff_eqL _ h7, pathStrideL, show lay ≠ 0 by omega]
     rw [e1, e2]
     exact ⟨hsw.1, hsw.2, hsl⟩
   · refine ⟨(layFC ⟨wl, pk, lay, idx⟩).blk (nCh lay - 1), ?_, ?_, fun _ => ?_⟩
