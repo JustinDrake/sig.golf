@@ -1,5 +1,5 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalPrefixStop
+import SigGolfCandidate.SphincsSecurity.Proof.Fts.CertificateTerminalGame
 namespace SphincsSecurity.Concrete
 
 open _root_.OracleComp ENNReal
