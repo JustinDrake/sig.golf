@@ -875,13 +875,14 @@ end layout
 
 /-! ## R2 -/
 
-theorem segByte_raw : ∀ a, a < 16 → ∀ m p : Bool,
-    (a ||| (if m then 16 else 0) ||| 32 * (if p then 1 else 0)) =
-      a + (if m then 16 else 0) + 32 * (if p then 1 else 0) := by decide
+theorem segByte_raw : ∀ a, a < 16 → ∀ m p : Bool, ∀ l : Fin 4,
+    (a ||| (if m then 16 else 0) ||| 32 * ((if p then 1 else 0) + 2 * l.val)) =
+      a + (if m then 16 else 0) + 32 * (if p then 1 else 0) + 64 * l.val := by decide
 
 theorem segByte_val (sg : SphincsSecurity.Concrete.ScheduleSegment) (h : sg.reads.length < 16) :
-    segByte sg = sg.reads.length + (if sg.merge then 16 else 0) + 32 * (if sg.parity then 1 else 0) :=
-  segByte_raw _ h _ _
+    segByte sg = sg.reads.length + (if sg.merge then 16 else 0) +
+      32 * (if sg.parity then 1 else 0) + 64 * sg.lookahead.val :=
+  segByte_raw _ h _ _ _
 
 /-- The digest leaves of `N` as a slot map. -/
 def leavesN (N : Nat) : IndexGroup → FtsLeaf := fun r => ⟨Ref.leafOf N r.val, Nat.mod_lt _ (by decide)⟩
@@ -953,12 +954,14 @@ theorem sched_facts (N : Nat) (hnd : (Ref.leavesOf N).Nodup)
     simp only [Function.comp_apply]
     rw [segByte_val sg (by have := (hr sg hsg).1; omega)]
     have := (hr sg hsg).1
+    have := sg.lookahead.isLt
     split <;> split <;> omega
   · intro b hb
     simp only [List.mem_map] at hb
     obtain ⟨sg, hsg, rfl⟩ := hb
     rw [segByte_val sg (by have := (hr sg hsg).1; omega)]
     have := (hr sg hsg).1
+    have := sg.lookahead.isLt
     split <;> split <;> omega
 
 theorem sigAuth_eq (sig : List Byte) (i : Nat) : Ref.sigAuth sig i = Ref.slice sig (256 + 16 * i) 16 := by
@@ -1355,9 +1358,10 @@ theorem idxOf_ofFn {n : Nat} (f : Fin n → Nat) (hf : Function.Injective f) (r 
 
 theorem normalized_congr {a a' : Fin 16} (h : a = a') {m m' p p' : Bool} (hm : m = m') (hp : p = p')
     (f : Fin a.val → Digest) (g : Fin a'.val → Digest)
-    (hfg : ∀ i (hi : i < a.val), f ⟨i, hi⟩ = g ⟨i, h ▸ hi⟩) :
-    SphincsSecurity.Segment.normalized a m p f = SphincsSecurity.Segment.normalized a' m' p' g := by
-  subst h hm hp
+    (hfg : ∀ i (hi : i < a.val), f ⟨i, hi⟩ = g ⟨i, h ▸ hi⟩)
+    {l l' : Fin 4} (hl : l = l') :
+    SphincsSecurity.Segment.normalized a m p f l = SphincsSecurity.Segment.normalized a' m' p' g l' := by
+  subst h hm hp hl
   congr 1
   funext i
   exact hfg i.val i.isLt
@@ -1418,6 +1422,7 @@ theorem length_authNodes_honest :
 
 end honest
 
+set_option maxHeartbeats 800000 in
 /-- **R4**: the honest opening of admissible leaves (any randomness, secrets, node table and layers),
 compressed and expanded with a digest whose leaf indices are `leaves`, gives a partial witness that
 decodes to the signature with zero counters and, with any counters `cs` written, to the signature with
@@ -1520,26 +1525,27 @@ theorem expandOf_honest (leaves : IndexGroup → FtsLeaf)
         have hw : Ref.wbyte (witOf (compressList (honestSig leaves rho secret node layers)) (Ref.leavesOf N) (Ref.sortLeaves (Ref.leavesOf N)) ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).map segByte) cs) (segPtr (witOf (compressList (honestSig leaves rho secret node layers)) (Ref.leavesOf N) (Ref.sortLeaves (Ref.leavesOf N)) ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).map segByte) cs) j.val) =
             ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD j.val default).reads.length +
               (if ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD j.val default).merge then 16 else 0) +
-              32 * (if ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD j.val default).parity then 1 else 0) := by
+              32 * (if ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD j.val default).parity then 1 else 0) +
+              64 * ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD j.val default).lookahead.val := by
           rw [hw0, getD_map_lt _ segByte _ default 0 hjl, segByte_val _ (by omega)]
-        refine normalized_congr (Fin.ext ?_) ?_ ?_ _ _ ?_
+        refine normalized_congr (Fin.ext ?_) ?_ ?_ _ _ ?_ ?_
         · simp only [SphincsSecurity.Concrete.ScheduleSegment.folds, Fin.val_mk]
           rw [hw]
           generalize ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD
             j.val default) = sg at hlen ⊢
-          rcases sg with ⟨mg, pr, rd⟩
+          rcases sg with ⟨mg, pr, rd, lookahead⟩
           simp only at hlen ⊢
           cases mg <;> cases pr <;> simp <;> omega
         · rw [hw]
           generalize ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD
             j.val default) = sg at hlen ⊢
-          rcases sg with ⟨mg, pr, rd⟩
+          rcases sg with ⟨mg, pr, rd, lookahead⟩
           simp only at hlen ⊢
           cases mg <;> cases pr <;> simp <;> omega
         · rw [hw]
           generalize ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD
             j.val default) = sg at hlen ⊢
-          rcases sg with ⟨mg, pr, rd⟩
+          rcases sg with ⟨mg, pr, rd, lookahead⟩
           simp only at hlen ⊢
           cases mg <;> cases pr <;> simp <;> omega
         · intro i hi
@@ -1550,7 +1556,7 @@ theorem expandOf_honest (leaves : IndexGroup → FtsLeaf)
             have h3 := hi'
             rw [getD_map_lt _ segByte _ default 0 hjl, segByte_val _ (by omega)] at h3
             generalize ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD j.val default) = sg at h3 hlen ⊢
-            rcases sg with ⟨mg, pr, rd⟩
+            rcases sg with ⟨mg, pr, rd, lookahead⟩
             simp only at h3 hlen ⊢
             cases mg <;> cases pr <;> simp at h3 <;> omega
           have e1 := dv_node_W _ hcl (Ref.leavesOf N) _ _ hvsl cs hsegs hb hn j.val i hj hi'
@@ -1589,6 +1595,15 @@ theorem expandOf_honest (leaves : IndexGroup → FtsLeaf)
             _ = Ref.ofList 16 (Ref.sigAuth (compressList (honestSig leaves rho secret node layers))
                 (asum ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).map segByte) j.val + i)) := by rw [e1]
             _ = _ := by rw [e2, ofList_dv, e3, e4]
+        · apply Fin.ext
+          simp only [Fin.val_mk]
+          rw [hw]
+          generalize ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD
+            j.val default) = sg at hlen ⊢
+          rcases sg with ⟨mg, pr, rd, lookahead⟩
+          have hl := lookahead.isLt
+          simp only at hlen ⊢
+          cases mg <;> cases pr <;> simp <;> omega
     · rw [witLayer_W _ hcl _ _ _ hvsl cs, sigLayerOf_compress]
   have hz : Ref.ofList 4 (Ref.le32 0) = 0 := by decide
   refine ⟨Ref.witnessList (compressList (honestSig leaves rho secret node layers)) (Ref.leavesOf N)

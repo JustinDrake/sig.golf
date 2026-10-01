@@ -40,10 +40,10 @@ theorem decodingDigests_padding (words : Finset Encoding) :
 
 theorem decodingDigests_uniform_le (words : Finset Encoding) :
     Pr[fun output : HashOutput => selectEncodingDigest output ∈ decodingDigests lay words | ($ᵗ HashOutput : ProbComp HashOutput)] ≤
-      ((63 / 32 : ENNReal) * words.card) / Fintype.card Digest := by
+      ((1923 / 1024 : ENNReal) * words.card) / Fintype.card Digest := by
   rw [EncodingSelection.prob_select_mem_of_padding _ (decodingDigests_padding words)]
   calc
-    _ ≤ (63 / 32 : ENNReal) * ((words.card : ENNReal) / Fintype.card Digest) :=
+    _ ≤ (1923 / 1024 : ENNReal) * ((words.card : ENNReal) / Fintype.card Digest) :=
       mul_le_mul' le_rfl
         (ENNReal.div_le_div_right (Nat.cast_le.mpr (decodingDigests_card_le words)) _)
     _ = _ := by simp only [div_eq_mul_inv, mul_assoc]

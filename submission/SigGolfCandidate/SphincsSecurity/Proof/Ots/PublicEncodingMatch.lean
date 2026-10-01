@@ -62,7 +62,7 @@ theorem protected_not_match (parameter : PublicParameter) (inputs : Finset HashI
 
 theorem prob_decode_word_le (lay : Layer) (word : Encoding) :
     Pr[fun answer => decodeEncodingOutput lay answer = some word | (liftM (PMF.uniformOfFintype HashOutput) : SPMF HashOutput)] ≤
-      ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
+      ((1923 / 1024 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
   by_cases hexists : ∃ digest, OtsCode.decode lay digest = some word
   · obtain ⟨digest, hdigest⟩ := hexists
     calc
@@ -77,7 +77,7 @@ theorem prob_decode_word_le (lay : Layer) (word : Encoding) :
 theorem prob_match_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
     (words : OtsReferenceWords) (selections : ReferenceFamily) (input : HashInput) :
     Pr[Match parameter messages words selections input | (liftM (PMF.uniformOfFintype HashOutput) : SPMF HashOutput)] ≤
-      ((63 / 32 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
+      ((1923 / 1024 : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by
   by_cases hexists : ∃ position, AtEncodingPosition parameter input position
   · obtain ⟨position, hat⟩ := hexists
     calc

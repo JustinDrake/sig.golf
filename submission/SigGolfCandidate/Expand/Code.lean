@@ -46,14 +46,14 @@ def seg72 : List (BitVec 32) := [0x00025eb7#32, 0xc00e8e93#32, 0x00001f37#32, 0x
 def seg81 : List (BitVec 32) := [0x00341193#32, 0x6e01b483#32, 0x0084d493#32, 0x6e81b683#32, 0x0086d693#32, 0x0096c6b3#32, 0xfff00a13#32]
 /-- instructions 88 .. 90 (bitlen_2): srli a3, a3, 1; addi s4, s4, 1; bne a3, zero, 88 -/
 def seg88 : List (BitVec 32) := [0x0016d693#32, 0x001a0a13#32, 0xfe069ce3#32]
-/-- instructions 91 .. 94: or s2, s1, s8; andi a5, s2, 0x1; li s3, 0; li s5, 0 -/
-def seg91 : List (BitVec 32) := [0x0184e933#32, 0x00197793#32, 0x00000993#32, 0x00000a93#32]
+/-- instructions 91 .. 94: or s2, s1, s8; andi a5, s2, 0x7; li s3, 0; li s5, 0 -/
+def seg91 : List (BitVec 32) := [0x0184e933#32, 0x00797793#32, 0x00000993#32, 0x00000a93#32]
 /-- instructions 95 .. 95 (sch_h): bge s3, s4, 119 -/
 def seg95 : List (BitVec 32) := [0x0749d063#32]
 /-- instructions 96 .. 97: ld gp, 0(s7); bne gp, s2, 109 -/
 def seg96 : List (BitVec 32) := [0x000bb183#32, 0x03219863#32]
 /-- instructions 98 .. 108: slli s9, a5, 5; or s9, s9, s5; ori s9, s9, 0x10; sb s9, 0(t5); mv t5, t6; addi t6, t6, 8 ... -/
-def seg98 : List (BitVec 32) := [0x00579c93#32, 0x015cecb3#32, 0x010cec93#32, 0x019f0023#32, 0x000f8f13#32, 0x008f8f93#32, 0x00000a93#32, 0xff8b8b93#32, 0x00195913#32, 0x00197793#32, 0x0240006f#32]
+def seg98 : List (BitVec 32) := [0x00579c93#32, 0x015cecb3#32, 0x010cec93#32, 0x019f0023#32, 0x000f8f13#32, 0x008f8f93#32, 0x00000a93#32, 0xff8b8b93#32, 0x00195913#32, 0x00797793#32, 0x0240006f#32]
 /-- instructions 109 .. 116 (sch_fold): ld ra, 0(t4); ld sp, 8(t4); sd ra, 0(t6); sd sp, 8(t6); addi t4, t4, 16; addi t6, t6, 16 ... -/
 def seg109 : List (BitVec 32) := [0x000eb083#32, 0x008eb103#32, 0x001fb023#32, 0x002fb423#32, 0x010e8e93#32, 0x010f8f93#32, 0x001a8a93#32, 0x00195913#32]
 /-- instructions 117 .. 118 (sch_next): addi s3, s3, 1; j 95 -/
@@ -150,8 +150,8 @@ def seg538 : List (BitVec 32) := [0x000046b7#32, 0x00dbe9b3#32, 0x020b9693#32, 0
 def seg550 : List (BitVec 32) := [0x0004c303#32, 0x00f37393#32, 0x00e00893#32, 0xbc78c6e3#32]
 /-- instructions 554 .. 554: beq t2, zero, 559 -/
 def seg554 : List (BitVec 32) := [0x00038a63#32]
-/-- instructions 555 .. 558: srli a3, t1, 5; andi a3, a3, 0x1; andi a4, s3, 0x1; bne a3, a4, 284 -/
-def seg555 : List (BitVec 32) := [0x00535693#32, 0x0016f693#32, 0x0019f713#32, 0xbae69ce3#32]
+/-- instructions 555 .. 558: srli a3, t1, 5; andi a3, a3, 0x7; andi a4, s3, 0x7; bne a3, a4, 284 -/
+def seg555 : List (BitVec 32) := [0x00535693#32, 0x4dc0206f#32, 0x00000013#32, 0xbae69ce3#32]
 /-- instructions 559 .. 560 (pr_pend): mv a0, s9; beq s8, zero, 562 -/
 def seg559 : List (BitVec 32) := [0x000c8513#32, 0x000c0463#32]
 /-- instructions 561 .. 561: addi a0, s9, 64 -/
@@ -252,10 +252,17 @@ def seg804 : List (BitVec 32) := [0x0019d693#32, 0x0ff6f713#32, 0x00871713#32, 0
 /-- instructions 832 .. 859: addi x13, x19, 0; andi x14, x13, 255; slli x14, x14, 8; srli x13, x13, 8; or x13, x13, x14; lui x15, 0x1 ... -/
 def seg832 : List (BitVec 32) := [0x00098693#32, 0x0ff6f713#32, 0x00871713#32, 0x0086d693#32, 0x00e6e6b3#32, 0x000017b7#32, 0xf0f78793#32, 0x00f6f733#32, 0x00471713#32, 0x0046d693#32, 0x00f6f6b3#32, 0x00e6e6b3#32, 0x000037b7#32, 0x33378793#32, 0x00f6f733#32, 0x00271713#32, 0x0026d693#32, 0x00f6f6b3#32, 0x00e6e6b3#32, 0x000057b7#32, 0x55578793#32, 0x00f6f733#32, 0x00171713#32, 0x0016d693#32, 0x00f6f6b3#32, 0x00e6e6b3#32, 0x03069693#32, 0xc15ff06f#32]
 
+
+/-- Hybrid parity/path guard: short segments check parity; long segments check three bits. -/
+def seg558 : List (BitVec 32) := [0xbae69ce3#32]
+def seg2915 : List (BitVec 32) := [0x0033b713#32, 0x00071863#32]
+def seg2917 : List (BitVec 32) := [0x0076f693#32, 0x0079f713#32, 0xb1dfd06f#32]
+def seg2920 : List (BitVec 32) := [0x0016f693#32, 0x0019f713#32, 0xb11fd06f#32]
+
 /-- Segment table of the expand image. -/
 def segAddrReturn425 : List (BitVec 32) := [0x921fd06f]
 
-def L : Rv.Layout := [(0, seg0), (14, seg14), (18, seg18), (25, seg25), (30, seg30), (40, seg40), (41, seg41), (44, seg44), (46, seg46), (48, seg48), (51, seg51), (55, seg55), (57, seg57), (64, seg64), (67, seg67), (70, seg70), (72, seg72), (81, seg81), (88, seg88), (91, seg91), (95, seg95), (96, seg96), (98, seg98), (109, seg109), (117, seg117), (119, seg119), (126, seg126), (129, seg129), (132, seg132), (134, seg134), (135, seg135), (137, seg137), (139, seg139), (144, seg144), (150, seg150), (153, seg153), (160, seg160), (165, seg165), (173, seg173), (174, seg174), (284, seg284), (287, seg287), (316, Sign.seg316), (318, Sign.seg318), (321, Sign.seg321), (322, Sign.seg322), (329, Sign.seg329), (331, Sign.seg331), (346, Sign.seg346), (351, Sign.seg351), (355, Sign.seg355), (375, Sign.seg375), (376, Sign.seg376), (377, Sign.seg377), (379, Sign.seg379), (382, seg382), (386, seg386), (408, seg408), (412, seg412), (413, seg413), (417, seg417), (419, seg419), (426, seg426), (428, seg428), (438, seg438), (442, seg442), (443, seg443), (446, seg446), (456, seg456), (461, seg461), (465, seg465), (469, seg469), (472, seg472), (478, seg478), (495, seg495), (529, seg529), (533, seg533), (534, seg534), (536, seg536), (538, seg538), (550, seg550), (554, seg554), (555, seg555), (559, seg559), (561, seg561), (562, seg562), (565, seg565), (567, seg567), (568, seg568), (569, seg569), (570, seg570), (578, seg578), (583, seg583), (587, seg587), (591, seg591), (595, seg595), (602, seg602), (603, seg603), (606, seg606), (608, seg608), (620, seg620), (622, seg622), (629, seg629), (633, seg633), (635, seg635), (637, seg637), (638, seg638), (639, seg639), (673, seg673), (683, seg683), (688, seg688), (696, seg696), (701, seg701), (707, seg707), (712, seg712), (720, seg720), (725, seg725), (731, seg731), (736, seg736), (744, seg744), (749, seg749), (755, seg755), (760, seg760), (768, seg768), (773, seg773), (779, seg779), (784, seg784), (792, seg792), (797, seg797), (803, seg803), (804, seg804), (832, seg832), (860, List.replicate 940 0x00000013 ++ Sign.seg1800 ++ List.replicate 1 0x00000013 ++ Sign.seg1816 ++ List.replicate 1073 0x00000013), (2893, AddressExpand.headCode), (2913, AddressExpand.tailCode), (2914, segAddrReturn425)]
+def L : Rv.Layout := [(0, seg0), (14, seg14), (18, seg18), (25, seg25), (30, seg30), (40, seg40), (41, seg41), (44, seg44), (46, seg46), (48, seg48), (51, seg51), (55, seg55), (57, seg57), (64, seg64), (67, seg67), (70, seg70), (72, seg72), (81, seg81), (88, seg88), (91, seg91), (95, seg95), (96, seg96), (98, seg98), (109, seg109), (117, seg117), (119, seg119), (126, seg126), (129, seg129), (132, seg132), (134, seg134), (135, seg135), (137, seg137), (139, seg139), (144, seg144), (150, seg150), (153, seg153), (160, seg160), (165, seg165), (173, seg173), (174, seg174), (284, seg284), (287, seg287), (316, Sign.seg316), (318, Sign.seg318), (321, Sign.seg321), (322, Sign.seg322), (329, Sign.seg329), (331, Sign.seg331), (346, Sign.seg346), (351, Sign.seg351), (355, Sign.seg355), (375, Sign.seg375), (376, Sign.seg376), (377, Sign.seg377), (379, Sign.seg379), (382, seg382), (386, seg386), (408, seg408), (412, seg412), (413, seg413), (417, seg417), (419, seg419), (426, seg426), (428, seg428), (438, seg438), (442, seg442), (443, seg443), (446, seg446), (456, seg456), (461, seg461), (465, seg465), (469, seg469), (472, seg472), (478, seg478), (495, seg495), (529, seg529), (533, seg533), (534, seg534), (536, seg536), (538, seg538), (550, seg550), (554, seg554), (555, seg555), (559, seg559), (561, seg561), (562, seg562), (565, seg565), (567, seg567), (568, seg568), (569, seg569), (570, seg570), (578, seg578), (583, seg583), (587, seg587), (591, seg591), (595, seg595), (602, seg602), (603, seg603), (606, seg606), (608, seg608), (620, seg620), (622, seg622), (629, seg629), (633, seg633), (635, seg635), (637, seg637), (638, seg638), (639, seg639), (673, seg673), (683, seg683), (688, seg688), (696, seg696), (701, seg701), (707, seg707), (712, seg712), (720, seg720), (725, seg725), (731, seg731), (736, seg736), (744, seg744), (749, seg749), (755, seg755), (760, seg760), (768, seg768), (773, seg773), (779, seg779), (784, seg784), (792, seg792), (797, seg797), (803, seg803), (804, seg804), (832, seg832), (860, List.replicate 940 0x00000013 ++ Sign.seg1800 ++ Sign.seg1816 ++ List.replicate 1075 0x00000013), (2893, AddressExpand.headCode), (2913, AddressExpand.tailCode), (2914, segAddrReturn425), (2915, seg2915), (2917, seg2917), (2920, seg2920)]
 
 theorem layout_ok : layoutOk 0 L = true := by decide +kernel
 
@@ -548,5 +555,18 @@ theorem returnAddress425 (s : MachineState) (hpc : s.pc = pcOf 2914) :
 
 theorem codeAt_375 : CodeAt image (pcOf 375) Sign.seg375 := by unfold CodeAt; decide +kernel
 theorem codeAt_1816 : CodeAt image (pcOf 1816) Sign.seg1816 := by unfold CodeAt; decide +kernel
+
+
+theorem codeAt_558 : CodeAt image (pcOf 558) seg558 := by
+  have h := codeAt_555.tail.tail.tail
+  change CodeAt image (pcOf 555 + 4 + 4 + 4) seg558 at h
+  rw [show pcOf 555 + 4 + 4 + 4 = pcOf 558 from by decide] at h
+  exact h
+theorem codeAt_2915 : CodeAt image (pcOf 2915) seg2915 :=
+  codeAt_layout code_eq layout_ok (i := 136) (by kernel_rfl) (by decide)
+theorem codeAt_2917 : CodeAt image (pcOf 2917) seg2917 :=
+  codeAt_layout code_eq layout_ok (i := 137) (by kernel_rfl) (by decide)
+theorem codeAt_2920 : CodeAt image (pcOf 2920) seg2920 :=
+  codeAt_layout code_eq layout_ok (i := 138) (by kernel_rfl) (by decide)
 
 end SigGolfCandidate.Expand

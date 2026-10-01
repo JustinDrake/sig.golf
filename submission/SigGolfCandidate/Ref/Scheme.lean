@@ -431,17 +431,17 @@ def segFolds (idx : Nat) (w : List Byte) (ptr a : Nat) (node : Val) (E : Nat) :
       pure (v, st.2 / 2)) (node, E)
 
 /-- One segment of the stack machine (header at `ptr`): read the header byte `b = wbyte w ptr`
-(`a = b mod 16`, `merge` = bit 4, `t` = bit 5, bits 6..7 ignored); reject (`none`, no query) if
-`a > 14`, or if `a > 0` and `t` differs from bit 0 of `E` (the heap index at the segment's start);
+(`a = b mod 16`, `merge` = bit 4, `t` = bits 5..7); reject (`none`, no query) if
+`a > 14`, or if `a > 0` and `t` differs from `E % 8` (the heap index at the segment's start);
 the pending hash; the `a` folds (`segFolds`). Returns `(ptr + 8 + 16 a, E, folds + a, node, merge = 1)`. -/
 def segment (idx : Nat) (w : List Byte) (ptr E folds : Nat) (pending : Pending) (node : Val) :
     OracleComp HashSpec (Option (Nat × Nat × Nat × Val × Bool)) := do
   let b := wbyte w ptr
   let a := b % 16
   let merge := b / 16 % 2
-  let t := b / 32 % 2
+  let t := b / 32
   if a > porsH then pure none
-  else if 0 < a ∧ t ≠ E % 2 then pure none
+  else if 0 < a ∧ (t % 2 ≠ E % 2 ∨ (3 ≤ a ∧ t ≠ E % 8)) then pure none
   else
     let node ← pendingHash idx node pending
     let (node, E) ← segFolds idx w ptr a node E

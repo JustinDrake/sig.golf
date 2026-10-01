@@ -199,11 +199,13 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
         writeHash_frame _ a 0 A h12 hA (by omega) h
       refine ⟨?_, ?_, Glob_writeHash hG a _ h12 (by decide), WitAll_writeHash (hu.wall _ hW) a _ h12 (by decide),
         Known_writeHash hKd a, ?_, ?_, ?_⟩
-      · constructor
-        · rw [wf 0xFFFFF0 (by decide) (by decide), mfr 0xFFFFF0 (by decide) (by decide) (by decide) (by decide)]
+      · refine ⟨?_, ?_, ?_⟩
+        · rw [wf 0xFDFFC0 (by decide) (by decide), mfr 0xFDFFC0 (by decide) (by decide) (by decide) (by decide)]
           exact hMask.1
-        · rw [wf 0xFFFFF8 (by decide) (by decide), mfr 0xFFFFF8 (by decide) (by decide) (by decide) (by decide)]
-          exact hMask.2
+        · rw [wf 0xFDFFC8 (by decide) (by decide), mfr 0xFDFFC8 (by decide) (by decide) (by decide) (by decide)]
+          exact hMask.2.1
+        · rw [wf 0xFDFFD0 (by decide) (by decide), mfr 0xFDFFD0 (by decide) (by decide) (by decide) (by decide)]
+          exact hMask.2.2
       · intro n hn
         have hR : RTAB = 0xFDFFE0 := rfl
         rw [wf (RTAB + 8 * n) (by omega) (by omega),
@@ -299,7 +301,7 @@ theorem memLook_none_hi : ∀ (ws : SymMem) (A : Nat), (ws.all fun p => decide (
     exact memLook_none_hi ws A h2 hA
 
 theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P s) :
-    ∃ u, Steps image s 104 104 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
+    ∃ u, Steps image s 105 105 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
   obtain ⟨hMask, hRt, hG, hWA, hK, hd, hZ, hpc⟩ := hs
   obtain ⟨-, -, cSet⟩ := startCheck_parts
   obtain ⟨u, hu⟩ := spec_run cSet s hpc hK (by simp [setupSpec])
@@ -317,14 +319,16 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
     rw [hhi, BitVec.ofNat_add_ofNat, twLo_idx _ _ (by decide) hil]; congr 1; omega
   have S : S0 P u := by
     refine ⟨?_, hu.wall _ hWA, hGu.2.2.1, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · have fr : ∀ A, A = 0xFFFFF0 ∨ A = 0xFFFFF8 →
+    · have fr : ∀ A, A = 0xFDFFC0 ∨ A = 0xFDFFC8 ∨ A = 0xFDFFD0 →
           u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
         intro A hA
         rw [hlook A (by omega)]
         have hn : memLook psetupMem A = none := by
-          rcases hA with rfl | rfl <;> decide +kernel
+          rcases hA with rfl | rfl | rfl <;> decide +kernel
         rw [hn]
-      exact ⟨(fr _ (Or.inl rfl)).trans hMask.1, (fr _ (Or.inr rfl)).trans hMask.2⟩
+      exact ⟨(fr _ (Or.inl rfl)).trans hMask.1,
+        (fr _ (Or.inr (Or.inl rfl))).trans hMask.2.1,
+        (fr _ (Or.inr (Or.inr rfl))).trans hMask.2.2⟩
     · intro a ha
       have hn := setup_none a ha
       have ha' : a < 2 ^ 64 := by have := zeroP_lt a ha; omega

@@ -99,15 +99,17 @@ theorem leafClimb_good (v top : Nat) (hv : v < 2 ^ ftsTreeHeight) (htop : top �
     (state : ScheduleState) (hgood : ScheduleGood state) :
     let climbed := (List.range top).foldl scheduleStep
       { state with heap := 2 ^ ftsTreeHeight ||| v,
-                   parity := decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), reads := [] }
-    ScheduleGood { climbed with done := climbed.done ++ [⟨false, climbed.parity, climbed.reads⟩] } := by
+                   parity := decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), reads := [],
+                   lookahead := ⟨(2 ^ ftsTreeHeight ||| v) / 2 % 4, Nat.mod_lt _ (by decide)⟩ }
+    ScheduleGood { climbed with done := climbed.done ++ [⟨false, climbed.parity, climbed.reads, climbed.lookahead⟩] } := by
   intro climbed
   have hor : 2 ^ ftsTreeHeight ||| v = 2 ^ ftsTreeHeight + v := by
     have := Nat.two_pow_add_eq_or_of_lt hv 1
     simpa using this.symm
   obtain ⟨hclimb, _⟩ := foldl_scheduleStep_good v hv top htop
     { state with heap := 2 ^ ftsTreeHeight ||| v,
-                 parity := decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), reads := [] }
+                 parity := decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), reads := [],
+                   lookahead := ⟨(2 ^ ftsTreeHeight ||| v) / 2 % 4, Nat.mod_lt _ (by decide)⟩ }
     hor ⟨hgood.1, fun r hr => by simp at hr⟩
   refine ⟨fun segment hsegment => ?_, hclimb.2⟩
   rcases List.mem_append.mp hsegment with hsegment | hsegment
@@ -140,7 +142,7 @@ theorem scheduleLeaves_good : ∀ (sorted : List Nat), (∀ v ∈ sorted, v < 2 
 /-- **Every read of the honest schedule is a node of the tree.** -/
 theorem schedule_read (sorted : List Nat) (hsorted : ∀ v ∈ sorted, v < 2 ^ ftsTreeHeight) :
     ∀ segment ∈ schedule sorted, ∀ r ∈ segment.reads, ScheduleRead r :=
-  (scheduleLeaves_good sorted hsorted ⟨[], [], 0, false, []⟩
+  (scheduleLeaves_good sorted hsorted ⟨[], [], 0, false, [], 0⟩
     ⟨fun segment hsegment => by simp at hsegment, fun r hr => by simp at hr⟩).1
 
 theorem sortedLeaves_lt (leaves : IndexGroup → FtsLeaf) :

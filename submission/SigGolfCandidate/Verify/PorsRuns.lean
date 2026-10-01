@@ -8,7 +8,7 @@ Families (each a list of path runs, checked by `pspecB` in the `PorsCheck*` file
 * `setup`: falling through from the digest HASH to `leaf_0` (leaf index table, tweak words, guard);
 * `leaf s` (`s < 15`): pi byte, `x = PIND[pi & 0x78 / 8]`, the order checks, leaf tweak, secret,
   `E = x | 2^14`, `a0 = CB`, up to the dispatch (the rejects: HALT(1));
-* `disp c` (`c < 18`): the dispatch `lbu T, 592(FR); slli; add TB; jalr` of leaf `c` (link `x24`)
+* `disp c` (`c < 210`): the dispatch `lbu T, 592(FR); slli; add TB; jalr` of leaf `c` (link `x24`)
   or of the merge tail copy `c - 15` (no link), stopping at the symbolic table entry;
 * `tab tb b` (`tb < 2`, `b < 256`): the 8-word table slot `b` (`FR += 16 a + 8`, then for `a = 0`
   `j entry0_V`, for `a ≥ 1` the inlined entry code) up to the pending hash (`a > 14`: HALT(1);
@@ -33,8 +33,39 @@ def dispLeafPc (s : Nat) : Nat := leafPc s + (if s = 0 then 12 else if s = 14 th
 def entry0Pc (V : Nat) : Nat := entry0Tab.getD V 0
 def ladPc (V t p : Nat) : Nat := ((ladTab.getD V []).getD t []).getD p 0
 def lbrPc (V t p : Nat) : Nat := ((lbrTab.getD V []).getD t []).getD p 0
+/-- The first two nonfinal folds are specialized only after a three-bit check. -/
+def prefixN (a : Nat) : Nat := if a < 3 then 0 else 2
+def prefixPc (_V a bits : Nat) : Nat := 174464 + 136 * (a-3) + 17 * bits
+def njStartTab : List (List (List Nat)) := [[[146432, 146486, 146540, 146594, 146648, 146702, 146756, 146810], [146864, 146936, 147008, 147080, 147152, 147224, 147296, 147368], [147440, 147530, 147620, 147710, 147800, 147890, 147980, 148070], [148160, 148268, 148376, 148484, 148592, 148700, 148808, 148916], [149024, 149150, 149276, 149402, 149528, 149654, 149780, 149906], [150032, 150176, 150320, 150464, 150608, 150752, 150896, 151040], [151184, 151346, 151508, 151670, 151832, 151994, 152156, 152318], [152480, 152660, 152840, 153020, 153200, 153380, 153560, 153740], [153920, 154118, 154316, 154514, 154712, 154910, 155108, 155306], [155504, 155720, 155936, 156152, 156368, 156584, 156800, 157016], [157232, 157466, 157700, 157934, 158168, 158402, 158636, 158870], [159104, 159356, 159608, 159860, 160112, 160364, 160616, 160868]], [[161120, 161160, 161200, 161240, 161280, 161320, 161360, 161400], [161440, 161498, 161556, 161614, 161672, 161730, 161788, 161846], [161904, 161980, 162056, 162132, 162208, 162284, 162360, 162436], [162512, 162606, 162700, 162794, 162888, 162982, 163076, 163170], [163264, 163376, 163488, 163600, 163712, 163824, 163936, 164048], [164160, 164290, 164420, 164550, 164680, 164810, 164940, 165070], [165200, 165348, 165496, 165644, 165792, 165940, 166088, 166236], [166384, 166550, 166716, 166882, 167048, 167214, 167380, 167546], [167712, 167896, 168080, 168264, 168448, 168632, 168816, 169000], [169184, 169386, 169588, 169790, 169992, 170194, 170396, 170598], [170800, 171020, 171240, 171460, 171680, 171900, 172120, 172340], [172560, 172798, 173036, 173274, 173512, 173750, 173988, 174226]]]
+def njStart (V a bits : Nat) : Nat := ((njStartTab.getD V []).getD (a-3) []).getD bits 0
+def njTrackLen (V a : Nat) : Nat := 9 * (a-3) + (if V = 0 then 19 else 12)
+def njLadPc (V t a i bits : Nat) : Nat :=
+  njStart V a bits + 16 + (if t = bits / 4 % 2 then 0 else njTrackLen V a) + 9 * (i-2)
+def njPosPc (V t a i bits : Nat) : Nat :=
+  if i < prefixN a then njStart V a bits + 8*i else njLadPc V t a i bits
+def njTailPc (V t a bits : Nat) : Nat := njLadPc V t a (a-1) bits + 8
+def noJoin (V a : Nat) : Prop := V < 2 ∧ 3 ≤ a
+instance (V a : Nat) : Decidable (noJoin V a) := inferInstanceAs (Decidable (V < 2 ∧ 3 ≤ a))
+def tailCopies (V : Nat) : Nat := if V < 2 then 195 else 3
+def tailSel (V t a bits : Nat) : Nat := if noJoin V a then 3 + (a-3)*16 + bits*2 + t else t
+/-- Extra validation, fold saving and net segment saving are kept distinct. -/
+def tabExtra (a : Nat) : Nat := if 3 ≤ a then 1 else 0
+def foldSave (V a : Nat) : Nat := if a < 3 then 0 else if V < 2 then 2 else 1
+def segmentSave (V a : Nat) : Nat := if noJoin V a then 1 else 0
+def posCodePc (V t a i bits : Nat) : Nat :=
+  if noJoin V a then njPosPc V t a i bits
+  else if 3 ≤ a ∧ i ≤ prefixN a then prefixPc V a bits + 8 * i else ladPc V t (14-a+i)
+def prefixBefore (V a i : Nat) : Nat := min i (prefixN a) - (if 2 ≤ V ∧ prefixN a < i ∧ 3 ≤ a then 1 else 0)
+def foldBudget (V a i : Nat) : Nat :=
+  if i < a then 16 * (a-i) + prefixBefore V a i - 1 - foldSave V a else 0
+def posCycles (V a i : Nat) : Nat :=
+  (if i + 1 = a then 7 else 8) - (if i < prefixN a then 1 else 0) +
+    (if 2 ≤ V ∧ 3 ≤ a ∧ i = prefixN a then 1 else 0)
+
 /-- Start of the tail of variant `V`, copy `c` (after the destination hash). -/
-def tailPc (V c : Nat) : Nat := if c = 2 then entry0Pc V + 2 else ladPc V c 13 + 8
+def tailPc (V c : Nat) : Nat :=
+  if c < 3 then (if c = 2 then entry0Pc V + 2 else ladPc V c 13 + 8)
+  else njTailPc V ((c-3)%2) ((c-3)/16+3) ((c-3)/2%8)
 /-- The table of leaf `s` (`0` = normal, `1` = last leaf). -/
 def tsel (s : Nat) : Nat := if s = 14 then 1 else 0
 
@@ -44,7 +75,7 @@ def FLIM : Nat := 4095
 
 /-- The dispatch of merge-tail copy `c`. -/
 def dispTailPc (c : Nat) : Nat := tailPc 0 c + 6
-/-- Dispatch copies: leaves `0..14`, merge tails `15..17`. -/
+/-- Dispatch copies: fifteen leaves, three original merge tails, and 192 copied merge tails. -/
 def dispPc (c : Nat) : Nat := if c < 15 then dispLeafPc c else dispTailPc (c - 15)
 /-- The start of the layer-4 precode after the root tail copy `c`. -/
 def f4Pc (c : Nat) : Nat := if c = 2 then layerPcTab.getD 4 [] |>.getD 0 0
@@ -103,12 +134,16 @@ def tabBase (tb : Nat) : Nat := if tb = 0 then ptabN else ptabL
 def segA (b : Nat) : Nat := b % 16
 def segM (b : Nat) : Nat := b / 16 % 2
 def segT (b : Nat) : Nat := b / 32 % 2
+def segBits (b : Nat) : Nat := b / 32
 /-- The variant of byte `b` in table `tb`. -/
 def segV (tb b : Nat) : Nat := if segM b = 1 then 0 else if tb = 0 then 1 else 2
 
-/-- The slot's parity test `bge/blt x23, x0, slot(b | 15)` (`t = 1` / `t = 0`) on the sign of the
-relabelled header (bit 0 of `E`), taken (reject) iff it differs from `t`. -/
-def parBr (t : Nat) (d : Bool) : Br := ⟨if t = 1 then .ge else .lt, .reg .x23, .c 0, d⟩
+/-- Short paths validate parity; longer paths validate the three reversed top bits. -/
+def revBits3 (t : Nat) : Nat := 4*(t%2) + 2*(t/2%2) + t/4%2
+def parE : E := .bin (.w .srl) (.reg .x23) (cw 29)
+def parBr (a t : Nat) (d : Bool) : Br :=
+  if a < 3 then ⟨if t % 2 = 1 then .ge else .lt, .reg .x23, .c 0, d⟩
+  else ⟨.ne, parE, cw (revBits3 t), d⟩
 
 /-- The start of table slot `b`. -/
 def slotPc (tb b : Nat) : Nat := tabBase tb + 8 * b
@@ -121,12 +156,12 @@ def tabSpec (tb b : Nat) : Spec :=
   else
     ⟨[(.x14, addC (.reg .x14) (BitVec.ofNat 64 (16 * a + 8))),
       (.x12, if a = 0 then destE (segV tb b) else cw (0x1E0 + 16 * segT b))], [],
-      if a = 0 then entry0Pc (segV tb b) + 1 else slotPc tb b + 3, true,
-      3, if a = 0 then [] else [parBr (segT b) false], none, 3⟩
+      if a = 0 then entry0Pc (segV tb b) + 1 else slotPc tb b + 3 + tabExtra a, true,
+      3 + tabExtra a, if a = 0 then [] else [parBr a (segBits b) false], none, 3 + tabExtra a⟩
 
 /-- Slot `b` (`1 ≤ a ≤ 14`) with a wrong parity bit: `j pors_bad_seg; j reject` from slot `b | 15`,
 HALT(1). -/
-def tabRej (b : Nat) : Spec := rejSpec 6 [parBr (segT b) true]
+def tabRej (b : Nat) : Spec := rejSpec 6 [parBr (segA b) (segBits b) true]
 
 def tabKeep : List Reg := [.x10, .x15, .x16, .x17, .x20, .x22, .x23, .x24, .x29]
 
@@ -142,11 +177,11 @@ def tabCheck (tb lo n : Nat) : Bool := (List.range' lo n).all fun b => tabCheck1
 /-! ## Entry tails and ladder positions -/
 
 def entSpec (tb b : Nat) : Spec :=
-  ⟨[(.x10, cw 0x1C0)], [], ladPc (segV tb b) (segT b) (14 - segA b), false, 2, [], none, 2⟩
+  ⟨[(.x10, cw 0x1C0)], [], posCodePc (segV tb b) (segT b) (segA b) 0 (segBits b), false, 2, [], none, 2⟩
 
 def entCheck1 (tb b : Nat) : Bool :=
   segA b = 0 || segA b > 14 ||
-    pspecB gkP (runAt gkP [ladPc (segV tb b) (segT b) (14 - segA b)] (slotPc tb b + 4) []) (entSpec tb b) []
+    pspecB gkP (runAt gkP [posCodePc (segV tb b) (segT b) (segA b) 0 (segBits b)] (slotPc tb b + 4 + tabExtra (segA b)) []) (entSpec tb b) []
       (gkP ++ [(.x10, 0x1C0)]) [.x14, .x15, .x16, .x17, .x20, .x22, .x23, .x24, .x29]
 
 def pentCheck : Bool := (List.range 2).all fun tb => (List.range 256).all fun b => entCheck1 tb b
@@ -165,7 +200,7 @@ def posObl (p : Nat) : List Oblig :=
 def crossDir (t t' : Nat) : Bool := if t = 0 then t' = 1 else t' = 0
 
 def posSpec (V t p t' : Nat) : Spec :=
-  let regs0 := [(.x1, ldR .x14 (368 + 16 * p)), (.x2, ldR .x14 (368 + 16 * p + 8)), ((.x23 : Reg), eS)]
+  let regs0 := [(.x1, ldR .x14 (368 + 16 * p)), (.x30, ldR .x14 (368 + 16 * p + 8)), ((.x23 : Reg), eS)]
   if p = 13 then ⟨regs0 ++ [(.x12, destE V)], posMem t p, ladPc V t p + 7, true, 7, [], none, 7⟩
   else
     ⟨regs0 ++ [(.x12, cw (0x1E0 + 16 * t'))], posMem t p,
@@ -182,6 +217,49 @@ def posCheck (V : Nat) : Bool :=
   (List.range 2).all fun t => (List.range 14).all fun p => (List.range 2).all fun t' =>
     (p = 13 && t' = 1) || posCheck1 V t p t'
 
+def njPosSpec (V t a i bits t' : Nat) : Spec :=
+  if i < prefixN a then
+    ⟨[(.x1, ldR .x14 (368 + 16 * (14-a+i))), (.x30, ldR .x14 (368 + 16 * (14-a+i) + 8)),
+      (.x23, eS), (.x12, cw (0x1E0 + 16 * t'))], posMem t (14-a+i),
+      njPosPc V t a i bits + 7, true, 7, [], none, 7⟩
+  else
+    let q := posSpec V t (14-a+i) t'
+    { q with pc := if i+1=a then njPosPc V t a i bits + 7 else njPosPc V t' a (i+1) bits - 1 }
+
+/-- Exact run from a copied prefix or its one-instruction join to the original ladder. -/
+def prefixPosSpec (V t a i bits t' : Nat) : Spec :=
+  if noJoin V a then njPosSpec V t a i bits t' else
+  let p := 14 - a + i
+  if i < prefixN a then
+    ⟨[(.x1, ldR .x14 (368 + 16 * p)), (.x30, ldR .x14 (368 + 16 * p + 8)),
+      (.x23, eS), (.x12, cw (0x1E0 + 16 * t'))], posMem t p,
+      prefixPc V a bits + 8 * i + 7, true, 7, [], none, 7⟩
+  else
+    let q := posSpec V t p t'
+    if 3 ≤ a ∧ i = prefixN a then { q with steps := q.steps + 1, cycles := q.cycles + 1 } else q
+
+def prefixCheck (V : Nat) : Bool :=
+  ((List.range' 3 12).all fun a => (List.range 8).all fun bits =>
+    ((List.range (prefixN a)).all fun i =>
+      let t := bits / 2^i % 2
+      let t' := bits / 2^(i+1) % 2
+      pspecB gkP (runAt posKnown [] (posCodePc V t a i bits) [])
+        (prefixPosSpec V t a i bits t') (posObl (14-a+i)) posKnown posKeep) &&
+    ((List.range 2).all fun t' =>
+      let i := prefixN a
+      let t := bits / 2^i % 2
+      (14-a+i = 13 && t' = 1) ||
+      pspecB gkP (runAt posKnown [] (posCodePc V t a i bits) (posDirs t (14-a+i) t'))
+        (prefixPosSpec V t a i bits t') (posObl (14-a+i)) posKnown posKeep))
+
+def nojoinCheck (V : Nat) : Bool :=
+  (List.range' 3 12).all fun a => (List.range 8).all fun bits =>
+    (List.range a).all fun i => i < prefixN a ||
+      (List.range 2).all fun t => (List.range 2).all fun t' =>
+        (i+1=a && t'=1) ||
+        pspecB gkP (runAt posKnown [] (posCodePc V t a i bits) (posDirs t (14-a+i) t'))
+          (prefixPosSpec V t a i bits t') (posObl (14-a+i)) posKnown posKeep
+
 /-! ## Tails -/
 
 /-- The stack register is an offset; memory addresses retain the fixed EMPTY base. -/
@@ -195,7 +273,7 @@ def tailMSpec (c d : Nat) : Spec :=
     [(⟨none, BitVec.ofNat 64 (stkOf d + 8)⟩, stW (stkOf d + 8) eS)], dispTailPc c, false, 6,
     [⟨.ne, ldE (stkOf d - 16), .reg .x23, false⟩], none, 6⟩
 
-def tailMRej (d : Nat) : Spec := rejSpec 5 [⟨.ne, ldE (stkOf d - 16), .reg .x23, true⟩]
+def tailMRej (c d : Nat) : Spec := rejSpec (if c < 3 then 5 else 6) [⟨.ne, ldE (stkOf d - 16), .reg .x23, true⟩]
 
 def tailPSpec (d : Nat) : Spec :=
   ⟨[(.x15, cw (stkReg d + 80)), (.x3, .bin (.w .add) (.reg .x23) (cw sgn31))],
@@ -207,7 +285,7 @@ def tailCheck (c : Nat) : Bool :=
     pspecB gkP (runAt (tailKnown d) [dispTailPc c] (tailPc 0 c) [.br false]) (tailMSpec c d) []
       (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (stkReg d) - 80) else p)
       tailKeep &&
-    pspecB [] (runAt (tailKnown d) [] (tailPc 0 c) [.br true]) (tailMRej d) [] [] []) &&
+    pspecB [] (runAt (tailKnown d) [] (tailPc 0 c) [.br true]) (tailMRej c d) [] [] []) &&
   (List.range 14).all (fun d =>
     pspecB gkP (runAt (tailKnown d) [] (tailPc 1 c) [.jmp]) (tailPSpec d) []
       (tailKnown d |>.map fun p => if p.1 = .x15 then (.x15, BitVec.ofNat 64 (stkReg d + 80)) else p)
@@ -225,14 +303,15 @@ def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 /-- Known at the layer-4 transition: the root sets the layer constants and
 `x28 = 2688` for carried-base subtraction. It reuses `x18 = 4095` with one ADDI;
 `sp = 0x3FE00` reuses the constructed header constant. The accepting tail takes
-15 instructions, including its branch checks and mask loads. -/
+12 instructions, including its branch checks and mask loads. -/
 def rootK : List (Reg × Word) :=
-  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x2, TMASK), (.x15, TTA5)]
-def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401), (.x14, KT4)]
+  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x25, 125)]
+def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 15,
-    [fBr3 false, fBr2 false, fBr1 false], none, 15⟩
+  ⟨[(.x20, ldE 0xFDFFC0), (.x21, ldE 0xFDFFC8), (.x27, ldE 0xFDFFD0),
+      (.x2, .bin .add (ldE 0xFDFFD0) (cw 18446744073709550079))], [], f4Pc c, false, 12,
+    [fBr3 false, fBr2 false, fBr1 false], none, 12⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
@@ -265,7 +344,7 @@ def leafBrs (s : Nat) (d1 d2 : Bool) : List Br :=
 def rtE (s : Nat) : E := .bin .add (.bin .sll (xE s) (cw 3)) (cw RTAB)
 
 def leafSpec (s : Nat) : Spec :=
-  ⟨[(xReg s, xE s), (.x23, .ld (rtE s)), (.x1, ldE (secA s)), (.x2, ldE (secA s + 8))],
+  ⟨[(xReg s, xE s), (.x23, .ld (rtE s)), (.x1, ldE (secA s)), (.x30, ldE (secA s + 8))],
     [(⟨none, BitVec.ofNat 64 0xE8⟩, ldE (secA s + 8)), (⟨none, BitVec.ofNat 64 0xE0⟩, ldE (secA s)),
       (⟨none, BitVec.ofNat 64 0xC8⟩, stW 0xC8 (xE s))],
     dispLeafPc s, false, if s = 0 then 12 else if s = 14 then 16 else 13, leafBrs s false false, none, if s = 0 then 12 else if s = 14 then 16 else 13⟩
@@ -299,11 +378,11 @@ def k0 : List (Reg × Word) :=
   [(.x1, 0), (.x3, 0), (.x4, 0), (.x5, 0), (.x6, 0), (.x7, 0), (.x8, 0), (.x9, 0), (.x10, 0), (.x11, 0),
    (.x12, 0), (.x13, 0), (.x14, 0), (.x15, 0), (.x16, 0), (.x17, 0), (.x18, 0), (.x19, 0), (.x20, 0),
    (.x21, 0), (.x22, 0), (.x23, 0), (.x24, 0), (.x25, 0), (.x26, 0), (.x27, 0), (.x28, 0), (.x29, 0),
-   (.x30, 0), (.x31, 0), (.x2, 0xFDFFE0)]
+   (.x30, 0), (.x31, 0), (.x2, 0xFDFFC0)]
 
-/-- Digest phase: witness bases and `P1 .. P5`. Before the PORS leaves `x18 = 0xFDF` (the data base `0xFDFFE0 >> 12`; the prologue's `x18`-relative
+/-- Digest phase: witness bases and `P1 .. P5`. Before the PORS leaves `x18 = 0xFDF` (the data base `0xFDFFC0 >> 12`; the prologue's `x18`-relative
 offsets are rebased by `+32`); the relocated leaf head restores `x18 = 0xFFF` (`baseK`). -/
-def gkD : List (Reg × Word) := [(.x5, 0), (.x19, 7), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
+def gkD : List (Reg × Word) := [(.x5, 0), (.x19, 7), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x2, 0xFDFFC0)]
 def dgK : List (Reg × Word) := gkD ++ [(.x18, 0xFDF), (.x10, 0x20), (.x11, 64), (.x12, 0), (.x15, 0)]
 
 /-- The counters (W1a): `c0 .. c3` as two doublewords at `WIT + 2944`, `c4` as a word at `WIT + 2648`. -/
@@ -345,7 +424,7 @@ def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 0x7C0), (.x15, 0),
     (.x18, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 104, [], none, 104⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 105, [], none, 105⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&

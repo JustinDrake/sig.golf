@@ -71,7 +71,11 @@ sym_block blk536 := symRun { noAlias := true } seg536 (pcOf 536) 3
 sym_block blk538 := symRun { noAlias := true } seg538 (pcOf 538) 13
 sym_block blk550 := symRun { noAlias := true } seg550 (pcOf 550) 5
 sym_block blk554 := symRun { noAlias := true } seg554 (pcOf 554) 2
-sym_block blk555 := symRun { noAlias := true } seg555 (pcOf 555) 5
+sym_block blk555 := symRun { noAlias := true } seg555 (pcOf 555) 3
+sym_block blk558 := symRun { noAlias := true } seg558 (pcOf 558) 2
+sym_block blk2915 := symRun { noAlias := true } seg2915 (pcOf 2915) 3
+sym_block blk2917 := symRun { noAlias := true } seg2917 (pcOf 2917) 4
+sym_block blk2920 := symRun { noAlias := true } seg2920 (pcOf 2920) 4
 sym_block blk559 := symRun { noAlias := true } seg559 (pcOf 559) 3
 sym_block blk561 := symRun { noAlias := true } seg561 (pcOf 561) 2
 sym_block blk562 := symRun { noAlias := true } seg562 (pcOf 562) 4

@@ -13,7 +13,7 @@ theorem referenceContactGame_contactMarker_le_cost (inputs : Finset HashInput)
     (dummy : OtsReferenceWords) (adversary : Adversary) :
     Pr[fun result => ContactBeforeMarker result.1 (referenceFamilyWords result.2.1 dummy) result.2.2.frontier
       (result.2.2.before * result.2.2.after) | referenceContactGame inputs hencoding dummy adversary] ≤
-      (((63 / 32 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) / (Fintype.card Digest : ENNReal)) * ∑' result,
+      (((1923 / 1024 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) / (Fintype.card Digest : ENNReal)) * ∑' result,
         Pr[= result | referenceContactGame inputs hencoding dummy adversary] *
           (contactMarkerCost result.1 (referenceFamilyWords result.2.1 dummy) result.2.2.frontier 1 (result.2.2.before * result.2.2.after) : ENNReal) := by
   refine le_trans ?_ (referenceContactGame_contactMarker_count_le inputs hencoding hgraph dummy adversary)
@@ -31,7 +31,7 @@ theorem referenceContactGame_contactMarker_le_contacts (dummy : OtsReferenceWord
     Pr[fun result => ContactBeforeMarker result.1 (referenceFamilyWords result.2.1 dummy) result.2.2.frontier
       (result.2.2.before * result.2.2.after) | referenceContactGame (canonicalGraphGameInputs adversary)
         (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] ≤
-      (((63 / 32 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) * ((budget : ENNReal) / Fintype.card Digest)) * ∑' result,
+      (((1923 / 1024 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) * ((budget : ENNReal) / Fintype.card Digest)) * ∑' result,
         Pr[= result | referenceContactGame (canonicalGraphGameInputs adversary) (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] *
           ((OtsContactTrace.contacts result.1 (referenceFamilyWords result.2.1 dummy) result.2.2.frontier
             (result.2.2.before * result.2.2.after)).card : ENNReal) := by
@@ -66,7 +66,7 @@ theorem referenceContactGame_contactMarker_shared_bound (dummy : OtsReferenceWor
       Pr[fun result => ContactBeforeMarker result.1 (referenceFamilyWords result.2.1 dummy) result.2.2.frontier
         (result.2.2.before * result.2.2.after) | referenceContactGame (canonicalGraphGameInputs adversary)
           (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] ≤
-      ((2 * ((63 / 32 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * ((budget : ENNReal) / Fintype.card Digest)) * ∑' result,
+      ((2 * ((1923 / 1024 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * ((budget : ENNReal) / Fintype.card Digest)) * ∑' result,
         Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary) (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] *
           (result.prefixCalls dummy : ENNReal) := by
   have hraw := mul_le_mul' (le_refl (1 - (budget : ENNReal) / Fintype.card Digest))
@@ -79,7 +79,7 @@ theorem referenceContactGame_contactMarker_shared_bound (dummy : OtsReferenceWor
   rw [mul_left_comm (Fintype.card Digest : ENNReal), ← mul_assoc] at h
   refine h.trans_eq ?_
   calc
-    _ = (2 * ((63 / 32 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * ((budget : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) *
+    _ = (2 * ((1923 / 1024 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal))) * ((budget : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) *
         (∑' result, Pr[= result | referenceRecordedGame (canonicalGraphGameInputs adversary)
           (canonicalEncodingInputs_subset_gameInputs adversary) dummy adversary] * (result.prefixCalls dummy : ENNReal)) *
         ((Fintype.card Digest : ENNReal) * (Fintype.card Digest : ENNReal)⁻¹) := by

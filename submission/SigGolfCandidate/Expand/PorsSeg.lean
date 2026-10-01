@@ -223,7 +223,7 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
   have ha' : wbyte w ptr % 16 ≤ 14 := by unfold porsH at ha; omega
   rw [if_neg (by omega)] at p1
   have c1 : PCtx w idx K t1 := hc.frame (W := fun _ => False) (fun x _ _ => m1 _) r1 (fun _ _ h => h)
-  suffices hmain : ∀ (t2 : MachineState) (k : Nat), Steps eimg t1 k k t2 → k ≤ 5 → t2.pc = pcOf 559 →
+  suffices hmain : ∀ (t2 : MachineState) (k : Nat), Steps eimg t1 k k t2 → k ≤ 9 → t2.pc = pcOf 559 →
       RegsEq t1 t2 [.x13, .x14] → (∀ x, t2.getMem x = t1.getMem x) →
       Sim eimg t 950 (pendingHash idx node pending >>= fun node =>
         segFolds idx w ptr (wbyte w ptr % 16) node E >>= fun x => match x with
@@ -237,14 +237,14 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
       exact hmain t2 1 hs2 (by norm_num) p2 (r2.mono (by simp)) m2
     · rw [if_neg h0] at p2
       obtain ⟨t3, hs3, p3, r3, m3⟩ := blk555_run t2 p2 (wbyte w ptr) E hb hE (by rw [r2.get .x6, y6])
-        (by rw [r2.get .x19, r1.get .x19, h19])
-      by_cases hd : wbyte w ptr / 32 % 2 ≠ E % 2
+        (by rw [r2.get .x19, r1.get .x19, h19]) (by rw [r2.get .x7, y7])
+      by_cases hd : wbyte w ptr / 32 % 2 ≠ E % 2 ∨ (3 ≤ wbyte w ptr % 16 ∧ wbyte w ptr / 32 ≠ E % 8)
       · rw [if_pos ⟨by omega, hd⟩]
         rw [if_pos hd] at p3
         exact (Sim.steps hs1 (Sim.steps hs2 (fail_sim_steps hs3 p3))).mono (by norm_num) (fun _ _ h => h)
       · rw [if_neg (by omega)]
         rw [if_neg hd] at p3
-        exact hmain t3 5 (hs2.trans hs3) (by norm_num) p3 ((r2.trans r3).mono (by decide))
+        exact hmain t3 9 (hs2.trans hs3) (by norm_num) p3 ((r2.trans r3).mono (by decide))
           (fun x => by rw [m3, m2])
   intro t2 k hs2 hk p2 r2 m2
   have c2 : PCtx w idx K t2 := c1.frame (W := fun _ => False) (fun x _ _ => m2 _) r2 (fun _ _ h => h)

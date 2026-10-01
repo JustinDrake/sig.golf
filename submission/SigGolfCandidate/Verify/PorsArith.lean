@@ -5,9 +5,82 @@ import Mathlib.Tactic.Ring
 /-! # Digest-word arithmetic for the PORS phase: idx, the leaf indices, tweak words, counters -/
 
 set_option linter.unusedSimpArgs false
+set_option Elab.async false
 
 namespace SigGolfCandidate.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref
+
+theorem prefixN_le (a : Nat) : prefixN a ≤ 2 := by
+  unfold prefixN; split_ifs <;> omega
+
+theorem prefixN_lt (a : Nat) (ha : 0 < a) : prefixN a < a := by
+  unfold prefixN; split_ifs <;> omega
+
+theorem prefixN_long {a i : Nat} (hi : i < prefixN a) : 3 ≤ a := by
+  unfold prefixN at hi; split_ifs at hi <;> omega
+
+theorem prefix_tag_slot (a i E bits : Nat) (hi : i ≤ prefixN a)
+    (h : E % 2^(3-i) = bits / 2^i) : E % 2 = bits / 2^i % 2 := by
+  have hn := prefixN_le a
+  have hib : i ≤ 2 := by omega
+  interval_cases i <;> norm_num at * <;> omega
+
+theorem prefix_tag_next (a i E bits : Nat) (hi : i < prefixN a)
+    (h : E % 2^(3-i) = bits / 2^i) :
+    E / 2 % 2^(3-(i+1)) = bits / 2^(i+1) := by
+  have hn := prefixN_le a
+  have hib : i ≤ 2 := by omega
+  interval_cases i <;> norm_num at * <;> omega
+
+theorem prefix_tag_next_slot (a i E bits : Nat) (hi : i < prefixN a)
+    (h : E % 2^(3-i) = bits / 2^i) : E / 2 % 2 = bits / 2^(i+1) % 2 := by
+  exact prefix_tag_slot a (i+1) (E/2) bits (by omega) (prefix_tag_next a i E bits hi h)
+
+theorem foldBudget_step : ∀ V : Fin 3, ∀ a : Fin 15, ∀ i : Fin 15, i.val < a.val →
+    foldBudget V.val a.val i.val = posCycles V.val a.val i.val + 8 + foldBudget V.val a.val (i.val+1) := by
+  decide +kernel
+
+theorem posCycles_le : ∀ V : Fin 3, ∀ a : Fin 15, ∀ i : Fin 15, i.val < a.val → posCycles V.val a.val i.val ≤ 9 := by
+  decide +kernel
+
+theorem foldBudget_start (V a : Nat) (ha : 0 < a) :
+    foldBudget V a 0 = 16*a-1-foldSave V a := by
+  simp [foldBudget, prefixBefore, ha]
+
+theorem foldBudget_old_bound : ∀ V : Fin 3, ∀ a : Fin 15, foldBudget V.val a.val 0 + tabExtra a.val ≤ 16*a.val-1 := by
+  decide +kernel
+
+theorem tailSel_lt : ∀ V : Fin 3, ∀ t : Fin 2, ∀ a : Fin 15, ∀ bits : Fin 8,
+    0 < a.val → tailSel V.val t.val a.val bits.val < tailCopies V.val := by decide +kernel
+
+theorem selected_pos_steps : ∀ V : Fin 3, ∀ t : Fin 2, ∀ a : Fin 15, ∀ i : Fin 15,
+    ∀ bits : Fin 8, ∀ t' : Fin 2, i.val<a.val →
+    (prefixPosSpec V.val t.val a.val i.val bits.val t'.val).steps = posCycles V.val a.val i.val := by
+  intro V t a
+  revert t
+  fin_cases V <;> fin_cases a <;> decide +kernel
+
+theorem selected_pos_next : ∀ V : Fin 3, ∀ t : Fin 2, ∀ a : Fin 15, ∀ i : Fin 15,
+    ∀ bits : Fin 8, ∀ t' : Fin 2, i.val+1<a.val →
+    (i.val < prefixN a.val → t'.val = bits.val / 2^(i.val+1) % 2) →
+    (prefixPosSpec V.val t.val a.val i.val bits.val t'.val).pc+1 =
+      posCodePc V.val t'.val a.val (i.val+1) bits.val := by
+  intro V t a
+  revert t
+  fin_cases V <;> fin_cases a <;> decide +kernel
+
+theorem selected_pos_last : ∀ V : Fin 3, ∀ t : Fin 2, ∀ a : Fin 15, ∀ i : Fin 15,
+    ∀ bits : Fin 8, ∀ t' : Fin 2, i.val+1=a.val →
+    (prefixPosSpec V.val t.val a.val i.val bits.val t'.val).pc+1 =
+      tailPc V.val (tailSel V.val t.val a.val bits.val) := by
+  intro V t a
+  revert t
+  fin_cases V <;> fin_cases a <;> decide +kernel
+
+theorem tabExtra_le (a : Nat) : tabExtra a ≤ 1 := by unfold tabExtra; split_ifs <;> omega
+
+theorem foldSave_accounting : ∀ V : Fin 3, ∀ a : Fin 15,
+    foldSave V.val a.val = tabExtra a.val + segmentSave V.val a.val := by decide +kernel
 
 /-! ## Sub-word stores and counters (copies of `LayArith` facts, so that the PORS part does not
 depend on the layer modules) -/
