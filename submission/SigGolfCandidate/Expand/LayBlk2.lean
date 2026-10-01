@@ -12,13 +12,14 @@ namespace SigGolfCandidate.ExP
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref
   SigGolfCandidate.Sign
 
-/-- 442 (`j fold_pre`), then 673 .. 682 (`fold_pre`): the path pointer `W + 2480 + 96 lay` (the path of
+/-- 442 (`j fold_pre`), then 673 .. 682 (`fold_pre`): the path pointer `W + 2304 + 2688 lay` (the scattered path of
 layer `lay ≥ 1` at `pathOff lay`), the heap index `2^h | e` of the leaf, level 0; `j fd_loop`. -/
 theorem blk442_run (t : MachineState) (hpc : t.pc = pcOf 442) (h e lay : Nat) (hh : h ≤ 11) (he : e < 2 ^ h)
     (hl : lay < 5) (h8 : t.getReg .x8 = BitVec.ofNat 64 lay)
-    (h9 : t.getReg .x9 = BitVec.ofNat 64 h) (h13 : t.getReg .x13 = BitVec.ofNat 64 e) :
-    ∃ t', Steps eimg t 11 14 t' ∧ t'.pc = pcOf 446 ∧ t'.getReg .x18 = BitVec.ofNat 64 (2 ^ h + e) ∧
-      t'.getReg .x19 = BitVec.ofNat 64 0 ∧ t'.getReg .x23 = BitVec.ofNat 64 (0x800 + (2480 + 96 * lay)) ∧
+    (h9 : t.getReg .x9 = BitVec.ofNat 64 h) (h13 : t.getReg .x13 = BitVec.ofNat 64 e)
+    (h23 : t.getReg .x23 = BitVec.ofNat 64 (0x800 + 2992 + 2688 * lay + 64 * 42)) :
+    ∃ t', Steps eimg t 11 11 t' ∧ t'.pc = pcOf 446 ∧ t'.getReg .x18 = BitVec.ofNat 64 (2 ^ h + e) ∧
+      t'.getReg .x19 = BitVec.ofNat 64 0 ∧ t'.getReg .x23 = BitVec.ofNat 64 (0x800 + 2304 + 2688 * lay) ∧
       RegsEq t t' [.x14, .x15, .x18, .x19, .x23] ∧ ∀ x, t'.getMem x = t.getMem x := by
   have s1 := symRun_sound Expand.blk442 Expand.codeAt_442 t hpc (by simp only [Expand.blk442.res, rv_simp])
   set t1 := Expand.blk442.res.toState t with ht1
@@ -37,9 +38,9 @@ theorem blk442_run (t : MachineState) (hpc : t.pc = pcOf 442) (h e lay : Nat) (h
     congr 1
     have := Nat.two_pow_add_eq_or_of_lt he 1
     simpa using this.symm
-  · simp only [Expand.blk673.res, rv_simp, r1.get .x8 (by simp), h8,
-      show (96#64 : Word) = BitVec.ofNat 64 96 from rfl, ofNat_mul_ofNat', ofNat_add_ofNat]
-    exact ofNat_congr (by ring)
+  · simp only [Expand.blk673.res, rv_simp, r1.get .x23 (by simp), h23]
+    bvsimp []
+    exact ofNat_congr (by omega)
 
 /-- 446 .. 455 (`fd_loop`): the direction bit, the parent heap index into `NB` word 1, the
 sibling and the node. -/
@@ -127,7 +128,7 @@ theorem blk469_run (t : MachineState) (hpc : t.pc = pcOf 469) (o lam h : Nat) (h
     (h23 : t.getReg .x23 = BitVec.ofNat 64 o) (h19 : t.getReg .x19 = BitVec.ofNat 64 lam)
     (h9 : t.getReg .x9 = BitVec.ofNat 64 h) :
     ∃ t', Steps eimg t 3 3 t' ∧ t'.pc = (if lam + 1 = h then pcOf 472 else pcOf 446) ∧
-      t'.getReg .x23 = BitVec.ofNat 64 (o + 16) ∧ t'.getReg .x19 = BitVec.ofNat 64 (lam + 1) ∧
+      t'.getReg .x23 = BitVec.ofNat 64 (o + 64) ∧ t'.getReg .x19 = BitVec.ofNat 64 (lam + 1) ∧
       RegsEq t t' [.x19, .x23] ∧ ∀ x, t'.getMem x = t.getMem x := by
   refine ⟨_, symRun_sound Expand.blk469 Expand.codeAt_469 t hpc (by simp only [Expand.blk469.res, rv_simp]),
     ?_, by pnum [Expand.blk469.res, h23], by pnum [Expand.blk469.res, h19], by pregs, getMem_nil rfl t⟩
@@ -136,12 +137,12 @@ theorem blk469_run (t : MachineState) (hpc : t.pc = pcOf 469) (o lam h : Nat) (h
   · rw [if_neg (by simp; omega), if_pos hq]
   · rw [if_pos (by simp; omega), if_neg hq]
 
-/-- 472 .. 477: the root is the next layer's message `M` (`0x120`); `LAY -= 1`; `j layer_loop`. -/
+/-- 472 .. 477: the root is the next layer's message `M` (`0x130`); `LAY -= 1`; `j layer_loop`. -/
 theorem blk472_run (t : MachineState) (hpc : t.pc = pcOf 472) (lay : Nat) (hl : 1 ≤ lay) (hl' : lay < 5)
     (h8 : t.getReg .x8 = BitVec.ofNat 64 lay) (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) :
     ∃ t', Steps eimg t 6 6 t' ∧ t'.pc = pcOf 316 ∧ t'.getReg .x8 = BitVec.ofNat 64 (lay - 1) ∧
-      t'.readWords (BitVec.ofNat 64 0x120) 2 = t.readWords (BitVec.ofNat 64 0x30200) 2 ∧
-      RegsEq t t' [.x8, .x14, .x15] ∧ Frame t t' (fun x => x = 0x120 ∨ x = 0x128) := by
+      t'.readWords (BitVec.ofNat 64 0x130) 2 = t.readWords (BitVec.ofNat 64 0x30200) 2 ∧
+      RegsEq t t' [.x8, .x14, .x15] ∧ Frame t t' (fun x => x = 0x130 ∨ x = 0x138) := by
   refine ⟨_, symRun_sound Expand.blk472 Expand.codeAt_472 t hpc (by pobl [Expand.blk472.res, h25]),
     by simp only [Expand.blk472.res, rv_simp], ?_, ?_, by pregs, ?_⟩
   · simp only [Expand.blk472.res, rv_simp, h8]; bvsimp []
@@ -152,7 +153,7 @@ theorem blk472_run (t : MachineState) (hpc : t.pc = pcOf 472) (lay : Nat) (hl : 
     bvomega
 
 /-- 478 .. 494 (`halt_ok`): the five counters into the witness (W1a: `c0 .. c3` as two dwords at
-`W + 2944` (the tweak slot of block `(0, 0)`), `c4` as a dword at `W + 2392`); HALT(0). -/
+`W + 2944` (the tweak slot of block `(0, 0)`), `c4` as a dword at `W + 2648`); HALT(0). -/
 theorem blk478_run (t : MachineState) (hpc : t.pc = pcOf 478) (c : Nat → Nat) (hc : ∀ l < 5, c l < 2 ^ 22)
     (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000)
     (hct : ∀ l < 5, t.getMem (BitVec.ofNat 64 (0x30780 + 8 * l)) = BitVec.ofNat 64 (c l)) :
@@ -160,8 +161,8 @@ theorem blk478_run (t : MachineState) (hpc : t.pc = pcOf 478) (c : Nat → Nat) 
       t'.getReg .x10 = 0 ∧
       t'.getMem (BitVec.ofNat 64 0x1380) = BitVec.ofNat 64 (c 0 + 2 ^ 32 * c 1) ∧
       t'.getMem (BitVec.ofNat 64 0x1388) = BitVec.ofNat 64 (c 2 + 2 ^ 32 * c 3) ∧
-      t'.getMem (BitVec.ofNat 64 0x1158) = BitVec.ofNat 64 (c 4) ∧
-      Frame t t' (fun x => x = 0x1380 ∨ x = 0x1388 ∨ x = 0x1158) := by
+      t'.getMem (BitVec.ofNat 64 0x1258) = BitVec.ofNat 64 (c 4) ∧
+      Frame t t' (fun x => x = 0x1380 ∨ x = 0x1388 ∨ x = 0x1258) := by
   have c0 := hct 0 (by norm_num)
   have c1 := hct 1 (by norm_num)
   have c2 := hct 2 (by norm_num)
@@ -185,19 +186,19 @@ theorem blk478_run (t : MachineState) (hpc : t.pc = pcOf 478) (c : Nat → Nat) 
       implies_true, and_true, ne_eq, ofNat_add_ofNat, ofNat_eq_iff]
     bvomega
 
-/-- 639 .. 672 (`pors_ok`): `M = OUT` at `0x120`, the zero P slots and block constants of the layer
+/-- 639 .. 672 (`pors_ok`): `M = OUT` at `0x130`, the zero P slots and block constants of the layer
 phase, `s6 = idx`, `LAY = 4`, `t2 = 2^22`, the SWAR masks; `j layer_loop`. -/
 theorem blk639_run (t : MachineState) (hpc : t.pc = pcOf 639) (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) :
     ∃ t', Steps eimg t 34 34 t' ∧ t'.pc = pcOf 316 ∧
       t'.getReg .x7 = BitVec.ofNat 64 (2 ^ 22) ∧ t'.getReg .x8 = BitVec.ofNat 64 4 ∧
       t'.getReg .x22 = t.getReg .x4 ∧ t'.getReg .x26 = swM1 ∧ t'.getReg .x27 = swM2 ∧
-      t'.readWords (BitVec.ofNat 64 0x120) 2 = t.readWords (BitVec.ofNat 64 0x30080) 2 ∧
+      t'.readWords (BitVec.ofNat 64 0x130) 2 = t.readWords (BitVec.ofNat 64 0x30080) 2 ∧
       t'.readWords (BitVec.ofNat 64 0x110) 2 = [0, 0] ∧
       t'.readWords (BitVec.ofNat 64 0x30150) 4 = [0, 0, 0, 0] ∧
       t'.readWords (BitVec.ofNat 64 0x30250) 2 = [0, 0] ∧
       t'.readWords (BitVec.ofNat 64 0x301D0) 2 = [0, 0] ∧
       RegsEq t t' [.x7, .x8, .x14, .x15, .x22, .x26, .x27] ∧
-      Frame t t' (fun x => (0x110 ≤ x ∧ x < 0x130) ∨ (0x30150 ≤ x ∧ x < 0x30170) ∨ x = 0x30250 ∨
+      Frame t t' (fun x => ((0x110 ≤ x ∧ x < 0x120) ∨ (0x130 ≤ x ∧ x < 0x140)) ∨ (0x30150 ≤ x ∧ x < 0x30170) ∨ x = 0x30250 ∨
         x = 0x30258 ∨ x = 0x301D0 ∨ x = 0x301D8) := by
   refine ⟨_, symRun_sound Expand.blk639 Expand.codeAt_639 t hpc (by pobl [Expand.blk639.res, h25]),
     by simp only [Expand.blk639.res, rv_simp], by pnum [Expand.blk639.res], by pnum [Expand.blk639.res],

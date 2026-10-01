@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
-S=6032 signature bytes, W=16384 witness bytes, K=131072 cache bytes.
-The claim C=10376 is accepting verifier bound10312 plus witness charge64.
+S=6032 signature bytes, W=15872 witness bytes, K=131072 cache bytes.
+The claim C=10378 is accepting verifier bound10316 plus witness charge62.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[185,185,185,185,186].
 
@@ -21,8 +21,8 @@ The proven signing envelope is
 The joint security proof retains coefficient253/128 and split65*2^106.
 The primitive bound combines a1/16 fine estimate with a15/16 coarse
 contact-union estimate. All primitive, residual and remainder terms are
-rechecked for the new selector and target counts. Shared target185 now
-needs one correction at the bottom layer; the top correction disappears.
+rechecked for the new selector and target counts. The common target185 needs no bottom-layer correction; the top layer
+uses186 loaded once in the PORS root tail.
 
 PORS node headers are relabelled: the tag-10 tweak field carries efield(H),
 the32-bit bit reversal of the heap index H. The verifier keeps
@@ -62,6 +62,27 @@ c216d85858f8a7dcd68a2782cc27cfd057d45b67. Earlier public sources include
 4528ff23136b01e342c77eedaf2f6d74ad961d15, and
 0ba3dc24993dd3491a0a6a064c7cd9fbb9aa6439.
 
+The compact witness transport follows Frodan's accepted source
+bb9996d3f64b407f4fa74ee4963727246c747211. External witness bytes start at0xA00;
+a512-byte zero prefix restores the internal0x800-based view. Lower paths
+occupy consumed tweak slots, giving witness charge62.
+
+An additional global native-query involution exchanges the two128-bit payload
+halves at byte offsets32 and48 only for one-block queries with low16header
+bits1025 (encoding tag4). The padding function and raw encoding input stay
+unchanged. All other headers and multi-block queries are fixed. The verifier
+keeps the message at304, the counter at288 and the preserved zero at296;
+one zero store disappears in each of five layers. Sign and expand issue the
+same permuted query sequence. This lowers the raw accepting bound from10326
+to10321 without changing the construction or its security estimate.
+
+The next global native-query involution exchanges low16 header classes513
+and1025 only for exactly11-block inputs. The verifier stores its existing
+tag4 header directly for the WOTS leaf hash, removing one arithmetic
+instruction per layer and lowering the raw accepting bound to10316. All
+four images use this leaf representation; malformed query classes are
+covered by the same total permutation and inverse.
+
 The certificate covers all four images, universal termination, per-seed
 completeness, honest compression budgets,127-bit security and accepting
 verifier cycles under the pinned contract. No measured profile is claimed.
@@ -73,15 +94,15 @@ def submission : SigGolf.Submission := SigGolfCandidate.submissionNew
 
 theorem signature_bytes : submission.sizes.signature = 6032 := rfl
 
-theorem witness_bytes : submission.sizes.witness = 16384 := rfl
+theorem witness_bytes : submission.sizes.witness = 15872 := rfl
 
 theorem cache_bytes : submission.sizes.cache = 131072 := rfl
 
 theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
-    cache := 19200, signature := 150272, witness := 2048 } := rfl
+    cache := 19200, signature := 150272, witness := 2560 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10376 :=
+theorem certificate : SigGolf.Certificate submission 10378 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

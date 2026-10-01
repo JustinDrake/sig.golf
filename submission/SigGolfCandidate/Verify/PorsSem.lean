@@ -26,7 +26,7 @@ theorem PB.prot {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) {
   h.glob.2.1 a ha
 
 theorem PB.halfv {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) {a : Nat}
-    (ha : a ∈ halfP) : (m.getMem (BitVec.ofNat 64 a)).toNat % 2 ^ 32 = 0 :=
+    (ha : a ∈ halfP) : (m.getMem (BitVec.ofNat 64 a)).toNat % 2 ^ 32 = P.idx % 2 ^ 32 :=
   (h.glob.2.2.1 a ha).trans (h.s0ok.half a ha)
 
 theorem PB.wit {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) : WitAll P.wl m :=
@@ -103,16 +103,14 @@ theorem stW_eval' (s : MachineState) (a : Nat) (v : E) (V lo : Nat) (hv : v.eval
 theorem twHi_eq (idx H : Nat) (hH : H < 2 ^ 32) : idx % 2 ^ 32 + 2 ^ 32 * H = twHi idx H := by
   unfold twHi; rw [Nat.mod_eq_of_lt hH]
 
-theorem twHi0_eq (H : Nat) (hH : H < 2 ^ 32) : 0 + 2 ^ 32 * H = twHi 0 H := by
-  unfold twHi; omega
-
 /-- `sw` of a register form: the high half receives the relabelled field. -/
-theorem stW_eval_rev (s : MachineState) (a : Nat) (v : E) (H : Nat) (hv : v.eval s = Rev.revWord H)
-    (hlo : (s.getMem (BitVec.ofNat 64 a)).toNat % 2 ^ 32 = 0) :
-    (stW a v).eval s = BitVec.ofNat 64 (twHi 0 (Rev.efield H)) := by
+theorem stW_eval_rev (s : MachineState) (a : Nat) (v : E) (H idx : Nat) (hv : v.eval s = Rev.revWord H)
+    (hlo : (s.getMem (BitVec.ofNat 64 a)).toNat % 2 ^ 32 = idx % 2 ^ 32) :
+    (stW a v).eval s = BitVec.ofNat 64 (twHi idx (Rev.efield H)) := by
   apply BitVec.eq_of_toNat_eq
   show (StoreKind.merge .w (s.getMem (BitVec.ofNat 64 a)) 4 (v.eval s)).toNat = _
   rw [merge_w4_toNat, hv, Rev.revWord_trunc, BitVec.toNat_ofNat, hlo]
+  have h1 : idx % 2 ^ 32 < 2 ^ 32 := Nat.mod_lt _ (by decide)
   have h2 := Rev.efield_lt H
   unfold twHi
   rw [Nat.mod_eq_of_lt h2]
@@ -213,12 +211,12 @@ theorem land0x78 (b : Nat) (_hb : b < 256) : b &&& 0x78 = 8 * (b / 8 % 16) := by
 
 theorem piT_eval {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (s : Nat) (hs : s < 15) :
     (piT s).eval m = BitVec.ofNat 64 (8 * (witPi P.wl s / 8 % 16)) := by
-  have hb := wit_byte h.wit (16 + s) (by omega)
+  have hb := wit_byte h.wit (512 + s) (by omega)
   apply BitVec.eq_of_toNat_eq
-  show ((LoadKind.bu.fromWord (m.getMem (BitVec.ofNat 64 (0x800 + 16 + (16 + s) / 8 * 8 - 16))) ((16 + s) % 8)) &&&
+  show ((LoadKind.bu.fromWord (m.getMem (BitVec.ofNat 64 (0x800 + (512 + s) / 8 * 8))) ((512 + s) % 8)) &&&
     BitVec.ofNat 64 0x78).toNat = _
-  rw [show 0x800 + 16 + (16 + s) / 8 * 8 - 16 = 0x800 + (16 + s) / 8 * 8 by omega, BitVec.toNat_and, hb]
-  have hw : wbyte P.wl (16 + s) = witPi P.wl s := rfl
+  rw [BitVec.toNat_and, hb]
+  have hw : wbyte P.wl (512 + s) = witPi P.wl s := rfl
   rw [hw, ofNat_toNat_lt _ (by decide), land0x78 _ (by unfold witPi; exact (P.wl.getD _ 0).isLt),
     ofNat_toNat_lt _ (by omega)]
 
@@ -376,11 +374,11 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
     have hsec : ∀ k, k < 2 → m.getMem (BitVec.ofNat 64 (secA s + 8 * k)) =
         (if k = 0 then vw0 else vw1) (witSecret P.wl s) := by
       intro k hk
-      rw [show secA s + 8 * k = 0x800 + (32 + 16 * s + 8 * k) by unfold secA; omega,
+      rw [show secA s + 8 * k = 0x800 + (3072 + 64 * s + 8 * k) by unfold secA; omega,
         wit_word_all h.pb.wit _ (by omega) (by omega)]
       interval_cases k
-      · simp [witSecret, vw0_slice, wSec]
-      · simp [witSecret, vw1_slice, wSec]
+      · simp [witSecret, vw0_slice, wSec_eq]
+      · simp [witSecret, vw1_slice, wSec_eq]
     refine ⟨u, ?_, ⟨pb, ?_, Or.inl ⟨rfl, rfl⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun h => by omega,
       h.bnd, ?_, hxl⟩⟩
     · have := hu.steps; simp only [leafSpec] at this; exact this
@@ -407,7 +405,7 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
         rw [memLook_cons_ne _ _ _ _ (by simp), memLook_cons_ne _ _ _ _ (by simp),
           memLook_cons_eq _ _ _ _ rfl (by omega)]
         dsimp only
-        rw [stW_eval' m 0xC8 (xE s) _ _ hx (by omega) (h.pb.halfv (by decide)), twHi0_eq _ (by omega)]
+        rw [stW_eval' m 0xC8 (xE s) _ _ hx (by omega) (h.pb.halfv (by decide)), twHi_eq _ _ (by omega)]
       · rw [hlook 0xE0 (by omega)]
         simp only [leafSpec]
         rw [memLook_cons_ne _ _ _ _ (by simp), memLook_cons_eq _ _ _ _ rfl (by omega)]
@@ -420,7 +418,7 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
         dsimp only
         have := hsec 1 (by decide)
         simpa [ldE, cw, E.eval] using this
-      · unfold witSecret; apply length_slice16; rw [hP.1]; unfold wSec; omega
+      · unfold witSecret; apply length_slice16; rw [hP.1, wSec_eq]; omega
     · rw [hu.regs (xReg s, xE s) (by simp [leafSpec]), hx]
     · exact Nat.or_lt_two_pow (show porsT < 2 ^ 15 by decide) (show leafX P s < 2 ^ 15 by omega)
 
@@ -430,7 +428,7 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
 theorem safe_nb : ∀ t, t < 2 → safeDestP (0x1E0 + 16 * t) = true := by decide
 theorem safe_m : ∀ d, d ≤ 14 → safeDestP (stkOf' d + 48) = true := by decide
 theorem safe_p : ∀ d, d ≤ 13 → safeDestP (stkOf' d + 112) = true := by decide
-theorem safe_f : safeDestP 0x120 = true := by decide
+theorem safe_f : safeDestP 0x130 = true := by decide
 
 theorem safe_dest (V d : Nat) (hd : d ≤ 14) (hp : V = 1 → d < 14) : safeDestP (destOf V d) = true := by
   unfold destOf
@@ -475,9 +473,9 @@ theorem pend_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0
   | leaf x sec =>
     obtain ⟨m8, m32, m40, hsl, hx⟩ := hpm
     have hf : addrFmt (pendInput P node (.leaf x sec)) = queryOfWords 0
-        [BitVec.ofNat 64 (twLo 9 0 P.idx P.idx), BitVec.ofNat 64 (twHi 0 (8 * x)), 0, 0, vw0 sec, vw1 sec, 0, 0] := by
+        [BitVec.ofNat 64 (twLo 9 0 P.idx 0), BitVec.ofNat 64 (twHi P.idx (8 * x)), 0, 0, vw0 sec, vw1 sec, 0, 0] := by
       simp only [pendInput]
-      rw [addrFmt_porsLeafInput_pad _ _ _ hsl hx, pad64_pLeaf _ _ _ hsl]
+      rw [addrFmt_porsLeafInput_pad _ _ _ hsl hx, pad64_porsLeafInput _ _ _ hsl]
     refine ⟨?_, by rw [hf]; rfl⟩
     rw [hf, hashInput_ofNat u 0xC0 0 h10 h11 (by decide) (by decide)]
     congr 1
@@ -489,10 +487,10 @@ theorem pend_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0
   | merge H l =>
     obtain ⟨m8, m32, m40, m48, m56, hl, hn, hH, hd⟩ := hpm
     have hf : addrFmt (pendInput P node (.merge H l)) = queryOfWords 0
-        [BitVec.ofNat 64 (twLo 10 0 P.idx P.idx), BitVec.ofNat 64 (twHi 0 (Rev.efield H)), 0, 0, vw0 l, vw1 l,
+        [BitVec.ofNat 64 (twLo 10 0 P.idx 0), BitVec.ofNat 64 (twHi P.idx (Rev.efield H)), 0, 0, vw0 l, vw1 l,
           vw0 node, vw1 node] := by
       simp only [pendInput]
-      rw [addrFmt_porsNodeInput_pad _ _ _ _ hl hn, pad64_pNode _ _ _ _ hl hn]
+      rw [addrFmt_porsNodeInput_pad _ _ _ _ hl hn, pad64_porsNodeInput _ _ _ _ hl hn]
     refine ⟨?_, by rw [hf]; rfl⟩
     rw [hf, hashInput_ofNat u (PSB + 80 * d) 0 h10 h11 (by unfold PSB; omega) (by unfold PSB; omega)]
     congr 1
@@ -528,26 +526,26 @@ theorem dispCheck2_ok (c tb : Nat) (hc : c < 210) (h1 : c < 15 → tb = tbOf c) 
 theorem wbyte_lt (wl : List Byte) (off : Nat) : wbyte wl off < 256 := (wl.getD off 0).isLt
 
 theorem dispT_eval {P : PCtx} {s0 m : MachineState} {tb' : Nat} (pb : PB P s0 m tb') (ptr tb : Nat)
-    (hfr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 336)) (hp : 272 ≤ ptr) (hp8 : ptr % 8 = 0)
+    (hfr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 592)) (hp : 528 ≤ ptr) (hp8 : ptr % 8 = 0)
     (hp2 : ptr < 16384) (_htb : tb < 2 ^ 32) :
     (dispT tb).eval m = BitVec.ofNat 64 (tb + 32 * wbyte P.wl ptr) := by
   have hb := wit_byte pb.wit ptr hp2
   rw [show 0x800 + ptr / 8 * 8 = 0x800 + ptr by omega, show ptr % 8 = 0 from hp8] at hb
   have hbl := wbyte_lt P.wl ptr
   apply BitVec.eq_of_toNat_eq
-  show ((LoadKind.bu.fromWord (m.getMem (m.getReg .x14 + BitVec.ofNat 64 336)) 0 <<<
+  show ((LoadKind.bu.fromWord (m.getMem (m.getReg .x14 + BitVec.ofNat 64 592)) 0 <<<
     ((BitVec.ofNat 64 5).toNat % 64)) + BitVec.ofNat 64 tb).toNat = _
-  rw [hfr, BitVec.ofNat_add_ofNat, show 0x800 + ptr - 336 + 336 = 0x800 + ptr by omega,
+  rw [hfr, BitVec.ofNat_add_ofNat, show 0x800 + ptr - 592 + 592 = 0x800 + ptr by omega,
     show (BitVec.ofNat 64 5).toNat % 64 = 5 from rfl]
   simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, hb, Nat.shiftLeft_eq]
   omega
 
-theorem dispObl_holds {m : MachineState} (ptr : Nat) (hfr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 336))
-    (hp : 272 ≤ ptr) (hp8 : ptr % 8 = 0) (hp2 : ptr < 16384) : ∀ o ∈ dispObl, o.holds m := by
+theorem dispObl_holds {m : MachineState} (ptr : Nat) (hfr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 592))
+    (hp : 528 ≤ ptr) (hp8 : ptr % 8 = 0) (hp2 : ptr < 16384) : ∀ o ∈ dispObl, o.holds m := by
   intro o ho
   simp only [dispObl, List.mem_cons, List.not_mem_nil, or_false] at ho
   rcases ho with rfl | rfl
-  · simp only [Oblig.holds, E.eval, hfr, ofNat_toNat_lt _ (show 0x800 + ptr - 336 < 2 ^ 64 by omega)]; omega
+  · simp only [Oblig.holds, E.eval, hfr, ofNat_toNat_lt _ (show 0x800 + ptr - 592 < 2 ^ 64 by omega)]; omega
   · simp only [Oblig.holds, Addr.eval, E.eval, hfr, BitVec.ofNat_add_ofNat, accessValid, rangeValid,
       Bool.and_eq_true, decide_eq_true_eq, MEMORY_BYTES]
     rw [ofNat_toNat_lt _ (by omega)]; omega
@@ -995,14 +993,14 @@ def foldInput (P : PCtx) (E t : Nat) (sib node : Val) : List Byte :=
 theorem nb_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0 u tb) (H : Nat) (l r : Val)
     (hl : l.length = 16) (hr : r.length = 16) (_hH : H < 2 ^ 32)
     (h10 : u.getReg .x10 = BitVec.ofNat 64 0x1C0) (h11 : u.getReg .x11 = BitVec.ofNat 64 (64 * (0 + 1)))
-    (m8 : u.getMem (BitVec.ofNat 64 0x1C8) = BitVec.ofNat 64 (twHi 0 (Rev.efield H)))
+    (m8 : u.getMem (BitVec.ofNat 64 0x1C8) = BitVec.ofNat 64 (twHi P.idx (Rev.efield H)))
     (l0 : u.getMem (BitVec.ofNat 64 0x1E0) = vw0 l) (l1 : u.getMem (BitVec.ofNat 64 0x1E8) = vw1 l)
     (r0 : u.getMem (BitVec.ofNat 64 0x1F0) = vw0 r) (r1 : u.getMem (BitVec.ofNat 64 0x1F8) = vw1 r) :
     hashInput u = addrFmt (porsNodeInput P.idx H l r) ∧ (addrFmt (porsNodeInput P.idx H l r)).blocks = 1 := by
   have hf : addrFmt (porsNodeInput P.idx H l r) = queryOfWords 0
-      [BitVec.ofNat 64 (twLo 10 0 P.idx P.idx), BitVec.ofNat 64 (twHi 0 (Rev.efield H)), 0, 0, vw0 l, vw1 l,
+      [BitVec.ofNat 64 (twLo 10 0 P.idx 0), BitVec.ofNat 64 (twHi P.idx (Rev.efield H)), 0, 0, vw0 l, vw1 l,
         vw0 r, vw1 r] := by
-    rw [addrFmt_porsNodeInput_pad _ _ _ _ hl hr, pad64_pNode _ _ _ _ hl hr]
+    rw [addrFmt_porsNodeInput_pad _ _ _ _ hl hr, pad64_porsNodeInput _ _ _ _ hl hr]
   refine ⟨?_, by rw [hf]; rfl⟩
   rw [hf, hashInput_ofNat u 0x1C0 0 h10 h11 (by decide) (by decide)]
   congr 1
@@ -1069,9 +1067,9 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
       · simpa only [posCheck1, posCodePc, if_neg hnj, if_neg hh, prefixPosSpec, if_neg hp,
           if_neg (show ¬ (3 ≤ a ∧ i = prefixN a) by omega)] using
           posCheck_at V t (14-a+i) t' h.hV h.ht hp14 ht'2 ht'13
-  have hfr' : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr + 8 + 16 * i - (112 + 16 * (14 - a + i))) := by
+  have hfr' : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr + 8 + 16 * i - (368 + 16 * (14 - a + i))) := by
     rw [h.fr]; congr 1; omega
-  have hsa : ∀ q, q = 0 ∨ q = 8 → (addC (.reg .x14) (BitVec.ofNat 64 (112 + 16 * (14 - a + i) + q))).eval m =
+  have hsa : ∀ q, q = 0 ∨ q = 8 → (addC (.reg .x14) (BitVec.ofNat 64 (368 + 16 * (14 - a + i) + q))).eval m =
       BitVec.ofNat 64 (0x800 + (ptr + 8 + 16 * i) + q) := by
     intro q hq
     rw [addC_eval]; simp only [Rv.E.eval, hfr', BitVec.ofNat_add_ofNat]
@@ -1119,21 +1117,21 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
   obtain ⟨sb0, sb1⟩ := psib_words h.pb (ptr + 8 + 16 * i) (by omega) (by omega)
   set sib := wbytes P.wl (ptr + 8 + 16 * i) 16 with hsib
   have hsl : sib.length = 16 := by simp [hsib, wbytes]
-  have e1 : (ldR .x14 (112 + 16 * (14 - a + i))).eval m = vw0 sib := by
-    show m.getMem ((addC (.reg .x14) (BitVec.ofNat 64 (112 + 16 * (14 - a + i)))).eval m) = _
-    rw [show 112 + 16 * (14 - a + i) = 112 + 16 * (14 - a + i) + 0 from rfl, hsa 0 (Or.inl rfl), Nat.add_zero]; exact sb0
-  have e2 : (ldR .x14 (112 + 16 * (14 - a + i) + 8)).eval m = vw1 sib := by
-    show m.getMem ((addC (.reg .x14) (BitVec.ofNat 64 (112 + 16 * (14 - a + i) + 8))).eval m) = _
+  have e1 : (ldR .x14 (368 + 16 * (14 - a + i))).eval m = vw0 sib := by
+    show m.getMem ((addC (.reg .x14) (BitVec.ofNat 64 (368 + 16 * (14 - a + i)))).eval m) = _
+    rw [show 368 + 16 * (14 - a + i) = 368 + 16 * (14 - a + i) + 0 from rfl, hsa 0 (Or.inl rfl), Nat.add_zero]; exact sb0
+  have e2 : (ldR .x14 (368 + 16 * (14 - a + i) + 8)).eval m = vw1 sib := by
+    show m.getMem ((addC (.reg .x14) (BitVec.ofNat 64 (368 + 16 * (14 - a + i) + 8))).eval m) = _
     rw [hsa 8 (Or.inr rfl)]; exact sb1
   have ht := h.ht
   have hpm : (prefixPosSpec V t a i bits t').mem = posMem t (14 - a + i) := by
     unfold prefixPosSpec njPosSpec; split_ifs <;> simp [posSpec] <;> split_ifs <;> rfl
-  have mem8 : u.getMem (BitVec.ofNat 64 0x1C8) = BitVec.ofNat 64 (twHi 0 (Rev.efield (E / 2))) := by
+  have mem8 : u.getMem (BitVec.ofNat 64 0x1C8) = BitVec.ofNat 64 (twHi P.idx (Rev.efield (E / 2))) := by
     rw [hlook 0x1C8 (by omega), hpm]
     simp only [posMem]
     rw [memLook_cons_eq _ _ _ _ rfl (by omega)]
     dsimp only
-    exact stW_eval_rev m 0x1C8 eS (E / 2) hEs (h.pb.halfv (by decide))
+    exact stW_eval_rev m 0x1C8 eS (E / 2) P.idx hEs (h.pb.halfv (by decide))
   have memS : u.getMem (BitVec.ofNat 64 (0x1F0 - 16 * t)) = vw0 sib ∧
       u.getMem (BitVec.ofNat 64 (0x1F8 - 16 * t)) = vw1 sib := by
     constructor
@@ -1374,12 +1372,12 @@ theorem tailM_step (P : PCtx) (s0 : MachineState) (s x c ptr E folds : Nat) (nod
     have hlook := psr_look hu
     have hEs := eS_eval h.rE hE
     have hb8 : u.getMem (BitVec.ofNat 64 (PSB + 80 * rest.length + 8)) =
-        BitVec.ofNat 64 (twHi 0 (Rev.efield (E / 2))) := by
+        BitVec.ofNat 64 (twHi P.idx (Rev.efield (E / 2))) := by
       rw [hlook _ (by unfold PSB; omega)]
       simp only [tailMSpec]
       rw [memLook_cons_eq _ _ _ _ (by simp [stkOf, EMPTY, PSB, hdl]; omega) (by simp [stkOf, EMPTY]; omega)]
       dsimp only
-      refine stW_eval_rev m _ eS (E / 2) hEs ?_
+      refine stW_eval_rev m _ eS (E / 2) P.idx hEs ?_
       have := h.pb.halfv (halfP_blk rest.length (by omega))
       rw [show stkOf stk.length + 8 = PSB + 80 * rest.length + 8 by simp [stkOf, EMPTY, PSB, hdl]; omega]
       exact this

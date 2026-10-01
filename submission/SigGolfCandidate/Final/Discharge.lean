@@ -1166,7 +1166,7 @@ theorem pors_good_decoded (P : PCtx) (hP : P.ok) (s0 : MachineState)
   rw [l0] at hg
   exact hg.mono (le_refl _) (le_refl _) (fun _ => ⟨trivial, le_refl _⟩)
 
-def cycleBoundDecoded (wl : List Byte) : Nat := 457 + layC + decodedCostRem wl 0
+def cycleBoundDecoded (wl : List Byte) : Nat := 471 + layC + decodedCostRem wl 0
 
 theorem exact_cost_vals (wl : List Byte) :
     leafCost 0 + Aexact wl 0 0 = 334 + layC + decodedCostRem wl 0 := by
@@ -1192,8 +1192,8 @@ theorem main_good_decoded (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : 
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (91 + (leafCost 0 + Nseg 0 0)) (91 + (leafCost 0 + Cseg 0 0)) True
-        (91 + (leafCost 0 + Aexact wl 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (105 + (leafCost 0 + Nseg 0 0)) (105 + (leafCost 0 + Cseg 0 0)) True
+        (105 + (leafCost 0 + Aexact wl 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with
@@ -1210,7 +1210,7 @@ theorem main_good_decoded (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : 
       have := pors_good_decoded P ⟨hwl, hpk⟩ u hLI
       dsimp only [P] at this
       exact (GoodQ.steps hsu this).mono (by omega) (by omega) (fun q => ⟨q, by omega⟩)
-    have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; omega
+    have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; norm_num [wRho, blockOff, wChains]; omega
     have h3 := GoodQ.hashH (x := digestInput (witRho wl) ml) hf h5 hv hin H
     rw [fmt_digestInput_words _ _ hrho hml, blocks_qT] at h3
     have hN : layN = 25009 := rfl
@@ -1303,7 +1303,7 @@ zero-inclusive compressed-tree certificate, with the final root cost restored. -
 theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
     (hpk : pkl.length = 16) (hwl : wl.length = 16384) (s : MachineState)
     (hs : InitOK ml pkl wl s) :
-    GoodQ s fuelBound cycleBoundAll True 10312 (cc (verifyList ml pkl wl) Kb) := by
+    GoodQ s fuelBound cycleBoundAll True 10316 (cc (verifyList ml pkl wl) Kb) := by
   intro F hF
   have hg := main_good_decoded ml pkl wl hml hpk hwl s hs F hF
   refine ⟨hg.1, fun hash => ⟨(hg.2 hash).1, (hg.2 hash).2.1, fun hsucc => ⟨trivial, ?_⟩⟩⟩
@@ -1320,17 +1320,18 @@ theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
 
 theorem verify_good_tight (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (s : MachineState) (hs : initialState submission .verify input = some s) :
-    GoodQ s fuelBound cycleBoundAll True 10312
+    GoodQ s fuelBound cycleBoundAll True 10316
       (cc (verifyRef input.1 input.2.1 input.2.2) Kb) := by
   obtain ⟨m, pk, w⟩ := input
-  exact main_good_tight _ _ _ (length_toList m) (length_toList pk) (length_toList w) s (init_ok m pk w s hs)
+  exact main_good_tight _ _ _ (length_toList m) (length_toList pk)
+    (by rw [length_extW]; exact congrArg (fun n => witLead + n) (length_toList w)) s (init_ok m pk w s hs)
 
-/-- Every accepting execution uses at most10,344 machine cycles, universally
+/-- Every accepting execution uses at most10,321 machine cycles, universally
 over hash answers and arbitrary witnesses. The witness charge is separate. -/
 theorem verify_accept_cycles_tight (hash : Hash)
     (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (h : (submission.runWith hash .verify input).value = some ()) :
-    (submission.runWith hash .verify input).cycles ≤ 10312 := by
+    (submission.runWith hash .verify input).cycles ≤ 10316 := by
   obtain ⟨s, hs⟩ := init_exists input
   have hg := (verify_good_tight input s hs CYCLE_LIMIT (by unfold CYCLE_LIMIT fuelBound; norm_num)).2 hash
   rw [runWith_eq submission hash .verify input s hs, image_eq] at h ⊢

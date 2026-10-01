@@ -5,9 +5,11 @@ import SigGolfCandidate.Expand.RefFacts
 # `expand`: the witness bytes
 
 `witness_bytes` : the byte view left by the copy phase is `witnessList sig v vs segs`
-(`ref.expand`'s W1a partial witness: zero counters, pads and tweak slots) on the 16384 witness bytes
-(`0x800 + i` for `i < 0x4000`), given the byte view before the phase (signature bytes, the segment
-stream of at most 2120 bytes, zero at the unused pi byte and above the scheduler's region).
+(`ref.expand`'s W1a partial witness: zero counters and pads; W1: `rho` and the secrets in the tweak
+slots of layer 0's blocks 1 .. 16, lower paths in slots 32 onward of preceding layers; the remaining tweak slots zero) on the 16384 bytes of the view
+`0x800 .. 0x4800` (`0x800 + i` for `i < 0x4000`, the zero lead `0x800 .. 0xA00` included), given the
+byte view before the phase (signature bytes, the segment stream of at most 2120 bytes, zero below the
+stream and above the scheduler's region).
 -/
 
 set_option linter.unusedSimpArgs false
@@ -45,32 +47,52 @@ theorem copy_hit (g : Nat → Byte) (c : Nat × Nat × Nat) (hc : c ∈ copyRest
 
 theorem mem_layCp (lay : Nat) (hl : lay < 5) (c : Nat × Nat × Nat) (hc : c ∈ layCp lay) : c ∈ copyRest := by
   unfold copyRest
-  apply List.mem_cons_of_mem
+  apply List.mem_append_right
   simp only [List.mem_append]
   interval_cases lay <;> simp [hc]
+
+/-- W1: the copy of secret `s` into the tweak slot of chain block `(0, 2 + s)`. -/
+theorem sec_mem (s : Nat) (hs : s < 15) : (0x24B10 + 16 * s, 0x1400 + 64 * s, 4) ∈ copyRest :=
+  List.mem_append_left _ (List.mem_map.mpr ⟨s, List.mem_range.mpr hs, rfl⟩)
 
 theorem chain_mem (lay k : Nat) (hl : lay < 5) (hk : k < 42) :
     (0x24B00 + sgOff lay + 16 * k, 0x800 + 2992 + 2688 * lay + 64 * k, 4) ∈ copyRest :=
   mem_layCp lay hl _ (List.mem_append_left _ (List.mem_map.mpr ⟨k, List.mem_range.mpr hk, rfl⟩))
 
-theorem path_mem (lay : Nat) (hl : lay < 5) : pathCp lay ∈ copyRest :=
-  mem_layCp lay hl _ (List.mem_append_right _ (List.mem_singleton_self _))
+theorem path_mem : pathCp 0 ∈ copyRest :=
+  mem_layCp 0 (by decide) _ (List.mem_append_right _ (by simp [layCp]))
+
+theorem lower_path_mem (lay j : Nat) (h0 : 1 ≤ lay) (hl : lay < 5) (hj : j < height lay) :
+    (0x24B00 + sgOff lay + 672 + 16 * j, 0x800 + pOff lay + 64 * j, 4) ∈ copyRest := by
+  apply mem_layCp lay hl
+  apply List.mem_append_right
+  rw [if_neg (by omega)]
+  exact List.mem_map.mpr ⟨j, List.mem_range.mpr hj, rfl⟩
 
 theorem copyRest_cases (c : Nat × Nat × Nat) (hc : c ∈ copyRest) :
-    c = (0x24B10, 0x820, 60) ∨ (∃ lay < 5, ∃ k < 42, c = (0x24B00 + sgOff lay + 16 * k, 0x800 + 2992 + 2688 * lay + 64 * k, 4)) ∨
-      (∃ lay < 5, c = pathCp lay) := by
+    (∃ s < 15, c = (0x24B10 + 16 * s, 0x1400 + 64 * s, 4)) ∨
+      (∃ lay < 5, ∃ k < 42, c = (0x24B00 + sgOff lay + 16 * k, 0x800 + 2992 + 2688 * lay + 64 * k, 4)) ∨
+      c = pathCp 0 ∨ (∃ lay, 1 ≤ lay ∧ lay < 5 ∧ ∃ j < height lay,
+        c = (0x24B00 + sgOff lay + 672 + 16 * j, 0x800 + pOff lay + 64 * j, 4)) := by
   unfold copyRest at hc
-  rcases List.mem_cons.mp hc with h | h
-  · exact Or.inl h
+  rcases List.mem_append.mp hc with h | h
+  · obtain ⟨s, hs, rfl⟩ := List.mem_map.mp h
+    exact Or.inl ⟨s, List.mem_range.mp hs, rfl⟩
   right
   have key : ∀ lay < 5, c ∈ layCp lay →
       (∃ lay < 5, ∃ k < 42, c = (0x24B00 + sgOff lay + 16 * k, 0x800 + 2992 + 2688 * lay + 64 * k, 4)) ∨
-      (∃ lay < 5, c = pathCp lay) := by
+      c = pathCp 0 ∨ (∃ lay, 1 ≤ lay ∧ lay < 5 ∧ ∃ j < height lay,
+        c = (0x24B00 + sgOff lay + 672 + 16 * j, 0x800 + pOff lay + 64 * j, 4)) := by
     intro lay hl h'
     rcases List.mem_append.mp h' with h' | h'
     · obtain ⟨k, hk, rfl⟩ := List.mem_map.mp h'
       exact Or.inl ⟨lay, hl, k, List.mem_range.mp hk, rfl⟩
-    · exact Or.inr ⟨lay, hl, List.mem_singleton.mp h'⟩
+    · right
+      by_cases h0 : lay = 0
+      · subst lay; rw [if_pos rfl] at h'; exact Or.inl (List.mem_singleton.mp h')
+      · rw [if_neg h0] at h'
+        obtain ⟨j, hj, rfl⟩ := List.mem_map.mp h'
+        exact Or.inr ⟨lay, by omega, hl, j, List.mem_range.mp hj, rfl⟩
   simp only [List.mem_append] at h
   rcases h with (((h | h) | h) | h) | h
   · exact key 0 (by norm_num) h
@@ -80,15 +102,29 @@ theorem copyRest_cases (c : Nat × Nat × Nat) (hc : c ∈ copyRest) :
   · exact key 4 (by norm_num) h
 
 theorem copy_miss (g : Nat → Byte) (x : Nat)
-    (hx : x < 0x820 ∨ (0x910 ≤ x ∧ x < 0x800 + 2400) ∨
-      (0x800 + 2944 ≤ x ∧ (x - (0x800 + 2944)) % 64 < 48) ∨ 0x800 + 16384 ≤ x) :
+    (hx : x < 0x800 + 2656 ∨ (0x800 + 2832 ≤ x ∧ x < 0x800 + 2944) ∨
+      (0x800 + 2944 ≤ x ∧ (x - (0x800 + 2944)) % 64 < 48 ∧
+        ¬ (0x1400 ≤ x ∧ x < 0x1400 + 64 * 15 ∧ (x - 0x1400) % 64 < 16) ∧
+        ¬ ((x - (0x800 + 2944)) / 2688 < 4 ∧
+           32 ≤ (x - (0x800 + 2944)) % 2688 / 64 ∧
+           (x - (0x800 + 2944)) % 2688 / 64 < 32 + height ((x - (0x800 + 2944)) / 2688 + 1) ∧
+           (x - (0x800 + 2944)) % 64 < 16)) ∨ 0x800 + 16384 ≤ x) :
     applyCopies copyRest g x = g x :=
   applyCopies_frame copyRest g x (by
     intro c hc
-    rcases copyRest_cases c hc with rfl | ⟨lay, hl, k, hk, rfl⟩ | ⟨lay, hl, rfl⟩
-    · simp; omega
+    rcases copyRest_cases c hc with ⟨s, hs, rfl⟩ | ⟨lay, hl, k, hk, rfl⟩ | rfl | ⟨lay, h0, hl, j, hj, rfl⟩
     · simp only; omega
-    · interval_cases lay <;> simp [pathCp, pOff, pWords, sgOff] <;> omega)
+    · simp only; omega
+    · simp [pathCp, pOff, pWords, sgOff]; omega
+    · simp only
+      intro hr
+      have hp : pOff lay = 2944 + 2688 * (lay - 1) + 64 * 32 := by interval_cases lay <;> decide
+      rw [hp] at hr
+      have hh : height lay ≤ 6 := by interval_cases lay <;> decide
+      have he : (x - (0x800 + 2944)) / 2688 = lay - 1 := by omega
+      have he' : (x - (0x800 + 2944)) / 2688 + 1 = lay := by omega
+      rw [he'] at hx
+      omega)
 
 theorem slice_append_slice (l : List Byte) (a n m : Nat) :
     slice l a n ++ slice l (a + n) m = slice l a (n + m) := by
@@ -144,93 +180,76 @@ set_option maxRecDepth 20000 in
 theorem witness_bytes (sig : List Byte) (hsig : sig.length = 6032) (N : Nat) (A : Nat → Nat)
     (hSK : SortedKeys N A) (hn : (leavesOf N).Nodup) (segs : List Nat) (f0 : Nat → Byte)
     (h1 : ∀ j < 6032, f0 (0x24B00 + j) = sig.getD j 0)
-    (h2 : ∀ i < 2152, f0 (0x910 + i) = (curStream sig segs 0).getD i 0) (h3 : f0 0x81F = 0)
+    (h2 : ∀ i < 2152, f0 (0xA10 + i) = (curStream sig segs 0).getD i 0)
+    (h3 : ∀ a, 0x800 ≤ a → a < 0xA10 → f0 a = 0)
     (hlen : (segStream sig segs).length ≤ 2120)
-    (h4 : ∀ a, 0x800 + 2424 ≤ a → a < 0x24B00 → f0 a = 0) :
-    ∀ i < 0x4000, applyCopies copyRest (piF A 15 (applyCopy (0x24B00, 0x800, 4) f0)) (0x800 + i) =
+    (h4 : ∀ a, 0x800 + 2680 ≤ a → a < 0x24B00 → f0 a = 0) :
+    ∀ i < 0x4000, applyCopies copyRest (piF A 15 (applyCopy (0x24B00, 0x13C0, 4) f0)) (0x800 + i) =
       (witnessList sig (leavesOf N) (vsOf A) segs).getD i 0 := by
   intro i hi
-  set g := piF A 15 (applyCopy (0x24B00, 0x800, 4) f0) with hg
+  set g := piF A 15 (applyCopy (0x24B00, 0x13C0, 4) f0) with hg
   -- the signature under the copies
   have hgs : ∀ j < 6032, g (0x24B00 + j) = sig.getD j 0 := by
     intro j hj; simp only [hg, piF, applyCopy]; rw [if_neg (by omega), if_neg (by omega)]; exact h1 j hj
-  have hg0 : ∀ a, 0x800 + 2424 ≤ a → a < 0x24B00 → g a = 0 := by
-    intro a ha1 ha2; simp only [hg, piF, applyCopy]; rw [if_neg (by omega), if_neg (by omega)]; exact h4 a ha1 ha2
+  have hg0 : ∀ a, 0x800 + 2680 ≤ a → a < 0x24B00 → ¬ (0x13C0 ≤ a ∧ a < 0x13D0) → g a = 0 := by
+    intro a ha1 ha2 ha3; simp only [hg, piF, applyCopy]; rw [if_neg (by omega), if_neg (by omega)]; exact h4 a ha1 ha2
   -- the witness as one concatenation with explicit lengths
-  have eS : ((List.range porsK).map (sigItem sig)).flatten = slice sig 16 240 := by
-    have := flatten_slices sig 16 16 15
-    simp only [show 16 * 15 = 240 from rfl] at this
-    rw [← this]; unfold porsK sigItem; rfl
-  have eP : ((List.range nLayers).map (sigPath sig)).flatten =
-      sigPath sig 0 ++ (sigPath sig 1 ++ (sigPath sig 2 ++ (sigPath sig 3 ++ sigPath sig 4))) := by
-    simp only [nLayers, List.range_succ, List.range_zero, List.map_append, List.map_cons, List.map_nil,
-      List.nil_append, List.flatten_append, List.flatten_cons, List.flatten_nil, List.append_nil,
-      List.append_assoc]
   have lpath : ∀ lay < 5, (sigPath sig lay).length = 16 * height lay := by
     intro lay hl; unfold sigPath; apply length_slice'
     rw [hsig]; interval_cases lay <;> decide
+  have lslot : ∀ lay k, (slotOf sig lay k).length = 16 := length_slotOf sig hsig
   have lchain : ∀ lay < 5, (chainRegion sig lay).length = 2688 := by
     intro lay hl
     unfold chainRegion
-    have := getD_flatten_range (fun i => zeros 48 ++ sigChain sig lay i) 64 (by norm_num)
     rw [show (2688 : Nat) = 42 * 64 from rfl]
-    clear this
-    have : ∀ n ≤ 42, ((List.range n).map fun i => zeros 48 ++ sigChain sig lay i).flatten.length = n * 64 := by
+    have : ∀ n ≤ 42, ((List.range n).map fun i => slotOf sig lay i ++ zeros 32 ++ sigChain sig lay i).flatten.length =
+        n * 64 := by
       intro n hn
       induction n with
       | zero => simp
       | succ m ihm =>
         rw [List.range_succ, List.map_append, List.flatten_append, List.length_append, ihm (by omega)]
         simp only [List.map_cons, List.map_nil, List.flatten_cons, List.flatten_nil, List.append_nil,
-          List.length_append, length_zeros]
+          List.length_append, length_zeros, lslot]
         rw [sigChain, length_slice' _ _ _ (by rw [hsig, sgOff_eq lay hl]; interval_cases lay <;> simp [sgOff] <;> omega)]
         ring
     exact this 42 le_rfl
-  have lr : (sigRho sig).length = 16 := length_slice' _ _ _ (by omega)
+  have lw : (zeros wPi).length = 512 := by rw [length_zeros]; rfl
   have lp : ((vsOf A).map (fun x => byte (8 * (leavesOf N).idxOf x))).length = 15 := by simp [vsOf]
-  have lz : (zeros (wSec - wPi - porsK)).length = 1 := by simp [zeros, wSec, wPi, porsK]
-  have ls : (slice sig 16 240).length = 240 := length_slice' _ _ _ (by omega)
+  have lz : (zeros (wStream - wPi - porsK)).length = 1 := by rw [length_zeros]; rfl
   have lt : ((segStream sig segs ++ zeros streamBytes).take streamBytes).length = 2120 := by
     rw [List.length_take, List.length_append, streamBytes_eq]; simp only [zeros, List.length_replicate]; omega
   have l8 : (zeros 8).length = 8 := by simp [zeros]
-  have lP : (sigPath sig 0 ++ (sigPath sig 1 ++ (sigPath sig 2 ++ (sigPath sig 3 ++ sigPath sig 4)))).length = 544 := by
-    simp only [List.length_append, lpath 0 (by norm_num), lpath 1 (by norm_num), lpath 2 (by norm_num),
-      lpath 3 (by norm_num), lpath 4 (by norm_num)]; decide
+  have lp0 : (sigPath sig 0).length = 176 := lpath 0 (by decide)
+  have l112 : (zeros 112).length = 112 := length_zeros _
   unfold witnessList witnessBody
-  rw [eS, eP]
   simp only [List.append_assoc]
-  simp only [getD_app, lr, lp, lz, ls, lt, l8, lP, List.length_nil]
-  by_cases r0 : i < 16
-  · rw [if_pos r0, copy_miss g _ (by omega)]
-    simp only [hg, piF, applyCopy]; rw [if_neg (by omega), if_pos (by omega)]
-    rw [show 0x800 + i - 0x800 + 0x24B00 = 0x24B00 + i by omega, h1 i (by omega), sigRho, getD_slice' _ _ _ _ r0,
-      Nat.zero_add]
+  simp only [getD_app, lw, lp, lz, lt, l8, lp0, l112, List.length_nil]
+  -- W1: the view's zero lead `0x800 .. 0xA00` (no copy writes there)
+  by_cases r0 : i < 512
+  · rw [if_pos r0, copy_miss g _ (by omega), getD_zeros]
+    simp only [hg, piF, applyCopy]; rw [if_neg (by omega), if_neg (by omega)]
+    exact h3 _ (by omega) (by omega)
   rw [if_neg r0]
-  by_cases r1 : i - 16 < 15
+  by_cases r1 : i - 512 < 15
   · rw [if_pos r1, copy_miss g _ (by omega)]
     simp only [hg, piF]; rw [if_pos (by omega)]
     rw [List.getD_eq_getElem?_getD, List.getElem?_map]
     simp only [vsOf, List.getElem?_map, List.getElem?_range r1, Option.map_some, Option.getD_some]
-    rw [← idxOf_lv hSK hn (i - 16) r1, show 0x800 + i - 0x810 = i - 16 by omega]
+    rw [← idxOf_lv hSK hn (i - 512) r1, show 0x800 + i - 0xA00 = i - 512 by omega]
     unfold byte; apply BitVec.eq_of_toNat_eq; simp
   rw [if_neg r1]
-  by_cases r2 : i - 16 - 15 < 1
+  by_cases r2 : i - 512 - 15 < 1
   · rw [if_pos r2, copy_miss g _ (by omega)]
-    simp only [hg, piF, applyCopy]; rw [if_neg (by omega), if_neg (by omega), show 0x800 + i = 0x81F by omega, h3]
+    simp only [hg, piF, applyCopy]; rw [if_neg (by omega), if_neg (by omega), h3 _ (by omega) (by omega)]
     simp [zeros, List.getD_eq_getElem?_getD]
   rw [if_neg r2]
-  by_cases r3 : i - 16 - 15 - 1 < 240
-  · rw [if_pos r3, copy_hit g (0x24B10, 0x820, 60) List.mem_cons_self _ (by simp; omega) (by simp; omega),
-      getD_slice' _ _ _ _ r3]
-    simp only
-    rw [show 0x800 + i - 0x820 + 0x24B10 = 0x24B00 + (16 + (i - 16 - 15 - 1)) by omega, hgs _ (by omega)]
-  rw [if_neg r3]
   -- the stream and the c4 / zero bytes (the scheduler's region)
-  have hstr : ∀ j < 2128, g (0x910 + j) = (curStream sig segs 0).getD j 0 := by
+  have hstr : ∀ j < 2128, g (0xA10 + j) = (curStream sig segs 0).getD j 0 := by
     intro j hj; simp only [hg, piF, applyCopy]; rw [if_neg (by omega), if_neg (by omega)]; exact h2 j (by omega)
-  by_cases r4 : i - 16 - 15 - 1 - 240 < 2120
+  by_cases r4 : i - 512 - 15 - 1 < 2120
   · rw [if_pos r4, copy_miss g _ (by omega)]
-    rw [show 0x800 + i = 0x910 + (i - 16 - 15 - 1 - 240) by omega, hstr _ (by omega),
+    rw [show 0x800 + i = 0xA10 + (i - 512 - 15 - 1) by omega, hstr _ (by omega),
       getD_take' _ _ _ (by rw [streamBytes_eq]; exact r4)]
     unfold curStream items
     simp only [List.range_zero, List.map_nil, List.flatten_nil, List.append_nil]
@@ -239,75 +258,81 @@ theorem witness_bytes (sig : List Byte) (hsig : sig.length = 6032) (N : Nat) (A 
     · rfl
     · rw [getD_zeros, getD_zeros]
   rw [if_neg r4]
-  by_cases r5 : i - 16 - 15 - 1 - 240 - 2120 < 8
+  by_cases r5 : i - 512 - 15 - 1 - 2120 < 8
   · rw [if_pos r5, copy_miss g _ (by omega), getD_zeros]
-    have e := hstr (i - 16 - 15 - 1 - 240) (by omega)
-    rw [show 0x910 + (i - 16 - 15 - 1 - 240) = 0x800 + i by omega] at e
+    have e := hstr (i - 512 - 15 - 1) (by omega)
+    rw [show 0xA10 + (i - 512 - 15 - 1) = 0x800 + i by omega] at e
     rw [e]
     unfold curStream items
     simp only [List.range_zero, List.map_nil, List.flatten_nil, List.append_nil]
     rw [getD_append_zeros]
     exact List.getD_eq_default _ _ (by omega)
   rw [if_neg r5]
-  -- the paths
-  have hpath : ∀ lay < 5, ∀ j < 16 * height lay,
-      applyCopies copyRest g (0x800 + pOff lay + j) = (sigPath sig lay).getD j 0 := by
-    intro lay hl j hj
-    have hw : 4 * pWords lay = 16 * height lay := by interval_cases lay <;> decide
-    have hj' : j < 4 * pWords lay := by omega
-    rw [copy_hit g (pathCp lay) (path_mem lay hl) _ (by simp [pathCp]) (by simp only [pathCp]; omega)]
-    simp only [pathCp]
-    rw [show 0x800 + pOff lay + j - (0x800 + pOff lay) + (0x24B00 + sgOff lay + 672) =
-      0x24B00 + (sgOff lay + 672 + j) by omega, hgs _ (by interval_cases lay <;> simp [sgOff, pWords] at hj' ⊢ <;> omega),
-      sigPath, getD_slice' _ _ _ _ hj, sgOff_eq lay hl]
-    rfl
-  have lq : ∀ lay < 5, (sigPath sig lay).length = [176, 96, 96, 96, 80].getD lay 0 := by
-    intro lay hl; rw [lpath lay hl]; interval_cases lay <;> rfl
-  simp only [lq 0 (by norm_num), lq 1 (by norm_num), lq 2 (by norm_num), lq 3 (by norm_num), lq 4 (by norm_num),
-    List.getD_cons_zero, List.getD_cons_succ, show nLayers = 5 from rfl] at *
-  set i' := i - 16 - 15 - 1 - 240 - 2120 - 8 with hi'
+  -- The top path stays contiguous; all lower paths are in chain tweak slots.
+  set i' := i - 512 - 15 - 1 - 2120 - 8 with hi'
   by_cases q0 : i' < 176
   · rw [if_pos q0]
-    have := hpath 0 (by norm_num) i' q0
-    rwa [show 0x800 + pOff 0 + i' = 0x800 + i by simp [pOff]; omega] at this
+    rw [copy_hit g (pathCp 0) path_mem _ (by simp [pathCp, pOff]; omega)
+      (by simp [pathCp, pOff, pWords]; omega)]
+    simp only [pathCp]
+    rw [show 0x800 + i - (0x800 + pOff 0) + (0x24B00 + sgOff 0 + 672) =
+      0x24B00 + (sgOff 0 + 672 + i') by simp [pOff]; omega,
+      hgs _ (by simp [sgOff]; omega), sigPath, getD_slice' _ _ _ _ (show i' < 16 * height 0 from q0), sgOff_eq 0 (by decide)]
+    rfl
   rw [if_neg q0]
-  by_cases q1 : i' - 176 < 96
-  · rw [if_pos q1]
-    have := hpath 1 (by norm_num) (i' - 176) q1
-    rwa [show 0x800 + pOff 1 + (i' - 176) = 0x800 + i by simp [pOff]; omega] at this
+  by_cases q1 : i' - 176 < 112
+  · rw [if_pos q1, getD_zeros, copy_miss g _ (by omega), hg0 _ (by omega) (by omega) (by omega)]
   rw [if_neg q1]
-  by_cases q2 : i' - 176 - 96 < 96
-  · rw [if_pos q2]
-    have := hpath 2 (by norm_num) (i' - 176 - 96) q2
-    rwa [show 0x800 + pOff 2 + (i' - 176 - 96) = 0x800 + i by simp [pOff]; omega] at this
-  rw [if_neg q2]
-  by_cases q3 : i' - 176 - 96 - 96 < 96
-  · rw [if_pos q3]
-    have := hpath 3 (by norm_num) (i' - 176 - 96 - 96) q3
-    rwa [show 0x800 + pOff 3 + (i' - 176 - 96 - 96) = 0x800 + i by simp [pOff]; omega] at this
-  rw [if_neg q3]
-  by_cases q4 : i' - 176 - 96 - 96 - 96 < 80
-  · rw [if_pos q4]
-    have := hpath 4 (by norm_num) (i' - 176 - 96 - 96 - 96) q4
-    rwa [show 0x800 + pOff 4 + (i' - 176 - 96 - 96 - 96) = 0x800 + i by simp [pOff]; omega] at this
-  rw [if_neg q4]
-  -- the chain array
-  set c := i' - 176 - 96 - 96 - 96 - 80 with hc
+  set c := i' - 176 - 112 with hc
   have hi2 : i = 2944 + c := by omega
-  rw [getD_flatten_range (chainRegion sig) 2688 (by norm_num) 5 lchain c, if_pos (by omega)]
+  rw [show nLayers = 5 from rfl, getD_flatten_range (chainRegion sig) 2688 (by norm_num) 5 lchain c, if_pos (by omega)]
   set lay := c / 2688 with hlay
   have hl : lay < 5 := by omega
   unfold chainRegion
   rw [show nChains = 42 from rfl, getD_flatten_range _ 64 (by norm_num) 42 (fun k hk => by
-    simp only [List.length_append, length_zeros]
+    simp only [List.length_append, length_zeros, lslot]
     rw [sigChain, length_slice' _ _ _ (by rw [hsig, sgOff_eq lay hl]; interval_cases lay <;> simp [sgOff] <;> omega)]),
     if_pos (by omega)]
   set k := c % 2688 / 64 with hk
   set r := c % 2688 % 64 with hr
   have hc' : c = 2688 * lay + 64 * k + r := by omega
-  rw [getD_app, length_zeros]
+  have hk42 : k < 42 := by omega
+  have hpos : (0x800 + i - (0x800 + 2944)) / 2688 = lay ∧
+      (0x800 + i - (0x800 + 2944)) % 2688 / 64 = k ∧
+      (0x800 + i - (0x800 + 2944)) % 64 = r := by omega
+  rw [getD_app, List.length_append, lslot, length_zeros, show (16 + 32 : Nat) = 48 from rfl]
   by_cases h48 : r < 48
-  · rw [if_pos h48, getD_zeros, copy_miss g _ (by omega), hg0 _ (by omega) (by omega)]
+  · rw [if_pos h48, getD_app, lslot]
+    by_cases h16 : r < 16
+    · -- W1: the tweak slot (`rho` in block `(0, 1)`, secret `s` in block `(0, 2 + s)`, else zero)
+      rw [if_pos h16]
+      unfold slotOf
+      split_ifs with hrho hsec hpath
+      · rw [copy_miss g _ (by omega)]
+        simp only [hg, piF, applyCopy]; rw [if_neg (by omega), if_pos (by omega)]
+        rw [show 0x800 + i - 0x13C0 + 0x24B00 = 0x24B00 + r by omega, h1 r (by omega), sigRho,
+          getD_slice' _ _ _ _ h16, Nat.zero_add]
+      · have hs' : lay = 0 ∧ 2 ≤ k ∧ k < 17 := by unfold porsK at hsec; omega
+        rw [copy_hit g _ (sec_mem (k - 2) (by omega)) _ (by simp only; omega) (by simp only; omega)]
+        simp only
+        rw [show 0x800 + i - (0x1400 + 64 * (k - 2)) + (0x24B10 + 16 * (k - 2)) =
+          0x24B00 + (16 + 16 * (k - 2) + r) by omega, hgs _ (by omega), sigItem, getD_slice' _ _ _ _ h16]
+      · have hp : pOff (lay + 1) = 2944 + 2688 * lay + 64 * 32 := by
+          have : lay < 4 := hpath.1
+          interval_cases lay <;> decide
+        rw [copy_hit g _ (lower_path_mem (lay + 1) (k - 32) (by omega) (by omega) (by omega)) _
+          (by simp only; rw [hp]; omega) (by simp only; rw [hp]; omega)]
+        simp only
+        rw [hp, show 0x800 + i - (0x800 + (2944 + 2688 * lay + 64 * 32) + 64 * (k - 32)) +
+          (0x24B00 + sgOff (lay + 1) + 672 + 16 * (k - 32)) =
+          0x24B00 + (sgOff (lay + 1) + 672 + 16 * (k - 32) + r) by omega,
+          hgs _ (by have : lay < 4 := hpath.1; interval_cases lay <;> simp [sgOff, height, heights] at hpath ⊢ <;> omega),
+          getD_slice' _ _ _ _ h16, sigPath,
+          getD_slice' _ _ _ _ (by omega), sgOff_eq (lay + 1) (by omega)]
+        exact congrArg (fun j => sig.getD j 0) (by unfold nChains; omega)
+      · have hs' : ¬ (lay = 0 ∧ 2 ≤ k ∧ k < 17) := by unfold porsK at hsec; omega
+        rw [getD_zeros, copy_miss g _ (by simp only [hpos.1, hpos.2.1, hpos.2.2]; omega), hg0 _ (by omega) (by omega) (by omega)]
+    · rw [if_neg h16, getD_zeros, copy_miss g _ (by omega), hg0 _ (by omega) (by omega) (by omega)]
   · rw [if_neg h48]
     rw [copy_hit g _ (chain_mem lay k hl (by omega)) _ (by simp only; omega) (by simp only; omega)]
     simp only
@@ -316,25 +341,19 @@ theorem witness_bytes (sig : List Byte) (hsig : sig.length = 6032) (N : Nat) (A 
       hgs _ (by interval_cases lay <;> simp [sgOff] <;> omega),
       sigChain, getD_slice' _ _ _ _ (by omega), sgOff_eq lay hl]
 
-/-- The bytes `2396 .. 2399` of the partial witness (after the `c4` slot) are zero. -/
+/-- The bytes `2652 .. 2655` of the partial witness (after the `c4` slot) are zero. -/
 theorem witnessList_c4 (sig : List Byte) (hsig : sig.length = 6032) (v vs segs : List Nat) (hvs : vs.length = 15) :
-    ∀ j < 4, (witnessList sig v vs segs).getD (2396 + j) 0 = 0 := by
+    ∀ j < 4, (witnessList sig v vs segs).getD (2652 + j) 0 = 0 := by
   intro j hj
-  have eS : ((List.range porsK).map (sigItem sig)).flatten = slice sig 16 240 := by
-    have := flatten_slices sig 16 16 15
-    simp only [show 16 * 15 = 240 from rfl] at this
-    rw [← this]; unfold porsK sigItem; rfl
-  have lr : (sigRho sig).length = 16 := length_slice' _ _ _ (by omega)
+  have lw : (zeros wPi).length = 512 := by rw [length_zeros]; rfl
   have lp : (vs.map (fun x => byte (8 * v.idxOf x))).length = 15 := by simp [hvs]
-  have lz : (zeros (wSec - wPi - porsK)).length = 1 := by simp [zeros, wSec, wPi, porsK]
-  have ls : (slice sig 16 240).length = 240 := length_slice' _ _ _ (by omega)
+  have lz : (zeros (wStream - wPi - porsK)).length = 1 := by rw [length_zeros]; rfl
   have lt : ((segStream sig segs ++ zeros streamBytes).take streamBytes).length = 2120 := by
     rw [List.length_take, List.length_append, streamBytes_eq]; simp only [zeros, List.length_replicate]; omega
   have l8 : (zeros 8).length = 8 := by simp [zeros]
   unfold witnessList witnessBody
-  rw [eS]
   simp only [List.append_assoc]
-  rw [getD_app, lr, if_neg (by omega), getD_app, lp, if_neg (by omega), getD_app, lz, if_neg (by omega),
-    getD_app, ls, if_neg (by omega), getD_app, lt, if_neg (by omega), getD_app, l8, if_pos (by omega), getD_zeros]
+  rw [getD_app, lw, if_neg (by omega), getD_app, lp, if_neg (by omega), getD_app, lz, if_neg (by omega),
+    getD_app, lt, if_neg (by omega), getD_app, l8, if_pos (by omega), getD_zeros]
 
 end SigGolfCandidate.Expand

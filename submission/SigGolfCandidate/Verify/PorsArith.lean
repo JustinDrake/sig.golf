@@ -120,17 +120,6 @@ theorem idxE_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.of
   norm_num
   omega
 
-theorem lo32E_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.ofNat 64 (A % 2 ^ 64)) :
-    lo32E.eval s = BitVec.ofNat 64 (2 ^ 32 * (A % 2 ^ 34 % 2 ^ 32)) := by
-  apply BitVec.eq_of_toNat_eq
-  have e : lo32E.eval s = idxE.eval s <<< ((BitVec.ofNat 64 32).toNat % 64) := rfl
-  rw [e, idxE_eval A s h0]
-  have hX : A % 2 ^ 34 < 2 ^ 34 := Nat.mod_lt _ (by decide)
-  generalize A % 2 ^ 34 = X at *
-  simp only [BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
-  norm_num
-  omega
-
 theorem hiE_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.ofNat 64 (A % 2 ^ 64)) :
     hiE.eval s = BitVec.ofNat 64 (2 ^ 24 * (A % 2 ^ 34 / 2 ^ 32)) := by
   apply BitVec.eq_of_toNat_eq
@@ -305,29 +294,5 @@ theorem ctr_shift_iff (x : Nat) (hx : x < 2 ^ 64) :
   · rintro ⟨h1, h2⟩
     have := Nat.or_lt_two_pow h2 h1
     omega
-
-/-- Word 0 of the relabelled node buffers. -/
-theorem nbW0E_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.ofNat 64 (A % 2 ^ 64)) :
-    nbW0E.eval s = BitVec.ofNat 64 (twLo 10 0 (A % 2 ^ 34) (A % 2 ^ 34)) := by
-  have e : nbW0E.eval s = hiE.eval s + BitVec.ofNat 64 0xA01 + lo32E.eval s := rfl
-  rw [e, hiE_eval A s h0, lo32E_eval A s h0, BitVec.ofNat_add_ofNat, BitVec.ofNat_add_ofNat]
-  have hX : A % 2 ^ 34 < 2 ^ 34 := Nat.mod_lt _ (by decide)
-  generalize A % 2 ^ 34 = X at *
-  congr 1
-  unfold twLo
-  omega
-
-/-- Word 0 of the relabelled leaf buffer. -/
-theorem cbW0E_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.ofNat 64 (A % 2 ^ 64)) :
-    cbW0E.eval s = BitVec.ofNat 64 (twLo 9 0 (A % 2 ^ 34) (A % 2 ^ 34)) := by
-  have e : cbW0E.eval s = nbW0E.eval s + BitVec.ofNat 64 18446744073709551360 := rfl
-  rw [e, nbW0E_eval A s h0]
-  have h10 : twLo 10 0 (A % 2 ^ 34) (A % 2 ^ 34) = twLo 9 0 (A % 2 ^ 34) (A % 2 ^ 34) + 256 := by
-    unfold twLo; omega
-  rw [h10]
-  generalize twLo 9 0 (A % 2 ^ 34) (A % 2 ^ 34) = y
-  rw [BitVec.ofNat_add_ofNat, show y + 256 + 18446744073709551360 = y + 2 ^ 64 by omega]
-  apply BitVec.eq_of_toNat_eq
-  simp only [BitVec.toNat_ofNat, Nat.add_mod_right]
 
 end SigGolfCandidate.Verify

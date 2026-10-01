@@ -171,11 +171,11 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
     obtain ⟨a1, a2, -⟩ := hlv 14 (by norm_num)
     rw [hMdef, show porsH = 14 from rfl, getD_of_lt (by rw [a1]; norm_num)]
     exact a2 _ (List.getElem_mem _)
-  have f03 : Frame t t3 (fun a => (digokW a ∨ porsW a) ∨ ((0x120 ≤ a ∧ a < 0x130) ∨
+  have f03 : Frame t t3 (fun a => (digokW a ∨ porsW a) ∨ ((0x130 ≤ a ∧ a < 0x140) ∨
       schW' (schedule (sortLeaves (leavesOf N))).2.length a)) := f02.trans f3
-  have fs3 : Frame (s0 sk cache m) t3 (fun a => (macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x120 ≤ a ∧ a < 0x130) ∨
+  have fs3 : Frame (s0 sk cache m) t3 (fun a => (macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x130 ≤ a ∧ a < 0x140) ∨
       schW' (schedule (sortLeaves (leavesOf N))).2.length a))) := fst.trans f03
-  have hW3 : ∀ a, ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x120 ≤ a ∧ a < 0x130) ∨
+  have hW3 : ∀ a, ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x130 ≤ a ∧ a < 0x140) ∨
       schW' (schedule (sortLeaves (leavesOf N))).2.length a))) →
       a < 0x900 ∨ (0x24B00 ≤ a ∧ a < 0x24C00 + 16 * 120) ∨ 0x30000 ≤ a ∨ (0xCAE0 ≤ a ∧ a < 0xCB20) ∨
         (0x14B00 ≤ a ∧ a < 0x14B20) := by
@@ -184,7 +184,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
     omega
   have z3 : ∀ a, a % 8 = 0 → ZA a → t3.getMem (BitVec.ofNat 64 a) = 0 := by
     intro a h8 hz
-    have hnw : ¬ ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x120 ≤ a ∧ a < 0x130) ∨
+    have hnw : ¬ ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x130 ≤ a ∧ a < 0x140) ∨
         schW' (schedule (sortLeaves (leavesOf N))).2.length a))) := by
       simp only [ZA] at hz
       simp only [macW, setupW, digW, anW, digokW, porsW, schW']
@@ -198,7 +198,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
       ?_, z3rw _ (by norm_num) (by simp [ZA]) (by simp [ZA]), z3rw _ (by norm_num) (by simp [ZA]) (by simp [ZA]),
       z3rw _ (by norm_num) (by simp [ZA]) (by simp [ZA])⟩
     rw [f03.readWords _ _ (by norm_num) (by intro i hi; simp only [digokW, porsW, schW']; omega), tS]
-  have rgW : ∀ a, regionA a → ¬ ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x120 ≤ a ∧ a < 0x130) ∨
+  have rgW : ∀ a, regionA a → ¬ ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x130 ≤ a ∧ a < 0x140) ∨
       schW' (schedule (sortLeaves (leavesOf N))).2.length a))) := by
     intro a ha
     simp only [regionA] at ha
@@ -257,7 +257,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
     intro i h1 h2
     have hnw : ∀ k < 2, ¬ ((macW (0x24C00 + 16 * i + 8 * k) ∨ digW (0x24C00 + 16 * i + 8 * k)) ∨
         ((digokW (0x24C00 + 16 * i + 8 * k) ∨ porsW (0x24C00 + 16 * i + 8 * k)) ∨
-        ((0x120 ≤ 0x24C00 + 16 * i + 8 * k ∧ 0x24C00 + 16 * i + 8 * k < 0x130) ∨
+        ((0x130 ≤ 0x24C00 + 16 * i + 8 * k ∧ 0x24C00 + 16 * i + 8 * k < 0x140) ∨
         schW' (schedule vs).2.length (0x24C00 + 16 * i + 8 * k)))) := by
       intro k hk
       simp only [macW, setupW, digW, anW, digokW, porsW, schW']

@@ -137,7 +137,7 @@ def gkL0 : List (Reg × Word) :=
 def gkL : List (Reg × Word) := gkL0
 
 /-- The `P` slots (`+16 .. +32`) of the hash buffers CB, EB, NB, RB2, LB. -/
-def pSlots : List Nat := [0xD0, 0xD8, 0x110, 0x118, 0x1D0, 0x1D8, 0x230, 0x238,
+def pSlots : List Nat := [0xD0, 0xD8, 0x110, 0x118, 0x128, 0x1D0, 0x1D8, 0x230, 0x238,
   0x350, 0x358]
 
 /-- The witness words below the chain array (`[0, 2944)`: rho, pi, secrets, stream, `c4`, paths), which

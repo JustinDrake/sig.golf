@@ -8,7 +8,7 @@ import SigGolfCandidate.Expand.Mem
 * `getByte_ofNat` : a byte is a byte of its aligned dword.
 * `StackOK u stack` : `STK + 0 = 0` (bottom sentinel) and the stack entries at `STK + 8 ..`
   (top at `STK + 8 |stack|`).
-* `StreamOK u l` : the stream area `WIT + 272 ..+2152` holds the bytes `l` (zero beyond).
+* `StreamOK u l` : the stream area `WIT + 528 ..+2152` holds the bytes `l` (zero beyond).
 * `SigOK u sig` : the signature buffer holds `sig`.
 -/
 
@@ -41,7 +41,7 @@ theorem truncate8_ofNat (n : Nat) : (BitVec.ofNat 64 n).truncate 8 = BitVec.ofNa
   apply BitVec.eq_of_toNat_eq; simp
 
 /-- Writes of the schedule loop: the stack and the stream area. -/
-def SW (a : Nat) : Prop := (0x760 ≤ a ∧ a < 0x7E0) ∨ (0x910 ≤ a ∧ a < 0x910 + 2152)
+def SW (a : Nat) : Prop := (0x760 ≤ a ∧ a < 0x7E0) ∨ (0xA10 ≤ a ∧ a < 0xA10 + 2152)
 
 def StackOK (u : MachineState) (stack : List Nat) : Prop :=
   u.getMem (BitVec.ofNat 64 0x760) = 0 ∧
@@ -49,7 +49,7 @@ def StackOK (u : MachineState) (stack : List Nat) : Prop :=
       BitVec.ofNat 64 (stack.getD i 0)
 
 def StreamOK (u : MachineState) (l : List Byte) : Prop :=
-  ∀ i < 2152, u.getByte (BitVec.ofNat 64 (0x910 + i)) = l.getD i 0
+  ∀ i < 2152, u.getByte (BitVec.ofNat 64 (0xA10 + i)) = l.getD i 0
 
 def SigOK (u : MachineState) (sig : List Byte) : Prop :=
   ∀ j < 6032, u.getByte (BitVec.ofNat 64 (0x24B00 + j)) = sig.getD j 0
@@ -124,22 +124,22 @@ theorem segByte_end (cnt t : Nat) (hc : cnt < 16) (ht : t ≤ 7) : cnt ||| 32 * 
 
 /-! ## Stream writes -/
 
-/-- Two dword stores at `WIT + 272 + P` (`P` 8-aligned) append a 16-byte item. -/
+/-- Two dword stores at `WIT + 528 + P` (`P` 8-aligned) append a 16-byte item. -/
 theorem stream_sd2 {u u' : MachineState} {l item : List Byte} {P : Nat} {w0 w1 : Word}
     (hP : P % 8 = 0) (hPb : P + 16 ≤ 2152) (hl : l.length = P) (hitem : item.length = 16)
     (hS : StreamOK u l)
     (hm : ∀ y : Nat, y < 2 ^ 64 → u'.getMem (BitVec.ofNat 64 y) =
-      if y = 0x910 + P + 8 then w1 else if y = 0x910 + P then w0 else u.getMem (BitVec.ofNat 64 y))
+      if y = 0xA10 + P + 8 then w1 else if y = 0xA10 + P then w0 else u.getMem (BitVec.ofNat 64 y))
     (hw0 : ∀ k < 8, extractByte w0 k = item.getD k 0)
     (hw1 : ∀ k < 8, extractByte w1 k = item.getD (8 + k) 0) :
     StreamOK u' (l ++ item) := by
   intro i hi
   rw [getByte_ofNat _ _ (by omega), hm _ (by omega)]
-  by_cases h1 : (0x910 + i) / 8 * 8 = 0x910 + P + 8
+  by_cases h1 : (0xA10 + i) / 8 * 8 = 0xA10 + P + 8
   · rw [if_pos h1, hw1 _ (by omega), List.getD_append_right _ _ _ _ (by omega)]
     congr 1; omega
   · rw [if_neg h1]
-    by_cases h2 : (0x910 + i) / 8 * 8 = 0x910 + P
+    by_cases h2 : (0xA10 + i) / 8 * 8 = 0xA10 + P
     · rw [if_pos h2, hw0 _ (by omega), List.getD_append_right _ _ _ _ (by omega)]
       congr 1; omega
     · rw [if_neg h2, ← getByte_ofNat _ _ (by omega), hS i hi]
@@ -147,16 +147,16 @@ theorem stream_sd2 {u u' : MachineState} {l item : List Byte} {P : Nat} {w0 w1 :
       · rw [List.getD_append _ _ _ _ h3]
       · rw [List.getD_eq_default _ _ (by omega), List.getD_eq_default _ _ (by simp; omega)]
 
-/-- A byte store at `WIT + 272 + P` (`P` 8-aligned). -/
+/-- A byte store at `WIT + 528 + P` (`P` 8-aligned). -/
 theorem stream_sb {u u' : MachineState} {l l' : List Byte} {P : Nat} {b : BitVec 8}
     (hP : P % 8 = 0) (hPb : P < 2152) (hS : StreamOK u l)
     (hm : ∀ y : Nat, y < 2 ^ 64 → u'.getMem (BitVec.ofNat 64 y) =
-      if y = 0x910 + P then replaceByte (u.getMem (BitVec.ofNat 64 y)) 0 b else u.getMem (BitVec.ofNat 64 y))
+      if y = 0xA10 + P then replaceByte (u.getMem (BitVec.ofNat 64 y)) 0 b else u.getMem (BitVec.ofNat 64 y))
     (hl' : ∀ i, l'.getD i 0 = if i = P then b else l.getD i 0) :
     StreamOK u' l' := by
   intro i hi
   rw [getByte_ofNat _ _ (by omega), hm _ (by omega), hl' i]
-  by_cases h1 : (0x910 + i) / 8 * 8 = 0x910 + P
+  by_cases h1 : (0xA10 + i) / 8 * 8 = 0xA10 + P
   · rw [if_pos h1, extractByte_replaceByte0 _ _ _ (by omega)]
     by_cases h2 : i = P
     · rw [if_pos (by omega), if_pos h2]

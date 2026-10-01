@@ -254,19 +254,27 @@ theorem Sim.hash16_bind {s : MachineState} {x : List Byte} {W : Nat}
   rw [← addrFmt_blocks x] at this
   rwa [hx] at this
 
-/-- Encoding-only selected hash followed by a continuation. -/
+/-- Encoding-only selected hash with its actual formatted query. -/
+theorem Sim.encodingHash_bindF {s : MachineState} {x : List Byte} {W : Nat}
+    {f : Val → OracleComp HashSpec β} {Q : β → MachineState → Prop}
+    (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
+    (hv : hashArgumentsValid s = true) (hq : hashInput s = addrFmt x)
+    (h : ∀ a, Sim image (writeHash s a) W (f (encodingBytes a)) Q) :
+    Sim image s (8 * (addrFmt x).blocks + W) (encodingHash x >>= f) Q := by
+  have he : encodingHash x >>= f = (liftM (HashSpec.query (addrFmt x)) : OracleComp HashSpec _) >>=
+      fun a => f (encodingBytes a) := by
+    simp only [encodingHash, H, bind_assoc, pure_bind]
+  rw [he]
+  exact Sim.query_bind hf ht0 hv hq h
+
+/-- Compatibility form for an encoding query whose format is plain padding. -/
 theorem Sim.encodingHash_bind {s : MachineState} {x : List Byte} {W : Nat}
     {f : Val → OracleComp HashSpec β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
     (hv : hashArgumentsValid s = true) (hq : hashInput s = pad64 x) (hx : addrFmt x = pad64 x)
     (h : ∀ a, Sim image (writeHash s a) W (f (encodingBytes a)) Q) :
     Sim image s (8 * (pad64 x).blocks + W) (encodingHash x >>= f) Q := by
-  have he : encodingHash x >>= f = (liftM (HashSpec.query (addrFmt x)) : OracleComp HashSpec _) >>=
-      fun a => f (encodingBytes a) := by
-    simp only [encodingHash, H, bind_assoc, pure_bind]
-  rw [he]
-  rw [hx]
-  exact Sim.query_bind hf ht0 hv hq h
+  simpa only [hx] using Sim.encodingHash_bindF hf ht0 hv (hq.trans hx.symm) h
 
 /-- `hash16 x` at the end. -/
 theorem Sim.hash16 {s : MachineState} {x : List Byte} {W : Nat} {Q : Val → MachineState → Prop}

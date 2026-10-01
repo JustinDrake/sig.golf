@@ -225,9 +225,25 @@ def InitOK (ml pkl wl : List Byte) (s : MachineState) : Prop :=
   (∀ A, A < 0x800 → (A < 0x40 ∨ (0x60 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → s.getMem (BitVec.ofNat 64 A) = 0) ∧
   RtabData s
 
-theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m : Message) (pk : PublicKey) (w : Bytes 16384) (s : MachineState)
+/-- The view's zero lead (`0x800 .. 0xA00`). -/
+theorem slice_extW_lo (l : List Byte) (j : Nat) (hj : j < 64) : slice (extW l) (8 * j) 8 = zeros 8 := by
+  unfold slice extW
+  rw [List.drop_append_of_le_length (by rw [length_zeros]; unfold witLead; omega)]
+  unfold zeros
+  rw [List.drop_replicate, List.take_append_of_le_length (by rw [List.length_replicate]; unfold witLead; omega),
+    List.take_replicate]
+  congr 1; unfold witLead; omega
+
+/-- The witness words (`0xA00 ..`). -/
+theorem slice_extW_hi (l : List Byte) (j : Nat) (hj : 64 ≤ j) :
+    slice (extW l) (8 * j) 8 = slice l (8 * (j - 64)) 8 := by
+  unfold slice extW
+  rw [show 8 * j = (zeros witLead).length + 8 * (j - 64) by rw [length_zeros]; unfold witLead; omega,
+    List.drop_append, List.drop_eq_nil_of_le (by omega), List.nil_append, Nat.add_sub_cancel_left]
+
+theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m : Message) (pk : PublicKey) (w : Bytes 15872) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) :
-    InitOK (toList m) (toList pk) (toList w) s := by
+    InitOK (toList m) (toList pk) (extW (toList w)) s := by
   unfold initialState at h
   simp only [submission_admissible.2 .verify, if_true, Option.some.injEq] at h
   subst h
@@ -244,12 +260,12 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
     rw [e1, vdl] <;> decide
   rw [e1, eb]
   have hl : inputBuffers submission.sizes submission.layout .verify (m, pk, w) =
-      [(0x40, toList m), (0xA0, toList pk), (0x800, toList w)] := rfl
+      [(0x40, toList m), (0xA0, toList pk), (0xA00, toList w)] := rfl
   rw [hl]
   simp only [List.foldl_cons, List.foldl_nil]
   have lm : (toList m).length = 32 := length_toList m
   have lp : (toList pk).length = 16 := length_toList pk
-  have lw : (toList w).length = 16384 := length_toList w
+  have lw : (toList w).length = 15872 := length_toList w
   set blank : MachineState := { regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 }
   set withData := blank.writeBytesAsWords (BitVec.ofNat 64 0xFDFFC0) vdata
   have dataRegs : withData.regs = blank.regs := wbw_regs 131136 _ _ _ (Nat.le_of_eq vdl)
@@ -285,7 +301,7 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
     exact w64_rtBlk n
   set s1 := withData.writeBytesAsWords (BitVec.ofNat 64 0x40) (toList m)
   set s2 := s1.writeBytesAsWords (BitVec.ofNat 64 0xA0) (toList pk)
-  set s3 := s2.writeBytesAsWords (BitVec.ofNat 64 0x800) (toList w)
+  set s3 := s2.writeBytesAsWords (BitVec.ofNat 64 0xA00) (toList w)
   have hr3 : s3.regs = fun _ => 0 := by
     rw [wbw_regs 20000 _ _ _ (by omega), wbw_regs 20000 _ _ _ (by omega), wbw_regs 20000 _ _ _ (by omega), dataRegs]
   have hpc3 : s3.pc = 0x1000 := by
@@ -323,7 +339,13 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
   · rw [hpcT]
     rfl
   · intro j hj
-    rw [gm, show 0x800 + 8 * j = 0x800 + 8 * j from rfl, wbw_word _ _ _ (by omega) j (by omega)]
+    by_cases hj64 : j < 64
+    · rw [gm, slice_extW_lo _ j hj64, wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
+        wbw_frame _ _ _ (by omega) _ (by omega) (by omega), wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
+        dataLow _ (by omega)]
+      rfl
+    · rw [gm, slice_extW_hi _ j (by omega), show 0x800 + 8 * j = 0xA00 + 8 * (j - 64) by omega,
+        wbw_word _ _ _ (by omega) (j - 64) (by omega)]
   · refine ⟨?_, ?_⟩
     · rw [gm, show (0xA0 : Word) = BitVec.ofNat 64 0xA0 from rfl, wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
         show 0xA0 = 0xA0 + 8 * 0 from rfl, wbw_word _ _ _ (by omega) 0 (by omega)]
@@ -345,9 +367,9 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
     exact dataRt n hn
 
 
-theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16384) (s : MachineState)
+theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 15872) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) :
-    InitOK (toList m) (toList pk) (toList w) s :=
+    InitOK (toList m) (toList pk) (extW (toList w)) s :=
   init_ok_data Images.verifyData rfl m pk w s h
 
 end SigGolfCandidate.Verify
