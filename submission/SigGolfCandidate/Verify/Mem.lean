@@ -113,7 +113,7 @@ def KT4 : Word := BitVec.ofNat 64 (targetFor 4)
 def KTof (lay : Nat) : Word := BitVec.ofNat 64 (targetFor lay)
 
 theorem targetFor_le (lay : Nat) : targetFor lay ≤ 183 := by
-  unfold targetFor targetSum; split <;> omega
+  unfold targetFor targetSum; split_ifs <;> omega
 
 /-- The verifier's embedded mask words. -/
 def MaskData (s : MachineState) : Prop :=

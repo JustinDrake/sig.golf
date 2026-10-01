@@ -241,8 +241,8 @@ theorem x31Er_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : M
 
 /-! ## The encoding check -/
 
-def dA (s : MachineState) : Nat := (s.getMem (BitVec.ofNat 64 288)).toNat
-def dB (s : MachineState) : Nat := (s.getMem (BitVec.ofNat 64 296)).toNat
+def dA (s : MachineState) : Nat := (s.getMem (BitVec.ofNat 64 320)).toNat
+def dB (s : MachineState) : Nat := (s.getMem (BitVec.ofNat 64 328)).toNat
 
 section
 variable (s : MachineState)

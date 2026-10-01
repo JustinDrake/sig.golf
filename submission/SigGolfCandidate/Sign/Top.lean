@@ -1,5 +1,6 @@
 import SigGolfCandidate.Sign.Enc
-import SigGolfCandidate.Sign.TreeStep
+import SigGolfCandidate.Sign.Sibling
+import SigGolfCandidate.Equiv.Tree
 import SigGolfCandidate.Sign.Pair
 
 /-!
@@ -75,6 +76,7 @@ structure TopCtx (S cache : List Byte) (x : List Nat) (tau e : Nat) (t : Machine
   he : e < 2048
   hx : ∀ i, x.getD i 0 < 8
   x5 : t.getReg .x5 = 0
+  x8 : t.getReg .x8 = 0
   x13 : t.getReg .x13 = BitVec.ofNat 64 e
   x18 : t.getReg .x18 = BitVec.ofNat 64 0x900
   x31 : t.getReg .x31 = BitVec.ofNat 64 (tau + 2 ^ 32 * e)
@@ -82,14 +84,16 @@ structure TopCtx (S cache : List Byte) (x : List Nat) (tau e : Nat) (t : Machine
   pbP : t.readWords (BitVec.ofNat 64 0x6B0) 2 = [0, 0]
   pbS : t.readWords (BitVec.ofNat 64 0x6C0) 4 = wordsOf S
   cbP : t.readWords (BitVec.ofNat 64 0xD0) 2 = [0, 0]
-  node : ∀ l j, l < 11 → j < 2 ^ (11 - l) →
+  lbP : t.readWords (BitVec.ofNat 64 0x350) 2 = [0, 0]
+  node : ∀ l j, 0 < l → l < 11 → j < 2 ^ (11 - l) →
     t.readWords (BitVec.ofNat 64 (0x4B00 + cacheNodeOff l j)) 2 = wordsOf (cacheNode cache l j)
   nodeLen : ∀ l j, l < 11 → j < 2 ^ (11 - l) → (cacheNode cache l j).length = 16
 
 /-- Addresses written by the top layer. -/
 def topW (a : Nat) : Prop :=
   a = 0x6A0 ∨ a = 0x6A8 ∨ a = 0xC0 ∨ a = 0xC8 ∨ (0xE0 ≤ a ∧ a < 0x110) ∨ (0x140 ≤ a ∧ a < 0x160) ∨
-    (0x908 ≤ a ∧ a < 0x908 + 672) ∨ (0xBA8 ≤ a ∧ a < 0xBA8 + 176)
+    (0x908 ≤ a ∧ a < 0x908 + 672) ∨ (0xBA8 ≤ a ∧ a < 0xBA8 + 176) ∨
+    (0x340 ≤ a ∧ a < 0x600)
 
 theorem topN_eq (l : Nat) (hl : l ≤ 11) : topN l = 4096 - 2 ^ (12 - l) := by
   interval_cases l <;> rfl
@@ -603,7 +607,7 @@ structure PathCtx (S cache : List Byte) (e : Nat) (t : MachineState) : Prop wher
   x18 : t.getReg .x18 = BitVec.ofNat 64 0x900
   pbP : t.readWords (BitVec.ofNat 64 0x6B0) 2 = [0, 0]
   pbS : t.readWords (BitVec.ofNat 64 0x6C0) 4 = wordsOf S
-  node : ∀ l j, l < 11 → j < 2 ^ (11 - l) →
+  node : ∀ l j, 0 < l → l < 11 → j < 2 ^ (11 - l) →
     t.readWords (BitVec.ofNat 64 (0x4B00 + cacheNodeOff l j)) 2 = wordsOf (cacheNode cache l j)
   nodeLen : ∀ l j, l < 11 → j < 2 ^ (11 - l) → (cacheNode cache l j).length = 16
 
@@ -613,7 +617,7 @@ theorem sib_lt (e l : Nat) (he : e < 2048) (hl : l < 11) : (e / 2 ^ l) ^^^ 1 < 2
   exact Nat.xor_lt_two_pow h1 (Nat.one_lt_two_pow (by omega))
 
 theorem tpath_body (S cache : List Byte) (hS : S.length = 32) (e : Nat) (tp : MachineState)
-    (pc : PathCtx S cache e tp) (l : Nat) (hl : l < 11) (acc : List Val) (t : MachineState)
+    (pc : PathCtx S cache e tp) (l : Nat) (hpos : 0 < l) (hl : l < 11) (acc : List Val) (t : MachineState)
     (hinv : TPathInv S cache e tp l acc t) :
     Sim image t 36 (do
         let mk ← hash16 (maskInput S l ((e / 2 ^ l) ^^^ 1))
@@ -674,7 +678,7 @@ theorem tpath_body (S cache : List Byte) (hS : S.length = 32) (e : Nat) (tp : Ma
     constructor <;> apply ofNat_congr <;> omega
   have hb : (pad64 (maskInput S l sb)).blocks = 1 := by
     simp [pad64, Query.blocks, (words_maskInput S hS l sb).1]
-  have hnode := pc.node l sb hl hsbl
+  have hnode := pc.node l sb hpos hl hsbl
   have hnl := pc.nodeLen l sb hl hsbl
   have hoff := cacheNodeOff_lt l sb hl hsbl
   have htn := topN_add_lt l sb hl hsbl
@@ -755,14 +759,111 @@ theorem tpath_body (S cache : List Byte) (hS : S.length = 32) (e : Nat) (tp : Ma
   · exact (tframe.trans (ft2.trans f3)).mono (by
       intro z hz; simp only [tpathW] at hz ⊢; omega)
 
-/-- **Top path** `l = 0 .. 10`. -/
-theorem topPath_sim (S cache : List Byte) (hS : S.length = 32) (e : Nat) (tp : MachineState)
-    (pc : PathCtx S cache e tp) (h0 : TPathInv S cache e tp 0 [] tp) :
-    Sim image tp (11 * 36) (topPath S cache e) (TPathInv S cache e tp 11) := by
-  unfold topPath
-  rw [show topH = 11 from rfl]
-  exact Sim.foldlM_range 11 _ [] (TPathInv S cache e tp) 36
-    (fun l hl acc t h => tpath_body S cache hS e tp pc l hl acc t h) h0
+/-- Positive levels of the top path; the first sibling is already reconstructed. -/
+theorem topPathTail_sim (S cache : List Byte) (hS : S.length = 32) (e : Nat) (tp : MachineState)
+    (pc : PathCtx S cache e tp) (v : Val) (h0 : TPathInv S cache e tp 1 [v] tp) :
+    Sim image tp (10 * 36)
+      ((List.range' 1 10).foldlM (fun acc l => do
+        let mk ← hash16 (maskInput S l ((e / 2 ^ l) ^^^ 1))
+        pure (acc ++ [xorBytes (cacheNode cache l ((e / 2 ^ l) ^^^ 1)) mk])) [v])
+      (TPathInv S cache e tp 11) := by
+  exact Sim.foldlM_range' 1 10 _ [v] (fun j => TPathInv S cache e tp (1 + j)) 36
+    (fun j hj acc t h => by
+      simpa only [Nat.add_assoc] using tpath_body S cache hS e tp pc (1 + j) (by omega) (by omega) acc t h) h0
+
+/-- Reuse the full-leaf chains with capture disabled for the sibling. -/
+def topSiblingEntry (t : MachineState) : MachineState :=
+  blk522.res.toState (blk2971.res.toState (blk685.res.toState t))
+
+def topSiblingW (a : Nat) : Prop :=
+  a = 0x340 ∨ a = 0x348 ∨ a = 0x6A8 ∨ a = 0xC8 ∨ siblingW a
+
+def topSiblingRegs : List Reg := [.x3, .x17, .x19, .x20, .x21, .x24, .x30] ++ siblingRegs
+
+def TopSiblingPost (t0 : MachineState) (v : Val) (t : MachineState) : Prop :=
+  v.length = 16 ∧ Slots t 0xBA8 [v] ∧ t.pc = pcOf 689 ∧
+    t.getReg .x15 = 1 ∧ t.getReg .x17 = 16384 ∧ t.getReg .x19 = 0xCB20 ∧
+    RegsEq t0 t topSiblingRegs ∧ Frame t0 t topSiblingW
+
+theorem topSibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau e : Nat)
+    (t : MachineState) (hm : TopMem S x tau e t) (hpc : t.pc = pcOf 685)
+    (h8 : t.getReg .x8 = 0) (h13 : t.getReg .x13 = BitVec.ofNat 64 e)
+    (hlbP : t.readWords (BitVec.ofNat 64 0x350) 2 = [0, 0]) :
+    Sim image t (17 + (21 * 480 + (4 + (88 + 9))))
+      (Prod.fst <$> buildLeaf S 0 0 (e ^^^ 1) x) (TopSiblingPost t) := by
+  let ep := e ^^^ 1
+  have hep : ep < 2048 := Nat.xor_lt_two_pow (show e < 2 ^ 11 from hm.he) (by decide : 1 < 2 ^ 11)
+  have hne : ep ≠ e := by
+    intro h
+    have h' := congrArg (fun v => v ^^^ e) h
+    dsimp [ep] at h'
+    rw [Nat.xor_comm e 1, Nat.xor_assoc, Nat.xor_self, Nat.xor_zero] at h'
+    omega
+  have hx : t.getReg .x13 ^^^ 1#64 = BitVec.ofNat 64 ep := by
+    rw [h13, show (1#64 : Word) = BitVec.ofNat 64 1 from rfl, ← BitVec.ofNat_xor]
+  have hs0 := symRun_sound blk685 codeAt_685 t hpc (by simp only [blk685.res, rv_simp])
+  have hs1 := symRun_sound blk2971 codeAt_2971 (blk685.res.toState t)
+    (by simp only [blk685.res, rv_simp]) (by simp only [blk2971.res, rv_simp])
+  have hs2 := symRun_sound blk522 codeAt_522 (blk2971.res.toState (blk685.res.toState t))
+    (by simp only [blk2971.res, rv_simp]) (by simp only [blk522.res, rv_simp])
+  have hs : Steps image t 17 17 (topSiblingEntry t) := hs0.trans (hs1.trans hs2)
+  set tl := topSiblingEntry t with htl
+  have f0 : Frame t (blk685.res.toState t) (fun _ => False) := by
+    intro a ha hW; rfl
+  have f1 : Frame (blk685.res.toState t) (blk2971.res.toState (blk685.res.toState t)) (fun a => a = 0x340) := by
+    apply frame_toState; intro a ha hW
+    simp only [blk2971.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
+      implies_true, and_true, ne_eq, ofNat_eq_iff]
+    omega
+  have f2 : Frame (blk2971.res.toState (blk685.res.toState t)) tl
+      (fun a => a = 0x6A8 ∨ a = 0xC8 ∨ a = 0x348) := by
+    apply frame_toState; intro a ha hW
+    simp only [blk522.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
+      implies_true, and_true, ne_eq, ofNat_eq_iff]
+    omega
+  have ft : Frame t tl (fun a => a = 0x340 ∨ a = 0x6A8 ∨ a = 0xC8 ∨ a = 0x348) :=
+    ((f0.trans f1).trans f2).mono (by tauto)
+  have rt : RegsEq t tl [.x3, .x17, .x19, .x20, .x21, .x24, .x30] := by
+    intro r hr
+    simp only [htl, topSiblingEntry, Result.toState_getReg]
+    cases r <;> first | exact absurd (by decide) hr | rfl
+  have hw : ∀ a, a = 0x6A8 ∨ a = 0xC8 ∨ a = 0x348 →
+      tl.getMem (BitVec.ofNat 64 a) = BitVec.ofNat 64 (2 ^ 32 * ep) := by
+    intro a ha
+    simp only [htl, topSiblingEntry, blk522.res, blk2971.res, blk685.res, rv_simp, hx]
+    rcases ha with rfl | rfl | rfl <;> bvsimp [] <;> simp [Nat.mul_comm]
+  have ctx : ChainCtx S x ⟨0, 0, e, ep, 0x900⟩ tl := by
+    refine ⟨by norm_num, by norm_num, hm.he, hep, rfl, hm.hx,
+      by rw [rt.get .x5, hm.x5], by rw [rt.get .x13, h13], by rw [rt.get .x18, hm.x18],
+      ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · simp only [htl, topSiblingEntry, blk522.res, blk2971.res, blk685.res, rv_simp, hx]
+    · intro i hi; rw [ft.getMem (by omega) (by omega), hm.dig i hi]
+    · rw [ft.getMem (by norm_num) (by omega), hm.pb0]; rfl
+    · simpa using hw _ (Or.inl rfl)
+    · rw [ft.readWords _ _ (by norm_num) (by intro i hi; omega), hm.pbP]
+    · rw [ft.readWords _ _ (by norm_num) (by intro i hi; omega), hm.pbS]
+    · rw [ft.getMem (by norm_num) (by omega), hm.cb0]; rfl
+    · simpa using hw _ (Or.inr (Or.inl rfl))
+    · rw [ft.readWords _ _ (by norm_num) (by intro i hi; omega), hm.cbP]
+  have hp : tl.pc = pcOf 529 := by simp only [htl, topSiblingEntry, blk522.res, rv_simp]
+  have hx21 : tl.getReg .x21 = 0 := by simp only [htl, topSiblingEntry, blk522.res, rv_simp]
+  have hx24 : tl.getReg .x24 = 0 := by simp only [htl, topSiblingEntry, blk522.res, rv_simp]
+  have hx17 : tl.getReg .x17 = BitVec.ofNat 64 (ep + 1) := by
+    simp only [htl, topSiblingEntry, blk522.res, blk2971.res, blk685.res, rv_simp, hx, ofNat_add_ofNat]
+  have hx19 : tl.getReg .x19 = BitVec.ofNat 64 0xBA8 - BitVec.ofNat 64 (16 * ep) := by
+    simp only [htl, topSiblingEntry, blk522.res, blk2971.res, blk685.res, rv_simp, hx, hm.x18]
+    bvsimp []
+    rw [show ep * 16 = 16 * ep by omega]
+  have lb0 : tl.getMem (BitVec.ofNat 64 0x340) = twWord0 2 0 0 0 := by
+    simp only [htl, topSiblingEntry, blk522.res, blk2971.res, blk685.res, rv_simp]
+    rfl
+  refine Sim.steps hs ((sibling_sim S hS x e ep hne tl ctx hp hx21 hx24
+    (by rw [rt.get .x8, h8]) hx17 hx19 lb0 (hw _ (Or.inr (Or.inr rfl)))
+    (by rw [ft.readWords _ _ (by norm_num) (by intro i hi; omega), hlbP])).mono le_rfl ?_)
+  intro v u hu
+  obtain ⟨hv, hs, hp, h15, h17, h19, hr, hf⟩ := hu
+  exact ⟨hv, hs, hp, h15, h17, h19, rt.trans hr,
+    (ft.trans hf).mono (by intro a ha; simp only [topSiblingW]; tauto)⟩
 
 /-- Result of the top layer. -/
 def TopPost (t0 : MachineState) (r : List Val × List Val) (t : MachineState) : Prop :=
@@ -773,7 +874,7 @@ def TopPost (t0 : MachineState) (r : List Val × List Val) (t : MachineState) : 
 /-- **The top layer** (chains up to `x_i`, path from the cache). -/
 theorem top_sim (S cache : List Byte) (hS : S.length = 32) (x : List Nat) (tau e : Nat) (t : MachineState)
     (hc : TopCtx S cache x tau e t) (tpc : t.pc = pcOf 637) :
-    Sim image t (9 + (21 * 320 + (4 + 11 * 36)))
+    Sim image t (9 + (21 * 320 + ((17 + (21 * 480 + (4 + (88 + 9)))) + 10 * 36)))
       ((List.range (nChains / 2)).foldlM (fun (acc : List Val) k => do
         let (s0, s1) ← prf2 (prfInput S 0 tau e k)
         let v0 ← chainTo 0 tau e (2 * k) (x.getD (2 * k) 0) s0
@@ -784,39 +885,49 @@ theorem top_sim (S cache : List Byte) (hS : S.length = 32) (x : List Nat) (tau e
   refine Sim.steps hsu (Sim.bind (topChains_sim S hS x tau e u hu0) (fun vals t1 h1 => ?_))
   obtain ⟨-, hl1, hv1, hsl1, pc1, -, hm1, r1, f1⟩ := h1
   have pc1' : t1.pc = pcOf 685 := by rw [pc1]; rfl
-  -- block 606: path loop setup
-  have hs2 := symRun_sound blk685 codeAt_685 t1 pc1' (by simp only [blk685.res, rv_simp])
-  have hc2 : blk685.res.cycles = 4 := rfl
-  rw [hc2] at hs2
-  set t2 := blk685.res.toState t1 with ht2
-  have m2 : ∀ z, t2.getMem z = t1.getMem z := fun z => by
-    rw [ht2, Result.toState_getMem, show blk685.res.st.mem = [] from rfl, memEval_nil]
-  have r2 : RegsEq t1 t2 [.x15, .x17, .x19] := by
-    intro r hr; rw [ht2, Result.toState_getReg]
-    cases r <;> first | exact absurd (by decide) hr | rfl
-  have ft2 : Frame t t2 (fun a => (a = 0x6A0 ∨ a = 0x6A8 ∨ a = 0xC0 ∨ a = 0xC8 ∨ a = 0xE0 ∨ a = 0xE8) ∨
-      tchainW a) := fun z hz hW => by rw [m2, (fu.trans f1).getMem hz hW]
-  have rt2 : RegsEq t t2 ([.x3, .x21] ++ topRegs ++ [.x15, .x17, .x19]) := (ru.trans r1).trans r2
+  have rt1 : RegsEq t t1 ([.x3, .x21] ++ topRegs) := ru.trans r1
+  have ft1 := fu.trans f1
+  unfold topPath
+  rw [bind_assoc]
+  simp only [pure_bind]
+  rw [SigGolfCandidate.Equiv.bind_fst (buildLeaf S 0 0 (e ^^^ 1) [])
+    (fun v : Val => do
+      let path ← (List.range' 1 (topH - 1)).foldlM (fun acc l => do
+        let mk ← hash16 (maskInput S l ((e / 2 ^ l) ^^^ 1))
+        pure (acc ++ [xorBytes (cacheNode cache l ((e / 2 ^ l) ^^^ 1)) mk])) [v]
+      pure (vals, path)),
+    ← SigGolfCandidate.Equiv.fst_buildLeaf S 0 0 (e ^^^ 1) x []]
+  refine Sim.bind (topSibling_sim S hS x tau e t1 hm1 pc1'
+    (by rw [rt1.get .x8, hc.x8]) (by rw [rt1.get .x13, hc.x13])
+    (by rw [ft1.readWords _ _ (by norm_num) (by intro i hi; simp only [tchainW]; omega), hc.lbP]))
+    (fun v t2 h2 => ?_)
+  obtain ⟨hv, hsv, pc2, x215, x217, x219, r2, f2⟩ := h2
+  have rt2 := rt1.trans r2
+  have ft2 := ft1.trans f2
   have pc : PathCtx S cache e t2 := by
     refine ⟨hc.he, by rw [rt2.get .x5, hc.x5], by rw [rt2.get .x13, hc.x13], by rw [rt2.get .x18, hc.x18],
-      ?_, ?_, fun l j hl hj => ?_, hc.nodeLen⟩
-    · rw [ft2.readWords _ _ (by norm_num) (by intro i hi; simp only [tchainW]; omega), hc.pbP]
-    · rw [ft2.readWords _ _ (by norm_num) (by intro i hi; simp only [tchainW]; omega), hc.pbS]
+      ?_, ?_, fun l j hpos hl hj => ?_, hc.nodeLen⟩
+    · rw [ft2.readWords _ _ (by norm_num)
+        (by intro i hi; simp only [tchainW, topSiblingW, siblingW]; omega), hc.pbP]
+    · rw [ft2.readWords _ _ (by norm_num)
+        (by intro i hi; simp only [tchainW, topSiblingW, siblingW]; omega), hc.pbS]
     · have := cacheNodeOff_lt l j hl hj
       have : 32 ≤ cacheNodeOff l j := by unfold cacheNodeOff; omega
-      rw [ft2.readWords _ _ (by omega) (by intro i hi; simp only [tchainW]; omega), hc.node l j hl hj]
-  have h0 : TPathInv S cache e t2 0 [] t2 := by
-    refine ⟨by norm_num, rfl, by simp, Slots.nil _ _,
-      by rw [if_pos (by norm_num)]; simp only [ht2, blk685.res, rv_simp],
-      by simp only [ht2, blk685.res, rv_simp], ?_, ?_, RegsEq.refl _ _, Frame.refl _ _⟩
-    · simp only [ht2, blk685.res, rv_simp]; rfl
-    · simp only [ht2, blk685.res, rv_simp]; rfl
-  refine Sim.steps hs2 (Sim.bind (W₂ := 0) (topPath_sim S cache hS e t2 pc h0) (fun path t3 h3 => ?_))
+      rw [ft2.readWords _ _ (by omega)
+        (by intro i hi; simp only [tchainW, topSiblingW, siblingW]; omega), hc.node l j hpos hl hj]
+  have h0 : TPathInv S cache e t2 1 [v] t2 := by
+    refine ⟨by norm_num, rfl, by simpa using hv, hsv, ?_, ?_, ?_, ?_, RegsEq.refl _ _, Frame.refl _ _⟩
+    · rw [if_pos (by norm_num), pc2]
+    · exact x215
+    · rw [x219]; rfl
+    · rw [x217]; rfl
+  refine Sim.bind (W₂ := 0) (topPathTail_sim S cache hS e t2 pc v h0) (fun path t3 h3 => ?_)
   obtain ⟨-, hl3, hv3, hsl3, pc3, -, -, -, r3, f3⟩ := h3
   refine Sim.pure ⟨hl1, hv1, ?_, hl3, hv3, hsl3, by rw [pc3]; rfl, ?_, ?_⟩
-  · have fr : Frame t1 t3 tpathW := fun z hz hW => by rw [f3.getMem hz hW, m2]
-    exact hsl1.frame fr (by omega) (by intro k hk; simp only [tpathW]; constructor <;> omega)
+  · exact hsl1.frame (f2.trans f3) (by omega) (by
+      intro k hk; simp only [topSiblingW, siblingW, tpathW]; constructor <;> omega)
   · rw [r3.get .x5, rt2.get .x5, hc.x5]
-  · exact (ft2.trans f3).mono (by intro z hz; simp only [tchainW, tpathW, topW] at hz ⊢; omega)
+  · exact (ft2.trans f3).mono (by
+      intro z hz; simp only [tchainW, topSiblingW, siblingW, tpathW, topW] at hz ⊢; omega)
 
 end SigGolfCandidate.Sign

@@ -101,13 +101,13 @@ levels `0 .. topH - 1` into the region, MAC the region. Returns `(pk = root, cac
 def keygenList (S : List Byte) : OracleComp HashSpec (Val × List Byte) := do
   let (leaves, _) ← buildLeaves S 0 0 topH 0 []
   let levels ← buildAllLevels (nodeInput 0 0) topH leaves
-  let masked ← (List.range topH).foldlM (fun (acc : List Val) l => do
+  let masked ← (List.range' 1 (topH - 1)).foldlM (fun (acc : List Val) l => do
     let ml ← maskLevel S l (levels.getD l [])
     pure (acc ++ ml)) []
   let region := masked.flatten
   let tag ← H (macInput S region)
   pure ((levels.getD topH []).getD 0 [],
-    toList (n := 32) tag ++ region ++ zeros (cacheBytes - 32 - regionBytes))
+    zeros cachePadBytes ++ toList (n := 32) tag ++ region ++ zeros (cacheBytes - cachePadBytes - 32 - regionBytes))
 
 def keygenRef (sk : Bytes 32) : OracleComp HashSpec (Bytes 16 × Cache) := do
   let (root, cache) ← keygenList (toList sk)
@@ -174,11 +174,12 @@ def chainTo (lay tau e i x : Nat) (v : Val) : OracleComp HashSpec Val :=
 
 /-- The top-tree path of leaf `e` from the cache: for `l = 0 .. topH - 1`, sibling
 `s = (e >> l) xor 1`, query `mask(l, s)`, path node = cache node `(l, s)` xor mask. -/
-def topPath (S cache : List Byte) (e : Nat) : OracleComp HashSpec (List Val) :=
-  (List.range topH).foldlM (fun acc l => do
+def topPath (S cache : List Byte) (e : Nat) : OracleComp HashSpec (List Val) := do
+  let (sibling, _) ← buildLeaf S 0 0 (e ^^^ 1) []
+  (List.range' 1 (topH - 1)).foldlM (fun acc l => do
     let s := (e / 2 ^ l) ^^^ 1
     let mk ← hash16 (maskInput S l s)
-    pure (acc ++ [xorBytes (cacheNode cache l s) mk])) []
+    pure (acc ++ [xorBytes (cacheNode cache l s) mk])) [sibling]
 
 /-- Layer 0 (the cached top tree): counter search on `M`, the WOTS signature of leaf `e_0`
 (for each chain pair, the paired secret query, then chains `2k` and `2k+1` up to their digits), the path from the cache. The top tree is not built. -/
