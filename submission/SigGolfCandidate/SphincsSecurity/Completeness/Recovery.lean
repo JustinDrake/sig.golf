@@ -343,30 +343,25 @@ def tableKey (secretKey : Seeded.SecretKey) : SecretKey where
 
 /-- The cache holds the top tree the seeded key's secrets span, each node masked with its derived mask. -/
 def CacheHonest (secretKey : Seeded.SecretKey) (cache : TopCache) : Prop :=
-  ∀ (level : Nat), 0 < level → level < maxLayerHeight → ∀ (nodeIdx : Nat),
-    nodeIdx < 2 ^ (maxLayerHeight - level) →
-    cache.node level nodeIdx
+  ∀ (level : Nat) (hlevel : level < maxLayerHeight) (nodeIdx : Nat)
+    (hnodeIdx : nodeIdx < 2 ^ (maxLayerHeight - level)),
+    cache.region ⟨level, hlevel⟩ ⟨nodeIdx, hnodeIdx⟩
       = honestNode f secretKey.parameter topLayer rootTree
           (fun leaf chainIdx => unpairedOts f (Seeded.otsSecret secretKey.parameter secretKey.seed topLayer rootTree leaf) chainIdx) level nodeIdx
         ^^^ evalWithAnswerFn f (Seeded.maskSecret secretKey.parameter secretKey.seed level nodeIdx
           : OracleComp HashSpec Digest)
 
-/-- Reconstructing level zero and unmasking authenticated positive levels both yield the top tree. -/
+/-- Reading an honest cache unmasks to the top tree: the mask derivation returns the mask the node
+was stored under. -/
 theorem cachedTopNode_agrees (secretKey : Seeded.SecretKey) (cache : TopCache)
     (hcache : CacheHonest f secretKey cache) :
     TopAgrees f (tableKey f secretKey) (Seeded.cachedTopNode secretKey.parameter secretKey.seed cache) := by
   intro level hlevel nodeIdx hnodeIdx
-  by_cases hz : level = 0
-  · subst level
-    simp only [Seeded.cachedTopNode, if_true, evalWithAnswerFn_bind, evalWithAnswerFn_pure]
-    rw [eval_buildLeafPaired, eval_buildLeaf f secretKey.parameter topLayer rootTree
-      (fun leaf chainIdx => pure (unpairedOts f
-        (Seeded.otsSecret secretKey.parameter secretKey.seed topLayer rootTree leaf) chainIdx))]
-    simp only [evalWithAnswerFn_pure, tableKey, leafOfNat]
-    rw [Nat.mod_eq_of_lt (by simpa only [Nat.sub_zero] using hnodeIdx)]
-  · simp only [Seeded.cachedTopNode, if_neg hz, evalWithAnswerFn_bind, evalWithAnswerFn_pure]
-    rw [hcache level (by omega) hlevel nodeIdx hnodeIdx, BitVec.xor_assoc, BitVec.xor_self, BitVec.xor_zero]
-    rfl
+  have hnode : cache.node level nodeIdx = cache.region ⟨level, hlevel⟩ ⟨nodeIdx, hnodeIdx⟩ := by
+    simp only [TopCache.node, dif_pos hlevel, dif_pos hnodeIdx]
+  simp only [Seeded.cachedTopNode, evalWithAnswerFn_bind, evalWithAnswerFn_pure]
+  rw [hnode, hcache level hlevel nodeIdx hnodeIdx, BitVec.xor_assoc, BitVec.xor_self, BitVec.xor_zero]
+  rfl
 
 /-- The digest the signer accepted. -/
 def digestValue (secretKey : Seeded.SecretKey) (message : Message) (randomness : Randomness) :
@@ -404,8 +399,47 @@ theorem signDigestLoop_spec (secretKey : Seeded.SecretKey) (message : Message) :
           evalWithAnswerFn_pure, if_neg hadmissible] at h
         exact ih (trial + 1) h
 
+theorem signDigestPairs_spec (secretKey : Seeded.SecretKey) (message : Message) :
+    ∀ (attempts trial : Nat) {randomness : Randomness} {index : Index}
+      {leaves : IndexGroup → FtsLeaf},
+      evalWithAnswerFn f (Seeded.signDigestPairs secretKey message attempts trial
+          : OracleComp HashSpec (Option (Randomness × Index × (IndexGroup → FtsLeaf))))
+          = some (randomness, index, leaves) →
+      Admissible (digestValue f secretKey message randomness)
+        ∧ index = digestIndex (digestValue f secretKey message randomness)
+        ∧ leaves = digestLeaves (digestValue f secretKey message randomness) := by
+  intro attempts
+  induction attempts with
+  | zero => intro trial randomness index leaves h; simp [Seeded.signDigestPairs] at h
+  | succ attempts ih =>
+    intro trial randomness index leaves h
+    simp only [Seeded.signDigestPairs, Seeded.signAttempt, Seeded.deriveRandomizerPair,
+      evalWithAnswerFn_bind, eval_oracleHash, evalWithAnswerFn_pure] at h
+    by_cases hlo : Admissible (digestValue f secretKey message
+      (Seeded.splitSecrets (f (randomizerHashInput secretKey.parameter secretKey.seed
+        message (BitVec.ofNat 32 trial)))).1)
+    · rw [digestValue] at hlo
+      simp only [if_pos hlo, evalWithAnswerFn_pure, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨hrand, hindex, hleaves⟩ := h
+      subst hrand
+      exact ⟨hlo, hindex.symm, hleaves.symm⟩
+    · rw [digestValue] at hlo
+      simp only [if_neg hlo, evalWithAnswerFn_pure] at h
+      by_cases hhi : Admissible (digestValue f secretKey message
+        (Seeded.splitSecrets (f (randomizerHashInput secretKey.parameter secretKey.seed
+          message (BitVec.ofNat 32 trial)))).2)
+      · rw [digestValue] at hhi
+        simp only [Seeded.signAttempt, evalWithAnswerFn_bind, if_pos hhi,
+          evalWithAnswerFn_pure, Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨hrand, hindex, hleaves⟩ := h
+        subst hrand
+        exact ⟨hhi, hindex.symm, hleaves.symm⟩
+      · rw [digestValue] at hhi
+        simp only [Seeded.signAttempt, evalWithAnswerFn_bind, if_neg hhi, evalWithAnswerFn_pure] at h
+        exact ih (trial + 1) h
+
 -- Below, only the shape of `sign` matters; sealing the loop keeps the unfolding shallow.
-attribute [local irreducible] Seeded.signDigestLoop Concrete.signFrom Concrete.signFromPaired
+attribute [local irreducible] Seeded.signDigestLoop Seeded.signDigestPairs Concrete.signFrom Concrete.signFromPaired
 
 /-- What a successful signing after the MAC check produced: an admissible digest, and the
 specification's signature after it for the key the seed derives. -/
@@ -418,14 +452,14 @@ theorem signChecked_spec (secretKey : Seeded.SecretKey) (cache : TopCache)
           (digestIndex (digestValue f secretKey message signature.randomness))
           (digestLeaves (digestValue f secretKey message signature.randomness)) = some signature := by
   rw [Seeded.signChecked, evalWithAnswerFn_bind] at h
-  cases hloop : evalWithAnswerFn f (Seeded.signDigestLoop secretKey message digestAttemptLimit 0
+  cases hloop : evalWithAnswerFn f (Seeded.signDigestPairs secretKey message digestPairLimit 0
       : OracleComp HashSpec (Option (Randomness × Index × (IndexGroup → FtsLeaf)))) with
   | none => rw [hloop] at h; simp at h
   | some result =>
       obtain ⟨randomness, index, leaves⟩ := result
       rw [hloop] at h
       obtain ⟨hadmissible, hindex, hleaves⟩ :=
-        signDigestLoop_spec f secretKey message digestAttemptLimit 0 hloop
+        signDigestPairs_spec f secretKey message digestPairLimit 0 hloop
       change evalWithAnswerFn f (signFromPaired secretKey.parameter index
         (Seeded.ftsSecret secretKey.parameter secretKey.seed index)
         (Seeded.otsSecret secretKey.parameter secretKey.seed)
@@ -556,10 +590,10 @@ theorem keygenTableValue_eq (seed : MasterSeed) (level : Nat) (hlevel : level �
   exact eval_buildLayerTablePaired_node f 0 topLayer rootTree _ _ _ level hlevel nodeIdx hnodeIdx
 
 theorem eval_maskRegion (parameter : PublicParameter) (seed : MasterSeed) (table : Nat → Nat → Digest)
-    (level : Fin (maxLayerHeight - 1)) (nodeIdx : Fin (2 ^ (maxLayerHeight - (level.val + 1)))) :
+    (level : Fin maxLayerHeight) (nodeIdx : Fin (2 ^ (maxLayerHeight - level.val))) :
     evalWithAnswerFn f (Seeded.maskRegion parameter seed table : OracleComp HashSpec TopRegion) level nodeIdx
-      = table (level.val + 1) nodeIdx.val ^^^ evalWithAnswerFn f
-          (Seeded.maskSecret parameter seed (level.val + 1) nodeIdx.val : OracleComp HashSpec Digest) := by
+      = table level.val nodeIdx.val ^^^ evalWithAnswerFn f
+          (Seeded.maskSecret parameter seed level.val nodeIdx.val : OracleComp HashSpec Digest) := by
   simp only [Seeded.maskRegion, evalWithAnswerFn_bind, evalWithAnswerFn_sequenceFin,
     evalWithAnswerFn_pure, dif_pos nodeIdx.isLt]
 
@@ -571,20 +605,14 @@ theorem cacheHonest_of_table (seed : MasterSeed) (root : Digest) (tag : HashOutp
         (fun leaf chainIdx => unpairedOts f (Seeded.otsSecret 0 seed topLayer rootTree leaf) chainIdx) level nodeIdx) :
     CacheHonest f ⟨seed, 0, root⟩
       ⟨tag, evalWithAnswerFn f (Seeded.maskRegion 0 seed table : OracleComp HashSpec TopRegion)⟩ := by
-  intro level hpos hlevel nodeIdx hnodeIdx
+  intro level hlevel nodeIdx hnodeIdx
   have hheight : layerHeight topLayer = maxLayerHeight := rfl
-  let row : Fin (maxLayerHeight - 1) := ⟨level - 1, by omega⟩
-  have he : row.val + 1 = level := by dsimp [row]; omega
-  let node : Fin (2 ^ (maxLayerHeight - (row.val + 1))) := ⟨nodeIdx, by rw [he]; exact hnodeIdx⟩
-  have hmask := eval_maskRegion f 0 seed table row node
-  conv at hmask =>
-    rhs
-    change table (row.val + 1) nodeIdx ^^^ evalWithAnswerFn f (Seeded.maskSecret 0 seed (row.val + 1) nodeIdx : OracleComp HashSpec Digest)
-    rw [he]
+  have hmask := eval_maskRegion f 0 seed table ⟨level, hlevel⟩ ⟨nodeIdx, hnodeIdx⟩
+  dsimp only at hmask
   rw [htable level (by rw [hheight]; omega) nodeIdx (by rw [hheight]; exact hnodeIdx)] at hmask
   -- reduce the key's projections first: comparing them unreduced unfolds the evaluations
   dsimp only
-  simpa only [TopCache.node, dif_pos (show 0 < level ∧ level < maxLayerHeight from ⟨hpos, hlevel⟩), dif_pos hnodeIdx, row, node] using hmask
+  exact hmask
 
 /-- The cache key generation writes is honest for the key it returns. -/
 theorem keygen_cacheHonest (seed : MasterSeed) (tag : HashOutput) :

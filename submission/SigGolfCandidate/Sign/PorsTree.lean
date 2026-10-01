@@ -1,5 +1,5 @@
 import SigGolfCandidate.Sign.Sched
-import SigGolfCandidate.Sign.Digest
+import SigGolfCandidate.Sign.DigestPairs
 
 /-!
 # `sign`: `dig_ok` and the whole PORS tree (instructions 145 .. 237)

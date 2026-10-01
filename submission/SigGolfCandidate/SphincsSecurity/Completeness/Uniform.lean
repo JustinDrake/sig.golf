@@ -124,9 +124,9 @@ theorem admissible_iff (u : HashOutput) :
     valList_digestLeaves, htrunc]
   simp [ftsAuthCapacity]
 
-/-- A uniform answer's digest is admissible with probability at least `1/2142`. -/
+/-- A uniform answer's digest is admissible with probability at least `1/3410`. -/
 theorem probEvent_admissible_ge :
-    (2142 : ℝ≥0∞)⁻¹ ≤ Pr[fun u : HashOutput => Concrete.Admissible (truncateMessageDigest u) |
+    (3410 : ℝ≥0∞)⁻¹ ≤ Pr[fun u : HashOutput => Concrete.Admissible (truncateMessageDigest u) |
       ($ᵗ HashOutput : ProbComp HashOutput)] := by
   calc
     _ ≤ ((Nat.factorial 15 * Octopus.Nadm : ℕ) : ℝ≥0∞) / 2 ^ 210 := by

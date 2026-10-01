@@ -273,7 +273,7 @@ theorem serialize_eq (rho : Digest) (leaves : IndexGroup → FtsLeaf)
     obtain ⟨h1, h2⟩ := (hseg sg hsg).2 p hpl
     exact levels_node T p h1 h2
   rw [opening_secrets leaves sec T, hY]
-  have hn : (authNodes σ).length ≤ 118 := by
+  have hn : (authNodes σ).length ≤ 117 := by
     rw [hσ, authNodes_honest rho leaves hadm sec T, List.length_map, hoct]
     exact hoct'
   have hA := length_flatten_map_dv (authNodes σ)
@@ -281,8 +281,8 @@ theorem serialize_eq (rho : Digest) (leaves : IndexGroup → FtsLeaf)
     List.length_ofFn, List.length_map, Ref.zeros, Ref.porsK, Ref.porsM, List.append_assoc]
   rw [List.take_append, List.take_of_length_le (by rw [hA]; omega), hA,
     List.take_replicate]
-  have hk : (15 + 118 - (SphincsSecurity.ftsOpenings + (authNodes σ).length)) * 16 =
-      min (16 * 118 - 16 * (authNodes σ).length) (16 * 118) := by
+  have hk : (15 + 117 - (SphincsSecurity.ftsOpenings + (authNodes σ).length)) * 16 =
+      min (16 * 117 - 16 * (authNodes σ).length) (16 * 117) := by
     simp only [SphincsSecurity.ftsOpenings]; omega
   rw [hk]
   simp only [List.append_assoc]
@@ -319,6 +319,36 @@ theorem searchDigest_eq (sk : SphincsSecurity.Seeded.SecretKey) (hP : sk.paramet
     · simp only [hd, decide_false, if_false, pure_bind, Bool.false_eq_true]
       exact ih (a + 1)
 
+theorem searchDigestPairs_eq (sk : SphincsSecurity.Seeded.SecretKey) (hP : sk.parameter = 0)
+    (m : Message) (fuel a : Nat) :
+    Option.map projN <$> Ref.searchDigestPairs (Ref.toList (n := 32) sk.seed) (Ref.toList (n := 32) m) a fuel =
+      Option.map projA <$> relabel fmtQ
+        (SphincsSecurity.Seeded.signDigestPairs (m := AComp) sk m fuel a) := by
+  induction fuel generalizing a with
+  | zero => simp [Ref.searchDigestPairs, SphincsSecurity.Seeded.signDigestPairs]
+  | succ fuel ih =>
+    unfold Ref.searchDigestPairs SphincsSecurity.Seeded.signDigestPairs SphincsSecurity.Seeded.signAttempt
+    rw [prf2_rnd, hP]
+    simp only [relabel_bind, relabel_pure, bind_map_left, map_bind]
+    refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun pair => ?_
+    rw [digest_eq sk.root pair.1 m, bind_map_left]
+    simp only [bind_assoc]
+    refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_
+    rw [admissible_eq]
+    by_cases hd : SphincsSecurity.Concrete.Admissible d
+    · simp only [hd, decide_true, if_true, pure_bind, relabel_pure, map_pure, Option.map_some]
+      simp only [projN, projA, idxOf_eq, leavesOf_eq]
+    · simp only [hd, decide_false, if_false, pure_bind, Bool.false_eq_true]
+      rw [digest_eq sk.root pair.2 m, bind_map_left]
+      simp only [relabel_bind, relabel_pure, map_bind, bind_assoc, pure_bind]
+      refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d' => ?_
+      rw [admissible_eq]
+      by_cases hd' : SphincsSecurity.Concrete.Admissible d'
+      · simp only [hd', decide_true, if_true, pure_bind, relabel_pure, map_pure, Option.map_some]
+        simp only [projN, projA, idxOf_eq, leavesOf_eq]
+      · simp only [hd', decide_false, if_false, pure_bind, Bool.false_eq_true]
+        exact ih (a + 1)
+
 theorem mem_support_relabel {ι ι' R α : Type} (f : ι → ι') (oa : OracleComp (ι →ₒ R) α) (x : α)
     (hx : x ∈ support (relabel f oa)) : x ∈ support oa := by
   induction oa using OracleComp.inductionOn with
@@ -351,6 +381,35 @@ theorem signDigestLoop_admissible (sk : SphincsSecurity.Seeded.SecretKey) (m : M
     · simp only [hd, if_false, support_pure, Set.mem_singleton_iff, exists_eq_left] at h
       exact ih (a + 1) randomness index leaves h
 
+theorem signDigestPairs_admissible (sk : SphincsSecurity.Seeded.SecretKey) (m : Message) :
+    ∀ (fuel a : Nat) (randomness : Digest) (index : Index) (leaves : IndexGroup → FtsLeaf),
+      some (randomness, index, leaves) ∈
+        support (SphincsSecurity.Seeded.signDigestPairs (m := AComp) sk m fuel a) →
+      SphincsSecurity.Concrete.AdmissibleLeaves leaves := by
+  intro fuel
+  induction fuel with
+  | zero => intro a randomness index leaves h; simp [SphincsSecurity.Seeded.signDigestPairs] at h
+  | succ fuel ih =>
+    intro a randomness index leaves h
+    unfold SphincsSecurity.Seeded.signDigestPairs SphincsSecurity.Seeded.signAttempt at h
+    simp only [bind_assoc, mem_support_bind_iff] at h
+    obtain ⟨pair, -, d, -, h⟩ := h
+    by_cases hd : SphincsSecurity.Concrete.Admissible d
+    · simp only [hd, if_true, support_pure, Set.mem_singleton_iff, exists_eq_left] at h
+      simp only [support_pure, Set.mem_singleton_iff, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨-, -, rfl⟩ := h
+      exact hd
+    · simp only [hd, if_false, support_pure, Set.mem_singleton_iff, exists_eq_left] at h
+      simp only [bind_assoc, mem_support_bind_iff] at h
+      obtain ⟨d', -, h⟩ := h
+      by_cases hd' : SphincsSecurity.Concrete.Admissible d'
+      · simp only [hd', if_true, support_pure, Set.mem_singleton_iff, exists_eq_left] at h
+        simp only [support_pure, Set.mem_singleton_iff, Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨-, -, rfl⟩ := h
+        exact hd'
+      · simp only [hd', if_false, support_pure, Set.mem_singleton_iff, exists_eq_left] at h
+        exact ih (a + 1) randomness index leaves h
+
 /-! ## The whole signer -/
 
 /-- What the reference signer does after the MAC check and the digest search. -/
@@ -366,7 +425,7 @@ def signCont (S cache : List Byte) (rho : Ref.Val) (idx : Nat) (lv : List Nat) :
 theorem signList_eq_cont (S cache m : List Byte) :
     Ref.signList S cache m = Ref.H (Ref.macInput S (Ref.cacheRegion cache)) >>= fun tag =>
       if Ref.toList (n := 32) tag = Ref.cacheTag cache then
-        (Option.map projN <$> Ref.searchDigest S m 0 Ref.aMax) >>= fun r =>
+        (Option.map projN <$> Ref.searchDigestPairs S m 0 Ref.aMax) >>= fun r =>
           match r with
           | none => pure none
           | some (rho, idx, lv) => signCont S cache rho idx lv
@@ -432,15 +491,15 @@ theorem signList_eq (sk : SphincsSecurity.Seeded.SecretKey) (hP : sk.parameter =
   by_cases ht : tag = (cacheDec b).tag
   · rw [if_pos ((cacheTag_iff b tag).mpr ht), if_pos ht]
     unfold SphincsSecurity.Seeded.signChecked
-    rw [show Ref.aMax = SphincsSecurity.digestAttemptLimit from rfl]
-    have hsd := searchDigest_eq sk hP m SphincsSecurity.digestAttemptLimit 0
+    rw [show Ref.aMax = SphincsSecurity.digestPairLimit from rfl]
+    have hsd := searchDigestPairs_eq sk hP m SphincsSecurity.digestPairLimit 0
     rw [hsd, bind_map_left]
     simp only [relabel_bind, relabel_pure, map_bind]
     refine OracleComp.bind_congr_of_forall_mem_support _ fun r hr => ?_
     rcases r with _ | ⟨randomness, index, leaves⟩
     · simp
     · simp only [Option.map_some, projA]
-      have hadm := signDigestLoop_admissible sk m _ _ randomness index leaves
+      have hadm := signDigestPairs_admissible sk m _ _ randomness index leaves
         (mem_support_relabel fmtQ _ _ hr)
       rw [signCont_eq _ _ _ _ _ hadm, hP]
   · rw [if_neg (fun h => ht ((cacheTag_iff b tag).mp h)), if_neg ht]

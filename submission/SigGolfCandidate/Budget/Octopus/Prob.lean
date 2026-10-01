@@ -5,12 +5,12 @@ import SigGolfCandidate.Budget.Octopus.Tuples
 # PORS+FP admissibility: the probability of one fresh digest
 
 For a uniform 256-bit answer `u`, `admissible u.toNat` (the signer's test: distinct leaf indices
-and octopus size `≤ 118`) holds with probability exactly
+and octopus size `≤ 117`) holds with probability exactly
 
   `p = 15! * Nadm / 2^210 ≈ 2^-11.064 ≈ 0.00046697`
 
 (`probEvent_admissibleDigest`), and fails with probability `1 - p`
-(`probEvent_not_admissibleDigest`). Bounds: `1/2142 ≤ p ≤ 1/2141`, in particular `2^-12 ≤ p`.
+(`probEvent_not_admissibleDigest`). Bounds: `1/3410 ≤ p ≤ 1/3409`, in particular `2^-12 ≤ p`.
 -/
 
 namespace SigGolfCandidate.Budget.Octopus
@@ -38,11 +38,11 @@ theorem probEvent_uniform_toNat' (P : ℕ → Prop) [DecidablePred P] :
 
 /-- `15! * Nadm`, the number of admissible 15-tuples of 14-bit values. -/
 theorem admissibleTuples_eq :
-    Nat.factorial 15 * Nadm = 768394439706066703645522769421343549971302651574651715584000 := by
+    Nat.factorial 15 * Nadm = 482553903788731839004032501852250937641274733772928974848000 := by
   unfold Nadm; norm_num [Nat.factorial]
 
 theorem admissibleTuples_bounds :
-    2 ^ 210 ≤ 2142 * (Nat.factorial 15 * Nadm) ∧ 2141 * (Nat.factorial 15 * Nadm) ≤ 2 ^ 210 ∧
+    2 ^ 210 ≤ 3410 * (Nat.factorial 15 * Nadm) ∧ 3409 * (Nat.factorial 15 * Nadm) ≤ 2 ^ 210 ∧
       2 ^ 198 ≤ Nat.factorial 15 * Nadm := by
   rw [admissibleTuples_eq]; norm_num
 
@@ -68,9 +68,9 @@ theorem probEvent_not_admissibleDigest :
   rw [ENNReal.eq_sub_of_add_eq probEvent_ne_top ((add_comm _ _).trans hc),
     probEvent_admissibleDigest]
 
-/-- Lower bound: `p ≥ 1/2142`. -/
+/-- Lower bound: `p ≥ 1/3410`. -/
 theorem admissibleProb_ge :
-    (1 : ℝ≥0∞) / 2142 ≤ ((Nat.factorial 15 * Nadm : ℕ) : ℝ≥0∞) / 2 ^ 210 := by
+    (1 : ℝ≥0∞) / 3410 ≤ ((Nat.factorial 15 * Nadm : ℕ) : ℝ≥0∞) / 2 ^ 210 := by
   rw [ENNReal.le_div_iff_mul_le (Or.inl (by simp)) (Or.inl (by simp)), one_div,
     ← ENNReal.div_eq_inv_mul]
   apply ENNReal.div_le_of_le_mul
@@ -78,9 +78,9 @@ theorem admissibleProb_ge :
   rw [mul_comm] at h
   exact_mod_cast h
 
-/-- Upper bound: `p ≤ 1/2141`. -/
+/-- Upper bound: `p ≤ 1/3409`. -/
 theorem admissibleProb_le :
-    ((Nat.factorial 15 * Nadm : ℕ) : ℝ≥0∞) / 2 ^ 210 ≤ (1 : ℝ≥0∞) / 2141 := by
+    ((Nat.factorial 15 * Nadm : ℕ) : ℝ≥0∞) / 2 ^ 210 ≤ (1 : ℝ≥0∞) / 3409 := by
   rw [ENNReal.div_le_iff (by simp) (by simp), one_div, ← ENNReal.div_eq_inv_mul,
     ENNReal.le_div_iff_mul_le (Or.inl (by simp)) (Or.inl (by simp))]
   have h := admissibleTuples_bounds.2.1

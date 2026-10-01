@@ -1,4 +1,4 @@
-import SigGolfCandidate.SphincsSecurity.Completeness.Digest
+import SigGolfCandidate.SphincsSecurity.Completeness.PairedDigest
 import SigGolfCandidate.SphincsSecurity.Completeness.Counter
 import SigGolfCandidate.SphincsSecurity.Completeness.Encoding
 
@@ -30,7 +30,7 @@ attribute [local irreducible] Seeded.signDigestLoop Concrete.buildLayerTreePaire
 
 /-- One counter search's failure bound. -/
 noncomputable def encodingBound : ℝ≥0∞ :=
-  encodingFactor ^ encodingAttemptLimit
+  failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ encodingAttemptLimit
 
 theorem EncodingFresh.mono {parameter : PublicParameter} {pending pending' : Layer → Prop}
     {cache : QueryCache HashSpec} (h : EncodingFresh parameter pending cache)
@@ -150,7 +150,7 @@ theorem probEvent_signChecked_none (sk : Seeded.SecretKey) (topCache : TopCache)
     (henc : EncodingFresh sk.parameter (fun _ => True) cache) :
     Pr[fun r => r.1 = none | (simulateQ (randomOracle : QueryImpl HashSpec _)
       (Seeded.signChecked sk topCache message : OracleComp HashSpec (Option Signature))).run cache]
-      ≤ digestFactor ^ digestAttemptLimit + (numLayers : ℝ≥0∞) * encodingBound := by
+      ≤ pairedDigestFactor ^ digestPairLimit + (numLayers : ℝ≥0∞) * encodingBound := by
   rw [Seeded.signChecked]
   refine le_trans (probEvent_bind_le_add _ _ (fun r => r.1 = none) _ cache
     ((numLayers : ℝ≥0∞) * encodingBound) ?_) ?_
@@ -159,11 +159,11 @@ theorem probEvent_signChecked_none (sk : Seeded.SecretKey) (topCache : TopCache)
     dsimp only
     have h1 : EncodingFresh sk.parameter (fun _ => True) c1 :=
       henc.step _ ⟨_, c1⟩ hr (fun f l _ tree leaf payload =>
-        Avoids.signDigestLoop_of_structural f _ sk message
+        Avoids.signDigestPairs_of_structural f _ sk message
           (structural_encoding sk.parameter sk.seed l tree leaf payload) _ _)
     exact probEvent_signFrom_none sk index _ randomness leaves c1 h1
-  · exact add_le_add (probEvent_signDigestLoop sk message digestAttemptLimit 0 cache ∅
-      (by rw [digestAttemptLimit]; omega) (by simp) (fun s _ _ => hrand s) (fun ρ _ => hmsg ρ)) le_rfl
+  · exact add_le_add (probEvent_signDigestPairs sk message digestPairLimit 0 cache ∅
+      (by rw [digestPairLimit]; omega) (by simp) (fun s _ _ => hrand s) (fun ρ _ => hmsg ρ)) le_rfl
 
 /-- When the cache's MAC is already cached (key generation queried it), the check is a cache hit that
 passes, and signing fails only if the randomizer search or one of the five counter searches does. -/
@@ -175,7 +175,7 @@ theorem probEvent_sign_none (sk : Seeded.SecretKey) (topCache : TopCache) (messa
     (henc : EncodingFresh sk.parameter (fun _ => True) cache) :
     Pr[fun r => r.1 = none | (simulateQ (randomOracle : QueryImpl HashSpec _)
       (Seeded.sign sk topCache message : OracleComp HashSpec (Option Signature))).run cache]
-      ≤ digestFactor ^ digestAttemptLimit + (numLayers : ℝ≥0∞) * encodingBound := by
+      ≤ pairedDigestFactor ^ digestPairLimit + (numLayers : ℝ≥0∞) * encodingBound := by
   rw [Seeded.sign]
   simp only [oracleHash, HasQuery.query, simulateQ_bind, simulateQ_spec_query, StateT.run_bind]
   rw [cached_run _ _ _ hmac, pure_bind, if_pos rfl]

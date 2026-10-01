@@ -276,7 +276,7 @@ theorem stW0_low (s : MachineState) (a : Nat) (v : E) (V : Nat) (hv : v.eval s =
   omega
 
 theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P s) :
-    ∃ u, Steps image s 101 101 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
+    ∃ u, Steps image s 100 100 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
   obtain ⟨hMask, hG, hWA, hK, hd, hZ, hpc⟩ := hs
   obtain ⟨-, -, cSet⟩ := startCheck_parts
   obtain ⟨u, hu⟩ := spec_run cSet s hpc hK (by simp [setupSpec])
@@ -353,7 +353,7 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
   refine ⟨u, hu.steps, S, ⟨⟨⟨fun p hp => hK' p (by simp [setupPost] at hp ⊢; tauto), PFrame.refl u⟩, S, ?_⟩,
     hu.pc rfl, ?_, ?_, ?_, fun i hi => by simp at hi, fun h => by omega, ?_⟩⟩
   · rw [hu.regs (.x22, idxE) (by simp [setupSpec]), hidx]
-  · rw [hK' (.x14, 0x7B0) (by simp [setupPost])]; rfl
+  · rw [hK' (.x14, 0x7C0) (by simp [setupPost])]; rfl
   · rw [hK' (.x18, BitVec.ofNat 64 FLIM) (by simp [setupPost])]
   · rw [hK' (.x15, 0) (by simp [setupPost])]; rfl
   · simp [SegBnd, wStream, wSec, porsK]

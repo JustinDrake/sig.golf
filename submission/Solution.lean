@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10899` cycles (verify bound
-`10835` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
+`S = 6032` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10886` cycles (verify bound
+`10822` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 150272, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -19,18 +19,17 @@ pad is hashed as it stands; the abstract game accounts for this through the padd
 (`verifyP`, `Bridge.padDec`). Verify dispatches three chains per table jump. The counters `c0 .. c3`
 sit in the tweak slot of layer 0's first block, `c4` after the PORS stream.
 
-The layer targets are 181,181,181,182,183. An authenticated cache of 2046 internal nodes
-replaces the full-node cache; signing reconstructs the missing leaf sibling. The 187 saved
-deterministic signing compressions fund the additional layer-3 target. The reference, machine
-refinement, security bridge, completeness and moment-budget proofs cover this cache format.
-Layer 3 loads its comparison target explicitly; layer 4 retains the target in a known register.
-The existing digest, PORS address, mask-data, root-test and route optimizations are preserved.
-
-The layer-header register now holds the leaf header. The chain initializer subtracts 256,
-the encoding prefix adds 512, and the leaf prefix stores the register directly. This removes
-one instruction per layer. The stack guard uses one high-word store into an initially zero
-word. The final root comparison returns the XOR of its last words as the exit code after
-checking the first words. These changes save seven further ordinary cycles.
+All five WOTS layers use the uniform target sum 181. This restores the five counter-search
+factors 1.011 in the signing-budget proof, paying for the paired-search PORS cap reduction from 118 to 117
+authentication slots. Sign and expand use the original inline target check; verify retains the
+stack8 instruction layout and bottom-layer target register, now also set to 181. The in-place
+chains, triple dispatch, first-chain initialization and all inherited verifier micro-cuts remain.
+The digest
+hashes to address 0 so its output register needs no load, the PORS stack register is zero-based and
+its frame is rebased by 336 so the fold limit is the existing `x18 = 4095`, the SWAR masks are two
+data words of the image loaded in the root tails, the root's `E = 1` and empty-stack checks compare
+registers directly, redundant hash-length reloads and `lui/addi` constant pairs reachable from
+`x18` are dropped, and the top layer's route needs no masking (its remaining 11 route bits fit).
 
 The verifier ports the OTS modular checksum and constant-reuse optimizations: each layer
 uses an exact remainder modulo 4095, and the rebased address register doubles as the
@@ -63,7 +62,7 @@ namespace SigGolf.Challenge
 
 def submission : SigGolf.Submission := SigGolfCandidate.submissionNew
 
-theorem signature_bytes : submission.sizes.signature = 6048 := rfl
+theorem signature_bytes : submission.sizes.signature = 6032 := rfl
 
 theorem witness_bytes : submission.sizes.witness = 16384 := rfl
 
@@ -73,7 +72,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10899 :=
+theorem certificate : SigGolf.Certificate submission 10886 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

@@ -66,12 +66,12 @@ noncomputable def digestReject : ℝ≥0∞ :=
   Pr[fun u : HashOutput => ¬ Admissible (truncateMessageDigest u) |
     ($ᵗ HashOutput : ProbComp HashOutput)]
 
-theorem digestReject_add : digestReject + (2142 : ℝ≥0∞)⁻¹ ≤ 1 := by
+theorem digestReject_add : digestReject + (3410 : ℝ≥0∞)⁻¹ ≤ 1 := by
   have h := probEvent_compl ($ᵗ HashOutput : ProbComp HashOutput)
     (fun u => Admissible (truncateMessageDigest u))
   have hfail : Pr[⊥ | ($ᵗ HashOutput : ProbComp HashOutput)] = 0 := by simp
   rw [hfail, tsub_zero] at h
-  calc digestReject + (2142 : ℝ≥0∞)⁻¹
+  calc digestReject + (3410 : ℝ≥0∞)⁻¹
       ≤ digestReject + Pr[fun u : HashOutput => Admissible (truncateMessageDigest u) |
           ($ᵗ HashOutput : ProbComp HashOutput)] := add_le_add le_rfl probEvent_admissible_ge
     _ = 1 := by rw [add_comm]; exact h
