@@ -137,12 +137,12 @@ theorem blk469_run (t : MachineState) (hpc : t.pc = pcOf 469) (o lam h : Nat) (h
   · rw [if_neg (by simp; omega), if_pos hq]
   · rw [if_pos (by simp; omega), if_neg hq]
 
-/-- 472 .. 477: the root is the next layer's message `M` (`0x120`); `LAY -= 1`; `j layer_loop`. -/
+/-- 472 .. 477: the root is the next layer's message `M` (`0x130`); `LAY -= 1`; `j layer_loop`. -/
 theorem blk472_run (t : MachineState) (hpc : t.pc = pcOf 472) (lay : Nat) (hl : 1 ≤ lay) (hl' : lay < 5)
     (h8 : t.getReg .x8 = BitVec.ofNat 64 lay) (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) :
     ∃ t', Steps eimg t 6 6 t' ∧ t'.pc = pcOf 316 ∧ t'.getReg .x8 = BitVec.ofNat 64 (lay - 1) ∧
-      t'.readWords (BitVec.ofNat 64 0x120) 2 = t.readWords (BitVec.ofNat 64 0x30200) 2 ∧
-      RegsEq t t' [.x8, .x14, .x15] ∧ Frame t t' (fun x => x = 0x120 ∨ x = 0x128) := by
+      t'.readWords (BitVec.ofNat 64 0x130) 2 = t.readWords (BitVec.ofNat 64 0x30200) 2 ∧
+      RegsEq t t' [.x8, .x14, .x15] ∧ Frame t t' (fun x => x = 0x130 ∨ x = 0x138) := by
   refine ⟨_, symRun_sound Expand.blk472 Expand.codeAt_472 t hpc (by pobl [Expand.blk472.res, h25]),
     by simp only [Expand.blk472.res, rv_simp], ?_, ?_, by pregs, ?_⟩
   · simp only [Expand.blk472.res, rv_simp, h8]; bvsimp []
@@ -186,19 +186,19 @@ theorem blk478_run (t : MachineState) (hpc : t.pc = pcOf 478) (c : Nat → Nat) 
       implies_true, and_true, ne_eq, ofNat_add_ofNat, ofNat_eq_iff]
     bvomega
 
-/-- 639 .. 672 (`pors_ok`): `M = OUT` at `0x120`, the zero P slots and block constants of the layer
+/-- 639 .. 672 (`pors_ok`): `M = OUT` at `0x130`, the zero P slots and block constants of the layer
 phase, `s6 = idx`, `LAY = 4`, `t2 = 2^22`, the SWAR masks; `j layer_loop`. -/
 theorem blk639_run (t : MachineState) (hpc : t.pc = pcOf 639) (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) :
     ∃ t', Steps eimg t 34 34 t' ∧ t'.pc = pcOf 316 ∧
       t'.getReg .x7 = BitVec.ofNat 64 (2 ^ 22) ∧ t'.getReg .x8 = BitVec.ofNat 64 4 ∧
       t'.getReg .x22 = t.getReg .x4 ∧ t'.getReg .x26 = swM1 ∧ t'.getReg .x27 = swM2 ∧
-      t'.readWords (BitVec.ofNat 64 0x120) 2 = t.readWords (BitVec.ofNat 64 0x30080) 2 ∧
+      t'.readWords (BitVec.ofNat 64 0x130) 2 = t.readWords (BitVec.ofNat 64 0x30080) 2 ∧
       t'.readWords (BitVec.ofNat 64 0x110) 2 = [0, 0] ∧
       t'.readWords (BitVec.ofNat 64 0x30150) 4 = [0, 0, 0, 0] ∧
       t'.readWords (BitVec.ofNat 64 0x30250) 2 = [0, 0] ∧
       t'.readWords (BitVec.ofNat 64 0x301D0) 2 = [0, 0] ∧
       RegsEq t t' [.x7, .x8, .x14, .x15, .x22, .x26, .x27] ∧
-      Frame t t' (fun x => (0x110 ≤ x ∧ x < 0x130) ∨ (0x30150 ≤ x ∧ x < 0x30170) ∨ x = 0x30250 ∨
+      Frame t t' (fun x => ((0x110 ≤ x ∧ x < 0x120) ∨ (0x130 ≤ x ∧ x < 0x140)) ∨ (0x30150 ≤ x ∧ x < 0x30170) ∨ x = 0x30250 ∨
         x = 0x30258 ∨ x = 0x301D0 ∨ x = 0x301D8) := by
   refine ⟨_, symRun_sound Expand.blk639 Expand.codeAt_639 t hpc (by pobl [Expand.blk639.res, h25]),
     by simp only [Expand.blk639.res, rv_simp], by pnum [Expand.blk639.res], by pnum [Expand.blk639.res],

@@ -18,7 +18,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 theorem layer_entry (S cache : List Byte) (idx : Nat) (hidx : idx < 2 ^ 34) (M : Val) (hM : M.length = 16)
     (t : MachineState) (tpc : t.pc = pcOf 296) (t5 : t.getReg .x5 = 0)
-    (t22 : t.getReg .x22 = BitVec.ofNat 64 idx) (heb : t.readWords (BitVec.ofNat 64 0x120) 2 = wordsOf M)
+    (t22 : t.getReg .x22 = BitVec.ofNat 64 idx) (heb : t.readWords (BitVec.ofNat 64 0x130) 2 = wordsOf M)
     (hst : Statics S t) (hrg : RegionOk cache t) :
     ∃ t', Steps image t 20 20 t' ∧ LayHead S cache idx 4 M t' ∧ (∀ z, t'.getMem z = t.getMem z) ∧
       RegsEq t t' [.x7, .x8, .x18, .x26, .x27] := by

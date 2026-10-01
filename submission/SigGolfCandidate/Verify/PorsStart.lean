@@ -172,7 +172,6 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
       congr 1
       simp only [List.range, List.range.loop, List.map, Nat.reduceAdd, Nat.reduceMul, Nat.add_zero,
         Nat.mul_zero, Nat.zero_add, wordsOfN, List.cons_append, List.nil_append, List.cons.injEq]
-      -- W1: `rho` in the tweak slot of chain block `(0, 1)` (`WIT + 3008 = 0x13C0`)
       have w0 := hW 376 (by decide); have w1 := hW 377 (by decide)
       have m0 := hM 0 (by decide); have m1 := hM 1 (by decide); have m2 := hM 2 (by decide)
       have m3 := hM 3 (by decide)

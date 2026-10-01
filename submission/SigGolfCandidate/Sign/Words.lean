@@ -395,6 +395,21 @@ theorem words_encInput (lay tau e : Nat) (M : Val) (hM : M.length = 16) (c : Nat
     wordsOf_val_append _ hM, wordsOf_le32_pad]
   simp
 
+/-- The encoding-only tag4 query exchanges the message and counter halves. -/
+theorem addrFmt_encInput_words (lay tau e : Nat) (M : Val) (hM : M.length = 16) (c : Nat) :
+    addrFmt (encInput lay tau e M c) = queryOfWords 0
+      (twWords 4 lay tau 0 e ++ [0,0] ++ [BitVec.ofNat 64 (c % 2^32),0] ++ wordsOf M) := by
+  obtain ⟨hn,hw⟩ := words_encInput lay tau e M hM c
+  obtain ⟨m0,m1,hm⟩ := List.length_eq_two.mp (length_wordsOf_16 M hM)
+  have hf : fmt (encInput lay tau e M c) = pad64 (encInput lay tau e M c) := by
+    exact fmt_thInput _ _ _ _ _ _ (by decide)
+  rw [addrFmt_encInput_valid lay tau e M hM c,hf,pad64_eq_query,hn,hw,hm]
+  simp only [twWords,Nat.reduceMod,Nat.zero_mod,Nat.mul_zero,Nat.add_zero,
+    List.cons_append,List.nil_append]
+  apply EncodingSwap.query_words
+  simp only [BitVec.toNat_ofNat,Nat.reducePow]
+  omega
+
 theorem words_rndInput (S m : List Byte) (hS : S.length = 32) (hm : m.length = 32) (a : Nat) :
     padBlocks (rndInput S m a).length = 0 ∧
     wordsOf (padTo64 (rndInput S m a)) = wordsOf (rndInput S m a) := by

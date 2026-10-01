@@ -118,10 +118,10 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
               N C (fun a u hend => hK a u ⟨_, hend, hcar⟩) (heightL L.lay) 0 (by simp [layFC])
               (by have := heightL_le L.lay hlay; omega) _ _ hfi
             exact hfold.mono (by have := heightL_le L.lay hlay; omega) (by simp [layFC])
-          have h3 := Good.hashP (x := leafInput L.lay L.tau L.e ends) (K := fun leaf => cc (foldPath (nodeInput L.lay L.tau) L.e leaf
+          have h3 := Good.hash (x := leafInput L.lay L.tau L.e ends) (K := fun leaf => cc (foldPath (nodeInput L.lay L.tau) L.e leaf
             (witPath L.wl L.lay)) (fun root => cc (pure (some root)) Kopt))
-            (fmt_th _ _ _ _ _ _ (by decide)) hf3 h53 hv3 hin3 H3
-          rw [pad64_leafInput _ _ _ _ hends hvs, blocks_q] at h3
+            hf3 h53 hv3 hin3 H3
+          rw [addrFmt_leafInput_words _ _ _ _ hends hvs, blocks_q] at h3
           have hls : leafSteps L.lay ≤ 13 := by unfold leafSteps; split <;> omega
           exact Good.steps' hst3 h3 (by omega) (by omega))
         t2 hent
@@ -134,8 +134,8 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
         | some x => do
           let leaf ← verifyLeafP L.wl L.lay L.tau L.e x
           let root ← foldPath (nodeInput L.lay L.tau) L.e leaf (witPath L.wl L.lay)
-          pure (some root)) Kopt) (fmt_th _ _ _ _ _ _ (by decide)) hf1 h51 hv1 hin1 H
-  rw [pad64_encInput _ _ _ _ hMl, blocks_q] at h3
+          pure (some root)) Kopt) hf1 h51 hv1 hin1 H
+  rw [addrFmt_encInput_words _ _ _ _ hMl, blocks_q] at h3
   exact Good.steps' hst1 h3 (by omega) (by unfold layerCost; omega)
 
 /-! ## Layer transitions -/
@@ -145,15 +145,15 @@ theorem foldEnd_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     LayerIn ⟨wl, pk, lay - 1, idx⟩ (answerBytes 16 a) (writeHash u a) := by
   obtain ⟨s0, ⟨hG, hK, hF, hpc, -, -⟩, ⟨h27, h30, hCB, hFr, h22⟩⟩ := hu
   simp only [LCtx.lay, if_neg (show lay ≠ 0 by omega)] at h30
-  have hdst : (layFC ⟨wl, pk, lay, idx⟩).dst = 0x120 := by simp [layFC, dstOf]; omega
-  have h12 : u.getReg .x12 = BitVec.ofNat 64 0x120 := by
+  have hdst : (layFC ⟨wl, pk, lay, idx⟩).dst = 0x130 := by simp [layFC, dstOf]; omega
+  have h12 : u.getReg .x12 = BitVec.ofNat 64 0x130 := by
     rw [← hdst]; exact hK (.x12, _) (List.mem_append_right _ (List.mem_singleton_self _))
   have hK1 := (KnownOK_append.mp hK).1
   have kf : ∀ r ∈ fkeep false, (writeHash u a).getReg r = s0.getReg r := fun r hr => by
     rw [writeHash_getReg]; exact hF.1 r hr
-  have wfr : ∀ A, A < 2 ^ 64 → (A + 8 ≤ 0x120 ∨ 0x140 ≤ A) →
+  have wfr : ∀ A, A < 2 ^ 64 → (A + 8 ≤ 0x130 ∨ 0x150 ≤ A) →
       (writeHash u a).getMem (BitVec.ofNat 64 A) = u.getMem (BitVec.ofNat 64 A) :=
-    fun A hA h => writeHash_frame u a 0x120 A h12 hA (by omega) h
+    fun A hA h => writeHash_frame u a 0x130 A h12 hA (by omega) h
   refine ⟨Glob_writeHash hG a _ h12 (by decide), ?_, ?_, ?_, ?_, by simp, fun _ => trivial, ?_, ?_, ?_⟩
   · simp only [LCtx.lay, preK, if_neg (show lay - 1 ≠ 4 by omega), aK, Nat.sub_add_cancel h1]
     intro p hp
@@ -171,7 +171,7 @@ theorem foldEnd_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     simp only [LCtx.tau]
     rw [layS_succ (lay - 1) (by omega), Nat.sub_add_cancel h1]
   · rw [writeHash_at0 _ a _ h12 (by omega)]; exact (vw0_answer a).symm
-  · rw [show (0x128 : Nat) = 0x120 + 8 from rfl, writeHash_at8 _ a _ h12 (by omega)]
+  · rw [show (0x138 : Nat) = 0x130 + 8 from rfl, writeHash_at8 _ a _ h12 (by omega)]
     exact (vw1_answer a).symm
   · rw [wfr 0xC0 (by omega) (by omega), hF.2 _ (by omega) (by omega)]
     exact hCB
@@ -327,6 +327,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The layer cycles in order 0 .. 4: `1610` (direct route), `1530`, `1530`, `1530`, `1514` (target 181
 held in `x14`, no hash-length reload), and the comparison `8`. -/
-theorem layersCost_5 : layersCost 5 = 7533 := by decide
+theorem layersCost_5 : layersCost 5 = 7518 := by decide
 
 end SigGolfCandidate.Verify

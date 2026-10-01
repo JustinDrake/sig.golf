@@ -430,7 +430,7 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
 theorem safe_nb : ∀ t, t < 2 → safeDestP (0x1E0 + 16 * t) = true := by decide
 theorem safe_m : ∀ d, d ≤ 14 → safeDestP (stkOf' d + 48) = true := by decide
 theorem safe_p : ∀ d, d ≤ 13 → safeDestP (stkOf' d + 112) = true := by decide
-theorem safe_f : safeDestP 0x120 = true := by decide
+theorem safe_f : safeDestP 0x130 = true := by decide
 
 theorem safe_dest (V d : Nat) (hd : d ≤ 14) (hp : V = 1 → d < 14) : safeDestP (destOf V d) = true := by
   unfold destOf

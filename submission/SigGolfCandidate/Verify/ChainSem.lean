@@ -8,8 +8,7 @@ import Mathlib.Tactic.IntervalCases
 The state of the chain phase of layer `lay`:
 * `Fresh wl lay i`: the witness words not yet overwritten by verify: words `2 .. 7` (pad and value)
   of every chain block of the chains `(lay, i ..)` and of the layers `< lay` (processed later), and
-  the counters `c0 .. c3` in the tweak slot of block `(0, 0)` while layer 0's chain 0 has not run,
-  plus lower-layer reserved tweak slots containing paths for the remaining higher folds;
+  the counters `c0 .. c3` in the tweak slot of block `(0, 0)` while layer 0's chain 0 has not run;
 * chain `i`'s head writes its tweak slot, its rungs overwrite the value slot and spill into the next
   block's tweak slot (or the next region's block 0, or past the witness): none of these is fresh
   for `(lay, i + 1)`.
@@ -448,6 +447,7 @@ theorem addrFmt_chainInputP_words (lay tau e i mu : Nat) (pad : List Byte) (v : 
   have hw : AddressFormat.oldHeader lay 0 i (mu - 1) < 2 ^ 64 := by unfold AddressFormat.oldHeader; omega
   rw [addrFmt, fmt_chainInputP_words lay tau e i mu pad v hp hv hmu hmu' (by omega), hd,
     AddressFormat.queryPerm_words _ _ rfl (by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega)]
   rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]

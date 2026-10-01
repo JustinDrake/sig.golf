@@ -63,7 +63,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
   SigGolfCandidate.Sign
 
 /-- The constant part of the PORS phase: `tp = idx`, `t0 = 0`, `s6 = STK`, `s9 = X`,
-`s10 = idx mod 2^32`, `s11 = 0x1000` (W1: the secrets at `s11 + 1024 + 64 s`); the first word and the zero words of `LB` and
+`s10 = idx mod 2^32`, `s11 = 0x800` (the witness); the first word and the zero words of `LB` and
 `PB`; the witness buffer; the sorted keys `K` at `0x6E0`. -/
 structure PCtx (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState) : Prop where
   hidx : idx < 2 ^ 34

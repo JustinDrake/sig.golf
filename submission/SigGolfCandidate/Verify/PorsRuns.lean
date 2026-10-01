@@ -14,7 +14,7 @@ Families (each a list of path runs, checked by `pspecB` in the `PorsCheck*` file
   `j entry0_V`, for `a ≥ 1` the inlined entry code) up to the pending hash (`a > 14`: HALT(1);
   `a ≥ 1`: the parity test `andi T, E, 1; beq/bne T, x0, slot(b | 15)`, taken: HALT(1));
 * `ent tb b`: after the pending hash in slot `b`, `a0 = NB; j lad_V_t_(14-a)`;
-* `pos V t p t'`: ladder position `p` of stream `t` (sibling from `FR + 368 + 16 p`, `E >>= 1`, heap
+* `pos V t p t'`: ladder position `p` of stream `t` (sibling from `FR + 112 + 16 p`, `E >>= 1`, heap
   index, branch to stream `t'`), up to the next hash (`p = 13`: the variant's destination);
 * tails `tailM c d`, `tailP c d`, `tailF c` (copy `c`: `0`, `1` = after stream `c`'s ladder, `2` = after
   `entry0_V`), with `STK = 80 d` known where the tail writes through it.
@@ -105,7 +105,7 @@ def tbOf (s : Nat) : Nat := if s = 14 then tbL else tbN
 /-- The destination of the last hash of a segment of variant `V`. -/
 def destE (V : Nat) : E :=
   if V = 0 then .bin .add (.reg .x15) (cw (EMPTY + 48)) else if V = 1 then .bin .add (.reg .x15) (cw (EMPTY + 112))
-  else cw 0x120
+  else cw 0x130
 
 def rejSpec (steps : Nat) (brs : List Br) : Spec :=
   ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, steps, brs, none, steps⟩
@@ -301,19 +301,19 @@ def fBr1 (d : Bool) : Br := ⟨.ltu, cw FLIM, .reg .x14, d⟩
 def fBr2 (d : Bool) : Br := ⟨.ne, .reg .x23, cw sgn31, d⟩
 def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw 0, d⟩
 
-def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
+def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x130)]
 
 /-- Known at the start of the layer-4 transition: the layer constants the root tail sets
 (`a5 = ttab + 2048`). The masks `x20`, `x21`, the header word `x27 = 0x40401` and the dispatch
 mask `sp = TMASK` are loaded from the verifier's data words through `sp = dataBase` and resolved
 from protected memory in `tailF_step`. Retaining the x28=2688 initializer for carried-base subtraction makes the accepting tail take12 instructions. -/
 def rootK : List (Reg × Word) :=
-  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x14, KT4)]
-def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120)]
+  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x14, KT4), (.x4, 0x1000000000000000)]
+def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x130)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFDFFD0), (.x21, ldE 0xFDFFD8), (.x27, ldE 0xFDFFC0), (.x2, ldE 0xFDFFC8)], [], f4Pc c, false, 12,
-    [fBr3 false, fBr2 false, fBr1 false], none, 12⟩
+  ⟨[(.x20, ldE 0xFDFFD0), (.x21, ldE 0xFDFFD8), (.x27, ldE 0xFDFFC0), (.x2, ldE 0xFDFFC8)], [], f4Pc c, false, 13,
+    [fBr3 false, fBr2 false, fBr1 false], none, 13⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
@@ -327,11 +327,10 @@ def tailFCheck (c : Nat) : Bool :=
 
 /-- The register holding leaf `s`'s index (`XA`, `XB` alternate). -/
 def xReg (s : Nat) : Reg := if s % 2 = 0 then .x16 else .x17
-/-- `pi_s & 0x78` (the slot's byte offset in `PIND`; W1: `pi_s` at `WIT + 512 + s = 0xA00 + s`). -/
+/-- `pi_s & 0x78` (the slot's byte offset in `PIND`). -/
 def piT (s : Nat) : E :=
   .bin .and (.un (.ld .bu ((512 + s) % 8)) (ldE (0x800 + (512 + s) / 8 * 8))) (cw 0x78)
 def xE (s : Nat) : E := .ld (.bin .add (piT s) (cw PIND))
-/-- W1: secret `s` in the tweak slot of chain block `(0, 2 + s)` (`WIT + 3072 + 64 s = 0x1400 + 64 s`). -/
 def secA (s : Nat) : Nat := 0x800 + 3072 + 64 * s
 
 def leafKnown : List (Reg × Word) := gkP ++ [(.x20, BitVec.ofNat 64 tbN)]

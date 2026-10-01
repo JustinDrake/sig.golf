@@ -39,7 +39,7 @@ theorem PCtx.idx_lt (P : PCtx) : P.idx < 2 ^ 34 := Nat.mod_lt _ (by decide)
 
 /-- Zero words (the `P` slots of all hash buffers and stack blocks, `CB + 48 .. 64`). -/
 def zeroP : List Nat :=
-  [0xD0, 0xD8, 0xF0, 0xF8, 0x110, 0x118, 0x1D0, 0x1D8, 0x230, 0x238] ++
+  [0xD0, 0xD8, 0xF0, 0xF8, 0x110, 0x118, 0x128, 0x1D0, 0x1D8, 0x230, 0x238] ++
     (List.range 14).flatMap fun i => [PSB + 80 * i + 16, PSB + 80 * i + 24]
 
 theorem zeroP_sub : ∀ a ∈ zeroP, a ∈ protP := by decide
@@ -212,7 +212,7 @@ structure PosIn (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) (
 
 /-- The destination of the last hash of a segment of variant `V` at depth `d`. -/
 def destOf (V d : Nat) : Nat :=
-  if V = 0 then stkOf' d + 48 else if V = 1 then stkOf' d + 112 else 0x120
+  if V = 0 then stkOf' d + 48 else if V = 1 then stkOf' d + 112 else 0x130
 
 /-- After the last hash of a segment of variant `V` (tail copy `c`): the new node at `destOf V d`;
 `ptr` is the next header. -/

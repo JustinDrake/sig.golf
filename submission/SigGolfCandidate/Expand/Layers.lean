@@ -4,7 +4,7 @@ import SigGolfCandidate.Sign.Bytes
 /-!
 # `expand`, phase 2: the counter phase (`Ref.expandLayers`, instructions 316 .. 494)
 
-`layers_sim` : from `layer_loop` with `LAY = n - 1` and the message `M` at `0x120`, the machine
+`layers_sim` : from `layer_loop` with `LAY = n - 1` and the message `M` at `0x130`, the machine
 refines `expandLayers w idx n M`: per layer the sign's header and least-counter search, the
 counter into `CT + 8 LAY`, and below layer 0 verify's chains, leaf and folds (the root is the next
 message); at layer 0 `halt_ok` writes the five counters into the witness and halts with
@@ -219,11 +219,11 @@ theorem top_layer (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.get
   obtain ⟨p5, x56, hcl, ⟨d0, d1, hd0, hd1, hx, hsum, x51, x52⟩, r5, f5⟩ := h5
   dsimp only
   have R5 := r4.trans r5
-  have F5 : Frame t t5 (fun a => (a = 0x100 ∨ a = 0x108 ∨ a = 0x138) ∨ encW a) := f4.trans f5
+  have F5 : Frame t t5 (fun a => (a = 0x100 ∨ a = 0x108 ∨ a = 0x128) ∨ encW a) := f4.trans f5
   obtain ⟨t6, hs6, p6, m6, r6, f6⟩ := blk382_run t5 p5 0 c (by norm_num) hcl x56
     (by rw [R5.get .x8 (by decide), hinv.head.x8]) (by rw [R5.get .x25 (by decide), hc.x25])
   rw [if_pos rfl] at p6
-  have F6 : Frame t t6 (fun a => ((a = 0x100 ∨ a = 0x108 ∨ a = 0x138) ∨ encW a) ∨ a = 0x30780 + 8 * 0) :=
+  have F6 : Frame t t6 (fun a => ((a = 0x100 ∨ a = 0x108 ∨ a = 0x128) ∨ encW a) ∨ a = 0x30780 + 8 * 0) :=
     F5.trans f6
   have hab := hinv.hab
   have hct : ∀ l < 5, t6.getMem (BitVec.ofNat 64 (0x30780 + 8 * l)) = BitVec.ofNat 64 ((c :: above).getD l 0) := by
@@ -285,7 +285,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
   subst hx
   dsimp only
   have R5 := r4.trans r5
-  have F5 : Frame t t5 (fun a => (a = 0x100 ∨ a = 0x108 ∨ a = 0x138) ∨ encW a) := f4.trans f5
+  have F5 : Frame t t5 (fun a => (a = 0x100 ∨ a = 0x108 ∨ a = 0x128) ∨ encW a) := f4.trans f5
   -- the counter, the chain setup
   obtain ⟨t6, hs6, p6, m6, r6, f6⟩ := blk382_run t5 p5 (n + 1) c hn hcl x56
     (by rw [R5.get .x8 (by decide), hinv.head.x8]) (by rw [R5.get .x25 (by decide), hc.x25])
@@ -298,7 +298,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
   rw [x31] at mLF8 mCB8
   have R7 := R6.trans r7
   have R57 := (r5.trans r6).trans r7
-  have F7 : Frame t t7 (fun a => (((a = 0x100 ∨ a = 0x108 ∨ a = 0x138) ∨ encW a) ∨ a = 0x30780 + 8 * (n + 1)) ∨
+  have F7 : Frame t t7 (fun a => (((a = 0x100 ∨ a = 0x108 ∨ a = 0x128) ∨ encW a) ∨ a = 0x30780 + 8 * (n + 1)) ∨
       (a = 0x30240 ∨ a = 0x30248 ∨ a = 0x301C0 ∨ a = 0x30148)) := (F5.trans f6).trans f7
   have c7 : LCtx w idx t7 := hc.frame F7 R7 (fun a h1 h2 => by simp only [lctxA, witA, encW] at h1 h2; omega)
   -- the chains
@@ -353,7 +353,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
   obtain ⟨t12, hs12, p12, x8', w12, r12, f12⟩ := blk472_run t11 p11 (n + 1) (by omega) hn
     (by rw [R11.get .x8 (by decide), R7.get .x8 (by decide), hinv.head.x8]) c11.x25
   have c12 := c11.frame f12 r12 (fun a h1 h2 => by unfold lctxA witA at h1; omega)
-  have F12 : Frame t7 t12 (fun a => (chW a ∨ (0x30200 ≤ a ∧ a < 0x30220)) ∨ fdW a ∨ (a = 0x120 ∨ a = 0x128)) :=
+  have F12 : Frame t7 t12 (fun a => (chW a ∨ (0x30200 ≤ a ∧ a < 0x30220)) ∨ fdW a ∨ (a = 0x130 ∨ a = 0x138)) :=
     (F10.trans (f11.trans f12)).mono (fun a ha => ha)
   have R12 := R11.trans r12
   have hab := hinv.hab

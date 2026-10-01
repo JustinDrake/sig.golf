@@ -30,7 +30,7 @@ def fk (kind : Bool) (a0 a1 : Nat) : List (Reg × Word) :=
 
 def fkeep (kind : Bool) : List Reg :=
   if kind then [.x16, .x17, .x22, .x23, .x25, .x27, .x28, .x29, .x30, .x31]
-  else [.x14, .x16, .x17, .x23, .x25, .x27, .x30, .x31]
+  else [.x14, .x16, .x17, .x23, .x27, .x30, .x31]
 
 def okFold (kind : Bool) (o : Option PRes) (e : PRes) (post : List (Reg × Word)) : Bool :=
   optBeq o e && resOK (gkOf kind) e && knownB post e && keepB (fkeep kind) e
@@ -66,7 +66,7 @@ def sibAddr (lay lam : Nat) : Nat := 0x800 + pathOffL lay + pathStrideL lay * la
 def isConstLvl (lay lam : Nat) : Bool := lam + 3 = heightL lay || lam + 2 = heightL lay
 
 /-- Destination of the root hash: EB+32 (the next layer's message) or FO (layer 0). -/
-def dstOf (lay : Nat) : Nat := if lay = 0 then 0x180 else 0x120
+def dstOf (lay : Nat) : Nat := if lay = 0 then 0x180 else 0x130
 
 /-- `x3` after the chunk dispatch into chunk `ci` (`[andi] slli; lui; add`). -/
 def dispGp (lay ci : Nat) : E :=
@@ -124,12 +124,12 @@ def lvlExp (lay ci v kk : Nat) : PRes :=
     ⟨⟨(lvlRegs lay lam).set .x12 (cw (dstOf lay)), mem, []⟩, pcOf (m4Pc lay ci v kk + 8), true, 6, 6, [], none⟩
   else if kk + 1 < chBits lay ci then
     let rf := if isConstLvl lay lam then lvlRegs lay lam
-      else (lvlRegs lay lam).set .x4 (.bin .srl (.reg .x23) (cw (lam + 1)))
+      else (lvlRegs lay lam).set .x25 (.bin .srl (.reg .x23) (cw (lam + 1)))
     let n := hs + (if isConstLvl lay lam then 6 else 7)
     ⟨⟨rf.set .x12 (cw (0x360 + 16 * (v / 2 ^ (kk + 1) % 2))), mem, []⟩,
       pcOf (m4Pc lay ci v (kk + 1) + 1), true, n, n, [], none⟩
   else
-    ⟨⟨((lvlRegs lay lam).set .x4 (cw (m4Hi lay (ci + 1)))).set .x3 (dispGp lay (ci + 1)), mem, []⟩,
+    ⟨⟨((lvlRegs lay lam).set .x25 (cw (m4Hi lay (ci + 1)))).set .x3 (dispGp lay (ci + 1)), mem, []⟩,
       0, false, hs + 11, hs + 11, [], some (dispTgt lay (ci + 1))⟩
 
 /-- Direction list of a level run: stop at the dispatch jump at the end of a chunk. -/
