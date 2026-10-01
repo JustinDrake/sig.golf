@@ -1,5 +1,10 @@
 import SigGolfCandidate.Verify.Code
-import SigGolfCandidate.Ref
+import SigGolfCandidate.Ref.Basic
+import SigGolfCandidate.Ref.Scheme
+import SigGolfCandidate.Ref.Count
+import SigGolfCandidate.Ref.Lemmas
+
+import SigGolfCandidate.Ref.AddressQueries
 
 /-!
 # The simulation judgment
@@ -165,27 +170,18 @@ theorem Good.hashHP {s : MachineState} {N C : Nat} {x : List Byte}
   have := Good.hashH hf ht0 hv (hin.trans hx.symm) h
   rwa [hx] at this
 
-/-- Selected encoding digest; ordinary hashes remain unchanged. -/
-theorem Good.encodingHashP {s : MachineState} {N C : Nat} {x : List Byte}
-    {K : Val → OracleComp HashSpec Obs} (hx : addrFmt x = pad64 x)
-    (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
-    (hv : hashArgumentsValid s = true) (hin : hashInput s = pad64 x)
-    (h : ∀ a, Good (writeHash s a) N C (K (encodingBytes a))) :
-    Good s (N + 1) (C + 8 * (pad64 x).blocks) (cc (encodingHash x) K) := by
-  have hh := Good.hashHP hx hf ht0 hv hin h
-  simpa only [encodingHash, cc_bind, cc_pure] using hh
-
-/-- The encoding input (tag 4, the 32-byte message right after the tweak) is zero padded. -/
-theorem fmt_enc (lay tau e : Nat) (M : Val) (c : Nat) :
-    addrFmt (encInput lay tau e M c) = pad64 (encInput lay tau e M c) := by
-  rw [addrFmt_encInput]
-  exact Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide)
-
 /-- Zero-padded `thInput` for the tags that `addrFmt` leaves alone (not 1, 3, 12). -/
 theorem fmt_th (t lay tau p j : Nat) (payload : List Byte)
-    (ht : byte t ∉ [byte 1, byte 3, byte 9, byte 10, byte 12]) :
+    (ht : byte t ∉ [byte 1, byte 3, byte 12]) :
     addrFmt (thInput (tweak t lay tau p j) payload) = pad64 (thInput (tweak t lay tau p j) payload) :=
-  addrFmt_thInput t lay tau p j payload ht
+  by
+    have h1 : t % 256 ≠ 1 := by
+      intro he
+      apply ht
+      have hb : byte t = byte 1 := by apply BitVec.eq_of_toNat_eq; simp [byte_toNat, he]
+      rw [hb]; exact List.mem_cons_self
+    rw [addrFmt_eq_th _ _ _ _ _ _ h1]
+    exact fmt_thInput t lay tau p j payload ht
 
 end SigGolfCandidate.Verify
 

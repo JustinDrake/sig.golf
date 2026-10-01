@@ -95,7 +95,7 @@ theorem applyBoundary_cacheClean (parameter : PublicParameter) (oracle : QueryIm
   exact (decodePosition_none_iff parameter _).mp (decodePosition_message parameter payload) position hat
 
 theorem applyBoundary_encodingClean (parameter : PublicParameter) (oracle : QueryImpl HashSpec Id)
-    (words : OtsReferenceWords) (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily)
+    (words : OtsReferenceWords) (messages : EncodingPosition → Digest) (selections : ReferenceFamily)
     (memory : Memory) (trace : SigningBoundaryTrace) (htrace : TraceValid parameter oracle trace)
     (hclean : ResidualByteFrontend.ReplyClean (PublicEncodingMatch.Match parameter messages words selections) memory.external.cache) :
     ResidualByteFrontend.ReplyClean (PublicEncodingMatch.Match parameter messages words selections) (memory.applyBoundary trace).external.cache := by

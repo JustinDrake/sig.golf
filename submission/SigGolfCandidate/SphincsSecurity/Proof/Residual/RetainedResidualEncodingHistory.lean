@@ -14,7 +14,7 @@ set_option backward.isDefEq.respectTransparency false
 theorem knownEncodingMessage_afterSigning (routing : Routing) (record : SigningRecord) :
     knownEncodingMessage (routing.afterSigning record).known = knownEncodingMessage routing.known := by
   funext position
-  exact layerMessageOf_congr fun graphPosition _ => routing.afterSigning_graph record graphPosition
+  exact routing.afterSigning_graph record _
 
 section Local
 
@@ -184,7 +184,7 @@ end Local
 
 theorem referenceEncodingAuxiliary_select (encoding : ReferenceEncodingAuxiliary)
     (hencoding : encoding ∈ referenceEncodingAuxiliarySample.support) (position : EncodingPosition) :
-    FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter => encoding.rows (position, counter)) = encoding.selections position :=
+    FirstSuccessTable.select decodeEncodingOutput (fun counter => encoding.rows (position, counter)) = encoding.selections position :=
   referenceAuxiliarySample_select ∅ ⟨encoding.selections, encoding.rows, fun _ => 0⟩
     (referenceEncodingAuxiliary_support_seed ∅ encoding hencoding (fun _ => 0)) position
 
