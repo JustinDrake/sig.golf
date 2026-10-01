@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10904` cycles (verify bound
-`10840` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
+`S = 6048` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10909` cycles (verify bound
+`10845` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 150272, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -29,16 +29,23 @@ hashes to address 0 so its output register needs no load, the PORS stack registe
 its frame is rebased by 352 so the fold limit is the existing `x18 = 4095`, the SWAR masks are two
 data words of the image loaded in the root tails, the root's `E = 1` and empty-stack checks compare
 registers directly, redundant hash-length reloads and `lui/addi` constant pairs reachable from
-`x18` are dropped, and the top layer's route needs no masking (its remaining 11 route bits fit).
+`x18` are dropped, and the top layer's route needs no masking (its remaining 11 route bits fit). In the layer-shared
+chain code, the dispatch of triples 1 and 8 masks the digit word directly (their digits already sit
+at the table-index bits), dropping a register move from 128 blocks: two cycles per layer. Chain 0 of every layer initializes
+the running tweak from the layer header in its head (hash and digit-7 paths), so the layer prologue
+needs no separate initialization (erickeigen, one cycle per layer). The PORS root tails build the
+chain constants from `x6 = 1` and the layer header in two fewer instructions, the digest falls
+through into the relocated setup, and the last PORS leaf compares against the known range limit
+(four more cycles). PORS scratch loads use `x4` instead of `x2`, preserving the initial
+`x2 = 0xFFFFF0` data pointer until the root masks are loaded directly through it. This removes
+one more address-materialization instruction; the root tail then repurposes `x2` for dispatch.
 
 The verifier ports the OTS modular checksum and constant-reuse optimizations: each layer
 uses an exact remainder modulo 4095, and the rebased address register doubles as the
-modulus. The shared chain code dispatches triples. The zero-shift extractions after triples
-0 and 7 read the packed register directly, saving two copies per layer. Chain 0 initializes
-the running tweak from the layer header in both its hash and digit-7 copy paths; subsequent
-chains increment that tweak. This removes the separate initialization from each layer's
-prologue, saving another cycle per layer. These two changes save fifteen cycles in total.
-Each
+modulus. The verify image is regenerated without the padding that kept the old addresses,
+chains 0..6 store their index byte from registers that already hold 0..6, and each digit pair
+dispatches once: the table of the pair's first chain jumps into a copy of the pair's code
+specialized to the second digit, so the second chain has neither a table nor a `jalr`. Each
 Merkle path jumps once per leaf-index chunk into straight-line level code for that chunk value
 (no per-level branch), the two heap indices below each root are stored from registers that
 hold them, and each block of the last chunk carries its own copy of the next layer's transition. The PORS
@@ -72,7 +79,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10904 :=
+theorem certificate : SigGolf.Certificate submission 10909 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

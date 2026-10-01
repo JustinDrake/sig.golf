@@ -33,7 +33,7 @@ def preStart (lay t : Nat) : Nat :=
 
 /-- Steps of the transition up to the encoding hash: layer 0 consumes the remaining route bits
 directly (two `addi` for the sentinel, no mask/shift); layer 4 reuses the known hash length. -/
-def stepsA (lay : Nat) : Nat := if lay = 0 ∨ lay = 4 then 12 else 13
+def stepsA (lay : Nat) : Nat := if lay = 0 ∨ lay = 4 then 13 else 14
 def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
 
 /-- Known registers at the transition start. -/
@@ -44,7 +44,7 @@ def preK (lay : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay
 
 /-- Known registers after the encoding hash call. -/
 def bK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)] ++
+  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay)), (.x10, 0x100), (.x11, 64), (.x12, 0x140)] ++
     (if lay = 4 then [(.x14, KT4)] else [])
 
 def uEr (lay : Nat) : E :=
@@ -72,8 +72,8 @@ def specA (lay t : Nat) : Spec :=
 
 /-! ## The encoding check (`remu x25, x25, x18; bne KT`; layer 4: `bne x14` holding `KT4`) and the chain prologue -/
 
-def d0E : E := ldE 288
-def d1E : E := ldE 296
+def d0E : E := ldE 320
+def d1E : E := ldE 328
 def m1E : E := .c M1w
 def m2E : E := .c M2w
 def orE : E := .bin .or d0E d1E
@@ -132,13 +132,13 @@ def leafPost (lay : Nat) : List (Reg × Word) :=
 
 def cmpPc (t : Nat) : Nat := compareTab.getD t 0
 def cmpK : List (Reg × Word) := fk false 0x1C0 64 ++ [(.x12, 0x180)]
-def cmpDiff : E := .bin .sub (ldE 392) (ldE 168)
 def specAcc (t : Nat) : Spec :=
-  ⟨[(.x5, cw 1), (.x10, cmpDiff)], [], cmpPc t + 7, true, 7,
-   [⟨.ne, ldE 384, ldE 160, false⟩], none, 7⟩
+  ⟨[(.x5, cw 1), (.x10, cw 0)], [], cmpPc t + 8, true, 8,
+   [⟨.ne, ldE 392, ldE 168, false⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
 def specCR1 (t : Nat) : Spec :=
   ⟨rejK, [], cmpPc t + 11, true, 5, [⟨.ne, ldE 384, ldE 160, true⟩], none, 5⟩
-
+def specCR2 (t : Nat) : Spec :=
+  ⟨rejK, [], cmpPc t + 11, true, 8, [⟨.ne, ldE 392, ldE 168, true⟩, ⟨.ne, ldE 384, ldE 160, false⟩], none, 8⟩
 
 /-! ## The per-layer check -/
 
@@ -154,7 +154,8 @@ def copyCheck (lay t : Nat) : Bool :=
 def layerCheck (lay : Nat) : Bool :=
   ((List.range (nCopy lay)).all fun t => copyCheck lay t) &&
   (lay != 0 || (List.range 32).all fun t =>
-    specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] &&
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [])
+    specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] &&
+      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] &&
+      specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] [])
 
 end SigGolfCandidate.Verify

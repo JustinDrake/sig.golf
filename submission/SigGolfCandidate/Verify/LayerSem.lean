@@ -47,8 +47,8 @@ def EncOut (L : LCtx) (t : Nat) (a : BitVec 256) (s : MachineState) : Prop :=
   Glob gkL L.wl L.pk s ∧ KnownOK (bK L.lay) s ∧
   s.getReg .x23 = BitVec.ofNat 64 (L.e + 2 ^ heightL L.lay) ∧ s.getReg .x30 = BitVec.ofNat 64 L.tau ∧
   s.getReg .x31 = BitVec.ofNat 64 (L.tau + 2 ^ 32 * L.e) ∧
-  s.getMem (BitVec.ofNat 64 288) = a.extractLsb' 0 64 ∧
-  s.getMem (BitVec.ofNat 64 296) = a.extractLsb' 64 64 ∧
+  s.getMem (BitVec.ofNat 64 320) = a.extractLsb' 0 64 ∧
+  s.getMem (BitVec.ofNat 64 328) = a.extractLsb' 64 64 ∧
   CB0 s ∧ Fresh L.wl L.lay 0 s ∧
   s.pc = pcOf (encPc L.lay t + 1)
 
@@ -85,13 +85,15 @@ theorem lc_leaf {t : Nat} (ht : t < nCopy lay) :
   exact h.2
 
 theorem lc_cmp {t : Nat} (ht : t < 32) (h0 : lay = 0) :
-    specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] = true ∧
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] = true := by
+    specB [] (runAt cmpK [] (cmpPc t) [.br false, .br false]) (specAcc t) [] [] = true ∧
+      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] = true ∧
+      specB [] (runAt cmpK [] (cmpPc t) [.br false, .br true]) (specCR2 t) [] [] = true := by
   have h := layerCheck_at lay hl
   subst h0
   simp only [layerCheck, Bool.and_eq_true, List.all_eq_true, List.mem_range, bne_self_eq_false,
     Bool.false_or] at h
-  exact h.2 t ht
+  obtain ⟨⟨h1, h2⟩, h3⟩ := h.2 t ht
+  exact ⟨h1, h2, h3⟩
 
 end
 
@@ -129,7 +131,7 @@ theorem enc_step (L : LCtx) (hL : L.ok) (M : Val) (s : MachineState) (hs : Layer
   have gk : ∀ p ∈ gkL, p ∈ bK L.lay := fun p hp => by simp [bK, hp]
   have h10 : u.getReg .x10 = BitVec.ofNat 64 0x100 := hK' (.x10, 0x100) (by simp [bK])
   have h11 : u.getReg .x11 = BitVec.ofNat 64 (64 * (0 + 1)) := hK' (.x11, 64) (by simp [bK])
-  have h12 : u.getReg .x12 = BitVec.ofNat 64 0x120 := hK' (.x12, 0x120) (by simp [bK])
+  have h12 : u.getReg .x12 = BitVec.ofNat 64 0x140 := hK' (.x12, 0x140) (by simp [bK])
   have hx31 : (x31Er L.lay).eval s = BitVec.ofNat 64 (L.tau + 2 ^ 32 * L.e) :=
     x31Er_eval L.idx L.lay hlay hidx s hR
   have htau : L.tau < 2 ^ 30 := tau_lt L.lay L.idx hlay hidx
@@ -172,8 +174,8 @@ theorem enc_step (L : LCtx) (hL : L.ok) (M : Val) (s : MachineState) (hs : Layer
       omega
     · rw [hm]; simp only [specA]; rw [memEval_cons_eq _ _ _ _ _ rfl]; rfl
   · intro a
-    have wf := fun A (hA : A < 2 ^ 64) (h : A + 8 ≤ 0x120 ∨ 0x120 + 32 ≤ A) =>
-      writeHash_frame _ a 0x120 A h12 hA (by omega) h
+    have wf := fun A (hA : A < 2 ^ 64) (h : A + 8 ≤ 0x140 ∨ 0x140 + 32 ≤ A) =>
+      writeHash_frame _ a 0x140 A h12 hA (by omega) h
     refine ⟨Glob_writeHash (hu.glob _ _ _ hG) a _ h12 (by decide), Known_writeHash hK' a, ?_, ?_, ?_,
       writeHash_at0 _ a _ h12 (by omega), writeHash_at8 _ a _ h12 (by omega), ?_, ?_, ?_⟩
     · rw [writeHash_getReg, hu.regs (.x23, uHE L.lay) (by simp [specA]), uHE_eval L.idx L.lay hlay hidx s hR]
@@ -219,7 +221,7 @@ theorem digits_getD (d0 d1 : Nat) (i : Nat) (hi : i < 42) :
 
 /-- The dispatch of triple 0 from the transition (`slli a4, a6, 9; and sp; add a5; jalr -2048(a4)`,
 with `a6` loaded from EO): the table slot of row `kOf c 0`. -/
-theorem tgt0_eval (c : CCtx) (s : MachineState) (hD : s.getMem (BitVec.ofNat 64 288) = c.d0) :
+theorem tgt0_eval (c : CCtx) (s : MachineState) (hD : s.getMem (BitVec.ofNat 64 320) = c.d0) :
     tgt0.eval s = pcOf (entW 0 (kOf c 0)) := by
   have hk : kOf c 0 < 512 := by
     unfold kOf; have := dig_lt c (3 * 0); have := dig_lt c (3 * 0 + 1); have := dig_lt c (3 * 0 + 2); omega
@@ -254,7 +256,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
   obtain ⟨hG, hK, h23, h30, h31, hD0, hD1, hCB, hF, hpc⟩ := hs
   have hor : CmpOp.lt.eval (orE.eval s) ((E.c 0).eval s) =
       decide (2 ^ 63 ≤ (a.extractLsb' 0 64).toNat ∨ 2 ^ 63 ≤ (a.extractLsb' 64 64).toNat) := by
-    rw [show orE.eval s = s.getMem (BitVec.ofNat 64 288) ||| s.getMem (BitVec.ofNat 64 296) from rfl,
+    rw [show orE.eval s = s.getMem (BitVec.ofNat 64 320) ||| s.getMem (BitVec.ofNat 64 328) from rfl,
       hD0, hD1]
     exact lt_or_eval _ _
   have hdA : dA s = (a.extractLsb' 0 64).toNat := by simp only [dA, hD0]

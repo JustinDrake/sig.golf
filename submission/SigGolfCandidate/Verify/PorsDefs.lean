@@ -55,7 +55,7 @@ structure S0 (P : PCtx) (s0 : MachineState) : Prop where
   nb0 : s0.getMem (BitVec.ofNat 64 0x1C0) = BitVec.ofNat 64 (twLo 10 0 P.idx 0)
   blk0 : ∀ i, i < 14 → s0.getMem (BitVec.ofNat 64 (PSB + 80 * i)) = BitVec.ofNat 64 (twLo 10 0 P.idx 0)
   half : ∀ a ∈ halfP, (s0.getMem (BitVec.ofNat 64 a)).toNat % 2 ^ 32 = P.idx % 2 ^ 32
-  guard : s0.getMem (BitVec.ofNat 64 0x240) = 0x100000000#64
+  guard : s0.getMem (BitVec.ofNat 64 0x240) = -1#64
   pind : ∀ r, r < 16 → s0.getMem (BitVec.ofNat 64 (PIND + 8 * r)) =
     BitVec.ofNat 64 ((P.v ++ [porsT]).getD r 0)
 
