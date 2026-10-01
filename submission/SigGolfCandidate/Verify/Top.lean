@@ -26,7 +26,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     (stk : List (Val × Nat)) (m : MachineState) (h : TailIn P s0 14 x 2 c ptr E folds node stk m) :
     ((folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧
         fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 13 13 u ∧
+    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 15 15 u ∧
         LayerIn ⟨P.wl, P.pk, 4, P.idx⟩ node u) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
   have hE := h.hE
@@ -130,7 +130,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hregs : KnownOK gkL0 u := by
       intro p hp
       simp only [gkL0, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact hg0.1 p (by simp [rootK, hp])
       · exact hm1
       · exact hm2
@@ -139,7 +139,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hknown : KnownOK l4K u := by
       intro p hp
       simp only [l4K, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl | rfl
       · exact hregs p hp
       all_goals exact hu.known _ (by simp [rootPost])
     have hmem : ∀ A, u.getMem A = m.getMem A := fun A => by rw [hu.mem]; rfl
@@ -157,13 +157,16 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       unfold twLo; omega
 
 
-/-- Accepting verification bound: 2905 cycles before the layers, plus
-7702 for the five uniform-target layers with shared leaf/node buffers and encoding-biased headers.
-The root takes 13 steps and the accepting prologue takes 24. -/
-def cycleBound : Nat := 10607
+/-- The cycle bound of accepting runs: `2908 + layersCost 5 = 2908 + 7702` (address headers: one head instruction fewer per chain, `42 · 5 = 210`;
+uniform target 181). The part before the layers
+is `25` (prologue, counter check) `+ 8` (digest) `+ 100` (setup, falling through from the digest HASH, single-store guard) `+ 10 + 157` (leaves) `+ 16 · 29 + 17 · 117`
+(segments with at most `117` folds, the paired-randomizer octopus cap) `+ 6 · 14 + 4 · 14` (merge / push tails) `+ 15` (root tail) `= 2908`;
+an accepting run with `Z` fold-free segments costs `1` less per such segment. Feasible worst case
+(emulator, `F = 117`, `Z = 1`, no digit 7): `2907 + 7702 = 10609`. -/
+def cycleBound : Nat := 10610
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
-def cycleBoundAll : Nat := 16852
+def cycleBoundAll : Nat := 16860
 
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 45000
@@ -205,7 +208,7 @@ theorem Kr_none (P : PCtx) : Kr P none = pure (false, 0) := by
 
 theorem root_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (x c : Nat) (st : PorsState)
     (u : MachineState) (hT : TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u) :
-    GoodQ u (13 + layC + layN) (13 + layC) (st.folds ≤ 117) (13 + layC) (Kr P (some st)) := by
+    GoodQ u (15 + layC + layN) (15 + layC) (st.folds ≤ 117) (15 + layC) (Kr P (some st)) := by
   obtain ⟨hrej, hacc⟩ := tailF_step P hP s0 x c st.ptr st.E st.folds st.node st.stack u hT
   have hL : layC = layersCost 5 := layC_val.trans layersCost_val.symm
   by_cases hc : st.folds > porsM ∨ st.E ≠ 1 ∨ st.stack ≠ []
@@ -227,7 +230,7 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
       (cc (porsRoot P.idx P.v P.wl) (Klay P)) := by
   have hr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (13 + layC + layN) (13 + layC) (st.folds ≤ 117) (13 + layC) (Kr P (some st)) :=
+      GoodQ u (15 + layC + layN) (15 + layC) (st.folds ≤ 117) (15 + layC) (Kr P (some st)) :=
     fun x c st u hT => root_good P hP s0 x c st u hT
   have hg0 := leaves_good P hP s0 (Kr P) (Kr_none P) hr
   have hg := hg0 15 0 ⟨wStream, 0, 0, 0, [], []⟩ s0 (by rfl) h
@@ -246,8 +249,8 @@ theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 
 
 theorem lrest_0 : lrest 0 = 157 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7744 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2773 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7744 + layC + layN := by
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7746 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2775 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7746 + layC + layN := by
   have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 

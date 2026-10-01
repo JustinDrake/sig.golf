@@ -24,7 +24,7 @@ def LCtx.ok (L : LCtx) : Prop := L.lay < 5 ∧ L.idx < 2 ^ 34 ∧ L.wl.length = 
 def LCtx.e (L : LCtx) : Nat := L.idx / 2 ^ layS L.lay % 2 ^ heightL L.lay
 def LCtx.tau (L : LCtx) : Nat := L.idx / 2 ^ (layS L.lay + heightL L.lay)
 /-- Known registers on entry of a layer (W1a: one list `gkL = gkL0` for all layers; the chain
-constants `TMASK`, `TTA5` are set once, before layer 4). -/
+constants `K40`, `TMASK`, `TTA5` are set once, before layer 4). -/
 def LCtx.gk (_L : LCtx) : List (Reg × Word) := gkL0
 
 /-- t0's `CB + 32 .. CB + 48 = 0` (the zero pad of the chain buffer). W1a hashes the chains in place
@@ -316,7 +316,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
         · rw [hu.keep .x30 (by simp)]; exact h30
         · rw [hu.keep .x31 (by simp)]; exact h31
         · exact hK' (.x22, BitVec.ofNat 64 (s6N L.lay)) (by simp [chKa])
-        · exact hK' (.x27, BitVec.ofNat 64 (hWord L.lay + 768)) (by simp [chKa])
+        · exact hK' (.x27, BitVec.ofNat 64 (hWord L.lay + 256)) (by simp [chKa])
         · exact hK' (.x1, pcOf (retPc L.lay t)) (by simp [chKa])
         · unfold CB0; rw [hmem]; exact hCB
         · trivial

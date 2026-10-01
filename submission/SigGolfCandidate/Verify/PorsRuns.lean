@@ -214,16 +214,18 @@ def fBr3 (d : Bool) : Br := ⟨.ne, .reg .x15, cw 0, d⟩
 
 def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x120)]
 
-/-- Root-tail constants for the address-header verifier. The uniform target uses x29;
-no x14 target reload or x28 running-header increment is needed. Masks come from
-protected image data, and x27 carries the encoding-biased header. The tail takes 13 steps. -/
+/-- Known at the start of the layer-4 transition: the layer constants the root tail sets (W1a: also
+`t3 = 2^40`, `sp = TMASK`, `a5 = ttab + 2048`, and `a4 = KT4`); the masks `x20`, `x21` are loaded from
+the verifier's data words and resolved from protected memory in `tailF_step`.
+`t3` reuses `x6 = 1` in one shift; `sp = 0x3FE00` reuses `x27 = 0x40201` in one
+addition of `-0x301`, so the accepting tail takes 15 instructions. -/
 def rootK : List (Reg × Word) :=
-  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x2, TMASK), (.x15, TTA5)]
-def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401)]
+  baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, K40), (.x2, TMASK), (.x15, TTA5)]
+def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40201), (.x14, KT4)]
 
 def tailFSpec (c : Nat) : Spec :=
-  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 13,
-    [fBr3 false, fBr2 false, fBr1 false], none, 13⟩
+  ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 15,
+    [fBr3 false, fBr2 false, fBr1 false], none, 15⟩
 
 def tailFCheck (c : Nat) : Bool :=
   pspecB rootK (runAt tailFKnown [f4Pc c] (tailPc 2 c) [.br false, .br false, .br false]) (tailFSpec c) []
@@ -279,7 +281,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 /-- All registers except `x2` are zero in the initial state. -/
 def k0 : List (Reg × Word) :=
-  [(.x2, 0xFFFFF0), (.x1, 0), (.x3, 0), (.x4, 0), (.x5, 0), (.x6, 0), (.x7, 0), (.x8, 0), (.x9, 0), (.x10, 0), (.x11, 0),
+  [(.x1, 0), (.x3, 0), (.x4, 0), (.x5, 0), (.x6, 0), (.x7, 0), (.x8, 0), (.x9, 0), (.x10, 0), (.x11, 0),
    (.x12, 0), (.x13, 0), (.x14, 0), (.x15, 0), (.x16, 0), (.x17, 0), (.x18, 0), (.x19, 0), (.x20, 0),
    (.x21, 0), (.x22, 0), (.x23, 0), (.x24, 0), (.x25, 0), (.x26, 0), (.x27, 0), (.x28, 0), (.x29, 0),
    (.x30, 0), (.x31, 0)]
@@ -294,9 +296,9 @@ def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
 
 def specStartOk : Spec :=
   ⟨[], [(⟨none, BitVec.ofNat 64 56⟩, ldE 2056), (⟨none, BitVec.ofNat 64 48⟩, ldE 2048),
-    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 24, true, 24, [⟨.ne, ctrE', .c 0, false⟩], none, 24⟩
+    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 25, true, 25, [⟨.ne, ctrE', .c 0, false⟩], none, 25⟩
 def specStartRej : Spec :=
-  ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 18, [⟨.ne, ctrE', .c 0, true⟩], none, 18⟩
+  ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 19, [⟨.ne, ctrE', .c 0, true⟩], none, 19⟩
 
 def wLdE (i : Nat) : E := ldE (8 * i)
 def idxE : E := .bin .srl (.bin .sll (wLdE 0) (cw 30)) (cw 30)
@@ -332,6 +334,6 @@ def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 100, [], 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&
   specB [] (runAt k0 [] 0 [.br true]) specStartRej [] [] &&
-  specB gkD (runAt dgK [leafPc 0] 25 []) setupSpec setupPost []
+  specB gkD (runAt dgK [leafPc 0] 26 []) setupSpec setupPost []
 
 end SigGolfCandidate.Verify

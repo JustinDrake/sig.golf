@@ -273,3 +273,104 @@ theorem digests_le_codeShare_mul_card_accepting :
     exact (Option.some.inj this).symm
 
 end SphincsSecurity.Completeness
+
+/-!
+## Alternate four-layer construction: radix-four code
+
+This namespace is preparation for a different construction, not a change to the
+certificate's production parameters.  It counts the actual antichain before
+spending the signing budget on a machine implementation.  The proposed code has
+62 digits in `Fin 4`; its 124 payload bits leave four zero padding bits in the
+128-bit encoding output.  Four layers and a 17-tree, height-nine FORS forest would
+use 7232 signature bytes.  No cycle estimate here is an execution measurement.
+-/
+
+namespace SigGolfCandidate.Base4Candidate
+
+open Finset
+
+abbrev Index := Fin 62
+abbrev Digit := Fin 4
+abbrev Word := Index → Digit
+
+def weight (x : Word) : Nat := ∑ i, (x i).val
+def Valid (x : Word) : Prop := weight x = 110
+def count (s : Nat) : Nat := (univ.filter (fun x : Word => weight x = s)).card
+def radix : Nat := 2 ^ 128
+
+/-- The new code retains the componentwise antichain property. -/
+theorem eq_of_le_of_valid {x y : Word} (hx : Valid x) (hy : Valid y)
+    (hle : ∀ i, (x i).val ≤ (y i).val) : x = y := by
+  have hsum : weight x = weight y := hx.trans hy.symm
+  funext i
+  refine Fin.ext (le_antisymm (hle i) ?_)
+  by_contra hlt
+  have hstrict : (x i).val < (y i).val := by omega
+  have : weight x < weight y :=
+    Finset.sum_lt_sum (fun j _ => hle j) ⟨i, Finset.mem_univ i, hstrict⟩
+  omega
+
+theorem weight_lt (x : Word) : weight x < 187 := by
+  have h : weight x ≤ ∑ _i : Index, 3 :=
+    Finset.sum_le_sum (fun i _ => Nat.le_of_lt_succ (x i).isLt)
+  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at h
+  omega
+
+theorem weighted_words (B : Nat) :
+    (∑ d : Digit, B ^ d.val) ^ 62 = ∑ x : Word, B ^ weight x := by
+  have hcard : (univ : Finset Index).card = 62 := by simp
+  have h : (∑ d : Digit, B ^ d.val) ^ 62 =
+      ∏ _i : Index, ∑ d : Digit, B ^ d.val := by
+    rw [Finset.prod_const, hcard]
+  rw [h, Finset.prod_univ_sum, Fintype.piFinset_univ]
+  apply Finset.sum_congr rfl
+  intro x _
+  rw [Finset.prod_pow_eq_pow_sum]
+  rfl
+
+theorem collect_weights (B : Nat) :
+    ∑ x : Word, B ^ weight x = ∑ s ∈ range 187, count s * B ^ s := by
+  rw [← Finset.sum_fiberwise_of_maps_to (g := weight) (t := range 187)
+    (fun x _ => Finset.mem_range.mpr (weight_lt x)) (fun x => B ^ weight x)]
+  apply Finset.sum_congr rfl
+  intro s _
+  rw [Finset.sum_congr rfl (fun x hx => by rw [(Finset.mem_filter.mp hx).2]),
+    Finset.sum_const, count, smul_eq_mul]
+
+theorem count_lt_radix (s : Nat) : count s < radix := by
+  have h : count s ≤ Fintype.card Word := Finset.card_filter_le _ _
+  have hc : Fintype.card Word = 4 ^ 62 := by simp [Word, Index, Digit]
+  rw [hc] at h
+  exact Nat.lt_of_le_of_lt h (by decide)
+
+theorem digit_weight : (∑ d : Digit, radix ^ d.val) =
+    (radix ^ 4 - 1) / (radix - 1) := by decide
+
+theorem count_coefficient (s : Nat) (hs : s < 187) :
+    count s = ((radix ^ 4 - 1) / (radix - 1)) ^ 62 / radix ^ s % radix := by
+  rw [← digit_weight, weighted_words, collect_weights]
+  exact (SphincsSecurity.Completeness.digit_of_sum radix (by decide)
+    count count_lt_radix 187 s hs).symm
+
+/-- Exact accepted-code count; this is a finite combinatorial identity. -/
+theorem count_110 : count 110 =
+    150115833895609872634682265795824424 := by
+  rw [count_coefficient 110 (by decide)]
+  decide
+
+/-- A conservative reciprocal share for the proposed counter search. -/
+theorem counter_share : 2 ^ 128 ≤ 2267 * count 110 := by
+  rw [count_110]
+  decide
+
+theorem signature_size : 16 * (1 + 4 * 62 + 33 + 17 * (9 + 1)) = 7232 := by decide
+
+/-- Arithmetic costs assume the same paired PRF and internal-node cache strategy.
+They are not yet refinements of alternate RISC-V images. -/
+theorem keygen_arithmetic : 4096 * 234 - 1 + 4094 + 1025 = 963582 := by decide
+theorem keygen_room : 963582 < 2 ^ 20 := by decide
+theorem sign_arithmetic :
+    3 * (128 * 234 - 1) + 17 * (512 * 5 / 2 - 1) + 5 +
+      1025 + 31 + 110 + 233 + 11 = 113011 := by decide
+
+end SigGolfCandidate.Base4Candidate

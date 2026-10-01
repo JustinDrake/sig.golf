@@ -209,3 +209,36 @@ theorem V_keygenRef_le_two (sk : Bytes 32) (cache : RCache) :
     _ = 2 := Real.rpow_one 2
 
 end SigGolfCandidate.Budget
+
+/-! Arithmetic for the alternate radix-four/FORS design.  These are prerequisites,
+not a compression-budget certificate for alternate programs.  In particular, the
+paired sampling, fresh-query error and deterministic hash counts must still be
+connected to an implementation and to its all-message completeness proof. -/
+namespace SigGolfCandidate.Base4Candidate
+
+noncomputable def trialBaseUpper : ℝ := 1 / (1 - 0.6931471808 / 131072)
+
+theorem paired_search_step :
+    trialBaseUpper ^ 2 * (1 / 4096) +
+      trialBaseUpper ^ 3 * (1 - 1 / 4096) * (1 / 4096) +
+      trialBaseUpper ^ 3 * ((1 - 1 / 4096) ^ 2 + 2 / 2 ^ 106) * 1.0336 ≤ 1.0336 := by
+  norm_num [trialBaseUpper]
+
+theorem counter_search_step :
+    trialBaseUpper * ((1 - 1 / 2267) * 1.0122 + 1 / 2267) ≤ 1.0122 := by
+  norm_num [trialBaseUpper]
+
+theorem four_layer_moment_arithmetic :
+    1.0336 * 1.0122 ^ 4 * (2 : ℝ) ^ ((113011 : ℝ) / 131072) ≤ 2 := by
+  have hsplit : (2 : ℝ) ^ ((113011 : ℝ) / 131072) =
+      2 / (2 : ℝ) ^ ((18061 : ℝ) / 131072) := by
+    rw [_root_.eq_div_iff (by positivity), ← Real.rpow_add (by norm_num)]
+    norm_num
+  rw [hsplit]
+  have hlow := SigGolfCandidate.Budget.rpow_two_ge (18061 / 131072) (by norm_num)
+  have hpos : 0 < (2 : ℝ) ^ ((18061 : ℝ) / 131072) :=
+    Real.rpow_pos_of_pos (by norm_num) _
+  rw [mul_div_assoc', div_le_iff₀ hpos]
+  nlinarith
+
+end SigGolfCandidate.Base4Candidate
