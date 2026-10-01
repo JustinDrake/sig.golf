@@ -96,3 +96,16 @@ theorem expected_certificateTerminalGame_mass_payoff_le (adversary : Adversary) 
     _ = _ := by rw [ENNReal.tsum_mul_left, hword]
 
 end SphincsSecurity.Concrete
+
+namespace SphincsSecurity.Concrete
+
+open _root_.OracleComp OracleSpec ENNReal
+attribute [local instance] Classical.propDecidable
+set_option backward.isDefEq.respectTransparency false
+
+noncomputable def proposalPrefixStop : CertificateStopRule :=
+  fun input state length record => decide (
+    targetProposalOverhead * (state.2.log ++ signingLogFragment input record.output).length + (proposalPrefixSlack : ENNReal) <
+      ((state.2.proposals + length : Nat) : ENNReal))
+
+end SphincsSecurity.Concrete

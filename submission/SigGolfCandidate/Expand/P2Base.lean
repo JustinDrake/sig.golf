@@ -30,9 +30,7 @@ abbrev eimg : Image := Expand.image
 
 /-- The expand image carries the sign's layer header and counter search (words 316 .. 381). -/
 theorem eHeadCode : HeadCode eimg :=
-  { c346 := Expand.codeAt_346, c351 := Expand.codeAt_351, c353 := Expand.codeAt_353,
-    c1800 := Expand.codeAt_1800, c355 := Expand.codeAt_355,
-    c375 := Expand.codeAt_375, c1816 := Expand.codeAt_1816,
+  { c346 := Expand.codeAt_346, c351 := Expand.codeAt_351, c355 := Expand.codeAt_355,
     c376 := Expand.codeAt_376, c377 := Expand.codeAt_377, c379 := Expand.codeAt_379,
     c316 := Expand.codeAt_316, c318 := Expand.codeAt_318, c321 := Expand.codeAt_321,
     c322 := Expand.codeAt_322, c329 := Expand.codeAt_329, c331 := Expand.codeAt_331 }
@@ -186,12 +184,10 @@ theorem ofNat_beq_zero (n : Nat) (h : n < 2 ^ 64) : (BitVec.ofNat 64 n == 0#64) 
 
 /-- The tweak words of a PORS input (`lay = 0`, `p = 0`, instance `idx < 2^34`). -/
 theorem twWords_pors (tg idx j : Nat) (ht : tg < 256) (hidx : idx < 2 ^ 34) (hj : j < 2 ^ 32) :
-    twWords tg 0 (Ref.tauH idx) idx j =
-      [BitVec.ofNat 64 (1 + 256 * tg + 2 ^ 24 * (idx / 2 ^ 32) + 2 ^ 32 * (idx % 2 ^ 32)),
-        BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * j)] := by
+    twWords tg 0 idx 0 j =
+      [BitVec.ofNat 64 (1 + 256 * tg + 2 ^ 24 * (idx / 2 ^ 32)), BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * j)] := by
   unfold twWords
-  have e1 : Ref.tauH idx / 2 ^ 32 % 256 = idx / 2 ^ 32 := by unfold Ref.tauH; omega
-  rw [Nat.mod_eq_of_lt ht, e1, Nat.mod_eq_of_lt hj]
+  rw [Nat.mod_eq_of_lt ht, Nat.mod_eq_of_lt (by omega : idx / 2 ^ 32 < 256), Nat.mod_eq_of_lt hj]
   simp
 
 end SigGolfCandidate.ExP

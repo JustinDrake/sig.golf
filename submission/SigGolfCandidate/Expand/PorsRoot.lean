@@ -58,16 +58,13 @@ theorem blk495_run (w : List Byte) (K : Nat → Nat) (t : MachineState) (hpc : t
     by simp only [Expand.blk495.res, rv_simp], by simp only [Expand.blk495.res, rv_simp],
     by pnum [Expand.blk495.res, List.length_nil], fun j hj => by simp at hj, le_refl _, by simp, rfl, by simp, by simp,
     by norm_num, by norm_num, fun h => absurd h (by norm_num)⟩, hfr⟩
-  · simp only [Expand.blk495.res, rv_simp]
-    apply BitVec.eq_of_toNat_eq
-    unfold Ref.tauH
-    simp only [BitVec.toNat_ofNat, BitVec.toNat_zero]
-    omega
+  · simp only [Expand.blk495.res, rv_simp, h160, show (30#64 : Word).toNat % 64 = 30 from rfl,
+      show (32#64 : Word).toNat % 64 = 32 from rfl]
+    rw [shl_shr _ _ hN0 (by norm_num), shl_shr _ _ (by omega) (by norm_num)]
   · pnum [Expand.blk495.res, h160, show (30#64 : Word).toNat % 64 = 30 from rfl,
       show (32#64 : Word).toNat % 64 = 32 from rfl, show (24#64 : Word).toNat % 64 = 24 from rfl,
       show (8#64 : Word).toNat % 64 = 8 from rfl]
     rw [shl_shr _ _ hN0 (by norm_num)]
-    try rw [shl32_ofNat]
     bvsimp []
     exact ofNat_congr (by omega)
   · pnum [Expand.blk495.res]
@@ -78,7 +75,6 @@ theorem blk495_run (w : List Byte) (K : Nat → Nat) (t : MachineState) (hpc : t
       show (32#64 : Word).toNat % 64 = 32 from rfl, show (24#64 : Word).toNat % 64 = 24 from rfl,
       show (8#64 : Word).toNat % 64 = 8 from rfl]
     rw [shl_shr _ _ hN0 (by norm_num)]
-    try rw [shl32_ofNat]
     bvsimp []
     exact ofNat_congr (by omega)
   · pnum [Expand.blk495.res]
@@ -96,7 +92,7 @@ theorem porsRoot_sim (w : List Byte) (K : Nat → Nat) (v : List Nat) (t : Machi
     (hw : WitMem w t) (hk : ∀ p < 15, t.getMem (BitVec.ofNat 64 (0x6E0 + 8 * p)) = BitVec.ofNat 64 (K p))
     (hkl : ∀ p < 15, K p < 2 ^ 22) (hwl : 272 ≤ w.length)
     (hx : ∀ s < 15, (v ++ [porsT]).getD (witPi w s / 8 % 16) 0 = K s / 256) :
-    Sim eimg t 400000 (porsRoot (N0 % 2 ^ 34) v w) (OPost (RootOut w (N0 % 2 ^ 34) K)) := by
+    Sim eimg t 200000 (porsRoot (N0 % 2 ^ 34) v w) (OPost (RootOut w (N0 % 2 ^ 34) K)) := by
   obtain ⟨t1, hs1, hinv, hfr⟩ := blk495_run w K t hpc N0 hN0 h160 hw hk hkl
   have hl := porsLeaves_sim w (N0 % 2 ^ 34) K v hwl hx 15 0 ⟨272, 0, 0, 0, [], []⟩ t1 (by norm_num) hinv
   unfold porsRoot

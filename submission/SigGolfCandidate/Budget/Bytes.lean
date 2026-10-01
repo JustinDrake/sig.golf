@@ -14,7 +14,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Ref
 /-- Byte `i` of a query. -/
 def rawByte (q : Query) (i : Nat) : Nat := q.2.toNat / 256 ^ i % 256
 
-def qbyte (q : Query) (i : Nat) : Nat := rawByte (AddressFormat.queryInverse q) i
+def qbyte (q : Query) (i : Nat) : Nat := rawByte (AddressFormat.queryPerm q) i
 
 theorem length_padTo64 (x : List Byte) : (padTo64 x).length = 64 * (padBlocks x.length + 1) := by
   unfold padTo64 padBlocks
@@ -66,15 +66,15 @@ theorem blocksFmt_le (x : List Byte) (k : Nat) (h : x.length ≤ 64 * k) (hk : 1
 /-- Bytes `0..4` (tag, layer) of a formatted query are those of the input. -/
 theorem qbyte_fmt (x : List Byte) (i : Nat) (hi : i < 4) : qbyte (addrFmt x) i = (x.getD i 0).toNat := by
   unfold qbyte addrFmt
-  rw [AddressFormat.queryInverse_queryPerm]
+  rw [AddressFormat.queryPerm_involutive]
   unfold rawByte
   rw [← leNat_toList, leNat_div_mod, getD_toList_fmt x i (Or.inl hi)]
 
 /-- Inputs of a tag other than `1, 3, 12` are zero padded. -/
 theorem fmt_eq_pad64 (t lay tau p j : Nat) (pl : List Byte)
-    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 12 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9) :
+    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 12) :
     addrFmt (thInput (tweak t lay tau p j) pl) = pad64 (thInput (tweak t lay tau p j) pl) := by
-  rw [addrFmt_eq_th _ _ _ _ _ _ ⟨ht.1, ht.2.2.2.1, ht.2.2.2.2⟩]
+  rw [addrFmt_eq_th _ _ _ _ _ _ ht.1]
   refine fmt_thInput _ _ _ _ _ _ ?_
   simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
   refine ⟨?_, ?_, ?_⟩ <;> intro h <;> have := congrArg BitVec.toNat h <;>

@@ -13,7 +13,7 @@ noncomputable def referenceEncodingTableGame {Result : Type} (observer : Frontie
   let otsSecret ← 𝒮[sampleOtsSecrets]
   let ftsSecret ← 𝒮[sampleFtsSecrets]
   let key : SecretKey := ⟨parameter, 0, otsSecret, ftsSecret, fun _ _ => 0⟩
-  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]
+  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]
   let outside ← 𝒮[PMF.uniformOfFintype (NonencodingRows parameter inputs (hencoding parameter))]
   let encoding ← complete (referenceEncodingAllowed parameter (outsideGraphMessage key inputs (hencoding parameter) outside) selections)
   let result ← 𝒮[referenceEncodingRest observer key inputs (hencoding parameter) outside selections encoding dummy adversary]
@@ -34,7 +34,7 @@ theorem referenceEncodingTableGame_original {Result : Type} (observer : Frontier
   funext otsSecret
   apply congrArg (𝒮[sampleFtsSecrets] >>= ·)
   funext ftsSecret
-  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit] >>= ·)
+  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit] >>= ·)
   funext selections
   apply congrArg (𝒮[PMF.uniformOfFintype (NonencodingRows parameter inputs (hencoding parameter))] >>= ·)
   funext outside

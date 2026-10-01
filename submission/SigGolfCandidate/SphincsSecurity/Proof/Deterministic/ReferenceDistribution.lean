@@ -1,5 +1,5 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.TableToReference
-import SigGolfCandidate.SphincsSecurity.Proof.Seeded.GameComparison
+import SigGolfCandidate.SphincsSecurity.Proof.Seeded.GameExpansion
 
 open OracleComp OracleSpec ENNReal
 

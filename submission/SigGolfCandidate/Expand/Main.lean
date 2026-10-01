@@ -243,7 +243,7 @@ theorem witMem_of_bytes (w : List Byte) (t : MachineState)
 theorem after_sim (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6032) (s2 : MachineState)
     (hpc : s2.pc = pcOf 14) (hdo : DOk ans s2) (hsok : SigOK s2 sig)
     (hz : ∀ a, 0x800 ≤ a → a < 0x24B00 → s2.getByte (BitVec.ofNat 64 a) = 0) :
-    Sign.Sim image s2 (15000 + (400000 + (34 + 5 * ExP.LW))) (afterD sig ans.toNat) ExP.QP := by
+    Sign.Sim image s2 (15000 + (200000 + (34 + 5 * ExP.LW))) (afterD sig ans.toNat) ExP.QP := by
   refine Sim.of_run_bind (phase1 ans sig hsig s2 hpc hdo hsok hz) (fun t h => ?_)
   rcases h with ⟨hnone, hf⟩ | ⟨A, segs, hsome, hSK, hn, tpc, tA, t160, tb⟩
   · unfold afterD; rw [hnone]
@@ -260,7 +260,7 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.
     (hrho : s.readWords (BitVec.ofNat 64 0x24B00) 2 = wordsOf (sigRho sig))
     (hm : s.readWords (BitVec.ofNat 64 0x40) 4 = wordsOf msg) (hsok : SigOK s sig)
     (hz : ∀ a, 0x800 ≤ a → a < 0x24B00 → s.getByte (BitVec.ofNat 64 a) = 0) :
-    Sign.Sim image s (13 + (8 + (15000 + (400000 + (34 + 5 * ExP.LW)) + 0)))
+    Sign.Sim image s (13 + (8 + (15000 + (200000 + (34 + 5 * ExP.LW)) + 0)))
       ((liftM (HashSpec.query (addrFmt (digestInput (sigRho sig) msg))) : OracleComp HashSpec _) >>= fun a =>
         afterD sig a.toNat >>= fun r => pure (r.map (ofList 16384))) Qexp := by
   have hr : (sigRho sig).length = 16 := by simp [sigRho, slice, hsig]
@@ -279,7 +279,7 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.
   have hq := start_hash s (sigRho sig) msg hr hmsg hrho hm
   have hb : (addrFmt (digestInput (sigRho sig) msg)).blocks = 1 :=
     by rw [addrFmt_digestInput]; exact blocks_fmt_digest _ ⟨by simp [digestInput, thInput, hr, hmsg, length_tweak, P, zeros], rfl⟩
-  have := Sign.Sim.query_bind (W := 15000 + (400000 + (34 + 5 * ExP.LW)) + 0)
+  have := Sign.Sim.query_bind (W := 15000 + (200000 + (34 + 5 * ExP.LW)) + 0)
     (f := fun a => afterD sig a.toNat >>= fun r => (pure (r.map (ofList 16384)) : OracleComp HashSpec _))
     (Q := Qexp) e1 x5 hv hq (fun a => ?_)
   · rw [hb] at this; exact this
@@ -323,7 +323,7 @@ theorem sI_words_msg (m : Message) (pk : PublicKey) (σ : Bytes 6032) :
   simp [toList]
 
 /-- The cycle bound of `expand` (the five counter searches dominate). -/
-def expandCyc : Nat := 13 + (8 + (15000 + (400000 + (34 + 5 * ExP.LW)) + 0))
+def expandCyc : Nat := 13 + (8 + (15000 + (200000 + (34 + 5 * ExP.LW)) + 0))
 
 theorem expandCyc_lt : expandCyc + 1 < CYCLE_LIMIT := by
   unfold expandCyc ExP.LW CYCLE_LIMIT; norm_num

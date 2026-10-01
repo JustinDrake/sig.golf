@@ -1,5 +1,4 @@
 import SigGolfCandidate.Verify.PorsGood
-import SigGolfCandidate.Verify.PorsStart
 import SigGolfCandidate.Verify.LayerGood
 
 /-! # The whole verify program -/
@@ -27,7 +26,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     (stk : List (Val × Nat)) (m : MachineState) (h : TailIn P s0 14 x 2 c ptr E folds node stk m) :
     ((folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧
         fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 12 12 u ∧
+    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 15 15 u ∧
         LayerIn ⟨P.wl, P.pk, 4, P.idx⟩ node u) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
   have hE := h.hE
@@ -49,17 +48,13 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     simp only [fBr1, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.fr, BitVec.ult,
       ofNat_toNat_lt _ (show FLIM < 2 ^ 64 by decide), ofNat_toNat_lt _ (show 0x800 + ptr - 336 < 2 ^ 64 by omega)]
     exact eq_comm
-  have heq : (Rev.revWord E != BitVec.ofNat 64 sgn31) = decide (E ≠ 1) := by
-    by_cases h1 : E = 1
-    · have e : Rev.revWord E = BitVec.ofNat 64 sgn31 := (Rev.revWord_eq_one E (by omega)).mpr h1
-      rw [e, bne_self_eq_false]; simp [h1]
-    · have e : Rev.revWord E ≠ BitVec.ofNat 64 sgn31 := fun e => h1 ((Rev.revWord_eq_one E (by omega)).mp e)
-      rw [bne_iff_ne.mpr e]; simp [h1]
   have b2 : ∀ d, Br.holds m (fBr2 d) ↔ d = decide (E ≠ 1) := by
     intro d
-    show CmpOp.eval .ne (m.getReg .x23) (BitVec.ofNat 64 sgn31) = d ↔ _
-    rw [h.rE]
-    show (Rev.revWord E != BitVec.ofNat 64 sgn31) = d ↔ _
+    simp only [fBr2, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.rE]
+    have heq : (BitVec.ofNat 64 E != BitVec.ofNat 64 1) = decide (E ≠ 1) := by
+      rw [Bool.eq_iff_iff]
+      simp only [bne_iff_ne, decide_eq_true_eq, ne_eq,
+        ofNat_eq_iff (by omega : E < 2 ^ 64) (by decide : (1 : Nat) < 2 ^ 64)]
     rw [heq]; exact eq_comm
   have b3 : ∀ d, Br.holds m (fBr3 d) ↔ d = decide (stk ≠ []) := by
     intro d
@@ -123,25 +118,15 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hg0 := hu.glob _ _ h.pb.glob
     -- the masks: loaded from the image's data words, which the PORS phase never writes
     have hm1 : u.getReg .x20 = M1w := by
-      rw [hu.regs (.x20, ldE 0xFDFFD0) (by simp [tailFSpec])]
-      change m.getMem (BitVec.ofNat 64 0xFDFFD0) = M1w
+      rw [hu.regs (.x20, ldE 0xFFFFF0) (by simp [tailFSpec])]
+      change m.getMem (BitVec.ofNat 64 0xFFFFF0) = M1w
       rw [h.pb.prot (by simp [protP])]
-      exact h.pb.s0ok.masks.2.2.2.2.1
+      exact h.pb.s0ok.masks.1
     have hm2 : u.getReg .x21 = M2w := by
-      rw [hu.regs (.x21, ldE 0xFDFFD8) (by simp [tailFSpec])]
-      change m.getMem (BitVec.ofNat 64 0xFDFFD8) = M2w
+      rw [hu.regs (.x21, ldE 0xFFFFF8) (by simp [tailFSpec])]
+      change m.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w
       rw [h.pb.prot (by simp [protP])]
-      exact h.pb.s0ok.masks.2.2.2.2.2
-    have htag : u.getReg .x27 = 0x40401#64 := by
-      rw [hu.regs (.x27, ldE 0xFDFFC0) (by simp [tailFSpec])]
-      change m.getMem (BitVec.ofNat 64 0xFDFFC0) = 0x40401#64
-      rw [h.pb.prot (by simp [protP])]
-      exact h.pb.s0ok.masks.2.2.1
-    have htmask : u.getReg .x2 = TMASK := by
-      rw [hu.regs (.x2, ldE 0xFDFFC8) (by simp [tailFSpec])]
-      change m.getMem (BitVec.ofNat 64 0xFDFFC8) = TMASK
-      rw [h.pb.prot (by simp [protP])]
-      exact h.pb.s0ok.masks.2.2.2.1
+      exact h.pb.s0ok.masks.2
     have hregs : KnownOK gkL0 u := by
       intro p hp
       simp only [gkL0, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
@@ -149,14 +134,14 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       · exact hg0.1 p (by simp [rootK, hp])
       · exact hm1
       · exact hm2
-      all_goals first | exact htmask | exact hu.known _ (by simp [rootPost, rootK])
+      all_goals exact hu.known _ (by simp [rootPost, rootK])
     have hg : GlobP gkL0 s0 u := ⟨hregs, hg0.2⟩
     have hknown : KnownOK l4K u := by
       intro p hp
       simp only [l4K, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
       rcases hp with hp | rfl | rfl | rfl | rfl
       · exact hregs p hp
-      all_goals first | exact htag | exact hu.known _ (by simp [rootPost, rootK])
+      all_goals exact hu.known _ (by simp [rootPost])
     have hmem : ∀ A, u.getMem A = m.getMem A := fun A => by rw [hu.mem]; rfl
     have n0 := h.node0; have n1 := h.node1
     simp only [destOf, show (2 : Nat) ≠ 0 by decide, show (2 : Nat) ≠ 1 by decide, if_false] at n0 n1
@@ -167,27 +152,29 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       by rw [hmem]; exact n1, h.nodeLen, fun h => absurd h (lt_irrefl 4), ?_, Fresh_of_all hWA 4 0, t, ht, by rw [hu.pc rfl, ← hpt]; rfl⟩
     · show u.getReg .x22 = BitVec.ofNat 64 (routeIn P.idx 4)
       rw [hu.keep .x22 (by simp), h.pb.idx]; rfl
-    · have := P.idx_lt
-      rw [hmem, h.pb.prot (by decide), h.pb.s0ok.cb0, ofNat_toNat_lt _ (by unfold twLo; omega)]
+    · rw [hmem, h.pb.prot (by decide), h.pb.s0ok.cb0, ofNat_toNat_lt _ (by unfold twLo; omega)]
+      have := P.idx_lt
       unfold twLo; omega
 
 
-/-- Universal accepting-run bound. Scaled PIND byte offsets remove one instruction from
-all fifteen leaf headers. The tag-9 address-field rotation is an injective query relabel;
-Final.Discharge supplies the additional universal structural credit. This is a proof bound. -/
-def cycleBound : Nat := 10326
+/-- The cycle bound of accepting runs: `2908 + layersCost 5 = 2908 + 7702` (address headers: one head instruction fewer per chain, `42 · 5 = 210`;
+uniform target 181). The part before the layers
+is `25` (prologue, counter check) `+ 8` (digest) `+ 100` (setup, falling through from the digest HASH, single-store guard) `+ 10 + 157` (leaves) `+ 16 · 29 + 17 · 117`
+(segments with at most `117` folds, the paired-randomizer octopus cap) `+ 6 · 14 + 4 · 14` (merge / push tails) `+ 15` (root tail) `= 2908`;
+an accepting run with `Z` fold-free segments costs `1` less per such segment. Feasible worst case
+(emulator, `F = 117`, `Z = 1`, no digit 7): `2907 + 7702 = 10609`. -/
+def cycleBound : Nat := 10610
 
-/-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
-def cycleBoundAll : Nat := 16857
-
+/-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
+def cycleBoundAll : Nat := 16860
 
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7533 := by decide
-theorem layC_val : layC = 7533 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7702 := by decide
+theorem layC_val : layC = 7702 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -221,7 +208,7 @@ theorem Kr_none (P : PCtx) : Kr P none = pure (false, 0) := by
 
 theorem root_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (x c : Nat) (st : PorsState)
     (u : MachineState) (hT : TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u) :
-    GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 117) (12 + layC) (Kr P (some st)) := by
+    GoodQ u (15 + layC + layN) (15 + layC) (st.folds ≤ 117) (15 + layC) (Kr P (some st)) := by
   obtain ⟨hrej, hacc⟩ := tailF_step P hP s0 x c st.ptr st.E st.folds st.node st.stack u hT
   have hL : layC = layersCost 5 := layC_val.trans layersCost_val.symm
   by_cases hc : st.folds > porsM ∨ st.E ≠ 1 ∨ st.stack ≠ []
@@ -243,7 +230,7 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
       (cc (porsRoot P.idx P.v P.wl) (Klay P)) := by
   have hr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 117) (12 + layC) (Kr P (some st)) :=
+      GoodQ u (15 + layC + layN) (15 + layC) (st.folds ≤ 117) (15 + layC) (Kr P (some st)) :=
     fun x c st u hT => root_good P hP s0 x c st u hT
   have hg0 := leaves_good P hP s0 (Kr P) (Kr_none P) hr
   have hg := hg0 15 0 ⟨wStream, 0, 0, 0, [], []⟩ s0 (by rfl) h
@@ -260,11 +247,11 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
 
 theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 1 := rfl
 
-theorem lrest_0 : lrest 0 = 171 := by decide
+theorem lrest_0 : lrest 0 = 157 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7758 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2670 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7758 + layC + layN := by
-  have h0 : leafCost 0 = 11 := rfl
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7746 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2775 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7746 + layC + layN := by
+  have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 
 theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.length = 16)
@@ -284,8 +271,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (91 + (leafCost 0 + Nseg 0 0)) (91 + (leafCost 0 + Cseg 0 0)) True
-        (91 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (100 + (leafCost 0 + Nseg 0 0)) (100 + (leafCost 0 + Cseg 0 0)) True
+        (100 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with

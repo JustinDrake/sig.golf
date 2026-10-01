@@ -116,11 +116,10 @@ theorem avoidsMessage_encode (parameter : PublicParameter) (f : QueryImpl HashSp
     (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
     (message : Digest) (counter : Counter) :
     AvoidsMessageQueries parameter f (encodeAttempt parameter lay tree leafIdx message counter) := by
-  intro payload hmem
-  simp only [encodeAttempt, queriedInputs_bind, queriedInputs_oracleHash,
-    queriedInputs_pure, List.append_nil, List.mem_singleton] at hmem
-  exact tweakableHashInput_ne_message parameter (.encoding lay tree leafIdx) (by simp)
-    (bytesLE 16 message ++ counterBytes counter) payload hmem.symm
+  simp only [encodeAttempt]
+  apply AvoidsMessageQueries.bind
+  · exact AvoidsMessageQueries.tweakableHash parameter f _ (by simp) _
+  · exact AvoidsMessageQueries.pure parameter f _
 
 theorem avoidsMessage_otsSignFrom (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)

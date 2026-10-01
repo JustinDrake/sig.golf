@@ -1,5 +1,10 @@
 import SigGolfCandidate.SphincsSecurity.Scheme
-import SigGolfCandidate.Ref
+import SigGolfCandidate.Ref.Basic
+import SigGolfCandidate.Ref.Scheme
+import SigGolfCandidate.Ref.Count
+import SigGolfCandidate.Ref.Lemmas
+
+import SigGolfCandidate.Ref.AddressQueries
 import SigGolfCandidate.Bridge.Basic
 
 /-!
@@ -159,18 +164,6 @@ theorem answerBytes_eq (a : BitVec 256) :
 theorem hash16_eq (y : List Byte) :
     Ref.hash16 y = (fun a => dv (SphincsSecurity.truncateHash a)) <$> Ref.H y := by
   simp only [Ref.hash16, answerBytes_eq]
-  rw [map_eq_bind_pure_comp]; rfl
-
-theorem encodingBytes_eq (a : BitVec 256) :
-    Ref.encodingBytes a = dv (SphincsSecurity.selectEncodingDigest a) := by
-  change Ref.answerBytes 16 (Ref.encodingAnswer a) = _
-  rw [answerBytes_eq]
-  rfl
-
-/-- A reference encoding call retains the full oracle answer before selecting its half. -/
-theorem encodingHash_eq (y : List Byte) :
-    Ref.encodingHash y = (fun a => dv (SphincsSecurity.selectEncodingDigest a)) <$> Ref.H y := by
-  simp only [Ref.encodingHash, encodingBytes_eq]
   rw [map_eq_bind_pure_comp]; rfl
 
 /-- A reference `Th` call is the relabelled abstract tweakable hash, when the inputs agree. -/

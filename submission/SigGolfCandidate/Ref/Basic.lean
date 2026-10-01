@@ -1,4 +1,4 @@
-import SigGolfCandidate.Legacy
+import SigGolfCandidate.Legacy.Statements
 import SigGolfCandidate.CacheBytes
 import SigGolfCandidate.Ref.AddressFormat
 import Mathlib.Data.List.Sort
@@ -74,11 +74,7 @@ def slice (l : List Byte) (off len : Nat) : List Byte := (l.drop off).take len
 
 def nChains : Nat := 42
 /-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
-def targetSum : Nat := 185
-
-/-- Layer four uses a target one larger than the top four layers. -/
-def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 1 else 0
-
+def targetSum : Nat := 181
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
 /-- The number of hypertree layers `d`. -/
@@ -265,21 +261,6 @@ def hash16 (x : List Byte) : OracleComp HashSpec Val := do
   let a ← H x
   pure (answerBytes 16 a)
 
-/-- Encoding-only half selection: keep the low half when its padding bit is clear,
-otherwise use the independent high half. Ordinary hashes are unchanged. -/
-def encodingGate {n : Nat} (a : BitVec n) : Bool := !(a.extractLsb' 60 4).ult 1#4
-
-def encodingAnswer (a : BitVec 256) : BitVec 256 :=
-  if a.getLsbD 127 then
-    if encodingGate a then a >>> 128 else a
-  else if a.getLsbD 63 then a >>> 64 else a
-
-def encodingBytes (a : BitVec 256) : Val := answerBytes 16 (encodingAnswer a)
-
-def encodingHash (x : List Byte) : OracleComp HashSpec Val := do
-  let a ← H x
-  pure (encodingBytes a)
-
 /-- `Th(P, tw, payload)`: the first 16 bytes of `H(fmt(tw || 0^16 || payload))`. -/
 def th (tw payload : List Byte) : OracleComp HashSpec Val := hash16 (thInput tw payload)
 
@@ -323,9 +304,6 @@ def porsLeafInput (idx j : Nat) (s : Val) : List Byte := thInput (tweak 9 0 idx 
 real block of `ref.node_query` (for every `H`; `le32` keeps `H mod 2^32`), and of the signer's
 node `(lam, j)` after `ref.f_query` for `H = 2^(14 - lam) + j`. -/
 def porsNodeInput (idx H : Nat) (l r : Val) : List Byte := thInput (tweak 10 0 idx 0 H) (l ++ r)
-
-/-- `tau` with its low half cleared (the relabelled PORS tweaks carry `tau mod 2^32` in the `p` slot). -/
-def tauH (idx : Nat) : Nat := idx / 2 ^ 32 * 2 ^ 32
 
 /-- Message digest: `tw(12, 0, 0, 0, 0) || P || rho || 0^16 || m` (96 bytes). -/
 def digestInput (rho m : List Byte) : List Byte := thInput (tweak 12 0 0 0 0) (rho ++ zeros 16 ++ m)
@@ -382,14 +360,14 @@ deriving DecidableEq, Repr
 
 /-- One height `h` of the inner `while h < top` loop of leaf processing; state
 `(st, E, cnt, t)`. If the stack top equals `E`: emit the segment `cnt | 16 | 32 t`, pop, go up
-(`t` = the low three bits of the new `E`); else record the witness sibling `(h, (E xor 1) - 2^14 / 2^h)`,
+(`t` = bit 0 of the new `E`); else record the witness sibling `(h, (E xor 1) - 2^14 / 2^h)`,
 count it, go up. -/
 def schedStep (x : SchedState × Nat × Nat × Nat) (h : Nat) : SchedState × Nat × Nat × Nat :=
   let (st, E, cnt, t) := x
   match st.stack with
   | Q :: rest =>
     if Q = E then ({ st with segs := st.segs ++ [cnt ||| 16 ||| 32 * t], stack := rest },
-      E / 2, 0, E / 2 % 8)
+      E / 2, 0, E / 2 % 2)
     else ({ st with reads := st.reads ++ [(h, (E ^^^ 1) - porsT / 2 ^ h)] }, E / 2, cnt + 1, t)
   | [] => ({ st with reads := st.reads ++ [(h, (E ^^^ 1) - porsT / 2 ^ h)] }, E / 2, cnt + 1, t)
 
@@ -400,7 +378,7 @@ def schedLeaf (vs : List Nat) (st : SchedState) (s : Nat) : SchedState :=
   let k := vs.length
   let E := porsT ||| vs.getD s 0
   let top := if s + 1 < k then bitLen (vs.getD s 0 ^^^ vs.getD (s + 1) 0) - 1 else porsH
-  let (st, E, cnt, t) := (List.range top).foldl schedStep (st, E, 0, E % 8)
+  let (st, E, cnt, t) := (List.range top).foldl schedStep (st, E, 0, E % 2)
   let st := { st with segs := st.segs ++ [cnt ||| 32 * t] }
   if s + 1 < k then { st with stack := (E ^^^ 1) :: st.stack } else st
 
@@ -415,12 +393,12 @@ def digitsOfWord (d : Nat) : List Nat := (List.range 21).map fun r => d / 8 ^ r 
 /-- TargetSum decoding of an encoding output `v` (first 16 bytes): `d0`, `d1` = the two LE 64-bit
 halves; reject if bit 63 of `d0` or of `d1` is set, else the 42 digits (21 of `d0`, then 21 of
 `d1`) if they sum to `targetSum`. -/
-def decodeDigits (lay : Nat) (v : Val) : Option (List Nat) :=
+def decodeDigits (v : Val) : Option (List Nat) :=
   let d0 := leNat (slice v 0 8)
   let d1 := leNat (slice v 8 8)
   if d0 < 2 ^ 63 ∧ d1 < 2 ^ 63 then
     let x := digitsOfWord d0 ++ digitsOfWord d1
-    if x.sum = targetFor lay then some x else none
+    if x.sum = targetSum then some x else none
   else none
 
 end SigGolfCandidate.Ref

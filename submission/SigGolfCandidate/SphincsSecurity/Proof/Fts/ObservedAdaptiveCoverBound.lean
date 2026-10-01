@@ -1,5 +1,5 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.JointProbeMessageAnswers
+import SigGolfCandidate.SphincsSecurity.Proof.IdealStatement
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ObservedFreshCoverBound
 namespace SphincsSecurity.Concrete
 
