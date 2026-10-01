@@ -179,13 +179,14 @@ structure EntIn (P : PCtx) (s0 : MachineState) (s x V t a ptr E folds : Nat) (no
   ht : t < 2
   hV : V < 3
   hd : V = 1 → stk.length < 14
+  tag : E % 8 = segBits (wbyte P.wl ptr)
 
 /-- At ladder position `p = 14 - a + i` of variant `V` in stream `t` (fold `i` of the segment whose
 header is at `ptr`): the current node in NB slot `t`, `E` its heap index. -/
 structure PosIn (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) (node : Val)
     (stk : List (Val × Nat)) (m : MachineState) : Prop where
   pb : PB P s0 m (tbOf s)
-  pc : m.pc = pcOf (ladPc V t (14 - a + i))
+  pc : m.pc = pcOf (posCodePc V t a i (segBits (wbyte P.wl ptr)))
   a0 : m.getReg .x10 = BitVec.ofNat 64 0x1C0
   fr : m.getReg .x14 = BitVec.ofNat 64 (0x800 + ptr - 336 + 16 * a + 8)
   rE : m.getReg .x23 = BitVec.ofNat 64 E
@@ -204,6 +205,8 @@ structure PosIn (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) (
   ht : t < 2
   hV : V < 3
   hd : V = 1 → stk.length < 14
+  parity : t = E % 2
+  tag : i ≤ prefixN a → E % 2^(3-i) = segBits (wbyte P.wl ptr) / 2^i
 
 /-- The destination of the last hash of a segment of variant `V` at depth `d`. -/
 def destOf (V d : Nat) : Nat :=

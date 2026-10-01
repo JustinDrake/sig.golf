@@ -117,7 +117,8 @@ def foldRun (segment : Segment) : Nat → Nat → Run → Run
 /-- The verifier's two rejections of a segment before its pending hash: more than `14` folds, or folds with a
 parity bit that is not bit `0` of the start heap index. -/
 def SegmentRejects (segment : Segment) (heap : Nat) : Prop :=
-  ftsTreeHeight < segment.folds.val ∨ (segment.folds.val ≠ 0 ∧ segment.parity ≠ decide (heap % 2 = 1))
+  ftsTreeHeight < segment.folds.val ∨ (segment.folds.val ≠ 0 ∧ (segment.parity ≠ decide (heap % 2 = 1) ∨
+    segment.lookahead.val ≠ heap / 2 % 4))
 
 instance (segment : Segment) (heap : Nat) : Decidable (SegmentRejects segment heap) :=
   inferInstanceAs (Decidable (_ ∨ _))
@@ -262,7 +263,8 @@ theorem eval_recoverSegments (segments : Fin ftsSegments → Segment) (fuel : Na
           rfl
         rw [if_neg hfolds, evalWithAnswerFn_ite]
         by_cases hparity : (segments ⟨r.segment, hsegment⟩).folds.val ≠ 0 ∧
-            (segments ⟨r.segment, hsegment⟩).parity ≠ decide (r.heap % 2 = 1)
+            ((segments ⟨r.segment, hsegment⟩).parity ≠ decide (r.heap % 2 = 1) ∨
+             (segments ⟨r.segment, hsegment⟩).lookahead.val ≠ r.heap / 2 % 4)
         · rw [if_pos hparity, if_pos (show SegmentRejects _ _ from Or.inr hparity)]
           rfl
         · rw [if_neg hparity, if_neg (show ¬ SegmentRejects _ _ by rintro (h | h) <;> contradiction)]
@@ -390,7 +392,8 @@ theorem segmentsRun_queries (segments : Fin ftsSegments → Segment) (fuel : Nat
           simp at hrun
         rw [if_neg hfolds, queriedInputs_ite]
         by_cases hparity : (segments ⟨r.segment, hsegment⟩).folds.val ≠ 0 ∧
-            (segments ⟨r.segment, hsegment⟩).parity ≠ decide (r.heap % 2 = 1)
+            ((segments ⟨r.segment, hsegment⟩).parity ≠ decide (r.heap % 2 = 1) ∨
+             (segments ⟨r.segment, hsegment⟩).lookahead.val ≠ r.heap / 2 % 4)
         · rw [if_pos (show SegmentRejects _ _ from Or.inr hparity)] at hrun
           simp at hrun
         · rw [if_neg hparity]

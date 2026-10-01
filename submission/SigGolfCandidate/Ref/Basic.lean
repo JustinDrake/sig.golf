@@ -102,8 +102,7 @@ def aMax : Nat := 2 ^ 19
 def cMax : Nat := 2 ^ 22
 /-- Signature bytes `S`. -/
 def sigBytes : Nat := 6032
-/-- Bytes of the witness view `0x800 .. 0x4800` the reference reads (W1: the witness `W = 16128`
-sits at `0x900`, after the view's 256-byte zero lead; `Ref.extW`). -/
+/-- Witness bytes `W`. -/
 def witBytes : Nat := 16384
 
 /-- Height of hypertree layer `lay` (layer 0 = top): `heights[lay]`. -/
@@ -378,14 +377,14 @@ deriving DecidableEq, Repr
 
 /-- One height `h` of the inner `while h < top` loop of leaf processing; state
 `(st, E, cnt, t)`. If the stack top equals `E`: emit the segment `cnt | 16 | 32 t`, pop, go up
-(`t` = bit 0 of the new `E`); else record the witness sibling `(h, (E xor 1) - 2^14 / 2^h)`,
+(`t` = the low three bits of the new `E`); else record the witness sibling `(h, (E xor 1) - 2^14 / 2^h)`,
 count it, go up. -/
 def schedStep (x : SchedState × Nat × Nat × Nat) (h : Nat) : SchedState × Nat × Nat × Nat :=
   let (st, E, cnt, t) := x
   match st.stack with
   | Q :: rest =>
     if Q = E then ({ st with segs := st.segs ++ [cnt ||| 16 ||| 32 * t], stack := rest },
-      E / 2, 0, E / 2 % 2)
+      E / 2, 0, E / 2 % 8)
     else ({ st with reads := st.reads ++ [(h, (E ^^^ 1) - porsT / 2 ^ h)] }, E / 2, cnt + 1, t)
   | [] => ({ st with reads := st.reads ++ [(h, (E ^^^ 1) - porsT / 2 ^ h)] }, E / 2, cnt + 1, t)
 
@@ -396,7 +395,7 @@ def schedLeaf (vs : List Nat) (st : SchedState) (s : Nat) : SchedState :=
   let k := vs.length
   let E := porsT ||| vs.getD s 0
   let top := if s + 1 < k then bitLen (vs.getD s 0 ^^^ vs.getD (s + 1) 0) - 1 else porsH
-  let (st, E, cnt, t) := (List.range top).foldl schedStep (st, E, 0, E % 2)
+  let (st, E, cnt, t) := (List.range top).foldl schedStep (st, E, 0, E % 8)
   let st := { st with segs := st.segs ++ [cnt ||| 32 * t] }
   if s + 1 < k then { st with stack := (E ^^^ 1) :: st.stack } else st
 

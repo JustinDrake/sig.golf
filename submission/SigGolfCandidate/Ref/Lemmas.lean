@@ -452,9 +452,6 @@ theorem wChains_eq : wChains = 2944 := by decide
 theorem blockOff_eq (lay i : Nat) : blockOff lay i = 2944 + 2688 * lay + 64 * i := by
   simp only [blockOff, wChains_eq, nChains]
 theorem witBytes_eq : witBytes = blockOff nLayers 0 := by decide
-theorem wPi_eq : wPi = 256 := rfl
-theorem wRho_eq : wRho = 3008 := by unfold wRho; rw [blockOff_eq]
-theorem wSec_eq (s : Nat) : wSec s = 3072 + 64 * s := by unfold wSec; rw [blockOff_eq]; omega
 
 /-! ## expand: witness length -/
 
@@ -492,26 +489,19 @@ theorem length_witnessList (sig : List Byte) (hsig : sig.length = sigBytes) (v v
   have hpath : ∀ lay, lay < nLayers → (sigPath sig lay).length = 16 * height lay :=
     fun lay hl => length_slice _ _ _ (by
       have := hoff lay hl; rw [hs]; simp only [bodyBytes] at this; omega)
-  have hrho : (sigRho sig).length = 16 := length_slice _ _ _ (by rw [hs]; decide)
-  have hslot : ∀ lay i, (slotOf sig lay i).length = 16 := by
-    intro lay i
-    unfold slotOf
-    split
-    · exact hrho
-    · split
-      · exact hitem _ (by unfold porsK at *; omega)
-      · exact length_zeros 16
   have hchain : ∀ lay, lay < nLayers → (chainRegion sig lay).length = 2688 := by
     intro lay hl
     unfold chainRegion
     rw [length_flatten_map_range _ 64 _ (fun i hi => by
-      simp only [List.length_append, length_zeros, hslot]
+      simp only [List.length_append, length_zeros]
       rw [sigChain, length_slice _ _ _ (by
         have := hoff lay hl; rw [hs]; simp only [bodyBytes, nChains] at this hi; omega)])]
     rfl
   unfold witnessList witnessBody
   simp only [List.length_append, List.length_map, List.length_take, length_zeros, hvs,
-    length_flatten_map_range' _ _ _ hpath, length_flatten_map_range _ _ _ hchain]
+    length_flatten_map_range _ _ _ hitem, length_flatten_map_range' _ _ _ hpath,
+    length_flatten_map_range _ _ _ hchain]
+  rw [show (sigRho sig).length = 16 from length_slice _ _ _ (by rw [hs]; decide)]
   have : ((List.range nLayers).map fun lay => 16 * height lay).sum = 544 := by decide
   rw [this]
   have : min streamBytes ((segStream sig segs).length + streamBytes) = streamBytes := by omega
@@ -531,57 +521,6 @@ theorem length_of_expandOf (sig : List Byte) (hsig : sig.length = sigBytes) (N :
   · cases h
   cases h
   exact length_witnessList _ hsig _ _ _ (by simp [sortLeaves, leavesOf, porsK])
-
-/-! ## W1: the 16384-byte view of the witness -/
-
-theorem length_extW (w : List Byte) : (extW w).length = witLead + w.length := by
-  unfold extW; rw [List.length_append, length_zeros]
-
-theorem cutW_extW (w : List Byte) : cutW (extW w) = w := by
-  unfold cutW extW; exact List.drop_left' (length_zeros _)
-
-theorem length_cutW (w : List Byte) : (cutW w).length = w.length - witLead := by
-  simp [cutW]
-
-theorem extW_cutW (w : List Byte) (h : w.take witLead = zeros witLead) : extW (cutW w) = w := by
-  unfold extW cutW; rw [← h, List.take_append_drop]
-
-/-- The partial witness starts with the view's zero lead. -/
-theorem take_witnessList (sig : List Byte) (v vs segs : List Nat) :
-    (witnessList sig v vs segs).take witLead = zeros witLead := by
-  unfold witnessList witnessBody
-  simp only [List.append_assoc]
-  exact List.take_left' (by rw [length_zeros]; rfl)
-
-/-- Writing the counters keeps the zero lead. -/
-theorem take_withCounters (w0 : List Byte) (cs : List Nat) (hw : wC4 ≤ w0.length) :
-    (withCounters w0 cs).take witLead = w0.take witLead := by
-  unfold withCounters
-  simp only [List.append_assoc]
-  rw [List.take_append_of_le_length (by simp; rw [wC4_eq] at hw ⊢; unfold witLead; omega),
-    List.take_take, show min witLead wC4 = witLead from rfl]
-
-/-- A tweak slot of the partial witness has 16 bytes. -/
-theorem length_slotOf (sig : List Byte) (hsig : sig.length = sigBytes) (lay i : Nat) :
-    (slotOf sig lay i).length = 16 := by
-  have hs : sig.length = 6032 := hsig
-  unfold slotOf
-  split
-  · exact length_slice _ _ _ (by rw [hs]; decide)
-  · split
-    · rename_i h; unfold sigItem; exact length_slice _ _ _ (by rw [hs]; unfold porsK at h; omega)
-    · exact length_zeros 16
-
-/-- The 16384-byte view of the witness cut out of a view with a zero lead is that view. -/
-theorem extW_toList_cutW (w : List Byte) (hl : w.length = 16384) (hz : w.take witLead = zeros witLead) :
-    extW (toList (ofList 16128 (cutW w))) = w := by
-  rw [toList_ofList 16128 _ (by rw [length_cutW, hl]; rfl), extW_cutW w hz]
-
-/-- The view of a honest witness (the partial witness with its counters). -/
-theorem extW_toList_cutW_withCounters (w0 : List Byte) (cs : List Nat) (hl : (withCounters w0 cs).length = 16384)
-    (hw : wC4 ≤ w0.length) (hz : w0.take witLead = zeros witLead) :
-    extW (toList (ofList 16128 (cutW (withCounters w0 cs)))) = withCounters w0 cs :=
-  extW_toList_cutW _ hl (by rw [take_withCounters w0 cs hw, hz])
 
 
 /-! ## W1a: the padded chain step -/

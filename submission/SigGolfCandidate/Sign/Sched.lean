@@ -24,7 +24,7 @@ def topOf (vs : List Nat) (s : Nat) : Nat :=
 
 /-- The fold of leaf `s`. -/
 def Yof (vs : List Nat) (st : SchedState) (s : Nat) : SchedState × Nat × Nat × Nat :=
-  (List.range (topOf vs s)).foldl schedStep (st, porsT ||| vs.getD s 0, 0, (porsT ||| vs.getD s 0) % 2)
+  (List.range (topOf vs s)).foldl schedStep (st, porsT ||| vs.getD s 0, 0, (porsT ||| vs.getD s 0) % 8)
 
 /-- `schedLeaf` through its fold. -/
 theorem schedLeaf_eq (vs : List Nat) (st : SchedState) (s : Nat) :
@@ -34,7 +34,7 @@ theorem schedLeaf_eq (vs : List Nat) (st : SchedState) (s : Nat) :
   unfold schedLeaf Yof topOf
   simp only
   generalize (List.range (if s + 1 < vs.length then bitLen (vs.getD s 0 ^^^ vs.getD (s + 1) 0) - 1 else porsH)).foldl
-    schedStep (st, porsT ||| vs.getD s 0, 0, (porsT ||| vs.getD s 0) % 2) = Z
+    schedStep (st, porsT ||| vs.getD s 0, 0, (porsT ||| vs.getD s 0) % 8) = Z
   obtain ⟨st', E', cnt', t'⟩ := Z
   simp only
   split <;> simp
@@ -210,12 +210,12 @@ theorem sch_leaf (levels : List (List Val)) (L : List Nat) (t0 : MachineState) (
     exact ctx.lvslots l hl i hi
   obtain ⟨k4, c4, t4, hs4, hc4, pc4, x18', hE1', hE2', x30', st4, rd4, hR4, hmono4, r4, f4⟩ :=
     sch_inner levels ctx.lvlen ctx.lvvals (topOf (L.map keyV) s) htop14 (14 * s) (by omega) (topOf (L.map keyV) s) 0
-      (st, E0, 0, E0 % 2) t3 (by omega) (by simp only [ht3, blk259.res, rv_simp])
+      (st, E0, 0, E0 % 8) t3 (by omega) (by simp only [ht3, blk259.res, rv_simp])
       (by simp only [ht3, blk259.res, rv_simp] <;> rfl) (by rw [r3.get .x20, x20', htop])
       x18 (by simp only; omega) (by simp only; omega) (by rw [rt3.get .x30, t30]) hst3 hrd3
       (by simp only; omega) hlvt3
   rw [← List.range_eq_range'] at x18' hE1' hE2' st4 rd4 hR4 hmono4 f4
-  have hY : (List.range (topOf (L.map keyV) s)).foldl schedStep (st, E0, 0, E0 % 2) = Yof (L.map keyV) st s := rfl
+  have hY : (List.range (topOf (L.map keyV) s)).foldl schedStep (st, E0, 0, E0 % 8) = Yof (L.map keyV) st s := rfl
   rw [hY] at x18' hE1' hE2' st4 rd4 hR4 hmono4 f4
   simp only at hmono4 f4
   obtain ⟨hlr, hls⟩ := schedLeaf_eq (L.map keyV) st s

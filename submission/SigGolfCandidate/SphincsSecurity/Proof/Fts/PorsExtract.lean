@@ -313,7 +313,7 @@ theorem segmentsRun_inv (segments : Fin ftsSegments → Segment) (v : Nat) (hv :
             (segments ⟨r.segment, hsegment⟩).folds.val 0 _
             (fun _ hne => by
               by_contra hpar
-              exact hfolds (Or.inr ⟨hne, hpar⟩))
+              exact hfolds (Or.inr ⟨hne, Or.inl hpar⟩))
             hstarted
           set folded := foldRun f parameter index (segments ⟨r.segment, hsegment⟩)
             (segments ⟨r.segment, hsegment⟩).folds.val 0

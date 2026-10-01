@@ -282,11 +282,10 @@ theorem eval_aExpand_sign' (seed : MasterSeed) (message : Message) {pk : PublicK
     (hkeys : evalWithAnswerFn f (Seeded.keygenFromSeed seed) = (pk, cache, sk))
     (hsign : evalWithAnswerFn f (Seeded.sign sk cache message
       : OracleComp SphincsSecurity.HashSpec (Option Signature)) = some S) :
-    ∃ wl : List Legacy.Byte, wl.length = 16384 ∧ wl.take Ref.witLead = Ref.zeros Ref.witLead ∧
+    ∃ wl : List Legacy.Byte, wl.length = 16384 ∧
       evalWithAnswerFn f (Equiv.aExpand message pk (Equiv.compress S)) =
-        some (Ref.ofList 16128 (Ref.cutW (Ref.withCounters wl ((List.range numLayers).map (ctrOf S))))) ∧
-      Equiv.witDec (Ref.ofList 16128 (Ref.cutW (Ref.withCounters wl ((List.range numLayers).map (ctrOf S))))) =
-        S := by
+        some (Ref.ofList 16384 (Ref.withCounters wl ((List.range numLayers).map (ctrOf S)))) ∧
+      Equiv.witDec (Ref.ofList 16384 (Ref.withCounters wl ((List.range numLayers).map (ctrOf S)))) = S := by
   rw [Completeness.eval_keygenFromSeed] at hkeys
   simp only [Prod.mk.injEq] at hkeys
   obtain ⟨rfl, rfl, rfl⟩ := hkeys
@@ -343,11 +342,7 @@ theorem eval_aExpand_sign' (seed : MasterSeed) (message : Message) {pk : PublicK
   have hcsl : cs.length = 5 := by simp [hcs, numLayers]
   have hwc : (Ref.withCounters wl cs).length = 16384 := by
     rw [Equiv.length_withCounters _ _ (by omega), hlen]
-  -- W1: the partial witness starts with the view's zero lead
-  have hz : wl.take Ref.witLead = Ref.zeros Ref.witLead := by
-    obtain ⟨-, -, -, hwl⟩ := Equiv.expandOf_some _ _ _ hexp
-    rw [hwl]; exact Ref.take_witnessList _ _ _ _
-  refine ⟨wl, hlen, hz, ?_, ?_⟩
+  refine ⟨wl, hlen, ?_, ?_⟩
   · unfold Equiv.aExpand
     rw [ofList_sigRho_compress, evalWithAnswerFn_bind]
     have e1 : evalWithAnswerFn f (Concrete.messageDigest (m := Equiv.AComp) 0 (⟨Completeness.keygenTableValue f seed (layerHeight topLayer) 0, 0⟩ : PublicKey).root message S.randomness)
@@ -365,7 +360,7 @@ theorem eval_aExpand_sign' (seed : MasterSeed) (message : Message) {pk : PublicK
     rw [evalWithAnswerFn_bind, hL']
     rfl
   · unfold Equiv.witDec
-    rw [Ref.extW_toList_cutW_withCounters wl cs hwc (by rw [hlen]; decide) hz, hwit]
+    rw [Ref.toList_ofList _ _ hwc, hwit]
     conv_rhs => rw [hS]
     congr 1
     funext lay
@@ -389,7 +384,7 @@ theorem eval_aExpand_sign (seed : MasterSeed) (message : Message) {pk : PublicKe
       : OracleComp SphincsSecurity.HashSpec (Option Signature)) = some S) :
     ∃ w, evalWithAnswerFn f (Equiv.aExpand message pk (Equiv.compress S)) = some w ∧
       Equiv.witDec w = S := by
-  obtain ⟨wl, -, -, h1, h2⟩ := eval_aExpand_sign' f seed message hkeys hsign
+  obtain ⟨wl, -, h1, h2⟩ := eval_aExpand_sign' f seed message hkeys hsign
   exact ⟨_, h1, h2⟩
 
 /-- **The expansion does not change the honest game** under any answer function. -/

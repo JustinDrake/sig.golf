@@ -236,7 +236,7 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
     · rw [if_neg h0] at p2
       obtain ⟨t3, hs3, p3, r3, m3⟩ := blk555_run t2 p2 (wbyte w ptr) E hb hE (by rw [r2.get .x6, y6])
         (by rw [r2.get .x19, r1.get .x19, h19])
-      by_cases hd : wbyte w ptr / 32 % 2 ≠ E % 2
+      by_cases hd : wbyte w ptr / 32 ≠ E % 8
       · rw [if_pos ⟨by omega, hd⟩]
         rw [if_pos hd] at p3
         exact (Sim.steps hs1 (Sim.steps hs2 (fail_sim_steps hs3 p3))).mono (by norm_num) (fun _ _ h => h)

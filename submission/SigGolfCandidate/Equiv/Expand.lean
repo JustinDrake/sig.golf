@@ -366,10 +366,11 @@ section layout
 variable (sig : List Byte) (hsig : sig.length = 6032) (v vs segs : List Nat) (hvs : vs.length = 15)
   (cs : List Nat)
 
-/-- The partial witness (W1, the 16384-byte view): `head (272 bytes: the zero lead, pi, 0) ++ stream
-region (2120) ++ (0^8 ++ paths (544) ++ chain array (13440))`. -/
+/-- The partial witness: `head (272 bytes) ++ stream region (2120) ++ (0^8 ++ paths (544) ++ chain
+array (13440))`. -/
 theorem witnessBody_split : Ref.witnessBody sig v vs segs =
-    (Ref.zeros Ref.wPi ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1) ++
+    (Ref.sigRho sig ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1 ++
+      ((List.range Ref.porsK).map (Ref.sigItem sig)).flatten) ++
     (Ref.segStream sig segs ++ Ref.zeros Ref.streamBytes).take Ref.streamBytes ++
     (Ref.zeros 8 ++ ((List.range Ref.nLayers).map (Ref.sigPath sig)).flatten ++
       ((List.range Ref.nLayers).map (Ref.chainRegion sig)).flatten) := by
@@ -382,8 +383,12 @@ theorem length_sigItem (i : Nat) (hi : i < 135) : (Ref.sigItem sig i).length = 1
 
 include hsig hvs in
 theorem length_head :
-    (Ref.zeros Ref.wPi ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1).length = 272 := by
+    (Ref.sigRho sig ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1 ++
+      ((List.range Ref.porsK).map (Ref.sigItem sig)).flatten).length = 272 := by
   simp only [List.length_append, List.length_map, hvs, Ref.length_zeros]
+  rw [show (Ref.sigRho sig).length = 16 from length_slice _ _ _ (by rw [hsig]; omega),
+    map_range_eq_ofFn, length_flatten_ofFn _ 16 (fun j => length_sigItem sig hsig _ (by
+      have := j.isLt; unfold Ref.porsK at this; omega))]
   rfl
 
 theorem length_E : ((Ref.segStream sig segs ++ Ref.zeros Ref.streamBytes).take Ref.streamBytes).length =
@@ -427,15 +432,10 @@ theorem length_sigChain (lay : Nat) (hlay : lay < 5) (i : Nat) (hi : i < 42) :
   exact length_slice _ _ _ (by rw [hsig]; simp only [Ref.bodyBytes, Ref.nChains] at this ⊢; omega)
 
 include hsig in
-theorem length_slotOf (lay i : Nat) : (Ref.slotOf sig lay i).length = 16 :=
-  Ref.length_slotOf sig hsig lay i
-
-include hsig in
 theorem length_chainRegion (lay : Nat) (hlay : lay < 5) : (Ref.chainRegion sig lay).length = 2688 := by
   unfold Ref.chainRegion
   rw [map_range_eq_ofFn, length_flatten_ofFn _ 64 (fun i => by
-    simp only [List.length_append, Ref.length_zeros, length_slotOf sig hsig,
-      length_sigChain sig hsig lay hlay i.val i.isLt])]
+    simp only [List.length_append, Ref.length_zeros, length_sigChain sig hsig lay hlay i.val i.isLt])]
   rfl
 
 include hsig hvs in
@@ -479,11 +479,10 @@ theorem slice_body_C (x len : Nat) :
       rw [List.length_append, Ref.length_zeros, length_P sig hsig])]
 
 include hsig hvs in
-/-- The bytes `r .. r + len` of chain block `(lay, i)` of the partial witness (inside the 64 bytes). -/
-theorem slice_body_blk (lay : Nat) (hlay : lay < 5) (i : Nat) (hi : i < 42) (r len : Nat)
-    (h : r + len ≤ 64) :
-    Ref.slice (Ref.witnessBody sig v vs segs) (Ref.blockOff lay i + r) len =
-      Ref.slice (Ref.slotOf sig lay i ++ Ref.zeros 32 ++ Ref.sigChain sig lay i) r len := by
+/-- Inside chain block `(lay, i)` of the partial witness, the 48 bytes before the value are zero. -/
+theorem slice_body_block (lay : Nat) (hlay : lay < 5) (i : Nat) (hi : i < 42) (r len : Nat)
+    (h : r + len ≤ 48) :
+    Ref.slice (Ref.witnessBody sig v vs segs) (Ref.blockOff lay i + r) len = Ref.zeros len := by
   rw [Ref.blockOff_eq, show 2944 + 2688 * lay + 64 * i + r = 2944 + (2688 * lay + (64 * i + r)) by ring,
     slice_body_C sig hsig v vs segs hvs, map_range_eq_ofFn,
     slice_flatten_ofFn _ 2688 (⟨lay, hlay⟩ : Fin Ref.nLayers) (64 * i + r) len (2688 * lay + (64 * i + r))
@@ -494,49 +493,34 @@ theorem slice_body_blk (lay : Nat) (hlay : lay < 5) (i : Nat) (hi : i < 42) (r l
   rw [map_range_eq_ofFn,
     slice_flatten_ofFn _ 64 (⟨i, hi⟩ : Fin Ref.nChains) r len (64 * i + r)
       (fun j _ => by
-        simp only [List.length_append, Ref.length_zeros, length_slotOf sig hsig,
-          length_sigChain sig hsig lay hlay j.val j.isLt])
-      (by simp only [List.length_append, Ref.length_zeros, length_slotOf sig hsig,
-        length_sigChain sig hsig lay hlay i hi] ; omega)
+        simp only [List.length_append, Ref.length_zeros, length_sigChain sig hsig lay hlay j.val j.isLt])
+      (by simp only [List.length_append, Ref.length_zeros, length_sigChain sig hsig lay hlay i hi] ; omega)
       rfl]
-
-include hsig hvs in
-/-- Inside chain block `(lay, i)` of the partial witness, the 32 pad bytes are zero, and so is the
-tweak slot unless it holds `rho` or a secret (W1: blocks `(0, 1 .. 16)`). -/
-theorem slice_body_block (lay : Nat) (hlay : lay < 5) (i : Nat) (hi : i < 42) (r len : Nat)
-    (h : r + len ≤ 48) (hz : 16 ≤ r ∨ ¬ (lay = 0 ∧ 1 ≤ i ∧ i < 17)) :
-    Ref.slice (Ref.witnessBody sig v vs segs) (Ref.blockOff lay i + r) len = Ref.zeros len := by
-  rw [slice_body_blk sig hsig v vs segs hvs lay hlay i hi r len (by omega),
-    slice_append_left _ _ _ _ (by rw [List.length_append, length_slotOf sig hsig, Ref.length_zeros]; omega)]
-  rcases hz with hr | hs
-  · rw [slice_append_right _ _ _ (r - 16) _ (by rw [length_slotOf sig hsig]; omega)]
-    simp only [Ref.slice, Ref.zeros, List.drop_replicate, List.take_replicate]
-    congr 1; omega
-  · have e : Ref.slotOf sig lay i = Ref.zeros 16 := by
-      unfold Ref.slotOf
-      rw [if_neg (by omega), if_neg (by unfold Ref.porsK; omega)]
-    rw [e]
-    simp only [Ref.slice, Ref.zeros, List.replicate_append_replicate, List.drop_replicate, List.take_replicate]
-    congr 1; omega
-
-include hsig hvs in
-/-- The tweak slot of chain block `(lay, i)` of the partial witness (W1: `rho` in `(0, 1)`, secret
-`s` in `(0, 2 + s)`). -/
-theorem slice_body_slot (lay : Nat) (hlay : lay < 5) (i : Nat) (hi : i < 42) :
-    Ref.slice (Ref.witnessBody sig v vs segs) (Ref.blockOff lay i) 16 = Ref.slotOf sig lay i := by
-  have := slice_body_blk sig hsig v vs segs hvs lay hlay i hi 0 16 (by omega)
-  rw [Nat.add_zero] at this
-  rw [this, List.append_assoc,
-    slice_append_left _ _ _ _ (by rw [length_slotOf sig hsig]),
-    slice_full _ _ (length_slotOf sig hsig lay i)]
+  show Ref.slice (Ref.zeros 48 ++ Ref.sigChain sig lay i) r len = _
+  rw [slice_append_left _ _ _ _ (by rw [Ref.length_zeros]; exact h)]
+  simp only [Ref.slice, Ref.zeros, List.drop_replicate, List.take_replicate]
+  congr 1; omega
 
 include hsig hvs in
 /-- The value slot of chain block `(lay, i)` holds the signature's chain value. -/
 theorem slice_body_chain (lay : Nat) (hlay : lay < 5) (i : Nat) (hi : i < 42) :
     Ref.slice (Ref.witnessBody sig v vs segs) (Ref.blockOff lay i + 48) 16 =
       Ref.slice sig (Ref.sigLayerOff lay + 16 * i) 16 := by
-  rw [slice_body_blk sig hsig v vs segs hvs lay hlay i hi 48 16 (by omega),
-    slice_append_right _ _ _ 0 _ (by rw [List.length_append, length_slotOf sig hsig, Ref.length_zeros])]
+  rw [Ref.blockOff_eq, show 2944 + 2688 * lay + 64 * i + 48 = 2944 + (2688 * lay + (64 * i + 48)) by ring,
+    slice_body_C sig hsig v vs segs hvs, map_range_eq_ofFn,
+    slice_flatten_ofFn _ 2688 (⟨lay, hlay⟩ : Fin Ref.nLayers) (64 * i + 48) 16 (2688 * lay + (64 * i + 48))
+      (fun j _ => length_chainRegion sig hsig j.val j.isLt)
+      (by rw [length_chainRegion sig hsig lay hlay]; omega) rfl]
+  show Ref.slice (Ref.chainRegion sig lay) (64 * i + 48) 16 = _
+  unfold Ref.chainRegion
+  rw [map_range_eq_ofFn,
+    slice_flatten_ofFn _ 64 (⟨i, hi⟩ : Fin Ref.nChains) 48 16 (64 * i + 48)
+      (fun j _ => by
+        simp only [List.length_append, Ref.length_zeros, length_sigChain sig hsig lay hlay j.val j.isLt])
+      (by simp only [List.length_append, Ref.length_zeros, length_sigChain sig hsig lay hlay i hi] ; omega)
+      rfl]
+  show Ref.slice (Ref.zeros 48 ++ Ref.sigChain sig lay i) 48 16 = _
+  rw [slice_append_right _ _ _ 0 _ (by simp)]
   exact slice_full _ _ (length_sigChain sig hsig lay hlay i hi)
 
 include hsig hvs in
@@ -570,7 +554,7 @@ include hsig hvs in
 theorem witnessList_withCounters_nil :
     Ref.witnessList sig v vs segs = Ref.withCounters (Ref.witnessList sig v vs segs) [] := by
   refine (withCounters_nil_self _ (slice_body_c4 sig hsig v vs segs hvs) ?_).symm
-  have := slice_body_block sig hsig v vs segs hvs 0 (by decide) 0 (by decide) 0 16 (by decide) (Or.inr (by decide))
+  have := slice_body_block sig hsig v vs segs hvs 0 (by decide) 0 (by decide) 0 16 (by decide)
   rw [Ref.blockOff_eq] at this
   simpa using this
 
@@ -579,7 +563,8 @@ theorem witnessList_withCounters_nil :
 include hsig hvs in
 theorem slice_W_head (x len : Nat) (h : x + len ≤ 272) :
     Ref.slice (witOf sig v vs segs cs) x len =
-      Ref.slice (Ref.zeros Ref.wPi ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1) x len := by
+      Ref.slice (Ref.sigRho sig ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1 ++
+        ((List.range Ref.porsK).map (Ref.sigItem sig)).flatten) x len := by
   unfold witOf
   rw [slice_withCounters_lo _ _ (by rw [length_witnessBody sig hsig v vs segs hvs]; omega) x len (by omega),
     witnessBody_split,
@@ -589,7 +574,8 @@ theorem slice_W_head (x len : Nat) (h : x + len ≤ 272) :
 include hsig hvs in
 theorem getD_W_head (x : Nat) (h : x < 272) :
     (witOf sig v vs segs cs).getD x 0 =
-      (Ref.zeros Ref.wPi ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1).getD x 0 := by
+      (Ref.sigRho sig ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1 ++
+        ((List.range Ref.porsK).map (Ref.sigItem sig)).flatten).getD x 0 := by
   unfold witOf
   rw [getD_withCounters_lo _ _ (by rw [length_witnessBody sig hsig v vs segs hvs]; omega) x (by omega),
     witnessBody_split,
@@ -619,32 +605,38 @@ theorem getD_W_E (x : Nat) (h : x < 2120) :
 
 include hsig hvs in
 theorem witRho_W : Ref.witRho (witOf sig v vs segs cs) = Ref.sigRho sig := by
-  unfold Ref.witRho witOf Ref.wRho
-  rw [slice_withCounters_hi _ _ (by rw [length_witnessBody sig hsig v vs segs hvs]; omega) _ _
-      (by rw [Ref.blockOff_eq]; omega),
-    slice_body_slot sig hsig v vs segs hvs 0 (by decide) 1 (by decide)]
-  unfold Ref.slotOf
-  rw [if_pos ⟨rfl, rfl⟩]
+  unfold Ref.witRho
+  rw [slice_W_head sig hsig v vs segs hvs cs 0 16 (by omega), List.append_assoc, List.append_assoc,
+    slice_append_left _ _ _ _ (by rw [show (Ref.sigRho sig).length = 16 from
+      length_slice _ _ _ (by rw [hsig]; omega)]),
+    slice_full _ _ (show (Ref.sigRho sig).length = 16 from length_slice _ _ _ (by rw [hsig]; omega))]
 
 include hsig hvs in
 theorem witSecret_W (s : Nat) (hs : s < 15) :
     Ref.witSecret (witOf sig v vs segs cs) s = Ref.sigItem sig s := by
-  unfold Ref.witSecret witOf Ref.wSec
-  rw [slice_withCounters_hi _ _ (by rw [length_witnessBody sig hsig v vs segs hvs]; omega) _ _
-      (by rw [Ref.blockOff_eq]; omega),
-    slice_body_slot sig hsig v vs segs hvs 0 (by decide) (2 + s) (by omega)]
-  unfold Ref.slotOf
-  rw [if_neg (by omega), if_pos ⟨rfl, by omega, by unfold Ref.porsK; omega⟩, show 2 + s - 2 = s by omega]
+  unfold Ref.witSecret
+  rw [slice_W_head sig hsig v vs segs hvs cs _ 16 (by unfold Ref.wSec; omega)]
+  rw [slice_append_right _ _ _ (16 * s) _ (by
+    simp only [List.length_append, List.length_map, hvs, Ref.length_zeros]
+    rw [show (Ref.sigRho sig).length = 16 from length_slice _ _ _ (by rw [hsig]; omega)]
+    unfold Ref.wSec; omega)]
+  rw [map_range_eq_ofFn, slice_flatten_ofFn (fun j : Fin Ref.porsK => Ref.sigItem sig j.val) 16 ⟨s, hs⟩
+    0 16 (16 * s)
+    (fun j _ => length_sigItem sig hsig _ (by have := j.isLt; unfold Ref.porsK at this; omega))
+    (by rw [length_sigItem sig hsig _ (by simp; omega)]) (by ring),
+    slice_full _ _ (length_sigItem sig hsig _ (by simp; omega))]
 
 include hsig hvs in
 theorem witPi_W (s : Nat) (hs : s < 15) :
     Ref.witPi (witOf sig v vs segs cs) s = (Ref.byte (8 * v.idxOf (vs.getD s 0))).toNat := by
   unfold Ref.witPi
   rw [getD_W_head sig hsig v vs segs hvs cs _ (by unfold Ref.wPi; omega), List.append_assoc,
-    getD_append_right'' _ _ _ _ (by rw [Ref.length_zeros]; omega),
-    Ref.length_zeros,
-    getD_append_left'' _ _ _ _ (by simp only [List.length_map, hvs]; omega)]
-  simp only [show Ref.wPi + s - Ref.wPi = s by omega, List.getD_eq_getElem?_getD, List.getElem?_map]
+    List.append_assoc,
+    getD_append_right'' _ _ _ _ (by rw [show (Ref.sigRho sig).length = 16 from
+      length_slice _ _ _ (by rw [hsig]; omega)]; unfold Ref.wPi; omega),
+    show (Ref.sigRho sig).length = 16 from length_slice _ _ _ (by rw [hsig]; omega),
+    getD_append_left'' _ _ _ _ (by simp [hvs]; unfold Ref.wPi; omega)]
+  simp only [Ref.wPi, show 16 + s - 16 = s by omega, List.getD_eq_getElem?_getD, List.getElem?_map]
   rw [List.getElem?_eq_getElem (by omega)]
   rfl
 
@@ -681,7 +673,7 @@ theorem slice_W_pad (lay : Layer) (i : Nat) (hi : i < 42) (r len : Nat) (hr : 16
   unfold witOf
   rw [slice_withCounters_hi _ _ (by rw [length_witnessBody sig hsig v vs segs hvs]; omega) _ _
       (by rw [Ref.blockOff_eq]; omega)]
-  exact slice_body_block sig hsig v vs segs hvs lay.val hlay i hi r len h (Or.inl hr)
+  exact slice_body_block sig hsig v vs segs hvs lay.val hlay i hi r len h
 
 include hsig hvs in
 theorem witCounter_W (lay : Layer) :
@@ -697,17 +689,13 @@ def sigLayerOf (sig : List Byte) (cs : List Nat) (lay : Layer) : LayerSignature 
 include hsig hvs in
 theorem witLayer_W (lay : Layer) :
     witLayer (witOf sig v vs segs cs) lay = sigLayerOf sig cs lay := by
-  -- W1: no `congr` (its closing `rfl` attempts unfold the witness with the tweak-slot payloads)
-  have hc := witCounter_W sig hsig v vs segs hvs cs lay
-  have hv : (fun i : ChainIndex => Ref.ofList 16 (Ref.witChain (witOf sig v vs segs cs) lay.val i.val)) =
-      fun i => Ref.ofList 16 (Ref.slice sig (Ref.sigLayerOff lay.val + 16 * i.val) 16) :=
-    funext fun i => by rw [witChain_W sig hsig v vs segs hvs cs lay i.val i.isLt]
-  have hp : (fun l : Fin (SphincsSecurity.layerHeight lay) =>
-        Ref.ofList 16 (Ref.witSib (witOf sig v vs segs cs) lay.val l.val)) =
-      fun l => Ref.ofList 16 (Ref.slice sig (Ref.sigLayerOff lay.val + (672 + 16 * l.val)) 16) :=
-    funext fun l => by rw [witSib_W sig hsig v vs segs hvs cs lay l.val (by rw [height_eq]; exact l.isLt)]
   unfold witLayer sigLayerOf
-  rw [hc, hv, hp]
+  congr 1
+  · rw [witCounter_W sig hsig v vs segs hvs cs lay]
+  · funext i
+    rw [witChain_W sig hsig v vs segs hvs cs lay i.val i.isLt]
+  · funext l
+    rw [witSib_W sig hsig v vs segs hvs cs lay l.val (by rw [height_eq]; exact l.isLt)]
 
 
 /-! ### The stream region -/
@@ -754,7 +742,7 @@ include hsig hvs hsegs hb hn in
 theorem segPtr_W (j : Nat) (hj : j ≤ 29) :
     segPtr (witOf sig v vs segs cs) j = 272 + (8 * j + 16 * asum segs j) := by
   induction j with
-  | zero => simp [segPtr, asum, Ref.wStream, Ref.wPi]
+  | zero => simp [segPtr, asum, Ref.wStream, Ref.wSec, Ref.porsK]
   | succ j ih =>
     rw [segPtr, ih (by omega)]
     unfold Ref.wbyte
@@ -856,13 +844,14 @@ end layout
 
 /-! ## R2 -/
 
-theorem segByte_raw : ∀ a, a < 16 → ∀ m p : Bool,
-    (a ||| (if m then 16 else 0) ||| 32 * (if p then 1 else 0)) =
-      a + (if m then 16 else 0) + 32 * (if p then 1 else 0) := by decide
+theorem segByte_raw : ∀ a, a < 16 → ∀ m p : Bool, ∀ l : Fin 4,
+    (a ||| (if m then 16 else 0) ||| 32 * ((if p then 1 else 0) + 2 * l.val)) =
+      a + (if m then 16 else 0) + 32 * (if p then 1 else 0) + 64 * l.val := by decide
 
 theorem segByte_val (sg : SphincsSecurity.Concrete.ScheduleSegment) (h : sg.reads.length < 16) :
-    segByte sg = sg.reads.length + (if sg.merge then 16 else 0) + 32 * (if sg.parity then 1 else 0) :=
-  segByte_raw _ h _ _
+    segByte sg = sg.reads.length + (if sg.merge then 16 else 0) +
+      32 * (if sg.parity then 1 else 0) + 64 * sg.lookahead.val :=
+  segByte_raw _ h _ _ _
 
 /-- The digest leaves of `N` as a slot map. -/
 def leavesN (N : Nat) : IndexGroup → FtsLeaf := fun r => ⟨Ref.leafOf N r.val, Nat.mod_lt _ (by decide)⟩
@@ -934,12 +923,14 @@ theorem sched_facts (N : Nat) (hnd : (Ref.leavesOf N).Nodup)
     simp only [Function.comp_apply]
     rw [segByte_val sg (by have := (hr sg hsg).1; omega)]
     have := (hr sg hsg).1
+    have := sg.lookahead.isLt
     split <;> split <;> omega
   · intro b hb
     simp only [List.mem_map] at hb
     obtain ⟨sg, hsg, rfl⟩ := hb
     rw [segByte_val sg (by have := (hr sg hsg).1; omega)]
     have := (hr sg hsg).1
+    have := sg.lookahead.isLt
     split <;> split <;> omega
 
 theorem sigAuth_eq (sig : List Byte) (i : Nat) : Ref.sigAuth sig i = Ref.slice sig (256 + 16 * i) 16 := by
@@ -1081,9 +1072,9 @@ theorem aLayers_length (index : Index) (S0 : Signature) :
 /-- What a `some` output of the abstract expansion is: the partial witness of a successful
 `Ref.expandOf` with counters written. -/
 theorem aExpand_some (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6032)
-    (w : Bytes 16128) (h : some w ∈ support (aExpand m pk σ)) :
+    (w : Bytes 16384) (h : some w ∈ support (aExpand m pk σ)) :
     ∃ (N : Nat) (w0 : List Byte) (cs : List Nat),
-      Ref.expandOf (Ref.toList σ) N = some w0 ∧ w = Ref.ofList 16128 (Ref.cutW (Ref.withCounters w0 cs)) := by
+      Ref.expandOf (Ref.toList σ) N = some w0 ∧ w = Ref.ofList 16384 (Ref.withCounters w0 cs) := by
   unfold aExpand at h
   simp only [support_bind, Set.mem_iUnion, exists_prop] at h
   obtain ⟨d, -, hd⟩ := h
@@ -1105,17 +1096,14 @@ theorem aExpand_some (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 
 /-- **R2**: every successful run of the abstract expansion decodes to a signature compressing to
 `σ`. -/
 theorem aExpand_compress (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6032)
-    (w : Bytes 16128) (h : some w ∈ support (aExpand m pk σ)) : compress (witDec w) = σ := by
+    (w : Bytes 16384) (h : some w ∈ support (aExpand m pk σ)) : compress (witDec w) = σ := by
   obtain ⟨N, w0, cs, he, rfl⟩ := aExpand_some m pk σ w h
   have hσ : (Ref.toList σ).length = 6032 := Ref.length_toList σ
   have hl0 : w0.length = 16384 := Ref.length_of_expandOf _ hσ _ _ he
   have hlen : (Ref.withCounters w0 cs).length = 16384 := by
     rw [length_withCounters _ _ (by omega), hl0]
-  obtain ⟨-, -, -, hwl⟩ := expandOf_some _ _ _ he
-  have hz : w0.take Ref.witLead = Ref.zeros Ref.witLead := by rw [hwl]; exact Ref.take_witnessList _ _ _ _
   unfold witDec compress
-  rw [Ref.extW_toList_cutW_withCounters w0 cs hlen (by rw [hl0]; decide) hz, compressList_expandOf _ hσ _ _ he,
-    Ref.ofList_toList]
+  rw [Ref.toList_ofList 16384 _ hlen, compressList_expandOf _ hσ _ _ he, Ref.ofList_toList]
 
 theorem mem_support_of_relabel {ι ι' R α : Type} (f : ι → ι') (oa : OracleComp (ι →ₒ R) α) (x : α)
     (hx : x ∈ support (relabel f oa)) : x ∈ support oa := by
@@ -1131,20 +1119,19 @@ theorem mem_support_of_relabel {ι ι' R α : Type} (f : ι → ι') (oa : Oracl
 `Ref.expandOf` zeroes the 48 bytes before every chain value and `Ref.withCounters` only writes the
 counter bytes. -/
 theorem padOf_of_mem_support_aExpand_relabel (m : Bytes 32) (pk' : SphincsSecurity.PublicKey)
-    (σ : Bytes 6032) (w : Bytes 16128)
+    (σ : Bytes 6032) (w : Bytes 16384)
     (h : some w ∈ support (relabel fmtQ (aExpand m pk' σ))) :
-    padOf (Ref.extW (Ref.toList w)) = fun _ _ => 0 := by
+    padOf (Ref.toList w) = fun _ _ => 0 := by
   obtain ⟨N, w0, cs, he, rfl⟩ := aExpand_some m pk' σ w (mem_support_of_relabel fmtQ _ _ h)
   have hσ : (Ref.toList σ).length = 6032 := Ref.length_toList σ
   have hl0 : w0.length = 16384 := Ref.length_of_expandOf _ hσ _ _ he
   have hlen : (Ref.withCounters w0 cs).length = 16384 := by
     rw [length_withCounters _ _ (by omega), hl0]
   obtain ⟨-, -, -, hwl⟩ := expandOf_some _ _ _ he
-  have hz : w0.take Ref.witLead = Ref.zeros Ref.witLead := by rw [hwl]; exact Ref.take_witnessList _ _ _ _
   have hvs : (Ref.sortLeaves (Ref.leavesOf N)).length = 15 := by
     simp [Ref.sortLeaves, Ref.leavesOf, Ref.porsK]
   funext lay i
-  rw [Ref.extW_toList_cutW_withCounters w0 cs hlen (by rw [hl0]; decide) hz, hwl]
+  rw [Ref.toList_ofList 16384 _ hlen, hwl]
   unfold Ref.witnessList padOf
   rw [slice_W_pad _ hσ _ _ _ hvs cs lay i.val i.isLt 16 16 le_rfl (by omega),
     slice_W_pad _ hσ _ _ _ hvs cs lay i.val i.isLt 32 16 (by omega) le_rfl]
@@ -1336,9 +1323,10 @@ theorem idxOf_ofFn {n : Nat} (f : Fin n → Nat) (hf : Function.Injective f) (r 
 
 theorem normalized_congr {a a' : Fin 16} (h : a = a') {m m' p p' : Bool} (hm : m = m') (hp : p = p')
     (f : Fin a.val → Digest) (g : Fin a'.val → Digest)
-    (hfg : ∀ i (hi : i < a.val), f ⟨i, hi⟩ = g ⟨i, h ▸ hi⟩) :
-    SphincsSecurity.Segment.normalized a m p f = SphincsSecurity.Segment.normalized a' m' p' g := by
-  subst h hm hp
+    (hfg : ∀ i (hi : i < a.val), f ⟨i, hi⟩ = g ⟨i, h ▸ hi⟩)
+    {l l' : Fin 4} (hl : l = l') :
+    SphincsSecurity.Segment.normalized a m p f l = SphincsSecurity.Segment.normalized a' m' p' g l' := by
+  subst h hm hp hl
   congr 1
   funext i
   exact hfg i.val i.isLt
@@ -1399,6 +1387,7 @@ theorem length_authNodes_honest :
 
 end honest
 
+set_option maxHeartbeats 800000 in
 /-- **R4**: the honest opening of admissible leaves (any randomness, secrets, node table and layers),
 compressed and expanded with a digest whose leaf indices are `leaves`, gives a partial witness that
 decodes to the signature with zero counters and, with any counters `cs` written, to the signature with
@@ -1501,26 +1490,27 @@ theorem expandOf_honest (leaves : IndexGroup → FtsLeaf)
         have hw : Ref.wbyte (witOf (compressList (honestSig leaves rho secret node layers)) (Ref.leavesOf N) (Ref.sortLeaves (Ref.leavesOf N)) ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).map segByte) cs) (segPtr (witOf (compressList (honestSig leaves rho secret node layers)) (Ref.leavesOf N) (Ref.sortLeaves (Ref.leavesOf N)) ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).map segByte) cs) j.val) =
             ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD j.val default).reads.length +
               (if ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD j.val default).merge then 16 else 0) +
-              32 * (if ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD j.val default).parity then 1 else 0) := by
+              32 * (if ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD j.val default).parity then 1 else 0) +
+              64 * ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD j.val default).lookahead.val := by
           rw [hw0, getD_map_lt _ segByte _ default 0 hjl, segByte_val _ (by omega)]
-        refine normalized_congr (Fin.ext ?_) ?_ ?_ _ _ ?_
+        refine normalized_congr (Fin.ext ?_) ?_ ?_ _ _ ?_ ?_
         · simp only [SphincsSecurity.Concrete.ScheduleSegment.folds, Fin.val_mk]
           rw [hw]
           generalize ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD
             j.val default) = sg at hlen ⊢
-          rcases sg with ⟨mg, pr, rd⟩
+          rcases sg with ⟨mg, pr, rd, lookahead⟩
           simp only at hlen ⊢
           cases mg <;> cases pr <;> simp <;> omega
         · rw [hw]
           generalize ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD
             j.val default) = sg at hlen ⊢
-          rcases sg with ⟨mg, pr, rd⟩
+          rcases sg with ⟨mg, pr, rd, lookahead⟩
           simp only at hlen ⊢
           cases mg <;> cases pr <;> simp <;> omega
         · rw [hw]
           generalize ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD
             j.val default) = sg at hlen ⊢
-          rcases sg with ⟨mg, pr, rd⟩
+          rcases sg with ⟨mg, pr, rd, lookahead⟩
           simp only at hlen ⊢
           cases mg <;> cases pr <;> simp <;> omega
         · intro i hi
@@ -1531,7 +1521,7 @@ theorem expandOf_honest (leaves : IndexGroup → FtsLeaf)
             have h3 := hi'
             rw [getD_map_lt _ segByte _ default 0 hjl, segByte_val _ (by omega)] at h3
             generalize ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD j.val default) = sg at h3 hlen ⊢
-            rcases sg with ⟨mg, pr, rd⟩
+            rcases sg with ⟨mg, pr, rd, lookahead⟩
             simp only at h3 hlen ⊢
             cases mg <;> cases pr <;> simp at h3 <;> omega
           have e1 := dv_node_W _ hcl (Ref.leavesOf N) _ _ hvsl cs hsegs hb hn j.val i hj hi'
@@ -1570,6 +1560,15 @@ theorem expandOf_honest (leaves : IndexGroup → FtsLeaf)
             _ = Ref.ofList 16 (Ref.sigAuth (compressList (honestSig leaves rho secret node layers))
                 (asum ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).map segByte) j.val + i)) := by rw [e1]
             _ = _ := by rw [e2, ofList_dv, e3, e4]
+        · apply Fin.ext
+          simp only [Fin.val_mk]
+          rw [hw]
+          generalize ((SphincsSecurity.Concrete.schedule (SphincsSecurity.Concrete.sortedLeaves leaves)).getD
+            j.val default) = sg at hlen ⊢
+          rcases sg with ⟨mg, pr, rd, lookahead⟩
+          have hl := lookahead.isLt
+          simp only at hlen ⊢
+          cases mg <;> cases pr <;> simp <;> omega
     · rw [witLayer_W _ hcl _ _ _ hvsl cs, sigLayerOf_compress]
   have hz : Ref.ofList 4 (Ref.le32 0) = 0 := by decide
   refine ⟨Ref.witnessList (compressList (honestSig leaves rho secret node layers)) (Ref.leavesOf N)
