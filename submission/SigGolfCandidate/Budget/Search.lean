@@ -17,10 +17,6 @@ theorem hash16_bind_eq {β : Type} (x : List Byte) (f : Val → OracleComp HashS
     Ref.hash16 x >>= f = qry (addrFmt x) >>= fun a => f (answerBytes 16 a) := by
   simp only [Ref.hash16, Ref.H, bind_assoc, pure_bind]
 
-theorem encodingHash_bind_eq {β : Type} (x : List Byte) (f : Val → OracleComp HashSpec β) :
-    Ref.encodingHash x >>= f = qry (addrFmt x) >>= fun a => f (encodingBytes a) := by
-  simp only [Ref.encodingHash, Ref.H, bind_assoc, pure_bind]
-
 theorem digest_bind_eq {β : Type} (rho m : List Byte) (f : Nat → OracleComp HashSpec β) :
     digest rho m >>= f = qry (addrFmt (digestInput rho m)) >>= fun a => f a.toNat := by
   simp only [digest, Ref.H, bind_assoc, pure_bind]
@@ -65,7 +61,7 @@ theorem enc_inj (lay tau e : Nat) (M : Val) {c c' : Nat} (hc : c < 2 ^ 32) (hc' 
 
 /-- The rejection probability of one fresh encoding. -/
 noncomputable def rhoC : ℝ≥0∞ :=
-  Pr[fun u : BitVec 256 => decodeDigits (encodingBytes u) = none |
+  Pr[fun u : BitVec 256 => decodeDigits (answerBytes 16 u) = none |
     ($ᵗ BitVec 256 : ProbComp (BitVec 256))]
 
 theorem V_searchCounter (z b : ℝ≥0∞) (hz : 1 ≤ z) (hb : 1 ≤ b)
@@ -80,7 +76,7 @@ theorem V_searchCounter (z b : ℝ≥0∞) (hz : 1 ≤ z) (hb : 1 ≤ b)
   | succ n ih =>
     intro c cache hbound hfresh
     unfold searchCounter
-    rw [encodingHash_bind_eq, V_query,
+    rw [hash16_bind_eq, V_query,
       expectedValue_ro_fresh _ _ (hfresh c le_rfl (by omega))]
     have hbl : (addrFmt (encInput lay tau e M c)).blocks ≤ 1 :=
       blocksFmt_le _ 1 (by simp [encInput]; omega) le_rfl
@@ -88,9 +84,9 @@ theorem V_searchCounter (z b : ℝ≥0∞) (hz : 1 ≤ z) (hb : 1 ≤ b)
       calc z ^ (addrFmt (encInput lay tau e M c)).blocks ≤ z ^ 1 := pow_le_pow_right₀ hz hbl
         _ = z := pow_one z
     refine le_trans (mul_le_mul' hz1 (ev_ite_le
-      (fun u => decodeDigits (encodingBytes u) = none) b 1 _ fun u => ?_)) ?_
+      (fun u => decodeDigits (answerBytes 16 u) = none) b 1 _ fun u => ?_)) ?_
     · dsimp only
-      cases hd : decodeDigits (encodingBytes u) with
+      cases hd : decodeDigits (answerBytes 16 u) with
       | some x => simp
       | none =>
         simp only [if_true]
