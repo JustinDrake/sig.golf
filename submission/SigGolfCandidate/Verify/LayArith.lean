@@ -283,47 +283,40 @@ theorem swSBase_toNat : (swSBase.eval s).toNat = swarOf (dA s) (dB s) := by
   rfl
 
 theorem swS_toNat (lay : Nat) : (swS lay |>.eval s).toNat =
-    (swarOf (dA s) (dB s) + 2 ^ 64 - (if 3 ≤ lay then 2 else if 1 ≤ lay then 1 else 0)) % 2 ^ 64 := by
+    swarOf (dA s) (dB s) + (if lay = 0 then 2 else if lay < 3 then 1 else 0) := by
+  have hv : swarOf (dA s) (dB s) < 4096 := Nat.mod_lt _ (by decide)
   unfold swS
-  split_ifs with h4 h3
-  · change ((swSBase.eval s) + BitVec.ofNat 64 (2 ^ 64 - 2)).toNat = _
-    rw [BitVec.toNat_add, swSBase_toNat, BitVec.toNat_ofNat,
-      Nat.mod_eq_of_lt (show 2 ^ 64 - 2 < 2 ^ 64 by omega)]
-    exact congrArg (fun n : Nat => n % 2 ^ 64)
-      (Nat.add_sub_assoc (by omega) (swarOf (dA s) (dB s))).symm
-  · change ((swSBase.eval s) + BitVec.ofNat 64 (2 ^ 64 - 1)).toNat = _
-    rw [BitVec.toNat_add, swSBase_toNat, BitVec.toNat_ofNat,
-      Nat.mod_eq_of_lt (show 2 ^ 64 - 1 < 2 ^ 64 by omega)]
-    exact congrArg (fun n : Nat => n % 2 ^ 64)
-      (Nat.add_sub_assoc (by omega) (swarOf (dA s) (dB s))).symm
-  · rw [swSBase_toNat]
-    have hsmall : swarOf (dA s) (dB s) < 4096 := Nat.mod_lt _ (by decide)
+  split_ifs with h0 h3
+  · change ((swSBase.eval s) + 2#64).toNat = _
+    rw [BitVec.toNat_add, swSBase_toNat]
+    norm_num
     omega
+  · change ((swSBase.eval s) + 1#64).toNat = _
+    rw [BitVec.toNat_add, swSBase_toNat]
+    norm_num
+    omega
+  · simpa using swSBase_toNat s
 
-/-- Small natural-number adjustment, isolated from symbolic machine expressions. -/
-theorem swar_adjust_eq (v d : Nat) (hv : v < 4096) (hd : d ≤ 2) :
-    (v + 2 ^ 64 - d) % 2 ^ 64 = 181 ↔ v = 181 + d := by
-  omega
-
+/-- The shared comparison target is 183; lower targets receive a small positive offset. -/
 theorem swS_eq (lay : Nat) (h0 : dA s < 2 ^ 63) (h1 : dB s < 2 ^ 63) :
-    (swS lay).eval s = KT ↔ (digitsOfWord (dA s) ++ digitsOfWord (dB s)).sum = targetFor lay := by
+    (swS lay).eval s = KT ↔
+      (digitsOfWord (dA s) ++ digitsOfWord (dB s)).sum = targetFor lay := by
   have hs := swar_nat (dA s) (dB s) h0 h1
-  have hl : swarOf (dA s) (dB s) < 4096 := Nat.mod_lt _ (by decide)
-  let delta : Nat := if 3 ≤ lay then 2 else if 1 ≤ lay then 1 else 0
-  have hd : delta ≤ 2 := by dsimp [delta]; split_ifs <;> decide
-  have adj := swar_adjust_eq (swarOf (dA s) (dB s)) delta hl hd
+  have hk : KT.toNat = 183 := rfl
+  have adj : swarOf (dA s) (dB s) + (if lay = 0 then 2 else if lay < 3 then 1 else 0) = 183 ↔
+      swarOf (dA s) (dB s) = targetFor lay := by
+    unfold targetFor targetSum
+    split_ifs <;> omega
   rw [← hs]
   change _ ↔ swarOf (dA s) (dB s) = targetFor lay
   constructor
   · intro h
     have hh := congrArg BitVec.toNat h
-    rw [swS_toNat] at hh
-    change (swarOf (dA s) (dB s) + 2 ^ 64 - delta) % 2 ^ 64 = 181 at hh
+    rw [swS_toNat, hk] at hh
     exact adj.mp hh
   · intro h
     apply BitVec.eq_of_toNat_eq
-    rw [swS_toNat]
-    change (swarOf (dA s) (dB s) + 2 ^ 64 - delta) % 2 ^ 64 = 181
+    rw [swS_toNat, hk]
     exact adj.mpr h
 
 end

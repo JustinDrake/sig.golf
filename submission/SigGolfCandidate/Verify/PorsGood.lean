@@ -203,7 +203,7 @@ def layN : Nat := 5000 * 5 + 9
 /-- The layers' cost `LayerGood.layersCost 5` (a literal here, so that the PORS part does not depend
 on the layer modules; `Top.layC_val` proves the equality). Irreducible, so that unification never
 evaluates it. -/
-@[irreducible] def layC : Nat := 7647
+@[irreducible] def layC : Nat := 7646
 def leafCost (s : Nat) : Nat := if s = 0 then 10 else if s = 14 then 14 else 11
 def lrest (s : Nat) : Nat := ((List.range' (s + 1) (14 - s)).map leafCost).sum
 def segR (s d : Nat) : Nat := 29 - 2 * s + d

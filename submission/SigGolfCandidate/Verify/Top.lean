@@ -174,7 +174,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
 
 /-- Accepting bound after the final-root XOR, one-store guard, reused setup constants,
 and root equality/seed-mask block reductions. These are certified upper bounds. -/
-def cycleBound : Nat := 10568
+def cycleBound : Nat := 10567
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 17 a`). -/
 def cycleBoundAll : Nat := 16817
@@ -184,8 +184,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7647 := by decide
-theorem layC_val : layC = 7647 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7646 := by decide
+theorem layC_val : layC = 7646 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do

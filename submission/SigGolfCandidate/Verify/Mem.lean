@@ -109,7 +109,7 @@ def TTA5 : Word := 0x50000
 def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 
 /-- The exact digit sum, compared after the alias-free reduction modulo 4095. -/
-def KT : Word := BitVec.ofNat 64 targetSum
+def KT : Word := 183
 
 /-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the triple-dispatch constants. -/
 def gkL0 : List (Reg × Word) :=

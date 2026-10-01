@@ -86,15 +86,15 @@ def swA6 : E := .bin .add swA5 (.bin .srl swA5 (cw 12))
 def swA7 : E := .bin .add swA6 (.bin .srl swA6 (cw 24))
 def swSBase : E := .bin .remu swA5 (cw 4095)
 def swS (lay : Nat) : E :=
-  if 3 ≤ lay then .bin .add swSBase (cw (2 ^ 64 - 2))
-  else if 1 ≤ lay then .bin .add swSBase (cw (2 ^ 64 - 1)) else swSBase
+  if lay = 0 then .bin .add swSBase (cw 2)
+  else if lay < 3 then .bin .add swSBase (cw 1) else swSBase
 
 /-- The table index of triple 0 (`slli a4, a6, 9; and a4, a4, sp; add a4, a4, a5`) and the
 dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E : E := .bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 : E := .bin .and (.bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB (lay : Nat) : Nat := if lay = 4 then 25 else if 1 ≤ lay then 24 else 23
+def stepsB (lay : Nat) : Nat := if lay = 3 then 23 else 24
 /-- One REMU costs four cycles rather than one. -/
 def cyclesB (lay : Nat) : Nat := stepsB lay + 3
 
@@ -111,7 +111,7 @@ def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
 def specRej1 : Spec := ⟨rejK, [], rejectPc + 2, true, 7, [⟨.lt, orE, .c 0, true⟩], none, 7⟩
 def specRej2 (lay : Nat) : Spec :=
-  ⟨rejK, [], rejectPc + 2, true, 21 + (if 1 ≤ lay then 1 else 0), [⟨.ne, swS lay, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24 + (if 1 ≤ lay then 1 else 0)⟩
+  ⟨rejK, [], rejectPc + 2, true, 21 + (if lay < 3 then 1 else 0), [⟨.ne, swS lay, .c KT, true⟩, ⟨.lt, orE, .c 0, false⟩], none, 24 + (if lay < 3 then 1 else 0)⟩
 
 /-! ## Leaf -/
 
