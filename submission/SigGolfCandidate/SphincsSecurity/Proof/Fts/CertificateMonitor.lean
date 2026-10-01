@@ -1,6 +1,6 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.BankedProposalStep
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.ValidInterleavedCover
+import SigGolfCandidate.SphincsSecurity.Proof.Fts.InterleavedCoverStep
 
 /-! ## SigningMacroBudget -/
 

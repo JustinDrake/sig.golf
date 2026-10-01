@@ -43,7 +43,7 @@ theorem prob_checkedHashQuery_stop_le_add (reject : HashInput → HashOutput →
 omit actions in
 theorem prob_checkedPrefixHashQuery_stop_le (hencoding : canonicalEncodingInputs parameter ⊆ inputs)
     (publicReplies : CanonicalGraphLabels) (selections : ReferenceFamily) (rows : CanonicalEncodingRows)
-    (hselect : ∀ position, FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter => rows (position, counter)) = selections position)
+    (hselect : ∀ position, FirstSuccessTable.select decodeEncodingOutput (fun counter => rows (position, counter)) = selections position)
     (input : inputs) (state : State inputs) (ha : ∀ coordinate, (state.candidates coordinate).Nonempty)
     (hcovered : RowsCovered inputs state) (hbound : HiddenCandidateBound words disclosed state)
     (hclean : ReplyClean (PublicEncodingMatch.Match parameter (knownEncodingMessage known) words selections) state.memory.cache) :
@@ -64,7 +64,7 @@ theorem prob_checkedPrefixHashQuery_stop_le (hencoding : canonicalEncodingInputs
         · rw [hread] at hprobe; cases hprobe)
     have hencodingRisk := prob_prefixHashQuery_encodingMatch_le parameter inputs words disclosed known hencoding publicReplies selections rows
       hselect input state hcovered hclean
-    exact (add_le_add hzero hencodingRisk).trans (by simpa only [zero_add] using encoding_rate_le_probeHazard state.memory.probes)
+    exact (add_le_add hzero hencodingRisk).trans (by simpa only [zero_add] using digest_inverse_le_probeHazard state.memory.probes)
   · have hzero : Pr[ReturnedMatch (PublicEncodingMatch.Match parameter (knownEncodingMessage known) words selections) input.val |
         lazyRun (prefixEnvironment parameter inputs hencoding words disclosed known publicReplies selections rows) (hashQuery input) state] = 0 := by
       apply probEvent_eq_zero

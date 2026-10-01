@@ -210,7 +210,7 @@ theorem certificateMonitorMass_world_le_messages (input : OracleWorld.Domain) (s
 attribute [local irreducible] certificateMonitorUpdate monitoredSigningResult in
 theorem expected_monitoredWorld_eventPotential (input : OracleWorld.Domain) (state : MonitoredState inputs)
     (hvalid : MonitoredValid inputs state) (hinputs : hashInputs (liftM (OracleWorld.query input)) ⊆ inputs)
-    (hselect : ∀ position, FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter => rows (position, counter)) = selections position)
+    (hselect : ∀ position, FirstSuccessTable.select decodeEncodingOutput (fun counter => rows (position, counter)) = selections position)
     (hcandidates : ResidualByteFrontend.HiddenCandidateBound words state.1.memory.routing.disclosed (project state.1))
     (hclean : ResidualByteFrontend.ReplyClean
       (PublicEncodingMatch.Match key.parameter (knownEncodingMessage state.1.memory.routing.known) words selections)
@@ -383,7 +383,7 @@ theorem expected_monitoredSigning_eventPotential (message : Message) (state : Mo
 
 theorem expected_monitoredStep_eventPotential (input : (OracleWorld + SigningSpec).Domain) (state : MonitoredState inputs)
     (hvalid : MonitoredValid inputs state) (hinputs : requestInputs key input ⊆ inputs)
-    (hselect : ∀ position, FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter => rows (position, counter)) = selections position)
+    (hselect : ∀ position, FirstSuccessTable.select decodeEncodingOutput (fun counter => rows (position, counter)) = selections position)
     (hcandidates : ResidualByteFrontend.HiddenCandidateBound words state.1.memory.routing.disclosed (project state.1))
     (hclean : ResidualByteFrontend.ReplyClean
       (PublicEncodingMatch.Match key.parameter (knownEncodingMessage state.1.memory.routing.known) words selections)
@@ -402,7 +402,7 @@ theorem expected_monitoredStep_eventPotential (input : (OracleWorld + SigningSpe
 
 theorem expected_monitoredRun_eventPotential {Result : Type} (computation : OracleComp (OracleWorld + SigningSpec) Result)
     (state : MonitoredState inputs) (hvalid : MonitoredValid inputs state) (hinputs : sourceInputs key computation ⊆ inputs)
-    (hselect : ∀ position, FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter => rows (position, counter)) = selections position)
+    (hselect : ∀ position, FirstSuccessTable.select decodeEncodingOutput (fun counter => rows (position, counter)) = selections position)
     (hcandidates : ResidualByteFrontend.HiddenCandidateBound words state.1.memory.routing.disclosed (project state.1))
     (hclean : ResidualByteFrontend.ReplyClean
       (PublicEncodingMatch.Match key.parameter (knownEncodingMessage state.1.memory.routing.known) words selections)
