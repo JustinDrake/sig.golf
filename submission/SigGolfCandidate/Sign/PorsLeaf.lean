@@ -1,5 +1,6 @@
 import SigGolfCandidate.Sign.TreeChain
 import SigGolfCandidate.Sign.DigAn
+import SigGolfCandidate.Verify.Words
 
 /-!
 # `sign`, the PORS leaves (`por_leaf_loop`, instructions 179 .. 209)
@@ -80,6 +81,7 @@ theorem pleaf_tail (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
     (hvals : ∀ v ∈ acc, v.length = 16) (hsecs : ∀ v ∈ secs, v.length = 16) (s : Val)
     (hs : s.length = 16) (t : MachineState) (tpc : t.pc = pcOf 202)
     (t9 : t.getReg .x9 = BitVec.ofNat 64 j)
+    (t11 : t.getReg .x11 = BitVec.ofNat 64 64)
     (tregs : RegsEq t0 t pleafRegs) (tframe : Frame t0 t pleafW)
     (tlo1 : lo32 (t.getMem (BitVec.ofNat 64 0x6A8)) = lo32 (t0.getMem (BitVec.ofNat 64 0x6A8)))
     (tlo2 : lo32 (t.getMem (BitVec.ofNat 64 0xC8)) = lo32 (t0.getMem (BitVec.ofNat 64 0xC8)))
@@ -87,7 +89,7 @@ theorem pleaf_tail (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
     (tz : t.readWords (BitVec.ofNat 64 0xF0) 2 = [0, 0]) (hslots : Slots t 0x30000 acc)
     (hcap : ∃ c, CapInv (L.map keyV) (j + 1) secs t c) :
     Sim image t 15 (hash16 (porsLeafInput idx j s) >>= fun leaf => pure (acc ++ [leaf], secs))
-      (fun r t' => PLeafInv L t0 (j + 1) r t' ∧ SecPres t t') := by
+      (fun r t' => PLeafInv L t0 (j + 1) r t' ∧ SecPres t t' ∧ t'.getReg .x11 = BitVec.ofNat 64 64) := by
   have tx5 : t.getReg .x5 = 0 := by rw [tregs.get .x5 (by simp [pleafRegs]), ctx.x5]
   have tx19 : t.getReg .x19 = BitVec.ofNat 64 0x30000 := by
     rw [tregs.get .x19 (by simp [pleafRegs]), ctx.x19]
@@ -107,17 +109,17 @@ theorem pleaf_tail (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
     cases r <;> first | exact absurd (by decide) hr | rfl
   have e1 := symRun_ecall blk202 codeAt_202 t (by simp only [blk202.res, rv_simp]) rfl
   have x10 : t1.getReg .x10 = BitVec.ofNat 64 0xC0 := by simp only [ht1, blk202.res, rv_simp]
-  have x11 : t1.getReg .x11 = BitVec.ofNat 64 64 := by simp only [ht1, blk202.res, rv_simp]
+  have x11 : t1.getReg .x11 = BitVec.ofNat 64 64 := by simp only [ht1, blk202.res, rv_simp]; exact t11
   have x12 : t1.getReg .x12 = BitVec.ofNat 64 (0x30000 + 16 * j) := by
     rvs [ht1, blk202.res, t9, tx19]; congr 1; ring
   have x5 : t1.getReg .x5 = 0 := by rw [r1.get .x5, tx5]
   have pc1 : t1.pc = pcOf 207 := by simp only [ht1, blk202.res, rv_simp]
   have mC8 : t1.getMem (BitVec.ofNat 64 0xC8) =
-      BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * (j % 2 ^ 32)) := by
+      BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * ((8*j) % 2 ^ 32)) := by
     rvs [ht1, blk202.res, t9]
-    exact word_of_halves _ idx j (by rw [lo32_replace1, tlo2, ctx.cb8]) (by rw [hi32_replace1])
-  have hq : hashInput t1 = pad64 (porsLeafInput idx j s) := by
-    obtain ⟨hn, hw⟩ := words_th16 9 0 idx 0 j s hs
+    exact word_of_halves _ idx (8*j) (by rw [lo32_replace1, tlo2, ctx.cb8]) (by rw [hi32_replace1]; congr 1; ring)
+  have hq : hashInput t1 = pad64 (porsLeafInput idx (8*j) s) := by
+    obtain ⟨hn, hw⟩ := words_th16 9 0 idx 0 (8*j) s hs
     refine hashInput_eq_pad64 t1 _ 0 hn (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
     rw [porsLeafInput, hw, x10, show 8 * (0 + 1) = 1 + 1 + 2 + 2 + 2 from rfl]
     rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add]
@@ -129,11 +131,12 @@ theorem pleaf_tail (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
       f1.readWords _ _ (by norm_num) (by intro i hi; omega),
       tframe.readWords _ _ (by norm_num) (by intro i hi; simp only [pleafW]; omega), ctx.cbP, tsv, tz]
     simp [twWords_eq]
-  have hb : (pad64 (porsLeafInput idx j s)).blocks = 1 :=
-    congrArg (· + 1) (words_th16 9 0 idx 0 j s hs).1
-  refine (Sim.steps hs1 (Sim.hash16_bind (W := 2) e1 x5
+  have hb : (fmt (porsLeafInput idx j s)).blocks = 1 := by
+    rw [← addrFmt_blocks, Verify.addrFmt_porsLeafInput_pad idx j s hs (by omega)]
+    exact congrArg (· + 1) (words_th16 9 0 idx 0 (8*j) s hs).1
+  refine (Sim.steps hs1 (Sim.hash16_bindF (W := 2) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by omega) (by omega)
-      (by norm_num)) hq (addrFmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
+      (by norm_num)) (hq.trans (Verify.addrFmt_porsLeafInput_pad idx j s hs (by omega)).symm) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
   set t2 := writeHash t1 a with ht2
   have f2 : Frame t1 t2 (fun x => 0x30000 + 16 * j ≤ x ∧ x < 0x30000 + 16 * j + 32) :=
     frame_writeHash t1 a _ x12 (by omega)
@@ -155,7 +158,7 @@ theorem pleaf_tail (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
   have rtot : RegsEq t t3 [.x3, .x9, .x10, .x11, .x12] :=
     ((r1.trans (regsEq_writeHash _ _ [])).trans r3).mono (by decide)
   refine Sim.pure_steps hs2 ⟨⟨by omega, by simp [hlen], hlen2, ?_, hsecs, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
-    fun x hx h1 h2 => ftot.getMem hx (by omega)⟩
+    (fun x hx h1 h2 => ftot.getMem hx (by omega)), by rw [r3.get .x11, ht2, writeHash_getReg, x11]⟩
   · intro v hv; rcases List.mem_append.mp hv with hv | hv
     · exact hvals v hv
     · simp at hv; subst hv; simp
@@ -203,13 +206,14 @@ theorem pleaf_B (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState)
     (hvals : ∀ v ∈ acc, v.length = 16) (hsecs : ∀ v ∈ secs, v.length = 16) (s : Val)
     (hs : s.length = 16) (t : MachineState) (tpc : t.pc = pcOf 187)
     (t9 : t.getReg .x9 = BitVec.ofNat 64 j)
+    (t11 : t.getReg .x11 = BitVec.ofNat 64 64)
     (hsec : t.readWords (BitVec.ofNat 64 (0x140 + 16 * (j % 2))) 2 = wordsOf s)
     (hslots : Slots t 0x30000 acc) (hcap : ∃ c, CapInv (L.map keyV) j secs t c)
     (tregs : RegsEq t0 t pleafRegs) (tframe : Frame t0 t pleafW)
     (tlo1 : lo32 (t.getMem (BitVec.ofNat 64 0x6A8)) = lo32 (t0.getMem (BitVec.ofNat 64 0x6A8)))
     (tlo2 : lo32 (t.getMem (BitVec.ofNat 64 0xC8)) = lo32 (t0.getMem (BitVec.ofNat 64 0xC8))) :
     Sim image t 30 (hash16 (porsLeafInput idx j s) >>= fun leaf => pure (acc ++ [leaf], secs ++ [s]))
-      (fun r t' => PLeafInv L t0 (j + 1) r t' ∧ SecPres t t') := by
+      (fun r t' => PLeafInv L t0 (j + 1) r t' ∧ SecPres t t' ∧ t'.getReg .x11 = BitVec.ofNat 64 64) := by
   have hj2 : j % 2 < 2 := Nat.mod_lt _ (by norm_num)
   obtain ⟨c, hc, hclt, hcge, hcsl, h18, h20, h13⟩ := hcap
   -- block 187: copy the secret to CB+32, test J = U
@@ -304,6 +308,7 @@ theorem pleaf_B (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState)
     have := pleaf_tail S idx L t0 ctx j hj acc (secs ++ [s]) hlen (by simp [hlen2]) hvals hsecs' s hs t4
       (by simp only [ht4, blk194.res, rv_simp])
       (by rw [r4.get .x9, x39])
+      (by rw [r4.get .x11, r3.get .x11, t11])
       (rt3.trans r4 |>.mono (by decide))
       ((ft3.trans f4).mono (by
         intro x hx; (try simp only [or_false] at hx ⊢); simp only [pleafW] at hx ⊢; omega))
@@ -326,9 +331,9 @@ theorem pleaf_B (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState)
        by simp only [ht4, blk194.res, rv_simp, t320, ofNat_add_ofNat]; exact ofNat_congr (by ring),
        x413⟩
     exact (Sim.steps hs3 (Sim.steps hs4 this)).mono (by norm_num) (fun _ _ h => ⟨h.1, fun x hx h1 h2 => by
-      rw [h.2 x hx h1 h2, f4.getMem hx (by omega), sec3 x hx h1 h2]⟩)
+      rw [h.2.1 x hx h1 h2, f4.getMem hx (by omega), sec3 x hx h1 h2], h.2.2⟩)
   · have := pleaf_tail S idx L t0 ctx j hj acc (secs ++ [s]) hlen (by simp [hlen2]) hvals hsecs' s hs t3
-      (by rw [pc3, if_neg hju]) x39 rt3 ft3 lo3a lo3b v3 z3 hslots3
+      (by rw [pc3, if_neg hju]) x39 (by rw [r3.get .x11, t11]) rt3 ft3 lo3a lo3b v3 z3 hslots3
       ⟨c, hc, fun q hq => by have := hclt q hq; omega,
        fun h => by
         have h1 := hcge h
@@ -337,7 +342,7 @@ theorem pleaf_B (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState)
        fun q hq => by rw [f3.readWords _ _ (by omega) (by intro i hi; omega), hcsl q hq, getOld q hq],
        by rw [r3.get .x18, h18], by rw [r3.get .x20, h20], by rw [r3.get .x13, h13]⟩
     exact (Sim.steps hs3 this).mono (by norm_num) (fun _ _ h => ⟨h.1, fun x hx h1 h2 => by
-      rw [h.2 x hx h1 h2, sec3 x hx h1 h2]⟩)
+      rw [h.2.1 x hx h1 h2, sec3 x hx h1 h2], h.2.2⟩)
 
 theorem pors_pair_spec (S : List Byte) (idx q : Nat) (st : List Val × List Val) :
     (do
@@ -442,7 +447,7 @@ theorem pleaf_pair (S : List Byte) (hS : S.length = 32) (idx : Nat) (L : List Na
     apply BitVec.eq_of_toNat_eq; simp
   obtain ⟨c, hc, hclt, hcge, hcsl, h18, h20, h13⟩ := hcap
   have hA := pleaf_B S idx L t0 ctx (2 * q) (by omega) st.1 st.2 hlen hlen2 hvals hsecs (answerBytes 16 a)
-    (by simp) t3 pc3 (by rw [g3, r2.get .x9, t19])
+    (by simp) t3 pc3 (by rw [g3, r2.get .x9, t19]) (by rw [g3, x11])
     (by rw [show 0x140 + 16 * (2 * q % 2) = 0x140 by omega]; exact sec_lo t2 a x12)
     (hslots.frame ft3 (by omega) (by intro i hi; constructor <;> omega))
     ⟨c, hc, hclt, hcge, fun s hs => by rw [ft3.readWords _ _ (by omega) (by intro i hi; omega), hcsl s hs],
@@ -450,7 +455,7 @@ theorem pleaf_pair (S : List Byte) (hS : S.length = 32) (idx : Nat) (L : List Na
     rt3 ((tframe.trans ft3).mono (by intro x hx; simp only [pleafW] at hx ⊢; omega)) lo3
     (by rw [ft3.getMem (by norm_num) (by omega), tlo2])
   refine Sim.bind hA (fun r t4 h4 => ?_)
-  obtain ⟨⟨-, hlen4, hlen42, hvals4, hsecs4, hslots4, hcap4, tpc4, t49, tregs4, tframe4, tlo14, tlo24⟩, sec4⟩ := h4
+  obtain ⟨⟨-, hlen4, hlen42, hvals4, hsecs4, hslots4, hcap4, tpc4, t49, tregs4, tframe4, tlo14, tlo24⟩, sec4, t411⟩ := h4
   -- block 179: odd
   have hs5 := symRun_sound blk179 codeAt_179 t4 (by rw [tpc4, if_pos (by omega)])
     (by simp only [blk179.res, rv_simp])
@@ -468,7 +473,7 @@ theorem pleaf_pair (S : List Byte) (hS : S.length = 32) (idx : Nat) (L : List Na
   have fr5 : Frame t4 t5 (fun _ => False) := fun z _ _ => m5 _
   obtain ⟨c4, hc4, hclt4, hcge4, hcsl4, h184, h204, h134⟩ := hcap4
   have hB := pleaf_B S idx L t0 ctx (2 * q + 1) (by omega) r.1 r.2 hlen4 hlen42 hvals4 hsecs4 (hiVal a)
-    (by simp) t5 pc5 (by rw [r5.get .x9, t49])
+    (by simp) t5 pc5 (by rw [r5.get .x9, t49]) (by rw [r5.get .x11, t411])
     (by
       rw [show 0x140 + 16 * ((2 * q + 1) % 2) = 0x150 by omega, readWords_ofNat_two, m5, m5,
         sec4 _ (by norm_num) (by norm_num) (by norm_num), sec4 _ (by norm_num) (by norm_num) (by norm_num),

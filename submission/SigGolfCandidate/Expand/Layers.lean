@@ -118,29 +118,6 @@ theorem final_witness (w : List Byte) (hw : w.length = 16384) (c0 c1 c2 c3 c4 : 
   rw [wC4_eq, wChains_eq, show 2944 - 2392 - 4 = 4 + 544 from rfl, slice_split, hZ]
   simp [List.append_assoc, List.range_succ]
 
-/-- W1: the witness buffer `0x900 .. 0x4800` is the 16384-byte view `0x800 .. 0x4800` without its
-256-byte lead. -/
-theorem readBuffer_cut (t : MachineState) (L : List Byte) (hL : L.length = 16384)
-    (h : readBuffer t 0x800 16384 = ofList 16384 L) :
-    readBuffer t 0x900 16128 = ofList 16128 (cutW L) := by
-  rw [readBuffer_bytesAt] at h ⊢
-  have hb : bytesAt t 0x800 16384 = L := by
-    rw [← toList_ofList 16384 (bytesAt t 0x800 16384) (length_bytesAt _ _ _), h, toList_ofList 16384 L hL]
-  rw [show (16384 : Nat) = 256 + 16128 from rfl, bytesAt_add,
-    show (0x800 + 256 : Nat) = 0x900 from rfl] at hb
-  rw [← hb]
-  unfold cutW witLead
-  rw [List.drop_left' (length_bytesAt _ _ _)]
-
-/-- Writing the counters keeps the length (of a witness that holds the counter bytes). -/
-theorem length_withCounters_ref (w0 : List Byte) (cs : List Nat) (h : 2960 ≤ w0.length) :
-    (withCounters w0 cs).length = w0.length := by
-  have hf : ((List.range 4).map fun l => le32 (cs.getD l 0)).flatten.length = 16 := by
-    simp only [List.length_flatten, List.map_map, Function.comp_def, length_le32]; rfl
-  unfold withCounters
-  simp only [List.length_append, List.length_take, length_le32, List.length_drop, slice, hf]
-  rw [wC4_eq, wChains_eq]; omega
-
 /-! ## The layer loop -/
 
 /-- A HALT(0) state with the witness `withCounters w cs` in the witness buffer. -/

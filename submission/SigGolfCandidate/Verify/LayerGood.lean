@@ -72,8 +72,8 @@ theorem layer_good (L : LCtx) (hL : L.ok) (M : Val) (Kopt : Option Val → Oracl
   have htarget := targetFor_le L.lay
   have hcb : chainsBound L.lay ≥ 1200 := by unfold chainsBound; omega
   have hsA : stepsA L.lay ≤ 15 := by unfold stepsA; split_ifs <;> omega
-  have hcB : cyclesB L.lay ≤ 33 := by unfold cyclesB stepsB; split_ifs <;> omega
-  have hsB : stepsB L.lay ≤ 30 := by unfold stepsB; split_ifs <;> omega
+  have hcB : cyclesB L.lay ≤ 32 := by unfold cyclesB stepsB; split_ifs <;> omega
+  have hsB : stepsB L.lay ≤ 29 := by unfold stepsB; split_ifs <;> omega
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
       (cc (match decodeDigits L.lay (encodingBytes a) with
         | none => pure none
@@ -321,7 +321,8 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
         | succ m => exact foldEnd_layerIn wl pk (m + 1) idx (by omega) (by omega) u hu a) s hs
     exact this.mono (by omega) (by dsimp only; simp only [layersCost]; omega)
 
-/-- The uniform185 narrow-selector layer bound, including the final comparison. -/
-theorem layersCost_5 : layersCost 5 = 7547 := by decide
+/-- The layer cycles in order 0 .. 4: `1610` (direct route), `1530`, `1530`, `1530`, `1514` (target 181
+held in `x14`, no hash-length reload), and the comparison `8`. -/
+theorem layersCost_5 : layersCost 5 = 7552 := by decide
 
 end SigGolfCandidate.Verify

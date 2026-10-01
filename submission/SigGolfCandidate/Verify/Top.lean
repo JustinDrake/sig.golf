@@ -27,7 +27,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     (stk : List (Val × Nat)) (m : MachineState) (h : TailIn P s0 14 x 2 c ptr E folds node stk m) :
     ((folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧
         fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 13 13 u ∧
+    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 12 12 u ∧
         LayerIn ⟨P.wl, P.pk, 4, P.idx⟩ node u) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
   have hE := h.hE
@@ -123,26 +123,25 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hg0 := hu.glob _ _ h.pb.glob
     -- the masks: loaded from the image's data words, which the PORS phase never writes
     have hm1 : u.getReg .x20 = M1w := by
-      rw [hu.regs (.x20, ldE 0xFFFFF0) (by simp [tailFSpec])]
-      change m.getMem (BitVec.ofNat 64 0xFFFFF0) = M1w
+      rw [hu.regs (.x20, ldE 0xFDFFD0) (by simp [tailFSpec])]
+      change m.getMem (BitVec.ofNat 64 0xFDFFD0) = M1w
       rw [h.pb.prot (by simp [protP])]
-      exact h.pb.s0ok.masks.1
+      exact h.pb.s0ok.masks.2.2.2.2.1
     have hm2 : u.getReg .x21 = M2w := by
-      rw [hu.regs (.x21, ldE 0xFFFFF8) (by simp [tailFSpec])]
-      change m.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w
+      rw [hu.regs (.x21, ldE 0xFDFFD8) (by simp [tailFSpec])]
+      change m.getMem (BitVec.ofNat 64 0xFDFFD8) = M2w
       rw [h.pb.prot (by simp [protP])]
-      exact h.pb.s0ok.masks.2.1
-    have htmem : m.getMem (BitVec.ofNat 64 0xFFFFE8) = 0x40401 := by
+      exact h.pb.s0ok.masks.2.2.2.2.2
+    have htag : u.getReg .x27 = 0x40401#64 := by
+      rw [hu.regs (.x27, ldE 0xFDFFC0) (by simp [tailFSpec])]
+      change m.getMem (BitVec.ofNat 64 0xFDFFC0) = 0x40401#64
       rw [h.pb.prot (by simp [protP])]
-      exact h.pb.s0ok.masks.2.2
-    have htag : u.getReg .x27 = 0x40401 := by
-      rw [hu.regs (.x27, ldE 0xFFFFE8) (by simp [tailFSpec])]
-      exact htmem
-    have hsp : u.getReg .x2 = TMASK := by
-      rw [hu.regs (.x2, .bin .add (ldE 0xFFFFE8) (cw 18446744073709550079)) (by simp [tailFSpec])]
-      change m.getMem (BitVec.ofNat 64 0xFFFFE8) + BitVec.ofNat 64 18446744073709550079 = TMASK
-      rw [htmem]
-      rfl
+      exact h.pb.s0ok.masks.2.2.1
+    have htmask : u.getReg .x2 = TMASK := by
+      rw [hu.regs (.x2, ldE 0xFDFFC8) (by simp [tailFSpec])]
+      change m.getMem (BitVec.ofNat 64 0xFDFFC8) = TMASK
+      rw [h.pb.prot (by simp [protP])]
+      exact h.pb.s0ok.masks.2.2.2.1
     have hregs : KnownOK gkL0 u := by
       intro p hp
       simp only [gkL0, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
@@ -150,7 +149,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       · exact hg0.1 p (by simp [rootK, hp])
       · exact hm1
       · exact hm2
-      all_goals first | exact hsp | exact hu.known _ (by simp [rootPost, rootK])
+      all_goals first | exact htmask | exact hu.known _ (by simp [rootPost, rootK])
     have hg : GlobP gkL0 s0 u := ⟨hregs, hg0.2⟩
     have hknown : KnownOK l4K u := by
       intro p hp
@@ -173,15 +172,13 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       unfold twLo; omega
 
 
-/-- Universal accepting-run bound: PORS/initialization cost `2822` plus `layersCost 5 = 7547`.
-PORS uses bit-reversed headers with sixteen cycles per fold. The 1923/1024 selector takes
-at most eight ordinary instructions, and every checksum target is185. The root uses thirteen
-instructions and the final route is carried physically. Final.Discharge supplies the universal
-one-cycle structural credit. These are proof bounds, not accepting-run measurements. -/
-def cycleBound : Nat := 10369
+/-- Universal accepting-run bound. Scaled PIND byte offsets remove one instruction from
+all fifteen leaf headers. The tag-9 address-field rotation is an injective query relabel;
+Final.Discharge supplies the additional universal structural credit. This is a proof bound. -/
+def cycleBound : Nat := 10358
 
 /-- A cycle bound of every run (`256` per segment instead of `16` / `18 + 16 a`). -/
-def cycleBoundAll : Nat := 16894
+def cycleBoundAll : Nat := 16875
 
 
 /-- A step bound (fuel) sufficient for every run. -/
@@ -189,8 +186,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7547 := by decide
-theorem layC_val : layC = 7547 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7552 := by decide
+theorem layC_val : layC = 7552 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -224,7 +221,7 @@ theorem Kr_none (P : PCtx) : Kr P none = pure (false, 0) := by
 
 theorem root_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (x c : Nat) (st : PorsState)
     (u : MachineState) (hT : TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u) :
-    GoodQ u (13 + layC + layN) (13 + layC) (st.folds ≤ 117) (13 + layC) (Kr P (some st)) := by
+    GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 117) (12 + layC) (Kr P (some st)) := by
   obtain ⟨hrej, hacc⟩ := tailF_step P hP s0 x c st.ptr st.E st.folds st.node st.stack u hT
   have hL : layC = layersCost 5 := layC_val.trans layersCost_val.symm
   by_cases hc : st.folds > porsM ∨ st.E ≠ 1 ∨ st.stack ≠ []
@@ -246,7 +243,7 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
       (cc (porsRoot P.idx P.v P.wl) (Klay P)) := by
   have hr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (13 + layC + layN) (13 + layC) (st.folds ≤ 117) (13 + layC) (Kr P (some st)) :=
+      GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 117) (12 + layC) (Kr P (some st)) :=
     fun x c st u hT => root_good P hP s0 x c st u hT
   have hg0 := leaves_good P hP s0 (Kr P) (Kr_none P) hr
   have hg := hg0 15 0 ⟨wStream, 0, 0, 0, [], []⟩ s0 (by rfl) h
@@ -263,11 +260,11 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
 
 theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 1 := rfl
 
-theorem lrest_0 : lrest 0 = 185 := by decide
+theorem lrest_0 : lrest 0 = 171 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7774 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2686 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7774 + layC + layN := by
-  have h0 : leafCost 0 = 12 := rfl
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7758 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2670 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7758 + layC + layN := by
+  have h0 : leafCost 0 = 11 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 
 theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.length = 16)
@@ -304,7 +301,7 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
       obtain ⟨u, hsu, hS0, hLI⟩ := setup_step P ⟨hwl, hpk⟩ _ (hpost a)
       have := pors_good P ⟨hwl, hpk⟩ u hLI
       exact (GoodQ.steps hsu this).mono (by omega) (by omega) (fun q => ⟨q, by omega⟩)
-    have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; rw [wRho_eq]; omega
+    have hrho : (witRho wl).length = 16 := by unfold witRho; apply length_slice16; omega
     have h3 := GoodQ.hashH (x := digestInput (witRho wl) ml) hf h5 hv hin H
     rw [fmt_digestInput_words _ _ hrho hml, blocks_qT] at h3
     have hN : layN = 25009 := rfl

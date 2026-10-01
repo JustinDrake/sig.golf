@@ -2,6 +2,8 @@ import SigGolfCandidate.Verify.PorsRuns
 
 /-! Kernel check of the PORS dispatch tables (both tables, 256 slots each). -/
 
+set_option Elab.async false
+
 namespace SigGolfCandidate.Verify
 
 theorem tabCheck_N0 : tabCheck 0 0 128 = true := by decide +kernel

@@ -218,6 +218,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       exact hCB
     · refine Fresh_frame hF (fun A hA hA' => ?_)
       rw [wf A hA (Or.inr (by omega)), mfr A hA (by omega) (by omega)]
+
     · rw [writeHash_getReg]; exact h22u
 
 end SigGolfCandidate.Verify

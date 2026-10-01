@@ -258,35 +258,30 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
   obtain ⟨hlay, hidx, hwl⟩ := hL
   let hi := selOf a
   have hhi : hi < 4 := by unfold hi selOf; split_ifs <;> omega
-  have hsteps : selSteps hi ≤ 8 := by unfold selSteps; split_ifs <;> omega
+  have hsteps : selSteps hi ≤ 7 := by unfold selSteps; split_ifs <;> omega
   obtain ⟨hBok, hR1, hR2⟩ := lc_enc hlay hi hhi ht
   obtain ⟨hG, hK, h23, h30, h31, w0, w1, w2, w3, hCB, hF, hpc⟩ := hs
   have hD0 : (d0E hi).eval s = (encodingAnswer a).extractLsb' 0 64 := by
     have hw := Sign.encoding_word a 0 (by decide)
     simp only [Nat.mul_zero, Nat.add_zero] at hw
     rw [hw]
-    cases h127 : a[127] <;> cases h63 : a[63] <;>
-      by_cases hg : 125 ≤ a.toNat >>> 55 % 512 <;>
-      simp [hi, selOf, d0E, h127, h63, hg, ldE, cw, E.eval, w0, w1, w2]
+    cases h127 : a[127] <;> cases h63 : a[63] <;> cases h62 : a[62] <;>
+      simp [hi, selOf, d0E, h127, h63, h62, ldE, cw, E.eval, w0, w1, w2]
   have hD1 : (d1E hi).eval s = (encodingAnswer a).extractLsb' 64 64 := by
     have hw := Sign.encoding_word a 1 (by decide)
     simp only [Nat.mul_one, Nat.reduceAdd] at hw
     rw [hw]
-    cases h127 : a[127] <;> cases h63 : a[63] <;>
-      by_cases hg : 125 ≤ a.toNat >>> 55 % 512 <;>
-      simp [hi, selOf, d1E, h127, h63, hg, ldE, cw, E.eval, w1, w2, w3]
+    cases h127 : a[127] <;> cases h63 : a[63] <;> cases h62 : a[62] <;>
+      simp [hi, selOf, d1E, h127, h63, h62, ldE, cw, E.eval, w1, w2, w3]
   have hsel : ∀ b ∈ selBrs hi, b.holds s := by
-    have htop : (a.toNat % 18446744073709551616) >>> 55 = a.toNat >>> 55 % 512 := by
-      simpa using Sign.encoding_top9_toNat a
     intro b hb
     simp only [selBrs, List.mem_cons, List.not_mem_nil, or_false] at hb
     rcases hb with rfl | rfl
     all_goals
-      cases h127 : a[127] <;> cases h63 : a[63] <;>
-        by_cases hg : 125 ≤ a.toNat >>> 55 % 512 <;>
-        simp [hi, selOf, selLow, selSecond, h127, h63, hg, Br.holds, CmpOp.eval,
+      cases h127 : a[127] <;> cases h63 : a[63] <;> cases h62 : a[62] <;>
+        simp [hi, selOf, selLow, selSecond, h127, h63, h62, Br.holds, CmpOp.eval,
           ldE, cw, E.eval, BinOp.eval, w0, w1, BitVec.slt_zero_eq_msb, BitVec.msb,
-          BitVec.getMsbD_eq_getLsbD, BitVec.getLsbD_extractLsb', BitVec.ult, Sign.encoding_top9_toNat] <;> omega
+          BitVec.getMsbD_eq_getLsbD, BitVec.getLsbD_extractLsb', Sign.encoding_top2]
   have hor : CmpOp.lt.eval ((orE hi).eval s) ((E.c 0).eval s) =
       decide (2 ^ 63 ≤ ((encodingAnswer a).extractLsb' 0 64).toNat ∨ 2 ^ 63 ≤ ((encodingAnswer a).extractLsb' 64 64).toNat) := by
     rw [show (orE hi).eval s = (d0E hi).eval s ||| (d1E hi).eval s from rfl,
@@ -315,8 +310,8 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
           rwa [hdA, hdB] at this
         · simp only [Br.holds]; rw [hor]; exact decide_eq_false (by omega)
         · exact hsel _ hb)
-      exact ⟨19 + selSteps hi, by omega,
-        22 + selSteps hi, by omega, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
+      exact ⟨19 + selSteps hi + (if L.lay = 0 then 1 else 0), by split_ifs <;> omega,
+        22 + selSteps hi + (if L.lay = 0 then 1 else 0), by split_ifs <;> omega, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
         hu.regs (.x10, cw 1) (by simp [specRej2, rejK])⟩
     · obtain ⟨u, hu⟩ := specO_run hR1 s hpc hK (encObligs_holds s) (by
         intro b hb
