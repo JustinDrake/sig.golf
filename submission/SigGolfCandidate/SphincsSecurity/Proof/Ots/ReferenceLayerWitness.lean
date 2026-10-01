@@ -33,7 +33,7 @@ theorem equal_word_reference (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
         exact Or.inl ⟨selected, rfl, (digestBytes_injective hm).symm, (bytesLE_injective hc).symm⟩
   · refine Or.inr ⟨(input, f input), ?_, ?_, position, ⟨_, rfl⟩, hreference, ?_⟩
     · apply hrun.bind_left
-      simp only [encodeAttempt, queriedInputs_bind, queriedInputs_oracleHash, queriedInputs_pure,
+      simp only [encodeAttempt, queriedInputs_bind, queriedInputs_tweakableHash, queriedInputs_pure,
         List.append_nil, List.mem_singleton, input, position, EncodingPosition.domain]
     · have hcounter : counter.toNat < 2 ^ counterBits := counter.isLt
       have hin := encodingRetryInput_mem_canonicalEncodingInputs_wide parameter position message ⟨counter.toNat, hcounter⟩

@@ -39,12 +39,12 @@ theorem otsLeaf_marker (message : Digest) (counter : Counter) (values : ChainInd
     OtsEncodingMarker.Seen parameter words ⟨lay, tree, leaf, index⟩ trace := by
   let input := tweakableHashInput parameter (.encoding lay tree leaf) (digestBytes message ++ counterBytes counter)
   have hi : input ∈ queriedInputs f (encodeAttempt parameter lay tree leaf message counter) := by
-    simp only [encodeAttempt, queriedInputs_bind, queriedInputs_oracleHash, queriedInputs_pure,
+    simp only [encodeAttempt, queriedInputs_bind, queriedInputs_tweakableHash, queriedInputs_pure,
       List.append_nil, List.mem_singleton, input]
   refine ⟨(input, f input), hrun.bind_left input hi, ?_⟩
   apply (OtsEncodingMarker.entryMarker_encoding_iff parameter words ⟨lay, tree, leaf, index⟩ message counter (f input)).mpr
   refine ⟨candidate, ?_, hneighbor⟩
-  simpa only [encodeAttempt, evalWithAnswerFn_bind, oracleHash, evalWithAnswerFn_query, evalWithAnswerFn_pure, decodeEncodingOutput, input] using hencode
+  simpa only [encodeAttempt, evalWithAnswerFn_bind, eval_tweakableHash, evalWithAnswerFn_pure, decodeEncodingOutput, input] using hencode
 
 theorem otsLeaf_chain_classification (message : Digest) (counter : Counter) (values : ChainIndex → Digest)
     (candidate : Encoding) (trace : Trace) (hvalid : OtsCode.Valid (words lay tree leaf))

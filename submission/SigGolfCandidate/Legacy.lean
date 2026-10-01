@@ -1,1 +1,0 @@
-import SigGolfCandidate.Legacy.Statements

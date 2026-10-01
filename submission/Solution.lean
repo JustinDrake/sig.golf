@@ -1,11 +1,12 @@
 import SigGolf
 import SigGolfCandidate.Transfer.Final
+import SigGolfCandidate.Alternative
 
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6032` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10557` cycles (verify bound
-`10493` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
+`S = 6032` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10674` cycles (verify bound
+`10610` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 150272, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -86,7 +87,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10557 :=
+theorem certificate : SigGolf.Certificate submission 10674 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
