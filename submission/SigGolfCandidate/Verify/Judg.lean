@@ -165,16 +165,6 @@ theorem Good.hashHP {s : MachineState} {N C : Nat} {x : List Byte}
   have := Good.hashH hf ht0 hv (hin.trans hx.symm) h
   rwa [hx] at this
 
-/-- Selected encoding digest; ordinary hashes remain unchanged. -/
-theorem Good.encodingHashP {s : MachineState} {N C : Nat} {x : List Byte}
-    {K : Val → OracleComp HashSpec Obs} (hx : addrFmt x = pad64 x)
-    (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
-    (hv : hashArgumentsValid s = true) (hin : hashInput s = pad64 x)
-    (h : ∀ a, Good (writeHash s a) N C (K (encodingBytes a))) :
-    Good s (N + 1) (C + 8 * (pad64 x).blocks) (cc (encodingHash x) K) := by
-  have hh := Good.hashHP hx hf ht0 hv hin h
-  simpa only [encodingHash, cc_bind, cc_pure] using hh
-
 /-- Zero-padded `thInput` for the tags that `addrFmt` leaves alone (not 1, 3, 12). -/
 theorem fmt_th (t lay tau p j : Nat) (payload : List Byte)
     (ht : byte t ∉ [byte 1, byte 3, byte 12]) :

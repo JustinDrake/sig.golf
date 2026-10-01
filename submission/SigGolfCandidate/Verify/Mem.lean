@@ -108,14 +108,14 @@ def KT : Word := BitVec.ofNat 64 targetSum
 /-- Uniform target, retaining the existing layer-indexed verifier interfaces. -/
 def targetFor (_lay : Nat) : Nat := targetSum
 
-/-- The layer-4 digit sum target `targetFor 4 = 183`, held in `x14` from the PORS root tail to the
+/-- The layer-4 digit sum target `targetFor 4 = 181`, held in `x14` from the PORS root tail to the
 layer-4 encoding check (`x14` is dead there; the chain prologue then loads the triple index into it). -/
 def KT4 : Word := BitVec.ofNat 64 (targetFor 4)
 
 /-- The digit-sum constant the encoding check of layer `lay` compares against. -/
 def KTof (lay : Nat) : Word := BitVec.ofNat 64 (targetFor lay)
 
-theorem targetFor_le (lay : Nat) : targetFor lay ≤ 183 := by
+theorem targetFor_le (lay : Nat) : targetFor lay ≤ 181 := by
   simp [targetFor, targetSum]
 
 /-- The verifier's embedded mask words. -/

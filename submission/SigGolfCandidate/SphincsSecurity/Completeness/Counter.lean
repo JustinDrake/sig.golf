@@ -41,7 +41,7 @@ theorem probEvent_encodingSearch (parameter : PublicParameter) (lay : Layer) (tr
     Pr[fun r => r.1 = none | (simulateQ randomOracle
         (encodingSearch parameter lay tree leaf message encodingAttemptLimit 0
           : OracleComp HashSpec (Option (Counter × Encoding)))).run cache]
-      ≤ failMass (fun out => TargetSum.decodeDigest (selectEncodingDigest out)) ^ encodingAttemptLimit := by
+      ≤ failMass (fun out => TargetSum.decodeDigest (truncateHash out)) ^ encodingAttemptLimit := by
   have hwrap : encodingAttemptLimit ≤ 2 ^ 32 := by rw [encodingAttemptLimit]; norm_num
   rw [encodingSearch_eq_searchLoop]
   exact probEvent_searchLoop _ _ _ encodingAttemptLimit

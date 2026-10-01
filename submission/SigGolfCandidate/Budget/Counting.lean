@@ -1,6 +1,5 @@
 import SigGolfCandidate.Budget.Loops
 import SigGolfCandidate.Budget.Octopus.Prob
-import SigGolfCandidate.SphincsSecurity.Proof.Ots.EncodingSelection
 
 /-!
 # Budget: the acceptance probabilities of one fresh answer
@@ -12,18 +11,14 @@ For a uniform answer `u : BitVec 256`:
   `Octopus.admissible` by `rfl`, `admissible_eq_octopus`);
 * the randomizer lands in a set `R` of values with probability at most `|R| / 2^128`
   (`probEvent_answerBytes_mem_le`);
-* ordinary low-half encoding decodes with probability exactly `codeCount / 2^128`, where
-  `codeCount = 120626508116675256487918723077579392` is the number of pairs of 21-digit octal
-  words with digit sum `targetSum` (183) (`probEvent_decode_none`). The actual conditional-half
-  selector multiplies this probability by `3/2` (`probEvent_selected_decode_none`). The count is a generating-function identity
+* the encoding decodes with probability exactly `codeCount / 2^128`, where
+  `codeCount = 166377570312823648881394061712938016` is the number of pairs of 21-digit octal
+  words with digit sum `targetSum` (181) (`probEvent_decode_none`). The count is a generating-function identity
   evaluated by the kernel (`codeCount_eq`), as in the leanVM completeness proof.
 -/
 
 namespace SigGolfCandidate.Budget
 open SigGolfCandidate.Legacy SigGolfCandidate.Ref OracleComp Finset ENNReal
-
-set_option allowUnsafeReducibility true in
-attribute [local reducible] SphincsSecurity.hashOutputBits SphincsSecurity.digestBits
 
 /-! ## Counting over ranges -/
 
@@ -246,8 +241,8 @@ theorem npair_coeff (n s X : Nat) (hX : 8 ^ n * 8 ^ n < X) (hs : s < 14 * n + 1)
   rw [← gf_pairs]
   exact (digit_of_sum X (by omega) (npair n) (fun s => (npair_le n s).trans_lt hX) _ s hs).symm
 
-/-- The number of accepted encodings (pairs of 21-digit words with digit sum `targetSum = 183`). -/
-def codeCount : Nat := 120626508116675256487918723077579392
+/-- The number of accepted encodings (pairs of 21-digit words with digit sum `targetSum = 181`). -/
+def codeCount : Nat := 166377570312823648881394061712938016
 
 theorem gfDigit_eq (X : Nat) : gfDigit X = 1 + X + X ^ 2 + X ^ 3 + X ^ 4 + X ^ 5 + X ^ 6 + X ^ 7 := by
   simp [gfDigit, Finset.sum_range_succ]
@@ -370,55 +365,5 @@ theorem probEvent_decode_none :
       fun u => ¬ Dok u.toNat := funext fun u => propext (decode_none_iff u)
   rw [hcongr, ENNReal.eq_sub_of_add_eq probEvent_ne_top ((add_comm _ _).trans hc),
     probEvent_uniform_toNat Dok, count_Dok_256]
-
-theorem count_Dok_128 :
-    ((univ : Finset (BitVec 128)).filter fun d => Dok d.toNat).card = codeCount := by
-  rw [card_bitVec_filter, card_filter_range]
-  have h2 := count_Dok_low (2 ^ 63) rfl
-  have h3 : npair 21 targetSum = ∑ a1 ∈ range (2 ^ 63), ∑ a0 ∈ range (2 ^ 63),
-      if ds 21 a0 + ds 21 a1 = targetSum then 1 else 0 := by
-    unfold npair; rw [show (8 : Nat) ^ 21 = 2 ^ 63 by norm_num]
-  rw [show (2 : Nat) ^ 128 = (2 ^ 63 + 2 ^ 63) * (2 ^ 63 + 2 ^ 63) by norm_num,
-    h2, ← h3, npair_target]
-
-theorem selected_decode_none_iff (u : BitVec 256) :
-    decodeDigits (encodingBytes u) = none ↔
-      ¬ Dok (SphincsSecurity.selectEncodingDigest u).toNat := by
-  rw [encodingBytes, decode_none_iff]
-  have h := Dok_high ((encodingAnswer u).toNat % 2 ^ 128)
-    ((encodingAnswer u).toNat / 2 ^ 128)
-  rw [Nat.mod_add_div] at h
-  exact not_congr h
-
-/-- The actual selector has three half-spaces per accepted encoding. -/
-theorem probEvent_selected_decode_none :
-    Pr[fun u : BitVec 256 => decodeDigits (encodingBytes u) = none |
-      ($ᵗ BitVec 256 : ProbComp (BitVec 256))] =
-      1 - ((3 * 2 ^ 127 * codeCount : Nat) : ℝ≥0∞) / (2 ^ 256 : ℝ≥0∞) := by
-  let targets : Finset SphincsSecurity.Digest := univ.filter fun d => Dok d.toNat
-  have hpad : ∀ d ∈ targets, d.getLsbD 63 = false := by
-    intro d hd
-    have hlow := ((mem_filter.mp hd).2 : Dok d.toNat).1
-    rw [BitVec.getLsbD, Nat.testBit_eq_decide_div_mod_eq]
-    simp only [decide_eq_false_iff_not]
-    norm_num at hlow ⊢
-    omega
-  have hcard := SphincsSecurity.EncodingSelection.card_select_mem_of_padding targets hpad
-  have ht : targets.card = codeCount := count_Dok_128
-  rw [ht, show (2 : Nat) ^ 128 + 2 ^ 127 = 3 * 2 ^ 127 by norm_num] at hcard
-  have hc := probEvent_compl ($ᵗ BitVec 256 : ProbComp (BitVec 256))
-    (fun u => Dok (SphincsSecurity.selectEncodingDigest u).toNat)
-  have hfail : Pr[⊥ | ($ᵗ BitVec 256 : ProbComp (BitVec 256))] = 0 := by simp
-  rw [hfail, tsub_zero] at hc
-  have hcongr : (fun u : BitVec 256 => decodeDigits (encodingBytes u) = none) =
-      fun u => ¬ Dok (SphincsSecurity.selectEncodingDigest u).toNat :=
-    funext fun u => propext (selected_decode_none_iff u)
-  rw [hcongr, ENNReal.eq_sub_of_add_eq probEvent_ne_top ((add_comm _ _).trans hc),
-    SphincsSecurity.Completeness.probEvent_uniform]
-  have hcount : ((univ : Finset (BitVec 256)).filter
-      fun u => Dok (SphincsSecurity.selectEncodingDigest u).toNat).card =
-      3 * 2 ^ 127 * codeCount := by
-    simpa only [targets, mem_filter, mem_univ, true_and] using hcard
-  rw [hcount]
 
 end SigGolfCandidate.Budget
