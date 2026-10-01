@@ -144,8 +144,8 @@ theorem bR_encodingSearch_ge (p : PublicParameter) (lay : Layer) (tree : TreeInd
     have he : 1 ≤ bR f (encode (m := Equiv.AComp) p lay tree leaf M (BitVec.ofNat counterBits start)) := by
       unfold encode
       rw [bR_bind]
-      have := bR_oracleHash_ge f (tweakableHashInput p (.encoding lay tree leaf)
-        (bytesLE 16 M ++ bytesLE 4 (BitVec.ofNat counterBits start)))
+      have := bR_tweakableHash_ge f p (.encoding lay tree leaf)
+        (bytesLE 16 M ++ bytesLE 4 (BitVec.ofNat counterBits start))
       omega
     cases hr : evalWithAnswerFn (gF f) (encode (m := Equiv.AComp) p lay tree leaf M
         (BitVec.ofNat counterBits start)) with
@@ -577,16 +577,6 @@ theorem eval_hash16_bind (f : Hash) {β : Type} (x : List Byte) (K : Val → Ora
   rw [hash16_bind_eq, evalWithAnswerFn_bind]
   rfl
 
-theorem blocksF_encodingHash_bind (f : Hash) {β : Type} (x : List Byte) (K : Val → OracleComp HashSpec β) :
-    blocksF f (encodingHash x >>= K) = (addrFmt x).blocks + blocksF f (K (encodingBytes (f (addrFmt x)))) := by
-  rw [encodingHash_bind_eq, blocksF_bind, blocksF_query]
-  congr 2
-
-theorem eval_encodingHash_bind (f : Hash) {β : Type} (x : List Byte) (K : Val → OracleComp HashSpec β) :
-    evalWithAnswerFn f (encodingHash x >>= K) = evalWithAnswerFn f (K (encodingBytes (f (addrFmt x)))) := by
-  rw [encodingHash_bind_eq, evalWithAnswerFn_bind]
-  rfl
-
 /-- A successful least-counter search from `c` costs one compression per trial. -/
 theorem blocksF_searchCounter (f : Hash) (lay tau e : Nat) (M : Val) (hM : M.length ≤ 16) :
     ∀ fuel c c' x, evalWithAnswerFn f (searchCounter lay tau e M c fuel) = some (c', x) →
@@ -599,8 +589,8 @@ theorem blocksF_searchCounter (f : Hash) (lay tau e : Nat) (M : Val) (hM : M.len
     have hb : (addrFmt (encInput lay tau e M c)).blocks ≤ 1 :=
       blocksFmt_le _ 1 (by simp [encInput]; omega) le_rfl
     unfold searchCounter
-    rw [blocksF_encodingHash_bind, eval_encodingHash_bind]
-    generalize encodingBytes (f (addrFmt (encInput lay tau e M c))) = d
+    rw [blocksF_hash16_bind, eval_hash16_bind]
+    generalize answerBytes 16 (f (addrFmt (encInput lay tau e M c))) = d
     cases decodeDigits d with
     | some x' =>
       intro h

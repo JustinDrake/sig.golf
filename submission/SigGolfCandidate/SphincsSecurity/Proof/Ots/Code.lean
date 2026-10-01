@@ -121,13 +121,13 @@ theorem eq_of_le_of_valid {x y : Encoding} (hx : Valid x) (hy : Valid y)
 
 /-- A valid word, used where the proof needs a word before the reference encoding is known. -/
 irreducible_def defaultWord : Encoding :=
-  fun index => if index.val < 26 then ⟨7, by decide⟩ else if index.val = 26 then ⟨1, by decide⟩ else ⟨0, by decide⟩
+  fun index => if index.val < 25 then ⟨7, by decide⟩ else if index.val = 25 then ⟨6, by decide⟩ else ⟨0, by decide⟩
 
 theorem defaultWord_valid : Valid defaultWord := by
   rw [Valid_def]
-  change (∑ index : ChainIndex, (defaultWord index).val) = 183
+  change (∑ index : ChainIndex, (defaultWord index).val) = 181
   simp only [defaultWord_def]
-  change (∑ index : Fin 42, if index.val < 26 then (7 : Nat) else if index.val = 26 then 1 else 0) = 183
+  change (∑ index : Fin 42, if index.val < 25 then (7 : Nat) else if index.val = 25 then 6 else 0) = 181
   simp only [Fin.sum_univ_succ, Fin.sum_univ_zero]
   norm_num
 
@@ -312,9 +312,8 @@ abbrev counterBytes (counter : Counter) : HashInput := bytesLE 4 counter
 /-- Hash the message with the counter under the leaf's encoding tweak, and decode. -/
 def encodeAttempt (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
     (message : Digest) (counter : Counter) : m (Option Encoding) := do
-  let answer ← oracleHash (tweakableHashInput parameter (.encoding lay tree leaf)
-    (bytesLE 16 message ++ counterBytes counter))
-  return OtsCode.decode (selectEncodingDigest answer)
+  let digest ← tweakableHash parameter (.encoding lay tree leaf) (bytesLE 16 message ++ counterBytes counter)
+  return OtsCode.decode digest
 
 /-- The verifier's one-time leaf, or nothing if the counter does not encode the message. -/
 def otsLeafAttempt (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
