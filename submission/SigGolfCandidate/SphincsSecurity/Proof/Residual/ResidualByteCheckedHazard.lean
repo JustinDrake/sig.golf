@@ -64,7 +64,7 @@ theorem prob_checkedPrefixHashQuery_stop_le (hencoding : canonicalEncodingInputs
         · rw [hread] at hprobe; cases hprobe)
     have hencodingRisk := prob_prefixHashQuery_encodingMatch_le parameter inputs words disclosed known hencoding publicReplies selections rows
       hselect input state hcovered hclean
-    exact (add_le_add hzero hencodingRisk).trans (by simpa only [zero_add] using encoding_rate_le_probeHazard state.memory.probes)
+    exact (add_le_add hzero hencodingRisk).trans (by simpa only [zero_add] using digest_inverse_le_probeHazard state.memory.probes)
   · have hzero : Pr[ReturnedMatch (PublicEncodingMatch.Match parameter (knownEncodingMessage known) words selections) input.val |
         lazyRun (prefixEnvironment parameter inputs hencoding words disclosed known publicReplies selections rows) (hashQuery input) state] = 0 := by
       apply probEvent_eq_zero
