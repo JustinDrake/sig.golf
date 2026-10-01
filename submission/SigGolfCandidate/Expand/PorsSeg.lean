@@ -56,7 +56,7 @@ def FInv (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineState) (ptr a
 theorem fold_body (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineState) (ptr a : Nat)
     (hptr : ptr % 8 = 0) (hpa : ptr + 8 + 16 * a ≤ 0x4000) :
     ∀ j < a, ∀ (st : Val × Nat) (t : MachineState), FInv w idx K u ptr a j st t →
-      Sim eimg t 59 (foldF idx w ptr st j) (FInv w idx K u ptr a (j + 1)) := by
+      Sim eimg t 32 (foldF idx w ptr st j) (FInv w idx K u ptr a (j + 1)) := by
   intro j hj st t hinv
   obtain ⟨node, E⟩ := st
   obtain ⟨tpc, tc, hja, t28, t29, t19, hE, hl, tout, tregs, tframe⟩ := hinv
@@ -73,34 +73,32 @@ theorem fold_body (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineStat
   have hnode : [t1.getMem (BitVec.ofNat 64 0x30080), t1.getMem (BitVec.ofNat 64 0x30088)] = wordsOf node := by
     rw [← tout, readWords_ofNat_two, m1, m1]
   have hsl : (wbytes w o 16).length = 16 := length_wbytes _ _ _
-  have hH : Rev.efield (E / 2) < 2 ^ 32 := Rev.efield_lt _
+  have hH : E / 2 < 2 ^ 32 := by omega
   -- the common tail: `PB` staged at `t3` (pc 587), hash, 591
   have tail : ∀ (t3 : MachineState) (k3 : Nat) (l r : Val), Steps eimg t2 k3 k3 t3 → k3 ≤ 5 →
       t3.pc = pcOf 587 → l.length = 16 → r.length = 16 →
       t3.readWords (BitVec.ofNat 64 0x30060) 2 = wordsOf l →
       t3.readWords (BitVec.ofNat 64 0x30070) 2 = wordsOf r → RegsEq t2 t3 [] →
       Frame t2 t3 (fun x => 0x30060 ≤ x ∧ x < 0x30080) →
-      Sim eimg t 59 (do
+      Sim eimg t 32 (do
           let v ← hash16 (porsNodeInput idx (E / 2) l r)
           pure (v, E / 2)) (FInv w idx K u ptr a (j + 1)) := by
     intro t3 k3 l r hs3 hk3 p3 hl' hr' w3l w3r r3 f3
     have c3 : PCtx w idx K t3 := c2.frame f3 r3 (fun a h1 h2 => by unfold pctxA witA at h1; omega)
     obtain ⟨t4, hs4, e4, p4, x10, x11, x12, r4, m4⟩ := blk587_run t3 p3 c3.x25
     have c4 : PCtx w idx K t4 := c3.frame (W := fun _ => False) (fun x _ _ => m4 _) r4 (fun _ _ h => h)
-    have hq : hashInput t4 = pad64 (porsNodeInput idx (Rev.efield (E / 2)) l r) := by
-      refine hashInput_eq_pad64 t4 _ 0 (words_th32 10 0 idx 0 (Rev.efield (E / 2)) l r hl' hr').1 x11 (by norm_num)
+    have hq : hashInput t4 = pad64 (porsNodeInput idx (E / 2) l r) := by
+      refine hashInput_eq_pad64 t4 _ 0 (words_th32 10 0 idx 0 (E / 2) l r hl' hr').1 x11 (by norm_num)
         (by rw [x10]; decide) ?_
       rw [x10]
-      refine pb_words w idx K t4 c4 (Rev.efield (E / 2)) hH l r hl' hr' ?_ ?_ ?_
+      refine pb_words w idx K t4 c4 (E / 2) hH l r hl' hr' ?_ ?_ ?_
       · rw [m4, f3.getMem (by norm_num) (by omega), m72]
       · rw [readWords_ofNat_two, m4, m4, ← readWords_ofNat_two, w3l]
       · rw [readWords_ofNat_two, m4, m4, ← readWords_ofNat_two, w3r]
-    have hbf : (fmt (porsNodeInput idx (E / 2) l r)).blocks = 1 := by
-      rw [← addrFmt_blocks, fmt_porsNode _ _ _ _ hl' hr', blocks_porsNode _ _ _ _ hl' hr']
-    refine (Sim.steps hs1 (Sim.steps hs2 (Sim.steps hs3 (Sim.steps hs4 (Sim.hash16_bindF (W := 4) e4 c4.x5
+    refine (Sim.steps hs1 (Sim.steps hs2 (Sim.steps hs3 (Sim.steps hs4 (Sim.hash16_bind (W := 4) e4 c4.x5
       (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-        (by norm_num)) (hq.trans (fmt_porsNode _ _ _ _ hl' hr').symm) (fun ans => ?_)))))).mono
-      (by rw [hbf]; omega) (fun _ _ h => h)
+        (by norm_num)) hq (fmt_porsNode _ _ _ _) (fun ans => ?_)))))).mono
+      (by rw [blocks_porsNode _ _ _ _ hl' hr']; omega) (fun _ _ h => h)
     set t5 := writeHash t4 ans with ht5
     have p5 : t5.pc = pcOf 591 := by rw [ht5, writeHash_pc, p4]; rfl
     have f5 : Frame t4 t5 (fun x => 0x30080 ≤ x ∧ x < 0x30080 + 32) := frame_writeHash t4 ans _ x12 (by norm_num)
@@ -148,11 +146,11 @@ theorem fold_body (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineStat
 /-- The pending hash of a segment, staged: a leaf in `LB` (`s8 = 0`: word 1, secret) or a merge in
 `PB` (`s8 = 1`: word 1, the popped node, the current node). -/
 def PendOK (idx : Nat) (node : Val) : Pending → MachineState → Prop
-  | .leaf x s, t => t.getReg .x24 = BitVec.ofNat 64 0 ∧ x < 2 ^ 14 ∧ s.length = 16 ∧
-      t.getMem (BitVec.ofNat 64 0x30008) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * (8*x)) ∧
+  | .leaf x s, t => t.getReg .x24 = BitVec.ofNat 64 0 ∧ x < 2 ^ 32 ∧ s.length = 16 ∧
+      t.getMem (BitVec.ofNat 64 0x30008) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * x) ∧
       t.readWords (BitVec.ofNat 64 0x30020) 2 = wordsOf s
   | .merge H l, t => t.getReg .x24 = BitVec.ofNat 64 1 ∧ H < 2 ^ 32 ∧ l.length = 16 ∧ node.length = 16 ∧
-      t.getMem (BitVec.ofNat 64 0x30048) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * Rev.efield H) ∧
+      t.getMem (BitVec.ofNat 64 0x30048) = BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * H) ∧
       t.readWords (BitVec.ofNat 64 0x30060) 2 = wordsOf l ∧
       t.readWords (BitVec.ofNat 64 0x30070) 2 = wordsOf node
 
@@ -175,7 +173,7 @@ theorem seg_folds (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineStat
     (hE : E < 2 ^ 15) (hptr : ptr % 8 = 0) (hptr' : ptr + 232 ≤ 0x4000) (ha : wbyte w ptr % 16 ≤ 14)
     (hout : t.readWords (BitVec.ofNat 64 0x30080) 2 = wordsOf v)
     (tregs : RegsEq u t segRegs) (tframe : Frame u t segW) :
-    Sim eimg t 900 (segFolds idx w ptr (wbyte w ptr % 16) v E >>= fun x => match x with
+    Sim eimg t 460 (segFolds idx w ptr (wbyte w ptr % 16) v E >>= fun x => match x with
       | (node, E) => pure (some (ptr + 8 + 16 * (wbyte w ptr % 16), E, folds + wbyte w ptr % 16, node,
           decide (wbyte w ptr / 16 % 2 = 1))))
       (OPost (SegOut w idx K u ptr folds)) := by
@@ -185,7 +183,7 @@ theorem seg_folds (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineStat
     ⟨p1, c1, by omega, y28, y29, by rw [r1.get .x19, h19], hE, hv,
       by rw [readWords_ofNat_two, m1, m1, ← readWords_ofNat_two, hout], RegsEq.refl _ _, Frame.refl _ _⟩
   have hl := Sim.foldlM_range (image := eimg) (wbyte w ptr % 16) (foldF idx w ptr) (v, E)
-    (FInv w idx K t1 ptr (wbyte w ptr % 16)) 59 (fold_body w idx K t1 ptr _ hptr (by omega)) h0
+    (FInv w idx K t1 ptr (wbyte w ptr % 16)) 32 (fold_body w idx K t1 ptr _ hptr (by omega)) h0
   rw [segFolds_eq]
   refine (Sim.steps hs1 (Sim.bind hl (W₂ := 1) (fun p t2 h2 => ?_))).mono (by omega) (fun _ _ h => h)
   obtain ⟨node', E'⟩ := p
@@ -210,7 +208,7 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
     (node : Val) (t : MachineState) (hc : PCtx w idx K t) (hpc : t.pc = pcOf 550)
     (h9 : t.getReg .x9 = BitVec.ofNat 64 (0x800 + ptr)) (h19 : t.getReg .x19 = BitVec.ofNat 64 E)
     (hptr : ptr % 8 = 0) (hptr' : ptr + 232 ≤ 0x4000) (hE : E < 2 ^ 15) (hpend : PendOK idx node pending t) :
-    Sim eimg t 950 (Ref.segment idx w ptr E folds pending node) (OPost (SegOut w idx K t ptr folds)) := by
+    Sim eimg t 500 (Ref.segment idx w ptr E folds pending node) (OPost (SegOut w idx K t ptr folds)) := by
   have hb : wbyte w ptr < 256 := (w.getD ptr 0).isLt
   obtain ⟨t1, hs1, p1, y6, y7, r1, m1⟩ := blk550_run w t ptr hpc h9 hptr (by omega) hc.wit
   unfold Ref.segment
@@ -225,7 +223,7 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
   have c1 : PCtx w idx K t1 := hc.frame (W := fun _ => False) (fun x _ _ => m1 _) r1 (fun _ _ h => h)
   suffices hmain : ∀ (t2 : MachineState) (k : Nat), Steps eimg t1 k k t2 → k ≤ 5 → t2.pc = pcOf 559 →
       RegsEq t1 t2 [.x13, .x14] → (∀ x, t2.getMem x = t1.getMem x) →
-      Sim eimg t 950 (pendingHash idx node pending >>= fun node =>
+      Sim eimg t 500 (pendingHash idx node pending >>= fun node =>
         segFolds idx w ptr (wbyte w ptr % 16) node E >>= fun x => match x with
           | (node, E) => pure (some (ptr + 8 + 16 * (wbyte w ptr % 16), E, folds + wbyte w ptr % 16, node,
               decide (wbyte w ptr / 16 % 2 = 1))))
@@ -251,26 +249,25 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
   have g2 : ∀ x, t2.getMem x = t.getMem x := fun x => by rw [m2, m1]
   have x24 : t2.getReg .x24 = t.getReg .x24 := by rw [r2.get .x24, r1.get .x24]
   -- the hash, then the folds
-  have after : ∀ (t4 : MachineState) (k4 c4 : Nat) (v : Val) (q p : List Byte), Steps eimg t2 k4 c4 t4 → c4 ≤ 5 →
+  have after : ∀ (t4 : MachineState) (k4 c4 : Nat) (v : Val) (q : List Byte), Steps eimg t2 k4 c4 t4 → c4 ≤ 5 →
       fetch eimg t4 = some (.base .ECALL) → t4.pc = pcOf 564 →
       t4.getReg .x10 = BitVec.ofNat 64 0x30000 ∨ t4.getReg .x10 = BitVec.ofNat 64 0x30040 →
       t4.getReg .x11 = BitVec.ofNat 64 64 → t4.getReg .x12 = BitVec.ofNat 64 0x30080 →
       RegsEq t2 t4 [.x10, .x11, .x12] → (∀ x, t4.getMem x = t2.getMem x) →
-      hashInput t4 = pad64 p → addrFmt q = pad64 p → (pad64 p).blocks = 1 →
-      Sim eimg t 950 (hash16 q >>= fun node =>
+      hashInput t4 = pad64 q → addrFmt q = pad64 q → (pad64 q).blocks = 1 →
+      Sim eimg t 500 (hash16 q >>= fun node =>
         segFolds idx w ptr (wbyte w ptr % 16) node E >>= fun x => match x with
           | (node, E) => pure (some (ptr + 8 + 16 * (wbyte w ptr % 16), E, folds + wbyte w ptr % 16, node,
               decide (wbyte w ptr / 16 % 2 = 1))))
         (OPost (SegOut w idx K t ptr folds)) := by
-    intro t4 k4 c4 v q p hs4 hc4 e4 p4 x10 x11 x12 r4 m4 hq hfq hbq
+    intro t4 k4 c4 v q hs4 hc4 e4 p4 x10 x11 x12 r4 m4 hq hfq hbq
     have c4' : PCtx w idx K t4 := c2.frame (W := fun _ => False) (fun x _ _ => m4 _) r4 (fun _ _ h => h)
     have hv : hashArgumentsValid t4 = true := by
       rcases x10 with x10 | x10 <;>
       exact hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
         (by norm_num)
-    have hbf : (fmt q).blocks = 1 := by rw [← addrFmt_blocks, hfq, hbq]
-    refine (Sim.steps hs1 (Sim.steps hs2 (Sim.steps hs4 (Sim.hash16_bindF (W := 900) e4 c4'.x5 hv (hq.trans hfq.symm)
-      (fun ans => ?_))))).mono (by rw [hbf]; omega) (fun _ _ h => h)
+    refine (Sim.steps hs1 (Sim.steps hs2 (Sim.steps hs4 (Sim.hash16_bind (W := 460) e4 c4'.x5 hv hq hfq
+      (fun ans => ?_))))).mono (by rw [hbq]; omega) (fun _ _ h => h)
     set t5 := writeHash t4 ans with ht5
     have p5 : t5.pc = pcOf 565 := by rw [ht5, writeHash_pc, p4]; rfl
     have f5 : Frame t4 t5 (fun x => 0x30080 ≤ x ∧ x < 0x30080 + 32) := frame_writeHash t4 ans _ x12 (by norm_num)
@@ -296,15 +293,15 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
     have c4 : PCtx w idx K t4 := (c2.frame (W := fun _ => False) (fun x _ _ => m3 _) r3 (fun _ _ h => h)).frame
       (W := fun _ => False) (fun x _ _ => m4 _) r4 (fun _ _ h => h)
     have g4 : ∀ x, t4.getMem x = t.getMem x := fun x => by rw [m4, m3, g2]
-    have hq : hashInput t4 = pad64 (porsLeafInput idx (8*x) s) := by
-      refine hashInput_eq_pad64 t4 _ 0 (words_th16 9 0 idx 0 (8*x) s hs).1 x11 (by norm_num)
+    have hq : hashInput t4 = pad64 (porsLeafInput idx x s) := by
+      refine hashInput_eq_pad64 t4 _ 0 (words_th16 9 0 idx 0 x s hs).1 x11 (by norm_num)
         (by rw [x10']; decide) ?_
       rw [x10']
-      refine lb_words w idx K t4 c4 (8*x) (by omega) s hs (by rw [g4, m8]) ?_
+      refine lb_words w idx K t4 c4 x hx s hs (by rw [g4, m8]) ?_
       rw [readWords_ofNat_two, g4, g4, ← readWords_ofNat_two, msec]
     simp only [pendingHash]
-    exact after t4 _ _ [] _ _ (hs3.trans hs4) (by omega) e4 p4 (Or.inl x10') x11 x12
-      ((r3.trans r4).mono (by decide)) (fun x => by rw [m4, m3]) hq (fmt_porsLeaf _ _ _ hs (by omega))
+    exact after t4 _ _ [] _ (hs3.trans hs4) (by omega) e4 p4 (Or.inl x10') x11 x12
+      ((r3.trans r4).mono (by decide)) (fun x => by rw [m4, m3]) hq (fmt_porsLeaf _ _ _)
       (blocks_porsLeaf _ _ _ hs)
   | merge H l =>
     obtain ⟨k24, hH, hl, hn, m72, ml, mn⟩ := hpend
@@ -315,16 +312,16 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
     have c4 : PCtx w idx K t4 := (c2.frame (W := fun _ => False) (fun x _ _ => m3 _) r3 (fun _ _ h => h)).frame
       (W := fun _ => False) (fun x _ _ => m4 _) r4 (fun _ _ h => h)
     have g4 : ∀ x, t4.getMem x = t.getMem x := fun x => by rw [m4, m3, g2]
-    have hq : hashInput t4 = pad64 (porsNodeInput idx (Rev.efield H) l node) := by
-      refine hashInput_eq_pad64 t4 _ 0 (words_th32 10 0 idx 0 (Rev.efield H) l node hl hn).1 x11 (by norm_num)
+    have hq : hashInput t4 = pad64 (porsNodeInput idx H l node) := by
+      refine hashInput_eq_pad64 t4 _ 0 (words_th32 10 0 idx 0 H l node hl hn).1 x11 (by norm_num)
         (by rw [x10']; decide) ?_
       rw [x10']
-      refine pb_words w idx K t4 c4 (Rev.efield H) (Rev.efield_lt H) l node hl hn (by rw [g4, m72]) ?_ ?_
+      refine pb_words w idx K t4 c4 H hH l node hl hn (by rw [g4, m72]) ?_ ?_
       · rw [readWords_ofNat_two, g4, g4, ← readWords_ofNat_two, ml]
       · rw [readWords_ofNat_two, g4, g4, ← readWords_ofNat_two, mn]
     simp only [pendingHash]
-    exact after t4 _ _ [] _ _ (hs3.trans hs4) (by omega) e4 p4 (Or.inr x10') x11 x12
-      ((r3.trans r4).mono (by decide)) (fun x => by rw [m4, m3]) hq (fmt_porsNode _ _ _ _ hl hn)
+    exact after t4 _ _ [] _ (hs3.trans hs4) (by omega) e4 p4 (Or.inr x10') x11 x12
+      ((r3.trans r4).mono (by decide)) (fun x => by rw [m4, m3]) hq (fmt_porsNode _ _ _ _)
       (blocks_porsNode _ _ _ _ hl hn)
 
 end SigGolfCandidate.ExP

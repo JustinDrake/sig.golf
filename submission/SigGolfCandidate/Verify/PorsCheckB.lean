@@ -3,8 +3,6 @@ import SigGolfCandidate.Verify.PorsCheckA
 /-! Kernel check of the PORS code blocks: prologue and setup, leaves, dispatches, entry tails,
 ladder positions, tails. -/
 
-set_option Elab.async false
-
 namespace SigGolfCandidate.Verify
 
 theorem startCheck_ok : startCheck = true := by decide +kernel

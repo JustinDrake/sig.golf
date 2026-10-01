@@ -36,7 +36,7 @@ theorem buildPorsTree_eq (S : List Byte) (idx : Nat) :
 theorem porsTree_sim (S : List Byte) (hS : S.length = 32) (idx : Nat) (L : List Nat) (t0 : MachineState)
     (ctx : PLeafCtx S idx L t0) (lctx : PLevCtx idx t0) (hpc : t0.pc = pcOf 179)
     (h9 : t0.getReg .x9 = BitVec.ofNat 64 0) (hcap : CapInv (L.map keyV) 0 [] t0 0) :
-    Sim image t0 (2 ^ 13 * 79 + (1 + 14 * (4 + (2 ^ 13 * 54 + 4)))) (buildPorsTree S idx) (PorsPost L t0) := by
+    Sim image t0 (2 ^ 13 * 79 + (1 + 14 * (4 + (2 ^ 13 * 26 + 4)))) (buildPorsTree S idx) (PorsPost L t0) := by
   rw [buildPorsTree_eq]
   refine Sim.bind (porsLeaves_sim S hS idx L t0 ctx hpc h9 hcap) (fun p t1 h1 => ?_)
   obtain ⟨-, hl1, hl2, hv1, hv2, hsl1, ⟨c, hc, hclt, hcge, hcsl, -, -, -⟩, pc1, -, r1, f1, -, -⟩ := h1
