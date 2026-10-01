@@ -77,7 +77,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 theorem schedStep_merge (st : SchedState) (E cnt t h Q : Nat) (rest : List Nat)
     (hs : st.stack = Q :: rest) (hQ : Q = E) :
     schedStep (st, E, cnt, t) h =
-      ({ st with segs := st.segs ++ [cnt ||| 16 ||| 32 * t], stack := rest }, E / 2, 0, E / 2 % 2) := by
+      ({ st with segs := st.segs ++ [cnt ||| 16 ||| 32 * t], stack := rest }, E / 2, 0, E / 2 % 8) := by
   simp only [schedStep, hs, hQ, if_true]
 
 theorem schedStep_fold (st : SchedState) (E cnt t h : Nat)
@@ -107,7 +107,7 @@ theorem fold_mono (L : List Nat) : ∀ (x : SchedState × Nat × Nat × Nat),
     have h1 := schedStep_mono x h; have h2 := ih (schedStep x h); omega
 
 /-- The segment byte of a merge (`b % 16 = cnt`). -/
-theorem segByte_merge (cnt t : Nat) (hc : cnt < 16) (ht : t ≤ 1) :
+theorem segByte_merge (cnt t : Nat) (hc : cnt < 16) (ht : t ≤ 7) :
     cnt ||| 16 ||| 32 * t = cnt + 16 + 32 * t := by
   have e1 : cnt ||| 16 = 16 + cnt := by
     have := Nat.two_pow_add_eq_or_of_lt (i := 4) (b := cnt) (by omega) 1
@@ -117,7 +117,7 @@ theorem segByte_merge (cnt t : Nat) (hc : cnt < 16) (ht : t ≤ 1) :
     rw [Nat.or_comm]; simpa using this.symm
   rw [e1, e2]; omega
 
-theorem segByte_end (cnt t : Nat) (hc : cnt < 16) (ht : t ≤ 1) : cnt ||| 32 * t = cnt + 32 * t := by
+theorem segByte_end (cnt t : Nat) (hc : cnt < 16) (ht : t ≤ 7) : cnt ||| 32 * t = cnt + 32 * t := by
   have := Nat.two_pow_add_eq_or_of_lt (i := 5) (b := cnt) (by omega) t
   rw [Nat.or_comm]; simp at this; omega
 

@@ -41,7 +41,7 @@ def tbL : Nat := 0x1000 + 4 * ptabL
 
 /-- Constant registers of the PORS phase: `x5 = 0`, witness bases, `P1..P5`, `K14 = 2^14`,
 `MASK = 2^14 - 1`, `a1 = 64`, the leaf table page `x27` and `x28 = sext32 (2^31)`. -/
-def gkP : List (Reg × Word) := baseK ++ [(.x25, 0x20000), (.x26, 0x1FFF8), (.x11, 64), (.x27, 0xFE0000),
+def gkP : List (Reg × Word) := baseK ++ [(.x25, 0x20000), (.x26, 6), (.x11, 64), (.x27, 0xFE0000),
   (.x28, 0xFFFFFFFF80000000), (.x2, 0xFDFFC0)]
 
 /-- Words never written in the PORS phase. -/

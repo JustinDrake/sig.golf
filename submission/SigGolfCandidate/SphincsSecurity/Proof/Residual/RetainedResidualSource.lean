@@ -20,10 +20,11 @@ noncomputable instance signatureFintype : Fintype Signature := by
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
   letI : Fintype Segment := Fintype.ofEquiv
-    (Σ folds : Fin 16, Bool × {parity : Bool // folds.val = 0 → parity = false} × (Fin folds.val → Digest))
-    { toFun := fun s => ⟨s.1, s.2.1, s.2.2.1.1, s.2.2.2, s.2.2.1.2⟩
+    (Σ folds : Fin 16, Bool × {parity : Bool // folds.val = 0 → parity = false} ×
+      (Fin folds.val → Digest) × {lookahead : Fin 4 // folds.val < 3 → lookahead = 0})
+    { toFun := fun s => ⟨s.1, s.2.1, s.2.2.1.1, s.2.2.2.1, s.2.2.1.2, s.2.2.2.2.1, s.2.2.2.2.2⟩
       invFun := fun segment => ⟨segment.folds, segment.merge, ⟨segment.parity, segment.parity_normal⟩,
-        segment.nodes⟩
+        segment.nodes, ⟨segment.lookahead, segment.lookahead_normal⟩⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
   letI : Fintype FtsSignature := Fintype.ofEquiv

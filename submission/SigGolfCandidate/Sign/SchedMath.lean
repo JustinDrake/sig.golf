@@ -186,10 +186,10 @@ theorem fold_steps {α : Type} (g q : α → Nat) (E0 : Nat) (hE1 : 2 ^ 14 ≤ E
       · -- merge
         have hq : q x = E0 / 2 ^ a := by rw [hx.2.2, hxa]
         have := ih (a + 1) ls' ⟨sg ++ [c ||| 16 ||| 32 * t], rd, ls'.map q⟩
-          0 (E0 / 2 ^ (a + 1) % 2) hpw.2 hls' (by omega) rfl
+          0 (E0 / 2 ^ (a + 1) % 8) hpw.2 hls' (by omega) rfl
         have hs : schedStep (⟨sg, rd, List.map q (x :: ls')⟩, E0 / 2 ^ a, c, t) a =
             (⟨sg ++ [c ||| 16 ||| 32 * t], rd, ls'.map q⟩, E0 / 2 ^ (a + 1), 0,
-              E0 / 2 ^ (a + 1) % 2) := by
+              E0 / 2 ^ (a + 1) % 8) := by
           simp only [schedStep, List.map_cons, hq, if_true, hdiv]
         rw [hs]
         obtain ⟨t1, t2, t3⟩ := this
@@ -359,7 +359,7 @@ theorem leaf_step (hg : Good vs) {s : Nat} (hs : s < vs.length) (hl : LiveOk vs 
     · have := (Lh_bounds hg (by assumption)).2; omega
     · unfold porsH; omega
   have hfold := fold_steps (fun i => Lh vs i - 1) (pushQ vs) E0 hE1 hE2 (topOf vs s) 0 (live vs s) st 0
-    (E0 % 2) hl.pw (fun i hi => by
+    (E0 % 8) hl.pw (fun i hi => by
       have his := hl.lt i hi
       have := (Lh_bounds hg (show i + 1 < vs.length by omega))
       exact ⟨Nat.zero_le _, by omega, pushQ_eq hg his hs (hl.hi i hi)⟩) (by omega)
@@ -371,7 +371,7 @@ theorem leaf_step (hg : Good vs) {s : Nat} (hs : s < vs.length) (hl : LiveOk vs 
       · simp [h]
       · simp [h]; omega)
   have hunf : schedLeaf vs st s =
-      let r := (List.range (topOf vs s)).foldl schedStep (st, E0, 0, E0 % 2)
+      let r := (List.range (topOf vs s)).foldl schedStep (st, E0, 0, E0 % 8)
       if s + 1 < vs.length then
         (⟨r.1.segs ++ [r.2.2.1 ||| 32 * r.2.2.2], r.1.reads, (r.2.1 ^^^ 1) :: r.1.stack⟩ : SchedState)
       else ⟨r.1.segs ++ [r.2.2.1 ||| 32 * r.2.2.2], r.1.reads, r.1.stack⟩ := by

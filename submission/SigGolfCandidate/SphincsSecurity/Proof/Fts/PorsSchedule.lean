@@ -79,8 +79,9 @@ theorem scheduleStep_fold (state : ScheduleState) (height : Nat)
 theorem scheduleStep_merge (state : ScheduleState) (height : Nat) (rest : List Nat)
     (hstack : state.stack = state.heap :: rest) :
     scheduleStep state height
-      = { state with done := state.done ++ [⟨true, state.parity, state.reads⟩], stack := rest,
-                     heap := state.heap / 2, parity := decide (state.heap / 2 % 2 = 1), reads := [] } := by
+      = { state with done := state.done ++ [⟨true, state.parity, state.reads, state.lookahead⟩], stack := rest,
+                     heap := state.heap / 2, parity := decide (state.heap / 2 % 2 = 1), reads := [],
+                     lookahead := ⟨state.heap / 2 / 2 % 4, Nat.mod_lt _ (by decide)⟩ } := by
   unfold scheduleStep
   rw [hstack]
   simp
@@ -133,7 +134,7 @@ run `r`) the nodes at the read positions of the schedule's segment `sseg`. -/
 def SegmentMatches (fts : FtsSignature) (r : Run) (j : Fin ftsSegments) (sseg : ScheduleSegment) : Prop :=
   (fts.segments j).folds.val = sseg.reads.length ∧ (fts.segments j).merge = sseg.merge ∧
     ((fts.segments j).folds.val ≠ 0 →
-      ∃ heap, (heap, (fts.segments j).parity) ∈ r.parities ∧ sseg.parity = decide (heap % 2 = 1)) ∧
+      ∃ heap, (heap, (fts.segments j).parity) ∈ r.parities ∧ sseg.parity = decide (heap % 2 = 1) ∧ (3 ≤ (fts.segments j).folds.val → (fts.segments j).lookahead = sseg.lookahead)) ∧
     ∀ i (hi : i < sseg.reads.length), (readHeap sseg.reads[i], (fts.segments j).node i) ∈ r.reads
 
 theorem SegmentMatches.mono {fts : FtsSignature} {r r' : Run} {j : Fin ftsSegments} {sseg : ScheduleSegment}
@@ -167,8 +168,10 @@ theorem DoneMatch.snoc {fts : FtsSignature} {r r' : Run} {done : List ScheduleSe
 
 /-- The segment the run just finished matches a schedule segment with `a` fold reads from `heap`. -/
 theorem segmentMatches_folds (fts : FtsSignature) (v height : Nat) (hv : v < 2 ^ ftsTreeHeight)
-    (r : Run) (hsegment : r.segment < ftsSegments) (merge parity : Bool) (hheap : r.heap = (2 ^ ftsTreeHeight + v) / 2 ^ height)
+    (r : Run) (hsegment : r.segment < ftsSegments) (merge parity : Bool) (lookahead : Fin 4) (hheap : r.heap = (2 ^ ftsTreeHeight + v) / 2 ^ height)
     (hparity : parity = decide (r.heap % 2 = 1))
+    (hlookahead : 3 ≤ (fts.segments ⟨r.segment, hsegment⟩).folds.val →
+      (fts.segments ⟨r.segment, hsegment⟩).lookahead = lookahead)
     (hmerge : (fts.segments ⟨r.segment, hsegment⟩).merge = merge)
     (hroom : height + (fts.segments ⟨r.segment, hsegment⟩).folds.val ≤ ftsTreeHeight)
     (r' : Run)
@@ -178,8 +181,8 @@ theorem segmentMatches_folds (fts : FtsSignature) (v height : Nat) (hv : v < 2 ^
         then [(r.heap, (fts.segments ⟨r.segment, hsegment⟩).parity)] else [])) :
     SegmentMatches fts r' ⟨r.segment, hsegment⟩
       ⟨merge, parity, List.ofFn fun i : Fin (fts.segments ⟨r.segment, hsegment⟩).folds.val =>
-        foldRead (height + i.val) (r.heap / 2 ^ i.val)⟩ := by
-  refine ⟨by simp, hmerge, fun hne => ⟨r.heap, ?_, hparity⟩, fun i hi => ?_⟩
+        foldRead (height + i.val) (r.heap / 2 ^ i.val), lookahead⟩ := by
+  refine ⟨by simp, hmerge, fun hne => ⟨r.heap, ?_, hparity, hlookahead⟩, fun i hi => ?_⟩
   · rw [hparities, if_pos ⟨rfl, hne⟩]
     simp
   · simp only [List.length_ofFn] at hi
@@ -202,17 +205,19 @@ theorem segmentsRun_schedule (fts : FtsSignature) (v : Nat) (hv : v < 2 ^ ftsTre
       r.heap = (2 ^ ftsTreeHeight + v) / 2 ^ height → height ≤ top →
       r1.heap = (2 ^ ftsTreeHeight + v) / 2 ^ top → Chain (r1.stack.map Prod.snd) (r1.heap / 2) →
       state.heap = r.heap → state.stack = r.stack.map Prod.snd → state.reads = [] →
-      state.parity = decide (r.heap % 2 = 1) → DoneMatch fts r state.done →
+      state.parity = decide (r.heap % 2 = 1) →
+      state.lookahead.val = r.heap / 2 % 4 → DoneMatch fts r state.done →
       ((List.range' height (top - height)).foldl scheduleStep state).heap = r1.heap ∧
       ((List.range' height (top - height)).foldl scheduleStep state).stack = r1.stack.map Prod.snd ∧
       DoneMatch fts r1 (((List.range' height (top - height)).foldl scheduleStep state).done ++
         [⟨false, ((List.range' height (top - height)).foldl scheduleStep state).parity,
-          ((List.range' height (top - height)).foldl scheduleStep state).reads⟩]) := by
+          ((List.range' height (top - height)).foldl scheduleStep state).reads,
+          ((List.range' height (top - height)).foldl scheduleStep state).lookahead⟩]) := by
   intro fuel
   induction fuel with
   | zero => intro _ _ _ _ _ hrun; simp [segmentsRun] at hrun
   | succ fuel ih =>
-      intro pending r r1 state height hrun hheap hheight hend hchain hsheap hsstack hsreads hsparity hdone
+      intro pending r r1 state height hrun hheap hheight hend hchain hsheap hsstack hsreads hsparity hslookahead hdone
       rw [segmentsRun] at hrun
       by_cases hsegment : r.segment < ftsSegments
       swap
@@ -222,6 +227,13 @@ theorem segmentsRun_schedule (fts : FtsSignature) (v : Nat) (hv : v < 2 ^ ftsTre
       by_cases hfolds : SegmentRejects (fts.segments ⟨r.segment, hsegment⟩) r.heap
       · rw [if_pos hfolds] at hrun; simp at hrun
       rw [if_neg hfolds] at hrun
+      have hprefix : 3 ≤ (fts.segments ⟨r.segment, hsegment⟩).folds.val →
+          (fts.segments ⟨r.segment, hsegment⟩).lookahead = state.lookahead := by
+        intro hne
+        apply Fin.ext
+        rw [hslookahead]
+        by_contra hbad
+        exact hfolds (Or.inr ⟨by omega, Or.inr ⟨hne, hbad⟩⟩)
       set segment := fts.segments ⟨r.segment, hsegment⟩ with hsegmentDef
       set a := segment.folds.val with ha
       set started : Run := { r.hash f (pendingInput parameter index pending r.node) with
@@ -277,9 +289,10 @@ theorem segmentsRun_schedule (fts : FtsSignature) (v : Nat) (hv : v < 2 ^ ftsTre
           simp only [hstate1, hsstack, ← hfstack, hstack, List.map_cons, hsibling, hfheap, hsheap]
         rw [scheduleStep_merge state1 (height + a) _ hstack1]
         -- the rest of the leaf, by induction
-        refine ih _ _ r1 _ (height + a + 1) hrun hnext (by omega) hend hchain ?_ ?_ rfl ?_ ?_
+        refine ih _ _ r1 _ (height + a + 1) hrun hnext (by omega) hend hchain ?_ ?_ rfl ?_ ?_ ?_
         · simp [hstate1, hsheap, hfheap]
         · simp
+        · simp [hstate1, hsheap, hfheap]
         · simp [hstate1, hsheap, hfheap]
         · -- the finished segments, with the one that just ended
           refine DoneMatch.snoc _ hdone rfl hsegment ?_ ?_ ?_
@@ -291,8 +304,8 @@ theorem segmentsRun_schedule (fts : FtsSignature) (v : Nat) (hv : v < 2 ^ ftsTre
             show x ∈ folded.parities
             rw [hfparities]
             exact List.mem_append_left _ hx
-          · have := segmentMatches_folds fts v height hv r hsegment true state.parity hheap
-              (by rw [hsparity]) hmerge (by show height + a ≤ ftsTreeHeight; omega) folded hfreads hfparities
+          · have := segmentMatches_folds fts v height hv r hsegment true state.parity state.lookahead hheap
+              (by rw [hsparity]) hprefix hmerge (by show height + a ≤ ftsTreeHeight; omega) folded hfreads hfparities
             simp only [hstate1, hsreads, hsheap, List.nil_append] at this ⊢
             exact this
       · -- the leaf ends after the folds
@@ -329,8 +342,8 @@ theorem segmentsRun_schedule (fts : FtsSignature) (v : Nat) (hv : v < 2 ^ ftsTre
           show x ∈ folded.parities
           rw [hfparities]
           exact List.mem_append_left _ hx
-        · have := segmentMatches_folds fts v height hv r hsegment false state.parity hheap
-            (by rw [hsparity]) (by simpa using hmerge) (by show height + a ≤ ftsTreeHeight; omega) _ hfreads
+        · have := segmentMatches_folds fts v height hv r hsegment false state.parity state.lookahead hheap
+            (by rw [hsparity]) hprefix (by simpa using hmerge) (by show height + a ≤ ftsTreeHeight; omega) _ hfreads
             hfparities
           simp only [hsreads, hsheap, List.nil_append] at this ⊢
           exact this
@@ -359,8 +372,9 @@ theorem scheduleLeaves_cons (v : Nat) (rest : List Nat) (state : ScheduleState) 
         | w :: _ => bitLength (v ^^^ w) - 1
       let climbed := (List.range top).foldl scheduleStep
         { state with heap := 2 ^ ftsTreeHeight ||| v,
-                     parity := decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), reads := [] }
-      let closed := { climbed with done := climbed.done ++ [⟨false, climbed.parity, climbed.reads⟩] }
+                     parity := decide ((2 ^ ftsTreeHeight ||| v) % 2 = 1), reads := [],
+                     lookahead := ⟨(2 ^ ftsTreeHeight ||| v) / 2 % 4, Nat.mod_lt _ (by decide)⟩ }
+      let closed := { climbed with done := climbed.done ++ [⟨false, climbed.parity, climbed.reads, climbed.lookahead⟩] }
       scheduleLeaves rest (match rest with
         | [] => closed
         | _ :: _ => { closed with stack := (closed.heap ^^^ 1) :: closed.stack }) := by
@@ -491,9 +505,11 @@ theorem leavesRun_schedule (fts : FtsSignature) (values : SlotCode → Nat)
         (by rw [leafValue_of_lt values fts _ hposition]; exact hv) top htop ftsSegments _
         (leafStart values fts position hposition r) r1
         { state with heap := 2 ^ ftsTreeHeight ||| leafValue values fts position,
-                     parity := decide ((2 ^ ftsTreeHeight ||| leafValue values fts position) % 2 = 1), reads := [] }
+                     parity := decide ((2 ^ ftsTreeHeight ||| leafValue values fts position) % 2 = 1), reads := [],
+                     lookahead := ⟨(2 ^ ftsTreeHeight ||| leafValue values fts position) / 2 % 4, Nat.mod_lt _ (by decide)⟩ }
         0 hleaf (by simp [hstart, leafValue_of_lt values fts _ hposition]) (Nat.zero_le _)
         hr1heap hchain1 (by simp [leafValue_of_lt values fts _ hposition]) hsstack rfl
+        (by simp [leafValue_of_lt values fts _ hposition])
         (by simp [leafValue_of_lt values fts _ hposition]) hdone
       rw [← List.range_eq_range', Nat.sub_zero] at hleafSchedule
       obtain ⟨hcheap, hcstack, hcdone⟩ := hleafSchedule
@@ -502,9 +518,10 @@ theorem leavesRun_schedule (fts : FtsSignature) (values : SlotCode → Nat)
         set climbed := (List.range top).foldl scheduleStep
           { state with heap := 2 ^ ftsTreeHeight ||| leafValue values fts position,
                        parity := decide ((2 ^ ftsTreeHeight ||| leafValue values fts position) % 2 = 1),
-                       reads := [] } with hclimbed
+                       reads := [],
+                       lookahead := ⟨(2 ^ ftsTreeHeight ||| leafValue values fts position) / 2 % 4, Nat.mod_lt _ (by decide)⟩ } with hclimbed
         set closed : ScheduleState :=
-          { climbed with done := climbed.done ++ [⟨false, climbed.parity, climbed.reads⟩] } with hclosed
+          { climbed with done := climbed.done ++ [⟨false, climbed.parity, climbed.reads, climbed.lookahead⟩] } with hclosed
         rw [valuesFrom_cons values fts (position + 1) hpush]
         dsimp only
         rw [← valuesFrom_cons values fts (position + 1) hpush]
@@ -636,13 +653,13 @@ theorem recoverRun_leafQuery (values : SlotCode → Nat) (fts : FtsSignature) (r
 /-! ### The canonical opening (E3) -/
 
 theorem segment_ext {s t : Segment} (hfolds : s.folds = t.folds) (hmerge : s.merge = t.merge)
-    (hparity : s.parity = t.parity) (hnode : ∀ i, s.node i = t.node i) : s = t := by
+    (hparity : s.parity = t.parity) (hlookahead : s.lookahead = t.lookahead) (hnode : ∀ i, s.node i = t.node i) : s = t := by
   cases s with
-  | mk sf sm sp sn snorm =>
+  | mk sf sm sp sn snorm sla slnorm =>
     cases t with
-    | mk tf tm tp tn tnorm =>
-      simp only at hfolds hmerge hparity
-      subst hfolds hmerge hparity
+    | mk tf tm tp tn tnorm tla tlnorm =>
+      simp only at hfolds hmerge hparity hlookahead
+      subst hfolds hmerge hparity hlookahead
       have : sn = tn := by
         funext i
         have := hnode i.val
@@ -700,7 +717,7 @@ theorem recoverRun_schedule (leaves : IndexGroup → FtsLeaf) (fts : FtsSignatur
   cases hrun
   obtain ⟨_, hheap, hstack⟩ := haccept
   obtain ⟨hdone, hopen⟩ := leavesRun_schedule f parameter index fts (slotValue leaves) hvalues ftsOpenings 0 0
-    Run.initial r ⟨[], [], 0, false, []⟩ hleaves rfl (by decide) hheap hstack rfl
+    Run.initial r ⟨[], [], 0, false, [], 0⟩ hleaves rfl (by decide) hheap hstack rfl
     ⟨rfl, fun j hj => by simp [Run.initial, RecoverState.initial] at hj⟩
   refine ⟨fun j => ?_, fun s => hopen s.val s.isLt (Nat.zero_le _)⟩
   rw [hsortedLeaves]
@@ -756,12 +773,21 @@ theorem recoverRun_honest (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature)
         · rw [(segments j).parity_normal hzero]
           rw [hzero] at hfolds
           simp [← hfolds]
-        · obtain ⟨heap, hmem, hpar⟩ := hparity hzero
+        · obtain ⟨heap, hmem, hpar, _⟩ := hparity hzero
           have := hparities _ hmem
           simp only at this
           rw [this, hpar]
           have : sseg.reads.length ≠ 0 := by omega
           simp [this]
+      · simp only [ScheduleSegment.toSegment, Segment.normalized, ScheduleSegment.folds,
+          Nat.mod_eq_of_lt hlen]
+        by_cases hshort : (segments j).folds.val < 3
+        · rw [(segments j).lookahead_normal hshort]
+          simp [← hfolds,hshort]
+        · obtain ⟨heap,hmem,hpar,hl⟩ := hparity (by omega)
+          have hlong : 3 ≤ (segments j).folds.val := by omega
+          have : ¬sseg.reads.length < 3 := by omega
+          simpa [this] using hl hlong
       · intro i
         have hmemOr : sseg ∈ schedule (sortedLeaves leaves) ∨ sseg = default := by
           rw [hsseg, List.getD_eq_getElem?_getD]

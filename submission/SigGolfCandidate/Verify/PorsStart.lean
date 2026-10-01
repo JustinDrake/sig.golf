@@ -307,7 +307,7 @@ theorem memLook_none_hi : ∀ (ws : SymMem) (A : Nat), (ws.all fun p => decide (
     exact memLook_none_hi ws A h2 hA
 
 theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P s) :
-    ∃ u, Steps image s 104 104 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
+    ∃ u, Steps image s 105 105 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
   obtain ⟨hMask, hRt, hG, hWA, hK, hd, hZ, hpc⟩ := hs
   obtain ⟨-, -, cSet⟩ := startCheck_parts
   obtain ⟨u, hu⟩ := spec_run cSet s hpc hK (by simp [setupSpec])

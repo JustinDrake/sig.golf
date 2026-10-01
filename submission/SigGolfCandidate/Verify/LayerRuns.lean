@@ -73,7 +73,7 @@ def specA (lay t : Nat) : Spec :=
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
 
 /-! ## The encoding check (`remu x25, x25, x18`; layers 0 .. 3 compare `KT`, layer 4 reuses `x14 = KT4`,
-targets185/186, retaining a one-step zero correction in layer0) and the chain prologue -/
+targets185/186, with no checksum correction) and the chain prologue -/
 
 /-- Four selector paths: AB, gated AB, BC, CD. The gated AB case is rejected by padding. -/
 def selOf (a : BitVec 256) : Nat :=
