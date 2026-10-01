@@ -144,24 +144,21 @@ theorem blk417_run (t : MachineState) (hpc : t.pc = pcOf 417) (p : Nat) (hp : p 
 theorem blk419_run (t : MachineState) (hpc : t.pc = pcOf 419) (p base : Nat) (hp : p < 8) (hb : base < 2 ^ 48)
     (h28 : t.getReg .x28 = BitVec.ofNat 64 p) (h20 : t.getReg .x20 = BitVec.ofNat 64 base)
     (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) :
-    ∃ t', Steps eimg t 6 6 t' ∧ t'.pc = pcOf 425 ∧
+    ∃ t', Steps eimg t 6 6 t' ∧ fetch eimg t' = some (.base .ECALL) ∧ t'.pc = pcOf 425 ∧
       t'.getReg .x10 = BitVec.ofNat 64 0x30140 ∧ t'.getReg .x11 = BitVec.ofNat 64 64 ∧
       t'.getReg .x12 = BitVec.ofNat 64 0x30170 ∧
       t'.getMem (BitVec.ofNat 64 0x30140) = BitVec.ofNat 64 (base + 2 ^ 32 * p) ∧
-      RegsEq t t' [.x10, .x11, .x12, .x14] ∧ Frame t t' (fun a => a = 0x30140) ∧
-      t'.getReg .x14 = BitVec.ofNat 64 (base + 2 ^ 32 * p) := by
+      RegsEq t t' [.x10, .x11, .x12, .x14] ∧ Frame t t' (fun a => a = 0x30140) := by
   refine ⟨_, symRun_sound Expand.blk419 Expand.codeAt_419 t hpc (by pobl [Expand.blk419.res, h25]),
+    symRun_ecall Expand.blk419 Expand.codeAt_419 t (by pobl [Expand.blk419.res, h25]) rfl,
     by simp only [Expand.blk419.res, rv_simp], by pnum [Expand.blk419.res, h25],
-    by simp only [Expand.blk419.res, rv_simp], by pnum [Expand.blk419.res, h25], ?_, by pregs, ?_, ?_⟩
+    by simp only [Expand.blk419.res, rv_simp], by pnum [Expand.blk419.res, h25], ?_, by pregs, ?_⟩
   · pnum [Expand.blk419.res, h25, h28, h20, show (32#64 : Word).toNat % 64 = 32 from rfl, ofNat_shiftLeft]
     omega
   · apply frame_toState; intro x hx hW
     simp only [Expand.blk419.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
       implies_true, and_true, ne_eq, h25, ofNat_add_ofNat, ofNat_eq_iff]
     bvomega
-
-  · pnum [Expand.blk419.res, h28, h20, show (32#64 : Word).toNat % 64 = 32 from rfl, ofNat_shiftLeft]
-    omega
 
 /-- 426 .. 427: next position. -/
 theorem blk426_run (t : MachineState) (hpc : t.pc = pcOf 426) (p : Nat) (h28 : t.getReg .x28 = BitVec.ofNat 64 p) :

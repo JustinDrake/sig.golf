@@ -35,7 +35,7 @@ theorem canonicalGraphMessage_eq (key : SecretKey) (f : QueryImpl HashSpec Id) (
 theorem canonicalEncodingSearch_eq_graph_table (key : SecretKey) (f : QueryImpl HashSpec Id)
     (position : EncodingPosition) :
     canonicalEncodingSearch key f position.lay position.tree position.leafIdx =
-      encodingTableResult position.lay (referenceEncodingTable key.parameter f position
+      encodingTableResult (referenceEncodingTable key.parameter f position
         (canonicalGraphMessage (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f) position)
         encodingAttemptLimit 0) 0 := by
   rw [canonicalEncodingSearch, canonicalGraphMessage_eq, referenceEncodingSearch_eq_table]
@@ -96,7 +96,7 @@ theorem readCanonicalEncodingRows_finite (parameter : PublicParameter) (inputs :
   exact finiteHashAnswer_none ∅ inputs table _ (hinputs (canonicalEncodingRowInput_mem parameter labels row)) (by simp)
 
 def canonicalEncodingResults (rows : CanonicalEncodingRows) : EncodingPosition → Option (Counter × Encoding) × Nat :=
-  fun position => encodingTableResult position.lay (fun counter => rows (position, counter)) 0
+  fun position => encodingTableResult (fun counter => rows (position, counter)) 0
 
 theorem canonicalEncodingResults_eq (key : SecretKey) (f : QueryImpl HashSpec Id) :
     canonicalEncodingResults (readCanonicalEncodingRows key.parameter
@@ -104,7 +104,7 @@ theorem canonicalEncodingResults_eq (key : SecretKey) (f : QueryImpl HashSpec Id
         fun position => canonicalEncodingSearch key f position.lay position.tree position.leafIdx := by
   funext position
   rw [canonicalEncodingSearch_eq_graph_table]
-  apply congrArg (fun table => encodingTableResult position.lay table 0)
+  apply congrArg (fun table => encodingTableResult table 0)
   funext counter
   simp only [readCanonicalEncodingRows, canonicalEncodingRowInput, referenceEncodingTable]
   rw [Nat.zero_add]

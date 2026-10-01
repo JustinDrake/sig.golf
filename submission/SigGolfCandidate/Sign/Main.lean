@@ -32,7 +32,7 @@ theorem code1716 : image.code[1716]? = some 0x00000073#32 := by decide +kernel
 
 /-- `signList` after the MAC check. -/
 def signRest (S cache m : List Byte) : OracleComp HashSpec (Option (List Byte)) :=
-  searchDigestPairs S m 0 (2 ^ 19 - 1 + 1) >>= fun r =>
+  searchDigest S m 0 (2 ^ 20 - 1 + 1) >>= fun r =>
     match r with
     | none => pure none
     | some (rho, N) =>
@@ -94,15 +94,15 @@ theorem sched_le (N : Nat) (hadm : admissible N = true) :
 
 /-- Cycle bound after the MAC check. -/
 def restW : Nat :=
-  (2 ^ 19 - 1 + 1) * digCyc + 2 + (34 + ((2 ^ 13 * 79 + (1 + 14 * (4 + (2 ^ 13 * 26 + 4)))) +
+  (2 ^ 20 - 1 + 1) * digCyc + 2 + (34 + ((2 ^ 13 * 79 + (1 + 14 * (4 + (2 ^ 13 * 26 + 4)))) +
     (11 + 15 * 345 + (20 + (4 * layCyc + topCyc + (996 + 2))))))
 
 /-- Cycle bound of `signList`. -/
-def signW : Nat := 54 + (8 * 513 + (53 + restW))
+def signW : Nat := 54 + (8 * 1025 + (53 + restW))
 
 theorem region_s0 (sk : SecretKey) (cache : Cache) (m : Message) :
     RegionOk (toList cache) (s0 sk cache m) := by
-  intro l j hpos hl hj
+  intro l j hl hj
   have := cacheNodeOff_lt l j hl hj
   have h8 : cacheNodeOff l j % 8 = 0 := by unfold cacheNodeOff; omega
   rw [s0_readWords_cache sk cache m _ 2 h8 (by omega)]; rfl
@@ -120,7 +120,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
   have upbS := hu.pbS
   have fs0 := hu.frame
   unfold signRest restW
-  refine Sim.bind (digLoop_sim sk m u dmem u5 u7 (2 ^ 19 - 1) 0 u (by norm_num) dinv)
+  refine Sim.bind (digLoop_sim sk m u dmem u5 u7 (2 ^ 20 - 1) 0 u (by norm_num) dinv)
     (fun r t h => ?_)
   rcases r with _ | ⟨rho, N⟩
   · obtain ⟨tpc, t5, t10⟩ := h
@@ -177,7 +177,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
       schW' (schedule (sortLeaves (leavesOf N))).2.length a))) := fst.trans f03
   have hW3 : ∀ a, ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x120 ≤ a ∧ a < 0x130) ∨
       schW' (schedule (sortLeaves (leavesOf N))).2.length a))) →
-      a < 0x900 ∨ (0x24B00 ≤ a ∧ a < 0x24C00 + 16 * 120) ∨ 0x30000 ≤ a ∨ (0xCAE0 ≤ a ∧ a < 0xCB20) ∨
+      a < 0x900 ∨ (0x24B00 ≤ a ∧ a < 0x24C00 + 16 * 120) ∨ 0x30000 ≤ a ∨ (0x4AE0 ≤ a ∧ a < 0x4B20) ∨
         (0x14B00 ≤ a ∧ a < 0x14B20) := by
     intro a ha
     simp only [macW, setupW, digW, anW, digokW, porsW, schW'] at ha

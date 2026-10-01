@@ -12,9 +12,7 @@ namespace SigGolfCandidate.Budget
 open SigGolfCandidate.Legacy SigGolfCandidate.Ref
 
 /-- Byte `i` of a query. -/
-def rawByte (q : Query) (i : Nat) : Nat := q.2.toNat / 256 ^ i % 256
-
-def qbyte (q : Query) (i : Nat) : Nat := rawByte (AddressFormat.queryPerm q) i
+def qbyte (q : Query) (i : Nat) : Nat := q.2.toNat / 256 ^ i % 256
 
 theorem length_padTo64 (x : List Byte) : (padTo64 x).length = 64 * (padBlocks x.length + 1) := by
   unfold padTo64 padBlocks
@@ -30,8 +28,8 @@ theorem getD_padTo64 (x : List Byte) (i : Nat) : (padTo64 x).getD i 0 = x.getD i
       List.getElem?_replicate]
     split <;> rfl
 
-theorem rawByte_pad64 (x : List Byte) (i : Nat) : rawByte (pad64 x) i = (x.getD i 0).toNat := by
-  unfold rawByte pad64 ofList
+theorem qbyte_pad64 (x : List Byte) (i : Nat) : qbyte (pad64 x) i = (x.getD i 0).toNat := by
+  unfold qbyte pad64 ofList
   simp only [BitVec.toNat_ofNat]
   have hlt := leNat_lt (padTo64 x)
   rw [length_padTo64] at hlt
@@ -41,8 +39,8 @@ theorem rawByte_pad64 (x : List Byte) (i : Nat) : rawByte (pad64 x) i = (x.getD 
 
 theorem getD_eq_of_pad64_eq {x y : List Byte} (e : pad64 x = pad64 y) (i : Nat) :
     x.getD i 0 = y.getD i 0 := by
-  have h := congrArg (fun q => rawByte q i) e
-  simp only [rawByte_pad64] at h
+  have h := congrArg (fun q => qbyte q i) e
+  simp only [qbyte_pad64] at h
   exact BitVec.eq_of_toNat_eq h
 
 theorem pad64_inj {x y : List Byte} (h : x.length = y.length) (e : pad64 x = pad64 y) : x = y := by
@@ -60,21 +58,18 @@ theorem blocks_pad64_le (x : List Byte) (k : Nat) (h : x.length ≤ 64 * k) (hk 
 /-! ## The oracle input format -/
 
 theorem blocksFmt_le (x : List Byte) (k : Nat) (h : x.length ≤ 64 * k) (hk : 1 ≤ k) :
-    (addrFmt x).blocks ≤ k :=
-  by rw [addrFmt_blocks]; exact (Ref.blocks_fmt_le x).trans (blocks_pad64_le x k h hk)
+    (fmt x).blocks ≤ k :=
+  (Ref.blocks_fmt_le x).trans (blocks_pad64_le x k h hk)
 
 /-- Bytes `0..4` (tag, layer) of a formatted query are those of the input. -/
-theorem qbyte_fmt (x : List Byte) (i : Nat) (hi : i < 4) : qbyte (addrFmt x) i = (x.getD i 0).toNat := by
-  unfold qbyte addrFmt
-  rw [AddressFormat.queryPerm_involutive]
-  unfold rawByte
+theorem qbyte_fmt (x : List Byte) (i : Nat) (hi : i < 4) : qbyte (fmt x) i = (x.getD i 0).toNat := by
+  unfold qbyte
   rw [← leNat_toList, leNat_div_mod, getD_toList_fmt x i (Or.inl hi)]
 
 /-- Inputs of a tag other than `1, 3, 12` are zero padded. -/
 theorem fmt_eq_pad64 (t lay tau p j : Nat) (pl : List Byte)
     (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 12) :
-    addrFmt (thInput (tweak t lay tau p j) pl) = pad64 (thInput (tweak t lay tau p j) pl) := by
-  rw [addrFmt_eq_th _ _ _ _ _ _ ht.1]
+    fmt (thInput (tweak t lay tau p j) pl) = pad64 (thInput (tweak t lay tau p j) pl) := by
   refine fmt_thInput _ _ _ _ _ _ ?_
   simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
   refine ⟨?_, ?_, ?_⟩ <;> intro h <;> have := congrArg BitVec.toNat h <;>
@@ -83,11 +78,11 @@ theorem fmt_eq_pad64 (t lay tau p j : Nat) (pl : List Byte)
 /-! ## Tweak bytes -/
 
 theorem qbyte_tag (t lay tau p j : Nat) (pl : List Byte) :
-    qbyte (addrFmt (thInput (tweak t lay tau p j) pl)) 1 = t % 256 := by
+    qbyte (fmt (thInput (tweak t lay tau p j) pl)) 1 = t % 256 := by
   rw [qbyte_fmt _ _ (by omega)]; simp [thInput, tweak, byte_toNat]
 
 theorem qbyte_lay (t lay tau p j : Nat) (pl : List Byte) :
-    qbyte (addrFmt (thInput (tweak t lay tau p j) pl)) 2 = lay % 256 := by
+    qbyte (fmt (thInput (tweak t lay tau p j) pl)) 2 = lay % 256 := by
   rw [qbyte_fmt _ _ (by omega)]; simp [thInput, tweak, byte_toNat]
 
 theorem leNat_leBytes (k v : Nat) : leNat (leBytes k v) = v % 256 ^ k := leNat_map_range k v

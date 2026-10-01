@@ -34,11 +34,7 @@ theorem buildTree_eq (S : List Byte) (lay tau h e : Nat) (x : List Nat) :
   simp only [buildTree, buildLevels, bind_assoc, pure_bind]
 
 /-- Cycle bound of tree_build. -/
-def treeCyc : Nat := 64 * tleafCyc + (4 + 6 * 853)
-
-/-- The non-top tree returns through the shared leaf dispatcher. -/
-def treeEntryState (t : MachineState) : MachineState :=
-  blk2986.res.toState (blk2980.res.toState (blk591.res.toState t))
+def treeCyc : Nat := 64 * tleafCyc + (1 + 6 * 853)
 
 theorem tree_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : TreePar)
     (tt : MachineState) (ctx : TreeCtx S x p tt) (h1 : 1 ≤ p.h) (hpc : tt.pc = pcOf 522)
@@ -49,7 +45,7 @@ theorem tree_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : TreePa
   have hsig := ctx.hsigl
   have hlay := ctx.hlay
   rw [buildTree_eq]
-  have hW : 2 ^ p.h * tleafCyc + (4 + p.h * 853) ≤ treeCyc := by
+  have hW : 2 ^ p.h * tleafCyc + (1 + p.h * 853) ≤ treeCyc := by
     unfold treeCyc
     have := Nat.mul_le_mul_right tleafCyc h32
     have := Nat.mul_le_mul_right 853 hh
@@ -59,37 +55,14 @@ theorem tree_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : TreePa
   obtain ⟨-, hlv, hlvv, hlvs, hcap, pc2, -, lregs, lframe, -, -⟩ := h2
   obtain ⟨hc1, hc2, hc3⟩ := hcap ctx.he
   have pc2' : t2.pc = pcOf 591 := by rw [pc2, if_neg (lt_irrefl _)]
-  have hlay0 : p.lay ≠ 0 := by
-    intro hz
-    have ht := ctx.hheight
-    rw [hz, show height 0 = 11 from rfl] at ht
-    omega
-  have x28 : t2.getReg .x8 ≠ 0 := by
-    rw [lregs.get .x8, ctx.x8]
-    intro hz
-    have hh0 := congrArg BitVec.toNat hz
-    simp only [BitVec.toNat_ofNat, BitVec.toNat_zero] at hh0
-    rw [Nat.mod_eq_of_lt (by omega)] at hh0
-    exact hlay0 hh0
-  have hs30 := symRun_sound blk591 codeAt_591 t2 pc2' (by simp only [blk591.res, rv_simp])
-  have hs31 := symRun_sound blk2980 codeAt_2980 (blk591.res.toState t2)
-    (by simp only [blk591.res, rv_simp]) (by simp only [blk2980.res, rv_simp])
-  have hs32 := symRun_sound blk2986 codeAt_2986 (blk2980.res.toState (blk591.res.toState t2))
-    (by
-      simp only [blk2980.res, blk591.res, rv_simp, bne_iff_ne]
-      split
-      · rfl
-      · rename_i hn
-        exact False.elim (hn x28))
-    (by simp only [blk2986.res, rv_simp])
-  have hs3 : Steps image t2 4 4 (treeEntryState t2) := hs30.trans (hs31.trans hs32)
-  set t3 := treeEntryState t2 with ht3
+  have hs3 := symRun_sound blk591 codeAt_591 t2 pc2' (by simp only [blk591.res, rv_simp])
+  have hc67 : blk591.res.cycles = 1 := rfl
+  rw [hc67] at hs3
+  set t3 := blk591.res.toState t2 with ht3
   have f3 : Frame t2 t3 (fun _ => False) := by
-    intro a ha hW
-    rfl
+    apply frame_toState; intro x hx hW; simp [blk591.res]
   have r3 : RegsEq t2 t3 [.x15] := by
-    intro r hr
-    simp only [ht3, treeEntryState, Result.toState_getReg]
+    intro r hr; rw [ht3, Result.toState_getReg]
     cases r <;> first | exact absurd (by decide) hr | rfl
   have rt3 : RegsEq tt t3 (leavesRegs ++ [.x15]) := lregs.trans r3
   have ft3 : Frame tt t3 (leavesW p) := (lframe.trans f3).mono (by
@@ -106,8 +79,8 @@ theorem tree_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : TreePa
     · have := ctx.hsigl
       rw [ft3.readWords _ _ (by norm_num) (by intro i hi; simp only [leavesW]; omega), ctx.nbP]
   refine (Sim.steps hs3 (Sim.bind (W₂ := 0) (tlevels_sim p t3 vctx q.1 hlv hlvv
-    (hlvs.frame f3 (by omega) (by simp)) (by simp only [ht3, treeEntryState, blk2986.res, blk2980.res, blk591.res, rv_simp])
-    (by simp only [ht3, treeEntryState, blk2986.res, blk2980.res, blk591.res, rv_simp]) (by rw [rt3.get .x17, ctx.x17]))
+    (hlvs.frame f3 (by omega) (by simp)) (by simp only [ht3, blk591.res, rv_simp])
+    (by simp only [ht3, blk591.res, rv_simp]) (by rw [rt3.get .x17, ctx.x17]))
     (fun st t4 h4 => ?_))).mono (by omega) (fun _ _ h => h)
   obtain ⟨-, hl4, hv4, hs4, hp4, hpv4, hps4, pc4, -, -, vregs, vframe⟩ := h4
   refine Sim.pure ⟨by rw [pc4, if_neg (lt_irrefl _)], ?_, ?_, hc1, hc2, ?_, hp4, hpv4, hps4, ?_, ?_⟩

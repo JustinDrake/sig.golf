@@ -87,20 +87,14 @@ theorem writeWords_regs : ∀ (ws : List Word) (s : MachineState) (base : Word),
 def M1w : Word := 0x71c71c71c71c71c7#64
 def M2w : Word := 0xf03f03f03f03f03f#64
 
-def MaskData (s : MachineState) : Prop :=
-  s.getMem (BitVec.ofNat 64 0xFFFFF0) = M1w ∧
-  s.getMem (BitVec.ofNat 64 0xFFFFF8) = M2w ∧
-  s.getMem (BitVec.ofNat 64 0xFFFFE0) = 0x40201#64 ∧
-  s.getMem (BitVec.ofNat 64 0xFFFFE8) = 0x3fe00#64
-
 /-- Registers constant in all phases after the prologue. The address base `x18 = 4095`
 also serves as the digit-check modulus; rebased load offsets preserve every memory address.
 `x19 = 7` is the heap index 7 of the Merkle shape blocks (M4c; W1a needs no second witness base). -/
 def baseK : List (Reg × Word) :=
   [(.x5, 0), (.x18, 0xFFF), (.x19, 7), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
 
-/-- The legacy tweak-word bump remains available to arithmetic helper lemmas.
-Address-format chains do not require it in any register. -/
+/-- The W1a chain constants: the tweak-word bump `2^40` (`x28`), the triple-dispatch mask (`x2`),
+the triple table base `ttab + 2048` (`x15`). -/
 def K40 : Word := 0x10000000000
 def TMASK : Word := 0x3fe00
 def TTA5 : Word := 0x50000
@@ -111,16 +105,16 @@ def gkF : List (Reg × Word) := baseK ++ [(.x24, 0x10000)]
 /-- The exact digit sum, compared after the alias-free reduction modulo 4095. -/
 def KT : Word := BitVec.ofNat 64 targetSum
 
-/-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the triple-dispatch constants. -/
+/-- Layer phase: masks, `K16`, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
 def gkL0 : List (Reg × Word) :=
-  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x2, TMASK),
+  baseK ++ [(.x20, M1w), (.x21, M2w), (.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, K40), (.x2, TMASK),
     (.x15, TTA5)]
 
 /-- The layer phase (the same list: W1a keeps no layer-4-only constant). -/
 def gkL : List (Reg × Word) := gkL0
 
 /-- The `P` slots (`+16 .. +32`) of the hash buffers DB, CB, EB, NB, RB2, LB. -/
-def pSlots : List Nat := [ 0xD0, 0xD8, 0x110, 0x118, 0x1D0, 0x1D8, 0x230, 0x238,
+def pSlots : List Nat := [0x10, 0x18, 0xD0, 0xD8, 0x110, 0x118, 0x1D0, 0x1D8, 0x230, 0x238,
   0x350, 0x358]
 
 /-- The witness words below the chain array (`[0, 2944)`: rho, pi, secrets, stream, `c4`, paths), which

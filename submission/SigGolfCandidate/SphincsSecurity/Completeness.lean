@@ -56,17 +56,17 @@ end Completeness
 
 /-- **Completeness**, in the random-oracle model: the sum over all messages of the probability that
 the honest run fails, because the signer returned no signature or the verifier rejected it, is at
-most `2⁻¹²⁸`. By a union bound, this also bounds the probability that any message fails under one
+most `2⁻²⁵⁶`. By a union bound, this also bounds the probability that any message fails under one
 key and random oracle. -/
 abbrev SphincsCompletenessStatement : Prop :=
   ∑' message : Message, Pr[= false | Completeness.experiment message]
-    ≤ ((2 ^ 128 : Nat) : ℝ≥0∞)⁻¹
+    ≤ ((2 ^ 256 : Nat) : ℝ≥0∞)⁻¹
 
 /-- **Per-seed completeness**, in the random-oracle model: for every master seed, not only on average
 over a random one, the sum over all messages of the probability that the honest run from that seed
-fails is at most `2⁻¹²⁸`. The only randomness is the random oracle. -/
+fails is at most `2⁻²⁵⁶`. The only randomness is the random oracle. -/
 abbrev SphincsSeededCompletenessStatement : Prop :=
   ∀ seed : MasterSeed, ∑' message : Message, Pr[= false | Completeness.seededExperiment seed message]
-    ≤ ((2 ^ 128 : Nat) : ℝ≥0∞)⁻¹
+    ≤ ((2 ^ 256 : Nat) : ℝ≥0∞)⁻¹
 
 end SphincsSecurity

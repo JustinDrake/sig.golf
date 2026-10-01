@@ -153,9 +153,9 @@ theorem tlevel_body (p : TreePar) (t0 : MachineState) (ctx : TLevCtx p t0) (j : 
     (by simp only [c]; omega) t1 pc1 y16 y17 y19 y5 (by simp only [c]; omega)
     (fun j' l r hj' hl hr => by
       simp only [c] at hj' ⊢
-      show addrFmt (nodeInput p.lay p.tau (1 + j) j' l r) =
+      show fmt (nodeInput p.lay p.tau (1 + j) j' l r) =
         pad64 (nodeFmt 3 p.lay p.tau 0 (2 ^ (p.h - 1 - j) + j') l r)
-      rw [addrFmt_nodeInput, fmt_nodeInput _ _ _ _ _ _ hl hr (by omega) (by omega) (by omega),
+      rw [fmt_nodeInput _ _ _ _ _ _ hl hr (by omega) (by omega) (by omega),
         pad64_len64 _ (length_nodeFmt _ _ _ _ _ _ _ hl hr)]
       unfold heapIndex nodeFmt
       rw [← ctx.hheight, show p.h - (1 + j) = p.h - 1 - j by omega])
