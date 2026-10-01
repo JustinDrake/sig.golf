@@ -56,7 +56,7 @@ theorem searchCounter_eq (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (M 
     simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_
     rw [decodeDigits_dv]
-    cases hd : SphincsSecurity.TargetSum.decodeDigest lay d with
+    cases hd : SphincsSecurity.TargetSum.decodeDigest d with
     | none =>
       simp only [Option.map_none]
       rw [ih (c + 1) (by omega)]
@@ -126,84 +126,42 @@ theorem chainTo_eq (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
 abbrev absTopNode (seed : MasterSeed) (b : SigGolfCandidate.Cache) :=
   SphincsSecurity.Seeded.cachedTopNode (m := AComp) 0 seed (cacheDec b)
 
-theorem topPathTail_eq (seed : MasterSeed) (b : SigGolfCandidate.Cache) (e : Nat)
-    (he : e < 2 ^ SphincsSecurity.maxLayerHeight) (head : Ref.Val) :
-    (List.range' 1 (SphincsSecurity.maxLayerHeight - 1)).foldlM (fun acc l => do
-      let mk ← Ref.hash16 (Ref.maskInput (Ref.toList (n := 32) seed) l ((e / 2 ^ l) ^^^ 1))
-      pure (acc ++ [Ref.xorBytes (Ref.cacheNode (Ref.toList b) l ((e / 2 ^ l) ^^^ 1)) mk])) [head] =
-      (fun path : Fin (SphincsSecurity.maxLayerHeight - 1) → Digest =>
-        head :: List.ofFn fun l => dv (path l)) <$>
-        relabel fmtQ (sequenceFin (m := AComp) (n := SphincsSecurity.maxLayerHeight - 1) fun level =>
-          absTopNode seed b (level.val + 1) (Nat.xor (e / 2 ^ (level.val + 1)) 1)) := by
-  rw [List.range'_eq_map_range, List.foldlM_map, relabel_sequenceFin]
-  have hbody : (fun (acc : List Ref.Val) (l : Nat) => do
-      let mk ← Ref.hash16 (Ref.maskInput (Ref.toList (n := 32) seed) (1 + l) ((e / 2 ^ (1 + l)) ^^^ 1))
-      pure (acc ++ [Ref.xorBytes (Ref.cacheNode (Ref.toList b) (1 + l) ((e / 2 ^ (1 + l)) ^^^ 1)) mk])) =
-      fun acc l => (do
-        let mk ← Ref.hash16 (Ref.maskInput (Ref.toList (n := 32) seed) (l + 1) ((e / 2 ^ (l + 1)) ^^^ 1))
-        pure (Ref.xorBytes (Ref.cacheNode (Ref.toList b) (l + 1) ((e / 2 ^ (l + 1)) ^^^ 1)) mk)) >>= fun v =>
-          pure (acc ++ [v]) := by
-    funext acc l; simp only [Nat.add_comm 1 l, bind_assoc, pure_bind]
-  rw [hbody]
-  rw [foldlM_range_seq (fun level : Fin (SphincsSecurity.maxLayerHeight - 1) => relabel fmtQ
-      (absTopNode seed b (level.val + 1) (Nat.xor (e / 2 ^ (level.val + 1)) 1))) _ dv (fun l hl => by
-    have hlevel : l + 1 < SphincsSecurity.maxLayerHeight := by omega
-    have hs : (e / 2 ^ (l + 1)) ^^^ 1 < 2 ^ (SphincsSecurity.maxLayerHeight - (l + 1)) := by
-      have h1 : e / 2 ^ (l + 1) < 2 ^ (SphincsSecurity.maxLayerHeight - (l + 1)) := by
-        rw [Nat.div_lt_iff_lt_mul (by positivity), ← Nat.pow_add,
-          show SphincsSecurity.maxLayerHeight - (l + 1) + (l + 1) = SphincsSecurity.maxLayerHeight by omega]
-        exact he
-      exact Nat.xor_lt_two_pow h1 (Nat.one_lt_two_pow (by omega))
-    have hs' : (e / 2 ^ (l + 1)) ^^^ 1 < 2 ^ SphincsSecurity.maxLayerHeight :=
-      lt_of_lt_of_le hs (Nat.pow_le_pow_right (by omega) (by omega))
-    simp only [absTopNode, SphincsSecurity.Seeded.cachedTopNode, Nat.add_one_ne_zero, if_false,
-      relabel_bind, relabel_pure]
-    rw [hash16_mask seed (l + 1) _ hlevel hs', bind_map_left, map_bind]
-    refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun mk => ?_
-    simp only [map_pure]
-    rw [dv_xor]
-    exact congrArg (fun x => pure (Ref.xorBytes x (dv mk)))
-      (dv_cacheDec_node b (l + 1) _ (by omega) hlevel hs).symm)]
-  refine congrArg (· <$> _) ?_
-  funext f
-  rw [foldl_finRange_append]
-  rfl
-
 theorem topPath_eq (seed : MasterSeed) (b : SigGolfCandidate.Cache) (e : Nat)
     (he : e < 2 ^ SphincsSecurity.maxLayerHeight) :
     Ref.topPath (Ref.toList (n := 32) seed) (Ref.toList b) e =
       (fun path : Fin SphincsSecurity.maxLayerHeight → Digest => List.ofFn fun l => dv (path l)) <$>
         relabel fmtQ (sequenceFin (m := AComp) (n := SphincsSecurity.maxLayerHeight) fun level =>
           absTopNode seed b level.val (Nat.xor (e / 2 ^ level.val) 1)) := by
-  have hs : Nat.xor e 1 < 2 ^ SphincsSecurity.maxLayerHeight :=
-    Nat.xor_lt_two_pow he (by decide)
-  let leaf : LeafIndex := ⟨e ^^^ 1, hs⟩
-  have hleaf := buildLeaf_eq seed SphincsSecurity.topLayer SphincsSecurity.Concrete.rootTree leaf
-    SphincsSecurity.Concrete.zeroEncoding [] (fun _ => rfl)
-  change Ref.buildLeaf (Ref.toList (n := 32) seed) 0 0 (e ^^^ 1) [] = _ at hleaf
-  have hzero : absTopNode seed b 0 (Nat.xor e 1) = Prod.snd <$>
-      SphincsSecurity.Concrete.buildLeafPaired (m := AComp) 0 SphincsSecurity.topLayer
-        SphincsSecurity.Concrete.rootTree leaf
-        (SphincsSecurity.Seeded.otsSecret 0 seed SphincsSecurity.topLayer
-          SphincsSecurity.Concrete.rootTree leaf) SphincsSecurity.Concrete.zeroEncoding := by
-    simp only [absTopNode, SphincsSecurity.Seeded.cachedTopNode, if_true,
-      SphincsSecurity.Concrete.leafOfNat, Nat.mod_eq_of_lt hs, map_eq_bind_pure_comp]
-    rfl
   unfold Ref.topPath
-  rw [hleaf, bind_map_left, relabel_sequenceFin]
-  conv_rhs => rw [show SphincsSecurity.maxLayerHeight = 10 + 1 from rfl, sequenceFin]
-  simp only [Fin.val_zero, Nat.pow_zero, Nat.div_one, hzero, relabel_map,
-    bind_map_left, map_bind, map_pure, bind_assoc, pure_bind]
-  refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun result => ?_
-  rw [show Ref.topH - 1 = SphincsSecurity.maxLayerHeight - 1 from rfl,
-    topPathTail_eq seed b e he, relabel_sequenceFin]
-  simp only [Fin.val_succ, Nat.succ_eq_add_one, map_eq_bind_pure_comp]
-  refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun path => ?_
-  change pure (dv result.2 :: List.ofFn (fun l => dv (path l))) =
-    (pure (List.ofFn (fun l => dv (Fin.cases result.2 path l))) : OracleComp SigGolfCandidate.Legacy.HashSpec _)
-  apply congrArg (fun vals : List Ref.Val => (pure vals : OracleComp SigGolfCandidate.Legacy.HashSpec _))
-  conv_rhs => rw [List.ofFn_succ]
-  rfl
+  rw [show Ref.topH = SphincsSecurity.maxLayerHeight from rfl, relabel_sequenceFin]
+  have hbody : (fun (acc : List Ref.Val) (l : Nat) => do
+      let mk ← Ref.hash16 (Ref.maskInput (Ref.toList (n := 32) seed) l ((e / 2 ^ l) ^^^ 1))
+      pure (acc ++ [Ref.xorBytes (Ref.cacheNode (Ref.toList b) l ((e / 2 ^ l) ^^^ 1)) mk])) =
+      fun acc l => (do
+        let mk ← Ref.hash16 (Ref.maskInput (Ref.toList (n := 32) seed) l ((e / 2 ^ l) ^^^ 1))
+        pure (Ref.xorBytes (Ref.cacheNode (Ref.toList b) l ((e / 2 ^ l) ^^^ 1)) mk)) >>= fun v =>
+          pure (acc ++ [v]) := by
+    funext acc l; simp only [bind_assoc, pure_bind]
+  rw [hbody]
+  rw [foldlM_range_seq (fun level : Fin SphincsSecurity.maxLayerHeight => relabel fmtQ
+      (absTopNode seed b level.val (Nat.xor (e / 2 ^ level.val) 1))) _ dv (fun l hl => by
+    have hs : (e / 2 ^ l) ^^^ 1 < 2 ^ (SphincsSecurity.maxLayerHeight - l) := by
+      have h1 : e / 2 ^ l < 2 ^ (SphincsSecurity.maxLayerHeight - l) := by
+        rw [Nat.div_lt_iff_lt_mul (by positivity), ← Nat.pow_add,
+          show SphincsSecurity.maxLayerHeight - l + l = SphincsSecurity.maxLayerHeight by omega]
+        exact he
+      exact Nat.xor_lt_two_pow h1 (Nat.one_lt_two_pow (by omega))
+    have hs' : (e / 2 ^ l) ^^^ 1 < 2 ^ SphincsSecurity.maxLayerHeight :=
+      lt_of_lt_of_le hs (Nat.pow_le_pow_right (by omega) (by omega))
+    simp only [absTopNode, SphincsSecurity.Seeded.cachedTopNode, relabel_bind, relabel_pure]
+    rw [hash16_mask seed l _ hl hs', bind_map_left, map_bind]
+    refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun mk => ?_
+    simp only [map_pure]
+    rw [dv_xor]
+    exact congrArg (fun x => pure (Ref.xorBytes x (dv mk))) (dv_cacheDec_node b l _ hl hs).symm)]
+  refine congrArg (· <$> _) ?_
+  funext f
+  rw [foldl_finRange_append, List.nil_append]
 
 theorem signTop_eq (seed : MasterSeed) (b : SigGolfCandidate.Cache) (index : Index) (M : Digest) :
     Ref.signTop (Ref.toList (n := 32) seed) (Ref.toList b) index (dv M) =

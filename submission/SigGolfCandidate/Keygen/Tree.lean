@@ -133,11 +133,11 @@ theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List V
   rw [flatten_getD k levels hs k (2 * j + 1) le_rfl (by omega)] at hR
   have hll := hs.getD_len k (2 * j) le_rfl (by omega)
   have hrl := hs.getD_len k (2 * j + 1) le_rfl (by omega)
-  have hq : hashInput u = fmt (nodeInput 0 0 (k + 1) j ((levels.getD k []).getD (2 * j) []) ((levels.getD k []).getD (2 * j + 1) [])) := by
+  have hq : hashInput u = addrFmt (nodeInput 0 0 (k + 1) j ((levels.getD k []).getD (2 * j) []) ((levels.getD k []).getD (2 * j + 1) [])) := by
     have hlen64 : (thInput (tweak 3 0 0 0 (heapIndex (height 0) (k + 1) j))
         (((levels.getD k []).getD (2 * j) []) ++ ((levels.getD k []).getD (2 * j + 1) []))).length = 64 := by
       simp only [thInput, List.length_append, length_tweak, length_P, hll, hrl]
-    rw [fmt_nodeInput _ _ _ _ _ _ hll hrl (by norm_num) (by omega) (by omega), ← pad64_of_len64 _ hlen64]
+    rw [addrFmt_nodeInput, fmt_nodeInput _ _ _ _ _ _ hll hrl (by norm_num) (by omega) (by omega), ← pad64_of_len64 _ hlen64]
     refine hashInput_eq_pad64 u 0 448 _ (by rw [u11]) (by norm_num) u10
       (by norm_num) (by norm_num)
       (by simp only [thInput, List.length_append, length_tweak, length_P, hll, hrl]; norm_num)

@@ -25,7 +25,9 @@ open SigGolfCandidate.Bridge (relabel relabel_pure relabel_bind relabel_map rela
 def toB (x : List UInt8) : List Byte := x.map UInt8.toBitVec
 
 /-- The oracle relabelling: the organizer query `Ref.fmt` of the organizer bytes. -/
-def fmtQ (x : List UInt8) : Query := Ref.fmt (toB x)
+def baseFmtQ (x : List UInt8) : Query := Ref.fmt (toB x)
+
+def fmtQ (x : List UInt8) : Query := Ref.addrFmt (toB x)
 
 @[simp] theorem toB_append (x y : List UInt8) : toB (x ++ y) = toB x ++ toB y := by
   simp [toB]

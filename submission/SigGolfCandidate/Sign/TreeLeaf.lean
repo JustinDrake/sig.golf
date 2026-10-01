@@ -85,7 +85,7 @@ theorem pow_le32 (h : Nat) (hh : h ≤ 6) : 2 ^ h ≤ 64 :=
 theorem tleaf_body (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : TreePar)
     (tt : MachineState) (ctx : TreeCtx S x p tt) (j : Nat) (hj : j < 2 ^ p.h)
     (st : List Val × List Val) (t : MachineState) (hinv : TLeafInv p tt j st t) :
-    Sim image t (7 + (21 * 480 + (4 + (88 + 2))))
+    Sim image t (7 + (21 * 844 + (4 + (88 + 2))))
       (do
         let (leaf, c) ← buildLeaf S p.lay p.tau j x
         pure (st.1 ++ [leaf], if j = p.e then c else st.2))
@@ -123,7 +123,7 @@ theorem tleaf_body (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : Tree
     intro x hx; simp only [leavesW] at hx ⊢; omega)
   have rt1 : RegsEq tt tl leavesRegs := (tregs.trans r1).mono (by decide)
   have cctx : ChainCtx S x ⟨p.lay, p.tau, p.e, j, p.sigl⟩ tl := by
-    refine ⟨hl, htau, show p.e < 2048 by omega, show j < 2048 by omega, hsig, ctx.hx, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨hl, htau, show p.e < 64 by omega, show j < 64 by omega, hsig, ctx.hx, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [rt1.get .x5, ctx.x5]
     · rw [rt1.get .x13, ctx.x13]
     · rw [rt1.get .x18, ctx.x18]
@@ -189,7 +189,7 @@ theorem tleaf_body (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : Tree
     congrArg (· + 1) (words_thVals 2 p.lay p.tau 0 j cs.1 hcv1 10 (by rw [hc1'])).1
   refine (Sim.steps hs3 (Sim.hash16_bind (W := 2) e3 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by omega) (by omega)
-      (by norm_num)) hq (fmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
+      (by norm_num)) hq (addrFmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
   set t4 := writeHash t3 a with ht4
   have f4 : Frame t3 t4 (fun x => 0xB0000 + 16 * j ≤ x ∧ x < 0xB0000 + 16 * j + 32) :=
     frame_writeHash t3 a _ x12 (by omega)
@@ -252,7 +252,7 @@ namespace SigGolfCandidate.Sign
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref
 
 /-- Cycle bound of one leaf. -/
-def tleafCyc : Nat := 7 + (21 * 480 + (4 + (88 + 2)))
+def tleafCyc : Nat := 7 + (21 * 844 + (4 + (88 + 2)))
 
 /-- **Leaves** `0 .. 2^h - 1` of a tree (with capture of leaf `e`). -/
 theorem leaves_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : TreePar)

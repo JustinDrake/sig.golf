@@ -342,8 +342,8 @@ theorem hashInput_eq_digest (t : MachineState) (rho m : List Byte) (hr : rho.len
 
 theorem blocks_fmt_th (t lay tau p j : Nat) (payload : List Byte)
     (ht : byte t ∉ [byte 1, byte 3, byte 12]) :
-    (fmt (thInput (tweak t lay tau p j) payload)).blocks = (pad64 (thInput (tweak t lay tau p j) payload)).blocks := by
-  rw [fmt_thInput _ _ _ _ _ _ ht]
+    (addrFmt (thInput (tweak t lay tau p j) payload)).blocks = (pad64 (thInput (tweak t lay tau p j) payload)).blocks := by
+  rw [addrFmt_thInput _ _ _ _ _ _ ht]
 
 /-- A 64-byte input `tw | P | l | r` (tree node, FORS node). -/
 theorem words_th32 (t lay tau p j : Nat) (l r : Val) (hl : l.length = 16) (hr : r.length = 16) :

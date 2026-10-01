@@ -67,7 +67,7 @@ theorem chk_head (c : CCtx) (i : Nat) (hi : i < 42) (hd : dig c i < 7) :
   · have hp := part_at c i hi h0
     unfold partCheck at hp
     rw [if_neg (by omega), Bool.and_eq_true] at hp
-    have hr : rungPc c i (dig c i + 1) = startPc c i + 5 := by
+    have hr : rungPc c i (dig c i + 1) = startPc c i + 4 := by
       unfold startPc rungPc; rw [if_neg h0, if_neg h0]; split <;> omega
     rw [hr, decide_eq_false h0]
     exact optBeq_eq hp.1
@@ -109,7 +109,7 @@ theorem chk_rung (c : CCtx) (i mu : Nat) (hi : i < 42) (h1 : dig c i + 2 ≤ mu)
     unfold partCheck at hp
     rw [if_neg (by omega), Bool.and_eq_true] at hp
     have := List.all_eq_true.mp hp.2 mu (List.mem_range'_1.mpr ⟨by omega, by omega⟩)
-    have hr : rungPc c i mu = startPc c i + 5 + 2 * (mu - dig c i - 1) := by
+    have hr : rungPc c i mu = startPc c i + 4 + 2 * (mu - dig c i - 1) := by
       unfold rungPc startPc; rw [if_neg h0, if_neg h0]
     rw [hr]; exact this
 
@@ -148,9 +148,9 @@ def ChainNext (c : CCtx) (j : Nat) (acc : List Val) (s : MachineState) : Prop :=
 
 /-- The dispatch cost after chain `i`: the next triple's extraction and `jalr` after a triple's `C`,
 the return after chain 41. -/
-def xCost (i : Nat) : Nat := if i % 3 = 2 then (if i = 41 then 1 else xSteps (i / 3)) else 0
+def xCost (i : Nat) : Nat := if i % 3 = 2 then (if i = 41 then 1 else 4) else 0
 
-theorem xCost_le (i : Nat) : xCost i ≤ 4 := by unfold xCost xSteps; split_ifs <;> omega
+theorem xCost_le (i : Nat) : xCost i ≤ 4 := by unfold xCost; split_ifs <;> omega
 
 theorem end_next (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (i : Nat) (hi : i < 42)
     (acc : List Val) (s : MachineState) (hs : EndInv c i acc s) :
@@ -169,7 +169,7 @@ theorem end_next (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (i : 
   · refine ⟨s, by simpa [xCost, h2] using Steps.refl s, ?_⟩
     obtain ⟨hB, h25, hF, hpc⟩ := hs
     unfold ChainNext; rw [if_pos (by omega)]
-    refine ⟨hB, by intro _; rw [h25, twW0_succ _ _ hc.1 hi], hF, ?_⟩
+    refine ⟨hB, h25, hF, ?_⟩
     rw [hpc]; unfold endPc startPc
     by_cases h0 : i % 3 = 0
     · rw [if_pos h0, if_neg (by omega), if_pos (by omega)]
@@ -202,7 +202,7 @@ theorem steps_good (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (i 
       obtain ⟨u, hu, hn⟩ := end_next c hc hret i hi _ _ ((hpost a).2 rfl)
       exact Good.steps hu (hK _ _ (by simp) hn)
     have h3 := Good.hash (K := fun v => K (acc ++ [v])) hs.2.2.2.2.2.2.2.2.2.2.2.2 h5 hv hin h2
-    rw [blocks_chainInputP _ _ _ _ _ _ _ (length_witPad c hc i hi) hvl (by omega) (by omega) (by omega)] at h3
+    rw [addrFmt_blocks, blocks_chainInputP _ _ _ _ _ _ _ (length_witPad c hc i hi) hvl (by omega) (by omega) (by omega)] at h3
     have := xCost_le i
     exact h3.mono (by omega) (by simp [preCost]; omega)
   | succ k ih =>
@@ -220,7 +220,7 @@ theorem steps_good (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (i 
       exact Good.steps' hu this (by split <;> omega) (by omega)
     have h3 := Good.hash (K := fun v => cc (restFold c i (mu + 1) v) (fun v => K (acc ++ [v])))
       hs.2.2.2.2.2.2.2.2.2.2.2.2 h5 hv hin h2
-    rw [blocks_chainInputP _ _ _ _ _ _ _ (length_witPad c hc i hi) hvl (by omega) (by omega) (by omega)] at h3
+    rw [addrFmt_blocks, blocks_chainInputP _ _ _ _ _ _ _ (length_witPad c hc i hi) hvl (by omega) (by omega) (by omega)] at h3
     refine h3.mono (by omega) ?_
     unfold preCost
     by_cases h6 : mu + 1 = 7
@@ -229,7 +229,7 @@ theorem steps_good (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (i 
 
 /-- Cycle cost of chain `i` at digit `d`. -/
 def chainCost (i d : Nat) : Nat :=
-  (if i % 3 = 0 then 1 else 0) + (if d = 7 then 5 else 6 + 9 * (7 - d)) + xCost i
+  (if i % 3 = 0 then 1 else 0) + (if d = 7 then 4 else 5 + 9 * (7 - d)) + xCost i
 
 theorem chain_good (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (i : Nat) (hi : i < 42)
     (acc : List Val) (K : List Val → OracleComp HashSpec Obs) (N C : Nat)
@@ -304,7 +304,7 @@ theorem chains_good0 (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (
     (hs : ChainIn c 0 [] s) :
     Good s (N + 40 * 42) (C + chainsCost c 0 42) (cc ((List.range 42).foldlM (chainF c xs) []) K) := by
   have := chains_good c hc hret xs hxs K N C hK 42 0 rfl [] s (by unfold ChainNext; rwa [if_pos (by omega)])
-  rwa [List.range_eq_range']
+  rwa [List.range_eq_range'] 
 
 theorem sum_eq_getD (l : List Nat) : l.sum = ((List.range l.length).map (l.getD · 0)).sum := by
   induction l with
@@ -317,14 +317,14 @@ theorem sum_eq_getD (l : List Nat) : l.sum = ((List.range l.length).map (l.getD 
 /-- The layer-independent per-chain overhead: `A`'s table jump and the dispatch after `C`. -/
 def xtra (i : Nat) : Nat := (if i % 3 = 0 then 1 else 0) + xCost i
 
-theorem chain_xtra (c : CCtx) (i : Nat) : chainCost i (dig c i) + 9 * dig c i ≤ 69 + xtra i := by
+theorem chain_xtra (c : CCtx) (i : Nat) : chainCost i (dig c i) + 9 * dig c i ≤ 68 + xtra i := by
   have := dig_lt c i
   unfold chainCost xtra
   split_ifs <;> omega
 
 theorem chainsCost_aux (c : CCtx) : ∀ k i,
     ((List.range' i k).map fun j => chainCost j (dig c j)).sum + 9 * ((List.range' i k).map (dig c)).sum ≤
-      69 * k + ((List.range' i k).map xtra).sum := by
+      68 * k + ((List.range' i k).map xtra).sum := by
   intro k
   induction k with
   | zero => intro i; simp
@@ -336,21 +336,21 @@ theorem chainsCost_aux (c : CCtx) : ∀ k i,
     omega
 
 /-- The chain-phase cycles of a layer (at most; each digit-7 chain saves one more cycle). -/
-def chainsBound (lay : Nat) : Nat := 42 * 69 - 9 * targetFor lay + 65
+def chainsBound : Nat := 42 * 68 - 9 * targetSum + 67
 
 theorem chainsCost_le (c : CCtx) (xs : List Nat) (hlen : xs.length = 42)
-    (hxs : ∀ i < 42, xs.getD i 0 = dig c i) (hsum : xs.sum = targetFor c.lay) :
-    chainsCost c 0 42 ≤ chainsBound c.lay := by
-  have hs : ((List.range' 0 42).map (dig c)).sum = targetFor c.lay := by
+    (hxs : ∀ i < 42, xs.getD i 0 = dig c i) (hsum : xs.sum = targetSum) :
+    chainsCost c 0 42 ≤ chainsBound := by
+  have hs : ((List.range' 0 42).map (dig c)).sum = targetSum := by
     rw [← hsum, sum_eq_getD xs, hlen, List.range_eq_range']
     congr 1
     apply List.map_congr_left
     intro i hi
     rw [hxs i (by simp at hi; omega)]
   have := chainsCost_aux c 42 0
-  rw [hs, show ((List.range' 0 42).map xtra).sum = 65 by decide] at this
+  rw [hs, show ((List.range' 0 42).map xtra).sum = 67 by decide] at this
   unfold chainsCost chainsBound
-  have hT := targetFor_le c.lay
+  simp only [targetSum] at this ⊢
   omega
 
 end SigGolfCandidate.Verify

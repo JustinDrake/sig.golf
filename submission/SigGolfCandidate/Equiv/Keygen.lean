@@ -137,7 +137,7 @@ theorem maskLevel_eq (seed : MasterSeed) (l : Nat) (hl : l < SphincsSecurity.max
 
 theorem toB_regionBytes (region : TopRegion) :
     toB (SphincsSecurity.regionBytes region) =
-      (List.ofFn fun lv : Fin (SphincsSecurity.maxLayerHeight - 1) =>
+      (List.ofFn fun lv : Fin SphincsSecurity.maxLayerHeight =>
         (List.ofFn fun j => dv (region lv j)).flatten).flatten := by
   unfold SphincsSecurity.regionBytes
   rw [show toB = List.map UInt8.toBitVec from rfl, List.map_flatten, List.map_ofFn]
@@ -183,30 +183,27 @@ theorem keygenList_eq (seed : MasterSeed) :
   unfold SphincsSecurity.Seeded.maskRegion
   simp only [relabel_bind, relabel_pure, relabel_sequenceFin, map_bind, bind_assoc, pure_bind]
   rw [show SphincsSecurity.layerHeight SphincsSecurity.topLayer = SphincsSecurity.maxLayerHeight from rfl]
-  rw [List.range'_eq_map_range, List.foldlM_map]
-  rw [foldlM_range_seq_dep (fun level : Fin (SphincsSecurity.maxLayerHeight - 1) => (do
-        let x ← sequenceFin fun j : Fin (2 ^ (SphincsSecurity.maxLayerHeight - (level.val + 1))) => do
-          let x ← relabel fmtQ (SphincsSecurity.Seeded.maskSecret (m := AComp) 0 seed (level.val + 1) j.val)
-          pure (T (level.val + 1) j.val ^^^ x)
+  rw [foldlM_range_seq_dep (fun level : Fin SphincsSecurity.maxLayerHeight => (do
+        let x ← sequenceFin fun j : Fin (2 ^ (SphincsSecurity.maxLayerHeight - level.val)) => do
+          let x ← relabel fmtQ (SphincsSecurity.Seeded.maskSecret (m := AComp) 0 seed level.val j.val)
+          pure (T level.val j.val ^^^ x)
         pure fun nodeIdx =>
-          if h : nodeIdx < 2 ^ (SphincsSecurity.maxLayerHeight - (level.val + 1)) then x ⟨nodeIdx, h⟩ else 0 :
+          if h : nodeIdx < 2 ^ (SphincsSecurity.maxLayerHeight - level.val) then x ⟨nodeIdx, h⟩ else 0 :
         OracleComp SigGolfCandidate.Legacy.HashSpec (Nat → Digest)))
       _ (fun level row =>
-        List.ofFn fun j : Fin (2 ^ (SphincsSecurity.maxLayerHeight - (level.val + 1))) => dv (row j))
+        List.ofFn fun j : Fin (2 ^ (SphincsSecurity.maxLayerHeight - level.val)) => dv (row j))
       (fun l hl => by
-        rw [getD_map_range_list _ _ _ (by omega)]
-        simp only [Nat.add_comm 1 l]
-        rw [maskLevel_eq seed (l + 1) (by omega) T]
+        rw [getD_map_range_list _ _ _ (by omega), maskLevel_eq seed l hl T]
         simp only [relabel_bind, relabel_sequenceFin, relabel_pure])]
   rw [bind_map_left]
   refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun rows => ?_
   rw [foldl_finRange_appendList, List.nil_append, relabel_oracleHash, toB_macHashInput',
     toB_regionBytes]
-  have hreg : ((List.ofFn fun l : Fin (SphincsSecurity.maxLayerHeight - 1) =>
-      List.ofFn fun j : Fin (2 ^ (SphincsSecurity.maxLayerHeight - (l.val + 1))) => dv (rows l j)).flatten).flatten =
-      (List.ofFn fun lv : Fin (SphincsSecurity.maxLayerHeight - 1) =>
-        (List.ofFn fun j : Fin (2 ^ (SphincsSecurity.maxLayerHeight - (lv.val + 1))) =>
-          dv ((fun level (nodeIdx : Fin (2 ^ (SphincsSecurity.maxLayerHeight - (level.val + 1)))) =>
+  have hreg : ((List.ofFn fun l : Fin SphincsSecurity.maxLayerHeight =>
+      List.ofFn fun j : Fin (2 ^ (SphincsSecurity.maxLayerHeight - l.val)) => dv (rows l j)).flatten).flatten =
+      (List.ofFn fun lv : Fin SphincsSecurity.maxLayerHeight =>
+        (List.ofFn fun j : Fin (2 ^ (SphincsSecurity.maxLayerHeight - lv.val)) =>
+          dv ((fun level (nodeIdx : Fin (2 ^ (SphincsSecurity.maxLayerHeight - level.val))) =>
             rows level nodeIdx.val) lv j)).flatten).flatten := by
     rw [List.flatten_flatten, List.map_ofFn]; rfl
   rw [hreg]

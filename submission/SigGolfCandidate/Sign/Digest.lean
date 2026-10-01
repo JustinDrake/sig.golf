@@ -131,7 +131,7 @@ theorem digTrial (sk : SecretKey) (m : Message) (u : MachineState)
     simp [pad64, Query.blocks, (words_rndInput _ _ hS hm a).1]
   refine (Sim.steps hs1 (Sim.hash16_bind (W := 7 + (8 + (anCyc + Wr))) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) hq1 (fmt_rndInput _ _ _) (fun ans1 => ?_))).mono (by rw [hb1]; omega) (fun _ _ h => h)
+      (by norm_num)) hq1 (by rw [addrFmt_rndInput]; exact fmt_rndInput _ _ _) (fun ans1 => ?_))).mono (by rw [hb1]; omega) (fun _ _ h => h)
   -- after the rnd hash
   set rho := answerBytes 16 ans1 with hrho
   set t2 := writeHash t1 ans1 with ht2
@@ -212,6 +212,9 @@ theorem searchDigest_succ (S mm : List Byte) (a f : Nat) :
         if admissible ans.toNat then pure (some (rho, ans.toNat))
         else searchDigest S mm (a + 1) f) := by
   simp only [searchDigest, digest, H, bind_assoc, pure_bind]
+  congr 1
+  funext rho
+  rw [addrFmt_digestInput]
 
 /-- After a non-admissible trial (`dig_next`, 137): `a += 1`, back to the loop or fail. -/
 theorem digNext (u : MachineState) (hx7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 20)) (a : Nat)
