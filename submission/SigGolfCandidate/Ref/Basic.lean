@@ -1,5 +1,6 @@
 import SigGolfCandidate.Legacy
 import SigGolfCandidate.CacheBytes
+import SigGolfCandidate.Ref.AddressFormat
 import Mathlib.Data.List.Sort
 
 /-!
@@ -243,8 +244,14 @@ def fmtList (x : List Byte) : List Byte :=
   else if IsPadChainFmt x then padChainBlock x
   else padTo64 x
 
+/-- The address-header relabelling. It preserves the oracle query block count. -/
+def addrFmt (x : List Byte) : Query := AddressFormat.queryPerm (fmt x)
+
+@[simp] theorem addrFmt_blocks (x : List Byte) : (addrFmt x).blocks = (fmt x).blocks :=
+  AddressFormat.queryPerm_blocks (fmt x)
+
 /-- One oracle call on `fmt x`. -/
-def H (x : List Byte) : OracleComp HashSpec (BitVec 256) := HashSpec.query (fmt x)
+def H (x : List Byte) : OracleComp HashSpec (BitVec 256) := HashSpec.query (addrFmt x)
 
 /-- One paired seed derivation: the full 32-byte answer on `fmt x` as two 16-byte secrets
 (low half, high half). -/

@@ -10,7 +10,7 @@ layer `lay + 1`) runs its own copy of the transition (`trPc lay c`):
   witness, `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `2392`);
 * the encoding check (`or; blt` for the top bits, the SWAR digit sum, `remu` by `x18 = 4095`,
   `bne KT`), then the chain prologue `li s6, base`, the extraction of triple 0
-  and `jalr ra` into the layer-shared chain code (26 steps, 29 cycles; layer 3 adds one target load);
+  and `jalr ra` into the layer-shared chain code (24 steps, 27 cycles; layer 3 adds one target load);
 * at the return pc `retPc lay c`: the leaf tweak and the dispatch into the fold's shape block. -/
 
 namespace SigGolfCandidate.Verify
@@ -33,7 +33,7 @@ def preStart (lay t : Nat) : Nat :=
 
 /-- Steps of the transition up to the encoding hash: layer 0 consumes the remaining route bits
 directly (two `addi` for the sentinel, no mask/shift); layer 4 reuses the known hash length. -/
-def stepsA (lay : Nat) : Nat := if lay = 0 ∨ lay = 4 then 13 else 14
+def stepsA (lay : Nat) : Nat := if lay = 0 then 11 else if lay = 4 then 12 else 13
 def encPc (lay t : Nat) : Nat := trPc lay t + stepsA lay
 
 /-- Known registers at the transition start. -/
@@ -44,7 +44,7 @@ def preK (lay : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay
 
 /-- Known registers after the encoding hash call. -/
 def bK (lay : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 256)), (.x10, 0x100), (.x11, 64), (.x12, 0x140)] ++
+  gkL ++ [(.x27, BitVec.ofNat 64 (hWord lay + 256)), (.x10, 0x100), (.x11, 64), (.x12, 0x120)] ++
     (if lay = 4 then [(.x14, KT4)] else [])
 
 def uEr (lay : Nat) : E :=
@@ -65,15 +65,15 @@ def ctrA (lay : Nat) : Nat := if lay = 4 then 0x800 + 2392 else 0x800 + 2944 + 8
 def ctrE (lay : Nat) : E := .un (.ld .wu (4 * (lay % 2))) (ldE (ctrA lay))
 
 def specA (lay t : Nat) : Spec :=
-  ⟨[(.x23, uHE lay), (.x30, tauEr lay), (.x31, x31Er lay)],
+  ⟨[(.x23, uHE lay), (.x30, if lay = 0 then .reg .x30 else tauEr lay), (.x31, x31Er lay)],
    [(⟨none, BitVec.ofNat 64 312⟩, .c 0), (⟨none, BitVec.ofNat 64 304⟩, ctrE lay),
     (⟨none, BitVec.ofNat 64 264⟩, x31Er lay), (⟨none, BitVec.ofNat 64 256⟩, cw (hWord lay + 768))],
    encPc lay t, true, stepsA lay, [], none, stepsA lay⟩
 
 /-! ## The encoding check (`remu x25, x25, x18; bne KT`; layer 4: `bne x14` holding `KT4`) and the chain prologue -/
 
-def d0E : E := ldE 320
-def d1E : E := ldE 328
+def d0E : E := ldE 288
+def d1E : E := ldE 296
 def m1E : E := .c M1w
 def m2E : E := .c M2w
 def orE : E := .bin .or d0E d1E
@@ -91,7 +91,7 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E : E := .bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 : E := .bin .and (.bin .add (.bin .and (.bin .sll d0E (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB (lay : Nat) : Nat := 26 + (if lay = 3 then 1 else 0)
+def stepsB (lay : Nat) : Nat := 24 + (if lay = 3 then 1 else 0)
 /-- One REMU costs four cycles rather than one. -/
 def cyclesB (lay : Nat) : Nat := stepsB lay + 3
 
@@ -99,9 +99,9 @@ def specBok (lay : Nat) : Spec :=
   ⟨[(.x14, x14E), (.x16, d0E), (.x17, d1E)], [], 0, false, stepsB lay,
    [⟨.ne, swS, .c (KTof lay), false⟩, ⟨.lt, orE, .c 0, false⟩], some tgt0, cyclesB lay⟩
 
-/-- Known registers on entry of the chain code, including the layer tweak-table pointer. -/
+/-- Known registers on entry of the chain code; chain 0 initializes `x25` from `x27`. -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
-  chK0 ++ [(.x22, BitVec.ofNat 64 (s6N lay)), (.x4, BitVec.ofNat 64 (tweakPtr lay)),
+  chK0 ++ [(.x22, BitVec.ofNat 64 (s6N lay)),
     (.x27, BitVec.ofNat 64 (hWord lay + 256)), (.x1, pcOf (retPc lay c))]
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
@@ -120,7 +120,7 @@ def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, BitVec.ofNat 64 (h
 
 def specLeaf (lay : Nat) : Spec :=
   ⟨[(.x10, cw 832), (.x11, cw 704)],
-   [(⟨none, BitVec.ofNat 64 456⟩, stW0 456 (.reg .x30)), (⟨none, BitVec.ofNat 64 448⟩, cw (hWord lay + 512)),
+   [(⟨none, BitVec.ofNat 64 456⟩, stW0 456 (if lay = 0 then cw 0 else .reg .x30)), (⟨none, BitVec.ofNat 64 448⟩, cw (hWord lay + 512)),
     (⟨none, BitVec.ofNat 64 840⟩, .reg .x31), (⟨none, BitVec.ofNat 64 832⟩, cw (hWord lay + 256))],
    0, false, leafSteps lay, [], some (dispTgt lay 0), leafSteps lay⟩
 

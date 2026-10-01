@@ -95,9 +95,9 @@ def DigestOut (P : PCtx) (s : MachineState) : Prop :=
 
 /-- The digest block `tw(12, 0, 0, 0, 0) || rho || m` as words. -/
 theorem fmt_digestInput_words (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
-    fmt (digestInput rho m) = queryOfWords 0
+    addrFmt (digestInput rho m) = queryOfWords 0
       ([BitVec.ofNat 64 (twLo 12 0 0 0), BitVec.ofNat 64 (twHi 0 0), vw0 rho, vw1 rho] ++ wordsOfN 4 m) := by
-  rw [fmt_digestInput _ _ hr hm]
+  rw [addrFmt_digestInput, fmt_digestInput _ _ hr hm]
   have hl : (tweak 12 0 0 0 0 ++ rho ++ m).length ≤ 8 * 8 := by simp [length_tweak, hr, hm]
   have hw : wordsOfN 8 (tweak 12 0 0 0 0 ++ rho ++ m) =
       [BitVec.ofNat 64 (twLo 12 0 0 0), BitVec.ofNat 64 (twHi 0 0), vw0 rho, vw1 rho] ++ wordsOfN 4 m := by
@@ -129,7 +129,7 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
         t.getReg .x5 = 1 ∧ t.getReg .x10 = 1) ∧
     (countersOk wl = true → ∃ t, Steps image s 25 25 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 0 ∧ hashArgumentsValid t = true ∧
-        hashInput t = fmt (digestInput (witRho wl) ml) ∧
+        hashInput t = addrFmt (digestInput (witRho wl) ml) ∧
         ∀ a, DigestOut ⟨wl, pkl, a⟩ (writeHash t a)) := by
   have hG0 := init_glob ml pkl wl s hs
   obtain ⟨hMask, hK, hpc, hW, hPk, hM, hZ⟩ := hs
@@ -199,11 +199,11 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
         writeHash_frame _ a 0 A h12 hA (by omega) h
       refine ⟨?_, Glob_writeHash hG a _ h12 (by decide), WitAll_writeHash (hu.wall _ hW) a _ h12 (by decide),
         Known_writeHash hKd a, ?_, ?_, ?_⟩
-      · apply hMask.frame
-        intro A hA hbase
-        rw [wf A hA (Or.inr (by unfold tweakBase at hbase; omega)),
-          mfr A hA (by unfold tweakBase at hbase; omega) (by unfold tweakBase at hbase; omega)
-            (by unfold tweakBase at hbase; omega)]
+      · constructor
+        · rw [wf 0xFFFFF0 (by decide) (by decide), mfr 0xFFFFF0 (by decide) (by decide) (by decide) (by decide)]
+          exact hMask.1
+        · rw [wf 0xFFFFF8 (by decide) (by decide), mfr 0xFFFFF8 (by decide) (by decide) (by decide) (by decide)]
+          exact hMask.2
       · intro i hi
         have := writeHash_getMem_ofNat u a 0 (8 * i) h12 (by omega) (by omega)
         rw [this]
@@ -294,11 +294,14 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
     rw [hhi, BitVec.ofNat_add_ofNat, twLo_idx _ _ (by decide) hil]; congr 1; omega
   have S : S0 P u := by
     refine ⟨?_, hu.wall _ hWA, hGu.2.2.1, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · apply hMask.frame
-      intro A hA hbase
-      rw [hu.mem]
-      exact memEval_frame s _ _ (memOK_ne (by decide +kernel : memOK psetupMem = true) s A hA
-        (Or.inl (by unfold tweakBase at hbase; omega)))
+    · have fr : ∀ A, A = 0xFFFFF0 ∨ A = 0xFFFFF8 →
+          u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
+        intro A hA
+        rw [hlook A (by omega)]
+        have hn : memLook psetupMem A = none := by
+          rcases hA with rfl | rfl <;> decide +kernel
+        rw [hn]
+      exact ⟨(fr _ (Or.inl rfl)).trans hMask.1, (fr _ (Or.inr rfl)).trans hMask.2⟩
     · intro a ha
       have hn := setup_none a ha
       have ha' : a < 2 ^ 64 := by have := zeroP_lt a ha; omega

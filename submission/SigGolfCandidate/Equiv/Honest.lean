@@ -8,7 +8,7 @@ import SigGolfCandidate.SphincsSecurity.Proof.Scheme.Bytes
 (byte 1), a chain input (tag 1) has the zero parameter slot (bytes 16..31) and a position below
 `2^27`, a node input (tags 3, 10) names a node of its tree (`NodeOk`: level `1 ≤ λ ≤ h`, index
 `j < 2^(h - λ)`), and the digest input (tag 12) has zero parameter and root slots. The oracle input
-format (`fmtQ`: split chain position, heap-index node tweak, one-block digest) is injective on
+format (`baseFmtQ`: split chain position, heap-index node tweak, one-block digest) is injective on
 honest inputs, and every query of the abstract key generation, signer and verifier (with the
 parameter `P = 0`) is honest, for all inputs and oracle answers.
 -/
@@ -155,7 +155,7 @@ theorem decomp (z : List Byte) (a n₁ n₂ n₃ : Nat) :
       z.drop (a + n₁ + n₂ + n₃) := by
   rw [← take_add_slice, ← take_add_slice, ← take_add_slice, List.take_append_drop]
 
-theorem fmtQ_injOn : Set.InjOn fmtQ Honest := by
+theorem baseFmtQ_injOn : Set.InjOn baseFmtQ Honest := by
   intro x hx y hy hxy
   have hL : Ref.fmtList (toB x) = Ref.fmtList (toB y) := by
     rw [← Ref.toList_fmt, ← Ref.toList_fmt]; exact congrArg (fun q : Query => Ref.toList q.2) hxy
@@ -274,7 +274,7 @@ theorem fmtQ_injOn : Set.InjOn fmtQ Honest := by
       · exact h12 (UInt8.toBitVec_inj.mp hm)
     have hq : Ref.padTo64 z = Ref.padTo64 w := by
       have := congrArg qbytes hxy
-      simp only [fmtQ, Ref.fmt_of_tag _ (hnot x rfl), Ref.fmt_of_tag _ (hnot y ht.symm),
+      simp only [baseFmtQ, Ref.fmt_of_tag _ (hnot x rfl), Ref.fmt_of_tag _ (hnot y ht.symm),
         qbytes_pad64] at this
       exact this
     have := congrArg (fun l => l.take x.length) hq
@@ -1012,7 +1012,7 @@ theorem hq_keygen (seed : MasterSeed) : HQ (SphincsSecurity.Seeded.keygenFromSee
 The padded verifier (`SphincsSecurity.Concrete.verifyP`) also hashes 80-byte chain inputs
 `tw ‖ P ‖ pad ‖ v` with a nonzero pad. `Ref.fmt` maps them to the one-block W1a chain block
 `tw' ‖ pad ‖ v` (`Ref.padChainBlock`); it is injective on `HonestP = Honest ∨ PadHonest`
-(`fmtQ_injOn_honestP`), the formal "common tweak offset" condition of W1a. -/
+(`baseFmtQ_injOn_honestP`), the formal "common tweak offset" condition of W1a. -/
 
 /-- A padded chain input the W1a verifier may issue: 80 bytes, tag `1`, zero parameter slot, position
 below `2^27`, and a **nonzero** pad (bytes `32 .. 64`). A zero pad is the record's 48-byte input. -/
@@ -1045,14 +1045,14 @@ theorem not_isPadChainFmt_of_honest {x : List UInt8} (h : Honest x) : ¬ Ref.IsP
 theorem isPadChainFmt_of_padHonest {x : List UInt8} (h : PadHonest x) : Ref.IsPadChainFmt (toB x) :=
   ⟨by rw [length_toB]; exact h.2.1, tag_toB x 1 h.2.2.1⟩
 
-theorem fmtQ_of_padHonest {x : List UInt8} (h : PadHonest x) :
-    fmtQ x = ⟨0, Ref.ofList _ (Ref.padChainBlock (toB x))⟩ :=
+theorem baseFmtQ_of_padHonest {x : List UInt8} (h : PadHonest x) :
+    baseFmtQ x = ⟨0, Ref.ofList _ (Ref.padChainBlock (toB x))⟩ :=
   Ref.fmt_of_padChain _ (isPadChainFmt_of_padHonest h)
 
 set_option exponentiation.threshold 600 in
-theorem bytes_fmtQ_of_padHonest {x : List UInt8} (h : PadHonest x) :
-    Ref.toList (fmtQ x).2 = Ref.padChainBlock (toB x) := by
-  rw [fmtQ_of_padHonest h]
+theorem bytes_baseFmtQ_of_padHonest {x : List UInt8} (h : PadHonest x) :
+    Ref.toList (baseFmtQ x).2 = Ref.padChainBlock (toB x) := by
+  rw [baseFmtQ_of_padHonest h]
   exact Ref.toList_ofList _ _ (Ref.length_padChainBlock _ (by rw [length_toB]; exact h.2.1))
 
 /-- The pad slot, as organizer bytes, is nonzero. -/
@@ -1083,10 +1083,10 @@ theorem decomp5 (z : List Byte) :
 
 
 /-- Two padded inputs with the same block are equal. -/
-theorem padHonest_inj {x y : List UInt8} (hx : PadHonest x) (hy : PadHonest y) (hxy : fmtQ x = fmtQ y) :
+theorem padHonest_inj {x y : List UInt8} (hx : PadHonest x) (hy : PadHonest y) (hxy : baseFmtQ x = baseFmtQ y) :
     x = y := by
   have hL : Ref.padChainBlock (toB x) = Ref.padChainBlock (toB y) := by
-    rw [← bytes_fmtQ_of_padHonest hx, ← bytes_fmtQ_of_padHonest hy, hxy]
+    rw [← bytes_baseFmtQ_of_padHonest hx, ← bytes_baseFmtQ_of_padHonest hy, hxy]
   have lx : (toB x).length = 80 := by rw [length_toB]; exact hx.2.1
   have ly : (toB y).length = 80 := by rw [length_toB]; exact hy.2.1
   apply toB_injective
@@ -1117,11 +1117,11 @@ theorem padHonest_inj {x y : List UInt8} (hx : PadHonest x) (hy : PadHonest y) (
 
 /-- A record input and a padded input never share a query: equal queries force tag 1, hence a record
 chain block, whose bytes `16 .. 48` are zero, while the padded block carries its nonzero pad there. -/
-theorem fmtQ_honest_ne_pad {x y : List UInt8} (hx : Honest x) (hy : PadHonest y) : fmtQ x ≠ fmtQ y := by
+theorem baseFmtQ_honest_ne_pad {x y : List UInt8} (hx : Honest x) (hy : PadHonest y) : baseFmtQ x ≠ baseFmtQ y := by
   intro hxy
   have ly : (toB y).length = 80 := by rw [length_toB]; exact hy.2.1
   have hL : Ref.fmtList (toB x) = Ref.padChainBlock (toB y) := by
-    rw [← bytes_fmtQ_of_padHonest hy, ← hxy]
+    rw [← bytes_baseFmtQ_of_padHonest hy, ← hxy]
     exact (Ref.toList_fmt (toB x)).symm
   have hx2 := honest_length x hx
   have hb : (toB x).getD 1 0 = Ref.byte 1 := by
@@ -1148,12 +1148,12 @@ theorem fmtQ_honest_ne_pad {x y : List UInt8} (hx : Honest x) (hy : PadHonest y)
 
 /-- **The formal common-offset condition for W1a**: the oracle input format is injective on the
 padded game's honest inputs. -/
-theorem fmtQ_injOn_honestP : Set.InjOn fmtQ HonestP := by
+theorem baseFmtQ_injOn_honestP : Set.InjOn baseFmtQ HonestP := by
   intro x hx y hy hxy
   rcases hx with hx | hx <;> rcases hy with hy | hy
-  · exact fmtQ_injOn hx hy hxy
-  · exact absurd hxy (fmtQ_honest_ne_pad hx hy)
-  · exact absurd hxy.symm (fmtQ_honest_ne_pad hy hx)
+  · exact baseFmtQ_injOn hx hy hxy
+  · exact absurd hxy (baseFmtQ_honest_ne_pad hx hy)
+  · exact absurd hxy.symm (baseFmtQ_honest_ne_pad hy hx)
   · exact padHonest_inj hx hy hxy
 
 /-! ### The abstract padded chain input is `PadHonest`, and its query is the W1a block -/
@@ -1275,14 +1275,14 @@ theorem chainBlock_append_take (A Vb : List Byte) (hA : A.length = 32) :
 /-- **The machine view** of a padded chain step: its oracle query is the record's chain block with
 the 32 zero bytes replaced by the pad, `tw' ‖ pad ‖ v` (what `Ref.verifyRef` hashes in place in the
 W1a witness block). With a zero pad the input is the record chain input (`Ref.fmt_of_chain`). -/
-theorem fmtQ_padded_bytes (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (c : ChainIndex) (step : SphincsSecurity.ChainStep)
+theorem baseFmtQ_padded_bytes (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (c : ChainIndex) (step : SphincsSecurity.ChainStep)
     (pad : Digest × Digest) (hpad : pad ≠ 0) (v : Digest) :
-    Ref.toList (fmtQ (SphincsSecurity.tweakableHashInput 0 (.chain lay tree leaf c step) (SphincsSecurity.Concrete.chainPayload pad v))).2 =
+    Ref.toList (baseFmtQ (SphincsSecurity.tweakableHashInput 0 (.chain lay tree leaf c step) (SphincsSecurity.Concrete.chainPayload pad v))).2 =
       (Ref.chainBlock (toB (SphincsSecurity.tweakableHashInput 0 (.chain lay tree leaf c step)
           (SphincsSecurity.bytesLE 16 v)))).take 16 ++
         toB (SphincsSecurity.bytesLE 16 pad.1 ++ SphincsSecurity.bytesLE 16 pad.2) ++
         toB (SphincsSecurity.bytesLE 16 v) := by
-  rw [bytes_fmtQ_of_padHonest (padHonest_chain lay tree leaf c step pad hpad v)]
+  rw [bytes_baseFmtQ_of_padHonest (padHonest_chain lay tree leaf c step pad hpad v)]
   set T := SphincsSecurity.tweakBytes (.chain lay tree leaf c step) ++
     SphincsSecurity.bytesLE 16 (0 : SphincsSecurity.PublicParameter) with hT
   have hT32 : (toB T).length = 32 := by
@@ -1394,5 +1394,14 @@ theorem hq_verifyP (pk : SphincsSecurity.PublicKey) (hP : pk.parameter = 0) (m :
       split <;> exact hqp_pure _
     · exact hqp_pure _
   · exact hqp_pure _
+
+
+theorem fmtQ_injOn : Set.InjOn fmtQ Honest := by
+  intro x hx y hy hxy
+  exact baseFmtQ_injOn hx hy (Ref.AddressFormat.queryPerm_injective hxy)
+
+theorem fmtQ_injOn_honestP : Set.InjOn fmtQ HonestP := by
+  intro x hx y hy hxy
+  exact baseFmtQ_injOn_honestP hx hy (Ref.AddressFormat.queryPerm_injective hxy)
 
 end SigGolfCandidate.Equiv

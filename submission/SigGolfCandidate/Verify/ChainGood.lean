@@ -202,7 +202,7 @@ theorem steps_good (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (i 
       obtain ⟨u, hu, hn⟩ := end_next c hc hret i hi _ _ ((hpost a).2 rfl)
       exact Good.steps hu (hK _ _ (by simp) hn)
     have h3 := Good.hash (K := fun v => K (acc ++ [v])) hs.2.2.2.2.2.2.2.2.2.2.2.2 h5 hv hin h2
-    rw [blocks_chainInputP _ _ _ _ _ _ _ (length_witPad c hc i hi) hvl (by omega) (by omega) (by omega)] at h3
+    rw [addrFmt_blocks, blocks_chainInputP _ _ _ _ _ _ _ (length_witPad c hc i hi) hvl (by omega) (by omega) (by omega)] at h3
     have := xCost_le i
     exact h3.mono (by omega) (by simp [preCost]; omega)
   | succ k ih =>
@@ -220,7 +220,7 @@ theorem steps_good (c : CCtx) (hc : c.ok) (hret : c.ret &&& ~~~1#64 = c.ret) (i 
       exact Good.steps' hu this (by split <;> omega) (by omega)
     have h3 := Good.hash (K := fun v => cc (restFold c i (mu + 1) v) (fun v => K (acc ++ [v])))
       hs.2.2.2.2.2.2.2.2.2.2.2.2 h5 hv hin h2
-    rw [blocks_chainInputP _ _ _ _ _ _ _ (length_witPad c hc i hi) hvl (by omega) (by omega) (by omega)] at h3
+    rw [addrFmt_blocks, blocks_chainInputP _ _ _ _ _ _ _ (length_witPad c hc i hi) hvl (by omega) (by omega) (by omega)] at h3
     refine h3.mono (by omega) ?_
     unfold preCost
     by_cases h6 : mu + 1 = 7

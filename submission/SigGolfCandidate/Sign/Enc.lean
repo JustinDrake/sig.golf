@@ -269,7 +269,7 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
     congrArg (· + 1) (words_encInput lay tau e M hmem.hM c).1
   refine (Sim.steps hs1 (Sim.hash16_bind (W := 32 + Wr) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num)) hq (fmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]; omega) (fun _ _ h => h)
+      (by norm_num)) hq (addrFmt_thInput _ _ _ _ _ _ (by decide)) (fun a => ?_))).mono (by rw [hb]; omega) (fun _ _ h => h)
   set t2 := writeHash t1 a with ht2
   have f2 : Frame t1 t2 (fun x => 0x140 ≤ x ∧ x < 0x140 + 32) := frame_writeHash t1 a _ x12 (by norm_num)
   have pc2 : t2.pc = pcOf 351 := by rw [ht2, writeHash_pc, pc1]; apply BitVec.eq_of_toNat_eq; simp

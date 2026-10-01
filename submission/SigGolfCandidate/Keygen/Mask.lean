@@ -205,7 +205,7 @@ theorem mask_node_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels :
     ((codeAt_132.fetch u upc).trans rfl) (by rw [ux _ (by simp)]; exact h.base.r5)
     (hashArgs_const u 1696 64 320 u10 u11 u12 (by norm_num) (by norm_num) (by norm_num)
       (by norm_num) (by norm_num))
-    (hq.trans (fmt_thInput 13 0 0 l j S (by decide)).symm)
+    (hq.trans (addrFmt_thInput 13 0 0 l j S (by decide)).symm)
     (not_digest_thInput 13 0 0 l j S (by decide)) (not_padChain_thInput 13 0 0 l j S (by decide)) (fun a => ?_))).of_eq rfl (by rfl)
       (by rw [hblk]) (by rfl) (by rw [hblk])
   have wpc : (writeHash u a).pc = pcOf 133 := by rw [pc_writeHash, upc]; rfl

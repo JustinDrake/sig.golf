@@ -502,7 +502,7 @@ def LaysPost (t0 : MachineState) (n : Nat) : Option (List LayerSig) → MachineS
 def layCyc : Nat := 26 + ((2 ^ 22) * 46 + 2) + (127 + (13 + (treeCyc + 7)))
 
 /-- Cycle bound of the top layer. -/
-def topCyc : Nat := 26 + ((2 ^ 22) * 46 + 2) + (127 + (9 + (21 * 320 + ((17 + (21 * 480 + (4 + (88 + 9)))) + 10 * 36))))
+def topCyc : Nat := 26 + ((2 ^ 22) * 46 + 2) + (127 + (9 + (21 * 684 + ((17 + (21 * 844 + (4 + (88 + 9)))) + 10 * 36))))
 
 /-- End of a layer (instructions 565 .. 571): root → `EB+32`, next layer. -/
 theorem layer_tail (lay : Nat) (hlay : lay < 6) (h1 : 1 ≤ lay) (t : MachineState) (tpc : t.pc = pcOf 630)
@@ -550,7 +550,7 @@ theorem top_layer_sim (S cache : List Byte) (hS : S.length = 32) (hcache : cache
   rw [signTop_eq, show cMax = 2 ^ 22 - 1 + 1 from rfl]
   have henc := encLoop_sim encCode 0 tau e M t4 emem (2 ^ 22 - 1) 0 t4 (by norm_num)
     ⟨pc4, x46, by norm_num, RegsEq.refl _ _, Frame.refl _ _⟩
-  refine (Sim.steps hs4 (Sim.bind (W₂ := 127 + (9 + (21 * 320 + ((17 + (21 * 480 + (4 + (88 + 9)))) + 10 * 36)))) henc
+  refine (Sim.steps hs4 (Sim.bind (W₂ := 127 + (9 + (21 * 684 + ((17 + (21 * 844 + (4 + (88 + 9)))) + 10 * 36)))) henc
     (fun r t5 h5 => ?_))).mono (by unfold topCyc; omega) (fun _ _ h => h)
   rcases r with _ | ⟨c, x⟩
   · exact (Sim.pure (Q := LaysPost t 0) (a := none) (s := t5) h5).mono (by omega) (fun _ _ h => h)

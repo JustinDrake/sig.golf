@@ -161,8 +161,8 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
     rfl
   have hb : (pad64 (macInput (toList sk) (cacheRegion (toList cache)))).blocks = 513 := by
     simp [pad64, Query.blocks, hn]
-  have hq' : hashInput u = fmt (macInput (toList sk) (cacheRegion (toList cache))) :=
-    hq.trans (fmt_thInput _ _ _ _ _ _ (by decide)).symm
+  have hq' : hashInput u = addrFmt (macInput (toList sk) (cacheRegion (toList cache))) :=
+    hq.trans (addrFmt_thInput _ _ _ _ _ _ (by decide)).symm
   refine (Sim.steps hs (Sim.query_bind (W := 53 + Wr) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
       (by norm_num)) hq' (fun a => ?_))).mono (by rw [show macInput (toList sk) (cacheRegion (toList cache)) = thInput (tweak 14 0 0 0 0) _ from rfl, blocks_fmt_th _ _ _ _ _ _ (by decide)]; rw [← show macInput (toList sk) (cacheRegion (toList cache)) = thInput (tweak 14 0 0 0 0) _ from rfl, hb]) (fun _ _ h => h)

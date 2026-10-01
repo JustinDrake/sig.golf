@@ -174,9 +174,11 @@ theorem spec_49 (s : MachineState) (hpc : s.pc = BitVec.ofNat 64 (0x1000 + 4 * 4
       t.getReg .x23 = BitVec.ofNat 64 (m + 1) ∧ t.getReg .x10 = BitVec.ofNat 64 192 ∧
       (∀ r, r ≠ .x23 → r ≠ .x10 → r ≠ .x3 → r ≠ .x29 → t.getReg r = s.getReg r) ∧
       t.getMem (BitVec.ofNat 64 192) = BitVec.ofNat 64 (257 + 2 ^ 32 * (p % 8 + 256 * (p / 8))) ∧
-      Frame s t [192] := by
+      Frame s t [192] ∧
+      t.getReg .x3 = BitVec.ofNat 64 (p % 8 + 256 * (p / 8)) ∧
+      t.getReg .x29 = BitVec.ofNat 64 (p % 8) := by
   have hobl : blk_49.res.obligs s := by simp only [blk_49.res, rv_simp]
-  refine ⟨_, symRun_sound blk_49 codeAt_49 s hpc hobl, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨_, symRun_sound blk_49 codeAt_49 s hpc hobl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try (kgn [blk_49.res]; done)
   · kgn [blk_49.res, h23]
   · intro r h1 h2 h3 h4; cases r <;> simp_all [blk_49.res, rv_simp] <;> rfl
@@ -191,6 +193,13 @@ theorem spec_49 (s : MachineState) (hpc : s.pc = BitVec.ofNat 64 (0x1000 + 4 * 4
     kgn [blk_49.res]
     simp at hne
     rw [if_neg (by omega)]
+
+  · simp only [blk_49.res, rv_simp, h24, ↓reduceIte]
+    rw [split_p_lo p hp, split_p_hi p hp, ofNat_or_add (p % 8) (p / 8) 8 (by omega)]
+    congr 1
+    omega
+  · kgn [blk_49.res, h24]
+    rw [split_p_hi p hp]
 
 theorem spec_57 (s : MachineState) (hpc : s.pc = BitVec.ofNat 64 (0x1000 + 4 * 57)) (m p : Nat)
     (hm : m < 2 ^ 32) (h23 : s.getReg .x23 = BitVec.ofNat 64 m) (h24 : s.getReg .x24 = BitVec.ofNat 64 p) :
