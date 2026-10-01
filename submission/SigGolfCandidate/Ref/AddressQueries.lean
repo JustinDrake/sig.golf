@@ -16,56 +16,7 @@ theorem wordsToNat_lt (ws : List Word) : wordsToNat ws < 2 ^ (64 * ws.length) :=
     rw [show 64 * (ws.length + 1) = 64 + 64 * ws.length by omega, Nat.pow_add]
     omega
 
-/-- The tag-10 (PORS node) class: the header field (high half of word 1) is relabelled. -/
-theorem nodeRel_eq (a b R : Nat) (ha : a < 18446744073709551616) (hb : b < 18446744073709551616) :
-    nodeRel (a + 18446744073709551616 * (b + 18446744073709551616 * R)) =
-      a + 18446744073709551616 * (b % 4294967296 + 4294967296 * Rev.efield (b / 4294967296) +
-        18446744073709551616 * R) := by
-  unfold nodeRel
-  have q2 : (a + 18446744073709551616 * (b + 18446744073709551616 * R)) / 79228162514264337593543950336 %
-      4294967296 = b / 4294967296 := by omega
-  rw [q2]
-  generalize Rev.efield (b / 4294967296) = e
-  omega
-
-theorem queryPerm_node (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
-    (hc : w0.toNat % 65536 = 2561) :
-    queryPerm (queryOfWords 0 (w0 :: w1 :: ws)) =
-      queryOfWords 0 (w0 :: BitVec.ofNat 64 (w1.toNat % 4294967296 +
-        4294967296 * Rev.efield (w1.toNat / 4294967296)) :: ws) := by
-  have hR := wordsToNat_lt ws
-  rw [hlen] at hR
-  norm_num only [Nat.reduceMul, Nat.reducePow] at hR
-  have h0 := w0.isLt
-  have h1 := w1.isLt
-  have he := Rev.efield_lt (w1.toNat / 4294967296)
-  norm_num only [Nat.reducePow] at h0 h1 he
-  have hx : w1.toNat % 4294967296 + 4294967296 * Rev.efield (w1.toNat / 4294967296) <
-      18446744073709551616 := by omega
-  have e1 : wordsToNat (w0 :: w1 :: ws) =
-      w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws) := rfl
-  have e2 : wordsToNat (w0 :: BitVec.ofNat 64 (w1.toNat % 4294967296 +
-        4294967296 * Rev.efield (w1.toNat / 4294967296)) :: ws) =
-      w0.toNat + 18446744073709551616 * (w1.toNat % 4294967296 +
-        4294967296 * Rev.efield (w1.toNat / 4294967296) + 18446744073709551616 * wordsToNat ws) := by
-    show w0.toNat + 18446744073709551616 * ((BitVec.ofNat 64 _).toNat +
-      18446744073709551616 * wordsToNat ws) = _
-    rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hx]
-  have hN : w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws) < 2 ^ 512 := by
-    norm_num only [Nat.reducePow]; omega
-  have hcls : (w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws)) % 65536
-      = 2561 := by omega
-  have key : fullPerm (w0.toNat + 18446744073709551616 * (w1.toNat + 18446744073709551616 * wordsToNat ws)) =
-      w0.toNat + 18446744073709551616 * (w1.toNat % 4294967296 +
-        4294967296 * Rev.efield (w1.toNat / 4294967296) + 18446744073709551616 * wordsToNat ws) := by
-    rw [fullPerm_of_eq _ hcls, nodeRel_eq _ _ _ h0 h1]
-  simp only [queryOfWords, queryPerm]
-  congr 1
-  apply BitVec.eq_of_toNat_eq
-  rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat, e1, e2, Nat.mod_eq_of_lt hN, key]
-
-theorem queryPerm_words (w : Word) (ws : List Word) (hlen : ws.length = 7)
-    (hc : w.toNat % 65536 ≠ 2561) :
+theorem queryPerm_words (w : Word) (ws : List Word) (hlen : ws.length = 7) :
     queryPerm (queryOfWords 0 (w :: ws)) =
       queryOfWords 0 (BitVec.ofNat 64 (wordPerm w.toNat) :: ws) := by
   have h := wordsToNat_lt (w :: ws)
@@ -80,8 +31,6 @@ theorem queryPerm_words (w : Word) (ws : List Word) (hlen : ws.length = 7)
   simp only [BitVec.toNat_ofNat, wordsToNat]
   norm_num only [Nat.reduceAdd, Nat.reduceMul, Nat.reducePow] at h ht hw hp ⊢
   rw [Nat.mod_eq_of_lt h]
-  have hc' : (w.toNat + 18446744073709551616 * wordsToNat ws) % 65536 ≠ 2561 := by omega
-  rw [fullPerm_of_ne _ hc']
   unfold payloadPerm
   rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hw,
     Nat.add_mul_div_left _ _ (by decide), Nat.div_eq_of_lt hw, Nat.zero_add,
@@ -108,44 +57,35 @@ theorem fmt_low_bytes (x : List Byte) :
 /-- Non-chain tags retain their old oracle query. -/
 theorem addrFmt_eq_of_prefix (x : List Byte)
     (h0 : (x.getD 0 0).toNat % 64 ≠ 0)
-    (h1 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 257)
-    (h2 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 2561) :
+    (h1 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 257) :
     addrFmt x = fmt x := by
   apply AddressFormat.queryPerm_fixed
   · have h := (fmt_low_bytes x).1
     omega
   · have h := fmt_low_bytes x
     omega
-  · have h := fmt_low_bytes x
-    omega
 
 theorem addrFmt_eq_th (t lay tau p j : Nat) (payload : List Byte)
-    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 10) :
+    (ht : t % 256 ≠ 1) :
     addrFmt (thInput (tweak t lay tau p j) payload) =
       fmt (thInput (tweak t lay tau p j) payload) := by
   apply addrFmt_eq_of_prefix
   · simp [thInput, tweak, byte_toNat]
   · simp [thInput, tweak, byte_toNat]
     omega
-  · simp [thInput, tweak, byte_toNat]
-    omega
 
 theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
-    (ht : byte t ∉ [byte 1, byte 3, byte 10, byte 12]) :
+    (ht : byte t ∉ [byte 1, byte 3, byte 12]) :
     addrFmt (thInput (tweak t lay tau p j) payload) =
       pad64 (thInput (tweak t lay tau p j) payload) := by
-  have hb : ∀ k, k < 256 → byte t = byte k → t % 256 = k := by
-    intro k hk h
-    have := congrArg BitVec.toNat h
-    simp only [byte_toNat] at this
-    omega
-  have h1 : t % 256 ≠ 1 ∧ t % 256 ≠ 10 := by
-    constructor <;> intro h <;> apply ht <;> simp only [List.mem_cons, List.not_mem_nil, or_false]
-    · left; apply BitVec.eq_of_toNat_eq; simp [byte_toNat, h]
-    · right; right; left; apply BitVec.eq_of_toNat_eq; simp [byte_toNat, h]
-  have ht' : byte t ∉ [byte 1, byte 3, byte 12] := by
-    intro hm; apply ht; simp only [List.mem_cons, List.not_mem_nil, or_false] at hm ⊢; tauto
-  rw [addrFmt_eq_th _ _ _ _ _ _ h1, fmt_thInput _ _ _ _ _ _ ht']
+  have h1 : t % 256 ≠ 1 := by
+    intro h
+    apply ht
+    simp only [List.mem_cons, List.not_mem_nil, or_false]
+    left
+    apply BitVec.eq_of_toNat_eq
+    simpa [byte_toNat] using h
+  rw [addrFmt_eq_th _ _ _ _ _ _ h1, fmt_thInput _ _ _ _ _ _ ht]
 
 @[simp] theorem addrFmt_prfInput (S : List Byte) (lay tau e i : Nat) :
     addrFmt (prfInput S lay tau e i) = fmt (prfInput S lay tau e i) := by
@@ -177,7 +117,10 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
   unfold porsLeafInput
   exact addrFmt_eq_th _ _ _ _ _ _ (by decide)
 
--- `addrFmt (porsNodeInput ..)` relabels the header field: see `Verify.Words.addrFmt_porsNodeInput`.
+@[simp] theorem addrFmt_porsNodeInput (idx H : Nat) (l r : Val) :
+    addrFmt (porsNodeInput idx H l r) = fmt (porsNodeInput idx H l r) := by
+  unfold porsNodeInput
+  exact addrFmt_eq_th _ _ _ _ _ _ (by decide)
 
 @[simp] theorem addrFmt_digestInput (rho m : List Byte) :
     addrFmt (digestInput rho m) = fmt (digestInput rho m) := by
