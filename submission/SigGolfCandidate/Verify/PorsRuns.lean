@@ -221,7 +221,7 @@ the verifier's data words and resolved from protected memory in `tailF_step`.
 addition of `-0x301`, so the accepting tail takes 15 instructions. -/
 def rootK : List (Reg × Word) :=
   baseK ++ [(.x24, 0x10000), (.x29, KT), (.x26, 6), (.x28, K40), (.x2, TMASK), (.x15, TTA5)]
-def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40101), (.x14, KT4)]
+def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x120), (.x27, 0x40401), (.x14, KT4)]
 
 def tailFSpec (c : Nat) : Spec :=
   ⟨[(.x20, ldE 0xFFFFF0), (.x21, ldE 0xFFFFF8)], [], f4Pc c, false, 15,
