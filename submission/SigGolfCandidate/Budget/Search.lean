@@ -60,13 +60,13 @@ theorem enc_inj (lay tau e : Nat) (M : Val) {c c' : Nat} (hc : c < 2 ^ 32) (hc' 
   exact le32_inj hc hc' h2
 
 /-- The rejection probability of one fresh encoding. -/
-noncomputable def rhoC (lay : Nat) : ℝ≥0∞ :=
-  Pr[fun u : BitVec 256 => decodeDigits lay (answerBytes 16 u) = none |
+noncomputable def rhoC : ℝ≥0∞ :=
+  Pr[fun u : BitVec 256 => decodeDigits (answerBytes 16 u) = none |
     ($ᵗ BitVec 256 : ProbComp (BitVec 256))]
 
-theorem V_searchCounter (lay : Nat) (z b : ℝ≥0∞) (hz : 1 ≤ z) (hb : 1 ≤ b)
-    (hstep : z * (rhoC lay * b + (1 - rhoC lay)) ≤ b)
-    (tau e : Nat) (M : Val) (hM : M.length ≤ 16) :
+theorem V_searchCounter (z b : ℝ≥0∞) (hz : 1 ≤ z) (hb : 1 ≤ b)
+    (hstep : z * (rhoC * b + (1 - rhoC)) ≤ b)
+    (lay tau e : Nat) (M : Val) (hM : M.length ≤ 16) :
     ∀ fuel c (cache : RCache), c + fuel ≤ 2 ^ 32 →
       (∀ c', c ≤ c' → c' < 2 ^ 32 → cache (fmt (encInput lay tau e M c')) = none) →
       V z (searchCounter lay tau e M c fuel) cache ≤ b := by
@@ -84,9 +84,9 @@ theorem V_searchCounter (lay : Nat) (z b : ℝ≥0∞) (hz : 1 ≤ z) (hb : 1 �
       calc z ^ (fmt (encInput lay tau e M c)).blocks ≤ z ^ 1 := pow_le_pow_right₀ hz hbl
         _ = z := pow_one z
     refine le_trans (mul_le_mul' hz1 (ev_ite_le
-      (fun u => decodeDigits lay (answerBytes 16 u) = none) b 1 _ fun u => ?_)) ?_
+      (fun u => decodeDigits (answerBytes 16 u) = none) b 1 _ fun u => ?_)) ?_
     · dsimp only
-      cases hd : decodeDigits lay (answerBytes 16 u) with
+      cases hd : decodeDigits (answerBytes 16 u) with
       | some x => simp
       | none =>
         simp only [if_true]
