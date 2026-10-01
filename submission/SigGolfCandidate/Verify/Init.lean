@@ -150,7 +150,7 @@ theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16384) (s : MachineSta
   simp only [submission_admissible.2 .verify, if_true, Option.some.injEq] at h
   subst h
   have e1 : (submission.image .verify).data = Images.verifyData := rfl
-  have eb : dataBase (submission.image .verify) = 0xFFFFF0 := rfl
+  have eb : dataBase (submission.image .verify) = 0xFFFFE0 := rfl
   rw [e1, eb]
   have hl : inputBuffers submission.sizes submission.layout .verify (m, pk, w) =
       [(0x40, toList m), (0xA0, toList pk), (0x800, toList w)] := rfl
@@ -160,34 +160,41 @@ theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 16384) (s : MachineSta
   have lp : (toList pk).length = 16 := length_toList pk
   have lw : (toList w).length = 16384 := length_toList w
   set blank : MachineState := { regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 }
-  set withData := blank.writeBytesAsWords (BitVec.ofNat 64 0xFFFFF0) Images.verifyData
-  have dataRegs : withData.regs = blank.regs := wbw_regs 16 _ _ _ (by decide)
-  have dataLow : ∀ A, A < 0xFFFFF0 → withData.getMem (BitVec.ofNat 64 A) = 0 := by
+  set withData := blank.writeBytesAsWords (BitVec.ofNat 64 0xFFFFE0) Images.verifyData
+  have dataRegs : withData.regs = blank.regs := wbw_regs 32 _ _ _ (by decide)
+  have dataLow : ∀ A, A < 0xFFFFE0 → withData.getMem (BitVec.ofNat 64 A) = 0 := by
     intro A hA
-    rw [wbw_frame Images.verifyData blank 0xFFFFF0 (by decide) A (by omega) (Or.inl hA)]
+    rw [wbw_frame Images.verifyData blank 0xFFFFE0 (by decide) A (by omega) (Or.inl hA)]
     rfl
   have dataMasks : MaskData withData := by
-    constructor
-    · change withData.getMem (BitVec.ofNat 64 (0xFFFFF0 + 8 * 0)) = M1w
-      rw [wbw_word Images.verifyData blank 0xFFFFF0 (by decide) 0 (by decide)]
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · change withData.getMem (BitVec.ofNat 64 (0xFFFFE0 + 8 * 2)) = M1w
+      rw [wbw_word Images.verifyData blank 0xFFFFE0 (by decide) 2 (by decide)]
       decide +kernel
-    · change withData.getMem (BitVec.ofNat 64 (0xFFFFF0 + 8 * 1)) = M2w
-      rw [wbw_word Images.verifyData blank 0xFFFFF0 (by decide) 1 (by decide)]
+    · change withData.getMem (BitVec.ofNat 64 (0xFFFFE0 + 8 * 3)) = M2w
+      rw [wbw_word Images.verifyData blank 0xFFFFE0 (by decide) 3 (by decide)]
+      decide +kernel
+    · change withData.getMem (BitVec.ofNat 64 (0xFFFFE0 + 8 * 0)) = 0x40401#64
+      rw [wbw_word Images.verifyData blank 0xFFFFE0 (by decide) 0 (by decide)]
+      decide +kernel
+    · change withData.getMem (BitVec.ofNat 64 (0xFFFFE0 + 8 * 1)) = 0x3fe00#64
+      rw [wbw_word Images.verifyData blank 0xFFFFE0 (by decide) 1 (by decide)]
       decide +kernel
   set s1 := withData.writeBytesAsWords (BitVec.ofNat 64 0x40) (toList m)
   set s2 := s1.writeBytesAsWords (BitVec.ofNat 64 0xA0) (toList pk)
   set s3 := s2.writeBytesAsWords (BitVec.ofNat 64 0x800) (toList w)
-  have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 0xFFFFF0)).getMem A = s3.getMem A :=
+  have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 0xFFFFE0)).getMem A = s3.getMem A :=
     fun A => by simp [MachineState.setReg, MachineState.getMem]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · have fr : ∀ A, A = 0xFFFFF0 ∨ A = 0xFFFFF8 →
-        (s3.setReg .x2 (BitVec.ofNat 64 0xFFFFF0)).getMem (BitVec.ofNat 64 A) =
+  · have fr : ∀ A, A = 0xFFFFF0 ∨ A = 0xFFFFF8 ∨ A = 0xFFFFE0 ∨ A = 0xFFFFE8 →
+        (s3.setReg .x2 (BitVec.ofNat 64 0xFFFFE0)).getMem (BitVec.ofNat 64 A) =
           withData.getMem (BitVec.ofNat 64 A) := by
       intro A hA
       rw [gm, wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
         wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
         wbw_frame _ _ _ (by omega) _ (by omega) (by omega)]
-    exact ⟨(fr _ (Or.inl rfl)).trans dataMasks.1, (fr _ (Or.inr rfl)).trans dataMasks.2⟩
+    exact ⟨(fr _ (by simp)).trans dataMasks.1, (fr _ (by simp)).trans dataMasks.2.1,
+      (fr _ (by simp)).trans dataMasks.2.2.1, (fr _ (by simp)).trans dataMasks.2.2.2⟩
   · intro p hp
     have hr : s3.regs = blank.regs := by
       rw [wbw_regs 20000 _ _ _ (by omega), wbw_regs 20000 _ _ _ (by omega), wbw_regs 20000 _ _ _ (by omega), dataRegs]

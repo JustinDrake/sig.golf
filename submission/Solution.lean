@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # sig.golf solution: SPHINCS+ with PORS+FP (forced-pruning single-tree few-time signature)
 
-`S = 6032` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10670` cycles (verify bound
-`10606` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
+`S = 6032` bytes, `W = 16384` bytes, `K = 131072` bytes (cache), `C = 10668` cycles (verify bound
+`10604` plus the witness charge `⌈16384 / 256⌉ = 64`). Layout (bytes): message 64, secret key 128,
 public key 160, cache 19200, signature 150272, witness 2048.
 
 The five WOTS+C counters are not in the signature: `expand` recomputes each layer's least valid
@@ -61,9 +61,10 @@ checked once through the stream pointer instead of a per-segment counter. The st
 the address base and the digest's known input length, saving four more instructions on
 accepting runs. These verifier changes preserve the promoted scheme's hash queries and formats.
 
-This successor removes three executed instructions: global x29 supplies the uniform target,
-the root omits unused K40, and initial SP supplies 4095 in one shift. Root tails take 13
-steps and the accepting prologue takes 24; the charged bound is 10670.
+This successor removes five executed instructions: global x29 supplies the uniform target,
+the root omits unused K40, initial SP supplies 4095 in one shift, and the preserved stack pointer
+addresses the protected masks directly. The root header is loaded from protected image data. Root tails take 11 steps and the accepting prologue
+takes 24. A separate universal structural segment credit gives the charged bound 10668.
 
 The certificate is `SigGolfCandidate.certificateNew`. It is transferred from
 `SigGolfCandidate.Final.certificate`, a certificate for the same images under the previous
@@ -90,7 +91,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10670 :=
+theorem certificate : SigGolf.Certificate submission 10668 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
