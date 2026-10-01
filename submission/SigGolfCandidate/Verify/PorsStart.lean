@@ -33,15 +33,15 @@ theorem ctr_word (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (
     show 2944 + 4 * (2 * i + 1) = 2944 + 8 * i + 4 by omega]
 
 theorem ctr_word4 (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (hW : WitAll wl s) :
-    ((extractWord32 (s.getMem (BitVec.ofNat 64 4440)) 0).zeroExtend 64).toNat = witCounter wl 4 := by
-  rw [show (4440 : Nat) = 0x800 + 2392 from rfl, wit_word_all hW _ (by omega) (by omega)]
+    ((extractWord32 (s.getMem (BitVec.ofNat 64 4696)) 0).zeroExtend 64).toNat = witCounter wl 4 := by
+  rw [show (4696 : Nat) = 0x800 + 2648 from rfl, wit_word_all hW _ (by omega) (by omega)]
   simp only [extractWord32, BitVec.truncate_eq_setWidth, BitVec.toNat_setWidth,
     BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
   rw [w64_toNat _ (by simp [slice]), pleNat_slice8 _ _ (by omega)]
   simp only [witCounter, ctrOff, show ¬ (4 < 4) by omega, if_false, wC4_eq]
-  have := leNat_lt (slice wl 2392 4)
-  have l4 : (slice wl 2392 4).length ≤ 4 := by simp [slice]
-  have : leNat (slice wl 2392 4) < 2 ^ 32 :=
+  have := leNat_lt (slice wl 2648 4)
+  have l4 : (slice wl 2648 4).length ≤ 4 := by simp [slice]
+  have : leNat (slice wl 2648 4) < 2 ^ 32 :=
     lt_of_lt_of_le this (le_trans (Nat.pow_le_pow_right (by decide) l4) (by norm_num))
   norm_num
   omega
@@ -51,7 +51,7 @@ theorem ctr_iff (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (h
   have e : ctrE'.eval s = (ctrX.eval s ||| (ctrX.eval s <<< ((BitVec.ofNat 64 32).toNat % 64))) >>>
       ((BitVec.ofNat 64 54).toNat % 64) := rfl
   have ex : ctrX.eval s = s.getMem (BitVec.ofNat 64 4992) ||| s.getMem (BitVec.ofNat 64 5000) |||
-      (extractWord32 (s.getMem (BitVec.ofNat 64 4440)) 0).zeroExtend 64 := rfl
+      (extractWord32 (s.getMem (BitVec.ofNat 64 4696)) 0).zeroExtend 64 := rfl
   have hx := (ctrX.eval s).isLt
   have hsh : ctrE'.eval s = 0 ↔ (ctrX.eval s).toNat % 2 ^ 32 < 2 ^ 22 ∧ (ctrX.eval s).toNat / 2 ^ 32 < 2 ^ 22 := by
     rw [e, ← ctr_shift_iff _ hx]

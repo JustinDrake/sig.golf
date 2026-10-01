@@ -108,19 +108,23 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     rw [this]; simp [chB0]
   have hc := blockCheck_at L.lay hlay 0 (by unfold nCh; split <;> decide)
     (L.e / 2 ^ chB0 L.lay 0 % 2 ^ chBits L.lay 0) (Nat.mod_lt _ (Nat.two_pow_pos _))
-  have e0 : lvlK (chB0 L.lay 0) = fk false 0x340 704 := by simp [lvlK, chB0]
-  have hK1 : KnownOK (lvlK (chB0 L.lay 0)) u1 := by
+  have e0 : lvlK L.lay (chB0 L.lay 0) = foldK L.lay 704 := by simp [lvlK, chB0]
+  have hK1 : KnownOK (lvlK L.lay (chB0 L.lay 0)) u1 := by
     intro p hp
     rw [e0] at hp
-    exact hu.known p (List.mem_append_left _ hp)
+    apply hu.known p
+    simp only [foldK, List.mem_append, List.mem_singleton] at hp
+    rcases hp with hp | rfl
+    · exact List.mem_append_left _ hp
+    · simp [leafPost, s6N_eq]
   obtain ⟨u, hst2, hec2, hK2, hkeep2, hglob2, hmem2, hpc2⟩ :=
     blk_entry_run L.lay 0 (L.e / 2 ^ chB0 L.lay 0 % 2 ^ chBits L.lay 0) hc u1 hpc1 hK1
   have hK2' := KnownOK_append.mp hK2
   rw [e0] at hK2'
   have hdv : 0x360 + 16 * (L.e / 2 ^ chB0 L.lay 0 % 2 ^ chBits L.lay 0 % 2) = 0x360 + 16 * (L.e % 2) := by
     rw [hvb2]
-  have h10 : u.getReg .x10 = BitVec.ofNat 64 0x340 := hK2'.1 (.x10, _) (by simp [fk])
-  have h11 : u.getReg .x11 = BitVec.ofNat 64 (64 * (10 + 1)) := hK2'.1 (.x11, _) (by simp [fk])
+  have h10 : u.getReg .x10 = BitVec.ofNat 64 0x340 := hK2'.1 (.x10, _) (by simp [foldK, fk])
+  have h11 : u.getReg .x11 = BitVec.ofNat 64 (64 * (10 + 1)) := hK2'.1 (.x11, _) (by simp [foldK, fk])
   have h12 : u.getReg .x12 = BitVec.ofNat 64 (0x360 + 16 * (L.e % 2)) := by
     rw [← hdv]; exact hK2'.2 _ (List.mem_singleton_self _)
   have hmem : ∀ A, u.getMem A = memEval s (specLeaf L.lay).mem A := fun A => (hmem2 A).trans (hu.mem A)
@@ -134,8 +138,8 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     rw [hkeep2 .x27 (by simp [fkeep])]
     exact hu.known (.x27, BitVec.ofNat 64 (hWord L.lay + 768)) (by simp [leafPost])
   have h22u : u.getReg .x22 = BitVec.ofNat 64 (s6N L.lay) := by
-    rw [hkeep2 .x22 (by simp [fkeep])]
-    exact hu.known (.x22, BitVec.ofNat 64 (s6N L.lay)) (by simp [leafPost])
+    rw [s6N_eq]
+    exact hK2'.1 (.x22, BitVec.ofNat 64 (6336 + 2688 * L.lay)) (by simp [foldK])
   have mfr : ∀ A, A < 2 ^ 64 → A ≠ 840 → A ≠ 832 →
       u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA h3 h4
@@ -144,7 +148,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       rintro p (rfl | rfl) <;> simp <;> omega)]
   have hP : ∀ a ∈ pSlots, s.getMem (BitVec.ofNat 64 a) = 0 := hG.2.2.2
   have hGu : Glob gkL L.wl L.pk u := hglob2 _ _ (hu.glob _ _ _ hG)
-  refine ⟨u, hu.steps.trans hst2, hec2, hK2'.1 (.x5, 0) (by simp [fk, gkOf, gkL, gkL0, baseK]),
+  refine ⟨u, hu.steps.trans hst2, hec2, hK2'.1 (.x5, 0) (by simp [foldK, fk, gkOf, gkL, gkL0, baseK]),
     hashArgs_ofNat _ _ _ _ h10 h11 h12 (by omega) (by omega) (by omega)
       (by simp only [hashArgsB, MEMORY_BYTES]; simp; omega), ?_, ?_⟩
   · have hends : ∀ v ∈ ends, v.length = 16 := hvs
@@ -183,11 +187,14 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     have wf := fun A (hA : A < 2 ^ 64) (h : A + 8 ≤ 0x360 + 16 * (L.e % 2) ∨ 0x360 + 16 * (L.e % 2) + 32 ≤ A) =>
       writeHash_frame _ ans _ A h12 hA (by omega) h
     have hbit : bitOf L.e 0 = L.e % 2 := by simp [bitOf]
+    have hFresh : Fresh L.wl L.lay 42 (writeHash u ans) := by
+      refine Fresh_frame hF (fun A hA hA' => ?_)
+      rw [wf A hA (Or.inr (by omega)), mfr A hA (by omega) (by omega)]
     refine ⟨⟨Glob_writeHash hGu ans _ h12 (by
         rcases Nat.mod_two_eq_zero_or_one L.e with h | h <;> rw [h] <;> decide),
-      ?_, ?_, ?_, ?_, ?_, ?_, by simp, ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩
+      ?_, ?_, ?_, ?_, ?_, ?_, by simp, ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩, ?_, hFresh⟩, ?_, ?_, ?_, hFresh, ?_⟩
     · have := Known_writeHash hK2'.1 ans
-      simpa [lvlK] using this
+      simpa [lvlK, layFC] using this
     · rw [writeHash_getReg, hkp .x23 (by simp [leafKeep])]; exact h23
     · unfold NBhdr
       refine ⟨fun _ => ?_, fun h => absurd rfl h⟩
@@ -216,8 +223,6 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     · unfold CB0
       rw [wf 0xC0 (by omega) (by omega), mfr 0xC0 (by omega) (by omega) (by omega)]
       exact hCB
-    · refine Fresh_frame hF (fun A hA hA' => ?_)
-      rw [wf A hA (Or.inr (by omega)), mfr A hA (by omega) (by omega)]
     · rw [writeHash_getReg]; exact h22u
 
 end SigGolfCandidate.Verify

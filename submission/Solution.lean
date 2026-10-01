@@ -4,8 +4,8 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # Stateless SPHINCS+ with narrow gated overlapping-window encoding
 
-S=6032 signature bytes, W=16128 witness bytes, K=131072 cache bytes.
-The claim C=10431 is accepting verifier bound10368 plus witness charge63.
+S=6032 signature bytes, W=15872 witness bytes, K=131072 cache bytes.
+The claim C=10430 is accepting verifier bound10368 plus witness charge62.
 PORS has height14,15 openings and authentication cap117. Every WOTS checksum target is185.
 
 For oracle words A,B,C,D, select AB when B's top bit is clear and A's top bit is clear;
@@ -18,7 +18,9 @@ PORS uses bit-reversed heap headers and the physical leaf-header lookup table. T
 route remains in its physical register, the root checksum reuses x29=185, and the root tag
 is loaded from the protected word at0xFFFFE8. The root transition takes13 instructions.
 The external witness omits the two internal cache words; the unchanged internal verifier
-semantics are connected by the proved witness transport. All costs are formal bounds.
+semantics are connected by the proved witness transport. Lower-layer authentication paths
+occupy consumed tweak slots of the next layer verified, so the input starts at0xa00 and
+the witness charge is62. All costs are formal bounds.
 
 The bit-reversed PORS implementation is from patternrecognition9-del's public
 673f281905f0907c60cdad02ca0fbbdc221ae2d7. Earlier public construction sources include
@@ -34,15 +36,15 @@ def submission : SigGolf.Submission := SigGolfCandidate.submissionNew
 
 theorem signature_bytes : submission.sizes.signature = 6032 := rfl
 
-theorem witness_bytes : submission.sizes.witness = 16128 := rfl
+theorem witness_bytes : submission.sizes.witness = 15872 := rfl
 
 theorem cache_bytes : submission.sizes.cache = 131072 := rfl
 
 theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
-    cache := 19200, signature := 150272, witness := 2304 } := rfl
+    cache := 19200, signature := 150272, witness := 2560 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10431 :=
+theorem certificate : SigGolf.Certificate submission 10430 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

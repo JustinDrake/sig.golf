@@ -31,7 +31,7 @@ theorem cc_Kb (oa : OracleComp HashSpec Bool) :
   simp only [cc, Kb, map_pure, Nat.add_zero]
   exact bind_pure _
 
-theorem verify_refines (m : Message) (pk : PublicKey) (w : Bytes 16128) :
+theorem verify_refines (m : Message) (pk : PublicKey) (w : Bytes 15872) :
     (fun r => (r.value, r.hashCalls)) <$> submission.run .verify (m, pk, w) =
       (fun p => (if p.1 then some () else none, p.2)) <$> countCalls (verifyRef m pk w) := by
   obtain ⟨s, hs⟩ := init_exists (m, pk, w)

@@ -13,9 +13,9 @@ headers (`Ref.Rev.efield`) fold with one `slliw` (`-117`) for a header-table loa
 table constants (`+4`). -/
 def verifyCycleBound : Nat := 10368
 
-/-- The witness charge `⌈16128 / 256⌉` (W1: `rho` and the PORS secrets in layer 0's tweak slots,
-the witness buffer `0x900 .. 0x4800`). -/
-def witnessCharge : Nat := 63
+/-- The witness charge `⌈15872 / 256⌉`: consumed lower-layer tweak slots hold
+authentication paths, and the witness buffer is `0xa00 .. 0x4800`. -/
+def witnessCharge : Nat := 62
 
 /-- The claimed verification cost `C`. -/
 def claimedC : Nat := verifyCycleBound + witnessCharge
