@@ -3,7 +3,7 @@ import SigGolfCandidate.T3M.Verify.Select
 /-!
 # The FTS stream machine: layout and expected symbolic results of its code blocks (T3M verify)
 
-Code (instruction indices of the frozen image, `t3m/images/verify.labels`): `fts_setup` 359; leaf `s = 3 c + j` at
+Code (instruction indices of the frozen image, `t3m/images/verify.labels`): `fts_setup` 375; leaf `s = 3 c + j` at
 `leafPc s` (11 / 10 / 11 instructions for `j = 0, 1, 2`: table switch, `ld s7, ETAB + 8 s`, the leaf block's `T`, the
 dispatch `lbu gp, 880(a4); slli 5; add s4; jalr s8`); `coord_end_c` at `coordEndPc c`; `forest` 648; the segment tables
 `ptab_n` 744 / `ptab_l` 2792 (256 slots of 8 words); `entry0_{M,P,F}` 4841 / 4856 / 4862; the ladders `lad_X_t_r` at
@@ -11,7 +11,7 @@ dispatch `lbu gp, 880(a4); slli 5; add s4; jalr s8`); `coord_end_c` at `coordEnd
 (`tailPc X c`, copy `c` = ladder `t` or `2` = `entry0_X`).
 
 Families (each a path run checked by `specB` in `FtsCheck`):
-* `setupCheck'` (359 → 392: a `j` over fifteen filler words, then 17 instructions), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
+* `setupCheck'` (375 → 392: 17 instructions; the last selection falls through into 375), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
   slot address), `slotCheck tb b` (to the pending hash / HALT(1)), `entCheck tb b` (`j lad`), `rungCheck X t r t'`
   (fold `r` to its hash, switching to ladder `t'`), `lastCheck X t` (rung 10 to the destination hash),
   `tailMCheck c d`, `tailPCheck c d`, `tailFCheck c`, `coordCheck c`, `forestCheck`.
@@ -39,7 +39,7 @@ def forestSlot (c : Nat) : Nat := if c = 0 then 0x700 else 0x710 + 16 * c
 and the coordinate-end comparands `t1 = 1` (the root's heap index) and `s3 = frameA 0` (the empty stack). -/
 def gkF : List (Reg × Word) :=
   baseK ++ [(.x11, 64), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x31, 0x10000), (.x26, BitVec.ofNat 64 tbN),
-    (.x21, BitVec.ofNat 64 tbL), (.x6, 1), (.x19, BitVec.ofNat 64 (frameA 0))]
+    (.x21, BitVec.ofNat 64 tbL), (.x6, 1), (.x19, BitVec.ofNat 64 (frameA 0)), (.x2, 0x1000000)]
 
 /-- The coordinate words: `s11 = w0` of a node header, `t3 = w0` of a leaf header (coordinate `c`). -/
 def ckF (c : Nat) : List (Reg × Word) :=
@@ -97,10 +97,24 @@ def sw2E (old v : E) : E := .bin (.st .w 4) (.bin (.st .w 0) old (.reg .x22)) v
 def setupPost : List (Reg × Word) :=
   gkF ++ ckF 0 ++ [(.x14, BitVec.ofNat 64 A4_0), (.x15, BitVec.ofNat 64 (frameA 0)), (.x25, BitVec.ofNat 64 FOREST)]
 
-def setupSpecF : Spec :=
-  ⟨[], [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 392, false, 18, [], none, 18⟩
+/-- The setup's three two-instruction constants are loaded from the embedded data (words 377 .. 380: `lui sp, 0x1000`
+and three `ld`, data words 6, 9, 10); the rest of the setup is words 381 .. 391, falling through into 392. `sp` keeps
+the data page through the FTS phase (`gkF`). -/
+def setupLdK : List (Reg × Word) :=
+  baseK ++ [(.x29, BitVec.ofNat 64 A4_LIMIT), (.x26, BitVec.ofNat 64 tbN), (.x21, BitVec.ofNat 64 tbL),
+    (.x2, 0x1000000)]
 
-def setupCheckF : Bool := specB [] [] gkF (runAt baseK [392] 359 []) setupSpecF [] setupPost [.x22]
+def setupLdSpec : Spec :=
+  ⟨[(.x29, .ld (cw (DATA + 48))), (.x26, .ld (cw (DATA + 72))), (.x21, .ld (cw (DATA + 80)))],
+    [], 381, false, 4, [], none, 4⟩
+
+def setupLdCheckF : Bool :=
+  specB [] [] baseK (runAt baseK [381] 377 []) setupLdSpec [] (baseK ++ [(.x2, 0x1000000)]) [.x22]
+
+def setupSpecF : Spec :=
+  ⟨[], [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 392, false, 11, [], none, 11⟩
+
+def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [392] 381 []) setupSpecF [] setupPost [.x22]
 
 /-! ## Leaf code (to the dispatch) -/
 
@@ -281,7 +295,7 @@ def forestSpecF : Spec :=
     655, true, 7, [capBr false], none, 7⟩
 
 def forestCheckF : Bool :=
-  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] (baseK ++ [(.x6, 1)]) [.x22] &&
+  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] (baseK ++ [(.x6, 1), (.x2, 0x1000000)]) [.x22] &&
   specB [] [] [] (runAt gkF [] forestPc [.br true]) (rejSpec 4 [capBr true]) [] [] []
 
 end SigGolfCandidate.T3M.Verify
