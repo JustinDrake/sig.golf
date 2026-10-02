@@ -96,10 +96,23 @@ def sw2E (old v : E) : E := .bin (.st .w 4) (.bin (.st .w 0) old (.reg .x22)) v
 def setupPost : List (Reg × Word) :=
   gkF ++ ckF 0 ++ [(.x14, BitVec.ofNat 64 A4_0), (.x15, BitVec.ofNat 64 (frameA 0)), (.x25, BitVec.ofNat 64 FOREST)]
 
-def setupSpecF : Spec :=
-  ⟨[], [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 377, false, 18, [], none, 18⟩
+/-- T3K: the setup's six constants are loaded from the embedded data (words 359 .. 365: `lui sp, 0x1000` and six
+`ld`, data words 5 .. 10); the rest of the setup is words 366 .. 371 and `j 377` at 372. -/
+def setupLdK : List (Reg × Word) :=
+  baseK ++ [(.x14, BitVec.ofNat 64 A4_0), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x27, BitVec.ofNat 64 0xa01),
+    (.x28, BitVec.ofNat 64 0x901), (.x26, BitVec.ofNat 64 tbN), (.x21, BitVec.ofNat 64 tbL)]
 
-def setupCheckF : Bool := specB [] [] gkF (runAt baseK [377] 359 []) setupSpecF [] setupPost [.x22]
+def setupLdSpec : Spec :=
+  ⟨[(.x14, .ld (cw (DATA + 40))), (.x29, .ld (cw (DATA + 48))), (.x27, .ld (cw (DATA + 56))),
+      (.x28, .ld (cw (DATA + 64))), (.x26, .ld (cw (DATA + 72))), (.x21, .ld (cw (DATA + 80)))],
+    [], 366, false, 7, [], none, 7⟩
+
+def setupLdCheckF : Bool := specB [] [] baseK (runAt baseK [366] 359 []) setupLdSpec [] baseK [.x22]
+
+def setupSpecF : Spec :=
+  ⟨[], [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 377, false, 7, [], none, 7⟩
+
+def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [377] 366 []) setupSpecF [] setupPost [.x22]
 
 /-! ## Leaf code (to the dispatch) -/
 

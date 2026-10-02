@@ -132,6 +132,7 @@ structure SelIn (pk : Digest) (w : WBytes) (a : HashOutput) (c : Nat) (s : Machi
   pk : PkOK pk s
   zero : ∀ A, A < WIT → (A < 0x20 ∨ (0x80 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → (A < ETAB ∨ ETAB + 24 * c ≤ A) →
     s.getMem (BitVec.ofNat 64 A) = 0
+  data : DataOK s
 
 /-- HALT(1) reached. -/
 def Halt1 (u : MachineState) : Prop :=
@@ -188,7 +189,7 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
       u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA hA'
     rw [hmem A hA, if_neg (by omega), if_neg (by omega), if_neg (by omega)]
-  refine ⟨u, hu.steps, ⟨?_, hu.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+  refine ⟨u, hu.steps, ⟨?_, hu.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   · rw [hu.pc rfl]; rfl
   · intro k hk; rw [hu.keep (nReg k) (by
       rcases (show k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 by omega) with rfl | rfl | rfl | rfl <;> simp [selKeep, nReg])]
@@ -211,6 +212,10 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
   · intro A hA hz hE
     rw [hframe A (by unfold WIT at hA; omega) (by omega)]
     exact hs.zero A hA hz (by omega)
+  · intro k hk
+    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
+    rw [hframe _ (by omega) (Or.inr (by unfold ETAB; omega))]
+    exact hs.data k hk
 
 end SigGolfCandidate.T3M.Verify
 
@@ -412,7 +417,7 @@ theorem sel_setup (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (
   obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt baseK [24] 18 []) setupSpec [] baseK [] = true
     from setupCheck_ok) u hu.pc hk (by simp [setupSpec]) (by simp)
   have hmem : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
-  refine ⟨t, ht.steps, ⟨by rw [ht.pc rfl]; rfl, ht.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+  refine ⟨t, ht.steps, ⟨by rw [ht.pc rfl]; rfl, ht.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   · intro k hk'
     have r16 : t.getReg .x16 = (nE 0).eval u := ht.regs (.x16, nE 0) (by simp [setupSpec])
     have r17 : t.getReg .x17 = (nE 1).eval u := ht.regs (.x17, nE 1) (by simp [setupSpec])
@@ -431,6 +436,7 @@ theorem sel_setup (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (
   · intro j hj; rw [hmem]; exact hu.wit j hj
   · exact ⟨(hmem _).trans hu.pk.1, (hmem _).trans hu.pk.2⟩
   · intro A hA hz _; rw [hmem]; exact hu.zero A hA hz
+  · intro k hk; rw [hmem]; exact hu.data k hk
 
 /-! ## All seven coordinates -/
 
