@@ -1166,7 +1166,7 @@ theorem pors_good_decoded (P : PCtx) (hP : P.ok) (s0 : MachineState)
   rw [l0] at hg
   exact hg.mono (le_refl _) (le_refl _) (fun _ => ⟨trivial, le_refl _⟩)
 
-def cycleBoundDecoded (wl : List Byte) : Nat := 458 + layC + decodedCostRem wl 0
+def cycleBoundDecoded (wl : List Byte) : Nat := 457 + layC + decodedCostRem wl 0
 
 theorem exact_cost_vals (wl : List Byte) :
     leafCost 0 + Aexact wl 0 0 = 334 + layC + decodedCostRem wl 0 := by
@@ -1303,7 +1303,7 @@ zero-inclusive compressed-tree certificate, with the final root cost restored. -
 theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
     (hpk : pkl.length = 16) (hwl : wl.length = 16384) (s : MachineState)
     (hs : InitOK ml pkl wl s) :
-    GoodQ s fuelBound cycleBoundAll True 10249 (cc (verifyList ml pkl wl) Kb) := by
+    GoodQ s fuelBound cycleBoundAll True 10248 (cc (verifyList ml pkl wl) Kb) := by
   intro F hF
   have hg := main_good_decoded ml pkl wl hml hpk hwl s hs F hF
   refine ⟨hg.1, fun hash => ⟨(hg.2 hash).1, (hg.2 hash).2.1, fun hsucc => ⟨trivial, ?_⟩⟩⟩
@@ -1320,7 +1320,7 @@ theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
 
 theorem verify_good_tight (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (s : MachineState) (hs : initialState submission .verify input = some s) :
-    GoodQ s fuelBound cycleBoundAll True 10249
+    GoodQ s fuelBound cycleBoundAll True 10248
       (cc (verifyRef input.1 input.2.1 input.2.2) Kb) := by
   obtain ⟨m, pk, w⟩ := input
   exact main_good_tight _ _ _ (length_toList m) (length_toList pk)
@@ -1331,7 +1331,7 @@ over hash answers and arbitrary witnesses. The witness charge is separate. -/
 theorem verify_accept_cycles_tight (hash : Hash)
     (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (h : (submission.runWith hash .verify input).value = some ()) :
-    (submission.runWith hash .verify input).cycles ≤ 10249 := by
+    (submission.runWith hash .verify input).cycles ≤ 10248 := by
   obtain ⟨s, hs⟩ := init_exists input
   have hg := (verify_good_tight input s hs CYCLE_LIMIT (by unfold CYCLE_LIMIT fuelBound; norm_num)).2 hash
   rw [runWith_eq submission hash .verify input s hs, image_eq] at h ⊢

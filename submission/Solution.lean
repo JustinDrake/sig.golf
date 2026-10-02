@@ -5,12 +5,12 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
-The claim C=10304 is accepting verifier bound10249 plus witness charge55.
+The claim C=10303 is accepting verifier bound10248 plus witness charge55.
 This candidate retains the accepted ordered root-children message construction and adds
 length-separated leaf header reuse, a preserved selector threshold, a reversible
 top heap address reflection, carried upper-layer leaf headers, and rotated encoding
 payload lanes. The encoding header remains in memory and only its layer byte is updated,
-removing four header subtractions and one unused register initializer.
+removing four header subtractions and one unused register initializer. Message layout is relocated to 0x20 so the digest ECALL omits addi a0,32.
 Sparse temporary PORS cells share consumed chain-tweak slots. The certificate checks the concrete programs and query map.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[185,185,185,185,186].
@@ -88,10 +88,10 @@ theorem witness_bytes : submission.sizes.witness = 14080 := rfl
 theorem cache_bytes : submission.sizes.cache = 131072 := rfl
 
 theorem layout_offsets : submission.layout =
-  { message := 64, secretKey := 128, publicKey := 160,
+  { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4352 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10304 :=
+theorem certificate : SigGolf.Certificate submission 10303 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
