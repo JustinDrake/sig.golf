@@ -71,9 +71,9 @@ def carryEr (lay : Nat) : E := if lay = 0 then uEr lay else tauEr lay
 def x31Er (lay : Nat) : E :=
   if lay = 0 then .bin .sll (.reg .x30) (cw 32)
   else .bin .add (tauEr lay) (.bin .sll (uEr lay) (cw 32))
-/-- `U = e | 2^h` (heap sentinel): `ori` (h < 11) or two `addi 1024` (h = 11). -/
+/-- Layer 0 retains its reflected heap index; layers 1..4 add the sentinel and dispatch page. -/
 def uHE (lay : Nat) : E :=
-  if lay = 0 then .bin .xor (uEr lay) (cw 4095) else .bin .or (uEr lay) (cw (2 ^ heightL lay))
+  if lay = 0 then .bin .xor (uEr lay) (cw 4095) else .bin .add (uEr lay) (cw (2 ^ heightL lay + uOff lay))
 
 /-- The doubleword holding layer `lay`'s counter (`c4` at witness 2688, `c0 .. c3` in the tweak
 slot of chain block `(0, 0)` at witness 2944). -/
@@ -185,12 +185,12 @@ def specRej2 (out hi : Nat) (lay : Nat) : Spec :=
 
 /-- The leaf code at the return pc: the leaf tweak, then the dispatch into the shape block of
 chunk 0. -/
-def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay < 4 then 5 else 6
+def leafSteps (lay : Nat) : Nat := if lay = 0 then 6 else if lay < 4 then 5 else 6
 
-def leafRawSteps (lay : Nat) : Nat := if lay = 0 then 7 else leafSteps lay
+def leafRawSteps (lay : Nat) : Nat := if lay = 0 then 5 else leafSteps lay
 
 def topDispTgt : E :=
-  mkBin .and (mkAdd (mkBin .sll (.reg .x23) (cw 3)) (cw 779264)) (.c (~~~1#64))
+  mkBin .and (mkBin .sll (.reg .x23) (cw 4)) (.c (~~~1#64))
 
 def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, 0x40401), (.x22, BitVec.ofNat 64 (s6N lay))]
 

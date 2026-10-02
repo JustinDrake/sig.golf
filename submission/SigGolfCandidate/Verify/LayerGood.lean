@@ -453,6 +453,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The cycles of the five layers and the comparison (`8`). Against the head without the pair
 message: `-14` per lower layer (no root hash) and `+4` in each upper transition (the sibling copy). -/
-theorem layersCost_5 : layersCost 5 = 7447 := by decide
+theorem layersCost_5 : layersCost 5 = 7445 := by decide
 
 end SigGolfCandidate.Verify
