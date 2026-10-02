@@ -304,7 +304,8 @@ theorem f167_spec (hpc : s.pc = pcOf 167) (c index j b : Nat) (hc : c < 7) (hi :
     rw [show (2#64 : BitVec 64) = BitVec.ofNat 64 2 from rfl, ofNat_sub_ofNat 2 j (by omega) (by omega),
       toNat_ofNat_lt (by omega), Nat.mod_eq_of_lt (show 2 - j < 64 by omega), Nat.one_mul,
       Nat.mod_eq_of_lt (show j + 1 < 18446744073709551616 by omega), Nat.mod_eq_of_lt (show j + 1 < 64 by omega),
-      ofNat_shr _ _ (by omega), ofNat_add_ofNat]
+      ofNat_shr _ _ (by omega), ofNat_add_ofNat] <;>
+      apply congrArg (BitVec.ofNat 64) <;> ring
   · simp [eblk_167.res, rv_simp]
   · simp [eblk_167.res, rv_simp]
   · simp [eblk_167.res, rv_simp]

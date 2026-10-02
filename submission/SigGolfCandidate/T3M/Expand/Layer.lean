@@ -62,8 +62,7 @@ theorem leafInput_words' (lay : Layer) (tree leaf : Nat) (ends : List Digest) (h
     rfl
   · rw [h, if_neg (by decide)]
     simp only [Nat.reduceMul, Nat.reduceSub, Nat.reduceAdd, Nat.reduceMod, List.replicate_zero,
-      wordsOf_nil, List.append_nil]
-    simp [T3.packedNodeTag]
+      wordsOf_nil, List.append_nil, T3.packedNodeTag, Nat.reduceEqDiff, or_self, if_false]
 
 /-- The leaf-pk HASH length in blocks: `16 (N + 1)` bytes rounded up. -/
 def leafBlocks' (lay : Layer) : Nat := (16 * (chainCount lay + 1) + 63) / 64

@@ -386,7 +386,8 @@ theorem rc918_spec (hpc : s.pc = pcOf 918) (fp : Nat) (hfp8 : fp % 8 = 0) (hfp :
     t3n []
     rw [hlv, hnd, show (11#64 : BitVec 64) = BitVec.ofNat 64 11 from rfl, ofNat_sub_ofNat 11 level hl' (by omega),
       BitVec.toNat_ofNat, Nat.mod_eq_of_lt (show 11 - level < 2 ^ 64 by omega),
-      Nat.mod_eq_of_lt (show 11 - level < 64 by omega), Nat.one_mul, ofNat_add_ofNat]
+      Nat.mod_eq_of_lt (show 11 - level < 64 by omega), Nat.one_mul, ofNat_add_ofNat] <;>
+      apply congrArg (BitVec.ofNat 64) <;> ring
   · ex_regs eblk_918.res
   · intro A hA hn
     simp only [NODE] at hn

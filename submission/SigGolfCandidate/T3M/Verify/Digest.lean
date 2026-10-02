@@ -1,14 +1,14 @@
 import SigGolfCandidate.T3M.Verify.Init
 
 /-!
-# Prologue and digest (T3M verify words 0 .. 17)
+# Prologue and digest (T3M verify words 0 .. 16)
 
 `li s2, 4095; lwu gp, dc(s2); srli tp, gp, 20; bne tp, zero, rej0` (dc check, `dc < 2^20`), the header
 `T(12, 0, 0, 0, dc)` at `0x30` (`w0 = 0xc01`, `w1 = dc << 32`), `rho` copied to `0x20`, then the digest HASH of the
 block `[rho | T | m]` at `0x20` (one block, the message in place at `0x40`) into `N` at `0x60`.
 
 * `proCheck`, `proRejCheck` : the two path runs (kernel-checked);
-* `digest_step` : from `InitOK`, either HALT(1) after 8 steps (`dc ≥ 2^20`) or the digest `ECALL` after 17 steps with
+* `digest_step` : from `InitOK`, either HALT(1) after 8 steps (`dc ≥ 2^20`) or the digest `ECALL` after 16 steps with
   `hashInput = toQ (pad64 (digestInput (wrho w) m (wdc w)))`;
 * **`digestP_good`** : `GoodQ` of `ccM (digestP m w) K` from the initial state, given the continuation's judgment
   on every post-digest state (`DgOut`).
@@ -39,7 +39,7 @@ def proSpec : Spec :=
   ⟨[(.x4, cw 3073)],
     [(⟨none, BitVec.ofNat 64 0x28⟩, .ld (cw 0x808)), (⟨none, BitVec.ofNat 64 0x20⟩, .ld (cw 0x800)),
       (⟨none, BitVec.ofNat 64 0x30⟩, cw 0xc01), (⟨none, BitVec.ofNat 64 0x38⟩, .bin .sll lwuDc (cw 32))],
-    17, true, 17, [proBr false], none, 17⟩
+    16, true, 16, [proBr false], none, 16⟩
 
 def proPost : List (Reg × Word) := baseK ++ [(.x10, 32), (.x11, 64), (.x12, 96)]
 
@@ -94,27 +94,25 @@ theorem proBr_iff (w : WBytes) (s : MachineState) (hW : WitAll w s) (d : Bool) :
 
 /-- After the prologue, before the digest `ECALL`: `s2`, `t0`, the HASH arguments, the digest block. -/
 structure DgPre (m : T3.Message) (pk : Digest) (w : WBytes) (t : MachineState) : Prop where
-  pc : t.pc = pcOf 17
+  pc : t.pc = pcOf 16
   known : KnownOK proPost t
   wit : WitAll w t
   pk : PkOK pk t
   zero : ∀ A, A < WIT → (A < 0x20 ∨ (0x60 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → t.getMem (BitVec.ofNat 64 A) = 0
-  data : DataOK t
 
 /-- After the digest `HASH` (answer `a`, the output `N` at `0x60`). -/
 structure DgOut (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState) : Prop where
-  pc : u.pc = pcOf 18
+  pc : u.pc = pcOf 17
   known : KnownOK proPost u
   wit : WitAll w u
   pk : PkOK pk u
   nwords : ∀ k, k < 4 → u.getMem (BitVec.ofNat 64 (0x60 + 8 * k)) = a.extractLsb' (64 * k) 64
   zero : ∀ A, A < WIT → (A < 0x20 ∨ (0x80 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → u.getMem (BitVec.ofNat 64 A) = 0
-  data : DataOK u
 
 theorem digest_step (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
     ((wdc w).toNat ≥ attemptLimit → ∃ u, Steps image s 8 8 u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    ((wdc w).toNat < attemptLimit → ∃ t, Steps image s 17 17 t ∧ fetch image t = some (.base .ECALL) ∧
+    ((wdc w).toNat < attemptLimit → ∃ t, Steps image s 16 16 t ∧ fetch image t = some (.base .ECALL) ∧
         hashArgumentsValid t = true ∧ hashInput t = toQ (pad64 (digestInput (wrho w) m (wdc w))) ∧
         DgPre m pk w t) := by
   have hk : KnownOK k0 s := hs.known
@@ -185,7 +183,7 @@ theorem digest_step (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineStat
       rw [e20, e28, e30, e38, show 32 + 32 = 32 + 32 + 8 * 0 by rfl, em 0 (by omega),
         show 32 + 40 = 32 + 32 + 8 * 1 by rfl, em 1 (by omega), show 32 + 48 = 32 + 32 + 8 * 2 by rfl,
         em 2 (by omega), show 32 + 56 = 32 + 32 + 8 * 3 by rfl, em 3 (by omega)]
-    · refine ⟨ht.pc rfl, hkt, ?_, ?_, ?_, ?_⟩
+    · refine ⟨ht.pc rfl, hkt, ?_, ?_, ?_⟩
       · intro j hj
         rw [frame _ (by unfold WIT WX at *; omega) (by unfold WIT; omega) (by unfold WIT; omega)
           (by unfold WIT; omega) (by unfold WIT; omega)]
@@ -196,15 +194,11 @@ theorem digest_step (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineStat
         unfold WIT at hA
         rw [frame A (by omega) (by omega) (by omega) (by omega) (by omega)]
         exact hs.zero A hA (by omega)
-      · intro k hk
-        obtain ⟨hk1, hk2⟩ := DATA_ge k hk
-        rw [frame _ (by omega) (by omega) (by omega) (by omega) (by omega)]
-        exact hs.data k hk
 
 theorem digest_out (m : T3.Message) (pk : Digest) (w : WBytes) (t : MachineState) (ht : DgPre m pk w t)
     (a : HashOutput) : DgOut m pk w a (writeHash t a) := by
   have h12 : t.getReg .x12 = BitVec.ofNat 64 96 := ht.known (.x12, 96) (by simp [proPost])
-  refine ⟨?_, ht.known.writeHash a, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ht.known.writeHash a, ?_, ?_, ?_, ?_⟩
   · rw [writeHash_pc, ht.pc]; rfl
   · intro j hj
     rw [writeHash_frame t a 96 _ h12 (by unfold WIT WX at *; omega) (by omega) (Or.inr (by unfold WIT; omega))]
@@ -221,10 +215,6 @@ theorem digest_out (m : T3.Message) (pk : Digest) (w : WBytes) (t : MachineState
     unfold WIT at hA
     rw [writeHash_frame t a 96 A h12 (by omega) (by omega) (by omega)]
     exact ht.zero A (by unfold WIT; omega) (by omega)
-  · intro k hk
-    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
-    rw [writeHash_frame t a 96 _ h12 (by omega) (by omega) (Or.inr (by omega))]
-    exact ht.data k hk
 
 /-- The digest piece of `verifyP`: rejection (`dc ≥ 2^20`, HALT(1), no query) or the digest query (one block)
 followed by the continuation on the post-digest state. -/
@@ -232,7 +222,7 @@ theorem digestP_good (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineSta
     {N C A : Nat} {Q : Prop} (K : Option HashOutput → OracleComp HashSpec Obs)
     (hK : K none = pure (false, 0))
     (hcont : ∀ a u, DgOut m pk w a u → GoodQ u N C Q A (K (some a))) :
-    GoodQ s (N + 18) (C + 25) Q (A + 25) (ccM (digestP m w) K) := by
+    GoodQ s (N + 17) (C + 24) Q (A + 24) (ccM (digestP m w) K) := by
   obtain ⟨hrej, hacc⟩ := digest_step m pk w s hs
   unfold digestP
   by_cases hdc : (wdc w).toNat ≥ attemptLimit

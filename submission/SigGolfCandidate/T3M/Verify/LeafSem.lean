@@ -130,19 +130,17 @@ theorem LeafOut.hashInput {w : WBytes} {pk : Digest} {index : Nat} {lay : Layer}
 /-- V2's `Glob` through a frame that avoids the protected low words (`< 0x140`) and the witness header. -/
 theorem glob_frame {gk gk' : List (Reg × Word)} {w : WBytes} {pk : Digest} {s t : MachineState}
     {W : Nat → Prop} (hG : Glob gk w pk s) (hf : Frame s t W)
-    (hW : ∀ A, W A → 0x140 ≤ A ∧ (A < 0x800 ∨ 0x840 ≤ A) ∧ A < 2 ^ 23) (hk : ∀ p ∈ gk', t.getReg p.1 = p.2) :
+    (hW : ∀ A, W A → 0x140 ≤ A ∧ (A < 0x800 ∨ 0x840 ≤ A)) (hk : ∀ p ∈ gk', t.getReg p.1 = p.2) :
     Glob gk' w pk t := by
-  obtain ⟨-, hH, hP, hZ, hh, hD⟩ := hG
+  obtain ⟨-, hH, hP, hZ, hh⟩ := hG
   have hn : ∀ A, A < 0x140 → ¬ W A := fun A hA h => by have := hW A h; omega
-  refine ⟨hk, fun j hj => ?_, ⟨?_, ?_⟩, fun a ha => ?_, ?_, fun k hk' => ?_⟩
+  refine ⟨hk, fun j hj => ?_, ⟨?_, ?_⟩, fun a ha => ?_, ?_⟩
   · rw [hf.get (by unfold WIT; omega) (fun h => by have := hW _ h; unfold WIT at this; omega)]; exact hH j hj
   · exact (hf.get (A := 0xA0) (by norm_num) (hn _ (by norm_num))).trans hP.1
   · exact (hf.get (A := 0xA8) (by norm_num) (hn _ (by norm_num))).trans hP.2
   · have ha' : a < 0x140 := by simp only [pSlots, List.mem_cons, List.not_mem_nil, or_false] at ha; omega
     rw [hf.get (by omega) (hn _ ha')]; exact hZ a ha
   · unfold PHalf CTRW at *; rw [hf.get (by norm_num) (hn _ (by norm_num))]; exact hh
-  · obtain ⟨hk1, hk2⟩ := DATA_ge k hk'
-    rw [hf.get (by omega) (fun h => by have := hW _ h; omega)]; exact hD k hk'
 
 theorem land4 (n k : Nat) : n &&& (4 * (2 ^ k - 1)) = 4 * (n / 4 % 2 ^ k) := by
   apply Nat.eq_of_testBit_eq; intro j
@@ -260,7 +258,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
       (by rw [hR .x23 (by simp [chainRegs]), h23])
   · -- the registers and the protected memory
     have hGt : Glob baseK w pk t := glob_frame hG hF (fun A hA => by
-        unfold LCtx.Wr LCtx.blk at hA; rw [hS6] at hA
+        unfold LCtx.Wr at hA; rw [hS6] at hA
         have : slotL L.i0 = 768 := rfl
         rw [this] at hA
         rcases hA with hA | hA <;> omega)
@@ -357,7 +355,7 @@ theorem leafT_step (w : WBytes) (pk : Digest) (index : Nat) (c : Nat) (hc : c < 
     exact tgtLf_eval 0 t (hL 0) _ (stabBits_le 0) (by decide) hlf (stabIdx_lt _)
       (by rw [hR' .x23 (by simp [chainRegs]) (by decide), h23])
   · have hGt : Glob baseK w pk t := glob_frame hG hF (fun A hA => by
-        unfold QCtx.TopW QCtx.blk at hA; rw [hS6, show Q.S3 = 15768 from rfl] at hA
+        unfold QCtx.TopW at hA; rw [hS6] at hA
         rcases hA with hA | hA <;> omega)
       (fun p hp => hknown p (by simp [leafK, hp]))
     have hGu := hu.glob _ w pk hGt (RelOK.nil t)
