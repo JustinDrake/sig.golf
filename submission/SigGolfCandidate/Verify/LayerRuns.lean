@@ -145,12 +145,12 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E (out hi : Nat) : E := .bin .add (.bin .and (.bin .sll (d0E out hi) (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 (out hi : Nat) : E := .bin .and (.bin .add (.bin .and (.bin .sll (d0E out hi) (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB (lay : Nat) : Nat := (if lay = 4 then 26 else 25)
-def stepsBPath (hi lay : Nat) : Nat := (if lay = 4 then 20 else 19) + selSteps hi
+def stepsB (lay : Nat) : Nat := 25
+def stepsBPath (hi lay : Nat) : Nat := 19 + selSteps hi
 def cyclesBPath (hi lay : Nat) : Nat := stepsBPath hi lay + 3
 
 theorem stepsBPath_le (hi lay : Nat) : stepsBPath hi lay ≤ stepsB lay := by
-  unfold stepsBPath stepsB selSteps; split_ifs <;> omega
+  unfold stepsBPath stepsB selSteps; omega
 theorem cyclesBPath_le (hi lay : Nat) : cyclesBPath hi lay ≤ stepsB lay + 3 := by
   have := stepsBPath_le hi lay; unfold cyclesBPath; omega
 /-- One REMU costs four cycles rather than one. -/
