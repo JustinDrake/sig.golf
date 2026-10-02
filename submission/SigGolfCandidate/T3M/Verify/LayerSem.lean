@@ -644,7 +644,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
       · simp only [hL, lctxOf]; fin_cases lay <;> simp [s6v]
       · simp only [hL, lctxOf]; fin_cases lay <;> decide
       · simp only [hL, lctxOf]; unfold ckOf at hck ⊢; omega
-      · simp only [hL, lctxOf]; unfold retOff; split <;> omega
+      · simp only [hL, lctxOf]; unfold retOff; split_ifs <;> omega
     have hGu : Glob (bK lay.val) w pk u := by
       have := Glob_writeHash ht.glob a 320 h12 (by decide)
       exact this

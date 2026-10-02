@@ -166,15 +166,13 @@ def mkChunkCheck (lay ci lo n : Nat) : Bool := (List.range' lo n).all (mkBlockCh
 /-- The compare copy `c` (after layer 0's shape block `shp_0_1_c`). -/
 def cmpPc (c : Nat) : Nat := 38676 + 53 * c
 def cmpBr1 (d : Bool) : Br := ⟨.ne, .ld (kw 384), .ld (kw 160), d⟩
-def cmpBr2 (d : Bool) : Br := ⟨.ne, .ld (kw 392), .ld (kw 168), d⟩
+/-- Return zero exactly when the high doublewords agree. -/
+def cmpDiff : E := .bin .sub (.ld (kw 392)) (.ld (kw 168))
 
-/-- The high-word difference is zero exactly when the high words agree. -/
-def cmpDelta : E := .bin .sub (.ld (kw 392)) (.ld (kw 168))
-
-/-- The low words agree: compute the high-word difference and HALT with that exit code. -/
+/-- Equal low words: halt with the high-word difference after seven steps. -/
 def cmpAcc (c : Nat) : Spec :=
-  ⟨[(.x5, kw 1), (.x10, cmpDelta)], [], cmpPc c + 7, true, 7, [cmpBr1 false], none, 7⟩
-/-- The low doublewords differ: HALT(1) after five instructions. -/
+  ⟨[(.x5, kw 1), (.x10, cmpDiff)], [], cmpPc c + 7, true, 7, [cmpBr1 false], none, 7⟩
+/-- The low doublewords differ: HALT(1) after 5 steps. -/
 def cmpRej1 (c : Nat) : Spec :=
   ⟨[(.x5, kw 1), (.x10, kw 1)], [], cmpPc c + 11, true, 5, [cmpBr1 true], none, 5⟩
 
