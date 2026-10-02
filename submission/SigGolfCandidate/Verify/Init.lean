@@ -221,8 +221,8 @@ theorem w64_rtBlk (n : Nat) : w64 (rtBlk n) = Ref.Rev.revWord (2 ^ 14 ||| n) := 
 
 def InitOK (ml pkl wl : List Byte) (s : MachineState) : Prop :=
   MaskData s ∧ KnownOK k0 s ∧ s.pc = pcOf 0 ∧ WitAll wl s ∧ PkOK pkl s ∧
-  (∀ j, j < 4 → s.getMem (BitVec.ofNat 64 (0x40 + 8 * j)) = w64 (slice ml (8 * j) 8)) ∧
-  (∀ A, A < 0x800 → (A < 0x40 ∨ (0x60 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → s.getMem (BitVec.ofNat 64 A) = 0) ∧
+  (∀ j, j < 4 → s.getMem (BitVec.ofNat 64 (0x20 + 8 * j)) = w64 (slice ml (8 * j) 8)) ∧
+  (∀ A, A < 0x800 → (A < 0x20 ∨ (0x40 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → s.getMem (BitVec.ofNat 64 A) = 0) ∧
   RtabData s
 
 /-- The view's zero lead (`0x800 .. 0x1100`). -/
@@ -260,7 +260,7 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
     rw [e1, vdl] <;> decide
   rw [e1, eb]
   have hl : inputBuffers submission.sizes submission.layout .verify (m, pk, w) =
-      [(0x40, toList m), (0xA0, toList pk), (0x1100, toList w)] := rfl
+      [(0x20, toList m), (0xA0, toList pk), (0x1100, toList w)] := rfl
   rw [hl]
   simp only [List.foldl_cons, List.foldl_nil]
   have lm : (toList m).length = 32 := length_toList m
@@ -299,7 +299,7 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
       wbw_word vdata blank 0xFDFFC0 (by omega) (n+4) (by omega),
       show 8*(n+4)=32+8*n by omega,vdata_slice n (by omega)]
     exact w64_rtBlk n
-  set s1 := withData.writeBytesAsWords (BitVec.ofNat 64 0x40) (toList m)
+  set s1 := withData.writeBytesAsWords (BitVec.ofNat 64 0x20) (toList m)
   set s2 := s1.writeBytesAsWords (BitVec.ofNat 64 0xA0) (toList pk)
   set s3 := s2.writeBytesAsWords (BitVec.ofNat 64 0x1100) (toList w)
   have hr3 : s3.regs = fun _ => 0 := by

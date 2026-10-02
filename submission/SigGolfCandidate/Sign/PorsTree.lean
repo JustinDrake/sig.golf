@@ -68,8 +68,8 @@ theorem blk145_mem (t : MachineState) (N ix : Nat) (hidx34 : ix < 2 ^ 34)
       else if a = 192 then twWord0 9 0 ix ix
       else if a = 1704 then replaceWord32 (t.getMem (BitVec.ofNat 64 1704)) 0 (BitVec.ofNat 32 ix)
       else if a = 1696 then twWord0 8 0 ix 0
-      else if a = 150280 then t.getMem (BitVec.ofNat 64 56)
-      else if a = 150272 then t.getMem (BitVec.ofNat 64 48)
+      else if a = 150280 then t.getMem (BitVec.ofNat 64 24)
+      else if a = 150272 then t.getMem (BitVec.ofNat 64 16)
       else t.getMem (BitVec.ofNat 64 a) := by
   intro a ha
   simp only [blk145.res, rv_simp]
@@ -94,7 +94,7 @@ theorem digok_run (S : List Byte) (rho : Val) (ans : BitVec 256) (L : List Nat) 
     ∃ tF, Steps image t 34 34 tF ∧ PLeafCtx S (idxOf ans.toNat) L tF ∧ PLevCtx (idxOf ans.toNat) tF ∧
       tF.pc = pcOf 179 ∧ tF.getReg .x9 = BitVec.ofNat 64 0 ∧ CapInv (L.map keyV) 0 [] tF 0 ∧
       tF.getReg .x22 = BitVec.ofNat 64 (idxOf ans.toNat) ∧
-      tF.readWords (BitVec.ofNat 64 0x24B00) 2 = t.readWords (BitVec.ofNat 64 0x30) 2 ∧
+      tF.readWords (BitVec.ofNat 64 0x24B00) 2 = t.readWords (BitVec.ofNat 64 0x10) 2 ∧
       RegsEq t tF digokRegs ∧ Frame t tF digokW := by
   set N := ans.toNat with hN
   have hNl : N < 2 ^ 256 := ans.isLt
