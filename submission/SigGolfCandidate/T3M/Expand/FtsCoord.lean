@@ -392,13 +392,13 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
     rw [pad64_of_aligned _ (by rw [nodeInput_length'])]
     refine hashInput_toQ u5 _ 0 NODE (nodeInput_length' _ _ _ _ _ _) x10_5 (by decide) (by decide) x11_5
       (by decide) ?_
-    rw [wordsOf_nodeInput', readWords_eight, f5.get (A := NODE) (by decide) (by simp only [NODE]; omega),
+    rw [wordsOf_nodeInput' 10 _ _ _ _ _ (by decide), readWords_eight, f5.get (A := NODE) (by decide) (by simp only [NODE]; omega),
       f5.get (A := NODE + 8) (by decide) (by simp only [NODE]; omega), m16, m24, hn32, hn40,
       f5.get (A := NODE + 48) (by decide) (by simp only [NODE]; omega),
       f5.get (A := NODE + 56) (by decide) (by simp only [NODE]; omega),
       n0.1, n0.2, n48.1, n48.2,
-      hdr0_eq 10 c (N.toNat % 2 ^ 31) 0 (by decide) (by omega) hi (by decide),
-      hdr1_eq (N.toNat % 2 ^ 31) heap hi hheap']
+      hdr0_eq 10 c (N.toNat % 2 ^ 31) (N.toNat % 2 ^ 31) (by decide) (by omega) hi hi,
+      hdr1_eq heap 0 hheap' (by decide)]
     simp only [Nat.mul_zero, Nat.add_zero]
   have hv : hashArgumentsValid u5 = true :=
     hashArgs_const u5 NODE 64 NOUT x10_5 x11_5 x12_5 (by decide) (by decide) (by decide) (by decide) (by decide)

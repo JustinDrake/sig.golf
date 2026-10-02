@@ -1003,7 +1003,8 @@ theorem decode_probability_le (lay : Layer) (word : List Nat) :
 theorem header_toNat (tag lay tree position index : Nat) :
     (header tag lay tree position index).toNat =
       1+tag%256*2^8+lay%256*2^16+(tree/2^32%256)*2^24+
-        position%2^32*2^32+tree%2^32*2^64+index%2^32*2^96 := by
+        (if packedNodeTag tag then tree%2^32*2^32+index%2^32*2^64+position%2^32*2^96
+         else position%2^32*2^32+tree%2^32*2^64+index%2^32*2^96) := by
   unfold header
   rw [BitVec.toNat_ofNat]
   apply Nat.mod_eq_of_lt
@@ -1013,8 +1014,7 @@ theorem header_toNat (tag lay tree position index : Nat) :
   have hp := Nat.mod_lt position (by decide : 0<2^32)
   have htl := Nat.mod_lt tree (by decide : 0<2^32)
   have hi := Nat.mod_lt index (by decide : 0<2^32)
-  norm_num only [Nat.reducePow] at *
-  omega
+  split <;> norm_num only [Nat.reducePow] at * <;> omega
 
 theorem pack_nat_injective {a a' b b' base : Nat} (ha : a<base) (ha' : a'<base)
     (he : a+base*b=a'+base*b') : a=a' ∧ b=b' := by
@@ -1035,18 +1035,32 @@ theorem header_injective {tag lay tree position index tag' lay' tree' position' 
   simp only [Nat.mod_eq_of_lt ht,Nat.mod_eq_of_lt hl,Nat.mod_eq_of_lt hp,Nat.mod_eq_of_lt hi,
     Nat.mod_eq_of_lt ht',Nat.mod_eq_of_lt hl',Nat.mod_eq_of_lt hp',Nat.mod_eq_of_lt hi',
     Nat.mod_eq_of_lt hh,Nat.mod_eq_of_lt hh'] at he
-  have hpacked : tag+256*(lay+256*(tree/2^32+256*(position+2^32*(tree%2^32+2^32*index)))) =
-      tag'+256*(lay'+256*(tree'/2^32+256*(position'+2^32*(tree'%2^32+2^32*index')))) := by
-    clear h ht hl htr hp hi ht' hl' htr' hp' hi' hh hh'
-    norm_num only [Nat.reducePow] at *
-    omega
-  obtain ⟨htag,hpacked⟩ := pack_nat_injective ht ht' hpacked
-  obtain ⟨hlay,hpacked⟩ := pack_nat_injective hl hl' hpacked
-  obtain ⟨hhigh,hpacked⟩ := pack_nat_injective hh hh' hpacked
-  obtain ⟨hposition,hpacked⟩ := pack_nat_injective hp hp' hpacked
-  obtain ⟨hlow,hindex⟩ := pack_nat_injective (Nat.mod_lt tree (by positivity))
-    (Nat.mod_lt tree' (by positivity)) hpacked
-  exact ⟨htag,hlay,by omega,hposition,hindex⟩
+  have htag : tag = tag' := by
+    split_ifs at he <;> norm_num only [Nat.reducePow] at * <;> omega
+  subst tag'
+  by_cases hpack : packedNodeTag tag
+  · simp only [if_pos hpack] at he
+    have hpacked : lay+256*(tree/2^32+256*(tree%2^32+2^32*(index+2^32*position))) =
+        lay'+256*(tree'/2^32+256*(tree'%2^32+2^32*(index'+2^32*position'))) := by
+      norm_num only [Nat.reducePow] at he ⊢
+      omega
+    obtain ⟨hlay,hpacked⟩ := pack_nat_injective hl hl' hpacked
+    obtain ⟨hhigh,hpacked⟩ := pack_nat_injective hh hh' hpacked
+    obtain ⟨hlow,hpacked⟩ := pack_nat_injective (Nat.mod_lt tree (by positivity))
+      (Nat.mod_lt tree' (by positivity)) hpacked
+    obtain ⟨hindex,hposition⟩ := pack_nat_injective hi hi' hpacked
+    exact ⟨rfl,hlay,by omega,hposition,hindex⟩
+  · simp only [if_neg hpack] at he
+    have hpacked : lay+256*(tree/2^32+256*(position+2^32*(tree%2^32+2^32*index))) =
+        lay'+256*(tree'/2^32+256*(position'+2^32*(tree'%2^32+2^32*index'))) := by
+      norm_num only [Nat.reducePow] at he ⊢
+      omega
+    obtain ⟨hlay,hpacked⟩ := pack_nat_injective hl hl' hpacked
+    obtain ⟨hhigh,hpacked⟩ := pack_nat_injective hh hh' hpacked
+    obtain ⟨hposition,hpacked⟩ := pack_nat_injective hp hp' hpacked
+    obtain ⟨hlow,hindex⟩ := pack_nat_injective (Nat.mod_lt tree (by positivity))
+      (Nat.mod_lt tree' (by positivity)) hpacked
+    exact ⟨rfl,hlay,by omega,hposition,hindex⟩
 
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
 

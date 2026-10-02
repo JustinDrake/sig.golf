@@ -279,7 +279,7 @@ theorem encA_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (M : Di
       rw [wordsOf_encodingInput]
       have m0 := hs.msg
       have hPZ : PZero s := hs.glob.2.2.2.1
-      have hPH : PHalf s := hs.glob.2.2.2.2.1
+      have hPH : PHalf s := hs.glob.2.2.2.2
       simp only [List.cons.injEq, and_true]
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
       · rw [frame 256 (by norm_num) (by norm_num) (by norm_num) (by norm_num)]; exact m0.1
@@ -644,7 +644,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
       · simp only [hL, lctxOf]; fin_cases lay <;> simp [s6v]
       · simp only [hL, lctxOf]; fin_cases lay <;> decide
       · simp only [hL, lctxOf]; unfold ckOf at hck ⊢; omega
-      · simp only [hL, lctxOf]; unfold retOff; split <;> (try split) <;> omega
+      · simp only [hL, lctxOf]; unfold retOff; split <;> omega
     have hGu : Glob (bK lay.val) w pk u := by
       have := Glob_writeHash ht.glob a 320 h12 (by decide)
       exact this
