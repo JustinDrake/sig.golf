@@ -33,7 +33,7 @@ theorem blk495_run (w : List Byte) (K : Nat → Nat) (t : MachineState) (hpc : t
     (hN0 : N0 < 2 ^ 64) (h160 : t.getMem (BitVec.ofNat 64 0x160) = BitVec.ofNat 64 N0) (hw : WitMem w t)
     (hk : ∀ p < 15, t.getMem (BitVec.ofNat 64 (0x6E0 + 8 * p)) = BitVec.ofNat 64 (K p))
     (hkl : ∀ p < 15, K p < 2 ^ 22) :
-    ∃ t', Steps eimg t 34 34 t' ∧ LeafInv w (N0 % 2 ^ 34) K 0 ⟨4032, 0, 0, 0, [], []⟩ t' ∧
+    ∃ t', Steps eimg t 34 34 t' ∧ LeafInv w (N0 % 2 ^ 34) K 0 ⟨272, 0, 0, 0, [], []⟩ t' ∧
       Frame t t' (fun a => a = 0x30000 ∨ a = 0x30010 ∨ a = 0x30018 ∨ a = 0x30030 ∨ a = 0x30038 ∨
         a = 0x30040 ∨ a = 0x30050 ∨ a = 0x30058) := by
   set idx := N0 % 2 ^ 34 with hidx
@@ -58,16 +58,13 @@ theorem blk495_run (w : List Byte) (K : Nat → Nat) (t : MachineState) (hpc : t
     by simp only [Expand.blk495.res, rv_simp], by simp only [Expand.blk495.res, rv_simp],
     by pnum [Expand.blk495.res, List.length_nil], fun j hj => by simp at hj, le_refl _, by simp, rfl, by simp, by simp,
     by norm_num, by norm_num, fun h => absurd h (by norm_num)⟩, hfr⟩
-  · simp only [Expand.blk495.res, rv_simp]
-    apply BitVec.eq_of_toNat_eq
-    unfold Ref.tauH
-    simp only [BitVec.toNat_ofNat, BitVec.toNat_zero]
-    omega
+  · simp only [Expand.blk495.res, rv_simp, h160, show (30#64 : Word).toNat % 64 = 30 from rfl,
+      show (32#64 : Word).toNat % 64 = 32 from rfl]
+    rw [shl_shr _ _ hN0 (by norm_num), shl_shr _ _ (by omega) (by norm_num)]
   · pnum [Expand.blk495.res, h160, show (30#64 : Word).toNat % 64 = 30 from rfl,
       show (32#64 : Word).toNat % 64 = 32 from rfl, show (24#64 : Word).toNat % 64 = 24 from rfl,
       show (8#64 : Word).toNat % 64 = 8 from rfl]
     rw [shl_shr _ _ hN0 (by norm_num)]
-    try rw [shl32_ofNat]
     bvsimp []
     exact ofNat_congr (by omega)
   · pnum [Expand.blk495.res]
@@ -78,7 +75,6 @@ theorem blk495_run (w : List Byte) (K : Nat → Nat) (t : MachineState) (hpc : t
       show (32#64 : Word).toNat % 64 = 32 from rfl, show (24#64 : Word).toNat % 64 = 24 from rfl,
       show (8#64 : Word).toNat % 64 = 8 from rfl]
     rw [shl_shr _ _ hN0 (by norm_num)]
-    try rw [shl32_ofNat]
     bvsimp []
     exact ofNat_congr (by omega)
   · pnum [Expand.blk495.res]
@@ -94,13 +90,13 @@ def RootOut (w : List Byte) (idx : Nat) (K : Nat → Nat) (M : Val) (t : Machine
 theorem porsRoot_sim (w : List Byte) (K : Nat → Nat) (v : List Nat) (t : MachineState) (hpc : t.pc = pcOf 495)
     (N0 : Nat) (hN0 : N0 < 2 ^ 64) (h160 : t.getMem (BitVec.ofNat 64 0x160) = BitVec.ofNat 64 N0)
     (hw : WitMem w t) (hk : ∀ p < 15, t.getMem (BitVec.ofNat 64 (0x6E0 + 8 * p)) = BitVec.ofNat 64 (K p))
-    (hkl : ∀ p < 15, K p < 2 ^ 22) (hwl : 4096 ≤ w.length)
+    (hkl : ∀ p < 15, K p < 2 ^ 22) (hwl : 272 ≤ w.length)
     (hx : ∀ s < 15, (v ++ [porsT]).getD (witPi w s / 8 % 16) 0 = K s / 256) :
-    Sim eimg t 400000 (porsRoot (N0 % 2 ^ 34) v w) (OPost (RootOut w (N0 % 2 ^ 34) K)) := by
+    Sim eimg t 200000 (porsRoot (N0 % 2 ^ 34) v w) (OPost (RootOut w (N0 % 2 ^ 34) K)) := by
   obtain ⟨t1, hs1, hinv, hfr⟩ := blk495_run w K t hpc N0 hN0 h160 hw hk hkl
-  have hl := porsLeaves_sim w (N0 % 2 ^ 34) K v hwl hx 15 0 ⟨4032, 0, 0, 0, [], []⟩ t1 (by norm_num) hinv
+  have hl := porsLeaves_sim w (N0 % 2 ^ 34) K v hwl hx 15 0 ⟨272, 0, 0, 0, [], []⟩ t1 (by norm_num) hinv
   unfold porsRoot
-  rw [show List.range porsK = List.range' 0 15 from List.range_eq_range', show wStream = 4032 from rfl]
+  rw [show List.range porsK = List.range' 0 15 from List.range_eq_range', show wStream = 272 from rfl]
   refine (Sim.steps hs1 (Sim.bind hl (W₂ := 10) (fun r t2 h2 => ?_))).mono (by norm_num) (fun _ _ h => h)
   rcases r with _ | st
   · dsimp only

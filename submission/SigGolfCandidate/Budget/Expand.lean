@@ -129,7 +129,7 @@ theorem bR_tweakableHash_ge (p : SphincsSecurity.PublicParameter) (d : SphincsSe
 open SphincsSecurity SphincsSecurity.Concrete in
 /-- A successful least-counter search from `start` tried every counter up to the one it returns. -/
 theorem bR_encodingSearch_ge (p : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (M : SphincsSecurity.EncMessage) : ∀ (attempts start : Nat) (c : Counter) (enc : Encoding), start + attempts ≤ 2 ^ 32 →
+    (M : Digest) : ∀ (attempts start : Nat) (c : Counter) (enc : Encoding), start + attempts ≤ 2 ^ 32 →
       evalWithAnswerFn (gF f) (encodingSearch (m := Equiv.AComp) p lay tree leaf M attempts start)
         = some (c, enc) →
       c.toNat + 1 ≤ start + bR f (encodingSearch (m := Equiv.AComp) p lay tree leaf M attempts start) := by
@@ -144,8 +144,8 @@ theorem bR_encodingSearch_ge (p : PublicParameter) (lay : Layer) (tree : TreeInd
     have he : 1 ≤ bR f (encode (m := Equiv.AComp) p lay tree leaf M (BitVec.ofNat counterBits start)) := by
       unfold encode
       rw [bR_bind]
-      have := bR_oracleHash_ge f (tweakableHashInput M.1 (.encoding lay tree leaf)
-        (bytesLE 16 M.2 ++ bytesLE 4 (BitVec.ofNat counterBits start)))
+      have := bR_tweakableHash_ge f p (.encoding lay tree leaf)
+        (bytesLE 16 M ++ bytesLE 4 (BitVec.ofNat counterBits start))
       omega
     cases hr : evalWithAnswerFn (gF f) (encode (m := Equiv.AComp) p lay tree leaf M
         (BitVec.ofNat counterBits start)) with
@@ -199,7 +199,7 @@ open SphincsSecurity SphincsSecurity.Concrete in
 theorem bR_signLayersPaired_ge (p : PublicParameter) (index : Index)
     (secret : Layer → TreeIndex → LeafIndex → ChainPair → Equiv.AComp (Digest × Digest))
     (topNode : Nat → Nat → Equiv.AComp Digest) :
-    ∀ (n : Nat) (M : SphincsSecurity.EncMessage) (parts : Layer → LayerOutput), n ≤ numLayers →
+    ∀ (n : Nat) (M : Digest) (parts : Layer → LayerOutput), n ≤ numLayers →
       evalWithAnswerFn (gF f) (signLayersPaired (m := Equiv.AComp) p index secret topNode n M) = some parts →
       trialsOf parts n ≤ bR f (signLayersPaired (m := Equiv.AComp) p index secret topNode n M) := by
   intro n
@@ -323,14 +323,14 @@ theorem bR_sign_ge (sk : Seeded.SecretKey) (cache : TopCache) (msg : SphincsSecu
     rw [evalWithAnswerFn_bind] at h
     cases hl : evalWithAnswerFn (gF f) (signLayersPaired (m := Equiv.AComp) sk.parameter index
         (Seeded.otsSecret sk.parameter sk.seed) (Seeded.cachedTopNode sk.parameter sk.seed cache)
-        numLayers (0, table ftsTreeHeight 0)) with
+        numLayers (table ftsTreeHeight 0)) with
     | none => rw [hl] at h; simp at h
     | some parts =>
       rw [hl] at h
       simp only [evalWithAnswerFn_pure, Option.some.injEq] at h
       subst h
       have hL := bR_signLayersPaired_ge f sk.parameter index (Seeded.otsSecret sk.parameter sk.seed)
-        (Seeded.cachedTopNode sk.parameter sk.seed cache) numLayers (0, table ftsTreeHeight 0) parts le_rfl hl
+        (Seeded.cachedTopNode sk.parameter sk.seed cache) numLayers (table ftsTreeHeight 0) parts le_rfl hl
       have ht : ((List.range numLayers).map fun j => Final.ctrOf ⟨randomness, honestFts leaves secrets table,
           fun lay => LayerOutput.toSignature lay (parts lay)⟩ j + 1).sum = trialsOf parts numLayers := by
         unfold trialsOf
@@ -577,18 +577,8 @@ theorem eval_hash16_bind (f : Hash) {β : Type} (x : List Byte) (K : Val → Ora
   rw [hash16_bind_eq, evalWithAnswerFn_bind]
   rfl
 
-theorem blocksF_encodingHash_bind (f : Hash) {β : Type} (x : List Byte) (K : Val → OracleComp HashSpec β) :
-    blocksF f (encodingHash x >>= K) = (addrFmt x).blocks + blocksF f (K (encodingBytes (f (addrFmt x)))) := by
-  rw [encodingHash_bind_eq, blocksF_bind, blocksF_query]
-  congr 2
-
-theorem eval_encodingHash_bind (f : Hash) {β : Type} (x : List Byte) (K : Val → OracleComp HashSpec β) :
-    evalWithAnswerFn f (encodingHash x >>= K) = evalWithAnswerFn f (K (encodingBytes (f (addrFmt x)))) := by
-  rw [encodingHash_bind_eq, evalWithAnswerFn_bind]
-  rfl
-
 /-- A successful least-counter search from `c` costs one compression per trial. -/
-theorem blocksF_searchCounter (f : Hash) (lay tau e : Nat) (M : Val) (hM : M.length ≤ 32) :
+theorem blocksF_searchCounter (f : Hash) (lay tau e : Nat) (M : Val) (hM : M.length ≤ 16) :
     ∀ fuel c c' x, evalWithAnswerFn f (searchCounter lay tau e M c fuel) = some (c', x) →
       blocksF f (searchCounter lay tau e M c fuel) + c ≤ c' + 1 ∧ c ≤ c' ∧ c' < c + fuel := by
   intro fuel
@@ -599,9 +589,9 @@ theorem blocksF_searchCounter (f : Hash) (lay tau e : Nat) (M : Val) (hM : M.len
     have hb : (addrFmt (encInput lay tau e M c)).blocks ≤ 1 :=
       blocksFmt_le _ 1 (by simp [encInput]; omega) le_rfl
     unfold searchCounter
-    rw [blocksF_encodingHash_bind, eval_encodingHash_bind]
-    generalize encodingBytes (f (addrFmt (encInput lay tau e M c))) = d
-    cases decodeDigits lay d with
+    rw [blocksF_hash16_bind, eval_hash16_bind]
+    generalize answerBytes 16 (f (addrFmt (encInput lay tau e M c))) = d
+    cases decodeDigits d with
     | some x' =>
       intro h
       have h' : some (c, x') = some (c', x) := h
@@ -619,7 +609,7 @@ theorem blocksF_searchCounter (f : Hash) (lay tau e : Nat) (M : Val) (hM : M.len
 /-- The counter phase: one compression per counter trial, at most `311` others per layer; it returns
 one counter below `C_max` per layer. -/
 theorem blocksF_expandLayers (f : Hash) (w : List Byte) (idx : Nat) :
-    ∀ n (M : Val) (cs : List Nat), n ≤ 5 → M.length ≤ 32 →
+    ∀ n (M : Val) (cs : List Nat), n ≤ 5 → M.length ≤ 16 →
       evalWithAnswerFn f (expandLayers w idx n M) = some cs →
       blocksF f (expandLayers w idx n M) ≤ 311 * n + (cs.map (· + 1)).sum ∧ cs.length = n ∧
         ∀ c ∈ cs, c < 2 ^ 22 := by
@@ -670,75 +660,45 @@ theorem blocksF_expandLayers (f : Hash) (w : List Byte) (idx : Nat) :
       have hvb := Spec.blocksF_le f hv
       change blocksF f (searchCounter (k + 1) tau e M 0 cMax) +
           blocksF f (verifyLeaf w (k + 1) tau e x >>= fun leaf =>
-            foldPath (nodeInput (k + 1) tau) e leaf
-                ((witPath w (k + 1)).take (height (k + 1) - 1)) >>= fun node =>
-              hash16 (nodeInput (k + 1) tau (height (k + 1)) 0
-                  ((topPair e (height (k + 1)) node (witSib w (k + 1) (height (k + 1) - 1))).take 16)
-                  ((topPair e (height (k + 1)) node (witSib w (k + 1) (height (k + 1) - 1))).drop 16))
-                >>= fun _ =>
-              expandLayers w idx (k + 1)
-                  (topPair e (height (k + 1)) node (witSib w (k + 1) (height (k + 1) - 1))) >>= fun r =>
+            foldPath (nodeInput (k + 1) tau) e leaf (witPath w (k + 1)) >>= fun root =>
+              expandLayers w idx (k + 1) root >>= fun r =>
                 match r with
                 | none => pure none
                 | some cs => pure (some (cs ++ [c]))) ≤ _ ∧ _
       change evalWithAnswerFn f (verifyLeaf w (k + 1) tau e x >>= fun leaf =>
-            foldPath (nodeInput (k + 1) tau) e leaf
-                ((witPath w (k + 1)).take (height (k + 1) - 1)) >>= fun node =>
-              hash16 (nodeInput (k + 1) tau (height (k + 1)) 0
-                  ((topPair e (height (k + 1)) node (witSib w (k + 1) (height (k + 1) - 1))).take 16)
-                  ((topPair e (height (k + 1)) node (witSib w (k + 1) (height (k + 1) - 1))).drop 16))
-                >>= fun _ =>
-              expandLayers w idx (k + 1)
-                  (topPair e (height (k + 1)) node (witSib w (k + 1) (height (k + 1) - 1))) >>= fun r =>
+            foldPath (nodeInput (k + 1) tau) e leaf (witPath w (k + 1)) >>= fun root =>
+              expandLayers w idx (k + 1) root >>= fun r =>
                 match r with
                 | none => pure none
                 | some cs => pure (some (cs ++ [c]))) = _ at h
       rw [blocksF_bind]
       rw [evalWithAnswerFn_bind] at h
       generalize evalWithAnswerFn f (verifyLeaf w (k + 1) tau e x) = leaf at h hvl ⊢
-      have hshort : AllShort ((witPath w (k + 1)).take (height (k + 1) - 1)) := fun u hu =>
-        allShort_witPath w (k + 1) u (List.mem_of_mem_take hu)
-      have hfd := spec_foldPath (k + 1) tau e leaf hvl _ hshort
+      have hfd := spec_foldPath (k + 1) tau e leaf hvl (witPath w (k + 1)) (allShort_witPath w (k + 1))
       have hfl := Spec.eval_post f hfd
       have hfb := Spec.blocksF_le f hfd
-      rw [List.length_take, length_witPath] at hfb
+      rw [length_witPath] at hfb
       have hh : height (k + 1) ≤ 6 := by
         have hk4 : k < 4 := by omega
         interval_cases k <;> decide
       rw [blocksF_bind]
       rw [evalWithAnswerFn_bind] at h
-      generalize evalWithAnswerFn f (foldPath (nodeInput (k + 1) tau) e leaf
-        ((witPath w (k + 1)).take (height (k + 1) - 1))) = node at h hfl ⊢
-      have hsib : (witSib w (k + 1) (height (k + 1) - 1)).length ≤ 16 := slice_length_le _ _ _
-      have htop : (topPair e (height (k + 1)) node (witSib w (k + 1) (height (k + 1) - 1))).length ≤ 32 := by
-        unfold topPair
-        split <;> rw [List.length_append] <;> omega
-      generalize topPair e (height (k + 1)) node (witSib w (k + 1) (height (k + 1) - 1)) = top at h htop ⊢
-      have hnb : (addrFmt (nodeInput (k + 1) tau (height (k + 1)) 0 (top.take 16) (top.drop 16))).blocks ≤ 1 := by
-        refine blocksFmt_le _ 1 ?_ le_rfl
-        have h1 : (top.take 16).length ≤ 16 := List.length_take_le _ _
-        have h2 : (top.drop 16).length ≤ 16 := by rw [List.length_drop]; omega
-        simp only [nodeInput, thInput, tweak, P, zeros, le32, leBytes, List.length_append, List.length_cons,
-          List.length_nil, List.length_map, List.length_range, List.length_replicate]
-        omega
-      rw [blocksF_hash16_bind]
-      rw [eval_hash16_bind] at h
+      generalize evalWithAnswerFn f (foldPath (nodeInput (k + 1) tau) e leaf (witPath w (k + 1))) = root
+        at h hfl ⊢
       rw [blocksF_bind]
       rw [evalWithAnswerFn_bind] at h
-      have hrec := ih (k + 1) (by omega) top
-      generalize hr : evalWithAnswerFn f (expandLayers w idx (k + 1) top) = r2 at h ⊢
+      have hrec := ih (k + 1) (by omega) root
+      generalize hr : evalWithAnswerFn f (expandLayers w idx (k + 1) root) = r2 at h ⊢
       rcases r2 with _ | cs'
       · exact absurd h (by simp)
-      · obtain ⟨i1, i2, i3⟩ := hrec cs' (by omega) htop hr
+      · obtain ⟨i1, i2, i3⟩ := hrec cs' (by omega) hfl hr
         have h' : some (cs' ++ [c]) = some cs := h
         simp only [Option.some.injEq] at h'
         subst h'
         refine ⟨?_, by simp [i2], fun c' hc' => ?_⟩
         · show blocksF f (searchCounter (k + 1) tau e M 0 cMax) + (blocksF f (verifyLeaf w (k + 1) tau e x) +
-            (blocksF f (foldPath (nodeInput (k + 1) tau) e leaf
-                ((witPath w (k + 1)).take (height (k + 1) - 1))) +
-              ((addrFmt (nodeInput (k + 1) tau (height (k + 1)) 0 (top.take 16) (top.drop 16))).blocks +
-                (blocksF f (expandLayers w idx (k + 1) top) + 0)))) ≤ _
+            (blocksF f (foldPath (nodeInput (k + 1) tau) e leaf (witPath w (k + 1))) +
+              (blocksF f (expandLayers w idx (k + 1) root) + 0))) ≤ _
           simp only [List.map_append, List.map_cons, List.map_nil, List.sum_append, List.sum_cons,
             List.sum_nil]
           omega
@@ -768,8 +728,7 @@ theorem ctrSum_withCounters (w0 : List Byte) (hw : 2960 ≤ w0.length) (cs : Lis
 trials and at most `311` more. -/
 theorem blocksF_expandList_le (f : Hash) (m sig : List Byte) (hm : m.length = 32) (hsig : sig.length = 6032)
     (wit : List Byte) (h : evalWithAnswerFn f (expandList m sig) = some wit) :
-    wit.length = 16384 ∧ wit.take witLead = zeros witLead ∧
-      blocksF f (expandList m sig) ≤ 3356 + ctrSum wit := by
+    wit.length = 16384 ∧ blocksF f (expandList m sig) ≤ 3356 + ctrSum wit := by
   unfold expandList at h ⊢
   unfold digest at h ⊢
   simp only [bind_assoc, pure_bind] at h ⊢
@@ -787,14 +746,14 @@ theorem blocksF_expandList_le (f : Hash) (m sig : List Byte) (hm : m.length = 32
     change evalWithAnswerFn f (porsRoot (idxOf a.toNat) (leavesOf a.toNat) w0 >>= fun r =>
       match r with
       | none => pure none
-      | some M => expandLayers w0 (idxOf a.toNat) nLayers (P ++ M) >>= fun r =>
+      | some M => expandLayers w0 (idxOf a.toNat) nLayers M >>= fun r =>
         match r with
         | none => pure none
         | some cs => pure (some (withCounters w0 cs))) = _ at h
-    change _ ∧ _ ∧ _ + blocksF f (porsRoot (idxOf a.toNat) (leavesOf a.toNat) w0 >>= fun r =>
+    change _ ∧ _ + blocksF f (porsRoot (idxOf a.toNat) (leavesOf a.toNat) w0 >>= fun r =>
       match r with
       | none => pure none
-      | some M => expandLayers w0 (idxOf a.toNat) nLayers (P ++ M) >>= fun r =>
+      | some M => expandLayers w0 (idxOf a.toNat) nLayers M >>= fun r =>
         match r with
         | none => pure none
         | some cs => pure (some (withCounters w0 cs))) ≤ _
@@ -806,32 +765,25 @@ theorem blocksF_expandList_le (f : Hash) (m sig : List Byte) (hm : m.length = 32
     generalize evalWithAnswerFn f (porsRoot (idxOf a.toNat) (leavesOf a.toNat) w0) = r at h hpl ⊢
     rcases r with _ | M
     · exact absurd h (by simp)
-    · change evalWithAnswerFn f (expandLayers w0 (idxOf a.toNat) nLayers (P ++ M) >>= fun r =>
+    · change evalWithAnswerFn f (expandLayers w0 (idxOf a.toNat) nLayers M >>= fun r =>
         match r with
         | none => pure none
         | some cs => pure (some (withCounters w0 cs))) = _ at h
-      change _ ∧ _ ∧ _ + (_ + blocksF f (expandLayers w0 (idxOf a.toNat) nLayers (P ++ M) >>= fun r =>
+      change _ ∧ _ + (_ + blocksF f (expandLayers w0 (idxOf a.toNat) nLayers M >>= fun r =>
         match r with
         | none => pure none
         | some cs => pure (some (withCounters w0 cs)))) ≤ _
       rw [blocksF_bind]
       rw [evalWithAnswerFn_bind] at h
-      have hL := blocksF_expandLayers f w0 (idxOf a.toNat) nLayers (P ++ M)
-      generalize hLe : evalWithAnswerFn f (expandLayers w0 (idxOf a.toNat) nLayers (P ++ M)) = r2 at h ⊢
+      have hL := blocksF_expandLayers f w0 (idxOf a.toNat) nLayers M
+      generalize hLe : evalWithAnswerFn f (expandLayers w0 (idxOf a.toNat) nLayers M) = r2 at h ⊢
       rcases r2 with _ | cs
       · exact absurd h (by simp)
-      · have hPM : (P ++ M).length ≤ 32 := by
-          have hlen := hpl M rfl
-          simp only [List.length_append, P, zeros, List.length_replicate]
-          omega
-        obtain ⟨b1, b2, b3⟩ := hL cs le_rfl hPM hLe
+      · obtain ⟨b1, b2, b3⟩ := hL cs le_rfl (hpl M rfl) hLe
         have h' : some (withCounters w0 cs) = some wit := h
         simp only [Option.some.injEq] at h'
         subst h'
-        refine ⟨by rw [Equiv.length_withCounters _ _ (by rw [hl0]; decide), hl0]; rfl, ?_, ?_⟩
-        · obtain ⟨-, -, -, hwl⟩ := Equiv.expandOf_some _ _ _ hx
-          rw [take_withCounters w0 cs (by rw [hl0]; decide), hwl]
-          exact take_witnessList _ _ _ _
+        refine ⟨by rw [Equiv.length_withCounters _ _ (by rw [hl0]; decide), hl0]; rfl, ?_⟩
         rw [ctrSum_withCounters w0 (by rw [hl0]; decide) cs b2 (fun c hc => by have := b3 c hc; omega)]
         show _ + (_ + (_ + 0)) ≤ _
         rw [show (311 : Nat) * nLayers = 1555 from rfl] at b1
@@ -893,11 +845,10 @@ theorem expand_le_sign (f : Hash) (sk : Bytes 32) (m : Bytes 32) (σ : Bytes 603
       rw [hS, blocksF_map]; rfl
     rw [hsign]
     -- the expansion
-    obtain ⟨wl, hwl, hwz, hexp, -⟩ := Final.eval_aExpand_sign' (gF f) sk m hkp hs
+    obtain ⟨wl, hwl, hexp, -⟩ := Final.eval_aExpand_sign' (gF f) sk m hkp hs
     have hE := Equiv.expandRef_eq m (pkA.root : Bytes 16) pkA (Equiv.compress S)
     have hev : evalWithAnswerFn f (expandRef m (pkA.root : Bytes 16) (Equiv.compress S)) =
-        some (Ref.ofList 14080
-          (Ref.cutW (Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S))))) := by
+        some (Ref.ofList 16384 (Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S)))) := by
       rw [hE, eval_relabel, hexp]
     unfold expandRef at hev ⊢
     rw [blocksF_bind, evalWithAnswerFn_bind] at *
@@ -907,16 +858,13 @@ theorem expand_le_sign (f : Hash) (sk : Bytes 32) (m : Bytes 32) (σ : Bytes 603
     | some wit =>
       rw [hl] at hev
       simp only [evalWithAnswerFn_pure, Option.map_some, Option.some.injEq] at hev
-      obtain ⟨hwit, hwitz, hb⟩ := blocksF_expandList_le f _ _ (length_toList m) (length_toList _) wit hl
+      obtain ⟨hwit, hb⟩ := blocksF_expandList_le f _ _ (length_toList m) (length_toList _) wit hl
       have hcs : ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S)).length = 5 := by
         simp [SphincsSecurity.numLayers]
       have hwc : (Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S))).length = 16384 := by
         rw [Equiv.length_withCounters _ _ (by rw [hwl]; decide), hwl]
-      -- W1: both views have the zero lead, so they agree when their witnesses (the views without the
-      -- lead) do
       have hweq : wit = Ref.withCounters wl ((List.range SphincsSecurity.numLayers).map (Final.ctrOf S)) := by
-        rw [← extW_toList_cutW wit hwit hwitz, hev,
-          extW_toList_cutW_withCounters wl _ hwc (by rw [hwl]; decide) hwz]
+        rw [← toList_ofList 16384 wit hwit, hev, toList_ofList 16384 _ hwc]
       rw [hweq, ctrSum_withCounters wl (by rw [hwl]; decide) _ hcs (fun c hc => by
         simp only [List.mem_map, List.mem_range] at hc
         obtain ⟨j, hj, rfl⟩ := hc

@@ -72,12 +72,12 @@ theorem structuralAnswer_selections (key : SecretKey) (inputs : Finset HashInput
       referenceTableSelection key (structuralAnswer key inputs labels outside right) := by
   funext position
   rw [referenceTableSelection, referenceTableSelection, structuralAnswer_graph, structuralAnswer_graph]
-  apply congrArg (FirstSuccessTable.select (decodeEncodingOutput position.lay))
+  apply congrArg (FirstSuccessTable.select decodeEncodingOutput)
   funext counter
   apply structuralAnswer_nonstructural
   rintro ⟨other, ho⟩
   exact (show AtEncodingPosition key.parameter (canonicalEncodingRowInput key.parameter labels (position, counter)) position from
-    ⟨_, _, rfl⟩).not_atPosition other ho
+    ⟨_, rfl⟩).not_atPosition other ho
 
 theorem structuralAnswer_message (key : SecretKey) (inputs : Finset HashInput) (labels : CanonicalGraphLabels)
     (outside : NonstructuralRows key.parameter inputs) (left right : structuralInputs key.parameter inputs → HashOutput)

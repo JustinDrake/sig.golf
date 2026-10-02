@@ -36,18 +36,18 @@ namespace FirstSuccessFamily
 variable {Index Answer Value : Type} [Fintype Index] [DecidableEq Index]
   [Fintype Answer] [DecidableEq Answer] [Nonempty Answer] [Fintype Value]
 
-def select (decode : Index → Answer → Option Value) (n : Nat) (tables : Index → Fin n → Answer) :
-    Index → Option (Fin n × Value) := fun index => FirstSuccessTable.select (decode index) (tables index)
+def select (decode : Answer → Option Value) (n : Nat) (tables : Index → Fin n → Answer) :
+    Index → Option (Fin n × Value) := fun index => FirstSuccessTable.select decode (tables index)
 
-noncomputable def selected (decode : Index → Answer → Option Value) (n : Nat) :
+noncomputable def selected (decode : Answer → Option Value) (n : Nat) :
     PMF (Index → Option (Fin n × Value)) :=
-  FinitePmfProduct.law (fun index => FirstSuccessTable.selected (decode index) n)
+  FinitePmfProduct.law (fun _ => FirstSuccessTable.selected decode n)
 
-noncomputable def afterSelect (decode : Index → Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value)) :
+noncomputable def afterSelect (decode : Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value)) :
     PMF (Index → Fin n → Answer) :=
-  FinitePmfProduct.law (fun index => FirstSuccessTable.afterSelect (decode index) n (results index))
+  FinitePmfProduct.law (fun index => FirstSuccessTable.afterSelect decode n (results index))
 
-theorem selected_mul_afterSelect (decode : Index → Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value))
+theorem selected_mul_afterSelect (decode : Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value))
     (tables : Index → Fin n → Answer) :
     selected decode n results * afterSelect decode n results tables =
       if select decode n tables = results then PMF.uniformOfFintype (Index → Fin n → Answer) tables else 0 := by
@@ -55,17 +55,17 @@ theorem selected_mul_afterSelect (decode : Index → Answer → Option Value) (n
   simp only [FirstSuccessTable.selected_mul_afterSelect]
   by_cases h : select decode n tables = results
   · rw [if_pos h]
-    have hcoordinate (index : Index) : FirstSuccessTable.select (decode index) (tables index) = results index := congrFun h index
+    have hcoordinate (index : Index) : FirstSuccessTable.select decode (tables index) = results index := congrFun h index
     simp only [hcoordinate, if_true, FirstSuccessTable.full_eq_uniform]
     exact congrFun (congrArg DFunLike.coe (FinitePmfProduct.uniform (Index := Index) (Value := Fin n → Answer))) tables
   · rw [if_neg h]
-    have hex : ∃ index, FirstSuccessTable.select (decode index) (tables index) ≠ results index := by
+    have hex : ∃ index, FirstSuccessTable.select decode (tables index) ≠ results index := by
       by_contra! hall
       exact h (funext hall)
     obtain ⟨index, hindex⟩ := hex
     exact Finset.prod_eq_zero (Finset.mem_univ index) (if_neg hindex)
 
-theorem uniform_bind_eq_selected {Result : Type} (decode : Index → Answer → Option Value) (n : Nat)
+theorem uniform_bind_eq_selected {Result : Type} (decode : Answer → Option Value) (n : Nat)
     (next : (Index → Option (Fin n × Value)) → (Index → Fin n → Answer) → PMF Result) :
     (PMF.uniformOfFintype (Index → Fin n → Answer)).bind (fun tables => next (select decode n tables) tables) =
       (selected decode n).bind (fun results => (afterSelect decode n results).bind (next results)) := by

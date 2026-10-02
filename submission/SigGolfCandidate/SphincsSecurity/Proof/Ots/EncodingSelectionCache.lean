@@ -15,20 +15,20 @@ open OracleComp OracleSpec ENNReal
 
 set_option maxRecDepth 100000
 
-def encodingRetryInput (_parameter : PublicParameter) (position : EncodingPosition)
-    (message : EncMessage) (counter : Nat) : HashInput :=
-  tweakableHashInput message.1 position.domain
-    (digestBytes message.2 ++ counterBytes (BitVec.ofNat counterBits counter))
+def encodingRetryInput (parameter : PublicParameter) (position : EncodingPosition)
+    (message : Digest) (counter : Nat) : HashInput :=
+  tweakableHashInput parameter position.domain
+    (digestBytes message ++ counterBytes (BitVec.ofNat counterBits counter))
 
 theorem encodingRetryInput_injective_of_lt
-    {parameter : PublicParameter} {position : EncodingPosition} {message : EncMessage}
+    {parameter : PublicParameter} {position : EncodingPosition} {message : Digest}
     {left right : Nat} (hleft : left < encodingAttemptLimit)
     (hright : right < encodingAttemptLimit)
     (heq : encodingRetryInput parameter position message left =
       encodingRetryInput parameter position message right) :
     left = right := by
   have hpayload :=
-    (tweakableHashInput_injective message.1 (by trivial) (by trivial) heq).2
+    (tweakableHashInput_injective parameter (by trivial) (by trivial) heq).2
   obtain ⟨_, hcounter⟩ :=
     List.append_inj hpayload (by simp [digestBytes_length])
   apply ofNat_inj_of_lt (w := counterBits)

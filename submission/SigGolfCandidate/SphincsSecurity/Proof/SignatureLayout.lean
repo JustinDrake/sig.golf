@@ -9,14 +9,6 @@ theorem layerHeight_le (lay : Layer) : layerHeight lay ≤ maxLayerHeight := by
   unfold layerHeight maxLayerHeight
   split <;> (try split) <;> omega
 
-theorem layerHeight_pos (lay : Layer) : 0 < layerHeight lay := by
-  unfold layerHeight maxLayerHeight
-  split <;> (try split) <;> omega
-
-theorem two_le_layerHeight (lay : Layer) : 2 ≤ layerHeight lay := by
-  unfold layerHeight maxLayerHeight
-  split <;> (try split) <;> omega
-
 abbrev Signature.counter (signature : Signature) (lay : Layer) : Counter :=
   (signature.layers lay).counter
 
@@ -36,5 +28,16 @@ theorem LayerSignature.ext {lay : Layer} {left right : LayerSignature lay}
   cases left
   cases right
   simp_all
+
+end SphincsSecurity
+
+open OracleComp OracleSpec
+namespace SphincsSecurity
+set_option backward.isDefEq.respectTransparency false
+set_option autoImplicit true
+set_option maxRecDepth 4096
+
+def restrictPath (lay : Layer) (path : Fin maxLayerHeight → α) : Fin (layerHeight lay) → α :=
+  fun level => path (level.castLE (layerHeight_le lay))
 
 end SphincsSecurity
