@@ -4,14 +4,22 @@ import SigGolfCandidate.Transfer.Final
 /-!
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
-S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
-The claim C=10255 is accepting verifier bound 10200 plus witness charge 55.
+S=6032 signature bytes, W=13712 witness bytes, K=131072 cache bytes.
+The claim C=10241 is accepting verifier bound10187 plus witness charge54.
+An arithmetic cache MAC lets layers 2 and 3 use counter target 186.
+Layer 4 keeps its chain base in x29 (already 16384) instead of rebuilding it with lui.
 The PORS node/leaf instance header rotates bytes3..7 through a total query involution,
 so setup builds its two headers with a shift and add, saving four instructions.
-The WOTS digit-lane SWAR in every layer transition uses 7 ALU instructions instead of 9 (bit-identical lane sums).
+The WOTS digit-lane SWAR uses seven ALU instructions instead of nine in every layer, saving ten cycles.
 The witness-counter range check masks the merged counters with a constant mask word kept in the
 verifier data's padding word, replacing a shift/or/shift fold with one load and one and.
-The WOTS digit-lane SWAR in every layer transition uses 7 ALU instructions instead of 9 (bit-identical lane sums).
+Layers 1-4 fold the fold-dispatch page into the leaf index (`addi gp, x23, hi >> 9; slli gp, gp, 9`)
+instead of `slli; lui; add`, one instruction per layer; the transition's sentinel `ori` becomes an
+`addi` that also adds the page, so the leaf dispatch is just `slli; jalr` (one more per layer).
+The shared WOTS base is blk(lay, 0) + 640, making layer 4 exactly 0x4000.
+Each chain-relative immediate increases by 704, preserving every effective address,
+and all three layer-4 transition copies omit their previous base ADDI.
+The counter mask is credited to znan2 (afda1d5f) and the chain-base rebase to erickeigen (11be8e6b), on promoted base 9db8c3d (mjthatch 37e8348e, PORS header layout).
 This candidate retains the accepted ordered root-children message construction and adds
 length-separated leaf header reuse, a preserved selector threshold, a reversible
 top heap address reflection, carried upper-layer leaf headers, and rotated encoding
@@ -80,7 +88,7 @@ c216d85858f8a7dcd68a2782cc27cfd057d45b67. Earlier public sources include
 
 The external witness omits its internal zero prefix. Temporary PORS cells share consumed
 chain tweak slots, and authentication paths use contiguous 16-byte cells. The external
-witness begins at 0x1100 and has 14080 bytes, with charge 55.
+witness begins at 0x1270 and has 13712 bytes, with charge 55.
 
 The certificate covers all four images, universal termination, per-seed
 completeness, honest compression budgets,127-bit security and accepting
@@ -93,15 +101,15 @@ def submission : SigGolf.Submission := SigGolfCandidate.submissionNew
 
 theorem signature_bytes : submission.sizes.signature = 6032 := rfl
 
-theorem witness_bytes : submission.sizes.witness = 14080 := rfl
+theorem witness_bytes : submission.sizes.witness = 13712 := rfl
 
 theorem cache_bytes : submission.sizes.cache = 131072 := rfl
 
 theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
-    cache := 19200, signature := 150272, witness := 4352 } := rfl
+    cache := 19200, signature := 150272, witness := 4720 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10255 :=
+theorem certificate : SigGolf.Certificate submission 10241 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

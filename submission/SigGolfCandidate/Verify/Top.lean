@@ -39,17 +39,19 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
   obtain ⟨⟨⟨cAcc, cR1⟩, cR2⟩, cR3⟩ := cF
   have hK : KnownOK tailFKnown m := by
     intro q hq
-    simp only [tailFKnown, List.mem_append, List.mem_singleton] at hq
-    rcases hq with hq | hq
+    simp only [tailFKnown, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hq
+    rcases hq with hq | hq | hq
     · exact h.pb.reg hq
     · subst hq
       have := h.a2; simp only [destOf, show (2 : Nat) ≠ 0 by decide, show (2 : Nat) ≠ 1 by decide,
         if_false] at this
       exact this
-  have b1 : ∀ d, Br.holds m (fBr1 d) ↔ d = decide (14336 < ptr + 960) := by
+    · subst hq
+      exact h.lnk.trans (by decide : BitVec.ofNat 64 (lnkOf 14) = AUTHBASE)
+  have b1 : ∀ d, Br.holds m (fBr1 d) ↔ d = decide (16384 < ptr + 1536) := by
     intro d
     simp only [fBr1, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.fr, BitVec.ult,
-      ofNat_toNat_lt _ (show 14336 < 2 ^ 64 by decide), ofNat_toNat_lt _ (show ptr + 960 < 2 ^ 64 by omega)]
+      ofNat_toNat_lt _ (show 16384 < 2 ^ 64 by decide), ofNat_toNat_lt _ (show ptr + 1536 < 2 ^ 64 by omega)]
     exact eq_comm
   have heq : (Rev.revWord E != BitVec.ofNat 64 sgn31) = decide (E ≠ 1) := by
     by_cases h1 : E = 1
@@ -76,10 +78,10 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
         simp
     rw [this]; exact eq_comm
   have hpM : porsM = 117 := rfl
-  have hfl : (14336 : Nat) = 14336 := rfl
+  have hfl : (16384 : Nat) = 16384 := rfl
   constructor
   · intro hrej
-    by_cases h1 : 14336 < ptr + 960
+    by_cases h1 : 16384 < ptr + 1536
     · obtain ⟨u, hu⟩ := pspec_run cR1 m h.pc hK (by
         intro b hb; simp only [rejSpec, List.mem_singleton] at hb; subst hb
         exact (b1 true).mpr (by simp [h1])) (by simp)
@@ -111,7 +113,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
   · intro hacc
     have h2 : ¬ E ≠ 1 := fun e => hacc (Or.inr (Or.inl e))
     have h3 : ¬ stk ≠ [] := fun e => hacc (Or.inr (Or.inr e))
-    have h1 : ¬ 14336 < ptr + 960 := by
+    have h1 : ¬ 16384 < ptr + 1536 := by
       have hf : ¬ folds > porsM := fun e => hacc (Or.inl e)
       have hnil : stk = [] := by by_contra hc; exact h3 hc
       have hl0 : stk.length = 0 := by rw [hnil]; rfl
@@ -144,21 +146,21 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       change m.getMem (BitVec.ofNat 64 0xFDFFC8) = TMASK
       rw [h.pb.prot (by simp [protP])]
       exact h.pb.s0ok.masks.2.2.2.1
-    have hregs : KnownOK gkL0 u := by
+    have hregs : KnownOK gkL4 u := by
       intro p hp
-      simp only [gkL0, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
+      simp only [gkL4, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
       rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact hg0.1 p (by simp [rootK, hp])
       · exact hm1
       · exact hm2
       all_goals first | exact htmask | exact hu.known _ (by simp [rootPost, rootK])
-    have hg : GlobP gkL0 s0 u := ⟨hregs, hg0.2⟩
+    have hg : GlobP gkL4 s0 u := ⟨hregs, hg0.2⟩
     have hknown : KnownOK l4K u := by
       intro p hp
       simp only [l4K, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl
       · exact hregs p hp
-      all_goals first | exact htag | exact hu.known _ (by simp [rootPost, rootK])
+      all_goals first | exact htag | exact hu.known _ (by simp [rootPost, rootK, s6N_eq])
     have hmem : ∀ A, u.getMem A = m.getMem A := fun A => by rw [hu.mem]; rfl
     have n0 := h.node0; have n1 := h.node1
     simp only [destOf, show (2 : Nat) ≠ 0 by decide, show (2 : Nat) ≠ 1 by decide, if_false] at n0 n1
@@ -183,8 +185,10 @@ The prologue loads `x18 = 0xFFF` from the high word of header `0`, so the setup 
 `x18` restore (`-1`), and the leaf heads address the header table from `sp`, so it loads no
 table-page register (`-1`). The last leaf forms its table base as `x29 - 576` (`-1`). The
 counter range check masks the merged counters with the data word at `sp + 8` instead of
-folding the halves with two shifts (`-1`). -/
-def cycleBound : Nat := 10240
+folding the halves with two shifts (`-1`). Layers 1-4 fold the fold-dispatch page into the leaf
+index (`-4`), and their transitions add the page together with the heap sentinel into `x23`
+(`addi` replaces `ori`; the non-constant fold levels store their heap index as an immediate) (`-4`). The shared WOTS base is rebased by 704, so the layer-4 initializer is a single LUI (`-1`). -/
+def cycleBound : Nat := 10229
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
 def cycleBoundAll : Nat := 16829
@@ -195,8 +199,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7440 := by decide
-theorem layC_val : layC = 7440 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7427 := by decide
+theorem layC_val : layC = 7427 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do

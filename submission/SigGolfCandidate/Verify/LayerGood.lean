@@ -65,7 +65,7 @@ theorem witPath_eq (L : LCtx) (hL : L.lay < 5) : witPath L.wl L.lay = (layFC L).
   simp only [heightL_eq _ hL]
   apply List.map_congr_left
   intro l _
-  simp [witSib, pathOff_eqL _ hL, pathStrideL]
+  simp [witSib, pathOff_eqL _ hL, pathStrideL, pathStride]
 
 theorem Good.reject {s : MachineState} (hf : fetch image s = some (.base .ECALL))
     (h5 : s.getReg .x5 = 1) (h10 : s.getReg .x10 = 1) : Good s 1 1 (pure (false, 0)) := by
@@ -137,7 +137,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
       unfold lvlK; rw [if_neg (by omega)]
     rw [← e]; exact hK
   have kf : ∀ r ∈ fkeep false, u.getReg r = s0.getReg r := hF.1
-  refine ⟨hG, ?_, ?_, hm0, hm8, hvl, fun _ => trivial, ?_, ?_, ?_,
+  refine ⟨by simp only [LCtx.gk, if_neg (show lay - 1 ≠ 4 by omega)]; exact hG, ?_, ?_, hm0, hm8, hvl, fun _ => trivial, ?_, ?_, ?_,
     fun h => absurd h (show ¬ (lay - 1 = 4) by omega), fun _ => ?_, ?_⟩
   · simp only [LCtx.lay, preK, if_neg (show lay - 1 ≠ 4 by omega), aK, Nat.sub_add_cancel h1]
     intro p hp
@@ -148,7 +148,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     · subst hp; exact hK1 _ (by simp [foldK, fk, gkOf])
     · subst hp; exact h12
     · subst hp; rw [kf _ (by simp [fkeep])]; exact h27
-    · subst hp; exact hK1 (.x22, BitVec.ofNat 64 (s6N lay)) (by simp [foldK, s6N_eq])
+    · subst hp; exact hK1 (.x29, BitVec.ofNat 64 (s6N lay)) (by simp [foldK, s6N_eq])
   · simp only [routeReg, routeIn, if_neg (show lay - 1 ≠ 4 by omega)]
     rw [kf _ (by simp [fkeep]), h30]
     simp only [LCtx.tau, LCtx.lay, if_neg (show lay ≠ 0 by omega)]
@@ -177,7 +177,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     have e2 : witSib wl (lay - 1 + 1) (heightL (lay - 1 + 1) - 1) =
         (layFC ⟨wl, pk, lay, idx⟩).sib (heightL lay - 1) := by
       rw [Nat.sub_add_cancel h1]
-      simp [witSib, FCtx.sib, layFC, pathOff_eqL _ h7, pathStrideL, show lay ≠ 0 by omega]
+      simp [witSib, FCtx.sib, layFC, pathOff_eqL _ h7, pathStrideL, pathStride, show lay ≠ 0 by omega]
     rw [e1, e2]
     exact ⟨hsw.1, hsw.2, hsl⟩
   · refine ⟨(layFC ⟨wl, pk, lay, idx⟩).blk (nCh lay - 1), ?_, ?_, fun _ => ?_⟩
@@ -342,48 +342,60 @@ theorem val_eq_iff (M P : Val) (hM : M.length = 16) (hP : P.length = 16) :
 def FinalIn (wl pk : List Byte) (idx : Nat) (M : Val) (s : MachineState) : Prop :=
   ∃ u a, FoldEndL ⟨wl, pk, 0, idx⟩ u ∧ s = writeHash u a ∧ M = answerBytes 16 a
 
-theorem cmp_link : ∀ t, t < 32 → m4Pc 0 1 t 4 + 8 + 1 = cmpPc (31 - t) := by decide
+theorem cmp_link : ∀ t, t < 32 → m4Pc 0 1 t 4 + 7 + 1 = cmpPc (31 - t) := by decide
 
 theorem compare_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (M : Val)
     (s : MachineState) (hs : FinalIn wl pk idx M s) : Good s 8 8 (pure (M == pk, 0)) := by
   obtain ⟨u, a, ⟨s0, ⟨hG, hK, hF, hpc, -, -⟩, -⟩, rfl, rfl⟩ := hs
-  have hdst : (layFC ⟨wl, pk, 0, idx⟩).dst = 0x180 := by simp [layFC, dstOf]
-  have h12 : u.getReg .x12 = BitVec.ofNat 64 0x180 := by
-    rw [← hdst]; exact hK (.x12, _) (List.mem_append_right _ (List.mem_singleton_self _))
-  have hG' := Glob_writeHash hG a _ h12 (by decide)
+  let D := (layFC ⟨wl, pk, 0, idx⟩).dst
+  have hD : D = 864 ∨ D = 880 := by
+    dsimp [D, layFC, dstOf]
+    omega
+  have hDb : D + 32 < 2 ^ 64 := by omega
+  have h12 : u.getReg .x12 = BitVec.ofNat 64 D :=
+    hK (.x12, _) (List.mem_append_right _ (List.mem_singleton_self _))
+  have hsafe : safeDest D = true := by rcases hD with h | h <;> rw [h] <;> decide
+  have hob : ∀ reject, ∀ o ∈ cmpObl reject, o.holds (writeHash u a) := by
+    intro reject o ho
+    have hchoice : o = .valid ⟨some (.reg .x12), 8⟩ 8 ∨
+        o = .valid ⟨some (.reg .x12), 0⟩ 8 := by
+      cases reject <;> simp_all [cmpObl]
+    rcases hchoice with rfl | rfl
+    all_goals simp only [Oblig.holds, Addr.eval, Rv.E.eval, writeHash_getReg, h12]
+    all_goals rcases hD with h | h <;> rw [h] <;> decide
+  have hG' := Glob_writeHash hG a _ h12 hsafe
   set tt := (layFC ⟨wl, pk, 0, idx⟩).blk 1 with htt
   have htt2 : tt < 32 := blk_lt _ 1
   have hK' : KnownOK cmpK (writeHash u a) := fun p hp => by
     rw [writeHash_getReg]
     simp only [cmpK] at hp
     apply hK p
-    rcases List.mem_append.mp hp with hp | hp
-    · exact List.mem_append_left _ (List.mem_append_left _ hp)
-    · simpa [layFC, dstOf] using List.mem_append_right (foldK 0 64) hp
+    exact List.mem_append_left _ (List.mem_append_left _ hp)
   have hpc' : (writeHash u a).pc = pcOf (cmpPc (31 - tt)) := by
     rw [writeHash_pc, hpc, pcOf_add4, ← cmp_link tt htt2]
     rfl
-  have m0 : (writeHash u a).getMem (BitVec.ofNat 64 384) = vw0 (answerBytes 16 a) :=
+  have m0 : (writeHash u a).getMem (BitVec.ofNat 64 D) = vw0 (answerBytes 16 a) :=
     (writeHash_at0 _ a _ h12 (by omega)).trans (vw0_answer a).symm
-  have m1 : (writeHash u a).getMem (BitVec.ofNat 64 392) = vw1 (answerBytes 16 a) :=
-    (writeHash_at8 _ a 0x180 h12 (by omega)).trans (vw1_answer a).symm
+  have m1 : (writeHash u a).getMem (BitVec.ofNat 64 (D + 8)) = vw1 (answerBytes 16 a) :=
+    (writeHash_at8 _ a D h12 (by omega)).trans (vw1_answer a).symm
   have p0 : (writeHash u a).getMem (BitVec.ofNat 64 160) = w64 (pk.take 8) := hG'.2.2.1.1
   have p1 : (writeHash u a).getMem (BitVec.ofNat 64 168) = w64 (pk.drop 8) := hG'.2.2.1.2
   have heq := val_eq_iff (answerBytes 16 a) pk (by simp) hpk
   obtain ⟨r1, r2⟩ := lc_cmp (lay := 0) (by omega) (show 31 - tt < 32 by omega) rfl
   by_cases e0 : vw0 (answerBytes 16 a) = w64 (pk.take 8)
-  · obtain ⟨v, hv⟩ := spec_run r1 _ hpc' hK' (by
+  · obtain ⟨v, hv⟩ := specO_run r1 _ hpc' hK' (hob false) (by
       intro b hb
       simp only [specAcc, List.mem_singleton] at hb
       subst hb
-      simp only [Br.holds, CmpOp.eval, Rv.E.eval, ldE, cw, m0, p0, e0, bne_self_eq_false])
+      simp only [Br.holds, CmpOp.eval, cmpRoot, Rv.E.eval, ldE, cw, writeHash_getReg, h12, m0, p0, e0, bne_self_eq_false])
     have hsub : ∀ x y : Word, x - y = 0 ↔ x = y := fun x y => by
       constructor
       · intro h; have := congrArg (· + y) h; simpa [BitVec.sub_add_cancel] using this
       · intro h; subst h; exact BitVec.sub_self x
     have hdiff : cmpDiff.eval (writeHash u a) = vw1 (answerBytes 16 a) - w64 (pk.drop 8) := by
-      simp only [cmpDiff, Rv.E.eval, ldE, cw, m1, p1]
-      rfl
+      have hadd : BitVec.ofNat 64 D + BitVec.ofNat 64 8 = BitVec.ofNat 64 (D + 8) := by
+        rcases hD with h | h <;> rw [h] <;> decide
+      simp only [cmpDiff, Rv.E.eval, BinOp.eval, ldE, cw, writeHash_getReg, h12, hadd, m1, p1] <;> rfl
     have hret : decide (v.getReg .x10 = 0) = (answerBytes 16 a == pk) := by
       apply Bool.eq_iff_iff.mpr
       simp only [decide_eq_true_eq, beq_iff_eq]
@@ -392,11 +404,11 @@ theorem compare_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (M :
     have := Good.steps hv.steps (Good.halt (hv.ecall rfl) (hv.regs (.x5, cw 1) (by simp [specAcc])))
     rw [hret] at this
     exact this.mono (by simp [specAcc]) (by simp [specAcc])
-  · obtain ⟨v, hv⟩ := spec_run r2 _ hpc' hK' (by
+  · obtain ⟨v, hv⟩ := specO_run r2 _ hpc' hK' (hob true) (by
       intro b hb
       simp only [specCR1, List.mem_cons, List.not_mem_nil, or_false] at hb
       subst hb
-      simp only [Br.holds, CmpOp.eval, Rv.E.eval, ldE, cw, m0, p0]; simpa using e0)
+      simp only [Br.holds, CmpOp.eval, cmpRoot, Rv.E.eval, ldE, cw, writeHash_getReg, h12, m0, p0]; simpa using e0)
     have hb : (answerBytes 16 a == pk) = false := by
       rw [beq_eq_false_iff_ne]; intro h; exact e0 (heq.mp h).1
     have := Good.steps hv.steps (Good.reject (hv.ecall rfl) (hv.regs (.x5, cw 1) (by simp [specCR1, rejK]))
@@ -453,6 +465,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The cycles of the five layers and the comparison (`8`). Against the head without the pair
 message: `-14` per lower layer (no root hash) and `+4` in each upper transition (the sibling copy). -/
-theorem layersCost_5 : layersCost 5 = 7440 := by decide
+theorem layersCost_5 : layersCost 5 = 7427 := by decide
 
 end SigGolfCandidate.Verify

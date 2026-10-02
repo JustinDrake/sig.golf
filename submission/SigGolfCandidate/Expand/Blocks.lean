@@ -175,4 +175,16 @@ theorem carryRun386High (s : MachineState) (hpc : s.pc=pcOf 386)
   change Steps image (blkCarryHigh386.res.toState s) _ _ _ at hs3
   exact h0.trans (hs1.trans (hs2.trans hs3))
 
+sym_block blkAuth860 := symRun { noAlias := true } segAuth860 (pcOf 860) 6
+sym_block blkAuth873 := symRun { noAlias := true } segAuth873 (pcOf 873) 6
+sym_block blkAuth884 := symRun { noAlias := true } segAuth884 (pcOf 884) 6
+sym_block blkAuth897 := symRun { noAlias := true } segAuth897 (pcOf 897) 6
+sym_block blkAuth910 := symRun { noAlias := true } segAuth910 (pcOf 910) 6
+sym_block blkAuth923 := symRun { noAlias := true } segAuth923 (pcOf 923) 6
+sym_block blkAuth936 := symRun { noAlias := true } segAuth936 (pcOf 936) 6
+sym_block blkAuth949 := symRun { noAlias := true } segAuth949 (pcOf 949) 6
+sym_block blkAuth962 := symRun { noAlias := true } segAuth962 (pcOf 962) 6
+sym_block blkAuth975 := symRun { noAlias := true } segAuth975 (pcOf 975) 6
+sym_block blkAuth988 := symRun { noAlias := true } segAuth988 (pcOf 988) 2
+
 end SigGolfCandidate.Expand
