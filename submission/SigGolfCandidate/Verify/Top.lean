@@ -188,7 +188,7 @@ counter range check masks the merged counters with the data word at `sp + 8` ins
 folding the halves with two shifts (`-1`). Layers 1-4 fold the fold-dispatch page into the leaf
 index (`-4`), and their transitions add the page together with the heap sentinel into `x23`
 (`addi` replaces `ori`; the non-constant fold levels store their heap index as an immediate) (`-4`). The shared WOTS base is rebased by 704, so the layer-4 initializer is a single LUI (`-1`). -/
-def cycleBound : Nat := 10231
+def cycleBound : Nat := 10230
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
 def cycleBoundAll : Nat := 16829
@@ -199,8 +199,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7445 := by decide
-theorem layC_val : layC = 7445 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7444 := by decide
+theorem layC_val : layC = 7444 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do

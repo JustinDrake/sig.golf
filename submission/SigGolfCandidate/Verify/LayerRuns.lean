@@ -207,13 +207,17 @@ def leafPost (lay : Nat) : List (Reg × Word) :=
 /-! ## Compare -/
 
 def cmpPc (t : Nat) : Nat := compareTab.getD t 0
-def cmpK : List (Reg × Word) := fk false 0x340 64 ++ [(.x12, 0x180)]
-def cmpDiff : E := .bin .sub (ldE 392) (ldE 168)
+def cmpK : List (Reg × Word) := fk false 0x340 64
+def cmpRoot : E := .ld (.reg .x12)
+def cmpDiff : E := .bin .sub (.ld (.bin .add (.reg .x12) (cw 8))) (ldE 168)
+def cmpObl (reject : Bool) : List Oblig :=
+  (if reject then [] else [.valid ⟨some (.reg .x12), 8⟩ 8]) ++
+    [.valid ⟨some (.reg .x12), 0⟩ 8]
 def specAcc (t : Nat) : Spec :=
   ⟨[(.x5, cw 1), (.x10, cmpDiff)], [], cmpPc t + 7, true, 7,
-   [⟨.ne, ldE 384, ldE 160, false⟩], none, 7⟩
+   [⟨.ne, cmpRoot, ldE 160, false⟩], none, 7⟩
 def specCR1 (t : Nat) : Spec :=
-  ⟨rejK, [], cmpPc t + 11, true, 5, [⟨.ne, ldE 384, ldE 160, true⟩], none, 5⟩
+  ⟨rejK, [], cmpPc t + 11, true, 5, [⟨.ne, cmpRoot, ldE 160, true⟩], none, 5⟩
 
 
 /-! ## The per-layer check -/
@@ -236,7 +240,7 @@ def copyCheck (lay t : Nat) : Bool :=
 def layerCheck (lay : Nat) : Bool :=
   ((List.range (nCopy lay)).all fun t => copyCheck lay t) &&
   (lay != 0 || (List.range 32).all fun t =>
-    specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] &&
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [])
+    specOB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) (cmpObl false) [] [] &&
+      specOB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) (cmpObl true) [] [])
 
 end SigGolfCandidate.Verify

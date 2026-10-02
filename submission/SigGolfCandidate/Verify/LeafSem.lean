@@ -37,7 +37,7 @@ theorem length_flat (f g : Val → Word) (vs : List Val) :
 
 /-- The fold context of layer `L`: tag 3, the layer's path and root destination. -/
 def layFC (L : LCtx) : FCtx :=
-  ⟨L.wl, L.pk, L.e, heightL L.lay, L.lay, 3, L.lay, L.tau, pathOffL L.lay, dstOf L.lay⟩
+  ⟨L.wl, L.pk, L.e, heightL L.lay, L.lay, 3, L.lay, L.tau, pathOffL L.lay, dstOf L.lay L.e⟩
 
 theorem layFC_ok (L : LCtx) (hL : L.ok) : (layFC L).ok := by
   obtain ⟨hlay, hidx, hwl⟩ := hL
@@ -51,7 +51,10 @@ theorem layFC_ok (L : LCtx) (hL : L.ok) : (layFC L).ok := by
       simp [h, pathOffL, pathStrideL, heightL]
   · rcases (show L.lay = 0 ∨ L.lay = 1 ∨ L.lay = 2 ∨ L.lay = 3 ∨ L.lay = 4 by omega) with h | h | h | h | h <;>
       simp [h, pathOffL, pathStrideL, heightL]
-  · unfold dstOf; split <;> decide
+  · unfold dstOf; split
+    · have hb : L.e / 1024 % 2 < 2 := Nat.mod_lt _ (by decide)
+      interval_cases L.e / 1024 % 2 <;> decide
+    · decide
   · unfold dstOf; split <;> omega
 
 theorem layFC_check (L : LCtx) (hL : L.ok) :
