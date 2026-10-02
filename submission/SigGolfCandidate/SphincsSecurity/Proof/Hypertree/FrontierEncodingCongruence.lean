@@ -18,7 +18,7 @@ theorem AgreeOutsideEncoding.domain {parameter : PublicParameter} {f g : QueryIm
   rw [canonicalEncodingInputs] at hinput
   simp only [Finset.mem_biUnion, Finset.mem_univ, true_and, Finset.mem_image] at hinput
   obtain ⟨position, pair, heq⟩ := hinput
-  exact htag (FtsProbeSimulation.tweakableHashInput_tag_eq' parameter pair.1.1 domain
+  exact htag (FtsProbeSimulation.tweakableHashInput_tag_eq parameter domain
     (.encoding position.lay position.tree position.leafIdx) payload _ heq.symm)
 
 namespace AgreeOutsideEncoding

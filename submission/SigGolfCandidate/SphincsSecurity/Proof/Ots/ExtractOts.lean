@@ -45,7 +45,7 @@ theorem honestNode_zero_eq_leafHash :
     eval_tweakableHash, eval_oneTimePublicKey, honestEndpoints_def]
 
 /-- **The one-time signature.** -/
-theorem otsLeaf_extract (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest)
+theorem otsLeaf_extract (message : Digest) (counter : Counter) (values : ChainIndex → Digest)
     (codeword : Encoding)
     (hencode : evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) = some codeword)
     (hleaf : evalWithAnswerFn f (otsLeafAttempt parameter lay tree leaf message counter values)

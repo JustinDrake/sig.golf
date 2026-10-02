@@ -11,18 +11,11 @@ the geometric bound `E[w^N] ≤ (1-ρ) w / (1 - ρ w)` by induction on the fuel.
 -/
 
 namespace SigGolfCandidate.Budget
-attribute [local irreducible] SigGolfCandidate.Ref.AddressFormat.queryPerm
-set_option maxHeartbeats 1000000
-set_option linter.constructorNameAsVariable false
 open SigGolfCandidate.Legacy SigGolfCandidate.Ref OracleComp OracleSpec ENNReal OracleComp.EvalDist
 
 theorem hash16_bind_eq {β : Type} (x : List Byte) (f : Val → OracleComp HashSpec β) :
     Ref.hash16 x >>= f = qry (addrFmt x) >>= fun a => f (answerBytes 16 a) := by
   simp only [Ref.hash16, Ref.H, bind_assoc, pure_bind]
-
-theorem encodingHash_bind_eq {β : Type} (x : List Byte) (f : Val → OracleComp HashSpec β) :
-    Ref.encodingHash x >>= f = qry (addrFmt x) >>= fun a => f (encodingBytes a) := by
-  simp only [Ref.encodingHash, Ref.H, bind_assoc, pure_bind]
 
 theorem digest_bind_eq {β : Type} (rho m : List Byte) (f : Nat → OracleComp HashSpec β) :
     digest rho m >>= f = qry (addrFmt (digestInput rho m)) >>= fun a => f a.toNat := by
@@ -53,13 +46,8 @@ theorem probEvent_not_uniform (P : BitVec 256 → Prop) [DecidablePred P] :
 /-! ## Counter search -/
 
 theorem fmt_encInput (lay tau e : Nat) (M : Val) (c : Nat) :
-    addrFmt (encInput lay tau e M c) = EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (pad64 (encInput lay tau e M c))))) := by
-  rw [addrFmt_encInput]
-  apply congrArg EncodingRotate.query
-  congr 1
-  congr 1
-  congr 1
-  exact Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide)
+    addrFmt (encInput lay tau e M c) = pad64 (encInput lay tau e M c) :=
+  fmt_eq_pad64 _ _ _ _ _ _ (by decide)
 
 theorem fmt_rndInput (S m : List Byte) (a : Nat) : addrFmt (rndInput S m a) = pad64 (rndInput S m a) :=
   by rw [addrFmt_rndInput]; simp [fmt, IsChainFmt, IsNodeFmt, IsDigestFmt, IsPadChainFmt, rndInput, byte]
@@ -67,19 +55,18 @@ theorem fmt_rndInput (S m : List Byte) (a : Nat) : addrFmt (rndInput S m a) = pa
 theorem enc_inj (lay tau e : Nat) (M : Val) {c c' : Nat} (hc : c < 2 ^ 32) (hc' : c' < 2 ^ 32)
     (h : addrFmt (encInput lay tau e M c) = addrFmt (encInput lay tau e M c')) : c = c' := by
   rw [fmt_encInput, fmt_encInput] at h
-  have hh := LeafClass.query_involutive.injective (TopHeap.query_involutive.injective (LeafCarry.query_involutive.injective (EncodingRotate.query_injective h)))
-  have h2 := pad64_inj (by simp [encInput]) hh
-  simp only [encInput, List.append_assoc, List.append_cancel_left_eq] at h2
+  have h2 := pad64_inj (by simp [encInput]) h
+  simp only [encInput, thInput, List.append_assoc, List.append_cancel_left_eq] at h2
   exact le32_inj hc hc' h2
 
 /-- The rejection probability of one fresh encoding. -/
-noncomputable def rhoC (lay : Nat) : ℝ≥0∞ :=
-  Pr[fun u : BitVec 256 => decodeDigits lay (encodingBytes u) = none |
+noncomputable def rhoC : ℝ≥0∞ :=
+  Pr[fun u : BitVec 256 => decodeDigits (answerBytes 16 u) = none |
     ($ᵗ BitVec 256 : ProbComp (BitVec 256))]
 
-theorem V_searchCounter (lay : Nat) (z b : ℝ≥0∞) (hz : 1 ≤ z) (hb : 1 ≤ b)
-    (hstep : z * (rhoC lay * b + (1 - rhoC lay)) ≤ b)
-    (tau e : Nat) (M : Val) (hM : M.length ≤ 32) :
+theorem V_searchCounter (z b : ℝ≥0∞) (hz : 1 ≤ z) (hb : 1 ≤ b)
+    (hstep : z * (rhoC * b + (1 - rhoC)) ≤ b)
+    (lay tau e : Nat) (M : Val) (hM : M.length ≤ 16) :
     ∀ fuel c (cache : RCache), c + fuel ≤ 2 ^ 32 →
       (∀ c', c ≤ c' → c' < 2 ^ 32 → cache (addrFmt (encInput lay tau e M c')) = none) →
       V z (searchCounter lay tau e M c fuel) cache ≤ b := by
@@ -89,7 +76,7 @@ theorem V_searchCounter (lay : Nat) (z b : ℝ≥0∞) (hz : 1 ≤ z) (hb : 1 �
   | succ n ih =>
     intro c cache hbound hfresh
     unfold searchCounter
-    rw [encodingHash_bind_eq, V_query,
+    rw [hash16_bind_eq, V_query,
       expectedValue_ro_fresh _ _ (hfresh c le_rfl (by omega))]
     have hbl : (addrFmt (encInput lay tau e M c)).blocks ≤ 1 :=
       blocksFmt_le _ 1 (by simp [encInput]; omega) le_rfl
@@ -97,9 +84,9 @@ theorem V_searchCounter (lay : Nat) (z b : ℝ≥0∞) (hz : 1 ≤ z) (hb : 1 �
       calc z ^ (addrFmt (encInput lay tau e M c)).blocks ≤ z ^ 1 := pow_le_pow_right₀ hz hbl
         _ = z := pow_one z
     refine le_trans (mul_le_mul' hz1 (ev_ite_le
-      (fun u => decodeDigits lay (encodingBytes u) = none) b 1 _ fun u => ?_)) ?_
+      (fun u => decodeDigits (answerBytes 16 u) = none) b 1 _ fun u => ?_)) ?_
     · dsimp only
-      cases hd : decodeDigits lay (encodingBytes u) with
+      cases hd : decodeDigits (answerBytes 16 u) with
       | some x => simp
       | none =>
         simp only [if_true]

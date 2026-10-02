@@ -8,7 +8,7 @@ attribute [local instance] Classical.propDecidable
 attribute [local irreducible] chainWalk sequenceFin canonicalEncodingInputs canonicalGraphInputs instFintypePosition
 
 variable (f : QueryImpl HashSpec Id) (key : SecretKey) (words : OtsReferenceWords)
-  (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily)
+  (messages : EncodingPosition → Digest) (selections : ReferenceFamily)
 
 /-- The small route's layer exceptions: the record's (an encoding match, or a tree, leaf or chain
 event at some layer position), or the padded verifier's new event, a `PaddedChainMatch`. -/
@@ -33,15 +33,16 @@ def ReferenceLayerOpening (index : Index) (signature : Signature) (lay : Layer) 
 /-- One layer of an accepted padded verification, outside the layer exceptions: the record's
 reference opening, and the record layer's cached run (inactive pads make the same queries). -/
 theorem layer_frame_reference (f : QueryImpl HashSpec Id) (key : SecretKey) (words : OtsReferenceWords)
-    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily)
-    (index : Index) (signature : Signature) (pads : ChainPads) (lay : Layer) (message target : EncMessage) (leafValue : Digest)
+    (messages : EncodingPosition → Digest) (selections : ReferenceFamily)
+    (index : Index) (signature : Signature) (pads : ChainPads) (lay : Layer) (message target leafValue : Digest)
     (trace : Trace)
-    (hvalid : OtsCode.Valid lay (words lay (treeIndexAt index lay) (leafIndexAt index lay)))
+    (hvalid : OtsCode.Valid (words lay (treeIndexAt index lay) (leafIndexAt index lay)))
     (hmessages : messages ⟨lay, treeIndexAt index lay, leafIndexAt index lay⟩ = evalWithAnswerFn f (layerMessage key index lay))
     (hclean : ¬LayerException f key words messages selections trace)
     (hframe : LayerFrameP f (recordedCache f trace) key.parameter index signature pads lay message target leafValue)
-    (hfold : foldPair f key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay) (signaturePath signature lay) leafValue =
-      honestPair f key.parameter lay (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay))) :
+    (hfold : foldValue f key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay) (signaturePath signature lay)
+      leafValue (layerHeight lay) =
+      honestNode f key.parameter lay (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay)) (layerHeight lay) 0) :
     message = evalWithAnswerFn f (layerMessage key index lay) ∧
       ReferenceLayerOpening f key words selections index signature lay ∧
       CachedRun (recordedCache f trace) f (otsLeafAttempt key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)

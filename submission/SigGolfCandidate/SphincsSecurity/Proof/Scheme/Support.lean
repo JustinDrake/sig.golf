@@ -57,9 +57,6 @@ theorem queriedInputs_mono_bind_right {alpha beta : Type} (f : QueryImpl HashSpe
   rw [queriedInputs_bind]
   exact List.mem_append_right _ hinput
 
-@[simp] theorem queriedInputs_oracleHash (f : QueryImpl HashSpec Id) (input : HashInput) :
-    queriedInputs f (Concrete.oracleHash input : OracleComp HashSpec HashOutput) = [input] := rfl
-
 @[simp] theorem queriedInputs_tweakableHash (f : QueryImpl HashSpec Id)
     (parameter : PublicParameter) (domain : HashDomain) (payload : HashInput) :
     queriedInputs f (Concrete.tweakableHash parameter domain payload)
@@ -266,7 +263,7 @@ open OracleComp
 
 theorem verifyLayers_succ_extract (f : QueryImpl HashSpec Id) (parameter : PublicParameter)
     (index : Index) (signature : Signature) (remaining : Nat) (hlayer : remaining < numLayers)
-    (message target : EncMessage)
+    (message : Digest) (target : Digest)
     (hverify : evalWithAnswerFn f
         (verifyLayers parameter index signature (remaining + 1) message) = some target) :
     ∃ leafValue, evalWithAnswerFn f (otsLeafAttempt parameter ⟨remaining, hlayer⟩
@@ -274,9 +271,9 @@ theorem verifyLayers_succ_extract (f : QueryImpl HashSpec Id) (parameter : Publi
           (signature.counter ⟨remaining, hlayer⟩) (signature.chainValue ⟨remaining, hlayer⟩))
         = some leafValue
       ∧ evalWithAnswerFn f (verifyLayers parameter index signature remaining
-          (foldPair f parameter ⟨remaining, hlayer⟩ (treeIndexAt index ⟨remaining, hlayer⟩)
+          (foldValue f parameter ⟨remaining, hlayer⟩ (treeIndexAt index ⟨remaining, hlayer⟩)
             (leafIndexAt index ⟨remaining, hlayer⟩) (signaturePath signature ⟨remaining, hlayer⟩)
-            leafValue)) = some target := by
+            leafValue (layerHeight ⟨remaining, hlayer⟩))) = some target := by
   rcases hleaf : evalWithAnswerFn f (otsLeafAttempt parameter ⟨remaining, hlayer⟩
       (treeIndexAt index ⟨remaining, hlayer⟩) (leafIndexAt index ⟨remaining, hlayer⟩) message
       (signature.counter ⟨remaining, hlayer⟩) (signature.chainValue ⟨remaining, hlayer⟩))
@@ -285,7 +282,7 @@ theorem verifyLayers_succ_extract (f : QueryImpl HashSpec Id) (parameter : Publi
     simp at hverify
   · refine ⟨leafValue, rfl, ?_⟩
     rw [verifyLayers_succ_eq, dif_pos hlayer, evalWithAnswerFn_bind, hleaf] at hverify
-    simpa [foldPair, foldValue, evalWithAnswerFn_bind] using hverify
+    simpa [foldValue, evalWithAnswerFn_bind] using hverify
 
 end Concrete
 

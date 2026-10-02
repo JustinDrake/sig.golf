@@ -45,97 +45,42 @@ theorem ofNat_mul_ofNat' (a b : Nat) : BitVec.ofNat 64 a * BitVec.ofNat 64 b = B
 
 /-- 386 .. 407: the chain base, the `LF` / `NB` / `CB` tweak words, the chain pointers (W1a: the value
 slot of block `(lay, 0)`, `W + 2992 + 2688 lay`, via `li a7, 1344; mul; slli 1`: 25 cycles). -/
-theorem blk386_run_low (t : MachineState) (hpc : t.pc = pcOf 386) (lay tau : Nat) (hl : lay < 4) (htau : tau < 2 ^ 30)
-    (h8 : t.getReg .x8 = BitVec.ofNat 64 lay) (h30 : t.getReg .x30 = BitVec.ofNat 64 tau)
-    (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) :
-    ∃ t', Steps eimg t 29 32 t' ∧ t'.pc = pcOf 408 ∧
-      t'.getReg .x18 = BitVec.ofNat 64 0 ∧ t'.getReg .x19 = t.getReg .x1 ∧
-      t'.getReg .x20 = BitVec.ofNat 64 (257 + 65536 * lay) ∧ t'.getReg .x21 = BitVec.ofNat 64 (2 ^ 40) ∧
-      t'.getReg .x23 = BitVec.ofNat 64 (0x800 + (2992 + 2688 * lay)) ∧
-      t'.getReg .x24 = BitVec.ofNat 64 0x30260 ∧
-      t'.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (LeafCarry.leafHeader lay) ∧
-      t'.getMem (BitVec.ofNat 64 0x30248) = t.getReg .x31 ∧
-      t'.getMem (BitVec.ofNat 64 0x301C0) = BitVec.ofNat 64 (769 + 65536 * lay) ∧
-      t'.getMem (BitVec.ofNat 64 0x30148) = t.getReg .x31 ∧
-      RegsEq t t' [.x3, .x15, .x16, .x17, .x18, .x19, .x20, .x21, .x23, .x24] ∧
-      Frame t t' (fun a => a = 0x30240 ∨ a = 0x30248 ∨ a = 0x301C0 ∨ a = 0x30148) := by
-  have ha5 : t.getReg .x30 >>> ((32#64 : Word).toNat % 64) <<< ((24#64 : Word).toNat % 64) +
-      t.getReg .x8 <<< ((16#64 : Word).toNat % 64) = BitVec.ofNat 64 (65536 * lay) := by
-    rw [h30, h8, show (32#64 : Word).toNat % 64 = 32 from rfl, show (24#64 : Word).toNat % 64 = 24 from rfl,
-      show (16#64 : Word).toNat % 64 = 16 from rfl, ofNat_ushiftRight _ _ (by omega),
-      Nat.div_eq_of_lt (by omega : tau < 2 ^ 32), ofNat_shiftLeft, ofNat_shiftLeft, ofNat_add_ofNat]
-    exact ofNat_congr (by ring)
-  refine ⟨_, Expand.carryRun386Low t hpc (by rw [h8]; intro h; have he:=congrArg BitVec.toNat h; simp only [BitVec.toNat_ofNat] at he; omega) (by pobl [Expand.blk386low.res, h25]),
-    by simp only [Expand.blk386low.res, rv_simp], by simp only [Expand.blk386low.res, rv_simp],
-    by simp only [Expand.blk386low.res, rv_simp], ?_, by pnum [Expand.blk386low.res], ?_, by pnum [Expand.blk386low.res, h25],
-    ?_, ?_, ?_, ?_, by pregs, ?_⟩
-  · simp only [Expand.blk386low.res, rv_simp, ha5, ofNat_add_ofNat]; exact ofNat_congr (by ring)
-  · simp only [Expand.blk386low.res, rv_simp, h8, show (1#64 : Word).toNat % 64 = 1 from rfl,
-      show (1344#64 : Word) = BitVec.ofNat 64 1344 from rfl, ofNat_mul_ofNat', ofNat_shiftLeft, ofNat_add_ofNat]
-    exact ofNat_congr (by ring)
-  · pnum [Expand.blk386low.res, h25]; simp only [ha5, ofNat_add_ofNat]; unfold LeafCarry.leafHeader; rw [if_pos hl]; exact ofNat_congr (by ring)
-  · pnum [Expand.blk386low.res, h25]
-  · pnum [Expand.blk386low.res, h25]; simp only [ha5, ofNat_add_ofNat]; exact ofNat_congr (by ring)
-  · pnum [Expand.blk386low.res, h25]
-  · apply frame_toState; intro x hx hW
-    simp only [Expand.blk386low.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
-      implies_true, and_true, ne_eq, h25, ofNat_add_ofNat, ofNat_eq_iff]
-    bvomega
-
-theorem blk386_run_high (t : MachineState) (hpc : t.pc = pcOf 386) (lay tau : Nat) (hl : lay = 4) (htau : tau < 2 ^ 30)
-    (h8 : t.getReg .x8 = BitVec.ofNat 64 lay) (h30 : t.getReg .x30 = BitVec.ofNat 64 tau)
-    (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) :
-    ∃ t', Steps eimg t 26 29 t' ∧ t'.pc = pcOf 408 ∧
-      t'.getReg .x18 = BitVec.ofNat 64 0 ∧ t'.getReg .x19 = t.getReg .x1 ∧
-      t'.getReg .x20 = BitVec.ofNat 64 (257 + 65536 * lay) ∧ t'.getReg .x21 = BitVec.ofNat 64 (2 ^ 40) ∧
-      t'.getReg .x23 = BitVec.ofNat 64 (0x800 + (2992 + 2688 * lay)) ∧
-      t'.getReg .x24 = BitVec.ofNat 64 0x30260 ∧
-      t'.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (LeafCarry.leafHeader lay) ∧
-      t'.getMem (BitVec.ofNat 64 0x30248) = t.getReg .x31 ∧
-      t'.getMem (BitVec.ofNat 64 0x301C0) = BitVec.ofNat 64 (769 + 65536 * lay) ∧
-      t'.getMem (BitVec.ofNat 64 0x30148) = t.getReg .x31 ∧
-      RegsEq t t' [.x3, .x15, .x16, .x17, .x18, .x19, .x20, .x21, .x23, .x24] ∧
-      Frame t t' (fun a => a = 0x30240 ∨ a = 0x30248 ∨ a = 0x301C0 ∨ a = 0x30148) := by
-  have ha5 : t.getReg .x30 >>> ((32#64 : Word).toNat % 64) <<< ((24#64 : Word).toNat % 64) +
-      t.getReg .x8 <<< ((16#64 : Word).toNat % 64) = BitVec.ofNat 64 (65536 * lay) := by
-    rw [h30, h8, show (32#64 : Word).toNat % 64 = 32 from rfl, show (24#64 : Word).toNat % 64 = 24 from rfl,
-      show (16#64 : Word).toNat % 64 = 16 from rfl, ofNat_ushiftRight _ _ (by omega),
-      Nat.div_eq_of_lt (by omega : tau < 2 ^ 32), ofNat_shiftLeft, ofNat_shiftLeft, ofNat_add_ofNat]
-    exact ofNat_congr (by ring)
-  refine ⟨_, Expand.carryRun386High t hpc (by rw [h8]; subst lay; rfl) (by pobl [Expand.blk386high.res, h25]),
-    by simp only [Expand.blk386high.res, rv_simp], by simp only [Expand.blk386high.res, rv_simp],
-    by simp only [Expand.blk386high.res, rv_simp], ?_, by pnum [Expand.blk386high.res], ?_, by pnum [Expand.blk386high.res, h25],
-    ?_, ?_, ?_, ?_, by pregs, ?_⟩
-  · simp only [Expand.blk386high.res, rv_simp, ha5, ofNat_add_ofNat]; exact ofNat_congr (by ring)
-  · simp only [Expand.blk386high.res, rv_simp, h8, show (1#64 : Word).toNat % 64 = 1 from rfl,
-      show (1344#64 : Word) = BitVec.ofNat 64 1344 from rfl, ofNat_mul_ofNat', ofNat_shiftLeft, ofNat_add_ofNat]
-    exact ofNat_congr (by ring)
-  · pnum [Expand.blk386high.res, h25]; simp only [ha5, ofNat_add_ofNat]; unfold LeafCarry.leafHeader; rw [if_neg (by omega)]; exact ofNat_congr (by ring)
-  · pnum [Expand.blk386high.res, h25]
-  · pnum [Expand.blk386high.res, h25]; simp only [ha5, ofNat_add_ofNat]; exact ofNat_congr (by ring)
-  · pnum [Expand.blk386high.res, h25]
-  · apply frame_toState; intro x hx hW
-    simp only [Expand.blk386high.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
-      implies_true, and_true, ne_eq, h25, ofNat_add_ofNat, ofNat_eq_iff]
-    bvomega
-
 theorem blk386_run (t : MachineState) (hpc : t.pc = pcOf 386) (lay tau : Nat) (hl : lay < 5) (htau : tau < 2 ^ 30)
     (h8 : t.getReg .x8 = BitVec.ofNat 64 lay) (h30 : t.getReg .x30 = BitVec.ofNat 64 tau)
     (h25 : t.getReg .x25 = BitVec.ofNat 64 0x30000) :
-    ∃ t', Steps eimg t (if lay=4 then 26 else 29) (if lay=4 then 29 else 32) t' ∧ t'.pc = pcOf 408 ∧
+    ∃ t', Steps eimg t 22 25 t' ∧ t'.pc = pcOf 408 ∧
       t'.getReg .x18 = BitVec.ofNat 64 0 ∧ t'.getReg .x19 = t.getReg .x1 ∧
       t'.getReg .x20 = BitVec.ofNat 64 (257 + 65536 * lay) ∧ t'.getReg .x21 = BitVec.ofNat 64 (2 ^ 40) ∧
       t'.getReg .x23 = BitVec.ofNat 64 (0x800 + (2992 + 2688 * lay)) ∧
       t'.getReg .x24 = BitVec.ofNat 64 0x30260 ∧
-      t'.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (LeafCarry.leafHeader lay) ∧
+      t'.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (513 + 65536 * lay) ∧
       t'.getMem (BitVec.ofNat 64 0x30248) = t.getReg .x31 ∧
       t'.getMem (BitVec.ofNat 64 0x301C0) = BitVec.ofNat 64 (769 + 65536 * lay) ∧
       t'.getMem (BitVec.ofNat 64 0x30148) = t.getReg .x31 ∧
-      RegsEq t t' [.x3, .x15, .x16, .x17, .x18, .x19, .x20, .x21, .x23, .x24] ∧
+      RegsEq t t' [.x15, .x16, .x17, .x18, .x19, .x20, .x21, .x23, .x24] ∧
       Frame t t' (fun a => a = 0x30240 ∨ a = 0x30248 ∨ a = 0x301C0 ∨ a = 0x30148) := by
-  by_cases h:lay=4
-  · simpa only [if_pos h] using blk386_run_high t hpc lay tau h htau h8 h30 h25
-  · simpa only [if_neg h] using blk386_run_low t hpc lay tau (by omega) htau h8 h30 h25
+  have ha5 : t.getReg .x30 >>> ((32#64 : Word).toNat % 64) <<< ((24#64 : Word).toNat % 64) +
+      t.getReg .x8 <<< ((16#64 : Word).toNat % 64) = BitVec.ofNat 64 (65536 * lay) := by
+    rw [h30, h8, show (32#64 : Word).toNat % 64 = 32 from rfl, show (24#64 : Word).toNat % 64 = 24 from rfl,
+      show (16#64 : Word).toNat % 64 = 16 from rfl, ofNat_ushiftRight _ _ (by omega),
+      Nat.div_eq_of_lt (by omega : tau < 2 ^ 32), ofNat_shiftLeft, ofNat_shiftLeft, ofNat_add_ofNat]
+    exact ofNat_congr (by ring)
+  refine ⟨_, symRun_sound Expand.blk386 Expand.codeAt_386 t hpc (by pobl [Expand.blk386.res, h25]),
+    by simp only [Expand.blk386.res, rv_simp], by simp only [Expand.blk386.res, rv_simp],
+    by simp only [Expand.blk386.res, rv_simp], ?_, by pnum [Expand.blk386.res], ?_, by pnum [Expand.blk386.res, h25],
+    ?_, ?_, ?_, ?_, by pregs, ?_⟩
+  · simp only [Expand.blk386.res, rv_simp, ha5, ofNat_add_ofNat]; exact ofNat_congr (by ring)
+  · simp only [Expand.blk386.res, rv_simp, h8, show (1#64 : Word).toNat % 64 = 1 from rfl,
+      show (1344#64 : Word) = BitVec.ofNat 64 1344 from rfl, ofNat_mul_ofNat', ofNat_shiftLeft, ofNat_add_ofNat]
+    exact ofNat_congr (by ring)
+  · pnum [Expand.blk386.res, h25]; simp only [ha5, ofNat_add_ofNat]; exact ofNat_congr (by ring)
+  · pnum [Expand.blk386.res, h25]
+  · pnum [Expand.blk386.res, h25]; simp only [ha5, ofNat_add_ofNat]; exact ofNat_congr (by ring)
+  · pnum [Expand.blk386.res, h25]
+  · apply frame_toState; intro x hx hW
+    simp only [Expand.blk386.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
+      implies_true, and_true, ne_eq, h25, ofNat_add_ofNat, ofNat_eq_iff]
+    bvomega
 
 /-- 408 .. 411: the digit `t3 = s3 & 7`, `s3 >>= 3`; chain 20 switches to `d1`. -/
 theorem blk408_run (t : MachineState) (hpc : t.pc = pcOf 408) (i q : Nat) (hi : i < 42) (hq : q < 2 ^ 64)

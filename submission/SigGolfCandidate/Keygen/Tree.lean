@@ -13,10 +13,6 @@ so far, flattened, is stored from `REGION` on.
 namespace SigGolfCandidate.Keygen
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv SigGolfCandidate.Ref OracleComp
 
-set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
-set_option exponentiation.threshold 8192
-
 /-- Index of the first node of level `k` in the region. -/
 def lvOff (k : Nat) : Nat := ((List.range k).map fun i => 2 ^ (11 - i)).sum
 
@@ -89,87 +85,6 @@ theorem Vals.getD_append_left {t : MachineState} {A : Nat} {L M : List Val} (h :
 theorem pad64_of_len64 (x : List Byte) (h : x.length = 64) : pad64 x = ⟨0, ofList _ x⟩ := by
   rw [pad64_eq x 0 (by omega) (by omega), h]; simp [zeros]
 
-theorem top_mirror_band (d j : Nat) (hd : d ≤ 10) (hj : j < 2 ^ d) :
-    TopHeap.mirror (2 ^ d + j) = 3 * 2 ^ d - 1 - (2 ^ d + j) := by
-  interval_cases d
-  · norm_num only [Nat.reducePow, Nat.reduceMul] at hj ⊢
-    simp only [TopHeap.mirror, if_pos (show (1 + j : Nat) < 2 by omega)]
-    all_goals omega
-  · norm_num only [Nat.reducePow, Nat.reduceMul] at hj ⊢
-    simp only [TopHeap.mirror, if_neg (show ¬ (2 + j : Nat) < 2 by omega), if_pos (show (2 + j : Nat) < 4 by omega)]
-    all_goals omega
-  · norm_num only [Nat.reducePow, Nat.reduceMul] at hj ⊢
-    simp only [TopHeap.mirror, if_neg (show ¬ (4 + j : Nat) < 2 by omega), if_neg (show ¬ (4 + j : Nat) < 4 by omega), if_pos (show (4 + j : Nat) < 8 by omega)]
-    all_goals omega
-  · norm_num only [Nat.reducePow, Nat.reduceMul] at hj ⊢
-    simp only [TopHeap.mirror, if_neg (show ¬ (8 + j : Nat) < 2 by omega), if_neg (show ¬ (8 + j : Nat) < 4 by omega), if_neg (show ¬ (8 + j : Nat) < 8 by omega), if_pos (show (8 + j : Nat) < 16 by omega)]
-    all_goals omega
-  · norm_num only [Nat.reducePow, Nat.reduceMul] at hj ⊢
-    simp only [TopHeap.mirror, if_neg (show ¬ (16 + j : Nat) < 2 by omega), if_neg (show ¬ (16 + j : Nat) < 4 by omega), if_neg (show ¬ (16 + j : Nat) < 8 by omega), if_neg (show ¬ (16 + j : Nat) < 16 by omega), if_pos (show (16 + j : Nat) < 32 by omega)]
-    all_goals omega
-  · norm_num only [Nat.reducePow, Nat.reduceMul] at hj ⊢
-    simp only [TopHeap.mirror, if_neg (show ¬ (32 + j : Nat) < 2 by omega), if_neg (show ¬ (32 + j : Nat) < 4 by omega), if_neg (show ¬ (32 + j : Nat) < 8 by omega), if_neg (show ¬ (32 + j : Nat) < 16 by omega), if_neg (show ¬ (32 + j : Nat) < 32 by omega), if_pos (show (32 + j : Nat) < 64 by omega)]
-    all_goals omega
-  · norm_num only [Nat.reducePow, Nat.reduceMul] at hj ⊢
-    simp only [TopHeap.mirror, if_neg (show ¬ (64 + j : Nat) < 2 by omega), if_neg (show ¬ (64 + j : Nat) < 4 by omega), if_neg (show ¬ (64 + j : Nat) < 8 by omega), if_neg (show ¬ (64 + j : Nat) < 16 by omega), if_neg (show ¬ (64 + j : Nat) < 32 by omega), if_neg (show ¬ (64 + j : Nat) < 64 by omega), if_pos (show (64 + j : Nat) < 128 by omega)]
-    all_goals omega
-  · norm_num only [Nat.reducePow, Nat.reduceMul] at hj ⊢
-    simp only [TopHeap.mirror, if_neg (show ¬ (128 + j : Nat) < 2 by omega), if_neg (show ¬ (128 + j : Nat) < 4 by omega), if_neg (show ¬ (128 + j : Nat) < 8 by omega), if_neg (show ¬ (128 + j : Nat) < 16 by omega), if_neg (show ¬ (128 + j : Nat) < 32 by omega), if_neg (show ¬ (128 + j : Nat) < 64 by omega), if_neg (show ¬ (128 + j : Nat) < 128 by omega), if_pos (show (128 + j : Nat) < 256 by omega)]
-    all_goals omega
-  · norm_num only [Nat.reducePow, Nat.reduceMul] at hj ⊢
-    simp only [TopHeap.mirror, if_neg (show ¬ (256 + j : Nat) < 2 by omega), if_neg (show ¬ (256 + j : Nat) < 4 by omega), if_neg (show ¬ (256 + j : Nat) < 8 by omega), if_neg (show ¬ (256 + j : Nat) < 16 by omega), if_neg (show ¬ (256 + j : Nat) < 32 by omega), if_neg (show ¬ (256 + j : Nat) < 64 by omega), if_neg (show ¬ (256 + j : Nat) < 128 by omega), if_neg (show ¬ (256 + j : Nat) < 256 by omega), if_pos (show (256 + j : Nat) < 512 by omega)]
-    all_goals omega
-  · norm_num only [Nat.reducePow, Nat.reduceMul] at hj ⊢
-    simp only [TopHeap.mirror, if_neg (show ¬ (512 + j : Nat) < 2 by omega), if_neg (show ¬ (512 + j : Nat) < 4 by omega), if_neg (show ¬ (512 + j : Nat) < 8 by omega), if_neg (show ¬ (512 + j : Nat) < 16 by omega), if_neg (show ¬ (512 + j : Nat) < 32 by omega), if_neg (show ¬ (512 + j : Nat) < 64 by omega), if_neg (show ¬ (512 + j : Nat) < 128 by omega), if_neg (show ¬ (512 + j : Nat) < 256 by omega), if_neg (show ¬ (512 + j : Nat) < 512 by omega), if_pos (show (512 + j : Nat) < 1024 by omega)]
-    all_goals omega
-  · norm_num only [Nat.reducePow, Nat.reduceMul] at hj ⊢
-    simp only [TopHeap.mirror, if_neg (show ¬ (1024 + j : Nat) < 2 by omega), if_neg (show ¬ (1024 + j : Nat) < 4 by omega), if_neg (show ¬ (1024 + j : Nat) < 8 by omega), if_neg (show ¬ (1024 + j : Nat) < 16 by omega), if_neg (show ¬ (1024 + j : Nat) < 32 by omega), if_neg (show ¬ (1024 + j : Nat) < 64 by omega), if_neg (show ¬ (1024 + j : Nat) < 128 by omega), if_neg (show ¬ (1024 + j : Nat) < 256 by omega), if_neg (show ¬ (1024 + j : Nat) < 512 by omega), if_neg (show ¬ (1024 + j : Nat) < 1024 by omega), if_pos (show (1024 + j : Nat) < 2048 by omega)]
-    all_goals omega
-
-set_option exponentiation.threshold 1024 in
-theorem addrFmt_topNode (k j : Nat) (hk:k<11) (hj:j<2^(10-k)) (l r : Val)
-    (hl:l.length=16) (hr:r.length=16) :
-    addrFmt (nodeInput 0 0 (k+1) j l r)=
-      (⟨0,BitVec.ofNat 512 (769+2^96*(2*2^(10-k)-1-j)+
-        2^256*leNat l+2^384*leNat r)⟩ : Query) := by
-  have hc:2^(10-k)≤1024 := (Nat.pow_le_pow_right (by decide) (show 10-k≤10 by omega))
-  have hh:heapIndex (height 0) (k+1) j=2^(10-k)+j := by
-    unfold heapIndex
-    rw [show height 0=11 by rfl,show 11-(k+1)=10-k by omega]
-  have hm:TopHeap.mirror (2^(10-k)+j)=2*2^(10-k)-1-j := by
-    have h := top_mirror_band (10-k) j (by omega) hj
-    omega
-  rw [addrFmt_nodeInput,fmt_nodeInput _ _ _ _ _ _ hl hr (by decide) (by omega) (by omega)]
-  have hlen:(thInput (tweak 3 0 0 0 (heapIndex (height 0) (k+1) j)) (l++r)).length=64 := by
-    simp [thInput,hl,hr]
-  rw [←pad64_of_len64 _ hlen,hh]
-  obtain ⟨hn,hw⟩ := Sign.words_th32 3 0 0 0 (2^(10-k)+j) l r hl hr
-  rw [Sign.pad64_eq_query,hn,hw]
-  simp only [Sign.twWords,List.cons_append,List.nil_append,Nat.reduceMod,Nat.zero_mod,Nat.zero_div,Nat.mul_zero,Nat.add_zero,Nat.zero_add]
-  have hll: (Sign.wordsOf l).length=2 := Sign.length_wordsOf_16 _ hl
-  have hrl: (Sign.wordsOf r).length=2 := Sign.length_wordsOf_16 _ hr
-  rw [TopHeap.query_words _ _ _ (by simp [hll,hrl]),if_pos (by decide)]
-  rw [LeafCarry.query_fixed_length _ (by change (0:Nat)≠10; decide)]
-  rw [EncodingRotate.query_fixed _ (by rw [AddressFormat.queryOfWords_class]; decide)]
-  have hv:TopHeap.heapW1 (BitVec.ofNat 64 (2^32*((2^(10-k)+j)%2^32)))=
-      BitVec.ofNat 64 (2^32*(2*2^(10-k)-1-j)) := by
-    unfold TopHeap.heapW1
-    simp only [BitVec.toNat_ofNat]
-    rw [Nat.mod_eq_of_lt (show 2^(10-k)+j<2^32 by omega),
-      Nat.mod_eq_of_lt (show 2^32*(2^(10-k)+j)<2^64 by omega),
-      show (2^32*(2^(10-k)+j))%4294967296=0 by omega,
-      show (2^32*(2^(10-k)+j))/4294967296=2^(10-k)+j by omega,hm]
-    simp only [Nat.zero_add,Nat.reducePow]
-  rw [hv]
-  unfold queryOfWords
-  apply congrArg (fun w : BitVec 512 => (⟨0,w⟩ : Query))
-  apply congrArg (BitVec.ofNat 512)
-  simp only [wordsToNat,wordsToNat_append,hll,Sign.wordsToNat_wordsOf,
-    BitVec.toNat_ofNat,show (0:Word).toNat=0 by rfl]
-  rw [Nat.mod_eq_of_lt (show 2^32*(2*2^(10-k)-1-j)<2^64 by omega)]
-  norm_num
-  ring
-
 /-- Node-loop context of level `lam = k + 1` (`n = 2^(10-k)` nodes): nodes `0 .. j-1` done. -/
 structure NCtx (W : List Word) (k : Nat) (levels : List (List Val)) (j : Nat) (acc : List Val)
     (t : MachineState) : Prop where
@@ -189,7 +104,7 @@ structure NCtx (W : List Word) (k : Nat) (levels : List (List Val)) (j : Nat) (a
 theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List Val)) (j : Nat)
     (hj : j < 2 ^ (10 - k)) (acc : List Val) (t : MachineState) (h : NCtx W k levels j acc t)
     (hpc : t.pc = pcOf 85) :
-    XSim image t 23 30 1 1
+    XSim image t 19 26 1 1
       (do let v ← Ref.hash16 (nodeInput 0 0 (k + 1) j ((levels.getD k []).getD (2 * j) [])
             ((levels.getD k []).getD (2 * j + 1) []))
           pure (acc ++ [v]))
@@ -208,7 +123,7 @@ theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List V
       _ = 1024 := by norm_num
   obtain ⟨u, hst, upc, u10, u11, u12, uun, u456, u480, u488, u496, u504, ufr⟩ :=
     spec_85 t hpc j (2 ^ (10 - k)) (REGION + 16 * lvOff k) (REGION + 16 * lvOff (k + 1)) (by omega)
-      (by omega) hj (by unfold REGION; omega) (by unfold REGION; omega) (by unfold REGION; omega)
+      (by omega) (by unfold REGION; omega) (by unfold REGION; omega) (by unfold REGION; omega)
       (by unfold REGION; omega) h.r16 h.r17 h.r19 h.r25 h.w456
   have ux : ∀ r, r ≠ .x1 ∧ r ≠ .x2 ∧ r ≠ .x3 ∧ r ≠ .x10 ∧ r ≠ .x11 ∧ r ≠ .x12 → u.getReg r = t.getReg r :=
     fun r hr => uun r hr.1 hr.2.1 hr.2.2.1 hr.2.2.2.1 hr.2.2.2.2.1 hr.2.2.2.2.2
@@ -219,11 +134,14 @@ theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List V
   have hll := hs.getD_len k (2 * j) le_rfl (by omega)
   have hrl := hs.getD_len k (2 * j + 1) le_rfl (by omega)
   have hq : hashInput u = addrFmt (nodeInput 0 0 (k + 1) j ((levels.getD k []).getD (2 * j) []) ((levels.getD k []).getD (2 * j + 1) [])) := by
-    rw [addrFmt_topNode k j hk hj _ _ hll hrl,
-      hashInput_eq_words u 0 (by rw [u11]) (by norm_num) (by rw [u10];rfl),u10]
-    unfold queryOfWords
-    apply congrArg (fun w : BitVec 512 => (⟨0,w⟩ : Query))
-    apply congrArg (BitVec.ofNat 512)
+    have hlen64 : (thInput (tweak 3 0 0 0 (heapIndex (height 0) (k + 1) j))
+        (((levels.getD k []).getD (2 * j) []) ++ ((levels.getD k []).getD (2 * j + 1) []))).length = 64 := by
+      simp only [thInput, List.length_append, length_tweak, length_P, hll, hrl]
+    rw [addrFmt_nodeInput, fmt_nodeInput _ _ _ _ _ _ hll hrl (by norm_num) (by omega) (by omega), ← pad64_of_len64 _ hlen64]
+    refine hashInput_eq_pad64 u 0 448 _ (by rw [u11]) (by norm_num) u10
+      (by norm_num) (by norm_num)
+      (by simp only [thInput, List.length_append, length_tweak, length_P, hll, hrl]; norm_num)
+      (by simp only [thInput, List.length_append, length_tweak, length_P, hll, hrl]; norm_num) ?_
     rw [readWords8]
     simp only [Nat.reduceAdd, wordsToNat]
     rw [getMem_frame (A := 448) ufr (by norm_num) (by simp),
@@ -236,12 +154,17 @@ theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List V
       show REGION + 16 * (lvOff k + 2 * j) + 8 = REGION + 16 * (lvOff k + 2 * j) + 8 from rfl, hl2,
       show REGION + 16 * (lvOff k + 2 * j) + 16 = REGION + 16 * (lvOff k + (2 * j + 1)) by ring, hr1,
       show REGION + 16 * (lvOff k + 2 * j) + 24 = REGION + 16 * (lvOff k + (2 * j + 1)) + 8 by ring, hr2]
-    rw [leNat_val _ hll,leNat_val _ hrl]
+    have hh : heapIndex (height 0) (k + 1) j = 2 ^ (10 - k) + j := by
+      unfold heapIndex; rw [show height 0 = 11 from rfl, hn']
+    rw [hh]
+    simp only [thInput, leNat_append, List.length_append, length_tweak,
+      P, leNat_zeros, length_zeros, leNat_tweak0 3 0 _ _ (by norm_num) (by norm_num), hll,
+      leNat_val _ hll, leNat_val _ hrl]
     simp only [BitVec.toNat_ofNat, show (0 : Word).toNat = 0 from rfl, Nat.reducePow, Nat.reduceMul,
       Nat.reduceAdd]
-    rw [Nat.mod_eq_of_lt (a := 4294967296 * (2*2 ^ (10 - k)-1-j)) (by omega)]
+    rw [Nat.mod_eq_of_lt (a := 4294967296 * (2 ^ (10 - k) + j)) (by omega),
+      Nat.mod_eq_of_lt (a := 2 ^ (10 - k) + j) (by omega)]
     ring
-
   have hblk : (pad64 (nodeInput 0 0 (k + 1) j ((levels.getD k []).getD (2 * j) []) ((levels.getD k []).getD (2 * j + 1) []))).blocks = 1 := by
     simp only [Query.blocks, pad64, padBlocks, nodeInput, thInput, List.length_append, length_tweak,
       length_P, hll, hrl]
@@ -309,7 +232,7 @@ structure VCtx (W : List Word) (k : Nat) (levels : List (List Val)) (t : Machine
 /-- One tree level `lam = k + 1`. -/
 theorem level_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List Val))
     (t : MachineState) (h : VCtx W k levels t) (hpc : t.pc = pcOf 77) :
-    XSim image t (11 + 2 ^ (10 - k) * 23) (11 + 2 ^ (10 - k) * 30) (2 ^ (10 - k)) (2 ^ (10 - k))
+    XSim image t (11 + 2 ^ (10 - k) * 19) (11 + 2 ^ (10 - k) * 26) (2 ^ (10 - k)) (2 ^ (10 - k))
       (do let level ← buildLevel (nodeInput 0 0) (1 + k) (levels.getD (1 + k - 1) [])
           pure (levels ++ [level]))
       (fun levels' u => VCtx W (k + 1) levels' u ∧ u.pc = if k + 1 < 11 then pcOf 77 else pcOf 107) := by
@@ -348,7 +271,7 @@ theorem level_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List 
     []
     (fun j acc w => NCtx W k levels j acc w ∧
       w.pc = if j < 2 ^ (10 - k) then pcOf 85 else pcOf 104)
-    (fun _ => 23) (fun _ => 30) (fun _ => 1) (fun _ => 1)
+    (fun _ => 19) (fun _ => 26) (fun _ => 1) (fun _ => 1)
     (fun j hj acc w hw => by
       rw [Nat.add_comm 1 k]
       exact node_xsim W k hk levels j hj acc w hw.1 (by rw [hw.2, if_pos hj]))
