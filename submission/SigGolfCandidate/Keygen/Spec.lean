@@ -102,24 +102,25 @@ theorem spec_40 (s : MachineState) (hpc : s.pc = BitVec.ofNat 64 (0x1000 + 4 * 4
 
 theorem spec_0 (s : MachineState) (hpc : s.pc = BitVec.ofNat 64 (0x1000 + 4 * 0))
     (h1696 : s.getMem (BitVec.ofNat 64 1696) = 0) (h192 : s.getMem (BitVec.ofNat 64 192) = 0) :
-    ∃ t, Steps image s 28 28 t ∧ t.pc = BitVec.ofNat 64 (0x1000 + 4 * 25) ∧
+    ∃ t, Steps image s 38 38 t ∧ t.pc = BitVec.ofNat 64 (0x1000 + 4 * 25) ∧
       t.getReg .x8 = BitVec.ofNat 64 0 ∧ t.getReg .x30 = BitVec.ofNat 64 0 ∧
       t.getReg .x9 = BitVec.ofNat 64 11 ∧ t.getReg .x19 = BitVec.ofNat 64 0x4B20 ∧
       t.getReg .x17 = BitVec.ofNat 64 2048 ∧ t.getReg .x20 = BitVec.ofNat 64 0 ∧
       t.getReg .x5 = s.getReg .x5 ∧
+      t.getReg .x26 = BitVec.ofNat 64 MaskHeader.M1 ∧
       t.getMem (BitVec.ofNat 64 1728) = s.getMem (BitVec.ofNat 64 128) ∧
       t.getMem (BitVec.ofNat 64 1736) = s.getMem (BitVec.ofNat 64 136) ∧
       t.getMem (BitVec.ofNat 64 1744) = s.getMem (BitVec.ofNat 64 144) ∧
       t.getMem (BitVec.ofNat 64 1752) = s.getMem (BitVec.ofNat 64 152) ∧
       (t.getMem (BitVec.ofNat 64 1696)).toNat % 2 ^ 32 = 1 ∧
       (t.getMem (BitVec.ofNat 64 192)).toNat % 2 ^ 32 = 257 ∧
-      t.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 66305 ∧
+      t.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 8198552921646891975 ∧
       t.getMem (BitVec.ofNat 64 224) = 0 ∧ t.getMem (BitVec.ofNat 64 232) = 0 ∧
       Frame s t [1728, 1736, 1744, 1752, 1696, 192, 832, 224, 232] := by
   have hobl : blk_0.res.obligs s := by simp only [blk_0.res, rv_simp]
   refine ⟨_, carryRun0 s hpc hobl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    ?_, ?_, ?_, ?_, ?_, ?_⟩
-  iterate 12 (· kgn [blk_0.res] <;> rfl)
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  iterate 13 (· kgn [blk_0.res] <;> rfl)
   · kgn [blk_0.res]; rw [rw32_zero_low']; rfl
   · kgn [blk_0.res]; rw [rw32_zero_low']; rfl
   · kgn [blk_0.res]
@@ -287,22 +288,23 @@ theorem spec_76 (s : MachineState) (hpc : s.pc = BitVec.ofNat 64 (0x1000 + 4 * 7
 theorem spec_77 (s : MachineState) (hpc : s.pc = BitVec.ofNat 64 (0x1000 + 4 * 77)) (c B : Nat)
     (hc : c < 2 ^ 32) (hB : B < 2 ^ 32)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 0) (h30 : s.getReg .x30 = BitVec.ofNat 64 0)
-    (h17 : s.getReg .x17 = BitVec.ofNat 64 c) (h19 : s.getReg .x19 = BitVec.ofNat 64 B) :
-    ∃ t, Steps image s 8 8 t ∧ t.pc = BitVec.ofNat 64 (0x1000 + 4 * 85) ∧
+    (h17 : s.getReg .x17 = BitVec.ofNat 64 c) (h19 : s.getReg .x19 = BitVec.ofNat 64 B)
+    (h26 : s.getReg .x26 = BitVec.ofNat 64 MaskHeader.M1) :
+    ∃ t, Steps image s 11 11 t ∧ t.pc = BitVec.ofNat 64 (0x1000 + 4 * 85) ∧
       t.getReg .x17 = BitVec.ofNat 64 (c / 2) ∧ t.getReg .x16 = BitVec.ofNat 64 0 ∧
       t.getReg .x25 = BitVec.ofNat 64 (B + 16 * c) ∧
       (∀ r, r ≠ .x3 → r ≠ .x29 → r ≠ .x17 → r ≠ .x16 → r ≠ .x25 → t.getReg r = s.getReg r) ∧
-      t.getMem (BitVec.ofNat 64 448) = BitVec.ofNat 64 769 ∧
+      t.getMem (BitVec.ofNat 64 448) = BitVec.ofNat 64 8198552921646826439 ∧
       (t.getMem (BitVec.ofNat 64 456)).toNat % 2 ^ 32 = 0 ∧
       Frame s t [448, 456] := by
   have hobl : blk_77.res.obligs s := by simp only [blk_77.res, rv_simp]
-  refine ⟨_, symRun_sound blk_77 codeAt_77 s hpc hobl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨_, maskRun77 s hpc hobl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · kgn [blk_77.res]
   · kgn [blk_77.res, h17]; rw [ofNat_shr _ _ (by omega)]; rfl
   · kgn [blk_77.res]
   · kgn [blk_77.res, h17, h19]; congr 1; omega
   · intro r h1 h2 h3 h4 h5; cases r <;> simp_all [blk_77.res, rv_simp] <;> rfl
-  · kgn [blk_77.res, h8]; rfl
+  · kgn [blk_77.res, h26]; rfl
   · kgn [blk_77.res, h30]; rw [rw32_zero_low']; rfl
   · intro A hA hne
     kgn [blk_77.res]

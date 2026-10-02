@@ -5,7 +5,19 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=13712 witness bytes, K=131072 cache bytes.
-The claim C=10265 is accepting verifier bound10211 plus witness charge54.
+The claim C=10264 is accepting verifier bound10210 plus witness charge54.
+The root reuses the already loaded SWAR mask as its header, removing one load.
+A total first-word permutation at native query lengths64 and704 bytes relabels
+encoding, node, and leaf headers; all four concrete programs implement it.
+The inverse handles every malformed query too, and query-block counts are preserved.
+The folded layer-1..4 dispatch is adapted from Meganpark980320 PR277,
+as integrated by jungjipdo PR280 (36cf0c50). It replaces the earlier retained-base
+dispatch from znan2 PR268 (b2779c2d), saving three further instructions.
+The WOTS base is rebased by704 using erickeigen PR269 (ba7c484e), preserving every
+chain address while removing one initializer instruction.
+This combines i34-9's seven-instruction SWAR (PR283) and Frodan's packed
+authentication witness (PR286), with our total root-header permutation (PR287).
+The packed witness starts at4720 and costs54 cycles.
 The PORS node/leaf instance header rotates bytes3..7 through a total query involution,
 so setup builds its two headers with a shift and add, saving four instructions.
 The WOTS digit-lane SWAR uses seven ALU instructions instead of nine in every layer, saving ten cycles.
@@ -78,8 +90,9 @@ c216d85858f8a7dcd68a2782cc27cfd057d45b67. Earlier public sources include
 0ba3dc24993dd3491a0a6a064c7cd9fbb9aa6439.
 
 The external witness omits its internal zero prefix. Temporary PORS cells share consumed
-chain tweak slots, and authentication paths use contiguous 16-byte cells. The external
-witness begins at 0x1270 and has 13712 bytes, with charge 55.
+chain tweak slots. The top authentication path is contiguous; lower paths use spare
+tweak cells at64-byte strides. The external witness begins at0x1270 and has13712 bytes,
+with charge54.
 
 The certificate covers all four images, universal termination, per-seed
 completeness, honest compression budgets,127-bit security and accepting
@@ -100,7 +113,7 @@ theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4720 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10265 :=
+theorem certificate : SigGolf.Certificate submission 10264 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

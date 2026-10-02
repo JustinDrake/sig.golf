@@ -117,7 +117,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
   have hfc := layFC_ok ⟨wl, pk, lay, idx⟩ ⟨h7, hidx, hwl⟩
   have hh := heightL_le lay h7
   obtain ⟨hG, hK, -, hNB, -, hm0, hm8, hvl, hF, hpc, hFresh, h12, _⟩ := hu
-  obtain ⟨h27, h30, hCB, -, -, hEH⟩ := hc
+  obtain ⟨h30, hCB, -, -, hEH⟩ := hc
   have hsw := sib_words (layFC ⟨wl, pk, lay, idx⟩) hfc (heightL lay - 1)
     (by show heightL lay - 1 < heightL lay; omega) u hG hFresh
   have hsl := length_sib (layFC ⟨wl, pk, lay, idx⟩) hfc (heightL lay - 1)
@@ -142,12 +142,11 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
   · simp only [LCtx.lay, preK, if_neg (show lay - 1 ≠ 4 by omega), aK, Nat.sub_add_cancel h1]
     intro p hp
     simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with hp | hp | hp | hp | hp | hp
+    rcases hp with hp | hp | hp | hp | hp
     · exact hK1 p (by simp [foldK, fk, gkOf, hp])
     · subst hp; exact hK1 _ (by simp [foldK, fk, gkOf])
     · subst hp; exact hK1 _ (by simp [foldK, fk, gkOf])
     · subst hp; exact h12
-    · subst hp; rw [kf _ (by simp [fkeep])]; exact h27
     · subst hp; exact hK1 (.x22, BitVec.ofNat 64 (s6N lay)) (by simp [foldK, s6N_eq])
   · simp only [routeReg, routeIn, if_neg (show lay - 1 ≠ 4 by omega)]
     rw [kf _ (by simp [fkeep]), h30]
@@ -161,7 +160,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     have ht := tau_lt lay idx h7 hidx
     rw [Nat.div_eq_of_lt (by omega : idx / 2 ^ (layS lay + heightL lay) < 2 ^ 32)]
     rw [Nat.sub_add_cancel h1]
-    omega
+    convert Ref.MaskHeader.header_node lay h7 using 2 <;> omega
   · intro _
     change EncHeader (lay - 1 + 1) u
     rw [Nat.sub_add_cancel h1]
@@ -256,7 +255,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (X : Val) (Kopt : Option Val → Oracl
         (by
           intro ends u hH42
           obtain ⟨t3, hst3, hf3, h53, hv3, hin3, hpost3⟩ := leaf_step L hL t ht a ends u hH42
-          obtain ⟨⟨-, -, -, -, -, -, -, hends, hvs, -⟩, -, -⟩ := chainNext_42 hH42
+          obtain ⟨⟨-, -, -, -, -, -, hends, hvs, -⟩, -, -⟩ := chainNext_42 hH42
           have H3 : ∀ ans, Good (writeHash t3 ans) (N + 1900)
               (C + foldCost L.lay 0 (if L.lay = 0 then heightL L.lay else heightL L.lay - 1))
               (cc (foldPath (nodeInput L.lay L.tau) L.e (answerBytes 16 ans)
