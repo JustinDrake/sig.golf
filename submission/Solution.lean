@@ -5,10 +5,7 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
-The claim C=10279 is accepting verifier bound10224 plus witness charge55.
-The retained fold-table base is adapted from znan2 PR268 (b2779c2d).
-The WOTS base is rebased by704 using erickeigen PR269 (ba7c484e), preserving every
-chain address while removing one initializer instruction.
+The claim C=10276 is accepting verifier bound10221 plus witness charge55.
 The PORS node/leaf instance header rotates bytes3..7 through a total query involution,
 so setup builds its two headers with a shift and add, saving four instructions.
 The witness-counter range check masks the merged counters with a constant mask word kept in the
@@ -102,7 +99,7 @@ theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4352 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10279 :=
+theorem certificate : SigGolf.Certificate submission 10276 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
