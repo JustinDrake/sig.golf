@@ -43,15 +43,10 @@ sym_block blk139 := symRun { noAlias := true } seg139 (pcOf 139) 6
 sym_block blk150 := symRun { noAlias := true } seg150 (pcOf 150) 4
 sym_block blk153 := symRun { noAlias := true } seg153 (pcOf 153) 8
 sym_block blk160 := symRun { noAlias := true } seg160 (pcOf 160) 6
-sym_block blk173 := symRun { noAlias := true } seg173 (pcOf 173) 2
+sym_block blk171 := symRun { noAlias := true } seg171 (pcOf 171) 2
 sym_block blk284 := symRun { noAlias := true } seg284 (pcOf 284) 4
 sym_block blk382 := symRun { noAlias := true } seg382 (pcOf 382) 5
-sym_block blkCarryHead386 := symRun { noAlias := true } seg386 (pcOf 386) 100
-sym_block blkCarryTest386 := symRunAux { noAlias := true } segCarryTest386 (pcOf 2927) 100 blkCarryHead386.res.st
-sym_block blkCarryLow386 := symRunAux { noAlias := true } segCarryLow386 (pcOf 2930) 100 blkCarryTest386.res.st
-sym_block blkCarryHigh386 := symRunAux { noAlias := true } segCarryHigh386 (pcOf 2933) 100 blkCarryTest386.res.st
-sym_block blk386low := symRunAux { noAlias := true } segCarryReturn386 (pcOf 392) 100 blkCarryLow386.res.st
-sym_block blk386high := symRunAux { noAlias := true } segCarryReturn386 (pcOf 392) 100 blkCarryHigh386.res.st
+sym_block blk386 := symRun { noAlias := true } seg386 (pcOf 386) 23
 sym_block blk408 := symRun { noAlias := true } seg408 (pcOf 408) 5
 sym_block blk412 := symRun { noAlias := true } seg412 (pcOf 412) 2
 sym_block blk413 := symRun { noAlias := true } seg413 (pcOf 413) 5
@@ -67,8 +62,6 @@ sym_block blk461 := symRun { noAlias := true } seg461 (pcOf 461) 5
 sym_block blk465 := symRun { noAlias := true } seg465 (pcOf 465) 5
 sym_block blk469 := symRun { noAlias := true } seg469 (pcOf 469) 4
 sym_block blk472 := symRun { noAlias := true } seg472 (pcOf 472) 7
-sym_block blk1820 := symRun { noAlias := true } seg1820 (pcOf 1820) 7
-sym_block blk477 := symRun { noAlias := true } seg477 (pcOf 477) 2
 sym_block blk478 := symRun { noAlias := true } seg478 (pcOf 478) 18
 sym_block blk495 := symRun { noAlias := true } seg495 (pcOf 495) 35
 sym_block blk529 := symRun { noAlias := true } seg529 (pcOf 529) 5
@@ -84,8 +77,7 @@ sym_block blk561 := symRun { noAlias := true } seg561 (pcOf 561) 2
 sym_block blk562 := symRun { noAlias := true } seg562 (pcOf 562) 4
 sym_block blk565 := symRun { noAlias := true } seg565 (pcOf 565) 3
 sym_block blk567 := symRun { noAlias := true } seg567 (pcOf 567) 2
-sym_block blk568 := symRun { noAlias := true } seg568 (pcOf 568) 2
-sym_block blk570 := symRun { noAlias := true } seg570 (pcOf 570) 9
+sym_block blk568 := symRun { noAlias := true } seg568 (pcOf 568) 11
 sym_block blk578 := symRun { noAlias := true } seg578 (pcOf 578) 6
 sym_block blk583 := symRun { noAlias := true } seg583 (pcOf 583) 5
 sym_block blk587 := symRun { noAlias := true } seg587 (pcOf 587) 5
@@ -93,8 +85,7 @@ sym_block blk591 := symRun { noAlias := true } seg591 (pcOf 591) 5
 sym_block blk595 := symRun { noAlias := true } seg595 (pcOf 595) 8
 sym_block blk602 := symRun { noAlias := true } seg602 (pcOf 602) 2
 sym_block blk603 := symRun { noAlias := true } seg603 (pcOf 603) 4
-sym_block blk606 := symRun { noAlias := true } seg606 (pcOf 606) 3
-sym_block blk608 := symRun { noAlias := true } seg608 (pcOf 608) 13
+sym_block blk606 := symRun { noAlias := true } seg606 (pcOf 606) 15
 sym_block blk620 := symRun { noAlias := true } seg620 (pcOf 620) 3
 sym_block blk622 := symRun { noAlias := true } seg622 (pcOf 622) 8
 sym_block blk629 := symRun { noAlias := true } seg629 (pcOf 629) 5
@@ -115,64 +106,5 @@ sym_block blk768 := symRun { noAlias := true } seg768 (pcOf 768) 6
 sym_block blk779 := symRun { noAlias := true } seg779 (pcOf 779) 6
 sym_block blk792 := symRun { noAlias := true } seg792 (pcOf 792) 6
 sym_block blk803 := symRun { noAlias := true } seg803 (pcOf 803) 2
-sym_block blk804 := symRun { noAlias := true } seg804 (pcOf 804) 29
-sym_block blk832 := symRun { noAlias := true } seg832 (pcOf 832) 29
-
-sym_block blk2915 := symRun { noAlias := true } seg2915 (pcOf 2915) 4
-sym_block blk2918 := symRun { noAlias := true } seg2918 (pcOf 2918) 4
-sym_block blk2921 := symRun { noAlias := true } seg2921 (pcOf 2921) 2
-sym_block blk2922 := symRun { noAlias := true } seg2922 (pcOf 2922) 4
-sym_block blk2925 := symRun { noAlias := true } seg2925 (pcOf 2925) 2
-sym_block blk2926 := symRun { noAlias := true } seg2926 (pcOf 2926) 2
-
-
-theorem carryRun386Low (s : MachineState) (hpc : s.pc=pcOf 386)
-    (h4:s.getReg .x8 ≠ 4#64) (hobl : blk386low.res.obligs s) :
-    Steps image s 29 32 (blk386low.res.toState s) := by
-  have ho := (Oblig.all_iff s _).mp hobl
-  have h3:=symRunAux_sound {noAlias:=true} image s segCarryReturn386 (pcOf 392) 100
-    blkCarryLow386.res.st _ blk386low codeAt_carryReturn386 ho
-  have h2:=symRunAux_sound {noAlias:=true} image s segCarryLow386 (pcOf 2930) 100
-    blkCarryTest386.res.st _ blkCarryLow386 codeAt_carryLow386 (fun o h=>ho o (h3.2.1 h))
-  have h1:=symRunAux_sound {noAlias:=true} image s segCarryTest386 (pcOf 2927) 100
-    blkCarryHead386.res.st _ blkCarryTest386 codeAt_carryTest386 (fun o h=>ho o (h3.2.1 (h2.2.1 h)))
-  have h0:=symRun_sound blkCarryHead386 codeAt_386 s hpc
-    ((Oblig.all_iff s _).mpr (fun o h=>ho o (h3.2.1 (h2.2.1 (h1.2.1 h)))))
-  have hs1:=h1.1
-  change Steps image (blkCarryHead386.res.toState s) _ _ _ at hs1
-  have hp:blkCarryTest386.res.pc.eval s=pcOf 2930 := by
-    simp [blkCarryTest386.res,rv_simp,h4]
-  have he:blkCarryTest386.res.toState s=blkCarryTest386.res.st.toState s (pcOf 2930) := by
-    simp only [Result.toState,hp]
-  have hs2:=h2.1
-  rw [←he] at hs2
-  have hs3:=h3.1
-  change Steps image (blkCarryLow386.res.toState s) _ _ _ at hs3
-  exact h0.trans (hs1.trans (hs2.trans hs3))
-
-
-theorem carryRun386High (s : MachineState) (hpc : s.pc=pcOf 386)
-    (h4:s.getReg .x8 = 4#64) (hobl : blk386high.res.obligs s) :
-    Steps image s 26 29 (blk386high.res.toState s) := by
-  have ho := (Oblig.all_iff s _).mp hobl
-  have h3:=symRunAux_sound {noAlias:=true} image s segCarryReturn386 (pcOf 392) 100
-    blkCarryHigh386.res.st _ blk386high codeAt_carryReturn386 ho
-  have h2:=symRunAux_sound {noAlias:=true} image s segCarryHigh386 (pcOf 2933) 100
-    blkCarryTest386.res.st _ blkCarryHigh386 codeAt_carryHigh386 (fun o h=>ho o (h3.2.1 h))
-  have h1:=symRunAux_sound {noAlias:=true} image s segCarryTest386 (pcOf 2927) 100
-    blkCarryHead386.res.st _ blkCarryTest386 codeAt_carryTest386 (fun o h=>ho o (h3.2.1 (h2.2.1 h)))
-  have h0:=symRun_sound blkCarryHead386 codeAt_386 s hpc
-    ((Oblig.all_iff s _).mpr (fun o h=>ho o (h3.2.1 (h2.2.1 (h1.2.1 h)))))
-  have hs1:=h1.1
-  change Steps image (blkCarryHead386.res.toState s) _ _ _ at hs1
-  have hp:blkCarryTest386.res.pc.eval s=pcOf 2933 := by
-    simp [blkCarryTest386.res,rv_simp,h4]
-  have he:blkCarryTest386.res.toState s=blkCarryTest386.res.st.toState s (pcOf 2933) := by
-    simp only [Result.toState,hp]
-  have hs2:=h2.1
-  rw [←he] at hs2
-  have hs3:=h3.1
-  change Steps image (blkCarryHigh386.res.toState s) _ _ _ at hs3
-  exact h0.trans (hs1.trans (hs2.trans hs3))
 
 end SigGolfCandidate.Expand

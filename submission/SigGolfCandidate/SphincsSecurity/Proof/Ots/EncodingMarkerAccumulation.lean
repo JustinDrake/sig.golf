@@ -63,7 +63,7 @@ theorem encodingCalls_step (parameter : PublicParameter) (input : OracleWorld.Do
 
 theorem markers_lazyRun_le {Result : Type} (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (outside : NonencodingRows parameter inputs hencoding)
-    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (dummy : OtsReferenceWords)
+    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (dummy : OtsReferenceWords)
     (computation : OracleComp OracleWorld Result) (history : OtsContactTrace.Trace)
     (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed)
@@ -71,7 +71,7 @@ theorem markers_lazyRun_le {Result : Type} (parameter : PublicParameter) (inputs
     (∑' result, Pr[= result | lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation) allowed] *
       ((OtsEncodingMarker.markers parameter (referenceFamilyWords selections dummy) (history * result.1.2)).card : ENNReal)) ≤
       ((OtsEncodingMarker.markers parameter (referenceFamilyWords selections dummy) history).card : ENNReal) +
-        (((63 / 32 : ENNReal) * (OtsCode.neighborBound : ENNReal)) / (Fintype.card Digest : ENNReal)) * ∑' result,
+        ((OtsCode.neighborBound : ENNReal) / (Fintype.card Digest : ENNReal)) * ∑' result,
           Pr[= result | lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation) allowed] *
             (encodingCalls parameter result.1.2 : ENNReal) := by
   simp only [lazyRun_eq_simulate]
@@ -92,12 +92,12 @@ theorem markers_lazyRun_le {Result : Type} (parameter : PublicParameter) (inputs
 
 theorem markers_initial_lazyRun_le {Result : Type} (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (outside : NonencodingRows parameter inputs hencoding)
-    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (dummy : OtsReferenceWords)
+    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (dummy : OtsReferenceWords)
     (computation : OracleComp OracleWorld Result) :
     (∑' result, Pr[= result | lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation)
       (referenceEncodingAllowed parameter messages selections)] *
       ((OtsEncodingMarker.markers parameter (referenceFamilyWords selections dummy) result.1.2).card : ENNReal)) ≤
-        (((63 / 32 : ENNReal) * (OtsCode.neighborBound : ENNReal)) / (Fintype.card Digest : ENNReal)) * ∑' result,
+        ((OtsCode.neighborBound : ENNReal) / (Fintype.card Digest : ENNReal)) * ∑' result,
           Pr[= result | lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation)
             (referenceEncodingAllowed parameter messages selections)] * (encodingCalls parameter result.1.2 : ENNReal) := by
   simpa only [one_mul, OtsEncodingMarker.markers_one, Finset.card_empty, Nat.cast_zero, zero_add] using

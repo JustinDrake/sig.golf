@@ -27,11 +27,11 @@ kernel_theorem blk0_pbS : ∀ t : MachineState,
 kernel_theorem blk0_rbS : ∀ t : MachineState,
     (blk0.res.toState t).readWords (BitVec.ofNat 64 0x640) 4 = t.readWords (BitVec.ofNat 64 0x80) 4
 kernel_theorem blk0_rbM : ∀ t : MachineState,
-    (blk0.res.toState t).readWords (BitVec.ofNat 64 0x660) 4 = t.readWords (BitVec.ofNat 64 0x20) 4
+    (blk0.res.toState t).readWords (BitVec.ofNat 64 0x660) 4 = t.readWords (BitVec.ofNat 64 0x40) 4
 kernel_theorem blk0_macS : ∀ t : MachineState,
     (blk0.res.toState t).readWords (BitVec.ofNat 64 0xCB00) 4 = t.readWords (BitVec.ofNat 64 0x80) 4
 kernel_theorem blk0_db0 : ∀ t : MachineState,
-    (blk0.res.toState t).getMem (BitVec.ofNat 64 0x0) = BitVec.ofNat 64 0xC01
+    (blk0.res.toState t).getMem (BitVec.ofNat 64 0x20) = BitVec.ofNat 64 0xC01
 kernel_theorem blk0_mac0 : ∀ t : MachineState,
     (blk0.res.toState t).getMem (BitVec.ofNat 64 0xCAE0) = BitVec.ofNat 64 0xE01
 kernel_theorem blk0_macPrefix : ∀ t : MachineState,
@@ -48,7 +48,7 @@ theorem blk0_rb0 (t : MachineState) :
 
 /-- Addresses written by the setup block. -/
 def setupW (a : Nat) : Prop :=
-  a = 0x0 ∨ a = 0x620 ∨ (0x640 ≤ a ∧ a < 0x680) ∨ (0x6C0 ≤ a ∧ a < 0x6E0) ∨ (0xCAE0 ≤ a ∧ a < 0xCB00) ∨
+  a = 0x20 ∨ a = 0x620 ∨ (0x640 ≤ a ∧ a < 0x680) ∨ (0x6C0 ≤ a ∧ a < 0x6E0) ∨ (0xCAE0 ≤ a ∧ a < 0xCB00) ∨
     (0xCB00 ≤ a ∧ a < 0xCB20) ∨ (0x14B00 ≤ a ∧ a < 0x14B20)
 
 /-- Addresses written up to the digest loop (setup, the MAC answer). -/
@@ -271,7 +271,7 @@ theorem mac_sim (sk : SecretKey) (cache : Cache) (m : Message) {β : Type}
     intro a n h1 h2
     exact readWords_congr _ _ a n (fun i hi => by rw [n7, f2.getMem (by omega) (by have := h2 i hi; omega)])
   have hz : ∀ a n, a % 8 = 0 → a + 8 * n + 8 < 2 ^ 64 →
-      (∀ i < n, a + 8 * i + 8 ≤ 0x20 ∨ (0x40 ≤ a + 8 * i ∧ a + 8 * i + 8 ≤ 0x80) ∨
+      (∀ i < n, a + 8 * i + 8 ≤ 0x40 ∨ (0x60 ≤ a + 8 * i ∧ a + 8 * i + 8 ≤ 0x80) ∨
         (0xA0 ≤ a + 8 * i ∧ a + 8 * i + 8 ≤ 0x4B00) ∨ 0x24B00 ≤ a + 8 * i) →
       s.readWords (BitVec.ofNat 64 a) n = List.replicate n 0 := by
     intro a n h8 hb hout

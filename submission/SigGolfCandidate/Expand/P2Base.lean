@@ -30,9 +30,7 @@ abbrev eimg : Image := Expand.image
 
 /-- The expand image carries the sign's layer header and counter search (words 316 .. 381). -/
 theorem eHeadCode : HeadCode eimg :=
-  { c346 := Expand.codeAt_346, c351 := Expand.codeAt_351, c353 := Expand.codeAt_353,
-    c1800 := Expand.codeAt_1800, c355 := Expand.codeAt_355,
-    c375 := Expand.codeAt_375, c1816 := Expand.codeAt_1816,
+  { c346 := Expand.codeAt_346, c351 := Expand.codeAt_351, c355 := Expand.codeAt_355,
     c376 := Expand.codeAt_376, c377 := Expand.codeAt_377, c379 := Expand.codeAt_379,
     c316 := Expand.codeAt_316, c318 := Expand.codeAt_318, c321 := Expand.codeAt_321,
     c322 := Expand.codeAt_322, c329 := Expand.codeAt_329, c331 := Expand.codeAt_331 }
@@ -75,10 +73,10 @@ def wword (w : List Byte) (o : Nat) : Word := BitVec.ofNat 64 (leNat (wbytes w o
 
 /-- The buffer `0x800 .. 0x4800` holds the witness `w`, zero padded. -/
 def WitMem (w : List Byte) (t : MachineState) : Prop :=
-  ∀ k < 8192, t.getMem (BitVec.ofNat 64 (0x800 + 8 * k)) = wword w (8 * k)
+  ∀ k < 2048, t.getMem (BitVec.ofNat 64 (0x800 + 8 * k)) = wword w (8 * k)
 
 /-- Addresses of the witness buffer. -/
-def witA (a : Nat) : Prop := 0x800 ≤ a ∧ a < 0x10800
+def witA (a : Nat) : Prop := 0x800 ≤ a ∧ a < 0x4800
 
 theorem WitMem.frame {w : List Byte} {s t : MachineState} {W : Nat → Prop} (h : WitMem w s)
     (hf : Frame s t W) (hW : ∀ a, witA a → ¬ W a) : WitMem w t := by
@@ -86,7 +84,7 @@ theorem WitMem.frame {w : List Byte} {s t : MachineState} {W : Nat → Prop} (h 
   rw [hf.getMem (by omega) (hW _ (by unfold witA; omega)), h k hk]
 
 theorem WitMem.get {w : List Byte} {t : MachineState} (h : WitMem w t) (o : Nat) (ho : o % 8 = 0)
-    (ho' : o < 0x10000) : t.getMem (BitVec.ofNat 64 (0x800 + o)) = wword w o := by
+    (ho' : o < 0x4000) : t.getMem (BitVec.ofNat 64 (0x800 + o)) = wword w o := by
   have := h (o / 8) (by omega)
   rwa [show 8 * (o / 8) = o by omega] at this
 
@@ -107,7 +105,7 @@ theorem wordsOf_wbytes16 (w : List Byte) (o : Nat) : wordsOf (wbytes w o 16) = [
 
 /-- Two witness dwords as a 16-byte field. -/
 theorem WitMem.readWords16 {w : List Byte} {t : MachineState} (h : WitMem w t) (o : Nat) (ho : o % 8 = 0)
-    (ho' : o + 8 < 0x10000) :
+    (ho' : o + 8 < 0x4000) :
     t.readWords (BitVec.ofNat 64 (0x800 + o)) 2 = wordsOf (wbytes w o 16) := by
   rw [readWords_ofNat_two, wordsOf_wbytes16, h.get o ho (by omega),
     show 0x800 + o + 8 = 0x800 + (o + 8) by omega, h.get (o + 8) (by omega) ho']
@@ -186,12 +184,10 @@ theorem ofNat_beq_zero (n : Nat) (h : n < 2 ^ 64) : (BitVec.ofNat 64 n == 0#64) 
 
 /-- The tweak words of a PORS input (`lay = 0`, `p = 0`, instance `idx < 2^34`). -/
 theorem twWords_pors (tg idx j : Nat) (ht : tg < 256) (hidx : idx < 2 ^ 34) (hj : j < 2 ^ 32) :
-    twWords tg 0 (Ref.tauH idx) idx j =
-      [BitVec.ofNat 64 (1 + 256 * tg + 2 ^ 24 * (idx / 2 ^ 32) + 2 ^ 32 * (idx % 2 ^ 32)),
-        BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * j)] := by
+    twWords tg 0 idx 0 j =
+      [BitVec.ofNat 64 (1 + 256 * tg + 2 ^ 24 * (idx / 2 ^ 32)), BitVec.ofNat 64 (idx % 2 ^ 32 + 2 ^ 32 * j)] := by
   unfold twWords
-  have e1 : Ref.tauH idx / 2 ^ 32 % 256 = idx / 2 ^ 32 := by unfold Ref.tauH; omega
-  rw [Nat.mod_eq_of_lt ht, e1, Nat.mod_eq_of_lt hj]
+  rw [Nat.mod_eq_of_lt ht, Nat.mod_eq_of_lt (by omega : idx / 2 ^ 32 < 256), Nat.mod_eq_of_lt hj]
   simp
 
 end SigGolfCandidate.ExP

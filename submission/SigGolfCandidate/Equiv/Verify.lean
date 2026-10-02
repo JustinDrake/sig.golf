@@ -105,11 +105,11 @@ theorem ctrOff_bound (lay : Layer) : Ref.ctrOff lay.val + 4 ≤ 16384 := by
 include hl
 
 theorem witRho_eq : Ref.witRho wl = dv (witSig wl).randomness :=
-  (dv_ofList_slice _ _ (by rw [Ref.wRho_eq]; omega)).symm
+  (dv_ofList_slice _ _ (by omega)).symm
 
 theorem witSecret_eq (s : Nat) (hs : s < 15) :
     Ref.witSecret wl s = dv (Ref.ofList 16 (Ref.witSecret wl s)) :=
-  (dv_ofList_slice _ _ (by rw [Ref.wSec_eq]; omega)).symm
+  (dv_ofList_slice _ _ (by unfold Ref.wSec; omega)).symm
 
 theorem witChain_eq (lay : Layer) (i : ChainIndex) :
     Ref.witChain wl lay.val i.val = dv (((witSig wl).layers lay).chainValues i) :=
@@ -280,79 +280,26 @@ theorem verifyLeafP_eq (wl : List Byte) (hl : wl.length = 16384) (lay : Layer) (
   refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun f => ?_
   rw [foldl_finRange_append, List.nil_append, hash16_leaf]
 
-theorem take_map_range {β : Type} (f : Nat → β) (n m : Nat) (h : m ≤ n) :
-    ((List.range n).map f).take m = (List.range m).map f := by
-  rw [← List.map_take, List.take_range, Nat.min_eq_left h]
-
-theorem witSib_eq (wl : List Byte) (hl : wl.length = 16384) (lay : Layer) (l : Nat)
-    (hl2 : l < SphincsSecurity.layerHeight lay) :
-    Ref.witSib wl lay.val l = dv (SphincsSecurity.Concrete.signaturePath (witSig wl) lay l) := by
-  unfold SphincsSecurity.Concrete.signaturePath
-  rw [dif_pos hl2]
-  have hb := path_bound lay
-  have hm := Nat.mul_le_mul_left 16 (show l + 1 ≤ SphincsSecurity.layerHeight lay by omega)
-  rw [Nat.mul_add, Nat.mul_one] at hm
-  exact (dv_ofList_slice _ _ (by omega)).symm
-
-/-- The root's two children in order, on bytes and on digests. -/
-theorem topPair_eq (e h : Nat) (node sib : Digest) :
-    Ref.topPair e h (dv node) (dv sib) =
-      dvM (SphincsSecurity.Concrete.topPair (e.testBit (h - 1)) node sib) := by
-  unfold Ref.topPair SphincsSecurity.Concrete.topPair dvM
-  by_cases hb : e.testBit (h - 1) = true
-  · rw [if_pos ((testBit_iff _ _).mpr hb), if_pos hb]
-  · rw [if_neg (fun h' => hb ((testBit_iff _ _).mp h')), if_neg hb]
-
-/-- The top tree's fold to the root: the fold below the root, then the hash of the ordered pair. -/
-theorem treeFold_top (index : Index) (path : Nat → Digest) (v : Digest) :
-    SphincsSecurity.Concrete.treeFold (m := AComp) 0 SphincsSecurity.topLayer
-        (SphincsSecurity.Concrete.treeIndexAt index SphincsSecurity.topLayer)
-        (SphincsSecurity.Concrete.leafIndexAt index SphincsSecurity.topLayer) path
-        (SphincsSecurity.layerHeight SphincsSecurity.topLayer) v =
-      SphincsSecurity.Concrete.treeFold (m := AComp) 0 SphincsSecurity.topLayer
-        (SphincsSecurity.Concrete.treeIndexAt index SphincsSecurity.topLayer)
-        (SphincsSecurity.Concrete.leafIndexAt index SphincsSecurity.topLayer) path
-        (SphincsSecurity.layerHeight SphincsSecurity.topLayer - 1) v >>= fun node =>
-        SphincsSecurity.Concrete.topRoot 0 index
-          (SphincsSecurity.Concrete.topPair
-            ((SphincsSecurity.Concrete.leafIndexAt index SphincsSecurity.topLayer).val.testBit
-              (SphincsSecurity.layerHeight SphincsSecurity.topLayer - 1)) node
-            (path (SphincsSecurity.layerHeight SphincsSecurity.topLayer - 1))) := by
-  have hlt := leafIndexAt_lt index SphincsSecurity.topLayer
-  have hzero : (SphincsSecurity.Concrete.leafIndexAt index SphincsSecurity.topLayer).val /
-      2 ^ (SphincsSecurity.layerHeight SphincsSecurity.topLayer - 1 + 1) = 0 :=
-    Nat.div_eq_of_lt hlt
-  show SphincsSecurity.Concrete.treeFold (m := AComp) 0 SphincsSecurity.topLayer _ _ path
-      (SphincsSecurity.layerHeight SphincsSecurity.topLayer - 1 + 1) v = _
-  rw [SphincsSecurity.Concrete.treeFold]
-  refine bind_congr fun node => ?_
-  simp only [SphincsSecurity.Concrete.topRoot, SphincsSecurity.Concrete.topPair, hzero]
-  split <;> rfl
-
-/-- **The layer walk.** The reference walk of `n + 1` layers from the 32-byte message `M` is the abstract
-padded walk followed by the top tree's last hash. -/
 theorem verifyLayersP_eq (wl : List Byte) (hl : wl.length = 16384) (index : Index) (n : Nat)
-    (hn : n < 5) (M : SphincsSecurity.EncMessage) :
-    Ref.verifyLayers wl index (n + 1) (dvM M) =
-      Option.map dv <$> relabel fmtQ (do
-        match ← SphincsSecurity.Concrete.verifyLayersP (m := AComp) 0 index (witSig wl) (padOf wl)
-            (n + 1) M with
-        | none => pure none
-        | some top => some <$> SphincsSecurity.Concrete.topRoot 0 index top) := by
+    (hn : n ≤ 5) (M : Digest) :
+    Ref.verifyLayers wl index n (dv M) =
+      Option.map dv <$> relabel fmtQ
+        (SphincsSecurity.Concrete.verifyLayersP (m := AComp) 0 index (witSig wl) (padOf wl) n M) := by
   induction n generalizing M with
-  | zero =>
-    let lay : Layer := ⟨0, by decide⟩
+  | zero => simp [Ref.verifyLayers, SphincsSecurity.Concrete.verifyLayersP]
+  | succ n ih =>
+    let lay : Layer := ⟨n, show n < 5 by omega⟩
     have hr := route_eq index lay
     simp only [lay] at hr
     unfold Ref.verifyLayers SphincsSecurity.Concrete.verifyLayersP
-    rw [dif_pos (show 0 < SphincsSecurity.numLayers by decide)]
+    rw [dif_pos (show n < SphincsSecurity.numLayers by show n < 5; omega)]
     simp only [hr]
     unfold SphincsSecurity.Concrete.otsLeafP SphincsSecurity.Concrete.encode
     rw [hash16_enc lay, witCounter_eq wl lay]
     simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_
-    rw [decodeDigits_dv lay (SphincsSecurity.selectEncodingDigest d)]
-    cases hd : SphincsSecurity.TargetSum.decodeDigest lay (SphincsSecurity.selectEncodingDigest d) with
+    rw [decodeDigits_dv]
+    cases hd : SphincsSecurity.TargetSum.decodeDigest d with
     | none => simp
     | some enc =>
       simp only [Option.map_some]
@@ -360,7 +307,7 @@ theorem verifyLayersP_eq (wl : List Byte) (hl : wl.length = 16384) (index : Inde
       simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun ends => ?_
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun v => ?_
-      rw [if_pos trivial, witPath_eq wl hl lay]
+      rw [witPath_eq wl hl lay]
       have hfold := foldPath_eq (Ref.nodeInput lay (SphincsSecurity.Concrete.treeIndexAt index lay))
         (fun lam j l r => SphincsSecurity.Concrete.tweakableHash (m := AComp) 0
           (.node lay (SphincsSecurity.Concrete.treeIndexAt index lay) lam j)
@@ -372,52 +319,8 @@ theorem verifyLayersP_eq (wl : List Byte) (hl : wl.length = 16384) (index : Inde
           (SphincsSecurity.Concrete.signaturePath (witSig wl) lay) k v)
         (fun v => rfl) (fun l v => rfl) (SphincsSecurity.layerHeight lay) v
       rw [hfold, bind_map_left]
-      rw [show lay = SphincsSecurity.topLayer from rfl, treeFold_top index _ v]
-      simp only [relabel_bind, bind_assoc, Ref.verifyLayers, SphincsSecurity.Concrete.verifyLayersP,
-        relabel_pure, pure_bind, map_bind, map_pure, map_eq_bind_pure_comp, Function.comp,
-        Option.map_some]
-      rfl
-  | succ n ih =>
-    let lay : Layer := ⟨n + 1, by show n + 1 < 5; omega⟩
-    have hr := route_eq index lay
-    simp only [lay] at hr
-    unfold Ref.verifyLayers SphincsSecurity.Concrete.verifyLayersP
-    rw [dif_pos (show n + 1 < SphincsSecurity.numLayers by show n + 1 < 5; omega)]
-    simp only [hr]
-    unfold SphincsSecurity.Concrete.otsLeafP SphincsSecurity.Concrete.encode
-    rw [hash16_enc lay, witCounter_eq wl lay]
-    simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
-    refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_
-    rw [decodeDigits_dv lay (SphincsSecurity.selectEncodingDigest d)]
-    cases hd : SphincsSecurity.TargetSum.decodeDigest lay (SphincsSecurity.selectEncodingDigest d) with
-    | none => simp
-    | some enc =>
-      simp only [Option.map_some]
-      rw [verifyLeafP_eq wl hl lay _ _ enc]
-      simp only [relabel_bind, relabel_pure, bind_map_left, map_bind, bind_assoc, pure_bind]
-      refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun ends => ?_
-      refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun v => ?_
-      have hpos : 0 < SphincsSecurity.layerHeight lay := by
-        unfold SphincsSecurity.layerHeight SphincsSecurity.maxLayerHeight
-        split <;> (try split) <;> omega
-      rw [if_neg (Nat.succ_ne_zero n), witPath_eq wl hl lay, height_eq lay,
-        take_map_range _ _ _ (Nat.sub_le _ _),
-        witSib_eq wl hl lay (SphincsSecurity.layerHeight lay - 1) (by omega)]
-      have hfold := foldPath_eq (Ref.nodeInput lay (SphincsSecurity.Concrete.treeIndexAt index lay))
-        (fun lam j l r => SphincsSecurity.Concrete.tweakableHash (m := AComp) 0
-          (.node lay (SphincsSecurity.Concrete.treeIndexAt index lay) lam j)
-          (SphincsSecurity.Concrete.nodePayload l r))
-        (hash16_node lay _) (SphincsSecurity.Concrete.leafIndexAt index lay)
-        (SphincsSecurity.Concrete.signaturePath (witSig wl) lay)
-        (fun k v => SphincsSecurity.Concrete.treeFold (m := AComp) 0 lay
-          (SphincsSecurity.Concrete.treeIndexAt index lay) (SphincsSecurity.Concrete.leafIndexAt index lay)
-          (SphincsSecurity.Concrete.signaturePath (witSig wl) lay) k v)
-        (fun v => rfl) (fun l v => rfl) (SphincsSecurity.layerHeight lay - 1) v
-      rw [hfold, bind_map_left]
-      refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun node => ?_
-      rw [topPair_eq, ih (by omega)]
-      simp only [relabel_bind, map_bind]
-      rfl
+      refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun root => ?_
+      exact ih (by omega) root
 
 
 /-! ## The PORS stack machine -/
@@ -430,11 +333,11 @@ variable (index : Index) (wl : List Byte)
 
 /-- A segment fold, as `Ref.segFolds` does it. -/
 theorem segFolds_aux (seg : SphincsSecurity.Segment) (ptr : Nat)
-    (hnodes : ∀ i (h : i < seg.folds.val), seg.nodes ⟨i, h⟩ = wdig wl (ptr + 64 + 64 * i)) :
+    (hnodes : ∀ i (h : i < seg.folds.val), seg.nodes ⟨i, h⟩ = wdig wl (ptr + 8 + 16 * i)) :
     ∀ (r p : Nat) (cur : Digest) (E : Nat), p + r ≤ seg.folds.val →
       (p = 0 → 0 < r → seg.parity = decide (E % 2 = 1)) →
       (List.range' p r).foldlM (fun (st : Ref.Val × Nat) i =>
-        let sib := Ref.wbytes wl (ptr + 64 + 64 * i) 16
+        let sib := Ref.wbytes wl (ptr + 8 + 16 * i) 16
         if st.2 % 2 = 1 then do
           let v ← Ref.hash16 (Ref.porsNodeInput index (st.2 / 2) sib st.1)
           pure (v, st.2 / 2)
@@ -449,7 +352,7 @@ theorem segFolds_aux (seg : SphincsSecurity.Segment) (ptr : Nat)
   | succ r ih =>
     intro p cur E hpr hpar
     rw [List.range'_succ, List.foldlM_cons]
-    have hsib : Ref.wbytes wl (ptr + 64 + 64 * p) 16 = dv (seg.node p) := by
+    have hsib : Ref.wbytes wl (ptr + 8 + 16 * p) 16 = dv (seg.node p) := by
       unfold SphincsSecurity.Segment.node
       rw [dif_pos (by omega), hnodes p (by omega), dv_wdig]
     have hright : (if p = 0 then seg.parity else decide (E % 2 = 1)) = decide (E % 2 = 1) := by
@@ -470,7 +373,7 @@ theorem segFolds_aux (seg : SphincsSecurity.Segment) (ptr : Nat)
       exact ih (p + 1) v (E / 2) (by omega) (fun h => absurd h (by omega))
 
 theorem segFolds_eq (seg : SphincsSecurity.Segment) (ptr : Nat)
-    (hnodes : ∀ i (h : i < seg.folds.val), seg.nodes ⟨i, h⟩ = wdig wl (ptr + 64 + 64 * i))
+    (hnodes : ∀ i (h : i < seg.folds.val), seg.nodes ⟨i, h⟩ = wdig wl (ptr + 8 + 16 * i))
     (a : Nat) (cur : Digest) (E : Nat) (ha : a = seg.folds.val)
     (hpar : 0 < a → seg.parity = decide (E % 2 = 1)) :
     Ref.segFolds index wl ptr a (dv cur) E =
@@ -523,8 +426,7 @@ theorem recoverSegments_step (segments : Fin SphincsSecurity.ftsSegments → Sph
     SphincsSecurity.Concrete.recoverSegments (m := AComp) 0 index segments (fuel + 1) ap st =
       if SphincsSecurity.ftsTreeHeight < (segments ⟨st.segment, h⟩).folds.val then pure none
       else if (segments ⟨st.segment, h⟩).folds.val ≠ 0 ∧
-          ((segments ⟨st.segment, h⟩).parity ≠ decide (st.heap % 2 = 1) ∨
-           (3 ≤ (segments ⟨st.segment, h⟩).folds.val ∧ (segments ⟨st.segment, h⟩).lookahead.val ≠ st.heap / 2 % 4)) then pure none
+          (segments ⟨st.segment, h⟩).parity ≠ decide (st.heap % 2 = 1) then pure none
       else
         pendA index ap st.node >>= fun start =>
         SphincsSecurity.Concrete.foldSegment 0 index (segments ⟨st.segment, h⟩)
@@ -538,59 +440,48 @@ theorem segAt_merge (p : Nat) : (segAt wl p).merge = decide (Ref.wbyte wl p / 16
 theorem segAt_parity (p : Nat) : (segAt wl p).parity =
     (decide (Ref.wbyte wl p / 32 % 2 = 1) && decide (Ref.wbyte wl p % 16 ≠ 0)) := rfl
 
-theorem segAt_lookahead (p : Nat) : (segAt wl p).lookahead.val =
-    if Ref.wbyte wl p % 16 < 3 then 0 else Ref.wbyte wl p / 64 % 4 := by
-  unfold segAt SphincsSecurity.Segment.normalized
-  split <;> rfl
-
-theorem path_guard_eq (b E : Nat) (hb : b < 256) :
-    (0 < b % 16 ∧ (b / 32 % 2 ≠ E % 2 ∨ (3 ≤ b % 16 ∧ b / 32 / 2 ≠ E / 2 % 4))) ↔
-      (b % 16 ≠ 0 ∧ ((decide (b / 32 % 2 = 1) && decide (b % 16 ≠ 0)) ≠
-        decide (E % 2 = 1) ∨ (3 ≤ b % 16 ∧ (if b % 16 < 3 then 0 else b / 64 % 4) ≠ E / 2 % 4))) := by
-  by_cases hz : b % 16 = 0
-  · simp [hz]
-  · simp only [hz,ne_eq,not_false_eq_true,decide_true,Bool.and_true,true_and]
-    have hbit : (decide (b / 32 % 2 = 1) ≠ decide (E % 2 = 1)) ↔ b / 32 % 2 ≠ E % 2 := by
-      have hb2 := Nat.mod_lt (b / 32) (show 0 < 2 by decide)
-      have hE2 := Nat.mod_lt E (show 0 < 2 by decide)
-      by_cases hb1 : b / 32 % 2 = 1 <;> by_cases hE1 : E % 2 = 1 <;> simp [hb1,hE1] <;> omega
-    simp only [ne_eq] at hbit
-    rw [hbit]
-    by_cases hs : b % 16 < 3
-    · simp [hs]; omega
-    · simp only [hs,if_false]
-      omega
-
 theorem segment_eq (j E folds : Nat) (ap : PendingHash) (cur : Digest) :
     Ref.segment index wl (segPtr wl j) E folds (encP ap) (dv cur) =
       if 14 < (segAt wl (segPtr wl j)).folds.val then pure none
       else if (segAt wl (segPtr wl j)).folds.val ≠ 0 ∧
-          ((segAt wl (segPtr wl j)).parity ≠ decide (E % 2 = 1) ∨
-           (3 ≤ (segAt wl (segPtr wl j)).folds.val ∧ (segAt wl (segPtr wl j)).lookahead.val ≠ E / 2 % 4)) then pure none
+          (segAt wl (segPtr wl j)).parity ≠ decide (E % 2 = 1) then pure none
       else (fun x : Digest × Nat => some (segPtr wl (j + 1), x.2, folds + (segAt wl (segPtr wl j)).folds.val,
           dv x.1, (segAt wl (segPtr wl j)).merge)) <$>
         relabel fmtQ (pendA index ap cur >>= fun start =>
           SphincsSecurity.Concrete.foldSegment 0 index (segAt wl (segPtr wl j))
             (segAt wl (segPtr wl j)).folds.val 0 start E) := by
-  rw [segAt_folds, segAt_merge, segAt_parity, segAt_lookahead]
-  have hbyte : Ref.wbyte wl (segPtr wl j) < 256 := (wl.getD (segPtr wl j) 0).isLt
+  rw [segAt_folds, segAt_merge, segAt_parity]
   unfold Ref.segment
   simp only [gt_iff_lt, Ref.porsH]
   generalize hb : Ref.wbyte wl (segPtr wl j) = b
-  rw [hb] at hbyte
   by_cases h1 : 14 < b % 16
   · simp [h1]
   · simp only [h1, if_false]
-    have hg := path_guard_eq b E hbyte
-    by_cases h2 : 0 < b % 16 ∧ (b / 32 % 2 ≠ E % 2 ∨ (3 ≤ b % 16 ∧ b / 32 / 2 ≠ E / 2 % 4))
-    · rw [if_pos h2, if_pos (hg.mp h2)]
-    · rw [if_neg h2, if_neg (mt hg.mpr h2)]
+    have ht : b / 32 % 2 < 2 := Nat.mod_lt _ (by decide)
+    have hE : E % 2 < 2 := Nat.mod_lt _ (by decide)
+    by_cases h2 : 0 < b % 16 ∧ b / 32 % 2 ≠ E % 2
+    · have h2' : b % 16 ≠ 0 ∧ (decide (b / 32 % 2 = 1) && decide (b % 16 ≠ 0)) ≠ decide (E % 2 = 1) := by
+        refine ⟨by omega, ?_⟩
+        have hne : b % 16 ≠ 0 := by omega
+        simp only [hne, ne_eq, not_false_eq_true, decide_true, Bool.and_true]
+        intro h
+        have := congrArg (fun x : Bool => x = true) h
+        simp only [decide_eq_true_eq, eq_iff_iff] at this
+        omega
+      rw [if_pos h2, if_pos h2']
+    · have h2' : ¬ (b % 16 ≠ 0 ∧ (decide (b / 32 % 2 = 1) && decide (b % 16 ≠ 0)) ≠ decide (E % 2 = 1)) := by
+        rintro ⟨hne, hpar⟩
+        apply hpar
+        simp only [hne, ne_eq, not_false_eq_true, decide_true, Bool.and_true]
+        have : b / 32 % 2 = E % 2 := by omega
+        rw [this]
+      rw [if_neg h2, if_neg h2']
       have hpar : 0 < b % 16 → (segAt wl (segPtr wl j)).parity = decide (E % 2 = 1) := by
         intro ha
         rw [segAt_parity, hb]
         simp only [show b % 16 ≠ 0 by omega, ne_eq, not_false_eq_true, decide_true, Bool.and_true]
-        have heq : b / 32 % 2 = E % 2 := by omega
-        rw [heq]
+        have : b / 32 % 2 = E % 2 := by omega
+        rw [this]
       rw [pend_eq, bind_map_left]
       simp only [relabel_bind, map_bind]
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun start => ?_
@@ -598,7 +489,7 @@ theorem segment_eq (j E folds : Nat) (ap : PendingHash) (cur : Digest) :
         (by rw [segAt_folds, hb]) hpar]
       rw [bind_map_left, map_eq_bind_pure_comp]
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun x => ?_
-      have hp : segPtr wl (j + 1) = segPtr wl j + 64 + 64 * (b % 16) := by
+      have hp : segPtr wl (j + 1) = segPtr wl j + 8 + 16 * (b % 16) := by
         rw [segPtr, hb]
       simp only [Function.comp, hp]
 
@@ -631,8 +522,7 @@ theorem segLoop_bind {β : Type}
       simp only [pure_bind, hK0]
     · rw [if_neg h1, if_neg (show ¬ (14 : Nat) < _ from h1)]
       by_cases h2 : (segAt wl (segPtr wl st.segment)).folds.val ≠ 0 ∧
-          ((segAt wl (segPtr wl st.segment)).parity ≠ decide (st.heap % 2 = 1) ∨
-           (3 ≤ (segAt wl (segPtr wl st.segment)).folds.val ∧ (segAt wl (segPtr wl st.segment)).lookahead.val ≠ st.heap / 2 % 4))
+          (segAt wl (segPtr wl st.segment)).parity ≠ decide (st.heap % 2 = 1)
       · simp only [if_pos h2, pure_bind, hK0]
       · rw [if_neg h2, if_neg h2]
         rw [bind_map_left]
@@ -663,8 +553,7 @@ theorem segLoop_bind {β : Type}
       simp only [pure_bind, hK0]
     · rw [if_neg h1, if_neg (show ¬ (14 : Nat) < _ from h1)]
       by_cases h2 : (segAt wl (segPtr wl st.segment)).folds.val ≠ 0 ∧
-          ((segAt wl (segPtr wl st.segment)).parity ≠ decide (st.heap % 2 = 1) ∨
-           (3 ≤ (segAt wl (segPtr wl st.segment)).folds.val ∧ (segAt wl (segPtr wl st.segment)).lookahead.val ≠ st.heap / 2 % 4))
+          (segAt wl (segPtr wl st.segment)).parity ≠ decide (st.heap % 2 = 1)
       · simp only [if_pos h2, pure_bind, hK0]
       · rw [if_neg h2, if_neg h2]
         rw [bind_map_left]
@@ -814,15 +703,15 @@ end pors
 
 /-- **verify** (W1a, padded): `verifyRef m pk w` is the relabelled padded abstract verifier on `⟨pk, 0⟩`,
 `witDec w` and the witness pads `padOf (toList w)` (rejecting paths included). -/
-theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 14080) :
+theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 16384) :
     Ref.verifyRef m pk w =
       relabel fmtQ (SphincsSecurity.Concrete.verifyP (m := AComp) ⟨pk, 0⟩ m (witDec w)
-        (padOf (Ref.extW (Ref.toList w)))) := by
-  have hl : (Ref.extW (Ref.toList w)).length = 16384 := by rw [Ref.length_extW, Ref.length_toList]; rfl
+        (padOf (Ref.toList w))) := by
+  have hl : (Ref.toList w).length = 16384 := Ref.length_toList w
   unfold Ref.verifyRef Ref.verifyList SphincsSecurity.Concrete.verifyP SphincsSecurity.Concrete.verifyCoreP
   rw [countersOk_eq _ hl]
   unfold witDec
-  by_cases hc : SphincsSecurity.Concrete.CountersInRange (witSig (Ref.extW (Ref.toList w)))
+  by_cases hc : SphincsSecurity.Concrete.CountersInRange (witSig (Ref.toList w))
   · simp only [hc, decide_true, Bool.not_true, Bool.false_eq_true, if_false, if_true]
     rw [witRho_eq _ hl, digest_eq pk _ m, relabel_bind, bind_map_left]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun d => ?_
@@ -832,15 +721,12 @@ theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 14080) :
     rcases r with _ | key
     · simp [relabel_pure]
     · simp only [Option.map_some]
-      rw [show Ref.nLayers = 4 + 1 from rfl, ← dvM_zero,
-        verifyLayersP_eq _ hl _ 4 (by decide), bind_map_left]
-      simp only [relabel_bind, bind_assoc]
+      rw [show Ref.nLayers = SphincsSecurity.numLayers from rfl,
+        verifyLayersP_eq _ hl _ SphincsSecurity.numLayers (le_refl 5), bind_map_left, relabel_bind]
       refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun r => ?_
-      rcases r with _ | top
+      rcases r with _ | root
       · simp [relabel_pure]
-      · simp only [relabel_bind, relabel_pure, map_eq_bind_pure_comp, Function.comp, bind_assoc,
-          pure_bind, Option.map_some]
-        refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun root => ?_
+      · simp only [Option.map_some, relabel_pure]
         refine congrArg pure ?_
         rw [Bool.eq_iff_iff, beq_iff_eq, decide_eq_true_iff]
         exact ⟨fun h => dv_injective h, fun h => by rw [h]; rfl⟩

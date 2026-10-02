@@ -1,4 +1,4 @@
-import SigGolfCandidate.Legacy
+import SigGolfCandidate.Legacy.Statements
 
 /-!
 # Generic execution lemmas for the organizer interpreter

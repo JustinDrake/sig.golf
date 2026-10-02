@@ -21,13 +21,13 @@ theorem queryNewMarker_hash (parameter : PublicParameter) (words : OtsReferenceW
 
 theorem queryNewMarker_any_le (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (outside : NonencodingRows parameter inputs hencoding)
-    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (dummy : OtsReferenceWords)
+    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (dummy : OtsReferenceWords)
     (history : OtsContactTrace.Trace) (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed)
     (input : OracleWorld.Domain) :
     Pr[fun result => QueryNewMarker parameter (referenceFamilyWords selections dummy) history input result.1 |
       (lazyWorldImpl parameter inputs hencoding outside input).run allowed] ≤
-      (((63 / 32 : ENNReal) * (OtsCode.neighborBound : ENNReal)) / (Fintype.card Digest : ENNReal)) * ((if QueryClass.EncodingHash parameter input then 1 else 0 : Nat) : ENNReal) := by
+      ((OtsCode.neighborBound : ENNReal) / (Fintype.card Digest : ENNReal)) * ((if QueryClass.EncodingHash parameter input then 1 else 0 : Nat) : ENNReal) := by
   cases input with
   | inl input =>
       have hz : Pr[fun result => QueryNewMarker parameter (referenceFamilyWords selections dummy) history (.inl input) result.1 |
@@ -57,14 +57,14 @@ attribute [local instance 10000] Classical.propDecidable
 
 theorem markers_query_potential_le (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (outside : NonencodingRows parameter inputs hencoding)
-    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (dummy : OtsReferenceWords)
+    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (dummy : OtsReferenceWords)
     (history : OtsContactTrace.Trace) (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed)
     (input : OracleWorld.Domain) :
     (∑' result, Pr[= result | (lazyWorldImpl parameter inputs hencoding outside input).run allowed] *
       ((markers parameter (referenceFamilyWords selections dummy) (history * hashObservationTrace input result.1)).card : ENNReal)) ≤
       ((markers parameter (referenceFamilyWords selections dummy) history).card : ENNReal) +
-        (((63 / 32 : ENNReal) * (OtsCode.neighborBound : ENNReal)) / (Fintype.card Digest : ENNReal)) * ((if QueryClass.EncodingHash parameter input then 1 else 0 : Nat) : ENNReal) := by
+        ((OtsCode.neighborBound : ENNReal) / (Fintype.card Digest : ENNReal)) * ((if QueryClass.EncodingHash parameter input then 1 else 0 : Nat) : ENNReal) := by
   cases input with
   | inl input =>
       simp only [hashObservationTrace, mul_one, QueryClass.EncodingHash, if_false, Nat.cast_zero,

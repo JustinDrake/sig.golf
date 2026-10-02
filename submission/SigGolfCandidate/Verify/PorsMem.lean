@@ -32,23 +32,19 @@ def PSB : Nat := 0x2A0
 /-- `STK` of the empty stack; its `Q` word is the guard at `EMPTY - 16 = 0x240`. -/
 def EMPTY : Nat := 0x250
 def PIND : Nat := 0x780
-/-- The two pre-masked selector words (`pi word k &&& PMASK`), written once by the setup. -/
-def PMS : Nat := 0x700
-/-- The doublewords above `0x800` the PORS phase never writes: the witness (the stream reads up to 7000
-bytes) and, at `0x800 + 8 * 2080508 = RTAB`, the leaf header table (`2^14 + 1` words). -/
-def NW : Nat := 2096893
+/-- The number of witness doublewords the verifier may read (the stream reads up to 7000 bytes). -/
+def NW : Nat := 2048
 
 def tbN : Nat := 0x1000 + 4 * ptabN
 def tbL : Nat := 0x1000 + 4 * ptabL
 
 /-- Constant registers of the PORS phase: `x5 = 0`, witness bases, `P1..P5`, `K14 = 2^14`,
-`MASK = 2^14 - 1`, `a1 = 64`, the leaf table page `x27` and `x28 = sext32 (2^31)`. -/
-def gkP : List (Reg × Word) := baseK ++ [(.x29, 14336), (.x25, 0x20000), (.x26, 6), (.x11, 64), (.x27, 0xFE0000),
-  (.x28, 0xFFFFFFFF80000000), (.x2, 0xFDFFB0)]
+`MASK = 2^14 - 1`, `a1 = 64`. -/
+def gkP : List (Reg × Word) := baseK ++ [(.x25, 0x4000), (.x26, 0x3FFF), (.x11, 64)]
 
 /-- Words never written in the PORS phase. -/
 def protP : List Nat :=
-  [0xFDFFB0, PMS, PMS + 8, 0xFFFFF0, 0xFFFFF8, 0xFDFFC0, 0xFDFFC8, 0xFDFFD0, 0xFDFFD8, 0x10, 0x18, 0xA0, 0xA8, 0xC0, 0xD0, 0xD8, 0xF0, 0xF8, 0x118, 0x120, 0x128, 0x1C0, 0x1D0, 0x1D8, 0x230,
+  [0xFFFFF0, 0xFFFFF8, 0x10, 0x18, 0xA0, 0xA8, 0xC0, 0xD0, 0xD8, 0xF0, 0xF8, 0x110, 0x118, 0x1C0, 0x1D0, 0x1D8, 0x230,
     0x238, 0x240] ++
   (List.range 14).flatMap (fun i => [PSB + 80 * i, PSB + 80 * i + 16, PSB + 80 * i + 24]) ++
   (List.range 16).map (fun r => PIND + 8 * r)
@@ -140,7 +136,7 @@ theorem memOKP_frame {ws : SymMem} (h : memOKP ws = true) (s : MachineState) :
   simp only [memOKP, List.all_eq_true, Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true',
     Bool.or_eq_true] at h
   refine ⟨fun a ha => ?_, fun a ha => ?_, fun A hA hA' => ?_⟩
-  · have ha' : a < 2 ^ 64 := by simp [protP, PSB, PIND, PMS] at ha; omega
+  · have ha' : a < 2 ^ 64 := by simp [protP, PSB, PIND] at ha; omega
     rw [memEval_look s ws a ha' hc]
     split
     · rename_i v hv
@@ -205,7 +201,7 @@ theorem GlobP_writeHash {gk : List (Reg × Word)} {s0 s : MachineState} (hG : Gl
   refine ⟨fun p hp => by rw [writeHash_getReg]; exact h0 p hp, fun a ha => ?_, fun a ha => ?_,
     fun j hj => ?_⟩
   · have := hd2 a (List.mem_append_left _ ha)
-    have : a < 2 ^ 64 := by simp [protP, PSB, PIND, PMS] at ha; omega
+    have : a < 2 ^ 64 := by simp [protP, PSB, PIND] at ha; omega
     rw [fr a this (by omega)]; exact h1 a ha
   · have := hd2 a (List.mem_append_right _ ha)
     have : a < 2 ^ 64 := by simp [halfP, PSB] at ha; omega
