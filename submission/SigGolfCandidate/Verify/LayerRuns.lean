@@ -174,9 +174,8 @@ def specRej2 (out hi : Nat) (lay : Nat) : Spec :=
 /-! ## Leaf -/
 
 /-- The leaf code at the return pc: the leaf tweak, then the dispatch into the shape block of
-chunk 0. Layer 3 adds the table base already in `x27` (left there by the layer-4 leaf) instead of
-building it with `lui`. -/
-def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay = 3 then 6 else if lay < 4 then 7 else 8
+chunk 0. Layers 1..2 fold the table base into `addi; slli`. Layer 3 still adds the table base in `x27` (left by the layer-4 leaf). -/
+def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay = 3 then 6 else if lay < 3 then 6 else if lay < 4 then 7 else 8
 
 def leafRawSteps (lay : Nat) : Nat := if lay = 0 then 7 else leafSteps lay
 
