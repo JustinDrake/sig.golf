@@ -75,7 +75,7 @@ def isConstLvl (lay lam : Nat) : Bool := lam + 3 = heightL lay || lam + 2 = heig
 
 /-- Destination of the root hash of the top layer: FO. (Below the top layer no root is hashed; `0x120`
 is where the node under the root goes, see `nodeDst`.) -/
-def dstOf (lay E : Nat) : Nat := if lay = 0 then 0x360 + 16 * (E / 1024 % 2) else 0x120
+def dstOf (lay : Nat) : Nat := if lay = 0 then 0x180 else 0x120
 
 /-- Destination of the hash that produces the node of level `lam` on the path (`t` = its side): its slot
 of the node buffer, except below the top layer for the node under the root, which goes straight into
@@ -122,7 +122,7 @@ def lvlMem (lay lam t : Nat) (nb : E) : List (Addr × E) :=
 
 /-- Known registers at the start of level `lam`. -/
 def foldK (lay len : Nat) : List (Reg × Word) :=
-  fk false 0x340 len ++ [(.x22, BitVec.ofNat 64 (5632 + 2688 * lay))]
+  fk false 0x340 len ++ [(.x29, BitVec.ofNat 64 (5632 + 2688 * lay))]
 
 def lvlK (lay lam : Nat) : List (Reg × Word) :=
   foldK lay (if lam = 0 then 704 else 64)
@@ -143,7 +143,7 @@ def lvlExp (lay ci v kk : Nat) : PRes :=
   let mem := lvlMem lay lam (v / 2 ^ kk % 2) (lvlNb lay ci v kk)
   let hs := if lam = 0 then 2 else 0
   if lam + 1 = heightL lay then
-    ⟨⟨lvlRegs lay lam, mem, []⟩, pcOf (m4Pc lay ci v kk + 7), true, 5, 5, [], none⟩
+    ⟨⟨(lvlRegs lay lam).set .x12 (cw (dstOf lay)), mem, []⟩, pcOf (m4Pc lay ci v kk + 8), true, 6, 6, [], none⟩
   else if kk + 1 < chBits lay ci then
     let rf := if isConstLvl lay lam then lvlRegs lay lam
       else if lay ≠ 0 then (lvlRegs lay lam).set .x25 (cw (2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1)))
@@ -162,7 +162,7 @@ def lvlDirs (lay ci kk : Nat) : List Dir :=
 /-- Known registers after a level run: the node-hash arguments (`a2` too unless the run stops at
 the chunk dispatch). -/
 def lvlPost (lay ci v kk : Nat) : List (Reg × Word) :=
-  if chB0 lay ci + kk + 1 = heightL lay then foldK lay 64
+  if chB0 lay ci + kk + 1 = heightL lay then foldK lay 64 ++ [(.x12, BitVec.ofNat 64 (dstOf lay))]
   else if kk + 1 < chBits lay ci then
     foldK lay 64 ++ [(.x12, BitVec.ofNat 64 (nodeDst lay (chB0 lay ci + kk + 1) (v / 2 ^ (kk + 1) % 2)))]
   else foldK lay 64

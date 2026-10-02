@@ -31,7 +31,7 @@ theorem sibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (e ep : 
     (hpc : tl.pc = pcOf 529) (h21 : tl.getReg .x21 = 0) (h24 : tl.getReg .x24 = 0)
     (h8 : tl.getReg .x8 = 0) (h17 : tl.getReg .x17 = BitVec.ofNat 64 (ep + 1))
     (h19 : tl.getReg .x19 = BitVec.ofNat 64 0xBA8 - BitVec.ofNat 64 (16 * ep))
-    (hlb0 : tl.getMem (BitVec.ofNat 64 0x340) = twWord0 3 1 0 0)
+    (hlb0 : tl.getMem (BitVec.ofNat 64 0x340) = BitVec.ofNat 64 (Ref.MaskHeader.header 10 (twWord0 3 1 0 0).toNat))
     (hlb8 : tl.getMem (BitVec.ofNat 64 0x348) = BitVec.ofNat 64 (2 ^ 32 * ep))
     (hlbP : tl.readWords (BitVec.ofNat 64 0x350) 2 = [0, 0]) :
     Sim image tl (21 * 844 + (4 + (88 + 9)))
@@ -67,10 +67,22 @@ theorem sibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (e ep : 
   have pc3 : t3.pc = pcOf 588 := by simp only [ht3, blk584.res, rv_simp]
   have fl3 : Frame tl t3 (chainW ⟨0, 0, e, ep, 0x900⟩) := (cf.trans f3).mono (by
     intro a ha; rcases ha with h | h; exact h; exact h.elim)
-  have hq : hashInput t3 = pad64 (thInput (tweak 3 1 0 0 ep) cs.1.flatten) := by
+  have hq : hashInput t3 = Ref.MaskHeader.query (pad64 (thInput (tweak 3 1 0 0 ep) cs.1.flatten)) := by
     obtain ⟨hn, hw⟩ := words_thVals 3 1 0 0 ep cs.1 hv1 10 (by rw [hc1])
-    refine hashInput_eq_pad64 t3 _ 10 hn (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
-    rw [hw, x10, show 8 * (10 + 1) = 1 + 1 + 2 + 2 * 42 from rfl]
+    have hendsLen : (cs.1.map wordsOf).flatten.length=84 := by
+      rw [List.length_flatten]
+      have he : (cs.1.map wordsOf).map List.length=List.replicate 42 2 := by
+        apply List.ext_getElem (by simp [hc1])
+        intro i hi hj
+        simp only [List.getElem_map,List.getElem_replicate]
+        exact length_wordsOf_16 _ (hv1 _ (List.getElem_mem _))
+      rw [he];decide
+    rw [hashInput_eq_words t3 10 (by rw [x11]) (by norm_num) (by rw [x10]; decide),
+      pad64_eq_query,hn,hw,twWords_eq]
+    simp only [List.cons_append,List.nil_append]
+    rw [Ref.MaskHeader.query_words 10 _ _ (by simp [hendsLen])]
+    apply congrArg (queryOfWords 10)
+    rw [x10, show 8 * (10 + 1) = 1 + 1 + 2 + 2 * 42 from rfl]
     rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add]
     simp only [Nat.reduceMul, Nat.reduceAdd]
     rw [readWords_ofNat_one, readWords_ofNat_one,

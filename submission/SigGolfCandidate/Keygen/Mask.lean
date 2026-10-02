@@ -241,7 +241,7 @@ theorem mask_node_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels :
       (try rw [hAdef]) <;> (try unfold REGION) <;> omega
   refine XSim.pure_steps vst ⟨⟨?_, ?_, v16, ?_, ?_, hs, h.mlen, by simp [h.ilen], ?_, ?_⟩, ?_⟩
   · refine h.base.frame (fun r hr => ?_) fr (fun k hk => ?_)
-    · rcases hr with rfl | rfl | rfl | rfl <;>
+    · rcases hr with rfl | rfl | rfl | rfl | rfl <;>
         exact vr _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
     · simp at hk
       rcases hk with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
@@ -283,7 +283,7 @@ theorem mask_level_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels 
   obtain ⟨u, hst, upc, u17, u16, uun, ufr⟩ := spec_118 t hpc l hl h.r15
   have h0 : ICtx W levels root l 0 macc [] u := by
     refine ⟨h.base.frame (fun r hr => uun r ?_ ?_ ?_ ?_) ufr (by simp), ?_, u16, u17, ?_, hs, h.mlen, rfl,
-      ?_, h.out.frame ufr (by simp)⟩ <;> try (rcases hr with h | h | h | h <;> simp [h])
+      ?_, h.out.frame ufr (by simp)⟩ <;> try (rcases hr with h | h | h | h | h <;> simp [h])
     · rw [uun _ (by simp) (by simp) (by simp) (by simp)]; exact h.r15
     · rw [uun _ (by simp) (by simp) (by simp) (by simp), h.r20, Nat.add_zero]
     · have hL : (macc ++ (nodes levels).drop (lvOff l)).length ≤ 4094 := by
@@ -313,8 +313,8 @@ theorem mask_level_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels 
   obtain ⟨x, xst, xpc, x15, xun, xfr⟩ := spec_144 w (by rw [hpc130, if_neg (by omega)]) l hl hc.r15
   have hoff := lvOff_succ l
   refine XSim.pure_steps xst ⟨⟨?_, x15, ?_, hs, by simp [h.mlen, hc.ilen, hoff], ?_, ?_⟩, ?_⟩
-  · exact hc.base.frame (fun r hr => xun r (by rcases hr with h | h | h | h <;> simp [h])
-      (by rcases hr with h | h | h | h <;> simp [h])) xfr (by simp)
+  · exact hc.base.frame (fun r hr => xun r (by rcases hr with h | h | h | h | h <;> simp [h])
+      (by rcases hr with h | h | h | h | h <;> simp [h])) xfr (by simp)
   · rw [xun _ (by simp) (by simp), hc.r20, hoff]
   · have := hc.lv
     rw [← hoff] at this
@@ -342,8 +342,8 @@ theorem masks_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (levels : Lis
       (fun masked u => OCtx W levels root 11 masked u ∧ u.pc = pcOf 147) := by
   obtain ⟨u, hst, upc, u20, u15, uun, ufr⟩ := spec_115 t hpc
   have h0 : OCtx W levels root 1 ((nodes levels).take 2048) u := by
-    refine ⟨hb.frame (fun r hr => uun r (by rcases hr with h | h | h | h <;> simp [h])
-      (by rcases hr with h | h | h | h <;> simp [h])) ufr (by simp), u15, ?_, hs, ?_, ?_,
+    refine ⟨hb.frame (fun r hr => uun r (by rcases hr with h | h | h | h | h <;> simp [h])
+      (by rcases hr with h | h | h | h | h <;> simp [h])) ufr (by simp), u15, ?_, hs, ?_, ?_,
       hout.frame ufr (by simp)⟩
     · rw [u20]; rfl
     · rw [List.length_take, nodes_length levels hs]; rfl

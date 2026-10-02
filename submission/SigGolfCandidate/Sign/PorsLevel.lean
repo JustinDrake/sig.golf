@@ -281,6 +281,23 @@ def NodeInvD (c : NodeCtxD) (lvl : List Val) (s : MachineState) (j : Nat) (acc :
   t.pc = (if j < c.m then pcOf 215 else pcOf 234) ∧
   t.getReg .x16 = BitVec.ofNat 64 j ∧ NodeRegs s t ∧ NodeFrameD c s t
 
+/-- The HASH input of the node buffer `NB = 448`. -/
+private theorem rawNode_hashInput (t : MachineState) (tt lay tau lam j : Nat) (l r : Val) (hl : l.length = 16)
+    (hr : r.length = 16) (h10 : t.getReg .x10 = BitVec.ofNat 64 448)
+    (h11 : t.getReg .x11 = BitVec.ofNat 64 64)
+    (hw0 : t.getMem (BitVec.ofNat 64 448) = twWord0 tt lay tau lam)
+    (hw1 : t.getMem (BitVec.ofNat 64 456) = BitVec.ofNat 64 (tau % 2 ^ 32 + 2 ^ 32 * (j % 2 ^ 32)))
+    (hz0 : t.getMem (BitVec.ofNat 64 464) = 0) (hz1 : t.getMem (BitVec.ofNat 64 472) = 0)
+    (hL : t.readWords (BitVec.ofNat 64 480) 2 = wordsOf l)
+    (hR : t.readWords (BitVec.ofNat 64 496) 2 = wordsOf r) :
+    hashInput t = pad64 (nodeFmt tt lay tau lam j l r) := by
+  obtain ⟨hn, hw⟩ := words_th32 tt lay tau lam j l r hl hr
+  refine hashInput_eq_pad64 t _ 0 hn (by rw [h11]) (by norm_num) (by rw [h10]; decide) ?_
+  rw [nodeFmt, hw, h10, twWords_eq, ← hL, ← hR,
+    show 8 * (0 + 1) = 4 + 2 + 2 from rfl, readWords_ofNat_add, readWords_ofNat_add]
+  simp only [readWords_ofNat_succ, hw0, hw1, hz0, hz1]
+  rfl
+
 /-- **Node loop** (separate destination): `m` nodes of level `lam` from the `2m` values `lvl` in
 slots `B + 16 i`; the results land in slots `D + 16 j`; `54 m` cycles. The hashed header field
 of node `j` is `Rev.efield (m + j)`. -/
@@ -324,7 +341,7 @@ theorem nodeLoopD_sim (node : NodeFmt) (c : NodeCtxD) (lvl : List Val)
         if_neg (by omega)]
     have hq : hashInput t1 = pad64 (nodeFmt c.tt c.lay c.tau c.p (Rev.efield (c.m + j)) (lvl.getD (2 * j) [])
         (lvl.getD (2 * j + 1) [])) := by
-      apply node_hashInput t1 _ _ _ _ _ _ _ hl hr (by rw [a10]) (by rw [a11])
+      apply rawNode_hashInput t1 _ _ _ _ _ _ _ hl hr (by rw [a10]) (by rw [a11])
       · rw [mem1 _ (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num)]
         rw [tframe.1 448 (by norm_num) (by omega) (by norm_num) (by norm_num) (by norm_num)
           (by norm_num) (by norm_num), hw0]

@@ -10,10 +10,10 @@ code shared by all layers for `(t, dB, dC)`: `A`'s rungs `1 .. 7` (entered at `d
 then `C` (head and rungs `d + 1 .. 7`, or the digit-7 copy), then the extraction of triple
 `t + 1` and its `jalr`, or for `t = 13` the return `jalr zero, ra`.
 
-The code is layer independent: it addresses the blocks relative to `s6 = x22` (the layer base
+The code is layer independent: it addresses the blocks relative to `s6 = x29` (the layer base
 `blk(lay, 0) + 640`), bumps the running tweak word 0 in `s9 = x25` by `t3 = 2^40`, and stores
-tweak word 1 from `t6 = x31`. Its runs are therefore checked once, with `x22`, `x25`, `x31`,
-`a0 = x10`, `a2 = x12` symbolic; the memory writes and obligations have the base `x22` or `x10`.
+tweak word 1 from `t6 = x31`. Its runs are therefore checked once, with `x29`, `x25`, `x31`,
+`a0 = x10`, `a2 = x12` symbolic; the memory writes and obligations have the base `x29` or `x10`.
 
 * head: `addi a0, s6, off; addi a2, a0, 48; add s9, s9, t3; sd s9, 0(a0); sd t6, 8(a0)`;
 * rung `mu`: `sb MU_{mu-1}, 4(a0); [li a2, slot_i (mu = 7)]; ecall`;
@@ -35,7 +35,7 @@ def offW (i : Nat) : Word := BitVec.ofNat 64 (64 * i) - BitVec.ofNat 64 640
 def slotA (i : Nat) : Nat := 0x360 + 16 * i
 
 /-- The address `s6 + off_i + k` as the executor normalizes it. -/
-def bk (i k : Nat) : Addr := norm (addC (.reg .x22) (offW i + BitVec.ofNat 64 k))
+def bk (i k : Nat) : Addr := norm (addC (.reg .x29) (offW i + BitVec.ofNat 64 k))
 
 /-- The doubleword load at `s6 + off_i + k`. -/
 def ldK (i k : Nat) : E := .ld (bk i k).toE
@@ -73,12 +73,12 @@ def rungExp (i mu p : Nat) : PRes :=
 /-- The head of chain `i` at digit `d < 7` and its first rung (`mu = d + 1`, at word `p`), stopping at
 the rung's `ecall`; `j` = the table entry's jump in between (chain `A`). -/
 def headExp (i d p : Nat) (j : Bool) : PRes :=
-  let a0 : E := addC (.reg .x22) (offW i)
+  let a0 : E := addC (.reg .x29) (offW i)
   let rf := (RegFile.withKnown chK0).set .x10 a0
   let n := 4 + (if j then 1 else 0) + (if d = 6 then 2 else 1)
   ⟨⟨rf.set .x12 (if d = 6 then cw (slotA i) else addC a0 48),
     [(bk i 0, .bin (.st .b 4) a0 (posE d)), (bk i 8, .reg .x31)],
-    [.align8 (.reg .x22), .valid (bk i 4) 1, .valid (bk i 8) 8, .valid (bk i 0) 8]⟩,
+    [.align8 (.reg .x29), .valid (bk i 4) 1, .valid (bk i 8) 8, .valid (bk i 0) 8]⟩,
     pcOf (rungEnd p (d + 1)), true, n, n, [], none⟩
 
 /-- The digit-7 copy of chain `i` into its leaf-pk slot, stopping at `q` (the next chain's code);
