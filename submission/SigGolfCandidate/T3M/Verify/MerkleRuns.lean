@@ -63,7 +63,10 @@ def mkBlk (lay l : Nat) : Nat := 0x800 + mkBo lay l
 /-- Its current-node slot when the node is a left (`b = 0`, `L`) or right (`b = 1`, `R`) child. -/
 def mkCur (lay l b : Nat) : Nat := mkBlk lay l + 48 * b
 /-- The root HASH's destination: the next encoding block's `M` (`0x100`) or the root slot (`0x180`). -/
-def mkDst (lay : Nat) : Nat := if lay = 0 then 384 else 256
+def mkDst (lay leaf : Nat) : Nat := if lay = 0 then 13336 + 48 * (leaf / 2048 % 2) else 256
+
+/-- The final top HASH retains its current output pointer. -/
+def mkMove (lay level : Nat) : Nat := if lay = 0 ∧ level = 11 then 0 else 1
 /-- The parent heap index stored at level `l` of block `sh` (the constant ones). -/
 def mkHeap (lay ci sh l : Nat) : Nat := (2 ^ hL lay + sh * 2 ^ mkLo lay ci) / 2 ^ (l + 1)
 
@@ -117,12 +120,13 @@ def mkIsDisp (lay ci kk : Nat) : Bool := decide (lay = 0 ∧ ci = 0 ∧ kk + 1 =
 
 /-- The next `a2`: the next level's current slot, or the root destination. -/
 def mkNextA2 (lay ci sh kk : Nat) : Nat :=
-  if kk + 1 < mkBits lay ci then mkCur lay (mkLo lay ci + kk + 1) (sh / 2 ^ (kk + 1) % 2) else mkDst lay
+  if kk + 1 < mkBits lay ci then mkCur lay (mkLo lay ci + kk + 1) (sh / 2 ^ (kk + 1) % 2) else if lay = 0 then 13336 + 48 * (sh / 32 % 2) else 256
 
 /-- A level ending at the next `ecall` (the next level's HASH or the root HASH). -/
 def mkLvlSpecN (lay ci sh kk : Nat) : Spec :=
-  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), mkShp lay ci sh + mkOff lay ci (kk + 1) + 1, true,
-    mkBody lay (mkLo lay ci + kk) + 1, [], none, mkBody lay (mkLo lay ci + kk) + 1⟩
+  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), mkShp lay ci sh + mkOff lay ci (kk + 1) + mkMove lay (mkLo lay ci + kk), true,
+    mkBody lay (mkLo lay ci + kk) + mkMove lay (mkLo lay ci + kk), [], none,
+    mkBody lay (mkLo lay ci + kk) + mkMove lay (mkLo lay ci + kk)⟩
 
 /-- Level 5 of layer 0's chunk 0, ending with the chunk-1 dispatch (a jump to `stab_0_1`). -/
 def mkLvlSpecD (lay ci sh kk : Nat) : Spec :=
@@ -139,9 +143,14 @@ def mkLvlPostN (lay ci sh kk : Nat) : List (Reg × Word) :=
 def mkLvlPostD (lay ci kk : Nat) : List (Reg × Word) :=
   mkK lay ++ [(.x11, 64), (.x10, BitVec.ofNat 64 (mkBlk lay (mkLo lay ci + kk))), (.x15, 0xce000)]
 
+def mkLvlKN (lay ci sh kk : Nat) : List (Reg × Word) :=
+  mkLvlK lay (mkLo lay ci + kk) ++
+    (if lay = 0 ∧ mkLo lay ci + kk = 11 then
+      [(.x12, BitVec.ofNat 64 (13336 + 48 * (sh / 32 % 2)))] else [])
+
 def mkLvlCheckN (lay ci sh kk : Nat) : Bool :=
   specB (mkLvlAllow lay (mkLo lay ci + kk)) [] baseK
-    (runAt (mkLvlK lay (mkLo lay ci + kk)) [] (mkShp lay ci sh + mkOff lay ci kk + 2) [])
+    (runAt (mkLvlKN lay ci sh kk) [] (mkShp lay ci sh + mkOff lay ci kk + 2) [])
     (mkLvlSpecN lay ci sh kk) [] (mkLvlPostN lay ci sh kk) (mkKeep ++ [.x14, .x15])
 
 def mkLvlCheckD (lay ci sh kk : Nat) : Bool :=
@@ -164,22 +173,25 @@ def mkChunkCheck (lay ci lo n : Nat) : Bool := (List.range' lo n).all (mkBlockCh
 /-! ## The compare -/
 
 /-- The compare copy `c` (after layer 0's shape block `shp_0_1_c`). -/
-def cmpPc (c : Nat) : Nat := 38676 + 53 * c
-def cmpBr1 (d : Bool) : Br := ⟨.ne, .ld (kw 384), .ld (kw 160), d⟩
-def cmpBr2 (d : Bool) : Br := ⟨.ne, .ld (kw 392), .ld (kw 168), d⟩
+def cmpPc (c : Nat) : Nat := 38675 + 53 * c
+def cmpDst (c : Nat) : Nat := 13336 + 48 * (c / 32 % 2)
+def cmpK (c : Nat) : List (Reg × Word) := baseK ++ [(.x12, BitVec.ofNat 64 (cmpDst c))]
+def cmpBr1 (c : Nat) (d : Bool) : Br := ⟨.ne, .ld (kw (cmpDst c)), .ld (kw 160), d⟩
+def cmpBr2 (c : Nat) (d : Bool) : Br := ⟨.ne, .ld (kw (cmpDst c + 8)), .ld (kw 168), d⟩
 
-/-- The high-word difference is zero exactly when the high words agree. -/
-def cmpDelta : E := .bin .sub (.ld (kw 392)) (.ld (kw 168))
-
-/-- The low words agree: compute the high-word difference and HALT with that exit code. -/
+/-- Both doublewords equal: HALT(0) after 8 steps. -/
 def cmpAcc (c : Nat) : Spec :=
-  ⟨[(.x5, kw 1), (.x10, cmpDelta)], [], cmpPc c + 7, true, 7, [cmpBr1 false], none, 7⟩
-/-- The low doublewords differ: HALT(1) after five instructions. -/
+  ⟨[(.x5, kw 1), (.x10, kw 0)], [], cmpPc c + 8, true, 8, [cmpBr2 c false, cmpBr1 c false], none, 8⟩
+/-- The low doublewords differ: HALT(1) after 5 steps. -/
 def cmpRej1 (c : Nat) : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 1)], [], cmpPc c + 11, true, 5, [cmpBr1 true], none, 5⟩
+  ⟨[(.x5, kw 1), (.x10, kw 1)], [], cmpPc c + 11, true, 5, [cmpBr1 c true], none, 5⟩
+/-- The high doublewords differ: HALT(1) after 8 steps. -/
+def cmpRej2 (c : Nat) : Spec :=
+  ⟨[(.x5, kw 1), (.x10, kw 1)], [], cmpPc c + 11, true, 8, [cmpBr2 c true, cmpBr1 c false], none, 8⟩
 
 def cmpCheck (c : Nat) : Bool :=
-  specB [] [] [] (runAt baseK [] (cmpPc c) [.br false]) (cmpAcc c) [] [] [] &&
-  specB [] [] [] (runAt baseK [] (cmpPc c) [.br true]) (cmpRej1 c) [] [] []
+  specB [] [] [] (runAt (cmpK c) [] (cmpPc c) [.br false, .br false]) (cmpAcc c) [] [] [] &&
+  specB [] [] [] (runAt (cmpK c) [] (cmpPc c) [.br true]) (cmpRej1 c) [] [] [] &&
+  specB [] [] [] (runAt (cmpK c) [] (cmpPc c) [.br false, .br true]) (cmpRej2 c) [] [] []
 
 end SigGolfCandidate.T3M
