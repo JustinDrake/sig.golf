@@ -3,9 +3,9 @@ import SigGolfCandidate.T3M.Verify.Compose
 /-! # V3: the verify bounds and the whole run from the organizer's initial state
 
 The bounds are derived from the per-family costs (`Compose`):
-* **`cycleBound = 2923 + lCyc 4 = 9114`** (accepting runs): V2's words 0..358 and FTS through the forest HASH
+* **`cycleBound = 2923 + lCyc 4 = 9103`** (accepting runs): V2's words 0..358 and FTS through the forest HASH
   (`127 + P + 880 + 15 F ≤ 2923`, `P ≤ 56`, `F ≤ 124`), V1's four layers to `LeafOut` (`layerCost lay 0` =
-  1379 / 1351 / 1351 / 1278), V3's Merkle phases (`mkCyc` = 172 / 172 / 186 / 294) and the compare (8);
+  1377 / 1349 / 1349 / 1273), V3's Merkle phases (`mkCyc` = 172 / 172 / 186 / 294) and the compare (8);
 * `cycleBoundAll = 7411 + 7999 = 15410` (every run, every oracle; V2's interface uses the layers' fuel as their
   all-path cycle bound), `fuelBound = 7404 + 7999 = 15403` (steps).
 
@@ -25,7 +25,7 @@ def cycleBoundAll : Nat := 7411 + 7999
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 7404 + 7999
 
-theorem cycleBound_eq : cycleBound = 9114 := by unfold cycleBound; rw [lCyc_4]
+theorem cycleBound_eq : cycleBound = 9103 := by unfold cycleBound; rw [lCyc_4]
 theorem cycleBoundAll_eq : cycleBoundAll = 15410 := by decide
 theorem fuelBound_eq : fuelBound = 15403 := by decide
 
