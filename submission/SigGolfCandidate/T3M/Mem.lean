@@ -99,6 +99,22 @@ theorem ofNat_or_disjoint' (a b k : Nat) (ha : a < 2 ^ k) (hb : b % 2 ^ k = 0) :
     BitVec.ofNat 64 a ||| BitVec.ofNat 64 b = BitVec.ofNat 64 (a + b) := by
   rw [BitVec.or_comm, ofNat_or_disjoint a b k ha hb, Nat.add_comm]
 
+/-- Put the fixed tree index into the unused high half of the node tag word. -/
+theorem hdr0_or_tree (tag lay tree : Nat) (ht : tree < 2^32) :
+    BitVec.ofNat 64 (hdr0 tag lay tree 0) ||| (BitVec.ofNat 64 tree <<< 32) =
+      BitVec.ofNat 64 (hdr0 tag lay tree tree) := by
+  have hlo : hdr0 tag lay tree 0 < 2^32 := by
+    unfold hdr0
+    have htag := Nat.mod_lt tag (by decide : 0 < 256)
+    have hlay := Nat.mod_lt lay (by decide : 0 < 256)
+    rw [Nat.div_eq_of_lt ht]
+    omega
+  rw [ofNat_shl, ofNat_or_disjoint' (hdr0 tag lay tree 0) (tree * 2^32) 32 hlo (by omega)]
+  congr 1
+  unfold hdr0
+  rw [Nat.mod_eq_of_lt ht]
+  omega
+
 theorem ofNat_and1 (i : Nat) : BitVec.ofNat 64 i &&& 1#64 = BitVec.ofNat 64 (i % 2) := by
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_and, BitVec.toNat_ofNat]
