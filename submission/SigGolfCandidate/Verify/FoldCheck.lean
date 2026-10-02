@@ -24,4 +24,11 @@ theorem blockCheck_at (lay : Nat) (hl : lay < 5) :
   simp only [layFoldOk, foldCheck, List.all_eq_true, List.mem_range'] at h
   exact h v ⟨by omega, by omega⟩
 
+set_option maxHeartbeats 0 in
+set_option maxRecDepth 20000 in
+theorem topSlotChecks : (List.range 2048).all topSlotCheck = true := by decide +kernel
+
+theorem topSlotCheck_at (E : Nat) (hE : E < 2048) : topSlotCheck E = true :=
+  List.all_eq_true.mp topSlotChecks E (List.mem_range.mpr hE)
+
 end SigGolfCandidate.Verify

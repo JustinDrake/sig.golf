@@ -173,9 +173,9 @@ def vdTail : List (BitVec 8) :=
   [0, 0, 0, 0, 0, 0, 0, 0,
    0xc7, 0x71, 0x1c, 0xc7, 0x71, 0x1c, 0xc7, 0x71, 0x3f, 0xf0, 0x03, 0x3f, 0xf0, 0x03, 0x3f, 0xf0]
 
-def vdRoot : List (BitVec 8) := [1, 4, 4, 0, 0, 0, 0, 0, 0, 254, 3, 0, 0, 0, 0, 0, 199, 113, 28, 199, 113, 28, 199, 113, 63, 240, 3, 63, 240, 3, 63, 240]
+def vdRoot : List (BitVec 8) := [120, 120, 120, 120, 120, 120, 120, 120, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 0, 0, 0, 0, 0, 0, 254, 3, 0, 0, 0, 0, 0, 199, 113, 28, 199, 113, 28, 199, 113, 63, 240, 3, 63, 240, 3, 63, 240]
 
-theorem vdRoot_length : vdRoot.length = 32 := rfl
+theorem vdRoot_length : vdRoot.length = 48 := rfl
 
 theorem vd_eq : Images.verifyData = vdRoot ++ ((List.range 16385).flatMap rtBlk ++ vdTail) := by
   change (vdRoot ++ (List.range 16385).flatMap rtBlk) ++ vdTail = _
@@ -183,31 +183,31 @@ theorem vd_eq : Images.verifyData = vdRoot ++ ((List.range 16385).flatMap rtBlk 
 
 theorem rtBlk_length (n : Nat) : (rtBlk n).length = 8 := by simp [rtBlk]
 
-theorem vd_length : Images.verifyData.length = 131136 := by
+theorem vd_length : Images.verifyData.length = 131152 := by
   rw [vd_eq, List.length_append, List.length_append, flatMap8_length rtBlk rtBlk_length]
   simp [vdRoot,vdTail]
 
-theorem vd_slice_root (j : Nat) (hj : j<4) :
+theorem vd_slice_root (j : Nat) (hj : j<6) :
     slice Images.verifyData (8*j) 8 = slice vdRoot (8*j) 8 := by
   unfold slice
   rw [vd_eq, List.drop_append_of_le_length (by rw [vdRoot_length]; omega),
     List.take_append_of_le_length (by rw [List.length_drop,vdRoot_length]; omega)]
 
-theorem vd_slice (n : Nat) (hn : n < 16385) : slice Images.verifyData (32+8*n) 8 = rtBlk n := by
+theorem vd_slice (n : Nat) (hn : n < 16385) : slice Images.verifyData (48+8*n) 8 = rtBlk n := by
   unfold slice
   rw [vd_eq,List.drop_append,List.drop_eq_nil_of_le (by rw [vdRoot_length]; omega),List.nil_append,vdRoot_length,
-    show 32+8*n-32=8*n by omega]
+    show 48+8*n-48=8*n by omega]
   rw [List.drop_append_of_le_length (by rw [flatMap8_length rtBlk rtBlk_length]; omega),
     List.take_append_of_le_length (by rw [List.length_drop,flatMap8_length rtBlk rtBlk_length]; omega),
     flatMap8_slice rtBlk rtBlk_length 16385 n hn]
 
-theorem vd_slice_hi (j : Nat) (hj : 16389 ≤ j) :
-    slice Images.verifyData (8*j) 8 = slice vdTail (8*j-8*16389) 8 := by
+theorem vd_slice_hi (j : Nat) (hj : 16391 ≤ j) :
+    slice Images.verifyData (8*j) 8 = slice vdTail (8*j-8*16391) 8 := by
   unfold slice
   rw [vd_eq,List.drop_append,List.drop_eq_nil_of_le (by rw [vdRoot_length]; omega),List.nil_append,vdRoot_length,
     List.drop_append,List.drop_eq_nil_of_le (by rw [flatMap8_length rtBlk rtBlk_length]; omega),
     List.nil_append,flatMap8_length rtBlk rtBlk_length]
-  rw [show 8*j-32-8*16385=8*j-8*16389 by omega]
+  rw [show 8*j-48-8*16385=8*j-8*16391 by omega]
 
 theorem w64_rtBlk (n : Nat) : w64 (rtBlk n) = Ref.Rev.revWord (2 ^ 14 ||| n) := by
   apply BitVec.eq_of_toNat_eq
@@ -221,8 +221,8 @@ theorem w64_rtBlk (n : Nat) : w64 (rtBlk n) = Ref.Rev.revWord (2 ^ 14 ||| n) := 
 
 def InitOK (ml pkl wl : List Byte) (s : MachineState) : Prop :=
   MaskData s ∧ KnownOK k0 s ∧ s.pc = pcOf 0 ∧ WitAll wl s ∧ PkOK pkl s ∧
-  (∀ j, j < 4 → s.getMem (BitVec.ofNat 64 (0x40 + 8 * j)) = w64 (slice ml (8 * j) 8)) ∧
-  (∀ A, A < 0x800 → (A < 0x40 ∨ (0x60 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → s.getMem (BitVec.ofNat 64 A) = 0) ∧
+  (∀ j, j < 4 → s.getMem (BitVec.ofNat 64 (0x20 + 8 * j)) = w64 (slice ml (8 * j) 8)) ∧
+  (∀ A, A < 0x800 → (A < 0x20 ∨ (0x40 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → s.getMem (BitVec.ofNat 64 A) = 0) ∧
   RtabData s
 
 /-- The view's zero lead (`0x800 .. 0x1100`). -/
@@ -248,58 +248,61 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
   simp only [submission_admissible.2 .verify, if_true, Option.some.injEq] at h
   subst h
   have e1 : (submission.image .verify).data = vdata := hvdata.symm
-  have vdl : vdata.length = 131136 := by rw [hvdata]; exact vd_length
-  have vdata_slice_root (j : Nat) (hj : j < 4) : slice vdata (8*j) 8 = slice vdRoot (8*j) 8 := by
+  have vdl : vdata.length = 131152 := by rw [hvdata]; exact vd_length
+  have vdata_slice_root (j : Nat) (hj : j < 6) : slice vdata (8*j) 8 = slice vdRoot (8*j) 8 := by
     rw [hvdata]; exact vd_slice_root j hj
-  have vdata_slice_hi (j : Nat) (hj : 16389 ≤ j) : slice vdata (8*j) 8 = slice vdTail (8*j-8*16389) 8 := by
+  have vdata_slice_hi (j : Nat) (hj : 16391 ≤ j) : slice vdata (8*j) 8 = slice vdTail (8*j-8*16391) 8 := by
     rw [hvdata]; exact vd_slice_hi j hj
-  have vdata_slice (n : Nat) (hn : n < 16385) : slice vdata (32+8*n) 8 = rtBlk n := by
+  have vdata_slice (n : Nat) (hn : n < 16385) : slice vdata (48+8*n) 8 = rtBlk n := by
     rw [hvdata]; exact vd_slice n hn
-  have eb : dataBase (submission.image .verify) = 0xFDFFC0 := by
+  have eb : dataBase (submission.image .verify) = 0xFDFFB0 := by
     unfold dataBase
     rw [e1, vdl] <;> decide
   rw [e1, eb]
   have hl : inputBuffers submission.sizes submission.layout .verify (m, pk, w) =
-      [(0x40, toList m), (0xA0, toList pk), (0x1100, toList w)] := rfl
+      [(0x20, toList m), (0xA0, toList pk), (0x1100, toList w)] := rfl
   rw [hl]
   simp only [List.foldl_cons, List.foldl_nil]
   have lm : (toList m).length = 32 := length_toList m
   have lp : (toList pk).length = 16 := length_toList pk
   have lw : (toList w).length = 14080 := length_toList w
   set blank : MachineState := { regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 }
-  set withData := blank.writeBytesAsWords (BitVec.ofNat 64 0xFDFFC0) vdata
-  have dataRegs : withData.regs = blank.regs := wbw_regs 131136 _ _ _ (Nat.le_of_eq vdl)
-  have dataLow : ∀ A, A < 0xFDFFC0 → withData.getMem (BitVec.ofNat 64 A) = 0 := by
+  set withData := blank.writeBytesAsWords (BitVec.ofNat 64 0xFDFFB0) vdata
+  have dataRegs : withData.regs = blank.regs := wbw_regs 131152 _ _ _ (Nat.le_of_eq vdl)
+  have dataLow : ∀ A, A < 0xFDFFB0 → withData.getMem (BitVec.ofNat 64 A) = 0 := by
     intro A hA
-    rw [wbw_frame vdata blank 0xFDFFC0 (by omega) A (by omega) (Or.inl hA)]
+    rw [wbw_frame vdata blank 0xFDFFB0 (by omega) A (by omega) (Or.inl hA)]
     rfl
   have dataMasks : MaskData withData := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-    · change withData.getMem (BitVec.ofNat 64 (0xFDFFC0+8*16390)) = M1w
-      rw [wbw_word vdata blank 0xFDFFC0 (by omega) 16390 (by omega), vdata_slice_hi 16390 (by omega)]
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · change withData.getMem (BitVec.ofNat 64 (0xFDFFB0+8*16392)) = M1w
+      rw [wbw_word vdata blank 0xFDFFB0 (by omega) 16392 (by omega), vdata_slice_hi 16392 (by omega)]
       decide +kernel
-    · change withData.getMem (BitVec.ofNat 64 (0xFDFFC0+8*16391)) = M2w
-      rw [wbw_word vdata blank 0xFDFFC0 (by omega) 16391 (by omega), vdata_slice_hi 16391 (by omega)]
+    · change withData.getMem (BitVec.ofNat 64 (0xFDFFB0+8*16393)) = M2w
+      rw [wbw_word vdata blank 0xFDFFB0 (by omega) 16393 (by omega), vdata_slice_hi 16393 (by omega)]
       decide +kernel
-    · change withData.getMem (BitVec.ofNat 64 (0xFDFFC0+8*0)) = 0x40401#64
-      rw [wbw_word vdata blank 0xFDFFC0 (by omega) 0 (by omega), vdata_slice_root 0 (by decide)]
+    · change withData.getMem (BitVec.ofNat 64 (0xFDFFB0+8*2)) = 0x40401#64
+      rw [wbw_word vdata blank 0xFDFFB0 (by omega) 2 (by omega), vdata_slice_root 2 (by decide)]
       decide +kernel
-    · change withData.getMem (BitVec.ofNat 64 (0xFDFFC0+8*1)) = 0x3fe00#64
-      rw [wbw_word vdata blank 0xFDFFC0 (by omega) 1 (by omega), vdata_slice_root 1 (by decide)]
+    · change withData.getMem (BitVec.ofNat 64 (0xFDFFB0+8*3)) = 0x3fe00#64
+      rw [wbw_word vdata blank 0xFDFFB0 (by omega) 3 (by omega), vdata_slice_root 3 (by decide)]
       decide +kernel
-    · change withData.getMem (BitVec.ofNat 64 (0xFDFFC0+8*2)) = M1w
-      rw [wbw_word vdata blank 0xFDFFC0 (by omega) 2 (by omega), vdata_slice_root 2 (by decide)]
+    · change withData.getMem (BitVec.ofNat 64 (0xFDFFB0+8*4)) = M1w
+      rw [wbw_word vdata blank 0xFDFFB0 (by omega) 4 (by omega), vdata_slice_root 4 (by decide)]
       decide +kernel
-    · change withData.getMem (BitVec.ofNat 64 (0xFDFFC0+8*3)) = M2w
-      rw [wbw_word vdata blank 0xFDFFC0 (by omega) 3 (by omega), vdata_slice_root 3 (by decide)]
+    · change withData.getMem (BitVec.ofNat 64 (0xFDFFB0+8*5)) = M2w
+      rw [wbw_word vdata blank 0xFDFFB0 (by omega) 5 (by omega), vdata_slice_root 5 (by decide)]
+      decide +kernel
+    · change withData.getMem (BitVec.ofNat 64 (0xFDFFB0+8*0)) = PMASK
+      rw [wbw_word vdata blank 0xFDFFB0 (by omega) 0 (by omega), vdata_slice_root 0 (by decide)]
       decide +kernel
   have dataRt : RtabData withData := by
     intro n hn
-    rw [show RTAB+8*n=0xFDFFC0+8*(n+4) by unfold RTAB; omega,
-      wbw_word vdata blank 0xFDFFC0 (by omega) (n+4) (by omega),
-      show 8*(n+4)=32+8*n by omega,vdata_slice n (by omega)]
+    rw [show RTAB+8*n=0xFDFFB0+8*(n+6) by unfold RTAB; omega,
+      wbw_word vdata blank 0xFDFFB0 (by omega) (n+6) (by omega),
+      show 8*(n+6)=48+8*n by omega,vdata_slice n (by omega)]
     exact w64_rtBlk n
-  set s1 := withData.writeBytesAsWords (BitVec.ofNat 64 0x40) (toList m)
+  set s1 := withData.writeBytesAsWords (BitVec.ofNat 64 0x20) (toList m)
   set s2 := s1.writeBytesAsWords (BitVec.ofNat 64 0xA0) (toList pk)
   set s3 := s2.writeBytesAsWords (BitVec.ofNat 64 0x1100) (toList w)
   have hr3 : s3.regs = fun _ => 0 := by
@@ -307,16 +310,16 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
   have hpc3 : s3.pc = 0x1000 := by
     simp only [s3, s2, s1, withData, MachineState.pc_writeBytesAsWords]
     rfl
-  have hreg : ∀ r : Reg, r ≠ .x2 → (s3.setReg .x2 (BitVec.ofNat 64 0xFDFFC0)).getReg r = 0 := by
+  have hreg : ∀ r : Reg, r ≠ .x2 → (s3.setReg .x2 (BitVec.ofNat 64 0xFDFFB0)).getReg r = 0 := by
     intro r hr2
     rw [MachineState.getReg_setReg_ne _ _ _ _ (Ne.symm hr2)]
     cases r <;> first | rfl | (show s3.regs _ = 0; rw [hr3])
-  have hpcT : (s3.setReg .x2 (BitVec.ofNat 64 0xFDFFC0)).pc = 0x1000 := by
+  have hpcT : (s3.setReg .x2 (BitVec.ofNat 64 0xFDFFB0)).pc = 0x1000 := by
     rw [MachineState.pc_setReg, hpc3]
-  have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 0xFDFFC0)).getMem A = s3.getMem A :=
+  have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 0xFDFFB0)).getMem A = s3.getMem A :=
     fun A => by simp [MachineState.setReg, MachineState.getMem]
   have fr : ∀ A, A < 2 ^ 64 → 0x4800 ≤ A →
-      (s3.setReg .x2 (BitVec.ofNat 64 0xFDFFC0)).getMem (BitVec.ofNat 64 A) =
+      (s3.setReg .x2 (BitVec.ofNat 64 0xFDFFB0)).getMem (BitVec.ofNat 64 A) =
         withData.getMem (BitVec.ofNat 64 A) := by
     intro A hA hA'
     rw [gm, wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
@@ -328,9 +331,10 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
       (fr 0xFDFFC0 (by decide) (by decide)).trans dataMasks.2.2.1,
       (fr 0xFDFFC8 (by decide) (by decide)).trans dataMasks.2.2.2.1,
       (fr 0xFDFFD0 (by decide) (by decide)).trans dataMasks.2.2.2.2.1,
-      (fr 0xFDFFD8 (by decide) (by decide)).trans dataMasks.2.2.2.2.2⟩
+      (fr 0xFDFFD8 (by decide) (by decide)).trans dataMasks.2.2.2.2.2.1,
+      (fr 0xFDFFB0 (by decide) (by decide)).trans dataMasks.2.2.2.2.2.2⟩
   · intro p hp
-    have hx2 : (s3.setReg .x2 (BitVec.ofNat 64 0xFDFFC0)).getReg .x2 = BitVec.ofNat 64 0xFDFFC0 :=
+    have hx2 : (s3.setReg .x2 (BitVec.ofNat 64 0xFDFFB0)).getReg .x2 = BitVec.ofNat 64 0xFDFFB0 :=
       MachineState.getReg_setReg_eq (by decide)
     simp only [k0, List.mem_cons, List.not_mem_nil, or_false] at hp
     rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |

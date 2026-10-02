@@ -179,10 +179,10 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
 /-- Universal accepting-run bound. Scaled PIND byte offsets remove one instruction from
 all fifteen leaf headers. The tag-9 address-field rotation is an injective query relabel;
 Final.Discharge supplies the additional universal structural credit. Sparse initialization and leaf-header carry are included. -/
-def cycleBound : Nat := 10263
+def cycleBound : Nat := 10250
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
-def cycleBoundAll : Nat := 16834
+def cycleBoundAll : Nat := 16829
 
 
 /-- A step bound (fuel) sufficient for every run. -/
@@ -190,8 +190,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7469 := by decide
-theorem layC_val : layC = 7469 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7466 := by decide
+theorem layC_val : layC = 7466 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -266,11 +266,11 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
 
 theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 1 := rfl
 
-theorem lrest_0 : lrest 0 = 171 := by decide
+theorem lrest_0 : lrest 0 = 157 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7758 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2670 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7758 + layC + layN := by
-  have h0 : leafCost 0 = 11 := rfl
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7743 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2655 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7743 + layC + layN := by
+  have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 
 theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.length = 16)
@@ -290,8 +290,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (92 + (leafCost 0 + Nseg 0 0)) (92 + (leafCost 0 + Cseg 0 0)) True
-        (92 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (98 + (leafCost 0 + Nseg 0 0)) (98 + (leafCost 0 + Cseg 0 0)) True
+        (98 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with
