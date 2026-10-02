@@ -90,29 +90,19 @@ def notOne : E := .c (~~~1#64)
 def eHalf : E := .bin .srl (.reg .x23) (cw 1)
 /-- Both halves of a header word 1 written by `sw s6, 24; sw v, 28` over the old word `old`. -/
 def sw2E (old v : E) : E := .bin (.st .w 4) (.bin (.st .w 0) old (.reg .x22)) v
+/-- Fixed index in the upper half of the tag word. -/
+def swTreeE (tag : E) : E := .bin (.st .w 4) tag (.reg .x22)
+
 
 /-! ## Setup -/
 
 def setupPost : List (Reg × Word) :=
   gkF ++ ckF 0 ++ [(.x14, BitVec.ofNat 64 A4_0), (.x15, BitVec.ofNat 64 (frameA 0)), (.x25, BitVec.ofNat 64 FOREST)]
 
-/-- T3K: the setup's six constants are loaded from the embedded data (words 359 .. 365: `lui sp, 0x1000` and six
-`ld`, data words 5 .. 10); the rest of the setup is words 366 .. 371 and `j 377` at 372. -/
-def setupLdK : List (Reg × Word) :=
-  baseK ++ [(.x14, BitVec.ofNat 64 A4_0), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x27, BitVec.ofNat 64 0xa01),
-    (.x28, BitVec.ofNat 64 0x901), (.x26, BitVec.ofNat 64 tbN), (.x21, BitVec.ofNat 64 tbL)]
-
-def setupLdSpec : Spec :=
-  ⟨[(.x14, .ld (cw (DATA + 40))), (.x29, .ld (cw (DATA + 48))), (.x27, .ld (cw (DATA + 56))),
-      (.x28, .ld (cw (DATA + 64))), (.x26, .ld (cw (DATA + 72))), (.x21, .ld (cw (DATA + 80)))],
-    [], 366, false, 7, [], none, 7⟩
-
-def setupLdCheckF : Bool := specB [] [] baseK (runAt baseK [366] 359 []) setupLdSpec [] baseK [.x22]
-
 def setupSpecF : Spec :=
-  ⟨[], [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 377, false, 7, [], none, 7⟩
+  ⟨[], [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 377, false, 18, [], none, 18⟩
 
-def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [377] 366 []) setupSpecF [] setupPost [.x22]
+def setupCheckF : Bool := specB [] [] gkF (runAt baseK [377] 359 []) setupSpecF [] setupPost [.x22]
 
 /-! ## Leaf code (to the dispatch) -/
 
@@ -125,8 +115,8 @@ def leafKnown (s : Nat) : List (Reg × Word) :=
 def leafSpec (s : Nat) : Spec :=
   ⟨[(.x23, .ld (cw (ETABs s))), (.x10, cw (WIT + 64 + 48 * s))],
     [(⟨none, BitVec.ofNat 64 (leafT s + 8)⟩,
-        sw2E (.ld (cw (leafT s + 8))) (.bin .and (.ld (cw (ETABs s))) (cw 2047))),
-      (⟨none, BitVec.ofNat 64 (leafT s)⟩, cw (0x901 + 65536 * (s / 3)))],
+        (.bin .and (.ld (cw (ETABs s))) (cw 2047))),
+      (⟨none, BitVec.ofNat 64 (leafT s)⟩, swTreeE (cw (0x901 + 65536 * (s / 3))))],
     leafDisp s, false, (if s % 3 = 1 then 6 else 7), [], none, (if s % 3 = 1 then 6 else 7)⟩
 
 def leafPost (s : Nat) : List (Reg × Word) :=
@@ -202,10 +192,10 @@ def entCheck (tb lo n : Nat) : Bool := (List.range' lo n).all fun b => entCheck1
 /-! ## Rungs -/
 
 def rungMem (r : Nat) : List (Addr × E) :=
-  [(a4A (80 * r + 24), sw2E (.ld (a4E (80 * r + 24))) eHalf), (a4A (80 * r + 16), .reg .x27)]
+  [(a4A (80 * r + 24), eHalf), (a4A (80 * r + 16), swTreeE (.reg .x27))]
 
 def rungObl (r : Nat) : List Oblig :=
-  [.valid (a4A (80 * r + 28)) 4, .align8 (.reg .x14), .valid (a4A (80 * r + 24)) 4, .valid (a4A (80 * r + 16)) 8]
+  [.valid (a4A (80 * r + 24)) 8, .align8 (.reg .x14), .valid (a4A (80 * r + 20)) 4, .valid (a4A (80 * r + 16)) 8]
 
 /-- The next fold's side `t' = (E >> 1) & 1` as the sign of `(E >> 1) << 63`. -/
 def sideE : E := .bin .sll eHalf (cw 63)
@@ -239,8 +229,8 @@ def qBr (d : Nat) (dd : Bool) : Br := ⟨.ne, .ld (cw (frameA d - 16)), .reg .x2
 
 def tailMSpec (c d : Nat) : Spec :=
   ⟨[(.x23, eHalf), (.x10, cw (frameA d)), (.x15, cw (frameA d - 80))],
-    [(⟨none, BitVec.ofNat 64 (frameA d + 24)⟩, sw2E (.ld (cw (frameA d + 24))) eHalf),
-      (⟨none, BitVec.ofNat 64 (frameA d + 16)⟩, .reg .x27)],
+    [(⟨none, BitVec.ofNat 64 (frameA d + 24)⟩, eHalf),
+      (⟨none, BitVec.ofNat 64 (frameA d + 16)⟩, swTreeE (.reg .x27))],
     mDispPc c, false, 8, [qBr d false], none, 8⟩
 
 def tailMCheck1 (c d : Nat) : Bool :=

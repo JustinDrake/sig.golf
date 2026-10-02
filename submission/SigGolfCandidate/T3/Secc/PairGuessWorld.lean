@@ -220,7 +220,7 @@ theorem decodeProbe_of_hdr {x : HashInput} {t l tr p ix : Nat} (hx : Extract.hdr
   apply ht
   have h1 := congrArg (fun v : BitVec 128 => v.toNat % 2 ^ 16 / 2 ^ 8) hh
   simp only [header, BitVec.toNat_ofNat] at h1
-  omega
+  split_ifs at h1 <;> omega
 
 /-! ## Secrets, openings, disclosures, guesses -/
 

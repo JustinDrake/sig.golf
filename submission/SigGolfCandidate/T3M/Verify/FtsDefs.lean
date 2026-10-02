@@ -76,12 +76,12 @@ def RootsOK (roots : List Digest) (m : MachineState) : Prop :=
 /-- The pending block of the next segment (at `x10`), with its header written. -/
 def PendOK (F : FCtx) (c d : Nat) (node : Digest) (m : MachineState) : Pending → Prop
   | .leaf s g => s / 3 = c ∧ s < 21 ∧ g = F.g s ∧ m.getReg .x10 = BitVec.ofNat 64 (WIT + 64 + 48 * s) ∧
-      m.getMem (BitVec.ofNat 64 (leafT s)) = BitVec.ofNat 64 (leafW0 c) ∧
-      m.getMem (BitVec.ofNat 64 (leafT s + 8)) = BitVec.ofNat 64 (hdr1 F.idx g)
+      m.getMem (BitVec.ofNat 64 (leafT s)) = BitVec.ofNat 64 (hdr1 (leafW0 c) F.idx) ∧
+      m.getMem (BitVec.ofNat 64 (leafT s + 8)) = BitVec.ofNat 64 (hdr1 g 0)
   | .merge heap left => d + 1 ≤ 2 ∧ heap < 2048 ∧ m.getReg .x10 = BitVec.ofNat 64 (frameA (d + 1)) ∧
       DigAt m (frameA (d + 1)) left ∧
-      m.getMem (BitVec.ofNat 64 (frameA (d + 1) + 16)) = BitVec.ofNat 64 (nodeW0 c) ∧
-      m.getMem (BitVec.ofNat 64 (frameA (d + 1) + 24)) = BitVec.ofNat 64 (hdr1 F.idx heap) ∧
+      m.getMem (BitVec.ofNat 64 (frameA (d + 1) + 16)) = BitVec.ofNat 64 (hdr1 (nodeW0 c) F.idx) ∧
+      m.getMem (BitVec.ofNat 64 (frameA (d + 1) + 24)) = BitVec.ofNat 64 (hdr1 heap 0) ∧
       DigAt m (frameA (d + 1) + 48) node
 
 def isLeafP : Pending → Bool

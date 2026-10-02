@@ -464,9 +464,9 @@ theorem rl1117_spec (hpc : s.pc = pcOf 1117) (lay tree leaf hh j : Nat) (hlay : 
     (h18 : s.getReg .x18 = BitVec.ofNat 64 leaf) (h15 : s.getReg .x15 = BitVec.ofNat 64 hh)
     (h20 : s.getReg .x20 = BitVec.ofNat 64 j) :
     ∃ t, Steps image s 21 21 t ∧ t.pc = pcOf 1138 ∧
-      t.getMem (BitVec.ofNat 64 (NODE + 16)) = BitVec.ofNat 64 (769 + 65536 * lay) ∧
+      t.getMem (BitVec.ofNat 64 (NODE + 16)) = BitVec.ofNat 64 (769 + 65536 * lay + 2^32 * tree) ∧
       t.getMem (BitVec.ofNat 64 (NODE + 24)) =
-        BitVec.ofNat 64 (tree + 2 ^ 32 * (2 ^ (hh - j - 1) + leaf / 2 ^ (j + 1))) ∧
+        BitVec.ofNat 64 (2 ^ (hh - j - 1) + leaf / 2 ^ (j + 1)) ∧
       t.getReg .x10 = BitVec.ofNat 64 NODE ∧ t.getReg .x11 = BitVec.ofNat 64 64 ∧
       t.getReg .x12 = BitVec.ofNat 64 NOUT ∧
       RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x13, .x28, .x30] ∧
@@ -475,8 +475,9 @@ theorem rl1117_spec (hpc : s.pc = pcOf 1117) (lay tree leaf hh j : Nat) (hlay : 
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [Result.toState_pc, eblk_1117.res, E.eval]
   · simp only [Result.toState_getMem, eblk_1117.res]
-    t3n [h8]
-    rw [if_neg (by decide), ofNat_or_disjoint 769 (lay * 65536) 16 (by norm_num) (by omega)]
+    t3n [h8, h9]
+    rw [if_neg (by decide), ofNat_or_disjoint 769 (lay * 65536) 16 (by norm_num) (by omega),
+      ofNat_or_disjoint' (lay * 65536 + 769) (tree * 4294967296) 32 (by omega) (by omega)]
     congr 1; ring
   · simp only [Result.toState_getMem, eblk_1117.res, NODE]
     t3n [h9, h15, h20, h18]
@@ -487,8 +488,7 @@ theorem rl1117_spec (hpc : s.pc = pcOf 1117) (lay tree leaf hh j : Nat) (hlay : 
     have e2 : (j + 1) % 18446744073709551616 % 64 = j + 1 := by omega
     have hp : 2 ^ (hh - j - 1) ≤ 2 ^ 12 := Nat.pow_le_pow_right (by norm_num) (by omega)
     have hq : leaf / 2 ^ (j + 1) < 2 ^ 32 := lt_of_le_of_lt (Nat.div_le_self _ _) hl
-    rw [e1, e2, ofNat_shr _ _ (by omega), Nat.one_mul, ofNat_add_ofNat, ofNat_shl,
-      ofNat_or_disjoint' tree _ 32 htree (by omega)]
+    rw [e1, e2, ofNat_shr _ _ (by omega), Nat.one_mul, ofNat_add_ofNat]
     congr 1; ring
   · simp [eblk_1117.res, rv_simp]
   · simp [eblk_1117.res, rv_simp]
