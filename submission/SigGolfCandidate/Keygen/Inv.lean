@@ -20,10 +20,11 @@ structure Base (W : List Word) (t : MachineState) : Prop where
   r8 : t.getReg .x8 = BitVec.ofNat 64 0
   r30 : t.getReg .x30 = BitVec.ofNat 64 0
   r9 : t.getReg .x9 = BitVec.ofNat 64 11
+  r26 : t.getReg .x26 = BitVec.ofNat 64 MaskHeader.M1
   sk : ∀ k < 4, t.getMem (BitVec.ofNat 64 (1728 + 8 * k)) = W.getD k 0
   skIn : ∀ k < 4, t.getMem (BitVec.ofNat 64 (128 + 8 * k)) = W.getD k 0
   zero : ∀ A ∈ zeroKeys, t.getMem (BitVec.ofNat 64 A) = 0
-  w832 : t.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 66305
+  w832 : t.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 8198552921646891975
   tail : ∀ A, 0x14B20 ≤ A → A < 0x24B00 → t.getMem (BitVec.ofNat 64 A) = 0
 
 /-- A doubleword key that does not touch `Base`. -/
@@ -31,15 +32,16 @@ def BaseSafe (k : Nat) : Prop :=
   k < 2 ^ 64 ∧ k ∉ [1728, 1736, 1744, 1752, 832, 128, 136, 144, 152] ∧ k ∉ zeroKeys ∧ (k < 0x14B20 ∨ 0x24B00 ≤ k)
 
 theorem Base.frame {W : List Word} {s t : MachineState} {keys : List Nat} (h : Base W s)
-    (hr : ∀ r, r = .x5 ∨ r = .x8 ∨ r = .x30 ∨ r = .x9 → t.getReg r = s.getReg r)
+    (hr : ∀ r, r = .x5 ∨ r = .x8 ∨ r = .x30 ∨ r = .x9 ∨ r = .x26 → t.getReg r = s.getReg r)
     (hf : Frame s t keys) (hk : ∀ k ∈ keys, BaseSafe k) : Base W t := by
   have fr : ∀ A < 2 ^ 64, (∀ k ∈ keys, A ≠ k) → t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) :=
     fun A hA hne => hf A hA (fun hm => hne A hm rfl)
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [hr _ (by simp)]; exact h.r5
   · rw [hr _ (by simp)]; exact h.r8
   · rw [hr _ (by simp)]; exact h.r30
   · rw [hr _ (by simp)]; exact h.r9
+  · rw [hr _ (by simp)]; exact h.r26
   · intro k hk4
     rw [fr _ (by omega) (fun k' hk' heq => by
       have := (hk k' hk').2.1; subst heq; interval_cases k <;> simp at this)]

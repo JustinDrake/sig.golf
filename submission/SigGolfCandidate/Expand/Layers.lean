@@ -1,5 +1,6 @@
 import SigGolfCandidate.Expand.LayFold
 import SigGolfCandidate.Sign.Bytes
+import SigGolfCandidate.Sign.Layer
 
 /-!
 # `expand`, phase 2: the counter phase (`Ref.expandLayers`, instructions 316 .. 494)
@@ -40,6 +41,15 @@ theorem wbytes_zero (w : List Byte) (n : Nat) (h : n ≤ w.length) : wbytes w 0 
 theorem leNat_le32_pair (a b : Nat) (ha : a < 2 ^ 32) (hb : b < 2 ^ 32) :
     leNat (le32 a ++ le32 b) = a + 2 ^ 32 * b := by
   rw [Sign.leNat_append, Ref.leNat_le32, Ref.leNat_le32, length_le32, Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb]; rfl
+
+/-- The expand image carries the sign's layer header and counter search (words 316 .. 381). -/
+theorem eHeadCode : HeadCode eimg :=
+  { c346 := Expand.codeAt_346, c351 := Expand.codeAt_351, c353 := Expand.codeAt_353,
+    c1800 := Expand.codeAt_1800, c355 := Expand.codeAt_355,
+    c375 := Expand.codeAt_375, c1816 := Expand.codeAt_1816,
+    c376 := Expand.codeAt_376, c377 := Expand.codeAt_377, c379 := Expand.codeAt_379,
+    c316 := Expand.codeAt_316, c318 := Expand.codeAt_318, c321 := Expand.codeAt_321,
+    c322 := Expand.codeAt_322, c329 := Expand.codeAt_329, run331 := Expand.encRun331_sign }
 
 /-- Aligned witness dwords (other than the counter dwords `336`, `368`, `369`) as bytes. -/
 theorem readWords_good (w : List Byte) (t : MachineState)
@@ -300,6 +310,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
   obtain ⟨t7, hs7, p7, y18, y19, y20, y21, y23, y24, mLF0, mLF8, mNB0, mCB8, r7, f7⟩ :=
     blk386_run t6 p6 (n + 1) tau hn htau30 (by rw [R6.get .x8 (by decide), hinv.head.x8])
       (by rw [r6.get .x30, r5.get .x30, x430]) (by rw [R6.get .x25 (by decide), hc.x25])
+      (by rw [R6.get .x26 (by decide),hc.x26])
   have x31 : t6.getReg .x31 = BitVec.ofNat 64 (tau + 2 ^ 32 * e) := by rw [r6.get .x31, r5.get .x31, x431]
   rw [x31] at mLF8 mCB8
   have R7 := R6.trans r7
@@ -319,7 +330,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
       by rw [y24]; try exact ofNat_congr (by ring), RegsEq.refl _ _, Frame.refl _ _⟩
   rw [verifyLeaf_eq, bind_assoc]
   simp only [foldPath_take_eq]
-  have hsetup : (if n + 1 = 4 then 29 else 32 : Nat) ≤ 32 := by split <;> omega
+  have hsetup : (if n + 1 = 4 then 33 else if n+1=3 then 37 else 39 : Nat) ≤ 39 := by split <;> (try split) <;> omega
   refine (Sim.steps hs6 (Sim.steps hs7 (Sim.bind hch (W₂ := 300 + (n + 1) * LW) (fun ends t8 h8 => ?_)))).mono
     (by omega) (fun _ _ h => h)
   -- the leaf

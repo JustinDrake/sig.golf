@@ -188,7 +188,7 @@ theorem Good.encodingHashF {s : MachineState} {N C : Nat} {x : List Byte}
 /-- Encoding formatting for the exact32-byte root-pair message. -/
 theorem fmt_enc (lay tau e : Nat) (M : Val) (c : Nat) (hM : M.length = 32) :
     addrFmt (encInput lay tau e M c) =
-      EncodingRotate.query (pad64 (encInput lay tau e M c)) := by
+      Ref.MaskHeader.query (EncodingRotate.query (pad64 (encInput lay tau e M c))) := by
   rw [addrFmt_encInput_valid _ _ _ _ hM, Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide)]
 
 /-- Zero-padded `thInput` for the tags that `addrFmt` leaves alone (not 1, 3, 12). -/

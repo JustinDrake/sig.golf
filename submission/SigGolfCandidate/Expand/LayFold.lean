@@ -1,4 +1,5 @@
 import SigGolfCandidate.Expand.LayChain
+import SigGolfCandidate.Sign.TreeLevel
 
 /-!
 # `expand`, phase 2: the OTS leaf hash (438 .. 441) and the folds (`Ref.foldPath`, 442 .. 471)
@@ -28,26 +29,40 @@ def LeafOut (w : List Byte) (idx : Nat) (u : MachineState) (v : Val) (t : Machin
 theorem leaf_sim (w : List Byte) (idx : Nat) (lay tau e : Nat) (hl : lay < 5) (htau : tau < 2 ^ 30)
     (he : e < 2048) (ends : List Val) (hlen : ends.length = 42) (hv : ∀ v ∈ ends, v.length = 16)
     (t : MachineState) (hpc : t.pc = pcOf 438) (hc : LCtx w idx t) (hs : Slots t 0x30260 ends)
-    (m0 : t.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (LeafCarry.leafHeader lay))
+    (m0 : t.getMem (BitVec.ofNat 64 0x30240) = BitVec.ofNat 64 (MaskHeader.leafHeader lay))
     (m8 : t.getMem (BitVec.ofNat 64 0x30248) = BitVec.ofNat 64 (tau + 2 ^ 32 * e)) :
     Sim eimg t 91 (hash16 (leafInput lay tau e ends)) (LeafOut w idx t) := by
   obtain ⟨t1, hs1, e1, p1, x10, x11, x12, r1, m1⟩ := blk438_run t hpc hc.x25
   have hw := words_thVals (carryLeafTag lay) (carryLeafLay lay) tau 0 e ends hv 10 (by rw [hlen])
-  have hq : hashInput t1 = pad64 (thInput (tweak (carryLeafTag lay) (carryLeafLay lay) tau 0 e) ends.flatten) := by
-    refine hashInput_eq_pad64 t1 _ 10 hw.1 (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
-    rw [x10, hw.2, show 8 * (10 + 1) = 2 + (2 + 2 * ends.length) by rw [hlen],
+  have hq : hashInput t1 = MaskHeader.query (pad64 (thInput (tweak (carryLeafTag lay) (carryLeafLay lay) tau 0 e) ends.flatten)) := by
+    have hendsLen : (ends.map wordsOf).flatten.length=84 := by
+      rw [List.length_flatten]
+      have hh : (ends.map wordsOf).map List.length=List.replicate 42 2 := by
+        apply List.ext_getElem (by simp [hlen])
+        intro i hi hj
+        simp only [List.getElem_map,List.getElem_replicate]
+        exact length_wordsOf_16 _ (hv _ (List.getElem_mem _))
+      rw [hh];decide
+    rw [hashInput_eq_words t1 10 (by rw [x11]) (by norm_num) (by rw [x10];decide),
+      pad64_eq_query,hw.1,hw.2,twWords_eq]
+    simp only [List.cons_append,List.nil_append]
+    rw [MaskHeader.query_words 10 _ _ (by simp [hendsLen])]
+    apply congrArg (queryOfWords 10)
+    rw [x10, show 8 * (10 + 1) = 2 + (2 + 2 * ends.length) by rw [hlen],
       readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_two]
     simp only [Nat.reduceMul, Nat.reduceAdd]
     rw [m1, m1, m0, m8, readWords_congr _ _ _ _ (fun i _ => m1 _), hc.lfz,
       readWords_congr _ _ _ _ (fun i _ => m1 _), readWords_slots t 0x30260 ends hs]
-    simp only [twWords_eq,List.cons_append,List.nil_append]
-    rw [carryLeafWord lay tau (by omega) (by omega),
-      Nat.mod_eq_of_lt (by omega : tau < 2 ^ 32), Nat.mod_eq_of_lt (by omega : e < 2 ^ 32)]
+    simp only [List.cons_append,List.nil_append]
+    rw [carryLeafWord lay tau (by omega) (by omega)]
+    have hb : LeafCarry.leafHeader lay < 2^64 := by interval_cases lay <;> decide
+    rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt hb,MaskHeader.header_leaf lay hl]
+    simp only [Nat.mod_eq_of_lt (by omega : tau < 2 ^ 32), Nat.mod_eq_of_lt (by omega : e < 2 ^ 32)]
   have haddr := addrFmt_leafInput_carry lay tau e ends (by omega : lay<7) (by omega : tau<2^32) hlen hv
   have hq' : hashInput t1 = addrFmt (leafInput lay tau e ends) := hq.trans haddr.symm
   have hb : (fmt (leafInput lay tau e ends)).blocks = 11 := by
     rw [← addrFmt_blocks, haddr]
-    exact congrArg (· + 1) hw.1
+    rw [MaskHeader.query_blocks]; exact congrArg (· + 1) hw.1
   refine (Sim.steps hs1 (Sim.of_eq (Sim.hash16_bindF (f := pure) (W := 0) e1 (by rw [r1.get .x5, hc.x5])
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
       (by norm_num)) hq' (fun ans => ?_)) (bind_pure _))).mono
@@ -76,16 +91,31 @@ theorem foldPath_eq (w : List Byte) (lay tau e : Nat) (leaf : Val) :
 
 /-- The HASH input of a hypertree node (`nodeBlock` of `nodeInput`). -/
 theorem hashInput_node (t : MachineState) (lay tau lam j : Nat) (l r : Val) (hl : l.length = 16)
-    (hr : r.length = 16) (hl0 : 0 < lay) (hlay : lay < 256) (hlam : lam < 2 ^ 32) (hj : j < 2 ^ 32)
+    (hr : r.length = 16) (hl0 : 0 < lay) (hlay : lay < 5) (htau : tau < 2^30)
+    (hlam : lam < 2 ^ 32) (hj : j < 2 ^ 32)
     (h11 : t.getReg .x11 = BitVec.ofNat 64 64) (h10 : (t.getReg .x10).toNat % 8 = 0)
     (hw : t.readWords (t.getReg .x10) 8 =
-      twWords 3 lay tau 0 (heapIndex (height lay) lam j) ++ [0, 0] ++ wordsOf l ++ wordsOf r) :
+      [BitVec.ofNat 64 (MaskHeader.nodeHeader lay),
+       BitVec.ofNat 64 (tau + 2^32*(heapIndex (height lay) lam j % 2^32)),0,0] ++ wordsOf l ++ wordsOf r) :
     hashInput t = addrFmt (nodeInput lay tau lam j l r) := by
-  rw [addrFmt_nodeInput_nonTop lay tau lam j l r hl hr (by omega), fmt_nodeInput lay tau lam j l r hl hr hlay hlam hj]
+  rw [addrFmt_nodeInput_nonTop lay tau lam j l r hl hr (by omega),
+    fmt_nodeInput lay tau lam j l r hl hr (by omega) hlam hj]
+  have hfmt : (⟨0, ofList _ (thInput (tweak 3 lay tau 0 (heapIndex (height lay) lam j)) (l++r))⟩ : Query) =
+      pad64 (thInput (tweak 3 lay tau 0 (heapIndex (height lay) lam j)) (l++r)) := by
+    symm; exact pad64_len64 _ (by simp [hl,hr])
+  rw [hfmt]
   have hw' := words_th32 3 lay tau 0 (heapIndex (height lay) lam j) l r hl hr
-  rw [hashInput_eq_pad64 t _ 0 hw'.1 h11 (by norm_num) h10 (by rw [show 8 * (0 + 1) = 8 from rfl, hw, hw'.2]),
-    pad64_eq _ 0 (by simp [hl, hr]) (by simp [hl, hr])]
-  simp [hl, hr, zeros]
+  rw [hashInput_eq_words t 0 h11 (by norm_num) h10,pad64_eq_query,hw'.1,hw'.2,twWords_eq]
+  simp only [List.cons_append,List.nil_append]
+  rw [MaskHeader.query_words 0 _ _ (by simp [length_wordsOf_16 _ hl,length_wordsOf_16 _ hr])]
+  apply congrArg (queryOfWords 0)
+  rw [show 8*(0+1)=8 from rfl,hw]
+  have hfirst : twWord0 3 lay tau 0=BitVec.ofNat 64 (769+65536*lay) := by
+    unfold twWord0
+    simp only [Nat.mod_eq_of_lt (by omega : lay<256),Nat.div_eq_of_lt (by omega : tau<2^32)]
+    congr 1 <;> omega
+  rw [hfirst,BitVec.toNat_ofNat,Nat.mod_eq_of_lt (by omega : 769+65536*lay<2^64),MaskHeader.header_node lay hlay]
+  simp only [Nat.mod_eq_of_lt (by omega : tau<2^32),List.cons_append,List.nil_append]
 
 /-- Registers the folds write. -/
 def fdRegs : List Reg := [.x10, .x11, .x12, .x14, .x15, .x16, .x17, .x18, .x19, .x23, .x28, .x29]
@@ -114,7 +144,7 @@ root's two children). -/
 theorem fold_step2 (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : Nat) (hl : 1 ≤ lay) (hl' : lay < 5)
     (htau : tau < 2 ^ 30) (he : e < 2 ^ height lay) (hw : w.length = 16384)
     (u9 : u.getReg .x9 = BitVec.ofNat 64 (height lay)) (u30 : u.getReg .x30 = BitVec.ofNat 64 tau)
-    (u1C0 : u.getMem (BitVec.ofNat 64 0x301C0) = BitVec.ofNat 64 (769 + 65536 * lay)) :
+    (u1C0 : u.getMem (BitVec.ofNat 64 0x301C0) = BitVec.ofNat 64 (MaskHeader.nodeHeader lay)) :
     ∀ lam < height lay, ∀ (v : Val) (t : MachineState), FdInv w idx u lay e lam v t →
       Sim eimg t 30 (fdF w lay tau e v lam) (fun v' t' => FdInv w idx u lay e (lam + 1) v' t' ∧
         t'.readWords (BitVec.ofNat 64 0x301E0) 4 = wordsOf (if e / 2 ^ lam % 2 = 1
@@ -162,7 +192,7 @@ theorem fold_step2 (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : N
     obtain ⟨t3, hs3, e3, p3, x10, x11, x12, r3, m3⟩ := blk465_run t2 p2 c2.x25
     have c3 := c2.frame_nil m3 r3
     have hq : hashInput t3 = addrFmt (nodeInput lay tau (lam + 1) (e / 2 ^ (lam + 1)) l r) := by
-      refine hashInput_node t3 lay tau (lam + 1) _ l r hl2 hr2 (by omega) (by omega) (by omega) hj x11
+      refine hashInput_node t3 lay tau (lam + 1) _ l r hl2 hr2 (by omega) (by omega) htau (by omega) hj x11
         (by rw [x10]; decide) ?_
       rw [x10, ← hHdiv, readWords8]
       simp only [Nat.reduceAdd, m3]
@@ -177,11 +207,7 @@ theorem fold_step2 (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : N
         tframe.getMem (a := 0x301C0) (by norm_num) (by unfold fdW; omega), u1C0,
         f12.getMem (a := 0x301D0) (by norm_num) (by omega), hz.1,
         f12.getMem (a := 0x301D8) (by norm_num) (by omega), hz.2]
-      unfold twWords
-      rw [Nat.mod_eq_of_lt (by omega : lay < 256), Nat.div_eq_of_lt (by omega : tau < 2 ^ 32),
-        Nat.mod_eq_of_lt (by omega : tau < 2 ^ 32), Nat.mod_eq_of_lt (by omega : H / 2 < 2 ^ 32)]
-      simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true, List.append_assoc]
-      exact ofNat_congr (by ring)
+      simp only [Nat.mod_eq_of_lt (by omega : H/2<2^32),List.cons_append,List.nil_append]
     have hbq : (fmt (nodeInput lay tau (lam + 1) (e / 2 ^ (lam + 1)) l r)).blocks = 1 := by
       rw [fmt_nodeInput _ _ _ _ _ _ hl2 hr2 (by omega) (by omega) hj]; rfl
     refine (Sim.steps hs1 (Sim.steps hs2 (Sim.steps hs3 (Sim.of_eq (Sim.hash16_bindF (f := pure) (W := 3) e3 c3.x5
@@ -234,7 +260,7 @@ theorem fold_step2 (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : N
 theorem fold_step (w : List Byte) (idx : Nat) (u : MachineState) (lay tau e : Nat) (hl : 1 ≤ lay) (hl' : lay < 5)
     (htau : tau < 2 ^ 30) (he : e < 2 ^ height lay) (hw : w.length = 16384)
     (u9 : u.getReg .x9 = BitVec.ofNat 64 (height lay)) (u30 : u.getReg .x30 = BitVec.ofNat 64 tau)
-    (u1C0 : u.getMem (BitVec.ofNat 64 0x301C0) = BitVec.ofNat 64 (769 + 65536 * lay)) :
+    (u1C0 : u.getMem (BitVec.ofNat 64 0x301C0) = BitVec.ofNat 64 (MaskHeader.nodeHeader lay)) :
     ∀ lam < height lay, ∀ (v : Val) (t : MachineState), FdInv w idx u lay e lam v t →
       Sim eimg t 30 (fdF w lay tau e v lam) (FdInv w idx u lay e (lam + 1)) :=
   fun lam hlam v t h =>
