@@ -387,7 +387,7 @@ def shE (w : Reg) (b : Nat) : E :=
 def xJ (w : Reg) (b : Nat) (mreg : Reg) (imm : Word) : Result :=
   ⟨⟨RegFile.init.set .x14 (.bin .add (.bin .and (shE w b) (.reg mreg)) (.reg .x15)), [], []⟩,
     .bin .and (.bin .add (.bin .add (.bin .and (shE w b) (.reg mreg)) (.reg .x15)) (.c imm)) (.c (~~~1#64)),
-    .jump, (if b = 9 then 3 else 4), (if b = 9 then 3 else 4)⟩
+    .jump, 4, 4⟩
 
 /-- After triple 13: `slli a4, t4, 5; add a4, a4, a5; jalr zero, -2048(a4)` into `ctab` (3 steps). -/
 def ctabX : Result :=

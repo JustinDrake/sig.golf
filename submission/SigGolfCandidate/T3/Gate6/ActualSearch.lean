@@ -12,7 +12,7 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 
-/-- Exact decoder equality, including the actual source's six-bit gate. -/
+/-- Exact decoder equality, including the actual source's five-bit gate. -/
 theorem actual_decoder_eq (output : HashOutput) :
     NativeSearch.decode output=SigGolfCandidate.T3.Sampling.digestDecode output := by
   unfold NativeSearch.decode SigGolfCandidate.T3.Sampling.digestDecode
@@ -39,7 +39,7 @@ theorem actual_uniform_nonce_completed_cap (secret : BitVec 256) (message : Mess
     expectedValue (($ᵗ Digest : ProbComp Digest) >>= fun rho =>
       roRun secret (digestSearch rho message 0 fuel) cache)
       (fun result => NativeSearch.completedScore mark result.1) ≤
-      (17/16 : ENNReal)/(2 : ENNReal)^59 := by
+      (1025/1024 : ENNReal)/(2 : ENNReal)^59 := by
   simpa only [actual_search_eq] using
     NativeSearch.uniform_nonce_completed_cap secret message fuel hlimit cache hfinite q hsize hq hclean mark
 
@@ -56,7 +56,7 @@ theorem actual_recordLaw_scaled_cap (secret : BitVec 256) (message : Message)
     (fuel : Nat) (hlimit : fuel ≤ 2^32) (cache : RCache) (hfinite : SphincsSecurity.Finite cache)
     (q : Nat) (hsize : QueryCache.enncard cache ≤ q) (hq : q ≤ 2^127)
     (hclean : ¬NativeCache.Bad cache) (mark : MarkedLabel) :
-    (16/17 : ENNReal)*((actualRecordLaw secret message fuel cache).map Prod.snd) mark ≤
+    (1024/1025 : ENNReal)*((actualRecordLaw secret message fuel cache).map Prod.snd) mark ≤
       (PMF.uniformOfFintype MarkedLabel) mark := by
   rw [actual_recordLaw_eq]
   exact NativeSearch.recordLaw_scaled_cap secret message fuel hlimit cache hfinite q hsize hq hclean mark

@@ -208,7 +208,7 @@ theorem authCount_sort3 (x0 x1 x2 : Nat) : T3.authCount (sort3 x0 x1 x2) + 1 = r
 /-- `admissible` of the selections of `N`, as `select_ok` computes it. -/
 theorem admissible_selections (N : BitVec 256) :
     T3.admissible (T3.selections N) =
-      ((List.range 7).all (fun c => rowOk (selRow N c)) && decide (21 + selCost N 7 ≤ 121)) := by
+      ((List.range 7).all (fun c => rowOk (selRow N c)) && decide (21 + selCost N 7 ≤ 119)) := by
   rw [selections_eq, T3.admissible]
   congr 1
   · simp only [List.all_map, Function.comp_def]
@@ -229,6 +229,6 @@ theorem admissible_selections (N : BitVec 256) :
       have h6 := authCount_sort3 (selWin N 6 / 16 % 128) (selWin N 6 / 2 ^ 11 % 128) (selWin N 6 / 2 ^ 18 % 128)
       simp only [selRow] at *
       omega
-    simpa only [List.map_map, Function.comp_def] using congrArg (fun n => decide (n ≤ 121)) eqCost
+    simpa only [List.map_map, Function.comp_def] using congrArg (fun n => decide (n ≤ 119)) eqCost
 
 end SigGolfCandidate.T3M.Search

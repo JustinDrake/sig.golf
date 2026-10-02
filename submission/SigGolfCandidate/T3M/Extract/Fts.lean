@@ -137,7 +137,7 @@ theorem treeHit_mono {answers : Answers} {index coord : Nat} {secret : Nat → D
 distinct-input hit at its own position or is honest: all its queries are honest inputs and its selected leaves
 carry the honest secrets with zero pads. -/
 theorem recoverChildP_extract (answers : Answers) (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 121 → Digest) (pads : Pads) (secret : Nat → Digest) :
+    (proof : Fin 119 → Digest) (pads : Pads) (secret : Nat → Digest) :
     ∀ level node used (v : Digest) (next : Nat), level ≤ 11 → node < 2 ^ (11 - level) →
       evalWithAnswerFn answers (recoverChildP index coord leaves values proof pads level node used) =
         some (v, next) →
@@ -251,7 +251,7 @@ theorem recoverChildP_extract (answers : Answers) (index coord : Nat) (leaves : 
 /-! ## The four outer folds -/
 
 theorem outerStepP_some_lt (sig : Signature) (pads : Pads) (index coord bucket : Nat) (w : Digest) (u j : Nat)
-    (h : u < 121) : outerStepP sig pads index coord bucket (some (w, u)) j =
+    (h : u < 119) : outerStepP sig pads index coord bucket (some (w, u)) j =
       (nodeHashP 10 coord index (2 ^ (11 - (7 + j + 1)) + bucket / 2 ^ (j + 1))
         (if bucket / 2 ^ j % 2 = 0 then w else sig.proof ⟨u, h⟩) (pads.fold ⟨u, h⟩)
         (if bucket / 2 ^ j % 2 = 0 then sig.proof ⟨u, h⟩ else w) >>= fun parent => pure (some (parent, u + 1))) := by
@@ -289,7 +289,7 @@ theorem outer_extract (answers : Answers) (sig : Signature) (pads : Pads) (index
       · rw [hs] at hrun; simp [outerStepP] at hrun
       try rw [hs] at hrun
       simp only [List.foldlM_cons, List.foldlM_nil, bind_pure] at hrun ⊢
-      by_cases hu : u' < 121
+      by_cases hu : u' < 119
       · rw [outerStepP_some_lt _ _ _ _ _ _ _ _ hu] at hrun ⊢
         rw [queried_bind, nodeHashP_eq_shortHash, queried_shortHash, pad64_nodeInputP, queried_pure,
           List.append_nil]
@@ -518,8 +518,8 @@ theorem recoverFtsP_extract (answers : Answers) (sig : Signature) (pads : Pads) 
   · rw [hs] at hrun; simp at hrun
   try rw [hs] at hrun
   dsimp only at hrun ⊢
-  by_cases hz : (!(List.range (121 - used)).all (fun j =>
-      decide (sig.proof ⟨(used + j) % 121, Nat.mod_lt _ (by decide)⟩ = 0))) = true
+  by_cases hz : (!(List.range (119 - used)).all (fun j =>
+      decide (sig.proof ⟨(used + j) % 119, Nat.mod_lt _ (by decide)⟩ = 0))) = true
   · rw [if_pos hz] at hrun; simp at hrun
   rw [if_neg hz] at hrun ⊢
   rw [queried_bind, forestPk_eq_shortHash, queried_shortHash, queried_pure, List.append_nil]

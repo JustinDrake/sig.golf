@@ -4,9 +4,9 @@ namespace SigGolfResearch.Gate6.Budget
 set_option maxRecDepth 10000
 set_option maxHeartbeats 1000000
 
-def p0 : ℚ := 102487135108565451847281345/158456325028528675187087900672
+def p0 : ℚ := 45630451091124581228391105/79228162514264337593543950336
 def zU : ℚ := 1/(1-6931471808/(10000000000*131072))
-def b0 : ℚ := 1008243682763/1000000000000
+def b0 : ℚ := 1009267156500/1000000000000
 
 theorem digest_geometric_step : zU*((1-p0)*b0+p0)≤b0 := by norm_num [zU,p0,b0]
 theorem probability_floor : 1/3300≤p0 ∧ p0≤1/16 := by norm_num [p0]
@@ -32,6 +32,6 @@ theorem signing_envelope : (2 : ℝ)^((123035 : ℝ)/131072)*bProduct≤2 := by
 
 theorem physical_bank_work : 7*(1024+2048+2047)+2=35835 := by decide
 theorem fixed_signing_work : 513+2+35835+86685=123035 := by decide
-theorem signature_layout_bytes : 16*(1+21+93+28+187+31)=5776 := by decide
+theorem signature_layout_bytes : 16*(1+21+91+28+187+31)=5744 := by decide
 
 end SigGolfResearch.Gate6.Budget

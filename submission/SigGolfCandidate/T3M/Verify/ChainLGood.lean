@@ -7,7 +7,7 @@ For a lower-layer run of the chain code (`LCtx` with `i0 = 0`, `koff = 0`, a che
 * `LCtx.lower_good` : from `ChainIn 0 []` to the return (`ChainOut 43`), the 43 chains (`chains_good` + `ck_good`);
 * `LCtx.lowP_eq` : the program is Core's `mapM` over `finRange 43` (`layerP`'s chain term) when the digits are `D`
   and the chain blocks are the witness's (`s6 = 0x800 + chainBlock lay 42 + 1024`);
-* `LCtx.lowCost_accept` : the cycles `lowCost + Z = 3036 - 9 · target lay` when the 43 digits sum to the target
+* `LCtx.lowCost_accept` : the cycles `lowCost + Z = 3038 - 9 · target lay` when the 43 digits sum to the target
   (`decode_lower_sum`: every decoded lower digit list does). -/
 
 set_option linter.unusedSimpArgs false
@@ -112,9 +112,9 @@ theorem sum_dig (c : LCtx) (D : List Nat) (hD : ∀ i < 43, c.dig i = D.getD i 0
   conv_rhs => rw [hE]
   exact QCtx.sum_range'_eq _ _ 0 43 (fun i _ hi => hD i (by omega))
 
-/-- **The cost of an accepting lower chain phase**: `3036 - 9 · target - Z` (`Z` = the max-digit savings). -/
+/-- **The cost of an accepting lower chain phase**: `3038 - 9 · target - Z` (`Z` = the max-digit savings). -/
 theorem lowCost_accept (c : LCtx) (hck : c.ck < 8) (D : List Nat) (hD : ∀ i < 43, c.dig i = D.getD i 0)
-    (hl : D.length = 43) (T : Nat) (hT : D.sum = T) : c.lowCost + c.zSum 0 43 + 9 * T = 3036 := by
+    (hl : D.length = 43) (T : Nat) (hT : D.sum = T) : c.lowCost + c.zSum 0 43 + 9 * T = 3038 := by
   have := c.chainsCost_lower hck T (by rw [c.sum_dig D hD hl, hT])
   unfold lowCost
   omega

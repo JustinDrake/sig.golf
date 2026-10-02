@@ -8,7 +8,7 @@ import SigGolfCandidate.T3M.Sign.BaseInv
 `16 (2048 - 2^(13 - level) + sibling)`); `topNode_lo/hi` read it as two doublewords of the loaded
 cache. `tp_mask_one` : one `tp_mask` iteration (exactly 42 steps, 49 cycles, one mask query) refines
 `mask level sibling >>= fun m => pure (topNode ^^^ m)` and appends the masked node at
-`SIG + 3248 + 16 j`; `tp_masks` : the 10 iterations refine Core's `mapM` over `List.range' 2 10`.
+`SIG + 3216 + 16 j`; `tp_masks` : the 10 iterations refine Core's `mapM` over `List.range' 2 10`.
 -/
 
 namespace SigGolfCandidate.T3M.Sign
@@ -77,9 +77,9 @@ theorem topNode_hi (cache : Bytes 32768) (leaf level : Nat) (hq : topSlot leaf l
 
 /-! ## The mask loop -/
 
-/-- Doublewords the mask loop writes: the mask header, `MOUT`, the path slots `SIG + 3248 ..`. -/
+/-- Doublewords the mask loop writes: the mask header, `MOUT`, the path slots `SIG + 3216 ..`. -/
 def TMW (X : Nat) : Prop :=
-  X = PRIV + 16 ∨ X = PRIV + 24 ∨ (MOUT ≤ X ∧ X < MOUT + 32) ∨ (SIG + 3248 ≤ X ∧ X < SIG + 3408)
+  X = PRIV + 16 ∨ X = PRIV + 24 ∨ (MOUT ≤ X ∧ X < MOUT + 32) ∨ (SIG + 3216 ≤ X ∧ X < SIG + 3376)
 
 /-- Registers the mask loop changes. -/
 def tmRegs : List Reg := [.x6, .x7, .x10, .x11, .x12, .x20, .x22, .x24, .x28, .x29, .x30]
@@ -88,11 +88,11 @@ def tmRegs : List Reg := [.x6, .x7, .x10, .x11, .x12, .x20, .x22, .x24, .x28, .x
 structure MInv (w0 : MachineState) (pre : List Digest) (w : MachineState) : Prop where
   pc : w.pc = pcOf 498
   x22 : w.getReg .x22 = BitVec.ofNat 64 (2 + pre.length)
-  x24 : w.getReg .x24 = BitVec.ofNat 64 (SIG + 3248 + 16 * pre.length)
+  x24 : w.getReg .x24 = BitVec.ofNat 64 (SIG + 3216 + 16 * pre.length)
   x20 : w.getReg .x20 = BitVec.ofNat 64 (2 ^ (10 - pre.length))
   regs : RegsExcept w0 w tmRegs
   frame : Frame w0 w TMW
-  out : DigsAt w (SIG + 3248) pre
+  out : DigsAt w (SIG + 3216) pre
 
 section masks
 variable {sk : SecretKey} {cache : Bytes 32768} {w0 : MachineState} {leaf : Nat}
@@ -142,7 +142,7 @@ theorem tp_mask_one {pre : List Digest} (hpl : pre.length < 10) {w : MachineStat
     rw [show 13 - lv = (10 - pre.length) + 1 by omega, Nat.pow_succ]; ring
   have hst' : 2 ^ (12 - lv) = 2 ^ (10 - pre.length) := by congr 1; omega
   obtain ⟨t3, st3, t3pc, t3a, t3b, t3x24, t3x20, t3x22, t3r, t3f⟩ := blk515_spec (writeHash t2 a) upc leaf lv
-    (2 ^ (10 - pre.length)) (SIG + 3248 + 16 * pre.length) hl (by omega)
+    (2 ^ (10 - pre.length)) (SIG + 3216 + 16 * pre.length) hl (by omega)
     (by rw [hst]; have := Nat.pow_le_pow_right (by norm_num : 0 < 2) (show 13 - lv ≤ 11 by omega); simpa using this)
     (by sg_omega) (by sg_omega) (by rw [rw2.get (by decide), g _ (by decide), h14])
     (by rw [rw2.get (by decide)]; exact hw.x22) (by rw [rw2.get (by decide)]; exact hw.x20)
@@ -167,7 +167,7 @@ theorem tp_mask_one {pre : List Digest} (hpl : pre.length < 10) {w : MachineStat
     · sg_omega
     · constructor
       · rw [t3a, hslot', reg _ (by omega), hmo.1, BitVec.extractLsb'_xor, topNode_lo cache leaf lv hslot]
-      · rw [show SIG + 3248 + 16 * pre.length + 8 = SIG + 3248 + 16 * pre.length + 8 from rfl, t3b,
+      · rw [show SIG + 3216 + 16 * pre.length + 8 = SIG + 3216 + 16 * pre.length + 8 from rfl, t3b,
           show REGION + 16 * (2048 - 2 * 2 ^ (10 - pre.length) + (leaf / 2 ^ lv ^^^ 1)) + 8 =
             REGION + 8 * (2 * topSlot leaf lv + 1) by rw [hslot']; ring,
           reg _ (by omega), hmo.2, BitVec.extractLsb'_xor, topNode_hi cache leaf lv hslot]

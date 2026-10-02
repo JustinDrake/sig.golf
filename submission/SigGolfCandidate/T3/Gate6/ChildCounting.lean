@@ -71,9 +71,9 @@ theorem generic_capped_card {α : Type} [Fintype α] (g : α → Nat) (y cap : N
   exact congrArg card (filter_congr fun a _ => by omega)
 
 def packedSetCount : Nat :=
-  (((piter 3 (2^160) ((2^160)^(93+1)) 7 [0,1]).getD 3 0)^7 % (2^160)^(93+1)) % (2^160-1)
+  (((piter 3 (2^160) ((2^160)^(91+1)) 7 [0,1]).getD 3 0)^7 % (2^160)^(91+1)) % (2^160-1)
 
-theorem packedSetCount_value : packedSetCount = 26380945558139291669735127569368350720 := by
+theorem packedSetCount_value : packedSetCount = 11745615142360328454399329854533140480 := by
   decide +kernel
 
 end SigGolfResearch.Gate6

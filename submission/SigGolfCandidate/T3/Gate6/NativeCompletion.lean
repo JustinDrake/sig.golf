@@ -57,22 +57,22 @@ noncomputable def recordLaw (secret : BitVec 256) (message : Message) (fuel : Na
   liftM (complete Prod.fst (($ᵗ Digest : ProbComp Digest) >>= fun rho =>
     roRun secret (search rho message fuel) cache))
 
-/-- Concrete accepted marginal meets the proposal model's exact16/17 domination
-condition over all2^59 labels, including counter-search exhaustion. -/
+/-- Concrete accepted marginal meets the proposal model's exact 1024/1025 domination
+condition over all 2^59 labels, including counter-search exhaustion. -/
 theorem recordLaw_scaled_cap (secret : BitVec 256) (message : Message)
     (fuel : Nat) (hlimit : fuel≤2^32) (cache : RCache) (hfinite : SphincsSecurity.Finite cache)
     (q : Nat) (hsize : QueryCache.enncard cache≤q) (hq : q≤2^127)
     (hclean : ¬NativeCache.Bad cache) (mark : MarkedLabel) :
-    (16/17 : ENNReal)*((recordLaw secret message fuel cache).map Prod.snd) mark ≤
+    (1024/1025 : ENNReal)*((recordLaw secret message fuel cache).map Prod.snd) mark ≤
       (PMF.uniformOfFintype MarkedLabel) mark := by
   have hpoint := uniform_nonce_completed_cap secret message fuel hlimit cache hfinite q hsize hq hclean mark
   rw [← complete_point Prod.fst _ mark] at hpoint
   rw [← PMF.monad_map_eq_map,← PMF.probOutput_eq_apply,probOutput_map,
     PMF.uniformOfFintype_apply,markedLabel_card,Nat.cast_pow,Nat.cast_ofNat]
-  change (16/17 : ENNReal)*Pr[fun result => result.2=mark | complete Prod.fst
+  change (1024/1025 : ENNReal)*Pr[fun result => result.2=mark | complete Prod.fst
     (($ᵗ Digest : ProbComp Digest) >>= fun rho => roRun secret (search rho message fuel) cache)]≤_
   calc
-    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^59) := mul_le_mul' le_rfl hpoint
+    _ ≤ (1024/1025 : ENNReal)*((1025/1024 : ENNReal)/(2 : ENNReal)^59) := mul_le_mul' le_rfl hpoint
     _ = _ := by
       apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
       norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_inv,ENNReal.toReal_pow]

@@ -6,13 +6,13 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 
 /-- The actual interleaved proposed T3 layout: address bits0..30;
-seven25-bit fields of bucket4 and three7-bit children; gate206..211;
-unused212..255. The gate is checked without conditioning the mark. -/
+seven25-bit fields of bucket4 and three7-bit children; gate206..210;
+unused211..255. The gate is checked without conditioning the mark. -/
 def digestRecord (output : BitVec 256) : RawRecord :=
   (((output.extractLsb' 0 31).toFin,
       fun c => (output.extractLsb' (31+25*c.val) 4).toFin),
     ((fun c j => (output.extractLsb' (31+25*c.val+4+7*j.val) 7).toFin),
-      ((output.extractLsb' 206 6).toFin,(output.extractLsb' 212 44).toFin)))
+      ((output.extractLsb' 206 5).toFin,(output.extractLsb' 211 45).toFin)))
 
 theorem digestRecord_injective : Function.Injective digestRecord := by
   intro left right heq
@@ -42,18 +42,18 @@ theorem digestRecord_injective : Function.Injective digestRecord := by
           right.extractLsb' (31+25*c.val+4+7*j.val) 7 at hc
         have hb := congrArg (fun bits : BitVec 7 => bits.getLsbD bit) hc
         simpa only [BitVec.getLsbD_extractLsb',hbit,decide_true,Bool.true_and,hoff'] using hb
-    · by_cases hgate : position<212
-      · have hc := congrArg (fun x : RawRecord => (BitVec.ofFin x.2.2.1 : BitVec 6)) heq
-        change left.extractLsb' 206 6=right.extractLsb' 206 6 at hc
-        have hb := congrArg (fun bits : BitVec 6 => bits.getLsbD (position-206)) hc
-        have hbit : position-206<6 := by omega
+    · by_cases hgate : position<211
+      · have hc := congrArg (fun x : RawRecord => (BitVec.ofFin x.2.2.1 : BitVec 5)) heq
+        change left.extractLsb' 206 5=right.extractLsb' 206 5 at hc
+        have hb := congrArg (fun bits : BitVec 5 => bits.getLsbD (position-206)) hc
+        have hbit : position-206<5 := by omega
         have hoff : 206+(position-206)=position := by omega
         simpa only [BitVec.getLsbD_extractLsb',hbit,decide_true,Bool.true_and,hoff] using hb
-      · have hc := congrArg (fun x : RawRecord => (BitVec.ofFin x.2.2.2 : BitVec 44)) heq
-        change left.extractLsb' 212 44=right.extractLsb' 212 44 at hc
-        have hb := congrArg (fun bits : BitVec 44 => bits.getLsbD (position-212)) hc
-        have hbit : position-212<44 := by omega
-        have hoff : 212+(position-212)=position := by omega
+      · have hc := congrArg (fun x : RawRecord => (BitVec.ofFin x.2.2.2 : BitVec 45)) heq
+        change left.extractLsb' 211 45=right.extractLsb' 211 45 at hc
+        have hb := congrArg (fun bits : BitVec 45 => bits.getLsbD (position-211)) hc
+        have hbit : position-211<45 := by omega
+        have hoff : 211+(position-211)=position := by omega
         simpa only [BitVec.getLsbD_extractLsb',hbit,decide_true,Bool.true_and,hoff] using hb
 
 theorem digestRecord_bijective : Function.Bijective digestRecord := by

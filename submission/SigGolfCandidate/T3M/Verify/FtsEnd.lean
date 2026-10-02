@@ -7,7 +7,7 @@ import SigGolfCandidate.T3M.Verify.FtsSem
   then the next leaf's code through the link `s8`); `tailF_step`: the final tail (through the link to `coord_end_c`);
 * `coord_step`: `coord_end_c` rejects unless `E = 1` and the stack is empty, then the next coordinate's leaf 0 (with the
   coordinate words, the forest slot and the root list advanced) or, after coordinate 6, the forest (`ForestIn`);
-* `forest_step`: the pointer cap (reject after more than 121 folds: `streamEnd < ptr`), the forest frame
+* `forest_step`: the pointer cap (reject after more than 119 folds: `streamEnd < ptr`), the forest frame
   `[root_0 | T(11) | root_1 .. root_6]` and its two-block HASH into the encoding block;
 * **`FtsOut F root u`**: the state after the forest HASH at `xtr3_1` (pc 656), the layers phase's entry.
 -/
@@ -306,10 +306,10 @@ theorem hdr1_forest (idx : Nat) (hi : idx < 2 ^ 32) : hdr1 idx 0 = idx := by
   unfold hdr1; rw [Nat.mod_eq_of_lt hi]; simp
 
 theorem capBr_holds (m : MachineState) (folds : Nat) (h14 : m.getReg .x14 = BitVec.ofNat 64 (WIT + (1368 + 80 * folds) - 880))
-    (hf : folds ≤ 385) (d : Bool) : Br.holds m (capBr d) ↔ d = decide (121 < folds) := by
+    (hf : folds ≤ 385) (d : Bool) : Br.holds m (capBr d) ↔ d = decide (119 < folds) := by
   simp only [Br.holds, capBr, CmpOp.eval, Rv.E.eval, h14]
   have hlt : (BitVec.ofNat 64 A4_LIMIT).ult (BitVec.ofNat 64 (WIT + (1368 + 80 * folds) - 880)) =
-      decide (121 < folds) := by
+      decide (119 < folds) := by
     simp only [BitVec.ult, toNat_ofNat_lt (show A4_LIMIT < 2 ^ 64 by unfold A4_LIMIT; omega),
       toNat_ofNat_lt (show WIT + (1368 + 80 * folds) - 880 < 2 ^ 64 by unfold WIT; omega), decide_eq_decide]
     unfold A4_LIMIT WIT; omega
@@ -354,8 +354,8 @@ theorem forest_words (u : MachineState) (idx : Nat) (roots : List Digest) (hlen 
 /-- The forest: the pointer cap, the frame header, the HASH of `[root_0 | T(11) | root_1 .. root_6]` into `0x100`. -/
 theorem forest_step (F : FCtx) (roots : List Digest) (ptr folds : Nat) (m : MachineState)
     (h : ForestIn F roots ptr folds m) :
-    (121 < folds → ∃ u, Steps image m 4 4 u ∧ Halt1 u) ∧
-    (folds ≤ 121 → ∃ u, Steps image m 8 8 u ∧ fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 0 ∧
+    (119 < folds → ∃ u, Steps image m 4 4 u ∧ Halt1 u) ∧
+    (folds ≤ 119 → ∃ u, Steps image m 8 8 u ∧ fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 0 ∧
       hashArgumentsValid u = true ∧ hashInput u = toQ (T3.pad64 (forestInput F.idx roots)) ∧
       ∀ ans : BitVec 256, FtsOut F (ans.extractLsb' 0 128) (Legacy.Riscv.writeHash u ans)) := by
   have hk : KnownOK gkF m := h.glob.1

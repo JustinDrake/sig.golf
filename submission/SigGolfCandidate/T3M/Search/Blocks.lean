@@ -37,7 +37,7 @@ def k_48 : List (BitVec 32) := [0x000b0393, 0x000b8b13, 0x00038b93]
 def k_51 : List (BitVec 32) := [0x0d7b0463]
 def k_52 : List (BitVec 32) := [0x0d8b8263]
 def k_53 : List (BitVec 32) := [0x017b43b3, 0x00800e13, 0x0023be93, 0x41de0e33, 0x0043be93, 0x41de0e33, 0x0083be93, 0x41de0e33, 0x0103be93, 0x41de0e33, 0x0203be93, 0x41de0e33, 0x0403be93, 0x41de0e33, 0x0803be93, 0x41de0e33, 0x01ca8ab3, 0x018bc3b3, 0x00800e13, 0x0023be93, 0x41de0e33, 0x0043be93, 0x41de0e33, 0x0083be93, 0x41de0e33, 0x0103be93, 0x41de0e33, 0x0203be93, 0x41de0e33, 0x0403be93, 0x41de0e33, 0x0803be93, 0x41de0e33, 0x01ca8ab3, 0x004a8a93, 0x016303b3, 0x007cb023, 0x017303b3, 0x007cb423, 0x018303b3, 0x007cb823, 0x018c8c93, 0x001a0a13, 0xe9dff06f]
-def k_97 : List (BitVec 32) := [0x07a00313, 0x006ad663]
+def k_97 : List (BitVec 32) := [0x07800313, 0x006ad663]
 def k_99 : List (BitVec 32) := [0x00100693, 0x00008067]
 def k_101 : List (BitVec 32) := [0x00000693, 0x00008067]
 def k_103 : List (BitVec 32) := [0x01041313, 0x40136313, 0x00048393, 0x02091f13, 0x01e3e3b3, 0x00020e37, 0x260e0e13, 0x006e3823, 0x007e3c23, 0x00000993]
@@ -707,12 +707,12 @@ theorem run_468 {b : Nat} (hb : b = 354 ∨ b = 543) :
 
 /-! ## The digest-search loop (`ds_loop`) -/
 
-/-! ## Six-bit digest gate before the shared selector -/
+/-! ## Five-bit digest gate before the shared selector -/
 
 def gatePc (b : Nat) : Nat := if b = 354 then 1152 else 1221
-def gateEHead : List (BitVec 32) := [0x00020337, 0x17833303, 0x00e35313, 0x03f37313, 0xd0031663]
+def gateEHead : List (BitVec 32) := [0x00020337, 0x17833303, 0x00e35313, 0x01f37313, 0xd0031663]
 def gateEJump : List (BitVec 32) := [0xb80ff06f]
-def gateSHead : List (BitVec 32) := [0x00020337, 0x17833303, 0x00e35313, 0x03f37313, 0xee031663]
+def gateSHead : List (BitVec 32) := [0x00020337, 0x17833303, 0x00e35313, 0x01f37313, 0xee031663]
 def gateSJump : List (BitVec 32) := [0xd60ff06f]
 def gateHead (b : Nat) : List (BitVec 32) := if b = 354 then gateEHead else gateSHead
 def gateJump (b : Nat) : List (BitVec 32) := if b = 354 then gateEJump else gateSJump

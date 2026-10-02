@@ -814,9 +814,9 @@ theorem uniform_nonce_point_bound_clean (secret : BitVec 256) (message : Message
   apply add_le_add le_rfl
   exact ENNReal.div_le_div_right (targetCount_bound_of_no_exception cache hfinite budget hsize hclean point) _
 
-/-- The proposal acceptance factor 16/17 follows from the clean-cache bound
-once the source digest acceptance is at most 1/16. This numerical acceptance
-hypothesis is explicit; it is not inferred from an external model. -/
+/-- The proposal acceptance factor 1024/1025 follows from the clean-cache bound
+using the exact source digest acceptance and the native clean-cache bound.
+The legacy acceptance hypothesis is retained for compatibility. -/
 theorem uniform_nonce_point_cap (secret : BitVec 256) (message : Message)
     (fuel : Nat) (hlimit : fuel ≤ 2^32) (cache : RCache) (hfinite : Finite cache)
     (budget : Nat) (hsize : QueryCache.enncard cache ≤ budget) (hbudget : budget ≤ 2^127)
@@ -825,7 +825,7 @@ theorem uniform_nonce_point_cap (secret : BitVec 256) (message : Message)
     Pr[fun result => ∃ found,result.1=some found ∧ (samplingData found.2).1=point |
       (($ᵗ Digest : ProbComp Digest) >>= fun rho =>
         roRun secret (digestSearch rho message 0 fuel) cache)] ≤
-      (17/16 : ENNReal)/(2 : ENNReal)^59 := by
+      (1025/1024 : ENNReal)/(2 : ENNReal)^59 := by
   have h := uniform_nonce_target_bound_count secret message fuel hlimit cache {point}
   simp only [Finset.mem_singleton,Finset.card_singleton,Nat.cast_one] at h
   apply h.trans
@@ -1043,7 +1043,7 @@ theorem clean_point_bound_arithmetic (cache : RCache) (hfinite : Finite cache)
     (hclean : ¬TargetCacheExceptional cache) (haccept : acceptanceProbability ≤ 1/16)
     (point : IndexBuckets) :
     1/(2 : ENNReal)^59+cachedTargetCount {point} cache/(2 : ENNReal)^128 ≤
-      (17/16 : ENNReal)/(2 : ENNReal)^59 := by
+      (1025/1024 : ENNReal)/(2 : ENNReal)^59 := by
   rw [cachedTargetCount_singleton_native]
   exact SigGolfResearch.Gate6.NativeCache.clean_point_bound_arithmetic cache hfinite budget hsize hbudget
     (fun h => hclean ((targetCacheExceptional_iff_native cache).mpr h)) point

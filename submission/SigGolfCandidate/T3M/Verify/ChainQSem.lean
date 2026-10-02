@@ -833,17 +833,9 @@ theorem x_step (c : QCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.know
     (hR r hn).trans (hk _ hm)
   have hpc' : s.pc = pcOf (c.qX (4 * q + 3)) := by
     rw [hpc]; unfold endPc; rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega)]
-  have hb9 : (if q + 1 < 8 then 8 * (q + 1) else 2 + 8 * (q + 1 - 8)) ≠ 9 := by
-    split <;> omega
   set r := xJ (if q + 1 < 8 then .x16 else .x17) (if q + 1 < 8 then 8 * (q + 1) else 2 + 8 * (q + 1 - 8)) .x24
     (BitVec.ofNat 64 (32 * (q + 1)) - BitVec.ofNat 64 1632) with hr
-  have hst := piece_steps hrun hp s hpc' (by simp [hr, xJ, hb9])
-  have hsc : r.steps = 4 ∧ r.cycles = 4 := by
-    refine ⟨?_, ?_⟩ <;> first
-      | exact if_neg hb9
-      | (simp only [hr, xJ]; exact if_neg hb9)
-      | simp [hr, xJ, hb9]
-  rw [hsc.1, hsc.2] at hst
+  have hst := piece_steps hrun hp s hpc' (by simp [hr, xJ])
   have hkeep := xJ_keeps (if q + 1 < 8 then .x16 else .x17) (if q + 1 < 8 then 8 * (q + 1) else 2 + 8 * (q + 1 - 8))
     .x24 (BitVec.ofNat 64 (32 * (q + 1)) - BitVec.ofNat 64 1632)
   have hW : s.getReg (if q + 1 < 8 then .x16 else .x17) = (if q + 1 < 8 then c.d0 else c.d1) := by

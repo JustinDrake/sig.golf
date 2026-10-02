@@ -228,7 +228,7 @@ theorem uniform_nonce_completed_cap (secret : BitVec 256) (message : Message)
     (hclean : ¬NativeCache.Bad cache) (mark : MarkedLabel) :
     expectedValue (($ᵗ Digest : ProbComp Digest) >>= fun rho =>
       roRun secret (search rho message fuel) cache) (fun result => completedScore mark result.1) ≤
-      (17/16 : ENNReal)/(2 : ENNReal)^59 :=
+      (1025/1024 : ENNReal)/(2 : ENNReal)^59 :=
   (uniform_nonce_completed_point secret message fuel hlimit cache mark).trans
     (NativeCache.clean_point_bound_arithmetic cache hfinite q hsize hq hclean mark)
 

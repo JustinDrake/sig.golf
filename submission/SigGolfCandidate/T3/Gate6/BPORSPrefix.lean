@@ -81,7 +81,7 @@ theorem uniform_marked_word_atIndex {α β : Type} [Fintype α] [SampleableType 
 abbrev Buckets := Fin 7 → Fin 16
 
 noncomputable def wordEnvelope (word : List Buckets) : ENNReal :=
-  (∏ c, coordinateEnvelope (word.map fun row => row c))/2^153
+  (∏ c, coordinateEnvelope (word.map fun row => row c))/2^152
 
 /-- Transposing the finite uniform proposal table gives exactly the seven
 coordinate histories used by the moment proof. -/
@@ -106,7 +106,7 @@ theorem uniform_proposal_forest_moment (index : Fin (2^31)) (steps power : Nat) 
 
 theorem uniform_proposal_mean_bound (index : Fin (2^31)) :
     (2 : ENNReal)^128*uniformWordAverage Numeric.proposalLength
-      (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex index word)) ≤ 119/1000 := by
+      (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex index word)) ≤ 1/4 := by
   have h := uniform_proposal_forest_moment index Numeric.proposalLength 1
   simp only [pow_one] at h
   rw [h]
@@ -122,7 +122,7 @@ theorem uniform_proposal_excess_bound (index : Fin (2^31)) :
 
 noncomputable def nearWordEnvelope (missing : Fin 7) (word : List Buckets) : ENNReal :=
   (∏ c, if c=missing then Numeric.nearCoordinateEnvelope (word.map fun row => row c)
-    else coordinateEnvelope (word.map fun row => row c))/2^146
+    else coordinateEnvelope (word.map fun row => row c))/2^145
 
 theorem word_near_forest_moment (steps : Nat) (missing : Fin 7) :
     uniformWordAverage steps (nearWordEnvelope missing)=
@@ -363,7 +363,7 @@ theorem marked_envelope_negative_correlation {α β : Type} [Fintype α] [Sample
     _ = _ := by ring
 
 theorem word_first_moment (steps : Nat) :
-    uniformWordAverage steps wordEnvelope=envelope Numeric.meanCoeffs steps/2^237 := by
+    uniformWordAverage steps wordEnvelope=envelope Numeric.meanCoeffs steps/2^236 := by
   have h := word_forest_moment steps 1
   simpa only [pow_one,Numeric.forest_first_moment] using h
 
@@ -375,7 +375,7 @@ theorem forest_negative_correlation (first second : Fin (2^31)) (hne : first≠s
       uniformWordAverage steps (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex first word))*
         uniformWordAverage steps (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex second word)) := by
   apply marked_envelope_negative_correlation first second hne steps wordEnvelope wordEnvelope
-    Numeric.meanCoeffs Numeric.meanCoeffs ((2^237 : ENNReal)⁻¹) ((2^237 : ENNReal)⁻¹)
+    Numeric.meanCoeffs Numeric.meanCoeffs ((2^236 : ENNReal)⁻¹) ((2^236 : ENNReal)⁻¹)
   · intro n;simpa only [div_eq_mul_inv] using word_first_moment n
   · intro n;simpa only [div_eq_mul_inv] using word_first_moment n
 
@@ -424,7 +424,7 @@ theorem fullPrice_mean (steps : Nat) :
   rw [← mul_assoc,← pow_add]
 
 theorem fullPrice_mean_bound :
-    uniformWordAverage Numeric.proposalLength fullPrice ≤ 119/1000 := by
+    uniformWordAverage Numeric.proposalLength fullPrice ≤ 1/4 := by
   rw [fullPrice_mean]
   exact Numeric.uniform_history_mean_bound
 
@@ -526,7 +526,7 @@ noncomputable def fullNearPrice (word : List Proposal) : ENNReal :=
 
 theorem near_mean_at_index (index : Fin (2^31)) (missing : Fin 7) (steps : Nat) :
     uniformWordAverage steps (fun word : List Proposal => nearWordEnvelope missing (atIndex index word))=
-      binomialAverage (1/2^31) steps (fun count => envelope Numeric.nearCoeffs count/2^226) := by
+      binomialAverage (1/2^31) steps (fun count => envelope Numeric.nearCoeffs count/2^225) := by
   rw [uniform_marked_word_atIndex index steps (nearWordEnvelope missing)]
   simp_rw [word_near_forest_moment,Numeric.near_forest_first_moment]
   simp only [Fintype.card_fin,Nat.cast_pow,Nat.cast_ofNat,one_div]
@@ -538,7 +538,7 @@ theorem fullNearPrice_bound : uniformWordAverage Numeric.proposalLength fullNear
   simp_rw [Numeric.near_forest_first_moment] at h
   have he : uniformWordAverage Numeric.proposalLength fullNearPrice=
       21*(2 : ENNReal)^128*binomialAverage (1/2^31) Numeric.proposalLength
-        (fun count => envelope Numeric.nearCoeffs count/2^226) := by
+        (fun count => envelope Numeric.nearCoeffs count/2^225) := by
     unfold fullNearPrice
     rw [uniformWordAverage_mul_left]
     simp_rw [uniformWordAverage_sum,near_mean_at_index]

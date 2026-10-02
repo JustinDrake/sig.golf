@@ -8,3 +8,9 @@ import SigGolfCandidate.T3.BPORS
 #print axioms SigGolfCandidate.T3.Security.PaddedExtraction.verifyP_recorded
 #print axioms SigGolfCandidate.T3.Security.PaddedExtraction.verifyP_extracted_in
 #print axioms SigGolfCandidate.T3M.verifyP_digestGate
+
+#print axioms SigGolfResearch.Gate6.Source.actual_recordLaw_scaled_cap
+#print axioms SigGolfCandidate.T3.Security.freshNoncePayloadLaw_scaled_cap_source
+#print axioms SigGolfCandidate.T3.Security.ProposalOverflow.initial_bound
+#print axioms SigGolfCandidate.T3.Security.ProposalOverflow.full_trace_overflow_bound
+#print axioms SigGolfCandidate.T3.Budgets.signingMoment_le_two

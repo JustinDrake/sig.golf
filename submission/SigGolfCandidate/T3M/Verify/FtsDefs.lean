@@ -218,7 +218,7 @@ def coordRem (c : Nat) : Nat := 7 * (6 - c) + 4
 /-- Accepting runs from a dispatch: 15 per segment, 16 per fold (at most 124 in total), tails, leaf codes,
 coordinate ends, the forest (24). -/
 def Afts (c j d folds A' : Nat) : Nat :=
-  15 * segRem c j d + 15 * (121 - folds) + tailsRem c j d + leafRem c j + coordRem c + 24 + A'
+  15 * segRem c j d + 15 * (119 - folds) + tailsRem c j d + leafRem c j + coordRem c + 24 + A'
 /-- Every run from a dispatch: at most 191 per segment. -/
 def Cfts (c j d C' : Nat) : Nat := 191 * segRem c j d + tailsRem c j d + leafRem c j + coordRem c + 24 + C'
 

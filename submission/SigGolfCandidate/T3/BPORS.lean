@@ -578,7 +578,7 @@ theorem freshNoncePayloadRecord_point_cap (secret : BitVec 256) (cache : Cache)
     (hclean : ¬TargetCacheExceptional oracleCache) (haccept : acceptanceProbability ≤ 1/16)
     (point : IndexBuckets) :
     Pr[fun result => result.2=point | freshNoncePayloadRecord secret cache message oracleCache] ≤
-      (17/16 : ENNReal)/(2 : ENNReal)^59 := by
+      (1025/1024 : ENNReal)/(2 : ENNReal)^59 := by
   have h := freshNoncePayloadRecord_target_bound secret cache message oracleCache {point}
   simp only [Finset.mem_singleton,Finset.card_singleton,Nat.cast_one] at h
   exact h.trans (clean_point_bound_arithmetic oracleCache hfinite budget hsize hbudget hclean haccept point)
@@ -617,13 +617,13 @@ theorem freshNoncePayloadLaw_scaled_cap (secret : BitVec 256) (cache : Cache)
     (budget : Nat) (hsize : QueryCache.enncard oracleCache ≤ budget) (hbudget : budget ≤ 2^127)
     (hclean : ¬TargetCacheExceptional oracleCache) (haccept : acceptanceProbability ≤ 1/16)
     (point : IndexBuckets) :
-    (16/17 : ENNReal)*((freshNoncePayloadLaw secret cache message oracleCache).map Prod.snd) point ≤
+    (1024/1025 : ENNReal)*((freshNoncePayloadLaw secret cache message oracleCache).map Prod.snd) point ≤
       (PMF.uniformOfFintype IndexBuckets) point := by
   have hc : Fintype.card IndexBuckets=2^59 := by
     norm_num [IndexBuckets,Fintype.card_prod,Fintype.card_fun]
   rw [freshNoncePayloadLaw_label_probability,PMF.uniformOfFintype_apply,hc,Nat.cast_pow,Nat.cast_ofNat]
   calc
-    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^59) :=
+    _ ≤ (1024/1025 : ENNReal)*((1025/1024 : ENNReal)/(2 : ENNReal)^59) :=
       mul_le_mul' le_rfl (freshNoncePayloadRecord_point_cap secret cache message oracleCache
         hfinite budget hsize hbudget hclean haccept point)
     _ = _ := by
@@ -644,7 +644,7 @@ theorem freshNoncePayloadLaw_scaled_cap_source (secret : BitVec 256) (cache : Ca
     (message : Message) (oracleCache : RCache) (hfinite : SphincsSecurity.Finite oracleCache)
     (budget : Nat) (hsize : QueryCache.enncard oracleCache ≤ budget) (hbudget : budget ≤ 2^127)
     (hclean : ¬TargetCacheExceptional oracleCache) (point : IndexBuckets) :
-    (16/17 : ENNReal)*((freshNoncePayloadLaw secret cache message oracleCache).map Prod.snd) point ≤
+    (1024/1025 : ENNReal)*((freshNoncePayloadLaw secret cache message oracleCache).map Prod.snd) point ≤
       (PMF.uniformOfFintype IndexBuckets) point :=
   freshNoncePayloadLaw_scaled_cap secret cache message oracleCache hfinite budget hsize hbudget
     hclean Acceptance.acceptanceProbability_le_one_sixteenth point
@@ -1092,7 +1092,7 @@ theorem signingRecordLaw_scaled_cap (cache : T3.Cache) (message : Message) (stat
     (hfresh : state.1 (.inr (.inl message))=none) (hfinite : SphincsSecurity.Finite state.2)
     (budget : Nat) (hsize : QueryCache.enncard state.2 ≤ budget) (hbudget : budget ≤ 2^127)
     (hclean : ¬Sampling.TargetCacheExceptional state.2) (point : DigestSampling.IndexBuckets) :
-    (16/17 : ENNReal)*((signingRecordLaw cache message state).map Prod.snd) point ≤
+    (1024/1025 : ENNReal)*((signingRecordLaw cache message state).map Prod.snd) point ≤
       (PMF.uniformOfFintype DigestSampling.IndexBuckets) point := by
   have hc : Fintype.card DigestSampling.IndexBuckets=2^59 := by
     norm_num [DigestSampling.IndexBuckets,Fintype.card_prod,Fintype.card_fun]
@@ -1103,7 +1103,7 @@ theorem signingRecordLaw_scaled_cap (cache : T3.Cache) (message : Message) (stat
   rw [← PMF.monad_map_eq_map,← PMF.probOutput_eq_apply,probOutput_map,
     PMF.uniformOfFintype_apply,hc,Nat.cast_pow,Nat.cast_ofNat]
   calc
-    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^59) := mul_le_mul' le_rfl hpoint
+    _ ≤ (1024/1025 : ENNReal)*((1025/1024 : ENNReal)/(2 : ENNReal)^59) := mul_le_mul' le_rfl hpoint
     _ = _ := by
       apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
       norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_inv,ENNReal.toReal_pow]
@@ -1177,7 +1177,7 @@ noncomputable def proposalModel (budget : Nat) (hbudget : budget ≤ 2^127) :
   label := interactionLabel
   active := interactionActive budget
   base := PMF.uniformOfFintype DigestSampling.IndexBuckets
-  accept := 16/17
+  accept := 1024/1025
   positive := by norm_num
   lt_one := by
     apply (ENNReal.toReal_lt_toReal (by finiteness) (by finiteness)).mp
@@ -2419,8 +2419,8 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 set_option linter.unusedSimpArgs false
 
-noncomputable def tailBase : ENNReal := 1025 / 1024
-noncomputable def tailMoment : ENNReal := 16400 / 16383
+noncomputable def tailBase : ENNReal := 4097 / 4096
+noncomputable def tailMoment : ENNReal := 4195328 / 4194303
 
 theorem tailBase_one_le : 1 ≤ tailBase := by
   apply (ENNReal.toReal_le_toReal (by finiteness) (by unfold tailBase; finiteness)).mp
@@ -2429,15 +2429,15 @@ theorem tailMoment_one_le : 1 ≤ tailMoment := by
   apply (ENNReal.toReal_le_toReal (by finiteness) (by unfold tailMoment; finiteness)).mp
   norm_num [tailMoment, ENNReal.toReal_div]
 
-theorem acceptance_le_one : (16 / 17 : ENNReal) ≤ 1 := by
+theorem acceptance_le_one : (1024/1025 : ENNReal) ≤ 1 := by
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
   norm_num [ENNReal.toReal_div]
 
 theorem tailMoment_eq : tailMoment =
-    (16 / 17 : ENNReal) * tailBase / (1 - (1 - 16 / 17) * tailBase) := by
-  have hrem : (1 - (16 / 17 : ENNReal)).toReal = 1 - (16 / 17 : ENNReal).toReal := by
+    (1024/1025 : ENNReal) * tailBase / (1 - (1 - 1024/1025) * tailBase) := by
+  have hrem : (1 - (1024/1025 : ENNReal)).toReal = 1 - (1024/1025 : ENNReal).toReal := by
     rw [ENNReal.toReal_sub_of_le acceptance_le_one (by finiteness), ENNReal.toReal_one]
-  have hlt : (1 - (16 / 17 : ENNReal)) * tailBase < 1 := by
+  have hlt : (1 - (1024/1025 : ENNReal)) * tailBase < 1 := by
     apply (ENNReal.toReal_lt_toReal (by unfold tailBase; finiteness) (by finiteness)).mp
     rw [ENNReal.toReal_mul, hrem]
     norm_num [tailBase, ENNReal.toReal_div]
@@ -2448,7 +2448,7 @@ theorem tailMoment_eq : tailMoment =
   norm_num [tailMoment, tailBase, ENNReal.toReal_div]
 
 theorem block_moment :
-    expectedValue (proposalBlockLength (16 / 17) (by norm_num) acceptance_le_one)
+    expectedValue (proposalBlockLength (1024/1025) (by norm_num) acceptance_le_one)
       (fun length => tailBase ^ length) = tailMoment := by
   simp only [expectedValue, PMF.probOutput_eq_apply]
   rw [proposalBlockLength_power_moment, ← tailMoment_eq]
@@ -2457,8 +2457,8 @@ theorem block_moment :
 No large powers are evaluated: the comparison is proved using logarithm bounds. -/
 theorem initial_bound :
     tailMoment ^ (2^32) / tailBase ^ BPORS.Numeric.proposalLength ≤ (2 : ENNReal)⁻¹ ^ 700 := by
-  let z : ℝ := 1025 / 1024
-  let m : ℝ := 16400 / 16383
+  let z : ℝ := 4097 / 4096
+  let m : ℝ := 4195328 / 4194303
   have hz : 0 < z := by norm_num [z]
   have hm : 0 < m := by norm_num [m]
   have hlog : (2^32 : ℝ) * Real.log m -
@@ -2488,7 +2488,7 @@ variable {ι State Label : Type} {spec : OracleSpec ι}
 noncomputable def weight (remaining : State → Nat) (state : List Label × State) : ENNReal :=
   tailBase ^ state.1.length * tailMoment ^ remaining state.2
 
-theorem query_weight (model : ProposalModel spec State Label) (haccept : model.accept = 16/17)
+theorem query_weight (model : ProposalModel spec State Label) (haccept : model.accept = 1024/1025)
     (remaining : State → Nat) (input : spec.Domain) (state : List Label × State)
     (hactive : model.active input state.2 = true → 0 < remaining state.2)
     (hadvance : ∀ outcome, remaining (model.advance input state.2 outcome) =
@@ -2566,7 +2566,7 @@ noncomputable def counted (model : ProposalModel spec State Label) :
 noncomputable def killedWeight (limit : Nat) (state : List Label × (Nat × State)) : ENNReal :=
   if state.2.1 ≤ limit then weight (fun current : Nat × State => limit - current.1) state else 0
 
-theorem counted_query_weight (model : ProposalModel spec State Label) (haccept : model.accept = 16/17)
+theorem counted_query_weight (model : ProposalModel spec State Label) (haccept : model.accept = 1024/1025)
     (limit : Nat) (input : spec.Domain) (state : List Label × (Nat × State)) :
     expectedValue (((counted model).traced input).run state)
       (fun result => killedWeight limit result.2) ≤ killedWeight limit state := by
@@ -2596,7 +2596,7 @@ attribute [local irreducible] ProposalModel.traced counted
 respects that cap on losing executions. Requests are never suppressed. -/
 
 theorem counted_execution_weight {Result : Type} (model : ProposalModel spec State Label)
-    (haccept : model.accept = 16/17) (limit : Nat)
+    (haccept : model.accept = 1024/1025) (limit : Nat)
     (computation : OracleComp spec Result) (state : List Label × (Nat × State)) :
     expectedValue ((simulateQ (counted model).traced computation).run state)
       (fun result => killedWeight limit result.2) ≤ killedWeight limit state := by
@@ -2610,7 +2610,7 @@ theorem counted_execution_weight {Result : Type} (model : ProposalModel spec Sta
       exact ih middle.1 middle.2
 
 theorem counted_overflow_bound {Result : Type} (model : ProposalModel spec State Label)
-    (haccept : model.accept = 16/17) (limit cap : Nat)
+    (haccept : model.accept = 1024/1025) (limit cap : Nat)
     (computation : OracleComp spec Result) (state : State) :
     Pr[fun result => result.2.2.1 ≤ limit ∧ cap < result.2.1.length |
       (simulateQ (counted model).traced computation).run ([], 0, state)] ≤
@@ -2635,7 +2635,7 @@ theorem counted_overflow_bound {Result : Type} (model : ProposalModel spec State
     _ = _ := by simp [killedWeight, weight]
 
 theorem full_trace_overflow_bound {Result : Type} (model : ProposalModel spec State Label)
-    (haccept : model.accept = 16/17) (computation : OracleComp spec Result) (state : State) :
+    (haccept : model.accept = 1024/1025) (computation : OracleComp spec Result) (state : State) :
     Pr[fun result => result.2.2.1 ≤ 2^32 ∧ BPORS.Numeric.proposalLength < result.2.1.length |
       (simulateQ (counted model).traced computation).run ([],0,state)] ≤
       (2 : ENNReal)⁻¹ ^ 700 :=
@@ -4602,7 +4602,7 @@ theorem signingMoment_le_two : signingMoment ≤ 2 := by
   rw [ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^((123035 : ℝ)/131072) by positivity)] at hcast
   norm_num only [ENNReal.ofReal_ofNat] at hcast
   have he : digestEnvelope*encodingEnvelope 0*encodingEnvelope 1*encodingEnvelope 2*encodingEnvelope 3 =
-      ENNReal.ofReal ((1008243682763 / 1000000000000) * (201687968779 / 200000000000) *
+      ENNReal.ofReal ((1009267156500 / 1000000000000) * (201687968779 / 200000000000) *
         (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (503409673483 / 500000000000) : ℝ) := by
     change ENNReal.ofReal (BaseAudit.b0 : ℝ)*ENNReal.ofReal (BaseAudit.b1 : ℝ)*
       ENNReal.ofReal (BaseAudit.b2 : ℝ)*ENNReal.ofReal (BaseAudit.b3 : ℝ)*ENNReal.ofReal (BaseAudit.b4 : ℝ) = _
@@ -5230,7 +5230,7 @@ macro "hashes" : tactic => `(tactic| aesop (config := { maxRuleApplications := 1
 @[aesop safe apply] theorem hashOnly_sign (cache : Cache) (message : Message) :
  HashOnly (sign cache message) := by unfold sign; hashes
 @[aesop safe apply] theorem hashOnly_recoverChild (index coord : Nat) (leaves : List Nat)
- (values : List Digest) (proof : Fin 121 → Digest) (level node used : Nat) :
+ (values : List Digest) (proof : Fin 119 → Digest) (level node used : Nat) :
  HashOnly (recoverChild index coord leaves values proof level node used) := by
  induction level generalizing node used with
  | zero => unfold recoverChild; hashes
@@ -6311,7 +6311,7 @@ macro "verdict_queries" : tactic => `(tactic|
   aesop (config := { maxRuleApplications := 1000 }) (add simp MacGame.NonMac))
 
 theorem recoverChild_nonMac (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 121 → Digest) (level node used : Nat) :
+    (proof : Fin 119 → Digest) (level node used : Nat) :
     NonMac (recoverChild index coord leaves values proof level node used) := by
   induction level generalizing node used with
   | zero => unfold recoverChild;verdict_queries
@@ -7173,7 +7173,7 @@ theorem recordLaw_scaled_cap (published : T3.Cache) (request : Request) (state :
     (hfinite : SphincsSecurity.Finite state.2.2) (budget : Nat)
     (hsize : QueryCache.enncard state.2.2 ≤ budget) (hbudget : budget ≤ 2^127)
     (hclean : ¬Sampling.TargetCacheExceptional state.2.2) (point : DigestSampling.IndexBuckets) :
-    (16/17 : ENNReal)*((recordLaw published request state).map Prod.snd) point ≤
+    (1024/1025 : ENNReal)*((recordLaw published request state).map Prod.snd) point ≤
       (PMF.uniformOfFintype DigestSampling.IndexBuckets) point := by
   have hc : Fintype.card DigestSampling.IndexBuckets=2^59 := by
     norm_num [DigestSampling.IndexBuckets,Fintype.card_prod,Fintype.card_fun]
@@ -7184,7 +7184,7 @@ theorem recordLaw_scaled_cap (published : T3.Cache) (request : Request) (state :
   rw [← PMF.monad_map_eq_map,← PMF.probOutput_eq_apply,probOutput_map,
     PMF.uniformOfFintype_apply,hc,Nat.cast_pow,Nat.cast_ofNat]
   calc
-    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^59) := mul_le_mul' le_rfl hpoint
+    _ ≤ (1024/1025 : ENNReal)*((1025/1024 : ENNReal)/(2 : ENNReal)^59) := mul_le_mul' le_rfl hpoint
     _ = _ := by
       apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
       norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_inv,ENNReal.toReal_pow]
@@ -7257,7 +7257,7 @@ noncomputable def proposalModel (published : T3.Cache) (budget : Nat) (hbudget :
   label := label
   active := active budget
   base := PMF.uniformOfFintype DigestSampling.IndexBuckets
-  accept := 16/17
+  accept := 1024/1025
   positive := by norm_num
   lt_one := by
     apply (ENNReal.toReal_lt_toReal (by finiteness) (by finiteness)).mp
@@ -8444,7 +8444,7 @@ theorem recordLaw_scaled_cap (published : T3.Cache) (request : Request) (state :
     (hfinite : SphincsSecurity.Finite state.source.2.2) (budget : Nat)
     (hsize : QueryCache.enncard state.source.2.2 ≤ budget) (hbudget : budget ≤ 2^127)
     (hclean : ¬Sampling.TargetCacheExceptional state.source.2.2) (point : DigestSampling.IndexBuckets) :
-    (16/17 : ENNReal)*((recordLaw published request state).map Prod.snd) point ≤
+    (1024/1025 : ENNReal)*((recordLaw published request state).map Prod.snd) point ≤
       (PMF.uniformOfFintype DigestSampling.IndexBuckets) point := by
   have hc : Fintype.card DigestSampling.IndexBuckets=2^59 := by
     norm_num [DigestSampling.IndexBuckets,Fintype.card_prod,Fintype.card_fun]
@@ -8455,7 +8455,7 @@ theorem recordLaw_scaled_cap (published : T3.Cache) (request : Request) (state :
   rw [← PMF.monad_map_eq_map,← PMF.probOutput_eq_apply,probOutput_map,
     PMF.uniformOfFintype_apply,hc,Nat.cast_pow,Nat.cast_ofNat]
   calc
-    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^59) := mul_le_mul' le_rfl hpoint
+    _ ≤ (1024/1025 : ENNReal)*((1025/1024 : ENNReal)/(2 : ENNReal)^59) := mul_le_mul' le_rfl hpoint
     _ = _ := by
       apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
       norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_inv,ENNReal.toReal_pow]
@@ -8528,7 +8528,7 @@ noncomputable def proposalModel (published : T3.Cache) (budget : Nat) (hbudget :
   label := label
   active := active budget
   base := PMF.uniformOfFintype DigestSampling.IndexBuckets
-  accept := 16/17
+  accept := 1024/1025
   positive := by norm_num
   lt_one := by
     apply (ENNReal.toReal_lt_toReal (by finiteness) (by finiteness)).mp
@@ -9988,7 +9988,7 @@ macro "public_verdict_queries" : tactic => `(tactic|
   | succ fuel ih => unfold digestSearch; public_verdict_queries
 
 theorem recoverChild_public (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 121 → Digest) (level node used : Nat) :
+    (proof : Fin 119 → Digest) (level node used : Nat) :
     Only (recoverChild index coord leaves values proof level node used) := by
   induction level generalizing node used with
   | zero => unfold recoverChild;public_verdict_queries

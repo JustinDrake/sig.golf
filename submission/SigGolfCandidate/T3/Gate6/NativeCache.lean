@@ -157,7 +157,7 @@ theorem clean_point_bound_arithmetic (cache : RCache) (hfinite : Finite cache)
     (budget : Nat) (hsize : QueryCache.enncard cache≤budget) (hbudget : budget≤2^127)
     (hclean : ¬Bad cache) (mark : MarkedLabel) :
     1/(2 : ENNReal)^59+count mark cache/(2 : ENNReal)^128 ≤
-      (17/16 : ENNReal)/(2 : ENNReal)^59 := by
+      (1025/1024 : ENNReal)/(2 : ENNReal)^59 := by
   have hex : (count mark cache).toReal ≤ (QueryCache.enncard cache).toReal*Cache.rate+2^47 :=
     le_of_not_gt (fun h => hclean ⟨mark,h⟩)
   have hcache : (QueryCache.enncard cache).toReal≤(budget : ℝ) := by

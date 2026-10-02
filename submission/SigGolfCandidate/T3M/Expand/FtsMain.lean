@@ -93,7 +93,7 @@ theorem coordInv_zero {sig : Signature} {N : HashOutput} {s : MachineState} (hpr
 theorem ftsSpec (sk : BitVec 256) : FtsSpec sk := by
   intro sig N s hpre
   have hC : ChosenOk (T3.selections N) := chosenOk_of N (selectionsOk_of_admissible N hpre.adm)
-  have h7 : slotBase (T3.selections N) 7 ≤ 121 := slotBase_seven_le N hC hpre.adm
+  have h7 : slotBase (T3.selections N) 7 ≤ 119 := slotBase_seven_le N hC hpre.adm
   have hbody : ∀ j < 7, ∀ (acc : Option (List Digest × Nat)) (u : MachineState),
       (match acc with
         | none => FailedAt 354 u

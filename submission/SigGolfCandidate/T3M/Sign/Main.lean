@@ -54,19 +54,19 @@ theorem sign_tbsim_of (hL0 : L0Spec sk cache) (m : Message) :
 
 /-- The signature buffer at `HALT(0)`. -/
 theorem payPost_output {sig : Signature} {u : MachineState}
-    (h : ∀ k < 361, DigAt u (SIG + 16 * k) ((sigDigests sig).getD k 0)) :
+    (h : ∀ k < 359, DigAt u (SIG + 16 * k) ((sigDigests sig).getD k 0)) :
     readOutput submission.sizes submission.layout .sign u = sigB sig := by
   have hd : DigsAt u SIG (sigDigests sig) := fun k hk => h k (by rw [length_sigDigests] at hk; exact hk)
   have hw := hd.words
   rw [length_sigDigests] at hw
-  have hl : ((sigDigests sig).flatMap (bytesLE 16)).length = 8 * 722 := by
+  have hl : ((sigDigests sig).flatMap (bytesLE 16)).length = 8 * 718 := by
     have : ∀ ds : List Digest, (ds.flatMap (bytesLE 16)).length = 16 * ds.length := fun ds => by
       induction ds with
       | nil => rfl
       | cons d ds ih => rw [List.flatMap_cons, List.length_append, bytesLE_length, ih, List.length_cons]; ring
     rw [this, length_sigDigests]
-  have e := readBuffer_of_words u SIG 722 ((sigDigests sig).flatMap (bytesLE 16)) (by decide) (by decide) hl hw
-  show readBuffer u SIG (8 * 722) = sigB sig
+  have e := readBuffer_of_words u SIG 718 ((sigDigests sig).flatMap (bytesLE 16)) (by decide) (by decide) hl hw
+  show readBuffer u SIG (8 * 718) = sigB sig
   rw [e, sigB, serialize_eq]
 
 /-- **Sign refinement** (given layer 0): value, calls and compressions of the phase are Core's

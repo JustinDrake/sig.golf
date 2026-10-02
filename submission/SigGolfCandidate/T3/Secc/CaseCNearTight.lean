@@ -23,7 +23,7 @@ set_option linter.unusedSimpArgs false
 set_option maxHeartbeats 10000000
 
 theorem poisson_near_bound_tight :
-    21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^226 ≤ 1647 / 16 := by
+    21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^225 ≤ 1647 / 16 := by
   unfold poissonEnvelope
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
   simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
@@ -34,9 +34,9 @@ theorem uniform_history_near_bound_tight (missing : Fin 7) :
     21*(2 : ENNReal)^128*binomialAverage (1/2^31) proposalLength (fun steps =>
       expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) (nearForestEnvelope missing)) ≤ 1647 / 16 := by
   calc
-    _ ≤ 21*(2 : ENNReal)^128*(poissonEnvelope nearCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^226) :=
+    _ ≤ 21*(2 : ENNReal)^128*(poissonEnvelope nearCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^225) :=
       mul_le_mul' le_rfl (near_forest_binomial_bound (1/2^31) (by norm_num) proposalLength missing)
-    _ = 21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^226 := by
+    _ = 21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^225 := by
       simp only [div_eq_mul_inv,mul_one,one_mul,mul_assoc]
     _ ≤ _ := poisson_near_bound_tight
 
@@ -55,7 +55,7 @@ theorem fullNearPrice_bound_tight : uniformWordAverage Numeric.proposalLength fu
   simp_rw [Numeric.near_forest_first_moment] at h
   have he : uniformWordAverage Numeric.proposalLength fullNearPrice=
       21*(2 : ENNReal)^128*binomialAverage (1/2^31) Numeric.proposalLength
-        (fun count => envelope Numeric.nearCoeffs count/2^226) := by
+        (fun count => envelope Numeric.nearCoeffs count/2^225) := by
     unfold fullNearPrice
     rw [uniformWordAverage_mul_left]
     simp_rw [uniformWordAverage_sum,near_mean_at_index]

@@ -65,7 +65,7 @@ theorem full_potential (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (
     · exfalso
       have h1 := hinv.dead hd
       rw [hlog] at h1
-      have : horizon = 4573625196 := rfl
+      have : horizon = 4303355904 := rfl
       omega
   -- the forgery's digest is a target
   obtain ⟨N, hdc, hN, ⟨prior, hev⟩, hS, hgate, hgood, -⟩ := hCat

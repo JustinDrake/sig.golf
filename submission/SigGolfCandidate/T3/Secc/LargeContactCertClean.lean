@@ -117,7 +117,7 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
   have halive : st.exposures.length ≤ BPORS.Numeric.proposalLength := by
     have h1 : st.exposures.length ≤ signCount t.steps := exposures_fold_le U z.2 g.value.2 t.steps c.events
     rw [signCount_eq_length, ← hlog] at h1
-    have : BPORS.Numeric.proposalLength = 4573625196 := rfl
+    have : BPORS.Numeric.proposalLength = 4303355904 := rfl
     omega
   refine ⟨halive, ?_⟩
   by_cases hr : st.reused = true

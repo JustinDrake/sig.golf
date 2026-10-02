@@ -186,7 +186,7 @@ def OneW (i W : Nat) (A : Nat) : Prop :=
 /-- **One chain of `recover_layer`** (`rl_chain` .. back to it): the value `values[i]` (at `P + 16 i`) to the
 chain block and the witness block `W`, Core's `chain` from the digit to `2^w - 1`, the end into its leaf-pk slot. -/
 theorem rl_one (lay : Layer) (tree leaf i d P W n n4 : Nat) (htree : tree < 2 ^ 32) (hi : i < n) (hn : n ≤ 58)
-    (hn4 : n4 ≤ n) (hP : 0x7000 ≤ P) (hPi : P + 16 * i + 16 ≤ 0x7000 + 5776) (hP8 : P % 8 = 0)
+    (hn4 : n4 ≤ n) (hP : 0x7000 ≤ P) (hPi : P + 16 * i + 16 ≤ 0x7000 + 5744) (hP8 : P % 8 = 0)
     (hW8 : W % 8 = 0) (hW : 64 ≤ W) (hW' : W + 64 ≤ 0x7000) (hd : d ≤ (if i < n4 then 3 else 7))
     (v : Digest) (t : MachineState) (hpc : t.pc = pcOf 1010)
     (hc : ChainCtx lay.val tree leaf i t) (h26 : t.getReg .x26 = BitVec.ofNat 64 n)

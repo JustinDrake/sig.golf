@@ -216,8 +216,8 @@ theorem layers_payload (answers : Answers) (published : T3.Cache)
 
 /-- `FtsShaped` on the encoding of an expansion makes every FTS query of Core's recovery honest. -/
 theorem fts_queries_honest (answers : Answers) (σ : Signature) (N : HashOutput) (wit : Witness)
-    (hsig : wit.signature = σ) (hc : ChosenOk (selections N)) (hle : slotBase (selections N) 7 ≤ 121)
-    (htail : ∀ k : Fin 121, slotBase (selections N) 7 ≤ k.val → wit.signature.proof k = 0)
+    (hsig : wit.signature = σ) (hc : ChosenOk (selections N)) (hle : slotBase (selections N) 7 ≤ 119)
+    (htail : ∀ k : Fin 119, slotBase (selections N) 7 ≤ k.val → wit.signature.proof k = 0)
     (hfts : FtsExtract.FtsShaped answers N (witEnc N wit)) :
     ∀ q ∈ queried answers (recoverFts σ (N.toNat % 2 ^ 31) (selections N)), HonQ answers q := by
   have hidx : N.toNat % 2 ^ 31 < 2 ^ 40 := lt_trans (Nat.mod_lt _ (by decide)) (by norm_num)
@@ -258,7 +258,7 @@ theorem caseC_expansion_is_payload (answers : Answers) (published : T3.Cache)
   have hsel := selectionsOk_of_admissible N F.adm
   have hc := chosenOk_of N hsel
   have hle := slotBase_seven_le N hc F.adm
-  have htail : ∀ k : Fin 121, slotBase (selections N) 7 ≤ k.val → wit.signature.proof k = 0 := by
+  have htail : ∀ k : Fin 119, slotBase (selections N) 7 ≤ k.val → wit.signature.proof k = 0 := by
     rw [F.sig]
     exact eval_recoverFtsP_tail answers signature 0 _ _ hc hle rootF (by rw [recoverFtsP_zero]; exact hrf)
   -- FTS lists

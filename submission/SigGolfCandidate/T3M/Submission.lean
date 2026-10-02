@@ -6,7 +6,7 @@ import SigGolfCandidate.T3M.Images.Verify
 /-!
 # The T3 submission (four frozen images) and its static admission
 
-Sizes `S = 5776`, `W = 25240`, `K = 32768` and the shared layout of `t3m/images/set.txt` (message
+Sizes `S = 5744`, `W = 25240`, `K = 32768` and the shared layout of `t3m/images/set.txt` (message
 `0x40`, secret key `0x80`, public key `0xA0`, cache `0x9000`, signature `0x7000`, witness `0x800`);
 the images are the generated modules `T3M/Images/*` (frozen `.code` files, SHA-256 checked by
 `t3m/lean/gen_images.py`).
@@ -22,7 +22,7 @@ open SigGolfCandidate.Legacy
 
 /-- The T3 submission. -/
 def submission : Submission where
-  sizes := ⟨5776, 25240, 32768⟩
+  sizes := ⟨5744, 25240, 32768⟩
   layout := ⟨0x40, 0x80, 0xA0, 0x9000, 0x7000, 0x800⟩
   image
     | .keygen => Images.keygenImage
@@ -30,7 +30,7 @@ def submission : Submission where
     | .expand => Images.expandImage
     | .verify => Images.verifyImage
 
-@[simp] theorem submission_sizes : submission.sizes = ⟨5776, 25240, 32768⟩ := rfl
+@[simp] theorem submission_sizes : submission.sizes = ⟨5744, 25240, 32768⟩ := rfl
 @[simp] theorem submission_layout : submission.layout = ⟨0x40, 0x80, 0xA0, 0x9000, 0x7000, 0x800⟩ := rfl
 @[simp] theorem submission_keygen : submission.image .keygen = Images.keygenImage := rfl
 @[simp] theorem submission_sign : submission.image .sign = Images.signImage := rfl
