@@ -380,13 +380,13 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 âˆ§ g1 < g2 âˆ
     rw [pad64_of_aligned _ (by rw [nodeInput_length'])]
     refine hashInput_toQ t10 _ 0 NODE (nodeInput_length' _ _ _ _ _ _) x10_10 (by decide) (by decide) x11_10
       (by decide) ?_
-    rw [wordsOf_nodeInput', readWords_eight, g10 _ (by decide) (by simp only [NODE]; omega),
+    rw [wordsOf_nodeInput' 10 _ _ _ _ _ (by decide), readWords_eight, g10 _ (by decide) (by simp only [NODE]; omega),
       g10 _ (by decide) (by simp only [NODE]; omega), g10 _ (by decide) (by simp only [NODE]; omega),
       g10 _ (by decide) (by simp only [NODE]; omega), hn32, hn40,
       g10 _ (by decide) (by simp only [NODE]; omega), g10 _ (by decide) (by simp only [NODE]; omega),
       n0, n8, n16, n24, n48, n56, g7 _ (by omega) (by omega), g7 _ (by omega) (by omega), mv32, mv40,
       nout5.1, nout5.2, nout7.1, nout7.2,
-      hdr0_eq 10 c index 0 (by decide) (by omega) hi (by decide), hdr1_eq index heap hi hheap']
+      hdr0_eq 10 c index index (by decide) (by omega) hi hi, hdr1_eq heap 0 hheap' (by decide)]
     simp only [Nat.mul_zero, Nat.add_zero]
   have hv : hashArgumentsValid t10 = true :=
     hashArgs_const t10 NODE 64 NOUT x10_10 x11_10 x12_10 (by decide) (by decide) (by decide) (by decide) (by decide)
