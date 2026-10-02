@@ -13,7 +13,7 @@ import SigGolfCandidate.T3.Secc.WotsSmallContract
 (`caseC_three_way`), with
 
 * full: `full_bound_births` + SEC's `expectedBirths_le_shared` (digest births ≤ the shared-law digest-class charge),
-  `theta + 1/16 ≤ 1 ≤ 1 + cacheRate`, `q ≤ 201·q`, `excessRate = 987/10^8`;
+  `theta + 1/64 ≤ 1 ≤ 1 + cacheRate`, `q ≤ 201·q`, `excessRate = 11400/10^8`;
 * near: the hypothesis `NearBound` (≤ `Wots.nearTerm q`; open, see `plan/CC-INTERFACE.md` §2c);
 * pair: B-PAIR's `pair_guess_bound` (≤ `BPair.pairTerm q`).
 -/

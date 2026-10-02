@@ -68,7 +68,7 @@ theorem l249_spec (hpc : s.pc = pcOf 249) (index : Nat) (hi : index < 2 ^ 31)
     ∃ t, Steps image s 13 13 t ∧ t.pc = pcOf 457 ∧ t.getReg .x1 = pcOf 262 ∧
       t.getReg .x8 = BitVec.ofNat 64 3 ∧ t.getReg .x15 = BitVec.ofNat 64 6 ∧
       t.getReg .x26 = BitVec.ofNat 64 43 ∧ t.getReg .x27 = BitVec.ofNat 64 0 ∧
-      t.getReg .x17 = BitVec.ofNat 64 194 ∧
+      t.getReg .x17 = BitVec.ofNat 64 195 ∧
       t.getReg .x18 = BitVec.ofNat 64 (index / 2 ^ 0 % 2 ^ 6) ∧ t.getReg .x9 = BitVec.ofNat 64 (index / 2 ^ 6) ∧
       RegsExcept s t [.x1, .x6, .x7, .x8, .x9, .x15, .x17, .x18, .x26, .x27, .x28] ∧
       Frame s t (fun _ => False) := by
@@ -99,7 +99,7 @@ theorem l272_spec (hpc : s.pc = pcOf 272) (index : Nat) (hi : index < 2 ^ 31)
     ∃ t, Steps image s 13 13 t ∧ t.pc = pcOf 457 ∧ t.getReg .x1 = pcOf 285 ∧
       t.getReg .x8 = BitVec.ofNat 64 2 ∧ t.getReg .x15 = BitVec.ofNat 64 6 ∧
       t.getReg .x26 = BitVec.ofNat 64 43 ∧ t.getReg .x27 = BitVec.ofNat 64 0 ∧
-      t.getReg .x17 = BitVec.ofNat 64 194 ∧
+      t.getReg .x17 = BitVec.ofNat 64 195 ∧
       t.getReg .x18 = BitVec.ofNat 64 (index / 2 ^ 6 % 2 ^ 6) ∧ t.getReg .x9 = BitVec.ofNat 64 (index / 2 ^ 12) ∧
       RegsExcept s t [.x1, .x6, .x7, .x8, .x9, .x15, .x17, .x18, .x26, .x27, .x28] ∧
       Frame s t (fun _ => False) := by
@@ -130,7 +130,7 @@ theorem l295_spec (hpc : s.pc = pcOf 295) (index : Nat) (hi : index < 2 ^ 31)
     ∃ t, Steps image s 13 13 t ∧ t.pc = pcOf 457 ∧ t.getReg .x1 = pcOf 308 ∧
       t.getReg .x8 = BitVec.ofNat 64 1 ∧ t.getReg .x15 = BitVec.ofNat 64 7 ∧
       t.getReg .x26 = BitVec.ofNat 64 43 ∧ t.getReg .x27 = BitVec.ofNat 64 0 ∧
-      t.getReg .x17 = BitVec.ofNat 64 194 ∧
+      t.getReg .x17 = BitVec.ofNat 64 195 ∧
       t.getReg .x18 = BitVec.ofNat 64 (index / 2 ^ 12 % 2 ^ 7) ∧ t.getReg .x9 = BitVec.ofNat 64 (index / 2 ^ 19) ∧
       RegsExcept s t [.x1, .x6, .x7, .x8, .x9, .x15, .x17, .x18, .x26, .x27, .x28] ∧
       Frame s t (fun _ => False) := by
@@ -161,7 +161,7 @@ theorem l318_spec (hpc : s.pc = pcOf 318) (index : Nat) (hi : index < 2 ^ 31)
     ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf 457 ∧ t.getReg .x1 = pcOf 332 ∧
       t.getReg .x8 = BitVec.ofNat 64 0 ∧ t.getReg .x15 = BitVec.ofNat 64 12 ∧
       t.getReg .x26 = BitVec.ofNat 64 58 ∧ t.getReg .x27 = BitVec.ofNat 64 49 ∧
-      t.getReg .x17 = BitVec.ofNat 64 125 ∧
+      t.getReg .x17 = BitVec.ofNat 64 126 ∧
       t.getReg .x18 = BitVec.ofNat 64 (index / 2 ^ 19 % 2 ^ 12) ∧ t.getReg .x9 = BitVec.ofNat 64 (index / 2 ^ 31) ∧
       RegsExcept s t [.x1, .x6, .x7, .x8, .x9, .x15, .x17, .x18, .x26, .x27, .x28] ∧
       Frame s t (fun _ => False) := by
@@ -186,13 +186,13 @@ theorem l318_spec (hpc : s.pc = pcOf 318) (index : Nat) (hi : index < 2 ^ 31)
   · ex_regs eblk_318.res
   · intro A _ _; simp [eblk_318.res, rv_simp]
 
-/-- After `counter_search`: the counter into the witness header (dword `0x820`, half 0), `a6 = 0x8350`,
+/-- After `counter_search`: the counter into the witness header (dword `0x820`, half 0), `a6 = 0x8320`,
 `s7 = 0x6a58`, `s8 = 0x5f98`, `jal recover_layer`. -/
 theorem l262_spec (hpc : s.pc = pcOf 262) (c : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = pcOf 997 ∧ t.getReg .x1 = pcOf 272 ∧
       t.getMem (BitVec.ofNat 64 0x820) =
         replaceWord32 (s.getMem (BitVec.ofNat 64 0x820)) 0 ((BitVec.ofNat 64 c).truncate 32) ∧
-      t.getReg .x16 = BitVec.ofNat 64 0x8350 ∧ t.getReg .x23 = BitVec.ofNat 64 0x6a58 ∧
+      t.getReg .x16 = BitVec.ofNat 64 0x8320 ∧ t.getReg .x23 = BitVec.ofNat 64 0x6a58 ∧
       t.getReg .x24 = BitVec.ofNat 64 0x5f98 ∧
       RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x820) := by
   refine ⟨_, symRun_sound eblk_262 codeAt_262 s hpc (by simp [eblk_262.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
@@ -210,13 +210,13 @@ theorem l262_spec (hpc : s.pc = pcOf 262) (c : Nat) (h19 : s.getReg .x19 = BitVe
     t3n []
     rw [if_neg (by omega)]
 
-/-- After `counter_search`: the counter into the witness header (dword `0x818`, half 1), `a6 = 0x8040`,
+/-- After `counter_search`: the counter into the witness header (dword `0x818`, half 1), `a6 = 0x8010`,
 `s7 = 0x5e18`, `s8 = 0x5358`, `jal recover_layer`. -/
 theorem l285_spec (hpc : s.pc = pcOf 285) (c : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = pcOf 997 ∧ t.getReg .x1 = pcOf 295 ∧
       t.getMem (BitVec.ofNat 64 0x818) =
         replaceWord32 (s.getMem (BitVec.ofNat 64 0x818)) 1 ((BitVec.ofNat 64 c).truncate 32) ∧
-      t.getReg .x16 = BitVec.ofNat 64 0x8040 ∧ t.getReg .x23 = BitVec.ofNat 64 0x5e18 ∧
+      t.getReg .x16 = BitVec.ofNat 64 0x8010 ∧ t.getReg .x23 = BitVec.ofNat 64 0x5e18 ∧
       t.getReg .x24 = BitVec.ofNat 64 0x5358 ∧
       RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x818) := by
   refine ⟨_, symRun_sound eblk_285 codeAt_285 s hpc (by simp [eblk_285.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
@@ -234,13 +234,13 @@ theorem l285_spec (hpc : s.pc = pcOf 285) (c : Nat) (h19 : s.getReg .x19 = BitVe
     t3n []
     rw [if_neg (by omega)]
 
-/-- After `counter_search`: the counter into the witness header (dword `0x818`, half 0), `a6 = 0x7d20`,
+/-- After `counter_search`: the counter into the witness header (dword `0x818`, half 0), `a6 = 0x7cf0`,
 `s7 = 0x51d8`, `s8 = 0x4718`, `jal recover_layer`. -/
 theorem l308_spec (hpc : s.pc = pcOf 308) (c : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = pcOf 997 ∧ t.getReg .x1 = pcOf 318 ∧
       t.getMem (BitVec.ofNat 64 0x818) =
         replaceWord32 (s.getMem (BitVec.ofNat 64 0x818)) 0 ((BitVec.ofNat 64 c).truncate 32) ∧
-      t.getReg .x16 = BitVec.ofNat 64 0x7d20 ∧ t.getReg .x23 = BitVec.ofNat 64 0x51d8 ∧
+      t.getReg .x16 = BitVec.ofNat 64 0x7cf0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x51d8 ∧
       t.getReg .x24 = BitVec.ofNat 64 0x4718 ∧
       RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x818) := by
   refine ⟨_, symRun_sound eblk_308 codeAt_308 s hpc (by simp [eblk_308.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
@@ -258,13 +258,13 @@ theorem l308_spec (hpc : s.pc = pcOf 308) (c : Nat) (h19 : s.getReg .x19 = BitVe
     t3n []
     rw [if_neg (by omega)]
 
-/-- After `counter_search`: the counter into the witness header (dword `0x810`, half 1), `a6 = 0x78c0`,
+/-- After `counter_search`: the counter into the witness header (dword `0x810`, half 1), `a6 = 0x7890`,
 `s7 = 0x4558`, `s8 = 0x36d8`, `jal recover_layer`. -/
 theorem l332_spec (hpc : s.pc = pcOf 332) (c : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = pcOf 997 ∧ t.getReg .x1 = pcOf 342 ∧
       t.getMem (BitVec.ofNat 64 0x810) =
         replaceWord32 (s.getMem (BitVec.ofNat 64 0x810)) 1 ((BitVec.ofNat 64 c).truncate 32) ∧
-      t.getReg .x16 = BitVec.ofNat 64 0x78c0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x4558 ∧
+      t.getReg .x16 = BitVec.ofNat 64 0x7890 ∧ t.getReg .x23 = BitVec.ofNat 64 0x4558 ∧
       t.getReg .x24 = BitVec.ofNat 64 0x36d8 ∧
       RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x810) := by
   refine ⟨_, symRun_sound eblk_332 codeAt_332 s hpc (by simp [eblk_332.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
@@ -340,7 +340,7 @@ def lR2 (lay : Layer) : Nat := ![342, 318, 295, 272] lay
 def lD (lay : Layer) : Nat := ![0x810, 0x818, 0x818, 0x820] lay
 def lk (lay : Layer) : Nat := ![1, 0, 1, 0] lay
 /-- The layer's signature piece, witness chain block of chain 0, witness Merkle block of level 0. -/
-def lP (lay : Layer) : Nat := ![0x78c0, 0x7d20, 0x8040, 0x8350] lay
+def lP (lay : Layer) : Nat := ![0x7890, 0x7cf0, 0x8010, 0x8320] lay
 def lWC (lay : Layer) : Nat := ![0x4558, 0x51D8, 0x5E18, 0x6A58] lay
 def lWM (lay : Layer) : Nat := ![0x36D8, 0x4718, 0x5358, 0x5F98] lay
 

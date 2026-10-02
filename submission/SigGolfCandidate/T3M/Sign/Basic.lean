@@ -11,6 +11,9 @@ import SigGolfCandidate.T3M.Keygen.Init
 * doubleword views: `bv256_eq_iff`, `bytesToWordLE_bytes` (the loader's doublewords of any input buffer).
 -/
 
+/-- Unused legacy scratch interval retained only in signing frame overapproximations. -/
+abbrev SigGolfCandidate.T3M.Keygen.MACBLK : Nat := 0x8FE0
+
 namespace SigGolfCandidate.T3M.Sign
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3 (M Spec publicHash shortHash privateHash privatePair privateMac privateNonce mask
@@ -27,7 +30,7 @@ abbrev SK : Nat := 0x80
 /-- The signature output (5,824 bytes). -/
 abbrev SIG : Nat := 0x7000
 /-- The cache input (`tag | region`). -/
-abbrev CACHE : Nat := 0x9000
+abbrev CACHE : Nat := 0x80000
 /-- `S0 | T7 | S1 | 0^16 | m | 0^32`: the nonce block. -/
 abbrev NONCE : Nat := 0x20080
 /-- The nonce output (rho = low 16 bytes). -/
@@ -123,17 +126,6 @@ theorem TBSim.privateHash_bind {s : MachineState} {co : Coordinate} {W : Nat}
   unfold TBSim; rw [mrealize_bind, mrealize_privateHash]
   exact Sim.query_bind hf ht0 hv hq h
 
-/-- One HASH `ECALL` answering the 513-block MAC. -/
-theorem TBSim.privateMac_bind {s : MachineState} {region : Region} {W : Nat}
-    {f : HashOutput → M β} {Q : β → MachineState → Prop}
-    (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
-    (hv : hashArgumentsValid s = true) (hq : hashInput s = toQ (privateInput sk (.inr (.inr region))))
-    (h : ∀ a, TBSim image sk (writeHash s a) W (f a) Q) :
-    TBSim image sk s (8 * 513 + W) (privateMac region >>= f) Q := by
-  have hb : (toQ (privateInput sk (.inr (.inr region)))).blocks = 513 := by
-    rw [blocks_toQ (privateInput_aligned _ _), privateInput_mac_length]
-  exact TBSim.of_eq (TBSim.privateHash_bind hf ht0 hv hq h) rfl (by rw [hb])
-
 /-- One HASH `ECALL` answering the nonce (`privateNonce`, the low 16 bytes; two blocks). -/
 theorem TBSim.privateNonce_bind {s : MachineState} {m : T3.Message} {W : Nat}
     {f : Digest → M β} {Q : β → MachineState → Prop}
@@ -167,16 +159,18 @@ theorem TBSim.privatePair_bind {s : MachineState} {tag lay tree position index :
   rw [this]
   exact TBSim.of_eq (TBSim.privateHash_bind hf ht0 hv hq h) rfl (by rw [hb])
 
-/-- One HASH `ECALL` answering `mask level index` (the low half of a tag-13 pair). -/
+/-- One HASH answering the selected half of a paired cache mask. -/
 theorem TBSim.mask_bind {s : MachineState} {level index : Nat} {W : Nat}
     {f : Digest → M β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
     (hv : hashArgumentsValid s = true)
-    (hq : hashInput s = toQ (privateInput sk (.inl (header 13 0 0 level index))))
-    (h : ∀ a : BitVec 256, TBSim image sk (writeHash s a) W (f (a.extractLsb' 0 128)) Q) :
+    (hq : hashInput s = toQ (privateInput sk (.inl (header 13 0 0 level (index/2)))))
+    (h : ∀ a : BitVec 256, TBSim image sk (writeHash s a) W
+      (f (if index % 2 = 0 then a.extractLsb' 0 128 else a.extractLsb' 128 128)) Q) :
     TBSim image sk s (8 + W) (mask level index >>= f) Q := by
-  have : mask level index >>= f = privatePair 13 0 0 level index >>= fun x => f x.1 := by
-    unfold mask; rw [bind_assoc]; simp only [pure_bind]
+  have : mask level index >>= f = privatePair 13 0 0 level (index/2) >>=
+      fun x => f (if index % 2 = 0 then x.1 else x.2) := by
+    unfold mask T3.pairedMask; rw [bind_assoc]; simp only [pure_bind]
   rw [this]
   exact TBSim.privatePair_bind hf ht0 hv hq h
 

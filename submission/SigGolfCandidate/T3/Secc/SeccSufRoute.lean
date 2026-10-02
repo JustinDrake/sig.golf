@@ -400,7 +400,8 @@ theorem allQ_queried {α : Type} (answers : Correctness.Answers) (P : T3.Spec.Do
       · exact ih _ (hn _) q hq
 
 theorem queried_privateMac (answers : Correctness.Answers) (region : Region) :
-    queried answers (privateMac region) = [.inr (.inr (.inr region))] := rfl
+    queried answers (privateMac region) =
+      [.inr (.inl (header 14 0 0 0 0)), .inr (.inl (header 14 0 0 0 1))] := rfl
 
 theorem queried_privateNonce (answers : Correctness.Answers) (m : Message) :
     queried answers (privateNonce m) = [.inr (.inr (.inl m))] := rfl

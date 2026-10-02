@@ -12,13 +12,13 @@ Budgets (fuel = all-oracle cycles `B`, accepting cycles `A`; `fo` = folds consum
 * folds: 15 cycles per fold (rung 7 + HASH 8), the segment's last fold 13 (`folds_good`);
 * one segment: at most 191 cycles, accepting `15 + 15 a` (dispatch 4, slot 3 / 4, pending HASH 8, `j lad` 1, folds
   `15 a - 2`) (`seg_good`);
-* a segment loop from stack depth `d`: `B0 + 197 + 199 d` / `A0 + 15 + 22 d + 15 (118 - fo)` (merge tail 7, its
+* a segment loop from stack depth `d`: `B0 + 197 + 199 d` / `A0 + 15 + 22 d + 15 (115 - fo)` (merge tail 7, its
   reject 6) (`segLoop_good`);
-* a coordinate from its leaf 0: `Cent c = 1040 + 1020 (6 - c)` / `Aent c = 140 + 120 (6 - c)` (+ `15 (118 - fo)`)
+* a coordinate from its leaf 0: `Cent c = 1040 + 1020 (6 - c)` / `Aent c = 140 + 120 (6 - c)` (+ `15 (115 - fo)`)
   (`coord_good`); the forest 23 / 23 (cap check, frame, two-block HASH) (`fin_good`);
-* the FTS from `FtsReady`: **7179 / 2649** (`fts_good`). Every accepting run has 5 segments per coordinate (3 leaves,
-  2 merges): its accepting cost is exactly `879 + 15 F` (`F` = folds, at most 118 by the pointer cap); the bound
-  `2649 = 879 + 15 · 118`. Accepting runs satisfy `fo ≤ 118` at every point (`Q ∧ fo ≤ 118`).
+* the FTS from `FtsReady`: **7179 / 2604** (`fts_good`). Every accepting run has 5 segments per coordinate (3 leaves,
+  2 merges): its accepting cost is exactly `879 + 15 F` (`F` = folds, at most 115 by the pointer cap); the bound
+  `2604 = 879 + 15 · 115`. Accepting runs satisfy `fo ≤ 115` at every point (`Q ∧ fo ≤ 115`).
 
 `verifyP_good_fts`: `verifyP` from the initial state, given the layers phase (V1, V3) from `FtsOut`.
 -/
@@ -183,16 +183,16 @@ theorem folds_good (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dig
 /-! ## One segment -/
 
 /-- One segment from its dispatch: the two rejects, the pending HASH, the folds, then the tail `TL` at `TailIn`.
-At most 191 cycles; accepting `15 + 15 a` (the fold budget `15 (118 - fo)` pays the folds). -/
+At most 191 cycles; accepting `15 + 15 a` (the fold budget `15 (115 - fo)` pays the folds). -/
 theorem seg_good {γ : Type} (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Digest × Nat)) (pend : Pending)
     (E ptr folds : Nat) (node : Digest) (m : MachineState) (h : DispIn F c j roots stk pend E ptr folds node m)
     (TL : Digest → Nat → T3.M (Option γ)) (Rs : Option γ → OracleComp HashSpec Obs) (hRs : Rs none = pure (false, 0))
     (B A : Nat) (Q : Prop)
     (hT : ∀ E' node' u, TailIn F c j roots stk (segX (tselJ j) (wbyte F.w ptr).toNat) E'
         (ptr + 8 + 80 * segA (wbyte F.w ptr).toNat) (folds + segA (wbyte F.w ptr).toNat) node' u →
-      GoodQ u B B (Q ∧ folds + segA (wbyte F.w ptr).toNat ≤ 118)
-        (A + 15 * (118 - (folds + segA (wbyte F.w ptr).toNat))) (ccM (TL node' E') Rs)) :
-    GoodQ m (B + 191) (B + 191) (Q ∧ folds ≤ 118) (A + 15 + 15 * (118 - folds))
+      GoodQ u B B (Q ∧ folds + segA (wbyte F.w ptr).toNat ≤ 115)
+        (A + 15 * (115 - (folds + segA (wbyte F.w ptr).toNat))) (ccM (TL node' E') Rs)) :
+    GoodQ m (B + 191) (B + 191) (Q ∧ folds ≤ 115) (A + 15 + 15 * (115 - folds))
       (ccM (segProg F c pend E ptr node TL) Rs) := by
   obtain ⟨sRej, sPar, sOk⟩ := seg_step F c j roots stk pend E ptr folds node m h
   unfold segProg
@@ -216,8 +216,8 @@ theorem seg_good {γ : Type} (F : FCtx) (c j : Nat) (roots : List Digest) (stk :
   · have hb0 : (wbyte F.w ptr).toNat % 16 = 0 := ha0
     have e1 : ptr + 8 + 80 * segA (wbyte F.w ptr).toNat = ptr + 8 := by omega
     have e2 : folds + segA (wbyte F.w ptr).toNat = folds := by omega
-    have hg := GoodQ.shortHash_bind (N := B) (C := B) (A := A + 15 * (118 - (folds + segA (wbyte F.w ptr).toNat)))
-      (Q := Q ∧ folds + segA (wbyte F.w ptr).toNat ≤ 118)
+    have hg := GoodQ.shortHash_bind (N := B) (C := B) (A := A + 15 * (115 - (folds + segA (wbyte F.w ptr).toNat)))
+      (Q := Q ∧ folds + segA (wbyte F.w ptr).toNat ≤ 115)
       (f := fun node1 => foldsP F.w F.idx c ptr ((wbyte F.w ptr).toNat % 16) node1 E >>= fun p => TL p.1 p.2)
       (K := Rs) hf h5 hv hin (fun ans => by
         rw [hb0]
@@ -229,15 +229,15 @@ theorem seg_good {γ : Type} (F : FCtx) (c j : Nat) (roots : List Digest) (stk :
   · have hapos : 0 < segA (wbyte F.w ptr).toNat := Nat.pos_of_ne_zero ha0
     have hg := GoodQ.shortHash_bind (N := B + (15 * segA (wbyte F.w ptr).toNat - 2) + 1)
       (C := B + (15 * segA (wbyte F.w ptr).toNat - 2) + 1)
-      (A := A + 15 * (118 - (folds + segA (wbyte F.w ptr).toNat)) + (15 * segA (wbyte F.w ptr).toNat - 2) + 1)
-      (Q := Q ∧ folds + segA (wbyte F.w ptr).toNat ≤ 118)
+      (A := A + 15 * (115 - (folds + segA (wbyte F.w ptr).toNat)) + (15 * segA (wbyte F.w ptr).toNat - 2) + 1)
+      (Q := Q ∧ folds + segA (wbyte F.w ptr).toNat ≤ 115)
       (f := fun node1 => foldsP F.w F.idx c ptr ((wbyte F.w ptr).toNat % 16) node1 E >>= fun p => TL p.1 p.2)
       (K := Rs) hf h5 hv hin (fun ans => by
         obtain ⟨v, hv1, hrung⟩ := (hnext ans).2 hapos
         rw [ccM_bind]
         have hfg := folds_good F c j roots stk (segX (tselJ j) (wbyte F.w ptr).toNat) (segA (wbyte F.w ptr).toNat)
           ptr folds (fun p => ccM (TL p.1 p.2) Rs) B
-          (A + 15 * (118 - (folds + segA (wbyte F.w ptr).toNat))) (Q ∧ folds + segA (wbyte F.w ptr).toNat ≤ 118)
+          (A + 15 * (115 - (folds + segA (wbyte F.w ptr).toNat))) (Q ∧ folds + segA (wbyte F.w ptr).toNat ≤ 115)
           (fun E' node' u' hu' => hT E' node' u' hu') (segA (wbyte F.w ptr).toNat) 0 E _ v (by omega) hapos hrung
         have hr : List.range ((wbyte F.w ptr).toNat % 16) = List.range' 0 (segA (wbyte F.w ptr).toNat) :=
           List.range_eq_range'
@@ -257,16 +257,16 @@ theorem segX_m (j b : Nat) (h : segM b = 1) : segX (tselJ j) b = 0 := by
   unfold segX; rw [if_pos h]
 
 /-- Core's `segLoop` from a dispatch at stack depth `d`: `B0 + 197 + 199 d` cycles, accepting
-`A0 + 15 + 22 d + 15 (118 - fo)`, given the continuation at the final (non-merge) tail at depth `d'`. -/
+`A0 + 15 + 22 d + 15 (115 - fo)`, given the continuation at the final (non-merge) tail at depth `d'`. -/
 theorem segLoop_good (F : FCtx) (c j : Nat) (roots : List Digest)
     (Rs : Option (Digest × Nat × Nat × List (Digest × Nat)) → OracleComp HashSpec Obs)
     (hRs : Rs none = pure (false, 0)) (B0 A0 : Nat) (Q : Prop)
     (hK : ∀ stk' E' ptr' folds' node' u, TailIn F c j roots stk' (if j = 2 then 2 else 1) E' ptr' folds' node' u →
-      GoodQ u (B0 + 199 * stk'.length) (B0 + 199 * stk'.length) (Q ∧ folds' ≤ 118)
-        (A0 + 22 * stk'.length + 15 * (118 - folds')) (Rs (some (node', E', ptr', stk')))) :
+      GoodQ u (B0 + 199 * stk'.length) (B0 + 199 * stk'.length) (Q ∧ folds' ≤ 115)
+        (A0 + 22 * stk'.length + 15 * (115 - folds')) (Rs (some (node', E', ptr', stk')))) :
     ∀ stk pend E ptr folds node m, DispIn F c j roots stk pend E ptr folds node m →
-      GoodQ m (B0 + 197 + 199 * stk.length) (B0 + 197 + 199 * stk.length) (Q ∧ folds ≤ 118)
-        (A0 + 15 + 22 * stk.length + 15 * (118 - folds)) (ccM (segLoop F.w F.idx c stk pend E ptr node) Rs) := by
+      GoodQ m (B0 + 197 + 199 * stk.length) (B0 + 197 + 199 * stk.length) (Q ∧ folds ≤ 115)
+        (A0 + 15 + 22 * stk.length + 15 * (115 - folds)) (ccM (segLoop F.w F.idx c stk pend E ptr node) Rs) := by
   intro stk
   induction stk with
   | nil =>
@@ -321,10 +321,10 @@ theorem leaf_good (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dige
     (Rs : Option (Digest × Nat × Nat × List (Digest × Nat)) → OracleComp HashSpec Obs)
     (hRs : Rs none = pure (false, 0)) (B0 A0 : Nat) (Q : Prop)
     (hK : ∀ stk' E' ptr' folds' node' u, TailIn F c j roots stk' (if j = 2 then 2 else 1) E' ptr' folds' node' u →
-      GoodQ u (B0 + 199 * stk'.length) (B0 + 199 * stk'.length) (Q ∧ folds' ≤ 118)
-        (A0 + 22 * stk'.length + 15 * (118 - folds')) (Rs (some (node', E', ptr', stk')))) :
-    GoodQ m (B0 + 197 + 199 * stk.length + leafCode j) (B0 + 197 + 199 * stk.length + leafCode j) (Q ∧ folds ≤ 118)
-      (A0 + 15 + 22 * stk.length + 15 * (118 - folds) + leafCode j)
+      GoodQ u (B0 + 199 * stk'.length) (B0 + 199 * stk'.length) (Q ∧ folds' ≤ 115)
+        (A0 + 22 * stk'.length + 15 * (115 - folds')) (Rs (some (node', E', ptr', stk')))) :
+    GoodQ m (B0 + 197 + 199 * stk.length + leafCode j) (B0 + 197 + 199 * stk.length + leafCode j) (Q ∧ folds ≤ 115)
+      (A0 + 15 + 22 * stk.length + 15 * (115 - folds) + leafCode j)
       (ccM (segLoop F.w F.idx c stk (.leaf (3 * c + j) (T3M.selLeaf (F.sel c) j)) (2048 + T3M.selLeaf (F.sel c) j)
         ptr node) Rs) := by
   obtain ⟨u, hu, hd⟩ := leaf_step F c j roots stk ptr folds m h node
@@ -334,7 +334,7 @@ theorem leaf_good (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dige
 
 /-- All-oracle cycles from a coordinate's leaf 0 (`c < 7`) or the forest (`c = 7`) to the end of the FTS. -/
 def Cent (c : Nat) : Nat := if c < 7 then 1040 + 1020 * (6 - c) else 23
-/-- Accepting cycles from a coordinate's leaf 0 or the forest, beyond the fold budget `15 (118 - fo)`. -/
+/-- Accepting cycles from a coordinate's leaf 0 or the forest, beyond the fold budget `15 (115 - fo)`. -/
 def Aent (c : Nat) : Nat := if c < 7 then 140 + 120 * (6 - c) else 23
 
 /-- The start of coordinate `c` (its leaf 0, empty stack) or, for `c = 7`, the forest. -/
@@ -346,9 +346,9 @@ theorem coord_good (F : FCtx) (c : Nat) (roots : List Digest) (ptr folds : Nat) 
     (h : LeafIn F c 0 roots [] ptr folds m) (R : Option (Digest × Nat) → OracleComp HashSpec Obs)
     (hR : R none = pure (false, 0)) (Bf Af : Nat) (Q : Prop)
     (hK : ∀ root ptr' folds' u, NextIn F (c + 1) (roots ++ [root]) ptr' folds' u →
-      GoodQ u (Bf + Cent (c + 1)) (Bf + Cent (c + 1)) (Q ∧ folds' ≤ 118) (Af + Aent (c + 1) + 15 * (118 - folds'))
+      GoodQ u (Bf + Cent (c + 1)) (Bf + Cent (c + 1)) (Q ∧ folds' ≤ 115) (Af + Aent (c + 1) + 15 * (115 - folds'))
         (R (some (root, ptr')))) :
-    GoodQ m (Bf + Cent c) (Bf + Cent c) (Q ∧ folds ≤ 118) (Af + Aent c + 15 * (118 - folds))
+    GoodQ m (Bf + Cent c) (Bf + Cent c) (Q ∧ folds ≤ 115) (Af + Aent c + 15 * (115 - folds))
       (ccM (ftsCoordP F.w F.idx c (F.sel c) ptr) R) := by
   have hc7 := h.fb.hc
   have ce : Cent c = 1040 + 1020 * (6 - c) := if_pos hc7
@@ -412,9 +412,9 @@ theorem coord_good (F : FCtx) (c : Nat) (roots : List Digest) (ptr folds : Nat) 
 theorem coords_good (F : FCtx) (R7 : Option (List Digest × Nat) → OracleComp HashSpec Obs)
     (hR7 : R7 none = pure (false, 0)) (Bf Af : Nat) (Q : Prop)
     (hfin : ∀ roots ptr folds m, ForestIn F roots ptr folds m →
-      GoodQ m (Bf + 23) (Bf + 23) (Q ∧ folds ≤ 118) (Af + 23 + 15 * (118 - folds)) (R7 (some (roots, ptr)))) :
+      GoodQ m (Bf + 23) (Bf + 23) (Q ∧ folds ≤ 115) (Af + 23 + 15 * (115 - folds)) (R7 (some (roots, ptr)))) :
     ∀ n c roots ptr folds m, c + n = 7 → NextIn F c roots ptr folds m →
-      GoodQ m (Bf + Cent c) (Bf + Cent c) (Q ∧ folds ≤ 118) (Af + Aent c + 15 * (118 - folds))
+      GoodQ m (Bf + Cent c) (Bf + Cent c) (Q ∧ folds ≤ 115) (Af + Aent c + 15 * (115 - folds))
         (ccM ((List.range' c n).foldlM (ftsStep F) (some (roots, ptr))) R7) := by
   intro n
   induction n with
@@ -442,13 +442,13 @@ theorem coords_good (F : FCtx) (R7 : Option (List Digest × Nat) → OracleComp 
 theorem fin_good (F : FCtx) (R : Option Digest → OracleComp HashSpec Obs) (hR : R none = pure (false, 0))
     (Bf Af : Nat) (Q : Prop) (hout : ∀ root u, FtsOut F root u → GoodQ u Bf Bf Q Af (R (some root))) :
     ∀ roots ptr folds m, ForestIn F roots ptr folds m →
-      GoodQ m (Bf + 23) (Bf + 23) (Q ∧ folds ≤ 118) (Af + 23 + 15 * (118 - folds))
+      GoodQ m (Bf + 23) (Bf + 23) (Q ∧ folds ≤ 115) (Af + 23 + 15 * (115 - folds))
         (ccM (ftsFin F (some (roots, ptr))) R) := by
   intro roots ptr folds m h
   obtain ⟨fRej, fOk⟩ := forest_step F roots ptr folds m h
   have hp := h.hptr
   simp only [ftsFin]
-  by_cases hgt : 118 < folds
+  by_cases hgt : 115 < folds
   · rw [if_pos (by unfold streamEnd; omega), ccM_pure, hR]
     obtain ⟨u, hu, hh⟩ := fRej hgt
     exact GoodQ.rejectAfter hu hh (by omega) (by omega)
@@ -461,11 +461,11 @@ theorem fin_good (F : FCtx) (R : Option Digest → OracleComp HashSpec Obs) (hR 
     exact GoodQ.steps' hu hg (by omega) (by omega) (fun q => ⟨⟨q, by omega⟩, by omega⟩)
 
 /-- **The FTS stream machine refines `ftsP`**: from `FtsReady` (after the digest gate), 7179 cycles on every oracle;
-accepting runs take at most 2649 = 879 + 15 · 118 cycles to `FtsOut`. -/
+accepting runs take at most 2604 = 879 + 15 · 115 cycles to `FtsOut`. -/
 theorem fts_good (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : FtsReady pk w a t)
     (R : Option Digest → OracleComp HashSpec Obs) (hR : R none = pure (false, 0)) (Bf Af : Nat) (Q : Prop)
     (hout : ∀ root u, FtsOut ⟨pk, w, a⟩ root u → GoodQ u Bf Bf Q Af (R (some root))) :
-    GoodQ t (Bf + 7179) (Bf + 7179) Q (Af + 2649) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
+    GoodQ t (Bf + 7179) (Bf + 7179) Q (Af + 2604) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
   obtain ⟨u, hu, hl⟩ := fts_setup_step pk w a t ht
   have e : ftsP w (a.toNat % 2 ^ 31) (selections a) =
       List.foldlM (ftsStep ⟨pk, w, a⟩) (some ([], 1088)) (List.range 7) >>= ftsFin ⟨pk, w, a⟩ :=
@@ -482,7 +482,7 @@ theorem fts_good (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) 
 theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    ∀ a t, SelIn pk w a 7 t → GoodQ t (Bf + 7182) (Bf + 7182) Q (Af + 2652) (ccM (afterSel pk w a) Kb) := by
+    ∀ a t, SelIn pk w a 7 t → GoodQ t (Bf + 7182) (Bf + 7182) Q (Af + 2607) (ccM (afterSel pk w a) Kb) := by
   intro a t ht
   cases hg : T3.digestGate a with
   | false =>
@@ -497,12 +497,12 @@ theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
 
 /-- **`verifyP` from the initial state up to the layers phase**: given the layers phase (V1/V3: layers 3..0 and the
 comparison, `afterFts`) from `FtsOut`, the whole verify run. Accepting cycles through the forest HASH:
-`184 + 3 + 2649 = 2836` (`128 + P` with `P ≤ 56` for the words 0..358, `879 + 15 F` with `F ≤ 118` for the FTS). -/
+`184 + 3 + 2604 = 2791` (`128 + P` with `P ≤ 56` for the words 0..358, `879 + 15 F` with `F ≤ 115` for the FTS). -/
 theorem verifyP_good_fts (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    GoodQ s (Bf + 7368) (Bf + 7375) Q (Af + 2836) (ccM (verifyP m pk w) Kb) :=
+    GoodQ s (Bf + 7368) (Bf + 7375) Q (Af + 2791) (ccM (verifyP m pk w) Kb) :=
   (verifyP_good_sel m pk w s hs (afterSel_good pk w Bf Af Q hout)).mono (by omega) (by omega)
     (fun q => ⟨q, by omega⟩)
 

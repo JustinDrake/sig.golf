@@ -28,11 +28,11 @@ open SigGolfCandidate.T3M.Keygen (LevW n4)
 
 /-- First digest index of the piece of layer `n` (`n = 4`: the end of the signature). -/
 def lstart : Nat → Nat
-  | 0 => 140
-  | 1 => 210
-  | 2 => 260
-  | 3 => 309
-  | _ => 358
+  | 0 => 137
+  | 1 => 207
+  | 2 => 257
+  | 3 => 306
+  | _ => 355
 
 theorem lstart_mono (n : Nat) : lstart n ≤ lstart (n + 1) := by
   rcases n with _ | _ | _ | _ | n <;> simp [lstart]
@@ -40,7 +40,7 @@ theorem lstart_mono (n : Nat) : lstart n ≤ lstart (n + 1) := by
 /-- The layers below `n` may write anything but the FTS part of the signature and the pieces of the layers
 `≥ n`. -/
 def LayW (n : Nat) (A : Nat) : Prop :=
-  ¬ (SIG ≤ A ∧ A < SIG + 2240) ∧ ¬ (SIG + 16 * lstart n ≤ A ∧ A < SIG + 5728)
+  ¬ (SIG ≤ A ∧ A < SIG + 2192) ∧ ¬ (SIG + 16 * lstart n ≤ A ∧ A < SIG + 5680)
 
 /-- The piece `p = (values, path)` of layer `lay` in the signature. -/
 def PieceAt (u : MachineState) (lay : Layer) (p : Pieces) : Prop :=
@@ -64,8 +64,8 @@ theorem SLPost.pre {s t : MachineState} {n : Nat} (hf : Frame s t (fun _ => Fals
 
 /-- The three lower layers. -/
 theorem lay_cases {lay : Layer} (hlay : lay ≠ 0) :
-    (lay.val = 1 ∧ layIdx lay = 210 ∧ height lay = 7) ∨ (lay.val = 2 ∧ layIdx lay = 260 ∧ height lay = 6) ∨
-      (lay.val = 3 ∧ layIdx lay = 309 ∧ height lay = 6) := by
+    (lay.val = 1 ∧ layIdx lay = 207 ∧ height lay = 7) ∨ (lay.val = 2 ∧ layIdx lay = 257 ∧ height lay = 6) ∨
+      (lay.val = 3 ∧ layIdx lay = 306 ∧ height lay = 6) := by
   fin_cases lay
   · exact absurd rfl hlay
   · left; exact ⟨rfl, rfl, rfl⟩
@@ -73,8 +73,8 @@ theorem lay_cases {lay : Layer} (hlay : lay ≠ 0) :
   · right; right; exact ⟨rfl, rfl, rfl⟩
 
 theorem lay_facts {lay : Layer} (hlay : lay ≠ 0) :
-    lstart lay.val = layIdx lay ∧ lstart (lay.val + 1) = layIdx lay + 43 + height lay ∧ 210 ≤ layIdx lay ∧
-      layIdx lay + 43 + height lay ≤ 358 := by
+    lstart lay.val = layIdx lay ∧ lstart (lay.val + 1) = layIdx lay + 43 + height lay ∧ 207 ≤ layIdx lay ∧
+      layIdx lay + 43 + height lay ≤ 355 := by
   rcases lay_cases hlay with ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ <;> rw [h1, h2, h3] <;> simp [lstart]
 
 theorem csW_layW {n A : Nat} (h : CsW A) : LayW n A := by
@@ -131,7 +131,7 @@ theorem blkJal_spec {lay : Layer} (hlay : lay ≠ 0) (s : MachineState) (hpc : s
 /-! ## One lower layer -/
 
 /-- The `counter_search` entry (646) of lower layer `lay` with the message `msg` at `ENC`. -/
-structure LayEntry (sk : SecretKey) (cache : Bytes 32768) (lay : Layer) (index : Nat) (msg : Digest)
+structure LayEntry (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (index : Nat) (msg : Digest)
     (t : MachineState) : Prop where
   pc : t.pc = pcOf 646
   x1 : t.getReg .x1 = pcOf (jalBT lay)
@@ -154,7 +154,7 @@ structure LayEntry (sk : SecretKey) (cache : Bytes 32768) (lay : Layer) (index :
   c32 : (t.getMem (BitVec.ofNat 64 (ENC + 32))).toNat < 2 ^ 32
 
 /-- Back from `build_tree` at `ret` with the layer's root (the next message) at `ENC`. -/
-structure LayNext (sk : SecretKey) (cache : Bytes 32768) (ret index : Nat) (root : Digest) (t : MachineState) :
+structure LayNext (sk : SecretKey) (cache : Bytes 131072) (ret index : Nat) (root : Digest) (t : MachineState) :
     Prop where
   pc : t.pc = pcOf ret
   x2 : t.getReg .x2 = BitVec.ofNat 64 LOW
@@ -181,7 +181,7 @@ theorem signLayers_low (cache : Cache) (index : Nat) {lay : Layer} (hlay : lay �
   all_goals rfl
 
 section layer
-variable {sk : SecretKey} {cache : Bytes 32768}
+variable {sk : SecretKey} {cache : Bytes 131072}
 
 /-- **One lower layer**: from the `counter_search` entry of layer `lay ≠ 0`, the machine refines
 `signLayers cache index (lay + 1) msg`, given the refinement of `signLayers cache index lay` from the return of
@@ -386,10 +386,10 @@ theorem layer0_link (hL0 : L0Spec sk cache) {index : Nat} {root : Digest} {v : M
   subst h0
   refine ⟨fun i hi => ?_, fun j hj => ?_⟩
   · have := uv i hi
-    rw [show SIG + 2240 + 16 * i = SIG + 16 * (layIdx 0 + i) by simp [layIdx]; ring] at this
+    rw [show SIG + 2192 + 16 * i = SIG + 16 * (layIdx 0 + i) by simp [layIdx]; ring] at this
     exact this
   · have := up j hj
-    rw [show SIG + 3168 + 16 * j = SIG + 16 * (layIdx 0 + chainCount 0 + j) by simp [layIdx, chainCount]; ring]
+    rw [show SIG + 3120 + 16 * j = SIG + 16 * (layIdx 0 + chainCount 0 + j) by simp [layIdx, chainCount]; ring]
       at this
     exact this
 

@@ -19,7 +19,7 @@ set_option maxRecDepth 8192
 
 /-! ## Segments -/
 
-def seg_0 : List (BitVec 32) := [0x00000293, 0x00009eb7, 0x00020f37, 0x400f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x00009eb7, 0x010e8e93, 0x00020f37, 0x410f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x08000e93, 0x00009f37, 0xfe0f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x09000e93, 0x00009f37, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x00009f37, 0xfe0f0f13, 0x020f3823, 0x020f3c23, 0x00001337, 0xe0130313, 0x00000393, 0x00009e37, 0xfe0e0e13, 0x006e3823, 0x007e3c23, 0x00009537, 0xfe050513, 0x000085b7, 0x04058593, 0x00020637, 0x3e060613]
+def seg_0 : List (BitVec 32) := [0x00000293, 0x00080eb7, 0x00020f37, 0x400f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x00080eb7, 0x010e8e93, 0x00020f37, 0x410f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x2ec0106f]
 def seg_46 : List (BitVec 32) := [0x00000073]
 def seg_47 : List (BitVec 32) := [0x00020e37, 0x3e0e0e13, 0x00020eb7, 0x400e8e93, 0x000e3303, 0x000eb383, 0x7a731463]
 def seg_54 : List (BitVec 32) := [0x008e3303, 0x008eb383, 0x78731e63]
@@ -71,20 +71,20 @@ def seg_347 : List (BitVec 32) := [0x010e0e13]
 def seg_348 : List (BitVec 32) := [0x00020eb7, 0x320e8e93, 0x01de0e33, 0x01013303, 0x01813383, 0x006e3023, 0x007e3423, 0x00140413, 0xd59ff06f]
 def seg_357 : List (BitVec 32) := [0x00001337, 0xb0130313, 0x00048393, 0x00020e37, 0x320e0e13, 0x006e3823, 0x007e3c23, 0x00020537, 0x32050513, 0x08000593, 0x00020637, 0x3a060613]
 def seg_369 : List (BitVec 32) := [0x00000073]
-def seg_370 : List (BitVec 32) := [0x00020eb7, 0x3a0e8e93, 0x00020f37, 0x260f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x00021137, 0x00000f93, 0x02b00d13, 0x00000d93, 0x00300413, 0x00600793, 0x00008837, 0x35080813, 0x0c200893, 0x00020e37, 0x550e0e13, 0x000e3303, 0x00035393, 0x03f00e13, 0x01c3f933, 0x00090713, 0x00635493, 0x3ec000ef]
+def seg_370 : List (BitVec 32) := [0x00020eb7, 0x3a0e8e93, 0x00020f37, 0x260f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x00021137, 0x00000f93, 0x02b00d13, 0x00000d93, 0x00300413, 0x00600793, 0x00008837, 0x32080813, 0x0c300893, 0x00020e37, 0x550e0e13, 0x000e3303, 0x00035393, 0x03f00e13, 0x01c3f933, 0x00090713, 0x00635493, 0x3ec000ef]
 def seg_396 : List (BitVec 32) := [0x425000ef]
-def seg_397 : List (BitVec 32) := [0x00200413, 0x00600793, 0x00008837, 0x04080813, 0x0c200893, 0x00020e37, 0x550e0e13, 0x000e3303, 0x00635393, 0x03f00e13, 0x01c3f933, 0x00090713, 0x00c35493, 0x3b0000ef]
+def seg_397 : List (BitVec 32) := [0x00200413, 0x00600793, 0x00008837, 0x01080813, 0x0c300893, 0x00020e37, 0x550e0e13, 0x000e3303, 0x00635393, 0x03f00e13, 0x01c3f933, 0x00090713, 0x00c35493, 0x3b0000ef]
 def seg_411 : List (BitVec 32) := [0x3e9000ef]
-def seg_412 : List (BitVec 32) := [0x00100413, 0x00700793, 0x00008837, 0xd2080813, 0x0c200893, 0x00020e37, 0x550e0e13, 0x000e3303, 0x00c35393, 0x07f00e13, 0x01c3f933, 0x00090713, 0x01335493, 0x374000ef]
+def seg_412 : List (BitVec 32) := [0x00100413, 0x00700793, 0x00008837, 0xcf080813, 0x0c300893, 0x00020e37, 0x550e0e13, 0x000e3303, 0x00c35393, 0x07f00e13, 0x01c3f933, 0x00090713, 0x01335493, 0x374000ef]
 def seg_426 : List (BitVec 32) := [0x3ad000ef]
-def seg_427 : List (BitVec 32) := [0x00000413, 0x00000493, 0x03a00d13, 0x03100d93, 0x07d00893, 0x00020e37, 0x550e0e13, 0x000e3303, 0x01335393, 0x00001e37, 0xfffe0e13, 0x01c3f933, 0x00090713, 0x338000ef]
-def seg_441 : List (BitVec 32) := [0x00100f93, 0x00020b37, 0x420b0b13, 0x00008bb7, 0x8c0b8b93, 0x149000ef]
-def seg_447 : List (BitVec 32) := [0x00000f93, 0x00020b37, 0x460b0b13, 0x00021bb7, 0xa00b8b93, 0x00008cb7, 0xc60c8c93, 0x00174913, 0x125000ef]
+def seg_427 : List (BitVec 32) := [0x00000413, 0x00000493, 0x03a00d13, 0x03100d93, 0x07e00893, 0x00020e37, 0x550e0e13, 0x000e3303, 0x01335393, 0x00001e37, 0xfffe0e13, 0x01c3f933, 0x00090713, 0x338000ef]
+def seg_441 : List (BitVec 32) := [0x00100f93, 0x00020b37, 0x420b0b13, 0x00008bb7, 0x890b8b93, 0x149000ef]
+def seg_447 : List (BitVec 32) := [0x7690006f]
 def seg_456 : List (BitVec 32) := [0x00175913, 0x00194913, 0x00191913, 0x00021bb7, 0xa00b8b93, 0x00020cb7, 0x200c8c93, 0x105000ef]
 def seg_464 : List (BitVec 32) := [0x00190913, 0x00021bb7, 0xa00b8b93, 0x00020cb7, 0x230c8c93, 0x0ed000ef]
 def seg_470 : List (BitVec 32) := [0x00195e13, 0x000013b7, 0x80038393, 0x007e0e33, 0x30100313, 0x000e0393, 0x00020e37, 0x200e0e13, 0x006e3823, 0x007e3c23, 0x00020537, 0x20050513, 0x04000593, 0x00020637, 0x24060613]
 def seg_485 : List (BitVec 32) := [0x00000073]
-def seg_486 : List (BitVec 32) := [0x00020eb7, 0x240e8e93, 0x00008f37, 0xc70f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x00200b13, 0x00008c37, 0xc80c0c13, 0x40000a13]
+def seg_486 : List (BitVec 32) := [0x00020eb7, 0x240e8e93, 0x00008f37, 0xc40f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x00200b13, 0x00008c37, 0xc50c0c13, 0x40000a13]
 def seg_498 : List (BitVec 32) := [0x00c00313, 0x0a6b5263]
 def seg_500 : List (BitVec 32) := [0x01675e33, 0x001e4e13, 0x00001337, 0xd0130313, 0x020b1f13, 0x01e36333, 0x020e1393, 0x00020e37, 0x006e3823, 0x007e3c23, 0x00020537, 0x04000593, 0x00020637, 0x06060613]
 def seg_514 : List (BitVec 32) := [0x00000073]
@@ -105,15 +105,25 @@ def seg_1214 : List (BitVec 32) := [0x00020f37, 0x260f0f13, 0x01013303, 0x018133
 def seg_543 : List (BitVec 32) := [0x00100293, 0x00100513]
 def seg_545 : List (BitVec 32) := [0x00000073]
 /-- The search kernels `select_ok` and `counter_search` (words 546..1012, stream E). -/
-def ker_546 : List (BitVec 32) := [0x01500a93, 0x00000a13, 0x00020cb7, 0x4a0c8c93, 0x00700313, 0x166a5263, 0x005a1313, 0x003a1393, 0x40730333, 0x01430333, 0x01f30313, 0x00635393, 0x00339393, 0x00020e37, 0x160e0e13, 0x01c383b3, 0x0003be03, 0x0083be83, 0x03f37313, 0x006e5e33, 0x001e9e93, 0x03f00393, 0x406383b3, 0x007e9eb3, 0x01de6e33, 0x020003b7, 0xfff38393, 0x007e7e33, 0x00fe7313, 0x00731313, 0x004e5b13, 0x07fb7b13, 0x00be5b93, 0x07fbfb93, 0x012e5c13, 0x07fc7c13, 0x016bd863, 0x000b0393, 0x000b8b13, 0x00038b93, 0x017c5863, 0x000b8393, 0x000c0b93, 0x00038c13, 0x016bd863, 0x000b0393, 0x000b8b13, 0x00038b93, 0x0d7b0463, 0x0d8b8263, 0x017b43b3, 0x00800e13, 0x0023be93, 0x41de0e33, 0x0043be93, 0x41de0e33, 0x0083be93, 0x41de0e33, 0x0103be93, 0x41de0e33, 0x0203be93, 0x41de0e33, 0x0403be93, 0x41de0e33, 0x0803be93, 0x41de0e33, 0x01ca8ab3, 0x018bc3b3, 0x00800e13, 0x0023be93, 0x41de0e33, 0x0043be93, 0x41de0e33, 0x0083be93, 0x41de0e33, 0x0103be93, 0x41de0e33, 0x0203be93, 0x41de0e33, 0x0403be93, 0x41de0e33, 0x0803be93, 0x41de0e33, 0x01ca8ab3, 0x004a8a93, 0x016303b3, 0x007cb023, 0x017303b3, 0x007cb423, 0x018303b3, 0x007cb823, 0x018c8c93, 0x001a0a13, 0xe9dff06f, 0x07700313, 0x006ad663, 0x00100693, 0x00008067, 0x00000693, 0x00008067, 0x01041313, 0x40136313, 0x00048393, 0x02091f13, 0x01e3e3b3, 0x00020e37, 0x260e0e13, 0x006e3823, 0x007e3c23, 0x00000993, 0x00400337, 0xe2698ce3, 0x00020e37, 0x260e0e13, 0x033e2023, 0x00020537, 0x26050513, 0x04000593, 0x00020637, 0x2a060613, 0x00000073, 0x00020e37, 0x2a0e0e13, 0x000e3303, 0x008e3383, 0x00000c93, 0x20040c63, 0x03e3de13, 0x540e1263, 0x00737e13, 0x01cc8cb3, 0x00335e13, 0x007e7e13, 0x01cc8cb3, 0x00635e13, 0x007e7e13, 0x01cc8cb3, 0x00935e13, 0x007e7e13, 0x01cc8cb3, 0x00c35e13, 0x007e7e13, 0x01cc8cb3, 0x00f35e13, 0x007e7e13, 0x01cc8cb3, 0x01235e13, 0x007e7e13, 0x01cc8cb3, 0x01535e13, 0x007e7e13, 0x01cc8cb3, 0x01835e13, 0x007e7e13, 0x01cc8cb3, 0x01b35e13, 0x007e7e13, 0x01cc8cb3, 0x01e35e13, 0x007e7e13, 0x01cc8cb3, 0x02135e13, 0x007e7e13, 0x01cc8cb3, 0x02435e13, 0x007e7e13, 0x01cc8cb3, 0x02735e13, 0x007e7e13, 0x01cc8cb3, 0x02a35e13, 0x007e7e13, 0x01cc8cb3, 0x02d35e13, 0x007e7e13, 0x01cc8cb3, 0x03035e13, 0x007e7e13, 0x01cc8cb3, 0x03335e13, 0x007e7e13, 0x01cc8cb3, 0x03635e13, 0x007e7e13, 0x01cc8cb3, 0x03935e13, 0x007e7e13, 0x01cc8cb3, 0x03c35e13, 0x007e7e13, 0x01cc8cb3, 0x03f35e13, 0x00139e93, 0x007efe93, 0x01de6e33, 0x01cc8cb3, 0x0023de13, 0x007e7e13, 0x01cc8cb3, 0x0053de13, 0x007e7e13, 0x01cc8cb3, 0x0083de13, 0x007e7e13, 0x01cc8cb3, 0x00b3de13, 0x007e7e13, 0x01cc8cb3, 0x00e3de13, 0x007e7e13, 0x01cc8cb3, 0x0113de13, 0x007e7e13, 0x01cc8cb3, 0x0143de13, 0x007e7e13, 0x01cc8cb3, 0x0173de13, 0x007e7e13, 0x01cc8cb3, 0x01a3de13, 0x007e7e13, 0x01cc8cb3, 0x01d3de13, 0x007e7e13, 0x01cc8cb3, 0x0203de13, 0x007e7e13, 0x01cc8cb3, 0x0233de13, 0x007e7e13, 0x01cc8cb3, 0x0263de13, 0x007e7e13, 0x01cc8cb3, 0x0293de13, 0x007e7e13, 0x01cc8cb3, 0x02c3de13, 0x007e7e13, 0x01cc8cb3, 0x02f3de13, 0x007e7e13, 0x01cc8cb3, 0x0323de13, 0x007e7e13, 0x01cc8cb3, 0x0353de13, 0x007e7e13, 0x01cc8cb3, 0x0383de13, 0x007e7e13, 0x01cc8cb3, 0x03b3de13, 0x007e7e13, 0x01cc8cb3, 0x41988e33, 0x00800e93, 0x33de7e63, 0x2c00006f, 0x03d3de13, 0x320e1863, 0x00337e13, 0x01cc8cb3, 0x00235e13, 0x003e7e13, 0x01cc8cb3, 0x00435e13, 0x003e7e13, 0x01cc8cb3, 0x00635e13, 0x003e7e13, 0x01cc8cb3, 0x00835e13, 0x003e7e13, 0x01cc8cb3, 0x00a35e13, 0x003e7e13, 0x01cc8cb3, 0x00c35e13, 0x003e7e13, 0x01cc8cb3, 0x00e35e13, 0x003e7e13, 0x01cc8cb3, 0x01035e13, 0x003e7e13, 0x01cc8cb3, 0x01235e13, 0x003e7e13, 0x01cc8cb3, 0x01435e13, 0x003e7e13, 0x01cc8cb3, 0x01635e13, 0x003e7e13, 0x01cc8cb3, 0x01835e13, 0x003e7e13, 0x01cc8cb3, 0x01a35e13, 0x003e7e13, 0x01cc8cb3, 0x01c35e13, 0x003e7e13, 0x01cc8cb3, 0x01e35e13, 0x003e7e13, 0x01cc8cb3, 0x02035e13, 0x003e7e13, 0x01cc8cb3, 0x02235e13, 0x003e7e13, 0x01cc8cb3, 0x02435e13, 0x003e7e13, 0x01cc8cb3, 0x02635e13, 0x003e7e13, 0x01cc8cb3, 0x02835e13, 0x003e7e13, 0x01cc8cb3, 0x02a35e13, 0x003e7e13, 0x01cc8cb3, 0x02c35e13, 0x003e7e13, 0x01cc8cb3, 0x02e35e13, 0x003e7e13, 0x01cc8cb3, 0x03035e13, 0x003e7e13, 0x01cc8cb3, 0x03235e13, 0x003e7e13, 0x01cc8cb3, 0x03435e13, 0x003e7e13, 0x01cc8cb3, 0x03635e13, 0x003e7e13, 0x01cc8cb3, 0x03835e13, 0x003e7e13, 0x01cc8cb3, 0x03a35e13, 0x003e7e13, 0x01cc8cb3, 0x03c35e13, 0x003e7e13, 0x01cc8cb3, 0x03e35e13, 0x003e7e13, 0x01cc8cb3, 0x0033fe13, 0x01cc8cb3, 0x0023de13, 0x003e7e13, 0x01cc8cb3, 0x0043de13, 0x003e7e13, 0x01cc8cb3, 0x0063de13, 0x003e7e13, 0x01cc8cb3, 0x0083de13, 0x003e7e13, 0x01cc8cb3, 0x00a3de13, 0x003e7e13, 0x01cc8cb3, 0x00c3de13, 0x003e7e13, 0x01cc8cb3, 0x00e3de13, 0x003e7e13, 0x01cc8cb3, 0x0103de13, 0x003e7e13, 0x01cc8cb3, 0x0123de13, 0x003e7e13, 0x01cc8cb3, 0x0143de13, 0x003e7e13, 0x01cc8cb3, 0x0163de13, 0x003e7e13, 0x01cc8cb3, 0x0183de13, 0x003e7e13, 0x01cc8cb3, 0x01a3de13, 0x003e7e13, 0x01cc8cb3, 0x01c3de13, 0x003e7e13, 0x01cc8cb3, 0x01e3de13, 0x003e7e13, 0x01cc8cb3, 0x0203de13, 0x003e7e13, 0x01cc8cb3, 0x0223de13, 0x007e7e13, 0x01cc8cb3, 0x0253de13, 0x007e7e13, 0x01cc8cb3, 0x0283de13, 0x007e7e13, 0x01cc8cb3, 0x02b3de13, 0x007e7e13, 0x01cc8cb3, 0x02e3de13, 0x007e7e13, 0x01cc8cb3, 0x0313de13, 0x007e7e13, 0x01cc8cb3, 0x0343de13, 0x007e7e13, 0x01cc8cb3, 0x0373de13, 0x007e7e13, 0x01cc8cb3, 0x03a3de13, 0x007e7e13, 0x01cc8cb3, 0x071c9e63, 0x000d0a93, 0x00040463, 0xfffd0a93, 0x00000a13, 0x055a5663, 0x00700e13, 0x00300e93, 0x01ba5663, 0x00300e13, 0x00200e93, 0x01c37f33, 0x00020e37, 0x420e0e13, 0x014e0e33, 0x01ee0023, 0x01d35333, 0x04000e13, 0x41de0e33, 0x01c39e33, 0x01c36333, 0x01d3d3b3, 0x001a0a13, 0xfb9ff06f, 0x00040c63, 0x41988e33, 0x00020eb7, 0x420e8e93, 0x015e8eb3, 0x01ce8023, 0x00008067, 0x00198993, 0xa71ff06f]
+def ker_546 : List (BitVec 32) := [0x01500a93, 0x00000a13, 0x00020cb7, 0x4a0c8c93, 0x00700313, 0x166a5263, 0x005a1313, 0x003a1393, 0x40730333, 0x01430333, 0x01f30313, 0x00635393, 0x00339393, 0x00020e37, 0x160e0e13, 0x01c383b3, 0x0003be03, 0x0083be83, 0x03f37313, 0x006e5e33, 0x001e9e93, 0x03f00393, 0x406383b3, 0x007e9eb3, 0x01de6e33, 0x020003b7, 0xfff38393, 0x007e7e33, 0x00fe7313, 0x00731313, 0x004e5b13, 0x07fb7b13, 0x00be5b93, 0x07fbfb93, 0x012e5c13, 0x07fc7c13, 0x016bd863, 0x000b0393, 0x000b8b13, 0x00038b93, 0x017c5863, 0x000b8393, 0x000c0b93, 0x00038c13, 0x016bd863, 0x000b0393, 0x000b8b13, 0x00038b93, 0x0d7b0463, 0x0d8b8263, 0x017b43b3, 0x00800e13, 0x0023be93, 0x41de0e33, 0x0043be93, 0x41de0e33, 0x0083be93, 0x41de0e33, 0x0103be93, 0x41de0e33, 0x0203be93, 0x41de0e33, 0x0403be93, 0x41de0e33, 0x0803be93, 0x41de0e33, 0x01ca8ab3, 0x018bc3b3, 0x00800e13, 0x0023be93, 0x41de0e33, 0x0043be93, 0x41de0e33, 0x0083be93, 0x41de0e33, 0x0103be93, 0x41de0e33, 0x0203be93, 0x41de0e33, 0x0403be93, 0x41de0e33, 0x0803be93, 0x41de0e33, 0x01ca8ab3, 0x004a8a93, 0x016303b3, 0x007cb023, 0x017303b3, 0x007cb423, 0x018303b3, 0x007cb823, 0x018c8c93, 0x001a0a13, 0xe9dff06f, 0x07400313, 0x006ad663, 0x00100693, 0x00008067, 0x00000693, 0x00008067, 0x01041313, 0x40136313, 0x00048393, 0x02091f13, 0x01e3e3b3, 0x00020e37, 0x260e0e13, 0x006e3823, 0x007e3c23, 0x00000993, 0x00400337, 0xe2698ce3, 0x00020e37, 0x260e0e13, 0x033e2023, 0x00020537, 0x26050513, 0x04000593, 0x00020637, 0x2a060613, 0x00000073, 0x00020e37, 0x2a0e0e13, 0x000e3303, 0x008e3383, 0x00000c93, 0x20040c63, 0x03e3de13, 0x540e1263, 0x00737e13, 0x01cc8cb3, 0x00335e13, 0x007e7e13, 0x01cc8cb3, 0x00635e13, 0x007e7e13, 0x01cc8cb3, 0x00935e13, 0x007e7e13, 0x01cc8cb3, 0x00c35e13, 0x007e7e13, 0x01cc8cb3, 0x00f35e13, 0x007e7e13, 0x01cc8cb3, 0x01235e13, 0x007e7e13, 0x01cc8cb3, 0x01535e13, 0x007e7e13, 0x01cc8cb3, 0x01835e13, 0x007e7e13, 0x01cc8cb3, 0x01b35e13, 0x007e7e13, 0x01cc8cb3, 0x01e35e13, 0x007e7e13, 0x01cc8cb3, 0x02135e13, 0x007e7e13, 0x01cc8cb3, 0x02435e13, 0x007e7e13, 0x01cc8cb3, 0x02735e13, 0x007e7e13, 0x01cc8cb3, 0x02a35e13, 0x007e7e13, 0x01cc8cb3, 0x02d35e13, 0x007e7e13, 0x01cc8cb3, 0x03035e13, 0x007e7e13, 0x01cc8cb3, 0x03335e13, 0x007e7e13, 0x01cc8cb3, 0x03635e13, 0x007e7e13, 0x01cc8cb3, 0x03935e13, 0x007e7e13, 0x01cc8cb3, 0x03c35e13, 0x007e7e13, 0x01cc8cb3, 0x03f35e13, 0x00139e93, 0x007efe93, 0x01de6e33, 0x01cc8cb3, 0x0023de13, 0x007e7e13, 0x01cc8cb3, 0x0053de13, 0x007e7e13, 0x01cc8cb3, 0x0083de13, 0x007e7e13, 0x01cc8cb3, 0x00b3de13, 0x007e7e13, 0x01cc8cb3, 0x00e3de13, 0x007e7e13, 0x01cc8cb3, 0x0113de13, 0x007e7e13, 0x01cc8cb3, 0x0143de13, 0x007e7e13, 0x01cc8cb3, 0x0173de13, 0x007e7e13, 0x01cc8cb3, 0x01a3de13, 0x007e7e13, 0x01cc8cb3, 0x01d3de13, 0x007e7e13, 0x01cc8cb3, 0x0203de13, 0x007e7e13, 0x01cc8cb3, 0x0233de13, 0x007e7e13, 0x01cc8cb3, 0x0263de13, 0x007e7e13, 0x01cc8cb3, 0x0293de13, 0x007e7e13, 0x01cc8cb3, 0x02c3de13, 0x007e7e13, 0x01cc8cb3, 0x02f3de13, 0x007e7e13, 0x01cc8cb3, 0x0323de13, 0x007e7e13, 0x01cc8cb3, 0x0353de13, 0x007e7e13, 0x01cc8cb3, 0x0383de13, 0x007e7e13, 0x01cc8cb3, 0x03b3de13, 0x007e7e13, 0x01cc8cb3, 0x41988e33, 0x00800e93, 0x33de7e63, 0x2c00006f, 0x03d3de13, 0x320e1863, 0x00337e13, 0x01cc8cb3, 0x00235e13, 0x003e7e13, 0x01cc8cb3, 0x00435e13, 0x003e7e13, 0x01cc8cb3, 0x00635e13, 0x003e7e13, 0x01cc8cb3, 0x00835e13, 0x003e7e13, 0x01cc8cb3, 0x00a35e13, 0x003e7e13, 0x01cc8cb3, 0x00c35e13, 0x003e7e13, 0x01cc8cb3, 0x00e35e13, 0x003e7e13, 0x01cc8cb3, 0x01035e13, 0x003e7e13, 0x01cc8cb3, 0x01235e13, 0x003e7e13, 0x01cc8cb3, 0x01435e13, 0x003e7e13, 0x01cc8cb3, 0x01635e13, 0x003e7e13, 0x01cc8cb3, 0x01835e13, 0x003e7e13, 0x01cc8cb3, 0x01a35e13, 0x003e7e13, 0x01cc8cb3, 0x01c35e13, 0x003e7e13, 0x01cc8cb3, 0x01e35e13, 0x003e7e13, 0x01cc8cb3, 0x02035e13, 0x003e7e13, 0x01cc8cb3, 0x02235e13, 0x003e7e13, 0x01cc8cb3, 0x02435e13, 0x003e7e13, 0x01cc8cb3, 0x02635e13, 0x003e7e13, 0x01cc8cb3, 0x02835e13, 0x003e7e13, 0x01cc8cb3, 0x02a35e13, 0x003e7e13, 0x01cc8cb3, 0x02c35e13, 0x003e7e13, 0x01cc8cb3, 0x02e35e13, 0x003e7e13, 0x01cc8cb3, 0x03035e13, 0x003e7e13, 0x01cc8cb3, 0x03235e13, 0x003e7e13, 0x01cc8cb3, 0x03435e13, 0x003e7e13, 0x01cc8cb3, 0x03635e13, 0x003e7e13, 0x01cc8cb3, 0x03835e13, 0x003e7e13, 0x01cc8cb3, 0x03a35e13, 0x003e7e13, 0x01cc8cb3, 0x03c35e13, 0x003e7e13, 0x01cc8cb3, 0x03e35e13, 0x003e7e13, 0x01cc8cb3, 0x0033fe13, 0x01cc8cb3, 0x0023de13, 0x003e7e13, 0x01cc8cb3, 0x0043de13, 0x003e7e13, 0x01cc8cb3, 0x0063de13, 0x003e7e13, 0x01cc8cb3, 0x0083de13, 0x003e7e13, 0x01cc8cb3, 0x00a3de13, 0x003e7e13, 0x01cc8cb3, 0x00c3de13, 0x003e7e13, 0x01cc8cb3, 0x00e3de13, 0x003e7e13, 0x01cc8cb3, 0x0103de13, 0x003e7e13, 0x01cc8cb3, 0x0123de13, 0x003e7e13, 0x01cc8cb3, 0x0143de13, 0x003e7e13, 0x01cc8cb3, 0x0163de13, 0x003e7e13, 0x01cc8cb3, 0x0183de13, 0x003e7e13, 0x01cc8cb3, 0x01a3de13, 0x003e7e13, 0x01cc8cb3, 0x01c3de13, 0x003e7e13, 0x01cc8cb3, 0x01e3de13, 0x003e7e13, 0x01cc8cb3, 0x0203de13, 0x003e7e13, 0x01cc8cb3, 0x0223de13, 0x007e7e13, 0x01cc8cb3, 0x0253de13, 0x007e7e13, 0x01cc8cb3, 0x0283de13, 0x007e7e13, 0x01cc8cb3, 0x02b3de13, 0x007e7e13, 0x01cc8cb3, 0x02e3de13, 0x007e7e13, 0x01cc8cb3, 0x0313de13, 0x007e7e13, 0x01cc8cb3, 0x0343de13, 0x007e7e13, 0x01cc8cb3, 0x0373de13, 0x007e7e13, 0x01cc8cb3, 0x03a3de13, 0x007e7e13, 0x01cc8cb3, 0x071c9e63, 0x000d0a93, 0x00040463, 0xfffd0a93, 0x00000a13, 0x055a5663, 0x00700e13, 0x00300e93, 0x01ba5663, 0x00300e13, 0x00200e93, 0x01c37f33, 0x00020e37, 0x420e0e13, 0x014e0e33, 0x01ee0023, 0x01d35333, 0x04000e13, 0x41de0e33, 0x01c39e33, 0x01c36333, 0x01d3d3b3, 0x001a0a13, 0xfb9ff06f, 0x00040c63, 0x41988e33, 0x00020eb7, 0x420e8e93, 0x015e8eb3, 0x01ce8023, 0x00008067, 0x00198993, 0xa71ff06f]
 
-def seg_1221 : List (BitVec 32) := [0x00020337, 0x17833303, 0x00e35313, 0x01f37313, 0xee031663, 0xd60ff06f]
+def seg_1221 : List (BitVec 32) := [0x00020337, 0x17833303, 0x00e35313, 0x00737313, 0xee031663, 0xd60ff06f]
+
+def seg_17 : List (BitVec 32) := [0x00009f37, 0xfe0f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x09000e93, 0x00009f37, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x00009f37, 0xfe0f0f13, 0x020f3823, 0x020f3c23, 0x00001337, 0xe0130313, 0x00000393, 0x00009e37, 0xfe0e0e13, 0x006e3823, 0x007e3c23, 0x00009537, 0xfe050513, 0x000085b7, 0x04058593, 0x00020637, 0x3e060613]
+def seg_448 : List (BitVec 32) := [0x00020b37, 0x460b0b13, 0x00021bb7, 0xa00b8b93, 0x00008cb7, 0xc30c8c93, 0x00174913, 0x125000ef]
+def seg_1227 : List (BitVec 32) := [0x00020e37, 0x000e0e13, 0x00000eb7, 0x080e8e93, 0x000eb303, 0x006e3023, 0x008eb303, 0x006e3423, 0x010eb303, 0x026e3023, 0x018eb303, 0x026e3423, 0x020e3823, 0x020e3c23, 0x00001337, 0xe0130313, 0x006e3823, 0x000e3c23, 0x00020537, 0x00050513, 0x04000593, 0x00070637, 0x00060613, 0x00000073, 0x00100313, 0x02031313, 0x006e3c23, 0x00070637, 0x02060613, 0x00000073, 0xfff00913, 0x00395913, 0x000a09b7, 0x00098993, 0x00070b37, 0x000b0b13, 0x00020cb7, 0x3e0c8c93, 0x000b3b83, 0x012bfbb3, 0x008b3c03, 0x000806b7, 0x02068693, 0x00000713, 0x0006e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x0046e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x00868693, 0xf9369ee3, 0x03d75793, 0x01277733, 0x00f70733, 0x012747b3, 0x0017b793, 0xfff78793, 0x00f77733, 0x01870733, 0x00ecb023, 0x010b0b13, 0x000b3b83, 0x012bfbb3, 0x008b3c03, 0x000806b7, 0x02068693, 0x00000713, 0x0006e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x0046e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x00868693, 0xf9369ee3, 0x03d75793, 0x01277733, 0x00f70733, 0x012747b3, 0x0017b793, 0xfff78793, 0x00f77733, 0x01870733, 0x00ecb423, 0x010b0b13, 0x000b3b83, 0x012bfbb3, 0x008b3c03, 0x000806b7, 0x02068693, 0x00000713, 0x0006e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x0046e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x00868693, 0xf9369ee3, 0x03d75793, 0x01277733, 0x00f70733, 0x012747b3, 0x0017b793, 0xfff78793, 0x00f77733, 0x01870733, 0x00ecb823, 0x010b0b13, 0x000b3b83, 0x012bfbb3, 0x008b3c03, 0x000806b7, 0x02068693, 0x00000713, 0x0006e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x0046e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x00868693, 0xf9369ee3, 0x03d75793, 0x01277733, 0x00f70733, 0x012747b3, 0x0017b793, 0xfff78793, 0x00f77733, 0x01870733, 0x00ecbc23]
+def seg_1432 : List (BitVec 32) := [0xa5dfe06f]
+def seg_1433 : List (BitVec 32) := [0x00000b13, 0x00008c37, 0xc30c0c13, 0x00001a37, 0x000a0a13]
+def seg_1438 : List (BitVec 32) := [0x01675e33, 0x001e4e13, 0x000e0b93, 0x00001337, 0xd0130313, 0x020b1393, 0x00736333, 0x001bd393, 0x02039393, 0x00020e37, 0x000e0e13, 0x006e3823, 0x007e3c23, 0x00020537, 0x00050513, 0x04000593, 0x00020637, 0x06060613]
+def seg_1456 : List (BitVec 32) := [0x00000073]
+def seg_1457 : List (BitVec 32) := [0x00002e37, 0x000e0e13, 0x001a1e93, 0x41de0e33, 0x017e0e33, 0x004e1e13, 0x00080eb7, 0x020e8e93, 0x01de0e33, 0x001bfe93, 0x004e9e93, 0x00ce8eb3, 0x000e3303, 0x000eb383, 0x00734333, 0x006c3023, 0x008e3303, 0x008eb383, 0x00734333, 0x006c3423, 0x010c0c13, 0x001a5a13, 0x001b0b13, 0x00c00313, 0xf46b6ae3]
+def seg_1482 : List (BitVec 32) := [0x948ff06f]
 
 /-- The shared search-kernel segment (words 543..1012: `fail`, `select_ok`, `counter_search`). -/
 def kerCode : List (BitVec 32) := seg_543 ++ seg_545 ++ ker_546
 
 /-- The sign image as a layout. -/
-def signL : Rv.Layout := [(0, seg_0), (46, seg_46), (47, seg_47), (54, seg_54), (57, seg_57), (60, seg_60), (63, seg_63), (122, seg_122), (123, seg_123), (153, seg_153), (155, seg_155), (167, seg_167), (168, seg_168), (169, seg_169), (170, seg_170), (172, seg_172), (186, seg_186), (188, seg_188), (189, seg_189), (192, seg_192), (194, seg_194), (210, seg_210), (211, seg_211), (236, seg_236), (237, seg_237), (250, seg_250), (256, seg_256), (263, seg_263), (265, seg_265), (278, seg_278), (280, seg_280), (282, seg_282), (291, seg_291), (295, seg_295), (296, seg_296), (297, seg_297), (301, seg_301), (310, seg_310), (311, seg_311), (313, seg_313), (316, seg_316), (319, seg_319), (326, seg_326), (328, seg_328), (331, seg_331), (332, seg_332), (334, seg_334), (345, seg_345), (347, seg_347), (348, seg_348), (357, seg_357), (369, seg_369), (370, seg_370), (396, seg_396), (397, seg_397), (411, seg_411), (412, seg_412), (426, seg_426), (427, seg_427), (441, seg_441), (447, seg_447), (456, seg_456), (464, seg_464), (470, seg_470), (485, seg_485), (486, seg_486), (498, seg_498), (500, seg_500), (514, seg_514), (515, seg_515), (540, seg_540), (542, seg_542), (543, seg_543), (545, seg_545), (546, ker_546), (1013, Keygen.subCode), (1173, seg_1173), (1175, seg_1175), (1178, seg_1178), (1184, seg_1184), (1187, seg_1187), (1191, seg_1191), (1193, seg_1193), (1196, seg_1196), (1202, seg_1202), (1203, seg_1203), (1214, seg_1214), (1221, seg_1221)]
+def signL : Rv.Layout := [(0, seg_0), (17, seg_17), (46, seg_46), (47, seg_47), (54, seg_54), (57, seg_57), (60, seg_60), (63, seg_63), (122, seg_122), (123, seg_123), (153, seg_153), (155, seg_155), (167, seg_167), (168, seg_168), (169, seg_169), (170, seg_170), (172, seg_172), (186, seg_186), (188, seg_188), (189, seg_189), (192, seg_192), (194, seg_194), (210, seg_210), (211, seg_211), (236, seg_236), (237, seg_237), (250, seg_250), (256, seg_256), (263, seg_263), (265, seg_265), (278, seg_278), (280, seg_280), (282, seg_282), (291, seg_291), (295, seg_295), (296, seg_296), (297, seg_297), (301, seg_301), (310, seg_310), (311, seg_311), (313, seg_313), (316, seg_316), (319, seg_319), (326, seg_326), (328, seg_328), (331, seg_331), (332, seg_332), (334, seg_334), (345, seg_345), (347, seg_347), (348, seg_348), (357, seg_357), (369, seg_369), (370, seg_370), (396, seg_396), (397, seg_397), (411, seg_411), (412, seg_412), (426, seg_426), (427, seg_427), (441, seg_441), (447, seg_447), (448, seg_448), (456, seg_456), (464, seg_464), (470, seg_470), (485, seg_485), (486, seg_486), (498, seg_498), (500, seg_500), (514, seg_514), (515, seg_515), (540, seg_540), (542, seg_542), (543, seg_543), (545, seg_545), (546, ker_546), (1013, Keygen.subCode), (1173, seg_1173), (1175, seg_1175), (1178, seg_1178), (1184, seg_1184), (1187, seg_1187), (1191, seg_1191), (1193, seg_1193), (1196, seg_1196), (1202, seg_1202), (1203, seg_1203), (1214, seg_1214), (1221, seg_1221), (1227, seg_1227), (1432, seg_1432), (1433, seg_1433), (1438, seg_1438), (1456, seg_1456), (1457, seg_1457), (1482, seg_1482)]
 
 theorem signL_ok : layoutOk 0 signL = true := by decide +kernel
 
@@ -125,183 +135,202 @@ theorem code_eq : image.code = layoutCode signL := by decide +kernel
 theorem codeAt_0 : CodeAt image (pcOf 0) seg_0 :=
   codeAt_layout code_eq signL_ok (i := 0) (by kernel_rfl) (by decide)
 theorem codeAt_46 : CodeAt image (pcOf 46) seg_46 :=
-  codeAt_layout code_eq signL_ok (i := 1) (by kernel_rfl) (by decide)
-theorem codeAt_47 : CodeAt image (pcOf 47) seg_47 :=
   codeAt_layout code_eq signL_ok (i := 2) (by kernel_rfl) (by decide)
-theorem codeAt_54 : CodeAt image (pcOf 54) seg_54 :=
+theorem codeAt_47 : CodeAt image (pcOf 47) seg_47 :=
   codeAt_layout code_eq signL_ok (i := 3) (by kernel_rfl) (by decide)
-theorem codeAt_57 : CodeAt image (pcOf 57) seg_57 :=
+theorem codeAt_54 : CodeAt image (pcOf 54) seg_54 :=
   codeAt_layout code_eq signL_ok (i := 4) (by kernel_rfl) (by decide)
-theorem codeAt_60 : CodeAt image (pcOf 60) seg_60 :=
+theorem codeAt_57 : CodeAt image (pcOf 57) seg_57 :=
   codeAt_layout code_eq signL_ok (i := 5) (by kernel_rfl) (by decide)
-theorem codeAt_63 : CodeAt image (pcOf 63) seg_63 :=
+theorem codeAt_60 : CodeAt image (pcOf 60) seg_60 :=
   codeAt_layout code_eq signL_ok (i := 6) (by kernel_rfl) (by decide)
-theorem codeAt_122 : CodeAt image (pcOf 122) seg_122 :=
+theorem codeAt_63 : CodeAt image (pcOf 63) seg_63 :=
   codeAt_layout code_eq signL_ok (i := 7) (by kernel_rfl) (by decide)
-theorem codeAt_123 : CodeAt image (pcOf 123) seg_123 :=
+theorem codeAt_122 : CodeAt image (pcOf 122) seg_122 :=
   codeAt_layout code_eq signL_ok (i := 8) (by kernel_rfl) (by decide)
-theorem codeAt_153 : CodeAt image (pcOf 153) seg_153 :=
+theorem codeAt_123 : CodeAt image (pcOf 123) seg_123 :=
   codeAt_layout code_eq signL_ok (i := 9) (by kernel_rfl) (by decide)
-theorem codeAt_155 : CodeAt image (pcOf 155) seg_155 :=
+theorem codeAt_153 : CodeAt image (pcOf 153) seg_153 :=
   codeAt_layout code_eq signL_ok (i := 10) (by kernel_rfl) (by decide)
-theorem codeAt_167 : CodeAt image (pcOf 167) seg_167 :=
+theorem codeAt_155 : CodeAt image (pcOf 155) seg_155 :=
   codeAt_layout code_eq signL_ok (i := 11) (by kernel_rfl) (by decide)
-theorem codeAt_168 : CodeAt image (pcOf 168) seg_168 :=
+theorem codeAt_167 : CodeAt image (pcOf 167) seg_167 :=
   codeAt_layout code_eq signL_ok (i := 12) (by kernel_rfl) (by decide)
-theorem codeAt_169 : CodeAt image (pcOf 169) seg_169 :=
+theorem codeAt_168 : CodeAt image (pcOf 168) seg_168 :=
   codeAt_layout code_eq signL_ok (i := 13) (by kernel_rfl) (by decide)
-theorem codeAt_170 : CodeAt image (pcOf 170) seg_170 :=
+theorem codeAt_169 : CodeAt image (pcOf 169) seg_169 :=
   codeAt_layout code_eq signL_ok (i := 14) (by kernel_rfl) (by decide)
-theorem codeAt_172 : CodeAt image (pcOf 172) seg_172 :=
+theorem codeAt_170 : CodeAt image (pcOf 170) seg_170 :=
   codeAt_layout code_eq signL_ok (i := 15) (by kernel_rfl) (by decide)
-theorem codeAt_186 : CodeAt image (pcOf 186) seg_186 :=
+theorem codeAt_172 : CodeAt image (pcOf 172) seg_172 :=
   codeAt_layout code_eq signL_ok (i := 16) (by kernel_rfl) (by decide)
-theorem codeAt_188 : CodeAt image (pcOf 188) seg_188 :=
+theorem codeAt_186 : CodeAt image (pcOf 186) seg_186 :=
   codeAt_layout code_eq signL_ok (i := 17) (by kernel_rfl) (by decide)
-theorem codeAt_189 : CodeAt image (pcOf 189) seg_189 :=
+theorem codeAt_188 : CodeAt image (pcOf 188) seg_188 :=
   codeAt_layout code_eq signL_ok (i := 18) (by kernel_rfl) (by decide)
-theorem codeAt_192 : CodeAt image (pcOf 192) seg_192 :=
+theorem codeAt_189 : CodeAt image (pcOf 189) seg_189 :=
   codeAt_layout code_eq signL_ok (i := 19) (by kernel_rfl) (by decide)
-theorem codeAt_194 : CodeAt image (pcOf 194) seg_194 :=
+theorem codeAt_192 : CodeAt image (pcOf 192) seg_192 :=
   codeAt_layout code_eq signL_ok (i := 20) (by kernel_rfl) (by decide)
-theorem codeAt_210 : CodeAt image (pcOf 210) seg_210 :=
+theorem codeAt_194 : CodeAt image (pcOf 194) seg_194 :=
   codeAt_layout code_eq signL_ok (i := 21) (by kernel_rfl) (by decide)
-theorem codeAt_211 : CodeAt image (pcOf 211) seg_211 :=
+theorem codeAt_210 : CodeAt image (pcOf 210) seg_210 :=
   codeAt_layout code_eq signL_ok (i := 22) (by kernel_rfl) (by decide)
-theorem codeAt_236 : CodeAt image (pcOf 236) seg_236 :=
+theorem codeAt_211 : CodeAt image (pcOf 211) seg_211 :=
   codeAt_layout code_eq signL_ok (i := 23) (by kernel_rfl) (by decide)
-theorem codeAt_237 : CodeAt image (pcOf 237) seg_237 :=
+theorem codeAt_236 : CodeAt image (pcOf 236) seg_236 :=
   codeAt_layout code_eq signL_ok (i := 24) (by kernel_rfl) (by decide)
-theorem codeAt_250 : CodeAt image (pcOf 250) seg_250 :=
+theorem codeAt_237 : CodeAt image (pcOf 237) seg_237 :=
   codeAt_layout code_eq signL_ok (i := 25) (by kernel_rfl) (by decide)
-theorem codeAt_256 : CodeAt image (pcOf 256) seg_256 :=
+theorem codeAt_250 : CodeAt image (pcOf 250) seg_250 :=
   codeAt_layout code_eq signL_ok (i := 26) (by kernel_rfl) (by decide)
-theorem codeAt_263 : CodeAt image (pcOf 263) seg_263 :=
+theorem codeAt_256 : CodeAt image (pcOf 256) seg_256 :=
   codeAt_layout code_eq signL_ok (i := 27) (by kernel_rfl) (by decide)
-theorem codeAt_265 : CodeAt image (pcOf 265) seg_265 :=
+theorem codeAt_263 : CodeAt image (pcOf 263) seg_263 :=
   codeAt_layout code_eq signL_ok (i := 28) (by kernel_rfl) (by decide)
-theorem codeAt_278 : CodeAt image (pcOf 278) seg_278 :=
+theorem codeAt_265 : CodeAt image (pcOf 265) seg_265 :=
   codeAt_layout code_eq signL_ok (i := 29) (by kernel_rfl) (by decide)
-theorem codeAt_280 : CodeAt image (pcOf 280) seg_280 :=
+theorem codeAt_278 : CodeAt image (pcOf 278) seg_278 :=
   codeAt_layout code_eq signL_ok (i := 30) (by kernel_rfl) (by decide)
-theorem codeAt_282 : CodeAt image (pcOf 282) seg_282 :=
+theorem codeAt_280 : CodeAt image (pcOf 280) seg_280 :=
   codeAt_layout code_eq signL_ok (i := 31) (by kernel_rfl) (by decide)
-theorem codeAt_291 : CodeAt image (pcOf 291) seg_291 :=
+theorem codeAt_282 : CodeAt image (pcOf 282) seg_282 :=
   codeAt_layout code_eq signL_ok (i := 32) (by kernel_rfl) (by decide)
-theorem codeAt_295 : CodeAt image (pcOf 295) seg_295 :=
+theorem codeAt_291 : CodeAt image (pcOf 291) seg_291 :=
   codeAt_layout code_eq signL_ok (i := 33) (by kernel_rfl) (by decide)
-theorem codeAt_296 : CodeAt image (pcOf 296) seg_296 :=
+theorem codeAt_295 : CodeAt image (pcOf 295) seg_295 :=
   codeAt_layout code_eq signL_ok (i := 34) (by kernel_rfl) (by decide)
-theorem codeAt_297 : CodeAt image (pcOf 297) seg_297 :=
+theorem codeAt_296 : CodeAt image (pcOf 296) seg_296 :=
   codeAt_layout code_eq signL_ok (i := 35) (by kernel_rfl) (by decide)
-theorem codeAt_301 : CodeAt image (pcOf 301) seg_301 :=
+theorem codeAt_297 : CodeAt image (pcOf 297) seg_297 :=
   codeAt_layout code_eq signL_ok (i := 36) (by kernel_rfl) (by decide)
-theorem codeAt_310 : CodeAt image (pcOf 310) seg_310 :=
+theorem codeAt_301 : CodeAt image (pcOf 301) seg_301 :=
   codeAt_layout code_eq signL_ok (i := 37) (by kernel_rfl) (by decide)
-theorem codeAt_311 : CodeAt image (pcOf 311) seg_311 :=
+theorem codeAt_310 : CodeAt image (pcOf 310) seg_310 :=
   codeAt_layout code_eq signL_ok (i := 38) (by kernel_rfl) (by decide)
-theorem codeAt_313 : CodeAt image (pcOf 313) seg_313 :=
+theorem codeAt_311 : CodeAt image (pcOf 311) seg_311 :=
   codeAt_layout code_eq signL_ok (i := 39) (by kernel_rfl) (by decide)
-theorem codeAt_316 : CodeAt image (pcOf 316) seg_316 :=
+theorem codeAt_313 : CodeAt image (pcOf 313) seg_313 :=
   codeAt_layout code_eq signL_ok (i := 40) (by kernel_rfl) (by decide)
-theorem codeAt_319 : CodeAt image (pcOf 319) seg_319 :=
+theorem codeAt_316 : CodeAt image (pcOf 316) seg_316 :=
   codeAt_layout code_eq signL_ok (i := 41) (by kernel_rfl) (by decide)
-theorem codeAt_326 : CodeAt image (pcOf 326) seg_326 :=
+theorem codeAt_319 : CodeAt image (pcOf 319) seg_319 :=
   codeAt_layout code_eq signL_ok (i := 42) (by kernel_rfl) (by decide)
-theorem codeAt_328 : CodeAt image (pcOf 328) seg_328 :=
+theorem codeAt_326 : CodeAt image (pcOf 326) seg_326 :=
   codeAt_layout code_eq signL_ok (i := 43) (by kernel_rfl) (by decide)
-theorem codeAt_331 : CodeAt image (pcOf 331) seg_331 :=
+theorem codeAt_328 : CodeAt image (pcOf 328) seg_328 :=
   codeAt_layout code_eq signL_ok (i := 44) (by kernel_rfl) (by decide)
-theorem codeAt_332 : CodeAt image (pcOf 332) seg_332 :=
+theorem codeAt_331 : CodeAt image (pcOf 331) seg_331 :=
   codeAt_layout code_eq signL_ok (i := 45) (by kernel_rfl) (by decide)
-theorem codeAt_334 : CodeAt image (pcOf 334) seg_334 :=
+theorem codeAt_332 : CodeAt image (pcOf 332) seg_332 :=
   codeAt_layout code_eq signL_ok (i := 46) (by kernel_rfl) (by decide)
-theorem codeAt_345 : CodeAt image (pcOf 345) seg_345 :=
+theorem codeAt_334 : CodeAt image (pcOf 334) seg_334 :=
   codeAt_layout code_eq signL_ok (i := 47) (by kernel_rfl) (by decide)
-theorem codeAt_347 : CodeAt image (pcOf 347) seg_347 :=
+theorem codeAt_345 : CodeAt image (pcOf 345) seg_345 :=
   codeAt_layout code_eq signL_ok (i := 48) (by kernel_rfl) (by decide)
-theorem codeAt_348 : CodeAt image (pcOf 348) seg_348 :=
+theorem codeAt_347 : CodeAt image (pcOf 347) seg_347 :=
   codeAt_layout code_eq signL_ok (i := 49) (by kernel_rfl) (by decide)
-theorem codeAt_357 : CodeAt image (pcOf 357) seg_357 :=
+theorem codeAt_348 : CodeAt image (pcOf 348) seg_348 :=
   codeAt_layout code_eq signL_ok (i := 50) (by kernel_rfl) (by decide)
-theorem codeAt_369 : CodeAt image (pcOf 369) seg_369 :=
+theorem codeAt_357 : CodeAt image (pcOf 357) seg_357 :=
   codeAt_layout code_eq signL_ok (i := 51) (by kernel_rfl) (by decide)
-theorem codeAt_370 : CodeAt image (pcOf 370) seg_370 :=
+theorem codeAt_369 : CodeAt image (pcOf 369) seg_369 :=
   codeAt_layout code_eq signL_ok (i := 52) (by kernel_rfl) (by decide)
-theorem codeAt_396 : CodeAt image (pcOf 396) seg_396 :=
+theorem codeAt_370 : CodeAt image (pcOf 370) seg_370 :=
   codeAt_layout code_eq signL_ok (i := 53) (by kernel_rfl) (by decide)
-theorem codeAt_397 : CodeAt image (pcOf 397) seg_397 :=
+theorem codeAt_396 : CodeAt image (pcOf 396) seg_396 :=
   codeAt_layout code_eq signL_ok (i := 54) (by kernel_rfl) (by decide)
-theorem codeAt_411 : CodeAt image (pcOf 411) seg_411 :=
+theorem codeAt_397 : CodeAt image (pcOf 397) seg_397 :=
   codeAt_layout code_eq signL_ok (i := 55) (by kernel_rfl) (by decide)
-theorem codeAt_412 : CodeAt image (pcOf 412) seg_412 :=
+theorem codeAt_411 : CodeAt image (pcOf 411) seg_411 :=
   codeAt_layout code_eq signL_ok (i := 56) (by kernel_rfl) (by decide)
-theorem codeAt_426 : CodeAt image (pcOf 426) seg_426 :=
+theorem codeAt_412 : CodeAt image (pcOf 412) seg_412 :=
   codeAt_layout code_eq signL_ok (i := 57) (by kernel_rfl) (by decide)
-theorem codeAt_427 : CodeAt image (pcOf 427) seg_427 :=
+theorem codeAt_426 : CodeAt image (pcOf 426) seg_426 :=
   codeAt_layout code_eq signL_ok (i := 58) (by kernel_rfl) (by decide)
-theorem codeAt_441 : CodeAt image (pcOf 441) seg_441 :=
+theorem codeAt_427 : CodeAt image (pcOf 427) seg_427 :=
   codeAt_layout code_eq signL_ok (i := 59) (by kernel_rfl) (by decide)
-theorem codeAt_447 : CodeAt image (pcOf 447) seg_447 :=
+theorem codeAt_441 : CodeAt image (pcOf 441) seg_441 :=
   codeAt_layout code_eq signL_ok (i := 60) (by kernel_rfl) (by decide)
-theorem codeAt_456 : CodeAt image (pcOf 456) seg_456 :=
+theorem codeAt_447 : CodeAt image (pcOf 447) seg_447 :=
   codeAt_layout code_eq signL_ok (i := 61) (by kernel_rfl) (by decide)
-theorem codeAt_464 : CodeAt image (pcOf 464) seg_464 :=
-  codeAt_layout code_eq signL_ok (i := 62) (by kernel_rfl) (by decide)
-theorem codeAt_470 : CodeAt image (pcOf 470) seg_470 :=
+theorem codeAt_456 : CodeAt image (pcOf 456) seg_456 :=
   codeAt_layout code_eq signL_ok (i := 63) (by kernel_rfl) (by decide)
-theorem codeAt_485 : CodeAt image (pcOf 485) seg_485 :=
+theorem codeAt_464 : CodeAt image (pcOf 464) seg_464 :=
   codeAt_layout code_eq signL_ok (i := 64) (by kernel_rfl) (by decide)
-theorem codeAt_486 : CodeAt image (pcOf 486) seg_486 :=
+theorem codeAt_470 : CodeAt image (pcOf 470) seg_470 :=
   codeAt_layout code_eq signL_ok (i := 65) (by kernel_rfl) (by decide)
-theorem codeAt_498 : CodeAt image (pcOf 498) seg_498 :=
+theorem codeAt_485 : CodeAt image (pcOf 485) seg_485 :=
   codeAt_layout code_eq signL_ok (i := 66) (by kernel_rfl) (by decide)
-theorem codeAt_500 : CodeAt image (pcOf 500) seg_500 :=
+theorem codeAt_486 : CodeAt image (pcOf 486) seg_486 :=
   codeAt_layout code_eq signL_ok (i := 67) (by kernel_rfl) (by decide)
-theorem codeAt_514 : CodeAt image (pcOf 514) seg_514 :=
+theorem codeAt_498 : CodeAt image (pcOf 498) seg_498 :=
   codeAt_layout code_eq signL_ok (i := 68) (by kernel_rfl) (by decide)
-theorem codeAt_515 : CodeAt image (pcOf 515) seg_515 :=
+theorem codeAt_500 : CodeAt image (pcOf 500) seg_500 :=
   codeAt_layout code_eq signL_ok (i := 69) (by kernel_rfl) (by decide)
-theorem codeAt_540 : CodeAt image (pcOf 540) seg_540 :=
+theorem codeAt_514 : CodeAt image (pcOf 514) seg_514 :=
   codeAt_layout code_eq signL_ok (i := 70) (by kernel_rfl) (by decide)
-theorem codeAt_542 : CodeAt image (pcOf 542) seg_542 :=
+theorem codeAt_515 : CodeAt image (pcOf 515) seg_515 :=
   codeAt_layout code_eq signL_ok (i := 71) (by kernel_rfl) (by decide)
-theorem codeAt_543 : CodeAt image (pcOf 543) seg_543 :=
+theorem codeAt_540 : CodeAt image (pcOf 540) seg_540 :=
   codeAt_layout code_eq signL_ok (i := 72) (by kernel_rfl) (by decide)
-theorem codeAt_545 : CodeAt image (pcOf 545) seg_545 :=
+theorem codeAt_542 : CodeAt image (pcOf 542) seg_542 :=
   codeAt_layout code_eq signL_ok (i := 73) (by kernel_rfl) (by decide)
-theorem codeAt_546 : CodeAt image (pcOf 546) ker_546 :=
+theorem codeAt_543 : CodeAt image (pcOf 543) seg_543 :=
   codeAt_layout code_eq signL_ok (i := 74) (by kernel_rfl) (by decide)
-theorem codeAt_subCode : CodeAt image (pcOf 1013) Keygen.subCode :=
+theorem codeAt_545 : CodeAt image (pcOf 545) seg_545 :=
   codeAt_layout code_eq signL_ok (i := 75) (by kernel_rfl) (by decide)
-theorem codeAt_1173 : CodeAt image (pcOf 1173) seg_1173 :=
+theorem codeAt_546 : CodeAt image (pcOf 546) ker_546 :=
   codeAt_layout code_eq signL_ok (i := 76) (by kernel_rfl) (by decide)
-theorem codeAt_1175 : CodeAt image (pcOf 1175) seg_1175 :=
+theorem codeAt_subCode : CodeAt image (pcOf 1013) Keygen.subCode :=
   codeAt_layout code_eq signL_ok (i := 77) (by kernel_rfl) (by decide)
-theorem codeAt_1178 : CodeAt image (pcOf 1178) seg_1178 :=
+theorem codeAt_1173 : CodeAt image (pcOf 1173) seg_1173 :=
   codeAt_layout code_eq signL_ok (i := 78) (by kernel_rfl) (by decide)
-theorem codeAt_1184 : CodeAt image (pcOf 1184) seg_1184 :=
+theorem codeAt_1175 : CodeAt image (pcOf 1175) seg_1175 :=
   codeAt_layout code_eq signL_ok (i := 79) (by kernel_rfl) (by decide)
-theorem codeAt_1187 : CodeAt image (pcOf 1187) seg_1187 :=
+theorem codeAt_1178 : CodeAt image (pcOf 1178) seg_1178 :=
   codeAt_layout code_eq signL_ok (i := 80) (by kernel_rfl) (by decide)
-theorem codeAt_1191 : CodeAt image (pcOf 1191) seg_1191 :=
+theorem codeAt_1184 : CodeAt image (pcOf 1184) seg_1184 :=
   codeAt_layout code_eq signL_ok (i := 81) (by kernel_rfl) (by decide)
-theorem codeAt_1193 : CodeAt image (pcOf 1193) seg_1193 :=
+theorem codeAt_1187 : CodeAt image (pcOf 1187) seg_1187 :=
   codeAt_layout code_eq signL_ok (i := 82) (by kernel_rfl) (by decide)
-theorem codeAt_1196 : CodeAt image (pcOf 1196) seg_1196 :=
+theorem codeAt_1191 : CodeAt image (pcOf 1191) seg_1191 :=
   codeAt_layout code_eq signL_ok (i := 83) (by kernel_rfl) (by decide)
-theorem codeAt_1202 : CodeAt image (pcOf 1202) seg_1202 :=
+theorem codeAt_1193 : CodeAt image (pcOf 1193) seg_1193 :=
   codeAt_layout code_eq signL_ok (i := 84) (by kernel_rfl) (by decide)
-theorem codeAt_1203 : CodeAt image (pcOf 1203) seg_1203 :=
+theorem codeAt_1196 : CodeAt image (pcOf 1196) seg_1196 :=
   codeAt_layout code_eq signL_ok (i := 85) (by kernel_rfl) (by decide)
-theorem codeAt_1214 : CodeAt image (pcOf 1214) seg_1214 :=
+theorem codeAt_1202 : CodeAt image (pcOf 1202) seg_1202 :=
   codeAt_layout code_eq signL_ok (i := 86) (by kernel_rfl) (by decide)
+theorem codeAt_1203 : CodeAt image (pcOf 1203) seg_1203 :=
+  codeAt_layout code_eq signL_ok (i := 87) (by kernel_rfl) (by decide)
+theorem codeAt_1214 : CodeAt image (pcOf 1214) seg_1214 :=
+  codeAt_layout code_eq signL_ok (i := 88) (by kernel_rfl) (by decide)
+
+theorem codeAt_17 : CodeAt image (pcOf 17) seg_17 :=
+  codeAt_layout code_eq signL_ok (i := 1) (by kernel_rfl) (by decide)
+theorem codeAt_448 : CodeAt image (pcOf 448) seg_448 :=
+  codeAt_layout code_eq signL_ok (i := 62) (by kernel_rfl) (by decide)
+theorem codeAt_1227 : CodeAt image (pcOf 1227) seg_1227 :=
+  codeAt_layout code_eq signL_ok (i := 90) (by kernel_rfl) (by decide)
+theorem codeAt_1432 : CodeAt image (pcOf 1432) seg_1432 :=
+  codeAt_layout code_eq signL_ok (i := 91) (by kernel_rfl) (by decide)
+theorem codeAt_1433 : CodeAt image (pcOf 1433) seg_1433 :=
+  codeAt_layout code_eq signL_ok (i := 92) (by kernel_rfl) (by decide)
+theorem codeAt_1438 : CodeAt image (pcOf 1438) seg_1438 :=
+  codeAt_layout code_eq signL_ok (i := 93) (by kernel_rfl) (by decide)
+theorem codeAt_1456 : CodeAt image (pcOf 1456) seg_1456 :=
+  codeAt_layout code_eq signL_ok (i := 94) (by kernel_rfl) (by decide)
+theorem codeAt_1457 : CodeAt image (pcOf 1457) seg_1457 :=
+  codeAt_layout code_eq signL_ok (i := 95) (by kernel_rfl) (by decide)
+theorem codeAt_1482 : CodeAt image (pcOf 1482) seg_1482 :=
+  codeAt_layout code_eq signL_ok (i := 96) (by kernel_rfl) (by decide)
 
 /-- The shared subroutines sit at base 1013 of the sign image. -/
 theorem subAt_sign : Keygen.SubAt image 1013 := ⟨codeAt_subCode, Or.inr rfl⟩
 
 /-- The sign image as a layout with the search kernels as one segment. -/
-def signK : Rv.Layout := [(0, seg_0), (46, seg_46), (47, seg_47), (54, seg_54), (57, seg_57), (60, seg_60), (63, seg_63), (122, seg_122), (123, seg_123), (153, seg_153), (155, seg_155), (167, seg_167), (168, seg_168), (169, seg_169), (170, seg_170), (172, seg_172), (186, seg_186), (188, seg_188), (189, seg_189), (192, seg_192), (194, seg_194), (210, seg_210), (211, seg_211), (236, seg_236), (237, seg_237), (250, seg_250), (256, seg_256), (263, seg_263), (265, seg_265), (278, seg_278), (280, seg_280), (282, seg_282), (291, seg_291), (295, seg_295), (296, seg_296), (297, seg_297), (301, seg_301), (310, seg_310), (311, seg_311), (313, seg_313), (316, seg_316), (319, seg_319), (326, seg_326), (328, seg_328), (331, seg_331), (332, seg_332), (334, seg_334), (345, seg_345), (347, seg_347), (348, seg_348), (357, seg_357), (369, seg_369), (370, seg_370), (396, seg_396), (397, seg_397), (411, seg_411), (412, seg_412), (426, seg_426), (427, seg_427), (441, seg_441), (447, seg_447), (456, seg_456), (464, seg_464), (470, seg_470), (485, seg_485), (486, seg_486), (498, seg_498), (500, seg_500), (514, seg_514), (515, seg_515), (540, seg_540), (542, seg_542), (543, kerCode), (1013, Keygen.subCode), (1173, seg_1173), (1175, seg_1175), (1178, seg_1178), (1184, seg_1184), (1187, seg_1187), (1191, seg_1191), (1193, seg_1193), (1196, seg_1196), (1202, seg_1202), (1203, seg_1203), (1214, seg_1214), (1221, seg_1221)]
+def signK : Rv.Layout := [(0, seg_0), (17, seg_17), (46, seg_46), (47, seg_47), (54, seg_54), (57, seg_57), (60, seg_60), (63, seg_63), (122, seg_122), (123, seg_123), (153, seg_153), (155, seg_155), (167, seg_167), (168, seg_168), (169, seg_169), (170, seg_170), (172, seg_172), (186, seg_186), (188, seg_188), (189, seg_189), (192, seg_192), (194, seg_194), (210, seg_210), (211, seg_211), (236, seg_236), (237, seg_237), (250, seg_250), (256, seg_256), (263, seg_263), (265, seg_265), (278, seg_278), (280, seg_280), (282, seg_282), (291, seg_291), (295, seg_295), (296, seg_296), (297, seg_297), (301, seg_301), (310, seg_310), (311, seg_311), (313, seg_313), (316, seg_316), (319, seg_319), (326, seg_326), (328, seg_328), (331, seg_331), (332, seg_332), (334, seg_334), (345, seg_345), (347, seg_347), (348, seg_348), (357, seg_357), (369, seg_369), (370, seg_370), (396, seg_396), (397, seg_397), (411, seg_411), (412, seg_412), (426, seg_426), (427, seg_427), (441, seg_441), (447, seg_447), (448, seg_448), (456, seg_456), (464, seg_464), (470, seg_470), (485, seg_485), (486, seg_486), (498, seg_498), (500, seg_500), (514, seg_514), (515, seg_515), (540, seg_540), (542, seg_542), (543, kerCode), (1013, Keygen.subCode), (1173, seg_1173), (1175, seg_1175), (1178, seg_1178), (1184, seg_1184), (1187, seg_1187), (1191, seg_1191), (1193, seg_1193), (1196, seg_1196), (1202, seg_1202), (1203, seg_1203), (1214, seg_1214), (1221, seg_1221), (1227, seg_1227), (1432, seg_1432), (1433, seg_1433), (1438, seg_1438), (1456, seg_1456), (1457, seg_1457), (1482, seg_1482)]
 
 theorem signK_ok : layoutOk 0 signK = true := by decide +kernel
 
@@ -309,7 +338,7 @@ theorem code_eqK : image.code = layoutCode signK := by decide +kernel
 
 /-- The shared search-kernel segment sits at 543 (as one placed list). -/
 theorem codeAt_ker : CodeAt image (pcOf 543) kerCode :=
-  codeAt_layout code_eqK signK_ok (i := 72) (by kernel_rfl) (by decide)
+  codeAt_layout code_eqK signK_ok (i := 74) (by kernel_rfl) (by decide)
 
 /-! ## Symbolic blocks -/
 
@@ -388,5 +417,15 @@ sym_block blk_1202 := symRun { noAlias := true } seg_1202 (pcOf 1202) 100
 sym_block blk_1203 := symRun { noAlias := true } seg_1203 (pcOf 1203) 100
 sym_block blk_1214 := symRun { noAlias := true } seg_1214 (pcOf 1214) 100
 sym_block blk_543 := symRun { noAlias := true } seg_543 (pcOf 543) 100
+
+sym_block blk_1432 := symRun { noAlias := true } seg_1432 (pcOf 1432) 100
+
+sym_block blk_1433 := symRun { noAlias := true } seg_1433 (pcOf 1433) 100
+
+sym_block blk_1438 := symRun { noAlias := true } seg_1438 (pcOf 1438) 100
+
+sym_block blk_1457 := symRun { noAlias := true } seg_1457 (pcOf 1457) 100
+
+sym_block blk_1482 := symRun { noAlias := true } seg_1482 (pcOf 1482) 100
 
 end SigGolfCandidate.T3M.Sign

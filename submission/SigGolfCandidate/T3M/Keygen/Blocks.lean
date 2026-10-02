@@ -24,7 +24,7 @@ def seg_26 : List (BitVec 32) := [0x00001337, 0x02695263]
 def seg_28 : List (BitVec 32) := [0x00021bb7, 0xa00b8b93, 0x006903b3, 0x00439393, 0x00238cb3, 0x1bc000ef]
 def seg_34 : List (BitVec 32) := [0x00190913, 0xfddff06f]
 def seg_36 : List (BitVec 32) := [0x00c00793, 0x30100a93, 0x300000ef]
-def seg_39 : List (BitVec 32) := [0x0a000f13, 0x01013303, 0x01813383, 0x006f3023, 0x007f3423, 0x00009c37, 0x020c0c13, 0x40000a13, 0x00200693]
+def seg_39 : List (BitVec 32) := [0x3b80006f, 0x01013303, 0x01813383, 0x006f3023, 0x007f3423, 0x00009c37, 0x020c0c13, 0x40000a13, 0x00200693]
 def seg_48 : List (BitVec 32) := [0x00100313, 0x086a0663]
 def seg_50 : List (BitVec 32) := [0x00000993]
 def seg_51 : List (BitVec 32) := [0x0749dc63]
@@ -36,6 +36,20 @@ def seg_84 : List (BitVec 32) := [0x08000e93, 0x00009f37, 0xfe0f0f13, 0x000eb303
 def seg_113 : List (BitVec 32) := [0x00000073]
 def seg_114 : List (BitVec 32) := [0x00100293, 0x00000513]
 def seg_116 : List (BitVec 32) := [0x00000073]
+
+def seg_277 : List (BitVec 32) := [0x00050137, 0x00010113, 0x0a000f13, 0x01013303, 0x01813383, 0x006f3023, 0x007f3423, 0x00080c37, 0x020c0c13, 0x00001a37, 0x000a0a13, 0x00000b13]
+
+def seg_289 : List (BitVec 32) := [0x00000b93, 0x001a5d13, 0x004a1a93, 0x00050137, 0x00010113, 0x002a8ab3]
+
+def seg_295 : List (BitVec 32) := [0x00001337, 0xd0130313, 0x020b1393, 0x00736333, 0x020b9393, 0x00020e37, 0x000e0e13, 0x006e3823, 0x007e3c23, 0x00020537, 0x00050513, 0x04000593, 0x00020637, 0x06060613]
+
+def seg_309 : List (BitVec 32) := [0x00000073]
+
+def seg_310 : List (BitVec 32) := [0x000ab303, 0x00063383, 0x00734333, 0x006c3023, 0x008ab303, 0x00863383, 0x00734333, 0x006c3423, 0x010ab303, 0x01063383, 0x00734333, 0x006c3823, 0x018ab303, 0x01863383, 0x00734333, 0x006c3c23, 0x020a8a93, 0x020c0c13, 0x001b8b93, 0xf7abece3]
+
+def seg_330 : List (BitVec 32) := [0x001a5a13, 0x001b0b13, 0x00c00313, 0xf46b68e3]
+
+def seg_334 : List (BitVec 32) := [0x00020e37, 0x000e0e13, 0x00000eb7, 0x080e8e93, 0x000eb303, 0x006e3023, 0x008eb303, 0x006e3423, 0x010eb303, 0x026e3023, 0x018eb303, 0x026e3423, 0x020e3823, 0x020e3c23, 0x00001337, 0xe0130313, 0x006e3823, 0x000e3c23, 0x00020537, 0x00050513, 0x04000593, 0x00070637, 0x00060613, 0x00000073, 0x00100313, 0x02031313, 0x006e3c23, 0x00070637, 0x02060613, 0x00000073, 0xfff00913, 0x00395913, 0x000a09b7, 0x00098993, 0x00070b37, 0x000b0b13, 0x00080cb7, 0x000c8c93, 0x000b3b83, 0x012bfbb3, 0x008b3c03, 0x000806b7, 0x02068693, 0x00000713, 0x0006e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x0046e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x00868693, 0xf9369ee3, 0x03d75793, 0x01277733, 0x00f70733, 0x012747b3, 0x0017b793, 0xfff78793, 0x00f77733, 0x01870733, 0x00ecb023, 0x010b0b13, 0x000b3b83, 0x012bfbb3, 0x008b3c03, 0x000806b7, 0x02068693, 0x00000713, 0x0006e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x0046e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x00868693, 0xf9369ee3, 0x03d75793, 0x01277733, 0x00f70733, 0x012747b3, 0x0017b793, 0xfff78793, 0x00f77733, 0x01870733, 0x00ecb423, 0x010b0b13, 0x000b3b83, 0x012bfbb3, 0x008b3c03, 0x000806b7, 0x02068693, 0x00000713, 0x0006e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x0046e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x00868693, 0xf9369ee3, 0x03d75793, 0x01277733, 0x00f70733, 0x012747b3, 0x0017b793, 0xfff78793, 0x00f77733, 0x01870733, 0x00ecb823, 0x010b0b13, 0x000b3b83, 0x012bfbb3, 0x008b3c03, 0x000806b7, 0x02068693, 0x00000713, 0x0006e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x0046e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733, 0x00868693, 0xf9369ee3, 0x03d75793, 0x01277733, 0x00f70733, 0x012747b3, 0x0017b793, 0xfff78793, 0x00f77733, 0x01870733, 0x00ecbc23, 0x00100293, 0x00000513, 0x00000073]
 
 /-! ## Shared subroutine segments (offsets from the base) -/
 
@@ -88,7 +102,7 @@ def subCode : List (BitVec 32) := layoutCode subL
 theorem subL_ok : layoutOk 0 subL = true := by decide +kernel
 
 /-- The keygen image as a layout: the main segments, then the shared code at 117. -/
-def mainL : Rv.Layout := [(0, seg_0), (26, seg_26), (28, seg_28), (34, seg_34), (36, seg_36), (39, seg_39), (48, seg_48), (50, seg_50), (51, seg_51), (52, seg_52), (64, seg_64), (65, seg_65), (81, seg_81), (84, seg_84), (113, seg_113), (114, seg_114), (116, seg_116), (117, subCode)]
+def mainL : Rv.Layout := [(0, seg_0), (26, seg_26), (28, seg_28), (34, seg_34), (36, seg_36), (39, seg_39), (48, seg_48), (50, seg_50), (51, seg_51), (52, seg_52), (64, seg_64), (65, seg_65), (81, seg_81), (84, seg_84), (113, seg_113), (114, seg_114), (116, seg_116), (117, subCode), (277, seg_277), (289, seg_289), (295, seg_295), (309, seg_309), (310, seg_310), (330, seg_330), (334, seg_334)]
 
 theorem mainL_ok : layoutOk 0 mainL = true := by decide +kernel
 
@@ -133,6 +147,21 @@ theorem codeAt_116 : CodeAt image (pcOf 116) seg_116 :=
   codeAt_layout code_eq mainL_ok (i := 16) (by kernel_rfl) (by decide)
 theorem codeAt_subCode : CodeAt image (pcOf 117) subCode :=
   codeAt_layout code_eq mainL_ok (i := 17) (by kernel_rfl) (by decide)
+
+theorem codeAt_277 : CodeAt image (pcOf 277) seg_277 :=
+  codeAt_layout code_eq mainL_ok (i := 18) (by kernel_rfl) (by decide)
+theorem codeAt_289 : CodeAt image (pcOf 289) seg_289 :=
+  codeAt_layout code_eq mainL_ok (i := 19) (by kernel_rfl) (by decide)
+theorem codeAt_295 : CodeAt image (pcOf 295) seg_295 :=
+  codeAt_layout code_eq mainL_ok (i := 20) (by kernel_rfl) (by decide)
+theorem codeAt_309 : CodeAt image (pcOf 309) seg_309 :=
+  codeAt_layout code_eq mainL_ok (i := 21) (by kernel_rfl) (by decide)
+theorem codeAt_310 : CodeAt image (pcOf 310) seg_310 :=
+  codeAt_layout code_eq mainL_ok (i := 22) (by kernel_rfl) (by decide)
+theorem codeAt_330 : CodeAt image (pcOf 330) seg_330 :=
+  codeAt_layout code_eq mainL_ok (i := 23) (by kernel_rfl) (by decide)
+theorem codeAt_334 : CodeAt image (pcOf 334) seg_334 :=
+  codeAt_layout code_eq mainL_ok (i := 24) (by kernel_rfl) (by decide)
 
 /-- The shared subroutine code sits at base `b` of `image` (`b` = 117 in keygen, 1013 in sign). -/
 def SubAt (image : Image) (b : Nat) : Prop := CodeAt image (pcOf b) subCode ∧ (b = 117 ∨ b = 1013)
@@ -273,6 +302,12 @@ sym_block blk_65 := symRun { noAlias := true } seg_65 (pcOf 65) 100
 sym_block blk_81 := symRun { noAlias := true } seg_81 (pcOf 81) 100
 sym_block blk_84 := symRun { noAlias := true } seg_84 (pcOf 84) 100
 sym_block blk_114 := symRun { noAlias := true } seg_114 (pcOf 114) 100
+
+sym_block blk_277 := symRun { noAlias := true } seg_277 (pcOf 277) 100
+sym_block blk_289 := symRun { noAlias := true } seg_289 (pcOf 289) 100
+sym_block blk_295 := symRun { noAlias := true } seg_295 (pcOf 295) 100
+sym_block blk_310 := symRun { noAlias := true } seg_310 (pcOf 310) 100
+sym_block blk_330 := symRun { noAlias := true } seg_330 (pcOf 330) 100
 
 sym_block blk117_0 := symRun { noAlias := true } sub_0 (pcOf (117 + 0)) 100
 sym_block blk1013_0 := symRun { noAlias := true } sub_0 (pcOf (1013 + 0)) 100

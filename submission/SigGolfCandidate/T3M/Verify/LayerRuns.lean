@@ -10,7 +10,7 @@ forest hash (with the layer constants `hyper`), layers 2, 1 one per shape block 
   `tp = tree | leaf << 32`), the encoding header `T(4, lay, tree, 0, leaf)` at `0x110`, the counter (`lwu` from the
   witness header) checked `< 2^22` and stored at `0x120`, `a0 = 0x100`, `a2 = 0x140`;
 * **B** (`specBl` lower / `specBt` top, after the `ecall`, up to the `jalr ra` into the chain code): the decode
-  (range `srli 62` / `srli 61`, the SWAR sums of `Decode`, the checksum test `sltiu 8` / the total `125`), the chain
+  (range `srli 62` / `srli 61`, the SWAR sums of `Decode`, the checksum test `sltiu 8` / the total `126`), the chain
   prologue (`s6`, `s3`, `s8` (top), the table window `a5`, the extraction of triple / quad 0);
 * the three rejections (counter, range, checksum / total), each `j reject` to the HALT(1) at word 743;
 * the leaf-pk block (`specLf`, at the return pc `trPc + retOff`): the leaf header `T(2)`, the node word `tp = T(3)` for
@@ -64,7 +64,7 @@ def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
 def s3v : Nat := 15768
 /-- Core's targets. -/
-def tgtL (lay : Nat) : Nat := [125, 194, 194, 194].getD lay 0
+def tgtL (lay : Nat) : Nat := [126, 195, 195, 195].getD lay 0
 /-- Header word 0 of tag `t` and layer `lay` (`1 | t << 8 | lay << 16`). -/
 def hw (t lay : Nat) : Nat := 1 + 256 * t + 65536 * lay
 /-- The HALT(1) `ecall` of `reject`. -/
@@ -176,7 +176,7 @@ def lLowE : E := .bin .add (.bin .and a6E (kw M4c)) (.bin .and c34E (kw M4c))
 def lE : E := .bin .add lLowE (.bin .srl (.bin .sub (.bin .add a6E c34E) lLowE) (kw 2))
 def pE : E := .bin .add (.bin .and (.bin .srl lE (kw 4)) (kw M8c)) (.bin .and lE (kw M8c))
 def totE : E := .bin .add (.bin .remu pE (kw 255)) s3E
-def totBr (d : Bool) : Br := ⟨.ne, totE, kw 125, d⟩
+def totBr (d : Bool) : Br := ⟨.ne, totE, kw 126, d⟩
 def x14t : E := .bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x1fe00)) (kw 0xae000)
 def tgtt : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x1fe00)) (kw 711072)) (.c (~~~1#64))
 

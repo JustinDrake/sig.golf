@@ -15,10 +15,10 @@ noncomputable def gatedEventEquiv (event : CoordinateDraw → Prop) :
   right_inv _ := rfl
 
 /-- Every coordinate-only event, including a near-cover or a fixed-target
-condition, receives the exact independent five-bit gate factor. -/
+condition, receives the exact independent three-bit gate factor. -/
 theorem gated_event_probability (event : CoordinateDraw → Prop) :
     Pr[fun draw : GatedDraw => draw.2=0 ∧ event draw.1 | ($ᵗ GatedDraw : ProbComp GatedDraw)] =
-      (Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/32 := by
+      (Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/8 := by
   rw [probEvent_uniformSample,←Fintype.card_subtype,Fintype.card_congr (gatedEventEquiv event),
     probEvent_uniformSample,←Fintype.card_subtype]
   simp only [GatedDraw,Fintype.card_prod,Padding,Fintype.card_fin,Nat.cast_mul,Nat.cast_ofNat]
@@ -30,7 +30,7 @@ theorem digest_gated_event_probability (event : CoordinateDraw → Prop) :
     Pr[fun output => (digestRecord output).2.2.1=0 ∧
       event (rawDraw (digestRecord output)).1 |
       ($ᵗ BitVec 256 : ProbComp (BitVec 256))] =
-      (Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/32 := by
+      (Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/8 := by
   rw [digest_event (fun raw => raw.2.2.1=0 ∧ event (rawDraw raw).1)]
   change Pr[fun raw => (rawDraw raw).2=0 ∧ event (rawDraw raw).1 | _]=_
   rw [raw_draw_event (fun draw => draw.2=0 ∧ event draw.1),gated_event_probability]
@@ -60,7 +60,7 @@ theorem digest_at_gated_event_probability (index : Address) (event : CoordinateD
     Pr[fun output => (digestRecord output).1.1=index ∧
       (digestRecord output).2.2.1=0 ∧ event (rawDraw (digestRecord output)).1 |
       ($ᵗ BitVec 256 : ProbComp (BitVec 256))] =
-      ((Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/32)/2^31 := by
+      ((Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/8)/2^31 := by
   rw [digest_event (fun raw => raw.1.1=index ∧ raw.2.2.1=0 ∧ event (rawDraw raw).1)]
   change Pr[fun raw => raw.1.1=index ∧ (rawDraw raw).2=0 ∧ event (rawDraw raw).1 | _]=_
   rw [raw_at_draw_event index (fun draw => draw.2=0 ∧ event draw.1),gated_event_probability]
