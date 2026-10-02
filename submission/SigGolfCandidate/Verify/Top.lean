@@ -178,8 +178,10 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
 
 /-- Universal accepting-run bound. Scaled PIND byte offsets remove one instruction from
 all fifteen leaf headers. The tag-9 address-field rotation is an injective query relabel;
-Final.Discharge supplies the additional universal structural credit. Sparse initialization and leaf-header carry are included. -/
-def cycleBound : Nat := 10250
+Final.Discharge supplies the additional universal structural credit. Sparse initialization and leaf-header carry are included.
+The prologue loads `x18 = 0xFFF` from the high word of header `0`, so the inlined leaf head has no
+`x18` restore (`-1`). -/
+def cycleBound : Nat := 10249
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
 def cycleBoundAll : Nat := 16829
@@ -290,8 +292,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (98 + (leafCost 0 + Nseg 0 0)) (98 + (leafCost 0 + Cseg 0 0)) True
-        (98 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (97 + (leafCost 0 + Nseg 0 0)) (97 + (leafCost 0 + Cseg 0 0)) True
+        (97 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with
