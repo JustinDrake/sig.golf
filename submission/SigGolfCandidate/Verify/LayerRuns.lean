@@ -34,7 +34,7 @@ def preStart (lay t : Nat) : Nat :=
 
 /-- Steps of the transition proper up to the encoding hash: layer 0 consumes the remaining route bits
 directly (two `addi` for the sentinel, no mask/shift); layer 4 reuses the known hash length. -/
-def stepsT (lay : Nat) : Nat := if lay = 0 then 7 else if lay = 4 then 11 else 10
+def stepsT (lay : Nat) : Nat := if lay = 0 then 7 else 10
 /-- Steps from `preStart` to the encoding hash: below layer 4, the 4 steps of the sibling copy first. -/
 def stepsA (lay : Nat) : Nat := stepsT lay + (if lay = 4 then 0 else 4)
 def encPc (lay t : Nat) : Nat := trPc lay t + stepsT lay
@@ -50,14 +50,14 @@ def sibSlot (lay t : Nat) : Nat := if xLeft lay t then 0x130 else 0x120
 def topSib (lay : Nat) : Nat := sibAddr (lay + 1) (heightL (lay + 1) - 1)
 
 /-- Known registers at the transition start. -/
-def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x130), (.x27, 0x40401)]
+def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x130), (.x27, 0x40401), (.x14, KT4)]
 def aK (lay t : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, BitVec.ofNat 64 (encD lay t)), (.x27, 0x40401), (.x22, BitVec.ofNat 64 (s6N (lay + 1)))]
+  gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, BitVec.ofNat 64 (encD lay t)), (.x27, 0x29000), (.x22, BitVec.ofNat 64 (s6N (lay + 1)))]
 def preK (lay t : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay t
 
 /-- Known registers after the encoding hash call of transition copy `t`. -/
 def bK (lay t : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, 0x40401), (.x10, BitVec.ofNat 64 (encB lay t)), (.x11, 64),
+  gkL ++ [(.x27, x27v lay), (.x10, BitVec.ofNat 64 (encB lay t)), (.x11, 64),
       (.x12, BitVec.ofNat 64 (encD lay t))] ++
     (if lay = 4 then [(.x14, KT4)] else [(.x22, BitVec.ofNat 64 (s6N (lay + 1)))])
 
@@ -134,8 +134,8 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E (out hi : Nat) : E := .bin .add (.bin .and (.bin .sll (d0E out hi) (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 (out hi : Nat) : E := .bin .and (.bin .add (.bin .and (.bin .sll (d0E out hi) (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB (lay : Nat) : Nat := (if lay = 4 then 28 else 27)
-def stepsBPath (hi lay : Nat) : Nat := (if lay = 4 then 22 else 21) + selSteps hi
+def stepsB (_lay : Nat) : Nat := 27
+def stepsBPath (hi _lay : Nat) : Nat := 21 + selSteps hi
 def cyclesBPath (hi lay : Nat) : Nat := stepsBPath hi lay + 3
 
 theorem stepsBPath_le (hi lay : Nat) : stepsBPath hi lay ≤ stepsB lay := by
@@ -156,10 +156,10 @@ def specBok (out hi : Nat) (lay : Nat) : Spec :=
   ⟨[(.x14, (x14E out hi)), (.x16, (d0E out hi)), (.x17, (d1E out hi))], [], 0, false, stepsBPath hi lay,
    ([⟨.ne, (swS out hi lay), .c (KTof lay), false⟩] ++ padBrs out hi false ++ selBrs out hi), some (tgt0 out hi), cyclesBPath hi lay⟩
 
-/-- Known registers on entry of the chain code; the bottom header stays in `x27`. -/
+/-- Known registers on entry of the chain code; `x27` holds `x27v lay` (layer 4: the bottom header). -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
   chK0 ++ [(.x22, BitVec.ofNat 64 (s6N lay)),
-    (.x27, 0x40401), (.x1, pcOf (retPc lay c))]
+    (.x27, x27v lay), (.x1, pcOf (retPc lay c))]
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
@@ -174,15 +174,16 @@ def specRej2 (out hi : Nat) (lay : Nat) : Spec :=
 /-! ## Leaf -/
 
 /-- The leaf code at the return pc: the leaf tweak, then the dispatch into the shape block of
-chunk 0. -/
-def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay = 3 then 6 else 7
+chunk 0. Layer 3 adds the table base already in `x27` (left there by the layer-4 leaf) instead of
+building it with `lui`. -/
+def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay = 3 then 6 else if lay < 4 then 7 else 8
 
 def leafRawSteps (lay : Nat) : Nat := if lay = 0 then 7 else leafSteps lay
 
 def topDispTgt : E :=
   mkBin .and (mkAdd (mkBin .sll (.reg .x23) (cw 3)) (cw 779264)) (.c (~~~1#64))
 
-def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, 0x40401), (.x22, BitVec.ofNat 64 (s6N lay))]
+def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, x27v lay), (.x22, BitVec.ofNat 64 (s6N lay))]
 
 def specLeaf (lay : Nat) : Spec :=
   ⟨[(.x10, cw 832), (.x11, cw 704)],
@@ -191,8 +192,9 @@ def specLeaf (lay : Nat) : Spec :=
    0, false, leafRawSteps lay, [], some (if lay = 0 then topDispTgt else dispTgt lay 0), leafRawSteps lay⟩
 
 def leafKeep : List Reg := [.x17, .x23, .x30, .x31]
+/-- After the leaf `x27` holds the table base `0x29000` in every layer (layer 4's leaf sets it). -/
 def leafPost (lay : Nat) : List (Reg × Word) :=
-  fk false 0x340 704 ++ [(.x27, 0x40401), (.x22, BitVec.ofNat 64 (s6N lay))]
+  fk false 0x340 704 ++ [(.x27, 0x29000), (.x22, BitVec.ofNat 64 (s6N lay))]
 
 /-! ## Compare -/
 
