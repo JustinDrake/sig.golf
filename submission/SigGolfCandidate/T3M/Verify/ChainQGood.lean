@@ -814,14 +814,14 @@ theorem topS_eq (c : QCtx) {value : Digest} (h : c.TopFit value) : c.topS = (dat
   conv_rhs => rw [hD]
   rw [hC]
 
-/-- **The cost of an accepting top chain phase**: `1194 - Z` (the 58 digits sum to `125`). -/
-theorem topCost_accept (c : QCtx) {value : Digest} (h : c.TopFit value) (hsum : (dataDigits 0 value).sum = 125) :
-    c.topCost + c.topZ = 1194 := by
+/-- **The cost of an accepting top chain phase**: `1185 - Z` (the 58 digits sum to `126`). -/
+theorem topCost_accept (c : QCtx) {value : Digest} (h : c.TopFit value) (hsum : (dataDigits 0 value).sum = 126) :
+    c.topCost + c.topZ = 1185 := by
   have := c.topCost_add
   rw [c.topS_eq h, hsum] at this
   omega
 
-/-- Below the new savings threshold, top digits cannot sum to the required125. -/
+/-- Below the new savings threshold, top digits cannot sum to the required127. -/
 def noSave (_i : Nat) : Nat := 1
 
 theorem digit_le_noSave (i d : Nat) (hd : d < 4) : d ≤ noSave i + 2 * zc i d := by
@@ -857,13 +857,13 @@ theorem triSum_le (c : QCtx) : ∀ n i, i + n ≤ 42 →
     simp only [List.range'_succ, List.map_cons, List.sum_cons]
     omega
 
-theorem topZ_ge_eleven (c : QCtx) {value : Digest} (h : c.TopFit value)
-    (hsum : (dataDigits 0 value).sum = 125) : 11 ≤ c.topZ := by
+theorem topZ_ge_twelve (c : QCtx) {value : Digest} (h : c.TopFit value)
+    (hsum : (dataDigits 0 value).sum = 126) : 12 ≤ c.topZ := by
   have hq := c.quadSum_le 49 0
   have hl := c.triSum_le 9 33 (by decide)
   have hb : ((List.range' 0 49).map noSave).sum = 49 := by decide
   rw [hb] at hq
-  have ht : c.topS = 125 := by rw [c.topS_eq h, hsum]
+  have ht : c.topS = 126 := by rw [c.topS_eq h, hsum]
   unfold topS at ht
   unfold topZ LCtx.zSum
   omega

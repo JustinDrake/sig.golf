@@ -702,17 +702,30 @@ theorem mrealize_privatePair (tag lay tree position index : Nat) :
   simp only [mrealize_pure, bind_pure_comp]
 
 theorem mrealize_mask (level index : Nat) :
-    mrealize sk (mask level index) = (fun a : BitVec 256 => a.extractLsb' 0 128) <$>
-      (liftM (HashSpec.query (toQ (privateInput sk (.inl (header 13 0 0 level index)))))
+    mrealize sk (mask level index) =
+      (fun a : BitVec 256 => if index % 2 = 0 then a.extractLsb' 0 128 else a.extractLsb' 128 128) <$>
+      (liftM (HashSpec.query (toQ (privateInput sk (.inl (header 13 0 0 level (index/2))))))
         : OracleComp HashSpec _) := by
-  unfold mask
+  unfold mask T3.pairedMask
   rw [mrealize_bind, mrealize_privatePair]
   simp only [mrealize_pure, bind_pure_comp, Functor.map_map]
 
+theorem mrealize_privateMacKey :
+    mrealize sk T3.privateMacKey = (do
+      let a ← (liftM (HashSpec.query (toQ (privateInput sk (.inl (header 14 0 0 0 0))))) : OracleComp HashSpec _)
+      let b ← (liftM (HashSpec.query (toQ (privateInput sk (.inl (header 14 0 0 0 1))))) : OracleComp HashSpec _)
+      pure (fun i => if i = 0 then a else b)) := by
+  unfold T3.privateMacKey
+  simp only [mrealize_bind, mrealize_privateHash, mrealize_pure]
+
 theorem mrealize_privateMac (region : Region) :
     mrealize sk (privateMac region) =
-      (liftM (HashSpec.query (toQ (privateInput sk (.inr (.inr region))))) : OracleComp HashSpec _) :=
-  mrealize_privateHash sk _
+      (fun key => SiggolfT3Mac4.encodeTag (SiggolfT3Mac4.macTag key (List.ofFn region))) <$>
+        mrealize sk T3.privateMacKey := by
+  change mrealize sk (T3.privateMacKey >>= fun key => pure
+    (SiggolfT3Mac4.encodeTag (SiggolfT3Mac4.macTag key (List.ofFn region)) : BitVec 256)) = _
+  rw [mrealize_bind]
+  simp only [mrealize_pure, bind_pure_comp]
 
 theorem mrealize_privateNonce (m : T3.Message) :
     mrealize sk (privateNonce m) = (fun a : BitVec 256 => a.extractLsb' 0 128) <$>
@@ -837,28 +850,30 @@ theorem TSim.privatePair_bind {s : MachineState} {tag lay tree position index : 
   unfold TSim at this
   simpa only [Function.comp, pure_bind] using this
 
-/-- One HASH `ECALL` answering `mask level index` (the low half of a tag-13 pair). -/
+/-- One HASH answering a parity-selected half of the paired mask. -/
 theorem TSim.mask_bind {s : MachineState} {level index : Nat} {k c n b : Nat}
     {f : Digest → M β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
     (hv : hashArgumentsValid s = true)
-    (hq : hashInput s = toQ (privateInput sk (.inl (header 13 0 0 level index))))
-    (h : ∀ a : BitVec 256, TSim image sk (writeHash s a) k c n b (f (a.extractLsb' 0 128)) Q) :
+    (hq : hashInput s = toQ (privateInput sk (.inl (header 13 0 0 level (index/2)))))
+    (h : ∀ a : BitVec 256, TSim image sk (writeHash s a) k c n b
+      (f (if index % 2 = 0 then a.extractLsb' 0 128 else a.extractLsb' 128 128)) Q) :
     TSim image sk s (1 + k) (8 + c) (1 + n) (1 + b) (mask level index >>= f) Q := by
-  have : mask level index >>= f = privatePair 13 0 0 level index >>= fun x => f x.1 := by
-    unfold mask; rw [bind_assoc]; simp only [pure_bind]
+  have : mask level index >>= f = privatePair 13 0 0 level (index/2) >>=
+      fun x => f (if index % 2 = 0 then x.1 else x.2) := by
+    unfold mask T3.pairedMask; rw [bind_assoc]; simp only [pure_bind]
   rw [this]
   exact TSim.privatePair_bind hf ht0 hv hq h
 
-/-- One HASH `ECALL` answering the 513-block MAC. -/
-theorem TSim.privateMac_bind {s : MachineState} {region : Region} {k c n b : Nat}
+/-- One HASH answering a complete private tweak; used for each MAC key. -/
+theorem TSim.privateTweak_bind {s : MachineState} {tw : BitVec 128} {k c n b : Nat}
     {f : HashOutput → M β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
-    (hv : hashArgumentsValid s = true) (hq : hashInput s = toQ (privateInput sk (.inr (.inr region))))
+    (hv : hashArgumentsValid s = true) (hq : hashInput s = toQ (privateInput sk (.inl tw)))
     (h : ∀ a, TSim image sk (writeHash s a) k c n b (f a) Q) :
-    TSim image sk s (1 + k) (8 * 513 + c) (1 + n) (513 + b) (privateMac region >>= f) Q := by
-  have hb : (toQ (privateInput sk (.inr (.inr region)))).blocks = 513 := by
-    rw [blocks_toQ (privateInput_aligned _ _), privateInput_mac_length]
+    TSim image sk s (1 + k) (8 + c) (1 + n) (1 + b) (privateHash (.inl tw) >>= f) Q := by
+  have hb : (toQ (privateInput sk (.inl tw))).blocks = 1 := by
+    rw [blocks_toQ (privateInput_aligned _ _), privateInput_tweak_length]
   refine (TSim.privateHash_bind hf ht0 hv hq h).of_eq rfl rfl (by rw [hb]) rfl (by rw [hb])
 
 /-- One HASH `ECALL` answering the nonce (`privateNonce`, the low 16 bytes). -/

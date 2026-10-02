@@ -43,12 +43,12 @@ def foldBytes (E : Nat) (sib : Digest) : List UInt8 :=
   if E % 2 = 1 then bytesLE 16 sib ++ zeros 64 else zeros 48 ++ bytesLE 16 sib ++ zeros 16
 
 /-- A segment: header byte, 7 zero bytes, its fold blocks with the proof slots `foldSlot` places there. -/
-def segBytes (chosen : List Selection) (proof : Fin 118 → Digest) (seg : Segment) : List UInt8 :=
+def segBytes (chosen : List Selection) (proof : Fin 115 → Digest) (seg : Segment) : List UInt8 :=
   [UInt8.ofNat seg.byte0] ++ zeros 7 ++ (List.range seg.a).flatMap fun r =>
-    foldBytes (seg.heap r) (proof ⟨foldSlot chosen seg r % 118, Nat.mod_lt _ (by decide)⟩)
+    foldBytes (seg.heap r) (proof ⟨foldSlot chosen seg r % 115, Nat.mod_lt _ (by decide)⟩)
 
 /-- `[1088,11288)`: the honest stream, zero-filled (cut at 10,200 bytes, which only over-cap selections reach). -/
-def streamBytes (chosen : List Selection) (proof : Fin 118 → Digest) : List UInt8 :=
+def streamBytes (chosen : List Selection) (proof : Fin 115 → Digest) : List UInt8 :=
   (((schedule chosen).flatMap (segBytes chosen proof)) ++ zeros 10200).take 10200
 
 /-- Layer `lay`'s region: Merkle blocks of levels `h-1 .. 0` (sibling at `L` iff bit `j` of `leaf` is 1, else

@@ -8,7 +8,7 @@ import SigGolfCandidate.T3M.Search.Decode
 `a7 = target`, `s10 = chainCount`, `s11 = 49 | 0`, the message in the first 16 bytes of the
 encoding block `ENC`): headers into `ENC + 16`, `ENC + 24`; per trial `I = s3 < 2^22`: `sw I` into
 `ENC + 32`, HASH the block into `EOUT`, range check and unrolled digit sum (lower layers: 42
-radix-8 digits, `target - S ∈ [0, 8)`; top: 49 radix-4 + 9 radix-8 digits, `S = 125`), on failure
+radix-8 digits, `target - S ∈ [0, 8)`; top: 49 radix-4 + 9 radix-8 digits, `S = 126`), on failure
 `I += 1`; on success the digits are written as bytes to `DIGITS` (lower layers also the checksum
 digit) and the kernel returns with `s3 = I`. `I = 2^22` halts with `HALT(1)` (`fail`).
 -/
