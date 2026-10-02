@@ -80,9 +80,9 @@ theorem referenceEncodingGame_conditioned {Result : Type} (observer : FrontierOb
       let otsSecret ← 𝒮[sampleOtsSecrets]
       let ftsSecret ← 𝒮[sampleFtsSecrets]
       let key : SecretKey := ⟨parameter, 0, otsSecret, ftsSecret, fun _ _ => 0⟩
-      let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]
+      let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]
       let outside ← 𝒮[PMF.uniformOfFintype (NonencodingRows parameter inputs (hencoding parameter))]
-      let rows ← 𝒮[FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections]
+      let rows ← 𝒮[FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections]
       let remaining ← 𝒮[PMF.uniformOfFintype (UniformTableSplit.Outside
         (referenceFamilyCell parameter (outsideGraphMessage key inputs (hencoding parameter) outside)) → HashOutput)]
       let encoding := UniformTableSplit.join
@@ -100,11 +100,11 @@ theorem referenceEncodingGame_conditioned {Result : Type} (observer : FrontierOb
   funext otsSecret
   apply congrArg (𝒮[sampleFtsSecrets] >>= ·)
   funext ftsSecret
-  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit] >>= ·)
+  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit] >>= ·)
   funext selections
   apply congrArg (𝒮[PMF.uniformOfFintype (NonencodingRows parameter inputs (hencoding parameter))] >>= ·)
   funext outside
-  apply congrArg (𝒮[FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections] >>= ·)
+  apply congrArg (𝒮[FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections] >>= ·)
   funext rows
   apply congrArg (𝒮[PMF.uniformOfFintype (UniformTableSplit.Outside
     (referenceFamilyCell parameter (outsideGraphMessage ⟨parameter, 0, otsSecret, ftsSecret, fun _ _ => 0⟩ inputs

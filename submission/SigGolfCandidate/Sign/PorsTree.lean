@@ -44,40 +44,27 @@ theorem hdr_eq (c tag idx : Nat) (hc : c = 1 + 256 * tag) (htag : tag < 256) (hi
   congr 1
   omega
 
-/-- The relabelled PORS headers (`τ`-swap): `idx << 32 + (idx >> 32) << 24 + c` is word 0 of the
-tweak `(tag, 0, idx, idx)` (the `p` slot carries `idx mod 2^32`). -/
-theorem hdr2_eq (c tag idx : Nat) (hc : c = 1 + 256 * tag) (htag : tag < 256) (hidx : idx < 2 ^ 34) :
-    BitVec.ofNat 64 idx <<< ((32#64 : Word).toNat % 64) +
-        BitVec.ofNat 64 idx >>> ((32#64 : Word).toNat % 64) <<< ((24#64 : Word).toNat % 64) +
-        BitVec.ofNat 64 c = twWord0 tag 0 idx idx := by
-  subst hc
-  rw [show (32#64 : Word).toNat % 64 = 32 from rfl, show (24#64 : Word).toNat % 64 = 24 from rfl,
-    shl32_ofNat, ofNat_ushiftRight _ _ (by omega), ofNat_shiftLeft, ofNat_add_ofNat, ofNat_add_ofNat]
-  unfold twWord0
-  congr 1
-  omega
-
 theorem blk145_mem (t : MachineState) (N ix : Nat) (hidx34 : ix < 2 ^ 34)
     (m160 : t.getMem (BitVec.ofNat 64 0x160) = BitVec.ofNat 64 (N % 2 ^ 64))
     (hidxE : (BitVec.ofNat 64 (N % 2 ^ 64) <<< ((30#64 : Word).toNat % 64)) >>> ((30#64 : Word).toNat % 64) =
       BitVec.ofNat 64 ix) :
     ∀ a : Nat, a < 2 ^ 64 → (blk145.res.toState t).getMem (BitVec.ofNat 64 a) =
-      if a = 456 then replaceWord32 (t.getMem (BitVec.ofNat 64 456)) 0 (BitVec.ofNat 32 0)
-      else if a = 200 then replaceWord32 (t.getMem (BitVec.ofNat 64 200)) 0 (BitVec.ofNat 32 0)
-      else if a = 448 then twWord0 10 0 ix ix
-      else if a = 192 then twWord0 9 0 ix ix
+      if a = 456 then replaceWord32 (t.getMem (BitVec.ofNat 64 456)) 0 (BitVec.ofNat 32 ix)
+      else if a = 448 then twWord0 10 0 ix 0
+      else if a = 200 then replaceWord32 (t.getMem (BitVec.ofNat 64 200)) 0 (BitVec.ofNat 32 ix)
+      else if a = 192 then twWord0 9 0 ix 0
       else if a = 1704 then replaceWord32 (t.getMem (BitVec.ofNat 64 1704)) 0 (BitVec.ofNat 32 ix)
       else if a = 1696 then twWord0 8 0 ix 0
-      else if a = 150280 then t.getMem (BitVec.ofNat 64 24)
-      else if a = 150272 then t.getMem (BitVec.ofNat 64 16)
+      else if a = 150280 then t.getMem (BitVec.ofNat 64 56)
+      else if a = 150272 then t.getMem (BitVec.ofNat 64 48)
       else t.getMem (BitVec.ofNat 64 a) := by
   intro a ha
   simp only [blk145.res, rv_simp]
   rw [m160, hidxE, show (2561#64 : Word) = BitVec.ofNat 64 2561 from rfl,
     show (2305#64 : Word) = BitVec.ofNat 64 2305 from rfl, show (2049#64 : Word) = BitVec.ofNat 64 2049 from rfl,
-    hdr2_eq 2561 10 _ rfl (by norm_num) hidx34, hdr2_eq 2305 9 _ rfl (by norm_num) hidx34,
-    hdr_eq 2049 8 _ rfl (by norm_num) hidx34, Nat.zero_div]
-  simp only [truncate32_ofNat, ofNat_eq_iff]
+    hdr_eq 2561 10 _ rfl (by norm_num) hidx34, hdr_eq 2305 9 _ rfl (by norm_num) hidx34,
+    hdr_eq 2049 8 _ rfl (by norm_num) hidx34, truncate32_ofNat, Nat.zero_div]
+  simp only [ofNat_eq_iff]
   rw [Nat.mod_eq_of_lt ha]
   simp only [Nat.reducePow, Nat.reduceMod]
 
@@ -94,7 +81,7 @@ theorem digok_run (S : List Byte) (rho : Val) (ans : BitVec 256) (L : List Nat) 
     ∃ tF, Steps image t 34 34 tF ∧ PLeafCtx S (idxOf ans.toNat) L tF ∧ PLevCtx (idxOf ans.toNat) tF ∧
       tF.pc = pcOf 179 ∧ tF.getReg .x9 = BitVec.ofNat 64 0 ∧ CapInv (L.map keyV) 0 [] tF 0 ∧
       tF.getReg .x22 = BitVec.ofNat 64 (idxOf ans.toNat) ∧
-      tF.readWords (BitVec.ofNat 64 0x24B00) 2 = t.readWords (BitVec.ofNat 64 0x10) 2 ∧
+      tF.readWords (BitVec.ofNat 64 0x24B00) 2 = t.readWords (BitVec.ofNat 64 0x30) 2 ∧
       RegsEq t tF digokRegs ∧ Frame t tF digokW := by
   set N := ans.toNat with hN
   have hNl : N < 2 ^ 256 := ans.isLt
@@ -123,19 +110,16 @@ theorem digok_run (S : List Byte) (rho : Val) (ans : BitVec 256) (L : List Nat) 
   have x22 : tF.getReg .x22 = BitVec.ofNat 64 (idxOf N) := by
     simp only [htF, blk145.res, rv_simp, m160, hidxE]
   have memF := blk145_mem t N (idxOf N) hidx34 m160 hidxE
-  have lo : ∀ a, a = 1704 → lo32 (tF.getMem (BitVec.ofNat 64 a)) = BitVec.ofNat 32 (idxOf N) := by
+  have lo : ∀ a, a = 456 ∨ a = 200 ∨ a = 1704 → lo32 (tF.getMem (BitVec.ofNat 64 a)) = BitVec.ofNat 32 (idxOf N) := by
     intro a ha
-    subst ha; rw [memF _ (by norm_num)]; simp
-  have lz : ∀ a, a = 456 ∨ a = 200 → lo32 (tF.getMem (BitVec.ofNat 64 a)) = BitVec.ofNat 32 0 := by
-    intro a ha
-    rcases ha with rfl | rfl <;> (rw [memF _ (by norm_num)]; simp)
+    rcases ha with rfl | rfl | rfl <;> (rw [memF _ (by norm_num)]; simp)
   have hw : ∀ a n, a + 8 * n < 2 ^ 64 → (∀ i < n, ¬ digokW (a + 8 * i)) →
       tF.readWords (BitVec.ofNat 64 a) n = t.readWords (BitVec.ofNat 64 a) n :=
     fun a n h1 h2 => f.readWords a n h1 h2
   refine ⟨tF, hs, ⟨hidx34, hlen, hsort, hlt, hbound, fun i hi => ?_, ?_, ?_, lo 1704 (by simp), ?_, ?_, ?_,
-    lz 200 (by simp), ?_, ?_, by rw [r.get .x5, t5], by simp only [htF, blk145.res, rv_simp] <;> rfl,
+    lo 200 (by simp), ?_, ?_, by rw [r.get .x5, t5], by simp only [htF, blk145.res, rv_simp] <;> rfl,
     by simp only [htF, blk145.res, rv_simp] <;> rfl⟩,
-    ⟨by rw [r.get .x5, t5], ?_, lz 456 (by simp), ?_⟩,
+    ⟨by rw [r.get .x5, t5], ?_, lo 456 (by simp), ?_⟩,
     by simp only [htF, blk145.res, rv_simp], by simp only [htF, blk145.res, rv_simp] <;> rfl,
     ⟨by omega, fun q hq => absurd hq (by omega), fun _ => by simp, fun q hq => absurd hq (by omega),
       by simp only [htF, blk145.res, rv_simp] <;> rfl, by simp only [htF, blk145.res, rv_simp] <;> rfl, ?_⟩,

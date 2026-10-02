@@ -16,38 +16,38 @@ theorem NewMarker.not_mem {parameter : PublicParameter} {words : OtsReferenceWor
     (h : NewMarker parameter words history address entry) : entry ∉ history.toList :=
   fun hin => h.2 ⟨entry, hin, h.1⟩
 
-theorem newMarker_cell_le (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
+theorem newMarker_cell_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
     (selections : ReferenceFamily) (dummy : OtsReferenceWords) (history : OtsContactTrace.Trace)
     (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed)
     (address : OtsPrefix.ChainAddress) (row : canonicalEncodingInputs parameter) :
     Pr[fun output => NewMarker parameter (referenceFamilyWords selections dummy) history address (row.val, output) |
-      cell (allowed row)] ≤ ((63 / 32 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) / (Fintype.card Digest : ENNReal) := by
+      cell (allowed row)] ≤ (OtsCode.unitNeighborBound : ENNReal) / (Fintype.card Digest : ENNReal) := by
   refine (_root_.probEvent_mono (fun _ _ h => ⟨h.1, h.not_mem⟩)).trans
     ((hc.new_reply_probability_le row (fun output => EntryMarker parameter (referenceFamilyWords selections dummy) address
       (row.val, output))).trans ?_)
   simpa only [cell, dif_pos (referenceEncodingAllowed_nonempty parameter messages selections row), SPMF.probEvent_liftM] using
     entryMarker_allowed_le parameter messages selections dummy address row
 
-theorem newMarker_subset_cell_le (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
+theorem newMarker_subset_cell_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
     (selections : ReferenceFamily) (dummy : OtsReferenceWords) (history : OtsContactTrace.Trace)
     (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed)
     (addresses : Finset OtsPrefix.ChainAddress) (row : canonicalEncodingInputs parameter) :
     Pr[fun output => ∃ address ∈ addresses, NewMarker parameter (referenceFamilyWords selections dummy) history address (row.val, output) |
-      cell (allowed row)] ≤ (((63 / 32 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) * (addresses.card : ENNReal)) / Fintype.card Digest := by
+      cell (allowed row)] ≤ ((OtsCode.unitNeighborBound : ENNReal) * (addresses.card : ENNReal)) / Fintype.card Digest := by
   have h := (probEvent_exists_finset_le_sum addresses (cell (allowed row))
     (fun address output => NewMarker parameter (referenceFamilyWords selections dummy) history address (row.val, output))).trans
     (Finset.sum_le_sum fun address _ => newMarker_cell_le parameter messages selections dummy history allowed hc address row)
   simpa only [Finset.sum_const, nsmul_eq_mul, div_eq_mul_inv, mul_comm, mul_left_comm, mul_assoc] using h
 
-theorem newMarker_any_cell_le (parameter : PublicParameter) (messages : EncodingPosition → EncMessage)
+theorem newMarker_any_cell_le (parameter : PublicParameter) (messages : EncodingPosition → Digest)
     (selections : ReferenceFamily) (dummy : OtsReferenceWords) (history : OtsContactTrace.Trace)
     (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed)
     (row : canonicalEncodingInputs parameter) :
     Pr[fun output => ∃ address, NewMarker parameter (referenceFamilyWords selections dummy) history address (row.val, output) |
-      cell (allowed row)] ≤ ((63 / 32 : ENNReal) * (OtsCode.neighborBound : ENNReal)) / (Fintype.card Digest : ENNReal) := by
+      cell (allowed row)] ≤ (OtsCode.neighborBound : ENNReal) / (Fintype.card Digest : ENNReal) := by
   refine (_root_.probEvent_mono (fun _ _ h => ?_)).trans
     ((hc.new_reply_probability_le row (fun output => ∃ address, EntryMarker parameter (referenceFamilyWords selections dummy) address
       (row.val, output))).trans ?_)

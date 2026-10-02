@@ -26,15 +26,14 @@ def FullyHonestOpening (f : QueryImpl HashSpec Id) (cache : QueryCache HashSpec)
       (ftsRecover secretKey.parameter index (slotValue leaves) signature.fts)
 
 theorem exact_bottom_message_eq_fts_key (f : QueryImpl HashSpec Id) (secretKey : SecretKey)
-    (signedIndex forgedIndex : Index) (message : EncMessage)
+    (signedIndex forgedIndex : Index) (message : Digest)
     (htree : treeIndexAt signedIndex bottomLayer = treeIndexAt forgedIndex bottomLayer)
     (hleaf : leafIndexAt signedIndex bottomLayer = leafIndexAt forgedIndex bottomLayer)
     (hmessage : evalWithAnswerFn f (layerMessage secretKey signedIndex bottomLayer) = message) :
-    message = (0, honestFtsKey f secretKey.parameter forgedIndex (secretKey.ftsSecret forgedIndex)) := by
+    message = honestFtsKey f secretKey.parameter forgedIndex (secretKey.ftsSecret forgedIndex) := by
   have hindex := index_eq_of_bottom_position_eq htree hleaf
   subst signedIndex
   rw [← hmessage, layerMessage_bottomLayer]
-  simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure]
   rfl
 
 end SphincsSecurity.Concrete
