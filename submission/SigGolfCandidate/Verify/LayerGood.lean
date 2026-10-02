@@ -148,7 +148,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     · subst hp; exact hK1 _ (by simp [foldK, fk, gkOf])
     · subst hp; exact h12
     · subst hp; rw [kf _ (by simp [fkeep])]; exact h27
-    · subst hp; exact hK1 (.x22, BitVec.ofNat 64 (s6N lay)) (by simp [foldK, s6N_eq])
+    · subst hp; exact hK1 (.x29, BitVec.ofNat 64 (s6N lay)) (by simp [foldK, s6N_eq])
   · simp only [routeReg, routeIn, if_neg (show lay - 1 ≠ 4 by omega)]
     rw [kf _ (by simp [fkeep]), h30]
     simp only [LCtx.tau, LCtx.lay, if_neg (show lay ≠ 0 by omega)]
@@ -453,6 +453,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The cycles of the five layers and the comparison (`8`). Against the head without the pair
 message: `-14` per lower layer (no root hash) and `+4` in each upper transition (the sibling copy). -/
-theorem layersCost_5 : layersCost 5 = 7451 := by decide
+theorem layersCost_5 : layersCost 5 = 7446 := by decide
 
 end SigGolfCandidate.Verify

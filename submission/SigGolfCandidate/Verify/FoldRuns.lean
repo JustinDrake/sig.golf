@@ -52,7 +52,11 @@ def m4Off (lay ci kk : Nat) : Nat := ((m4OffTab.getD lay []).getD ci []).getD kk
 def nCh (lay : Nat) : Nat := if lay = 0 then 2 else 1
 def chB0 (lay ci : Nat) : Nat := if lay = 0 ∧ ci = 1 then 6 else 0
 def chBits (lay ci : Nat) : Nat := if lay = 0 then (if ci = 0 then 6 else 5) else heightL lay
-def heapU (lay e : Nat) : Nat := if lay = 0 then 4095 - e else e + 2 ^ heightL lay
+/-- The fold-dispatch page offset `m4Hi lay 0 / 512` that layers 1..4 add into `x23`. -/
+def uOff (lay : Nat) : Nat := if lay = 1 then 456 else if lay = 2 then 392 else 328
+/-- `x23` from the transition on: layer 0 the reflected heap index, layers 1..4 the heap index plus
+the dispatch page offset (`addi` replaces the sentinel `ori`). -/
+def heapU (lay e : Nat) : Nat := if lay = 0 then 4095 - e else e + 2 ^ heightL lay + uOff lay
 
 
 /-- The chunk holding level `lam`. -/
@@ -89,7 +93,7 @@ def dispGp (lay ci : Nat) : E :=
     else if ci = 0 then mkBin .and (.reg .x23) (cw 63)
     else mkBin .and (.reg .x23) (.c (BitVec.ofNat 64 (2 ^ 64 - 64)))
   let sh := if nCh lay = 2 ∧ ci = 1 then m4Sh lay ci + 2 - 6 else m4Sh lay ci + 2
-  if nCh lay = 1 then mkBin .sll (mkAdd (.reg .x23) (cw (m4Hi lay ci / 2 ^ sh))) (cw sh)
+  if nCh lay = 1 then mkBin .sll (.reg .x23) (cw sh)
   else mkAdd (mkBin .sll idx (cw sh)) (cw (m4Hi lay ci))
 
 /-- The target of the chunk dispatch (`jalr zero, lo(gp)`). -/
@@ -103,7 +107,7 @@ constant 1 at the root, M4c constants (`sw R`) at depths 1 and 2 of the last chu
 def lvlNb (lay ci v kk : Nat) : E :=
   let lam := chB0 lay ci + kk
   if lam + 1 = heightL lay then cw 1
-  else if kk + 1 < chBits lay ci ∧ isConstLvl lay lam = true then
+  else if kk + 1 < chBits lay ci ∧ (isConstLvl lay lam = true ∨ lay ≠ 0) then
     cw (if lay = 0 then 3 * 2 ^ (heightL lay - (lam + 1)) - 1 -
       (2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1))
       else 2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1))
@@ -118,7 +122,7 @@ def lvlMem (lay lam t : Nat) (nb : E) : List (Addr × E) :=
 
 /-- Known registers at the start of level `lam`. -/
 def foldK (lay len : Nat) : List (Reg × Word) :=
-  fk false 0x340 len ++ [(.x22, BitVec.ofNat 64 (5632 + 2688 * lay))]
+  fk false 0x340 len ++ [(.x29, BitVec.ofNat 64 (5632 + 2688 * lay))]
 
 def lvlK (lay lam : Nat) : List (Reg × Word) :=
   foldK lay (if lam = 0 then 704 else 64)
@@ -142,6 +146,7 @@ def lvlExp (lay ci v kk : Nat) : PRes :=
     ⟨⟨(lvlRegs lay lam).set .x12 (cw (dstOf lay)), mem, []⟩, pcOf (m4Pc lay ci v kk + 8), true, 6, 6, [], none⟩
   else if kk + 1 < chBits lay ci then
     let rf := if isConstLvl lay lam then lvlRegs lay lam
+      else if lay ≠ 0 then (lvlRegs lay lam).set .x25 (cw (2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1)))
       else (lvlRegs lay lam).set .x25 (.bin .srl (.reg .x23) (cw (lam + 1)))
     let n := hs + (if isConstLvl lay lam then 6 else 7)
     ⟨⟨rf.set .x12 (cw (nodeDst lay (lam + 1) (v / 2 ^ (kk + 1) % 2))), mem, []⟩,
