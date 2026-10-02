@@ -90,6 +90,9 @@ def notOne : E := .c (~~~1#64)
 def eHalf : E := .bin .srl (.reg .x23) (cw 1)
 /-- Both halves of a header word 1 written by `sw s6, 24; sw v, 28` over the old word `old`. -/
 def sw2E (old v : E) : E := .bin (.st .w 4) (.bin (.st .w 0) old (.reg .x22)) v
+/-- Fixed index in the upper half of the tag word. -/
+def swTreeE (tag : E) : E := .bin (.st .w 4) tag (.reg .x22)
+
 
 /-! ## Setup -/
 
@@ -112,8 +115,8 @@ def leafKnown (s : Nat) : List (Reg × Word) :=
 def leafSpec (s : Nat) : Spec :=
   ⟨[(.x23, .ld (cw (ETABs s))), (.x10, cw (WIT + 64 + 48 * s))],
     [(⟨none, BitVec.ofNat 64 (leafT s + 8)⟩,
-        sw2E (.ld (cw (leafT s + 8))) (.bin .and (.ld (cw (ETABs s))) (cw 2047))),
-      (⟨none, BitVec.ofNat 64 (leafT s)⟩, cw (0x901 + 65536 * (s / 3)))],
+        (.bin .and (.ld (cw (ETABs s))) (cw 2047))),
+      (⟨none, BitVec.ofNat 64 (leafT s)⟩, swTreeE (cw (0x901 + 65536 * (s / 3))))],
     leafDisp s, false, (if s % 3 = 1 then 6 else 7), [], none, (if s % 3 = 1 then 6 else 7)⟩
 
 def leafPost (s : Nat) : List (Reg × Word) :=
@@ -189,10 +192,10 @@ def entCheck (tb lo n : Nat) : Bool := (List.range' lo n).all fun b => entCheck1
 /-! ## Rungs -/
 
 def rungMem (r : Nat) : List (Addr × E) :=
-  [(a4A (80 * r + 24), sw2E (.ld (a4E (80 * r + 24))) eHalf), (a4A (80 * r + 16), .reg .x27)]
+  [(a4A (80 * r + 24), eHalf), (a4A (80 * r + 16), swTreeE (.reg .x27))]
 
 def rungObl (r : Nat) : List Oblig :=
-  [.valid (a4A (80 * r + 28)) 4, .align8 (.reg .x14), .valid (a4A (80 * r + 24)) 4, .valid (a4A (80 * r + 16)) 8]
+  [.valid (a4A (80 * r + 24)) 8, .align8 (.reg .x14), .valid (a4A (80 * r + 20)) 4, .valid (a4A (80 * r + 16)) 8]
 
 /-- The next fold's side `t' = (E >> 1) & 1` as the sign of `(E >> 1) << 63`. -/
 def sideE : E := .bin .sll eHalf (cw 63)
@@ -226,8 +229,8 @@ def qBr (d : Nat) (dd : Bool) : Br := ⟨.ne, .ld (cw (frameA d - 16)), .reg .x2
 
 def tailMSpec (c d : Nat) : Spec :=
   ⟨[(.x23, eHalf), (.x10, cw (frameA d)), (.x15, cw (frameA d - 80))],
-    [(⟨none, BitVec.ofNat 64 (frameA d + 24)⟩, sw2E (.ld (cw (frameA d + 24))) eHalf),
-      (⟨none, BitVec.ofNat 64 (frameA d + 16)⟩, .reg .x27)],
+    [(⟨none, BitVec.ofNat 64 (frameA d + 24)⟩, eHalf),
+      (⟨none, BitVec.ofNat 64 (frameA d + 16)⟩, swTreeE (.reg .x27))],
     mDispPc c, false, 8, [qBr d false], none, 8⟩
 
 def tailMCheck1 (c d : Nat) : Bool :=

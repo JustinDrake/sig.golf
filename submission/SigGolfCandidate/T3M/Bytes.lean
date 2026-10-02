@@ -307,7 +307,9 @@ theorem hdr1_lt (tree index : Nat) : hdr1 tree index < 2 ^ 64 := by
   omega
 
 theorem header_toNat (tag lay tree position index : Nat) :
-    (header tag lay tree position index).toNat = hdr0 tag lay tree position + 2 ^ 64 * hdr1 tree index := by
+    (header tag lay tree position index).toNat =
+      if T3.packedNodeTag tag then hdr0 tag lay tree tree + 2 ^ 64 * hdr1 index position
+      else hdr0 tag lay tree position + 2 ^ 64 * hdr1 tree index := by
   unfold header hdr0 hdr1
   rw [BitVec.toNat_ofNat]
   have ht := Nat.mod_lt tag (by decide : 0 < 256)
@@ -316,33 +318,105 @@ theorem header_toNat (tag lay tree position index : Nat) :
   have hp := Nat.mod_lt position (by decide : 0 < 2 ^ 32)
   have htl := Nat.mod_lt tree (by decide : 0 < 2 ^ 32)
   have hi := Nat.mod_lt index (by decide : 0 < 2 ^ 32)
-  rw [Nat.mod_eq_of_lt (by omega)]
-  omega
+  split_ifs <;> rw [Nat.mod_eq_of_lt (by omega)] <;> omega
 
 theorem header_lo (tag lay tree position index : Nat) :
-    (header tag lay tree position index).extractLsb' 0 64 = BitVec.ofNat 64 (hdr0 tag lay tree position) := by
+    (header tag lay tree position index).extractLsb' 0 64 =
+      BitVec.ofNat 64 (if T3.packedNodeTag tag then hdr0 tag lay tree tree else hdr0 tag lay tree position) := by
   apply BitVec.eq_of_toNat_eq
   have h0 := hdr0_lt tag lay tree position
+  have hp := hdr0_lt tag lay tree tree
   have h1 := hdr1_lt tree index
+  have hq := hdr1_lt index position
   rw [BitVec.extractLsb'_toNat, header_toNat, BitVec.toNat_ofNat, Nat.shiftRight_zero]
-  generalize hdr0 tag lay tree position = a at *
-  generalize hdr1 tree index = b at *
-  omega
+  split_ifs <;> omega
 
 theorem header_hi (tag lay tree position index : Nat) :
-    (header tag lay tree position index).extractLsb' 64 64 = BitVec.ofNat 64 (hdr1 tree index) := by
+    (header tag lay tree position index).extractLsb' 64 64 =
+      BitVec.ofNat 64 (if T3.packedNodeTag tag then hdr1 index position else hdr1 tree index) := by
   apply BitVec.eq_of_toNat_eq
   have h0 := hdr0_lt tag lay tree position
+  have hp := hdr0_lt tag lay tree tree
   have h1 := hdr1_lt tree index
+  have hq := hdr1_lt index position
   rw [BitVec.extractLsb'_toNat, header_toNat, BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow]
-  generalize hdr0 tag lay tree position = a at *
-  generalize hdr1 tree index = b at *
-  omega
+  split_ifs <;> omega
 
 theorem wordsOf_header (tag lay tree position index : Nat) :
     wordsOf (bytesLE 16 (header tag lay tree position index)) =
-      [BitVec.ofNat 64 (hdr0 tag lay tree position), BitVec.ofNat 64 (hdr1 tree index)] := by
+      [BitVec.ofNat 64 (if T3.packedNodeTag tag then hdr0 tag lay tree tree else hdr0 tag lay tree position),
+       BitVec.ofNat 64 (if T3.packedNodeTag tag then hdr1 index position else hdr1 tree index)] := by
   rw [wordsOf_bytesLE16, header_lo, header_hi]
+
+theorem header_packed_lo (tag lay tree position index : Nat)
+    (hn : T3.packedNodeTag tag := by decide) :
+    (header tag lay tree position index).extractLsb' 0 64 = BitVec.ofNat 64 (hdr0 tag lay tree tree) := by
+  apply BitVec.eq_of_toNat_eq
+  have h0 := hdr0_lt tag lay tree tree
+  have h1 := hdr1_lt index position
+  rw [BitVec.extractLsb'_toNat, header_toNat, if_pos hn, BitVec.toNat_ofNat, Nat.shiftRight_zero]
+  generalize hdr0 tag lay tree tree = a at *
+  generalize hdr1 index position = b at *
+  omega
+
+theorem header_packed_hi (tag lay tree position index : Nat)
+    (hn : T3.packedNodeTag tag := by decide) :
+    (header tag lay tree position index).extractLsb' 64 64 = BitVec.ofNat 64 (hdr1 index position) := by
+  apply BitVec.eq_of_toNat_eq
+  have h0 := hdr0_lt tag lay tree tree
+  have h1 := hdr1_lt index position
+  rw [BitVec.extractLsb'_toNat, header_toNat, if_pos hn, BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow]
+  generalize hdr0 tag lay tree tree = a at *
+  generalize hdr1 index position = b at *
+  omega
+
+theorem header_packed_lo_3 (lay tree position index : Nat) :
+    (header 3 lay tree position index).extractLsb' 0 64 = BitVec.ofNat 64 (hdr0 3 lay tree tree) :=
+  header_packed_lo 3 lay tree position index (by decide)
+
+theorem header_packed_hi_3 (lay tree position index : Nat) :
+    (header 3 lay tree position index).extractLsb' 64 64 = BitVec.ofNat 64 (hdr1 index position) :=
+  header_packed_hi 3 lay tree position index (by decide)
+
+theorem header_packed_lo_9 (lay tree position index : Nat) :
+    (header 9 lay tree position index).extractLsb' 0 64 = BitVec.ofNat 64 (hdr0 9 lay tree tree) :=
+  header_packed_lo 9 lay tree position index (by decide)
+
+theorem header_packed_hi_9 (lay tree position index : Nat) :
+    (header 9 lay tree position index).extractLsb' 64 64 = BitVec.ofNat 64 (hdr1 index position) :=
+  header_packed_hi 9 lay tree position index (by decide)
+
+theorem header_packed_lo_10 (lay tree position index : Nat) :
+    (header 10 lay tree position index).extractLsb' 0 64 = BitVec.ofNat 64 (hdr0 10 lay tree tree) :=
+  header_packed_lo 10 lay tree position index (by decide)
+
+theorem header_packed_hi_10 (lay tree position index : Nat) :
+    (header 10 lay tree position index).extractLsb' 64 64 = BitVec.ofNat 64 (hdr1 index position) :=
+  header_packed_hi 10 lay tree position index (by decide)
+
+/-- The same five fields, permuted so the changing node is a whole word. -/
+theorem wordsOf_packed_header (tag lay tree position index : Nat)
+    (hn : T3.packedNodeTag tag := by decide) :
+    wordsOf (bytesLE 16 (header tag lay tree position index)) =
+      [BitVec.ofNat 64 (hdr0 tag lay tree tree), BitVec.ofNat 64 (hdr1 index position)] := by
+  rw [wordsOf_bytesLE16]
+  have h0 := hdr0_lt tag lay tree tree
+  have h1 := hdr1_lt index position
+  have hlo : (header tag lay tree position index).extractLsb' 0 64 =
+      BitVec.ofNat 64 (hdr0 tag lay tree tree) := by
+    apply BitVec.eq_of_toNat_eq
+    rw [BitVec.extractLsb'_toNat, header_toNat, if_pos hn, BitVec.toNat_ofNat, Nat.shiftRight_zero]
+    generalize hdr0 tag lay tree tree = a at *
+    generalize hdr1 index position = b at *
+    omega
+  have hhi : (header tag lay tree position index).extractLsb' 64 64 =
+      BitVec.ofNat 64 (hdr1 index position) := by
+    apply BitVec.eq_of_toNat_eq
+    rw [BitVec.extractLsb'_toNat, header_toNat, if_pos hn, BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow]
+    generalize hdr0 tag lay tree tree = a at *
+    generalize hdr1 index position = b at *
+    omega
+  rw [hlo, hhi]
 
 /-- `hdr0` without the overflow guards (`tag, lay < 256`, `tree, position < 2^32`). -/
 theorem hdr0_eq (tag lay tree position : Nat) (ht : tag < 256) (hl : lay < 256) (htr : tree < 2 ^ 32)
