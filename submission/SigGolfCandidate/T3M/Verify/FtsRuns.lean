@@ -5,13 +5,13 @@ import SigGolfCandidate.T3M.Verify.Select
 
 Code (instruction indices of the frozen image, `t3m/images/verify.labels`): `fts_setup` 359; leaf `s = 3 c + j` at
 `leafPc s` (11 / 10 / 11 instructions for `j = 0, 1, 2`: table switch, `ld s7, ETAB + 8 s`, the leaf block's `T`, the
-dispatch `lbu gp, 880(a4); slli 5; add s4; jalr s8`); `coord_end_c` at `coordEndPc c`; `forest` 648; the segment tables
+dispatch `lbu gp, 880(a4); slli 5; add s4; jalr s8`); `coord_end_c` at `coordEndPc c`; `forest` 647; the segment tables
 `ptab_n` 744 / `ptab_l` 2792 (256 slots of 8 words); `entry0_{M,P,F}` 4841 / 4856 / 4862; the ladders `lad_X_t_r` at
-`ladBase X t + 9 r` (`X` = 0 M (merge), 1 P (push), 2 F (final)); their tails after the destination hash
+`ladBase X t + 8 r` (`X` = 0 M (merge), 1 P (push), 2 F (final)); their tails after the destination hash
 (`tailPc X c`, copy `c` = ladder `t` or `2` = `entry0_X`).
 
 Families (each a path run checked by `specB` in `FtsCheck`):
-* `setupCheck'` (359 → 392: a `j` over fifteen filler words, then 17 instructions), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
+* `setupCheck'` (359 → 377), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
   slot address), `slotCheck tb b` (to the pending hash / HALT(1)), `entCheck tb b` (`j lad`), `rungCheck X t r t'`
   (fold `r` to its hash, switching to ladder `t'`), `lastCheck X t` (rung 10 to the destination hash),
   `tailMCheck c d`, `tailPCheck c d`, `tailFCheck c`, `coordCheck c`, `forestCheck`.
@@ -35,23 +35,31 @@ def FOREST : Nat := 0x700
 /-- The forest-frame slot of coordinate `c`'s root (`[root_0 | T | root_1 .. root_6]`). -/
 def forestSlot (c : Nat) : Nat := if c = 0 then 0x700 else 0x710 + 16 * c
 
-/-- Constant registers of the FTS phase: `t0`, `s2`, `a1 = 64`, `t4 = A4_LIMIT`, `t6 = 1 << 16`, the two tables,
-and the coordinate-end comparands `t1 = 1` (the root's heap index) and `s3 = frameA 0` (the empty stack). -/
+/-- Constant registers of the FTS phase: `t0`, `s2`, `a1 = 64`, `t4 = A4_LIMIT`, `t6 = 1 << 16`, the two tables. -/
 def gkF : List (Reg × Word) :=
   baseK ++ [(.x11, 64), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x31, 0x10000), (.x26, BitVec.ofNat 64 tbN),
-    (.x21, BitVec.ofNat 64 tbL), (.x6, 1), (.x19, BitVec.ofNat 64 (frameA 0))]
+    (.x21, BitVec.ofNat 64 tbL)]
 
 /-- The coordinate words: `s11 = w0` of a node header, `t3 = w0` of a leaf header (coordinate `c`). -/
 def ckF (c : Nat) : List (Reg × Word) :=
   [(.x27, BitVec.ofNat 64 (0xa01 + 65536 * c)), (.x28, BitVec.ofNat 64 (0x901 + 65536 * c))]
 
-def leafPc (s : Nat) : Nat := 392 + 37 * (s / 3) + (if s % 3 = 0 then 0 else if s % 3 = 1 then 11 else 21)
+/-- Fully assembled node address word, plus the unchanged leaf tag word. -/
+def packedCK (c index : Nat) : List (Reg × Word) :=
+  [(.x27, BitVec.ofNat 64 (hdr1 (0xa01 + 65536 * c) index)),
+   (.x28, BitVec.ofNat 64 (0x901 + 65536 * c))]
+
+/-- Only the leaf tag remains a compile-time constant. -/
+def leafCK (c : Nat) : List (Reg × Word) :=
+  [(.x28, BitVec.ofNat 64 (0x901 + 65536 * c))]
+
+def leafPc (s : Nat) : Nat := 377 + 39 * (s / 3) + (if s % 3 = 0 then 0 else if s % 3 = 1 then 11 else 21)
 /-- The dispatch (`lbu`) of leaf `s`. -/
 def leafDisp (s : Nat) : Nat := leafPc s + (if s % 3 = 1 then 6 else 7)
 /-- The link of leaf `s`'s dispatch: the next leaf, or `coord_end` after leaf 2. -/
 def leafRet (s : Nat) : Nat := leafPc s + (if s % 3 = 1 then 10 else 11)
-def coordEndPc (c : Nat) : Nat := 392 + 37 * c + 32
-def forestPc : Nat := 648
+def coordEndPc (c : Nat) : Nat := 377 + 39 * c + 32
+def forestPc : Nat := 647
 /-- The layer-3 transition (`xtr3_1`), right after the forest HASH. -/
 def layerPc : Nat := 656
 
@@ -72,14 +80,14 @@ def ladBase (X t : Nat) : Nat :=
   if X = 0 then (if t = 0 then 4865 else 4975)
   else if X = 1 then (if t = 0 then 5085 else 5186)
   else (if t = 0 then 5287 else 5385)
-def ladPc (X t r : Nat) : Nat := ladBase X t + 9 * r
+def ladPc (X t r : Nat) : Nat := ladBase X t + 8 * r
 /-- `lbr_X_t_r` (`r ≥ 1`): the `addi a2` before the rung hash of fold `r - 1`. -/
-def lbrPc (X t r : Nat) : Nat := ladBase X t + 9 * r - 2
+def lbrPc (X t r : Nat) : Nat := ladBase X t + 8 * r - 2
 def entry0Pc (X : Nat) : Nat := if X = 0 then 4841 else if X = 1 then 4856 else 4862
 /-- The tail after the destination hash, copy `c` (`0, 1` = last rung of ladder `t = c`; `2` = `entry0_X`). -/
-def tailPc (X c : Nat) : Nat := if c = 2 then entry0Pc X + 2 else ladPc X c 10 + 7
+def tailPc (X c : Nat) : Nat := if c = 2 then entry0Pc X + 2 else ladPc X c 10 + 6
 /-- The dispatch inside the merge tail copy `c`. -/
-def mDispPc (c : Nat) : Nat := tailPc 0 c + 8
+def mDispPc (c : Nat) : Nat := tailPc 0 c + 7
 
 /-! ## Expression helpers -/
 
@@ -91,11 +99,14 @@ def notOne : E := .c (~~~1#64)
 def eHalf : E := .bin .srl (.reg .x23) (cw 1)
 /-- Both halves of a header word 1 written by `sw s6, 24; sw v, 28` over the old word `old`. -/
 def sw2E (old v : E) : E := .bin (.st .w 4) (.bin (.st .w 0) old (.reg .x22)) v
+/-- Fixed index in the upper half of the tag word. -/
+def swTreeE (tag : E) : E := .bin (.st .w 4) tag (.reg .x22)
+
 
 /-! ## Setup -/
 
 def setupPost : List (Reg × Word) :=
-  gkF ++ ckF 0 ++ [(.x14, BitVec.ofNat 64 A4_0), (.x15, BitVec.ofNat 64 (frameA 0)), (.x25, BitVec.ofNat 64 FOREST)]
+  gkF ++ leafCK 0 ++ [(.x14, BitVec.ofNat 64 A4_0), (.x15, BitVec.ofNat 64 (frameA 0)), (.x25, BitVec.ofNat 64 FOREST)]
 
 /-- T3K: the setup's six constants are loaded from the embedded data (words 359 .. 365: `lui sp, 0x1000` and six
 `ld`, data words 5 .. 10); the rest of the setup is words 366 .. 371 and `j 377` at 372. -/
@@ -111,9 +122,10 @@ def setupLdSpec : Spec :=
 def setupLdCheckF : Bool := specB [] [] baseK (runAt baseK [366] 359 []) setupLdSpec [] baseK [.x22]
 
 def setupSpecF : Spec :=
-  ⟨[], [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 392, false, 9, [], none, 9⟩
+  ⟨[(.x27, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0xa01))],
+    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 377, false, 9, [], none, 9⟩
 
-def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [392] 366 []) setupSpecF [] setupPost [.x22]
+def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [377] 366 []) setupSpecF [] setupPost [.x22]
 
 /-! ## Leaf code (to the dispatch) -/
 
@@ -121,24 +133,24 @@ def ETABs (s : Nat) : Nat := ETAB + 8 * s
 def leafT (s : Nat) : Nat := WIT + 64 + 48 * s + 16
 
 def leafKnown (s : Nat) : List (Reg × Word) :=
-  gkF ++ ckF (s / 3) ++ (if s % 3 = 1 then [(.x20, BitVec.ofNat 64 tbN)] else [])
+  gkF ++ leafCK (s / 3) ++ (if s % 3 = 1 then [(.x20, BitVec.ofNat 64 tbN)] else [])
 
 def leafSpec (s : Nat) : Spec :=
   ⟨[(.x23, .ld (cw (ETABs s))), (.x10, cw (WIT + 64 + 48 * s))],
     [(⟨none, BitVec.ofNat 64 (leafT s + 8)⟩,
-        sw2E (.ld (cw (leafT s + 8))) (.bin .and (.ld (cw (ETABs s))) (cw 2047))),
-      (⟨none, BitVec.ofNat 64 (leafT s)⟩, cw (0x901 + 65536 * (s / 3)))],
+        (.bin .and (.ld (cw (ETABs s))) (cw 2047))),
+      (⟨none, BitVec.ofNat 64 (leafT s)⟩, swTreeE (cw (0x901 + 65536 * (s / 3))))],
     leafDisp s, false, (if s % 3 = 1 then 6 else 7), [], none, (if s % 3 = 1 then 6 else 7)⟩
 
 def leafPost (s : Nat) : List (Reg × Word) :=
-  gkF ++ ckF (s / 3) ++ [(.x20, BitVec.ofNat 64 (tabPc (tselJ (s % 3))))]
+  gkF ++ leafCK (s / 3) ++ [(.x20, BitVec.ofNat 64 (tabPc (tselJ (s % 3))))]
 
 /-- The two words of leaf `s`'s header slot (the only witness words the leaf code writes). -/
 def leafAllow (s : Nat) : List Nat := [leafT s, leafT s + 8]
 
 def leafCheck (s : Nat) : Bool :=
   specB (leafAllow s) [] gkF (runAt (leafKnown s) [leafDisp s] (leafPc s) []) (leafSpec s) [] (leafPost s)
-    [.x14, .x15, .x22, .x25]
+    [.x14, .x15, .x22, .x25, .x27]
 
 /-! ## Dispatch -/
 
@@ -203,10 +215,10 @@ def entCheck (tb lo n : Nat) : Bool := (List.range' lo n).all fun b => entCheck1
 /-! ## Rungs -/
 
 def rungMem (r : Nat) : List (Addr × E) :=
-  [(a4A (80 * r + 24), sw2E (.ld (a4E (80 * r + 24))) eHalf), (a4A (80 * r + 16), .reg .x27)]
+  [(a4A (80 * r + 24), eHalf), (a4A (80 * r + 16), .reg .x27)]
 
 def rungObl (r : Nat) : List Oblig :=
-  [.valid (a4A (80 * r + 28)) 4, .align8 (.reg .x14), .valid (a4A (80 * r + 24)) 4, .valid (a4A (80 * r + 16)) 8]
+  [.valid (a4A (80 * r + 24)) 8, .valid (a4A (80 * r + 16)) 8]
 
 /-- The next fold's side `t' = (E >> 1) & 1` as the sign of `(E >> 1) << 63`. -/
 def sideE : E := .bin .sll eHalf (cw 63)
@@ -215,7 +227,7 @@ def rungBr (t t' : Nat) : Br := ⟨if t = 1 then .ge else .lt, sideE, .c 0, cros
 
 def rungSpec (X t r t' : Nat) : Spec :=
   ⟨[(.x10, a4E (80 * r)), (.x23, eHalf), (.x12, a4E (80 * (r + 1) + 48 * t'))], rungMem r,
-    lbrPc X t' (r + 1) + 1, true, 8, [rungBr t t'], none, 8⟩
+    lbrPc X t' (r + 1) + 1, true, 7, [rungBr t t'], none, 7⟩
 
 def rungKeep : List Reg := [.x14, .x15, .x20, .x22, .x24, .x25, .x27, .x28]
 
@@ -223,7 +235,7 @@ def rungCheck1 (X t r t' : Nat) : Bool :=
   specB [] [.x14] gkF (runAt gkF [] (ladPc X t r) [.br (crossD t t')]) (rungSpec X t r t') (rungObl r) gkF rungKeep
 
 def lastSpec (X : Nat) (t : Nat) : Spec :=
-  ⟨[(.x10, a4E 800), (.x23, eHalf), (.x12, destE X)], rungMem 10, ladPc X t 10 + 6, true, 6, [], none, 6⟩
+  ⟨[(.x10, a4E 800), (.x23, eHalf), (.x12, destE X)], rungMem 10, ladPc X t 10 + 5, true, 5, [], none, 5⟩
 
 def lastCheck1 (X t : Nat) : Bool :=
   specB [] [.x14] gkF (runAt gkF [] (ladPc X t 10) []) (lastSpec X t) (rungObl 10) gkF rungKeep
@@ -240,9 +252,9 @@ def qBr (d : Nat) (dd : Bool) : Br := ⟨.ne, .ld (cw (frameA d - 16)), .reg .x2
 
 def tailMSpec (c d : Nat) : Spec :=
   ⟨[(.x23, eHalf), (.x10, cw (frameA d)), (.x15, cw (frameA d - 80))],
-    [(⟨none, BitVec.ofNat 64 (frameA d + 24)⟩, sw2E (.ld (cw (frameA d + 24))) eHalf),
+    [(⟨none, BitVec.ofNat 64 (frameA d + 24)⟩, eHalf),
       (⟨none, BitVec.ofNat 64 (frameA d + 16)⟩, .reg .x27)],
-    mDispPc c, false, 8, [qBr d false], none, 8⟩
+    mDispPc c, false, 7, [qBr d false], none, 7⟩
 
 def tailMCheck1 (c d : Nat) : Bool :=
   (d = 0 || specB [] [] gkF (runAt (ka5 d) [mDispPc c] (tailPc 0 c) [.br false]) (tailMSpec c d) []
@@ -269,32 +281,33 @@ def tailCheck : Bool :=
 
 /-! ## Coordinate end and forest -/
 
-def eBr (d : Bool) : Br := ⟨.ne, .reg .x23, .c 1, d⟩
+def eBr (d : Bool) : Br := ⟨.ne, addC (.reg .x23) (-1#64), .c 0, d⟩
 def sBr (d : Bool) : Br := ⟨.ne, .reg .x15, .c (BitVec.ofNat 64 (frameA 0)), d⟩
 
-def coordKnown (c : Nat) : List (Reg × Word) := gkF ++ ckF c ++ [(.x25, BitVec.ofNat 64 (forestSlot c))]
+def coordKnown (c : Nat) : List (Reg × Word) := gkF ++ leafCK c ++ [(.x25, BitVec.ofNat 64 (forestSlot c))]
 def coordNext (c : Nat) : Nat := if c < 6 then leafPc (3 * (c + 1)) else forestPc
 def coordPost (c : Nat) : List (Reg × Word) := if c < 6 then coordKnown (c + 1) else coordKnown c
 
 def coordSpec (c : Nat) : Spec :=
-  ⟨[], [], coordNext c, false, if c < 6 then 5 else 2, [sBr false, eBr false], none, if c < 6 then 5 else 2⟩
+  ⟨[(.x27, if c < 6 then .bin .add (.reg .x27) (cw 65536) else .reg .x27)],
+    [], coordNext c, false, if c < 6 then 7 else 4, [sBr false, eBr false], none, if c < 6 then 7 else 4⟩
 
 def coordCheck1 (c : Nat) : Bool :=
   specB [] [] gkF (runAt (coordKnown c) [coordNext c] (coordEndPc c) [.br false, .br false]) (coordSpec c) []
     (coordPost c) [.x14, .x15, .x22, .x23] &&
-  specB [] [] [] (runAt (coordKnown c) [] (coordEndPc c) [.br true]) (rejSpec 4 [eBr true]) [] [] [] &&
+  specB [] [] [] (runAt (coordKnown c) [] (coordEndPc c) [.br true]) (rejSpec 5 [eBr true]) [] [] [] &&
   specB [] [] [] (runAt (coordKnown c) [] (coordEndPc c) [.br false, .br true])
-    (rejSpec 5 [sBr true, eBr false]) [] [] []
+    (rejSpec 7 [sBr true, eBr false]) [] [] []
 
 def capBr (d : Bool) : Br := ⟨.ltu, .c (BitVec.ofNat 64 A4_LIMIT), .reg .x14, d⟩
 
 def forestSpecF : Spec :=
   ⟨[(.x10, cw FOREST), (.x11, cw 128), (.x12, cw 0x100)],
     [(⟨none, BitVec.ofNat 64 (FOREST + 24)⟩, .reg .x22), (⟨none, BitVec.ofNat 64 (FOREST + 16)⟩, cw 0xb01)],
-    655, true, 7, [capBr false], none, 7⟩
+    655, true, 8, [capBr false], none, 8⟩
 
 def forestCheckF : Bool :=
-  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] (baseK ++ [(.x6, 1)]) [.x22] &&
+  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] baseK [.x22] &&
   specB [] [] [] (runAt gkF [] forestPc [.br true]) (rejSpec 4 [capBr true]) [] [] []
 
 end SigGolfCandidate.T3M.Verify

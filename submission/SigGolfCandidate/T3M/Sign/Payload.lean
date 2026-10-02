@@ -46,6 +46,7 @@ theorem forestIn_words (index : Nat) {roots : List Digest} (hlen : roots.length 
   unfold forestIn
   rw [wordsOf_append _ _ (by simp only [List.length_append, bytesLE_length]),
     wordsOf_append _ _ (by simp only [bytesLE_length]), wordsOf_header]
+  rfl
 
 /-! ## The signature -/
 

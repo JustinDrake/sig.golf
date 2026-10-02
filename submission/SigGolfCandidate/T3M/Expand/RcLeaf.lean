@@ -21,11 +21,11 @@ theorem ftsLeafInput_length (c index node : Nat) (sec : Digest) :
 
 theorem wordsOf_ftsLeafInput (c index node : Nat) (sec : Digest) :
     wordsOf (pad64 (zero16 ++ bytesLE 16 (header 9 c index 0 node) ++ bytesLE 16 sec ++ zero16)) =
-      [0, 0, BitVec.ofNat 64 (hdr0 9 c index 0), BitVec.ofNat 64 (hdr1 index node), sec.extractLsb' 0 64,
+      [0, 0, BitVec.ofNat 64 (hdr0 9 c index index), BitVec.ofNat 64 (hdr1 node 0), sec.extractLsb' 0 64,
         sec.extractLsb' 64 64, 0, 0] := by
   rw [pad64_of_aligned _ (by rw [ftsLeafInput_length])]
   rw [wordsOf_append _ _ (by simp [bytesLE_length, zero16]), wordsOf_append _ _ (by simp [bytesLE_length, zero16]),
-    wordsOf_append _ _ (by simp [zero16]), wordsOf_zero16, wordsOf_header, wordsOf_bytesLE16]
+    wordsOf_append _ _ (by simp [zero16]), wordsOf_zero16, wordsOf_packed_header 9 _ _ _ _ (by decide), wordsOf_bytesLE16]
   rfl
 
 theorem replaceByte_zero (b : Nat) (hb : b < 256) :
@@ -178,7 +178,7 @@ theorem rc_leaf (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧
     rw [readWords_eight, wordsOf_ftsLeafInput, hfl _ (Or.inl rfl), hfl _ (Or.inr (Or.inl rfl)), m16, m24, m32, m40,
       hfl _ (Or.inr (Or.inr (Or.inl rfl))), hfl _ (Or.inr (Or.inr (Or.inr rfl))), hsec4.1,
       show 0x7010 + 16 * (3 * c + j) + 8 = 0x7010 + 16 * (3 * c + j) + 8 from rfl, hsec4.2,
-      hdr0_eq 9 c index 0 (by decide) (by omega) hi (by decide), hdr1_eq index node hi hnode32]
+      hdr0_eq 9 c index index (by decide) (by omega) hi hi, hdr1_eq node 0 hnode32 (by decide)]
     simp only [Nat.mul_zero, Nat.add_zero]
   have hv : hashArgumentsValid t5 = true :=
     hashArgs_const t5 FLEAF 64 NOUT x10_5 x11_5 x12_5 (by decide) (by decide) (by decide) (by decide) (by decide)

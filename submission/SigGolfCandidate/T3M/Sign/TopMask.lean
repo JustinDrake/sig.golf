@@ -126,6 +126,7 @@ theorem tp_mask_one {pre : List Digest} (hpl : pre.length < 10) {w : MachineStat
       fr (PRIV + 32) (by decide) (by unfold BaseA; simp), fr (PRIV + 40) (by decide) (by unfold BaseA; simp),
       fr (PRIV + 48) (by decide) (by unfold BaseA; simp), fr (PRIV + 56) (by decide) (by unfold BaseA; simp),
       hb.p0, hb.p8, hb.p32, hb.p40, hb.p48, hb.p56]
+    rfl
   have hv : hashArgumentsValid t2 = true :=
     hashArgs_const t2 PRIV 64 MOUT t2x10 t2x11 t2x12 (by decide) (by decide) (by decide) (by decide)
       (by decide)

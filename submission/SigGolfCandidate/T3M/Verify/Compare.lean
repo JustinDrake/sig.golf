@@ -3,7 +3,7 @@ import SigGolfCandidate.T3M.Verify.Judg
 
 /-! # The final comparison using the HALT exit code
 
-The low-word mismatch branches to the unchanged HALT(1) arm. Otherwise a subtraction of the high
+The root stays at its route-specific x12 destination. The low-word mismatch branches to the unchanged HALT(1) arm. Otherwise a subtraction of the high
 words supplies the HALT exit code, which is zero exactly when those words agree. Every accepting
 path takes seven instructions followed by HALT; the fuel bound conservatively remains nine.
 -/
@@ -34,18 +34,16 @@ theorem cmpDig_eq_iff (d e : Digest) :
 
 /-- The state at a compare copy. -/
 structure CmpIn (pk root : Digest) (t : MachineState) : Prop where
-  copy : ∃ c, c < 64 ∧ t.pc = pcOf (cmpPc c)
-  known : KnownOK baseK t
+  copy : ∃ c, c < 64 ∧ t.pc = pcOf (cmpPc c) ∧ KnownOK (cmpK c) t ∧ DigAt t (cmpDst c) root
   pk : PkOK pk t
-  root : DigAt t 384 root
 
-theorem cmpBr1_holds (t : MachineState) (x y : Word) (hx : t.getMem (BitVec.ofNat 64 384) = x)
-    (hy : t.getMem (BitVec.ofNat 64 160) = y) (d : Bool) : Br.holds t (cmpBr1 d) ↔ decide (x ≠ y) = d := by
+theorem cmpBr1_holds (c : Nat) (t : MachineState) (x y : Word) (hx : t.getMem (BitVec.ofNat 64 (cmpDst c)) = x)
+    (hy : t.getMem (BitVec.ofNat 64 160) = y) (d : Bool) : Br.holds t (cmpBr1 c d) ↔ decide (x ≠ y) = d := by
   simp only [Br.holds, cmpBr1, CmpOp.eval, E.eval, kw, hx, hy]
   cases d <;> simp [bne_iff_ne]
 
-theorem cmpBr2_holds (t : MachineState) (x y : Word) (hx : t.getMem (BitVec.ofNat 64 392) = x)
-    (hy : t.getMem (BitVec.ofNat 64 168) = y) (d : Bool) : Br.holds t (cmpBr2 d) ↔ decide (x ≠ y) = d := by
+theorem cmpBr2_holds (c : Nat) (t : MachineState) (x y : Word) (hx : t.getMem (BitVec.ofNat 64 (cmpDst c + 8)) = x)
+    (hy : t.getMem (BitVec.ofNat 64 168) = y) (d : Bool) : Br.holds t (cmpBr2 c d) ↔ decide (x ≠ y) = d := by
   simp only [Br.holds, cmpBr2, CmpOp.eval, E.eval, kw, hx, hy]
   cases d <;> simp [bne_iff_ne]
 
@@ -60,17 +58,17 @@ theorem cmpCheck_at (c : Nat) (hc : c < 64) : cmpCheck c = true :=
 /-- Comparing both words by the final HALT exit code takes at most eight cycles. -/
 theorem cmp_good (pk root : Digest) (t : MachineState) (h : CmpIn pk root t) (Q : Prop) (hQ : Q) :
     GoodQ t 9 8 Q 8 (pure (root == pk, 0)) := by
-  obtain ⟨c, hc, hpc⟩ := h.copy
+  obtain ⟨c, hc, hpc, hknown, hroot⟩ := h.copy
   have hck := cmpCheck_at c hc
   simp only [cmpCheck, Bool.and_eq_true] at hck
   obtain ⟨hA, hR1⟩ := hck
-  have hr0 : t.getMem (BitVec.ofNat 64 384) = root.extractLsb' 0 64 := h.root.1
-  have hr8 : t.getMem (BitVec.ofNat 64 392) = root.extractLsb' 64 64 := h.root.2
+  have hr0 : t.getMem (BitVec.ofNat 64 (cmpDst c)) = root.extractLsb' 0 64 := hroot.1
+  have hr8 : t.getMem (BitVec.ofNat 64 (cmpDst c + 8)) = root.extractLsb' 64 64 := hroot.2
   have hp0 : t.getMem (BitVec.ofNat 64 160) = pk.extractLsb' 0 64 := h.pk.1
   have hp8 : t.getMem (BitVec.ofNat 64 168) = pk.extractLsb' 64 64 := h.pk.2
-  have b1 := cmpBr1_holds t _ _ hr0 hp0
+  have b1 := cmpBr1_holds c t _ _ hr0 hp0
   by_cases hlo : root.extractLsb' 0 64 = pk.extractLsb' 0 64
-  · obtain ⟨u, hu⟩ := spec_run hA t hpc h.known (by
+  · obtain ⟨u, hu⟩ := spec_run hA t hpc hknown (by
       intro b hb
       simp only [cmpAcc, List.mem_cons, List.not_mem_nil, or_false] at hb
       subst hb
@@ -78,7 +76,7 @@ theorem cmp_good (pk root : Digest) (t : MachineState) (h : CmpIn pk root t) (Q 
     have h5 : u.getReg .x5 = 1 := hu.regs (.x5, kw 1) (by simp [cmpAcc])
     have h10 : u.getReg .x10 = root.extractLsb' 64 64 - pk.extractLsb' 64 64 := by
       simpa only [cmpDelta, E.eval, BinOp.eval, kw, hr8, hp8] using
-        hu.regs (.x10, cmpDelta) (by simp [cmpAcc])
+        hu.regs (.x10, cmpDelta c) (by simp [cmpAcc])
     have heq : u.getReg .x10 = 0 ↔ root = pk := by
       rw [h10]
       change root.extractLsb' 64 64 - pk.extractLsb' 64 64 = 0#64 ↔ root = pk
@@ -93,7 +91,7 @@ theorem cmp_good (pk root : Digest) (t : MachineState) (h : CmpIn pk root t) (Q 
       (fun q => ⟨q, by simp [cmpAcc]⟩)
   · have hne : root ≠ pk := fun e => hlo (by rw [e])
     rw [show (root == pk) = false from beq_eq_false_iff_ne.mpr hne]
-    obtain ⟨u, hu⟩ := spec_run hR1 t hpc h.known (by
+    obtain ⟨u, hu⟩ := spec_run hR1 t hpc hknown (by
       intro b hb
       simp only [cmpRej1, List.mem_cons, List.not_mem_nil, or_false] at hb
       subst hb

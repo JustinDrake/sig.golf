@@ -3,12 +3,12 @@ import SigGolfCandidate.T3M.Verify.Compose
 /-! # V3: the verify bounds and the whole run from the organizer's initial state
 
 The bounds are derived from the per-family costs (`Compose`):
-* **`cycleBound = 3078 + 6 + lCyc 4 = 9256`** (accepting runs): V2's words 0..358 and FTS through the forest HASH
-  (`127 + P + 911 + 16 F ≤ 3078`, `P ≤ 56`, `F ≤ 124`), T3K's layer-3 load block (6), V1's four layers to `LeafOut`
-  (`layerCost lay 0` = 1365 / 1349 / 1349 / 1278), V3's Merkle phases (`mkCyc` = 172 / 172 / 186 / 293) and the
+* **`cycleBound = 2956 + 6 + lCyc 4 = 9137`** (accepting runs): V2's words 0..358 and FTS through the forest HASH
+  (`128 + P + 912 + 15 F ≤ 2956`, `P ≤ 56`, `F ≤ 124`), T3K's layer-3 load block (6), V1's four layers to `LeafOut`
+  (`layerCost lay 0` = 1367 / 1349 / 1349 / 1280), V3's Merkle phases (`mkCyc` = 172 / 172 / 186 / 292) and the
   compare (8);
-* `cycleBoundAll = 7407 + 7999 = 15406` (every run, every oracle; V2's interface uses the layers' bound
-  `7999 ≥ 6 + lFuel 4` as their all-path cycle bound), `fuelBound = 7400 + 7999 = 15399` (steps).
+* `cycleBoundAll = 7405 + 7999 = 15404` (every run, every oracle; V2's interface uses the layers' bound
+  `7999 ≥ 6 + lFuel 4` as their all-path cycle bound), `fuelBound = 7398 + 7999 = 15397` (steps).
 
 `verify_good`: from `initialState submission .verify input`, `GoodQ s fuelBound cycleBoundAll True cycleBound
 (ccM (verifyP m pk w) Kb)`. -/
@@ -17,19 +17,19 @@ namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3M.Verify
 
-/-- The cycle bound of accepting runs: V2's 3078 through the forest HASH, the layer-3 load block (6) and `lCyc 4` for
+/-- The cycle bound of accepting runs: V2's 2956 through the forest HASH, the layer-3 load block (6) and `lCyc 4` for
 the layers and the compare. -/
-def cycleBound : Nat := 3078 + 6 + lCyc 4
+def cycleBound : Nat := 2956 + 6 + lCyc 4
 
 /-- A cycle bound of every run under every oracle. -/
-def cycleBoundAll : Nat := 7407 + 7999
+def cycleBoundAll : Nat := 7405 + 7999
 
 /-- A step bound (fuel) sufficient for every run. -/
-def fuelBound : Nat := 7400 + 7999
+def fuelBound : Nat := 7398 + 7999
 
-theorem cycleBound_eq : cycleBound = 9256 := by unfold cycleBound; rw [lCyc_4]
-theorem cycleBoundAll_eq : cycleBoundAll = 15406 := rfl
-theorem fuelBound_eq : fuelBound = 15399 := rfl
+theorem cycleBound_eq : cycleBound = 9137 := by unfold cycleBound; rw [lCyc_4]
+theorem cycleBoundAll_eq : cycleBoundAll = 15404 := rfl
+theorem fuelBound_eq : fuelBound = 15397 := rfl
 
 /-- **The whole verify run** from the organizer's initial state. -/
 theorem verify_good (input : Legacy.Input submission.sizes .verify) (s : MachineState)
