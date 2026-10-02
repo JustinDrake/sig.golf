@@ -164,9 +164,10 @@ theorem flatMap8_slice {α : Type} (f : Nat → List α) (hf : ∀ n, (f n).leng
       subst e
       rw [List.drop_left' (flatMap8_length f hf n), List.take_of_length_le (Nat.le_of_eq (hf n))]
 
-/-- The 8 little-endian bytes of leaf header `n`. -/
+/-- The 8 little-endian bytes of leaf header `n` (header `0` carries `0xFFF` in its high word). -/
 def rtBlk (n : Nat) : List (BitVec 8) :=
-  (List.range 8).map fun k => BitVec.ofNat 8 ((Ref.Rev.revWord (2 ^ 14 ||| n)).toNat / 256 ^ k)
+  (List.range 8).map fun k =>
+    BitVec.ofNat 8 (((Ref.Rev.revWord (2 ^ 14 ||| n)).toNat + (if n = 0 then 0xFFF * 2 ^ 32 else 0)) / 256 ^ k)
 
 /-- The data after the leaf header table: a zero word and the two mask words. -/
 def vdTail : List (BitVec 8) :=
@@ -209,13 +210,14 @@ theorem vd_slice_hi (j : Nat) (hj : 16391 ≤ j) :
     List.nil_append,flatMap8_length rtBlk rtBlk_length]
   rw [show 8*j-48-8*16385=8*j-8*16391 by omega]
 
-theorem w64_rtBlk (n : Nat) : w64 (rtBlk n) = Ref.Rev.revWord (2 ^ 14 ||| n) := by
+theorem w64_rtBlk (n : Nat) : w64 (rtBlk n) = rtW n := by
   apply BitVec.eq_of_toNat_eq
   rw [w64_toNat _ (Nat.le_of_eq (rtBlk_length n))]
-  have h : leNat (rtBlk n) = (Ref.Rev.revWord (2 ^ 14 ||| n)).toNat % 256 ^ 8 :=
-    leNat_map_range 8 (Ref.Rev.revWord (2 ^ 14 ||| n)).toNat
-  rw [h]
-  exact Nat.mod_eq_of_lt (Nat.lt_of_lt_of_eq (BitVec.isLt _) (by norm_num))
+  have h : leNat (rtBlk n) =
+      ((Ref.Rev.revWord (2 ^ 14 ||| n)).toNat + (if n = 0 then 0xFFF * 2 ^ 32 else 0)) % 256 ^ 8 :=
+    leNat_map_range 8 ((Ref.Rev.revWord (2 ^ 14 ||| n)).toNat + (if n = 0 then 0xFFF * 2 ^ 32 else 0))
+  rw [h, rtW, rtHi, BitVec.toNat_ofNat]
+  norm_num
 
 /-! ## The initial state -/
 

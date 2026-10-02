@@ -31,7 +31,7 @@ kernel_theorem blk0_rbM : ∀ t : MachineState,
 kernel_theorem blk0_macS : ∀ t : MachineState,
     (blk0.res.toState t).readWords (BitVec.ofNat 64 0xCB00) 4 = t.readWords (BitVec.ofNat 64 0x80) 4
 kernel_theorem blk0_db0 : ∀ t : MachineState,
-    (blk0.res.toState t).getMem (BitVec.ofNat 64 0x0) = BitVec.ofNat 64 0xC01
+    (blk0.res.toState t).getMem (BitVec.ofNat 64 0x0) = BitVec.ofNat 64 0
 kernel_theorem blk0_mac0 : ∀ t : MachineState,
     (blk0.res.toState t).getMem (BitVec.ofNat 64 0xCAE0) = BitVec.ofNat 64 0xE01
 kernel_theorem blk0_macPrefix : ∀ t : MachineState,

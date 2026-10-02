@@ -158,7 +158,9 @@ theorem converted_query (s t : MachineState) (B lay i mu : Nat)
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold oldHeader; omega) (by
-      rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt hw]; unfold oldHeader; omega)]
+      rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt hw]; unfold oldHeader; omega) (by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold oldHeader; omega) (by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold oldHeader; omega)]
   have hp : wordPerm (BitVec.ofNat 64 (oldHeader lay 0 i mu)).toNat = newHeader lay 0 i mu := by
     rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]
     exact old_header lay 0 i mu hl (by norm_num) hi hm

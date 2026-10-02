@@ -178,11 +178,14 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
 
 /-- Universal accepting-run bound. Scaled PIND byte offsets remove one instruction from
 all fifteen leaf headers. The tag-9 address-field rotation is an injective query relabel;
-Final.Discharge supplies the additional universal structural credit. Sparse initialization and leaf-header carry are included. -/
+Final.Discharge supplies the additional universal structural credit. Sparse initialization and leaf-header carry are included.
+The prologue loads `x18 = 0xFFF` from the high word of header `0`, so the setup tail has no
+`x18` restore (`-1`), and the leaf heads address the header table from `sp`, so it loads no
+table-page register (`-1`). The last leaf forms its table base as `x29 - 576` (`-1`). -/
 def cycleBound : Nat := 10250
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
-def cycleBoundAll : Nat := 16829
+def cycleBoundAll : Nat := 16834
 
 
 /-- A step bound (fuel) sufficient for every run. -/
@@ -266,10 +269,10 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
 
 theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 1 := rfl
 
-theorem lrest_0 : lrest 0 = 157 := by decide
+theorem lrest_0 : lrest 0 = 156 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7743 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2655 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7743 + layC + layN := by
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7742 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2654 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7742 + layC + layN := by
   have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 
@@ -290,8 +293,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (98 + (leafCost 0 + Nseg 0 0)) (98 + (leafCost 0 + Cseg 0 0)) True
-        (98 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (96 + (leafCost 0 + Nseg 0 0)) (96 + (leafCost 0 + Cseg 0 0)) True
+        (96 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with

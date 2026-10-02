@@ -4,10 +4,10 @@ import SigGolfCandidate.Verify.Spec
 import SigGolfCandidate.Verify.Common
 import SigGolfCandidate.Verify.ChainSem
 import Mathlib.Data.Nat.Bitwise
+set_option Elab.async false
 
 /-! # Merkle fold levels (M4 shape blocks): semantics -/
 
-set_option Elab.async false
 set_option linter.unusedSimpArgs false
 set_option maxRecDepth 10000
 set_option maxHeartbeats 1600000

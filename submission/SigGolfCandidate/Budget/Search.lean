@@ -137,7 +137,9 @@ theorem rnd_ne_dig (S m rho m' : List Byte) (a : Nat) :
 theorem dig_inj (m : List Byte) (hm : m.length = 32) {rho rho' : List Byte} (hr : rho.length = 16)
     (hr' : rho'.length = 16)
     (h : addrFmt (digestInput rho m) = addrFmt (digestInput rho' m)) : rho = rho' := by
-  rw [addrFmt_digestInput, addrFmt_digestInput, Ref.fmt_digestInput rho m hr hm, Ref.fmt_digestInput rho' m hr' hm] at h
+  rw [addrFmt_digestInput, addrFmt_digestInput] at h
+  have h := DigestZero.query_involutive.injective h
+  rw [Ref.fmt_digestInput rho m hr hm, Ref.fmt_digestInput rho' m hr' hm] at h
   have h1 := congrArg (fun q : Query => toList q.2) h
   dsimp only at h1
   rw [toList_ofList _ _ (by simp [hr, hm]), toList_ofList _ _ (by simp [hr', hm])] at h1

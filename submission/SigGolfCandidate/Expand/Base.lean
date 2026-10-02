@@ -415,12 +415,15 @@ theorem writeHash_getMem_frame (s : MachineState) (a : BitVec 256) (d x : Nat)
 theorem hashInput_eq_digest (t : MachineState) (rho m : List Byte) (hr : rho.length = 16)
     (hm : m.length = 32)
     (h11 : t.getReg .x11 = BitVec.ofNat 64 64) (h10 : (t.getReg .x10).toNat % 8 = 0)
-    (hw : t.readWords (t.getReg .x10) 8 = twWords 12 0 0 0 0 ++ wordsOf rho ++ wordsOf m) :
+    (hw : t.readWords (t.getReg .x10) 8 = [0, 0] ++ wordsOf rho ++ wordsOf m) :
     hashInput t = addrFmt (digestInput rho m) := by
-  rw [hashInput_eq_words t 0 h11 (by norm_num) h10, hw, addrFmt_digestInput, fmt_digestInput _ _ hr hm]
+  rw [hashInput_eq_words t 0 h11 (by norm_num) h10, hw, addrFmt_digestInput_zero _ _ hr hm]
   unfold queryOfWords ofList
-  rw [← wordsToNat_wordsOf (tweak 12 0 0 0 0 ++ rho ++ m),
-    wordsOf_append _ _ (by simp [hr]), wordsOf_append _ _ (by simp), wordsOf_tweak]
+  rw [← wordsToNat_wordsOf (zeros 16 ++ rho ++ m),
+    wordsOf_append _ _ (by simp [hr]), wordsOf_append _ _ (by simp),
+    show (16:Nat) = 8 * 2 from rfl, wordsOf_zeros]
+  rfl
+
 
 open Lean Elab Command Meta in
 /-- `kernel_theorem name : ∀ xs, lhs = rhs` — proof `fun xs => Eq.refl lhs`, checked by the
