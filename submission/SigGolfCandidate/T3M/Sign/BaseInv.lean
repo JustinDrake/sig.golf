@@ -25,10 +25,10 @@ def NeverW (A : Nat) : Prop :=
 /-- The doublewords `Base` is about. -/
 def BaseA (A : Nat) : Prop :=
   A = PRIV ∨ A = PRIV + 8 ∨ A = PRIV + 32 ∨ A = PRIV + 40 ∨ A = PRIV + 48 ∨ A = PRIV + 56 ∨
-    (REGION ≤ A ∧ A < REGION + 32736) ∨ NeverW A
+    (REGION ≤ A ∧ A < REGION + 131040) ∨ NeverW A
 
 /-- Facts every phase after the nonce relies on and preserves. -/
-structure Base (sk : SecretKey) (cache : Bytes 32768) (t : MachineState) : Prop where
+structure Base (sk : SecretKey) (cache : Bytes 131072) (t : MachineState) : Prop where
   x5 : t.getReg .x5 = 0
   p0 : t.getMem (BitVec.ofNat 64 PRIV) = sk.extractLsb' 0 64
   p8 : t.getMem (BitVec.ofNat 64 (PRIV + 8)) = sk.extractLsb' 64 64
@@ -36,10 +36,10 @@ structure Base (sk : SecretKey) (cache : Bytes 32768) (t : MachineState) : Prop 
   p40 : t.getMem (BitVec.ofNat 64 (PRIV + 40)) = sk.extractLsb' 192 64
   p48 : t.getMem (BitVec.ofNat 64 (PRIV + 48)) = 0
   p56 : t.getMem (BitVec.ofNat 64 (PRIV + 56)) = 0
-  region : ∀ k < 4092, t.getMem (BitVec.ofNat 64 (REGION + 8 * k)) = cache.extractLsb' (64 * (k + 4)) 64
+  region : ∀ k < 16380, t.getMem (BitVec.ofNat 64 (REGION + 8 * k)) = cache.extractLsb' (64 * (k + 4)) 64
   zero : ∀ A < 2 ^ 64, NeverW A → t.getMem (BitVec.ofNat 64 A) = 0
 
-theorem Base.frame {sk : SecretKey} {cache : Bytes 32768} {t u : MachineState} {W : Nat → Prop}
+theorem Base.frame {sk : SecretKey} {cache : Bytes 131072} {t u : MachineState} {W : Nat → Prop}
     {l : List Reg} (h : Base sk cache t) (hf : Frame t u W) (hr : RegsExcept t u l) (h5 : .x5 ∉ l)
     (hW : ∀ A, A < 2 ^ 64 → BaseA A → ¬ W A) : Base sk cache u := by
   have g : ∀ A, A < 2 ^ 64 → BaseA A → u.getMem (BitVec.ofNat 64 A) = t.getMem (BitVec.ofNat 64 A) :=
@@ -65,27 +65,27 @@ theorem readWords_eq_map (t : MachineState) (A : Nat) :
     rw [readWords_add, readWords_eq_map t A n (by omega), readWords_one, List.range_succ, List.map_append]
     rfl
 
-theorem readLE_region (cache : Bytes 32768) :
+theorem readLE_region (cache : Bytes 131072) :
     T3.readLE (List.ofFn (cacheDec cache).region) = cache.toNat / 2 ^ 256 := by
   have e : List.ofFn (cacheDec cache).region =
-      List.ofFn fun i : Fin 32736 => UInt8.ofNat (cache.toNat / 256 ^ 32 / 256 ^ i.val % 256) := by
+      List.ofFn fun i : Fin 131040 => UInt8.ofNat (cache.toNat / 256 ^ 32 / 256 ^ i.val % 256) := by
     exact congrArg List.ofFn (funext fun i => by
       show UInt8.ofNat (cache.toNat / 256 ^ (32 + i.val) % 256) = _
       rw [pow_add, Nat.div_div_eq_div_mul])
   rw [e, readLE_ofFn_digits, show (256 : Nat) ^ 32 = 2 ^ 256 by norm_num]
   apply Nat.mod_eq_of_lt
-  have h1 : cache.toNat < 2 ^ (256 + 8 * 32736) :=
-    lt_of_lt_of_eq cache.isLt (congrArg (2 ^ ·) (by norm_num : 8 * 32768 = 256 + 8 * 32736))
-  have h2 : (256 : Nat) ^ 32736 = 2 ^ (8 * 32736) :=
-    (congrArg (· ^ 32736) (by norm_num : (256 : Nat) = 2 ^ 8)).trans (pow_mul 2 8 32736).symm
+  have h1 : cache.toNat < 2 ^ (256 + 8 * 131040) :=
+    lt_of_lt_of_eq cache.isLt (congrArg (2 ^ ·) (by norm_num : 8 * 131072 = 256 + 8 * 131040))
+  have h2 : (256 : Nat) ^ 131040 = 2 ^ (8 * 131040) :=
+    (congrArg (· ^ 131040) (by norm_num : (256 : Nat) = 2 ^ 8)).trans (pow_mul 2 8 131040).symm
   rw [h2]
   rw [pow_add] at h1
   exact (Nat.div_lt_iff_lt_mul (by positivity)).mpr (lt_of_lt_of_eq h1 (Nat.mul_comm _ _))
 
-theorem wordsOf_region (cache : Bytes 32768) :
+theorem wordsOf_region (cache : Bytes 131072) :
     wordsOf (List.ofFn (cacheDec cache).region) =
-      (List.range 4092).map fun k => cache.extractLsb' (64 * (k + 4)) 64 := by
-  rw [wordsOf_eq_range 4092 _ (by rw [List.length_ofFn]), readLE_region]
+      (List.range 16380).map fun k => cache.extractLsb' (64 * (k + 4)) 64 := by
+  rw [wordsOf_eq_range 16380 _ (by rw [List.length_ofFn]), readLE_region]
   apply List.map_congr_left
   intro k _
   apply BitVec.eq_of_toNat_eq
@@ -93,9 +93,9 @@ theorem wordsOf_region (cache : Bytes 32768) :
     ← Nat.pow_add]
   congr 3; ring
 
-theorem Base.region_words {sk : SecretKey} {cache : Bytes 32768} {t : MachineState} (h : Base sk cache t) :
-    t.readWords (BitVec.ofNat 64 REGION) 4092 = wordsOf (List.ofFn (cacheDec cache).region) := by
-  rw [readWords_eq_map t REGION 4092 (by sg_omega), wordsOf_region]
+theorem Base.region_words {sk : SecretKey} {cache : Bytes 131072} {t : MachineState} (h : Base sk cache t) :
+    t.readWords (BitVec.ofNat 64 REGION) 16380 = wordsOf (List.ofFn (cacheDec cache).region) := by
+  rw [readWords_eq_map t REGION 16380 (by sg_omega), wordsOf_region]
   exact List.map_congr_left (fun k hk => h.region k (List.mem_range.mp hk))
 
 end SigGolfCandidate.T3M.Sign

@@ -127,17 +127,19 @@ theorem keygen_notDigest : AllQueriesSatisfy keygen BPB.NotDigestQ := by
     apply SourceQueries.bind_allowed
     · apply SourceQueries.mapM_allowed
       intro level
-      apply SourceQueries.mapM_allowed
-      intro i
-      apply SourceQueries.bind_allowed _ (BPB.mask_ok level i)
-      intro _
-      exact SourceQueries.pure_allowed _ _
+      unfold maskedLevel pairedMask
+      apply SourceQueries.bind_allowed
+      · apply SourceQueries.mapM_allowed
+        intro pair
+        exact SourceQueries.bind_allowed _ (BPB.privatePair_ok 13 0 0 level pair)
+          (fun _ => SourceQueries.pure_allowed _ _)
+      · intro _; exact SourceQueries.pure_allowed _ _
     · intro _
       exact SourceQueries.pure_allowed _ _
   · intro generated
     rcases generated with ⟨publicKey, region⟩
     apply SourceQueries.bind_allowed
-    · exact (allQueriesSatisfy_query_iff _ _).mpr trivial
+    · exact SourceQueries.privateMac_allowed BPB.NotDigestQ (fun _ => trivial) region
     · intro _
       exact SourceQueries.pure_allowed _ _
 

@@ -25,7 +25,7 @@ structure Halted0 (u : MachineState) : Prop where
   x10 : u.getReg .x10 = 0
 
 /-- The `layer_0` entry (word 427). -/
-structure L0Pre (sk : SecretKey) (cache : Bytes 32768) (index : Nat) (root : Digest) (t : MachineState) :
+structure L0Pre (sk : SecretKey) (cache : Bytes 131072) (index : Nat) (root : Digest) (t : MachineState) :
     Prop where
   pc : t.pc = pcOf 427
   base : Base sk cache t
@@ -48,7 +48,7 @@ def L0Post (t : MachineState) : Option (List Pieces) → MachineState → Prop
 def L0Cost : Nat := counterLimit * 205 + 200000
 
 /-- **Interface (M)**: layer 0 refines `signLayers cache index 1 root`. -/
-def L0Spec (sk : SecretKey) (cache : Bytes 32768) : Prop :=
+def L0Spec (sk : SecretKey) (cache : Bytes 131072) : Prop :=
   ∀ (index : Nat) (root : Digest) (t : MachineState), L0Pre sk cache index root t →
     TBSim image sk t L0Cost (signLayers (cacheDec cache) index 1 root) (L0Post t)
 

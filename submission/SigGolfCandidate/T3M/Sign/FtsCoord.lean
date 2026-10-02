@@ -131,7 +131,7 @@ def CoordW (nsec nproof : Nat) (A : Nat) : Prop :=
     (FOREST ≤ A ∧ A < FOREST + 128)
 
 /-- At `fts_coord` (186) after `c` coordinates with Core state `st = (opened, proof, roots)`. -/
-structure CoordInv (sk : SecretKey) (cache : Bytes 32768) (N : HashOutput) (s0 : MachineState) (c : Nat)
+structure CoordInv (sk : SecretKey) (cache : Bytes 131072) (N : HashOutput) (s0 : MachineState) (c : Nat)
     (st : List Digest × List Digest × List Digest) (t : MachineState) : Prop where
   pc : t.pc = pcOf 186
   x2 : t.getReg .x2 = BitVec.ofNat 64 FTS
@@ -185,7 +185,7 @@ def ftsCoordC : Nat := (3 + 1024 * 126 + 9 + 94233) + 1200
 open SigGolfCandidate.T3M (chosenOk_of selectionsOk_of_admissible slotBase_succ slotBase_seven_le slotBase_mono
   bucket_div_outer) in
 /-- **One FTS coordinate** (`fts_coord` .. `fr_root0`): Core's coordinate body, bounded by `ftsCoordC`. -/
-theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s0 : MachineState}
+theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 131072} {N : HashOutput} {s0 : MachineState}
     (hadm : admissible (selections N) = true) {c : Nat} (hc : c < 7)
     {st : List Digest × List Digest × List Digest} {t : MachineState} (ht : CoordInv sk cache N s0 c st t) :
     TBSim image sk t ftsCoordC (ftsBody (selections N) (N.toNat % 2 ^ 31) st c)
@@ -385,7 +385,7 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s
       · exact Or.inr (Or.inr (Or.inr ⟨by sgo, by sgo⟩))
 
 /-- **The seven coordinates.** -/
-theorem fts_fold {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s0 : MachineState}
+theorem fts_fold {sk : SecretKey} {cache : Bytes 131072} {N : HashOutput} {s0 : MachineState}
     (hadm : admissible (selections N) = true) (h0 : CoordInv sk cache N s0 0 ([], [], []) s0) :
     TBSim image sk s0 (7 * ftsCoordC) ((List.range 7).foldlM (ftsBody (selections N) (N.toNat % 2 ^ 31)) ([], [], []))
       (CoordInv sk cache N s0 7) := by
@@ -399,7 +399,7 @@ theorem lo64_mod31 (N : HashOutput) : (N.extractLsb' 0 64).toNat % 2 ^ 31 = N.to
   omega
 
 /-- From `ds_done` (172): the index, the pointers, `coord = 0` (`CoordInv` 0 at word 186). -/
-theorem fts_entry {sk : SecretKey} {cache : Bytes 32768} {m : Message} {rho : Digest} {N : HashOutput}
+theorem fts_entry {sk : SecretKey} {cache : Bytes 131072} {m : Message} {rho : Digest} {N : HashOutput}
     {t : MachineState} (h : AfterDs sk cache m rho N t) :
     ∃ s0, Steps image t 14 14 s0 ∧ CoordInv sk cache N s0 0 ([], [], []) s0 ∧
       s0.getMem (BitVec.ofNat 64 IDXV) = BitVec.ofNat 64 (N.toNat % 2 ^ 31) ∧

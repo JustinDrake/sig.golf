@@ -13,24 +13,24 @@ theorem probability_floor : 1/3300≤p0 ∧ p0≤1/16 := by norm_num [p0]
 theorem probability_matches : (SigGolfResearch.Gate6.acceptance).toReal=(p0 : ℝ) := by
   norm_num [SigGolfResearch.Gate6.acceptance,p0,ENNReal.toReal_div]
 
-/-- Existing four WOTS geometric bounds; their source refinements are inherited unchanged. -/
-noncomputable def wotsProduct : ℝ := (251742419327/250000000000)*(503409673483/500000000000)^3
+/-- Retuned four WOTS geometric bounds, linked to actual decoder counts in EncodingCounting. -/
+noncomputable def wotsProduct : ℝ := (201687968779/200000000000)*(1008345227909/1000000000000)^3
 noncomputable def bProduct : ℝ := (b0 : ℝ)*wotsProduct
 
 /-- Conservative T3 fixed signing allowance satisfies the full exponential envelope
-at the new exact digest probability and unchanged WOTS geometric factors. -/
-theorem signing_envelope : (2 : ℝ)^((123035 : ℝ)/131072)*bProduct≤2 := by
-  have hsplit : (2 : ℝ)^((123035 : ℝ)/131072)=2/(2 : ℝ)^((8037 : ℝ)/131072) := by
+at the unchanged exact digest probability and retuned WOTS geometric factors. -/
+theorem signing_envelope : (2 : ℝ)^((121763 : ℝ)/131072)*bProduct≤2 := by
+  have hsplit : (2 : ℝ)^((121763 : ℝ)/131072)=2/(2 : ℝ)^((9309 : ℝ)/131072) := by
     rw [_root_.eq_div_iff (by positivity),←Real.rpow_add (by norm_num)]
     norm_num
-  have hlo := SigGolfCandidate.Budget.rpow_two_ge (8037/131072) (by norm_num)
-  have hn : bProduct≤1+0.6931471803*(8037/131072)+(0.6931471803*(8037/131072))^2/2 := by
+  have hlo := SigGolfCandidate.Budget.rpow_two_ge (9309/131072) (by norm_num)
+  have hn : bProduct≤1+0.6931471803*(9309/131072)+(0.6931471803*(9309/131072))^2/2 := by
     norm_num [bProduct,b0,wotsProduct]
   rw [hsplit,div_mul_eq_mul_div,div_le_iff₀ (by positivity)]
   nlinarith
 
 theorem physical_bank_work : 7*(1024+2048+2047)+2=35835 := by decide
-theorem fixed_signing_work : 513+2+35835+86685=123035 := by decide
+theorem fixed_signing_work : 2+2+35835+85924=121763 := by decide
 theorem signature_layout_bytes : 16*(1+21+90+28+187+31)=5728 := by decide
 
 end SigGolfResearch.Gate6.Budget

@@ -43,7 +43,7 @@ theorem fetch_369 (s : MachineState) (hpc : s.pc = pcOf 369) : fetch image s = s
   (codeAt_369.fetch s hpc).trans rfl
 
 /-- 370..395: the forest pk to `ENC`, the lower-layer registers, layer 3 (`H = 6`, values to `SIG + 4944`,
-target 194, leaf `index mod 64`, tree `index / 64`), `counter_search` (return to 396). -/
+target 195, leaf `index mod 64`, tree `index / 64`), `counter_search` (return to 396). -/
 theorem blk370_spec (s : MachineState) (hpc : s.pc = pcOf 370) (idx : Nat) (hidx : idx < 2 ^ 31)
     (hm : s.getMem (BitVec.ofNat 64 IDXV) = BitVec.ofNat 64 idx) :
     ∃ t, Steps image s 26 26 t ∧ t.pc = pcOf 646 ∧ t.getReg .x1 = pcOf 396 ∧
@@ -52,7 +52,7 @@ theorem blk370_spec (s : MachineState) (hpc : s.pc = pcOf 370) (idx : Nat) (hidx
       t.getReg .x2 = BitVec.ofNat 64 LOW ∧ t.getReg .x31 = BitVec.ofNat 64 0 ∧
       t.getReg .x26 = BitVec.ofNat 64 43 ∧ t.getReg .x27 = BitVec.ofNat 64 0 ∧
       t.getReg .x8 = BitVec.ofNat 64 3 ∧ t.getReg .x15 = BitVec.ofNat 64 6 ∧
-      t.getReg .x16 = BitVec.ofNat 64 (SIG + 4944) ∧ t.getReg .x17 = BitVec.ofNat 64 194 ∧
+      t.getReg .x16 = BitVec.ofNat 64 (SIG + 4944) ∧ t.getReg .x17 = BitVec.ofNat 64 195 ∧
       t.getReg .x18 = BitVec.ofNat 64 (idx % 64) ∧ t.getReg .x14 = BitVec.ofNat 64 (idx % 64) ∧
       t.getReg .x9 = BitVec.ofNat 64 (idx / 64) ∧
       RegsExcept s t [.x1, .x2, .x6, .x7, .x8, .x9, .x14, .x15, .x16, .x17, .x18, .x26, .x27, .x28, .x29, .x30,
@@ -118,13 +118,13 @@ theorem blk426_spec (s : MachineState) (hpc : s.pc = pcOf 426) :
     (by simp [blk_426.res, rv_simp]) (by intro r hr; simp at hr; cases r <;> simp_all [blk_426.res, rv_simp] <;> rfl)
     (by intro A _ _; simp [blk_426.res, rv_simp])
 
-/-- 397..410: layer 2 (`H = 6`, values to `SIG + 4160`, target 194, leaf `index / 64 mod 64`, tree
+/-- 397..410: layer 2 (`H = 6`, values to `SIG + 4160`, target 195, leaf `index / 64 mod 64`, tree
 `index / 4096`), `counter_search` (return to 411). -/
 theorem blk397_spec (s : MachineState) (hpc : s.pc = pcOf 397) (idx : Nat) (hidx : idx < 2 ^ 31)
     (hm : s.getMem (BitVec.ofNat 64 IDXV) = BitVec.ofNat 64 idx) :
     ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf 646 ∧ t.getReg .x1 = pcOf 411 ∧
       t.getReg .x8 = BitVec.ofNat 64 2 ∧ t.getReg .x15 = BitVec.ofNat 64 6 ∧
-      t.getReg .x16 = BitVec.ofNat 64 (SIG + 4160) ∧ t.getReg .x17 = BitVec.ofNat 64 194 ∧
+      t.getReg .x16 = BitVec.ofNat 64 (SIG + 4160) ∧ t.getReg .x17 = BitVec.ofNat 64 195 ∧
       t.getReg .x18 = BitVec.ofNat 64 (idx / 64 % 64) ∧ t.getReg .x14 = BitVec.ofNat 64 (idx / 64 % 64) ∧
       t.getReg .x9 = BitVec.ofNat 64 (idx / 4096) ∧
       RegsExcept s t [.x1, .x6, .x7, .x8, .x9, .x14, .x15, .x16, .x17, .x18, .x28] ∧
@@ -150,13 +150,13 @@ theorem blk397_spec (s : MachineState) (hpc : s.pc = pcOf 397) (idx : Nat) (hidx
   · intro r hr; simp at hr; cases r <;> simp_all [blk_397.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_397.res, rv_simp]
 
-/-- 412..425: layer 1 (`H = 7`, values to `SIG + 3360`, target 194, leaf `index / 4096 mod 128`, tree
+/-- 412..425: layer 1 (`H = 7`, values to `SIG + 3360`, target 195, leaf `index / 4096 mod 128`, tree
 `index / 2^19`), `counter_search` (return to 426). -/
 theorem blk412_spec (s : MachineState) (hpc : s.pc = pcOf 412) (idx : Nat) (hidx : idx < 2 ^ 31)
     (hm : s.getMem (BitVec.ofNat 64 IDXV) = BitVec.ofNat 64 idx) :
     ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf 646 ∧ t.getReg .x1 = pcOf 426 ∧
       t.getReg .x8 = BitVec.ofNat 64 1 ∧ t.getReg .x15 = BitVec.ofNat 64 7 ∧
-      t.getReg .x16 = BitVec.ofNat 64 (SIG + 3360) ∧ t.getReg .x17 = BitVec.ofNat 64 194 ∧
+      t.getReg .x16 = BitVec.ofNat 64 (SIG + 3360) ∧ t.getReg .x17 = BitVec.ofNat 64 195 ∧
       t.getReg .x18 = BitVec.ofNat 64 (idx / 4096 % 128) ∧ t.getReg .x14 = BitVec.ofNat 64 (idx / 4096 % 128) ∧
       t.getReg .x9 = BitVec.ofNat 64 (idx / 2 ^ 19) ∧
       RegsExcept s t [.x1, .x6, .x7, .x8, .x9, .x14, .x15, .x16, .x17, .x18, .x28] ∧
