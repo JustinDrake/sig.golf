@@ -1143,7 +1143,7 @@ namespace SigGolfCandidate.Final
 /-- Universal accepting-run bound after fifteen leaf-offset instruction eliminations,
 three static root-header loads, one retained top-layer base, and the exact structural
 PORS segment credit with conditional two-fold prefixes and exact root reserve. Query formatting is an injective global relabel. -/
-def verifyCycleBound : Nat := 10230
+def verifyCycleBound : Nat := 10226
 
 /-- The witness charge `⌈14080 / 256⌉`: sparse PORS cells use consumed tweak slots,
 with contiguous authentication paths and external buffer `0x1100 .. 0x4800`. -/
