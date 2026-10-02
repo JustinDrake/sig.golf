@@ -24,8 +24,8 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 /-- `a4` before the first segment: the header is read at `a4 + 880 = WIT + 1088`. -/
 def A4_0 : Nat := 2256
-/-- `a4` after 35 segments with exactly 119 folds (`t4`): the pointer cap. -/
-def A4_LIMIT : Nat := 12056
+/-- `a4` after 35 segments with exactly 118 folds (`t4`): the pointer cap. -/
+def A4_LIMIT : Nat := 11976
 def tbN : Nat := 0x1000 + 4 * 744
 def tbL : Nat := 0x1000 + 4 * 2792
 /-- Merge frame `d` (`[pnode | T | 0 | node]`, its `Q` at `- 16`; frame 0 = the empty stack, `Q` slot = sentinel). -/

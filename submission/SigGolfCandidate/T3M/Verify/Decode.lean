@@ -13,7 +13,7 @@ doublewords `v0 = value % 2^64` (`a6`) and `v1 = value / 2^64` (`a7`) by straigh
   (64-bit wrap), reject unless `c < 8` (`sltiu`);
 * **top layer** (49 radix-4 digits + 9 radix-8 digits): reject unless `v1 >>> 61 = 0` (`value < 2^125`);
   3-bit SWAR on `g = v1 >>> 34` (`remu 4095`), 2-bit SWAR on `v0` and `v1 % 2^34` with the masks `M4`, `M8`
-  (`remu 255`); reject unless the total is 126 (`topSwar_digits`).
+  (`remu 255`); reject unless the total is 125 (`topSwar_digits`).
 
 `decode_lower_iff` / `decode_top_iff` state that the machine's decision and digits are Core's `decode`. -/
 
@@ -691,11 +691,11 @@ theorem topSum_eq (V : Nat) (h : V / 2 ^ 64 < 2 ^ 61) :
   rw [sum_congr_range _ _ 32 hV, sum_congr_range _ _ 17 hW, sum_congr_range _ _ 9 hG]
 
 /-- **Core's top decode, as the machine computes it**: reject when `v1 >>> 61 ≠ 0`, otherwise accept iff the SWAR
-total is 126; the digits are Core's 58 data digits. -/
+total is 125; the digits are Core's 58 data digits. -/
 theorem decode_top (value : Digest) :
     decode 0 value =
       if value.toNat / 2 ^ 64 / 2 ^ 61 ≠ 0 then none
-      else if topSum value.toNat = 126 then some (dataDigits 0 value) else none := by
+      else if topSum value.toNat = 125 then some (dataDigits 0 value) else none := by
   have hb : encodedBits 0 = 125 := rfl
   unfold decode
   rw [hb]

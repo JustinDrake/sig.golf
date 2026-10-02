@@ -6,7 +6,7 @@ import SigGolfCandidate.T3M.Sign.FtsCoord
 
 From `ds_done` (172, `AfterDs`): the seven FTS coordinates (`fts_entry`, `fts_fold`), the forest pk (357..369:
 the header, one 2-block `shortHash`), the layer-3 setup (370..395), the layers (`layers_tbsim`). On success the
-machine halts with the 359 digests of Core's signature at `SIG` (`PayPost`): `rho`, the opened secrets and the
+machine halts with the 358 digests of Core's signature at `SIG` (`PayPost`): `rho`, the opened secrets and the
 proof slots (unused slots stay zero) from the FTS phase, the layer pieces from the layers.
 -/
 
@@ -53,7 +53,7 @@ theorem forestIn_words (index : Nat) {roots : List Digest} (hlen : roots.length 
 /-- `PayPost` from the digests at their places. -/
 theorem payPost_of {w : MachineState} {sig : Signature} (hh : Halted0 w) (hrho : DigAt w SIG sig.rho)
     (hsec : ∀ i (hi : i < 21), DigAt w (SIG + 16 + 16 * i) (sig.secrets ⟨i, hi⟩))
-    (hpr : ∀ j (hj : j < 119), DigAt w (SIG + 352 + 16 * j) (sig.proof ⟨j, hj⟩))
+    (hpr : ∀ j (hj : j < 118), DigAt w (SIG + 352 + 16 * j) (sig.proof ⟨j, hj⟩))
     (hval : ∀ (lay : Layer) i (hi : i < chainCount lay),
       DigAt w (SIG + 16 * (layIdx lay + i)) ((sig.layers lay).values ⟨i, hi⟩))
     (hpath : ∀ (lay : Layer) j (hj : j < height lay),
@@ -73,10 +73,10 @@ theorem payPost_of {w : MachineState} {sig : Signature} (hh : Halted0 w) (hrho :
       rw [e]
       have := hpath lay (k - layIdx lay - chainCount lay) (by omega)
       rwa [show layIdx lay + chainCount lay + (k - layIdx lay - chainCount lay) = k by omega] at this
-  have i0 : layIdx 0 = 141 := rfl
-  have i1 : layIdx 1 = 211 := rfl
-  have i2 : layIdx 2 = 261 := rfl
-  have i3 : layIdx 3 = 310 := rfl
+  have i0 : layIdx 0 = 140 := rfl
+  have i1 : layIdx 1 = 210 := rfl
+  have i2 : layIdx 2 = 260 := rfl
+  have i3 : layIdx 3 = 309 := rfl
   have c0 : chainCount 0 = 58 := rfl
   have c1 : chainCount 1 = 43 := rfl
   have c2 : chainCount 2 = 43 := rfl
@@ -95,17 +95,17 @@ theorem payPost_of {w : MachineState} {sig : Signature} (hh : Halted0 w) (hrho :
     rw [e]
     have := hsec (k - 1) (by omega)
     rwa [show SIG + 16 + 16 * (k - 1) = SIG + 16 * k by omega] at this
-  rcases Nat.lt_or_ge k 141 with h2 | h2
+  rcases Nat.lt_or_ge k 140 with h2 | h2
   · have e := sigDigests_proof sig (k - 22) (by omega)
     rw [show 22 + (k - 22) = k by omega] at e
     rw [e]
     have := hpr (k - 22) (by omega)
     rwa [show SIG + 352 + 16 * (k - 22) = SIG + 16 * k by omega] at this
-  rcases Nat.lt_or_ge k 211 with h3 | h3
+  rcases Nat.lt_or_ge k 210 with h3 | h3
   · exact hlayer 0 (by omega) (by omega)
-  rcases Nat.lt_or_ge k 261 with h4 | h4
+  rcases Nat.lt_or_ge k 260 with h4 | h4
   · exact hlayer 1 (by omega) (by omega)
-  rcases Nat.lt_or_ge k 310 with h5 | h5
+  rcases Nat.lt_or_ge k 309 with h5 | h5
   · exact hlayer 2 (by omega) (by omega)
   · exact hlayer 3 (by omega) (by omega)
 
@@ -125,7 +125,7 @@ theorem payloadRest_tbsim (hK : CounterSearchSpec sk) (hL0 : L0Spec sk cache) {m
   obtain ⟨s0, st0, hci, hidxv, -, f0⟩ := fts_entry h
   have hadm := h.adm
   have hchosen : ChosenOk (selections N) := chosenOk_of N (selectionsOk_of_admissible N hadm)
-  have hsb7 : slotBase (selections N) 7 ≤ 119 := slotBase_seven_le N hchosen hadm
+  have hsb7 : slotBase (selections N) 7 ≤ 118 := slotBase_seven_le N hchosen hadm
   have hSIG : SIG = 28672 := rfl
   have hidx : N.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by norm_num)
   rw [payloadRest_eq]
@@ -225,12 +225,12 @@ theorem payloadRest_tbsim (hK : CounterSearchSpec sk) (hL0 : L0Spec sk cache) {m
   -- the FTS part of the signature survives the forest and the layers
   have fuw : Frame u w (fun A => ((A = FOREST + 16 ∨ A = FOREST + 24) ∨ (FOUT ≤ A ∧ A < FOUT + 32) ∨
       A = ENC ∨ A = ENC + 8) ∨ LayW 4 A) := fu3.trans wf
-  have nW : ∀ A, SIG ≤ A → A < SIG + 2256 → ¬ (((A = FOREST + 16 ∨ A = FOREST + 24) ∨
+  have nW : ∀ A, SIG ≤ A → A < SIG + 2240 → ¬ (((A = FOREST + 16 ∨ A = FOREST + 24) ∨
       (FOUT ≤ A ∧ A < FOUT + 32) ∨ A = ENC ∨ A = ENC + 8) ∨ LayW 4 A) := fun A h1 h2 hA => by
     rcases hA with hA | hA
     · sgo
     · exact hA.1 ⟨h1, h2⟩
-  have keep : ∀ A d, SIG ≤ A → A + 16 ≤ SIG + 2256 → DigAt u A d → DigAt w A d := fun A d h1 h2 hd =>
+  have keep : ∀ A d, SIG ≤ A → A + 16 ≤ SIG + 2240 → DigAt u A d → DigAt w A d := fun A d h1 h2 hd =>
     hd.frame fuw (by sgo) (nW _ h1 (by omega)) (nW _ (by omega) (by omega))
   refine TBSim.pure (payPost_of wh ?_ (fun i hi => ?_) (fun j hj => ?_) (fun lay i hi => (wpieces lay lay.isLt).1 i hi)
     (fun lay j hj => (wpieces lay lay.isLt).2 j hj))
@@ -247,7 +247,7 @@ theorem payloadRest_tbsim (hK : CounterSearchSpec sk) (hL0 : L0Spec sk cache) {m
     · exact hu.proofs j hjl
     · show DigAt u (SIG + 352 + 16 * j) (st.2.1.getD j 0)
       rw [List.getD_eq_default _ _ (by omega)]
-      have z : ∀ A, SIG + 352 + 16 * st.2.1.length ≤ A → A < SIG + 2256 → u.getMem (BitVec.ofNat 64 A) = 0 :=
+      have z : ∀ A, SIG + 352 + 16 * st.2.1.length ≤ A → A < SIG + 2240 → u.getMem (BitVec.ofNat 64 A) = 0 :=
         fun A h1 h2 => by
           rw [hu.frame.get (by sgo) (by unfold CoordW FtsScr FlW; sgo), f0.get (by sgo) (by sgo),
             h.frame.get (by sgo) (by unfold FrontW; sgo), sinit_zero sk cache m _ (by sgo) (by sgo)]

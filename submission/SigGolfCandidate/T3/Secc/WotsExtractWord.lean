@@ -27,7 +27,7 @@ set_option backward.isDefEq.respectTransparency false
 /-! ## The dummy word -/
 
 /-- The digest whose decode is the top-layer dummy word (49 radix-4 digits then 9 radix-8 digits). -/
-def dummyDigest0 : Digest := BitVec.ofNat 128 18229412668305258784815917842668628650
+def dummyDigest0 : Digest := BitVec.ofNat 128 18229412589077096270551580249124678314
 
 /-- The digest whose 42 radix-8 data digits are the lower-layer dummy data digits. -/
 def dummyDigestLow : Digest := BitVec.ofNat 128 48611766702991209076737369103800916845

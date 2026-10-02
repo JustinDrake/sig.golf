@@ -393,7 +393,7 @@ theorem find?_unique {α : Type} (l : List α) (p : α → Bool) (x : α) (hx : 
 /-- **`streamPlan` inverts `foldSlot`.** -/
 theorem streamPlan_foldSlot (chosen : List Selection) (hc : ChosenOk chosen) {n r : Nat} (hn : n < 35)
     (hr : r < ((schedule chosen).getD n default).a)
-    (hk : foldSlot chosen ((schedule chosen).getD n default) r < 119) :
+    (hk : foldSlot chosen ((schedule chosen).getD n default) r < 118) :
     streamPlan chosen ⟨_, hk⟩ = some (n, r) := by
   unfold streamPlan
   apply find?_unique
