@@ -186,9 +186,11 @@ The prologue loads `x18 = 0xFFF` from the high word of header `0`, so the setup 
 table-page register (`-1`). The last leaf forms its table base as `x29 - 576` (`-1`). The
 counter range check masks the merged counters with the data word at `sp + 8` instead of
 folding the halves with two shifts (`-1`). Every layer-1..4 leaf forms its fold-dispatch target
-with one `addi` before the shift (`-4`). The shared WOTS base is rebased by 704, so the layer-4
+with one `addi` before the shift (`-4`); the transitions add that page together with the heap
+sentinel into `x23` (`addi` replaces `ori`; non-constant fold levels store their heap index as an
+immediate), so the leaf dispatch is `slli; jalr` (`-4`). The shared WOTS base is rebased by 704, so the layer-4
 initializer is a single LUI (`-1`). -/
-def cycleBound : Nat := 10235
+def cycleBound : Nat := 10231
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
 def cycleBoundAll : Nat := 16829
@@ -199,8 +201,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7451 := by decide
-theorem layC_val : layC = 7451 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7447 := by decide
+theorem layC_val : layC = 7447 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
