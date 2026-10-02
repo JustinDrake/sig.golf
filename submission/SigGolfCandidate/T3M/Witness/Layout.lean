@@ -48,7 +48,7 @@ def leafBlock (s : Nat) : Nat := 64 + 48 * s
 
 /-- First segment header of the fold stream. -/
 def streamBase : Nat := 1088
-/-- The pointer cap checked after coordinate 6 (`35 · 8 + 118 · 80` bytes after `streamBase`). -/
+/-- The pointer cap checked after coordinate 6 (`35 · 8 + 115 · 80` bytes after `streamBase`). -/
 def streamEnd : Nat := 10808
 /-- Fold block `r` of the segment whose header is at `ptr`: `[L | T | pad | R]` then a 16-byte gap. -/
 def foldBlock (ptr r : Nat) : Nat := ptr + 8 + 80 * r

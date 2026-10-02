@@ -67,7 +67,7 @@ structure BtPre (sk : SecretKey) (cache : Bytes 32768) (lay : Layer) (tree sel :
   hsel : sel < 2 ^ height lay
   hdb : ∀ i < 43, ds.getD i 0 ≤ 7
   digits : ∀ i < 43, s.getByte (BitVec.ofNat 64 (DIGITS + i)) = BitVec.ofNat 8 (ds.getD i 0)
-  hsb : SIG ≤ sb ∧ sb + 16 * (43 + height lay) ≤ SIG + 5728
+  hsb : SIG ≤ sb ∧ sb + 16 * (43 + height lay) ≤ SIG + 5680
   hsb8 : sb % 8 = 0
 
 /-- Doublewords the leaf loop of `build_tree` may change. -/

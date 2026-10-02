@@ -10,7 +10,7 @@ import SigGolfCandidate.T3.Secc.CaseCNearGSteps
 * repeated signing: the search replays (`Replays`), nothing changes but a duplicated world exposure.
 
 Then `worldGame_ΦI`: the whole world game, and `forced_payoff_le`: under B-PAIR's lazy forced world,
-`E[nearPayoff q] ≤ q·(103 + 1/16)/2^128` from the initial state.
+`E[nearPayoff q] ≤ q·(404 + 1/16)/2^128` from the initial state.
 -/
 
 namespace SigGolfCandidate.T3.Security.CaseC

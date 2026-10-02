@@ -213,10 +213,10 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s
     rfl
   set pp := SIG + 352 + 16 * st.2.1.length with hpp
   set sd := SIG + 16 + 16 * st.1.length with hsd
-  have hsb7 : slotBase (selections N) 7 ≤ 118 := slotBase_seven_le N hchosen hadm
-  have hsbc : slotBase (selections N) (c + 1) ≤ 118 :=
+  have hsb7 : slotBase (selections N) 7 ≤ 115 := slotBase_seven_le N hchosen hadm
+  have hsbc : slotBase (selections N) (c + 1) ≤ 115 :=
     le_trans (slotBase_mono _ (by omega)) hsb7
-  have hsb0 : slotBase (selections N) c ≤ 118 := le_trans (slotBase_mono _ (by omega)) hsb7
+  have hsb0 : slotBase (selections N) c ≤ 115 := le_trans (slotBase_mono _ (by omega)) hsb7
   have hl2 := ht.len2
   have hl1 := ht.len1
   obtain ⟨v, k, stv, hk, vpc, vx8, vx16, vx26, vsec, vem, vroot, vlen, vr, vf⟩ :=
@@ -287,7 +287,7 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s
       · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))))
       · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h)))))))
       · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨h.1, by sgo⟩))))))))
-  have hnS : ∀ A, A < 2 ^ 64 → SIG ≤ A → A < SIG + 5728 → ¬ FtsScr A := by
+  have hnS : ∀ A, A < 2 ^ 64 → SIG ≤ A → A < SIG + 5680 → ¬ FtsScr A := by
     intro A _ h1 h2 h; unfold FtsScr FlW at h; sgo
   have hnF : ∀ A, A < 2 ^ 64 → FOREST ≤ A → A < FOREST + 128 → ¬ FtsScr A := by
     intro A _ h1 h2 h; unfold FtsScr FlW at h; sgo

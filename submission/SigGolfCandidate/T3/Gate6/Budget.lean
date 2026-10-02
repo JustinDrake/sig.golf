@@ -4,9 +4,9 @@ namespace SigGolfResearch.Gate6.Budget
 set_option maxRecDepth 10000
 set_option maxHeartbeats 1000000
 
-def p0 : ℚ := 29451879398455505315211969/79228162514264337593543950336
+def p0 : ℚ := 6963897326262647489342145/19807040628566084398385987584
 def zU : ℚ := 1/(1-6931471808/(10000000000*131072))
-def b0 : ℚ := 507215638051/500000000000
+def b0 : ℚ := 507635451307 / 500000000000
 
 theorem digest_geometric_step : zU*((1-p0)*b0+p0)≤b0 := by norm_num [zU,p0,b0]
 theorem probability_floor : 1/3300≤p0 ∧ p0≤1/16 := by norm_num [p0]
@@ -14,7 +14,7 @@ theorem probability_matches : (SigGolfResearch.Gate6.acceptance).toReal=(p0 : �
   norm_num [SigGolfResearch.Gate6.acceptance,p0,ENNReal.toReal_div]
 
 /-- Existing four WOTS geometric bounds; their source refinements are inherited unchanged. -/
-noncomputable def wotsProduct : ℝ := (251742419327/250000000000)*(503409673483/500000000000)^3
+noncomputable def wotsProduct : ℝ := (251742419327 / 250000000000)*(503409673483/500000000000)^3
 noncomputable def bProduct : ℝ := (b0 : ℝ)*wotsProduct
 
 /-- Conservative T3 fixed signing allowance satisfies the full exponential envelope
@@ -31,6 +31,6 @@ theorem signing_envelope : (2 : ℝ)^((123035 : ℝ)/131072)*bProduct≤2 := by
 
 theorem physical_bank_work : 7*(1024+2048+2047)+2=35835 := by decide
 theorem fixed_signing_work : 513+2+35835+86685=123035 := by decide
-theorem signature_layout_bytes : 16*(1+21+90+28+187+31)=5728 := by decide
+theorem signature_layout_bytes : 16*(1+21+87+28+187+31)=5680 := by decide
 
 end SigGolfResearch.Gate6.Budget

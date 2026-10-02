@@ -7,13 +7,13 @@ import SigGolfCandidate.T3.Secc.PairGuessLazyCount
 * `bpair_nearChain`, `bpair_ghosts`, `bpair_law`: CC's three link hypotheses, by B-PAIR's `near_chain`
   (ω-law `omegaLaw adversary`), `worldGameL_bank` and `fixed_worldGameL` (CC's own `bpairTrials` +
   `worldGameCore_counts` give `bpair_ghosts` independently, see `CaseCNearTrials`);
-* **`nearBound104 : NearBoundK 104`** — the near certificate × one guess at near price `K = 104 ≥ 103 + 1/16`;
-* `caseC_small_bound_104 : CaseCSmallBoundK 104`, and the small route `small_route_closed`.
+* **`nearBound104 : NearBoundK 405`** — the near certificate × one guess at near price `K = 405 ≥ 404 + 1/16`;
+* `caseC_small_bound_104 : CaseCSmallBoundK 405`, and the small route `small_route_closed`.
 
 Divergence from A's frozen contract: `Wots.CaseCSmallBound` charges the near term with `nearTerm q` (near price
-`103`); CC's bound is `nearTermK 104 q` (the extra `1/16` per birth pays the cache-reuse exception of the near bank).
-The closing is re-checked for every `K ≤ 2000` by `CaseCSmallK.small_route_K` (second order `2002 + 2 ≤ 2^11`), so the
-small route uses `small_route_K 104` instead of `Wots.small_route`.
+`404`); CC's bound is `nearTermK 405 q` (the extra `1/16` per birth pays the cache-reuse exception of the near bank).
+The closing is re-checked for every `K ≤ 500` by `CaseCSmallK.small_route_K` (second order `502 + 2 ≤ 2^9`), so the
+small route uses `small_route_K 405` instead of `Wots.small_route`.
 -/
 
 namespace SigGolfCandidate.T3.Security.CaseC
@@ -34,17 +34,17 @@ theorem bpair_ghosts : BPairGhosts := fun adversary ω fts r hr => BPair.worldGa
 theorem bpair_law : BPairLaw := fun adversary ω fts =>
   BPair.fixed_worldGameL (BPair.canon_subset adversary) ω fts adversary
 
-/-- **The near bound at near price `104`.** -/
-theorem nearBound104 : NearBoundK 104 :=
-  nearBoundK_of_nearChainHyp 104 near_price_le_104 (nearChainHyp_of_bpair bpair_nearChain bpair_ghosts bpair_law)
+/-- **The near bound at near price `405`.** -/
+theorem nearBound104 : NearBoundK 405 :=
+  nearBoundK_of_nearChainHyp 405 near_price_le_104 (nearChainHyp_of_bpair bpair_nearChain bpair_ghosts bpair_law)
 
-/-- **The case-(C) contract at near price `104`.** -/
-theorem caseC_small_bound_104 : CaseCSmallBoundK 104 := caseC_small_bound_K 104 nearBound104
+/-- **The case-(C) contract at near price `405`.** -/
+theorem caseC_small_bound_104 : CaseCSmallBoundK 405 := caseC_small_bound_K 405 nearBound104
 
-/-- **The small route** (A's closing re-checked at `K = 104`). -/
+/-- **The small route** (A's closing re-checked at `K = 405`). -/
 theorem small_route_closed :
     ∀ (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127), 1 ≤ q → q ≤ SeccClosing.budgetSplit →
       Pr[QueryRecorded.CleanWin q | PaddedGame.tracedExperiment adversary q hq] ≤ SeccClosing.smallBound q :=
-  small_route_K 104 (by norm_num) caseC_small_bound_104
+  small_route_K 405 (by norm_num) caseC_small_bound_104
 
 end SigGolfCandidate.T3.Security.CaseC

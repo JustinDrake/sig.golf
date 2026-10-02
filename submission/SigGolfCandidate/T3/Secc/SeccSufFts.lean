@@ -12,7 +12,7 @@ at the folds are honest nodes. Here we re-derive both from the definitions:
 * `dfsP_honest` / `climbV_honest`: in Core's slot-free DFS (`dfsP`) and the outer climbs (`climbV`), all-honest
   queries force the value, and the valuation of every empty position (= proof slot), to the honest tree node;
 * `fts_proof_honest`: for a successful Core FTS recovery `recoverFts σ index (selections N)` whose queries are all
-  honest, every one of the 118 proof slots equals the signer's `forestProofPrefix` entry (used slots: honest nodes
+  honest, every one of the 115 proof slots equals the signer's `forestProofPrefix` entry (used slots: honest nodes
   in Core's consumption order, through `recoverFtsP_canon`; unused slots: zero, from Core's tail check,
   Core.lean:366, `eval_recoverFtsP_tail`);
 * `fts_secrets_honest`: the secrets equal the signer's `forestOpenPrefix` entries.
@@ -244,7 +244,7 @@ theorem leafHP_honest (answers : Answers) (index coord : Nat) (hc : coord < 256)
 
 /-- **Coordinate honesty.** All-honest queries of Core's canonical coordinate program (`recoverFtsP_canon`) value
 every proof position of the coordinate (bucket frontier, then the four outer siblings) honestly. -/
-theorem coord_honest (answers : Answers) (proof : Fin 118 → Digest) (pads : Pads) (index : Nat)
+theorem coord_honest (answers : Answers) (proof : Fin 115 → Digest) (pads : Pads) (index : Nat)
     (hi : index < 2 ^ 40) (c : Nat) (hc : c < 256) (sel : Selection) (hs : SelOk sel) (values : List Digest)
     (base : Nat)
     (hq : ∀ q ∈ queried answers (coordCanon index c (leafHP index c (selectedLeaves sel) values pads)
@@ -339,7 +339,7 @@ theorem length_proof_blocks (answers : Answers) (index : Nat) (chosen : List Sel
 
 /-- The queries of coordinate `c`'s canonical program are queries of Core's padded FTS recovery. -/
 theorem queried_recoverFtsP_coord (answers : Answers) (sig : Signature) (pads : Pads) (index : Nat)
-    (chosen : List Selection) (hc : ChosenOk chosen) (hle : slotBase chosen 7 ≤ 118) (c : Nat) (hc7 : c < 7) :
+    (chosen : List Selection) (hc : ChosenOk chosen) (hle : slotBase chosen 7 ≤ 115) (c : Nat) (hc7 : c < 7) :
     ∀ q ∈ queried answers (coordCanon index c (leafHP index c (selectedLeaves (chosen.getD c ⟨0, []⟩))
           ((List.range 3).map (fun j => sig.secrets ⟨(c * 3 + j) % 21, Nat.mod_lt _ (by decide)⟩)) pads)
         (valOf sig.proof (slotBase chosen c) (slotPositions (chosen.getD c ⟨0, []⟩)))
@@ -365,7 +365,7 @@ theorem fts_proof_honest (answers : Answers) (σ : Signature) (N : HashOutput) (
     (hadm : admissible (selections N) = true)
     (hroot : evalWithAnswerFn answers (recoverFts σ (N.toNat % 2 ^ 31) (selections N)) = some root)
     (hq : ∀ q ∈ queried answers (recoverFts σ (N.toNat % 2 ^ 31) (selections N)), HonQ answers q) :
-    ∀ k : Fin 118, σ.proof k =
+    ∀ k : Fin 115, σ.proof k =
       (Correctness.forestProofPrefix answers (N.toNat % 2 ^ 31) (selections N) 7).getD k.val 0 := by
   have hsel := selectionsOk_of_admissible N hadm
   have hc := chosenOk_of N hsel
@@ -389,8 +389,8 @@ theorem fts_proof_honest (answers : Answers) (σ : Signature) (N : HashOutput) (
     have hv := hcoord c hc7 _ (List.getElem_mem hx)
     unfold valOf at hv
     have hfin : (⟨(slotBase (selections N) c + (slotPositions ((selections N).getD c ⟨0, []⟩)).idxOf
-        (slotPositions ((selections N).getD c ⟨0, []⟩))[k.val - slotBase (selections N) c]) % 118,
-        Nat.mod_lt _ (by decide)⟩ : Fin 118) = k := by
+        (slotPositions ((selections N).getD c ⟨0, []⟩))[k.val - slotBase (selections N) c]) % 115,
+        Nat.mod_lt _ (by decide)⟩ : Fin 115) = k := by
       ext
       simp only
       rw [List.Nodup.idxOf_getElem (slotPositions_nodup _) _ hx, Nat.add_sub_cancel' hlo, Nat.mod_eq_of_lt k.isLt]

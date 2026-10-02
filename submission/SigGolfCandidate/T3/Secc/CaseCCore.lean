@@ -19,7 +19,7 @@ or the actual selection to `X` at a fresh signing, inherits the supermartingale 
 * `ledger_search`: the digest rejection search (cached rejected trials skipped, exhaustion = no exposure) is a
   supermartingale step;
 * `ledger_win`: an admissible target covered by the exposures holds a full unit;
-* `ledger_initial`: the initial ledger is at most `budget · 987/10^8 / 2^128`.
+* `ledger_initial`: the initial ledger is at most `budget · 18400/10^8 / 2^128`.
 
 The cache-reuse exception (`CaseCSearch.Reuse`, `reuseMass`, `reuse_probability_le`,
 `CaseCBankReuse.reuseMass_cacheQuery_le`) is stated over `Sampling.RCache` and is world-independent as well.
@@ -137,7 +137,7 @@ theorem ledger_win_opened (R : Nat) (targets X : List HashOutput) (slack : Nat) 
 
 /-- **Initial ledger**: no targets, no exposures, `budget` prepaid births over the full horizon. -/
 theorem ledger_initial (budget : Nat) :
-    ledger BPORS.Numeric.proposalLength [] [] budget ≤ (budget : ENNReal) * (987 / 100000000) / 2 ^ 128 := by
+    ledger BPORS.Numeric.proposalLength [] [] budget ≤ (budget : ENNReal) * (18400 / 100000000) / 2 ^ 128 := by
   unfold ledger
   simp only [List.map_nil, List.sum_nil, zero_add]
   apply ENNReal.div_le_div_right
@@ -367,7 +367,7 @@ theorem core_win (b : BankCore) (halive : ¬BPORS.Numeric.proposalLength < b.exp
 
 /-- **Initial potential.** -/
 theorem core_initial (budget : Nat) :
-    corePotential ⟨[], [], false, 0, budget⟩ ≤ (budget : ENNReal) * (987 / 100000000) / 2 ^ 128 := by
+    corePotential ⟨[], [], false, 0, budget⟩ ≤ (budget : ENNReal) * (18400 / 100000000) / 2 ^ 128 := by
   unfold corePotential
   simp only [List.length_nil, Nat.not_lt_zero, if_false, Bool.false_eq_true, Nat.sub_zero, add_zero]
   exact ledger_initial budget
