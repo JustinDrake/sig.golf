@@ -34,7 +34,7 @@ def preStart (lay t : Nat) : Nat :=
 
 /-- Steps of the transition proper up to the encoding hash: layer 0 consumes the remaining route bits
 directly (two `addi` for the sentinel, no mask/shift); layer 4 reuses the known hash length. -/
-def stepsT (lay : Nat) : Nat := if lay = 0 then 7 else 10
+def stepsT (lay : Nat) : Nat := if lay = 0 then 7 else if lay = 4 then 11 else 10
 /-- Steps from `preStart` to the encoding hash: below layer 4, the 4 steps of the sibling copy first. -/
 def stepsA (lay : Nat) : Nat := stepsT lay + (if lay = 4 then 0 else 4)
 def encPc (lay t : Nat) : Nat := trPc lay t + stepsT lay
@@ -50,7 +50,7 @@ def sibSlot (lay t : Nat) : Nat := if xLeft lay t then 0x130 else 0x120
 def topSib (lay : Nat) : Nat := sibAddr (lay + 1) (heightL (lay + 1) - 1)
 
 /-- Known registers at the transition start. -/
-def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x130), (.x27, 0x40401), (.x14, KT4)]
+def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x130), (.x27, 0x40401)]
 def aK (lay t : Nat) : List (Reg × Word) :=
   gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, BitVec.ofNat 64 (encD lay t)), (.x27, 0x40401), (.x22, BitVec.ofNat 64 (s6N (lay + 1)))]
 def preK (lay t : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay t
@@ -71,9 +71,10 @@ def carryEr (lay : Nat) : E := if lay = 0 then uEr lay else tauEr lay
 def x31Er (lay : Nat) : E :=
   if lay = 0 then .bin .sll (.reg .x30) (cw 32)
   else .bin .add (tauEr lay) (.bin .sll (uEr lay) (cw 32))
-/-- `U = e | 2^h` (heap sentinel): `ori` (h < 11) or two `addi 1024` (h = 11). -/
+/-- `U = e | (2^h + xOff)` (heap sentinel; layers 2 and 1 set one or two more bits): `ori`, or at
+the top `xori 4095`. -/
 def uHE (lay : Nat) : E :=
-  if lay = 0 then .bin .xor (uEr lay) (cw 4095) else .bin .or (uEr lay) (cw (2 ^ heightL lay))
+  if lay = 0 then .bin .xor (uEr lay) (cw 4095) else .bin .or (uEr lay) (cw (2 ^ heightL lay + xOff lay))
 
 /-- The doubleword holding layer `lay`'s counter (`c4` at witness 2320, `c0 .. c3` in the tweak
 slot of chain block `(0, 0)` at witness 2944). -/
@@ -175,7 +176,7 @@ def specRej2 (out hi : Nat) (lay : Nat) : Spec :=
 
 /-- The leaf code at the return pc: the leaf tweak, then the dispatch into the shape block of
 chunk 0. -/
-def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay < 4 then 7 else 8
+def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay = 4 then 7 else 6
 
 def leafRawSteps (lay : Nat) : Nat := if lay = 0 then 7 else leafSteps lay
 

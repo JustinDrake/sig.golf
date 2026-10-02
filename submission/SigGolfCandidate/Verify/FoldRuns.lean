@@ -52,7 +52,12 @@ def m4Off (lay ci kk : Nat) : Nat := ((m4OffTab.getD lay []).getD ci []).getD kk
 def nCh (lay : Nat) : Nat := if lay = 0 then 2 else 1
 def chB0 (lay ci : Nat) : Nat := if lay = 0 ∧ ci = 1 then 6 else 0
 def chBits (lay ci : Nat) : Nat := if lay = 0 then (if ci = 0 then 6 else 5) else heightL lay
-def heapU (lay e : Nat) : Nat := if lay = 0 then 4095 - e else e + 2 ^ heightL lay
+/-- Extra heap-sentinel bits of layers 2 and 1 (`x23 = e + 2^h + xOff`): their dispatch then adds
+the shared base `0x29000` (`x24`) and lands on the same blocks as before. -/
+def xOff (lay : Nat) : Nat := if lay = 2 then 64 else if lay = 1 then 128 else 0
+theorem xOff_eq_zero {lay : Nat} (h1 : lay ≠ 1) (h2 : lay ≠ 2) : xOff lay = 0 := by
+  unfold xOff; rw [if_neg h2, if_neg h1]
+def heapU (lay e : Nat) : Nat := if lay = 0 then 4095 - e else e + 2 ^ heightL lay + xOff lay
 
 
 /-- The chunk holding level `lam`. -/
@@ -97,12 +102,13 @@ def dispTgt (lay ci : Nat) : E :=
     (.c (~~~1#64))
 
 /-- The value stored into NB+12 (NB = LB = 0x340) (the parent's heap index) by level `kk` of block `v`: the
-constant 1 at the root, M4c constants (`sw R`) at depths 1 and 2 of the last chunk, else
+constant 1 at the root, M4c constants (`sw R`) at depths 1 and 2 of the last chunk, in layers 2
+and 1 a constant at every level (`addi`, the block fixes the leaf index), else
 `srli TP, E, lam + 1`. -/
 def lvlNb (lay ci v kk : Nat) : E :=
   let lam := chB0 lay ci + kk
   if lam + 1 = heightL lay then cw 1
-  else if kk + 1 < chBits lay ci ∧ isConstLvl lay lam = true then
+  else if kk + 1 < chBits lay ci ∧ (isConstLvl lay lam = true ∨ lay = 1 ∨ lay = 2) then
     cw (if lay = 0 then 3 * 2 ^ (heightL lay - (lam + 1)) - 1 -
       (2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1))
       else 2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1))
@@ -141,7 +147,7 @@ def lvlExp (lay ci v kk : Nat) : PRes :=
     ⟨⟨(lvlRegs lay lam).set .x12 (cw (dstOf lay)), mem, []⟩, pcOf (m4Pc lay ci v kk + 8), true, 6, 6, [], none⟩
   else if kk + 1 < chBits lay ci then
     let rf := if isConstLvl lay lam then lvlRegs lay lam
-      else (lvlRegs lay lam).set .x25 (.bin .srl (.reg .x23) (cw (lam + 1)))
+      else (lvlRegs lay lam).set .x25 (lvlNb lay ci v kk)
     let n := hs + (if isConstLvl lay lam then 6 else 7)
     ⟨⟨rf.set .x12 (cw (nodeDst lay (lam + 1) (v / 2 ^ (kk + 1) % 2))), mem, []⟩,
       pcOf (m4Pc lay ci v (kk + 1) + 1), true, n, n, [], none⟩
