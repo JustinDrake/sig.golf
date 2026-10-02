@@ -334,6 +334,14 @@ def headJ (rb : Reg) (off : Word) (first : Bool) (tgt : Nat) : Result :=
     [(kAt rb off 24, .reg .x4), (kAt rb off 16, s9E first)],
     [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8]⟩, .c (pcOf tgt), .jump, 6, 6⟩
 
+/-- A top table head preserves a2 when digit two's terminal rung immediately overwrites it. -/
+def headJ2 (rb : Reg) (off : Word) (first : Bool) (d tgt : Nat) : Result :=
+  let n := if d = 2 then 5 else 6
+  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) off)).set .x12
+      (if d = 2 then .reg .x12 else addC (addC (.reg rb) off) 48)).set .x25 (s9E first),
+    [(kAt rb off 24, .reg .x4), (kAt rb off 16, s9E first)],
+    [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8]⟩, .c (pcOf tgt), .jump, n, n⟩
+
 /-- An inline chain head (with the bump) and its first rung, step `d` (`slot` = the leaf-pk slot when `d` is
 the last step), up to the rung's `ecall` (6 or 7 steps from `p`). -/
 def headR (rb : Reg) (off : Word) (d : Nat) (slot : Option Nat) (p : Nat) : Result :=
@@ -513,7 +521,7 @@ def qentCheck (q k : Nat) : Bool :=
     rOK (vrun (qentW q k) 7)
       (copyJ .x19 (offT (4 * q)) (slotT (4 * q)) (q == 0) (qpcB q (k / 4 % 4) (k / 16 % 4) (k / 64)))
   else rOK (vrun (qentW q k) 7)
-    (headJ .x19 (offT (4 * q)) (q == 0) (quadBase q (k / 4 % 4) (k / 16 % 4) (k / 64) + 2 * (k % 4)))
+    (headJ2 .x19 (offT (4 * q)) (q == 0) (k % 4) (quadBase q (k / 4 % 4) (k / 16 % 4) (k / 64) + 2 * (k % 4)))
 
 /-- After chain `D` of quad `q`: the dispatch of quad `q + 1` or (`q = 11`) of chain 48. -/
 def qxOK (q dB dC dD : Nat) : Bool :=
@@ -534,7 +542,7 @@ def quadCheck (q lo n : Nat) : Bool :=
 
 /-- Chain 48 of the top: `q48tab` (digit `< 3` head, 3 copy), its rungs, `q48_done`. -/
 def q48Check : Bool :=
-  ((List.range 3).all fun d => rOK (vrun (q48tabIdx + 8 * d) 7) (headJ .x19 (offT 48) false (q48R0 + 2 * d))) &&
+  ((List.range 3).all fun d => rOK (vrun (q48tabIdx + 8 * d) 7) (headJ2 .x19 (offT 48) false d (q48R0 + 2 * d))) &&
     rOK (vrun (q48tabIdx + 24) 7) (copyJ .x19 (offT 48) (slotT 48) false q48Done) &&
     rungsOK2 0 (slotT 48) q48R0 && rOK (vrun q48Done 6) q48D
 

@@ -219,7 +219,7 @@ theorem buildTree_tsim :
       x9 := by rw [r02.get (by decide), hs.x9]; rfl
       x15 := t2x15
       x21 := by rw [t2x21]; decide
-      packed := by change T3.packedNodeTag 3; decide
+      packed := by decide
       htree := show 0 < 2 ^ 32 by norm_num
       hh1 := show 1 ≤ 12 by norm_num
       hh := show 12 ≤ 12 by norm_num

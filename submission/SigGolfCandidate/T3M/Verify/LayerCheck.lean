@@ -7,6 +7,7 @@ namespace SigGolfCandidate.T3M
 
 set_option maxRecDepth 100000
 
+theorem ld3Check_ok : ld3Check = true := by decide +kernel
 theorem layerCheck_3 : layerCheck 3 0 1 = true := by decide +kernel
 theorem layerCheck_2 : layerCheck 2 0 64 = true := by decide +kernel
 theorem layerCheck_1 : layerCheck 1 0 64 = true := by decide +kernel
