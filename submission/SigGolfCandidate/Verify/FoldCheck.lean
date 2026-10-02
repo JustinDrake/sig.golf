@@ -1,5 +1,6 @@
 import SigGolfCandidate.Verify.FoldCheckA
 import SigGolfCandidate.Verify.FoldCheckB
+set_option Elab.async false
 
 /-! All Merkle shape blocks. -/
 

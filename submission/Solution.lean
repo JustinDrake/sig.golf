@@ -5,7 +5,7 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
-The claim C=10288 is accepting verifier bound10233 plus witness charge55.
+The claim C=10287 is accepting verifier bound10232 plus witness charge55.
 This candidate retains the accepted ordered root-children message construction and adds
 length-separated leaf header reuse, a preserved selector threshold, a reversible
 top heap address reflection, carried upper-layer leaf headers, and rotated encoding
@@ -44,10 +44,8 @@ permutation; on admitted leaf indices this is multiplication by eight.
 Raw secret-PRF addresses, abstract leaf selection and sorting are unchanged.
 
 The high word of leaf header0 holds0xFFF: the prologue loads x18 with one
-`lwu x18, 52(sp)`, its x18-relative offsets are unrebased, the PORS setup tail
+`lwu x18, 52(sp)`, its x18-relative offsets are unrebased, the PORS leaf head
 no longer restores x18, and the header loads read the low word with `lw`.
-The leaf heads address the header table from sp (`lw x23, 48(x3)` with
-x3 = 8x + sp), so the setup tail no longer loads a table-page register.
 
 PORS segments with at least three folds carry three natural heap path bits.
 Their table entries compare a static reversed three-bit constant against the
@@ -97,7 +95,7 @@ theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4352 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10288 :=
+theorem certificate : SigGolf.Certificate submission 10287 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

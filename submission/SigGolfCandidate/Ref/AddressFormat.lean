@@ -1267,29 +1267,188 @@ theorem header_leaf (lay : Nat) (hl:lay<5) : header (1025+65536*lay)=leafHeader 
   interval_cases lay <;> decide
 end SigGolfCandidate.Ref.LeafCarry
 
+namespace SigGolfCandidate.Ref.DigestZero
+open SigGolfCandidate.Legacy
+
+def header (h : Nat) : Nat := if h = 3073 then 0 else if h = 0 then 3073 else h
+
+theorem header_lt {h : Nat} (hh : h < 18446744073709551616) : header h < 18446744073709551616 := by
+  unfold header; split_ifs <;> omega
+
+theorem header_involutive : Function.Involutive header := by
+  intro h
+  by_cases hD : h = 3073
+  · subst h; decide
+  by_cases hZ : h = 0
+  · subst h; decide
+  simp only [header, if_neg hD, if_neg hZ]
+
+def word (w : Nat) : Nat := header (w % 18446744073709551616) + 18446744073709551616 * (w / 18446744073709551616)
+
+theorem word_parts (w : Nat) :
+    word w % 18446744073709551616 = header (w % 18446744073709551616) ∧
+    word w / 18446744073709551616 = w / 18446744073709551616 := by
+  have hh := header_lt (Nat.mod_lt w (by decide))
+  unfold word
+  omega
+
+theorem word_involutive : Function.Involutive word := by
+  intro w
+  obtain ⟨hc,hq⟩ := word_parts w
+  change header (word w % 18446744073709551616) + 18446744073709551616 * (word w / 18446744073709551616) = w
+  rw [hc,hq,header_involutive]
+  omega
+
+theorem word_lt (w : Nat) (hw : w < 2^512) : word w < 2^512 := by
+  have hq := (word_parts w).2
+  norm_num only [Nat.reducePow] at hw ⊢
+  omega
+
+/-- Swap complete low words 3073 and zero only in one-block queries. -/
+def query (q : Query) : Query :=
+  if q.1 = 0 then ⟨q.1, BitVec.ofNat (8*(64*(q.1+1))) (word q.2.toNat)⟩ else q
+
+theorem query_involutive : Function.Involutive query := by
+  rintro ⟨n,w⟩
+  by_cases hn : n = 0
+  · subst n
+    change (⟨0, BitVec.ofNat 512 (word (BitVec.ofNat 512 (word w.toNat)).toNat)⟩ : Query) = ⟨0,w⟩
+    congr 1
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.toNat_ofNat]
+    rw [Nat.mod_eq_of_lt (word_lt _ w.isLt), word_involutive, Nat.mod_eq_of_lt w.isLt]
+  · simp only [query,if_neg hn]
+
+theorem query_blocks (q : Query) : (query q).blocks = q.blocks := by
+  rcases q with ⟨n,w⟩
+  simp only [query]; split <;> rfl
+
+theorem query_fixed_length (q : Query) (h : q.1 ≠ 0) : query q = q := by
+  rcases q with ⟨n,w⟩
+  exact if_neg h
+
+theorem word_fixed (w : Nat) (hD : w % 18446744073709551616 ≠ 3073)
+    (hZ : w % 18446744073709551616 ≠ 0) : word w = w := by
+  simp only [word,header,if_neg hD,if_neg hZ]
+  omega
+
+theorem query_fixed (q : Query) (hD : q.2.toNat % 18446744073709551616 ≠ 3073)
+    (hZ : q.2.toNat % 18446744073709551616 ≠ 0) : query q = q := by
+  rcases q with ⟨n,w⟩
+  unfold query
+  split
+  · rw [word_fixed _ hD hZ]
+    congr 1
+    apply BitVec.eq_of_toNat_eq
+    exact Nat.mod_eq_of_lt w.isLt
+  · rfl
+
+theorem query_fixed_class (q : Query) (hD : q.2.toNat % 65536 ≠ 3073)
+    (hZ : q.2.toNat % 65536 ≠ 0) : query q = q := by
+  have hm : q.2.toNat % 18446744073709551616 % 65536 = q.2.toNat % 65536 := by
+    rw [Nat.mod_mod_of_dvd _ (by decide : 65536 ∣ 18446744073709551616)]
+  apply query_fixed <;> omega
+
+theorem support_cases (q : Query) (h : query q ≠ q) :
+    q.1 = 0 ∧ (q.2.toNat % 18446744073709551616 = 3073 ∨ q.2.toNat % 18446744073709551616 = 0) := by
+  constructor
+  · by_contra hn; exact h (query_fixed_length q hn)
+  · by_contra hh
+    push_neg at hh
+    exact h (query_fixed q hh.1 hh.2)
+
+theorem support_classes (q : Query) (h : query q ≠ q) :
+    q.2.toNat % 65536 = 3073 ∨ q.2.toNat % 65536 = 0 := by
+  have hm : q.2.toNat % 18446744073709551616 % 65536 = q.2.toNat % 65536 := by
+    rw [Nat.mod_mod_of_dvd _ (by decide : 65536 ∣ 18446744073709551616)]
+  rcases (support_cases q h).2 with h | h <;> omega
+
+theorem commute_of_fixes_support (f : Query → Query) (hf : Function.Injective f)
+    (hs : ∀ q, query q ≠ q → f q = q) (q : Query) : query (f q) = f (query q) := by
+  by_cases h : query q = q
+  · rw [h]
+    by_contra h'
+    have he : f (f q) = f q := hs (f q) h'
+    have he' : f q = q := hf he
+    exact h' (by rw [he',h])
+  · have h' : query (query q) ≠ query q := by rw [query_involutive]; exact Ne.symm h
+    rw [hs q h, hs (query q) h']
+
+theorem commute_leafClass (q : Query) : query (LeafClass.query q) = LeafClass.query (query q) :=
+  commute_of_fixes_support _ LeafClass.query_involutive.injective (fun q h =>
+    LeafClass.query_fixed_length q (by have := (support_cases q h).1; omega)) q
+
+theorem commute_leafCarry (q : Query) : query (LeafCarry.query q) = LeafCarry.query (query q) :=
+  commute_of_fixes_support _ LeafCarry.query_involutive.injective (fun q h =>
+    LeafCarry.query_fixed_length q (by have := (support_cases q h).1; omega)) q
+
+theorem commute_topHeap (q : Query) : query (TopHeap.query q) = TopHeap.query (query q) :=
+  commute_of_fixes_support _ TopHeap.query_involutive.injective (fun q h =>
+    TopHeap.query_fixed_class q (by have := support_classes q h; omega)) q
+
+theorem commute_encodingRotate (q : Query) : query (EncodingRotate.query q) = EncodingRotate.query (query q) :=
+  commute_of_fixes_support _ EncodingRotate.query_injective (fun q h =>
+    EncodingRotate.query_fixed q (by have := support_classes q h; omega)) q
+
+theorem commute_leafScale (q : Query) : query (LeafScale.queryRel q) = LeafScale.queryRel (query q) :=
+  commute_of_fixes_support _ LeafScale.queryRel_injective (fun q h =>
+    LeafScale.queryRel_fixed q (by have := support_classes q h; omega)) q
+
+theorem base_fixed_support (q : Query) (h : query q ≠ q) : AddressFormat.baseQueryPerm q = q := by
+  obtain ⟨hn,hw⟩ := support_cases q h
+  have hc := support_classes q h
+  rcases q with ⟨n,w⟩
+  change n = 0 at hn
+  subst n
+  change w.toNat % 65536 = 3073 ∨ w.toNat % 65536 = 0 at hc
+  have hh : AddressFormat.wordPerm (w.toNat % 18446744073709551616) = w.toNat % 18446744073709551616 := by
+    rcases hw with hw | hw <;> rw [hw] <;> decide
+  have hf : AddressFormat.fullPerm w.toNat = w.toNat := by
+    rw [AddressFormat.fullPerm_of_ne _ (by omega)]
+    unfold AddressFormat.payloadPerm
+    rw [hh]
+    omega
+  change (⟨0,BitVec.ofNat 512 (AddressFormat.fullPerm w.toNat)⟩ : Query) = ⟨0,w⟩
+  rw [hf]
+  congr 1
+  exact BitVec.eq_of_toNat_eq (Nat.mod_eq_of_lt w.isLt)
+
+theorem commute_base (q : Query) : query (AddressFormat.baseQueryPerm q) = AddressFormat.baseQueryPerm (query q) :=
+  commute_of_fixes_support _ AddressFormat.baseQueryPerm_injective base_fixed_support q
+
+end SigGolfCandidate.Ref.DigestZero
+
 namespace SigGolfCandidate.Ref.AddressFormat
 open SigGolfCandidate.Legacy
 
 /-- Native-query permutation preserving the accepted root-pair construction. -/
-def queryPerm (q : Query) : Query := EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (LeafScale.queryRel (baseQueryPerm q)))))
-def queryInverse (q : Query) : Query := baseQueryPerm (LeafScale.queryInv (LeafClass.query (TopHeap.query (LeafCarry.query (EncodingRotate.queryInverse q)))))
+def queryPerm (q : Query) : Query := DigestZero.query (EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (LeafScale.queryRel (baseQueryPerm q))))))
+def queryInverse (q : Query) : Query := baseQueryPerm (LeafScale.queryInv (LeafClass.query (TopHeap.query (LeafCarry.query (EncodingRotate.queryInverse (DigestZero.query q))))))
+
+theorem queryPerm_eq_unwrapped (q : Query) (h : DigestZero.query q = q) :
+    queryPerm q = EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (LeafScale.queryRel (baseQueryPerm q))))) := by
+  rw [queryPerm, DigestZero.commute_encodingRotate, DigestZero.commute_leafCarry,
+    DigestZero.commute_topHeap, DigestZero.commute_leafClass, DigestZero.commute_leafScale,
+    DigestZero.commute_base, h]
 
 theorem queryInverse_queryPerm (q : Query) : queryInverse (queryPerm q) = q := by
-  rw [queryInverse, queryPerm, EncodingRotate.queryInverse_query, LeafCarry.query_involutive, TopHeap.query_involutive, LeafClass.query_involutive,
+  rw [queryInverse, queryPerm, DigestZero.query_involutive, EncodingRotate.queryInverse_query, LeafCarry.query_involutive, TopHeap.query_involutive, LeafClass.query_involutive,
     LeafScale.queryInv_queryRel, baseQueryPerm_involutive]
 
 theorem queryPerm_injective : Function.Injective queryPerm :=
-  EncodingRotate.query_injective.comp (LeafCarry.query_involutive.injective.comp (TopHeap.query_involutive.injective.comp (LeafClass.query_involutive.injective.comp
-    (LeafScale.queryRel_injective.comp baseQueryPerm_injective))))
+  DigestZero.query_involutive.injective.comp (EncodingRotate.query_injective.comp (LeafCarry.query_involutive.injective.comp (TopHeap.query_involutive.injective.comp (LeafClass.query_involutive.injective.comp
+    (LeafScale.queryRel_injective.comp baseQueryPerm_injective)))))
 
 theorem queryPerm_blocks (q : Query) : (queryPerm q).blocks = q.blocks := by
-  rw [queryPerm, EncodingRotate.query_blocks, LeafCarry.query_blocks, TopHeap.query_blocks, LeafClass.query_blocks, LeafScale.queryRel_blocks, baseQueryPerm_blocks]
+  rw [queryPerm, DigestZero.query_blocks, EncodingRotate.query_blocks, LeafCarry.query_blocks, TopHeap.query_blocks, LeafClass.query_blocks, LeafScale.queryRel_blocks, baseQueryPerm_blocks]
 
 theorem queryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
     (h1 : q.2.toNat % 65536 ≠ 257) (h2 : q.2.toNat % 65536 ≠ 2561)
     (h9 : q.2.toNat % 65536 ≠ 2305) (h4 : q.2.toNat % 65536 ≠ 1025)
-    (hL : q.2.toNat % 65536 ≠ 513) (h3:q.2.toNat%65536≠769) : queryPerm q = q := by
+    (hL : q.2.toNat % 65536 ≠ 513) (h3:q.2.toNat%65536≠769)
+    (hD : q.2.toNat % 65536 ≠ 3073) : queryPerm q = q := by
   rw [queryPerm, baseQueryPerm_fixed q h0 h1 h2, LeafScale.queryRel_fixed q h9,
     LeafClass.query_fixed q hL h4, TopHeap.query_fixed_class q h3, LeafCarry.query_fixed_classes q h3 h4, EncodingRotate.query_fixed q h4]
+  exact DigestZero.query_fixed_class q hD (by omega)
 
 end SigGolfCandidate.Ref.AddressFormat

@@ -2,6 +2,7 @@ import SigGolfCandidate.Verify.LayerSem
 import SigGolfCandidate.Verify.FoldCheck
 import SigGolfCandidate.Verify.FoldSem
 import SigGolfCandidate.Verify.ChainGood
+set_option Elab.async false
 
 /-! # The OTS leaf hash of a layer (at the return of the chain code), into its fold region -/
 
@@ -93,7 +94,7 @@ theorem leaf_dispatch_run (lay t E : Nat) (hlay : lay < 5) (ht : t < nCopy lay)
     have hpSlot : u0.pc = pcOf (topSlotPc E) := by
       rw [hu.spc topDispTgt (by simp [specLeaf])]
       have hv := topDispVal_tab E he
-      simpa [topDispTgt, mkBin_eval, mkAdd_eval, BinOp.eval, Rv.E.eval, cw, h23, heapU, heightL] using hv
+      simpa [topDispTgt, mkBin_eval, mkAdd_eval, BinOp.eval, Rv.E.eval, cw, h23, heightL, heapU] using hv
     have hkSlot : KnownOK (foldK 0 704) u0 := by
       intro p hp
       apply hu.known p

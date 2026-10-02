@@ -91,18 +91,18 @@ def DigestOut (P : PCtx) (s : MachineState) : Prop :=
   (∀ i, i < 4 → s.getMem (BitVec.ofNat 64 (8 * i)) = P.a.extractLsb' (64 * i) 64) ∧
   (∀ A, A < 0x800 → A % 8 = 0 → 0x60 ≤ A → A ≠ 0xA0 → A ≠ 0xA8 → (A < 0x160 ∨ 0x180 ≤ A) →
     s.getMem (BitVec.ofNat 64 A) = 0) ∧
-  s.pc = pcOf 24
+  s.pc = pcOf 22
 
 /-- The digest block `tw(12, 0, 0, 0, 0) || rho || m` as words. -/
 theorem fmt_digestInput_words (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
     addrFmt (digestInput rho m) = queryOfWords 0
-      ([BitVec.ofNat 64 (twLo 12 0 0 0), BitVec.ofNat 64 (twHi 0 0), vw0 rho, vw1 rho] ++ wordsOfN 4 m) := by
-  rw [addrFmt_digestInput, fmt_digestInput _ _ hr hm]
-  have hl : (tweak 12 0 0 0 0 ++ rho ++ m).length ≤ 8 * 8 := by simp [length_tweak, hr, hm]
-  have hw : wordsOfN 8 (tweak 12 0 0 0 0 ++ rho ++ m) =
-      [BitVec.ofNat 64 (twLo 12 0 0 0), BitVec.ofNat 64 (twHi 0 0), vw0 rho, vw1 rho] ++ wordsOfN 4 m := by
+      ([0, 0, vw0 rho, vw1 rho] ++ wordsOfN 4 m) := by
+  rw [addrFmt_digestInput_zero _ _ hr hm]
+  have hl : (zeros 16 ++ rho ++ m).length ≤ 8 * 8 := by simp [length_zeros, hr, hm]
+  have hw : wordsOfN 8 (zeros 16 ++ rho ++ m) =
+      [0, 0, vw0 rho, vw1 rho] ++ wordsOfN 4 m := by
     rw [List.append_assoc, show 8 = 2 + (2 + 4) from rfl,
-      wordsOfN_append 2 _ _ _ (by simp [length_tweak]), wordsOfN_val_append rho hr, wordsOfN_tweak]
+      wordsOfN_append 2 _ _ _ (by simp [length_zeros]), wordsOfN_val_append rho hr, show wordsOfN 2 (zeros 16) = [0,0] from wordsOfN_zeros 2]
     rfl
   unfold queryOfWords ofList
   rw [← hw, wordsToNat_wordsOfN 8 _ hl]
@@ -119,7 +119,7 @@ theorem startCheck_parts :
     specB [] (runAt k0 [1] 0 []) specLim k0x [] = true ∧
     specB gkD (runAt k1 [] 1 [.br false]) specStartOk dgK [] = true ∧
     specB [] (runAt k1 [] 1 [.br true]) specStartRej [] [] = true ∧
-    specB gkD (runAt dgK [leafPc 0] 24 []) setupSpec setupPost [] = true := by
+    specB gkD (runAt dgK [leafPc 0] 22 []) setupSpec setupPost [] = true := by
   have := startCheck_ok
   simp only [startCheck, Bool.and_eq_true] at this
   exact ⟨this.1.1.1, this.1.1.2, this.1.2, this.2⟩
@@ -137,7 +137,7 @@ theorem start_step1 (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.len
     (hRt : RtabData s) :
     (countersOk wl = false → ∃ t, Steps image s 17 17 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 1 ∧ t.getReg .x10 = 1) ∧
-    (countersOk wl = true → ∃ t, Steps image s 22 22 t ∧ fetch image t = some (.base .ECALL) ∧
+    (countersOk wl = true → ∃ t, Steps image s 20 20 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 0 ∧ hashArgumentsValid t = true ∧
         hashInput t = addrFmt (digestInput (witRho wl) ml) ∧
         ∀ a, DigestOut ⟨wl, pkl, a⟩ (writeHash t a)) := by
@@ -171,7 +171,7 @@ theorem start_step1 (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.len
       intro A hA h1 h2 h3
       rw [hmem, memEval_frame_ofNat _ _ _ hA (by
         simp only [specStartOk, List.mem_cons, List.not_mem_nil, or_false]
-        rintro p (rfl | rfl | rfl) <;> simp <;> omega)]
+        rintro p (rfl | rfl) <;> simp <;> omega)]
     have hG : Glob gkD wl pkl u := hu.glob _ _ _ hG0
     refine ⟨u, hu.steps, hu.ecall rfl, hKd (.x5, 0) (by simp [dgK, gkD, baseK]),
       hashArgs_ofNat _ _ _ _ h10 h11 h12 (by omega) (by omega) (by omega) (by decide), ?_, ?_⟩
@@ -188,8 +188,8 @@ theorem start_step1 (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.len
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, trivial⟩
       · rw [hmem]; simp only [specStartOk]
         rw [memEval_cons_ne _ _ _ _ _ (by decide), memEval_cons_ne _ _ _ _ _ (by decide),
-          memEval_cons_eq _ _ _ _ _ rfl]; rfl
-      · rw [mfr 8 (by omega) (by omega) (by omega) (by omega), hZ 8 (by omega) (by omega)]; rfl
+          memEval_nil, hZ 0 (by omega) (by omega)]
+      · rw [mfr 8 (by omega) (by omega) (by omega) (by omega), hZ 8 (by omega) (by omega)]
       · rw [hmem]; simp only [specStartOk]
         rw [memEval_cons_ne _ _ _ _ _ (by decide), memEval_cons_eq _ _ _ _ _ rfl]
         simp only [ldE, cw, Rv.E.eval]
@@ -241,7 +241,7 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
     (s : MachineState) (hs : InitOK ml pkl wl s) :
     (countersOk wl = false → ∃ t, Steps image s 18 18 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 1 ∧ t.getReg .x10 = 1) ∧
-    (countersOk wl = true → ∃ t, Steps image s 23 23 t ∧ fetch image t = some (.base .ECALL) ∧
+    (countersOk wl = true → ∃ t, Steps image s 21 21 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 0 ∧ hashArgumentsValid t = true ∧
         hashInput t = addrFmt (digestInput (witRho wl) ml) ∧
         ∀ a, DigestOut ⟨wl, pkl, a⟩ (writeHash t a)) := by

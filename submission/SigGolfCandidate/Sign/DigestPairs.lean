@@ -18,7 +18,7 @@ structure DigMem (S mm : List Byte) (u : MachineState) : Prop where
       (u.getMem (BitVec.ofNat 64 0x650)) (u.getMem (BitVec.ofNat 64 0x658))
       (u.getMem (BitVec.ofNat 64 0x660)) (u.getMem (BitVec.ofNat 64 0x668))
       (u.getMem (BitVec.ofNat 64 0x670)) (u.getMem (BitVec.ofNat 64 0x678))
-  db0 : u.readWords (BitVec.ofNat 64 0x0) 2 = [twWord0 12 0 0 0, 0]
+  db0 : u.readWords (BitVec.ofNat 64 0x0) 2 = [0, 0]
   dbM : u.readWords (BitVec.ofNat 64 0x20) 4 = wordsOf mm
 
 def digW (a : Nat) : Prop := a = 0x7b8 ∨ (0x10 ≤ a ∧ a < 0x20) ∨ (0x140 ≤ a ∧ a < 0x180) ∨ anW a
@@ -60,7 +60,7 @@ theorem digAttempt (sk : SecretKey) (m : Message) (u v : MachineState)
     (hrest : ∀ t', t'.pc = pcOf 137 → RegsEq v t' digTryRegs →
       Frame v t' digTryW → Sim image t' Wr rest (DigPost u)) :
     Sim image v (16 + anCyc + Wr)
-      ((liftM (HashSpec.query (fmt (digestInput rho (toList m)))) : OracleComp HashSpec _) >>= fun ans =>
+      ((liftM (HashSpec.query (addrFmt (digestInput rho (toList m)))) : OracleComp HashSpec _) >>= fun ans =>
         if admissible ans.toNat then pure (some (rho, ans.toNat)) else rest)
       (DigPost u) := by
   have hm : (toList m).length = 32 := length_toList m
@@ -87,18 +87,17 @@ theorem digAttempt (sk : SecretKey) (m : Message) (u v : MachineState)
     rfl
   have fu3 : Frame u t3 digW := (vframe.trans f3).mono (by
     intro x hx; simp only [digW, anW, false_or, or_false] at hx ⊢; omega)
-  have hq : hashInput t3 = fmt (digestInput rho (toList m)) := by
+  have hq : hashInput t3 = addrFmt (digestInput rho (toList m)) := by
     refine hashInput_eq_digest t3 _ _ hlen hm y11 (by rw [y10]; decide) ?_
     rw [y10, show (8 : Nat) = 2 + 2 + 4 from rfl]
     rw [readWords_ofNat_add, readWords_ofNat_add]
     simp only [Nat.reduceMul, Nat.reduceAdd]
     rw [fu3.readWords _ _ (by norm_num) (by intro i hi; simp only [digW, anW]; omega), hmem.db0, v3,
       fu3.readWords _ _ (by norm_num) (by intro i hi; simp only [digW, anW]; omega), hmem.dbM]
-    simp [twWords_eq, twWord0]
   have hc : blk72.res.cycles = 5 := rfl
   rw [hc] at hs
-  have hb : (fmt (digestInput rho (toList m))).blocks = 1 := by
-    rw [fmt_digestInput _ _ hlen hm]; rfl
+  have hb : (addrFmt (digestInput rho (toList m))).blocks = 1 := by
+    rw [addrFmt_blocks,fmt_digestInput _ _ hlen hm]; rfl
   refine (Sim.steps hs (Sim.query_bind (W := anCyc + Wr) e3 y5
     (hashArgs_of y10 y11 y12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
       (by norm_num)) hq (fun ans => ?_))).mono (by rw [hb]; omega) (fun _ _ h => h)
@@ -313,15 +312,15 @@ theorem digTrial (sk : SecretKey) (m : Message) (u : MachineState)
       Frame u t' digW → lo32 (t'.getMem (BitVec.ofNat 64 0x7b8)) = lo32 (u.getMem (BitVec.ofNat 64 0x7b8)) →
       Sim image t' Wr rest (DigPost u)) :
     Sim image t (60 + 2 * anCyc + Wr) (prf2 (rndInput (toList sk) (toList m) a) >>= fun p =>
-      (liftM (HashSpec.query (fmt (digestInput p.1 (toList m)))) : OracleComp HashSpec _) >>= fun ans =>
+      (liftM (HashSpec.query (addrFmt (digestInput p.1 (toList m)))) : OracleComp HashSpec _) >>= fun ans =>
         if admissible ans.toNat then pure (some (p.1, ans.toNat)) else
-          (liftM (HashSpec.query (fmt (digestInput p.2 (toList m)))) : OracleComp HashSpec _) >>= fun ans' =>
+          (liftM (HashSpec.query (addrFmt (digestInput p.2 (toList m)))) : OracleComp HashSpec _) >>= fun ans' =>
             if admissible ans'.toNat then pure (some (p.2, ans'.toNat)) else rest)
       (DigPost u) := by
   refine (digRandomizer sk m u hmem hx5 a t hinv (fun lo hi =>
-    (liftM (HashSpec.query (fmt (digestInput lo (toList m)))) : OracleComp HashSpec _) >>= fun ans =>
+    (liftM (HashSpec.query (addrFmt (digestInput lo (toList m)))) : OracleComp HashSpec _) >>= fun ans =>
       if admissible ans.toNat then pure (some (lo, ans.toNat)) else
-        (liftM (HashSpec.query (fmt (digestInput hi (toList m)))) : OracleComp HashSpec _) >>= fun ans' =>
+        (liftM (HashSpec.query (addrFmt (digestInput hi (toList m)))) : OracleComp HashSpec _) >>= fun ans' =>
           if admissible ans'.toNat then pure (some (hi, ans'.toNat)) else rest) (45 + 2 * anCyc + Wr) ?_).mono (W' := 60 + 2 * anCyc + Wr)
     (by omega) (fun _ _ h => h)
   intro ans v vpc v6 vregs vframe vlo vl vh
@@ -371,15 +370,12 @@ theorem digTrial (sk : SecretKey) (m : Message) (u : MachineState)
 
 theorem searchDigestPairs_succ (S mm : List Byte) (a f : Nat) :
     searchDigestPairs S mm a (f + 1) = (prf2 (rndInput S mm a) >>= fun p =>
-      (liftM (HashSpec.query (fmt (digestInput p.1 mm))) : OracleComp HashSpec _) >>= fun ans =>
+      (liftM (HashSpec.query (addrFmt (digestInput p.1 mm))) : OracleComp HashSpec _) >>= fun ans =>
         if admissible ans.toNat then pure (some (p.1, ans.toNat)) else
-          (liftM (HashSpec.query (fmt (digestInput p.2 mm))) : OracleComp HashSpec _) >>= fun ans' =>
+          (liftM (HashSpec.query (addrFmt (digestInput p.2 mm))) : OracleComp HashSpec _) >>= fun ans' =>
             if admissible ans'.toNat then pure (some (p.2, ans'.toNat))
             else searchDigestPairs S mm (a + 1) f) := by
   simp only [searchDigestPairs, digest, H, bind_assoc, pure_bind]
-  congr 1
-  funext p
-  rw [addrFmt_digestInput, addrFmt_digestInput]
 
 /-- Advance to the next pair, or fail when the fixed pair limit is exhausted. -/
 theorem digNext (u : MachineState) (hx7 : u.getReg .x7 = BitVec.ofNat 64 (2 ^ 19)) (a : Nat)

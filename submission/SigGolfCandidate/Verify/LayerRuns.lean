@@ -177,7 +177,7 @@ def specRej2 (out hi : Nat) (lay : Nat) : Spec :=
 chunk 0. -/
 def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay < 4 then 7 else 8
 
-def leafRawSteps (lay : Nat) : Nat := if lay < 4 then 7 else 8
+def leafRawSteps (lay : Nat) : Nat := if lay = 0 then 7 else leafSteps lay
 
 def topDispTgt : E :=
   mkBin .and (mkAdd (mkBin .sll (.reg .x23) (cw 3)) (cw 779264)) (.c (~~~1#64))

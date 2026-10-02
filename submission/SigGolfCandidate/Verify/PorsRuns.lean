@@ -29,7 +29,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 def leafPc (s : Nat) : Nat := leafTab.getD s 0
 /-- The dispatch of leaf `s` (after the leaf code). -/
-def dispLeafPc (s : Nat) : Nat := leafPc s + (if s = 0 then 10 else if s = 14 then 13 else 11)
+def dispLeafPc (s : Nat) : Nat := leafPc s + (if s = 0 then 10 else if s = 14 then 14 else 11)
 def entry0Pc (V : Nat) : Nat := entry0Tab.getD V 0
 def ladPc (V t p : Nat) : Nat := ((ladTab.getD V []).getD t []).getD p 0
 def lbrPc (V t p : Nat) : Nat := ((lbrTab.getD V []).getD t []).getD p 0
@@ -348,15 +348,14 @@ def leafBrs (s : Nat) (d1 d2 : Bool) : List Br :=
 
 /-- The table address `8 x + RTAB` of leaf `s`'s header. -/
 def rtE (s : Nat) : E := .bin .add (xE s) (cw RTAB)
-/-- The header field `lw x23, 48(x3)` (`x3 = 8 x + sp`, `sp + 48 = RTAB`): the sign-extended low
-word of the table entry. -/
+/-- The header field `lw x23, 48(x3)` with `x3 = 8*x + sp`: the sign-extended low word of the table entry. -/
 def rtLw (s : Nat) : E := .un (.ld .w 0) (.ld (rtE s))
 
 def leafSpec (s : Nat) : Spec :=
   ⟨[(xReg s, xE s), (.x23, rtLw s), (.x1, ldE (secA s)), (.x30, ldE (secA s + 8))],
     [(⟨none, BitVec.ofNat 64 0xE8⟩, ldE (secA s + 8)), (⟨none, BitVec.ofNat 64 0xE0⟩, ldE (secA s)),
       (⟨none, BitVec.ofNat 64 0xC8⟩, stW 0xC8 (xE s))],
-    dispLeafPc s, false, if s = 0 then 10 else if s = 14 then 13 else 11, leafBrs s false false, none, if s = 0 then 10 else if s = 14 then 13 else 11⟩
+    dispLeafPc s, false, if s = 0 then 10 else if s = 14 then 14 else 11, leafBrs s false false, none, if s = 0 then 10 else if s = 14 then 14 else 11⟩
 
 /-- The `PIND` read (all paths). -/
 def leafObl1 (s : Nat) : List Oblig := [.valid ⟨some (piT s), BitVec.ofNat 64 PIND⟩ 8]
@@ -371,9 +370,9 @@ def leafCheck (s : Nat) : Bool :=
   pspecB gkP (runAt leafKnown [dispLeafPc s] (leafPc s) (leafDirs s)) (leafSpec s) (leafObl s)
     (pleafPost s) (pleafKeep s) &&
   (s = 0 || pspecB [] (runAt leafKnown [] (leafPc s) [.br true])
-    (rejSpec (if s = 14 then 7 else 6) [⟨.geu, .reg (xReg (s + 1)), xE s, true⟩]) (leafObl1 s) [] []) &&
+    (rejSpec (if s = 14 then 8 else 6) [⟨.geu, .reg (xReg (s + 1)), xE s, true⟩]) (leafObl1 s) [] []) &&
   (s != 14 || pspecB [] (runAt leafKnown [] (leafPc s) [.br false, .br true])
-    (rejSpec 8 (leafBrs s false true)) (leafObl1 s) [] [])
+    (rejSpec 9 (leafBrs s false true)) (leafObl1 s) [] [])
 
 end SigGolfCandidate.Verify
 
@@ -412,8 +411,8 @@ def ctrX : E := .bin .or (.bin .or (ldE 4992) (ldE 5000)) (.un (.ld .wu 0) (ldE 
 def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
 
 def specStartOk : Spec :=
-  ⟨[], [(⟨none, BitVec.ofNat 64 24⟩, ldE 5064), (⟨none, BitVec.ofNat 64 16⟩, ldE 5056),
-    (⟨none, BitVec.ofNat 64 0⟩, cw 3073)], 23, true, 22, [⟨.ne, ctrE', .c 0, false⟩], none, 22⟩
+  ⟨[], [(⟨none, BitVec.ofNat 64 24⟩, ldE 5064), (⟨none, BitVec.ofNat 64 16⟩, ldE 5056)],
+    21, true, 20, [⟨.ne, ctrE', .c 0, false⟩], none, 20⟩
 def specStartRej : Spec :=
   ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 17, [⟨.ne, ctrE', .c 0, true⟩], none, 17⟩
 
@@ -460,6 +459,6 @@ def startCheck : Bool :=
   specB [] (runAt k0 [1] 0 []) specLim k0x [] &&
   specB gkD (runAt k1 [] 1 [.br false]) specStartOk dgK [] &&
   specB [] (runAt k1 [] 1 [.br true]) specStartRej [] [] &&
-  specB gkD (runAt dgK [leafPc 0] 24 []) setupSpec setupPost []
+  specB gkD (runAt dgK [leafPc 0] 22 []) setupSpec setupPost []
 
 end SigGolfCandidate.Verify

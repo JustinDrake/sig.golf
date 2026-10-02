@@ -479,7 +479,7 @@ theorem rnd_ok (S m : List Byte) (hS : S.length = 32) (hm : m.length = 32) (a : 
 
 theorem dig_ok (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
     PD (addrFmt (digestInput rho m)) ∧ (addrFmt (digestInput rho m)).blocks ≤ 1 := by
-  refine ⟨Or.inr ?_, by rw [addrFmt_digestInput, Ref.fmt_digestInput rho m hr hm]; exact le_rfl⟩
+  refine ⟨Or.inr ?_, by rw [addrFmt_digestInput, DigestZero.query_blocks, Ref.fmt_digestInput rho m hr hm]; exact le_rfl⟩
   unfold digestInput; rw [qbyte_tag]
 
 theorem spec_searchDigest (S m : List Byte) (hS : S.length = 32) (hm : m.length = 32) :

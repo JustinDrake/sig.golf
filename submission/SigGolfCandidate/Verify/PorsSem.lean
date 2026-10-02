@@ -285,7 +285,7 @@ theorem lw_sext (e h : Nat) (he : e < 2 ^ 32) (hh : h % 2 ^ 32 = 0) :
   unfold Rev.sext32
   split_ifs <;> simp_all <;> omega
 
-/-- The leaf header field read by `lw x23, 48(x3)` (`x3 = 8 x + sp`; the high word of header `0` is ignored). -/
+/-- The leaf header field read by `lw x23, 48(x3)` with `x3 = 8*x + sp` (the high word of header `0` is ignored). -/
 theorem rtW_lw (n : Nat) : (UnOp.ld .w 0).eval (rtW n) = Rev.revWord (2 ^ 14 ||| n) := by
   have he : Rev.efield (2 ^ 14 ||| n) < 2 ^ 32 := Rev.revBits_lt 32 _
   have hs : Rev.sext32 (Rev.efield (2 ^ 14 ||| n)) < 2 ^ 64 := by
@@ -376,8 +376,8 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
       ∃ u k, k ≤ 11 ∧ Steps image m k k u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     (¬ ((s ≠ 0 ∧ ¬ st.prev < leafX P s) ∨ (s = porsK - 1 ∧ ¬ leafX P s < porsT)) →
-      ∃ u, Steps image m (if s = 0 then 10 else if s = 14 then 13 else 11)
-        (if s = 0 then 10 else if s = 14 then 13 else 11) u ∧
+      ∃ u, Steps image m (if s = 0 then 10 else if s = 14 then 14 else 11)
+        (if s = 0 then 10 else if s = 14 then 14 else 11) u ∧
         DispIn P s0 s (leafX P s) s st.ptr (porsT ||| leafX P s) st.folds
           (.leaf (leafX P s) (witSecret P.wl s)) st.node st.stack u) := by
   have hs : s < 15 := h.bnd.1
@@ -536,7 +536,7 @@ theorem pend_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0
       rw [addrFmt_porsLeafInput_pad _ _ _ hsl hx, pad64_pLeaf _ _ _ hsl]
     refine ⟨?_, by rw [hf]; rfl⟩
     rw [hf, hashInput_ofNat u 0xC0 0 h10 h11 (by decide) (by decide)]
-    congr 1
+    apply congrArg (queryOfWords 0)
     simp only [List.range, List.range.loop, List.map, Nat.reduceAdd, Nat.reduceMul, Nat.add_zero,
       Nat.mul_zero, List.cons.injEq]
     refine ⟨?_, m8, pb.zero (by decide), pb.zero (by decide), m32, m40, pb.zero (by decide),
@@ -551,7 +551,7 @@ theorem pend_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0
       rw [addrFmt_porsNodeInput_pad _ _ _ _ hl hn, pad64_pNode _ _ _ _ hl hn]
     refine ⟨?_, by rw [hf]; rfl⟩
     rw [hf, hashInput_ofNat u (PSB + 80 * d) 0 h10 h11 (by unfold PSB; omega) (by unfold PSB; omega)]
-    congr 1
+    apply congrArg (queryOfWords 0)
     simp only [List.range, List.range.loop, List.map, Nat.reduceAdd, Nat.reduceMul, Nat.add_zero,
       Nat.mul_zero, List.cons.injEq]
     obtain ⟨b0, b16, b24⟩ := protP_blk d hd
@@ -1060,7 +1060,7 @@ theorem nb_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0 u
     rw [addrFmt_porsNodeInput_pad _ _ _ _ hl hr, pad64_pNode _ _ _ _ hl hr]
   refine ⟨?_, by rw [hf]; rfl⟩
   rw [hf, hashInput_ofNat u 0x1C0 0 h10 h11 (by decide) (by decide)]
-  congr 1
+  apply congrArg (queryOfWords 0)
   simp only [List.range, List.range.loop, List.map, Nat.reduceAdd, Nat.reduceMul, Nat.add_zero,
     Nat.mul_zero, List.cons.injEq]
   exact ⟨by rw [pb.prot (by decide), pb.s0ok.nb0], m8, pb.zero (by decide), pb.zero (by decide), l0, l1, r0, r1,

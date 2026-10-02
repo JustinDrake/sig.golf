@@ -42,8 +42,7 @@ def tbN : Nat := 0x1000 + 4 * ptabN
 def tbL : Nat := 0x1000 + 4 * ptabL
 
 /-- Constant registers of the PORS phase: `x5 = 0`, witness bases, `P1..P5`, `K14 = 2^14`,
-`MASK = 2^14 - 1`, `a1 = 64`, `x28 = sext32 (2^31)` and `sp` (the leaf heads address the leaf
-header table as `sp + 48`, so no table-page register is loaded). -/
+`MASK = 2^14 - 1`, `a1 = 64`, `x28 = sext32 (2^31)` and preserved `sp` (table base `sp + 48`). -/
 def gkP : List (Reg × Word) := baseK ++ [(.x29, 14336), (.x25, 0x20000), (.x26, 6), (.x11, 64),
   (.x28, 0xFFFFFFFF80000000), (.x2, 0xFDFFB0)]
 

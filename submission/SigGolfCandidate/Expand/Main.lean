@@ -47,7 +47,7 @@ theorem start_hash (s : MachineState) (rho msg : List Byte) (hr : rho.length = 1
   simp only [Nat.reduceMul, Nat.reduceAdd, readWords_ofNat_one]
   have e : ∀ c : Nat, c < 32 → ∀ d : Nat, d < 32 → c ≠ d → BitVec.ofNat 64 c ≠ BitVec.ofNat 64 d := by
     intro c hc d hd hcd; rw [Ne, ofNat_eq_iff]; omega
-  have g32 : (blk0.res.toState s).getMem (BitVec.ofNat 64 0) = BitVec.ofNat 64 3073 := by
+  have g32 : (blk0.res.toState s).getMem (BitVec.ofNat 64 0) = BitVec.ofNat 64 0 := by
     simp only [blk0.res, rv_simp]; simp [e 0 (by omega) 24 (by omega) (by omega),
       e 0 (by omega) 16 (by omega) (by omega), e 0 (by omega) 8 (by omega) (by omega)]
   have g40 : (blk0.res.toState s).getMem (BitVec.ofNat 64 8) = 0 := by
@@ -62,8 +62,7 @@ theorem start_hash (s : MachineState) (rho msg : List Byte) (hr : rho.length = 1
     exact readWords_congr _ _ _ _ (fun i hi => (start_mem s _ (by omega) (by omega)))
   rw [readWords_ofNat_two] at hsig
   rw [g32, g40, g48, g56, w64, ← hsig]
-  simp only [twWords_eq, List.cons_append, List.nil_append, List.cons.injEq, and_true]
-  exact ⟨by unfold twWord0; rfl, rfl⟩
+  rfl
 
 
 
@@ -278,7 +277,7 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.
     hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
   have hq := start_hash s (sigRho sig) msg hr hmsg hrho hm
   have hb : (addrFmt (digestInput (sigRho sig) msg)).blocks = 1 :=
-    by rw [addrFmt_digestInput]; exact blocks_fmt_digest _ ⟨by simp [digestInput, thInput, hr, hmsg, length_tweak, P, zeros], rfl⟩
+    by rw [addrFmt_blocks]; exact blocks_fmt_digest _ ⟨by simp [digestInput, thInput, hr, hmsg, length_tweak, P, zeros], rfl⟩
   have := Sign.Sim.query_bind (W := 15000 + (400000 + (34 + 5 * ExP.LW)) + 0)
     (f := fun a => afterD sig a.toNat >>= fun r => (pure (r.map fun l => ofList 14080 (cutW l)) : OracleComp HashSpec _))
     (Q := Qexp) e1 x5 hv hq (fun a => ?_)
