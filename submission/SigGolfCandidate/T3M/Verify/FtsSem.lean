@@ -76,7 +76,7 @@ theorem RootsOK.frame {roots : List Digest} {m u : MachineState} (h : RootsOK ro
 /-! ## The FTS setup (words 359 .. 376) -/
 
 theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : SelIn pk w a 7 t) :
-    ∃ u, Steps image t 14 14 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
+    ∃ u, Steps image t 13 13 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
   have hk0 : KnownOK baseK t := ht.known
   -- words 359 .. 365: the six setup constants from the embedded data
   obtain ⟨t1, h1⟩ := spec_run setupLdCheckF_ok t ht.pc hk0 (by simp [setupLdSpec]) (by simp)
