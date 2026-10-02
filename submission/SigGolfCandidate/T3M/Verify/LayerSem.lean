@@ -1,3 +1,4 @@
+import SigGolfCandidate.T3M.Verify.Swar7
 import SigGolfCandidate.T3M.Verify.LayerCheck
 import SigGolfCandidate.T3M.Verify.ChainGood
 import SigGolfCandidate.T3M.Verify.ChainQGood
@@ -392,8 +393,13 @@ theorem sumE_eval {u : MachineState} {a : BitVec 256} (h : AnsAt u a) (hr : ansV
     simp only [b1E, E.eval, BinOp.eval, a7E_eval h, kw]
     rw [toNat_sll _ 1 (by norm_num), ← ansV_hi]
     rw [Nat.mod_eq_of_lt (by omega)]; ring
+  have hsw : sw1E.eval u = sw1RefE.eval u := by
+    have he : (BitVec.ofNat 64 3).toNat % 64 = 3 := by decide
+    simp only [sw1E, swLowE, sw1RefE, E.eval, BinOp.eval, kw, M1c, he]
+    exact swar7_eq _ _ (by rw [hb]; omega)
   have hs1 : (sw1E.eval u).toNat = sw1 (ansV a % 2 ^ 64) (2 * (ansV a / 2 ^ 64)) := by
-    simp only [sw1E, E.eval, BinOp.eval, kw]
+    rw [hsw]
+    simp only [sw1RefE, E.eval, BinOp.eval, kw]
     rw [BitVec.toNat_add, BitVec.toNat_add, BitVec.toNat_add, toNat_andc _ _ (by norm_num [M1c]),
       toNat_andc _ _ (by norm_num [M1c]), toNat_andc _ _ (by norm_num [M1c]), toNat_andc _ _ (by norm_num [M1c]),
       toNat_srl _ 3 (by norm_num), toNat_srl _ 3 (by norm_num)]
@@ -609,7 +615,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
         rcases hb with rfl | rfl
         · exact (ckBr_iff hans hr' lay true).mpr (by rw [decide_eq_true hck])
         · exact (rngBr_iff hans 62 (by norm_num) false).mpr (by rw [decide_eq_false hr])) (by simp)
-      exact ⟨v, 25, 28, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejCk]),
+      exact ⟨v, 23, 26, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejCk]),
         hv.regs (.x10, kw 1) (by simp [rejCk]), by norm_num, by norm_num⟩
   · intro hsome
     have hr0 : (a.extractLsb' 64 64).toNat / 2 ^ 62 = 0 := by
@@ -644,7 +650,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
       · simp only [hL, lctxOf]; fin_cases lay <;> simp [s6v]
       · simp only [hL, lctxOf]; fin_cases lay <;> decide
       · simp only [hL, lctxOf]; unfold ckOf at hck ⊢; omega
-      · simp only [hL, lctxOf]; unfold retOff; split_ifs <;> omega
+      · simp only [hL, lctxOf]; unfold retOff; split <;> (try split) <;> omega
     have hGu : Glob (bK lay.val) w pk u := by
       have := Glob_writeHash ht.glob a 320 h12 (by decide)
       exact this
