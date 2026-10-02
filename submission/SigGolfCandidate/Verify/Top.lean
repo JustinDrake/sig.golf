@@ -181,8 +181,8 @@ all fifteen leaf headers. The tag-9 address-field rotation is an injective query
 Final.Discharge supplies the additional universal structural credit. Sparse initialization and leaf-header carry are included.
 The prologue loads `x18 = 0xFFF` from the high word of header `0`, so the setup tail has no
 `x18` restore (`-1`), and the leaf heads address the header table from `sp`, so it loads no
-table-page register (`-1`). -/
-def cycleBound : Nat := 10248
+table-page register (`-1`). The last leaf forms its table base as `x29 - 576` (`-1`). -/
+def cycleBound : Nat := 10247
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
 def cycleBoundAll : Nat := 16829
@@ -269,10 +269,10 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
 
 theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 1 := rfl
 
-theorem lrest_0 : lrest 0 = 157 := by decide
+theorem lrest_0 : lrest 0 = 156 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7743 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2655 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7743 + layC + layN := by
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7742 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2654 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7742 + layC + layN := by
   have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 
