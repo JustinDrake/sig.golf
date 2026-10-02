@@ -18,9 +18,7 @@ Budgets (fuel = all-oracle cycles `B`, accepting cycles `A`; `fo` = folds consum
   (`coord_good`); the forest 24 / 24 (cap check, frame, two-block HASH) (`fin_good`);
 * the FTS from `SelIn`: **7214 / 2895** (`fts_good`). Every accepting run has 5 segments per coordinate (3 leaves,
   2 merges): its accepting cost is exactly `911 + 16 F` (`F` = folds, at most 124 by the pointer cap); the bound
-  `2895 = 911 + 16 · 124` (T3K: the setup is 7 + 9 = 16 cycles, its six constants loaded from the embedded data,
-  then `t1 = 1`, `s3 = frameA 0` for the coordinate ends). Accepting runs satisfy `fo ≤ 124` at every point
-  (`Q ∧ fo ≤ 124`).
+  `2895 = 911 + 16 · 124`. Accepting runs satisfy `fo ≤ 124` at every point (`Q ∧ fo ≤ 124`).
 
 `verifyP_good_fts`: `verifyP` from the initial state, given the layers phase (V1, V3) from `FtsOut`.
 -/
@@ -492,12 +490,12 @@ theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
 
 /-- **`verifyP` from the initial state up to the layers phase**: given the layers phase (V1/V3: layers 3..0 and the
 comparison, `afterFts`) from `FtsOut`, the whole verify run. Accepting cycles through the forest HASH:
-`184 + 2895 = 3079` (`128 + P` with `P ≤ 56` for the words 0..358, `911 + 16 F` with `F ≤ 124` for the FTS). -/
+`183 + 2895 = 3078` (`127 + P` with `P ≤ 56` for the words 0..358, `911 + 16 F` with `F ≤ 124` for the FTS). -/
 theorem verifyP_good_fts (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    GoodQ s (Bf + 7400) (Bf + 7407) Q (Af + 3079) (ccM (verifyP m pk w) Kb) :=
+    GoodQ s (Bf + 7400) (Bf + 7407) Q (Af + 3078) (ccM (verifyP m pk w) Kb) :=
   (verifyP_good_sel m pk w s hs (afterSel_good pk w Bf Af Q hout)).mono (by omega) (by omega)
     (fun q => ⟨q, by omega⟩)
 

@@ -55,10 +55,10 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 
 /-- Merkle height. -/
 def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
-/-- Steps of A (layer 3 includes the 24 `hyper` constants; layer 0 has `mv` and `lui; or`). -/
-def stepsA (lay : Nat) : Nat := if lay = 3 then 22 else if lay = 0 then 16 else 15
+/-- Steps of A (layer 3: the `hyper` constants without `t1`, after the load block; layer 0 has `lui; or`). -/
+def stepsA (lay : Nat) : Nat := if lay = 3 then 22 else if lay = 0 then 15 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 0 then 71 else if lay = 3 then 54 else 47
+def retOff (lay : Nat) : Nat := if lay = 0 then 67 else if lay = 3 then 53 else 46
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
@@ -97,8 +97,7 @@ def layK (lay : Nat) : List (Reg × Word) :=
 
 /-- T3K: after the forest HASH (word 656) a load block (656 .. 661: `lui sp, 0x1000` and five `ld` of the embedded
 data words 0 .. 4) sets five of layer 3's constants (`2^40`, the SWAR masks, `s11`, `sp`); the transition copy
-proper starts at 662 (`trPc 3 0`). The FTS's `t1 = 1` passes through the block (kept), so layer 3's A no longer
-sets it. -/
+proper starts at 662 (`trPc 3 0`). -/
 def ld3Spec : Spec :=
   ⟨[(.x28, .ld (kw DATA)), (.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
       (.x27, .ld (kw (DATA + 24))), (.x2, .ld (kw (DATA + 32)))],
@@ -142,7 +141,8 @@ def sw1E : E :=
   .bin .add (.bin .add (.bin .add (.bin .and (.bin .srl a6E (kw 3)) (kw M1c)) (.bin .and a6E (kw M1c)))
     (.bin .and (.bin .srl b1E (kw 3)) (kw M1c))) (.bin .and b1E (kw M1c))
 def sumE : E := .bin .remu (.bin .and (.bin .add sw1E (.bin .srl sw1E (kw 6))) (kw M2c)) (kw 4095)
-def t4E (lay : Nat) : E := .bin .sub (kw (tgtL lay)) sumE
+/-- The checksum register `t4 = 7 - ck = sum - (target - 7)` (`addi t4, s9, 7 - target`). -/
+def t4E (lay : Nat) : E := .bin .add sumE (kw (2 ^ 64 - (tgtL lay - 7)))
 def rngBr (k : Nat) (d : Bool) : Br := ⟨.ne, .bin .srl a7E (kw k), kw 0, d⟩
 def ckBr (lay : Nat) (d : Bool) : Br := ⟨.eq, .bin .sltu (t4E lay) (kw 8), kw 0, d⟩
 /-- `a7 = (v1 << 1) | v0 >> 63`. -/
@@ -153,14 +153,14 @@ def tgtl : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe
 
 def specBl (lay p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, a7lE), (.x25, sumE), (.x29, t4E lay), (.x3, .bin .srl a6E (kw 63)), (.x14, x14l)],
-   [], 0, false, 31, [ckBr lay false, rngBr 62 false], some tgtl, 34⟩
+   [], 0, false, 30, [ckBr lay false, rngBr 62 false], some tgtl, 33⟩
 
 def postBl (lay p : Nat) : List (Reg × Word) :=
   layK lay ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x15, 0x6e000), (.x1, pcOf (p + retOff lay))]
 
 def rejRng (k : Nat) : Spec := ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 7, [rngBr k true], none, 7⟩
 def rejCk (lay : Nat) : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 25, [ckBr lay true, rngBr 62 false], none, 28⟩
+  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 24, [ckBr lay true, rngBr 62 false], none, 27⟩
 
 /-- The top decode's sums: the 3-bit SWAR of `g = v1 >>> 34` (`remu 4095` into `t4`), the 2-bit SWAR of `v0` and
 `c = v1 mod 2^34` (`remu 255`), the total. -/
@@ -179,17 +179,17 @@ def tgtt : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x1fe
 
 def specBt (p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, .bin .sll a7E (kw 2)), (.x3, totE), (.x14, x14t), (.x25, .bin .and c34E (kw M4c))],
-   [], 0, false, 54, [totBr false, rngBr 61 false], some tgtt, 60⟩
+   [], 0, false, 51, [totBr false, rngBr 61 false], some tgtt, 57⟩
 
 /-- After the top decode: the 2-bit masks, the quad mask in `s8`, `t4 = 8` (no checksum chain). -/
 def postBt (p : Nat) : List (Reg × Word) :=
   baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 0)), (.x2, 0x3fe00), (.x20, BitVec.ofNat 64 M4c), (.x21, BitVec.ofNat 64 M8c),
     (.x11, 64), (.x28, BitVec.ofNat 64 (2 ^ 40)), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7),
-    (.x22, BitVec.ofNat 64 (s6v 0)), (.x19, BitVec.ofNat 64 s3v), (.x24, 0x1fe00), (.x29, 8), (.x15, 0xae000),
+    (.x22, BitVec.ofNat 64 (s6v 0)), (.x19, BitVec.ofNat 64 s3v), (.x24, 0x1fe00), (.x29, 7#64 - BitVec.ofNat 64 8), (.x15, 0xae000),
     (.x1, pcOf (p + retOff 0))]
 
 def rejTot : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 44, [totBr true, rngBr 61 false], none, 50⟩
+  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 42, [totBr true, rngBr 61 false], none, 48⟩
 
 /-! ## The leaf-pk block -/
 

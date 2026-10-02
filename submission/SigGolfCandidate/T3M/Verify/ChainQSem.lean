@@ -52,7 +52,7 @@ def known (c : QCtx) : List (Reg × Word) :=
    (.x28, BitVec.ofNat 64 (2 ^ 40)), (.x2, 0x3fe00), (.x15, 0xae000), (.x22, BitVec.ofNat 64 c.S6),
    (.x19, BitVec.ofNat 64 c.S3), (.x24, 0x1fe00),
    (.x4, BitVec.ofNat 64 c.w1), (.x27, BitVec.ofNat 64 0x101),
-   (.x16, c.d0), (.x17, c.d1), (.x29, BitVec.ofNat 64 8), (.x1, pcOf c.ret)]
+   (.x16, c.d0), (.x17, c.d1), (.x29, 7#64 - BitVec.ofNat 64 8), (.x1, pcOf c.ret)]
 
 /-- The table row of quad `q`. -/
 def kOf (c : QCtx) (q : Nat) : Nat :=

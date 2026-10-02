@@ -73,7 +73,7 @@ theorem RootsOK.frame {roots : List Digest} {m u : MachineState} (h : RootsOK ro
   obtain ⟨h1, h2⟩ := h k hk
   exact ⟨e1.trans h1, e2.trans h2⟩
 
-/-! ## The FTS setup (words 359 .. 374, then `j 392` over the fillers 375 .. 391) -/
+/-! ## The FTS setup (words 359 .. 391: `j 375`, fifteen fillers, 17 instructions) -/
 
 theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : SelIn pk w a 7 t) :
     ∃ u, Steps image t 16 16 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
@@ -110,7 +110,7 @@ theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
     · exact e28
     · exact e26
     · exact e21
-  -- words 366 .. 374: the rest of the setup (with `t1 = 1`, `s3 = frameA 0`) and `j 392`
+  -- words 366 .. 372: the rest of the setup and `j 377`
   obtain ⟨u, hu⟩ := spec_run setupCheckF_ok t1 (h1.pc rfl) hk (by simp [setupSpecF]) (by simp)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
       if A = SENTINEL then -1#64 else t.getMem (BitVec.ofNat 64 A) := by

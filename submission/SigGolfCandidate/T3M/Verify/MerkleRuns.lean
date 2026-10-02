@@ -16,14 +16,13 @@ layer 0 has two chunks, levels 0..5 and 6..11, the other layers one). Level `l` 
 with `blk(l) = WIT + layerBase lay + 64 (h - 1 - l)` (V1's `s6 - 1024 - 64 (l + 1)`, top `s6 - 960 - 64 (l + 1)`),
 `cur(l) = blk(l) + 48 · bit l`. After the last level: the root HASH (`li a2, 0x100 / 0x180; ecall`) followed by the next
 layer's transition copy (`trPc (lay - 1) sh`) or a compare copy (`xcmp`); after level 5 of layer 0's chunk 0 the
-dispatch `slli a4, gp, 2; add a4, a5; jalr -608(a4)` into `stab_0_1` (gp = s7 >> 6 from the level's heap store,
-a5 = 0xce000 carried from leaf-pk).
+dispatch `lui a5, 0xce; srli a4, s7, 4; andi a4, 0xfc; add a4, a5; jalr -352(a4)` into `stab_0_1`.
 
 Families (each a path run checked by `specB`, kernel-checked in `MerkleCheck*`):
 * `mkEntCheck lay ci sh`: the table word `j shp_lay_ci_sh` and the first `addi a2`, to the first `ecall` (2 steps);
 * `mkLvlCheck lay ci sh kk`: level `mkLo lay ci + kk` from after its `ecall` to the next `ecall` (or through the chunk
   dispatch to its symbolic jump);
-* `cmpCheck c`: the compare copy `c` (low `ld/ld/bne`, high SUB-as-exit HALT).
+* `cmpCheck c`: the compare copy `c` (`ld/ld/bne` twice, HALT(0) / HALT(1)).
 
 Layout facts (word indices, `t3m/images/verify.labels`): `stab_3_0` 209512, `stab_2_0` 209576, `stab_1_0` 209640,
 `stab_0_0` 209768, `stab_0_1` 209832; `shp_3_0_sh` = 5483 + 101 sh, `shp_2_0_sh` = 11947 + 101 sh, `shp_1_0_sh` =
@@ -106,9 +105,9 @@ def mkLvlMem (lay ci sh l : Nat) : List (Addr × E) :=
 
 def mkLvlAllow (lay l : Nat) : List Nat := [mkBlk lay l + 16, mkBlk lay l + 24]
 
-/-- The chunk-1 dispatch target of layer 0 (`((s7 >> 6) << 2) + 0xce000 - 608`, even). -/
+/-- The chunk-1 dispatch target of layer 0 (`(s7 >> 4 & 0xfc) + 0xce000 - 352`, even). -/
 def mkDispTgt : E :=
-  .bin .and (.bin .add (.bin .sll (.bin .srl (.reg .x23) (kw 6)) (kw 2)) (kw 843168)) (.c (~~~1#64))
+  .bin .and (.bin .add (.bin .and (.bin .srl (.reg .x23) (kw 4)) (kw 0xfc)) (kw 843424)) (.c (~~~1#64))
 
 /-- Steps of the level body (after its `ecall`, before the next `addi a2` / `li a2` / dispatch). -/
 def mkBody (lay l : Nat) : Nat := (if l = 0 then 1 else 0) + 3 + (if mkReg lay l then 1 else 2)
@@ -127,8 +126,8 @@ def mkLvlSpecN (lay ci sh kk : Nat) : Spec :=
 
 /-- Level 5 of layer 0's chunk 0, ending with the chunk-1 dispatch (a jump to `stab_0_1`). -/
 def mkLvlSpecD (lay ci sh kk : Nat) : Spec :=
-  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), 0, false, mkBody lay (mkLo lay ci + kk) + 3, [], some mkDispTgt,
-    mkBody lay (mkLo lay ci + kk) + 3⟩
+  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), 0, false, mkBody lay (mkLo lay ci + kk) + 4, [], some mkDispTgt,
+    mkBody lay (mkLo lay ci + kk) + 4⟩
 
 /-- Known at the level body's start: the constants, and `a1 = 64` after the leaf-pk HASH. -/
 def mkLvlK (lay l : Nat) : List (Reg × Word) := mkK lay ++ (if l = 0 then [] else [(.x11, 64)])
