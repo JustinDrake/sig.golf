@@ -378,7 +378,8 @@ theorem sign_unpublished (published : T3.Cache) (request : Request) (hc : reques
   obtain ⟨mac, hmac, hr⟩ := hr
   simp only [hc, if_false, LazyPrivate.run_pure, mem_support_pure_iff] at hr
   subst hr
-  exact LazyPrivate.privateMac_preserves_nonce request.cache.region request.message lz mac hmac
+  exact LazyPrivate.privateHash_preserves_other (.inr (.inr request.cache.region)) (.inr (.inl request.message))
+    (by simp) lz mac hmac
 
 /-! ## Signing requests: the step -/
 

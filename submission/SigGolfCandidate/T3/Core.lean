@@ -2,7 +2,6 @@ import SigGolfCandidate.SphincsSecurity.Scheme
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.Bytes
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.HashOutputSplit
 import Mathlib
-import SigGolfCandidate.T3.FullCache.MacDefs
 
 /-! The concrete source construction for the T3 candidate. These programs are
 separate from the existing five-layer certificate until their proof obligations
@@ -18,7 +17,7 @@ abbrev HashOutput := BitVec 256
 abbrev HashInput := List UInt8
 abbrev HashSpec := HashInput →ₒ HashOutput
 abbrev Layer := Fin 4
-abbrev Region := Fin 131040 → UInt8
+abbrev Region := Fin 32736 → UInt8
 abbrev Coordinate := BitVec 128 ⊕ (Message ⊕ Region)
 abbrev Spec := SphincsSecurity.OracleWorld + (Coordinate →ₒ HashOutput)
 abbrev M := OracleComp Spec
@@ -27,7 +26,7 @@ def height (lay : Layer) : Nat := ![12, 7, 6, 6] lay
 def chainCount (lay : Layer) : Nat := ![58, 43, 43, 43] lay
 def dataCount (lay : Layer) : Nat := if lay = 0 then 58 else 42
 def width (lay : Layer) (i : Nat) : Nat := if lay = 0 ∧ i < 49 then 2 else 3
-def target (lay : Layer) : Nat := ![126, 195, 195, 195] lay
+def target (lay : Layer) : Nat := ![125, 194, 194, 194] lay
 def encodedBits (lay : Layer) : Nat := if lay = 0 then 125 else 126
 def capacity (lay : Layer) : Nat := if lay = 0 then 210 else 301
 def attemptLimit : Nat := 2 ^ 20
@@ -72,21 +71,11 @@ def privatePair (tag lay tree position index : Nat) : M (Digest × Digest) := do
   let output ← privateHash (.inl (header tag lay tree position index))
   pure (output.extractLsb' 0 128, output.extractLsb' 128 128)
 
-def privateMacKey : M SiggolfT3Mac4.MacKey := do
-  let k0 ← privateHash (.inl (header 14 0 0 0 0))
-  let k1 ← privateHash (.inl (header 14 0 0 0 1))
-  pure (fun i => if i = 0 then k0 else k1)
-
-def privateMac (region : Region) : M HashOutput := do
-  let key ← privateMacKey
-  pure (SiggolfT3Mac4.encodeTag (SiggolfT3Mac4.macTag key (List.ofFn region)))
+def privateMac (region : Region) : M HashOutput := privateHash (.inr (.inr region))
 def privateNonce (message : Message) : M Digest := do
   pure ((← privateHash (.inr (.inl message))).extractLsb' 0 128)
-def pairedMask (level pair : Nat) : M (Digest × Digest) := privatePair 13 0 0 level pair
-
 def mask (level index : Nat) : M Digest := do
-  let pair ← pairedMask level (index/2)
-  pure (if index%2=0 then pair.1 else pair.2)
+  pure (← privatePair 13 0 0 level index).1
 
 def realHandler (secret : BitVec 256) : QueryImpl Spec (OracleComp SphincsSecurity.OracleWorld)
   | .inl input => liftM (SphincsSecurity.OracleWorld.query input)
@@ -152,16 +141,12 @@ structure Cache where
 
 def cacheBytes (cache : Cache) : HashInput := bytesLE 32 cache.tag ++ List.ofFn cache.region
 
-/-- Both independent halves of each private mask answer are retained. -/
-def maskedLevel (nodes : List Digest) (level : Nat) : M (List Digest) := do
-  let pairs ← (List.range (2^(11-level))).mapM fun pair => do
-    let masks ← pairedMask level pair
-    pure [nodes.getD (2*pair) 0 ^^^ masks.1, nodes.getD (2*pair+1) 0 ^^^ masks.2]
-  pure pairs.flatten
-
 def keygenPayload : M (Digest × Region) := do
   let (levels, _) ← buildTree 0 0 0 []
-  let masked ← (List.range' 0 12).mapM fun level => maskedLevel (levels.getD level []) level
+  let masked ← (List.range' 2 10).mapM fun level =>
+    (List.range (2 ^ (12-level))).mapM fun i => do
+      let value ← mask level i
+      pure ((levels.getD level []).getD i 0 ^^^ value)
   let raw := (masked.flatten.flatMap (bytesLE 16)).toArray
   pure ((levels.getD 12 []).getD 0 0, fun i => raw.getD i.val 0)
 
@@ -268,15 +253,20 @@ def route (index : Nat) (lay : Layer) : Nat × Nat :=
 def readLE (bytes : HashInput) : Nat := bytes.foldr (fun b n => b.toNat + 256*n) 0
 def readDigest (bytes : HashInput) : Digest := BitVec.ofNat 128 (readLE bytes)
 
-/-- Every top authentication sibling is present in the authenticated full cache. -/
-def topPath (cache : Cache) (leaf : Nat) : M (List Digest) :=
-  (List.range 12).mapM fun level => do
+def topPath (cache : Cache) (leaf : Nat) : M (List Digest) := do
+  let sibling ← buildLeaf 0 0 (leaf ^^^ 1) []
+  let pairBase := (leaf / 2 ^^^ 1) * 2
+  let left ← buildLeaf 0 0 pairBase []
+  let right ← buildLeaf 0 0 (pairBase+1) []
+  let siblingPair ← nodeHash 3 0 0 (2048+pairBase/2) left.1 right.1
+  let rest ← (List.range' 2 10).mapM fun level => do
     let sibling := leaf / 2 ^ level ^^^ 1
-    let offset := 16*(8192 - 2^(13-level) + sibling)
+    let offset := 16*(2048 - 2^(13-level) + sibling)
     let value := readDigest (List.ofFn fun i : Fin 16 =>
-      cache.region ⟨(offset+i.val)%131040, Nat.mod_lt _ (by decide)⟩)
+      cache.region ⟨(offset+i.val)%32736, Nat.mod_lt _ (by decide)⟩)
     let m ← mask level sibling
     pure (value ^^^ m)
+  pure ([sibling.1,siblingPair] ++ rest)
 
 def signTop (cache : Cache) (leaf : Nat) (digits : List Nat) : M (List Digest × List Digest) := do
   let (_,values) ← buildLeaf 0 0 leaf digits true

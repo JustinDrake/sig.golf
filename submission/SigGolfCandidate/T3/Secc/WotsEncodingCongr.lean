@@ -110,18 +110,11 @@ theorem respects_privatePair (tag lay tree position index : Nat) :
   Respects.privatePair _ _ _ _ _ trivial
 
 theorem respects_mask (level index : Nat) : Respects NonEnc (mask level index) := by
-  unfold mask pairedMask
+  unfold mask
   exact Respects.bind (respects_privatePair _ _ _ _ _) fun _ => Respects.pure' _
 
-theorem respects_privateMac (region : Region) : Respects NonEnc (privateMac region) := by
-  unfold privateMac privateMacKey
-  exact Respects.bind (Respects.bind (Respects.privateHash _ trivial) fun _ =>
-    Respects.bind (Respects.privateHash _ trivial) fun _ => Respects.pure' _) fun _ => Respects.pure' _
-
-theorem respects_maskedLevel (nodes : List Digest) (level : Nat) : Respects NonEnc (maskedLevel nodes level) := by
-  unfold maskedLevel pairedMask
-  exact Respects.bind (Respects.mapM _ _ fun _ _ =>
-    Respects.bind (respects_privatePair _ _ _ _ _) fun _ => Respects.pure' _) fun _ => Respects.pure' _
+theorem respects_privateMac (region : Region) : Respects NonEnc (privateMac region) :=
+  Respects.privateHash _ trivial
 
 theorem respects_privateNonce (message : Message) : Respects NonEnc (privateNonce message) := by
   unfold privateNonce
@@ -223,14 +216,19 @@ theorem respects_keygen : Respects NonEnc keygen := by
   unfold Correctness.cachePayloadProgram
   refine Respects.bind (Respects.bind (respects_buildTree _ _ _ _) fun levels => ?_) fun payload => ?_
   · rcases levels with ⟨levels, _⟩
-    exact Respects.bind (Respects.mapM _ _ fun level _ => respects_maskedLevel _ _) fun _ => Respects.pure' _
+    refine Respects.bind (Respects.mapM _ _ fun level _ => Respects.mapM _ _ fun i _ =>
+      Respects.bind (respects_mask _ _) fun _ => Respects.pure' _) fun _ => Respects.pure' _
   · rcases payload with ⟨publicKey, region⟩
     exact Respects.bind (respects_privateMac region) fun _ => Respects.pure' _
 
 theorem respects_topPath (cache : Cache) (leaf : Nat) : Respects NonEnc (topPath cache leaf) := by
   unfold topPath
-  exact Respects.mapM _ _ fun level _ =>
-    Respects.bind (respects_mask _ _) fun _ => Respects.pure' _
+  refine Respects.bind (respects_buildLeaf _ _ _ _ _) fun sibling => ?_
+  refine Respects.bind (respects_buildLeaf _ _ _ _ _) fun left => ?_
+  refine Respects.bind (respects_buildLeaf _ _ _ _ _) fun right => ?_
+  refine Respects.bind (respects_nodeHash _ _ _ _ _ _ (by decide)) fun pairNode => ?_
+  refine Respects.bind (Respects.mapM _ _ fun level _ =>
+    Respects.bind (respects_mask _ _) fun _ => Respects.pure' _) fun _ => Respects.pure' _
 
 theorem respects_signTop (cache : Cache) (leaf : Nat) (digits : List Nat) :
     Respects NonEnc (signTop cache leaf digits) := by

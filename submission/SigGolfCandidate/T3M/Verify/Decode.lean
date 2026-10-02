@@ -695,7 +695,7 @@ total is 125; the digits are Core's 58 data digits. -/
 theorem decode_top (value : Digest) :
     decode 0 value =
       if value.toNat / 2 ^ 64 / 2 ^ 61 ≠ 0 then none
-      else if topSum value.toNat = 126 then some (dataDigits 0 value) else none := by
+      else if topSum value.toNat = 125 then some (dataDigits 0 value) else none := by
   have hb : encodedBits 0 = 125 := rfl
   unfold decode
   rw [hb]

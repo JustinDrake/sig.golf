@@ -3,16 +3,14 @@ import SigGolfCandidate.T3M.Final.Completeness
 /-!
 # Compression budgets: `submission.CompressionBounds` from CLOSURE's moments (MACH-PLAN §4.2)
 
-* keygen: under every fixed oracle keygen costs exactly 1,048,576 compressions (`KeygenRunWith`), so the moment is
-  `2^(1048576/2^20) ≤ 2`;
+* keygen: under every fixed oracle keygen costs exactly 1,047,038 compressions (`KeygenRunWith`), so the moment is
+  `2^(1047038/2^20) ≤ 2`;
 * sign, expand: under every fixed oracle the organizer's recorded cost of the phase is the count of CLOSURE's counted
   source program (`honestSignCount`, `honestJointCounts`) realized by the same oracle (`costs_sign_eval`,
   `costs_expand_eval`: the refinements are exact in compressions, and `mrealize_countBlocks` matches the organizer's
   blocks with Core's weights), so both have the same law under the lazy oracle (`randomOracle_congr`), which on the
   organizer's oracle is CLOSURE's `roRun` (`withRandomOracle_mrealize`). CLOSURE's moments close it.
 -/
-
-set_option Elab.async false
 
 open OracleComp OracleSpec SigGolfCandidate.Legacy SigGolfCandidate.Bridge ENNReal OracleComp.EvalDist
 
@@ -22,9 +20,6 @@ open SigGolfCandidate.T3 (M Spec keygen sign expand verify Cache Digest Signatur
 set_option allowUnsafeReducibility true in
 attribute [local reducible] SphincsSecurity.hashOutputBits SigGolfCandidate.T3M.submission
   SigGolfCandidate.Legacy.Output SigGolfCandidate.Legacy.Input
-
-/- Keep source programs and cache codecs abstract during rewrite matching. -/
-attribute [local irreducible] T3.keygen T3.keygenPayload T3.privateMac T3.sign cacheB cacheDec T3.cacheBytes
 
 /-! ## Realized compressions are Core's weights -/
 
@@ -135,70 +130,6 @@ theorem eval_of_counts {β γ : Type} {run : OracleComp HashSpec (RunResult β)}
   refine ⟨h1.1.trans (by rw [h2]), h1.2.2.trans ?_⟩
   rw [← h3]
 
-theorem abstract_count_refinement {α β : Type} (sk : SecretKey) (hash : Hash)
-    (X : M α) (run : OracleComp HashSpec (RunResult β)) (F : α → Option β)
-    (h : (fun r => (r.value,r.hashCalls,r.hashCompressions)) <$> run =
-      (fun p => (F p.1,p.2.1,p.2.2)) <$> countBoth (mrealize sk X))
-    (hg : AllQueriesSatisfy X T3.Cost.GoodQuery) :
-    (evalWithAnswerFn hash run).hashCompressions =
-      (evalWithAnswerFn hash (mrealize sk (T3.Cost.countBlocks X))).2 := by
-  exact (eval_of_counts h hash).2.trans
-    (congrArg (fun p => (evalWithAnswerFn hash p).2) (mrealize_countBlocks sk hg))
-
-
-
-
-
-theorem abstract_sign_raw (P : Pending) (sk : SecretKey) (cache : Bytes 131072)
-    (m : Message) (hash : Hash) :
-    (evalWithAnswerFn hash (submission.run .sign (sk,cache,m))).hashCompressions =
-      (evalWithAnswerFn hash (mrealize sk (T3.Cost.countBlocks (sign (cacheDec cache) m)))).2 := by
-  exact abstract_count_refinement sk hash (sign (cacheDec cache) m)
-    (submission.run .sign (sk,cache,m)) (Option.map sigB)
-    (P.sign_refines sk cache m) (T3M.goodQ_sign _ _)
-
-
-theorem abstract_sign_encoded (P : Pending) (sk : SecretKey) (cache : Cache)
-    (m : Message) (hash : Hash) :
-    (evalWithAnswerFn hash (submission.run .sign (sk,cacheB cache,m))).hashCompressions =
-      (evalWithAnswerFn hash (mrealize sk (T3.Cost.countBlocks (sign cache m)))).2 := by
-  have h := abstract_sign_raw P sk (cacheB cache) m hash
-  rw [cacheDec_cacheB] at h
-  exact h
-
-
-
-theorem abstract_sign_raw_value (P : Pending) (sk : SecretKey) (cache : Bytes 131072)
-    (m : Message) (hash : Hash) :
-    (evalWithAnswerFn hash (submission.run .sign (sk,cache,m))).value =
-      Option.map sigB (evalWithAnswerFn hash (mrealize sk (sign (cacheDec cache) m))) := by
-  exact (eval_of_counts (F := Option.map sigB) (P.sign_refines sk cache m) hash).1
-
-theorem abstract_sign_encoded_value (P : Pending) (sk : SecretKey) (cache : Cache)
-    (m : Message) (hash : Hash) :
-    (evalWithAnswerFn hash (submission.run .sign (sk,cacheB cache,m))).value =
-      Option.map sigB (evalWithAnswerFn hash (mrealize sk (sign cache m))) := by
-  have h := abstract_sign_raw_value P sk (cacheB cache) m hash
-  rw [cacheDec_cacheB] at h
-  exact h
-
-theorem abstract_expand_raw_cost (P : Pending) (m : Message) (pk : PublicKey)
-    (sig : Bytes 5728) (hash : Hash) :
-    (evalWithAnswerFn hash (submission.run .expand (m,pk,sig))).hashCompressions =
-      (evalWithAnswerFn hash (mrealize 0 (T3.Cost.countBlocks (expandN m pk (sigDec sig))))).2 := by
-  exact abstract_count_refinement 0 hash (expandN m pk (sigDec sig))
-    (submission.run .expand (m,pk,sig))
-    (Option.map (fun x : T3.HashOutput × T3.Witness => witEnc x.1 x.2))
-    (P.expand_refines m pk sig) (T3M.goodQ_expandN _ _ _)
-
-theorem abstract_expand_encoded_cost (P : Pending) (m : Message) (pk : PublicKey)
-    (sig : Signature) (hash : Hash) :
-    (evalWithAnswerFn hash (submission.run .expand (m,pk,sigB sig))).hashCompressions =
-      (evalWithAnswerFn hash (mrealize 0 (T3.Cost.countBlocks (expandN m pk sig)))).2 := by
-  have h := abstract_expand_raw_cost P m pk (sigB sig) hash
-  rw [sigDec_sigB] at h
-  exact h
-
 theorem eval_cost_fst {α : Type} (answers : T3.Correctness.Answers) (wt : T3.Cost.Query → ℕ) (p : M α) :
     (evalWithAnswerFn answers (T3.Cost.countWith wt p)).1 = evalWithAnswerFn answers p := by
   have := congrArg (evalWithAnswerFn answers) (T3.Cost.fst_countWith wt p)
@@ -217,98 +148,10 @@ theorem eval_expand_blocks (answers : T3.Correctness.Answers) (m : T3.Message) (
   unfold T3.Cost.countBlocks
   rw [expand_eq_expandN, countWith_map', evalWithAnswerFn_map]
 
-/-- Assemble signing costs while both the key generator and counted signer remain abstract. -/
-theorem generic_outer_sign_cost {κ : Type} (sub : Submission) (hash : Hash)
-    (sk : SecretKey) (message : Message) (keys : OracleComp HashSpec κ)
-    (encode : κ → PublicKey × Bytes sub.sizes.cache)
-    (counts : κ → OracleComp HashSpec Nat)
-    (hkeys : (sub.runWith hash .keygen sk).value = some (encode (evalWithAnswerFn hash keys)))
-    (hcounts : ∀ key, (sub.runWith hash .sign (sk, (encode key).2, message)).hashCompressions =
-      evalWithAnswerFn hash (counts key)) :
-    evalWithAnswerFn hash ((fun r => r.costs .sign) <$> sub.honest sk message) =
-      evalWithAnswerFn hash (keys >>= counts) := by
-  rw [evalWithAnswerFn_map, eval_costs_sign, hkeys, evalWithAnswerFn_bind]
-  exact hcounts (evalWithAnswerFn hash keys)
-
-/-- Distribute a counted source pipeline before specializing its expensive key generator. -/
-theorem generic_count_pipeline {κ α : Type} (sk : SecretKey) (keys : T3.M κ)
-    (signer : κ → T3.M α) (charge : α → Nat) :
-    mrealize sk keys >>= (fun key => charge <$> mrealize sk (signer key)) =
-      charge <$> mrealize sk (keys >>= signer) := by
-  rw [mrealize_bind, map_bind]
-
-/-- Assemble expansion costs without reducing the key generator or signing computation. -/
-theorem generic_outer_expand_cost {κ σ α : Type} (sub : Submission) (hash : Hash)
-    (sk : SecretKey) (message : Message) (keys : OracleComp HashSpec κ)
-    (encodeKey : κ → PublicKey × Bytes sub.sizes.cache)
-    (signer : κ → OracleComp HashSpec α) (selected : α → Option σ)
-    (encodeSig : σ → Bytes sub.sizes.signature)
-    (counts : κ → σ → OracleComp HashSpec Nat)
-    (hkeys : (sub.runWith hash .keygen sk).value = some (encodeKey (evalWithAnswerFn hash keys)))
-    (hsign : ∀ key, (sub.runWith hash .sign (sk, (encodeKey key).2, message)).value =
-      (selected (evalWithAnswerFn hash (signer key))).map encodeSig)
-    (hexpand : ∀ key sig, (sub.runWith hash .expand (message, (encodeKey key).1, encodeSig sig)).hashCompressions =
-      evalWithAnswerFn hash (counts key sig)) :
-    evalWithAnswerFn hash ((fun r => r.costs .expand) <$> sub.honest sk message) =
-      evalWithAnswerFn hash (keys >>= fun key => signer key >>= fun signed =>
-        match selected signed with
-        | none => pure 0
-        | some sig => counts key sig) := by
-  rw [evalWithAnswerFn_map, eval_costs_expand, hkeys, evalWithAnswerFn_bind]
-  simp only
-  rw [hsign, evalWithAnswerFn_bind]
-  cases selected (evalWithAnswerFn hash (signer (evalWithAnswerFn hash keys))) with
-  | none => rfl
-  | some sig => exact hexpand _ sig
-
-/-- The expansion count projection distributes through a fully abstract joint pipeline. -/
-theorem generic_joint_count_pipeline {κ σ ω : Type} (sk : SecretKey)
-    (initial : T3.M κ) (signer : κ → T3.M (Option σ)) (expander : κ → σ → T3.M ω) :
-    (mrealize sk initial >>= fun key => mrealize sk (T3.Cost.countBlocks (signer key)) >>= fun signed =>
-      match signed.1 with
-      | none => pure 0
-      | some sig => Prod.snd <$> mrealize sk (T3.Cost.countBlocks (expander key sig))) =
-      Prod.snd <$> mrealize sk (jointCounts initial signer expander) := by
-  unfold jointCounts
-  rw [mrealize_bind, map_bind]
-  apply bind_congr
-  intro key
-  rw [mrealize_bind, map_bind]
-  apply bind_congr
-  intro signed
-  rcases signed with ⟨_ | sig, count⟩
-  · simp only [mrealize_pure, map_pure]
-  · simp only [mrealize_bind, map_bind, mrealize_pure, map_pure, map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp_def]
-
-
-set_option maxRecDepth 100000 in
-theorem sign_count_value (P : Pending) (sk : SecretKey) (cache : Cache)
-    (m : Message) (hash : Hash) :
-    (submission.runWith hash .sign (sk,cacheB cache,m)).value =
-      Option.map sigB (evalWithAnswerFn hash
-        (mrealize sk (T3.Cost.countBlocks (sign cache m)))).1 := by
-  have h := abstract_sign_encoded_value P sk cache m hash
-  rw [eval_mrealize hash sk (T3.Cost.countBlocks (sign cache m)), T3.Cost.countBlocks,
-    eval_cost_fst, ← eval_mrealize hash sk (sign cache m)]
-  exact h
-
-set_option maxRecDepth 100000 in
-theorem expand_count_cost (P : Pending) (sk : SecretKey) (m : Message)
-    (pk : PublicKey) (sig : Signature) (hash : Hash) :
-    (submission.runWith hash .expand (m,pk,sigB sig)).hashCompressions =
-      evalWithAnswerFn hash (Prod.snd <$> mrealize sk (T3.Cost.countBlocks (expand m pk sig))) := by
-  have h := abstract_expand_encoded_cost P m pk sig hash
-  have hp : AllQueriesSatisfy (T3.Cost.countBlocks (expandN m pk sig)) isPublic :=
-    allQ_countWith T3.Cost.weight (T3M.publicOnly_expandN m pk sig)
-  rw [mrealize_public 0 sk hp, eval_mrealize] at h
-  rw [evalWithAnswerFn_map, eval_mrealize, eval_expand_blocks]
-  exact h
-
-
 set_option maxRecDepth 100000 in
 theorem costs_keygen_eval (P : Pending) (sk : SecretKey) (m : Message) (hash : Hash) :
     evalWithAnswerFn hash ((fun r => r.costs .keygen) <$> submission.honest sk m) =
-      evalWithAnswerFn hash (pure 1048576 : OracleComp HashSpec ℕ) := by
+      evalWithAnswerFn hash (pure 1047038 : OracleComp HashSpec ℕ) := by
   rw [evalWithAnswerFn_map, eval_costs_keygen, P.keygen_runWith]
   rfl
 
@@ -316,35 +159,40 @@ set_option maxRecDepth 100000 in
 theorem costs_sign_eval (P : Pending) (sk : SecretKey) (m : Message) (hash : Hash) :
     evalWithAnswerFn hash ((fun r => r.costs .sign) <$> submission.honest sk m) =
       evalWithAnswerFn hash ((fun r => r.2) <$> mrealize sk (honestSignCount m)) := by
-  have hk : (submission.runWith hash .keygen sk).value =
-      some ((evalWithAnswerFn hash (mrealize sk keygen)).1,
-        cacheB (evalWithAnswerFn hash (mrealize sk keygen)).2) :=
-    congrArg RunResult.value (P.keygen_runWith hash sk)
-  have h := generic_outer_sign_cost submission hash sk m (mrealize sk keygen)
-    (fun key => (key.1, cacheB key.2))
-    (fun key => Prod.snd <$> mrealize sk (T3.Cost.countBlocks (sign key.2 m))) hk
-    (fun key => (abstract_sign_encoded P sk key.2 m hash).trans
-      (evalWithAnswerFn_map hash Prod.snd _).symm)
-  exact h.trans (congrArg (evalWithAnswerFn hash)
-    (generic_count_pipeline sk keygen (fun key => T3.Cost.countBlocks (sign key.2 m)) Prod.snd))
+  rw [evalWithAnswerFn_map, evalWithAnswerFn_map, eval_costs_sign, P.keygen_runWith]
+  simp only [Submission.runWith]
+  rw [(eval_of_counts (F := Option.map sigB) (P.sign_refines sk _ m) hash).2, cacheDec_cacheB,
+    mrealize_countBlocks sk (T3M.goodQ_sign _ _), honestSignCount, mrealize_bind, evalWithAnswerFn_bind]
 
 set_option maxRecDepth 100000 in
 theorem costs_expand_eval (P : Pending) (sk : SecretKey) (m : Message) (hash : Hash) :
     evalWithAnswerFn hash ((fun r => r.costs .expand) <$> submission.honest sk m) =
       evalWithAnswerFn hash ((fun r => r.2) <$> mrealize sk (honestJointCounts m)) := by
-  have hk : (submission.runWith hash .keygen sk).value =
-      some ((evalWithAnswerFn hash (mrealize sk keygen)).1,
-        cacheB (evalWithAnswerFn hash (mrealize sk keygen)).2) :=
-    congrArg RunResult.value (P.keygen_runWith hash sk)
-  have h := generic_outer_expand_cost submission hash sk m (mrealize sk keygen)
-    (fun key => (key.1, cacheB key.2))
-    (fun key => mrealize sk (T3.Cost.countBlocks (sign key.2 m))) Prod.fst sigB
-    (fun key sig => Prod.snd <$> mrealize sk (T3.Cost.countBlocks (expand m key.1 sig)))
-    hk (fun key => sign_count_value P sk key.2 m hash)
-    (fun key sig => expand_count_cost P sk m key.1 sig hash)
-  exact h.trans (congrArg (evalWithAnswerFn hash)
-    (generic_joint_count_pipeline sk keygen (fun key => sign key.2 m)
-      (fun key sig => expand m key.1 sig)))
+  rw [evalWithAnswerFn_map, evalWithAnswerFn_map, eval_costs_expand, P.keygen_runWith]
+  simp only [Submission.runWith]
+  rw [(eval_of_counts (F := Option.map sigB) (P.sign_refines sk _ m) hash).1, cacheDec_cacheB]
+  rw [eval_mrealize hash sk (honestJointCounts m)]
+  unfold honestJointCounts jointCounts
+  simp only [evalWithAnswerFn_bind]
+  rw [← eval_mrealize hash sk keygen]
+  generalize evalWithAnswerFn hash (mrealize sk keygen) = e
+  have hsig : (evalWithAnswerFn (machineAnswers hash sk) (T3.Cost.countBlocks (sign e.2 m))).1 =
+      evalWithAnswerFn hash (mrealize sk (sign e.2 m)) := by
+    rw [T3.Cost.countBlocks, eval_cost_fst, eval_mrealize]
+  generalize hS : evalWithAnswerFn (machineAnswers hash sk) (T3.Cost.countBlocks (sign e.2 m)) = signed at hsig
+  rcases signed with ⟨_ | σ, n⟩
+  · simp only at hsig
+    rw [← hsig]
+    rfl
+  · simp only at hsig
+    rw [← hsig]
+    simp only [Option.map_some]
+    rw [(eval_of_counts (F := Option.map (fun x : T3.HashOutput × T3.Witness => witEnc x.1 x.2))
+      (P.expand_refines m _ _) hash).2, sigDec_sigB,
+      mrealize_public 0 sk (T3M.publicOnly_expandN _ _ _), mrealize_countBlocks sk (T3M.goodQ_expandN _ _ _),
+      eval_mrealize]
+    simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure]
+    rw [eval_expand_blocks]
 
 /-! ## The three moments -/
 
@@ -364,10 +212,10 @@ theorem keygen_bound (P : Pending) (sk : SecretKey) (m : Message) :
       = expectedValue (withRandomOracle ((fun r => r.costs .keygen) <$> submission.honest sk m))
           (fun n : ℕ => ENNReal.ofReal (Real.rpow 2 ((n : ℝ) / (Phase.keygen.budget : ℝ)))) := by
         rw [withRandomOracle_map', expectedValue_map]
-    _ = expectedValue (withRandomOracle (pure 1048576 : OracleComp HashSpec ℕ))
+    _ = expectedValue (withRandomOracle (pure 1047038 : OracleComp HashSpec ℕ))
           (fun n : ℕ => ENNReal.ofReal (Real.rpow 2 ((n : ℝ) / (Phase.keygen.budget : ℝ)))) :=
         expectedValue_congr_evalSPMF h _
-    _ = ENNReal.ofReal (Real.rpow 2 (((1048576 : ℕ) : ℝ) / (Phase.keygen.budget : ℝ))) := by
+    _ = ENNReal.ofReal (Real.rpow 2 (((1047038 : ℕ) : ℝ) / (Phase.keygen.budget : ℝ))) := by
         rw [withRandomOracle_pure, expectedValue_pure]
     _ ≤ ENNReal.ofReal (Real.rpow 2 1) := by
         refine ENNReal.ofReal_le_ofReal (Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_)

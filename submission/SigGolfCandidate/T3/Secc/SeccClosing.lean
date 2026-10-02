@@ -7,7 +7,7 @@ The exact remaining endpoint is `PaddedGame.securityP_of_clean_bound`: for every
 
     Pr[CleanWin q | tracedExperiment adversary q hq] + secTerms q ≤ q / 2^127,
 
-where `secTerms q = q/2^146 + 2^-700 + 2^-152 + q/2^256` are SEC's fixed reduction errors.
+where `secTerms q = q/2^146 + 2^-700 + 2^-224 + q/2^256` are SEC's fixed reduction errors.
 
 The proof splits at `budgetSplit = 2^114` (x = q/2^128 ≤ 2^-14):
 
@@ -59,7 +59,7 @@ noncomputable irreducible_def largeReserveAbsolute : ENNReal := ((2 : ENNReal) ^
 
 /-- SEC's fixed reduction errors, in the exact syntactic form of `securityP_of_clean_bound`. -/
 noncomputable def secTerms (q : Nat) : ENNReal :=
-  q / (2 : ENNReal) ^ 146 + (2 : ENNReal)⁻¹ ^ 700 + ((2 : ENNReal) ^ 152)⁻¹ + q / ((2 ^ 256 : Nat) : ENNReal)
+  q / (2 : ENNReal) ^ 146 + (2 : ENNReal)⁻¹ ^ 700 + ((2 : ENNReal) ^ 224)⁻¹ + q / ((2 ^ 256 : Nat) : ENNReal)
 
 /-- The small-route target the per-class streams must reach. -/
 noncomputable def smallBound (q : Nat) : ENNReal :=
@@ -81,7 +81,7 @@ theorem one_le_budgetSplit : 1 ≤ budgetSplit := by
 /-! ## Real cores -/
 
 private theorem small_real (y : ℝ) (hlow : 1 / 2 ^ 128 ≤ y) (hhigh : y ≤ 1 / 2 ^ 14) :
-    7 / 4 * y + 2 ^ 11 * y ^ 2 + 1 / 2 ^ 132 + (y / 2 ^ 18 + 1 / 2 ^ 700 + 1 / 2 ^ 152 + y / 2 ^ 128) ≤ 2 * y := by
+    7 / 4 * y + 2 ^ 11 * y ^ 2 + 1 / 2 ^ 132 + (y / 2 ^ 18 + 1 / 2 ^ 700 + 1 / 2 ^ 224 + y / 2 ^ 128) ≤ 2 * y := by
   have hn : 0 ≤ y := le_trans (by positivity) hlow
   have hsq : 2 ^ 11 * y ^ 2 ≤ y / 8 := by
     have h := mul_le_mul_of_nonneg_left hhigh hn
@@ -97,19 +97,19 @@ private theorem small_real (y : ℝ) (hlow : 1 / 2 ^ 128 ≤ y) (hhigh : y ≤ 1
     have : (1 : ℝ) / 2 ^ 700 = (1 / 2 ^ 128) / 2 ^ 572 := by ring
     rw [this]
     exact div_le_div_of_nonneg_right hlow (by positivity)
-  have h152 : (1 : ℝ) / 2 ^ 152 ≤ y / 2 ^ 24 := by
-    have : (1 : ℝ) / 2 ^ 152 = (1 / 2 ^ 128) / 2 ^ 24 := by ring
+  have h224 : (1 : ℝ) / 2 ^ 224 ≤ y / 2 ^ 96 := by
+    have : (1 : ℝ) / 2 ^ 224 = (1 / 2 ^ 128) / 2 ^ 96 := by ring
     rw [this]
     exact div_le_div_of_nonneg_right hlow (by positivity)
   have hy18 : y / 2 ^ 18 ≤ y / 1024 := div_le_div_of_nonneg_left hn (by norm_num) (by norm_num)
   have hy572 : y / 2 ^ 572 ≤ y / 1024 := div_le_div_of_nonneg_left hn (by norm_num) (by norm_num)
-  have hy24 : y / 2 ^ 24 ≤ y / 1024 := div_le_div_of_nonneg_left hn (by norm_num) (by norm_num)
+  have hy96 : y / 2 ^ 96 ≤ y / 1024 := div_le_div_of_nonneg_left hn (by norm_num) (by norm_num)
   have hy128 : y / 2 ^ 128 ≤ y / 1024 := div_le_div_of_nonneg_left hn (by norm_num) (by norm_num)
   linarith
 
 private theorem large_real (y : ℝ) (hlow : 1 / 2 ^ 14 ≤ y) :
     (2 * y - y ^ 2) + y * (987 / 100000000) + y * (1 / 2 ^ 25) + y * (1 / 2 ^ 16) + 1 / 2 ^ 132 +
-      (y / 2 ^ 18 + 1 / 2 ^ 700 + 1 / 2 ^ 152 + y / 2 ^ 128) ≤ 2 * y := by
+      (y / 2 ^ 18 + 1 / 2 ^ 700 + 1 / 2 ^ 224 + y / 2 ^ 128) ≤ 2 * y := by
   have hn : 0 ≤ y := le_trans (by positivity) hlow
   have hsq : y * (1 / 2 ^ 14) ≤ y ^ 2 := by
     have h := mul_le_mul_of_nonneg_left hlow hn
@@ -122,15 +122,15 @@ private theorem large_real (y : ℝ) (hlow : 1 / 2 ^ 14 ≤ y) :
     have : (1 : ℝ) / 2 ^ 700 = (1 / 2 ^ 14) / 2 ^ 686 := by ring
     rw [this]
     exact div_le_div_of_nonneg_right hlow (by positivity)
-  have h152 : (1 : ℝ) / 2 ^ 152 ≤ y / 2 ^ 138 := by
-    have : (1 : ℝ) / 2 ^ 152 = (1 / 2 ^ 14) / 2 ^ 138 := by ring
+  have h224 : (1 : ℝ) / 2 ^ 224 ≤ y / 2 ^ 210 := by
+    have : (1 : ℝ) / 2 ^ 224 = (1 / 2 ^ 14) / 2 ^ 210 := by ring
     rw [this]
     exact div_le_div_of_nonneg_right hlow (by positivity)
   have hy118 : y / 2 ^ 118 ≤ y / 2 ^ 100 := div_le_div_of_nonneg_left hn (by positivity) (by norm_num)
   have hy686 : y / 2 ^ 686 ≤ y / 2 ^ 100 := div_le_div_of_nonneg_left hn (by positivity) (by norm_num)
-  have hy138 : y / 2 ^ 138 ≤ y / 2 ^ 100 := div_le_div_of_nonneg_left hn (by positivity) (by norm_num)
+  have hy210 : y / 2 ^ 210 ≤ y / 2 ^ 100 := div_le_div_of_nonneg_left hn (by positivity) (by norm_num)
   have hy128 : y / 2 ^ 128 ≤ y / 2 ^ 100 := div_le_div_of_nonneg_left hn (by positivity) (by norm_num)
-  norm_num at hsq hy118 hy686 hy138 hy128 ⊢
+  norm_num at hsq hy118 hy686 hy210 hy128 ⊢
   nlinarith
 
 /-! ## Small route -/

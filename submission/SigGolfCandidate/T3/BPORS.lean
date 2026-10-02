@@ -1,9 +1,3 @@
-import SigGolfCandidate.T3.FullCache.NativeGame
-import SigGolfCandidate.T3.FullCache.NativeMac
-import SigGolfCandidate.T3.FullCache.RequestRun
-import SigGolfCandidate.T3.SearchCost
-import SigGolfCandidate.T3.FullCache.ExpansionCost
-import SigGolfCandidate.T3.FullCache.SourcePrelude
 import SigGolfCandidate.T3.Gate6.VerifierGate
 import SigGolfCandidate.T3.Gate6.SourceBudget
 import SigGolfCandidate.T3.Gate6.NearCoverage
@@ -35,6 +29,6991 @@ import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.Replay
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalPrefixExponential
 import SigGolfCandidate.T3M.Final.SecurityP
 import SigGolfCandidate.T3M.Witness.Queries
+
+
+/-! Authored module: BPORS. -/
+section
+/-! Local BPORS counting and bucket-thinning laws. These are the statistical
+components of the T3 reduction; domination of the adaptive signing history is
+an additional obligation. -/
+
+namespace SigGolfCandidate.T3.BPORS.Adaptive
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+open SphincsSecurity.Concrete
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+set_option linter.unusedSimpArgs false
+
+/-- The state and response retain the entire execution record. Only the label
+marginal of an active request is capped; its other data may depend on the label.
+The adversary may choose its next request from every previous response. -/
+structure ProposalModel {ι : Type} (spec : OracleSpec ι) (State Label : Type) where
+  Outcome : spec.Domain → Type
+  record : (input : spec.Domain) → State → PMF (Outcome input)
+  response : (input : spec.Domain) → Outcome input → spec.Range input
+  advance : (input : spec.Domain) → State → Outcome input → State
+  label : (input : spec.Domain) → Outcome input → Label
+  active : spec.Domain → State → Bool
+  base : PMF Label
+  accept : ENNReal
+  positive : accept ≠ 0
+  lt_one : accept < 1
+  cap : ∀ input state,active input state=true → ∀ point,
+    accept*((record input state).map (label input)) point ≤ base point
+
+namespace ProposalModel
+variable {ι State Label : Type} {spec : OracleSpec ι}
+
+noncomputable def rejected (model : ProposalModel spec State Label)
+    (input : spec.Domain) (state : State) : PMF Label :=
+  if h : model.active input state=true then
+    proposalResidualLaw model.base ((model.record input state).map (model.label input))
+      model.accept model.lt_one (model.cap input state h)
+  else model.base
+
+noncomputable def original (model : ProposalModel spec State Label) :
+    QueryImpl spec (StateT State PMF) := fun input => StateT.mk fun state =>
+  (model.record input state).map fun outcome =>
+    (model.response input outcome,model.advance input state outcome)
+
+noncomputable def traced (model : ProposalModel spec State Label) :
+    QueryImpl spec (StateT (List Label × State) PMF) :=
+  proposalRecordImpl model.record model.response
+    (fun input state _ outcome => model.advance input state outcome)
+    model.label model.rejected model.active model.accept model.positive model.lt_one.le
+
+/-- Dropping the synthetic proposals recovers the original response/state law. -/
+theorem traced_query_erasure (model : ProposalModel spec State Label)
+    (input : spec.Domain) (state : List Label × State) :
+    Prod.map id Prod.snd <$> (model.traced input).run state=
+      (model.original input).run state.2 := by
+  rw [traced,proposalRecordImpl_project]
+  have h := lengthRecordImpl_project model.record model.response
+    (fun input state _ outcome => model.advance input state outcome)
+    model.active model.accept model.positive model.lt_one.le
+    model.original id model.advance (fun _ _ _ _ => rfl) (fun _ _ => rfl) input state.2
+  simpa only [Prod.map_id,id_map,id_eq] using h
+
+/-- Erasure is valid for an arbitrary adaptive oracle program, not just a fixed
+sequence of requests. -/
+theorem traced_erasure {Result : Type} (model : ProposalModel spec State Label)
+    (computation : OracleComp spec Result) (state : List Label × State) :
+    Prod.map id Prod.snd <$> (simulateQ model.traced computation).run state=
+      (simulateQ model.original computation).run state.2 :=
+  map_run_simulateQ_eq_of_query_map_eq _ _ Prod.snd model.traced_query_erasure computation state
+
+theorem traced_query_complete (model : ProposalModel spec State Label)
+    (total : Nat) (input : spec.Domain) (state : List Label × State) :
+    ((model.traced input).run state).bind
+        (fun result => completeProposalWord model.base total result.2.1)=
+      completeProposalWord model.base total state.1 := by
+  simp only [traced,proposalRecordImpl,StateT.run_mk]
+  by_cases hactive : model.active input state.2=true
+  · rw [if_pos hactive,PMF.bind_map,rejected,dif_pos hactive]
+    simpa only [cappedRecordProposalBridge,List.append_assoc,Function.comp_def] using
+      complete_cappedRecordProposalBridge_prefix model.base
+        (model.record input state.2) (model.label input) model.accept model.positive model.lt_one
+        (model.cap input state.2 hactive) total state.1
+  · rw [if_neg hactive,PMF.bind_map]
+    simp only [Function.comp_def]
+    exact PMF.bind_const _ _
+
+/-- Completing the adaptive trace to a fixed length has the same distribution
+as completing its initial prefix, regardless of the adaptive stopping policy. -/
+theorem traced_complete {Result : Type} (model : ProposalModel spec State Label)
+    (total : Nat) (computation : OracleComp spec Result) (state : List Label × State) :
+    ((simulateQ model.traced computation).run state).bind
+        (fun result => completeProposalWord model.base total result.2.1)=
+      completeProposalWord model.base total state.1 := by
+  induction computation using OracleComp.inductionOn generalizing state with
+  | pure value => simp only [simulateQ_pure,StateT.run_pure,PMF.monad_pure_eq_pure,PMF.pure_bind]
+  | query_bind input next ih =>
+      rw [simulateQ_bind,simulateQ_spec_query,StateT.run_bind,PMF.monad_bind_eq_bind,PMF.bind_bind]
+      simp_rw [ih]
+      exact model.traced_query_complete total input state
+
+theorem completed_trace_independent {Result : Type} (model : ProposalModel spec State Label)
+    (total : Nat) (computation : OracleComp spec Result) (state : State) :
+    ((simulateQ model.traced computation).run ([],state)).bind
+        (fun result => completeProposalWord model.base total result.2.1)=
+      independentProposalWord model.base total := by
+  rw [model.traced_complete,completeProposalWord_nil]
+
+theorem monotone_payoff_le_completion (base : PMF Label) (total : Nat)
+    (payoff : List Label → ENNReal)
+    (hmono : ∀ left right,left.Sublist right → payoff left ≤ payoff right)
+    (consumed : List Label) (hused : consumed.length ≤ total) :
+    payoff consumed ≤ expectedValue (completeProposalWord base total consumed) payoff := by
+  rw [completeProposalWord_eq_padding,List.take_of_length_le hused,← PMF.monad_map_eq_map,
+    expectedValue_map]
+  calc
+    _ = expectedValue (independentProposalWord base (total-consumed.length))
+        (fun _ => payoff consumed) := (expectedValue_const (by simp) _).symm
+    _ ≤ _ := expectedValue_mono _ fun suffix => hmono _ _ (List.sublist_append_left _ _)
+
+/-- A monotone exposure price on the consumed trace is dominated by the full
+independent proposal word. Oversized traces are kept as an explicit exception. -/
+theorem capped_trace_expectation {Result : Type} (model : ProposalModel spec State Label)
+    (total : Nat) (computation : OracleComp spec Result) (state : State)
+    (payoff : List Label → ENNReal)
+    (hmono : ∀ left right,left.Sublist right → payoff left ≤ payoff right) :
+    expectedValue ((simulateQ model.traced computation).run ([],state))
+      (fun result => if result.2.1.length ≤ total then payoff result.2.1 else 0) ≤
+      expectedValue (independentProposalWord model.base total) payoff := by
+  calc
+    _ ≤ expectedValue ((simulateQ model.traced computation).run ([],state))
+        (fun result => expectedValue (completeProposalWord model.base total result.2.1) payoff) := by
+      apply expectedValue_mono
+      intro result
+      split
+      · exact monotone_payoff_le_completion model.base total payoff hmono _ (by assumption)
+      · exact bot_le
+    _ = expectedValue (((simulateQ model.traced computation).run ([],state)).bind
+        (fun result => completeProposalWord model.base total result.2.1)) payoff := by
+      rw [← PMF.monad_bind_eq_bind,expectedValue_bind]
+    _ = _ := by rw [model.completed_trace_independent]
+
+theorem uniform_word_expectation [Fintype Label] [SampleableType Label]
+    (total : Nat) (payoff : List Label → ENNReal) :
+    expectedValue (independentProposalWord (PMF.uniformOfFintype Label) total) payoff=
+      uniformWordAverage total payoff := by
+  unfold expectedValue uniformWordAverage
+  apply tsum_congr
+  intro word
+  simp only [probOutput_def,evalDist_sampleUniformProposalWord,PMF.evalSPMF_eq]
+
+theorem capped_selected_expectation {Result : Type} (model : ProposalModel spec State Label)
+    (total : Nat) (computation : OracleComp spec Result) (state : State)
+    (selected : Result × (List Label × State) → List Label)
+    (hselected : ∀ result, (selected result).Sublist result.2.1)
+    (payoff : List Label → ENNReal)
+    (hmono : ∀ left right,left.Sublist right → payoff left ≤ payoff right) :
+    expectedValue ((simulateQ model.traced computation).run ([],state))
+      (fun result => if result.2.1.length ≤ total then payoff (selected result) else 0) ≤
+      expectedValue (independentProposalWord model.base total) payoff := by
+  apply le_trans _ (model.capped_trace_expectation total computation state payoff hmono)
+  apply expectedValue_mono
+  intro result
+  split
+  · exact hmono _ _ (hselected result)
+  · exact le_rfl
+
+end ProposalModel
+
+end SigGolfCandidate.T3.BPORS.Adaptive
+
+namespace SigGolfCandidate.T3.BPORS.History
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+open SphincsSecurity.Concrete
+open scoped BigOperators
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+set_option linter.unusedSimpArgs false
+
+theorem atIndex_sublist {α β : Type} [DecidableEq α] (index : α)
+    {left right : List (α × β)} (h : left.Sublist right) :
+    (atIndex index left).Sublist (atIndex index right) := h.filterMap _
+
+theorem bucketMass_sublist {left right : List (Fin 16)} (h : left.Sublist right)
+    (bucket : Fin 16) : bucketMass left bucket ≤ bucketMass right bucket := by
+  unfold bucketMass
+  exact_mod_cast Nat.descFactorial_le 3 (Nat.mul_le_mul_left 3 (h.count_le bucket))
+
+theorem coordinateEnvelope_sublist {left right : List (Fin 16)} (h : left.Sublist right) :
+    coordinateEnvelope left ≤ coordinateEnvelope right := by
+  unfold coordinateEnvelope
+  apply ENNReal.div_le_div_right
+  exact Finset.sum_le_sum fun bucket _ => bucketMass_sublist h bucket
+
+theorem wordEnvelope_sublist {left right : List Buckets} (h : left.Sublist right) :
+    wordEnvelope left ≤ wordEnvelope right := by
+  unfold wordEnvelope
+  apply ENNReal.div_le_div_right
+  exact Finset.prod_le_prod' fun c _ => coordinateEnvelope_sublist (h.map (fun row => row c))
+
+theorem nearCoordinateEnvelope_sublist {left right : List (Fin 16)} (h : left.Sublist right) :
+    Numeric.nearCoordinateEnvelope left ≤ Numeric.nearCoordinateEnvelope right := by
+  unfold Numeric.nearCoordinateEnvelope
+  apply ENNReal.div_le_div_right
+  apply Finset.sum_le_sum
+  intro bucket _
+  exact_mod_cast Nat.descFactorial_le 2 (Nat.mul_le_mul_left 3 (h.count_le bucket))
+
+theorem nearWordEnvelope_sublist (missing : Fin 7) {left right : List Buckets}
+    (h : left.Sublist right) : nearWordEnvelope missing left ≤ nearWordEnvelope missing right := by
+  unfold nearWordEnvelope
+  apply ENNReal.div_le_div_right
+  apply Finset.prod_le_prod'
+  intro c _
+  split
+  · exact nearCoordinateEnvelope_sublist (h.map (fun row => row c))
+  · exact coordinateEnvelope_sublist (h.map (fun row => row c))
+
+theorem fullPrice_sublist {left right : List Proposal} (h : left.Sublist right) :
+    fullPrice left ≤ fullPrice right := by
+  unfold fullPrice
+  apply mul_le_mul' le_rfl
+  exact Finset.sum_le_sum fun index _ => wordEnvelope_sublist (atIndex_sublist index h)
+
+theorem fullNearPrice_sublist {left right : List Proposal} (h : left.Sublist right) :
+    fullNearPrice left ≤ fullNearPrice right := by
+  unfold fullNearPrice
+  apply mul_le_mul' le_rfl
+  apply Finset.sum_le_sum
+  intro index _
+  exact Finset.sum_le_sum fun missing _ => nearWordEnvelope_sublist missing (atIndex_sublist index h)
+
+/-- The same concrete BPORS moment controls a history selected adaptively from
+the coupled proposal trace. Neither the selected positions nor the stopping
+rule have to be independent of the observed labels. -/
+theorem adaptive_selected_full_excess {ι State Result : Type} {spec : OracleSpec ι}
+    (model : Adaptive.ProposalModel spec State Proposal)
+    (hbase : model.base=PMF.uniformOfFintype Proposal)
+    (computation : OracleComp spec Result) (state : State)
+    (selected : Result × (List Proposal × State) → List Proposal)
+    (hselected : ∀ result,(selected result).Sublist result.2.1) :
+    expectedValue ((simulateQ model.traced computation).run ([],state))
+      (fun result => if result.2.1.length ≤ Numeric.proposalLength
+        then fullPrice (selected result)-1 else 0) ≤ 987/100000000 := by
+  apply le_trans (model.capped_selected_expectation Numeric.proposalLength computation state selected
+    hselected (fun word => fullPrice word-1)
+    (fun _ _ h => tsub_le_tsub_right (fullPrice_sublist h) 1))
+  rw [hbase,Adaptive.ProposalModel.uniform_word_expectation]
+  exact fullPrice_excess_bound
+
+theorem adaptive_selected_near_price {ι State Result : Type} {spec : OracleSpec ι}
+    (model : Adaptive.ProposalModel spec State Proposal)
+    (hbase : model.base=PMF.uniformOfFintype Proposal)
+    (computation : OracleComp spec Result) (state : State)
+    (selected : Result × (List Proposal × State) → List Proposal)
+    (hselected : ∀ result,(selected result).Sublist result.2.1) :
+    expectedValue ((simulateQ model.traced computation).run ([],state))
+      (fun result => if result.2.1.length ≤ Numeric.proposalLength
+        then fullNearPrice (selected result) else 0) ≤ 103 := by
+  apply le_trans (model.capped_selected_expectation Numeric.proposalLength computation state selected
+    hselected fullNearPrice (fun _ _ h => fullNearPrice_sublist h))
+  rw [hbase,Adaptive.ProposalModel.uniform_word_expectation]
+  exact fullNearPrice_bound
+
+end SigGolfCandidate.T3.BPORS.History
+
+
+
+namespace SigGolfCandidate.T3.Security
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+open Sampling DigestSampling
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+set_option linter.unusedSimpArgs false
+
+/-- The original signing continuation after the bounded digest search. -/
+def payloadAfterDigest (cache : Cache) (rho : Digest) (output : HashOutput) : M (Option Signature) := do
+  let index := output.toNat % 2^31
+  let chosen := selections output
+  let state ← (List.range 7).foldlM
+    (fun (state : List Digest × List Digest × List Digest) coord => do
+      let sel := chosen.getD coord ⟨0,[]⟩
+      let (levels,secrets) ← buildFts index coord
+      let selected := sel.leaves.map (fun s => sel.bucket*128+s)
+      let opened := selected.map (fun s => secrets.getD s 0)
+      let inner := (frontier selected 7 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
+      let outer := (List.range 4).map fun j => (levels.getD (7+j) []).getD (sel.bucket/2^j ^^^ 1) 0
+      pure (state.1 ++ opened,state.2.1 ++ inner ++ outer,
+        state.2.2 ++ [(levels.getD 11 []).getD 0 0])) ([],[],[])
+  let root ← forestPk index state.2.2
+  let some layers ← signLayers cache index 4 root | pure none
+  pure (some ⟨rho,fun i => state.1.getD i.val 0,fun i => state.2.1.getD i.val 0,
+    fun lay => piecesSignature lay (layers.getD lay.val ([],[]))⟩)
+
+/-- The selected digest is a ghost observation: it is retained even when a later
+encoding search fails, and is not returned to the external adversary. -/
+def payloadRecordForNonce (cache : Cache) (rho : Digest) (message : Message) :
+    M (Option Signature × Option HashOutput) := do
+  let found ← digestSearch rho message 0 attemptLimit
+  match found with
+  | none => pure (none,none)
+  | some (_,output) => do
+      let signature ← payloadAfterDigest cache rho output
+      pure (signature,some output)
+
+def payloadRecord (cache : Cache) (message : Message) :
+    M (Option Signature × Option HashOutput) := do
+  let rho ← privateNonce message
+  payloadRecordForNonce cache rho message
+
+def signingRecord (cache : Cache) (message : Message) :
+    M (Option Signature × Option HashOutput) := do
+  let tag ← privateMac cache.region
+  if tag ≠ cache.tag then return (none,none)
+  payloadRecord cache message
+
+theorem signPayload_factor (cache : Cache) (message : Message) :
+    signPayload cache message=(do
+      let rho ← privateNonce message
+      let found ← digestSearch rho message 0 attemptLimit
+      match found with
+      | none => pure none
+      | some (_,output) => payloadAfterDigest cache rho output) := by
+  unfold signPayload
+  apply bind_congr
+  intro rho
+  apply bind_congr
+  intro found
+  cases found with
+  | none => rfl
+  | some found => cases found;rfl
+
+attribute [local irreducible] digestSearch privateNonce privateMac payloadAfterDigest
+
+theorem payloadRecord_erasure (cache : Cache) (message : Message) :
+    Prod.fst <$> payloadRecord cache message=signPayload cache message := by
+  rw [signPayload_factor]
+  unfold payloadRecord payloadRecordForNonce
+  simp only [map_bind]
+  apply bind_congr
+  intro rho
+  apply bind_congr
+  intro found
+  cases found with
+  | none => rfl
+  | some found =>
+      rcases found with ⟨counter,output⟩
+      simp only [map_bind,map_pure]
+      exact bind_pure (payloadAfterDigest cache rho output)
+
+theorem signingRecord_erasure (cache : Cache) (message : Message) :
+    Prod.fst <$> signingRecord cache message=sign cache message := by
+  unfold signingRecord sign
+  simp only [map_bind]
+  apply bind_congr
+  intro tag
+  split
+  · rfl
+  · exact payloadRecord_erasure cache message
+
+theorem realized_signingRecord_erasure (secret : BitVec 256) (cache : Cache) (message : Message) :
+    Prod.fst <$> realize secret (signingRecord cache message)=realize secret (sign cache message) := by
+  rw [← Cost.realize_map,signingRecord_erasure]
+
+/-- Observing the selected digest does not alter the random-oracle execution,
+including its final cache. -/
+theorem roRun_signingRecord_erasure (secret : BitVec 256) (cache : Cache) (message : Message)
+    (oracleCache : RCache) :
+    (fun result => (result.1.1,result.2)) <$> roRun secret (signingRecord cache message) oracleCache=
+      roRun secret (sign cache message) oracleCache := by
+  rw [← roRun_map,signingRecord_erasure]
+
+noncomputable def selectedLabelWeight (payoff : IndexBuckets → ENNReal)
+    (record : Option Signature × Option HashOutput) : ENNReal :=
+  record.2.elim 0 (fun output => payoff (samplingData output).1)
+
+/-- All work after digest selection preserves the observed label. It cannot
+increase a nonnegative label weight, even without a losslessness assumption. -/
+theorem payloadRecordForNonce_label_le (secret : BitVec 256) (cache : Cache)
+    (rho : Digest) (message : Message) (oracleCache : RCache) (payoff : IndexBuckets → ENNReal) :
+    expectedValue (roRun secret (payloadRecordForNonce cache rho message) oracleCache)
+      (fun result => selectedLabelWeight payoff result.1) ≤
+    expectedValue (roRun secret (digestSearch rho message 0 attemptLimit) oracleCache)
+      (fun result => result.1.elim 0 (fun found => payoff (samplingData found.2).1)) := by
+  rw [payloadRecordForNonce,roRun_bind,expectedValue_bind]
+  apply expectedValue_mono
+  intro result
+  cases result.1 with
+  | none => simp [selectedLabelWeight]
+  | some found =>
+      rcases found with ⟨counter,output⟩
+      simp only [roRun_bind,expectedValue_bind,roRun_pure,expectedValue_pure,selectedLabelWeight,Option.elim_some]
+      apply expectedValue_le_of_le
+      intro signature
+      exact le_rfl
+
+/-- Concrete signing records inherit the source search's label cap once the
+nonce is fixed and all previously cached trials reject. -/
+theorem payloadRecordForNonce_label_cap (secret : BitVec 256) (cache : Cache)
+    (rho : Digest) (message : Message) (oracleCache : RCache)
+    (hreject : CachedTrialsReject (digestTrial rho message) digestDecode 0 (2^32) oracleCache)
+    (payoff : IndexBuckets → ENNReal) :
+    expectedValue (roRun secret (payloadRecordForNonce cache rho message) oracleCache)
+      (fun result => selectedLabelWeight payoff result.1) ≤ BPORS.finiteAverage payoff :=
+  (payloadRecordForNonce_label_le secret cache rho message oracleCache payoff).trans
+    (digestSearch_label_weight_le_of_cached_reject secret rho message attemptLimit 0
+      (by decide) oracleCache hreject payoff)
+
+theorem payloadRecord_selected_valid (answers : Correctness.Answers) (cache : Cache)
+    (rho : Digest) (message : Message) (output : HashOutput)
+    (hrecord : (evalWithAnswerFn answers (payloadRecordForNonce cache rho message)).2=some output) :
+    ∃ counter,evalWithAnswerFn answers (digestSearch rho message 0 attemptLimit)=some (counter,output) ∧
+      admissible (selections output)=true := by
+  unfold payloadRecordForNonce at hrecord
+  simp only [evalWithAnswerFn_bind] at hrecord
+  cases hd : evalWithAnswerFn answers (digestSearch rho message 0 attemptLimit) with
+  | none => simp only [hd,evalWithAnswerFn_pure,reduceCtorEq] at hrecord
+  | some found =>
+      rcases found with ⟨counter,value⟩
+      simp only [hd,evalWithAnswerFn_bind,evalWithAnswerFn_pure,Option.some.injEq] at hrecord
+      subst output
+      exact ⟨counter,rfl,(Correctness.digestSearch_some answers rho message attemptLimit 0
+        counter value (by decide) hd).2.2.2⟩
+
+/-- Every recorded successful signature carries the selected digest, including
+when the caller supplied a malicious cache. -/
+theorem payloadRecord_success_has_digest (answers : Correctness.Answers) (cache : Cache)
+    (rho : Digest) (message : Message)
+    (hs : (evalWithAnswerFn answers (payloadRecordForNonce cache rho message)).1 ≠ none) :
+    (evalWithAnswerFn answers (payloadRecordForNonce cache rho message)).2 ≠ none := by
+  unfold payloadRecordForNonce at hs ⊢
+  simp only [evalWithAnswerFn_bind] at hs ⊢
+  cases hd : evalWithAnswerFn answers (digestSearch rho message 0 attemptLimit) with
+  | none => simp only [hd,evalWithAnswerFn_pure,ne_eq,not_true_eq_false] at hs
+  | some found =>
+      rcases found with ⟨counter,value⟩
+      simp only [hd,evalWithAnswerFn_bind,evalWithAnswerFn_pure,ne_eq,reduceCtorEq,not_false_eq_true]
+
+theorem payloadRecord_label_cap (secret : BitVec 256) (cache : Cache)
+    (message : Message) (oracleCache : RCache)
+    (hreject : ∀ nonce ∈ support (roRun secret (privateNonce message) oracleCache),
+      CachedTrialsReject (digestTrial nonce.1 message) digestDecode 0 (2^32) nonce.2)
+    (payoff : IndexBuckets → ENNReal) :
+    expectedValue (roRun secret (payloadRecord cache message) oracleCache)
+      (fun result => selectedLabelWeight payoff result.1) ≤ BPORS.finiteAverage payoff := by
+  rw [payloadRecord,roRun_bind,expectedValue_bind]
+  apply expectedValue_le_of_support
+  intro nonce hn
+  exact payloadRecordForNonce_label_cap secret cache nonce.1 message nonce.2 (hreject nonce hn) payoff
+
+/-- The complete source signing operation obeys the record-label cap on every
+reachable authenticated branch whose cached digest trials reject. The MAC and
+nonce queries are included in the state at which the condition is required. -/
+theorem signingRecord_label_cap (secret : BitVec 256) (cache : Cache)
+    (message : Message) (oracleCache : RCache)
+    (hreject : ∀ auth ∈ support (roRun secret (privateMac cache.region) oracleCache),
+      auth.1=cache.tag → ∀ nonce ∈ support (roRun secret (privateNonce message) auth.2),
+      CachedTrialsReject (digestTrial nonce.1 message) digestDecode 0 (2^32) nonce.2)
+    (payoff : IndexBuckets → ENNReal) :
+    expectedValue (roRun secret (signingRecord cache message) oracleCache)
+      (fun result => selectedLabelWeight payoff result.1) ≤ BPORS.finiteAverage payoff := by
+  rw [signingRecord,roRun_bind,expectedValue_bind]
+  apply expectedValue_le_of_support
+  intro auth ha
+  split
+  · simp [selectedLabelWeight]
+  · rename_i htag
+    apply payloadRecord_label_cap secret cache message auth.2 _ payoff
+    exact hreject auth ha (by simpa only [ne_eq,not_not] using htag)
+
+end SigGolfCandidate.T3.Security
+
+
+
+
+
+
+namespace SigGolfCandidate.T3.Security
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+open Sampling DigestSampling
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+attribute [local irreducible] digestSearch payloadAfterDigest Finset.univ BPORS.finiteAverage DigestSampling.samplingData
+
+theorem payloadRecordForNonce_completed_label_le (secret : BitVec 256) (cache : Cache)
+    (rho : Digest) (message : Message) (oracleCache : RCache) (payoff : IndexBuckets → ENNReal) (fallback : ENNReal) :
+    expectedValue (roRun secret (payloadRecordForNonce cache rho message) oracleCache)
+      (fun result => result.1.2.elim fallback
+        (fun output => payoff (samplingData output).1)) ≤
+    expectedValue (roRun secret (digestSearch rho message 0 attemptLimit) oracleCache)
+      (fun result => result.1.elim fallback
+        (fun found => payoff (samplingData found.2).1)) := by
+  rw [payloadRecordForNonce,roRun_bind,expectedValue_bind]
+  apply expectedValue_mono
+  intro result
+  cases result.1 with
+  | none => simp only [roRun_pure,expectedValue_pure,Option.elim_none,le_refl]
+  | some found =>
+      rcases found with ⟨counter,output⟩
+      simp only [roRun_bind,expectedValue_bind,roRun_pure,expectedValue_pure,Option.elim_some]
+      apply expectedValue_le_of_le
+      intro signature
+      exact le_rfl
+
+/-- An exact source payload record, with a fresh uniform nonce supplied by the
+caller and a total ghost label even on digest-search exhaustion. -/
+noncomputable def freshNoncePayloadRecord (secret : BitVec 256) (cache : Cache)
+    (message : Message) (oracleCache : RCache) :
+    ProbComp (((Option Signature × Option HashOutput) × RCache) × IndexBuckets) :=
+  completeRecord (fun result => result.1.2) do
+    let rho ← $ᵗ Digest
+    roRun secret (payloadRecordForNonce cache rho message) oracleCache
+
+theorem freshNoncePayloadRecord_erasure (secret : BitVec 256) (cache : Cache)
+    (message : Message) (oracleCache : RCache) :
+    𝒮[Prod.fst <$> freshNoncePayloadRecord secret cache message oracleCache]=
+      𝒮[($ᵗ Digest : ProbComp Digest) >>= fun rho =>
+        roRun secret (payloadRecordForNonce cache rho message) oracleCache] :=
+  completeRecord_erasure _ _
+
+theorem freshNoncePayloadRecord_target_bound (secret : BitVec 256) (cache : Cache)
+    (message : Message) (oracleCache : RCache) (targets : Finset IndexBuckets) :
+    Pr[fun result => result.2 ∈ targets | freshNoncePayloadRecord secret cache message oracleCache] ≤
+      targets.card/(2 : ENNReal)^59+cachedTargetCount targets oracleCache/(2 : ENNReal)^128 := by
+  rw [← expectedValue_ite_one]
+  change expectedValue (completeRecord _ _) (fun result => targetWeight targets result.2) ≤ _
+  rw [completeRecord_expected,expectedValue_bind]
+  calc
+    _ ≤ expectedValue ($ᵗ Digest : ProbComp Digest) (fun rho =>
+        expectedValue (roRun secret (digestSearch rho message 0 attemptLimit) oracleCache)
+          (fun result => completedTargetScore targets result.1)) :=
+      expectedValue_mono _ fun rho => payloadRecordForNonce_completed_label_le secret cache rho message oracleCache _ _
+    _ ≤ _ := by
+      rw [← expectedValue_bind]
+      exact uniform_nonce_completed_target_bound secret message attemptLimit (by decide) oracleCache targets
+
+theorem freshNoncePayloadRecord_point_cap (secret : BitVec 256) (cache : Cache)
+    (message : Message) (oracleCache : RCache) (hfinite : SphincsSecurity.Finite oracleCache)
+    (budget : Nat) (hsize : QueryCache.enncard oracleCache ≤ budget) (hbudget : budget ≤ 2^127)
+    (hclean : ¬TargetCacheExceptional oracleCache) (haccept : acceptanceProbability ≤ 1/16)
+    (point : IndexBuckets) :
+    Pr[fun result => result.2=point | freshNoncePayloadRecord secret cache message oracleCache] ≤
+      (1025/1024 : ENNReal)/(2 : ENNReal)^59 := by
+  have h := freshNoncePayloadRecord_target_bound secret cache message oracleCache {point}
+  simp only [Finset.mem_singleton,Finset.card_singleton,Nat.cast_one] at h
+  exact h.trans (clean_point_bound_arithmetic oracleCache hfinite budget hsize hbudget hclean haccept point)
+
+noncomputable def freshNoncePayloadLaw (secret : BitVec 256) (cache : Cache)
+    (message : Message) (oracleCache : RCache) :
+    PMF (((Option Signature × Option HashOutput) × RCache) × IndexBuckets) :=
+  liftM (freshNoncePayloadRecord secret cache message oracleCache)
+
+theorem freshNoncePayloadLaw_label_probability (secret : BitVec 256) (cache : Cache)
+    (message : Message) (oracleCache : RCache) (point : IndexBuckets) :
+    ((freshNoncePayloadLaw secret cache message oracleCache).map Prod.snd) point=
+      Pr[fun result => result.2=point | freshNoncePayloadRecord secret cache message oracleCache] := by
+  rw [← PMF.monad_map_eq_map,← PMF.probOutput_eq_apply,probOutput_map]
+  rfl
+
+theorem freshNoncePayloadLaw_erasure (secret : BitVec 256) (cache : Cache)
+    (message : Message) (oracleCache : RCache) :
+    (freshNoncePayloadLaw secret cache message oracleCache).map Prod.fst=
+      (liftM (($ᵗ Digest : ProbComp Digest) >>= fun rho =>
+        roRun secret (payloadRecordForNonce cache rho message) oracleCache) :
+        PMF ((Option Signature × Option HashOutput) × RCache)) := by
+  apply PMF.ext
+  intro result
+  have h := evalSPMF_ext_iff.mp (freshNoncePayloadRecord_erasure secret cache message oracleCache) result
+  rw [probOutput_map] at h
+  rw [← PMF.monad_map_eq_map,← PMF.probOutput_eq_apply,probOutput_map]
+  rw [← PMF.probOutput_eq_apply]
+  exact h
+
+/-- The required ProposalModel point cap for a total source payload record.
+Nonce freshness, cache cleanliness and the source acceptance upper bound remain
+explicit caller obligations; failure-label mass has been accounted for. -/
+theorem freshNoncePayloadLaw_scaled_cap (secret : BitVec 256) (cache : Cache)
+    (message : Message) (oracleCache : RCache) (hfinite : SphincsSecurity.Finite oracleCache)
+    (budget : Nat) (hsize : QueryCache.enncard oracleCache ≤ budget) (hbudget : budget ≤ 2^127)
+    (hclean : ¬TargetCacheExceptional oracleCache) (haccept : acceptanceProbability ≤ 1/16)
+    (point : IndexBuckets) :
+    (1024/1025 : ENNReal)*((freshNoncePayloadLaw secret cache message oracleCache).map Prod.snd) point ≤
+      (PMF.uniformOfFintype IndexBuckets) point := by
+  have hc : Fintype.card IndexBuckets=2^59 := by
+    norm_num [IndexBuckets,Fintype.card_prod,Fintype.card_fun]
+  rw [freshNoncePayloadLaw_label_probability,PMF.uniformOfFintype_apply,hc,Nat.cast_pow,Nat.cast_ofNat]
+  calc
+    _ ≤ (1024/1025 : ENNReal)*((1025/1024 : ENNReal)/(2 : ENNReal)^59) :=
+      mul_le_mul' le_rfl (freshNoncePayloadRecord_point_cap secret cache message oracleCache
+        hfinite budget hsize hbudget hclean haccept point)
+    _ = _ := by
+      apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
+      norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_inv,ENNReal.toReal_pow]
+
+end SigGolfCandidate.T3.Security
+
+
+
+namespace SigGolfCandidate.T3.Security
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+open Sampling DigestSampling
+
+/-- Total source-payload label domination. The source acceptance bound is
+discharged; the caller supplies a fresh uniform nonce and a clean finite cache. -/
+theorem freshNoncePayloadLaw_scaled_cap_source (secret : BitVec 256) (cache : Cache)
+    (message : Message) (oracleCache : RCache) (hfinite : SphincsSecurity.Finite oracleCache)
+    (budget : Nat) (hsize : QueryCache.enncard oracleCache ≤ budget) (hbudget : budget ≤ 2^127)
+    (hclean : ¬TargetCacheExceptional oracleCache) (point : IndexBuckets) :
+    (1024/1025 : ENNReal)*((freshNoncePayloadLaw secret cache message oracleCache).map Prod.snd) point ≤
+      (PMF.uniformOfFintype IndexBuckets) point :=
+  freshNoncePayloadLaw_scaled_cap secret cache message oracleCache hfinite budget hsize hbudget
+    hclean Acceptance.acceptanceProbability_le_one_sixteenth point
+
+end SigGolfCandidate.T3.Security
+
+end
+
+/-! Integrated checked SEC07726a4 and overflow0222a4f additions. -/
+
+/-! Adaptive source-game private tables and nonce freshness. -/
+section
+namespace SigGolfCandidate.T3.Security.PrivateTable
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+variable {ι D R State : Type} {base : OracleSpec ι}
+variable [DecidableEq D] [SampleableType R]
+
+abbrev Cache (D R : Type) := QueryCache (D →ₒ R)
+
+/-- Complete a partial private-coordinate cache by a fixed total table. -/
+def fill (cache : Cache D R) (table : D → R) : D → R :=
+  fun input => (cache input).getD (table input)
+
+omit [DecidableEq D] [SampleableType R] in
+theorem fill_empty (table : D → R) : fill (∅ : Cache D R) table=table := by
+  funext input
+  rfl
+
+omit [DecidableEq D] [SampleableType R] in
+theorem fill_cached (cache : Cache D R) (table : D → R) (input : D) (value : R)
+    (h : cache input=some value) : fill cache table input=value := by
+  simp only [fill,h,Option.getD_some]
+
+omit [SampleableType R] in
+theorem cacheQuery_cached (cache : Cache D R) (input : D) (value : R)
+    (h : cache input=some value) : cache.cacheQuery input value=cache := by
+  funext other
+  by_cases he : other=input
+  · subst other
+    rw [QueryCache.cacheQuery_self,h]
+  · exact QueryCache.cacheQuery_of_ne cache value he
+
+omit [SampleableType R] in
+theorem fill_update (cache : Cache D R) (table : D → R) (input : D) (value : R)
+    (h : cache input=none) :
+    fill (cache.cacheQuery input value) table=fill cache (Function.update table input value) := by
+  funext other
+  by_cases he : other=input
+  · subst other
+    simp only [fill,QueryCache.cacheQuery_self,Option.getD_some,h,Option.getD_none,
+      Function.update_self]
+  · simp only [fill,QueryCache.cacheQuery_of_ne cache value he,Function.update_of_ne he]
+
+/-- Public interactions retain their own state. Private calls use an independent
+lazy cache and return exactly the same answer on repeated coordinates. -/
+noncomputable def lazyImpl (handler : QueryImpl base (StateT State ProbComp)) :
+    QueryImpl (base+(D →ₒ R)) (StateT (Cache D R × State) ProbComp)
+  | .inl input => StateT.mk fun state => do
+      let result ← (handler input).run state.2
+      pure (result.1,(state.1,result.2))
+  | .inr input => StateT.mk fun state => do
+      let result ← (randomOracle (spec := D →ₒ R) input).run state.1
+      pure (result.1,(result.2,state.2))
+
+/-- Fixed-table interpretation with the same ghost private cache as the lazy
+interpreter. This cache records all private queries, including repetitions. -/
+noncomputable def eagerImpl (handler : QueryImpl base (StateT State ProbComp))
+    (table : D → R) : QueryImpl (base+(D →ₒ R)) (StateT (Cache D R × State) ProbComp)
+  | .inl input => StateT.mk fun state => do
+      let result ← (handler input).run state.2
+      pure (result.1,(state.1,result.2))
+  | .inr input => StateT.mk fun state =>
+      pure (table input,(state.1.cacheQuery input (table input),state.2))
+
+noncomputable def lazyRun {α : Type} (handler : QueryImpl base (StateT State ProbComp))
+    (program : OracleComp (base+(D →ₒ R)) α) (cache : Cache D R) (state : State) :
+    ProbComp (α × (Cache D R × State)) :=
+  (simulateQ (lazyImpl handler) program).run (cache,state)
+
+noncomputable def eagerRun {α : Type} (handler : QueryImpl base (StateT State ProbComp))
+    (table : D → R) (program : OracleComp (base+(D →ₒ R)) α)
+    (cache : Cache D R) (state : State) : ProbComp (α × (Cache D R × State)) :=
+  (simulateQ (eagerImpl handler table) program).run (cache,state)
+
+variable [Finite D] [Finite R] [Nonempty R] [SampleableType (D → R)]
+
+theorem refresh_table {α : Type} (input : D) (next : (D → R) → ProbComp α) :
+    𝒮[do let value ← $ᵗ R; let table ← $ᵗ (D → R); next (Function.update table input value)]=
+      𝒮[do let table ← $ᵗ (D → R); next table] := by
+  symm
+  rw [evalSPMF_bind,← evalSPMF_uniformSample_bind_update input,← evalSPMF_bind]
+  simp only [bind_assoc,pure_bind]
+
+/-- Lazy private sampling agrees with a uniformly completed private table for
+every adaptive source program, preserving its output and both final caches. -/
+theorem lazyRun_eq_completed_table {α : Type}
+    (handler : QueryImpl base (StateT State ProbComp))
+    (program : OracleComp (base+(D →ₒ R)) α) (cache : Cache D R) (state : State) :
+    𝒮[lazyRun handler program cache state]=
+      𝒮[do let table ← $ᵗ (D → R); eagerRun handler (fill cache table) program cache state] := by
+  induction program using OracleComp.inductionOn generalizing cache state with
+  | pure value =>
+      apply evalSPMF_ext
+      intro result
+      simp [lazyRun,eagerRun]
+  | query_bind input next ih =>
+      cases input with
+      | inl input =>
+          simp only [lazyRun,eagerRun,simulateQ_bind,simulateQ_spec_query,lazyImpl,eagerImpl,
+            StateT.run_bind,StateT.run_mk,bind_assoc,pure_bind]
+          rw [evalSPMF_bind_bind_swap]
+          apply evalSPMF_bind_congr'
+          intro result
+          exact ih result.1 cache result.2
+      | inr input =>
+          simp only [lazyRun,eagerRun,simulateQ_bind,simulateQ_spec_query,lazyImpl,eagerImpl,
+            StateT.run_bind,StateT.run_mk,bind_assoc,pure_bind]
+          cases hc : cache input with
+          | some value =>
+              rw [QueryImpl.withCaching_run_some _ hc,pure_bind]
+              simp_rw [fill_cached cache _ input value hc,cacheQuery_cached cache input value hc]
+              exact ih value cache state
+          | none =>
+              rw [QueryImpl.withCaching_run_none _ hc]
+              simp only [map_eq_bind_pure_comp,bind_assoc,pure_bind,Function.comp_apply]
+              trans 𝒮[do
+                let value ← $ᵗ R
+                let table ← $ᵗ (D → R)
+                eagerRun handler (fill (cache.cacheQuery input value) table)
+                  (next value) (cache.cacheQuery input value) state]
+              · apply evalSPMF_bind_congr'
+                intro value
+                exact ih value (cache.cacheQuery input value) state
+              · simp_rw [fill_update cache _ input _ hc]
+                let continuation : (D → R) → ProbComp (α × (Cache D R × State)) :=
+                  fun table => eagerRun handler (fill cache table)
+                    (next (table input)) (cache.cacheQuery input (table input)) state
+                have hpoint : ∀ value table,
+                    eagerRun handler (fill cache (Function.update table input value))
+                      (next value) (cache.cacheQuery input value) state=
+                    continuation (Function.update table input value) := by
+                  intro value table
+                  simp only [continuation,Function.update_self]
+                simp_rw [hpoint]
+                rw [refresh_table input continuation]
+                simp only [continuation,fill,hc,Option.getD_none]
+                rfl
+
+theorem lazyRun_empty_eq_uniform_table {α : Type}
+    (handler : QueryImpl base (StateT State ProbComp))
+    (program : OracleComp (base+(D →ₒ R)) α) (state : State) :
+    𝒮[lazyRun handler program ∅ state]=
+      𝒮[do let table ← $ᵗ (D → R); eagerRun handler table program ∅ state] := by
+  simpa only [fill_empty] using lazyRun_eq_completed_table handler program ∅ state
+
+noncomputable def fixedImpl (handler : QueryImpl base (StateT State ProbComp))
+    (table : D → R) : QueryImpl (base+(D →ₒ R)) (StateT State ProbComp) :=
+  handler+(fun input => (pure (table input) : StateT State ProbComp R))
+
+omit [SampleableType R] [Finite D] [Finite R] [Nonempty R] [SampleableType (D → R)] in
+theorem eagerRun_erasure {α : Type} (handler : QueryImpl base (StateT State ProbComp))
+    (table : D → R) (program : OracleComp (base+(D →ₒ R)) α)
+    (cache : Cache D R) (state : State) :
+    Prod.map id Prod.snd <$> eagerRun handler table program cache state=
+      (simulateQ (fixedImpl handler table) program).run state := by
+  apply map_run_simulateQ_eq_of_query_map_eq (eagerImpl handler table)
+    (fixedImpl handler table) Prod.snd _ program (cache,state)
+  intro input current
+  cases input with
+  | inl input =>
+      change Prod.map id Prod.snd <$> (do
+        let result ← (handler input).run current.2
+        pure (result.1,(current.1,result.2)))=(handler input).run current.2
+      simp only [map_bind,map_pure,Prod.map,id_eq,Prod.mk.eta,bind_pure]
+  | inr input =>
+      change Prod.map id Prod.snd <$>
+        (pure (table input,(current.1.cacheQuery input (table input),current.2)) : ProbComp _)=
+        pure (table input,current.2)
+      rw [map_pure]
+      rfl
+
+/-- Marginal form of the lazy-table identity; the public state is retained. -/
+theorem lazyRun_erasure {α : Type} (handler : QueryImpl base (StateT State ProbComp))
+    (program : OracleComp (base+(D →ₒ R)) α) (state : State) :
+    𝒮[Prod.map id Prod.snd <$> lazyRun handler program ∅ state]=
+      𝒮[do let table ← $ᵗ (D → R); (simulateQ (fixedImpl handler table) program).run state] := by
+  have h := congrArg (Functor.map (Prod.map id Prod.snd))
+    (lazyRun_empty_eq_uniform_table handler program state)
+  simpa only [← evalSPMF_map,map_bind,eagerRun_erasure] using h
+
+end SigGolfCandidate.T3.Security.PrivateTable
+
+namespace SigGolfCandidate.T3.Security.LazyPrivate
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+noncomputable local instance : Fintype Coordinate := coordinateFintype
+noncomputable local instance : SampleableType (Coordinate → HashOutput) :=
+  Derivation.outputSampler Coordinate
+
+abbrev PCache := QueryCache (Coordinate →ₒ HashOutput)
+abbrev State := PCache × Sampling.RCache
+
+/-- The actual source program with independent lazy private and public tables. -/
+noncomputable def run {α : Type} (program : M α) (state : State) : ProbComp (α × State) :=
+  PrivateTable.lazyRun SphincsSecurity.romImpl program state.1 state.2
+
+theorem fixedImpl_eq (outputs : Coordinate → HashOutput) :
+    PrivateTable.fixedImpl SphincsSecurity.romImpl outputs=
+      QueryImpl.compose SphincsSecurity.romImpl (Derivation.tableHandler outputs) := by
+  funext input
+  cases input with
+  | inl input => simp only [PrivateTable.fixedImpl,QueryImpl.compose,
+      Derivation.tableHandler,simulateQ_spec_query];rfl
+  | inr input => simp only [PrivateTable.fixedImpl,QueryImpl.compose,
+      Derivation.tableHandler,simulateQ_pure];rfl
+
+/-- Exact source-game bridge. It preserves the final public cache and allows
+arbitrary repetitions of private coordinates, including messages and MAC regions. -/
+theorem run_eq_table {α : Type} (program : M α) (cache : Sampling.RCache) :
+    𝒮[Prod.map id Prod.snd <$> run program (∅,cache)]=
+      𝒮[do
+        let outputs ← $ᵗ (Coordinate → HashOutput)
+        (simulateQ SphincsSecurity.romImpl (Derivation.tableRun outputs program)).run cache] := by
+  rw [run,PrivateTable.lazyRun_erasure]
+  simp only [fixedImpl_eq,QueryImpl.simulateQ_compose,Derivation.tableRun]
+
+noncomputable def experiment (adversary : Adversary) (q : Nat) :
+    ProbComp (Option (Bool × Nat)) :=
+  Prod.fst <$> run (Derivation.cap (game adversary) q) (∅,∅)
+
+theorem tableExperiment_eq (adversary : Adversary) (q : Nat) :
+    𝒮[tableExperiment adversary q]=𝒮[experiment adversary q] := by
+  have h := congrArg (Functor.map Prod.fst)
+    (run_eq_table (Derivation.cap (game adversary) q) ∅)
+  simp only [← evalSPMF_map,map_bind,Functor.map_map,Prod.map,
+    id_eq,← StateT.run'_eq] at h
+  unfold tableExperiment experiment
+  simp only [evalSPMF_bind,evalSPMF_uniformSample] at h ⊢
+  exact h.symm
+
+/-- The existing real-game reduction now targets an exact lazy private-table
+game, rather than assuming nonce independence inside the original execution. -/
+theorem real_event_bound (adversary : Adversary) (q : Nat) (hq : q < 2^256) :
+    Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
+      Pr[fun outcome => ∃ result,outcome=some result ∧ result.1=true |
+        experiment adversary q]+q/((2^256 : Nat) : ENNReal) := by
+  have h := private_derivation_event_bound adversary q hq
+  have he : Pr[fun outcome => ∃ result,outcome=some result ∧ result.1=true |
+      tableExperiment adversary q]=
+      Pr[fun outcome => ∃ result,outcome=some result ∧ result.1=true |
+        experiment adversary q] :=
+    probEvent_congr' (fun _ _ => Iff.rfl) (tableExperiment_eq adversary q)
+  rw [he] at h
+  exact h
+
+@[simp] theorem run_pure {α : Type} (value : α) (state : State) :
+    run (pure value : M α) state=pure (value,state) := by
+  simp only [run,PrivateTable.lazyRun,simulateQ_pure,StateT.run_pure,Prod.mk.eta]
+
+theorem run_bind {α β : Type} (program : M α) (next : α → M β) (state : State) :
+    run (program >>= next) state=run program state >>= fun result => run (next result.1) result.2 := by
+  simp only [run,PrivateTable.lazyRun,simulateQ_bind,StateT.run_bind]
+
+theorem run_map {α β : Type} (f : α → β) (program : M α) (state : State) :
+    run (f <$> program) state=Prod.map f id <$> run program state := by
+  simp only [run,PrivateTable.lazyRun,simulateQ_map,StateT.run_map]
+  rfl
+
+theorem run_query (input : T3.Spec.Domain) (state : State) :
+    run (liftM (T3.Spec.query input)) state=
+      (PrivateTable.lazyImpl SphincsSecurity.romImpl input).run state := by
+  simp only [run,PrivateTable.lazyRun,simulateQ_spec_query]
+
+theorem run_publicQuery (input : HashInput) (state : State) :
+    run (Sampling.publicHandler input) state=(do
+      let result ← (randomOracle (spec := SphincsSecurity.HashSpec) input).run state.2
+      pure (result.1,(state.1,result.2))) := by
+  rw [Sampling.publicHandler,run_query]
+  simp only [PrivateTable.lazyImpl,StateT.run_mk,SphincsSecurity.romImpl,
+    QueryImpl.add_apply_inr]
+  rfl
+
+theorem run_publicProgram {α : Type} (program : Sampling.RawM α) (state : State) :
+    run (Sampling.publicProgram program) state=
+      (fun result => (result.1,(state.1,result.2))) <$>
+        (simulateQ (randomOracle (spec := SphincsSecurity.HashSpec)) program).run state.2 := by
+  induction program using OracleComp.inductionOn generalizing state with
+  | pure value => simp [Sampling.publicProgram]
+  | query_bind input next ih =>
+      simp only [Sampling.publicProgram,simulateQ_bind,simulateQ_spec_query,run_bind]
+      rw [run_publicQuery]
+      change ((do
+        let result ← (randomOracle (spec := SphincsSecurity.HashSpec) input).run state.2
+        pure (result.1,(state.1,result.2))) >>= fun result =>
+          run (Sampling.publicProgram (next result.1)) result.2)=_
+      simp only [bind_assoc,pure_bind,StateT.run_bind,map_bind]
+      apply bind_congr
+      intro result
+      exact ih result.1 (state.1,result.2)
+
+theorem run_digestSearch (rho : Digest) (message : Message) (counter fuel : Nat) (state : State) :
+    run (digestSearch rho message counter fuel) state=
+      (fun result => (result.1,(state.1,result.2))) <$>
+        Sampling.roRun 0 (digestSearch rho message counter fuel) state.2 := by
+  rw [Sampling.digestSearch_public,run_publicProgram,Sampling.roRun,Sampling.public_randomOracle]
+
+/-- The actual nonce query samples a uniform hash answer exactly when its
+private coordinate has not been queried. Both cache updates are explicit. -/
+theorem run_privateNonce_fresh (message : Message) (state : State)
+    (hfresh : state.1 (.inr (.inl message))=none) :
+    run (privateNonce message) state=(do
+      let output ← ($ᵗ HashOutput : ProbComp HashOutput)
+      pure (output.extractLsb' 0 128,
+        (state.1.cacheQuery (.inr (.inl message)) output,state.2))) := by
+  unfold privateNonce privateHash
+  rw [run_bind,run_query]
+  change ((do
+    let result ← (randomOracle (spec := Coordinate →ₒ HashOutput) (.inr (.inl message))).run state.1
+    pure (result.1,(result.2,state.2))) >>= fun result =>
+      run (pure (result.1.extractLsb' 0 128)) result.2)=_
+  rw [QueryImpl.withCaching_run_none _ hfresh]
+  simp only [map_eq_bind_pure_comp,bind_assoc,pure_bind,run_pure,Function.comp_apply]
+  rfl
+
+theorem payloadForNonce_completed_label_le (cache : T3.Cache) (rho : Digest) (message : Message)
+    (state : State) (payoff : DigestSampling.IndexBuckets → ENNReal) (fallback : ENNReal) :
+    expectedValue (run (payloadRecordForNonce cache rho message) state)
+      (fun result => result.1.2.elim fallback
+        (fun output => payoff (DigestSampling.samplingData output).1)) ≤
+    expectedValue (Sampling.roRun 0 (digestSearch rho message 0 attemptLimit) state.2)
+      (fun result => result.1.elim fallback
+        (fun found => payoff (DigestSampling.samplingData found.2).1)) := by
+  rw [payloadRecordForNonce,run_bind,expectedValue_bind,run_digestSearch,expectedValue_map]
+  apply expectedValue_mono
+  intro result
+  cases result.1 with
+  | none => simp only [run_pure,expectedValue_pure,Option.elim_none,le_refl]
+  | some found =>
+      rcases found with ⟨counter,output⟩
+      simp only [run_bind,expectedValue_bind,run_pure,expectedValue_pure,Option.elim_some]
+      apply expectedValue_le_of_le
+      intro signature
+      exact le_rfl
+
+theorem uniform_hash_low_expectation (payoff : Digest → ENNReal) :
+    expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
+      (fun output => payoff (output.extractLsb' 0 128))=
+      expectedValue ($ᵗ Digest : ProbComp Digest) payoff := by
+  rw [← expectedValue_map]
+  exact expectedValue_congr (evalSPMF_ext_iff.mp
+    (SphincsSecurity.evalDist_hashOutput_extract_uniform (by decide : 128 ≤ SphincsSecurity.hashOutputBits))) payoff
+
+/-- The completed-label bound now uses the actual private nonce query. Its
+freshness is a concrete property of the private cache, not supplied randomness. -/
+theorem payload_completed_target_bound (cache : T3.Cache) (message : Message) (state : State)
+    (hfresh : state.1 (.inr (.inl message))=none) (targets : Finset DigestSampling.IndexBuckets) :
+    expectedValue (run (payloadRecord cache message) state)
+      (fun result => result.1.2.elim (BPORS.finiteAverage (Sampling.targetWeight targets))
+        (fun output => Sampling.targetWeight targets (DigestSampling.samplingData output).1)) ≤
+      targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
+  rw [payloadRecord,run_bind,run_privateNonce_fresh message state hfresh]
+  simp only [bind_assoc,pure_bind,expectedValue_bind]
+  calc
+    _ ≤ expectedValue ($ᵗ HashOutput : ProbComp HashOutput) (fun output =>
+        expectedValue (Sampling.roRun 0
+          (digestSearch (output.extractLsb' 0 128) message 0 attemptLimit) state.2)
+          (fun result => Sampling.completedTargetScore targets result.1)) :=
+      expectedValue_mono _ fun output => payloadForNonce_completed_label_le cache _ message
+        (state.1.cacheQuery (.inr (.inl message)) output,state.2)
+        (Sampling.targetWeight targets) (BPORS.finiteAverage (Sampling.targetWeight targets))
+    _ = expectedValue ($ᵗ Digest : ProbComp Digest) (fun rho =>
+        expectedValue (Sampling.roRun 0 (digestSearch rho message 0 attemptLimit) state.2)
+          (fun result => Sampling.completedTargetScore targets result.1)) :=
+      uniform_hash_low_expectation (fun rho =>
+        expectedValue (Sampling.roRun 0 (digestSearch rho message 0 attemptLimit) state.2)
+          (fun result => Sampling.completedTargetScore targets result.1))
+    _ ≤ targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
+      rw [← expectedValue_bind]
+      exact Sampling.uniform_nonce_completed_target_bound 0 message attemptLimit (by decide) state.2 targets
+
+theorem run_privateHash (coordinate : Coordinate) (state : State) :
+    run (privateHash coordinate) state=(do
+      let result ← (randomOracle (spec := Coordinate →ₒ HashOutput) coordinate).run state.1
+      pure (result.1,(result.2,state.2))) := by
+  rw [privateHash,run_query]
+  rfl
+
+theorem privateHash_preserves_other (coordinate other : Coordinate) (hne : other ≠ coordinate)
+    (state : State) (result : HashOutput × State) (hresult : result ∈ support (run (privateHash coordinate) state)) :
+    result.2.1 other=state.1 other ∧ result.2.2=state.2 := by
+  rw [run_privateHash] at hresult
+  cases hc : state.1 coordinate with
+  | some output =>
+      rw [QueryImpl.withCaching_run_some _ hc,pure_bind,support_pure,Set.mem_singleton_iff] at hresult
+      subst result
+      exact ⟨rfl,rfl⟩
+  | none =>
+      rw [QueryImpl.withCaching_run_none _ hc] at hresult
+      simp only [bind_map_left,mem_support_bind_iff,support_pure,Set.mem_singleton_iff] at hresult
+      obtain ⟨output,_,rfl⟩ := hresult
+      exact ⟨QueryCache.cacheQuery_of_ne state.1 output hne,rfl⟩
+
+theorem signing_completed_target_bound (cache : T3.Cache) (message : Message) (state : State)
+    (hfresh : state.1 (.inr (.inl message))=none) (targets : Finset DigestSampling.IndexBuckets) :
+    expectedValue (run (signingRecord cache message) state)
+      (fun result => result.1.2.elim (BPORS.finiteAverage (Sampling.targetWeight targets))
+        (fun output => Sampling.targetWeight targets (DigestSampling.samplingData output).1)) ≤
+      targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
+  rw [signingRecord,run_bind,expectedValue_bind]
+  apply expectedValue_le_of_support
+  intro result hresult
+  have hp := privateHash_preserves_other (.inr (.inr cache.region)) (.inr (.inl message))
+    (by simp) state result hresult
+  split_ifs with htag
+  · simp only [run_pure,expectedValue_pure,Option.elim_none,Sampling.targetWeight_average]
+    exact le_add_right le_rfl
+  · have h := payload_completed_target_bound cache message result.2 (hp.1.trans hfresh) targets
+    rw [hp.2] at h
+    exact h
+
+noncomputable def signingRecordLaw (cache : T3.Cache) (message : Message) (state : State) :
+    PMF (((Option Signature × Option HashOutput) × State) × DigestSampling.IndexBuckets) :=
+  liftM (Sampling.completeRecord (fun result => result.1.2) (run (signingRecord cache message) state))
+
+theorem signingRecordLaw_target_bound (cache : T3.Cache) (message : Message) (state : State)
+    (hfresh : state.1 (.inr (.inl message))=none) (targets : Finset DigestSampling.IndexBuckets) :
+    Pr[fun result => result.2 ∈ targets | signingRecordLaw cache message state] ≤
+      targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
+  rw [← expectedValue_ite_one]
+  change expectedValue (Sampling.completeRecord (fun result => result.1.2)
+    (run (signingRecord cache message) state)) (fun result => Sampling.targetWeight targets result.2) ≤ _
+  rw [Sampling.completeRecord_expected]
+  exact signing_completed_target_bound cache message state hfresh targets
+
+/-- Local proposal domination for the actual signer, including MAC rejection,
+digest exhaustion, and later encoding failure, under concrete cache conditions. -/
+theorem signingRecordLaw_scaled_cap (cache : T3.Cache) (message : Message) (state : State)
+    (hfresh : state.1 (.inr (.inl message))=none) (hfinite : SphincsSecurity.Finite state.2)
+    (budget : Nat) (hsize : QueryCache.enncard state.2 ≤ budget) (hbudget : budget ≤ 2^127)
+    (hclean : ¬Sampling.TargetCacheExceptional state.2) (point : DigestSampling.IndexBuckets) :
+    (1024/1025 : ENNReal)*((signingRecordLaw cache message state).map Prod.snd) point ≤
+      (PMF.uniformOfFintype DigestSampling.IndexBuckets) point := by
+  have hc : Fintype.card DigestSampling.IndexBuckets=2^59 := by
+    norm_num [DigestSampling.IndexBuckets,Fintype.card_prod,Fintype.card_fun]
+  have h := signingRecordLaw_target_bound cache message state hfresh {point}
+  simp only [Finset.mem_singleton,Finset.card_singleton,Nat.cast_one] at h
+  have hpoint := h.trans (Sampling.clean_point_bound_arithmetic state.2 hfinite budget hsize hbudget
+    hclean Acceptance.acceptanceProbability_le_one_sixteenth point)
+  rw [← PMF.monad_map_eq_map,← PMF.probOutput_eq_apply,probOutput_map,
+    PMF.uniformOfFintype_apply,hc,Nat.cast_pow,Nat.cast_ofNat]
+  calc
+    _ ≤ (1024/1025 : ENNReal)*((1025/1024 : ENNReal)/(2 : ENNReal)^59) := mul_le_mul' le_rfl hpoint
+    _ = _ := by
+      apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
+      norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_inv,ENNReal.toReal_pow]
+
+/-- Erasing the observation and ghost label recovers the actual signer response
+and both final caches, including failures and malicious cache requests. -/
+theorem signingRecordLaw_erasure (cache : T3.Cache) (message : Message) (state : State) :
+    (signingRecordLaw cache message state).map (fun result => (result.1.1.1,result.1.2))=
+      (liftM (run (sign cache message) state) : PMF (Option Signature × State)) := by
+  have hsign : Prod.map Prod.fst id <$> run (signingRecord cache message) state=
+      run (sign cache message) state := by
+    rw [← run_map,signingRecord_erasure]
+  have hg :
+      𝒮[(fun result => (result.1.1.1,result.1.2)) <$>
+        Sampling.completeRecord (fun result => result.1.2) (run (signingRecord cache message) state)]=
+      𝒮[run (sign cache message) state] := by
+    trans 𝒮[Prod.map Prod.fst id <$>
+      (Prod.fst <$> Sampling.completeRecord (fun result => result.1.2) (run (signingRecord cache message) state))]
+    · rw [Functor.map_map]
+      rfl
+    · rw [evalSPMF_map,Sampling.completeRecord_erasure,← evalSPMF_map,hsign]
+  apply PMF.ext
+  intro response
+  rw [← PMF.monad_map_eq_map,← PMF.probOutput_eq_apply,probOutput_map,
+    ← PMF.probOutput_eq_apply]
+  have h := evalSPMF_ext_iff.mp hg response
+  rw [probOutput_map] at h
+  exact h
+
+abbrev Interaction := SphincsSecurity.OracleWorld+Requests
+
+def interactionSource : QueryImpl Interaction M
+  | .inl input => forwardWorld input
+  | .inr request => sign request.cache request.message
+
+def InteractionOutcome : Interaction.Domain → Type
+  | .inl input => SphincsSecurity.OracleWorld.Range input × State
+  | .inr _ => (((Option Signature × Option HashOutput) × State) × DigestSampling.IndexBuckets)
+
+noncomputable def interactionRecord : (input : Interaction.Domain) → State → PMF (InteractionOutcome input)
+  | .inl input,state => liftM (run (forwardWorld input) state)
+  | .inr request,state => signingRecordLaw request.cache request.message state
+
+def interactionResponse : (input : Interaction.Domain) → InteractionOutcome input → Interaction.Range input
+  | .inl _,result => result.1
+  | .inr _,result => result.1.1.1
+
+def interactionAdvance : (input : Interaction.Domain) → State → InteractionOutcome input → State
+  | .inl _,_,result => result.2
+  | .inr _,_,result => result.1.2
+
+def interactionLabel : (input : Interaction.Domain) → InteractionOutcome input → DigestSampling.IndexBuckets
+  | .inl _,_ => default
+  | .inr _,result => result.2
+
+noncomputable def interactionActive (budget : Nat) : Interaction.Domain → State → Bool
+  | .inl _,_ => false
+  | .inr request,state => decide (
+      state.1 (.inr (.inl request.message))=none ∧ SphincsSecurity.Finite state.2 ∧
+      QueryCache.enncard state.2 ≤ budget ∧ ¬Sampling.TargetCacheExceptional state.2)
+
+/-- Concrete proposal model for the actual adaptive signing interface. Activity
+marks fresh nonce requests in clean bounded public states; the record law itself
+always executes the actual source signer and retains the full state. -/
+noncomputable def proposalModel (budget : Nat) (hbudget : budget ≤ 2^127) :
+    BPORS.Adaptive.ProposalModel Interaction State DigestSampling.IndexBuckets where
+  Outcome := InteractionOutcome
+  record := interactionRecord
+  response := interactionResponse
+  advance := interactionAdvance
+  label := interactionLabel
+  active := interactionActive budget
+  base := PMF.uniformOfFintype DigestSampling.IndexBuckets
+  accept := 1024/1025
+  positive := by norm_num
+  lt_one := by
+    apply (ENNReal.toReal_lt_toReal (by finiteness) (by finiteness)).mp
+    norm_num [ENNReal.toReal_div]
+  cap := by
+    intro input state hactive point
+    cases input with
+    | inl input => simp [interactionActive] at hactive
+    | inr request =>
+        change decide (_ ∧ _ ∧ _ ∧ _)=true at hactive
+        obtain ⟨hfresh,hfinite,hsize,hclean⟩ := of_decide_eq_true hactive
+        exact signingRecordLaw_scaled_cap request.cache request.message state
+          hfresh hfinite budget hsize hbudget hclean point
+
+theorem proposal_query_erasure (budget : Nat) (hbudget : budget ≤ 2^127)
+    (input : Interaction.Domain) (state : State) :
+    (((proposalModel budget hbudget).original input).run state)=
+      (liftM (run (interactionSource input) state) : PMF (Interaction.Range input × State)) := by
+  cases input with
+  | inl input =>
+      change (fun result : SphincsSecurity.OracleWorld.Range input × State => (result.1,result.2)) <$>
+        (liftM (run (forwardWorld input) state) : PMF _)=_
+      change id <$> (liftM (run (forwardWorld input) state) : PMF _)=_
+      rw [id_map]
+      rfl
+  | inr request =>
+      exact signingRecordLaw_erasure request.cache request.message state
+
+/-- The concrete model preserves the complete response/state law of every
+adaptive interaction program, not just individual signing requests. -/
+theorem proposal_execution_erasure {α : Type} (budget : Nat) (hbudget : budget ≤ 2^127)
+    (program : OracleComp Interaction α) (state : State) :
+    (simulateQ (proposalModel budget hbudget).original program).run state=
+      (liftM (run (simulateQ interactionSource program) state) : PMF (α × State)) := by
+  induction program using OracleComp.inductionOn generalizing state with
+  | pure value => simp [run_pure]
+  | query_bind input next ih =>
+      rw [simulateQ_bind,simulateQ_spec_query,StateT.run_bind,proposal_query_erasure]
+      rw [simulateQ_bind,simulateQ_spec_query,run_bind,liftM_bind]
+      apply bind_congr
+      intro result
+      exact ih result.1 result.2
+
+theorem proposal_trace_erasure {α : Type} (budget : Nat) (hbudget : budget ≤ 2^127)
+    (program : OracleComp Interaction α) (history : List DigestSampling.IndexBuckets) (state : State) :
+    Prod.map id Prod.snd <$>
+      (simulateQ (proposalModel budget hbudget).traced program).run (history,state)=
+      (liftM (run (simulateQ interactionSource program) state) : PMF (α × State)) := by
+  rw [(proposalModel budget hbudget).traced_erasure,proposal_execution_erasure]
+
+end SigGolfCandidate.T3.Security.LazyPrivate
+
+namespace SigGolfCandidate.T3.Security.NonceFreshness
+open OracleComp OracleSpec
+open LazyPrivate
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+def nonceQuery (message : Message) : T3.Spec.Domain := .inr (.inr (.inl message))
+abbrev Avoids {α : Type} (message : Message) (program : M α) : Prop :=
+  AllQueriesSatisfy program (fun input => input ≠ nonceQuery message)
+
+variable (protectedMessage : Message)
+
+theorem avoids_pure {α : Type} (value : α) : Avoids protectedMessage (pure value) :=
+  allQueriesSatisfy_pure _ _
+
+theorem avoids_bind {α β : Type} {program : M α} {next : α → M β}
+    (hp : Avoids protectedMessage program) (hn : ∀ value,Avoids protectedMessage (next value)) :
+    Avoids protectedMessage (program >>= next) := allQueriesSatisfy_bind hp hn
+
+theorem avoids_map {α β : Type} (f : α → β) {program : M α}
+    (hp : Avoids protectedMessage program) : Avoids protectedMessage (f <$> program) := by
+  rw [map_eq_bind_pure_comp]
+  exact avoids_bind protectedMessage hp fun _ => avoids_pure _ _
+
+theorem avoids_foldlM {α β : Type} (items : List β) (f : α → β → M α)
+    (h : ∀ a b,Avoids protectedMessage (f a b)) (initial : α) :
+    Avoids protectedMessage (items.foldlM f initial) := by
+  induction items generalizing initial with
+  | nil => exact avoids_pure _ _
+  | cons a items ih =>
+      rw [List.foldlM_cons]
+      exact avoids_bind protectedMessage (h initial a) ih
+
+theorem avoids_mapM {α β : Type} (items : List α) (f : α → M β)
+    (h : ∀ a,Avoids protectedMessage (f a)) : Avoids protectedMessage (items.mapM f) := by
+  induction items with
+  | nil => exact avoids_pure _ _
+  | cons a items ih =>
+      rw [List.mapM_cons]
+      exact avoids_bind protectedMessage (h a) fun _ =>
+        avoids_bind protectedMessage ih fun _ => avoids_pure _ _
+
+theorem avoids_publicHash (input : HashInput) : Avoids protectedMessage (publicHash input) := by
+  exact (allQueriesSatisfy_query_iff _ _).mpr (by simp [nonceQuery])
+
+theorem avoids_privatePair (tag lay tree position index : Nat) :
+    Avoids protectedMessage (privatePair tag lay tree position index) := by
+  unfold privatePair
+  apply avoids_bind protectedMessage
+  · exact (allQueriesSatisfy_query_iff _ _).mpr (by simp [nonceQuery])
+  · intro _
+    exact avoids_pure _ _
+
+theorem avoids_privateMac (region : Region) : Avoids protectedMessage (privateMac region) := by
+  exact (allQueriesSatisfy_query_iff _ _).mpr (by simp [nonceQuery])
+
+theorem avoids_privateNonce (message : Message) (hne : message ≠ protectedMessage) :
+    Avoids protectedMessage (privateNonce message) := by
+  unfold privateNonce
+  apply avoids_bind protectedMessage
+  · exact (allQueriesSatisfy_query_iff _ _).mpr (by simpa [nonceQuery] using hne)
+  · intro _
+    exact avoids_pure _ _
+
+attribute [local aesop safe apply] avoids_pure avoids_bind avoids_map avoids_foldlM avoids_mapM
+  avoids_publicHash avoids_privatePair avoids_privateMac avoids_privateNonce
+macro "nonce_safe" : tactic => `(tactic| aesop (config := { maxRuleApplications := 1000 }))
+
+theorem avoids_shortHash (input : HashInput) : Avoids protectedMessage (shortHash input) := by
+  unfold shortHash; nonce_safe
+attribute [local aesop safe apply] avoids_shortHash
+theorem avoids_mask (level index : Nat) : Avoids protectedMessage (mask level index) := by
+  unfold mask; nonce_safe
+attribute [local aesop safe apply] avoids_mask
+theorem avoids_chain (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
+    Avoids protectedMessage (chain lay tree leaf i start count value) := by
+  unfold chain; nonce_safe
+attribute [local aesop safe apply] avoids_chain
+theorem avoids_leafHash (lay : Layer) (tree leaf : Nat) (ends : List Digest) :
+    Avoids protectedMessage (leafHash lay tree leaf ends) := by
+  unfold leafHash; nonce_safe
+attribute [local aesop safe apply] avoids_leafHash
+theorem avoids_nodeHash (tag lay tree heap : Nat) (left right : Digest) :
+    Avoids protectedMessage (nodeHash tag lay tree heap left right) := by
+  unfold nodeHash; nonce_safe
+attribute [local aesop safe apply] avoids_nodeHash
+theorem avoids_buildLeaf (lay : Layer) (tree leaf : Nat) (digits : List Nat) (signatureOnly : Bool) :
+    Avoids protectedMessage (buildLeaf lay tree leaf digits signatureOnly) := by
+  unfold buildLeaf; nonce_safe
+attribute [local aesop safe apply] avoids_buildLeaf
+theorem avoids_buildLevel (tag lay tree h level : Nat) (nodes : List Digest) :
+    Avoids protectedMessage (buildLevel tag lay tree h level nodes) := by
+  unfold buildLevel; nonce_safe
+attribute [local aesop safe apply] avoids_buildLevel
+theorem avoids_buildLevels (tag lay tree h : Nat) (leaves : List Digest) :
+    Avoids protectedMessage (buildLevels tag lay tree h leaves) := by
+  unfold buildLevels; nonce_safe
+attribute [local aesop safe apply] avoids_buildLevels
+theorem avoids_buildTree (lay : Layer) (tree selected : Nat) (digits : List Nat) :
+    Avoids protectedMessage (buildTree lay tree selected digits) := by
+  unfold buildTree; nonce_safe
+attribute [local aesop safe apply] avoids_buildTree
+theorem avoids_keygenPayload : Avoids protectedMessage keygenPayload := by
+  unfold keygenPayload; nonce_safe
+attribute [local aesop safe apply] avoids_keygenPayload
+theorem avoids_keygen : Avoids protectedMessage keygen := by
+  unfold keygen; nonce_safe
+
+theorem avoids_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
+    Avoids protectedMessage (counterSearch lay tree leaf message counter fuel) := by
+  induction fuel generalizing counter with
+  | zero => unfold counterSearch; nonce_safe
+  | succ fuel ih => unfold counterSearch; nonce_safe
+attribute [local aesop safe apply] avoids_counterSearch
+theorem avoids_digest (rho : Digest) (message : Message) (counter : BitVec 32) :
+    Avoids protectedMessage (digest rho message counter) := by
+  unfold digest; nonce_safe
+attribute [local aesop safe apply] avoids_digest
+theorem avoids_digestSearch (rho : Digest) (message : Message) (counter fuel : Nat) :
+    Avoids protectedMessage (digestSearch rho message counter fuel) := by
+  induction fuel generalizing counter with
+  | zero => unfold digestSearch; nonce_safe
+  | succ fuel ih => unfold digestSearch; nonce_safe
+attribute [local aesop safe apply] avoids_digestSearch
+theorem avoids_ftsLeaf (index coord leaf : Nat) (secret : Digest) :
+    Avoids protectedMessage (ftsLeaf index coord leaf secret) := by
+  unfold ftsLeaf; nonce_safe
+attribute [local aesop safe apply] avoids_ftsLeaf
+theorem avoids_buildFts (index coord : Nat) : Avoids protectedMessage (buildFts index coord) := by
+  unfold buildFts; nonce_safe
+attribute [local aesop safe apply] avoids_buildFts
+theorem avoids_forestPk (index : Nat) (roots : List Digest) :
+    Avoids protectedMessage (forestPk index roots) := by
+  unfold forestPk; nonce_safe
+attribute [local aesop safe apply] avoids_forestPk
+theorem avoids_topPath (cache : T3.Cache) (leaf : Nat) : Avoids protectedMessage (topPath cache leaf) := by
+  unfold topPath; nonce_safe
+attribute [local aesop safe apply] avoids_topPath
+theorem avoids_signTop (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
+    Avoids protectedMessage (signTop cache leaf digits) := by
+  unfold signTop; nonce_safe
+attribute [local aesop safe apply] avoids_signTop
+theorem avoids_signLayers (cache : T3.Cache) (index n : Nat) (message : Digest) :
+    Avoids protectedMessage (signLayers cache index n message) := by
+  induction n generalizing message with
+  | zero => unfold signLayers; nonce_safe
+  | succ n ih => unfold signLayers; nonce_safe
+attribute [local aesop safe apply] avoids_signLayers
+theorem avoids_signPayload (cache : T3.Cache) (message : Message) (hne : message ≠ protectedMessage) :
+    Avoids protectedMessage (signPayload cache message) := by
+  unfold signPayload; nonce_safe
+attribute [local aesop safe apply] avoids_signPayload
+theorem avoids_sign (cache : T3.Cache) (message : Message) (hne : message ≠ protectedMessage) :
+    Avoids protectedMessage (sign cache message) := by
+  unfold sign; nonce_safe
+
+/-- One query cannot change a different private nonce cell. Public queries
+preserve the entire private cache. -/
+theorem query_preserves (input : T3.Spec.Domain) (hinput : input ≠ nonceQuery protectedMessage)
+    (state : LazyPrivate.State) (result : T3.Spec.Range input × LazyPrivate.State)
+    (hresult : result ∈ support (run (liftM (T3.Spec.query input)) state)) :
+    result.2.1 (.inr (.inl protectedMessage))=state.1 (.inr (.inl protectedMessage)) := by
+  cases input with
+  | inl input =>
+      rw [run_query] at hresult
+      simp only [PrivateTable.lazyImpl,StateT.run_mk,mem_support_bind_iff,support_pure,
+        Set.mem_singleton_iff] at hresult
+      obtain ⟨_,_,rfl⟩ := hresult
+      rfl
+  | inr coordinate =>
+      have hne : (.inr (.inl protectedMessage) : Coordinate) ≠ coordinate := by
+        intro he
+        apply hinput
+        exact congrArg Sum.inr he.symm
+      exact (privateHash_preserves_other coordinate _ hne state result hresult).1
+
+theorem run_preserves {α : Type} (program : M α) (hprogram : Avoids protectedMessage program)
+    (state : LazyPrivate.State) (result : α × LazyPrivate.State) (hresult : result ∈ support (run program state)) :
+    result.2.1 (.inr (.inl protectedMessage))=state.1 (.inr (.inl protectedMessage)) := by
+  induction program using OracleComp.inductionOn generalizing state with
+  | pure value =>
+      rw [run_pure,support_pure,Set.mem_singleton_iff] at hresult
+      subst result
+      rfl
+  | query_bind input next ih =>
+      obtain ⟨hinput,htail⟩ := (allQueriesSatisfy_query_bind_iff _ _ _).mp hprogram
+      rw [run_bind,mem_support_bind_iff] at hresult
+      obtain ⟨intermediate,hstep,htailResult⟩ := hresult
+      exact (ih intermediate.1 (htail intermediate.1) intermediate.2 htailResult).trans
+        (query_preserves protectedMessage input hinput state intermediate hstep)
+
+theorem keygen_nonce_fresh (result : (Digest × T3.Cache) × LazyPrivate.State)
+    (hresult : result ∈ support (run keygen (∅,∅))) :
+    result.2.1 (.inr (.inl protectedMessage))=none :=
+  run_preserves protectedMessage keygen (avoids_keygen protectedMessage) (∅,∅) result hresult
+
+theorem sign_preserves_other_nonce (cache : T3.Cache) (message : Message) (hne : message ≠ protectedMessage)
+    (state : LazyPrivate.State) (result : Option Signature × LazyPrivate.State)
+    (hresult : result ∈ support (run (sign cache message) state)) :
+    result.2.1 (.inr (.inl protectedMessage))=state.1 (.inr (.inl protectedMessage)) :=
+  run_preserves protectedMessage _ (avoids_sign protectedMessage cache message hne) state result hresult
+
+def otherRequest (input : LazyPrivate.Interaction.Domain) : Prop :=
+  match input with
+  | .inl _ => True
+  | .inr request => request.message ≠ protectedMessage
+
+/-- Any adaptive prefix restricted to other signing messages can perform
+arbitrary public queries without touching the protected nonce coordinate. -/
+theorem interaction_avoids {α : Type} (program : OracleComp LazyPrivate.Interaction α)
+    (hprogram : AllQueriesSatisfy program (otherRequest protectedMessage)) :
+    Avoids protectedMessage (simulateQ LazyPrivate.interactionSource program) := by
+  induction program using OracleComp.inductionOn with
+  | pure value => exact avoids_pure _ _
+  | query_bind input next ih =>
+      obtain ⟨hinput,htail⟩ := (allQueriesSatisfy_query_bind_iff _ _ _).mp hprogram
+      rw [simulateQ_bind,simulateQ_spec_query]
+      apply avoids_bind protectedMessage _ (fun answer => ih answer (htail answer))
+      cases input with
+      | inl input =>
+          exact (allQueriesSatisfy_query_iff _ _).mpr (by simp [nonceQuery])
+      | inr request => exact avoids_sign protectedMessage request.cache request.message hinput
+
+theorem interaction_nonce_preserved {α : Type} (program : OracleComp LazyPrivate.Interaction α)
+    (hprogram : AllQueriesSatisfy program (otherRequest protectedMessage))
+    (state : LazyPrivate.State) (result : α × LazyPrivate.State)
+    (hresult : result ∈ support (run (simulateQ LazyPrivate.interactionSource program) state)) :
+    result.2.1 (.inr (.inl protectedMessage))=state.1 (.inr (.inl protectedMessage)) :=
+  run_preserves protectedMessage _ (interaction_avoids protectedMessage program hprogram) state result hresult
+
+/-- Freshness after actual key generation and any adaptive interaction prefix
+that has not requested this message. Repetition of every other message is allowed. -/
+theorem keygen_interaction_nonce_fresh {α : Type}
+    (program : Digest → T3.Cache → OracleComp LazyPrivate.Interaction α)
+    (hprogram : ∀ publicKey cache,AllQueriesSatisfy (program publicKey cache) (otherRequest protectedMessage))
+    (result : α × LazyPrivate.State)
+    (hresult : result ∈ support (run (do
+      let generated ← keygen
+      simulateQ LazyPrivate.interactionSource (program generated.1 generated.2)) (∅,∅))) :
+    result.2.1 (.inr (.inl protectedMessage))=none := by
+  apply run_preserves protectedMessage _ _ (∅,∅) result hresult
+  exact avoids_bind protectedMessage (avoids_keygen protectedMessage) fun generated =>
+    interaction_avoids protectedMessage _ (hprogram generated.1 generated.2)
+
+end SigGolfCandidate.T3.Security.NonceFreshness
+end
+
+/-! SourceInteractionReplay: base T3 replay and authentication security interfaces. -/
+section
+
+namespace SigGolfCandidate.T3.Security.SourceQueries
+open OracleComp OracleSpec
+set_option linter.unusedSectionVars false
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+variable (P : T3.Spec.Domain → Prop)
+
+theorem pure_allowed {α : Type} (value : α) : AllQueriesSatisfy (pure value : M α) P :=
+  allQueriesSatisfy_pure _ _
+
+theorem bind_allowed {α β : Type} {program : M α} {next : α → M β}
+    (hp : AllQueriesSatisfy program P) (hn : ∀ value, AllQueriesSatisfy (next value) P) :
+    AllQueriesSatisfy (program >>= next) P := allQueriesSatisfy_bind hp hn
+
+theorem map_allowed {α β : Type} (f : α → β) {program : M α}
+    (hp : AllQueriesSatisfy program P) : AllQueriesSatisfy (f <$> program) P := by
+  rw [map_eq_bind_pure_comp]
+  exact bind_allowed P hp fun _ => pure_allowed _ _
+
+theorem foldlM_allowed {α β : Type} (items : List β) (f : α → β → M α)
+    (h : ∀ a b,AllQueriesSatisfy (f a b) P) (initial : α) :
+    AllQueriesSatisfy (items.foldlM f initial) P := by
+  induction items generalizing initial with
+  | nil => exact pure_allowed _ _
+  | cons a items ih =>
+      rw [List.foldlM_cons]
+      exact bind_allowed P (h initial a) ih
+
+theorem mapM_allowed {α β : Type} (items : List α) (f : α → M β)
+    (h : ∀ a,AllQueriesSatisfy (f a) P) : AllQueriesSatisfy (items.mapM f) P := by
+  induction items with
+  | nil => exact pure_allowed _ _
+  | cons a items ih =>
+      rw [List.mapM_cons]
+      exact bind_allowed P (h a) fun _ => bind_allowed P ih fun _ => pure_allowed _ _
+
+theorem map_allowed_iff {α β : Type} (f : α → β) (program : M α) :
+    AllQueriesSatisfy (f <$> program) P ↔ AllQueriesSatisfy program P := by
+  induction program using OracleComp.inductionOn with
+  | pure value => simp only [map_pure,allQueriesSatisfy_pure]
+  | query_bind input next ih =>
+      simp only [map_bind,allQueriesSatisfy_query_bind_iff,ih]
+
+theorem countWith_allowed {α : Type} (weight : T3.Spec.Domain → Nat) (program : M α)
+    (h : AllQueriesSatisfy program P) : AllQueriesSatisfy (Cost.countWith weight program) P := by
+  induction program using OracleComp.inductionOn with
+  | pure value =>
+      rw [Cost.countWith_pure]
+      exact pure_allowed _ _
+  | query_bind input next ih =>
+      obtain ⟨hinput,htail⟩ := (allQueriesSatisfy_query_bind_iff _ _ _).mp h
+      rw [Cost.countWith_bind,Cost.countWith_query]
+      apply bind_allowed P
+      · exact map_allowed P _ ((allQueriesSatisfy_query_iff _ _).mpr hinput)
+      · intro result
+        exact map_allowed P _ (ih result.1 (htail result.1))
+
+variable (hpublic : ∀ input, P (.inl (.inr input)))
+variable (hpair : ∀ tweak, P (.inr (.inl tweak)))
+variable (hnonce : ∀ message, P (.inr (.inr (.inl message))))
+include hpublic hpair hnonce
+
+omit hpair hnonce in
+theorem publicHash_allowed (input : HashInput) : AllQueriesSatisfy (publicHash input) P :=
+  (allQueriesSatisfy_query_iff _ _).mpr (hpublic _)
+
+omit hpublic hnonce in
+theorem privatePair_allowed (tag lay tree position index : Nat) :
+    AllQueriesSatisfy (privatePair tag lay tree position index) P := by
+  unfold privatePair
+  apply bind_allowed P
+  · exact (allQueriesSatisfy_query_iff _ _).mpr (hpair _)
+  · intro _; exact pure_allowed _ _
+
+omit hpublic hpair in
+theorem privateNonce_allowed (message : Message) : AllQueriesSatisfy (privateNonce message) P := by
+  unfold privateNonce
+  apply bind_allowed P
+  · exact (allQueriesSatisfy_query_iff _ _).mpr (hnonce _)
+  · intro _; exact pure_allowed _ _
+
+attribute [local aesop safe apply] pure_allowed bind_allowed map_allowed foldlM_allowed mapM_allowed
+  publicHash_allowed privatePair_allowed privateNonce_allowed
+macro "source_queries" : tactic => `(tactic| aesop (config := { maxRuleApplications := 1000 }))
+
+omit hpair hnonce in
+theorem shortHash_allowed (input : HashInput) : AllQueriesSatisfy (shortHash input) P := by
+  unfold shortHash; source_queries
+attribute [local aesop safe apply] shortHash_allowed
+omit hpublic hnonce in
+theorem mask_allowed (level index : Nat) : AllQueriesSatisfy (mask level index) P := by
+  unfold mask; source_queries
+attribute [local aesop safe apply] mask_allowed
+theorem chain_allowed (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
+    AllQueriesSatisfy (chain lay tree leaf i start count value) P := by
+  unfold chain; source_queries
+attribute [local aesop safe apply] chain_allowed
+theorem leafHash_allowed (lay : Layer) (tree leaf : Nat) (ends : List Digest) :
+    AllQueriesSatisfy (leafHash lay tree leaf ends) P := by
+  unfold leafHash; source_queries
+attribute [local aesop safe apply] leafHash_allowed
+theorem nodeHash_allowed (tag lay tree heap : Nat) (left right : Digest) :
+    AllQueriesSatisfy (nodeHash tag lay tree heap left right) P := by
+  unfold nodeHash; source_queries
+attribute [local aesop safe apply] nodeHash_allowed
+theorem buildLeaf_allowed (lay : Layer) (tree leaf : Nat) (digits : List Nat) (signatureOnly : Bool) :
+    AllQueriesSatisfy (buildLeaf lay tree leaf digits signatureOnly) P := by
+  unfold buildLeaf; source_queries
+attribute [local aesop safe apply] buildLeaf_allowed
+theorem buildLevel_allowed (tag lay tree h level : Nat) (nodes : List Digest) :
+    AllQueriesSatisfy (buildLevel tag lay tree h level nodes) P := by
+  unfold buildLevel; source_queries
+attribute [local aesop safe apply] buildLevel_allowed
+theorem buildLevels_allowed (tag lay tree h : Nat) (leaves : List Digest) :
+    AllQueriesSatisfy (buildLevels tag lay tree h leaves) P := by
+  unfold buildLevels; source_queries
+attribute [local aesop safe apply] buildLevels_allowed
+theorem buildTree_allowed (lay : Layer) (tree selected : Nat) (digits : List Nat) :
+    AllQueriesSatisfy (buildTree lay tree selected digits) P := by
+  unfold buildTree; source_queries
+attribute [local aesop safe apply] buildTree_allowed
+theorem keygenPayload_allowed : AllQueriesSatisfy keygenPayload P := by
+  unfold keygenPayload; source_queries
+
+theorem counterSearch_allowed (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
+    AllQueriesSatisfy (counterSearch lay tree leaf message counter fuel) P := by
+  induction fuel generalizing counter with
+  | zero => unfold counterSearch; source_queries
+  | succ fuel ih => unfold counterSearch; source_queries
+attribute [local aesop safe apply] counterSearch_allowed
+omit hpair hnonce in
+theorem digest_allowed (rho : Digest) (message : Message) (counter : BitVec 32) :
+    AllQueriesSatisfy (digest rho message counter) P := by
+  unfold digest; source_queries
+attribute [local aesop safe apply] digest_allowed
+theorem digestSearch_allowed (rho : Digest) (message : Message) (counter fuel : Nat) :
+    AllQueriesSatisfy (digestSearch rho message counter fuel) P := by
+  induction fuel generalizing counter with
+  | zero => unfold digestSearch; source_queries
+  | succ fuel ih => unfold digestSearch; source_queries
+attribute [local aesop safe apply] digestSearch_allowed
+theorem ftsLeaf_allowed (index coord leaf : Nat) (secret : Digest) :
+    AllQueriesSatisfy (ftsLeaf index coord leaf secret) P := by
+  unfold ftsLeaf; source_queries
+attribute [local aesop safe apply] ftsLeaf_allowed
+theorem buildFts_allowed (index coord : Nat) : AllQueriesSatisfy (buildFts index coord) P := by
+  unfold buildFts; source_queries
+attribute [local aesop safe apply] buildFts_allowed
+theorem forestPk_allowed (index : Nat) (roots : List Digest) :
+    AllQueriesSatisfy (forestPk index roots) P := by
+  unfold forestPk; source_queries
+attribute [local aesop safe apply] forestPk_allowed
+theorem topPath_allowed (cache : T3.Cache) (leaf : Nat) : AllQueriesSatisfy (topPath cache leaf) P := by
+  unfold topPath; source_queries
+attribute [local aesop safe apply] topPath_allowed
+theorem signTop_allowed (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
+    AllQueriesSatisfy (signTop cache leaf digits) P := by
+  unfold signTop; source_queries
+attribute [local aesop safe apply] signTop_allowed
+theorem signLayers_allowed (cache : T3.Cache) (index n : Nat) (message : Digest) :
+    AllQueriesSatisfy (signLayers cache index n message) P := by
+  induction n generalizing message with
+  | zero => unfold signLayers; source_queries
+  | succ n ih => unfold signLayers; source_queries
+attribute [local aesop safe apply] signLayers_allowed
+theorem signPayload_allowed (cache : T3.Cache) (message : Message) :
+    AllQueriesSatisfy (signPayload cache message) P := by
+  unfold signPayload; source_queries
+
+theorem keygen_allowed (hmac : ∀ region,P (.inr (.inr (.inr region)))) :
+    AllQueriesSatisfy keygen P := by
+  unfold keygen
+  apply bind_allowed P (keygenPayload_allowed P hpublic hpair hnonce)
+  intro generated
+  apply bind_allowed P ((allQueriesSatisfy_query_iff _ _).mpr (hmac _))
+  intro _; exact pure_allowed _ _
+
+theorem sign_allowed (hmac : ∀ region,P (.inr (.inr (.inr region))))
+    (cache : T3.Cache) (message : Message) : AllQueriesSatisfy (sign cache message) P := by
+  unfold sign
+  apply bind_allowed P ((allQueriesSatisfy_query_iff _ _).mpr (hmac _))
+  intro tag
+  split_ifs
+  · exact pure_allowed _ _
+  · exact signPayload_allowed P hpublic hpair hnonce cache message
+
+end SigGolfCandidate.T3.Security.SourceQueries
+
+namespace SigGolfCandidate.T3.Security.SourceReplay
+open OracleComp OracleSpec LazyPrivate
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+def IsHash : T3.Spec.Domain → Prop
+  | .inl (.inl _) => False
+  | _ => True
+
+abbrev HashOnly {α : Type} (program : M α) := AllQueriesSatisfy program IsHash
+
+theorem sign_hashOnly (cache : T3.Cache) (message : Message) : HashOnly (sign cache message) :=
+  SourceQueries.sign_allowed IsHash (fun _ => trivial) (fun _ => trivial)
+    (fun _ => trivial) (fun _ => trivial) cache message
+
+theorem keygen_hashOnly : HashOnly keygen :=
+  SourceQueries.keygen_allowed IsHash (fun _ => trivial) (fun _ => trivial)
+    (fun _ => trivial) (fun _ => trivial)
+
+theorem signingRecord_hashOnly (cache : T3.Cache) (message : Message) :
+    HashOnly (signingRecord cache message) := by
+  apply (SourceQueries.map_allowed_iff IsHash Prod.fst _).mp
+  rw [signingRecord_erasure]
+  exact sign_hashOnly cache message
+
+/-- The product order means that all previously sampled public and private answers persist. -/
+abbrev Extends (before after : LazyPrivate.State) : Prop := before ≤ after
+
+def known (state : LazyPrivate.State) : QueryCache T3.Spec
+  | .inl (.inl _) => none
+  | .inl (.inr input) => state.2 input
+  | .inr coordinate => state.1 coordinate
+
+theorem known_mono (before after : LazyPrivate.State) (hle : Extends before after) :
+    known before ≤ known after := by
+  intro input answer h
+  cases input with
+  | inl input =>
+      cases input with
+      | inl input => cases h
+      | inr input => exact hle.2 h
+  | inr coordinate => exact hle.1 h
+
+theorem query_extends (input : T3.Spec.Domain) (before : LazyPrivate.State)
+    (result : T3.Spec.Range input × LazyPrivate.State)
+    (h : result ∈ support (run (liftM (T3.Spec.query input)) before)) : Extends before result.2 := by
+  rw [run_query] at h
+  cases input with
+  | inl input =>
+      simp only [PrivateTable.lazyImpl,StateT.run_mk,mem_support_bind_iff,
+        support_pure,Set.mem_singleton_iff] at h
+      obtain ⟨step,hstep,rfl⟩ := h
+      refine ⟨le_rfl,?_⟩
+      cases input with
+      | inl input =>
+          change step ∈ support ((fun answer => (answer,before.2)) <$>
+            ($ᵗ (SphincsSecurity.OracleWorld.Range (.inl input)) : ProbComp _)) at hstep
+          rw [support_map] at hstep
+          obtain ⟨_,_,rfl⟩ := hstep
+          exact le_rfl
+      | inr input => exact QueryImpl.withCaching_cache_le _ input before.2 step hstep
+  | inr coordinate =>
+      simp only [PrivateTable.lazyImpl,StateT.run_mk,mem_support_bind_iff,
+        support_pure,Set.mem_singleton_iff] at h
+      obtain ⟨step,hstep,rfl⟩ := h
+      exact ⟨QueryImpl.withCaching_cache_le _ coordinate before.1 step hstep,le_rfl⟩
+
+theorem run_extends {α : Type} (program : M α) (before : LazyPrivate.State)
+    (result : α × LazyPrivate.State) (h : result ∈ support (run program before)) :
+    Extends before result.2 := by
+  induction program using OracleComp.inductionOn generalizing before with
+  | pure value =>
+      rw [run_pure,mem_support_pure_iff] at h
+      subst result
+      exact le_rfl
+  | query_bind input next ih =>
+      rw [run_bind,mem_support_bind_iff] at h
+      obtain ⟨step,hstep,htail⟩ := h
+      exact (query_extends input before step hstep).trans (ih step.1 step.2 htail)
+
+theorem hash_query_caches (input : T3.Spec.Domain) (hhash : IsHash input)
+    (before : LazyPrivate.State) (result : T3.Spec.Range input × LazyPrivate.State)
+    (h : result ∈ support (run (liftM (T3.Spec.query input)) before)) :
+    known result.2 input=some result.1 := by
+  cases input with
+  | inl input =>
+      cases input with
+      | inl input => exact False.elim hhash
+      | inr input =>
+          rw [run_query] at h
+          simp only [PrivateTable.lazyImpl,StateT.run_mk,mem_support_bind_iff,
+            support_pure,Set.mem_singleton_iff] at h
+          obtain ⟨step,hstep,rfl⟩ := h
+          exact DeterministicSigning.query_caches input before.2 step hstep
+  | inr coordinate =>
+      rw [run_query] at h
+      simp only [PrivateTable.lazyImpl,StateT.run_mk,mem_support_bind_iff,
+        support_pure,Set.mem_singleton_iff] at h
+      obtain ⟨step,hstep,rfl⟩ := h
+      exact DeterministicSigning.query_caches coordinate before.1 step hstep
+
+/-- Every hash reached along this deterministic execution is present in the state. -/
+inductive Resolves (state : LazyPrivate.State) {α : Type} : M α → α → Prop
+  | pure (value : α) : Resolves state (pure value) value
+  | query (input : T3.Spec.Domain) (answer : T3.Spec.Range input)
+      (hanswer : known state input=some answer) (next : T3.Spec.Range input → M α)
+      (value : α) (tail : Resolves state (next answer) value) :
+      Resolves state (liftM (T3.Spec.query input) >>= next) value
+
+theorem Resolves.mono {α : Type} {before after : LazyPrivate.State}
+    {program : M α} {value : α} (h : Resolves before program value) (hle : Extends before after) :
+    Resolves after program value := by
+  induction h with
+  | pure value => exact .pure value
+  | query input answer hanswer next value _ ih =>
+      exact .query input answer (known_mono before after hle hanswer) next value ih
+
+theorem resolves_of_run {α : Type} (program : M α) (hhash : HashOnly program)
+    (before : LazyPrivate.State) (result : α × LazyPrivate.State)
+    (h : result ∈ support (run program before)) : Resolves result.2 program result.1 := by
+  induction program using OracleComp.inductionOn generalizing before with
+  | pure value =>
+      rw [run_pure,mem_support_pure_iff] at h
+      subst result
+      exact .pure value
+  | query_bind input next ih =>
+      obtain ⟨hinput,hn⟩ := (allQueriesSatisfy_query_bind_iff _ _ _).mp hhash
+      rw [run_bind,mem_support_bind_iff] at h
+      obtain ⟨step,hstep,htail⟩ := h
+      have hle := run_extends (next step.1) step.2 result htail
+      exact .query input step.1
+        (known_mono step.2 result.2 hle (hash_query_caches input hinput before step hstep))
+        next result.1 (ih step.1 (hn step.1) step.2 htail)
+
+theorem known_query_run (state : LazyPrivate.State) (input : T3.Spec.Domain)
+    (answer : T3.Spec.Range input) (h : known state input=some answer) :
+    run (liftM (T3.Spec.query input)) state=pure (answer,state) := by
+  rw [run_query]
+  cases input with
+  | inl input =>
+      cases input with
+      | inl input => cases h
+      | inr input =>
+          change (do
+            let result ← (randomOracle (spec := SphincsSecurity.HashSpec) input).run state.2
+            pure (result.1,(state.1,result.2)))=pure (answer,state)
+          simp only [known] at h
+          rw [QueryImpl.withCaching_run_some _ h,pure_bind]
+  | inr coordinate =>
+      change (do
+        let result ← (randomOracle (spec := Coordinate →ₒ HashOutput) coordinate).run state.1
+        pure (result.1,(result.2,state.2)))=pure (answer,state)
+      simp only [known] at h
+      rw [QueryImpl.withCaching_run_some _ h,pure_bind]
+
+theorem Resolves.run_eq_pure {α : Type} {state : LazyPrivate.State}
+    {program : M α} {value : α} (h : Resolves state program value) :
+    run program state=Pure.pure (value,state) := by
+  induction h with
+  | pure value => exact run_pure _ _
+  | query input answer hanswer next value _ ih =>
+      rw [run_bind,known_query_run state input answer hanswer,pure_bind,ih]
+
+/-- Exact replay after arbitrary intervening source queries, including private queries. -/
+theorem replay_run {α : Type} (program : M α) (hhash : HashOnly program)
+    (before : LazyPrivate.State) (result : α × LazyPrivate.State)
+    (h : result ∈ support (run program before)) (after : LazyPrivate.State)
+    (hle : Extends result.2 after) : run program after=pure (result.1,after) :=
+  ((resolves_of_run program hhash before result h).mono hle).run_eq_pure
+
+/-- Repeating the same cache/message pair returns the same response, including failure,
+without sampling any new private or public answer. All previous hash calls still count
+in a separately instrumented cost game; this theorem does not erase their charge. -/
+theorem sign_replay (cache : T3.Cache) (message : Message)
+    (before : LazyPrivate.State) (result : Option Signature × LazyPrivate.State)
+    (h : result ∈ support (run (sign cache message) before)) (after : LazyPrivate.State)
+    (hle : Extends result.2 after) : run (sign cache message) after=pure (result.1,after) :=
+  replay_run _ (sign_hashOnly cache message) before result h after hle
+
+/-- Selected digests, including those from requests that fail later, also replay exactly. -/
+theorem signingRecord_replay (cache : T3.Cache) (message : Message)
+    (before : LazyPrivate.State) (result : (Option Signature × Option HashOutput) × LazyPrivate.State)
+    (h : result ∈ support (run (signingRecord cache message) before)) (after : LazyPrivate.State)
+    (hle : Extends result.2 after) :
+    run (signingRecord cache message) after=pure (result.1,after) :=
+  replay_run _ (signingRecord_hashOnly cache message) before result h after hle
+
+/-- Replay preserves the complete query charge; it does not treat cached calls as free. -/
+theorem counted_sign_replay (weight : T3.Spec.Domain → Nat) (cache : T3.Cache) (message : Message)
+    (before : LazyPrivate.State) (result : (Option Signature × Nat) × LazyPrivate.State)
+    (h : result ∈ support (run (Cost.countWith weight (sign cache message)) before))
+    (after : LazyPrivate.State) (hle : Extends result.2 after) :
+    run (Cost.countWith weight (sign cache message)) after=pure (result.1,after) :=
+  replay_run _ (SourceQueries.countWith_allowed IsHash weight _ (sign_hashOnly cache message))
+    before result h after hle
+
+theorem sign_after_intervening {α : Type} (cache : T3.Cache) (message : Message)
+    (before : LazyPrivate.State) (result : Option Signature × LazyPrivate.State)
+    (h : result ∈ support (run (sign cache message) before)) (intervening : M α)
+    (later : α × LazyPrivate.State) (hlater : later ∈ support (run intervening result.2)) :
+    run (sign cache message) later.2=pure (result.1,later.2) :=
+  sign_replay cache message before result h later.2 (run_extends intervening result.2 later hlater)
+
+end SigGolfCandidate.T3.Security.SourceReplay
+
+end
+
+/-! CacheAuthentication: base T3 replay and authentication security interfaces. -/
+section
+
+namespace SigGolfCandidate.T3.Security.CacheAuthentication
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal LazyPrivate SourceReplay
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
+
+def macCoordinate (region : Region) : Coordinate := .inr (.inr region)
+def macQuery (region : Region) : T3.Spec.Domain := .inr (macCoordinate region)
+abbrev Avoids {α : Type} (region : Region) (program : M α) : Prop :=
+  AllQueriesSatisfy program (fun input => input ≠ macQuery region)
+
+theorem keygenPayload_avoids (region : Region) : Avoids region keygenPayload :=
+  SourceQueries.keygenPayload_allowed _ (by intro input; simp [macQuery,macCoordinate])
+    (by intro input; simp [macQuery,macCoordinate]) (by intro input; simp [macQuery,macCoordinate])
+
+theorem signPayload_avoids (region : Region) (cache : T3.Cache) (message : Message) :
+    Avoids region (signPayload cache message) :=
+  SourceQueries.signPayload_allowed _ (by intro input; simp [macQuery,macCoordinate])
+    (by intro input; simp [macQuery,macCoordinate]) (by intro input; simp [macQuery,macCoordinate])
+    cache message
+
+theorem query_preserves (region : Region) (input : T3.Spec.Domain) (hinput : input ≠ macQuery region)
+    (state : LazyPrivate.State) (result : T3.Spec.Range input × LazyPrivate.State)
+    (hresult : result ∈ support (run (liftM (T3.Spec.query input)) state)) :
+    result.2.1 (macCoordinate region)=state.1 (macCoordinate region) := by
+  cases input with
+  | inl input =>
+      rw [run_query] at hresult
+      simp only [PrivateTable.lazyImpl,StateT.run_mk,mem_support_bind_iff,
+        support_pure,Set.mem_singleton_iff] at hresult
+      obtain ⟨_,_,rfl⟩ := hresult
+      rfl
+  | inr coordinate =>
+      have hne : macCoordinate region ≠ coordinate := by
+        intro he
+        exact hinput (congrArg Sum.inr he.symm)
+      exact (privateHash_preserves_other coordinate _ hne state result hresult).1
+
+theorem run_preserves {α : Type} (region : Region) (program : M α) (hp : Avoids region program)
+    (state : LazyPrivate.State) (result : α × LazyPrivate.State)
+    (hresult : result ∈ support (run program state)) :
+    result.2.1 (macCoordinate region)=state.1 (macCoordinate region) := by
+  induction program using OracleComp.inductionOn generalizing state with
+  | pure value =>
+      rw [run_pure,mem_support_pure_iff] at hresult
+      subst result
+      rfl
+  | query_bind input next ih =>
+      obtain ⟨hinput,htail⟩ := (allQueriesSatisfy_query_bind_iff _ _ _).mp hp
+      rw [run_bind,mem_support_bind_iff] at hresult
+      obtain ⟨step,hstep,htailResult⟩ := hresult
+      exact (ih step.1 (htail step.1) step.2 htailResult).trans
+        (query_preserves region input hinput state step hstep)
+
+/-- Cache-payload generation leaves every MAC cell untouched, even when the
+region itself is selected from the generated tree and its masks. -/
+theorem keygenPayload_mac_fresh (result : (Digest × Region) × LazyPrivate.State)
+    (h : result ∈ support (run keygenPayload (∅,∅))) (region : Region) :
+    result.2.1 (macCoordinate region)=none :=
+  run_preserves region keygenPayload (keygenPayload_avoids region) (∅,∅) result h
+
+/-- The actual key generator records the published tag in the lazy private cache. -/
+theorem keygen_tag_known (before : LazyPrivate.State)
+    (result : (Digest × T3.Cache) × LazyPrivate.State)
+    (h : result ∈ support (run keygen before)) :
+    result.2.1 (macCoordinate result.1.2.region)=some result.1.2.tag := by
+  rw [keygen,run_bind,mem_support_bind_iff] at h
+  obtain ⟨generated,_,h⟩ := h
+  rw [run_bind,mem_support_bind_iff] at h
+  obtain ⟨tag,htag,h⟩ := h
+  rw [run_pure,mem_support_pure_iff] at h
+  subst result
+  exact hash_query_caches (macQuery generated.1.2) trivial generated.2 tag htag
+
+theorem known_tag_persists {α : Type} (published : T3.Cache) (program : M α)
+    (before : LazyPrivate.State) (hknown : before.1 (macCoordinate published.region)=some published.tag)
+    (result : α × LazyPrivate.State) (hresult : result ∈ support (run program before)) :
+    result.2.1 (macCoordinate published.region)=some published.tag :=
+  (run_extends program before result hresult).1 hknown
+
+theorem sign_known_tag (cache : T3.Cache) (message : Message) (state : LazyPrivate.State)
+    (tag : HashOutput) (hknown : state.1 (macCoordinate cache.region)=some tag) :
+    run (sign cache message) state=
+      if tag=cache.tag then run (signPayload cache message) state else pure (none,state) := by
+  have hquery : run (privateMac cache.region) state=pure (tag,state) := by
+    change run (liftM (T3.Spec.query (macQuery cache.region))) state=_
+    exact known_query_run state (macQuery cache.region) tag hknown
+  rw [sign,run_bind,hquery,pure_bind]
+  by_cases ht : tag=cache.tag
+  · simp only [ht,ne_eq,not_true_eq_false,ite_false,ite_true]
+  · simp only [ht,ne_eq,not_false_eq_true,ite_true,ite_false,run_pure]
+
+/-- On the published region, the actual authentication check either recognizes
+the complete original cache or rejects before exposing a nonce or FTS secret. -/
+theorem sign_published_region (published cache : T3.Cache) (message : Message)
+    (state : LazyPrivate.State)
+    (hknown : state.1 (macCoordinate published.region)=some published.tag)
+    (hregion : cache.region=published.region) :
+    run (sign cache message) state=
+      if cache=published then run (sign published message) state else pure (none,state) := by
+  classical
+  have hc : state.1 (macCoordinate cache.region)=some published.tag := by rw [hregion]; exact hknown
+  rw [sign_known_tag cache message state published.tag hc]
+  by_cases ht : published.tag=cache.tag
+  · have he : cache=published := by cases cache;cases published;cases hregion;cases ht;rfl
+    subst cache
+    rw [if_pos rfl,if_pos rfl,sign_known_tag published message state published.tag hknown,if_pos rfl]
+  · have he : cache ≠ published := fun he => ht (congrArg T3.Cache.tag he).symm
+    rw [if_neg ht,if_neg he]
+
+/-- Within the published region, repetitions disclose either the original response
+or no response; intervening calls cannot change the underlying oracle answers. -/
+theorem authenticated_repeat (published cache : T3.Cache) (message : Message)
+    (before : LazyPrivate.State) (result : Option Signature × LazyPrivate.State)
+    (h : result ∈ support (run (sign published message) before))
+    (after : LazyPrivate.State) (hle : SourceReplay.Extends result.2 after)
+    (hknown : after.1 (macCoordinate published.region)=some published.tag)
+    (hregion : cache.region=published.region) :
+    run (sign cache message) after=
+      if cache=published then pure (result.1,after) else pure (none,after) := by
+  rw [sign_published_region published cache message after hknown hregion,
+    sign_replay published message before result h after hle]
+
+theorem uniform_tag_probability (tag : HashOutput) :
+    Pr[=tag | ($ᵗ HashOutput : ProbComp HashOutput)]=((2 : ENNReal)^256)⁻¹ := by
+  rw [probOutput_uniformSample]
+  norm_num [HashOutput]
+
+/-- A previously untouched MAC coordinate authenticates one supplied tag with
+exactly 2^-256 probability. Repeated guesses require the separate game hop. -/
+theorem fresh_mac_probability (cache : T3.Cache) (state : LazyPrivate.State)
+    (hfresh : state.1 (macCoordinate cache.region)=none) :
+    Pr[fun result => result.1=cache.tag | run (privateMac cache.region) state]=((2 : ENNReal)^256)⁻¹ := by
+  change state.1 (.inr (.inr cache.region))=none at hfresh
+  rw [privateMac,run_privateHash,QueryImpl.withCaching_run_none _ hfresh]
+  simp only [bind_pure_comp,probEvent_map,Function.comp_def,uniformSampleImpl]
+  rw [probEvent_eq_eq_probOutput]
+  exact uniform_tag_probability cache.tag
+
+theorem fresh_mac_success_bound (cache : T3.Cache) (message : Message) (state : LazyPrivate.State)
+    (hfresh : state.1 (macCoordinate cache.region)=none) :
+    Pr[fun result => result.1.isSome=true | run (sign cache message) state] ≤ ((2 : ENNReal)^256)⁻¹ := by
+  rw [sign,run_bind,probEvent_bind_eq_tsum]
+  calc
+    _ ≤ ∑' result, Pr[=result | run (privateMac cache.region) state] *
+        (if result.1=cache.tag then 1 else 0) := by
+      apply ENNReal.tsum_le_tsum
+      intro result
+      apply mul_le_mul' le_rfl
+      by_cases ht : result.1=cache.tag
+      · simp only [ht,ne_eq,not_true_eq_false,ite_false,ite_true]
+        exact probEvent_le_one
+      · simp [ht]
+    _ = Pr[fun result => result.1=cache.tag | run (privateMac cache.region) state] := by
+      rw [probEvent_eq_tsum_ite]
+      apply tsum_congr
+      intro result
+      split_ifs <;> simp_all
+    _ = _ := fresh_mac_probability cache state hfresh
+
+@[irreducible] noncomputable def regionFintype : Fintype Region := by
+  classical
+  exact inferInstance
+noncomputable local instance : Fintype Region := regionFintype
+@[irreducible] noncomputable def macTableSampler : SampleableType (Region → HashOutput) := by
+  classical
+  exact SampleableType.ofFintype _
+noncomputable local instance : SampleableType (Region → HashOutput) := macTableSampler
+
+abbrev MacTable := Region → HashOutput
+
+def BadRequest (published : Region) (table : MacTable) (request : Request) : Prop :=
+  request.cache.region ≠ published ∧ table request.cache.region=request.cache.tag
+
+def BadIn (published : Region) (table : MacTable) (limit : Nat) (log : QueryLog Requests) : Prop :=
+  ∃ entry ∈ log.take limit, BadRequest published table entry.1
+
+theorem table_tag_probability (region : Region) (tag : HashOutput) :
+    Pr[fun table : MacTable => table region=tag | ($ᵗ MacTable : ProbComp _)] =
+      ((2 : ENNReal)^256)⁻¹ := by
+  have hlaw := @evalSPMF_uniformSample_bind_update Region HashOutput _ _ _ _ _
+    macTableSampler region
+  rw [← probEvent_congr' (fun _ _ => Iff.rfl) hlaw,probEvent_bind_eq_tsum]
+  simp only [bind_pure_comp,probEvent_map,Function.comp_def,Function.update_self]
+  simpa using uniform_tag_probability tag
+
+theorem list_events_bound {X Y : Type} (mx : ProbComp X) (entries : List Y)
+    (event : Y → X → Prop) (cap : ENNReal) (hc : ∀ entry ∈ entries,Pr[event entry | mx] ≤ cap) :
+    Pr[fun x => ∃ entry ∈ entries,event entry x | mx] ≤ entries.length*cap := by
+  induction entries with
+  | nil => simp
+  | cons entry entries ih =>
+      calc
+        _ = Pr[fun x => event entry x ∨ ∃ entry ∈ entries,event entry x | mx] := by
+          apply probEvent_ext
+          intro x _
+          simp
+        _ ≤ Pr[event entry | mx]+Pr[fun x => ∃ entry ∈ entries,event entry x | mx] :=
+          probEvent_or_le _ _ _
+        _ ≤ cap+entries.length*cap :=
+          add_le_add (hc entry (by simp)) (ih fun entry he => hc entry (by simp [he]))
+        _ = _ := by
+          simp only [List.length_cons,Nat.cast_add,Nat.cast_one,add_mul,one_mul]
+          rw [add_comm]
+
+/-- Union bound for an ideal transcript independent of the off-region MAC table.
+The transcript may contain repeated regions, messages and tag guesses. Applying
+this to the actual game still requires the identical-until-bad reduction. -/
+theorem independent_log_bad_bound {X : Type} (published : Region) (mx : ProbComp X)
+    (logOf : X → QueryLog Requests) (limit : Nat) :
+    Pr[fun result : MacTable × X => BadIn published result.1 limit (logOf result.2) |
+      ($ᵗ MacTable : ProbComp _) >>= fun table => (fun x => (table,x)) <$> mx] ≤
+      limit*((2 : ENNReal)^256)⁻¹ := by
+  simp only [map_eq_bind_pure_comp,Function.comp_def]
+  rw [probEvent_bind_bind_swap,probEvent_bind_eq_tsum]
+  calc
+    _ ≤ ∑' x,Pr[=x | mx]*(limit*((2 : ENNReal)^256)⁻¹) := by
+      apply ENNReal.tsum_le_tsum
+      intro x
+      apply mul_le_mul' le_rfl
+      rw [bind_pure_comp,probEvent_map]
+      refine (probEvent_mono fun table _ hbad => ?_).trans
+        ((list_events_bound ($ᵗ MacTable) ((logOf x).take limit)
+          (fun entry table => table entry.1.cache.region=entry.1.cache.tag) _
+          (fun entry _ => (table_tag_probability _ _).le)).trans ?_)
+      · obtain ⟨entry,he,hbad⟩ := hbad
+        exact ⟨entry,he,hbad.2⟩
+      · exact mul_le_mul' (by exact_mod_cast List.length_take_le _ _) le_rfl
+    _ = (∑' x,Pr[=x | mx])*(limit*((2 : ENNReal)^256)⁻¹) := ENNReal.tsum_mul_right
+    _ ≤ _ := mul_le_of_le_one_left zero_le tsum_probOutput_le_one
+
+theorem lifetime_mac_charge {X : Type} (published : Region) (mx : ProbComp X)
+    (logOf : X → QueryLog Requests) :
+    Pr[fun result : MacTable × X => BadIn published result.1 (2^32) (logOf result.2) |
+      ($ᵗ MacTable : ProbComp _) >>= fun table => (fun x => (table,x)) <$> mx] ≤
+      ((2 : ENNReal)^224)⁻¹ := by
+  refine (independent_log_bad_bound published mx logOf (2^32)).trans ?_
+  apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
+  norm_num [ENNReal.toReal_mul,ENNReal.toReal_inv,ENNReal.toReal_pow]
+
+end SigGolfCandidate.T3.Security.CacheAuthentication
+
+end
+
+/-! AuthenticationHop: base T3 replay and authentication security interfaces. -/
+section
+
+namespace SigGolfCandidate.T3.Security.RequestHop
+open OracleComp OracleSpec ENNReal
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+variable {State : Type}
+abbrev Public (State : Type) := QueryImpl SphincsSecurity.OracleWorld (StateT State ProbComp)
+abbrev Signer (State : Type) := Request → StateT State ProbComp (Option Signature)
+
+/-- Full adaptive request log, with arbitrary world/private/cost state in the handlers. -/
+noncomputable def run {α : Type} (world : Public State) (signer : Signer State)
+    (program : OracleComp LazyPrivate.Interaction α) (state : State) :
+    ProbComp ((α × QueryLog Requests) × State) :=
+  OracleComp.recOn program (fun value state => pure ((value,[]),state))
+    (fun input _ ih state => match input with
+      | .inl input => do
+          let result ← (world input).run state
+          ih result.1 result.2
+      | .inr request => do
+          let result ← (signer request).run state
+          (fun tail => ((tail.1.1,⟨request,result.1⟩::tail.1.2),tail.2)) <$> ih result.1 result.2) state
+
+theorem run_pure {α : Type} (world : Public State) (signer : Signer State)
+    (value : α) (state : State) : run world signer (pure value) state=pure ((value,[]),state) := rfl
+
+theorem run_public {α : Type} (world : Public State) (signer : Signer State)
+    (input : SphincsSecurity.OracleWorld.Domain)
+    (next : SphincsSecurity.OracleWorld.Range input → OracleComp LazyPrivate.Interaction α)
+    (state : State) :
+    run world signer (liftM (LazyPrivate.Interaction.query (.inl input)) >>= next) state=
+      (do let result ← (world input).run state; run world signer (next result.1) result.2) := rfl
+
+theorem run_request {α : Type} (world : Public State) (signer : Signer State)
+    (request : Request) (next : Option Signature → OracleComp LazyPrivate.Interaction α)
+    (state : State) :
+    run world signer (liftM (LazyPrivate.Interaction.query (.inr request)) >>= next) state=
+      (do
+        let result ← (signer request).run state
+        (fun tail => ((tail.1.1,⟨request,result.1⟩::tail.1.2),tail.2)) <$>
+          run world signer (next result.1) result.2) := rfl
+
+theorem erasure {α : Type} (world : Public State) (signer : Signer State)
+    (program : OracleComp LazyPrivate.Interaction α) (state : State) :
+    (fun result => (result.1.1,result.2)) <$> run world signer program state=
+      (simulateQ (world+signer) program).run state := by
+  induction program using OracleComp.inductionOn generalizing state with
+  | pure value => simp [run_pure]
+  | query_bind input next ih =>
+      cases input with
+      | inl input =>
+          rw [run_public,simulateQ_bind,simulateQ_spec_query,StateT.run_bind,map_bind]
+          exact bind_congr fun result => ih result.1 result.2
+      | inr request =>
+          rw [run_request,simulateQ_bind,simulateQ_spec_query,StateT.run_bind,map_bind]
+          apply bind_congr
+          intro result
+          simpa only [Functor.map_map,Function.comp_def] using ih result.1 result.2
+
+theorem probEvent_bind_le_add_bind {α β γ : Type} (mx : ProbComp α)
+    (left right : α → ProbComp β) (badRun : α → ProbComp γ)
+    (event : β → Prop) (bad : γ → Prop)
+    (hle : ∀ value ∈ support mx,Pr[event | left value] ≤
+      Pr[event | right value]+Pr[bad | badRun value]) :
+    Pr[event | mx >>= left] ≤ Pr[event | mx >>= right]+Pr[bad | mx >>= badRun] := by
+  simp only [probEvent_bind_eq_tsum]
+  rw [← ENNReal.tsum_add]
+  apply ENNReal.tsum_le_tsum
+  intro value
+  by_cases hv : value ∈ support mx
+  · rw [← mul_add]
+    exact mul_le_mul' le_rfl (hle value hv)
+  · simp [probOutput_eq_zero_of_not_mem_support hv]
+
+def BadIn (bad : Request → Prop) (limit : Nat) (log : QueryLog Requests) : Prop :=
+  ∃ entry ∈ log.take limit,bad entry.1
+
+/-- Identical until a bad request. No syntactic lifetime restriction is assumed:
+only the scored continuation must reject transcripts longer than the remaining limit. -/
+theorem identical_until_bad {α β : Type} (world : Public State) (bad : Request → Prop)
+    (left right : Signer State) (hagree : ∀ request,¬bad request → left request=right request)
+    (program : OracleComp LazyPrivate.Interaction α) :
+    ∀ (limit : Nat) (state : State) (cont : ((α × QueryLog Requests) × State) → ProbComp β)
+      (event : β → Prop),
+      (∀ result,limit < result.1.2.length → Pr[event | cont result]=0) →
+      Pr[event | run world left program state >>= cont] ≤
+        Pr[event | run world right program state >>= cont]+
+          Pr[fun result => BadIn bad limit result.1.2 | run world right program state] := by
+  induction program using OracleComp.inductionOn with
+  | pure value =>
+      intro limit state cont event _
+      exact le_self_add
+  | query_bind input next ih =>
+      intro limit state cont event hlong
+      cases input with
+      | inl input =>
+          rw [run_public,run_public,bind_assoc,bind_assoc]
+          apply probEvent_bind_le_add_bind
+          intro result _
+          exact ih result.1 limit result.2 cont event hlong
+      | inr request =>
+          by_cases hbad : bad request
+          · cases limit with
+            | zero =>
+                refine le_trans (le_of_eq ?_) zero_le
+                rw [probEvent_eq_zero_iff]
+                intro value hv
+                rw [run_request,bind_assoc,mem_support_bind_iff] at hv
+                obtain ⟨head,_,hv⟩ := hv
+                rw [bind_map_left,mem_support_bind_iff] at hv
+                obtain ⟨tail,_,hv⟩ := hv
+                have hz := hlong ((tail.1.1,⟨request,head.1⟩::tail.1.2),tail.2) (by simp)
+                rw [probEvent_eq_zero_iff] at hz
+                exact hz value hv
+            | succ limit =>
+                have hone : Pr[fun result => BadIn bad (limit+1) result.1.2 |
+                    run world right (liftM (LazyPrivate.Interaction.query (.inr request)) >>= next) state]=1 := by
+                  rw [probEvent_eq_one_iff]
+                  refine ⟨by simp,?_⟩
+                  intro result hr
+                  rw [run_request,mem_support_bind_iff] at hr
+                  obtain ⟨head,_,hr⟩ := hr
+                  rw [support_map] at hr
+                  obtain ⟨tail,_,rfl⟩ := hr
+                  exact ⟨⟨request,head.1⟩,by simp,hbad⟩
+                exact probEvent_le_one.trans (hone.symm.le.trans le_add_self)
+          · rw [run_request,run_request,hagree request hbad,bind_assoc,bind_assoc]
+            apply probEvent_bind_le_add_bind
+            intro head _
+            rw [bind_map_left,bind_map_left,probEvent_map]
+            refine (ih head.1 (limit-1) head.2 _ event (fun result hr => hlong _ (by simp;omega))).trans
+              (add_le_add le_rfl (probEvent_mono fun result _ hr => ?_))
+            obtain ⟨entry,he,hbadEntry⟩ := hr
+            cases limit with
+            | zero => simp at he
+            | succ limit =>
+                simp only [Nat.add_sub_cancel] at he
+                exact ⟨entry,by simp [he],hbadEntry⟩
+
+end SigGolfCandidate.T3.Security.RequestHop
+
+namespace SigGolfCandidate.T3.Security.MacGame
+open OracleComp OracleSpec ENNReal CacheAuthentication
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
+noncomputable local instance : DecidableEq Region := Classical.decEq _
+noncomputable local instance : Fintype Region := regionFintype
+noncomputable local instance : SampleableType MacTable := macTableSampler
+
+variable {State : Type}
+
+def NonMac : T3.Spec.Domain → Prop
+  | .inr (.inr (.inr _)) => False
+  | _ => True
+
+/-- A fixed MAC table supplies the response. The base handler still performs
+the MAC query's bookkeeping, so counters and other table-independent state persist. -/
+noncomputable def sourceHandler (base : QueryImpl T3.Spec (StateT State ProbComp)) (table : MacTable) :
+    QueryImpl T3.Spec (StateT State ProbComp)
+  | .inr (.inr (.inr region)) => do
+      let _ ← base (macQuery region)
+      pure (table region)
+  | input => base input
+
+theorem sourceHandler_agrees (base : QueryImpl T3.Spec (StateT State ProbComp)) (table : MacTable)
+    (input : T3.Spec.Domain) (h : NonMac input) : sourceHandler base table input=base input := by
+  rcases input with world | tweak | message | region
+  · rfl
+  · rfl
+  · rfl
+  · exact False.elim h
+
+theorem simulate_no_mac {α : Type} (base : QueryImpl T3.Spec (StateT State ProbComp)) (table : MacTable)
+    (program : M α) (h : AllQueriesSatisfy program NonMac) :
+    simulateQ (sourceHandler base table) program=simulateQ base program := by
+  induction program using OracleComp.inductionOn with
+  | pure value => rfl
+  | query_bind input next ih =>
+      obtain ⟨hinput,htail⟩ := (allQueriesSatisfy_query_bind_iff _ _ _).mp h
+      rw [simulateQ_bind,simulateQ_bind,simulateQ_spec_query,simulateQ_spec_query,
+        sourceHandler_agrees base table input hinput]
+      exact congrArg (fun continuation => base input >>= continuation) (funext fun answer => ih answer (htail answer))
+
+theorem payload_no_mac (cache : T3.Cache) (message : Message) :
+    AllQueriesSatisfy (signPayload cache message) NonMac :=
+  SourceQueries.signPayload_allowed NonMac (fun _ => trivial) (fun _ => trivial)
+    (fun _ => trivial) cache message
+
+noncomputable def realSigner (base : QueryImpl T3.Spec (StateT State ProbComp)) (table : MacTable) :
+    RequestHop.Signer State := fun request => do
+  let _ ← base (macQuery request.cache.region)
+  if table request.cache.region ≠ request.cache.tag then return none
+  simulateQ base (signPayload request.cache request.message)
+
+noncomputable def idealSigner (base : QueryImpl T3.Spec (StateT State ProbComp)) (published : T3.Cache) :
+    RequestHop.Signer State := fun request => do
+  let _ ← base (macQuery request.cache.region)
+  if request.cache=published then simulateQ base (signPayload request.cache request.message) else pure none
+
+/-- This is the actual source signer interpreted with the fixed MAC table,
+including the MAC query's state update. -/
+theorem source_signer_eq (base : QueryImpl T3.Spec (StateT State ProbComp))
+    (table : MacTable) (request : Request) :
+    simulateQ (sourceHandler base table) (sign request.cache request.message)=realSigner base table request := by
+  unfold sign privateMac privateHash
+  rw [simulateQ_bind,simulateQ_spec_query]
+  change ((do
+    let _ ← base (macQuery request.cache.region)
+    pure (table request.cache.region)) >>= fun tag =>
+      simulateQ (sourceHandler base table)
+        (if tag ≠ request.cache.tag then pure none else signPayload request.cache request.message))=_
+  simp only [bind_assoc,pure_bind]
+  unfold realSigner
+  apply congrArg (fun continuation => base (macQuery request.cache.region) >>= continuation)
+  funext answer
+  split_ifs
+  · rfl
+  · exact simulate_no_mac base table _ (payload_no_mac request.cache request.message)
+
+theorem signer_agrees (base : QueryImpl T3.Spec (StateT State ProbComp))
+    (published : T3.Cache) (table : MacTable) (request : Request)
+    (hgood : ¬BadRequest published.region table request) :
+    realSigner base (Function.update table published.region published.tag) request=
+      idealSigner base published request := by
+  unfold realSigner idealSigner
+  apply congrArg (fun continuation => base (macQuery request.cache.region) >>= continuation)
+  funext answer
+  by_cases hr : request.cache.region=published.region
+  · rw [hr,Function.update_self]
+    by_cases ht : published.tag=request.cache.tag
+    · have he : request.cache=published := by
+        cases request with
+        | mk message cache => cases cache;cases published;cases hr;cases ht;rfl
+      rw [if_neg (not_not.mpr ht),if_pos he]
+    · have he : request.cache ≠ published := fun he => ht (congrArg T3.Cache.tag he).symm
+      rw [if_pos ht,if_neg he]
+  · have ht : table request.cache.region ≠ request.cache.tag := fun ht => hgood ⟨hr,ht⟩
+    have he : request.cache ≠ published := fun he => hr (congrArg T3.Cache.region he)
+    rw [Function.update_of_ne hr,if_pos ht,if_neg he]
+
+/-- Authentication game hop for arbitrary adaptive request programs, retaining
+the log and all handler state. The continuation may impose additional query-cost
+and forgery conditions; only over-lifetime transcripts must have zero score. -/
+theorem authentication_hop {α β : Type} (world : RequestHop.Public State)
+    (base : QueryImpl T3.Spec (StateT State ProbComp)) (published : T3.Cache)
+    (program : OracleComp LazyPrivate.Interaction α) (limit : Nat) (state : State)
+    (cont : ((α × QueryLog Requests) × State) → ProbComp β) (event : β → Prop)
+    (hlong : ∀ result,limit < result.1.2.length → Pr[event | cont result]=0) :
+    Pr[event | ($ᵗ MacTable : ProbComp _) >>= fun table =>
+      RequestHop.run world (realSigner base (Function.update table published.region published.tag))
+        program state >>= cont] ≤
+      Pr[event | RequestHop.run world (idealSigner base published) program state >>= cont]+
+        limit*((2 : ENNReal)^256)⁻¹ := by
+  have h := RequestHop.probEvent_bind_le_add_bind ($ᵗ MacTable : ProbComp _)
+    (fun table => RequestHop.run world
+      (realSigner base (Function.update table published.region published.tag)) program state >>= cont)
+    (fun _ => RequestHop.run world (idealSigner base published) program state >>= cont)
+    (fun table => (fun result => (table,result)) <$>
+      RequestHop.run world (idealSigner base published) program state)
+    event (fun result => BadIn published.region result.1 limit result.2.1.2) (by
+      intro table _
+      rw [probEvent_map]
+      exact RequestHop.identical_until_bad world (BadRequest published.region table) _ _
+        (signer_agrees base published table) program limit state cont event hlong)
+  rw [probEvent_bind_const] at h
+  simp only [probFailure_eq_zero,tsub_zero,one_mul] at h
+  exact h.trans (add_le_add le_rfl
+    (independent_log_bad_bound published.region
+      (RequestHop.run world (idealSigner base published) program state) (fun result => result.1.2) limit))
+
+end SigGolfCandidate.T3.Security.MacGame
+
+end
+
+
+namespace SigGolfCandidate.T3.Security.ProposalOverflow
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+open SphincsSecurity.Concrete
+open BPORS.Adaptive
+set_option autoImplicit false
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+set_option linter.unusedSimpArgs false
+
+noncomputable def tailBase : ENNReal := 4097 / 4096
+noncomputable def tailMoment : ENNReal := 4195328 / 4194303
+
+theorem tailBase_one_le : 1 ≤ tailBase := by
+  apply (ENNReal.toReal_le_toReal (by finiteness) (by unfold tailBase; finiteness)).mp
+  norm_num [tailBase, ENNReal.toReal_div]
+theorem tailMoment_one_le : 1 ≤ tailMoment := by
+  apply (ENNReal.toReal_le_toReal (by finiteness) (by unfold tailMoment; finiteness)).mp
+  norm_num [tailMoment, ENNReal.toReal_div]
+
+theorem acceptance_le_one : (1024/1025 : ENNReal) ≤ 1 := by
+  apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
+  norm_num [ENNReal.toReal_div]
+
+theorem tailMoment_eq : tailMoment =
+    (1024/1025 : ENNReal) * tailBase / (1 - (1 - 1024/1025) * tailBase) := by
+  have hrem : (1 - (1024/1025 : ENNReal)).toReal = 1 - (1024/1025 : ENNReal).toReal := by
+    rw [ENNReal.toReal_sub_of_le acceptance_le_one (by finiteness), ENNReal.toReal_one]
+  have hlt : (1 - (1024/1025 : ENNReal)) * tailBase < 1 := by
+    apply (ENNReal.toReal_lt_toReal (by unfold tailBase; finiteness) (by finiteness)).mp
+    rw [ENNReal.toReal_mul, hrem]
+    norm_num [tailBase, ENNReal.toReal_div]
+  apply (ENNReal.toReal_eq_toReal_iff' (by unfold tailMoment; finiteness)
+    (ENNReal.div_ne_top (by unfold tailBase; finiteness) (tsub_pos_iff_lt.mpr hlt).ne')).mp
+  rw [ENNReal.toReal_div, ENNReal.toReal_sub_of_le hlt.le (by finiteness)]
+  simp only [ENNReal.toReal_mul, hrem]
+  norm_num [tailMoment, tailBase, ENNReal.toReal_div]
+
+theorem block_moment :
+    expectedValue (proposalBlockLength (1024/1025) (by norm_num) acceptance_le_one)
+      (fun length => tailBase ^ length) = tailMoment := by
+  simp only [expectedValue, PMF.probOutput_eq_apply]
+  rw [proposalBlockLength_power_moment, ← tailMoment_eq]
+
+/-- The initial exponential potential for the contract's full signing limit.
+No large powers are evaluated: the comparison is proved using logarithm bounds. -/
+theorem initial_bound :
+    tailMoment ^ (2^32) / tailBase ^ BPORS.Numeric.proposalLength ≤ (2 : ENNReal)⁻¹ ^ 700 := by
+  let z : ℝ := 4097 / 4096
+  let m : ℝ := 4195328 / 4194303
+  have hz : 0 < z := by norm_num [z]
+  have hm : 0 < m := by norm_num [m]
+  have hlog : (2^32 : ℝ) * Real.log m -
+      BPORS.Numeric.proposalLength * Real.log z ≤ -700 * Real.log 2 := by
+    have hu := Real.log_le_sub_one_of_pos hm
+    have hl := Real.one_sub_inv_le_log_of_pos hz
+    have ht := Real.log_two_lt_d9
+    norm_num [m, z, BPORS.Numeric.proposalLength] at hu hl ⊢
+    linarith
+  have hreal : m ^ (2^32 : Nat) / z ^ BPORS.Numeric.proposalLength ≤ (2 : ℝ)⁻¹ ^ 700 := by
+    apply (Real.log_le_log_iff (by positivity) (by positivity)).mp
+    rw [Real.log_div (by positivity) (by positivity), Real.log_pow, Real.log_pow,
+      Real.log_pow, Real.log_inv]
+    push_cast
+    nlinarith only [hlog]
+  have hfinite : tailMoment ^ (2^32 : Nat) / tailBase ^ BPORS.Numeric.proposalLength ≠ ⊤ := by
+    apply ENNReal.div_ne_top
+    · exact ENNReal.pow_ne_top (by unfold tailMoment; finiteness)
+    · exact pow_ne_zero _ (by norm_num [tailBase])
+  apply (ENNReal.toReal_le_toReal hfinite (by finiteness)).mp
+  simpa only [tailBase, tailMoment, ENNReal.toReal_div, ENNReal.toReal_pow,
+    ENNReal.toReal_inv, ENNReal.toReal_ofNat, m, z] using hreal
+
+variable {ι State Label : Type} {spec : OracleSpec ι}
+
+/-- The potential reserves one geometric moment for each remaining active request. -/
+noncomputable def weight (remaining : State → Nat) (state : List Label × State) : ENNReal :=
+  tailBase ^ state.1.length * tailMoment ^ remaining state.2
+
+theorem query_weight (model : ProposalModel spec State Label) (haccept : model.accept = 1024/1025)
+    (remaining : State → Nat) (input : spec.Domain) (state : List Label × State)
+    (hactive : model.active input state.2 = true → 0 < remaining state.2)
+    (hadvance : ∀ outcome, remaining (model.advance input state.2 outcome) =
+      if model.active input state.2 then remaining state.2 - 1 else remaining state.2) :
+    expectedValue ((model.traced input).run state) (fun result => weight remaining result.2) =
+      weight remaining state := by
+  simp only [ProposalModel.traced, proposalRecordImpl, StateT.run_mk]
+  by_cases ha : model.active input state.2 = true
+  · rw [if_pos ha, ← PMF.monad_map_eq_map, expectedValue_map]
+    simp only [weight, List.length_append, List.length_singleton, hadvance, ha, if_true]
+    have hp := hactive ha
+    have he : remaining state.2 = (remaining state.2 - 1) + 1 := by omega
+    have hproject := congrArg
+      (fun law : PMF Nat => expectedValue law (fun length => tailBase ^ length))
+      (recordLengthBridge_length (model.record input state.2) model.accept model.positive model.lt_one.le)
+    rw [← recordProposalBridge_length_record (model.record input state.2)
+      (model.rejected input state.2) model.accept model.positive model.lt_one.le] at hproject
+    simp only [← PMF.monad_map_eq_map, expectedValue_map, Function.comp_def] at hproject
+    have hmoment : expectedValue
+        (recordProposalBridge (model.record input state.2) (model.rejected input state.2)
+          model.accept model.positive model.lt_one.le)
+        (fun result => tailBase ^ (result.1.length + 1)) = tailMoment := by
+      rw [hproject]
+      simp only [expectedValue, PMF.probOutput_eq_apply]
+      rw [proposalBlockLength_power_moment, haccept, ← tailMoment_eq]
+    calc
+      _ = expectedValue
+          (recordProposalBridge (model.record input state.2) (model.rejected input state.2)
+            model.accept model.positive model.lt_one.le)
+          (fun result => tailBase ^ (result.1.length + 1)) *
+          (tailBase ^ state.1.length * tailMoment ^ (remaining state.2 - 1)) := by
+        rw [← expectedValue_mul_const]
+        congr 1
+        funext result
+        rw [Nat.add_assoc, pow_add]
+        ring
+      _ = weight remaining state := by
+        rw [hmoment]
+        conv_rhs => rw [weight, he, pow_succ]
+        ring
+  · rw [if_neg ha, ← PMF.monad_map_eq_map, expectedValue_map]
+    simp only [weight, hadvance, ha, if_false]
+    exact expectedValue_const (by simp) _
+
+theorem weight_dominates_overflow (remaining : State → Nat)
+    (state : List Label × State) (cap : Nat) (hbad : cap < state.1.length) :
+    1 ≤ weight remaining state / tailBase ^ cap := by
+  have hnz : tailBase ^ cap ≠ 0 := pow_ne_zero _ (by norm_num [tailBase])
+  have hfin : tailBase ^ cap ≠ ⊤ := ENNReal.pow_ne_top (by unfold tailBase; finiteness)
+  calc
+    1 = tailBase ^ cap / tailBase ^ cap := (ENNReal.div_self hnz hfin).symm
+    _ ≤ _ := ENNReal.div_le_div_right (calc
+      tailBase ^ cap ≤ tailBase ^ state.1.length := pow_le_pow_right₀ tailBase_one_le hbad.le
+      _ ≤ weight remaining state := by
+        unfold weight
+        exact le_mul_of_one_le_right' (one_le_pow₀ tailMoment_one_le)) _
+
+/-- Counts every active request while retaining the full, untruncated trace. -/
+noncomputable def counted (model : ProposalModel spec State Label) :
+    ProposalModel spec (Nat × State) Label where
+  Outcome := model.Outcome
+  record input state := model.record input state.2
+  response := model.response
+  advance input state outcome :=
+    (state.1 + if model.active input state.2 then 1 else 0,
+      model.advance input state.2 outcome)
+  label := model.label
+  active input state := model.active input state.2
+  base := model.base
+  accept := model.accept
+  positive := model.positive
+  lt_one := model.lt_one
+  cap input state ha point := model.cap input state.2 ha point
+
+noncomputable def killedWeight (limit : Nat) (state : List Label × (Nat × State)) : ENNReal :=
+  if state.2.1 ≤ limit then weight (fun current : Nat × State => limit - current.1) state else 0
+
+theorem counted_query_weight (model : ProposalModel spec State Label) (haccept : model.accept = 1024/1025)
+    (limit : Nat) (input : spec.Domain) (state : List Label × (Nat × State)) :
+    expectedValue (((counted model).traced input).run state)
+      (fun result => killedWeight limit result.2) ≤ killedWeight limit state := by
+  by_cases ha : model.active input state.2.2 = true
+  · by_cases hroom : state.2.1 < limit
+    · have hrewrite : expectedValue (((counted model).traced input).run state)
+          (fun result => killedWeight limit result.2) =
+        expectedValue (((counted model).traced input).run state)
+          (fun result => weight (fun current : Nat × State => limit-current.1) result.2) := by
+        simp only [ProposalModel.traced, proposalRecordImpl, counted, StateT.run_mk, ha, if_true,
+          ← PMF.monad_map_eq_map, expectedValue_map, killedWeight, show state.2.1+1 ≤ limit by omega]
+      rw [hrewrite, query_weight (counted model) haccept _ input state
+        (fun _ => by omega) (fun _ => by simp only [counted, ha, if_true]; omega)]
+      simp [killedWeight, Nat.le_of_lt hroom]
+    · have hnext : ¬state.2.1 + 1 ≤ limit := by omega
+      simp only [ProposalModel.traced, proposalRecordImpl, counted, StateT.run_mk, ha, if_true,
+        ← PMF.monad_map_eq_map, expectedValue_map, killedWeight, hnext, if_false]
+      rw [expectedValue_const (by simp)]
+      exact bot_le
+  · simp only [ProposalModel.traced, proposalRecordImpl, counted, StateT.run_mk, ha, Bool.false_eq_true, if_false,
+      ← PMF.monad_map_eq_map, expectedValue_map, killedWeight, Nat.add_zero, weight]
+    rw [expectedValue_const (by simp)]
+
+attribute [local irreducible] ProposalModel.traced counted
+
+/-- Killing the potential after the lifetime cap avoids assuming an adversary
+respects that cap on losing executions. Requests are never suppressed. -/
+
+theorem counted_execution_weight {Result : Type} (model : ProposalModel spec State Label)
+    (haccept : model.accept = 1024/1025) (limit : Nat)
+    (computation : OracleComp spec Result) (state : List Label × (Nat × State)) :
+    expectedValue ((simulateQ (counted model).traced computation).run state)
+      (fun result => killedWeight limit result.2) ≤ killedWeight limit state := by
+  induction computation using OracleComp.inductionOn generalizing state with
+  | pure value => simp only [simulateQ_pure, StateT.run_pure, expectedValue, tsum_probOutput_pure_mul, le_refl]
+  | query_bind input next ih =>
+      rw [simulateQ_bind, simulateQ_spec_query, StateT.run_bind, expectedValue_bind]
+      apply le_trans ?_ (counted_query_weight model haccept limit input state)
+      apply expectedValue_mono
+      intro middle
+      exact ih middle.1 middle.2
+
+theorem counted_overflow_bound {Result : Type} (model : ProposalModel spec State Label)
+    (haccept : model.accept = 1024/1025) (limit cap : Nat)
+    (computation : OracleComp spec Result) (state : State) :
+    Pr[fun result => result.2.2.1 ≤ limit ∧ cap < result.2.1.length |
+      (simulateQ (counted model).traced computation).run ([], 0, state)] ≤
+      tailMoment ^ limit / tailBase ^ cap := by
+  classical
+  rw [← expectedValue_ite_one]
+  calc
+    _ ≤ expectedValue ((simulateQ (counted model).traced computation).run ([],0,state))
+        (fun result => killedWeight limit result.2 / tailBase ^ cap) := by
+      apply expectedValue_mono
+      intro result
+      split
+      · rename_i h
+        rw [killedWeight, if_pos h.1]
+        exact weight_dominates_overflow _ _ cap h.2
+      · exact bot_le
+    _ = expectedValue ((simulateQ (counted model).traced computation).run ([],0,state))
+        (fun result => killedWeight limit result.2) / tailBase ^ cap := by
+      simp only [div_eq_mul_inv, expectedValue_mul_const]
+    _ ≤ killedWeight limit ([], (0, state)) / tailBase ^ cap :=
+      ENNReal.div_le_div_right (counted_execution_weight model haccept limit computation ([],0,state)) _
+    _ = _ := by simp [killedWeight, weight]
+
+theorem full_trace_overflow_bound {Result : Type} (model : ProposalModel spec State Label)
+    (haccept : model.accept = 1024/1025) (computation : OracleComp spec Result) (state : State) :
+    Pr[fun result => result.2.2.1 ≤ 2^32 ∧ BPORS.Numeric.proposalLength < result.2.1.length |
+      (simulateQ (counted model).traced computation).run ([],0,state)] ≤
+      (2 : ENNReal)⁻¹ ^ 700 :=
+  (counted_overflow_bound model haccept _ _ computation state).trans initial_bound
+
+attribute [local semireducible] ProposalModel.traced counted
+
+theorem counted_rejected (model : ProposalModel spec State Label)
+    (input : spec.Domain) (state : Nat × State) :
+    (counted model).rejected input state = model.rejected input state.2 := rfl
+
+/-- Counting is a pure observation: dropping it preserves the entire proposal
+word as well as the responses and private/public state. -/
+theorem counted_query_trace_erasure (model : ProposalModel spec State Label)
+    (input : spec.Domain) (state : List Label × (Nat × State)) :
+    Prod.map id (fun current => (current.1,current.2.2)) <$>
+      (((counted model).traced input).run state) =
+      (model.traced input).run (state.1,state.2.2) := by
+  simp only [ProposalModel.traced, proposalRecordImpl, StateT.run_mk]
+  change PMF.map _ (if model.active input state.2.2 then _ else _) = _
+  by_cases ha : model.active input state.2.2 = true
+  · simp only [ha, if_true, PMF.map_comp, counted_rejected, counted]
+    rfl
+  · simp only [ha, Bool.false_eq_true, if_false, PMF.map_comp, counted]
+    rfl
+
+theorem counted_trace_erasure {Result : Type} (model : ProposalModel spec State Label)
+    (computation : OracleComp spec Result) (state : List Label × (Nat × State)) :
+    Prod.map id (fun current => (current.1,current.2.2)) <$>
+      (simulateQ (counted model).traced computation).run state =
+      (simulateQ model.traced computation).run (state.1,state.2.2) :=
+  map_run_simulateQ_eq_of_query_map_eq _ _ (fun current => (current.1,current.2.2))
+    (counted_query_trace_erasure model) computation state
+
+theorem counted_source_erasure {Result : Type} (model : ProposalModel spec State Label)
+    (computation : OracleComp spec Result) (state : List Label × (Nat × State)) :
+    Prod.map id (fun current => current.2.2) <$>
+      (simulateQ (counted model).traced computation).run state =
+      (simulateQ model.original computation).run state.2.2 := by
+  have h := congrArg (fun law => Prod.map id Prod.snd <$> law)
+    (counted_trace_erasure model computation state)
+  rw [model.traced_erasure] at h
+  change (fun a : Result × (List Label × (Nat × State)) => (a.1,a.2.2.2)) <$> _ = _
+  simpa only [Functor.map_map, Function.comp_def, Prod.map, id_eq] using h
+
+/-- Specialization to the concrete adaptive signing model on base T3. The event
+retains the lifetime-cap premise; closing it against the game log is separate. -/
+theorem signing_trace_overflow {Result : Type} (budget : Nat) (hbudget : budget ≤ 2^127)
+    (program : OracleComp LazyPrivate.Interaction Result) (state : LazyPrivate.State) :
+    Pr[fun result => result.2.2.1 ≤ 2^32 ∧ BPORS.Numeric.proposalLength < result.2.1.length |
+      (simulateQ (counted (LazyPrivate.proposalModel budget hbudget)).traced program).run ([],0,state)] ≤
+      (2 : ENNReal)⁻¹ ^ 700 :=
+  full_trace_overflow_bound (LazyPrivate.proposalModel budget hbudget) rfl program state
+
+theorem signing_trace_erasure {Result : Type} (budget : Nat) (hbudget : budget ≤ 2^127)
+    (program : OracleComp LazyPrivate.Interaction Result) (state : LazyPrivate.State) :
+    Prod.map id (fun current => current.2.2) <$>
+      (simulateQ (counted (LazyPrivate.proposalModel budget hbudget)).traced program).run ([],0,state) =
+      (liftM (LazyPrivate.run (simulateQ LazyPrivate.interactionSource program) state) :
+        PMF (Result × LazyPrivate.State)) := by
+  rw [counted_source_erasure, LazyPrivate.proposal_execution_erasure]
+
+def logFragment : (input : LazyPrivate.Interaction.Domain) →
+    LazyPrivate.Interaction.Range input → QueryLog Requests
+  | .inl _, _ => []
+  | .inr request, response => [⟨request,response⟩]
+
+def logging : QueryImpl LazyPrivate.Interaction
+    (WriterT (QueryLog Requests) (OracleComp LazyPrivate.Interaction)) :=
+  QueryImpl.withTraceAppend (fun input => LazyPrivate.Interaction.query input) logFragment
+
+def logged {Result : Type} (program : OracleComp LazyPrivate.Interaction Result) :
+    OracleComp LazyPrivate.Interaction (Result × QueryLog Requests) :=
+  (simulateQ logging program).run
+
+theorem logged_pure {Result : Type} (value : Result) : logged (pure value) = pure (value,[]) := rfl
+
+theorem logged_query_bind {Result : Type} (input : LazyPrivate.Interaction.Domain)
+    (next : LazyPrivate.Interaction.Range input → OracleComp LazyPrivate.Interaction Result) :
+    logged (LazyPrivate.Interaction.query input >>= next) = (do
+      let response ← LazyPrivate.Interaction.query input
+      let result ← logged (next response)
+      pure (result.1, logFragment input response ++ result.2)) := by
+  simp [logged, logging, QueryImpl.withTraceAppend_apply]
+
+theorem counted_query_count (model : ProposalModel spec State Label)
+    (input : spec.Domain) (state : List Label × (Nat × State))
+    (result : spec.Range input × (List Label × (Nat × State)))
+    (hr : result ∈ (((counted model).traced input).run state).support) :
+    result.2.2.1 = state.2.1 + if model.active input state.2.2 then 1 else 0 := by
+  simp only [ProposalModel.traced, proposalRecordImpl, counted, StateT.run_mk] at hr
+  by_cases ha : model.active input state.2.2 = true
+  · simp only [ha, if_true, PMF.support_map, Set.mem_image] at hr
+    obtain ⟨outcome, _, rfl⟩ := hr
+    simp only [ha, Bool.false_eq_true, if_true, if_false]
+  · simp only [ha, Bool.false_eq_true, if_false, PMF.support_map, Set.mem_image] at hr
+    obtain ⟨outcome, _, rfl⟩ := hr
+    simp only [ha, Bool.false_eq_true, if_true, if_false]
+
+theorem signing_count_le_fragment (budget : Nat) (hbudget : budget ≤ 2^127)
+    (input : LazyPrivate.Interaction.Domain) (state : List DigestSampling.IndexBuckets × (Nat × LazyPrivate.State))
+    (result : LazyPrivate.Interaction.Range input × (List DigestSampling.IndexBuckets × (Nat × LazyPrivate.State)))
+    (hr : result ∈ (((counted (LazyPrivate.proposalModel budget hbudget)).traced input).run state).support) :
+    result.2.2.1 ≤ state.2.1 + (logFragment input result.1).length := by
+  rw [counted_query_count _ input state result hr]
+  cases input with
+  | inl input => simp [LazyPrivate.proposalModel, LazyPrivate.interactionActive, logFragment]
+  | inr request => simp only [logFragment, List.length_singleton]; split <;> omega
+
+/-- Failed and repeated requests count too, exactly as in the source game log.
+The active-request counter is bounded by this log on every supported execution. -/
+theorem signing_count_le_log {Result : Type} (budget : Nat) (hbudget : budget ≤ 2^127)
+    (program : OracleComp LazyPrivate.Interaction Result)
+    (state : List DigestSampling.IndexBuckets × (Nat × LazyPrivate.State))
+    (result : (Result × QueryLog Requests) × (List DigestSampling.IndexBuckets × (Nat × LazyPrivate.State)))
+    (hr : result ∈ ((simulateQ (counted (LazyPrivate.proposalModel budget hbudget)).traced
+      (logged program)).run state).support) :
+    result.2.2.1 ≤ state.2.1 + result.1.2.length := by
+  induction program using OracleComp.inductionOn generalizing state result with
+  | pure value =>
+      rw [logged_pure, simulateQ_pure, StateT.run_pure, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff] at hr
+      subst result
+      simp
+  | query_bind input next ih =>
+      rw [logged_query_bind, simulateQ_bind, simulateQ_spec_query, StateT.run_bind,
+        PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hr
+      obtain ⟨middle, hm, hr⟩ := hr
+      have hstep := signing_count_le_fragment budget hbudget input state middle hm
+      rw [simulateQ_bind, StateT.run_bind, PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hr
+      obtain ⟨last, hl, hr⟩ := hr
+      have hrest := ih middle.1 middle.2 last hl
+      rw [simulateQ_pure, StateT.run_pure, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff] at hr
+      subst result
+      simp only [List.length_append]
+      omega
+
+theorem signing_log_overflow {Result : Type} (budget : Nat) (hbudget : budget ≤ 2^127)
+    (program : OracleComp LazyPrivate.Interaction Result) (state : LazyPrivate.State) :
+    Pr[fun result => result.1.2.length ≤ 2^32 ∧ BPORS.Numeric.proposalLength < result.2.1.length |
+      (simulateQ (counted (LazyPrivate.proposalModel budget hbudget)).traced
+        (logged program)).run ([],0,state)] ≤ (2 : ENNReal)⁻¹ ^ 700 := by
+  apply le_trans ?_ (signing_trace_overflow budget hbudget (logged program) state)
+  classical
+  rw [probEvent_eq_tsum_ite, probEvent_eq_tsum_ite]
+  apply ENNReal.tsum_le_tsum
+  intro result
+  by_cases hr : result ∈ ((simulateQ (counted (LazyPrivate.proposalModel budget hbudget)).traced
+      (logged program)).run ([],0,state)).support
+  · by_cases hb : result.1.2.length ≤ 2^32 ∧ BPORS.Numeric.proposalLength < result.2.1.length
+    · have hcount := signing_count_le_log budget hbudget program ([],0,state) result hr
+      have hc : result.2.2.1 ≤ result.1.2.length := by simpa using hcount
+      simp only [hb, if_true, show result.2.2.1 ≤ 2^32 ∧
+        BPORS.Numeric.proposalLength < result.2.1.length from ⟨hc.trans hb.1,hb.2⟩, le_refl]
+    · simp only [hb, if_false, zero_le]
+  · have hz : ((simulateQ (counted (LazyPrivate.proposalModel budget hbudget)).traced
+        (logged program)).run ([],0,state)) result = 0 := by
+      simpa only [PMF.mem_support_iff, not_not] using hr
+    simp only [PMF.probOutput_eq_apply, hz, ite_self, le_refl]
+
+/-- Overflow in the existing, unmodified concrete proposal model, restricted
+only by the source game's actual signing-log limit. -/
+theorem source_proposal_overflow {Result : Type} (budget : Nat) (hbudget : budget ≤ 2^127)
+    (program : OracleComp LazyPrivate.Interaction Result) (state : LazyPrivate.State) :
+    Pr[fun result => result.1.2.length ≤ 2^32 ∧ BPORS.Numeric.proposalLength < result.2.1.length |
+      (simulateQ (LazyPrivate.proposalModel budget hbudget).traced (logged program)).run ([],state)] ≤
+      (2 : ENNReal)⁻¹ ^ 700 := by
+  rw [← counted_trace_erasure (LazyPrivate.proposalModel budget hbudget) (logged program) ([],0,state),
+    probEvent_map]
+  exact signing_log_overflow budget hbudget program state
+
+/-- The logging adapter is exactly the writer used by `Security.game`, including
+failed signing responses. It does not change the game or its freshness relation. -/
+theorem logged_source {Result : Type} (program : OracleComp LazyPrivate.Interaction Result) :
+    simulateQ LazyPrivate.interactionSource (logged program) =
+      (simulateQ
+        ((fun input => liftM (forwardWorld input) :
+          QueryImpl SphincsSecurity.OracleWorld (WriterT (QueryLog Requests) M)) + signingOracle)
+        program).run := by
+  rw [logged, QueryImpl.simulateQ_writerTMapBase_run]
+  congr 2
+  funext input
+  cases input <;>
+    simp [QueryImpl.writerTMapBase, logging, QueryImpl.withTraceAppend_apply,
+      logFragment, LazyPrivate.interactionSource, signingOracle]
+  · rfl
+  · apply WriterT.ext
+    simp
+
+end SigGolfCandidate.T3.Security.ProposalOverflow
+
+
+
+
+/-! Authored module: QuerySpace. -/
+section
+/-! Injective finite coordinates for the base T3 source's public searches.
+These are source query identities, independent of any security reduction. -/
+namespace SigGolfCandidate.T3.QuerySpace
+open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
+open Sampling
+set_option maxRecDepth 10000
+set_option maxHeartbeats 1000000
+set_option backward.isDefEq.respectTransparency false
+
+theorem encodingInput_injective {lay lay' : Layer} {tree tree' leaf leaf' : Nat}
+    {message message' : Digest} {counter counter' : BitVec 32}
+    (ht : tree < 2^40) (ht' : tree' < 2^40)
+    (hl : leaf < 2^32) (hl' : leaf' < 2^32)
+    (he : encodingInput lay tree leaf message counter =
+      encodingInput lay' tree' leaf' message' counter') :
+    lay=lay' ∧ tree=tree' ∧ leaf=leaf' ∧ message=message' ∧ counter=counter' := by
+  unfold encodingInput at he
+  obtain ⟨hh,hc⟩ := List.append_inj he (by simp only [List.length_append,bytesLE_length])
+  obtain ⟨hm,hh⟩ := List.append_inj hh (by simp only [bytesLE_length])
+  have hhead := header_injective (by decide : 4<256) (by have := lay.isLt; omega)
+    ht (by decide : 0<2^32) hl (by decide : 4<256) (by have := lay'.isLt; omega)
+    ht' (by decide : 0<2^32) hl' (bytesLE_injective hh)
+  exact ⟨Fin.ext hhead.2.1,hhead.2.2.1,hhead.2.2.2.2,
+    bytesLE_injective hm,bytesLE_injective hc⟩
+
+theorem encodingTrial_coordinates {lay lay' : Layer} {tree tree' leaf leaf' : Nat}
+    {message message' : Digest} {counter counter' : Nat}
+    (ht : tree < 2^40) (ht' : tree' < 2^40)
+    (hl : leaf < 2^32) (hl' : leaf' < 2^32)
+    (hc : counter < 2^32) (hc' : counter' < 2^32)
+    (he : encodingTrial lay tree leaf message counter =
+      encodingTrial lay' tree' leaf' message' counter') :
+    lay=lay' ∧ tree=tree' ∧ leaf=leaf' ∧ message=message' ∧ counter=counter' := by
+  have he := pad64_inj_of_length (by simp [encodingInput,bytesLE_length]) he
+  obtain ⟨a,b,c,d,e⟩ := encodingInput_injective ht ht' hl hl' he
+  refine ⟨a,b,c,d,?_⟩
+  have e := congrArg BitVec.toNat e
+  simpa only [BitVec.toNat_ofNat,Nat.mod_eq_of_lt hc,Nat.mod_eq_of_lt hc'] using e
+
+theorem digestTrial_coordinates {rho rho' : Digest} {message message' : Message}
+    {counter counter' : Nat} (hc : counter<2^32) (hc' : counter'<2^32)
+    (he : digestTrial rho message counter=digestTrial rho' message' counter') :
+    rho=rho' ∧ message=message' ∧ counter=counter' := by
+  have he := pad64_inj_of_length (by simp [digestInput,bytesLE_length]) he
+  obtain ⟨a,b,c⟩ := digestInput_injective he
+  refine ⟨a,b,?_⟩
+  have c := congrArg BitVec.toNat c
+  simpa only [BitVec.toNat_ofNat,Nat.mod_eq_of_lt hc,Nat.mod_eq_of_lt hc'] using c
+
+def queryHeader (input : HashInput) : HashInput := (input.drop 16).take 16
+
+/-- The tag byte survives every other header field, including out-of-range
+addresses. Domain separation therefore needs no address-range assumption. -/
+theorem header_tag (tag lay tree position index : Nat) :
+    ((header tag lay tree position index).toNat/256)%256=tag%256 := by
+  rw [header_toNat]
+  have ht := Nat.mod_lt tag (by decide : 0<256)
+  norm_num only [Nat.reducePow] at *
+  split_ifs <;> omega
+
+theorem header_ne_of_tag {tag tag' lay lay' tree tree' position position' index index' : Nat}
+    (h : tag%256 ≠ tag'%256) :
+    header tag lay tree position index ≠ header tag' lay' tree' position' index' := by
+  intro he
+  have ht := congrArg (fun h : BitVec 128 => (h.toNat/256)%256) he
+  exact h (by simpa only [header_tag] using ht)
+
+theorem header_layer (tag lay tree position index : Nat) :
+    ((header tag lay tree position index).toNat/65536)%256=lay%256 := by
+  rw [header_toNat]
+  have ht := Nat.mod_lt tag (by decide : 0<256)
+  have hl := Nat.mod_lt lay (by decide : 0<256)
+  norm_num only [Nat.reducePow] at *
+  split_ifs <;> omega
+
+theorem header_ne_of_layer {tag tag' lay lay' tree tree' position position' index index' : Nat}
+    (h : lay%256 ≠ lay'%256) :
+    header tag lay tree position index ≠ header tag' lay' tree' position' index' := by
+  intro he
+  have hl := congrArg (fun h : BitVec 128 => (h.toNat/65536)%256) he
+  exact h (by simpa only [header_layer] using hl)
+
+theorem queryHeader_padded (front back : HashInput) (hprefix : front.length=16)
+    (h : BitVec 128) : queryHeader (pad64 (front ++ bytesLE 16 h ++ back))=bytesLE 16 h := by
+  simp [queryHeader,pad64,List.append_assoc,hprefix,bytesLE_length]
+
+/-- Uniform tag separation for public or privately realized source buffers. -/
+theorem padded_headers_ne (leftPrefix rightPrefix leftSuffix rightSuffix : HashInput)
+    (hl : leftPrefix.length=16) (hr : rightPrefix.length=16)
+    (tag tag' lay lay' tree tree' position position' index index' : Nat)
+    (htags : tag%256 ≠ tag'%256) :
+    pad64 (leftPrefix ++ bytesLE 16 (header tag lay tree position index) ++ leftSuffix) ≠
+      pad64 (rightPrefix ++ bytesLE 16 (header tag' lay' tree' position' index') ++ rightSuffix) := by
+  intro he
+  have he := congrArg queryHeader he
+  rw [queryHeader_padded _ _ hl,queryHeader_padded _ _ hr] at he
+  exact header_ne_of_tag htags (bytesLE_injective he)
+
+@[simp] theorem queryHeader_encoding (lay : Layer) (tree leaf : Nat) (message : Digest)
+    (counter : Nat) : queryHeader (encodingTrial lay tree leaf message counter) =
+      bytesLE 16 (header 4 lay.val tree 0 leaf) := by
+  simp [queryHeader,encodingTrial,encodingInput,pad64,List.append_assoc,bytesLE_length]
+
+@[simp] theorem queryHeader_digest (rho : Digest) (message : Message) (counter : Nat) :
+    queryHeader (digestTrial rho message counter) =
+      bytesLE 16 (header 12 0 0 0 (BitVec.ofNat 32 counter).toNat) := by
+  simp [queryHeader,digestTrial,digestInput,pad64,List.append_assoc,bytesLE_length]
+
+theorem encodingTrial_ne_digestTrial (lay : Layer) (tree leaf : Nat) (message : Digest)
+    (counter : Nat) (rho : Digest) (msg : Message) (ctr : Nat)
+    (ht : tree<2^40) (hl : leaf<2^32) :
+    encodingTrial lay tree leaf message counter ≠ digestTrial rho msg ctr := by
+  intro he
+  have he := congrArg queryHeader he
+  simp only [queryHeader_encoding,queryHeader_digest] at he
+  have hh := header_injective (by decide : 4<256) (by have := lay.isLt; omega)
+    ht (by decide : 0<2^32) hl (by decide : 12<256) (by decide : 0<256)
+    (by decide : 0<2^40) (by decide : 0<2^32) (BitVec.ofNat 32 ctr).isLt
+    (bytesLE_injective he)
+  omega
+
+abbrev EncodingFamily := Layer × Fin (2^31) × Fin 4096 × Digest
+abbrev DigestFamily := Digest × Message
+abbrev EncodingKey := EncodingFamily × Fin (2^22)
+abbrev DigestKey := DigestFamily × Fin (2^20)
+abbrev SearchKey := EncodingKey ⊕ DigestKey
+
+def encodingQuery (key : EncodingKey) : HashInput :=
+  encodingTrial key.1.1 key.1.2.1 key.1.2.2.1 key.1.2.2.2 key.2
+
+def digestQuery (key : DigestKey) : HashInput := digestTrial key.1.1 key.1.2 key.2
+
+def searchQuery : SearchKey → HashInput := Sum.elim encodingQuery digestQuery
+
+theorem encodingQuery_injective : Function.Injective encodingQuery := by
+  rintro ⟨⟨lay,tree,leaf,message⟩,counter⟩ ⟨⟨lay',tree',leaf',message'⟩,counter'⟩ he
+  obtain ⟨a,b,c,d,e⟩ := encodingTrial_coordinates
+    (by have := tree.isLt; omega) (by have := tree'.isLt; omega)
+    (by have := leaf.isLt; omega) (by have := leaf'.isLt; omega)
+    (by have := counter.isLt; omega) (by have := counter'.isLt; omega) he
+  have b := Fin.ext b
+  have c := Fin.ext c
+  have e := Fin.ext e
+  cases a; cases b; cases c; cases d; cases e; rfl
+
+theorem digestQuery_injective : Function.Injective digestQuery := by
+  rintro ⟨⟨rho,msg⟩,counter⟩ ⟨⟨rho',msg'⟩,counter'⟩ he
+  obtain ⟨a,b,c⟩ := digestTrial_coordinates
+    (by have := counter.isLt; omega) (by have := counter'.isLt; omega) he
+  have c := Fin.ext c
+  cases a; cases b; cases c; rfl
+
+theorem searchQuery_injective : Function.Injective searchQuery := by
+  intro left right he
+  cases left with
+  | inl l =>
+    cases right with
+    | inl r => exact congrArg Sum.inl (encodingQuery_injective he)
+    | inr r => exact False.elim (encodingTrial_ne_digestTrial l.1.1 l.1.2.1 l.1.2.2.1
+        l.1.2.2.2 l.2 r.1.1 r.1.2 r.2 (by have := l.1.2.1.isLt; omega)
+        (by have := l.1.2.2.1.isLt; omega) he)
+  | inr l =>
+    cases right with
+    | inl r => exact False.elim (encodingTrial_ne_digestTrial r.1.1 r.1.2.1 r.1.2.2.1
+        r.1.2.2.2 r.2 l.1.1 l.1.2 l.2 (by have := r.1.2.1.isLt; omega)
+        (by have := r.1.2.2.1.isLt; omega) he.symm)
+    | inr r => exact congrArg Sum.inr (digestQuery_injective he)
+
+end SigGolfCandidate.T3.QuerySpace
+
+end
+
+/-! Authored module: Presampling. -/
+section
+namespace SigGolfCandidate.T3.Presampling
+open OracleComp OracleSpec ENNReal
+open SphincsSecurity.Seeded
+open QuerySpace
+abbrev HashInput := SphincsSecurity.HashInput
+set_option maxRecDepth 10000
+set_option maxHeartbeats 1000000
+set_option backward.isDefEq.respectTransparency false
+
+@[irreducible] noncomputable def tableSampler : SampleableType (SearchKey → HashOutput) :=
+  Derivation.outputSampler SearchKey
+noncomputable local instance : SampleableType (SearchKey → HashOutput) := tableSampler
+
+noncomputable def preparedCache (outputs : SearchKey → HashOutput) : QueryCache SphincsSecurity.HashSpec :=
+  cacheTable ∅ searchQuery outputs
+
+theorem preparedCache_apply (outputs : SearchKey → HashOutput) (key : SearchKey) :
+    preparedCache outputs (searchQuery key)=some (outputs key) :=
+  cacheTable_apply ∅ searchQuery searchQuery_injective outputs key
+
+/-- Every public search input can be presampled, while all other source queries
+continue to use the same consistent random oracle. This holds for any program,
+including programs that choose search families from earlier oracle answers. -/
+theorem presample_source {α : Type} (secret : BitVec 256) (program : M α) :
+    𝒮[(simulateQ SphincsSecurity.romImpl (realize secret program)).run' ∅] =
+    𝒮[do
+      let outputs ← ($ᵗ (SearchKey → HashOutput) : ProbComp _)
+      (simulateQ SphincsSecurity.romImpl (realize secret program)).run' (preparedCache outputs)] := by
+  let : SampleableType (SearchKey → SphincsSecurity.HashOutput) := tableSampler
+  let preparation : OracleComp SphincsSecurity.OracleWorld (SearchKey → HashOutput) :=
+    liftM (queryTable (R := SphincsSecurity.HashOutput) searchQuery)
+  have hprep : (simulateQ SphincsSecurity.romImpl preparation).run ∅ =
+      (simulateQ randomOracle (queryTable (R := SphincsSecurity.HashOutput) searchQuery)).run ∅ := by
+    exact congrArg (fun run => run.run (∅ : QueryCache SphincsSecurity.HashSpec))
+      (QueryImpl.simulateQ_add_liftM_right (unifFwdImpl SphincsSecurity.HashSpec)
+        (randomOracle (spec := SphincsSecurity.HashSpec)) (queryTable (R := SphincsSecurity.HashOutput) searchQuery))
+  rw [evalDist_presample_computation (realize secret program) preparation ∅,hprep,
+    evalSPMF_bind,evalDist_queryTable_fresh (R := SphincsSecurity.HashOutput) searchQuery searchQuery_injective
+      ∅ (fun _ => rfl)]
+  simp only [evalSPMF_map,bind_map_left]
+  rw [evalSPMF_bind]
+  congr 1
+
+noncomputable def tableAnswers (outputs : SearchKey → HashOutput)
+    (fallback : Correctness.Answers) : Correctness.Answers
+  | .inl (.inr input) => (preparedCache outputs input).getD (fallback (.inl (.inr input)))
+  | .inl (.inl input) => fallback (.inl (.inl input))
+  | .inr input => fallback (.inr input)
+
+theorem tableAnswers_apply (outputs : SearchKey → HashOutput) (fallback : Correctness.Answers)
+    (key : SearchKey) : tableAnswers outputs fallback (.inl (.inr (searchQuery key)))=outputs key := by
+  simp only [tableAnswers,preparedCache_apply,Option.getD_some]
+
+theorem eval_shortHash (answers : Correctness.Answers) (input : HashInput) :
+    evalWithAnswerFn answers (shortHash input) =
+      (answers (.inl (.inr (pad64 input)))).extractLsb' 0 128 := rfl
+
+theorem eval_digest (answers : Correctness.Answers) (rho : Digest) (message : Message)
+    (counter : BitVec 32) : evalWithAnswerFn answers (digest rho message counter) =
+      answers (.inl (.inr (pad64 (digestInput rho message counter)))) := rfl
+
+theorem uniform_table_forall {J : Type} [Fintype J] [DecidableEq J] [SampleableType (J → HashOutput)]
+    (p : HashOutput → Prop) :
+    Pr[fun outputs : J → HashOutput => ∀ j,p (outputs j) | ($ᵗ (J → HashOutput) : ProbComp _)] =
+      Pr[p | ($ᵗ HashOutput : ProbComp _)] ^ Fintype.card J := by
+  classical
+  rw [probEvent_uniformSample,probEvent_uniformSample]
+  have hc : (Finset.univ.filter fun outputs : J → HashOutput => ∀ j,p (outputs j)).card =
+      (Finset.univ.filter p).card ^ Fintype.card J := by
+    rw [← Fintype.card_subtype,Fintype.card_congr
+      (Equiv.subtypePiEquivPi (p := fun (_ : J) (x : HashOutput) => p x)),Fintype.card_pi]
+    simp only [Fintype.card_subtype,Finset.prod_const,Finset.card_univ]
+  rw [hc,Fintype.card_fun,Nat.cast_pow,Nat.cast_pow]
+  simp only [div_eq_mul_inv,mul_pow,ENNReal.inv_pow]
+
+theorem uniform_table_restriction_failure {J : Type} [Fintype J]
+    [DecidableEq J] [SampleableType (J → HashOutput)] (e : J → SearchKey) (he : Function.Injective e)
+    (p : HashOutput → Prop) :
+    Pr[fun outputs : SearchKey → HashOutput => ∀ j,p (outputs (e j)) |
+      ($ᵗ (SearchKey → HashOutput) : ProbComp _)] =
+      Pr[p | ($ᵗ HashOutput : ProbComp _)] ^ Fintype.card J := by
+  have h := evalSPMF_uniformSample_map_comp_injective (R := HashOutput) he
+  have hp := congrArg (fun law => probEvent law (fun outputs : J → HashOutput => ∀ j,p (outputs j))) h
+  simpa only [probEvent_evalSPMF,bind_pure_comp,probEvent_map,Function.comp_def,uniform_table_forall] using hp
+
+theorem counterSearch_none_table (outputs : SearchKey → HashOutput)
+    (fallback : Correctness.Answers) (family : EncodingFamily) :
+    evalWithAnswerFn (tableAnswers outputs fallback)
+      (counterSearch family.1 family.2.1 family.2.2.1 family.2.2.2 0 counterLimit)=none ↔
+    ∀ c : Fin (2^22), Sampling.encodingDecode family.1 (outputs (.inl (family,c)))=none := by
+  rw [Correctness.counterSearch_none_iff]
+  have hv (c : Nat) (hc : c<counterLimit) :
+      evalWithAnswerFn (tableAnswers outputs fallback)
+        (shortHash (encodingInput family.1 family.2.1 family.2.2.1 family.2.2.2
+          (BitVec.ofNat 32 (0+c)))) = (outputs (.inl (family,⟨c,hc⟩))).extractLsb' 0 128 := by
+    rw [eval_shortHash]
+    have hinput : pad64 (encodingInput family.1 family.2.1 family.2.2.1 family.2.2.2
+        (BitVec.ofNat 32 (0+c))) = searchQuery (.inl (family,⟨c,hc⟩)) := by
+      simp only [searchQuery,Sum.elim_inl,encodingQuery,Sampling.encodingTrial,Nat.zero_add]
+    rw [hinput,tableAnswers_apply]
+  constructor
+  · intro h c
+    have h := h c c.isLt
+    rw [hv c c.isLt] at h
+    exact h
+  · intro h c hc
+    rw [hv c hc]
+    exact h ⟨c,hc⟩
+
+theorem digestSearch_none_table (outputs : SearchKey → HashOutput)
+    (fallback : Correctness.Answers) (family : DigestFamily) :
+    evalWithAnswerFn (tableAnswers outputs fallback)
+      (digestSearch family.1 family.2 0 attemptLimit)=none ↔
+    ∀ c : Fin (2^20), Sampling.digestDecode (outputs (.inr (family,c)))=none := by
+  rw [Correctness.digestSearch_none_iff]
+  have hv (c : Nat) (hc : c<attemptLimit) :
+      evalWithAnswerFn (tableAnswers outputs fallback)
+        (digest family.1 family.2 (BitVec.ofNat 32 (0+c))) = outputs (.inr (family,⟨c,hc⟩)) := by
+    rw [eval_digest]
+    have hinput : pad64 (digestInput family.1 family.2 (BitVec.ofNat 32 (0+c))) =
+        searchQuery (.inr (family,⟨c,hc⟩)) := by
+      simp only [searchQuery,Sum.elim_inr,digestQuery,Sampling.digestTrial,Nat.zero_add]
+    rw [hinput,tableAnswers_apply]
+  have hd (value : HashOutput) : Sampling.digestDecode value=none ↔ digestAdmissible value=false := by
+    simp [Sampling.digestDecode]
+  constructor
+  · intro h c
+    rw [hd]
+    have h := h c c.isLt
+    rwa [hv c c.isLt] at h
+  · intro h c hc
+    rw [hv c hc]
+    exact (hd _).mp (h ⟨c,hc⟩)
+
+theorem counterSearch_table_failure (fallback : Correctness.Answers) (family : EncodingFamily) :
+    Pr[fun outputs => evalWithAnswerFn (tableAnswers outputs fallback)
+      (counterSearch family.1 family.2.1 family.2.2.1 family.2.2.2 0 counterLimit)=none |
+      ($ᵗ (SearchKey → HashOutput) : ProbComp _)] =
+    SphincsSecurity.Completeness.failMass (Sampling.encodingDecode family.1)^counterLimit := by
+  simp_rw [counterSearch_none_table]
+  have h := uniform_table_restriction_failure (fun c : Fin (2^22) => .inl (family,c))
+    (fun _ _ h => congrArg Prod.snd (Sum.inl.inj h)) (fun x => Sampling.encodingDecode family.1 x=none)
+  simpa only [SphincsSecurity.Completeness.failMass_eq_probEvent,Fintype.card_fin,counterLimit,
+    HashOutput,SphincsSecurity.HashOutput,SphincsSecurity.hashOutputBits] using h
+
+theorem digestSearch_table_failure (fallback : Correctness.Answers) (family : DigestFamily) :
+    Pr[fun outputs => evalWithAnswerFn (tableAnswers outputs fallback)
+      (digestSearch family.1 family.2 0 attemptLimit)=none |
+      ($ᵗ (SearchKey → HashOutput) : ProbComp _)] =
+    SphincsSecurity.Completeness.failMass Sampling.digestDecode^attemptLimit := by
+  simp_rw [digestSearch_none_table]
+  have h := uniform_table_restriction_failure (fun c : Fin (2^20) => .inr (family,c))
+    (fun _ _ h => congrArg Prod.snd (Sum.inr.inj h)) (fun x => Sampling.digestDecode x=none)
+  simpa only [SphincsSecurity.Completeness.failMass_eq_probEvent,Fintype.card_fin,attemptLimit,
+    HashOutput,SphincsSecurity.HashOutput,SphincsSecurity.hashOutputBits] using h
+
+end SigGolfCandidate.T3.Presampling
+
+end
+
+/-! Authored module: DigestCounting. -/
+section
+/-! Exact fresh BPORS digest acceptance for cap 124. This file counts the
+source rejection predicate; it does not assert any adaptive security coupling. -/
+noncomputable section
+
+
+end
+
+end
+
+/-! Authored module: EncodingCounting. -/
+section
+/-! Exact counting of the original mixed-radix and checksum decoders. -/
+noncomputable section
+namespace SigGolfCandidate.T3.EncodingCounting
+open scoped BigOperators
+open Polynomial
+set_option maxHeartbeats 4000000
+set_option maxRecDepth 100000
+set_option exponentiation.threshold 20000
+set_option backward.isDefEq.respectTransparency false
+
+def fields (lay : Layer) : List Nat :=
+  if lay=0 then List.replicate 49 2 ++ List.replicate 9 3 else List.replicate 42 3
+
+def usedBits (widths : List Nat) : Nat := widths.sum
+
+def decodeFields : List Nat → Nat → List Nat
+  | [], _ => []
+  | w::ws, n => n%2^w :: decodeFields ws (n/2^w)
+
+theorem decodeFields_append (as bs : List Nat) (n : Nat) :
+    decodeFields (as++bs) n = decodeFields as n ++ decodeFields bs (n/2^as.sum) := by
+  induction as generalizing n with
+  | nil => simp [decodeFields]
+  | cons w ws ih =>
+    simp only [List.cons_append,decodeFields,ih,List.sum_cons,Nat.pow_add,Nat.div_div_eq_div_mul]
+
+theorem decodeFields_replicate (k w n : Nat) :
+    decodeFields (List.replicate k w) n = (List.range k).map (fun i => n/2^(w*i)%2^w) := by
+  induction k generalizing n with
+  | zero => rfl
+  | succ k ih =>
+    simp only [List.replicate_succ,decodeFields,ih,List.range_succ_eq_map,List.map_cons,List.map_map]
+    congr 1
+    · simp
+    · apply List.map_congr_left
+      intro i _
+      simp [Nat.div_div_eq_div_mul,Nat.mul_succ,Nat.pow_add,Nat.mul_comm]
+
+theorem decodeFields_fields (lay : Layer) (value : Digest) :
+    decodeFields (fields lay) value.toNat = dataDigits lay value := by
+  by_cases hl : lay=0
+  · subst lay
+    rw [fields,if_pos rfl,decodeFields_append,decodeFields_replicate,decodeFields_replicate]
+    simp only [List.sum_replicate]
+    unfold dataDigits dataCount
+    simp only [ite_true]
+    rw [show (58 : Nat)=49+9 from rfl,List.range_add,List.map_append,List.map_map]
+    apply congrArg₂ List.append
+    · apply List.map_congr_left
+      intro i hi
+      have hi' : i<49 := List.mem_range.mp hi
+      simp [width,hi']
+    · apply List.map_congr_left
+      intro i hi
+      have hi' : i<9 := List.mem_range.mp hi
+      simp [width,Nat.div_div_eq_div_mul,Nat.pow_add,Nat.mul_comm]
+  · simp only [fields,hl,ite_false,decodeFields_replicate,dataDigits,dataCount]
+    apply List.map_congr_left
+    intro i _
+    simp [hl,width]
+
+
+def wordSum (widths : List Nat) (n : Nat) : Nat := (decodeFields widths n).sum
+
+def wordPoly (widths : List Nat) : Polynomial Nat :=
+  ∑ n : Fin (2^usedBits widths), X^(wordSum widths n.val)
+
+def fieldPoly (w : Nat) : Polynomial Nat := ∑ n : Fin (2^w), X^n.val
+
+theorem wordPoly_cons (w : Nat) (ws : List Nat) :
+    wordPoly (w::ws) = fieldPoly w * wordPoly ws := by
+  classical
+  let e : Fin (2^usedBits ws) × Fin (2^w) ≃ Fin (2^usedBits (w::ws)) :=
+    finProdFinEquiv.trans (finCongr (by simp [usedBits,pow_add,Nat.mul_comm]))
+  have he : ∀ p : Fin (2^usedBits ws) × Fin (2^w),
+      (e p).val = p.2.val + 2^w*p.1.val := by intro p; rfl
+  rw [wordPoly,← e.sum_comp]
+  simp only [Fintype.sum_prod_type,he,wordSum,decodeFields,List.sum_cons]
+  have hm (n : Fin (2^w)) (m : Nat) : (n.val+2^w*m)%2^w=n.val := by
+    rw [Nat.add_mul_mod_self_left,Nat.mod_eq_of_lt n.isLt]
+  have hd (n : Fin (2^w)) (m : Nat) : (n.val+2^w*m)/2^w=m := by
+    rw [Nat.add_mul_div_left _ _ (by positivity),Nat.div_eq_of_lt n.isLt,Nat.zero_add]
+  simp_rw [hm,hd,pow_add]
+  simp only [fieldPoly,wordPoly,wordSum,Finset.sum_mul,Finset.mul_sum]
+
+@[simp] theorem wordPoly_nil : wordPoly [] = 1 := by
+  norm_num [wordPoly,usedBits,wordSum,decodeFields]
+
+def fieldsPoly : List Nat → Polynomial Nat
+  | [] => 1
+  | w::ws => fieldPoly w * fieldsPoly ws
+
+theorem wordPoly_eq_fieldsPoly (ws : List Nat) : wordPoly ws=fieldsPoly ws := by
+  induction ws with
+  | nil => simp [fieldsPoly]
+  | cons w ws ih => simp [fieldsPoly,wordPoly_cons,ih]
+
+theorem fieldsPoly_append (a b : List Nat) : fieldsPoly (a++b)=fieldsPoly a*fieldsPoly b := by
+  induction a with
+  | nil => simp [fieldsPoly]
+  | cons w ws ih => simp [fieldsPoly,ih,mul_assoc]
+
+theorem fieldsPoly_replicate (w n : Nat) : fieldsPoly (List.replicate n w)=fieldPoly w^n := by
+  induction n with
+  | zero => simp [fieldsPoly]
+  | succ n ih => simp [List.replicate_succ,fieldsPoly,ih,pow_succ,mul_comm]
+
+attribute [local irreducible] wordPoly fieldPoly fieldsPoly
+
+def acceptedCount (lay : Layer) : Nat :=
+  ![259991231940952985797470993426145792,
+    265682986533614028872430357565137160,
+    265682986533614028872430357565137160,
+    265682986533614028872430357565137160] lay
+
+def AcceptSum (lay : Layer) (total : Nat) : Prop :=
+  if lay=0 then total=125 else 187≤total ∧ total<195
+
+instance (lay : Layer) (total : Nat) : Decidable (AcceptSum lay total) :=
+  inferInstanceAs (Decidable (if lay=0 then total=125 else 187≤total ∧ total<195))
+
+theorem usedBits_fields (lay : Layer) : usedBits (fields lay)=encodedBits lay := by
+  fin_cases lay <;> decide
+
+def packWord (lay : Layer) (n : Fin (2^usedBits (fields lay))) : Digest :=
+  BitVec.ofNat 128 n.val
+
+theorem word_lt128 (lay : Layer) (n : Fin (2^usedBits (fields lay))) : n.val<2^128 := by
+  have h : n.val<2^encodedBits lay := by simpa only [usedBits_fields] using n.isLt
+  exact h.trans_le (Nat.pow_le_pow_right (by decide : 1≤2) (Nat.le_of_lt (encodedBits_lt lay)))
+
+@[simp] theorem packWord_toNat (lay : Layer) (n : Fin (2^usedBits (fields lay))) :
+    (packWord lay n).toNat=n.val := by
+  simp only [packWord,BitVec.toNat_ofNat,Nat.mod_eq_of_lt (word_lt128 lay n)]
+
+
+
+def q4 (y : Nat) : Nat := 1+y+y^2+y^3
+def q8 (y : Nat) : Nat := 1+y+y^2+y^3+y^4+y^5+y^6+y^7
+
+def radix : Nat := 2^136
+def topPacked : Nat := q4 radix^49*q8 radix^9
+def lowerPacked : Nat := q8 radix^42
+
+theorem eval_wordPoly (ws : List Nat) (y : Nat) :
+    (wordPoly ws).eval y = ∑ n : Fin (2^usedBits ws), y^wordSum ws n.val := by
+  simp [wordPoly,eval_finsetSum]
+
+theorem eval_field2 (y : Nat) : (fieldPoly 2).eval y=q4 y := by
+  unfold fieldPoly
+  rw [Fin.sum_univ_eq_sum_range]
+  norm_num [q4,Finset.sum_range_succ]
+
+theorem eval_field3 (y : Nat) : (fieldPoly 3).eval y=q8 y := by
+  unfold fieldPoly
+  rw [Fin.sum_univ_eq_sum_range]
+  norm_num [q8,Finset.sum_range_succ]
+
+theorem top_weighted :
+    (∑ n : Fin (2^usedBits (fields 0)), radix^wordSum (fields 0) n.val)=topPacked := by
+  rw [←eval_wordPoly,wordPoly_eq_fieldsPoly]
+  change (fieldsPoly (List.replicate 49 2++List.replicate 9 3)).eval radix=topPacked
+  rw [fieldsPoly_append,fieldsPoly_replicate,fieldsPoly_replicate]
+  simp only [eval_mul,eval_pow,eval_field2,eval_field3,topPacked]
+
+theorem lower_weighted (lay : Layer) (hl : lay≠0) :
+    (∑ n : Fin (2^usedBits (fields lay)), radix^wordSum (fields lay) n.val)=lowerPacked := by
+  rw [←eval_wordPoly,wordPoly_eq_fieldsPoly]
+  simp only [fields,if_neg hl,fieldsPoly_replicate,eval_pow,eval_field3,lowerPacked]
+
+theorem word_card_small (lay : Layer) :
+    Fintype.card (Fin (2^usedBits (fields lay)))<radix-1 := by
+  rw [Fintype.card_fin,usedBits_fields]
+  fin_cases lay <;> norm_num [encodedBits,radix]
+
+theorem interval_card {α : Type} [Fintype α] [DecidableEq α] (f : α → Nat)
+    (lo hi : Nat) (h : lo≤hi) :
+    (Finset.univ.filter (fun a => lo≤f a ∧ f a<hi)).card =
+      (Finset.univ.filter (fun a => f a<hi)).card -
+        (Finset.univ.filter (fun a => f a<lo)).card := by
+  have he : (Finset.univ.filter (fun a => lo≤f a ∧ f a<hi)) =
+      (Finset.univ.filter (fun a => f a<hi)) \ (Finset.univ.filter (fun a => f a<lo)) := by
+    ext a
+    simp only [Finset.mem_filter,Finset.mem_univ,true_and,Finset.mem_sdiff]
+    omega
+  rw [he,Finset.card_sdiff_of_subset]
+  intro a ha
+  simp only [Finset.mem_filter,Finset.mem_univ,true_and] at ha ⊢
+  omega
+
+theorem truncated_count (lay : Layer) (cut : Nat) (hc : 0<cut) :
+    (Finset.univ.filter fun n : Fin (2^usedBits (fields lay)) =>
+      wordSum (fields lay) n.val<cut).card =
+      ((∑ n : Fin (2^usedBits (fields lay)),radix^wordSum (fields lay) n.val)%radix^cut)%(radix-1) := by
+  symm
+  exact DigestCounting.packed_card (by norm_num [radix]) hc _ _
+    (by simpa only [Finset.card_univ] using word_card_small lay)
+
+def intervalCount (packed lo hi : Nat) : Nat :=
+  (packed%radix^hi)%(radix-1) - (packed%radix^lo)%(radix-1)
+
+theorem top_exact : intervalCount topPacked 125 126=acceptedCount 0 := by decide +kernel
+theorem lower_first_exact : intervalCount lowerPacked 187 195=acceptedCount 1 := by decide +kernel
+theorem lower194_exact : intervalCount lowerPacked 187 195=acceptedCount 3 := by decide +kernel
+
+theorem interval_words_count (lay : Layer) (lo hi : Nat) (hl : 0<lo) (hh : lo≤hi) :
+    Fintype.card {n : Fin (2^usedBits (fields lay)) //
+      lo≤wordSum (fields lay) n.val ∧ wordSum (fields lay) n.val<hi} =
+      intervalCount (∑ n : Fin (2^usedBits (fields lay)),radix^wordSum (fields lay) n.val) lo hi := by
+  classical
+  rw [Fintype.card_subtype,interval_card _ lo hi hh,
+    truncated_count lay hi (lt_of_lt_of_le hl hh),truncated_count lay lo hl]
+  rfl
+
+attribute [local irreducible] wordSum fields usedBits
+
+theorem accepted_words_count (lay : Layer) :
+    Fintype.card {n : Fin (2^usedBits (fields lay)) //
+      AcceptSum lay (wordSum (fields lay) n.val)} = acceptedCount lay := by
+  classical
+  fin_cases lay
+  · have h := interval_words_count 0 125 126 (by decide) (by decide)
+    rw [top_weighted,top_exact] at h
+    have he (s : Nat) : (125 ≤ s ∧ s < 126) ↔ s = 125 := by omega
+    simpa [he,AcceptSum] using h
+  · have h := interval_words_count 1 187 195 (by decide) (by decide)
+    rw [lower_weighted 1 (by decide),lower_first_exact] at h
+    simpa [AcceptSum] using h
+  · have h := interval_words_count 2 187 195 (by decide) (by decide)
+    rw [lower_weighted 2 (by decide),lower_first_exact] at h
+    simpa [AcceptSum,acceptedCount] using h
+  · have h := interval_words_count 3 187 195 (by decide) (by decide)
+    rw [lower_weighted 3 (by decide),lower194_exact] at h
+    simpa [AcceptSum] using h
+
+theorem decode_isSome_iff (lay : Layer) (value : Digest) :
+    (decode lay value).isSome ↔ value.toNat<2^encodedBits lay ∧
+      AcceptSum lay (wordSum (fields lay) value.toNat) := by
+  rw [wordSum,decodeFields_fields]
+  fin_cases lay <;> dsimp only at * <;>
+    simp only [decode] <;> split_ifs <;>
+    simp_all [AcceptSum,target] <;> omega
+
+theorem packWord_acceptance (lay : Layer) (n : Fin (2^usedBits (fields lay))) :
+    (decode lay (packWord lay n)).isSome ↔ AcceptSum lay (wordSum (fields lay) n.val) := by
+  rw [decode_isSome_iff,packWord_toNat]
+  have h : n.val<2^encodedBits lay := by simpa only [usedBits_fields] using n.isLt
+  simp only [h,true_and]
+
+def acceptedDigestEquiv (lay : Layer) :
+    {value : Digest // (decode lay value).isSome} ≃
+      {n : Fin (2^usedBits (fields lay)) // AcceptSum lay (wordSum (fields lay) n.val)} where
+  toFun value :=
+    ⟨⟨value.val.toNat,by rw [usedBits_fields];exact ((decode_isSome_iff lay value.val).mp value.property).1⟩,
+      ((decode_isSome_iff lay value.val).mp value.property).2⟩
+  invFun n := ⟨packWord lay n.val,(packWord_acceptance lay n.val).mpr n.property⟩
+  left_inv value := by
+    apply Subtype.ext
+    apply BitVec.eq_of_toNat_eq
+    exact packWord_toNat lay _
+  right_inv n := by
+    apply Subtype.ext
+    apply Fin.ext
+    exact packWord_toNat lay _
+
+/-- Exact accepted digest count, including the unused high-bit rejection and
+checksum interval in the unchanged base decoder. -/
+theorem decoder_acceptance_count (lay : Layer) :
+    Fintype.card {value : Digest // (decode lay value).isSome} = acceptedCount lay := by
+  classical
+  rw [Fintype.card_congr (acceptedDigestEquiv lay),accepted_words_count]
+
+open OracleComp OracleSpec ENNReal
+
+/-- Success probability for one fresh uniform 128-bit digest. -/
+theorem decoder_uniform_probability (lay : Layer) :
+    Pr[fun value => (decode lay value).isSome | ($ᵗ Digest : ProbComp Digest)] =
+      (acceptedCount lay : ENNReal)/(2 : ENNReal)^128 := by
+  classical
+  rw [probEvent_uniformSample,← Fintype.card_subtype,decoder_acceptance_count]
+  simp only [Fintype.card_bitVec,Nat.cast_pow,Nat.cast_ofNat]
+
+/-- The source counter-search decoder reads exactly the low 128 bits of a
+uniform hash answer; the unused upper half contributes a cancelling factor. -/
+theorem encoding_uniform_probability (lay : Layer) :
+    Pr[fun answer => (Sampling.encodingDecode lay answer).isSome |
+      ($ᵗ HashOutput : ProbComp HashOutput)] =
+      (acceptedCount lay : ENNReal)/(2 : ENNReal)^128 := by
+  classical
+  rw [probEvent_uniformSample]
+  have hc := SphincsSecurity.Completeness.card_filter_low (n := 256) (w := 128)
+    (by decide) (fun value => (decode lay value).isSome)
+  change (Finset.univ.filter fun answer : HashOutput =>
+    (decode lay (answer.extractLsb' 0 128)).isSome).card = _ at hc
+  rw [show (Finset.univ.filter fun answer : HashOutput =>
+      (Sampling.encodingDecode lay answer).isSome).card =
+      (Finset.univ.filter fun value : Digest => (decode lay value).isSome).card*2^128 from hc]
+  rw [← Fintype.card_subtype,decoder_acceptance_count]
+  simp only [Fintype.card_bitVec,Nat.cast_mul,Nat.cast_pow,Nat.cast_ofNat]
+  rw [show (2 : ENNReal)^256 = 2^128*2^128 by rw [← pow_add]]
+  exact ENNReal.mul_div_mul_right _ _ (by simp) (by simp)
+
+#print axioms decoder_acceptance_count
+#print axioms encoding_uniform_probability
+end SigGolfCandidate.T3.EncodingCounting
+
+end
+
+end
+
+/-! Authored module: CorrectnessAdapters. -/
+section
+/-! Generic names for the base source's already verified forest factorization.
+The frozen source programs and their query formats are unchanged. -/
+namespace SigGolfCandidate.T3.Correctness
+open OracleComp OracleSpec
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+/-- The exact forest loop in `signPayload`, definitionally equal to `forestRows`. -/
+def signForest (index : Nat) (chosen : List Selection) :
+    M (List Digest × List Digest × List Digest) :=
+  (List.range 7).foldlM
+    (fun (state : List Digest × List Digest × List Digest) coord => do
+      let sel := chosen.getD coord ⟨0,[]⟩
+      let (levels,secrets) ← buildFts index coord
+      let selected := sel.leaves.map (fun s => sel.bucket*128+s)
+      let opened := selected.map (fun s => secrets.getD s 0)
+      let inner := (frontier selected 7 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
+      let outer := (List.range 4).map fun j => (levels.getD (7+j) []).getD (sel.bucket/2^j ^^^ 1) 0
+      pure (state.1 ++ opened,state.2.1 ++ inner ++ outer,
+        state.2.2 ++ [(levels.getD 11 []).getD 0 0])) ([],[],[])
+
+theorem eval_signForest (answers : Answers) (index : Nat) (chosen : List Selection) :
+    evalWithAnswerFn answers (signForest index chosen)=
+      (forestOpenPrefix answers index chosen 7,forestProofPrefix answers index chosen 7,
+        forestRoots answers index 7) :=
+  eval_forestRows answers index chosen
+
+/-- The fixed-size projections emitted by the source signer. -/
+def assembledSignature (rho : Digest) (state : List Digest × List Digest × List Digest)
+    (pieces : List Pieces) : Signature :=
+  ⟨rho,fun i => state.1.getD i.val 0,fun i => state.2.1.getD i.val 0,
+    fun lay => piecesSignature lay (pieces.getD lay.val ([],[]))⟩
+
+@[simp] theorem assembledSignature_rho (rho : Digest)
+    (state : List Digest × List Digest × List Digest) (pieces : List Pieces) :
+    (assembledSignature rho state pieces).rho=rho := rfl
+
+theorem signPayload_eq (cache : Cache) (message : Message) : signPayload cache message=(do
+    let rho ← privateNonce message
+    let some (_,output) ← digestSearch rho message 0 attemptLimit | pure none
+    let state ← signForest (output.toNat%2^31) (selections output)
+    let root ← forestPk (output.toNat%2^31) state.2.2
+    let some pieces ← signLayers cache (output.toNat%2^31) 4 root | pure none
+    pure (some (assembledSignature rho state pieces))) := rfl
+
+theorem assembled_forest_recovery (answers : Answers) (rho : Digest) (output : HashOutput)
+    (pieces : List Pieces) (hadm : admissible (selections output)=true) :
+    evalWithAnswerFn answers (recoverFts
+      (assembledSignature rho (evalWithAnswerFn answers
+        (signForest (output.toNat%2^31) (selections output))) pieces)
+      (output.toNat%2^31) (selections output))=
+      some (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
+        (forestRoots answers (output.toNat%2^31) 7))) := by
+  rw [eval_signForest]
+  exact recoverFts_from_signer_lists answers _ (output.toNat%2^31) output hadm
+    (fun _ => rfl) (fun _ => rfl)
+
+end SigGolfCandidate.T3.Correctness
+
+end
+
+/-! Authored module: Budgets. -/
+section
+namespace SigGolfCandidate.T3.Correctness
+open OracleComp OracleSpec Cost
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+set_option linter.unusedSimpArgs false
+
+/-- A finite family containing every encoding address reachable by the signer. -/
+abbrev EncodingFamily := Layer × Fin (2^31) × Fin 4096 × Digest
+abbrev DigestFamily := Digest × Message
+
+def EncodingSearchesSucceed (answers : Answers) : Prop :=
+  ∀ family : EncodingFamily, ∃ found,
+    evalWithAnswerFn answers (counterSearch family.1 family.2.1.val
+      family.2.2.1.val family.2.2.2 0 counterLimit)=some found
+
+def DigestSearchesSucceed (answers : Answers) : Prop :=
+  ∀ family : DigestFamily, ∃ found,
+    evalWithAnswerFn answers (digestSearch family.1 family.2 0 attemptLimit)=some found
+
+def SearchesSucceed (answers : Answers) : Prop :=
+  DigestSearchesSucceed answers ∧ EncodingSearchesSucceed answers
+
+theorem encodingFamily_card : Fintype.card EncodingFamily=2^173 := by
+  norm_num [EncodingFamily,Layer,Fintype.card_prod,Fintype.card_bitVec]
+
+theorem digestFamily_card : Fintype.card DigestFamily=2^384 := by
+  calc
+    Fintype.card DigestFamily = (2 : Nat)^128 * (2 : Nat)^256 := by
+      simp only [DigestFamily,Digest,Message,Fintype.card_prod,Fintype.card_bitVec]
+    _ = (2 : Nat)^(128+256) := (pow_add (2 : Nat) 128 256).symm
+    _ = (2 : Nat)^384 := rfl
+
+theorem route_tree_bound (index : Nat) (lay : Layer) (hindex : index < 2^31) :
+    (route index lay).2 < 2^31 := by
+  exact lt_of_le_of_lt (Nat.div_le_self _ _) hindex
+
+theorem route_leaf_4096 (index : Nat) (lay : Layer) : (route index lay).1 < 4096 := by
+  have h := route_leaf_bound index lay
+  fin_cases lay <;> norm_num [height] at h ⊢ <;> omega
+
+theorem encodingSearchesSucceed_at_route (answers : Answers)
+    (hgood : EncodingSearchesSucceed answers) (index : Nat) (hindex : index < 2^31)
+    (lay : Layer) (message : Digest) : ∃ found,
+    evalWithAnswerFn answers (counterSearch lay (route index lay).2
+      (route index lay).1 message 0 counterLimit)=some found := by
+  exact hgood (lay,⟨_,route_tree_bound index lay hindex⟩,
+    ⟨_,route_leaf_4096 index lay⟩,message)
+
+/-- The layer signer has no failure exit other than its bounded encoding searches. -/
+theorem signLayers_succeeds (answers : Answers) (cache : Cache) (index : Nat)
+    (hindex : index < 2^31) (hgood : EncodingSearchesSucceed answers) :
+    ∀ n message, ∃ pieces,
+      evalWithAnswerFn answers (signLayers cache index n message)=some pieces := by
+  intro n
+  induction n with
+  | zero => intro message;exact ⟨[],rfl⟩
+  | succ n ih =>
+      intro message
+      obtain ⟨⟨counter,digits⟩,hs⟩ :=
+        encodingSearchesSucceed_at_route answers hgood index hindex (Fin.ofNat 4 n) message
+      simp only [signLayers,evalWithAnswerFn_bind,hs]
+      by_cases hn : n=0
+      · simp only [hn,ite_true,evalWithAnswerFn_bind,evalWithAnswerFn_pure]
+        exact ⟨_,rfl⟩
+      · simp only [hn,ite_false,evalWithAnswerFn_bind]
+        obtain ⟨previous,hp⟩ := ih
+          ((((evalWithAnswerFn answers (buildTree (Fin.ofNat 4 n)
+            (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 digits)).1).getD
+            (height (Fin.ofNat 4 n)) []).getD 0 0)
+        simp only [hp,evalWithAnswerFn_pure]
+        exact ⟨_,rfl⟩
+
+theorem signPayload_succeeds (answers : Answers) (cache : Cache) (message : Message)
+    (hgood : SearchesSucceed answers) :
+    ∃ sig,evalWithAnswerFn answers (signPayload cache message)=some sig := by
+  obtain ⟨⟨counter,output⟩,hd⟩ := hgood.1 (evalWithAnswerFn answers (privateNonce message),message)
+  rw [signPayload_eq]
+  simp only [evalWithAnswerFn_bind,hd,eval_signForest]
+  obtain ⟨pieces,hp⟩ := signLayers_succeeds answers cache (output.toNat%2^31)
+    (Nat.mod_lt _ (by positivity)) hgood.2 4
+    (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
+      (forestRoots answers (output.toNat%2^31) 7)))
+  simp only [hp,evalWithAnswerFn_pure]
+  exact ⟨_,rfl⟩
+
+def SigningComplete (answers : Answers) (keys : Digest × Cache) : Prop :=
+  ∀ message : Message, ∃ sig : Signature, ∃ w : Witness,
+    evalWithAnswerFn answers (sign keys.2 message)=some sig ∧
+    evalWithAnswerFn answers (expand message keys.1 sig)=some w ∧
+    evalWithAnswerFn answers (verify message keys.1 w)=true
+
+theorem signing_complete_of_searches (answers : Answers) (keys : Digest × Cache)
+    (hkeys : KeygenCorrect answers keys) (hgood : SearchesSucceed answers) :
+    SigningComplete answers keys := by
+  intro message
+  obtain ⟨sig,hs⟩ := signPayload_succeeds answers keys.2 message hgood
+  have hs' : evalWithAnswerFn answers (sign keys.2 message)=some sig := by
+    rw [sign_valid_cache answers keys message hkeys.2.2]
+    exact hs
+  obtain ⟨w,he⟩ := signPayload_expands answers keys.2 message sig hkeys.2.1 hs
+  rw [← hkeys.1] at he
+  exact ⟨sig,w,hs',he,expand_implies_verify answers message keys.1 sig w he⟩
+
+/-- A single finite family of successful searches suffices for every message,
+including the nonce and intermediate roots chosen from the same oracle. -/
+theorem honest_signing_complete_of_searches (answers : Answers) (hgood : SearchesSucceed answers) :
+    SigningComplete answers (evalWithAnswerFn answers keygen) :=
+  signing_complete_of_searches answers _ (keygen_correct answers) hgood
+
+def RealizedSigningComplete (answers : QueryImpl SphincsSecurity.OracleWorld Id)
+    (secret : BitVec 256) (keys : Digest × Cache) : Prop :=
+  ∀ message : Message, ∃ sig : Signature, ∃ w : Witness,
+    evalWithAnswerFn answers (realize secret (sign keys.2 message))=some sig ∧
+    evalWithAnswerFn answers (realize secret (expand message keys.1 sig))=some w ∧
+    evalWithAnswerFn answers (realize secret (verify message keys.1 w))=true
+
+theorem realized_honest_signing_complete_of_searches
+    (answers : QueryImpl SphincsSecurity.OracleWorld Id) (secret : BitVec 256)
+    (hgood : SearchesSucceed (answers.compose (realHandler secret))) :
+    RealizedSigningComplete answers secret (evalWithAnswerFn answers (realize secret keygen)) := by
+  unfold RealizedSigningComplete
+  simp only [realize_eval]
+  exact honest_signing_complete_of_searches (answers.compose (realHandler secret)) hgood
+
+end SigGolfCandidate.T3.Correctness
+
+namespace SigGolfCandidate.T3.Budgets
+open OracleComp OracleSpec ENNReal
+open SphincsSecurity.Completeness (failMass failMass_eq_probEvent)
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+/-- Exact one-trial encoding acceptance probability, as a real number. -/
+noncomputable def encodingRate (lay : Layer) : ℝ := (EncodingCounting.acceptedCount lay : ℝ)/2^128
+
+theorem encodingRate_bounds (lay : Layer) : 1/4096 ≤ encodingRate lay ∧ encodingRate lay ≤ 1 := by
+  fin_cases lay <;> norm_num [encodingRate,EncodingCounting.acceptedCount]
+
+theorem encodingRate_cast (lay : Layer) :
+    ENNReal.ofReal (encodingRate lay)=(EncodingCounting.acceptedCount lay : ENNReal)/2^128 := by
+  rw [encodingRate,ENNReal.ofReal_div_of_pos (by positivity),
+    ENNReal.ofReal_pow (by norm_num)]
+  simp
+
+theorem failMass_eq_one_sub_accept {β : Type} (decoder : HashOutput → Option β) :
+    failMass decoder=1-Pr[fun answer => (decoder answer).isSome | ($ᵗ HashOutput : ProbComp HashOutput)] := by
+  classical
+  rw [failMass_eq_probEvent]
+  have h := Sampling.probEvent_not (fun answer => (decoder answer).isSome)
+  simp only [probEvent_uniformSample] at h ⊢
+  simpa only [HashOutput,SphincsSecurity.HashOutput,SphincsSecurity.hashOutputBits,
+    Bool.not_eq_true,Option.isSome_eq_false_iff,Option.isNone_iff_eq_none] using h
+
+theorem encoding_failMass (lay : Layer) :
+    failMass (Sampling.encodingDecode lay)=ENNReal.ofReal (1-encodingRate lay) := by
+  rw [failMass_eq_one_sub_accept,EncodingCounting.encoding_uniform_probability,← encodingRate_cast]
+  rw [ENNReal.ofReal_sub 1 (by linarith [(encodingRate_bounds lay).1])]
+  simp
+
+/-- Elementary exponential tail estimate, keeping large trial counts symbolic. -/
+theorem rejection_power_le (p : ℝ) (hp : p ≤ 1) (trials bits : Nat)
+    (h : bits * Real.log 2 ≤ trials*p) : (1-p)^trials ≤ 1/(2 : ℝ)^bits := by
+  calc
+    (1-p)^trials ≤ (Real.exp (-p))^trials :=
+      pow_le_pow_left₀ (by linarith) (Real.one_sub_le_exp_neg p) _
+    _ = Real.exp (-(trials*p)) := by rw [← Real.exp_nat_mul];congr 1;ring
+    _ ≤ Real.exp (-(bits*Real.log 2)) := Real.exp_le_exp.mpr (by linarith)
+    _ = 1/(2 : ℝ)^bits := by
+      rw [Real.exp_neg,Real.exp_nat_mul,Real.exp_log (by norm_num)]
+      simp [one_div]
+
+@[simp] theorem ofReal_inv_two_pow (n : Nat) :
+    ENNReal.ofReal (1/(2 : ℝ)^n)=1/(2 : ENNReal)^n := by
+  rw [ENNReal.ofReal_div_of_pos (show 0 < (2 : ℝ)^n by positivity),
+    ENNReal.ofReal_one,ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),ENNReal.ofReal_ofNat]
+
+theorem encoding_failure_power (lay : Layer) :
+    failMass (Sampling.encodingDecode lay)^counterLimit ≤ 1/(2 : ENNReal)^1024 := by
+  rw [encoding_failMass,← ENNReal.ofReal_pow (by linarith [(encodingRate_bounds lay).2])]
+  have hreal := rejection_power_le (encodingRate lay) (encodingRate_bounds lay).2 counterLimit 1024
+    (by have hl := Real.log_two_lt_d9;have hp := (encodingRate_bounds lay).1
+        change (1024 : ℝ)*Real.log 2 ≤ 4194304*encodingRate lay
+        nlinarith)
+  have hcast := ENNReal.ofReal_le_ofReal hreal
+  simpa only [ofReal_inv_two_pow] using hcast
+
+/-- One actual source counter-search call in a fresh random-oracle cache. -/
+theorem counterSearch_failure_le (secret : BitVec 256) (lay : Layer)
+    (tree leaf : Nat) (message : Digest) (cache : Sampling.RCache)
+    (hfresh : ∀ c,0 ≤ c → c < 2^32 → cache (Sampling.encodingTrial lay tree leaf message c)=none) :
+    Pr[fun result => result.1=none |
+      Sampling.roRun secret (counterSearch lay tree leaf message 0 counterLimit) cache] ≤
+      1/(2 : ENNReal)^1024 := by
+  exact (Sampling.counterSearch_failure secret lay tree leaf message counterLimit 0
+    (by decide) cache hfresh).trans (encoding_failure_power lay)
+
+/-- Digest arithmetic is separated from the exact cap124 count. -/
+theorem digest_failure_power_of_acceptance (p : ℝ) (hp : 1/3300 ≤ p) (hp1 : p ≤ 1)
+    (haccept : Pr[fun answer => (Sampling.digestDecode answer).isSome |
+      ($ᵗ HashOutput : ProbComp HashOutput)]=ENNReal.ofReal p) :
+    failMass Sampling.digestDecode^attemptLimit ≤ 1/(2 : ENNReal)^450 := by
+  have hm : failMass Sampling.digestDecode=ENNReal.ofReal (1-p) := by
+    rw [failMass_eq_one_sub_accept,haccept,ENNReal.ofReal_sub 1 (by linarith)]
+    simp
+  rw [hm,← ENNReal.ofReal_pow (by linarith)]
+  have hreal := rejection_power_le p hp1 attemptLimit 450
+    (by have hl := Real.log_two_lt_d9
+        change (450 : ℝ)*Real.log 2 ≤ 1048576*p
+        nlinarith)
+  have hcast := ENNReal.ofReal_le_ofReal hreal
+  simpa only [ofReal_inv_two_pow] using hcast
+
+open Correctness
+
+def DigestFailed (family : DigestFamily) (answers : Answers) : Prop :=
+  evalWithAnswerFn answers (digestSearch family.1 family.2 0 attemptLimit)=none
+
+def EncodingFailed (family : EncodingFamily) (answers : Answers) : Prop :=
+  evalWithAnswerFn answers (counterSearch family.1 family.2.1.val
+    family.2.2.1.val family.2.2.2 0 counterLimit)=none
+
+theorem incomplete_implies_failed_search (answers : Answers)
+    (h : ¬SigningComplete answers (evalWithAnswerFn answers keygen)) :
+    (∃ family,DigestFailed family answers) ∨ (∃ family,EncodingFailed family answers) := by
+  classical
+  by_contra hnone
+  obtain ⟨hd,he⟩ := not_or.mp hnone
+  apply h
+  apply honest_signing_complete_of_searches
+  constructor
+  · intro family
+    cases hx : evalWithAnswerFn answers (digestSearch family.1 family.2 0 attemptLimit) with
+    | none => exact False.elim (hd ⟨family,hx⟩)
+    | some found => exact ⟨found,rfl⟩
+  · intro family
+    cases hx : evalWithAnswerFn answers (counterSearch family.1 family.2.1.val
+      family.2.2.1.val family.2.2.2 0 counterLimit) with
+    | none => exact False.elim (he ⟨family,hx⟩)
+    | some found => exact ⟨found,rfl⟩
+
+theorem finite_family_failure_le {ι α : Type} [Fintype ι]
+    (law : ProbComp α) (event : ι → α → Prop) (δ : ENNReal)
+    (h : ∀ i,Pr[event i | law] ≤ δ) :
+    Pr[fun value => ∃ i,event i value | law] ≤ (Fintype.card ι : ENNReal)*δ := by
+  classical
+  have hu := probEvent_exists_finset_le_sum (Finset.univ : Finset ι) law event
+  have hb := Finset.sum_le_sum (s := (Finset.univ : Finset ι)) (fun i _ => h i)
+  have hu' : Pr[fun value => ∃ i,event i value | law] ≤
+      ∑ i : ι,Pr[event i | law] := by
+    simpa only [Finset.mem_univ,true_and] using hu
+  exact hu'.trans (hb.trans_eq (by simp))
+
+/-- Global all-message completeness via a finite family union bound. The law's
+per-family marginals remain explicit for the presampling/ROM instantiation. -/
+theorem signing_incomplete_probability_le (law : ProbComp Answers) (digestFail encodingFail : ENNReal)
+    (hd : ∀ family,Pr[DigestFailed family | law] ≤ digestFail)
+    (he : ∀ family,Pr[EncodingFailed family | law] ≤ encodingFail) :
+    Pr[fun answers => ¬SigningComplete answers (evalWithAnswerFn answers keygen) | law] ≤
+      (2 : ENNReal)^384*digestFail+(2 : ENNReal)^173*encodingFail := by
+  have hm := probEvent_mono (mx := law) (fun answers _ => incomplete_implies_failed_search answers)
+  have hd' := finite_family_failure_le law DigestFailed digestFail hd
+  have he' := finite_family_failure_le law EncodingFailed encodingFail he
+  rw [digestFamily_card,Nat.cast_pow,Nat.cast_ofNat] at hd'
+  rw [encodingFamily_card,Nat.cast_pow,Nat.cast_ofNat] at he'
+  exact hm.trans ((probEvent_or_le law _ _).trans (add_le_add hd' he'))
+
+theorem signing_incomplete_probability_small (law : ProbComp Answers)
+    (hd : ∀ family,Pr[DigestFailed family | law] ≤ 1/(2 : ENNReal)^450)
+    (he : ∀ family,Pr[EncodingFailed family | law] ≤ 1/(2 : ENNReal)^1024) :
+    Pr[fun answers => ¬SigningComplete answers (evalWithAnswerFn answers keygen) | law] ≤
+      1/(2 : ENNReal)^65 := by
+  refine (signing_incomplete_probability_le law _ _ hd he).trans ?_
+  have hreal : (2 : ℝ)^384*(1/2^450)+2^173*(1/2^1024) ≤ 1/2^65 := by
+    set_option exponentiation.threshold 2048 in norm_num
+  have hcast := ENNReal.ofReal_le_ofReal hreal
+  rw [ENNReal.ofReal_add (show 0 ≤ (2 : ℝ)^384*(1/2^450) by positivity)
+    (show 0 ≤ (2 : ℝ)^173*(1/2^1024) by positivity),
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^384 by positivity),
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^173 by positivity)] at hcast
+  simpa only [ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),
+    ENNReal.ofReal_ofNat,ofReal_inv_two_pow] using hcast
+
+end SigGolfCandidate.T3.Budgets
+
+namespace SigGolfCandidate.T3.Correctness
+open OracleComp OracleSpec
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+/-- For a fixed message, the digest union needs only cover the private nonce. -/
+def SearchesSucceedFor (answers : Answers) (message : Message) : Prop :=
+  (∀ rho : Digest, ∃ found,
+    evalWithAnswerFn answers (digestSearch rho message 0 attemptLimit)=some found) ∧
+  EncodingSearchesSucceed answers
+
+theorem signPayload_succeedsFor (answers : Answers) (cache : Cache) (message : Message)
+    (hgood : SearchesSucceedFor answers message) :
+    ∃ sig,evalWithAnswerFn answers (signPayload cache message)=some sig := by
+  obtain ⟨⟨counter,output⟩,hd⟩ := hgood.1 (evalWithAnswerFn answers (privateNonce message))
+  rw [signPayload_eq]
+  simp only [evalWithAnswerFn_bind,hd,eval_signForest]
+  obtain ⟨pieces,hp⟩ := signLayers_succeeds answers cache (output.toNat%2^31)
+    (Nat.mod_lt _ (by positivity)) hgood.2 4
+    (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
+      (forestRoots answers (output.toNat%2^31) 7)))
+  simp only [hp,evalWithAnswerFn_pure]
+  exact ⟨_,rfl⟩
+
+theorem signing_complete_for_of_searches (answers : Answers) (keys : Digest × Cache)
+    (hkeys : KeygenCorrect answers keys) (message : Message)
+    (hgood : SearchesSucceedFor answers message) :
+    ∃ sig : Signature, ∃ w : Witness,
+      evalWithAnswerFn answers (sign keys.2 message)=some sig ∧
+      evalWithAnswerFn answers (expand message keys.1 sig)=some w ∧
+      evalWithAnswerFn answers (verify message keys.1 w)=true := by
+  obtain ⟨sig,hs⟩ := signPayload_succeedsFor answers keys.2 message hgood
+  have hs' : evalWithAnswerFn answers (sign keys.2 message)=some sig := by
+    rw [sign_valid_cache answers keys message hkeys.2.2]
+    exact hs
+  obtain ⟨w,he⟩ := signPayload_expands answers keys.2 message sig hkeys.2.1 hs
+  rw [← hkeys.1] at he
+  exact ⟨sig,w,hs',he,expand_implies_verify answers message keys.1 sig w he⟩
+end SigGolfCandidate.T3.Correctness
+
+namespace SigGolfCandidate.T3.Budgets
+open OracleComp OracleSpec ENNReal Correctness
+open SphincsSecurity.Completeness (failMass)
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+noncomputable local instance : SampleableType (QuerySpace.SearchKey → HashOutput) := Presampling.tableSampler
+
+def zeroAnswers : Answers := fun q => by
+  rcases q with (input | input) | input
+  · exact (0 : Fin (input+1))
+  · exact (0 : HashOutput)
+  · exact (0 : HashOutput)
+
+def SearchAgreement (outputs : QuerySpace.SearchKey → HashOutput) (answers : Answers) : Prop :=
+  ∀ key,answers (.inl (.inr (QuerySpace.searchQuery key)))=outputs key
+
+def tableGood (outputs : QuerySpace.SearchKey → HashOutput) : Prop :=
+  SearchesSucceed (Presampling.tableAnswers outputs zeroAnswers)
+
+theorem counterSearch_none_agreement (outputs : QuerySpace.SearchKey → HashOutput)
+    (answers : Answers) (hagree : SearchAgreement outputs answers) (family : EncodingFamily) :
+    evalWithAnswerFn answers
+      (counterSearch family.1 family.2.1 family.2.2.1 family.2.2.2 0 counterLimit)=none ↔
+    ∀ c : Fin (2^22), Sampling.encodingDecode family.1 (outputs (.inl (family,c)))=none := by
+  rw [counterSearch_none_iff]
+  have hv (c : Nat) (hc : c<counterLimit) :
+      evalWithAnswerFn answers
+        (shortHash (encodingInput family.1 family.2.1 family.2.2.1 family.2.2.2
+          (BitVec.ofNat 32 (0+c)))) = (outputs (.inl (family,⟨c,hc⟩))).extractLsb' 0 128 := by
+    rw [Presampling.eval_shortHash]
+    have hinput : pad64 (encodingInput family.1 family.2.1 family.2.2.1 family.2.2.2
+        (BitVec.ofNat 32 (0+c))) = QuerySpace.searchQuery (.inl (family,⟨c,hc⟩)) := by
+      simp only [QuerySpace.searchQuery,Sum.elim_inl,QuerySpace.encodingQuery,Sampling.encodingTrial,Nat.zero_add]
+    rw [hinput,hagree]
+
+  constructor
+  · intro h c
+    have h := h c c.isLt
+    rw [hv c c.isLt] at h
+    exact h
+  · intro h c hc
+    rw [hv c hc]
+    exact h ⟨c,hc⟩
+
+theorem digestSearch_none_agreement (outputs : QuerySpace.SearchKey → HashOutput)
+    (answers : Answers) (hagree : SearchAgreement outputs answers) (family : DigestFamily) :
+    evalWithAnswerFn answers (digestSearch family.1 family.2 0 attemptLimit)=none ↔
+    ∀ c : Fin (2^20), Sampling.digestDecode (outputs (.inr (family,c)))=none := by
+  rw [digestSearch_none_iff]
+  have hv (c : Nat) (hc : c<attemptLimit) :
+      evalWithAnswerFn answers (digest family.1 family.2 (BitVec.ofNat 32 (0+c))) =
+        outputs (.inr (family,⟨c,hc⟩)) := by
+    rw [Presampling.eval_digest]
+    have hinput : pad64 (digestInput family.1 family.2 (BitVec.ofNat 32 (0+c))) =
+        QuerySpace.searchQuery (.inr (family,⟨c,hc⟩)) := by
+      simp only [QuerySpace.searchQuery,Sum.elim_inr,QuerySpace.digestQuery,Sampling.digestTrial,Nat.zero_add]
+    rw [hinput,hagree]
+
+  have hd (value : HashOutput) : Sampling.digestDecode value=none ↔ digestAdmissible value=false := by
+    simp [Sampling.digestDecode]
+  constructor
+  · intro h c
+    rw [hd]
+    have h := h c c.isLt
+    rwa [hv c c.isLt] at h
+  · intro h c hc
+    rw [hv c hc]
+    exact (hd _).mp (h ⟨c,hc⟩)
+
+theorem tableGood_iff_searchesSucceed (outputs : QuerySpace.SearchKey → HashOutput)
+    (answers : Answers) (hagree : SearchAgreement outputs answers) :
+    tableGood outputs ↔ SearchesSucceed answers := by
+  unfold tableGood SearchesSucceed DigestSearchesSucceed EncodingSearchesSucceed
+  simp only [← Option.ne_none_iff_exists']
+  apply and_congr
+  · apply forall_congr'; intro family
+    exact not_congr ((Presampling.digestSearch_none_table outputs zeroAnswers family).trans
+      (digestSearch_none_agreement outputs answers hagree family).symm)
+  · apply forall_congr'; intro family
+    exact not_congr ((Presampling.counterSearch_none_table outputs zeroAnswers family).trans
+      (counterSearch_none_agreement outputs answers hagree family).symm)
+
+theorem tableGood_searchesSucceed (outputs : QuerySpace.SearchKey → HashOutput)
+    (answers : Answers) (hgood : tableGood outputs) (hagree : SearchAgreement outputs answers) :
+    SearchesSucceed answers := (tableGood_iff_searchesSucceed outputs answers hagree).mp hgood
+
+theorem tableGood_fallback_iff (outputs : QuerySpace.SearchKey → HashOutput) (fallback : Answers) :
+    tableGood outputs ↔ SearchesSucceed (Presampling.tableAnswers outputs fallback) :=
+  tableGood_iff_searchesSucceed outputs _ (Presampling.tableAnswers_apply outputs fallback)
+
+theorem not_searchesSucceed_iff (answers : Answers) :
+    ¬ SearchesSucceed answers ↔
+      (∃ family,DigestFailed family answers) ∨ (∃ family,EncodingFailed family answers) := by
+  classical
+  simp only [SearchesSucceed,DigestSearchesSucceed,EncodingSearchesSucceed,
+    ← Option.ne_none_iff_exists',not_and_or,not_forall,not_not,DigestFailed,EncodingFailed]
+
+theorem tableGood_failure_le (digestFail encodingFail : ENNReal)
+    (hd : failMass Sampling.digestDecode^attemptLimit ≤ digestFail)
+    (he : ∀ lay,failMass (Sampling.encodingDecode lay)^counterLimit ≤ encodingFail) :
+    Pr[fun outputs => ¬tableGood outputs |
+      ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤
+      (2 : ENNReal)^384*digestFail+(2 : ENNReal)^173*encodingFail := by
+  let law := ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)
+  have hd' := finite_family_failure_le law
+    (fun family outputs => DigestFailed family (Presampling.tableAnswers outputs zeroAnswers)) digestFail
+    (fun family => (Presampling.digestSearch_table_failure zeroAnswers family).le.trans hd)
+  have he' := finite_family_failure_le law
+    (fun family outputs => EncodingFailed family (Presampling.tableAnswers outputs zeroAnswers)) encodingFail
+    (fun family => (Presampling.counterSearch_table_failure zeroAnswers family).le.trans (he family.1))
+  rw [digestFamily_card,Nat.cast_pow,Nat.cast_ofNat] at hd'
+  rw [encodingFamily_card,Nat.cast_pow,Nat.cast_ofNat] at he'
+  simp only [tableGood,not_searchesSucceed_iff]
+  exact (probEvent_or_le law _ _).trans (add_le_add hd' he')
+
+theorem tableGood_failure_small_of_acceptance (p : ℝ) (hp : 1/3300 ≤ p) (hp1 : p ≤ 1)
+    (haccept : Pr[fun answer => (Sampling.digestDecode answer).isSome |
+      ($ᵗ HashOutput : ProbComp HashOutput)]=ENNReal.ofReal p) :
+    Pr[fun outputs => ¬tableGood outputs |
+      ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤ 1/(2 : ENNReal)^65 := by
+  refine (tableGood_failure_le _ _
+    (digest_failure_power_of_acceptance p hp hp1 haccept) encoding_failure_power).trans ?_
+  have hreal : (2 : ℝ)^384*(1/2^450)+2^173*(1/2^1024) ≤ 1/2^65 := by
+    set_option exponentiation.threshold 2048 in norm_num
+  have hcast := ENNReal.ofReal_le_ofReal hreal
+  rw [ENNReal.ofReal_add (show 0 ≤ (2 : ℝ)^384*(1/2^450) by positivity)
+    (show 0 ≤ (2 : ℝ)^173*(1/2^1024) by positivity),
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^384 by positivity),
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^173 by positivity)] at hcast
+  simpa only [ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),
+    ENNReal.ofReal_ofNat,ofReal_inv_two_pow] using hcast
+
+def tableGoodFor (message : Message) (outputs : QuerySpace.SearchKey → HashOutput) : Prop :=
+  SearchesSucceedFor (Presampling.tableAnswers outputs zeroAnswers) message
+
+theorem tableGoodFor_iff_searchesSucceedFor (message : Message) (outputs : QuerySpace.SearchKey → HashOutput)
+    (answers : Answers) (hagree : SearchAgreement outputs answers) :
+    tableGoodFor message outputs ↔ SearchesSucceedFor answers message := by
+  unfold tableGoodFor SearchesSucceedFor EncodingSearchesSucceed
+  simp only [← Option.ne_none_iff_exists']
+  apply and_congr
+  · apply forall_congr'; intro rho
+    exact not_congr ((Presampling.digestSearch_none_table outputs zeroAnswers (rho,message)).trans
+      (digestSearch_none_agreement outputs answers hagree (rho,message)).symm)
+  · apply forall_congr'; intro family
+    exact not_congr ((Presampling.counterSearch_none_table outputs zeroAnswers family).trans
+      (counterSearch_none_agreement outputs answers hagree family).symm)
+
+theorem tableGoodFor_searchesSucceedFor (message : Message) (outputs : QuerySpace.SearchKey → HashOutput)
+    (answers : Answers) (hgood : tableGoodFor message outputs) (hagree : SearchAgreement outputs answers) :
+    SearchesSucceedFor answers message := (tableGoodFor_iff_searchesSucceedFor message outputs answers hagree).mp hgood
+
+theorem not_searchesSucceedFor_iff (answers : Answers) (message : Message) :
+    ¬ SearchesSucceedFor answers message ↔
+      (∃ rho : Digest,DigestFailed (rho,message) answers) ∨ (∃ family,EncodingFailed family answers) := by
+  classical
+  simp only [SearchesSucceedFor,EncodingSearchesSucceed,
+    ← Option.ne_none_iff_exists',not_and_or,not_forall,not_not,DigestFailed,EncodingFailed]
+
+theorem tableGoodFor_failure_le (message : Message) (digestFail encodingFail : ENNReal)
+    (hd : failMass Sampling.digestDecode^attemptLimit ≤ digestFail)
+    (he : ∀ lay,failMass (Sampling.encodingDecode lay)^counterLimit ≤ encodingFail) :
+    Pr[fun outputs => ¬tableGoodFor message outputs |
+      ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤
+      (2 : ENNReal)^128*digestFail+(2 : ENNReal)^173*encodingFail := by
+  let law := ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)
+  have hd' := finite_family_failure_le law
+    (fun (rho : Digest) outputs => DigestFailed (rho,message) (Presampling.tableAnswers outputs zeroAnswers)) digestFail
+    (fun rho => (Presampling.digestSearch_table_failure zeroAnswers (rho,message)).le.trans hd)
+  have he' := finite_family_failure_le law
+    (fun family outputs => EncodingFailed family (Presampling.tableAnswers outputs zeroAnswers)) encodingFail
+    (fun family => (Presampling.counterSearch_table_failure zeroAnswers family).le.trans (he family.1))
+  rw [Fintype.card_bitVec,Nat.cast_pow,Nat.cast_ofNat] at hd'
+  rw [encodingFamily_card,Nat.cast_pow,Nat.cast_ofNat] at he'
+  simp only [tableGoodFor,not_searchesSucceedFor_iff]
+  exact (probEvent_or_le law _ _).trans (add_le_add hd' he')
+
+theorem tableGoodFor_failure_small_of_acceptance (message : Message) (p : ℝ) (hp : 1/3300 ≤ p) (hp1 : p ≤ 1)
+    (haccept : Pr[fun answer => (Sampling.digestDecode answer).isSome |
+      ($ᵗ HashOutput : ProbComp HashOutput)]=ENNReal.ofReal p) :
+    Pr[fun outputs => ¬tableGoodFor message outputs |
+      ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤ 1/(2 : ENNReal)^321 := by
+  refine (tableGoodFor_failure_le message _ _
+    (digest_failure_power_of_acceptance p hp hp1 haccept) encoding_failure_power).trans ?_
+  have hreal : (2 : ℝ)^128*(1/2^450)+2^173*(1/2^1024) ≤ 1/2^321 := by
+    set_option exponentiation.threshold 2048 in norm_num
+  have hcast := ENNReal.ofReal_le_ofReal hreal
+  rw [ENNReal.ofReal_add (show 0 ≤ (2 : ℝ)^128*(1/2^450) by positivity)
+    (show 0 ≤ (2 : ℝ)^173*(1/2^1024) by positivity),
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^128 by positivity),
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^173 by positivity)] at hcast
+  simpa only [ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),
+    ENNReal.ofReal_ofNat,ofReal_inv_two_pow] using hcast
+
+end SigGolfCandidate.T3.Budgets
+
+namespace SigGolfCandidate.T3.Budgets
+open OracleComp OracleSpec ENNReal
+open SphincsSecurity.Completeness (failMass)
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+noncomputable def encodingEnvelopeReal (lay : Layer) : ℝ :=
+  ![(BaseAudit.b1 : ℝ),(BaseAudit.b2 : ℝ),(BaseAudit.b3 : ℝ),(BaseAudit.b4 : ℝ)] lay
+noncomputable def encodingEnvelope (lay : Layer) : ENNReal := ENNReal.ofReal (encodingEnvelopeReal lay)
+
+theorem encodingEnvelopeReal_ge_one (lay : Layer) : 1 ≤ encodingEnvelopeReal lay := by
+  fin_cases lay <;> norm_num [encodingEnvelopeReal,BaseAudit.b1,BaseAudit.b2,BaseAudit.b3,BaseAudit.b4]
+
+theorem encodingEnvelope_ge_one (lay : Layer) : 1 ≤ encodingEnvelope lay := by
+  simpa only [encodingEnvelope,ENNReal.ofReal_one] using
+    ENNReal.ofReal_le_ofReal (encodingEnvelopeReal_ge_one lay)
+
+theorem signing_z_le : SigGolfCandidate.Budget.zOf 131072 ≤ ENNReal.ofReal (BaseAudit.zU : ℝ) := by
+  unfold SigGolfCandidate.Budget.zOf
+  apply ENNReal.ofReal_le_ofReal
+  convert SigGolfCandidate.Budget.rpow_two_inv_le 131072 (by decide) using 1 <;>
+    norm_num [BaseAudit.zU]
+
+theorem encoding_step_real (lay : Layer) :
+    (BaseAudit.zU : ℝ)*((1-encodingRate lay)*encodingEnvelopeReal lay+encodingRate lay) ≤
+      encodingEnvelopeReal lay := by
+  fin_cases lay <;> norm_num [encodingRate,EncodingCounting.acceptedCount,encodingEnvelopeReal,
+    BaseAudit.zU,BaseAudit.b1,BaseAudit.b2,BaseAudit.b3,BaseAudit.b4]
+
+theorem encoding_moment_step (lay : Layer) :
+    SigGolfCandidate.Budget.zOf 131072 *
+      (failMass (Sampling.encodingDecode lay)*encodingEnvelope lay+
+        (1-failMass (Sampling.encodingDecode lay))) ≤ encodingEnvelope lay := by
+  have hp0 : 0 ≤ encodingRate lay := by linarith [(encodingRate_bounds lay).1]
+  have hp1 : 0 ≤ 1-encodingRate lay := by linarith [(encodingRate_bounds lay).2]
+  have hb0 : 0 ≤ encodingEnvelopeReal lay := by linarith [encodingEnvelopeReal_ge_one lay]
+  have hz0 : 0 ≤ (BaseAudit.zU : ℝ) := by norm_num [BaseAudit.zU]
+  have hs : 1-(1-encodingRate lay)=encodingRate lay := by ring
+  rw [encoding_failMass,← ENNReal.ofReal_one,← ENNReal.ofReal_sub 1 hp1,
+    hs,encodingEnvelope]
+  calc
+    _ ≤ ENNReal.ofReal (BaseAudit.zU : ℝ) *
+      (ENNReal.ofReal (1-encodingRate lay)*ENNReal.ofReal (encodingEnvelopeReal lay)+
+        ENNReal.ofReal (encodingRate lay)) := mul_le_mul' signing_z_le (le_refl _)
+    _ = ENNReal.ofReal ((BaseAudit.zU : ℝ)*
+        ((1-encodingRate lay)*encodingEnvelopeReal lay+encodingRate lay)) := by
+      rw [← ENNReal.ofReal_mul hp1,← ENNReal.ofReal_add (mul_nonneg hp1 hb0) hp0,
+        ← ENNReal.ofReal_mul hz0]
+    _ ≤ _ := ENNReal.ofReal_le_ofReal (encoding_step_real lay)
+
+theorem V_counterSearch_fresh (secret : BitVec 256) (lay : Layer)
+    (tree leaf : Nat) (message : Digest) (fuel counter : Nat)
+    (hlimit : counter+fuel ≤ 2^32) (cache : Sampling.RCache)
+    (hfresh : ∀ c,counter ≤ c → c < 2^32 → cache (Sampling.encodingTrial lay tree leaf message c)=none) :
+    Sampling.V secret (SigGolfCandidate.Budget.zOf 131072)
+      (counterSearch lay tree leaf message counter fuel) cache ≤ encodingEnvelope lay :=
+  Sampling.V_counterSearch secret _ _ (encodingEnvelope_ge_one lay)
+    lay tree leaf message (encoding_moment_step lay) fuel counter hlimit cache hfresh
+end SigGolfCandidate.T3.Budgets
+
+namespace SigGolfCandidate.T3.Budgets
+open OracleComp OracleSpec ENNReal
+open SphincsSecurity.Completeness (failMass)
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+noncomputable def digestEnvelope : ENNReal := ENNReal.ofReal (BaseAudit.b0 : ℝ)
+
+theorem digestEnvelope_ge_one : 1 ≤ digestEnvelope := by
+  rw [digestEnvelope,← ENNReal.ofReal_one]
+  apply ENNReal.ofReal_le_ofReal
+  norm_num [BaseAudit.b0]
+
+theorem digest_failMass_of_acceptance
+    (haccept : Pr[fun answer => (Sampling.digestDecode answer).isSome |
+      ($ᵗ HashOutput : ProbComp HashOutput)]=ENNReal.ofReal (DigestCounting.p0 : ℝ)) :
+    failMass Sampling.digestDecode=ENNReal.ofReal (1-(DigestCounting.p0 : ℝ)) := by
+  rw [failMass_eq_one_sub_accept,haccept,
+    ENNReal.ofReal_sub 1 (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0])]
+  simp
+
+theorem digest_moment_step_of_acceptance
+    (haccept : Pr[fun answer => (Sampling.digestDecode answer).isSome |
+      ($ᵗ HashOutput : ProbComp HashOutput)]=ENNReal.ofReal (DigestCounting.p0 : ℝ)) :
+    SigGolfCandidate.Budget.zOf 131072 *
+      (failMass Sampling.digestDecode*digestEnvelope+(1-failMass Sampling.digestDecode)) ≤ digestEnvelope := by
+  have hp0 : 0 ≤ (DigestCounting.p0 : ℝ) := by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]
+  have hp1 : 0 ≤ 1-(DigestCounting.p0 : ℝ) := by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]
+  have hb0 : 0 ≤ (BaseAudit.b0 : ℝ) := by norm_num [BaseAudit.b0]
+  have hz0 : 0 ≤ (BaseAudit.zU : ℝ) := by norm_num [BaseAudit.zU]
+  have hs : 1-(1-(DigestCounting.p0 : ℝ))=(DigestCounting.p0 : ℝ) := by ring
+  rw [digest_failMass_of_acceptance haccept,← ENNReal.ofReal_one,
+    ← ENNReal.ofReal_sub 1 hp1,hs,digestEnvelope]
+  calc
+    _ ≤ ENNReal.ofReal (BaseAudit.zU : ℝ) *
+      (ENNReal.ofReal (1-(DigestCounting.p0 : ℝ))*ENNReal.ofReal (BaseAudit.b0 : ℝ)+
+        ENNReal.ofReal (DigestCounting.p0 : ℝ)) := mul_le_mul' signing_z_le (le_refl _)
+    _ = ENNReal.ofReal ((BaseAudit.zU : ℝ)*
+        ((1-(DigestCounting.p0 : ℝ))*(BaseAudit.b0 : ℝ)+(DigestCounting.p0 : ℝ))) := by
+      rw [← ENNReal.ofReal_mul hp1,← ENNReal.ofReal_add (mul_nonneg hp1 hb0) hp0,
+        ← ENNReal.ofReal_mul hz0]
+    _ ≤ _ := by apply ENNReal.ofReal_le_ofReal;norm_num [BaseAudit.zU,DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0,BaseAudit.b0]
+
+theorem V_digestSearch_fresh_of_acceptance (secret : BitVec 256)
+    (rho : Digest) (message : Message) (fuel counter : Nat)
+    (hlimit : counter+fuel ≤ 2^32) (cache : Sampling.RCache)
+    (hfresh : ∀ c,counter ≤ c → c < 2^32 → cache (Sampling.digestTrial rho message c)=none)
+    (haccept : Pr[fun answer => (Sampling.digestDecode answer).isSome |
+      ($ᵗ HashOutput : ProbComp HashOutput)]=ENNReal.ofReal (DigestCounting.p0 : ℝ)) :
+    Sampling.V secret (SigGolfCandidate.Budget.zOf 131072)
+      (digestSearch rho message counter fuel) cache ≤ digestEnvelope :=
+  Sampling.V_digestSearch secret _ _ digestEnvelope_ge_one
+    rho message (digest_moment_step_of_acceptance haccept) fuel counter hlimit cache hfresh
+
+end SigGolfCandidate.T3.Budgets
+
+namespace SigGolfCandidate.T3.Budgets
+open OracleComp OracleSpec ENNReal
+open SphincsSecurity.Completeness (failMass)
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+noncomputable local instance : SampleableType (QuerySpace.SearchKey → HashOutput) := Presampling.tableSampler
+
+theorem digest_failure_power :
+    failMass Sampling.digestDecode^attemptLimit ≤ 1/(2 : ENNReal)^450 :=
+  digest_failure_power_of_acceptance (DigestCounting.p0 : ℝ)
+    (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]) (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]) DigestCounting.digest_probability_eq_p0
+
+theorem tableGood_failure_small :
+    Pr[fun outputs => ¬tableGood outputs |
+      ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤ 1/(2 : ENNReal)^65 :=
+  tableGood_failure_small_of_acceptance (DigestCounting.p0 : ℝ)
+    (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]) (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]) DigestCounting.digest_probability_eq_p0
+
+theorem tableGoodFor_failure_small (message : Message) :
+    Pr[fun outputs => ¬tableGoodFor message outputs |
+      ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤ 1/(2 : ENNReal)^321 :=
+  tableGoodFor_failure_small_of_acceptance message (DigestCounting.p0 : ℝ)
+    (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]) (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]) DigestCounting.digest_probability_eq_p0
+
+theorem tableGoodFor_failure_128 (message : Message) :
+    Pr[fun outputs => ¬tableGoodFor message outputs |
+      ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤ 1/(2 : ENNReal)^128 := by
+  refine (tableGoodFor_failure_small message).trans ?_
+  simp only [one_div,ENNReal.inv_le_inv]
+  exact pow_le_pow_right₀ (by norm_num) (by decide)
+
+theorem digest_moment_step :
+    SigGolfCandidate.Budget.zOf 131072 *
+      (failMass Sampling.digestDecode*digestEnvelope+(1-failMass Sampling.digestDecode)) ≤ digestEnvelope :=
+  digest_moment_step_of_acceptance DigestCounting.digest_probability_eq_p0
+
+theorem V_digestSearch_fresh (secret : BitVec 256)
+    (rho : Digest) (message : Message) (fuel counter : Nat)
+    (hlimit : counter+fuel ≤ 2^32) (cache : Sampling.RCache)
+    (hfresh : ∀ c,counter ≤ c → c < 2^32 → cache (Sampling.digestTrial rho message c)=none) :
+    Sampling.V secret (SigGolfCandidate.Budget.zOf 131072)
+      (digestSearch rho message counter fuel) cache ≤ digestEnvelope :=
+  V_digestSearch_fresh_of_acceptance secret rho message fuel counter hlimit cache hfresh
+    DigestCounting.digest_probability_eq_p0
+end SigGolfCandidate.T3.Budgets
+
+namespace SigGolfCandidate.T3.Budgets
+open OracleComp OracleSpec ENNReal Sampling Cost Correctness
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+noncomputable abbrev signingZ : ENNReal := SigGolfCandidate.Budget.zOf 131072
+
+def EncodingFreshBelow (n : Nat) (cache : RCache) : Prop :=
+  ∀ lay : Layer,lay.val<n → ∀ tree leaf message c,c<2^32 →
+    cache (encodingTrial lay tree leaf message c)=none
+
+def AllSearchesFresh (cache : RCache) : Prop :=
+  (∀ rho message c,c<2^32 → cache (digestTrial rho message c)=none) ∧ EncodingFreshBelow 4 cache
+
+/-- Precisely the source-stage preservation obligations used by the moment
+composition. Every premise concerns actual reachable random-oracle caches. -/
+structure SourceFreshness (secret : BitVec 256) : Prop where
+  counter : ∀ lay tree leaf message cache,EncodingFreshBelow (lay.val+1) cache →
+    ∀ result ∈ support (roRun secret (counterSearch lay tree leaf message 0 counterLimit) cache),
+      EncodingFreshBelow lay.val result.2
+  tree : ∀ lay tree leaf digits cache,EncodingFreshBelow lay.val cache →
+    ∀ result ∈ support (roRun secret (buildTree lay tree leaf digits) cache),
+      EncodingFreshBelow lay.val result.2
+  mac : ∀ region cache,AllSearchesFresh cache →
+    ∀ result ∈ support (roRun secret (privateMac region) cache),AllSearchesFresh result.2
+  nonce : ∀ message cache,AllSearchesFresh cache →
+    ∀ result ∈ support (roRun secret (privateNonce message) cache),AllSearchesFresh result.2
+  digest : ∀ rho message cache,AllSearchesFresh cache →
+    ∀ result ∈ support (roRun secret (digestSearch rho message 0 attemptLimit) cache),
+      EncodingFreshBelow 4 result.2
+  forest : ∀ index chosen cache,EncodingFreshBelow 4 cache →
+    ∀ result ∈ support (roRun secret (signForest index chosen) cache),EncodingFreshBelow 4 result.2
+  forestPk : ∀ index roots cache,EncodingFreshBelow 4 cache →
+    ∀ result ∈ support (roRun secret (forestPk index roots) cache),EncodingFreshBelow 4 result.2
+
+@[simp] theorem allSearchesFresh_empty : AllSearchesFresh ∅ := by
+  constructor
+  · intro rho message c hc;rfl
+  · intro lay hl tree leaf message c hc;rfl
+
+theorem post_of_roRun {α : Type} {P : Cost.Query → Prop} {Post : α → Prop} {k : Nat}
+    {program : M α} (h : Cost.Bound P Post k program) (secret : BitVec 256) (cache : RCache)
+    (result : α × RCache) (hr : result ∈ support (roRun secret program cache)) : Post result.1 := by
+  have hs : result.1 ∈ support (realize secret program) := by
+    apply support_simulateQ_run'_subset SphincsSecurity.romImpl _ cache
+    rw [StateT.run'_eq,support_map]
+    exact ⟨result,hr,rfl⟩
+  have hs' := realize_support_subset secret program hs
+  rw [← fst_countWith weight program,support_map] at hs'
+  obtain ⟨counted,hc,he⟩ := hs'
+  rw [← he]
+  exact (h.count_support counted hc).1
+
+theorem V_bind_bounded {α β : Type} (secret : BitVec 256) (z : ENNReal)
+    (first : M α) (next : α → M β) (cache : RCache) (a b : ENNReal)
+    (ha : V secret z first cache ≤ a)
+    (hb : ∀ result ∈ support (roRun secret first cache),V secret z (next result.1) result.2 ≤ b) :
+    V secret z (first >>= next) cache ≤ a*b :=
+  (V_bind_le secret z first next cache b hb).trans (mul_le_mul' ha le_rfl)
+
+noncomputable def layerMomentBound : Nat → ENNReal
+  | 0 => 1
+  | n+1 => encodingEnvelope (Fin.ofNat 4 n)*
+      (if n=0 then signingZ^928 else signingZ^(treeCost (Fin.ofNat 4 n))*layerMomentBound n)
+
+theorem layerMomentBound_ge_one : ∀ n,1 ≤ layerMomentBound n := by
+  intro n;induction n with
+  | zero => exact le_rfl
+  | succ n ih =>
+      simp only [layerMomentBound]
+      apply one_le_mul (encodingEnvelope_ge_one _)
+      split
+      · exact one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _)
+      · exact one_le_mul (one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _)) ih
+
+theorem V_signLayers_of_freshness (secret : BitVec 256) (hf : SourceFreshness secret)
+    (cache : Cache) (index : Nat) : ∀ n,n≤4 → ∀ message rcache,EncodingFreshBelow n rcache →
+    V secret signingZ (signLayers cache index n message) rcache ≤ layerMomentBound n := by
+  intro n
+  induction n with
+  | zero => intro _ message rcache _;simp only [signLayers,V_pure,layerMomentBound,le_refl]
+  | succ n ih =>
+      intro hn message rcache hc
+      have hnv : (Fin.ofNat 4 n).val=n := Nat.mod_eq_of_lt (by omega)
+      have heFresh : EncodingFreshBelow ((Fin.ofNat 4 n).val+1) rcache := by rwa [hnv]
+      have hs := V_counterSearch_fresh secret (Fin.ofNat 4 n)
+        (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 message
+        counterLimit 0 (by decide) rcache
+        (fun c _ hlim => hc _ (by rw [hnv];omega) _ _ _ _ hlim)
+      simp only [signLayers,layerMomentBound]
+      refine V_bind_bounded secret signingZ _ _ rcache _ _ hs ?_
+      intro result hr
+      have hpost := post_of_roRun (bound_counterSearch (Fin.ofNat 4 n)
+        (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 message counterLimit 0)
+        secret rcache result hr
+      have hnext := hf.counter (Fin.ofNat 4 n) _ _ message rcache heFresh result hr
+      cases hx : result.1 with
+      | none =>
+          simp only [hx,V_pure]
+          split
+          · exact one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _)
+          · exact one_le_mul (one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _)) (layerMomentBound_ge_one n)
+      | some pair =>
+          obtain ⟨counter,digits⟩ := pair
+          have hd := hpost counter digits hx
+          simp only [hx]
+          by_cases hn0 : n=0
+          · subst n
+            simp only [ite_true]
+            refine V_bind_bounded secret signingZ _ _ result.2 _ 1
+              (V_of_bound (bound_signTop cache _ digits hd.1 hd.2.1) secret signingZ
+                (SigGolfCandidate.Budget.one_le_zOf _) result.2) ?_ |>.trans_eq (mul_one _)
+            intro out _;rw [V_pure]
+          · simp only [hn0,ite_false]
+            refine V_bind_bounded secret signingZ _ _ result.2 _ _
+              (V_of_bound (bound_buildTree (Fin.ofNat 4 n) _ _ digits hd.2.2) secret signingZ
+                (SigGolfCandidate.Budget.one_le_zOf _) result.2) ?_
+            intro treeResult htree
+            have ht := hf.tree (Fin.ofNat 4 n) _ _ digits result.2 hnext treeResult htree
+            rw [hnv] at ht
+            refine V_bind_bounded secret signingZ _ _ treeResult.2 _ 1
+              (ih (by omega) _ _ ht) ?_ |>.trans_eq (mul_one _)
+            intro previous _
+            cases previous.1 <;> rw [V_pure]
+
+end SigGolfCandidate.T3.Budgets
+
+namespace SigGolfCandidate.T3.Correctness
+open OracleComp OracleSpec
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+/-- One digest family for each actual source nonce, plus every encoding family. -/
+def SearchesSucceedSelected (answers : Answers) : Prop :=
+  (∀ message : Message, ∃ found,
+    evalWithAnswerFn answers (digestSearch
+      (evalWithAnswerFn answers (privateNonce message)) message 0 attemptLimit)=some found) ∧
+  EncodingSearchesSucceed answers
+
+theorem signPayload_succeedsSelected (answers : Answers) (cache : Cache) (message : Message)
+    (hgood : SearchesSucceedSelected answers) :
+    ∃ sig,evalWithAnswerFn answers (signPayload cache message)=some sig := by
+  obtain ⟨⟨counter,output⟩,hd⟩ := hgood.1 message
+  rw [signPayload_eq]
+  simp only [evalWithAnswerFn_bind,hd,eval_signForest]
+  obtain ⟨pieces,hp⟩ := signLayers_succeeds answers cache (output.toNat%2^31)
+    (Nat.mod_lt _ (by positivity)) hgood.2 4
+    (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
+      (forestRoots answers (output.toNat%2^31) 7)))
+  simp only [hp,evalWithAnswerFn_pure]
+  exact ⟨_,rfl⟩
+
+theorem signing_complete_of_selected_searches (answers : Answers) (keys : Digest × Cache)
+    (hkeys : KeygenCorrect answers keys) (hgood : SearchesSucceedSelected answers) :
+    SigningComplete answers keys := by
+  intro message
+  obtain ⟨sig,hs⟩ := signPayload_succeedsSelected answers keys.2 message hgood
+  have hs' : evalWithAnswerFn answers (sign keys.2 message)=some sig := by
+    rw [sign_valid_cache answers keys message hkeys.2.2]
+    exact hs
+  obtain ⟨w,he⟩ := signPayload_expands answers keys.2 message sig hkeys.2.1 hs
+  rw [← hkeys.1] at he
+  exact ⟨sig,w,hs',he,expand_implies_verify answers message keys.1 sig w he⟩
+end SigGolfCandidate.T3.Correctness
+
+namespace SigGolfCandidate.T3.Budgets
+open OracleComp OracleSpec ENNReal Correctness
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+noncomputable local instance : SampleableType (QuerySpace.SearchKey → HashOutput) := Presampling.tableSampler
+
+/-- For a fixed table of actual private nonce answers, only one digest search
+per message is needed. The search table is independently uniform. -/
+def tableGoodForNonces (nonces : Message → HashOutput) (outputs : QuerySpace.SearchKey → HashOutput) : Prop :=
+  (∀ message : Message, ∃ found,
+    evalWithAnswerFn (Presampling.tableAnswers outputs zeroAnswers)
+      (digestSearch ((nonces message).extractLsb' 0 128) message 0 attemptLimit)=some found) ∧
+  EncodingSearchesSucceed (Presampling.tableAnswers outputs zeroAnswers)
+
+def NonceAgreement (nonces : Message → HashOutput) (answers : Answers) : Prop :=
+  ∀ message,evalWithAnswerFn answers (privateNonce message)=(nonces message).extractLsb' 0 128
+
+theorem tableGoodForNonces_searchesSucceedSelected (nonces : Message → HashOutput)
+    (outputs : QuerySpace.SearchKey → HashOutput) (answers : Answers)
+    (hgood : tableGoodForNonces nonces outputs) (hagree : SearchAgreement outputs answers)
+    (hnonce : NonceAgreement nonces answers) : SearchesSucceedSelected answers := by
+  constructor
+  · intro message
+    rw [hnonce]
+    apply Option.ne_none_iff_exists'.mp
+    intro hnone
+    have hnone' := (Presampling.digestSearch_none_table outputs zeroAnswers
+      ((nonces message).extractLsb' 0 128,message)).mpr
+      ((digestSearch_none_agreement outputs answers hagree
+        ((nonces message).extractLsb' 0 128,message)).mp hnone)
+    obtain ⟨found,hfound⟩ := hgood.1 message
+    rw [hfound] at hnone'
+    cases hnone'
+  · intro family
+    apply Option.ne_none_iff_exists'.mp
+    intro hnone
+    have hnone' := (Presampling.counterSearch_none_table outputs zeroAnswers family).mpr
+      ((counterSearch_none_agreement outputs answers hagree family).mp hnone)
+    obtain ⟨found,hfound⟩ := hgood.2 family
+    rw [hfound] at hnone'
+    cases hnone'
+
+theorem tableGoodForNonces_signingComplete (nonces : Message → HashOutput)
+    (outputs : QuerySpace.SearchKey → HashOutput) (answers : Answers)
+    (hgood : tableGoodForNonces nonces outputs) (hagree : SearchAgreement outputs answers)
+    (hnonce : NonceAgreement nonces answers) : SigningComplete answers (evalWithAnswerFn answers keygen) :=
+  signing_complete_of_selected_searches answers _ (keygen_correct answers)
+    (tableGoodForNonces_searchesSucceedSelected nonces outputs answers hgood hagree hnonce)
+
+theorem not_tableGoodForNonces_iff (nonces : Message → HashOutput)
+    (outputs : QuerySpace.SearchKey → HashOutput) :
+    ¬tableGoodForNonces nonces outputs ↔
+    (∃ message : Message,DigestFailed ((nonces message).extractLsb' 0 128,message)
+      (Presampling.tableAnswers outputs zeroAnswers)) ∨
+    (∃ family,EncodingFailed family (Presampling.tableAnswers outputs zeroAnswers)) := by
+  classical
+  simp only [tableGoodForNonces,EncodingSearchesSucceed,
+    ← Option.ne_none_iff_exists',not_and_or,not_forall,not_not,DigestFailed,EncodingFailed]
+
+theorem tableGoodForNonces_failure_le (nonces : Message → HashOutput) :
+    Pr[fun outputs => ¬tableGoodForNonces nonces outputs |
+      ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤
+      (2 : ENNReal)^256*(1/2^450)+(2 : ENNReal)^173*(1/2^1024) := by
+  let law := ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)
+  have hd' := finite_family_failure_le law
+    (fun (message : Message) outputs => DigestFailed ((nonces message).extractLsb' 0 128,message)
+      (Presampling.tableAnswers outputs zeroAnswers)) (1/(2 : ENNReal)^450)
+    (fun message => (Presampling.digestSearch_table_failure zeroAnswers
+      ((nonces message).extractLsb' 0 128,message)).le.trans digest_failure_power)
+  have he' := finite_family_failure_le law
+    (fun family outputs => EncodingFailed family (Presampling.tableAnswers outputs zeroAnswers))
+      (1/(2 : ENNReal)^1024)
+    (fun family => (Presampling.counterSearch_table_failure zeroAnswers family).le.trans (encoding_failure_power family.1))
+  rw [Fintype.card_bitVec,Nat.cast_pow,Nat.cast_ofNat] at hd'
+  rw [encodingFamily_card,Nat.cast_pow,Nat.cast_ofNat] at he'
+  simp only [not_tableGoodForNonces_iff]
+  exact (probEvent_or_le law _ _).trans (add_le_add hd' he')
+
+theorem tableGoodForNonces_failure_small (nonces : Message → HashOutput) :
+    Pr[fun outputs => ¬tableGoodForNonces nonces outputs |
+      ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤ 1/(2 : ENNReal)^193 := by
+  refine (tableGoodForNonces_failure_le nonces).trans ?_
+  have hreal : (2 : ℝ)^256*(1/2^450)+2^173*(1/2^1024) ≤ 1/2^193 := by
+    set_option exponentiation.threshold 2048 in norm_num
+  have hcast := ENNReal.ofReal_le_ofReal hreal
+  rw [ENNReal.ofReal_add (show 0 ≤ (2 : ℝ)^256*(1/2^450) by positivity)
+    (show 0 ≤ (2 : ℝ)^173*(1/2^1024) by positivity),
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^256 by positivity),
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^173 by positivity)] at hcast
+  simpa only [ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),
+    ENNReal.ofReal_ofNat,ofReal_inv_two_pow] using hcast
+
+end SigGolfCandidate.T3.Budgets
+
+namespace SigGolfCandidate.T3.Budgets
+open OracleComp OracleSpec ENNReal Sampling Cost Correctness
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+theorem bound_signForest (index : Nat) (chosen : List Selection) :
+    CBound (fun state : List Digest × List Digest × List Digest => state.2.2.length=7)
+      35833 (signForest index chosen) := by
+  unfold signForest
+  refine (Bound.foldlM_range 7 _
+    (fun coord (state : List Digest × List Digest × List Digest) => state.2.2.length=coord)
+    (fun _ => 5119) ([],[],[]) rfl (fun coord _ state hstate => ?_)).mono_k (by decide)
+  refine (bound_buildFts index coord).bind' (l := 0) (fun result _ => ?_) (by decide)
+  exact .pure _ 0 (by simp [hstate])
+
+noncomputable def postDigestMoment : ENNReal := signingZ^35833*(signingZ^2*layerMomentBound 4)
+noncomputable def payloadMoment : ENNReal := signingZ^2*(digestEnvelope*postDigestMoment)
+noncomputable def signingMoment : ENNReal := signingZ^513*payloadMoment
+
+theorem postDigestMoment_ge_one : 1 ≤ postDigestMoment :=
+  one_le_mul (one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _))
+    (one_le_mul (one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _)) (layerMomentBound_ge_one 4))
+
+theorem payloadMoment_ge_one : 1 ≤ payloadMoment :=
+  one_le_mul (one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _))
+    (one_le_mul digestEnvelope_ge_one postDigestMoment_ge_one)
+
+theorem V_signPayload_of_freshness (secret : BitVec 256) (hf : SourceFreshness secret)
+    (cache : Cache) (message : Message) (rcache : RCache) (hc : AllSearchesFresh rcache) :
+    V secret signingZ (signPayload cache message) rcache ≤ payloadMoment := by
+  rw [signPayload_eq]
+  refine V_bind_bounded secret signingZ _ _ rcache _ _
+    (V_of_bound (bound_privateNonce message) secret signingZ
+      (SigGolfCandidate.Budget.one_le_zOf _) rcache) ?_
+  intro nonce hn
+  have hnFresh := hf.nonce message rcache hc nonce hn
+  refine V_bind_bounded secret signingZ _ _ nonce.2 _ _
+    (V_digestSearch_fresh secret nonce.1 message attemptLimit 0 (by decide) nonce.2
+      (fun c _ hlim => hnFresh.1 _ _ _ hlim)) ?_
+  intro found hd
+  have hdFresh := hf.digest nonce.1 message nonce.2 hnFresh found hd
+  cases hx : found.1 with
+  | none => simp only [V_pure];exact postDigestMoment_ge_one
+  | some pair =>
+      obtain ⟨counter,output⟩ := pair
+      refine V_bind_bounded secret signingZ _ _ found.2 _ _
+        (V_of_bound (bound_signForest (output.toNat%2^31) (selections output)) secret signingZ
+          (SigGolfCandidate.Budget.one_le_zOf _) found.2) ?_
+      intro forest hforest
+      have hlen := post_of_roRun (bound_signForest (output.toNat%2^31) (selections output))
+        secret found.2 forest hforest
+      have hforestFresh := hf.forest _ _ found.2 hdFresh forest hforest
+      refine V_bind_bounded secret signingZ _ _ forest.2 _ _
+        (V_of_bound (bound_forestPk (output.toNat%2^31) forest.1.2.2 hlen) secret signingZ
+          (SigGolfCandidate.Budget.one_le_zOf _) forest.2) ?_
+      intro root hroot
+      have hrootFresh := hf.forestPk _ _ forest.2 hforestFresh root hroot
+      refine V_bind_bounded secret signingZ _ _ root.2 _ 1
+        (V_signLayers_of_freshness secret hf cache (output.toNat%2^31) 4 (by decide) root.1 root.2 hrootFresh)
+        ?_ |>.trans_eq (mul_one _)
+      intro pieces _
+      cases pieces.1 <;> rw [V_pure]
+
+theorem V_sign_of_freshness (secret : BitVec 256) (hf : SourceFreshness secret)
+    (cache : Cache) (message : Message) (rcache : RCache) (hc : AllSearchesFresh rcache) :
+    V secret signingZ (sign cache message) rcache ≤ signingMoment := by
+  unfold sign
+  refine V_bind_bounded secret signingZ _ _ rcache _ _
+    (V_of_bound (bound_privateMac cache.region) secret signingZ
+      (SigGolfCandidate.Budget.one_le_zOf _) rcache) ?_
+  intro result hr
+  have hmac := hf.mac cache.region rcache hc result hr
+  split
+  · rw [V_pure];exact payloadMoment_ge_one
+  · exact V_signPayload_of_freshness secret hf cache message result.2 hmac
+
+theorem layerMomentBound_four :
+    layerMomentBound 4 = signingZ^86685 * encodingEnvelope 0 * encodingEnvelope 1 *
+      encodingEnvelope 2 * encodingEnvelope 3 := by
+  change encodingEnvelope 3*(signingZ^21439*(encodingEnvelope 2*
+    (signingZ^21439*(encodingEnvelope 1*(signingZ^42879*(encodingEnvelope 0*signingZ^928)))))) = _
+  ring
+
+theorem signingMoment_eq : signingMoment=signingZ^123035 *
+    (digestEnvelope*encodingEnvelope 0*encodingEnvelope 1*encodingEnvelope 2*encodingEnvelope 3) := by
+  rw [signingMoment,payloadMoment,postDigestMoment,layerMomentBound_four]
+  ring
+
+theorem signingMoment_le_two : signingMoment ≤ 2 := by
+  rw [signingMoment_eq,SigGolfCandidate.Budget.zOf_pow]
+  have hreal := BaseAudit.source_signing_envelope
+  have hcast := ENNReal.ofReal_le_ofReal hreal
+  rw [ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^((123035 : ℝ)/131072) by positivity)] at hcast
+  norm_num only [ENNReal.ofReal_ofNat] at hcast
+  have he : digestEnvelope*encodingEnvelope 0*encodingEnvelope 1*encodingEnvelope 2*encodingEnvelope 3 =
+      ENNReal.ofReal ((507215638051 / 500000000000) * (251742419327 / 250000000000) *
+        (503409673483 / 500000000000) * (503409673483 / 500000000000) * (503409673483 / 500000000000) : ℝ) := by
+    change ENNReal.ofReal (BaseAudit.b0 : ℝ)*ENNReal.ofReal (BaseAudit.b1 : ℝ)*
+      ENNReal.ofReal (BaseAudit.b2 : ℝ)*ENNReal.ofReal (BaseAudit.b3 : ℝ)*ENNReal.ofReal (BaseAudit.b4 : ℝ) = _
+    rw [← ENNReal.ofReal_mul (show 0 ≤ (BaseAudit.b0 : ℝ) by norm_num [BaseAudit.b0]),
+      ← ENNReal.ofReal_mul (show 0 ≤ (BaseAudit.b0 : ℝ)*(BaseAudit.b1 : ℝ) by norm_num [BaseAudit.b0,BaseAudit.b1]),
+      ← ENNReal.ofReal_mul (show 0 ≤ (BaseAudit.b0 : ℝ)*(BaseAudit.b1 : ℝ)*(BaseAudit.b2 : ℝ) by norm_num [BaseAudit.b0,BaseAudit.b1,BaseAudit.b2]),
+      ← ENNReal.ofReal_mul (show 0 ≤ (BaseAudit.b0 : ℝ)*(BaseAudit.b1 : ℝ)*(BaseAudit.b2 : ℝ)*(BaseAudit.b3 : ℝ) by norm_num [BaseAudit.b0,BaseAudit.b1,BaseAudit.b2,BaseAudit.b3])]
+    norm_num [BaseAudit.b0,BaseAudit.b1,BaseAudit.b2,BaseAudit.b3,BaseAudit.b4]
+  rw [he]
+  convert hcast using 1 <;> norm_num
+
+theorem V_sign_le_two_of_freshness (secret : BitVec 256) (hf : SourceFreshness secret)
+    (cache : Cache) (message : Message) (rcache : RCache) (hc : AllSearchesFresh rcache) :
+    V secret signingZ (sign cache message) rcache ≤ 2 :=
+  (V_sign_of_freshness secret hf cache message rcache hc).trans signingMoment_le_two
+end SigGolfCandidate.T3.Budgets
+
+namespace SigGolfCandidate.T3.Budgets
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal Sampling Cost
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+theorem signingZ_pow (cost : Nat) :
+    signingZ^cost=(2 : ENNReal)^((cost : ℝ)/131072) := by
+  rw [SigGolfCandidate.Budget.zOf_pow,← ENNReal.ofReal_rpow_of_pos (by norm_num),ENNReal.ofReal_ofNat]
+  norm_num
+
+theorem realized_sign_exponential_budget_of_freshness (secret : BitVec 256)
+    (hf : SourceFreshness secret) (cache : Cache) (message : Message)
+    (rcache : RCache) (hc : AllSearchesFresh rcache) :
+    expectedValue ((simulateQ SphincsSecurity.romImpl
+      (World.countBlocks (realize secret (sign cache message)))).run' rcache)
+      (fun result => (2 : ENNReal)^((result.2 : ℝ)/131072)) ≤ 2 := by
+  have h := V_sign_le_two_of_freshness secret hf cache message rcache hc
+  rw [V_realized] at h
+  simp only [signingZ_pow] at h
+  rw [StateT.run'_eq,expectedValue_map]
+  exact h
+end SigGolfCandidate.T3.Budgets
+
+end
+
+/-! Authored module: Freshness. -/
+section
+namespace SigGolfCandidate.T3.Freshness
+open OracleComp OracleSpec Sampling QuerySpace Correctness
+open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
+open SphincsSecurity.Seeded (cacheAfter romImpl_support_cacheAfter)
+set_option maxRecDepth 10000
+set_option maxHeartbeats 1000000
+set_option backward.isDefEq.respectTransparency false
+set_option linter.unusedSimpArgs false
+
+def avoidsQuery (secret : BitVec 256) (target : HashInput) : Spec.Domain → Prop
+ | .inl (.inl _) => True
+ | .inl (.inr input) => input ≠ target
+ | .inr coordinate => privateInput secret coordinate ≠ target
+
+abbrev Avoids {α : Type} (secret : BitVec 256) (target : HashInput) (program : M α) : Prop :=
+ AllQueriesSatisfy program (avoidsQuery secret target)
+
+theorem avoids_pure {α : Type} (secret : BitVec 256) (target : HashInput) (value : α) :
+ Avoids secret target (pure value) := allQueriesSatisfy_pure _ _
+theorem avoids_bind {α β : Type} {secret : BitVec 256} {target : HashInput}
+ {program : M α} {next : α → M β} (hp : Avoids secret target program)
+ (hn : ∀ a, Avoids secret target (next a)) : Avoids secret target (program >>= next) :=
+ allQueriesSatisfy_bind hp hn
+
+theorem avoids_map {α β : Type} (f : α → β) {secret : BitVec 256} {target : HashInput}
+ {program : M α} (hp : Avoids secret target program) : Avoids secret target (f <$> program) := by
+ rw [map_eq_bind_pure_comp]
+ exact avoids_bind hp fun _ => avoids_pure _ _ _
+
+theorem avoids_mapM {α β : Type} (secret : BitVec 256) (target : HashInput)
+ (items : List α) (f : α → M β) (h : ∀ a, Avoids secret target (f a)) :
+ Avoids secret target (items.mapM f) := by
+ induction items with
+ | nil => exact avoids_pure _ _ _
+ | cons a items ih =>
+   rw [List.mapM_cons]
+   exact avoids_bind (h a) fun _ => avoids_bind ih fun _ => avoids_pure _ _ _
+
+theorem avoids_foldlM {α β : Type} (secret : BitVec 256) (target : HashInput)
+ (items : List β) (f : α → β → M α) (h : ∀ a b, Avoids secret target (f a b)) (initial : α) :
+ Avoids secret target (items.foldlM f initial) := by
+ induction items generalizing initial with
+ | nil => exact avoids_pure _ _ _
+ | cons a items ih =>
+   rw [List.foldlM_cons]
+   exact avoids_bind (h initial a) ih
+
+theorem cache_step_ne (input target : HashInput) (hne : input ≠ target) (cache : RCache)
+ (result : HashOutput × RCache) (hr : result ∈ support ((SphincsSecurity.romImpl (.inr input)).run cache)) :
+ result.2 target = cache target := by
+ rw [romImpl_support_cacheAfter (.inr input) cache result hr]
+ dsimp only [cacheAfter]
+ cases hc : cache input <;> simp only [hc]
+ exact QueryCache.cacheQuery_of_ne _ _ (Ne.symm hne)
+
+theorem query_preserves (secret : BitVec 256) (target : HashInput) (q : Spec.Domain)
+ (hq : avoidsQuery secret target q) (cache : RCache) (result : Spec.Range q × RCache)
+ (hr : result ∈ support (roRun secret (liftM (Spec.query q)) cache)) : result.2 target=cache target := by
+ rcases q with (n|input)|coordinate
+ · change result ∈ support ((SphincsSecurity.romImpl (.inl n)).run cache) at hr
+   rw [romImpl_support_cacheAfter (.inl n) cache result hr]
+   rfl
+ · have hr : result ∈ support ((SphincsSecurity.romImpl (.inr input)).run cache) := by
+     simpa only [roRun,realize,simulateQ_spec_query,realHandler] using hr
+   exact cache_step_ne input target hq cache result hr
+ · have hr : result ∈ support ((SphincsSecurity.romImpl (.inr (privateInput secret coordinate))).run cache) := by
+     simpa only [roRun,realize,simulateQ_spec_query,realHandler] using hr
+   exact cache_step_ne _ target hq cache result hr
+
+/-- Every possible source oracle execution preserves a cache entry it never queries. -/
+theorem preserves {α : Type} (secret : BitVec 256) (target : HashInput) (program : M α)
+ (hp : Avoids secret target program) (cache : RCache) (result : α × RCache)
+ (hr : result ∈ support (roRun secret program cache)) : result.2 target=cache target := by
+ induction program using OracleComp.inductionOn generalizing cache with
+ | pure value =>
+   rw [roRun_pure,support_pure,Set.mem_singleton_iff] at hr
+   subst result; rfl
+ | query_bind q next ih =>
+   change AllQueriesSatisfy _ (avoidsQuery secret target) at hp
+   rw [allQueriesSatisfy_query_bind_iff] at hp
+   rw [roRun_bind,mem_support_bind_iff] at hr
+   obtain ⟨step,hs,hr⟩ := hr
+   exact (ih step.1 (hp.2 step.1) step.2 hr).trans (query_preserves secret target q hp.1 cache step hs)
+
+/-- A tagged query is separated from all search inputs with a different tag. -/
+def HasTag (tag : Nat) (input : HashInput) : Prop :=
+ ∃ lay tree position index, queryHeader input = bytesLE 16 (header tag lay tree position index)
+
+theorem tagged_ne {tag tag' : Nat} {input input' : HashInput}
+ (h : HasTag tag input) (h' : HasTag tag' input') (hne : tag%256 ≠ tag'%256) : input ≠ input' := by
+ rcases h with ⟨l,t,p,i,h⟩
+ rcases h' with ⟨l',t',p',i',h'⟩
+ intro he
+ exact header_ne_of_tag hne (bytesLE_injective (h.symm.trans ((congrArg queryHeader he).trans h')))
+
+theorem hasTag_padded (front back : HashInput) (hfront : front.length=16)
+ (tag lay tree position index : Nat) :
+ HasTag tag (pad64 (front ++ bytesLE 16 (header tag lay tree position index) ++ back)) :=
+ ⟨lay,tree,position,index,queryHeader_padded _ _ hfront _⟩
+
+@[simp] theorem hasTag_encoding (lay : Layer) (tree leaf : Nat) (message : Digest) (counter : Nat) :
+ HasTag 4 (encodingTrial lay tree leaf message counter) := ⟨lay.val,tree,0,leaf,queryHeader_encoding ..⟩
+@[simp] theorem hasTag_digest (rho : Digest) (message : Message) (counter : Nat) :
+ HasTag 12 (digestTrial rho message counter) :=
+ ⟨0,0,0,(BitVec.ofNat 32 counter).toNat,queryHeader_digest ..⟩
+
+
+
+theorem tagged_ne_search {tag : Nat} {input target : HashInput}
+ (hi : HasTag tag input) (ht : HasTag 4 target ∨ HasTag 12 target)
+ (h4 : tag%256 ≠ 4) (h12 : tag%256 ≠ 12) : input ≠ target := by
+ rcases ht with ht | ht
+ · exact tagged_ne hi ht h4
+ · exact tagged_ne hi ht h12
+
+theorem avoids_shortHash_of_ne (secret : BitVec 256) (target input : HashInput)
+ (hne : pad64 input ≠ target) : Avoids secret target (shortHash input) := by
+ unfold shortHash
+ apply avoids_bind
+ · exact (allQueriesSatisfy_query_iff _ _).mpr hne
+ · intro _; exact avoids_pure _ _ _
+
+theorem avoids_privateHash_of_ne (secret : BitVec 256) (target : HashInput) (coordinate : Coordinate)
+ (hne : privateInput secret coordinate ≠ target) : Avoids secret target (privateHash coordinate) :=
+ (allQueriesSatisfy_query_iff _ _).mpr hne
+
+theorem hasTag_privatePair (secret : BitVec 256) (tag lay tree position index : Nat) :
+ HasTag tag (privateInput secret (.inl (header tag lay tree position index))) := by
+ exact hasTag_padded _ _ (bytesLE_length ..) tag lay tree position index
+
+theorem hasTag_privateMac (secret : BitVec 256) (region : Region) :
+ HasTag 14 (privateInput secret (.inr (.inr region))) := by
+ exact hasTag_padded _ _ (bytesLE_length ..) 14 0 0 0 0
+
+theorem hasTag_privateNonce (secret : BitVec 256) (message : Message) :
+ HasTag 7 (privateInput secret (.inr (.inl message))) := by
+ exact hasTag_padded _ _ (bytesLE_length ..) 7 0 0 0 0
+
+attribute [aesop safe apply] avoids_pure avoids_bind avoids_map avoids_mapM avoids_foldlM
+macro "avoids_search" : tactic => `(tactic| aesop (config := { maxRuleApplications := 1000 }))
+
+section NonSearch
+variable (secret : BitVec 256) (target : HashInput) (ht : HasTag 4 target ∨ HasTag 12 target)
+include ht
+
+@[aesop safe apply] theorem avoids_privatePair (tag lay tree position index : Nat)
+ (h4 : tag%256 ≠ 4) (h12 : tag%256 ≠ 12) :
+ Avoids secret target (privatePair tag lay tree position index) := by
+ unfold privatePair
+ apply avoids_bind
+ · exact avoids_privateHash_of_ne secret target _
+     (tagged_ne_search (hasTag_privatePair ..) ht h4 h12)
+ · intro _; exact avoids_pure _ _ _
+
+@[aesop safe apply] theorem avoids_privateMac (region : Region) :
+ Avoids secret target (privateMac region) :=
+ avoids_privateHash_of_ne secret target _ (tagged_ne_search (hasTag_privateMac ..) ht (by decide) (by decide))
+
+@[aesop safe apply] theorem avoids_privateNonce (message : Message) :
+ Avoids secret target (privateNonce message) := by
+ unfold privateNonce
+ apply avoids_bind
+ · exact avoids_privateHash_of_ne secret target _
+     (tagged_ne_search (hasTag_privateNonce ..) ht (by decide) (by decide))
+ · intro _; exact avoids_pure _ _ _
+
+@[aesop safe apply] theorem avoids_chain (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
+ Avoids secret target (chain lay tree leaf i start count value) := by
+ unfold chain
+ apply avoids_foldlM
+ intro value step
+ apply avoids_shortHash_of_ne
+ apply tagged_ne_search (tag := 1) _ ht (by decide) (by decide)
+ unfold chainInput
+ simpa only [List.append_assoc] using
+   (hasTag_padded zero16 (zero16 ++ bytesLE 16 value) (by simp [zero16]) 1 lay.val tree (step+256*i) leaf)
+
+@[aesop safe apply] theorem avoids_leafHash (lay : Layer) (tree leaf : Nat) (ends : List Digest) :
+ Avoids secret target (leafHash lay tree leaf ends) := by
+ unfold leafHash
+ apply avoids_shortHash_of_ne
+ exact tagged_ne_search (hasTag_padded _ _ (bytesLE_length ..) 2 lay.val tree 0 leaf) ht (by decide) (by decide)
+
+@[aesop safe apply] theorem avoids_nodeHash (tag lay tree heap : Nat) (left right : Digest)
+ (h4 : tag%256 ≠ 4) (h12 : tag%256 ≠ 12) :
+ Avoids secret target (nodeHash tag lay tree heap left right) := by
+ unfold nodeHash
+ apply avoids_shortHash_of_ne
+ apply tagged_ne_search (tag := tag) _ ht h4 h12
+ simpa only [List.append_assoc] using
+   (hasTag_padded (bytesLE 16 left) (zero16 ++ bytesLE 16 right) (bytesLE_length ..) tag lay tree 0 heap)
+
+@[aesop safe apply] theorem avoids_buildLeaf (lay : Layer) (tree leaf : Nat) (digits : List Nat)
+ (signatureOnly : Bool) : Avoids secret target (buildLeaf lay tree leaf digits signatureOnly) := by
+ unfold buildLeaf; avoids_search
+
+@[aesop safe apply] theorem avoids_buildLevel (tag lay tree h level : Nat) (nodes : List Digest)
+ (h4 : tag%256 ≠ 4) (h12 : tag%256 ≠ 12) :
+ Avoids secret target (buildLevel tag lay tree h level nodes) := by unfold buildLevel; avoids_search
+
+@[aesop safe apply] theorem avoids_buildLevels (tag lay tree h : Nat) (leaves : List Digest)
+ (h4 : tag%256 ≠ 4) (h12 : tag%256 ≠ 12) :
+ Avoids secret target (buildLevels tag lay tree h leaves) := by unfold buildLevels; avoids_search
+
+@[aesop safe apply] theorem avoids_buildTree (lay : Layer) (tree selected : Nat) (digits : List Nat) :
+ Avoids secret target (buildTree lay tree selected digits) := by unfold buildTree; avoids_search
+
+@[aesop safe apply] theorem avoids_ftsLeaf (index coord leaf : Nat) (value : Digest) :
+ Avoids secret target (ftsLeaf index coord leaf value) := by
+ unfold ftsLeaf
+ apply avoids_shortHash_of_ne
+ apply tagged_ne_search (tag := 9) _ ht (by decide) (by decide)
+ simpa only [List.append_assoc] using
+   (hasTag_padded zero16 (bytesLE 16 value ++ zero16) (by simp [zero16]) 9 coord index 0 leaf)
+
+@[aesop safe apply] theorem avoids_buildFts (index coord : Nat) :
+ Avoids secret target (buildFts index coord) := by unfold buildFts; avoids_search
+
+@[aesop safe apply] theorem avoids_signForest (index : Nat) (chosen : List Selection) :
+ Avoids secret target (signForest index chosen) := by unfold signForest; avoids_search
+
+@[aesop safe apply] theorem avoids_forestPk (index : Nat) (roots : List Digest) :
+ Avoids secret target (forestPk index roots) := by
+ unfold forestPk
+ apply avoids_shortHash_of_ne
+ exact tagged_ne_search (hasTag_padded _ _ (bytesLE_length ..) 11 0 index 0 0) ht (by decide) (by decide)
+
+
+@[aesop safe apply] theorem avoids_mask (level index : Nat) :
+ Avoids secret target (mask level index) := by unfold mask; avoids_search
+@[aesop safe apply] theorem avoids_keygenPayload : Avoids secret target keygenPayload := by
+ unfold keygenPayload; avoids_search
+@[aesop safe apply] theorem avoids_keygen : Avoids secret target keygen := by
+ unfold keygen; avoids_search
+
+end NonSearch
+
+
+theorem encodingTrial_ne_of_layer (lay other : Layer) (hne : lay ≠ other)
+ (tree leaf : Nat) (message : Digest) (counter : Nat)
+ (tree' leaf' : Nat) (message' : Digest) (counter' : Nat) :
+ encodingTrial lay tree leaf message counter ≠ encodingTrial other tree' leaf' message' counter' := by
+ intro he
+ have hh := congrArg queryHeader he
+ simp only [queryHeader_encoding] at hh
+ apply header_ne_of_layer _ (bytesLE_injective hh)
+ have h1 : lay.val < 256 := by have := lay.isLt; omega
+ have h2 : other.val < 256 := by have := other.isLt; omega
+ rw [Nat.mod_eq_of_lt h1,Nat.mod_eq_of_lt h2]
+ exact fun h => hne (Fin.ext h)
+
+/-- Counter search at one layer never fills a different layer's search family. -/
+theorem avoids_counterSearch (secret : BitVec 256) (lay other : Layer) (hne : lay ≠ other)
+ (tree leaf : Nat) (message : Digest) (counter fuel : Nat)
+ (tree' leaf' : Nat) (message' : Digest) (counter' : Nat) :
+ Avoids secret (encodingTrial other tree' leaf' message' counter')
+   (counterSearch lay tree leaf message counter fuel) := by
+ induction fuel generalizing counter with
+ | zero => exact avoids_pure _ _ _
+ | succ fuel ih =>
+   unfold counterSearch
+   apply avoids_bind
+   · apply avoids_shortHash_of_ne
+     exact encodingTrial_ne_of_layer lay other hne tree leaf message counter tree' leaf' message' counter'
+   · intro answer
+     split
+     · exact ih _
+     · exact avoids_pure _ _ _
+
+@[aesop safe apply] theorem avoids_digest_encoding (secret : BitVec 256) (target : HashInput)
+ (ht : HasTag 4 target) (rho : Digest) (message : Message) (counter : BitVec 32) :
+ Avoids secret target (digest rho message counter) := by
+ unfold digest publicHash
+ apply (allQueriesSatisfy_query_iff _ _).mpr
+ change pad64 (digestInput rho message counter) ≠ target
+ exact tagged_ne (hasTag_padded _ _ (bytesLE_length ..) 12 0 0 0 counter.toNat) ht (by decide)
+
+theorem avoids_digestSearch_encoding (secret : BitVec 256) (target : HashInput) (ht : HasTag 4 target)
+ (rho : Digest) (message : Message) (counter fuel : Nat) :
+ Avoids secret target (digestSearch rho message counter fuel) := by
+ induction fuel generalizing counter with
+ | zero => unfold digestSearch; avoids_search
+ | succ fuel ih => unfold digestSearch; avoids_search
+
+/-- All search freshness follows from the exact cache-entry preservation theorem;
+this quantifies over every possible oracle answer and every starting cache. -/
+theorem preserves_allSearches {α : Type} (secret : BitVec 256) (program : M α)
+ (h : ∀ target,HasTag 4 target ∨ HasTag 12 target → Avoids secret target program)
+ (cache : RCache) (hc : Budgets.AllSearchesFresh cache) (result : α × RCache)
+ (hr : result ∈ support (roRun secret program cache)) : Budgets.AllSearchesFresh result.2 := by
+ constructor
+ · intro rho message c hlt
+   rw [preserves secret _ program (h _ (Or.inr (hasTag_digest ..))) cache result hr]
+   exact hc.1 rho message c hlt
+ · intro lay hl tree leaf message c hlt
+   rw [preserves secret _ program (h _ (Or.inl (hasTag_encoding ..))) cache result hr]
+   exact hc.2 lay hl tree leaf message c hlt
+
+theorem preserves_encodingBelow {α : Type} (secret : BitVec 256) (program : M α)
+ (h : ∀ target,HasTag 4 target → Avoids secret target program)
+ (n : Nat) (cache : RCache) (hc : Budgets.EncodingFreshBelow n cache) (result : α × RCache)
+ (hr : result ∈ support (roRun secret program cache)) : Budgets.EncodingFreshBelow n result.2 := by
+ intro lay hl tree leaf message c hlt
+ rw [preserves secret _ program (h _ (hasTag_encoding ..)) cache result hr]
+ exact hc lay hl tree leaf message c hlt
+
+/-- The seven source-stage freshness obligations used by the exponential-moment
+composition are discharged by query separation, rather than assumed for caches. -/
+theorem sourceFreshness (secret : BitVec 256) : Budgets.SourceFreshness secret where
+ counter := by
+   intro lay tree leaf message cache hc result hr other ho tree' leaf' message' c hlt
+   have hne : lay ≠ other := by intro he; subst other; omega
+   rw [preserves secret _ _ (avoids_counterSearch secret lay other hne tree leaf message 0 counterLimit
+     tree' leaf' message' c) cache result hr]
+   exact hc other (by omega) tree' leaf' message' c hlt
+ tree := by
+   intro lay tree leaf digits cache hc result hr
+   exact preserves_encodingBelow secret _
+     (fun target ht => avoids_buildTree secret target (Or.inl ht) lay tree leaf digits)
+     lay.val cache hc result hr
+ mac := by
+   intro region cache hc result hr
+   exact preserves_allSearches secret _
+     (fun target ht => avoids_privateMac secret target ht region) cache hc result hr
+ nonce := by
+   intro message cache hc result hr
+   exact preserves_allSearches secret _
+     (fun target ht => avoids_privateNonce secret target ht message) cache hc result hr
+ digest := by
+   intro rho message cache hc result hr
+   exact preserves_encodingBelow secret _
+     (fun target ht => avoids_digestSearch_encoding secret target ht rho message 0 attemptLimit)
+     4 cache hc.2 result hr
+ forest := by
+   intro index chosen cache hc result hr
+   exact preserves_encodingBelow secret _
+     (fun target ht => avoids_signForest secret target (Or.inl ht) index chosen)
+     4 cache hc result hr
+ forestPk := by
+   intro index roots cache hc result hr
+   exact preserves_encodingBelow secret _
+     (fun target ht => avoids_forestPk secret target (Or.inl ht) index roots)
+     4 cache hc result hr
+
+theorem keygen_preserves_fresh (secret : BitVec 256) (cache : RCache)
+ (hc : Budgets.AllSearchesFresh cache) (result : (Digest × Cache) × RCache)
+ (hr : result ∈ support (roRun secret keygen cache)) : Budgets.AllSearchesFresh result.2 :=
+ preserves_allSearches secret keygen (fun target ht => avoids_keygen secret target ht) cache hc result hr
+
+theorem keygen_fresh_from_empty (secret : BitVec 256) (result : (Digest × Cache) × RCache)
+ (hr : result ∈ support (roRun secret keygen ∅)) : Budgets.AllSearchesFresh result.2 :=
+ keygen_preserves_fresh secret ∅ Budgets.allSearchesFresh_empty result hr
+
+end SigGolfCandidate.T3.Freshness
+
+end
+
+/-! Authored module: BudgetClosure. -/
+section
+/-! Actual source compression budgets. The signing moment is proved after the
+same source key generation in the same lazy random oracle, and then averaged
+over a uniformly sampled message. Machine refinement is a separate obligation. -/
+namespace SigGolfCandidate.T3.BudgetClosure
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal Sampling Budgets Cost
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+theorem V_sign_le_two (secret : BitVec 256) (cache : Cache) (message : Message)
+    (rcache : RCache) (hc : AllSearchesFresh rcache) :
+    V secret signingZ (sign cache message) rcache ≤ 2 :=
+  V_sign_le_two_of_freshness secret (Freshness.sourceFreshness secret) cache message rcache hc
+
+theorem realized_sign_exponential_budget (secret : BitVec 256) (cache : Cache)
+    (message : Message) (rcache : RCache) (hc : AllSearchesFresh rcache) :
+    expectedValue ((simulateQ SphincsSecurity.romImpl
+      (World.countBlocks (realize secret (sign cache message)))).run' rcache)
+      (fun result => (2 : ENNReal)^((result.2 : ℝ)/131072)) ≤ 2 :=
+  realized_sign_exponential_budget_of_freshness secret (Freshness.sourceFreshness secret)
+    cache message rcache hc
+
+/-- Count only the signing phase, while retaining the key generation's random
+oracle state. The cache here is the one actually returned by source keygen. -/
+def honestSignCount (message : Message) : M (Option Signature × Nat) := do
+  let keys ← keygen
+  Cost.countBlocks (sign keys.2 message)
+
+theorem honestSignCount_realize (secret : BitVec 256) (message : Message) :
+    realize secret (honestSignCount message)=(do
+      let keys ← realize secret keygen
+      World.countBlocks (realize secret (sign keys.2 message))) := by
+  rw [honestSignCount,realize_bind]
+  congr 1
+  funext keys
+  exact realize_count secret _
+
+/-- Source signing meets its exponential compression budget after honest key
+generation, for every fixed secret and every fixed message. -/
+theorem honest_sign_exponential_budget (secret : BitVec 256) (message : Message) :
+    expectedValue (roRun secret (honestSignCount message) ∅)
+      (fun result => (2 : ENNReal)^((result.1.2 : ℝ)/131072)) ≤ 2 := by
+  rw [honestSignCount,roRun_bind,expectedValue_bind]
+  apply expectedValue_le_of_support
+  intro keys hkeys
+  have h := V_sign_le_two secret keys.1.2 message keys.2
+    (Freshness.keygen_fresh_from_empty secret keys hkeys)
+  simpa only [V,signingZ_pow] using h
+
+theorem realized_honest_sign_exponential_budget (secret : BitVec 256) (message : Message) :
+    expectedValue ((simulateQ SphincsSecurity.romImpl (do
+      let keys ← realize secret keygen
+      World.countBlocks (realize secret (sign keys.2 message)))).run' ∅)
+      (fun result => (2 : ENNReal)^((result.2 : ℝ)/131072)) ≤ 2 := by
+  rw [← honestSignCount_realize secret message,StateT.run'_eq,expectedValue_map]
+  exact honest_sign_exponential_budget secret message
+
+/-- The public budget statement averages the message; the pointwise bound is
+stronger and gives this average directly. -/
+theorem uniform_message_sign_exponential_budget (secret : BitVec 256) :
+    expectedValue (do
+      let message ← ($ᵗ Message : ProbComp Message)
+      (simulateQ SphincsSecurity.romImpl (realize secret (honestSignCount message))).run' ∅)
+      (fun result => (2 : ENNReal)^((result.2 : ℝ)/131072)) ≤ 2 := by
+  rw [expectedValue_bind]
+  apply expectedValue_le_of_support
+  intro message _
+  rw [StateT.run'_eq,expectedValue_map]
+  exact honest_sign_exponential_budget secret message
+
+end SigGolfCandidate.T3.BudgetClosure
+
+end
+
+/-! Authored module: SourceReplay. -/
+section
+namespace SigGolfCandidate.T3.SourceReplay
+open OracleComp OracleSpec
+set_option maxRecDepth 10000
+set_option maxHeartbeats 1000000
+set_option backward.isDefEq.respectTransparency false
+set_option linter.unusedSimpArgs false
+
+/-- The source interface includes a uniform-query branch, but the four source programs
+never use it. Only public hashes and keyed derivation coordinates occur. -/
+def isHash : Spec.Domain → Prop
+ | .inl (.inl _) => False
+ | _ => True
+
+abbrev HashOnly {α : Type} (program : M α) : Prop := AllQueriesSatisfy program isHash
+
+theorem hashOnly_pure {α : Type} (value : α) : HashOnly (pure value) :=
+ allQueriesSatisfy_pure _ _
+
+theorem hashOnly_bind {α β : Type} {program : M α} {next : α → M β}
+ (hp : HashOnly program) (hn : ∀ a, HashOnly (next a)) : HashOnly (program >>= next) :=
+ allQueriesSatisfy_bind hp hn
+
+theorem hashOnly_map {α β : Type} (f : α → β) {program : M α}
+ (hp : HashOnly program) : HashOnly (f <$> program) := by
+ rw [map_eq_bind_pure_comp]
+ exact hashOnly_bind hp fun _ => hashOnly_pure _
+
+theorem hashOnly_mapM {α β : Type} (items : List α) (f : α → M β)
+ (h : ∀ a, HashOnly (f a)) : HashOnly (items.mapM f) := by
+ induction items with
+ | nil => exact hashOnly_pure []
+ | cons a items ih =>
+   rw [List.mapM_cons]
+   exact hashOnly_bind (h a) fun _ => hashOnly_bind ih fun _ => hashOnly_pure _
+
+theorem hashOnly_foldlM {α β : Type} (items : List β) (f : α → β → M α)
+ (h : ∀ a b, HashOnly (f a b)) (initial : α) : HashOnly (items.foldlM f initial) := by
+ induction items generalizing initial with
+ | nil => exact hashOnly_pure _
+ | cons a items ih =>
+   rw [List.foldlM_cons]
+   exact hashOnly_bind (h initial a) ih
+
+@[simp] theorem hashOnly_publicHash (input : HashInput) : HashOnly (publicHash input) := by
+ exact (allQueriesSatisfy_query_iff _ _).mpr trivial
+@[simp] theorem hashOnly_privateHash (coordinate : Coordinate) : HashOnly (privateHash coordinate) := by
+ exact (allQueriesSatisfy_query_iff _ _).mpr trivial
+
+/-- Deterministic source answers from one fixed public random-oracle table. Uniform
+answers are arbitrary zero values and cannot affect a HashOnly computation. -/
+def fixedAnswers (secret : BitVec 256) (hash : QueryImpl SphincsSecurity.HashSpec Id) :
+ Correctness.Answers
+ | .inl (.inl n) => (⟨0,Nat.zero_lt_succ n⟩ : Fin (n+1))
+ | .inl (.inr input) => hash input
+ | .inr coordinate => hash (privateInput secret coordinate)
+
+theorem fixed_replay {α : Type} (secret : BitVec 256)
+ (hash : QueryImpl SphincsSecurity.HashSpec Id) (program : M α) (hp : HashOnly program) :
+ simulateQ (unifFwdAnswerImpl hash) (realize secret program) =
+   pure (evalWithAnswerFn (fixedAnswers secret hash) program) := by
+ induction program using OracleComp.inductionOn with
+ | pure a => simp [realize]
+ | query_bind q next ih =>
+   change AllQueriesSatisfy _ isHash at hp
+   rw [allQueriesSatisfy_query_bind_iff] at hp
+   rcases q with (n|input)|coordinate
+   · exact False.elim hp.1
+   · simp only [realize,simulateQ_bind,simulateQ_spec_query,realHandler]
+     simp only [simulateQ_bind,simulateQ_spec_query,unifFwdAnswerImpl,QueryImpl.add_apply_inr,
+       QueryImpl.liftTarget_apply,evalWithAnswerFn_bind,evalWithAnswerFn,fixedAnswers,
+       pure_bind]
+     exact ih _ (hp.2 _)
+   · simp only [realize,simulateQ_bind,simulateQ_spec_query,realHandler]
+     simp only [simulateQ_bind,simulateQ_spec_query,unifFwdAnswerImpl,QueryImpl.add_apply_inr,
+       QueryImpl.liftTarget_apply,evalWithAnswerFn_bind,evalWithAnswerFn,fixedAnswers,
+       pure_bind]
+     exact ih _ (hp.2 _)
+
+
+attribute [aesop safe apply] hashOnly_pure hashOnly_bind hashOnly_map hashOnly_mapM hashOnly_foldlM
+  hashOnly_publicHash hashOnly_privateHash
+
+macro "hashes" : tactic => `(tactic| aesop (config := { maxRuleApplications := 1000 }))
+
+@[aesop safe apply] theorem hashOnly_shortHash (input : HashInput) : HashOnly (shortHash input) := by
+ unfold shortHash; hashes
+@[aesop safe apply] theorem hashOnly_privatePair (tag lay tree position index : Nat) :
+ HashOnly (privatePair tag lay tree position index) := by
+ unfold privatePair; hashes
+@[aesop safe apply] theorem hashOnly_privateMac (region : Region) : HashOnly (privateMac region) := by
+ unfold privateMac; hashes
+@[aesop safe apply] theorem hashOnly_privateNonce (message : Message) : HashOnly (privateNonce message) := by
+ unfold privateNonce; hashes
+@[aesop safe apply] theorem hashOnly_mask (level index : Nat) : HashOnly (mask level index) := by
+ unfold mask; hashes
+@[aesop safe apply] theorem hashOnly_chain (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
+ HashOnly (chain lay tree leaf i start count value) := by
+ unfold chain; hashes
+@[aesop safe apply] theorem hashOnly_leafHash (lay : Layer) (tree leaf : Nat) (ends : List Digest) :
+ HashOnly (leafHash lay tree leaf ends) := by unfold leafHash; hashes
+@[aesop safe apply] theorem hashOnly_nodeHash (tag lay tree heap : Nat) (left right : Digest) :
+ HashOnly (nodeHash tag lay tree heap left right) := by unfold nodeHash; hashes
+@[aesop safe apply] theorem hashOnly_buildLeaf (lay : Layer) (tree leaf : Nat) (digits : List Nat)
+ (signatureOnly : Bool) : HashOnly (buildLeaf lay tree leaf digits signatureOnly) := by
+ unfold buildLeaf; hashes
+@[aesop safe apply] theorem hashOnly_buildLevel (tag lay tree h level : Nat) (nodes : List Digest) :
+ HashOnly (buildLevel tag lay tree h level nodes) := by unfold buildLevel; hashes
+@[aesop safe apply] theorem hashOnly_buildLevels (tag lay tree h : Nat) (leaves : List Digest) :
+ HashOnly (buildLevels tag lay tree h leaves) := by unfold buildLevels; hashes
+@[aesop safe apply] theorem hashOnly_buildTree (lay : Layer) (tree selected : Nat) (digits : List Nat) :
+ HashOnly (buildTree lay tree selected digits) := by unfold buildTree; hashes
+@[aesop safe apply] theorem hashOnly_keygenPayload : HashOnly keygenPayload := by
+ unfold keygenPayload; hashes
+@[aesop safe apply] theorem hashOnly_keygen : HashOnly keygen := by
+ unfold keygen; hashes
+@[aesop safe apply] theorem hashOnly_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest)
+ (counter fuel : Nat) : HashOnly (counterSearch lay tree leaf message counter fuel) := by
+ induction fuel generalizing counter with
+ | zero => unfold counterSearch; hashes
+ | succ fuel ih => unfold counterSearch; hashes
+@[aesop safe apply] theorem hashOnly_digest (rho : Digest) (message : Message) (counter : BitVec 32) :
+ HashOnly (digest rho message counter) := by unfold digest; hashes
+@[aesop safe apply] theorem hashOnly_digestSearch (rho : Digest) (message : Message) (counter fuel : Nat) :
+ HashOnly (digestSearch rho message counter fuel) := by
+ induction fuel generalizing counter with
+ | zero => unfold digestSearch; hashes
+ | succ fuel ih => unfold digestSearch; hashes
+@[aesop safe apply] theorem hashOnly_ftsLeaf (index coord leaf : Nat) (secret : Digest) :
+ HashOnly (ftsLeaf index coord leaf secret) := by unfold ftsLeaf; hashes
+@[aesop safe apply] theorem hashOnly_buildFts (index coord : Nat) : HashOnly (buildFts index coord) := by
+ unfold buildFts; hashes
+@[aesop safe apply] theorem hashOnly_forestPk (index : Nat) (roots : List Digest) :
+ HashOnly (forestPk index roots) := by unfold forestPk; hashes
+@[aesop safe apply] theorem hashOnly_topPath (cache : Cache) (leaf : Nat) : HashOnly (topPath cache leaf) := by
+ unfold topPath; hashes
+@[aesop safe apply] theorem hashOnly_signTop (cache : Cache) (leaf : Nat) (digits : List Nat) :
+ HashOnly (signTop cache leaf digits) := by unfold signTop; hashes
+@[aesop safe apply] theorem hashOnly_signLayers (cache : Cache) (index n : Nat) (message : Digest) :
+ HashOnly (signLayers cache index n message) := by
+ induction n generalizing message with
+ | zero => unfold signLayers; hashes
+ | succ n ih => unfold signLayers; hashes
+@[aesop safe apply] theorem hashOnly_signPayload (cache : Cache) (message : Message) :
+ HashOnly (signPayload cache message) := by unfold signPayload; hashes
+@[aesop safe apply] theorem hashOnly_sign (cache : Cache) (message : Message) :
+ HashOnly (sign cache message) := by unfold sign; hashes
+@[aesop safe apply] theorem hashOnly_recoverChild (index coord : Nat) (leaves : List Nat)
+ (values : List Digest) (proof : Fin 118 → Digest) (level node used : Nat) :
+ HashOnly (recoverChild index coord leaves values proof level node used) := by
+ induction level generalizing node used with
+ | zero => unfold recoverChild; hashes
+ | succ level ih => unfold recoverChild; hashes
+@[aesop safe apply] theorem hashOnly_recoverFts (sig : Signature) (index : Nat) (chosen : List Selection) :
+ HashOnly (recoverFts sig index chosen) := by unfold recoverFts; hashes
+@[aesop safe apply] theorem hashOnly_recoverLayer (sig : Signature) (index : Nat) (lay : Layer)
+ (digits : List Nat) : HashOnly (recoverLayer sig index lay digits) := by unfold recoverLayer; hashes
+@[aesop safe apply] theorem hashOnly_expandLayers (sig : Signature) (index n : Nat) (value : Digest) :
+ HashOnly (expandLayers sig index n value) := by
+ induction n generalizing value with
+ | zero => unfold expandLayers; hashes
+ | succ n ih => unfold expandLayers; hashes
+@[aesop safe apply] theorem hashOnly_expand (message : Message) (pk : Digest) (sig : Signature) :
+ HashOnly (expand message pk sig) := by unfold expand; hashes
+@[aesop safe apply] theorem hashOnly_verifyLayers (w : Witness) (index n : Nat) (root : Digest) :
+ HashOnly (verifyLayers w index n root) := by
+ induction n generalizing root with
+ | zero => unfold verifyLayers; hashes
+ | succ n ih => unfold verifyLayers; hashes
+@[aesop safe apply] theorem hashOnly_verify (message : Message) (pk : Digest) (w : Witness) :
+ HashOnly (verify message pk w) := by unfold verify; hashes
+
+theorem keygen_replay (secret : BitVec 256) (hash : QueryImpl SphincsSecurity.HashSpec Id) :
+ simulateQ (unifFwdAnswerImpl hash) (realize secret keygen) =
+ pure (evalWithAnswerFn (fixedAnswers secret hash) keygen) :=
+ fixed_replay secret hash keygen hashOnly_keygen
+
+theorem sign_replay (secret : BitVec 256) (hash : QueryImpl SphincsSecurity.HashSpec Id)
+ (cache : Cache) (message : Message) :
+ simulateQ (unifFwdAnswerImpl hash) (realize secret (sign cache message)) =
+ pure (evalWithAnswerFn (fixedAnswers secret hash) (sign cache message)) :=
+ fixed_replay secret hash (sign cache message) (hashOnly_sign cache message)
+
+theorem expand_replay (secret : BitVec 256) (hash : QueryImpl SphincsSecurity.HashSpec Id)
+ (message : Message) (pk : Digest) (sig : Signature) :
+ simulateQ (unifFwdAnswerImpl hash) (realize secret (expand message pk sig)) =
+ pure (evalWithAnswerFn (fixedAnswers secret hash) (expand message pk sig)) :=
+ fixed_replay secret hash (expand message pk sig) (hashOnly_expand message pk sig)
+
+theorem verify_replay (secret : BitVec 256) (hash : QueryImpl SphincsSecurity.HashSpec Id)
+ (message : Message) (pk : Digest) (w : Witness) :
+ simulateQ (unifFwdAnswerImpl hash) (realize secret (verify message pk w)) =
+ pure (evalWithAnswerFn (fixedAnswers secret hash) (verify message pk w)) :=
+ fixed_replay secret hash (verify message pk w) (hashOnly_verify message pk w)
+
+end SigGolfCandidate.T3.SourceReplay
+
+end
+
+/-! Authored module: NonceSampling. -/
+section
+/-! Joint finite presampling of all private nonces and all public searches.
+This is an exact ROM identity, without a security or computational assumption. -/
+namespace SigGolfCandidate.T3.NonceSampling
+open OracleComp OracleSpec ENNReal
+open SphincsSecurity.Seeded
+open QuerySpace
+set_option maxRecDepth 10000
+set_option maxHeartbeats 1000000
+set_option backward.isDefEq.respectTransparency false
+
+abbrev NonceOutputs := Message → HashOutput
+abbrev SearchOutputs := SearchKey → HashOutput
+abbrev QueryKey := Message ⊕ SearchKey
+
+@[irreducible] noncomputable def nonceSampler : SampleableType NonceOutputs :=
+  Derivation.outputSampler Message
+@[irreducible] noncomputable def combinedSampler : SampleableType (QueryKey → HashOutput) :=
+  Derivation.outputSampler QueryKey
+noncomputable local instance : SampleableType NonceOutputs := nonceSampler
+noncomputable local instance : SampleableType SearchOutputs := Presampling.tableSampler
+noncomputable local instance : SampleableType (QueryKey → HashOutput) := combinedSampler
+
+def nonceInputs (secret : BitVec 256) (message : Message) : HashInput :=
+  privateInput secret (.inr (.inl message))
+
+theorem nonceInputs_injective (secret : BitVec 256) : Function.Injective (nonceInputs secret) := by
+  intro a b he
+  exact Sum.inl.inj (Sum.inr.inj (privateInput_injective secret he))
+
+theorem nonceInputs_length (secret : BitVec 256) (message : Message) :
+    (nonceInputs secret message).length = 128 := by
+  simp only [nonceInputs, privateInput_nonce, List.length_append, SphincsSecurity.bytesLE_length,
+    zero16, List.length_replicate]
+
+theorem searchQuery_length (key : SearchKey) : (searchQuery key).length = 64 := by
+  cases key with
+  | inl key => exact Sampling.encodingTrial_length _ _ _ _ _
+  | inr key => exact Sampling.digestTrial_length _ _ _
+
+theorem nonceInputs_ne_searchQuery (secret : BitVec 256) (message : Message) (key : SearchKey) :
+    nonceInputs secret message ≠ searchQuery key := by
+  intro he
+  have hl := congrArg List.length he
+  rw [nonceInputs_length, searchQuery_length] at hl
+  omega
+
+def combinedInputs (secret : BitVec 256) : QueryKey → HashInput :=
+  Sum.elim (nonceInputs secret) searchQuery
+
+theorem combinedInputs_injective (secret : BitVec 256) : Function.Injective (combinedInputs secret) := by
+  intro a b he
+  cases a with
+  | inl a =>
+    cases b with
+    | inl b => exact congrArg Sum.inl (nonceInputs_injective secret he)
+    | inr b => exact False.elim (nonceInputs_ne_searchQuery secret a b he)
+  | inr a =>
+    cases b with
+    | inl b => exact False.elim (nonceInputs_ne_searchQuery secret b a he.symm)
+    | inr b => exact congrArg Sum.inr (searchQuery_injective he)
+
+noncomputable def preparedCache (secret : BitVec 256)
+    (nonceOutputs : NonceOutputs) (searchOutputs : SearchOutputs) : QueryCache SphincsSecurity.HashSpec :=
+  cacheTable ∅ (combinedInputs secret) (Sum.elim nonceOutputs searchOutputs)
+
+theorem preparedCache_nonce (secret : BitVec 256) (nonceOutputs : NonceOutputs)
+    (searchOutputs : SearchOutputs) (message : Message) :
+    preparedCache secret nonceOutputs searchOutputs (nonceInputs secret message) = some (nonceOutputs message) :=
+  cacheTable_apply ∅ (combinedInputs secret) (combinedInputs_injective secret)
+    (Sum.elim nonceOutputs searchOutputs) (.inl message)
+
+theorem preparedCache_search (secret : BitVec 256) (nonceOutputs : NonceOutputs)
+    (searchOutputs : SearchOutputs) (key : SearchKey) :
+    preparedCache secret nonceOutputs searchOutputs (searchQuery key) = some (searchOutputs key) :=
+  cacheTable_apply ∅ (combinedInputs secret) (combinedInputs_injective secret)
+    (Sum.elim nonceOutputs searchOutputs) (.inr key)
+
+/-- The combined uniform function is exactly a pair of independent uniform functions. -/
+theorem combined_uniform :
+    𝒮[($ᵗ (QueryKey → HashOutput) : ProbComp _)] =
+    𝒮[do
+      let nonces ← ($ᵗ NonceOutputs : ProbComp _)
+      let searches ← ($ᵗ SearchOutputs : ProbComp _)
+      pure (Sum.elim nonces searches)] := by
+  classical
+  let : Fintype SearchOutputs := @Pi.instFintype SearchKey (fun _ => HashOutput)
+    (Classical.decEq SearchKey) inferInstance (fun _ => inferInstance)
+  let : Fintype NonceOutputs := @Pi.instFintype Message (fun _ => HashOutput)
+    (Classical.decEq Message) inferInstance (fun _ => inferInstance)
+  let split : (QueryKey → HashOutput) ≃ NonceOutputs × SearchOutputs :=
+    Equiv.sumArrowEquivProdArrow Message SearchKey HashOutput
+  have he := evalSPMF_map_bijective_uniform_cross
+    (α := NonceOutputs × SearchOutputs) (β := QueryKey → HashOutput) split.symm split.symm.bijective
+  have hp := evalDist_independent_uniform_pair (α := NonceOutputs) (β := SearchOutputs)
+  rw [evalSPMF_map, ← hp] at he
+  simpa only [evalSPMF_bind, evalSPMF_pure, map_bind, map_pure, split,
+    Equiv.sumArrowEquivProdArrow, Equiv.coe_fn_symm_mk] using he.symm
+
+
+/-- Joint finite precomputation preserves the law of every source program. -/
+theorem presample_combined {α : Type} (secret : BitVec 256) (program : M α) :
+    𝒮[(simulateQ SphincsSecurity.romImpl (realize secret program)).run' ∅] =
+    𝒮[do
+      let outputs ← ($ᵗ (QueryKey → HashOutput) : ProbComp _)
+      (simulateQ SphincsSecurity.romImpl (realize secret program)).run'
+        (cacheTable ∅ (combinedInputs secret) outputs)] := by
+  let : SampleableType (QueryKey → SphincsSecurity.HashOutput) := combinedSampler
+  let preparation : OracleComp SphincsSecurity.OracleWorld (QueryKey → HashOutput) :=
+    liftM (queryTable (R := SphincsSecurity.HashOutput) (combinedInputs secret))
+  have hprep : (simulateQ SphincsSecurity.romImpl preparation).run ∅ =
+      (simulateQ randomOracle (queryTable (R := SphincsSecurity.HashOutput) (combinedInputs secret))).run ∅ := by
+    exact congrArg (fun run => run.run (∅ : QueryCache SphincsSecurity.HashSpec))
+      (QueryImpl.simulateQ_add_liftM_right (unifFwdImpl SphincsSecurity.HashSpec)
+        (randomOracle (spec := SphincsSecurity.HashSpec))
+        (queryTable (R := SphincsSecurity.HashOutput) (combinedInputs secret)))
+  rw [evalDist_presample_computation (realize secret program) preparation ∅, hprep,
+    evalSPMF_bind, evalDist_queryTable_fresh (R := SphincsSecurity.HashOutput)
+      (combinedInputs secret) (combinedInputs_injective secret) ∅ (fun _ => rfl)]
+  simp only [evalSPMF_map, bind_map_left]
+  rw [evalSPMF_bind]
+  congr 1
+
+/-- All private nonce answers and all public search answers can be sampled
+independently before running the actual source against their shared cache. -/
+theorem presample_source {α : Type} (secret : BitVec 256) (program : M α) :
+    𝒮[(simulateQ SphincsSecurity.romImpl (realize secret program)).run' ∅] =
+    𝒮[do
+      let nonceOutputs ← ($ᵗ NonceOutputs : ProbComp _)
+      let searchOutputs ← ($ᵗ SearchOutputs : ProbComp _)
+      (simulateQ SphincsSecurity.romImpl (realize secret program)).run'
+        (preparedCache secret nonceOutputs searchOutputs)] := by
+  rw [presample_combined, evalSPMF_bind, combined_uniform]
+  simp only [evalSPMF_bind, evalSPMF_pure, bind_assoc, pure_bind]
+  rfl
+
+#print axioms presample_source
+end SigGolfCandidate.T3.NonceSampling
+
+end
+
+/-! Authored module: Completeness. -/
+section
+namespace SigGolfCandidate.T3.Completeness
+open OracleComp OracleSpec ENNReal
+set_option maxRecDepth 10000
+set_option maxHeartbeats 1000000
+set_option backward.isDefEq.respectTransparency false
+
+/-- Honest source execution, including both witness expansion and verification. -/
+def honestProgram (message : Message) : M Bool := do
+  let keys ← keygen
+  let sig ← sign keys.2 message
+  match sig with
+  | none => pure false
+  | some sig =>
+    let witness ← expand message keys.1 sig
+    match witness with
+    | none => pure false
+    | some witness => verify message keys.1 witness
+
+/-- Every message is run against the same oracle, matching the quantifier in
+the contract. This finite mathematical program is not meant to be executed. -/
+noncomputable def everyMessageProgram : M Bool :=
+  (Finset.univ : Finset Message).toList.foldlM (fun accepted message => do
+    let result ← honestProgram message
+    pure (accepted && result)) true
+
+theorem honestProgram_true (answers : Correctness.Answers) (message : Message)
+    (hgood : Correctness.SearchesSucceed answers) :
+    evalWithAnswerFn answers (honestProgram message)=true := by
+  obtain ⟨sig,witness,hs,he,hv⟩ := Correctness.honest_signing_complete_of_searches answers hgood message
+  simp only [honestProgram,evalWithAnswerFn_bind,hs,he,hv]
+
+theorem honestProgram_true_for (answers : Correctness.Answers) (message : Message)
+    (hgood : Correctness.SearchesSucceedFor answers message) :
+    evalWithAnswerFn answers (honestProgram message)=true := by
+  obtain ⟨sig,witness,hs,he,hv⟩ := Correctness.signing_complete_for_of_searches answers
+    (evalWithAnswerFn answers keygen) (Correctness.keygen_correct answers) message hgood
+  simp only [honestProgram,evalWithAnswerFn_bind,hs,he,hv]
+
+theorem hashOnly_honestProgram (message : Message) : SourceReplay.HashOnly (honestProgram message) := by
+  unfold honestProgram
+  apply SourceReplay.hashOnly_bind SourceReplay.hashOnly_keygen
+  intro keys
+  apply SourceReplay.hashOnly_bind (SourceReplay.hashOnly_sign keys.2 message)
+  intro sig
+  cases sig with
+  | none => exact SourceReplay.hashOnly_pure false
+  | some sig =>
+    apply SourceReplay.hashOnly_bind (SourceReplay.hashOnly_expand message keys.1 sig)
+    intro witness
+    cases witness with
+    | none => exact SourceReplay.hashOnly_pure false
+    | some witness => exact SourceReplay.hashOnly_verify message keys.1 witness
+
+theorem hashOnly_everyMessageProgram : SourceReplay.HashOnly everyMessageProgram := by
+  apply SourceReplay.hashOnly_foldlM
+  intro accepted message
+  exact SourceReplay.hashOnly_bind (hashOnly_honestProgram message) fun _ =>
+    SourceReplay.hashOnly_pure _
+
+theorem everyMessageProgram_true (answers : Correctness.Answers)
+    (hall : ∀ message,evalWithAnswerFn answers (honestProgram message)=true) :
+    evalWithAnswerFn answers everyMessageProgram=true := by
+  have hf : ∀ messages : List Message,∀ accepted : Bool,
+      evalWithAnswerFn answers (messages.foldlM (fun accepted message => do
+        let result ← honestProgram message
+        pure (accepted && result)) accepted)=accepted := by
+    intro messages
+    induction messages with
+    | nil => intro accepted;rfl
+    | cons message messages ih =>
+      intro accepted
+      simp only [List.foldlM_cons,evalWithAnswerFn_bind,evalWithAnswerFn_pure,hall,Bool.and_true]
+      exact ih accepted
+  exact hf _ true
+
+theorem everyMessageProgram_true_of_complete (answers : Correctness.Answers)
+    (hcomplete : Correctness.SigningComplete answers (evalWithAnswerFn answers keygen)) :
+    evalWithAnswerFn answers everyMessageProgram=true := by
+  apply everyMessageProgram_true
+  intro message
+  obtain ⟨sig,witness,hs,he,hv⟩ := hcomplete message
+  simp only [honestProgram,evalWithAnswerFn_bind,hs,he,hv]
+
+noncomputable local instance : SampleableType (QuerySpace.SearchKey → HashOutput) :=
+  Presampling.tableSampler
+
+/-- Exact finite presampling transfers any proof that good tables rule out
+failure back to the original source ROM execution. -/
+theorem failure_le_bad_table (secret : BitVec 256) (program : M Bool)
+    (good : (QuerySpace.SearchKey → HashOutput) → Prop)
+    (hzero : ∀ outputs,good outputs →
+      Pr[fun value => value=false |
+        (simulateQ SphincsSecurity.romImpl (realize secret program)).run'
+          (Presampling.preparedCache outputs)]=0) :
+    Pr[fun value => value=false |
+      (simulateQ SphincsSecurity.romImpl (realize secret program)).run' ∅] ≤
+    Pr[fun outputs => ¬good outputs | ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] := by
+  have hp := congrArg (fun law => probEvent law (fun value : Bool => value=false))
+    (Presampling.presample_source secret program)
+  simp only [probEvent_evalSPMF] at hp
+  rw [hp]
+  apply probEvent_bind_le_probEvent
+  intro outputs _ hgood
+  exact hzero outputs (not_not.mp hgood)
+
+/-- A reached source value has a consistent total hash table extending every
+presampled search answer. Uniform queries, if present, remain probabilistic. -/
+theorem failure_zero_of_fixed_replay (secret : BitVec 256) (program : M Bool)
+    (cache : QueryCache SphincsSecurity.HashSpec)
+    (hgood : ∀ f : QueryImpl SphincsSecurity.HashSpec Id,
+      cache.AgreesWithFn f →
+      simulateQ (unifFwdAnswerImpl f) (realize secret program)=(pure true : ProbComp Bool)) :
+    Pr[fun value => value=false |
+      (simulateQ SphincsSecurity.romImpl (realize secret program)).run'
+        cache]=0 := by
+  rw [probEvent_eq_zero_iff]
+  intro value hv
+  rw [StateT.run'_eq,support_map] at hv
+  obtain ⟨result,hr,he⟩ := hv
+  have hx := (exists_agreesWithFn_mem_support_simulateQ_unifFwdAnswerImpl_iff
+    (realize secret program) cache result.1).mpr ⟨result.2,hr⟩
+  obtain ⟨f,hf,hvalue⟩ := hx
+  rw [hgood f hf,mem_support_pure_iff] at hvalue
+  simp only [← he,hvalue,Bool.true_eq_false,not_false_eq_true]
+
+theorem prepared_failure_zero (secret : BitVec 256) (program : M Bool)
+    (outputs : QuerySpace.SearchKey → HashOutput)
+    (hgood : ∀ f : QueryImpl SphincsSecurity.HashSpec Id,
+      (Presampling.preparedCache outputs).AgreesWithFn f →
+      simulateQ (unifFwdAnswerImpl f) (realize secret program)=(pure true : ProbComp Bool)) :
+    Pr[fun value => value=false |
+      (simulateQ SphincsSecurity.romImpl (realize secret program)).run'
+        (Presampling.preparedCache outputs)]=0 :=
+  failure_zero_of_fixed_replay secret program _ hgood
+
+theorem honest_prepared_failure_zero (secret : BitVec 256) (message : Message)
+    (outputs : QuerySpace.SearchKey → HashOutput) (hgood : Budgets.tableGoodFor message outputs) :
+    Pr[fun value => value=false |
+      (simulateQ SphincsSecurity.romImpl (realize secret (honestProgram message))).run'
+        (Presampling.preparedCache outputs)]=0 := by
+  refine prepared_failure_zero secret (honestProgram message) outputs ?_
+  intro hash hagree
+  have hsrc : Correctness.SearchesSucceedFor (SourceReplay.fixedAnswers secret hash) message := by
+    apply Budgets.tableGoodFor_searchesSucceedFor message outputs _ hgood
+    intro key
+    change hash (QuerySpace.searchQuery key)=outputs key
+    exact hagree (Presampling.preparedCache_apply outputs key)
+  exact (SourceReplay.fixed_replay secret hash _ (hashOnly_honestProgram message)).trans
+    (congrArg (pure : Bool → ProbComp Bool) (honestProgram_true_for _ message hsrc))
+
+/-- Source completeness for every fixed secret and fixed message. Its only
+numerical input here is the fresh digest acceptance rate. No adaptive
+independence assumption is required for the source's chosen nonce or roots. -/
+theorem honest_failure_small_of_acceptance (secret : BitVec 256) (message : Message)
+    (p : ℝ) (hp : 1/3300 ≤ p) (hp1 : p≤1)
+    (haccept : Pr[fun answer => (Sampling.digestDecode answer).isSome |
+      ($ᵗ HashOutput : ProbComp HashOutput)]=ENNReal.ofReal p) :
+    Pr[fun value => value=false |
+      (simulateQ SphincsSecurity.romImpl (realize secret (honestProgram message))).run' ∅] ≤
+        1/(2 : ENNReal)^321 := by
+  exact (failure_le_bad_table secret (honestProgram message) (Budgets.tableGoodFor message)
+    (honest_prepared_failure_zero secret message)).trans
+    (Budgets.tableGoodFor_failure_small_of_acceptance message p hp hp1 haccept)
+
+/-- Unconditional honest source completeness at the candidate's actual digest
+and encoding parameters, for every fixed secret and fixed message. -/
+theorem honest_failure_small (secret : BitVec 256) (message : Message) :
+    Pr[fun value => value=false |
+      (simulateQ SphincsSecurity.romImpl (realize secret (honestProgram message))).run' ∅] ≤
+        1/(2 : ENNReal)^321 :=
+  (failure_le_bad_table secret (honestProgram message) (Budgets.tableGoodFor message)
+    (honest_prepared_failure_zero secret message)).trans (Budgets.tableGoodFor_failure_small message)
+
+/-- A weaker numerical corollary for a fixed message. This alone does not
+establish the contract's common-oracle, all-message completeness statement. -/
+theorem honest_failure_128 (secret : BitVec 256) (message : Message) :
+    Pr[fun value => value=false |
+      (simulateQ SphincsSecurity.romImpl (realize secret (honestProgram message))).run' ∅] ≤
+        1/(2 : ENNReal)^128 :=
+  (failure_le_bad_table secret (honestProgram message) (Budgets.tableGoodFor message)
+    (honest_prepared_failure_zero secret message)).trans (Budgets.tableGoodFor_failure_128 message)
+
+noncomputable local instance : SampleableType NonceSampling.NonceOutputs := NonceSampling.nonceSampler
+
+theorem everyMessage_prepared_failure_zero (secret : BitVec 256)
+    (nonces : NonceSampling.NonceOutputs) (outputs : NonceSampling.SearchOutputs)
+    (hgood : Budgets.tableGoodForNonces nonces outputs) :
+    Pr[fun value => value=false |
+      (simulateQ SphincsSecurity.romImpl (realize secret everyMessageProgram)).run'
+        (NonceSampling.preparedCache secret nonces outputs)]=0 := by
+  refine failure_zero_of_fixed_replay secret everyMessageProgram _ ?_
+  intro hash hagree
+  have hsearch : Budgets.SearchAgreement outputs (SourceReplay.fixedAnswers secret hash) := by
+    intro key
+    change hash (QuerySpace.searchQuery key)=outputs key
+    exact hagree (NonceSampling.preparedCache_search secret nonces outputs key)
+  have hnonce : Budgets.NonceAgreement nonces (SourceReplay.fixedAnswers secret hash) := by
+    intro message
+    have h := hagree (NonceSampling.preparedCache_nonce secret nonces outputs message)
+    exact congrArg (fun output : HashOutput => output.extractLsb' 0 128) h
+  have hcomplete := Budgets.tableGoodForNonces_signingComplete nonces outputs
+    (SourceReplay.fixedAnswers secret hash) hgood hsearch hnonce
+  exact (SourceReplay.fixed_replay secret hash _ hashOnly_everyMessageProgram).trans
+    (congrArg (pure : Bool → ProbComp Bool) (everyMessageProgram_true_of_complete _ hcomplete))
+
+/-- One shared random oracle supports all 2^256 messages except with probability
+at most 2^-193. Private nonces are sampled independently of public search rows;
+the failure event is uniform over every possible resulting nonce table. -/
+theorem everyMessage_failure_small (secret : BitVec 256) :
+    Pr[fun value => value=false |
+      (simulateQ SphincsSecurity.romImpl (realize secret everyMessageProgram)).run' ∅] ≤
+        1/(2 : ENNReal)^193 := by
+  have hp := congrArg (fun law => probEvent law (fun value : Bool => value=false))
+    (NonceSampling.presample_source secret everyMessageProgram)
+  simp only [probEvent_evalSPMF] at hp
+  rw [hp]
+  apply probEvent_bind_le_of_forall_le
+  intro nonces _
+  refine (probEvent_bind_le_probEvent (p := fun outputs => ¬Budgets.tableGoodForNonces nonces outputs)
+    (fun outputs _ hgood => everyMessage_prepared_failure_zero secret nonces outputs (not_not.mp hgood))).trans
+    (Budgets.tableGoodForNonces_failure_small nonces)
+
+/-- Source-level form of the common-oracle completeness requirement. Machine
+refinement is still required to transfer this to `SigGolf.Submission.Completeness`. -/
+theorem source_completeness (secret : BitVec 256) :
+    1-1/(2 : ENNReal)^128 ≤
+      Pr[= true | (simulateQ SphincsSecurity.romImpl (realize secret everyMessageProgram)).run' ∅] := by
+  have hf := everyMessage_failure_small secret
+  rw [probEvent_eq_eq_probOutput] at hf
+  have hsmall : 1/(2 : ENNReal)^193 ≤ 1/(2 : ENNReal)^128 := by norm_num
+  rw [probOutput_true_eq_sub]
+  simp only [probFailure_eq_zero,tsub_zero]
+  exact tsub_le_tsub_left (hf.trans hsmall) 1
+
+end SigGolfCandidate.T3.Completeness
+
+end
+
+/-! Authored module: CountedReplay. -/
+section
+/-! Count instrumentation adds no oracle queries. Every supported hash-only source
+run, including its counted values, can be replayed against one total hash table
+agreeing with the initial random-oracle cache. -/
+namespace SigGolfCandidate.T3.CountedReplay
+open OracleComp OracleSpec SourceReplay Sampling
+set_option maxRecDepth 10000
+set_option maxHeartbeats 1000000
+set_option backward.isDefEq.respectTransparency false
+
+/-- A counter is pure instrumentation; the source computation issues exactly the
+same kinds of oracle queries after instrumentation. -/
+theorem hashOnly_countWith {α : Type} (weight : Cost.Query → Nat) (program : M α)
+ (hp : HashOnly program) : HashOnly (Cost.countWith weight program) := by
+ induction program using OracleComp.inductionOn with
+ | pure value =>
+   rw [Cost.countWith_pure]
+   exact hashOnly_pure _
+ | query_bind q next ih =>
+   change AllQueriesSatisfy _ isHash at hp
+   rw [allQueriesSatisfy_query_bind_iff] at hp
+   rw [Cost.countWith_bind,Cost.countWith_query]
+   apply hashOnly_bind
+   · apply hashOnly_map
+     exact (allQueriesSatisfy_query_iff _ _).mpr hp.1
+   · intro pair
+     exact hashOnly_map _ (ih pair.1 (hp.2 pair.1))
+
+theorem hashOnly_countBlocks {α : Type} (program : M α) (hp : HashOnly program) :
+ HashOnly (Cost.countBlocks program) := hashOnly_countWith Cost.weight program hp
+
+/-- This is one table for the entire program, so sequential phases and their
+counters replay consistently in the same oracle. It is not a fresh-table claim. -/
+theorem support_replay {α : Type} (secret : BitVec 256) (program : M α) (hp : HashOnly program)
+ (cache : RCache) (result : α × RCache)
+ (hr : result ∈ support (roRun secret program cache)) :
+ ∃ hash : QueryImpl SphincsSecurity.HashSpec Id,
+   cache.AgreesWithFn hash ∧ result.1 = evalWithAnswerFn (fixedAnswers secret hash) program := by
+ have hsupport : ∃ cache' : RCache,
+     (result.1,cache') ∈ support ((simulateQ
+       (unifFwdImpl SphincsSecurity.HashSpec + SphincsSecurity.HashSpec.randomOracle)
+       (realize secret program)).run cache) := by
+   exact ⟨result.2,hr⟩
+ obtain ⟨hash,hagree,hreplay⟩ :=
+   (exists_agreesWithFn_mem_support_simulateQ_unifFwdAnswerImpl_iff
+     (realize secret program) cache result.1).mpr hsupport
+ rw [fixed_replay secret hash program hp,support_pure,Set.mem_singleton_iff] at hreplay
+ exact ⟨hash,hagree,hreplay⟩
+
+theorem counted_support_replay {α : Type} (program : M α) (hp : HashOnly program)
+ (secret : BitVec 256) (cache : RCache) (result : (α × Nat) × RCache)
+ (hr : result ∈ support (roRun secret (Cost.countBlocks program) cache)) :
+ ∃ hash : QueryImpl SphincsSecurity.HashSpec Id,
+   cache.AgreesWithFn hash ∧
+   result.1 = evalWithAnswerFn (fixedAnswers secret hash) (Cost.countBlocks program) :=
+ support_replay secret (Cost.countBlocks program) (hashOnly_countBlocks program hp) cache result hr
+
+end SigGolfCandidate.T3.CountedReplay
+
+end
+
+/-! Authored module: SearchCost. -/
+section
+/-! Deterministic source compression accounting under a single fixed oracle. -/
+namespace SigGolfCandidate.T3.SearchCost
+open OracleComp OracleSpec Cost Correctness
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+def cost {α : Type} (answers : Answers) (program : M α) : Nat :=
+  (evalWithAnswerFn answers (Cost.countBlocks program)).2
+
+theorem counted_fst {α : Type} (answers : Answers) (program : M α) :
+    (evalWithAnswerFn answers (Cost.countBlocks program)).1=evalWithAnswerFn answers program := by
+  have h := congrArg (evalWithAnswerFn answers) (fst_countWith weight program)
+  simpa only [evalWithAnswerFn_map,countBlocks] using h
+
+@[simp] theorem cost_pure {α : Type} (answers : Answers) (value : α) :
+    cost answers (pure value : M α)=0 := rfl
+
+theorem cost_bind {α β : Type} (answers : Answers) (first : M α) (next : α → M β) :
+    cost answers (first >>= next)=cost answers first+cost answers (next (evalWithAnswerFn answers first)) := by
+  unfold cost
+  rw [countBlocks,countWith_bind,evalWithAnswerFn_bind,evalWithAnswerFn_map]
+  rw [show (evalWithAnswerFn answers (countWith weight first)).1=evalWithAnswerFn answers first from
+    counted_fst answers first]
+  rfl
+
+@[simp] theorem cost_query (answers : Answers) (q : Cost.Query) :
+    cost answers (T3.Spec.query q)=Cost.weight q := by
+  unfold cost countBlocks
+  rw [countWith_query,evalWithAnswerFn_map]
+
+theorem eval_mem_support {α : Type} (answers : Answers) (program : M α) :
+    evalWithAnswerFn answers program ∈ support program := by
+  induction program using OracleComp.inductionOn with
+  | pure value => simp only [evalWithAnswerFn_pure,support_pure,Set.mem_singleton_iff]
+  | query_bind q next ih =>
+      rw [evalWithAnswerFn_bind,mem_support_bind_iff]
+      exact ⟨_,mem_support_query q _,ih _⟩
+
+theorem cost_bound {α : Type} {P : Cost.Query → Prop} {Post : α → Prop} {k : Nat}
+    {program : M α} (answers : Answers) (h : Cost.Bound P Post k program) :
+    cost answers program ≤ k :=
+  (h.count_support _ (eval_mem_support answers (Cost.countBlocks program))).2
+
+theorem post_bound {α : Type} {P : Cost.Query → Prop} {Post : α → Prop} {k : Nat}
+    {program : M α} (answers : Answers) (h : Cost.Bound P Post k program) :
+    Post (evalWithAnswerFn answers program) := by
+  have hh := (h.count_support _ (eval_mem_support answers (Cost.countBlocks program))).1
+  rwa [counted_fst] at hh
+
+
+end SigGolfCandidate.T3.SearchCost
+
+end
+
+/-! Authored module: ExpansionBudget. -/
+section
+/-! Compression cost coupling between a successful source signer and its
+counter-recovering expander, under the same fixed answer function. -/
+namespace SigGolfCandidate.T3.ExpansionBudget
+open OracleComp OracleSpec Cost Correctness SearchCost
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+/-- Expansion and signing repeat the identical layer search. -/
+theorem expandLayers_cost_step (answers : Answers) (sig : Signature) (index n : Nat)
+    (value : Digest) (counter : BitVec 32) (digits : List Nat)
+    (hs : evalWithAnswerFn answers (counterSearch (Fin.ofNat 4 n)
+      (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 value 0 counterLimit)=some (counter,digits)) :
+    cost answers (expandLayers sig index (n+1) value) =
+      cost answers (counterSearch (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
+        (route index (Fin.ofNat 4 n)).1 value 0 counterLimit) +
+      cost answers (recoverLayer sig index (Fin.ofNat 4 n) digits) +
+      cost answers (expandLayers sig index n
+        (evalWithAnswerFn answers (recoverLayer sig index (Fin.ofNat 4 n) digits))) := by
+  simp only [expandLayers, cost_bind, hs]
+  cases hx : evalWithAnswerFn answers (expandLayers sig index n
+      (evalWithAnswerFn answers (recoverLayer sig index (Fin.ofNat 4 n) digits))) <;>
+    simp only [cost_pure, Nat.add_zero, Nat.add_assoc]
+
+theorem signLayers_cost_step (answers : Answers) (cache : Cache) (index n : Nat)
+    (value : Digest) (counter : BitVec 32) (digits : List Nat)
+    (hs : evalWithAnswerFn answers (counterSearch (Fin.ofNat 4 n)
+      (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 value 0 counterLimit)=some (counter,digits)) :
+    cost answers (signLayers cache index (n+1) value) =
+      cost answers (counterSearch (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
+        (route index (Fin.ofNat 4 n)).1 value 0 counterLimit) +
+      if n=0 then cost answers (signTop cache (route index (Fin.ofNat 4 n)).1 digits)
+      else cost answers (buildTree (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
+          (route index (Fin.ofNat 4 n)).1 digits) +
+        cost answers (signLayers cache index n
+          (((evalWithAnswerFn answers (buildTree (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
+            (route index (Fin.ofNat 4 n)).1 digits)).1.getD (height (Fin.ofNat 4 n)) []).getD 0 0)) := by
+  simp only [signLayers, cost_bind, hs]
+  split
+  · simp only [cost_bind, cost_pure, Nat.add_zero]
+  · simp only [cost_bind]
+    split <;> simp only [cost_pure, Nat.add_zero]
+
+/-- The source's reconstruction work is the only extra charge in each layer;
+all search calls cancel against the calls already made by the signer. -/
+theorem expandLayers_cost_le (answers : Answers) (cache : Cache) (index : Nat)
+    (hcache : cache.region=cacheRegion (maskedTop answers)) (hindex : index < 2^31) :
+    ∀ n,n ≤ 4 → ∀ value pieces,
+      evalWithAnswerFn answers (signLayers cache index n value)=some pieces →
+      ∀ sig : Signature,PiecesAgree sig pieces n →
+        cost answers (expandLayers sig index n value) ≤
+          cost answers (signLayers cache index n value) + recoveryLayersCost n := by
+  intro n
+  induction n with
+  | zero => intro hn value pieces he sig hagree; simp only [signLayers,expandLayers,cost_pure,recoveryLayersCost,Nat.add_zero,Nat.le_refl]
+  | succ n ih =>
+      intro hn value pieces he sig hagree
+      have hsource := he
+      simp only [signLayers,evalWithAnswerFn_bind] at he
+      cases hs : evalWithAnswerFn answers (counterSearch (Fin.ofNat 4 n)
+        (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 value 0 counterLimit) with
+      | none => simp only [hs,evalWithAnswerFn_pure,reduceCtorEq] at he
+      | some found =>
+          obtain ⟨counter,digits⟩ := found
+          have hd := (counterSearch_some answers (Fin.ofNat 4 n)
+            (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 value
+            counterLimit 0 counter digits (by decide) hs).2.2
+          have hvalid := validDigits_decode hd
+          have hrec := cost_bound answers
+            (bound_recoverLayer sig index (Fin.ofNat 4 n) digits hvalid
+              (decode_length_sum hd).1 (decode_length_sum hd).2)
+          rw [expandLayers_cost_step answers sig index n value counter digits hs,
+            signLayers_cost_step answers cache index n value counter digits hs]
+          simp only [hs] at he
+          by_cases hn0 : n=0
+          · subst n
+            simp only [ite_true,expandLayers,cost_pure,recoveryLayersCost,Nat.add_zero]
+            omega
+          · simp only [hn0,ite_false,evalWithAnswerFn_bind,
+              eval_buildTree_result answers (Fin.ofNat 4 n) _ _ digits hvalid (route_leaf_bound index _)] at he
+            cases hp : evalWithAnswerFn answers (signLayers cache index n
+              (((builtTree answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
+                (height (Fin.ofNat 4 n)) []).getD 0 0)) with
+            | none => simp only [hp,evalWithAnswerFn_pure,reduceCtorEq] at he
+            | some previous =>
+                simp only [hp,evalWithAnswerFn_pure,Option.some.injEq] at he
+                subst pieces
+                obtain ⟨hlen,_⟩ := signLayers_expandLayers answers cache index hcache hindex
+                  n (by omega) _ previous hp
+                change PiecesAgree sig (previous++[honestPieces answers (Fin.ofNat 4 n)
+                  (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 digits]) (n+1) at hagree
+                have hlayer := PiecesAgree.last hlen (by omega) hagree
+                have hrecover := recoverLayer_honestPieces answers sig index (Fin.ofNat 4 n) digits hvalid hlayer
+                have hprevious := ih (by omega) _ previous hp sig (PiecesAgree.prefix hlen hagree)
+                simp only [treeValue] at hrecover
+                rw [hrecover]
+                simp only [hn0,ite_false,recoveryLayersCost,
+                  eval_buildTree_result answers (Fin.ofNat 4 n) _ _ digits hvalid (route_leaf_bound index _)]
+                omega
+
+
+theorem expand_cost_step (answers : Answers) (message : Message) (pk : Digest) (sig : Signature)
+    (counter : BitVec 32) (output : HashOutput) (root : Digest)
+    (hd : evalWithAnswerFn answers (digestSearch sig.rho message 0 attemptLimit)=some (counter,output))
+    (hf : evalWithAnswerFn answers (recoverFts sig (output.toNat%2^31) (selections output))=some root) :
+    cost answers (expand message pk sig) =
+      cost answers (digestSearch sig.rho message 0 attemptLimit) +
+      cost answers (recoverFts sig (output.toNat%2^31) (selections output)) +
+      cost answers (expandLayers sig (output.toNat%2^31) 4 root) := by
+  simp only [expand,cost_bind,hd,hf]
+  split
+  · split <;> simp only [cost_pure,Nat.add_zero,Nat.add_assoc]
+  · simp only [cost_pure,Nat.add_zero,Nat.add_assoc]
+
+theorem signPayload_cost_step (answers : Answers) (cache : Cache) (message : Message)
+    (counter : BitVec 32) (output : HashOutput)
+    (hd : evalWithAnswerFn answers
+      (digestSearch (evalWithAnswerFn answers (privateNonce message)) message 0 attemptLimit)=some (counter,output)) :
+    cost answers (signPayload cache message) =
+      cost answers (privateNonce message) +
+      cost answers (digestSearch (evalWithAnswerFn answers (privateNonce message)) message 0 attemptLimit) +
+      cost answers (signForest (output.toNat%2^31) (selections output)) +
+      cost answers (forestPk (output.toNat%2^31)
+        (evalWithAnswerFn answers (signForest (output.toNat%2^31) (selections output))).2.2) +
+      cost answers (signLayers cache (output.toNat%2^31) 4
+        (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
+          (evalWithAnswerFn answers (signForest (output.toNat%2^31) (selections output))).2.2))) := by
+  rw [signPayload_eq]
+  simp only [cost_bind,hd]
+  split <;> simp only [cost_pure,Nat.add_zero,Nat.add_assoc]
+
+/-- Honest expansion repeats the signer's searches and adds at most 643
+compressions for forest and hypertree recovery. Other signing work only helps. -/
+theorem expand_cost_le_payload_add (answers : Answers) (cache : Cache) (message : Message)
+    (sig : Signature) (hcache : cache.region=cacheRegion (maskedTop answers))
+    (he : evalWithAnswerFn answers (signPayload cache message)=some sig) (pk : Digest) :
+    cost answers (expand message pk sig) ≤ cost answers (signPayload cache message)+643 := by
+  rw [signPayload_eq] at he
+  simp only [evalWithAnswerFn_bind] at he
+  cases hd : evalWithAnswerFn answers
+    (digestSearch (evalWithAnswerFn answers (privateNonce message)) message 0 attemptLimit) with
+  | none => simp only [hd,evalWithAnswerFn_pure,reduceCtorEq] at he
+  | some found =>
+      obtain ⟨counter,output⟩ := found
+      simp only [hd,evalWithAnswerFn_bind] at he
+      cases hl : evalWithAnswerFn answers
+        (signLayers cache (output.toNat%2^31) 4
+          (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
+            (evalWithAnswerFn answers (signForest (output.toNat%2^31) (selections output))).2.2))) with
+      | none => simp only [hl,evalWithAnswerFn_pure,reduceCtorEq] at he
+      | some pieces =>
+          simp only [hl,evalWithAnswerFn_pure,Option.some.injEq] at he
+          subst sig
+          have hadm := (digestSearch_some answers (evalWithAnswerFn answers (privateNonce message))
+            message attemptLimit 0 counter output (by decide) hd).2.2.2
+          have hforest := assembled_forest_recovery answers
+            (evalWithAnswerFn answers (privateNonce message)) output pieces hadm
+          have hroots := congrArg (fun state : List Digest × List Digest × List Digest => state.2.2)
+            (eval_signForest answers (output.toNat%2^31) (selections output))
+          dsimp only at hroots
+          rw [← hroots] at hforest
+          have hindex : output.toNat%2^31 < 2^31 := Nat.mod_lt _ (by decide)
+          have hlayer := expandLayers_cost_le answers cache (output.toNat%2^31)
+            hcache hindex 4 (by decide) _ pieces hl
+            (assembledSignature (evalWithAnswerFn answers (privateNonce message))
+              (evalWithAnswerFn answers (signForest (output.toNat%2^31) (selections output))) pieces)
+            (fun _ _ => rfl)
+          rw [recoveryLayersCost_four] at hlayer
+          have hrec := cost_bound answers ((bound_recoverFts
+            (assembledSignature (evalWithAnswerFn answers (privateNonce message))
+              (evalWithAnswerFn answers (signForest (output.toNat%2^31) (selections output))) pieces)
+            (output.toNat%2^31) (selections output)).mono_k (forestRecoveryCost_le output hadm))
+          have hexpand := expand_cost_step answers message pk
+            (assembledSignature (evalWithAnswerFn answers (privateNonce message))
+              (evalWithAnswerFn answers (signForest (output.toNat%2^31) (selections output))) pieces)
+            counter output
+            (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
+              (evalWithAnswerFn answers (signForest (output.toNat%2^31) (selections output))).2.2))
+            (by simpa only [assembledSignature_rho] using hd) hforest
+          rw [hexpand,signPayload_cost_step answers cache message counter output hd]
+          simp only [assembledSignature_rho]
+          omega
+
+/-- Every source signer first checks the 513-block cache MAC. -/
+theorem sign_cost_ge_mac (answers : Answers) (cache : Cache) (message : Message) :
+    513 ≤ cost answers (sign cache message) := by
+  have hmac : cost answers (privateMac cache.region)=513 := by
+    simp only [cost,privateMac_count,evalWithAnswerFn_map]
+  simp only [sign,cost_bind,hmac]
+  omega
+
+theorem sign_cost_honest (answers : Answers) (message : Message) :
+    cost answers (sign (evalWithAnswerFn answers keygen).2 message) =
+      513+cost answers (signPayload (evalWithAnswerFn answers keygen).2 message) := by
+  have hvalid := keygen_cache_tag answers
+  have hmac : cost answers (privateMac (evalWithAnswerFn answers keygen).2.region)=513 := by
+    simp only [cost,privateMac_count,evalWithAnswerFn_map]
+  simp only [CacheTagCorrect] at hvalid
+  simp only [sign,cost_bind,hmac,← hvalid,ne_eq,not_true_eq_false,ite_false]
+
+/-- Pointwise compression coupling under one fixed answer function. Dividing
+by the expander budget 2^20 is no larger than dividing signing by 2^17. -/
+theorem expand_cost_le_eight_sign (answers : Answers) (message : Message) (sig : Signature)
+    (hs : evalWithAnswerFn answers (sign (evalWithAnswerFn answers keygen).2 message)=some sig) :
+    cost answers (expand message (evalWithAnswerFn answers keygen).1 sig) ≤
+      8*cost answers (sign (evalWithAnswerFn answers keygen).2 message) := by
+  have hk := keygen_correct answers
+  rw [sign_honest_cache answers message] at hs
+  have h := expand_cost_le_payload_add answers (evalWithAnswerFn answers keygen).2 message sig
+    hk.2.1 hs (evalWithAnswerFn answers keygen).1
+  rw [sign_cost_honest]
+  omega
+
+#print axioms expand_cost_le_eight_sign
+end SigGolfCandidate.T3.ExpansionBudget
+
+end
+
+/-! Authored module: ExpansionClosure. -/
+section
+namespace SigGolfCandidate.T3.ExpansionClosure
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal Sampling Cost SearchCost
+set_option maxRecDepth 10000
+set_option maxHeartbeats 1000000
+set_option backward.isDefEq.respectTransparency false
+
+def jointCounts {κ σ ω : Type} (initial : M κ) (signer : κ → M (Option σ))
+    (expander : κ → σ → M ω) : M (Nat × Nat) := do
+  let keys ← initial
+  let signed ← countBlocks (signer keys)
+  match signed.1 with
+  | none => pure (signed.2,0)
+  | some sig =>
+      let expanded ← countBlocks (expander keys sig)
+      pure (signed.2,expanded.2)
+
+/-- Pure accounting for an arbitrary initial phase, signer and expander. -/
+theorem eval_joint_cost_le {κ σ ω : Type} (answers : Correctness.Answers)
+    (initial : M κ) (signer : κ → M (Option σ)) (expander : κ → σ → M ω)
+    (hbound : ∀ sig,
+      evalWithAnswerFn answers (signer (evalWithAnswerFn answers initial))=some sig →
+      cost answers (expander (evalWithAnswerFn answers initial) sig) ≤
+        8*cost answers (signer (evalWithAnswerFn answers initial))) :
+    (evalWithAnswerFn answers (jointCounts initial signer expander)).2 ≤
+      8*(evalWithAnswerFn answers (jointCounts initial signer expander)).1 := by
+  unfold jointCounts
+  have hfst := counted_fst answers (signer (evalWithAnswerFn answers initial))
+  generalize hk : evalWithAnswerFn answers initial = keys at hfst hbound ⊢
+  simp only [evalWithAnswerFn_bind,hk]
+  generalize hc : evalWithAnswerFn answers (countBlocks (signer keys)) = signed at hfst ⊢
+  rcases signed with ⟨sig,n⟩
+  cases sig with
+  | none => simp only [evalWithAnswerFn_pure];omega
+  | some sig =>
+      simp only [evalWithAnswerFn_bind,evalWithAnswerFn_pure]
+      have hh := hbound sig hfst.symm
+      simpa only [SearchCost.cost,hc] using hh
+
+
+/-- Retain both phase charges in the shared oracle, with expansion charged only when reached. -/
+def honestJointCounts (message : Message) : M (Nat × Nat) :=
+  jointCounts keygen (fun keys => sign keys.2 message) (fun keys sig => expand message keys.1 sig)
+
+/-- Continuing with witness expansion does not increase the expectation of
+the already recorded signing charge. -/
+theorem joint_sign_exponential_budget (secret : BitVec 256) (message : Message) :
+    expectedValue (roRun secret (honestJointCounts message) ∅)
+      (fun result => (2 : ENNReal)^((result.1.1 : ℝ)/131072)) ≤ 2 := by
+  refine le_trans ?_ (BudgetClosure.honest_sign_exponential_budget secret message)
+  simp only [honestJointCounts,jointCounts,BudgetClosure.honestSignCount,roRun_bind,expectedValue_bind]
+  apply expectedValue_mono
+  intro keys
+  apply expectedValue_mono
+  rintro ⟨⟨sig,signCost⟩,rcache⟩
+  cases sig with
+  | none => simp only [roRun_pure,expectedValue_pure,le_refl]
+  | some sig =>
+    simp only [roRun_bind,expectedValue_bind]
+    apply expectedValue_le_of_support
+    intro expanded _
+    simp only [roRun_pure,expectedValue_pure,le_refl]
+
+theorem hashOnly_honestJointCounts (message : Message) : SourceReplay.HashOnly (honestJointCounts message) := by
+  unfold honestJointCounts jointCounts
+  apply SourceReplay.hashOnly_bind SourceReplay.hashOnly_keygen
+  intro keys
+  apply SourceReplay.hashOnly_bind (CountedReplay.hashOnly_countBlocks _ (SourceReplay.hashOnly_sign keys.2 message))
+  intro signed
+  cases signed.1 with
+  | none => exact SourceReplay.hashOnly_pure _
+  | some sig =>
+    apply SourceReplay.hashOnly_bind (CountedReplay.hashOnly_countBlocks _ (SourceReplay.hashOnly_expand message keys.1 sig))
+    intro expanded
+    exact SourceReplay.hashOnly_pure _
+
+theorem joint_cost_le (answers : Correctness.Answers) (message : Message) :
+    (evalWithAnswerFn answers (honestJointCounts message)).2 ≤
+      8 * (evalWithAnswerFn answers (honestJointCounts message)).1 := by
+  exact eval_joint_cost_le (κ := Digest × Cache) (σ := Signature) (ω := Option Witness) answers keygen
+    (fun keys => sign keys.2 message) (fun keys sig => expand message keys.1 sig)
+    (ExpansionBudget.expand_cost_le_eight_sign answers message)
+
+/-- Expansion is charged only if signing succeeded; its charge is bounded on
+every supported execution using the same fixed table for all three phases. -/
+theorem support_joint_cost_le (secret : BitVec 256) (message : Message)
+    (result : (Nat × Nat) × RCache)
+    (hr : result ∈ support (roRun secret (honestJointCounts message) ∅)) :
+    result.1.2 ≤ 8 * result.1.1 := by
+  obtain ⟨hash,_,heval⟩ := CountedReplay.support_replay secret _
+    (hashOnly_honestJointCounts message) ∅ result hr
+  rw [heval]
+  exact joint_cost_le _ message
+
+/-- The expander meets its exponential compression budget after the actual
+key generator and signer in their shared random oracle. -/
+theorem honest_expand_exponential_budget (secret : BitVec 256) (message : Message) :
+    expectedValue (roRun secret (honestJointCounts message) ∅)
+      (fun result => (2 : ENNReal)^((result.1.2 : ℝ)/1048576)) ≤ 2 := by
+  refine le_trans ?_ (joint_sign_exponential_budget secret message)
+  apply expectedValue_mono_of_support
+  intro result hr
+  apply ENNReal.rpow_le_rpow_of_exponent_le (by norm_num)
+  have hn : (result.1.2 : ℝ) ≤ 8 * (result.1.1 : ℝ) := by
+    exact_mod_cast support_joint_cost_le secret message result hr
+  linarith
+
+theorem uniform_message_expand_exponential_budget (secret : BitVec 256) :
+    expectedValue (do
+      let message ← ($ᵗ Message : ProbComp Message)
+      (simulateQ SphincsSecurity.romImpl (realize secret (honestJointCounts message))).run' ∅)
+      (fun result => (2 : ENNReal)^((result.2 : ℝ)/1048576)) ≤ 2 := by
+  rw [expectedValue_bind]
+  apply expectedValue_le_of_support
+  intro message _
+  rw [StateT.run'_eq,expectedValue_map]
+  exact honest_expand_exponential_budget secret message
+
+end SigGolfCandidate.T3.ExpansionClosure
+
+end
+
+
+-- SEC full-game composition: FullGameTables
+section
+namespace SigGolfCandidate.T3.Security.FullGame
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+open SphincsSecurity (OracleWorld romImpl)
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+
+theorem uniform_product {A B : Type} [Finite A] [Finite B]
+    [SampleableType A] [SampleableType B] [SampleableType (A × B)] :
+    𝒮[do let a ← ($ᵗ A : ProbComp _); let b ← $ᵗ B; pure (a,b)]=𝒮[$ᵗ (A × B)] := by
+  classical
+  let := Fintype.ofFinite A
+  let := Fintype.ofFinite B
+  apply evalSPMF_ext
+  rintro ⟨a,b⟩
+  change Pr[=(a,b) | do let x ← ($ᵗ A : ProbComp _); let y ← $ᵗ B; pure (id x,id y)]=_
+  rw [probOutput_bind_bind_prod_mk_eq_mul' _ _ id id a b]
+  simp only [id_map,probOutput_uniformSample,Nat.card_eq_fintype_card,Fintype.card_prod,
+    Nat.cast_mul]
+  rw [ENNReal.mul_inv (Or.inr (ENNReal.natCast_ne_top _)) (Or.inl (ENNReal.natCast_ne_top _))]
+
+abbrev OtherCoordinate := BitVec 128 ⊕ Message
+abbrev OtherTable := OtherCoordinate → HashOutput
+abbrev FullTable := Coordinate → HashOutput
+abbrev MacTable := CacheAuthentication.MacTable
+
+@[irreducible] noncomputable def otherFintype : Fintype OtherCoordinate := by
+  classical
+  exact inferInstance
+noncomputable local instance : Fintype OtherCoordinate := otherFintype
+noncomputable local instance : Fintype Region := CacheAuthentication.regionFintype
+noncomputable local instance : Fintype Coordinate := coordinateFintype
+
+@[irreducible] noncomputable def otherSampler : SampleableType OtherTable := by
+  classical
+  exact SampleableType.ofFintype _
+noncomputable local instance : SampleableType OtherTable := otherSampler
+noncomputable local instance : SampleableType MacTable := CacheAuthentication.macTableSampler
+noncomputable local instance : SampleableType FullTable := Derivation.outputSampler Coordinate
+noncomputable local instance : SampleableType (OtherTable × MacTable) :=
+  SampleableType.ofFintype _
+
+def joinTable (other : OtherTable) (mac : MacTable) : FullTable
+  | .inl tweak => other (.inl tweak)
+  | .inr (.inl message) => other (.inr message)
+  | .inr (.inr region) => mac region
+
+def tableEquiv : (OtherTable × MacTable) ≃ FullTable where
+  toFun tables := joinTable tables.1 tables.2
+  invFun table := ((fun input => match input with
+    | .inl tweak => table (.inl tweak)
+    | .inr message => table (.inr (.inl message))),fun region => table (.inr (.inr region)))
+  left_inv tables := by
+    apply Prod.ext
+    · funext input
+      cases input <;> rfl
+    · rfl
+  right_inv table := by
+    funext input
+    rcases input with tweak | message | region <;> rfl
+
+/-- The secret-coordinate table splits into independent non-MAC and MAC tables. -/
+theorem uniform_table_split :
+    𝒮[do let other ← ($ᵗ OtherTable : ProbComp _); let mac ← $ᵗ MacTable; pure (joinTable other mac)] =
+      𝒮[$ᵗ FullTable] := by
+  have h := congrArg (Functor.map tableEquiv) (uniform_product (A := OtherTable) (B := MacTable))
+  simp only [← evalSPMF_map,map_bind,map_pure] at h
+  exact h.trans (evalSPMF_map_bijective_uniform_cross (α := OtherTable × MacTable) (β := FullTable) tableEquiv tableEquiv.bijective)
+
+theorem uniform_table_split_bind {α : Type} (next : FullTable → ProbComp α) :
+    𝒮[do let table ← ($ᵗ FullTable : ProbComp _); next table]=
+      𝒮[do let other ← ($ᵗ OtherTable : ProbComp _); let mac ← $ᵗ MacTable; next (joinTable other mac)] := by
+  rw [evalSPMF_bind,← uniform_table_split,← evalSPMF_bind]
+  simp only [bind_assoc,pure_bind]
+
+abbrev RCache := QueryCache SphincsSecurity.HashSpec
+abbrev CountState := Nat × RCache
+
+def queryCharge (input : T3.Spec.Domain) : Nat := if Derivation.charged input then 1 else 0
+
+/-- Attach a counter to an arbitrary source interpreter. Every private query and
+public hash query costs one; random coin queries cost zero. -/
+noncomputable def countHandler (handler : QueryImpl T3.Spec (StateT RCache ProbComp)) :
+    QueryImpl T3.Spec (StateT CountState ProbComp) := fun input => StateT.mk fun state => do
+  let result ← (handler input).run state.2
+  pure (result.1,(state.1+queryCharge input,result.2))
+
+noncomputable def plainHandler (table : FullTable) : QueryImpl T3.Spec (StateT RCache ProbComp) :=
+  PrivateTable.fixedImpl romImpl table
+
+noncomputable def tableHandler (table : FullTable) : QueryImpl T3.Spec (StateT CountState ProbComp) :=
+  countHandler (plainHandler table)
+
+noncomputable def baseHandler (other : OtherTable) : QueryImpl T3.Spec (StateT CountState ProbComp) :=
+  tableHandler (joinTable other (fun _ => 0))
+
+noncomputable def run {α : Type} (table : FullTable) (program : M α) (state : CountState) :
+    ProbComp (α × CountState) := (simulateQ (tableHandler table) program).run state
+
+theorem tableHandler_split (other : OtherTable) (mac : MacTable) :
+    tableHandler (joinTable other mac)=MacGame.sourceHandler (baseHandler other) mac := by
+  funext input
+  apply StateT.ext
+  intro state
+  rcases input with world | tweak | message | region
+  · rfl
+  · rfl
+  · rfl
+  · simp [tableHandler,countHandler,plainHandler,PrivateTable.fixedImpl,
+      MacGame.sourceHandler,baseHandler,CacheAuthentication.macQuery,
+      CacheAuthentication.macCoordinate,joinTable]
+    change ((fun a : HashOutput × RCache => (a.1,(state.1+queryCharge (.inr (.inr (.inr region))),a.2))) <$>
+      pure (mac region,state.2)) =
+      ((fun a : HashOutput × RCache => (mac region,(state.1+queryCharge (.inr (.inr (.inr region))),a.2))) <$>
+        pure (0,state.2))
+    simp only [map_pure]
+
+theorem run_pure {α : Type} (table : FullTable) (value : α) (state : CountState) :
+    run table (pure value) state=pure (value,state) := rfl
+
+theorem run_bind {α β : Type} (table : FullTable) (program : M α) (next : α → M β)
+    (state : CountState) :
+    run table (program >>= next) state=
+      (do let result ← run table program state; run table (next result.1) result.2) := by
+  simp only [run,simulateQ_bind,StateT.run_bind]
+
+theorem run_map {α β : Type} (table : FullTable) (f : α → β) (program : M α) (state : CountState) :
+    run table (f <$> program) state=Prod.map f id <$> run table program state := by
+  simp only [run,simulateQ_map,StateT.run_map]
+  rfl
+
+theorem countHandler_run {α : Type} (handler : QueryImpl T3.Spec (StateT RCache ProbComp))
+    (program : M α) (state : CountState) :
+    (simulateQ (countHandler handler) program).run state=
+      (fun result => (result.1.1,(state.1+result.1.2,result.2))) <$>
+        (simulateQ handler (SphincsSecurity.QueryCap.counted Derivation.charged program)).run state.2 := by
+  induction program using OracleComp.inductionOn generalizing state with
+  | pure value =>
+      simp [SphincsSecurity.QueryCap.counted_pure]
+  | query_bind input next ih =>
+      simp only [simulateQ_bind,simulateQ_spec_query,StateT.run_bind,countHandler,
+        StateT.run_mk,SphincsSecurity.QueryCap.counted_query_bind]
+      simp only [simulateQ_bind,simulateQ_spec_query,StateT.run_bind,
+        simulateQ_pure,StateT.run_pure,map_bind,bind_assoc,pure_bind]
+      apply bind_congr
+      intro step
+      rw [ih]
+      simp only [map_pure,queryCharge,Nat.add_assoc,bind_pure_comp]
+
+theorem plainHandler_eq (table : FullTable) :
+    plainHandler table=QueryImpl.compose romImpl (Derivation.tableHandler table) :=
+  LazyPrivate.fixedImpl_eq table
+
+theorem plain_run {α : Type} (table : FullTable) (program : M α) (cache : RCache) :
+    (simulateQ (plainHandler table) program).run cache=
+      (simulateQ romImpl (Derivation.tableRun table program)).run cache := by
+  rw [plainHandler_eq,QueryImpl.simulateQ_compose]
+  rfl
+
+end SigGolfCandidate.T3.Security.FullGame
+end
+
+
+-- SEC full-game composition: FullGameVerdict
+section
+namespace SigGolfCandidate.T3.Security.FullGame
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+
+abbrev NonMac {α : Type} (program : M α) := AllQueriesSatisfy program MacGame.NonMac
+
+attribute [local aesop safe apply] SourceQueries.pure_allowed SourceQueries.bind_allowed
+  SourceQueries.map_allowed SourceQueries.foldlM_allowed SourceQueries.mapM_allowed
+  SourceQueries.shortHash_allowed SourceQueries.nodeHash_allowed SourceQueries.leafHash_allowed
+  SourceQueries.chain_allowed SourceQueries.ftsLeaf_allowed SourceQueries.forestPk_allowed
+  SourceQueries.digest_allowed SourceQueries.digestSearch_allowed SourceQueries.counterSearch_allowed
+macro "verdict_queries" : tactic => `(tactic|
+  aesop (config := { maxRuleApplications := 1000 }) (add simp MacGame.NonMac))
+
+theorem recoverChild_nonMac (index coord : Nat) (leaves : List Nat) (values : List Digest)
+    (proof : Fin 118 → Digest) (level node used : Nat) :
+    NonMac (recoverChild index coord leaves values proof level node used) := by
+  induction level generalizing node used with
+  | zero => unfold recoverChild;verdict_queries
+  | succ level ih => unfold recoverChild;verdict_queries
+attribute [local aesop safe apply] recoverChild_nonMac
+
+theorem recoverFts_nonMac (sig : Signature) (index : Nat) (chosen : List Selection) :
+    NonMac (recoverFts sig index chosen) := by
+  unfold recoverFts;verdict_queries
+attribute [local aesop safe apply] recoverFts_nonMac
+
+theorem recoverLayer_nonMac (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
+    NonMac (recoverLayer sig index lay digits) := by
+  unfold recoverLayer;verdict_queries
+attribute [local aesop safe apply] recoverLayer_nonMac
+
+theorem expandLayers_nonMac (sig : Signature) (index n : Nat) (value : Digest) :
+    NonMac (expandLayers sig index n value) := by
+  induction n generalizing value with
+  | zero => unfold expandLayers;verdict_queries
+  | succ n ih => unfold expandLayers;verdict_queries
+attribute [local aesop safe apply] expandLayers_nonMac
+
+theorem expand_nonMac (message : Message) (pk : Digest) (sig : Signature) :
+    NonMac (expand message pk sig) := by
+  unfold expand;verdict_queries
+attribute [local aesop safe apply] expand_nonMac
+
+theorem verifyLayers_nonMac (witness : Witness) (index n : Nat) (root : Digest) :
+    NonMac (verifyLayers witness index n root) := by
+  induction n generalizing root with
+  | zero => unfold verifyLayers;verdict_queries
+  | succ n ih => unfold verifyLayers;verdict_queries
+attribute [local aesop safe apply] verifyLayers_nonMac
+
+theorem verify_nonMac (message : Message) (pk : Digest) (witness : Witness) :
+    NonMac (verify message pk witness) := by
+  unfold verify;verdict_queries
+attribute [local aesop safe apply] verify_nonMac
+
+theorem checkForgery_nonMac (publicKey : Digest) (log : QueryLog Requests) (forgery : Forgery) :
+    NonMac (checkForgery publicKey log forgery) := by
+  cases forgery <;> unfold checkForgery <;> verdict_queries
+
+/-- Exactly the verdict of the source game, including failed adversary output,
+both forgery forms, the signed-message/signature freshness rule and the lifetime. -/
+noncomputable def verdict (publicKey : Digest) (result : Option Forgery × QueryLog Requests) : M Bool := do
+  let some forgery := result.1 | return false
+  let verified ← checkForgery publicKey result.2 forgery
+  pure (decide (result.2.length ≤ 2^32) && verified)
+
+theorem verdict_nonMac (publicKey : Digest) (result : Option Forgery × QueryLog Requests) :
+    NonMac (verdict publicKey result) := by
+  unfold verdict
+  cases result.1 with
+  | none => exact SourceQueries.pure_allowed _ _
+  | some forgery =>
+      exact SourceQueries.bind_allowed _ (checkForgery_nonMac publicKey result.2 forgery)
+        (fun _ => SourceQueries.pure_allowed _ _)
+
+noncomputable def logged (program : OracleComp LazyPrivate.Interaction (Option Forgery)) :
+    M (Option Forgery × QueryLog Requests) :=
+  (simulateQ ((fun input => liftM (forwardWorld input) :
+      QueryImpl SphincsSecurity.OracleWorld (WriterT (QueryLog Requests) M))+signingOracle) program).run
+
+theorem game_expansion (adversary : Adversary) : game adversary=(do
+    let generated ← keygen
+    let result ← logged (adversary generated.1 generated.2)
+    verdict generated.1 result) := rfl
+
+theorem logged_pure (value : Option Forgery) : logged (pure value)=pure (value,[]) := rfl
+
+theorem logged_world (input : SphincsSecurity.OracleWorld.Domain)
+    (next : SphincsSecurity.OracleWorld.Range input → OracleComp LazyPrivate.Interaction (Option Forgery)) :
+    logged (liftM (LazyPrivate.Interaction.query (.inl input)) >>= next)=
+      (forwardWorld input >>= fun answer => logged (next answer)) := by
+  unfold logged
+  rw [simulateQ_bind,simulateQ_spec_query,QueryImpl.add_apply_inl]
+  simp only [WriterT.run_bind',WriterT.run_liftM,bind_map_left]
+  apply bind_congr
+  intro answer
+  change id <$> _ = _
+  rw [id_map]
+
+theorem logged_request (request : Request)
+    (next : Option Signature → OracleComp LazyPrivate.Interaction (Option Forgery)) :
+    logged (liftM (LazyPrivate.Interaction.query (.inr request)) >>= next)=
+      (sign request.cache request.message >>= fun answer =>
+        (fun result => (result.1,⟨request,answer⟩::result.2)) <$> logged (next answer)) := by
+  unfold logged
+  rw [simulateQ_bind,simulateQ_spec_query,QueryImpl.add_apply_inr]
+  simp [signingOracle,WriterT.run_bind']
+
+/-- RequestHop retains precisely the source signing log, not just the returned forgery. -/
+theorem logged_interpretation {State : Type} (handler : QueryImpl T3.Spec (StateT State ProbComp))
+    (program : OracleComp LazyPrivate.Interaction (Option Forgery)) (state : State) :
+    (simulateQ handler (logged program)).run state=
+      RequestHop.run (fun input => handler (.inl input))
+        (fun request => simulateQ handler (sign request.cache request.message)) program state := by
+  induction program using OracleComp.inductionOn generalizing state with
+  | pure value => simp [logged_pure,RequestHop.run_pure]
+  | query_bind input next ih =>
+      cases input with
+      | inl input =>
+          rw [logged_world,RequestHop.run_public,simulateQ_bind,StateT.run_bind]
+          simp only [forwardWorld,simulateQ_spec_query]
+          exact bind_congr fun result => ih result.1 result.2
+      | inr request =>
+          rw [logged_request,RequestHop.run_request,simulateQ_bind,StateT.run_bind]
+          apply bind_congr
+          intro result
+          simp only [simulateQ_map,StateT.run_map,ih]
+
+end SigGolfCandidate.T3.Security.FullGame
+end
+
+
+-- SEC full-game composition: FullGameBudget
+section
+namespace SigGolfCandidate.T3.Security.FullGame
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+open SphincsSecurity (OracleWorld romImpl)
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+
+noncomputable def plainResult {α : Type} (handler : QueryImpl T3.Spec (StateT RCache ProbComp))
+    (program : M α) (cache : RCache) : ProbComp α := (simulateQ handler program).run' cache
+
+theorem plainResult_pure {α : Type} (handler : QueryImpl T3.Spec (StateT RCache ProbComp))
+    (value : α) (cache : RCache) : plainResult handler (pure value) cache=pure value := by
+  simp [plainResult,StateT.run'_eq]
+
+theorem plainResult_map {α β : Type} (handler : QueryImpl T3.Spec (StateT RCache ProbComp))
+    (f : α → β) (program : M α) (cache : RCache) :
+    plainResult handler (f <$> program) cache=f <$> plainResult handler program cache := by
+  simp [plainResult,StateT.run'_eq,StateT.run_map,Functor.map_map]
+
+theorem plainResult_query_bind {α : Type} (handler : QueryImpl T3.Spec (StateT RCache ProbComp))
+    (input : T3.Spec.Domain) (next : T3.Spec.Range input → M α) (cache : RCache) :
+    plainResult handler (liftM (T3.Spec.query input) >>= next) cache=
+      ((handler input).run cache >>= fun result => plainResult handler (next result.1) result.2) := by
+  simp only [plainResult,simulateQ_bind,simulateQ_spec_query,StateT.run'_eq,StateT.run_bind,map_bind]
+
+theorem countedResult_query_bind {α : Type} (handler : QueryImpl T3.Spec (StateT RCache ProbComp))
+    (input : T3.Spec.Domain) (next : T3.Spec.Range input → M α) (cache : RCache) :
+    plainResult handler (SphincsSecurity.QueryCap.counted Derivation.charged
+        (liftM (T3.Spec.query input) >>= next)) cache=
+      ((handler input).run cache >>= fun result =>
+        (fun outcome => (outcome.1,queryCharge input+outcome.2)) <$>
+          plainResult handler (SphincsSecurity.QueryCap.counted Derivation.charged (next result.1)) result.2) := by
+  rw [SphincsSecurity.QueryCap.counted_query_bind,plainResult_query_bind]
+  apply bind_congr
+  intro result
+  rw [bind_pure_comp,plainResult_map]
+  rfl
+
+/-- The capped source game retains exactly the counted executions within budget.
+The statement holds for an arbitrary stateful interpreter, not just independent queries. -/
+theorem cap_count_event {α : Type} (handler : QueryImpl T3.Spec (StateT RCache ProbComp))
+    (program : M α) (cache : RCache) (budget : Nat) (event : α → Prop) :
+    Pr[fun result => event result.1 ∧ result.2 ≤ budget |
+      plainResult handler (SphincsSecurity.QueryCap.counted Derivation.charged program) cache]=
+    Pr[fun outcome => ∃ result,outcome=some result ∧ event result.1 |
+      plainResult handler (Derivation.cap program budget) cache] := by
+  unfold Derivation.cap
+  induction program using OracleComp.inductionOn generalizing cache budget with
+  | pure value =>
+      simp [Derivation.cap,SphincsSecurity.QueryCap.counted_pure,
+        SphincsSecurity.QueryCap.run_pure,plainResult_pure]
+  | query_bind input next ih =>
+      rw [countedResult_query_bind]
+      change _=Pr[_ | plainResult handler (SphincsSecurity.QueryCap.run Derivation.charged
+        (liftM (T3.Spec.query input) >>= next) budget) cache]
+      rw [SphincsSecurity.QueryCap.run_query_bind]
+      by_cases hc : Derivation.charged input
+      · rw [if_pos hc]
+        cases budget with
+        | zero =>
+            rw [plainResult_pure,probEvent_pure]
+            simp only [reduceCtorEq,false_and,exists_false,if_false]
+            apply probEvent_eq_zero
+            intro result hresult hevent
+            rw [mem_support_bind_iff] at hresult
+            obtain ⟨step,_,hresult⟩ := hresult
+            rw [support_map] at hresult
+            obtain ⟨inner,_,rfl⟩ := hresult
+            have := hevent.2
+            simp [queryCharge,hc] at this
+        | succ remaining =>
+            rw [plainResult_query_bind,probEvent_bind_eq_tsum,probEvent_bind_eq_tsum]
+            apply tsum_congr
+            intro step
+            apply congrArg
+            rw [probEvent_map,← ih step.1 step.2 remaining]
+            apply probEvent_ext
+            intro result _
+            simp only [Function.comp_def,queryCharge,hc,if_true]
+            constructor <;> rintro ⟨he,hq⟩ <;> exact ⟨he,by omega⟩
+      · rw [if_neg hc,plainResult_query_bind,probEvent_bind_eq_tsum,probEvent_bind_eq_tsum]
+        apply tsum_congr
+        intro step
+        apply congrArg
+        rw [probEvent_map,← ih step.1 step.2 budget]
+        apply probEvent_ext
+        intro result _
+        simp only [Function.comp_def,queryCharge,hc,if_false,Nat.zero_add]
+
+theorem table_cap_event {α : Type} (table : FullTable) (program : M α) (cache : RCache)
+    (budget : Nat) (event : α → Prop) :
+    Pr[fun result => event result.1 ∧ result.2.1 ≤ budget | run table program (0,cache)]=
+    Pr[fun outcome => ∃ result,outcome=some result ∧ event result.1 |
+      (simulateQ romImpl (Derivation.tableRun table (Derivation.cap program budget))).run' cache] := by
+  have h := cap_count_event (plainHandler table) program cache budget event
+  rw [run,tableHandler,countHandler_run,probEvent_map]
+  simpa only [plainResult,StateT.run'_eq,probEvent_map,Function.comp_def,Nat.zero_add,plain_run] using h
+
+noncomputable local instance : Fintype Coordinate := coordinateFintype
+noncomputable local instance : SampleableType FullTable := Derivation.outputSampler Coordinate
+noncomputable local instance : Fintype OtherCoordinate := otherFintype
+noncomputable local instance : Fintype Region := CacheAuthentication.regionFintype
+noncomputable local instance : SampleableType OtherTable := otherSampler
+noncomputable local instance : SampleableType MacTable := CacheAuthentication.macTableSampler
+
+noncomputable def countedTableExperiment (adversary : Adversary) : ProbComp (Bool × CountState) := do
+  let table ← ($ᵗ FullTable : ProbComp _)
+  run table (game adversary) (0,∅)
+
+theorem counted_table_event (adversary : Adversary) (q : Nat) :
+    Pr[fun result => result.1=true ∧ result.2.1≤q | countedTableExperiment adversary]=
+      Pr[fun outcome => ∃ result,outcome=some result ∧ result.1=true | tableExperiment adversary q] := by
+  unfold countedTableExperiment tableExperiment
+  simp only [probEvent_bind_eq_tsum]
+  apply tsum_congr
+  intro table
+  apply congrArg
+  exact table_cap_event table (game adversary) ∅ q (·=true)
+
+/-- Real seeded security now reduces to an unrestricted counted table game,
+retaining key generation, all requests, both forgery forms and the exact budget event. -/
+theorem real_to_counted_table (adversary : Adversary) (q : Nat) (hq : q < 2^256) :
+    Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
+      Pr[fun result => result.1=true ∧ result.2.1≤q | countedTableExperiment adversary]+
+        q/((2^256 : Nat) : ENNReal) := by
+  rw [counted_table_event]
+  exact private_derivation_event_bound adversary q hq
+
+noncomputable def splitTableExperiment (adversary : Adversary) : ProbComp (Bool × CountState) := do
+  let other ← ($ᵗ OtherTable : ProbComp _)
+  let mac ← ($ᵗ MacTable : ProbComp _)
+  run (joinTable other mac) (game adversary) (0,∅)
+
+theorem table_experiment_split (adversary : Adversary) :
+    𝒮[countedTableExperiment adversary]=𝒮[splitTableExperiment adversary] :=
+  uniform_table_split_bind (fun table => run table (game adversary) (0,∅))
+
+end SigGolfCandidate.T3.Security.FullGame
+end
+
+
+-- SEC full-game composition: FullGameAuthentication
+section
+namespace SigGolfCandidate.T3.Security.FullGame
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+open SphincsSecurity (OracleWorld romImpl)
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+noncomputable local instance : Fintype OtherCoordinate := otherFintype
+noncomputable local instance : Fintype Region := CacheAuthentication.regionFintype
+noncomputable local instance : SampleableType OtherTable := otherSampler
+noncomputable local instance : SampleableType MacTable := CacheAuthentication.macTableSampler
+noncomputable local instance : DecidableEq Region := Classical.decEq _
+
+noncomputable def worldHandler (other : OtherTable) : RequestHop.Public CountState :=
+  fun input => baseHandler other (.inl input)
+
+noncomputable def checkContinuation (other : OtherTable) (publicKey : Digest)
+    (result : (Option Forgery × QueryLog Requests) × CountState) : ProbComp (Bool × CountState) :=
+  (simulateQ (baseHandler other) (verdict publicKey result.1)).run result.2
+
+noncomputable def realRest (other : OtherTable) (mac : MacTable) (adversary : Adversary)
+    (publicKey : Digest) (published : T3.Cache) (state : CountState) : ProbComp (Bool × CountState) :=
+  RequestHop.run (worldHandler other) (MacGame.realSigner (baseHandler other) mac)
+    (adversary publicKey published) state >>= checkContinuation other publicKey
+
+noncomputable def idealRest (other : OtherTable) (adversary : Adversary)
+    (publicKey : Digest) (published : T3.Cache) (state : CountState) : ProbComp (Bool × CountState) :=
+  RequestHop.run (worldHandler other) (MacGame.idealSigner (baseHandler other) published)
+    (adversary publicKey published) state >>= checkContinuation other publicKey
+
+theorem keygenPayload_nonMac : NonMac keygenPayload :=
+  SourceQueries.keygenPayload_allowed MacGame.NonMac (fun _ => trivial)
+    (fun _ => trivial) (fun _ => trivial)
+
+theorem base_mac_run (other : OtherTable) (region : Region) (state : CountState) :
+    (baseHandler other (CacheAuthentication.macQuery region)).run state=
+      pure ((0 : HashOutput),(state.1+1,state.2)) := by
+  change (do
+    let result ← (pure (0,state.2) : ProbComp (HashOutput × RCache))
+    pure (result.1,(state.1+1,result.2)))=_
+  simp only [pure_bind]
+
+theorem source_mac_run (other : OtherTable) (mac : MacTable) (region : Region) (state : CountState) :
+    (simulateQ (MacGame.sourceHandler (baseHandler other) mac) (privateMac region)).run state=
+      pure (mac region,(state.1+1,state.2)) := by
+  unfold privateMac privateHash
+  rw [simulateQ_spec_query]
+  change (do
+    let result ← (baseHandler other (CacheAuthentication.macQuery region)).run state
+    pure (mac region,result.2))=_
+  rw [base_mac_run,pure_bind]
+
+theorem logged_source_run (other : OtherTable) (mac : MacTable)
+    (program : OracleComp LazyPrivate.Interaction (Option Forgery)) (state : CountState) :
+    (simulateQ (MacGame.sourceHandler (baseHandler other) mac) (logged program)).run state=
+      RequestHop.run (worldHandler other) (MacGame.realSigner (baseHandler other) mac) program state := by
+  rw [logged_interpretation]
+  change RequestHop.run (worldHandler other)
+    (fun request => simulateQ (MacGame.sourceHandler (baseHandler other) mac)
+      (sign request.cache request.message)) program state=_
+  exact congrArg (fun signer => RequestHop.run (worldHandler other) signer program state)
+    (funext fun request => MacGame.source_signer_eq (baseHandler other) mac request)
+
+theorem source_rest_run (other : OtherTable) (mac : MacTable) (adversary : Adversary)
+    (publicKey : Digest) (published : T3.Cache) (state : CountState) :
+    (simulateQ (MacGame.sourceHandler (baseHandler other) mac) (do
+      let result ← logged (adversary publicKey published)
+      verdict publicKey result)).run state=
+      realRest other mac adversary publicKey published state := by
+  rw [simulateQ_bind,StateT.run_bind,logged_source_run]
+  unfold realRest
+  apply bind_congr
+  intro result
+  rw [MacGame.simulate_no_mac _ _ _ (verdict_nonMac publicKey result.1)]
+  rfl
+
+/-- Expand actual key generation and the actual logged forgery game. The MAC
+query costs one and the public cache is retained through the whole execution. -/
+theorem fixed_game_expansion (other : OtherTable) (mac : MacTable) (adversary : Adversary) :
+    run (joinTable other mac) (game adversary) (0,∅)=
+      (do
+        let generated ← (simulateQ (baseHandler other) keygenPayload).run (0,∅)
+        realRest other mac adversary generated.1.1 ⟨mac generated.1.2,generated.1.2⟩
+          (generated.2.1+1,generated.2.2)) := by
+  rw [run,tableHandler_split,game_expansion]
+  simp only [keygen,bind_assoc,pure_bind,simulateQ_bind,StateT.run_bind]
+  rw [MacGame.simulate_no_mac _ _ _ keygenPayload_nonMac]
+  apply bind_congr
+  intro generated
+  rw [source_mac_run,pure_bind]
+  simpa only [simulateQ_bind,StateT.run_bind] using
+    source_rest_run other mac adversary generated.1.1
+      ⟨mac generated.1.2,generated.1.2⟩ (generated.2.1+1,generated.2.2)
+
+/-- The published tag is uniform even though its region was selected during
+actual key generation. The remaining MAC table is sampled independently. -/
+theorem refresh_published_mac (other : OtherTable) (adversary : Adversary)
+    (generated : (Digest × Region) × CountState) :
+    𝒮[do
+      let mac ← ($ᵗ MacTable : ProbComp _)
+      realRest other mac adversary generated.1.1 ⟨mac generated.1.2,generated.1.2⟩
+        (generated.2.1+1,generated.2.2)]=
+    𝒮[do
+      let tag ← ($ᵗ HashOutput : ProbComp _)
+      let mac ← ($ᵗ MacTable : ProbComp _)
+      realRest other (Function.update mac generated.1.2 tag) adversary
+        generated.1.1 ⟨tag,generated.1.2⟩ (generated.2.1+1,generated.2.2)] := by
+  have h := PrivateTable.refresh_table (D := Region) (R := HashOutput) generated.1.2
+    (fun mac => realRest other mac adversary generated.1.1 ⟨mac generated.1.2,generated.1.2⟩
+      (generated.2.1+1,generated.2.2))
+  simpa only [Function.update_self] using h.symm
+
+structure Setup where
+  other : OtherTable
+  publicKey : Digest
+  published : T3.Cache
+  state : CountState
+
+noncomputable def setup : ProbComp Setup := do
+  let other ← ($ᵗ OtherTable : ProbComp _)
+  let generated ← (simulateQ (baseHandler other) keygenPayload).run (0,∅)
+  let tag ← ($ᵗ HashOutput : ProbComp _)
+  pure ⟨other,generated.1.1,⟨tag,generated.1.2⟩,(generated.2.1+1,generated.2.2)⟩
+
+noncomputable def preparedExperiment (adversary : Adversary) : ProbComp (Bool × CountState) := do
+  let prepared ← setup
+  let mac ← ($ᵗ MacTable : ProbComp _)
+  realRest prepared.other (Function.update mac prepared.published.region prepared.published.tag)
+    adversary prepared.publicKey prepared.published prepared.state
+
+noncomputable def authenticatedExperiment (adversary : Adversary) : ProbComp (Bool × CountState) := do
+  let prepared ← setup
+  idealRest prepared.other adversary prepared.publicKey prepared.published prepared.state
+
+theorem split_experiment_prepared (adversary : Adversary) :
+    𝒮[splitTableExperiment adversary]=𝒮[preparedExperiment adversary] := by
+  unfold splitTableExperiment preparedExperiment setup
+  simp only [bind_assoc,pure_bind]
+  apply evalSPMF_bind_congr'
+  intro other
+  simp_rw [fixed_game_expansion]
+  rw [evalSPMF_bind_bind_swap]
+  apply evalSPMF_bind_congr'
+  intro generated
+  exact refresh_published_mac other adversary generated
+
+theorem checkContinuation_long (other : OtherTable) (publicKey : Digest)
+    (result : (Option Forgery × QueryLog Requests) × CountState)
+    (hlong : 2^32 < result.1.2.length) (q : Nat) :
+    Pr[fun outcome => outcome.1=true ∧ outcome.2.1≤q | checkContinuation other publicKey result]=0 := by
+  have hn : ¬result.1.2.length≤2^32 := Nat.not_le.mpr hlong
+  unfold checkContinuation verdict
+  cases result.1.1 with
+  | none => simp [StateT.run_pure]
+  | some forgery =>
+      simp
+      intro count cache _ hshort
+      exact False.elim (hn hshort)
+
+theorem rest_authentication_bound (adversary : Adversary) (prepared : Setup) (q : Nat) :
+    Pr[fun result => result.1=true ∧ result.2.1≤q | do
+      let mac ← ($ᵗ MacTable : ProbComp _)
+      realRest prepared.other (Function.update mac prepared.published.region prepared.published.tag)
+        adversary prepared.publicKey prepared.published prepared.state] ≤
+    Pr[fun result => result.1=true ∧ result.2.1≤q |
+      idealRest prepared.other adversary prepared.publicKey prepared.published prepared.state]+
+      ((2 : ENNReal)^224)⁻¹ := by
+  have h := MacGame.authentication_hop (worldHandler prepared.other) (baseHandler prepared.other)
+    prepared.published (adversary prepared.publicKey prepared.published) (2^32) prepared.state
+    (checkContinuation prepared.other prepared.publicKey) (fun result => result.1=true ∧ result.2.1≤q)
+    (fun result hlong => checkContinuation_long prepared.other prepared.publicKey result hlong q)
+  refine h.trans (add_le_add le_rfl ?_)
+  apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
+  norm_num [ENNReal.toReal_mul,ENNReal.toReal_inv,ENNReal.toReal_pow]
+
+theorem probEvent_bind_le_add {α β : Type} (source : ProbComp α)
+    (left right : α → ProbComp β) (event : β → Prop) (error : ENNReal)
+    (h : ∀ value,Pr[event | left value] ≤ Pr[event | right value]+error) :
+    Pr[event | source >>= left] ≤ Pr[event | source >>= right]+error := by
+  simp only [probEvent_bind_eq_tsum]
+  calc
+    _ ≤ ∑' value,Pr[=value | source]*(Pr[event | right value]+error) :=
+      ENNReal.tsum_le_tsum (fun value => mul_le_mul' le_rfl (h value))
+    _ = (∑' value,Pr[=value | source]*Pr[event | right value])+
+        (∑' value,Pr[=value | source])*error := by
+      simp only [mul_add,ENNReal.tsum_add,ENNReal.tsum_mul_right]
+    _ ≤ _ := add_le_add le_rfl (mul_le_of_le_one_left zero_le tsum_probOutput_le_one)
+
+theorem prepared_authentication_bound (adversary : Adversary) (q : Nat) :
+    Pr[fun result => result.1=true ∧ result.2.1≤q | preparedExperiment adversary] ≤
+      Pr[fun result => result.1=true ∧ result.2.1≤q | authenticatedExperiment adversary]+
+        ((2 : ENNReal)^224)⁻¹ :=
+  probEvent_bind_le_add setup _ _ _ _ (fun prepared => rest_authentication_bound adversary prepared q)
+
+/-- A full-game reduction, with no independent-tag or authenticated-request
+premise on the adversary. Key generation, failed requests, both forgery forms,
+all query charges, signed-output freshness and the lifetime limit are retained. -/
+theorem real_to_authenticated (adversary : Adversary) (q : Nat) (hq : q < 2^256) :
+    Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
+      Pr[fun result => result.1=true ∧ result.2.1≤q | authenticatedExperiment adversary]+
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+  have h := real_to_counted_table adversary q hq
+  have he := (table_experiment_split adversary).trans (split_experiment_prepared adversary)
+  have hp : Pr[fun result => result.1=true ∧ result.2.1≤q | countedTableExperiment adversary]=
+      Pr[fun result => result.1=true ∧ result.2.1≤q | preparedExperiment adversary] :=
+    probEvent_congr' (fun _ _ => Iff.rfl) he
+  rw [hp] at h
+  exact h.trans (add_le_add (prepared_authentication_bound adversary q) le_rfl)
+
+end SigGolfCandidate.T3.Security.FullGame
+end
+
+
+-- SEC full-game composition: FullGameIdealSource
+section
+namespace SigGolfCandidate.T3.Security.FullGame
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+open SphincsSecurity (OracleWorld romImpl)
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
+noncomputable local instance : DecidableEq Region := Classical.decEq _
+noncomputable local instance : Fintype Coordinate := coordinateFintype
+noncomputable local instance : Fintype OtherCoordinate := otherFintype
+noncomputable local instance : Fintype Region := CacheAuthentication.regionFintype
+noncomputable local instance : SampleableType FullTable := Derivation.outputSampler Coordinate
+noncomputable local instance : SampleableType OtherTable := otherSampler
+noncomputable local instance : SampleableType MacTable := CacheAuthentication.macTableSampler
+
+/-- The authenticated source still issues and charges the MAC query on every
+request. Only the published cache is eligible for payload signing. -/
+noncomputable def authenticatedSign (published : T3.Cache) (request : Request) : M (Option Signature) := do
+  let _ ← privateMac request.cache.region
+  if request.cache=published then signPayload request.cache request.message else pure none
+
+noncomputable def authenticatedRecord (published : T3.Cache) (request : Request) :
+    M (Option Signature × Option HashOutput) := do
+  let _ ← privateMac request.cache.region
+  if request.cache=published then payloadRecord request.cache request.message else pure (none,none)
+
+theorem authenticatedRecord_erasure (published : T3.Cache) (request : Request) :
+    Prod.fst <$> authenticatedRecord published request=authenticatedSign published request := by
+  unfold authenticatedRecord authenticatedSign
+  rw [map_bind]
+  apply bind_congr
+  intro tag
+  split_ifs
+  · exact payloadRecord_erasure request.cache request.message
+  · rfl
+
+noncomputable def loggedWith {α : Type} (signer : Request → M (Option Signature))
+    (program : OracleComp LazyPrivate.Interaction α) : M (α × QueryLog Requests) :=
+  (simulateQ ((fun input => liftM (forwardWorld input) :
+      QueryImpl OracleWorld (WriterT (QueryLog Requests) M))+
+      (QueryImpl.withLogging (fun request => signer request) :
+        QueryImpl Requests (WriterT (QueryLog Requests) M))) program).run
+
+theorem loggedWith_pure {α : Type} (signer : Request → M (Option Signature)) (value : α) :
+    loggedWith signer (pure value)=pure (value,[]) := rfl
+
+theorem loggedWith_world {α : Type} (signer : Request → M (Option Signature))
+    (input : OracleWorld.Domain) (next : OracleWorld.Range input → OracleComp LazyPrivate.Interaction α) :
+    loggedWith signer (liftM (LazyPrivate.Interaction.query (.inl input)) >>= next)=
+      (forwardWorld input >>= fun answer => loggedWith signer (next answer)) := by
+  unfold loggedWith
+  rw [simulateQ_bind,simulateQ_spec_query,QueryImpl.add_apply_inl]
+  simp only [WriterT.run_bind',WriterT.run_liftM,bind_map_left]
+  apply bind_congr
+  intro answer
+  change id <$> _ = _
+  rw [id_map]
+
+theorem loggedWith_request {α : Type} (signer : Request → M (Option Signature))
+    (request : Request) (next : Option Signature → OracleComp LazyPrivate.Interaction α) :
+    loggedWith signer (liftM (LazyPrivate.Interaction.query (.inr request)) >>= next)=
+      (signer request >>= fun answer =>
+        (fun result => (result.1,⟨request,answer⟩::result.2)) <$> loggedWith signer (next answer)) := by
+  unfold loggedWith
+  rw [simulateQ_bind,simulateQ_spec_query,QueryImpl.add_apply_inr]
+  simp
+
+theorem loggedWith_interpretation {State α : Type}
+    (handler : QueryImpl T3.Spec (StateT State ProbComp)) (signer : Request → M (Option Signature))
+    (program : OracleComp LazyPrivate.Interaction α) (state : State) :
+    (simulateQ handler (loggedWith signer program)).run state=
+      RequestHop.run (fun input => handler (.inl input))
+        (fun request => simulateQ handler (signer request)) program state := by
+  induction program using OracleComp.inductionOn generalizing state with
+  | pure value => simp [loggedWith_pure,RequestHop.run_pure]
+  | query_bind input next ih =>
+      cases input with
+      | inl input =>
+          rw [loggedWith_world,RequestHop.run_public,simulateQ_bind,StateT.run_bind]
+          simp only [forwardWorld,simulateQ_spec_query]
+          exact bind_congr fun result => ih result.1 result.2
+      | inr request =>
+          rw [loggedWith_request,RequestHop.run_request,simulateQ_bind,StateT.run_bind]
+          apply bind_congr
+          intro result
+          simp only [simulateQ_map,StateT.run_map,ih]
+
+noncomputable def idealGame (adversary : Adversary) : M Bool := do
+  let generated ← keygen
+  let result ← loggedWith (authenticatedSign generated.2) (adversary generated.1 generated.2)
+  verdict generated.1 result
+
+theorem authenticatedSign_interpretation (other : OtherTable) (mac : MacTable)
+    (published : T3.Cache) (request : Request) :
+    simulateQ (MacGame.sourceHandler (baseHandler other) mac) (authenticatedSign published request)=
+      MacGame.idealSigner (baseHandler other) published request := by
+  unfold authenticatedSign privateMac privateHash
+  rw [simulateQ_bind,simulateQ_spec_query]
+  change ((do
+    let _ ← baseHandler other (CacheAuthentication.macQuery request.cache.region)
+    pure (mac request.cache.region)) >>= fun _ =>
+      simulateQ (MacGame.sourceHandler (baseHandler other) mac)
+        (if request.cache=published then signPayload request.cache request.message else pure none))=_
+  simp only [bind_assoc,pure_bind]
+  unfold MacGame.idealSigner
+  apply congrArg (fun continuation => baseHandler other (CacheAuthentication.macQuery request.cache.region) >>= continuation)
+  funext answer
+  split_ifs
+  · exact MacGame.simulate_no_mac _ _ _ (MacGame.payload_no_mac _ _)
+  · rfl
+
+theorem ideal_rest_run (other : OtherTable) (mac : MacTable) (adversary : Adversary)
+    (publicKey : Digest) (published : T3.Cache) (state : CountState) :
+    (simulateQ (MacGame.sourceHandler (baseHandler other) mac) (do
+      let result ← loggedWith (authenticatedSign published) (adversary publicKey published)
+      verdict publicKey result)).run state=idealRest other adversary publicKey published state := by
+  rw [simulateQ_bind,StateT.run_bind,loggedWith_interpretation]
+  have hs : (fun request => simulateQ (MacGame.sourceHandler (baseHandler other) mac)
+      (authenticatedSign published request))=MacGame.idealSigner (baseHandler other) published :=
+    funext fun request => authenticatedSign_interpretation other mac published request
+  rw [hs]
+  change RequestHop.run (worldHandler other) (MacGame.idealSigner (baseHandler other) published)
+    (adversary publicKey published) state >>= _ = _
+  unfold idealRest
+  apply bind_congr
+  intro result
+  rw [MacGame.simulate_no_mac _ _ _ (verdict_nonMac publicKey result.1)]
+  rfl
+
+theorem fixed_ideal_expansion (other : OtherTable) (mac : MacTable) (adversary : Adversary) :
+    run (joinTable other mac) (idealGame adversary) (0,∅)=
+      (do
+        let generated ← (simulateQ (baseHandler other) keygenPayload).run (0,∅)
+        idealRest other adversary generated.1.1 ⟨mac generated.1.2,generated.1.2⟩
+          (generated.2.1+1,generated.2.2)) := by
+  rw [run,tableHandler_split,idealGame]
+  simp only [keygen,bind_assoc,pure_bind,simulateQ_bind,StateT.run_bind]
+  rw [MacGame.simulate_no_mac _ _ _ keygenPayload_nonMac]
+  apply bind_congr
+  intro generated
+  rw [source_mac_run,pure_bind]
+  simpa only [simulateQ_bind,StateT.run_bind] using
+    ideal_rest_run other mac adversary generated.1.1
+      ⟨mac generated.1.2,generated.1.2⟩ (generated.2.1+1,generated.2.2)
+
+theorem sample_mac_at (region : Region) :
+    𝒮[(fun mac : MacTable => mac region) <$> ($ᵗ MacTable : ProbComp _)]=𝒮[$ᵗ HashOutput] := by
+  apply evalSPMF_ext
+  intro tag
+  rw [probOutput_map,CacheAuthentication.uniform_tag_probability]
+  exact CacheAuthentication.table_tag_probability region tag
+
+theorem sample_mac_at_bind {α : Type} (region : Region) (next : HashOutput → ProbComp α) :
+    𝒮[do let mac ← ($ᵗ MacTable : ProbComp _); next (mac region)]=
+      𝒮[do let tag ← ($ᵗ HashOutput : ProbComp _); next tag] := by
+  calc
+    _ = 𝒮[((fun mac : MacTable => mac region) <$> ($ᵗ MacTable : ProbComp _)) >>= next] := by
+      rw [bind_map_left]
+    _ = _ := by rw [evalSPMF_bind,sample_mac_at,← evalSPMF_bind]
+
+noncomputable def idealTableExperiment (adversary : Adversary) : ProbComp (Bool × CountState) := do
+  let table ← ($ᵗ FullTable : ProbComp _)
+  run table (idealGame adversary) (0,∅)
+
+/-- The authenticated experiment is an ordinary source game in the same private
+and public tables. Off-cache requests reject, but their MAC query remains charged. -/
+theorem ideal_table_authenticated (adversary : Adversary) :
+    𝒮[idealTableExperiment adversary]=𝒮[authenticatedExperiment adversary] := by
+  unfold idealTableExperiment
+  rw [uniform_table_split_bind]
+  unfold authenticatedExperiment setup
+  simp only [bind_assoc,pure_bind]
+  apply evalSPMF_bind_congr'
+  intro other
+  simp_rw [fixed_ideal_expansion]
+  rw [evalSPMF_bind_bind_swap]
+  apply evalSPMF_bind_congr'
+  intro generated
+  exact sample_mac_at_bind generated.1.2 (fun tag =>
+    idealRest other adversary generated.1.1 ⟨tag,generated.1.2⟩ (generated.2.1+1,generated.2.2))
+
+noncomputable def idealLazyExperiment (adversary : Adversary) :
+    ProbComp ((Bool × Nat) × LazyPrivate.State) :=
+  LazyPrivate.run (SphincsSecurity.QueryCap.counted Derivation.charged (idealGame adversary)) (∅,∅)
+
+/-- The exact budget event is preserved when the ideal source game switches
+back to lazy private tables, which the concrete proposal model can inspect. -/
+theorem ideal_lazy_event (adversary : Adversary) (q : Nat) :
+    Pr[fun result => result.1.1=true ∧ result.1.2≤q | idealLazyExperiment adversary]=
+      Pr[fun result => result.1=true ∧ result.2.1≤q | authenticatedExperiment adversary] := by
+  have h := LazyPrivate.run_eq_table
+    (SphincsSecurity.QueryCap.counted Derivation.charged (idealGame adversary)) ∅
+  have hp : Pr[fun result => result.1.1=true ∧ result.1.2≤q |
+      Prod.map id Prod.snd <$> idealLazyExperiment adversary]=
+      Pr[fun result => result.1.1=true ∧ result.1.2≤q | do
+        let table ← ($ᵗ FullTable : ProbComp _)
+        (simulateQ romImpl (Derivation.tableRun table
+          (SphincsSecurity.QueryCap.counted Derivation.charged (idealGame adversary)))).run ∅] :=
+    probEvent_congr' (fun _ _ => Iff.rfl) h
+  simp only [probEvent_map,Prod.map,id_eq,Function.comp_def] at hp
+  rw [hp]
+  have he : Pr[fun result => result.1=true ∧ result.2.1≤q | idealTableExperiment adversary]=
+      Pr[fun result => result.1=true ∧ result.2.1≤q | authenticatedExperiment adversary] :=
+    probEvent_congr' (fun _ _ => Iff.rfl) (ideal_table_authenticated adversary)
+  rw [← he]
+  unfold idealTableExperiment
+  simp only [probEvent_bind_eq_tsum]
+  apply tsum_congr
+  intro table
+  apply congrArg
+  rw [run,tableHandler,countHandler_run,probEvent_map]
+  simp only [plain_run,Function.comp_def,Nat.zero_add]
+
+/-- Full real-game authentication reduction in the lazy source state used for
+the adaptive disclosure trace. No authenticated-cache premise is assumed. -/
+theorem real_to_ideal_lazy (adversary : Adversary) (q : Nat) (hq : q < 2^256) :
+    Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
+      Pr[fun result => result.1.1=true ∧ result.1.2≤q | idealLazyExperiment adversary]+
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+  rw [ideal_lazy_event]
+  exact real_to_authenticated adversary q hq
+
+end SigGolfCandidate.T3.Security.FullGame
+end
+
 
 -- SEC full-game composition: CountedPrivate
 section
@@ -116,7 +7095,7 @@ No cache-validity or independence condition is imposed on the adversary. -/
 theorem real_to_counted_ideal (adversary : Adversary) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.1≤q | experiment adversary]+
-        ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [experiment_event]
   exact FullGame.real_to_ideal_lazy adversary q hq
 
@@ -133,7 +7112,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
-noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
 
 /-- Authenticating against the published cache does not reveal the nonce of a
 different message. The ignored MAC answer is still sampled and charged. -/
@@ -147,7 +7125,8 @@ theorem authenticated_completed_target_bound (published : T3.Cache) (request : R
   rw [FullGame.authenticatedRecord,LazyPrivate.run_bind,expectedValue_bind]
   apply expectedValue_le_of_support
   intro result hresult
-  have hp := LazyPrivate.privateMac_preserves_nonce request.cache.region request.message state result hresult
+  have hp := LazyPrivate.privateHash_preserves_other (.inr (.inr request.cache.region))
+    (.inr (.inl request.message)) (by simp) state result hresult
   split_ifs
   · have h := LazyPrivate.payload_completed_target_bound request.cache request.message result.2
       (hp.1.trans hfresh) targets
@@ -490,7 +7469,7 @@ the original source counter covering setup, signing, expansion and verification.
 theorem real_to_traced (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.1≤q | tracedExperiment adversary q hq]+
-        ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [tracedExperiment_event]
   exact real_to_counted_ideal adversary q (hq.trans_lt (by norm_num))
 
@@ -571,7 +7550,7 @@ theorem real_to_bounded_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^12
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.1≤q ∧
         result.2.1.length≤BPORS.Numeric.proposalLength | tracedExperiment adversary q hq]+
-        (2 : ENNReal)⁻¹^700+((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        (2 : ENNReal)⁻¹^700+((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   apply (real_to_traced adversary q hq).trans
   apply add_le_add_left
   apply add_le_add_left
@@ -706,7 +7685,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
-noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
 
 theorem run_project_support {α : Type} (program : M α) (state : State) (result : α × State)
     (hr : result ∈ support (run program state)) :
@@ -806,7 +7784,9 @@ theorem authenticatedSign_hashOnly (published : T3.Cache) (request : Request) :
     SourceReplay.HashOnly (FullGame.authenticatedSign published request) := by
   unfold FullGame.authenticatedSign
   apply SourceQueries.bind_allowed SourceReplay.IsHash
-    (SourceQueries.privateMac_allowed SourceReplay.IsHash (fun _ => trivial) request.cache.region)
+    (by
+      unfold privateMac privateHash
+      exact (allQueriesSatisfy_query_iff _ _).mpr (by trivial))
   intro tag
   split_ifs
   · exact SourceQueries.signPayload_allowed SourceReplay.IsHash (fun _ => trivial) (fun _ => trivial)
@@ -1085,7 +8065,7 @@ theorem real_to_clean_observed (adversary : Adversary) (q : Nat) (hq : q < 2^256
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.value=true ∧ result.calls≤q ∧ result.exceptional=false |
         observedExperiment adversary]+
-        q/(2 : ENNReal)^98+((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        q/(2 : ENNReal)^98+((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   have h := FullGame.real_to_ideal_lazy adversary q hq
   rw [← observedExperiment_event] at h
   apply h.trans
@@ -1424,7 +8404,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
-noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
 
 /-- Ghost cache monitoring preserves the exact completed-label marginal. -/
 theorem monitored_completed_target_bound (published : T3.Cache) (request : Request)
@@ -1730,7 +8709,7 @@ theorem experiment_event (adversary : Adversary) (q : Nat) :
 theorem real_to_monitored_ideal (adversary : Adversary) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.source.1≤q | experiment adversary]+
-        ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [experiment_event]
   exact CountedPrivate.real_to_counted_ideal adversary q hq
 
@@ -1779,7 +8758,7 @@ the original source counter covering setup, signing, expansion and verification.
 theorem real_to_traced (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.source.1≤q | tracedExperiment adversary q hq]+
-        ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [tracedExperiment_event]
   exact real_to_monitored_ideal adversary q (hq.trans_lt (by norm_num))
 
@@ -1859,7 +8838,7 @@ theorem real_to_bounded_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^12
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.source.1≤q ∧
         result.2.1.length≤BPORS.Numeric.proposalLength | tracedExperiment adversary q hq]+
-        (2 : ENNReal)⁻¹^700+((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        (2 : ENNReal)⁻¹^700+((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   apply (real_to_traced adversary q hq).trans
   apply add_le_add_left
   apply add_le_add_left
@@ -1925,7 +8904,7 @@ theorem real_to_clean_bounded_trace (adversary : Adversary) (q : Nat) (hq : q �
         result.2.1.length≤BPORS.Numeric.proposalLength ∧ result.2.2.exceptional=false |
           tracedExperiment adversary q hq]+
         q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+
-        ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   apply (real_to_bounded_trace adversary q hq).trans
   apply add_le_add_left
   apply add_le_add_left
@@ -2170,7 +9149,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
-noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
 
 abbrev WellFormed (state : State) := CountedPrivate.WellFormed state.source
 
@@ -2458,7 +9436,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
-noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
 
 theorem payloadRecord_has_digest (answers : Correctness.Answers) (cache : T3.Cache) (message : Message)
     (hs : (evalWithAnswerFn answers (payloadRecord cache message)).1≠none) :
@@ -2500,7 +9477,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
-noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
 
 theorem privateNonce_caches (message : Message) (before : LazyPrivate.State)
     (result : Digest × LazyPrivate.State)
@@ -2548,7 +9524,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
-noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
 
 /-- Any successful signing record resolved in a covered state has an admissible
 selected digest whose BPORS label occurs in the actual proposal history. -/
@@ -2689,7 +9664,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
-noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
 
 abbrev JournalEntry := Message × (Option Signature × Option HashOutput)
 abbrev Journal := List JournalEntry
@@ -2860,7 +9834,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
-noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
 
 /-- The full adaptive interaction admits a journal with one exact first record
 per used signing nonce. Its labels embed into the actual proposal word. -/
@@ -3092,7 +10065,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
-noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
 
 theorem payloadAfterDigest_forestRows (cache : T3.Cache) (rho : Digest) (output : HashOutput) :
     payloadAfterDigest cache rho output=(do
@@ -3910,7 +10882,7 @@ theorem real_to_no_public_target (targets : PublicTargets) (maxTargets : Nat)
       Pr[fun result => result.value=true ∧ result.calls≤q ∧ result.hit=false |
         experiment (publicTargetTest targets) adversary]+
       q*((maxTargets : ENNReal)/(2 : ENNReal)^128)+
-      ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+      ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   have h := FullGame.real_to_ideal_lazy adversary q hq
   rw [← experiment_event (publicTargetTest targets) adversary q] at h
   apply h.trans
@@ -3924,7 +10896,7 @@ theorem real_to_no_known_target (reference : Reference) (adversary : Adversary)
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.value=true ∧ result.calls≤q ∧ result.hit=false |
         experiment (publicTargetTest (onePublicTarget (knownTarget reference))) adversary]+
-      q/(2 : ENNReal)^128+((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+      q/(2 : ENNReal)^128+((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   have hcard : ∀ state input,(onePublicTarget (knownTarget reference) state input).card≤1 := by
     intro state input
     simp only [onePublicTarget]
@@ -4963,7 +11935,7 @@ theorem real_to_clean_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127)
       Pr[fun result => result.1=true ∧ result.2.2.base.source.1≤q ∧
         result.2.1.length≤BPORS.Numeric.proposalLength ∧ result.2.2.base.exceptional=false |
           tracedExperiment adversary q hq]+
-      q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+      q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   have h := MonitoredPrivate.real_to_clean_bounded_trace adversary q hq
   rw [← traced_base_erasure adversary q hq,probEvent_map] at h
   exact h
@@ -5027,7 +11999,7 @@ theorem real_to_clean_without_known (reference : FirstHit.Reference) (adversary 
       Pr[fun result => CleanWin q result ∧ ¬FirstHit.KnownPublicHit reference (recordedTrace result) |
         tracedExperiment adversary q hq]+
       q/(2 : ENNReal)^128+q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+
-      ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+      ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   apply (real_to_clean_trace adversary q hq).trans
   apply add_le_add _ le_rfl
   apply add_le_add _ le_rfl
@@ -5150,7 +12122,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
-noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
 noncomputable local instance : DecidableEq Region := Classical.decEq _
 noncomputable local instance : Fintype Coordinate := coordinateFintype
 noncomputable local instance : Fintype OtherCoordinate := otherFintype
@@ -5282,13 +12253,13 @@ theorem source_rest_run (checker : Checker Forgery) (other : OtherTable) (mac : 
   rfl
 
 /-- Expand actual key generation and the actual logged forgery game. The MAC
-derivations cost two and the public cache is retained through the whole execution. -/
+query costs one and the public cache is retained through the whole execution. -/
 theorem fixed_game_expansion (checker : Checker Forgery) (other : OtherTable) (mac : MacTable) (adversary : AdversaryFor Forgery) :
     run (joinTable other mac) (game checker adversary) (0,∅)=
       (do
         let generated ← (simulateQ (baseHandler other) keygenPayload).run (0,∅)
-        realRest checker other mac adversary generated.1.1 ⟨MacGame.tagAt mac generated.1.2,generated.1.2⟩
-          (generated.2.1+2,generated.2.2)) := by
+        realRest checker other mac adversary generated.1.1 ⟨mac generated.1.2,generated.1.2⟩
+          (generated.2.1+1,generated.2.2)) := by
   rw [run,tableHandler_split,game]
   simp only [keygen,bind_assoc,pure_bind,simulateQ_bind,StateT.run_bind]
   rw [MacGame.simulate_no_mac _ _ _ keygenPayload_nonMac]
@@ -5297,30 +12268,31 @@ theorem fixed_game_expansion (checker : Checker Forgery) (other : OtherTable) (m
   rw [source_mac_run,pure_bind]
   simpa only [simulateQ_bind,StateT.run_bind] using
     source_rest_run checker other mac adversary generated.1.1
-      ⟨MacGame.tagAt mac generated.1.2,generated.1.2⟩ (generated.2.1+2,generated.2.2)
+      ⟨mac generated.1.2,generated.1.2⟩ (generated.2.1+1,generated.2.2)
 
 /-- The published tag is uniform even though its region was selected during
-actual key generation. The conditional key law is the proved four-lane retagging law. -/
+actual key generation. The remaining MAC table is sampled independently. -/
 theorem refresh_published_mac (checker : Checker Forgery) (other : OtherTable) (adversary : AdversaryFor Forgery)
     (generated : (Digest × Region) × CountState) :
     𝒮[do
       let mac ← ($ᵗ MacTable : ProbComp _)
-      realRest checker other mac adversary generated.1.1 ⟨MacGame.tagAt mac generated.1.2,generated.1.2⟩
-        (generated.2.1+2,generated.2.2)]=
+      realRest checker other mac adversary generated.1.1 ⟨mac generated.1.2,generated.1.2⟩
+        (generated.2.1+1,generated.2.2)]=
     𝒮[do
       let tag ← ($ᵗ HashOutput : ProbComp _)
       let mac ← ($ᵗ MacTable : ProbComp _)
-      realRest checker other (MacGame.retag mac ⟨tag,generated.1.2⟩) adversary
-        generated.1.1 ⟨tag,generated.1.2⟩ (generated.2.1+2,generated.2.2)] := by
-  exact MacGame.refresh_published generated.1.2 (fun tag mac =>
-    realRest checker other mac adversary generated.1.1 ⟨tag,generated.1.2⟩
-      (generated.2.1+2,generated.2.2))
+      realRest checker other (Function.update mac generated.1.2 tag) adversary
+        generated.1.1 ⟨tag,generated.1.2⟩ (generated.2.1+1,generated.2.2)] := by
+  have h := PrivateTable.refresh_table (D := Region) (R := HashOutput) generated.1.2
+    (fun mac => realRest checker other mac adversary generated.1.1 ⟨mac generated.1.2,generated.1.2⟩
+      (generated.2.1+1,generated.2.2))
+  simpa only [Function.update_self] using h.symm
 
 
 noncomputable def preparedExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) : ProbComp (Bool × CountState) := do
   let prepared ← setup
   let mac ← ($ᵗ MacTable : ProbComp _)
-  realRest checker prepared.other (MacGame.retag mac prepared.published)
+  realRest checker prepared.other (Function.update mac prepared.published.region prepared.published.tag)
     adversary prepared.publicKey prepared.published prepared.state
 
 noncomputable def authenticatedExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) : ProbComp (Bool × CountState) := do
@@ -5355,11 +12327,11 @@ theorem checkContinuation_long (checker : Checker Forgery) (other : OtherTable) 
 theorem rest_authentication_bound (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (prepared : Setup) (q : Nat) :
     Pr[fun result => result.1=true ∧ result.2.1≤q | do
       let mac ← ($ᵗ MacTable : ProbComp _)
-      realRest checker prepared.other (MacGame.retag mac prepared.published)
+      realRest checker prepared.other (Function.update mac prepared.published.region prepared.published.tag)
         adversary prepared.publicKey prepared.published prepared.state] ≤
     Pr[fun result => result.1=true ∧ result.2.1≤q |
       idealRest checker prepared.other adversary prepared.publicKey prepared.published prepared.state]+
-      ((2 : ENNReal)^152)⁻¹ := by
+      ((2 : ENNReal)^224)⁻¹ := by
   have h := MacGame.authentication_hop (worldHandler prepared.other) (baseHandler prepared.other)
     prepared.published (adversary prepared.publicKey prepared.published) (2^32) prepared.state
     (checkContinuation checker prepared.other prepared.publicKey) (fun result => result.1=true ∧ result.2.1≤q)
@@ -5372,7 +12344,7 @@ theorem rest_authentication_bound (checker : Checker Forgery) (adversary : Adver
 theorem prepared_authentication_bound (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) :
     Pr[fun result => result.1=true ∧ result.2.1≤q | preparedExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.1≤q | authenticatedExperiment checker adversary]+
-        ((2 : ENNReal)^152)⁻¹ :=
+        ((2 : ENNReal)^224)⁻¹ :=
   probEvent_bind_le_add setup _ _ _ _ (fun prepared => rest_authentication_bound checker adversary prepared q)
 
 /-- A full-game reduction, with no independent-tag or authenticated-request
@@ -5381,7 +12353,7 @@ all query charges, signed-output freshness and the lifetime limit are retained. 
 theorem real_to_authenticated (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.1≤q | authenticatedExperiment checker adversary]+
-        ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   have h := real_to_counted_table checker adversary q hq
   have he := (table_experiment_split checker adversary).trans (split_experiment_prepared checker adversary)
   have hp : Pr[fun result => result.1=true ∧ result.2.1≤q | countedTableExperiment checker adversary]=
@@ -5419,8 +12391,8 @@ theorem fixed_ideal_expansion (checker : Checker Forgery) (other : OtherTable) (
     run (joinTable other mac) (idealGame checker adversary) (0,∅)=
       (do
         let generated ← (simulateQ (baseHandler other) keygenPayload).run (0,∅)
-        idealRest checker other adversary generated.1.1 ⟨MacGame.tagAt mac generated.1.2,generated.1.2⟩
-          (generated.2.1+2,generated.2.2)) := by
+        idealRest checker other adversary generated.1.1 ⟨mac generated.1.2,generated.1.2⟩
+          (generated.2.1+1,generated.2.2)) := by
   rw [run,tableHandler_split,idealGame]
   simp only [keygen,bind_assoc,pure_bind,simulateQ_bind,StateT.run_bind]
   rw [MacGame.simulate_no_mac _ _ _ keygenPayload_nonMac]
@@ -5429,7 +12401,7 @@ theorem fixed_ideal_expansion (checker : Checker Forgery) (other : OtherTable) (
   rw [source_mac_run,pure_bind]
   simpa only [simulateQ_bind,StateT.run_bind] using
     ideal_rest_run checker other mac adversary generated.1.1
-      ⟨MacGame.tagAt mac generated.1.2,generated.1.2⟩ (generated.2.1+2,generated.2.2)
+      ⟨mac generated.1.2,generated.1.2⟩ (generated.2.1+1,generated.2.2)
 
 
 noncomputable def idealTableExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) : ProbComp (Bool × CountState) := do
@@ -5451,7 +12423,7 @@ theorem ideal_table_authenticated (checker : Checker Forgery) (adversary : Adver
   apply evalSPMF_bind_congr'
   intro generated
   exact sample_mac_at_bind generated.1.2 (fun tag =>
-    idealRest checker other adversary generated.1.1 ⟨tag,generated.1.2⟩ (generated.2.1+2,generated.2.2))
+    idealRest checker other adversary generated.1.1 ⟨tag,generated.1.2⟩ (generated.2.1+1,generated.2.2))
 
 noncomputable def idealLazyExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) :
     ProbComp ((Bool × Nat) × LazyPrivate.State) :=
@@ -5490,7 +12462,7 @@ the adaptive disclosure trace. No authenticated-cache premise is assumed. -/
 theorem real_to_ideal_lazy (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1.1=true ∧ result.1.2≤q | idealLazyExperiment checker adversary]+
-        ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [ideal_lazy_event]
   exact real_to_authenticated checker adversary q hq
 
@@ -5526,7 +12498,7 @@ No cache-validity or independence condition is imposed on the adversary. -/
 theorem real_to_counted_ideal (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.1≤q | experiment checker adversary]+
-        ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [experiment_event]
   exact GameWith.real_to_ideal_lazy checker adversary q hq
 
@@ -5552,7 +12524,7 @@ theorem experiment_event (checker : Checker Forgery) (adversary : AdversaryFor F
 theorem real_to_monitored_ideal (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.source.1≤q | experiment checker adversary]+
-        ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [experiment_event]
   exact Counted.real_to_counted_ideal checker adversary q hq
 
@@ -5601,7 +12573,7 @@ the original source counter covering setup, signing, expansion and verification.
 theorem real_to_traced (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.source.1≤q | tracedExperiment checker adversary q hq]+
-        ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [tracedExperiment_event]
   exact real_to_monitored_ideal checker adversary q (hq.trans_lt (by norm_num))
 
@@ -5670,7 +12642,7 @@ theorem real_to_bounded_trace (checker : Checker Forgery) (adversary : Adversary
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.source.1≤q ∧
         result.2.1.length≤BPORS.Numeric.proposalLength | tracedExperiment checker adversary q hq]+
-        (2 : ENNReal)⁻¹^700+((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        (2 : ENNReal)⁻¹^700+((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   apply (real_to_traced checker adversary q hq).trans
   apply add_le_add_left
   apply add_le_add_left
@@ -5720,7 +12692,7 @@ theorem real_to_clean_bounded_trace (checker : Checker Forgery) (adversary : Adv
         result.2.1.length≤BPORS.Numeric.proposalLength ∧ result.2.2.exceptional=false |
           tracedExperiment checker adversary q hq]+
         q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+
-        ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   apply (real_to_bounded_trace checker adversary q hq).trans
   apply add_le_add_left
   apply add_le_add_left
@@ -5912,7 +12884,7 @@ theorem real_to_clean_trace (checker : Checker Forgery) (adversary : AdversaryFo
       Pr[fun result => result.1=true ∧ result.2.2.base.source.1≤q ∧
         result.2.1.length≤BPORS.Numeric.proposalLength ∧ result.2.2.base.exceptional=false |
           tracedExperiment checker adversary q hq]+
-      q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+      q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   have h := Monitored.real_to_clean_bounded_trace checker adversary q hq
   rw [← traced_base_erasure checker adversary q hq,probEvent_map] at h
   exact h
@@ -5960,7 +12932,7 @@ theorem real_to_clean_without_known (checker : Checker Forgery) (reference : Fir
       Pr[fun result => CleanWin q result ∧ ¬FirstHit.KnownPublicHit reference (recordedTrace result) |
         tracedExperiment checker adversary q hq]+
       q/(2 : ENNReal)^128+q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+
-      ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+      ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   apply (real_to_clean_trace checker adversary q hq).trans
   apply add_le_add _ le_rfl
   apply add_le_add _ le_rfl
@@ -6051,7 +13023,7 @@ private-coordinate reduction assumption. These errors retain their checked const
 theorem real_to_clean_trace (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2 ≤ q | realExperimentP adversary] ≤
       Pr[QueryRecorded.CleanWin q | tracedExperiment adversary q hq]+
-      q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+((2 : ENNReal)^152)⁻¹+
+      q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+((2 : ENNReal)^224)⁻¹+
       q/((2^256 : Nat) : ENNReal) := by
   rw [show (QueryRecorded.CleanWin q : TraceResult → Prop)=(fun result =>
     result.1=true ∧ result.2.2.base.source.1 ≤ q ∧
@@ -6066,7 +13038,7 @@ theorem real_to_clean_without_known (reference : FirstHit.Reference) (adversary 
         ¬FirstHit.KnownPublicHit reference (QueryRecorded.recordedTrace result) |
         tracedExperiment adversary q hq]+
       q/(2 : ENNReal)^128+q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+
-      ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+      ((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   simpa only [realExperiment_eq,tracedExperiment,QueryRecorded.CleanWin] using GameWith.Recorded.real_to_clean_without_known checker reference adversary q hq
 
 theorem full_game_excess_price (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
@@ -6195,7 +13167,7 @@ none of it is inferred merely from the proposal expectation estimates. -/
 theorem securityP_of_clean_bound
     (hclean : ∀ (adversary : AdversaryP) (q : Nat), 1 ≤ q → ∀ hq : q ≤ 2^127,
       Pr[QueryRecorded.CleanWin q | tracedExperiment adversary q hq]+
-        q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+((2 : ENNReal)^152)⁻¹+
+        q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+((2 : ENNReal)^224)⁻¹+
         q/((2^256 : Nat) : ENNReal) ≤ (q : ENNReal)/2^127) : SecurityP := by
   intro adversary q hpositive
   by_cases hq : 2^127 ≤ q

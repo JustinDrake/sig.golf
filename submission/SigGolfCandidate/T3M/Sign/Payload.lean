@@ -115,7 +115,7 @@ theorem payPost_of {w : MachineState} {sig : Signature} (hh : Halted0 w) (hrho :
 def midC : Nat := 14 + (7 * ftsCoordC + (2 + (12 + (8 * 2 + (26 + layersC)))))
 
 section payload
-variable {sk : SecretKey} {cache : Bytes 131072}
+variable {sk : SecretKey} {cache : Bytes 32768}
 
 /-- **`payloadRest`**: from `ds_done` the machine refines Core's `payloadRest` within `midC` cycles and ends in
 `PayPost`. -/

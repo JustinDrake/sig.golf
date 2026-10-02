@@ -64,7 +64,8 @@ theorem signing_weight_le (cache : T3.Cache) (message : Message) (state : State)
   rw [signingRecord, run_bind, expectedValue_bind]
   apply expectedValue_le_of_support
   intro result hresult
-  have hp := privateMac_preserves_nonce cache.region message state result hresult
+  have hp := privateHash_preserves_other (.inr (.inr cache.region)) (.inr (.inl message))
+    (by simp) state result hresult
   split_ifs with htag
   · simp only [run_pure, expectedValue_pure, Option.elim_none]
     exact bot_le

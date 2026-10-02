@@ -485,16 +485,12 @@ theorem respects_ftsLeaf (index coord leaf : Nat) (secret : Digest) :
   exact untouched_block4 a 0 secret 0 (by decide) coord index 0 leaf
 
 theorem respects_mask (level index : Nat) : Respects (Untouched a) (mask level index) := by
-  unfold mask pairedMask
+  unfold mask
   exact Respects.bind (Respects.privatePair _ _ _ _ _ (untouched_privatePair a (by decide) _ _ _ _))
     fun _ => Respects.pure' _
 
-theorem respects_privateMac (region : Region) : Respects (Untouched a) (privateMac region) := by
-  unfold privateMac privateMacKey
-  exact Respects.bind (Respects.bind
-    (Respects.privateHash _ (untouched_privatePair a (by decide) 0 0 0 0)) fun _ =>
-    Respects.bind (Respects.privateHash _ (untouched_privatePair a (by decide) 0 0 0 1)) fun _ =>
-      Respects.pure' _) fun _ => Respects.pure' _
+theorem respects_privateMac (region : Region) : Respects (Untouched a) (privateMac region) :=
+  Respects.privateHash _ trivial
 
 theorem respects_privateNonce (message : Message) : Respects (Untouched a) (privateNonce message) := by
   unfold privateNonce

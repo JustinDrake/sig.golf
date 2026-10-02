@@ -208,7 +208,8 @@ theorem fresh_signing_kernel (published : T3.Cache) (m : Message) (state : LazyP
   have hmac : ∀ mac ∈ support (LazyPrivate.run (privateMac published.region) state),
       expectedValue (LazyPrivate.run (payloadRecord published m) mac.2) F ≤ P + reuseMass state.2 m := by
     intro mac hmac
-    have hp := LazyPrivate.privateMac_preserves_nonce published.region m state mac hmac
+    have hp := LazyPrivate.privateHash_preserves_other (.inr (.inr published.region)) (.inr (.inl m))
+      (by simp) state mac hmac
     have hfresh1 : mac.2.1 (.inr (.inl m)) = none := hp.1.trans hfresh
     rw [payloadRecord, LazyPrivate.run_bind, LazyPrivate.run_privateNonce_fresh m mac.2 hfresh1]
     simp only [bind_assoc, pure_bind, expectedValue_bind]

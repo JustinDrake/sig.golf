@@ -67,7 +67,8 @@ theorem privatePair_dn (t l tr p ix : Nat) : AllQueriesSatisfy (privatePair t l 
   exact bind_allowed NotDN ((allQueriesSatisfy_query_iff _ _).mpr trivial) fun _ => pure_allowed _ _
 
 theorem privateMac_dn (region : Region) : AllQueriesSatisfy (privateMac region) NotDN := by
-  exact privateMac_allowed NotDN (fun _ => trivial) region
+  unfold privateMac privateHash
+  exact (allQueriesSatisfy_query_iff _ _).mpr trivial
 
 theorem chainStep_dn (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
     AllQueriesSatisfy (shortHash (chainInput lay tree leaf i step value)) NotDN := by
@@ -91,7 +92,7 @@ theorem nodeHash_dn {tag : Nat} (lay tree heap : Nat) (left right : Digest) (ht 
   exact shortHash_dn _ _ _ _ _ _ ht
 
 theorem mask_dn (level index : Nat) : AllQueriesSatisfy (mask level index) NotDN := by
-  unfold mask pairedMask
+  unfold mask
   exact bind_allowed NotDN (privatePair_dn _ _ _ _ _) fun _ => pure_allowed _ _
 
 theorem buildLeaf_dn (lay : Layer) (tree leaf : Nat) (digits : List Nat) (signatureOnly : Bool) :
@@ -137,19 +138,13 @@ theorem buildTree_dn (lay : Layer) (tree selected : Nat) (digits : List Nat) :
   · intro state
     exact bind_allowed NotDN (buildLevels_dn _ _ _ _ (by decide)) fun _ => pure_allowed _ _
 
-theorem maskedLevel_dn (nodes : List Digest) (level : Nat) :
-    AllQueriesSatisfy (maskedLevel nodes level) NotDN := by
-  unfold maskedLevel pairedMask
-  apply bind_allowed NotDN
-  · exact mapM_allowed NotDN _ _ (fun pair => bind_allowed NotDN (privatePair_dn _ _ _ _ _) (fun _ => pure_allowed _ _))
-  · intro _; exact pure_allowed _ _
-
 theorem keygenPayload_dn : AllQueriesSatisfy keygenPayload NotDN := by
   unfold keygenPayload
   apply bind_allowed NotDN (buildTree_dn _ _ _ _)
   intro built
   apply bind_allowed NotDN
-  · exact mapM_allowed NotDN _ _ (fun level => maskedLevel_dn _ _)
+  · exact mapM_allowed NotDN _ _ fun level => mapM_allowed NotDN _ _ fun i =>
+      bind_allowed NotDN (mask_dn _ _) fun _ => pure_allowed _ _
   · intro _
     exact pure_allowed _ _
 
@@ -179,8 +174,19 @@ theorem forestPk_dn (index : Nat) (roots : List Digest) : AllQueriesSatisfy (for
 
 theorem topPath_dn (cache : T3.Cache) (leaf : Nat) : AllQueriesSatisfy (topPath cache leaf) NotDN := by
   unfold topPath
-  exact mapM_allowed NotDN _ _ fun level =>
-    bind_allowed NotDN (mask_dn _ _) fun _ => pure_allowed _ _
+  apply bind_allowed NotDN (buildLeaf_dn _ _ _ _ _)
+  intro sibling
+  apply bind_allowed NotDN (buildLeaf_dn _ _ _ _ _)
+  intro left
+  apply bind_allowed NotDN (buildLeaf_dn _ _ _ _ _)
+  intro right
+  apply bind_allowed NotDN (nodeHash_dn _ _ _ _ _ (by decide))
+  intro siblingPair
+  apply bind_allowed NotDN
+  · exact mapM_allowed NotDN _ _ fun level =>
+      bind_allowed NotDN (mask_dn _ _) fun _ => pure_allowed _ _
+  · intro _
+    exact pure_allowed _ _
 
 theorem signTop_dn (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
     AllQueriesSatisfy (signTop cache leaf digits) NotDN := by

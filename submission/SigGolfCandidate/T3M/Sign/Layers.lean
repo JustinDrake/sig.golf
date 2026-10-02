@@ -131,7 +131,7 @@ theorem blkJal_spec {lay : Layer} (hlay : lay ≠ 0) (s : MachineState) (hpc : s
 /-! ## One lower layer -/
 
 /-- The `counter_search` entry (646) of lower layer `lay` with the message `msg` at `ENC`. -/
-structure LayEntry (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (index : Nat) (msg : Digest)
+structure LayEntry (sk : SecretKey) (cache : Bytes 32768) (lay : Layer) (index : Nat) (msg : Digest)
     (t : MachineState) : Prop where
   pc : t.pc = pcOf 646
   x1 : t.getReg .x1 = pcOf (jalBT lay)
@@ -154,7 +154,7 @@ structure LayEntry (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (index 
   c32 : (t.getMem (BitVec.ofNat 64 (ENC + 32))).toNat < 2 ^ 32
 
 /-- Back from `build_tree` at `ret` with the layer's root (the next message) at `ENC`. -/
-structure LayNext (sk : SecretKey) (cache : Bytes 131072) (ret index : Nat) (root : Digest) (t : MachineState) :
+structure LayNext (sk : SecretKey) (cache : Bytes 32768) (ret index : Nat) (root : Digest) (t : MachineState) :
     Prop where
   pc : t.pc = pcOf ret
   x2 : t.getReg .x2 = BitVec.ofNat 64 LOW
@@ -181,7 +181,7 @@ theorem signLayers_low (cache : Cache) (index : Nat) {lay : Layer} (hlay : lay �
   all_goals rfl
 
 section layer
-variable {sk : SecretKey} {cache : Bytes 131072}
+variable {sk : SecretKey} {cache : Bytes 32768}
 
 /-- **One lower layer**: from the `counter_search` entry of layer `lay ≠ 0`, the machine refines
 `signLayers cache index (lay + 1) msg`, given the refinement of `signLayers cache index lay` from the return of

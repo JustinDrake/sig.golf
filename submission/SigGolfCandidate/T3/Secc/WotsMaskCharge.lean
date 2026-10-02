@@ -140,15 +140,18 @@ theorem queried_length_treeRows (T : Answers) (lay : Layer) (tree selected : Nat
   rw [queried_length_bind, queried_length_buildLeaf]
   rfl
 
-/-- Queries of `topPath`: one paired-mask query for each of twelve cached siblings. -/
-def topPathCount : Nat := ((List.range 12).map fun _ => 1).sum
+/-- Queries of `topPath` (three leaf builders, one node, ten masks). -/
+def topPathCount : Nat := 3 * leafCount 0 [] false + 1 + ((List.range' 2 10).map fun _ => 1).sum
 
 theorem queried_length_topPath (T : Answers) (cache : Cache) (leaf : Nat) :
     (SourceReplay.queried T (topPath cache leaf)).length = topPathCount := by
   unfold topPath topPathCount
-  exact queried_length_mapM T _ _ (fun _ => 1) (fun level _ => by
-    unfold mask pairedMask
-    simp only [queried_length_bind, queried_length_privatePair, queried_length_pure])
+  simp only [queried_length_bind, queried_length_buildLeaf, queried_length_pure]
+  rw [nodeHash_eq_shortHash, queried_length_shortHash,
+    queried_length_mapM T _ _ (fun _ => 1) (fun level _ => by
+      unfold mask
+      simp only [queried_length_bind, queried_length_privatePair, queried_length_pure])]
+  omega
 
 theorem queried_length_signTop (T : Answers) (cache : Cache) (leaf : Nat) (digits : List Nat) :
     (SourceReplay.queried T (signTop cache leaf digits)).length = leafCount 0 digits true + topPathCount := by
@@ -187,16 +190,8 @@ theorem count_buildTree_maskAt (lay : Layer) (tree selected : Nat) (digits : Lis
   rw [queried_length_bind, queried_length_bind, queried_length_pure, queried_length_pure,
     count_maskAt_of_respects answers a (respects_buildLevels a 3 _ _ _ _ (by decide))]
 
-/-- Paired-mask queries for the twelve cached levels. -/
-def maskCount : Nat := ((List.range' 0 12).map fun level => ((List.range (2 ^ (11 - level))).map fun _ => 1).sum).sum
-
-theorem queried_length_maskedLevel (T : Answers) (nodes : List Digest) (level : Nat) :
-    (SourceReplay.queried T (maskedLevel nodes level)).length =
-      ((List.range (2 ^ (11-level))).map fun _ => 1).sum := by
-  unfold maskedLevel pairedMask
-  rw [queried_length_bind, queried_length_pure, Nat.add_zero]
-  exact queried_length_mapM T _ _ (fun _ => 1) (fun pair _ => by
-    simp only [queried_length_bind, queried_length_privatePair, queried_length_pure])
+/-- Queries of the masked-cache continuation of key generation (ten levels of masks). -/
+def maskCount : Nat := ((List.range' 2 10).map fun level => ((List.range (2 ^ (12 - level))).map fun _ => 1).sum).sum
 
 theorem queried_length_cachePayload (T : Answers) (builder : M (List (List Digest) × List Digest)) :
     (SourceReplay.queried T (Correctness.cachePayloadProgram builder)).length =
@@ -207,8 +202,10 @@ theorem queried_length_cachePayload (T : Answers) (builder : M (List (List Diges
   rcases x with ⟨levels, values⟩
   dsimp only
   rw [queried_length_bind, queried_length_pure, Nat.add_zero,
-    queried_length_mapM _ _ _ (fun level => ((List.range (2 ^ (11 - level))).map fun _ => 1).sum)
-      (fun level _ => queried_length_maskedLevel _ _ _)]
+    queried_length_mapM _ _ _ (fun level => ((List.range (2 ^ (12 - level))).map fun _ => 1).sum) (fun level _ => by
+      rw [queried_length_mapM _ _ _ (fun _ => 1) (fun i _ => by
+        unfold mask
+        simp only [queried_length_bind, queried_length_privatePair, queried_length_pure])])]
   rfl
 
 theorem count_keygenPayload_maskAt :

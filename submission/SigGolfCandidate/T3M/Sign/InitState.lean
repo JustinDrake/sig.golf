@@ -12,7 +12,7 @@ namespace SigGolfCandidate.T3M.Sign
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 
 set_option maxRecDepth 100000 in
-theorem initialState_sign (sk : SecretKey) (cache : Bytes 131072) (m : Message) :
+theorem initialState_sign (sk : SecretKey) (cache : Bytes 32768) (m : Message) :
     initialState submission .sign (sk, cache, m) = some (sinit sk cache m) := by
   have hv := submission_sign_valid
   unfold initialState

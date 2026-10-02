@@ -174,13 +174,7 @@ def RouteOkR (a : AuxData) (index : Nat) : Prop :=
 
 /-- Mask of the cached top tree. -/
 def maskOf (a : AuxData) (level node : Nat) : Digest :=
-  let answer := a.priv (.inl (header 13 0 0 level (node/2)))
-  if node%2=0 then answer.extractLsb' 0 128 else answer.extractLsb' 128 128
-
-/-- Four-lane polynomial tag from the same two private key answers as the source. -/
-def macOf (a : AuxData) (region : Region) : HashOutput :=
-  SiggolfT3Mac4.encodeTag (SiggolfT3Mac4.macTag
-    (fun i => a.priv (.inl (header 14 0 0 0 i.val))) (List.ofFn region))
+  (a.priv (.inl (header 13 0 0 level node))).extractLsb' 0 128
 
 /-- The router's top-tree value at `(level, node)` from disclosed values. -/
 def topValue (v : Coord → Digest) (level node : Nat) : Digest :=
@@ -356,7 +350,7 @@ noncomputable def routerWith (adversary : Final.AdversaryP) (q : Nat) (a : AuxDa
   let v := lookupVal pairs
   let pk := v (.inl (.node (rootNode 0 0)))
   let region := Correctness.cacheRegion fun level node => topValue v level node ^^^ maskOf a level node
-  let published : T3.Cache := ⟨macOf a region, region⟩
+  let published : T3.Cache := ⟨a.priv (.inr (.inr region)), region⟩
   let r ← routeInteraction U a published q (adversary pk published) RouterState.initial
   match r with
   | none => pure none

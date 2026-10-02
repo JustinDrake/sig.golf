@@ -50,7 +50,7 @@ theorem height_low {lay : Layer} (h : lay ≠ 0) : height lay = 6 ∨ height lay
 
 /-- The register and memory facts `build_tree` needs (at its entry 1173 and along the leaf loop) for layer
 `lay ≠ 0` (tree `tree`, selected leaf `sel`, digits `ds` at `DIGITS`, values / path to `sb`). -/
-structure BtPre (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (tree sel : Nat) (ds : List Nat)
+structure BtPre (sk : SecretKey) (cache : Bytes 32768) (lay : Layer) (tree sel : Nat) (ds : List Nat)
     (sb : Nat) (s : MachineState) : Prop where
   x2 : s.getReg .x2 = BitVec.ofNat 64 LOW
   x8 : s.getReg .x8 = BitVec.ofNat 64 lay.val
@@ -106,7 +106,7 @@ theorem buildTree_eq (lay : Layer) (tree sel : Nat) (ds : List Nat) : buildTree 
     pure (levels, state.2)) := rfl
 
 section loop
-variable {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel : Nat} {ds : List Nat} {sb : Nat}
+variable {sk : SecretKey} {cache : Bytes 32768} {lay : Layer} {tree sel : Nat} {ds : List Nat} {sb : Nat}
   {s1 : MachineState} (hs : BtPre sk cache lay tree sel ds sb s1)
 include hs
 
@@ -390,7 +390,7 @@ def BtAllW (lay : Layer) (tree sb : Nat) (A : Nat) : Prop :=
     A = ENC ∨ A = ENC + 8
 
 /-- The exit of `build_tree`: back at `ret` with the values, the path and the root (to `ENC`). -/
-structure BtPost (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (tree sel sb ret : Nat) (s : MachineState)
+structure BtPost (sk : SecretKey) (cache : Bytes 32768) (lay : Layer) (tree sel sb ret : Nat) (s : MachineState)
     (r : List (List Digest) × List Digest) (u : MachineState) : Prop where
   pc : u.pc = pcOf ret
   vlen : r.2.length = 43
@@ -430,7 +430,7 @@ theorem btLev_costs (lay : Layer) (hlay : lay ≠ 0) (tree : Nat) :
 
 /-- The tail of `build_tree` after the leaf loop (`bt_leaf` exit at `L3 = 2^H`): `build_levels`, the
 authentication path, the root, the return. -/
-theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel : Nat} {ds : List Nat}
+theorem bt_tail {sk : SecretKey} {cache : Bytes 32768} {lay : Layer} {tree sel : Nat} {ds : List Nat}
     {sb ret : Nat} {s s1 t : MachineState} (hs : BtPre sk cache lay tree sel ds sb s1)
     (h4 : s1.getReg .x4 = pcOf ret) (hr0 : RegsExcept s s1 [.x4, .x13]) (hf0 : Frame s s1 (fun _ => False))
     {st : List Digest × List Digest} (ht : BtInv s1 sb sel (height lay) (2 ^ height lay) st t) :
@@ -579,7 +579,7 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
 /-- **`build_tree`** (lower layers): from the entry (1173), the machine refines Core's
 `buildTree lay tree sel ds` (bounded by `btCost`) and returns to `ret` with the selected leaf's values,
 the authentication path and the root (`BtPost`). -/
-theorem buildTree_tbsim {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel : Nat} {ds : List Nat}
+theorem buildTree_tbsim {sk : SecretKey} {cache : Bytes 32768} {lay : Layer} {tree sel : Nat} {ds : List Nat}
     {sb ret : Nat} {s : MachineState} (hs : BtPre sk cache lay tree sel ds sb s) (hpc : s.pc = pcOf 1173)
     (h1 : s.getReg .x1 = pcOf ret) :
     TBSim image sk s btCost (buildTree lay tree sel ds) (BtPost sk cache lay tree sel sb ret s) := by
