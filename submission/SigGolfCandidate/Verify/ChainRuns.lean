@@ -11,7 +11,7 @@ then `C` (head and rungs `d + 1 .. 7`, or the digit-7 copy), then the extraction
 `t + 1` and its `jalr`, or for `t = 13` the return `jalr zero, ra`.
 
 The code is layer independent: it addresses the blocks relative to `s6 = x22` (the layer base
-`blk(lay, 0) + 1344`), bumps the running tweak word 0 in `s9 = x25` by `t3 = 2^40`, and stores
+`blk(lay, 0) + 640`), bumps the running tweak word 0 in `s9 = x25` by `t3 = 2^40`, and stores
 tweak word 1 from `t6 = x31`. Its runs are therefore checked once, with `x22`, `x25`, `x31`,
 `a0 = x10`, `a2 = x12` symbolic; the memory writes and obligations have the base `x22` or `x10`.
 
@@ -26,8 +26,10 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 /-- Known registers in the chain code (layer independent). -/
 def chK0 : List (Reg × Word) := gkL ++ [(.x11, 64)]
 
-/-- The offset of chain block `i` from the layer base `s6 = blk(lay, 0) + 1344`. -/
-def offW (i : Nat) : Word := BitVec.ofNat 64 (64 * i) - BitVec.ofNat 64 1344
+/-- Rebasing by 704 makes the top-layer base 0x4000, loaded by one LUI.
+All block and digit-7 load offsets stay within -640 .. 2040.
+The offset of chain block `i` from the layer base `s6 = blk(lay, 0) + 640`. -/
+def offW (i : Nat) : Word := BitVec.ofNat 64 (64 * i) - BitVec.ofNat 64 640
 
 /-- The leaf-pk slot of chain `i` (`LB + 32 + 16 i`). -/
 def slotA (i : Nat) : Nat := 0x360 + 16 * i
