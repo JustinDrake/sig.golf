@@ -199,8 +199,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7451 := by decide
-theorem layC_val : layC = 7451 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7449 := by decide
+theorem layC_val : layC = 7449 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
