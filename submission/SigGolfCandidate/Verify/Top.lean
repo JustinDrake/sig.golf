@@ -146,21 +146,21 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       change m.getMem (BitVec.ofNat 64 0xFDFFC8) = TMASK
       rw [h.pb.prot (by simp [protP])]
       exact h.pb.s0ok.masks.2.2.2.1
-    have hregs : KnownOK gkL0 u := by
+    have hregs : KnownOK gkL4 u := by
       intro p hp
-      simp only [gkL0, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      simp only [gkL4, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
+      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact hg0.1 p (by simp [rootK, hp])
       · exact hm1
       · exact hm2
       all_goals first | exact htmask | exact hu.known _ (by simp [rootPost, rootK])
-    have hg : GlobP gkL0 s0 u := ⟨hregs, hg0.2⟩
+    have hg : GlobP gkL4 s0 u := ⟨hregs, hg0.2⟩
     have hknown : KnownOK l4K u := by
       intro p hp
       simp only [l4K, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl
       · exact hregs p hp
-      all_goals first | exact htag | exact hu.known _ (by simp [rootPost, rootK])
+      all_goals first | exact htag | exact hu.known _ (by simp [rootPost, rootK, s6N_eq])
     have hmem : ∀ A, u.getMem A = m.getMem A := fun A => by rw [hu.mem]; rfl
     have n0 := h.node0; have n1 := h.node1
     simp only [destOf, show (2 : Nat) ≠ 0 by decide, show (2 : Nat) ≠ 1 by decide, if_false] at n0 n1
@@ -199,8 +199,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7451 := by decide
-theorem layC_val : layC = 7451 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7448 := by decide
+theorem layC_val : layC = 7448 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do

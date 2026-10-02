@@ -5,7 +5,8 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=13712 witness bytes, K=131072 cache bytes.
-The claim C=10265 is accepting verifier bound10211 plus witness charge54.
+The claim C=10262 is accepting verifier bound10208 plus witness charge54.
+The cached-top-tree leaf jumps straight into a 16-byte-slot table (slli 4; jalr 1504), two instructions fewer on layer 0.
 The PORS node/leaf instance header rotates bytes3..7 through a total query involution,
 so setup builds its two headers with a shift and add, saving four instructions.
 The WOTS digit-lane SWAR uses seven ALU instructions instead of nine in every layer, saving ten cycles.
@@ -100,7 +101,7 @@ theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4720 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10265 :=
+theorem certificate : SigGolf.Certificate submission 10262 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

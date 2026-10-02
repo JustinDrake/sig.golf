@@ -118,7 +118,7 @@ def lvlMem (lay lam t : Nat) (nb : E) : List (Addr × E) :=
 
 /-- Known registers at the start of level `lam`. -/
 def foldK (lay len : Nat) : List (Reg × Word) :=
-  fk false 0x340 len ++ [(.x22, BitVec.ofNat 64 (5632 + 2688 * lay))]
+  fk false 0x340 len ++ [(.x29, BitVec.ofNat 64 (5632 + 2688 * lay))]
 
 def lvlK (lay lam : Nat) : List (Reg × Word) :=
   foldK lay (if lam = 0 then 704 else 64)
@@ -181,9 +181,11 @@ def blockCheck (lay ci v : Nat) : Bool :=
 def foldCheck (lay ci a n : Nat) : Bool := (List.range' a n).all (blockCheck lay ci)
 
 
-/-- Full-index return slots for the top tree's shared six- and five-level blocks. -/
-def topSlotBase : Nat := 197888
-def topSlotPc (E : Nat) : Nat := topSlotBase + 2 * (2047 - E)
+/-- Full-index return slots for the top tree's shared six- and five-level blocks: 16-byte slots
+`jal ra', chunk0; jal chunk1; nop; nop` at `16 (4095 - E) + 1504` (bytes), so the leaf enters them
+with `slli gp, s7, 4; jalr zero, 1504(gp)`. -/
+def topSlotBase : Nat := 7544
+def topSlotPc (E : Nat) : Nat := topSlotBase + 4 * (2047 - E)
 
 def topSlotEnterExp (E : Nat) : PRes :=
   ⟨⟨(RegFile.withKnown (foldK 0 704)).set .x16 (cw (0x1000 + 4 * (topSlotPc E + 1))), [], []⟩,
