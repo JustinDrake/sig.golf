@@ -145,8 +145,8 @@ theorem header_normal (t l tr p ix : Nat) :
     header t l tr p ix = header (t % 256) (l % 256) (tr % 2 ^ 40) (p % 2 ^ 32) (ix % 2 ^ 32) := by
   unfold header
   apply congrArg (BitVec.ofNat 128)
-  simp only [Nat.reducePow]
-  omega
+  simp only [packedNodeTag, Nat.mod_mod, Nat.reducePow]
+  split_ifs <;> omega
 
 theorem header_fields {t l tr p ix t' l' tr' p' ix' : Nat}
     (h : header t l tr p ix = header t' l' tr' p' ix') :

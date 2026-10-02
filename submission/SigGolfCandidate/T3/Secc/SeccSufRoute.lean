@@ -234,7 +234,7 @@ theorem header_byte1 (tag lay tree position index : Nat) :
   generalize tree % 2 ^ 32 = e at *
   generalize index % 2 ^ 32 = f at *
   norm_num at h4 h5 h6 ⊢
-  omega
+  split_ifs <;> omega
 
 theorem hdrTag_eq {input : HashInput} {tag lay tree position index : Nat}
     (h : Extract.hdrBlock input = SphincsSecurity.bytesLE 16 (header tag lay tree position index)) :

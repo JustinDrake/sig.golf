@@ -55,10 +55,10 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 
 /-- Merkle height. -/
 def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
-/-- Steps of A (layer 3 includes the `hyper` constants; layer 0 has `lui; or` instead of `ori`). -/
-def stepsA (lay : Nat) : Nat := if lay = 3 then 34 else if lay = 0 then 15 else 15
+/-- Steps of A (layer 3 includes the 24 `hyper` constants; layer 0 has `mv` and `lui; or`). -/
+def stepsA (lay : Nat) : Nat := if lay = 3 then 39 else if lay = 0 then 16 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 3 then 66 else if lay = 0 then 67 else 47
+def retOff (lay : Nat) : Nat := if lay = 3 ∨ lay = 0 then 71 else 47
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
@@ -80,9 +80,9 @@ def M2c : Nat := 17311559823019733055
 def M4c : Nat := 3689348814741910323
 def M8c : Nat := 1085102592571150095
 
-/-- The known registers at a transition start (layer 3: `t0`, `s2` and the FTS's `t1 = 1`; `hyper` sets the rest). -/
+/-- The known registers at a transition start (layer 3: only `t0`, `s2`; `hyper` sets the rest). -/
 def preK (lay : Nat) : List (Reg × Word) :=
-  if lay = 3 then baseK ++ [(.x6, 1)]
+  if lay = 3 then baseK
   else baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 (lay + 1))), (.x24, 0x10000), (.x2, 0x3fe00),
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (2 ^ 40)),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
@@ -166,7 +166,7 @@ def tgtt : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x1fe
 
 def specBt (p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, .bin .sll a7E (kw 2)), (.x3, totE), (.x14, x14t), (.x25, .bin .and c34E (kw M4c))],
-   [], 0, false, 51, [totBr false, rngBr 61 false], some tgtt, 57⟩
+   [], 0, false, 54, [totBr false, rngBr 61 false], some tgtt, 60⟩
 
 /-- After the top decode: the 2-bit masks, the quad mask in `s8`, `t4 = 8` (no checksum chain). -/
 def postBt (p : Nat) : List (Reg × Word) :=
@@ -176,7 +176,7 @@ def postBt (p : Nat) : List (Reg × Word) :=
     (.x1, pcOf (p + retOff 0))]
 
 def rejTot : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 42, [totBr true, rngBr 61 false], none, 48⟩
+  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 44, [totBr true, rngBr 61 false], none, 50⟩
 
 /-! ## The leaf-pk block -/
 
