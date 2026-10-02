@@ -183,13 +183,11 @@ The prologue loads `x18 = 0xFFF` from the high word of header `0`, so the setup 
 `x18` restore (`-1`), and the leaf heads address the header table from `sp`, so it loads no
 table-page register (`-1`). The last leaf forms its table base as `x29 - 576` (`-1`). The
 counter range check masks the merged counters with the data word at `sp + 8` instead of
-folding the halves with two shifts (`-1`). The layer-4 leaf leaves the fold-dispatch table base
-in `x27`, so the layer-3 leaf dispatch builds no base (`-1`). The shared WOTS
-base is rebased by 704, so the layer-4 initializer is a single LUI (`-1`). -/
-def cycleBound : Nat := 10247
+folding the halves with two shifts (`-1`). -/
+def cycleBound : Nat := 10240
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
-def cycleBoundAll : Nat := 16834
+def cycleBoundAll : Nat := 16829
 
 
 /-- A step bound (fuel) sufficient for every run. -/
@@ -197,8 +195,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7464 := by decide
-theorem layC_val : layC = 7464 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7466 := by decide
+theorem layC_val : layC = 7466 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -297,8 +295,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (96 + (leafCost 0 + Nseg 0 0)) (96 + (leafCost 0 + Cseg 0 0)) True
-        (96 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (92 + (leafCost 0 + Nseg 0 0)) (92 + (leafCost 0 + Cseg 0 0)) True
+        (92 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with

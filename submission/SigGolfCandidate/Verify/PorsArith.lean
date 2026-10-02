@@ -356,26 +356,29 @@ theorem ctr_mask_iff (x : Nat) (hx : x < 2 ^ 64) :
 
 /-- Word 0 of the relabelled node buffers. -/
 theorem nbW0E_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.ofNat 64 (A % 2 ^ 64)) :
-    nbW0E.eval s = BitVec.ofNat 64 (twLo 10 0 (A % 2 ^ 34) (A % 2 ^ 34)) := by
-  have e : nbW0E.eval s = hiE.eval s + BitVec.ofNat 64 0xA01 + lo32E.eval s := rfl
-  rw [e, hiE_eval A s h0, lo32E_eval A s h0, BitVec.ofNat_add_ofNat, BitVec.ofNat_add_ofNat]
+    nbW0E.eval s = BitVec.ofNat 64 (pHead 10 (A % 2 ^ 34)) := by
+  have e : nbW0E.eval s = (idxE.eval s <<< ((BitVec.ofNat 64 24).toNat % 64)) + BitVec.ofNat 64 1537 := rfl
+  rw [e, idxE_eval A s h0]
+  apply BitVec.eq_of_toNat_eq
   have hX : A % 2 ^ 34 < 2 ^ 34 := Nat.mod_lt _ (by decide)
   generalize A % 2 ^ 34 = X at *
-  congr 1
-  unfold twLo
+  simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
+  unfold pHead
+  norm_num
   omega
 
 /-- Word 0 of the relabelled leaf buffer. -/
 theorem cbW0E_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.ofNat 64 (A % 2 ^ 64)) :
-    cbW0E.eval s = BitVec.ofNat 64 (twLo 9 0 (A % 2 ^ 34) (A % 2 ^ 34)) := by
-  have e : cbW0E.eval s = nbW0E.eval s + BitVec.ofNat 64 18446744073709551360 := rfl
-  rw [e, nbW0E_eval A s h0]
-  have h10 : twLo 10 0 (A % 2 ^ 34) (A % 2 ^ 34) = twLo 9 0 (A % 2 ^ 34) (A % 2 ^ 34) + 256 := by
-    unfold twLo; omega
-  rw [h10]
-  generalize twLo 9 0 (A % 2 ^ 34) (A % 2 ^ 34) = y
-  rw [BitVec.ofNat_add_ofNat, show y + 256 + 18446744073709551360 = y + 2 ^ 64 by omega]
+    cbW0E.eval s = BitVec.ofNat 64 (pHead 9 (A % 2 ^ 34)) := by
+  have e : cbW0E.eval s = (idxE.eval s <<< ((BitVec.ofNat 64 24).toNat % 64)) + BitVec.ofNat 64 1281 := rfl
+  rw [e, idxE_eval A s h0]
   apply BitVec.eq_of_toNat_eq
-  simp only [BitVec.toNat_ofNat, Nat.add_mod_right]
+  have hX : A % 2 ^ 34 < 2 ^ 34 := Nat.mod_lt _ (by decide)
+  generalize A % 2 ^ 34 = X at *
+  simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
+  unfold pHead
+  norm_num
+  omega
+
 
 end SigGolfCandidate.Verify
