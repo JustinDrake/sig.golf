@@ -92,7 +92,7 @@ structure LevelsAt (levels : List (List Val)) (t : MachineState) : Prop where
     (∀ v ∈ levels.getD l [], v.length = 16) ∧ Slots t (lvBase l) (levels.getD l [])
 
 /-- Addresses written by the schedule. -/
-def schW (a : Nat) : Prop := (0x130 ≤ a ∧ a < 0x140) ∨ (0x760 ≤ a ∧ a < 0x7E0) ∨ (0x24C00 ≤ a ∧ a < 0x24C00 + 16 * 210)
+def schW (a : Nat) : Prop := (0x120 ≤ a ∧ a < 0x130) ∨ (0x760 ≤ a ∧ a < 0x7E0) ∨ (0x24C00 ≤ a ∧ a < 0x24C00 + 16 * 210)
 
 def schRegs : List Reg :=
   [.x1, .x2, .x3, .x8, .x9, .x13, .x15, .x17, .x18, .x19, .x20, .x21, .x23, .x24, .x25, .x26, .x29, .x30]

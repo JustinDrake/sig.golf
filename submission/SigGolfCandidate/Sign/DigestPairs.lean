@@ -18,10 +18,10 @@ structure DigMem (S mm : List Byte) (u : MachineState) : Prop where
       (u.getMem (BitVec.ofNat 64 0x650)) (u.getMem (BitVec.ofNat 64 0x658))
       (u.getMem (BitVec.ofNat 64 0x660)) (u.getMem (BitVec.ofNat 64 0x668))
       (u.getMem (BitVec.ofNat 64 0x670)) (u.getMem (BitVec.ofNat 64 0x678))
-  db0 : u.readWords (BitVec.ofNat 64 0x0) 2 = [twWord0 12 0 0 0, 0]
-  dbM : u.readWords (BitVec.ofNat 64 0x20) 4 = wordsOf mm
+  db0 : u.readWords (BitVec.ofNat 64 0x20) 2 = [twWord0 12 0 0 0, 0]
+  dbM : u.readWords (BitVec.ofNat 64 0x40) 4 = wordsOf mm
 
-def digW (a : Nat) : Prop := a = 0x7b8 ∨ (0x10 ≤ a ∧ a < 0x20) ∨ (0x140 ≤ a ∧ a < 0x180) ∨ anW a
+def digW (a : Nat) : Prop := a = 0x7b8 ∨ (0x30 ≤ a ∧ a < 0x40) ∨ (0x140 ≤ a ∧ a < 0x180) ∨ anW a
 
 def digRegs : List Reg := [.x1, .x2, .x3, .x4, .x6, .x8, .x9, .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17, .x18]
 
@@ -32,7 +32,7 @@ def DigInv (u : MachineState) (a : Nat) (t : MachineState) : Prop :=
 def DigPost (u : MachineState) : Option (Val × Nat) → MachineState → Prop
   | none, t => t.pc = pcOf 141 ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 1
   | some (rho, N), t => t.pc = pcOf 145 ∧ RegsEq u t digRegs ∧ Frame u t digW ∧
-      rho.length = 16 ∧ t.readWords (BitVec.ofNat 64 0x10) 2 = wordsOf rho ∧
+      rho.length = 16 ∧ t.readWords (BitVec.ofNat 64 0x30) 2 = wordsOf rho ∧
       (∃ ans : BitVec 256, N = ans.toNat ∧
         ∀ k < 4, t.getMem (BitVec.ofNat 64 (0x160 + 8 * k)) = dword ans k) ∧
       admissible N = true ∧ KeysAt t (sortKeys (keys0 N)) ∧
@@ -45,7 +45,7 @@ theorem pcOf_eq (i : Nat) (h : 0x1000 + 4 * i < 2 ^ 64) (w : Word) (hw : w.toNat
 theorem pcOf_add4 (i : Nat) : pcOf i + 4 = pcOf (i + 1) := by
   apply BitVec.eq_of_toNat_eq; simp; omega
 
-def digTryW (a : Nat) : Prop := (0x10 ≤ a ∧ a < 0x20) ∨ (0x160 ≤ a ∧ a < 0x180) ∨ anW a
+def digTryW (a : Nat) : Prop := (0x30 ≤ a ∧ a < 0x40) ∨ (0x160 ≤ a ∧ a < 0x180) ∨ anW a
 
 def digTryRegs : List Reg := [.x3, .x4, .x8, .x9, .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17]
 
@@ -66,7 +66,7 @@ theorem digAttempt (sk : SecretKey) (m : Message) (u v : MachineState)
   have hm : (toList m).length = 32 := length_toList m
   have hs := symRun_sound blk72 codeAt_72 v vpc (by simp only [blk72.res, rv_simp])
   set t3 := blk72.res.toState v with ht3
-  have f3 : Frame v t3 (fun x => x = 0x10 ∨ x = 0x18) := by
+  have f3 : Frame v t3 (fun x => x = 0x30 ∨ x = 0x38) := by
     apply frame_toState; intro x hx hW
     simp only [blk72.res, rv_simp, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
       implies_true, and_true, ne_eq, ofNat_eq_iff]
@@ -76,12 +76,12 @@ theorem digAttempt (sk : SecretKey) (m : Message) (u v : MachineState)
     cases r <;> first | exact absurd (by decide) hr | rfl
   have e3 : fetch image t3 = some (.base .ECALL) :=
     symRun_ecall blk72 codeAt_72 v (by simp only [blk72.res, rv_simp]) rfl
-  have y10 : t3.getReg .x10 = BitVec.ofNat 64 0x0 := by simp only [ht3, blk72.res, rv_simp]
+  have y10 : t3.getReg .x10 = BitVec.ofNat 64 0x20 := by simp only [ht3, blk72.res, rv_simp]
   have y11 : t3.getReg .x11 = BitVec.ofNat 64 64 := by simp only [ht3, blk72.res, rv_simp]
   have y12 : t3.getReg .x12 = BitVec.ofNat 64 0x160 := by simp only [ht3, blk72.res, rv_simp]
   have y5 : t3.getReg .x5 = 0 := by rw [r3.get .x5, vregs.get .x5 (by decide), hx5]
   have pc3 : t3.pc = pcOf 77 := by simp only [ht3, blk72.res, rv_simp]
-  have v3 : t3.readWords (BitVec.ofNat 64 0x10) 2 = wordsOf rho := by
+  have v3 : t3.readWords (BitVec.ofNat 64 0x30) 2 = wordsOf rho := by
     rw [← hval, wordsOf_valOfWords, readWords_ofNat_two]
     simp only [ht3, blk72.res, rv_simp]
     rfl

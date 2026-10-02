@@ -1,5 +1,4 @@
 import SigGolfCandidate.Verify.ChainCheck05
-set_option Elab.async false
 
 /-! Kernel check of triple 6 of the layer-shared chain code: its table slots and code blocks, in
 two halves (the import chain serializes this family to bound parallel build memory). -/
