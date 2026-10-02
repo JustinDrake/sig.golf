@@ -14,7 +14,7 @@ the images are the generated modules `T3M/Images/*` (frozen `.code` files, SHA-2
 Admission is proved image by image, as in the five-layer `Submission.lean`: the code list is
 rewritten to its chunks (`delta` inside an equation, so no equation lemma evaluates the list),
 `List.length_append` splits the length, and the kernel only counts each 256-word chunk; the layout
-half reads only the (empty) data section.
+half reads only the data section (empty, except the verify image's 96 bytes, T3K).
 -/
 
 namespace SigGolfCandidate.T3M

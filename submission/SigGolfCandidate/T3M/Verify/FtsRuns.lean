@@ -11,7 +11,8 @@ dispatch `lbu gp, 880(a4); slli 5; add s4; jalr s8`); `coord_end_c` at `coordEnd
 (`tailPc X c`, copy `c` = ladder `t` or `2` = `entry0_X`).
 
 Families (each a path run checked by `specB` in `FtsCheck`):
-* `setupCheck'` (359 → 392: a `j` over fifteen filler words, then 17 instructions), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
+* `setupCheck'` (359 → 392: the load block, nine setup instructions ending with `j 392` over seventeen fillers),
+  `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
   slot address), `slotCheck tb b` (to the pending hash / HALT(1)), `entCheck tb b` (`j lad`), `rungCheck X t r t'`
   (fold `r` to its hash, switching to ladder `t'`), `lastCheck X t` (rung 10 to the destination hash),
   `tailMCheck c d`, `tailPCheck c d`, `tailFCheck c`, `coordCheck c`, `forestCheck`.
@@ -97,10 +98,24 @@ def sw2E (old v : E) : E := .bin (.st .w 4) (.bin (.st .w 0) old (.reg .x22)) v
 def setupPost : List (Reg × Word) :=
   gkF ++ ckF 0 ++ [(.x14, BitVec.ofNat 64 A4_0), (.x15, BitVec.ofNat 64 (frameA 0)), (.x25, BitVec.ofNat 64 FOREST)]
 
-def setupSpecF : Spec :=
-  ⟨[], [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 392, false, 18, [], none, 18⟩
+/-- T3K: the setup's six constants are loaded from the embedded data (words 359 .. 365: `lui sp, 0x1000` and six
+`ld`, data words 5 .. 10); the rest of the setup is words 366 .. 373 (with the coordinate-end comparands `t1 = 1`,
+`s3 = frameA 0` at 372 .. 373) and `j 392` at 374. -/
+def setupLdK : List (Reg × Word) :=
+  baseK ++ [(.x14, BitVec.ofNat 64 A4_0), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x27, BitVec.ofNat 64 0xa01),
+    (.x28, BitVec.ofNat 64 0x901), (.x26, BitVec.ofNat 64 tbN), (.x21, BitVec.ofNat 64 tbL)]
 
-def setupCheckF : Bool := specB [] [] gkF (runAt baseK [392] 359 []) setupSpecF [] setupPost [.x22]
+def setupLdSpec : Spec :=
+  ⟨[(.x14, .ld (cw (DATA + 40))), (.x29, .ld (cw (DATA + 48))), (.x27, .ld (cw (DATA + 56))),
+      (.x28, .ld (cw (DATA + 64))), (.x26, .ld (cw (DATA + 72))), (.x21, .ld (cw (DATA + 80)))],
+    [], 366, false, 7, [], none, 7⟩
+
+def setupLdCheckF : Bool := specB [] [] baseK (runAt baseK [366] 359 []) setupLdSpec [] baseK [.x22]
+
+def setupSpecF : Spec :=
+  ⟨[], [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 392, false, 9, [], none, 9⟩
+
+def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [392] 366 []) setupSpecF [] setupPost [.x22]
 
 /-! ## Leaf code (to the dispatch) -/
 
