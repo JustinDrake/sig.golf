@@ -16,13 +16,13 @@ layer 0 has two chunks, levels 0..5 and 6..11, the other layers one). Level `l` 
 with `blk(l) = WIT + layerBase lay + 64 (h - 1 - l)` (V1's `s6 - 1024 - 64 (l + 1)`, top `s6 - 960 - 64 (l + 1)`),
 `cur(l) = blk(l) + 48 · bit l`. After the last level: the root HASH (`li a2, 0x100 / 0x180; ecall`) followed by the next
 layer's transition copy (`trPc (lay - 1) sh`) or a compare copy (`xcmp`); after level 5 of layer 0's chunk 0 the
-dispatch `lui a5, 0xce; srli a4, s7, 4; andi a4, 0xfc; add a4, a5; jalr -352(a4)` into `stab_0_1`.
+dispatch `srli a4, s7, 4; andi a4, 0xfc; add a4, a5; jalr -352(a4)` into `stab_0_1` (a5 = 0xce000 carried from leaf-pk).
 
 Families (each a path run checked by `specB`, kernel-checked in `MerkleCheck*`):
 * `mkEntCheck lay ci sh`: the table word `j shp_lay_ci_sh` and the first `addi a2`, to the first `ecall` (2 steps);
 * `mkLvlCheck lay ci sh kk`: level `mkLo lay ci + kk` from after its `ecall` to the next `ecall` (or through the chunk
   dispatch to its symbolic jump);
-* `cmpCheck c`: the compare copy `c` (`ld/ld/bne` twice, HALT(0) / HALT(1)).
+* `cmpCheck c`: the compare copy `c` (low `ld/ld/bne`, high SUB-as-exit HALT).
 
 Layout facts (word indices, `t3m/images/verify.labels`): `stab_3_0` 209512, `stab_2_0` 209576, `stab_1_0` 209640,
 `stab_0_0` 209768, `stab_0_1` 209832; `shp_3_0_sh` = 5483 + 101 sh, `shp_2_0_sh` = 11947 + 101 sh, `shp_1_0_sh` =
@@ -72,7 +72,7 @@ def mkHeap (lay ci sh l : Nat) : Nat := (2 ^ hL lay + sh * 2 ^ mkLo lay ci) / 2 
 /-- The constant registers of the Merkle code: `t0`, `s2`, `s6`, `tp = T(3)`'s word 0, the heap registers 1..7. -/
 def mkK (lay : Nat) : List (Reg × Word) :=
   baseK ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)), (.x6, 1), (.x7, 2), (.x8, 3),
-    (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
+    (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x15, 0xce000)]
 
 /-- Registers that no Merkle run writes or knows (kept for the next transition: `sp`, `s4`, `s5`, `s7`, `s8`, `s11`,
 `t3`, `t5`, ...). -/
@@ -86,7 +86,7 @@ def mkEntSpec (lay ci sh : Nat) : Spec := ⟨[], [], mkShp lay ci sh + 1, true, 
 def mkEntPost (lay ci sh : Nat) : List (Reg × Word) :=
   mkK lay ++ [(.x12, BitVec.ofNat 64 (mkCur lay (mkLo lay ci) (sh % 2)))]
 
-def mkEntKeep : List Reg := mkKeep ++ [.x10, .x11, .x14, .x15]
+def mkEntKeep : List Reg := mkKeep ++ [.x10, .x11, .x14]
 
 def mkEntCheck (lay ci sh : Nat) : Bool :=
   specB [] [] baseK (runAt (mkK lay) [] (mkTab lay ci + sh) []) (mkEntSpec lay ci sh) [] (mkEntPost lay ci sh) mkEntKeep
@@ -126,8 +126,8 @@ def mkLvlSpecN (lay ci sh kk : Nat) : Spec :=
 
 /-- Level 5 of layer 0's chunk 0, ending with the chunk-1 dispatch (a jump to `stab_0_1`). -/
 def mkLvlSpecD (lay ci sh kk : Nat) : Spec :=
-  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), 0, false, mkBody lay (mkLo lay ci + kk) + 5, [], some mkDispTgt,
-    mkBody lay (mkLo lay ci + kk) + 5⟩
+  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), 0, false, mkBody lay (mkLo lay ci + kk) + 4, [], some mkDispTgt,
+    mkBody lay (mkLo lay ci + kk) + 4⟩
 
 /-- Known at the level body's start: the constants, and `a1 = 64` after the leaf-pk HASH. -/
 def mkLvlK (lay l : Nat) : List (Reg × Word) := mkK lay ++ (if l = 0 then [] else [(.x11, 64)])
@@ -142,7 +142,7 @@ def mkLvlPostD (lay ci kk : Nat) : List (Reg × Word) :=
 def mkLvlCheckN (lay ci sh kk : Nat) : Bool :=
   specB (mkLvlAllow lay (mkLo lay ci + kk)) [] baseK
     (runAt (mkLvlK lay (mkLo lay ci + kk)) [] (mkShp lay ci sh + mkOff lay ci kk + 2) [])
-    (mkLvlSpecN lay ci sh kk) [] (mkLvlPostN lay ci sh kk) (mkKeep ++ [.x14, .x15])
+    (mkLvlSpecN lay ci sh kk) [] (mkLvlPostN lay ci sh kk) (mkKeep ++ [.x14])
 
 def mkLvlCheckD (lay ci sh kk : Nat) : Bool :=
   specB (mkLvlAllow lay (mkLo lay ci + kk)) [] baseK
@@ -168,19 +168,18 @@ def cmpPc (c : Nat) : Nat := 38676 + 53 * c
 def cmpBr1 (d : Bool) : Br := ⟨.ne, .ld (kw 384), .ld (kw 160), d⟩
 def cmpBr2 (d : Bool) : Br := ⟨.ne, .ld (kw 392), .ld (kw 168), d⟩
 
-/-- Both doublewords equal: HALT(0) after 8 steps. -/
+/-- The high-word difference is zero exactly when the high words agree. -/
+def cmpDelta : E := .bin .sub (.ld (kw 392)) (.ld (kw 168))
+
+/-- The low words agree: compute the high-word difference and HALT with that exit code. -/
 def cmpAcc (c : Nat) : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 0)], [], cmpPc c + 8, true, 8, [cmpBr2 false, cmpBr1 false], none, 8⟩
-/-- The low doublewords differ: HALT(1) after 5 steps. -/
+  ⟨[(.x5, kw 1), (.x10, cmpDelta)], [], cmpPc c + 7, true, 7, [cmpBr1 false], none, 7⟩
+/-- The low doublewords differ: HALT(1) after five instructions. -/
 def cmpRej1 (c : Nat) : Spec :=
   ⟨[(.x5, kw 1), (.x10, kw 1)], [], cmpPc c + 11, true, 5, [cmpBr1 true], none, 5⟩
-/-- The high doublewords differ: HALT(1) after 8 steps. -/
-def cmpRej2 (c : Nat) : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 1)], [], cmpPc c + 11, true, 8, [cmpBr2 true, cmpBr1 false], none, 8⟩
 
 def cmpCheck (c : Nat) : Bool :=
-  specB [] [] [] (runAt baseK [] (cmpPc c) [.br false, .br false]) (cmpAcc c) [] [] [] &&
-  specB [] [] [] (runAt baseK [] (cmpPc c) [.br true]) (cmpRej1 c) [] [] [] &&
-  specB [] [] [] (runAt baseK [] (cmpPc c) [.br false, .br true]) (cmpRej2 c) [] [] []
+  specB [] [] [] (runAt baseK [] (cmpPc c) [.br false]) (cmpAcc c) [] [] [] &&
+  specB [] [] [] (runAt baseK [] (cmpPc c) [.br true]) (cmpRej1 c) [] [] []
 
 end SigGolfCandidate.T3M
