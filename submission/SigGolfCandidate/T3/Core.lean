@@ -26,7 +26,7 @@ def height (lay : Layer) : Nat := ![12, 7, 6, 6] lay
 def chainCount (lay : Layer) : Nat := ![58, 43, 43, 43] lay
 def dataCount (lay : Layer) : Nat := if lay = 0 then 58 else 42
 def width (lay : Layer) (i : Nat) : Nat := if lay = 0 ∧ i < 49 then 2 else 3
-def target (lay : Layer) : Nat := ![126, 195, 195, 194] lay
+def target (lay : Layer) : Nat := ![125, 194, 194, 194] lay
 def encodedBits (lay : Layer) : Nat := if lay = 0 then 125 else 126
 def capacity (lay : Layer) : Nat := if lay = 0 then 210 else 301
 def attemptLimit : Nat := 2 ^ 20
@@ -35,7 +35,7 @@ def coordinates : Nat := 7
 def bucketBits : Nat := 4
 def childHeight : Nat := 7
 def openings : Nat := 21
-def authCapacity : Nat := 119
+def authCapacity : Nat := 118
 def zero16 : HashInput := List.replicate 16 0
 
 /-- Tree-node and FTS leaf headers keep the fixed tree in word zero and the
@@ -197,7 +197,7 @@ def authCount (leaves : List Nat) : Nat :=
 
 def admissible (chosen : List Selection) : Bool :=
   chosen.all (fun s => decide (s.leaves.Nodup)) &&
-    decide (28 + (chosen.map fun s => authCount s.leaves).sum ≤ 119)
+    decide (28 + (chosen.map fun s => authCount s.leaves).sum ≤ 118)
 
 /-- Five independent high bits screen the digest; the selector occupies bits31..205. -/
 def digestGate (output : HashOutput) : Bool := decide (output.toNat / 2^206 % 32 = 0)
@@ -297,7 +297,7 @@ structure LayerSignature (lay : Layer) where
 structure Signature where
   rho : Digest
   secrets : Fin 21 → Digest
-  proof : Fin 119 → Digest
+  proof : Fin 118 → Digest
   layers : (lay : Layer) → LayerSignature lay
 
 structure Witness where
@@ -342,10 +342,10 @@ def serialize (sig : Signature) : HashInput :=
     (List.ofFn fun lay => serializeLayer (sig.layers lay)).flatten
 
 def recoverChild (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 119 → Digest) : Nat → Nat → Nat → M (Option (Digest × Nat))
+    (proof : Fin 118 → Digest) : Nat → Nat → Nat → M (Option (Digest × Nat))
   | level,node,used =>
       if !hasLeaf leaves level node then
-        if h : used < 119 then pure (some (proof ⟨used,h⟩,used+1)) else pure none
+        if h : used < 118 then pure (some (proof ⟨used,h⟩,used+1)) else pure none
       else match level with
       | 0 => do
           let value ← ftsLeaf index coord node (values.getD (leaves.idxOf node) 0)
@@ -367,7 +367,7 @@ def recoverFts (sig : Signature) (index : Nat) (chosen : List Selection) : M (Op
       let result ← (List.range 4).foldlM
         (fun (state : Option (Digest × Nat)) j => do
           let some (value,used) := state | pure none
-          if h : used < 119 then
+          if h : used < 118 then
             let other := sig.proof ⟨used,h⟩
             let pair := if sel.bucket/2^j%2=0 then (value,other) else (other,value)
             let parent ← nodeHash 10 coord index (2^(4-j-1)+sel.bucket/2^(j+1)) pair.1 pair.2
@@ -376,8 +376,8 @@ def recoverFts (sig : Signature) (index : Nat) (chosen : List Selection) : M (Op
       let some (root,next) := result | pure none
       pure (some (roots ++ [root],next))) (some ([],0))
   let some (roots,used) := state | pure none
-  if !(List.range (119-used)).all (fun j =>
-      decide (sig.proof ⟨(used+j)%119,Nat.mod_lt _ (by decide)⟩ = 0)) then return none
+  if !(List.range (118-used)).all (fun j =>
+      decide (sig.proof ⟨(used+j)%118,Nat.mod_lt _ (by decide)⟩ = 0)) then return none
   pure (some (← forestPk index roots))
 
 def recoverLayer (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) : M Digest := do

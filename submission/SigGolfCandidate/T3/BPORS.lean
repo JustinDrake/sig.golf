@@ -3288,18 +3288,16 @@ theorem fieldsPoly_replicate (w n : Nat) : fieldsPoly (List.replicate n w)=field
 attribute [local irreducible] wordPoly fieldPoly fieldsPoly
 
 def acceptedCount (lay : Layer) : Nat :=
-  ![215015893163124468571511796493705040,
-    217433284086354415880083123326127992,
-    217433284086354415880083123326127992,
+  ![259991231940952985797470993426145792,
+    265682986533614028872430357565137160,
+    265682986533614028872430357565137160,
     265682986533614028872430357565137160] lay
 
 def AcceptSum (lay : Layer) (total : Nat) : Prop :=
-  if lay=0 then total=126 else
-  if lay=3 then 187≤total ∧ total<195 else 188≤total ∧ total<196
+  if lay=0 then total=125 else 187≤total ∧ total<195
 
 instance (lay : Layer) (total : Nat) : Decidable (AcceptSum lay total) :=
-  inferInstanceAs (Decidable (if lay=0 then total=126 else
-    if lay=3 then 187≤total ∧ total<195 else 188≤total ∧ total<196))
+  inferInstanceAs (Decidable (if lay=0 then total=125 else 187≤total ∧ total<195))
 
 theorem usedBits_fields (lay : Layer) : usedBits (fields lay)=encodedBits lay := by
   fin_cases lay <;> decide
@@ -3381,8 +3379,8 @@ theorem truncated_count (lay : Layer) (cut : Nat) (hc : 0<cut) :
 def intervalCount (packed lo hi : Nat) : Nat :=
   (packed%radix^hi)%(radix-1) - (packed%radix^lo)%(radix-1)
 
-theorem top_exact : intervalCount topPacked 126 127=acceptedCount 0 := by decide +kernel
-theorem lower195_exact : intervalCount lowerPacked 188 196=acceptedCount 1 := by decide +kernel
+theorem top_exact : intervalCount topPacked 125 126=acceptedCount 0 := by decide +kernel
+theorem lower_first_exact : intervalCount lowerPacked 187 195=acceptedCount 1 := by decide +kernel
 theorem lower194_exact : intervalCount lowerPacked 187 195=acceptedCount 3 := by decide +kernel
 
 theorem interval_words_count (lay : Layer) (lo hi : Nat) (hl : 0<lo) (hh : lo≤hi) :
@@ -3401,15 +3399,15 @@ theorem accepted_words_count (lay : Layer) :
       AcceptSum lay (wordSum (fields lay) n.val)} = acceptedCount lay := by
   classical
   fin_cases lay
-  · have h := interval_words_count 0 126 127 (by decide) (by decide)
+  · have h := interval_words_count 0 125 126 (by decide) (by decide)
     rw [top_weighted,top_exact] at h
-    have he (s : Nat) : (126 ≤ s ∧ s < 127) ↔ s = 126 := by omega
+    have he (s : Nat) : (125 ≤ s ∧ s < 126) ↔ s = 125 := by omega
     simpa [he,AcceptSum] using h
-  · have h := interval_words_count 1 188 196 (by decide) (by decide)
-    rw [lower_weighted 1 (by decide),lower195_exact] at h
+  · have h := interval_words_count 1 187 195 (by decide) (by decide)
+    rw [lower_weighted 1 (by decide),lower_first_exact] at h
     simpa [AcceptSum] using h
-  · have h := interval_words_count 2 188 196 (by decide) (by decide)
-    rw [lower_weighted 2 (by decide),lower195_exact] at h
+  · have h := interval_words_count 2 187 195 (by decide) (by decide)
+    rw [lower_weighted 2 (by decide),lower_first_exact] at h
     simpa [AcceptSum,acceptedCount] using h
   · have h := interval_words_count 3 187 195 (by decide) (by decide)
     rw [lower_weighted 3 (by decide),lower194_exact] at h
@@ -4602,8 +4600,8 @@ theorem signingMoment_le_two : signingMoment ≤ 2 := by
   rw [ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^((123035 : ℝ)/131072) by positivity)] at hcast
   norm_num only [ENNReal.ofReal_ofNat] at hcast
   have he : digestEnvelope*encodingEnvelope 0*encodingEnvelope 1*encodingEnvelope 2*encodingEnvelope 3 =
-      ENNReal.ofReal ((1009267156500 / 1000000000000) * (201687968779 / 200000000000) *
-        (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (503409673483 / 500000000000) : ℝ) := by
+      ENNReal.ofReal ((507215638051 / 500000000000) * (251742419327 / 250000000000) *
+        (503409673483 / 500000000000) * (503409673483 / 500000000000) * (503409673483 / 500000000000) : ℝ) := by
     change ENNReal.ofReal (BaseAudit.b0 : ℝ)*ENNReal.ofReal (BaseAudit.b1 : ℝ)*
       ENNReal.ofReal (BaseAudit.b2 : ℝ)*ENNReal.ofReal (BaseAudit.b3 : ℝ)*ENNReal.ofReal (BaseAudit.b4 : ℝ) = _
     rw [← ENNReal.ofReal_mul (show 0 ≤ (BaseAudit.b0 : ℝ) by norm_num [BaseAudit.b0]),
@@ -5230,7 +5228,7 @@ macro "hashes" : tactic => `(tactic| aesop (config := { maxRuleApplications := 1
 @[aesop safe apply] theorem hashOnly_sign (cache : Cache) (message : Message) :
  HashOnly (sign cache message) := by unfold sign; hashes
 @[aesop safe apply] theorem hashOnly_recoverChild (index coord : Nat) (leaves : List Nat)
- (values : List Digest) (proof : Fin 119 → Digest) (level node used : Nat) :
+ (values : List Digest) (proof : Fin 118 → Digest) (level node used : Nat) :
  HashOnly (recoverChild index coord leaves values proof level node used) := by
  induction level generalizing node used with
  | zero => unfold recoverChild; hashes
@@ -6311,7 +6309,7 @@ macro "verdict_queries" : tactic => `(tactic|
   aesop (config := { maxRuleApplications := 1000 }) (add simp MacGame.NonMac))
 
 theorem recoverChild_nonMac (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 119 → Digest) (level node used : Nat) :
+    (proof : Fin 118 → Digest) (level node used : Nat) :
     NonMac (recoverChild index coord leaves values proof level node used) := by
   induction level generalizing node used with
   | zero => unfold recoverChild;verdict_queries
@@ -9988,7 +9986,7 @@ macro "public_verdict_queries" : tactic => `(tactic|
   | succ fuel ih => unfold digestSearch; public_verdict_queries
 
 theorem recoverChild_public (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 119 → Digest) (level node used : Nat) :
+    (proof : Fin 118 → Digest) (level node used : Nat) :
     Only (recoverChild index coord leaves values proof level node used) := by
   induction level generalizing node used with
   | zero => unfold recoverChild;public_verdict_queries

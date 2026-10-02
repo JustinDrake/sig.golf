@@ -3,11 +3,11 @@ import SigGolfCandidate.T3M.Sign.Basic
 /-!
 # Sign: block specifications of layer 0 (words 427..542)
 
-`layer_0` (427): `lay = tree = 0`, `N = 58`, `N4 = 49`, `target = 126`, the leaf `index >> 19 & 4095`
-(`s2`, `a4`), `counter_search`; 441: the signature-only leaf (values to `SIG + 2256`); 447: the
-sibling leaf (root to `SIG + 3184`); 456/464: the leaves of the sibling pair (roots to `NODE`,
-`NODE + 48`); 470: the pair node `T3(2048 + pair)` and its HASH; 486: the pair node to `SIG + 3200`,
-`level = 2`, `out = SIG + 3216`, `step = 1024`; `tp_mask` (498..539): the mask of the sibling at
+`layer_0` (427): `lay = tree = 0`, `N = 58`, `N4 = 49`, `target = 125`, the leaf `index >> 19 & 4095`
+(`s2`, `a4`), `counter_search`; 441: the signature-only leaf (values to `SIG + 2240`); 447: the
+sibling leaf (root to `SIG + 3168`); 456/464: the leaves of the sibling pair (roots to `NODE`,
+`NODE + 48`); 470: the pair node `T3(2048 + pair)` and its HASH; 486: the pair node to `SIG + 3184`,
+`level = 2`, `out = SIG + 3200`, `step = 1024`; `tp_mask` (498..539): the mask of the sibling at
 `level` xor the cached node of `REGION`; 540: `HALT(0)`.
 -/
 
@@ -61,7 +61,7 @@ theorem blk427_spec (s : MachineState) (hpc : s.pc = pcOf 427) (index : Nat) (hi
     ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf 646 ∧ t.getReg .x1 = pcOf 441 ∧
       t.getReg .x8 = BitVec.ofNat 64 0 ∧ t.getReg .x9 = BitVec.ofNat 64 0 ∧
       t.getReg .x26 = BitVec.ofNat 64 58 ∧ t.getReg .x27 = BitVec.ofNat 64 49 ∧
-      t.getReg .x17 = BitVec.ofNat 64 126 ∧
+      t.getReg .x17 = BitVec.ofNat 64 125 ∧
       t.getReg .x18 = BitVec.ofNat 64 (index / 2 ^ 19 % 4096) ∧
       t.getReg .x14 = BitVec.ofNat 64 (index / 2 ^ 19 % 4096) ∧
       RegsExcept s t [.x1, .x6, .x7, .x8, .x9, .x14, .x17, .x18, .x26, .x27, .x28] ∧
@@ -88,11 +88,11 @@ theorem blk427_spec (s : MachineState) (hpc : s.pc = pcOf 427) (index : Nat) (hi
   · intro r hr; simp at hr; cases r <;> simp_all [blk_427.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_427.res, rv_simp]
 
-/-- 441..446: the signature-only leaf (`t6 = 1`, digits at `DIGITS`, values to `SIG + 2256`). -/
+/-- 441..446: the signature-only leaf (`t6 = 1`, digits at `DIGITS`, values to `SIG + 2240`). -/
 theorem blk441_spec (s : MachineState) (hpc : s.pc = pcOf 441) :
     ∃ t, Steps image s 6 6 t ∧ t.pc = pcOf (1013 + 27) ∧ t.getReg .x1 = pcOf 447 ∧
       t.getReg .x31 = BitVec.ofNat 64 1 ∧ t.getReg .x22 = BitVec.ofNat 64 DIGITS ∧
-      t.getReg .x23 = BitVec.ofNat 64 (SIG + 2256) ∧
+      t.getReg .x23 = BitVec.ofNat 64 (SIG + 2240) ∧
       RegsExcept s t [.x1, .x22, .x23, .x31] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound blk_441 codeAt_441 s hpc (by simp [blk_441.res, rv_simp]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -104,12 +104,12 @@ theorem blk441_spec (s : MachineState) (hpc : s.pc = pcOf 441) :
   · intro r hr; simp at hr; cases r <;> simp_all [blk_441.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_441.res, rv_simp]
 
-/-- 447..455: the sibling leaf `a4 xor 1` (zero digits, root to `SIG + 3184`). -/
+/-- 447..455: the sibling leaf `a4 xor 1` (zero digits, root to `SIG + 3168`). -/
 theorem blk447_spec (s : MachineState) (hpc : s.pc = pcOf 447) (leaf : Nat) (hl : leaf < 4096)
     (h14 : s.getReg .x14 = BitVec.ofNat 64 leaf) :
     ∃ t, Steps image s 9 9 t ∧ t.pc = pcOf (1013 + 27) ∧ t.getReg .x1 = pcOf 456 ∧
       t.getReg .x31 = BitVec.ofNat 64 0 ∧ t.getReg .x22 = BitVec.ofNat 64 ZDIG ∧
-      t.getReg .x23 = BitVec.ofNat 64 DUMMY ∧ t.getReg .x25 = BitVec.ofNat 64 (SIG + 3184) ∧
+      t.getReg .x23 = BitVec.ofNat 64 DUMMY ∧ t.getReg .x25 = BitVec.ofNat 64 (SIG + 3168) ∧
       t.getReg .x18 = BitVec.ofNat 64 (leaf ^^^ 1) ∧
       RegsExcept s t [.x1, .x18, .x22, .x23, .x25, .x31] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound blk_447 codeAt_447 s hpc (by simp [blk_447.res, rv_simp]),
@@ -193,15 +193,15 @@ theorem blk470_spec (s : MachineState) (hpc : s.pc = pcOf 470) (p : Nat) (hp : p
 theorem fetch_485 (s : MachineState) (hpc : s.pc = pcOf 485) : fetch image s = some (.base .ECALL) :=
   (codeAt_485.fetch s hpc).trans rfl
 
-/-- 486..497: the pair node to `SIG + 3200`; `level = 2`, `out = SIG + 3216`, `step = 1024`. -/
+/-- 486..497: the pair node to `SIG + 3184`; `level = 2`, `out = SIG + 3200`, `step = 1024`. -/
 theorem blk486_spec (s : MachineState) (hpc : s.pc = pcOf 486) :
     ∃ t, Steps image s 12 12 t ∧ t.pc = pcOf 498 ∧
-      t.getMem (BitVec.ofNat 64 (SIG + 3200)) = s.getMem (BitVec.ofNat 64 NOUT) ∧
-      t.getMem (BitVec.ofNat 64 (SIG + 3208)) = s.getMem (BitVec.ofNat 64 (NOUT + 8)) ∧
-      t.getReg .x22 = BitVec.ofNat 64 2 ∧ t.getReg .x24 = BitVec.ofNat 64 (SIG + 3216) ∧
+      t.getMem (BitVec.ofNat 64 (SIG + 3184)) = s.getMem (BitVec.ofNat 64 NOUT) ∧
+      t.getMem (BitVec.ofNat 64 (SIG + 3192)) = s.getMem (BitVec.ofNat 64 (NOUT + 8)) ∧
+      t.getReg .x22 = BitVec.ofNat 64 2 ∧ t.getReg .x24 = BitVec.ofNat 64 (SIG + 3200) ∧
       t.getReg .x20 = BitVec.ofNat 64 1024 ∧
       RegsExcept s t [.x6, .x7, .x20, .x22, .x24, .x29, .x30] ∧
-      Frame s t (fun A => A = SIG + 3200 ∨ A = SIG + 3208) := by
+      Frame s t (fun A => A = SIG + 3184 ∨ A = SIG + 3192) := by
   refine ⟨_, symRun_sound blk_486 codeAt_486 s hpc (by simp [blk_486.res, rv_simp]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [blk_486.res, E.eval]

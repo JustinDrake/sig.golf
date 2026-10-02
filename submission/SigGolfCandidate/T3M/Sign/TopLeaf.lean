@@ -5,7 +5,7 @@ import SigGolfCandidate.T3M.Keygen.Leaf
 
 K's `buildLeaf_tsim` (`Keygen/Leaf.lean`) requires the root slot `dest` (register `s9`) to be
 8-aligned even when the leaf is signature-only and `dest` is never written. At sign's first layer-0
-call (word 446) `s9` still holds `counter_search`'s digit total (126), so that lemma does not apply.
+call (word 446) `s9` still holds `counter_search`'s digit total (125), so that lemma does not apply.
 This module is K's proof verbatim (theorems suffixed `S`) over `LeafPreS`, which asks
 `dest % 8 = 0` only for `so = false`; `buildLeaf_tsimS` subsumes `buildLeaf_tsim`.
 -/

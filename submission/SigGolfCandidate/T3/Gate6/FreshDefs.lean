@@ -27,7 +27,7 @@ def slotSet (v : Triple) : Finset Nat := (valList v).toFinset
 def childAuth (v : Triple) : Nat := octH 7 (slotSet v).sort
 
 def SlotsAccepted (slots : Slots) : Prop :=
-  (∀ bank, Function.Injective (slots bank)) ∧ (∑ bank, childAuth (slots bank)) ≤ 91
+  (∀ bank, Function.Injective (slots bank)) ∧ (∑ bank, childAuth (slots bank)) ≤ 90
 
 def PayloadAccepted (payload : Payload) : Prop :=
   payload.2.1 = 0 ∧ SlotsAccepted payload.1

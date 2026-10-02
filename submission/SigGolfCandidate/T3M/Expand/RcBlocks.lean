@@ -118,23 +118,23 @@ theorem rc840_spec (hpc : s.pc = pcOf 840) (j : Nat) (hj : j < 3) (h20 : s.getRe
   · ex_regs eblk_840.res
   · intro A _ _; simp [eblk_840.res, rv_simp]
 
-/-- No leaf in the subtree: out of slots (`s2 ≥ 119`) fails. -/
+/-- No leaf in the subtree: out of slots (`s2 ≥ 118`) fails. -/
 theorem rc843_spec (hpc : s.pc = pcOf 843) (used : Nat) (hu : used < 2 ^ 63)
     (h18 : s.getReg .x18 = BitVec.ofNat 64 used) :
-    ∃ t, Steps image s 2 2 t ∧ t.pc = (if 119 ≤ used then pcOf 354 else pcOf 845) ∧
+    ∃ t, Steps image s 2 2 t ∧ t.pc = (if 118 ≤ used then pcOf 354 else pcOf 845) ∧
       RegsExcept s t [.x28] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound eblk_843 codeAt_843 s hpc (by simp [eblk_843.res, rv_simp]), ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, eblk_843.res, E.eval, CmpOp.eval, BinOp.eval, rebase, RegFile.get, h18,
       BitVec.ofNat_eq_ofNat]
-    rw [ex_slt used 119 hu (by omega)]
-    by_cases h : 119 ≤ used
-    · simp [h, show ¬ used < 119 by omega]
-    · simp [h, show used < 119 by omega]
+    rw [ex_slt used 118 hu (by omega)]
+    by_cases h : 118 ≤ used
+    · simp [h, show ¬ used < 118 by omega]
+    · simp [h, show used < 118 by omega]
   · ex_regs eblk_843.res
   · intro A _ _; simp [eblk_843.res, rv_simp]
 
 /-- The empty subtree: proof slot `s2` to `NOUT`, `s2 += 1`, `a0 = 0`, to `rc_ret`. -/
-theorem rc845_spec (hpc : s.pc = pcOf 845) (used : Nat) (hu : used < 119)
+theorem rc845_spec (hpc : s.pc = pcOf 845) (used : Nat) (hu : used < 118)
     (h18 : s.getReg .x18 = BitVec.ofNat 64 used) :
     ∃ t, Steps image s 13 13 t ∧ t.pc = pcOf 994 ∧
       t.getMem (BitVec.ofNat 64 NOUT) = s.getMem (BitVec.ofNat 64 (0x7160 + 16 * used)) ∧

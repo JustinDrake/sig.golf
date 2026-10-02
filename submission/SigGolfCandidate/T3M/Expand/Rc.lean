@@ -92,11 +92,11 @@ theorem rc_hasloop (s : MachineState) (hpc : s.pc = pcOf 835) (c level node g0 g
 
 /-! ## The recursion -/
 
-/-- The proof slots, indexed by `Nat` (zero past 119). -/
-def pfN (proof : Fin 119 → Digest) (k : Nat) : Digest := if h : k < 119 then proof ⟨k, h⟩ else 0
+/-- The proof slots, indexed by `Nat` (zero past 118). -/
+def pfN (proof : Fin 118 → Digest) (k : Nat) : Digest := if h : k < 118 then proof ⟨k, h⟩ else 0
 
 /-- The static facts of one coordinate's DFS (unchanged by `recover_child`). -/
-structure RcCtx (c index g0 g1 g2 : Nat) (values : List Digest) (proof : Fin 119 → Digest) (s : MachineState) :
+structure RcCtx (c index g0 g1 g2 : Nat) (values : List Digest) (proof : Fin 118 → Digest) (s : MachineState) :
     Prop where
   x5 : s.getReg .x5 = 0
   x8 : s.getReg .x8 = BitVec.ofNat 64 c
@@ -105,7 +105,7 @@ structure RcCtx (c index g0 g1 g2 : Nat) (values : List Digest) (proof : Fin 119
   r1 : s.getMem (BitVec.ofNat 64 (SEL + 24 * c + 8 * 1)) = BitVec.ofNat 64 g1
   r2 : s.getMem (BitVec.ofNat 64 (SEL + 24 * c + 8 * 2)) = BitVec.ofNat 64 g2
   sec : ∀ j < 3, DigAt s (0x7010 + 16 * (3 * c + j)) (values.getD j 0)
-  slots : ∀ k < 119, DigAt s (0x7160 + 16 * k) (pfN proof k)
+  slots : ∀ k < 118, DigAt s (0x7160 + 16 * k) (pfN proof k)
   f0 : s.getMem (BitVec.ofNat 64 FLEAF) = 0
   f8 : s.getMem (BitVec.ofNat 64 (FLEAF + 8)) = 0
   f48 : s.getMem (BitVec.ofNat 64 (FLEAF + 48)) = 0
@@ -126,11 +126,11 @@ def rcRegs : List Reg :=
 /-! ## Core's `recoverChild`, case by case -/
 
 section core
-variable (index c : Nat) (L : List Nat) (values : List Digest) (proof : Fin 119 → Digest)
+variable (index c : Nat) (L : List Nat) (values : List Digest) (proof : Fin 118 → Digest)
 
 theorem rc_eq_empty (level node used : Nat) (h : hasLeaf L level node = false) :
     recoverChild index c L values proof level node used =
-      if h : used < 119 then pure (some (proof ⟨used, h⟩, used + 1)) else pure none := by
+      if h : used < 118 then pure (some (proof ⟨used, h⟩, used + 1)) else pure none := by
   rw [SigGolfCandidate.T3.recoverChild.eq_def]; simp [h]
 
 theorem rc_eq_leaf (node used : Nat) (h : hasLeaf L 0 node = true) :
@@ -162,7 +162,7 @@ end core
 /-! ## Entry and exit -/
 
 section rec
-variable (c index g0 g1 g2 : Nat) (values : List Digest) (proof : Fin 119 → Digest)
+variable (c index g0 g1 g2 : Nat) (values : List Digest) (proof : Fin 118 → Digest)
 
 /-- Entry of `recover_child` (word 824) at `(level, node)`, slot `used`, stream emission state `e`; `fresh` = no leaf
 of the coordinate seen yet (then `s7` / `s8` are stale and `e.cur = []`). -/
@@ -186,7 +186,7 @@ structure RcPre (s : MachineState) (level node used : Nat) (e : Em) (fresh : Boo
   hsp8 : sp % 8 = 0
   hlev : level ≤ 8
   hnode : node * 2 ^ level < 2 ^ 11
-  hused : used ≤ 119
+  hused : used ≤ 118
   ctx : RcCtx c index g0 g1 g2 values proof s
 
 /-- Exit of `recover_child`: `fail`, or back at `ret` with the value at `NOUT`, the live flag, the next slot and the
@@ -199,7 +199,7 @@ def RcPost (s : MachineState) (level node used : Nat) (e : Em) (fresh : Bool) (r
       let fresh' := fresh && !hasLeaf [g0, g1, g2] level node
       t.pc = pcOf ret ∧ t.getReg .x1 = pcOf ret ∧ t.getReg .x2 = BitVec.ofNat 64 sp ∧
         t.getReg .x10 = BitVec.ofNat 64 (if hasLeaf [g0, g1, g2] level node then 1 else 0) ∧ DigAt t NOUT v ∧
-        u' = used + (T3.frontier [g0, g1, g2] level node).length ∧ u' ≤ 119 ∧
+        u' = used + (T3.frontier [g0, g1, g2] level node).length ∧ u' ≤ 118 ∧
         (hasLeaf [g0, g1, g2] level node = false → v = pfN proof used) ∧ t.getReg .x18 = BitVec.ofNat 64 u' ∧
         t.getReg .x22 = BitVec.ofNat 64 (0xC40 + 8 * wl e') ∧
         (fresh' = false → t.getReg .x23 = BitVec.ofNat 64 e'.cur.length ∧ t.getReg .x24 = BitVec.ofNat 64 e'.par) ∧
@@ -215,10 +215,10 @@ theorem StreamAt.frame {s t : MachineState} {e : Em} {W : Nat → Prop} (h : Str
     (hW : ∀ k < 1275, ¬ W (0xC40 + 8 * k)) : StreamAt t e := fun k hk => by
   rw [hf.get (by omega) (hW k hk)]; exact h k hk
 
-theorem RcCtx.frame {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 119 → Digest} {s t : MachineState}
+theorem RcCtx.frame {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 118 → Digest} {s t : MachineState}
     {W : Nat → Prop} (h : RcCtx c index g0 g1 g2 values proof s) (hc : c < 7) {L : List Reg}
     (hr : RegsExcept s t L) (h5 : Reg.x5 ∉ L) (h8 : Reg.x8 ∉ L) (h9 : Reg.x9 ∉ L) (hf : Frame s t W)
-    (hW : ∀ A, ((SEL ≤ A ∧ A < SEL + 168) ∨ (0x7000 ≤ A ∧ A < 0x7000 + 5744) ∨ A = FLEAF ∨ A = FLEAF + 8 ∨
+    (hW : ∀ A, ((SEL ≤ A ∧ A < SEL + 168) ∨ (0x7000 ≤ A ∧ A < 0x7000 + 5728) ∨ A = FLEAF ∨ A = FLEAF + 8 ∨
       A = FLEAF + 48 ∨ A = FLEAF + 56 ∨ A = NODE + 32 ∨ A = NODE + 40) → ¬ W A) :
     RcCtx c index g0 g1 g2 values proof t := by
   refine ⟨by rw [hr.get h5]; exact h.x5, by rw [hr.get h8]; exact h.x8, by rw [hr.get h9]; exact h.x9, ?_, ?_, ?_,
@@ -237,7 +237,7 @@ theorem RcCtx.frame {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin
 
 /-- `RcW` misses the static regions. -/
 theorem not_RcW_static {sp level A : Nat} (hsp : 0x22000 - 512 + 48 * (level + 1) ≤ sp) (hsp' : sp ≤ 0x22000)
-    (hA : (SEL ≤ A ∧ A < SEL + 168) ∨ (0x7000 ≤ A ∧ A < 0x7000 + 5744) ∨ A = FLEAF ∨ A = FLEAF + 8 ∨
+    (hA : (SEL ≤ A ∧ A < SEL + 168) ∨ (0x7000 ≤ A ∧ A < 0x7000 + 5728) ∨ A = FLEAF ∨ A = FLEAF + 8 ∨
       A = FLEAF + 48 ∨ A = FLEAF + 56 ∨ A = NODE + 32 ∨ A = NODE + 40) : ¬ RcW sp level A := by
   unfold RcW
   simp only [SEL, FLEAF, NODE, NOUT] at hA ⊢
@@ -251,7 +251,7 @@ theorem not_RcW_stream {sp level k : Nat} (hsp : 0x22000 - 512 + 48 * (level + 1
 /-! ## The recursion -/
 
 section main
-variable {sk : BitVec 256} {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 119 → Digest}
+variable {sk : BitVec 256} {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 118 → Digest}
 
 /-- The common prefix: the frame, the has-loop. -/
 theorem rc_prefix (hc : c < 7) {s : MachineState} {level node used : Nat} {e : Em} {fresh : Bool} {ret sp : Nat}
@@ -296,7 +296,7 @@ theorem rcEm_empty (L : List Nat) (pf : Nat → Digest) (level node used : Nat) 
     (h : hasLeaf L level node = false) : rcEm L pf level node used e = e := by
   unfold rcEm; simp [h]
 
-theorem pfN_lt (proof : Fin 119 → Digest) (k : Nat) (h : k < 119) : pfN proof k = proof ⟨k, h⟩ := by
+theorem pfN_lt (proof : Fin 118 → Digest) (k : Nat) (h : k < 118) : pfN proof k = proof ⟨k, h⟩ := by
   unfold pfN; rw [dif_pos h]
 
 /-- **The empty subtree**: the next proof slot, or `fail` out of slots. -/
@@ -312,7 +312,7 @@ theorem rc_empty (hc : c < 7) (hg : g0 < 2 ^ 11 ∧ g1 < 2 ^ 11 ∧ g2 < 2 ^ 11)
   rw [rc_eq_empty index c _ values proof level node used h0, rcCost_empty _ _ _ h0]
   obtain ⟨t3, s3, p3, r3, f3⟩ := rc843_spec t2 hif used (by omega)
     (by rw [r2.get (by decide)]; exact hpre.x18)
-  by_cases hu : 119 ≤ used
+  by_cases hu : 118 ≤ used
   · rw [if_pos hu] at p3
     obtain ⟨t4, s4, p4, x5_4, x10_4, _⟩ := cs0_spec kernAt_expand t3 p3
     rw [dif_neg (by omega)]
