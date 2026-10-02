@@ -346,6 +346,17 @@ def headR (rb : Reg) (off : Word) (d : Nat) (slot : Option Nat) (p : Nat) : Resu
     [.align8 (.reg rb), .valid (kAt rb off 20) 1, .valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8]⟩,
     .c (pcOf (p + n)), .ecall, n, n⟩
 
+/-- The quad inline head omits the overwritten output-pointer setup when the last rung is first. -/
+def headR2 (rb : Reg) (off : Word) (d : Nat) (slot : Option Nat) (p : Nat) : Result :=
+  let n := 6
+  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) off)).set .x12
+      (match slot with
+       | some a => .c (BitVec.ofNat 64 a)
+       | none => addC (addC (.reg rb) off) 48)).set .x25 bumpE,
+    [(kAt rb off 16, .bin (.st .b 4) bumpE (posE d)), (kAt rb off 24, .reg .x4)],
+    [.align8 (.reg rb), .valid (kAt rb off 20) 1, .valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8]⟩,
+    .c (pcOf (p + n)), .ecall, n, n⟩
+
 /-- A rung at `p`: `sb POS_d, 20(a0)`, `[li a2, slot]`, up to the `ecall` (1 or 2 steps). -/
 def rungR (d : Nat) (slot : Option Nat) (p : Nat) : Result :=
   let n := if slot.isSome then 2 else 1
@@ -477,7 +488,7 @@ def slotT (i : Nat) : Nat := if i = 0 then 512 else 528 + 16 * i
 
 def quadBase (q dB dC dD : Nat) : Nat := quadBaseTab.getD (64 * q + 16 * dB + 4 * dC + dD) 0
 /-- Words of an inline chain at digit `d` (width 2): the copy 5, else the head 5 + rungs `2 (3 - d) + 1`. -/
-def partLen2 (d : Nat) : Nat := if d = 3 then 5 else 12 - 2 * d
+def partLen2 (d : Nat) : Nat := if d = 3 then 5 else (12 - 2 * d) - (if d = 2 then 1 else 0)
 def qpcB (q dB dC dD : Nat) : Nat := quadBase q dB dC dD + 7
 def qpcC (q dB dC dD : Nat) : Nat := qpcB q dB dC dD + partLen2 dB
 def qpcD (q dB dC dD : Nat) : Nat := qpcC q dB dC dD + partLen2 dC
@@ -493,8 +504,8 @@ def rungsOK2 (d0 slot p : Nat) : Bool :=
 /-- The inline code of top chain `i < 49` at digit `d`, from `p`. -/
 def partOK2 (i d p : Nat) : Bool :=
   if d = 3 then rOK (vrun p 5) (copyF .x19 (offT i) (slotT i) p)
-  else rOK (vrun p 8) (headR .x19 (offT i) d (if d = 2 then some (slotT i) else none) p) &&
-    rungsOK2 (d + 1) (slotT i) (p + 7)
+  else rOK (vrun p 8) (headR2 .x19 (offT i) d (if d = 2 then some (slotT i) else none) p) &&
+    rungsOK2 (d + 1) (slotT i) (p + (if d = 2 then 6 else 7))
 
 /-- Slot `(q, k)` of `qtab`: chain `4q`'s head into rung `dA` of the shared block, or its copy. -/
 def qentCheck (q k : Nat) : Bool :=

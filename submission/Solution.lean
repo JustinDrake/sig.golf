@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 32 KiB authenticated
-partial cache. `S = 5728` bytes, `W = 25240` bytes, `K = 32768` bytes (cache), `C = 9169` cycles
-(accepting-verify bound `9070` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
+partial cache. `S = 5728` bytes, `W = 25240` bytes, `K = 32768` bytes (cache), `C = 9143` cycles
+(accepting-verify bound `9044` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 36864, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,7 +19,7 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 9070); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 9044); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
@@ -33,6 +33,13 @@ The verifier retains the packed FTS/Merkle headers from pratikgx's PR333/335 and
 znan2's embedded constant loads, the lower seven-operation SWAR identity from i34-9's accepted PR283,
 its analogous mixed-top identity, and patternrecognition9-del's live-root technique. The smaller
 authentication cap saves another 30 verifier cycles; the five-bit gate has the same instruction cost as the previous six-bit gate.
+
+On top of that verifier this tree carries 26 further accepting-bound cycles: the FTS setup sets `t1 = 1` and
+`s3 = frameA 0` once so each of the seven coordinate ends checks `bne s7, t1; bne a5, s3` (−12 net, the driver
+compacted), the forest header from `s2` (−1), layer 3 reuses the carried `t1` and reads `s6` directly (−2), mask-free
+lower-layer leaf dispatch (−3) and the top-layer chunk-1 Merkle dispatch from `gp` (−1) (from znan2's `ae21d3da`),
+the layer-0 transition without the `t5` copy and with `s3 = s6 + 704` (−2), and the quad inline heads without the
+overwritten output-pointer setup with the `topZ ≥ 5` saving (−5) (both from the `5e4aa41` lineage).
 
 
 -/
@@ -51,7 +58,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 36864, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 9169 :=
+theorem certificate : SigGolf.Certificate submission 9143 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge

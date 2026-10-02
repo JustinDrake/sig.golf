@@ -88,10 +88,10 @@ theorem FB.leafCK {F : FCtx} {c : Nat} {m : MachineState} (h : FB F c m) : Known
   subst p
   exact h.ck (.x28, BitVec.ofNat 64 (0x901 + 65536 * c)) (by simp [packedCK])
 
-/-! ## The FTS setup (words 359 .. 376) -/
+/-! ## The FTS setup (words 359 .. 378) -/
 
 theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : FtsReady pk w a t) :
-    ∃ u, Steps image t 15 15 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
+    ∃ u, Steps image t 17 17 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
   obtain ⟨ht, hpc⟩ := ht
   have hk0 : KnownOK baseK t := ht.known
   have htidx : t.getReg .x22 = BitVec.ofNat 64 (a.toNat % 2 ^ 31) := ht.idx
@@ -127,7 +127,7 @@ theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
     · exact e28
     · exact e26
     · exact e21
-  -- words 366 .. 372: the rest of the setup and `j 377`
+  -- words 369 .. 378: the rest of the setup (with `t1 = 1`, `s3 = frameA 0`)
   obtain ⟨u, hu⟩ := spec_run setupCheckF_ok t1 (h1.pc rfl) hk (by simp [setupSpecF]) (by simp)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
       if A = SENTINEL then -1#64 else t.getMem (BitVec.ofNat 64 A) := by

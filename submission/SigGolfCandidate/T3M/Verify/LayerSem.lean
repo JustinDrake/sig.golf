@@ -826,7 +826,7 @@ theorem encBt_step (w : WBytes) (pk : Digest) (index : Nat) (c : Nat) (hc : c < 
     (hidx : index < 2 ^ 31) (t : MachineState) (ht : EncPre w pk index 0 c t) (a : BitVec 256) :
     (decode 0 (a.extractLsb' 0 128) = none → ∃ v k cy, Steps image (writeHash t a) k cy v ∧
         fetch image v = some (.base .ECALL) ∧ v.getReg .x5 = 1 ∧ v.getReg .x10 = 1 ∧ k ≤ 42 ∧ cy ≤ 48) ∧
-    (decode 0 (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 52 58 s0 ∧
+    (decode 0 (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 51 57 s0 ∧
         (qctxOf w index a (trPc 0 c)).TopOk ∧ (qctxOf w index a (trPc 0 c)).TopFit (a.extractLsb' 0 128) ∧
         (∀ p ∈ (qctxOf w index a (trPc 0 c)).known, s0.getReg p.1 = p.2) ∧
         (qctxOf w index a (trPc 0 c)).Orig0 s0 ∧ (qctxOf w index a (trPc 0 c)).lctx.Orig0 s0 ∧
