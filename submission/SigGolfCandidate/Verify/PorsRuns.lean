@@ -408,13 +408,15 @@ def dgK : List (Reg × Word) := gkD ++ [(.x18, 0xFFF), (.x10, 0), (.x11, 64), (.
 
 /-- The counters (W1a): `c0 .. c3` as two doublewords at `WIT + 2944`, `c4` as a word at `WIT + 2392`. -/
 def ctrX : E := .bin .or (.bin .or (ldE 4992) (ldE 5000)) (.un (.ld .wu 0) (ldE 4368))
-def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
+/-- The range check masks the merged counters with the data word at `sp + 8`
+(`0xFFC00000FFC00000`, bits `22 .. 31` and `54 .. 63`). -/
+def ctrE' : E := .bin .and ctrX (ldE 0xFDFFB8)
 
 def specStartOk : Spec :=
   ⟨[], [(⟨none, BitVec.ofNat 64 24⟩, ldE 5064), (⟨none, BitVec.ofNat 64 16⟩, ldE 5056)],
-    21, true, 20, [⟨.ne, ctrE', .c 0, false⟩], none, 20⟩
+    20, true, 19, [⟨.ne, ctrE', .c 0, false⟩], none, 19⟩
 def specStartRej : Spec :=
-  ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 17, [⟨.ne, ctrE', .c 0, true⟩], none, 17⟩
+  ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 16, [⟨.ne, ctrE', .c 0, true⟩], none, 16⟩
 
 def wLdE (i : Nat) : E := ldE (8 * i)
 def idxE : E := .bin .srl (.bin .sll (wLdE 0) (cw 30)) (cw 30)
@@ -459,6 +461,6 @@ def startCheck : Bool :=
   specB [] (runAt k0 [1] 0 []) specLim k0x [] &&
   specB gkD (runAt k1 [] 1 [.br false]) specStartOk dgK [] &&
   specB [] (runAt k1 [] 1 [.br true]) specStartRej [] [] &&
-  specB gkD (runAt dgK [leafPc 0] 22 []) setupSpec setupPost []
+  specB gkD (runAt dgK [leafPc 0] 21 []) setupSpec setupPost []
 
 end SigGolfCandidate.Verify

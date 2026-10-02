@@ -243,10 +243,15 @@ through the chain phase so that the interface of `LayerGood` with `Top` keeps it
 def CB0 (lay : Nat) (s : MachineState) : Prop :=
   lay < 4 → s.getMem (BitVec.ofNat 64 0x340) = BitVec.ofNat 64 (769 + 65536 * (lay + 1))
 
+/-- `x27` during layer `lay`: the bottom header word `0x40401` in layer 4 (its leaf stores it), then
+the fold-dispatch table base `0x29000`, which the layer-4 leaf leaves there for the layer-3 leaf
+dispatch. -/
+def x27v (lay : Nat) : Word := if lay = 4 then 0x40401#64 else 0x29000#64
+
 /-- The registers and buffers common to the whole chain phase (`acc` = the chain ends so far). -/
 def ChBase (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
   Glob gkL c.wl c.pk s ∧ KnownOK chK0 s ∧ c.Regs s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N c.lay) ∧
-  s.getReg .x27 = 0x40401#64 ∧ s.getReg .x1 = c.ret ∧ LBOk acc s ∧
+  s.getReg .x27 = x27v c.lay ∧ s.getReg .x1 = c.ret ∧ LBOk acc s ∧
   acc.length = i ∧ (∀ v ∈ acc, v.length = 16) ∧ CB0 c.lay s ∧ EncHeader c.lay s
 
 /-- Before chain `i`'s code (`x25` = the previous chain's tweak word 0). -/

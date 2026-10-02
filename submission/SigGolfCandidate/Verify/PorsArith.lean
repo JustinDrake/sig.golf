@@ -307,6 +307,53 @@ theorem ctr_shift_iff (x : Nat) (hx : x < 2 ^ 64) :
     have := Nat.or_lt_two_pow h2 h1
     omega
 
+/-- `&&&` of two numbers split at bit `w`. -/
+theorem and_split (w lo hi mlo mhi : Nat) (hlo : lo < 2 ^ w) (hm : mlo < 2 ^ w) :
+    (lo + 2 ^ w * hi) &&& (mlo + 2 ^ w * mhi) = (lo &&& mlo) + 2 ^ w * (hi &&& mhi) := by
+  have hand : lo &&& mlo < 2 ^ w := Nat.and_lt_two_pow lo hm
+  apply Nat.eq_of_testBit_eq
+  intro j
+  have a1 : (lo + 2 ^ w * hi).testBit j = if j < w then lo.testBit j else hi.testBit (j - w) := by
+    rw [Nat.add_comm, Nat.testBit_two_pow_mul_add _ hlo]
+  have a2 : (mlo + 2 ^ w * mhi).testBit j = if j < w then mlo.testBit j else mhi.testBit (j - w) := by
+    rw [Nat.add_comm, Nat.testBit_two_pow_mul_add _ hm]
+  have a3 : ((lo &&& mlo) + 2 ^ w * (hi &&& mhi)).testBit j =
+      if j < w then (lo &&& mlo).testBit j else (hi &&& mhi).testBit (j - w) := by
+    rw [Nat.add_comm, Nat.testBit_two_pow_mul_add _ hand]
+  rw [Nat.testBit_and, a1, a2, a3]
+  by_cases h : j < w <;> simp [h, Nat.testBit_and]
+
+/-- A 32-bit half masked with bits `22 .. 31` is zero iff the half is below `2^22`. -/
+theorem and_hiMask (y : Nat) (hy : y < 2 ^ 32) : y &&& 0xFFC00000 = 0 ↔ y < 2 ^ 22 := by
+  have hr : y % 2 ^ 22 < 2 ^ 22 := Nat.mod_lt _ (by norm_num)
+  have e : y &&& 0xFFC00000 = 2 ^ 22 * (y / 2 ^ 22 % 2 ^ 10) := by
+    have h := and_split 22 (y % 2 ^ 22) (y / 2 ^ 22) 0 1023 hr (by norm_num)
+    rw [Nat.mod_add_div, show (0 : Nat) + 2 ^ 22 * 1023 = 0xFFC00000 by norm_num, Nat.and_zero,
+      Nat.zero_add, show (1023 : Nat) = 2 ^ 10 - 1 by norm_num, Nat.and_two_pow_sub_one_eq_mod] at h
+    exact h
+  rw [e]
+  omega
+
+/-- The counter check as one mask: `x &&& 0xFFC00000FFC00000 = 0` iff both 32-bit halves of `x`
+are below `2^22` (the right side of `ctr_shift_iff`). -/
+theorem ctr_mask_iff (x : Nat) (hx : x < 2 ^ 64) :
+    x &&& 0xFFC00000FFC00000 = 0 ↔ x % 2 ^ 32 < 2 ^ 22 ∧ x / 2 ^ 32 < 2 ^ 22 := by
+  have hlo : x % 2 ^ 32 < 2 ^ 32 := Nat.mod_lt _ (by norm_num)
+  have hhi : x / 2 ^ 32 < 2 ^ 32 := by omega
+  have h := and_split 32 (x % 2 ^ 32) (x / 2 ^ 32) 0xFFC00000 0xFFC00000 hlo (by norm_num)
+  rw [Nat.mod_add_div,
+    show (0xFFC00000 : Nat) + 2 ^ 32 * 0xFFC00000 = 0xFFC00000FFC00000 by norm_num] at h
+  rw [h]
+  have e1 := and_hiMask _ hlo
+  have e2 := and_hiMask _ hhi
+  constructor
+  · intro h0
+    exact ⟨e1.mp (by omega), e2.mp (by omega)⟩
+  · rintro ⟨h1, h2⟩
+    have z1 := e1.mpr h1
+    have z2 := e2.mpr h2
+    omega
+
 /-- Word 0 of the relabelled node buffers. -/
 theorem nbW0E_eval (A : Nat) (s : MachineState) (h0 : (wLdE 0).eval s = BitVec.ofNat 64 (A % 2 ^ 64)) :
     nbW0E.eval s = BitVec.ofNat 64 (twLo 10 0 (A % 2 ^ 34) (A % 2 ^ 34)) := by

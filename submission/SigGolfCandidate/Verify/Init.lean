@@ -174,7 +174,7 @@ def vdTail : List (BitVec 8) :=
   [0, 0, 0, 0, 0, 0, 0, 0,
    0xc7, 0x71, 0x1c, 0xc7, 0x71, 0x1c, 0xc7, 0x71, 0x3f, 0xf0, 0x03, 0x3f, 0xf0, 0x03, 0x3f, 0xf0]
 
-def vdRoot : List (BitVec 8) := [120, 120, 120, 120, 120, 120, 120, 120, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 0, 0, 0, 0, 0, 0, 254, 3, 0, 0, 0, 0, 0, 199, 113, 28, 199, 113, 28, 199, 113, 63, 240, 3, 63, 240, 3, 63, 240]
+def vdRoot : List (BitVec 8) := [120, 120, 120, 120, 120, 120, 120, 120, 0, 0, 192, 255, 0, 0, 192, 255, 1, 4, 4, 0, 0, 0, 0, 0, 0, 254, 3, 0, 0, 0, 0, 0, 199, 113, 28, 199, 113, 28, 199, 113, 63, 240, 3, 63, 240, 3, 63, 240]
 
 theorem vdRoot_length : vdRoot.length = 48 := rfl
 
@@ -221,11 +221,15 @@ theorem w64_rtBlk (n : Nat) : w64 (rtBlk n) = rtW n := by
 
 /-! ## The initial state -/
 
+/-- The counter-range mask (bits `22 .. 31` and `54 .. 63`), the second data word at `0xFDFFB8`. -/
+def CtrMask (s : MachineState) : Prop :=
+  s.getMem (BitVec.ofNat 64 0xFDFFB8) = 0xFFC00000FFC00000#64
+
 def InitOK (ml pkl wl : List Byte) (s : MachineState) : Prop :=
   MaskData s ∧ KnownOK k0 s ∧ s.pc = pcOf 0 ∧ WitAll wl s ∧ PkOK pkl s ∧
   (∀ j, j < 4 → s.getMem (BitVec.ofNat 64 (0x20 + 8 * j)) = w64 (slice ml (8 * j) 8)) ∧
   (∀ A, A < 0x800 → (A < 0x20 ∨ (0x40 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → s.getMem (BitVec.ofNat 64 A) = 0) ∧
-  RtabData s
+  RtabData s ∧ CtrMask s
 
 /-- The view's zero lead (`0x800 .. 0x1100`). -/
 theorem slice_extW_lo (l : List Byte) (j : Nat) (hj : j < 288) : slice (extW l) (8 * j) 8 = zeros 8 := by
@@ -298,6 +302,10 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
     · change withData.getMem (BitVec.ofNat 64 (0xFDFFB0+8*0)) = PMASK
       rw [wbw_word vdata blank 0xFDFFB0 (by omega) 0 (by omega), vdata_slice_root 0 (by decide)]
       decide +kernel
+  have dataCm : withData.getMem (BitVec.ofNat 64 0xFDFFB8) = 0xFFC00000FFC00000#64 := by
+    change withData.getMem (BitVec.ofNat 64 (0xFDFFB0+8*1)) = 0xFFC00000FFC00000#64
+    rw [wbw_word vdata blank 0xFDFFB0 (by omega) 1 (by omega), vdata_slice_root 1 (by decide)]
+    decide +kernel
   have dataRt : RtabData withData := by
     intro n hn
     rw [show RTAB+8*n=0xFDFFB0+8*(n+6) by unfold RTAB; omega,
@@ -327,7 +335,7 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
     rw [gm, wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
       wbw_frame _ _ _ (by omega) _ (by omega) (by omega),
       wbw_frame _ _ _ (by omega) _ (by omega) (by omega)]
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · exact ⟨(fr 0xFFFFF0 (by decide) (by decide)).trans dataMasks.1,
       (fr 0xFFFFF8 (by decide) (by decide)).trans dataMasks.2.1,
       (fr 0xFDFFC0 (by decide) (by decide)).trans dataMasks.2.2.1,
@@ -375,6 +383,8 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
     have hR : RTAB = 0xFDFFE0 := rfl
     rw [fr (RTAB + 8 * n) (by omega) (by omega)]
     exact dataRt n hn
+  · unfold CtrMask
+    exact (fr 0xFDFFB8 (by decide) (by decide)).trans dataCm
 
 
 theorem init_ok (m : Message) (pk : PublicKey) (w : Bytes 14080) (s : MachineState)

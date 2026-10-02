@@ -5,7 +5,11 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
-The claim C=10286 is accepting verifier bound10231 plus witness charge55.
+The claim C=10284 is accepting verifier bound10229 plus witness charge55.
+The witness-counter range check masks the merged counters with a constant mask word kept in the
+verifier data's padding word, replacing a shift/or/shift fold with one load and one and.
+The top-layer leaf leaves its fold-dispatch table base in a header register that is no longer
+read, so the next layer's leaf dispatch reuses it instead of rebuilding it.
 This candidate retains the accepted ordered root-children message construction and adds
 length-separated leaf header reuse, a preserved selector threshold, a reversible
 top heap address reflection, carried upper-layer leaf headers, and rotated encoding
@@ -95,7 +99,7 @@ theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4352 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10286 :=
+theorem certificate : SigGolf.Certificate submission 10284 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
