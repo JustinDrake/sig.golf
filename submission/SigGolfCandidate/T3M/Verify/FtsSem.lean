@@ -73,28 +73,19 @@ theorem RootsOK.frame {roots : List Digest} {m u : MachineState} (h : RootsOK ro
   obtain ⟨h1, h2⟩ := h k hk
   exact ⟨e1.trans h1, e2.trans h2⟩
 
-/-! ## The FTS setup (words 359 .. 374, then `j 392` over the fillers 375 .. 391) -/
+/-! ## The FTS setup (words 377 .. 391: four loads, eleven instructions) -/
 
 theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : SelIn pk w a 7 t) :
-    ∃ u, Steps image t 16 16 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
+    ∃ u, Steps image t 15 15 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
   have hk0 : KnownOK baseK t := ht.known
-  -- words 359 .. 365: the six setup constants from the embedded data
+  -- words 377 .. 380: `lui sp, 0x1000` and three setup constants from the embedded data
   obtain ⟨t1, h1⟩ := spec_run setupLdCheckF_ok t ht.pc hk0 (by simp [setupLdSpec]) (by simp)
   have hm1 : ∀ A, t1.getMem A = t.getMem A := fun A => by rw [h1.mem]; rfl
-  have r14 : t1.getReg .x14 = (E.ld (cw (DATA + 40))).eval t := h1.regs (.x14, .ld (cw (DATA + 40))) (by simp [setupLdSpec])
   have r29 : t1.getReg .x29 = (E.ld (cw (DATA + 48))).eval t := h1.regs (.x29, .ld (cw (DATA + 48))) (by simp [setupLdSpec])
-  have r27 : t1.getReg .x27 = (E.ld (cw (DATA + 56))).eval t := h1.regs (.x27, .ld (cw (DATA + 56))) (by simp [setupLdSpec])
-  have r28 : t1.getReg .x28 = (E.ld (cw (DATA + 64))).eval t := h1.regs (.x28, .ld (cw (DATA + 64))) (by simp [setupLdSpec])
   have r26 : t1.getReg .x26 = (E.ld (cw (DATA + 72))).eval t := h1.regs (.x26, .ld (cw (DATA + 72))) (by simp [setupLdSpec])
   have r21 : t1.getReg .x21 = (E.ld (cw (DATA + 80))).eval t := h1.regs (.x21, .ld (cw (DATA + 80))) (by simp [setupLdSpec])
-  have e14 : t1.getReg .x14 = BitVec.ofNat 64 A4_0 :=
-    r14.trans (ht.data.word 5 (by omega) A4_0 (by decide) (DATA + 40) (by omega))
   have e29 : t1.getReg .x29 = BitVec.ofNat 64 A4_LIMIT :=
     r29.trans (ht.data.word 6 (by omega) A4_LIMIT (by decide) (DATA + 48) (by omega))
-  have e27 : t1.getReg .x27 = BitVec.ofNat 64 0xa01 :=
-    r27.trans (ht.data.word 7 (by omega) 0xa01 (by decide) (DATA + 56) (by omega))
-  have e28 : t1.getReg .x28 = BitVec.ofNat 64 0x901 :=
-    r28.trans (ht.data.word 8 (by omega) 0x901 (by decide) (DATA + 64) (by omega))
   have e26 : t1.getReg .x26 = BitVec.ofNat 64 tbN :=
     r26.trans (ht.data.word 9 (by omega) tbN (by decide) (DATA + 72) (by omega))
   have e21 : t1.getReg .x21 = BitVec.ofNat 64 tbL :=
@@ -102,15 +93,13 @@ theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
   have hk : KnownOK setupLdK t1 := by
     intro p hp
     simp only [setupLdK, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl
-    · exact h1.known p hp
-    · exact e14
+    rcases hp with hp | rfl | rfl | rfl | rfl
+    · exact h1.known p (List.mem_append_left _ hp)
     · exact e29
-    · exact e27
-    · exact e28
     · exact e26
     · exact e21
-  -- words 366 .. 374: the rest of the setup (with `t1 = 1`, `s3 = frameA 0`) and `j 392`
+    · exact h1.known _ (by simp)
+  -- words 381 .. 391: the rest of the setup
   obtain ⟨u, hu⟩ := spec_run setupCheckF_ok t1 (h1.pc rfl) hk (by simp [setupSpecF]) (by simp)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
       if A = SENTINEL then -1#64 else t.getMem (BitVec.ofNat 64 A) := by
