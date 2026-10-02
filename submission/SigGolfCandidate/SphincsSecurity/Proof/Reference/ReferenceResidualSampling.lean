@@ -17,7 +17,7 @@ theorem readCanonicalEncodingRows_programmedHash (parameter : PublicParameter)
   funext row
   apply programmedHash_other
   intro position heq
-  have hencoding : AtEncodingPosition parameter (canonicalEncodingRowInput parameter encodingLabels row) row.1 := ⟨_, _, rfl⟩
+  have hencoding : AtEncodingPosition parameter (canonicalEncodingRowInput parameter encodingLabels row) row.1 := ⟨_, rfl⟩
   exact hencoding.not_atPosition position ⟨_, heq⟩
 
 theorem referenceTableSelection_programmedHash (key : SecretKey) (inputs : Finset HashInput)
@@ -25,7 +25,7 @@ theorem referenceTableSelection_programmedHash (key : SecretKey) (inputs : Finse
     (residual : inputs → HashOutput) (position : EncodingPosition) :
     referenceTableSelection key
       (programmedHash key.parameter key.otsSecret key.ftsSecret labels (finiteHashAnswer ∅ inputs residual)) position =
-      FirstSuccessTable.select (decodeEncodingOutput position.lay)
+      FirstSuccessTable.select decodeEncodingOutput
         (fun counter => residual (canonicalEncodingCell key.parameter inputs hencoding labels (position, counter))) := by
   rw [referenceTableSelection, canonicalGraphLabels_programmedHash, readCanonicalEncodingRows_programmedHash,
     readCanonicalEncodingRows_finite key.parameter inputs hencoding]
@@ -34,8 +34,8 @@ theorem referenceTableSelection_programmedHash (key : SecretKey) (inputs : Finse
 noncomputable def residualReferenceSample (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (labels : CanonicalGraphLabels) :
     PMF (ReferenceFamily × (inputs → HashOutput)) :=
-  (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).bind (fun selections =>
-    (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections).bind
+  (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).bind (fun selections =>
+    (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections).bind
       (fun rows => (PMF.uniformOfFintype (UniformTableSplit.Outside (canonicalEncodingCell parameter inputs hencoding labels) → HashOutput)).map
         (fun remaining => (selections, UniformTableSplit.join (canonicalEncodingCell parameter inputs hencoding labels)
           (canonicalEncodingCell_injective parameter inputs hencoding labels) (Function.uncurry rows) remaining))))
@@ -49,22 +49,22 @@ theorem uniform_joint_residualReference (key : SecretKey) (inputs : Finset HashI
   have hselection (residual : inputs → HashOutput) :
       referenceTableSelection key
         (programmedHash key.parameter key.otsSecret key.ftsSecret labels (finiteHashAnswer ∅ inputs residual)) =
-      fun position => FirstSuccessTable.select (decodeEncodingOutput position.lay)
+      fun position => FirstSuccessTable.select decodeEncodingOutput
         (fun counter => residual (canonicalEncodingCell key.parameter inputs hencoding labels (position, counter))) := by
     funext position
     exact referenceTableSelection_programmedHash key inputs hencoding labels residual position
   have h := UniformTableSplit.uniform_bind_firstSuccessFamily
     (canonicalEncodingCell key.parameter inputs hencoding labels)
     (canonicalEncodingCell_injective key.parameter inputs hencoding labels)
-    decodeEncodingFamily (fun selections residual => PMF.pure (selections, residual))
+    decodeEncodingOutput (fun selections residual => PMF.pure (selections, residual))
   simpa only [hselection, residualReferenceSample, PMF.map, Function.comp_def] using h
 
 noncomputable def graphReferenceSample (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) :
     PMF (ReferenceFamily × (CanonicalGraphLabels × (inputs → HashOutput))) :=
-  (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).bind (fun selections =>
+  (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).bind (fun selections =>
     (PMF.uniformOfFintype CanonicalGraphLabels).bind (fun labels =>
-      (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections).bind
+      (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections).bind
         (fun rows => (PMF.uniformOfFintype (UniformTableSplit.Outside (canonicalEncodingCell parameter inputs hencoding labels) → HashOutput)).map
           (fun remaining => (selections, (labels, UniformTableSplit.join (canonicalEncodingCell parameter inputs hencoding labels)
             (canonicalEncodingCell_injective parameter inputs hencoding labels) (Function.uncurry rows) remaining))))))

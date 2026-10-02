@@ -8,12 +8,12 @@ attribute [local irreducible] Finset.univ canonicalEncodingInputs OtsContactTrac
 
 theorem contactBeforeEntry_query_le (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (outside : NonencodingRows parameter inputs hencoding)
-    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (dummy : OtsReferenceWords) (frontier : OtsFrontierValues)
+    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (dummy : OtsReferenceWords) (frontier : OtsFrontierValues)
     (history : OtsContactTrace.Trace) (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed) (input : HashInput) :
     Pr[fun result => ContactBeforeEntry parameter (referenceFamilyWords selections dummy) frontier history (input, result.1) |
       (lazyWorldImpl parameter inputs hencoding outside (.inr input)).run allowed] ≤
-      (((63 / 32 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) / (Fintype.card Digest : ENNReal)) * (contactMarkerCharge parameter (referenceFamilyWords selections dummy) frontier history (.inr input) : ENNReal) := by
+      ((OtsCode.unitNeighborBound : ENNReal) / (Fintype.card Digest : ENNReal)) * (contactMarkerCharge parameter (referenceFamilyWords selections dummy) frontier history (.inr input) : ENNReal) := by
   by_cases hi : input ∈ canonicalEncodingInputs parameter
   · have he : QueryClass.EncodingHash parameter (.inr input) := encodingInput_position parameter input hi
     simp only [lazyWorldImpl, QueryImpl.compose, translate, dif_pos hi, simulateQ_spec_query,
@@ -36,13 +36,13 @@ attribute [local instance 10000] Classical.propDecidable
 
 theorem contactMarker_query_potential_le (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (outside : NonencodingRows parameter inputs hencoding)
-    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (dummy : OtsReferenceWords) (frontier : OtsFrontierValues)
+    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (dummy : OtsReferenceWords) (frontier : OtsFrontierValues)
     (history : OtsContactTrace.Trace) (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed) (input : OracleWorld.Domain) :
     (∑' result, Pr[= result | (lazyWorldImpl parameter inputs hencoding outside input).run allowed] *
       (contactMarkerCount parameter (referenceFamilyWords selections dummy) frontier (history * hashObservationTrace input result.1) : ENNReal)) ≤
       (contactMarkerCount parameter (referenceFamilyWords selections dummy) frontier history : ENNReal) +
-        (((63 / 32 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) / (Fintype.card Digest : ENNReal)) * (contactMarkerCharge parameter (referenceFamilyWords selections dummy) frontier history input : ENNReal) := by
+        ((OtsCode.unitNeighborBound : ENNReal) / (Fintype.card Digest : ENNReal)) * (contactMarkerCharge parameter (referenceFamilyWords selections dummy) frontier history input : ENNReal) := by
   cases input with
   | inl input =>
       simp only [hashObservationTrace, mul_one, contactMarkerCharge, QueryClass.EncodingHash, if_false,

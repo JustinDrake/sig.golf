@@ -198,11 +198,17 @@ def checkValid (σ : SymState) (a : Addr) (w : Nat) : Option SymState :=
   | none => if accessValid a.off w then some σ else none
   | some _ => some (σ.addObl (.valid a w))
 
+/-- Arithmetic alignment for symbolic offsets, avoiding evaluation of a
+64-bit mask on sign-extended negative immediates. Soundness identifies this
+with the machine's bitwise alignment operation. -/
+def alignedOffset (offset : Word) : Word :=
+  BitVec.ofNat 64 (offset.toNat - offset.toNat % 8)
+
 /-- Doubleword key and byte offset of a sub-doubleword access. -/
 def subKey (σ : SymState) (a : Addr) : SymState × Addr × Nat :=
   match a.base with
-  | none => (σ, ⟨none, alignToDword a.off⟩, byteOffset a.off)
-  | some b => (σ.addObl (.align8 b), ⟨some b, alignToDword a.off⟩, byteOffset a.off)
+  | none => (σ, ⟨none, alignedOffset a.off⟩, a.off.toNat % 8)
+  | some b => (σ.addObl (.align8 b), ⟨some b, alignedOffset a.off⟩, a.off.toNat % 8)
 
 def LoadKind.isD : LoadKind → Bool
   | .d => true

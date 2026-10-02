@@ -265,11 +265,18 @@ theorem checkValid_sound {σ σ₁ : SymState} {a : Addr} {w : Nat} (h : checkVa
     refine ⟨?_, SymState.addObl_regs _ _, SymState.addObl_mem _ _, SymState.addObl_sub _ _⟩
     exact hobl _ (SymState.addObl_mem_obl _ _)
 
+theorem alignedOffset_eq (offset : Word) : alignedOffset offset = alignToDword offset := by
+  apply BitVec.eq_of_toNat_eq
+  rw [alignToDword_toNat]
+  simp only [alignedOffset, BitVec.toNat_ofNat]
+  exact Nat.mod_eq_of_lt ((Nat.sub_le _ _).trans_lt offset.isLt)
+
 theorem subKey_sound {σ σ₂ : SymState} {a key : Addr} {bo : Nat} (h : subKey σ a = (σ₂, key, bo))
     (s : MachineState) (hobl : ∀ o ∈ σ₂.obl, o.holds s) :
     key.eval s = alignToDword (a.eval s) ∧ bo = byteOffset (a.eval s) ∧
       σ₂.regs = σ.regs ∧ σ₂.mem = σ.mem ∧ σ.obl ⊆ σ₂.obl := by
   unfold subKey at h
+  simp only [alignedOffset_eq, ← byteOffset_eq] at h
   split at h
   · rename_i hb
     simp only [Prod.mk.injEq] at h

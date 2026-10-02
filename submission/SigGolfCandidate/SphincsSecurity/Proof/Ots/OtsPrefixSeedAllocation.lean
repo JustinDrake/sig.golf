@@ -38,7 +38,7 @@ noncomputable def ReferenceRecordedResult.prefixCounted (address : OtsPrefix.Cha
 noncomputable def prefixCountedSeedRest (key : SecretKey) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs key.parameter ⊆ inputs) (hgraph : canonicalGraphInputs key.parameter ⊆ inputs)
     (address : OtsPrefix.ChainAddress) (dummy : OtsReferenceWords) (adversary : Adversary) : SPMF PrefixCountedResult := do
-  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit]
+  let selections ← 𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit]
   let words := referenceFamilyWords selections dummy
   let segment := OtsPrefix.atAddress key.parameter words address
   let tables ← 𝒮[PMF.uniformOfFintype (Fin segment.digit.val → Digest → Digest)]
@@ -61,7 +61,7 @@ theorem prefixCountedSeedRest_eq (key : SecretKey) (inputs : Finset HashInput)
     (fun selections => referenceFamilyWords selections dummy address.1 address.2.1 address.2.2.1 address.2.2.2)]
   simp only [← PMF.monad_bind_eq_bind, ← PMF.monad_map_eq_map, evalSPMF_bind, evalSPMF_map, bind_assoc, bind_map_left]
   unfold prefixCountedSeedRest
-  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit] >>= ·)
+  apply congrArg (𝒮[FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit] >>= ·)
   funext selections
   let words := referenceFamilyWords selections dummy
   let segment := OtsPrefix.atAddress key.parameter words address

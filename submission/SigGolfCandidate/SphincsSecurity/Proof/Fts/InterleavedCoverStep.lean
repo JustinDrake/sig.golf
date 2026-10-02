@@ -1,7 +1,7 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.CachedSigningViews
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeConditionalCoverage
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.JointProbeMessageReserve
+import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeProbability
+import SigGolfCandidate.SphincsSecurity.Proof.IdealStatement
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimePrehit
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeWeightedOriginRace
 import SigGolfCandidate.SphincsSecurity.Proof.Base.RomQueryCharge
@@ -48,3 +48,17 @@ theorem logTracedMappedAdversaryImpl_signingDigestsCached (key : SecretKey)
       exact SigningDigestsCached.after_signing key message state.1 viewed.2 state.2 hsigned viewed.1.1 viewed.1.2 hviewed
 
 end SphincsSecurity.Concrete
+
+namespace SphincsSecurity.Concrete
+
+open _root_.OracleComp OracleSpec ENNReal
+open FtsProbeSimulation (messageAnswers)
+attribute [local instance] Classical.propDecidable
+set_option backward.isDefEq.respectTransparency false
+
+def ValidSigningStep (log : QueryLog SigningSpec) : (OracleWorld + SigningSpec).Domain → Prop
+  | .inl _ => log.length ≤ signatureLimit
+  | .inr _ => log.length < signatureLimit
+
+end SphincsSecurity.Concrete
+

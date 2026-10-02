@@ -155,7 +155,7 @@ theorem erases_signTopLayer (index : Index)
     (h : ∀ leaf chainIdx, Erases known (left leaf chainIdx) (right leaf chainIdx))
     {topLeft topRight : Nat → Nat → OracleComp HashSpec Digest}
     (htop : ∀ level nodeIdx, Erases known (topLeft level nodeIdx) (topRight level nodeIdx))
-    (message : EncMessage) :
+    (message : Digest) :
     Erases known (signTopLayer parameter index left topLeft message)
       (signTopLayer parameter index right topRight message) := by
   unfold signTopLayer
@@ -175,7 +175,7 @@ theorem erases_signLayers (index : Index)
     (h : ∀ lay tree leaf chainIdx, Erases known (left lay tree leaf chainIdx) (right lay tree leaf chainIdx))
     {topLeft topRight : Nat → Nat → OracleComp HashSpec Digest}
     (htop : ∀ level nodeIdx, Erases known (topLeft level nodeIdx) (topRight level nodeIdx))
-    (remaining : Nat) (message : EncMessage) :
+    (remaining : Nat) (message : Digest) :
     Erases known (signLayers parameter index left topLeft remaining message)
       (signLayers parameter index right topRight remaining message) := by
   induction remaining generalizing message with
@@ -258,7 +258,7 @@ theorem erases_signTopLayerPaired (index : Index)
     (h : ∀ leaf pair, Erases known (left leaf pair) (right leaf pair))
     {topLeft topRight : Nat → Nat → OracleComp HashSpec Digest}
     (htop : ∀ level nodeIdx, Erases known (topLeft level nodeIdx) (topRight level nodeIdx))
-    (message : EncMessage) :
+    (message : Digest) :
     Erases known (signTopLayerPaired parameter index left topLeft message)
       (signTopLayerPaired parameter index right topRight message) := by
   unfold signTopLayerPaired
@@ -278,7 +278,7 @@ theorem erases_signLayersPaired (index : Index)
     (h : ∀ lay tree leaf pair, Erases known (left lay tree leaf pair) (right lay tree leaf pair))
     {topLeft topRight : Nat → Nat → OracleComp HashSpec Digest}
     (htop : ∀ level nodeIdx, Erases known (topLeft level nodeIdx) (topRight level nodeIdx))
-    (remaining : Nat) (message : EncMessage) :
+    (remaining : Nat) (message : Digest) :
     Erases known (signLayersPaired parameter index left topLeft remaining message)
       (signLayersPaired parameter index right topRight remaining message) := by
   induction remaining generalizing message with

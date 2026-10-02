@@ -1,5 +1,10 @@
 import SigGolfCandidate.SphincsSecurity.Scheme
-import SigGolfCandidate.Ref
+import SigGolfCandidate.Ref.Basic
+import SigGolfCandidate.Ref.Scheme
+import SigGolfCandidate.Ref.Count
+import SigGolfCandidate.Ref.Lemmas
+
+import SigGolfCandidate.Ref.AddressQueries
 import SigGolfCandidate.Bridge.Basic
 
 /-!
@@ -134,15 +139,7 @@ abbrev AComp := OracleComp SphincsSecurity.HashSpec
 /-- A 16-byte abstract value as reference bytes. -/
 def dv (d : SphincsSecurity.Digest) : Ref.Val := Ref.toList (n := 16) d
 
-/-- A layer message as 32 bytes, `L || R` (the bottom layer's is `P || PORS root`). -/
-def dvM (M : SphincsSecurity.EncMessage) : Ref.Val := dv M.1 ++ dv M.2
-
 @[simp] theorem length_dv (d : SphincsSecurity.Digest) : (dv d).length = 16 := Ref.length_toList (n := 16) d
-
-/-- The bottom layer's message: `P || PORS root`. -/
-theorem dvM_zero (d : SphincsSecurity.Digest) : dvM (0, d) = Ref.P ++ dv d := by
-  have h : dv 0 = Ref.P := by decide
-  simp only [dvM, h]
 
 theorem dv_injective : Function.Injective dv := by
   intro a b h
@@ -167,18 +164,6 @@ theorem answerBytes_eq (a : BitVec 256) :
 theorem hash16_eq (y : List Byte) :
     Ref.hash16 y = (fun a => dv (SphincsSecurity.truncateHash a)) <$> Ref.H y := by
   simp only [Ref.hash16, answerBytes_eq]
-  rw [map_eq_bind_pure_comp]; rfl
-
-theorem encodingBytes_eq (a : BitVec 256) :
-    Ref.encodingBytes a = dv (SphincsSecurity.selectEncodingDigest a) := by
-  change Ref.answerBytes 16 (Ref.encodingAnswer a) = _
-  rw [answerBytes_eq]
-  rfl
-
-/-- A reference encoding call retains the full oracle answer before selecting its half. -/
-theorem encodingHash_eq (y : List Byte) :
-    Ref.encodingHash y = (fun a => dv (SphincsSecurity.selectEncodingDigest a)) <$> Ref.H y := by
-  simp only [Ref.encodingHash, encodingBytes_eq]
   rw [map_eq_bind_pure_comp]; rfl
 
 /-- A reference `Th` call is the relabelled abstract tweakable hash, when the inputs agree. -/
@@ -232,6 +217,23 @@ theorem foldlM_range_seq {α β σ : Type} {n : Nat} (c : Fin n → m α) (b : N
     rw [this, map_eq_bind_pure_comp]
     congr 1; funext t
     simp [List.finRange_succ, List.foldl_map]
+
+/-- Two dependent oracle operations per iteration, in the flat bind form
+emitted by the forest reference. Reassociation is proved before matching the
+loop, rather than asking definitional equality to reassociate monadic binds. -/
+theorem foldlM_range_seq_bind {α β γ σ : Type} {n : Nat}
+    (c : Fin n → m α) (first : Nat → m β) (second : Nat → β → m γ)
+    (g : α → γ)
+    (hb : ∀ j (h : j < n), (first j >>= second j) = g <$> c ⟨j, h⟩)
+    (upd : σ → Nat → γ → σ) (s : σ) :
+    (List.range n).foldlM (fun st j => do
+      let middle ← first j
+      let value ← second j middle
+      pure (upd st j value)) s =
+      (fun f => (List.finRange n).foldl (fun st j => upd st j.val (g (f j))) s) <$>
+        SphincsSecurity.Concrete.sequenceFin c := by
+  simpa only [bind_assoc] using
+    foldlM_range_seq c (fun j => first j >>= second j) g hb upd s
 
 /-- `foldlM_range_seq` with a conversion that depends on the index. -/
 theorem foldlM_range_seq_dep {α β σ : Type} {n : Nat} (c : Fin n → m α) (b : Nat → m β)

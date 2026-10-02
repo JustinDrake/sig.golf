@@ -8,7 +8,7 @@ attribute [local irreducible] Finset.univ canonicalEncodingInputs OtsContactTrac
 
 theorem contactMarker_lazyRun_le {Result : Type} (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (outside : NonencodingRows parameter inputs hencoding)
-    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (dummy : OtsReferenceWords) (frontier : OtsFrontierValues)
+    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (dummy : OtsReferenceWords) (frontier : OtsFrontierValues)
     (computation : OracleComp OracleWorld Result) (history : OtsContactTrace.Trace)
     (allowed : canonicalEncodingInputs parameter → Finset HashOutput)
     (hc : TraceConsistent parameter (referenceEncodingAllowed parameter messages selections) history allowed)
@@ -16,7 +16,7 @@ theorem contactMarker_lazyRun_le {Result : Type} (parameter : PublicParameter) (
     (∑' result, Pr[= result | lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation) allowed] *
       (contactMarkerCount parameter (referenceFamilyWords selections dummy) frontier (history * result.1.2) : ENNReal)) ≤
       (contactMarkerCount parameter (referenceFamilyWords selections dummy) frontier history : ENNReal) +
-        (((63 / 32 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) / (Fintype.card Digest : ENNReal)) * ∑' result,
+        ((OtsCode.unitNeighborBound : ENNReal) / (Fintype.card Digest : ENNReal)) * ∑' result,
           Pr[= result | lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation) allowed] *
             (contactMarkerCost parameter (referenceFamilyWords selections dummy) frontier history result.1.2 : ENNReal) := by
   simp only [lazyRun_eq_simulate]
@@ -39,12 +39,12 @@ theorem contactMarker_lazyRun_le {Result : Type} (parameter : PublicParameter) (
 
 theorem contactMarker_initial_lazyRun_le {Result : Type} (parameter : PublicParameter) (inputs : Finset HashInput)
     (hencoding : canonicalEncodingInputs parameter ⊆ inputs) (outside : NonencodingRows parameter inputs hencoding)
-    (messages : EncodingPosition → EncMessage) (selections : ReferenceFamily) (dummy : OtsReferenceWords) (frontier : OtsFrontierValues)
+    (messages : EncodingPosition → Digest) (selections : ReferenceFamily) (dummy : OtsReferenceWords) (frontier : OtsFrontierValues)
     (computation : OracleComp OracleWorld Result) :
     (∑' result, Pr[= result | lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation)
       (referenceEncodingAllowed parameter messages selections)] *
       (contactMarkerCount parameter (referenceFamilyWords selections dummy) frontier result.1.2 : ENNReal)) ≤
-        (((63 / 32 : ENNReal) * (OtsCode.unitNeighborBound : ENNReal)) / (Fintype.card Digest : ENNReal)) * ∑' result,
+        ((OtsCode.unitNeighborBound : ENNReal) / (Fintype.card Digest : ENNReal)) * ∑' result,
           Pr[= result | lazyRun parameter inputs hencoding outside (QueryPause.traced hashObservationTrace computation)
             (referenceEncodingAllowed parameter messages selections)] *
               (contactMarkerCost parameter (referenceFamilyWords selections dummy) frontier 1 result.1.2 : ENNReal) := by

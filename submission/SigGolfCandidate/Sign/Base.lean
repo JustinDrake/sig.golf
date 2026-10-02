@@ -75,12 +75,6 @@ theorem ofNat_shiftLeft (a k : Nat) :
   apply BitVec.eq_of_toNat_eq
   simp [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, Nat.mul_mod]
 
-/-- `x << 32` keeps the low half of `x` (no wrap left in the result). -/
-theorem shl32_ofNat (x : Nat) : BitVec.ofNat 64 x <<< 32 = BitVec.ofNat 64 (x % 2 ^ 32 * 2 ^ 32) := by
-  apply BitVec.eq_of_toNat_eq
-  simp only [BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
-  omega
-
 theorem ofNat_ushiftRight (a k : Nat) (ha : a < 2 ^ 64) :
     BitVec.ofNat 64 a >>> k = BitVec.ofNat 64 (a / 2 ^ k) := by
   apply BitVec.eq_of_toNat_eq
@@ -142,49 +136,6 @@ def twWord0 (t lay tau p : Nat) : Word :=
 theorem twWords_eq (t lay tau p j : Nat) :
     twWords t lay tau p j = [twWord0 t lay tau p, BitVec.ofNat 64 (tau % 2 ^ 32 + 2 ^ 32 * (j % 2 ^ 32))] :=
   rfl
-
-
-open SigGolfCandidate.Ref
-
-/-- Physical OTS leaf class/layer under the global704-byte header permutation. -/
-def carryLeafTag (lay : Nat) : Nat := if lay<4 then 3 else 4
-def carryLeafLay (lay : Nat) : Nat := if lay<4 then lay+1 else lay
-
-theorem carryLeafWord (lay tau : Nat) (hl:lay<7) (ht:tau<2^32) :
-    twWord0 (carryLeafTag lay) (carryLeafLay lay) tau 0 =
-      BitVec.ofNat 64 (Ref.LeafCarry.leafHeader lay) := by
-  unfold twWord0
-  rw [Nat.div_eq_of_lt ht]
-  interval_cases lay <;> rfl
-
-theorem addrFmt_leafInput_carry (lay tau e : Nat) (ends : List Val) (hl:lay<7)
-    (ht:tau<2^32) (hlen:ends.length=42) (hv:∀v∈ends,v.length=16) :
-    addrFmt (leafInput lay tau e ends)=
-      pad64 (thInput (tweak (carryLeafTag lay) (carryLeafLay lay) tau 0 e) ends.flatten) := by
-  have h1:=words_thVals 4 lay tau 0 e ends hv 10 (by rw[hlen])
-  have h2:=words_thVals (carryLeafTag lay) (carryLeafLay lay) tau 0 e ends hv 10 (by rw[hlen])
-  have hends : (ends.map wordsOf).flatten.length=84 := by
-    rw [List.length_flatten]
-    have he: (ends.map wordsOf).map List.length=List.replicate 42 2 := by
-      apply List.ext_getElem (by simp[hlen])
-      intro i hi hj
-      simp only [List.getElem_map,List.getElem_replicate]
-      exact length_wordsOf_16 _ (hv _ (List.getElem_mem _))
-    rw[he];decide
-  rw [addrFmt_leafInput_tag4 _ _ _ _ hlen hv, pad64_eq_query, h1.1,h1.2]
-  simp only [twWords_eq,List.cons_append,List.nil_append]
-  rw [Ref.LeafCarry.query_words _ _ (by simp[hends]),pad64_eq_query,h2.1,h2.2]
-  simp only [twWords_eq,List.cons_append,List.nil_append]
-  congr 2
-  rw [carryLeafWord lay tau hl ht]
-  have ht0 : (twWord0 4 lay tau 0).toNat=1025+65536*lay := by
-    simp only [twWord0,Nat.div_eq_of_lt ht,Nat.zero_mod,Nat.reduceMod,Nat.mul_zero,
-      Nat.add_zero,Nat.reduceMul,Nat.reduceAdd,Nat.mod_eq_of_lt (by omega:lay<256),BitVec.toNat_ofNat]
-    omega
-  rw [ht0]
-  have hh : Ref.LeafCarry.header (1025+65536*lay)=Ref.LeafCarry.leafHeader lay := by
-    interval_cases lay <;> decide
-  rw[hh]
 
 /-! ## 32-bit halves of dwords (`SW` merges) -/
 
