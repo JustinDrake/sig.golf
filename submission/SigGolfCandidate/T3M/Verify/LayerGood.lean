@@ -15,8 +15,8 @@ cycles on every path (all runs and the accepting ones).
 **`layerCost lay Z`** = `stepsA + 8 + B + leaf-pk block + chainCost0 lay − Z`: the cycles from `LayerIn` to
 `LeafOut` of a run whose digits have the max-digit savings `Z` (one cycle per maximal digit, two for the lower
 checksum chain: `LCtx.zSum 0 43` resp. `QCtx.topZ`; exactly `chainCost0 lay − Z` for the chains by
-`LCtx.lowCost_accept` / `QCtx.topCost_accept`); `layerCost lay 0` = 1367, 1349, 1349, 1280 for layers 3, 2, 1, 0
-(sum 5345; T3K: layer 3's A is 24 steps from 662, after the 6-step load block `ld3Spec` at 656). -/
+`LCtx.lowCost_accept` / `QCtx.topCost_accept`); `layerCost lay 0` = 1365, 1347, 1347, 1280 for layers 3, 2, 1, 0
+(sum 5339; T3K: layer 3's A is 24 steps from 662, after the 6-step load block `ld3Spec` at 656). -/
 
 set_option linter.unusedSimpArgs false
 
@@ -81,8 +81,8 @@ theorem layersP_succ (w : WBytes) (index n : Nat) (M : Digest) :
 /-- Steps / cycles of the decode part B up to the chain code (lower 29 / 32, top 52 / 58). -/
 def stB (lay : Nat) : Nat := if lay = 0 then 52 else 29
 def cyB (lay : Nat) : Nat := if lay = 0 then 58 else 32
-/-- The chain phase's accepting cycles without maximal digits: lower `3038 − 9 target`, top `1185`. -/
-def chainCost0 (lay : Nat) : Nat := if lay = 0 then 1185 else 3038 - 9 * tgtL lay
+/-- The chain phase's accepting cycles without maximal digits: lower `3036 − 9 target`, top `1185`. -/
+def chainCost0 (lay : Nat) : Nat := if lay = 0 then 1185 else 3036 - 9 * tgtL lay
 /-- The chain phase's steps on every path. -/
 def chainFuel (lay : Nat) : Nat := if lay = 0 then 2321 else 1720
 
@@ -94,7 +94,7 @@ def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + ch
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 
 theorem layerCost_vals :
-    layerCost 3 0 = 1367 ∧ layerCost 2 0 = 1349 ∧ layerCost 1 0 = 1349 ∧ layerCost 0 0 = 1280 := by decide
+    layerCost 3 0 = 1365 ∧ layerCost 2 0 = 1347 ∧ layerCost 1 0 = 1347 ∧ layerCost 0 0 = 1280 := by decide
 
 theorem layerFuel_vals :
     layerFuel 3 = 1785 ∧ layerFuel 2 = 1776 ∧ layerFuel 1 = 1776 ∧ layerFuel 0 = 2403 := by decide
@@ -167,9 +167,9 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
   have h0 : lay.val ≠ 0 := fun h => hlay (Fin.ext h)
   have hidx := hs.idx
   have hA := encA_step w pk index lay M s hs
-  have hT : 9 * tgtL lay.val ≤ 3038 := by fin_cases lay <;> decide
+  have hT : 9 * tgtL lay.val ≤ 3036 := by fin_cases lay <;> decide
   have hfuel : layerFuel lay.val = stepsA lay.val + 1 + 29 + 1720 + 11 := by simp [layerFuel, stB, chainFuel, lfSteps, h0]
-  have hcost : layerCost lay.val 0 = stepsA lay.val + 8 + 32 + 11 + (3038 - 9 * tgtL lay.val) := by
+  have hcost : layerCost lay.val 0 = stepsA lay.val + 8 + 32 + 11 + (3036 - 9 * tgtL lay.val) := by
     simp only [layerCost, cyB, lfSteps, chainCost0, if_neg h0]; omega
   unfold layerHead
   by_cases hctr : (wctr w lay).toNat ≥ counterLimit
@@ -179,8 +179,8 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
   · rw [if_neg hctr]
     obtain ⟨t, hst, hf, h5, hv, hin, c, hc, hpre⟩ := hA.2 (by omega)
     have hblk := blocks_encodingInput lay (route index lay).2 (route index lay).1 M (wctr w lay)
-    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 11 + 1720 + 29) (C + 11 + (3038 - 9 * tgtL lay.val) + 32)
-        Q (A + 11 + (3038 - 9 * tgtL lay.val) + 32)
+    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 11 + 1720 + 29) (C + 11 + (3036 - 9 * tgtL lay.val) + 32)
+        Q (A + 11 + (3036 - 9 * tgtL lay.val) + 32)
         (ccM (match decode lay (a.extractLsb' 0 128) with
           | none => pure none
           | some digits => chainsP w lay (route index lay).2 (route index lay).1 digits >>= R) K) := by
