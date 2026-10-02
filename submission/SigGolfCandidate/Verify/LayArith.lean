@@ -199,6 +199,13 @@ theorem xor_top_sentinel : ∀ e, e < 2048 →
     (BitVec.ofNat 64 e ^^^ 4095#64) = BitVec.ofNat 64 (4095 - e) := by decide +kernel
 
 
+/-- Layers 2 and 1: `e | (64 + xOff) = e + 64 + xOff` for `e < 64`. -/
+theorem or_sentinel12 : ∀ lay, (lay = 1 ∨ lay = 2) → ∀ e, e < 64 →
+    (BitVec.ofNat 64 e ||| BitVec.ofNat 64 (2 ^ heightL lay + xOff lay)) =
+      BitVec.ofNat 64 (e + 2 ^ heightL lay + xOff lay) := by
+  intro lay hl
+  rcases hl with rfl | rfl <;> decide +kernel
+
 theorem uHE_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : MachineState)
     (h : s.getReg (routeReg lay) = BitVec.ofNat 64 (routeIn idx lay)) :
     (uHE lay).eval s = BitVec.ofNat 64 (heapU lay (idx / 2 ^ layS lay % 2 ^ heightL lay)) := by
@@ -213,8 +220,13 @@ theorem uHE_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : Mac
     rw [he]
     exact xor_top_sentinel _ (by simpa [heightL] using hm)
   · rename_i h0
-    show (uEr lay).eval s ||| BitVec.ofNat 64 (2 ^ heightL lay) = _
+    show (uEr lay).eval s ||| BitVec.ofNat 64 (2 ^ heightL lay + xOff lay) = _
     rw [he, heapU, if_neg h0]
+    by_cases h12 : lay = 1 ∨ lay = 2
+    · have h64 : 2 ^ heightL lay = 64 := by rcases h12 with rfl | rfl <;> decide
+      exact or_sentinel12 lay h12 _ (by omega)
+    rw [xOff_eq_zero (fun h => h12 (Or.inl h)) (fun h => h12 (Or.inr h))]
+    simp only [Nat.add_zero]
     apply BitVec.eq_of_toNat_eq
     simp only [BitVec.toNat_or, BitVec.toNat_ofNat]
     rw [Nat.mod_eq_of_lt (show idx / 2 ^ layS lay % 2 ^ heightL lay < 2 ^ 64 by omega),

@@ -466,6 +466,8 @@ theorem addrFmt_chainInputP_words (lay tau e i mu : Nat) (pad : List Byte) (v : 
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega)]
   rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]
   unfold AddressFormat.oldHeader

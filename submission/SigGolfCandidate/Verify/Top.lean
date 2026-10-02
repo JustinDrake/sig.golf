@@ -147,7 +147,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hregs : KnownOK gkL0 u := by
       intro p hp
       simp only [gkL0, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact hg0.1 p (by simp [rootK, hp])
       · exact hm1
       · exact hm2
@@ -156,7 +156,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hknown : KnownOK l4K u := by
       intro p hp
       simp only [l4K, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl
       · exact hregs p hp
       all_goals first | exact htag | exact hu.known _ (by simp [rootPost, rootK])
     have hmem : ∀ A, u.getMem A = m.getMem A := fun A => by rw [hu.mem]; rfl
@@ -183,11 +183,12 @@ The prologue loads `x18 = 0xFFF` from the high word of header `0`, so the setup 
 `x18` restore (`-1`), and the leaf heads address the header table from `sp`, so it loads no
 table-page register (`-1`). The last leaf forms its table base as `x29 - 576` (`-1`). The
 counter range check masks the merged counters with the data word at `sp + 8` instead of
-folding the halves with two shifts (`-1`). -/
-def cycleBound : Nat := 10249
+folding the halves with two shifts (`-1`). Layers 3 and 4 keep the fold-dispatch base `0x29000`
+in `x24` (`-1`). Layers 2 and 1 reuse `x24` with a shifted heap sentinel (`-2`). -/
+def cycleBound : Nat := 10237
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
-def cycleBoundAll : Nat := 16834
+def cycleBoundAll : Nat := 16829
 
 
 /-- A step bound (fuel) sufficient for every run. -/
@@ -195,8 +196,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7466 := by decide
-theorem layC_val : layC = 7466 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7463 := by decide
+theorem layC_val : layC = 7463 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
@@ -295,8 +296,8 @@ theorem main_good (ml pkl wl : List Byte) (hml : ml.length = 32) (hpk : pkl.leng
     unfold digest
     rw [cc_bind, cc_bind]
     simp only [cc_pure]
-    have H : ∀ a, GoodQ (writeHash t a) (96 + (leafCost 0 + Nseg 0 0)) (96 + (leafCost 0 + Cseg 0 0)) True
-        (96 + (leafCost 0 + Aseg 0 0 0))
+    have H : ∀ a, GoodQ (writeHash t a) (92 + (leafCost 0 + Nseg 0 0)) (92 + (leafCost 0 + Cseg 0 0)) True
+        (92 + (leafCost 0 + Aseg 0 0 0))
         (cc (do
           let r ← porsRoot (idxOf a.toNat) (leavesOf a.toNat) wl
           match r with
