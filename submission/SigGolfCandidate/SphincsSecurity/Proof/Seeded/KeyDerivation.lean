@@ -7,8 +7,7 @@ theorem keygenDomainFields_injective : Function.Injective keygenDomainFields := 
   intro left right h
   cases left <;> cases right <;>
     simp_all only [keygenDomainFields, tweakFields, TweakFields.mk.injEq, BitVec.reduceEq, false_and,
-      true_and, KeygenDomain.ots.injEq, KeygenDomain.fts.injEq, KeygenDomain.mask.injEq,
-      KeygenDomain.mackey.injEq]
+      true_and, KeygenDomain.ots.injEq, KeygenDomain.fts.injEq, KeygenDomain.mask.injEq]
   · obtain ⟨hlay, htree, hchain, hleaf⟩ := h
     exact ⟨fin_of_ofNat_eq (by decide) hlay, fin_of_ofNat_eq (by decide) htree,
       fin_of_ofNat_eq (by decide) hleaf, fin_of_ofNat_eq (by decide) hchain⟩
@@ -17,7 +16,6 @@ theorem keygenDomainFields_injective : Function.Injective keygenDomainFields := 
       fin_of_ofNat_eq (by decide) hleaf⟩
   · obtain ⟨hlevel, hnode⟩ := h
     exact ⟨fin_of_ofNat_eq (by decide) hlevel, fin_of_ofNat_eq (by decide) hnode⟩
-  · exact fin_of_ofNat_eq (by decide) h
 
 theorem keygenHashInput_injective {p₁ p₂ : PublicParameter} {d₁ d₂ : KeygenDomain}
     {s₁ s₂ : MasterSeed} (h : keygenHashInput p₁ d₁ s₁ = keygenHashInput p₂ d₂ s₂) :

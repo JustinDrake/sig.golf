@@ -29,7 +29,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     (stk : List (Val × Nat)) (m : MachineState) (h : TailIn P s0 14 x 2 c ptr E folds node stk m) :
     ((folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u k, k ≤ 9 ∧ Steps image m k k u ∧
         fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 12 12 u ∧
+    (¬ (folds > porsM ∨ E ≠ 1 ∨ stk ≠ []) → ∃ u, Steps image m 11 11 u ∧
         LayerIn ⟨P.wl, P.pk, 4, P.idx⟩ node u) := by
   obtain ⟨hs, hd, hp, hp8, hpb, hfb, heq⟩ := h.bnd
   have hE := h.hE
@@ -39,17 +39,19 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
   obtain ⟨⟨⟨cAcc, cR1⟩, cR2⟩, cR3⟩ := cF
   have hK : KnownOK tailFKnown m := by
     intro q hq
-    simp only [tailFKnown, List.mem_append, List.mem_singleton] at hq
-    rcases hq with hq | hq
+    simp only [tailFKnown, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hq
+    rcases hq with hq | hq | hq
     · exact h.pb.reg hq
     · subst hq
       have := h.a2; simp only [destOf, show (2 : Nat) ≠ 0 by decide, show (2 : Nat) ≠ 1 by decide,
         if_false] at this
       exact this
-  have b1 : ∀ d, Br.holds m (fBr1 d) ↔ d = decide (14336 < ptr + 960) := by
+    · subst hq
+      exact h.lnk.trans (by decide : BitVec.ofNat 64 (lnkOf 14) = AUTHBASE)
+  have b1 : ∀ d, Br.holds m (fBr1 d) ↔ d = decide (16384 < ptr + 1536) := by
     intro d
     simp only [fBr1, Br.holds, CmpOp.eval, Rv.E.eval, cw, h.fr, BitVec.ult,
-      ofNat_toNat_lt _ (show 14336 < 2 ^ 64 by decide), ofNat_toNat_lt _ (show ptr + 960 < 2 ^ 64 by omega)]
+      ofNat_toNat_lt _ (show 16384 < 2 ^ 64 by decide), ofNat_toNat_lt _ (show ptr + 1536 < 2 ^ 64 by omega)]
     exact eq_comm
   have heq : (Rev.revWord E != BitVec.ofNat 64 sgn31) = decide (E ≠ 1) := by
     by_cases h1 : E = 1
@@ -76,10 +78,10 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
         simp
     rw [this]; exact eq_comm
   have hpM : porsM = 117 := rfl
-  have hfl : (14336 : Nat) = 14336 := rfl
+  have hfl : (16384 : Nat) = 16384 := rfl
   constructor
   · intro hrej
-    by_cases h1 : 14336 < ptr + 960
+    by_cases h1 : 16384 < ptr + 1536
     · obtain ⟨u, hu⟩ := pspec_run cR1 m h.pc hK (by
         intro b hb; simp only [rejSpec, List.mem_singleton] at hb; subst hb
         exact (b1 true).mpr (by simp [h1])) (by simp)
@@ -111,7 +113,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
   · intro hacc
     have h2 : ¬ E ≠ 1 := fun e => hacc (Or.inr (Or.inl e))
     have h3 : ¬ stk ≠ [] := fun e => hacc (Or.inr (Or.inr e))
-    have h1 : ¬ 14336 < ptr + 960 := by
+    have h1 : ¬ 16384 < ptr + 1536 := by
       have hf : ¬ folds > porsM := fun e => hacc (Or.inl e)
       have hnil : stk = [] := by by_contra hc; exact h3 hc
       have hl0 : stk.length = 0 := by rw [hnil]; rfl
@@ -134,11 +136,6 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
       change m.getMem (BitVec.ofNat 64 0xFDFFD8) = M2w
       rw [h.pb.prot (by simp [protP])]
       exact h.pb.s0ok.masks.2.2.2.2.2.1
-    have htag : u.getReg .x27 = 0x40401#64 := by
-      rw [hu.regs (.x27, ldE 0xFDFFC0) (by simp [tailFSpec])]
-      change m.getMem (BitVec.ofNat 64 0xFDFFC0) = 0x40401#64
-      rw [h.pb.prot (by simp [protP])]
-      exact h.pb.s0ok.masks.2.2.1
     have htmask : u.getReg .x2 = TMASK := by
       rw [hu.regs (.x2, ldE 0xFDFFC8) (by simp [tailFSpec])]
       change m.getMem (BitVec.ofNat 64 0xFDFFC8) = TMASK
@@ -147,7 +144,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hregs : KnownOK gkL0 u := by
       intro p hp
       simp only [gkL0, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact hg0.1 p (by simp [rootK, hp])
       · exact hm1
       · exact hm2
@@ -156,9 +153,9 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hknown : KnownOK l4K u := by
       intro p hp
       simp only [l4K, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl
       · exact hregs p hp
-      all_goals first | exact htag | exact hu.known _ (by simp [rootPost, rootK])
+      all_goals exact hu.known _ (by simp [rootPost, rootK])
     have hmem : ∀ A, u.getMem A = m.getMem A := fun A => by rw [hu.mem]; rfl
     have n0 := h.node0; have n1 := h.node1
     simp only [destOf, show (2 : Nat) ≠ 0 by decide, show (2 : Nat) ≠ 1 by decide, if_false] at n0 n1
@@ -184,7 +181,7 @@ The prologue loads `x18 = 0xFFF` from the high word of header `0`, so the setup 
 table-page register (`-1`). The last leaf forms its table base as `x29 - 576` (`-1`). The
 counter range check masks the merged counters with the data word at `sp + 8` instead of
 folding the halves with two shifts (`-1`). -/
-def cycleBound : Nat := 10240
+def cycleBound : Nat := 10213
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
 def cycleBoundAll : Nat := 16829
@@ -230,7 +227,7 @@ theorem Kr_none (P : PCtx) : Kr P none = pure (false, 0) := by
 
 theorem root_good (P : PCtx) (hP : P.ok) (s0 : MachineState) (x c : Nat) (st : PorsState)
     (u : MachineState) (hT : TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u) :
-    GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 117) (12 + layC) (Kr P (some st)) := by
+    GoodQ u (11 + layC + layN) (11 + layC) (st.folds ≤ 117) (11 + layC) (Kr P (some st)) := by
   obtain ⟨hrej, hacc⟩ := tailF_step P hP s0 x c st.ptr st.E st.folds st.node st.stack u hT
   have hL : layC = layersCost 5 := layC_val.trans layersCost_val.symm
   by_cases hc : st.folds > porsM ∨ st.E ≠ 1 ∨ st.stack ≠ []
@@ -254,7 +251,7 @@ theorem pors_good (P : PCtx) (hP : P.ok) (s0 : MachineState)
       (cc (porsRoot P.idx P.v P.wl) (Klay P)) := by
   have hr : ∀ (x c : Nat) (st : PorsState) (u : MachineState),
       TailIn P s0 14 x 2 c st.ptr st.E st.folds st.node st.stack u →
-      GoodQ u (12 + layC + layN) (12 + layC) (st.folds ≤ 117) (12 + layC) (Kr P (some st)) :=
+      GoodQ u (11 + layC + layN) (11 + layC) (st.folds ≤ 117) (11 + layC) (Kr P (some st)) :=
     fun x c st u hT => root_good P hP s0 x c st u hT
   have hg0 := leaves_good P hP s0 (Kr P) (Kr_none P) hr
   have hg := hg0 15 0 ⟨wStream, 0, 0, 0, [], []⟩ s0 (by rfl) h
@@ -273,8 +270,8 @@ theorem blocks_qT (n : Nat) (ws : List Word) : (queryOfWords n ws).blocks = n + 
 
 theorem lrest_0 : lrest 0 = 156 := by decide
 
-theorem cost_vals : leafCost 0 + Cseg 0 0 = 7742 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2654 + layC ∧
-    leafCost 0 + Nseg 0 0 = 7742 + layC + layN := by
+theorem cost_vals : leafCost 0 + Cseg 0 0 = 7741 + layC ∧ leafCost 0 + Aseg 0 0 0 = 2653 + layC ∧
+    leafCost 0 + Nseg 0 0 = 7741 + layC + layN := by
   have h0 : leafCost 0 = 10 := rfl
   refine ⟨?_, ?_, ?_⟩ <;> simp only [Cseg, Aseg, Nseg, segR, lrest_0, h0] <;> omega
 

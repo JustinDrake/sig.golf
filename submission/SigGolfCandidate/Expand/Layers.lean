@@ -1,5 +1,6 @@
 import SigGolfCandidate.Expand.LayFold
 import SigGolfCandidate.Sign.Bytes
+import SigGolfCandidate.Sign.Layer
 
 /-!
 # `expand`, phase 2: the counter phase (`Ref.expandLayers`, instructions 316 .. 494)
@@ -41,10 +42,19 @@ theorem leNat_le32_pair (a b : Nat) (ha : a < 2 ^ 32) (hb : b < 2 ^ 32) :
     leNat (le32 a ++ le32 b) = a + 2 ^ 32 * b := by
   rw [Sign.leNat_append, Ref.leNat_le32, Ref.leNat_le32, length_le32, Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb]; rfl
 
-/-- Aligned witness dwords (other than the counter dwords `290`, `368`, `369`) as bytes. -/
+/-- The expand image carries the sign's layer header and counter search (words 316 .. 381). -/
+theorem eHeadCode : HeadCode eimg :=
+  { c346 := Expand.codeAt_346, c351 := Expand.codeAt_351, c353 := Expand.codeAt_353,
+    c1800 := Expand.codeAt_1800, c355 := Expand.codeAt_355,
+    c375 := Expand.codeAt_375, c1816 := Expand.codeAt_1816,
+    c376 := Expand.codeAt_376, c377 := Expand.codeAt_377, c379 := Expand.codeAt_379,
+    c316 := Expand.codeAt_316, c318 := Expand.codeAt_318, c321 := Expand.codeAt_321,
+    c322 := Expand.codeAt_322, c329 := Expand.codeAt_329, run331 := Expand.encRun331_sign }
+
+/-- Aligned witness dwords (other than the counter dwords `336`, `368`, `369`) as bytes. -/
 theorem readWords_good (w : List Byte) (t : MachineState)
-    (hwit : ∀ k < 2048, k ≠ 290 → k ≠ 368 → k ≠ 369 → t.getMem (BitVec.ofNat 64 (0x800 + 8 * k)) = wword w (8 * k)) :
-    ∀ k o, o % 8 = 0 → o + 8 * k ≤ 0x4000 → (∀ j, o ≤ 8 * j → 8 * j < o + 8 * k → j ≠ 290 ∧ j ≠ 368 ∧ j ≠ 369) →
+    (hwit : ∀ k < 2048, k ≠ 336 → k ≠ 368 → k ≠ 369 → t.getMem (BitVec.ofNat 64 (0x800 + 8 * k)) = wword w (8 * k)) :
+    ∀ k o, o % 8 = 0 → o + 8 * k ≤ 0x4000 → (∀ j, o ≤ 8 * j → 8 * j < o + 8 * k → j ≠ 336 ∧ j ≠ 368 ∧ j ≠ 369) →
       t.readWords (BitVec.ofNat 64 (0x800 + o)) k = wordsOf (wbytes w o (8 * k)) := by
   intro k
   induction k with
@@ -63,51 +73,51 @@ theorem readWords_good (w : List Byte) (t : MachineState)
 theorem slice_split (l : List Byte) (a n m : Nat) : slice l a (n + m) = slice l a n ++ slice l (a + n) m := by
   unfold slice; rw [List.take_add, List.drop_drop]
 
-/-- The witness buffer after `halt_ok` (W1a: `c4` at `2320`, `c0 .. c3` at `2944`). -/
+/-- The witness buffer after `halt_ok` (W1a: `c4` at `2688`, `c0 .. c3` at `2944`). -/
 theorem final_witness (w : List Byte) (hw : w.length = 16384) (c0 c1 c2 c3 c4 : Nat) (h0 : c0 < 2 ^ 32)
     (h1 : c1 < 2 ^ 32) (h2 : c2 < 2 ^ 32) (h3 : c3 < 2 ^ 32) (h4 : c4 < 2 ^ 32)
-    (hz : ∀ j < 4, w.getD (2324 + j) 0 = 0) (t : MachineState)
-    (hwit : ∀ k < 2048, k ≠ 290 → k ≠ 368 → k ≠ 369 → t.getMem (BitVec.ofNat 64 (0x800 + 8 * k)) = wword w (8 * k))
+    (hz : ∀ j < 4, w.getD (2692 + j) 0 = 0) (t : MachineState)
+    (hwit : ∀ k < 2048, k ≠ 336 → k ≠ 368 → k ≠ 369 → t.getMem (BitVec.ofNat 64 (0x800 + 8 * k)) = wword w (8 * k))
     (m0 : t.getMem (BitVec.ofNat 64 0x1380) = BitVec.ofNat 64 (c0 + 2 ^ 32 * c1))
     (m1 : t.getMem (BitVec.ofNat 64 0x1388) = BitVec.ofNat 64 (c2 + 2 ^ 32 * c3))
-    (m2 : t.getMem (BitVec.ofNat 64 0x1110) = BitVec.ofNat 64 c4) :
+    (m2 : t.getMem (BitVec.ofNat 64 0x1280) = BitVec.ofNat 64 c4) :
     readBuffer t 0x800 16384 = ofList 16384 (withCounters w [c0, c1, c2, c3, c4]) := by
   rw [readBuffer_bytesAt]
   apply congrArg (ofList 16384)
   have hg := readWords_good w t hwit
-  rw [show (16384 : Nat) = 2320 + (8 + (616 + (16 + 13424))) from rfl, bytesAt_add, bytesAt_add,
+  rw [show (16384 : Nat) = 2688 + (8 + (248 + (16 + 13424))) from rfl, bytesAt_add, bytesAt_add,
     bytesAt_add, bytesAt_add]
-  have hA : bytesAt t 0x800 2320 = w.take 2320 := by
-    have := hg 290 0 (by norm_num) (by norm_num) (fun j _ h => by omega)
+  have hA : bytesAt t 0x800 2688 = w.take 2688 := by
+    have := hg 336 0 (by norm_num) (by norm_num) (fun j _ h => by omega)
     rw [Nat.add_zero] at this
-    rw [show (2320 : Nat) = 8 * 290 from rfl, bytesAt_of_readWords t 290 0x800 (wbytes w 0 (8 * 290)) (by norm_num)
+    rw [show (2688 : Nat) = 8 * 336 from rfl, bytesAt_of_readWords t 336 0x800 (wbytes w 0 (8 * 336)) (by norm_num)
       (by norm_num) (length_wbytes _ _ _) this, wbytes_zero _ _ (by omega)]
-  have hB : bytesAt t (0x800 + 2320) 8 = le32 c4 ++ le32 0 := by
+  have hB : bytesAt t (0x800 + 2688) 8 = le32 c4 ++ le32 0 := by
     refine bytesAt_of_readWords t 1 _ _ (by norm_num) (by norm_num) (by simp) ?_
     rw [readWords_ofNat_one, wordsOf_eight _ (by simp), leNat_le32_pair _ _ h4 (by norm_num)]
-    rw [show (0x800 + 2320 : Nat) = 0x1110 from rfl, m2]; rfl
-  have hC : bytesAt t (0x800 + 2320 + 8) 616 = slice w 2328 616 := by
-    have := hg 77 2328 (by norm_num) (by norm_num) (fun j h1 h2 => by omega)
-    rw [show (0x800 + 2320 + 8 : Nat) = 0x800 + 2328 from rfl, show (616 : Nat) = 8 * 77 from rfl,
-      bytesAt_of_readWords t 77 _ (wbytes w 2328 (8 * 77)) (by norm_num) (by norm_num) (length_wbytes _ _ _) this,
+    rw [show (0x800 + 2688 : Nat) = 0x1280 from rfl, m2]; rfl
+  have hC : bytesAt t (0x800 + 2688 + 8) 248 = slice w 2696 248 := by
+    have := hg 31 2696 (by norm_num) (by norm_num) (fun j h1 h2 => by omega)
+    rw [show (0x800 + 2688 + 8 : Nat) = 0x800 + 2696 from rfl, show (248 : Nat) = 8 * 31 from rfl,
+      bytesAt_of_readWords t 31 _ (wbytes w 2696 (8 * 31)) (by norm_num) (by norm_num) (length_wbytes _ _ _) this,
       ← slice_eq_wbytes _ _ _ (by omega)]
-  have hD : bytesAt t (0x800 + 2320 + 8 + 616) 16 = le32 c0 ++ le32 c1 ++ (le32 c2 ++ le32 c3) := by
+  have hD : bytesAt t (0x800 + 2688 + 8 + 248) 16 = le32 c0 ++ le32 c1 ++ (le32 c2 ++ le32 c3) := by
     refine bytesAt_of_readWords t 2 _ _ (by norm_num) (by norm_num) (by simp) ?_
     rw [readWords_ofNat_two, wordsOf_append _ _ (by simp), wordsOf_eight _ (by simp),
       wordsOf_eight _ (by simp), leNat_le32_pair _ _ h0 h1, leNat_le32_pair _ _ h2 h3]
-    rw [show (0x800 + 2320 + 8 + 616 : Nat) = 0x1380 from rfl, show (0x1380 + 8 : Nat) = 0x1388 from rfl, m0, m1]; rfl
-  have hE : bytesAt t (0x800 + 2320 + 8 + 616 + 16) 13424 = w.drop 2960 := by
+    rw [show (0x800 + 2688 + 8 + 248 : Nat) = 0x1380 from rfl, show (0x1380 + 8 : Nat) = 0x1388 from rfl, m0, m1]; rfl
+  have hE : bytesAt t (0x800 + 2688 + 8 + 248 + 16) 13424 = w.drop 2960 := by
     have := hg 1678 2960 (by norm_num) (by norm_num) (fun j h1 h2 => by omega)
-    rw [show (0x800 + 2320 + 8 + 616 + 16 : Nat) = 0x800 + 2960 from rfl, show (13424 : Nat) = 8 * 1678 from rfl,
+    rw [show (0x800 + 2688 + 8 + 248 + 16 : Nat) = 0x800 + 2960 from rfl, show (13424 : Nat) = 8 * 1678 from rfl,
       bytesAt_of_readWords t 1678 _ (wbytes w 2960 (8 * 1678)) (by norm_num) (by norm_num) (length_wbytes _ _ _) this,
       ← slice_eq_wbytes _ _ _ (by omega)]
     unfold slice; rw [List.take_of_length_le (by simp; omega)]
-  have hZ : slice w 2324 4 = le32 0 := by
-    have hg4 : ∀ j < 4, (slice w 2324 4).getD j 0 = 0 := by
+  have hZ : slice w 2692 4 = le32 0 := by
+    have hg4 : ∀ j < 4, (slice w 2692 4).getD j 0 = 0 := by
       intro j hj
       simp only [slice, List.getD_eq_getElem?_getD, List.getElem?_take, List.getElem?_drop]
       rw [if_pos hj, ← List.getD_eq_getElem?_getD]; exact hz j hj
-    have hl : (slice w 2324 4).length = 4 := by simp [slice]; omega
+    have hl : (slice w 2692 4).length = 4 := by simp [slice]; omega
     apply List.ext_getElem (by rw [hl]; rfl)
     intro j h1 h2
     have hj : j < 4 := by omega
@@ -115,19 +125,19 @@ theorem final_witness (w : List Byte) (hw : w.length = 16384) (c0 c1 c2 c3 c4 : 
     interval_cases j <;> rfl
   rw [hA, hB, hC, hD, hE]
   unfold withCounters
-  rw [wC4_eq, wChains_eq, show 2944 - 2320 - 4 = 4 + 616 from rfl, slice_split, hZ]
+  rw [wC4_eq, wChains_eq, show 2944 - 2688 - 4 = 4 + 248 from rfl, slice_split, hZ]
   simp [List.append_assoc, List.range_succ]
 
-/-- W1: the witness buffer `0x1100 .. 0x4800` is the 16384-byte view `0x800 .. 0x4800` without its
-2304-byte lead. -/
+/-- W1: the witness buffer `0x1270 .. 0x4800` is the 16384-byte view `0x800 .. 0x4800` without its
+2672-byte lead. -/
 theorem readBuffer_cut (t : MachineState) (L : List Byte) (hL : L.length = 16384)
     (h : readBuffer t 0x800 16384 = ofList 16384 L) :
-    readBuffer t 0x1100 14080 = ofList 14080 (cutW L) := by
+    readBuffer t 0x1270 13712 = ofList 13712 (cutW L) := by
   rw [readBuffer_bytesAt] at h ⊢
   have hb : bytesAt t 0x800 16384 = L := by
     rw [← toList_ofList 16384 (bytesAt t 0x800 16384) (length_bytesAt _ _ _), h, toList_ofList 16384 L hL]
-  rw [show (16384 : Nat) = 2304 + 14080 from rfl, bytesAt_add,
-    show (0x800 + 2304 : Nat) = 0x1100 from rfl] at hb
+  rw [show (16384 : Nat) = 2672 + 13712 from rfl, bytesAt_add,
+    show (0x800 + 2672 : Nat) = 0x1270 from rfl] at hb
   rw [← hb]
   unfold cutW witLead
   rw [List.drop_left' (length_bytesAt _ _ _)]
@@ -205,7 +215,7 @@ encoding-half selector; the remaining allowance covers the chain adapter). -/
 def LW : Nat := 2 ^ 22 * 64 + 18000
 
 /-- **The top layer** (`LAY = 0`): header, search, counter, `halt_ok`. -/
-theorem top_layer (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.getD (2324 + j) 0 = 0) (idx : Nat) (M : Val) (above : List Nat)
+theorem top_layer (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.getD (2692 + j) 0 = 0) (idx : Nat) (M : Val) (above : List Nat)
     (t : MachineState) (hinv : LayInv w idx 0 M above t) :
     Sim eimg t LW (expandLayers w idx 1 M) (LPost w above 1) := by
   have hc := hinv.ctx
@@ -262,7 +272,7 @@ theorem top_layer (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.get
 
 /-- **One layer below the top** (`LAY = n + 1`): header, search, counter, chains, leaf, folds, then
 the layers `n .. 0`. -/
-theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.getD (2324 + j) 0 = 0) (idx : Nat) (n : Nat) (hn : n + 1 < 5)
+theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.getD (2692 + j) 0 = 0) (idx : Nat) (n : Nat) (hn : n + 1 < 5)
     (ih : ∀ (M : Val) (above : List Nat) (t : MachineState), LayInv w idx n M above t →
       Sim eimg t ((n + 1) * LW) (expandLayers w idx (n + 1) M) (LPost w above (n + 1)))
     (M : Val) (above : List Nat) (t : MachineState) (hinv : LayInv w idx (n + 1) M above t) :
@@ -300,6 +310,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
   obtain ⟨t7, hs7, p7, y18, y19, y20, y21, y23, y24, mLF0, mLF8, mNB0, mCB8, r7, f7⟩ :=
     blk386_run t6 p6 (n + 1) tau hn htau30 (by rw [R6.get .x8 (by decide), hinv.head.x8])
       (by rw [r6.get .x30, r5.get .x30, x430]) (by rw [R6.get .x25 (by decide), hc.x25])
+      (by rw [R6.get .x26 (by decide),hc.x26])
   have x31 : t6.getReg .x31 = BitVec.ofNat 64 (tau + 2 ^ 32 * e) := by rw [r6.get .x31, r5.get .x31, x431]
   rw [x31] at mLF8 mCB8
   have R7 := R6.trans r7
@@ -319,8 +330,8 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
       by rw [y24]; try exact ofNat_congr (by ring), RegsEq.refl _ _, Frame.refl _ _⟩
   rw [verifyLeaf_eq, bind_assoc]
   simp only [foldPath_take_eq]
-  have hsetup : (if n + 1 = 4 then 29 else 32 : Nat) ≤ 32 := by split <;> omega
-  refine (Sim.steps hs6 (Sim.steps hs7 (Sim.bind hch (W₂ := 300 + (n + 1) * LW) (fun ends t8 h8 => ?_)))).mono
+  have hsetup : (if n + 1 = 4 then 33 else if n+1=3 then 37 else 39 : Nat) ≤ 39 := by split <;> (try split) <;> omega
+  refine (Sim.steps hs6 (Sim.steps hs7 (Sim.bind hch (W₂ := 380 + (n + 1) * LW) (fun ends t8 h8 => ?_)))).mono
     (by omega) (fun _ _ h => h)
   -- the leaf
   have g8 : ∀ a, a < 2 ^ 64 → ¬ chW a → t8.getMem (BitVec.ofNat 64 a) = t7.getMem (BitVec.ofNat 64 a) :=
@@ -328,7 +339,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
   have hleaf := leaf_sim w idx (n + 1) tau e hn htau30 he2048 ends h8.len h8.vlen t8
     (by rw [h8.pc, if_neg (by norm_num)]) h8.ctx h8.slots
     (by rw [g8 _ (by norm_num) (by unfold chW; omega), mLF0]) (by rw [g8 _ (by norm_num) (by unfold chW; omega), mLF8])
-  refine (Sim.bind hleaf (W₂ := 206 + (n + 1) * LW) (fun leaf t9 h9 => ?_)).mono (by omega) (fun _ _ h => h)
+  refine (Sim.bind hleaf (W₂ := 286 + (n + 1) * LW) (fun leaf t9 h9 => ?_)).mono (by omega) (fun _ _ h => h)
   obtain ⟨p9, c9, hl9, o9, r9, f9⟩ := h9
   -- the folds
   have R9 := h8.regs.trans r9
@@ -342,24 +353,26 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
       intro a ha; simp only [or_false] at ha; exact ha)
   have R10 := R9.trans r10
   have hstep := fold_step2 w idx t10 (n + 1) tau e (by omega) hn htau30 he32 hw
+      (by rw [R10.get .x8 (by decide),R7.get .x8 (by decide),hinv.head.x8])
       (by rw [R10.get .x9 (by decide), R57.get .x9 (by decide), x49])
       (by rw [R10.get .x30 (by decide), R57.get .x30 (by decide), x430])
       (by rw [F10.getMem (by norm_num) (by unfold chW; omega), mNB0])
   have hfd := Sim.foldlM_range (image := eimg) (height (n + 1) - 1) (fdF w (n + 1) tau e) leaf
-    (FdInv w idx t10 (n + 1) e) 30
+    (FdInv w idx t10 (n + 1) e) 41
     (fun lam hlam v t h => (hstep lam (by omega) v t h).mono le_rfl (fun _ _ h => h.1))
     ⟨by rw [p10, if_pos (by omega)], c10, by omega, by rw [z18]; simp, z19,
       by rw [z23]; have : n < 4 := by omega
          interval_cases n <;> rfl, hl9,
       by rw [readWords_ofNat_two, m10, m10, ← readWords_ofNat_two, o9], RegsEq.refl _ _, Frame.refl _ _⟩
-  refine (Sim.steps hs10 (Sim.bind hfd (W₂ := 30 + (12 + (n + 1) * LW)) (fun node t11' h11' => ?_))).mono
+  refine (Sim.steps hs10 (Sim.bind hfd (W₂ := 41 + (12 + (n + 1) * LW)) (fun node t11' h11' => ?_))).mono
     (by generalize (n + 1) * LW = X; omega) (fun _ _ h => h)
   -- the last fold: the root (which nothing reads); its two inputs, the next message, stay in the node buffer
   have hnl : node.length = 16 := h11'.2.2.2.2.2.2.1
   have hsl : (witSib w (n + 1) (height (n + 1) - 1)).length = 16 := by
     have hb := hwl.1
     unfold witSib slice
-    simp only [List.length_take, List.length_drop]
+    simp only [List.length_take, List.length_drop, pathStride,
+      show n + 1 ≠ 0 by omega, if_false]
     omega
   rw [fdF_last w (n + 1) tau e he32 (by omega) node hnl hsl]
   have hlast := hstep (height (n + 1) - 1) (by omega) node t11' h11'
@@ -409,7 +422,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
     ⟨by simp [hlen], by rw [List.append_assoc]; exact hdone⟩
 
 /-- **The counter phase** (`Ref.expandLayers`). -/
-theorem layers_sim (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.getD (2324 + j) 0 = 0) (idx : Nat) :
+theorem layers_sim (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.getD (2692 + j) 0 = 0) (idx : Nat) :
     ∀ n, n < 5 → ∀ (M : Val) (above : List Nat) (t : MachineState), LayInv w idx n M above t →
       Sim eimg t ((n + 1) * LW) (expandLayers w idx (n + 1) M) (LPost w above (n + 1)) := by
   intro n

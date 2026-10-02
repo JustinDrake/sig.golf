@@ -28,25 +28,25 @@ def afterW (w0 : List Byte) (idx : Nat) (v : List Nat) : OracleComp HashSpec (Op
     | some cs => pure (some (withCounters w0 cs))
 
 /-- A HALT with the outcome `r` (for `some`, the 16384-byte view `0x800 .. 0x4800`; the witness is
-the buffer `0x1100 .. 0x4800`, the view without its lead). -/
+the buffer `0x1270 .. 0x4800`, the view without its lead). -/
 def QP (r : Option (List Byte)) (t : MachineState) : Prop :=
   fetch eimg t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
-    r.map (fun l => ofList 14080 (cutW l)) = if t.getReg .x10 = 0 then some (readBuffer t 0x1100 14080) else none
+    r.map (fun l => ofList 13712 (cutW l)) = if t.getReg .x10 = 0 then some (readBuffer t 0x1270 13712) else none
 
 theorem qp_fail (t : MachineState) (h : FailSt t) : QP none t :=
   ⟨h.1, h.2.1, by rw [if_neg (by rw [h.2.2]; decide)]; rfl⟩
 
 /-- **Phase 2**. -/
-theorem phase2_sim (w0 : List Byte) (hw : w0.length = 16384) (hz : ∀ j < 4, w0.getD (2324 + j) 0 = 0) (K : Nat → Nat) (v : List Nat) (N : Nat)
+theorem phase2_sim (w0 : List Byte) (hw : w0.length = 16384) (hz : ∀ j < 4, w0.getD (2692 + j) 0 = 0) (K : Nat → Nat) (v : List Nat) (N : Nat)
     (t : MachineState) (hpc : t.pc = pcOf 495)
     (h160 : t.getMem (BitVec.ofNat 64 0x160) = BitVec.ofNat 64 (N % 2 ^ 64)) (hwm : WitMem w0 t)
     (hk : ∀ p < 15, t.getMem (BitVec.ofNat 64 (0x6E0 + 8 * p)) = BitVec.ofNat 64 (K p))
-    (hkl : ∀ p < 15, K p < 2 ^ 22)
+    (hkl : ∀ p < 15, K p < 2 ^ 22) (hTable:SmallBandTable t)
     (hx : ∀ s < 15, (v ++ [porsT]).getD (witPi w0 s / 8 % 16) 0 = K s / 256) :
     Sim eimg t (400000 + (34 + 5 * LW)) (afterW w0 (idxOf N) v) QP := by
   have hidx : idxOf N = N % 2 ^ 64 % 2 ^ 34 := by
     unfold idxOf totalH; rw [Nat.mod_mod_of_dvd _ (by norm_num)]
-  have hroot := porsRoot_sim w0 K v t hpc (N % 2 ^ 64) (Nat.mod_lt _ (by norm_num)) h160 hwm hk hkl
+  have hroot := porsRoot_sim w0 K v t hpc (N % 2 ^ 64) (Nat.mod_lt _ (by norm_num)) h160 hwm hk hkl hTable
     (by omega) hx
   rw [← hidx] at hroot
   unfold afterW
@@ -60,7 +60,7 @@ theorem phase2_sim (w0 : List Byte) (hw : w0.length = 16384) (hz : ∀ j < 4, w0
   have hl : LayInv w0 (idxOf N) 4 (P ++ M) [] t2 := by
     have hw2 : WitMem w0 t2 := c1.wit.frame f2 (fun a h1 h2 => by unfold witA at h1; omega)
     have c2 : LCtx w0 (idxOf N) t2 := ⟨hidx34, by rw [r2.get .x5 (by decide), c1.x5], x7,
-      by rw [x22, c1.x4], by rw [r2.get .x25 (by decide), c1.x25], x26, x27, ecb, elf, enb, hw2⟩
+      by rw [x22, c1.x4], by rw [r2.get .x25 (by decide), c1.x25], x26, x27, ecb, elf, enb, hw2, c1.band.frame f2 (by intro a ha hb;omega)⟩
     have hPM : (P ++ M).length = 32 := by simp [P, zeros, hM]
     have heb : t2.readWords (BitVec.ofNat 64 0x120) 4 = wordsOf (P ++ M) := by
       have e4 := readWords_ofNat_add t2 0x120 2 2

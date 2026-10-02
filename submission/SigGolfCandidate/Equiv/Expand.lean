@@ -319,28 +319,28 @@ theorem slice_take (l : List Byte) (k x len : Nat) (h : x + len ≤ k) :
 
 /-! ### Reading through `Ref.withCounters`
 
-The counters occupy `[2320, 2324)` and `[2944, 2960)`; every other byte is the partial witness's. -/
+The counters occupy `[2688, 2692)` and `[2944, 2960)`; every other byte is the partial witness's. -/
 section transfer
 variable (w0 : List Byte) (cs : List Nat) (hw : 2960 ≤ w0.length)
 include hw
 
-theorem length_take_2320 : (w0.take 2320).length = 2320 := by rw [List.length_take]; omega
+theorem length_take_2320 : (w0.take 2688).length = 2688 := by rw [List.length_take]; omega
 
-theorem length_slice_2324 : (Ref.slice w0 2324 620).length = 620 := by
+theorem length_slice_2324 : (Ref.slice w0 2692 252).length = 252 := by
   simp only [Ref.slice, List.length_take, List.length_drop]; omega
 
-theorem slice_withCounters_lo (x len : Nat) (h : x + len ≤ 2320) :
+theorem slice_withCounters_lo (x len : Nat) (h : x + len ≤ 2688) :
     Ref.slice (Ref.withCounters w0 cs) x len = Ref.slice w0 x len := by
   rw [withCounters_eq, List.append_assoc, List.append_assoc, List.append_assoc,
     slice_append_left _ _ _ _ (by rw [length_take_2320 w0 hw]; exact h), slice_take _ _ _ _ h]
 
-theorem getD_withCounters_lo (x : Nat) (h : x < 2320) :
+theorem getD_withCounters_lo (x : Nat) (h : x < 2688) :
     (Ref.withCounters w0 cs).getD x 0 = w0.getD x 0 := by
   rw [withCounters_eq, List.append_assoc, List.append_assoc, List.append_assoc,
     getD_append_left'' _ _ _ _ (by rw [length_take_2320 w0 hw]; exact h),
     List.getD_eq_getElem?_getD, List.getElem?_take_of_lt h, ← List.getD_eq_getElem?_getD]
 
-theorem slice_withCounters_mid (x len : Nat) (h1 : 2324 ≤ x) (h2 : x + len ≤ 2944) :
+theorem slice_withCounters_mid (x len : Nat) (h1 : 2692 ≤ x) (h2 : x + len ≤ 2944) :
     Ref.slice (Ref.withCounters w0 cs) x len = Ref.slice w0 x len := by
   rw [withCounters_eq,
     slice_append_left _ _ _ _ (by
@@ -349,9 +349,9 @@ theorem slice_withCounters_mid (x len : Nat) (h1 : 2324 ≤ x) (h2 : x + len ≤
     slice_append_left _ _ _ _ (by
       simp only [List.length_append, length_take_2320 w0 hw, Ref.length_le32, length_slice_2324 w0 hw]
       omega),
-    slice_append_right _ _ _ (x - 2324) _ (by
+    slice_append_right _ _ _ (x - 2692) _ (by
       simp only [List.length_append, length_take_2320 w0 hw, Ref.length_le32]; omega),
-    slice_slice _ _ _ _ _ (by omega), show 2324 + (x - 2324) = x by omega]
+    slice_slice _ _ _ _ _ (by omega), show 2692 + (x - 2692) = x by omega]
 
 theorem slice_withCounters_hi (x len : Nat) (h : 2960 ≤ x) :
     Ref.slice (Ref.withCounters w0 cs) x len = Ref.slice w0 x len := by
@@ -364,7 +364,7 @@ theorem slice_withCounters_hi (x len : Nat) (h : 2960 ≤ x) :
 
 omit hw in
 /-- Writing zero counters over zero counter bytes changes nothing. -/
-theorem withCounters_nil_self (h4 : Ref.slice w0 2320 4 = Ref.zeros 4)
+theorem withCounters_nil_self (h4 : Ref.slice w0 2688 4 = Ref.zeros 4)
     (h16 : Ref.slice w0 2944 16 = Ref.zeros 16) : Ref.withCounters w0 [] = w0 := by
   have step : ∀ (a b : Nat), (w0.drop a).take b ++ w0.drop (a + b) = w0.drop a := by
     intro a b
@@ -376,8 +376,8 @@ theorem withCounters_nil_self (h4 : Ref.slice w0 2320 4 = Ref.zeros 4)
     decide
   rw [withCounters_eq, e1, e2, ← h4, ← h16]
   simp only [Ref.slice, List.append_assoc]
-  rw [show (2960 : Nat) = 2944 + 16 from rfl, step, show (2944 : Nat) = 2324 + 620 from rfl, step,
-    show (2324 : Nat) = 2320 + 4 from rfl, step, List.take_append_drop]
+  rw [show (2960 : Nat) = 2944 + 16 from rfl, step, show (2944 : Nat) = 2692 + 252 from rfl, step,
+    show (2692 : Nat) = 2688 + 4 from rfl, step, List.take_append_drop]
 
 end transfer
 
@@ -385,10 +385,10 @@ section layout
 variable (sig : List Byte) (hsig : sig.length = 6032) (v vs segs : List Nat) (hvs : vs.length = 15)
   (cs : List Nat)
 
-/-- The partial view: head (2320), counters/padding (16), paths (544), gap (64), chains. -/
+/-- The partial view: head (2688), counters/padding (16), paths (544), gap (64), chains. -/
 theorem witnessBody_split : Ref.witnessBody sig v vs segs =
     (Ref.zeros Ref.wPi ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1) ++
-    (Ref.zeros 16 ++ ((List.range Ref.nLayers).map (Ref.sigPath sig)).flatten ++ Ref.zeros 64 ++
+    (Ref.zeros 16 ++ Ref.sigPath sig 0 ++ Ref.zeros 64 ++
       ((List.range Ref.nLayers).map (Ref.chainRegion sig segs)).flatten) := by
   simp only [Ref.witnessBody, List.append_assoc]
 
@@ -398,7 +398,7 @@ theorem length_sigItem (i : Nat) (hi : i < 135) : (Ref.sigItem sig i).length = 1
 
 include hsig hvs in
 theorem length_head :
-    (Ref.zeros Ref.wPi ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1).length = 2320 := by
+    (Ref.zeros Ref.wPi ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1).length = 2688 := by
   simp only [List.length_append, List.length_map, hvs, Ref.length_zeros]
   rfl
 
@@ -425,9 +425,9 @@ theorem length_paths (k : Nat) (hk : k ≤ 5) :
   exact length_sigPath sig hsig l (by omega)
 
 include hsig in
-theorem length_P : ((List.range Ref.nLayers).map (Ref.sigPath sig)).flatten.length = 544 := by
-  rw [length_paths sig hsig Ref.nLayers (by decide)]
-  decide
+theorem length_P : (Ref.sigPath sig 0).length = 176 := by
+  rw [length_sigPath sig hsig 0 (by decide)]
+  rfl
 
 include hsig in
 theorem length_sigChain (lay : Nat) (hlay : lay < 5) (i : Nat) (hi : i < 42) :
@@ -461,7 +461,7 @@ theorem length_witOf : (witOf sig v vs segs cs).length = 16384 := by
 /-! ### Slices of the partial witness -/
 
 include hsig hvs in
-theorem slice_body_c4 : Ref.slice (Ref.witnessBody sig v vs segs) 2320 4 = Ref.zeros 4 := by
+theorem slice_body_c4 : Ref.slice (Ref.witnessBody sig v vs segs) 2688 4 = Ref.zeros 4 := by
   rw [witnessBody_split,
     slice_append_right _ _ _ 0 _ (by rw [length_head sig hsig v vs hvs]),
     List.append_assoc, List.append_assoc,
@@ -469,9 +469,9 @@ theorem slice_body_c4 : Ref.slice (Ref.witnessBody sig v vs segs) 2320 4 = Ref.z
   rfl
 
 include hsig hvs in
-theorem slice_body_P (x len : Nat) (h : x + len ≤ 544) :
-    Ref.slice (Ref.witnessBody sig v vs segs) (2336 + x) len =
-      Ref.slice ((List.range Ref.nLayers).map (Ref.sigPath sig)).flatten x len := by
+theorem slice_body_P (x len : Nat) (h : x + len ≤ 176) :
+    Ref.slice (Ref.witnessBody sig v vs segs) (2704 + x) len =
+      Ref.slice (Ref.sigPath sig 0) x len := by
   rw [witnessBody_split,
     slice_append_right _ _ _ (16 + x) _ (by rw [length_head sig hsig v vs hvs]; omega),
     List.append_assoc, List.append_assoc,
@@ -483,7 +483,7 @@ theorem slice_body_C (x len : Nat) :
     Ref.slice (Ref.witnessBody sig v vs segs) (2944 + x) len =
       Ref.slice ((List.range Ref.nLayers).map (Ref.chainRegion sig segs)).flatten x len := by
   rw [witnessBody_split,
-    slice_append_right _ _ _ (624 + x) _ (by rw [length_head sig hsig v vs hvs]; omega),
+    slice_append_right _ _ _ (256 + x) _ (by rw [length_head sig hsig v vs hvs]; omega),
     slice_append_right _ _ _ x _ (by
       simp only [List.length_append, Ref.length_zeros, length_P sig hsig])]
 
@@ -514,7 +514,7 @@ include hsig hvs in
 tweak slot unless it holds `rho` or a secret (W1: blocks `(0, 1 .. 16)`). -/
 theorem slice_body_block (lay : Nat) (hlay : lay < 5) (i : Nat) (hi : i < 42) (r len : Nat)
     (h : r + len ≤ 48) (hz : 16 ≤ r ∨ (¬ (lay = 0 ∧ 1 ≤ i ∧ i < 17) ∧
-      ¬ (17 ≤ 42 * lay + i ∧ 42 * lay + i < 163))) :
+      ¬ (17 ≤ 42 * lay + i ∧ 42 * lay + i < 186))) :
     Ref.slice (Ref.witnessBody sig v vs segs) (Ref.blockOff lay i + r) len = Ref.zeros len := by
   rw [slice_body_blk sig hsig v vs segs hvs lay hlay i hi r len (by omega),
     slice_append_left _ _ _ _ (by rw [List.length_append, length_slotOf sig hsig segs, Ref.length_zeros]; omega)]
@@ -525,7 +525,7 @@ theorem slice_body_block (lay : Nat) (hlay : lay < 5) (i : Nat) (hi : i < 42) (r
   · have e : Ref.slotOf sig segs lay i = Ref.zeros 16 := by
       unfold Ref.slotOf
       rw [if_neg (by omega), if_neg (by unfold Ref.porsK; omega),
-        if_neg (by simpa [Ref.nChains] using hs.2)]
+        if_neg (by omega), if_neg (by simpa [Ref.nChains] using (show ¬ (40 ≤ 42 * lay + i ∧ 42 * lay + i < 186) from by omega))]
     rw [e]
     simp only [Ref.slice, Ref.zeros, List.replicate_append_replicate, List.drop_replicate, List.take_replicate]
     congr 1; omega
@@ -550,31 +550,74 @@ theorem slice_body_chain (lay : Nat) (hlay : lay < 5) (i : Nat) (hi : i < 42) :
     slice_append_right _ _ _ 0 _ (by rw [List.length_append, length_slotOf sig hsig segs, Ref.length_zeros])]
   exact slice_full _ _ (length_sigChain sig hsig lay hlay i hi)
 
-include hsig hvs in
-/-- Sibling `l` of layer `lay`'s path. -/
-theorem slice_body_sib (lay : Nat) (hlay : lay < 5) (l : Nat) (hl : l < Ref.height lay) :
-    Ref.slice (Ref.witnessBody sig v vs segs) (Ref.pathOff lay + 16 * l) 16 =
+include hsig in
+theorem slice_lowerPaths (lay : Nat) (hlay : lay < 5) (hpos : 0 < lay)
+    (l : Nat) (hl : l < Ref.height lay) :
+    Ref.slice (Ref.lowerPaths sig)
+      (16 * ((List.range (lay - 1)).map (fun j => Ref.height (j + 1))).sum + 16 * l) 16 =
       Ref.slice sig (Ref.sigLayerOff lay + (672 + 16 * l)) 16 := by
-  obtain ⟨-, -, t3⟩ := layer_table lay hlay
-  rw [show Ref.pathOff lay + 16 * l = 2336 + (16 * ((List.range lay).map Ref.height).sum + 16 * l) by
-        unfold Ref.pathOff; rw [Ref.wPaths_eq]; ring,
-    slice_body_P sig hsig v vs segs hvs _ _ (by omega)]
-  have hL : ((List.range Ref.nLayers).map (Ref.sigPath sig)).take lay =
-      (List.range lay).map (Ref.sigPath sig) := by
+  have hL : ((List.range (Ref.nLayers - 1)).map (fun j => Ref.sigPath sig (j + 1))).take (lay - 1) =
+      (List.range (lay - 1)).map (fun j => Ref.sigPath sig (j + 1)) := by
     rw [← List.map_take, List.take_range, Nat.min_eq_left (by unfold Ref.nLayers; omega)]
-  have e := slice_flatten_take ((List.range Ref.nLayers).map (Ref.sigPath sig)) lay (16 * l) 16
-    (by simp [Ref.nLayers]; omega) (by
-      rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range (by unfold Ref.nLayers; omega)]
+  have hlen : ((List.range (lay - 1)).map (fun j => Ref.sigPath sig (j + 1))).flatten.length =
+      16 * ((List.range (lay - 1)).map (fun j => Ref.height (j + 1))).sum := by
+    rw [List.length_flatten, List.map_map, ← List.sum_map_mul_left]
+    congr 1
+    apply List.map_congr_left
+    intro j hj
+    rw [List.mem_range] at hj
+    exact length_sigPath sig hsig (j + 1) (by omega)
+  have e := slice_flatten_take
+    ((List.range (Ref.nLayers - 1)).map (fun j => Ref.sigPath sig (j + 1)))
+    (lay - 1) (16 * l) 16 (by simp [Ref.nLayers]; omega) (by
+      rw [List.getD_eq_getElem?_getD, List.getElem?_map,
+        List.getElem?_range (by unfold Ref.nLayers; omega)]
       simp only [Option.map_some, Option.getD_some]
-      rw [length_sigPath sig hsig lay hlay]; omega)
-  rw [hL, length_paths sig hsig lay (by omega)] at e
+      rw [show lay - 1 + 1 = lay by omega, length_sigPath sig hsig lay hlay]
+      omega)
+  rw [hL, hlen] at e
+  unfold Ref.lowerPaths
   rw [e, List.getD_eq_getElem?_getD, List.getElem?_map,
     List.getElem?_range (by unfold Ref.nLayers; omega)]
   simp only [Option.map_some, Option.getD_some]
+  rw [show lay - 1 + 1 = lay by omega]
   unfold Ref.sigPath
   rw [slice_slice _ _ _ _ _ (by omega)]
   congr 1
-  unfold Ref.nChains; ring
+  unfold Ref.nChains
+  ring
+
+include hsig hvs in
+/-- The top path is contiguous; lower paths are stored in layer-zero tweak cells17..39. -/
+theorem slice_body_sib (lay : Nat) (hlay : lay < 5) (l : Nat) (hl : l < Ref.height lay) :
+    Ref.slice (Ref.witnessBody sig v vs segs) (Ref.pathOff lay + Ref.pathStride lay * l) 16 =
+      Ref.slice sig (Ref.sigLayerOff lay + (672 + 16 * l)) 16 := by
+  by_cases h0 : lay = 0
+  · subst lay
+    rw [show Ref.pathOff 0 + Ref.pathStride 0 * l = 2704 + 16 * l by rfl,
+      slice_body_P sig hsig v vs segs hvs _ _ (by change l < 11 at hl; omega)]
+    unfold Ref.sigPath
+    rw [slice_slice _ _ _ _ _ (by change l < 11 at hl; change 16 * l + 16 ≤ 16 * 11; omega)]
+    congr 1
+    unfold Ref.nChains
+    ring
+  · let n := ((List.range (lay - 1)).map (fun j => Ref.height (j + 1))).sum
+    have hn : n + Ref.height lay ≤ 23 := by
+      dsimp [n]
+      interval_cases lay <;> first | omega | decide
+    let i := 17 + n + l
+    have hi : i < 40 := by dsimp [i]; omega
+    have he : Ref.pathOff lay + Ref.pathStride lay * l = Ref.blockOff 0 i := by
+      simp only [Ref.pathOff, Ref.pathStride, h0, ↓reduceIte, Ref.blockOff, Ref.wChains,
+        Nat.mul_zero, Nat.add_zero]
+      dsimp [i, n]
+      ring
+    rw [he, slice_body_slot sig hsig v vs segs hvs 0 (by decide) i (by omega)]
+    unfold Ref.slotOf
+    rw [if_neg (by dsimp [i]; omega), if_neg (by unfold Ref.porsK; dsimp [i]; omega),
+      if_pos ⟨rfl, by dsimp [i]; omega, hi⟩]
+    rw [show 16 * (i - 17) = 16 * n + 16 * l by dsimp [i]; omega]
+    exact slice_lowerPaths sig hsig lay hlay (by omega) l hl
 
 include hsig hvs in
 /-- The partial witness is itself with zero counters written. -/
@@ -588,7 +631,7 @@ theorem witnessList_withCounters_nil :
 /-! ### Fields of the witness with counters -/
 
 include hsig hvs in
-theorem slice_W_head (x len : Nat) (h : x + len ≤ 2320) :
+theorem slice_W_head (x len : Nat) (h : x + len ≤ 2688) :
     Ref.slice (witOf sig v vs segs cs) x len =
       Ref.slice (Ref.zeros Ref.wPi ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1) x len := by
   unfold witOf
@@ -597,7 +640,7 @@ theorem slice_W_head (x len : Nat) (h : x + len ≤ 2320) :
     slice_append_left _ _ _ _ (by rw [length_head sig hsig v vs hvs]; omega)]
 
 include hsig hvs in
-theorem getD_W_head (x : Nat) (h : x < 2320) :
+theorem getD_W_head (x : Nat) (h : x < 2688) :
     (witOf sig v vs segs cs).getD x 0 =
       (Ref.zeros Ref.wPi ++ vs.map (fun x => Ref.byte (8 * v.idxOf x)) ++ Ref.zeros 1).getD x 0 := by
   unfold witOf
@@ -608,31 +651,31 @@ theorem getD_W_head (x : Nat) (h : x < 2320) :
 include hsig hvs in
 /-- Only a slot's first sixteen bytes belong to the PORS stream. -/
 theorem slice_W_E (k len : Nat) (hk : k < 146) (hlen : len ≤ 16) :
-    Ref.slice (witOf sig v vs segs cs) (4032 + 64 * k) len =
+    Ref.slice (witOf sig v vs segs cs) (5504 + 64 * k) len =
       Ref.wbytes (Ref.segStream sig segs) (64 * k) len := by
-  have hd : 42 * ((17 + k) / 42) + (17 + k) % 42 = 17 + k := by omega
-  have hl : (17 + k) / 42 < 5 := by omega
-  have hi : (17 + k) % 42 < 42 := Nat.mod_lt _ (by decide)
-  have he : Ref.blockOff ((17 + k) / 42) ((17 + k) % 42) = 4032 + 64 * k := by
+  have hd : 42 * ((40 + k) / 42) + (40 + k) % 42 = 40 + k := by omega
+  have hl : (40 + k) / 42 < 5 := by omega
+  have hi : (40 + k) % 42 < 42 := Nat.mod_lt _ (by decide)
+  have he : Ref.blockOff ((40 + k) / 42) ((40 + k) % 42) = 5504 + 64 * k := by
     rw [Ref.blockOff_eq]; omega
   unfold witOf
   rw [slice_withCounters_hi _ _ (by rw [length_witnessBody sig hsig v vs segs hvs]; omega)
       _ _ (by omega), ← he]
-  have hs := slice_body_blk sig hsig v vs segs hvs ((17 + k) / 42) hl
-    ((17 + k) % 42) hi 0 len (by omega)
+  have hs := slice_body_blk sig hsig v vs segs hvs ((40 + k) / 42) hl
+    ((40 + k) % 42) hi 0 len (by omega)
   rw [Nat.add_zero] at hs
   rw [hs, List.append_assoc,
     slice_append_left _ _ _ _ (by rw [length_slotOf sig hsig segs]; omega)]
   unfold Ref.slotOf
-  rw [if_neg (by omega), if_neg (by unfold Ref.porsK; omega)]
+  rw [if_neg (by omega), if_neg (by unfold Ref.porsK; omega), if_neg (by omega)]
   simp only [Ref.nChains, hd]
-  rw [if_pos (by omega), show 17 + k - 17 = k by omega]
+  rw [if_pos (by omega), show 40 + k - 40 = k by omega]
   simp only [Ref.slice, List.drop_zero, ← List.map_take, List.take_range,
     Nat.min_eq_left hlen, Ref.wbytes]
 
 include hsig hvs in
 theorem getD_W_E (k : Nat) (hk : k < 146) :
-    (witOf sig v vs segs cs).getD (4032 + 64 * k) 0 =
+    (witOf sig v vs segs cs).getD (5504 + 64 * k) 0 =
       (Ref.segStream sig segs).getD (64 * k) 0 := by
   have h := congrArg (fun l : List Byte => l.getD 0 0)
     (slice_W_E sig hsig v vs segs hvs cs k 1 hk (by decide))
@@ -686,12 +729,16 @@ theorem witSib_W (lay : Layer) (l : Nat) (hl : l < Ref.height lay.val) :
     Ref.witSib (witOf sig v vs segs cs) lay.val l =
       Ref.slice sig (Ref.sigLayerOff lay.val + (672 + 16 * l)) 16 := by
   have hlay : lay.val < 5 := lay.isLt
-  obtain ⟨-, -, t3⟩ := layer_table lay.val hlay
   unfold Ref.witSib witOf
-  rw [slice_withCounters_mid _ _ (by rw [length_witnessBody sig hsig v vs segs hvs]; omega) _ _
-      (by unfold Ref.pathOff; rw [Ref.wPaths_eq]; omega)
-      (by unfold Ref.pathOff; rw [Ref.wPaths_eq]; omega)]
-  exact slice_body_sib sig hsig v vs segs hvs lay.val hlay l hl
+  by_cases h0 : lay.val = 0
+  · rw [slice_withCounters_mid _ _ (by rw [length_witnessBody sig hsig v vs segs hvs]; omega) _ _
+        (by simp [Ref.pathOff, Ref.pathStride, h0, Ref.wPaths, Ref.wPi]; omega)
+        (by simp [Ref.pathOff, Ref.pathStride, h0, Ref.wPaths, Ref.wPi];
+            rw [h0] at hl; change l < 11 at hl; omega)]
+    exact slice_body_sib sig hsig v vs segs hvs lay.val hlay l hl
+  · rw [slice_withCounters_hi _ _ (by rw [length_witnessBody sig hsig v vs segs hvs]; omega) _ _
+        (by simp only [Ref.pathOff, h0, ↓reduceIte]; omega)]
+    exact slice_body_sib sig hsig v vs segs hvs lay.val hlay l hl
 
 include hsig hvs in
 /-- The pad bytes (`16 ≤ r`, `r + len ≤ 48` into the block) of every chain block are zero. -/
@@ -748,12 +795,12 @@ theorem length_segStream :
 
 include hsig hvs hsegs hn in
 theorem getD_W_seg (j : Nat) (hj : j < 29) :
-    (witOf sig v vs segs cs).getD (4032 + (64 * j + 64 * asum segs j)) 0 =
+    (witOf sig v vs segs cs).getD (5504 + (64 * j + 64 * asum segs j)) 0 =
       Ref.byte (segs.getD j 0) := by
   have ha : asum segs j ≤ (segs.map (· % 16)).sum := by
     rw [← asum_length]; exact asum_mono segs (by omega)
   have hL := length_segStream sig hsig segs hn
-  rw [show 4032 + (64 * j + 64 * asum segs j) = 4032 + 64 * (j + asum segs j) by ring,
+  rw [show 5504 + (64 * j + 64 * asum segs j) = 5504 + 64 * (j + asum segs j) by ring,
     getD_W_E sig hsig v vs segs hvs cs _ (by omega),
     show 64 * (j + asum segs j) = 64 * j + 64 * asum segs j by ring,
     segStream_eq, getD_streamAux sig hsig segs 0 j (by omega) (by omega)]
@@ -761,14 +808,14 @@ theorem getD_W_seg (j : Nat) (hj : j < 29) :
 
 include hsig hvs hsegs hn in
 theorem slice_W_node (j i : Nat) (hj : j < 29) (hi : i < segs.getD j 0 % 16) :
-    Ref.slice (witOf sig v vs segs cs) (4032 + (64 * j + 64 * asum segs j + 64 + 64 * i)) 16 =
+    Ref.slice (witOf sig v vs segs cs) (5504 + (64 * j + 64 * asum segs j + 64 + 64 * i)) 16 =
       Ref.sigAuth sig (asum segs j + i) := by
   have ha : asum segs (j + 1) ≤ (segs.map (· % 16)).sum := by
     rw [← asum_length]; exact asum_mono segs (by omega)
   rw [asum_succ segs j (by omega)] at ha
   have hL := length_segStream sig hsig segs hn
-  rw [show 4032 + (64 * j + 64 * asum segs j + 64 + 64 * i) =
-      4032 + 64 * (j + asum segs j + 1 + i) by ring,
+  rw [show 5504 + (64 * j + 64 * asum segs j + 64 + 64 * i) =
+      5504 + 64 * (j + asum segs j + 1 + i) by ring,
     slice_W_E sig hsig v vs segs hvs cs _ 16 (by omega) (by decide),
     wbytes_eq_slice _ _ _ (by rw [hL]; omega),
     show 64 * (j + asum segs j + 1 + i) = 64 * j + 64 * asum segs j + 64 + 64 * i by ring,
@@ -777,7 +824,7 @@ theorem slice_W_node (j i : Nat) (hj : j < 29) (hi : i < segs.getD j 0 % 16) :
 
 include hsig hvs hsegs hb hn in
 theorem segPtr_W (j : Nat) (hj : j ≤ 29) :
-    segPtr (witOf sig v vs segs cs) j = 4032 + (64 * j + 64 * asum segs j) := by
+    segPtr (witOf sig v vs segs cs) j = 5504 + (64 * j + 64 * asum segs j) := by
   induction j with
   | zero => simp [segPtr, asum, Ref.wStream, Ref.wPi]
   | succ j ih =>
@@ -810,7 +857,7 @@ theorem dv_node_W (j i : Nat) (hj : j < 29) (hi : i < segs.getD j 0 % 16) :
   rw [asum_succ segs j (by omega)] at ha
   rw [dv_wdig, segPtr_W sig hsig v vs segs hvs cs hsegs hb hn j (by omega),
     wbytes_eq_slice _ _ _ (by rw [hW]; omega),
-    show 4032 + (64 * j + 64 * asum segs j) + 64 + 64 * i = 4032 + (64 * j + 64 * asum segs j + 64 + 64 * i)
+    show 5504 + (64 * j + 64 * asum segs j) + 64 + 64 * i = 5504 + (64 * j + 64 * asum segs j + 64 + 64 * i)
       by ring,
     slice_W_node sig hsig v vs segs hvs cs hsegs hn j i hj hi]
 
@@ -1109,9 +1156,9 @@ theorem aLayers_length (index : Index) (S0 : Signature) :
 /-- What a `some` output of the abstract expansion is: the partial witness of a successful
 `Ref.expandOf` with counters written. -/
 theorem aExpand_some (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6032)
-    (w : Bytes 14080) (h : some w ∈ support (aExpand m pk σ)) :
+    (w : Bytes 13712) (h : some w ∈ support (aExpand m pk σ)) :
     ∃ (N : Nat) (w0 : List Byte) (cs : List Nat),
-      Ref.expandOf (Ref.toList σ) N = some w0 ∧ w = Ref.ofList 14080 (Ref.cutW (Ref.withCounters w0 cs)) := by
+      Ref.expandOf (Ref.toList σ) N = some w0 ∧ w = Ref.ofList 13712 (Ref.cutW (Ref.withCounters w0 cs)) := by
   unfold aExpand at h
   simp only [support_bind, Set.mem_iUnion, exists_prop] at h
   obtain ⟨d, -, hd⟩ := h
@@ -1133,7 +1180,7 @@ theorem aExpand_some (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 
 /-- **R2**: every successful run of the abstract expansion decodes to a signature compressing to
 `σ`. -/
 theorem aExpand_compress (m : Message) (pk : SphincsSecurity.PublicKey) (σ : Bytes 6032)
-    (w : Bytes 14080) (h : some w ∈ support (aExpand m pk σ)) : compress (witDec w) = σ := by
+    (w : Bytes 13712) (h : some w ∈ support (aExpand m pk σ)) : compress (witDec w) = σ := by
   obtain ⟨N, w0, cs, he, rfl⟩ := aExpand_some m pk σ w h
   have hσ : (Ref.toList σ).length = 6032 := Ref.length_toList σ
   have hl0 : w0.length = 16384 := Ref.length_of_expandOf _ hσ _ _ he
@@ -1159,7 +1206,7 @@ theorem mem_support_of_relabel {ι ι' R α : Type} (f : ι → ι') (oa : Oracl
 `Ref.expandOf` zeroes the 48 bytes before every chain value and `Ref.withCounters` only writes the
 counter bytes. -/
 theorem padOf_of_mem_support_aExpand_relabel (m : Bytes 32) (pk' : SphincsSecurity.PublicKey)
-    (σ : Bytes 6032) (w : Bytes 14080)
+    (σ : Bytes 6032) (w : Bytes 13712)
     (h : some w ∈ support (relabel fmtQ (aExpand m pk' σ))) :
     padOf (Ref.extW (Ref.toList w)) = fun _ _ => 0 := by
   obtain ⟨N, w0, cs, he, rfl⟩ := aExpand_some m pk' σ w (mem_support_of_relabel fmtQ _ _ h)

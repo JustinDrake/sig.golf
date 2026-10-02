@@ -52,6 +52,15 @@ theorem tag_tweakable (parameter : PublicParameter) (domain : HashDomain)
   rw [tag_append _ _ (by simp [fieldBytes, bytesLE_length])]
   exact tag_fieldBytes _
 
+theorem tag_mac (parameter : PublicParameter) (seed : MasterSeed)
+    (region : TopRegion) :
+    (macHashInput parameter seed region).getD 1 0 = 14 := by
+  simp only [macHashInput]
+  rw [tag_append _ _ (by simp [fieldBytes, bytesLE_length])]
+  rw [tag_append _ _ (by simp [fieldBytes, bytesLE_length])]
+  rw [tag_append _ _ (by simp [fieldBytes, bytesLE_length])]
+  exact tag_fieldBytes _
+
 theorem randomizerHashInput_ne_keygenHashInput (p₁ p₂ : PublicParameter)
     (s₁ s₂ : MasterSeed) (message : Message) (trial : BitVec 32) (domain : KeygenDomain) :
     randomizerHashInput p₁ s₁ message trial ≠ keygenHashInput p₂ domain s₂ := by

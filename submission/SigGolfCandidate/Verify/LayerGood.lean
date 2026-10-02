@@ -65,7 +65,7 @@ theorem witPath_eq (L : LCtx) (hL : L.lay < 5) : witPath L.wl L.lay = (layFC L).
   simp only [heightL_eq _ hL]
   apply List.map_congr_left
   intro l _
-  simp [witSib, pathOff_eqL _ hL, pathStrideL]
+  simp [witSib, pathOff_eqL _ hL, pathStrideL, pathStride]
 
 theorem Good.reject {s : MachineState} (hf : fetch image s = some (.base .ECALL))
     (h5 : s.getReg .x5 = 1) (h10 : s.getReg .x10 = 1) : Good s 1 1 (pure (false, 0)) := by
@@ -117,7 +117,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
   have hfc := layFC_ok ⟨wl, pk, lay, idx⟩ ⟨h7, hidx, hwl⟩
   have hh := heightL_le lay h7
   obtain ⟨hG, hK, -, hNB, -, hm0, hm8, hvl, hF, hpc, hFresh, h12, _⟩ := hu
-  obtain ⟨h27, h30, hCB, -, -, hEH⟩ := hc
+  obtain ⟨h30, hCB, -, -, hEH⟩ := hc
   have hsw := sib_words (layFC ⟨wl, pk, lay, idx⟩) hfc (heightL lay - 1)
     (by show heightL lay - 1 < heightL lay; omega) u hG hFresh
   have hsl := length_sib (layFC ⟨wl, pk, lay, idx⟩) hfc (heightL lay - 1)
@@ -142,12 +142,11 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
   · simp only [LCtx.lay, preK, if_neg (show lay - 1 ≠ 4 by omega), aK, Nat.sub_add_cancel h1]
     intro p hp
     simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with hp | hp | hp | hp | hp | hp
+    rcases hp with hp | hp | hp | hp | hp
     · exact hK1 p (by simp [foldK, fk, gkOf, hp])
     · subst hp; exact hK1 _ (by simp [foldK, fk, gkOf])
     · subst hp; exact hK1 _ (by simp [foldK, fk, gkOf])
     · subst hp; exact h12
-    · subst hp; rw [kf _ (by simp [fkeep])]; exact h27
     · subst hp; exact hK1 (.x22, BitVec.ofNat 64 (s6N lay)) (by simp [foldK, s6N_eq])
   · simp only [routeReg, routeIn, if_neg (show lay - 1 ≠ 4 by omega)]
     rw [kf _ (by simp [fkeep]), h30]
@@ -161,7 +160,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     have ht := tau_lt lay idx h7 hidx
     rw [Nat.div_eq_of_lt (by omega : idx / 2 ^ (layS lay + heightL lay) < 2 ^ 32)]
     rw [Nat.sub_add_cancel h1]
-    omega
+    convert Ref.MaskHeader.header_node lay h7 using 2 <;> omega
   · intro _
     change EncHeader (lay - 1 + 1) u
     rw [Nat.sub_add_cancel h1]
@@ -177,7 +176,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     have e2 : witSib wl (lay - 1 + 1) (heightL (lay - 1 + 1) - 1) =
         (layFC ⟨wl, pk, lay, idx⟩).sib (heightL lay - 1) := by
       rw [Nat.sub_add_cancel h1]
-      simp [witSib, FCtx.sib, layFC, pathOff_eqL _ h7, pathStrideL, show lay ≠ 0 by omega]
+      simp [witSib, FCtx.sib, layFC, pathOff_eqL _ h7, pathStrideL, pathStride, show lay ≠ 0 by omega]
     rw [e1, e2]
     exact ⟨hsw.1, hsw.2, hsl⟩
   · refine ⟨(layFC ⟨wl, pk, lay, idx⟩).blk (nCh lay - 1), ?_, ?_, fun _ => ?_⟩
@@ -223,8 +222,8 @@ theorem layer_good (L : LCtx) (hL : L.ok) (X : Val) (Kopt : Option Val → Oracl
   have hhL := heightL_le L.lay hlay
   have hcb : chainsBound L.lay ≥ 1200 := by unfold chainsBound; omega
   have hsA : stepsA L.lay ≤ 16 := by unfold stepsA stepsT; split_ifs <;> omega
-  have hcB : cyclesB L.lay ≤ 32 := by unfold cyclesB stepsB; split_ifs <;> omega
-  have hsB : stepsB L.lay ≤ 29 := by unfold stepsB; split_ifs <;> omega
+  have hcB : cyclesB L.lay ≤ 32 := by unfold cyclesB stepsB; omega
+  have hsB : stepsB L.lay ≤ 29 := by unfold stepsB; omega
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
       (cc (match decodeDigits L.lay (encodingBytes a) with
         | none => pure none
@@ -256,7 +255,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (X : Val) (Kopt : Option Val → Oracl
         (by
           intro ends u hH42
           obtain ⟨t3, hst3, hf3, h53, hv3, hin3, hpost3⟩ := leaf_step L hL t ht a ends u hH42
-          obtain ⟨⟨-, -, -, -, -, -, -, hends, hvs, -⟩, -, -⟩ := chainNext_42 hH42
+          obtain ⟨⟨-, -, -, -, -, -, hends, hvs, -⟩, -, -⟩ := chainNext_42 hH42
           have H3 : ∀ ans, Good (writeHash t3 ans) (N + 1900)
               (C + foldCost L.lay 0 (if L.lay = 0 then heightL L.lay else heightL L.lay - 1))
               (cc (foldPath (nodeInput L.lay L.tau) L.e (answerBytes 16 ans)

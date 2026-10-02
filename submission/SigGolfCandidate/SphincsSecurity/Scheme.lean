@@ -69,7 +69,7 @@ abbrev Counter := BitVec counterBits
 abbrev Layer := Fin numLayers
 
 /-- The target sum at a particular one-time-signature layer. -/
-def targetFor (lay : Layer) : Nat := targetSum + if 2 ≤ lay.val then 1 else 0
+def targetFor (lay : Layer) : Nat := targetSum + if 4 ≤ lay.val then 1 else 0
 /-- `idx`, which few-time key signs. -/
 abbrev Index := Fin (2 ^ totalHeight)
 /-- `tau`, a tree of any layer. Layer `lay` only uses the values below `2^(sum_{j < lay} h_j)`. -/
@@ -293,15 +293,12 @@ inductive KeygenDomain where
   | fts (index : Index) (tree : FtsTree) (pair : FtsPair)
   /-- The mask of the cached top-tree node `(level, nodeIdx)`. -/
   | mask (level : Fin maxLayerHeight) (nodeIdx : Fin (2 ^ maxLayerHeight))
-  /-- Key material of the cache MAC: answer `index` holds two 61-bit keys and two 64-bit pads. -/
-  | mackey (index : Fin 3)
 deriving DecidableEq
 
 def keygenDomainFields : KeygenDomain → TweakFields
   | .ots lay tree leaf pair => tweakFields 0 lay tree pair leaf
   | .fts index tree pair => tweakFields 8 tree index 0 pair
   | .mask level nodeIdx => tweakFields 13 0 0 level nodeIdx
-  | .mackey index => tweakFields 14 0 0 0 index
 
 /-- `tweak || P || S`. -/
 def keygenHashInput (parameter : PublicParameter) (domain : KeygenDomain)
@@ -310,69 +307,36 @@ def keygenHashInput (parameter : PublicParameter) (domain : KeygenDomain)
 
 /-! ### The cache
 
-Key generation publishes a 128 KiB cache: the masked nodes of the top tree at levels `0, ..., 10` (level
-ascending, index ascending within a level) and a 48-byte tag over those bytes. The root is not stored; it
-is the public key. The signer reads the top layer's authentication path from the cache after checking the
-tag.
+Key generation publishes a 128 KiB cache: the 32-byte MAC tag, then the masked nodes of the top tree at
+levels `1, ..., 10` (level ascending, index ascending within a level). The root is not stored; it is the
+public key. The signer reads the top layer's authentication path from the cache after checking the tag. -/
 
-The tag is a polynomial MAC, computed by arithmetic: three seed derivations give six 61-bit keys and six
-64-bit pads; word `j` of the tag is the Horner value of the region's 32-bit chunks at key `j` modulo
-`2^61 - 1`, plus pad `j` modulo `2^64`. Signing therefore authenticates the whole cache with three hash
-calls, whatever the cache holds. -/
+/-- The masked internal nodes below the root: rowr stores levelr+1, with2^(10-r) nodes. -/
+abbrev TopRegion := (level : Fin (maxLayerHeight - 1)) → Fin (2 ^ (maxLayerHeight - (level.val + 1))) → Digest
 
-/-- The MAC modulus, the Mersenne prime `2^61 - 1`. -/
-def macPrime : Nat := 2 ^ 61 - 1
-
-/-- The polynomial hash of a chunk list at the key `k`: `acc ↦ (acc + c) * k mod (2^61 - 1)`, from `0`.
-The final multiplication leaves no constant term, so shifting the last chunk is no forgery. -/
-def polyMac (k : Nat) (chunks : List Nat) : Nat :=
-  chunks.foldl (fun acc c => (acc + c) * k % macPrime) 0
-
-/-- The little-endian 32-bit chunks of a byte string (a trailing partial chunk is dropped; the region's
-length is divisible by four). -/
-def chunks32 : HashInput → List Nat
-  | b0 :: b1 :: b2 :: b3 :: rest =>
-      (b0.toNat + 2 ^ 8 * b1.toNat + 2 ^ 16 * b2.toNat + 2 ^ 24 * b3.toNat) :: chunks32 rest
-  | _ => []
-
-/-- The tag: six 64-bit words. -/
-abbrev MacTag := Fin 6 → BitVec 64
-
-/-- The three derivation answers that key the MAC. -/
-abbrev MacKey := Fin 3 → HashOutput
-
-/-- Key `j`: the low 61 bits of word `0` (even `j`) or word `2` (odd `j`) of answer `j / 2`. -/
-def macKeyWord (key : MacKey) (j : Fin 6) : Nat :=
-  ((key ⟨j.val / 2, by omega⟩).extractLsb' (128 * (j.val % 2)) 61).toNat
-
-/-- Pad `j`: word `1` (even `j`) or word `3` (odd `j`) of answer `j / 2`. -/
-def macPadWord (key : MacKey) (j : Fin 6) : BitVec 64 :=
-  (key ⟨j.val / 2, by omega⟩).extractLsb' (128 * (j.val % 2) + 64) 64
-
-/-- The tag of a byte string under a key. -/
-def macTag (key : MacKey) (data : HashInput) : MacTag :=
-  fun j => BitVec.ofNat 64 (polyMac (macKeyWord key j) (chunks32 data)) + macPadWord key j
-
-/-- The masked nodes of the top tree below its root: level `l < 11` holds `2^(11 - l)` nodes. -/
-abbrev TopRegion := (level : Fin maxLayerHeight) → Fin (2 ^ (maxLayerHeight - level.val)) → Digest
-
-/-- The cache: the MAC tag and the masked-node region. Unused bytes of the 128 KiB buffer are zero and not
-part of the abstract cache. -/
+/-- The cache: the MAC tag (the full 256-bit hash answer) and the masked-node region. Unused bytes of the
+128 KiB buffer are zero and not part of the abstract cache. -/
 structure TopCache where
-  tag : MacTag
+  tag : HashOutput
   region : TopRegion
 deriving DecidableEq
 
 /-- The masked node `(level, nodeIdx)`, or zero outside the region. -/
 def TopCache.node (cache : TopCache) (level nodeIdx : Nat) : Digest :=
-  if hlevel : level < maxLayerHeight then
-    if hnode : nodeIdx < 2 ^ (maxLayerHeight - level) then cache.region ⟨level, hlevel⟩ ⟨nodeIdx, hnode⟩
+  if hlevel : 0 < level ∧ level < maxLayerHeight then
+    if hnode : nodeIdx < 2 ^ (maxLayerHeight - level) then
+      cache.region ⟨level - 1, by omega⟩ ⟨nodeIdx, by
+        simpa only [Nat.sub_add_cancel (by omega : 1 ≤ level)] using hnode⟩
     else 0
   else 0
 
-/-- The region's bytes: level by level, each node as 16 bytes, `65504` bytes in all. -/
+/-- The internal region's bytes: levels1..10, each node as16 bytes,32736 bytes in all. -/
 def regionBytes (region : TopRegion) : HashInput :=
-  (List.ofFn fun level : Fin maxLayerHeight => (List.ofFn (region level)).flatMap (bytesLE 16)).flatten
+  (List.ofFn fun level : Fin (maxLayerHeight - 1) => (List.ofFn (region level)).flatMap (bytesLE 16)).flatten
+
+/-- `tweak(14, 0, 0, 0, 0) || P || S || region`: the MAC over the region, keyed by the master seed. -/
+def macHashInput (parameter : PublicParameter) (seed : MasterSeed) (region : TopRegion) : HashInput :=
+  fieldBytes ⟨14#8, 0#8, 0#40, 0#32, 0#32⟩ ++ bytesLE 16 parameter ++ bytesLE 32 seed ++ regionBytes region
 
 /-! ### The target-sum code
 
@@ -1309,33 +1273,33 @@ in turn. -/
 def maskRegion (parameter : PublicParameter) (seed : MasterSeed) (table : Nat → Nat → Digest) :
     m TopRegion :=
   do
-  let rows ← sequenceFin fun level : Fin maxLayerHeight => do
-    let row ← sequenceFin fun nodeIdx : Fin (2 ^ (maxLayerHeight - level.val)) => do
-      let mask ← maskSecret parameter seed level.val nodeIdx.val
-      return table level.val nodeIdx.val ^^^ mask
-    return fun nodeIdx : Nat => if h : nodeIdx < 2 ^ (maxLayerHeight - level.val) then row ⟨nodeIdx, h⟩ else 0
+  let rows ← sequenceFin fun level : Fin (maxLayerHeight - 1) => do
+    let row ← sequenceFin fun nodeIdx : Fin (2 ^ (maxLayerHeight - (level.val + 1))) => do
+      let mask ← maskSecret parameter seed (level.val + 1) nodeIdx.val
+      return table (level.val + 1) nodeIdx.val ^^^ mask
+    return fun nodeIdx : Nat => if h : nodeIdx < 2 ^ (maxLayerHeight - (level.val + 1)) then row ⟨nodeIdx, h⟩ else 0
   return fun level nodeIdx => rows level nodeIdx.val
-
-/-- The three derivation answers that key the cache MAC. -/
-def deriveMacKey (parameter : PublicParameter) (seed : MasterSeed) : m MacKey :=
-  sequenceFin fun index : Fin 3 => Concrete.oracleHash (keygenHashInput parameter (.mackey index) seed)
 
 /-- The top tree's node `(l, j)` as the signer reads it: the cached masked node, unmasked with a freshly
 derived mask. -/
 def cachedTopNode (parameter : PublicParameter) (seed : MasterSeed) (cache : TopCache) (level nodeIdx : Nat) :
     m Digest := do
-  let mask ← maskSecret parameter seed level nodeIdx
-  return cache.node level nodeIdx ^^^ mask
+  if level = 0 then
+    return (← buildLeafPaired parameter topLayer rootTree (leafOfNat nodeIdx)
+      (otsSecret parameter seed topLayer rootTree (leafOfNat nodeIdx)) zeroEncoding).2
+  else
+    let mask ← maskSecret parameter seed level nodeIdx
+    return cache.node level nodeIdx ^^^ mask
 
 /-- Build the top tree from the supplied seed (its root is the public key), mask its nodes below the root,
-derive the MAC key and tag the masked region. There is no parameter derivation: `P = 0`. -/
+and authenticate the masked region with the MAC. There is no parameter derivation: `P = 0`. -/
 def keygenFromSeed (seed : MasterSeed) : OracleComp HashSpec (PublicKey × TopCache × SecretKey) := do
   let (_, table) ← buildLayerTablePaired 0 topLayer rootTree (otsSecret 0 seed topLayer rootTree)
     ⟨0, Nat.two_pow_pos _⟩ zeroEncoding
   let root := table (layerHeight topLayer) 0
   let region ← maskRegion 0 seed table
-  let key ← deriveMacKey 0 seed
-  return (⟨root, 0⟩, ⟨macTag key (regionBytes region), region⟩, ⟨seed, 0, root⟩)
+  let tag ← oracleHash (macHashInput 0 seed region)
+  return (⟨root, 0⟩, ⟨tag, region⟩, ⟨seed, 0, root⟩)
 
 def signAttempt (secretKey : SecretKey) (message : Message) (randomness : Randomness) :
     m (Option (Index × (IndexGroup → FtsLeaf))) := do
@@ -1378,13 +1342,10 @@ def signChecked (secretKey : SecretKey) (cache : TopCache) (message : Message) :
     (otsSecret secretKey.parameter secretKey.seed)
     (cachedTopNode secretKey.parameter secretKey.seed cache) randomness leaves
 
-/-- `Sig(sk, cache, m)`: check the cache's MAC first (three key derivations, then arithmetic; a mismatch
-fails), then sign. The comparison has the cached tag on the left: a definitional unfolding of the check on
-a symbolic cache then stops at the cached tag instead of running the polynomial. -/
+/-- `Sig(sk, cache, m)`: check the cache's MAC first (one query; a mismatch fails), then sign. -/
 def sign (secretKey : SecretKey) (cache : TopCache) (message : Message) : m (Option Signature) := do
-  let key ← deriveMacKey secretKey.parameter secretKey.seed
-  if cache.tag = macTag key (regionBytes cache.region) then signChecked secretKey cache message
-  else return none
+  let tag ← oracleHash (macHashInput secretKey.parameter secretKey.seed cache.region)
+  if tag = cache.tag then signChecked secretKey cache message else return none
 
 end Seeded
 

@@ -19,8 +19,8 @@ def stW0 (a : Nat) (v : E) : E := .bin (.st .w 0) (ldE a) v
 
 /-- Layer heights (layer 0 = top) and witness offsets of the paths (W1a, `Ref.pathOff`). -/
 def heightL (lay : Nat) : Nat := [11, 6, 6, 6, 5].getD lay 0
-def pathOffL (lay : Nat) : Nat := [2336, 2512, 2608, 2704, 2800].getD lay 0
-def pathStrideL (_lay : Nat) : Nat := 16
+def pathOffL (lay : Nat) : Nat := [2704, 4032, 4416, 4800, 5184].getD lay 0
+def pathStrideL (lay : Nat) : Nat := if lay = 0 then 16 else 64
 
 /-- Known registers: FORS (`kind = true`) or layers. -/
 def gkOf (kind : Bool) : List (Reg × Word) := if kind then gkF else gkL
@@ -52,7 +52,11 @@ def m4Off (lay ci kk : Nat) : Nat := ((m4OffTab.getD lay []).getD ci []).getD kk
 def nCh (lay : Nat) : Nat := if lay = 0 then 2 else 1
 def chB0 (lay ci : Nat) : Nat := if lay = 0 ∧ ci = 1 then 6 else 0
 def chBits (lay ci : Nat) : Nat := if lay = 0 then (if ci = 0 then 6 else 5) else heightL lay
-def heapU (lay e : Nat) : Nat := if lay = 0 then 4095 - e else e + 2 ^ heightL lay
+/-- The fold-dispatch page offset `m4Hi lay 0 / 512` that layers 1..4 add into `x23`. -/
+def uOff (lay : Nat) : Nat := if lay = 1 then 456 else if lay = 2 then 392 else 328
+/-- `x23` from the transition on: layer 0 the reflected heap index, layers 1..4 the heap index plus
+the dispatch page offset (`addi` replaces the sentinel `ori`). -/
+def heapU (lay e : Nat) : Nat := if lay = 0 then 4095 - e else e + 2 ^ heightL lay + uOff lay
 
 
 /-- The chunk holding level `lam`. -/
@@ -67,7 +71,7 @@ def sibAddr (lay lam : Nat) : Nat := 0x800 + pathOffL lay + pathStrideL lay * la
 
 /-- M4c: the parent of level `lam` is at depth `h - lam - 1`; at depths 1 and 2 (heap indices
 2..7) its index is a constant stored from the register that holds it. -/
-def isConstLvl (lay lam : Nat) : Bool := lam + 3 = heightL lay || lam + 2 = heightL lay
+def isConstLvl (lay lam : Nat) : Bool := lam + 4 = heightL lay || lam + 3 = heightL lay || lam + 2 = heightL lay
 
 /-- Destination of the root hash of the top layer: FO. (Below the top layer no root is hashed; `0x120`
 is where the node under the root goes, see `nodeDst`.) -/
@@ -89,12 +93,20 @@ def dispGp (lay ci : Nat) : E :=
     else if ci = 0 then mkBin .and (.reg .x23) (cw 63)
     else mkBin .and (.reg .x23) (.c (BitVec.ofNat 64 (2 ^ 64 - 64)))
   let sh := if nCh lay = 2 ∧ ci = 1 then m4Sh lay ci + 2 - 6 else m4Sh lay ci + 2
-  mkAdd (mkBin .sll idx (cw sh)) (cw (m4Hi lay ci))
+  if nCh lay = 1 then mkBin .sll (.reg .x23) (cw sh)
+  else mkAdd (mkBin .sll idx (cw sh)) (cw (m4Hi lay ci))
 
 /-- The target of the chunk dispatch (`jalr zero, lo(gp)`). -/
 def dispTgt (lay ci : Nat) : E :=
   mkBin .and (mkAdd (dispGp lay ci) (.c (BitVec.ofNat 64 (m4Doff lay ci) - BitVec.ofNat 64 (m4Hi lay ci))))
     (.c (~~~1#64))
+
+/-- Full register constants used by the depth-three heap relabeling. Stores truncate to 32 bits. -/
+def smallBandStore (lay h : Nat) : Nat :=
+  if h = 8 then 0 else if h = 9 then 4095 else if h = 10 then 2688 else
+  if h = 11 then 261632 else if h = 12 then 327680 else
+  if h = 13 then 5632 + 2688 * lay else
+  if h = 14 then 0x71c71c71c71c71c7 else if h = 15 then 0xf03f03f03f03f03f else h
 
 /-- The value stored into NB+12 (NB = LB = 0x340) (the parent's heap index) by level `kk` of block `v`: the
 constant 1 at the root, M4c constants (`sw R`) at depths 1 and 2 of the last chunk, else
@@ -102,10 +114,10 @@ constant 1 at the root, M4c constants (`sw R`) at depths 1 and 2 of the last chu
 def lvlNb (lay ci v kk : Nat) : E :=
   let lam := chB0 lay ci + kk
   if lam + 1 = heightL lay then cw 1
-  else if kk + 1 < chBits lay ci ∧ isConstLvl lay lam = true then
-    cw (if lay = 0 then 3 * 2 ^ (heightL lay - (lam + 1)) - 1 -
+  else if kk + 1 < chBits lay ci ∧ (isConstLvl lay lam = true ∨ lay ≠ 0) then
+    cw (smallBandStore lay (if lay = 0 then 3 * 2 ^ (heightL lay - (lam + 1)) - 1 -
       (2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1))
-      else 2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1))
+      else 2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1)))
   else .bin .srl (.reg .x23) (cw (lam + 1))
 
 /-- The memory writes of a level: NB+12, then the sibling into the slot `1 - t`. -/
@@ -117,7 +129,7 @@ def lvlMem (lay lam t : Nat) (nb : E) : List (Addr × E) :=
 
 /-- Known registers at the start of level `lam`. -/
 def foldK (lay len : Nat) : List (Reg × Word) :=
-  fk false 0x340 len ++ [(.x22, BitVec.ofNat 64 (6336 + 2688 * lay))]
+  fk false 0x340 len ++ [(.x22, BitVec.ofNat 64 (5632 + 2688 * lay))]
 
 def lvlK (lay lam : Nat) : List (Reg × Word) :=
   foldK lay (if lam = 0 then 704 else 64)
@@ -141,6 +153,7 @@ def lvlExp (lay ci v kk : Nat) : PRes :=
     ⟨⟨(lvlRegs lay lam).set .x12 (cw (dstOf lay)), mem, []⟩, pcOf (m4Pc lay ci v kk + 8), true, 6, 6, [], none⟩
   else if kk + 1 < chBits lay ci then
     let rf := if isConstLvl lay lam then lvlRegs lay lam
+      else if lay ≠ 0 then (lvlRegs lay lam).set .x25 (cw (2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1)))
       else (lvlRegs lay lam).set .x25 (.bin .srl (.reg .x23) (cw (lam + 1)))
     let n := hs + (if isConstLvl lay lam then 6 else 7)
     ⟨⟨rf.set .x12 (cw (nodeDst lay (lam + 1) (v / 2 ^ (kk + 1) % 2))), mem, []⟩,
@@ -181,8 +194,8 @@ def foldCheck (lay ci a n : Nat) : Bool := (List.range' a n).all (blockCheck lay
 
 
 /-- Full-index return slots for the top tree's shared six- and five-level blocks. -/
-def topSlotBase : Nat := 197888
-def topSlotPc (E : Nat) : Nat := topSlotBase + 2 * (2047 - E)
+def topSlotBase : Nat := 7168
+def topSlotPc (E : Nat) : Nat := topSlotBase + 4 * (2047 - E)
 
 def topSlotEnterExp (E : Nat) : PRes :=
   ⟨⟨(RegFile.withKnown (foldK 0 704)).set .x16 (cw (0x1000 + 4 * (topSlotPc E + 1))), [], []⟩,

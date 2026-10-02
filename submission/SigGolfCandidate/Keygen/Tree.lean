@@ -130,7 +130,7 @@ set_option exponentiation.threshold 1024 in
 theorem addrFmt_topNode (k j : Nat) (hk:k<11) (hj:j<2^(10-k)) (l r : Val)
     (hl:l.length=16) (hr:r.length=16) :
     addrFmt (nodeInput 0 0 (k+1) j l r)=
-      (⟨0,BitVec.ofNat 512 (769+2^96*(2*2^(10-k)-1-j)+
+      (⟨0,BitVec.ofNat 512 (8198552921646826439+2^96*SmallBand.H0.heap (2*2^(10-k)-1-j)+
         2^256*leNat l+2^384*leNat r)⟩ : Query) := by
   have hc:2^(10-k)≤1024 := (Nat.pow_le_pow_right (by decide) (show 10-k≤10 by omega))
   have hh:heapIndex (height 0) (k+1) j=2^(10-k)+j := by
@@ -160,13 +160,26 @@ theorem addrFmt_topNode (k j : Nat) (hk:k<11) (hj:j<2^(10-k)) (l r : Val)
       show (2^32*(2^(10-k)+j))%4294967296=0 by omega,
       show (2^32*(2^(10-k)+j))/4294967296=2^(10-k)+j by omega,hm]
     simp only [Nat.zero_add,Nat.reducePow]
-  rw [hv]
+  rw [hv,MaskHeader.query_words 0 _ _ (by simp [hll,hrl])]
+  have hhead : MaskHeader.header 0 (BitVec.ofNat 64 769).toNat=8198552921646826439 := by decide
+  rw [hhead]
+  rw [SmallBand.query_words _ _ _ (by simp [hll,hrl]),if_pos (by decide)]
+  have hb : 2*2^(10-k)-1-j<4294967296 := by omega
+  have hsmall := SmallBand.H0.heap_lt _ hb
+  have hvsmall : SmallBand.heapW1 (BitVec.ofNat 64 8198552921646826439)
+      (BitVec.ofNat 64 (2^32*(2*2^(10-k)-1-j)))=
+      BitVec.ofNat 64 (2^32*SmallBand.H0.heap (2*2^(10-k)-1-j)) := by
+    unfold SmallBand.heapW1
+    simp only [BitVec.toNat_ofNat]
+    rw [Nat.mod_eq_of_lt (show 2^32*(2*2^(10-k)-1-j)<2^64 by omega)]
+    norm_num [SmallBand.heap]
+  rw [hvsmall]
   unfold queryOfWords
   apply congrArg (fun w : BitVec 512 => (⟨0,w⟩ : Query))
   apply congrArg (BitVec.ofNat 512)
   simp only [wordsToNat,wordsToNat_append,hll,Sign.wordsToNat_wordsOf,
     BitVec.toNat_ofNat,show (0:Word).toNat=0 by rfl]
-  rw [Nat.mod_eq_of_lt (show 2^32*(2*2^(10-k)-1-j)<2^64 by omega)]
+  rw [Nat.mod_eq_of_lt (show 2^32*SmallBand.H0.heap (2*2^(10-k)-1-j)<2^64 by omega)]
   norm_num
   ring
 
@@ -179,17 +192,23 @@ structure NCtx (W : List Word) (k : Nat) (levels : List (List Val)) (j : Nat) (a
   r16 : t.getReg .x16 = BitVec.ofNat 64 j
   r19 : t.getReg .x19 = BitVec.ofNat 64 (REGION + 16 * lvOff k)
   r25 : t.getReg .x25 = BitVec.ofNat 64 (REGION + 16 * lvOff (k + 1))
-  w448 : t.getMem (BitVec.ofNat 64 448) = BitVec.ofNat 64 769
+  w448 : t.getMem (BitVec.ofNat 64 448) = BitVec.ofNat 64 8198552921646826439
   w456 : (t.getMem (BitVec.ofNat 64 456)).toNat % 2 ^ 32 = 0
   shape : Shape k levels
   alen : acc.length = j
   lv : Vals t REGION (levels.flatten ++ acc)
 
 /-- One node. -/
+def bandDelta (k : Nat) : Nat := if k=7 then 9 else 5
+
+theorem band_iff (k j : Nat) (hk:k<11) (hj:j<2^(10-k)) :
+ (8≤2*2^(10-k)-1-j ∧ 2*2^(10-k)-1-j<16) ↔ k=7 := by
+ interval_cases k <;> norm_num at hj ⊢ <;> omega
+
 theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List Val)) (j : Nat)
     (hj : j < 2 ^ (10 - k)) (acc : List Val) (t : MachineState) (h : NCtx W k levels j acc t)
     (hpc : t.pc = pcOf 85) :
-    XSim image t 23 30 1 1
+    XSim image t (23+bandDelta k) (30+bandDelta k) 1 1
       (do let v ← Ref.hash16 (nodeInput 0 0 (k + 1) j ((levels.getD k []).getD (2 * j) [])
             ((levels.getD k []).getD (2 * j + 1) []))
           pure (acc ++ [v]))
@@ -209,7 +228,11 @@ theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List V
   obtain ⟨u, hst, upc, u10, u11, u12, uun, u456, u480, u488, u496, u504, ufr⟩ :=
     spec_85 t hpc j (2 ^ (10 - k)) (REGION + 16 * lvOff k) (REGION + 16 * lvOff (k + 1)) (by omega)
       (by omega) hj (by unfold REGION; omega) (by unfold REGION; omega) (by unfold REGION; omega)
-      (by unfold REGION; omega) h.r16 h.r17 h.r19 h.r25 h.w456
+      (by unfold REGION; omega) h.r16 h.r17 h.r19 h.r25 h.base.band h.w456
+  have hcost : (if 8≤2*2^(10-k)-1-j ∧ 2*2^(10-k)-1-j<16 then 29 else 25)=20+bandDelta k := by
+    simp only [band_iff k j hk hj]
+    by_cases hk7:k=7 <;> simp [bandDelta,hk7]
+  rw [hcost] at hst
   have ux : ∀ r, r ≠ .x1 ∧ r ≠ .x2 ∧ r ≠ .x3 ∧ r ≠ .x10 ∧ r ≠ .x11 ∧ r ≠ .x12 → u.getReg r = t.getReg r :=
     fun r hr => uun r hr.1 hr.2.1 hr.2.2.1 hr.2.2.2.1 hr.2.2.2.2.1 hr.2.2.2.2.2
   have hL := h.lv.getD_append_left (lvOff k + 2 * j) (by rw [hfl]; omega)
@@ -239,7 +262,8 @@ theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List V
     rw [leNat_val _ hll,leNat_val _ hrl]
     simp only [BitVec.toNat_ofNat, show (0 : Word).toNat = 0 from rfl, Nat.reducePow, Nat.reduceMul,
       Nat.reduceAdd]
-    rw [Nat.mod_eq_of_lt (a := 4294967296 * (2*2 ^ (10 - k)-1-j)) (by omega)]
+    have hsmall := SmallBand.H0.heap_lt (2*2^(10-k)-1-j) (by omega)
+    rw [Nat.mod_eq_of_lt (a := 4294967296 * SmallBand.H0.heap (2*2 ^ (10 - k)-1-j)) (by omega)]
     ring
 
   have hblk : (pad64 (nodeInput 0 0 (k + 1) j ((levels.getD k []).getD (2 * j) []) ((levels.getD k []).getD (2 * j + 1) []))).blocks = 1 := by
@@ -253,8 +277,8 @@ theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List V
     ((codeAt_101.fetch u upc).trans rfl) (by rw [ux _ (by simp)]; exact h.base.r5)
     (hashArgs_const u 448 64 (REGION + 16 * lvOff (k + 1) + 16 * j) u10 u11 u12 (by norm_num)
       (by norm_num) (by norm_num) (by unfold REGION; omega) (by unfold REGION; omega))
-    hq (not_digest_thInput 3 0 0 _ _ _ (by decide)) (not_padChain_thInput 3 0 0 _ _ _ (by decide)) (fun a => ?_))).of_eq rfl (by rfl)
-      (by rw [hblk]) (by rfl) (by rw [hblk])
+    hq (not_digest_thInput 3 0 0 _ _ _ (by decide)) (not_padChain_thInput 3 0 0 _ _ _ (by decide)) (fun a => ?_))).of_eq rfl (by omega)
+      (by rw [hblk]; omega) (by omega) (by rw [hblk])
   have wpc : (writeHash u a).pc = pcOf 102 := by rw [pc_writeHash, upc]; rfl
   obtain ⟨v, vst, vpc, v16, vun, vfr⟩ := spec_102 (writeHash u a) wpc j (2 ^ (10 - k)) (by omega)
     (by omega) (by rw [getReg_writeHash, ux _ (by simp), h.r16])
@@ -269,7 +293,7 @@ theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List V
     fun A hA => vfr A hA (by simp)
   refine XSim.pure_steps vst ⟨NCtx.mk ?_ ?_ ?_ v16 ?_ ?_ ?_ ?_ hs (by simp [h.alen]) ?_, ?_⟩
   · refine h.base.frame (fun r hr => ?_) fr (fun k' hk' => ?_)
-    · rcases hr with rfl | rfl | rfl | rfl <;> exact vr _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
+    · rcases hr with rfl | rfl | rfl | rfl | rfl <;> exact vr _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
     · simp at hk'
       rcases hk' with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
         simp [BaseSafe, zeroKeys, REGION] <;> omega
@@ -309,7 +333,7 @@ structure VCtx (W : List Word) (k : Nat) (levels : List (List Val)) (t : Machine
 /-- One tree level `lam = k + 1`. -/
 theorem level_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List Val))
     (t : MachineState) (h : VCtx W k levels t) (hpc : t.pc = pcOf 77) :
-    XSim image t (11 + 2 ^ (10 - k) * 23) (11 + 2 ^ (10 - k) * 30) (2 ^ (10 - k)) (2 ^ (10 - k))
+    XSim image t (14 + 2 ^ (10 - k) * (23+bandDelta k)) (14 + 2 ^ (10 - k) * (30+bandDelta k)) (2 ^ (10 - k)) (2 ^ (10 - k))
       (do let level ← buildLevel (nodeInput 0 0) (1 + k) (levels.getD (1 + k - 1) [])
           pure (levels ++ [level]))
       (fun levels' u => VCtx W (k + 1) levels' u ∧ u.pc = if k + 1 < 11 then pcOf 77 else pcOf 107) := by
@@ -324,11 +348,11 @@ theorem level_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List 
   have hle0 := lvOff_le k (by omega)
   obtain ⟨u, hst, upc, u17, u16, u25, uun, u448, u456, ufr⟩ :=
     spec_77 t hpc (2 ^ (11 - k)) (REGION + 16 * lvOff k) (by omega)
-      (by unfold REGION; omega) h.base.r8 h.base.r30 h.r17 h.r19
+      (by unfold REGION; omega) h.base.r8 h.base.r30 h.r17 h.r19 h.base.r26
   have h0 : NCtx W k levels 0 [] u := by
     refine NCtx.mk ?_ ?_ ?_ u16 ?_ ?_ u448 u456 hs rfl ?_
     · refine h.base.frame (fun r hr => uun r ?_ ?_ ?_ ?_ ?_) ufr (fun k hk => ?_) <;>
-        try (rcases hr with h | h | h | h <;> simp [h])
+        try (rcases hr with h | h | h | h | h <;> simp [h])
       simp at hk; rcases hk with rfl | rfl <;> simp [BaseSafe, zeroKeys]
     · rw [uun _ (by simp) (by simp) (by simp) (by simp) (by simp)]; exact h.r15
     · rw [u17, hn]; congr 1; omega
@@ -348,7 +372,7 @@ theorem level_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List 
     []
     (fun j acc w => NCtx W k levels j acc w ∧
       w.pc = if j < 2 ^ (10 - k) then pcOf 85 else pcOf 104)
-    (fun _ => 23) (fun _ => 30) (fun _ => 1) (fun _ => 1)
+    (fun _ => 23+bandDelta k) (fun _ => 30+bandDelta k) (fun _ => 1) (fun _ => 1)
     (fun j hj acc w hw => by
       rw [Nat.add_comm 1 k]
       exact node_xsim W k hk levels j hj acc w hw.1 (by rw [hw.2, if_pos hj]))
@@ -364,8 +388,8 @@ theorem level_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List 
     (by omega) hc.r15 hc.base.r9
   have hfl := flatten_length k levels hs
   refine XSim.pure_steps xst ⟨VCtx.mk ?_ x15 ?_ ?_ ?_ ?_, ?_⟩
-  · exact hc.base.frame (fun r hr => xun r (by rcases hr with h | h | h | h <;> simp [h])
-      (by rcases hr with h | h | h | h <;> simp [h])) xfr (by simp)
+  · exact hc.base.frame (fun r hr => xun r (by rcases hr with h | h | h | h | h <;> simp [h])
+      (by rcases hr with h | h | h | h | h <;> simp [h])) xfr (by simp)
   · rw [xun _ (by simp) (by simp), hc.r17]; congr 2; omega
   · rw [x19, hc.r25]
   · refine ⟨by simp [hs.len], fun i hi => ?_, fun L hL v hv => ?_⟩

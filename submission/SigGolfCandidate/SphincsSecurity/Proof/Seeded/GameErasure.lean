@@ -37,12 +37,12 @@ open Concrete
 /-- Key generation with its three derivations as arguments: the top tree from `secret`, the masked
 region from `getMask`, and the tag from `getMac`. Returns the top tree's table and the cache. -/
 def keygenCachedWith (secret : LeafIndex → ChainPair → OracleComp HashSpec (Digest × Digest))
-    (getMask : Nat → Nat → OracleComp HashSpec Digest) (getMac : OracleComp HashSpec MacKey) :
+    (getMask : Nat → Nat → OracleComp HashSpec Digest) (getMac : TopRegion → OracleComp HashSpec HashOutput) :
     OracleComp HashSpec ((Nat → Nat → Digest) × TopCache) := do
   let (_, table) ← buildLayerTablePaired 0 topLayer rootTree secret ⟨0, Nat.two_pow_pos _⟩ zeroEncoding
   let region ← maskRegionWith getMask table
-  let key ← getMac
-  return (table, ⟨macTag key (regionBytes region), region⟩)
+  let tag ← getMac region
+  return (table, ⟨tag, region⟩)
 
 /-- The seeded key generation's outputs from the table and the cache. -/
 def keysOf (seed : MasterSeed) (result : (Nat → Nat → Digest) × TopCache) : PublicKey × TopCache × SecretKey :=
@@ -50,15 +50,14 @@ def keysOf (seed : MasterSeed) (result : (Nat → Nat → Digest) × TopCache) :
 
 theorem keygenFromSeed_eq (seed : MasterSeed) :
     keygenFromSeed seed = keysOf seed <$> keygenCachedWith (otsSecret 0 seed topLayer rootTree)
-      (maskSecret 0 seed) (deriveMacKey 0 seed) := by
+      (maskSecret 0 seed) (fun region => oracleHash (macHashInput 0 seed region)) := by
   simp only [keygenFromSeed, keygenCachedWith, maskRegion_eq_with, keysOf, map_bind, bind_assoc, map_pure]
 
 /-- The table key generation: the top tree's queries, and the rest read from the tables. -/
 theorem keygenCachedWith_pure (outputs : SecretOutputs) (masks : MaskOutputs) (macs : MacOutputs) :
     keygenCachedWith (fun leaf pair => pure (pairOf (tableOts outputs topLayer rootTree leaf) pair))
-        (fun level nodeIdx => pure (maskValue masks level nodeIdx)) (pure macs) =
-      (fun top => (top, (⟨macTag macs (regionBytes (tableRegion top masks)), tableRegion top masks⟩ :
-          TopCache))) <$>
+        (fun level nodeIdx => pure (maskValue masks level nodeIdx)) (fun region => pure (macs region)) =
+      (fun top => (top, (⟨macs (tableRegion top masks), tableRegion top masks⟩ : TopCache))) <$>
         (keygenTable 0 (tableOts outputs topLayer rootTree) : OracleComp HashSpec _) := by
   unfold keygenCachedWith keygenTable
   rw [buildLayerTablePaired_pure]
@@ -69,7 +68,7 @@ def firstSecretPosition : SecretPosition :=
   .inl (topLayer, rootTree, leafOfNat 0, ⟨0, by decide⟩)
 
 theorem keygenCachedWith_first (secret : LeafIndex → ChainPair → OracleComp HashSpec (Digest × Digest))
-    (getMask : Nat → Nat → OracleComp HashSpec Digest) (getMac : OracleComp HashSpec MacKey) :
+    (getMask : Nat → Nat → OracleComp HashSpec Digest) (getMac : TopRegion → OracleComp HashSpec HashOutput) :
     keygenCachedWith secret getMask getMac =
       secret (leafOfNat 0) ⟨0, by decide⟩ >>= fun first =>
         keygenCachedWith (withFirstPair secret first) getMask getMac := by
@@ -88,31 +87,31 @@ variable {known : QueryCache HashSpec} {seed : MasterSeed} {outputs : SecretOutp
   {masks : MaskOutputs} {macs : MacOutputs}
   (hsecrets : ∀ position, known (secretInputs 0 seed position) = some (outputs position))
   (hmasks : ∀ position, known (maskInputs 0 seed position) = some (masks position))
-  (hmacs : ∀ index, known (macInputs 0 seed index) = some (macs index))
+  (hmacs : ∀ region, known (macInputs 0 seed region) = some (macs region))
 
 include hsecrets hmasks hmacs
 
 theorem erases_keygenCachedWith {secret : LeafIndex → ChainPair → OracleComp HashSpec (Digest × Digest)}
     (hsecret : ∀ leaf pair, Erases known (secret leaf pair)
       (pure (pairOf (tableOts outputs topLayer rootTree leaf) pair))) :
-    Erases known (keygenCachedWith secret (maskSecret 0 seed) (deriveMacKey 0 seed))
+    Erases known (keygenCachedWith secret (maskSecret 0 seed)
+        (fun region => oracleHash (macHashInput 0 seed region)))
       (keygenCachedWith (fun leaf pair => pure (pairOf (tableOts outputs topLayer rootTree leaf) pair))
-        (fun level nodeIdx => pure (maskValue masks level nodeIdx)) (pure macs)) := by
+        (fun level nodeIdx => pure (maskValue masks level nodeIdx)) (fun region => pure (macs region))) := by
   unfold keygenCachedWith
   apply (erases_buildLayerTablePaired 0 _ _ hsecret _ _).bind
   rintro ⟨_, table⟩
   dsimp only
-  simp only [maskRegionWith_pure, pure_bind]
-  rw [← maskRegion_eq_with]
+  rw [maskRegionWith_pure, pure_bind, ← maskRegion_eq_with]
   apply Erases.bind_known (erases_maskRegion known 0 seed masks hmasks table)
-  apply Erases.bind_known (erases_deriveMacKey known 0 seed macs hmacs)
-  exact .pure _
+  unfold oracleHash
+  exact Erases.skip _ _ (hmacs (tableRegion table masks)) _ _ (.pure _)
 
 theorem erases_keygen :
     Erases known (keygenCachedWith (otsSecret 0 seed topLayer rootTree) (maskSecret 0 seed)
-        (deriveMacKey 0 seed))
+        (fun region => oracleHash (macHashInput 0 seed region)))
       (keygenCachedWith (fun leaf pair => pure (pairOf (tableOts outputs topLayer rootTree leaf) pair))
-        (fun level nodeIdx => pure (maskValue masks level nodeIdx)) (pure macs)) :=
+        (fun level nodeIdx => pure (maskValue masks level nodeIdx)) (fun region => pure (macs region))) :=
   erases_keygenCachedWith hsecrets hmasks hmacs fun leaf pair =>
     erases_otsSecret known 0 seed outputs hsecrets _ _ leaf pair
 
@@ -120,9 +119,9 @@ theorem erases_keygen :
 theorem erases_keygen_first :
     Erases known (keygenCachedWith (withFirstPair (otsSecret 0 seed topLayer rootTree)
           (splitSecrets (outputs firstSecretPosition))) (maskSecret 0 seed)
-        (deriveMacKey 0 seed))
+        (fun region => oracleHash (macHashInput 0 seed region)))
       (keygenCachedWith (fun leaf pair => pure (pairOf (tableOts outputs topLayer rootTree leaf) pair))
-        (fun level nodeIdx => pure (maskValue masks level nodeIdx)) (pure macs)) := by
+        (fun level nodeIdx => pure (maskValue masks level nodeIdx)) (fun region => pure (macs region))) := by
   refine erases_keygenCachedWith hsecrets hmasks hmacs fun leaf pair => ?_
   unfold withFirstPair
   split

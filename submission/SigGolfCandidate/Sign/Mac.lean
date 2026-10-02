@@ -1,10 +1,9 @@
 import SigGolfCandidate.Sign.Init
 
 /-!
-# The cache MAC: key input and tag comparison (byte ↔ dword lemmas)
+# The cache MAC: hash input and tag comparison (byte ↔ dword lemmas)
 
-* `words_macKeyInput` : the padded key-derivation input as dwords (`tw_mackey(i) | P | S`).
-* `macTag_eq_iff` : the 48 tag bytes equal the cached ones iff the six dwords agree.
+* `words_macInput` : the padded MAC input as dwords (`tw_mac | P | S | region | 0^32`).
 * `answerBytes_32` / `toList_tag` : a 256-bit answer as four dwords.
 * `tag_eq_iff` : a 32-byte tag equals the answer iff the four dwords agree.
 -/
@@ -15,14 +14,18 @@ set_option linter.unusedVariables false
 namespace SigGolfCandidate.Sign
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref SigGolfCandidate.Mem
 
-theorem words_macKeyInput (S : List Byte) (hS : S.length = 32) (i : Nat) :
-    padBlocks (macKeyInput S i).length = 0 ∧
-    wordsOf (padTo64 (macKeyInput S i)) = twWords 14 0 0 0 i ++ [0, 0] ++ wordsOf S := by
-  obtain ⟨h1, h2⟩ := padTo64_eq (macKeyInput S i) 0 (by simp [macKeyInput, hS])
-    (by simp [macKeyInput, hS])
+theorem words_macInput (S region : List Byte) (hS : S.length = 32) (hR : region.length = 32736) :
+    padBlocks (macInput S region).length = 512 ∧
+    wordsOf (padTo64 (macInput S region)) =
+      twWords 14 0 0 0 0 ++ [0, 0] ++ wordsOf S ++ wordsOf region ++ [0, 0, 0, 0] := by
+  obtain ⟨h1, h2⟩ := padTo64_eq (macInput S region) 512 (by simp [macInput, hS, hR])
+    (by simp [macInput, hS, hR])
   refine ⟨h1, ?_⟩
-  rw [h2, macKeyInput, wordsOf_thInput_pad]
-  simp [hS, zeros]
+  rw [h2, macInput, wordsOf_thInput_pad]
+  simp only [length_thInput, length_tweak, List.length_append, hS, hR]
+  rw [List.append_assoc S, wordsOf_append _ _ (by omega), wordsOf_append _ _ (by omega),
+    show 64 * (512 + 1) - (16 + 16 + (32 + 32736)) = 8 * 4 from rfl, wordsOf_zeros]
+  simp
 
 theorem answerBytes_32 (a : BitVec 256) :
     answerBytes 32 a = bytesOfWord (a.extractLsb' 0 64) ++ bytesOfWord (a.extractLsb' 64 64) ++
@@ -91,46 +94,5 @@ theorem tag_eq_iff (a : BitVec 256) (l : List Byte) (hl : l.length = 32) (c0 c1 
   constructor
   · exact append4_inj
   · rintro ⟨rfl, rfl, rfl, rfl⟩; rfl
-
-/-- Doubleword `j` of a word list, from its number. -/
-theorem wordsToNat_digit : ∀ (R : List Word) (j : Nat), j < R.length →
-    wordsToNat R / 2 ^ (64 * j) % 2 ^ 64 = (R.getD j 0).toNat
-  | [], j, h => by simp at h
-  | w :: R, 0, _ => by
-      have hw := w.isLt
-      simp only [wordsToNat, Nat.mul_zero, Nat.pow_zero, Nat.div_one, List.getD_cons_zero]
-      omega
-  | w :: R, j + 1, h => by
-      have hw := w.isLt
-      have ih := wordsToNat_digit R j (by simpa using h)
-      simp only [wordsToNat, List.getD_cons_succ]
-      rw [← ih, show 64 * (j + 1) = 64 + 64 * j by ring, Nat.pow_add, ← Nat.div_div_eq_div_mul]
-      congr 2
-      omega
-
-/-- The tag comparison, doubleword by doubleword. -/
-theorem macTag_eq_iff (a0 a1 a2 : BitVec 256) (region ctag : List Byte) (hc : ctag.length = 48)
-    (hw : (wordsOf ctag).length = 6) :
-    macTag a0 a1 a2 region = ctag ↔ ∀ j < 6,
-      BitVec.ofNat 64 ((macWords a0 (chunks32 region) ++ macWords a1 (chunks32 region) ++
-        macWords a2 (chunks32 region)).getD j 0) = (wordsOf ctag).getD j 0 := by
-  have key : ∀ j < 6, (BitVec.ofNat 64 ((macWords a0 (chunks32 region) ++ macWords a1 (chunks32 region) ++
-        macWords a2 (chunks32 region)).getD j 0) = (wordsOf ctag).getD j 0) ↔
-      leNat (macTag a0 a1 a2 region) / 2 ^ (64 * j) % 2 ^ 64 = leNat ctag / 2 ^ (64 * j) % 2 ^ 64 := by
-    intro j hj
-    rw [← MacPass.macTag_word a0 a1 a2 region j hj, ← wordsToNat_wordsOf ctag,
-      wordsToNat_digit _ j (by omega)]
-    constructor
-    · intro h
-      have := congrArg BitVec.toNat h
-      rwa [BitVec.toNat_ofNat, Nat.mod_mod] at this
-    · intro h
-      apply BitVec.eq_of_toNat_eq
-      rw [BitVec.toNat_ofNat, Nat.mod_mod]; exact h
-  constructor
-  · intro h j hj
-    exact (key j hj).mpr (by rw [h])
-  · intro h
-    exact MacPass.eq_of_words48 _ _ (MacPass.length_macTag _ _ _ _) hc (fun j hj => (key j hj).mp (h j hj))
 
 end SigGolfCandidate.Sign

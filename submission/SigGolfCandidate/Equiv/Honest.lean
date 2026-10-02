@@ -33,7 +33,7 @@ attribute [local reducible] SphincsSecurity.hashOutputBits SphincsSecurity.diges
 /-- The input length of each tag. -/
 def tagLen : Nat → Nat
   | 0 => 64 | 1 => 48 | 2 => 704 | 3 => 64 | 4 => 52 | 7 => 64 | 8 => 64 | 9 => 48 | 10 => 64
-  | 12 => 96 | 13 => 64 | 14 => 64 | _ => 0
+  | 12 => 96 | 13 => 64 | 14 => 32800 | _ => 0
 
 /-- The position field (bytes `4 .. 8`, little endian) of an input. -/
 def posField (x : List UInt8) : Nat := Ref.leNat (Ref.slice (toB x) 4 4)
@@ -914,19 +914,46 @@ theorem hq_signFromPaired (hP : P = 0) (index : Index)
 
 end algs
 
-theorem hq_mac (P : SphincsSecurity.PublicParameter) (seed : MasterSeed) :
-    HQ (SphincsSecurity.Seeded.deriveMacKey (m := AComp) P seed) :=
-  hq_sequenceFin _ fun _ => hq_oracleHash _ (honest_keygenInput _ _ _)
+theorem hq_mac (P : SphincsSecurity.PublicParameter) (seed : MasterSeed)
+    (region : SphincsSecurity.TopRegion) :
+    HQ (SphincsSecurity.Concrete.oracleHash (m := AComp) (SphincsSecurity.macHashInput P seed region)) := by
+  apply hq_oracleHash
+  unfold SphincsSecurity.macHashInput
+  rw [List.append_assoc, List.append_assoc]
+  apply honest_plain
+  · have hr : (SphincsSecurity.regionBytes region).length = 32736 := by
+      unfold SphincsSecurity.regionBytes
+      rw [List.length_flatten, List.map_ofFn, List.sum_ofFn]
+      have : ∀ lv : Fin (SphincsSecurity.maxLayerHeight - 1),
+          (List.length ∘ fun level : Fin (SphincsSecurity.maxLayerHeight - 1) =>
+            (List.ofFn (region level)).flatMap (SphincsSecurity.bytesLE 16)) lv =
+            16 * 2 ^ (SphincsSecurity.maxLayerHeight - (lv.val + 1)) := by
+        intro lv
+        simp only [Function.comp, List.length_flatMap, List.map_ofFn, List.sum_ofFn]
+        simp [SphincsSecurity.bytesLE, Nat.mul_comm]
+      simp only [this]
+      decide
+    simp [tagLen, length_bytesLE, hr]
+  · simp
 
 theorem hq_maskSecret (P : SphincsSecurity.PublicParameter) (seed : MasterSeed) (l j : Nat) :
     HQ (SphincsSecurity.Seeded.maskSecret (m := AComp) P seed l j) := hq_deriveKey _ _ _
+
+theorem hq_cachedTopNode (P : SphincsSecurity.PublicParameter) (hP : P = 0)
+    (seed : MasterSeed) (cache : SphincsSecurity.TopCache) (level nodeIdx : Nat) :
+    HQ (SphincsSecurity.Seeded.cachedTopNode (m := AComp) P seed cache level nodeIdx) := by
+  unfold SphincsSecurity.Seeded.cachedTopNode
+  split
+  · exact hq_bind (hq_buildLeafPaired _ hP _ _ _ _
+      (fun _ => hq_otsSecret _ _ _ _ _ _) _) fun _ => hq_pure _
+  · exact hq_bind (hq_maskSecret _ _ _ _) fun _ => hq_pure _
 
 /-- **sign** makes only honest queries, for every cache. -/
 theorem hq_sign (sk : SphincsSecurity.Seeded.SecretKey) (hP : sk.parameter = 0)
     (cache : SphincsSecurity.TopCache) (m : Message) :
     HQ (SphincsSecurity.Seeded.sign (m := AComp) sk cache m) := by
   unfold SphincsSecurity.Seeded.sign SphincsSecurity.Seeded.signChecked
-  refine hq_bind (hq_mac _ _) fun tag => ?_
+  refine hq_bind (hq_mac _ _ _) fun tag => ?_
   split
   · refine hq_bind ?_ fun r => ?_
     · generalize SphincsSecurity.digestPairLimit = n
@@ -948,7 +975,7 @@ theorem hq_sign (sk : SphincsSecurity.Seeded.SecretKey) (hP : sk.parameter = 0)
     · split
       · exact hq_signFromPaired _ hP _ _ (fun _ _ => hq_ftsSecret _ _ _ _ _) _
           (fun _ _ _ _ => hq_otsSecret _ _ _ _ _ _)
-          _ (fun _ _ => hq_bind (hq_maskSecret _ _ _ _) fun _ => hq_pure _) _ _
+          _ (fun _ _ => hq_cachedTopNode _ hP _ _ _ _) _ _
       · exact hq_pure _
   · exact hq_pure _
 
@@ -996,7 +1023,7 @@ theorem hq_keygen (seed : MasterSeed) : HQ (SphincsSecurity.Seeded.keygenFromSee
     fun _ => ?_
   refine hq_bind (hq_bind (hq_sequenceFin _ fun _ => hq_bind (hq_sequenceFin _ fun _ =>
     hq_bind (hq_maskSecret _ _ _ _) fun _ => hq_pure _) fun _ => hq_pure _) fun _ => hq_pure _) fun _ => ?_
-  exact hq_bind (hq_mac _ _) fun _ => hq_pure _
+  exact hq_bind (hq_mac _ _ _) fun _ => hq_pure _
 
 
 /-! ## W1a padded chain inputs

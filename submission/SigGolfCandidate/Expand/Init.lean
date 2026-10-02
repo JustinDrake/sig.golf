@@ -1,3 +1,5 @@
+import SigGolfCandidate.Keygen.Init
+import SigGolfCandidate.Sign.Inv
 import SigGolfCandidate.Expand.Witness
 
 /-!
@@ -64,36 +66,39 @@ theorem sI_getReg (m : Message) (pk : PublicKey) (σ : Bytes 6032) (r : Reg) (hr
   rw [regs_writeBytesAsWords, regs_writeBytesAsWords, regs_writeBytesAsWords, regs_writeBytesAsWords]
   cases r <;> rfl
 
-theorem image_data : image.data = [] := by kernel_rfl
+theorem image_data_len : image.data.length = 320 := by kernel_rfl
+theorem image_data_base : dataBase image = 16776896 := by kernel_rfl
 
 theorem length_bytes {n : Nat} (x : Bytes n) : (SigGolfCandidate.Legacy.bytes x).length = n := by
   simp [SigGolfCandidate.Legacy.bytes]
 
 /-- Bytes of the initial memory. -/
-theorem sI_getByte (m : Message) (pk : PublicKey) (σ : Bytes 6032) (a : Nat) (ha : a < 2 ^ 64) :
+theorem sI_getByte (m : Message) (pk : PublicKey) (σ : Bytes 6032) (a : Nat) (ha : a < 16776896) :
     (sI m pk σ).getByte (BitVec.ofNat 64 a) =
       if 0x24B00 ≤ a ∧ a < 0x24B00 + 6032 then (SigGolfCandidate.Legacy.bytes σ).getD (a - 0x24B00) 0
       else if 0xA0 ≤ a ∧ a < 0xB0 then (SigGolfCandidate.Legacy.bytes pk).getD (a - 0xA0) 0
       else if 0x20 ≤ a ∧ a < 0x40 then (SigGolfCandidate.Legacy.bytes m).getD (a - 0x20) 0
       else 0 := by
   unfold sI
-  simp only [getByte_setReg, image_data]
+  simp only [getByte_setReg]
   have L1 : (SigGolfCandidate.Legacy.bytes σ).length = 6032 := length_bytes σ
   have L2 : (SigGolfCandidate.Legacy.bytes pk).length = 16 := length_bytes pk
   have L3 : (SigGolfCandidate.Legacy.bytes m).length = 32 := length_bytes m
-  rw [getByte_writeBytesAsWords _ _ _ _ (by decide) (by rw [L1]; norm_num) ha, L1]
+  rw [getByte_writeBytesAsWords _ _ _ _ (by decide) (by rw [L1]; norm_num) (by omega), L1]
   by_cases h1 : 0x24B00 ≤ a ∧ a < 0x24B00 + 6032
   · rw [if_pos (by omega), if_pos h1]
   rw [if_neg (by omega), if_neg h1, getByte_writeBytesAsWords _ _ _ _ (by decide)
-    (by rw [L2]; norm_num) ha, L2]
+    (by rw [L2]; norm_num) (by omega), L2]
   by_cases h2 : 0xA0 ≤ a ∧ a < 0xB0
   · rw [if_pos (by omega), if_pos h2]
   rw [if_neg (by omega), if_neg h2, getByte_writeBytesAsWords _ _ _ _ (by decide)
-    (by rw [L3]; norm_num) ha, L3]
+    (by rw [L3]; norm_num) (by omega), L3]
   by_cases h3 : 0x20 ≤ a ∧ a < 0x40
   · rw [if_pos (by omega), if_pos h3]
   rw [if_neg (by omega), if_neg h3]
-  simp [MachineState.writeBytesAsWords, MachineState.getByte, MachineState.getMem, extractByte]
+  rw [getByte_writeBytesAsWords _ _ _ _ (by rw [image_data_base])
+    (by rw [image_data_base,image_data_len];decide) (by omega),image_data_base,image_data_len,if_neg (by omega)]
+  simp [MachineState.getByte,MachineState.getMem,extractByte]
 
 /-- A dword from its bytes. -/
 theorem getMem_of_bytes (t : MachineState) (A : Nat) (hA : A % 8 = 0) (hA' : A + 8 < 2 ^ 64) :
@@ -141,5 +146,20 @@ theorem readWords_of_bytes (t : MachineState) (A : Nat) (l : List Byte) (n : Nat
       rw [show A + 8 + j = A + (8 + j) by ring, hb (8 + j) (by omega)]
       simp [List.getD_eq_getElem?_getD]
 
+
+
+theorem sI_band (m : Message) (pk : PublicKey) (σ : Bytes 6032) : SigGolfCandidate.Sign.SmallBandTable (sI m pk σ) := by
+ intro lay hl k hk
+ have L0 : (SigGolfCandidate.Legacy.bytes σ).length=6032 := length_bytes σ
+ have L1 : (SigGolfCandidate.Legacy.bytes pk).length=16 := length_bytes pk
+ have L2 : (SigGolfCandidate.Legacy.bytes m).length=32 := length_bytes m
+ unfold sI
+ simp only [MachineState.getMem_setReg]
+ rw [SigGolfCandidate.Keygen.getMem_writeBytesAsWords _ _ _ _ (by rw [L0];norm_num) (by omega),L0,if_neg (by omega)]
+ rw [SigGolfCandidate.Keygen.getMem_writeBytesAsWords _ _ _ _ (by rw [L1];norm_num) (by omega),L1,if_neg (by omega)]
+ rw [SigGolfCandidate.Keygen.getMem_writeBytesAsWords _ _ _ _ (by rw [L2];norm_num) (by omega),L2,if_neg (by omega)]
+ rw [SigGolfCandidate.Keygen.getMem_writeBytesAsWords _ _ _ _ (by rw [image_data_base,image_data_len];decide) (by omega)]
+ rw [image_data_base,image_data_len]
+ interval_cases lay <;> interval_cases k <;> decide +kernel
 
 end SigGolfCandidate.Expand

@@ -1576,38 +1576,872 @@ theorem commute_digestZero (q : Query) : query (DigestZero.query q)=DigestZero.q
    (by have := (support_cases q h).2;omega)) q
 end SigGolfCandidate.Ref.PorsHeader
 
+namespace SigGolfCandidate.Ref.MaskHeader
+open SigGolfCandidate.Legacy
+set_option maxRecDepth 8192
+set_option exponentiation.threshold 8192
+set_option maxHeartbeats 1000000
+def enc (h : Nat) : Nat :=
+  if h=1025 then 8198552921646854599 else if h=8198552921646854599 then 1025 else if h=66561 then 8198552921646920135 else if h=8198552921646920135 then 66561 else if h=132097 then 8198552921646985671 else if h=8198552921646985671 then 132097 else if h=197633 then 8198552921647051207 else if h=8198552921647051207 then 197633 else if h=263169 then 8198552921648689607 else if h=8198552921648689607 then 263169 else if h=769 then 8198552921646826439 else if h=8198552921646826439 then 769 else if h=66305 then 8198552921646891975 else if h=8198552921646891975 then 66305 else if h=131841 then 8198552921646957511 else if h=8198552921646957511 then 131841 else if h=197377 then 8198552921647023047 else if h=8198552921647023047 then 197377 else if h=262913 then 8198552921648661447 else if h=8198552921648661447 then 262913 else h
+theorem enc_lt {h : Nat} (hh:h<2^64) : enc h<2^64 := by
+ by_cases h0:h=1025
+ · subst h; decide
+ by_cases h1:h=8198552921646854599
+ · subst h; decide
+ by_cases h2:h=66561
+ · subst h; decide
+ by_cases h3:h=8198552921646920135
+ · subst h; decide
+ by_cases h4:h=132097
+ · subst h; decide
+ by_cases h5:h=8198552921646985671
+ · subst h; decide
+ by_cases h6:h=197633
+ · subst h; decide
+ by_cases h7:h=8198552921647051207
+ · subst h; decide
+ by_cases h8:h=263169
+ · subst h; decide
+ by_cases h9:h=8198552921648689607
+ · subst h; decide
+ by_cases h10:h=769
+ · subst h; decide
+ by_cases h11:h=8198552921646826439
+ · subst h; decide
+ by_cases h12:h=66305
+ · subst h; decide
+ by_cases h13:h=8198552921646891975
+ · subst h; decide
+ by_cases h14:h=131841
+ · subst h; decide
+ by_cases h15:h=8198552921646957511
+ · subst h; decide
+ by_cases h16:h=197377
+ · subst h; decide
+ by_cases h17:h=8198552921647023047
+ · subst h; decide
+ by_cases h18:h=262913
+ · subst h; decide
+ by_cases h19:h=8198552921648661447
+ · subst h; decide
+ simpa only [enc,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10,if_neg h11,if_neg h12,if_neg h13,if_neg h14,if_neg h15,if_neg h16,if_neg h17,if_neg h18,if_neg h19] using hh
+theorem enc_involutive : Function.Involutive enc := by
+ intro h
+ by_cases h0:h=1025
+ · subst h; decide
+ by_cases h1:h=8198552921646854599
+ · subst h; decide
+ by_cases h2:h=66561
+ · subst h; decide
+ by_cases h3:h=8198552921646920135
+ · subst h; decide
+ by_cases h4:h=132097
+ · subst h; decide
+ by_cases h5:h=8198552921646985671
+ · subst h; decide
+ by_cases h6:h=197633
+ · subst h; decide
+ by_cases h7:h=8198552921647051207
+ · subst h; decide
+ by_cases h8:h=263169
+ · subst h; decide
+ by_cases h9:h=8198552921648689607
+ · subst h; decide
+ by_cases h10:h=769
+ · subst h; decide
+ by_cases h11:h=8198552921646826439
+ · subst h; decide
+ by_cases h12:h=66305
+ · subst h; decide
+ by_cases h13:h=8198552921646891975
+ · subst h; decide
+ by_cases h14:h=131841
+ · subst h; decide
+ by_cases h15:h=8198552921646957511
+ · subst h; decide
+ by_cases h16:h=197377
+ · subst h; decide
+ by_cases h17:h=8198552921647023047
+ · subst h; decide
+ by_cases h18:h=262913
+ · subst h; decide
+ by_cases h19:h=8198552921648661447
+ · subst h; decide
+ simp only [enc,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10,if_neg h11,if_neg h12,if_neg h13,if_neg h14,if_neg h15,if_neg h16,if_neg h17,if_neg h18,if_neg h19]
+def leaf (h : Nat) : Nat :=
+  if h=263169 then 8198552921648689607 else if h=8198552921648689607 then 263169 else if h=66305 then 8198552921646891975 else if h=8198552921646891975 then 66305 else if h=131841 then 8198552921646957511 else if h=8198552921646957511 then 131841 else if h=197377 then 8198552921647023047 else if h=8198552921647023047 then 197377 else if h=262913 then 8198552921648661447 else if h=8198552921648661447 then 262913 else h
+theorem leaf_lt {h : Nat} (hh:h<2^64) : leaf h<2^64 := by
+ by_cases h0:h=263169
+ · subst h; decide
+ by_cases h1:h=8198552921648689607
+ · subst h; decide
+ by_cases h2:h=66305
+ · subst h; decide
+ by_cases h3:h=8198552921646891975
+ · subst h; decide
+ by_cases h4:h=131841
+ · subst h; decide
+ by_cases h5:h=8198552921646957511
+ · subst h; decide
+ by_cases h6:h=197377
+ · subst h; decide
+ by_cases h7:h=8198552921647023047
+ · subst h; decide
+ by_cases h8:h=262913
+ · subst h; decide
+ by_cases h9:h=8198552921648661447
+ · subst h; decide
+ simpa only [leaf,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9] using hh
+theorem leaf_involutive : Function.Involutive leaf := by
+ intro h
+ by_cases h0:h=263169
+ · subst h; decide
+ by_cases h1:h=8198552921648689607
+ · subst h; decide
+ by_cases h2:h=66305
+ · subst h; decide
+ by_cases h3:h=8198552921646891975
+ · subst h; decide
+ by_cases h4:h=131841
+ · subst h; decide
+ by_cases h5:h=8198552921646957511
+ · subst h; decide
+ by_cases h6:h=197377
+ · subst h; decide
+ by_cases h7:h=8198552921647023047
+ · subst h; decide
+ by_cases h8:h=262913
+ · subst h; decide
+ by_cases h9:h=8198552921648661447
+ · subst h; decide
+ simp only [leaf,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9]
+def header (n h : Nat) : Nat := if n=0 then enc h else if n=10 then leaf h else h
+theorem header_lt (n : Nat) {h : Nat} (hh:h<2^64) : header n h<2^64 := by
+ unfold header; split_ifs <;> first | exact enc_lt hh | exact leaf_lt hh | exact hh
+theorem header_involutive (n : Nat) : Function.Involutive (header n) := by
+ intro h; unfold header; split_ifs <;> first | exact enc_involutive h | exact leaf_involutive h | rfl
+def word (n w : Nat) : Nat := header n (w%2^64)+2^64*(w/2^64)
+theorem word_parts (n w : Nat) : word n w%2^64=header n (w%2^64) ∧ word n w/2^64=w/2^64 := by
+ have hh := header_lt n (Nat.mod_lt w (by decide)); unfold word; omega
+theorem word_involutive (n : Nat) : Function.Involutive (word n) := by
+ intro w; obtain ⟨hc,hq⟩:=word_parts n w
+ change header n (word n w%2^64)+2^64*(word n w/2^64)=w
+ rw [hc,hq,header_involutive]; omega
+theorem word_lt (n w : Nat) (hw:w<2^(8*(64*(n+1)))) : word n w<2^(8*(64*(n+1))) := by
+ have hq := (word_parts n w).2
+ have hp : (2:Nat)^(8*(64*(n+1)))=2^64*2^(8*(64*(n+1))-64) := by
+  rw [←Nat.pow_add]; congr 1; omega
+ rw [hp] at hw ⊢
+ norm_num only [Nat.reducePow] at hq ⊢
+ omega
+def query (q : Query) : Query := ⟨q.1,BitVec.ofNat (8*(64*(q.1+1))) (word q.1 q.2.toNat)⟩
+theorem query_involutive : Function.Involutive query := by
+ rintro ⟨n,w⟩
+ change (⟨n,BitVec.ofNat (8*(64*(n+1))) (word n (BitVec.ofNat (8*(64*(n+1))) (word n w.toNat)).toNat)⟩ : Query)=⟨n,w⟩
+ congr 1; apply BitVec.eq_of_toNat_eq
+ simp only [BitVec.toNat_ofNat]
+ rw [Nat.mod_eq_of_lt (word_lt n _ w.isLt),word_involutive,Nat.mod_eq_of_lt w.isLt]
+theorem query_injective : Function.Injective query := query_involutive.injective
+theorem query_blocks (q : Query) : (query q).blocks=q.blocks := rfl
+theorem query_fixed_length (q : Query) (h0:q.1≠0) (h10:q.1≠10) : query q=q := by
+ rcases q with ⟨n,w⟩
+ have he : word n w.toNat=w.toNat := by unfold word header; rw [if_neg h0,if_neg h10]; omega
+ change (⟨n,BitVec.ofNat (8*(64*(n+1))) (word n w.toNat)⟩ : Query)=⟨n,w⟩
+ rw [he]; congr 1; apply BitVec.eq_of_toNat_eq; exact Nat.mod_eq_of_lt w.isLt
+theorem enc_fixed_classes (h : Nat) (h3:h%65536≠769) (h4:h%65536≠1025)
+ (hMC:h%65536≠29127) (hMN:h%65536≠967) : enc h=h := by
+ simp only [enc, if_neg (by omega : h≠1025), if_neg (by omega : h≠8198552921646854599), if_neg (by omega : h≠66561), if_neg (by omega : h≠8198552921646920135), if_neg (by omega : h≠132097), if_neg (by omega : h≠8198552921646985671), if_neg (by omega : h≠197633), if_neg (by omega : h≠8198552921647051207), if_neg (by omega : h≠263169), if_neg (by omega : h≠8198552921648689607), if_neg (by omega : h≠769), if_neg (by omega : h≠8198552921646826439), if_neg (by omega : h≠66305), if_neg (by omega : h≠8198552921646891975), if_neg (by omega : h≠131841), if_neg (by omega : h≠8198552921646957511), if_neg (by omega : h≠197377), if_neg (by omega : h≠8198552921647023047), if_neg (by omega : h≠262913), if_neg (by omega : h≠8198552921648661447)]
+theorem leaf_fixed_classes (h : Nat) (h3:h%65536≠769) (h4:h%65536≠1025)
+ (hMC:h%65536≠29127) (hMN:h%65536≠967) : leaf h=h := by
+ simp only [leaf, if_neg (by omega : h≠263169), if_neg (by omega : h≠8198552921648689607), if_neg (by omega : h≠66305), if_neg (by omega : h≠8198552921646891975), if_neg (by omega : h≠131841), if_neg (by omega : h≠8198552921646957511), if_neg (by omega : h≠197377), if_neg (by omega : h≠8198552921647023047), if_neg (by omega : h≠262913), if_neg (by omega : h≠8198552921648661447)]
+theorem word_fixed_classes (n w : Nat) (h3:w%65536≠769) (h4:w%65536≠1025)
+ (hMC:w%65536≠29127) (hMN:w%65536≠967) : word n w=w := by
+ have hm : w%2^64%65536=w%65536 := by rw [Nat.mod_mod_of_dvd _ (by decide : 65536 ∣ 2^64)]
+ unfold word header
+ rw [enc_fixed_classes _ (by rwa [hm]) (by rwa [hm]) (by rwa [hm]) (by rwa [hm]),
+  leaf_fixed_classes _ (by rwa [hm]) (by rwa [hm]) (by rwa [hm]) (by rwa [hm])]
+ split_ifs <;> omega
+theorem query_fixed_classes (q : Query) (h3:q.2.toNat%65536≠769) (h4:q.2.toNat%65536≠1025)
+ (hMC:q.2.toNat%65536≠29127) (hMN:q.2.toNat%65536≠967) : query q=q := by
+ rcases q with ⟨n,w⟩
+ unfold query
+ rw [word_fixed_classes n _ h3 h4 hMC hMN]
+ congr 1;apply BitVec.eq_of_toNat_eq;exact Nat.mod_eq_of_lt w.isLt
+theorem commute_porsHeader (q : Query) : query (PorsHeader.query q)=PorsHeader.query (query q) := by
+ symm
+ exact PorsHeader.commute_of_fixes_support query query_injective (fun q h => by
+  have hc := (PorsHeader.support_cases q h).2
+  exact query_fixed_classes q (by omega) (by omega) (by omega) (by omega)) q
+theorem commute_digestZero (q : Query) : query (DigestZero.query q)=DigestZero.query (query q) := by
+ symm
+ exact DigestZero.commute_of_fixes_support query query_injective (fun q h => by
+  have hc := (DigestZero.support_cases q h).2
+  exact query_fixed_classes q (by omega) (by omega) (by omega) (by omega)) q
+def M1 : Nat := 8198552921648689607
+def encHeader (lay : Nat) : Nat := if lay=4 then M1 else 8198552921646854599+65536*lay
+def nodeHeader (lay : Nat) : Nat := if lay=4 then 8198552921648661447 else 8198552921646826439+65536*lay
+def leafHeader (lay : Nat) : Nat := if lay<4 then nodeHeader (lay+1) else M1
+theorem header_enc (lay : Nat) (hl:lay<5) : header 0 (1025+65536*lay)=encHeader lay := by
+ interval_cases lay <;> decide
+theorem header_node (lay : Nat) (hl:lay<5) : header 0 (769+65536*lay)=nodeHeader lay := by
+ interval_cases lay <;> decide
+theorem header_leaf (lay : Nat) (hl:lay<5) : header 10 (LeafCarry.leafHeader lay)=leafHeader lay := by
+ interval_cases lay <;> decide
+end SigGolfCandidate.Ref.MaskHeader
+
+namespace SigGolfCandidate.Ref.SmallBand
+open SigGolfCandidate.Legacy SigGolfCandidate.Ref
+set_option exponentiation.threshold 8192
+set_option maxRecDepth 8192
+set_option maxHeartbeats 1000000
+
+namespace H0
+def heap (h : Nat) : Nat :=
+ if h=8 then 0 else
+ if h=9 then 4095 else
+ if h=10 then 2688 else
+ if h=11 then 261632 else
+ if h=12 then 327680 else
+ if h=13 then 5632 else
+ if h=14 then 3340530119 else
+ if h=15 then 1057222719 else
+ if h=0 then 8 else
+ if h=4095 then 9 else
+ if h=2688 then 10 else
+ if h=261632 then 11 else
+ if h=327680 then 12 else
+ if h=5632 then 13 else
+ if h=3340530119 then 14 else
+ if h=1057222719 then 15 else
+ h
+theorem heap_involutive : Function.Involutive heap := by
+ intro h
+ by_cases h0:h=8
+ · subst h;decide
+ by_cases h1:h=9
+ · subst h;decide
+ by_cases h2:h=10
+ · subst h;decide
+ by_cases h3:h=11
+ · subst h;decide
+ by_cases h4:h=12
+ · subst h;decide
+ by_cases h5:h=13
+ · subst h;decide
+ by_cases h6:h=14
+ · subst h;decide
+ by_cases h7:h=15
+ · subst h;decide
+ by_cases h8:h=0
+ · subst h;decide
+ by_cases h9:h=4095
+ · subst h;decide
+ by_cases h10:h=2688
+ · subst h;decide
+ by_cases h11:h=261632
+ · subst h;decide
+ by_cases h12:h=327680
+ · subst h;decide
+ by_cases h13:h=5632
+ · subst h;decide
+ by_cases h14:h=3340530119
+ · subst h;decide
+ by_cases h15:h=1057222719
+ · subst h;decide
+ simp only [heap,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10,if_neg h11,if_neg h12,if_neg h13,if_neg h14,if_neg h15]
+theorem heap_lt (h : Nat) (hh:h<4294967296) : heap h<4294967296 := by
+ by_cases h0:h=8
+ · subst h;decide
+ by_cases h1:h=9
+ · subst h;decide
+ by_cases h2:h=10
+ · subst h;decide
+ by_cases h3:h=11
+ · subst h;decide
+ by_cases h4:h=12
+ · subst h;decide
+ by_cases h5:h=13
+ · subst h;decide
+ by_cases h6:h=14
+ · subst h;decide
+ by_cases h7:h=15
+ · subst h;decide
+ by_cases h8:h=0
+ · subst h;decide
+ by_cases h9:h=4095
+ · subst h;decide
+ by_cases h10:h=2688
+ · subst h;decide
+ by_cases h11:h=261632
+ · subst h;decide
+ by_cases h12:h=327680
+ · subst h;decide
+ by_cases h13:h=5632
+ · subst h;decide
+ by_cases h14:h=3340530119
+ · subst h;decide
+ by_cases h15:h=1057222719
+ · subst h;decide
+ simpa only [heap,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10,if_neg h11,if_neg h12,if_neg h13,if_neg h14,if_neg h15] using hh
+end H0
+namespace H1
+def heap (h : Nat) : Nat :=
+ if h=8 then 0 else
+ if h=9 then 4095 else
+ if h=10 then 2688 else
+ if h=11 then 261632 else
+ if h=12 then 327680 else
+ if h=13 then 8320 else
+ if h=14 then 3340530119 else
+ if h=15 then 1057222719 else
+ if h=0 then 8 else
+ if h=4095 then 9 else
+ if h=2688 then 10 else
+ if h=261632 then 11 else
+ if h=327680 then 12 else
+ if h=8320 then 13 else
+ if h=3340530119 then 14 else
+ if h=1057222719 then 15 else
+ h
+theorem heap_involutive : Function.Involutive heap := by
+ intro h
+ by_cases h0:h=8
+ · subst h;decide
+ by_cases h1:h=9
+ · subst h;decide
+ by_cases h2:h=10
+ · subst h;decide
+ by_cases h3:h=11
+ · subst h;decide
+ by_cases h4:h=12
+ · subst h;decide
+ by_cases h5:h=13
+ · subst h;decide
+ by_cases h6:h=14
+ · subst h;decide
+ by_cases h7:h=15
+ · subst h;decide
+ by_cases h8:h=0
+ · subst h;decide
+ by_cases h9:h=4095
+ · subst h;decide
+ by_cases h10:h=2688
+ · subst h;decide
+ by_cases h11:h=261632
+ · subst h;decide
+ by_cases h12:h=327680
+ · subst h;decide
+ by_cases h13:h=8320
+ · subst h;decide
+ by_cases h14:h=3340530119
+ · subst h;decide
+ by_cases h15:h=1057222719
+ · subst h;decide
+ simp only [heap,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10,if_neg h11,if_neg h12,if_neg h13,if_neg h14,if_neg h15]
+theorem heap_lt (h : Nat) (hh:h<4294967296) : heap h<4294967296 := by
+ by_cases h0:h=8
+ · subst h;decide
+ by_cases h1:h=9
+ · subst h;decide
+ by_cases h2:h=10
+ · subst h;decide
+ by_cases h3:h=11
+ · subst h;decide
+ by_cases h4:h=12
+ · subst h;decide
+ by_cases h5:h=13
+ · subst h;decide
+ by_cases h6:h=14
+ · subst h;decide
+ by_cases h7:h=15
+ · subst h;decide
+ by_cases h8:h=0
+ · subst h;decide
+ by_cases h9:h=4095
+ · subst h;decide
+ by_cases h10:h=2688
+ · subst h;decide
+ by_cases h11:h=261632
+ · subst h;decide
+ by_cases h12:h=327680
+ · subst h;decide
+ by_cases h13:h=8320
+ · subst h;decide
+ by_cases h14:h=3340530119
+ · subst h;decide
+ by_cases h15:h=1057222719
+ · subst h;decide
+ simpa only [heap,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10,if_neg h11,if_neg h12,if_neg h13,if_neg h14,if_neg h15] using hh
+end H1
+namespace H2
+def heap (h : Nat) : Nat :=
+ if h=8 then 0 else
+ if h=9 then 4095 else
+ if h=10 then 2688 else
+ if h=11 then 261632 else
+ if h=12 then 327680 else
+ if h=13 then 11008 else
+ if h=14 then 3340530119 else
+ if h=15 then 1057222719 else
+ if h=0 then 8 else
+ if h=4095 then 9 else
+ if h=2688 then 10 else
+ if h=261632 then 11 else
+ if h=327680 then 12 else
+ if h=11008 then 13 else
+ if h=3340530119 then 14 else
+ if h=1057222719 then 15 else
+ h
+theorem heap_involutive : Function.Involutive heap := by
+ intro h
+ by_cases h0:h=8
+ · subst h;decide
+ by_cases h1:h=9
+ · subst h;decide
+ by_cases h2:h=10
+ · subst h;decide
+ by_cases h3:h=11
+ · subst h;decide
+ by_cases h4:h=12
+ · subst h;decide
+ by_cases h5:h=13
+ · subst h;decide
+ by_cases h6:h=14
+ · subst h;decide
+ by_cases h7:h=15
+ · subst h;decide
+ by_cases h8:h=0
+ · subst h;decide
+ by_cases h9:h=4095
+ · subst h;decide
+ by_cases h10:h=2688
+ · subst h;decide
+ by_cases h11:h=261632
+ · subst h;decide
+ by_cases h12:h=327680
+ · subst h;decide
+ by_cases h13:h=11008
+ · subst h;decide
+ by_cases h14:h=3340530119
+ · subst h;decide
+ by_cases h15:h=1057222719
+ · subst h;decide
+ simp only [heap,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10,if_neg h11,if_neg h12,if_neg h13,if_neg h14,if_neg h15]
+theorem heap_lt (h : Nat) (hh:h<4294967296) : heap h<4294967296 := by
+ by_cases h0:h=8
+ · subst h;decide
+ by_cases h1:h=9
+ · subst h;decide
+ by_cases h2:h=10
+ · subst h;decide
+ by_cases h3:h=11
+ · subst h;decide
+ by_cases h4:h=12
+ · subst h;decide
+ by_cases h5:h=13
+ · subst h;decide
+ by_cases h6:h=14
+ · subst h;decide
+ by_cases h7:h=15
+ · subst h;decide
+ by_cases h8:h=0
+ · subst h;decide
+ by_cases h9:h=4095
+ · subst h;decide
+ by_cases h10:h=2688
+ · subst h;decide
+ by_cases h11:h=261632
+ · subst h;decide
+ by_cases h12:h=327680
+ · subst h;decide
+ by_cases h13:h=11008
+ · subst h;decide
+ by_cases h14:h=3340530119
+ · subst h;decide
+ by_cases h15:h=1057222719
+ · subst h;decide
+ simpa only [heap,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10,if_neg h11,if_neg h12,if_neg h13,if_neg h14,if_neg h15] using hh
+end H2
+namespace H3
+def heap (h : Nat) : Nat :=
+ if h=8 then 0 else
+ if h=9 then 4095 else
+ if h=10 then 2688 else
+ if h=11 then 261632 else
+ if h=12 then 327680 else
+ if h=13 then 13696 else
+ if h=14 then 3340530119 else
+ if h=15 then 1057222719 else
+ if h=0 then 8 else
+ if h=4095 then 9 else
+ if h=2688 then 10 else
+ if h=261632 then 11 else
+ if h=327680 then 12 else
+ if h=13696 then 13 else
+ if h=3340530119 then 14 else
+ if h=1057222719 then 15 else
+ h
+theorem heap_involutive : Function.Involutive heap := by
+ intro h
+ by_cases h0:h=8
+ · subst h;decide
+ by_cases h1:h=9
+ · subst h;decide
+ by_cases h2:h=10
+ · subst h;decide
+ by_cases h3:h=11
+ · subst h;decide
+ by_cases h4:h=12
+ · subst h;decide
+ by_cases h5:h=13
+ · subst h;decide
+ by_cases h6:h=14
+ · subst h;decide
+ by_cases h7:h=15
+ · subst h;decide
+ by_cases h8:h=0
+ · subst h;decide
+ by_cases h9:h=4095
+ · subst h;decide
+ by_cases h10:h=2688
+ · subst h;decide
+ by_cases h11:h=261632
+ · subst h;decide
+ by_cases h12:h=327680
+ · subst h;decide
+ by_cases h13:h=13696
+ · subst h;decide
+ by_cases h14:h=3340530119
+ · subst h;decide
+ by_cases h15:h=1057222719
+ · subst h;decide
+ simp only [heap,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10,if_neg h11,if_neg h12,if_neg h13,if_neg h14,if_neg h15]
+theorem heap_lt (h : Nat) (hh:h<4294967296) : heap h<4294967296 := by
+ by_cases h0:h=8
+ · subst h;decide
+ by_cases h1:h=9
+ · subst h;decide
+ by_cases h2:h=10
+ · subst h;decide
+ by_cases h3:h=11
+ · subst h;decide
+ by_cases h4:h=12
+ · subst h;decide
+ by_cases h5:h=13
+ · subst h;decide
+ by_cases h6:h=14
+ · subst h;decide
+ by_cases h7:h=15
+ · subst h;decide
+ by_cases h8:h=0
+ · subst h;decide
+ by_cases h9:h=4095
+ · subst h;decide
+ by_cases h10:h=2688
+ · subst h;decide
+ by_cases h11:h=261632
+ · subst h;decide
+ by_cases h12:h=327680
+ · subst h;decide
+ by_cases h13:h=13696
+ · subst h;decide
+ by_cases h14:h=3340530119
+ · subst h;decide
+ by_cases h15:h=1057222719
+ · subst h;decide
+ simpa only [heap,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10,if_neg h11,if_neg h12,if_neg h13,if_neg h14,if_neg h15] using hh
+end H3
+namespace H4
+def heap (h : Nat) : Nat :=
+ if h=8 then 0 else
+ if h=9 then 4095 else
+ if h=10 then 2688 else
+ if h=11 then 261632 else
+ if h=12 then 327680 else
+ if h=13 then 16384 else
+ if h=14 then 3340530119 else
+ if h=15 then 1057222719 else
+ if h=0 then 8 else
+ if h=4095 then 9 else
+ if h=2688 then 10 else
+ if h=261632 then 11 else
+ if h=327680 then 12 else
+ if h=16384 then 13 else
+ if h=3340530119 then 14 else
+ if h=1057222719 then 15 else
+ h
+theorem heap_involutive : Function.Involutive heap := by
+ intro h
+ by_cases h0:h=8
+ · subst h;decide
+ by_cases h1:h=9
+ · subst h;decide
+ by_cases h2:h=10
+ · subst h;decide
+ by_cases h3:h=11
+ · subst h;decide
+ by_cases h4:h=12
+ · subst h;decide
+ by_cases h5:h=13
+ · subst h;decide
+ by_cases h6:h=14
+ · subst h;decide
+ by_cases h7:h=15
+ · subst h;decide
+ by_cases h8:h=0
+ · subst h;decide
+ by_cases h9:h=4095
+ · subst h;decide
+ by_cases h10:h=2688
+ · subst h;decide
+ by_cases h11:h=261632
+ · subst h;decide
+ by_cases h12:h=327680
+ · subst h;decide
+ by_cases h13:h=16384
+ · subst h;decide
+ by_cases h14:h=3340530119
+ · subst h;decide
+ by_cases h15:h=1057222719
+ · subst h;decide
+ simp only [heap,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10,if_neg h11,if_neg h12,if_neg h13,if_neg h14,if_neg h15]
+theorem heap_lt (h : Nat) (hh:h<4294967296) : heap h<4294967296 := by
+ by_cases h0:h=8
+ · subst h;decide
+ by_cases h1:h=9
+ · subst h;decide
+ by_cases h2:h=10
+ · subst h;decide
+ by_cases h3:h=11
+ · subst h;decide
+ by_cases h4:h=12
+ · subst h;decide
+ by_cases h5:h=13
+ · subst h;decide
+ by_cases h6:h=14
+ · subst h;decide
+ by_cases h7:h=15
+ · subst h;decide
+ by_cases h8:h=0
+ · subst h;decide
+ by_cases h9:h=4095
+ · subst h;decide
+ by_cases h10:h=2688
+ · subst h;decide
+ by_cases h11:h=261632
+ · subst h;decide
+ by_cases h12:h=327680
+ · subst h;decide
+ by_cases h13:h=16384
+ · subst h;decide
+ by_cases h14:h=3340530119
+ · subst h;decide
+ by_cases h15:h=1057222719
+ · subst h;decide
+ simpa only [heap,if_neg h0,if_neg h1,if_neg h2,if_neg h3,if_neg h4,if_neg h5,if_neg h6,if_neg h7,if_neg h8,if_neg h9,if_neg h10,if_neg h11,if_neg h12,if_neg h13,if_neg h14,if_neg h15] using hh
+end H4
+def heap (head h : Nat) : Nat :=
+ if head=8198552921646826439 then H0.heap h else
+ if head=8198552921646891975 then H1.heap h else
+ if head=8198552921646957511 then H2.heap h else
+ if head=8198552921647023047 then H3.heap h else
+ if head=8198552921648661447 then H4.heap h else
+ h
+theorem heap_involutive (head : Nat) : Function.Involutive (heap head) := by
+ intro h
+ by_cases c0:head=8198552921646826439
+ · subst head; simpa [heap] using H0.heap_involutive h
+ by_cases c1:head=8198552921646891975
+ · subst head; simpa [heap] using H1.heap_involutive h
+ by_cases c2:head=8198552921646957511
+ · subst head; simpa [heap] using H2.heap_involutive h
+ by_cases c3:head=8198552921647023047
+ · subst head; simpa [heap] using H3.heap_involutive h
+ by_cases c4:head=8198552921648661447
+ · subst head; simpa [heap] using H4.heap_involutive h
+ simp only [heap,if_neg c0,if_neg c1,if_neg c2,if_neg c3,if_neg c4]
+theorem heap_lt (head h : Nat) (hh:h<4294967296) : heap head h<4294967296 := by
+ by_cases c0:head=8198552921646826439
+ · subst head; simpa [heap] using H0.heap_lt h hh
+ by_cases c1:head=8198552921646891975
+ · subst head; simpa [heap] using H1.heap_lt h hh
+ by_cases c2:head=8198552921646957511
+ · subst head; simpa [heap] using H2.heap_lt h hh
+ by_cases c3:head=8198552921647023047
+ · subst head; simpa [heap] using H3.heap_lt h hh
+ by_cases c4:head=8198552921648661447
+ · subst head; simpa [heap] using H4.heap_lt h hh
+ simpa only [heap,if_neg c0,if_neg c1,if_neg c2,if_neg c3,if_neg c4] using hh
+def nodeHead (h : Nat) : Prop := h=8198552921646826439 ∨ h=8198552921646891975 ∨ h=8198552921646957511 ∨ h=8198552921647023047 ∨ h=8198552921648661447
+instance (h : Nat) : Decidable (nodeHead h) := inferInstanceAs (Decidable (h=8198552921646826439 ∨ h=8198552921646891975 ∨ h=8198552921646957511 ∨ h=8198552921647023047 ∨ h=8198552921648661447))
+def word (w : Nat) : Nat := LeafScale.pack4 (w%4294967296) (w/4294967296%4294967296)
+  (w/4294967296/4294967296%4294967296) (heap (w%18446744073709551616) (w/4294967296/4294967296/4294967296%4294967296))
+  (w/4294967296/4294967296/4294967296/4294967296)
+
+theorem word_parts (w : Nat) :
+    word w%4294967296=w%4294967296 ∧
+    word w/4294967296%4294967296=w/4294967296%4294967296 ∧
+    word w/4294967296/4294967296%4294967296=w/4294967296/4294967296%4294967296 ∧
+    word w/4294967296/4294967296/4294967296%4294967296=heap (w%18446744073709551616) (w/4294967296/4294967296/4294967296%4294967296) ∧
+    word w/4294967296/4294967296/4294967296/4294967296=w/4294967296/4294967296/4294967296/4294967296 :=
+  LeafScale.pack4_unpack _ _ _ _ _ (LeafScale.mod32_lt _) (LeafScale.mod32_lt _) (LeafScale.mod32_lt _) (heap_lt _ _ (LeafScale.mod32_lt _))
+
+theorem word_header (w : Nat) : word w%18446744073709551616=w%18446744073709551616 := by
+  obtain ⟨a,b,c,d,e⟩ := word_parts w
+  omega
+
+theorem word_involutive : Function.Involutive word := by
+  intro w
+  obtain ⟨a,b,c,d,e⟩ := word_parts w
+  change LeafScale.pack4 (word w%4294967296) (word w/4294967296%4294967296)
+    (word w/4294967296/4294967296%4294967296) (heap (word w%18446744073709551616) (word w/4294967296/4294967296/4294967296%4294967296))
+    (word w/4294967296/4294967296/4294967296/4294967296)=w
+  rw [a,b,c,d,e,word_header,heap_involutive]
+  exact LeafScale.pack4_digits w
+
+theorem word_lt (w : Nat) (hw:w<2^512) : word w<2^512 := by
+  have h := (word_parts w).2.2.2.2
+  simp only [Nat.div_div_eq_div_mul] at h
+  norm_num only [Nat.reduceMul,Nat.reducePow] at h hw ⊢
+  omega
+
+def query : Query → Query
+  | ⟨0,w⟩ => if nodeHead (w.toNat%18446744073709551616) then ⟨0,BitVec.ofNat 512 (word w.toNat)⟩ else ⟨0,w⟩
+  | ⟨n+1,w⟩ => ⟨n+1,w⟩
+
+theorem query_involutive : Function.Involutive query := by
+  rintro ⟨n,w⟩
+  cases n with
+  | zero =>
+      by_cases h:nodeHead (w.toNat%18446744073709551616)
+      · have hw := word_lt _ w.isLt
+        have hc : nodeHead ((BitVec.ofNat 512 (word w.toNat)).toNat%18446744073709551616) := by
+          rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt hw,word_header];exact h
+        simp only [query,if_pos h,if_pos hc]
+        congr 1
+        apply BitVec.eq_of_toNat_eq
+        simp only [BitVec.toNat_ofNat]
+        rw [Nat.mod_eq_of_lt hw,word_involutive,Nat.mod_eq_of_lt w.isLt]
+      · simp only [query,if_neg h]
+  | succ n => rfl
+
+theorem query_blocks (q : Query) : (query q).blocks=q.blocks := by
+  rcases q with ⟨n,w⟩
+  cases n with
+  | zero => simp only [query];split <;> rfl
+  | succ n => rfl
+
+theorem query_fixed (q : Query) (h:¬nodeHead (q.2.toNat%18446744073709551616)) : query q=q := by
+  rcases q with ⟨n,w⟩
+  cases n with
+  | zero => exact if_neg h
+  | succ n => rfl
+
+theorem query_injective : Function.Injective query := query_involutive.injective
+theorem query_fixed_length (q : Query) (h:q.1≠0) : query q=q := by
+ rcases q with ⟨n,w⟩; cases n with
+ | zero => exact False.elim (h rfl)
+ | succ n => rfl
+theorem word_low96 (w : Nat) : word w%2^96=w%2^96 := by
+ obtain ⟨a,b,c,d,e⟩ := word_parts w
+ norm_num only [Nat.reducePow]
+ omega
+theorem word_tail128 (w : Nat) : word w/2^128=w/2^128 := by
+ have h := (word_parts w).2.2.2.2
+ simpa only [Nat.div_div_eq_div_mul,Nat.reduceMul,Nat.reducePow] using h
+theorem query_low96 (q : Query) : (query q).2.toNat%2^96=q.2.toNat%2^96 := by
+ rcases q with ⟨n,w⟩; cases n with
+ | zero =>
+   by_cases h:nodeHead (w.toNat%18446744073709551616)
+   · rw [show query ⟨0,w⟩=⟨0,BitVec.ofNat 512 (word w.toNat)⟩ from if_pos h]
+     simpa only [BitVec.toNat_ofNat,Nat.mod_eq_of_lt (word_lt _ w.isLt)] using word_low96 w.toNat
+   · rw [show query ⟨0,w⟩=⟨0,w⟩ from if_neg h]
+ | succ n => rfl
+theorem query_tail128 (q : Query) : (query q).2.toNat/2^128=q.2.toNat/2^128 := by
+ rcases q with ⟨n,w⟩; cases n with
+ | zero =>
+   by_cases h:nodeHead (w.toNat%18446744073709551616)
+   · rw [show query ⟨0,w⟩=⟨0,BitVec.ofNat 512 (word w.toNat)⟩ from if_pos h]
+     simpa only [BitVec.toNat_ofNat,Nat.mod_eq_of_lt (word_lt _ w.isLt)] using word_tail128 w.toNat
+   · rw [show query ⟨0,w⟩=⟨0,w⟩ from if_neg h]
+ | succ n => rfl
+theorem nodeHead_node (lay : Nat) (hl:lay<5) : nodeHead (MaskHeader.nodeHeader lay) := by
+ interval_cases lay <;> decide
+theorem not_nodeHead_enc (lay : Nat) (hl:lay<5) : ¬nodeHead (MaskHeader.encHeader lay) := by
+ interval_cases lay <;> decide
+theorem query_fixed_class (q : Query) (h:q.2.toNat%65536≠967) : query q=q := by
+ apply query_fixed
+ unfold nodeHead
+ have hm : q.2.toNat%18446744073709551616%65536=q.2.toNat%65536 := Nat.mod_mod_of_dvd _ (by decide)
+ omega
+theorem commute_porsHeader (q : Query) : query (PorsHeader.query q)=PorsHeader.query (query q) := by
+ symm
+ exact PorsHeader.commute_of_fixes_support query query_injective (fun q h=>
+ query_fixed_class q (by have := (PorsHeader.support_cases q h).2; omega)) q
+theorem commute_digestZero (q : Query) : query (DigestZero.query q)=DigestZero.query (query q) := by
+ symm
+ exact DigestZero.commute_of_fixes_support query query_injective (fun q h=>
+ query_fixed_class q (by have := DigestZero.support_classes q h; omega)) q
+theorem query_mask_fixed (q : Query) (h3:q.2.toNat%65536≠769) (hN:q.2.toNat%65536≠967) :
+ query (MaskHeader.query q)=MaskHeader.query q := by
+ rcases q with ⟨n,w⟩
+ cases n with
+ | zero =>
+   change w.toNat%65536≠769 at h3
+   change w.toNat%65536≠967 at hN
+   apply query_fixed
+   change ¬nodeHead ((BitVec.ofNat 512 (MaskHeader.word 0 w.toNat)).toNat%18446744073709551616)
+   rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt (MaskHeader.word_lt 0 _ w.isLt)]
+   rw [show 18446744073709551616=2^64 by decide,(MaskHeader.word_parts 0 w.toNat).1]
+   simp only [MaskHeader.header,ite_true]
+   have hm : w.toNat%2^64%65536=w.toNat%65536 := Nat.mod_mod_of_dvd _ (by decide)
+   intro hn
+   rcases hn with hn | hn | hn | hn | hn
+   all_goals
+     have he := congrArg MaskHeader.enc hn
+     rw [MaskHeader.enc_involutive] at he
+     norm_num [MaskHeader.enc] at he
+     omega
+ | succ n => exact query_fixed_length _ (by change n+1≠0;omega)
+end SigGolfCandidate.Ref.SmallBand
+
 namespace SigGolfCandidate.Ref.AddressFormat
 open SigGolfCandidate.Legacy
 
 /-- Native-query permutation preserving the accepted root-pair construction. -/
-def queryPerm (q : Query) : Query := PorsHeader.query (DigestZero.query (EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (LeafScale.queryRel (baseQueryPerm q)))))))
-def queryInverse (q : Query) : Query := baseQueryPerm (LeafScale.queryInv (LeafClass.query (TopHeap.query (LeafCarry.query (EncodingRotate.queryInverse (DigestZero.query (PorsHeader.query q)))))))
+def queryPerm (q : Query) : Query := SmallBand.query (MaskHeader.query (PorsHeader.query (DigestZero.query (EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (LeafScale.queryRel (baseQueryPerm q)))))))))
+def queryInverse (q : Query) : Query := baseQueryPerm (LeafScale.queryInv (LeafClass.query (TopHeap.query (LeafCarry.query (EncodingRotate.queryInverse (DigestZero.query (PorsHeader.query (MaskHeader.query (SmallBand.query q)))))))))
 
 theorem queryPerm_eq_unwrapped (q : Query) (h : DigestZero.query q = q) :
-    queryPerm q = PorsHeader.query (EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (LeafScale.queryRel (baseQueryPerm q)))))) := by
+    queryPerm q = SmallBand.query (MaskHeader.query (PorsHeader.query (EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (LeafScale.queryRel (baseQueryPerm q)))))))) := by
   rw [queryPerm, DigestZero.commute_encodingRotate, DigestZero.commute_leafCarry,
     DigestZero.commute_topHeap, DigestZero.commute_leafClass, DigestZero.commute_leafScale,
     DigestZero.commute_base, h]
 
 theorem queryInverse_queryPerm (q : Query) : queryInverse (queryPerm q) = q := by
-  rw [queryInverse, queryPerm, PorsHeader.query_involutive, DigestZero.query_involutive, EncodingRotate.queryInverse_query, LeafCarry.query_involutive, TopHeap.query_involutive, LeafClass.query_involutive,
+  rw [queryInverse, queryPerm, SmallBand.query_involutive, MaskHeader.query_involutive, PorsHeader.query_involutive, DigestZero.query_involutive, EncodingRotate.queryInverse_query, LeafCarry.query_involutive, TopHeap.query_involutive, LeafClass.query_involutive,
     LeafScale.queryInv_queryRel, baseQueryPerm_involutive]
 
 theorem queryPerm_injective : Function.Injective queryPerm :=
-  PorsHeader.query_injective.comp (DigestZero.query_involutive.injective.comp (EncodingRotate.query_injective.comp (LeafCarry.query_involutive.injective.comp (TopHeap.query_involutive.injective.comp (LeafClass.query_involutive.injective.comp
-    (LeafScale.queryRel_injective.comp baseQueryPerm_injective))))))
+  SmallBand.query_injective.comp (MaskHeader.query_injective.comp (PorsHeader.query_injective.comp (DigestZero.query_involutive.injective.comp (EncodingRotate.query_injective.comp (LeafCarry.query_involutive.injective.comp (TopHeap.query_involutive.injective.comp (LeafClass.query_involutive.injective.comp
+    (LeafScale.queryRel_injective.comp baseQueryPerm_injective))))))))
 
 theorem queryPerm_blocks (q : Query) : (queryPerm q).blocks = q.blocks := by
-  rw [queryPerm, PorsHeader.query_blocks, DigestZero.query_blocks, EncodingRotate.query_blocks, LeafCarry.query_blocks, TopHeap.query_blocks, LeafClass.query_blocks, LeafScale.queryRel_blocks, baseQueryPerm_blocks]
+  rw [queryPerm, SmallBand.query_blocks, MaskHeader.query_blocks, PorsHeader.query_blocks, DigestZero.query_blocks, EncodingRotate.query_blocks, LeafCarry.query_blocks, TopHeap.query_blocks, LeafClass.query_blocks, LeafScale.queryRel_blocks, baseQueryPerm_blocks]
 
 theorem queryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
     (h1 : q.2.toNat % 65536 ≠ 257) (h2 : q.2.toNat % 65536 ≠ 2561)
     (h9 : q.2.toNat % 65536 ≠ 2305) (h4 : q.2.toNat % 65536 ≠ 1025)
     (hL : q.2.toNat % 65536 ≠ 513) (h3:q.2.toNat%65536≠769)
-    (hD : q.2.toNat % 65536 ≠ 3073) (h5:q.2.toNat%65536≠1281) (h6:q.2.toNat%65536≠1537) : queryPerm q = q := by
+    (hD : q.2.toNat % 65536 ≠ 3073) (h5:q.2.toNat%65536≠1281) (h6:q.2.toNat%65536≠1537) (hMC:q.2.toNat%65536≠29127) (hMN:q.2.toNat%65536≠967) : queryPerm q = q := by
   rw [queryPerm, baseQueryPerm_fixed q h0 h1 h2, LeafScale.queryRel_fixed q h9,
     LeafClass.query_fixed q hL h4, TopHeap.query_fixed_class q h3, LeafCarry.query_fixed_classes q h3 h4, EncodingRotate.query_fixed q h4]
   rw [DigestZero.query_fixed_class q hD (by omega)]
-  exact PorsHeader.query_fixed_classes q h9 h2 h5 h6
+  rw [PorsHeader.query_fixed_classes q h9 h2 h5 h6]
+  rw [MaskHeader.query_fixed_classes q h3 h4 hMC hMN]
+  apply SmallBand.query_fixed
+  unfold SmallBand.nodeHead
+  have hm : q.2.toNat%18446744073709551616%65536=q.2.toNat%65536 := Nat.mod_mod_of_dvd _ (by decide)
+  omega
 
 end SigGolfCandidate.Ref.AddressFormat

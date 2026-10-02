@@ -67,9 +67,9 @@ theorem start_hash (s : MachineState) (rho msg : List Byte) (hr : rho.length = 1
 
 
 /-- The outcome of `expand` in the form `Sim.run_eq` needs. -/
-def Qexp (r : Option (Bytes 14080)) (t : MachineState) : Prop :=
+def Qexp (r : Option (Bytes 13712)) (t : MachineState) : Prop :=
   fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
-    r = if t.getReg .x10 = 0 then some (readBuffer t 0x1100 14080) else none
+    r = if t.getReg .x10 = 0 then some (readBuffer t 0x1270 13712) else none
 
 theorem qexp_none (t : MachineState) (h : Final none t) : Qexp none t := by
   obtain ⟨h1, h2, h3⟩ := h
@@ -81,6 +81,7 @@ def P1 (sig : List Byte) (N : Nat) (t : MachineState) : Prop :=
   (∃ (A : Nat → Nat) (segs : List Nat), expandOf sig N = some (witnessList sig (leavesOf N) (vsOf A) segs) ∧
     SortedKeys N A ∧ (leavesOf N).Nodup ∧ t.pc = pcOf 495 ∧ ArrOk t A ∧
     t.getMem (BitVec.ofNat 64 0x160) = BitVec.ofNat 64 (N % 2 ^ 64) ∧
+    Sign.SmallBandTable t ∧
     ∀ i < 0x10000, t.getByte (BitVec.ofNat 64 (0x800 + i)) = (witnessList sig (leavesOf N) (vsOf A) segs).getD i 0)
 
 theorem extractLsb'_0_64 (a : BitVec 256) : a.extractLsb' 0 64 = BitVec.ofNat 64 (a.toNat % 2 ^ 64) := by
@@ -89,7 +90,7 @@ theorem extractLsb'_0_64 (a : BitVec 256) : a.extractLsb' 0 64 = BitVec.ofNat 64
 /-- **Phase 1**: everything after the digest query up to `pors_init` (no queries). -/
 theorem phase1 (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6032) (s2 : MachineState)
     (hpc : s2.pc = pcOf 14) (hdo : DOk ans s2) (hsok : SigOK s2 sig)
-    (hz : ∀ a, 0x800 ≤ a → a < 0x24B00 → s2.getByte (BitVec.ofNat 64 a) = 0) :
+    (hz : ∀ a, 0x800 ≤ a → a < 0x24B00 → s2.getByte (BitVec.ofNat 64 a) = 0) (hTable:Sign.SmallBandTable s2) :
     Run s2 15000 (P1 sig ans.toNat) := by
   set N := ans.toNat with hN
   refine Run.seq (B₂ := 14666) (ext_run ans s2 hdo s2 hpc (Frame.refl _ _)) (fun t1 h1 => ?_) (by norm_num)
@@ -116,7 +117,7 @@ theorem phase1 (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6032) (
       intro a ha hk; rw [getByte_ofNat _ _ ha, t3m, ← getByte_ofNat _ _ ha]; exact hb2 a ha hk
     have hc : SchCtx A sig t3 := ⟨hA.frame t3m, hSK.lt, by rw [t3m]; exact hsent,
       fun j hj => by rw [hb3 _ (by omega) (by omega)]; exact hsok j hj, hsig⟩
-    have hz3 : ∀ i < 9408, t3.getByte (BitVec.ofNat 64 (0x17C0 + i)) = 0 := by
+    have hz3 : ∀ i < 9408, t3.getByte (BitVec.ofNat 64 (0x1D80 + i)) = 0 := by
       intro i hi; rw [hb3 _ (by omega) (by omega)]; exact hz _ (by omega) (by omega)
     have hsched := sch_run A sig t3 hc hp.1 t3pc hz3 (by rw [hcr]; exact hoct) (by rw [hcs]; simp [vsOf])
     refine Run.seq (B₂ := 7643) hsched (fun t4 h4 => ?_) (by norm_num)
@@ -141,13 +142,13 @@ theorem phase1 (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6032) (
         intro p hp'
         rw [t5m, t4fr _ (by omega) (by unfold SW; omega)]; exact hc.arr p hp'
       -- bytes of t5 outside KEYS and the scheduler's writes are those of s2
-      have hb5 : ∀ a, a < 2 ^ 64 → ¬ (0x6E0 ≤ a ∧ a < 0x7E0) → ¬ (0x17C0 ≤ a ∧ a < 0x17C0 + 9408) →
+      have hb5 : ∀ a, a < 2 ^ 64 → ¬ (0x6E0 ≤ a ∧ a < 0x7E0) → ¬ (0x1D80 ≤ a ∧ a < 0x1D80 + 9408) →
           t5.getByte (BitVec.ofNat 64 a) = s2.getByte (BitVec.ofNat 64 a) := by
         intro a ha h1 h2
         rw [getByte_ofNat _ _ ha, t5m, t4fr _ (by omega) (by unfold SW; omega), ← getByte_ofNat _ _ ha,
           hb3 _ ha (by omega)]
       refine (copy_run A t5 t5pc hA5).mono (by norm_num) (fun t6 ⟨h61, h62⟩ => Or.inr ⟨A, F.segs, hexp, hSK, hpo.1,
-        h61, ?_, ?_, ?_⟩)
+        h61, ?_, ?_, ?_, ?_⟩)
       · intro p hp'
         rw [getMem_eq_of_bytes t5 t6 (0x6E0 + 8 * p) (by omega) (by omega) (fun k hk => by
           rw [h62 _ (by omega), copy_miss _ _ (by omega)]; unfold piF applyCopy; dsimp only
@@ -158,6 +159,11 @@ theorem phase1 (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6032) (
         have := hdo 0 (by norm_num)
         simp only [Nat.mul_zero, Nat.add_zero] at this
         rw [this, extractLsb'_0_64]
+      · intro lay hl k hk
+        rw [getMem_eq_of_bytes s2 t6 (16776896+64*lay+8*k) (by omega) (by omega) (fun j hj => by
+          rw [h62 _ (by omega),copy_miss _ _ (by omega)];unfold piF applyCopy;dsimp only
+          rw [if_neg (by omega),if_neg (by omega),hb5 _ (by omega) (by omega) (by omega)])]
+        exact hTable lay hl k hk
       · intro i hi
         rw [h62 _ (by omega)]
         have hsl : (segStream sig F.segs).length ≤ 9344 := by
@@ -241,16 +247,16 @@ theorem witMem_of_bytes (w : List Byte) (t : MachineState)
 /-- Everything after the digest query. -/
 theorem after_sim (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6032) (s2 : MachineState)
     (hpc : s2.pc = pcOf 14) (hdo : DOk ans s2) (hsok : SigOK s2 sig)
-    (hz : ∀ a, 0x800 ≤ a → a < 0x24B00 → s2.getByte (BitVec.ofNat 64 a) = 0) :
+    (hz : ∀ a, 0x800 ≤ a → a < 0x24B00 → s2.getByte (BitVec.ofNat 64 a) = 0) (hTable:Sign.SmallBandTable s2) :
     Sign.Sim image s2 (15000 + (400000 + (34 + 5 * ExP.LW))) (afterD sig ans.toNat) ExP.QP := by
-  refine Sim.of_run_bind (phase1 ans sig hsig s2 hpc hdo hsok hz) (fun t h => ?_)
-  rcases h with ⟨hnone, hf⟩ | ⟨A, segs, hsome, hSK, hn, tpc, tA, t160, tb⟩
+  refine Sim.of_run_bind (phase1 ans sig hsig s2 hpc hdo hsok hz hTable) (fun t h => ?_)
+  rcases h with ⟨hnone, hf⟩ | ⟨A, segs, hsome, hSK, hn, tpc, tA, t160, tTable, tb⟩
   · unfold afterD; rw [hnone]
     exact (Sign.Sim.pure (Q := ExP.QP) (a := none) ⟨hf.1, hf.2.1, by rw [if_neg hf.2.2]; rfl⟩).mono
       (by omega) (fun _ _ h => h)
   · unfold afterD; rw [hsome]
     have hlen := length_witnessList sig hsig (leavesOf ans.toNat) (vsOf A) segs (by simp [vsOf, porsK])
-    exact ExP.phase2_sim _ hlen (witnessList_c4 sig hsig _ _ segs (by simp [vsOf])) A (leavesOf ans.toNat) ans.toNat t tpc t160 (witMem_of_bytes _ t tb) tA hSK.lt
+    exact ExP.phase2_sim _ hlen (witnessList_c4 sig hsig _ _ segs (by simp [vsOf])) A (leavesOf ans.toNat) ans.toNat t tpc t160 (witMem_of_bytes _ t tb) tA hSK.lt tTable
       (x_lemma sig hsig ans.toNat A hSK hn segs)
 
 /-- `expand` from a state that looks like its initial state. -/
@@ -258,10 +264,10 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.
     (s : MachineState) (hpc : s.pc = pcOf 0) (h5 : s.getReg .x5 = 0)
     (hrho : s.readWords (BitVec.ofNat 64 0x24B00) 2 = wordsOf (sigRho sig))
     (hm : s.readWords (BitVec.ofNat 64 0x20) 4 = wordsOf msg) (hsok : SigOK s sig)
-    (hz : ∀ a, 0x800 ≤ a → a < 0x24B00 → s.getByte (BitVec.ofNat 64 a) = 0) :
+    (hz : ∀ a, 0x800 ≤ a → a < 0x24B00 → s.getByte (BitVec.ofNat 64 a) = 0) (hTable:Sign.SmallBandTable s) :
     Sign.Sim image s (13 + (8 + (15000 + (400000 + (34 + 5 * ExP.LW)) + 0)))
       ((liftM (HashSpec.query (addrFmt (digestInput (sigRho sig) msg))) : OracleComp HashSpec _) >>= fun a =>
-        afterD sig a.toNat >>= fun r => pure (r.map fun l => ofList 14080 (cutW l))) Qexp := by
+        afterD sig a.toNat >>= fun r => pure (r.map fun l => ofList 13712 (cutW l))) Qexp := by
   have hr : (sigRho sig).length = 16 := by simp [sigRho, slice, hsig]
   have hst := symRun_sound blk0 codeAt_0 s hpc (by simp only [blk0.res, rv_simp])
   rw [show blk0.res.cycles = 13 by kernel_rfl] at hst
@@ -279,7 +285,7 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.
   have hb : (addrFmt (digestInput (sigRho sig) msg)).blocks = 1 :=
     by rw [addrFmt_blocks]; exact blocks_fmt_digest _ ⟨by simp [digestInput, thInput, hr, hmsg, length_tweak, P, zeros], rfl⟩
   have := Sign.Sim.query_bind (W := 15000 + (400000 + (34 + 5 * ExP.LW)) + 0)
-    (f := fun a => afterD sig a.toNat >>= fun r => (pure (r.map fun l => ofList 14080 (cutW l)) : OracleComp HashSpec _))
+    (f := fun a => afterD sig a.toNat >>= fun r => (pure (r.map fun l => ofList 13712 (cutW l)) : OracleComp HashSpec _))
     (Q := Qexp) e1 x5 hv hq (fun a => ?_)
   · rw [hb] at this; exact this
   set s2 := writeHash s1 a with hs2
@@ -292,7 +298,7 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.
       s2.getByte (BitVec.ofNat 64 x) = s.getByte (BitVec.ofNat 64 x) := by
     intro x hx h1 h2
     rw [getByte_ofNat _ _ hx, getByte_ofNat _ _ hx, hmem _ (by omega) (by omega) (by omega)]
-  refine Sign.Sim.bind (W₂ := 0) (after_sim a sig hsig s2 ?_ ?_ ?_ ?_) (fun r t h => Sign.Sim.pure h)
+  refine Sign.Sim.bind (W₂ := 0) (after_sim a sig hsig s2 ?_ ?_ ?_ ?_ ?_) (fun r t h => Sign.Sim.pure h)
   · rw [hs2, writeHash_pc, hs1]; simp only [blk0.res, rv_simp]; rfl
   · intro i hi
     rw [hs2, writeHash_getMem_ofNat s1 a 352 _ x12 (by norm_num) (by omega)]
@@ -300,10 +306,14 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.
   · intro j hj; rw [hbyte _ (by omega) (by omega) (by omega)]; exact hsok j hj
   · intro x h1 h2; rw [hbyte _ (by omega) (by omega) (by omega)]; exact hz x h1 h2
 
+  · intro lay hl k hk
+    rw [hmem _ (by omega) (by omega) (by omega)]
+    exact hTable lay hl k hk
+
 theorem expandRef_eq (m : Message) (pk : PublicKey) (σ : Bytes 6032) :
     expandRef m pk σ = (liftM (HashSpec.query (addrFmt (digestInput (sigRho (toList σ)) (toList m)))) :
       OracleComp HashSpec _) >>= fun a => afterD (toList σ) a.toNat >>= fun r =>
-        pure (r.map fun l => ofList 14080 (cutW l)) := by
+        pure (r.map fun l => ofList 13712 (cutW l)) := by
   simp only [expandRef, expandList, digest, H, bind_assoc, pure_bind]
   rfl
 
@@ -333,11 +343,11 @@ theorem sim_sI (m : Message) (pk : PublicKey) (σ : Bytes 6032) :
   rw [expandRef_eq]
   have hl : (toList σ).length = 6032 := by simp [toList, length_bytes]
   refine expand_sim (toList σ) (toList m) hl (by simp [toList, length_bytes]) (sI m pk σ) (sI_pc m pk σ)
-    (sI_getReg m pk σ .x5 (by decide)) (sI_words_sig m pk σ) (sI_words_msg m pk σ) ?_ ?_
+    (sI_getReg m pk σ .x5 (by decide)) (sI_words_sig m pk σ) (sI_words_msg m pk σ) ?_ ?_ (sI_band m pk σ)
   · intro j hj; rw [sI_getByte _ _ _ _ (by omega), if_pos (by omega)]; simp [toList]
   · intro a h1 h2; rw [sI_getByte _ _ _ _ (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega)]
 
-theorem qexp_halt (r : Option (Bytes 14080)) (t : MachineState) (h : Qexp r t) :
+theorem qexp_halt (r : Option (Bytes 13712)) (t : MachineState) (h : Qexp r t) :
     fetch (submission.image .expand) t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
       id r = if t.getReg .x10 = 0 then some (readOutput submission.sizes submission.layout .expand t) else none :=
   ⟨h.1, h.2.1, h.2.2⟩

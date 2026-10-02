@@ -25,14 +25,14 @@ def hWord (lay : Nat) : Nat := 0x101 + 65536 * lay
 
 /-- The byte address of chain block `(lay, i)` and the layer base `s6`. -/
 def blkN (lay i : Nat) : Nat := 0x800 + blockOff lay i
-def s6N (lay : Nat) : Nat := blkN lay 0 + 1344
+def s6N (lay : Nat) : Nat := blkN lay 0 + 640
 /-- Tweak word 0 of chain `i` (byte 4, the step, zero). -/
 def twW0 (lay i : Nat) : Nat := hWord lay + 2 ^ 40 * i
 
 theorem blkN_eq (lay i : Nat) : blkN lay i = 4992 + 2688 * lay + 64 * i := by
   unfold blkN; rw [blockOff_eq]; omega
 
-theorem s6N_eq (lay : Nat) : s6N lay = 6336 + 2688 * lay := by
+theorem s6N_eq (lay : Nat) : s6N lay = 5632 + 2688 * lay := by
   unfold s6N; rw [blkN_eq]; omega
 
 /-! ## Fresh witness words -/
@@ -40,7 +40,8 @@ theorem s6N_eq (lay : Nat) : s6N lay = 6336 + 2688 * lay := by
 def FreshW (lay i lay' i' k : Nat) : Prop :=
   lay' < 5 ∧ i' < 42 ∧ k < 8 ∧ (lay' < lay ∨ (lay' = lay ∧ i ≤ i')) ∧
     (2 ≤ k ∨ (lay' = 0 ∧ i' = 0 ∧ (0 < lay ∨ i = 0)) ∨
-      (lay' < lay ∧ lay' < 4 ∧ 32 ≤ i' ∧ i' < 32 + heightL (lay' + 1)))
+      (lay' < lay ∧ lay' < 4 ∧ 32 ≤ i' ∧ i' < 32 + heightL (lay' + 1)) ∨
+      (lay' = 0 ∧ 17 ≤ i' ∧ i' < 40 ∧ 0 < lay))
 
 def Fresh (wl : List Byte) (lay i : Nat) (s : MachineState) : Prop :=
   ∀ lay' i' k, FreshW lay i lay' i' k →
@@ -72,20 +73,22 @@ theorem Fresh_frame {wl : List Byte} {s t : MachineState} {lay i : Nat} (hF : Fr
 theorem FreshW_next {lay i a b k : Nat} (h : FreshW lay (i + 1) a b k) : FreshW lay i a b k := by
   obtain ⟨h1, h2, h3, h4, h5⟩ := h
   refine ⟨h1, h2, h3, by omega, ?_⟩
-  rcases h5 with h5 | ⟨h6, h7, h8⟩ | h5
+  rcases h5 with h5 | ⟨h6, h7, h8⟩ | h5 | h5
   · exact Or.inl h5
   · exact Or.inr (Or.inl ⟨h6, h7, by omega⟩)
-  · exact Or.inr (Or.inr h5)
+  · exact Or.inr (Or.inr (Or.inl h5))
+  · exact Or.inr (Or.inr (Or.inr h5))
 
 /-- The layer transition: after layer `lay`'s chains, the fresh words of layer `lay - 1`. -/
 theorem FreshW_layer {lay a b k : Nat} (hl : 1 ≤ lay) (h : FreshW (lay - 1) 0 a b k) :
     FreshW lay 42 a b k := by
   obtain ⟨h1, h2, h3, h4, h5⟩ := h
   refine ⟨h1, h2, h3, by omega, ?_⟩
-  rcases h5 with h5 | ⟨h6, h7, _⟩ | ⟨h6, h7, h8, h9⟩
+  rcases h5 with h5 | ⟨h6, h7, _⟩ | ⟨h6, h7, h8, h9⟩ | ⟨h6, h7, h8, h9⟩
   · exact Or.inl h5
   · exact Or.inr (Or.inl ⟨h6, h7, Or.inl (by omega)⟩)
-  · exact Or.inr (Or.inr ⟨by omega, h7, h8, h9⟩)
+  · exact Or.inr (Or.inr (Or.inl ⟨by omega, h7, h8, h9⟩))
+  · exact Or.inr (Or.inr (Or.inr ⟨h6, h7, h8, by omega⟩))
 
 /-- A word written by chain `i` (tweak slot, value slot, spill) is not fresh for `(lay, i + 1)`. -/
 theorem fresh_ne {lay i a b k : Nat} (hw : FreshW lay (i + 1) a b k) (hi : i < 42) (d : Nat)
@@ -111,8 +114,23 @@ theorem FreshW_sib {lay lam k : Nat} (hl : lay < 5) (h0 : 0 < lay)
     FreshW lay 42 (lay - 1) (32 + lam) k := by
   have hh : heightL lay ≤ 11 := by interval_cases lay <;> decide
   have hh' : heightL lay ≤ 6 := by interval_cases lay <;> decide
-  refine ⟨by omega, by omega, by omega, Or.inl (by omega), Or.inr (Or.inr ?_)⟩
+  refine ⟨by omega, by omega, by omega, Or.inl (by omega), Or.inr (Or.inr (Or.inl ?_))⟩
   exact ⟨by omega, by omega, by omega, by rw [Nat.sub_add_cancel h0]; omega⟩
+
+/-- All lower authentication paths fit in top-layer tweak cells17..39. These words
+remain fresh through every lower layer and are consumed before top-layer chains begin. -/
+def packedAuthCell (lay lam : Nat) : Nat := 17 + 6 * (lay - 1) + lam
+
+theorem packedAuthCell_bounds {lay lam : Nat} (hl : lay < 5) (h0 : 0 < lay)
+    (hm : lam < heightL lay) : 17 ≤ packedAuthCell lay lam ∧ packedAuthCell lay lam < 40 := by
+  interval_cases lay <;> simp_all [heightL, packedAuthCell] <;> omega
+
+theorem FreshW_packed_sib {lay lam k : Nat} (hl : lay < 5) (h0 : 0 < lay)
+    (hm : lam < heightL lay) (hk : k < 2) :
+    FreshW lay 42 0 (packedAuthCell lay lam) k := by
+  obtain ⟨ha, hb⟩ := packedAuthCell_bounds hl h0 hm
+  exact ⟨by omega, by omega, by omega, Or.inl h0,
+    Or.inr (Or.inr (Or.inr ⟨rfl, ha, hb, h0⟩))⟩
 
 /-! ## Addresses of the chain code -/
 
@@ -227,26 +245,26 @@ def endPc (c : CCtx) (i : Nat) : Nat :=
 
 /-- The encoding header survives chain and tree work; only its layer byte is updated. -/
 def EncHeader (lay : Nat) (s : MachineState) : Prop :=
-  s.getMem 0x100#64 = BitVec.ofNat 64 (hWord lay + 768)
+  s.getMem 0x100#64 = BitVec.ofNat 64 (Ref.MaskHeader.encHeader lay)
 
 theorem EncHeader.frame {lay : Nat} {s t : MachineState} (h : EncHeader lay s)
     (hf : t.getMem 0x100#64 = s.getMem 0x100#64) : EncHeader lay t := hf.trans h
 
 theorem encoding_header_byte (lay : Nat) (hl : lay < 4) :
-    StoreKind.merge .b (BitVec.ofNat 64 (hWord (lay + 1) + 768)) 2
-      (BitVec.ofNat 64 lay) = BitVec.ofNat 64 (hWord lay + 768) := by
+    StoreKind.merge .b (BitVec.ofNat 64 (Ref.MaskHeader.encHeader (lay + 1))) 2
+      (BitVec.ofNat 64 lay) = BitVec.ofNat 64 (Ref.MaskHeader.encHeader lay) := by
   interval_cases lay <;> decide +kernel
 
 /-- The lower-layer leaf header is the preceding node header at0x340. A conjunct of `LayerIn` (there the chain
 tweak was built in CB); W1a's layers neither read nor write CB, and the conjunct is only carried
 through the chain phase so that the interface of `LayerGood` with `Top` keeps its shape. -/
 def CB0 (lay : Nat) (s : MachineState) : Prop :=
-  lay < 4 → s.getMem (BitVec.ofNat 64 0x340) = BitVec.ofNat 64 (769 + 65536 * (lay + 1))
+  lay < 4 → s.getMem (BitVec.ofNat 64 0x340) = BitVec.ofNat 64 (Ref.MaskHeader.nodeHeader (lay + 1))
 
 /-- The registers and buffers common to the whole chain phase (`acc` = the chain ends so far). -/
 def ChBase (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
   Glob gkL c.wl c.pk s ∧ KnownOK chK0 s ∧ c.Regs s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N c.lay) ∧
-  s.getReg .x27 = 0x40401#64 ∧ s.getReg .x1 = c.ret ∧ LBOk acc s ∧
+  s.getReg .x1 = c.ret ∧ LBOk acc s ∧
   acc.length = i ∧ (∀ v ∈ acc, v.length = 16) ∧ CB0 c.lay s ∧ EncHeader c.lay s
 
 /-- Before chain `i`'s code (`x25` = the previous chain's tweak word 0). -/
@@ -468,6 +486,8 @@ theorem addrFmt_chainInputP_words (lay tau e i mu : Nat) (pad : List Byte) (v : 
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega)]
   rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]
   unfold AddressFormat.oldHeader
@@ -542,7 +562,7 @@ theorem prehash_step (c : CCtx) (hc : c.ok) (i mu : Nat) (hi : i < 42) (h1 : 1 �
       ∀ a, (mu < 7 → StepInv c i acc (mu + 1) (answerBytes 16 a) (writeHash t a)) ∧
         (mu = 7 → EndInv c i (acc ++ [answerBytes 16 a]) (writeHash t a)) := by
   obtain ⟨hB, h25, hF, hwP, t0, t1, hv0, hv1, hvl, t10, t12, tpc, -⟩ := ht
-  obtain ⟨hG, hK, hR, h22, h27, h1r, hLB, hlen, hvs, hCB, hEH⟩ := hB
+  obtain ⟨hG, hK, hR, h22, h1r, hLB, hlen, hvs, hCB, hEH⟩ := hB
   have hlay := hc.1
   have hB8 : blkN c.lay i % 8 = 0 := blkN_mod8 _ _
   have hBr : 4992 ≤ blkN c.lay i ∧ blkN c.lay i + 256 < 2 ^ 24 := by rw [blkN_eq]; omega
@@ -567,7 +587,7 @@ theorem prehash_step (c : CCtx) (hc : c.ok) (i mu : Nat) (hi : i < 42) (h1 : 1 �
           (writeHash t a).getMem (BitVec.ofNat 64 A) = t.getMem (BitVec.ofNat 64 A) :=
         fun A hA h => writeHash_frame t a _ A d12 hA (by omega) h
       refine ⟨⟨Glob_frameC hG (fun q _ => writeHash_getReg _ _ _) (fun A hA => wfr A (by omega) (Or.inl (by omega))),
-        hK', hR', by rw [writeHash_getReg]; exact h22, by rw [writeHash_getReg]; exact h27,
+        hK', hR', by rw [writeHash_getReg]; exact h22,
         by rw [writeHash_getReg]; exact h1r,
         LBOk_frame hLB (fun j hj => ⟨wfr _ (by omega) (Or.inl (by rw [hlen] at hj; omega)),
           wfr _ (by omega) (Or.inl (by rw [hlen] at hj; omega))⟩), hlen, hvs,
@@ -595,7 +615,7 @@ theorem prehash_step (c : CCtx) (hc : c.ok) (i mu : Nat) (hi : i < 42) (h1 : 1 �
           (writeHash t a).getMem (BitVec.ofNat 64 A) = t.getMem (BitVec.ofNat 64 A) :=
         fun A hA h => writeHash_frame t a _ A d12 hA (by unfold slotA; omega) h
       refine ⟨⟨Glob_writeHash hG a _ d12 (safeDest_slot i hi),
-        hK', hR', by rw [writeHash_getReg]; exact h22, by rw [writeHash_getReg]; exact h27,
+        hK', hR', by rw [writeHash_getReg]; exact h22,
         by rw [writeHash_getReg]; exact h1r, ?_, by simp [hlen], ?_,
         by unfold CB0; rw [wfr _ (by omega) (Or.inl (by unfold slotA; omega))]; exact hCB, by unfold EncHeader; rw [wfr _ (by omega) (Or.inl (by unfold slotA; omega))]; exact hEH⟩,
         trivial,
@@ -626,7 +646,7 @@ theorem rung_step (c : CCtx) (hc : c.ok) (i mu p : Nat) (hi : i < 42) (h1 : 1 �
     ∃ t, Steps image s (if mu = 7 then 2 else 1) (if mu = 7 then 2 else 1) t ∧ PreHash c i acc mu v t := by
   have hrun := optBeq_eq hchk
   obtain ⟨hB, h25, hF, hP, hT, hv0, hv1, hvl, h10, h12, hpc⟩ := hs
-  obtain ⟨hG, hK, hR, h22, h27, h1r, hLB, hlen, hvs, hCB, hEH⟩ := hB
+  obtain ⟨hG, hK, hR, h22, h1r, hLB, hlen, hvs, hCB, hEH⟩ := hB
   have hlay := hc.1
   set B := blkN c.lay i with hBdef
   have hB8 : B % 8 = 0 := blkN_mod8 _ _
@@ -668,7 +688,7 @@ theorem rung_step (c : CCtx) (hc : c.ok) (i mu p : Nat) (hi : i < 42) (h1 : 1 �
       show (rungExp i mu p).cycles = (if mu = 7 then 2 else 1) by simp [rungExp]] at hst; exact hst,
     ⟨⟨Glob_frameC hG (fun q hq => treg _ (gk12 q hq)) (fun A hA => tfr A (by omega) (by omega)),
       fun q hq => (treg _ (ck12 q hq)).trans (hK q hq), ?_, (treg _ (by decide)).trans h22,
-      (treg _ (by decide)).trans h27, (treg _ (by decide)).trans h1r,
+      (treg _ (by decide)).trans h1r,
       LBOk_frame hLB (fun j hj => ⟨tfr _ (by omega) (by rw [hlen] at hj; omega),
         tfr _ (by omega) (by rw [hlen] at hj; omega)⟩), hlen, hvs,
         by unfold CB0; rw [tfr _ (by omega) (by omega)]; exact hCB, by unfold EncHeader; rw [tfr _ (by omega) (by omega)]; exact hEH⟩,
@@ -714,7 +734,7 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i <
         (4 + (if i % 3 = 0 then 1 else 0) + (if dig c i = 6 then 2 else 1)) t ∧
       PreHash c i acc (dig c i + 1) (witChain c.wl c.lay i) t := by
   obtain ⟨hB, h25, hF, hpc⟩ := hs
-  obtain ⟨hG, hK, hR, h22, h27, h1r, hLB, hlen, hvs, hCB, hEH⟩ := hB
+  obtain ⟨hG, hK, hR, h22, h1r, hLB, hlen, hvs, hCB, hEH⟩ := hB
   have hlay := hc.1
   set d := dig c i with hdd
   set B := blkN c.lay i with hBdef
@@ -779,7 +799,7 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i <
         (fun A hA => tfr A (by omega) (by omega) (by omega)),
       fun q hq => (treg _ (ck q hq).1 (ck q hq).2.1 (ck q hq).2.2).trans (hK q hq), ?_,
       (treg _ (by decide) (by decide) (by decide)).trans h22,
-      (treg _ (by decide) (by decide) (by decide)).trans h27, (treg _ (by decide) (by decide) (by decide)).trans h1r,
+      (treg _ (by decide) (by decide) (by decide)).trans h1r,
       LBOk_frame hLB (fun j hj => ⟨tfr _ (by omega) (by rw [hlen] at hj; omega) (by rw [hlen] at hj; omega),
         tfr _ (by omega) (by rw [hlen] at hj; omega) (by rw [hlen] at hj; omega)⟩), hlen, hvs,
         by unfold CB0; rw [tfr _ (by omega) (by omega) (by omega)]; exact hCB, by unfold EncHeader; rw [tfr _ (by omega) (by omega) (by omega)]; exact hEH⟩,
@@ -816,7 +836,7 @@ theorem copy_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i =
     ∃ t, Steps image s (4 + (if i % 3 = 0 then 1 else 0)) (4 + (if i % 3 = 0 then 1 else 0)) t ∧
       EndInv c i (acc ++ [witChain c.wl c.lay i]) t := by
   obtain ⟨hB, h25, hF, hpc⟩ := hs
-  obtain ⟨hG, hK, hR, h22, h27, h1r, hLB, hlen, hvs, hCB, hEH⟩ := hB
+  obtain ⟨hG, hK, hR, h22, h1r, hLB, hlen, hvs, hCB, hEH⟩ := hB
   have hlay := hc.1
   set B := blkN c.lay i with hBdef
   have hBr : 4992 ≤ B ∧ B + 256 < 2 ^ 24 := by simp only [hBdef, blkN_eq, Nat.reducePow]; omega
@@ -869,7 +889,7 @@ theorem copy_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i =
   refine ⟨t, by rw [hn.2, hn.1] at hst; exact hst,
     ⟨hGt, fun q hq => (treg _ (ck q hq).1 (ck q hq).2.1 (ck q hq).2.2).trans (hK q hq), ?_,
       (treg _ (by decide) (by decide) (by decide)).trans h22,
-      (treg _ (by decide) (by decide) (by decide)).trans h27, (treg _ (by decide) (by decide) (by decide)).trans h1r,
+      (treg _ (by decide) (by decide) (by decide)).trans h1r,
       ?_, by simp [hlen], ?_,
       by unfold CB0; rw [tfr _ (by omega) (by unfold slotA; omega) (by unfold slotA; omega)]; exact hCB, by unfold EncHeader; rw [tfr _ (by omega) (by unfold slotA; omega) (by unfold slotA; omega)]; exact hEH⟩,
       ?_, ?_, ?_⟩
@@ -1053,12 +1073,12 @@ theorem x_step (c : CCtx) (hc : c.ok) (t : Nat) (ht : t < 14) (acc : List Val)
     have ureg : ∀ x, x ≠ .x14 → u.getReg x = s.getReg x := by
       intro x hx; rw [hu, PRes.toState_getReg, RegFile.get_set_ne _ _ hx, known_eval hB.2.1]
     have umem : ∀ A, u.getMem A = s.getMem A := fun A => rfl
-    obtain ⟨hG, hK, hR, h22, h27, h1r, hLB, hlen, hvs, hCB, hEH⟩ := hB
+    obtain ⟨hG, hK, hR, h22, h1r, hLB, hlen, hvs, hCB, hEH⟩ := hB
     have gk : ∀ q ∈ gkL, q.1 ≠ .x14 := by decide
     have ck : ∀ q ∈ chK0, q.1 ≠ .x14 := by decide
     refine ⟨u, hst, ⟨Glob_frameC hG (fun q hq => ureg _ (gk q hq)) (fun A _ => umem _),
       fun q hq => (ureg _ (ck q hq)).trans (hK q hq), ?_, (ureg _ (by decide)).trans h22,
-      (ureg _ (by decide)).trans h27, (ureg _ (by decide)).trans h1r,
+      (ureg _ (by decide)).trans h1r,
       LBOk_frame hLB (fun j _ => ⟨umem _, umem _⟩), by rw [hlen], hvs, by unfold CB0; rw [umem]; exact hCB, by unfold EncHeader; rw [umem]; exact hEH⟩, ?_,
       fun a b k hw => (umem _).trans (hF a b k (by simpa using hw)), ?_⟩
     · obtain ⟨r1, r2, r3, r4, r5⟩ := hR
@@ -1076,9 +1096,9 @@ theorem x_step (c : CCtx) (hc : c.ok) (t : Nat) (ht : t < 14) (acc : List Val)
     have ureg : ∀ x, u.getReg x = s.getReg x := by
       intro x; rw [hu, PRes.toState_getReg, known_eval hB.2.1]
     have umem : ∀ A, u.getMem A = s.getMem A := fun A => rfl
-    obtain ⟨hG, hK, hR, h22, h27, h1r, hLB, hlen, hvs, hCB, hEH⟩ := hB
+    obtain ⟨hG, hK, hR, h22, h1r, hLB, hlen, hvs, hCB, hEH⟩ := hB
     refine ⟨u, hst, ⟨Glob_frameC hG (fun q _ => ureg _) (fun A _ => umem _), fun q hq => (ureg _).trans (hK q hq),
-      ?_, (ureg _).trans h22, (ureg _).trans h27, (ureg _).trans h1r,
+      ?_, (ureg _).trans h22, (ureg _).trans h1r,
       LBOk_frame hLB (fun j _ => ⟨umem _, umem _⟩), by rw [hlen], hvs, by unfold CB0; rw [umem]; exact hCB, by unfold EncHeader; rw [umem]; exact hEH⟩,
       fun a b k hw => (umem _).trans (hF a b k (by simpa using hw)), ?_⟩
     · obtain ⟨r1, r2, r3, r4, r5⟩ := hR

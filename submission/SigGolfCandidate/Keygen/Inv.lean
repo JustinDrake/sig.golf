@@ -10,11 +10,9 @@ open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGol
 /-- The masked-node region of the cache (`CACHE + 32`): the top tree is built here. -/
 abbrev REGION : Nat := 0x4B20
 
-/-- Doublewords kept at zero: the `P` parts of the PRF, chain, leaf and node buffers, the
-zero half `CB+32 .. CB+48` of the value-last chain block (cleared once by the first block), and the
-first 32 bytes of the cache. -/
-def zeroKeys : List Nat :=
-  [1712, 1720, 208, 216, 224, 232, 848, 856, 464, 472, 0x4AE8, 0x4AF0, 0x4AF8, 0x4B00, 0x4B08, 0x4B10, 0x4B18]
+/-- Doublewords kept at zero: the `P` parts of the PRF, chain, leaf and node buffers, and the
+zero half `CB+32 .. CB+48` of the value-last chain block (cleared once by the first block). -/
+def zeroKeys : List Nat := [1712, 1720, 208, 216, 224, 232, 848, 856, 464, 472, 0x4AE8, 0x4AF0, 0x4AF8]
 
 /-- Facts that hold from the end of the first block until the final block. -/
 structure Base (W : List Word) (t : MachineState) : Prop where
@@ -22,26 +20,29 @@ structure Base (W : List Word) (t : MachineState) : Prop where
   r8 : t.getReg .x8 = BitVec.ofNat 64 0
   r30 : t.getReg .x30 = BitVec.ofNat 64 0
   r9 : t.getReg .x9 = BitVec.ofNat 64 11
+  r26 : t.getReg .x26 = BitVec.ofNat 64 MaskHeader.M1
   sk : ∀ k < 4, t.getMem (BitVec.ofNat 64 (1728 + 8 * k)) = W.getD k 0
   skIn : ∀ k < 4, t.getMem (BitVec.ofNat 64 (128 + 8 * k)) = W.getD k 0
   zero : ∀ A ∈ zeroKeys, t.getMem (BitVec.ofNat 64 A) = 0
-  w832 : t.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 66305
+  w832 : t.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 8198552921646891975
+  band : BandTable t
   tail : ∀ A, 0x14B20 ≤ A → A < 0x24B00 → t.getMem (BitVec.ofNat 64 A) = 0
 
 /-- A doubleword key that does not touch `Base`. -/
 def BaseSafe (k : Nat) : Prop :=
-  k < 2 ^ 64 ∧ k ∉ [1728, 1736, 1744, 1752, 832, 128, 136, 144, 152] ∧ k ∉ zeroKeys ∧ (k < 0x14B20 ∨ 0x24B00 ≤ k)
+  k < 16776896 ∧ k ∉ [1728, 1736, 1744, 1752, 832, 128, 136, 144, 152] ∧ k ∉ zeroKeys ∧ (k < 0x14B20 ∨ 0x24B00 ≤ k)
 
 theorem Base.frame {W : List Word} {s t : MachineState} {keys : List Nat} (h : Base W s)
-    (hr : ∀ r, r = .x5 ∨ r = .x8 ∨ r = .x30 ∨ r = .x9 → t.getReg r = s.getReg r)
+    (hr : ∀ r, r = .x5 ∨ r = .x8 ∨ r = .x30 ∨ r = .x9 ∨ r = .x26 → t.getReg r = s.getReg r)
     (hf : Frame s t keys) (hk : ∀ k ∈ keys, BaseSafe k) : Base W t := by
   have fr : ∀ A < 2 ^ 64, (∀ k ∈ keys, A ≠ k) → t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) :=
     fun A hA hne => hf A hA (fun hm => hne A hm rfl)
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [hr _ (by simp)]; exact h.r5
   · rw [hr _ (by simp)]; exact h.r8
   · rw [hr _ (by simp)]; exact h.r30
   · rw [hr _ (by simp)]; exact h.r9
+  · rw [hr _ (by simp)]; exact h.r26
   · intro k hk4
     rw [fr _ (by omega) (fun k' hk' heq => by
       have := (hk k' hk').2.1; subst heq; interval_cases k <;> simp at this)]
@@ -55,6 +56,9 @@ theorem Base.frame {W : List Word} {s t : MachineState} {keys : List Nat} (h : B
     exact h.zero A hA
   · rw [fr _ (by omega) (fun k' hk' heq => (hk k' hk').2.1 (by simp [← heq]))]
     exact h.w832
+  · intro k hk8
+    rw [fr _ (by omega) (fun a ha he=>by have := (hk a ha).1;omega)]
+    exact h.band k hk8
   · intro A h1 h2
     rw [fr _ (by omega) (fun k' hk' heq => by have := (hk k' hk').2.2.2; omega)]
     exact h.tail A h1 h2
@@ -94,6 +98,14 @@ theorem Vals.frame {s t : MachineState} {keys : List Nat} {A : Nat} {vs : List V
   refine ⟨h.1, fun i hi => (h.2 i hi).frame hf (by omega) (fun k hk' => ?_)⟩
   have := hk k hk'
   omega
+
+theorem Vals.drop {t : MachineState} {A : Nat} {vs : List Val}
+    (h : Vals t A vs) (n : Nat) : Vals t (A + 16 * n) (vs.drop n) := by
+  refine ⟨fun v hv => h.1 v (List.mem_of_mem_drop hv), fun i hi => ?_⟩
+  have hni : n + i < vs.length := by rw [List.length_drop] at hi; omega
+  have hv := h.2 (n + i) hni
+  rw [show A + 16 * n + 16 * i = A + 16 * (n + i) by omega]
+  simpa only [List.getD_eq_getElem?_getD, List.getElem?_drop] using hv
 
 theorem Vals.snoc {t : MachineState} {A : Nat} {vs : List Val} {v : Val} (h : Vals t A vs)
     (hv : ValAt t (A + 16 * vs.length) v) (hl : v.length = 16) : Vals t A (vs ++ [v]) := by

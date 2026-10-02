@@ -43,9 +43,8 @@ def signRest (S cache m : List Byte) : OracleComp HashSpec (Option (List Byte)) 
           | some lays => pure (some (serialize rho (porsOpening (sortLeaves (leavesOf N)) p.1 p.2) lays))
 
 theorem signList_eq (S cache m : List Byte) :
-    signList S cache m = (H (macKeyInput S 0) >>= fun a0 => H (macKeyInput S 1) >>= fun a1 =>
-      H (macKeyInput S 2) >>= fun a2 =>
-      if macTag a0 a1 a2 (cacheRegion cache) = cacheTag cache then signRest S cache m else pure none) := by
+    signList S cache m = (H (macInput S (cacheRegion cache)) >>= fun tag =>
+      if toList (n := 32) tag = cacheTag cache then signRest S cache m else pure none) := by
   simp only [signList, signRest]
   rfl
 
@@ -99,11 +98,11 @@ def restW : Nat :=
     (11 + 15 * 345 + (20 + (4 * layCyc + topCyc + (996 + 2))))))
 
 /-- Cycle bound of `signList`. -/
-def signW : Nat := macCyc + restW
+def signW : Nat := 54 + (8 * 513 + (53 + restW))
 
 theorem region_s0 (sk : SecretKey) (cache : Cache) (m : Message) :
     RegionOk (toList cache) (s0 sk cache m) := by
-  intro l j hl hj
+  intro l j hpos hl hj
   have := cacheNodeOff_lt l j hl hj
   have h8 : cacheNodeOff l j % 8 = 0 := by unfold cacheNodeOff; omega
   rw [s0_readWords_cache sk cache m _ 2 h8 (by omega)]; rfl
@@ -178,7 +177,7 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
       schW' (schedule (sortLeaves (leavesOf N))).2.length a))) := fst.trans f03
   have hW3 : ∀ a, ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x130 ≤ a ∧ a < 0x140) ∨
       schW' (schedule (sortLeaves (leavesOf N))).2.length a))) →
-      a < 0x900 ∨ (0x24B00 ≤ a ∧ a < 0x24C00 + 16 * 120) ∨ 0x30000 ≤ a ∨ (0x4AE0 ≤ a ∧ a < 0x4B20) ∨
+      a < 0x900 ∨ (0x24B00 ≤ a ∧ a < 0x24C00 + 16 * 120) ∨ 0x30000 ≤ a ∨ (0xCAE0 ≤ a ∧ a < 0xCB20) ∨
         (0x14B00 ≤ a ∧ a < 0x14B20) := by
     intro a ha
     simp only [macW, setupW, digW, anW, digokW, porsW, schW'] at ha
@@ -197,8 +196,12 @@ theorem signRest_sim (sk : SecretKey) (cache : Cache) (m : Message) (u : Machine
   have st3 : Statics (toList sk) t3 := by
     refine ⟨z3rw _ (by norm_num) (by simp [ZA]) (by simp [ZA]),
       ?_, z3rw _ (by norm_num) (by simp [ZA]) (by simp [ZA]), z3rw _ (by norm_num) (by simp [ZA]) (by simp [ZA]),
-      z3rw _ (by norm_num) (by simp [ZA]) (by simp [ZA])⟩
-    rw [f03.readWords _ _ (by norm_num) (by intro i hi; simp only [digokW, porsW, schW']; omega), tS]
+      z3rw _ (by norm_num) (by simp [ZA]) (by simp [ZA]), ?_⟩
+    · rw [f03.readWords _ _ (by norm_num) (by intro i hi; simp only [digokW, porsW, schW']; omega), tS]
+    · exact (s0_band sk cache m).frame fs3 (by
+        intro a ha hb
+        simp only [macW,setupW,digW,anW,digokW,porsW,schW']
+        omega)
   have rgW : ∀ a, regionA a → ¬ ((macW a ∨ digW a) ∨ ((digokW a ∨ porsW a) ∨ ((0x130 ≤ a ∧ a < 0x140) ∨
       schW' (schedule (sortLeaves (leavesOf N))).2.length a))) := by
     intro a ha
@@ -311,7 +314,7 @@ theorem signRef_sim (sk : SecretKey) (cache : Cache) (m : Message) :
     rw [h4, if_pos rfl, h5]; rfl
 
 theorem signW_lt : signW + 1 < CYCLE_LIMIT := by
-  unfold signW macCyc restW digCyc anCyc layCyc topCyc treeCyc tleafCyc CYCLE_LIMIT; norm_num
+  unfold signW restW digCyc anCyc layCyc topCyc treeCyc tleafCyc CYCLE_LIMIT; norm_num
 
 set_option maxRecDepth 100000 in
 /-- **Refinement** (value, #hash calls, #compressions) of the `sign` phase. -/

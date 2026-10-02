@@ -37,7 +37,7 @@ noncomputable def cachedGameRest (signer : TopCache → Message → OracleComp H
 noncomputable def deterministicGameAfterSeed (adversary : Security.Adversary) (seed : MasterSeed) :
     OracleComp OracleWorld Bool :=
   (liftM (keygenCachedWith (otsSecret 0 seed topLayer rootTree) (maskSecret 0 seed)
-      (deriveMacKey 0 seed)) : OracleComp OracleWorld _) >>= fun result =>
+      (fun region => oracleHash (macHashInput 0 seed region))) : OracleComp OracleWorld _) >>= fun result =>
     cachedGameRest (fun cache message => sign ⟨seed, 0, result.1 (layerHeight topLayer) 0⟩ cache message)
       adversary ⟨result.1 (layerHeight topLayer) 0, 0⟩ result.2
 
@@ -46,7 +46,7 @@ and few-time secrets, masks, MAC answers, randomizers) from the tables. -/
 noncomputable def cachedTableGameAfterSecrets (adversary : Security.Adversary) (outputs : SecretOutputs)
     (randomizers : RandomizerOutputs) (masks : MaskOutputs) (macs : MacOutputs) : OracleComp OracleWorld Bool :=
   (liftM (keygenCachedWith (fun leaf pair => pure (pairOf (tableOts outputs topLayer rootTree leaf) pair))
-      (fun level nodeIdx => pure (maskValue masks level nodeIdx)) (pure macs)) :
+      (fun level nodeIdx => pure (maskValue masks level nodeIdx)) (fun region => pure (macs region))) :
       OracleComp OracleWorld _) >>= fun result =>
     cachedGameRest (cachedTableSign randomizers masks macs (tableKey 0 result.1 outputs))
       adversary ⟨result.1 (layerHeight topLayer) 0, 0⟩ result.2
@@ -93,7 +93,7 @@ variable {known : QueryCache HashSpec} {seed : MasterSeed} {outputs : SecretOutp
   (hsecrets : ∀ position, known (secretInputs 0 seed position) = some (outputs position))
   (hrandomizers : ∀ position, known (randomizerInputs 0 seed position) = some (randomizers position))
   (hmasks : ∀ position, known (maskInputs 0 seed position) = some (masks position))
-  (hmacs : ∀ index, known (macInputs 0 seed index) = some (macs index))
+  (hmacs : ∀ region, known (macInputs 0 seed region) = some (macs region))
 
 include hsecrets hrandomizers hmasks hmacs
 
@@ -121,7 +121,7 @@ theorem erases_deterministicGameAfterSeed_first (adversary : Security.Adversary)
     Erases (worldKnown known)
       ((liftM (keygenCachedWith (withFirstPair (otsSecret 0 seed topLayer rootTree)
           (splitSecrets (outputs firstSecretPosition))) (maskSecret 0 seed)
-          (deriveMacKey 0 seed)) : OracleComp OracleWorld _) >>= fun result =>
+          (fun region => oracleHash (macHashInput 0 seed region))) : OracleComp OracleWorld _) >>= fun result =>
         cachedGameRest (fun cache message => sign ⟨seed, 0, result.1 (layerHeight topLayer) 0⟩ cache message)
           adversary ⟨result.1 (layerHeight topLayer) 0, 0⟩ result.2)
       (cachedTableGameAfterSecrets adversary outputs randomizers masks macs) := by
@@ -136,7 +136,7 @@ theorem deterministicAfterSeed_first_query (adversary : Security.Adversary) (see
     deterministicGameAfterSeed adversary seed = (do
       let output ← liftM (OracleWorld.query (.inr (secretInputs 0 seed firstSecretPosition)))
       (liftM (keygenCachedWith (withFirstPair (otsSecret 0 seed topLayer rootTree) (splitSecrets output))
-          (maskSecret 0 seed) (deriveMacKey 0 seed)) :
+          (maskSecret 0 seed) (fun region => oracleHash (macHashInput 0 seed region))) :
           OracleComp OracleWorld _) >>= fun result =>
         cachedGameRest (fun cache message => sign ⟨seed, 0, result.1 (layerHeight topLayer) 0⟩ cache message)
           adversary ⟨result.1 (layerHeight topLayer) 0, 0⟩ result.2) := by
