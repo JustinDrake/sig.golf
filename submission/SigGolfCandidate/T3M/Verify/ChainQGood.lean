@@ -391,19 +391,15 @@ theorem chain_good (c : QCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
       have hrun2 := c.chk_rung i (c.dig i) hi (le_refl _) (by omega) (fun h h' => absurd h0' (by omega))
       obtain ⟨t, hst, hP⟩ := c.headJ_step hc hk h0 i hi hd (i / 4 == 0 && i != 48)
         (fun h => by simp at h; omega) (fun h => by simp at h; omega) hsp hrp hrun1 hrun2 acc s hs
-      refine Verify.GoodQ.steps' hst (hsteps _ _ hP) (by split <;> omega) ?_ (fun hq => ⟨hq, ?_⟩)
+      refine Verify.GoodQ.steps' hst (hsteps _ _ hP) (by omega) ?_ (fun hq => ⟨hq, ?_⟩)
       · unfold chainCost preCost; rw [if_pos h0', if_neg h3]
         by_cases h2 : c.dig i = 2
         · rw [if_pos h2, h2]; norm_num; omega
-        · have hlt : c.dig i < 2 := by omega
-          simp only [if_neg h2, if_pos hlt]
-          omega
+        · rw [if_neg h2, if_pos (by omega)]; omega
       · unfold chainCost preCost; rw [if_pos h0', if_neg h3]
         by_cases h2 : c.dig i = 2
         · rw [if_pos h2, h2]; norm_num; omega
-        · have hlt : c.dig i < 2 := by omega
-          simp only [if_neg h2, if_pos hlt]
-          omega
+        · rw [if_neg h2, if_pos (by omega)]; omega
     · have hn0 : i % 4 ≠ 0 := fun h => h0' (Or.inl h)
       have hrun := c.chk_headR i (by omega) hn0 hd
       obtain ⟨t, hst, hP⟩ := c.headR_step hc hk h0 i hi (by omega) hd hsp
@@ -730,7 +726,7 @@ namespace QCtx
 def cbase (i : Nat) : Nat := (if i % 4 = 0 ∨ i = 48 then 34 else 33) + xCost i
 
 /-- The saving of a maximal digit (the copy instead of a head and the last rung). -/
-def zc (_i d : Nat) : Nat := if d = 3 then 1 else if d = 2 then 1 else 0
+def zc (i d : Nat) : Nat := if d = 3 then 1 else if d = 2 then 1 else 0
 
 theorem chainCost_add (i d : Nat) (hd : d < 4) : chainCost i d + 9 * d + zc i d = cbase i := by
   unfold chainCost zc cbase
@@ -821,7 +817,7 @@ theorem topCost_accept (c : QCtx) {value : Digest} (h : c.TopFit value) (hsum : 
   rw [c.topS_eq h, hsum] at this
   omega
 
-/-- Below the new savings threshold, top digits cannot sum to the required125. -/
+/-- Below the new savings threshold, top digits cannot sum to the required 125. -/
 def noSave (_i : Nat) : Nat := 1
 
 theorem digit_le_noSave (i d : Nat) (hd : d < 4) : d ≤ noSave i + 2 * zc i d := by

@@ -334,13 +334,13 @@ def headJ (rb : Reg) (off : Word) (first : Bool) (tgt : Nat) : Result :=
     [(kAt rb off 24, .reg .x4), (kAt rb off 16, s9E first)],
     [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8]⟩, .c (pcOf tgt), .jump, 6, 6⟩
 
-/-- A top table head preserves a2 when digit two's terminal rung immediately overwrites it. -/
-def headJ2 (rb : Reg) (off : Word) (first : Bool) (d tgt : Nat) : Result :=
-  let n := if d = 2 then 5 else 6
-  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) off)).set .x12
-      (if d = 2 then .reg .x12 else addC (addC (.reg rb) off) 48)).set .x25 (s9E first),
-    [(kAt rb off 24, .reg .x4), (kAt rb off 16, s9E first)],
-    [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8]⟩, .c (pcOf tgt), .jump, n, n⟩
+/-- Top table head: digit2's terminal rung replaces `a2` before HASH, so omit its initial load. -/
+def headJ2 (rb : Reg) (off : Word) (first : Bool) (d : Nat) (tgt : Nat) : Result :=
+  if d = 2 then
+    ⟨⟨(RegFile.init.set .x10 (addC (.reg rb) off)).set .x25 (s9E first),
+      [(kAt rb off 24, .reg .x4), (kAt rb off 16, s9E first)],
+      [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8]⟩, .c (pcOf tgt), .jump, 5, 5⟩
+  else headJ rb off first tgt
 
 /-- An inline chain head (with the bump) and its first rung, step `d` (`slot` = the leaf-pk slot when `d` is
 the last step), up to the rung's `ecall` (6 or 7 steps from `p`). -/
@@ -408,10 +408,10 @@ def xJ (w : Reg) (b : Nat) (mreg : Reg) (imm : Word) : Result :=
     .bin .and (.bin .add (.bin .add (.bin .and (shE w b) (.reg mreg)) (.reg .x15)) (.c imm)) (.c (~~~1#64)),
     .jump, (if b = 9 then 3 else 4), (if b = 9 then 3 else 4)⟩
 
-/-- After triple 13: `slli a4, t4, 5; add a4, a4, a5; jalr zero, -2048(a4)` into `ctab` (3 steps). -/
+/-- After triple 13: `slli a4, t4, 5; sub a4, a5, a4; jalr zero, -1824(a4)` into `ctab` (3 steps; `t4 = 7 - ck`). -/
 def ctabX : Result :=
-  ⟨⟨RegFile.init.set .x14 (.bin .add (.bin .sll (.reg .x29) (.c 5)) (.reg .x15)), [], []⟩,
-    .bin .and (.bin .add (.bin .add (.bin .sll (.reg .x29) (.c 5)) (.reg .x15)) (.c (-2048))) (.c (~~~1#64)),
+  ⟨⟨RegFile.init.set .x14 (.bin .sub (.reg .x15) (.bin .sll (.reg .x29) (.c 5))), [], []⟩,
+    .bin .and (.bin .add (.bin .sub (.reg .x15) (.bin .sll (.reg .x29) (.c 5))) (.c (-1824))) (.c (~~~1#64)),
     .jump, 3, 3⟩
 
 /-- After quad 11: `srli a4, a7, 29; andi a4, a4, 0x60; add a4, a4, a5; jalr zero, -1760(a4)` into `q48tab`. -/
