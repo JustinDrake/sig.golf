@@ -149,7 +149,7 @@ theorem add_hi_sub (a h d : Word) : a + h + (d - h) = a + d := by
   simp only [BitVec.toNat_add, BitVec.toNat_sub]
   omega
 
-theorem m4Sh_le (lay ci : Nat) : m4Sh lay ci ≤ 7 := by
+theorem m4Sh_le (lay ci : Nat) : m4Sh lay ci ≤ 9 := by
   unfold m4Sh m4Get
   rcases lay with _ | _ | _ | _ | _ | lay <;> rcases ci with _ | _ | ci <;> simp [m4Tab]
 

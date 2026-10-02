@@ -81,7 +81,7 @@ def leafEntrySpec (lay : Nat) : Spec :=
 
 set_option maxHeartbeats 0 in
 theorem topDispVal_tab : ∀ E, E < 2048 →
-    ((BitVec.ofNat 64 (4095 - E) <<< 4) &&& ~~~1#64) =
+    (((BitVec.ofNat 64 (4095 - E) <<< 3) + BitVec.ofNat 64 779264) &&& ~~~1#64) =
       pcOf (topSlotPc E) := by decide +kernel
 
 theorem leaf_dispatch_run (lay t E : Nat) (hlay : lay < 5) (ht : t < nCopy lay)

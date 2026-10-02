@@ -182,8 +182,8 @@ def foldCheck (lay ci a n : Nat) : Bool := (List.range' a n).all (blockCheck lay
 
 
 /-- Full-index return slots for the top tree's shared six- and five-level blocks. -/
-def topSlotBase : Nat := 7168
-def topSlotPc (E : Nat) : Nat := topSlotBase + 4 * (2047 - E)
+def topSlotBase : Nat := 197888
+def topSlotPc (E : Nat) : Nat := topSlotBase + 2 * (2047 - E)
 
 def topSlotEnterExp (E : Nat) : PRes :=
   ⟨⟨(RegFile.withKnown (foldK 0 704)).set .x16 (cw (0x1000 + 4 * (topSlotPc E + 1))), [], []⟩,

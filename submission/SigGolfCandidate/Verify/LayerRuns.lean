@@ -185,12 +185,12 @@ def specRej2 (out hi : Nat) (lay : Nat) : Spec :=
 
 /-- The leaf code at the return pc: the leaf tweak, then the dispatch into the shape block of
 chunk 0. -/
-def leafSteps (lay : Nat) : Nat := if lay = 0 then 6 else if lay < 4 then 6 else 7
+def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay < 4 then 5 else 6
 
-def leafRawSteps (lay : Nat) : Nat := if lay = 0 then 5 else leafSteps lay
+def leafRawSteps (lay : Nat) : Nat := if lay = 0 then 7 else leafSteps lay
 
 def topDispTgt : E :=
-  mkBin .and (mkBin .sll (.reg .x23) (cw 4)) (.c (~~~1#64))
+  mkBin .and (mkAdd (mkBin .sll (.reg .x23) (cw 3)) (cw 779264)) (.c (~~~1#64))
 
 def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, 0x40401), (.x22, BitVec.ofNat 64 (s6N lay))]
 
