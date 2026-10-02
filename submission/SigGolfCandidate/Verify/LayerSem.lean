@@ -120,8 +120,8 @@ theorem lc_leaf {t : Nat} (ht : t < nCopy lay) :
   exact h.2
 
 theorem lc_cmp {t : Nat} (ht : t < 32) (h0 : lay = 0) :
-    specB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) [] [] = true ∧
-      specB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) [] [] = true := by
+    specOB [] (runAt cmpK [] (cmpPc t) [.br false]) (specAcc t) (cmpObl false) [] [] = true ∧
+      specOB [] (runAt cmpK [] (cmpPc t) [.br true]) (specCR1 t) (cmpObl true) [] [] = true := by
   have h := layerCheck_at lay hl
   subst h0
   simp only [layerCheck, Bool.and_eq_true, List.all_eq_true, List.mem_range, bne_self_eq_false,
