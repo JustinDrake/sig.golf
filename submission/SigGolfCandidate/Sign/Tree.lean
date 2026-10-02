@@ -36,7 +36,7 @@ theorem buildTree_eq (S : List Byte) (lay tau h e : Nat) (x : List Nat) :
   simp only [buildTree, buildLevels, bind_assoc, pure_bind]
 
 /-- Cycle bound of tree_build. -/
-def treeCyc : Nat := 64 * tleafCyc + (4 + 6 * 853)
+def treeCyc : Nat := 64 * tleafCyc + (4 + 6 * 858)
 
 /-- The non-top tree returns through the shared leaf dispatcher. -/
 def treeEntryState (t : MachineState) : MachineState :=
@@ -51,10 +51,10 @@ theorem tree_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : TreePa
   have hsig := ctx.hsigl
   have hlay := ctx.hlay
   rw [buildTree_eq]
-  have hW : 2 ^ p.h * tleafCyc + (4 + p.h * 853) ≤ treeCyc := by
+  have hW : 2 ^ p.h * tleafCyc + (4 + p.h * 858) ≤ treeCyc := by
     unfold treeCyc
     have := Nat.mul_le_mul_right tleafCyc h32
-    have := Nat.mul_le_mul_right 853 hh
+    have := Nat.mul_le_mul_right 858 hh
     omega
   refine (Sim.bind (leaves_sim S hS x p tt ctx hpc h20) (fun q t2 h2 => ?_)).mono hW
     (fun _ _ h => h)
@@ -97,7 +97,7 @@ theorem tree_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : TreePa
   have ft3 : Frame tt t3 (leavesW p) := (lframe.trans f3).mono (by
     intro x hx; rcases hx with h | h; exact h; exact h.elim)
   have vctx : TLevCtx p t3 := by
-    refine ⟨ctx.hlay, ctx.htau, ⟨h1, hh⟩, ctx.he, ctx.hsigl, ctx.hheight, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨ctx.hlay, ctx.htau, ⟨h1, hh⟩, ctx.he, ctx.hsigl, ctx.hheight, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [rt3.get .x5, ctx.x5]
     · rw [rt3.get .x8, ctx.x8]
     · rw [rt3.get .x9, ctx.x9]
@@ -107,8 +107,9 @@ theorem tree_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : TreePa
     · rw [rt3.get .x30, ctx.x30]
     · have := ctx.hsigl
       rw [ft3.readWords _ _ (by norm_num) (by intro i hi; simp only [leavesW]; omega), ctx.nbP]
-  have e45 : 17 + (2 ^ (p.h - 1 - (p.h - 1)) * 26 + 2) = 45 := by rw [Nat.sub_self]; rfl
-  refine (Sim.steps hs3 (Sim.bind (W₂ := 45) (tlevels_sim p t3 vctx q.1 hlv hlvv
+    · rw [rt3.get .x26,ctx.x26]
+  have e45 : 22 + (2 ^ (p.h - 1 - (p.h - 1)) * 26 + 2) = 50 := by rw [Nat.sub_self]; rfl
+  refine (Sim.steps hs3 (Sim.bind (W₂ := 50) (tlevels_sim p t3 vctx q.1 hlv hlvv
     (hlvs.frame f3 (by omega) (by simp)) (by simp only [ht3, treeEntryState, blk2986.res, blk2980.res, blk591.res, rv_simp])
     (by simp only [ht3, treeEntryState, blk2986.res, blk2980.res, blk591.res, rv_simp]) (by rw [rt3.get .x17, ctx.x17])
     (p.h - 1) (by omega))

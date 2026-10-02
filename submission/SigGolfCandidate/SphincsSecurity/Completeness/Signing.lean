@@ -165,20 +165,47 @@ theorem probEvent_signChecked_none (sk : Seeded.SecretKey) (topCache : TopCache)
   · exact add_le_add (probEvent_signDigestPairs sk message digestPairLimit 0 cache ∅
       (by rw [digestPairLimit]; omega) (by simp) (fun s _ _ => hrand s) (fun ρ _ => hmsg ρ)) le_rfl
 
-/-- When the cache's MAC is already cached (key generation queried it), the check is a cache hit that
-passes, and signing fails only if the randomizer search or one of the five counter searches does. -/
+/-- A family of cached queries runs to its cached answers and leaves the cache alone. -/
+theorem run_sequenceFin_cached {n : Nat} (inputs : Fin n → HashInput) (answers : Fin n → HashOutput)
+    (cache : QueryCache HashSpec) (h : ∀ i, cache (inputs i) = some (answers i)) :
+    (simulateQ (randomOracle : QueryImpl HashSpec _)
+      (sequenceFin fun i => (oracleHash (inputs i) : OracleComp HashSpec HashOutput))).run cache =
+        pure (answers, cache) := by
+  induction n with
+  | zero =>
+      simp only [Concrete.sequenceFin, simulateQ_pure, StateT.run_pure]
+      congr 2
+      funext i
+      exact i.elim0
+  | succ n ih =>
+      have h0 : (simulateQ (randomOracle : QueryImpl HashSpec _)
+          (oracleHash (inputs 0) : OracleComp HashSpec HashOutput)).run cache = pure (answers 0, cache) := by
+        simp only [oracleHash, HasQuery.query, simulateQ_spec_query]
+        exact cached_run _ _ _ (h 0)
+      rw [Concrete.sequenceFin]
+      simp only [simulateQ_bind, StateT.run_bind]
+      rw [h0, pure_bind, ih (fun i => inputs i.succ) (fun i => answers i.succ) (fun i => h i.succ), pure_bind]
+      simp only [simulateQ_pure, StateT.run_pure]
+      congr 2
+      funext i
+      cases i using Fin.cases <;> rfl
+
+/-- When the MAC key's derivations are already cached (key generation made them) and the cache's tag is the
+MAC of its region, the check passes without a fresh query, and signing fails only if the randomizer search or
+one of the five counter searches does. -/
 theorem probEvent_sign_none (sk : Seeded.SecretKey) (topCache : TopCache) (message : Message)
-    (cache : QueryCache HashSpec)
-    (hmac : cache (macHashInput sk.parameter sk.seed topCache.region) = some topCache.tag)
+    (cache : QueryCache HashSpec) (key : MacKey)
+    (hkey : ∀ index, cache (keygenHashInput sk.parameter (.mackey index) sk.seed) = some (key index))
+    (htag : macTag key (regionBytes topCache.region) = topCache.tag)
     (hrand : ∀ s, cache (randInput sk message s) = none)
     (hmsg : ∀ ρ, cache (msgInput sk message ρ) = none)
     (henc : EncodingFresh sk.parameter (fun _ => True) cache) :
     Pr[fun r => r.1 = none | (simulateQ (randomOracle : QueryImpl HashSpec _)
       (Seeded.sign sk topCache message : OracleComp HashSpec (Option Signature))).run cache]
       ≤ pairedDigestFactor ^ digestPairLimit + (numLayers : ℝ≥0∞) * encodingBound := by
-  rw [Seeded.sign]
-  simp only [oracleHash, HasQuery.query, simulateQ_bind, simulateQ_spec_query, StateT.run_bind]
-  rw [cached_run _ _ _ hmac, pure_bind, if_pos rfl]
+  rw [Seeded.sign, Seeded.deriveMacKey]
+  simp only [simulateQ_bind, StateT.run_bind]
+  rw [run_sequenceFin_cached _ key cache hkey, pure_bind, if_pos htag.symm]
   exact probEvent_signChecked_none sk topCache message cache hrand hmsg henc
 
 end SphincsSecurity.Completeness

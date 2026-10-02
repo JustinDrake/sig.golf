@@ -5,7 +5,15 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=13712 witness bytes, K=131072 cache bytes.
-The claim C=10258 is accepting verifier bound10204 plus witness charge54.
+The claim C=10240 is accepting verifier bound 10186 plus witness charge 54.
+The cache MAC is an arithmetic polynomial modulo 2^61-1: three key derivations,
+a Horner accumulation, and a 48-byte tag. Level 0 of the top tree is restored
+into the cache region (65504 bytes) instead of being rebuilt at sign time.
+WOTS targets are 185, 185, 186, 186, 186 (layers 2 and 3 use target sum 186).
+The root stores the retained SWAR mask as its encoding and leaf header, removing one load.
+The top-tree root hash destination stays in the carried register x12, removing one address materialization.
+Layer 4 keeps the live PORS chain page in x29 instead of rebuilding it with lui.
+The total MaskHeader query involution updates all four programs and retains arbitrary-query inverses.
 The PORS node/leaf instance header rotates bytes3..7 through a total query involution,
 so setup builds its two headers with a shift and add, saving four instructions.
 The WOTS digit-lane SWAR uses seven ALU instructions instead of nine in every layer, saving ten cycles.
@@ -25,7 +33,7 @@ payload lanes. The encoding header remains in memory and only its layer byte is 
 removing four header subtractions and one unused register initializer.
 Sparse temporary PORS cells share consumed chain-tweak slots. The certificate checks the concrete programs and query map.
 PORS has height14,15 openings and authentication cap117. The five WOTS
-checksum targets are[185,185,185,185,186].
+checksum targets are[185,185,186,186,186].
 
 For oracle words A,B,C,D, select AB when B's top bit is clear and A's top
 bit is clear; select BC when B's top bit is clear and A's top bit is set.
@@ -86,7 +94,7 @@ c216d85858f8a7dcd68a2782cc27cfd057d45b67. Earlier public sources include
 
 The external witness omits its internal zero prefix. Temporary PORS cells share consumed
 chain tweak slots, and authentication paths use contiguous 16-byte cells. The external
-witness begins at 0x1270 and has 13712 bytes, with charge 55.
+witness begins at 0x1270 and has 13712 bytes, with charge 54.
 
 The certificate covers all four images, universal termination, per-seed
 completeness, honest compression budgets,127-bit security and accepting
@@ -107,7 +115,7 @@ theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4720 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10258 :=
+theorem certificate : SigGolf.Certificate submission 10240 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

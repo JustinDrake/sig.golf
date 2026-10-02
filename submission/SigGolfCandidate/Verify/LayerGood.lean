@@ -137,18 +137,17 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
       unfold lvlK; rw [if_neg (by omega)]
     rw [← e]; exact hK
   have kf : ∀ r ∈ fkeep false, u.getReg r = s0.getReg r := hF.1
-  refine ⟨hG, ?_, ?_, hm0, hm8, hvl, fun _ => trivial, ?_, ?_, ?_,
+  refine ⟨by simp only [LCtx.gk, if_neg (show lay - 1 ≠ 4 by omega)]; exact hG, ?_, ?_, hm0, hm8, hvl, fun _ => trivial, ?_, ?_, ?_,
     fun h => absurd h (show ¬ (lay - 1 = 4) by omega), fun _ => ?_, ?_⟩
   · simp only [LCtx.lay, preK, if_neg (show lay - 1 ≠ 4 by omega), aK, Nat.sub_add_cancel h1]
     intro p hp
     simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with hp | hp | hp | hp | hp | hp
+    rcases hp with hp | hp | hp | hp | hp
     · exact hK1 p (by simp [foldK, fk, gkOf, hp])
     · subst hp; exact hK1 _ (by simp [foldK, fk, gkOf])
     · subst hp; exact hK1 _ (by simp [foldK, fk, gkOf])
     · subst hp; exact h12
-    · subst hp; rw [kf _ (by simp [fkeep])]; exact h27
-    · subst hp; exact hK1 (.x22, BitVec.ofNat 64 (s6N lay)) (by simp [foldK, s6N_eq])
+    · subst hp; exact hK1 (.x29, BitVec.ofNat 64 (s6N lay)) (by simp [foldK, s6N_eq])
   · simp only [routeReg, routeIn, if_neg (show lay - 1 ≠ 4 by omega)]
     rw [kf _ (by simp [fkeep]), h30]
     simp only [LCtx.tau, LCtx.lay, if_neg (show lay ≠ 0 by omega)]
@@ -161,7 +160,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     have ht := tau_lt lay idx h7 hidx
     rw [Nat.div_eq_of_lt (by omega : idx / 2 ^ (layS lay + heightL lay) < 2 ^ 32)]
     rw [Nat.sub_add_cancel h1]
-    omega
+    convert Ref.MaskHeader.header_node lay h7 using 2 <;> omega
   · intro _
     change EncHeader (lay - 1 + 1) u
     rw [Nat.sub_add_cancel h1]
@@ -223,8 +222,8 @@ theorem layer_good (L : LCtx) (hL : L.ok) (X : Val) (Kopt : Option Val → Oracl
   have hhL := heightL_le L.lay hlay
   have hcb : chainsBound L.lay ≥ 1200 := by unfold chainsBound; omega
   have hsA : stepsA L.lay ≤ 16 := by unfold stepsA stepsT; split_ifs <;> omega
-  have hcB : cyclesB L.lay ≤ 32 := by unfold cyclesB stepsB; omega
-  have hsB : stepsB L.lay ≤ 29 := by unfold stepsB; omega
+  have hcB : cyclesB L.lay ≤ 32 := by unfold cyclesB stepsB; split_ifs <;> omega
+  have hsB : stepsB L.lay ≤ 29 := by unfold stepsB; split_ifs <;> omega
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
       (cc (match decodeDigits L.lay (encodingBytes a) with
         | none => pure none
@@ -465,6 +464,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The cycles of the five layers and the comparison (`8`). Against the head without the pair
 message: `-14` per lower layer (no root hash) and `+4` in each upper transition (the sibling copy). -/
-theorem layersCost_5 : layersCost 5 = 7444 := by decide
+theorem layersCost_5 : layersCost 5 = 7427 := by decide
 
 end SigGolfCandidate.Verify

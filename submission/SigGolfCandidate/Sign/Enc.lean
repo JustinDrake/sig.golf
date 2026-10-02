@@ -231,7 +231,7 @@ def swarState (t : MachineState) : MachineState :=
 theorem swarState_pc_raw (t : MachineState) : (swarState t).pc =
     if (swarW (t.getReg .x1) (t.getReg .x2) (t.getReg .x26) (t.getReg .x27) +
         BitVec.ofNat 64 (2 ^ 64 - 186) +
-        (if (t.getReg .x8).ult 4 then (1 : Word) else 0) != 0#64) = true then pcOf 377 else pcOf 376 := by
+        (if (t.getReg .x8).ult 2 then (1 : Word) else 0) != 0#64) = true then pcOf 377 else pcOf 376 := by
   simp only [swarState, blk375.res, blk1816.res, blk355.res, rv_simp,
     swarW, swF, swS1, BitVec.sub_eq_add_neg]
   rfl
@@ -327,7 +327,7 @@ structure EncMem (lay tau e : Nat) (M : Val) (u : MachineState) : Prop where
   htau : tau < 2 ^ 30
   he : e < 2048
   hM : M.length = 32
-  eb0 : u.getMem (BitVec.ofNat 64 0x100) = twWord0 4 lay tau 0
+  eb0 : u.getMem (BitVec.ofNat 64 0x100) = BitVec.ofNat 64 (Ref.MaskHeader.header 0 (twWord0 4 lay tau 0).toNat)
   eb8 : u.getMem (BitVec.ofNat 64 0x108) = BitVec.ofNat 64 (tau + 2 ^ 32 * e)
   ebM : u.readWords (BitVec.ofNat 64 0x120) 4 = wordsOf M
   eb56 : u.getMem (BitVec.ofNat 64 0x118) = 0
@@ -409,6 +409,13 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
   have hq : hashInput t1 = addrFmt (encInput lay tau e M c) := by
     rw [hashInput_eq_words t1 0 (by simpa using x11) (by norm_num) (by rw [x10]; decide),
       addrFmt_encInput_words lay tau e M hmem.hM c]
+    have hlen : (wordsOf M).length = 4 := by
+      have hM := hmem.hM
+      rw [← List.take_append_drop 16 M, wordsOf_append _ _ (by simp; omega), List.length_append,
+        length_wordsOf_16 _ (by simp; omega), length_wordsOf_16 _ (by simp; omega)]
+    rw [twWords_eq]
+    simp only [List.cons_append, List.nil_append]
+    rw [Ref.MaskHeader.query_words 0 _ _ (by simp [hlen])]
     apply congrArg (queryOfWords 0)
     rw [x10, show 8 * (0 + 1) = 1 + 1 + 1 + 1 + 4 from rfl]
     rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add]
@@ -522,7 +529,7 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
   have pc5 : t5.pc = if (digitsOfWord d0 ++ digitsOfWord d1).sum = targetFor lay then pcOf 376 else pcOf 377 := by
     have hx8 : t3.getReg .x8 = BitVec.ofNat 64 lay := by rw [ru3.get .x8, hmem.x8]
     have htarget : BitVec.ofNat 64 (2 ^ 64 - 186) +
-        (if (BitVec.ofNat 64 lay).ult 4 then (1 : Word) else 0) =
+        (if (BitVec.ofNat 64 lay).ult 2 then (1 : Word) else 0) =
         BitVec.ofNat 64 (2 ^ 64 - targetFor lay) := by
       have hl := hmem.hlay
       interval_cases lay <;> decide

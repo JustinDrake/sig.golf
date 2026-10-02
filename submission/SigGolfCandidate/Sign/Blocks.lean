@@ -7,10 +7,6 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 /-! Symbolic blocks of the sign program (before the pack). -/
 
 sym_block blk0 := symRun { noAlias := true } seg0 (pcOf 0) 56
-sym_block blk55 := symRun { noAlias := true } seg55 (pcOf 55) 3
-sym_block blk57 := symRun { noAlias := true } seg57 (pcOf 57) 3
-sym_block blk59 := symRun { noAlias := true } seg59 (pcOf 59) 3
-sym_block blk61 := symRun { noAlias := true } seg61 (pcOf 61) 3
 sym_block blk63 := symRun { noAlias := true } seg63 (pcOf 63) 3
 sym_block blk65 := symRun { noAlias := true } seg65 (pcOf 65) 6
 sym_block blk70 := symRun { noAlias := true } seg70 (pcOf 70) 2
@@ -66,7 +62,46 @@ sym_block blk318 := symRun { noAlias := true } seg318 (pcOf 318) 4
 sym_block blk321 := symRun { noAlias := true } seg321 (pcOf 321) 2
 sym_block blk322 := symRun { noAlias := true } seg322 (pcOf 322) 8
 sym_block blk329 := symRun { noAlias := true } seg329 (pcOf 329) 3
-sym_block blk331 := symRun { noAlias := true } seg331 (pcOf 331) 16
+sym_block encHead331 := symRun {noAlias:=true} seg331 (pcOf 331) 100
+sym_block encTest331 := symRunAux {noAlias:=true} segMaskEncTest (pcOf 3044) 100 encHead331.res.st
+sym_block encLow331 := symRunAux {noAlias:=true} segMaskEncLow (pcOf 3045) 100 encTest331.res.st
+sym_block encHigh331 := symRunAux {noAlias:=true} segMaskEncHigh (pcOf 3046) 100 encTest331.res.st
+sym_block encLowRes331 := symRunAux {noAlias:=true} segMaskEncReturn (pcOf 343) 100 encLow331.res.st
+sym_block encHighRes331 := symRunAux {noAlias:=true} segMaskEncReturn (pcOf 343) 100 encHigh331.res.st
+sym_block blk331 := some { encLowRes331.res with st := { encLowRes331.res.st with
+  regs := {
+    r1 := if E.beq encHighRes331.res.st.regs.r1 encLowRes331.res.st.regs.r1 then encLowRes331.res.st.regs.r1 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r1 encLowRes331.res.st.regs.r1,
+    r2 := if E.beq encHighRes331.res.st.regs.r2 encLowRes331.res.st.regs.r2 then encLowRes331.res.st.regs.r2 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r2 encLowRes331.res.st.regs.r2,
+    r3 := if E.beq encHighRes331.res.st.regs.r3 encLowRes331.res.st.regs.r3 then encLowRes331.res.st.regs.r3 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r3 encLowRes331.res.st.regs.r3,
+    r4 := if E.beq encHighRes331.res.st.regs.r4 encLowRes331.res.st.regs.r4 then encLowRes331.res.st.regs.r4 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r4 encLowRes331.res.st.regs.r4,
+    r5 := if E.beq encHighRes331.res.st.regs.r5 encLowRes331.res.st.regs.r5 then encLowRes331.res.st.regs.r5 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r5 encLowRes331.res.st.regs.r5,
+    r6 := if E.beq encHighRes331.res.st.regs.r6 encLowRes331.res.st.regs.r6 then encLowRes331.res.st.regs.r6 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r6 encLowRes331.res.st.regs.r6,
+    r7 := if E.beq encHighRes331.res.st.regs.r7 encLowRes331.res.st.regs.r7 then encLowRes331.res.st.regs.r7 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r7 encLowRes331.res.st.regs.r7,
+    r8 := if E.beq encHighRes331.res.st.regs.r8 encLowRes331.res.st.regs.r8 then encLowRes331.res.st.regs.r8 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r8 encLowRes331.res.st.regs.r8,
+    r9 := if E.beq encHighRes331.res.st.regs.r9 encLowRes331.res.st.regs.r9 then encLowRes331.res.st.regs.r9 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r9 encLowRes331.res.st.regs.r9,
+    r10 := if E.beq encHighRes331.res.st.regs.r10 encLowRes331.res.st.regs.r10 then encLowRes331.res.st.regs.r10 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r10 encLowRes331.res.st.regs.r10,
+    r11 := if E.beq encHighRes331.res.st.regs.r11 encLowRes331.res.st.regs.r11 then encLowRes331.res.st.regs.r11 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r11 encLowRes331.res.st.regs.r11,
+    r12 := if E.beq encHighRes331.res.st.regs.r12 encLowRes331.res.st.regs.r12 then encLowRes331.res.st.regs.r12 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r12 encLowRes331.res.st.regs.r12,
+    r13 := if E.beq encHighRes331.res.st.regs.r13 encLowRes331.res.st.regs.r13 then encLowRes331.res.st.regs.r13 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r13 encLowRes331.res.st.regs.r13,
+    r14 := if E.beq encHighRes331.res.st.regs.r14 encLowRes331.res.st.regs.r14 then encLowRes331.res.st.regs.r14 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r14 encLowRes331.res.st.regs.r14,
+    r15 := if E.beq encHighRes331.res.st.regs.r15 encLowRes331.res.st.regs.r15 then encLowRes331.res.st.regs.r15 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r15 encLowRes331.res.st.regs.r15,
+    r16 := if E.beq encHighRes331.res.st.regs.r16 encLowRes331.res.st.regs.r16 then encLowRes331.res.st.regs.r16 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r16 encLowRes331.res.st.regs.r16,
+    r17 := if E.beq encHighRes331.res.st.regs.r17 encLowRes331.res.st.regs.r17 then encLowRes331.res.st.regs.r17 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r17 encLowRes331.res.st.regs.r17,
+    r18 := if E.beq encHighRes331.res.st.regs.r18 encLowRes331.res.st.regs.r18 then encLowRes331.res.st.regs.r18 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r18 encLowRes331.res.st.regs.r18,
+    r19 := if E.beq encHighRes331.res.st.regs.r19 encLowRes331.res.st.regs.r19 then encLowRes331.res.st.regs.r19 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r19 encLowRes331.res.st.regs.r19,
+    r20 := if E.beq encHighRes331.res.st.regs.r20 encLowRes331.res.st.regs.r20 then encLowRes331.res.st.regs.r20 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r20 encLowRes331.res.st.regs.r20,
+    r21 := if E.beq encHighRes331.res.st.regs.r21 encLowRes331.res.st.regs.r21 then encLowRes331.res.st.regs.r21 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r21 encLowRes331.res.st.regs.r21,
+    r22 := if E.beq encHighRes331.res.st.regs.r22 encLowRes331.res.st.regs.r22 then encLowRes331.res.st.regs.r22 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r22 encLowRes331.res.st.regs.r22,
+    r23 := if E.beq encHighRes331.res.st.regs.r23 encLowRes331.res.st.regs.r23 then encLowRes331.res.st.regs.r23 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r23 encLowRes331.res.st.regs.r23,
+    r24 := if E.beq encHighRes331.res.st.regs.r24 encLowRes331.res.st.regs.r24 then encLowRes331.res.st.regs.r24 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r24 encLowRes331.res.st.regs.r24,
+    r25 := if E.beq encHighRes331.res.st.regs.r25 encLowRes331.res.st.regs.r25 then encLowRes331.res.st.regs.r25 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r25 encLowRes331.res.st.regs.r25,
+    r26 := if E.beq encHighRes331.res.st.regs.r26 encLowRes331.res.st.regs.r26 then encLowRes331.res.st.regs.r26 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r26 encLowRes331.res.st.regs.r26,
+    r27 := if E.beq encHighRes331.res.st.regs.r27 encLowRes331.res.st.regs.r27 then encLowRes331.res.st.regs.r27 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r27 encLowRes331.res.st.regs.r27,
+    r28 := if E.beq encHighRes331.res.st.regs.r28 encLowRes331.res.st.regs.r28 then encLowRes331.res.st.regs.r28 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r28 encLowRes331.res.st.regs.r28,
+    r29 := if E.beq encHighRes331.res.st.regs.r29 encLowRes331.res.st.regs.r29 then encLowRes331.res.st.regs.r29 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r29 encLowRes331.res.st.regs.r29,
+    r30 := if E.beq encHighRes331.res.st.regs.r30 encLowRes331.res.st.regs.r30 then encLowRes331.res.st.regs.r30 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r30 encLowRes331.res.st.regs.r30,
+    r31 := if E.beq encHighRes331.res.st.regs.r31 encLowRes331.res.st.regs.r31 then encLowRes331.res.st.regs.r31 else E.ite .eq (.reg .x8) (.c 4) encHighRes331.res.st.regs.r31 encLowRes331.res.st.regs.r31 },
+  mem := List.zipWith (fun p q => (p.1, if E.beq p.2 q.2 then p.2 else E.ite .eq (.reg .x8) (.c 4) q.2 p.2)) encLowRes331.res.st.mem encHighRes331.res.st.mem } }
 sym_block blk346 := symRun { noAlias := true } seg346 (pcOf 346) 6
 sym_block blk351 := symRun { noAlias := true } seg351 (pcOf 351) 5
 sym_block blk353 := symRun { noAlias := true } seg353 (pcOf 353) 3
@@ -77,14 +112,82 @@ sym_block blk377 := symRun { noAlias := true } seg377 (pcOf 377) 3
 sym_block blk379 := symRun { noAlias := true } seg379 (pcOf 379) 4
 sym_block blk382 := symRun { noAlias := true } seg382 (pcOf 382) 128
 sym_block carryHead509 := symRun {noAlias:=true} seg509 (pcOf 509) 100
-sym_block carryTest509 := symRunAux {noAlias:=true} segCarryTest509 (pcOf 3034) 100 carryHead509.res.st
-sym_block carryLow509 := symRunAux {noAlias:=true} segCarryLow509 (pcOf 3037) 100 carryTest509.res.st
-sym_block carryHigh509 := symRunAux {noAlias:=true} segCarryHigh509 (pcOf 3040) 100 carryTest509.res.st
-sym_block carryLowRes509 := symRunAux {noAlias:=true} segCarryReturn509 (pcOf 516) 100 carryLow509.res.st
-sym_block carryHighRes509 := symRunAux {noAlias:=true} segCarryReturn509 (pcOf 516) 100 carryHigh509.res.st
-sym_block blk509 := some { carryLowRes509.res with st := {carryLowRes509.res.st with
-  regs := {carryLowRes509.res.st.regs with r29 := E.ite .eq (.reg .x8) (.c 4) carryHighRes509.res.st.regs.r29 carryLowRes509.res.st.regs.r29},
-  mem := (List.zipWith (fun p q => (p.1, if E.beq p.2 q.2 then p.2 else E.ite .eq (.reg .x8) (.c 4) q.2 p.2)) carryLowRes509.res.st.mem carryHighRes509.res.st.mem)}}
+sym_block leafTest4 := symRunAux {noAlias:=true} segMaskLeafTest4 (pcOf 3047) 100 carryHead509.res.st
+sym_block leafTest3 := symRunAux {noAlias:=true} segMaskLeafTest3 (pcOf 3050) 100 leafTest4.res.st
+sym_block leafLow := symRunAux {noAlias:=true} segMaskLeafLow (pcOf 3053) 100 leafTest3.res.st
+sym_block leafMid := symRunAux {noAlias:=true} segMaskLeafHigh (pcOf 3055) 100 leafTest3.res.st
+sym_block leafHigh := symRunAux {noAlias:=true} segMaskLeafHigh (pcOf 3055) 100 leafTest4.res.st
+sym_block leafLowRes := symRunAux {noAlias:=true} segMaskLeafReturn (pcOf 517) 100 leafLow.res.st
+sym_block leafMidRes := symRunAux {noAlias:=true} segMaskLeafReturn (pcOf 517) 100 leafMid.res.st
+sym_block leafHighRes := symRunAux {noAlias:=true} segMaskLeafReturn (pcOf 517) 100 leafHigh.res.st
+sym_block leafNonroot := some { leafLowRes.res with st := { leafLowRes.res.st with
+  regs := {
+    r1 := if E.beq leafMidRes.res.st.regs.r1 leafLowRes.res.st.regs.r1 then leafLowRes.res.st.regs.r1 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r1 leafLowRes.res.st.regs.r1,
+    r2 := if E.beq leafMidRes.res.st.regs.r2 leafLowRes.res.st.regs.r2 then leafLowRes.res.st.regs.r2 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r2 leafLowRes.res.st.regs.r2,
+    r3 := if E.beq leafMidRes.res.st.regs.r3 leafLowRes.res.st.regs.r3 then leafLowRes.res.st.regs.r3 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r3 leafLowRes.res.st.regs.r3,
+    r4 := if E.beq leafMidRes.res.st.regs.r4 leafLowRes.res.st.regs.r4 then leafLowRes.res.st.regs.r4 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r4 leafLowRes.res.st.regs.r4,
+    r5 := if E.beq leafMidRes.res.st.regs.r5 leafLowRes.res.st.regs.r5 then leafLowRes.res.st.regs.r5 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r5 leafLowRes.res.st.regs.r5,
+    r6 := if E.beq leafMidRes.res.st.regs.r6 leafLowRes.res.st.regs.r6 then leafLowRes.res.st.regs.r6 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r6 leafLowRes.res.st.regs.r6,
+    r7 := if E.beq leafMidRes.res.st.regs.r7 leafLowRes.res.st.regs.r7 then leafLowRes.res.st.regs.r7 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r7 leafLowRes.res.st.regs.r7,
+    r8 := if E.beq leafMidRes.res.st.regs.r8 leafLowRes.res.st.regs.r8 then leafLowRes.res.st.regs.r8 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r8 leafLowRes.res.st.regs.r8,
+    r9 := if E.beq leafMidRes.res.st.regs.r9 leafLowRes.res.st.regs.r9 then leafLowRes.res.st.regs.r9 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r9 leafLowRes.res.st.regs.r9,
+    r10 := if E.beq leafMidRes.res.st.regs.r10 leafLowRes.res.st.regs.r10 then leafLowRes.res.st.regs.r10 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r10 leafLowRes.res.st.regs.r10,
+    r11 := if E.beq leafMidRes.res.st.regs.r11 leafLowRes.res.st.regs.r11 then leafLowRes.res.st.regs.r11 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r11 leafLowRes.res.st.regs.r11,
+    r12 := if E.beq leafMidRes.res.st.regs.r12 leafLowRes.res.st.regs.r12 then leafLowRes.res.st.regs.r12 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r12 leafLowRes.res.st.regs.r12,
+    r13 := if E.beq leafMidRes.res.st.regs.r13 leafLowRes.res.st.regs.r13 then leafLowRes.res.st.regs.r13 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r13 leafLowRes.res.st.regs.r13,
+    r14 := if E.beq leafMidRes.res.st.regs.r14 leafLowRes.res.st.regs.r14 then leafLowRes.res.st.regs.r14 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r14 leafLowRes.res.st.regs.r14,
+    r15 := if E.beq leafMidRes.res.st.regs.r15 leafLowRes.res.st.regs.r15 then leafLowRes.res.st.regs.r15 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r15 leafLowRes.res.st.regs.r15,
+    r16 := if E.beq leafMidRes.res.st.regs.r16 leafLowRes.res.st.regs.r16 then leafLowRes.res.st.regs.r16 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r16 leafLowRes.res.st.regs.r16,
+    r17 := if E.beq leafMidRes.res.st.regs.r17 leafLowRes.res.st.regs.r17 then leafLowRes.res.st.regs.r17 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r17 leafLowRes.res.st.regs.r17,
+    r18 := if E.beq leafMidRes.res.st.regs.r18 leafLowRes.res.st.regs.r18 then leafLowRes.res.st.regs.r18 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r18 leafLowRes.res.st.regs.r18,
+    r19 := if E.beq leafMidRes.res.st.regs.r19 leafLowRes.res.st.regs.r19 then leafLowRes.res.st.regs.r19 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r19 leafLowRes.res.st.regs.r19,
+    r20 := if E.beq leafMidRes.res.st.regs.r20 leafLowRes.res.st.regs.r20 then leafLowRes.res.st.regs.r20 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r20 leafLowRes.res.st.regs.r20,
+    r21 := if E.beq leafMidRes.res.st.regs.r21 leafLowRes.res.st.regs.r21 then leafLowRes.res.st.regs.r21 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r21 leafLowRes.res.st.regs.r21,
+    r22 := if E.beq leafMidRes.res.st.regs.r22 leafLowRes.res.st.regs.r22 then leafLowRes.res.st.regs.r22 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r22 leafLowRes.res.st.regs.r22,
+    r23 := if E.beq leafMidRes.res.st.regs.r23 leafLowRes.res.st.regs.r23 then leafLowRes.res.st.regs.r23 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r23 leafLowRes.res.st.regs.r23,
+    r24 := if E.beq leafMidRes.res.st.regs.r24 leafLowRes.res.st.regs.r24 then leafLowRes.res.st.regs.r24 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r24 leafLowRes.res.st.regs.r24,
+    r25 := if E.beq leafMidRes.res.st.regs.r25 leafLowRes.res.st.regs.r25 then leafLowRes.res.st.regs.r25 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r25 leafLowRes.res.st.regs.r25,
+    r26 := if E.beq leafMidRes.res.st.regs.r26 leafLowRes.res.st.regs.r26 then leafLowRes.res.st.regs.r26 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r26 leafLowRes.res.st.regs.r26,
+    r27 := if E.beq leafMidRes.res.st.regs.r27 leafLowRes.res.st.regs.r27 then leafLowRes.res.st.regs.r27 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r27 leafLowRes.res.st.regs.r27,
+    r28 := if E.beq leafMidRes.res.st.regs.r28 leafLowRes.res.st.regs.r28 then leafLowRes.res.st.regs.r28 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r28 leafLowRes.res.st.regs.r28,
+    r29 := if E.beq leafMidRes.res.st.regs.r29 leafLowRes.res.st.regs.r29 then leafLowRes.res.st.regs.r29 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r29 leafLowRes.res.st.regs.r29,
+    r30 := if E.beq leafMidRes.res.st.regs.r30 leafLowRes.res.st.regs.r30 then leafLowRes.res.st.regs.r30 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r30 leafLowRes.res.st.regs.r30,
+    r31 := if E.beq leafMidRes.res.st.regs.r31 leafLowRes.res.st.regs.r31 then leafLowRes.res.st.regs.r31 else E.ite .eq (.reg .x8) (.c 3) leafMidRes.res.st.regs.r31 leafLowRes.res.st.regs.r31 },
+  mem := List.zipWith (fun p q => (p.1, if E.beq p.2 q.2 then p.2 else E.ite .eq (.reg .x8) (.c 3) q.2 p.2)) leafLowRes.res.st.mem leafMidRes.res.st.mem } }
+sym_block blk509 := some { leafNonroot.res with st := { leafNonroot.res.st with
+  regs := {
+    r1 := if E.beq leafHighRes.res.st.regs.r1 leafNonroot.res.st.regs.r1 then leafNonroot.res.st.regs.r1 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r1 leafNonroot.res.st.regs.r1,
+    r2 := if E.beq leafHighRes.res.st.regs.r2 leafNonroot.res.st.regs.r2 then leafNonroot.res.st.regs.r2 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r2 leafNonroot.res.st.regs.r2,
+    r3 := if E.beq leafHighRes.res.st.regs.r3 leafNonroot.res.st.regs.r3 then leafNonroot.res.st.regs.r3 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r3 leafNonroot.res.st.regs.r3,
+    r4 := if E.beq leafHighRes.res.st.regs.r4 leafNonroot.res.st.regs.r4 then leafNonroot.res.st.regs.r4 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r4 leafNonroot.res.st.regs.r4,
+    r5 := if E.beq leafHighRes.res.st.regs.r5 leafNonroot.res.st.regs.r5 then leafNonroot.res.st.regs.r5 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r5 leafNonroot.res.st.regs.r5,
+    r6 := if E.beq leafHighRes.res.st.regs.r6 leafNonroot.res.st.regs.r6 then leafNonroot.res.st.regs.r6 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r6 leafNonroot.res.st.regs.r6,
+    r7 := if E.beq leafHighRes.res.st.regs.r7 leafNonroot.res.st.regs.r7 then leafNonroot.res.st.regs.r7 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r7 leafNonroot.res.st.regs.r7,
+    r8 := if E.beq leafHighRes.res.st.regs.r8 leafNonroot.res.st.regs.r8 then leafNonroot.res.st.regs.r8 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r8 leafNonroot.res.st.regs.r8,
+    r9 := if E.beq leafHighRes.res.st.regs.r9 leafNonroot.res.st.regs.r9 then leafNonroot.res.st.regs.r9 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r9 leafNonroot.res.st.regs.r9,
+    r10 := if E.beq leafHighRes.res.st.regs.r10 leafNonroot.res.st.regs.r10 then leafNonroot.res.st.regs.r10 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r10 leafNonroot.res.st.regs.r10,
+    r11 := if E.beq leafHighRes.res.st.regs.r11 leafNonroot.res.st.regs.r11 then leafNonroot.res.st.regs.r11 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r11 leafNonroot.res.st.regs.r11,
+    r12 := if E.beq leafHighRes.res.st.regs.r12 leafNonroot.res.st.regs.r12 then leafNonroot.res.st.regs.r12 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r12 leafNonroot.res.st.regs.r12,
+    r13 := if E.beq leafHighRes.res.st.regs.r13 leafNonroot.res.st.regs.r13 then leafNonroot.res.st.regs.r13 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r13 leafNonroot.res.st.regs.r13,
+    r14 := if E.beq leafHighRes.res.st.regs.r14 leafNonroot.res.st.regs.r14 then leafNonroot.res.st.regs.r14 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r14 leafNonroot.res.st.regs.r14,
+    r15 := if E.beq leafHighRes.res.st.regs.r15 leafNonroot.res.st.regs.r15 then leafNonroot.res.st.regs.r15 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r15 leafNonroot.res.st.regs.r15,
+    r16 := if E.beq leafHighRes.res.st.regs.r16 leafNonroot.res.st.regs.r16 then leafNonroot.res.st.regs.r16 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r16 leafNonroot.res.st.regs.r16,
+    r17 := if E.beq leafHighRes.res.st.regs.r17 leafNonroot.res.st.regs.r17 then leafNonroot.res.st.regs.r17 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r17 leafNonroot.res.st.regs.r17,
+    r18 := if E.beq leafHighRes.res.st.regs.r18 leafNonroot.res.st.regs.r18 then leafNonroot.res.st.regs.r18 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r18 leafNonroot.res.st.regs.r18,
+    r19 := if E.beq leafHighRes.res.st.regs.r19 leafNonroot.res.st.regs.r19 then leafNonroot.res.st.regs.r19 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r19 leafNonroot.res.st.regs.r19,
+    r20 := if E.beq leafHighRes.res.st.regs.r20 leafNonroot.res.st.regs.r20 then leafNonroot.res.st.regs.r20 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r20 leafNonroot.res.st.regs.r20,
+    r21 := if E.beq leafHighRes.res.st.regs.r21 leafNonroot.res.st.regs.r21 then leafNonroot.res.st.regs.r21 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r21 leafNonroot.res.st.regs.r21,
+    r22 := if E.beq leafHighRes.res.st.regs.r22 leafNonroot.res.st.regs.r22 then leafNonroot.res.st.regs.r22 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r22 leafNonroot.res.st.regs.r22,
+    r23 := if E.beq leafHighRes.res.st.regs.r23 leafNonroot.res.st.regs.r23 then leafNonroot.res.st.regs.r23 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r23 leafNonroot.res.st.regs.r23,
+    r24 := if E.beq leafHighRes.res.st.regs.r24 leafNonroot.res.st.regs.r24 then leafNonroot.res.st.regs.r24 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r24 leafNonroot.res.st.regs.r24,
+    r25 := if E.beq leafHighRes.res.st.regs.r25 leafNonroot.res.st.regs.r25 then leafNonroot.res.st.regs.r25 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r25 leafNonroot.res.st.regs.r25,
+    r26 := if E.beq leafHighRes.res.st.regs.r26 leafNonroot.res.st.regs.r26 then leafNonroot.res.st.regs.r26 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r26 leafNonroot.res.st.regs.r26,
+    r27 := if E.beq leafHighRes.res.st.regs.r27 leafNonroot.res.st.regs.r27 then leafNonroot.res.st.regs.r27 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r27 leafNonroot.res.st.regs.r27,
+    r28 := if E.beq leafHighRes.res.st.regs.r28 leafNonroot.res.st.regs.r28 then leafNonroot.res.st.regs.r28 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r28 leafNonroot.res.st.regs.r28,
+    r29 := if E.beq leafHighRes.res.st.regs.r29 leafNonroot.res.st.regs.r29 then leafNonroot.res.st.regs.r29 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r29 leafNonroot.res.st.regs.r29,
+    r30 := if E.beq leafHighRes.res.st.regs.r30 leafNonroot.res.st.regs.r30 then leafNonroot.res.st.regs.r30 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r30 leafNonroot.res.st.regs.r30,
+    r31 := if E.beq leafHighRes.res.st.regs.r31 leafNonroot.res.st.regs.r31 then leafNonroot.res.st.regs.r31 else E.ite .eq (.reg .x8) (.c 4) leafHighRes.res.st.regs.r31 leafNonroot.res.st.regs.r31 },
+  mem := List.zipWith (fun p q => (p.1, if E.beq p.2 q.2 then p.2 else E.ite .eq (.reg .x8) (.c 4) q.2 p.2)) leafNonroot.res.st.mem leafHighRes.res.st.mem } }
 sym_block blk522 := symRun { noAlias := true } seg522 (pcOf 522) 8
 sym_block blk529 := symRun { noAlias := true } seg529 (pcOf 529) 3
 sym_block blk531 := symRun { noAlias := true } seg531 (pcOf 531) 7
@@ -100,7 +203,46 @@ sym_block blk575 := symRun { noAlias := true } seg575 (pcOf 575) 10
 sym_block blk584 := symRun { noAlias := true } seg584 (pcOf 584) 6
 sym_block blk589 := symRun { noAlias := true } seg589 (pcOf 589) 3
 sym_block blk591 := symRun { noAlias := true } seg591 (pcOf 591) 2
-sym_block blk592 := symRun { noAlias := true } seg592 (pcOf 592) 18
+sym_block nodeHead592 := symRun {noAlias:=true} seg592 (pcOf 592) 100
+sym_block nodeTest592 := symRunAux {noAlias:=true} segMaskNodeTest (pcOf 3056) 100 nodeHead592.res.st
+sym_block nodeLow592 := symRunAux {noAlias:=true} segMaskNodeLow (pcOf 3061) 100 nodeTest592.res.st
+sym_block nodeHigh592 := symRunAux {noAlias:=true} segMaskNodeHigh (pcOf 3062) 100 nodeTest592.res.st
+sym_block nodeLowRes592 := symRunAux {noAlias:=true} segMaskNodeReturn (pcOf 606) 100 nodeLow592.res.st
+sym_block nodeHighRes592 := symRunAux {noAlias:=true} segMaskNodeReturn (pcOf 606) 100 nodeHigh592.res.st
+sym_block blk592 := some { nodeLowRes592.res with st := { nodeLowRes592.res.st with
+  regs := {
+    r1 := if E.beq nodeHighRes592.res.st.regs.r1 nodeLowRes592.res.st.regs.r1 then nodeLowRes592.res.st.regs.r1 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r1 nodeLowRes592.res.st.regs.r1,
+    r2 := if E.beq nodeHighRes592.res.st.regs.r2 nodeLowRes592.res.st.regs.r2 then nodeLowRes592.res.st.regs.r2 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r2 nodeLowRes592.res.st.regs.r2,
+    r3 := if E.beq nodeHighRes592.res.st.regs.r3 nodeLowRes592.res.st.regs.r3 then nodeLowRes592.res.st.regs.r3 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r3 nodeLowRes592.res.st.regs.r3,
+    r4 := if E.beq nodeHighRes592.res.st.regs.r4 nodeLowRes592.res.st.regs.r4 then nodeLowRes592.res.st.regs.r4 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r4 nodeLowRes592.res.st.regs.r4,
+    r5 := if E.beq nodeHighRes592.res.st.regs.r5 nodeLowRes592.res.st.regs.r5 then nodeLowRes592.res.st.regs.r5 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r5 nodeLowRes592.res.st.regs.r5,
+    r6 := if E.beq nodeHighRes592.res.st.regs.r6 nodeLowRes592.res.st.regs.r6 then nodeLowRes592.res.st.regs.r6 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r6 nodeLowRes592.res.st.regs.r6,
+    r7 := if E.beq nodeHighRes592.res.st.regs.r7 nodeLowRes592.res.st.regs.r7 then nodeLowRes592.res.st.regs.r7 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r7 nodeLowRes592.res.st.regs.r7,
+    r8 := if E.beq nodeHighRes592.res.st.regs.r8 nodeLowRes592.res.st.regs.r8 then nodeLowRes592.res.st.regs.r8 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r8 nodeLowRes592.res.st.regs.r8,
+    r9 := if E.beq nodeHighRes592.res.st.regs.r9 nodeLowRes592.res.st.regs.r9 then nodeLowRes592.res.st.regs.r9 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r9 nodeLowRes592.res.st.regs.r9,
+    r10 := if E.beq nodeHighRes592.res.st.regs.r10 nodeLowRes592.res.st.regs.r10 then nodeLowRes592.res.st.regs.r10 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r10 nodeLowRes592.res.st.regs.r10,
+    r11 := if E.beq nodeHighRes592.res.st.regs.r11 nodeLowRes592.res.st.regs.r11 then nodeLowRes592.res.st.regs.r11 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r11 nodeLowRes592.res.st.regs.r11,
+    r12 := if E.beq nodeHighRes592.res.st.regs.r12 nodeLowRes592.res.st.regs.r12 then nodeLowRes592.res.st.regs.r12 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r12 nodeLowRes592.res.st.regs.r12,
+    r13 := if E.beq nodeHighRes592.res.st.regs.r13 nodeLowRes592.res.st.regs.r13 then nodeLowRes592.res.st.regs.r13 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r13 nodeLowRes592.res.st.regs.r13,
+    r14 := if E.beq nodeHighRes592.res.st.regs.r14 nodeLowRes592.res.st.regs.r14 then nodeLowRes592.res.st.regs.r14 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r14 nodeLowRes592.res.st.regs.r14,
+    r15 := if E.beq nodeHighRes592.res.st.regs.r15 nodeLowRes592.res.st.regs.r15 then nodeLowRes592.res.st.regs.r15 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r15 nodeLowRes592.res.st.regs.r15,
+    r16 := if E.beq nodeHighRes592.res.st.regs.r16 nodeLowRes592.res.st.regs.r16 then nodeLowRes592.res.st.regs.r16 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r16 nodeLowRes592.res.st.regs.r16,
+    r17 := if E.beq nodeHighRes592.res.st.regs.r17 nodeLowRes592.res.st.regs.r17 then nodeLowRes592.res.st.regs.r17 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r17 nodeLowRes592.res.st.regs.r17,
+    r18 := if E.beq nodeHighRes592.res.st.regs.r18 nodeLowRes592.res.st.regs.r18 then nodeLowRes592.res.st.regs.r18 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r18 nodeLowRes592.res.st.regs.r18,
+    r19 := if E.beq nodeHighRes592.res.st.regs.r19 nodeLowRes592.res.st.regs.r19 then nodeLowRes592.res.st.regs.r19 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r19 nodeLowRes592.res.st.regs.r19,
+    r20 := if E.beq nodeHighRes592.res.st.regs.r20 nodeLowRes592.res.st.regs.r20 then nodeLowRes592.res.st.regs.r20 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r20 nodeLowRes592.res.st.regs.r20,
+    r21 := if E.beq nodeHighRes592.res.st.regs.r21 nodeLowRes592.res.st.regs.r21 then nodeLowRes592.res.st.regs.r21 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r21 nodeLowRes592.res.st.regs.r21,
+    r22 := if E.beq nodeHighRes592.res.st.regs.r22 nodeLowRes592.res.st.regs.r22 then nodeLowRes592.res.st.regs.r22 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r22 nodeLowRes592.res.st.regs.r22,
+    r23 := if E.beq nodeHighRes592.res.st.regs.r23 nodeLowRes592.res.st.regs.r23 then nodeLowRes592.res.st.regs.r23 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r23 nodeLowRes592.res.st.regs.r23,
+    r24 := if E.beq nodeHighRes592.res.st.regs.r24 nodeLowRes592.res.st.regs.r24 then nodeLowRes592.res.st.regs.r24 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r24 nodeLowRes592.res.st.regs.r24,
+    r25 := if E.beq nodeHighRes592.res.st.regs.r25 nodeLowRes592.res.st.regs.r25 then nodeLowRes592.res.st.regs.r25 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r25 nodeLowRes592.res.st.regs.r25,
+    r26 := if E.beq nodeHighRes592.res.st.regs.r26 nodeLowRes592.res.st.regs.r26 then nodeLowRes592.res.st.regs.r26 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r26 nodeLowRes592.res.st.regs.r26,
+    r27 := if E.beq nodeHighRes592.res.st.regs.r27 nodeLowRes592.res.st.regs.r27 then nodeLowRes592.res.st.regs.r27 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r27 nodeLowRes592.res.st.regs.r27,
+    r28 := if E.beq nodeHighRes592.res.st.regs.r28 nodeLowRes592.res.st.regs.r28 then nodeLowRes592.res.st.regs.r28 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r28 nodeLowRes592.res.st.regs.r28,
+    r29 := if E.beq nodeHighRes592.res.st.regs.r29 nodeLowRes592.res.st.regs.r29 then nodeLowRes592.res.st.regs.r29 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r29 nodeLowRes592.res.st.regs.r29,
+    r30 := if E.beq nodeHighRes592.res.st.regs.r30 nodeLowRes592.res.st.regs.r30 then nodeLowRes592.res.st.regs.r30 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r30 nodeLowRes592.res.st.regs.r30,
+    r31 := if E.beq nodeHighRes592.res.st.regs.r31 nodeLowRes592.res.st.regs.r31 then nodeLowRes592.res.st.regs.r31 else E.ite .eq (.reg .x8) (.c 4) nodeHighRes592.res.st.regs.r31 nodeLowRes592.res.st.regs.r31 },
+  mem := List.zipWith (fun p q => (p.1, if E.beq p.2 q.2 then p.2 else E.ite .eq (.reg .x8) (.c 4) q.2 p.2)) nodeLowRes592.res.st.mem nodeHighRes592.res.st.mem } }
 sym_block blk609 := symRun { noAlias := true } seg609 (pcOf 609) 18
 sym_block blk626 := symRun { noAlias := true } seg626 (pcOf 626) 3
 sym_block blk628 := symRun { noAlias := true } seg628 (pcOf 628) 3
@@ -126,8 +268,8 @@ sym_block blk2897 := symRun { noAlias := true } seg2897 (pcOf 2897) 2
 sym_block blk2898 := symRun { noAlias := true } seg2898 (pcOf 2898) 3
 sym_block blk2900 := symRun { noAlias := true } seg2900 (pcOf 2900) 5
 sym_block carryHead2971 := symRun {noAlias:=true} seg2971 (pcOf 2971) 100
-sym_block carryThunk2971 := symRunAux {noAlias:=true} segCarryTop2971 (pcOf 3041) 100 carryHead2971.res.st
-sym_block blk2971 := symRunAux {noAlias:=true} segCarryReturn2971 (pcOf 2974) 100 carryThunk2971.res.st
+sym_block carryThunk2971 := symRunAux {noAlias:=true} segMaskTopLeaf (pcOf 3063) 100 carryHead2971.res.st
+sym_block blk2971 := symRunAux {noAlias:=true} segMaskTopReturn (pcOf 2975) 100 carryThunk2971.res.st
 sym_block blk2980 := symRun { noAlias := true } seg2980 (pcOf 2980) 2
 sym_block blk2981 := symRun { noAlias := true } seg2981 (pcOf 2981) 6
 sym_block blk2986 := symRun { noAlias := true } seg2986 (pcOf 2986) 3
@@ -138,64 +280,217 @@ sym_block blk1820 := symRun { noAlias := true } seg1820 (pcOf 1820) 7
 sym_block blk635 := symRun { noAlias := true } seg635 (pcOf 635) 3
 
 
-def treeSetupCost (lay : Nat) : Nat := if lay=4 then 17 else 20
+def treeSetupCost (lay : Nat) : Nat := if lay=4 then 16 else if lay=3 then 19 else 21
+
+theorem encRun331 (s : MachineState) (hpc:s.pc=pcOf 331) :
+    ∃ k c, Steps image s k c (blk331.res.toState s) ∧ c≤18 := by
+  by_cases isRoot : s.getReg .x8=4#64
+  · have h0 := symRun_sound encHead331 codeAt_331 s hpc (by simp only [encHead331.res,rv_simp])
+    have h1 := (symRunAux_sound {noAlias:=true} image s segMaskEncTest (pcOf 3044) 100
+      encHead331.res.st _ encTest331 codeAt_maskEncTest (by
+        apply (Oblig.all_iff s _).mp; simp only [encTest331.res,rv_simp])).1
+    have hp1 : encHead331.res.pc.eval s = pcOf 3044 := by simp [encHead331.res,rv_simp,isRoot]
+    have he1 : encHead331.res.st.toState s (pcOf 3044) = encHead331.res.toState s := by unfold Result.toState; rw [hp1]
+    rw [he1] at h1
+    have h2 := (symRunAux_sound {noAlias:=true} image s segMaskEncHigh (pcOf 3046) 100
+      encTest331.res.st _ encHigh331 codeAt_maskEncHigh (by
+        apply (Oblig.all_iff s _).mp; simp only [encHigh331.res,rv_simp])).1
+    have hp2 : encTest331.res.pc.eval s = pcOf 3046 := by simp [encTest331.res,rv_simp,isRoot]
+    have he2 : encTest331.res.st.toState s (pcOf 3046) = encTest331.res.toState s := by unfold Result.toState; rw [hp2]
+    rw [he2] at h2
+    have h3 := (symRunAux_sound {noAlias:=true} image s segMaskEncReturn (pcOf 343) 100
+      encHigh331.res.st _ encHighRes331 codeAt_maskEncReturn (by
+        apply (Oblig.all_iff s _).mp; simp only [encHighRes331.res,rv_simp])).1
+    have hp3 : encHigh331.res.pc.eval s = pcOf 343 := by simp [encHigh331.res,rv_simp,isRoot]
+    have he3 : encHigh331.res.st.toState s (pcOf 343) = encHigh331.res.toState s := by unfold Result.toState; rw [hp3]
+    rw [he3] at h3
+    have he : blk331.res.toState s = encHighRes331.res.toState s := by
+      simp only [blk331.res,encHighRes331.res,Result.toState,SymState.toState,
+        memEval,Addr.eval,E.eval,CmpOp.eval,BinOp.eval,RegFile.get,beq_iff_eq,isRoot,↓reduceIte]
+      all_goals (congr 1 <;> funext r <;> cases r <;> simp [E.eval,CmpOp.eval,BinOp.eval,isRoot])
+    rw [he]
+    exact ⟨_,_,h0.trans (h1.trans (h2.trans (h3))),by decide⟩
+  · have h0 := symRun_sound encHead331 codeAt_331 s hpc (by simp only [encHead331.res,rv_simp])
+    have h1 := (symRunAux_sound {noAlias:=true} image s segMaskEncTest (pcOf 3044) 100
+      encHead331.res.st _ encTest331 codeAt_maskEncTest (by
+        apply (Oblig.all_iff s _).mp; simp only [encTest331.res,rv_simp])).1
+    have hp1 : encHead331.res.pc.eval s = pcOf 3044 := by simp [encHead331.res,rv_simp,isRoot]
+    have he1 : encHead331.res.st.toState s (pcOf 3044) = encHead331.res.toState s := by unfold Result.toState; rw [hp1]
+    rw [he1] at h1
+    have h2 := (symRunAux_sound {noAlias:=true} image s segMaskEncLow (pcOf 3045) 100
+      encTest331.res.st _ encLow331 codeAt_maskEncLow (by
+        apply (Oblig.all_iff s _).mp; simp only [encLow331.res,rv_simp])).1
+    have hp2 : encTest331.res.pc.eval s = pcOf 3045 := by simp [encTest331.res,rv_simp,isRoot]
+    have he2 : encTest331.res.st.toState s (pcOf 3045) = encTest331.res.toState s := by unfold Result.toState; rw [hp2]
+    rw [he2] at h2
+    have h3 := (symRunAux_sound {noAlias:=true} image s segMaskEncReturn (pcOf 343) 100
+      encLow331.res.st _ encLowRes331 codeAt_maskEncReturn (by
+        apply (Oblig.all_iff s _).mp; simp only [encLowRes331.res,rv_simp])).1
+    have hp3 : encLow331.res.pc.eval s = pcOf 343 := by simp [encLow331.res,rv_simp,isRoot]
+    have he3 : encLow331.res.st.toState s (pcOf 343) = encLow331.res.toState s := by unfold Result.toState; rw [hp3]
+    rw [he3] at h3
+    have he : blk331.res.toState s = encLowRes331.res.toState s := by
+      simp only [blk331.res,encLowRes331.res,Result.toState,SymState.toState,
+        memEval,Addr.eval,E.eval,CmpOp.eval,BinOp.eval,RegFile.get,beq_iff_eq,isRoot,↓reduceIte]
+      all_goals (congr 1 <;> funext r <;> cases r <;> simp [E.eval,CmpOp.eval,BinOp.eval,isRoot])
+    rw [he]
+    exact ⟨_,_,h0.trans (h1.trans (h2.trans (h3))),by decide⟩
 
 theorem carryRun509 (s : MachineState) (hpc:s.pc=pcOf 509) :
-    ∃ k c, Steps image s k c (blk509.res.toState s) ∧ c≤20 := by
-  have h0 := symRun_sound carryHead509 codeAt_509 s hpc (by simp only [carryHead509.res,rv_simp])
-  have h1 := (symRunAux_sound {noAlias:=true} image s segCarryTest509 (pcOf 3034) 100
-    carryHead509.res.st _ carryTest509 codeAt_carryTest509 (by
-      apply (Oblig.all_iff s _).mp; simp only [carryTest509.res,rv_simp])).1
-  change Steps image (carryHead509.res.toState s) _ _ _ at h1
-  by_cases h : s.getReg .x8=4#64
-  · have h2 := (symRunAux_sound {noAlias:=true} image s segCarryHigh509 (pcOf 3040) 100
-      carryTest509.res.st _ carryHigh509 codeAt_carryHigh509 (by
-        apply (Oblig.all_iff s _).mp; simp only [carryHigh509.res,rv_simp])).1
-    have h3 := (symRunAux_sound {noAlias:=true} image s segCarryReturn509 (pcOf 516) 100
-      carryHigh509.res.st _ carryHighRes509 codeAt_carryReturn509 (by
-        apply (Oblig.all_iff s _).mp; simp only [carryHighRes509.res,rv_simp])).1
-    have hp : carryTest509.res.pc.eval s=pcOf 3040 := by
-      simp [carryTest509.res,rv_simp,h]
-    have hs : carryTest509.res.st.toState s (pcOf 3040)=carryTest509.res.toState s := by
-      unfold Result.toState; rw [hp]
-    rw [hs] at h2
-    change Steps image (carryHigh509.res.toState s) _ _ _ at h3
-    have he : blk509.res.toState s=carryHighRes509.res.toState s := by
-      simp only [blk509.res,carryHighRes509.res,Result.toState,SymState.toState,
-        memEval,Addr.eval,E.eval,CmpOp.eval,BinOp.eval,RegFile.get,beq_iff_eq,h,↓reduceIte]
-      congr 1
-      funext r
-      cases r <;> simp [E.eval,CmpOp.eval,BinOp.eval,h]
+    ∃ k c, Steps image s k c (blk509.res.toState s) ∧ c≤21 := by
+  by_cases isRoot : s.getReg .x8=4#64
+  · have h0 := symRun_sound carryHead509 codeAt_509 s hpc (by simp only [carryHead509.res,rv_simp])
+    have h1 := (symRunAux_sound {noAlias:=true} image s segMaskLeafTest4 (pcOf 3047) 100
+      carryHead509.res.st _ leafTest4 codeAt_maskLeafTest4 (by
+        apply (Oblig.all_iff s _).mp; simp only [leafTest4.res,rv_simp])).1
+    have hp1 : carryHead509.res.pc.eval s = pcOf 3047 := by simp [carryHead509.res,rv_simp,isRoot]
+    have he1 : carryHead509.res.st.toState s (pcOf 3047) = carryHead509.res.toState s := by unfold Result.toState; rw [hp1]
+    rw [he1] at h1
+    have h2 := (symRunAux_sound {noAlias:=true} image s segMaskLeafHigh (pcOf 3055) 100
+      leafTest4.res.st _ leafHigh codeAt_maskLeafHigh (by
+        apply (Oblig.all_iff s _).mp; simp only [leafHigh.res,rv_simp])).1
+    have hp2 : leafTest4.res.pc.eval s = pcOf 3055 := by simp [leafTest4.res,rv_simp,isRoot]
+    have he2 : leafTest4.res.st.toState s (pcOf 3055) = leafTest4.res.toState s := by unfold Result.toState; rw [hp2]
+    rw [he2] at h2
+    have h3 := (symRunAux_sound {noAlias:=true} image s segMaskLeafReturn (pcOf 517) 100
+      leafHigh.res.st _ leafHighRes codeAt_maskLeafReturn (by
+        apply (Oblig.all_iff s _).mp; simp only [leafHighRes.res,rv_simp])).1
+    have hp3 : leafHigh.res.pc.eval s = pcOf 517 := by simp [leafHigh.res,rv_simp,isRoot]
+    have he3 : leafHigh.res.st.toState s (pcOf 517) = leafHigh.res.toState s := by unfold Result.toState; rw [hp3]
+    rw [he3] at h3
+    have he : blk509.res.toState s = leafHighRes.res.toState s := by
+      simp only [blk509.res,leafHighRes.res,Result.toState,SymState.toState,
+        memEval,Addr.eval,E.eval,CmpOp.eval,BinOp.eval,RegFile.get,beq_iff_eq,isRoot,↓reduceIte]
+      all_goals (congr 1 <;> funext r <;> cases r <;> simp [E.eval,CmpOp.eval,BinOp.eval,isRoot])
     rw [he]
-    exact ⟨_,_,h0.trans (h1.trans (h2.trans h3)),by decide⟩
-  · have h2 := (symRunAux_sound {noAlias:=true} image s segCarryLow509 (pcOf 3037) 100
-      carryTest509.res.st _ carryLow509 codeAt_carryLow509 (by
-        apply (Oblig.all_iff s _).mp; simp only [carryLow509.res,rv_simp])).1
-    have h3 := (symRunAux_sound {noAlias:=true} image s segCarryReturn509 (pcOf 516) 100
-      carryLow509.res.st _ carryLowRes509 codeAt_carryReturn509 (by
-        apply (Oblig.all_iff s _).mp; simp only [carryLowRes509.res,rv_simp])).1
-    have hp : carryTest509.res.pc.eval s=pcOf 3037 := by
-      simp [carryTest509.res,rv_simp,h]
-    have hs : carryTest509.res.st.toState s (pcOf 3037)=carryTest509.res.toState s := by
-      unfold Result.toState; rw [hp]
-    rw [hs] at h2
-    change Steps image (carryLow509.res.toState s) _ _ _ at h3
-    have he : blk509.res.toState s=carryLowRes509.res.toState s := by
-      simp only [blk509.res,carryLowRes509.res,Result.toState,SymState.toState,
-        memEval,Addr.eval,E.eval,CmpOp.eval,BinOp.eval,RegFile.get,beq_iff_eq,h,↓reduceIte]
-      congr 1
-      funext r
-      cases r <;> simp [E.eval,CmpOp.eval,BinOp.eval,h]
+    exact ⟨_,_,h0.trans (h1.trans (h2.trans (h3))),by decide⟩
+  · by_cases isThree : s.getReg .x8=3#64
+    · have h0 := symRun_sound carryHead509 codeAt_509 s hpc (by simp only [carryHead509.res,rv_simp])
+      have h1 := (symRunAux_sound {noAlias:=true} image s segMaskLeafTest4 (pcOf 3047) 100
+        carryHead509.res.st _ leafTest4 codeAt_maskLeafTest4 (by
+          apply (Oblig.all_iff s _).mp; simp only [leafTest4.res,rv_simp])).1
+      have hp1 : carryHead509.res.pc.eval s = pcOf 3047 := by simp [carryHead509.res,rv_simp,isRoot,isThree]
+      have he1 : carryHead509.res.st.toState s (pcOf 3047) = carryHead509.res.toState s := by unfold Result.toState; rw [hp1]
+      rw [he1] at h1
+      have h2 := (symRunAux_sound {noAlias:=true} image s segMaskLeafTest3 (pcOf 3050) 100
+        leafTest4.res.st _ leafTest3 codeAt_maskLeafTest3 (by
+          apply (Oblig.all_iff s _).mp; simp only [leafTest3.res,rv_simp])).1
+      have hp2 : leafTest4.res.pc.eval s = pcOf 3050 := by simp [leafTest4.res,rv_simp,isRoot,isThree]
+      have he2 : leafTest4.res.st.toState s (pcOf 3050) = leafTest4.res.toState s := by unfold Result.toState; rw [hp2]
+      rw [he2] at h2
+      have h3 := (symRunAux_sound {noAlias:=true} image s segMaskLeafHigh (pcOf 3055) 100
+        leafTest3.res.st _ leafMid codeAt_maskLeafHigh (by
+          apply (Oblig.all_iff s _).mp; simp only [leafMid.res,rv_simp])).1
+      have hp3 : leafTest3.res.pc.eval s = pcOf 3055 := by simp [leafTest3.res,rv_simp,isRoot,isThree]
+      have he3 : leafTest3.res.st.toState s (pcOf 3055) = leafTest3.res.toState s := by unfold Result.toState; rw [hp3]
+      rw [he3] at h3
+      have h4 := (symRunAux_sound {noAlias:=true} image s segMaskLeafReturn (pcOf 517) 100
+        leafMid.res.st _ leafMidRes codeAt_maskLeafReturn (by
+          apply (Oblig.all_iff s _).mp; simp only [leafMidRes.res,rv_simp])).1
+      have hp4 : leafMid.res.pc.eval s = pcOf 517 := by simp [leafMid.res,rv_simp,isRoot,isThree]
+      have he4 : leafMid.res.st.toState s (pcOf 517) = leafMid.res.toState s := by unfold Result.toState; rw [hp4]
+      rw [he4] at h4
+      have he : blk509.res.toState s = leafMidRes.res.toState s := by
+        simp only [blk509.res,leafMidRes.res,Result.toState,SymState.toState,
+          memEval,Addr.eval,E.eval,CmpOp.eval,BinOp.eval,RegFile.get,beq_iff_eq,isRoot,isThree,↓reduceIte]
+        all_goals (congr 1 <;> funext r <;> cases r <;> simp [E.eval,CmpOp.eval,BinOp.eval,isRoot,isThree])
+      rw [he]
+      exact ⟨_,_,h0.trans (h1.trans (h2.trans (h3.trans (h4)))),by decide⟩
+    · have h0 := symRun_sound carryHead509 codeAt_509 s hpc (by simp only [carryHead509.res,rv_simp])
+      have h1 := (symRunAux_sound {noAlias:=true} image s segMaskLeafTest4 (pcOf 3047) 100
+        carryHead509.res.st _ leafTest4 codeAt_maskLeafTest4 (by
+          apply (Oblig.all_iff s _).mp; simp only [leafTest4.res,rv_simp])).1
+      have hp1 : carryHead509.res.pc.eval s = pcOf 3047 := by simp [carryHead509.res,rv_simp,isRoot,isThree]
+      have he1 : carryHead509.res.st.toState s (pcOf 3047) = carryHead509.res.toState s := by unfold Result.toState; rw [hp1]
+      rw [he1] at h1
+      have h2 := (symRunAux_sound {noAlias:=true} image s segMaskLeafTest3 (pcOf 3050) 100
+        leafTest4.res.st _ leafTest3 codeAt_maskLeafTest3 (by
+          apply (Oblig.all_iff s _).mp; simp only [leafTest3.res,rv_simp])).1
+      have hp2 : leafTest4.res.pc.eval s = pcOf 3050 := by simp [leafTest4.res,rv_simp,isRoot,isThree]
+      have he2 : leafTest4.res.st.toState s (pcOf 3050) = leafTest4.res.toState s := by unfold Result.toState; rw [hp2]
+      rw [he2] at h2
+      have h3 := (symRunAux_sound {noAlias:=true} image s segMaskLeafLow (pcOf 3053) 100
+        leafTest3.res.st _ leafLow codeAt_maskLeafLow (by
+          apply (Oblig.all_iff s _).mp; simp only [leafLow.res,rv_simp])).1
+      have hp3 : leafTest3.res.pc.eval s = pcOf 3053 := by simp [leafTest3.res,rv_simp,isRoot,isThree]
+      have he3 : leafTest3.res.st.toState s (pcOf 3053) = leafTest3.res.toState s := by unfold Result.toState; rw [hp3]
+      rw [he3] at h3
+      have h4 := (symRunAux_sound {noAlias:=true} image s segMaskLeafReturn (pcOf 517) 100
+        leafLow.res.st _ leafLowRes codeAt_maskLeafReturn (by
+          apply (Oblig.all_iff s _).mp; simp only [leafLowRes.res,rv_simp])).1
+      have hp4 : leafLow.res.pc.eval s = pcOf 517 := by simp [leafLow.res,rv_simp,isRoot,isThree]
+      have he4 : leafLow.res.st.toState s (pcOf 517) = leafLow.res.toState s := by unfold Result.toState; rw [hp4]
+      rw [he4] at h4
+      have he : blk509.res.toState s = leafLowRes.res.toState s := by
+        simp only [blk509.res,leafLowRes.res,Result.toState,SymState.toState,
+          memEval,Addr.eval,E.eval,CmpOp.eval,BinOp.eval,RegFile.get,beq_iff_eq,isRoot,isThree,↓reduceIte]
+        all_goals (congr 1 <;> funext r <;> cases r <;> simp [E.eval,CmpOp.eval,BinOp.eval,isRoot,isThree])
+      rw [he]
+      exact ⟨_,_,h0.trans (h1.trans (h2.trans (h3.trans (h4)))),by decide⟩
+
+theorem nodeRun592 (s : MachineState) (hpc:s.pc=pcOf 592) (hobl:blk592.res.obligs s) :
+    ∃ k c, Steps image s k c (blk592.res.toState s) ∧ c≤22 := by
+  by_cases isRoot : s.getReg .x8=4#64
+  · have h0 := symRun_sound nodeHead592 codeAt_592 s hpc (by simp_all only [blk592.res,nodeHead592.res,rv_simp,true_and,and_true,and_self])
+    have h1 := (symRunAux_sound {noAlias:=true} image s segMaskNodeTest (pcOf 3056) 100
+      nodeHead592.res.st _ nodeTest592 codeAt_maskNodeTest (by
+        apply (Oblig.all_iff s _).mp; simp_all only [blk592.res,nodeTest592.res,rv_simp,true_and,and_true,and_self])).1
+    have hp1 : nodeHead592.res.pc.eval s = pcOf 3056 := by simp [nodeHead592.res,rv_simp,isRoot]
+    have he1 : nodeHead592.res.st.toState s (pcOf 3056) = nodeHead592.res.toState s := by unfold Result.toState; rw [hp1]
+    rw [he1] at h1
+    have h2 := (symRunAux_sound {noAlias:=true} image s segMaskNodeHigh (pcOf 3062) 100
+      nodeTest592.res.st _ nodeHigh592 codeAt_maskNodeHigh (by
+        apply (Oblig.all_iff s _).mp; simp_all only [blk592.res,nodeHigh592.res,rv_simp,true_and,and_true,and_self])).1
+    have hp2 : nodeTest592.res.pc.eval s = pcOf 3062 := by simp [nodeTest592.res,rv_simp,isRoot]
+    have he2 : nodeTest592.res.st.toState s (pcOf 3062) = nodeTest592.res.toState s := by unfold Result.toState; rw [hp2]
+    rw [he2] at h2
+    have h3 := (symRunAux_sound {noAlias:=true} image s segMaskNodeReturn (pcOf 606) 100
+      nodeHigh592.res.st _ nodeHighRes592 codeAt_maskNodeReturn (by
+        apply (Oblig.all_iff s _).mp; simp_all only [blk592.res,nodeHighRes592.res,rv_simp,true_and,and_true,and_self]
+        exact ⟨hobl.1,hobl.2.1⟩)).1
+    have hp3 : nodeHigh592.res.pc.eval s = pcOf 606 := by simp [nodeHigh592.res,rv_simp,isRoot]
+    have he3 : nodeHigh592.res.st.toState s (pcOf 606) = nodeHigh592.res.toState s := by unfold Result.toState; rw [hp3]
+    rw [he3] at h3
+    have he : blk592.res.toState s = nodeHighRes592.res.toState s := by
+      simp only [blk592.res,nodeHighRes592.res,Result.toState,SymState.toState,
+        memEval,Addr.eval,E.eval,CmpOp.eval,BinOp.eval,RegFile.get,beq_iff_eq,isRoot,↓reduceIte]
+      all_goals (congr 1 <;> funext r <;> cases r <;> simp [E.eval,CmpOp.eval,BinOp.eval,isRoot])
     rw [he]
-    exact ⟨_,_,h0.trans (h1.trans (h2.trans h3)),by decide⟩
+    exact ⟨_,_,h0.trans (h1.trans (h2.trans (h3))),by decide⟩
+  · have h0 := symRun_sound nodeHead592 codeAt_592 s hpc (by simp_all only [blk592.res,nodeHead592.res,rv_simp,true_and,and_true,and_self])
+    have h1 := (symRunAux_sound {noAlias:=true} image s segMaskNodeTest (pcOf 3056) 100
+      nodeHead592.res.st _ nodeTest592 codeAt_maskNodeTest (by
+        apply (Oblig.all_iff s _).mp; simp_all only [blk592.res,nodeTest592.res,rv_simp,true_and,and_true,and_self])).1
+    have hp1 : nodeHead592.res.pc.eval s = pcOf 3056 := by simp [nodeHead592.res,rv_simp,isRoot]
+    have he1 : nodeHead592.res.st.toState s (pcOf 3056) = nodeHead592.res.toState s := by unfold Result.toState; rw [hp1]
+    rw [he1] at h1
+    have h2 := (symRunAux_sound {noAlias:=true} image s segMaskNodeLow (pcOf 3061) 100
+      nodeTest592.res.st _ nodeLow592 codeAt_maskNodeLow (by
+        apply (Oblig.all_iff s _).mp; simp_all only [blk592.res,nodeLow592.res,rv_simp,true_and,and_true,and_self])).1
+    have hp2 : nodeTest592.res.pc.eval s = pcOf 3061 := by simp [nodeTest592.res,rv_simp,isRoot]
+    have he2 : nodeTest592.res.st.toState s (pcOf 3061) = nodeTest592.res.toState s := by unfold Result.toState; rw [hp2]
+    rw [he2] at h2
+    have h3 := (symRunAux_sound {noAlias:=true} image s segMaskNodeReturn (pcOf 606) 100
+      nodeLow592.res.st _ nodeLowRes592 codeAt_maskNodeReturn (by
+        apply (Oblig.all_iff s _).mp; simp_all only [blk592.res,nodeLowRes592.res,rv_simp,true_and,and_true,and_self]
+        exact ⟨hobl.1,hobl.2.1⟩)).1
+    have hp3 : nodeLow592.res.pc.eval s = pcOf 606 := by simp [nodeLow592.res,rv_simp,isRoot]
+    have he3 : nodeLow592.res.st.toState s (pcOf 606) = nodeLow592.res.toState s := by unfold Result.toState; rw [hp3]
+    rw [he3] at h3
+    have he : blk592.res.toState s = nodeLowRes592.res.toState s := by
+      simp only [blk592.res,nodeLowRes592.res,Result.toState,SymState.toState,
+        memEval,Addr.eval,E.eval,CmpOp.eval,BinOp.eval,RegFile.get,beq_iff_eq,isRoot,↓reduceIte]
+      all_goals (congr 1 <;> funext r <;> cases r <;> simp [E.eval,CmpOp.eval,BinOp.eval,isRoot])
+    rw [he]
+    exact ⟨_,_,h0.trans (h1.trans (h2.trans (h3))),by decide⟩
 
 theorem carryRun2971 (s : MachineState) (hpc:s.pc=pcOf 2971) (hobl:blk2971.res.obligs s) :
-    Steps image s 12 12 (blk2971.res.toState s) := by
+    Steps image s 14 14 (blk2971.res.toState s) := by
   have ho := (Oblig.all_iff s _).mp hobl
-  have h2 := symRunAux_sound {noAlias:=true} image s segCarryReturn2971 (pcOf 2974) 100
-    carryThunk2971.res.st _ blk2971 codeAt_carryReturn2971 ho
-  have h1 := symRunAux_sound {noAlias:=true} image s segCarryTop2971 (pcOf 3041) 100
-    carryHead2971.res.st _ carryThunk2971 codeAt_carryTop2971 (fun o h=>ho o (h2.2.1 h))
+  have h2 := symRunAux_sound {noAlias:=true} image s segMaskTopReturn (pcOf 2975) 100
+    carryThunk2971.res.st _ blk2971 codeAt_maskTopReturn ho
+  have h1 := symRunAux_sound {noAlias:=true} image s segMaskTopLeaf (pcOf 3063) 100
+    carryHead2971.res.st _ carryThunk2971 codeAt_maskTopLeaf (fun o h=>ho o (h2.2.1 h))
   have h0 := symRun_sound carryHead2971 codeAt_2971 s hpc
     ((Oblig.all_iff s _).mpr (fun o h=>ho o (h2.2.1 (h1.2.1 h))))
   have hs1:=h1.1
@@ -203,5 +498,14 @@ theorem carryRun2971 (s : MachineState) (hpc:s.pc=pcOf 2971) (hobl:blk2971.res.o
   change Steps image (carryHead2971.res.toState s) _ _ _ at hs1
   change Steps image (carryThunk2971.res.toState s) _ _ _ at hs2
   exact h0.trans (hs1.trans hs2)
+
+sym_block blk3044 := symRun { noAlias := true } seg3044 (pcOf 3044) 11
+sym_block blk3054 := symRun { noAlias := true } seg3054 (pcOf 3054) 7
+sym_block blk3060 := symRun { noAlias := true } seg3060 (pcOf 3060) 2
+sym_block blk3101 := symRun { noAlias := true } seg3101 (pcOf 3101) 5
+sym_block blk3145 := symRun { noAlias := true } seg3145 (pcOf 3145) 8
+sym_block blk3152 := symRun { noAlias := true } seg3152 (pcOf 3152) 8
+sym_block blk3159 := symRun { noAlias := true } seg3159 (pcOf 3159) 2
+sym_block blk3160 := symRun { noAlias := true } seg3160 (pcOf 3160) 2
 
 end SigGolfCandidate.Sign

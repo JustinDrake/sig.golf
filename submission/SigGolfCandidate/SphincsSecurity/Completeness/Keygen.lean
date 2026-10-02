@@ -29,19 +29,9 @@ theorem Avoids.keygen_of (seed : MasterSeed) (target : HashInput)
       tweakableHashInput parameter (.leaf topLayer tree leaf) payload ≠ target)
     (hnode : ∀ (parameter : PublicParameter) (tree : TreeIndex) (level nodeIdx : Nat) (payload : HashInput),
       tweakableHashInput parameter (.node topLayer tree level nodeIdx) payload ≠ target)
-    (hmac : ∀ (parameter : PublicParameter) (region : TopRegion), macHashInput parameter seed region ≠ target)
     (f : QueryImpl HashSpec Id) : Avoids f target (Seeded.keygenFromSeed seed) :=
   Avoids.keygenFromSeed f target seed (fun _ _ _ _ => hchain _ _ _ _ _ _)
-    (fun _ _ => hleaf _ _ _ _) (fun _ _ _ => hnode _ _ _ _ _) (fun _ => hkey _ _) (fun _ => hmac _ _)
-
-/-- The MAC input differs from every input whose tweak tag is not `14`. -/
-theorem macHashInput_ne_of_tag_ne (parameter parameter' : PublicParameter) (seed : MasterSeed)
-    (region : TopRegion) {fields : TweakFields} (htag : fields.tag ≠ 14#8) (payload : HashInput) :
-    macHashInput parameter seed region ≠ fieldBytes fields ++ bytesLE 16 parameter' ++ payload := by
-  intro h
-  exact fieldInput_ne_of_tag_ne' parameter parameter' (fields1 := ⟨14#8, 0#8, 0#40, 0#32, 0#32⟩)
-    (fields2 := fields) (fun h' => htag h'.symm) (bytesLE 32 seed ++ regionBytes region) payload
-    (by simpa only [macHashInput, List.append_assoc] using h)
+    (fun _ _ => hleaf _ _ _ _) (fun _ _ _ => hnode _ _ _ _ _) (fun _ => hkey _ _)
 
 theorem keygenDomain_tag_ne (domain : KeygenDomain) (tag : Nat) (htag : tag = 4 ∨ tag = 7 ∨ tag = 12) :
     (keygenDomainFields domain).tag ≠ BitVec.ofNat 8 tag := by
@@ -56,10 +46,10 @@ theorem keygen_fresh (seed : MasterSeed)
     (∀ s, r.2 (randInput r.1.2.2 message s) = none)
       ∧ (∀ ρ, r.2 (msgInput r.1.2.2 message ρ) = none)
       ∧ EncodingFresh r.1.2.2.parameter (fun _ => True) r.2 := by
-  refine ⟨fun s => cache_none_of_avoids _ ∅ r hr _ rfl (Avoids.keygen_of seed _ ?_ ?_ ?_ ?_ ?_),
-    fun ρ => cache_none_of_avoids _ ∅ r hr _ rfl (Avoids.keygen_of seed _ ?_ ?_ ?_ ?_ ?_),
+  refine ⟨fun s => cache_none_of_avoids _ ∅ r hr _ rfl (Avoids.keygen_of seed _ ?_ ?_ ?_ ?_),
+    fun ρ => cache_none_of_avoids _ ∅ r hr _ rfl (Avoids.keygen_of seed _ ?_ ?_ ?_ ?_),
     fun lay _ tree leaf first payload => cache_none_of_avoids _ ∅ r hr _ rfl
-      (Avoids.keygen_of seed _ ?_ ?_ ?_ ?_ ?_)⟩
+      (Avoids.keygen_of seed _ ?_ ?_ ?_ ?_)⟩
   · intro parameter domain h
     exact (randomizerHashInput_ne_keygenHashInput _ _ _ _ _ _ _) h.symm
   · intro parameter tree leaf chainIdx step payload h
@@ -68,8 +58,6 @@ theorem keygen_fresh (seed : MasterSeed)
     exact (randomizerHashInput_ne_tweakableHashInput _ _ _ _ _ _ _) h.symm
   · intro parameter tree level nodeIdx payload h
     exact (randomizerHashInput_ne_tweakableHashInput _ _ _ _ _ _ _) h.symm
-  · intro parameter region h
-    exact (macHashInput_ne_randomizerHashInput _ _ _ _ _ _ _) h
   · intro parameter domain
     exact keygenHashInput_ne_tweakableHashInput parameter _ domain _ seed _
   · intro parameter tree leaf chainIdx step payload
@@ -78,10 +66,6 @@ theorem keygen_fresh (seed : MasterSeed)
     exact tweakableHashInput_ne_of_tag_ne' parameter _ (by simp [hashDomainFields, tweakFields]) _ _
   · intro parameter tree level nodeIdx payload
     exact tweakableHashInput_ne_of_tag_ne' parameter _ (by simp [hashDomainFields, tweakFields]) _ _
-  · intro parameter region h
-    exact macHashInput_ne_of_tag_ne parameter r.1.2.2.parameter seed region
-      (fields := hashDomainFields .message) (by simp [hashDomainFields, tweakFields]) _
-      (by simpa only [msgInput, tweakableHashInput, tweakBytes, List.append_assoc] using h)
   · intro parameter domain
     exact keygenHashInput_ne_tweakableHashInput parameter _ domain _ seed _
   · intro parameter tree' leaf' chainIdx step payload'
@@ -90,38 +74,56 @@ theorem keygen_fresh (seed : MasterSeed)
     exact tweakableHashInput_ne_of_tag_ne' parameter _ (by simp [hashDomainFields, tweakFields]) _ _
   · intro parameter tree' level nodeIdx payload'
     exact tweakableHashInput_ne_of_tag_ne' parameter _ (by simp [hashDomainFields, tweakFields]) _ _
-  · intro parameter region h
-    exact macHashInput_ne_of_tag_ne parameter first seed region
-      (fields := hashDomainFields (.encoding lay tree leaf)) (by simp [hashDomainFields, tweakFields]) _
-      (by simpa only [tweakableHashInput, tweakBytes, List.append_assoc] using h)
 
-/-- Key generation's MAC query is on its replay path. -/
-theorem mac_mem_queriedInputs_keygen (f : QueryImpl HashSpec Id) (seed : MasterSeed) :
-    macHashInput 0 seed (keygenRegionValue f seed) ∈ queriedInputs f (Seeded.keygenFromSeed seed) := by
+/-- A query of one member is a query of the sequenced family. -/
+theorem mem_queriedInputs_sequenceFin {α : Type} {n : Nat} (f : QueryImpl HashSpec Id)
+    (computation : Fin n → OracleComp HashSpec α) (i : Fin n) {input : HashInput}
+    (h : input ∈ queriedInputs f (computation i)) :
+    input ∈ queriedInputs f (sequenceFin computation) := by
+  induction n with
+  | zero => exact i.elim0
+  | succ n ih =>
+      rw [Concrete.sequenceFin]
+      cases i using Fin.cases with
+      | zero => exact queriedInputs_mono_bind_left f _ _ h
+      | succ j =>
+          apply queriedInputs_mono_bind_right
+          apply queriedInputs_mono_bind_left
+          exact ih (fun index => computation index.succ) j h
+
+/-- Key generation's MAC key derivations are on its replay path. -/
+theorem mac_mem_queriedInputs_keygen (f : QueryImpl HashSpec Id) (seed : MasterSeed) (index : Fin 3) :
+    keygenHashInput 0 (.mackey index) seed ∈ queriedInputs f (Seeded.keygenFromSeed seed) := by
   rw [Seeded.keygenFromSeed]
   apply queriedInputs_mono_bind_right
-  rw [keygenRegionValue_def, keygenTableValue_def]
   split
-  next leaves table h =>
-    rw [h]
-    apply queriedInputs_mono_bind_right
-    apply queriedInputs_mono_bind_left
-    rw [queriedInputs_oracleHash, List.mem_singleton]
+  apply queriedInputs_mono_bind_right
+  apply queriedInputs_mono_bind_left
+  rw [Seeded.deriveMacKey]
+  apply mem_queriedInputs_sequenceFin f _ index
+  rw [queriedInputs_oracleHash, List.mem_singleton]
 
-/-- After key generation, the MAC of the cache it returned is cached, with the tag it returned: the
-signer's check is a cache hit that passes. -/
+/-- After key generation, the three derivations of the MAC key are cached, and the tag key generation
+returned is the MAC of the cache's region under that key: the signer's derivations are cache hits and its
+check passes. -/
 theorem keygen_mac_cached (seed : MasterSeed)
     (r : (PublicKey × TopCache × Seeded.SecretKey) × QueryCache HashSpec)
     (hr : r ∈ support ((simulateQ (randomOracle : QueryImpl HashSpec _)
       (Seeded.keygenFromSeed seed)).run ∅)) :
-    r.2 (macHashInput r.1.2.2.parameter r.1.2.2.seed r.1.2.1.region) = some r.1.2.1.tag := by
+    ∃ key : MacKey,
+      (∀ index, r.2 (keygenHashInput r.1.2.2.parameter (.mackey index) r.1.2.2.seed) = some (key index)) ∧
+        macTag key (regionBytes r.1.2.1.region) = r.1.2.1.tag := by
   obtain ⟨keys, cache⟩ := r
   obtain ⟨_, f, hf, heval, hqueries⟩ := exists_answerFn_replay_of_mem_support _ ∅ keys cache hr
   rw [eval_keygenFromSeed] at heval
   subst heval
-  obtain ⟨answer, hanswer⟩ :=
-    Option.ne_none_iff_exists'.mp (hqueries _ (mac_mem_queriedInputs_keygen f seed))
-  dsimp only
-  rw [hanswer, hf hanswer]
+  refine ⟨keygenMacKeyValue f seed, fun index => ?_, ?_⟩
+  · obtain ⟨answer, hanswer⟩ :=
+      Option.ne_none_iff_exists'.mp (hqueries _ (mac_mem_queriedInputs_keygen f seed index))
+    -- reduce the key's projections first: comparing them unreduced unfolds the evaluations
+    dsimp only
+    unfold keygenMacKeyValue
+    rw [hanswer, hf hanswer]
+  · dsimp only
 
 end SphincsSecurity.Completeness
