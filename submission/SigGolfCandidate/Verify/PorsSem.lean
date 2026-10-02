@@ -531,7 +531,7 @@ theorem pend_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0
   | leaf x sec =>
     obtain ⟨m8, m32, m40, hsl, hx⟩ := hpm
     have hf : addrFmt (pendInput P node (.leaf x sec)) = queryOfWords 0
-        [BitVec.ofNat 64 (pHead 9 P.idx), BitVec.ofNat 64 (twHi 0 (8 * x)), 0, 0, vw0 sec, vw1 sec, 0, 0] := by
+        [BitVec.ofNat 64 (twLo 9 0 P.idx P.idx), BitVec.ofNat 64 (twHi 0 (8 * x)), 0, 0, vw0 sec, vw1 sec, 0, 0] := by
       simp only [pendInput]
       rw [addrFmt_porsLeafInput_pad _ _ _ hsl hx, pad64_pLeaf _ _ _ hsl]
     refine ⟨?_, by rw [hf]; rfl⟩
@@ -545,7 +545,7 @@ theorem pend_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0
   | merge H l =>
     obtain ⟨m8, m32, m40, m48, m56, hl, hn, hH, hd⟩ := hpm
     have hf : addrFmt (pendInput P node (.merge H l)) = queryOfWords 0
-        [BitVec.ofNat 64 (pHead 10 P.idx), BitVec.ofNat 64 (twHi 0 (Rev.efield H)), 0, 0, vw0 l, vw1 l,
+        [BitVec.ofNat 64 (twLo 10 0 P.idx P.idx), BitVec.ofNat 64 (twHi 0 (Rev.efield H)), 0, 0, vw0 l, vw1 l,
           vw0 node, vw1 node] := by
       simp only [pendInput]
       rw [addrFmt_porsNodeInput_pad _ _ _ _ hl hn, pad64_pNode _ _ _ _ hl hn]
@@ -1055,7 +1055,7 @@ theorem nb_hashInput {P : PCtx} {s0 u : MachineState} {tb : Nat} (pb : PB P s0 u
     (r0 : u.getMem (BitVec.ofNat 64 0x1F0) = vw0 r) (r1 : u.getMem (BitVec.ofNat 64 0x1F8) = vw1 r) :
     hashInput u = addrFmt (porsNodeInput P.idx H l r) ∧ (addrFmt (porsNodeInput P.idx H l r)).blocks = 1 := by
   have hf : addrFmt (porsNodeInput P.idx H l r) = queryOfWords 0
-      [BitVec.ofNat 64 (pHead 10 P.idx), BitVec.ofNat 64 (twHi 0 (Rev.efield H)), 0, 0, vw0 l, vw1 l,
+      [BitVec.ofNat 64 (twLo 10 0 P.idx P.idx), BitVec.ofNat 64 (twHi 0 (Rev.efield H)), 0, 0, vw0 l, vw1 l,
         vw0 r, vw1 r] := by
     rw [addrFmt_porsNodeInput_pad _ _ _ _ hl hr, pad64_pNode _ _ _ _ hl hr]
   refine ⟨?_, by rw [hf]; rfl⟩

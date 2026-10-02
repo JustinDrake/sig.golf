@@ -1418,196 +1418,37 @@ theorem commute_base (q : Query) : query (AddressFormat.baseQueryPerm q) = Addre
 
 end SigGolfCandidate.Ref.DigestZero
 
-namespace SigGolfCandidate.Ref.PorsHeader
-open SigGolfCandidate.Legacy
-set_option Elab.async false
-set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
-set_option exponentiation.threshold 1024
-
-def left (h : Nat) : Nat := h/256+(h%256)*4294967296
-def right (h : Nat) : Nat := h/4294967296+(h%4294967296)*256
-
-theorem left_lt (h : Nat) (hh:h<1099511627776) : left h<1099511627776 := by
- unfold left; omega
-theorem right_lt (h : Nat) (hh:h<1099511627776) : right h<1099511627776 := by
- unfold right; omega
-theorem right_left (h : Nat) (hh:h<1099511627776) : right (left h)=h := by
- unfold right left; omega
-theorem left_right (h : Nat) (hh:h<1099511627776) : left (right h)=h := by
- unfold right left; omega
-
-def pack (w c b : Nat) : Nat := c+65536*(w/65536%256)+16777216*b+18446744073709551616*(w/18446744073709551616)
-theorem pack_parts (w c b : Nat) (hc:c<65536) (hb:b<1099511627776) :
- pack w c b%65536=c ∧ pack w c b/65536%256=w/65536%256 ∧
- pack w c b/16777216%1099511627776=b ∧
- pack w c b/18446744073709551616=w/18446744073709551616 := by
- unfold pack; omega
-
-theorem pack_back (w c b : Nat) (hc:c<65536) (hb:b<1099511627776) :
- pack (pack w c b) (w%65536) (w/16777216%1099511627776)=w := by
- obtain ⟨_,h1,_,h3⟩ := pack_parts w c b hc hb
- simp only [pack,h1,h3]
- omega
-
-def word (w : Nat) : Nat :=
- if w%65536=2305 then pack w 1281 (left (w/16777216%1099511627776)) else
- if w%65536=2561 then pack w 1537 (left (w/16777216%1099511627776)) else
- if w%65536=1281 then pack w 2305 (right (w/16777216%1099511627776)) else
- if w%65536=1537 then pack w 2561 (right (w/16777216%1099511627776)) else w
-
-theorem word_involutive : Function.Involutive word := by
- intro w
- have hh : w/16777216%1099511627776<1099511627776 := Nat.mod_lt _ (by decide)
- have hl := left_lt _ hh
- have hr := right_lt _ hh
- by_cases h9:w%65536=2305
- · have hp := pack_parts w 1281 _ (by decide) hl
-   simp only [word,if_pos h9,hp.1,hp.2.2.1]
-   norm_num only [show (1281:Nat)≠2305 by decide,show (1281:Nat)≠2561 by decide,ite_false,ite_true]
-   rw [right_left _ hh,←h9]
-   exact pack_back w _ _ (by decide) hl
- by_cases h10:w%65536=2561
- · have hp := pack_parts w 1537 _ (by decide) hl
-   simp only [word,if_neg h9,if_pos h10,hp.1,hp.2.2.1]
-   norm_num only [show (1537:Nat)≠2305 by decide,show (1537:Nat)≠2561 by decide,show (1537:Nat)≠1281 by decide,ite_false,ite_true]
-   rw [right_left _ hh,←h10]
-   exact pack_back w _ _ (by decide) hl
- by_cases h5:w%65536=1281
- · have hp := pack_parts w 2305 _ (by decide) hr
-   simp only [word,if_neg h9,if_neg h10,if_pos h5,hp.1,hp.2.2.1,ite_true]
-   rw [left_right _ hh,←h5]
-   exact pack_back w _ _ (by decide) hr
- by_cases h6:w%65536=1537
- · have hp := pack_parts w 2561 _ (by decide) hr
-   simp only [word,if_neg h9,if_neg h10,if_neg h5,if_pos h6,hp.1,hp.2.2.1]
-   norm_num only [show (2561:Nat)≠2305 by decide,ite_false,ite_true]
-   rw [left_right _ hh,←h6]
-   exact pack_back w _ _ (by decide) hr
- simp only [word,if_neg h9,if_neg h10,if_neg h5,if_neg h6]
-
-theorem word_tail (w : Nat) : word w/18446744073709551616=w/18446744073709551616 := by
- have hh : w/16777216%1099511627776<1099511627776 := Nat.mod_lt _ (by decide)
- unfold word; split_ifs
- · exact (pack_parts _ _ _ (by decide) (left_lt _ hh)).2.2.2
- · exact (pack_parts _ _ _ (by decide) (left_lt _ hh)).2.2.2
- · exact (pack_parts _ _ _ (by decide) (right_lt _ hh)).2.2.2
- · exact (pack_parts _ _ _ (by decide) (right_lt _ hh)).2.2.2
- · rfl
-
-theorem word_lt (w : Nat) (hw:w<2^512) : word w<2^512 := by
- have ht := word_tail w
- norm_num [Nat.reducePow] at hw ⊢
- omega
-
-def query : Query → Query
- | ⟨0,w⟩ => ⟨0,BitVec.ofNat 512 (word w.toNat)⟩
- | ⟨n+1,w⟩ => ⟨n+1,w⟩
-theorem query_involutive : Function.Involutive query := by
- rintro ⟨n,w⟩
- cases n with
- | zero =>
-   change (⟨0,BitVec.ofNat 512 (word (BitVec.ofNat 512 (word w.toNat)).toNat)⟩ : Query)=⟨0,w⟩
-   congr 1
-   apply BitVec.eq_of_toNat_eq
-   simp only [BitVec.toNat_ofNat]
-   rw [Nat.mod_eq_of_lt (word_lt _ w.isLt),word_involutive,Nat.mod_eq_of_lt w.isLt]
- | succ n => rfl
-theorem query_injective : Function.Injective query := query_involutive.injective
-theorem query_blocks (q : Query) : (query q).blocks=q.blocks := by
- rcases q with ⟨n,w⟩;cases n <;> rfl
-theorem query_fixed_length (q : Query) (h:q.1≠0) : query q=q := by
- rcases q with ⟨n,w⟩; cases n with
- | zero => exact False.elim (h rfl)
- | succ n => rfl
-theorem word_fixed_classes (w : Nat) (h9:w%65536≠2305) (h10:w%65536≠2561)
- (h5:w%65536≠1281) (h6:w%65536≠1537) : word w=w := by
- simp only [word,if_neg h9,if_neg h10,if_neg h5,if_neg h6]
-theorem query_fixed_classes (q : Query) (h9:q.2.toNat%65536≠2305) (h10:q.2.toNat%65536≠2561)
- (h5:q.2.toNat%65536≠1281) (h6:q.2.toNat%65536≠1537) : query q=q := by
- rcases q with ⟨n,w⟩
- cases n with
- | zero =>
-   change (⟨0,BitVec.ofNat 512 (word w.toNat)⟩ : Query)=⟨0,w⟩
-   rw [word_fixed_classes _ h9 h10 h5 h6]
-   congr 1
-   apply BitVec.eq_of_toNat_eq
-   exact Nat.mod_eq_of_lt w.isLt
- | succ n => rfl
-end SigGolfCandidate.Ref.PorsHeader
-
-namespace SigGolfCandidate.Ref.PorsHeader
-open SigGolfCandidate.Legacy
-
-theorem support_cases (q : Query) (h:query q≠q) :
- q.1=0 ∧ (q.2.toNat%65536=2305 ∨ q.2.toNat%65536=2561 ∨ q.2.toNat%65536=1281 ∨ q.2.toNat%65536=1537) := by
- constructor
- · by_contra hn; exact h (query_fixed_length q hn)
- · by_contra hn
-   push_neg at hn
-   exact h (query_fixed_classes q hn.1 hn.2.1 hn.2.2.1 hn.2.2.2)
-
-theorem commute_of_fixes_support (f : Query → Query) (hf:Function.Injective f)
- (hs:∀ q,query q≠q → f q=q) (q:Query) : query (f q)=f (query q) := by
- by_cases h:query q=q
- · rw [h]
-   by_contra h'
-   have he : f (f q)=f q := hs (f q) h'
-   have he' : f q=q := hf he
-   exact h' (by rw [he',h])
- · have h' : query (query q)≠query q := by rw [query_involutive];exact Ne.symm h
-   rw [hs q h,hs (query q) h']
-
-theorem commute_leafClass (q : Query) : query (LeafClass.query q)=LeafClass.query (query q) :=
- commute_of_fixes_support _ LeafClass.query_involutive.injective (fun q h =>
- LeafClass.query_fixed_length q (by have := (support_cases q h).1;omega)) q
-theorem commute_leafCarry (q : Query) : query (LeafCarry.query q)=LeafCarry.query (query q) :=
- commute_of_fixes_support _ LeafCarry.query_involutive.injective (fun q h =>
- LeafCarry.query_fixed_length q (by have := (support_cases q h).1;omega)) q
-theorem commute_topHeap (q : Query) : query (TopHeap.query q)=TopHeap.query (query q) :=
- commute_of_fixes_support _ TopHeap.query_involutive.injective (fun q h =>
- TopHeap.query_fixed_class q (by have := (support_cases q h).2;omega)) q
-theorem commute_encodingRotate (q : Query) : query (EncodingRotate.query q)=EncodingRotate.query (query q) :=
- commute_of_fixes_support _ EncodingRotate.query_injective (fun q h =>
- EncodingRotate.query_fixed q (by have := (support_cases q h).2;omega)) q
-theorem commute_digestZero (q : Query) : query (DigestZero.query q)=DigestZero.query (query q) :=
- commute_of_fixes_support _ DigestZero.query_involutive.injective (fun q h =>
- DigestZero.query_fixed_class q (by have := (support_cases q h).2;omega)
-   (by have := (support_cases q h).2;omega)) q
-end SigGolfCandidate.Ref.PorsHeader
-
 namespace SigGolfCandidate.Ref.AddressFormat
 open SigGolfCandidate.Legacy
 
 /-- Native-query permutation preserving the accepted root-pair construction. -/
-def queryPerm (q : Query) : Query := PorsHeader.query (DigestZero.query (EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (LeafScale.queryRel (baseQueryPerm q)))))))
-def queryInverse (q : Query) : Query := baseQueryPerm (LeafScale.queryInv (LeafClass.query (TopHeap.query (LeafCarry.query (EncodingRotate.queryInverse (DigestZero.query (PorsHeader.query q)))))))
+def queryPerm (q : Query) : Query := DigestZero.query (EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (LeafScale.queryRel (baseQueryPerm q))))))
+def queryInverse (q : Query) : Query := baseQueryPerm (LeafScale.queryInv (LeafClass.query (TopHeap.query (LeafCarry.query (EncodingRotate.queryInverse (DigestZero.query q))))))
 
 theorem queryPerm_eq_unwrapped (q : Query) (h : DigestZero.query q = q) :
-    queryPerm q = PorsHeader.query (EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (LeafScale.queryRel (baseQueryPerm q)))))) := by
+    queryPerm q = EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (LeafScale.queryRel (baseQueryPerm q))))) := by
   rw [queryPerm, DigestZero.commute_encodingRotate, DigestZero.commute_leafCarry,
     DigestZero.commute_topHeap, DigestZero.commute_leafClass, DigestZero.commute_leafScale,
     DigestZero.commute_base, h]
 
 theorem queryInverse_queryPerm (q : Query) : queryInverse (queryPerm q) = q := by
-  rw [queryInverse, queryPerm, PorsHeader.query_involutive, DigestZero.query_involutive, EncodingRotate.queryInverse_query, LeafCarry.query_involutive, TopHeap.query_involutive, LeafClass.query_involutive,
+  rw [queryInverse, queryPerm, DigestZero.query_involutive, EncodingRotate.queryInverse_query, LeafCarry.query_involutive, TopHeap.query_involutive, LeafClass.query_involutive,
     LeafScale.queryInv_queryRel, baseQueryPerm_involutive]
 
 theorem queryPerm_injective : Function.Injective queryPerm :=
-  PorsHeader.query_injective.comp (DigestZero.query_involutive.injective.comp (EncodingRotate.query_injective.comp (LeafCarry.query_involutive.injective.comp (TopHeap.query_involutive.injective.comp (LeafClass.query_involutive.injective.comp
-    (LeafScale.queryRel_injective.comp baseQueryPerm_injective))))))
+  DigestZero.query_involutive.injective.comp (EncodingRotate.query_injective.comp (LeafCarry.query_involutive.injective.comp (TopHeap.query_involutive.injective.comp (LeafClass.query_involutive.injective.comp
+    (LeafScale.queryRel_injective.comp baseQueryPerm_injective)))))
 
 theorem queryPerm_blocks (q : Query) : (queryPerm q).blocks = q.blocks := by
-  rw [queryPerm, PorsHeader.query_blocks, DigestZero.query_blocks, EncodingRotate.query_blocks, LeafCarry.query_blocks, TopHeap.query_blocks, LeafClass.query_blocks, LeafScale.queryRel_blocks, baseQueryPerm_blocks]
+  rw [queryPerm, DigestZero.query_blocks, EncodingRotate.query_blocks, LeafCarry.query_blocks, TopHeap.query_blocks, LeafClass.query_blocks, LeafScale.queryRel_blocks, baseQueryPerm_blocks]
 
 theorem queryPerm_fixed (q : Query) (h0 : q.2.toNat % 64 ≠ 0)
     (h1 : q.2.toNat % 65536 ≠ 257) (h2 : q.2.toNat % 65536 ≠ 2561)
     (h9 : q.2.toNat % 65536 ≠ 2305) (h4 : q.2.toNat % 65536 ≠ 1025)
     (hL : q.2.toNat % 65536 ≠ 513) (h3:q.2.toNat%65536≠769)
-    (hD : q.2.toNat % 65536 ≠ 3073) (h5:q.2.toNat%65536≠1281) (h6:q.2.toNat%65536≠1537) : queryPerm q = q := by
+    (hD : q.2.toNat % 65536 ≠ 3073) : queryPerm q = q := by
   rw [queryPerm, baseQueryPerm_fixed q h0 h1 h2, LeafScale.queryRel_fixed q h9,
     LeafClass.query_fixed q hL h4, TopHeap.query_fixed_class q h3, LeafCarry.query_fixed_classes q h3 h4, EncodingRotate.query_fixed q h4]
-  rw [DigestZero.query_fixed_class q hD (by omega)]
-  exact PorsHeader.query_fixed_classes q h9 h2 h5 h6
+  exact DigestZero.query_fixed_class q hD (by omega)
 
 end SigGolfCandidate.Ref.AddressFormat

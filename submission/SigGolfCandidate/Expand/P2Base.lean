@@ -184,16 +184,14 @@ theorem and_15 (n : Nat) : n &&& 15 = n % 16 := Nat.and_two_pow_sub_one_eq_mod n
 theorem ofNat_beq_zero (n : Nat) (h : n < 2 ^ 64) : (BitVec.ofNat 64 n == 0#64) = decide (n = 0) := by
   rw [show (0#64 : Word) = BitVec.ofNat 64 0 from rfl, ofNat_beq_ofNat, Nat.mod_eq_of_lt h]; rfl
 
-/-- Physical PORS headers place the full instance in bytes3..7. -/
-theorem twWords_pors (tg idx j : Nat) (ht : tg<256) (hidx : idx<2^34) (hj:j<2^32) :
-    twWords tg 0 (idx*2^32) (idx/256) j =
-      [BitVec.ofNat 64 (1+256*tg+2^24*idx),
-       BitVec.ofNat 64 (Ref.tauH idx%2^32+2^32*j)] := by
-  unfold twWords Ref.tauH
-  simp only [Nat.mod_eq_of_lt ht,Nat.mod_eq_of_lt hj,Nat.zero_mod,Nat.mul_zero,Nat.add_zero,
-    Nat.mul_div_left _ (by decide : 0<(2:Nat)^32),Nat.mul_mod_left,Nat.zero_add]
-  congr 2
-  norm_num only [Nat.reducePow] at hidx ⊢
-  omega
+/-- The tweak words of a PORS input (`lay = 0`, `p = 0`, instance `idx < 2^34`). -/
+theorem twWords_pors (tg idx j : Nat) (ht : tg < 256) (hidx : idx < 2 ^ 34) (hj : j < 2 ^ 32) :
+    twWords tg 0 (Ref.tauH idx) idx j =
+      [BitVec.ofNat 64 (1 + 256 * tg + 2 ^ 24 * (idx / 2 ^ 32) + 2 ^ 32 * (idx % 2 ^ 32)),
+        BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * j)] := by
+  unfold twWords
+  have e1 : Ref.tauH idx / 2 ^ 32 % 256 = idx / 2 ^ 32 := by unfold Ref.tauH; omega
+  rw [Nat.mod_eq_of_lt ht, e1, Nat.mod_eq_of_lt hj]
+  simp
 
 end SigGolfCandidate.ExP

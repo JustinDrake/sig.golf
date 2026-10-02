@@ -162,22 +162,10 @@ theorem wordPerm_encoding_class (w : Nat) (h : w % 65536 ≠ 1025) : wordPerm w 
   · exact h
 
 
-theorem wordPerm_porsHeader_class (w c : Nat) (hc:c=2305 ∨ c=2561 ∨ c=1281 ∨ c=1537)
-    (h:w%65536≠c) : wordPerm w%65536≠c := by
-  unfold wordPerm
-  split_ifs with ho hn
-  · simp only [oldValid] at ho
-    unfold oldToNew
-    omega
-  · simp only [newValid] at hn
-    dsimp only [newToOld]
-    omega
-  · exact h
-
 theorem queryPerm_node (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
     (hc : w0.toNat % 65536 = 2561) :
     queryPerm (queryOfWords 0 (w0 :: w1 :: ws)) =
-      PorsHeader.query (queryOfWords 0 (swW0 w0 w1 :: swW1 Rev.efield w0 w1 :: ws)) := by
+      queryOfWords 0 (swW0 w0 w1 :: swW1 Rev.efield w0 w1 :: ws) := by
   have hcls : (queryOfWords 0 (swW0 w0 w1 :: swW1 Rev.efield w0 w1 :: ws)).2.toNat % 65536=2561 := by
     rw [queryOfWords_class,swW0_class,hc]
   rw [queryPerm_eq_unwrapped _ (DigestZero.query_fixed_class _ (by rw [queryOfWords_class,hc]; decide) (by rw [queryOfWords_class,hc]; decide)),baseQueryPerm_node w0 w1 ws hlen hc,
@@ -189,8 +177,7 @@ theorem queryPerm_node (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
 theorem queryPerm_words (w : Word) (ws : List Word) (hlen : ws.length = 7)
     (hc : w.toNat % 65536 ≠ 2561) (h9 : w.toNat % 65536 ≠ 2305)
     (h3 : w.toNat % 65536 ≠ 769) (h4 : w.toNat % 65536 ≠ 1025)
-    (hD : w.toNat % 65536 ≠ 3073) (hZ : w.toNat % 65536 ≠ 0)
-    (h5:w.toNat%65536≠1281) (h6:w.toNat%65536≠1537) :
+    (hD : w.toNat % 65536 ≠ 3073) (hZ : w.toNat % 65536 ≠ 0) :
     queryPerm (queryOfWords 0 (w :: ws)) =
       queryOfWords 0 (BitVec.ofNat 64 (wordPerm w.toNat) :: ws) := by
   have hleaf : (queryOfWords 0 (BitVec.ofNat 64 (wordPerm w.toNat) :: ws)).2.toNat%65536≠2305 := by
@@ -204,15 +191,11 @@ theorem queryPerm_words (w : Word) (ws : List Word) (hlen : ws.length = 7)
     exact wordPerm_encoding_class _ h4
   rw [queryPerm_eq_unwrapped _ (DigestZero.query_fixed_class _ (by rw [queryOfWords_class]; exact hD) (by rw [queryOfWords_class]; exact hZ)),baseQueryPerm_words w ws hlen hc,LeafScale.queryRel_fixed _ hleaf,
     LeafClass.query_fixed_length _ (by change (0:Nat)≠10;decide),TopHeap.query_fixed_class _ htop,LeafCarry.query_fixed_length _ (by change (0:Nat)≠10;decide),EncodingRotate.query_fixed _ henc]
-  apply PorsHeader.query_fixed_classes
-  all_goals
-    rw [queryOfWords_class,BitVec.toNat_ofNat,Nat.mod_eq_of_lt (wordPerm_lt _ w.isLt)]
-    apply wordPerm_porsHeader_class <;> first | tauto | assumption
 
 theorem queryPerm_leaf (w0 w1 : Word) (ws : List Word) (hlen : ws.length = 6)
     (hc : w0.toNat % 65536 = 2305) :
     queryPerm (queryOfWords 0 (w0 :: w1 :: ws)) =
-      PorsHeader.query (queryOfWords 0 (swW0 w0 w1 :: swW1 LeafScale.left3 w0 w1 :: ws)) := by
+      queryOfWords 0 (swW0 w0 w1 :: swW1 LeafScale.left3 w0 w1 :: ws) := by
   have hN := wordsToNat_lt8 w0 w1 ws hlen
   have hclsQ : (queryOfWords 0 (w0 :: w1 :: ws)).2.toNat % 65536 = 2305 := by
     rw [queryOfWords_class, hc]
@@ -257,8 +240,8 @@ theorem fmt_low_bytes (x : List Byte) :
 theorem addrFmt_eq_unwrapped (x : List Byte)
     (hD : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 3073)
     (hZ : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 0) :
-    addrFmt x = PorsHeader.query (EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query
-      (LeafScale.queryRel (AddressFormat.baseQueryPerm (fmt x))))))) := by
+    addrFmt x = EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query
+      (LeafScale.queryRel (AddressFormat.baseQueryPerm (fmt x)))))) := by
   apply AddressFormat.queryPerm_eq_unwrapped
   apply DigestZero.query_fixed_class <;> have h := fmt_low_bytes x <;> omega
 
@@ -271,9 +254,7 @@ theorem addrFmt_eq_of_prefix (x : List Byte)
     (h4 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 1025)
     (hL : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 513)
     (h3 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 769)
-    (hD : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 3073)
-    (h5 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 1281)
-    (h6 : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 1537) :
+    (hD : (x.getD 0 0).toNat + 256 * (x.getD 1 0).toNat ≠ 3073) :
     addrFmt x = fmt x := by
   apply AddressFormat.queryPerm_fixed
   · have h := (fmt_low_bytes x).1
@@ -294,11 +275,9 @@ theorem addrFmt_eq_of_prefix (x : List Byte)
     omega
   · have h := fmt_low_bytes x
     omega
-  · have h := fmt_low_bytes x; omega
-  · have h := fmt_low_bytes x; omega
 
 theorem addrFmt_eq_th (t lay tau p j : Nat) (payload : List Byte)
-    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 4 ∧ t % 256 ≠ 2 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 12 ∧ t % 256 ≠ 5 ∧ t % 256 ≠ 6) :
+    (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 4 ∧ t % 256 ≠ 2 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 12) :
     addrFmt (thInput (tweak t lay tau p j) payload) =
       fmt (thInput (tweak t lay tau p j) payload) := by
   apply addrFmt_eq_of_prefix
@@ -319,11 +298,9 @@ theorem addrFmt_eq_th (t lay tau p j : Nat) (payload : List Byte)
     omega
   · simp [thInput, tweak, byte_toNat]
     omega
-  · simp [thInput,tweak,byte_toNat]; omega
-  · simp [thInput,tweak,byte_toNat]; omega
 
 theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
-    (ht : byte t ∉ [byte 1, byte 2, byte 3, byte 4, byte 9, byte 10, byte 12, byte 5, byte 6]) :
+    (ht : byte t ∉ [byte 1, byte 2, byte 3, byte 4, byte 9, byte 10, byte 12]) :
     addrFmt (thInput (tweak t lay tau p j) payload) =
       pad64 (thInput (tweak t lay tau p j) payload) := by
   have hb : ∀ k, k < 256 → byte t = byte k → t % 256 = k := by
@@ -331,12 +308,12 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
     have := congrArg BitVec.toNat h
     simp only [byte_toNat] at this
     omega
-  have h1 : t % 256 ≠ 1 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 4 ∧ t % 256 ≠ 2 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 12 ∧ t % 256 ≠ 5 ∧ t % 256 ≠ 6 := by
+  have h1 : t % 256 ≠ 1 ∧ t % 256 ≠ 10 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 4 ∧ t % 256 ≠ 2 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 12 := by
     have heq : ∀ k, t % 256 = k → byte t = byte k := by
       intro k h
       apply BitVec.eq_of_toNat_eq
       simp [byte_toNat, h, Nat.mod_eq_of_lt (show k < 256 by omega)]
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · intro h; apply ht; simp [heq 1 h]
     · intro h; apply ht; simp [heq 10 h]
     · intro h; apply ht; simp [heq 9 h]
@@ -344,8 +321,6 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
     · intro h; apply ht; simp [heq 2 h]
     · intro h; apply ht; simp [heq 3 h]
     · intro h; apply ht; simp [heq 12 h]
-    · intro h; apply ht; simp [heq 5 h]
-    · intro h; apply ht; simp [heq 6 h]
   have ht' : byte t ∉ [byte 1, byte 3, byte 12] := by
     intro hm; apply ht; simp only [List.mem_cons, List.not_mem_nil, or_false] at hm ⊢; tauto
   rw [addrFmt_eq_th _ _ _ _ _ _ h1, fmt_thInput _ _ _ _ _ _ ht']
@@ -358,7 +333,6 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
 @[simp] theorem addrFmt_leafInput (lay tau e : Nat) (ends : List Val) :
     addrFmt (leafInput lay tau e ends) = EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (fmt (leafInput lay tau e ends))))) := by
   rw [addrFmt_eq_unwrapped (leafInput lay tau e ends) (by simp [leafInput,thInput,tweak,byte_toNat]) (by simp [leafInput,thInput,tweak,byte_toNat])]
-  rw [PorsHeader.commute_encodingRotate,PorsHeader.commute_leafCarry,PorsHeader.commute_topHeap,PorsHeader.commute_leafClass]
   apply congrArg EncodingRotate.query
   apply congrArg LeafCarry.query
   apply congrArg TopHeap.query
@@ -368,12 +342,10 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
     simp [leafInput,thInput,tweak,byte_toNat] at h ⊢;omega
   rw [AddressFormat.baseQueryPerm_fixed _ (by omega) (by omega) (by omega),
     LeafScale.queryRel_fixed _ (by omega)]
-  exact PorsHeader.query_fixed_classes _ (by omega) (by omega) (by omega) (by omega)
 
 @[simp] theorem addrFmt_nodeInput (lay tau lam j : Nat) (l r : Val) :
     addrFmt (nodeInput lay tau lam j l r) = EncodingRotate.query (LeafCarry.query (TopHeap.query (fmt (nodeInput lay tau lam j l r)))) := by
   rw [addrFmt_eq_unwrapped (nodeInput lay tau lam j l r) (by simp [nodeInput,thInput,tweak,byte_toNat]) (by simp [nodeInput,thInput,tweak,byte_toNat])]
-  rw [PorsHeader.commute_encodingRotate,PorsHeader.commute_leafCarry,PorsHeader.commute_topHeap]
   apply congrArg EncodingRotate.query
   apply congrArg LeafCarry.query
   apply congrArg TopHeap.query
@@ -382,12 +354,10 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
     simp [nodeInput,thInput,tweak,byte_toNat] at h ⊢;omega
   rw [AddressFormat.baseQueryPerm_fixed _ (by omega) (by omega) (by omega),
     LeafScale.queryRel_fixed _ (by omega),LeafClass.query_fixed _ (by omega) (by omega)]
-  exact PorsHeader.query_fixed_classes _ (by omega) (by omega) (by omega) (by omega)
 
 @[simp] theorem addrFmt_encInput (lay tau e : Nat) (M : Val) (c : Nat) :
     addrFmt (encInput lay tau e M c) = EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (fmt (encInput lay tau e M c))))) := by
   rw [addrFmt_eq_unwrapped (encInput lay tau e M c) (by simp [encInput,tweak,byte_toNat]) (by simp [encInput,tweak,byte_toNat])]
-  rw [PorsHeader.commute_encodingRotate,PorsHeader.commute_leafCarry,PorsHeader.commute_topHeap,PorsHeader.commute_leafClass]
   apply congrArg EncodingRotate.query
   apply congrArg LeafCarry.query
   apply congrArg TopHeap.query
@@ -397,7 +367,6 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
     simp [encInput,tweak,byte_toNat] at h ⊢;omega
   rw [AddressFormat.baseQueryPerm_fixed _ (by omega) (by omega) (by omega),
     LeafScale.queryRel_fixed _ (by omega)]
-  exact PorsHeader.query_fixed_classes _ (by omega) (by omega) (by omega) (by omega)
 
 @[simp] theorem addrFmt_porsPrfInput (S : List Byte) (idx q : Nat) :
     addrFmt (porsPrfInput S idx q) = fmt (porsPrfInput S idx q) := by
@@ -405,7 +374,7 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
   exact addrFmt_eq_th _ _ _ _ _ _ (by decide)
 
 @[simp] theorem addrFmt_porsLeafInput (idx j : Nat) (v : Val) :
-    addrFmt (porsLeafInput idx j v) = PorsHeader.query (LeafScale.queryRel (fmt (porsLeafInput idx j v))) := by
+    addrFmt (porsLeafInput idx j v) = LeafScale.queryRel (fmt (porsLeafInput idx j v)) := by
   have hbase : AddressFormat.baseQueryPerm (fmt (porsLeafInput idx j v)) = fmt (porsLeafInput idx j v) := by
     apply AddressFormat.baseQueryPerm_fixed
     all_goals
@@ -430,7 +399,6 @@ theorem addrFmt_thInput (t lay tau p j : Nat) (payload : List Byte)
     LeafScale.queryRel_fixed _ (by omega), LeafClass.query_fixed _ (by omega) (by omega),
     TopHeap.query_fixed_class _ (by omega), LeafCarry.query_fixed_classes _ (by omega) (by omega),
     EncodingRotate.query_fixed _ (by omega)]
-  rw [PorsHeader.commute_digestZero, PorsHeader.query_fixed_classes _ (by omega) (by omega) (by omega) (by omega)]
 
 attribute [local irreducible] AddressFormat.queryPerm
 

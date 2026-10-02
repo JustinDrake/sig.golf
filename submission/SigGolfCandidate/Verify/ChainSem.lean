@@ -25,14 +25,14 @@ def hWord (lay : Nat) : Nat := 0x101 + 65536 * lay
 
 /-- The byte address of chain block `(lay, i)` and the layer base `s6`. -/
 def blkN (lay i : Nat) : Nat := 0x800 + blockOff lay i
-def s6N (lay : Nat) : Nat := blkN lay 0 + 1344
+def s6N (lay : Nat) : Nat := blkN lay 0 + 640
 /-- Tweak word 0 of chain `i` (byte 4, the step, zero). -/
 def twW0 (lay i : Nat) : Nat := hWord lay + 2 ^ 40 * i
 
 theorem blkN_eq (lay i : Nat) : blkN lay i = 4992 + 2688 * lay + 64 * i := by
   unfold blkN; rw [blockOff_eq]; omega
 
-theorem s6N_eq (lay : Nat) : s6N lay = 6336 + 2688 * lay := by
+theorem s6N_eq (lay : Nat) : s6N lay = 5632 + 2688 * lay := by
   unfold s6N; rw [blkN_eq]; omega
 
 /-! ## Fresh witness words -/
@@ -461,8 +461,6 @@ theorem addrFmt_chainInputP_words (lay tau e i mu : Nat) (pad : List Byte) (v : 
   have hw : AddressFormat.oldHeader lay 0 i (mu - 1) < 2 ^ 64 := by unfold AddressFormat.oldHeader; omega
   rw [addrFmt, fmt_chainInputP_words lay tau e i mu pad v hp hv hmu hmu' (by omega), hd,
     AddressFormat.queryPerm_words _ _ rfl (by
-      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
-      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]; unfold AddressFormat.oldHeader; omega) (by

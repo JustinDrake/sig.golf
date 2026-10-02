@@ -210,81 +210,10 @@ The relabelling swaps the `p` field (zero in the Ref) and the low half of `tau`:
 is `tweak t 0 (Ref.tauH idx) idx F`, i.e. word 0 is `twLo t 0 idx idx` (tag, high byte of `tau`, low
 half of `tau` in the `p` slot) and word 1 is `twHi 0 F` (zero, then the relabelled header `F`). -/
 
-def pHead (t idx : Nat) : Nat := 1 + 256 * (t - 4) + 2^24 * (idx % 2^40)
-
-theorem pHead_twLo (t idx : Nat) (ht : t = 9 ∨ t = 10) :
-    twLo (t-4) 0 (idx*2^32) (idx/256) = pHead t idx := by
-  rcases ht with rfl | rfl <;> unfold twLo pHead <;> omega
-
-theorem pHead_small (t idx : Nat) (hi : idx < 2^40) :
-    pHead t idx = 1 + 256*(t-4) + 2^24*idx := by
-  unfold pHead
-  rw [Nat.mod_eq_of_lt hi]
-
-theorem pHead_lt (t idx : Nat) (ht : t=9 ∨ t=10) : pHead t idx < 2^64 := by
-  rcases ht with rfl | rfl <;> unfold pHead <;> omega
-
-theorem porsHeader_word_packed (c hi lo : Nat) (hc:c=2305 ∨ c=2561)
-    (hh:hi<256) (hl:lo<4294967296) :
-    PorsHeader.word (c+16777216*hi+4294967296*lo)=c-1024+16777216*(lo+4294967296*hi) := by
-  have hc' : c<65536 := by omega
-  have h0 : (c+16777216*hi+4294967296*lo)%65536=c := by omega
-  have h1 : (c+16777216*hi+4294967296*lo)/65536%256=0 := by omega
-  have h2 : (c+16777216*hi+4294967296*lo)/16777216%1099511627776=hi+256*lo := by omega
-  have h3 : (c+16777216*hi+4294967296*lo)/18446744073709551616=0 := by omega
-  unfold PorsHeader.word
-  rw [h0]
-  rcases hc with rfl | rfl <;> norm_num only [ite_true,ite_false,show (2561:Nat)≠2305 by decide]
-  all_goals
-    simp only [PorsHeader.pack,h1,h2,h3,PorsHeader.left]
-    omega
-
-theorem pHead_rotate (t idx : Nat) (ht : t=9 ∨ t=10) :
-    PorsHeader.word (twLo t 0 idx idx) = pHead t idx := by
-  have hhi : idx/4294967296%256<256 := Nat.mod_lt _ (by decide)
-  have hlo : idx%4294967296<4294967296 := Nat.mod_lt _ (by decide)
-  have hm : idx%1099511627776=idx%4294967296+4294967296*(idx/4294967296%256) := by omega
-  rcases ht with rfl | rfl
-  all_goals
-    unfold twLo pHead
-    norm_num only [Nat.reduceMod,Nat.reduceMul,Nat.reduceAdd,Nat.reducePow,Nat.reduceSub,Nat.mul_zero,Nat.add_zero]
-    rw [porsHeader_word_packed _ _ _ (by omega) hhi hlo]
-    omega
-
-theorem porsHeader_word_join (w y : Nat) (hw:w<2^64) :
-    PorsHeader.word (w+2^64*y)=PorsHeader.word w+2^64*y := by
-  have h0 : (w+2^64*y)%65536=w%65536 := by omega
-  have h1 : (w+2^64*y)/65536%256=w/65536%256 := by omega
-  have h2 : (w+2^64*y)/16777216%1099511627776=w/16777216%1099511627776 := by omega
-  have h3 : (w+2^64*y)/18446744073709551616=y := by omega
-  have h4 : w/18446744073709551616=0 := by omega
-  simp only [PorsHeader.word,h0,h2]
-  split_ifs <;> simp only [PorsHeader.pack,h1,h3,h4] <;> omega
-
-theorem porsHeader_query_words (w : Word) (ws : List Word) (hlen : ws.length=7) :
-    PorsHeader.query (queryOfWords 0 (w::ws)) =
-      queryOfWords 0 (BitVec.ofNat 64 (PorsHeader.word w.toNat)::ws) := by
-  have hn : wordsToNat (w::ws)<2^512 := by
-    have h := AddressFormat.wordsToNat_lt (w::ws)
-    simpa [hlen] using h
-  have hw : PorsHeader.word w.toNat<2^64 := by
-    have ht := PorsHeader.word_tail w.toNat
-    have h := w.isLt
-    omega
-  change (⟨0,BitVec.ofNat 512 (PorsHeader.word (BitVec.ofNat 512 (wordsToNat (w::ws))).toNat)⟩ : Query)=_
-  apply congrArg (fun v : BitVec 512 => (⟨0,v⟩ : Query))
-  rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt hn]
-  change BitVec.ofNat 512 (PorsHeader.word (w.toNat+2^64*wordsToNat ws)) = _
-  rw [porsHeader_word_join _ _ w.isLt]
-  simp only [queryOfWords,wordsToNat,BitVec.toNat_ofNat,Nat.mod_eq_of_lt hw]
-
-theorem twHi_pHead (idx F : Nat) : twHi (idx*2^32) F = twHi 0 F := by
-  unfold twHi; omega
-
 /-- The hashed form of a PORS node input (header `F`). -/
-def pNode (idx F : Nat) (l r : Val) : List Byte := thInput (tweak 6 0 (idx*2^32) (idx/256) F) (l ++ r)
+def pNode (idx F : Nat) (l r : Val) : List Byte := thInput (tweak 10 0 (Ref.tauH idx) idx F) (l ++ r)
 /-- The hashed form of a PORS leaf input (header `F`). -/
-def pLeaf (idx F : Nat) (v : Val) : List Byte := thInput (tweak 5 0 (idx*2^32) (idx/256) F) v
+def pLeaf (idx F : Nat) (v : Val) : List Byte := thInput (tweak 9 0 (Ref.tauH idx) idx F) v
 
 theorem twLo_tauH (t idx : Nat) : twLo t 0 (Ref.tauH idx) idx = twLo t 0 idx idx := by
   unfold twLo Ref.tauH; congr 2; omega
@@ -294,11 +223,11 @@ theorem twHi_tauH (idx F : Nat) : twHi (Ref.tauH idx) F = twHi 0 F := by
 
 theorem pad64_pNode (idx F : Nat) (l r : Val) (hl : l.length = 16) (hr : r.length = 16) :
     pad64 (pNode idx F l r) = queryOfWords 0
-      [BitVec.ofNat 64 (pHead 10 idx), BitVec.ofNat 64 (twHi 0 F), 0, 0,
+      [BitVec.ofNat 64 (twLo 10 0 idx idx), BitVec.ofNat 64 (twHi 0 F), 0, 0,
         vw0 l, vw1 l, vw0 r, vw1 r] := by
   unfold pNode
-  rw [pad64_thInput _ _ (by simp) 0 (by simp [hl, hr]) (by simp [hl, hr]), wordsOfN_tweak, show twLo 6 0 (idx*2^32) (idx/256) = pHead 10 idx from pHead_twLo 10 idx (by simp),
-    twHi_pHead]
+  rw [pad64_thInput _ _ (by simp) 0 (by simp [hl, hr]) (by simp [hl, hr]), wordsOfN_tweak, twLo_tauH,
+    twHi_tauH]
   simp only [List.length_append, hl, hr]
   rw [show 8 * 0 + 4 = 2 + (2 + 0) by rfl, List.append_assoc l r, wordsOfN_val_append l hl,
     wordsOfN_val_append r hr]
@@ -306,10 +235,10 @@ theorem pad64_pNode (idx F : Nat) (l r : Val) (hl : l.length = 16) (hr : r.lengt
 
 theorem pad64_pLeaf (idx F : Nat) (v : Val) (hv : v.length = 16) :
     pad64 (pLeaf idx F v) = queryOfWords 0
-      [BitVec.ofNat 64 (pHead 9 idx), BitVec.ofNat 64 (twHi 0 F), 0, 0,
+      [BitVec.ofNat 64 (twLo 9 0 idx idx), BitVec.ofNat 64 (twHi 0 F), 0, 0,
         vw0 v, vw1 v, 0, 0] := by
   unfold pLeaf
-  rw [pad64_thInput _ _ (by simp) 0 (by omega) (by omega), wordsOfN_tweak, show twLo 5 0 (idx*2^32) (idx/256) = pHead 9 idx from pHead_twLo 9 idx (by simp), twHi_pHead, hv,
+  rw [pad64_thInput _ _ (by simp) 0 (by omega) (by omega), wordsOfN_tweak, twLo_tauH, twHi_tauH, hv,
     show 8 * 0 + 4 = 2 + 2 by rfl, wordsOfN_val_append v hv]
   rfl
 
@@ -339,7 +268,7 @@ index `H` has words `twLo 10 0 idx idx`, `twHi 0 (Rev.efield H)`. -/
 theorem addrFmt_porsNodeWords (idx H : Nat) (l r : Val) (hl : l.length = 16)
     (hr : r.length = 16) :
     addrFmt (porsNodeInput idx H l r) = queryOfWords 0
-      [BitVec.ofNat 64 (pHead 10 idx), BitVec.ofNat 64 (twHi 0 (Rev.efield H)), 0, 0,
+      [BitVec.ofNat 64 (twLo 10 0 idx idx), BitVec.ofNat 64 (twHi 0 (Rev.efield H)), 0, 0,
         vw0 l, vw1 l, vw0 r, vw1 r] := by
   have hf : fmt (porsNodeInput idx H l r) = pad64 (porsNodeInput idx H l r) :=
     fmt_thInput _ _ _ _ _ _ (by decide)
@@ -348,10 +277,7 @@ theorem addrFmt_porsNodeWords (idx H : Nat) (l r : Val) (hl : l.length = 16)
     rw [BitVec.toNat_ofNat]; unfold twLo; omega
   rw [AddressFormat.queryPerm_node _ _ _ rfl hlo]
   obtain ⟨k0, k1⟩ := swW_pors 10 idx H Rev.efield AddressFormat.efield_lt'
-  rw [k0, k1, Rev.efield_mod, porsHeader_query_words _ _ rfl]
-  have hw : (BitVec.ofNat 64 (twLo 10 0 idx idx)).toNat=twLo 10 0 idx idx := by
-    rw [BitVec.toNat_ofNat];apply Nat.mod_eq_of_lt;unfold twLo;omega
-  rw [hw,pHead_rotate 10 idx (by simp)]
+  rw [k0, k1, Rev.efield_mod]
 
 /-- The relabelled node query as a padded input: header field `Rev.efield H`. -/
 theorem addrFmt_porsNodeInput_pad (idx H : Nat) (l r : Val) (hl : l.length = 16)
@@ -361,7 +287,7 @@ theorem addrFmt_porsNodeInput_pad (idx H : Nat) (l r : Val) (hl : l.length = 16)
 
 theorem addrFmt_porsLeafWords (idx j : Nat) (v : Val) (hv : v.length = 16) :
     addrFmt (porsLeafInput idx j v) = queryOfWords 0
-      [BitVec.ofNat 64 (pHead 9 idx), BitVec.ofNat 64 (twHi 0 (LeafScale.left3 (j % 2^32))), 0, 0,
+      [BitVec.ofNat 64 (twLo 9 0 idx idx), BitVec.ofNat 64 (twHi 0 (LeafScale.left3 (j % 2^32))), 0, 0,
         vw0 v, vw1 v, 0, 0] := by
   have hf : fmt (porsLeafInput idx j v) = pad64 (porsLeafInput idx j v) :=
     fmt_thInput _ _ _ _ _ _ (by decide)
@@ -370,10 +296,7 @@ theorem addrFmt_porsLeafWords (idx j : Nat) (v : Val) (hv : v.length = 16) :
     rw [BitVec.toNat_ofNat]; unfold twLo; omega
   rw [AddressFormat.queryPerm_leaf _ _ _ rfl hlo]
   obtain ⟨k0, k1⟩ := swW_pors 9 idx j LeafScale.left3 LeafScale.left3_lt'
-  rw [k0, k1, porsHeader_query_words _ _ rfl]
-  have hw : (BitVec.ofNat 64 (twLo 9 0 idx idx)).toNat=twLo 9 0 idx idx := by
-    rw [BitVec.toNat_ofNat];apply Nat.mod_eq_of_lt;unfold twLo;omega
-  rw [hw,pHead_rotate 9 idx (by simp)]
+  rw [k0, k1]
 
 theorem addrFmt_porsLeafInput_pad (idx j : Nat) (v : Val) (hv : v.length = 16)
     (hj : j ≤ 2^14) :

@@ -5,11 +5,15 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
-The claim C=10281 is accepting verifier bound10226 plus witness charge55.
-The PORS node/leaf instance header rotates bytes3..7 through a total query involution,
-so setup builds its two headers with a shift and add, saving four instructions.
+The claim C=10280 is accepting verifier bound10225 plus witness charge55.
 The witness-counter range check masks the merged counters with a constant mask word kept in the
 verifier data's padding word, replacing a shift/or/shift fold with one load and one and.
+Layers 1-4 fold the fold-dispatch page into the leaf index (`addi gp, x23, hi >> 9; slli gp, gp, 9`)
+instead of `slli; lui; add`, one instruction per layer.
+The shared WOTS base is blk(lay, 0) + 640, making layer 4 exactly 0x4000.
+Each chain-relative immediate increases by 704, preserving every effective address,
+and all three layer-4 transition copies omit their previous base ADDI.
+The counter mask is credited to znan2 (afda1d5f) and the chain-base rebase to erickeigen (11be8e6b), on promoted base bd9c96e.
 This candidate retains the accepted ordered root-children message construction and adds
 length-separated leaf header reuse, a preserved selector threshold, a reversible
 top heap address reflection, carried upper-layer leaf headers, and rotated encoding
@@ -99,7 +103,7 @@ theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4352 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10281 :=
+theorem certificate : SigGolf.Certificate submission 10280 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

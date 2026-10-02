@@ -437,7 +437,7 @@ theorem lvBase_mono {a b : Nat} (h : a ≤ b) (hb : b ≤ 15) : lvBase a + 16 * 
 /-- Facts at the start of the level loop. -/
 structure PLevCtx (idx : Nat) (t0 : MachineState) : Prop where
   x5 : t0.getReg .x5 = 0
-  nb0 : t0.getMem (BitVec.ofNat 64 448) = twWord0 6 0 (idx*2^32) (idx/256)
+  nb0 : t0.getMem (BitVec.ofNat 64 448) = twWord0 10 0 idx idx
   nb8 : lo32 (t0.getMem (BitVec.ofNat 64 456)) = BitVec.ofNat 32 0
   nbP : t0.readWords (BitVec.ofNat 64 0x1D0) 2 = [0, 0]
 
@@ -489,7 +489,7 @@ theorem plev_body (idx : Nat) (t0 : MachineState) (ctx : PLevCtx idx t0) (j : Na
   have pc1 : t1.pc = pcOf 215 := by simp only [ht1, blk211.res, rv_simp]
   have hc1 : blk211.res.cycles = 4 := rfl
   rw [hc1] at hs1
-  let c : NodeCtxD := ⟨6, 0, idx*2^32, idx/256, 1 + j, lvBase j, lvBase (j + 1), 2 ^ (13 - j)⟩
+  let c : NodeCtxD := ⟨10, 0, Ref.tauH idx, idx, 1 + j, lvBase j, lvBase (j + 1), 2 ^ (13 - j)⟩
   have hbase := lvBase_succ j (by omega)
   have hge := lvBase_ge j
   have hle := lvBase_le (j + 1) (by omega)
@@ -504,8 +504,9 @@ theorem plev_body (idx : Nat) (t0 : MachineState) (ctx : PLevCtx idx t0) (j : Na
       rw [Verify.addrFmt_porsNodeInput_pad _ _ _ _ hl hr]
       simp only [Verify.pNode, heapIndex, porsH, nodeFmt]
       rw [show 14 - (1 + j) = 13 - j by omega])
-    (by simp only [c]; rw [m1, tframe.getMem (by norm_num) (by simp only [plevW, lvBase]; omega), ctx.nb0])
-    (by simp only [c]; rw [m1, tlo, ctx.nb8]; apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_ofNat]; simp)
+    (by simp only [c]; rw [m1, tframe.getMem (by norm_num) (by simp only [plevW, lvBase]; omega), ctx.nb0,
+          twWord0_tauH])
+    (by simp only [c]; rw [m1, tlo, ctx.nb8]; apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_ofNat]; unfold Ref.tauH; omega)
     (by rw [m1, tframe.getMem (by norm_num) (by simp only [plevW, lvBase]; omega)]
         exact (getMem_of_readWords t0 2 0x1D0 0 _ ctx.nbP (by norm_num)))
     (by rw [m1, tframe.getMem (by norm_num) (by simp only [plevW, lvBase]; omega)]

@@ -44,16 +44,17 @@ theorem hdr_eq (c tag idx : Nat) (hc : c = 1 + 256 * tag) (htag : tag < 256) (hi
   congr 1
   omega
 
-/-- Rotating the instance field gives a contiguous shift by24 in the physical header. -/
-theorem hdr2_eq (c tag idx : Nat) (hc:c=1+256*tag) (htag:tag<256) (hidx:idx<2^34) :
-    BitVec.ofNat 64 idx <<< ((24#64 : Word).toNat%64)+BitVec.ofNat 64 c =
-      twWord0 tag 0 (idx*2^32) (idx/256) := by
+/-- The relabelled PORS headers (`τ`-swap): `idx << 32 + (idx >> 32) << 24 + c` is word 0 of the
+tweak `(tag, 0, idx, idx)` (the `p` slot carries `idx mod 2^32`). -/
+theorem hdr2_eq (c tag idx : Nat) (hc : c = 1 + 256 * tag) (htag : tag < 256) (hidx : idx < 2 ^ 34) :
+    BitVec.ofNat 64 idx <<< ((32#64 : Word).toNat % 64) +
+        BitVec.ofNat 64 idx >>> ((32#64 : Word).toNat % 64) <<< ((24#64 : Word).toNat % 64) +
+        BitVec.ofNat 64 c = twWord0 tag 0 idx idx := by
   subst hc
-  rw [show (24#64 : Word).toNat%64=24 from rfl,ofNat_shiftLeft,ofNat_add_ofNat]
+  rw [show (32#64 : Word).toNat % 64 = 32 from rfl, show (24#64 : Word).toNat % 64 = 24 from rfl,
+    shl32_ofNat, ofNat_ushiftRight _ _ (by omega), ofNat_shiftLeft, ofNat_add_ofNat, ofNat_add_ofNat]
   unfold twWord0
   congr 1
-  simp only [Nat.mul_div_left _ (by decide : 0<(2:Nat)^32)]
-  norm_num only [Nat.reducePow] at hidx ⊢
   omega
 
 theorem blk145_mem (t : MachineState) (N ix : Nat) (hidx34 : ix < 2 ^ 34)
@@ -63,8 +64,8 @@ theorem blk145_mem (t : MachineState) (N ix : Nat) (hidx34 : ix < 2 ^ 34)
     ∀ a : Nat, a < 2 ^ 64 → (blk145.res.toState t).getMem (BitVec.ofNat 64 a) =
       if a = 456 then replaceWord32 (t.getMem (BitVec.ofNat 64 456)) 0 (BitVec.ofNat 32 0)
       else if a = 200 then replaceWord32 (t.getMem (BitVec.ofNat 64 200)) 0 (BitVec.ofNat 32 0)
-      else if a = 448 then twWord0 6 0 (ix*2^32) (ix/256)
-      else if a = 192 then twWord0 5 0 (ix*2^32) (ix/256)
+      else if a = 448 then twWord0 10 0 ix ix
+      else if a = 192 then twWord0 9 0 ix ix
       else if a = 1704 then replaceWord32 (t.getMem (BitVec.ofNat 64 1704)) 0 (BitVec.ofNat 32 ix)
       else if a = 1696 then twWord0 8 0 ix 0
       else if a = 150280 then t.getMem (BitVec.ofNat 64 24)
@@ -72,12 +73,10 @@ theorem blk145_mem (t : MachineState) (N ix : Nat) (hidx34 : ix < 2 ^ 34)
       else t.getMem (BitVec.ofNat 64 a) := by
   intro a ha
   simp only [blk145.res, rv_simp]
-  rw [m160,hidxE]
-  rw [show (1281#64 : Word)=BitVec.ofNat 64 1281 from rfl,
-    show (1537#64 : Word)=BitVec.ofNat 64 1537 from rfl,
-    show (2049#64 : Word)=BitVec.ofNat 64 2049 from rfl]
-  rw [hdr2_eq 1537 6 _ rfl (by norm_num) hidx34,hdr2_eq 1281 5 _ rfl (by norm_num) hidx34,
-    hdr_eq 2049 8 _ rfl (by norm_num) hidx34,Nat.zero_div]
+  rw [m160, hidxE, show (2561#64 : Word) = BitVec.ofNat 64 2561 from rfl,
+    show (2305#64 : Word) = BitVec.ofNat 64 2305 from rfl, show (2049#64 : Word) = BitVec.ofNat 64 2049 from rfl,
+    hdr2_eq 2561 10 _ rfl (by norm_num) hidx34, hdr2_eq 2305 9 _ rfl (by norm_num) hidx34,
+    hdr_eq 2049 8 _ rfl (by norm_num) hidx34, Nat.zero_div]
   simp only [truncate32_ofNat, ofNat_eq_iff]
   rw [Nat.mod_eq_of_lt ha]
   simp only [Nat.reducePow, Nat.reduceMod]

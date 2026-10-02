@@ -35,7 +35,7 @@ structure PLeafCtx (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
   pb8 : lo32 (t0.getMem (BitVec.ofNat 64 0x6A8)) = BitVec.ofNat 32 idx
   pbP : t0.readWords (BitVec.ofNat 64 0x6B0) 2 = [0, 0]
   pbS : t0.readWords (BitVec.ofNat 64 0x6C0) 4 = wordsOf S
-  cb0 : t0.getMem (BitVec.ofNat 64 0xC0) = twWord0 5 0 (idx*2^32) (idx/256)
+  cb0 : t0.getMem (BitVec.ofNat 64 0xC0) = twWord0 9 0 idx idx
   cb8 : lo32 (t0.getMem (BitVec.ofNat 64 0xC8)) = BitVec.ofNat 32 0
   cbP : t0.readWords (BitVec.ofNat 64 0xD0) 2 = [0, 0]
   cbZ : t0.readWords (BitVec.ofNat 64 0xF0) 2 = [0, 0]
@@ -124,7 +124,7 @@ theorem pleaf_tail (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
       (by rw [lo32_replace1, tlo2, ctx.cb8]; apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_ofNat]; unfold Ref.tauH; omega)
       (by rw [hi32_replace1]; congr 1; ring)
   have hq : hashInput t1 = pad64 (Verify.pLeaf idx (8*j) s) := by
-    obtain ⟨hn, hw⟩ := words_th16 5 0 (idx*2^32) (idx/256) (8*j) s hs
+    obtain ⟨hn, hw⟩ := words_th16 9 0 (Ref.tauH idx) idx (8*j) s hs
     refine hashInput_eq_pad64 t1 _ 0 hn (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
     rw [Verify.pLeaf, hw, x10, show 8 * (0 + 1) = 1 + 1 + 2 + 2 + 2 from rfl]
     rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add]
@@ -135,10 +135,10 @@ theorem pleaf_tail (S : List Byte) (idx : Nat) (L : List Nat) (t0 : MachineState
       f1.readWords _ _ (by norm_num) (by intro i hi; omega),
       f1.readWords _ _ (by norm_num) (by intro i hi; omega),
       tframe.readWords _ _ (by norm_num) (by intro i hi; simp only [pleafW]; omega), ctx.cbP, tsv, tz]
-    simp [twWords_eq, Ref.tauH]
+    simp [twWords_eq, twWord0_tauH]
   have hb : (fmt (porsLeafInput idx j s)).blocks = 1 := by
     rw [← addrFmt_blocks, Verify.addrFmt_porsLeafInput_pad idx j s hs (by omega)]
-    exact congrArg (· + 1) (words_th16 5 0 (idx*2^32) (idx/256) (8*j) s hs).1
+    exact congrArg (· + 1) (words_th16 9 0 (Ref.tauH idx) idx (8*j) s hs).1
   refine (Sim.steps hs1 (Sim.hash16_bindF (W := 2) e1 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by omega) (by omega)
       (by norm_num)) (hq.trans (Verify.addrFmt_porsLeafInput_pad idx j s hs (by omega)).symm) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)

@@ -73,12 +73,12 @@ structure PCtx (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState) 
   x25 : t.getReg .x25 = BitVec.ofNat 64 0x30000
   x26 : t.getReg .x26 = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32)
   x27 : t.getReg .x27 = BitVec.ofNat 64 0x1000
-  lb0 : t.getMem (BitVec.ofNat 64 0x30000) = BitVec.ofNat 64 (1 + 256 * 5 + 2 ^ 24 * idx)
+  lb0 : t.getMem (BitVec.ofNat 64 0x30000) = BitVec.ofNat 64 (1 + 256 * 9 + 2 ^ 24 * (idx / 2 ^ 32) + 2 ^ 32 * (idx % 2 ^ 32))
   lb16 : t.getMem (BitVec.ofNat 64 0x30010) = 0
   lb24 : t.getMem (BitVec.ofNat 64 0x30018) = 0
   lb48 : t.getMem (BitVec.ofNat 64 0x30030) = 0
   lb56 : t.getMem (BitVec.ofNat 64 0x30038) = 0
-  pb0 : t.getMem (BitVec.ofNat 64 0x30040) = BitVec.ofNat 64 (1 + 256 * 6 + 2 ^ 24 * idx)
+  pb0 : t.getMem (BitVec.ofNat 64 0x30040) = BitVec.ofNat 64 (1 + 256 * 10 + 2 ^ 24 * (idx / 2 ^ 32) + 2 ^ 32 * (idx % 2 ^ 32))
   pb16 : t.getMem (BitVec.ofNat 64 0x30050) = 0
   pb24 : t.getMem (BitVec.ofNat 64 0x30058) = 0
   wit : WitMem w t
@@ -123,7 +123,7 @@ theorem pb_words (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState
     (hlw : t.readWords (BitVec.ofNat 64 0x30060) 2 = wordsOf l)
     (hrw : t.readWords (BitVec.ofNat 64 0x30070) 2 = wordsOf r) :
     t.readWords (BitVec.ofNat 64 0x30040) 8 = wordsOf (padTo64 (Verify.pNode idx H l r)) := by
-  rw [Verify.pNode, (words_th32 6 0 (idx*2^32) (idx/256) H l r hl hr).2, twWords_pors 6 idx H (by norm_num) h.hidx hH,
+  rw [Verify.pNode, (words_th32 10 0 (Ref.tauH idx) idx H l r hl hr).2, twWords_pors 10 idx H (by norm_num) h.hidx hH,
     ← hlw, ← hrw, readWords8, readWords_ofNat_two, readWords_ofNat_two, h.pb0, h72, h.pb16, h.pb24]
   rfl
 
@@ -133,7 +133,7 @@ theorem lb_words (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState
     (h8 : t.getMem (BitVec.ofNat 64 0x30008) = BitVec.ofNat 64 (Ref.tauH idx % 2 ^ 32 + 2 ^ 32 * x))
     (hsw : t.readWords (BitVec.ofNat 64 0x30020) 2 = wordsOf s) :
     t.readWords (BitVec.ofNat 64 0x30000) 8 = wordsOf (padTo64 (Verify.pLeaf idx x s)) := by
-  rw [Verify.pLeaf, (words_th16 5 0 (idx*2^32) (idx/256) x s hs).2, twWords_pors 5 idx x (by norm_num) h.hidx hx,
+  rw [Verify.pLeaf, (words_th16 9 0 (Ref.tauH idx) idx x s hs).2, twWords_pors 9 idx x (by norm_num) h.hidx hx,
     ← hsw, readWords8, readWords_ofNat_two, h.lb0, h8, h.lb16, h.lb24, h.lb48, h.lb56]
   rfl
 
@@ -148,10 +148,10 @@ theorem fmt_porsLeaf (idx j : Nat) (s : Val) (hs : s.length = 16) (hj : j ≤ 2^
 
 theorem blocks_porsNode (idx H : Nat) (l r : Val) (hl : l.length = 16) (hr : r.length = 16) :
     (pad64 (Verify.pNode idx H l r)).blocks = 1 :=
-  congrArg (· + 1) (words_th32 6 0 (idx*2^32) (idx/256) H l r hl hr).1
+  congrArg (· + 1) (words_th32 10 0 (Ref.tauH idx) idx H l r hl hr).1
 
 theorem blocks_porsLeaf (idx j : Nat) (s : Val) (hs : s.length = 16) :
     (pad64 (Verify.pLeaf idx j s)).blocks = 1 :=
-  congrArg (· + 1) (words_th16 5 0 (idx*2^32) (idx/256) j s hs).1
+  congrArg (· + 1) (words_th16 9 0 (Ref.tauH idx) idx j s hs).1
 
 end SigGolfCandidate.ExP
