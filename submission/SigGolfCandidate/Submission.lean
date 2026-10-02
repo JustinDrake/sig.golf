@@ -3,7 +3,7 @@ import SigGolfCandidate.Images
 /-!
 # The sig.golf submission (SPHINCS-golf PORS+FP variant)
 
-Sizes `S = 6032`, `W = 14080`, with message `0x20`, secret key `0x80`, public key `0xA0`,
+Sizes `S = 6032`, `W = 14080`, with message `0x40`, secret key `0x80`, public key `0xA0`,
 cache `0x4B00`, signature `0x24B00`, and witness `0x1100 .. 0x4800`. The PORS stream uses
 unused chain tweak slots; all chain blocks retain their original addresses.
 -/
@@ -14,7 +14,7 @@ open SigGolfCandidate.Legacy
 /-- The submission value. -/
 def submission : Submission where
   sizes := ⟨6032, 14080, CACHE_BYTES⟩
-  layout := ⟨0x20, 0x80, 0xA0, 0x4B00, 0x24B00, 0x1100⟩
+  layout := ⟨0x40, 0x80, 0xA0, 0x4B00, 0x24B00, 0x1100⟩
   image
     | .keygen => Images.keygenImage
     | .sign => Images.signImage

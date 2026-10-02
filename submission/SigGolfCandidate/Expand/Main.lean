@@ -29,35 +29,35 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
   OracleComp
 
 
-theorem start_mem (s : MachineState) (a : Nat) (ha : a < 2 ^ 64) (h : 0x20 ≤ a) :
+theorem start_mem (s : MachineState) (a : Nat) (ha : a < 2 ^ 64) (h : 0x40 ≤ a) :
     (blk0.res.toState s).getMem (BitVec.ofNat 64 a) = s.getMem (BitVec.ofNat 64 a) := by
-  have e : ∀ c : Nat, c < 32 → BitVec.ofNat 64 a ≠ BitVec.ofNat 64 c := by
+  have e : ∀ c : Nat, c < 64 → BitVec.ofNat 64 a ≠ BitVec.ofNat 64 c := by
     intro c hc; rw [Ne, ofNat_eq_iff]; omega
   simp only [blk0.res, rv_simp]
-  simp [e 24 (by omega), e 16 (by omega), e 8 (by omega), e 0 (by omega)]
+  simp [e 56 (by omega), e 48 (by omega), e 40 (by omega), e 32 (by omega)]
 
 theorem start_hash (s : MachineState) (rho msg : List Byte) (hr : rho.length = 16) (hm : msg.length = 32)
     (hsig : s.readWords (BitVec.ofNat 64 0x24B00) 2 = wordsOf rho)
-    (hmsg : s.readWords (BitVec.ofNat 64 0x20) 4 = wordsOf msg) :
+    (hmsg : s.readWords (BitVec.ofNat 64 0x40) 4 = wordsOf msg) :
     hashInput (blk0.res.toState s) = addrFmt (digestInput rho msg) := by
-  have h10 : (blk0.res.toState s).getReg .x10 = BitVec.ofNat 64 0 := by simp only [blk0.res, rv_simp]
+  have h10 : (blk0.res.toState s).getReg .x10 = BitVec.ofNat 64 32 := by simp only [blk0.res, rv_simp]
   refine hashInput_eq_digest _ _ _ hr hm (by simp only [blk0.res, rv_simp]) (by rw [h10]; decide) ?_
   rw [h10, show 8 = 1 + 1 + 1 + 1 + 4 from rfl, readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add,
     readWords_ofNat_add]
   simp only [Nat.reduceMul, Nat.reduceAdd, readWords_ofNat_one]
-  have e : ∀ c : Nat, c < 32 → ∀ d : Nat, d < 32 → c ≠ d → BitVec.ofNat 64 c ≠ BitVec.ofNat 64 d := by
+  have e : ∀ c : Nat, c < 64 → ∀ d : Nat, d < 64 → c ≠ d → BitVec.ofNat 64 c ≠ BitVec.ofNat 64 d := by
     intro c hc d hd hcd; rw [Ne, ofNat_eq_iff]; omega
-  have g32 : (blk0.res.toState s).getMem (BitVec.ofNat 64 0) = BitVec.ofNat 64 3073 := by
-    simp only [blk0.res, rv_simp]; simp [e 0 (by omega) 24 (by omega) (by omega),
-      e 0 (by omega) 16 (by omega) (by omega), e 0 (by omega) 8 (by omega) (by omega)]
-  have g40 : (blk0.res.toState s).getMem (BitVec.ofNat 64 8) = 0 := by
-    simp only [blk0.res, rv_simp]; simp [e 8 (by omega) 24 (by omega) (by omega),
-      e 8 (by omega) 16 (by omega) (by omega)]
-  have g48 : (blk0.res.toState s).getMem (BitVec.ofNat 64 16) = s.getMem (BitVec.ofNat 64 0x24B00) := by
-    simp only [blk0.res, rv_simp]; simp [e 16 (by omega) 24 (by omega) (by omega)]
-  have g56 : (blk0.res.toState s).getMem (BitVec.ofNat 64 24) = s.getMem (BitVec.ofNat 64 0x24B08) := by
+  have g32 : (blk0.res.toState s).getMem (BitVec.ofNat 64 32) = BitVec.ofNat 64 3073 := by
+    simp only [blk0.res, rv_simp]; simp [e 32 (by omega) 56 (by omega) (by omega),
+      e 32 (by omega) 48 (by omega) (by omega), e 32 (by omega) 40 (by omega) (by omega)]
+  have g40 : (blk0.res.toState s).getMem (BitVec.ofNat 64 40) = 0 := by
+    simp only [blk0.res, rv_simp]; simp [e 40 (by omega) 56 (by omega) (by omega),
+      e 40 (by omega) 48 (by omega) (by omega)]
+  have g48 : (blk0.res.toState s).getMem (BitVec.ofNat 64 48) = s.getMem (BitVec.ofNat 64 0x24B00) := by
+    simp only [blk0.res, rv_simp]; simp [e 48 (by omega) 56 (by omega) (by omega)]
+  have g56 : (blk0.res.toState s).getMem (BitVec.ofNat 64 56) = s.getMem (BitVec.ofNat 64 0x24B08) := by
     simp only [blk0.res, rv_simp]; simp
-  have w64 : (blk0.res.toState s).readWords (BitVec.ofNat 64 32) 4 = wordsOf msg := by
+  have w64 : (blk0.res.toState s).readWords (BitVec.ofNat 64 64) 4 = wordsOf msg := by
     rw [← hmsg]
     exact readWords_congr _ _ _ _ (fun i hi => (start_mem s _ (by omega) (by omega)))
   rw [readWords_ofNat_two] at hsig
@@ -258,7 +258,7 @@ theorem after_sim (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6032
 theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.length = 32)
     (s : MachineState) (hpc : s.pc = pcOf 0) (h5 : s.getReg .x5 = 0)
     (hrho : s.readWords (BitVec.ofNat 64 0x24B00) 2 = wordsOf (sigRho sig))
-    (hm : s.readWords (BitVec.ofNat 64 0x20) 4 = wordsOf msg) (hsok : SigOK s sig)
+    (hm : s.readWords (BitVec.ofNat 64 0x40) 4 = wordsOf msg) (hsok : SigOK s sig)
     (hz : ∀ a, 0x800 ≤ a → a < 0x24B00 → s.getByte (BitVec.ofNat 64 a) = 0) :
     Sign.Sim image s (13 + (8 + (15000 + (400000 + (34 + 5 * ExP.LW)) + 0)))
       ((liftM (HashSpec.query (addrFmt (digestInput (sigRho sig) msg))) : OracleComp HashSpec _) >>= fun a =>
@@ -271,7 +271,7 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.
   have e1 : fetch image s1 = some (.base .ECALL) :=
     symRun_ecall blk0 codeAt_0 s (by simp only [blk0.res, rv_simp]) rfl
   have x5 : s1.getReg .x5 = 0 := by simp only [hs1, blk0.res, rv_simp, h5]
-  have x10 : s1.getReg .x10 = BitVec.ofNat 64 0 := by simp only [hs1, blk0.res, rv_simp]
+  have x10 : s1.getReg .x10 = BitVec.ofNat 64 32 := by simp only [hs1, blk0.res, rv_simp]
   have x11 : s1.getReg .x11 = BitVec.ofNat 64 64 := by simp only [hs1, blk0.res, rv_simp]
   have x12 : s1.getReg .x12 = BitVec.ofNat 64 352 := by simp only [hs1, blk0.res, rv_simp]
   have hv : hashArgumentsValid s1 = true :=
@@ -284,12 +284,12 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.
     (Q := Qexp) e1 x5 hv hq (fun a => ?_)
   · rw [hb] at this; exact this
   set s2 := writeHash s1 a with hs2
-  -- memory of `s2` above `0x20` outside `DO`
-  have hmem : ∀ x : Nat, x < 2 ^ 64 → 0x20 ≤ x → (x < 0x160 ∨ 0x180 ≤ x) →
+  -- memory of `s2` above `0x40` outside `DO`
+  have hmem : ∀ x : Nat, x < 2 ^ 64 → 0x40 ≤ x → (x < 0x160 ∨ 0x180 ≤ x) →
       s2.getMem (BitVec.ofNat 64 x) = s.getMem (BitVec.ofNat 64 x) := by
     intro x hx h1 h2
     rw [hs2, writeHash_getMem_frame s1 a 352 x x12 (by norm_num) hx (by omega), hs1, start_mem s x hx h1]
-  have hbyte : ∀ x : Nat, x < 2 ^ 64 → 0x20 ≤ x → (x < 0x160 ∨ 0x180 ≤ x) →
+  have hbyte : ∀ x : Nat, x < 2 ^ 64 → 0x40 ≤ x → (x < 0x160 ∨ 0x180 ≤ x) →
       s2.getByte (BitVec.ofNat 64 x) = s.getByte (BitVec.ofNat 64 x) := by
     intro x hx h1 h2
     rw [getByte_ofNat _ _ hx, getByte_ofNat _ _ hx, hmem _ (by omega) (by omega) (by omega)]
@@ -317,7 +317,7 @@ theorem sI_words_sig (m : Message) (pk : PublicKey) (σ : Bytes 6032) :
   simp [toList]
 
 theorem sI_words_msg (m : Message) (pk : PublicKey) (σ : Bytes 6032) :
-    (sI m pk σ).readWords (BitVec.ofNat 64 0x20) 4 = wordsOf (toList m) := by
+    (sI m pk σ).readWords (BitVec.ofNat 64 0x40) 4 = wordsOf (toList m) := by
   apply readWords_of_bytes _ _ _ _ (by simp [toList, length_bytes]) (by norm_num) (by norm_num)
   intro j hj
   rw [sI_getByte _ _ _ _ (by omega), if_neg (by omega), if_neg (by omega), if_pos (by omega)]
