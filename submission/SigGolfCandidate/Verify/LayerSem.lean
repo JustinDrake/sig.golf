@@ -606,7 +606,7 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
           · rw [hu.keep .x30 (by simp)]; exact h30
           · rw [hu.keep .x31 (by simp)]; exact h31
           · exact hK' (.x22, BitVec.ofNat 64 (s6N L.lay)) (by simp [chKa])
-          · exact hK' (.x27, 0x40401#64) (by simp [chKa])
+          · exact hK' (.x27, hdrVal L.lay) (by simp [chKa])
           · exact hK' (.x1, pcOf (retPc L.lay t)) (by simp [chKa])
           · unfold CB0; rw [hmem]; exact hCB
           · unfold EncHeader; rw [hmem]; exact hEH

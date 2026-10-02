@@ -46,24 +46,25 @@ theorem ctr_word4 (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) 
   norm_num
   omega
 
-theorem ctr_iff (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (hW : WitAll wl s) :
+theorem ctr_iff (wl : List Byte) (hwl : wl.length = 16384) (s : MachineState) (hW : WitAll wl s)
+    (hCm : CtrMask s) :
     ctrE'.eval s = 0 ↔ countersOk wl = true := by
-  have e : ctrE'.eval s = (ctrX.eval s ||| (ctrX.eval s <<< ((BitVec.ofNat 64 32).toNat % 64))) >>>
-      ((BitVec.ofNat 64 54).toNat % 64) := rfl
+  unfold CtrMask at hCm
+  have e : ctrE'.eval s = ctrX.eval s &&& s.getMem (BitVec.ofNat 64 0xFDFFB8) := rfl
   have ex : ctrX.eval s = s.getMem (BitVec.ofNat 64 4992) ||| s.getMem (BitVec.ofNat 64 5000) |||
       (extractWord32 (s.getMem (BitVec.ofNat 64 4368)) 0).zeroExtend 64 := rfl
   have hx := (ctrX.eval s).isLt
   have hsh : ctrE'.eval s = 0 ↔ (ctrX.eval s).toNat % 2 ^ 32 < 2 ^ 22 ∧ (ctrX.eval s).toNat / 2 ^ 32 < 2 ^ 22 := by
-    rw [e, ← ctr_shift_iff _ hx]
+    rw [e, hCm, ← ctr_mask_iff _ hx]
     constructor
     · intro h
-      have := congrArg BitVec.toNat h
-      simpa [BitVec.toNat_ushiftRight, BitVec.toNat_or, BitVec.toNat_shiftLeft, Nat.shiftLeft_eq,
-        Nat.shiftRight_eq_div_pow] using this
+      have h' := congrArg BitVec.toNat h
+      rw [BitVec.toNat_and] at h'
+      exact h'
     · intro h
       apply BitVec.eq_of_toNat_eq
-      simpa [BitVec.toNat_ushiftRight, BitVec.toNat_or, BitVec.toNat_shiftLeft, Nat.shiftLeft_eq,
-        Nat.shiftRight_eq_div_pow] using h
+      rw [BitVec.toNat_and]
+      exact h
   rw [hsh, ex]
   have w0 := ctr_word wl hwl s hW 0 (by decide)
   have w1 := ctr_word wl hwl s hW 1 (by decide)
@@ -91,7 +92,7 @@ def DigestOut (P : PCtx) (s : MachineState) : Prop :=
   (∀ i, i < 4 → s.getMem (BitVec.ofNat 64 (8 * i)) = P.a.extractLsb' (64 * i) 64) ∧
   (∀ A, A < 0x800 → A % 8 = 0 → 0x60 ≤ A → A ≠ 0xA0 → A ≠ 0xA8 → (A < 0x160 ∨ 0x180 ≤ A) →
     s.getMem (BitVec.ofNat 64 A) = 0) ∧
-  s.pc = pcOf 22
+  s.pc = pcOf 21
 
 /-- The digest block `tw(12, 0, 0, 0, 0) || rho || m` as words. -/
 theorem fmt_digestInput_words (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
@@ -119,7 +120,7 @@ theorem startCheck_parts :
     specB [] (runAt k0 [1] 0 []) specLim k0x [] = true ∧
     specB gkD (runAt k1 [] 1 [.br false]) specStartOk dgK [] = true ∧
     specB [] (runAt k1 [] 1 [.br true]) specStartRej [] [] = true ∧
-    specB gkD (runAt dgK [leafPc 0] 22 []) setupSpec setupPost [] = true := by
+    specB gkD (runAt dgK [leafPc 0] 21 []) setupSpec setupPost [] = true := by
   have := startCheck_ok
   simp only [startCheck, Bool.and_eq_true] at this
   exact ⟨this.1.1.1, this.1.1.2, this.1.2, this.2⟩
@@ -129,19 +130,19 @@ theorem rtW0_hi : (UnOp.ld .wu 4).eval (rtW 0) = BitVec.ofNat 64 FLIM := by deci
 
 /-- The prologue after its first instruction (`x18 = FLIM` loaded): the counter check and the digest. -/
 theorem start_step1 (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.length = 16384)
-    (s : MachineState) (hMask : MaskData s) (hK : KnownOK k1 s) (hpc : s.pc = pcOf 1)
+    (s : MachineState) (hMask : MaskData s) (hCm : CtrMask s) (hK : KnownOK k1 s) (hpc : s.pc = pcOf 1)
     (hW : WitAll wl s) (hG0 : Glob [] wl pkl s)
     (hM : ∀ j, j < 4 → s.getMem (BitVec.ofNat 64 (0x20 + 8 * j)) = w64 (slice ml (8 * j) 8))
     (hZ : ∀ A, A < 0x800 → (A < 0x20 ∨ (0x40 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) →
       s.getMem (BitVec.ofNat 64 A) = 0)
     (hRt : RtabData s) :
-    (countersOk wl = false → ∃ t, Steps image s 17 17 t ∧ fetch image t = some (.base .ECALL) ∧
+    (countersOk wl = false → ∃ t, Steps image s 16 16 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 1 ∧ t.getReg .x10 = 1) ∧
-    (countersOk wl = true → ∃ t, Steps image s 20 20 t ∧ fetch image t = some (.base .ECALL) ∧
+    (countersOk wl = true → ∃ t, Steps image s 19 19 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 0 ∧ hashArgumentsValid t = true ∧
         hashInput t = addrFmt (digestInput (witRho wl) ml) ∧
         ∀ a, DigestOut ⟨wl, pkl, a⟩ (writeHash t a)) := by
-  have hctr := ctr_iff wl hwl s hW
+  have hctr := ctr_iff wl hwl s hW hCm
   obtain ⟨-, cOk, cRej, -⟩ := startCheck_parts
   constructor
   · intro hc
@@ -239,14 +240,14 @@ theorem start_step1 (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.len
 /-- The prologue: `lwu x18, 52(sp)` (`FLIM`, the high word of header `0`), then `start_step1`. -/
 theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.length = 16384)
     (s : MachineState) (hs : InitOK ml pkl wl s) :
-    (countersOk wl = false → ∃ t, Steps image s 18 18 t ∧ fetch image t = some (.base .ECALL) ∧
+    (countersOk wl = false → ∃ t, Steps image s 17 17 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 1 ∧ t.getReg .x10 = 1) ∧
-    (countersOk wl = true → ∃ t, Steps image s 21 21 t ∧ fetch image t = some (.base .ECALL) ∧
+    (countersOk wl = true → ∃ t, Steps image s 20 20 t ∧ fetch image t = some (.base .ECALL) ∧
         t.getReg .x5 = 0 ∧ hashArgumentsValid t = true ∧
         hashInput t = addrFmt (digestInput (witRho wl) ml) ∧
         ∀ a, DigestOut ⟨wl, pkl, a⟩ (writeHash t a)) := by
   have hG := init_glob ml pkl wl s hs
-  obtain ⟨hMask, hK, hpc, hW, -, hM, hZ, hRt⟩ := hs
+  obtain ⟨hMask, hK, hpc, hW, -, hM, hZ, hRt, hCm⟩ := hs
   obtain ⟨cLim, -, -, -⟩ := startCheck_parts
   obtain ⟨s1, hl⟩ := spec_run cLim s hpc hK (by simp [specLim])
   have hfr : ∀ A, s1.getMem A = s.getMem A := fun A => hl.mem A
@@ -263,7 +264,9 @@ theorem start_step (ml pkl wl : List Byte) (hml : ml.length = 32) (hwl : wl.leng
       exact rtW0_hi
   have hMask1 : MaskData s1 := by
     unfold MaskData; simp only [hfr]; exact hMask
-  obtain ⟨hrej, hacc⟩ := start_step1 ml pkl wl hml hwl s1 hMask1 hK1 (hl.pc rfl) (hl.wall _ hW)
+  have hCm1 : CtrMask s1 := by
+    unfold CtrMask at hCm ⊢; rw [hfr]; exact hCm
+  obtain ⟨hrej, hacc⟩ := start_step1 ml pkl wl hml hwl s1 hMask1 hCm1 hK1 (hl.pc rfl) (hl.wall _ hW)
     (hl.glob _ _ _ hG) (fun j hj => (hfr _).trans (hM j hj)) (fun A h1 h2 => (hfr _).trans (hZ A h1 h2))
     (fun n hn => (hfr _).trans (hRt n hn))
   refine ⟨fun hc => ?_, fun hc => ?_⟩

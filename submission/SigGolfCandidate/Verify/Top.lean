@@ -181,8 +181,10 @@ all fifteen leaf headers. The tag-9 address-field rotation is an injective query
 Final.Discharge supplies the additional universal structural credit. Sparse initialization and leaf-header carry are included.
 The prologue loads `x18 = 0xFFF` from the high word of header `0`, so the setup tail has no
 `x18` restore (`-1`), and the leaf heads address the header table from `sp`, so it loads no
-table-page register (`-1`). The last leaf forms its table base as `x29 - 576` (`-1`). -/
-def cycleBound : Nat := 10250
+table-page register (`-1`). The last leaf forms its table base as `x29 - 576` (`-1`). The
+counter range check masks the merged counters with the data word at `sp + 8` instead of
+folding the halves with two shifts (`-1`). -/
+def cycleBound : Nat := 10247
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
 def cycleBoundAll : Nat := 16834
@@ -193,8 +195,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7466 := by decide
-theorem layC_val : layC = 7466 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7464 := by decide
+theorem layC_val : layC = 7464 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
