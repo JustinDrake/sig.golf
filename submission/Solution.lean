@@ -5,10 +5,12 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=13712 witness bytes, K=131072 cache bytes.
-The claim C=10265 is accepting verifier bound10211 plus witness charge54.
+The claim C=10261 is accepting verifier bound10207 plus witness charge54.
 The PORS node/leaf instance header rotates bytes3..7 through a total query involution,
 so setup builds its two headers with a shift and add, saving four instructions.
 The WOTS digit-lane SWAR uses seven ALU instructions instead of nine in every layer, saving ten cycles.
+The lower-layer fold-dispatch page is folded into the transition sentinel, so each of layers 1..4
+reaches its fold table with `slli; jalr` instead of `addi; slli; jalr`, saving four cycles.
 The witness-counter range check masks the merged counters with a constant mask word kept in the
 verifier data's padding word, replacing a shift/or/shift fold with one load and one and.
 This candidate retains the accepted ordered root-children message construction and adds
@@ -79,7 +81,7 @@ c216d85858f8a7dcd68a2782cc27cfd057d45b67. Earlier public sources include
 
 The external witness omits its internal zero prefix. Temporary PORS cells share consumed
 chain tweak slots, and authentication paths use contiguous 16-byte cells. The external
-witness begins at 0x1270 and has 13712 bytes, with charge 55.
+witness begins at 0x1270 and has 13712 bytes, with charge 54.
 
 The certificate covers all four images, universal termination, per-seed
 completeness, honest compression budgets,127-bit security and accepting
@@ -100,7 +102,7 @@ theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4720 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10265 :=
+theorem certificate : SigGolf.Certificate submission 10261 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge
