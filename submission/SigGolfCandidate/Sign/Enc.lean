@@ -327,7 +327,7 @@ structure EncMem (lay tau e : Nat) (M : Val) (u : MachineState) : Prop where
   htau : tau < 2 ^ 30
   he : e < 2048
   hM : M.length = 32
-  eb0 : u.getMem (BitVec.ofNat 64 0x100) = twWord0 4 lay tau 0
+  eb0 : u.getMem (BitVec.ofNat 64 0x100) = BitVec.ofNat 64 (Ref.MaskHeader.header 0 (twWord0 4 lay tau 0).toNat)
   eb8 : u.getMem (BitVec.ofNat 64 0x108) = BitVec.ofNat 64 (tau + 2 ^ 32 * e)
   ebM : u.readWords (BitVec.ofNat 64 0x120) 4 = wordsOf M
   eb56 : u.getMem (BitVec.ofNat 64 0x118) = 0
@@ -409,6 +409,13 @@ theorem encTrial {img : Image} (hcode : EncCode img) (lay tau e : Nat) (M : Val)
   have hq : hashInput t1 = addrFmt (encInput lay tau e M c) := by
     rw [hashInput_eq_words t1 0 (by simpa using x11) (by norm_num) (by rw [x10]; decide),
       addrFmt_encInput_words lay tau e M hmem.hM c]
+    have hlen : (wordsOf M).length = 4 := by
+      have hM := hmem.hM
+      rw [← List.take_append_drop 16 M, wordsOf_append _ _ (by simp; omega), List.length_append,
+        length_wordsOf_16 _ (by simp; omega), length_wordsOf_16 _ (by simp; omega)]
+    rw [twWords_eq]
+    simp only [List.cons_append, List.nil_append]
+    rw [Ref.MaskHeader.query_words 0 _ _ (by simp [hlen])]
     apply congrArg (queryOfWords 0)
     rw [x10, show 8 * (0 + 1) = 1 + 1 + 1 + 1 + 4 from rfl]
     rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add]

@@ -161,7 +161,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     have ht := tau_lt lay idx h7 hidx
     rw [Nat.div_eq_of_lt (by omega : idx / 2 ^ (layS lay + heightL lay) < 2 ^ 32)]
     rw [Nat.sub_add_cancel h1]
-    omega
+    convert Ref.MaskHeader.header_node lay h7 using 2 <;> omega
   · intro _
     change EncHeader (lay - 1 + 1) u
     rw [Nat.sub_add_cancel h1]

@@ -53,8 +53,9 @@ theorem probEvent_not_uniform (P : BitVec 256 → Prop) [DecidablePred P] :
 /-! ## Counter search -/
 
 theorem fmt_encInput (lay tau e : Nat) (M : Val) (c : Nat) :
-    addrFmt (encInput lay tau e M c) = EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (pad64 (encInput lay tau e M c))))) := by
+    addrFmt (encInput lay tau e M c) = MaskHeader.query (EncodingRotate.query (LeafCarry.query (TopHeap.query (LeafClass.query (pad64 (encInput lay tau e M c)))))) := by
   rw [addrFmt_encInput]
+  apply congrArg MaskHeader.query
   apply congrArg EncodingRotate.query
   congr 1
   congr 1
@@ -67,7 +68,7 @@ theorem fmt_rndInput (S m : List Byte) (a : Nat) : addrFmt (rndInput S m a) = pa
 theorem enc_inj (lay tau e : Nat) (M : Val) {c c' : Nat} (hc : c < 2 ^ 32) (hc' : c' < 2 ^ 32)
     (h : addrFmt (encInput lay tau e M c) = addrFmt (encInput lay tau e M c')) : c = c' := by
   rw [fmt_encInput, fmt_encInput] at h
-  have hh := LeafClass.query_involutive.injective (TopHeap.query_involutive.injective (LeafCarry.query_involutive.injective (EncodingRotate.query_injective h)))
+  have hh := LeafClass.query_involutive.injective (TopHeap.query_involutive.injective (LeafCarry.query_involutive.injective (EncodingRotate.query_injective (MaskHeader.query_injective h))))
   have h2 := pad64_inj (by simp [encInput]) hh
   simp only [encInput, List.append_assoc, List.append_cancel_left_eq] at h2
   exact le32_inj hc hc' h2

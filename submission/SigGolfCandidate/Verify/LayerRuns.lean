@@ -50,14 +50,14 @@ def sibSlot (lay t : Nat) : Nat := if xLeft lay t then 0x130 else 0x120
 def topSib (lay : Nat) : Nat := sibAddr (lay + 1) (heightL (lay + 1) - 1)
 
 /-- Known registers at the transition start. -/
-def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x130), (.x27, 0x40401), (.x14, KT4)]
+def l4K : List (Reg × Word) := gkL ++ [(.x11, 64), (.x12, 0x130), (.x14, KT4)]
 def aK (lay t : Nat) : List (Reg × Word) :=
   gkL ++ [(.x10, 0x340), (.x11, 64), (.x12, BitVec.ofNat 64 (encD lay t)), (.x27, 0x29000), (.x22, BitVec.ofNat 64 (s6N (lay + 1)))]
 def preK (lay t : Nat) : List (Reg × Word) := if lay = 4 then l4K else aK lay t
 
 /-- Known registers after the encoding hash call of transition copy `t`. -/
 def bK (lay t : Nat) : List (Reg × Word) :=
-  gkL ++ [(.x27, x27v lay), (.x10, BitVec.ofNat 64 (encB lay t)), (.x11, 64),
+  gkL ++ x27K lay ++ [ (.x10, BitVec.ofNat 64 (encB lay t)), (.x11, 64),
       (.x12, BitVec.ofNat 64 (encD lay t))] ++
     (if lay = 4 then [(.x14, KT4)] else [(.x22, BitVec.ofNat 64 (s6N (lay + 1)))])
 
@@ -81,7 +81,7 @@ def ctrA (lay : Nat) : Nat := if lay = 4 then 0x800 + 2320 else 0x800 + 2944 + 8
 def ctrE (lay : Nat) : E := .un (.ld .wu (4 * (lay % 2))) (ldE (ctrA lay))
 
 def encHeaderE (lay : Nat) : E :=
-  if lay < 4 then .bin (.st .b 2) (ldE 256) (cw lay) else cw (hWord lay + 768)
+  if lay < 4 then .bin (.st .b 2) (ldE 256) (cw lay) else cw Ref.MaskHeader.M1
 
 def specA (lay t : Nat) : Spec :=
   ⟨[(.x23, uHE lay), (.x30, carryEr lay), (.x31, x31Er lay)],
@@ -158,8 +158,7 @@ def specBok (out hi : Nat) (lay : Nat) : Spec :=
 
 /-- Known registers on entry of the chain code; `x27` holds `x27v lay` (layer 4: the bottom header). -/
 def chKa (lay c : Nat) : List (Reg × Word) :=
-  chK0 ++ [(.x22, BitVec.ofNat 64 (s6N lay)),
-    (.x27, x27v lay), (.x1, pcOf (retPc lay c))]
+  chK0 ++ x27K lay ++ [(.x22, BitVec.ofNat 64 (s6N lay)), (.x1, pcOf (retPc lay c))]
 
 def rejK : List (Reg × E) := [(.x5, cw 1), (.x10, cw 1)]
 
@@ -183,12 +182,12 @@ def leafRawSteps (lay : Nat) : Nat := if lay = 0 then 7 else leafSteps lay
 def topDispTgt : E :=
   mkBin .and (mkAdd (mkBin .sll (.reg .x23) (cw 3)) (cw 779264)) (.c (~~~1#64))
 
-def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, x27v lay), (.x22, BitVec.ofNat 64 (s6N lay))]
+def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ x27K lay ++ [(.x20,M1w), (.x22, BitVec.ofNat 64 (s6N lay))]
 
 def specLeaf (lay : Nat) : Spec :=
   ⟨[(.x10, cw 832), (.x11, cw 704)],
    [(⟨none, BitVec.ofNat 64 840⟩, .reg .x31)] ++
-     (if lay < 4 then [] else [(⟨none, BitVec.ofNat 64 832⟩, cw (hWord lay + 768))]),
+     (if lay < 4 then [] else [(⟨none, BitVec.ofNat 64 832⟩, cw Ref.MaskHeader.M1)]),
    0, false, leafRawSteps lay, [], some (if lay = 0 then topDispTgt else dispTgt lay 0), leafRawSteps lay⟩
 
 def leafKeep : List Reg := [.x17, .x23, .x30, .x31]

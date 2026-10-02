@@ -5,7 +5,11 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
-The claim C=10279 is accepting verifier bound10224 plus witness charge55.
+The claim C=10278 is accepting verifier bound10223 plus witness charge55.
+The root reuses the already loaded SWAR mask as its header, removing one load.
+A total first-word permutation at native query lengths64 and704 bytes relabels
+encoding, node, and leaf headers; all four concrete programs implement it.
+The inverse handles every malformed query too, and query-block counts are preserved.
 The retained fold-table base is adapted from znan2 PR268 (b2779c2d).
 The WOTS base is rebased by704 using erickeigen PR269 (ba7c484e), preserving every
 chain address while removing one initializer instruction.
@@ -102,7 +106,7 @@ theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4352 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10279 :=
+theorem certificate : SigGolf.Certificate submission 10278 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

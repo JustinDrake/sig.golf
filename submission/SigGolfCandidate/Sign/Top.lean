@@ -88,6 +88,7 @@ structure TopCtx (S cache : List Byte) (x : List Nat) (tau e : Nat) (t : Machine
   node : ∀ l j, 0 < l → l < 11 → j < 2 ^ (11 - l) →
     t.readWords (BitVec.ofNat 64 (0x4B00 + cacheNodeOff l j)) 2 = wordsOf (cacheNode cache l j)
   nodeLen : ∀ l j, l < 11 → j < 2 ^ (11 - l) → (cacheNode cache l j).length = 16
+  x26 : t.getReg .x26=(BitVec.ofNat 64 Ref.MaskHeader.M1)
 
 /-- Addresses written by the top layer. -/
 def topW (a : Nat) : Prop :=
@@ -796,8 +797,8 @@ def TopSiblingPost (t0 : MachineState) (v : Val) (t : MachineState) : Prop :=
 theorem topSibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau e : Nat)
     (t : MachineState) (hm : TopMem S x tau e t) (hpc : t.pc = pcOf 685)
     (h8 : t.getReg .x8 = 0) (h13 : t.getReg .x13 = BitVec.ofNat 64 e)
-    (hlbP : t.readWords (BitVec.ofNat 64 0x350) 2 = [0, 0]) :
-    Sim image t (20 + (21 * 844 + (4 + (88 + 9))))
+    (hlbP : t.readWords (BitVec.ofNat 64 0x350) 2 = [0, 0]) (h26 : t.getReg .x26=(BitVec.ofNat 64 Ref.MaskHeader.M1)) :
+    Sim image t (22 + (21 * 844 + (4 + (88 + 9))))
       (Prod.fst <$> buildLeaf S 0 0 (e ^^^ 1) x) (TopSiblingPost t) := by
   let ep := e ^^^ 1
   have hep : ep < 2048 := Nat.xor_lt_two_pow (show e < 2 ^ 11 from hm.he) (by decide : 1 < 2 ^ 11)
@@ -814,7 +815,7 @@ theorem topSibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau 
     (by simp only [blk685.res, rv_simp]) (by simp only [blk2971.res, rv_simp])
   have hs2 := symRun_sound blk522 codeAt_522 (blk2971.res.toState (blk685.res.toState t))
     (by simp only [blk2971.res, rv_simp]) (by simp only [blk522.res, rv_simp])
-  have hs : Steps image t 20 20 (topSiblingEntry t) := hs0.trans (hs1.trans hs2)
+  have hs : Steps image t 22 22 (topSiblingEntry t) := hs0.trans (hs1.trans hs2)
   set tl := topSiblingEntry t with htl
   have f0 : Frame t (blk685.res.toState t) (fun _ => False) := by
     intro a ha hW; rfl
@@ -862,8 +863,8 @@ theorem topSibling_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (tau 
     simp only [htl, topSiblingEntry, blk522.res, blk2971.res, blk685.res, rv_simp, hx, hm.x18]
     bvsimp []
     rw [show ep * 16 = 16 * ep by omega]
-  have lb0 : tl.getMem (BitVec.ofNat 64 0x340) = twWord0 3 1 0 0 := by
-    simp only [htl, topSiblingEntry, blk522.res, blk2971.res, blk685.res, rv_simp]
+  have lb0 : tl.getMem (BitVec.ofNat 64 0x340) = BitVec.ofNat 64 (Ref.MaskHeader.header 10 (twWord0 3 1 0 0).toNat) := by
+    simp only [htl, topSiblingEntry, blk522.res, blk2971.res, blk685.res, rv_simp,h26]
     rfl
   refine Sim.steps hs ((sibling_sim S hS x e ep hne tl ctx hp hx21 hx24
     (by rw [rt.get .x8, h8]) hx17 hx19 lb0 (hw _ (Or.inr (Or.inr rfl)))
@@ -882,7 +883,7 @@ def TopPost (t0 : MachineState) (r : List Val × List Val) (t : MachineState) : 
 /-- **The top layer** (chains up to `x_i`, path from the cache). -/
 theorem top_sim (S cache : List Byte) (hS : S.length = 32) (x : List Nat) (tau e : Nat) (t : MachineState)
     (hc : TopCtx S cache x tau e t) (tpc : t.pc = pcOf 637) :
-    Sim image t (9 + (21 * 684 + ((20 + (21 * 844 + (4 + (88 + 9)))) + 10 * 36)))
+    Sim image t (9 + (21 * 684 + ((22 + (21 * 844 + (4 + (88 + 9)))) + 10 * 36)))
       ((List.range (nChains / 2)).foldlM (fun (acc : List Val) k => do
         let (s0, s1) ← prf2 (prfInput S 0 tau e k)
         let v0 ← chainTo 0 tau e (2 * k) (x.getD (2 * k) 0) s0
@@ -907,7 +908,7 @@ theorem top_sim (S cache : List Byte) (hS : S.length = 32) (x : List Nat) (tau e
     ← SigGolfCandidate.Equiv.fst_buildLeaf S 0 0 (e ^^^ 1) x []]
   refine Sim.bind (topSibling_sim S hS x tau e t1 hm1 pc1'
     (by rw [rt1.get .x8, hc.x8]) (by rw [rt1.get .x13, hc.x13])
-    (by rw [ft1.readWords _ _ (by norm_num) (by intro i hi; simp only [tchainW]; omega), hc.lbP]))
+    (by rw [ft1.readWords _ _ (by norm_num) (by intro i hi; simp only [tchainW]; omega), hc.lbP]) (by rw [rt1.get .x26,hc.x26]))
     (fun v t2 h2 => ?_)
   obtain ⟨hv, hsv, pc2, x215, x217, x219, r2, f2⟩ := h2
   have rt2 := rt1.trans r2

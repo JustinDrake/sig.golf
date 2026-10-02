@@ -160,7 +160,7 @@ theorem carryLeafWord (lay tau : Nat) (hl:lay<7) (ht:tau<2^32) :
 theorem addrFmt_leafInput_carry (lay tau e : Nat) (ends : List Val) (hl:lay<7)
     (ht:tau<2^32) (hlen:ends.length=42) (hv:∀v∈ends,v.length=16) :
     addrFmt (leafInput lay tau e ends)=
-      pad64 (thInput (tweak (carryLeafTag lay) (carryLeafLay lay) tau 0 e) ends.flatten) := by
+      Ref.MaskHeader.query (pad64 (thInput (tweak (carryLeafTag lay) (carryLeafLay lay) tau 0 e) ends.flatten)) := by
   have h1:=words_thVals 4 lay tau 0 e ends hv 10 (by rw[hlen])
   have h2:=words_thVals (carryLeafTag lay) (carryLeafLay lay) tau 0 e ends hv 10 (by rw[hlen])
   have hends : (ends.map wordsOf).flatten.length=84 := by
@@ -175,6 +175,7 @@ theorem addrFmt_leafInput_carry (lay tau e : Nat) (ends : List Val) (hl:lay<7)
   simp only [twWords_eq,List.cons_append,List.nil_append]
   rw [Ref.LeafCarry.query_words _ _ (by simp[hends]),pad64_eq_query,h2.1,h2.2]
   simp only [twWords_eq,List.cons_append,List.nil_append]
+  apply congrArg Ref.MaskHeader.query
   congr 2
   rw [carryLeafWord lay tau hl ht]
   have ht0 : (twWord0 4 lay tau 0).toNat=1025+65536*lay := by

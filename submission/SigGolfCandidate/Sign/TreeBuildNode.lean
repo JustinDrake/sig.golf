@@ -155,15 +155,19 @@ theorem pad64_blocks_one (x : List Byte) (h : padBlocks x.length = 0) : (pad64 x
 theorem node_hashInput (t : MachineState) (tt lay tau lam j : Nat) (l r : Val) (hl : l.length = 16)
     (hr : r.length = 16) (h10 : t.getReg .x10 = BitVec.ofNat 64 448)
     (h11 : t.getReg .x11 = BitVec.ofNat 64 64)
-    (hw0 : t.getMem (BitVec.ofNat 64 448) = twWord0 tt lay tau lam)
+    (hw0 : t.getMem (BitVec.ofNat 64 448) = BitVec.ofNat 64 (Ref.MaskHeader.header 0 (twWord0 tt lay tau lam).toNat))
     (hw1 : t.getMem (BitVec.ofNat 64 456) = BitVec.ofNat 64 (tau % 2 ^ 32 + 2 ^ 32 * (j % 2 ^ 32)))
     (hz0 : t.getMem (BitVec.ofNat 64 464) = 0) (hz1 : t.getMem (BitVec.ofNat 64 472) = 0)
     (hL : t.readWords (BitVec.ofNat 64 480) 2 = wordsOf l)
     (hR : t.readWords (BitVec.ofNat 64 496) 2 = wordsOf r) :
-    hashInput t = pad64 (nodeFmt tt lay tau lam j l r) := by
+    hashInput t = Ref.MaskHeader.query (pad64 (nodeFmt tt lay tau lam j l r)) := by
   obtain ⟨hn, hw⟩ := words_th32 tt lay tau lam j l r hl hr
-  refine hashInput_eq_pad64 t _ 0 hn (by rw [h11]) (by norm_num) (by rw [h10]; decide) ?_
-  rw [nodeFmt, hw, h10, twWords_eq, ← hL, ← hR,
+  rw [hashInput_eq_words t 0 (by rw [h11]) (by norm_num) (by rw [h10]; decide),
+    nodeFmt,pad64_eq_query,hn,hw,twWords_eq]
+  simp only [List.cons_append,List.nil_append]
+  rw [Ref.MaskHeader.query_words 0 _ _ (by simp [length_wordsOf_16 _ hl,length_wordsOf_16 _ hr])]
+  apply congrArg (queryOfWords 0)
+  rw [h10, ← hL, ← hR,
     show 8 * (0 + 1) = 4 + 2 + 2 from rfl, readWords_ofNat_add, readWords_ofNat_add]
   simp only [readWords_ofNat_succ, hw0, hw1, hz0, hz1]
   rfl
@@ -178,8 +182,8 @@ theorem nodeLoop_sim2 {image : Image} {L : Nat} (hA : CodeAt image (pcOf L) node
     (h17 : s.getReg .x17 = BitVec.ofNat 64 c.m) (h19 : s.getReg .x19 = BitVec.ofNat 64 c.B)
     (h5 : s.getReg .x5 = 0) (hm32 : 2 * c.m < 2 ^ 32)
     (hfmt : ∀ j l r, j < c.m → l.length = 16 → r.length = 16 →
-      addrFmt (nodeFmt c.tt c.lay c.tau c.lam j l r) = pad64 (nodeFmt c.tt c.lay c.tau 0 (c.m + j) l r))
-    (hw0 : s.getMem (BitVec.ofNat 64 448) = twWord0 c.tt c.lay c.tau 0)
+      addrFmt (nodeFmt c.tt c.lay c.tau c.lam j l r) = Ref.MaskHeader.query (pad64 (nodeFmt c.tt c.lay c.tau 0 (c.m + j) l r)))
+    (hw0 : s.getMem (BitVec.ofNat 64 448) = BitVec.ofNat 64 (Ref.MaskHeader.header 0 (twWord0 c.tt c.lay c.tau 0).toNat))
     (hw1 : lo32 (s.getMem (BitVec.ofNat 64 456)) = BitVec.ofNat 32 c.tau)
     (hz0 : s.getMem (BitVec.ofNat 64 464) = 0) (hz1 : s.getMem (BitVec.ofNat 64 472) = 0)
     (hslots : ∀ i (hi : i < lvl.length), s.readWords (BitVec.ofNat 64 (c.B + 16 * i)) 2 = wordsOf lvl[i]) :
@@ -213,8 +217,8 @@ theorem nodeLoop_sim2 {image : Image} {L : Nat} (hA : CodeAt image (pcOf L) node
       rw [readWords_ofNat_two, mem1 _ (by norm_num), mem1 _ (by norm_num), getD_of_lt (by omega),
         ← hlvl (2 * j + 1) (by omega) (by omega), readWords_ofNat_two]
       simp; constructor <;> congr 2 <;> omega
-    have hq : hashInput t1 = pad64 (nodeFmt c.tt c.lay c.tau 0 (c.m + j) (lvl.getD (2 * j) [])
-        (lvl.getD (2 * j + 1) [])) := by
+    have hq : hashInput t1 = Ref.MaskHeader.query (pad64 (nodeFmt c.tt c.lay c.tau 0 (c.m + j) (lvl.getD (2 * j) [])
+        (lvl.getD (2 * j + 1) []))) := by
       apply node_hashInput t1 _ _ _ _ _ _ _ hl hr (by rw [a10]) (by rw [a11])
       · rw [mem1 _ (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num), if_neg (by norm_num)]
         rw [tframe.1 448 (by norm_num) (by omega) (by norm_num) (by norm_num) (by norm_num)
@@ -289,7 +293,7 @@ theorem nodeLoop_sim2 {image : Image} {L : Nat} (hA : CodeAt image (pcOf L) node
             hwf _ (by norm_num) (by omega), hwf _ (by norm_num) (by omega), ← readWords_ofNat_two]
           exact hR1))
     refine this.mono ?_ (fun _ _ h => h)
-    rw [← addrFmt_blocks, hfmt j _ _ hj hl hr, nodeFmt, pad64_blocks_one _ (words_th32 c.tt c.lay c.tau 0 (c.m + j) _ _ hl hr).1]
+    rw [← addrFmt_blocks, hfmt j _ _ hj hl hr, Ref.MaskHeader.query_blocks, nodeFmt, pad64_blocks_one _ (words_th32 c.tt c.lay c.tau 0 (c.m + j) _ _ hl hr).1]
   · refine ⟨⟨Nat.zero_le _, rfl, by simp, by simp, fun i hi _ => hslots i hi, by simp [hpc, hm],
       by simpa using h16, fun r _ _ _ _ _ _ _ => rfl, fun a _ _ _ _ _ _ _ => rfl, rfl⟩,
       fun h => absurd h (lt_irrefl 0)⟩
@@ -303,8 +307,8 @@ theorem nodeLoop_sim {image : Image} {L : Nat} (hA : CodeAt image (pcOf L) nodeS
     (h17 : s.getReg .x17 = BitVec.ofNat 64 c.m) (h19 : s.getReg .x19 = BitVec.ofNat 64 c.B)
     (h5 : s.getReg .x5 = 0) (hm32 : 2 * c.m < 2 ^ 32)
     (hfmt : ∀ j l r, j < c.m → l.length = 16 → r.length = 16 →
-      addrFmt (nodeFmt c.tt c.lay c.tau c.lam j l r) = pad64 (nodeFmt c.tt c.lay c.tau 0 (c.m + j) l r))
-    (hw0 : s.getMem (BitVec.ofNat 64 448) = twWord0 c.tt c.lay c.tau 0)
+      addrFmt (nodeFmt c.tt c.lay c.tau c.lam j l r) = Ref.MaskHeader.query (pad64 (nodeFmt c.tt c.lay c.tau 0 (c.m + j) l r)))
+    (hw0 : s.getMem (BitVec.ofNat 64 448) = BitVec.ofNat 64 (Ref.MaskHeader.header 0 (twWord0 c.tt c.lay c.tau 0).toNat))
     (hw1 : lo32 (s.getMem (BitVec.ofNat 64 456)) = BitVec.ofNat 32 c.tau)
     (hz0 : s.getMem (BitVec.ofNat 64 464) = 0) (hz1 : s.getMem (BitVec.ofNat 64 472) = 0)
     (hslots : ∀ i (hi : i < lvl.length), s.readWords (BitVec.ofNat 64 (c.B + 16 * i)) 2 = wordsOf lvl[i]) :

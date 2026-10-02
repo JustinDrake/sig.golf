@@ -51,7 +51,7 @@ def FCtx.ok (fc : FCtx) : Prop :=
   (fc.dst + 32 ≤ 0x340 ∨ 0x390 ≤ fc.dst) ∧ fc.lay < 5 ∧ fc.h = heightL fc.lay ∧
   fc.sibOff = pathOffL fc.lay ∧ fc.dst = dstOf fc.lay
 
-def FCtx.lo0 (fc : FCtx) : Nat := 1 + 256 * fc.t + 65536 * fc.f2 + 2 ^ 24 * (fc.tau / 2 ^ 32 % 256)
+def FCtx.lo0 (fc : FCtx) : Nat := Ref.MaskHeader.header 0 (1 + 256 * fc.t + 65536 * fc.f2 + 2 ^ 24 * (fc.tau / 2 ^ 32 % 256))
 
 /-- The leaf index with the heap sentinel, `E + 2^h` (register `x23`). -/
 def FCtx.U (fc : FCtx) : Nat := if fc.lay = 0 then 4095 - fc.E else fc.E + 2 ^ fc.h
@@ -347,14 +347,14 @@ theorem addrFmt_nodeInput_words (lay tau lam j : Nat) (l r : Val)
     (hlam : lam < 2 ^ 32) (hj : j < 2 ^ 32)
     (hh : heapIndex (height (lay % 256)) lam j < 2 ^ 32) :
     addrFmt (nodeInput lay tau lam j l r) = queryOfWords 0
-      [BitVec.ofNat 64 (twLo 3 lay tau 0),
+      [BitVec.ofNat 64 (Ref.MaskHeader.nodeHeader lay),
         BitVec.ofNat 64 (twHi tau (if lay = 0 then TopHeap.mirror (heapIndex (height (lay % 256)) lam j)
           else heapIndex (height (lay % 256)) lam j)), 0, 0, vw0 l, vw1 l, vw0 r, vw1 r] := by
   rw [addrFmt_nodeInput]
-  change EncodingRotate.query (Ref.LeafCarry.query (TopHeap.query (fmt (thInput (tweak 3 lay tau lam j) (l ++ r))))) = _
+  change Ref.MaskHeader.query (EncodingRotate.query (Ref.LeafCarry.query (TopHeap.query (fmt (thInput (tweak 3 lay tau lam j) (l ++ r)))))) = _
   rw [fmt_thInput_node _ _ _ _ _ (by simp [hl, hr]) hlam hj,
     blk_eq_pad64 _ (by simp [hl, hr])]
-  change EncodingRotate.query (Ref.LeafCarry.query (TopHeap.query (pad64 (nodeF 3 lay tau 0 _ l r)))) = _
+  change Ref.MaskHeader.query (EncodingRotate.query (Ref.LeafCarry.query (TopHeap.query (pad64 (nodeF 3 lay tau 0 _ l r))))) = _
   rw [pad64_nodeF _ _ _ _ _ _ _ hl hr]
   rw [Ref.LeafCarry.query_fixed_length _ (by simp only [TopHeap.query, queryOfWords]; split <;> exact (by decide : (0 : Nat) ≠ 10))]
   rw [TopHeap.query_words _ _ _ rfl]
@@ -369,8 +369,8 @@ theorem addrFmt_nodeInput_words (lay tau lam j : Nat) (l r : Val)
     omega
   by_cases h0 : lay = 0
   · subst lay
-    rw [if_pos (by simpa [hw]), if_pos rfl, heapW1_twHi tau _ hh, hrot]
-  · rw [if_neg (by rw [hw]; omega), if_neg h0, hrot]
+    rw [if_pos (by simpa [hw]), if_pos rfl, heapW1_twHi tau _ hh, hrot, Ref.MaskHeader.query_words 0 _ _ rfl, hw, Ref.MaskHeader.header_node 0 (by omega)]
+  · rw [if_neg (by rw [hw]; omega), if_neg h0, hrot, Ref.MaskHeader.query_words 0 _ _ rfl, hw, Ref.MaskHeader.header_node lay hlay]
 
 theorem fmt_input (fc : FCtx) (hfc : fc.ok) (hn : NodeH fc) (lam : Nat) (hlam : lam < fc.h) (v : Val)
     (hv : v.length = 16) : addrFmt (fc.input lam v) = fc.hinput lam v := by
@@ -403,12 +403,16 @@ theorem fmt_input (fc : FCtx) (hfc : fc.ok) (hn : NodeH fc) (lam : Nat) (hlam : 
   change addrFmt (if fc.E / 2 ^ lam % 2 = 1 then nodeInput _ _ _ _ _ _ else nodeInput _ _ _ _ _ _) = _
   split_ifs
   · rw [key _ _ hs hv, heq]
-    have hlo : twLo 3 fc.lay fc.tau 0 = fc.lo0 := by
-      unfold twLo FCtx.lo0; rw [ht, hf]; omega
+    have hlo : Ref.MaskHeader.nodeHeader fc.lay = fc.lo0 := by
+      unfold FCtx.lo0
+      rw [ht,hf,Nat.div_eq_of_lt htau]
+      convert (Ref.MaskHeader.header_node fc.lay hl).symm using 2 <;> omega
     rw [hlo]
   · rw [key _ _ hv hs, heq]
-    have hlo : twLo 3 fc.lay fc.tau 0 = fc.lo0 := by
-      unfold twLo FCtx.lo0; rw [ht, hf]; omega
+    have hlo : Ref.MaskHeader.nodeHeader fc.lay = fc.lo0 := by
+      unfold FCtx.lo0
+      rw [ht,hf,Nat.div_eq_of_lt htau]
+      convert (Ref.MaskHeader.header_node fc.lay hl).symm using 2 <;> omega
     rw [hlo]
 
 theorem pad64_hinput (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam < fc.h) (v : Val)
@@ -445,9 +449,11 @@ theorem U_lt (fc : FCtx) (hfc : fc.ok) : fc.U < 2 ^ 12 := by
   have h3 := hfc.2.2.1
   unfold FCtx.U; split <;> omega
 
-theorem lo0_lt (fc : FCtx) (hfc : fc.ok) : fc.lo0 < 2 ^ 32 := by
+theorem lo0_lt (fc : FCtx) (hfc : fc.ok) : fc.lo0 < 2 ^ 64 := by
   obtain ⟨-, -, -, ht, hf2, -⟩ := hfc
-  unfold FCtx.lo0; omega
+  unfold FCtx.lo0
+  apply Ref.MaskHeader.header_lt
+  omega
 
 /-! ## The memory of a level run -/
 
