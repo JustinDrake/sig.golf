@@ -37,7 +37,7 @@ theorem fibre_card (mark : MarkedLabel) :
       Fintype.card {p : Payload // PayloadAccepted p} := Fintype.card_congr (markFibreEquiv mark)
 
 theorem payload_accepted_card : Fintype.card {p : Payload // PayloadAccepted p} =
-    Fintype.card {s : Slots // SlotsAccepted s} * 2^45 := by
+    Fintype.card {s : Slots // SlotsAccepted s} * 2^46 := by
   rw [Fintype.card_congr payloadEquiv,Fintype.card_prod]
   simp only [Unused,Fintype.card_fin]
 
@@ -58,7 +58,7 @@ theorem fresh_mark_joint (mark : MarkedLabel) :
     ENNReal.mul_inv (Or.inr (by finiteness)) (Or.inl (by finiteness)),mul_assoc]
 
 /-- The fresh full mark is exactly uniform conditional on the actual
-six-zero-bit, distinct-triple and summed-authentication-cap predicate. -/
+four-zero-bit, distinct-triple and summed-authentication-cap predicate. -/
 theorem fresh_mark_conditional (mark : MarkedLabel) :
     Pr[fun r => Accepted r ∧ r.1=mark | ($ᵗ RawRecord : ProbComp RawRecord)] /
       Pr[Accepted | ($ᵗ RawRecord : ProbComp RawRecord)] = (2^59 : ENNReal)⁻¹ := by

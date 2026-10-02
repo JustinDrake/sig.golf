@@ -10,7 +10,7 @@ case-(C) sample costs `(1 + cache)/2^128` per expected digest-class charge of th
 BPORS excess `r·q·e/2^128`, the near-certificate-plus-one-guess term, B-PAIR's pair term and the proposal-prefix tail.
 
 * `IsDigestQuery` / `digestClass`: class M (BP-B §1.2), a public digest input `pad64 (digestInput rho m ctr)`.
-* `signRatio = 201`, `nearPrice = 103`, `nearTerm` (the designer's `exact.py` terms, as in BP-B's prototype).
+* `signRatio = 201`, `nearPrice = 203`, `nearTerm` (the designer's `exact.py` terms, as in BP-B's prototype).
 * `CaseCSmallBound`: only for `1 ≤ q ≤ budgetSplit` (weaker than BP-B's `∀ q ≤ 2^127` form).
 -/
 
@@ -30,7 +30,7 @@ def digestClass : SeccLaw.SampleClass := fun _ input => IsDigestQuery input
 def signRatio : Nat := 201
 
 /-- `near` = `fullNearPrice_bound` (sum over the 21 missing slots). -/
-noncomputable def nearPrice : ENNReal := 103
+noncomputable def nearPrice : ENNReal := 203
 
 /-- Near certificate + one guessed secret: `q/(n−q) · (near·q/n + 21·r·q·cache/n + 21·2^-700)`. -/
 noncomputable def nearTerm (q : Nat) : ENNReal :=

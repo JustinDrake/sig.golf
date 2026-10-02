@@ -362,7 +362,7 @@ theorem cs_loop {A : CsArgs} {s0 : MachineState} (hK : KernAt image b) (hpre : C
           (by rw [r5.get (by decide), h6]) (by rw [r5.get (by decide), h7]) (by rw [r5.get (by decide), h25])
           (by rw [hT5.reg (by decide), hpre.x17])
         have hT6 := hT5.step r6 (by decide) f6
-        have h126 : T3.target A.lay = 125 := by rw [hlz]; rfl
+        have h126 : T3.target A.lay = 127 := by rw [hlz]; rfl
         by_cases hs : (topDigits v).sum = T3.target A.lay
         · rw [if_pos hs] at p6
           have hd' : T3.decode A.lay v = some (topDigits v) := by rw [hdec, if_pos ⟨hr, h126 ▸ hs⟩]

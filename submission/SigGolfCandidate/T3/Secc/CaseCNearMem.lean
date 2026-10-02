@@ -315,9 +315,9 @@ theorem mem_sign_repeat (q : Nat) (births exposures : List HashOutput) (reused :
   unfold nearMemPotential
   rw [reuseC_signed_eq rows rows' nonces m hm hrows]
 
-/-- **Initial memory potential**: `≤ (103 + 1/16)·q/2^128`. -/
+/-- **Initial memory potential**: `≤ (203 + 1/16)·q/2^128`. -/
 theorem mem_initial (q : Nat) :
-    nearMemPotential q [] [] false ∅ (fun _ => none) ≤ (q : ENNReal) * (103 + 1 / 16) / 2 ^ 128 := by
+    nearMemPotential q [] [] false ∅ (fun _ => none) ≤ (q : ENNReal) * (203 + 1 / 16) / 2 ^ 128 := by
   unfold nearMemPotential
   simp only [List.length_nil, Nat.not_lt_zero, if_false, Nat.sub_zero]
   have hC : reuseC ∅ (fun _ => none) = 0 := by
@@ -326,7 +326,7 @@ theorem mem_initial (q : Nat) :
   have hn := near_initial q
   rw [show (⟨[], [], false, reuseC ∅ (fun _ => none), q⟩ : BankCore) = ⟨[], [], false, 0, q⟩ by rw [hC]]
   calc
-    _ ≤ (q : ENNReal) * 103 / 2 ^ 128 + (q : ENNReal) * ((1 / 16) / 2 ^ 128) := add_le_add hn le_rfl
+    _ ≤ (q : ENNReal) * 203 / 2 ^ 128 + (q : ENNReal) * ((1 / 16) / 2 ^ 128) := add_le_add hn le_rfl
     _ = _ := by
       simp only [div_eq_mul_inv]
       ring

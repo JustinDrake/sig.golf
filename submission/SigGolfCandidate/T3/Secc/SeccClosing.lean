@@ -46,7 +46,7 @@ An absolute term of size `2^-127` does not fit. -/
 noncomputable irreducible_def smallAbsolute : ENNReal := ((2 : ENNReal) ^ 132)⁻¹
 
 /-- BPORS full-certificate excess per unit of budget, relative to `2^-128` (SEC's `full_game_excess_price`). -/
-noncomputable irreducible_def excessRate : ENNReal := 987 / 100000000
+noncomputable irreducible_def excessRate : ENNReal := 2300 / 100000000
 
 /-- Cache-exception allowance per unit of budget, relative to `2^-128` (`2^-25`). -/
 noncomputable irreducible_def cacheRate : ENNReal := ((2 : ENNReal) ^ 25)⁻¹
@@ -108,7 +108,7 @@ private theorem small_real (y : ℝ) (hlow : 1 / 2 ^ 128 ≤ y) (hhigh : y ≤ 1
   linarith
 
 private theorem large_real (y : ℝ) (hlow : 1 / 2 ^ 14 ≤ y) :
-    (2 * y - y ^ 2) + y * (987 / 100000000) + y * (1 / 2 ^ 25) + y * (1 / 2 ^ 16) + 1 / 2 ^ 132 +
+    (2 * y - y ^ 2) + y * (2300 / 100000000) + y * (1 / 2 ^ 25) + y * (1 / 2 ^ 16) + 1 / 2 ^ 132 +
       (y / 2 ^ 18 + 1 / 2 ^ 700 + 1 / 2 ^ 224 + y / 2 ^ 128) ≤ 2 * y := by
   have hn : 0 ≤ y := le_trans (by positivity) hlow
   have hsq : y * (1 / 2 ^ 14) ≤ y ^ 2 := by

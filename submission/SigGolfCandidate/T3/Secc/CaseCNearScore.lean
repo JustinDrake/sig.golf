@@ -134,7 +134,7 @@ theorem average_near_coordinate (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fi
 theorem average_near_at_index (X : List HashOutput) (i : Fin (2 ^ 31)) (missing : Fin 7) (omitted : Fin 3) :
     BPORS.finiteAverage (fun v : Fin 7 → Fin 16 × (Fin 3 → Fin 128) =>
         ∏ c : Fin 7, if c = missing then coordNearScore X i c (v c).1 (v c).2 omitted
-          else coordScore X i c (v c).1 (v c).2)/32 =
+          else coordScore X i c (v c).1 (v c).2)/16 =
       BPORS.History.nearWordEnvelope missing (BPORS.History.atIndex i (labels X)) := by
   rw [BPORS.finiteAverage_product 7 (fun c (d : Fin 16 × (Fin 3 → Fin 128)) =>
     if c = missing then coordNearScore X i c d.1 d.2 omitted else coordScore X i c d.1 d.2)]

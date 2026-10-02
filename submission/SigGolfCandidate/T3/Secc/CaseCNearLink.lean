@@ -84,7 +84,7 @@ theorem nearChainHyp_of_bpair (hchain : BPairNearChain) (hghosts : BPairGhosts) 
   obtain ⟨-, -, -, f, -, -, -, -, -, -, -, -, hguess, -⟩ := hP
   exact ⟨f, htrack f hguess⟩
 
-/-- **The small route from B-PAIR's §8 deliverables** (the case-(C) contract with `K = 104`). -/
+/-- **The small route from B-PAIR's §8 deliverables** (the case-(C) contract with `K = 204`). -/
 theorem small_route_of_bpair (hchain : BPairNearChain) (hghosts : BPairGhosts) (hlaw : BPairLaw) :
     ∀ (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127), 1 ≤ q → q ≤ SeccClosing.budgetSplit →
       Pr[QueryRecorded.CleanWin q | PaddedGame.tracedExperiment adversary q hq] ≤ SeccClosing.smallBound q :=

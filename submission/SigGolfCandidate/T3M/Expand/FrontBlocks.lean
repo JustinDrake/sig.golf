@@ -112,16 +112,16 @@ theorem s215_spec (hpc : s.pc = pcOf 215) :
   · ex_regs eblk_215.res
   · intro A _ _; simp [eblk_215.res, rv_simp]
 
-/-- `zt_loop`: done at slot 118. -/
-theorem s216_spec (hpc : s.pc = pcOf 216) (j : Nat) (hj : j ≤ 118) (h13 : s.getReg .x13 = BitVec.ofNat 64 j) :
-    ∃ t, Steps image s 2 2 t ∧ t.pc = (if 118 ≤ j then pcOf 228 else pcOf 218) ∧
+/-- `zt_loop`: done at slot 117. -/
+theorem s216_spec (hpc : s.pc = pcOf 216) (j : Nat) (hj : j ≤ 117) (h13 : s.getReg .x13 = BitVec.ofNat 64 j) :
+    ∃ t, Steps image s 2 2 t ∧ t.pc = (if 117 ≤ j then pcOf 228 else pcOf 218) ∧
       RegsExcept s t [.x6] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound eblk_216 codeAt_216 s hpc (by simp [eblk_216.res, rv_simp]), ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, eblk_216.res, E.eval, CmpOp.eval, rebase, rv_simp, h13]
-    rw [ex_slt j 118 (by omega) (by omega)]
-    by_cases h : 118 ≤ j
-    · simp [h, show ¬ j < 118 by omega]
-    · simp [h, show j < 118 by omega]
+    rw [ex_slt j 117 (by omega) (by omega)]
+    by_cases h : 117 ≤ j
+    · simp [h, show ¬ j < 117 by omega]
+    · simp [h, show j < 117 by omega]
   · ex_regs eblk_216.res
   · intro A _ _; simp [eblk_216.res, rv_simp]
 
@@ -131,7 +131,7 @@ theorem slot_addr (j : Nat) :
   apply BitVec.eq_of_toNat_eq; simp; omega
 
 /-- `zt_loop`, low doubleword of slot `j`. -/
-theorem s218_spec (hpc : s.pc = pcOf 218) (j : Nat) (hj : j < 118) (h13 : s.getReg .x13 = BitVec.ofNat 64 j) :
+theorem s218_spec (hpc : s.pc = pcOf 218) (j : Nat) (hj : j < 117) (h13 : s.getReg .x13 = BitVec.ofNat 64 j) :
     ∃ t, Steps image s 6 6 t ∧
       t.pc = (if s.getMem (BitVec.ofNat 64 (0x7160 + 16 * j)) = 0 then pcOf 224 else pcOf 354) ∧
       t.getReg .x28 = BitVec.ofNat 64 (0x7160 + 16 * j) ∧
@@ -153,7 +153,7 @@ theorem s218_spec (hpc : s.pc = pcOf 218) (j : Nat) (hj : j < 118) (h13 : s.getR
   · intro A _ _; simp [eblk_218.res, rv_simp]
 
 /-- `zt_loop`, high doubleword of slot `j`. -/
-theorem s224_spec (hpc : s.pc = pcOf 224) (j : Nat) (hj : j < 118)
+theorem s224_spec (hpc : s.pc = pcOf 224) (j : Nat) (hj : j < 117)
     (h28 : s.getReg .x28 = BitVec.ofNat 64 (0x7160 + 16 * j)) :
     ∃ t, Steps image s 2 2 t ∧
       t.pc = (if s.getMem (BitVec.ofNat 64 (0x7160 + 16 * j + 8)) = 0 then pcOf 226 else pcOf 354) ∧
@@ -170,7 +170,7 @@ theorem s224_spec (hpc : s.pc = pcOf 224) (j : Nat) (hj : j < 118)
   · intro A _ _; simp [eblk_224.res, rv_simp]
 
 /-- `zt_loop`: next slot. -/
-theorem s226_spec (hpc : s.pc = pcOf 226) (j : Nat) (hj : j < 118) (h13 : s.getReg .x13 = BitVec.ofNat 64 j) :
+theorem s226_spec (hpc : s.pc = pcOf 226) (j : Nat) (hj : j < 117) (h13 : s.getReg .x13 = BitVec.ofNat 64 j) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = pcOf 216 ∧ t.getReg .x13 = BitVec.ofNat 64 (j + 1) ∧
       RegsExcept s t [.x13] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound eblk_226 codeAt_226 s hpc (by simp [eblk_226.res, rv_simp]), ?_, ?_, ?_, ?_⟩

@@ -4,10 +4,10 @@ import SigGolfCandidate.T3.Secc.WotsSmall
 /-!
 # Stream CC: the case-(C) contract with a general near price `K` (and the closing re-check)
 
-Stream A's `CaseCSmallBound` charges the near certificate × one guess with `nearTerm q`, whose near price is `103`.
+Stream A's `CaseCSmallBound` charges the near certificate × one guess with `nearTerm q`, whose near price is `203`.
 The closing only needs the second-order coefficient below `smallQuadratic = 2^11`, so the near price may grow:
 
-* `nearTermK K q`: `nearTerm` with `103` replaced by `K` (`nearTermK_103 : nearTermK 103 = Wots.nearTerm`);
+* `nearTermK K q`: `nearTerm` with `203` replaced by `K` (`nearTermK_103 : nearTermK 203 = Wots.nearTerm`);
 * `CaseCSmallBoundK K` / `NearBoundK K`: the contract and the near hypothesis with `nearTermK K`;
 * `caseC_small_bound_K (hnear : NearBoundK K) : CaseCSmallBoundK K` (same proof as `caseC_small_bound`);
 * `small_route_K (hK : K ≤ 2000) (hC : CaseCSmallBoundK K)`: A's small route re-closed (`2002·x² + 2·x² ≤ 2^11·x²`).
@@ -23,13 +23,13 @@ set_option backward.isDefEq.respectTransparency false
 set_option exponentiation.threshold 1024
 attribute [local instance low] Classical.propDecidable
 
-/-- `Wots.nearTerm` with the near price `103` replaced by `K`. -/
+/-- `Wots.nearTerm` with the near price `203` replaced by `K`. -/
 noncomputable def nearTermK (K : ENNReal) (q : Nat) : ENNReal :=
   (q : ENNReal) * ((2 ^ 128 - q : Nat) : ENNReal)⁻¹ *
     (K * q / 2 ^ 128 + 21 * (Wots.signRatio * q : Nat) * SeccClosing.cacheRate / 2 ^ 128 +
       21 * (2 : ENNReal)⁻¹ ^ 700)
 
-theorem nearTermK_103 : nearTermK 103 = Wots.nearTerm := by
+theorem nearTermK_103 : nearTermK 203 = Wots.nearTerm := by
   funext q
   unfold nearTermK Wots.nearTerm Wots.nearPrice
   rfl
@@ -53,11 +53,11 @@ def NearBoundK (K : ENNReal) : Prop :=
     Pr[fun z => QueryRecorded.CleanWin q z.1 ∧ PinnedC adversary NearQ z | SeccLaw.completedExperiment adversary q hq] ≤
       nearTermK K q
 
-theorem nearBoundK_103 : NearBoundK 103 ↔ NearBound := by
+theorem nearBoundK_103 : NearBoundK 203 ↔ NearBound := by
   unfold NearBoundK NearBound
   rw [nearTermK_103]
 
-theorem caseCSmallBoundK_103 : CaseCSmallBoundK 103 ↔ Wots.CaseCSmallBound := by
+theorem caseCSmallBoundK_103 : CaseCSmallBoundK 203 ↔ Wots.CaseCSmallBound := by
   unfold CaseCSmallBoundK Wots.CaseCSmallBound
   rw [nearTermK_103]
 
@@ -145,7 +145,7 @@ theorem small_route_K (K : ENNReal) (hK : K ≤ 2000) (hC : CaseCSmallBoundK K) 
   have hex := excess_le q
   have hnear := nearTermK_le K hK q hs
   have hpair := pairTerm_le q hs
-  apply SeccClosing.smallBound_of_le q _ (classRate + 1 / 400 + 1 / 1000) 2004 ((2 : ENNReal)⁻¹ ^ 700)
+  apply SeccClosing.smallBound_of_le q _ (classRate + 1 / 200 + 1 / 1000) 2004 ((2 : ENNReal)⁻¹ ^ 700)
   · rw [SeccClosing.smallCoefficient_def]
     unfold classRate
     apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
@@ -167,13 +167,13 @@ theorem small_route_K (K : ENNReal) (hK : K ≤ 2000) (hC : CaseCSmallBoundK K) 
             ((signRatio * q : Nat) : ENNReal) * SeccClosing.excessRate / 2 ^ 128 + nearTermK K q +
               BPair.pairTerm q + (2 : ENNReal)⁻¹ ^ 700) := add_le_add hab hc
     _ ≤ (classRate / 2 ^ 128 * EP + classRate / 2 ^ 128 * EE + classRate / 2 ^ 128 * EO) +
-          (classRate / 2 ^ 128 * EM + 1 / 400 * x + (2002 * x ^ 2 + 1 / 1000 * x) + 2 * x ^ 2 +
+          (classRate / 2 ^ 128 * EM + 1 / 200 * x + (2002 * x ^ 2 + 1 / 1000 * x) + 2 * x ^ 2 +
             (2 : ENNReal)⁻¹ ^ 700) := by gcongr
     _ = classRate / 2 ^ 128 * (EP + EE + EO + EM) +
-          (1 / 400 * x + (2002 * x ^ 2 + 1 / 1000 * x) + 2 * x ^ 2 + (2 : ENNReal)⁻¹ ^ 700) := by ring
-    _ ≤ classRate * x + (1 / 400 * x + (2002 * x ^ 2 + 1 / 1000 * x) + 2 * x ^ 2 + (2 : ENNReal)⁻¹ ^ 700) := by
+          (1 / 200 * x + (2002 * x ^ 2 + 1 / 1000 * x) + 2 * x ^ 2 + (2 : ENNReal)⁻¹ ^ 700) := by ring
+    _ ≤ classRate * x + (1 / 200 * x + (2002 * x ^ 2 + 1 / 1000 * x) + 2 * x ^ 2 + (2 : ENNReal)⁻¹ ^ 700) := by
         gcongr
-    _ = (classRate + 1 / 400 + 1 / 1000) * x + 2004 * x ^ 2 + (2 : ENNReal)⁻¹ ^ 700 := by ring
+    _ = (classRate + 1 / 200 + 1 / 1000) * x + 2004 * x ^ 2 + (2 : ENNReal)⁻¹ ^ 700 := by ring
 
 /-- `SecurityP` from the `K`-contract and any large-route bound. -/
 theorem securityP_of_small_K (K : ENNReal) (hK : K ≤ 2000) (hC : CaseCSmallBoundK K)

@@ -29,7 +29,7 @@ def leafQuery (index coord : Nat) (leaves : List Nat) (values : List Digest) (pa
 
 /-- **A returning subtree run queried every selected leaf below it.** -/
 theorem recoverChildP_leaf_queried (answers : Correctness.Answers) (index coord : Nat) (leaves : List Nat)
-    (values : List Digest) (proof : Fin 118 → Digest) (pads : Pads) :
+    (values : List Digest) (proof : Fin 117 → Digest) (pads : Pads) :
     ∀ level node used (v : Digest) (next : Nat),
       evalWithAnswerFn answers (recoverChildP index coord leaves values proof pads level node used) =
         some (v, next) →

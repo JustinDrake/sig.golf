@@ -166,7 +166,7 @@ theorem average_coordinate (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) 
 /-- The average of the score at a fixed index over uniform buckets and leaves is the index envelope. -/
 theorem average_at_index (X : List HashOutput) (i : Fin (2 ^ 31)) :
     BPORS.finiteAverage (fun v : Fin 7 → Fin 16 × (Fin 3 → Fin 128) =>
-        ∏ c : Fin 7, coordScore X i c (v c).1 (v c).2)/32 =
+        ∏ c : Fin 7, coordScore X i c (v c).1 (v c).2)/16 =
       BPORS.History.wordEnvelope (BPORS.History.atIndex i (labels X)) := by
   rw [BPORS.finiteAverage_product 7
     (fun c (d : Fin 16 × (Fin 3 → Fin 128)) => coordScore X i c d.1 d.2)]

@@ -228,7 +228,7 @@ theorem pubGood_counterSearch (lay : Layer) (tree leaf : Nat) (msg : Digest) : �
       · exact allQ_pure _
 
 theorem pubGood_recoverChild (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 118 → Digest) : ∀ level node used,
+    (proof : Fin 117 → Digest) : ∀ level node used,
     AllQueriesSatisfy (recoverChild index coord leaves values proof level node used) PubGood := by
   intro level
   induction level with

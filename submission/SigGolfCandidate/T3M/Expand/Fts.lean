@@ -31,7 +31,7 @@ def ftsStep (sig : Signature) (index : Nat) (chosen : List Selection) (state : O
   let result ← (List.range 4).foldlM
     (fun (state : Option (Digest × Nat)) j => do
       let some (value,used) := state | pure none
-      if h : used < 118 then
+      if h : used < 117 then
         let other := sig.proof ⟨used,h⟩
         let pair := if sel.bucket/2^j%2=0 then (value,other) else (other,value)
         let parent ← nodeHash 10 coord index (2^(4-j-1)+sel.bucket/2^(j+1)) pair.1 pair.2
@@ -46,7 +46,7 @@ def ftsFold (sig : Signature) (index : Nat) (chosen : List Selection) : T3.M (Op
 
 /-- The canonical-tail check of `recoverFts` (proof slots `used .. 123` zero). -/
 def tailZero (sig : Signature) (used : Nat) : Bool :=
-  (List.range (118 - used)).all fun j => decide (sig.proof ⟨(used + j) % 118, Nat.mod_lt _ (by decide)⟩ = 0)
+  (List.range (117 - used)).all fun j => decide (sig.proof ⟨(used + j) % 117, Nat.mod_lt _ (by decide)⟩ = 0)
 
 theorem recoverFts_eq (sig : Signature) (index : Nat) (chosen : List Selection) :
     recoverFts sig index chosen = ftsFold sig index chosen >>= fun state => match state with
@@ -72,7 +72,7 @@ structure FtsPre (sig : Signature) (N : HashOutput) (s : MachineState) : Prop wh
   adm : T3.admissible (T3.selections N) = true
   rows : SelRows s N
   secrets : ∀ k (h : k < 21), DigAt s (0x7010 + 16 * k) (sig.secrets ⟨k, h⟩)
-  proof : ∀ k (h : k < 118), DigAt s (0x7160 + 16 * k) (sig.proof ⟨k, h⟩)
+  proof : ∀ k (h : k < 117), DigAt s (0x7160 + 16 * k) (sig.proof ⟨k, h⟩)
   f0 : s.getMem (BitVec.ofNat 64 FLEAF) = 0
   f8 : s.getMem (BitVec.ofNat 64 (FLEAF + 8)) = 0
   f48 : s.getMem (BitVec.ofNat 64 (FLEAF + 48)) = 0
@@ -98,7 +98,7 @@ def FtsPost (s : MachineState) (sig : Signature) (N : HashOutput) :
     Option (List Digest × Nat) → MachineState → Prop
   | none, t => FailedAt 354 t
   | some (roots, used), t => t.pc = pcOf 215 ∧ t.getReg .x5 = 0 ∧
-      t.getReg .x9 = BitVec.ofNat 64 (N.toNat % 2 ^ 31) ∧ t.getReg .x18 = BitVec.ofNat 64 used ∧ used ≤ 118 ∧
+      t.getReg .x9 = BitVec.ofNat 64 (N.toNat % 2 ^ 31) ∧ t.getReg .x18 = BitVec.ofNat 64 used ∧ used ≤ 117 ∧
       roots.length = 7 ∧ (∀ c < 7, DigAt t (FOREST + slotOff c) (roots.getD c 0)) ∧
       t.readWords (BitVec.ofNat 64 0x840) 128 = wordsOf (leafBytes sig) ∧
       t.readWords (BitVec.ofNat 64 0xC40) 1275 = wordsOf (streamBytes (T3.selections N) sig.proof) ∧

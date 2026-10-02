@@ -410,7 +410,7 @@ theorem fold_shape_inv (w : WBytes) (chosen : List Selection) (hc : ChosenOk cho
         rwa [schedule_getD _ (by omega), show m / 5 = n by omega, show m % 5 = m - 5 * n by omega]
 
 theorem admissible_of_slotBase (N : HashOutput) (hc : ChosenOk (selections N))
-    (h : slotBase (selections N) 7 ≤ 118) : admissible (selections N) = true := by
+    (h : slotBase (selections N) 7 ≤ 117) : admissible (selections N) = true := by
   rw [slotBase_seven_eq N hc] at h
   simp only [admissible, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
   refine ⟨fun sel hm => ?_, h⟩

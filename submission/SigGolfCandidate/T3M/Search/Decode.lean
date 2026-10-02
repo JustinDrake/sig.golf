@@ -216,9 +216,9 @@ theorem decode_low (lay : Layer) (h : lay ≠ 0) (v : Digest) :
   · simp only [show ¬ (v.toNat ≥ 2 ^ 126) from by omega, if_false, h1, true_and]
   · simp only [show v.toNat ≥ 2 ^ 126 from by omega, if_true, h1, false_and, if_false]
 
-/-- `decode` of the top layer: range `v < 2^125`, digit sum exactly 125. -/
+/-- `decode` of the top layer: range `v < 2^125`, digit sum exactly 127. -/
 theorem decode_top (v : Digest) :
-    T3.decode 0 v = if v.toNat < 2 ^ 125 ∧ (topDigits v).sum = 125 then some (topDigits v) else none := by
+    T3.decode 0 v = if v.toNat < 2 ^ 125 ∧ (topDigits v).sum = 127 then some (topDigits v) else none := by
   unfold T3.decode
   simp only [T3.encodedBits, if_true, dataDigits_top, T3.target]
   by_cases h1 : v.toNat < 2 ^ 125

@@ -1,6 +1,6 @@
 import SigGolfCandidate.T3M.Verify.FtsCheck
 
-/-! The digest's five-bit gate, before the FTS initialization. -/
+/-! The digest's four-bit gate, before the FTS initialization. -/
 namespace SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3 (Digest HashOutput)
@@ -10,14 +10,14 @@ def FtsReady (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineState) : Pr
   SelIn pk w a 7 (s.setPC (pcOf 359)) ∧ s.pc = pcOf 362
 
 theorem digest_gate_word (N : BitVec 256) :
-    N.extractLsb' 192 64 >>> 14 &&& 31#64 = BitVec.ofNat 64 (N.toNat / 2 ^ 206 % 32) := by
+    N.extractLsb' 192 64 >>> 14 &&& 15#64 = BitVec.ofNat 64 (N.toNat / 2 ^ 206 % 16) := by
   apply BitVec.eq_of_getLsbD_eq
   intro i hi
   simp only [BitVec.getLsbD_and, BitVec.getLsbD_ushiftRight, BitVec.getLsbD_extractLsb',
-    BitVec.getLsbD_ofNat, show (31 : Nat) = 2 ^ 5 - 1 from rfl,
-    show (32 : Nat) = 2 ^ 5 from rfl, Nat.testBit_two_pow_sub_one,
+    BitVec.getLsbD_ofNat, show (15 : Nat) = 2 ^ 4 - 1 from rfl,
+    show (16 : Nat) = 2 ^ 4 from rfl, Nat.testBit_two_pow_sub_one,
     Nat.testBit_mod_two_pow, Nat.testBit_div_two_pow]
-  by_cases h : i < 5
+  by_cases h : i < 4
   · simp [h, hi, show 14 + i < 64 by omega, BitVec.testBit_toNat,
       show 192 + (14 + i) = i + 206 by omega]
   · simp [h]
@@ -26,9 +26,9 @@ theorem gateBrF_holds (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineSt
     (hs : SelIn pk w a 7 s) (reject : Bool) :
     (gateBrF reject).holds s ↔ (!T3.digestGate a) = reject := by
   have hn : s.getReg .x28 = a.extractLsb' 192 64 := hs.nregs 3 (by decide)
-  have he : BitVec.ofNat 64 (a.toNat / 2 ^ 206 % 32) = 0#64 ↔ a.toNat / 2 ^ 206 % 32 = 0 :=
-    ofNat_inj (by have := Nat.mod_lt (a.toNat / 2 ^ 206) (show 0 < 32 by decide); omega) (by decide)
-  change ((s.getReg .x28 >>> 14 &&& 31#64 != 0#64) = reject) ↔ _
+  have he : BitVec.ofNat 64 (a.toNat / 2 ^ 206 % 16) = 0#64 ↔ a.toNat / 2 ^ 206 % 16 = 0 :=
+    ofNat_inj (by have := Nat.mod_lt (a.toNat / 2 ^ 206) (show 0 < 16 by decide); omega) (by decide)
+  change ((s.getReg .x28 >>> 14 &&& 15#64 != 0#64) = reject) ↔ _
   rw [hn, digest_gate_word]
   cases reject <;> simp only [T3.digestGate] <;> simp
   · exact he

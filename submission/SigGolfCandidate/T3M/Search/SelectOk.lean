@@ -8,7 +8,7 @@ import SigGolfCandidate.T3M.Search.Arith
 bit `31 + 25c` (two doublewords at `NBUF`), split it into bucket and three leaves, sort the leaves
 (three compare-exchanges), reject a repeated leaf, accumulate `4 + bitlen (a ⊕ b) + bitlen (b ⊕ c)`
 onto `21`, store the row `128 bucket + leaf` (three doublewords at `SEL + 24c`); finally accept iff the
-total is `< 119`. Result in `a3` (`x13`), return through `ra`.
+total is `< 118`. Result in `a3` (`x13`), return through `ra`.
 -/
 
 namespace SigGolfCandidate.T3M.Search
@@ -234,18 +234,18 @@ theorem so53_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcOf (b
     t3n [h25]
     rw [if_neg (by omega), if_neg (by omega), if_neg (by omega)]
 
-/-- `sel_check`: accept iff `s5 < 119`. -/
+/-- `sel_check`: accept iff `s5 < 118`. -/
 theorem so97_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcOf (b + 97)) (S : Nat)
     (hS : S < 2 ^ 63) (h21 : s.getReg .x21 = BitVec.ofNat 64 S) :
-    ∃ t, Steps image s 2 2 t ∧ t.pc = (if 119 ≤ S then pcOf (b + 101) else pcOf (b + 99)) ∧
+    ∃ t, Steps image s 2 2 t ∧ t.pc = (if 118 ≤ S then pcOf (b + 101) else pcOf (b + 99)) ∧
       RegsExcept s t [.x6] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound (run_97 hK.2) (codeAt_k_97 hK) s hpc (by simp [st_97, blk354_97.res, rv_simp]),
     ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, pcE_97, rebase, blk354_97.res, E.eval, CmpOp.eval, h21]
     rw [ofNat_slt _ _ hS (by omega)]
-    by_cases h : 119 ≤ S
-    · simp [h, show ¬ S < 119 by omega]
-    · simp [h, show S < 119 by omega]
+    by_cases h : 118 ≤ S
+    · simp [h, show ¬ S < 118 by omega]
+    · simp [h, show S < 118 by omega]
   · intro r hr; simp at hr; cases r <;> simp_all [st_97, blk354_97.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_97, blk354_97.res, rv_simp]
 
@@ -515,7 +515,7 @@ theorem selectOk_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcO
       List.all_eq_true.2 (fun c hc => hI7.ok c (List.mem_range.1 hc))
     have rr : RegsExcept s t3 selRegs := regs_mono ((hI7.regs.trans r2).trans r3) (by decide)
     have ff : Frame t1 t3 (fun _ => False) := (f2.trans f3).mono (by intro A _ hA; simpa using hA)
-    by_cases hc : 119 ≤ 21 + selCost N 7
+    by_cases hc : 118 ≤ 21 + selCost N 7
     · rw [if_pos hc] at p3
       obtain ⟨t4, s4, p4, h13, r4, f4⟩ := so101_spec hK t3 p3 ret (hx1 t3 rr)
       have hadm : T3.admissible (T3.selections N) = false := by

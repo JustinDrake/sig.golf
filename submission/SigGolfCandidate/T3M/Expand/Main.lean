@@ -22,7 +22,7 @@ open SigGolfCandidate.T3M.Search (FailedAt kernAt_expand codeAt_k_2)
 set_option autoImplicit false
 
 set_option maxRecDepth 100000 in
-theorem initialState_expand (m : Message) (pk : PublicKey) (σ : Bytes 5728) :
+theorem initialState_expand (m : Message) (pk : PublicKey) (σ : Bytes 5712) :
     initialState submission .expand (m, pk, σ) = some (einit m pk σ) := by
   have hv := submission_expand_valid
   unfold initialState
@@ -76,7 +76,7 @@ theorem expq_halt (a : Option (HashOutput × Witness)) (t : MachineState) (h : E
 
 /-- **Expand refinement** (given the FTS phase): value (the witness bytes `witEnc N w`), calls and compressions
 of the run are those of `expandN` (Core's `expand` returning the accepted digest answer), for every input. -/
-theorem expand_refines (hF : FtsSpec 0) (m : Message) (pk : PublicKey) (s : Bytes 5728) :
+theorem expand_refines (hF : FtsSpec 0) (m : Message) (pk : PublicKey) (s : Bytes 5712) :
     (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$> submission.run .expand (m, pk, s) =
       (fun p => (p.1.map (fun x => witEnc x.1 x.2), p.2.1, p.2.2)) <$>
         countBoth (mrealize 0 (expandN m pk (sigDec s))) := by
@@ -89,7 +89,7 @@ theorem expand_refines (hF : FtsSpec 0) (m : Message) (pk : PublicKey) (s : Byte
 
 /-- **Expand termination** (given the FTS phase): under every fixed oracle the run finishes within
 `expCost + 1 < 2^32` cycles. -/
-theorem expand_terminates (hF : FtsSpec 0) (hash : Hash) (m : Message) (pk : PublicKey) (s : Bytes 5728) :
+theorem expand_terminates (hF : FtsSpec 0) (hash : Hash) (m : Message) (pk : PublicKey) (s : Bytes 5712) :
     (submission.runWith hash .expand (m, pk, s)).finished = true ∧
       (submission.runWith hash .expand (m, pk, s)).cycles < CYCLE_LIMIT := by
   have hsim : Sim (submission.image .expand) (einit m pk s) expCost (mrealize 0 (expandN m pk (sigDec s))) ExpQ :=
@@ -99,14 +99,14 @@ theorem expand_terminates (hF : FtsSpec 0) (hash : Hash) (m : Message) (pk : Pub
   exact ⟨h1, lt_of_le_of_lt h2 expCost_lt⟩
 
 /-- **Expand refinement**, unconditional: the statement of `Final/Pending`'s `ExpandRefines`. -/
-theorem expand_refines_holds : ∀ (m : Message) (pk : PublicKey) (s : Bytes 5728),
+theorem expand_refines_holds : ∀ (m : Message) (pk : PublicKey) (s : Bytes 5712),
     (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$> submission.run .expand (m, pk, s) =
       (fun p => (p.1.map (fun x => witEnc x.1 x.2), p.2.1, p.2.2)) <$>
         countBoth (mrealize 0 (expandN m pk (sigDec s))) :=
   expand_refines (ftsSpec 0)
 
 /-- **Expand termination**, unconditional: the statement of `Final/Pending`'s `ExpandTerminates`. -/
-theorem expand_terminates_holds : ∀ (hash : Hash) (m : Message) (pk : PublicKey) (s : Bytes 5728),
+theorem expand_terminates_holds : ∀ (hash : Hash) (m : Message) (pk : PublicKey) (s : Bytes 5712),
     (submission.runWith hash .expand (m, pk, s)).finished = true ∧
       (submission.runWith hash .expand (m, pk, s)).cycles < CYCLE_LIMIT :=
   expand_terminates (ftsSpec 0)

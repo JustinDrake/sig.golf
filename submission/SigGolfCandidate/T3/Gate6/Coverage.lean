@@ -54,7 +54,7 @@ noncomputable def gatedCoveredEquiv (exposed : Bank → Bucket → Finset (Fin 1
 
 theorem gated_covered_probability (exposed : Bank → Bucket → Finset (Fin 128)) :
     Pr[GatedCovered exposed | ($ᵗ GatedDraw : ProbComp GatedDraw)] =
-      (Pr[CoordinateCovered exposed | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/32 := by
+      (Pr[CoordinateCovered exposed | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/16 := by
   rw [probEvent_uniformSample,←Fintype.card_subtype,Fintype.card_congr (gatedCoveredEquiv exposed),
     probEvent_uniformSample,←Fintype.card_subtype]
   simp only [GatedDraw,Fintype.card_prod,Padding,Fintype.card_fin,Nat.cast_mul,Nat.cast_ofNat]
@@ -62,15 +62,15 @@ theorem gated_covered_probability (exposed : Bank → Bucket → Finset (Fin 128
   simp only [ENNReal.toReal_div,ENNReal.toReal_mul,ENNReal.toReal_ofNat]
   rw [div_div]
 
-/-- The five-bit gate gives exactly its full factor in the fixed-exposure
+/-- The four-bit gate gives exactly its full factor in the fixed-exposure
 coverage probability; no independence premise about chosen histories is used. -/
 theorem digest_gate_covered_probability (exposed : Bank → Bucket → Finset (Fin 128)) :
     Pr[fun output => GatedCovered exposed (rawDraw (digestRecord output)) |
       ($ᵗ BitVec 256 : ProbComp (BitVec 256))] =
-      (∏ c : Bank, ((∑ b : Bucket, ((exposed c b).card.descFactorial 3 : ENNReal))/(16*128^3)))/32 := by
+      (∏ c : Bank, ((∑ b : Bucket, ((exposed c b).card.descFactorial 3 : ENNReal))/(16*128^3)))/16 := by
   rw [digest_event (fun raw => GatedCovered exposed (rawDraw raw)),raw_draw_event,
     gated_covered_probability]
-  exact congrArg (fun p : ENNReal => p/32) (bpors_covered_probability exposed)
+  exact congrArg (fun p : ENNReal => p/16) (bpors_covered_probability exposed)
 
 /-- The actual acceptance predicate implies the independent gate condition.
 Keeping the authentication cap can only reduce this fixed-exposure event. -/
@@ -96,7 +96,7 @@ theorem accepted_covered_le_forestEnvelope {steps : Nat}
   refine (accepted_covered_le_gate exposed).trans ?_
   rw [digest_gate_covered_probability]
   have he : (∏ c : Bank,
-      ((∑ bucket : Bucket, ((3*(List.ofFn (table c)).count bucket).descFactorial 3 : ENNReal))/(16*128^3)))/32 =
+      ((∑ bucket : Bucket, ((3*(List.ofFn (table c)).count bucket).descFactorial 3 : ENNReal))/(16*128^3)))/16 =
       Moments.Numeric.forestEnvelope table := by
     simp only [Moments.Numeric.forestEnvelope,coordinateEnvelope,bucketMass,div_eq_mul_inv,
       Finset.prod_mul_distrib,Finset.prod_const,Finset.card_univ,Bank,Fintype.card_fin]
