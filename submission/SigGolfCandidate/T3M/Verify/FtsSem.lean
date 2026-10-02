@@ -73,10 +73,10 @@ theorem RootsOK.frame {roots : List Digest} {m u : MachineState} (h : RootsOK ro
   obtain ⟨h1, h2⟩ := h k hk
   exact ⟨e1.trans h1, e2.trans h2⟩
 
-/-! ## The FTS setup (words 359 .. 391: `j 375`, fifteen fillers, 17 instructions) -/
+/-! ## The FTS setup (words 375 .. 391, 17 instructions) -/
 
 theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : SelIn pk w a 7 t) :
-    ∃ u, Steps image t 18 18 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
+    ∃ u, Steps image t 17 17 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
   have hk : KnownOK baseK t := ht.known
   obtain ⟨u, hu⟩ := spec_run setupCheckF_ok t ht.pc hk (by simp [setupSpecF]) (by simp)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =

@@ -94,10 +94,10 @@ def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + ch
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 
 theorem layerCost_vals :
-    layerCost 3 0 = 1379 ∧ layerCost 2 0 = 1351 ∧ layerCost 1 0 = 1351 ∧ layerCost 0 0 = 1282 := by decide
+    layerCost 3 0 = 1378 ∧ layerCost 2 0 = 1351 ∧ layerCost 1 0 = 1351 ∧ layerCost 0 0 = 1282 := by decide
 
 theorem layerFuel_vals :
-    layerFuel 3 = 1797 ∧ layerFuel 2 = 1778 ∧ layerFuel 1 = 1778 ∧ layerFuel 0 = 2405 := by decide
+    layerFuel 3 = 1796 ∧ layerFuel 2 = 1778 ∧ layerFuel 1 = 1778 ∧ layerFuel 0 = 2405 := by decide
 
 /-! ## Decode facts -/
 
