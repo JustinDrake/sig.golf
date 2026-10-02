@@ -168,19 +168,20 @@ def cmpPc (c : Nat) : Nat := 38676 + 53 * c
 def cmpBr1 (d : Bool) : Br := ⟨.ne, .ld (kw 384), .ld (kw 160), d⟩
 def cmpBr2 (d : Bool) : Br := ⟨.ne, .ld (kw 392), .ld (kw 168), d⟩
 
-/-- Both doublewords equal: HALT(0) after 8 steps. -/
+/-- High-word difference `ra - sp` after the two high loads (used as HALT exit code). -/
+def hiDiff : E := .bin .sub (.ld (kw 392)) (.ld (kw 168))
+
+/-- Low words equal: fall through `sub a0, ra, sp; li t0, 1; ecall` (7 steps). -/
 def cmpAcc (c : Nat) : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 0)], [], cmpPc c + 8, true, 8, [cmpBr2 false, cmpBr1 false], none, 8⟩
+  ⟨[(.x5, kw 1), (.x10, hiDiff)], [], cmpPc c + 7, true, 7, [cmpBr1 false], none, 7⟩
 /-- The low doublewords differ: HALT(1) after 5 steps. -/
 def cmpRej1 (c : Nat) : Spec :=
   ⟨[(.x5, kw 1), (.x10, kw 1)], [], cmpPc c + 11, true, 5, [cmpBr1 true], none, 5⟩
-/-- The high doublewords differ: HALT(1) after 8 steps. -/
-def cmpRej2 (c : Nat) : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 1)], [], cmpPc c + 11, true, 8, [cmpBr2 true, cmpBr1 false], none, 8⟩
+/-- Alias: high-mismatch uses the same fall-through Spec; semantics read `a0 = hiDiff ≠ 0`. -/
+def cmpRej2 (c : Nat) : Spec := cmpAcc c
 
 def cmpCheck (c : Nat) : Bool :=
-  specB [] [] [] (runAt baseK [] (cmpPc c) [.br false, .br false]) (cmpAcc c) [] [] [] &&
-  specB [] [] [] (runAt baseK [] (cmpPc c) [.br true]) (cmpRej1 c) [] [] [] &&
-  specB [] [] [] (runAt baseK [] (cmpPc c) [.br false, .br true]) (cmpRej2 c) [] [] []
+  specB [] [] [] (runAt baseK [] (cmpPc c) [.br false]) (cmpAcc c) [] [] [] &&
+  specB [] [] [] (runAt baseK [] (cmpPc c) [.br true]) (cmpRej1 c) [] [] []
 
 end SigGolfCandidate.T3M
