@@ -11,7 +11,7 @@ dispatch `lbu gp, 880(a4); slli 5; add s4; jalr s8`); `coord_end_c` at `coordEnd
 (`tailPc X c`, copy `c` = ladder `t` or `2` = `entry0_X`).
 
 Families (each a path run checked by `specB` in `FtsCheck`):
-* `setupCheckF` (359 → 413), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
+* `setupCheck'` (359 → 413), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
   slot address), `slotCheck tb b` (to the pending hash / HALT(1)), `entCheck tb b` (`j lad`), `rungCheck X t r t'`
   (fold `r` to its hash, switching to ladder `t'`), `lastCheck X t` (rung 10 to the destination hash),
   `tailMCheck c d`, `tailPCheck c d`, `tailFCheck c`, `coordCheck c`, `forestCheck`.
@@ -44,12 +44,12 @@ def gkF : List (Reg × Word) :=
 def ckF (c : Nat) : List (Reg × Word) :=
   [(.x27, BitVec.ofNat 64 (0xa01 + 65536 * c)), (.x28, BitVec.ofNat 64 (0x901 + 65536 * c))]
 
-/-- Fully assembled node and leaf address words, reused for every hash in a coordinate. -/
+/-- Fully assembled node and leaf address words, each including the fixed tree index. -/
 def packedCK (c index : Nat) : List (Reg × Word) :=
   [(.x27, BitVec.ofNat 64 (hdr1 (0xa01 + 65536 * c) index)),
    (.x28, BitVec.ofNat 64 (hdr1 (0x901 + 65536 * c) index))]
 
-/-- Both header words depend on the digest index and are tracked by `packedCK`. -/
+/-- Both coordinate words are dynamic packed headers; no per-coordinate compile-time registers remain. -/
 def leafCK (_c : Nat) : List (Reg × Word) := []
 
 def leafPc (s : Nat) : Nat := 413 + 34 * (s / 3) + (if s % 3 = 0 then 0 else if s % 3 = 1 then 10 else 19)
@@ -107,12 +107,25 @@ def swTreeE (tag : E) : E := .bin (.st .w 4) tag (.reg .x22)
 def setupPost : List (Reg × Word) :=
   gkF ++ leafCK 0 ++ [(.x14, BitVec.ofNat 64 A4_0), (.x15, BitVec.ofNat 64 (frameA 0)), (.x25, BitVec.ofNat 64 FOREST)]
 
+/-- T3K: the setup's six constants are loaded from the embedded data (words 359 .. 365: `lui sp, 0x1000` and six
+`ld`, data words 5 .. 10); the rest of the setup is words 366 .. 376 and `j 413` at 377. -/
+def setupLdK : List (Reg × Word) :=
+  baseK ++ [(.x14, BitVec.ofNat 64 A4_0), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x27, BitVec.ofNat 64 0xa01),
+    (.x28, BitVec.ofNat 64 0x901), (.x26, BitVec.ofNat 64 tbN), (.x21, BitVec.ofNat 64 tbL)]
+
+def setupLdSpec : Spec :=
+  ⟨[(.x14, .ld (cw (DATA + 40))), (.x29, .ld (cw (DATA + 48))), (.x27, .ld (cw (DATA + 56))),
+      (.x28, .ld (cw (DATA + 64))), (.x26, .ld (cw (DATA + 72))), (.x21, .ld (cw (DATA + 80)))],
+    [], 366, false, 7, [], none, 7⟩
+
+def setupLdCheckF : Bool := specB [] [] baseK (runAt baseK [366] 359 []) setupLdSpec [] baseK [.x22]
+
 def setupSpecF : Spec :=
   ⟨[(.x27, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0xa01)),
     (.x28, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0x901))],
-    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 413, false, 20, [], none, 20⟩
+    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 413, false, 12, [], none, 12⟩
 
-def setupCheckF : Bool := specB [] [] gkF (runAt baseK [413] 359 []) setupSpecF [] setupPost [.x22]
+def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [413] 366 []) setupSpecF [] setupPost [.x22]
 
 /-! ## Leaf code (to the dispatch) -/
 
@@ -295,7 +308,7 @@ def forestSpecF : Spec :=
     655, true, 7, [capBr false], none, 7⟩
 
 def forestCheckF : Bool :=
-  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] (baseK ++ [(.x6, 1)]) [.x22] &&
+  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] baseK [.x22] &&
   specB [] [] [] (runAt gkF [] forestPc [.br true]) (rejSpec 4 [capBr true]) [] [] []
 
 end SigGolfCandidate.T3M.Verify
