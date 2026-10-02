@@ -334,6 +334,14 @@ def headJ (rb : Reg) (off : Word) (first : Bool) (tgt : Nat) : Result :=
     [(kAt rb off 24, .reg .x4), (kAt rb off 16, s9E first)],
     [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8]⟩, .c (pcOf tgt), .jump, 6, 6⟩
 
+/-- Top table head: digit2's terminal rung replaces `a2` before HASH, so omit its initial load. -/
+def headJ2 (rb : Reg) (off : Word) (first : Bool) (d : Nat) (tgt : Nat) : Result :=
+  if d = 2 then
+    ⟨⟨(RegFile.init.set .x10 (addC (.reg rb) off)).set .x25 (s9E first),
+      [(kAt rb off 24, .reg .x4), (kAt rb off 16, s9E first)],
+      [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8]⟩, .c (pcOf tgt), .jump, 5, 5⟩
+  else headJ rb off first tgt
+
 /-- An inline chain head (with the bump) and its first rung, step `d` (`slot` = the leaf-pk slot when `d` is
 the last step), up to the rung's `ecall` (6 or 7 steps from `p`). -/
 def headR (rb : Reg) (off : Word) (d : Nat) (slot : Option Nat) (p : Nat) : Result :=
@@ -400,10 +408,10 @@ def xJ (w : Reg) (b : Nat) (mreg : Reg) (imm : Word) : Result :=
     .bin .and (.bin .add (.bin .add (.bin .and (shE w b) (.reg mreg)) (.reg .x15)) (.c imm)) (.c (~~~1#64)),
     .jump, (if b = 9 then 3 else 4), (if b = 9 then 3 else 4)⟩
 
-/-- After triple 13: `slli a4, t4, 5; add a4, a4, a5; jalr zero, -2048(a4)` into `ctab` (3 steps). -/
+/-- After triple 13: `slli a4, t4, 5; sub a4, a5, a4; jalr zero, -1824(a4)` into `ctab` (3 steps; `t4 = 7 - ck`). -/
 def ctabX : Result :=
-  ⟨⟨RegFile.init.set .x14 (.bin .add (.bin .sll (.reg .x29) (.c 5)) (.reg .x15)), [], []⟩,
-    .bin .and (.bin .add (.bin .add (.bin .sll (.reg .x29) (.c 5)) (.reg .x15)) (.c (-2048))) (.c (~~~1#64)),
+  ⟨⟨RegFile.init.set .x14 (.bin .sub (.reg .x15) (.bin .sll (.reg .x29) (.c 5))), [], []⟩,
+    .bin .and (.bin .add (.bin .sub (.reg .x15) (.bin .sll (.reg .x29) (.c 5))) (.c (-1824))) (.c (~~~1#64)),
     .jump, 3, 3⟩
 
 /-- After quad 11: `srli a4, a7, 29; andi a4, a4, 0x60; add a4, a4, a5; jalr zero, -1760(a4)` into `q48tab`. -/
@@ -513,7 +521,7 @@ def qentCheck (q k : Nat) : Bool :=
     rOK (vrun (qentW q k) 7)
       (copyJ .x19 (offT (4 * q)) (slotT (4 * q)) (q == 0) (qpcB q (k / 4 % 4) (k / 16 % 4) (k / 64)))
   else rOK (vrun (qentW q k) 7)
-    (headJ .x19 (offT (4 * q)) (q == 0) (quadBase q (k / 4 % 4) (k / 16 % 4) (k / 64) + 2 * (k % 4)))
+    (headJ2 .x19 (offT (4 * q)) (q == 0) (k % 4) (quadBase q (k / 4 % 4) (k / 16 % 4) (k / 64) + 2 * (k % 4)))
 
 /-- After chain `D` of quad `q`: the dispatch of quad `q + 1` or (`q = 11`) of chain 48. -/
 def qxOK (q dB dC dD : Nat) : Bool :=
@@ -534,7 +542,7 @@ def quadCheck (q lo n : Nat) : Bool :=
 
 /-- Chain 48 of the top: `q48tab` (digit `< 3` head, 3 copy), its rungs, `q48_done`. -/
 def q48Check : Bool :=
-  ((List.range 3).all fun d => rOK (vrun (q48tabIdx + 8 * d) 7) (headJ .x19 (offT 48) false (q48R0 + 2 * d))) &&
+  ((List.range 3).all fun d => rOK (vrun (q48tabIdx + 8 * d) 7) (headJ2 .x19 (offT 48) false d (q48R0 + 2 * d))) &&
     rOK (vrun (q48tabIdx + 24) 7) (copyJ .x19 (offT 48) (slotT 48) false q48Done) &&
     rungsOK2 0 (slotT 48) q48R0 && rOK (vrun q48Done 6) q48D
 
