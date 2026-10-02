@@ -5,7 +5,7 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
-The claim C=10296 is accepting verifier bound10241 plus witness charge55.
+The claim C=10291 is accepting verifier bound10244 plus witness charge55.
 This candidate retains the accepted ordered root-children message construction and adds
 length-separated leaf header reuse, a preserved selector threshold, a reversible
 top heap address reflection, carried upper-layer leaf headers, and rotated encoding
@@ -88,10 +88,10 @@ theorem witness_bytes : submission.sizes.witness = 14080 := rfl
 theorem cache_bytes : submission.sizes.cache = 131072 := rfl
 
 theorem layout_offsets : submission.layout =
-  { message := 64, secretKey := 128, publicKey := 160,
+  { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4352 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10296 :=
+theorem certificate : SigGolf.Certificate submission 10291 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

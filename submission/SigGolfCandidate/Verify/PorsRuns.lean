@@ -383,15 +383,15 @@ def k0 : List (Reg × Word) :=
 /-- Digest phase: witness bases and `P1 .. P5`. Before the PORS leaves `x18 = 0xFDF` (the data base `0xFDFFE0 >> 12`; the prologue's `x18`-relative
 offsets are rebased by `+32`); the relocated leaf head restores `x18 = 0xFFF` (`baseK`). -/
 def gkD : List (Reg × Word) := [(.x5, 0), (.x19, 7), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x2, 0xFDFFB0)]
-def dgK : List (Reg × Word) := gkD ++ [(.x18, 0xFDF), (.x10, 0x20), (.x11, 64), (.x12, 0), (.x15, 0)]
+def dgK : List (Reg × Word) := gkD ++ [(.x18, 0xFDF), (.x10, 0), (.x11, 64), (.x12, 0), (.x15, 0)]
 
 /-- The counters (W1a): `c0 .. c3` as two doublewords at `WIT + 2944`, `c4` as a word at `WIT + 2392`. -/
 def ctrX : E := .bin .or (.bin .or (ldE 4992) (ldE 5000)) (.un (.ld .wu 0) (ldE 4368))
 def ctrE' : E := .bin .srl (.bin .or ctrX (.bin .sll ctrX (cw 32))) (cw 54)
 
 def specStartOk : Spec :=
-  ⟨[], [(⟨none, BitVec.ofNat 64 56⟩, ldE 5064), (⟨none, BitVec.ofNat 64 48⟩, ldE 5056),
-    (⟨none, BitVec.ofNat 64 32⟩, cw 3073)], 24, true, 24, [⟨.ne, ctrE', .c 0, false⟩], none, 24⟩
+  ⟨[], [(⟨none, BitVec.ofNat 64 24⟩, ldE 5064), (⟨none, BitVec.ofNat 64 16⟩, ldE 5056),
+    (⟨none, BitVec.ofNat 64 0⟩, cw 3073)], 23, true, 23, [⟨.ne, ctrE', .c 0, false⟩], none, 23⟩
 def specStartRej : Spec :=
   ⟨[(.x5, cw 1), (.x10, cw 1)], [], rejectPc + 2, true, 18, [⟨.ne, ctrE', .c 0, true⟩], none, 18⟩
 
@@ -432,11 +432,11 @@ def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 4992), (.x15, 0),
     (.x18, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 99, [], none, 99⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 98, [], none, 98⟩
 
 def startCheck : Bool :=
   specB gkD (runAt k0 [] 0 [.br false]) specStartOk dgK [] &&
   specB [] (runAt k0 [] 0 [.br true]) specStartRej [] [] &&
-  specB gkD (runAt dgK [leafPc 0] 25 []) setupSpec setupPost []
+  specB gkD (runAt dgK [leafPc 0] 24 []) setupSpec setupPost []
 
 end SigGolfCandidate.Verify

@@ -177,15 +177,20 @@ def specRej2 (out hi : Nat) (lay : Nat) : Spec :=
 chunk 0. -/
 def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay < 4 then 7 else 8
 
+def leafRawSteps (lay : Nat) : Nat := if lay < 4 then 7 else 8
+
+def topDispTgt : E :=
+  mkBin .and (mkAdd (mkBin .sll (.reg .x23) (cw 3)) (cw 779264)) (.c (~~~1#64))
+
 def leafK (lay : Nat) : List (Reg × Word) := chK0 ++ [(.x27, 0x40401), (.x22, BitVec.ofNat 64 (s6N lay))]
 
 def specLeaf (lay : Nat) : Spec :=
   ⟨[(.x10, cw 832), (.x11, cw 704)],
    [(⟨none, BitVec.ofNat 64 840⟩, .reg .x31)] ++
      (if lay < 4 then [] else [(⟨none, BitVec.ofNat 64 832⟩, cw (hWord lay + 768))]),
-   0, false, leafSteps lay, [], some (dispTgt lay 0), leafSteps lay⟩
+   0, false, leafRawSteps lay, [], some (if lay = 0 then topDispTgt else dispTgt lay 0), leafRawSteps lay⟩
 
-def leafKeep : List Reg := [.x16, .x17, .x23, .x30, .x31]
+def leafKeep : List Reg := [.x17, .x23, .x30, .x31]
 def leafPost (lay : Nat) : List (Reg × Word) :=
   fk false 0x340 704 ++ [(.x27, 0x40401), (.x22, BitVec.ofNat 64 (s6N lay))]
 

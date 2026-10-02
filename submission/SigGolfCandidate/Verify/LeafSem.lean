@@ -73,6 +73,73 @@ theorem chainNext_42 {c : CCtx} {acc : List Val} {s : MachineState} (h : ChainNe
     ChBase c 42 acc s ∧ Fresh c.wl c.lay 42 s ∧ s.pc = c.ret := by
   unfold ChainNext at h; rwa [if_neg (by omega)] at h
 
+def leafEntrySpec (lay : Nat) : Spec :=
+  { specLeaf lay with steps := leafSteps lay, cycles := leafSteps lay, spc := some (dispTgt lay 0) }
+
+set_option maxHeartbeats 0 in
+theorem topDispVal_tab : ∀ E, E < 2048 →
+    (((BitVec.ofNat 64 (4095 - E) <<< 3) + BitVec.ofNat 64 779264) &&& ~~~1#64) =
+      pcOf (topSlotPc E) := by decide +kernel
+
+theorem leaf_dispatch_run (lay t E : Nat) (hlay : lay < 5) (ht : t < nCopy lay)
+    (hE : E < 2 ^ heightL lay) (s : MachineState) (hpc : s.pc = pcOf (retPc lay t))
+    (hK : KnownOK (leafK lay) s) (h23 : s.getReg .x23 = BitVec.ofNat 64 (heapU lay E)) :
+    ∃ u, SpecRes gkL (leafEntrySpec lay) (leafPost lay) leafKeep s u ∧
+      (lay = 0 → u.getReg .x16 = pcOf (topSlotPc E + 1)) := by
+  obtain ⟨u0, hu⟩ := spec_run (lc_leaf hlay ht) s hpc hK (by simp [specLeaf])
+  by_cases h0 : lay = 0
+  · subst lay
+    have he : E < 2048 := by simpa [heightL] using hE
+    have hpSlot : u0.pc = pcOf (topSlotPc E) := by
+      rw [hu.spc topDispTgt (by simp [specLeaf])]
+      have hv := topDispVal_tab E he
+      simpa [topDispTgt, mkBin_eval, mkAdd_eval, BinOp.eval, Rv.E.eval, cw, h23, heapU, heightL] using hv
+    have hkSlot : KnownOK (foldK 0 704) u0 := by
+      intro p hp
+      apply hu.known p
+      simp only [foldK, fk, gkOf, leafPost, s6N_eq, List.mem_append, List.mem_singleton] at hp ⊢
+      aesop
+    obtain ⟨u, hs⟩ := slotEnter_run E he u0 hpSlot hkSlot
+    refine ⟨u, ?_, ?_⟩
+    · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      · simpa [leafEntrySpec, specLeaf, leafRawSteps, leafSteps, slotEnterSpec] using hu.steps.trans hs.steps
+      · intro hec; simp [leafEntrySpec, specLeaf] at hec
+      · intro gk0 wl pk hg; exact hs.glob _ _ _ (hu.glob _ _ _ hg)
+      · intro wl hw; exact hs.wall _ (hu.wall _ hw)
+      · intro p hp
+        simp only [leafPost, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
+        rcases hp with hp | hp | hp
+        · exact hs.known p (by simpa [foldK, fk, gkOf] using List.mem_append_left [(.x22, BitVec.ofNat 64 (6336 + 2688 * 0))] hp)
+        · subst hp
+          rw [hs.keep .x27 (by simp [slotEnterKeep])]
+          exact hu.known (.x27, 0x40401#64) (by simp [leafPost])
+        · subst hp
+          rw [s6N_eq]
+          exact hs.known _ (by simp [foldK])
+      · intro x hx
+        exact (hs.keep x (by
+          simp only [leafKeep, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hx
+          rcases hx with rfl | rfl | rfl | rfl <;> simp [slotEnterKeep])).trans (hu.keep x hx)
+      · intro p hp
+        simp only [leafEntrySpec, specLeaf, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
+        rcases hp with rfl | rfl
+        · exact hs.known (.x10, BitVec.ofNat 64 832) (by simp [foldK, fk])
+        · exact hs.known (.x11, BitVec.ofNat 64 704) (by simp [foldK, fk])
+      · intro A
+        rw [hs.mem A]; exact hu.mem A
+      · intro hn; simp [leafEntrySpec] at hn
+      · intro e heq
+        simp only [leafEntrySpec, Option.some.injEq] at heq
+        subst e
+        rw [hs.pc rfl]
+        simpa [slotEnterSpec, chB0, chBits] using
+          (disp_eval 0 0 (by decide) (by decide) E hE s h23).symm
+    · intro _
+      have hr := hs.regs (.x16, cw (0x1000 + 4 * (topSlotPc E + 1))) (by simp [slotEnterSpec])
+      simpa [cw, Rv.E.eval, pcOf] using hr
+  · refine ⟨u0, ?_, fun h => (h0 h).elim⟩
+    simpa [leafEntrySpec, specLeaf, leafRawSteps, leafSteps, h0] using hu
+
 theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : BitVec 256) (ends : List Val)
     (s : MachineState) (hs : ChainNext (L.cctx t a) 42 ends s) :
     ∃ u, Steps image s (leafSteps L.lay + 1) (leafSteps L.lay + 1) u ∧ fetch image u = some (.base .ECALL) ∧
@@ -96,7 +163,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
   have hh := heightL_le L.lay hlay
   have hpw : 2 ^ heightL L.lay ≤ 2 ^ 11 := Nat.pow_le_pow_right (by decide) hh.2
   have heh : L.e < 2 ^ heightL L.lay := Nat.mod_lt _ (Nat.two_pow_pos _)
-  obtain ⟨u1, hu⟩ := spec_run (lc_leaf hlay ht) s hpc' hKl (by simp [specLeaf])
+  obtain ⟨u1, hu, hlink⟩ := leaf_dispatch_run L.lay t L.e hlay ht heh s hpc' hKl h23
   -- the dispatch into block `e mod 2^bits` of chunk 0
   have hpc1 : u1.pc = pcOf (m4Pc L.lay 0 (L.e / 2 ^ chB0 L.lay 0 % 2 ^ chBits L.lay 0) 0) := by
     rw [hu.spc _ rfl]
@@ -128,12 +195,12 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
   have h11 : u.getReg .x11 = BitVec.ofNat 64 (64 * (10 + 1)) := hK2'.1 (.x11, _) (by simp [foldK, fk])
   have h12 : u.getReg .x12 = BitVec.ofNat 64 (0x360 + 16 * (L.e % 2)) := by
     rw [← hdv]; exact hK2'.2 _ (List.mem_singleton_self _)
-  have hmem : ∀ A, u.getMem A = memEval s (specLeaf L.lay).mem A := fun A => (hmem2 A).trans (hu.mem A)
+  have hmem : ∀ A, u.getMem A = memEval s (leafEntrySpec L.lay).mem A := fun A => (hmem2 A).trans (hu.mem A)
   have hkp : ∀ x ∈ leafKeep, u.getReg x = s.getReg x := by
     intro x hx
     have hx' : x ∈ fkeep false := by
       simp only [leafKeep, List.mem_cons, List.not_mem_nil, or_false] at hx
-      rcases hx with rfl | rfl | rfl | rfl | rfl <;> simp [fkeep]
+      rcases hx with rfl | rfl | rfl | rfl <;> simp [fkeep]
     exact (hkeep2 x hx').trans (hu.keep x hx)
   have h27u : u.getReg .x27 = 0x40401#64 := by
     rw [hkeep2 .x27 (by simp [fkeep])]
@@ -144,17 +211,17 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
   have hm0 : u.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 (Ref.LeafCarry.leafHeader L.lay) := by
     rw [hmem]
     by_cases h4 : L.lay < 4
-    · simp only [specLeaf, if_pos h4, List.append_nil]
+    · simp only [leafEntrySpec, specLeaf, if_pos h4, List.append_nil]
       rw [memEval_cons_ne _ _ _ _ _ (by bvne)]
       simpa only [Ref.LeafCarry.leafHeader, if_pos h4, memEval, LCtx.cctx] using hCB h4
     · have heq : L.lay = 4 := by omega
-      simp only [specLeaf, if_neg h4, List.cons_append, List.nil_append]
+      simp only [leafEntrySpec, specLeaf, if_neg h4, List.cons_append, List.nil_append]
       rw [memEval_cons_ne _ _ _ _ _ (by bvne), memEval_cons_eq _ _ _ _ _ rfl]
       simp only [Rv.E.eval, cw, heq]
       rfl
   have hm1 : u.getMem (BitVec.ofNat 64 840) = s.getReg .x31 := by
     rw [hmem]
-    simp only [specLeaf, List.cons_append]
+    simp only [leafEntrySpec, specLeaf, List.cons_append]
     rw [memEval_cons_eq _ _ _ _ _ rfl]
     rfl
   have mfr : ∀ A, A < 2 ^ 64 → A ≠ 840 → A ≠ 832 →
@@ -163,7 +230,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     rw [hmem, memEval_frame_ofNat _ _ _ hA (by
       intro p hp
       by_cases h4 : L.lay < 4 <;>
-        simp only [specLeaf, h4, if_true, if_false, List.mem_append, List.mem_cons,
+        simp only [leafEntrySpec, specLeaf, h4, if_true, if_false, List.mem_append, List.mem_cons,
           List.not_mem_nil, or_false, false_or] at hp
       · rcases hp with rfl; simp; omega
       · rcases hp with rfl | rfl <;> simp <;> omega)]
@@ -214,7 +281,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       simp only [layFC, hbit]
     refine ⟨⟨Glob_writeHash hGu ans _ h12 (by
         rcases Nat.mod_two_eq_zero_or_one L.e with h | h <;> rw [h] <;> decide),
-      ?_, ?_, ?_, ?_, ?_, ?_, by simp, ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩, ?_, hFresh, ?_⟩, ?_, ?_, ?_, hFresh, ?_, ?_⟩
+      ?_, ?_, ?_, ?_, ?_, ?_, by simp, ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩, ?_, hFresh, ?_, ?_⟩, ?_, ?_, ?_, hFresh, ?_, ?_⟩
     · have := Known_writeHash hK2'.1 ans
       simpa [lvlK, layFC] using this
     · rw [writeHash_getReg, hkp .x23 (by simp [leafKeep])]; exact h23
@@ -234,6 +301,9 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       simp only [FCtx.X, FCtx.ci, FCtx.kk, FCtx.blk, layFC, hc0, Nat.zero_sub]
       try rfl
     · rw [hvA, writeHash_getReg]; exact h12
+    · intro h0
+      rw [writeHash_getReg, hkeep2 .x16 (by simp [fkeep])]
+      exact hlink h0
     · rw [writeHash_getReg]; exact h27u
     · rw [writeHash_getReg, hkp .x30 (by simp [leafKeep])]; exact h30
     · intro h4
