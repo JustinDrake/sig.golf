@@ -1,4 +1,3 @@
-import SigGolfCandidate.T3M.Verify.Swar7
 import SigGolfCandidate.T3M.Verify.LayerCheck
 import SigGolfCandidate.T3M.Verify.ChainGood
 import SigGolfCandidate.T3M.Verify.ChainQGood
@@ -393,13 +392,8 @@ theorem sumE_eval {u : MachineState} {a : BitVec 256} (h : AnsAt u a) (hr : ansV
     simp only [b1E, E.eval, BinOp.eval, a7E_eval h, kw]
     rw [toNat_sll _ 1 (by norm_num), ← ansV_hi]
     rw [Nat.mod_eq_of_lt (by omega)]; ring
-  have hsw : sw1E.eval u = sw1RefE.eval u := by
-    have he : (BitVec.ofNat 64 3).toNat % 64 = 3 := by decide
-    simp only [sw1E, swLowE, sw1RefE, E.eval, BinOp.eval, kw, M1c, he]
-    exact swar7_eq _ _ (by rw [hb]; omega)
   have hs1 : (sw1E.eval u).toNat = sw1 (ansV a % 2 ^ 64) (2 * (ansV a / 2 ^ 64)) := by
-    rw [hsw]
-    simp only [sw1RefE, E.eval, BinOp.eval, kw]
+    simp only [sw1E, E.eval, BinOp.eval, kw]
     rw [BitVec.toNat_add, BitVec.toNat_add, BitVec.toNat_add, toNat_andc _ _ (by norm_num [M1c]),
       toNat_andc _ _ (by norm_num [M1c]), toNat_andc _ _ (by norm_num [M1c]), toNat_andc _ _ (by norm_num [M1c]),
       toNat_srl _ 3 (by norm_num), toNat_srl _ 3 (by norm_num)]
@@ -575,8 +569,8 @@ for `lctxOf`. -/
 theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay : lay ≠ 0) (c : Nat) (hc : c < nCopy lay.val)
     (hidx : index < 2 ^ 31) (t : MachineState) (ht : EncPre w pk index lay.val c t) (a : BitVec 256) :
     (decode lay (a.extractLsb' 0 128) = none → ∃ v k cy, Steps image (writeHash t a) k cy v ∧
-        fetch image v = some (.base .ECALL) ∧ v.getReg .x5 = 1 ∧ v.getReg .x10 = 1 ∧ k ≤ 23 ∧ cy ≤ 26) ∧
-    (decode lay (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 29 32 s0 ∧
+        fetch image v = some (.base .ECALL) ∧ v.getReg .x5 = 1 ∧ v.getReg .x10 = 1 ∧ k ≤ 25 ∧ cy ≤ 28) ∧
+    (decode lay (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 31 34 s0 ∧
         (lctxOf w index lay a (trPc lay.val c)).ok ∧
         (∀ p ∈ (lctxOf w index lay a (trPc lay.val c)).known, s0.getReg p.1 = p.2) ∧
         (lctxOf w index lay a (trPc lay.val c)).Orig0 s0 ∧
@@ -615,7 +609,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
         rcases hb with rfl | rfl
         · exact (ckBr_iff hans hr' lay true).mpr (by rw [decide_eq_true hck])
         · exact (rngBr_iff hans 62 (by norm_num) false).mpr (by rw [decide_eq_false hr])) (by simp)
-      exact ⟨v, 23, 26, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejCk]),
+      exact ⟨v, 25, 28, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejCk]),
         hv.regs (.x10, kw 1) (by simp [rejCk]), by norm_num, by norm_num⟩
   · intro hsome
     have hr0 : (a.extractLsb' 64 64).toNat / 2 ^ 62 = 0 := by
