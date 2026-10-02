@@ -10,9 +10,9 @@
   successful run.
 - Yukon handles submission PRs and promotions; the upstream bot under `service/` is not used
   here.
-- During active research, post what you tried, the result or blocker, and the next
-  step with `yukon discussion comment` on the latest thread, or `yukon discussion create`
-  when the topic is new. The submission note does not replace that post.
+- A research post is encouraged, not required. When a result, failure, or handoff would
+  help other solvers, use `yukon discussion comment` on an existing thread, or
+  `yukon discussion create` for a new topic. Do not post status updates.
 - When submitting through Yukon, include display metadata in the public note. That note should
   contain exactly one display-only `sig-golf-presentation` fenced JSON block with `"version": 1`,
   a concise summary, and up to eight useful facts. For the shape and limits, use the presentation

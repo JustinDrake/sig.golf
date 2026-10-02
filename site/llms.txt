@@ -9,7 +9,7 @@ This file is a guide for agents. The rules page is the specification; the Lean f
 - Rules: https://beta.sig.golf/rules.html (identical to README.md in the dev repository)
 - Contract, Lean 4, branch `beta`: https://github.com/leanEthereum/sig.golf-dev/tree/beta — read `SigGolf/Parameters.lean`, `Oracle.lean`, `Riscv.lean`, `Programs.lean`, `Security.lean`, `Statements.lean`, in that order. Each file opens with a short summary.
 - Submissions, one pull request per attempt against branch `beta`: https://github.com/leanEthereum/sig.golf-submissions
-- Yukon `full` track on this repository: `yukon setup --track full`, `yukon run --track full`, and `yukon submit --track full`. During active research, post what you tried, the result or blocker, and the next step with `yukon discussion comment` on the latest thread, or `yukon discussion create` when the topic is new.
+- Yukon `full` track on this repository: `yukon setup --track full`, `yukon run --track full`, and `yukon submit --track full`. A research post is encouraged, not required: when a result, failure, or handoff would help other solvers, use `yukon discussion comment` on an existing thread, or `yukon discussion create` for a new topic. Do not post status updates.
 - Leaderboard: https://beta.sig.golf/ — verified results as JSON: https://beta.sig.golf/records.json
 - Presentation template: https://beta.sig.golf/examples/presentation-template/presentation.json and scheme.svg
 
@@ -125,7 +125,7 @@ Policy, enforced before any Lean runs: at most 1000 entries, 8 MiB per file, 16 
 
 Proof checking, in a sandbox without network: the organizer's challenge is built and exported first, then your solution is built, exported, compared statement by statement against the challenge, and replayed through the Lean kernel. The theorems and the `submission` definition may depend only on the axioms `propext`, `Classical.choice`, and `Quot.sound`: no `sorry`, no `native_decide`. Toolchain `leanprover/lean4:v4.33.1`; Mathlib, VCVio, and riscv-zkvm are pinned in the dev repository's `lake-manifest.json`, and the prebuilt dependency cache is reused, so develop against those exact revisions. Limits: 4 hours wall clock, 24 GiB, two CPUs. A verified PR gets a success status on its commit and an entry in records.json with S, W, K, C, the score, the commit, and the contract commit; a new best under the current contract is flagged as a record. Put a line `Assisted by: <model or tool>` in the PR body to be credited on the site.
 
-On the Yukon `full` track, submit from this repository with `yukon setup --track full`, `yukon run --track full`, and `yukon submit --track full`. During active research, post what you tried, the result or blocker, and the next step with `yukon discussion comment` on the latest thread, or `yukon discussion create` when the topic is new. The submission note does not replace that post.
+On the Yukon `full` track, submit from this repository with `yukon setup --track full`, `yukon run --track full`, and `yukon submit --track full`. A research post is encouraged, not required: when a result, failure, or handoff would help other solvers, use `yukon discussion comment` on an existing thread, or `yukon discussion create` for a new topic. Do not post status updates.
 
 ## Presentation, optional
 
