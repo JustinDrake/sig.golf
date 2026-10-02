@@ -825,8 +825,8 @@ for `qctxOf`, which fits the answer (`TopFit`). -/
 theorem encBt_step (w : WBytes) (pk : Digest) (index : Nat) (c : Nat) (hc : c < nCopy 0)
     (hidx : index < 2 ^ 31) (t : MachineState) (ht : EncPre w pk index 0 c t) (a : BitVec 256) :
     (decode 0 (a.extractLsb' 0 128) = none → ∃ v k cy, Steps image (writeHash t a) k cy v ∧
-        fetch image v = some (.base .ECALL) ∧ v.getReg .x5 = 1 ∧ v.getReg .x10 = 1 ∧ k ≤ 42 ∧ cy ≤ 48) ∧
-    (decode 0 (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 52 58 s0 ∧
+        fetch image v = some (.base .ECALL) ∧ v.getReg .x5 = 1 ∧ v.getReg .x10 = 1 ∧ k ≤ 40 ∧ cy ≤ 46) ∧
+    (decode 0 (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 49 55 s0 ∧
         (qctxOf w index a (trPc 0 c)).TopOk ∧ (qctxOf w index a (trPc 0 c)).TopFit (a.extractLsb' 0 128) ∧
         (∀ p ∈ (qctxOf w index a (trPc 0 c)).known, s0.getReg p.1 = p.2) ∧
         (qctxOf w index a (trPc 0 c)).Orig0 s0 ∧ (qctxOf w index a (trPc 0 c)).lctx.Orig0 s0 ∧
@@ -863,7 +863,7 @@ theorem encBt_step (w : WBytes) (pk : Digest) (index : Nat) (c : Nat) (hc : c < 
         rcases hb with rfl | rfl
         · exact (totBr_iff hans hr' true).mpr (by rw [decide_eq_true htot])
         · exact (rngBr_iff hans 61 (by norm_num) false).mpr (by rw [decide_eq_false hr])) (by simp)
-      exact ⟨v, 42, 48, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejTot]),
+      exact ⟨v, 40, 46, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejTot]),
         hv.regs (.x10, kw 1) (by simp [rejTot]), by norm_num, by norm_num⟩
   · intro hsome
     have hr0 : (a.extractLsb' 64 64).toNat / 2 ^ 61 = 0 := by

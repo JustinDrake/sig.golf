@@ -234,7 +234,7 @@ def ChainNext (c : LCtx) (s0 : MachineState) (j : Nat) (acc : List Digest) (s : 
   if j ≤ 42 then c.ChainIn s0 j acc s else c.ChainOut s0 43 acc s
 
 /-- The dispatch after code chain `i`: after a triple's `C` 4 (after triple 13: 3), after chain 42 the return 1. -/
-def xCost (i : Nat) : Nat := if i = 42 then 1 else if i % 3 = 2 then (if i = 41 then 3 else 4) else 0
+def xCost (i : Nat) : Nat := if i = 42 then 1 else if i % 3 = 2 then (if i = 41 ∨ i = 2 ∨ i = 23 then 3 else 4) else 0
 
 theorem xCost_le (i : Nat) : xCost i ≤ 4 := by unfold xCost; split_ifs <;> omega
 
@@ -268,7 +268,8 @@ theorem end_next (c : LCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.kn
           unfold tX; rw [show (3 * t + 2) / 3 = t by omega]
         rw [← htx] at hrun
         obtain ⟨u, hst, hu⟩ := c.x_step hc hk t (by omega) hi.1 (by have := c.tX_lt (3 * t + 2); omega) hrun acc s hs
-        refine ⟨u, by simpa [xCost, h42, h41] using hst, ?_⟩
+        have he : (9 * ((t + 1) % 7) = 9) ↔ (3 * t + 2 = 2 ∨ 3 * t + 2 = 23) := by omega
+        refine ⟨u, by simpa [xCost, h42, h41, he] using hst, ?_⟩
         unfold ChainNext; rw [if_pos (by omega), show 3 * t + 2 + 1 = 3 * t + 3 by ring]; exact hu
     · refine ⟨s, by simpa [xCost, h42, h2] using Steps.refl s, ?_⟩
       unfold ChainNext; rw [if_pos (by omega)]
@@ -582,15 +583,15 @@ theorem chainsCost_add (c : LCtx) (hck : c.ck < 8) : ∀ k i, i + k ≤ 43 →
     simp only [chainsCost, List.range'_succ, List.map_cons, List.sum_cons] at h ⊢
     omega
 
-theorem cbase_sum43 : ((List.range' 0 43).map cbase).sum = 3038 := by decide
+theorem cbase_sum43 : ((List.range' 0 43).map cbase).sum = 3036 := by decide
 theorem cbase_sum_top : ((List.range' 33 9).map cbase).sum = 635 := by decide
 
 /-- The weighted number of maximal digits of the code chains `i .. i + k - 1`. -/
 def zSum (c : LCtx) (i k : Nat) : Nat := ((List.range' i k).map fun j => zc j (c.dig j)).sum
 
-/-- **The chain phase of a lower layer**: `3038 - 9 target - Z` (the 43 digits sum to the target). -/
+/-- **The chain phase of a lower layer**: `3036 - 9 target - Z` (the 43 digits sum to the target). -/
 theorem chainsCost_lower (c : LCtx) (hck : c.ck < 8) (T : Nat) (hT : ((List.range' 0 43).map c.dig).sum = T) :
-    c.chainsCost 0 42 + chainCost 42 c.ck + 9 * T + c.zSum 0 43 = 3038 := by
+    c.chainsCost 0 42 + chainCost 42 c.ck + 9 * T + c.zSum 0 43 = 3036 := by
   have h := c.chainsCost_add hck 43 0 (le_refl _)
   rw [hT, cbase_sum43] at h
   have e : c.chainsCost 0 43 = c.chainsCost 0 42 + chainCost 42 c.ck := by
