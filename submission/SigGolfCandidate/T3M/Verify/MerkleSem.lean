@@ -232,9 +232,8 @@ theorem mkKeep_sub (l : List Reg) : ∀ r ∈ mkKeep, r ∈ mkKeep ++ l := fun r
 theorem lvlMem_read (lay ci sh l : Nat) (s : MachineState) (A : Nat) (hA : A < 2 ^ 64) (hB : mkBlk lay l + 24 < 2 ^ 64) :
     memEval s (mkLvlMem lay ci sh l) (BitVec.ofNat 64 A) =
       if A = mkBlk lay l + 24 then
-        StoreKind.merge .w (StoreKind.merge .w (s.getMem (BitVec.ofNat 64 (mkBlk lay l + 24))) 0 (s.getReg .x30)) 4
-          ((mkHeapE lay ci sh l).eval s)
-      else if A = mkBlk lay l + 16 then BitVec.ofNat 64 (hw 3 lay) else s.getMem (BitVec.ofNat 64 A) := by
+        (mkHeapE lay ci sh l).eval s
+      else if A = mkBlk lay l + 16 then StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (s.getReg .x30) else s.getMem (BitVec.ofNat 64 A) := by
   unfold mkLvlMem
   rw [memEval_cons_ofNat _ _ _ _ _ hA hB, memEval_cons_ofNat _ _ _ _ _ hA (by omega), memEval_nil]
   rfl
@@ -258,9 +257,8 @@ theorem lvl_input (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Ma
   obtain ⟨hB8, hBlo, hBhi, -, -, -, -⟩ := mkBo_facts lay.val k hlay hk
   have hrd : ∀ A, A < 2 ^ 64 → t.getMem (BitVec.ofNat 64 A) =
       if A = mkBlk lay.val k + 24 then
-        StoreKind.merge .w (StoreKind.merge .w (s.getMem (BitVec.ofNat 64 (mkBlk lay.val k + 24))) 0 (s.getReg .x30)) 4
-          ((mkHeapE lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) k).eval s)
-      else if A = mkBlk lay.val k + 16 then BitVec.ofNat 64 (hw 3 lay.val) else s.getMem (BitVec.ofNat 64 A) :=
+        (mkHeapE lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) k).eval s
+      else if A = mkBlk lay.val k + 16 then StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay.val)) 4 (s.getReg .x30) else s.getMem (BitVec.ofNat 64 A) :=
     fun A hA => (hmem _).trans (lvlMem_read _ _ _ _ s A hA (by unfold mkBlk; omega))
   have hfr : ∀ A, A < 2 ^ 64 → A ≠ mkBlk lay.val k + 24 → A ≠ mkBlk lay.val k + 16 →
       t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
@@ -268,14 +266,29 @@ theorem lvl_input (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Ma
   have h30 : s.getReg .x30 = BitVec.ofNat 64 (route index lay).2 := (hs.keep .x30 (by simp [mkKeep])).trans ht5
   have h23 : s.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay.val + (route index lay).1) :=
     (hs.keep .x23 (by simp [mkKeep])).trans hs7
-  have hT1 : t.getMem (BitVec.ofNat 64 (mkBlk lay.val k + 24)) = BitVec.ofNat 64 (hdr1 (route index lay).2
-      (2 ^ (height lay - k - 1) + (route index lay).1 / 2 ^ (k + 1))) := by
-    rw [hrd _ (by unfold mkBlk; omega), if_pos rfl, h30,
-      mkHeapE_eval lay.val (route index lay).1 k hlay hleaf hk s h23, merge_sw2, hL_eq]
-  have hT0 : t.getMem (BitVec.ofNat 64 (mkBlk lay.val k + 16)) = BitVec.ofNat 64 (hdr0 3 lay.val (route index lay).2 0) := by
-    rw [hrd _ (by unfold mkBlk; omega), if_neg (by omega), if_pos rfl,
-      hdr0_eq 3 lay.val _ 0 (by decide) (by omega) htree (by decide)]
-    simp [hw]
+  have hheap : 2 ^ (height lay - k - 1) + (route index lay).1 / 2 ^ (k + 1) < 2^32 := by
+    have hp : (2 : Nat) ^ (height lay - k - 1) ≤ 2^12 :=
+      Nat.pow_le_pow_right (by decide) (by
+        have hh : height lay ≤ 12 := by fin_cases lay <;> decide
+        omega)
+    have hph : (2 : Nat)^hL lay.val ≤ 2^12 :=
+      Nat.pow_le_pow_right (by decide) (by rw [hL_eq]; fin_cases lay <;> decide)
+    have hd := Nat.div_le_self (route index lay).1 (2^(k+1))
+    omega
+  have hT1 : t.getMem (BitVec.ofNat 64 (mkBlk lay.val k + 24)) = BitVec.ofNat 64
+      (hdr1 (2 ^ (height lay - k - 1) + (route index lay).1 / 2 ^ (k + 1)) 0) := by
+    rw [hrd _ (by unfold mkBlk; omega), if_pos rfl,
+      mkHeapE_eval lay.val (route index lay).1 k hlay hleaf hk s h23, hL_eq]
+    congr 1
+    unfold hdr1
+    omega
+  have hT0 : t.getMem (BitVec.ofNat 64 (mkBlk lay.val k + 16)) =
+      BitVec.ofNat 64 (hdr0 3 lay.val (route index lay).2 (route index lay).2) := by
+    rw [hrd _ (by unfold mkBlk; omega), if_neg (by omega), if_pos rfl, h30, merge_hi,
+      hdr0_eq 3 lay.val _ _ (by decide) (by omega) htree htree]
+    congr 1
+    unfold hdr1 hw
+    omega
   have hO := hs.orig
   have hlen := mkIn_length w index lay v k
   refine ⟨?_, ?_⟩
@@ -307,7 +320,7 @@ theorem lvl_input (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Ma
       have hn8 : s.getMem (BitVec.ofNat 64 (mkBlk lay.val k + 8)) = v.extractLsb' 64 64 := by
         have := hnode.2; simpa [mkCur] using this
       rw [wordsOf_blk4, f0, f8, hT0, hT1, f32, f40, f48, f56, hn0, hn8, hpad.1, hpad.2, hsib.1, hsib.2]
-      simp only [dlo, dhi, header_lo, header_hi]
+      simp only [dlo, dhi, header_packed_lo_3, header_packed_hi_3, header_packed_lo_9, header_packed_hi_9, header_packed_lo_10, header_packed_hi_10]
     · rw [hb] at hnode hO
       simp only [hb, show (1 : Nat) ≠ 0 by decide, if_false, sibOff, if_true, Nat.add_zero]
       have hsib := hO.dig (mkBo lay.val k) (by omega) (by unfold WX; omega)
@@ -319,7 +332,7 @@ theorem lvl_input (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Ma
       have hn56 : s.getMem (BitVec.ofNat 64 (mkBlk lay.val k + 56)) = v.extractLsb' 64 64 := by
         have := hnode.2; simpa [mkCur, Nat.add_assoc] using this
       rw [wordsOf_blk4, f0, f8, hT0, hT1, f32, f40, f48, f56, hn48, hn56, hpad.1, hpad.2, hsib.1, hsib.2]
-      simp only [dlo, dhi, header_lo, header_hi]
+      simp only [dlo, dhi, header_packed_lo_3, header_packed_hi_3, header_packed_lo_9, header_packed_hi_9, header_packed_lo_10, header_packed_hi_10]
   · intro j hj ⟨h1, h2⟩
     rw [hfr _ (by unfold WIT WX at *; omega) (by unfold WIT mkBlk; omega) (by unfold WIT mkBlk; omega)]
     exact hO j hj ⟨h1, by omega, Or.inl (by unfold mkCur mkBlk; have := mkBit_lt (route index lay).1 k; omega)⟩

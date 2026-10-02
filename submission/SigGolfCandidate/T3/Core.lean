@@ -38,10 +38,18 @@ def openings : Nat := 21
 def authCapacity : Nat := 124
 def zero16 : HashInput := List.replicate 16 0
 
+/-- Tree-node and FTS leaf headers keep the fixed tree in word zero and the
+changing node in word one. All fields are retained, including unused position bits. -/
+def packedNodeTag (tag : Nat) : Prop := tag % 256 = 3 ∨ tag % 256 = 9 ∨ tag % 256 = 10
+
+instance (tag : Nat) : Decidable (packedNodeTag tag) := inferInstanceAs
+  (Decidable (tag % 256 = 3 ∨ tag % 256 = 9 ∨ tag % 256 = 10))
+
 def header (tag lay tree position index : Nat) : BitVec 128 :=
   BitVec.ofNat 128 (1 + tag % 256 * 2^8 + lay % 256 * 2^16 +
-    (tree / 2^32 % 256) * 2^24 + position % 2^32 * 2^32 +
-    tree % 2^32 * 2^64 + index % 2^32 * 2^96)
+    (tree / 2^32 % 256) * 2^24 +
+    if packedNodeTag tag then tree % 2^32 * 2^32 + index % 2^32 * 2^64 + position % 2^32 * 2^96
+    else position % 2^32 * 2^32 + tree % 2^32 * 2^64 + index % 2^32 * 2^96)
 
 def pad64 (input : HashInput) : HashInput :=
   input ++ List.replicate ((64 - input.length % 64) % 64) 0

@@ -99,9 +99,9 @@ def mkHeapE (lay ci sh l : Nat) : E :=
 
 /-- The two header writes of level `l`: word 1 `tree | heap << 32` (two `sw`), word 0 `T(3)`. -/
 def mkLvlMem (lay ci sh l : Nat) : List (Addr × E) :=
-  [(⟨none, BitVec.ofNat 64 (mkBlk lay l + 24)⟩,
-      .bin (.st .w 4) (.bin (.st .w 0) (.ld (kw (mkBlk lay l + 24))) (.reg .x30)) (mkHeapE lay ci sh l)),
-   (⟨none, BitVec.ofNat 64 (mkBlk lay l + 16)⟩, kw (hw 3 lay))]
+  [(⟨none, BitVec.ofNat 64 (mkBlk lay l + 24)⟩, mkHeapE lay ci sh l),
+   (⟨none, BitVec.ofNat 64 (mkBlk lay l + 16)⟩,
+      .bin (.st .w 4) (kw (hw 3 lay)) (.reg .x30))]
 
 def mkLvlAllow (lay l : Nat) : List Nat := [mkBlk lay l + 16, mkBlk lay l + 24]
 
