@@ -280,7 +280,7 @@ def forestSpecF : Spec :=
     655, true, 8, [capBr false], none, 8⟩
 
 def forestCheckF : Bool :=
-  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] baseK [.x22] &&
+  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] (baseK ++ [(.x31, 0x10000)]) [.x22] &&
   specB [] [] [] (runAt gkF [] forestPc [.br true]) (rejSpec 4 [capBr true]) [] [] []
 
 end SigGolfCandidate.T3M.Verify

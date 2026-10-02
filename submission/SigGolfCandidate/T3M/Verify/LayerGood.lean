@@ -15,8 +15,8 @@ cycles on every path (all runs and the accepting ones).
 **`layerCost lay Z`** = `stepsA + 8 + B + leaf-pk block + chainCost0 lay − Z`: the cycles from `LayerIn` to
 `LeafOut` of a run whose digits have the max-digit savings `Z` (one cycle per maximal digit, two for the lower
 checksum chain: `LCtx.zSum 0 43` resp. `QCtx.topZ`; exactly `chainCost0 lay − Z` for the chains by
-`LCtx.lowCost_accept` / `QCtx.topCost_accept`); `layerCost lay 0` = 1384, 1351, 1351, 1282 for layers 3, 2, 1, 0
-(sum 5368). -/
+`LCtx.lowCost_accept` / `QCtx.topCost_accept`); `layerCost lay 0` = 1383, 1351, 1351, 1282 for layers 3, 2, 1, 0
+(sum 5367). -/
 
 set_option linter.unusedSimpArgs false
 
@@ -94,10 +94,10 @@ def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + ch
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 
 theorem layerCost_vals :
-    layerCost 3 0 = 1384 ∧ layerCost 2 0 = 1351 ∧ layerCost 1 0 = 1351 ∧ layerCost 0 0 = 1282 := by decide
+    layerCost 3 0 = 1383 ∧ layerCost 2 0 = 1351 ∧ layerCost 1 0 = 1351 ∧ layerCost 0 0 = 1282 := by decide
 
 theorem layerFuel_vals :
-    layerFuel 3 = 1802 ∧ layerFuel 2 = 1778 ∧ layerFuel 1 = 1778 ∧ layerFuel 0 = 2405 := by decide
+    layerFuel 3 = 1801 ∧ layerFuel 2 = 1778 ∧ layerFuel 1 = 1778 ∧ layerFuel 0 = 2405 := by decide
 
 /-! ## Decode facts -/
 
@@ -304,15 +304,23 @@ theorem layersP_good (w : WBytes) (pk : Digest) (index n : Nat) (hn : n < 4) (M 
 /-! ## Interfaces: V2's `FtsOut` → layer 3's `LayerIn`; V3's Merkle end → the next `LayerIn` -/
 
 /-- **V2's `FtsOut` is layer 3's `LayerIn`** (stated on `FtsOut`'s fields `glob`, `idx`, `pc` (`layerPc = 656 =
-xtr3_1`), `root`, `wit`, with `F.idx = a.toNat % 2^31 < 2^31`). -/
+xtr3_1`), `root`, `wit` and the carried `x31` constant, with `F.idx = a.toNat % 2^31 < 2^31`). -/
 theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u : MachineState)
     (hidx : idx < 2 ^ 31) (hglob : Glob baseK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
     (hpc : u.pc = pcOf 656) (hroot : DigAt u 0x100 root)
-    (hwit : Verify.Orig w (fun o => o < 64 ∨ 11288 ≤ o) u) : LayerIn w pk idx 3 root u where
+    (hwit : Verify.Orig w (fun o => o < 64 ∨ 11288 ≤ o) u)
+    (hcarry : u.getReg .x31 = 0x10000) : LayerIn w pk idx 3 root u where
   lay4 := by norm_num
   idx := hidx
   copy := ⟨0, by rw [nCopy_eq.1]; norm_num, by rw [hpc]; rfl⟩
-  glob := by simpa [preK] using hglob
+  glob := by
+    refine ⟨?_, hglob.2⟩
+    intro p hp
+    change p ∈ baseK ++ [(.x31, 0x10000)] at hp
+    rcases List.mem_append.mp hp with hp | hp
+    · exact hglob.1 p hp
+    · have he : p = (.x31, 0x10000) := List.mem_singleton.mp hp
+      simpa only [he] using hcarry
   route := by rw [show rReg 3 = .x22 from rfl, hreg, show below 3 = 0 from rfl, pow_zero, Nat.div_one]
   msg := hroot
   orig := hwit.mono (fun o ho => Or.inr ho.1)

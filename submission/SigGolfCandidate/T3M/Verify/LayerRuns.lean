@@ -55,10 +55,10 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 
 /-- Merkle height. -/
 def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
-/-- Steps of A (layer 3 includes the 24 `hyper` constants; layer 0 has `mv` and `lui; or`). -/
-def stepsA (lay : Nat) : Nat := if lay = 3 then 39 else if lay = 0 then 16 else 15
+/-- Steps of A (layer 3 includes the `hyper` constant setup; layer 0 has `mv` and `lui; or`). -/
+def stepsA (lay : Nat) : Nat := if lay = 3 then 38 else if lay = 0 then 16 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 3 ∨ lay = 0 then 71 else 47
+def retOff (lay : Nat) : Nat := if lay = 3 then 70 else if lay = 0 then 71 else 47
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
@@ -80,9 +80,9 @@ def M2c : Nat := 17311559823019733055
 def M4c : Nat := 3689348814741910323
 def M8c : Nat := 1085102592571150095
 
-/-- The known registers at a transition start (layer 3: only `t0`, `s2`; `hyper` sets the rest). -/
+/-- The known registers at a transition start (layer 3 carries the FTS `x31 = 0x10000`; `hyper` sets the rest). -/
 def preK (lay : Nat) : List (Reg × Word) :=
-  if lay = 3 then baseK
+  if lay = 3 then baseK ++ [(.x31, 0x10000)]
   else baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 (lay + 1))), (.x24, 0x10000), (.x2, 0x3fe00),
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (2 ^ 40)),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
