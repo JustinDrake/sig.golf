@@ -138,7 +138,7 @@ def Reuse (cache : Sampling.RCache) (rho : Digest) (m : Message) : Prop :=
 
 /-- An admissible cached answer at an input (0/1). -/
 noncomputable def admissibleEntry (cache : Sampling.RCache) (input : HashInput) : ENNReal :=
-  (cache input).elim 0 (fun answer => if admissible (selections answer) = true then 1 else 0)
+  (cache input).elim 0 (fun answer => if digestAdmissible answer = true then 1 else 0)
 
 /-- Cached admissible digest rows of message `m` (all nonces, counters below `2^32`), over `2^128`. -/
 noncomputable def reuseMass (cache : Sampling.RCache) (m : Message) : ENNReal :=
@@ -151,7 +151,7 @@ theorem reuse_indicator_le (cache : Sampling.RCache) (rho : Digest) (m : Message
   · unfold Reuse Sampling.CachedTrialsReject at h
     push Not at h
     obtain ⟨c, -, hc, answer, ha, hd⟩ := h
-    have hadm : admissible (selections answer) = true := by
+    have hadm : digestAdmissible answer = true := by
       unfold Sampling.digestDecode at hd
       by_contra hn
       exact hd (by simp [hn])

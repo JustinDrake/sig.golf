@@ -112,10 +112,10 @@ theorem bank_search (hU : ∀ c : BitVec 32, pad64 (digestInput rho m c) ∈ U) 
             cache' (pad64 (digestInput rho m (BitVec.ofNat 32 k))) =
               cache (pad64 (digestInput rho m (BitVec.ofNat 32 k)))) →
           expectedValue (lazyRun aux q (simulateQ (readImpl U a)
-              (if admissible (selections y) = true then pure (some (BitVec.ofNat 32 c, y))
+              (if digestAdmissible y = true then pure (some (BitVec.ofNat 32 c, y))
                 else digestSearch rho m (c + 1) fuel)) (readState q s X y .none)) G ≤
             expectedValue (Sampling.roRun secret
-              (if admissible (selections y) = true then pure (some (BitVec.ofNat 32 c, y))
+              (if digestAdmissible y = true then pure (some (BitVec.ofNat 32 c, y))
                 else digestSearch rho m (c + 1) fuel) cache') (fun r => H r.1) := by
         intro y cache' hcache'
         have hrowsX : ∀ row : Cell U, (readState q s X y .none).rows row ≠ s.rows row → row = X := by
@@ -124,7 +124,7 @@ theorem bank_search (hU : ∀ c : BitVec 32, pad64 (digestInput rho m c) ∈ U) 
           apply hr
           simp only [readState]
           rw [Function.update_of_ne hne]
-        by_cases hadm : admissible (selections y) = true
+        by_cases hadm : digestAdmissible y = true
         · simp only [hadm, if_true, simulateQ_pure, Sampling.roRun_pure, expectedValue_pure]
           rw [lazy_pure, expectedValue_pure]
           apply hG

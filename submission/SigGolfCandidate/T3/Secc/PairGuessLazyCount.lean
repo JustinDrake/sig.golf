@@ -170,7 +170,7 @@ theorem queried_digestSearch_succ (A : Answers) (rho : Digest) (m : Message) (co
     SecurityExtraction.queried A (digestSearch rho m counter (fuel + 1)) =
       (.inl (.inr (pad64 (digestInput rho m (BitVec.ofNat 32 counter)))) : T3.Spec.Domain) ::
         SecurityExtraction.queried A
-          (if admissible (selections (A (.inl (.inr (pad64 (digestInput rho m (BitVec.ofNat 32 counter))))))) = true
+          (if digestAdmissible (A (.inl (.inr (pad64 (digestInput rho m (BitVec.ofNat 32 counter)))))) = true
             then pure (some (BitVec.ofNat 32 counter, A (.inl (.inr (pad64 (digestInput rho m (BitVec.ofNat 32 counter)))))))
             else digestSearch rho m (counter + 1) fuel) := by
   rw [digestSearch]
@@ -199,7 +199,7 @@ theorem searchL_counts (fts : FtsCoord → Digest) (rho : Digest) (m : Message) 
           from by simp only [trialReq, simulateQ_spec_query, inlineWith]] at h
         rw [congrArg Prod.fst (fixedRun_pure_nonzero fts _ _ _ h), answers_digest hU ω fts _ (digestInput_mem _ _ _)]
       rw [queried_digestSearch_succ, ← hv1]
-      by_cases hadm : admissible (selections m1.1) = true
+      by_cases hadm : digestAdmissible m1.1 = true
       · simp only [hadm, ↓reduceIte] at hr ⊢
         rw [runL_pure_nonzero _ fts _ _ r hr]
         refine ⟨hb1, he1, fun x hx => ?_⟩

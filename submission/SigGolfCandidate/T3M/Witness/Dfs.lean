@@ -67,17 +67,17 @@ def leafHP (index coord : Nat) (leaves : List Nat) (values : List Digest) (pads 
     (pads.leaf ⟨(3 * coord + leaves.idxOf node + 1) % 22, Nat.mod_lt _ (by decide)⟩)
 
 /-- Slots `used + i` hold the value and pad of the `i`-th position of `ps`. -/
-def SlotsMatch (proof : Fin 124 → Digest) (pads : Pads) (val pad : Nat × Nat → Digest) (used : Nat)
+def SlotsMatch (proof : Fin 121 → Digest) (pads : Pads) (val pad : Nat × Nat → Digest) (used : Nat)
     (ps : List (Nat × Nat)) : Prop :=
-  ∀ i (hi : i < ps.length) (h : used + i < 124), proof ⟨used + i, h⟩ = val ps[i] ∧ pads.fold ⟨used + i, h⟩ = pad ps[i]
+  ∀ i (hi : i < ps.length) (h : used + i < 121), proof ⟨used + i, h⟩ = val ps[i] ∧ pads.fold ⟨used + i, h⟩ = pad ps[i]
 
-theorem SlotsMatch.left {proof : Fin 124 → Digest} {pads : Pads} {val pad : Nat × Nat → Digest} {used : Nat}
+theorem SlotsMatch.left {proof : Fin 121 → Digest} {pads : Pads} {val pad : Nat × Nat → Digest} {used : Nat}
     {l r : List (Nat × Nat)} (h : SlotsMatch proof pads val pad used (l ++ r)) : SlotsMatch proof pads val pad used l := by
   intro i hi hb
   have := h i (by simp; omega) hb
   rwa [List.getElem_append_left hi] at this
 
-theorem SlotsMatch.right {proof : Fin 124 → Digest} {pads : Pads} {val pad : Nat × Nat → Digest} {used : Nat}
+theorem SlotsMatch.right {proof : Fin 121 → Digest} {pads : Pads} {val pad : Nat × Nat → Digest} {used : Nat}
     {l r : List (Nat × Nat)} (h : SlotsMatch proof pads val pad used (l ++ r)) :
     SlotsMatch proof pads val pad (used + l.length) r := by
   intro i hi hb
@@ -87,8 +87,8 @@ theorem SlotsMatch.right {proof : Fin 124 → Digest} {pads : Pads} {val pad : N
   simpa only [Nat.add_assoc] using this
 
 theorem recoverChildP_eq_dfsP (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 124 → Digest) (pads : Pads) (val pad : Nat × Nat → Digest) :
-    ∀ level node used, used + (frontier leaves level node).length ≤ 124 →
+    (proof : Fin 121 → Digest) (pads : Pads) (val pad : Nat × Nat → Digest) :
+    ∀ level node used, used + (frontier leaves level node).length ≤ 121 →
       SlotsMatch proof pads val pad used (frontier leaves level node) →
       recoverChildP index coord leaves values proof pads level node used =
         (fun v => some (v, used + (frontier leaves level node).length)) <$>
@@ -103,7 +103,7 @@ theorem recoverChildP_eq_dfsP (index coord : Nat) (leaves : List Nat) (values : 
       · have hh : hasLeaf leaves 0 node = false := by simpa using hh
         simp only [T3.frontier, hh, Bool.false_eq_true, ite_false, List.length_singleton] at hfit hm ⊢
         have hp := (hm 0 (by simp) (by omega)).1
-        simp only [recoverChildP, dfsP, hh, Bool.not_false, ite_true, dif_pos (show used < 124 by omega),
+        simp only [recoverChildP, dfsP, hh, Bool.not_false, ite_true, dif_pos (show used < 121 by omega),
           map_pure]
         simp only [Nat.add_zero] at hp
         rw [hp]; rfl
@@ -147,7 +147,7 @@ theorem recoverChildP_eq_dfsP (index coord : Nat) (leaves : List Nat) (values : 
       · have hh : hasLeaf leaves (level + 1) node = false := by simpa using hh
         simp only [T3.frontier, hh, Bool.false_eq_true, ite_false, List.length_singleton] at hfit hm ⊢
         have hp := (hm 0 (by simp) (by omega)).1
-        simp only [recoverChildP, dfsP, hh, Bool.not_false, ite_true, dif_pos (show used < 124 by omega),
+        simp only [recoverChildP, dfsP, hh, Bool.not_false, ite_true, dif_pos (show used < 121 by omega),
           map_pure]
         simp only [Nat.add_zero] at hp
         rw [hp]; rfl
@@ -286,7 +286,7 @@ end dfs
 /-! ## The three leaves of one bucket -/
 
 /-- The canonical coordinate program: Core's post-order DFS of three sorted leaves `g0 < g1 < g2` of one bucket
-followed by the three outer folds, as the five climbs of the stream schedule (`coordSchedule`). -/
+followed by the four outer folds, as the five climbs of the stream schedule (`coordSchedule`). -/
 def coordCanon (index coord : Nat) (leafH : Nat → M Digest) (val pad : Nat × Nat → Digest) (g0 g1 g2 : Nat) :
     M Digest :=
   if lcaLevel g0 g1 < lcaLevel g1 g2 then do
@@ -328,16 +328,16 @@ theorem merge_children {g g' l : Nat} (hlt : g < g') (hl : lcaLevel g g' = l + 1
 section bucket
 variable {index coord : Nat} {leafH : Nat → M Digest} {val pad : Nat × Nat → Digest}
 
-/-- **Schedule ≡ DFS (Core side).** The DFS of the bucket subtree of three sorted leaves, followed by the three
+/-- **Schedule ≡ DFS (Core side).** The DFS of the bucket subtree of three sorted leaves, followed by the four
 outer folds, is the canonical five-climb program. -/
 theorem dfsP_bucket {g0 g1 g2 b : Nat} (h01 : g0 < g1) (h12 : g1 < g2)
-    (hb0 : g0 / 2 ^ 8 = b) (hb1 : g1 / 2 ^ 8 = b) (hb2 : g2 / 2 ^ 8 = b) :
-    dfsP index coord [g0, g1, g2] leafH val pad 8 b >>= climbV index coord val pad g2 8 3 =
+    (hb0 : g0 / 2 ^ 7 = b) (hb1 : g1 / 2 ^ 7 = b) (hb2 : g2 / 2 ^ 7 = b) :
+    dfsP index coord [g0, g1, g2] leafH val pad 7 b >>= climbV index coord val pad g2 7 4 =
       coordCanon index coord leafH val pad g0 g1 g2 := by
   have p01 := lcaLevel_pos g0 g1
   have p12 := lcaLevel_pos g1 g2
-  have l01 : lcaLevel g0 g1 ≤ 8 := (div_eq_iff_lca (by omega) 8).mp (by rw [hb0, hb1])
-  have l12 : lcaLevel g1 g2 ≤ 8 := (div_eq_iff_lca (by omega) 8).mp (by rw [hb1, hb2])
+  have l01 : lcaLevel g0 g1 ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [hb0, hb1])
+  have l12 : lcaLevel g1 g2 ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [hb1, hb2])
   have l02 : lcaLevel g0 g2 = max (lcaLevel g0 g1) (lcaLevel g1 g2) := lca_outer h01 h12
   have hne : lcaLevel g0 g1 ≠ lcaLevel g1 g2 := lca_ne h01 h12
   have c10 : lcaLevel g1 g0 = lcaLevel g0 g1 := lcaLevel_comm _ _
@@ -376,19 +376,19 @@ theorem dfsP_bucket {g0 g1 g2 b : Nat} (h01 : g0 < g1) (h12 : g1 < g2)
   have m2 : g2 ∈ [g0, g1, g2] := by simp
   have leafAt : ∀ g, g ∈ [g0, g1, g2] → dfsP index coord [g0, g1, g2] leafH val pad 0 (g / 2 ^ 0) = leafH g := by
     intro g hg; have h := hasLeaf_self hg 0; simp only [pow_zero, Nat.div_one] at h ⊢; exact dfsP_leaf h
-  have outer : ∀ (lo : Nat) (v : Digest), lo ≤ 8 →
-      climbV index coord val pad g2 lo (8 - lo) v >>= climbV index coord val pad g2 8 3 =
+  have outer : ∀ (lo : Nat) (v : Digest), lo ≤ 7 →
+      climbV index coord val pad g2 lo (7 - lo) v >>= climbV index coord val pad g2 7 4 =
         climbV index coord val pad g2 lo (11 - lo) v := by
     intro lo v hlo
-    rw [show 11 - lo = (8 - lo) + 3 by omega, climbV_add, show lo + (8 - lo) = 8 by omega]
+    rw [show 11 - lo = (7 - lo) + 4 by omega, climbV_add, show lo + (7 - lo) = 7 by omega]
   unfold coordCanon
   generalize hd01 : lcaLevel g0 g1 = d01 at *
   generalize hd12 : lcaLevel g1 g2 = d12 at *
   by_cases hA : d01 < d12
   · rw [if_pos hA]
     have top := dfsP_climb (index := index) (coord := coord) (leafH := leafH) (val := val) (pad := pad)
-      m2 d12 (8 - d12) (fun k h1 _ => s2hi k (by omega))
-    rw [show d12 + (8 - d12) = 8 by omega, hb2] at top
+      m2 d12 (7 - d12) (fun k h1 _ => s2hi k (by omega))
+    rw [show d12 + (7 - d12) = 7 by omega, hb2] at top
     obtain ⟨l, hl⟩ : ∃ l, d12 = l + 1 := ⟨d12 - 1, by omega⟩
     obtain ⟨c12a, c12b⟩ := merge_children h12 (show lcaLevel g1 g2 = l + 1 by rw [hd12, hl])
     have mid := dfsP_merge (index := index) (coord := coord) (leafH := leafH) (val := val) (pad := pad)
@@ -417,8 +417,8 @@ theorem dfsP_bucket {g0 g1 g2 b : Nat} (h01 : g0 < g1) (h12 : g1 < g2)
   · rw [if_neg hA]
     have hB : d12 < d01 := by omega
     have top := dfsP_climb (index := index) (coord := coord) (leafH := leafH) (val := val) (pad := pad)
-      m2 d01 (8 - d01) (fun k h1 _ => s2hi k (by omega))
-    rw [show d01 + (8 - d01) = 8 by omega, hb2] at top
+      m2 d01 (7 - d01) (fun k h1 _ => s2hi k (by omega))
+    rw [show d01 + (7 - d01) = 7 by omega, hb2] at top
     obtain ⟨l, hl⟩ : ∃ l, d01 = l + 1 := ⟨d01 - 1, by omega⟩
     obtain ⟨c01a, c01b⟩ := merge_children h01 (show lcaLevel g0 g1 = l + 1 by rw [hd01, hl])
     have e21 : g2 / 2 ^ (l + 1) = g1 / 2 ^ (l + 1) := div_eq_of_lca_le (by omega) (by rw [c21]; omega)

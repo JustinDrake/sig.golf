@@ -81,7 +81,7 @@ theorem nearChainHyp_of_bpair (hchain : BPairNearChain) (hghosts : BPairGhosts) 
   obtain ⟨hlog, hent⟩ := pairRun_honest _ adversary r.1 (fixed_support_pairRun hlaw adversary ω fts r hr)
   refine ⟨?_, payoff_of_ghosts q _ _ r hlog hent hexp (fun x a hx hd => (hrows x a hx hd).2) htrials hbirths
     hexplen hq' hP⟩
-  obtain ⟨-, -, -, f, -, -, -, -, -, -, -, hguess, -⟩ := hP
+  obtain ⟨-, -, -, f, -, -, -, -, -, -, -, -, hguess, -⟩ := hP
   exact ⟨f, htrack f hguess⟩
 
 /-- **The small route from B-PAIR's §8 deliverables** (the case-(C) contract with `K = 104`). -/

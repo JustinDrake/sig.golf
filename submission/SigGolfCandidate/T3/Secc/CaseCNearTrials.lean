@@ -25,7 +25,7 @@ attribute [local instance] Classical.propDecidable
 theorem digestSearch_reaches (A : Correctness.Answers) (rho : Digest) (m : Message) :
     ∀ fuel start c, start ≤ c → c < start + fuel →
       (∀ c', start ≤ c' → c' < c →
-        admissible (selections (evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 c')))) = false) →
+        digestAdmissible (evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 c'))) = false) →
       (.inl (.inr (Sampling.digestTrial rho m c)) : T3.Spec.Domain) ∈ queried A (digestSearch rho m start fuel) := by
   intro fuel
   induction fuel with
@@ -64,7 +64,7 @@ theorem searchL_trials (rho : Digest) (m : Message) :
       BPair.Consistent D Nn s.memory →
       ∀ x ∈ r.2.memory.trials, x ∈ s.memory.trials ∨ ∃ c', c ≤ c' ∧ c' < c + fuel ∧
         x = Sampling.digestTrial rho m c' ∧
-        ∀ c'', c ≤ c'' → c'' < c' → admissible (selections (BPair.rowVal D (Sampling.digestTrial rho m c''))) = false := by
+        ∀ c'', c ≤ c'' → c'' < c' → digestAdmissible (BPair.rowVal D (Sampling.digestTrial rho m c'')) = false := by
   intro fuel
   induction fuel with
   | zero =>
@@ -109,7 +109,7 @@ theorem searchL_trials (rho : Digest) (m : Message) :
               exact hcons.1 y b hy
       obtain ⟨hans, htr, hcons1⟩ := hstep
       dsimp only at hr
-      by_cases had : admissible (selections res.1) = true
+      by_cases had : digestAdmissible res.1 = true
       · rw [if_pos had] at hr
         rw [runE_pure_nonzero D Nn fts _ _ r hr] at hx
         change x ∈ res.2.trials at hx

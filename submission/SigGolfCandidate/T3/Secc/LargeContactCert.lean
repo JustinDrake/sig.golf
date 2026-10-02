@@ -153,7 +153,7 @@ theorem slotValue_probeInput (f : BPair.FtsCoord) (s : Digest) : slotValue (BPai
 theorem search_queried (A : Answers) (rho : Digest) (m : Message) :
     ∀ fuel start k, start ≤ k → k < start + fuel →
       (∀ c', start ≤ c' → c' < k →
-        admissible (selections (evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 c')))) = false) →
+        digestAdmissible (evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 c'))) = false) →
       (.inl (.inr (pad64 (digestInput rho m (BitVec.ofNat 32 k)))) : T3.Spec.Domain) ∈
         queried A (digestSearch rho m start fuel) := by
   intro fuel
@@ -173,9 +173,9 @@ theorem search_result (A : Answers) (rho : Digest) (m : Message) :
     ∀ fuel start,
       (∀ c N, evalWithAnswerFn A (digestSearch rho m start fuel) = some (c, N) →
         ∃ k, start ≤ k ∧ k < start + fuel ∧ c = BitVec.ofNat 32 k ∧ ∀ c', start ≤ c' → c' < k →
-          admissible (selections (evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 c')))) = false) ∧
+          digestAdmissible (evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 c'))) = false) ∧
       (evalWithAnswerFn A (digestSearch rho m start fuel) = none → ∀ c', start ≤ c' → c' < start + fuel →
-          admissible (selections (evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 c')))) = false) := by
+          digestAdmissible (evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 c'))) = false) := by
   intro fuel
   induction fuel with
   | zero =>
@@ -185,13 +185,13 @@ theorem search_result (A : Answers) (rho : Digest) (m : Message) :
   | succ fuel ih =>
       intro start
       rw [BPB.digestSearch_succ, evalWithAnswerFn_bind]
-      by_cases hadm : admissible (selections (evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 start)))) = true
+      by_cases hadm : digestAdmissible (evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 start))) = true
       · rw [if_pos hadm, evalWithAnswerFn_pure]
         refine ⟨fun c N h => ?_, fun h => by cases h⟩
         simp only [Option.some.injEq, Prod.mk.injEq] at h
         exact ⟨start, le_rfl, by omega, h.1.symm, fun c' h1 h2 => by omega⟩
       · rw [if_neg hadm]
-        have hrej : admissible (selections (evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 start)))) = false := by
+        have hrej : digestAdmissible (evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 start))) = false := by
           simpa using hadm
         obtain ⟨ih1, ih2⟩ := ih (start + 1)
         refine ⟨fun c N h => ?_, fun h c' h1 h2 => ?_⟩

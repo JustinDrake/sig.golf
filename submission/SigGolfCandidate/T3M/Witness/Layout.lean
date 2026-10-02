@@ -48,8 +48,8 @@ def leafBlock (s : Nat) : Nat := 64 + 48 * s
 
 /-- First segment header of the fold stream. -/
 def streamBase : Nat := 1088
-/-- The pointer cap checked after coordinate 6 (`35 · 8 + 124 · 80` bytes after `streamBase`). -/
-def streamEnd : Nat := 11288
+/-- The pointer cap checked after coordinate 6 (`35 · 8 + 121 · 80` bytes after `streamBase`). -/
+def streamEnd : Nat := 11048
 /-- Fold block `r` of the segment whose header is at `ptr`: `[L | T | pad | R]` then a 16-byte gap. -/
 def foldBlock (ptr r : Nat) : Nat := ptr + 8 + 80 * r
 /-- The next header after a segment at `ptr` with `a` folds. -/
@@ -88,7 +88,7 @@ def wpath (w : WBytes) (lay : Layer) (leaf j : Nat) : Digest :=
 /-- Merkle pad of level `j` (`+32`). -/
 def wmerklePad (w : WBytes) (lay : Layer) (j : Nat) : Digest := wdig w (merkleBlock lay j + 32)
 
-/-- Global leaf `g = 256 bucket + x_j` of position `j` of a selection (its heap index is `2048 + g`). -/
-def selLeaf (sel : Selection) (j : Nat) : Nat := sel.bucket * 256 + sel.leaves.getD j 0
+/-- Global leaf `g = 128 bucket + x_j` of position `j` of a selection (its heap index is `2048 + g`). -/
+def selLeaf (sel : Selection) (j : Nat) : Nat := sel.bucket * 128 + sel.leaves.getD j 0
 
 end SigGolfCandidate.T3M

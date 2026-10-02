@@ -120,19 +120,19 @@ theorem ledger_search (secret : BitVec 256) (rho : Digest) (message : Message) (
 
 /-- **Win**: an admissible target whose 21 opened positions are opened by the exposures holds a full unit. -/
 theorem ledger_win (R : Nat) (targets X : List HashOutput) (slack : Nat) (N : HashOutput) (hN : N ∈ targets)
-    (hadm : admissible (selections N) = true) (hcov : ∀ c, CoordCovered X N c) : 1 ≤ ledger R targets X slack :=
+    (hadm : admissible (selections N) = true) (hgate : digestGate N=true) (hcov : ∀ c, CoordCovered X N c) : 1 ≤ ledger R targets X slack :=
   calc
-    (1 : ENNReal) ≤ score X N := one_le_score X N (outLeaves_injective N hadm) hcov
+    (1 : ENNReal) ≤ score X N := one_le_score X N (outLeaves_injective N hadm) hgate hcov
     _ ≤ forecast R X N := score_le_forecast R X N
     _ ≤ (targets.map fun N => forecast R X N).sum := List.le_sum_of_mem (List.mem_map_of_mem hN)
     _ ≤ _ := le_self_add
 
 /-- Coverage from openings, in B-PAIR's vocabulary (`openedPositions`). -/
 theorem ledger_win_opened (R : Nat) (targets X : List HashOutput) (slack : Nat) (N : HashOutput) (hN : N ∈ targets)
-    (hadm : admissible (selections N) = true)
+    (hadm : admissible (selections N) = true) (hgate : digestGate N=true)
     (hopen : ∀ f ∈ BPair.openedPositions N, ∃ out ∈ X, f ∈ BPair.openedPositions out) :
     1 ≤ ledger R targets X slack :=
-  ledger_win R targets X slack N hN hadm fun c =>
+  ledger_win R targets X slack N hN hadm hgate fun c =>
     coordCovered_of_opened X N c fun j => hopen _ (opened_mem N c j)
 
 /-- **Initial ledger**: no targets, no exposures, `budget` prepaid births over the full horizon. -/
@@ -155,7 +155,7 @@ theorem theta_add_sixteenth_le_one : theta + 1 / 16 ≤ 1 := by
 /-! ## The admissibility indicator of a fresh answer -/
 
 /-- Admissibility indicator of an answer. -/
-noncomputable def admInd (a : HashOutput) : ENNReal := if admissible (selections a) = true then 1 else 0
+noncomputable def admInd (a : HashOutput) : ENNReal := if digestAdmissible a = true then 1 else 0
 
 theorem acceptance_le_sixteenth : DigestSampling.acceptanceProbability ≤ 1 / 16 :=
   Acceptance.acceptanceProbability_le_one_sixteenth
@@ -355,15 +355,15 @@ theorem core_sign (b : BankCore) (cache : Sampling.RCache) (m : Message) (C' : E
 
 /-- **Win**: an alive bank with a reuse or a covered admissible target holds a full unit. -/
 theorem core_win (b : BankCore) (halive : ¬BPORS.Numeric.proposalLength < b.exposures.length)
-    (h : b.reused = true ∨ ∃ N ∈ b.targets, admissible (selections N) = true ∧ CoveredBy b.exposures N) :
+    (h : b.reused = true ∨ ∃ N ∈ b.targets, admissible (selections N) = true ∧ digestGate N=true ∧ CoveredBy b.exposures N) :
     1 ≤ corePotential b := by
   unfold corePotential
   rw [if_neg halive]
   by_cases hr : b.reused = true
   · rw [if_pos hr]; exact le_self_add
   · rw [if_neg hr]
-    obtain ⟨N, hN, hadm, hcov⟩ := h.resolve_left hr
-    exact (ledger_win_opened _ _ _ _ N hN hadm hcov).trans le_self_add
+    obtain ⟨N, hN, hadm, hgate, hcov⟩ := h.resolve_left hr
+    exact (ledger_win_opened _ _ _ _ N hN hadm hgate hcov).trans le_self_add
 
 /-- **Initial potential.** -/
 theorem core_initial (budget : Nat) :

@@ -31,7 +31,7 @@ open SigGolfCandidate.T3 (Digest HashOutput Layer selections admissible digestSe
 
 /-- Entry `j` of selection row `c`: `256 bucket + x_j` (the sorted leaves of coordinate `c`). -/
 def selEntry (N : HashOutput) (c j : Nat) : Nat :=
-  ((selections N).getD c ⟨0, []⟩).bucket * 256 + ((selections N).getD c ⟨0, []⟩).leaves.getD j 0
+  ((selections N).getD c ⟨0, []⟩).bucket * 128 + ((selections N).getD c ⟨0, []⟩).leaves.getD j 0
 
 /-- The selection rows of `N` at `SEL` (row `c` at `SEL + 24 c`). -/
 def SelRows (t : MachineState) (N : HashOutput) : Prop :=

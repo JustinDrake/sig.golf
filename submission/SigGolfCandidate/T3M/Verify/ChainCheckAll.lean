@@ -1,6 +1,3 @@
-import SigGolfCandidate.T3M.Verify.ChainCheckT1
-import SigGolfCandidate.T3M.Verify.ChainCheckT3
-import SigGolfCandidate.T3M.Verify.ChainCheckT6
 import SigGolfCandidate.T3M.Verify.ChainCheckQ2
 
 /-! All chain families of the verify image: every `ttab`/`qtab` slot and every shared block. -/

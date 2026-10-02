@@ -210,33 +210,33 @@ theorem heap_sib_inv {g g' K K' : Nat} (hg : g < 2048) (hg' : g' < 2048)
 
 /-! ## Leaves of one bucket -/
 
-theorem bucket_leaf_lt {b x : Nat} (hb : b < 8) (hx : x < 256) : b * 256 + x < 2048 := by omega
+theorem bucket_leaf_lt {b x : Nat} (hb : b < 16) (hx : x < 128) : b * 128 + x < 2048 := by omega
 
-theorem bucket_div {b x k : Nat} (_hx : x < 256) (hk : k ≤ 8) :
-    (b * 256 + x) / 2 ^ k = b * 2 ^ (8 - k) + x / 2 ^ k := by
-  have h : b * 256 = b * 2 ^ (8 - k) * 2 ^ k := by
+theorem bucket_div {b x k : Nat} (_hx : x < 128) (hk : k ≤ 7) :
+    (b * 128 + x) / 2 ^ k = b * 2 ^ (7 - k) + x / 2 ^ k := by
+  have h : b * 128 = b * 2 ^ (7 - k) * 2 ^ k := by
     rw [Nat.mul_assoc, ← pow_add, Nat.sub_add_cancel hk]; norm_num
   rw [h, Nat.add_comm, Nat.add_mul_div_right _ _ (Nat.two_pow_pos k), Nat.add_comm]
 
-theorem bucket_div_eight {b x : Nat} (hx : x < 256) : (b * 256 + x) / 2 ^ 8 = b := by
+theorem bucket_div_eight {b x : Nat} (hx : x < 128) : (b * 128 + x) / 2 ^ 7 = b := by
   rw [bucket_div hx le_rfl]; simp only [Nat.sub_self, pow_zero, Nat.mul_one]
   rw [Nat.div_eq_of_lt (by norm_num; omega)]; simp
 
-theorem bucket_div_outer {b x j : Nat} (hx : x < 256) : (b * 256 + x) / 2 ^ (8 + j) = b / 2 ^ j := by
+theorem bucket_div_outer {b x j : Nat} (hx : x < 128) : (b * 128 + x) / 2 ^ (7 + j) = b / 2 ^ j := by
   rw [pow_add, ← Nat.div_div_eq_div_mul, bucket_div_eight hx]
 
-/-- Leaves of one bucket have their LCA at level ≤ 8. -/
-theorem lca_le_eight {b x y : Nat} (hx : x < 256) (hy : y < 256) (hxy : x ≠ y) :
-    lcaLevel (b * 256 + x) (b * 256 + y) ≤ 8 :=
-  (div_eq_iff_lca (by omega) 8).mp (by rw [bucket_div_eight hx, bucket_div_eight hy])
+/-- Leaves of one bucket have their LCA at level ≤ 7. -/
+theorem lca_le_eight {b x y : Nat} (hx : x < 128) (hy : y < 128) (hxy : x ≠ y) :
+    lcaLevel (b * 128 + x) (b * 128 + y) ≤ 7 :=
+  (div_eq_iff_lca (by omega) 7).mp (by rw [bucket_div_eight hx, bucket_div_eight hy])
 
 /-- The LCA of two leaves of one bucket is the LCA of their local indices. -/
-theorem lca_bucket {b x y : Nat} (hx : x < 256) (hy : y < 256) (hxy : x ≠ y) :
-    lcaLevel (b * 256 + x) (b * 256 + y) = lcaLevel x y := by
+theorem lca_bucket {b x y : Nat} (hx : x < 128) (hy : y < 128) (hxy : x ≠ y) :
+    lcaLevel (b * 128 + x) (b * 128 + y) = lcaLevel x y := by
   have hl := lca_le_eight (b := b) hx hy hxy
-  have hl' : lcaLevel x y ≤ 8 :=
-    (div_eq_iff_lca hxy 8).mp (by rw [Nat.div_eq_of_lt (by norm_num; omega), Nat.div_eq_of_lt (by norm_num; omega)])
-  have key : ∀ ℓ, ℓ ≤ 8 → ((b * 256 + x) / 2 ^ ℓ = (b * 256 + y) / 2 ^ ℓ ↔ x / 2 ^ ℓ = y / 2 ^ ℓ) := by
+  have hl' : lcaLevel x y ≤ 7 :=
+    (div_eq_iff_lca hxy 7).mp (by rw [Nat.div_eq_of_lt (by norm_num; omega), Nat.div_eq_of_lt (by norm_num; omega)])
+  have key : ∀ ℓ, ℓ ≤ 7 → ((b * 128 + x) / 2 ^ ℓ = (b * 128 + y) / 2 ^ ℓ ↔ x / 2 ^ ℓ = y / 2 ^ ℓ) := by
     intro ℓ hℓ; rw [bucket_div hx hℓ, bucket_div hy hℓ]; omega
   apply le_antisymm
   · rw [← div_eq_iff_lca (by omega), key _ hl']; exact div_eq_of_lca_le hxy le_rfl

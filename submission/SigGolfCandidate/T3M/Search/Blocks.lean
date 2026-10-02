@@ -27,8 +27,8 @@ def k_0 : List (BitVec 32) := [0x00100293, 0x00100513]
 def k_2 : List (BitVec 32) := [0x00000073]
 def k_3 : List (BitVec 32) := [0x01500a93, 0x00000a13, 0x00020cb7, 0x4a0c8c93]
 def k_7 : List (BitVec 32) := [0x00700313, 0x166a5263]
-def k_9 : List (BitVec 32) := [0x005a1313, 0x002a1393, 0x40730333, 0x41430333, 0x01f30313, 0x00635393, 0x00339393, 0x00020e37, 0x160e0e13, 0x01c383b3, 0x0003be03, 0x0083be83, 0x03f37313, 0x006e5e33, 0x001e9e93, 0x03f00393, 0x406383b3, 0x007e9eb3, 0x01de6e33, 0x080003b7, 0xfff38393, 0x007e7e33]
-def k_31 : List (BitVec 32) := [0x007e7313, 0x00831313, 0x003e5b13, 0x0ffb7b13, 0x00be5b93, 0x0ffbfb93, 0x013e5c13, 0x0ffc7c13, 0x016bd863]
+def k_9 : List (BitVec 32) := [0x005a1313, 0x003a1393, 0x40730333, 0x01430333, 0x01f30313, 0x00635393, 0x00339393, 0x00020e37, 0x160e0e13, 0x01c383b3, 0x0003be03, 0x0083be83, 0x03f37313, 0x006e5e33, 0x001e9e93, 0x03f00393, 0x406383b3, 0x007e9eb3, 0x01de6e33, 0x020003b7, 0xfff38393, 0x007e7e33]
+def k_31 : List (BitVec 32) := [0x00fe7313, 0x00731313, 0x004e5b13, 0x07fb7b13, 0x00be5b93, 0x07fbfb93, 0x012e5c13, 0x07fc7c13, 0x016bd863]
 def k_40 : List (BitVec 32) := [0x000b0393, 0x000b8b13, 0x00038b93]
 def k_43 : List (BitVec 32) := [0x017c5863]
 def k_44 : List (BitVec 32) := [0x000b8393, 0x000c0b93, 0x00038c13]
@@ -37,7 +37,7 @@ def k_48 : List (BitVec 32) := [0x000b0393, 0x000b8b13, 0x00038b93]
 def k_51 : List (BitVec 32) := [0x0d7b0463]
 def k_52 : List (BitVec 32) := [0x0d8b8263]
 def k_53 : List (BitVec 32) := [0x017b43b3, 0x00800e13, 0x0023be93, 0x41de0e33, 0x0043be93, 0x41de0e33, 0x0083be93, 0x41de0e33, 0x0103be93, 0x41de0e33, 0x0203be93, 0x41de0e33, 0x0403be93, 0x41de0e33, 0x0803be93, 0x41de0e33, 0x01ca8ab3, 0x018bc3b3, 0x00800e13, 0x0023be93, 0x41de0e33, 0x0043be93, 0x41de0e33, 0x0083be93, 0x41de0e33, 0x0103be93, 0x41de0e33, 0x0203be93, 0x41de0e33, 0x0403be93, 0x41de0e33, 0x0803be93, 0x41de0e33, 0x01ca8ab3, 0x004a8a93, 0x016303b3, 0x007cb023, 0x017303b3, 0x007cb423, 0x018303b3, 0x007cb823, 0x018c8c93, 0x001a0a13, 0xe9dff06f]
-def k_97 : List (BitVec 32) := [0x07d00313, 0x006ad663]
+def k_97 : List (BitVec 32) := [0x07a00313, 0x006ad663]
 def k_99 : List (BitVec 32) := [0x00100693, 0x00008067]
 def k_101 : List (BitVec 32) := [0x00000693, 0x00008067]
 def k_103 : List (BitVec 32) := [0x01041313, 0x40136313, 0x00048393, 0x02091f13, 0x01e3e3b3, 0x00020e37, 0x260e0e13, 0x006e3823, 0x007e3c23, 0x00000993]
@@ -707,13 +707,63 @@ theorem run_468 {b : Nat} (hb : b = 354 ∨ b = 543) :
 
 /-! ## The digest-search loop (`ds_loop`) -/
 
+/-! ## Six-bit digest gate before the shared selector -/
+
+def gatePc (b : Nat) : Nat := if b = 354 then 1152 else 1221
+def gateEHead : List (BitVec 32) := [0x00020337, 0x17833303, 0x00e35313, 0x03f37313, 0xd0031663]
+def gateEJump : List (BitVec 32) := [0xb80ff06f]
+def gateSHead : List (BitVec 32) := [0x00020337, 0x17833303, 0x00e35313, 0x03f37313, 0xee031663]
+def gateSJump : List (BitVec 32) := [0xd60ff06f]
+def gateHead (b : Nat) : List (BitVec 32) := if b = 354 then gateEHead else gateSHead
+def gateJump (b : Nat) : List (BitVec 32) := if b = 354 then gateEJump else gateSJump
+def gateL (b : Nat) : Rv.Layout := [(0, gateHead b), (5, gateJump b)]
+def GateAt (image : Image) (b : Nat) : Prop := CodeAt image (pcOf (gatePc b)) (layoutCode (gateL b))
+
+theorem gateL_ok (b : Nat) : layoutOk 0 (gateL b) = true := by
+  unfold gateL; by_cases hb : b = 354 <;> simp [gateHead, gateJump, hb, gateEHead, gateSHead,
+    gateEJump, gateSJump, layoutOk]
+theorem codeAt_gateHead {image : Image} {b : Nat} (h : GateAt image b) :
+    CodeAt image (pcOf (gatePc b)) (gateHead b) := by
+  simpa using codeAt_sublayout h (gateL_ok b) (i := 0) rfl
+theorem codeAt_gateJump {image : Image} {b : Nat} (h : GateAt image b) :
+    CodeAt image (pcOf (gatePc b + 5)) (gateJump b) :=
+  codeAt_sublayout h (gateL_ok b) (i := 1) rfl
+
+theorem gateAt_expand : GateAt Images.expandImage 354 := by
+  refine ⟨by decide, by decide, by decide, ?_⟩
+  decide +kernel
+theorem gateAt_sign : GateAt Images.signImage 543 := by
+  refine ⟨by decide, by decide, by decide, ?_⟩
+  decide +kernel
+
+sym_block blkGateE := symRun { noAlias := true } gateEHead (pcOf 1152) 20
+sym_block blkGateS := symRun { noAlias := true } gateSHead (pcOf 1221) 20
+sym_block blkGateJE := symRun { noAlias := true } gateEJump (pcOf 1157) 20
+sym_block blkGateJS := symRun { noAlias := true } gateSJump (pcOf 1226) 20
+
+def gateSt : SymState := blkGateE.res.st
+def gateEnd (b : Nat) : E := rebase blkGateE.res.pc (pcOf (b + 101)) (pcOf (gatePc b + 5))
+theorem run_gate {b : Nat} (hb : b = 354 ∨ b = 543) :
+    symRun { noAlias := true } (gateHead b) (pcOf (gatePc b)) 20 =
+      some ⟨gateSt, gateEnd b, blkGateE.res.stop, blkGateE.res.steps, blkGateE.res.cycles⟩ := by
+  rcases hb with rfl | rfl
+  · exact blkGateE.trans (congrArg some (by kernel_rfl))
+  · exact blkGateS.trans (congrArg some (by kernel_rfl))
+theorem run_gateJump {b : Nat} (hb : b = 354 ∨ b = 543) :
+    symRun { noAlias := true } (gateJump b) (pcOf (gatePc b + 5)) 20 =
+      some ⟨blkGateJE.res.st, .c (pcOf (b + 3)), blkGateJE.res.stop,
+        blkGateJE.res.steps, blkGateJE.res.cycles⟩ := by
+  rcases hb with rfl | rfl
+  · exact blkGateJE.trans (congrArg some (by kernel_rfl))
+  · exact blkGateJS.trans (congrArg some (by kernel_rfl))
+
 def dsE_0 : List (BitVec 32) := [0x00100337, 0x50698663]
 def dsS_0 : List (BitVec 32) := [0x00100337, 0x60698a63]
 def ds_0 (d : Nat) : List (BitVec 32) := if d = 30 then dsE_0 else dsS_0
 def ds_2 (_d : Nat) : List (BitVec 32) := [0x00001337, 0xc0130313, 0x02099393, 0x00020e37, 0x120e0e13, 0x006e3823, 0x007e3c23, 0x00020537, 0x12050513, 0x04000593, 0x00020637, 0x16060613]
 def ds_14 (_d : Nat) : List (BitVec 32) := [0x00000073]
-def dsE_15 : List (BitVec 32) := [0x4e0000ef]
-def dsS_15 : List (BitVec 32) := [0x5e8000ef]
+def dsE_15 : List (BitVec 32) := [0x14c010ef]
+def dsS_15 : List (BitVec 32) := [0x074010ef]
 def ds_15 (d : Nat) : List (BitVec 32) := if d = 30 then dsE_15 else dsS_15
 def ds_16 (_d : Nat) : List (BitVec 32) := [0x00069663]
 def ds_17 (_d : Nat) : List (BitVec 32) := [0x00198993, 0xfb9ff06f]
@@ -726,33 +776,33 @@ theorem dsL_ok (d : Nat) : layoutOk 0 (dsL d) = true := by
 
 /-- The digest-search loop sits at `d` with the kernel at `b`: `(d, b)` = (30, 354) (expand) or (153, 543) (sign). -/
 def DsAt (image : Image) (d b : Nat) : Prop :=
-  CodeAt image (pcOf d) (layoutCode (dsL d)) ∧ (d = 30 ∧ b = 354 ∨ d = 153 ∧ b = 543)
+  (CodeAt image (pcOf d) (layoutCode (dsL d)) ∧ GateAt image b) ∧ (d = 30 ∧ b = 354 ∨ d = 153 ∧ b = 543)
 
 theorem codeAt_ds_0 {image : Image} {d b : Nat} (h : DsAt image d b) :
     CodeAt image (pcOf (d + 0)) (ds_0 d) :=
-  codeAt_sublayout h.1 (dsL_ok d) (i := 0) rfl
+  codeAt_sublayout h.1.1 (dsL_ok d) (i := 0) rfl
 theorem codeAt_ds_2 {image : Image} {d b : Nat} (h : DsAt image d b) :
     CodeAt image (pcOf (d + 2)) (ds_2 d) :=
-  codeAt_sublayout h.1 (dsL_ok d) (i := 1) rfl
+  codeAt_sublayout h.1.1 (dsL_ok d) (i := 1) rfl
 theorem codeAt_ds_14 {image : Image} {d b : Nat} (h : DsAt image d b) :
     CodeAt image (pcOf (d + 14)) (ds_14 d) :=
-  codeAt_sublayout h.1 (dsL_ok d) (i := 2) rfl
+  codeAt_sublayout h.1.1 (dsL_ok d) (i := 2) rfl
 theorem codeAt_ds_15 {image : Image} {d b : Nat} (h : DsAt image d b) :
     CodeAt image (pcOf (d + 15)) (ds_15 d) :=
-  codeAt_sublayout h.1 (dsL_ok d) (i := 3) rfl
+  codeAt_sublayout h.1.1 (dsL_ok d) (i := 3) rfl
 theorem codeAt_ds_16 {image : Image} {d b : Nat} (h : DsAt image d b) :
     CodeAt image (pcOf (d + 16)) (ds_16 d) :=
-  codeAt_sublayout h.1 (dsL_ok d) (i := 4) rfl
+  codeAt_sublayout h.1.1 (dsL_ok d) (i := 4) rfl
 theorem codeAt_ds_17 {image : Image} {d b : Nat} (h : DsAt image d b) :
     CodeAt image (pcOf (d + 17)) (ds_17 d) :=
-  codeAt_sublayout h.1 (dsL_ok d) (i := 5) rfl
+  codeAt_sublayout h.1.1 (dsL_ok d) (i := 5) rfl
 
 theorem dsCode_expand : (Images.expandImage.code.drop 30).take 19 = layoutCode (dsL 30) := by decide +kernel
 theorem dsCode_sign : (Images.signImage.code.drop 153).take 19 = layoutCode (dsL 153) := by decide +kernel
 
 theorem dsAt_of {image : Image} {d b : Nat} (hdb : d = 30 ∧ b = 354 ∨ d = 153 ∧ b = 543)
-    (h : (image.code.drop d).take 19 = layoutCode (dsL d)) : DsAt image d b := by
-  refine ⟨⟨?_, ?_, ?_, ?_⟩, hdb⟩
+    (h : (image.code.drop d).take 19 = layoutCode (dsL d)) (hg : GateAt image b) : DsAt image d b := by
+  refine ⟨⟨⟨?_, ?_, ?_, ?_⟩, hg⟩, hdb⟩
   · rcases hdb with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> decide
   · rcases hdb with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> decide
   · rcases hdb with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> decide
@@ -761,8 +811,8 @@ theorem dsAt_of {image : Image} {d b : Nat} (hdb : d = 30 ∧ b = 354 ∨ d = 15
     rw [e, show (0x1000 + 4 * d - 0x1000) / 4 = d by omega]
     exact List.take_prefix _ _
 
-theorem dsAt_expand : DsAt Images.expandImage 30 354 := dsAt_of (Or.inl ⟨rfl, rfl⟩) dsCode_expand
-theorem dsAt_sign : DsAt Images.signImage 153 543 := dsAt_of (Or.inr ⟨rfl, rfl⟩) dsCode_sign
+theorem dsAt_expand : DsAt Images.expandImage 30 354 := dsAt_of (Or.inl ⟨rfl, rfl⟩) dsCode_expand gateAt_expand
+theorem dsAt_sign : DsAt Images.signImage 153 543 := dsAt_of (Or.inr ⟨rfl, rfl⟩) dsCode_sign gateAt_sign
 
 sym_block blkds30_0 := symRun { noAlias := true } (ds_0 30) (pcOf (30 + 0)) 100
 sym_block blkds153_0 := symRun { noAlias := true } (ds_0 153) (pcOf (153 + 0)) 100
@@ -794,7 +844,7 @@ theorem run_ds2 {d b : Nat} (hdb : d = 30 ∧ b = 354 ∨ d = 153 ∧ b = 543) :
   · exact blkds153_2.trans (congrArg some (by kernel_rfl))
 
 def stds_15 (d : Nat) : SymState := { blkds30_15.res.st with regs := blkds30_15.res.st.regs.set Reg.x1 (.c (pcOf (d + 16))) }
-def pcEds_15 (d b : Nat) : E := .c (pcOf (b + 3))
+def pcEds_15 (d b : Nat) : E := .c (pcOf (gatePc b))
 theorem run_ds15 {d b : Nat} (hdb : d = 30 ∧ b = 354 ∨ d = 153 ∧ b = 543) :
     symRun { noAlias := true } (ds_15 d) (pcOf (d + 15)) 100 =
       some ⟨stds_15 d, pcEds_15 d b, blkds30_15.res.stop, blkds30_15.res.steps, blkds30_15.res.cycles⟩ := by

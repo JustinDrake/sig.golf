@@ -6,7 +6,7 @@ import SigGolfCandidate.T3M.Sign.Frontier
 * `sec_loop` : `fts_sec` (263..277) copies the secrets of the three opened leaves to `SDST`;
 * `outer_loop` : `fr_outer` (331..344) emits the three outer siblings `(HS >> LEV) ^ 1`, `LEV = 8, 9, 10`;
 * `fts_collect` : from the return of `build_levels` (256) to `fts_coord` (186) of the next coordinate:
-  secrets, the multiproof walk `mf 8 8 [g0, g1, g2]`, the outer siblings, the root to the forest slot.
+  secrets, the multiproof walk `mf 7 7 [g0, g1, g2]`, the outer siblings, the root to the forest slot.
 -/
 
 namespace SigGolfCandidate.T3M.Sign
@@ -77,7 +77,7 @@ theorem outerL_length (g l n : Nat) : (outerL g l n).length = n := by simp [oute
 
 /-- **The outer siblings** (`fr_outer`, 332..344) from `LEV = l` to 11: emits `outerL g l (11 - l)`. -/
 theorem outer_loop (t0 : MachineState) (g : Nat) (hg : g < 2048) :
-    ∀ (n l : Nat), l + n = 11 → 8 ≤ l → ∀ (t : MachineState) (pp : Nat),
+    ∀ (n l : Nat), l + n = 11 → 7 ≤ l → ∀ (t : MachineState) (pp : Nat),
     t.pc = pcOf 332 → t.getReg .x22 = BitVec.ofNat 64 l → t.getReg .x20 = BitVec.ofNat 64 (2048 + g) →
     t.getReg .x2 = BitVec.ofNat 64 FTS → t.getReg .x16 = BitVec.ofNat 64 pp →
     pp % 8 = 0 → pp + 16 * n ≤ FTS →
@@ -131,22 +131,22 @@ def colRegs : List Reg := [.x6, .x7, .x8, .x16, .x19, .x20, .x21, .x22, .x23, .x
 sorted row `g0 < g1 < g2` at `SEL + 24 c`: the three secrets to `sd`, the multiproof walk and the outer
 siblings to `pp`, the root to the forest slot, back to `fts_coord` with `coord = c + 1`. -/
 theorem fts_collect (t : MachineState) (c g0 g1 g2 pp sd : Nat) (hc : c < 7) (hg2 : g2 < 2048) (h01 : g0 < g1)
-    (h12 : g1 < g2) (hl01 : lcaLevel g0 g1 ≤ 8) (hl12 : lcaLevel g1 g2 ≤ 8)
+    (h12 : g1 < g2) (hl01 : lcaLevel g0 g1 ≤ 7) (hl12 : lcaLevel g1 g2 ≤ 7)
     (hpc : t.pc = pcOf 256) (h8 : t.getReg .x8 = BitVec.ofNat 64 c) (h2 : t.getReg .x2 = BitVec.ofNat 64 FTS)
     (h16 : t.getReg .x16 = BitVec.ofNat 64 pp) (h26 : t.getReg .x26 = BitVec.ofNat 64 sd)
     (hm0 : t.getMem (BitVec.ofNat 64 (SEL + 24 * c)) = BitVec.ofNat 64 g0)
     (hm1 : t.getMem (BitVec.ofNat 64 (SEL + 24 * c + 8)) = BitVec.ofNat 64 g1)
     (hm2 : t.getMem (BitVec.ofNat 64 (SEL + 24 * c + 16)) = BitVec.ofNat 64 g2)
-    (hpp8 : pp % 8 = 0) (hpp : pp + 16 * 51 ≤ FOREST) (hsd8 : sd % 8 = 0) (hsd : sd + 48 ≤ pp) :
+    (hpp8 : pp % 8 = 0) (hpp : pp + 16 * 52 ≤ FOREST) (hsd8 : sd % 8 = 0) (hsd : sd + 48 ≤ pp) :
     ∃ u k, Steps image t k k u ∧ k ≤ 1200 ∧ u.pc = pcOf 186 ∧ u.getReg .x8 = BitVec.ofNat 64 (c + 1) ∧
-      u.getReg .x16 = BitVec.ofNat 64 (pp + 16 * ((mf 8 8 [g0, g1, g2]).length + 3)) ∧
+      u.getReg .x16 = BitVec.ofNat 64 (pp + 16 * ((mf 7 7 [g0, g1, g2]).length + 4)) ∧
       u.getReg .x26 = BitVec.ofNat 64 (sd + 48) ∧
       (∀ i < 3, DigAt u (sd + 16 * i) (memDig t (SEC + 16 * [g0, g1, g2].getD i 0))) ∧
-      Emitted t u pp (mf 8 8 [g0, g1, g2] ++ outerL g2 8 3) ∧
+      Emitted t u pp (mf 7 7 [g0, g1, g2] ++ outerL g2 7 4) ∧
       DigAt u (FOREST + rootOff c) (memDig t (FTS + 16)) ∧
-      (mf 8 8 [g0, g1, g2]).length ≤ 48 ∧
+      (mf 7 7 [g0, g1, g2]).length ≤ 48 ∧
       RegsExcept t u colRegs ∧
-      Frame t u (fun A => (sd ≤ A ∧ A < sd + 48) ∨ (pp ≤ A ∧ A < pp + 16 * ((mf 8 8 [g0, g1, g2]).length + 3)) ∨
+      Frame t u (fun A => (sd ≤ A ∧ A < sd + 48) ∨ (pp ≤ A ∧ A < pp + 16 * ((mf 7 7 [g0, g1, g2]).length + 4)) ∨
         A = FOREST + rootOff c ∨ A = FOREST + rootOff c + 8) := by
   have hrow : SEL + 24 * c + 32 ≤ 2 ^ 24 := by sgo
   obtain ⟨t1, st1, t1pc, t1x25, t1x19, t1r, t1f⟩ := blk256_spec t hpc c hc h8
@@ -172,7 +172,7 @@ theorem fts_collect (t : MachineState) (c g0 g1 g2 pp sd : Nat) (hc : c < 7) (hg
     (by rw [t2f.get (by sgo) (by sgo)]; simpa using hrowm 1 (by omega))
     (by rw [t2f.get (by sgo) (by sgo)]; simpa using hrowm 2 (by omega)) hpp8 (by sgo) (by sgo)
     (fun A h1 h2' => f02.get (by sgo) (by sgo))
-  set Lm := mf 8 8 [g0, g1, g2] with hLm
+  set Lm := mf 7 7 [g0, g1, g2] with hLm
   clear_value Lm
   have f03 : Frame t t3 (fun A => (sd ≤ A ∧ A < sd + 48) ∨ (pp ≤ A ∧ A < pp + 16 * Lm.length)) :=
     (f02.trans t3f).mono (fun A _ h => h)
@@ -182,11 +182,11 @@ theorem fts_collect (t : MachineState) (c g0 g1 g2 pp sd : Nat) (hc : c < 7) (hg
     fun A h1 h2' => f03.get (by sgo) (by sgo)
   -- the outer siblings
   obtain ⟨t4, st4, t4pc, t4x22, t4r, t4f⟩ := blk331_spec t3 t3pc
-  obtain ⟨t5, k5, st5, hk5, t5pc, t5x16, t5em, t5r, t5f⟩ := outer_loop t g2 hg2 3 8 rfl le_rfl t4 (pp + 16 * Lm.length)
+  obtain ⟨t5, k5, st5, hk5, t5pc, t5x16, t5em, t5r, t5f⟩ := outer_loop t g2 hg2 4 7 rfl le_rfl t4 (pp + 16 * Lm.length)
     t4pc t4x22 (by rw [t4r.get (by simp)]; exact t3x20) (by rw [t4r.get (by simp), r03.get (by simp)]; exact h2)
     (by rw [t4r.get (by simp)]; exact t3x16) (by omega) (by sgo)
     (fun A h1 h2' => (t4f.get (by sgo) (fun h => h)).trans (h3heap A h1 h2'))
-  have f35 : Frame t3 t5 (fun A => pp + 16 * Lm.length ≤ A ∧ A < pp + 16 * Lm.length + 16 * 3) :=
+  have f35 : Frame t3 t5 (fun A => pp + 16 * Lm.length ≤ A ∧ A < pp + 16 * Lm.length + 16 * 4) :=
     (t4f.trans t5f).mono (fun A _ h => by rcases h with h | h; exact h.elim; exact h)
   have r35 : RegsExcept t3 t5 ([.x22] ++ [.x6, .x7, .x16, .x22, .x28]) := t4r.trans t5r
   -- the root
@@ -220,11 +220,11 @@ theorem fts_collect (t : MachineState) (c g0 g1 g2 pp sd : Nat) (hc : c < 7) (hg
   refine ⟨t7, 7 + (k2 + (k3 + (1 + (k5 + (k6 + 9))))),
     st1.trans (st2.trans (st3.trans (st4.trans (st5.trans (st6.trans st7))))), by omega, t7pc, t7x8, ?_, ?_, ?_,
     ?_, hroot, t3len, ?_, ?_⟩
-  · rw [t7r.get (by simp), t6r.get (by simp), t5x16, show pp + 16 * Lm.length + 16 * 3 = pp + 16 * (Lm.length + 3) by ring]
+  · rw [t7r.get (by simp), t6r.get (by simp), t5x16, show pp + 16 * Lm.length + 16 * 4 = pp + 16 * (Lm.length + 4) by ring]
   · rw [t7r.get (by simp), t6r.get (by simp), r35.get (by simp), t3r.get (by simp)]; exact t2x26
-  · have hF : pp + 816 ≤ 131872 := by simpa [FOREST] using hpp
+  · have hF : pp + 832 ≤ 131872 := by simpa [FOREST] using hpp
     have hF2 : FOREST = 131872 := rfl
-    have F27 : Frame t2 t7 (fun A => (pp ≤ A ∧ A < pp + 16 * (Lm.length + 3)) ∨ A = FOREST + rootOff c ∨
+    have F27 : Frame t2 t7 (fun A => (pp ≤ A ∧ A < pp + 16 * (Lm.length + 4)) ∨ A = FOREST + rootOff c ∨
         A = FOREST + rootOff c + 8) := (t3f.trans (f35.trans hfr57)).mono (fun A _ h => by
       rcases h with h | h | h | h
       · exact Or.inl ⟨h.1, by omega⟩
@@ -234,17 +234,17 @@ theorem fts_collect (t : MachineState) (c g0 g1 g2 pp sd : Nat) (hc : c < 7) (hg
     intro i hi
     exact (t2sec i hi).frame F27 (by omega) (by intro h; rcases h with h | h | h <;> omega)
       (by intro h; rcases h with h | h | h <;> omega)
-  · have hF : pp + 816 ≤ 131872 := by simpa [FOREST] using hpp
+  · have hF : pp + 832 ≤ 131872 := by simpa [FOREST] using hpp
     have hF2 : FOREST = 131872 := rfl
     try rw [← hLm]
     have hb1 : pp + 16 * Lm.length < 2 ^ 64 := by
       have h48 : Lm.length ≤ 48 := t3len
       clear * - h48 hF
       omega
-    refine Emitted.append (L := Lm) (M := outerL g2 8 3) ((t3em.frame (f35.trans hfr57) hb1
+    refine Emitted.append (L := Lm) (M := outerL g2 7 4) ((t3em.frame (f35.trans hfr57) hb1
       (fun A h1 h2' h => ?_))) ?_
     · rcases h with h | h | h <;> omega
-    · have hol : (outerL g2 8 3).length = 3 := outerL_length _ _ _
+    · have hol : (outerL g2 7 4).length = 4 := outerL_length _ _ _
       exact t5em.frame hfr57 (by omega) (fun A h1 h2' h => by rcases h with h | h <;> omega)
   · exact ((r03.trans r35).trans (t6r.trans t7r)).mono (by simp [colRegs])
   · refine ((f03.trans f35).trans hfr57).mono (fun A _ h => ?_)

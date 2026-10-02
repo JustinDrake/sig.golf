@@ -158,8 +158,8 @@ theorem payoff_le_ΦI (q : Nat) (r : (Bool × QueryLog Requests × List Wots.Ent
   split_ifs with hinv
   · unfold nearPayoff
     split_ifs with hp
-    · obtain ⟨hb, hl, N, hN, hadm, hcov⟩ := hp
-      exact mem_win q _ _ _ _ _ hb (hinv.2.1.trans hl) (Or.inr ⟨N, hN, hadm, nearCoveredBy_mono hinv.1 hcov⟩)
+    · obtain ⟨hb, hl, N, hN, hadm, hgate, hcov⟩ := hp
+      exact mem_win q _ _ _ _ _ hb (hinv.2.1.trans hl) (Or.inr ⟨N, hN, hadm, hgate, nearCoveredBy_mono hinv.1 hcov⟩)
     · exact bot_le
   · exact le_top
 

@@ -62,7 +62,8 @@ theorem leafInput_words' (lay : Layer) (tree leaf : Nat) (ends : List Digest) (h
     rfl
   · rw [h, if_neg (by decide)]
     simp only [Nat.reduceMul, Nat.reduceSub, Nat.reduceAdd, Nat.reduceMod, List.replicate_zero,
-      wordsOf_nil, List.append_nil, T3.packedNodeTag, Nat.reduceEqDiff, or_self, if_false]
+      wordsOf_nil, List.append_nil]
+    simp [T3.packedNodeTag]
 
 /-- The leaf-pk HASH length in blocks: `16 (N + 1)` bytes rounded up. -/
 def leafBlocks' (lay : Layer) : Nat := (16 * (chainCount lay + 1) + 63) / 64
@@ -120,7 +121,7 @@ structure RlPre (s : MachineState) (sig : Signature) (index : Nat) (lay : Layer)
   x24 : s.getReg .x24 = BitVec.ofNat 64 WM
   hidx : index < 2 ^ 31
   hP : 0x7000 ≤ P
-  hP' : P + 16 * (chainCount lay + height lay) ≤ 0x7000 + 5824
+  hP' : P + 16 * (chainCount lay + height lay) ≤ 0x7000 + 5776
   hP8 : P % 8 = 0
   hWC8 : WC % 8 = 0
   hWM8 : WM % 8 = 0
@@ -310,7 +311,7 @@ theorem not_MkW_of {leaf WM j A : Nat} (hA1 : WM + 64 ≤ A) (hA2 : A < NODE ∨
 leaf bit, the node HASH; 56 cycles. -/
 theorem rl_mk_step {tc : MachineState} {sig : Signature} {lay : Layer} {tree leaf P WM j : Nat}
     {value : Digest} {u : MachineState} (hj : j < height lay) (htree : tree < 2 ^ 32) (hleaf : leaf < 2 ^ height lay)
-    (hP0 : 0x7000 ≤ P) (hP' : P + 16 * (chainCount lay + height lay) ≤ 0x7000 + 5824) (hP8 : P % 8 = 0)
+    (hP0 : 0x7000 ≤ P) (hP' : P + 16 * (chainCount lay + height lay) ≤ 0x7000 + 5776) (hP8 : P % 8 = 0)
     (hWM8 : WM % 8 = 0) (hWM : 0x800 + 64 * (height lay - 1) ≤ WM) (hWM' : WM + 64 ≤ 0x7000)
     (c5 : tc.getReg .x5 = 0) (c8 : tc.getReg .x8 = BitVec.ofNat 64 lay.val)
     (c9 : tc.getReg .x9 = BitVec.ofNat 64 tree) (c18 : tc.getReg .x18 = BitVec.ofNat 64 leaf)

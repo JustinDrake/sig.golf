@@ -7,7 +7,7 @@ import SigGolfCandidate.T3M.Expand.Fts
 
 `fts_coord_step`: from the coordinate invariant `CoordInv` at `fts_coord` (word 65) for coordinate `c < 7` with
 Core's state `(roots, used)`, the machine refines `ftsStep sig index (selections N) (some (roots, used)) c` within
-`coordCost` cycles: the secret copies, `recover_child` at level 8 on the bucket (`rc_tbsim`), the three outer folds,
+`coordCost` cycles: the secret copies, `recover_child` at level 7 on the bucket (`rc_tbsim`), the four outer folds,
 the segment close and the root store, ending in `CoordInv` for `c + 1` (or `FailedAt 354`).
 -/
 
@@ -65,9 +65,9 @@ theorem rcCost_le (g0 g1 g2 : Nat) : ∀ level node,
       rw [cnt3_succ] at hp
       nlinarith
 
-theorem rcCost_eight (g0 g1 g2 b : Nat) : rcCost [g0, g1, g2] 8 b ≤ 4376 := by
-  have h1 := rcCost_le g0 g1 g2 8 b
-  have h2 := cnt3_le g0 g1 g2 8 b
+theorem rcCost_eight (g0 g1 g2 b : Nat) : rcCost [g0, g1, g2] 7 b ≤ 4376 := by
+  have h1 := rcCost_le g0 g1 g2 7 b
+  have h2 := cnt3_le g0 g1 g2 7 b
   nlinarith
 
 /-! ## The secret loop -/
@@ -139,7 +139,7 @@ structure Stat (sig : Signature) (N : HashOutput) (u : MachineState) : Prop wher
   x9 : u.getReg .x9 = BitVec.ofNat 64 (N.toNat % 2 ^ 31)
   rows : SelRows u N
   secrets : ∀ k (h : k < 21), DigAt u (0x7010 + 16 * k) (sig.secrets ⟨k, h⟩)
-  proof : ∀ k (h : k < 124), DigAt u (0x7160 + 16 * k) (sig.proof ⟨k, h⟩)
+  proof : ∀ k (h : k < 121), DigAt u (0x7160 + 16 * k) (sig.proof ⟨k, h⟩)
   f0 : u.getMem (BitVec.ofNat 64 FLEAF) = 0
   f8 : u.getMem (BitVec.ofNat 64 (FLEAF + 8)) = 0
   f48 : u.getMem (BitVec.ofNat 64 (FLEAF + 48)) = 0
@@ -149,7 +149,7 @@ structure Stat (sig : Signature) (N : HashOutput) (u : MachineState) : Prop wher
 
 /-- The addresses of the static facts. -/
 def StatA (A : Nat) : Prop :=
-  (SEL ≤ A ∧ A < SEL + 168) ∨ (0x7000 ≤ A ∧ A < 0x7000 + 5824) ∨ A = FLEAF ∨ A = FLEAF + 8 ∨
+  (SEL ≤ A ∧ A < SEL + 168) ∨ (0x7000 ≤ A ∧ A < 0x7000 + 5776) ∨ A = FLEAF ∨ A = FLEAF + 8 ∨
     A = FLEAF + 48 ∨ A = FLEAF + 56 ∨ A = NODE + 32 ∨ A = NODE + 40
 
 theorem stat_of_pre {sig : Signature} {N : HashOutput} {s : MachineState} (h : FtsPre sig N s) : Stat sig N s :=
@@ -191,19 +191,19 @@ theorem rcCtx_of_stat {sig : Signature} {N : HashOutput} {u : MachineState} (h :
 
 /-! ## The outer folds -/
 
-/-- One outer fold of Core's `ftsStep` (level `8 + j`, sibling slot `used`). -/
+/-- One outer fold of Core's `ftsStep` (level `7 + j`, sibling slot `used`). -/
 def outerStep (sig : Signature) (index c b : Nat) (state : Option (Digest × Nat)) (j : Nat) :
     T3.M (Option (Digest × Nat)) := do
   let some (value, used) := state | pure none
-  if h : used < 124 then
+  if h : used < 121 then
     let other := sig.proof ⟨used, h⟩
     let pair := if b / 2 ^ j % 2 = 0 then (value, other) else (other, value)
-    let parent ← nodeHash 10 c index (2 ^ (3 - j - 1) + b / 2 ^ (j + 1)) pair.1 pair.2
+    let parent ← nodeHash 10 c index (2 ^ (4 - j - 1) + b / 2 ^ (j + 1)) pair.1 pair.2
     pure (some (parent, used + 1))
   else pure none
 
 /-- The stream fold of outer fold `j` (sibling slot `next + j`). -/
-def outerFold (b : Nat) (proof : Fin 124 → Digest) (next j : Nat) : Fold :=
+def outerFold (b : Nat) (proof : Fin 121 → Digest) (next j : Nat) : Fold :=
   (decide (b / 2 ^ j % 2 = 1), pfN proof (next + j))
 
 /-- The written doublewords of the outer loop. -/
@@ -213,7 +213,7 @@ def OW (A : Nat) : Prop :=
 
 /-- The outer loop at `fts_outer` (word 100) before fold `j`: the value `value` at `NOUT`, the slot `u' = next + j`,
 the stream with the bucket DFS's emission `e1` and `j` outer folds. -/
-structure OInv (proof : Fin 124 → Digest) (b : Nat) (e1 : Em) (next : Nat) (t4 : MachineState) (j : Nat)
+structure OInv (proof : Fin 121 → Digest) (b : Nat) (e1 : Em) (next : Nat) (t4 : MachineState) (j : Nat)
     (value : Digest) (u' : Nat) (u : MachineState) : Prop where
   pc : u.pc = pcOf 100
   x19 : u.getReg .x19 = BitVec.ofNat 64 j
@@ -229,12 +229,12 @@ theorem not_OW_stat {A : Nat} (h : StatA A) : ¬ OW A := by
   unfold StatA at h; unfold OW; simp only [SEL, FLEAF, NODE, NOUT] at h ⊢; omega
 
 /-- **One outer fold** (words 100 .. 192). -/
-theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : Nat} (hc : c < 7) (hb : b < 8)
-    (hb0 : selEntry N c 0 / 2 ^ 8 = b) (hg0 : selEntry N c 0 < 2 ^ 64) {e1 : Em} {next : Nat}
+theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : Nat} (hc : c < 7) (hb : b < 16)
+    (hb0 : selEntry N c 0 / 2 ^ 7 = b) (hg0 : selEntry N c 0 < 2 ^ 64) {e1 : Em} {next : Nat}
     {t4 : MachineState} (hst : Stat sig N t4) (h8 : t4.getReg .x8 = BitVec.ofNat 64 c)
     (h22 : t4.getReg .x22 = BitVec.ofNat 64 (0xC40 + 8 * wl e1))
-    (hroom : wl e1 + 1 + 10 * (e1.cur.length + 3) ≤ 1275) (hnext : next ≤ 124)
-    {j : Nat} (hj : j < 3) {value : Digest} {u' : Nat} {u : MachineState}
+    (hroom : wl e1 + 1 + 10 * (e1.cur.length + 4) ≤ 1275) (hnext : next ≤ 121)
+    {j : Nat} (hj : j < 4) {value : Digest} {u' : Nat} {u : MachineState}
     (hinv : OInv sig.proof b e1 next t4 j value u' u) :
     TBSim image sk u 77 (outerStep sig (N.toNat % 2 ^ 31) c b (some (value, u')) j)
       (fun st w => match st with
@@ -250,7 +250,7 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
   obtain ⟨u2, s2, p2, r2, f2⟩ := f102_spec u1 p1 u' (by omega) (by rw [r1.get (by decide)]; exact x18)
   unfold outerStep
   simp only []
-  by_cases hu124 : 124 ≤ u'
+  by_cases hu124 : 121 ≤ u'
   · rw [if_pos hu124] at p2
     obtain ⟨u3, s3, p3, x5_3, x10_3, _⟩ := cs0_spec kernAt_expand u2 p2
     rw [dif_neg (by omega)]
@@ -260,7 +260,7 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
       ⟨p3, x5_3, x10_3⟩)).mono (by omega) (fun _ _ h => h)
   rw [if_neg hu124] at p2
   rw [dif_pos (by omega)]
-  have hu' : u' < 124 := by omega
+  have hu' : u' < 121 := by omega
   have hslot : DigAt u2 (0x7160 + 16 * u') (sig.proof ⟨u', hu'⟩) :=
     (hstu.proof u' hu').frame (f1.trans f2) (by omega) (fun h => by rcases h with h | h <;> exact h)
       (fun h => by rcases h with h | h <;> exact h)
@@ -376,9 +376,9 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
       [.x6, .x7, .x10, .x11, .x12, .x13, .x28, .x30]) := R04.trans r5
   have F35 : Frame u3 u5 (fun A => (A = NODE ∨ A = NODE + 8 ∨ A = NODE + 48 ∨ A = NODE + 56 ∨
       (0xC40 ≤ A ∧ A < 0x3418)) ∨ (A = NODE + 16 ∨ A = NODE + 24)) := f4.trans f5
-  set heap := 2 ^ (2 - j) + b / 2 ^ (j + 1) with hheap
+  set heap := 2 ^ (3 - j) + b / 2 ^ (j + 1) with hheap
   have hheap' : heap < 2 ^ 32 := by
-    have : 2 ^ (2 - j) ≤ 2 ^ 2 := Nat.pow_le_pow_right (by norm_num) (by omega)
+    have : 2 ^ (3 - j) ≤ 2 ^ 3 := Nat.pow_le_pow_right (by norm_num) (by omega)
     have : b / 2 ^ (j + 1) ≤ b := Nat.div_le_self _ _
     omega
   have F05 : Frame u u5 (fun A => ((False ∨ False) ∨ False) ∨ ((A = NODE ∨ A = NODE + 8 ∨ A = NODE + 48 ∨
@@ -407,7 +407,7 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
       bytesLE 16 pr))).blocks = 1 := by
     rw [pad64_of_aligned _ (by rw [nodeInput_length']), blocks_toQ ⟨by rw [nodeInput_length']; omega,
       by rw [nodeInput_length']⟩, nodeInput_length']
-  rw [show 3 - j - 1 = 2 - j by omega]
+  rw [show 4 - j - 1 = 3 - j by omega]
   unfold nodeHash
   refine (TBSim.steps (s1.trans (s2.trans (s3.trans (s4.trans s5)))) (tb_shortHash_bind' (W := 2)
     (fetch_190 u5 p5) h5 hv hq (fun a => ?_))).mono (by rw [hblk]; omega) (fun _ _ h => h)
@@ -443,10 +443,10 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
 
 theorem ftsStep_some (sig : Signature) (index : Nat) (chosen : List Selection) (roots : List Digest) (used c : Nat) :
     ftsStep sig index chosen (some (roots, used)) c =
-      recoverChild index c ((chosen.getD c ⟨0, []⟩).leaves.map fun s => (chosen.getD c ⟨0, []⟩).bucket * 256 + s)
-          (coordValues sig c) sig.proof 8 (chosen.getD c ⟨0, []⟩).bucket used >>= fun r => match r with
+      recoverChild index c ((chosen.getD c ⟨0, []⟩).leaves.map fun s => (chosen.getD c ⟨0, []⟩).bucket * 128 + s)
+          (coordValues sig c) sig.proof 7 (chosen.getD c ⟨0, []⟩).bucket used >>= fun r => match r with
         | some (value, next) =>
-          (List.range 3).foldlM (outerStep sig index c (chosen.getD c ⟨0, []⟩).bucket) (some (value, next)) >>=
+          (List.range 4).foldlM (outerStep sig index c (chosen.getD c ⟨0, []⟩).bucket) (some (value, next)) >>=
             fun result => match result with
             | some (root, next') => pure (some (roots ++ [root], next'))
             | none => pure none
@@ -463,7 +463,7 @@ theorem ftsStep_some (sig : Signature) (index : Nat) (chosen : List Selection) (
     rcases result with _ | ⟨root, next'⟩ <;> rfl
 
 /-- The emission state at the start of coordinate `c`. -/
-def emAt (chosen : List Selection) (proof : Fin 124 → Digest) (c : Nat) : Em := ⟨emSegs chosen proof c, [], 0⟩
+def emAt (chosen : List Selection) (proof : Fin 121 → Digest) (c : Nat) : Em := ⟨emSegs chosen proof c, [], 0⟩
 
 /-- The doublewords the FTS phase writes (`FtsW` without the zero words of the FTS leaf block). -/
 def FtsW' (A : Nat) : Prop :=
@@ -496,27 +496,27 @@ structure CoordInv (s0 : MachineState) (sig : Signature) (N : HashOutput) (c : N
 /-! ## The emission of one coordinate -/
 
 theorem idxOf_slot_frontier (sel : Selection) (i : Nat)
-    (hi : i < (T3.frontier (selectedLeaves sel) 8 sel.bucket).length) :
-    (slotPositions sel).idxOf ((T3.frontier (selectedLeaves sel) 8 sel.bucket)[i]) = i := by
+    (hi : i < (T3.frontier (selectedLeaves sel) 7 sel.bucket).length) :
+    (slotPositions sel).idxOf ((T3.frontier (selectedLeaves sel) 7 sel.bucket)[i]) = i := by
   have h : (slotPositions sel)[i]'(by unfold slotPositions; rw [List.length_append]; omega) =
-      (T3.frontier (selectedLeaves sel) 8 sel.bucket)[i] := by
+      (T3.frontier (selectedLeaves sel) 7 sel.bucket)[i] := by
     unfold slotPositions; rw [List.getElem_append_left hi]
   rw [← h]; exact (slotPositions_nodup sel).idxOf_getElem i _
 
-theorem idxOf_slot_outer (sel : Selection) (j : Nat) (hj : j < 3) :
-    (slotPositions sel).idxOf (8 + j, sel.bucket / 2 ^ j ^^^ 1) =
-      (T3.frontier (selectedLeaves sel) 8 sel.bucket).length + j := by
-  have hl : (T3.frontier (selectedLeaves sel) 8 sel.bucket).length + j < (slotPositions sel).length := by
+theorem idxOf_slot_outer (sel : Selection) (j : Nat) (hj : j < 4) :
+    (slotPositions sel).idxOf (7 + j, sel.bucket / 2 ^ j ^^^ 1) =
+      (T3.frontier (selectedLeaves sel) 7 sel.bucket).length + j := by
+  have hl : (T3.frontier (selectedLeaves sel) 7 sel.bucket).length + j < (slotPositions sel).length := by
     unfold slotPositions; rw [List.length_append, List.length_map, List.length_range]; omega
-  have h : (slotPositions sel)[(T3.frontier (selectedLeaves sel) 8 sel.bucket).length + j] =
-      (8 + j, sel.bucket / 2 ^ j ^^^ 1) := by
+  have h : (slotPositions sel)[(T3.frontier (selectedLeaves sel) 7 sel.bucket).length + j] =
+      (7 + j, sel.bucket / 2 ^ j ^^^ 1) := by
     simp [slotPositions, List.getElem_append_right]
   rw [← h]; exact (slotPositions_nodup sel).idxOf_getElem _ _
 
 /-- The bucket DFS from slot `slotBase c` emits with the positional values of coordinate `c`. -/
-theorem rcEm_coord (chosen : List Selection) (proof : Fin 124 → Digest) (c : Nat) (e : Em) :
-    rcEm (selectedLeaves (chosen.getD c ⟨0, []⟩)) (pfN proof) 8 (chosen.getD c ⟨0, []⟩).bucket (slotBase chosen c) e =
-      emV (selectedLeaves (chosen.getD c ⟨0, []⟩)) (valC chosen proof c) 8 (chosen.getD c ⟨0, []⟩).bucket e := by
+theorem rcEm_coord (chosen : List Selection) (proof : Fin 121 → Digest) (c : Nat) (e : Em) :
+    rcEm (selectedLeaves (chosen.getD c ⟨0, []⟩)) (pfN proof) 7 (chosen.getD c ⟨0, []⟩).bucket (slotBase chosen c) e =
+      emV (selectedLeaves (chosen.getD c ⟨0, []⟩)) (valC chosen proof c) 7 (chosen.getD c ⟨0, []⟩).bucket e := by
   apply rcEm_eq_emV
   intro i hi
   unfold valC
@@ -529,7 +529,7 @@ theorem img_len_climbE (val : Nat × Nat → Digest) (g lo a : Nat) (e : Em) :
   simp [wl]
   ring
 
-theorem wl_emAt (chosen : List Selection) (proof : Fin 124 → Digest) (hC : ChosenOk chosen) {c : Nat} (hc : c ≤ 7) :
+theorem wl_emAt (chosen : List Selection) (proof : Fin 121 → Digest) (hC : ChosenOk chosen) {c : Nat} (hc : c ≤ 7) :
     wl (emAt chosen proof c) = 5 * c + 10 * slotBase chosen c :=
   length_emSegs_words chosen proof hC c hc
 
@@ -539,24 +539,24 @@ theorem cur_climbE (val : Nat × Nat → Digest) (g lo a : Nat) (e : Em) :
     (climbE val g lo a e).cur.length = e.cur.length + a := by
   simp [climbE]
 
-/-- Closing coordinate `c`'s emission (the bucket DFS and the three outer folds) gives `emAt (c + 1)`. -/
-theorem emAt_succ (chosen : List Selection) (proof : Fin 124 → Digest) (hC : ChosenOk chosen) {c : Nat}
+/-- Closing coordinate `c`'s emission (the bucket DFS and the four outer folds) gives `emAt (c + 1)`. -/
+theorem emAt_succ (chosen : List Selection) (proof : Fin 121 → Digest) (hC : ChosenOk chosen) {c : Nat}
     (hc : c < 7) :
-    (climbE (valC chosen proof c) (selLeaf (chosen.getD c ⟨0, []⟩) 2) 8 3
-      (emV (selectedLeaves (chosen.getD c ⟨0, []⟩)) (valC chosen proof c) 8 (chosen.getD c ⟨0, []⟩).bucket
+    (climbE (valC chosen proof c) (selLeaf (chosen.getD c ⟨0, []⟩) 2) 7 4
+      (emV (selectedLeaves (chosen.getD c ⟨0, []⟩)) (valC chosen proof c) 7 (chosen.getD c ⟨0, []⟩).bucket
         (emAt chosen proof c))).close false 0 = emAt chosen proof (c + 1) := by
   unfold emAt
   rw [emV_bucket _ c _ (hC c hc), emSegs_succ]
 
 /-- The machine's outer folds are the climb of the last leaf through levels 8 .. 10. -/
-theorem outerFold_eq (chosen : List Selection) (proof : Fin 124 → Digest) (hC : ChosenOk chosen) {c : Nat}
-    (hc : c < 7) {j : Nat} (hj : j < 3) :
+theorem outerFold_eq (chosen : List Selection) (proof : Fin 121 → Digest) (hC : ChosenOk chosen) {c : Nat}
+    (hc : c < 7) {j : Nat} (hj : j < 4) :
     outerFold (chosen.getD c ⟨0, []⟩).bucket proof
-        (slotBase chosen c + (T3.frontier (selectedLeaves (chosen.getD c ⟨0, []⟩)) 8
+        (slotBase chosen c + (T3.frontier (selectedLeaves (chosen.getD c ⟨0, []⟩)) 7
           (chosen.getD c ⟨0, []⟩).bucket).length) j =
-      climbF (valC chosen proof c) (selLeaf (chosen.getD c ⟨0, []⟩) 2) 8 j := by
+      climbF (valC chosen proof c) (selLeaf (chosen.getD c ⟨0, []⟩) 2) 7 j := by
   have hs := hC c hc
-  have hdiv : selLeaf (chosen.getD c ⟨0, []⟩) 2 / 2 ^ (8 + j) = (chosen.getD c ⟨0, []⟩).bucket / 2 ^ j := by
+  have hdiv : selLeaf (chosen.getD c ⟨0, []⟩) 2 / 2 ^ (7 + j) = (chosen.getD c ⟨0, []⟩).bucket / 2 ^ j := by
     unfold selLeaf; exact bucket_div_outer hs.l2
   unfold outerFold climbF valC
   rw [hdiv, idxOf_slot_outer _ j hj, Nat.add_assoc]
@@ -573,16 +573,16 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
         | none => FailedAt 354 u
         | some (roots', used') => CoordInv s0 sig N (c + 1) roots' used' u) := by
   have hC : ChosenOk (T3.selections N) := chosenOk_of N (selectionsOk_of_admissible N hpre.adm)
-  have h7 : slotBase (T3.selections N) 7 ≤ 124 := slotBase_seven_le N hC hpre.adm
+  have h7 : slotBase (T3.selections N) 7 ≤ 121 := slotBase_seven_le N hC hpre.adm
   have hs : SelOk ((T3.selections N).getD c ⟨0, []⟩) := hC c hc
-  have hb : ((T3.selections N).getD c ⟨0, []⟩).bucket < 8 := hs.b
+  have hb : ((T3.selections N).getD c ⟨0, []⟩).bucket < 16 := hs.b
   have l0 := hs.s01; have l1 := hs.s12; have l2 := hs.l2
   have hsl : ((T3.selections N).getD c ⟨0, []⟩).leaves.map
-      (fun s => ((T3.selections N).getD c ⟨0, []⟩).bucket * 256 + s) =
+      (fun s => ((T3.selections N).getD c ⟨0, []⟩).bucket * 128 + s) =
       [selEntry N c 0, selEntry N c 1, selEntry N c 2] := hs.selected
   have hg : selEntry N c 0 < selEntry N c 1 ∧ selEntry N c 1 < selEntry N c 2 ∧ selEntry N c 2 < 2 ^ 11 := by
     unfold selEntry; omega
-  have hb0 : selEntry N c 0 / 2 ^ 8 = ((T3.selections N).getD c ⟨0, []⟩).bucket := by
+  have hb0 : selEntry N c 0 / 2 ^ 7 = ((T3.selections N).getD c ⟨0, []⟩).bucket := by
     unfold selEntry; exact bucket_div_eight (by omega)
   have hi : N.toNat % 2 ^ 31 < 2 ^ 32 := by have := Nat.mod_lt N.toNat (show 0 < 2 ^ 31 by norm_num); omega
   have hsel := hs.selected
@@ -620,42 +620,42 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
   have hwl0 : wl e0 = 5 * c + 10 * slotBase chosen c := wl_emAt chosen sig.proof hC (by omega)
   have hwl1 : wl (emAt chosen sig.proof (c + 1)) = 5 * (c + 1) + 10 * slotBase chosen (c + 1) :=
     wl_emAt chosen sig.proof hC (by omega)
-  have hsb : slotBase chosen (c + 1) ≤ 124 := le_trans (slotBase_mono chosen (by omega)) h7
-  set e1 := emV (selectedLeaves sel) (valC chosen sig.proof c) 8 sel.bucket e0 with he1
-  have hE1 : rcEm [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2] (pfN sig.proof) 8 sel.bucket used e0 = e1 := by
+  have hsb : slotBase chosen (c + 1) ≤ 121 := le_trans (slotBase_mono chosen (by omega)) h7
+  set e1 := emV (selectedLeaves sel) (valC chosen sig.proof c) 7 sel.bucket e0 with he1
+  have hE1 : rcEm [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2] (pfN sig.proof) 7 sel.bucket used e0 = e1 := by
     rw [he1, ← rcEm_coord, hsel, hinv.hused]
   have hclose := emAt_succ chosen sig.proof hC hc
   rw [← he0, ← he1] at hclose
-  have hlen1 : (img e1).length + 31 = 5 * (c + 1) + 10 * slotBase chosen (c + 1) + 1 := by
+  have hlen1 : (img e1).length + 41 = 5 * (c + 1) + 10 * slotBase chosen (c + 1) + 1 := by
     have := congrArg (fun e => (img e).length) hclose
     simp only [img_len_close, img_len_climbE] at this
     rw [this, length_img, hwl1]; simp [emAt]
-  have hused124 : used ≤ 124 := by
+  have hused124 : used ≤ 121 := by
     rw [hinv.hused]; exact le_trans (slotBase_mono chosen (by omega)) h7
   have hgl : selLeaf sel 0 < selLeaf sel 1 ∧ selLeaf sel 1 < selLeaf sel 2 ∧ selLeaf sel 2 < 2 ^ 11 := hg
   have hpreR : RcPre c (N.toNat % 2 ^ 31) (selLeaf sel 0) (selLeaf sel 1) (selLeaf sel 2) (coordValues sig c)
-      sig.proof t3 8 sel.bucket used e0 true 99 0x22000 := by
+      sig.proof t3 7 sel.bucket used e0 true 99 0x22000 := by
     refine ⟨p3, x1_3, by rw [R03.get (by decide)]; exact hinv.x2, x10_3, x11_3,
       by rw [R03.get (by decide)]; exact hinv.x18, by rw [R03.get (by decide)]; exact hinv.x22,
       fun h => absurd h (by decide), ?_, fun _ => rfl, by simp [he0, emAt], by simp [he0, emAt], ?_, ?_,
-      by norm_num, le_rfl, by norm_num, le_rfl, by omega, hused124, rcCtx_of_stat hst3 hc x8_3⟩
+      by norm_num, le_rfl, by norm_num, by decide, by omega, hused124, rcCtx_of_stat hst3 hc x8_3⟩
     · simp only [true_iff, List.mem_cons, List.mem_nil_iff, or_false]
       unfold selLeaf
       rintro g (rfl | rfl | rfl) <;> omega
     · exact hinv.stream.frame (F02.trans f3) (fun k hk h => by
         rcases h with (h | ⟨j, hj, h | h⟩) | h <;> first | exact h.elim | omega)
     · rw [hE1]; omega
-  have hrc := rc_tbsim (sk := sk) hc hi hgl 8 sel.bucket used e0 true 99 0x22000 t3 hpreR
+  have hrc := rc_tbsim (sk := sk) hc hi hgl 7 sel.bucket used e0 true 99 0x22000 t3 hpreR
   have hcost := rcCost_eight (selLeaf sel 0) (selLeaf sel 1) (selLeaf sel 2) sel.bucket
-  refine (TBSim.steps (s1.trans (s2.trans s3)) (TBSim.bind (W₂ := 256) hrc (fun r t4 h4 => ?_))).mono
+  refine (TBSim.steps (s1.trans (s2.trans s3)) (TBSim.bind (W₂ := 333) hrc (fun r t4 h4 => ?_))).mono
     (by unfold coordCost; omega) (fun _ _ h => h)
   rcases r with _ | ⟨v, next⟩
   · exact (TBSim.pure (Q := fun st u => match st with
         | none => FailedAt 354 u
         | some (roots', used') => CoordInv s0 sig N (c + 1) roots' used' u) (a := none) h4).mono (by omega)
       (fun _ _ h => h)
-  have hb0' : selLeaf sel 0 / 2 ^ 8 = sel.bucket := hb0
-  have hL8 : hasLeaf [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2] 8 sel.bucket = true :=
+  have hb0' : selLeaf sel 0 / 2 ^ 7 = sel.bucket := hb0
+  have hL8 : hasLeaf [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2] 7 sel.bucket = true :=
     (hasLeaf_three _ _ _ _ _).mpr (Or.inl hb0')
   obtain ⟨p4, x1_4, x2_4, x10_4, nout4, hnext, hnext124, _, x18_4, x22_4, regs4, _, cntl4, cnt4, par4, str4,
     R34, F34, ctx4⟩ := h4
@@ -663,9 +663,9 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
   obtain ⟨x23_4, x24_4⟩ := regs4 trivial
   have hcur4 := cntl4 trivial
   have hst4 : Stat sig N t4 := hst3.frame R34 (by decide) (by decide) F34 (fun A hA h =>
-    not_RcW_static (sp := 0x22000) (level := 8) (by norm_num) le_rfl hA h)
+    not_RcW_static (sp := 0x22000) (level := 7) (by norm_num) le_rfl hA h)
   have x8_4 : t4.getReg .x8 = BitVec.ofNat 64 c := ctx4.x8
-  have hroom : wl e1 + 1 + 10 * (e1.cur.length + 3) ≤ 1275 := by
+  have hroom : wl e1 + 1 + 10 * (e1.cur.length + 4) ≤ 1275 := by
     have := length_img e1; omega
   obtain ⟨t5, s5, p5, x19_5, r5, f5⟩ := f99_spec t4 p4
   have hO0 : OInv sig.proof sel.bucket e1 next t4 0 v next t5 := by
@@ -676,7 +676,7 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
     exact str4.frame f5 (fun _ _ h => h)
   simp only []
   rw [List.range_eq_range']
-  have hbody : ∀ j < 3, ∀ (acc : Option (Digest × Nat)) (u : MachineState),
+  have hbody : ∀ j < 4, ∀ (acc : Option (Digest × Nat)) (u : MachineState),
       (match acc with
         | none => FailedAt 354 u
         | some (value, u') => OInv sig.proof sel.bucket e1 next t4 j value u' u) →
@@ -690,7 +690,7 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
       exact (TBSim.pure (a := none) hu).mono (by omega) (fun _ _ h => h)
     · rw [Nat.zero_add]
       exact outer_step hc hb hb0 (by omega) hst4 x8_4 x22_4 hroom hnext124 hj hu
-  refine (TBSim.steps s5 (TBSim.bind (W₂ := 24) (TBSim.foldlM_range' 0 3 _ _ _ 77 hbody hO0)
+  refine (TBSim.steps s5 (TBSim.bind (W₂ := 24) (TBSim.foldlM_range' 0 4 _ _ _ 77 hbody hO0)
     (fun res t6 h6 => ?_))).mono (by omega) (fun _ _ h => h)
   rcases res with _ | ⟨root, next'⟩
   · exact (TBSim.pure (Q := fun st u => match st with
@@ -699,11 +699,11 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
       (fun _ _ h => h)
   simp only [] at h6 ⊢
   obtain ⟨p6, x19_6, x18_6, hu6, nout6, x23_6, str6, R46, F46⟩ := h6
-  obtain ⟨t7, s7, p7, r7, f7⟩ := f100_spec t6 p6 3 le_rfl x19_6
+  obtain ⟨t7, s7, p7, r7, f7⟩ := f100_spec t6 p6 4 le_rfl x19_6
   rw [if_pos le_rfl] at p7
   have R47 : RegsExcept t4 t7 ([.x6, .x7, .x10, .x11, .x12, .x13, .x14, .x18, .x19, .x23, .x28, .x29, .x30] ++
       [.x6]) := R46.trans r7
-  obtain ⟨t8, s8, p8, w8, x22_8, x28_8, r8, f8⟩ := f193_spec t7 p7 c (0xC40 + 8 * wl e1) (e1.cur.length + 3)
+  obtain ⟨t8, s8, p8, w8, x22_8, x28_8, r8, f8⟩ := f193_spec t7 p7 c (0xC40 + 8 * wl e1) (e1.cur.length + 4)
     e1.par hc (by omega) (by omega) (by omega) par4 (by omega) (by rw [R47.get (by decide)]; exact x8_4)
     (by rw [R47.get (by decide)]; exact x22_4) (by rw [r7.get (by decide)]; exact x23_6)
     (by rw [R47.get (by decide)]; exact x24_4)
@@ -722,15 +722,15 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
     (by rw [r9.get (by decide), r8.get (by decide), R47.get (by decide)]; exact x8_4)
   refine (TBSim.steps (s7.trans (s8.trans (s9.trans s10))) (TBSim.pure ?_)).mono (by omega) (fun _ _ h => h)
   -- the slots and the closed segment
-  have hnextF : next = slotBase chosen c + (T3.frontier (selectedLeaves sel) 8 sel.bucket).length := by
+  have hnextF : next = slotBase chosen c + (T3.frontier (selectedLeaves sel) 7 sel.bucket).length := by
     rw [hnext, hsel, hinv.hused]
-  have hF : (List.range 3).map (outerFold sel.bucket sig.proof next) =
-      (List.range 3).map (climbF (valC chosen sig.proof c) (selLeaf sel 2) 8) := by
+  have hF : (List.range 4).map (outerFold sel.bucket sig.proof next) =
+      (List.range 4).map (climbF (valC chosen sig.proof c) (selLeaf sel 2) 7) := by
     apply List.map_congr_left
     intro j hj
     rw [hnextF]; exact outerFold_eq chosen sig.proof hC hc (List.mem_range.mp hj)
-  have hE6 : (⟨e1.segs, e1.cur ++ (List.range 3).map (outerFold sel.bucket sig.proof next), e1.par⟩ : Em) =
-      climbE (valC chosen sig.proof c) (selLeaf sel 2) 8 3 e1 := by
+  have hE6 : (⟨e1.segs, e1.cur ++ (List.range 4).map (outerFold sel.bucket sig.proof next), e1.par⟩ : Em) =
+      climbE (valC chosen sig.proof c) (selLeaf sel 2) 7 4 e1 := by
     rw [hF]; rfl
   rw [hE6] at str6
   have str7 := str6.frame f7 (fun _ _ h => h)
@@ -739,7 +739,7 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
     rw [this]
     simp only [img, climbE]
     exact getD_mid_self _ _ _
-  have str8 : StreamAt t8 ((climbE (valC chosen sig.proof c) (selLeaf sel 2) 8 3 e1).close false 0) := by
+  have str8 : StreamAt t8 ((climbE (valC chosen sig.proof c) (selLeaf sel 2) 7 4 e1).close false 0) := by
     refine streamAt_close false 0 str7 ?_ (fun k hk hne => f8.get (by omega) (by
       rw [wl_climbE] at hne; omega))
     rw [wl_climbE, w8, hz7, replaceByte_zero _ (by omega), cur_climbE]
@@ -747,7 +747,7 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
     congr 1; simp [climbE]; ring
   rw [hclose] at str8
   -- frames
-  have Fpost : Frame t2 t10 (fun A => RcW 0x22000 8 A ∨ OW A ∨ A = 0xC40 + 8 * wl e1 ∨ A = FOREST + slotOff c ∨
+  have Fpost : Frame t2 t10 (fun A => RcW 0x22000 7 A ∨ OW A ∨ A = 0xC40 + 8 * wl e1 ∨ A = FOREST + slotOff c ∨
       A = FOREST + slotOff c + 8) :=
     ((((((f3.trans F34).trans F46).trans f7).trans f8).trans f9).trans f10).mono (fun A _ h => by
       rcases h with ((((((h | h) | h) | h) | h) | h) | h | h)
@@ -759,13 +759,13 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
       · exact h.elim
       · exact Or.inr (Or.inr (Or.inr (Or.inl h)))
       · exact Or.inr (Or.inr (Or.inr (Or.inr h))))
-  have nW : ∀ A, A < 0xC40 → ¬ (RcW 0x22000 8 A ∨ OW A ∨ A = 0xC40 + 8 * wl e1 ∨ A = FOREST + slotOff c ∨
+  have nW : ∀ A, A < 0xC40 → ¬ (RcW 0x22000 7 A ∨ OW A ∨ A = 0xC40 + 8 * wl e1 ∨ A = FOREST + slotOff c ∨
       A = FOREST + slotOff c + 8) := by
     intro A hA h
     unfold RcW OW at h
     simp only [NODE, NOUT, FLEAF, FOREST] at h
     omega
-  have nWr : ∀ c', c' < c → ∀ d, d = 0 ∨ d = 8 → ¬ (RcW 0x22000 8 (FOREST + slotOff c' + d) ∨
+  have nWr : ∀ c', c' < c → ∀ d, d = 0 ∨ d = 8 → ¬ (RcW 0x22000 7 (FOREST + slotOff c' + d) ∨
       OW (FOREST + slotOff c' + d) ∨ FOREST + slotOff c' + d = 0xC40 + 8 * wl e1 ∨
       FOREST + slotOff c' + d = FOREST + slotOff c ∨ FOREST + slotOff c' + d = FOREST + slotOff c + 8) := by
     intro c' hc' d hd h

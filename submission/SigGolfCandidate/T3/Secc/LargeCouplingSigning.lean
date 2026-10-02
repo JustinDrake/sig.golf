@@ -89,7 +89,7 @@ theorem observed_search (T : Answers) (rho : Digest) (m : Message)
         · simp only [readState, Function.update_of_ne hr] at hv
           exact Or.inl hv
       rw [hTX]
-      by_cases hadm : admissible (selections (τ X)) = true
+      by_cases hadm : digestAdmissible (τ X) = true
       · simp only [hadm, if_true, simulateQ_pure, evalWithAnswerFn_pure]
         exact ⟨_, observed_pure aux q labels τ _ _, hrd⟩
       · simp only [hadm, Bool.false_eq_true, if_false]

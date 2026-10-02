@@ -68,7 +68,7 @@ theorem full_potential (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (
       have : horizon = 4573625196 := rfl
       omega
   -- the forgery's digest is a target
-  obtain ⟨N, hdc, hN, ⟨prior, hev⟩, hS, hgood, -⟩ := hCat
+  obtain ⟨N, hdc, hN, ⟨prior, hev⟩, hS, hgate, hgood, -⟩ := hCat
   have hRsupp : (⟨b.1, b.2.2.events, lazyOf b.2.2⟩ : FirstHit.Recorded Bool) ∈
       support (FirstHit.record (GameWith.idealGame PaddedGame.checker adversary) (∅, ∅)) := by
     have hm : (b.1, b.2.2) ∈ ((fun r : PaddedGame.TraceResult => (r.1, r.2.2)) <$>
@@ -109,7 +109,7 @@ theorem full_potential (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (
         have hext : SourceReplay.Extends int'.state (lazyOf b.2.2) := hsplit.extends
         have hagree : ∀ input answer, SourceReplay.known int'.state input = some answer → A input = answer :=
           (hA.mono hext)
-        have hnot := BPB.caseC_fresh_not_signer A generated.1.2 int'.value.2 int'.state hres hagree m w N hN hS hgood
+        have hnot := BPB.caseC_fresh_not_signer A generated.1.2 int'.value.2 int'.state hres hagree m w N hN hS hgate hgood
           hnsd
         rw [hlog] at hentry
         exact hnot entry hentry (hq' A hA)
@@ -136,7 +136,7 @@ theorem full_potential (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (
         simp only at hout
         subst hout
         exact ⟨out', hinv.exposed halive entry.1.message hcached A hA c' out' hs, hf⟩
-  have hscore : 1 ≤ score b.2.1.exposures N := one_le_score _ N (outLeaves_injective N hS.2.1) hcov
+  have hscore : 1 ≤ score b.2.1.exposures N := one_le_score _ N (outLeaves_injective N hS.2.1) hgate hcov
   -- the potential
   have hnot : ¬q < countOf b.2.2 := by omega
   unfold potential

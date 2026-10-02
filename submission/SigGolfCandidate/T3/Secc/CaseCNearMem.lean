@@ -335,7 +335,7 @@ theorem mem_initial (q : Nat) :
 theorem mem_win (q : Nat) (births exposures : List HashOutput) (reused : Bool) (rows : Sampling.RCache)
     (nonces : Message → Option Digest) (hq : births.length ≤ q)
     (hlen : exposures.length ≤ BPORS.Numeric.proposalLength)
-    (h : reused = true ∨ ∃ N ∈ births, admissible (selections N) = true ∧ NearCoveredBy exposures N) :
+    (h : reused = true ∨ ∃ N ∈ births, admissible (selections N) = true ∧ digestGate N=true ∧ NearCoveredBy exposures N) :
     1 ≤ nearMemPotential q births exposures reused rows nonces := by
   unfold nearMemPotential
   rw [if_neg (by omega)]

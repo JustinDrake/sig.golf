@@ -57,7 +57,7 @@ theorem caseC_three_way (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     have := congrArg FirstHit.Recorded.value hres
     exact this.symm.trans hclean.1
   have hCat' := hCat
-  obtain ⟨N, -, hN, -, hS, -, hF⟩ := hCat
+  obtain ⟨N, -, hN, -, hS, -, -, hF⟩ := hCat
   have hprobe := verdict_leaf_entries g.value.1 i.value i.state c hs.2.2.1 z.2
     (fun input answer hk => hagree input answer (by rw [← hstate]; exact hk)) hvalue f hf m w hof
     (by rw [hN]; exact hS) (by rw [hN]; exact hF)

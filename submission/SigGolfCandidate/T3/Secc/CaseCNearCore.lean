@@ -172,12 +172,12 @@ theorem slot_of_opened (X : List HashOutput) (N : HashOutput) (c : Fin 7) (j : F
     rw [hk]
     exact hl.symm
 
-theorem one_le_nearScore (X : List HashOutput) (N : HashOutput) (hadm : admissible (selections N) = true)
+theorem one_le_nearScore (X : List HashOutput) (N : HashOutput) (hadm : admissible (selections N) = true) (hgate : digestGate N=true)
     (h : NearCoveredBy X N) : 1 ≤ nearScore X N := by
   obtain ⟨f, hf, hcov⟩ := h
   have hinj := outLeaves_injective N hadm
   obtain ⟨-, jf, hjf⟩ := mem_openedPositions N f hf
-  refine (one_le_nearTermAt X N f.2.1 jf hinj ?_).trans (nearTermAt_le_nearScore X N f.2.1 jf)
+  refine (one_le_nearTermAt X N f.2.1 jf hinj hgate ?_).trans (nearTermAt_le_nearScore X N f.2.1 jf)
   intro c j hcj
   have hne : ((outIdx N, c, BPair.leafIndex (outBucket N c).val (outLeaves N c j).val) : BPair.FtsCoord) ≠ f := by
     intro he
@@ -192,9 +192,9 @@ theorem one_le_nearScore (X : List HashOutput) (N : HashOutput) (hadm : admissib
   exact slot_of_opened X N c j out hout hopen
 
 theorem nearLedger_win (R : Nat) (targets X : List HashOutput) (slack : Nat) (N : HashOutput) (hN : N ∈ targets)
-    (hadm : admissible (selections N) = true) (hcov : NearCoveredBy X N) : 1 ≤ nearLedger R targets X slack :=
+    (hadm : admissible (selections N) = true) (hgate : digestGate N=true) (hcov : NearCoveredBy X N) : 1 ≤ nearLedger R targets X slack :=
   calc
-    (1 : ENNReal) ≤ nearScore X N := one_le_nearScore X N hadm hcov
+    (1 : ENNReal) ≤ nearScore X N := one_le_nearScore X N hadm hgate hcov
     _ ≤ nearForecast R X N := nearScore_le_forecast R X N
     _ ≤ (targets.map fun N => nearForecast R X N).sum := List.le_sum_of_mem (List.mem_map_of_mem hN)
     _ ≤ _ := le_self_add
@@ -364,15 +364,15 @@ theorem near_sign (b : BankCore) (cache : Sampling.RCache) (m : Message) (C' : E
 
 /-- **Win**: an alive bank with a reuse or a near-covered admissible target holds a full unit. -/
 theorem near_win (b : BankCore) (halive : ¬BPORS.Numeric.proposalLength < b.exposures.length)
-    (h : b.reused = true ∨ ∃ N ∈ b.targets, admissible (selections N) = true ∧ NearCoveredBy b.exposures N) :
+    (h : b.reused = true ∨ ∃ N ∈ b.targets, admissible (selections N) = true ∧ digestGate N=true ∧ NearCoveredBy b.exposures N) :
     1 ≤ nearPotential b := by
   unfold nearPotential
   rw [if_neg halive]
   by_cases hr : b.reused = true
   · rw [if_pos hr]; exact le_self_add
   · rw [if_neg hr]
-    obtain ⟨N, hN, hadm, hcov⟩ := h.resolve_left hr
-    exact (nearLedger_win _ _ _ _ N hN hadm hcov).trans le_self_add
+    obtain ⟨N, hN, hadm, hgate, hcov⟩ := h.resolve_left hr
+    exact (nearLedger_win _ _ _ _ N hN hadm hgate hcov).trans le_self_add
 
 /-- **Initial near potential.** -/
 theorem near_initial (budget : Nat) :

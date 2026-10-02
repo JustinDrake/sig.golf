@@ -1,3 +1,4 @@
+import SigGolfCandidate.T3.Gate6.ScoreGate
 import SigGolfCandidate.T3.Secc.InjectiveCoverUpdate
 
 /-!
@@ -10,7 +11,7 @@ coordinates. Within-coordinate distinctness is kept exactly:
 
 * `one_le_score`: if all of `N`'s (distinct) leaves are exposed at its index and buckets, the score is at least one;
 * `average_score`: averaged over a uniform target, the score is exactly `fullPrice (labels X) / 2^128`
-  (per coordinate-bucket `(3r)_3 / 256^3`), whatever the exposed leaf values are;
+  (per coordinate-bucket `(3r)_3 / 128^3`), whatever the exposed leaf values are;
 * `score_append_mono`: the score only grows when exposures are appended.
 -/
 
@@ -28,10 +29,10 @@ attribute [local instance] Classical.propDecidable
 def outIdx (x : HashOutput) : Fin (2 ^ 31) := (rawView x).1
 
 /-- The bucket of coordinate `c`. -/
-def outBucket (x : HashOutput) (c : Fin 7) : Fin 8 := ((rawView x).2 c).1
+def outBucket (x : HashOutput) (c : Fin 7) : Fin 16 := ((rawView x).2 c).1
 
 /-- The three raw (unsorted) leaves of coordinate `c`. -/
-def outLeaves (x : HashOutput) (c : Fin 7) : Fin 3 → Fin 256 := ((rawView x).2 c).2
+def outLeaves (x : HashOutput) (c : Fin 7) : Fin 3 → Fin 128 := ((rawView x).2 c).2
 
 /-- The proposal label (index and buckets) of an output. -/
 def label (x : HashOutput) : BPORS.History.Proposal := (outIdx x, fun c => outBucket x c)
@@ -44,21 +45,22 @@ theorem labels_append (X Y : List HashOutput) : labels (X ++ Y) = labels X ++ la
 /-! ## The score -/
 
 /-- Opening occurrences of the exposures at index `i`, coordinate `c` and bucket `b`. -/
-abbrev Slot (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 8) : Type :=
+abbrev Slot (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 16) : Type :=
   {s : Fin X.length × Fin 3 // outIdx (X.get s.1) = i ∧ outBucket (X.get s.1) c = b}
 
 /-- The leaf value at an occurrence. -/
-def slotValue (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 8) (s : Slot X i c b) : Fin 256 :=
+def slotValue (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 16) (s : Slot X i c b) : Fin 128 :=
   outLeaves (X.get s.1.1) c s.1.2
 
 /-- Injective occurrence assignments of a three-leaf target at `(i, c, b)`. -/
-noncomputable def coordScore (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 8)
-    (target : Fin 3 → Fin 256) : ENNReal :=
+noncomputable def coordScore (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 16)
+    (target : Fin 3 → Fin 128) : ENNReal :=
   BPORS.InjectiveCover.score (slotValue X i c b) target
 
 /-- **The score** of a target output against an exposure list. -/
 noncomputable def score (X : List HashOutput) (N : HashOutput) : ENNReal :=
-  ∏ c : Fin 7, coordScore X (outIdx N) c (outBucket N c) (outLeaves N c)
+  if digestGate N=true then
+    ∏ c : Fin 7, coordScore X (outIdx N) c (outBucket N c) (outLeaves N c) else 0
 
 /-! ## Covered targets score at least one -/
 
@@ -67,8 +69,9 @@ def CoordCovered (X : List HashOutput) (N : HashOutput) (c : Fin 7) : Prop :=
   ∀ j, ∃ s : Slot X (outIdx N) c (outBucket N c), slotValue X (outIdx N) c (outBucket N c) s = outLeaves N c j
 
 theorem one_le_score (X : List HashOutput) (N : HashOutput)
-    (hinj : ∀ c, Function.Injective (outLeaves N c)) (hcov : ∀ c, CoordCovered X N c) : 1 ≤ score X N := by
-  unfold score
+    (hinj : ∀ c, Function.Injective (outLeaves N c)) (hgate : digestGate N=true)
+    (hcov : ∀ c, CoordCovered X N c) : 1 ≤ score X N := by
+  simp only [score,hgate,if_true]
   apply Finset.one_le_prod''
   intro c
   exact BPORS.InjectiveCover.one_le_score _ _ (hinj c) (hcov c)
@@ -76,7 +79,7 @@ theorem one_le_score (X : List HashOutput) (N : HashOutput)
 /-! ## Monotonicity -/
 
 /-- Occurrences of `X` embed into occurrences of `X ++ Y`. -/
-def slotEmbed (X Y : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 8) :
+def slotEmbed (X Y : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 16) :
     Slot X i c b ↪ Slot (X ++ Y) i c b where
   toFun s := ⟨(Fin.castLE (by simp) s.1.1, s.1.2), by
     have h := s.2
@@ -90,8 +93,8 @@ def slotEmbed (X Y : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 8)
     simp only [Prod.mk.injEq] at h1
     exact Prod.ext (Fin.castLE_injective _ h1.1) h1.2
 
-theorem coordScore_append_mono (X Y : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 8)
-    (target : Fin 3 → Fin 256) : coordScore X i c b target ≤ coordScore (X ++ Y) i c b target := by
+theorem coordScore_append_mono (X Y : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 16)
+    (target : Fin 3 → Fin 128) : coordScore X i c b target ≤ coordScore (X ++ Y) i c b target := by
   unfold coordScore
   apply BPORS.InjectiveCover.score_source_le (slotEmbed X Y i c b)
   intro s
@@ -100,15 +103,17 @@ theorem coordScore_append_mono (X Y : List HashOutput) (i : Fin (2 ^ 31)) (c : F
 
 theorem score_append_mono (X Y : List HashOutput) (N : HashOutput) : score X N ≤ score (X ++ Y) N := by
   unfold score
-  exact Finset.prod_le_prod' fun c _ => coordScore_append_mono X Y _ c _ _
+  split_ifs with hg
+  · exact Finset.prod_le_prod' fun c _ => coordScore_append_mono X Y _ c _ _
+  · exact le_rfl
 
 /-! ## The average over a uniform target -/
 
 /-- Exposures at index `i` with bucket `b` in coordinate `c`. -/
-noncomputable def hits (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 8) : Nat :=
+noncomputable def hits (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 16) : Nat :=
   (Finset.univ.filter fun k : Fin X.length => outIdx (X.get k) = i ∧ outBucket (X.get k) c = b).card
 
-theorem card_slot (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 8) :
+theorem card_slot (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 16) :
     Fintype.card (Slot X i c b) = 3 * hits X i c b := by
   rw [Fintype.card_subtype]
   have h : (Finset.univ.filter fun s : Fin X.length × Fin 3 =>
@@ -120,7 +125,7 @@ theorem card_slot (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 
   rw [h, Finset.card_product, Finset.card_univ, Fintype.card_fin, hits, Nat.mul_comm]
 
 /-- The occurrence count is the bucket count of the index history. -/
-theorem hits_eq_count (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 8) :
+theorem hits_eq_count (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 16) :
     hits X i c b = ((BPORS.History.atIndex i (labels X)).map fun row => row c).count b := by
   induction X with
   | nil => simp [hits, labels, BPORS.History.atIndex]
@@ -139,17 +144,17 @@ theorem hits_eq_count (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : 
         · simp [hb]
       · simp [hi]
 
-theorem average_coordScore (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 8) :
-    BPORS.finiteAverage (fun target : Fin 3 → Fin 256 => coordScore X i c b target) =
-      BPORS.bucketMass ((BPORS.History.atIndex i (labels X)).map fun row => row c) b / 256 ^ 3 := by
+theorem average_coordScore (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) (b : Fin 16) :
+    BPORS.finiteAverage (fun target : Fin 3 → Fin 128 => coordScore X i c b target) =
+      BPORS.bucketMass ((BPORS.History.atIndex i (labels X)).map fun row => row c) b / 128 ^ 3 := by
   unfold coordScore
   rw [BPORS.InjectiveCover.average_score, card_slot, hits_eq_count, BPORS.bucketMass]
   simp only [Fintype.card_fin, Nat.cast_ofNat]
 
 /-- One coordinate, averaged over a uniform bucket and three uniform leaves. -/
 theorem average_coordinate (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) :
-    BPORS.finiteAverage (fun d : Fin 8 × (Fin 3 → Fin 256) => coordScore X i c d.1 d.2) =
-      BPORS.coordinateEnvelope ((BPORS.History.atIndex i (labels X)).map fun row => row c) / 256 ^ 3 := by
+    BPORS.finiteAverage (fun d : Fin 16 × (Fin 3 → Fin 128) => coordScore X i c d.1 d.2) =
+      BPORS.coordinateEnvelope ((BPORS.History.atIndex i (labels X)).map fun row => row c) / 128 ^ 3 := by
   rw [BPORS.finiteAverage_pair]
   simp_rw [average_coordScore]
   unfold BPORS.finiteAverage BPORS.coordinateEnvelope
@@ -160,32 +165,26 @@ theorem average_coordinate (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) 
 
 /-- The average of the score at a fixed index over uniform buckets and leaves is the index envelope. -/
 theorem average_at_index (X : List HashOutput) (i : Fin (2 ^ 31)) :
-    BPORS.finiteAverage (fun v : Fin 7 → Fin 8 × (Fin 3 → Fin 256) =>
-        ∏ c : Fin 7, coordScore X i c (v c).1 (v c).2) =
+    BPORS.finiteAverage (fun v : Fin 7 → Fin 16 × (Fin 3 → Fin 128) =>
+        ∏ c : Fin 7, coordScore X i c (v c).1 (v c).2)/64 =
       BPORS.History.wordEnvelope (BPORS.History.atIndex i (labels X)) := by
-  refine (BPORS.finiteAverage_product 7
-    (fun c (d : Fin 8 × (Fin 3 → Fin 256)) => coordScore X i c d.1 d.2)).trans ?_
+  rw [BPORS.finiteAverage_product 7
+    (fun c (d : Fin 16 × (Fin 3 → Fin 128)) => coordScore X i c d.1 d.2)]
   simp_rw [average_coordinate]
   unfold BPORS.History.wordEnvelope
   simp only [div_eq_mul_inv, Finset.prod_mul_distrib, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+  rw [mul_assoc]
   congr 1
-  rw [← ENNReal.inv_pow, ← pow_mul]
-  norm_num
+  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
+  norm_num [ENNReal.toReal_mul,ENNReal.toReal_pow,ENNReal.toReal_inv]
 
-/-- The score read through the raw coordinates. -/
-noncomputable def scoreView (X : List HashOutput) (p : Coordinates) : ENNReal :=
-  ∏ c : Fin 7, coordScore X p.1.1 c (p.1.2 c).1 (p.1.2 c).2
-
-theorem score_eq_view (X : List HashOutput) (N : HashOutput) : score X N = scoreView X (coordinatesEquiv N) := rfl
-
-/-- **Exact average** of the score over a uniform target output. -/
+/-- **Exact average** of the gated score over a uniform target output. -/
 theorem average_score (X : List HashOutput) :
     BPORS.finiteAverage (fun N : HashOutput => score X N) = BPORS.History.fullPrice (labels X) / 2 ^ 128 := by
-  simp_rw [score_eq_view]
-  rw [BPORS.finiteAverage_equiv coordinatesEquiv (scoreView X), BPORS.finiteAverage_pair]
-  unfold scoreView
-  simp_rw [BPORS.History.finiteAverage_constant]
-  rw [BPORS.finiteAverage_pair]
+  change BPORS.finiteAverage (fun N : HashOutput => if digestGate N=true then
+    (fun p : RawView => ∏ c : Fin 7, coordScore X p.1 c (p.2 c).1 (p.2 c).2) (rawView N) else 0)=_
+  rw [average_gate_weight (fun p : RawView => ∏ c : Fin 7, coordScore X p.1 c (p.2 c).1 (p.2 c).2),
+    BPORS.finiteAverage_pair,←finiteAverage_div]
   simp_rw [average_at_index]
   unfold BPORS.finiteAverage BPORS.History.fullPrice
   simp only [Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat]

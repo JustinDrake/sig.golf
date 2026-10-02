@@ -2,7 +2,7 @@ import SigGolfCandidate.T3M.Verify.SelCheck
 import SigGolfCandidate.T3M.Verify.SelArith
 
 /-!
-# Selections: semantics (T3M verify words 17 .. 358)
+# Selections: semantics (T3M verify words 18 .. 358)
 
 From the post-digest state (`DgOut`, answer `a`): the setup loads the four words of `a` and `s6 = a mod 2^31`; for
 each coordinate `c` the machine either rejects (HALT(1), no query) when the triple of coordinate `c` has a repeated
@@ -29,7 +29,7 @@ def selOk1 (s : Selection) : Bool :=
 theorem selectionsOk_eq (chosen : List Selection) : selectionsOk chosen = chosen.all selOk1 := rfl
 
 /-- The heap index of unsorted leaf `j` of coordinate `c`. -/
-def eVal (a : HashOutput) (c j : Nat) : Nat := 2048 + 256 * (selNum a.toNat c % 8) + selX a.toNat c j
+def eVal (a : HashOutput) (c j : Nat) : Nat := 2048 + 128 * (selNum a.toNat c % 16) + selX a.toNat c j
 
 /-- The accepting path of a distinct triple. -/
 def selPath (x0 x1 x2 : Nat) : Nat :=
@@ -56,20 +56,20 @@ theorem nReg_toNat (a : HashOutput) (s : MachineState) (h : NRegs a s) (k : Nat)
   rw [h k hk, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]
 
 theorem gpE_eval (a : HashOutput) (s : MachineState) (h : NRegs a s) (c : Nat) (hc : c < 7) :
-    ((gpE c).eval s).toNat % 2 ^ 27 = selNum a.toNat c % 2 ^ 27 := by
+    ((gpE c).eval s).toNat % 2 ^ 25 = selNum a.toNat c % 2 ^ 25 := by
   unfold selNum
   rcases (show c = 0 ∨ c = 1 ∨ c = 2 ∨ c = 3 ∨ c = 4 ∨ c = 5 ∨ c = 6 by omega) with
     rfl | rfl | rfl | rfl | rfl | rfl | rfl
   · exact gp_single a.toNat _ 0 31 (nReg_toNat a s h 0 (by decide)) (by decide)
-  · exact gp_double a.toNat _ _ 0 58 (nReg_toNat a s h 0 (by decide)) (nReg_toNat a s h 1 (by decide))
+  · exact gp_double a.toNat _ _ 0 56 (nReg_toNat a s h 0 (by decide)) (nReg_toNat a s h 1 (by decide))
       (by decide) (by decide)
-  · exact gp_single a.toNat _ 1 21 (nReg_toNat a s h 1 (by decide)) (by decide)
-  · exact gp_double a.toNat _ _ 1 48 (nReg_toNat a s h 1 (by decide)) (nReg_toNat a s h 2 (by decide))
+  · exact gp_single a.toNat _ 1 17 (nReg_toNat a s h 1 (by decide)) (by decide)
+  · exact gp_double a.toNat _ _ 1 42 (nReg_toNat a s h 1 (by decide)) (nReg_toNat a s h 2 (by decide))
       (by decide) (by decide)
-  · exact gp_single a.toNat _ 2 11 (nReg_toNat a s h 2 (by decide)) (by decide)
-  · exact gp_double a.toNat _ _ 2 38 (nReg_toNat a s h 2 (by decide)) (nReg_toNat a s h 3 (by decide))
+  · exact gp_single a.toNat _ 2 3 (nReg_toNat a s h 2 (by decide)) (by decide)
+  · exact gp_single a.toNat _ 2 28 (nReg_toNat a s h 2 (by decide)) (by decide)
+  · exact gp_double a.toNat _ _ 2 53 (nReg_toNat a s h 2 (by decide)) (nReg_toNat a s h 3 (by decide))
       (by decide) (by decide)
-  · exact gp_single a.toNat _ 3 1 (nReg_toNat a s h 3 (by decide)) (by decide)
 
 theorem xE_eval (a : HashOutput) (s : MachineState) (h : NRegs a s) (c j : Nat) (hc : c < 7) (hj : j < 3) :
     (xE c j).eval s = BitVec.ofNat 64 (eVal a c j) := by
@@ -79,8 +79,8 @@ theorem xE_eval (a : HashOutput) (s : MachineState) (h : NRegs a s) (c j : Nat) 
 
 theorem eVal_lt (a : HashOutput) (c j : Nat) : eVal a c j < 4096 := by
   unfold eVal selX
-  have := Nat.mod_lt (selNum a.toNat c) (show 0 < 8 by decide)
-  have := Nat.mod_lt (selNum a.toNat c / 2 ^ (3 + 8 * j)) (show 0 < 256 by decide)
+  have := Nat.mod_lt (selNum a.toNat c) (show 0 < 16 by decide)
+  have := Nat.mod_lt (selNum a.toNat c / 2 ^ (4 + 7 * j)) (show 0 < 128 by decide)
   omega
 
 theorem geuB_holds (a : HashOutput) (s : MachineState) (h : NRegs a s) (c i j : Nat) (hc : c < 7)
@@ -132,13 +132,14 @@ structure SelIn (pk : Digest) (w : WBytes) (a : HashOutput) (c : Nat) (s : Machi
   pk : PkOK pk s
   zero : ∀ A, A < WIT → (A < 0x20 ∨ (0x80 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → (A < ETAB ∨ ETAB + 24 * c ≤ A) →
     s.getMem (BitVec.ofNat 64 A) = 0
+  data : DataOK s
 
 /-- HALT(1) reached. -/
 def Halt1 (u : MachineState) : Prop :=
   fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1
 
 theorem selC_eq (a : HashOutput) (c : Nat) (hc : c < 7) :
-    selC a c = ⟨selNum a.toNat c % 8, [selX a.toNat c 0, selX a.toNat c 1, selX a.toNat c 2].mergeSort
+    selC a c = ⟨selNum a.toNat c % 16, [selX a.toNat c 0, selX a.toNat c 1, selX a.toNat c 2].mergeSort
       (fun x y => decide (x ≤ y))⟩ := selections_getD a c hc
 
 /-- An accepting path: the stores are the sorted triple. -/
@@ -188,7 +189,7 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
       u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA hA'
     rw [hmem A hA, if_neg (by omega), if_neg (by omega), if_neg (by omega)]
-  refine ⟨u, hu.steps, ⟨?_, hu.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+  refine ⟨u, hu.steps, ⟨?_, hu.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   · rw [hu.pc rfl]; rfl
   · intro k hk; rw [hu.keep (nReg k) (by
       rcases (show k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 by omega) with rfl | rfl | rfl | rfl <;> simp [selKeep, nReg])]
@@ -211,6 +212,10 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
   · intro A hA hz hE
     rw [hframe A (by unfold WIT at hA; omega) (by omega)]
     exact hs.zero A hA hz (by omega)
+  · intro k hk
+    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
+    rw [hframe _ (by omega) (Or.inr (by unfold ETAB; omega))]
+    exact hs.data k hk
 
 end SigGolfCandidate.T3M.Verify
 
@@ -409,10 +414,10 @@ theorem idxE_eval (a : HashOutput) (s : MachineState)
 theorem sel_setup (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState)
     (hu : DgOut m pk w a u) : ∃ t, Steps image u 6 6 t ∧ SelIn pk w a 0 t := by
   have hk : KnownOK baseK u := hu.known.mono (fun p hp => by simp [proPost]; exact Or.inl hp)
-  obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt baseK [23] 17 []) setupSpec [] baseK [] = true
+  obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt baseK [24] 18 []) setupSpec [] baseK [] = true
     from setupCheck_ok) u hu.pc hk (by simp [setupSpec]) (by simp)
   have hmem : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
-  refine ⟨t, ht.steps, ⟨by rw [ht.pc rfl]; rfl, ht.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+  refine ⟨t, ht.steps, ⟨by rw [ht.pc rfl]; rfl, ht.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   · intro k hk'
     have r16 : t.getReg .x16 = (nE 0).eval u := ht.regs (.x16, nE 0) (by simp [setupSpec])
     have r17 : t.getReg .x17 = (nE 1).eval u := ht.regs (.x17, nE 1) (by simp [setupSpec])
@@ -431,6 +436,7 @@ theorem sel_setup (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (
   · intro j hj; rw [hmem]; exact hu.wit j hj
   · exact ⟨(hmem _).trans hu.pk.1, (hmem _).trans hu.pk.2⟩
   · intro A hA hz _; rw [hmem]; exact hu.zero A hA hz
+  · intro k hk; rw [hmem]; exact hu.data k hk
 
 /-! ## All seven coordinates -/
 
@@ -489,8 +495,8 @@ theorem selCostAll_le (a : HashOutput) : selCostAll a ≤ 153 := by
   have e2 : selExt 2 = 1 := rfl
   have e3 : selExt 3 = 3 := rfl
   have e4 : selExt 4 = 1 := rfl
-  have e5 : selExt 5 = 3 := rfl
-  have e6 : selExt 6 = 1 := rfl
+  have e5 : selExt 5 = 1 := rfl
+  have e6 : selExt 6 = 3 := rfl
   unfold selCostAll
   simp only [sumTo]
   have := h 0; have := h 1; have := h 2; have := h 3; have := h 4; have := h 5; have := h 6
@@ -524,6 +530,7 @@ def afterFts (pk : Digest) (w : WBytes) (index : Nat) (r : Option Digest) : T3.M
   | _ => pure false
 
 def afterSel (pk : Digest) (w : WBytes) (N : HashOutput) : T3.M Bool :=
+  if !T3.digestGate N then pure false else
   ftsP w (N.toNat % 2 ^ 31) (selections N) >>= afterFts pk w (N.toNat % 2 ^ 31)
 
 /-- `verifyP` as digest, selection check and `afterSel`. -/
@@ -558,7 +565,7 @@ theorem select_good (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput)
 theorem verifyP_good_sel (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     {N C A : Nat} {Q : Prop}
     (hfts : ∀ a t, SelIn pk w a 7 t → GoodQ t N C Q A (ccM (afterSel pk w a) Kb)) :
-    GoodQ s (N + 186) (C + 193) Q (A + 183) (ccM (verifyP m pk w) Kb) := by
+    GoodQ s (N + 186) (C + 193) Q (A + 184) (ccM (verifyP m pk w) Kb) := by
   rw [verifyP_eq, ccM_bind]
   have := digestP_good m pk w s hs (N := N + 168) (C := C + 168) (A := A + 159) (Q := Q)
     (fun o => ccM (match o with

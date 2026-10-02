@@ -177,8 +177,8 @@ theorem climbF_range_add (val : Nat × Nat → Digest) (g lo a b : Nat) :
 /-- **Schedule ≡ emission.** The emission of the bucket DFS of three sorted leaves `g0 < g1 < g2`, the three outer
 folds and the closing header is the five segments of the schedule. -/
 theorem emV_bucket_aux (val : Nat × Nat → Digest) (c g0 g1 g2 b : Nat) (h01 : g0 < g1) (h12 : g1 < g2)
-    (hb0 : g0 / 2 ^ 8 = b) (hb1 : g1 / 2 ^ 8 = b) (hb2 : g2 / 2 ^ 8 = b) (segs : List MSeg) (p : Nat) :
-    (climbE val g2 8 3 (emV [g0, g1, g2] val 8 b ⟨segs, [], p⟩)).close false 0 =
+    (hb0 : g0 / 2 ^ 7 = b) (hb1 : g1 / 2 ^ 7 = b) (hb2 : g2 / 2 ^ 7 = b) (segs : List MSeg) (p : Nat) :
+    (climbE val g2 7 4 (emV [g0, g1, g2] val 7 b ⟨segs, [], p⟩)).close false 0 =
       ⟨segs ++ (if lcaLevel g0 g1 < lcaLevel g1 g2 then
         [⟨c, g0, 0, lcaLevel g0 g1 - 1, false⟩, ⟨c, g1, 0, lcaLevel g0 g1 - 1, true⟩,
           ⟨c, g1, lcaLevel g0 g1, lcaLevel g1 g2 - 1 - lcaLevel g0 g1, false⟩,
@@ -189,8 +189,8 @@ theorem emV_bucket_aux (val : Nat × Nat → Digest) (c g0 g1 g2 b : Nat) (h01 :
           ⟨c, g2, lcaLevel g0 g1, 11 - lcaLevel g0 g1, false⟩] : List Segment).map (toMSeg val), [], 0⟩ := by
   have p01 := lcaLevel_pos g0 g1
   have p12 := lcaLevel_pos g1 g2
-  have l01 : lcaLevel g0 g1 ≤ 8 := (div_eq_iff_lca (by omega) 8).mp (by rw [hb0, hb1])
-  have l12 : lcaLevel g1 g2 ≤ 8 := (div_eq_iff_lca (by omega) 8).mp (by rw [hb1, hb2])
+  have l01 : lcaLevel g0 g1 ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [hb0, hb1])
+  have l12 : lcaLevel g1 g2 ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [hb1, hb2])
   have l02 : lcaLevel g0 g2 = max (lcaLevel g0 g1) (lcaLevel g1 g2) := lca_outer h01 h12
   have hne : lcaLevel g0 g1 ≠ lcaLevel g1 g2 := lca_ne h01 h12
   have c10 : lcaLevel g1 g0 = lcaLevel g0 g1 := lcaLevel_comm _ _
@@ -241,10 +241,10 @@ theorem emV_bucket_aux (val : Nat × Nat → Digest) (c g0 g1 g2 b : Nat) (h01 :
   · rw [if_pos hA]
     obtain ⟨l, rfl⟩ : ∃ l, d12 = l + 1 := ⟨d12 - 1, by omega⟩
     obtain ⟨m, rfl⟩ : ∃ m, d01 = m + 1 := ⟨d01 - 1, by omega⟩
-    have top : ∀ e, emV [g0, g1, g2] val 8 b e =
-        climbE val g2 (l + 1) (8 - (l + 1)) (emV [g0, g1, g2] val (l + 1) (g2 / 2 ^ (l + 1)) e) := fun e => by
-      have := emV_climb (val := val) m2 (l + 1) (8 - (l + 1)) e (fun k h1 _ => s2hi k (by omega))
-      rwa [show l + 1 + (8 - (l + 1)) = 8 by omega, hb2] at this
+    have top : ∀ e, emV [g0, g1, g2] val 7 b e =
+        climbE val g2 (l + 1) (7 - (l + 1)) (emV [g0, g1, g2] val (l + 1) (g2 / 2 ^ (l + 1)) e) := fun e => by
+      have := emV_climb (val := val) m2 (l + 1) (7 - (l + 1)) e (fun k h1 _ => s2hi k (by omega))
+      rwa [show l + 1 + (7 - (l + 1)) = 7 by omega, hb2] at this
     obtain ⟨c12a, c12b⟩ := merge_children h12 (show lcaLevel g1 g2 = l + 1 from hd12)
     have mid : ∀ e, emV [g0, g1, g2] val (l + 1) (g2 / 2 ^ (l + 1)) e =
         (emV [g0, g1, g2] val l (g2 / 2 ^ l) (emV [g0, g1, g2] val l (g1 / 2 ^ l) e)).close true
@@ -276,9 +276,9 @@ theorem emV_bucket_aux (val : Nat × Nat → Digest) (c g0 g1 g2 b : Nat) (h01 :
         have := emV_climb (val := val) m2 0 l e (fun k _ h2 => s2lo k (by omega))
         simpa only [Nat.zero_add, pow_zero, Nat.div_one] using this
     rw [top, mid, p2, leaf2, left, low, p1, leaf1, p0, leaf0]
-    have hlast : (List.range (8 - (l + 1))).map (climbF val g2 (l + 1)) ++ (List.range 3).map (climbF val g2 8) =
+    have hlast : (List.range (7 - (l + 1))).map (climbF val g2 (l + 1)) ++ (List.range 4).map (climbF val g2 7) =
         (List.range (11 - (l + 1))).map (climbF val g2 (l + 1)) := by
-      rw [show 11 - (l + 1) = (8 - (l + 1)) + 3 by omega, climbF_range_add, show l + 1 + (8 - (l + 1)) = 8 by omega]
+      rw [show 11 - (l + 1) = (7 - (l + 1)) + 4 by omega, climbF_range_add, show l + 1 + (7 - (l + 1)) = 7 by omega]
     simp only [climbE, Em.close, toMSeg, List.map_cons, List.map_nil, List.nil_append, List.length_map,
       List.length_range, List.append_assoc, pow_zero, Nat.div_one, Bool.false_eq_true, ↓reduceIte, List.cons_append,
       hlast, Nat.add_sub_cancel]
@@ -286,10 +286,10 @@ theorem emV_bucket_aux (val : Nat × Nat → Digest) (c g0 g1 g2 b : Nat) (h01 :
     have hB : d12 < d01 := by omega
     obtain ⟨l, rfl⟩ : ∃ l, d01 = l + 1 := ⟨d01 - 1, by omega⟩
     obtain ⟨m, rfl⟩ : ∃ m, d12 = m + 1 := ⟨d12 - 1, by omega⟩
-    have top : ∀ e, emV [g0, g1, g2] val 8 b e =
-        climbE val g2 (l + 1) (8 - (l + 1)) (emV [g0, g1, g2] val (l + 1) (g2 / 2 ^ (l + 1)) e) := fun e => by
-      have := emV_climb (val := val) m2 (l + 1) (8 - (l + 1)) e (fun k h1 _ => s2hi k (by omega))
-      rwa [show l + 1 + (8 - (l + 1)) = 8 by omega, hb2] at this
+    have top : ∀ e, emV [g0, g1, g2] val 7 b e =
+        climbE val g2 (l + 1) (7 - (l + 1)) (emV [g0, g1, g2] val (l + 1) (g2 / 2 ^ (l + 1)) e) := fun e => by
+      have := emV_climb (val := val) m2 (l + 1) (7 - (l + 1)) e (fun k h1 _ => s2hi k (by omega))
+      rwa [show l + 1 + (7 - (l + 1)) = 7 by omega, hb2] at this
     obtain ⟨c01a, c01b⟩ := merge_children h01 (show lcaLevel g0 g1 = l + 1 from hd01)
     have e21 : g2 / 2 ^ (l + 1) = g1 / 2 ^ (l + 1) := div_eq_of_lca_le (by omega) (by rw [c21]; omega)
     have e21' : g2 / 2 ^ l = g1 / 2 ^ l := div_eq_of_lca_le (by omega) (by rw [c21]; omega)
@@ -323,9 +323,9 @@ theorem emV_bucket_aux (val : Nat × Nat → Digest) (c g0 g1 g2 b : Nat) (h01 :
         have := emV_climb (val := val) m2 0 m e (fun k _ h2 => s2lo k (by omega))
         simpa only [Nat.zero_add, pow_zero, Nat.div_one] using this
     rw [top, mid, right, low, p2, leaf2, p1, leaf1, p0, leaf0]
-    have hlast : (List.range (8 - (l + 1))).map (climbF val g2 (l + 1)) ++ (List.range 3).map (climbF val g2 8) =
+    have hlast : (List.range (7 - (l + 1))).map (climbF val g2 (l + 1)) ++ (List.range 4).map (climbF val g2 7) =
         (List.range (11 - (l + 1))).map (climbF val g2 (l + 1)) := by
-      rw [show 11 - (l + 1) = (8 - (l + 1)) + 3 by omega, climbF_range_add, show l + 1 + (8 - (l + 1)) = 8 by omega]
+      rw [show 11 - (l + 1) = (7 - (l + 1)) + 4 by omega, climbF_range_add, show l + 1 + (7 - (l + 1)) = 7 by omega]
     simp only [climbE, Em.close, toMSeg, List.map_cons, List.map_nil, List.nil_append, List.length_map,
       List.length_range, List.append_assoc, pow_zero, Nat.div_one, Bool.false_eq_true, ↓reduceIte, List.cons_append,
       hlast, Nat.add_sub_cancel]
@@ -333,13 +333,13 @@ theorem emV_bucket_aux (val : Nat × Nat → Digest) (c g0 g1 g2 b : Nat) (h01 :
 /-- **One coordinate's emission** (`coordSchedule`). -/
 theorem emV_bucket (val : Nat × Nat → Digest) (c : Nat) (sel : Selection) (hs : SelOk sel) (segs : List MSeg)
     (p : Nat) :
-    (climbE val (selLeaf sel 2) 8 3 (emV (selectedLeaves sel) val 8 sel.bucket ⟨segs, [], p⟩)).close false 0 =
+    (climbE val (selLeaf sel 2) 7 4 (emV (selectedLeaves sel) val 7 sel.bucket ⟨segs, [], p⟩)).close false 0 =
       ⟨segs ++ (coordSchedule c sel).map (toMSeg val), [], 0⟩ := by
   rw [hs.selected]
   have h0 := hs.s01; have h1 := hs.s12; have h2 := hs.l2
   have h01 : selLeaf sel 0 < selLeaf sel 1 := by unfold selLeaf; omega
   have h12 : selLeaf sel 1 < selLeaf sel 2 := by unfold selLeaf; omega
-  have hb : ∀ j, sel.leaves.getD j 0 < 256 → selLeaf sel j / 2 ^ 8 = sel.bucket := fun j hj => by
+  have hb : ∀ j, sel.leaves.getD j 0 < 128 → selLeaf sel j / 2 ^ 7 = sel.bucket := fun j hj => by
     unfold selLeaf; exact bucket_div_eight hj
   unfold coordSchedule
   exact emV_bucket_aux val c _ _ _ _ h01 h12 (hb 0 (by omega)) (hb 1 (by omega)) (hb 2 h2) segs p
@@ -370,9 +370,9 @@ theorem wordsOf_flatMap8 {α : Type} (f : α → List UInt8) (hf : ∀ x, (f x).
     rw [List.flatMap_cons, List.flatMap_cons, wordsOf_append _ _ (hf x), wordsOf_flatMap8 f hf xs]
 
 /-- **A segment's doublewords**: W's bytes (`segBytes`, siblings by `foldSlot`) are the emitted ones. -/
-theorem wordsOf_segBytes (chosen : List Selection) (proof : Fin 124 → Digest) (val : Nat × Nat → Digest)
+theorem wordsOf_segBytes (chosen : List Selection) (proof : Fin 121 → Digest) (val : Nat × Nat → Digest)
     (seg : Segment) (htop : seg.lo + seg.a ≤ 11) (hlo : seg.lo < 11)
-    (hval : ∀ r < seg.a, val (seg.sib r) = proof ⟨foldSlot chosen seg r % 124, Nat.mod_lt _ (by decide)⟩) :
+    (hval : ∀ r < seg.a, val (seg.sib r) = proof ⟨foldSlot chosen seg r % 121, Nat.mod_lt _ (by decide)⟩) :
     wordsOf (segBytes chosen proof seg) = segWords (toMSeg val seg) := by
   unfold segBytes segWords toMSeg
   rw [wordsOf_append8 _ _ (by rfl)]
@@ -401,14 +401,14 @@ theorem wordsOf_segBytes (chosen : List Selection) (proof : Fin 124 → Digest) 
 /-! ## The seven coordinates -/
 
 /-- Coordinate `c`'s valuation of the empty positions: the proof slot Core consumes there. -/
-def valC (chosen : List Selection) (proof : Fin 124 → Digest) (c : Nat) (q : Nat × Nat) : Digest :=
+def valC (chosen : List Selection) (proof : Fin 121 → Digest) (c : Nat) (q : Nat × Nat) : Digest :=
   pfN proof (slotBase chosen c + (slotPositions (chosen.getD c ⟨0, []⟩)).idxOf q)
 
 /-- The emitted segments of the coordinates `< n`. -/
-def emSegs (chosen : List Selection) (proof : Fin 124 → Digest) (n : Nat) : List MSeg :=
+def emSegs (chosen : List Selection) (proof : Fin 121 → Digest) (n : Nat) : List MSeg :=
   (List.range n).flatMap fun c => (coordSchedule c (chosen.getD c ⟨0, []⟩)).map (toMSeg (valC chosen proof c))
 
-theorem emSegs_succ (chosen : List Selection) (proof : Fin 124 → Digest) (n : Nat) :
+theorem emSegs_succ (chosen : List Selection) (proof : Fin 121 → Digest) (n : Nat) :
     emSegs chosen proof (n + 1) =
       emSegs chosen proof n ++ (coordSchedule n (chosen.getD n ⟨0, []⟩)).map (toMSeg (valC chosen proof n)) := by
   simp only [emSegs, List.range_succ, List.flatMap_append, List.flatMap_singleton]
@@ -422,7 +422,7 @@ theorem length_segs_words (v : Nat × Nat → Digest) : ∀ L : List Segment,
       List.map_cons, List.sum_cons]
     ring
 
-theorem length_emSegs_words (chosen : List Selection) (proof : Fin 124 → Digest) (hc : ChosenOk chosen) :
+theorem length_emSegs_words (chosen : List Selection) (proof : Fin 121 → Digest) (hc : ChosenOk chosen) :
     ∀ n ≤ 7, ((emSegs chosen proof n).flatMap segWords).length = 5 * n + 10 * slotBase chosen n
   | 0, _ => rfl
   | n + 1, h => by
@@ -433,9 +433,9 @@ theorem length_emSegs_words (chosen : List Selection) (proof : Fin 124 → Diges
 theorem coordSchedule_lo (c : Nat) (sel : Selection) (hs : SelOk sel) :
     ∀ seg ∈ coordSchedule c sel, seg.lo ≤ 8 := by
   have h0 := hs.s01; have h1 := hs.s12; have h2 := hs.l2
-  have l01 : lcaLevel (selLeaf sel 0) (selLeaf sel 1) ≤ 8 := by
+  have l01 : lcaLevel (selLeaf sel 0) (selLeaf sel 1) ≤ 7 := by
     unfold selLeaf; exact lca_le_eight (by omega) (by omega) (by omega)
-  have l12 : lcaLevel (selLeaf sel 1) (selLeaf sel 2) ≤ 8 := by
+  have l12 : lcaLevel (selLeaf sel 1) (selLeaf sel 2) ≤ 7 := by
     unfold selLeaf; exact lca_le_eight (by omega) (by omega) (by omega)
   intro seg hseg
   unfold coordSchedule at hseg
@@ -464,8 +464,8 @@ theorem foldSlot_lt (chosen : List Selection) (hc : ChosenOk chosen) {c : Nat} (
   omega
 
 /-- **The stream doublewords**: W's honest stream bytes are the emitted segments of the seven coordinates. -/
-theorem wordsOf_schedule (chosen : List Selection) (proof : Fin 124 → Digest) (hc : ChosenOk chosen)
-    (h7 : slotBase chosen 7 ≤ 124) :
+theorem wordsOf_schedule (chosen : List Selection) (proof : Fin 121 → Digest) (hc : ChosenOk chosen)
+    (h7 : slotBase chosen 7 ≤ 121) :
     wordsOf ((schedule chosen).flatMap (segBytes chosen proof)) = (emSegs chosen proof 7).flatMap segWords := by
   unfold schedule emSegs
   rw [List.flatMap_assoc, List.flatMap_assoc, wordsOf_flatMap8 _ (fun c => by
@@ -491,7 +491,7 @@ theorem wordsOf_schedule (chosen : List Selection) (proof : Fin 124 → Digest) 
   refine wordsOf_segBytes chosen proof _ _ htop (by omega) (fun r hr => ?_)
   obtain ⟨hco, hlt⟩ := foldSlot_lt chosen hc hc7' hseg hr
   have hb := slotBase_mono chosen (show c + 1 ≤ 7 by omega)
-  have hlt' : foldSlot chosen (coordSchedule c (chosen.getD c ⟨0, []⟩))[i] r < 124 := by omega
+  have hlt' : foldSlot chosen (coordSchedule c (chosen.getD c ⟨0, []⟩))[i] r < 121 := by omega
   unfold valC
   rw [show slotBase chosen c + (slotPositions (chosen.getD c ⟨0, []⟩)).idxOf
       ((coordSchedule c (chosen.getD c ⟨0, []⟩))[i].sib r) =
@@ -508,8 +508,8 @@ theorem readWords_map (t : RiscvZkvm.Rv64.MachineState) (A : Nat) : ∀ n, t.rea
     rfl
 
 /-- **The stream at `fts_done`**: the emitted image of the seven coordinates reads as W's `streamBytes`. -/
-theorem stream_readWords (chosen : List Selection) (proof : Fin 124 → Digest) (hc : ChosenOk chosen)
-    (h7 : slotBase chosen 7 ≤ 124) (t : RiscvZkvm.Rv64.MachineState) (p : Nat)
+theorem stream_readWords (chosen : List Selection) (proof : Fin 121 → Digest) (hc : ChosenOk chosen)
+    (h7 : slotBase chosen 7 ≤ 121) (t : RiscvZkvm.Rv64.MachineState) (p : Nat)
     (hS : StreamAt t ⟨emSegs chosen proof 7, [], p⟩) :
     t.readWords (BitVec.ofNat 64 0xC40) 1275 = wordsOf (streamBytes chosen proof) := by
   have hlenW := length_emSegs_words chosen proof hc 7 le_rfl
