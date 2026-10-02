@@ -427,7 +427,7 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
     refine hashInput_toQ v3a _ 0 NODE (nodeInput_length _ _ _ _ _ _) v3ax10 (by decide) (by decide) v3ax11
       (by decide) ?_
     have hdiv : ((leaf / 2 ^^^ 1) * 2 + 1) / 2 = (leaf / 2 ^^^ 1) * 2 / 2 := by omega
-    rw [wordsOf_nodeInput, readWords_eight, hnode NODE (by simp), hnode (NODE + 8) (by simp),
+    rw [wordsOf_nodeInput 3 _ _ _ _ _ (by decide), readWords_eight, hnode NODE (by simp), hnode (NODE + 8) (by simp),
       show NODE + 8 + 8 = NODE + 16 from rfl, v3am16, show NODE + 16 + 8 = NODE + 24 from rfl, v3am24, hdiv,
       show NODE + 24 + 8 = NODE + 32 from rfl, hnode (NODE + 32) (by simp), show NODE + 32 + 8 = NODE + 40 from rfl,
       hnode (NODE + 40) (by simp), show NODE + 40 + 8 = NODE + 48 from rfl, hnode (NODE + 48) (by simp),

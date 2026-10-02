@@ -471,6 +471,7 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 32768} {lay : Layer} {tree sel :
         rw [Nat.div_eq_of_lt hs.htree]
         have := lay.isLt
         omega
+      packed := by change T3.packedNodeTag 3; decide
       htree := hs.htree
       hh1 := by show 1 ≤ height lay; omega
       hh := by show height lay ≤ 12; omega
