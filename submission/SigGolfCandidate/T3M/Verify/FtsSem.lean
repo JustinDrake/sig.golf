@@ -91,7 +91,7 @@ theorem FB.leafCK {F : FCtx} {c : Nat} {m : MachineState} (h : FB F c m) : Known
 /-! ## The FTS setup (words 359 .. 376) -/
 
 theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : SelIn pk w a 7 t) :
-    ∃ u, Steps image t 16 16 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
+    ∃ u, Steps image t 18 18 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
   have hk0 : KnownOK baseK t := ht.known
   -- words 359 .. 365: the six setup constants from the embedded data
   obtain ⟨t1, h1⟩ := spec_run setupLdCheckF_ok t ht.pc hk0 (by simp [setupLdSpec]) (by simp)
@@ -125,7 +125,7 @@ theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
     · exact e28
     · exact e26
     · exact e21
-  -- words 366 .. 372: the rest of the setup and `j 377`
+  -- words 366 .. 376: packed header, persistent comparands and `j 392`
   obtain ⟨u, hu⟩ := spec_run setupCheckF_ok t1 (h1.pc rfl) hk (by simp [setupSpecF]) (by simp)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
       if A = SENTINEL then -1#64 else t.getMem (BitVec.ofNat 64 A) := by
