@@ -3,7 +3,7 @@ import SigGolfCandidate.T3M.Verify.Select
 /-!
 # The FTS stream machine: layout and expected symbolic results of its code blocks (T3M verify)
 
-Code (instruction indices of the frozen image, `t3m/images/verify.labels`): `fts_setup` 359; leaf `s = 3 c + j` at
+Code (instruction indices of the frozen image, `t3m/images/verify.labels`): `fts_setup` 394; leaf `s = 3 c + j` at
 `leafPc s` (10 / 9 / 10 instructions for `j = 0, 1, 2`: table switch, `ld s7, ETAB + 8 s`, the leaf block's `T`, the
 dispatch `lbu gp, 880(a4); slli 5; add s4; jalr s8`); `coord_end_c` at `coordEndPc c`; `forest` 648; the segment tables
 `ptab_n` 744 / `ptab_l` 2792 (256 slots of 8 words); `entry0_{M,P,F}` 4841 / 4856 / 4862; the ladders `lad_X_t_r` at
@@ -11,7 +11,7 @@ dispatch `lbu gp, 880(a4); slli 5; add s4; jalr s8`); `coord_end_c` at `coordEnd
 (`tailPc X c`, copy `c` = ladder `t` or `2` = `entry0_X`).
 
 Families (each a path run checked by `specB` in `FtsCheck`):
-* `setupCheckF` (359 → 413), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
+* `setupCheckF` (394 → 413), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
   slot address), `slotCheck tb b` (to the pending hash / HALT(1)), `entCheck tb b` (`j lad`), `rungCheck X t r t'`
   (fold `r` to its hash, switching to ladder `t'`), `lastCheck X t` (rung 10 to the destination hash),
   `tailMCheck c d`, `tailPCheck c d`, `tailFCheck c`, `coordCheck c`, `forestCheck`.
@@ -110,9 +110,9 @@ def setupPost : List (Reg × Word) :=
 def setupSpecF : Spec :=
   ⟨[(.x27, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0xa01)),
     (.x28, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0x901))],
-    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 413, false, 20, [], none, 20⟩
+    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 413, false, 19, [], none, 19⟩
 
-def setupCheckF : Bool := specB [] [] gkF (runAt baseK [413] 359 []) setupSpecF [] setupPost [.x22]
+def setupCheckF : Bool := specB [] [] gkF (runAt baseK [413] 394 []) setupSpecF [] setupPost [.x22]
 
 /-! ## Leaf code (to the dispatch) -/
 

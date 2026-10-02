@@ -554,7 +554,7 @@ theorem select_good (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput)
     exact GoodQ.steps' (hst0.trans hst) (hrest v hv) (by omega) (by omega) (fun q => ⟨q, by omega⟩)
 
 /-- **`verifyP` up to the FTS**: from the initial state, given the judgment of `afterSel` on every state at
-`fts_setup` (word 359). -/
+`fts_setup` (word 394). -/
 theorem verifyP_good_sel (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     {N C A : Nat} {Q : Prop}
     (hfts : ∀ a t, SelIn pk w a 7 t → GoodQ t N C Q A (ccM (afterSel pk w a) Kb)) :

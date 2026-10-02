@@ -56,9 +56,9 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 /-- Merkle height. -/
 def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
 /-- Steps of A (layer 3 includes the `hyper` constants; layer 0 has `lui; or` instead of `ori`). -/
-def stepsA (lay : Nat) : Nat := if lay = 3 then 34 else if lay = 0 then 15 else 15
+def stepsA (lay : Nat) : Nat := if lay = 3 then 33 else if lay = 0 then 15 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 3 then 64 else if lay = 0 then 67 else 45
+def retOff (lay : Nat) : Nat := if lay = 3 then 63 else if lay = 0 then 67 else 45
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/

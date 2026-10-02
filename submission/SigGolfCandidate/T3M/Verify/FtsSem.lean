@@ -86,10 +86,10 @@ theorem FB.leafCK {F : FCtx} {c : Nat} {m : MachineState} (_h : FB F c m) : Know
   intro p hp
   simp only [SigGolfCandidate.T3M.Verify.leafCK, List.not_mem_nil] at hp
 
-/-! ## The FTS setup (entry 359, body 394 .. 412) -/
+/-! ## The FTS setup (entry 394, body 394 .. 412) -/
 
 theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : SelIn pk w a 7 t) :
-    ∃ u, Steps image t 20 20 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
+    ∃ u, Steps image t 19 19 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
   have hk : KnownOK baseK t := ht.known
   obtain ⟨u, hu⟩ := spec_run setupCheckF_ok t ht.pc hk (by simp [setupSpecF]) (by simp)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
