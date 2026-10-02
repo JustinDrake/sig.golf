@@ -15,7 +15,7 @@ cycles on every path (all runs and the accepting ones).
 **`layerCost lay Z`** = `stepsA + 8 + B + leaf-pk block + chainCost0 lay − Z`: the cycles from `LayerIn` to
 `LeafOut` of a run whose digits have the max-digit savings `Z` (one cycle per maximal digit, two for the lower
 checksum chain: `LCtx.zSum 0 43` resp. `QCtx.topZ`; exactly `chainCost0 lay − Z` for the chains by
-`LCtx.lowCost_accept` / `QCtx.topCost_accept`); `layerCost lay 0` = 1384, 1351, 1351, 1282 for layers 3, 2, 1, 0
+`LCtx.lowCost_accept` / `QCtx.topCost_accept`); `layerCost lay 0` = 1382, 1351, 1351, 1282 for layers 3, 2, 1, 0
 (sum 5368). -/
 
 set_option linter.unusedSimpArgs false
@@ -94,10 +94,10 @@ def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + ch
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 
 theorem layerCost_vals :
-    layerCost 3 0 = 1384 ∧ layerCost 2 0 = 1351 ∧ layerCost 1 0 = 1351 ∧ layerCost 0 0 = 1282 := by decide
+    layerCost 3 0 = 1382 ∧ layerCost 2 0 = 1351 ∧ layerCost 1 0 = 1351 ∧ layerCost 0 0 = 1282 := by decide
 
 theorem layerFuel_vals :
-    layerFuel 3 = 1802 ∧ layerFuel 2 = 1778 ∧ layerFuel 1 = 1778 ∧ layerFuel 0 = 2405 := by decide
+    layerFuel 3 = 1800 ∧ layerFuel 2 = 1778 ∧ layerFuel 1 = 1778 ∧ layerFuel 0 = 2405 := by decide
 
 /-! ## Decode facts -/
 
