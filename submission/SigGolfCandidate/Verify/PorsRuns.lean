@@ -29,7 +29,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 def leafPc (s : Nat) : Nat := leafTab.getD s 0
 /-- The dispatch of leaf `s` (after the leaf code). -/
-def dispLeafPc (s : Nat) : Nat := leafPc s + (if s = 0 then 10 else if s = 14 then 14 else 11)
+def dispLeafPc (s : Nat) : Nat := leafPc s + (if s = 0 then 10 else if s = 14 then 13 else 11)
 def entry0Pc (V : Nat) : Nat := entry0Tab.getD V 0
 def ladPc (V t p : Nat) : Nat := ((ladTab.getD V []).getD t []).getD p 0
 def lbrPc (V t p : Nat) : Nat := ((lbrTab.getD V []).getD t []).getD p 0
@@ -348,14 +348,15 @@ def leafBrs (s : Nat) (d1 d2 : Bool) : List Br :=
 
 /-- The table address `8 x + RTAB` of leaf `s`'s header. -/
 def rtE (s : Nat) : E := .bin .add (xE s) (cw RTAB)
-/-- The header field `lw x23, -32(x3)`: the sign-extended low word of the table entry. -/
+/-- The header field `lw x23, 48(x3)` (`x3 = 8 x + sp`, `sp + 48 = RTAB`): the sign-extended low
+word of the table entry. -/
 def rtLw (s : Nat) : E := .un (.ld .w 0) (.ld (rtE s))
 
 def leafSpec (s : Nat) : Spec :=
   ⟨[(xReg s, xE s), (.x23, rtLw s), (.x1, ldE (secA s)), (.x30, ldE (secA s + 8))],
     [(⟨none, BitVec.ofNat 64 0xE8⟩, ldE (secA s + 8)), (⟨none, BitVec.ofNat 64 0xE0⟩, ldE (secA s)),
       (⟨none, BitVec.ofNat 64 0xC8⟩, stW 0xC8 (xE s))],
-    dispLeafPc s, false, if s = 0 then 10 else if s = 14 then 14 else 11, leafBrs s false false, none, if s = 0 then 10 else if s = 14 then 14 else 11⟩
+    dispLeafPc s, false, if s = 0 then 10 else if s = 14 then 13 else 11, leafBrs s false false, none, if s = 0 then 10 else if s = 14 then 13 else 11⟩
 
 /-- The `PIND` read (all paths). -/
 def leafObl1 (s : Nat) : List Oblig := [.valid ⟨some (piT s), BitVec.ofNat 64 PIND⟩ 8]
@@ -370,9 +371,9 @@ def leafCheck (s : Nat) : Bool :=
   pspecB gkP (runAt leafKnown [dispLeafPc s] (leafPc s) (leafDirs s)) (leafSpec s) (leafObl s)
     (pleafPost s) (pleafKeep s) &&
   (s = 0 || pspecB [] (runAt leafKnown [] (leafPc s) [.br true])
-    (rejSpec (if s = 14 then 8 else 6) [⟨.geu, .reg (xReg (s + 1)), xE s, true⟩]) (leafObl1 s) [] []) &&
+    (rejSpec (if s = 14 then 7 else 6) [⟨.geu, .reg (xReg (s + 1)), xE s, true⟩]) (leafObl1 s) [] []) &&
   (s != 14 || pspecB [] (runAt leafKnown [] (leafPc s) [.br false, .br true])
-    (rejSpec 9 (leafBrs s false true)) (leafObl1 s) [] [])
+    (rejSpec 8 (leafBrs s false true)) (leafObl1 s) [] [])
 
 end SigGolfCandidate.Verify
 
@@ -401,7 +402,7 @@ def k1 : List (Reg × Word) := k0x ++ [(.x18, 0xFFF)]
 def specLim : Spec := ⟨[(.x18, .un (.ld .wu 4) (ldE RTAB))], [], 1, false, 1, [], none, 1⟩
 
 /-- Digest phase: witness bases and `P1 .. P5`. The prologue loads `x18 = 0xFFF` (`FLIM`, the
-`x18`-relative witness base and the fold limit) from the high word of header `0`, so the inlined
+`x18`-relative witness base and the fold limit) from the high word of header `0`, so the relocated
 leaf head needs no `x18` restore. -/
 def gkD : List (Reg × Word) := [(.x5, 0), (.x19, 7), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x2, 0xFDFFB0)]
 def dgK : List (Reg × Word) := gkD ++ [(.x18, 0xFFF), (.x10, 0), (.x11, 64), (.x12, 0), (.x15, 0)]
@@ -453,7 +454,7 @@ def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 4992), (.x15, 0),
     (.x18, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 97, [], none, 97⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 96, [], none, 96⟩
 
 def startCheck : Bool :=
   specB [] (runAt k0 [1] 0 []) specLim k0x [] &&
