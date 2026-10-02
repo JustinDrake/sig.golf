@@ -305,7 +305,7 @@ def rootCheck : Bool := (List.range 14).all fun a =>
         let ul := upper (13-a) p cl
         if ul=0 then true else
           let ur := upper (13-a) (15-p) cr
-          decide (ur=0 ∨ 464+16*min 117 (a+ul+ur-2)-(oldCredit a+cl+cr) ≤ 2322)
+          decide (ur=0 ∨ 464+16*min 117 (a+ul+ur-2)-(oldCredit a+cl+cr) ≤ 2321)
 end SiggolfReverse2322
 
 /-! Numeric structural component: SiggolfReverse2322Proof -/
@@ -366,7 +366,7 @@ theorem root_bound_of_checks (hc : Certificate) (hcheck : rootCheck=true)
     {a p q fl fr cl cr : Nat} (ha : a<14) (hk : p+q=15)
     (left : Tree credit (14-a-1) p fl cl)
     (right : Tree credit (14-a-1) q fr cr) (hf : a+fl+fr≤117) :
-    464+16*(a+fl+fr)-(oldCredit a+cl+cr)≤2322 := by
+    464+16*(a+fl+fr)-(oldCredit a+cl+cr)≤2321 := by
   by_cases hsmall : oldCredit a+cl+cr≤13
   · have hp := left.leaves_pos
     have hq := right.leaves_pos
@@ -1126,7 +1126,7 @@ theorem certificate : Certificate := certificate_of_checks checks_all
 theorem root_bound {a p q fl fr cl cr : Nat} (ha : a<14) (hk : p+q=15)
     (left : Tree credit (14-a-1) p fl cl)
     (right : Tree credit (14-a-1) q fr cr) (hf : a+fl+fr≤117) :
-    464+16*(a+fl+fr)-(oldCredit a+cl+cr)≤2322 :=
+    464+16*(a+fl+fr)-(oldCredit a+cl+cr)≤2321 :=
   root_bound_of_checks certificate root_check ha hk left right hf
 
 end SiggolfReverse2322
@@ -1143,7 +1143,7 @@ namespace SigGolfCandidate.Final
 /-- Universal accepting-run bound after fifteen leaf-offset instruction eliminations,
 three static root-header loads, one retained top-layer base, and the exact structural
 PORS segment credit with conditional two-fold prefixes and exact root reserve. Query formatting is an injective global relabel. -/
-def verifyCycleBound : Nat := 10241
+def verifyCycleBound : Nat := 10234
 
 /-- The witness charge `⌈14080 / 256⌉`: sparse PORS cells use consumed tweak slots,
 with contiguous authentication paths and external buffer `0x1100 .. 0x4800`. -/

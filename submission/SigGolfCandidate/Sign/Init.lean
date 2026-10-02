@@ -6,7 +6,7 @@ import SigGolfCandidate.Expand.Mem
 # The initial state of `sign`
 
 `initialState submission .sign (sk, cache, m) = some (s0 sk cache m)`; its registers are `0`
-except `x2`, its memory holds the secret key at `0x80`, the message at `0x40`, the cache at
+except `x2`, its memory holds the secret key at `0x80`, the message at `0x20`, the cache at
 `0x4B00`, and zeros elsewhere (`s0_readWords_sk`, `s0_readWords_msg`, `s0_zero`).
 -/
 
@@ -21,7 +21,7 @@ def s0 (sk : SecretKey) (cache : Cache) (m : Message) : MachineState :=
   ((((blank.writeBytesAsWords (BitVec.ofNat 64 (dataBase image)) image.data).writeBytesAsWords
       (BitVec.ofNat 64 0x80) (SigGolfCandidate.Legacy.bytes sk)).writeBytesAsWords (BitVec.ofNat 64 0x4B00)
       (SigGolfCandidate.Legacy.bytes cache)).writeBytesAsWords
-      (BitVec.ofNat 64 0x40) (SigGolfCandidate.Legacy.bytes m)).setReg .x2 (BitVec.ofNat 64 (dataBase image))
+      (BitVec.ofNat 64 0x20) (SigGolfCandidate.Legacy.bytes m)).setReg .x2 (BitVec.ofNat 64 (dataBase image))
 
 theorem initialState_eq (sk : SecretKey) (cache : Cache) (m : Message) :
     initialState submission .sign (sk, cache, m) = some (s0 sk cache m) := by
@@ -34,7 +34,7 @@ theorem initialState_eq (sk : SecretKey) (cache : Cache) (m : Message) :
     show submission.image .sign = image from rfl,
     show (submission.layout.secretKey, bytes sk).1 = 0x80 from rfl,
     show (submission.layout.cache, bytes cache).1 = 0x4B00 from rfl,
-    show (submission.layout.message, bytes m).1 = 0x40 from rfl]
+    show (submission.layout.message, bytes m).1 = 0x20 from rfl]
   dsimp only
   rfl
 
@@ -72,7 +72,7 @@ theorem length_bytes {n : Nat} (x : Bytes n) : (SigGolfCandidate.Legacy.bytes x)
 /-- Bytes of the initial memory. -/
 theorem s0_getByte (sk : SecretKey) (cache : Cache) (m : Message) (a : Nat) (ha : a < 2 ^ 64) :
     (s0 sk cache m).getByte (BitVec.ofNat 64 a) =
-      if 0x40 ≤ a ∧ a < 0x60 then (SigGolfCandidate.Legacy.bytes m).getD (a - 0x40) 0
+      if 0x20 ≤ a ∧ a < 0x40 then (SigGolfCandidate.Legacy.bytes m).getD (a - 0x20) 0
       else if 0x4B00 ≤ a ∧ a < 0x4B00 + 131072 then (SigGolfCandidate.Legacy.bytes cache).getD (a - 0x4B00) 0
       else if 0x80 ≤ a ∧ a < 0xA0 then (SigGolfCandidate.Legacy.bytes sk).getD (a - 0x80) 0
       else 0 := by
@@ -82,7 +82,7 @@ theorem s0_getByte (sk : SecretKey) (cache : Cache) (m : Message) (a : Nat) (ha 
   have L2 : (SigGolfCandidate.Legacy.bytes cache).length = 131072 := length_bytes cache
   have L3 : (SigGolfCandidate.Legacy.bytes sk).length = 32 := length_bytes sk
   rw [getByte_writeBytesAsWords _ _ _ _ (by decide) (by rw [L1]; norm_num) ha, L1]
-  by_cases h1 : 0x40 ≤ a ∧ a < 0x60
+  by_cases h1 : 0x20 ≤ a ∧ a < 0x40
   · rw [if_pos (by omega), if_pos h1]
   rw [if_neg (by omega), if_neg h1, getByte_writeBytesAsWords _ _ _ _ (by decide)
     (by rw [L2]; norm_num) ha, L2]
@@ -150,7 +150,7 @@ theorem s0_readWords_sk (sk : SecretKey) (cache : Cache) (m : Message) :
   simp [toList]
 
 theorem s0_readWords_msg (sk : SecretKey) (cache : Cache) (m : Message) :
-    (s0 sk cache m).readWords (BitVec.ofNat 64 0x40) 4 = wordsOf (toList m) := by
+    (s0 sk cache m).readWords (BitVec.ofNat 64 0x20) 4 = wordsOf (toList m) := by
   apply readWords_of_bytes _ _ _ _ (by simp [toList, SigGolfCandidate.Legacy.bytes]) (by norm_num) (by norm_num)
   intro j hj
   rw [s0_getByte _ _ _ _ (by omega), if_pos (by omega)]
@@ -159,7 +159,7 @@ theorem s0_readWords_msg (sk : SecretKey) (cache : Cache) (m : Message) :
 /-- The initial memory is zero outside the message, secret key and cache. -/
 theorem s0_zero (sk : SecretKey) (cache : Cache) (m : Message) (A : Nat) (hA : A % 8 = 0)
     (hA' : A + 8 < 2 ^ 64)
-    (hout : A + 8 ≤ 0x40 ∨ (0x60 ≤ A ∧ A + 8 ≤ 0x80) ∨ (0xA0 ≤ A ∧ A + 8 ≤ 0x4B00) ∨ 0x24B00 ≤ A) :
+    (hout : A + 8 ≤ 0x20 ∨ (0x40 ≤ A ∧ A + 8 ≤ 0x80) ∨ (0xA0 ≤ A ∧ A + 8 ≤ 0x4B00) ∨ 0x24B00 ≤ A) :
     (s0 sk cache m).getMem (BitVec.ofNat 64 A) = 0 := by
   rw [getMem_of_bytes _ A hA hA']
   have : (List.range 8).map (fun j => (s0 sk cache m).getByte (BitVec.ofNat 64 (A + j))) =

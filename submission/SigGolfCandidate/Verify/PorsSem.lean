@@ -35,7 +35,7 @@ theorem PB.wit {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) : 
 
 /-- The leaf header table is never written. -/
 theorem PB.rtab {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (n : Nat) (hn : n ≤ 2 ^ 14) :
-    m.getMem (BitVec.ofNat 64 (RTAB + 8 * n)) = Rev.revWord (2 ^ 14 ||| n) := by
+    m.getMem (BitVec.ofNat 64 (RTAB + 8 * n)) = rtW n := by
   have := h.glob.2.2.2 (2080508 + n) (by unfold NW; omega)
   rw [show 0x800 + 8 * (2080508 + n) = RTAB + 8 * n by unfold RTAB; omega] at this
   rw [this]; exact h.s0ok.rtab n hn
@@ -264,6 +264,37 @@ theorem rt_valid (x : Nat) (hx : x ≤ 2 ^ 14) : accessValid (BitVec.ofNat 64 (R
   rw [ht, Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq]
   exact ⟨by unfold MEMORY_BYTES; omega, by omega⟩
 
+theorem rt_valid4 (x : Nat) (hx : x ≤ 2 ^ 14) : accessValid (BitVec.ofNat 64 (RTAB + 8 * x)) 4 = true := by
+  have hR : RTAB = 16646112 := rfl
+  have ht : (BitVec.ofNat 64 (RTAB + 8 * x)).toNat = 16646112 + 8 * x := by
+    rw [ofNat_toNat_lt _ (by rw [hR]; omega), hR]
+  unfold accessValid rangeValid
+  rw [ht, Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq]
+  exact ⟨by unfold MEMORY_BYTES; omega, by omega⟩
+
+/-- `lw` of a word whose low half is `e` (high half a multiple of `2^32` above `sext32 e`). -/
+theorem lw_sext (e h : Nat) (he : e < 2 ^ 32) (hh : h % 2 ^ 32 = 0) :
+    (extractWord32 (BitVec.ofNat 64 (Rev.sext32 e + h)) 0).signExtend 64 = BitVec.ofNat 64 (Rev.sext32 e) := by
+  have ht : (extractWord32 (BitVec.ofNat 64 (Rev.sext32 e + h)) 0).toNat = e := by
+    simp only [extractWord32, Nat.zero_mul, BitVec.ushiftRight_zero, BitVec.truncate_eq_setWidth,
+      BitVec.toNat_setWidth, BitVec.toNat_ofNat]
+    unfold Rev.sext32
+    split_ifs <;> omega
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_signExtend, BitVec.toNat_setWidth, BitVec.msb_eq_decide, ht, BitVec.toNat_ofNat]
+  unfold Rev.sext32
+  split_ifs <;> simp_all <;> omega
+
+/-- The leaf header field read by `lw x23, -32(x3)` (the high word of header `0` is ignored). -/
+theorem rtW_lw (n : Nat) : (UnOp.ld .w 0).eval (rtW n) = Rev.revWord (2 ^ 14 ||| n) := by
+  have he : Rev.efield (2 ^ 14 ||| n) < 2 ^ 32 := Rev.revBits_lt 32 _
+  have hs : Rev.sext32 (Rev.efield (2 ^ 14 ||| n)) < 2 ^ 64 := by
+    unfold Rev.sext32; split_ifs <;> omega
+  have hh : rtHi n % 2 ^ 32 = 0 := by unfold rtHi; split_ifs <;> omega
+  show (extractWord32 (rtW n) (0 / 4)).signExtend 64 = _
+  rw [rtW, Rev.revWord, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hs, Nat.zero_div]
+  exact lw_sext _ _ he hh
+
 
 theorem leafObl1_holds {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (s : Nat)
     (hs : s < 15) : ∀ o ∈ leafObl1 s, o.holds m := by
@@ -280,12 +311,15 @@ theorem leafObl_holds {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m
     (hs : s < 15) : ∀ o ∈ leafObl s, o.holds m := by
   intro o ho
   simp only [leafObl, List.mem_cons] at ho
-  rcases ho with rfl | ho
+  rcases ho with rfl | rfl | ho
+  · have hx := xE_eval h s hs
+    simp only [Oblig.holds, hx, BitVec.toNat_ofNat]
+    omega
   · have hx := xE_eval h s hs
     have hxl := leafX_le P s
     simp only [Oblig.holds, Addr.eval, E.eval, BinOp.eval, cw, hx]
     rw [rt_addr _ hxl]
-    exact rt_valid _ hxl
+    exact rt_valid4 _ hxl
   · exact leafObl1_holds h s hs o ho
 
 theorem geu_iff (a b : Nat) (ha : a < 2 ^ 64) (hb : b < 2 ^ 64) :
@@ -407,10 +441,10 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
     · have := hu.steps; simp only [leafSpec] at this; exact this
     · rw [hu.pc rfl]; simp [leafSpec, dispPc, hs]
     · rw [hu.keep .x14 (by simp [pleafKeep])]; exact h.fr
-    · rw [hu.regs (.x23, .ld (rtE s)) (by simp [leafSpec])]
-      simp only [rtE, E.eval, BinOp.eval, cw, hx]
+    · rw [hu.regs (.x23, rtLw s) (by simp [leafSpec])]
+      simp only [rtLw, rtE, E.eval, BinOp.eval, cw, hx]
       rw [rt_addr _ hxl]
-      rw [h.pb.rtab _ hxl, show porsT = 2 ^ 14 from rfl]
+      rw [h.pb.rtab _ hxl, rtW_lw, show porsT = 2 ^ 14 from rfl]
 
     · exact pb.reg (by simp [gkP, baseK, FLIM])
     · rw [hu.keep .x15 (by simp [pleafKeep])]; exact h.rS

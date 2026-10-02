@@ -146,8 +146,8 @@ def lvlExp (lay ci v kk : Nat) : PRes :=
     ⟨⟨rf.set .x12 (cw (nodeDst lay (lam + 1) (v / 2 ^ (kk + 1) % 2))), mem, []⟩,
       pcOf (m4Pc lay ci v (kk + 1) + 1), true, n, n, [], none⟩
   else
-    ⟨⟨((lvlRegs lay lam).set .x25 (cw (m4Hi lay (ci + 1)))).set .x3 (dispGp lay (ci + 1)), mem, []⟩,
-      0, false, hs + 11, hs + 11, [], some (dispTgt lay (ci + 1))⟩
+    ⟨⟨(lvlRegs lay lam).set .x25 (.bin .srl (.reg .x23) (cw (lam + 1))), mem, []⟩,
+      0, false, hs + 7, hs + 7, [], some (mkBin .and (.reg .x16) (.c (~~~1#64)))⟩
 
 /-- Direction list of a level run: stop at the dispatch jump at the end of a chunk. -/
 def lvlDirs (lay ci kk : Nat) : List Dir :=
@@ -178,5 +178,20 @@ def blockCheck (lay ci v : Nat) : Bool :=
 
 /-- Blocks `a .. a + n - 1` of chunk `ci` of layer `lay`. -/
 def foldCheck (lay ci a n : Nat) : Bool := (List.range' a n).all (blockCheck lay ci)
+
+
+/-- Full-index return slots for the top tree's shared six- and five-level blocks. -/
+def topSlotBase : Nat := 197888
+def topSlotPc (E : Nat) : Nat := topSlotBase + 2 * (2047 - E)
+
+def topSlotEnterExp (E : Nat) : PRes :=
+  ⟨⟨(RegFile.withKnown (foldK 0 704)).set .x16 (cw (0x1000 + 4 * (topSlotPc E + 1))), [], []⟩,
+    pcOf (m4Pc 0 0 (E % 64) 0), false, 1, 1, [], none⟩
+def topSlotReturnExp (E : Nat) : PRes :=
+  ⟨⟨RegFile.withKnown (foldK 0 64), [], []⟩,
+    pcOf (m4Pc 0 1 (E / 64) 0), false, 1, 1, [], none⟩
+def topSlotCheck (E : Nat) : Bool :=
+  optBeq (runAt (foldK 0 704) [m4Pc 0 0 (E % 64) 0] (topSlotPc E) []) (topSlotEnterExp E) &&
+  optBeq (runAt (foldK 0 64) [m4Pc 0 1 (E / 64) 0] (topSlotPc E + 1) []) (topSlotReturnExp E)
 
 end SigGolfCandidate.Verify

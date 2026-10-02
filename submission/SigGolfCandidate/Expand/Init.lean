@@ -4,7 +4,7 @@ import SigGolfCandidate.Expand.Witness
 # The initial state of `expand`
 
 `initialState submission .expand (m, pk, σ) = some (sI m pk σ)`: registers `0` except `x2`,
-memory = message at `0x40`, public key at `0xA0`, signature at `0x24B00`, zeros elsewhere.
+memory = message at `0x20`, public key at `0xA0`, signature at `0x24B00`, zeros elsewhere.
 (`regs_writeBytesAsWords`, `getMem_of_bytes`, `readWords_of_bytes` are local copies of
 `Sign/Init.lean`.)
 -/
@@ -21,7 +21,7 @@ set_option maxRecDepth 100000
 def sI (m : Message) (pk : PublicKey) (σ : Bytes 6032) : MachineState :=
   let blank : MachineState := { regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 }
   ((((blank.writeBytesAsWords (BitVec.ofNat 64 (dataBase image)) image.data).writeBytesAsWords
-      (BitVec.ofNat 64 0x40) (SigGolfCandidate.Legacy.bytes m)).writeBytesAsWords (BitVec.ofNat 64 0xA0)
+      (BitVec.ofNat 64 0x20) (SigGolfCandidate.Legacy.bytes m)).writeBytesAsWords (BitVec.ofNat 64 0xA0)
       (SigGolfCandidate.Legacy.bytes pk)).writeBytesAsWords
       (BitVec.ofNat 64 0x24B00) (SigGolfCandidate.Legacy.bytes σ)).setReg .x2 (BitVec.ofNat 64 (dataBase image))
 
@@ -32,7 +32,7 @@ theorem initialState_eq (m : Message) (pk : PublicKey) (σ : Bytes 6032) :
   simp only [inputBuffers]
   rw [List.foldl_cons, List.foldl_cons, List.foldl_cons, List.foldl_nil,
     show submission.image .expand = image from rfl,
-    show (submission.layout.message, bytes m).1 = 0x40 from rfl,
+    show (submission.layout.message, bytes m).1 = 0x20 from rfl,
     show (submission.layout.publicKey, bytes pk).1 = 0xA0 from rfl,
     show (submission.layout.signature, bytes σ).1 = 0x24B00 from rfl]
   dsimp only
@@ -74,7 +74,7 @@ theorem sI_getByte (m : Message) (pk : PublicKey) (σ : Bytes 6032) (a : Nat) (h
     (sI m pk σ).getByte (BitVec.ofNat 64 a) =
       if 0x24B00 ≤ a ∧ a < 0x24B00 + 6032 then (SigGolfCandidate.Legacy.bytes σ).getD (a - 0x24B00) 0
       else if 0xA0 ≤ a ∧ a < 0xB0 then (SigGolfCandidate.Legacy.bytes pk).getD (a - 0xA0) 0
-      else if 0x40 ≤ a ∧ a < 0x60 then (SigGolfCandidate.Legacy.bytes m).getD (a - 0x40) 0
+      else if 0x20 ≤ a ∧ a < 0x40 then (SigGolfCandidate.Legacy.bytes m).getD (a - 0x20) 0
       else 0 := by
   unfold sI
   simp only [getByte_setReg, image_data]
@@ -90,7 +90,7 @@ theorem sI_getByte (m : Message) (pk : PublicKey) (σ : Bytes 6032) (a : Nat) (h
   · rw [if_pos (by omega), if_pos h2]
   rw [if_neg (by omega), if_neg h2, getByte_writeBytesAsWords _ _ _ _ (by decide)
     (by rw [L3]; norm_num) ha, L3]
-  by_cases h3 : 0x40 ≤ a ∧ a < 0x60
+  by_cases h3 : 0x20 ≤ a ∧ a < 0x40
   · rw [if_pos (by omega), if_pos h3]
   rw [if_neg (by omega), if_neg h3]
   simp [MachineState.writeBytesAsWords, MachineState.getByte, MachineState.getMem, extractByte]

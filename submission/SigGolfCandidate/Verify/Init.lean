@@ -164,9 +164,10 @@ theorem flatMap8_slice {α : Type} (f : Nat → List α) (hf : ∀ n, (f n).leng
       subst e
       rw [List.drop_left' (flatMap8_length f hf n), List.take_of_length_le (Nat.le_of_eq (hf n))]
 
-/-- The 8 little-endian bytes of leaf header `n`. -/
+/-- The 8 little-endian bytes of leaf header `n` (header `0` carries `0xFFF` in its high word). -/
 def rtBlk (n : Nat) : List (BitVec 8) :=
-  (List.range 8).map fun k => BitVec.ofNat 8 ((Ref.Rev.revWord (2 ^ 14 ||| n)).toNat / 256 ^ k)
+  (List.range 8).map fun k =>
+    BitVec.ofNat 8 (((Ref.Rev.revWord (2 ^ 14 ||| n)).toNat + (if n = 0 then 0xFFF * 2 ^ 32 else 0)) / 256 ^ k)
 
 /-- The data after the leaf header table: a zero word and the two mask words. -/
 def vdTail : List (BitVec 8) :=
@@ -209,20 +210,21 @@ theorem vd_slice_hi (j : Nat) (hj : 16391 ≤ j) :
     List.nil_append,flatMap8_length rtBlk rtBlk_length]
   rw [show 8*j-48-8*16385=8*j-8*16391 by omega]
 
-theorem w64_rtBlk (n : Nat) : w64 (rtBlk n) = Ref.Rev.revWord (2 ^ 14 ||| n) := by
+theorem w64_rtBlk (n : Nat) : w64 (rtBlk n) = rtW n := by
   apply BitVec.eq_of_toNat_eq
   rw [w64_toNat _ (Nat.le_of_eq (rtBlk_length n))]
-  have h : leNat (rtBlk n) = (Ref.Rev.revWord (2 ^ 14 ||| n)).toNat % 256 ^ 8 :=
-    leNat_map_range 8 (Ref.Rev.revWord (2 ^ 14 ||| n)).toNat
-  rw [h]
-  exact Nat.mod_eq_of_lt (Nat.lt_of_lt_of_eq (BitVec.isLt _) (by norm_num))
+  have h : leNat (rtBlk n) =
+      ((Ref.Rev.revWord (2 ^ 14 ||| n)).toNat + (if n = 0 then 0xFFF * 2 ^ 32 else 0)) % 256 ^ 8 :=
+    leNat_map_range 8 ((Ref.Rev.revWord (2 ^ 14 ||| n)).toNat + (if n = 0 then 0xFFF * 2 ^ 32 else 0))
+  rw [h, rtW, rtHi, BitVec.toNat_ofNat]
+  norm_num
 
 /-! ## The initial state -/
 
 def InitOK (ml pkl wl : List Byte) (s : MachineState) : Prop :=
   MaskData s ∧ KnownOK k0 s ∧ s.pc = pcOf 0 ∧ WitAll wl s ∧ PkOK pkl s ∧
-  (∀ j, j < 4 → s.getMem (BitVec.ofNat 64 (0x40 + 8 * j)) = w64 (slice ml (8 * j) 8)) ∧
-  (∀ A, A < 0x800 → (A < 0x40 ∨ (0x60 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → s.getMem (BitVec.ofNat 64 A) = 0) ∧
+  (∀ j, j < 4 → s.getMem (BitVec.ofNat 64 (0x20 + 8 * j)) = w64 (slice ml (8 * j) 8)) ∧
+  (∀ A, A < 0x800 → (A < 0x20 ∨ (0x40 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → s.getMem (BitVec.ofNat 64 A) = 0) ∧
   RtabData s
 
 /-- The view's zero lead (`0x800 .. 0x1100`). -/
@@ -260,7 +262,7 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
     rw [e1, vdl] <;> decide
   rw [e1, eb]
   have hl : inputBuffers submission.sizes submission.layout .verify (m, pk, w) =
-      [(0x40, toList m), (0xA0, toList pk), (0x1100, toList w)] := rfl
+      [(0x20, toList m), (0xA0, toList pk), (0x1100, toList w)] := rfl
   rw [hl]
   simp only [List.foldl_cons, List.foldl_nil]
   have lm : (toList m).length = 32 := length_toList m
@@ -302,7 +304,7 @@ theorem init_ok_data (vdata : List Byte) (hvdata : vdata = Images.verifyData) (m
       wbw_word vdata blank 0xFDFFB0 (by omega) (n+6) (by omega),
       show 8*(n+6)=48+8*n by omega,vdata_slice n (by omega)]
     exact w64_rtBlk n
-  set s1 := withData.writeBytesAsWords (BitVec.ofNat 64 0x40) (toList m)
+  set s1 := withData.writeBytesAsWords (BitVec.ofNat 64 0x20) (toList m)
   set s2 := s1.writeBytesAsWords (BitVec.ofNat 64 0xA0) (toList pk)
   set s3 := s2.writeBytesAsWords (BitVec.ofNat 64 0x1100) (toList w)
   have hr3 : s3.regs = fun _ => 0 := by
