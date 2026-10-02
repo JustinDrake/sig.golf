@@ -88,7 +88,7 @@ theorem fold_body (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineStat
     obtain ⟨t4, hs4, e4, p4, x10, x11, x12, r4, m4⟩ := blk587_run t3 p3 c3.x25
     have c4 : PCtx w idx K t4 := c3.frame (W := fun _ => False) (fun x _ _ => m4 _) r4 (fun _ _ h => h)
     have hq : hashInput t4 = pad64 (Verify.pNode idx (Rev.efield (E / 2)) l r) := by
-      refine hashInput_eq_pad64 t4 _ 0 (words_th32 10 0 (Ref.tauH idx) idx (Rev.efield (E / 2)) l r hl' hr').1 x11 (by norm_num)
+      refine hashInput_eq_pad64 t4 _ 0 (words_th32 6 0 (idx*2^32) (idx/256) (Rev.efield (E / 2)) l r hl' hr').1 x11 (by norm_num)
         (by rw [x10]; decide) ?_
       rw [x10]
       refine pb_words w idx K t4 c4 (Rev.efield (E / 2)) hH l r hl' hr' ?_ ?_ ?_
@@ -298,7 +298,7 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
       (W := fun _ => False) (fun x _ _ => m4 _) r4 (fun _ _ h => h)
     have g4 : ∀ x, t4.getMem x = t.getMem x := fun x => by rw [m4, m3, g2]
     have hq : hashInput t4 = pad64 (Verify.pLeaf idx (8*x) s) := by
-      refine hashInput_eq_pad64 t4 _ 0 (words_th16 9 0 (Ref.tauH idx) idx (8*x) s hs).1 x11 (by norm_num)
+      refine hashInput_eq_pad64 t4 _ 0 (words_th16 5 0 (idx*2^32) (idx/256) (8*x) s hs).1 x11 (by norm_num)
         (by rw [x10']; decide) ?_
       rw [x10']
       refine lb_words w idx K t4 c4 (8*x) (by omega) s hs (by rw [g4, m8]) ?_
@@ -317,7 +317,7 @@ theorem segment_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) (ptr E folds :
       (W := fun _ => False) (fun x _ _ => m4 _) r4 (fun _ _ h => h)
     have g4 : ∀ x, t4.getMem x = t.getMem x := fun x => by rw [m4, m3, g2]
     have hq : hashInput t4 = pad64 (Verify.pNode idx (Rev.efield H) l node) := by
-      refine hashInput_eq_pad64 t4 _ 0 (words_th32 10 0 (Ref.tauH idx) idx (Rev.efield H) l node hl hn).1 x11 (by norm_num)
+      refine hashInput_eq_pad64 t4 _ 0 (words_th32 6 0 (idx*2^32) (idx/256) (Rev.efield H) l node hl hn).1 x11 (by norm_num)
         (by rw [x10']; decide) ?_
       rw [x10']
       refine pb_words w idx K t4 c4 (Rev.efield H) (Rev.efield_lt H) l node hl hn (by rw [g4, m72]) ?_ ?_

@@ -367,7 +367,7 @@ theorem setupPost_known (p : Reg × Word)
     exact List.mem_append_right _ List.mem_cons_self
 
 theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P s) :
-    ∃ u, Steps image s 96 96 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
+    ∃ u, Steps image s 92 92 u ∧ S0 P u ∧ LeafIn P u 0 ⟨wStream, 0, 0, 0, [], []⟩ u := by
   obtain ⟨hMask, hRt, hG, hWA, hK, hd, hZ, hpc⟩ := hs
   obtain ⟨-, -, -, cSet⟩ := startCheck_parts
   obtain ⟨u, hu⟩ := spec_run cSet s hpc hK (by simp [setupSpec])
@@ -381,9 +381,9 @@ theorem setup_step (P : PCtx) (_hP : P.ok) (s : MachineState) (hs : DigestOut P 
   have hGu : Glob gkD P.wl P.pk u := hu.glob _ _ _ hG
   have hK' := hu.known
   have hidxA : P.idx = P.A % 2 ^ 34 := rfl
-  have nbw : nbW0E.eval s = BitVec.ofNat 64 (twLo 10 0 P.idx P.idx) := by
+  have nbw : nbW0E.eval s = BitVec.ofNat 64 (pHead 10 P.idx) := by
     rw [hidxA]; exact nbW0E_eval P.A s (by simpa using hw 0 (by decide))
-  have cbw : cbW0E.eval s = BitVec.ofNat 64 (twLo 9 0 P.idx P.idx) := by
+  have cbw : cbW0E.eval s = BitVec.ofNat 64 (pHead 9 P.idx) := by
     rw [hidxA]; exact cbW0E_eval P.A s (by simpa using hw 0 (by decide))
   have S : S0 P u := by
     refine ⟨?_, hu.wall _ hWA, hGu.2.2.1, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
