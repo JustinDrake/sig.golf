@@ -418,7 +418,7 @@ def signCont (S cache : List Byte) (rho : Ref.Val) (idx : Nat) (lv : List Nat) :
   let (levels, secrets) ← Ref.buildPorsTree S idx
   let M := (levels.getD Ref.porsH []).getD 0 []
   let fts := Ref.porsOpening (Ref.sortLeaves lv) levels secrets
-  match ← Ref.signLayers S cache idx (Ref.nLayers - 1) (Ref.P ++ M) with
+  match ← Ref.signLayers S cache idx (Ref.nLayers - 1) M with
   | none => pure none
   | some lays => pure (some (Ref.serialize rho fts lays))
 
@@ -460,8 +460,8 @@ theorem signCont_eq (seed : MasterSeed) (b : SigGolfCandidate.Cache) (randomness
     unfold levelList
     rw [getD_ofFn, dif_pos (by simp)]
   simp only
-  rw [hM, show Ref.nLayers - 1 = 4 from rfl, ← dvM_zero]
-  rw [signLayers_eq seed b index 4 (le_refl 5) (0, T SphincsSecurity.ftsTreeHeight 0), bind_map_left]
+  rw [hM, show Ref.nLayers - 1 = 4 from rfl]
+  rw [signLayers_eq seed b index 4 (le_refl 5) (T SphincsSecurity.ftsTreeHeight 0), bind_map_left]
   refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun r => ?_
   rcases r with _ | parts
   · simp

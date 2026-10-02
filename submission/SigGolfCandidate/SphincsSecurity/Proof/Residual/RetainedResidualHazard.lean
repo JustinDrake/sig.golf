@@ -16,7 +16,7 @@ variable (parameter : PublicParameter) (inputs : Finset HashInput)
   (publicReplies : CanonicalGraphLabels) (selections : ReferenceFamily) (rows : CanonicalEncodingRows)
 
 theorem prob_checkedHashQuery_stop_le (routing : Routing) (input : inputs) (state : State inputs)
-    (hselect : ∀ position, FirstSuccessTable.select (decodeEncodingOutput position.lay) (fun counter => rows (position, counter)) = selections position)
+    (hselect : ∀ position, FirstSuccessTable.select decodeEncodingOutput (fun counter => rows (position, counter)) = selections position)
     (ha : ∀ coordinate, (state.candidates coordinate).Nonempty)
     (hcovered : ResidualByteFrontend.RowsCovered inputs (project state))
     (hbound : HiddenCandidateBound words routing.disclosed (project state))

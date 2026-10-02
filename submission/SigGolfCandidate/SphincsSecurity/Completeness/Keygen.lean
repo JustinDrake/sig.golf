@@ -58,7 +58,7 @@ theorem keygen_fresh (seed : MasterSeed)
       ∧ EncodingFresh r.1.2.2.parameter (fun _ => True) r.2 := by
   refine ⟨fun s => cache_none_of_avoids _ ∅ r hr _ rfl (Avoids.keygen_of seed _ ?_ ?_ ?_ ?_ ?_),
     fun ρ => cache_none_of_avoids _ ∅ r hr _ rfl (Avoids.keygen_of seed _ ?_ ?_ ?_ ?_ ?_),
-    fun lay _ tree leaf first payload => cache_none_of_avoids _ ∅ r hr _ rfl
+    fun lay _ tree leaf payload => cache_none_of_avoids _ ∅ r hr _ rfl
       (Avoids.keygen_of seed _ ?_ ?_ ?_ ?_ ?_)⟩
   · intro parameter domain h
     exact (randomizerHashInput_ne_keygenHashInput _ _ _ _ _ _ _) h.symm
@@ -91,7 +91,7 @@ theorem keygen_fresh (seed : MasterSeed)
   · intro parameter tree' level nodeIdx payload'
     exact tweakableHashInput_ne_of_tag_ne' parameter _ (by simp [hashDomainFields, tweakFields]) _ _
   · intro parameter region h
-    exact macHashInput_ne_of_tag_ne parameter first seed region
+    exact macHashInput_ne_of_tag_ne parameter r.1.2.2.parameter seed region
       (fields := hashDomainFields (.encoding lay tree leaf)) (by simp [hashDomainFields, tweakFields]) _
       (by simpa only [tweakableHashInput, tweakBytes, List.append_assoc] using h)
 

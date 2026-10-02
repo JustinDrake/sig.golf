@@ -395,9 +395,7 @@ theorem leaf_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (e : Nat) (he 
     fun A hA => xfr A hA (by simp)
   have hx : (leafInput 0 0 e st.1).length = 704 := by
     simp [leafInput, thInput, length_flatten16 _ hc.ev.1, hl42]
-  have hxt : (thInput (tweak 3 1 0 0 e) st.1.flatten).length = 704 := by
-    simp [thInput, length_flatten16 _ hc.ev.1, hl42]
-  have hq : hashInput x = pad64 (thInput (tweak 3 1 0 0 e) st.1.flatten) := by
+  have hq : hashInput x = pad64 (leafInput 0 0 e st.1) := by
     refine hashInput_eq_pad64 x 10 832 _ (by rw [x11]) (by norm_num) x10
       (by norm_num) (by norm_num) (by omega) (by omega) ?_
     rw [show 8 * (10 + 1) = 4 + 2 * st.1.length by omega, readWords_add, wordsToNat_append,
@@ -411,7 +409,7 @@ theorem leaf_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (e : Nat) (he 
       hc.base.w832, hc.w840, hc.base.zero 848 (by simp [zeroKeys]),
       hc.base.zero 856 (by simp [zeroKeys])]
     simp only [leafInput, thInput, leNat_append, List.length_append, length_tweak,
-      P, leNat_zeros, length_zeros, leNat_tweak0 3 1 _ _ (by norm_num) (by norm_num)]
+      P, leNat_zeros, length_zeros, leNat_tweak0 2 0 _ _ (by norm_num) (by norm_num)]
     simp only [BitVec.toNat_ofNat, show (0 : Word).toNat = 0 from rfl, Nat.reducePow, Nat.reduceMul,
       Nat.reduceAdd]
     omega
@@ -421,7 +419,7 @@ theorem leaf_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (e : Nat) (he 
     ((codeAt_73.fetch x xpc).trans rfl)
     (by rw [xun _ (by simp) (by simp) (by simp) (by simp)]; exact hc.base.r5)
     (hashArgs_const x 832 704 (REGION + 16 * e) x10 x11 x12 (by norm_num) (by norm_num) (by norm_num)
-      (by unfold REGION; omega) (by unfold REGION; omega)) (hq.trans (Sign.addrFmt_leafInput_carry 0 0 e st.1 (by decide) (by decide) hl42 hc.ev.1).symm)
+      (by unfold REGION; omega) (by unfold REGION; omega)) (hq.trans (addrFmt_thInput 2 0 0 0 e _ (by decide)).symm)
     (not_digest_thInput 2 0 0 0 e _ (by decide)) (not_padChain_thInput 2 0 0 0 e _ (by decide)) (fun a => ?_))).of_eq rfl (by rfl) (by rw [hblk])
       (by rfl) (by rw [hblk])
   have wpc : (writeHash x a).pc = pcOf 74 := by rw [pc_writeHash, xpc]; rfl

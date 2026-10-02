@@ -5,9 +5,8 @@ import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.Hypertree
 /-!
 # Deterministic forgery descent
 
-At one hypertree layer, a fold that hands up the honest children of the root either creates `Bad`, or
-the supplied chain values and authentication path are exactly the honest values selected by the decoded
-codeword.
+At one hypertree layer, acceptance at the honest root either creates `Bad`, or the supplied chain
+values and authentication path are exactly the honest values selected by the decoded codeword.
 -/
 
 namespace SphincsSecurity.Concrete
@@ -28,9 +27,8 @@ theorem counters_of_verify (publicKey : PublicKey) (message : Message) (signatur
   simp at hverify
 
 /-- An accepted signature: its digest, the PORS root the stack machine accepts (admissibility of the
-digest is a property of an accepting `ftsRecover` run, proved with the PORS extraction), the hypertree
-walk from `(0, PORS root)` to the two children of the top tree's root, and their hash, the public root;
-each with its cached run. -/
+digest is a property of an accepting `ftsRecover` run, proved with the PORS extraction), and the hypertree
+walk from that root to the public root, each with its cached run. -/
 theorem verify_extract (publicKey : PublicKey) (message : Message) (signature : Signature)
     (hverify : evalWithAnswerFn f (verify publicKey message signature) = true)
     (hrun : CachedRun cache f (verify publicKey message signature)) :
@@ -39,20 +37,16 @@ theorem verify_extract (publicKey : PublicKey) (message : Message) (signature : 
           (messageDigest publicKey.parameter publicKey.root message signature.randomness) = digest
         ∧ CachedRun cache f
           (messageDigest publicKey.parameter publicKey.root message signature.randomness)
-        ∧ ∃ (ftsPublicKey : Digest) (top : EncMessage),
+        ∧ ∃ ftsPublicKey : Digest,
           evalWithAnswerFn f (ftsRecover publicKey.parameter (digestIndex digest)
               (slotValue (digestLeaves digest)) signature.fts) = some ftsPublicKey
             ∧ evalWithAnswerFn f
-              (verifyLayers publicKey.parameter (digestIndex digest) signature numLayers
-                (0, ftsPublicKey)) = some top
-            ∧ evalWithAnswerFn f (topRoot publicKey.parameter (digestIndex digest) top)
-              = publicKey.root
+              (verifyLayers publicKey.parameter (digestIndex digest) signature numLayers ftsPublicKey)
+              = some publicKey.root
             ∧ CachedRun cache f (ftsRecover publicKey.parameter (digestIndex digest)
               (slotValue (digestLeaves digest)) signature.fts)
             ∧ CachedRun cache f
-              (verifyLayers publicKey.parameter (digestIndex digest) signature numLayers
-                (0, ftsPublicKey))
-            ∧ CachedRun cache f (topRoot publicKey.parameter (digestIndex digest) top) := by
+              (verifyLayers publicKey.parameter (digestIndex digest) signature numLayers ftsPublicKey) := by
   have hcounters := counters_of_verify publicKey message signature hverify
   let digest := evalWithAnswerFn f
     (messageDigest publicKey.parameter publicKey.root message signature.randomness)
@@ -66,22 +60,18 @@ theorem verify_extract (publicKey : PublicKey) (message : Message) (signature : 
     | none => pure false
     | some ftsPublicKey =>
         match ← verifyLayers publicKey.parameter (digestIndex digest) signature numLayers
-            (0, ftsPublicKey) with
+            ftsPublicKey with
         | none => pure false
-        | some top => do
-            let root ← topRoot publicKey.parameter (digestIndex digest) top
-            pure (decide (root = publicKey.root))) = true at hverify
+        | some root => pure (decide (root = publicKey.root))) = true at hverify
   change CachedRun cache f (do
     match ← ftsRecover publicKey.parameter (digestIndex digest) (slotValue (digestLeaves digest))
         signature.fts with
     | none => pure false
     | some ftsPublicKey =>
         match ← verifyLayers publicKey.parameter (digestIndex digest) signature numLayers
-            (0, ftsPublicKey) with
+            ftsPublicKey with
         | none => pure false
-        | some top => do
-            let root ← topRoot publicKey.parameter (digestIndex digest) top
-            pure (decide (root = publicKey.root))) at hafterDigest
+        | some root => pure (decide (root = publicKey.root))) at hafterDigest
   have hfts := hafterDigest.bind_left
   rw [evalWithAnswerFn_bind] at hverify
   have hafterFts := hafterDigest.bind_right
@@ -94,20 +84,19 @@ theorem verify_extract (publicKey : PublicKey) (message : Message) (signature : 
       simp only at hverify hafterFts
       rw [evalWithAnswerFn_bind] at hverify
       have hlayersRun := hafterFts.bind_left
-      have hafterLayers := hafterFts.bind_right
-      revert hverify hafterLayers
+      refine ⟨digest, rfl, hmessageRun, ftsPublicKey, hkey, ?_, hfts, hlayersRun⟩
       cases hresult : evalWithAnswerFn f
-          (verifyLayers publicKey.parameter (digestIndex digest) signature numLayers
-            (0, ftsPublicKey)) with
-      | none => intro hverify; simp at hverify
-      | some top =>
-          intro hverify hafterLayers
-          simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure, decide_eq_true_eq] at hverify
-          exact ⟨digest, rfl, hmessageRun, ftsPublicKey, top, hkey, hresult, hverify, hfts,
-            hlayersRun, hafterLayers.bind_left⟩
+          (verifyLayers publicKey.parameter (digestIndex digest) signature numLayers ftsPublicKey) with
+      | none =>
+          rw [hresult] at hverify
+          simp at hverify
+      | some root =>
+          rw [hresult] at hverify
+          simp only [evalWithAnswerFn_pure, decide_eq_true_eq] at hverify
+          simp [hverify]
 
 theorem verifyLayers_succ_extract_cached (index : Index) (signature : Signature)
-    (remaining : Nat) (hlayer : remaining < numLayers) (message target : EncMessage)
+    (remaining : Nat) (hlayer : remaining < numLayers) (message target : Digest)
     (hverify : evalWithAnswerFn f
       (verifyLayers parameter index signature (remaining + 1) message) = some target)
     (hrun : CachedRun cache f
@@ -116,16 +105,17 @@ theorem verifyLayers_succ_extract_cached (index : Index) (signature : Signature)
       let lay : Layer := ⟨remaining, hlayer⟩
       let tree := treeIndexAt index lay
       let leafIdx := leafIndexAt index lay
-      let topValue := foldPair f parameter lay tree leafIdx (signaturePath signature lay) leafValue
+      let rootValue := foldValue f parameter lay tree leafIdx (signaturePath signature lay)
+        leafValue (layerHeight lay)
       evalWithAnswerFn f (otsLeafAttempt parameter lay tree leafIdx message (signature.counter lay)
           (signature.chainValue lay)) = some leafValue
-        ∧ evalWithAnswerFn f (verifyLayers parameter index signature remaining topValue)
+        ∧ evalWithAnswerFn f (verifyLayers parameter index signature remaining rootValue)
           = some target
         ∧ CachedRun cache f (otsLeafAttempt parameter lay tree leafIdx message (signature.counter lay)
           (signature.chainValue lay))
         ∧ CachedRun cache f (treeFold parameter lay tree leafIdx (signaturePath signature lay)
-          (layerHeight lay - 1) leafValue)
-        ∧ CachedRun cache f (verifyLayers parameter index signature remaining topValue) := by
+          (layerHeight lay) leafValue)
+        ∧ CachedRun cache f (verifyLayers parameter index signature remaining rootValue) := by
   obtain ⟨leafValue, hleaf, hrest⟩ :=
     verifyLayers_succ_extract f parameter index signature remaining hlayer message target hverify
   rw [verifyLayers_succ_eq, dif_pos hlayer] at hrun
@@ -136,32 +126,32 @@ theorem verifyLayers_succ_extract_cached (index : Index) (signature : Signature)
 
 def LayerFrame (f : QueryImpl HashSpec Id) (cache : QueryCache HashSpec)
     (parameter : PublicParameter) (index : Index) (signature : Signature)
-    (lay : Layer) (message target : EncMessage) (leafValue : Digest) : Prop :=
+    (lay : Layer) (message target leafValue : Digest) : Prop :=
   evalWithAnswerFn f
         (otsLeafAttempt parameter lay (treeIndexAt index lay) (leafIndexAt index lay) message
           (signature.counter lay) (signature.chainValue lay)) = some leafValue
       ∧ evalWithAnswerFn f
         (verifyLayers parameter index signature lay.val
-          (foldPair f parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
-            (signaturePath signature lay) leafValue)) = some target
+          (foldValue f parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
+            (signaturePath signature lay) leafValue (layerHeight lay))) = some target
       ∧ CachedRun cache f
         (otsLeafAttempt parameter lay (treeIndexAt index lay) (leafIndexAt index lay) message
           (signature.counter lay) (signature.chainValue lay))
       ∧ CachedRun cache f
         (treeFold parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
-          (signaturePath signature lay) (layerHeight lay - 1) leafValue)
+          (signaturePath signature lay) (layerHeight lay) leafValue)
       ∧ CachedRun cache f
         (verifyLayers parameter index signature lay.val
-          (foldPair f parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
-            (signaturePath signature lay) leafValue))
+          (foldValue f parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
+            (signaturePath signature lay) leafValue (layerHeight lay)))
 
 def LayerRun (f : QueryImpl HashSpec Id) (cache : QueryCache HashSpec)
     (parameter : PublicParameter) (index : Index) (signature : Signature)
-    (lay : Layer) (message target : EncMessage) : Prop :=
+    (lay : Layer) (message target : Digest) : Prop :=
   ∃ leafValue, LayerFrame f cache parameter index signature lay message target leafValue
 
 theorem layerRun_of_verify (index : Index) (signature : Signature)
-    (lay : Layer) (message target : EncMessage)
+    (lay : Layer) (message target : Digest)
     (hverify : evalWithAnswerFn f
       (verifyLayers parameter index signature (lay.val + 1) message) = some target)
     (hrun : CachedRun cache f
@@ -172,33 +162,32 @@ theorem layerRun_of_verify (index : Index) (signature : Signature)
       message target hverify hrun
   exact ⟨leafValue, hleaf, hnext, hleafRun, hfoldRun, hnextRun⟩
 
-/-- **The verifier's walk, top down.** Suppose every layer frame whose fold hands up the honest
-children of its tree's root carries the specification's message and some property `Q` of the layer. Then
-an accepted hypertree walk from the few-time key to the honest children of the public root has `Q` at
-every layer, and `(0, few-time key)` is the bottom layer's message. -/
+/-- **The verifier's walk, top down.** Suppose every layer frame whose fold reaches the honest root
+of its tree carries the specification's message and some property `Q` of the layer. Then an
+accepted hypertree walk from the few-time key to the honest public root has `Q` at every layer, and
+the few-time key it starts from is the bottom layer's message. -/
 theorem hypertree_walk (key : SecretKey) (index : Index) (signature : Signature) (Q : Layer → Prop)
-    (top : EncMessage)
     (hstep : ∀ lay message leafValue,
-      LayerFrame f cache key.parameter index signature lay message top leafValue →
-      foldPair f key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
-          (signaturePath signature lay) leafValue =
-        honestPair f key.parameter lay (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay)) →
+      LayerFrame f cache key.parameter index signature lay message key.root leafValue →
+      foldValue f key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
+          (signaturePath signature lay) leafValue (layerHeight lay) =
+        honestNode f key.parameter lay (treeIndexAt index lay) (key.otsSecret lay (treeIndexAt index lay))
+          (layerHeight lay) 0 →
       message = evalWithAnswerFn f (layerMessage key index lay) ∧ Q lay)
-    (htop : top = honestPair f key.parameter topLayer rootTree (key.otsSecret topLayer rootTree))
+    (hroot : key.root = honestNode f key.parameter topLayer rootTree (key.otsSecret topLayer rootTree)
+      (layerHeight topLayer) 0)
     (ftsPublicKey : Digest)
     (hverify : evalWithAnswerFn f
-      (verifyLayers key.parameter index signature numLayers (0, ftsPublicKey)) = some top)
-    (hrun : CachedRun cache f
-      (verifyLayers key.parameter index signature numLayers (0, ftsPublicKey))) :
-    (∀ lay, Q lay) ∧
-      ((0, ftsPublicKey) : EncMessage) = evalWithAnswerFn f (layerMessage key index bottomLayer) := by
+      (verifyLayers key.parameter index signature numLayers ftsPublicKey) = some key.root)
+    (hrun : CachedRun cache f (verifyLayers key.parameter index signature numLayers ftsPublicKey)) :
+    (∀ lay, Q lay) ∧ ftsPublicKey = evalWithAnswerFn f (layerMessage key index bottomLayer) := by
   have hwalk : ∀ remaining, (hr : remaining ≤ numLayers) → ∀ message,
-      evalWithAnswerFn f (verifyLayers key.parameter index signature remaining message) = some top →
+      evalWithAnswerFn f (verifyLayers key.parameter index signature remaining message) = some key.root →
       CachedRun cache f (verifyLayers key.parameter index signature remaining message) →
       (∀ lay : Layer, lay.val < remaining → Q lay) ∧
         (∀ h : 0 < remaining,
           message = evalWithAnswerFn f (layerMessage key index ⟨remaining - 1, by have := hr; omega⟩)) ∧
-        (remaining = 0 → message = top) := by
+        (remaining = 0 → message = key.root) := by
     intro remaining
     induction remaining with
     | zero =>
@@ -211,25 +200,24 @@ theorem hypertree_walk (key : SecretKey) (index : Index) (signature : Signature)
         have hlayer : r < numLayers := by omega
         let lay : Layer := ⟨r, hlayer⟩
         obtain ⟨leafValue, hframe⟩ :=
-          layerRun_of_verify (f := f) (cache := cache) index signature lay message top hv hc
+          layerRun_of_verify (f := f) (cache := cache) index signature lay message key.root hv hc
         have hrest := ih (by omega) _ hframe.2.1 hframe.2.2.2.2
-        have hfold : foldPair f key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
-            (signaturePath signature lay) leafValue =
-            honestPair f key.parameter lay (treeIndexAt index lay)
-              (key.otsSecret lay (treeIndexAt index lay)) := by
+        have hfold : foldValue f key.parameter lay (treeIndexAt index lay) (leafIndexAt index lay)
+            (signaturePath signature lay) leafValue (layerHeight lay) =
+            honestNode f key.parameter lay (treeIndexAt index lay)
+              (key.otsSecret lay (treeIndexAt index lay)) (layerHeight lay) 0 := by
           rcases Nat.eq_zero_or_pos r with hzero | hpos
-          · have hlay : lay = topLayer := Fin.ext hzero
+          · have htop : lay = topLayer := Fin.ext hzero
             have htree : treeIndexAt index lay = rootTree := by
-              rw [hlay]
+              rw [htop]
               exact Fin.ext (treeIndexAt_topLayer index)
-            rw [hrest.2.2 hzero, htop, htree, hlay]
+            rw [hrest.2.2 hzero, hroot, htree, htop]
           · rw [hrest.2.1 hpos]
             have hbelow : r - 1 + 1 < numLayers := by omega
             rw [layerMessage_of_lt key index ⟨r - 1, by omega⟩ hbelow]
             have hl : (⟨r - 1 + 1, hbelow⟩ : Layer) = lay := Fin.ext (by simp [lay]; omega)
             simp only [hl]
-            exact eval_treeTop f key.parameter lay (treeIndexAt index lay)
-              (key.otsSecret lay (treeIndexAt index lay))
+            rfl
         obtain ⟨hmessage, hq⟩ := hstep lay message leafValue hframe hfold
         refine ⟨fun other hother => ?_, fun _ => hmessage, fun h => absurd h (Nat.succ_ne_zero r)⟩
         by_cases heq : other.val = r
@@ -237,12 +225,12 @@ theorem hypertree_walk (key : SecretKey) (index : Index) (signature : Signature)
           rw [this]
           exact hq
         · exact hrest.1 other (by omega)
-  obtain ⟨hq, hmessage, _⟩ := hwalk numLayers le_rfl (0, ftsPublicKey) hverify hrun
+  obtain ⟨hq, hmessage, _⟩ := hwalk numLayers le_rfl ftsPublicKey hverify hrun
   exact ⟨fun lay => hq lay lay.isLt, hmessage (by decide)⟩
 
 def HonestLayerOpening (f : QueryImpl HashSpec Id) (parameter : PublicParameter)
     (otsSecret : Layer → TreeIndex → LeafIndex → ChainIndex → Digest)
-    (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex) (message : EncMessage)
+    (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex) (message : Digest)
     (counter : Counter) (values : ChainIndex → Digest) (path : Nat → Digest) : Prop :=
   ∃ codeword : Encoding,
     evalWithAnswerFn f (encodeAttempt parameter lay tree leafIdx message counter) = some codeword

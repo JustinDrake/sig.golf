@@ -152,7 +152,7 @@ theorem buildFtsTreePaired_pure (parameter : PublicParameter) (index : Index)
   simp only [unpairFtsLeaves_eq]
 
 theorem signTopLayerPaired_pure (parameter : PublicParameter) (index : Index)
-    (secret : LeafIndex → ChainIndex → Digest) (topNode : Nat → Nat → m Digest) (message : EncMessage) :
+    (secret : LeafIndex → ChainIndex → Digest) (topNode : Nat → Nat → m Digest) (message : Digest) :
     signTopLayerPaired parameter index (fun leaf pair => pure (pairOf (secret leaf) pair)) topNode message =
       signTopLayer parameter index (fun leaf chainIdx => pure (secret leaf chainIdx)) topNode message := by
   unfold signTopLayerPaired signTopLayer
@@ -168,7 +168,7 @@ theorem signTopLayerPaired_pure (parameter : PublicParameter) (index : Index)
 
 theorem signLayersPaired_pure (parameter : PublicParameter) (index : Index)
     (secret : Layer → TreeIndex → LeafIndex → ChainIndex → Digest) (topNode : Nat → Nat → m Digest)
-    (remaining : Nat) (message : EncMessage) :
+    (remaining : Nat) (message : Digest) :
     signLayersPaired parameter index (fun lay tree leaf pair => pure (pairOf (secret lay tree leaf) pair)) topNode
         remaining message =
       signLayers parameter index (fun lay tree leaf chainIdx => pure (secret lay tree leaf chainIdx)) topNode

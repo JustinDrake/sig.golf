@@ -31,7 +31,7 @@ theorem freshPrefix_message (routing : Routing) (input : inputs)
     rintro ⟨row, hrow⟩
     apply ResidualByteFrontend.message_not_encoding parameter input.val hmessage row.1
     rw [← hrow]
-    exact ⟨_, _, rfl⟩
+    exact ⟨_, rfl⟩
   simp only [freshPrefix, route, hdecode, Option.elim_none, hrow]
 
 noncomputable def executeResult (actual : Labels) (seed : inputs → HashOutput) (state : State inputs) :
