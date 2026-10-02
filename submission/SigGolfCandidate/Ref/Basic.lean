@@ -77,7 +77,7 @@ def nChains : Nat := 42
 def targetSum : Nat := 185
 
 /-- Layer four uses a target one larger than the top four layers. -/
-def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 1 else 0
+def targetFor (lay : Nat) : Nat := targetSum + if 2 ≤ lay then 1 else 0
 
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
@@ -102,8 +102,8 @@ def aMax : Nat := 2 ^ 19
 def cMax : Nat := 2 ^ 22
 /-- Signature bytes `S`. -/
 def sigBytes : Nat := 6032
-/-- Bytes of the witness view `0x800 .. 0x4800` the reference reads (the witness `W = 13712`
-sits at `0x1270`, after the view's 2672-byte zero lead; `Ref.extW`). -/
+/-- Bytes of the witness view `0x800 .. 0x4800` the reference reads (the witness `W = 14080`
+sits at `0x1100`, after the view's 2304-byte zero lead; `Ref.extW`). -/
 def witBytes : Nat := 16384
 
 /-- Height of hypertree layer `lay` (layer 0 = top): `heights[lay]`. -/
@@ -125,12 +125,9 @@ abbrev topH : Nat := height 0
 def topN (l : Nat) : Nat := ((List.range l).map fun k => 2 ^ (topH - k)).sum
 
 /-- Bytes of the masked-node region (levels `0 .. topH - 1`): `16 * N_topH = 65504`. -/
-def regionBytes : Nat := 16 * (topN topH - topN 1)
+def regionBytes : Nat := 16 * topN topH
 
-/-- Padding before the tag; positive-level node offsets retain their tree-build addresses. -/
-def cachePadBytes : Nat := 16 * topN 1
-
-/-- The cache: tag (32) | region | zeros, `CACHE_BYTES = 2^17` in total. -/
+/-- The cache: 32 zero bytes | region | tag (48) | zeros, `CACHE_BYTES = 2^17` in total. -/
 def cacheBytes : Nat := CACHE_BYTES
 
 /-- Offset of the masked top-tree node `(l, j)` in the cache. -/
@@ -139,11 +136,11 @@ def cacheNodeOff (l j : Nat) : Nat := 32 + 16 * (topN l + j)
 /-- The masked top-tree node `(l, j)` of a cache. -/
 def cacheNode (cache : List Byte) (l j : Nat) : Val := slice cache (cacheNodeOff l j) 16
 
-/-- The cache's MAC tag (bytes `0 .. 32`). -/
-def cacheTag (cache : List Byte) : List Byte := slice cache cachePadBytes 32
+/-- The cache's MAC tag (the 48 bytes after the region). -/
+def cacheTag (cache : List Byte) : List Byte := slice cache (32 + regionBytes) 48
 
 /-- The cache's masked-node region (bytes `32 .. 32 + regionBytes`). -/
-def cacheRegion (cache : List Byte) : List Byte := slice cache (cachePadBytes + 32) regionBytes
+def cacheRegion (cache : List Byte) : List Byte := slice cache 32 regionBytes
 
 /-- Bytewise XOR (the shorter length). -/
 def xorBytes (a b : List Byte) : List Byte := List.zipWith (· ^^^ ·) a b
@@ -336,9 +333,37 @@ def digestInput (rho m : List Byte) : List Byte := thInput (tweak 12 0 0 0 0) (r
 /-- Mask of top-tree node `(l, j)`: `tw(13, 0, 0, l, j) || P || S` (64 bytes). -/
 def maskInput (S : List Byte) (l j : Nat) : List Byte := thInput (tweak 13 0 0 l j) S
 
-/-- The cache MAC: `tw(14, 0, 0, 0, 0) || P || S || region` (65568 bytes); the full 32-byte
-answer is the tag. -/
-def macInput (S region : List Byte) : List Byte := thInput (tweak 14 0 0 0 0) (S ++ region)
+/-- MAC key derivation `i`: `tw(14, 0, 0, 0, i) || P || S` (64 bytes). The full 32-byte answer holds two
+61-bit keys and two 64-bit pads. -/
+def macKeyInput (S : List Byte) (i : Nat) : List Byte := thInput (tweak 14 0 0 0 i) S
+
+/-- The MAC modulus, the Mersenne prime `2^61 - 1`. -/
+def macP : Nat := 2 ^ 61 - 1
+
+/-- The little-endian 32-bit chunks of a byte list (a trailing partial chunk is dropped; the region's
+length is divisible by four). -/
+def chunks32 : List Byte → List Nat
+  | b0 :: b1 :: b2 :: b3 :: rest =>
+      (b0.toNat + 2 ^ 8 * b1.toNat + 2 ^ 16 * b2.toNat + 2 ^ 24 * b3.toNat) :: chunks32 rest
+  | _ => []
+
+/-- The polynomial hash of a chunk list at the key `k`: `acc ↦ (acc + c) * k mod (2^61 - 1)`, from `0`. -/
+def polyMac (k : Nat) (chunks : List Nat) : Nat :=
+  chunks.foldl (fun acc c => (acc + c) * k % macP) 0
+
+/-- Word `w` (64 bits, little endian) of a hash answer. -/
+def answerWord (a : BitVec 256) (w : Nat) : Nat := a.toNat / 2 ^ (64 * w) % 2 ^ 64
+
+/-- The two tag words of one key answer: the hash at the key (the low 61 bits of word 0, resp. word 2) plus
+the pad (word 1, resp. word 3), modulo `2^64`. -/
+def macWords (a : BitVec 256) (chunks : List Nat) : List Nat :=
+  [(polyMac (answerWord a 0 % 2 ^ 61) chunks + answerWord a 1) % 2 ^ 64,
+   (polyMac (answerWord a 2 % 2 ^ 61) chunks + answerWord a 3) % 2 ^ 64]
+
+/-- The 48 tag bytes of a region under the three key answers: six little-endian 64-bit words. -/
+def macTag (a0 a1 a2 : BitVec 256) (region : List Byte) : List Byte :=
+  ((macWords a0 (chunks32 region) ++ macWords a1 (chunks32 region) ++ macWords a2 (chunks32 region)).map
+    (leBytes 8)).flatten
 
 /-! ## Digest, index split, digit decoding -/
 
@@ -417,7 +442,7 @@ def digitsOfWord (d : Nat) : List Nat := (List.range 21).map fun r => d / 8 ^ r 
 
 /-- TargetSum decoding of an encoding output `v` (first 16 bytes): `d0`, `d1` = the two LE 64-bit
 halves; reject if bit 63 of `d0` or of `d1` is set, else the 42 digits (21 of `d0`, then 21 of
-`d1`) if they sum to `targetSum`. -/
+`d1`) if they sum to the target of the selected layer. -/
 def decodeDigits (lay : Nat) (v : Val) : Option (List Nat) :=
   let d0 := leNat (slice v 0 8)
   let d1 := leNat (slice v 8 8)

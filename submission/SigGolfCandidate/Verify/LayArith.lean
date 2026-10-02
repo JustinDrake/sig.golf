@@ -213,11 +213,16 @@ theorem uHE_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : Mac
     rw [he]
     exact xor_top_sentinel _ (by simpa [heightL] using hm)
   · rename_i h0
-    show (uEr lay).eval s + BitVec.ofNat 64 (2 ^ heightL lay + uOff lay) = _
+    show (uEr lay).eval s ||| BitVec.ofNat 64 (2 ^ heightL lay) = _
     rw [he, heapU, if_neg h0]
-    have hu : uOff lay ≤ 456 := by unfold uOff; split_ifs <;> omega
     apply BitVec.eq_of_toNat_eq
-    simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+    simp only [BitVec.toNat_or, BitVec.toNat_ofNat]
+    rw [Nat.mod_eq_of_lt (show idx / 2 ^ layS lay % 2 ^ heightL lay < 2 ^ 64 by omega),
+      Nat.mod_eq_of_lt (show 2 ^ heightL lay < 2 ^ 64 by omega),
+      Nat.mod_eq_of_lt (show idx / 2 ^ layS lay % 2 ^ heightL lay + 2 ^ heightL lay < 2 ^ 64 by omega),
+      Nat.or_comm]
+    have := Nat.two_pow_add_eq_or_of_lt hm 1
+    rw [Nat.mul_one] at this
     omega
 
 theorem carryEr_eval (idx lay : Nat) (hlay : lay < 5) (hidx : idx < 2 ^ 34) (s : MachineState)

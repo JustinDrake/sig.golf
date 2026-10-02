@@ -130,7 +130,7 @@ set_option exponentiation.threshold 1024 in
 theorem addrFmt_topNode (k j : Nat) (hk:k<11) (hj:j<2^(10-k)) (l r : Val)
     (hl:l.length=16) (hr:r.length=16) :
     addrFmt (nodeInput 0 0 (k+1) j l r)=
-      (⟨0,BitVec.ofNat 512 (8198552921646826439+2^96*(2*2^(10-k)-1-j)+
+      (⟨0,BitVec.ofNat 512 (769+2^96*(2*2^(10-k)-1-j)+
         2^256*leNat l+2^384*leNat r)⟩ : Query) := by
   have hc:2^(10-k)≤1024 := (Nat.pow_le_pow_right (by decide) (show 10-k≤10 by omega))
   have hh:heapIndex (height 0) (k+1) j=2^(10-k)+j := by
@@ -160,9 +160,7 @@ theorem addrFmt_topNode (k j : Nat) (hk:k<11) (hj:j<2^(10-k)) (l r : Val)
       show (2^32*(2^(10-k)+j))%4294967296=0 by omega,
       show (2^32*(2^(10-k)+j))/4294967296=2^(10-k)+j by omega,hm]
     simp only [Nat.zero_add,Nat.reducePow]
-  rw [hv,MaskHeader.query_words 0 _ _ (by simp [hll,hrl])]
-  have hhead : MaskHeader.header 0 (BitVec.ofNat 64 769).toNat=8198552921646826439 := by decide
-  rw [hhead]
+  rw [hv]
   unfold queryOfWords
   apply congrArg (fun w : BitVec 512 => (⟨0,w⟩ : Query))
   apply congrArg (BitVec.ofNat 512)
@@ -181,7 +179,7 @@ structure NCtx (W : List Word) (k : Nat) (levels : List (List Val)) (j : Nat) (a
   r16 : t.getReg .x16 = BitVec.ofNat 64 j
   r19 : t.getReg .x19 = BitVec.ofNat 64 (REGION + 16 * lvOff k)
   r25 : t.getReg .x25 = BitVec.ofNat 64 (REGION + 16 * lvOff (k + 1))
-  w448 : t.getMem (BitVec.ofNat 64 448) = BitVec.ofNat 64 8198552921646826439
+  w448 : t.getMem (BitVec.ofNat 64 448) = BitVec.ofNat 64 769
   w456 : (t.getMem (BitVec.ofNat 64 456)).toNat % 2 ^ 32 = 0
   shape : Shape k levels
   alen : acc.length = j
@@ -271,7 +269,7 @@ theorem node_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List V
     fun A hA => vfr A hA (by simp)
   refine XSim.pure_steps vst ⟨NCtx.mk ?_ ?_ ?_ v16 ?_ ?_ ?_ ?_ hs (by simp [h.alen]) ?_, ?_⟩
   · refine h.base.frame (fun r hr => ?_) fr (fun k' hk' => ?_)
-    · rcases hr with rfl | rfl | rfl | rfl | rfl <;> exact vr _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
+    · rcases hr with rfl | rfl | rfl | rfl <;> exact vr _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
     · simp at hk'
       rcases hk' with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
         simp [BaseSafe, zeroKeys, REGION] <;> omega
@@ -311,7 +309,7 @@ structure VCtx (W : List Word) (k : Nat) (levels : List (List Val)) (t : Machine
 /-- One tree level `lam = k + 1`. -/
 theorem level_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List Val))
     (t : MachineState) (h : VCtx W k levels t) (hpc : t.pc = pcOf 77) :
-    XSim image t (14 + 2 ^ (10 - k) * 23) (14 + 2 ^ (10 - k) * 30) (2 ^ (10 - k)) (2 ^ (10 - k))
+    XSim image t (11 + 2 ^ (10 - k) * 23) (11 + 2 ^ (10 - k) * 30) (2 ^ (10 - k)) (2 ^ (10 - k))
       (do let level ← buildLevel (nodeInput 0 0) (1 + k) (levels.getD (1 + k - 1) [])
           pure (levels ++ [level]))
       (fun levels' u => VCtx W (k + 1) levels' u ∧ u.pc = if k + 1 < 11 then pcOf 77 else pcOf 107) := by
@@ -326,11 +324,11 @@ theorem level_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List 
   have hle0 := lvOff_le k (by omega)
   obtain ⟨u, hst, upc, u17, u16, u25, uun, u448, u456, ufr⟩ :=
     spec_77 t hpc (2 ^ (11 - k)) (REGION + 16 * lvOff k) (by omega)
-      (by unfold REGION; omega) h.base.r8 h.base.r30 h.r17 h.r19 h.base.r26
+      (by unfold REGION; omega) h.base.r8 h.base.r30 h.r17 h.r19
   have h0 : NCtx W k levels 0 [] u := by
     refine NCtx.mk ?_ ?_ ?_ u16 ?_ ?_ u448 u456 hs rfl ?_
     · refine h.base.frame (fun r hr => uun r ?_ ?_ ?_ ?_ ?_) ufr (fun k hk => ?_) <;>
-        try (rcases hr with h | h | h | h | h <;> simp [h])
+        try (rcases hr with h | h | h | h <;> simp [h])
       simp at hk; rcases hk with rfl | rfl <;> simp [BaseSafe, zeroKeys]
     · rw [uun _ (by simp) (by simp) (by simp) (by simp) (by simp)]; exact h.r15
     · rw [u17, hn]; congr 1; omega
@@ -366,8 +364,8 @@ theorem level_xsim (W : List Word) (k : Nat) (hk : k < 11) (levels : List (List 
     (by omega) hc.r15 hc.base.r9
   have hfl := flatten_length k levels hs
   refine XSim.pure_steps xst ⟨VCtx.mk ?_ x15 ?_ ?_ ?_ ?_, ?_⟩
-  · exact hc.base.frame (fun r hr => xun r (by rcases hr with h | h | h | h | h <;> simp [h])
-      (by rcases hr with h | h | h | h | h <;> simp [h])) xfr (by simp)
+  · exact hc.base.frame (fun r hr => xun r (by rcases hr with h | h | h | h <;> simp [h])
+      (by rcases hr with h | h | h | h <;> simp [h])) xfr (by simp)
   · rw [xun _ (by simp) (by simp), hc.r17]; congr 2; omega
   · rw [x19, hc.r25]
   · refine ⟨by simp [hs.len], fun i hi => ?_, fun L hL v hv => ?_⟩

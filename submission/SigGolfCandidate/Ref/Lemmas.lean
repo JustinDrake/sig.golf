@@ -426,9 +426,7 @@ theorem shiftBelow_values :
 theorem topH_eq : topH = 11 := rfl
 theorem topN_values : (List.range (topH + 1)).map topN =
     [0, 2048, 3072, 3584, 3840, 3968, 4032, 4064, 4080, 4088, 4092, 4094] := by decide
-theorem regionBytes_eq : regionBytes = 32736 := by decide
-
-theorem cachePadBytes_eq : cachePadBytes = 32768 := by decide
+theorem regionBytes_eq : regionBytes = 65504 := by decide
 theorem porsT_eq : porsT = 16384 := rfl
 theorem porsSegs_eq : porsSegs = 29 := rfl
 
@@ -441,18 +439,18 @@ theorem sigLayerOff_values :
 theorem bodyBytes_eq (lay : Nat) : bodyBytes lay = sigLayerBytes lay - 4 := by
   simp only [bodyBytes, sigLayerBytes]; omega
 theorem sigBytes_eq_sigLayerOff : sigBytes = sigLayerOff nLayers := by decide
-theorem wStream_eq : wStream = 5504 := rfl
+theorem wStream_eq : wStream = 4032 := rfl
 theorem streamBytes_eq : streamBytes = 9344 := rfl
-theorem wC4_eq : wC4 = 2688 := rfl
-theorem wPaths_eq : wPaths = 2704 := rfl
+theorem wC4_eq : wC4 = 2320 := rfl
+theorem wPaths_eq : wPaths = 2336 := rfl
 theorem pathOff_values :
-    (List.range (nLayers + 1)).map pathOff = [2704, 4032, 4416, 4800, 5184, 5504] := by
+    (List.range (nLayers + 1)).map pathOff = [2336, 2512, 2608, 2704, 2800, 2880] := by
   decide
 theorem wChains_eq : wChains = 2944 := by decide
 theorem blockOff_eq (lay i : Nat) : blockOff lay i = 2944 + 2688 * lay + 64 * i := by
   simp only [blockOff, wChains_eq, nChains]
 theorem witBytes_eq : witBytes = blockOff nLayers 0 := by decide
-theorem wPi_eq : wPi = 2672 := rfl
+theorem wPi_eq : wPi = 2304 := rfl
 theorem wRho_eq : wRho = 3008 := by unfold wRho; rw [blockOff_eq]
 theorem wSec_eq (s : Nat) : wSec s = 3072 + 64 * s := by unfold wSec; rw [blockOff_eq]; omega
 
@@ -481,18 +479,6 @@ private theorem length_flatten_map_range' (n : Nat) (f : Nat → List Byte) (g :
       ih (fun i hi => hf i (by omega))]
     simp [hf n (by omega)]
 
-theorem length_lowerPaths (sig : List Byte) (hsig : sig.length = sigBytes) :
-    (lowerPaths sig).length = 368 := by
-  have hs : sig.length = 6032 := hsig
-  have hoff : ∀ lay, lay < nLayers → sigLayerOff lay + bodyBytes lay ≤ 6032 := by decide
-  have hpath : ∀ lay, lay < nLayers → (sigPath sig lay).length = 16 * height lay :=
-    fun lay hl => length_slice _ _ _ (by
-      have := hoff lay hl; rw [hs]; simp only [bodyBytes] at this; omega)
-  unfold lowerPaths
-  rw [length_flatten_map_range' _ _ (fun i => 16 * height (i + 1)) (fun i hi =>
-    hpath (i + 1) (by unfold nLayers at *; omega))]
-  decide
-
 /-- The partial witness built by `expand` has `witBytes = 16384` bytes (for a signature of
 `sigBytes` bytes and 15 sorted leaves). -/
 theorem length_witnessList (sig : List Byte) (hsig : sig.length = sigBytes) (v vs segs : List Nat)
@@ -513,11 +499,8 @@ theorem length_witnessList (sig : List Byte) (hsig : sig.length = sigBytes) (v v
     · split
       · exact hitem _ (by unfold porsK at *; omega)
       · split
-        · rename_i h
-          exact length_slice _ _ _ (by rw [length_lowerPaths sig hsig]; omega)
-        · split
-          · simp
-          · exact length_zeros 16
+        · simp
+        · exact length_zeros 16
   have hchain : ∀ lay, lay < nLayers → (chainRegion sig segs lay).length = 2688 := by
     intro lay hl
     unfold chainRegion
@@ -528,7 +511,9 @@ theorem length_witnessList (sig : List Byte) (hsig : sig.length = sigBytes) (v v
     rfl
   unfold witnessList witnessBody
   simp only [List.length_append, List.length_map, length_zeros, hvs,
-    hpath 0 (by decide), length_flatten_map_range _ _ _ hchain]
+    length_flatten_map_range' _ _ _ hpath, length_flatten_map_range _ _ _ hchain]
+  have : ((List.range nLayers).map fun lay => 16 * height lay).sum = 544 := by decide
+  rw [this]
   decide
 
 /-- Every witness `expandOf` returns has `witBytes = 16384` bytes. -/
@@ -584,21 +569,18 @@ theorem length_slotOf (sig : List Byte) (hsig : sig.length = sigBytes) (segs : L
   · split
     · rename_i h; unfold sigItem; exact length_slice _ _ _ (by rw [hs]; unfold porsK at h; omega)
     · split
-      · rename_i h
-        exact length_slice _ _ _ (by rw [length_lowerPaths sig hsig]; omega)
-      · split
-        · simp
-        · exact length_zeros 16
+      · simp
+      · exact length_zeros 16
 
 /-- The 16384-byte view of the witness cut out of a view with a zero lead is that view. -/
 theorem extW_toList_cutW (w : List Byte) (hl : w.length = 16384) (hz : w.take witLead = zeros witLead) :
-    extW (toList (ofList 13712 (cutW w))) = w := by
-  rw [toList_ofList 13712 _ (by rw [length_cutW, hl]; rfl), extW_cutW w hz]
+    extW (toList (ofList 14080 (cutW w))) = w := by
+  rw [toList_ofList 14080 _ (by rw [length_cutW, hl]; rfl), extW_cutW w hz]
 
 /-- The view of a honest witness (the partial witness with its counters). -/
 theorem extW_toList_cutW_withCounters (w0 : List Byte) (cs : List Nat) (hl : (withCounters w0 cs).length = 16384)
     (hw : wC4 ≤ w0.length) (hz : w0.take witLead = zeros witLead) :
-    extW (toList (ofList 13712 (cutW (withCounters w0 cs)))) = withCounters w0 cs :=
+    extW (toList (ofList 14080 (cutW (withCounters w0 cs)))) = withCounters w0 cs :=
   extW_toList_cutW _ hl (by rw [take_withCounters w0 cs hw, hz])
 
 

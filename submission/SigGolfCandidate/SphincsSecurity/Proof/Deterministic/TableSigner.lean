@@ -108,11 +108,11 @@ table, and everything else is the table signer's. -/
 /-- `maskRegion` with the mask derivation as an argument. -/
 def maskRegionWith {m : Type → Type} [Monad m] (getMask : Nat → Nat → m Digest) (table : Nat → Nat → Digest) :
     m TopRegion := do
-  let rows ← Concrete.sequenceFin fun level : Fin (maxLayerHeight - 1) => do
-    let row ← Concrete.sequenceFin fun nodeIdx : Fin (2 ^ (maxLayerHeight - (level.val + 1))) => do
-      let mask ← getMask (level.val + 1) nodeIdx.val
-      return table (level.val + 1) nodeIdx.val ^^^ mask
-    return fun nodeIdx : Nat => if h : nodeIdx < 2 ^ (maxLayerHeight - (level.val + 1)) then row ⟨nodeIdx, h⟩ else 0
+  let rows ← Concrete.sequenceFin fun level : Fin maxLayerHeight => do
+    let row ← Concrete.sequenceFin fun nodeIdx : Fin (2 ^ (maxLayerHeight - level.val)) => do
+      let mask ← getMask level.val nodeIdx.val
+      return table level.val nodeIdx.val ^^^ mask
+    return fun nodeIdx : Nat => if h : nodeIdx < 2 ^ (maxLayerHeight - level.val) then row ⟨nodeIdx, h⟩ else 0
   return fun level nodeIdx => rows level nodeIdx.val
 
 theorem maskRegion_eq_with {m : Type → Type} [Monad m] [HasQuery HashSpec m] (parameter : PublicParameter)
@@ -121,7 +121,7 @@ theorem maskRegion_eq_with {m : Type → Type} [Monad m] [HasQuery HashSpec m] (
 
 /-- The masked region the tables produce. -/
 def tableRegion (table : Nat → Nat → Digest) (masks : MaskOutputs) : TopRegion :=
-  fun level nodeIdx => table (level.val + 1) nodeIdx.val ^^^ maskValue masks (level.val + 1) nodeIdx.val
+  fun level nodeIdx => table level.val nodeIdx.val ^^^ maskValue masks level.val nodeIdx.val
 
 theorem maskRegionWith_pure {m : Type → Type} [Monad m] [LawfulMonad m] (table : Nat → Nat → Digest)
     (masks : MaskOutputs) :
@@ -133,14 +133,6 @@ theorem maskRegionWith_pure {m : Type → Type} [Monad m] [LawfulMonad m] (table
   funext level nodeIdx
   simp [tableRegion, nodeIdx.isLt]
 
-/-- Reconstruct a level-zero leaf; read and unmask positive cached levels. -/
-def rebuiltTableNode (key : SphincsSecurity.SecretKey) (cache : TopCache) (masks : MaskOutputs)
-    (level nodeIdx : Nat) : OracleComp HashSpec Digest :=
-  if level = 0 then
-    Prod.snd <$> buildLeaf key.parameter topLayer rootTree (leafOfNat nodeIdx)
-      (fun i => pure (key.otsSecret topLayer rootTree (leafOfNat nodeIdx) i)) zeroEncoding
-  else pure (cache.node level nodeIdx ^^^ maskValue masks level nodeIdx)
-
 /-- The table signer after its MAC check, with the top layer's path read from `cache` and unmasked
 with the mask table. -/
 def cachedTableSignChecked (randomizers : RandomizerOutputs) (masks : MaskOutputs)
@@ -151,13 +143,14 @@ def cachedTableSignChecked (randomizers : RandomizerOutputs) (masks : MaskOutput
   | some (randomness, index, leaves) =>
       Concrete.signFrom secretKey.parameter index (fun tree leaf => pure (secretKey.ftsSecret index tree leaf))
         (fun lay tree leaf chainIdx => pure (secretKey.otsSecret lay tree leaf chainIdx))
-        (rebuiltTableNode secretKey cache masks) randomness leaves
+        (fun level nodeIdx => pure (cache.node level nodeIdx ^^^ maskValue masks level nodeIdx)) randomness leaves
 
 /-- `Seeded.sign` from tables: the MAC check against the MAC table, then the checked signer. -/
 def cachedTableSign (randomizers : RandomizerOutputs) (masks : MaskOutputs) (macs : MacOutputs)
     (secretKey : SphincsSecurity.SecretKey) (cache : TopCache) (message : Message) :
     OracleComp HashSpec (Option Signature) :=
-  if macs cache.region = cache.tag then cachedTableSignChecked randomizers masks secretKey cache message
+  if cache.tag = macTag macs (regionBytes cache.region) then
+    cachedTableSignChecked randomizers masks secretKey cache message
   else pure none
 
 section Cached
@@ -175,20 +168,26 @@ theorem erases_maskSecret
   exact Erases.skip _ _ (hmasks (maskPosition level nodeIdx)) _ _ (.pure _)
 
 theorem erases_cachedTopNode
-    (hsecrets : ∀ position, known (secretInputs parameter seed position) = some (outputs position))
     (hmasks : ∀ position, known (maskInputs parameter seed position) = some (masks position))
     (cache : TopCache) (level nodeIdx : Nat) :
     Erases known (cachedTopNode parameter seed cache level nodeIdx : OracleComp HashSpec Digest)
-      (rebuiltTableNode (tableKey parameter top outputs) cache masks level nodeIdx) := by
-  unfold cachedTopNode rebuiltTableNode
-  split
-  · have he := (erases_buildLeafPaired parameter topLayer rootTree (leafOfNat nodeIdx)
-      (fun pair => erases_otsSecret known parameter seed outputs hsecrets topLayer rootTree
-        (leafOfNat nodeIdx) pair) zeroEncoding).map Prod.snd
-    simpa only [bind_pure_comp, buildLeafPaired_pure, tableKey] using he
-  · unfold maskSecret deriveKey Concrete.oracleHash
-    simp only [bind_assoc, pure_bind]
-    exact Erases.skip _ _ (hmasks (maskPosition level nodeIdx)) _ _ (.pure _)
+      (pure (cache.node level nodeIdx ^^^ maskValue masks level nodeIdx)) := by
+  unfold cachedTopNode maskSecret deriveKey Concrete.oracleHash
+  simp only [bind_assoc, pure_bind]
+  exact Erases.skip _ _ (hmasks (maskPosition level nodeIdx)) _ _ (.pure _)
+
+theorem erases_oracleHash_known {input : HashInput} {answer : HashOutput} (h : known input = some answer) :
+    Erases known (Concrete.oracleHash input : OracleComp HashSpec HashOutput) (pure answer) := by
+  have h' := Erases.skip (known := known) input answer h
+    (fun a => (pure a : OracleComp HashSpec HashOutput)) (pure answer) (.pure _)
+  rw [bind_pure] at h'
+  exact h'
+
+theorem erases_deriveMacKey
+    (hmacs : ∀ index, known (macInputs parameter seed index) = some (macs index)) :
+    Erases known (deriveMacKey parameter seed : OracleComp HashSpec MacKey) (pure macs) := by
+  rw [← sequenceFin_pure macs]
+  exact Erases.sequenceFin known _ _ fun index => erases_oracleHash_known known (hmacs index)
 
 theorem erases_maskRegion
     (hmasks : ∀ position, known (maskInputs parameter seed position) = some (masks position))
@@ -222,20 +221,20 @@ theorem erases_signChecked
     exact erases_signFromPaired parameter index
       (fun tree pair => erases_ftsSecret known parameter seed outputs hsecrets index tree pair)
       (fun lay tree leaf pair => erases_otsSecret known parameter seed outputs hsecrets lay tree leaf pair)
-      (fun level nodeIdx => erases_cachedTopNode known parameter seed top outputs masks hsecrets hmasks cache level nodeIdx)
+      (fun level nodeIdx => erases_cachedTopNode known parameter seed masks hmasks cache level nodeIdx)
       randomness leaves
 
 theorem erases_cachedSign
     (hsecrets : ∀ position, known (secretInputs parameter seed position) = some (outputs position))
     (hrandomizers : ∀ position, known (randomizerInputs parameter seed position) = some (randomizers position))
     (hmasks : ∀ position, known (maskInputs parameter seed position) = some (masks position))
-    (hmacs : ∀ region, known (macInputs parameter seed region) = some (macs region))
+    (hmacs : ∀ index, known (macInputs parameter seed index) = some (macs index))
     (cache : TopCache) (message : Message) :
     Erases known (sign ⟨seed, parameter, top (layerHeight topLayer) 0⟩ cache message : OracleComp HashSpec _)
       (cachedTableSign randomizers masks macs (tableKey parameter top outputs) cache message) := by
-  unfold sign cachedTableSign Concrete.oracleHash
-  apply Erases.skip _ _ (hmacs cache.region)
-  change Erases known (if macs cache.region = cache.tag then _ else _) _
+  unfold sign cachedTableSign
+  apply Erases.bind_known (erases_deriveMacKey known parameter seed macs hmacs)
+  change Erases known (if cache.tag = macTag macs (regionBytes cache.region) then _ else _) _
   split
   · exact erases_signChecked known parameter seed top outputs randomizers masks hsecrets hrandomizers hmasks
       cache message

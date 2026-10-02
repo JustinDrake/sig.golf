@@ -133,20 +133,10 @@ def MaskData (s : MachineState) : Prop :=
   s.getMem (BitVec.ofNat 64 0xFDFFD8) = M2w ∧
   s.getMem (BitVec.ofNat 64 0xFDFFB0) = PMASK
 
-/-- Return link of the final inline PORS leaf; retained as the base for packed authentication
-nodes after the PORS phase. The root transport proves this value from `TailIn.lnk`. -/
-def AUTHBASE : Word := 5452
-
 /-- Layer phase: masks, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
 def gkL0 : List (Reg × Word) :=
-  baseK ++ [(.x20, M1w), (.x21, M2w), (.x22, KT), (.x26, 6), (.x28, 2688), (.x2, TMASK),
-    (.x15, TTA5), (.x4, 0x1000000000000000), (.x24, AUTHBASE)]
-
-/-- The layer-4 entry (the root tail's state): `x22` still holds the PORS index, `KT` is set in
-the layer-4 transition. -/
-def gkL4 : List (Reg × Word) :=
-  baseK ++ [(.x20, M1w), (.x21, M2w), (.x26, 6), (.x28, 2688), (.x2, TMASK),
-    (.x15, TTA5), (.x4, 0x1000000000000000), (.x24, AUTHBASE)]
+  baseK ++ [(.x20, M1w), (.x21, M2w), (.x29, KT), (.x26, 6), (.x28, 2688), (.x2, TMASK),
+    (.x15, TTA5), (.x4, 0x1000000000000000)]
 
 /-- The layer phase (the same list: W1a keeps no layer-4-only constant). -/
 def gkL : List (Reg × Word) := gkL0

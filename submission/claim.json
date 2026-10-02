@@ -1,14 +1,14 @@
 {
   "S": 6032,
-  "W": 13712,
+  "W": 14080,
   "K": 131072,
-  "C": 10257,
+  "C": 10255,
   "layout": {
     "message": 32,
     "secret_key": 128,
     "public_key": 160,
     "cache": 19200,
     "signature": 150272,
-    "witness": 4720
+    "witness": 4352
   }
 }

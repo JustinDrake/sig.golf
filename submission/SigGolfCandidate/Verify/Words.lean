@@ -411,18 +411,17 @@ theorem pad64_encInput (lay tau e : Nat) (L R : Val) (hL : L.length = 16) (hR : 
 theorem addrFmt_encInput_words (lay tau e : Nat) (L R : Val)
     (hL : L.length = 16) (hR : R.length = 16) (c : Nat) :
     addrFmt (encInput lay tau e (L ++ R) c) = queryOfWords 0
-      [BitVec.ofNat 64 (Ref.MaskHeader.header 0 (BitVec.ofNat 64 (twLo 4 lay tau 0)).toNat), BitVec.ofNat 64 (twHi tau e),
+      [BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e),
         BitVec.ofNat 64 (c % 2 ^ 32), 0, vw0 L, vw1 L, vw0 R, vw1 R] := by
   have hf : fmt (encInput lay tau e (L ++ R) c) = pad64 (encInput lay tau e (L ++ R) c) :=
     Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide)
   rw [addrFmt_encInput_valid _ _ _ _ (by simp [hL, hR]), hf,
     pad64_encInput lay tau e L R hL hR c]
-  rw [EncodingRotate.query_words]
-  · exact Ref.MaskHeader.query_words 0 _ _ rfl
-  · simp only [BitVec.toNat_ofNat]
-    rw [Nat.mod_mod_of_dvd _ (by decide : 65536 ∣ 2 ^ 64)]
-    unfold twLo
-    omega
+  apply EncodingRotate.query_words
+  simp only [BitVec.toNat_ofNat]
+  rw [Nat.mod_mod_of_dvd _ (by decide : 65536 ∣ 2 ^ 64)]
+  unfold twLo
+  omega
 
 theorem pad64_leafInput (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
     (hv : ∀ v ∈ ends, v.length = 16) :
@@ -463,7 +462,7 @@ theorem pad64_leafPayload4 (lay tau e : Nat) (ends : List Val) (hl : ends.length
 theorem addrFmt_leafInput_words (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
     (hv : ∀ v ∈ ends, v.length = 16) :
     addrFmt (leafInput lay tau e ends) = queryOfWords 10
-      ([BitVec.ofNat 64 (Ref.MaskHeader.header 10 (BitVec.ofNat 64 (Ref.LeafCarry.header (BitVec.ofNat 64 (twLo 4 lay tau 0)).toNat)).toNat), BitVec.ofNat 64 (twHi tau e), 0, 0] ++
+      ([BitVec.ofNat 64 (Ref.LeafCarry.header (BitVec.ofNat 64 (twLo 4 lay tau 0)).toNat), BitVec.ofNat 64 (twHi tau e), 0, 0] ++
         (ends.map fun v => [vw0 v, vw1 v]).flatten) := by
   rw [addrFmt_leafInput_tag4 lay tau e ends hl hv, pad64_leafPayload4 lay tau e ends hl hv]
   have hlen : ((ends.map fun v => [vw0 v, vw1 v]).flatten).length = 84 := by
@@ -472,9 +471,7 @@ theorem addrFmt_leafInput_words (lay tau e : Nat) (ends : List Val) (hl : ends.l
       | nil => rfl
       | cons v vs ih => simp [List.flatten_cons] at ih ⊢; omega
     simpa only [hl] using hf ends
-  rw [show ([BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0] ++ (ends.map fun v => [vw0 v, vw1 v]).flatten) = BitVec.ofNat 64 (twLo 4 lay tau 0) :: (BitVec.ofNat 64 (twHi tau e) :: 0 :: 0 :: (ends.map fun v => [vw0 v, vw1 v]).flatten) from rfl,
-    Ref.LeafCarry.query_words _ _ (by simp [hlen])]
-  exact Ref.MaskHeader.query_words 10 _ _ (by simp [hlen])
+  exact Ref.LeafCarry.query_words _ _ (by simp [hlen])
 
 theorem pad64_digestInput (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
     pad64 (digestInput rho m) = queryOfWords 1
