@@ -141,29 +141,4 @@ theorem Slots.cons {t : MachineState} {B : Nat} {v : Val} {vs : List Val}
     have := h2 i (by simpa using hi)
     rw [show B + 16 * (i + 1) = B + 16 + 16 * i by ring]; simpa using this
 
-
-/-- Read-only native-header lookup table, loaded from the program data image. -/
-def SmallBandTable (t : MachineState) : Prop :=
- ∀ lay<5, ∀ k<8, t.getMem (BitVec.ofNat 64 (16776896+64*lay+8*k))=
-   BitVec.ofNat 64 (SmallBand.heap (MaskHeader.nodeHeader lay) (8+k))
-
-theorem SmallBandTable.frame {s t:MachineState} {W:Nat→Prop} (h:SmallBandTable s)
- (hf:Frame s t W) (hW:∀ a,16776896≤a→a<16777216→¬W a) : SmallBandTable t := by
- intro lay hl k hk
- rw [hf.getMem (by omega) (hW _ (by omega) (by omega)),h lay hl k hk]
-
-theorem smallHeap_out (lay h:Nat) (hl:lay<5) (hh:1≤h ∧ h<2048)
- (hb:¬(8≤h ∧ h<16)) : SmallBand.heap (MaskHeader.nodeHeader lay) h=h := by
- interval_cases lay
- · change SmallBand.H0.heap h=h
-   simp only [SmallBand.H0.heap,if_neg (by omega : h≠8),if_neg (by omega : h≠0),if_neg (by omega : h≠9),if_neg (by omega : h≠4095),if_neg (by omega : h≠10),if_neg (by omega : h≠2688),if_neg (by omega : h≠11),if_neg (by omega : h≠261632),if_neg (by omega : h≠12),if_neg (by omega : h≠327680),if_neg (by omega : h≠13),if_neg (by omega : h≠5632),if_neg (by omega : h≠14),if_neg (by omega : h≠3340530119),if_neg (by omega : h≠15),if_neg (by omega : h≠1057222719)]
- · change SmallBand.H1.heap h=h
-   simp only [SmallBand.H1.heap,if_neg (by omega : h≠8),if_neg (by omega : h≠0),if_neg (by omega : h≠9),if_neg (by omega : h≠4095),if_neg (by omega : h≠10),if_neg (by omega : h≠2688),if_neg (by omega : h≠11),if_neg (by omega : h≠261632),if_neg (by omega : h≠12),if_neg (by omega : h≠327680),if_neg (by omega : h≠13),if_neg (by omega : h≠8320),if_neg (by omega : h≠14),if_neg (by omega : h≠3340530119),if_neg (by omega : h≠15),if_neg (by omega : h≠1057222719)]
- · change SmallBand.H2.heap h=h
-   simp only [SmallBand.H2.heap,if_neg (by omega : h≠8),if_neg (by omega : h≠0),if_neg (by omega : h≠9),if_neg (by omega : h≠4095),if_neg (by omega : h≠10),if_neg (by omega : h≠2688),if_neg (by omega : h≠11),if_neg (by omega : h≠261632),if_neg (by omega : h≠12),if_neg (by omega : h≠327680),if_neg (by omega : h≠13),if_neg (by omega : h≠11008),if_neg (by omega : h≠14),if_neg (by omega : h≠3340530119),if_neg (by omega : h≠15),if_neg (by omega : h≠1057222719)]
- · change SmallBand.H3.heap h=h
-   simp only [SmallBand.H3.heap,if_neg (by omega : h≠8),if_neg (by omega : h≠0),if_neg (by omega : h≠9),if_neg (by omega : h≠4095),if_neg (by omega : h≠10),if_neg (by omega : h≠2688),if_neg (by omega : h≠11),if_neg (by omega : h≠261632),if_neg (by omega : h≠12),if_neg (by omega : h≠327680),if_neg (by omega : h≠13),if_neg (by omega : h≠13696),if_neg (by omega : h≠14),if_neg (by omega : h≠3340530119),if_neg (by omega : h≠15),if_neg (by omega : h≠1057222719)]
- · change SmallBand.H4.heap h=h
-   simp only [SmallBand.H4.heap,if_neg (by omega : h≠8),if_neg (by omega : h≠0),if_neg (by omega : h≠9),if_neg (by omega : h≠4095),if_neg (by omega : h≠10),if_neg (by omega : h≠2688),if_neg (by omega : h≠11),if_neg (by omega : h≠261632),if_neg (by omega : h≠12),if_neg (by omega : h≠327680),if_neg (by omega : h≠13),if_neg (by omega : h≠16384),if_neg (by omega : h≠14),if_neg (by omega : h≠3340530119),if_neg (by omega : h≠15),if_neg (by omega : h≠1057222719)]
-
 end SigGolfCandidate.Sign

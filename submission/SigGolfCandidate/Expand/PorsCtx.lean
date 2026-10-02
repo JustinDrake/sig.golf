@@ -84,12 +84,11 @@ structure PCtx (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState) 
   wit : WitMem w t
   keys : ∀ p < 15, t.getMem (BitVec.ofNat 64 (0x6E0 + 8 * p)) = BitVec.ofNat 64 (K p)
   klt : ∀ p < 15, K p < 2 ^ 22
-  band : SmallBandTable t
 
 /-- Addresses `PCtx` reads. -/
 def pctxA (a : Nat) : Prop :=
   a = 0x30000 ∨ a = 0x30010 ∨ a = 0x30018 ∨ a = 0x30030 ∨ a = 0x30038 ∨ a = 0x30040 ∨
-    a = 0x30050 ∨ a = 0x30058 ∨ (0x6E0 ≤ a ∧ a < 0x758) ∨ witA a ∨ (16776896≤a ∧ a<16777216)
+    a = 0x30050 ∨ a = 0x30058 ∨ (0x6E0 ≤ a ∧ a < 0x758) ∨ witA a
 
 /-- Registers `PCtx` reads. -/
 def pctxRegs : List Reg := [.x4, .x5, .x22, .x25, .x26, .x27]
@@ -99,7 +98,7 @@ theorem PCtx.frame {w : List Byte} {idx : Nat} {K : Nat → Nat} {s t : MachineS
     (hW : ∀ a, pctxA a → ¬ W a) (hl : ∀ r ∈ pctxRegs, r ∉ l := by decide) : PCtx w idx K t := by
   have g : ∀ a, a < 2 ^ 64 → pctxA a → t.getMem (BitVec.ofNat 64 a) = s.getMem (BitVec.ofNat 64 a) :=
     fun a ha hp => hf a ha (hW a hp)
-  refine ⟨h.hidx, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, h.klt, ?_⟩
+  refine ⟨h.hidx, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, h.klt⟩
   · rw [hr.get .x4 (hl _ (by decide)), h.x4]
   · rw [hr.get .x5 (hl _ (by decide)), h.x5]
   · rw [hr.get .x22 (hl _ (by decide)), h.x22]
@@ -114,9 +113,8 @@ theorem PCtx.frame {w : List Byte} {idx : Nat} {K : Nat → Nat} {s t : MachineS
   · rw [g _ (by norm_num) (by unfold pctxA; omega), h.pb0]
   · rw [g _ (by norm_num) (by unfold pctxA; omega), h.pb16]
   · rw [g _ (by norm_num) (by unfold pctxA; omega), h.pb24]
-  · exact h.wit.frame hf (fun a ha => hW a (by unfold pctxA; simp only [ha, or_true, true_or]))
+  · exact h.wit.frame hf (fun a ha => hW a (by unfold pctxA; simp only [ha, or_true]))
   · intro p hp; rw [g _ (by omega) (by unfold pctxA; omega), h.keys p hp]
-  · exact h.band.frame hf (by intro a ha hb;apply hW;unfold pctxA;omega)
 
 /-- The PB words for a node hash with heap index `H` and children `l`, `r`. -/
 theorem pb_words (w : List Byte) (idx : Nat) (K : Nat → Nat) (t : MachineState) (h : PCtx w idx K t)

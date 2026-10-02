@@ -9,7 +9,7 @@ the tree builders only query tweak types `0..3` (hypertree) or `8..10` (PORS), t
 only type `4` at its layer, and the digest search only types `7` and `12`.
 
 Compressions: an OTS leaf `21 + 2 * 21 * 7 + 11 = 326` (paired secrets), a tree of height `h`
-`326 * 2^h + 2^h - 1`, keygen 672254, the PORS tree `2^13 * 3 + (2^14 - 1) = 40959` (paired
+`326 * 2^h + 2^h - 1`, keygen 673792, the PORS tree `2^13 * 3 + (2^14 - 1) = 40959` (paired
 secrets, two leaves per pair, then the levels).
 -/
 
@@ -339,10 +339,16 @@ theorem spec_maskLevel {P : Query → Prop} (hP : ∀ q, qbyte q 1 = 13 → P q)
 theorem topN_succ (l : Nat) : topN (l + 1) = topN l + 2 ^ (topH - l) := by
   simp [topN, List.range_succ]
 
-/-- Compressions of keygen: `2048 * 326 + 2047 + 2046 + 513`. -/
-def keygenCost : Nat := 2 ^ 11 * 326 + (2 ^ 11 - 1) + ∑ l ∈ range 10, 2 ^ (11 - (1 + l)) + 513
+/-- Compressions of keygen: `2048 * 326 + 2047 + 4094 + 3`. -/
+def keygenCost : Nat := 2 ^ 11 * 326 + (2 ^ 11 - 1) + ∑ l ∈ range 11, 2 ^ (11 - l) + 3
 
-theorem keygenCost_eq : keygenCost = 672254 := by decide
+theorem keygenCost_eq : keygenCost = 673792 := by decide
+
+/-- A MAC key derivation is a one-block query of tag `14`. -/
+theorem macKey_ok (S : List Byte) (hS : S.length = 32) (i : Nat) :
+    qbyte (addrFmt (macKeyInput S i)) 1 = 14 ∧ (addrFmt (macKeyInput S i)).blocks ≤ 1 := by
+  refine ⟨by unfold macKeyInput; rw [qbyte_tag], blocksFmt_le _ 1 ?_ le_rfl⟩
+  simp only [macKeyInput, length_thInput, length_tweak, hS]; omega
 
 theorem spec_keygenRef (sk : Bytes 32) :
     Spec PK (fun _ => True) keygenCost (keygenRef sk) := by
@@ -352,36 +358,34 @@ theorem spec_keygenRef (sk : Bytes 32) :
   refine Spec.bind' (Q := fun _ => True) (l := 0) ?_ (fun _ _ => Spec.pure _ 0 trivial) le_rfl
   rw [topH_eq]
   refine Spec.bind' (((spec_buildLeaves (toList sk) hS 0 0 11 0 []).mono hPT fun _ h => h))
-    (fun r hr => ?_) (show 2 ^ 11 * 326 + ((2 ^ 11 - 1) + ∑ l ∈ range 10, 2 ^ (11 - (1 + l)) + 513) ≤ _
+    (fun r hr => ?_) (show 2 ^ 11 * 326 + ((2 ^ 11 - 1) + ∑ l ∈ range 11, 2 ^ (11 - l) + 3) ≤ _
       by omega)
   obtain ⟨leaves, _⟩ := r
   refine Spec.bind' ((spec_buildAllLevels (nodeOK_nodeInput 0 0) 11 leaves hr.1 hr.2).mono hPT
-    fun _ h => h) (fun levels hlev => ?_) (show (2 ^ 11 - 1) + (∑ l ∈ range 10, 2 ^ (11 - (1 + l)) + 513)
+    fun _ h => h) (fun levels hlev => ?_) (show (2 ^ 11 - 1) + (∑ l ∈ range 11, 2 ^ (11 - l) + 3)
       ≤ _ by omega)
-  refine Spec.bind' (Spec.foldlM_range' (P := PK) 1 10 _
-    (fun l (acc : List Val) => acc.length = topN (l + 1) - topN 1 ∧ AllShort acc) (fun l => 2 ^ (11 - (1 + l))) []
+  refine Spec.bind' (Spec.foldlM_range (P := PK) 11 _
+    (fun l (acc : List Val) => acc.length = topN l ∧ AllShort acc) (fun l => 2 ^ (11 - l)) []
     ⟨rfl, AllShort.nil⟩ (fun l hl acc hacc => ?_)) (fun masked hm => ?_) le_rfl
-  · obtain ⟨hL, hA⟩ := hlev (1 + l) (by omega)
-    refine ((spec_maskLevel (fun q h => Or.inr (Or.inl h)) (toList sk) hS (1 + l) _ ).mono_k
-      (k' := 2 ^ (11 - (1 + l))) (by rw [hL])).bind' (l := 0)
+  · obtain ⟨hL, hA⟩ := hlev l (by omega)
+    refine ((spec_maskLevel (fun q h => Or.inr (Or.inl h)) (toList sk) hS l _ ).mono_k
+      (k' := 2 ^ (11 - l)) (by rw [hL])).bind' (l := 0)
       (fun ml hml => Spec.pure _ 0 ⟨?_, fun w hw => ?_⟩) (by omega)
-    · rw [List.length_append, hacc.1, hml.1, hL, topN_succ (l + 1), topH_eq]
-      rw [Nat.add_comm 1 l]
-      have hn : topN 1 ≤ topN (l + 1) := by interval_cases l <;> decide
-      exact (Nat.sub_add_comm (m := 2 ^ (11 - (l + 1))) hn).symm
+    · rw [List.length_append, hacc.1, hml.1, hL, topN_succ, topH_eq]
     · rw [List.mem_append] at hw
       rcases hw with hw | hw
       · exact hacc.2 w hw
       · exact hml.2 w hw
-  · have hreg : masked.flatten.length ≤ 16 * 2046 := by
-      have := length_flatten_le hm.2
-      rw [hm.1, show topN (10 + 1) - topN 1 = 2046 by decide] at this
-      omega
-    show Spec PK _ _ (qry (addrFmt (macInput (toList sk) masked.flatten)) >>= fun tag => Pure.pure _)
-    refine Spec.qry_bind (Or.inr (Or.inr ?_)) (fun u => Spec.pure _ 0 trivial)
-      (blocksFmt_le _ 513 ?_ (by omega) |> fun h => by omega)
-    · unfold macInput; rw [qbyte_tag]
-    · simp only [macInput, length_thInput, length_tweak, List.length_append, hS]; omega
+  · have h0 := macKey_ok (toList sk) hS 0
+    have h1 := macKey_ok (toList sk) hS 1
+    have h2 := macKey_ok (toList sk) hS 2
+    show Spec PK _ _ (qry (addrFmt (macKeyInput (toList sk) 0)) >>= fun a0 =>
+      qry (addrFmt (macKeyInput (toList sk) 1)) >>= fun a1 =>
+      qry (addrFmt (macKeyInput (toList sk) 2)) >>= fun a2 => Pure.pure _)
+    exact Spec.qry_bind (Or.inr (Or.inr h0.1)) (fun a0 =>
+      Spec.qry_bind (n := 2) (Or.inr (Or.inr h1.1)) (fun a1 =>
+        Spec.qry_bind (n := 1) (Or.inr (Or.inr h2.1)) (fun a2 => Spec.pure _ 0 trivial) (by omega))
+        (by omega)) (by omega)
 
 /-! ## PORS -/
 

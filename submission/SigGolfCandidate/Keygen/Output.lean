@@ -80,80 +80,72 @@ theorem getD_flatten16 : ∀ (vs : List Val), (∀ v ∈ vs, v.length = 16) → 
       simp only [List.getD_eq_getElem?_getD] at this
       exact this
 
-/-- The cache output consists of a zero prefix, the tag, internal nodes, and a zero tail. -/
-theorem readBuffer_cache_eq (t : MachineState) (a : BitVec 256) (masked : List Val)
-    (hlen : masked.length = 2046)
-    (htag : ∀ k < 4, t.getMem (BitVec.ofNat 64 (0xCB00 + 8 * k)) = a.extractLsb' (64 * k) 64)
-    (hreg : Vals t 0xCB20 masked)
-    (hp : ∀ A, 0x4B00 ≤ A → A < 0xCB00 → A % 8 = 0 → t.getMem (BitVec.ofNat 64 A) = 0)
-    (hz : ∀ A, 0x14B00 ≤ A → A < 0x24B00 → A % 8 = 0 → t.getMem (BitVec.ofNat 64 A) = 0) :
+/-- The cache buffer: 32 zero bytes, the masked region, the 48 tag bytes `tb` (six doublewords), zeros. -/
+theorem readBuffer_cache_eq (t : MachineState) (tb : List Byte) (masked : List Val)
+    (hlen : masked.length = 4094) (htl : tb.length = 48)
+    (hhead : ∀ k < 4, t.getMem (BitVec.ofNat 64 (0x4B00 + 8 * k)) = 0)
+    (hreg : Vals t REGION masked)
+    (htag : ∀ j < 6, t.getMem (BitVec.ofNat 64 (0x14B00 + 8 * j)) = BitVec.ofNat 64 (leNat tb / 2 ^ (64 * j)))
+    (hz : ∀ A, 0x14B30 ≤ A → A < 0x24B00 → A % 8 = 0 → t.getMem (BitVec.ofNat 64 A) = 0) :
     readBuffer t 0x4B00 CACHE_BYTES =
-      ofList CACHE_BYTES (zeros cachePadBytes ++ toList (n := 32) a ++ masked.flatten ++
-        zeros (cacheBytes - cachePadBytes - 32 - regionBytes)) := by
-  have hfl : masked.flatten.length = 32736 := by rw [length_flatten16 _ hreg.1, hlen]
+      ofList CACHE_BYTES (zeros 32 ++ masked.flatten ++ tb ++ zeros (cacheBytes - 32 - regionBytes - 48)) := by
+  have hfl : masked.flatten.length = 65504 := by rw [length_flatten16 _ hreg.1, hlen]
   suffices hl : (List.range CACHE_BYTES).map (fun i => t.getByte (BitVec.ofNat 64 (0x4B00 + i))) =
-      zeros 32768 ++ (toList (n := 32) a ++ masked.flatten ++ zeros 65536) by
+      zeros 32 ++ masked.flatten ++ tb ++ zeros (cacheBytes - 32 - regionBytes - 48) by
     rw [readBuffer_eq, ofList, hl]
-    simp only [cachePadBytes_eq, regionBytes_eq, cacheBytes, CACHE_BYTES, Nat.reducePow, Nat.reduceSub, List.append_assoc]
-  apply List.ext_getElem (by simp only [List.length_map, List.length_range, List.length_append, length_zeros, length_toList, hfl, CACHE_BYTES]; rfl)
+  have hz32 : (zeros 32).length = 32 := by simp [zeros]
+  apply List.ext_getElem (by
+    rw [List.length_map, List.length_range, List.length_append, List.length_append, List.length_append,
+      hfl, htl, hz32, zeros, List.length_replicate, regionBytes_eq]
+    rfl)
   intro i h1 h2
-  simp only [List.length_append, length_zeros, length_toList, hfl] at h2
   simp only [List.length_map, List.length_range, CACHE_BYTES] at h1
   simp only [List.getElem_map, List.getElem_range]
   rw [getByte_eq_word t _ (by omega)]
-  by_cases hip : i < 32768
-  · rw [List.getElem_append_left (by simp only [length_zeros]; omega)]
+  by_cases hi32 : i < 32
+  · rw [List.getElem_append_left (by simp only [List.length_append, hfl, htl, hz32]; omega),
+      List.getElem_append_left (by simp only [List.length_append, hfl, hz32]; omega),
+      List.getElem_append_left (by rw [hz32]; exact hi32)]
     simp only [zeros, List.getElem_replicate]
-    rw [hp _ (by omega) (by omega) (by omega)]
+    rw [show 0x4B00 + i - (0x4B00 + i) % 8 = 0x4B00 + 8 * (i / 8) by omega, hhead (i / 8) (by omega)]
     simp [extractByte]
-  rw [List.getElem_append_right (by simp only [length_zeros]; omega)]
-  simp only [length_zeros]
-  let j := i - 32768
-  have hj : j < 98304 := by dsimp [j]; omega
-  have hij : 0x4B00 + i = 0xCB00 + j := by dsimp [j]; omega
-  rw [hij]
-  change extractByte (t.getMem (BitVec.ofNat 64 (0xCB00 + j - (0xCB00 + j) % 8))) ((0xCB00 + j) % 8) =
-    (toList (n := 32) a ++ masked.flatten ++ zeros 65536)[j]'
-      (by simp only [List.length_append, length_toList, length_zeros, hfl]; omega)
-  by_cases hi32 : j < 32
-  · rw [List.getElem_append_left (by simp only [List.length_append, length_toList, hfl]; omega),
-      List.getElem_append_left (by simp only [length_toList]; omega)]
-    simp only [toList, SigGolfCandidate.Legacy.bytes, List.getElem_map, List.getElem_range]
-    rw [show 0xCB00 + j - (0xCB00 + j) % 8 = 0xCB00 + 8 * (j / 8) by omega,
-      htag (j / 8) (by omega), show (0xCB00 + j) % 8 = j % 8 by omega,
-      extractByte_extractLsb a (j / 8) (j % 8) (by omega), show 8 * (j / 8) + j % 8 = j by omega]
-  · by_cases hir : j < 32 + 32736
-    · rw [List.getElem_append_left (by simp only [List.length_append, length_toList, hfl]; omega),
-        List.getElem_append_right (by simp only [length_toList]; omega)]
-      simp only [toList, SigGolfCandidate.Legacy.bytes, List.length_map, List.length_range]
-      have hm : (j - 32) / 16 < masked.length := by rw [hlen]; omega
-      have hv := hreg.2 ((j - 32) / 16) hm
+  · by_cases hir : i < 32 + 65504
+    · rw [List.getElem_append_left (by simp only [List.length_append, hfl, htl, hz32]; omega),
+        List.getElem_append_left (by simp only [List.length_append, hfl, hz32]; omega),
+        List.getElem_append_right (by rw [hz32]; omega)]
+      simp only [hz32]
+      have hm : (i - 32) / 16 < masked.length := by rw [hlen]; omega
+      have hv := hreg.2 ((i - 32) / 16) hm
       rw [getD_lt' masked _ [] hm] at hv
-      have hvl : (masked[(j - 32) / 16]'hm).length = 16 := hreg.1 _ (List.getElem_mem hm)
-      have hjf : j - 32 < masked.flatten.length := by
-        rw [hfl]
-        exact Nat.sub_lt_left_of_lt_add (Nat.le_of_not_lt hi32) hir
-      have hfg := getD_flatten16 masked hreg.1 ((j - 32) / 16) ((j - 32) % 16) hm (by omega)
-      rw [show 16 * ((j - 32) / 16) + (j - 32) % 16 = j - 32 by omega, List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem hjf, Option.getD_some, getD_lt' masked _ [] hm] at hfg
+      have hvl : masked[(i - 32) / 16].length = 16 := hreg.1 _ (List.getElem_mem hm)
+      have hfg := getD_flatten16 masked hreg.1 ((i - 32) / 16) ((i - 32) % 16) hm (by omega)
+      rw [show 16 * ((i - 32) / 16) + (i - 32) % 16 = i - 32 by omega, List.getD_eq_getElem?_getD,
+        List.getElem?_eq_getElem (by rw [hfl]; omega), Option.getD_some, getD_lt' masked _ [] hm] at hfg
       rw [hfg]
-      by_cases hlo : (j - 32) % 16 < 8
-      · rw [show 0xCB00 + j - (0xCB00 + j) % 8 = 0xCB20 + 16 * ((j - 32) / 16) by omega,
-          hv.1, lo, show BitVec.ofNat 64 (leNat (masked[(j - 32) / 16]'hm)) =
-            BitVec.ofNat 64 (leNat (masked[(j - 32) / 16]'hm) / 2 ^ (64 * 0)) by simp,
+      by_cases hlo : (i - 32) % 16 < 8
+      · rw [show 0x4B00 + i - (0x4B00 + i) % 8 = REGION + 16 * ((i - 32) / 16) by unfold REGION; omega,
+          hv.1, lo, show BitVec.ofNat 64 (leNat masked[(i - 32) / 16]) =
+            BitVec.ofNat 64 (leNat masked[(i - 32) / 16] / 2 ^ (64 * 0)) by simp,
           extractByte_ofNat_leNat _ 0 _ (by omega)]
-        apply congrArg (fun k => (masked[(j - 32) / 16]'hm).getD k 0)
-        omega
-      · rw [show 0xCB00 + j - (0xCB00 + j) % 8 = 0xCB20 + 16 * ((j - 32) / 16) + 8 by omega,
-          hv.2, hi_def, show leNat (masked[(j - 32) / 16]'hm) / 2 ^ 64 =
-            leNat (masked[(j - 32) / 16]'hm) / 2 ^ (64 * 1) by simp,
+        congr 1; omega
+      · rw [show 0x4B00 + i - (0x4B00 + i) % 8 = REGION + 16 * ((i - 32) / 16) + 8 by unfold REGION; omega,
+          hv.2, hi_def, show leNat masked[(i - 32) / 16] / 2 ^ 64 =
+            leNat masked[(i - 32) / 16] / 2 ^ (64 * 1) by simp,
           extractByte_ofNat_leNat _ 1 _ (by omega)]
-        apply congrArg (fun k => (masked[(j - 32) / 16]'hm).getD k 0)
-        omega
-    · rw [List.getElem_append_right (by simp only [List.length_append, length_toList, hfl]; omega)]
-      simp only [zeros, List.getElem_replicate]
-      rw [hz _ (by omega) (by omega) (by omega)]
-      simp [extractByte]
+        congr 1; omega
+    · by_cases hit : i < 32 + 65504 + 48
+      · rw [List.getElem_append_left (by simp only [List.length_append, hfl, htl, hz32]; omega),
+          List.getElem_append_right (by simp only [List.length_append, hfl, hz32]; omega)]
+        simp only [List.length_append, hfl, hz32]
+        rw [show 0x4B00 + i - (0x4B00 + i) % 8 = 0x14B00 + 8 * ((i - 65536) / 8) by omega,
+          htag _ (by omega), show (0x4B00 + i) % 8 = (i - 65536) % 8 by omega,
+          extractByte_ofNat_leNat tb _ _ (by omega),
+          show 8 * ((i - 65536) / 8) + (i - 65536) % 8 = i - (32 + 65504) by omega,
+          List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by rw [htl]; omega), Option.getD_some]
+      · rw [List.getElem_append_right (by simp only [List.length_append, hfl, htl, hz32]; omega)]
+        simp only [zeros, List.getElem_replicate]
+        rw [hz _ (by omega) (by omega) (by omega)]
+        simp [extractByte]
 
 theorem leNat_map_zero (n : Nat) : leNat ((List.range n).map fun _ => (0 : Byte)) = 0 := by
   induction n with

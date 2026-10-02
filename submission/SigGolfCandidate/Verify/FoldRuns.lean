@@ -71,11 +71,13 @@ def sibAddr (lay lam : Nat) : Nat := 0x800 + pathOffL lay + pathStrideL lay * la
 
 /-- M4c: the parent of level `lam` is at depth `h - lam - 1`; at depths 1 and 2 (heap indices
 2..7) its index is a constant stored from the register that holds it. -/
-def isConstLvl (lay lam : Nat) : Bool := lam + 4 = heightL lay || lam + 3 = heightL lay || lam + 2 = heightL lay
+def isConstLvl (lay lam : Nat) : Bool := lam + 3 = heightL lay || lam + 2 = heightL lay
 
-/-- Destination of the root hash of the top layer: FO. (Below the top layer no root is hashed; `0x120`
-is where the node under the root goes, see `nodeDst`.) -/
-def dstOf (lay : Nat) : Nat := if lay = 0 then 0x180 else 0x120
+/-- Destination of the root hash of the top layer: in place, the node slot `0x360 + 16 b` of the
+node under the root (`b` = bit 10 of the leaf index `E`), which `a2` already points at, so the root
+level sets no `a2`. (Below the top layer no root is hashed; `0x120` is where the node under the root
+goes, see `nodeDst`.) -/
+def dstOf (lay E : Nat) : Nat := if lay = 0 then 0x360 + 16 * (E / 2 ^ 10 % 2) else 0x120
 
 /-- Destination of the hash that produces the node of level `lam` on the path (`t` = its side): its slot
 of the node buffer, except below the top layer for the node under the root, which goes straight into
@@ -101,13 +103,6 @@ def dispTgt (lay ci : Nat) : E :=
   mkBin .and (mkAdd (dispGp lay ci) (.c (BitVec.ofNat 64 (m4Doff lay ci) - BitVec.ofNat 64 (m4Hi lay ci))))
     (.c (~~~1#64))
 
-/-- Full register constants used by the depth-three heap relabeling. Stores truncate to 32 bits. -/
-def smallBandStore (lay h : Nat) : Nat :=
-  if h = 8 then 0 else if h = 9 then 4095 else if h = 10 then 2688 else
-  if h = 11 then 261632 else if h = 12 then 327680 else
-  if h = 13 then 5632 + 2688 * lay else
-  if h = 14 then 0x71c71c71c71c71c7 else if h = 15 then 0xf03f03f03f03f03f else h
-
 /-- The value stored into NB+12 (NB = LB = 0x340) (the parent's heap index) by level `kk` of block `v`: the
 constant 1 at the root, M4c constants (`sw R`) at depths 1 and 2 of the last chunk, else
 `srli TP, E, lam + 1`. -/
@@ -115,9 +110,9 @@ def lvlNb (lay ci v kk : Nat) : E :=
   let lam := chB0 lay ci + kk
   if lam + 1 = heightL lay then cw 1
   else if kk + 1 < chBits lay ci ∧ (isConstLvl lay lam = true ∨ lay ≠ 0) then
-    cw (smallBandStore lay (if lay = 0 then 3 * 2 ^ (heightL lay - (lam + 1)) - 1 -
+    cw (if lay = 0 then 3 * 2 ^ (heightL lay - (lam + 1)) - 1 -
       (2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1))
-      else 2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1)))
+      else 2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1))
   else .bin .srl (.reg .x23) (cw (lam + 1))
 
 /-- The memory writes of a level: NB+12, then the sibling into the slot `1 - t`. -/
@@ -144,13 +139,14 @@ def lvlRegs (lay lam : Nat) : RegFile :=
 /-- Level `kk` of block `v` of chunk `ci` of layer `lay`, from after the `ecall` of its node
 hash: load the sibling into the other slot, store the parent's heap index into NB+12, then the
 next level's `li a2` (stopping at its `ecall`), or at the end of chunk 0 of layer 0 the dispatch
-into chunk 1 (a jump to a symbolic target), or for the root `li a2, dst` and its `ecall`. -/
+into chunk 1 (a jump to a symbolic target), or for the root its `ecall` (the root hash is written in
+place: `a2` still holds the slot of the node under the root). -/
 def lvlExp (lay ci v kk : Nat) : PRes :=
   let lam := chB0 lay ci + kk
   let mem := lvlMem lay lam (v / 2 ^ kk % 2) (lvlNb lay ci v kk)
   let hs := if lam = 0 then 2 else 0
   if lam + 1 = heightL lay then
-    ⟨⟨(lvlRegs lay lam).set .x12 (cw (dstOf lay)), mem, []⟩, pcOf (m4Pc lay ci v kk + 8), true, 6, 6, [], none⟩
+    ⟨⟨lvlRegs lay lam, mem, []⟩, pcOf (m4Pc lay ci v kk + 7), true, 5, 5, [], none⟩
   else if kk + 1 < chBits lay ci then
     let rf := if isConstLvl lay lam then lvlRegs lay lam
       else if lay ≠ 0 then (lvlRegs lay lam).set .x25 (cw (2 ^ (heightL lay - (lam + 1)) + v / 2 ^ (kk + 1)))
@@ -167,9 +163,9 @@ def lvlDirs (lay ci kk : Nat) : List Dir :=
   if chB0 lay ci + kk + 1 = heightL lay then [] else if kk + 1 < chBits lay ci then [] else [.jmp]
 
 /-- Known registers after a level run: the node-hash arguments (`a2` too unless the run stops at
-the chunk dispatch). -/
+the chunk dispatch or is the root level, which keeps `a2` from the level below). -/
 def lvlPost (lay ci v kk : Nat) : List (Reg × Word) :=
-  if chB0 lay ci + kk + 1 = heightL lay then foldK lay 64 ++ [(.x12, BitVec.ofNat 64 (dstOf lay))]
+  if chB0 lay ci + kk + 1 = heightL lay then foldK lay 64
   else if kk + 1 < chBits lay ci then
     foldK lay 64 ++ [(.x12, BitVec.ofNat 64 (nodeDst lay (chB0 lay ci + kk + 1) (v / 2 ^ (kk + 1) % 2)))]
   else foldK lay 64

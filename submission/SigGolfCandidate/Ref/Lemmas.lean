@@ -426,9 +426,7 @@ theorem shiftBelow_values :
 theorem topH_eq : topH = 11 := rfl
 theorem topN_values : (List.range (topH + 1)).map topN =
     [0, 2048, 3072, 3584, 3840, 3968, 4032, 4064, 4080, 4088, 4092, 4094] := by decide
-theorem regionBytes_eq : regionBytes = 32736 := by decide
-
-theorem cachePadBytes_eq : cachePadBytes = 32768 := by decide
+theorem regionBytes_eq : regionBytes = 65504 := by decide
 theorem porsT_eq : porsT = 16384 := rfl
 theorem porsSegs_eq : porsSegs = 29 := rfl
 

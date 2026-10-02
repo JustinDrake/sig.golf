@@ -24,7 +24,7 @@ structure TreePar where
 
 /-- Facts at the start of tree_build's leaf loop. -/
 structure TreeCtx (S : List Byte) (x : List Nat) (p : TreePar) (tt : MachineState) : Prop where
-  hlay : p.lay < 5
+  hlay : p.lay < 7
   htau : p.tau < 2 ^ 30
   hh : p.h ≤ 6
   he : p.e < 2 ^ p.h
@@ -45,11 +45,9 @@ structure TreeCtx (S : List Byte) (x : List Nat) (p : TreePar) (tt : MachineStat
   pbS : tt.readWords (BitVec.ofNat 64 0x6C0) 4 = wordsOf S
   cb0 : lo32 (tt.getMem (BitVec.ofNat 64 0xC0)) = BitVec.ofNat 32 (0x101 + 65536 * p.lay)
   cbP : tt.readWords (BitVec.ofNat 64 0xD0) 4 = [0, 0, 0, 0]
-  lb0 : tt.getMem (BitVec.ofNat 64 0x340) = BitVec.ofNat 64 (Ref.MaskHeader.header 10 (twWord0 (carryLeafTag p.lay) (carryLeafLay p.lay) p.tau 0).toNat)
+  lb0 : tt.getMem (BitVec.ofNat 64 0x340) = twWord0 (carryLeafTag p.lay) (carryLeafLay p.lay) p.tau 0
   lbP : tt.readWords (BitVec.ofNat 64 0x350) 2 = [0, 0]
   nbP : tt.readWords (BitVec.ofNat 64 0x1D0) 2 = [0, 0]
-  x26 : tt.getReg .x26 = (BitVec.ofNat 64 Ref.MaskHeader.M1)
-  band : SmallBandTable tt
 
 /-- Addresses written by the leaf loop. -/
 def leavesW (p : TreePar) (a : Nat) : Prop :=
@@ -125,7 +123,7 @@ theorem tleaf_body (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : Tree
     intro x hx; simp only [leavesW] at hx ⊢; omega)
   have rt1 : RegsEq tt tl leavesRegs := (tregs.trans r1).mono (by decide)
   have cctx : ChainCtx S x ⟨p.lay, p.tau, p.e, j, p.sigl⟩ tl := by
-    refine ⟨by show p.lay<7; omega, htau, show p.e < 2048 by omega, show j < 2048 by omega, hsig, ctx.hx, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨hl, htau, show p.e < 2048 by omega, show j < 2048 by omega, hsig, ctx.hx, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [rt1.get .x5, ctx.x5]
     · rw [rt1.get .x13, ctx.x13]
     · rw [rt1.get .x18, ctx.x18]
@@ -169,22 +167,10 @@ theorem tleaf_body (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : Tree
   have pc3 : t3.pc = pcOf 588 := by simp only [ht3, blk584.res, rv_simp]
   have fl3 : Frame tl t3 (chainW ⟨p.lay, p.tau, p.e, j, p.sigl⟩) := (cframe.trans f3).mono (by
     intro x hx; rcases hx with h | h; exact h; exact h.elim)
-  have hq : hashInput t3 = Ref.MaskHeader.query (pad64 (thInput (tweak (carryLeafTag p.lay) (carryLeafLay p.lay) p.tau 0 j) cs.1.flatten)) := by
+  have hq : hashInput t3 = pad64 (thInput (tweak (carryLeafTag p.lay) (carryLeafLay p.lay) p.tau 0 j) cs.1.flatten) := by
     obtain ⟨hn, hw'⟩ := words_thVals (carryLeafTag p.lay) (carryLeafLay p.lay) p.tau 0 j cs.1 hcv1 10 (by rw [hc1'])
-    have hendsLen : (cs.1.map wordsOf).flatten.length=84 := by
-      rw [List.length_flatten]
-      have he : (cs.1.map wordsOf).map List.length=List.replicate 42 2 := by
-        apply List.ext_getElem (by simp [hc1'])
-        intro i hi hj
-        simp only [List.getElem_map,List.getElem_replicate]
-        exact length_wordsOf_16 _ (hcv1 _ (List.getElem_mem _))
-      rw [he];decide
-    rw [hashInput_eq_words t3 10 (by rw [x11]) (by norm_num) (by rw [x10]; decide),
-      pad64_eq_query,hn,hw',twWords_eq]
-    simp only [List.cons_append,List.nil_append]
-    rw [Ref.MaskHeader.query_words 10 _ _ (by simp [hendsLen])]
-    apply congrArg (queryOfWords 10)
-    rw [x10, show 8 * (10 + 1) = 1 + 1 + 2 + 2 * 42 from rfl]
+    refine hashInput_eq_pad64 t3 _ 10 hn (by rw [x11]) (by norm_num) (by rw [x10]; decide) ?_
+    rw [hw', x10, show 8 * (10 + 1) = 1 + 1 + 2 + 2 * 42 from rfl]
     rw [readWords_ofNat_add, readWords_ofNat_add, readWords_ofNat_add]
     simp only [Nat.reduceMul, Nat.reduceAdd]
     rw [readWords_ofNat_one, readWords_ofNat_one,
@@ -204,7 +190,7 @@ theorem tleaf_body (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : Tree
     exact congrArg (· + 1) (words_thVals 2 p.lay p.tau 0 j cs.1 hcv1 10 (by rw [hc1'])).1
   refine (Sim.steps hs3 (Sim.hash16_bindF (W := 2) e3 x5
     (hashArgs_of x10 x11 x12 (by norm_num) (by norm_num) (by norm_num) (by omega) (by omega)
-      (by norm_num)) (hq.trans (addrFmt_leafInput_carry p.lay p.tau j cs.1 (by omega) (by omega) hc1' hcv1).symm) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
+      (by norm_num)) (hq.trans (addrFmt_leafInput_carry p.lay p.tau j cs.1 hl (by omega) hc1' hcv1).symm) (fun a => ?_))).mono (by rw [hb]) (fun _ _ h => h)
   set t4 := writeHash t3 a with ht4
   have f4 : Frame t3 t4 (fun x => 0xB0000 + 16 * j ≤ x ∧ x < 0xB0000 + 16 * j + 32) :=
     frame_writeHash t3 a _ x12 (by omega)

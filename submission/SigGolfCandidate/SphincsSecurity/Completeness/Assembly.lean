@@ -65,13 +65,13 @@ theorem probEvent_signedWithKeys_none (seed : MasterSeed) (message : Message) :
   rw [signedWithKeys]
   refine probEvent_bind_le _ _ _ ∅ _ (fun r hr => ?_)
   obtain ⟨hrand, hmsg, henc⟩ := keygen_fresh seed r hr message
-  have hmac := keygen_mac_cached seed r hr
+  obtain ⟨key, hkey, htag⟩ := keygen_mac_cached seed r hr
   refine le_trans (probEvent_bind_le_add _ _ (fun r => r.1 = none) _ r.2 0 ?_) ?_
   · rintro ⟨result, c⟩ _ hsome
     obtain ⟨signature, rfl⟩ := Option.ne_none_iff_exists'.mp hsome
     simp
   · rw [add_zero]
-    exact probEvent_sign_none r.1.2.2 r.1.2.1 message r.2 hmac hrand hmsg henc
+    exact probEvent_sign_none r.1.2.2 r.1.2.1 message r.2 key hkey htag hrand hmsg henc
 
 /-- One message fails from a fixed seed with probability at most `2⁻⁴¹⁹ + 5 · 2⁻¹⁷⁴¹`. -/
 theorem seeded_failure_le (seed : MasterSeed) (message : Message) :

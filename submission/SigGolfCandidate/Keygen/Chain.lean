@@ -39,7 +39,7 @@ def CSafe (e j k : Nat) : Prop :=
 
 theorem CCtx.frame {W : List Word} {e j : Nat} {leaves ends : List Val} {s t : MachineState}
     {keys : List Nat} (h : CCtx W e leaves j ends s) (he : e ≤ 2048) (hj : j ≤ 42)
-    (hr : ∀ r, r = .x5 ∨ r = .x8 ∨ r = .x30 ∨ r = .x9 ∨ r = .x26 ∨ r = .x19 ∨ r = .x17 ∨ r = .x20 ∨ r = .x21 →
+    (hr : ∀ r, r = .x5 ∨ r = .x8 ∨ r = .x30 ∨ r = .x9 ∨ r = .x19 ∨ r = .x17 ∨ r = .x20 ∨ r = .x21 →
       t.getReg r = s.getReg r)
     (hf : Frame s t keys) (hk : ∀ k ∈ keys, CSafe e j k)
     (ht1 : (t.getMem (BitVec.ofNat 64 1696)).toNat % 2 ^ 32 = 1)
@@ -47,7 +47,7 @@ theorem CCtx.frame {W : List Word} {e j : Nat} {leaves ends : List Val} {s t : M
     CCtx W e leaves j ends t := by
   have fr : ∀ A < 2 ^ 64, (∀ k ∈ keys, A ≠ k) → t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) :=
     fun A hA hne => hf A hA (fun hm => hne A hm rfl)
-  refine ⟨⟨h.base.frame (fun r hr' => hr r (by rcases hr' with h | h | h | h | h <;> simp [h]))
+  refine ⟨⟨h.base.frame (fun r hr' => hr r (by rcases hr' with h | h | h | h <;> simp [h]))
       hf (fun k hk' => (hk k hk').1), ht1, ht2, ?_, ?_, ?_, h.len, ?_⟩, ?_, ?_, ?_, ?_, h.elen, ?_⟩
   · rw [hr _ (by simp)]; exact h.r17
   · rw [hr _ (by simp)]; exact h.r19
@@ -154,9 +154,9 @@ theorem step_xsim (W : List Word) (e : Nat) (leaves : List Val) (j : Nat) (ends 
     simp at hk; rcases hk with rfl | rfl | rfl | rfl | rfl <;> omega), ?_⟩
   · 
     refine h.toCCtx.frame (by omega) (by omega) (fun r hr => ?_) fr (fun k hk => ?_) ?_ ?_
-    · rw [vun r (by rcases hr with h | h | h | h | h | h | h | h | h <;> simp [h])
-        (by rcases hr with h | h | h | h | h | h | h | h | h <;> simp [h]), getReg_writeHash,
-        ux r (by rcases hr with h | h | h | h | h | h | h | h | h <;> simp [h])]
+    · rw [vun r (by rcases hr with h | h | h | h | h | h | h | h <;> simp [h])
+        (by rcases hr with h | h | h | h | h | h | h | h <;> simp [h]), getReg_writeHash,
+        ux r (by rcases hr with h | h | h | h | h | h | h | h <;> simp [h])]
     · simp at hk
       rcases hk with rfl | rfl | rfl | rfl | rfl <;>
         simp [CSafe, BaseSafe, zeroKeys, REGION] <;> omega
@@ -201,7 +201,7 @@ theorem chain_xsim (W : List Word) (e : Nat) (leaves : List Val) (j x : Nat) (he
   have hv0 : SCtx W e leaves j ends 0 sv v := by
     refine ⟨?_, ?_, v23, ?_, v12, ⟨?_, ?_⟩, hsv⟩
     · refine h.frame (by omega) (by omega) (fun r hr => ?_) vfr (fun k hk => ?_) ?_ ?_
-      · rw [vx r (by rcases hr with h | h | h | h | h | h | h | h | h <;> simp [h])]
+      · rw [vx r (by rcases hr with h | h | h | h | h | h | h | h <;> simp [h])]
       · simp at hk; rcases hk with rfl | rfl <;> simp [CSafe, BaseSafe, zeroKeys, REGION]
       · rw [getMem_frame vfr (by norm_num) (by simp)]; exact h.t1
       · rw [getMem_frame vfr (by norm_num) (by simp)]; exact h.t2
@@ -232,7 +232,7 @@ theorem chain_xsim (W : List Word) (e : Nat) (leaves : List Val) (j x : Nat) (he
     hwk.frame yfr (by norm_num) (fun k hk => by simp at hk; omega), ?_⟩
   · refine CCtx.mk (LCtx.mk ?_ ?_ ?_ ?_ ?_ ?_ hs.len ?_) ?_ ?_ ?_ y21 ?_ ?_
     · refine hs.base.frame (fun r hr => yun r ?_ ?_ ?_ ?_ ?_) yfr (fun k hk => ?_) <;>
-        try (rcases hr with h | h | h | h | h <;> simp [h])
+        try (rcases hr with h | h | h | h <;> simp [h])
       simp at hk; rcases hk with rfl | rfl <;> simp [BaseSafe, zeroKeys] <;> omega
     · rw [getMem_frame yfr (by norm_num) (by simp; omega)]; exact hs.t1
     · rw [getMem_frame yfr (by norm_num) (by simp; omega)]; exact hs.t2
@@ -311,7 +311,7 @@ theorem pair_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (e : Nat) (lea
   have hwf := Frame.writeHash u2 a 320 u12 (by norm_num) (by norm_num)
   have c0 : CCtx W e leaves (2 * k) st.1 (writeHash u2 a) := by
     refine h.frame (by omega) (by omega) (fun r hr => ?_) (fr2.trans hwf) (fun k' hk' => ?_) ?_ ?_
-    · rw [getReg_writeHash, ux r (by rcases hr with h | h | h | h | h | h | h | h | h <;> simp [h])]
+    · rw [getReg_writeHash, ux r (by rcases hr with h | h | h | h | h | h | h | h <;> simp [h])]
     · simp at hk'
       rcases hk' with rfl | rfl | rfl | rfl | rfl <;> simp [CSafe, BaseSafe, zeroKeys, REGION] <;> omega
     · rw [getMem_frame hwf (by norm_num) (by simp), u1696, BitVec.toNat_ofNat]
@@ -332,7 +332,7 @@ theorem pair_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (e : Nat) (lea
   rw [if_neg (by omega)] at ypc
   have c1 : CCtx W e leaves (2 * k + 1) (st.1 ++ [v0]) y :=
     hw1.frame (by omega) (by omega)
-      (fun r hr => yun r (by rcases hr with h | h | h | h | h | h | h | h | h <;> simp [h])) yfr
+      (fun r hr => yun r (by rcases hr with h | h | h | h | h | h | h | h <;> simp [h])) yfr
       (by simp) (by rw [getMem_frame yfr (by norm_num) (by simp)]; exact hw1.t1)
       (by rw [getMem_frame yfr (by norm_num) (by simp)]; exact hw1.t2)
   have hyk : ValAt y 336 ((answerBytes 32 a).drop 16) := hwk.frame yfr (by norm_num) (by simp)
@@ -361,7 +361,7 @@ theorem leaf_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (e : Nat) (he 
   have h0 : CCtx W e acc.1 0 [] u := by
     refine CCtx.mk (LCtx.mk ?_ ?_ ?_ ?_ ?_ ?_ h.len ?_) u1704 u200 u840 u21 rfl (Vals.nil u 864)
     · refine h.base.frame (fun r hr => uun r ?_ ?_ ?_) ufr (fun k hk => ?_) <;>
-        try (rcases hr with h | h | h | h | h <;> simp [h])
+        try (rcases hr with h | h | h | h <;> simp [h])
       simp at hk; rcases hk with rfl | rfl | rfl <;> simp [BaseSafe, zeroKeys]
     · rw [getMem_frame ufr (by norm_num) (by simp)]; exact h.t1
     · rw [getMem_frame ufr (by norm_num) (by simp)]; exact h.t2
@@ -397,20 +397,18 @@ theorem leaf_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (e : Nat) (he 
     simp [leafInput, thInput, length_flatten16 _ hc.ev.1, hl42]
   have hxt : (thInput (tweak 3 1 0 0 e) st.1.flatten).length = 704 := by
     simp [thInput, length_flatten16 _ hc.ev.1, hl42]
-  have hq : hashInput x = MaskHeader.query (pad64 (thInput (tweak 3 1 0 0 e) st.1.flatten)) := by
-    refine hashInput_eq_mask_pad64 x 10 832 _ (BitVec.ofNat 64 66305) (by rw [x11]) (by norm_num) x10
-      (by norm_num) (by norm_num) (by omega) (by omega)
-      (by rw [xm 832 (by norm_num),hc.base.w832];rfl) ?_
-    simp only [wordsToNat]
-    rw [show 8 * 10 + 7 = 3 + 2 * st.1.length by omega, readWords_add, wordsToNat_append,
-      readWords_length, show 840 + 8 * 3 = 864 by norm_num]
+  have hq : hashInput x = pad64 (thInput (tweak 3 1 0 0 e) st.1.flatten) := by
+    refine hashInput_eq_pad64 x 10 832 _ (by rw [x11]) (by norm_num) x10
+      (by norm_num) (by norm_num) (by omega) (by omega) ?_
+    rw [show 8 * (10 + 1) = 4 + 2 * st.1.length by omega, readWords_add, wordsToNat_append,
+      readWords_length, show 832 + 8 * 4 = 864 by norm_num]
     have hv := wordsToNat_vals x 864 st.1 hc.ev.1 (fun i hi => by
       have := hc.ev.2 i hi
       exact ⟨by rw [xm _ (by omega)]; exact this.1, by rw [xm _ (by omega)]; exact this.2⟩)
     rw [hv]
     simp only [MachineState.readWords, ofNat_add8, Nat.reduceAdd, wordsToNat]
-    rw [xm 840 (by norm_num), xm 848 (by norm_num), xm 856 (by norm_num),
-      hc.w840, hc.base.zero 848 (by simp [zeroKeys]),
+    rw [xm 832 (by norm_num), xm 840 (by norm_num), xm 848 (by norm_num), xm 856 (by norm_num),
+      hc.base.w832, hc.w840, hc.base.zero 848 (by simp [zeroKeys]),
       hc.base.zero 856 (by simp [zeroKeys])]
     simp only [leafInput, thInput, leNat_append, List.length_append, length_tweak,
       P, leNat_zeros, length_zeros, leNat_tweak0 3 1 _ _ (by norm_num) (by norm_num)]
@@ -438,7 +436,7 @@ theorem leaf_xsim (W : List Word) (S : List Byte) (hS : SkOk W S) (e : Nat) (he 
   refine XSim.pure_steps yst ⟨LCtx.mk ?_ ?_ ?_ ?_ ?_ y20 (by simp [h.len]) ?_, ?_⟩
   · have fr := (xfr.trans hwf).trans yfr
     refine hc.base.frame (fun r hr => ?_) fr (fun k hk => ?_)
-    · rcases hr with rfl | rfl | rfl | rfl | rfl <;> exact yr _ (by simp) (by simp) (by simp) (by simp) (by simp)
+    · rcases hr with rfl | rfl | rfl | rfl <;> exact yr _ (by simp) (by simp) (by simp) (by simp) (by simp)
     · simp at hk
       rcases hk with rfl | rfl | rfl | rfl <;> simp [BaseSafe, zeroKeys, REGION] <;> omega
   · rw [ym _ (by norm_num), getMem_frame hwf (by norm_num) (by simp; unfold REGION; omega), xm _ (by norm_num)]

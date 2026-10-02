@@ -1,4 +1,3 @@
-import SigGolfCandidate.Keygen.Init
 import SigGolfCandidate.Sign.Code
 import SigGolfCandidate.Sign.Inv
 import SigGolfCandidate.Expand.Mem
@@ -65,39 +64,36 @@ theorem s0_getReg (sk : SecretKey) (cache : Cache) (m : Message) (r : Reg) (hr :
   rw [regs_writeBytesAsWords, regs_writeBytesAsWords, regs_writeBytesAsWords, regs_writeBytesAsWords]
   cases r <;> rfl
 
-theorem image_data_len : image.data.length = 320 := by kernel_rfl
-theorem image_data_base : dataBase image = 16776896 := by kernel_rfl
+theorem image_data : image.data = [] := by kernel_rfl
 
 theorem length_bytes {n : Nat} (x : Bytes n) : (SigGolfCandidate.Legacy.bytes x).length = n := by
   simp [SigGolfCandidate.Legacy.bytes]
 
 /-- Bytes of the initial memory. -/
-theorem s0_getByte (sk : SecretKey) (cache : Cache) (m : Message) (a : Nat) (ha : a < 16776896) :
+theorem s0_getByte (sk : SecretKey) (cache : Cache) (m : Message) (a : Nat) (ha : a < 2 ^ 64) :
     (s0 sk cache m).getByte (BitVec.ofNat 64 a) =
       if 0x20 ≤ a ∧ a < 0x40 then (SigGolfCandidate.Legacy.bytes m).getD (a - 0x20) 0
       else if 0x4B00 ≤ a ∧ a < 0x4B00 + 131072 then (SigGolfCandidate.Legacy.bytes cache).getD (a - 0x4B00) 0
       else if 0x80 ≤ a ∧ a < 0xA0 then (SigGolfCandidate.Legacy.bytes sk).getD (a - 0x80) 0
       else 0 := by
   unfold s0
-  simp only [getByte_setReg]
+  simp only [getByte_setReg, image_data]
   have L1 : (SigGolfCandidate.Legacy.bytes m).length = 32 := length_bytes m
   have L2 : (SigGolfCandidate.Legacy.bytes cache).length = 131072 := length_bytes cache
   have L3 : (SigGolfCandidate.Legacy.bytes sk).length = 32 := length_bytes sk
-  rw [getByte_writeBytesAsWords _ _ _ _ (by decide) (by rw [L1]; norm_num) (by omega), L1]
+  rw [getByte_writeBytesAsWords _ _ _ _ (by decide) (by rw [L1]; norm_num) ha, L1]
   by_cases h1 : 0x20 ≤ a ∧ a < 0x40
   · rw [if_pos (by omega), if_pos h1]
   rw [if_neg (by omega), if_neg h1, getByte_writeBytesAsWords _ _ _ _ (by decide)
-    (by rw [L2]; norm_num) (by omega), L2]
+    (by rw [L2]; norm_num) ha, L2]
   by_cases h2 : 0x4B00 ≤ a ∧ a < 0x4B00 + 131072
   · rw [if_pos (by omega), if_pos h2]
   rw [if_neg (by omega), if_neg h2, getByte_writeBytesAsWords _ _ _ _ (by decide)
-    (by rw [L3]; norm_num) (by omega), L3]
+    (by rw [L3]; norm_num) ha, L3]
   by_cases h3 : 0x80 ≤ a ∧ a < 0xA0
   · rw [if_pos (by omega), if_pos h3]
   rw [if_neg (by omega), if_neg h3]
-  rw [getByte_writeBytesAsWords _ _ _ _ (by rw [image_data_base])
-    (by rw [image_data_base,image_data_len];decide) (by omega),image_data_base,image_data_len,if_neg (by omega)]
-  simp [MachineState.getByte,MachineState.getMem,extractByte]
+  simp [MachineState.writeBytesAsWords, MachineState.getByte, MachineState.getMem, extractByte]
 
 /-- A dword from its bytes. -/
 theorem getMem_of_bytes (t : MachineState) (A : Nat) (hA : A % 8 = 0) (hA' : A + 8 < 2 ^ 64) :
@@ -162,10 +158,10 @@ theorem s0_readWords_msg (sk : SecretKey) (cache : Cache) (m : Message) :
 
 /-- The initial memory is zero outside the message, secret key and cache. -/
 theorem s0_zero (sk : SecretKey) (cache : Cache) (m : Message) (A : Nat) (hA : A % 8 = 0)
-    (hA' : A + 8 < 16776896)
+    (hA' : A + 8 < 2 ^ 64)
     (hout : A + 8 ≤ 0x20 ∨ (0x40 ≤ A ∧ A + 8 ≤ 0x80) ∨ (0xA0 ≤ A ∧ A + 8 ≤ 0x4B00) ∨ 0x24B00 ≤ A) :
     (s0 sk cache m).getMem (BitVec.ofNat 64 A) = 0 := by
-  rw [getMem_of_bytes _ A hA (by omega)]
+  rw [getMem_of_bytes _ A hA hA']
   have : (List.range 8).map (fun j => (s0 sk cache m).getByte (BitVec.ofNat 64 (A + j))) =
       List.replicate 8 0 := by
     apply List.ext_getElem (by simp)
@@ -197,20 +193,5 @@ theorem s0_readWords_cache (sk : SecretKey) (cache : Cache) (m : Message) (off n
   rw [s0_getByte _ _ _ _ (by omega), if_neg (by omega), if_pos (by omega),
     getD_slice _ _ _ _ hj (by rw [hlen]; omega), show 0x4B00 + off + j - 0x4B00 = off + j by omega]
   rfl
-
-
-theorem s0_band (sk : SecretKey) (cache : Cache) (m : Message) : SigGolfCandidate.Sign.SmallBandTable (s0 sk cache m) := by
- intro lay hl k hk
- have L0 : (SigGolfCandidate.Legacy.bytes m).length=32 := length_bytes m
- have L1 : (SigGolfCandidate.Legacy.bytes cache).length=131072 := length_bytes cache
- have L2 : (SigGolfCandidate.Legacy.bytes sk).length=32 := length_bytes sk
- unfold s0
- simp only [MachineState.getMem_setReg]
- rw [SigGolfCandidate.Keygen.getMem_writeBytesAsWords _ _ _ _ (by rw [L0];norm_num) (by omega),L0,if_neg (by omega)]
- rw [SigGolfCandidate.Keygen.getMem_writeBytesAsWords _ _ _ _ (by rw [L1];norm_num) (by omega),L1,if_neg (by omega)]
- rw [SigGolfCandidate.Keygen.getMem_writeBytesAsWords _ _ _ _ (by rw [L2];norm_num) (by omega),L2,if_neg (by omega)]
- rw [SigGolfCandidate.Keygen.getMem_writeBytesAsWords _ _ _ _ (by rw [image_data_base,image_data_len];decide) (by omega)]
- rw [image_data_base,image_data_len]
- interval_cases lay <;> interval_cases k <;> decide +kernel
 
 end SigGolfCandidate.Sign

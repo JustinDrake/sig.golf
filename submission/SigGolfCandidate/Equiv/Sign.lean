@@ -423,15 +423,18 @@ def signCont (S cache : List Byte) (rho : Ref.Val) (idx : Nat) (lv : List Nat) :
   | some lays => pure (some (Ref.serialize rho fts lays))
 
 theorem signList_eq_cont (S cache m : List Byte) :
-    Ref.signList S cache m = Ref.H (Ref.macInput S (Ref.cacheRegion cache)) >>= fun tag =>
-      if Ref.toList (n := 32) tag = Ref.cacheTag cache then
+    Ref.signList S cache m = Ref.H (Ref.macKeyInput S 0) >>= fun a0 =>
+      Ref.H (Ref.macKeyInput S 1) >>= fun a1 => Ref.H (Ref.macKeyInput S 2) >>= fun a2 =>
+      if Ref.macTag a0 a1 a2 (Ref.cacheRegion cache) = Ref.cacheTag cache then
         (Option.map projN <$> Ref.searchDigestPairs S m 0 Ref.aMax) >>= fun r =>
           match r with
           | none => pure none
           | some (rho, idx, lv) => signCont S cache rho idx lv
       else pure none := by
   unfold Ref.signList
-  refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun tag => ?_
+  refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun a0 => ?_
+  refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun a1 => ?_
+  refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun a2 => ?_
   split_ifs
   · rw [bind_map_left]
     refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun r => ?_
@@ -468,15 +471,6 @@ theorem signCont_eq (seed : MasterSeed) (b : SigGolfCandidate.Cache) (randomness
   · simp only [Option.map_some, relabel_pure, map_pure]
     exact congrArg (fun x => pure (some x)) (serialize_eq randomness leaves hadm sec T parts)
 
-theorem toB_macHashInput (seed : MasterSeed) (b : SigGolfCandidate.Cache) :
-    toB (SphincsSecurity.macHashInput 0 seed (cacheDec b).region) =
-      Ref.macInput (Ref.toList (n := 32) seed) (Ref.cacheRegion (Ref.toList b)) := by
-  unfold SphincsSecurity.macHashInput
-  simp only [toB_append, toB_P, toB_seed, toB_regionBytes_cacheDec, Ref.macInput, Ref.thInput,
-    List.append_assoc]
-  rw [show (⟨14#8, 0#8, 0#40, 0#32, 0#32⟩ : SphincsSecurity.TweakFields) =
-    SphincsSecurity.tweakFields 14 0 0 0 0 from rfl, toB_tweakFields]
-
 /-- **sign** (byte lists): the reference signer is the relabelled abstract signer on the decoded
 cache, for any secret key with the parameter `0` (the root is ignored). -/
 theorem signList_eq (sk : SphincsSecurity.Seeded.SecretKey) (hP : sk.parameter = 0)
@@ -486,10 +480,19 @@ theorem signList_eq (sk : SphincsSecurity.Seeded.SecretKey) (hP : sk.parameter =
         (SphincsSecurity.Seeded.sign (m := AComp) sk (cacheDec b) m) := by
   rw [signList_eq_cont]
   unfold SphincsSecurity.Seeded.sign
-  rw [hP, relabel_bind, relabel_oracleHash, toB_macHashInput, map_bind]
-  refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun tag => ?_
+  rw [hP, relabel_bind, map_bind, relabel_deriveMacKey]
+  refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun a0 => ?_
+  refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun a1 => ?_
+  refine bind_congr (m := OracleComp SigGolfCandidate.Legacy.HashSpec) fun a2 => ?_
+  generalize hkey : (Fin.cases a0 (Fin.cases a1 (Fin.cases a2 Fin.elim0)) : SphincsSecurity.MacKey) = key
+  have hmac : Ref.macTag a0 a1 a2 (Ref.cacheRegion (Ref.toList b)) =
+      tagBytes (SphincsSecurity.macTag key (SphincsSecurity.regionBytes (cacheDec b).region)) := by
+    rw [← macTag_bytes, toB_regionBytes_cacheDec, ← hkey]
+    rfl
+  rw [hmac]
+  generalize SphincsSecurity.macTag key (SphincsSecurity.regionBytes (cacheDec b).region) = tag
   by_cases ht : tag = (cacheDec b).tag
-  · rw [if_pos ((cacheTag_iff b tag).mpr ht), if_pos ht]
+  · rw [if_pos ((cacheTag_iff b tag).mpr ht), if_pos ht.symm]
     unfold SphincsSecurity.Seeded.signChecked
     rw [show Ref.aMax = SphincsSecurity.digestPairLimit from rfl]
     have hsd := searchDigestPairs_eq sk hP m SphincsSecurity.digestPairLimit 0
@@ -502,7 +505,7 @@ theorem signList_eq (sk : SphincsSecurity.Seeded.SecretKey) (hP : sk.parameter =
       have hadm := signDigestPairs_admissible sk m _ _ randomness index leaves
         (mem_support_relabel fmtQ _ _ hr)
       rw [signCont_eq _ _ _ _ _ hadm, hP]
-  · rw [if_neg (fun h => ht ((cacheTag_iff b tag).mp h)), if_neg ht]
+  · rw [if_neg (fun h => ht ((cacheTag_iff b tag).mp h)), if_neg (fun h => ht h.symm)]
     simp
 
 /-- **sign**: `signRef` is the relabelled abstract signer on the decoded cache, compressed. -/

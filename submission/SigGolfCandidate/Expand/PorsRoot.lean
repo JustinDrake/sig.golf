@@ -32,7 +32,7 @@ initial state. -/
 theorem blk495_run (w : List Byte) (K : Nat → Nat) (t : MachineState) (hpc : t.pc = pcOf 495) (N0 : Nat)
     (hN0 : N0 < 2 ^ 64) (h160 : t.getMem (BitVec.ofNat 64 0x160) = BitVec.ofNat 64 N0) (hw : WitMem w t)
     (hk : ∀ p < 15, t.getMem (BitVec.ofNat 64 (0x6E0 + 8 * p)) = BitVec.ofNat 64 (K p))
-    (hkl : ∀ p < 15, K p < 2 ^ 22) (hTable:SmallBandTable t) :
+    (hkl : ∀ p < 15, K p < 2 ^ 22) :
     ∃ t', Steps eimg t 34 34 t' ∧ LeafInv w (N0 % 2 ^ 34) K 0 ⟨5504, 0, 0, 0, [], []⟩ t' ∧
       Frame t t' (fun a => a = 0x30000 ∨ a = 0x30010 ∨ a = 0x30018 ∨ a = 0x30030 ∨ a = 0x30038 ∨
         a = 0x30040 ∨ a = 0x30050 ∨ a = 0x30058) := by
@@ -52,7 +52,7 @@ theorem blk495_run (w : List Byte) (K : Nat → Nat) (t : MachineState) (hpc : t
   refine ⟨_, symRun_sound Expand.blk495 Expand.codeAt_495 t hpc (by simp only [Expand.blk495.res, rv_simp]),
     ⟨⟨hidx', x4, by simp only [Expand.blk495.res, rv_simp], by pnum [Expand.blk495.res],
       by simp only [Expand.blk495.res, rv_simp], ?_, by simp only [Expand.blk495.res, rv_simp], ?_, ?_, ?_, ?_, ?_, ?_,
-      ?_, ?_, hw.frame hfr (fun a h1 h2 => by unfold witA at h1; omega), ?_, hkl, hTable.frame hfr (by intro a ha hb;omega)⟩,
+      ?_, ?_, hw.frame hfr (fun a h1 h2 => by unfold witA at h1; omega), ?_, hkl⟩,
     by simp only [Expand.blk495.res, rv_simp]; rw [if_pos (by norm_num)], by norm_num, by simp only [Expand.blk495.res, rv_simp],
     by pnum [Expand.blk495.res], by simp only [Expand.blk495.res, rv_simp],
     by simp only [Expand.blk495.res, rv_simp], by simp only [Expand.blk495.res, rv_simp],
@@ -94,10 +94,10 @@ def RootOut (w : List Byte) (idx : Nat) (K : Nat → Nat) (M : Val) (t : Machine
 theorem porsRoot_sim (w : List Byte) (K : Nat → Nat) (v : List Nat) (t : MachineState) (hpc : t.pc = pcOf 495)
     (N0 : Nat) (hN0 : N0 < 2 ^ 64) (h160 : t.getMem (BitVec.ofNat 64 0x160) = BitVec.ofNat 64 N0)
     (hw : WitMem w t) (hk : ∀ p < 15, t.getMem (BitVec.ofNat 64 (0x6E0 + 8 * p)) = BitVec.ofNat 64 (K p))
-    (hkl : ∀ p < 15, K p < 2 ^ 22) (hTable:SmallBandTable t) (hwl : 4096 ≤ w.length)
+    (hkl : ∀ p < 15, K p < 2 ^ 22) (hwl : 4096 ≤ w.length)
     (hx : ∀ s < 15, (v ++ [porsT]).getD (witPi w s / 8 % 16) 0 = K s / 256) :
     Sim eimg t 400000 (porsRoot (N0 % 2 ^ 34) v w) (OPost (RootOut w (N0 % 2 ^ 34) K)) := by
-  obtain ⟨t1, hs1, hinv, hfr⟩ := blk495_run w K t hpc N0 hN0 h160 hw hk hkl hTable
+  obtain ⟨t1, hs1, hinv, hfr⟩ := blk495_run w K t hpc N0 hN0 h160 hw hk hkl
   have hl := porsLeaves_sim w (N0 % 2 ^ 34) K v hwl hx 15 0 ⟨5504, 0, 0, 0, [], []⟩ t1 (by norm_num) hinv
   unfold porsRoot
   rw [show List.range porsK = List.range' 0 15 from List.range_eq_range', show wStream = 5504 from rfl]

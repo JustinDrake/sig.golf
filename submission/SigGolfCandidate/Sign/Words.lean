@@ -400,8 +400,8 @@ theorem words_encInput (lay tau e : Nat) (M : Val) (hM : M.length = 32) (c : Nat
 
 /-- The complete child pair follows the padded counter after the encoding-only rotation. -/
 theorem addrFmt_encInput_words (lay tau e : Nat) (M : Val) (hM : M.length = 32) (c : Nat) :
-    addrFmt (encInput lay tau e M c) = Ref.MaskHeader.query (queryOfWords 0
-      (twWords 4 lay tau 0 e ++ [BitVec.ofNat 64 (c % 2^32),0] ++ wordsOf M)) := by
+    addrFmt (encInput lay tau e M c) = queryOfWords 0
+      (twWords 4 lay tau 0 e ++ [BitVec.ofNat 64 (c % 2^32),0] ++ wordsOf M) := by
   obtain ⟨hn,hw⟩ := words_encInput lay tau e M hM c
   have hlen : (wordsOf M).length = 4 := by
     rw [← List.take_append_drop 16 M, wordsOf_append _ _ (by simp; omega), List.length_append,
@@ -412,7 +412,6 @@ theorem addrFmt_encInput_words (lay tau e : Nat) (M : Val) (hM : M.length = 32) 
   rw [addrFmt_encInput_valid lay tau e M hM c,hf,pad64_eq_query,hn,hw,hm]
   simp only [twWords,Nat.reduceMod,Nat.zero_mod,Nat.mul_zero,Nat.add_zero,
     List.cons_append,List.nil_append]
-  apply congrArg Ref.MaskHeader.query
   apply EncodingRotate.query_words
   simp only [BitVec.toNat_ofNat,Nat.reducePow]
   omega

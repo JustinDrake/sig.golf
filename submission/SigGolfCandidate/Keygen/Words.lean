@@ -237,19 +237,4 @@ theorem hashInput_eq_block (t : MachineState) (B : Nat) (y : List Byte)
       (by rw [h10, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hB']; exact hB), h10, queryOfWords, hw]
   rfl
 
-theorem hashInput_eq_mask_pad64 (t : MachineState) (n B : Nat) (x : List Byte) (w : Word)
-    (h11 : t.getReg .x11 = BitVec.ofNat 64 (64 * (n + 1))) (hn : 64 * (n + 1) < 2 ^ 64)
-    (h10 : t.getReg .x10 = BitVec.ofNat 64 B) (hB : B % 8 = 0) (hB' : B < 2 ^ 64)
-    (h1 : x.length ≤ 64 * (n + 1)) (h2 : 64 * n < x.length)
-    (hh : t.getMem (BitVec.ofNat 64 B)=BitVec.ofNat 64 (MaskHeader.header n w.toNat))
-    (hw : wordsToNat (w::t.readWords (BitVec.ofNat 64 (B+8)) (8*n+7))=leNat x) :
-    hashInput t=MaskHeader.query (pad64 x) := by
-  have hq : queryOfWords n (w::t.readWords (BitVec.ofNat 64 (B+8)) (8*n+7))=pad64 x := by
-    rw [pad64_eq x n h1 h2,queryOfWords,hw]
-    simp [ofList,leNat_append]
-  rw [←hq,MaskHeader.query_words _ _ _ (by rw [readWords_length];omega),
-    hashInput_eq_words t n h11 hn (by rw [h10,BitVec.toNat_ofNat,Nat.mod_eq_of_lt hB'];exact hB),h10]
-  rw [show 8*(n+1)=(8*n+7)+1 by omega,MachineState.readWords_succ,ofNat_add8,hh]
-
-
 end SigGolfCandidate.Keygen

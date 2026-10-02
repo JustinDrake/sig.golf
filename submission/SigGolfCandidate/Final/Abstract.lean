@@ -67,7 +67,7 @@ theorem hq_game (seed : MasterSeed) (message : Message) : Equiv.HQ (game seed me
   refine Equiv.hq_bind (Equiv.hq_sequenceFin _ fun _ => Equiv.hq_bind (Equiv.hq_sequenceFin _ fun _ =>
     Equiv.hq_bind (Equiv.hq_maskSecret _ _ _ _) fun _ => Equiv.hq_pure _) fun _ => Equiv.hq_pure _)
     fun _ => ?_
-  refine Equiv.hq_bind (Equiv.hq_mac _ _ _) fun _ => ?_
+  refine Equiv.hq_bind (Equiv.hq_mac _ _) fun _ => ?_
   refine Equiv.hq_bind (Equiv.hq_sign _ rfl _ _) fun s => ?_
   rcases s with _ | σ
   · exact Equiv.hq_pure _
@@ -81,7 +81,7 @@ theorem hq_gameX (seed : MasterSeed) (message : Message) : Equiv.HQ (gameX seed 
   refine Equiv.hq_bind (Equiv.hq_sequenceFin _ fun _ => Equiv.hq_bind (Equiv.hq_sequenceFin _ fun _ =>
     Equiv.hq_bind (Equiv.hq_maskSecret _ _ _ _) fun _ => Equiv.hq_pure _) fun _ => Equiv.hq_pure _)
     fun _ => ?_
-  refine Equiv.hq_bind (Equiv.hq_mac _ _ _) fun _ => ?_
+  refine Equiv.hq_bind (Equiv.hq_mac _ _) fun _ => ?_
   refine Equiv.hq_bind (Equiv.hq_sign _ rfl _ _) fun s => ?_
   rcases s with _ | σ
   · exact Equiv.hq_pure _

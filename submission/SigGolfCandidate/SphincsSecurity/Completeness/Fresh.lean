@@ -359,8 +359,15 @@ theorem Avoids.maskRegion (parameter : PublicParameter) (seed : MasterSeed)
   exact Avoids.bind f target (Avoids.deriveKey f target parameter _ seed (hmask _ _))
     (Avoids.pure' f target _)
 
+/-- Deriving the MAC key makes its three derivations and nothing else. -/
+theorem Avoids.deriveMacKey (parameter : PublicParameter) (seed : MasterSeed)
+    (hkey : ∀ index : Fin 3, keygenHashInput parameter (.mackey index) seed ≠ target) :
+    Avoids f target (Seeded.deriveMacKey parameter seed : OracleComp HashSpec MacKey) := by
+  rw [Seeded.deriveMacKey]
+  exact Avoids.sequenceFin f target _ fun index => Avoids.oracleHash f target _ (hkey index)
+
 /-- Key generation builds the top tree from its derived secrets, masks it with derived masks, and
-authenticates the masked region with one MAC query, and nothing else. -/
+derives the MAC key, and nothing else. -/
 theorem Avoids.keygenFromSeed (seed : MasterSeed)
     (hchain : ∀ (leaf : LeafIndex) (chainIdx : ChainIndex) (step : ChainStep) (payload : HashInput),
       tweakableHashInput 0 (.chain topLayer rootTree leaf chainIdx step) payload ≠ target)
@@ -368,8 +375,7 @@ theorem Avoids.keygenFromSeed (seed : MasterSeed)
       tweakableHashInput 0 (.leaf topLayer rootTree leaf) payload ≠ target)
     (hnode : ∀ (level nodeIdx : Nat) (payload : HashInput),
       tweakableHashInput 0 (.node topLayer rootTree level nodeIdx) payload ≠ target)
-    (hderive : ∀ domain : KeygenDomain, keygenHashInput 0 domain seed ≠ target)
-    (hmac : ∀ region : TopRegion, macHashInput 0 seed region ≠ target) :
+    (hderive : ∀ domain : KeygenDomain, keygenHashInput 0 domain seed ≠ target) :
     Avoids f target (Seeded.keygenFromSeed seed) := by
   rw [Seeded.keygenFromSeed]
   refine Avoids.bind f target
@@ -380,7 +386,8 @@ theorem Avoids.keygenFromSeed (seed : MasterSeed)
   -- whole build
   split
   exact Avoids.bind f target (Avoids.maskRegion f target 0 seed _ fun _ _ => hderive _)
-    (Avoids.bind f target (Avoids.oracleHash f target _ (hmac _)) (Avoids.pure' f target _))
+    (Avoids.bind f target (Avoids.deriveMacKey f target 0 seed fun _ => hderive _)
+      (Avoids.pure' f target _))
 
 /-! ## The signing side
 

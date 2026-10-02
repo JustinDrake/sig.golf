@@ -250,14 +250,14 @@ variable {lay : Nat}
 /-- Number of accepted encodings at the selected layer. -/
 
 def codeCount (lay : Nat) : Nat :=
-  if 4 ≤ lay then 71786678291161839950687921634415232
+  if 2 ≤ lay then 71786678291161839950687921634415232
   else 85765828219404593829886748260228224
 
 theorem gfDigit_eq (X : Nat) : gfDigit X = 1 + X + X ^ 2 + X ^ 3 + X ^ 4 + X ^ 5 + X ^ 6 + X ^ 7 := by
   simp [gfDigit, Finset.sum_range_succ]
 
 theorem npair_target : npair 21 (targetFor lay) = codeCount lay := by
-  by_cases h : 4 ≤ lay
+  by_cases h : 2 ≤ lay
   · simp only [targetFor, targetSum, h, if_true, Nat.reduceAdd, codeCount]
     rw [npair_coeff 21 186 (2 ^ 128) (by norm_num) (by norm_num), gfDigit_eq]
     decide

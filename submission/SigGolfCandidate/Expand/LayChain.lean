@@ -31,12 +31,11 @@ structure LCtx (w : List Byte) (idx : Nat) (t : MachineState) : Prop where
   lfz : t.readWords (BitVec.ofNat 64 0x30250) 2 = [0, 0]
   nbz : t.readWords (BitVec.ofNat 64 0x301D0) 2 = [0, 0]
   wit : WitMem w t
-  band : SmallBandTable t
 
 /-- Addresses `LCtx` reads. -/
 def lctxA (a : Nat) : Prop :=
   (0x30150 ≤ a ∧ a < 0x30170) ∨ (0x30250 ≤ a ∧ a < 0x30260) ∨
-    (0x301D0 ≤ a ∧ a < 0x301E0) ∨ witA a ∨ (16776896≤a ∧ a<16777216)
+    (0x301D0 ≤ a ∧ a < 0x301E0) ∨ witA a
 
 /-- Registers `LCtx` reads. -/
 def lctxRegs : List Reg := [.x5, .x7, .x22, .x25, .x26, .x27]
@@ -45,7 +44,7 @@ theorem LCtx.frame {w : List Byte} {idx : Nat} {s t : MachineState} {W : Nat →
     (h : LCtx w idx s) (hf : Frame s t W) (hr : RegsEq s t l) (hW : ∀ a, lctxA a → ¬ W a)
     (hl : ∀ r ∈ lctxRegs, r ∉ l := by decide) : LCtx w idx t := by
   refine ⟨h.hidx, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, h.wit.frame hf (fun a ha => hW a (by
-    unfold lctxA; simp only [ha, or_true, true_or])), ?_⟩
+    unfold lctxA; simp only [ha, or_true]))⟩
   · rw [hr.get .x5 (hl _ (by decide)), h.x5]
   · rw [hr.get .x7 (hl _ (by decide)), h.x7]
   · rw [hr.get .x22 (hl _ (by decide)), h.x22]
@@ -55,8 +54,6 @@ theorem LCtx.frame {w : List Byte} {idx : Nat} {s t : MachineState} {W : Nat →
   · rw [hf.readWords _ _ (by norm_num) (fun i hi => hW _ (by unfold lctxA; omega)), h.cbz]
   · rw [hf.readWords _ _ (by norm_num) (fun i hi => hW _ (by unfold lctxA; omega)), h.lfz]
   · rw [hf.readWords _ _ (by norm_num) (fun i hi => hW _ (by unfold lctxA; omega)), h.nbz]
-
-  · exact h.band.frame hf (by intro a ha hb;apply hW;unfold lctxA;omega)
 
 theorem LCtx.frame_nil {w : List Byte} {idx : Nat} {s t : MachineState} {l : List Reg}
     (h : LCtx w idx s) (hm : ∀ x, t.getMem x = s.getMem x) (hr : RegsEq s t l)

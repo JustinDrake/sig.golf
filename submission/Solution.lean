@@ -5,28 +5,29 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=13712 witness bytes, K=131072 cache bytes.
-The claim C=10253 is accepting verifier bound10199 plus witness charge54.
-Frodan's accepted 7895876537ee1f5651401e321564ef0e4ec5a5a3 carries the lower
-fold-dispatch page bias in x23 and relocates top return slots, saving six cycles.
-The root reuses the already loaded SWAR mask as its header, removing one load.
-A total first-word permutation at native query lengths64 and704 bytes relabels
-encoding, node, and leaf headers; all four concrete programs implement it.
-The inverse handles every malformed query too, and query-block counts are preserved.
-The folded layer-1..4 dispatch is adapted from Meganpark980320 PR277,
-as integrated by jungjipdo PR280 (36cf0c50). It replaces the earlier retained-base
-dispatch from znan2 PR268 (b2779c2d), saving three further instructions.
-The WOTS base is rebased by704 using erickeigen PR269 (ba7c484e), preserving every
-chain address while removing one initializer instruction.
-This combines i34-9's seven-instruction SWAR (PR283) and Frodan's packed
-authentication witness (PR286), with our total root-header permutation (PR287).
-The packed witness starts at4720 and costs54 cycles.
-A total native-query permutation maps heap indices8..15 to constants already held
-in registers, saving one Merkle-fold instruction in each of the five layers.
-All producer programs implement the same map, with an inverse on arbitrary queries.
-The existing PORS instance-header rotation, zero-base digest, shared selector masks,
-root-children messages, carried leaf headers, rotated encoding payloads, and sparse
-PORS witness transport remain unchanged. All four programs retain the complete
-arbitrary-query formatter inverse and the same reference scheme.
+The claim C=10242 is accepting verifier bound 10188 plus witness charge 54.
+The signer checks the cache with a three-key polynomial MAC (mod 2^61 - 1) over the masked top tree,
+which now includes level 0, and layers 2 and 3 use target sum 186 (`addi x14, x0, 186` per copy).
+The top-tree root hash is written in place, into the node slot that the level below already
+selected in `a2`, and the compare reads the root from that slot, saving the `li a2` (one cycle).
+The PORS node/leaf instance header rotates bytes3..7 through a total query involution,
+so setup builds its two headers with a shift and add, saving four instructions.
+The WOTS digit-lane SWAR uses seven ALU instructions instead of nine in every layer, saving ten cycles.
+The witness-counter range check masks the merged counters with a constant mask word kept in the
+verifier data's padding word, replacing a shift/or/shift fold with one load and one and.
+Layers 1-4 fold the fold-dispatch page into the leaf index (`addi gp, x23, hi >> 9; slli gp, gp, 9`)
+instead of `slli; lui; add`, one instruction per layer; the transition's sentinel `ori` becomes an
+`addi` that also adds the page, so the leaf dispatch is just `slli; jalr` (one more per layer).
+The shared WOTS base is blk(lay, 0) + 640, making layer 4 exactly 0x4000.
+Each chain-relative immediate increases by 704, preserving every effective address,
+and all three layer-4 transition copies omit their previous base ADDI.
+The counter mask is credited to znan2 (afda1d5f) and the chain-base rebase to erickeigen (11be8e6b), on promoted base 9db8c3d (mjthatch 37e8348e, PORS header layout).
+This candidate retains the accepted ordered root-children message construction and adds
+length-separated leaf header reuse, a preserved selector threshold, a reversible
+top heap address reflection, carried upper-layer leaf headers, and rotated encoding
+payload lanes. The encoding header remains in memory and only its layer byte is updated,
+removing four header subtractions and one unused register initializer.
+Sparse temporary PORS cells share consumed chain-tweak slots. The certificate checks the concrete programs and query map.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[185,185,185,185,186].
 
@@ -88,9 +89,8 @@ c216d85858f8a7dcd68a2782cc27cfd057d45b67. Earlier public sources include
 0ba3dc24993dd3491a0a6a064c7cd9fbb9aa6439.
 
 The external witness omits its internal zero prefix. Temporary PORS cells share consumed
-chain tweak slots. The top authentication path is contiguous; lower paths use spare
-tweak cells at64-byte strides. The external witness begins at0x1270 and has13712 bytes,
-with charge54.
+chain tweak slots, and authentication paths use contiguous 16-byte cells. The external
+witness begins at 0x1270 and has 13712 bytes, with charge 55.
 
 The certificate covers all four images, universal termination, per-seed
 completeness, honest compression budgets,127-bit security and accepting
@@ -111,7 +111,7 @@ theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4720 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10253 :=
+theorem certificate : SigGolf.Certificate submission 10242 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

@@ -48,10 +48,10 @@ structure FCtx where
 def FCtx.ok (fc : FCtx) : Prop :=
   2 ≤ fc.h ∧ fc.h ≤ 11 ∧ fc.E < 2 ^ fc.h ∧ fc.t < 256 ∧ fc.f2 < 256 ∧ fc.wl.length = 16384 ∧
   fc.sibOff % 8 = 0 ∧ fc.sibOff + pathStrideL fc.lay * fc.h ≤ (if fc.lay = 0 then 2944 else 16384) ∧ safeDest fc.dst = true ∧
-  (fc.dst + 32 ≤ 0x340 ∨ 0x390 ≤ fc.dst) ∧ fc.lay < 5 ∧ fc.h = heightL fc.lay ∧
-  fc.sibOff = pathOffL fc.lay ∧ fc.dst = dstOf fc.lay
+  (fc.dst + 32 ≤ 0x340 ∨ 0x360 ≤ fc.dst) ∧ fc.lay < 5 ∧ fc.h = heightL fc.lay ∧
+  fc.sibOff = pathOffL fc.lay ∧ fc.dst = dstOf fc.lay fc.E
 
-def FCtx.lo0 (fc : FCtx) : Nat := Ref.MaskHeader.header 0 (1 + 256 * fc.t + 65536 * fc.f2 + 2 ^ 24 * (fc.tau / 2 ^ 32 % 256))
+def FCtx.lo0 (fc : FCtx) : Nat := 1 + 256 * fc.t + 65536 * fc.f2 + 2 ^ 24 * (fc.tau / 2 ^ 32 % 256)
 
 /-- Register `x23`: top reflected heap index, or lower heap index plus dispatch page. -/
 def FCtx.U (fc : FCtx) : Nat := if fc.lay = 0 then 4095 - fc.E else fc.E + 2 ^ fc.h + uOff fc.lay
@@ -109,7 +109,7 @@ theorem FCtx.vA_lt (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam + 1 < fc.h)
 
 def FoldEnd (fc : FCtx) (s0 : MachineState) (u : MachineState) : Prop :=
   Glob gkL fc.wl fc.pk u ∧ KnownOK (foldK fc.lay 64 ++ [(.x12, BitVec.ofNat 64 fc.dst)]) u ∧
-  FrameOK s0 u ∧ u.pc = pcOf (fc.X (fc.h - 1) + 8) ∧
+  FrameOK s0 u ∧ u.pc = pcOf (fc.X (fc.h - 1) + 7) ∧
   fetch image u = some (.base .ECALL) ∧
   (u.getMem (BitVec.ofNat 64 0x348)).toNat % 2 ^ 32 = fc.tau % 2 ^ 32
 
@@ -298,48 +298,13 @@ def FCtx.heap (fc : FCtx) (lam : Nat) : Nat :=
   if fc.lay = 0 then 3 * base - 1 - (base + fc.E / 2 ^ (lam + 1))
   else base + fc.E / 2 ^ (lam + 1)
 
-def FCtx.nativeHeap (fc : FCtx) (lam : Nat) : Nat := smallBandStore fc.lay (fc.heap lam) % 2^32
-
 /-- The oracle block of level `lam` (`addrFmt`): the node tweak with `p = 0` and the heap index. -/
 def FCtx.hinput (fc : FCtx) (lam : Nat) (v : Val) : Query := queryOfWords 0
-  [BitVec.ofNat 64 fc.lo0, BitVec.ofNat 64 (twHi fc.tau (fc.nativeHeap lam)), 0, 0,
+  [BitVec.ofNat 64 fc.lo0, BitVec.ofNat 64 (twHi fc.tau (fc.heap lam)), 0, 0,
     if bitOf fc.E lam = 1 then vw0 (fc.sib lam) else vw0 v,
     if bitOf fc.E lam = 1 then vw1 (fc.sib lam) else vw1 v,
     if bitOf fc.E lam = 1 then vw0 v else vw0 (fc.sib lam),
     if bitOf fc.E lam = 1 then vw1 v else vw1 (fc.sib lam)]
-
-theorem smallBandStore_out (lay h : Nat) (hb : ¬(8≤h ∧ h<16)) : smallBandStore lay h=h := by
- unfold smallBandStore
- split_ifs <;> omega
-
-theorem smallBandStore_map (lay h : Nat) (hl : lay<5) (hh : 1≤h ∧ h<2048) :
- smallBandStore lay h % 2^32 = SmallBand.heap (MaskHeader.nodeHeader lay) h := by
- by_cases hb : 8≤h ∧ h<16
- · have h8 : 8≤h := hb.1
-   have h16 : h≤15 := by omega
-   interval_cases lay <;> interval_cases h <;> decide
- · rw [smallBandStore_out lay h hb, Nat.mod_eq_of_lt (show h<2^32 by omega)]
-   symm
-   interval_cases lay
-   · change SmallBand.H0.heap h=h
-     simp only [SmallBand.H0.heap,if_neg (by omega : h≠8),if_neg (by omega : h≠9),if_neg (by omega : h≠10),if_neg (by omega : h≠11),if_neg (by omega : h≠12),if_neg (by omega : h≠13),if_neg (by omega : h≠14),if_neg (by omega : h≠15),if_neg (by omega : h≠0),if_neg (by omega : h≠4095),if_neg (by omega : h≠2688),if_neg (by omega : h≠261632),if_neg (by omega : h≠327680),if_neg (by omega : h≠5632),if_neg (by omega : h≠3340530119),if_neg (by omega : h≠1057222719)]
-   · change SmallBand.H1.heap h=h
-     simp only [SmallBand.H1.heap,if_neg (by omega : h≠8),if_neg (by omega : h≠9),if_neg (by omega : h≠10),if_neg (by omega : h≠11),if_neg (by omega : h≠12),if_neg (by omega : h≠13),if_neg (by omega : h≠14),if_neg (by omega : h≠15),if_neg (by omega : h≠0),if_neg (by omega : h≠4095),if_neg (by omega : h≠2688),if_neg (by omega : h≠261632),if_neg (by omega : h≠327680),if_neg (by omega : h≠8320),if_neg (by omega : h≠3340530119),if_neg (by omega : h≠1057222719)]
-   · change SmallBand.H2.heap h=h
-     simp only [SmallBand.H2.heap,if_neg (by omega : h≠8),if_neg (by omega : h≠9),if_neg (by omega : h≠10),if_neg (by omega : h≠11),if_neg (by omega : h≠12),if_neg (by omega : h≠13),if_neg (by omega : h≠14),if_neg (by omega : h≠15),if_neg (by omega : h≠0),if_neg (by omega : h≠4095),if_neg (by omega : h≠2688),if_neg (by omega : h≠261632),if_neg (by omega : h≠327680),if_neg (by omega : h≠11008),if_neg (by omega : h≠3340530119),if_neg (by omega : h≠1057222719)]
-   · change SmallBand.H3.heap h=h
-     simp only [SmallBand.H3.heap,if_neg (by omega : h≠8),if_neg (by omega : h≠9),if_neg (by omega : h≠10),if_neg (by omega : h≠11),if_neg (by omega : h≠12),if_neg (by omega : h≠13),if_neg (by omega : h≠14),if_neg (by omega : h≠15),if_neg (by omega : h≠0),if_neg (by omega : h≠4095),if_neg (by omega : h≠2688),if_neg (by omega : h≠261632),if_neg (by omega : h≠327680),if_neg (by omega : h≠13696),if_neg (by omega : h≠3340530119),if_neg (by omega : h≠1057222719)]
-   · change SmallBand.H4.heap h=h
-     simp only [SmallBand.H4.heap,if_neg (by omega : h≠8),if_neg (by omega : h≠9),if_neg (by omega : h≠10),if_neg (by omega : h≠11),if_neg (by omega : h≠12),if_neg (by omega : h≠13),if_neg (by omega : h≠14),if_neg (by omega : h≠15),if_neg (by omega : h≠0),if_neg (by omega : h≠4095),if_neg (by omega : h≠2688),if_neg (by omega : h≠261632),if_neg (by omega : h≠327680),if_neg (by omega : h≠16384),if_neg (by omega : h≠3340530119),if_neg (by omega : h≠1057222719)]
-
-theorem smallBandStore_merge (w : Word) (lay h lo : Nat) (hw : w.toNat % 2^32=lo) :
- StoreKind.merge .w w 4 (BitVec.ofNat 64 (smallBandStore lay h)) =
- BitVec.ofNat 64 (lo+2^32*(smallBandStore lay h % 2^32)) := by
- convert stMerge_eval w (smallBandStore lay h % 2^32) lo (Nat.mod_lt _ (by decide)) hw using 1 <;>
-  simp only [StoreKind.merge]
- congr 1
- apply BitVec.eq_of_toNat_eq
- simp
 
 theorem blk_eq_pad64 (l : List Byte) (hl : l.length = 64) : (⟨0, ofList _ l⟩ : Query) = pad64 l := by
   unfold pad64 padTo64 padBlocks
@@ -360,28 +325,6 @@ theorem heap_lt (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam < fc.h) : fc.h
 
 /-- A node's tree height as the oracle format reads it (hypertree nodes, tag 3). -/
 def NodeH (fc : FCtx) : Prop := fc.t = 3 ∧ fc.f2 = fc.lay ∧ fc.tau < 2 ^ 32
-
-theorem heap_range (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam<fc.h) :
- 1≤fc.heap lam ∧ fc.heap lam<2048 := by
- have hl : fc.lay<5 := hfc.2.2.2.2.2.2.2.2.2.2.1
- have hh : fc.h=heightL fc.lay := hfc.2.2.2.2.2.2.2.2.2.2.2.1
- have he := hfc.2.2.1
- rw [hh] at he hlam
- unfold FCtx.heap
- rw [hh]
- interval_cases fc.lay <;> simp only [heightL,List.getD_cons_succ,List.getD_cons_zero] at he hlam ⊢ <;>
-   interval_cases lam <;> norm_num at * <;> omega
-
-theorem heap_band (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam<fc.h) :
- (8≤fc.heap lam ∧ fc.heap lam<16) ↔ lam+4=heightL fc.lay := by
- have hl : fc.lay<5 := hfc.2.2.2.2.2.2.2.2.2.2.1
- have hh : fc.h=heightL fc.lay := hfc.2.2.2.2.2.2.2.2.2.2.2.1
- have he := hfc.2.2.1
- rw [hh] at he hlam
- unfold FCtx.heap
- rw [hh]
- interval_cases fc.lay <;> simp only [heightL,List.getD_cons_succ,List.getD_cons_zero] at he hlam ⊢ <;>
-   interval_cases lam <;> norm_num at * <;> omega
 
 theorem mirror_band (d j : Nat) (hd : d ≤ 10) (hj : j < 2 ^ d) :
     TopHeap.mirror (2 ^ d + j) = 3 * 2 ^ d - 1 - (2 ^ d + j) := by
@@ -434,32 +377,19 @@ theorem heapW1_twHi (tau j : Nat) (hj : j < 2 ^ 32) :
   rfl
 
 
-theorem smallHeapW1_twHi (lay tau j : Nat) (hl : lay<5) (hj:j<2^32) :
- SmallBand.heapW1 (BitVec.ofNat 64 (MaskHeader.nodeHeader lay)) (BitVec.ofNat 64 (twHi tau j)) =
- BitVec.ofNat 64 (twHi tau (SmallBand.heap (MaskHeader.nodeHeader lay) j)) := by
- have hn : MaskHeader.nodeHeader lay<2^64 := by interval_cases lay <;> decide
- have hh := SmallBand.heap_lt (MaskHeader.nodeHeader lay) j hj
- unfold SmallBand.heapW1 twHi
- simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hn, Nat.mod_eq_of_lt hj, Nat.mod_eq_of_lt hh]
- rw [Nat.mod_eq_of_lt (show tau%2^32+2^32*j<2^64 by omega),
-   show (tau%2^32+2^32*j)%4294967296=tau%2^32 by omega,
-   show (tau%2^32+2^32*j)/4294967296=j by omega,
-   Nat.mod_eq_of_lt (show SmallBand.heap (MaskHeader.nodeHeader lay) j<2^32 from hh)]
- rfl
-
 theorem addrFmt_nodeInput_words (lay tau lam j : Nat) (l r : Val)
     (hl : l.length = 16) (hr : r.length = 16) (hlay : lay < 5) (htau : tau < 2 ^ 32)
     (hlam : lam < 2 ^ 32) (hj : j < 2 ^ 32)
     (hh : heapIndex (height (lay % 256)) lam j < 2 ^ 32) :
     addrFmt (nodeInput lay tau lam j l r) = queryOfWords 0
-      [BitVec.ofNat 64 (Ref.MaskHeader.nodeHeader lay),
-        BitVec.ofNat 64 (twHi tau (SmallBand.heap (MaskHeader.nodeHeader lay) (if lay = 0 then TopHeap.mirror (heapIndex (height (lay % 256)) lam j)
-          else heapIndex (height (lay % 256)) lam j))), 0, 0, vw0 l, vw1 l, vw0 r, vw1 r] := by
+      [BitVec.ofNat 64 (twLo 3 lay tau 0),
+        BitVec.ofNat 64 (twHi tau (if lay = 0 then TopHeap.mirror (heapIndex (height (lay % 256)) lam j)
+          else heapIndex (height (lay % 256)) lam j)), 0, 0, vw0 l, vw1 l, vw0 r, vw1 r] := by
   rw [addrFmt_nodeInput]
-  change SmallBand.query (Ref.MaskHeader.query (EncodingRotate.query (Ref.LeafCarry.query (TopHeap.query (fmt (thInput (tweak 3 lay tau lam j) (l ++ r))))))) = _
+  change EncodingRotate.query (Ref.LeafCarry.query (TopHeap.query (fmt (thInput (tweak 3 lay tau lam j) (l ++ r))))) = _
   rw [fmt_thInput_node _ _ _ _ _ (by simp [hl, hr]) hlam hj,
     blk_eq_pad64 _ (by simp [hl, hr])]
-  change SmallBand.query (Ref.MaskHeader.query (EncodingRotate.query (Ref.LeafCarry.query (TopHeap.query (pad64 (nodeF 3 lay tau 0 _ l r)))))) = _
+  change EncodingRotate.query (Ref.LeafCarry.query (TopHeap.query (pad64 (nodeF 3 lay tau 0 _ l r)))) = _
   rw [pad64_nodeF _ _ _ _ _ _ _ hl hr]
   rw [Ref.LeafCarry.query_fixed_length _ (by simp only [TopHeap.query, queryOfWords]; split <;> exact (by decide : (0 : Nat) ≠ 10))]
   rw [TopHeap.query_words _ _ _ rfl]
@@ -472,17 +402,10 @@ theorem addrFmt_nodeInput_words (lay tau lam j : Nat) (l r : Val)
     have hh := AddressFormat.queryOfWords_class (BitVec.ofNat 64 (twLo 3 lay tau 0)) [w, 0, 0, vw0 l, vw1 l, vw0 r, vw1 r]
     rw [hw] at hh
     omega
-  have hsmall (j : Nat) (hj : j<2^32) : SmallBand.query (queryOfWords 0
-       [BitVec.ofNat 64 (MaskHeader.nodeHeader lay),BitVec.ofNat 64 (twHi tau j),0,0,vw0 l,vw1 l,vw0 r,vw1 r]) =
-      queryOfWords 0 [BitVec.ofNat 64 (MaskHeader.nodeHeader lay),BitVec.ofNat 64 (twHi tau (SmallBand.heap (MaskHeader.nodeHeader lay) j)),0,0,vw0 l,vw1 l,vw0 r,vw1 r] := by
-    rw [SmallBand.query_words _ _ _ rfl]
-    have hn : MaskHeader.nodeHeader lay<2^64 := by interval_cases lay <;> decide
-    rw [if_pos (by simpa only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hn] using SmallBand.nodeHead_node lay hlay),
-      smallHeapW1_twHi lay tau j hlay hj]
   by_cases h0 : lay = 0
-  · rw [if_pos (by rw [hw,h0]), if_pos h0, heapW1_twHi tau _ hh, hrot, Ref.MaskHeader.query_words 0 _ _ rfl, hw, Ref.MaskHeader.header_node lay hlay,
-      hsmall _ (TopHeap.mirror_lt _ hh)]
-  · rw [if_neg (by rw [hw]; omega), if_neg h0, hrot, Ref.MaskHeader.query_words 0 _ _ rfl, hw, Ref.MaskHeader.header_node lay hlay,hsmall _ hh]
+  · subst lay
+    rw [if_pos (by simpa [hw]), if_pos rfl, heapW1_twHi tau _ hh, hrot]
+  · rw [if_neg (by rw [hw]; omega), if_neg h0, hrot]
 
 theorem fmt_input (fc : FCtx) (hfc : fc.ok) (hn : NodeH fc) (lam : Nat) (hlam : lam < fc.h) (v : Val)
     (hv : v.length = 16) : addrFmt (fc.input lam v) = fc.hinput lam v := by
@@ -515,27 +438,19 @@ theorem fmt_input (fc : FCtx) (hfc : fc.ok) (hn : NodeH fc) (lam : Nat) (hlam : 
   change addrFmt (if fc.E / 2 ^ lam % 2 = 1 then nodeInput _ _ _ _ _ _ else nodeInput _ _ _ _ _ _) = _
   split_ifs
   · rw [key _ _ hs hv, heq]
-    have hlo : Ref.MaskHeader.nodeHeader fc.lay = fc.lo0 := by
-      unfold FCtx.lo0
-      rw [ht,hf,Nat.div_eq_of_lt htau]
-      convert (Ref.MaskHeader.header_node fc.lay hl).symm using 2 <;> omega
-    unfold FCtx.nativeHeap
-    rw [smallBandStore_map fc.lay (fc.heap lam) hl (heap_range fc hfc lam hlam)]
+    have hlo : twLo 3 fc.lay fc.tau 0 = fc.lo0 := by
+      unfold twLo FCtx.lo0; rw [ht, hf]; omega
     rw [hlo]
   · rw [key _ _ hv hs, heq]
-    have hlo : Ref.MaskHeader.nodeHeader fc.lay = fc.lo0 := by
-      unfold FCtx.lo0
-      rw [ht,hf,Nat.div_eq_of_lt htau]
-      convert (Ref.MaskHeader.header_node fc.lay hl).symm using 2 <;> omega
-    unfold FCtx.nativeHeap
-    rw [smallBandStore_map fc.lay (fc.heap lam) hl (heap_range fc hfc lam hlam)]
+    have hlo : twLo 3 fc.lay fc.tau 0 = fc.lo0 := by
+      unfold twLo FCtx.lo0; rw [ht, hf]; omega
     rw [hlo]
 
 theorem pad64_hinput (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam < fc.h) (v : Val)
     (hv : v.length = 16) :
     fc.hinput lam v = queryOfWords 0
       [BitVec.ofNat 64 fc.lo0,
-        BitVec.ofNat 64 (twHi fc.tau (fc.nativeHeap lam)), 0, 0,
+        BitVec.ofNat 64 (twHi fc.tau (fc.heap lam)), 0, 0,
         if bitOf fc.E lam = 1 then vw0 (fc.sib lam) else vw0 v,
         if bitOf fc.E lam = 1 then vw1 (fc.sib lam) else vw1 v,
         if bitOf fc.E lam = 1 then vw0 v else vw0 (fc.sib lam),
@@ -568,11 +483,9 @@ theorem U_lt (fc : FCtx) (hfc : fc.ok) : fc.U < 2 ^ 12 := by
       rw [hh]; interval_cases h : fc.lay <;> simp_all [heightL]
     simp only [if_neg h0]; split_ifs <;> omega
 
-theorem lo0_lt (fc : FCtx) (hfc : fc.ok) : fc.lo0 < 2 ^ 64 := by
+theorem lo0_lt (fc : FCtx) (hfc : fc.ok) : fc.lo0 < 2 ^ 32 := by
   obtain ⟨-, -, -, ht, hf2, -⟩ := hfc
-  unfold FCtx.lo0
-  apply Ref.MaskHeader.header_lt
-  omega
+  unfold FCtx.lo0; omega
 
 /-! ## The memory of a level run -/
 
@@ -681,7 +594,7 @@ theorem level_frame {fc : FCtx} {lam : Nat} {nb : E} {s t : MachineState}
 /-- The NB+12 value of a non-root level: the parent's heap index. -/
 theorem lvlNb_eval (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam + 1 < fc.h) (s : MachineState)
     (h23 : s.getReg .x23 = BitVec.ofNat 64 fc.U) :
-    (lvlNb fc.lay (fc.ci lam) (fc.blk (fc.ci lam)) (fc.kk lam)).eval s = BitVec.ofNat 64 (smallBandStore fc.lay (fc.heap lam)) := by
+    (lvlNb fc.lay (fc.ci lam) (fc.blk (fc.ci lam)) (fc.kk lam)).eval s = BitVec.ofNat 64 (fc.heap lam) := by
   have hl := hfc.2.2.2.2.2.2.2.2.2.2.1
   have hh : fc.h = heightL fc.lay := hfc.2.2.2.2.2.2.2.2.2.2.2.1
   obtain ⟨hci, hsum, hkb, hle, -, hend, hcon⟩ := chunk_facts fc.lay lam hl (by omega)
@@ -695,7 +608,7 @@ theorem lvlNb_eval (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam + 1 < fc.h)
     obtain ⟨-, hc⟩ := hc
     have htop := hcon hc
     simp only [cw, E.eval]
-    congr 2
+    congr 1
     unfold FCtx.heap FCtx.blk FCtx.ci FCtx.kk
     rw [blk_top _ _ _ _ (by rw [htop, ← hh]; exact hfc.2.2.1), ← hh,
       show chB0 fc.lay (chOf fc.lay lam) + (lam - chB0 fc.lay (chOf fc.lay lam) + 1) = lam + 1 by omega]
@@ -705,15 +618,7 @@ theorem lvlNb_eval (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam + 1 < fc.h)
       by_cases hk : lam - chB0 fc.lay (chOf fc.lay lam) + 1 < chBits fc.lay (chOf fc.lay lam)
       · exact hc ⟨hk, Or.inr h0⟩
       · exact h0 (hend (by omega) hk).1
-    have hn : ¬(8≤fc.heap lam ∧ fc.heap lam<16) := by
-      rw [heap_band fc hfc lam (by omega)]
-      intro hband
-      have hk : fc.kk lam+1<chBits fc.lay (fc.ci lam) := by
-        unfold FCtx.kk FCtx.ci
-        have hs : chB0 fc.lay (chOf fc.lay lam)+chBits fc.lay (chOf fc.lay lam)=heightL fc.lay := hcon (Or.inl (by simp [isConstLvl,hband]))
-        omega
-      exact hc ⟨hk,Or.inl (by simp [isConstLvl,hband])⟩
-    rw [smallBandStore_out _ _ hn, srl_eval fc.U (lam + 1) hU (by omega) s h23, U_div fc hfc h0 lam (by omega)]
+    rw [srl_eval fc.U (lam + 1) hU (by omega) s h23, U_div fc hfc h0 lam (by omega)]
 
 theorem blk_entry_run (lay ci v : Nat) (hc : blockCheck lay ci v = true) (s : MachineState)
     (hpc : s.pc = pcOf (m4Pc lay ci v 0)) (hK : KnownOK (lvlK lay (chB0 lay ci)) s) :
@@ -766,7 +671,7 @@ theorem slotReturn_run (E : Nat) (hE : E < 2048) (s : MachineState)
   · rw [hr]; exact (slotSpecsCheck_at E hE).2
 
 def levelCost (lay lam : Nat) : Nat :=
-  if lam + 1 = heightL lay then 14
+  if lam + 1 = heightL lay then 13
   else if lam - chB0 lay (chOf lay lam) + 1 < chBits lay (chOf lay lam) then
     (if lam = 0 then 2 else 0) + (if isConstLvl lay lam then 6 else 7) + 8
   else (if lam = 0 then 2 else 0) + 9 + 8
@@ -796,7 +701,7 @@ theorem level_lt (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam + 1 < fc.h)
   have hb2' := bitOf_lt fc.E (lam + 1)
   have hlo := lo0_lt fc hfc
   have hU := U_lt fc hfc
-  have hhp : fc.nativeHeap lam < 2^32 := Nat.mod_lt _ (by decide)
+  have hhp := heap_lt fc hfc lam (by omega)
   obtain ⟨hG, hK, h23, hN0, hN8, hv0, hv1, hvl, hF, hpc, hFresh, -, hlink⟩ := hs
   have hvA := fc.vA_lt hfc lam hlam
   rw [hvA] at hv0
@@ -832,9 +737,8 @@ theorem level_lt (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam + 1 < fc.h)
       · rw [htm, level_frame hmem 0x340 (by omega) (Or.inl hl0) (by omega) (by omega) (by omega)]
         exact hN0.2 hl0
     have m1C8 : t.getMem (BitVec.ofNat 64 0x348) =
-        BitVec.ofNat 64 (fc.tau % 2 ^ 32 + 2 ^ 32 * fc.nativeHeap lam) := by
-      rw [htm, hmem, lvlMem_1C8, hnb, smallBandStore_merge _ _ _ _ hN8]
-      rfl
+        BitVec.ofNat 64 (fc.tau % 2 ^ 32 + 2 ^ 32 * fc.heap lam) := by
+      rw [htm, hmem, lvlMem_1C8, hnb, stMerge_eval _ _ _ hhp hN8]
     have msib0 : t.getMem (BitVec.ofNat 64 (0x370 - 16 * b)) = vw0 (fc.sib lam) := by
       rw [htm, hmem, (lvlMem_sib _ _ _ hb2 _ s).1]; exact hsl.1
     have msib1 : t.getMem (BitVec.ofNat 64 (0x370 - 16 * b + 8)) = vw1 (fc.sib lam) := by
@@ -851,8 +755,8 @@ theorem level_lt (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam + 1 < fc.h)
       congr 1
       simp only [List.range, List.range.loop, List.map, Nat.reduceAdd, Nat.reduceMul, Nat.add_zero,
         Nat.mul_zero]
-      have hhi : twHi fc.tau (fc.nativeHeap lam) = fc.tau % 2 ^ 32 + 2 ^ 32 * fc.nativeHeap lam := by
-        unfold twHi FCtx.nativeHeap; omega
+      have hhi : twHi fc.tau (fc.heap lam) = fc.tau % 2 ^ 32 + 2 ^ 32 * fc.heap lam := by
+        unfold twHi; omega
       rw [hhi, m1C0, m1C8, mfr 0x350 (by omega) (by omega) (by omega) (by omega) (by omega),
         mfr 0x358 (by omega) (by omega) (by omega) (by omega) (by omega), hP 0x350 (by decide),
         hP 0x358 (by decide)]
@@ -986,11 +890,11 @@ theorem level_lt (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam + 1 < fc.h)
 theorem level_last (fc : FCtx) (hfc : fc.ok) (h0 : fc.lay = 0) (lam : Nat) (hlam : lam + 1 = fc.h)
     (hchk : ∀ ci, ci < nCh fc.lay → ∀ v, v < 2 ^ chBits fc.lay ci → blockCheck fc.lay ci v = true)
     (s0 : MachineState) (v : Val) (s : MachineState) (hs : FoldInv fc s0 lam v s) :
-    ∃ t, Steps image s 6 6 t ∧ t.getReg .x5 = 0 ∧ hashArgumentsValid t = true ∧
+    ∃ t, Steps image s 5 5 t ∧ t.getReg .x5 = 0 ∧ hashArgumentsValid t = true ∧
       hashInput t = fc.hinput lam v ∧ FoldEnd fc s0 t := by
   have hl := hfc.2.2.2.2.2.2.2.2.2.2.1
   have hh : fc.h = heightL fc.lay := hfc.2.2.2.2.2.2.2.2.2.2.2.1
-  have hdst : fc.dst = dstOf fc.lay := hfc.2.2.2.2.2.2.2.2.2.2.2.2.2
+  have hdst : fc.dst = dstOf fc.lay fc.E := hfc.2.2.2.2.2.2.2.2.2.2.2.2.2
   obtain ⟨hci, hsum, hkb, hle, -, -, -⟩ := chunk_facts fc.lay lam hl (by omega)
   have hc0 := hchk _ hci _ (blk_lt fc _)
   obtain ⟨hst, hec, hK', hkeep', hglob, hmem⟩ :=
@@ -1000,7 +904,7 @@ theorem level_last (fc : FCtx) (hfc : fc.ok) (h0 : fc.lay = 0) (lam : Nat) (hlam
   have hb2 := bitOf_lt fc.E lam
   have hlo := lo0_lt fc hfc
   have hl0 : lam ≠ 0 := by have := hfc.1; omega
-  obtain ⟨hG, hK, h23, hN0, hN8, hv0, hv1, hvl, hF, hpc, hFresh, -, hlink⟩ := hs
+  obtain ⟨hG, hK, h23, hN0, hN8, hv0, hv1, hvl, hF, hpc, hFresh, h12s, hlink⟩ := hs
   have hvA := fc.vA_zero h0 lam
   rw [hvA] at hv0
   rw [hvA, show 0x360 + 16 * bitOf fc.E lam + 8 = 0x368 + 16 * bitOf fc.E lam by omega] at hv1
@@ -1008,16 +912,31 @@ theorem level_last (fc : FCtx) (hfc : fc.ok) (h0 : fc.lay = 0) (lam : Nat) (hlam
   have hsafe := hfc.2.2.2.2.2.2.2.2.1
   have hroot : chB0 fc.lay (fc.ci lam) + fc.kk lam + 1 = heightL fc.lay := by
     simp only [FCtx.kk, FCtx.ci] at hsum ⊢; rw [hsum]; omega
-  have hn : r.steps = 6 ∧ r.cycles = 6 ∧ r.ecall = true ∧ r.spc = none ∧
-      r.pc = pcOf (m4Pc fc.lay (fc.ci lam) (fc.blk (fc.ci lam)) (fc.kk lam) + 8) := by
+  have hn : r.steps = 5 ∧ r.cycles = 5 ∧ r.ecall = true ∧ r.spc = none ∧
+      r.pc = pcOf (m4Pc fc.lay (fc.ci lam) (fc.blk (fc.ci lam)) (fc.kk lam) + 7) := by
     refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> simp only [hr, lvlExp, if_pos hroot]
   obtain ⟨hn1, hn2, hn3, hn4, hn5⟩ := hn
   have hKp := hK'
-  simp only [lvlPost, if_pos hroot, ← hdst] at hKp
-  have hK2 := KnownOK_append.mp hKp
-  have h10 : (r.toState s).getReg .x10 = BitVec.ofNat 64 0x340 := hK2.1 (.x10, _) (by simp [foldK, fk])
-  have h11 : (r.toState s).getReg .x11 = BitVec.ofNat 64 (64 * (0 + 1)) := hK2.1 (.x11, _) (by simp [foldK, fk])
-  have h12 : (r.toState s).getReg .x12 = BitVec.ofNat 64 fc.dst := hK2.2 _ (List.mem_singleton_self _)
+  simp only [lvlPost, if_pos hroot] at hKp
+  have h10 : (r.toState s).getReg .x10 = BitVec.ofNat 64 0x340 := hKp (.x10, _) (by simp [foldK, fk])
+  have h11 : (r.toState s).getReg .x11 = BitVec.ofNat 64 (64 * (0 + 1)) := hKp (.x11, _) (by simp [foldK, fk])
+  -- the root level does not touch `a2`: the root hash goes in place, into the node slot `fc.vA lam`
+  have hKs : KnownOK (lvlK fc.lay (chB0 fc.lay (fc.ci lam) + fc.kk lam)) s := by
+    unfold FCtx.kk FCtx.ci; rw [hsum]; exact hK
+  have hkeep12 : (r.toState s).getReg .x12 = s.getReg .x12 := by
+    rw [PRes.toState_getReg]
+    simp only [hr, lvlExp, if_pos hroot, lvlRegs]
+    rw [RegFile.get_set_ne _ _ (by decide), RegFile.get_set_ne _ _ (by decide)]
+    split
+    · rw [RegFile.get_set_ne _ _ (by decide)]; exact RegFile.withKnown_eval s _ hKs .x12
+    · exact RegFile.withKnown_eval s _ hKs .x12
+  have hdv : fc.dst = fc.vA lam := by
+    have h11' : fc.h = 11 := by simpa [h0, heightL] using hh
+    rw [hdst, hvA, h0]
+    unfold dstOf bitOf
+    rw [if_pos rfl, show lam = 10 by omega]
+  have h12 : (r.toState s).getReg .x12 = BitVec.ofNat 64 fc.dst := by
+    rw [hkeep12, h12s, hdv]
   have hnb : (lvlNb fc.lay (fc.ci lam) (fc.blk (fc.ci lam)) (fc.kk lam)).eval s = BitVec.ofNat 64 1 := by
     simp only [lvlNb, if_pos hroot]; rfl
   have mfr : ∀ A, A < 2 ^ 64 → A ≠ 0x348 → A ≠ 0x370 - 16 * b + 8 → A ≠ 0x370 - 16 * b →
@@ -1046,10 +965,8 @@ theorem level_last (fc : FCtx) (hfc : fc.ok) (h0 : fc.lay = 0) (lam : Nat) (hlam
     simp only [List.range, List.range.loop, List.map, Nat.reduceAdd, Nat.reduceMul, Nat.add_zero,
       Nat.mul_zero]
     have hj : fc.E / 2 ^ (lam + 1) = 0 := Nat.div_eq_of_lt (by rw [hlam]; exact hfc.2.2.1)
-    have hhi : twHi fc.tau (fc.nativeHeap lam) = fc.tau % 2 ^ 32 + 2 ^ 32 * 1 := by
-      unfold FCtx.nativeHeap FCtx.heap
-      rw [hj, show fc.h - (lam + 1) = 0 by omega]
-      split <;> norm_num [smallBandStore,twHi]
+    have hhi : twHi fc.tau (fc.heap lam) = fc.tau % 2 ^ 32 + 2 ^ 32 * 1 := by
+      unfold twHi FCtx.heap; rw [hj, show fc.h - (lam + 1) = 0 by omega]; split <;> norm_num
     rw [hhi, mfr 0x340 (by omega) (by omega) (by omega) (by omega), hN0.2 hl0, m1C8,
       mfr 0x350 (by omega) (by omega) (by omega) (by omega),
       mfr 0x358 (by omega) (by omega) (by omega) (by omega), hP 0x350 (by decide),
@@ -1062,7 +979,10 @@ theorem level_last (fc : FCtx) (hfc : fc.ok) (h0 : fc.lay = 0) (lam : Nat) (hlam
     · rw [h1] at mv0 mv1 msib0 msib1
       simp only [Nat.mul_one, Nat.reduceAdd, Nat.reduceMul, Nat.reduceSub] at mv0 mv1 msib0 msib1
       rw [mv0, mv1, msib0, msib1]; simp [← hbdef, h1]
-  · refine ⟨hglob, hKp, FrameOK.trans hF (fun r hr => hkeep' r hr) (fun A hA hA' => ?_), ?_,
+  · have hKe : KnownOK (foldK fc.lay 64 ++ [(.x12, BitVec.ofNat 64 fc.dst)]) (r.toState s) :=
+      KnownOK_append.mpr ⟨hKp, fun p hp => by
+        rw [List.mem_singleton] at hp; subst hp; exact h12⟩
+    refine ⟨hglob, hKe, FrameOK.trans hF (fun r hr => hkeep' r hr) (fun A hA hA' => ?_), ?_,
       hec hn3, by rw [m1C8, BitVec.toNat_ofNat]; omega⟩
     · exact mfr A hA (by omega) (by omega) (by omega)
     · rw [PRes.toState_pc _ _ hn4, hn5]
