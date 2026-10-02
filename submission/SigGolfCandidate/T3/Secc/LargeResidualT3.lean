@@ -88,9 +88,9 @@ noncomputable def firstUnknown (K : Coord → Prop) (N : CanonGraph.Node) : Opti
 /-! ## Disclosures -/
 
 /-- Key generation reveals the public key, and (conservatively, the cache being a one-time pad of them) every node of
-the top tree at the cached levels: the tree values of levels `2 … 12` of the layer-0 tree. -/
+the top tree at the cached levels: the tree values of levels `0 … 12` of the layer-0 tree. -/
 def keygenDisclosed : List Coord :=
-  (List.range' 2 11).flatMap fun level =>
+  (List.range' 0 13).flatMap fun level =>
     (List.range (2 ^ (12 - level))).filterMap fun node => treeChild 0 0 level node
 
 /-- The chain value at digit `d` of chain `i` of a leaf: the seed (`d = 0`) or the label of step `d − 1`. -/

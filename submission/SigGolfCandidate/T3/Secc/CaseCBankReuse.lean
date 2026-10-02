@@ -136,8 +136,8 @@ theorem authenticatedRecord_signerQ (published : T3.Cache) (request : Request) :
     AllQueriesSatisfy (FullGame.authenticatedRecord published request) (SignerQ request.message) := by
   unfold FullGame.authenticatedRecord
   apply SourceQueries.bind_allowed
-  · apply (allQueriesSatisfy_query_iff _ _).mpr
-    intro x hx
+  · apply SourceQueries.privateMac_allowed (SignerQ request.message)
+    intro tweak x hx
     cases hx
   · intro tag
     split
