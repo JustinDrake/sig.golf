@@ -41,7 +41,7 @@ def xtrTab : List (List Nat) :=
     7141, 7242, 7343, 7444, 7545, 7646, 7747, 7848, 7949, 8050, 8151, 8252, 8353, 8454, 8555, 8656,
     8757, 8858, 8959, 9060, 9161, 9262, 9363, 9464, 9565, 9666, 9767, 9868, 9969, 10070, 10171, 10272,
     10373, 10474, 10575, 10676, 10777, 10878, 10979, 11080, 11181, 11282, 11383, 11484, 11585, 11686, 11787, 11888],
-   [662]]
+   [660]]
 
 /-- The number of transition copies of layer `lay`. -/
 def nCopy (lay : Nat) : Nat := (xtrTab.getD lay []).length
@@ -55,10 +55,10 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 
 /-- Merkle height. -/
 def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
-/-- Steps of A (layer 3 includes the 24 `hyper` constants; layer 0 has `mv` and `lui; or`). -/
-def stepsA (lay : Nat) : Nat := if lay = 3 then 22 else if lay = 0 then 16 else 15
+/-- Steps of A (layer 3 includes the `hyper` constants; layer 0 has `mv` and `lui; or`). -/
+def stepsA (lay : Nat) : Nat := if lay = 3 then 23 else if lay = 0 then 15 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 0 then 71 else if lay = 3 then 54 else 47
+def retOff (lay : Nat) : Nat := if lay = 3 then 55 else if lay = 0 then 67 else 47
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
@@ -80,11 +80,10 @@ def M2c : Nat := 17311559823019733055
 def M4c : Nat := 3689348814741910323
 def M8c : Nat := 1085102592571150095
 
-/-- The known registers at a transition start (layer 3: `t0`, `s2`, the five constants of the load block
-`ld3Spec` and the FTS's `t1 = 1`; `hyper` sets the rest). -/
+/-- The known registers at a transition start (layer 3: `t0`, `s2` and the FTS's `t1 = 1`; `hyper` sets the rest). -/
 def preK (lay : Nat) : List (Reg × Word) :=
-  if lay = 3 then baseK ++ [(.x28, BitVec.ofNat 64 (2 ^ 40)), (.x21, BitVec.ofNat 64 M2c), (.x20, BitVec.ofNat 64 M1c),
-    (.x27, BitVec.ofNat 64 (hw 1 3)), (.x2, BitVec.ofNat 64 0x3fe00), (.x6, 1)]
+  if lay = 3 then baseK ++ [(.x6, 1), (.x21, BitVec.ofNat 64 M2c), (.x20, BitVec.ofNat 64 M1c),
+    (.x27, BitVec.ofNat 64 (hw 1 3)), (.x2, 0x3fe00)]
   else baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 (lay + 1))), (.x24, 0x10000), (.x2, 0x3fe00),
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (2 ^ 40)),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
@@ -95,16 +94,16 @@ def layK (lay : Nat) : List (Reg × Word) :=
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (2 ^ 40)),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
 
-/-- T3K: after the forest HASH (word 656) a load block (656 .. 661: `lui sp, 0x1000` and five `ld` of the embedded
-data words 0 .. 4) sets five of layer 3's constants (`2^40`, the SWAR masks, `s11`, `sp`); the transition copy
-proper starts at 662 (`trPc 3 0`). The FTS's `t1 = 1` passes through the block (kept), so layer 3's A no longer
-sets it. -/
+/-- After the forest HASH (word 656) a load block (656 .. 659: four `ld` through `sp`, which still holds the data
+page set by the FTS setup) sets four of layer 3's constants (the SWAR masks, `s11`, and finally `sp` itself); the
+transition copy proper starts at 660 (`trPc 3 0`). -/
 def ld3Spec : Spec :=
-  ⟨[(.x28, .ld (kw DATA)), (.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
-      (.x27, .ld (kw (DATA + 24))), (.x2, .ld (kw (DATA + 32)))],
-    [], 662, false, 6, [], none, 6⟩
+  ⟨[(.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))), (.x27, .ld (kw (DATA + 24))),
+      (.x2, .ld (kw (DATA + 32)))],
+    [], 660, false, 4, [], none, 4⟩
 
-def ld3Check : Bool := specB [] [] baseK (runAt baseK [662] 656 []) ld3Spec [] baseK [.x22, .x6]
+def ld3Check : Bool :=
+  specB [] [] baseK (runAt (baseK ++ [(.x2, 0x1000000)]) [660] 656 []) ld3Spec [] baseK [.x22, .x6]
 
 /-- ... and the encoding `ecall`'s arguments. -/
 def bK (lay : Nat) : List (Reg × Word) := layK lay ++ [(.x10, 256), (.x12, 320)]
@@ -179,7 +178,7 @@ def tgtt : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x1fe
 
 def specBt (p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, .bin .sll a7E (kw 2)), (.x3, totE), (.x14, x14t), (.x25, .bin .and c34E (kw M4c))],
-   [], 0, false, 54, [totBr false, rngBr 61 false], some tgtt, 60⟩
+   [], 0, false, 51, [totBr false, rngBr 61 false], some tgtt, 57⟩
 
 /-- After the top decode: the 2-bit masks, the quad mask in `s8`, `t4 = 8` (no checksum chain). -/
 def postBt (p : Nat) : List (Reg × Word) :=
@@ -189,7 +188,7 @@ def postBt (p : Nat) : List (Reg × Word) :=
     (.x1, pcOf (p + retOff 0))]
 
 def rejTot : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 44, [totBr true, rngBr 61 false], none, 50⟩
+  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 42, [totBr true, rngBr 61 false], none, 48⟩
 
 /-! ## The leaf-pk block -/
 
@@ -197,18 +196,10 @@ def rejTot : Spec :=
 def leafK (lay : Nat) : List (Reg × Word) := baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 lay))]
 
 /-- The dispatch target in `stab_lay_0` (`(s7 << 2 &&& mask) + window + imm`). -/
-def x14lf (lay : Nat) : E :=
-  if lay = 0 then .bin .add (.bin .and (.bin .sll (.reg .x23) (kw 2)) (kw (stabMask lay))) (kw 0xce000)
-  else .bin .add (.bin .sll (.reg .x23) (kw 2)) (kw 0xce000)
-def tgtLfOld (lay : Nat) : E :=
+def x14lf (lay : Nat) : E := .bin .add (.bin .and (.bin .sll (.reg .x23) (kw 2)) (kw (stabMask lay))) (kw 0xce000)
+def tgtLf (lay : Nat) : E :=
   .bin .and (.bin .add (.bin .and (.bin .sll (.reg .x23) (kw 2)) (kw (stabMask lay)))
     (kw (0x1000 + 4 * stabIdx lay))) (.c (~~~1#64))
-
-/-- Lower-layer sentinel bits are absorbed by the jump displacement. -/
-def tgtLf (lay : Nat) : E :=
-  if lay = 0 then tgtLfOld lay
-  else .bin .and (.bin .add (.bin .sll (.reg .x23) (kw 2))
-    (kw (0x1000 + 4 * stabIdx lay - 4 * 2 ^ hL lay))) (.c (~~~1#64))
 
 def specLf (lay : Nat) : Spec :=
   if lay = 0 then
@@ -217,8 +208,8 @@ def specLf (lay : Nat) : Spec :=
       (⟨none, BitVec.ofNat 64 528⟩, kw (hw 2 0))], 0, false, 13, [], some (tgtLf lay), 13⟩
   else
     ⟨[(.x14, x14lf lay)],
-     [(⟨none, BitVec.ofNat 64 792⟩, .reg .x4), (⟨none, BitVec.ofNat 64 784⟩, kw (hw 2 lay))], 0, false, 10, [],
-     some (tgtLf lay), 10⟩
+     [(⟨none, BitVec.ofNat 64 792⟩, .reg .x4), (⟨none, BitVec.ofNat 64 784⟩, kw (hw 2 lay))], 0, false, 11, [],
+     some (tgtLf lay), 11⟩
 
 def postLf (lay : Nat) : List (Reg × Word) :=
   leafK lay ++ [(.x3, BitVec.ofNat 64 (hw 2 lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)),
