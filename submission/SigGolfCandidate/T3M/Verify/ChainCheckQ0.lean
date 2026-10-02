@@ -1,4 +1,4 @@
-import SigGolfCandidate.T3M.Verify.ChainCheckT6
+import SigGolfCandidate.T3M.Verify.ChainRuns
 
 /-! Kernel check of the top chain code, quads 0..3. -/
 
