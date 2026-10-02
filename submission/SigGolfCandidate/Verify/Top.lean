@@ -181,7 +181,7 @@ The prologue loads `x18 = 0xFFF` from the high word of header `0`, so the setup 
 table-page register (`-1`). The last leaf forms its table base as `x29 - 576` (`-1`). The
 counter range check masks the merged counters with the data word at `sp + 8` instead of
 folding the halves with two shifts (`-1`). -/
-def cycleBound : Nat := 10213
+def cycleBound : Nat := 10212
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
 def cycleBoundAll : Nat := 16829
@@ -192,8 +192,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7440 := by decide
-theorem layC_val : layC = 7440 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7439 := by decide
+theorem layC_val : layC = 7439 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
