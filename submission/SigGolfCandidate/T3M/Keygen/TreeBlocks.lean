@@ -89,8 +89,8 @@ theorem sub120_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSt
       t.getReg .x12 = BitVec.ofNat 64 NOUT ∧
       t.getMem (BitVec.ofNat 64 NODE) = s.getMem (BitVec.ofNat 64 (arena + 32 * k)) ∧
       t.getMem (BitVec.ofNat 64 (NODE + 8)) = s.getMem (BitVec.ofNat 64 (arena + 32 * k + 8)) ∧
-      t.getMem (BitVec.ofNat 64 (NODE + 16)) = s.getReg .x21 ∧
-      t.getMem (BitVec.ofNat 64 (NODE + 24)) = BitVec.ofNat 64 (hdr1 tree k) ∧
+      t.getMem (BitVec.ofNat 64 (NODE + 16)) = s.getReg .x21 ||| (BitVec.ofNat 64 tree <<< 32) ∧
+      t.getMem (BitVec.ofNat 64 (NODE + 24)) = BitVec.ofNat 64 k ∧
       t.getMem (BitVec.ofNat 64 (NODE + 48)) = s.getMem (BitVec.ofNat 64 (arena + 32 * k + 16)) ∧
       t.getMem (BitVec.ofNat 64 (NODE + 56)) = s.getMem (BitVec.ofNat 64 (arena + 32 * k + 24)) ∧
       RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x28, .x30] ∧
@@ -114,12 +114,9 @@ theorem sub120_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSt
     t3n [h2, h24]
     congr 2; omega
   · simp only [Result.toState_getMem, st_120, blk117_120.res, NODE]
-    t3n []
+    t3n [h9]
   · simp only [Result.toState_getMem, st_120, blk117_120.res, NODE]
-    t3n [h9, h24]
-    rw [BitVec.or_comm, ofNat_or_disjoint tree (k * 4294967296) 32 htree (by omega),
-      hdr1_eq tree k htree hk']
-    congr 1; ring
+    t3n [h24]
   · simp only [Result.toState_getMem, st_120, blk117_120.res, NODE]
     t3n [h2, h24]
     congr 2; omega

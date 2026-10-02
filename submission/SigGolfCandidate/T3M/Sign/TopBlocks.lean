@@ -168,7 +168,7 @@ theorem blk470_spec (s : MachineState) (hpc : s.pc = pcOf 470) (p : Nat) (hp : p
       t.getReg .x10 = BitVec.ofNat 64 NODE ∧ t.getReg .x11 = BitVec.ofNat 64 64 ∧
       t.getReg .x12 = BitVec.ofNat 64 NOUT ∧
       t.getMem (BitVec.ofNat 64 (NODE + 16)) = BitVec.ofNat 64 (hdr0 3 0 0 0) ∧
-      t.getMem (BitVec.ofNat 64 (NODE + 24)) = BitVec.ofNat 64 (hdr1 0 (2048 + p / 2)) ∧
+      t.getMem (BitVec.ofNat 64 (NODE + 24)) = BitVec.ofNat 64 (hdr1 (2048 + p / 2) 0) ∧
       RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x28] ∧
       Frame s t (fun A => A = NODE + 16 ∨ A = NODE + 24) := by
   refine ⟨_, symRun_sound blk_470 codeAt_470 s hpc (by simp [blk_470.res, rv_simp]),
@@ -181,7 +181,7 @@ theorem blk470_spec (s : MachineState) (hpc : s.pc = pcOf 470) (p : Nat) (hp : p
     rw [hdr0_eq 3 0 0 0 (by norm_num) (by norm_num) (by norm_num) (by norm_num)]
     norm_num
   · simp only [Result.toState_getMem, blk_470.res, NODE]; t3n [h18]
-    rw [ofNat_shr p 1 (by omega), pow_one, ofNat_add_ofNat, ofNat_shl, hdr1_eq 0 (2048 + p / 2) (by norm_num) (by omega)]
+    rw [ofNat_shr p 1 (by omega), pow_one, ofNat_add_ofNat, hdr1_eq (2048 + p / 2) 0 (by omega) (by norm_num)]
     congr 1; ring
   · intro r hr; simp at hr; cases r <;> simp_all [blk_470.res, rv_simp] <;> rfl
   · intro A hA hn

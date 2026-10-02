@@ -1,12 +1,14 @@
-import SigGolfCandidate.T3M.Verify.MerkleRuns
-import SigGolfCandidate.T3M.Verify.Judg
+import SigGolfCandidate.T3M.Verify.MerkleSem
 
-/-! # The final comparison using the HALT exit code
+/-! # V3: the final compare (`xcmp`)
 
-The low-word mismatch branches to the unchanged HALT(1) arm. Otherwise a subtraction of the high
-words supplies the HALT exit code, which is zero exactly when those words agree. Every accepting
-path takes seven instructions followed by HALT; the fuel bound conservatively remains nine.
--/
+After layer 0's root HASH into `0x180`, each of the 64 compare copies (`cmpPc c`, one after each layer-0 chunk-1
+shape block) is `ld ra, 0x180; ld sp, 0xA0; bne ra, sp, reject_final; ld ra, 0x188; ld sp, 0xA8; bne ra, sp,
+reject_final; li t0, 1; li a0, 0; ecall` and `reject_final: li t0, 1; li a0, 1; ecall`.
+
+**`cmp_good`**: from a compare copy (`CmpIn`: the root at `0x180`, `pk` at `0xA0`), the run observes
+`pure (root == pk, 0)` (`verifyP`'s final `pure (root == pk)` continued by `Kb`) in at most 9 cycles (accepting:
+exactly 8 + the HALT). -/
 
 set_option linter.unusedSimpArgs false
 
@@ -49,58 +51,54 @@ theorem cmpBr2_holds (t : MachineState) (x y : Word) (hx : t.getMem (BitVec.ofNa
   simp only [Br.holds, cmpBr2, CmpOp.eval, E.eval, kw, hx, hy]
   cases d <;> simp [bne_iff_ne]
 
-set_option maxRecDepth 100000
-
-/-- All 64 actual comparison copies satisfy the two complete path specifications. -/
-theorem cmpCheck_all : (List.range 64).all cmpCheck = true := by decide +kernel
-
-theorem cmpCheck_at (c : Nat) (hc : c < 64) : cmpCheck c = true :=
-  List.all_eq_true.mp cmpCheck_all c (List.mem_range.mpr hc)
-
-/-- Comparing both words by the final HALT exit code takes at most eight cycles. -/
+/-- **The compare**: `pure (root == pk, 0)`, at most 9 cycles (accepting runs: 8 instructions and the HALT). -/
 theorem cmp_good (pk root : Digest) (t : MachineState) (h : CmpIn pk root t) (Q : Prop) (hQ : Q) :
-    GoodQ t 9 8 Q 8 (pure (root == pk, 0)) := by
+    GoodQ t 9 9 Q 9 (pure (root == pk, 0)) := by
   obtain ⟨c, hc, hpc⟩ := h.copy
   have hck := cmpCheck_at c hc
   simp only [cmpCheck, Bool.and_eq_true] at hck
-  obtain ⟨hA, hR1⟩ := hck
+  obtain ⟨⟨hA, hR1⟩, hR2⟩ := hck
   have hr0 : t.getMem (BitVec.ofNat 64 384) = root.extractLsb' 0 64 := h.root.1
   have hr8 : t.getMem (BitVec.ofNat 64 392) = root.extractLsb' 64 64 := h.root.2
   have hp0 : t.getMem (BitVec.ofNat 64 160) = pk.extractLsb' 0 64 := h.pk.1
   have hp8 : t.getMem (BitVec.ofNat 64 168) = pk.extractLsb' 64 64 := h.pk.2
   have b1 := cmpBr1_holds t _ _ hr0 hp0
-  by_cases hlo : root.extractLsb' 0 64 = pk.extractLsb' 0 64
-  · obtain ⟨u, hu⟩ := spec_run hA t hpc h.known (by
+  have b2 := cmpBr2_holds t _ _ hr8 hp8
+  by_cases heq : root = pk
+  · have hlo : root.extractLsb' 0 64 = pk.extractLsb' 0 64 := by rw [heq]
+    have hhi : root.extractLsb' 64 64 = pk.extractLsb' 64 64 := by rw [heq]
+    obtain ⟨u, hu⟩ := spec_run hA t hpc h.known (by
       intro b hb
       simp only [cmpAcc, List.mem_cons, List.not_mem_nil, or_false] at hb
-      subst hb
-      exact (b1 false).mpr (by simp [hlo])) (by simp)
+      rcases hb with rfl | rfl
+      · exact (b2 false).mpr (by simp [hhi])
+      · exact (b1 false).mpr (by simp [hlo])) (by simp)
     have h5 : u.getReg .x5 = 1 := hu.regs (.x5, kw 1) (by simp [cmpAcc])
-    have h10 : u.getReg .x10 = root.extractLsb' 64 64 - pk.extractLsb' 64 64 := by
-      simpa only [cmpDelta, E.eval, BinOp.eval, kw, hr8, hp8] using
-        hu.regs (.x10, cmpDelta) (by simp [cmpAcc])
-    have heq : u.getReg .x10 = 0 ↔ root = pk := by
-      rw [h10]
-      change root.extractLsb' 64 64 - pk.extractLsb' 64 64 = 0#64 ↔ root = pk
-      rw [BitVec.sub_eq_iff_eq_add, BitVec.zero_add, cmpDig_eq_iff]
-      simp only [hlo, true_and]
-    have hg := GoodQ.halt (Q := Q) (A := 1) (hu.ecall rfl) h5 (fun _ => ⟨hQ, le_refl 1⟩)
-    have hb : decide (u.getReg .x10 = 0) = (root == pk) := by
-      apply Bool.eq_iff_iff.mpr
-      simp only [decide_eq_true_eq, beq_iff_eq, heq]
-    rw [hb] at hg
-    exact GoodQ.steps' hu.steps hg (by simp [cmpAcc]) (by simp [cmpAcc])
-      (fun q => ⟨q, by simp [cmpAcc]⟩)
-  · have hne : root ≠ pk := fun e => hlo (by rw [e])
-    rw [show (root == pk) = false from beq_eq_false_iff_ne.mpr hne]
-    obtain ⟨u, hu⟩ := spec_run hR1 t hpc h.known (by
-      intro b hb
-      simp only [cmpRej1, List.mem_cons, List.not_mem_nil, or_false] at hb
-      subst hb
-      exact (b1 true).mpr (by simp [hlo])) (by simp)
-    have h5 : u.getReg .x5 = 1 := hu.regs (.x5, kw 1) (by simp [cmpRej1])
-    have h10 : u.getReg .x10 = 1 := hu.regs (.x10, kw 1) (by simp [cmpRej1])
-    exact GoodQ.steps' hu.steps (GoodQ.reject (Q := Q) (A := 0) (hu.ecall rfl) h5 h10)
-      (by simp [cmpRej1]) (by simp [cmpRej1]) (fun q => ⟨q, by simp [cmpRej1]⟩)
+    have h10 : u.getReg .x10 = 0 := hu.regs (.x10, kw 0) (by simp [cmpAcc])
+    rw [show (root == pk) = true from beq_iff_eq.mpr heq]
+    exact GoodQ.steps' hu.steps (GoodQ.accept (hu.ecall rfl) h5 h10 hQ (le_refl 1)) (by simp [cmpAcc])
+      (by simp [cmpAcc]) (fun q => ⟨q, by simp [cmpAcc]⟩)
+  · rw [show (root == pk) = false from beq_eq_false_iff_ne.mpr heq]
+    by_cases hlo : root.extractLsb' 0 64 = pk.extractLsb' 0 64
+    · have hhi : root.extractLsb' 64 64 ≠ pk.extractLsb' 64 64 := fun h' => heq ((cmpDig_eq_iff root pk).mpr ⟨hlo, h'⟩)
+      obtain ⟨u, hu⟩ := spec_run hR2 t hpc h.known (by
+        intro b hb
+        simp only [cmpRej2, List.mem_cons, List.not_mem_nil, or_false] at hb
+        rcases hb with rfl | rfl
+        · exact (b2 true).mpr (by simp [hhi])
+        · exact (b1 false).mpr (by simp [hlo])) (by simp)
+      have h5 : u.getReg .x5 = 1 := hu.regs (.x5, kw 1) (by simp [cmpRej2])
+      have h10 : u.getReg .x10 = 1 := hu.regs (.x10, kw 1) (by simp [cmpRej2])
+      exact GoodQ.steps' hu.steps (GoodQ.reject (Q := Q) (A := 0) (hu.ecall rfl) h5 h10) (by simp [cmpRej2])
+        (by simp [cmpRej2]) (fun q => ⟨q, by simp [cmpRej2]⟩)
+    · obtain ⟨u, hu⟩ := spec_run hR1 t hpc h.known (by
+        intro b hb
+        simp only [cmpRej1, List.mem_cons, List.not_mem_nil, or_false] at hb
+        subst hb
+        exact (b1 true).mpr (by simp [hlo])) (by simp)
+      have h5 : u.getReg .x5 = 1 := hu.regs (.x5, kw 1) (by simp [cmpRej1])
+      have h10 : u.getReg .x10 = 1 := hu.regs (.x10, kw 1) (by simp [cmpRej1])
+      exact GoodQ.steps' hu.steps (GoodQ.reject (Q := Q) (A := 0) (hu.ecall rfl) h5 h10) (by simp [cmpRej1])
+        (by simp [cmpRej1]) (fun q => ⟨q, by simp [cmpRej1]⟩)
 
 end SigGolfCandidate.T3M

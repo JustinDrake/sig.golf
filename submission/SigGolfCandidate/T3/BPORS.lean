@@ -5753,7 +5753,7 @@ theorem header_tag (tag lay tree position index : Nat) :
   rw [header_toNat]
   have ht := Nat.mod_lt tag (by decide : 0<256)
   norm_num only [Nat.reducePow] at *
-  omega
+  split_ifs <;> omega
 
 theorem header_ne_of_tag {tag tag' lay lay' tree tree' position position' index index' : Nat}
     (h : tag%256 ≠ tag'%256) :
@@ -5768,7 +5768,7 @@ theorem header_layer (tag lay tree position index : Nat) :
   have ht := Nat.mod_lt tag (by decide : 0<256)
   have hl := Nat.mod_lt lay (by decide : 0<256)
   norm_num only [Nat.reducePow] at *
-  omega
+  split_ifs <;> omega
 
 theorem header_ne_of_layer {tag tag' lay lay' tree tree' position position' index index' : Nat}
     (h : lay%256 ≠ lay'%256) :

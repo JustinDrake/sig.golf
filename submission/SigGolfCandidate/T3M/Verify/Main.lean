@@ -7,8 +7,8 @@ import SigGolfCandidate.T3M.Final.Pending
   of the frozen verify image has the value `if verifyP then some () else none` and the hash calls of
   `countCalls (mrealize 0 (verifyP m pk w))`, as an equality of oracle computations;
 * **`verify_terminates : Final.VerifyTerminates`** — under every fixed oracle the run finishes within
-  `cycleBoundAll = 15406 < CYCLE_LIMIT` cycles;
-* **`verify_accept_cycles : Final.VerifyAcceptCycles`** — accepting runs take at most `cycleBound = 9263 =
+  `cycleBoundAll = 15410 < CYCLE_LIMIT` cycles;
+* **`verify_accept_cycles : Final.VerifyAcceptCycles`** — accepting runs take at most `cycleBound = 9163 =
   verifyCycleBound` cycles. -/
 
 namespace SigGolfCandidate.T3M
@@ -39,7 +39,7 @@ theorem verify_refines : Final.VerifyRefines := by
   · simp only [h, decide_true, if_true]; rfl
   · simp only [h, decide_false, if_false, Bool.false_eq_true]; rfl
 
-/-- **Verify termination** (`Pending.verify_terminates`), with the bound `cycleBoundAll = 15406`. -/
+/-- **Verify termination** (`Pending.verify_terminates`), with the bound `cycleBoundAll = 15410`. -/
 theorem verify_terminates : Final.VerifyTerminates := by
   intro hash m pk w
   obtain ⟨s, hs⟩ := init_exists_verify (m, pk, w)
@@ -49,7 +49,7 @@ theorem verify_terminates : Final.VerifyTerminates := by
   refine ⟨?_, lt_of_le_of_lt hg.2.1 (by rw [cycleBoundAll_eq]; unfold CYCLE_LIMIT; norm_num)⟩
   simpa using hg.1
 
-/-- **Accepting verify cycles** (`Pending.verify_accept_cycles`): at most `verifyCycleBound = 9263`. -/
+/-- **Accepting verify cycles** (`Pending.verify_accept_cycles`): at most `verifyCycleBound = 9163`. -/
 theorem verify_accept_cycles : Final.VerifyAcceptCycles := by
   intro hash m pk w h
   obtain ⟨s, hs⟩ := init_exists_verify (m, pk, w)

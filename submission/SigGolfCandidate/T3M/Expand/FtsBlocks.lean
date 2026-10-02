@@ -285,8 +285,8 @@ theorem f167_spec (hpc : s.pc = pcOf 167) (c index j b : Nat) (hc : c < 7) (hi :
     (hb : b < 8) (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h9 : s.getReg .x9 = BitVec.ofNat 64 index)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 j) (h14 : s.getReg .x14 = BitVec.ofNat 64 b) :
     ∃ t, Steps image s 23 23 t ∧ t.pc = pcOf 190 ∧
-      t.getMem (BitVec.ofNat 64 (NODE + 16)) = BitVec.ofNat 64 (2561 + 65536 * c) ∧
-      t.getMem (BitVec.ofNat 64 (NODE + 24)) = BitVec.ofNat 64 (index + 2 ^ 32 * (2 ^ (2 - j) + b / 2 ^ (j + 1))) ∧
+      t.getMem (BitVec.ofNat 64 (NODE + 16)) = BitVec.ofNat 64 (2561 + 65536 * c + 2^32 * index) ∧
+      t.getMem (BitVec.ofNat 64 (NODE + 24)) = BitVec.ofNat 64 (2 ^ (2 - j) + b / 2 ^ (j + 1)) ∧
       t.getReg .x10 = BitVec.ofNat 64 NODE ∧ t.getReg .x11 = BitVec.ofNat 64 64 ∧
       t.getReg .x12 = BitVec.ofNat 64 NOUT ∧
       RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x13, .x28, .x30] ∧
@@ -296,17 +296,17 @@ theorem f167_spec (hpc : s.pc = pcOf 167) (c index j b : Nat) (hc : c < 7) (hi :
   · simp [Result.toState_pc, eblk_167.res, E.eval]
   · simp only [Result.toState_getMem, eblk_167.res, rv_simp, h8, h9, h19, h14, NODE]
     t3n []
-    rw [ofNat_or_disjoint' 2561 (c * 65536) 16 (by norm_num) (by omega)]
+    rw [ofNat_or_disjoint' 2561 (c * 65536) 16 (by norm_num) (by omega),
+      ofNat_or_disjoint' (2561 + c * 65536) (index * 4294967296) 32 (by omega) (by omega)]
     congr 1; ring
   · simp only [Result.toState_getMem, eblk_167.res, rv_simp, h8, h9, h19, h14, NODE]
     t3n []
     rw [show (2#64 : BitVec 64) = BitVec.ofNat 64 2 from rfl, ofNat_sub_ofNat 2 j (by omega) (by omega),
       toNat_ofNat_lt (by omega), Nat.mod_eq_of_lt (show 2 - j < 64 by omega), Nat.one_mul,
       Nat.mod_eq_of_lt (show j + 1 < 18446744073709551616 by omega), Nat.mod_eq_of_lt (show j + 1 < 64 by omega),
-      ofNat_shr _ _ (by omega), ofNat_add_ofNat, ofNat_shl]
+      ofNat_shr _ _ (by omega), ofNat_add_ofNat]
     have hp : 2 ^ (2 - j) ≤ 2 ^ 2 := Nat.pow_le_pow_right (by norm_num) (by omega)
     have hb' : b / 2 ^ (j + 1) ≤ b := Nat.div_le_self _ _
-    rw [ofNat_or_disjoint' index _ 32 hi (by rw [Nat.mul_mod_left])]
     congr 1; ring
   · simp [eblk_167.res, rv_simp]
   · simp [eblk_167.res, rv_simp]
