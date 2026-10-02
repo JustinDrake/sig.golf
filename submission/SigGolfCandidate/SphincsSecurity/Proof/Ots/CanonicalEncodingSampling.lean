@@ -9,47 +9,33 @@ open _root_.OracleComp OracleSpec OracleComp.DeferredSampling
 attribute [local instance] Classical.propDecidable
 set_option backward.isDefEq.respectTransparency false
 
-noncomputable def canonicalGraphMessage (labels : CanonicalGraphLabels) (position : EncodingPosition) :
-    EncMessage :=
-  layerMessageOf (fun graphPosition => truncateHash (labels graphPosition))
-    (referenceIndex position.lay position.tree position.leafIdx) position.lay
+noncomputable def canonicalGraphMessage (labels : CanonicalGraphLabels) (position : EncodingPosition) : Digest :=
+  truncateHash (labels (layerMessagePosition
+    (referenceIndex position.lay position.tree position.leafIdx) position.lay))
 
-theorem layerMessagePositions_treeBound (index : Index) (lay : Layer) :
-    ∀ position ∈ layerMessagePositions index lay, position.TreeBound := by
-  intro position hposition
-  unfold layerMessagePositions at hposition
-  split_ifs at hposition with hbelow
-  · have h2 := two_le_layerHeight ⟨lay.val + 1, hbelow⟩
+theorem layerMessagePosition_treeBound (index : Index) (lay : Layer) :
+    (layerMessagePosition index lay).TreeBound := by
+  unfold layerMessagePosition
+  split_ifs with hbelow
+  · simp only [Position.TreeBound, zero_add, mul_one]
+    have hpos := layerHeight_pos ⟨lay.val + 1, hbelow⟩
     have hle := layerHeight_le ⟨lay.val + 1, hbelow⟩
-    have hpow : 2 ^ (layerHeight ⟨lay.val + 1, hbelow⟩ - 2 + 1) * 2 =
-        2 ^ layerHeight ⟨lay.val + 1, hbelow⟩ := by
-      rw [← Nat.pow_succ]
-      congr 1
-      omega
-    have hmax : 2 ^ layerHeight ⟨lay.val + 1, hbelow⟩ ≤ 2 ^ maxLayerHeight :=
-      Nat.pow_le_pow_right (by omega) hle
-    rcases List.mem_pair.mp hposition with rfl | rfl
-    · show 2 ^ (layerHeight ⟨lay.val + 1, hbelow⟩ - 2 + 1) * (0 + 1) ≤ 2 ^ maxLayerHeight
-      omega
-    · show 2 ^ (layerHeight ⟨lay.val + 1, hbelow⟩ - 2 + 1) * (1 + 1) ≤ 2 ^ maxLayerHeight
-      omega
-  · rw [List.mem_singleton.mp hposition]
-    show 0 < 1
+    rw [Nat.sub_add_cancel hpos]
+    exact Nat.pow_le_pow_right (by omega) hle
+  · show 0 < 1
     omega
 
 theorem canonicalGraphMessage_eq (key : SecretKey) (f : QueryImpl HashSpec Id) (position : EncodingPosition) :
     canonicalGraphMessage (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f) position =
       evalWithAnswerFn f (layerMessage key (referenceIndex position.lay position.tree position.leafIdx) position.lay) := by
-  rw [canonicalGraphMessage, eval_layerMessage_eq_honestValue]
-  apply layerMessageOf_congr
-  intro graphPosition hmem
-  rw [canonicalGraphLabels_eq_honest _ _ _ _ _ (layerMessagePositions_treeBound _ _ _ hmem)]
+  rw [canonicalGraphMessage, canonicalGraphLabels_eq_honest _ _ _ _ _ (layerMessagePosition_treeBound _ _),
+    eval_layerMessage_eq_honestValue]
   rfl
 
 theorem canonicalEncodingSearch_eq_graph_table (key : SecretKey) (f : QueryImpl HashSpec Id)
     (position : EncodingPosition) :
     canonicalEncodingSearch key f position.lay position.tree position.leafIdx =
-      encodingTableResult position.lay (referenceEncodingTable key.parameter f position
+      encodingTableResult (referenceEncodingTable key.parameter f position
         (canonicalGraphMessage (canonicalGraphLabels key.parameter key.otsSecret key.ftsSecret f) position)
         encodingAttemptLimit 0) 0 := by
   rw [canonicalEncodingSearch, canonicalGraphMessage_eq, referenceEncodingSearch_eq_table]
@@ -65,10 +51,9 @@ theorem canonicalEncodingRowInput_injective (parameter : PublicParameter) (label
     Function.Injective (canonicalEncodingRowInput parameter labels) := by
   rintro ⟨left, first⟩ ⟨right, second⟩ heq
   have hposition : left = right := atEncodingPosition_unique
-    (show AtEncodingPosition parameter (canonicalEncodingRowInput parameter labels (left, first)) left from
-      ⟨_, _, rfl⟩)
+    (show AtEncodingPosition parameter (canonicalEncodingRowInput parameter labels (left, first)) left from ⟨_, rfl⟩)
     (show AtEncodingPosition parameter (canonicalEncodingRowInput parameter labels (left, first)) right from
-      ⟨_, _, heq⟩)
+      ⟨_, heq⟩)
   subst right
   have hcounter := encodingRetryInput_injective_of_lt first.isLt second.isLt heq
   exact Prod.ext rfl (Fin.ext hcounter)
@@ -111,7 +96,7 @@ theorem readCanonicalEncodingRows_finite (parameter : PublicParameter) (inputs :
   exact finiteHashAnswer_none ∅ inputs table _ (hinputs (canonicalEncodingRowInput_mem parameter labels row)) (by simp)
 
 def canonicalEncodingResults (rows : CanonicalEncodingRows) : EncodingPosition → Option (Counter × Encoding) × Nat :=
-  fun position => encodingTableResult position.lay (fun counter => rows (position, counter)) 0
+  fun position => encodingTableResult (fun counter => rows (position, counter)) 0
 
 theorem canonicalEncodingResults_eq (key : SecretKey) (f : QueryImpl HashSpec Id) :
     canonicalEncodingResults (readCanonicalEncodingRows key.parameter
@@ -119,7 +104,7 @@ theorem canonicalEncodingResults_eq (key : SecretKey) (f : QueryImpl HashSpec Id
         fun position => canonicalEncodingSearch key f position.lay position.tree position.leafIdx := by
   funext position
   rw [canonicalEncodingSearch_eq_graph_table]
-  apply congrArg (fun table => encodingTableResult position.lay table 0)
+  apply congrArg (fun table => encodingTableResult table 0)
   funext counter
   simp only [readCanonicalEncodingRows, canonicalEncodingRowInput, referenceEncodingTable]
   rw [Nat.zero_add]

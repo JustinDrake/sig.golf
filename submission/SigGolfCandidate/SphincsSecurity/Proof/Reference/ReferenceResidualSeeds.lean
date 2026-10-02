@@ -14,8 +14,8 @@ structure ReferenceAuxiliary (inputs : Finset HashInput) where
   seed : inputs → HashOutput
 
 noncomputable def referenceAuxiliarySample (inputs : Finset HashInput) : PMF (ReferenceAuxiliary inputs) :=
-  (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).bind (fun selections =>
-    (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections).bind
+  (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).bind (fun selections =>
+    (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections).bind
       (fun rows => (PMF.uniformOfFintype (inputs → HashOutput)).map
         (fun seed => ⟨selections, Function.uncurry rows, seed⟩)))
 
@@ -38,10 +38,10 @@ theorem graphReferenceSample_eq_auxiliary (parameter : PublicParameter) (inputs 
     simpa only [PMF.map_comp, Function.comp_def, canonicalReferenceResidual] using h.symm
   unfold graphReferenceSample referenceAuxiliarySample
   simp only [hseed, PMF.bind_bind, PMF.bind_map, Function.comp_def]
-  apply congrArg (FirstSuccessFamily.selected decodeEncodingFamily encodingAttemptLimit).bind
+  apply congrArg (FirstSuccessFamily.selected decodeEncodingOutput encodingAttemptLimit).bind
   funext selections
   rw [PMF.bind_comm]
-  apply congrArg (FirstSuccessFamily.afterSelect decodeEncodingFamily encodingAttemptLimit selections).bind
+  apply congrArg (FirstSuccessFamily.afterSelect decodeEncodingOutput encodingAttemptLimit selections).bind
   funext rows
   simp only [PMF.map, Function.comp_def]
   rw [PMF.bind_comm]

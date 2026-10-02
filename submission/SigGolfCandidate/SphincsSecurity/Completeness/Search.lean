@@ -181,14 +181,14 @@ search over the encoding inputs. -/
 open Concrete in
 /-- The counter search, as a search over its encoding inputs. -/
 theorem encodingSearch_eq_searchLoop (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
-    (leaf : LeafIndex) (message : EncMessage) :
+    (leaf : LeafIndex) (message : Digest) :
     ∀ (n t : Nat),
       (encodingSearch parameter lay tree leaf message n t
         : OracleComp HashSpec (Option (Counter × Encoding)))
         = searchLoop
-            (fun c => tweakableHashInput message.1 (.encoding lay tree leaf)
-              (bytesLE 16 message.2 ++ bytesLE 4 (BitVec.ofNat counterBits c)))
-            (fun out => TargetSum.decodeDigest lay (selectEncodingDigest out))
+            (fun c => tweakableHashInput parameter (.encoding lay tree leaf)
+              (bytesLE 16 message ++ bytesLE 4 (BitVec.ofNat counterBits c)))
+            (fun out => TargetSum.decodeDigest (truncateHash out))
             (fun c encoding => pure (BitVec.ofNat counterBits c, encoding))
             n t := by
   intro n
@@ -197,8 +197,8 @@ theorem encodingSearch_eq_searchLoop (parameter : PublicParameter) (lay : Layer)
   | succ n ih =>
       intro t
       rw [encodingSearch, searchLoop]
-      simp only [encode, oracleHash, bind_assoc, pure_bind, ih]
+      simp only [encode, tweakableHash, oracleHash, bind_assoc, pure_bind, ih]
       refine bind_congr fun answer => ?_
-      cases TargetSum.decodeDigest lay (selectEncodingDigest answer) <;> rfl
+      cases TargetSum.decodeDigest (truncateHash answer) <;> rfl
 
 end SphincsSecurity.Completeness

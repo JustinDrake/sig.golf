@@ -78,7 +78,7 @@ theorem fixed_signDigestLoop_cost (parameter : PublicParameter) (f : QueryImpl H
 
 
 theorem referenceEncodingSearch_cost_le (parameter : PublicParameter) (f : QueryImpl HashSpec Id) (lay : Layer)
-    (tree : TreeIndex) (leaf : LeafIndex) (message : EncMessage) (attempts counter : Nat) :
+    (tree : TreeIndex) (leaf : LeafIndex) (message : Digest) (attempts counter : Nat) :
     (referenceEncodingSearch parameter f lay tree leaf message attempts counter).2 ≤ attempts := by
   induction attempts generalizing counter with
   | zero => exact Nat.zero_le _
