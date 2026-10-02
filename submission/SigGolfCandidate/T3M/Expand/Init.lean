@@ -72,20 +72,20 @@ theorem bytes_length_e {n : Nat} (x : Bytes n) : (bytes x).length = n := by simp
 
 /-- The expand initial state: zero registers and memory, the message at `0x40`, the public key at `0xA0`, the
 signature at `0x7000`, `sp = 2^24`. -/
-def einit (m : Message) (pk : PublicKey) (σ : Bytes 5824) : MachineState :=
+def einit (m : Message) (pk : PublicKey) (σ : Bytes 5776) : MachineState :=
   (((({ regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 } : MachineState).writeBytesAsWords
     (BitVec.ofNat 64 0x40) (bytes m)).writeBytesAsWords (BitVec.ofNat 64 0xA0) (bytes pk)).writeBytesAsWords
     (BitVec.ofNat 64 0x7000) (bytes σ)).setReg .x2 (BitVec.ofNat 64 (2 ^ 24))
 
-theorem einit_pc (m : Message) (pk : PublicKey) (σ : Bytes 5824) : (einit m pk σ).pc = pcOf 0 := by
+theorem einit_pc (m : Message) (pk : PublicKey) (σ : Bytes 5776) : (einit m pk σ).pc = pcOf 0 := by
   unfold einit
   rw [MachineState.pc_setReg, MachineState.pc_writeBytesAsWords, MachineState.pc_writeBytesAsWords,
     MachineState.pc_writeBytesAsWords]
   rfl
 
-theorem einit_getMem (m : Message) (pk : PublicKey) (σ : Bytes 5824) (A : Nat) (hA : A < 2 ^ 64) :
+theorem einit_getMem (m : Message) (pk : PublicKey) (σ : Bytes 5776) (A : Nat) (hA : A < 2 ^ 64) :
     (einit m pk σ).getMem (BitVec.ofNat 64 A) =
-      if 0x7000 ≤ A ∧ A < 0x7000 + 5824 ∧ (A - 0x7000) % 8 = 0 then
+      if 0x7000 ≤ A ∧ A < 0x7000 + 5776 ∧ (A - 0x7000) % 8 = 0 then
         bytesToWordLE (((bytes σ).drop (A - 0x7000)).take 8)
       else if 0xA0 ≤ A ∧ A < 0xB0 ∧ (A - 0xA0) % 8 = 0 then bytesToWordLE (((bytes pk).drop (A - 0xA0)).take 8)
       else if 0x40 ≤ A ∧ A < 0x60 ∧ (A - 0x40) % 8 = 0 then bytesToWordLE (((bytes m).drop (A - 0x40)).take 8)
@@ -97,23 +97,23 @@ theorem einit_getMem (m : Message) (pk : PublicKey) (σ : Bytes 5824) (A : Nat) 
     bytes_length_e]
   rfl
 
-theorem einit_msg (m : Message) (pk : PublicKey) (σ : Bytes 5824) (j : Nat) (hj : j < 4) :
+theorem einit_msg (m : Message) (pk : PublicKey) (σ : Bytes 5776) (j : Nat) (hj : j < 4) :
     (einit m pk σ).getMem (BitVec.ofNat 64 (0x40 + 8 * j)) = m.extractLsb' (64 * j) 64 := by
   rw [einit_getMem _ _ _ _ (by omega), if_neg (by omega), if_neg (by omega), if_pos (by omega),
     show 0x40 + 8 * j - 0x40 = 8 * j by omega, bytesToWordLE_bytes_e m j (by omega)]
 
-theorem einit_pk (m : Message) (pk : PublicKey) (σ : Bytes 5824) (j : Nat) (hj : j < 2) :
+theorem einit_pk (m : Message) (pk : PublicKey) (σ : Bytes 5776) (j : Nat) (hj : j < 2) :
     (einit m pk σ).getMem (BitVec.ofNat 64 (0xA0 + 8 * j)) = pk.extractLsb' (64 * j) 64 := by
   rw [einit_getMem _ _ _ _ (by omega), if_neg (by omega), if_pos (by omega),
     show 0xA0 + 8 * j - 0xA0 = 8 * j by omega, bytesToWordLE_bytes_e pk j (by omega)]
 
-theorem einit_sigw (m : Message) (pk : PublicKey) (σ : Bytes 5824) (j : Nat) (hj : j < 728) :
+theorem einit_sigw (m : Message) (pk : PublicKey) (σ : Bytes 5776) (j : Nat) (hj : j < 722) :
     (einit m pk σ).getMem (BitVec.ofNat 64 (0x7000 + 8 * j)) = σ.extractLsb' (64 * j) 64 := by
   rw [einit_getMem _ _ _ _ (by omega), if_pos (by omega), show 0x7000 + 8 * j - 0x7000 = 8 * j by omega,
     bytesToWordLE_bytes_e σ j (by omega)]
 
 /-- Digest `k` of the signature bytes at `0x7000 + 16 k`. -/
-theorem einit_sig (m : Message) (pk : PublicKey) (σ : Bytes 5824) (k : Nat) (hk : k < 364) :
+theorem einit_sig (m : Message) (pk : PublicKey) (σ : Bytes 5776) (k : Nat) (hk : k < 361) :
     DigAt (einit m pk σ) (0x7000 + 16 * k) (sigDig σ k) := by
   constructor
   · rw [show 0x7000 + 16 * k = 0x7000 + 8 * (2 * k) by ring, einit_sigw _ _ _ _ (by omega)]
@@ -123,12 +123,12 @@ theorem einit_sig (m : Message) (pk : PublicKey) (σ : Bytes 5824) (k : Nat) (hk
     apply BitVec.eq_of_getLsbD_eq; intro i hi
     simp [sigDig, BitVec.getLsbD_extractLsb', hi, show 64 + i < 128 by omega]; ring_nf
 
-theorem einit_zero (m : Message) (pk : PublicKey) (σ : Bytes 5824) (A : Nat) (hA : A < 2 ^ 64)
-    (h : (A < 0x7000 ∨ 0x7000 + 5824 ≤ A) ∧ (A < 0xA0 ∨ 0xB0 ≤ A) ∧ (A < 0x40 ∨ 0x60 ≤ A)) :
+theorem einit_zero (m : Message) (pk : PublicKey) (σ : Bytes 5776) (A : Nat) (hA : A < 2 ^ 64)
+    (h : (A < 0x7000 ∨ 0x7000 + 5776 ≤ A) ∧ (A < 0xA0 ∨ 0xB0 ≤ A) ∧ (A < 0x40 ∨ 0x60 ≤ A)) :
     (einit m pk σ).getMem (BitVec.ofNat 64 A) = 0 := by
   rw [einit_getMem _ _ _ _ hA, if_neg (by omega), if_neg (by omega), if_neg (by omega)]
 
-theorem einit_x5 (m : Message) (pk : PublicKey) (σ : Bytes 5824) : (einit m pk σ).getReg .x5 = 0 := by
+theorem einit_x5 (m : Message) (pk : PublicKey) (σ : Bytes 5776) : (einit m pk σ).getReg .x5 = 0 := by
   unfold einit
   rw [MachineState.getReg_setReg_ne _ _ _ _ (by decide)]
   simp only [MachineState.getReg_writeBytesAsWords]

@@ -34,7 +34,7 @@ theorem serializeLayer_length {lay : Layer} (sig : LayerSignature lay) :
   simp only [serializeLayer,List.length_append,digest_list_bytes_length,List.length_ofFn]
   omega
 
-theorem serialize_length (sig : Signature) : (serialize sig).length = 5824 := by
+theorem serialize_length (sig : Signature) : (serialize sig).length = 5776 := by
   simp only [serialize,List.length_append,bytesLE_length,digest_list_bytes_length,
     List.length_ofFn,List.length_flatten,List.map_ofFn,Function.comp_def]
   simp_rw [serializeLayer_length]
@@ -1003,7 +1003,8 @@ theorem decode_probability_le (lay : Layer) (word : List Nat) :
 theorem header_toNat (tag lay tree position index : Nat) :
     (header tag lay tree position index).toNat =
       1+tag%256*2^8+lay%256*2^16+(tree/2^32%256)*2^24+
-        position%2^32*2^32+tree%2^32*2^64+index%2^32*2^96 := by
+        (if packedNodeTag tag then tree%2^32*2^32+index%2^32*2^64+position%2^32*2^96
+         else position%2^32*2^32+tree%2^32*2^64+index%2^32*2^96) := by
   unfold header
   rw [BitVec.toNat_ofNat]
   apply Nat.mod_eq_of_lt
@@ -1013,8 +1014,7 @@ theorem header_toNat (tag lay tree position index : Nat) :
   have hp := Nat.mod_lt position (by decide : 0<2^32)
   have htl := Nat.mod_lt tree (by decide : 0<2^32)
   have hi := Nat.mod_lt index (by decide : 0<2^32)
-  norm_num only [Nat.reducePow] at *
-  omega
+  split <;> norm_num only [Nat.reducePow] at * <;> omega
 
 theorem pack_nat_injective {a a' b b' base : Nat} (ha : a<base) (ha' : a'<base)
     (he : a+base*b=a'+base*b') : a=a' ∧ b=b' := by
@@ -1035,18 +1035,32 @@ theorem header_injective {tag lay tree position index tag' lay' tree' position' 
   simp only [Nat.mod_eq_of_lt ht,Nat.mod_eq_of_lt hl,Nat.mod_eq_of_lt hp,Nat.mod_eq_of_lt hi,
     Nat.mod_eq_of_lt ht',Nat.mod_eq_of_lt hl',Nat.mod_eq_of_lt hp',Nat.mod_eq_of_lt hi',
     Nat.mod_eq_of_lt hh,Nat.mod_eq_of_lt hh'] at he
-  have hpacked : tag+256*(lay+256*(tree/2^32+256*(position+2^32*(tree%2^32+2^32*index)))) =
-      tag'+256*(lay'+256*(tree'/2^32+256*(position'+2^32*(tree'%2^32+2^32*index')))) := by
-    clear h ht hl htr hp hi ht' hl' htr' hp' hi' hh hh'
-    norm_num only [Nat.reducePow] at *
-    omega
-  obtain ⟨htag,hpacked⟩ := pack_nat_injective ht ht' hpacked
-  obtain ⟨hlay,hpacked⟩ := pack_nat_injective hl hl' hpacked
-  obtain ⟨hhigh,hpacked⟩ := pack_nat_injective hh hh' hpacked
-  obtain ⟨hposition,hpacked⟩ := pack_nat_injective hp hp' hpacked
-  obtain ⟨hlow,hindex⟩ := pack_nat_injective (Nat.mod_lt tree (by positivity))
-    (Nat.mod_lt tree' (by positivity)) hpacked
-  exact ⟨htag,hlay,by omega,hposition,hindex⟩
+  have htag : tag = tag' := by
+    split_ifs at he <;> norm_num only [Nat.reducePow] at * <;> omega
+  subst tag'
+  by_cases hpack : packedNodeTag tag
+  · simp only [if_pos hpack] at he
+    have hpacked : lay+256*(tree/2^32+256*(tree%2^32+2^32*(index+2^32*position))) =
+        lay'+256*(tree'/2^32+256*(tree'%2^32+2^32*(index'+2^32*position'))) := by
+      norm_num only [Nat.reducePow] at he ⊢
+      omega
+    obtain ⟨hlay,hpacked⟩ := pack_nat_injective hl hl' hpacked
+    obtain ⟨hhigh,hpacked⟩ := pack_nat_injective hh hh' hpacked
+    obtain ⟨hlow,hpacked⟩ := pack_nat_injective (Nat.mod_lt tree (by positivity))
+      (Nat.mod_lt tree' (by positivity)) hpacked
+    obtain ⟨hindex,hposition⟩ := pack_nat_injective hi hi' hpacked
+    exact ⟨rfl,hlay,by omega,hposition,hindex⟩
+  · simp only [if_neg hpack] at he
+    have hpacked : lay+256*(tree/2^32+256*(position+2^32*(tree%2^32+2^32*index))) =
+        lay'+256*(tree'/2^32+256*(position'+2^32*(tree'%2^32+2^32*index'))) := by
+      norm_num only [Nat.reducePow] at he ⊢
+      omega
+    obtain ⟨hlay,hpacked⟩ := pack_nat_injective hl hl' hpacked
+    obtain ⟨hhigh,hpacked⟩ := pack_nat_injective hh hh' hpacked
+    obtain ⟨hposition,hpacked⟩ := pack_nat_injective hp hp' hpacked
+    obtain ⟨hlow,hindex⟩ := pack_nat_injective (Nat.mod_lt tree (by positivity))
+      (Nat.mod_lt tree' (by positivity)) hpacked
+    exact ⟨rfl,hlay,by omega,hposition,hindex⟩
 
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
 
@@ -1079,13 +1093,13 @@ theorem selection_leaves_length (output : HashOutput) (selected : Selection)
   simp only [List.length_mergeSort,List.length_map,List.length_range]
 
 theorem selection_bucket_bound (output : HashOutput) (selected : Selection)
-    (h : selected ∈ selections output) : selected.bucket<8 := by
+    (h : selected ∈ selections output) : selected.bucket<16 := by
   simp only [selections,List.mem_map] at h
   obtain ⟨i,_,rfl⟩ := h
   exact Nat.mod_lt _ (by decide)
 
 theorem selection_leaf_bound (output : HashOutput) (selected : Selection) (leaf : Nat)
-    (h : selected ∈ selections output) (hl : leaf ∈ selected.leaves) : leaf<256 := by
+    (h : selected ∈ selections output) (hl : leaf ∈ selected.leaves) : leaf<128 := by
   simp only [selections,List.mem_map] at h
   obtain ⟨i,_,rfl⟩ := h
   simp only [List.mem_mergeSort,List.mem_map] at hl
@@ -1942,7 +1956,7 @@ theorem bound_digestSearch (rho : Digest) (message : Message) :
         refine .pure (some (BitVec.ofNat 32 counter,output)) fuel ?_
         intro other value hv
         obtain ⟨rfl,rfl⟩ := Prod.mk.inj (Option.some.inj hv)
-        exact hgood
+        exact (show admissible (selections _) = true ∧ digestGate _ = true by simpa only [digestAdmissible, Bool.and_eq_true] using hgood).1
       · exact ih (counter+1)
 
 def layerFixedCost : Nat → Nat
@@ -2072,11 +2086,11 @@ theorem counterSearch_some (answers : Answers) (lay : Layer) (tree leaf : Nat) (
             rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt (by omega)]
           exact ⟨by rw [hcount],by rw [hcount];omega,hd⟩
 
-theorem digestSearch_some (answers : Answers) (rho : Digest) (message : Message) :
+theorem digestSearch_some_good (answers : Answers) (rho : Digest) (message : Message) :
     ∀ fuel counter found output,counter+fuel ≤ 2^32 →
       evalWithAnswerFn answers (digestSearch rho message counter fuel)=some (found,output) →
       counter ≤ found.toNat ∧ found.toNat < counter+fuel ∧
-        evalWithAnswerFn answers (digest rho message found)=output ∧ admissible (selections output)=true := by
+        evalWithAnswerFn answers (digest rho message found)=output ∧ digestAdmissible output=true := by
   intro fuel
   induction fuel with
   | zero =>
@@ -2094,6 +2108,15 @@ theorem digestSearch_some (answers : Answers) (rho : Digest) (message : Message)
         exact ⟨by rw [hcount],by rw [hcount];omega,rfl,hgood⟩
       · obtain ⟨hlo,hhi,hrest⟩ := ih (counter+1) found output (by omega) he
         exact ⟨by omega,by omega,hrest⟩
+
+theorem digestSearch_some (answers : Answers) (rho : Digest) (message : Message)
+    (fuel counter : Nat) (found : BitVec 32) (output : HashOutput)
+    (hlimit : counter+fuel ≤ 2^32)
+    (he : evalWithAnswerFn answers (digestSearch rho message counter fuel)=some (found,output)) :
+    counter ≤ found.toNat ∧ found.toNat < counter+fuel ∧
+      evalWithAnswerFn answers (digest rho message found)=output ∧ admissible (selections output)=true := by
+  obtain ⟨hlo,hhi,houtput,hgood⟩ := digestSearch_some_good answers rho message fuel counter found output hlimit he
+  exact ⟨hlo,hhi,houtput,(show admissible (selections _) = true ∧ digestGate _ = true by simpa only [digestAdmissible, Bool.and_eq_true] using hgood).1⟩
 
 theorem expandLayers_verified (answers : Answers) (sig : Signature) (index : Nat) :
     ∀ n,n ≤ 4 → ∀ value root counters,
@@ -2170,7 +2193,7 @@ theorem expand_implies_verify (answers : Answers) (message : Message) (pk : Dige
                 have hroot : root=pk := by simpa using hroot
                 simp only [evalWithAnswerFn_pure,Option.some.injEq] at he
                 subst w
-                obtain ⟨_,hcounter,houtput,hadm⟩ := digestSearch_some answers sig.rho message
+                obtain ⟨_,hcounter,houtput,hadm⟩ := digestSearch_some_good answers sig.rho message
                   attemptLimit 0 counter output (by decide) hd
                 have hnot : ¬counter.toNat ≥ attemptLimit := by omega
                 have hverified := (expandLayers_verified answers sig (output.toNat%2^31) 4
@@ -2228,8 +2251,8 @@ actual source admissibility predicate. -/
 theorem digestSearch_none_iff (answers : Answers) (rho : Digest) (message : Message) :
     ∀ fuel counter,
       evalWithAnswerFn answers (digestSearch rho message counter fuel)=none ↔
-      ∀ offset,offset < fuel → admissible (selections (evalWithAnswerFn answers
-        (digest rho message (BitVec.ofNat 32 (counter+offset)))))=false := by
+      ∀ offset,offset < fuel → digestAdmissible (evalWithAnswerFn answers
+        (digest rho message (BitVec.ofNat 32 (counter+offset))))=false := by
   intro fuel
   induction fuel with
   | zero => intro counter;simp [digestSearch]
@@ -2243,8 +2266,8 @@ theorem digestSearch_none_iff (answers : Answers) (rho : Digest) (message : Mess
         have := hall 0 (by omega)
         simp only [Nat.add_zero,hgood,Bool.true_eq_false] at this
       · rename_i hbad
-        have hbad : admissible (selections (evalWithAnswerFn answers
-          (digest rho message (BitVec.ofNat 32 counter))))=false := by simpa using hbad
+        have hbad : digestAdmissible (evalWithAnswerFn answers
+          (digest rho message (BitVec.ofNat 32 counter)))=false := by simpa using hbad
         rw [ih]
         constructor
         · intro hall offset hoff
@@ -2265,18 +2288,18 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 set_option linter.unusedSimpArgs false
 
-def Matches (proof : Fin 124 → Digest) (values : List Digest) (used : Nat) : Prop :=
-  ∀ i,i < values.length → ∀ h : used+i < 124,proof ⟨used+i,h⟩=values.getD i 0
+def Matches (proof : Fin 121 → Digest) (values : List Digest) (used : Nat) : Prop :=
+  ∀ i,i < values.length → ∀ h : used+i < 121,proof ⟨used+i,h⟩=values.getD i 0
 
-theorem Matches.left {proof : Fin 124 → Digest} {left right : List Digest} {used : Nat}
+theorem Matches.left {proof : Fin 121 → Digest} {left right : List Digest} {used : Nat}
     (h : Matches proof (left++right) used) : Matches proof left used := by
   intro i hi hb
   rw [h i (by simp only [List.length_append];omega) hb,List.getD_append _ _ _ _ hi]
 
-theorem Matches.right {proof : Fin 124 → Digest} {left right : List Digest} {used : Nat}
+theorem Matches.right {proof : Fin 121 → Digest} {left right : List Digest} {used : Nat}
     (h : Matches proof (left++right) used) : Matches proof right (used+left.length) := by
   intro i hi hb
-  have hbound : used+(left.length+i) < 124 := by omega
+  have hbound : used+(left.length+i) < 121 := by omega
   have he := h (left.length+i) (by simp only [List.length_append];omega) hbound
   rw [List.getD_append_right _ _ _ _ (by omega),Nat.add_sub_cancel_left] at he
   simpa [Nat.add_assoc] using he
@@ -2308,9 +2331,9 @@ theorem recoverChild_correct (answers : Answers) (index coord : Nat)
         (nodeHash 10 coord index (2^(11-(level+1))+node) (nodes level (2*node)) (nodes level (2*node+1))))
     (leaves : List Nat) (values : List Digest)
     (hvalues : ∀ leaf,leaf ∈ leaves → values.getD (leaves.idxOf leaf) 0=secrets leaf)
-    (proof : Fin 124 → Digest) :
+    (proof : Fin 121 → Digest) :
     ∀ level,level ≤ 11 → ∀ node,node < 2^(11-level) → ∀ used,
-      used+(frontier leaves level node).length ≤ 124 →
+      used+(frontier leaves level node).length ≤ 121 →
       Matches proof ((frontier leaves level node).map fun p => nodes p.1 p.2) used →
       evalWithAnswerFn answers (recoverChild index coord leaves values proof level node used)=
         some (nodes level node,used+(frontier leaves level node).length) := by
@@ -2329,7 +2352,7 @@ theorem recoverChild_correct (answers : Answers) (index coord : Nat)
         have hp := hmatch 0 (by simp [frontier,hh]) (by omega)
         simp only [frontier,hh,Bool.false_eq_true,ite_false,List.map_cons,List.map_nil,
           List.getD_cons_zero,Nat.add_zero] at hp
-        simp only [recoverChild,hh,Bool.not_false,ite_true,dif_pos (show used < 124 by omega),
+        simp only [recoverChild,hh,Bool.not_false,ite_true,dif_pos (show used < 121 by omega),
           evalWithAnswerFn_pure,hp,frontier,Bool.false_eq_true,ite_false,List.length_singleton]
   | succ level ih =>
       intro hl node hn used hfit hmatch
@@ -2353,7 +2376,7 @@ theorem recoverChild_correct (answers : Answers) (index coord : Nat)
         have hp := hmatch 0 (by simp [frontier,hh]) (by omega)
         simp only [frontier,hh,Bool.false_eq_true,ite_false,List.map_cons,List.map_nil,
           List.getD_cons_zero,Nat.add_zero] at hp
-        simp only [recoverChild,hh,Bool.not_false,ite_true,dif_pos (show used < 124 by omega),
+        simp only [recoverChild,hh,Bool.not_false,ite_true,dif_pos (show used < 121 by omega),
           evalWithAnswerFn_pure,hp,frontier,Bool.false_eq_true,ite_false,List.length_singleton]
 
 end SigGolfCandidate.T3.Correctness
@@ -2657,7 +2680,7 @@ theorem frontier_length_formula (leaves : List Nat) :
             conv_rhs => rw [← hsplit,oc_glue_both hL hR hleft hright]
 
 theorem authCount_eq_octH (leaves : List Nat) (hlen : leaves.length=3) (hn : leaves.Nodup) :
-    authCount leaves=octH 8 leaves := by
+    authCount leaves=octH 7 leaves := by
   obtain ⟨a,b,c,rfl⟩ := List.length_eq_three.mp hlen
   have hab : a ≠ b := by intro he;subst b;simp at hn
   have hbc : b ≠ c := by intro he;subst c;simp at hn
@@ -2670,9 +2693,9 @@ theorem authCount_eq_octH (leaves : List Nat) (hlen : leaves.length=3) (hn : lea
   omega
 
 theorem located_bucket (leaves : List Nat) (bucket : Nat) :
-    Located (leaves.map fun leaf => bucket*256+leaf) 8 bucket leaves.toFinset := by
+    Located (leaves.map fun leaf => bucket*128+leaf) 7 bucket leaves.toFinset := by
   intro offset _
-  simp only [show (2:Nat)^8=256 by decide,List.mem_map,List.mem_toFinset]
+  simp only [show (2:Nat)^7=128 by decide,List.mem_map,List.mem_toFinset]
   constructor
   · rintro ⟨leaf,hleaf,he⟩
     have he' : leaf=offset := Nat.add_left_cancel he
@@ -2682,15 +2705,15 @@ theorem located_bucket (leaves : List Nat) (bucket : Nat) :
 
 theorem bucket_frontier_length (leaves : List Nat) (bucket : Nat)
     (hlen : leaves.length=3) (hn : leaves.Nodup) (hs : leaves.SortedLE)
-    (hb : ∀ leaf,leaf ∈ leaves → leaf < 256) :
-    (frontier (leaves.map fun leaf => bucket*256+leaf) 8 bucket).length=authCount leaves := by
-  have hbelow : Below 8 leaves.toFinset := fun leaf hleaf => hb leaf (List.mem_toFinset.mp hleaf)
+    (hb : ∀ leaf,leaf ∈ leaves → leaf < 128) :
+    (frontier (leaves.map fun leaf => bucket*128+leaf) 7 bucket).length=authCount leaves := by
+  have hbelow : Below 7 leaves.toFinset := fun leaf hleaf => hb leaf (List.mem_toFinset.mp hleaf)
   have hne : leaves.toFinset ≠ ∅ := by
     intro he
     have hn : leaves=[] := by simpa using he
     rw [hn] at hlen
     contradiction
-  rw [frontier_length_formula _ 8 bucket leaves.toFinset hbelow (located_bucket leaves bucket),
+  rw [frontier_length_formula _ 7 bucket leaves.toFinset hbelow (located_bucket leaves bucket),
     if_neg hne,oc,(List.toFinset_sort (· ≤ ·) hn).mpr hs.pairwise]
   exact (authCount_eq_octH leaves hlen hn).symm
 
@@ -2704,13 +2727,13 @@ theorem selection_leaves_sorted (output : HashOutput) (selected : Selection)
 recursive frontier lengths, including the three outer proof nodes per bucket. -/
 theorem admissible_frontier_capacity (output : HashOutput)
     (h : admissible (selections output)=true) :
-    21+((selections output).map fun selected =>
-      (frontier (selected.leaves.map fun leaf => selected.bucket*256+leaf) 8 selected.bucket).length).sum ≤ 124 := by
+    28+((selections output).map fun selected =>
+      (frontier (selected.leaves.map fun leaf => selected.bucket*128+leaf) 7 selected.bucket).length).sum ≤ 121 := by
   have hs : (∀ selected ∈ selections output,selected.leaves.Nodup) ∧
-      21+((selections output).map fun selected => authCount selected.leaves).sum ≤ 124 := by
+      28+((selections output).map fun selected => authCount selected.leaves).sum ≤ 121 := by
     simpa only [admissible,Bool.and_eq_true,List.all_eq_true,decide_eq_true_eq] using h
   have hmap : ((selections output).map fun selected =>
-      (frontier (selected.leaves.map fun leaf => selected.bucket*256+leaf) 8 selected.bucket).length)=
+      (frontier (selected.leaves.map fun leaf => selected.bucket*128+leaf) 7 selected.bucket).length)=
         (selections output).map (fun selected => authCount selected.leaves) := by
     apply List.map_congr_left
     intro selected hselected
@@ -2724,17 +2747,17 @@ theorem admissible_frontier_capacity (output : HashOutput)
 /-- Direct source-level subtree reconstruction for a bucket in the actual
 forest tree built by `buildFts`. -/
 theorem built_bucket_recovery (answers : Answers) (index coord bucket used : Nat)
-    (leaves : List Nat) (proof : Fin 124 → Digest)
-    (hbucket : bucket < 8) (hlen : leaves.length=3) (hn : leaves.Nodup)
-    (hs : leaves.SortedLE) (hb : ∀ leaf,leaf ∈ leaves → leaf < 256)
-    (hfit : used+authCount leaves ≤ 124)
-    (hproof : Matches proof ((frontier (leaves.map fun leaf => bucket*256+leaf) 8 bucket).map
+    (leaves : List Nat) (proof : Fin 121 → Digest)
+    (hbucket : bucket < 16) (hlen : leaves.length=3) (hn : leaves.Nodup)
+    (hs : leaves.SortedLE) (hb : ∀ leaf,leaf ∈ leaves → leaf < 128)
+    (hfit : used+authCount leaves ≤ 121)
+    (hproof : Matches proof ((frontier (leaves.map fun leaf => bucket*128+leaf) 7 bucket).map
       fun p => treeValue (evalWithAnswerFn answers (buildFts index coord)).1 p.1 p.2) used) :
     let built := evalWithAnswerFn answers (buildFts index coord)
-    let selected := leaves.map fun leaf => bucket*256+leaf
+    let selected := leaves.map fun leaf => bucket*128+leaf
     evalWithAnswerFn answers (recoverChild index coord selected
-      (selected.map fun leaf => built.2.getD leaf 0) proof 8 bucket used)=
-      some (treeValue built.1 8 bucket,used+authCount leaves) := by
+      (selected.map fun leaf => built.2.getD leaf 0) proof 7 bucket used)=
+      some (treeValue built.1 7 bucket,used+authCount leaves) := by
   have htree := eval_buildFts_correct answers index coord
   have hcount := bucket_frontier_length leaves bucket hlen hn hs hb
   dsimp only
@@ -2743,7 +2766,7 @@ theorem built_bucket_recovery (answers : Answers) (index coord bucket used : Nat
     (treeValue (evalWithAnswerFn answers (buildFts index coord)).1)
     (fun leaf => (evalWithAnswerFn answers (buildFts index coord)).2.getD leaf 0)
     htree.2.2.1 htree.2.2.2 _ _
-    (fun leaf hm => mapped_values_at_leaf _ _ leaf hm) proof 8 (by decide) bucket hbucket used hfit hproof
+    (fun leaf hm => mapped_values_at_leaf _ _ leaf hm) proof 7 (by decide) bucket hbucket used hfit hproof
 
 end SigGolfCandidate.T3.Correctness
 
@@ -2763,7 +2786,7 @@ def childCost (leaves : List Nat) : Nat → Nat → Nat
       childCost leaves level (2*node)+childCost leaves level (2*node+1)+1 else 0
 
 theorem bound_recoverChild (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 124 → Digest) : ∀ level node used,
+    (proof : Fin 121 → Digest) : ∀ level node used,
     CBound (fun _ => True) (childCost leaves level node)
       (recoverChild index coord leaves values proof level node used) := by
   intro level
@@ -2835,9 +2858,9 @@ theorem childCost_formula (leaves : List Nat) :
 
 theorem bucket_childCost (leaves : List Nat) (bucket : Nat)
     (hlen : leaves.length=3) (hn : leaves.Nodup) (hs : leaves.SortedLE)
-    (hb : ∀ leaf,leaf ∈ leaves → leaf < 256) :
-    childCost (leaves.map fun leaf => bucket*256+leaf) 8 bucket=authCount leaves+5 := by
-  have hc := childCost_formula (leaves.map fun leaf => bucket*256+leaf) 8 bucket leaves.toFinset
+    (hb : ∀ leaf,leaf ∈ leaves → leaf < 128) :
+    childCost (leaves.map fun leaf => bucket*128+leaf) 7 bucket=authCount leaves+5 := by
+  have hc := childCost_formula (leaves.map fun leaf => bucket*128+leaf) 7 bucket leaves.toFinset
     (fun leaf hleaf => hb leaf (List.mem_toFinset.mp hleaf)) (located_bucket leaves bucket)
   rw [List.toFinset_card_of_nodup hn,hlen,bucket_frontier_length leaves bucket hlen hn hs hb] at hc
   omega
@@ -2929,19 +2952,19 @@ theorem bound_expandLayers (sig : Signature) (index : Nat) :
 
 def recoverOuter (sig : Signature) (index coord bucket : Nat) (initial : Option (Digest × Nat)) :
     M (Option (Digest × Nat)) :=
-  (List.range 3).foldlM (fun (state : Option (Digest × Nat)) j => do
+  (List.range 4).foldlM (fun (state : Option (Digest × Nat)) j => do
     let some (value,used) := state | pure none
-    if h : used < 124 then
+    if h : used < 121 then
       let other := sig.proof ⟨used,h⟩
       let pair := if bucket/2^j%2=0 then (value,other) else (other,value)
-      let parent ← nodeHash 10 coord index (2^(3-j-1)+bucket/2^(j+1)) pair.1 pair.2
+      let parent ← nodeHash 10 coord index (2^(4-j-1)+bucket/2^(j+1)) pair.1 pair.2
       pure (some (parent,used+1))
     else pure none) initial
 
 theorem bound_recoverOuter (sig : Signature) (index coord bucket : Nat) (initial : Option (Digest × Nat)) :
-    CBound (fun _ => True) 3 (recoverOuter sig index coord bucket initial) := by
+    CBound (fun _ => True) 4 (recoverOuter sig index coord bucket initial) := by
   unfold recoverOuter
-  refine Bound.foldlM_range_le 3 _ (fun _ _ => True) (fun _ => 1) initial trivial
+  refine Bound.foldlM_range_le 4 _ (fun _ _ => True) (fun _ => 1) initial trivial
     (fun j _ state _ => ?_) (fun _ _ => trivial) (by simp)
   cases state with
   | none => exact .pure _ 1 trivial
@@ -2956,16 +2979,16 @@ def forestStep (sig : Signature) (index : Nat) (chosen : List Selection) (coord 
     (state : Option (List Digest × Nat)) : M (Option (List Digest × Nat)) := do
   let some (roots,used) := state | pure none
   let sel := chosen.getD coord ⟨0,[]⟩
-  let selected := sel.leaves.map (fun s => sel.bucket*256+s)
+  let selected := sel.leaves.map (fun s => sel.bucket*128+s)
   let values := (List.range 3).map (fun j => sig.secrets ⟨(coord*3+j)%21,Nat.mod_lt _ (by decide)⟩)
-  let some (value,next) ← recoverChild index coord selected values sig.proof 8 sel.bucket used | pure none
+  let some (value,next) ← recoverChild index coord selected values sig.proof 7 sel.bucket used | pure none
   let result ← recoverOuter sig index coord sel.bucket (some (value,next))
   let some (root,next) := result | pure none
   pure (some (roots++[root],next))
 
 def forestStepCost (chosen : List Selection) (coord : Nat) : Nat :=
   let sel := chosen.getD coord ⟨0,[]⟩
-  childCost (sel.leaves.map fun leaf => sel.bucket*256+leaf) 8 sel.bucket+3
+  childCost (sel.leaves.map fun leaf => sel.bucket*128+leaf) 7 sel.bucket+4
 
 def RootsLength (n : Nat) (state : Option (List Digest × Nat)) : Prop :=
   ∀ roots used,state=some (roots,used) → roots.length=n
@@ -2980,8 +3003,8 @@ theorem bound_forestStep (sig : Signature) (index : Nat) (chosen : List Selectio
       obtain ⟨roots,used⟩ := pair
       have hroots := hstate roots used rfl
       dsimp only
-      refine (bound_recoverChild index coord _ _ sig.proof 8 _ used).bind'
-        (l := 3) (fun found _ => ?_) le_rfl
+      refine (bound_recoverChild index coord _ _ sig.proof 7 _ used).bind'
+        (l := 4) (fun found _ => ?_) le_rfl
       cases found with
       | none => exact .pure _ _ (by simp [RootsLength])
       | some pair =>
@@ -3005,8 +3028,8 @@ theorem bound_recoverFts (sig : Signature) (index : Nat) (chosen : List Selectio
   change CBound _ _ (do
     let state ← (List.range 7).foldlM (fun state coord => forestStep sig index chosen coord state) (some ([],0))
     let some (roots,used) := state | pure none
-    if !(List.range (124-used)).all (fun j =>
-      decide (sig.proof ⟨(used+j)%124,Nat.mod_lt _ (by decide)⟩=0)) then return none
+    if !(List.range (121-used)).all (fun j =>
+      decide (sig.proof ⟨(used+j)%121,Nat.mod_lt _ (by decide)⟩=0)) then return none
     pure (some (← forestPk index roots)))
   refine (Bound.foldlM_range 7 _ RootsLength (forestStepCost chosen) (some ([],0))
     (by simp [RootsLength]) (fun coord _ state hs => bound_forestStep sig index chosen coord state hs)).bind
@@ -3033,10 +3056,10 @@ theorem sum_getD_apply {α : Type} (items : List α) (fallback : α) (f : α →
 theorem forestRecoveryCost_le (output : HashOutput) (hadm : admissible (selections output)=true) :
     forestRecoveryCost (selections output) ≤ 161 := by
   have hs : (∀ selected ∈ selections output,selected.leaves.Nodup) ∧
-      21+((selections output).map fun selected => authCount selected.leaves).sum ≤ 124 := by
+      28+((selections output).map fun selected => authCount selected.leaves).sum ≤ 121 := by
     simpa only [admissible,Bool.and_eq_true,List.all_eq_true,decide_eq_true_eq] using hadm
   have hstep : ∀ coord ∈ range 7,forestStepCost (selections output) coord=
-      authCount ((selections output).getD coord ⟨0,[]⟩).leaves+8 := by
+      authCount ((selections output).getD coord ⟨0,[]⟩).leaves+9 := by
     intro coord hcoord
     have hc : coord < (selections output).length := by rw [selections_length];exact Finset.mem_range.mp hcoord
     have hm : (selections output).getD coord ⟨0,[]⟩ ∈ selections output := by
@@ -3065,7 +3088,9 @@ theorem bound_verify (message : Message) (pk : Digest) (w : Witness) :
     split
     · exact .pure _ _ trivial
     · rename_i hadm
-      have hadm : admissible (selections output)=true := by simpa using hadm
+      have hgood : digestAdmissible output=true := by simpa using hadm
+      have hadm : admissible (selections output)=true :=
+        (Bool.and_eq_true_iff.mp hgood).1
       refine ((bound_recoverFts w.signature (output.toNat%2^31) (selections output)).mono_k
         (forestRecoveryCost_le output hadm)).bind' (l := 486) (fun forest _ => ?_) (by decide)
       cases forest with
@@ -3153,7 +3178,7 @@ def encodingDecode (lay : Layer) (answer : HashOutput) : Option (List Nat) :=
   decode lay (answer.extractLsb' 0 128)
 
 def digestDecode (answer : HashOutput) : Option HashOutput :=
-  if admissible (selections answer) then some answer else none
+  if digestAdmissible answer then some answer else none
 
 theorem counterSearch_public (lay : Layer) (tree leaf : Nat) (message : Digest) :
     ∀ fuel counter,counterSearch lay tree leaf message counter fuel=
@@ -4344,37 +4369,37 @@ set_option linter.unusedSimpArgs false
 theorem recoverOuter_correct (answers : Answers) (sig : Signature) (index coord bucket used : Nat)
     (levels : List (List Digest)) (leaves : List Digest)
     (htree : TreeLevels answers 10 coord index 11 leaves 11 levels)
-    (hb : bucket < 8) (hfit : used+3 ≤ 124)
-    (hproof : Matches sig.proof ((List.range 3).map fun j => treeValue levels (8+j) (bucket/2^j ^^^ 1)) used) :
-    evalWithAnswerFn answers (recoverOuter sig index coord bucket (some (treeValue levels 8 bucket,used)))=
-      some (treeValue levels 11 0,used+3) := by
+    (hb : bucket < 16) (hfit : used+4 ≤ 121)
+    (hproof : Matches sig.proof ((List.range 4).map fun j => treeValue levels (7+j) (bucket/2^j ^^^ 1)) used) :
+    evalWithAnswerFn answers (recoverOuter sig index coord bucket (some (treeValue levels 7 bucket,used)))=
+      some (treeValue levels 11 0,used+4) := by
   unfold recoverOuter
-  refine (eval_foldlM_range_inv answers 3 _
-    (fun j state => state=some (treeValue levels (8+j) (bucket/2^j),used+j))
-    (some (treeValue levels 8 bucket,used)) (by simp) ?_).trans ?_
+  refine (eval_foldlM_range_inv answers 4 _
+    (fun j state => state=some (treeValue levels (7+j) (bucket/2^j),used+j))
+    (some (treeValue levels 7 bucket,used)) (by simp) ?_).trans ?_
   · intro j hj state hs
     rw [hs]
-    have hu : used+j < 124 := by omega
+    have hu : used+j < 121 := by omega
     simp only [hu,dif_pos,evalWithAnswerFn_bind,evalWithAnswerFn_pure]
     have hp := hproof j (by simp;exact hj) hu
-    have hg : ((List.range 3).map fun k => treeValue levels (8+k) (bucket/2^k ^^^ 1)).getD j 0=
-        treeValue levels (8+j) (bucket/2^j ^^^ 1) := by simp [List.getD_eq_getElem,hj]
+    have hg : ((List.range 4).map fun k => treeValue levels (7+k) (bucket/2^k ^^^ 1)).getD j 0=
+        treeValue levels (7+j) (bucket/2^j ^^^ 1) := by simp [List.getD_eq_getElem,hj]
     rw [hg] at hp
     rw [hp,sibling_pair,div_pow_succ]
-    have hnode : bucket/2^(j+1) < 2^(11-(8+j+1)) := by
+    have hnode : bucket/2^(j+1) < 2^(11-(7+j+1)) := by
       simpa only [Nat.add_assoc] using
-        div_pow_bound (node := bucket) (height := 11) (start := 8) (level := j+1) (by omega) hb
-    have ht := htree.2.2 (8+j) (by omega) (bucket/2^(j+1)) hnode
-    have he : 3-j-1=11-(8+j+1) := by omega
+        div_pow_bound (node := bucket) (height := 11) (start := 7) (level := j+1) (by omega) hb
+    have ht := htree.2.2 (7+j) (by omega) (bucket/2^(j+1)) hnode
+    have he : 4-j-1=11-(7+j+1) := by omega
     rw [he]
     change some (evalWithAnswerFn answers (nodeHash 10 coord index
-      (2^(11-(8+j+1))+bucket/2^(j+1))
-      (treeValue levels (8+j) (2*(bucket/2^(j+1))))
-      (treeValue levels (8+j) (2*(bucket/2^(j+1))+1))),used+j+1)=_
+      (2^(11-(7+j+1))+bucket/2^(j+1))
+      (treeValue levels (7+j) (2*(bucket/2^(j+1))))
+      (treeValue levels (7+j) (2*(bucket/2^(j+1))+1))),used+j+1)=_
     simp only [treeValue]
     rw [← ht]
     simp only [Nat.add_assoc]
-  · simp only [show (8 : Nat)+3=11 by decide,show (2 : Nat)^3=8 by decide,
+  · simp only [show (7 : Nat)+4=11 by decide,show (2 : Nat)^4=16 by decide,
       Nat.div_eq_of_lt hb]
 
 theorem builtFts_treeLevels (answers : Answers) (index coord : Nat) :
@@ -4384,28 +4409,28 @@ theorem builtFts_treeLevels (answers : Answers) (index coord : Nat) :
   exact ⟨ht.1,rfl,ht.2.2.2⟩
 
 def forestInner (answers : Answers) (index coord : Nat) (sel : Selection) : List Digest :=
-  (frontier (sel.leaves.map fun leaf => sel.bucket*256+leaf) 8 sel.bucket).map
+  (frontier (sel.leaves.map fun leaf => sel.bucket*128+leaf) 7 sel.bucket).map
     fun p => treeValue (evalWithAnswerFn answers (buildFts index coord)).1 p.1 p.2
 
 def forestOuter (answers : Answers) (index coord : Nat) (sel : Selection) : List Digest :=
-  (List.range 3).map fun j => treeValue (evalWithAnswerFn answers (buildFts index coord)).1
-    (8+j) (sel.bucket/2^j ^^^ 1)
+  (List.range 4).map fun j => treeValue (evalWithAnswerFn answers (buildFts index coord)).1
+    (7+j) (sel.bucket/2^j ^^^ 1)
 
 /-- One complete source BPORS coordinate reconstructs the builder's root,
 consuming its minimal bucket frontier followed by its three outer siblings. -/
 theorem forestStep_correct (answers : Answers) (sig : Signature) (index coord used : Nat)
     (chosen : List Selection) (sel : Selection) (roots : List Digest)
     (hsel : chosen.getD coord ⟨0,[]⟩=sel)
-    (hbucket : sel.bucket < 8) (hlen : sel.leaves.length=3) (hn : sel.leaves.Nodup)
-    (hs : sel.leaves.SortedLE) (hb : ∀ leaf,leaf ∈ sel.leaves → leaf < 256)
-    (hfit : used+authCount sel.leaves+3 ≤ 124)
+    (hbucket : sel.bucket < 16) (hlen : sel.leaves.length=3) (hn : sel.leaves.Nodup)
+    (hs : sel.leaves.SortedLE) (hb : ∀ leaf,leaf ∈ sel.leaves → leaf < 128)
+    (hfit : used+authCount sel.leaves+4 ≤ 121)
     (hvalues : (List.range 3).map (fun j => sig.secrets ⟨(coord*3+j)%21,Nat.mod_lt _ (by decide)⟩)=
-      (sel.leaves.map fun leaf => sel.bucket*256+leaf).map
+      (sel.leaves.map fun leaf => sel.bucket*128+leaf).map
         fun leaf => (evalWithAnswerFn answers (buildFts index coord)).2.getD leaf 0)
     (hproof : Matches sig.proof (forestInner answers index coord sel++forestOuter answers index coord sel) used) :
     evalWithAnswerFn answers (forestStep sig index chosen coord (some (roots,used)))=
       some (roots++[treeValue (evalWithAnswerFn answers (buildFts index coord)).1 11 0],
-        used+authCount sel.leaves+3) := by
+        used+authCount sel.leaves+4) := by
   have hinner := built_bucket_recovery answers index coord sel.bucket used sel.leaves sig.proof
     hbucket hlen hn hs hb (by omega) hproof.left
   have hcount : (forestInner answers index coord sel).length=authCount sel.leaves := by
@@ -4420,13 +4445,13 @@ theorem forestStep_correct (answers : Answers) (sig : Signature) (index coord us
   simp only [forestStep,evalWithAnswerFn_bind,hsel,hvalues,hinner,houter,evalWithAnswerFn_pure]
 
 def forestUsed (chosen : List Selection) (n : Nat) : Nat :=
-  ((List.range n).map fun coord => authCount (chosen.getD coord ⟨0,[]⟩).leaves+3).sum
+  ((List.range n).map fun coord => authCount (chosen.getD coord ⟨0,[]⟩).leaves+4).sum
 
 def forestRoots (answers : Answers) (index n : Nat) : List Digest :=
   (List.range n).map fun coord => treeValue (evalWithAnswerFn answers (buildFts index coord)).1 11 0
 
 theorem forestUsed_succ (chosen : List Selection) (n : Nat) :
-    forestUsed chosen (n+1)=forestUsed chosen n+authCount (chosen.getD n ⟨0,[]⟩).leaves+3 := by
+    forestUsed chosen (n+1)=forestUsed chosen n+authCount (chosen.getD n ⟨0,[]⟩).leaves+4 := by
   simp [forestUsed,List.range_succ,Nat.add_assoc]
 
 theorem forestRoots_succ (answers : Answers) (index n : Nat) :
@@ -4439,16 +4464,16 @@ forest public key; the tail of the fixed-size proof is checked explicitly. -/
 theorem recoverFts_honest (answers : Answers) (sig : Signature) (index : Nat) (chosen : List Selection)
     (hcoords : ∀ coord,coord < 7 →
       let sel := chosen.getD coord ⟨0,[]⟩
-      sel.bucket < 8 ∧ sel.leaves.length=3 ∧ sel.leaves.Nodup ∧ sel.leaves.SortedLE ∧
-      (∀ leaf,leaf ∈ sel.leaves → leaf < 256) ∧
-      forestUsed chosen coord+authCount sel.leaves+3 ≤ 124 ∧
+      sel.bucket < 16 ∧ sel.leaves.length=3 ∧ sel.leaves.Nodup ∧ sel.leaves.SortedLE ∧
+      (∀ leaf,leaf ∈ sel.leaves → leaf < 128) ∧
+      forestUsed chosen coord+authCount sel.leaves+4 ≤ 121 ∧
       ((List.range 3).map (fun j => sig.secrets ⟨(coord*3+j)%21,Nat.mod_lt _ (by decide)⟩)=
-        (sel.leaves.map fun leaf => sel.bucket*256+leaf).map
+        (sel.leaves.map fun leaf => sel.bucket*128+leaf).map
           fun leaf => (evalWithAnswerFn answers (buildFts index coord)).2.getD leaf 0) ∧
       Matches sig.proof (forestInner answers index coord sel++forestOuter answers index coord sel)
         (forestUsed chosen coord))
-    (hpad : ∀ j,j < 124-forestUsed chosen 7 →
-      sig.proof ⟨(forestUsed chosen 7+j)%124,Nat.mod_lt _ (by decide)⟩=0) :
+    (hpad : ∀ j,j < 121-forestUsed chosen 7 →
+      sig.proof ⟨(forestUsed chosen 7+j)%121,Nat.mod_lt _ (by decide)⟩=0) :
     evalWithAnswerFn answers (recoverFts sig index chosen)=
       some (evalWithAnswerFn answers (forestPk index (forestRoots answers index 7))) := by
   have hfold : evalWithAnswerFn answers ((List.range 7).foldlM
@@ -4461,16 +4486,16 @@ theorem recoverFts_honest (answers : Answers) (sig : Signature) (index : Nat) (c
     obtain ⟨hb,hlen,hn,hord,hleaf,hfit,hvalues,hproof⟩ := hcoords coord hc
     rw [forestStep_correct answers sig index coord (forestUsed chosen coord) chosen _ _ rfl
       hb hlen hn hord hleaf hfit hvalues hproof,forestRoots_succ,forestUsed_succ]
-  have hzero : (List.range (124-forestUsed chosen 7)).all (fun j =>
-      decide (sig.proof ⟨(forestUsed chosen 7+j)%124,Nat.mod_lt _ (by decide)⟩=0))=true := by
+  have hzero : (List.range (121-forestUsed chosen 7)).all (fun j =>
+      decide (sig.proof ⟨(forestUsed chosen 7+j)%121,Nat.mod_lt _ (by decide)⟩=0))=true := by
     simp only [List.all_eq_true,decide_eq_true_eq,List.mem_range]
     exact hpad
   unfold recoverFts
   change evalWithAnswerFn answers (do
     let state ← (List.range 7).foldlM (fun state coord => forestStep sig index chosen coord state) (some ([],0))
     let some (roots,used) := state | pure none
-    if !(List.range (124-used)).all (fun j =>
-      decide (sig.proof ⟨(used+j)%124,Nat.mod_lt _ (by decide)⟩=0)) then return none
+    if !(List.range (121-used)).all (fun j =>
+      decide (sig.proof ⟨(used+j)%121,Nat.mod_lt _ (by decide)⟩=0)) then return none
     pure (some (← forestPk index roots)))=_
   simp only [evalWithAnswerFn_bind,hfold,hzero,Bool.not_true,Bool.false_eq_true,ite_false,evalWithAnswerFn_pure]
 
@@ -4485,17 +4510,17 @@ set_option backward.isDefEq.respectTransparency false
 set_option linter.unusedSimpArgs false
 
 def forestOpened (answers : Answers) (index coord : Nat) (sel : Selection) : List Digest :=
-  (sel.leaves.map fun leaf => sel.bucket*256+leaf).map
+  (sel.leaves.map fun leaf => sel.bucket*128+leaf).map
     fun leaf => (evalWithAnswerFn answers (buildFts index coord)).2.getD leaf 0
 
 def forestRows (index : Nat) (chosen : List Selection) : M (List Digest × List Digest × List Digest) :=
   (List.range 7).foldlM (fun (state : List Digest × List Digest × List Digest) coord => do
     let sel := chosen.getD coord ⟨0,[]⟩
     let (levels,secrets) ← buildFts index coord
-    let selected := sel.leaves.map fun s => sel.bucket*256+s
+    let selected := sel.leaves.map fun s => sel.bucket*128+s
     let opened := selected.map fun s => secrets.getD s 0
-    let inner := (frontier selected 8 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
-    let outer := (List.range 3).map fun j => (levels.getD (8+j) []).getD (sel.bucket/2^j ^^^ 1) 0
+    let inner := (frontier selected 7 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
+    let outer := (List.range 4).map fun j => (levels.getD (7+j) []).getD (sel.bucket/2^j ^^^ 1) 0
     pure (state.1++opened,state.2.1++inner++outer,state.2.2++[(levels.getD 11 []).getD 0 0])) ([],[],[])
 
 def forestOpenPrefix (answers : Answers) (index : Nat) (chosen : List Selection) (n : Nat) : List Digest :=
@@ -4587,7 +4612,7 @@ theorem forestProofPrefix_length (answers : Answers) (index : Nat) (output : Has
     (forestProofPrefix answers index (selections output) n).length=forestUsed (selections output) n := by
   have hnodup : ∀ sel ∈ selections output,sel.leaves.Nodup := by
     have hh : (∀ sel ∈ selections output,sel.leaves.Nodup) ∧
-        21+((selections output).map fun sel => authCount sel.leaves).sum ≤ 124 := by
+        28+((selections output).map fun sel => authCount sel.leaves).sum ≤ 121 := by
       simpa only [admissible,Bool.and_eq_true,List.all_eq_true,decide_eq_true_eq] using hadm
     exact hh.1
   unfold forestProofPrefix forestUsed
@@ -4602,14 +4627,14 @@ theorem forestProofPrefix_length (answers : Answers) (index : Nat) (output : Has
     (selection_leaves_sorted output _ hm) (fun leaf hh => selection_leaf_bound output _ leaf hm hh)]
 
 theorem forestUsed_capacity (output : HashOutput) (hadm : admissible (selections output)=true) :
-    forestUsed (selections output) 7 ≤ 124 := by
-  have hcap : 21+((selections output).map fun sel => authCount sel.leaves).sum ≤ 124 := by
+    forestUsed (selections output) 7 ≤ 121 := by
+  have hcap : 28+((selections output).map fun sel => authCount sel.leaves).sum ≤ 121 := by
     have hh : (∀ sel ∈ selections output,sel.leaves.Nodup) ∧
-        21+((selections output).map fun sel => authCount sel.leaves).sum ≤ 124 := by
+        28+((selections output).map fun sel => authCount sel.leaves).sum ≤ 121 := by
       simpa only [admissible,Bool.and_eq_true,List.all_eq_true,decide_eq_true_eq] using hadm
     exact hh.2
   have he : forestUsed (selections output) 7=
-      ((List.range 7).map fun coord => authCount ((selections output).getD coord ⟨0,[]⟩).leaves).sum+21 := by
+      ((List.range 7).map fun coord => authCount ((selections output).getD coord ⟨0,[]⟩).leaves).sum+28 := by
     unfold forestUsed
     rw [List.sum_map_add]
     simp
@@ -4634,12 +4659,12 @@ theorem recoverFts_from_signer_lists (answers : Answers) (sig : Signature) (inde
     have hleaves := fun leaf hleaf => selection_leaf_bound output _ leaf hm hleaf
     have hn : ((selections output).getD coord ⟨0,[]⟩).leaves.Nodup := by
       have hh : (∀ sel ∈ selections output,sel.leaves.Nodup) ∧
-          21+((selections output).map fun sel => authCount sel.leaves).sum ≤ 124 := by
+          28+((selections output).map fun sel => authCount sel.leaves).sum ≤ 121 := by
         simpa only [admissible,Bool.and_eq_true,List.all_eq_true,decide_eq_true_eq] using hadm
       exact hh.1 _ hm
     have hblock : (forestInner answers index coord ((selections output).getD coord ⟨0,[]⟩)++
         forestOuter answers index coord ((selections output).getD coord ⟨0,[]⟩)).length=
-        authCount ((selections output).getD coord ⟨0,[]⟩).leaves+3 := by
+        authCount ((selections output).getD coord ⟨0,[]⟩).leaves+4 := by
       simp only [List.length_append,forestInner,forestOuter,List.length_map,List.length_range]
       rw [bucket_frontier_length _ _ hlen hn hsorted hleaves]
     refine ⟨hb,hlen,hn,hsorted,hleaves,?_,?_,?_⟩
@@ -4678,7 +4703,7 @@ theorem recoverFts_from_signer_lists (answers : Answers) (sig : Signature) (inde
       exact hx
   · intro j hj
     rw [hproof]
-    simp only [Fin.val_mk,Nat.mod_eq_of_lt (show forestUsed (selections output) 7+j < 124 by omega)]
+    simp only [Fin.val_mk,Nat.mod_eq_of_lt (show forestUsed (selections output) 7+j < 121 by omega)]
     apply List.getD_eq_default
     rw [forestProofPrefix_length answers index output hadm 7 le_rfl]
     omega

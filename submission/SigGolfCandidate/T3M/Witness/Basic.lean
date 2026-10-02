@@ -8,7 +8,7 @@ open SphincsSecurity (bytesLE) in
 theorem bytesLE_zero16 : bytesLE 16 (0 : Digest) = zero16 := by decide
 
 @[simp] theorem Pads.zero_leaf (s : Fin 22) : (0 : Pads).leaf s = 0 := rfl
-@[simp] theorem Pads.zero_fold (k : Fin 124) : (0 : Pads).fold k = 0 := rfl
+@[simp] theorem Pads.zero_fold (k : Fin 121) : (0 : Pads).fold k = 0 := rfl
 @[simp] theorem Pads.zero_chain (lay : Layer) (i : Fin (chainCount lay)) : (0 : Pads).chain lay i = (0, 0) := rfl
 @[simp] theorem Pads.zero_merkle (lay : Layer) (j : Fin (height lay)) : (0 : Pads).merkle lay j = 0 := rfl
 

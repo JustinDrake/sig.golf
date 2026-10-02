@@ -54,6 +54,7 @@ structure LevPre (s : MachineState) (B : LevArgs) (leaves : List Digest) : Prop 
   x9 : s.getReg .x9 = BitVec.ofNat 64 B.tree
   x15 : s.getReg .x15 = BitVec.ofNat 64 B.h
   x21 : s.getReg .x21 = BitVec.ofNat 64 (hdr0 B.tag B.lay B.tree 0)
+  packed : T3.packedNodeTag B.tag
   htree : B.tree < 2 ^ 32
   hh1 : 1 ≤ B.h
   hh : B.h ≤ 12
@@ -92,12 +93,13 @@ theorem nodeInput_length (tag lay tree heap : Nat) (l r : Digest) :
     (bytesLE 16 l ++ bytesLE 16 (header tag lay tree 0 heap) ++ zero16 ++ bytesLE 16 r).length = 64 := by
   simp [bytesLE_length, zero16]
 
-theorem wordsOf_nodeInput (tag lay tree heap : Nat) (l r : Digest) :
+theorem wordsOf_nodeInput (tag lay tree heap : Nat) (l r : Digest)
+    (hn : T3.packedNodeTag tag := by decide) :
     wordsOf (bytesLE 16 l ++ bytesLE 16 (header tag lay tree 0 heap) ++ zero16 ++ bytesLE 16 r) =
-      [l.extractLsb' 0 64, l.extractLsb' 64 64, BitVec.ofNat 64 (hdr0 tag lay tree 0),
-        BitVec.ofNat 64 (hdr1 tree heap), 0, 0, r.extractLsb' 0 64, r.extractLsb' 64 64] := by
+      [l.extractLsb' 0 64, l.extractLsb' 64 64, BitVec.ofNat 64 (hdr0 tag lay tree tree),
+        BitVec.ofNat 64 (hdr1 heap 0), 0, 0, r.extractLsb' 0 64, r.extractLsb' 64 64] := by
   rw [wordsOf_append _ _ (by simp [bytesLE_length, zero16]), wordsOf_append _ _ (by simp [bytesLE_length]),
-    wordsOf_append _ _ (by simp [bytesLE_length]), wordsOf_bytesLE16, wordsOf_header, wordsOf_zero16,
+    wordsOf_append _ _ (by simp [bytesLE_length]), wordsOf_bytesLE16, wordsOf_packed_header _ _ _ _ _ hn, wordsOf_zero16,
     wordsOf_bytesLE16]
   rfl
 
@@ -165,9 +167,10 @@ theorem lev_node {ℓ : Nat} (hl : ℓ < B.h) {levels : List (List Digest)} {pre
     rw [pad64_of_aligned _ (by rw [nodeInput_length])]
     refine hashInput_toQ t2 _ 0 NODE (nodeInput_length _ _ _ _ _ _) t2x10 (by decide) (by decide) t2x11
       (by decide) ?_
-    rw [wordsOf_nodeInput, readWords_eight, t2n0, t2n8, t2n16, t2n24, fr (NODE + 32) (by simp),
+    rw [wordsOf_nodeInput _ _ _ _ _ _ hpre.packed, readWords_eight, t2n0, t2n8, t2n16, t2n24, fr (NODE + 32) (by simp),
       fr (NODE + 40) (by simp), t2n48, t2n56, hpre.z32, hpre.z40, hL1.1, hL1.2, hR1.1, hR1.2,
-      t1r.get (by simp), r21]
+      t1r.get (by simp), r21, hdr0_or_tree B.tag B.lay B.tree hpre.htree]
+    simp only [hdr1, Nat.zero_mod, Nat.zero_mul, Nat.add_zero, Nat.mod_eq_of_lt (show lo + i < 2^32 by omega)]
   have hv : hashArgumentsValid t2 = true :=
     hashArgs_const t2 NODE 64 NOUT t2x10 t2x11 t2x12 (by decide) (by decide) (by decide) (by decide)
       (by decide)

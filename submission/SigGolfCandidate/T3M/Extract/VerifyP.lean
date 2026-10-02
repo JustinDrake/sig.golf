@@ -122,6 +122,11 @@ theorem verifyP_walk_extract (answers : Answers) (m : Message) (pk : Digest) (w 
   swap
   · rw [if_pos (by simpa using hsel)] at hv; simp at hv
   rw [if_neg (by simpa using hsel)] at hv ⊢
+  by_cases hg : digestGate N = true
+  swap
+  · rw [if_pos (by simpa using hg)] at hv
+    simp at hv
+  rw [if_neg (by simpa using hg)] at hv ⊢
   refine ⟨hsel, ?_⟩
   have hidx : N.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by decide)
   generalize N.toNat % 2 ^ 31 = index at hidx hv ⊢
@@ -211,7 +216,9 @@ theorem eval_rejectTail (answers : Answers) (w : WBytes) (N : HashOutput) :
   unfold rejectTail
   split
   · rfl
-  · rw [evalWithAnswerFn_map]
+  · split
+    · rfl
+    · rw [evalWithAnswerFn_map]
 
 /-- An accepting run has the honest stream shape for its digest answer. -/
 theorem shaped_of_verifyP (answers : Answers) (m : Message) (pk : Digest) (w : WBytes)

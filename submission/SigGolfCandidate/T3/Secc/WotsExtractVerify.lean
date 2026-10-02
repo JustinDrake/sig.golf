@@ -94,6 +94,10 @@ theorem verifyP_walk_wots (answers : Answers) (m : Message) (pk : Digest) (w : W
   swap
   · rw [if_pos (by simpa using hsel)] at hv; simp at hv
   rw [if_neg (by simpa using hsel)] at hv ⊢
+  by_cases hg : digestGate N = true
+  swap
+  · rw [if_pos (by simpa using hg)] at hv; simp at hv
+  rw [if_neg (by simpa using hg)] at hv ⊢
   refine ⟨hsel, ?_⟩
   have hidx : N.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by decide)
   generalize N.toNat % 2 ^ 31 = index at hidx hv ⊢

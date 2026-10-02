@@ -55,23 +55,23 @@ theorem good_short {A T : Correctness.Answers} (h : Wots.Ref.ShortAgree A T) (w 
 def NearIn (A : Correctness.Answers) (log : QueryLog Requests) (entries : List Wots.Entry) : Prop :=
   ∃ (m : Message) (w : WBytes) (N : HashOutput) (f : BPair.FtsCoord),
     (pad64 (digestInput (wrho w) m (wdc w)), N) ∈ entries ∧
-    evalWithAnswerFn A (digest (wrho w) m (wdc w)) = N ∧ Shaped N w ∧
+    evalWithAnswerFn A (digest (wrho w) m (wdc w)) = N ∧ Shaped N w ∧ digestGate N=true ∧
     (∀ lay : Layer, Extract.Good A w (N.toNat % 2 ^ 31) lay) ∧ ¬BPB.SignedDigest log m w ∧ log.length ≤ 2 ^ 32 ∧
     f ∈ BPair.openedPositions N ∧ BPair.GuessedIn A log entries f ∧
     ∀ g ∈ BPair.openedPositions N, g ≠ f → BPair.Disclosed A log g
 
 theorem nearIn_short (A T : Correctness.Answers) (log : QueryLog Requests) (entries : List Wots.Entry)
     (h : Wots.Ref.ShortAgree A T) (hn : NearIn A log entries) : NearIn T log entries := by
-  obtain ⟨m, w, N, f, hx, hN, hS, hgood, hsd, hlen, hf, hguess, hdis⟩ := hn
-  refine ⟨m, w, N, f, hx, ?_, hS, fun lay => good_short h w _ lay (hgood lay), hsd, hlen, hf,
+  obtain ⟨m, w, N, f, hx, hN, hS, hgate, hgood, hsd, hlen, hf, hguess, hdis⟩ := hn
+  refine ⟨m, w, N, f, hx, ?_, hS, hgate, fun lay => good_short h w _ lay (hgood lay), hsd, hlen, hf,
     BPair.guessedIn_short h log entries f hguess, fun g hg hne => BPair.disclosed_short h log g (hdis g hg hne)⟩
   rw [← BPair.eval_congr_allowed (BPair.digest_short _ _ _) h]
   exact hN
 
 theorem nearIn_mono (A : Correctness.Answers) (log : QueryLog Requests) (entries entries' : List Wots.Entry)
     (hsub : ∀ e ∈ entries, e ∈ entries') (hn : NearIn A log entries) : NearIn A log entries' := by
-  obtain ⟨m, w, N, f, hx, hN, hS, hgood, hsd, hlen, hf, hguess, hdis⟩ := hn
-  exact ⟨m, w, N, f, hsub _ hx, hN, hS, hgood, hsd, hlen, hf, BPair.guessedIn_mono A log entries entries' hsub f hguess,
+  obtain ⟨m, w, N, f, hx, hN, hS, hgate, hgood, hsd, hlen, hf, hguess, hdis⟩ := hn
+  exact ⟨m, w, N, f, hsub _ hx, hN, hS, hgate, hgood, hsd, hlen, hf, BPair.guessedIn_mono A log entries entries' hsub f hguess,
     hdis⟩
 
 /-! ## The shared-law side -/
@@ -91,7 +91,7 @@ theorem near_shared (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
   have hvalue : c.value = true := (congrArg FirstHit.Recorded.value hs.2.2.2).symm.trans hclean.1
   have ha : ∀ input answer, SourceReplay.known c.state input = some answer → z.2 input = answer :=
     fun input answer hk => hagree input answer (by rw [← hstate]; exact hk)
-  obtain ⟨N, -, hN, -, hS, hgood, -⟩ := hCat
+  obtain ⟨N, -, hN, -, hS, hgate, hgood, -⟩ := hCat
   -- the verifier's own digest event
   obtain ⟨check, hcheck, hev, hst, m', w', hof', hv, hsub⟩ :=
     verdict_accepting g.value.1 i.value i.state c hs.2.2.1 z.2 ha hvalue f hf
@@ -106,7 +106,7 @@ theorem near_shared (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
   rw [hans] at hevent
   obtain ⟨f0, hf0, hguess, hdis⟩ := hQ
   rw [hN'] at hf0 hdis
-  exact ⟨m, w, N', f0, mem_publicEntries hevent, hN', hS, hgood, hsd, hlen, hf0, hguess, hdis⟩
+  exact ⟨m, w, N', f0, mem_publicEntries hevent, hN', hS, hgate, hgood, hsd, hlen, hf0, hguess, hdis⟩
 
 /-! ## B-SUF's R6 with honest logged signatures -/
 
@@ -114,7 +114,7 @@ theorem near_shared (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
 theorem caseC_not_signer_eval (answers : Correctness.Answers) (published : T3.Cache) (log : QueryLog Requests)
     (hsig : ∀ entry ∈ log, entry.2 = evalWithAnswerFn answers (FullGame.authenticatedSign published entry.1))
     (m : Message) (w : WBytes) (N : HashOutput)
-    (hN : evalWithAnswerFn answers (digest (wrho w) m (wdc w)) = N) (hS : Shaped N w)
+    (hN : evalWithAnswerFn answers (digest (wrho w) m (wdc w)) = N) (hS : Shaped N w) (hgate : digestGate N=true)
     (hgood : ∀ lay : Layer, Extract.Good answers w (N.toNat % 2 ^ 31) lay)
     (hfresh : ¬BPB.SignedDigest log m w) :
     ∀ entry ∈ log, (.inl (.inr (pad64 (digestInput (wrho w) m (wdc w)))) : T3.Spec.Domain) ∉
@@ -123,7 +123,7 @@ theorem caseC_not_signer_eval (answers : Correctness.Answers) (published : T3.Ca
   obtain ⟨hc, hm, hrho, hq'⟩ := BPB.signer_digest_query answers published entry.1 _ _ _ hq
   rw [← BPB.ofNat_toNat32 (wdc w)] at hq'
   have hacc := BPB.rejected_trial_inadmissible answers (wrho w) m (wdc w).toNat hq'
-    (by rw [BPB.ofNat_toNat32, hN]; exact hS.2.1)
+    (by rw [BPB.ofNat_toNat32, hN]; simp [digestAdmissible,hS.2.1,hgate])
   rw [BPB.ofNat_toNat32, hN] at hacc
   have hsel : (evalWithAnswerFn answers (payloadRecordForNonce published (wrho w) m)).2 = some N := by
     unfold payloadRecordForNonce

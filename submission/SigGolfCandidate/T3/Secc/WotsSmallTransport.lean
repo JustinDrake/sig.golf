@@ -365,7 +365,7 @@ theorem completed_split_src (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 1
   have hNN : N' = N := hN'.symm.trans hN
   subst hNN
   have hCat : BPB.CaseCAt z.2 message' witness' result.events := by
-    refine ⟨N', hdc, hN, ?_, hS, hgood, hfts⟩
+    refine ⟨N', hdc, hN, ?_, hS, by simpa only [← hN] using verifyP_digestGate z.2 message' generated.value.1 witness' hv, hgood, hfts⟩
     obtain ⟨prior, hp⟩ := hevent
     refine ⟨prior, ?_⟩
     rw [heq]

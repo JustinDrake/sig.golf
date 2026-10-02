@@ -32,10 +32,10 @@ def payloadRest (cache : Cache) (rho : Digest) (output : HashOutput) : M (Option
     (fun (state : List Digest × List Digest × List Digest) coord => do
       let sel := chosen.getD coord ⟨0,[]⟩
       let (levels,secrets) ← buildFts index coord
-      let selected := sel.leaves.map (fun s => sel.bucket*256+s)
+      let selected := sel.leaves.map (fun s => sel.bucket*128+s)
       let opened := selected.map (fun s => secrets.getD s 0)
-      let inner := (frontier selected 8 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
-      let outer := (List.range 3).map fun j => (levels.getD (8+j) []).getD (sel.bucket/2^j ^^^ 1) 0
+      let inner := (frontier selected 7 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
+      let outer := (List.range 4).map fun j => (levels.getD (7+j) []).getD (sel.bucket/2^j ^^^ 1) 0
       pure (state.1 ++ opened,state.2.1 ++ inner ++ outer,
         state.2.2 ++ [(levels.getD 11 []).getD 0 0])) ([],[],[])
   let root ← forestPk index state.2.2

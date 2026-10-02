@@ -109,7 +109,7 @@ theorem RcW_succ {sp l A : Nat} (h : RcW (sp - 48) l A) : RcW sp (l + 1) A := by
   · right; exact h
 
 section inner
-variable {sk : BitVec 256} {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 124 → Digest}
+variable {sk : BitVec 256} {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 121 → Digest}
 
 /-- **The inner node** (`hasLeaf` at level `l + 1`), given the recursion at level `l`. -/
 theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧ g2 < 2 ^ 11) {l : Nat}
@@ -213,7 +213,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   rcases r' with _ | ⟨vr, next'⟩
   · exact (TBSim.pure (Q := RcPost c index g0 g1 g2 values proof s (l + 1) node used e fresh ret sp) (a := none)
       h7).mono (by omega) (fun _ _ h => h)
-  obtain ⟨p7, x1_7, x2_7, x10_7, nout7, hnext', hnext'124, hvr, x18_7, x22_7, regs7, cur7, cntl7, cnt7, par7, str7,
+  obtain ⟨p7, x1_7, x2_7, x10_7, nout7, hnext', hnext'121, hvr, x18_7, x22_7, regs7, cur7, cntl7, cnt7, par7, str7,
     R67, F67, ctx7⟩ := h7
   have nF67 : ∀ A, sp - 48 ≤ A → A < 0x22000 → ¬ RcW (sp - 48) l A := nF45
   have g7 : ∀ A, sp - 48 ≤ A → A < sp → t7.getMem (BitVec.ofNat 64 A) = t6.getMem (BitVec.ofNat 64 A) :=
@@ -380,13 +380,13 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
     rw [pad64_of_aligned _ (by rw [nodeInput_length'])]
     refine hashInput_toQ t10 _ 0 NODE (nodeInput_length' _ _ _ _ _ _) x10_10 (by decide) (by decide) x11_10
       (by decide) ?_
-    rw [wordsOf_nodeInput', readWords_eight, g10 _ (by decide) (by simp only [NODE]; omega),
+    rw [wordsOf_nodeInput' 10 _ _ _ _ _ (by decide), readWords_eight, g10 _ (by decide) (by simp only [NODE]; omega),
       g10 _ (by decide) (by simp only [NODE]; omega), g10 _ (by decide) (by simp only [NODE]; omega),
       g10 _ (by decide) (by simp only [NODE]; omega), hn32, hn40,
       g10 _ (by decide) (by simp only [NODE]; omega), g10 _ (by decide) (by simp only [NODE]; omega),
       n0, n8, n16, n24, n48, n56, g7 _ (by omega) (by omega), g7 _ (by omega) (by omega), mv32, mv40,
       nout5.1, nout5.2, nout7.1, nout7.2,
-      hdr0_eq 10 c index 0 (by decide) (by omega) hi (by decide), hdr1_eq index heap hi hheap']
+      hdr0_eq 10 c index index (by decide) (by omega) hi hi, hdr1_eq heap 0 hheap' (by decide)]
     simp only [Nat.mul_zero, Nat.add_zero]
   have hv : hashArgumentsValid t10 = true :=
     hashArgs_const t10 NODE 64 NOUT x10_10 x11_10 x12_10 (by decide) (by decide) (by decide) (by decide) (by decide)
@@ -472,7 +472,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   refine ⟨p13, x1_13, by rw [x2_13]; congr 1; omega, by rw [r13.get (by decide)]; exact x10_12,
     ⟨by rw [f13.get (by decide) (by simp), f12.get (by decide) (by simp)]; exact hd.1,
       by rw [f13.get (by decide) (by simp), f12.get (by decide) (by simp)]; exact hd.2⟩, by omega,
-    hnext'124, fun h => absurd h (by simp),
+    hnext'121, fun h => absurd h (by simp),
     by rw [R1013.get (by decide), R710.get (by decide)]; exact x18_7,
     by rw [R1013.get (by decide), r10.get (by decide)]; exact x22_9,
     fun _ => ⟨by rw [R1013.get (by decide), r10.get (by decide)]; exact x23_9,

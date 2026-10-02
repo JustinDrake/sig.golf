@@ -29,10 +29,10 @@ theorem ftsLeafInput_length (idx c l : Nat) (sec : Digest) :
 
 theorem wordsOf_ftsLeafInput (idx c l : Nat) (sec : Digest) :
     wordsOf (zero16 ++ bytesLE 16 (header 9 c idx 0 l) ++ bytesLE 16 sec ++ zero16) =
-      [0, 0, BitVec.ofNat 64 (hdr0 9 c idx 0), BitVec.ofNat 64 (hdr1 idx l), sec.extractLsb' 0 64,
+      [0, 0, BitVec.ofNat 64 (hdr0 9 c idx idx), BitVec.ofNat 64 (hdr1 l 0), sec.extractLsb' 0 64,
         sec.extractLsb' 64 64, 0, 0] := by
   rw [wordsOf_append _ _ (by simp [bytesLE_length, zero16]), wordsOf_append _ _ (by simp [bytesLE_length, zero16]),
-    wordsOf_append _ _ (by simp [zero16]), wordsOf_zero16, wordsOf_header, wordsOf_bytesLE16]
+    wordsOf_append _ _ (by simp [zero16]), wordsOf_zero16, wordsOf_packed_header 9 _ _ _ _ (by decide), wordsOf_bytesLE16]
   rfl
 
 theorem toQ_ftsLeafInput_blocks (idx c l : Nat) (sec : Digest) :
@@ -119,8 +119,8 @@ theorem fl_hash {l : Nat} (hl : l < 2048) {t : MachineState} (hpc : t.pc = pcOf 
     refine hashInput_toQ t1 _ 0 FLEAF (ftsLeafInput_length _ _ _ _) t1x10 (by decide) (by decide) t1x11
       (by decide) ?_
     rw [wordsOf_ftsLeafInput, readWords_eight, m16, m24, m32, m40, hsec.1, hsec.2,
-      hdr0_eq 9 c idx 0 (by norm_num) (by omega) (by omega) (by norm_num),
-      hdr1_eq idx l (by omega) (by omega),
+      hdr0_eq 9 c idx idx (by norm_num) (by omega) (by omega) (by omega),
+      hdr1_eq l 0 (by omega) (by omega),
       hz FLEAF (by unfold NeverW; simp) (by decide), hz (FLEAF + 8) (by unfold NeverW; simp) (by decide),
       hz (FLEAF + 48) (by unfold NeverW; simp) (by decide), hz (FLEAF + 56) (by unfold NeverW; simp) (by decide)]
     congr 3 <;> ring_nf
@@ -328,6 +328,7 @@ theorem buildFts_tsim {sk : SecretKey} {cache : Bytes 32768} {c idx : Nat} {s : 
       x21 := by
         rw [t4x21]; show _ = BitVec.ofNat 64 (hdr0 10 c idx 0)
         rw [hdr0_eq 10 c idx 0 (by norm_num) (by omega) (by omega) (by norm_num)]; congr 1 <;> omega
+      packed := by change T3.packedNodeTag 10; decide
       htree := show idx < 2 ^ 32 by omega
       hh1 := show 1 ≤ 11 by norm_num
       hh := show 11 ≤ 12 by norm_num

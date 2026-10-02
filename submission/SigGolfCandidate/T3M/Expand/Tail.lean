@@ -32,9 +32,9 @@ theorem dig_eq_zero_iff (d : BitVec 128) : d = 0 ↔ d.extractLsb' 0 64 = 0 ∧ 
       simpa using this
 
 /-- **The canonical tail** `zt_loop`: proof slots `j .. 123` all zero, else `fail`. -/
-theorem zt_loop_spec (proof : Nat → Digest) : ∀ (n j : Nat) (s : MachineState), j + n = 124 →
+theorem zt_loop_spec (proof : Nat → Digest) : ∀ (n j : Nat) (s : MachineState), j + n = 121 →
     s.pc = pcOf 216 → s.getReg .x13 = BitVec.ofNat 64 j →
-    (∀ k, j ≤ k → k < 124 → DigAt s (0x7160 + 16 * k) (proof k)) →
+    (∀ k, j ≤ k → k < 121 → DigAt s (0x7160 + 16 * k) (proof k)) →
     ∃ c t, Steps image s c c t ∧ c ≤ 12 * n + 4 ∧
       (if (List.range n).all (fun i => decide (proof (j + i) = 0)) then
         t.pc = pcOf 228 ∧ RegsExcept s t [.x6, .x13, .x28, .x29] ∧ Frame s t (fun _ => False)
@@ -116,6 +116,7 @@ theorem forestInput_words (index : Nat) (roots : List Digest) (hlen : roots.leng
   rw [pad64_of_aligned _ (by simp only [List.length_append, bytesLE_length, hfl])]
   rw [wordsOf_append _ _ (by simp only [List.length_append, bytesLE_length]),
     wordsOf_append _ _ (by simp only [bytesLE_length]), wordsOf_header]
+  rfl
 
 theorem forestInput_length (index : Nat) (roots : List Digest) (hlen : roots.length = 7) :
     (pad64 (bytesLE 16 (roots.getD 0 0) ++ bytesLE 16 (header 11 0 index 0 0) ++

@@ -177,9 +177,9 @@ theorem counted_searchL (rho : Digest) (m : Message) :
       intro c
       rw [searchL_succ]
       exact counted_mono D Nn fts (counted_bind_const D Nn fts (counted_trial D Nn fts (Sampling.digestTrial rho m c))
-        (K := fun output => if admissible (selections output) = true then pure (some (BitVec.ofNat 32 c, output))
+        (K := fun output => if digestAdmissible output = true then pure (some (BitVec.ofNat 32 c, output))
           else BPair.searchL rho m (c + 1) fuel) (a' := 0) (b' := 0) (fun output => by
-          by_cases had : admissible (selections output) = true
+          by_cases had : digestAdmissible output = true
           · simp only [had, if_true]; exact counted_pure D Nn fts _
           · simp only [had, Bool.false_eq_true, if_false]; exact ih (c + 1)))
         (fun _ => le_of_eq (by simp)) (fun _ => le_of_eq (by simp))

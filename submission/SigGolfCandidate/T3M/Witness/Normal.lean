@@ -19,6 +19,7 @@ open OracleComp OracleSpec SigGolfCandidate.T3
 stream machine's queries, then `false` on every path. -/
 def rejectTail (w : WBytes) (N : HashOutput) : M Bool :=
   if !selectionsOk (selections N) then pure false
+  else if !digestGate N then pure false
   else (fun _ => false) <$> ftsP w (N.toNat % 2 ^ 31) (selections N)
 
 /-! ## Control skeleton of the stream machine -/
@@ -79,14 +80,16 @@ theorem rejectTail_false (w : WBytes) (N : HashOutput) : ∀ b ∈ support (reje
   unfold rejectTail at hb
   split at hb
   · simpa using hb
-  · simp only [support_map, Set.mem_image] at hb
-    obtain ⟨_, _, rfl⟩ := hb
-    rfl
+  · split at hb
+    · simpa using hb
+    · simp only [support_map, Set.mem_image] at hb
+      obtain ⟨_, _, rfl⟩ := hb
+      rfl
 
 /-! ## Zero pads: `verifyPads_zero` -/
 
 theorem recoverChildP_zero (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 124 → Digest) : ∀ level node used,
+    (proof : Fin 121 → Digest) : ∀ level node used,
     recoverChildP index coord leaves values proof 0 level node used =
       recoverChild index coord leaves values proof level node used := by
   intro level

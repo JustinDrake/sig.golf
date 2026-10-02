@@ -222,7 +222,7 @@ theorem game_linked_split (adversary : AdversaryP) (result : FirstHit.Recorded B
   · have hCat : BPB.CaseCAt answers message witness result.events := by
       obtain ⟨prior, hev⟩ := hrec _ hdq
       have hans : answers (.inl (.inr (pad64 (digestInput (wrho witness) message (wdc witness))))) = N := hN
-      exact ⟨N, hdc, hN, ⟨prior, by simpa only [hans] using hev⟩, hS, hgood, hshape⟩
+      exact ⟨N, hdc, hN, ⟨prior, by simpa only [hans] using hev⟩, hS, by simpa only [← hN] using verifyP_digestGate answers message generated.value.1 witness hv, hgood, hshape⟩
     by_cases hsd : BPB.SignedDigest interaction.value.2 message witness
     · exact Or.inr (Or.inr ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness,
         hof, hsd, hCat⟩)

@@ -382,6 +382,7 @@ theorem leaf_prfS {p : Nat} (hp : 2 * p < A.n) {st : List Digest × List Digest}
       fr (PRIV + 8) (by simp), t3a, t3b, fr (PRIV + 32) (by simp), fr (PRIV + 40) (by simp),
       fr (PRIV + 48) (by simp), fr (PRIV + 56) (by simp), hpre.p0, hpre.p8, hpre.p32, hpre.p40,
       hpre.p48, hpre.p56]
+    rfl
   have hv : hashArgumentsValid t3 = true :=
     hashArgs_const t3 PRIV 64 SEEDS t3x10 t3x11 t3x12 (by decide) (by decide) (by decide) (by decide)
       (by decide)
@@ -515,6 +516,7 @@ theorem leafInput_wordsS (A : LeafArgs) (ends : List Digest) (hlen : ends.length
   · rw [h, if_neg (by decide)]
     simp only [Nat.reduceMul, Nat.reduceSub, Nat.reduceAdd, Nat.reduceMod, List.replicate_zero,
       wordsOf_nil, List.append_nil]
+    simp [T3.packedNodeTag]
 
 omit hsub hpre in
 theorem leafInput_lengthS (A : LeafArgs) (ends : List Digest) (hlen : ends.length = A.n) :

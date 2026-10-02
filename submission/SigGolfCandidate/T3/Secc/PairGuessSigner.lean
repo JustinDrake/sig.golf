@@ -520,8 +520,8 @@ end Levels
 /-! ## The signer -/
 
 theorem selection_bounds (output : HashOutput) (c : Nat) (hc : c < 7) :
-    ((selections output).getD c ⟨0, []⟩).bucket < 8 ∧
-      ∀ leaf ∈ ((selections output).getD c ⟨0, []⟩).leaves, leaf < 256 := by
+    ((selections output).getD c ⟨0, []⟩).bucket < 16 ∧
+      ∀ leaf ∈ ((selections output).getD c ⟨0, []⟩).leaves, leaf < 128 := by
   simp only [selections, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range hc,
     Option.map_some, Option.getD_some]
   refine ⟨Nat.mod_lt _ (by decide), ?_⟩
@@ -554,7 +554,7 @@ theorem forestOpened_answers (fts : FtsCoord → Digest) (output : HashOutput) (
   rw [List.map_map, List.map_map]
   apply List.map_congr_left
   intro leaf hleaf
-  have hlt : ((selections output).getD c.val ⟨0, []⟩).bucket * 256 + leaf < 2048 := by
+  have hlt : ((selections output).getD c.val ⟨0, []⟩).bucket * 128 + leaf < 2048 := by
     have := hl leaf hleaf; omega
   rw [Function.comp_apply, Function.comp_apply, hsec _ hlt]
   have hidx : (⟨_, hlt⟩ : Fin 2048) = leafIndex ((selections output).getD c.val ⟨0, []⟩).bucket leaf := by

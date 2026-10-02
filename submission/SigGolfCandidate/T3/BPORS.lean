@@ -1,3 +1,8 @@
+import SigGolfCandidate.T3.Gate6.VerifierGate
+import SigGolfCandidate.T3.Gate6.SourceBudget
+import SigGolfCandidate.T3.Gate6.NearCoverage
+import SigGolfCandidate.T3.Gate6.Sampling
+import SigGolfCandidate.T3.Gate6.DigestCounting
 import SigGolfCandidate.T3M.Extract.Main
 import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.FiniteGraphReplay
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.AdaptiveHiddenHazard
@@ -31,1824 +36,6 @@ section
 /-! Local BPORS counting and bucket-thinning laws. These are the statistical
 components of the T3 reduction; domination of the adaptive signing history is
 an additional obligation. -/
-namespace SigGolfCandidate.T3.BPORS
-open OracleComp OracleSpec ENNReal
-open scoped BigOperators
-open SphincsSecurity.Concrete (binomialAverage binomialAverage_add binomialAverage_mul_left
-  binomialAverage_descFactorial)
-attribute [local instance] Classical.propDecidable
-set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
-
-/-- Distinct sampled leaves must all belong to the exposed set. -/
-def Covered {k n : Nat} (exposed : Finset (Fin n)) (draw : Fin k → Fin n) : Prop :=
-  Function.Injective draw ∧ ∀ i, draw i ∈ exposed
-
-noncomputable def coveredEquiv {k n : Nat} (exposed : Finset (Fin n)) :
-    {draw : Fin k → Fin n // Covered exposed draw} ≃ (Fin k ↪ exposed) where
-  toFun draw := ⟨fun i => ⟨draw.1 i,draw.2.2 i⟩,fun _i _j h => draw.2.1 (congrArg Subtype.val h)⟩
-  invFun embedding := ⟨fun i => (embedding i).val,
-    fun _i _j h => embedding.injective (Subtype.ext h),fun i => (embedding i).property⟩
-  left_inv _ := rfl
-  right_inv _ := rfl
-
-/-- Credits the distinctness check exactly, including exposed sets smaller
-than the number of requested openings. -/
-theorem covered_count (k n : Nat) (exposed : Finset (Fin n)) :
-    (Finset.univ.filter fun draw : Fin k → Fin n => Covered exposed draw).card =
-      exposed.card.descFactorial k := by
-  classical
-  rw [← Fintype.card_subtype,Fintype.card_congr (coveredEquiv exposed),Fintype.card_embedding_eq]
-  simp only [Fintype.card_fin,Fintype.card_coe]
-
-theorem covered_probability (k n : Nat) [NeZero n] (exposed : Finset (Fin n)) :
-    Pr[Covered exposed | ($ᵗ (Fin k → Fin n) : ProbComp _)] =
-      (exposed.card.descFactorial k : ENNReal)/(n : ENNReal)^k := by
-  classical
-  rw [probEvent_uniformSample,covered_count]
-  simp only [Fintype.card_fun,Fintype.card_fin,Nat.cast_pow]
-
-theorem covered_probability_le (k n r : Nat) [NeZero n]
-    (exposed : Finset (Fin n)) (hsize : exposed.card≤k*r) :
-    Pr[Covered exposed | ($ᵗ (Fin k → Fin n) : ProbComp _)] ≤
-      ((k*r).descFactorial k : ENNReal)/(n : ENNReal)^k := by
-  rw [covered_probability k n]
-  apply ENNReal.div_le_div_right
-  exact_mod_cast Nat.descFactorial_le k hsize
-
-/-- Independent coordinate draws multiply even when each coordinate's exposed
-set is different. No independence assumption about how those sets were chosen
-is made by this fixed-set statement. -/
-theorem covered_product_count {d k n : Nat} (exposed : Fin d → Finset (Fin n)) :
-    (Finset.univ.filter fun draw : Fin d → (Fin k → Fin n) =>
-      ∀ c, Covered (exposed c) (draw c)).card =
-        ∏ c, (exposed c).card.descFactorial k := by
-  classical
-  rw [← Fintype.card_subtype,Fintype.card_congr Equiv.subtypePiEquivPi,Fintype.card_pi]
-  apply Finset.prod_congr rfl
-  intro c _
-  rw [Fintype.card_subtype,covered_count]
-
-/-- Positive falling-factorial coefficients used by the three-opening closer. -/
-theorem three_openings_polynomial (r : Nat) :
-    (3*r).descFactorial 3 =
-      6*r.descFactorial 1+54*r.descFactorial 2+27*r.descFactorial 3 := by
-  rcases r with _|_|r
-  · decide
-  · decide
-  · simp only [Nat.descFactorial_succ,Nat.descFactorial_zero,Nat.mul_one]
-    simp only [Nat.sub_zero,Nat.add_sub_cancel]
-    rw [show 3*(r+1+1)-2=3*r+4 by omega,show 3*(r+1+1)-1=3*r+5 by omega,
-      show r+1+1-2=r by omega]
-    ring
-
-theorem two_openings_polynomial (r : Nat) :
-    (3*r).descFactorial 2 = 6*r.descFactorial 1+9*r.descFactorial 2 := by
-  rcases r with _|r
-  · decide
-  · simp only [Nat.descFactorial_succ,Nat.descFactorial_zero,Nat.mul_one]
-    simp only [Nat.sub_zero,Nat.add_sub_cancel]
-    rw [show 3*(r+1)-1=3*r+2 by omega]
-    ring
-
-/-- Exact binomial thinning for the three-opening cover envelope. -/
-theorem bucket_thinning (p : ENNReal) (hp : p≤1) (r : Nat) :
-    binomialAverage p r (fun count => ((3*count).descFactorial 3 : ENNReal)) =
-      6*(r.descFactorial 1 : ENNReal)*p+
-      54*(r.descFactorial 2 : ENNReal)*p^2+
-      27*(r.descFactorial 3 : ENNReal)*p^3 := by
-  simp_rw [three_openings_polynomial,Nat.cast_add,Nat.cast_mul]
-  rw [binomialAverage_add,binomialAverage_add]
-  simp_rw [binomialAverage_mul_left,binomialAverage_descFactorial hp]
-  norm_num only [Nat.cast_ofNat,pow_one]
-  ring
-
-theorem near_bucket_thinning (p : ENNReal) (hp : p≤1) (r : Nat) :
-    binomialAverage p r (fun count => ((3*count).descFactorial 2 : ENNReal)) =
-      6*(r.descFactorial 1 : ENNReal)*p+9*(r.descFactorial 2 : ENNReal)*p^2 := by
-  simp_rw [two_openings_polynomial,Nat.cast_add,Nat.cast_mul]
-  rw [binomialAverage_add]
-  simp_rw [binomialAverage_mul_left,binomialAverage_descFactorial hp]
-  norm_num only [Nat.cast_ofNat,pow_one]
-  ring
-
-
-noncomputable def bucketCoveredEquiv {b k n : Nat} (exposed : Fin b → Finset (Fin n)) :
-    {draw : Fin b × (Fin k → Fin n) // Covered (exposed draw.1) draw.2} ≃
-      (bucket : Fin b) × {draw : Fin k → Fin n // Covered (exposed bucket) draw} where
-  toFun draw := ⟨draw.1.1,draw.1.2,draw.2⟩
-  invFun draw := ⟨(draw.1,draw.2.1),draw.2.2⟩
-  left_inv _ := rfl
-  right_inv _ := rfl
-
-theorem bucket_covered_count {b k n : Nat} (exposed : Fin b → Finset (Fin n)) :
-    (Finset.univ.filter fun draw : Fin b × (Fin k → Fin n) =>
-      Covered (exposed draw.1) draw.2).card = ∑ bucket, (exposed bucket).card.descFactorial k := by
-  classical
-  rw [← Fintype.card_subtype,Fintype.card_congr (bucketCoveredEquiv exposed),Fintype.card_sigma]
-  apply Finset.sum_congr rfl
-  intro bucket _
-  rw [Fintype.card_subtype,covered_count]
-
-theorem bucket_covered_probability {b k n : Nat} [NeZero b] [NeZero n]
-    (exposed : Fin b → Finset (Fin n)) :
-    Pr[fun draw : Fin b × (Fin k → Fin n) => Covered (exposed draw.1) draw.2 |
-      ($ᵗ (Fin b × (Fin k → Fin n)) : ProbComp _)] =
-      (∑ bucket, ((exposed bucket).card.descFactorial k : ENNReal))/
-        ((b : ENNReal)*(n : ENNReal)^k) := by
-  classical
-  rw [probEvent_uniformSample,bucket_covered_count]
-  simp only [Fintype.card_prod,Fintype.card_fun,Fintype.card_fin,Nat.cast_mul,Nat.cast_pow,Nat.cast_sum]
-
-theorem bucket_product_count {d b k n : Nat} (exposed : Fin d → Fin b → Finset (Fin n)) :
-    (Finset.univ.filter fun draw : Fin d → (Fin b × (Fin k → Fin n)) =>
-      ∀ c, Covered (exposed c (draw c).1) (draw c).2).card =
-        ∏ c, ∑ bucket, (exposed c bucket).card.descFactorial k := by
-  classical
-  rw [← Fintype.card_subtype,Fintype.card_congr (Equiv.subtypePiEquivPi (p := fun (c : Fin d) (draw : Fin b × (Fin k → Fin n)) => Covered (exposed c draw.1) draw.2)),Fintype.card_pi]
-  apply Finset.prod_congr rfl
-  intro c _
-  rw [Fintype.card_subtype,bucket_covered_count]
-
-/-- Exact seven-coordinate fixed-exposure coverage, averaged over the eight
-bucket choices in each coordinate. Admissibility can only decrease this event. -/
-theorem bpors_covered_probability (exposed : Fin 7 → Fin 8 → Finset (Fin 256)) :
-    Pr[fun draw : Fin 7 → (Fin 8 × (Fin 3 → Fin 256)) =>
-      ∀ c, Covered (exposed c (draw c).1) (draw c).2 |
-      ($ᵗ (Fin 7 → (Fin 8 × (Fin 3 → Fin 256))) : ProbComp _)] =
-        ∏ c : Fin 7, ((∑ bucket : Fin 8, ((exposed c bucket).card.descFactorial 3 : ENNReal))/(8*256^3)) := by
-  classical
-  rw [probEvent_uniformSample,bucket_product_count]
-  simp only [Fintype.card_fun,Fintype.card_prod,Fintype.card_fin,Nat.cast_pow,Nat.cast_mul,
-    Nat.cast_ofNat,Nat.cast_prod,Nat.cast_sum,div_eq_mul_inv,Finset.prod_mul_distrib,Finset.prod_const,
-    Finset.card_univ,Fintype.card_fin,ENNReal.inv_pow]
-
-/-- A nonnegative falling-factorial envelope. -/
-noncomputable def envelope (coefficients : List Nat) (count : Nat) : ENNReal :=
-  ∑ degree ∈ Finset.range coefficients.length,
-    (coefficients.getD degree 0 : ENNReal)*count.descFactorial degree
-
-/-- Exact multinomial cross moment for two different buckets. The shared
-number of trials appears as `(r)_(i+j)`, rather than a product of marginal
-moments. This is the cross term in T3's variance calculation. -/
-theorem distinct_bucket_cross_moment {α : Type} [SampleableType α] [Fintype α] [DecidableEq α]
-    (first second : α) (hdistinct : first≠second) (steps : Nat) (a b : List Nat) :
-    SphincsSecurity.Concrete.uniformWordAverage steps (fun word : List α =>
-      envelope a (word.count first)*envelope b (word.count second)) =
-      ∑ i ∈ Finset.range a.length, ∑ j ∈ Finset.range b.length,
-        ((a.getD i 0 : ENNReal)*b.getD j 0)*
-          ((steps.descFactorial (i+j) : ENNReal)*(Fintype.card α : ENNReal)⁻¹^(i+j)) := by
-  simp only [envelope,Finset.sum_mul,Finset.mul_sum,
-    SphincsSecurity.Concrete.uniformWordAverage_sum]
-  rw [Finset.sum_comm]
-  apply Finset.sum_congr rfl
-  intro i _
-  apply Finset.sum_congr rfl
-  intro j _
-  have he : (fun word : List α =>
-      ((a.getD i 0 : ENNReal)*(word.count first).descFactorial i)*
-        ((b.getD j 0 : ENNReal)*(word.count second).descFactorial j)) =
-      (fun word : List α => ((a.getD i 0 : ENNReal)*b.getD j 0)*
-        ((word.count first).descFactorial i*(word.count second).descFactorial j)) := by
-    funext word;ring
-  rw [he,SphincsSecurity.Concrete.uniformWordAverage_mul_left,
-    SphincsSecurity.Concrete.uniformWordAverage_mixed_descFactorial first second hdistinct]
-
-
-def natEnvelope (coefficients : List Nat) (count : Nat) : Nat :=
-  ∑ degree ∈ Finset.range coefficients.length, coefficients.getD degree 0*count.descFactorial degree
-
-noncomputable def factorialPolynomial (coefficients : List Nat) : Polynomial Int :=
-  ∑ degree ∈ Finset.range coefficients.length,
-    Polynomial.C (coefficients.getD degree 0 : Int)*descPochhammer Int degree
-
-theorem envelope_cast (coefficients : List Nat) (count : Nat) :
-    envelope coefficients count=(natEnvelope coefficients count : ENNReal) := by
-  simp only [envelope,natEnvelope,Nat.cast_sum,Nat.cast_mul]
-
-theorem factorialPolynomial_eval (coefficients : List Nat) (count : Nat) :
-    (factorialPolynomial coefficients).eval (count : Int)=(natEnvelope coefficients count : Int) := by
-  simp only [factorialPolynomial,natEnvelope,Polynomial.eval_finsetSum,Polynomial.eval_mul,
-    Polynomial.eval_C,descPochhammer_eval_eq_descFactorial,Nat.cast_sum,Nat.cast_mul]
-
-def fullCoefficients : List Nat := [0,6,54,27]
-def squareCoefficients : List Nat := [0,36,7164,35154,33858,9477,729]
-
-theorem full_envelope (count : Nat) :
-    natEnvelope fullCoefficients count=(3*count).descFactorial 3 := by
-  rw [three_openings_polynomial]
-  norm_num [natEnvelope,fullCoefficients,Finset.sum_range_succ]
-
-/-- Exact same-bucket diagonal term; coefficients remain nonnegative. -/
-theorem square_polynomial :
-    factorialPolynomial fullCoefficients^2=factorialPolynomial squareCoefficients := by
-  norm_num [factorialPolynomial,fullCoefficients,squareCoefficients,Finset.sum_range_succ,
-    descPochhammer_succ_right,descPochhammer_zero]
-  ring
-
-theorem full_square_envelope (count : Nat) :
-    ((3*count).descFactorial 3 : ENNReal)^2=envelope squareCoefficients count := by
-  have he := congrArg (fun p : Polynomial Int => p.eval (count : Int)) square_polynomial
-  rw [Polynomial.eval_pow,factorialPolynomial_eval,factorialPolynomial_eval] at he
-  have hn : (natEnvelope fullCoefficients count)^2=natEnvelope squareCoefficients count := by
-    exact_mod_cast he
-  rw [full_envelope] at hn
-  rw [envelope_cast]
-  exact_mod_cast hn
-
-theorem envelope_thinning (p : ENNReal) (hp : p≤1) (steps : Nat) (coefficients : List Nat) :
-    binomialAverage p steps (envelope coefficients) =
-      ∑ degree ∈ Finset.range coefficients.length,
-        (coefficients.getD degree 0 : ENNReal)*(steps.descFactorial degree : ENNReal)*p^degree := by
-  change binomialAverage p steps (fun count => envelope coefficients count)=_
-  simp only [envelope,SphincsSecurity.Concrete.binomialAverage_sum,
-    binomialAverage_mul_left,binomialAverage_descFactorial hp,mul_assoc]
-
-theorem same_bucket_second_moment (steps : Nat) :
-    binomialAverage (1/8) steps (fun count => ((3*count).descFactorial 3 : ENNReal)^2) =
-      ∑ degree ∈ Finset.range squareCoefficients.length,
-        (squareCoefficients.getD degree 0 : ENNReal)*(steps.descFactorial degree : ENNReal)*(1/8)^degree := by
-  simp_rw [full_square_envelope]
-  exact envelope_thinning (1/8) (by norm_num) steps squareCoefficients
-
-/-- The cross-bucket formula instantiated at BPORS's eight buckets. -/
-theorem different_bucket_second_moment (first second : Fin 8) (hne : first≠second) (steps : Nat) :
-    SphincsSecurity.Concrete.uniformWordAverage steps (fun word : List (Fin 8) =>
-      ((3*word.count first).descFactorial 3 : ENNReal)*
-        (3*word.count second).descFactorial 3) =
-      ∑ i ∈ Finset.range fullCoefficients.length, ∑ j ∈ Finset.range fullCoefficients.length,
-        ((fullCoefficients.getD i 0 : ENNReal)*fullCoefficients.getD j 0)*
-          ((steps.descFactorial (i+j) : ENNReal)*(1/8)^(i+j)) := by
-  have he := distinct_bucket_cross_moment first second hne steps fullCoefficients fullCoefficients
-  simpa only [envelope_cast,full_envelope,Fintype.card_fin,Nat.cast_ofNat,one_div] using he
-
-
-open SphincsSecurity.Concrete (uniformWordAverage uniformWordAverage_sum uniformWordAverage_mul_left)
-
-noncomputable def diagonalMoment (steps : Nat) : ENNReal :=
-  ∑ degree ∈ Finset.range squareCoefficients.length,
-    (squareCoefficients.getD degree 0 : ENNReal)*(steps.descFactorial degree : ENNReal)*(1/8)^degree
-
-noncomputable def crossMoment (steps : Nat) : ENNReal :=
-  ∑ i ∈ Finset.range fullCoefficients.length, ∑ j ∈ Finset.range fullCoefficients.length,
-    ((fullCoefficients.getD i 0 : ENNReal)*fullCoefficients.getD j 0)*
-      ((steps.descFactorial (i+j) : ENNReal)*(1/8)^(i+j))
-
-noncomputable def bucketMass (word : List (Fin 8)) (bucket : Fin 8) : ENNReal :=
-  (3*word.count bucket).descFactorial 3
-
-noncomputable def coordinateEnvelope (word : List (Fin 8)) : ENNReal :=
-  (∑ bucket, bucketMass word bucket)/8
-
-theorem bucket_pair_moment (steps : Nat) (a b : Fin 8) :
-    uniformWordAverage steps (fun word => bucketMass word a*bucketMass word b)=
-      if a=b then diagonalMoment steps else crossMoment steps := by
-  classical
-  by_cases hab : a=b
-  · subst b
-    rw [if_pos rfl]
-    simp only [bucketMass,← pow_two,uniformWordAverage]
-    rw [SphincsSecurity.Concrete.expected_uniformProposalWord_count a steps
-      (fun count => ((3*count).descFactorial 3 : ENNReal)^2)]
-    simpa only [Fintype.card_fin,Nat.cast_ofNat,one_div,diagonalMoment] using same_bucket_second_moment steps
-  · rw [if_neg hab]
-    exact different_bucket_second_moment a b hab steps
-
-/-- Exact diagonal/cross mixture for a uniform choice among eight buckets. -/
-theorem coordinate_second_moment (steps : Nat) :
-    uniformWordAverage steps (fun word => coordinateEnvelope word^2)=
-      (diagonalMoment steps+7*crossMoment steps)/8 := by
-  classical
-  have hpoint (word : List (Fin 8)) : coordinateEnvelope word^2=
-      (8 : ENNReal)⁻¹^2*(∑ a : Fin 8, ∑ b : Fin 8, bucketMass word a*bucketMass word b) := by
-    unfold coordinateEnvelope
-    calc
-      _ = (8 : ENNReal)⁻¹^2*((∑ a : Fin 8, bucketMass word a)*(∑ b : Fin 8, bucketMass word b)) := by
-        rw [div_eq_mul_inv];ring
-      _ = _ := by
-        congr 1
-        rw [Finset.sum_mul]
-        simp_rw [Finset.mul_sum]
-  simp_rw [hpoint]
-  rw [uniformWordAverage_mul_left]
-  simp_rw [uniformWordAverage_sum,bucket_pair_moment]
-  have hrow (a : Fin 8) :
-      (∑ b : Fin 8, if a=b then diagonalMoment steps else crossMoment steps)=
-        diagonalMoment steps+7*crossMoment steps := by
-    rw [Finset.sum_ite]
-    have hy : (Finset.univ.filter fun b : Fin 8 => a=b)={a} := by ext b;simp [eq_comm]
-    have hn : (Finset.univ.filter fun b : Fin 8 => ¬a=b)=Finset.univ.erase a := by ext b;simp [eq_comm]
-    rw [hy,hn,Finset.sum_singleton,Finset.sum_const,Finset.card_erase_of_mem (Finset.mem_univ a)]
-    norm_num only [Finset.card_univ,Fintype.card_fin,nsmul_eq_mul,Nat.cast_ofNat]
-  simp_rw [hrow]
-  simp only [Finset.sum_const,Finset.card_univ,Fintype.card_fin,nsmul_eq_mul,div_eq_mul_inv,Nat.cast_ofNat]
-  have he : (8 : ENNReal)⁻¹^2*8=8⁻¹ := by
-    rw [pow_two,mul_assoc,ENNReal.inv_mul_cancel (by norm_num) (by finiteness),mul_one]
-  rw [← mul_assoc,he]
-  ring
-
-open OracleComp.EvalDist
-noncomputable def finiteAverage {α : Type} [Fintype α] (f : α → ENNReal) : ENNReal :=
-  (∑ x, f x)/(Fintype.card α : ENNReal)
-
-theorem expected_uniform_eq_finiteAverage {α : Type} [Fintype α] [SampleableType α]
-    (f : α → ENNReal) : expectedValue ($ᵗ α : ProbComp α) f=finiteAverage f := by
-  simp only [expectedValue_def,probOutput_uniformSample,tsum_fintype,finiteAverage,
-    div_eq_mul_inv,← Finset.mul_sum]
-  exact mul_comm _ _
-
-theorem finiteAverage_product {α : Type} [Fintype α] (d : Nat) (f : Fin d → α → ENNReal) :
-    finiteAverage (fun x : Fin d → α => ∏ i, f i (x i))=∏ i, finiteAverage (f i) := by
-  simp only [finiteAverage,Fintype.card_fun,Fintype.card_fin,Nat.cast_pow,div_eq_mul_inv,
-    ENNReal.inv_pow,Finset.prod_mul_distrib,Finset.prod_const,Finset.card_univ,Fintype.card_fin]
-  rw [Fintype.prod_sum]
-
-/-- Conditional on the shared number of proposals, the coordinate tables are
-independent. This identity applies equally to first and second moments. -/
-theorem uniform_coordinate_product (steps : Nat) (f : Fin 7 → (Fin steps → Fin 8) → ENNReal) :
-    expectedValue ($ᵗ (Fin 7 → (Fin steps → Fin 8)) : ProbComp _)
-      (fun table => ∏ c, f c (table c))=
-      ∏ c, expectedValue ($ᵗ (Fin steps → Fin 8) : ProbComp _) (f c) := by
-  simp_rw [expected_uniform_eq_finiteAverage]
-  exact finiteAverage_product 7 f
-
-
-theorem finiteAverage_equiv {α β : Type} [Fintype α] [Fintype β] (e : α ≃ β) (f : β → ENNReal) :
-    finiteAverage (fun x => f (e x))=finiteAverage f := by
-  unfold finiteAverage
-  rw [Fintype.card_congr e,Equiv.sum_comp]
-
-theorem finiteAverage_pair {α β : Type} [Fintype α] [Fintype β] (f : α × β → ENNReal) :
-    finiteAverage f=finiteAverage (fun a => finiteAverage (fun b => f (a,b))) := by
-  simp only [finiteAverage,Fintype.card_prod,Nat.cast_mul,div_eq_mul_inv,Fintype.sum_prod_type]
-  rw [ENNReal.mul_inv (Or.inr (ENNReal.natCast_ne_top _)) (Or.inl (ENNReal.natCast_ne_top _))]
-  simp only [Finset.sum_mul,mul_assoc]
-  apply Finset.sum_congr rfl
-  intro a _
-  apply Finset.sum_congr rfl
-  intro b _
-  ring
-
-open SphincsSecurity.Concrete (uniformWordAverage sampleUniformProposalWord)
-
-theorem uniformWordAverage_succ {α : Type} [Fintype α] [SampleableType α]
-    (steps : Nat) (f : List α → ENNReal) :
-    uniformWordAverage (steps+1) f =
-      finiteAverage (fun a => uniformWordAverage steps (fun word => f (a::word))) := by
-  change expectedValue (sampleUniformProposalWord α (steps+1)) f=_
-  rw [sampleUniformProposalWord,expectedValue_bind]
-  simp_rw [expectedValue_bind,expectedValue_pure]
-  exact expected_uniform_eq_finiteAverage _
-
-/-- Uniform finite arrays and the recursive proposal-word sampler have the
-same averages for every payoff, not just for the selected polynomial moments. -/
-theorem word_array_average {α : Type} [Fintype α] [SampleableType α]
-    (steps : Nat) (f : List α → ENNReal) :
-    uniformWordAverage steps f=finiteAverage (fun word : Fin steps → α => f (List.ofFn word)) := by
-  classical
-  induction steps generalizing f with
-  | zero =>
-      simp [uniformWordAverage,sampleUniformProposalWord,finiteAverage]
-  | succ steps ih =>
-      rw [uniformWordAverage_succ]
-      simp_rw [ih]
-      rw [← finiteAverage_equiv (Fin.consEquiv (fun _ : Fin (steps+1) => α))]
-      rw [finiteAverage_pair]
-      congr 1
-      funext a
-      congr 1
-      funext word
-      simp [Fin.consEquiv,List.ofFn_succ]
-
-/-- Seven independently sampled coordinate histories give the seventh power
-of the exact one-coordinate second moment. -/
-theorem seven_coordinate_second_moment (steps : Nat) :
-    expectedValue ($ᵗ (Fin 7 → (Fin steps → Fin 8)) : ProbComp _)
-      (fun table => (∏ c, coordinateEnvelope (List.ofFn (table c)))^2)=
-        ((diagonalMoment steps+7*crossMoment steps)/8)^7 := by
-  simp_rw [← Finset.prod_pow]
-  rw [uniform_coordinate_product steps (fun _ word => coordinateEnvelope (List.ofFn word)^2)]
-  have hcolumn : expectedValue ($ᵗ (Fin steps → Fin 8) : ProbComp _)
-      (fun word => coordinateEnvelope (List.ofFn word)^2)=
-        (diagonalMoment steps+7*crossMoment steps)/8 := by
-    rw [expected_uniform_eq_finiteAverage,← word_array_average steps (fun word => coordinateEnvelope word^2)]
-    exact coordinate_second_moment steps
-  simp_rw [hcolumn]
-  simp only [Finset.prod_const,Finset.card_univ,Fintype.card_fin]
-
-
-noncomputable def firstMoment (steps : Nat) : ENNReal :=
-  6*(steps.descFactorial 1 : ENNReal)*(1/8)+
-    54*(steps.descFactorial 2 : ENNReal)*(1/8)^2+
-    27*(steps.descFactorial 3 : ENNReal)*(1/8)^3
-
-theorem bucket_first_moment (steps : Nat) (bucket : Fin 8) :
-    uniformWordAverage steps (fun word => bucketMass word bucket)=firstMoment steps := by
-  unfold uniformWordAverage bucketMass
-  rw [SphincsSecurity.Concrete.expected_uniformProposalWord_count bucket steps
-    (fun count => ((3*count).descFactorial 3 : ENNReal))]
-  simpa only [firstMoment,Fintype.card_fin,Nat.cast_ofNat,one_div] using
-    bucket_thinning (1/8) (by norm_num) steps
-
-theorem coordinate_first_moment (steps : Nat) :
-    uniformWordAverage steps coordinateEnvelope=firstMoment steps := by
-  change uniformWordAverage steps (fun word => coordinateEnvelope word)=_
-  simp only [coordinateEnvelope,ENNReal.div_eq_inv_mul]
-  rw [SphincsSecurity.Concrete.uniformWordAverage_mul_left]
-  simp_rw [SphincsSecurity.Concrete.uniformWordAverage_sum,bucket_first_moment]
-  simp only [Finset.sum_const,Finset.card_univ,Fintype.card_fin,nsmul_eq_mul,Nat.cast_ofNat]
-  rw [← mul_assoc,ENNReal.inv_mul_cancel (by norm_num) (by finiteness),one_mul]
-
-theorem seven_coordinate_first_moment (steps : Nat) :
-    expectedValue ($ᵗ (Fin 7 → (Fin steps → Fin 8)) : ProbComp _)
-      (fun table => ∏ c, coordinateEnvelope (List.ofFn (table c)))=firstMoment steps^7 := by
-  rw [uniform_coordinate_product steps (fun _ word => coordinateEnvelope (List.ofFn word))]
-  have hcolumn : expectedValue ($ᵗ (Fin steps → Fin 8) : ProbComp _)
-      (fun word => coordinateEnvelope (List.ofFn word))=firstMoment steps := by
-    rw [expected_uniform_eq_finiteAverage,← word_array_average steps coordinateEnvelope]
-    exact coordinate_first_moment steps
-  simp_rw [hcolumn]
-  simp only [Finset.prod_const,Finset.card_univ,Fintype.card_fin]
-
-
-end SigGolfCandidate.T3.BPORS
-
-namespace SigGolfCandidate.T3.BPORS.Numeric
-open OracleComp OracleSpec ENNReal
-open scoped BigOperators
-set_option maxRecDepth 100000
-set_option exponentiation.threshold 4096
-set_option linter.unusedSimpArgs false
-set_option maxHeartbeats 10000000
-
-def childCoefficients : List Nat := [0,384,432,27]
-def childSquareCoefficients : List Nat := [0,1179648,30375936,20321280,3618432,239112,5832]
-def nearChildCoefficients : List Nat := [0,48,9]
-def meanCoeffs : List Nat := [0, 1231171548132409344, 15416166878256813834240, 2296511842946140927652544, 46813260052595624255196480, 283433829854097049775821152, 724412984377856339229562080, 947853092452231666193964624, 714877595584038144481507920, 336115074997359794646711072, 103989138842220417388700496, 21991921966081555692860880, 3265061973352410615038928, 346426443503572584901518, 26539086255332386987602, 1472487454965693745989, 58888802784298024629, 1672852746300870771, 32782970092403664, 419727483577710, 3148566314103, 10460353203]
-def varianceCoeffs : List Nat := [0, 3178828148885691643853424575651009708163072, 1993946624367469779046114267696906712062294138546028544, 43545277205570529223907044521506169502904597060859639889920, 27746772400793070351472521107611517828474121268147030314713088, 2771799289674854425574397217788073138441278784152950433801830400, 83117982985564026993908499218810781250258472520721933156283842560, 1041806256173754885014093564086046684962964937582858503714934620160, 6635522783874264474392345169981300868239451200393726398773025832960, 24373880644816274169174367704142776924146381375574207226406649200640, 56356558084206106525494850432015249173221955355052384392611467624448, 87399079266089591635452055479854523354437840306908061406673722408960, 95357540935107343485612724587995043237470624836774020912587766497280, 75952661973395447566614507901522719886671799529820678231856533995520, 45475401636736301098977571878664945777350174781734698133692633579520, 20955187632037967928033028094785582228506805776004095093117353459712, 7576178651383920950539447336293202829062627834545444896749771554816, 2183523822065417360689051226185301010260077985675272674305265106944, 508349235765193122657067315070553688471475369913166755129137823744, 96665309781818834180397697133403253382627811284552965188558520320, 15153508433106370964792368351304342340915357771734925693841047552, 1973617378708986084608733665249854970535100772650960795339849728, 214945023522021992830760998793651815301378343812955073859813376, 19679597534502400068358427095544438253172548183910459574845440, 1521216734616004603838594699805658514610456365625792767459328, 99609392324678621767255904560212056324095582099160445222912, 5538600780903522816862856573279445598463827323133662068736, 261917108179516404162867875944685771496566951283171262464, 10540937612867948787925950187289284828344313418449158144, 360936938706546467511100373996721192238467793425530880, 10501967935790881095592173564120206279010744633655296, 259036705800232793284461647684127802109846410493952, 5396374479496012097835405033348097089198373208064, 94451882663945032841535233711765895385133875200, 1378957959565466167438411662869111101615767552, 16629288818614428073541183635326393322045440, 163459133123305008043194099314921155067904, 1285892125123312582163854810312851062784, 7887967000839694906482785802931666944, 36294886572033124928178573929349120, 117665378893745519408897467613184, 239335386726619971646887297024, 229468251895129407139872768]
-def nearCoeffs : List Nat := [0, 153896443516551168, 1076796702623740723200, 116117664964416666368064, 1883241312670701002524608, 9486034700959391278314528, 20662618033127016381619872, 23359601556615760153311888, 15337811862219809536544592, 6299209736456062669880112, 1702541256924822874951680, 313677592396683116178960, 40343964227854941413376, 3675633010757709675102, 238720773393222409890, 11027070786501835065, 357700417124349537, 7926257479998384, 113767963697295, 949567618539, 3486784401]
-
-theorem mean_polynomial : factorialPolynomial childCoefficients^7=factorialPolynomial meanCoeffs := by
-  norm_num [factorialPolynomial,childCoefficients,meanCoeffs,Finset.sum_range_succ,
-    descPochhammer_succ_right,descPochhammer_zero]
-  ring
-
-theorem variance_polynomial : factorialPolynomial childSquareCoefficients^7=factorialPolynomial varianceCoeffs := by
-  norm_num [factorialPolynomial,childSquareCoefficients,varianceCoeffs,Finset.sum_range_succ,
-    descPochhammer_succ_right,descPochhammer_zero]
-  ring
-
-theorem near_polynomial : factorialPolynomial childCoefficients^6*factorialPolynomial nearChildCoefficients=
-    factorialPolynomial nearCoeffs := by
-  norm_num [factorialPolynomial,childCoefficients,nearChildCoefficients,nearCoeffs,Finset.sum_range_succ,
-    descPochhammer_succ_right,descPochhammer_zero]
-  ring
-
-
-theorem envelope_power {a b : List Nat} (power count : Nat)
-    (h : factorialPolynomial a^power=factorialPolynomial b) :
-    envelope a count^power=envelope b count := by
-  have he := congrArg (fun p : Polynomial Int => p.eval (count : Int)) h
-  rw [Polynomial.eval_pow,factorialPolynomial_eval,factorialPolynomial_eval] at he
-  have hn : (natEnvelope a count)^power=natEnvelope b count := by exact_mod_cast he
-  simp_rw [envelope_cast]
-  exact_mod_cast hn
-
-theorem mean_envelope_power (count : Nat) :
-    envelope childCoefficients count^7=envelope meanCoeffs count :=
-  envelope_power 7 count mean_polynomial
-
-theorem variance_envelope_power (count : Nat) :
-    envelope childSquareCoefficients count^7=envelope varianceCoeffs count :=
-  envelope_power 7 count variance_polynomial
-
-theorem firstMoment_coefficients (count : Nat) :
-    firstMoment count=envelope childCoefficients count/2^9 := by
-  unfold firstMoment envelope
-  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-  simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
-    ENNReal.toReal_pow,ENNReal.toReal_sum,ENNReal.toReal_natCast,ENNReal.toReal_ofNat,ENNReal.toReal_one]
-  norm_num [childCoefficients,Finset.sum_range_succ]
-  ring
-
-theorem secondMoment_coefficients (count : Nat) :
-    (diagonalMoment count+7*crossMoment count)/8=envelope childSquareCoefficients count/2^21 := by
-  unfold diagonalMoment crossMoment envelope
-  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-  simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
-    ENNReal.toReal_pow,ENNReal.toReal_sum,ENNReal.toReal_natCast,ENNReal.toReal_ofNat,ENNReal.toReal_one]
-  norm_num [fullCoefficients,squareCoefficients,childSquareCoefficients,Finset.sum_range_succ]
-  ring
-
-theorem firstMoment_power_coefficients (count : Nat) :
-    firstMoment count^7=envelope meanCoeffs count/2^63 := by
-  rw [firstMoment_coefficients,div_eq_mul_inv,mul_pow,mean_envelope_power,div_eq_mul_inv,
-    ENNReal.inv_pow,ENNReal.inv_pow,← pow_mul]
-
-theorem secondMoment_power_coefficients (count : Nat) :
-    ((diagonalMoment count+7*crossMoment count)/8)^7=envelope varianceCoeffs count/2^147 := by
-  rw [secondMoment_coefficients,div_eq_mul_inv,mul_pow,variance_envelope_power,div_eq_mul_inv,
-    ENNReal.inv_pow,ENNReal.inv_pow,← pow_mul]
-
-/-- The Poisson substitution is a bound on every falling-factorial term;
-there is no truncated distribution or omitted tail. -/
-theorem binomial_envelope_le_poisson (p : ENNReal) (hp : p≤1) (trials : Nat) (a : List Nat) :
-    SphincsSecurity.Concrete.binomialAverage p trials (envelope a) ≤
-      ∑ degree ∈ Finset.range a.length, (a.getD degree 0 : ENNReal)*((trials : ENNReal)*p)^degree := by
-  rw [envelope_thinning p hp]
-  apply Finset.sum_le_sum
-  intro degree _
-  calc
-    _ ≤ (a.getD degree 0 : ENNReal)*(trials : ENNReal)^degree*p^degree := by
-      gcongr
-      exact_mod_cast Nat.descFactorial_le_pow trials degree
-    _ = _ := by rw [mul_pow,mul_assoc]
-
-
-
-open OracleComp.EvalDist SphincsSecurity.Concrete
-
-/-- Probability envelope after the 21 independent eight-bit leaf choices. -/
-noncomputable def forestEnvelope {steps : Nat} (table : Fin 7 → Fin steps → Fin 8) : ENNReal :=
-  (∏ c, coordinateEnvelope (List.ofFn (table c)))/2^168
-
-theorem forest_first_moment (steps : Nat) :
-    expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 8) : ProbComp _) forestEnvelope =
-      envelope meanCoeffs steps/2^231 := by
-  change expectedValue _ (fun table => forestEnvelope table)=_
-  simp only [forestEnvelope,div_eq_mul_inv]
-  rw [expectedValue_mul_const,seven_coordinate_first_moment,firstMoment_power_coefficients,
-    div_eq_mul_inv,ENNReal.inv_pow,ENNReal.inv_pow,ENNReal.inv_pow,mul_assoc,← pow_add]
-
-theorem forest_second_moment (steps : Nat) :
-    expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 8) : ProbComp _)
-      (fun table => forestEnvelope table^2)=envelope varianceCoeffs steps/2^483 := by
-  simp only [forestEnvelope,div_eq_mul_inv,mul_pow]
-  rw [expectedValue_mul_const,seven_coordinate_second_moment,secondMoment_power_coefficients,
-    div_eq_mul_inv,ENNReal.inv_pow,ENNReal.inv_pow,ENNReal.inv_pow,← pow_mul,mul_assoc,← pow_add]
-
-noncomputable def poissonEnvelope (a : List Nat) (mean : ENNReal) : ENNReal :=
-  ∑ degree ∈ Finset.range a.length, (a.getD degree 0 : ENNReal)*mean^degree
-
-theorem forest_binomial_first_bound (p : ENNReal) (hp : p≤1) (trials : Nat) :
-    binomialAverage p trials (fun steps =>
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 8) : ProbComp _) forestEnvelope) ≤
-        poissonEnvelope meanCoeffs ((trials : ENNReal)*p)/2^231 := by
-  simp_rw [forest_first_moment,div_eq_mul_inv]
-  rw [binomialAverage_mul_right]
-  exact mul_le_mul' (binomial_envelope_le_poisson p hp trials meanCoeffs) le_rfl
-
-theorem forest_binomial_second_bound (p : ENNReal) (hp : p≤1) (trials : Nat) :
-    binomialAverage p trials (fun steps =>
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 8) : ProbComp _)
-        (fun table => forestEnvelope table^2)) ≤
-        poissonEnvelope varianceCoeffs ((trials : ENNReal)*p)/2^483 := by
-  simp_rw [forest_second_moment,div_eq_mul_inv]
-  rw [binomialAverage_mul_right]
-  exact mul_le_mul' (binomial_envelope_le_poisson p hp trials varianceCoeffs) le_rfl
-
-
-
-/-- The fixed-exposure coverage probability is bounded by the same forest
-potential whose first and second moments are proved above. -/
-theorem covered_le_forestEnvelope {steps : Nat}
-    (table : Fin 7 → Fin steps → Fin 8) (exposed : Fin 7 → Fin 8 → Finset (Fin 256))
-    (h : ∀ c bucket, (exposed c bucket).card ≤ 3*(List.ofFn (table c)).count bucket) :
-    Pr[fun draw : Fin 7 → (Fin 8 × (Fin 3 → Fin 256)) =>
-      ∀ c, Covered (exposed c (draw c).1) (draw c).2 |
-      ($ᵗ (Fin 7 → (Fin 8 × (Fin 3 → Fin 256))) : ProbComp _)] ≤ forestEnvelope table := by
-  rw [bpors_covered_probability]
-  have he : (∏ c : Fin 7,
-      ((∑ bucket : Fin 8, ((3*(List.ofFn (table c)).count bucket).descFactorial 3 : ENNReal))/(8*256^3))) =
-      forestEnvelope table := by
-    simp only [forestEnvelope,coordinateEnvelope,bucketMass,div_eq_mul_inv,
-      Finset.prod_mul_distrib,Finset.prod_const,Finset.card_univ,Fintype.card_fin]
-    rw [mul_assoc]
-    congr 1
-    apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-    norm_num [ENNReal.toReal_pow,ENNReal.toReal_inv]
-  rw [← he]
-  gcongr with c bucket
-  exact h c bucket
-
-/-- Number of padded raw proposals used in the T3 numerical envelope. -/
-def proposalLength : Nat := 4573625196
-
-/-- Concrete arithmetic for the mean polynomial, after leaf normalization. -/
-theorem poisson_mean_bound :
-    (2 : ENNReal)^128*poissonEnvelope meanCoeffs (proposalLength/2^31)/2^231 ≤ 119/1000 := by
-  unfold poissonEnvelope
-  apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-  simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
-    ENNReal.toReal_pow,ENNReal.toReal_sum,ENNReal.toReal_natCast,ENNReal.toReal_ofNat,ENNReal.toReal_one]
-  norm_num [meanCoeffs,proposalLength,Finset.sum_range_succ]
-
-/-- Concrete arithmetic for the normalized second-moment excess term. -/
-theorem poisson_excess_bound :
-    (2 : ENNReal)^225*poissonEnvelope varianceCoeffs (proposalLength/2^31)/(2*2^483) ≤ 987/100000000 := by
-  unfold poissonEnvelope
-  apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-  simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
-    ENNReal.toReal_pow,ENNReal.toReal_sum,ENNReal.toReal_natCast,ENNReal.toReal_ofNat,ENNReal.toReal_one]
-  norm_num [varianceCoeffs,proposalLength,Finset.sum_range_succ]
-
-/-- Concrete arithmetic for the sum over 21 possible missing openings. -/
-theorem poisson_near_bound :
-    21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^220 ≤ 103 := by
-  unfold poissonEnvelope
-  apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-  simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
-    ENNReal.toReal_pow,ENNReal.toReal_sum,ENNReal.toReal_natCast,ENNReal.toReal_ofNat,ENNReal.toReal_one]
-  norm_num [nearCoeffs,proposalLength,Finset.sum_range_succ]
-
-
-noncomputable def nearCoordinateEnvelope (word : List (Fin 8)) : ENNReal :=
-  (∑ bucket : Fin 8, ((3*word.count bucket).descFactorial 2 : ENNReal))/8
-
-theorem near_coordinate_first_moment (steps : Nat) :
-    uniformWordAverage steps nearCoordinateEnvelope=envelope nearChildCoefficients steps/2^6 := by
-  change uniformWordAverage steps (fun word => nearCoordinateEnvelope word)=_
-  simp only [nearCoordinateEnvelope,ENNReal.div_eq_inv_mul]
-  rw [uniformWordAverage_mul_left]
-  simp_rw [uniformWordAverage_sum]
-  have hb (bucket : Fin 8) : uniformWordAverage steps
-      (fun word => ((3*word.count bucket).descFactorial 2 : ENNReal))=
-      6*(steps.descFactorial 1 : ENNReal)*(1/8)+9*(steps.descFactorial 2 : ENNReal)*(1/8)^2 := by
-    unfold uniformWordAverage
-    rw [expected_uniformProposalWord_count bucket steps (fun count => ((3*count).descFactorial 2 : ENNReal))]
-    simpa only [Fintype.card_fin,Nat.cast_ofNat,one_div] using
-      near_bucket_thinning (1/8) (by norm_num) steps
-  simp_rw [hb]
-  simp only [Finset.sum_const,Finset.card_univ,Fintype.card_fin,nsmul_eq_mul,Nat.cast_ofNat]
-  rw [← mul_assoc,ENNReal.inv_mul_cancel (by norm_num) (by finiteness),one_mul]
-  unfold envelope
-  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-  simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
-    ENNReal.toReal_pow,ENNReal.toReal_sum,ENNReal.toReal_natCast,ENNReal.toReal_ofNat,ENNReal.toReal_one,
-    ENNReal.toReal_inv]
-  norm_num [nearChildCoefficients,Finset.sum_range_succ]
-  ring
-
-/-- The deficient coordinate has two exposed openings; the other six have three. -/
-noncomputable def nearForestEnvelope {steps : Nat} (missing : Fin 7)
-    (table : Fin 7 → Fin steps → Fin 8) : ENNReal :=
-  (∏ c, if c=missing then nearCoordinateEnvelope (List.ofFn (table c))
-    else coordinateEnvelope (List.ofFn (table c)))/2^160
-
-theorem near_envelope_product (count : Nat) :
-    envelope childCoefficients count^6*envelope nearChildCoefficients count=envelope nearCoeffs count := by
-  have he := congrArg (fun p : Polynomial Int => p.eval (count : Int)) near_polynomial
-  rw [Polynomial.eval_mul,Polynomial.eval_pow,factorialPolynomial_eval,factorialPolynomial_eval,
-    factorialPolynomial_eval] at he
-  have hn : (natEnvelope childCoefficients count)^6*natEnvelope nearChildCoefficients count=
-      natEnvelope nearCoeffs count := by exact_mod_cast he
-  simp_rw [envelope_cast]
-  exact_mod_cast hn
-
-theorem near_forest_first_moment (steps : Nat) (missing : Fin 7) :
-    expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 8) : ProbComp _) (nearForestEnvelope missing)=
-      envelope nearCoeffs steps/2^220 := by
-  change expectedValue _ (fun table => nearForestEnvelope missing table)=_
-  simp only [nearForestEnvelope,div_eq_mul_inv]
-  rw [expectedValue_mul_const,uniform_coordinate_product steps (fun c word =>
-    if c=missing then nearCoordinateEnvelope (List.ofFn word) else coordinateEnvelope (List.ofFn word))]
-  have he (c : Fin 7) : expectedValue ($ᵗ (Fin steps → Fin 8) : ProbComp _)
-      (fun word => if c=missing then nearCoordinateEnvelope (List.ofFn word)
-        else coordinateEnvelope (List.ofFn word)) =
-      if c=missing then envelope nearChildCoefficients steps/2^6 else firstMoment steps := by
-    by_cases h : c=missing
-    · simp only [h,ite_true]
-      rw [expected_uniform_eq_finiteAverage,← word_array_average steps nearCoordinateEnvelope,
-        near_coordinate_first_moment]
-    · simp only [h,ite_false]
-      rw [expected_uniform_eq_finiteAverage,← word_array_average steps coordinateEnvelope,
-        coordinate_first_moment]
-  simp_rw [he]
-  rw [Finset.prod_ite]
-  have hy : (Finset.univ.filter fun c : Fin 7 => c=missing)={missing} := by ext c;simp
-  have hn : (Finset.univ.filter fun c : Fin 7 => ¬c=missing)=Finset.univ.erase missing := by ext c;simp [eq_comm]
-  rw [hy,hn,Finset.prod_singleton,Finset.prod_const,Finset.card_erase_of_mem (Finset.mem_univ missing)]
-  simp only [Finset.card_univ,Fintype.card_fin]
-  rw [firstMoment_coefficients]
-  simp only [div_eq_mul_inv,mul_pow,ENNReal.inv_pow,← pow_mul]
-  calc
-    _ = (envelope childCoefficients steps^6*envelope nearChildCoefficients steps)*
-      ((2 : ENNReal)⁻¹^(9*6)*2⁻¹^6*2⁻¹^160) := by ring
-    _ = _ := by rw [near_envelope_product,← pow_add,← pow_add]
-
-/-- Finite-population bound for one designated missing opening. -/
-theorem near_forest_binomial_bound (p : ENNReal) (hp : p≤1) (trials : Nat) (missing : Fin 7) :
-    binomialAverage p trials (fun steps =>
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 8) : ProbComp _) (nearForestEnvelope missing)) ≤
-        poissonEnvelope nearCoeffs ((trials : ENNReal)*p)/2^220 := by
-  simp_rw [near_forest_first_moment,div_eq_mul_inv]
-  rw [binomialAverage_mul_right]
-  exact mul_le_mul' (binomial_envelope_le_poisson p hp trials nearCoeffs) le_rfl
-
-
-
-/-- The actual uniform-history first moment satisfies the concrete T3 cap.
-The separate adaptive-history domination obligation is not assumed here. -/
-theorem uniform_history_mean_bound :
-    (2 : ENNReal)^128*binomialAverage (1/2^31) proposalLength (fun steps =>
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 8) : ProbComp _) forestEnvelope) ≤ 119/1000 := by
-  calc
-    _ ≤ (2 : ENNReal)^128*(poissonEnvelope meanCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^231) :=
-      mul_le_mul' le_rfl (forest_binomial_first_bound (1/2^31) (by norm_num) proposalLength)
-    _ = (2 : ENNReal)^128*poissonEnvelope meanCoeffs (proposalLength/2^31)/2^231 := by
-      simp only [div_eq_mul_inv,mul_one,one_mul,mul_assoc]
-    _ ≤ _ := poisson_mean_bound
-
-theorem uniform_history_excess_bound :
-    (2 : ENNReal)^225*binomialAverage (1/2^31) proposalLength (fun steps =>
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 8) : ProbComp _) (fun table => forestEnvelope table^2))/2 ≤
-        987/100000000 := by
-  calc
-    _ ≤ (2 : ENNReal)^225*(poissonEnvelope varianceCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^483)/2 := by
-      exact ENNReal.div_le_div_right (mul_le_mul' le_rfl
-        (forest_binomial_second_bound (1/2^31) (by norm_num) proposalLength)) _
-    _ = (2 : ENNReal)^225*poissonEnvelope varianceCoeffs (proposalLength/2^31)/(2*2^483) := by
-      simp only [div_eq_mul_inv,mul_one,one_mul]
-      rw [ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by finiteness))]
-      ring
-    _ ≤ _ := poisson_excess_bound
-
-theorem uniform_history_near_bound (missing : Fin 7) :
-    21*(2 : ENNReal)^128*binomialAverage (1/2^31) proposalLength (fun steps =>
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 8) : ProbComp _) (nearForestEnvelope missing)) ≤ 103 := by
-  calc
-    _ ≤ 21*(2 : ENNReal)^128*(poissonEnvelope nearCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^220) :=
-      mul_le_mul' le_rfl (near_forest_binomial_bound (1/2^31) (by norm_num) proposalLength missing)
-    _ = 21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^220 := by
-      simp only [div_eq_mul_inv,mul_one,one_mul,mul_assoc]
-    _ ≤ _ := poisson_near_bound
-
-end SigGolfCandidate.T3.BPORS.Numeric
-
-
-namespace SigGolfCandidate.T3.DigestSampling
-open OracleComp OracleSpec ENNReal
-set_option maxRecDepth 10000
-set_option maxHeartbeats 1000000
-set_option linter.unusedSimpArgs false
-
-abbrev RawView := Fin (2^31) × (Fin 7 → Fin 8 × (Fin 3 → Fin 256))
-abbrev Coordinates := RawView × BitVec 36
-
-def rawView (output : HashOutput) : RawView :=
-  ((output.extractLsb' 0 31).toFin, fun c =>
-    ((output.extractLsb' (31+27*c.val) 3).toFin,
-      fun j => (output.extractLsb' (31+27*c.val+3+8*j.val) 8).toFin))
-
-def coordinates (output : HashOutput) : Coordinates :=
-  (rawView output,output.extractLsb' 220 36)
-
-/-- All 256 bits are partitioned into index, seven bucket/leaf groups, and
-unused bits. No rejection or sorting is involved in this bijection. -/
-theorem coordinates_injective : Function.Injective coordinates := by
-  intro left right heq
-  apply BitVec.eq_of_getLsbD_eq
-  intro position hposition
-  by_cases hindex : position<31
-  · have hc := congrArg (fun x : Coordinates => BitVec.ofFin x.1.1) heq
-    change left.extractLsb' 0 31=right.extractLsb' 0 31 at hc
-    have hb := congrArg (fun bits : BitVec 31 => bits.getLsbD position) hc
-    simpa only [BitVec.getLsbD_extractLsb',hindex,decide_true,Bool.true_and,Nat.zero_add] using hb
-  · by_cases hslots : position<220
-    · let c : Fin 7 := ⟨(position-31)/27,by omega⟩
-      let within := (position-31)%27
-      have hwithin : within<27 := by dsimp [within];omega
-      have hoff : 31+27*c.val+within=position := by dsimp [c,within];omega
-      by_cases hbucket : within<3
-      · have hc := congrArg (fun x : Coordinates => (BitVec.ofFin (x.1.2 c).1 : BitVec 3)) heq
-        change left.extractLsb' (31+27*c.val) 3=right.extractLsb' (31+27*c.val) 3 at hc
-        have hb := congrArg (fun bits : BitVec 3 => bits.getLsbD within) hc
-        simpa only [BitVec.getLsbD_extractLsb',hbucket,decide_true,Bool.true_and,hoff] using hb
-      · let j : Fin 3 := ⟨(within-3)/8,by omega⟩
-        let bit := (within-3)%8
-        have hbit : bit<8 := by dsimp [bit];omega
-        have hoff' : 31+27*c.val+3+8*j.val+bit=position := by dsimp [j,bit];omega
-        have hc := congrArg (fun x : Coordinates => (BitVec.ofFin ((x.1.2 c).2 j) : BitVec 8)) heq
-        change left.extractLsb' (31+27*c.val+3+8*j.val) 8=
-          right.extractLsb' (31+27*c.val+3+8*j.val) 8 at hc
-        have hb := congrArg (fun bits : BitVec 8 => bits.getLsbD bit) hc
-        simpa only [BitVec.getLsbD_extractLsb',hbit,decide_true,Bool.true_and,hoff'] using hb
-    · have hc := congrArg Prod.snd heq
-      change left.extractLsb' 220 36=right.extractLsb' 220 36 at hc
-      have hb := congrArg (fun bits : BitVec 36 => bits.getLsbD (position-220)) hc
-      have hbit : position-220<36 := by omega
-      have hoff : 220+(position-220)=position := by omega
-      simpa only [BitVec.getLsbD_extractLsb',hbit,decide_true,Bool.true_and,hoff] using hb
-
-theorem coordinates_bijective : Function.Bijective coordinates := by
-  apply (Fintype.bijective_iff_injective_and_card _).2
-  refine ⟨coordinates_injective,?_⟩
-  simp only [Coordinates,RawView,Fintype.card_prod,Fintype.card_fun,Fintype.card_fin,Fintype.card_bitVec]
-  rfl
-
-noncomputable def coordinatesEquiv : HashOutput ≃ Coordinates :=
-  Equiv.ofBijective coordinates coordinates_bijective
-
-theorem uniform_coordinates :
-    𝒮[coordinates <$> ($ᵗ HashOutput : ProbComp HashOutput)]=
-      𝒮[($ᵗ Coordinates : ProbComp Coordinates)] :=
-  evalSPMF_map_bijective_uniform_cross (α := HashOutput) (β := Coordinates) coordinates coordinates_bijective
-
-def rawSelections (view : RawView) : List Selection :=
-  List.ofFn fun c : Fin 7 =>
-    ⟨(view.2 c).1.val,(List.ofFn fun j : Fin 3 => ((view.2 c).2 j).val).mergeSort (· ≤ ·)⟩
-
-theorem rawView_index (output : HashOutput) : (rawView output).1.val=output.toNat%2^31 := by
-  simp [rawView,BitVec.extractLsb'_toNat,Nat.shiftRight_eq_div_pow]
-
-theorem rawView_bucket (output : HashOutput) (c : Fin 7) :
-    ((rawView output).2 c).1.val=output.toNat/2^(31+27*c.val)%8 := by
-  simp [rawView,BitVec.extractLsb'_toNat,Nat.shiftRight_eq_div_pow]
-
-theorem rawView_leaf (output : HashOutput) (c : Fin 7) (j : Fin 3) :
-    (((rawView output).2 c).2 j).val=output.toNat/2^(31+27*c.val)/2^(3+8*j.val)%256 := by
-  simp only [rawView,BitVec.val_toFin,BitVec.extractLsb'_toNat,Nat.shiftRight_eq_div_pow]
-  rw [Nat.div_div_eq_div_mul,← Nat.pow_add]
-  congr 3
-  omega
-
-theorem rawSelections_eq_selections (output : HashOutput) :
-    rawSelections (rawView output)=selections output := by
-  apply List.ext_getElem
-  · simp [rawSelections,selections]
-  · intro c hc hc'
-    simp only [rawSelections,List.getElem_ofFn,selections,List.getElem_map,List.getElem_range]
-    congr 1
-    · exact rawView_bucket output ⟨c,by simpa [rawSelections] using hc⟩
-    · congr 1
-      apply List.ext_getElem
-      · simp
-      · intro j hj hj'
-        simp only [List.getElem_ofFn,List.getElem_map,List.getElem_range]
-        exact rawView_leaf output ⟨c,by simpa [rawSelections] using hc⟩ ⟨j,by simpa using hj⟩
-
-
-
-abbrev LeafChoices := Fin 7 → Fin 3 → Fin 256
-
-def leafSelections (leaves : LeafChoices) : List Selection :=
-  List.ofFn fun c : Fin 7 =>
-    ⟨0,(List.ofFn fun j : Fin 3 => (leaves c j).val).mergeSort (· ≤ ·)⟩
-
-def leafAdmissible (leaves : LeafChoices) : Bool := admissible (leafSelections leaves)
-
-theorem raw_admissible (view : RawView) :
-    admissible (rawSelections view)=leafAdmissible (fun c => (view.2 c).2) := by
-  simpa only [rawSelections,leafAdmissible,leafSelections,List.map_ofFn,Function.comp_def] using
-    (admissible_bucket_map (rawSelections view) (fun _ => 0)).symm
-
-/-- Exact source acceptance reads only the 168 leaf bits. In particular, it
-is independent of the 31 index bits and the 21 bucket bits before sampling. -/
-theorem source_admissible (output : HashOutput) :
-    admissible (selections output)=leafAdmissible (fun c => ((rawView output).2 c).2) := by
-  rw [← rawSelections_eq_selections]
-  exact raw_admissible _
-
-end SigGolfCandidate.T3.DigestSampling
-
-
-namespace SigGolfCandidate.T3.DigestSampling
-open OracleComp OracleSpec ENNReal OracleComp.EvalDist
-open SigGolfCandidate.T3.BPORS
-set_option maxRecDepth 10000
-set_option backward.isDefEq.respectTransparency false
-set_option maxHeartbeats 1000000
-set_option linter.unusedSimpArgs false
-
-abbrev IndexBuckets := Fin (2^31) × (Fin 7 → Fin 8)
-abbrev SamplingData := IndexBuckets × LeafChoices
-
-def regroup : Coordinates ≃ SamplingData × BitVec 36 where
-  toFun x := (((x.1.1,fun c => (x.1.2 c).1),fun c => (x.1.2 c).2),x.2)
-  invFun x := ((x.1.1.1,fun c => (x.1.1.2 c,x.1.2 c)),x.2)
-  left_inv x := by rcases x with ⟨⟨idx,columns⟩,unused⟩;rfl
-  right_inv x := by rcases x with ⟨⟨⟨idx,buckets⟩,leaves⟩,unused⟩;rfl
-
-def samplingData (output : HashOutput) : SamplingData := (regroup (coordinates output)).1
-
-theorem uniform_samplingData :
-    𝒮[samplingData <$> ($ᵗ HashOutput : ProbComp HashOutput)]=
-      𝒮[($ᵗ SamplingData : ProbComp SamplingData)] := by
-  have hwhole : 𝒮[(fun output => regroup (coordinates output)) <$>
-      ($ᵗ HashOutput : ProbComp HashOutput)]=
-      𝒮[($ᵗ (SamplingData × BitVec 36) : ProbComp _)] :=
-    evalSPMF_map_bijective_uniform_cross (α := HashOutput) (β := SamplingData × BitVec 36)
-      _ (regroup.bijective.comp coordinates_bijective)
-  change 𝒮[(fun output => (regroup (coordinates output)).1) <$> ($ᵗ HashOutput : ProbComp _)]=_
-  rw [show (fun output => (regroup (coordinates output)).1) <$> ($ᵗ HashOutput : ProbComp _)=
-    Prod.fst <$> ((fun output => regroup (coordinates output)) <$> ($ᵗ HashOutput : ProbComp _)) by
-      simp only [Functor.map_map,Function.comp_def]]
-  rw [evalSPMF_map,hwhole,← evalSPMF_map]
-  exact evalSPMF_map_fst_uniformSample_prod
-
-theorem samplingData_expectedValue (payoff : SamplingData → ENNReal) :
-    expectedValue ($ᵗ HashOutput : ProbComp HashOutput) (fun output => payoff (samplingData output))=
-      expectedValue ($ᵗ SamplingData : ProbComp SamplingData) payoff := by
-  rw [← expectedValue_map]
-  unfold expectedValue probOutput
-  rw [uniform_samplingData]
-
-theorem finiteAverage_mul_const {α : Type} [Fintype α] (f : α → ENNReal) (c : ENNReal) :
-    finiteAverage (fun x => f x*c)=finiteAverage f*c := by
-  simp only [finiteAverage,Finset.sum_mul,div_eq_mul_inv]
-  apply Finset.sum_congr rfl
-  intro x _
-  ring
-
-theorem finiteAverage_const_mul {α : Type} [Fintype α] (c : ENNReal) (f : α → ENNReal) :
-    finiteAverage (fun x => c*f x)=c*finiteAverage f := by
-  simpa only [mul_comm] using finiteAverage_mul_const f c
-
-theorem finiteAverage_pair_product {α β : Type} [Fintype α] [Fintype β]
-    (f : α → ENNReal) (g : β → ENNReal) :
-    finiteAverage (fun pair : α × β => f pair.1*g pair.2)=finiteAverage f*finiteAverage g := by
-  rw [finiteAverage_pair]
-  simp_rw [finiteAverage_const_mul,finiteAverage_mul_const]
-
-noncomputable def acceptanceProbability : ENNReal :=
-  finiteAverage (fun leaves : LeafChoices => if leafAdmissible leaves then 1 else 0)
-
-/-- Exact factorization at the source rejection predicate: conditioning a
-fresh digest on acceptance leaves the index/bucket distribution uniform. -/
-theorem accepted_samplingData (payoff : IndexBuckets → ENNReal) :
-    expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
-      (fun output => if admissible (selections output) then payoff (samplingData output).1 else 0)=
-        finiteAverage payoff*acceptanceProbability := by
-  have hp (output : HashOutput) :
-      (if admissible (selections output) then payoff (samplingData output).1 else 0)=
-      payoff (samplingData output).1*(if leafAdmissible (samplingData output).2 then 1 else 0) := by
-    rw [source_admissible]
-    change (if leafAdmissible (samplingData output).2 then _ else _)=_
-    split <;> simp_all
-  simp_rw [hp]
-  rw [samplingData_expectedValue (fun data => payoff data.1*(if leafAdmissible data.2 then 1 else 0)),
-    expected_uniform_eq_finiteAverage,finiteAverage_pair_product payoff
-      (fun leaves : LeafChoices => if leafAdmissible leaves then 1 else 0)]
-  rfl
-
-/-- A fresh random-oracle digest can be sampled through the same exact
-index/bucket/leaf decomposition, even with an arbitrary continuation. -/
-theorem fresh_digest_coordinates {Result : Type} (input : SphincsSecurity.HashInput)
-    (cache : QueryCache SphincsSecurity.HashSpec) (hcache : cache input=none)
-    (continuation : SphincsSecurity.HashOutput × QueryCache SphincsSecurity.HashSpec → ProbComp Result) :
-    𝒮[(randomOracle input).run cache >>= continuation]=
-      𝒮[($ᵗ Coordinates : ProbComp Coordinates) >>= fun pieces =>
-        let output := coordinatesEquiv.symm pieces
-        continuation (output,cache.cacheQuery input output)] := by
-  rw [OracleSpec.randomOracle,QueryImpl.withCaching_run_none _ hcache]
-  change 𝒮[((fun output : HashOutput => (output,cache.cacheQuery input output)) <$>
-      ($ᵗ HashOutput : ProbComp HashOutput)) >>= continuation]=_
-  have hcomp : ((fun output : HashOutput => (output,cache.cacheQuery input output)) <$>
-      ($ᵗ HashOutput : ProbComp HashOutput)) >>= continuation=
-      ($ᵗ HashOutput : ProbComp HashOutput) >>= fun output => continuation (output,cache.cacheQuery input output) := by
-    rw [map_eq_bind_pure_comp,LawfulMonad.bind_assoc]
-    simp only [Function.comp_def,LawfulMonad.pure_bind,Equiv.symm_apply_apply]
-  rw [hcomp]
-  have hback : (coordinatesEquiv <$> ($ᵗ HashOutput : ProbComp HashOutput)) >>=
-      (fun pieces => continuation (coordinatesEquiv.symm pieces,cache.cacheQuery input (coordinatesEquiv.symm pieces)))=
-      ($ᵗ HashOutput : ProbComp HashOutput) >>= fun output => continuation (output,cache.cacheQuery input output) := by
-    rw [map_eq_bind_pure_comp,LawfulMonad.bind_assoc]
-    simp only [Function.comp_def,LawfulMonad.pure_bind,Equiv.symm_apply_apply]
-  rw [← hback,evalSPMF_bind]
-  change (𝒮[coordinates <$> ($ᵗ HashOutput : ProbComp HashOutput)] >>= _)=_
-  rw [uniform_coordinates,← evalSPMF_bind]
-
-
-
-/-- Counter-in-tweak inputs are distinct throughout every permitted search.
-This statement includes an arbitrary starting counter without wraparound. -/
-theorem digest_trial_inputs_injective (rho : Digest) (message : Message) (start fuel : Nat)
-    (hlimit : start+fuel≤2^32) :
-    Function.Injective (fun trial : Fin fuel => digestInput rho message (BitVec.ofNat 32 (start+trial.val))) := by
-  intro i j he
-  have hc := (digestInput_injective he).2.2
-  have hi : start+i.val<2^32 := by omega
-  have hj : start+j.val<2^32 := by omega
-  have hn := congrArg BitVec.toNat hc
-  simp only [BitVec.toNat_ofNat,Nat.mod_eq_of_lt hi,Nat.mod_eq_of_lt hj] at hn
-  exact Fin.ext (by omega)
-
-end SigGolfCandidate.T3.DigestSampling
-
-
-namespace SigGolfCandidate.T3.BPORS.History
-open OracleComp OracleSpec ENNReal OracleComp.EvalDist
-open SphincsSecurity.Concrete
-open SigGolfCandidate.T3.DigestSampling
-open scoped BigOperators
-set_option maxRecDepth 10000
-set_option maxHeartbeats 1000000
-set_option linter.unusedSimpArgs false
-
-noncomputable def atIndex {α β : Type} [DecidableEq α] (index : α) (word : List (α × β)) : List β :=
-  word.filterMap fun pair => if pair.1=index then some pair.2 else none
-
-theorem atIndex_cons {α β : Type} [DecidableEq α] (index : α) (next : α × β) (word : List (α × β)) :
-    atIndex index (next::word)=if next.1=index then next.2::atIndex index word else atIndex index word := by
-  unfold atIndex
-  split <;> simp_all
-
-theorem finiteAverage_constant {α : Type} [Fintype α] [SampleableType α] (value : ENNReal) :
-    finiteAverage (fun _ : α => value)=value := by
-  rw [← expected_uniform_eq_finiteAverage]
-  exact expectedValue_const (by simp) value
-
-theorem average_binomial_commute {β : Type} [Fintype β]
-    (p : ENNReal) (steps : Nat) (f : β → Nat → ENNReal) :
-    finiteAverage (fun value => binomialAverage p steps (f value))=
-      binomialAverage p steps (fun count => finiteAverage (fun value => f value count)) := by
-  unfold finiteAverage
-  simp only [div_eq_mul_inv]
-  rw [binomialAverage_mul_right,binomialAverage_sum]
-
-theorem finiteAverage_choice {α : Type} [Fintype α] [SampleableType α] [DecidableEq α]
-    (index : α) (hit miss : ENNReal) :
-    finiteAverage (fun next => if next=index then hit else miss)=
-      (1-(Fintype.card α : ENNReal)⁻¹)*miss+(Fintype.card α : ENNReal)⁻¹*hit := by
-  rw [← expected_uniform_eq_finiteAverage]
-  exact expected_uniformSample_choice index hit miss
-
-/-- Thinning an entire marked proposal word at one index yields an exact
-binomial mixture of independent uniform mark histories. -/
-theorem uniform_marked_word_atIndex {α β : Type} [Fintype α] [SampleableType α] [DecidableEq α]
-    [Fintype β] [SampleableType β] (index : α) (steps : Nat) (payoff : List β → ENNReal) :
-    uniformWordAverage steps (fun word : List (α × β) => payoff (atIndex index word))=
-      binomialAverage (Fintype.card α : ENNReal)⁻¹ steps (fun count => uniformWordAverage count payoff) := by
-  induction steps generalizing payoff with
-  | zero => simp [uniformWordAverage,sampleUniformProposalWord,atIndex,binomialAverage]
-  | succ steps ih =>
-      rw [uniformWordAverage_succ,finiteAverage_pair]
-      have hm (next : α) :
-          finiteAverage (fun mark : β => uniformWordAverage steps
-            (fun word : List (α × β) => payoff (atIndex index ((next,mark)::word))))=
-          if next=index then
-            binomialAverage (Fintype.card α : ENNReal)⁻¹ steps (fun count => uniformWordAverage (count+1) payoff)
-          else binomialAverage (Fintype.card α : ENNReal)⁻¹ steps (fun count => uniformWordAverage count payoff) := by
-        by_cases h : next=index
-        · simp only [atIndex_cons,h,ite_true]
-          have hmark (mark : β) : uniformWordAverage steps
-              (fun word => payoff (mark::atIndex index word))=
-              binomialAverage (Fintype.card α : ENNReal)⁻¹ steps
-                (fun count => uniformWordAverage count (fun word => payoff (mark::word))) :=
-            ih (fun word => payoff (mark::word))
-          simp_rw [hmark]
-          rw [average_binomial_commute]
-          simp_rw [← uniformWordAverage_succ]
-        · simp only [atIndex_cons,h,ite_false]
-          rw [ih,finiteAverage_constant]
-      simp_rw [hm]
-      rw [finiteAverage_choice]
-      rfl
-
-abbrev Buckets := Fin 7 → Fin 8
-
-noncomputable def wordEnvelope (word : List Buckets) : ENNReal :=
-  (∏ c, coordinateEnvelope (word.map fun row => row c))/2^168
-
-/-- Transposing the finite uniform proposal table gives exactly the seven
-coordinate histories used by the moment proof. -/
-theorem word_forest_moment (steps power : Nat) :
-    uniformWordAverage steps (fun word => wordEnvelope word^power)=
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 8) : ProbComp _)
-        (fun table => Numeric.forestEnvelope table^power) := by
-  rw [word_array_average,expected_uniform_eq_finiteAverage]
-  rw [← finiteAverage_equiv (Equiv.piComm (fun (_ : Fin 7) (_ : Fin steps) => Fin 8))]
-  congr 1
-  funext table
-  simp only [wordEnvelope,Numeric.forestEnvelope,List.map_ofFn,Function.comp_def,Equiv.piComm_apply]
-
-theorem uniform_proposal_forest_moment (index : Fin (2^31)) (steps power : Nat) :
-    uniformWordAverage steps
-      (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex index word)^power)=
-      binomialAverage (1/2^31) steps (fun count =>
-        expectedValue ($ᵗ (Fin 7 → Fin count → Fin 8) : ProbComp _) (fun table => Numeric.forestEnvelope table^power)) := by
-  rw [uniform_marked_word_atIndex index steps (fun word => wordEnvelope word^power)]
-  simp only [Fintype.card_fin,Nat.cast_pow,Nat.cast_ofNat,one_div]
-  simp_rw [word_forest_moment]
-
-theorem uniform_proposal_mean_bound (index : Fin (2^31)) :
-    (2 : ENNReal)^128*uniformWordAverage Numeric.proposalLength
-      (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex index word)) ≤ 119/1000 := by
-  have h := uniform_proposal_forest_moment index Numeric.proposalLength 1
-  simp only [pow_one] at h
-  rw [h]
-  exact Numeric.uniform_history_mean_bound
-
-theorem uniform_proposal_excess_bound (index : Fin (2^31)) :
-    (2 : ENNReal)^225*uniformWordAverage Numeric.proposalLength
-      (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex index word)^2)/2 ≤ 987/100000000 := by
-  rw [uniform_proposal_forest_moment]
-  exact Numeric.uniform_history_excess_bound
-
-
-
-noncomputable def nearWordEnvelope (missing : Fin 7) (word : List Buckets) : ENNReal :=
-  (∏ c, if c=missing then Numeric.nearCoordinateEnvelope (word.map fun row => row c)
-    else coordinateEnvelope (word.map fun row => row c))/2^160
-
-theorem word_near_forest_moment (steps : Nat) (missing : Fin 7) :
-    uniformWordAverage steps (nearWordEnvelope missing)=
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 8) : ProbComp _) (Numeric.nearForestEnvelope missing) := by
-  rw [word_array_average,expected_uniform_eq_finiteAverage]
-  rw [← finiteAverage_equiv (Equiv.piComm (fun (_ : Fin 7) (_ : Fin steps) => Fin 8))]
-  congr 1
-  funext table
-  simp only [nearWordEnvelope,Numeric.nearForestEnvelope,List.map_ofFn,Function.comp_def,Equiv.piComm_apply]
-
-theorem uniform_proposal_near_bound (index : Fin (2^31)) (missing : Fin 7) :
-    21*(2 : ENNReal)^128*uniformWordAverage Numeric.proposalLength
-      (fun word : List (Fin (2^31) × Buckets) => nearWordEnvelope missing (atIndex index word)) ≤ 103 := by
-  rw [uniform_marked_word_atIndex index Numeric.proposalLength (nearWordEnvelope missing)]
-  simp only [Fintype.card_fin,Nat.cast_pow,Nat.cast_ofNat]
-  simp_rw [word_near_forest_moment]
-  simpa only [one_div] using Numeric.uniform_history_near_bound missing
-
-/-- Leaf exposures may be chosen adversarially; only their bucket labels
-enter the upper bound on the size of each exposed set. -/
-def exposedLeaves (history : List (Buckets × LeafChoices)) (c : Fin 7) (bucket : Fin 8) : Finset (Fin 256) :=
-  ((history.filter fun row => row.1 c==bucket).flatMap fun row => List.ofFn (row.2 c)).toFinset
-
-theorem exposedLeaves_card_le (history : List (Buckets × LeafChoices)) (c : Fin 7) (bucket : Fin 8) :
-    (exposedLeaves history c bucket).card ≤ 3*(history.map fun row => row.1 c).count bucket := by
-  calc
-    _ ≤ ((history.filter fun row => row.1 c==bucket).flatMap fun row => List.ofFn (row.2 c)).length :=
-      List.toFinset_card_le _
-    _ = 3*(history.filter fun row => row.1 c==bucket).length := by
-      simp [List.length_flatMap,List.length_ofFn,List.sum_replicate,Nat.mul_comm]
-    _ = _ := by
-      simp only [List.count_eq_countP,List.countP_map]
-      rw [List.countP_eq_length_filter]
-      rfl
-
-
-
-def wordTable (word : List Buckets) : Fin 7 → Fin word.length → Fin 8 :=
-  fun c i => word.get i c
-
-theorem wordTable_column (word : List Buckets) (c : Fin 7) :
-    List.ofFn (wordTable word c)=word.map (fun row => row c) := by
-  exact List.ofFn_getElem_eq_map word (fun row => row c)
-
-theorem wordTable_envelope (word : List Buckets) :
-    Numeric.forestEnvelope (wordTable word)=wordEnvelope word := by
-  simp only [Numeric.forestEnvelope,wordEnvelope,wordTable_column]
-
-/-- Even arbitrary, repeated leaf choices are dominated by the bucket-count
-potential. This is a deterministic bridge from exposures to the moment bound. -/
-theorem history_covered_probability_le (history : List (Buckets × LeafChoices)) :
-    Pr[fun draw : Fin 7 → (Fin 8 × (Fin 3 → Fin 256)) =>
-      ∀ c, Covered (exposedLeaves history c (draw c).1) (draw c).2 |
-      ($ᵗ (Fin 7 → (Fin 8 × (Fin 3 → Fin 256))) : ProbComp _)] ≤ wordEnvelope (history.map Prod.fst) := by
-  rw [← wordTable_envelope]
-  apply Numeric.covered_le_forestEnvelope
-  intro c bucket
-  rw [wordTable_column]
-  simpa only [List.map_map,Function.comp_def] using exposedLeaves_card_le history c bucket
-
-end SigGolfCandidate.T3.BPORS.History
-
-
-namespace SigGolfCandidate.T3.BPORS.History
-open OracleComp OracleSpec ENNReal OracleComp.EvalDist
-open SphincsSecurity.Concrete SigGolfCandidate.T3.DigestSampling
-open scoped BigOperators
-set_option maxRecDepth 10000
-set_option maxHeartbeats 1000000
-set_option linter.unusedSimpArgs false
-
-/-- Two-index occupancy averaging, using the exact uniform label law. -/
-noncomputable def jointCountAverage {α : Type} [Fintype α] [DecidableEq α]
-    (first second : α) : Nat → (Nat → Nat → ENNReal) → ENNReal
-  | 0, payoff => payoff 0 0
-  | steps+1, payoff => finiteAverage fun next : α =>
-      if next=first then jointCountAverage first second steps (fun i j => payoff (i+1) j)
-      else if next=second then jointCountAverage first second steps (fun i j => payoff i (j+1))
-      else jointCountAverage first second steps payoff
-
-theorem finiteAverage_commute {α β : Type} [Fintype α] [Fintype β] (f : α → β → ENNReal) :
-    finiteAverage (fun a => finiteAverage (f a))=
-      finiteAverage (fun b => finiteAverage (fun a => f a b)) := by
-  rw [← finiteAverage_pair (fun pair : α × β => f pair.1 pair.2),
-    ← finiteAverage_pair (fun pair : β × α => f pair.2 pair.1)]
-  exact (finiteAverage_equiv (Equiv.prodComm β α) (fun pair : α × β => f pair.1 pair.2)).symm
-
-theorem average_joint_commute {α β : Type} [Fintype α] [DecidableEq α] [Fintype β]
-    (first second : α) (steps : Nat) (payoff : β → Nat → Nat → ENNReal) :
-    finiteAverage (fun mark => jointCountAverage first second steps (payoff mark))=
-      jointCountAverage first second steps (fun i j => finiteAverage (fun mark => payoff mark i j)) := by
-  induction steps generalizing payoff with
-  | zero => rfl
-  | succ steps ih =>
-      simp only [jointCountAverage]
-      rw [finiteAverage_commute]
-      congr 1
-      funext next
-      by_cases hf : next=first
-      · simp only [hf,ite_true]
-        exact ih (fun mark i j => payoff mark (i+1) j)
-      · by_cases hs : next=second
-        · subst next
-          simp only [hf,ite_false,ite_true]
-          exact ih (fun mark i j => payoff mark i (j+1))
-        · simp only [hf,hs,ite_false]
-          exact ih payoff
-
-theorem uniform_word_joint_count {α : Type} [Fintype α] [SampleableType α] [DecidableEq α]
-    (first second : α) (hne : first≠second) (steps : Nat) (payoff : Nat → Nat → ENNReal) :
-    uniformWordAverage steps (fun word : List α => payoff (word.count first) (word.count second))=
-      jointCountAverage first second steps payoff := by
-  induction steps generalizing payoff with
-  | zero => simp [uniformWordAverage,sampleUniformProposalWord,jointCountAverage]
-  | succ steps ih =>
-      rw [uniformWordAverage_succ,jointCountAverage]
-      congr 1
-      funext next
-      by_cases hf : next=first
-      · subst next
-        simp only [List.count_cons_self,List.count_cons_of_ne hne,ite_true]
-        exact ih (fun i j => payoff (i+1) j)
-      · by_cases hs : next=second
-        · subst next
-          simp only [List.count_cons_self,List.count_cons_of_ne hne.symm,if_neg hf,ite_true]
-          exact ih (fun i j => payoff i (j+1))
-        · simp only [List.count_cons_of_ne hf,List.count_cons_of_ne hs,if_neg hf,if_neg hs]
-          exact ih payoff
-
-/-- At two distinct indices, uniform marks give independent histories
-conditional on the two occupancy counts. -/
-theorem uniform_marked_word_joint {α β : Type} [Fintype α] [SampleableType α] [DecidableEq α]
-    [Fintype β] [SampleableType β] (first second : α) (hne : first≠second) (steps : Nat)
-    (f g : List β → ENNReal) :
-    uniformWordAverage steps (fun word : List (α × β) => f (atIndex first word)*g (atIndex second word))=
-      jointCountAverage first second steps (fun i j => uniformWordAverage i f*uniformWordAverage j g) := by
-  induction steps generalizing f g with
-  | zero => simp [uniformWordAverage,sampleUniformProposalWord,atIndex,jointCountAverage]
-  | succ steps ih =>
-      rw [uniformWordAverage_succ,finiteAverage_pair,jointCountAverage]
-      congr 1
-      funext next
-      by_cases hf : next=first
-      · subst next
-        simp only [atIndex_cons,if_pos rfl,if_neg hne,ite_true]
-        have hm (mark : β) :
-            uniformWordAverage steps (fun word : List (α × β) =>
-              f (mark::atIndex first word)*g (atIndex second word))=
-            jointCountAverage first second steps (fun i j =>
-              uniformWordAverage i (fun word => f (mark::word))*uniformWordAverage j g) :=
-          ih (fun word => f (mark::word)) g
-        simp_rw [hm]
-        rw [average_joint_commute]
-        simp_rw [finiteAverage_mul_const,← uniformWordAverage_succ]
-      · by_cases hs : next=second
-        · subst next
-          simp only [atIndex_cons,if_neg hf,if_pos rfl,ite_true]
-          have hm (mark : β) :
-              uniformWordAverage steps (fun word : List (α × β) =>
-                f (atIndex first word)*g (mark::atIndex second word))=
-              jointCountAverage first second steps (fun i j =>
-                uniformWordAverage i f*uniformWordAverage j (fun word => g (mark::word))) :=
-            ih f (fun word => g (mark::word))
-          simp_rw [hm]
-          rw [average_joint_commute]
-          simp_rw [finiteAverage_const_mul,← uniformWordAverage_succ]
-        · simp only [atIndex_cons,if_neg hf,if_neg hs]
-          rw [ih,finiteAverage_constant]
-
-/-- Nonnegative factorial polynomials are negatively correlated at distinct
-labels of an exact finite multinomial sample. -/
-theorem uniform_envelope_negative_correlation {α : Type} [Fintype α] [SampleableType α] [DecidableEq α]
-    (first second : α) (hne : first≠second) (steps : Nat) (a b : List Nat) :
-    uniformWordAverage steps (fun word : List α => envelope a (word.count first)*envelope b (word.count second)) ≤
-      uniformWordAverage steps (fun word : List α => envelope a (word.count first))*
-        uniformWordAverage steps (fun word : List α => envelope b (word.count second)) := by
-  simp only [envelope,Finset.sum_mul,Finset.mul_sum,uniformWordAverage_sum]
-  apply Finset.sum_le_sum
-  intro j _
-  apply Finset.sum_le_sum
-  intro i _
-  have hp (word : List α) :
-      ((a.getD i 0 : ENNReal)*(word.count first).descFactorial i)*
-        ((b.getD j 0 : ENNReal)*(word.count second).descFactorial j)=
-      ((a.getD i 0 : ENNReal)*b.getD j 0)*
-        ((word.count first).descFactorial i*(word.count second).descFactorial j) := by ring
-  simp_rw [hp,uniformWordAverage_mul_left]
-  calc
-    _ ≤ ((a.getD i 0 : ENNReal)*b.getD j 0)*
-        (uniformWordAverage steps (fun word : List α => (word.count first).descFactorial i)*
-          uniformWordAverage steps (fun word : List α => (word.count second).descFactorial j)) :=
-      mul_le_mul' le_rfl (uniformWordAverage_mixed_descFactorial_le_product first second hne steps i j)
-    _ = _ := by ring
-
-
-
-theorem uniformWordAverage_mul_right {α : Type} [SampleableType α]
-    (steps : Nat) (factor : ENNReal) (payoff : List α → ENNReal) :
-    uniformWordAverage steps (fun word => payoff word*factor)=uniformWordAverage steps payoff*factor := by
-  simpa only [mul_comm] using uniformWordAverage_mul_left steps factor payoff
-
-theorem marked_marginal_envelope {α β : Type} [Fintype α] [SampleableType α] [DecidableEq α]
-    [Fintype β] [SampleableType β] (index : α) (steps : Nat) (f : List β → ENNReal)
-    (a : List Nat) (scale : ENNReal) (hf : ∀ n, uniformWordAverage n f=envelope a n*scale) :
-    uniformWordAverage steps (fun word : List (α × β) => f (atIndex index word))=
-      uniformWordAverage steps (fun word : List α => envelope a (word.count index))*scale := by
-  rw [uniform_marked_word_atIndex]
-  simp_rw [hf]
-  rw [← uniformWordAverage_mul_right]
-  exact (expected_uniformProposalWord_count index steps (fun n => envelope a n*scale)).symm
-
-/-- Nonnegative factorial conditional moments lift the multinomial negative
-correlation bound to arbitrary uniformly marked proposal histories. -/
-theorem marked_envelope_negative_correlation {α β : Type} [Fintype α] [SampleableType α] [DecidableEq α]
-    [Fintype β] [SampleableType β] (first second : α) (hne : first≠second) (steps : Nat)
-    (f g : List β → ENNReal) (a b : List Nat) (u v : ENNReal)
-    (hf : ∀ n, uniformWordAverage n f=envelope a n*u)
-    (hg : ∀ n, uniformWordAverage n g=envelope b n*v) :
-    uniformWordAverage steps (fun word : List (α × β) => f (atIndex first word)*g (atIndex second word)) ≤
-      uniformWordAverage steps (fun word : List (α × β) => f (atIndex first word))*
-        uniformWordAverage steps (fun word : List (α × β) => g (atIndex second word)) := by
-  rw [uniform_marked_word_joint first second hne,
-    ← uniform_word_joint_count first second hne]
-  simp_rw [hf,hg]
-  rw [marked_marginal_envelope first steps f a u hf,marked_marginal_envelope second steps g b v hg]
-  have hp (word : List α) :
-      (envelope a (word.count first)*u)*(envelope b (word.count second)*v)=
-        (envelope a (word.count first)*envelope b (word.count second))*(u*v) := by ring
-  simp_rw [hp]
-  rw [uniformWordAverage_mul_right]
-  calc
-    _ ≤ (uniformWordAverage steps (fun word : List α => envelope a (word.count first))*
-        uniformWordAverage steps (fun word : List α => envelope b (word.count second)))*(u*v) :=
-      mul_le_mul' (uniform_envelope_negative_correlation first second hne steps a b) le_rfl
-    _ = _ := by ring
-
-theorem word_first_moment (steps : Nat) :
-    uniformWordAverage steps wordEnvelope=envelope Numeric.meanCoeffs steps/2^231 := by
-  have h := word_forest_moment steps 1
-  simpa only [pow_one,Numeric.forest_first_moment] using h
-
-/-- BPORS potentials at two different indices are negatively correlated
-under the complete uniform proposal history, including all bucket marks. -/
-theorem forest_negative_correlation (first second : Fin (2^31)) (hne : first≠second) (steps : Nat) :
-    uniformWordAverage steps (fun word : List (Fin (2^31) × Buckets) =>
-      wordEnvelope (atIndex first word)*wordEnvelope (atIndex second word)) ≤
-      uniformWordAverage steps (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex first word))*
-        uniformWordAverage steps (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex second word)) := by
-  apply marked_envelope_negative_correlation first second hne steps wordEnvelope wordEnvelope
-    Numeric.meanCoeffs Numeric.meanCoeffs ((2^231 : ENNReal)⁻¹) ((2^231 : ENNReal)⁻¹)
-  · intro n;simpa only [div_eq_mul_inv] using word_first_moment n
-  · intro n;simpa only [div_eq_mul_inv] using word_first_moment n
-
-end SigGolfCandidate.T3.BPORS.History
-
-
-namespace SigGolfCandidate.T3.BPORS.History
-open OracleComp OracleSpec ENNReal OracleComp.EvalDist
-open SphincsSecurity.Concrete SigGolfCandidate.T3.DigestSampling
-open scoped BigOperators
-set_option maxRecDepth 10000
-set_option maxHeartbeats 1000000
-set_option exponentiation.threshold 4096
-set_option linter.unusedSimpArgs false
-
-abbrev Proposal := Fin (2^31) × Buckets
-
-/-- `2^128` times the mean cover envelope over all `2^31` indices. -/
-noncomputable def fullPrice (word : List Proposal) : ENNReal :=
-  2^97*∑ index : Fin (2^31), wordEnvelope (atIndex index word)
-
-theorem fullPrice_ne_top (word : List Proposal) : fullPrice word≠⊤ := by
-  unfold fullPrice
-  apply ENNReal.mul_ne_top (by finiteness)
-  apply ENNReal.sum_ne_top.mpr
-  intro index _
-  unfold wordEnvelope coordinateEnvelope bucketMass
-  apply ENNReal.div_ne_top ?_ (by norm_num)
-  apply ENNReal.prod_ne_top
-  intro c _
-  apply ENNReal.div_ne_top ?_ (by norm_num)
-  apply ENNReal.sum_ne_top.mpr
-  intro bucket _
-  exact ENNReal.natCast_ne_top _
-
-theorem fullPrice_mean (steps : Nat) :
-    uniformWordAverage steps fullPrice=
-      (2 : ENNReal)^128*binomialAverage (1/2^31) steps (fun count =>
-        expectedValue ($ᵗ (Fin 7 → Fin count → Fin 8) : ProbComp _) Numeric.forestEnvelope) := by
-  have hm (index : Fin (2^31)) := uniform_proposal_forest_moment index steps 1
-  simp only [pow_one] at hm
-  unfold fullPrice
-  rw [uniformWordAverage_mul_left,uniformWordAverage_sum]
-  simp_rw [hm]
-  simp only [Finset.sum_const,Finset.card_univ,Fintype.card_fin,nsmul_eq_mul,Nat.cast_pow,Nat.cast_ofNat]
-  rw [← mul_assoc,← pow_add]
-
-theorem fullPrice_mean_bound :
-    uniformWordAverage Numeric.proposalLength fullPrice ≤ 119/1000 := by
-  rw [fullPrice_mean]
-  exact Numeric.uniform_history_mean_bound
-
-theorem fullPrice_secondMoment_bound :
-    uniformWordAverage Numeric.proposalLength (fun word => fullPrice word^2) ≤
-      uniformWordAverage Numeric.proposalLength fullPrice^2+2*(987/100000000) := by
-  have hs := uniformWordAverage_sum_square_le Numeric.proposalLength
-    (fun index (word : List Proposal) => wordEnvelope (atIndex index word))
-    (fun first second hne => forest_negative_correlation first second hne Numeric.proposalLength)
-  have hscaled := mul_le_mul' (a := ((2 : ENNReal)^97)^2) le_rfl hs
-  have hdiag :
-      ((2 : ENNReal)^97)^2*(∑ index : Fin (2^31), uniformWordAverage Numeric.proposalLength
-        (fun word : List Proposal => wordEnvelope (atIndex index word)^2)) ≤ 2*(987/100000000) := by
-    simp_rw [uniform_proposal_forest_moment]
-    simp only [Finset.sum_const,Finset.card_univ,Fintype.card_fin,nsmul_eq_mul,Nat.cast_pow,Nat.cast_ofNat]
-    rw [← pow_mul,← mul_assoc,← pow_add]
-    have he := (ENNReal.div_le_iff (by norm_num : (2 : ENNReal)≠0) (by finiteness)).mp
-      Numeric.uniform_history_excess_bound
-    simpa only [Nat.reduceMul,Nat.reduceAdd,mul_comm] using he
-  calc
-    _ = ((2 : ENNReal)^97)^2*uniformWordAverage Numeric.proposalLength
-        (fun word : List Proposal => (∑ index,wordEnvelope (atIndex index word))^2) := by
-      simp only [fullPrice,mul_pow,uniformWordAverage_mul_left]
-    _ ≤ ((2 : ENNReal)^97)^2*((∑ index : Fin (2^31),uniformWordAverage Numeric.proposalLength
-        (fun word : List Proposal => wordEnvelope (atIndex index word)))^2+
-        ∑ index : Fin (2^31),uniformWordAverage Numeric.proposalLength
-          (fun word : List Proposal => wordEnvelope (atIndex index word)^2)) := hscaled
-    _ = uniformWordAverage Numeric.proposalLength fullPrice^2+
-        ((2 : ENNReal)^97)^2*(∑ index : Fin (2^31),uniformWordAverage Numeric.proposalLength
-          (fun word : List Proposal => wordEnvelope (atIndex index word)^2)) := by
-      unfold fullPrice
-      simp only [uniformWordAverage_mul_left,uniformWordAverage_sum,mul_pow,mul_add]
-    _ ≤ _ := add_le_add le_rfl hdiag
-
-/-- Positive-part inequality at any finite value whose chosen mean is at
-most one half. Keeping the mean term permits exact cancellation. -/
-theorem unit_excess_le_square (value mean : ENNReal) (hvalue : value≠⊤) (hmean : mean≤1/2) :
-    2*(value-1)+2*mean*value ≤ value^2+mean^2 := by
-  have hm : mean≠⊤ := ne_top_of_le_ne_top (by finiteness) hmean
-  have hmr : mean.toReal≤1/2 := by
-    have h := (ENNReal.toReal_le_toReal hm (by finiteness)).mpr hmean
-    simpa only [ENNReal.toReal_div,ENNReal.toReal_one,ENNReal.toReal_ofNat] using h
-  have hm0 : 0 ≤ mean.toReal := ENNReal.toReal_nonneg
-  by_cases hsmall : value≤1
-  · rw [tsub_eq_zero_of_le hsmall,mul_zero,zero_add]
-    apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-    simp (disch := finiteness) only [ENNReal.toReal_mul,ENNReal.toReal_pow,ENNReal.toReal_add,
-      ENNReal.toReal_ofNat]
-    nlinarith [sq_nonneg (value.toReal-mean.toReal)]
-  · have hlarge : 1≤value := le_of_not_ge hsmall
-    apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-    simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_pow,
-      ENNReal.toReal_sub_of_le hlarge hvalue,ENNReal.toReal_one,ENNReal.toReal_div,ENNReal.toReal_ofNat]
-    nlinarith [sq_nonneg (value.toReal-mean.toReal-1)]
-
-theorem uniformWordAverage_constant {α : Type} [Fintype α] [SampleableType α]
-    (steps : Nat) (value : ENNReal) : uniformWordAverage steps (fun _ : List α => value)=value := by
-  rw [word_array_average]
-  exact finiteAverage_constant value
-
-/-- The full aggregate BPORS excess bound for the entire uniform proposal
-history, including cross-index dependence. -/
-theorem fullPrice_excess_bound :
-    uniformWordAverage Numeric.proposalLength (fun word => fullPrice word-1) ≤ 987/100000000 := by
-  let mean := uniformWordAverage Numeric.proposalLength fullPrice
-  have hm : mean≠⊤ := ne_top_of_le_ne_top (by finiteness) fullPrice_mean_bound
-  have hhalf : mean≤1/2 := fullPrice_mean_bound.trans (by
-    apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-    norm_num [ENNReal.toReal_div])
-  have h := uniformWordAverage_mono Numeric.proposalLength (fun word =>
-    unit_excess_le_square (fullPrice word) mean (fullPrice_ne_top word) hhalf)
-  rw [uniformWordAverage_add,uniformWordAverage_add,uniformWordAverage_mul_left,
-    uniformWordAverage_mul_left,uniformWordAverage_constant] at h
-  have hcancel : (2 : ENNReal)*uniformWordAverage Numeric.proposalLength (fun word => fullPrice word-1) ≤
-      2*(987/100000000) := by
-    apply ENNReal.le_of_add_le_add_right (a := 2*mean^2) (by finiteness)
-    calc
-      _ = (2 : ENNReal)*uniformWordAverage Numeric.proposalLength (fun word => fullPrice word-1)+
-          2*mean*uniformWordAverage Numeric.proposalLength fullPrice := by
-        change _=_+2*mean*mean
-        ring
-      _ ≤ uniformWordAverage Numeric.proposalLength (fun word => fullPrice word^2)+mean^2 := h
-      _ ≤ (mean^2+2*(987/100000000))+mean^2 := add_le_add fullPrice_secondMoment_bound le_rfl
-      _ = _ := by ring
-  have hunit : (1/2 : ENNReal)*2=1 := by
-    rw [one_div,ENNReal.inv_mul_cancel (by norm_num) (by finiteness)]
-  calc
-    _ = (1/2 : ENNReal)*(2*uniformWordAverage Numeric.proposalLength (fun word => fullPrice word-1)) := by
-      rw [← mul_assoc,hunit,one_mul]
-    _ ≤ (1/2 : ENNReal)*(2*(987/100000000)) := mul_le_mul' le_rfl hcancel
-    _ = _ := by rw [← mul_assoc,hunit,one_mul]
-
-
-
-/-- Sum of the envelopes for each of the three potentially missing leaves
-in each of the seven coordinates, averaged over all indices. -/
-noncomputable def fullNearPrice (word : List Proposal) : ENNReal :=
-  3*2^97*∑ index : Fin (2^31), ∑ missing : Fin 7, nearWordEnvelope missing (atIndex index word)
-
-theorem near_mean_at_index (index : Fin (2^31)) (missing : Fin 7) (steps : Nat) :
-    uniformWordAverage steps (fun word : List Proposal => nearWordEnvelope missing (atIndex index word))=
-      binomialAverage (1/2^31) steps (fun count => envelope Numeric.nearCoeffs count/2^220) := by
-  rw [uniform_marked_word_atIndex index steps (nearWordEnvelope missing)]
-  simp_rw [word_near_forest_moment,Numeric.near_forest_first_moment]
-  simp only [Fintype.card_fin,Nat.cast_pow,Nat.cast_ofNat,one_div]
-
-/-- Concrete near-cover bound after summing all 21 missing-opening positions
-and all indices of the complete uniform proposal history. -/
-theorem fullNearPrice_bound : uniformWordAverage Numeric.proposalLength fullNearPrice ≤ 103 := by
-  have h := Numeric.uniform_history_near_bound (0 : Fin 7)
-  simp_rw [Numeric.near_forest_first_moment] at h
-  have he : uniformWordAverage Numeric.proposalLength fullNearPrice=
-      21*(2 : ENNReal)^128*binomialAverage (1/2^31) Numeric.proposalLength
-        (fun count => envelope Numeric.nearCoeffs count/2^220) := by
-    unfold fullNearPrice
-    rw [uniformWordAverage_mul_left]
-    simp_rw [uniformWordAverage_sum,near_mean_at_index]
-    simp only [Finset.sum_const,Finset.card_univ,Fintype.card_fin,nsmul_eq_mul,Nat.cast_pow,Nat.cast_ofNat]
-    rw [show (2 : ENNReal)^128=2^97*2^31 by rw [← pow_add]]
-    ring
-  rw [he]
-  exact h
-
-end SigGolfCandidate.T3.BPORS.History
-
-
-
-namespace SigGolfCandidate.T3.Sampling
-open OracleComp OracleSpec OracleComp.EvalDist ENNReal
-open SphincsSecurity.Completeness (searchLoop failMass failMass_eq_probEvent)
-open SigGolfCandidate.T3.DigestSampling
-open SigGolfCandidate.T3.BPORS (finiteAverage expected_uniform_eq_finiteAverage)
-set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
-set_option backward.isDefEq.respectTransparency false
-set_option linter.unusedSimpArgs false
-
-noncomputable def acceptedWeight {β : Type} (decoder : HashOutput → Option β)
-    (payoff : β → ENNReal) : ENNReal :=
-  expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
-    (fun answer => (decoder answer).elim 0 payoff)
-
-noncomputable def geometricWeight (failure accepted : ENNReal) : Nat → ENNReal
-  | 0 => 0
-  | n+1 => accepted+failure*geometricWeight failure accepted n
-
-theorem uniform_decoder_weight {β : Type} (decoder : HashOutput → Option β)
-    (payoff : β → ENNReal) (rejected : ENNReal) :
-    expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
-      (fun answer => (decoder answer).elim rejected payoff)=
-      acceptedWeight decoder payoff+failMass decoder*rejected := by
-  classical
-  have hp (answer : HashOutput) :
-      (decoder answer).elim rejected payoff=(decoder answer).elim 0 payoff+
-        (if decoder answer=none then 1 else 0)*rejected := by
-    cases decoder answer <;> simp
-  simp_rw [hp]
-  rw [expectedValue_add,expectedValue_mul_const,expectedValue_ite_one]
-  have hf : failMass decoder=Pr[fun answer : HashOutput => decoder answer=none |
-      ($ᵗ HashOutput : ProbComp HashOutput)] := failMass_eq_probEvent decoder
-  rw [← hf]
-  rfl
-
-/-- Exact success-weight law for the actual source search, from an arbitrary
-cache in which the trial inputs are fresh. The payoff may ignore the returned
-counter; no independence from the final cache is asserted. -/
-theorem expected_publicSearch {β γ : Type} (secret : BitVec 256)
-    (inputs : Nat → HashInput) (decoder : HashOutput → Option β)
-    (result : Nat → β → γ) (payoff : γ → ENNReal) (weight : β → ENNReal)
-    (hweight : ∀ counter value,payoff (result counter value)=weight value)
-    (bound : Nat)
-    (hinj : ∀ left right,left < bound → right < bound → inputs left=inputs right → left=right) :
-    ∀ fuel counter,counter+fuel ≤ bound → ∀ cache : RCache,
-      (∀ c,counter ≤ c → c < bound → cache (inputs c)=none) →
-      expectedValue (roRun secret
-        (publicProgram (searchLoop inputs decoder (fun c v => pure (result c v)) fuel counter)) cache)
-        (fun output => output.1.elim 0 payoff)=
-      geometricWeight (failMass decoder) (acceptedWeight decoder weight) fuel := by
-  intro fuel
-  induction fuel with
-  | zero =>
-      intro counter _ cache _
-      simp [searchLoop,publicProgram,geometricWeight]
-  | succ fuel ih =>
-      intro counter hlimit cache hfresh
-      rw [publicSearch_succ,roRun_bind,roRun_publicQuery,expectedValue_bind,
-        expectedValue_fresh _ _ (hfresh counter le_rfl (by omega))]
-      have hbranch (answer : HashOutput) :
-          expectedValue
-            (roRun secret (match decoder answer with
-              | none => publicProgram (searchLoop inputs decoder
-                  (fun c v => pure (result c v)) fuel (counter+1))
-              | some value => pure (some (result counter value)))
-              (cache.cacheQuery (inputs counter) answer))
-            (fun output => output.1.elim 0 payoff)=
-          (decoder answer).elim
-            (geometricWeight (failMass decoder) (acceptedWeight decoder weight) fuel) weight := by
-        cases hd : decoder answer with
-        | some value => simp [hweight]
-        | none =>
-            apply ih (counter+1) (by omega) _
-            intro c hstart hc
-            rw [QueryCache.cacheQuery_of_ne]
-            · exact hfresh c (by omega) hc
-            · intro he
-              have hh := hinj c counter hc (by omega) he
-              omega
-      calc
-        _ = expectedValue ($ᵗ HashOutput : ProbComp HashOutput) (fun answer =>
-            (decoder answer).elim
-              (geometricWeight (failMass decoder) (acceptedWeight decoder weight) fuel) weight) := by
-          congr 1
-          funext answer
-          exact hbranch answer
-        _ = _ := uniform_decoder_weight decoder weight _
-
-theorem geometricWeight_mul (failure accepted factor : ENNReal) (fuel : Nat) :
-    geometricWeight failure (factor*accepted) fuel=
-      factor*geometricWeight failure accepted fuel := by
-  induction fuel with
-  | zero => simp [geometricWeight]
-  | succ fuel ih => simp only [geometricWeight,ih];ring
-
-theorem digest_acceptedWeight (payoff : IndexBuckets → ENNReal) :
-    acceptedWeight digestDecode (fun output => payoff (samplingData output).1)=
-      finiteAverage payoff*acceptanceProbability := by
-  unfold acceptedWeight
-  calc
-    _ = expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
-        (fun output => if admissible (selections output) then payoff (samplingData output).1 else 0) := by
-      congr 1
-      funext output
-      unfold digestDecode
-      split <;> rfl
-    _ = _ := accepted_samplingData payoff
-
-/-- The index and bucket labels of a fresh bounded digest search remain
-uniform, scaled only by its probability of returning a successful result. -/
-theorem digestSearch_label_weight (secret : BitVec 256) (rho : Digest) (message : Message)
-    (fuel counter : Nat) (hlimit : counter+fuel ≤ 2^32) (cache : RCache)
-    (hfresh : ∀ c,counter ≤ c → c < 2^32 → cache (digestTrial rho message c)=none)
-    (payoff : IndexBuckets → ENNReal) :
-    expectedValue (roRun secret (digestSearch rho message counter fuel) cache)
-      (fun result => result.1.elim 0 (fun found => payoff (samplingData found.2).1))=
-      finiteAverage payoff*geometricWeight (failMass digestDecode) acceptanceProbability fuel := by
-  rw [digestSearch_public]
-  rw [expected_publicSearch secret (digestTrial rho message) digestDecode
-    (fun c output => (BitVec.ofNat 32 c,output))
-    (fun found => payoff (samplingData found.2).1)
-    (fun output => payoff (samplingData output).1) (fun _ _ => rfl) (2^32)
-    (fun _ _ hl hr he => digestTrial_injective rho message hl hr he)
-    fuel counter hlimit cache hfresh]
-  rw [digest_acceptedWeight,geometricWeight_mul]
-
-theorem digest_acceptanceProbability :
-    Pr[fun output : HashOutput => admissible (selections output)=true |
-      ($ᵗ HashOutput : ProbComp HashOutput)]=acceptanceProbability := by
-  rw [← expectedValue_ite_one]
-  have h := accepted_samplingData (fun _ => (1 : ENNReal))
-  rw [BPORS.History.finiteAverage_constant,one_mul] at h
-  exact h
-
-theorem digest_acceptanceProbability_le_one : acceptanceProbability ≤ 1 := by
-  rw [← digest_acceptanceProbability]
-  exact probEvent_le_one
-
-theorem digest_failMass : failMass digestDecode=1-acceptanceProbability := by
-  have hf : failMass digestDecode=Pr[fun answer : HashOutput => digestDecode answer=none |
-      ($ᵗ HashOutput : ProbComp HashOutput)] := failMass_eq_probEvent digestDecode
-  rw [hf]
-  have he (answer : HashOutput) : digestDecode answer=none ↔ ¬admissible (selections answer)=true := by
-    by_cases h : admissible (selections answer)=true
-    · simp only [digestDecode,h,ite_true,reduceCtorEq,not_true_eq_false]
-    · simp only [digestDecode,h,Bool.false_eq_true,ite_false,not_false_eq_true]
-  simp_rw [he]
-  rw [probEvent_not,digest_acceptanceProbability]
-
-theorem geometricWeight_le_one (failure accepted : ENNReal) (hmass : accepted+failure ≤ 1)
-    (fuel : Nat) : geometricWeight failure accepted fuel ≤ 1 := by
-  induction fuel with
-  | zero => exact bot_le
-  | succ fuel ih =>
-      exact (add_le_add le_rfl (mul_le_of_le_one_right' ih)).trans hmass
-
-theorem digestSearch_label_weight_le (secret : BitVec 256) (rho : Digest) (message : Message)
-    (fuel counter : Nat) (hlimit : counter+fuel ≤ 2^32) (cache : RCache)
-    (hfresh : ∀ c,counter ≤ c → c < 2^32 → cache (digestTrial rho message c)=none)
-    (payoff : IndexBuckets → ENNReal) :
-    expectedValue (roRun secret (digestSearch rho message counter fuel) cache)
-      (fun result => result.1.elim 0 (fun found => payoff (samplingData found.2).1)) ≤
-      finiteAverage payoff := by
-  rw [digestSearch_label_weight secret rho message fuel counter hlimit cache hfresh payoff]
-  apply mul_le_of_le_one_right'
-  apply geometricWeight_le_one
-  rw [digest_failMass,add_tsub_cancel_of_le digest_acceptanceProbability_le_one]
-
-theorem digestSearch_label_probability_le (secret : BitVec 256) (rho : Digest) (message : Message)
-    (fuel counter : Nat) (hlimit : counter+fuel ≤ 2^32) (cache : RCache)
-    (hfresh : ∀ c,counter ≤ c → c < 2^32 → cache (digestTrial rho message c)=none)
-    (targets : Finset IndexBuckets) :
-    Pr[fun result => ∃ found,result.1=some found ∧ (samplingData found.2).1 ∈ targets |
-      roRun secret (digestSearch rho message counter fuel) cache] ≤
-      targets.card/(2 : ENNReal)^52 := by
-  classical
-  have h := digestSearch_label_weight_le secret rho message fuel counter hlimit cache hfresh
-    (fun label => if label ∈ targets then 1 else 0)
-  have hs (result : Option (BitVec 32 × HashOutput) × RCache) :
-      result.1.elim 0 (fun found => if (samplingData found.2).1 ∈ targets then (1 : ENNReal) else 0)=
-      if ∃ found,result.1=some found ∧ (samplingData found.2).1 ∈ targets then 1 else 0 := by
-    cases result.1 <;> simp
-  simp_rw [hs] at h
-  rw [expectedValue_ite_one] at h
-  have hc : finiteAverage (fun label : IndexBuckets => if label ∈ targets then (1 : ENNReal) else 0)=
-      targets.card/(2 : ENNReal)^52 := by
-    rw [← expected_uniform_eq_finiteAverage,expectedValue_ite_one,probEvent_uniformSample]
-    simp only [Finset.filter_mem_eq_inter,Finset.univ_inter]
-    have hcard : Fintype.card IndexBuckets=2^52 := by
-      norm_num [IndexBuckets,Fintype.card_prod,Fintype.card_fun]
-    rw [hcard]
-    rw [Nat.cast_pow,Nat.cast_ofNat]
-  rwa [hc] at h
-
-/-- Previously queried rejected trials are harmless to the label bound. The
-separate security exception is an already cached accepted trial. -/
-def CachedTrialsReject {β : Type} (inputs : Nat → HashInput) (decoder : HashOutput → Option β)
-    (counter bound : Nat) (cache : RCache) : Prop :=
-  ∀ c,counter ≤ c → c < bound → ∀ answer,cache (inputs c)=some answer → decoder answer=none
-
-theorem expected_publicSearch_le_of_cached_reject {β γ : Type} (secret : BitVec 256)
-    (inputs : Nat → HashInput) (decoder : HashOutput → Option β)
-    (result : Nat → β → γ) (payoff : γ → ENNReal) (weight : β → ENNReal)
-    (hweight : ∀ counter value,payoff (result counter value)=weight value)
-    (price : ENNReal) (hstep : acceptedWeight decoder weight+failMass decoder*price ≤ price)
-    (bound : Nat)
-    (hinj : ∀ left right,left < bound → right < bound → inputs left=inputs right → left=right) :
-    ∀ fuel counter,counter+fuel ≤ bound → ∀ cache : RCache,
-      CachedTrialsReject inputs decoder counter bound cache →
-      expectedValue (roRun secret
-        (publicProgram (searchLoop inputs decoder (fun c v => pure (result c v)) fuel counter)) cache)
-        (fun output => output.1.elim 0 payoff) ≤ price := by
-  intro fuel
-  induction fuel with
-  | zero => intro counter _ cache _;simp [searchLoop,publicProgram]
-  | succ fuel ih =>
-      intro counter hlimit cache hcache
-      rw [publicSearch_succ,roRun_bind,roRun_publicQuery,expectedValue_bind]
-      cases hc : cache (inputs counter) with
-      | some answer =>
-          have hd := hcache counter le_rfl (by omega) answer hc
-          rw [randomOracle.run_eq,hc]
-          simp only [expectedValue_pure,hd]
-          exact ih (counter+1) (by omega) cache
-            (fun c hstart hbound answer ha => hcache c (by omega) hbound answer ha)
-      | none =>
-          rw [expectedValue_fresh _ _ hc]
-          calc
-            _ ≤ expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
-                (fun answer => (decoder answer).elim price weight) := by
-              apply expectedValue_mono
-              intro answer
-              cases hd : decoder answer with
-              | some value => simp [hweight]
-              | none =>
-                  apply ih (counter+1) (by omega) _
-                  intro c hstart hbound output ho
-                  have hne : inputs c ≠ inputs counter := by
-                    intro he
-                    have hh := hinj c counter hbound (by omega) he
-                    omega
-                  have hh : cache (inputs c)=some output :=
-                    (QueryCache.cacheQuery_of_ne cache answer hne).symm.trans ho
-                  exact hcache c (by omega) hbound output hh
-            _ = acceptedWeight decoder weight+failMass decoder*price :=
-              uniform_decoder_weight decoder weight price
-            _ ≤ price := hstep
-
-theorem digestSearch_label_weight_le_of_cached_reject
-    (secret : BitVec 256) (rho : Digest) (message : Message)
-    (fuel counter : Nat) (hlimit : counter+fuel ≤ 2^32) (cache : RCache)
-    (hcache : CachedTrialsReject (digestTrial rho message) digestDecode counter (2^32) cache)
-    (payoff : IndexBuckets → ENNReal) :
-    expectedValue (roRun secret (digestSearch rho message counter fuel) cache)
-      (fun result => result.1.elim 0 (fun found => payoff (samplingData found.2).1)) ≤
-      finiteAverage payoff := by
-  rw [digestSearch_public]
-  apply expected_publicSearch_le_of_cached_reject secret (digestTrial rho message) digestDecode
-    (fun c output => (BitVec.ofNat 32 c,output))
-    (fun found => payoff (samplingData found.2).1)
-    (fun output => payoff (samplingData output).1) (fun _ _ => rfl) (finiteAverage payoff) _ (2^32)
-    (fun _ _ hl hr he => digestTrial_injective rho message hl hr he)
-    fuel counter hlimit cache hcache
-  rw [digest_acceptedWeight]
-  calc
-    _ = finiteAverage payoff*(acceptanceProbability+failMass digestDecode) := by ring
-    _ = finiteAverage payoff := by
-      rw [digest_failMass,add_tsub_cancel_of_le digest_acceptanceProbability_le_one,mul_one]
-    _ ≤ finiteAverage payoff := le_rfl
-
-end SigGolfCandidate.T3.Sampling
-
 
 namespace SigGolfCandidate.T3.BPORS.Adaptive
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -2029,12 +216,12 @@ theorem atIndex_sublist {α β : Type} [DecidableEq α] (index : α)
     {left right : List (α × β)} (h : left.Sublist right) :
     (atIndex index left).Sublist (atIndex index right) := h.filterMap _
 
-theorem bucketMass_sublist {left right : List (Fin 8)} (h : left.Sublist right)
-    (bucket : Fin 8) : bucketMass left bucket ≤ bucketMass right bucket := by
+theorem bucketMass_sublist {left right : List (Fin 16)} (h : left.Sublist right)
+    (bucket : Fin 16) : bucketMass left bucket ≤ bucketMass right bucket := by
   unfold bucketMass
   exact_mod_cast Nat.descFactorial_le 3 (Nat.mul_le_mul_left 3 (h.count_le bucket))
 
-theorem coordinateEnvelope_sublist {left right : List (Fin 8)} (h : left.Sublist right) :
+theorem coordinateEnvelope_sublist {left right : List (Fin 16)} (h : left.Sublist right) :
     coordinateEnvelope left ≤ coordinateEnvelope right := by
   unfold coordinateEnvelope
   apply ENNReal.div_le_div_right
@@ -2046,7 +233,7 @@ theorem wordEnvelope_sublist {left right : List Buckets} (h : left.Sublist right
   apply ENNReal.div_le_div_right
   exact Finset.prod_le_prod' fun c _ => coordinateEnvelope_sublist (h.map (fun row => row c))
 
-theorem nearCoordinateEnvelope_sublist {left right : List (Fin 8)} (h : left.Sublist right) :
+theorem nearCoordinateEnvelope_sublist {left right : List (Fin 16)} (h : left.Sublist right) :
     Numeric.nearCoordinateEnvelope left ≤ Numeric.nearCoordinateEnvelope right := by
   unfold Numeric.nearCoordinateEnvelope
   apply ENNReal.div_le_div_right
@@ -2130,10 +317,10 @@ def payloadAfterDigest (cache : Cache) (rho : Digest) (output : HashOutput) : M 
     (fun (state : List Digest × List Digest × List Digest) coord => do
       let sel := chosen.getD coord ⟨0,[]⟩
       let (levels,secrets) ← buildFts index coord
-      let selected := sel.leaves.map (fun s => sel.bucket*256+s)
+      let selected := sel.leaves.map (fun s => sel.bucket*128+s)
       let opened := selected.map (fun s => secrets.getD s 0)
-      let inner := (frontier selected 8 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
-      let outer := (List.range 3).map fun j => (levels.getD (8+j) []).getD (sel.bucket/2^j ^^^ 1) 0
+      let inner := (frontier selected 7 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
+      let outer := (List.range 4).map fun j => (levels.getD (7+j) []).getD (sel.bucket/2^j ^^^ 1) 0
       pure (state.1 ++ opened,state.2.1 ++ inner ++ outer,
         state.2.2 ++ [(levels.getD 11 []).getD 0 0])) ([],[],[])
   let root ← forestPk index state.2.2
@@ -2321,765 +508,8 @@ end SigGolfCandidate.T3.Security
 
 
 
-namespace SigGolfCandidate.T3.Sampling
-open OracleComp OracleSpec OracleComp.EvalDist ENNReal
-open SphincsSecurity.Completeness (searchLoop failMass)
-open SigGolfCandidate.T3.DigestSampling
-open SigGolfCandidate.T3.BPORS (finiteAverage expected_uniform_eq_finiteAverage)
-set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
-set_option backward.isDefEq.respectTransparency false
-set_option linter.unusedSimpArgs false
-attribute [local instance] Classical.propDecidable
-
-def CachedTrialScoresBound {β : Type} (inputs : Nat → HashInput)
-    (decoder : HashOutput → Option β) (weight : β → ENNReal) (price : ENNReal)
-    (counter bound : Nat) (cache : RCache) : Prop :=
-  ∀ c,counter ≤ c → c < bound → ∀ answer,cache (inputs c)=some answer →
-    (decoder answer).elim 0 weight ≤ price
-
-theorem expected_publicSearch_le_of_cached_scores {β γ : Type} (secret : BitVec 256)
-    (inputs : Nat → HashInput) (decoder : HashOutput → Option β)
-    (result : Nat → β → γ) (payoff : γ → ENNReal) (weight : β → ENNReal)
-    (hweight : ∀ counter value,payoff (result counter value)=weight value)
-    (price : ENNReal) (hstep : acceptedWeight decoder weight+failMass decoder*price ≤ price)
-    (bound : Nat)
-    (hinj : ∀ left right,left < bound → right < bound → inputs left=inputs right → left=right) :
-    ∀ fuel counter,counter+fuel ≤ bound → ∀ cache : RCache,
-      CachedTrialScoresBound inputs decoder weight price counter bound cache →
-      expectedValue (roRun secret
-        (publicProgram (searchLoop inputs decoder (fun c v => pure (result c v)) fuel counter)) cache)
-        (fun output => output.1.elim 0 payoff) ≤ price := by
-  intro fuel
-  induction fuel with
-  | zero => intro counter _ cache _;simp [searchLoop,publicProgram]
-  | succ fuel ih =>
-      intro counter hlimit cache hcache
-      rw [publicSearch_succ,roRun_bind,roRun_publicQuery,expectedValue_bind]
-      cases hc : cache (inputs counter) with
-      | some answer =>
-          have hp := hcache counter le_rfl (by omega) answer hc
-          rw [randomOracle.run_eq,hc]
-          simp only [expectedValue_pure]
-          cases hd : decoder answer with
-          | none =>
-              exact ih (counter+1) (by omega) cache
-                (fun c hstart hbound answer ha => hcache c (by omega) hbound answer ha)
-          | some value =>
-              simpa only [roRun_pure,expectedValue_pure,Option.elim_some,hweight,hd] using hp
-      | none =>
-          rw [expectedValue_fresh _ _ hc]
-          calc
-            _ ≤ expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
-                (fun answer => (decoder answer).elim price weight) := by
-              apply expectedValue_mono
-              intro answer
-              cases hd : decoder answer with
-              | some value => simp [hweight]
-              | none =>
-                  apply ih (counter+1) (by omega) _
-                  intro c hstart hbound output ho
-                  have hne : inputs c ≠ inputs counter := by
-                    intro he
-                    have hh := hinj c counter hbound (by omega) he
-                    omega
-                  have hh : cache (inputs c)=some output :=
-                    (QueryCache.cacheQuery_of_ne cache answer hne).symm.trans ho
-                  exact hcache c (by omega) hbound output hh
-            _ = acceptedWeight decoder weight+failMass decoder*price :=
-              uniform_decoder_weight decoder weight price
-            _ ≤ price := hstep
-
-/-- Only accepted cached answers with a target label can add target mass. -/
-def CachedTarget (rho : Digest) (message : Message) (fuel : Nat) (cache : RCache)
-    (targets : Finset IndexBuckets) : Prop :=
-  ∃ c,c < fuel ∧ ∃ answer,cache (digestTrial rho message c)=some answer ∧
-    admissible (selections answer)=true ∧ (samplingData answer).1 ∈ targets
-
-noncomputable def targetWeight (targets : Finset IndexBuckets) (label : IndexBuckets) : ENNReal :=
-  if label ∈ targets then 1 else 0
-
-theorem targetWeight_average (targets : Finset IndexBuckets) :
-    finiteAverage (targetWeight targets)=targets.card/(2 : ENNReal)^52 := by
-  classical
-  unfold targetWeight
-  rw [← expected_uniform_eq_finiteAverage,expectedValue_ite_one,probEvent_uniformSample]
-  simp only [Finset.filter_mem_eq_inter,Finset.univ_inter]
-  have hcard : Fintype.card IndexBuckets=2^52 := by
-    norm_num [IndexBuckets,Fintype.card_prod,Fintype.card_fun]
-  rw [hcard,Nat.cast_pow,Nat.cast_ofNat]
-
-theorem targetWeight_probability (targets : Finset IndexBuckets)
-    (program : ProbComp (Option (BitVec 32 × HashOutput) × RCache)) :
-    expectedValue program (fun result => result.1.elim 0
-      (fun found => targetWeight targets (samplingData found.2).1))=
-    Pr[fun result => ∃ found,result.1=some found ∧ (samplingData found.2).1 ∈ targets | program] := by
-  classical
-  have he (result : Option (BitVec 32 × HashOutput) × RCache) :
-      result.1.elim 0 (fun found => targetWeight targets (samplingData found.2).1)=
-      if ∃ found,result.1=some found ∧ (samplingData found.2).1 ∈ targets then 1 else 0 := by
-    cases result.1 <;> simp [targetWeight]
-  simp_rw [he]
-  rw [expectedValue_ite_one]
-
-/-- A target-label cap remains valid with arbitrary cached answers at other
-labels. The hypothesis excludes cached hits of the target set only. -/
-theorem digestSearch_target_le_of_no_cached_hit (secret : BitVec 256) (rho : Digest)
-    (message : Message) (fuel : Nat) (hlimit : fuel ≤ 2^32) (cache : RCache)
-    (targets : Finset IndexBuckets) (hno : ¬CachedTarget rho message fuel cache targets) :
-    Pr[fun result => ∃ found,result.1=some found ∧ (samplingData found.2).1 ∈ targets |
-      roRun secret (digestSearch rho message 0 fuel) cache] ≤ targets.card/(2 : ENNReal)^52 := by
-  classical
-  rw [← targetWeight_probability,← targetWeight_average,digestSearch_public]
-  apply expected_publicSearch_le_of_cached_scores secret (digestTrial rho message) digestDecode
-    (fun c output => (BitVec.ofNat 32 c,output))
-    (fun found => targetWeight targets (samplingData found.2).1)
-    (fun output => targetWeight targets (samplingData output).1) (fun _ _ => rfl)
-    (finiteAverage (targetWeight targets)) _ fuel
-    (fun _ _ hl hr he => digestTrial_injective rho message (lt_of_lt_of_le hl hlimit)
-      (lt_of_lt_of_le hr hlimit) he) fuel 0 (by omega) cache
-  · intro c hc hf answer ha
-    by_cases hadm : admissible (selections answer)=true
-    · have hnot : (samplingData answer).1 ∉ targets :=
-        fun ht => hno ⟨c,hf,answer,ha,hadm,ht⟩
-      simp only [digestDecode,hadm,ite_true,Option.elim_some,targetWeight,hnot,ite_false]
-      exact bot_le
-    · simp only [digestDecode,hadm,Bool.false_eq_true,ite_false,Option.elim_none]
-      exact bot_le
-  · rw [digest_acceptedWeight]
-    calc
-      _ = finiteAverage (targetWeight targets)*(acceptanceProbability+failMass digestDecode) := by ring
-      _ = finiteAverage (targetWeight targets) := by
-        rw [digest_failMass,add_tsub_cancel_of_le digest_acceptanceProbability_le_one,mul_one]
-      _ ≤ finiteAverage (targetWeight targets) := le_rfl
-
-/-- An arbitrary cache contributes only the event that it already contains an
-accepted target-labelled digest trial for this nonce. -/
-theorem digestSearch_target_le_cached_event (secret : BitVec 256) (rho : Digest)
-    (message : Message) (fuel : Nat) (hlimit : fuel ≤ 2^32) (cache : RCache)
-    (targets : Finset IndexBuckets) :
-    Pr[fun result => ∃ found,result.1=some found ∧ (samplingData found.2).1 ∈ targets |
-      roRun secret (digestSearch rho message 0 fuel) cache] ≤
-      targets.card/(2 : ENNReal)^52 + if CachedTarget rho message fuel cache targets then 1 else 0 := by
-  classical
-  by_cases h : CachedTarget rho message fuel cache targets
-  · rw [if_pos h]
-    exact probEvent_le_one.trans (le_add_left le_rfl)
-  · rw [if_neg h,add_zero]
-    exact digestSearch_target_le_of_no_cached_hit secret rho message fuel hlimit cache targets h
-
-noncomputable def cachedTargetNonces (message : Message) (fuel : Nat) (cache : RCache)
-    (targets : Finset IndexBuckets) : Finset Digest := by
-  classical
-  exact Finset.univ.filter fun rho => CachedTarget rho message fuel cache targets
-
-/-- Exact cache-sensitive nonce-averaged cap. This starts with a fresh uniform
-nonce and leaves proving that freshness in the private-table game explicit. -/
-theorem uniform_nonce_target_bound (secret : BitVec 256) (message : Message)
-    (fuel : Nat) (hlimit : fuel ≤ 2^32) (cache : RCache) (targets : Finset IndexBuckets) :
-    Pr[fun result => ∃ found,result.1=some found ∧ (samplingData found.2).1 ∈ targets |
-      (($ᵗ Digest : ProbComp Digest) >>= fun rho =>
-        roRun secret (digestSearch rho message 0 fuel) cache)] ≤
-      targets.card/(2 : ENNReal)^52+
-        (cachedTargetNonces message fuel cache targets).card/(2 : ENNReal)^128 := by
-  classical
-  rw [probEvent_bind_eq_expectedValue]
-  calc
-    _ ≤ expectedValue ($ᵗ Digest : ProbComp Digest) (fun rho =>
-        targets.card/(2 : ENNReal)^52+if CachedTarget rho message fuel cache targets then 1 else 0) :=
-      expectedValue_mono _ fun rho => digestSearch_target_le_cached_event secret rho message fuel hlimit cache targets
-    _ = _ := by
-      rw [expectedValue_add,expectedValue_const (by simp),expectedValue_ite_one,probEvent_uniformSample]
-      simp only [Fintype.card_bitVec,Nat.cast_pow,Nat.cast_ofNat,cachedTargetNonces]
-
-end SigGolfCandidate.T3.Sampling
 
 
-namespace SigGolfCandidate.T3.Sampling
-open OracleComp OracleSpec OracleComp.EvalDist ENNReal
-open SigGolfCandidate.T3.DigestSampling
-open SphincsSecurity (Finite positiveScoreMoment positiveScoreMoment_ne_top)
-open SphincsSecurity.Concrete (bernoulliExcess_secondMoment_ennreal enncard_cacheQuery_of_fresh)
-open scoped BigOperators
-attribute [local instance] Classical.propDecidable
-attribute [local irreducible] digestSearch Finset.univ
-set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
-set_option backward.isDefEq.respectTransparency false
-
-def AcceptedTarget (targets : Finset IndexBuckets) (answer : HashOutput) : Prop :=
-  admissible (selections answer)=true ∧ (samplingData answer).1 ∈ targets
-
-noncomputable def targetRate (targets : Finset IndexBuckets) : ENNReal :=
-  targets.card/(2 : ENNReal)^52*acceptanceProbability
-
-theorem acceptedTarget_probability (targets : Finset IndexBuckets) :
-    Pr[AcceptedTarget targets | ($ᵗ HashOutput : ProbComp HashOutput)]=targetRate targets := by
-  have h := accepted_samplingData (targetWeight targets)
-  have hi (answer : HashOutput) :
-      (if admissible (selections answer) then targetWeight targets (samplingData answer).1 else 0)=
-      if AcceptedTarget targets answer then (1 : ENNReal) else 0 := by
-    simp only [targetWeight,AcceptedTarget]
-    split_ifs <;> simp_all
-  simp_rw [hi] at h
-  rw [expectedValue_ite_one,targetWeight_average] at h
-  exact h
-
-theorem targetRate_le_one (targets : Finset IndexBuckets) : targetRate targets ≤ 1 := by
-  rw [← acceptedTarget_probability]
-  exact probEvent_le_one
-
-theorem digestTrial_nonce_injective {rho rho' : Digest} {message message' : Message}
-    {counter counter' : Nat}
-    (he : digestTrial rho message counter=digestTrial rho' message' counter') : rho=rho' := by
-  have h := pad64_inj_of_length (by simp [digestInput,SphincsSecurity.bytesLE_length]) he
-  exact (digestInput_injective h).1
-
-noncomputable def cachedTargetEntry (targets : Finset IndexBuckets) (cache : RCache)
-    (input : HashInput) : ENNReal :=
-  (cache input).elim 0 (fun answer => if AcceptedTarget targets answer then 1 else 0)
-
-/-- A conservative count: all cached accepted target answers, including inputs
-that are not digest trials. This makes fresh-query growth independent of the
-adversary's input selection. -/
-noncomputable def cachedTargetCount (targets : Finset IndexBuckets) (cache : RCache) : ENNReal :=
-  ∑' input,cachedTargetEntry targets cache input
-
-theorem cachedTargetCount_empty (targets : Finset IndexBuckets) :
-    cachedTargetCount targets ∅=0 := by
-  simp [cachedTargetCount,cachedTargetEntry]
-
-theorem cachedTargetCount_cacheQuery (targets : Finset IndexBuckets) (cache : RCache)
-    (input : HashInput) (answer : HashOutput) (hfresh : cache input=none) :
-    cachedTargetCount targets (cache.cacheQuery input answer)=cachedTargetCount targets cache+
-      if AcceptedTarget targets answer then 1 else 0 := by
-  unfold cachedTargetCount
-  rw [ENNReal.tsum_eq_add_tsum_ite (f := cachedTargetEntry targets (cache.cacheQuery input answer)) input,
-    ENNReal.tsum_eq_add_tsum_ite (f := cachedTargetEntry targets cache) input]
-  simp only [cachedTargetEntry,QueryCache.cacheQuery_self,hfresh,Option.elim_none,Option.elim_some,zero_add]
-  rw [add_comm]
-  congr 1
-  apply tsum_congr
-  intro other
-  by_cases heq : other=input
-  · simp [heq]
-  · simp only [heq,if_false,QueryCache.cacheQuery_of_ne cache answer heq]
-
-theorem cachedTargetCount_le_enncard (targets : Finset IndexBuckets) (cache : RCache)
-    (hfinite : Finite cache) : cachedTargetCount targets cache ≤ QueryCache.enncard cache := by
-  unfold cachedTargetCount
-  rw [tsum_eq_sum (s := hfinite.toFinset) (fun input hnot => by
-    have hn : cache input=none := by
-      by_contra h
-      exact hnot (hfinite.mem_toFinset.mpr h)
-    simp [cachedTargetEntry,hn])]
-  calc
-    _ ≤ ∑ _input ∈ hfinite.toFinset,(1 : ENNReal) := by
-      apply Finset.sum_le_sum
-      intro input _
-      unfold cachedTargetEntry
-      cases cache input <;> simp only [Option.elim_none,Option.elim_some]
-      · exact bot_le
-      · split_ifs <;> norm_num
-    _ = _ := by
-      rw [Finset.sum_const,nsmul_eq_mul,mul_one,
-        ← Set.ncard_eq_toFinset_card {input | cache input ≠ none} hfinite]
-      exact hfinite.cachedInputs_ncard_toENNReal_eq_enncard
-
-theorem cachedTargetCount_ne_top (targets : Finset IndexBuckets) (cache : RCache)
-    (hfinite : Finite cache) : cachedTargetCount targets cache ≠ ⊤ := by
-  apply ne_top_of_le_ne_top _ (cachedTargetCount_le_enncard targets cache hfinite)
-  rw [← hfinite.cachedInputs_ncard_toENNReal_eq_enncard]
-  finiteness
-
-theorem cachedTargetNonces_card_le_count (message : Message) (fuel : Nat) (cache : RCache)
-    (targets : Finset IndexBuckets) :
-    ((cachedTargetNonces message fuel cache targets).card : ENNReal) ≤
-      cachedTargetCount targets cache := by
-  classical
-  let nonces := cachedTargetNonces message fuel cache targets
-  have hw : ∀ rho : nonces,∃ counter,counter < fuel ∧ ∃ answer,
-      cache (digestTrial rho.val message counter)=some answer ∧ AcceptedTarget targets answer := by
-    intro rho
-    exact (Finset.mem_filter.mp rho.property).2
-  choose counter hc answer ha htarget using hw
-  let inputs (rho : nonces) := digestTrial rho.val message (counter rho)
-  have hinj : Function.Injective inputs := by
-    intro left right he
-    exact Subtype.ext (digestTrial_nonce_injective he)
-  have hentry (rho : nonces) : cachedTargetEntry targets cache (inputs rho)=1 := by
-    simp only [cachedTargetEntry,inputs,ha,Option.elim_some,htarget,if_true]
-  calc
-    _ = ∑ rho : nonces,cachedTargetEntry targets cache (inputs rho) := by
-      simp only [hentry,Finset.sum_const,Finset.card_univ,Fintype.card_coe,nsmul_eq_mul,mul_one,nonces]
-    _ ≤ ∑' input,cachedTargetEntry targets cache input := by
-      simpa only [tsum_fintype] using
-        (ENNReal.tsum_comp_le_tsum_of_injective hinj (cachedTargetEntry targets cache))
-    _ = _ := rfl
-
-theorem uniform_nonce_target_bound_count (secret : BitVec 256) (message : Message)
-    (fuel : Nat) (hlimit : fuel ≤ 2^32) (cache : RCache) (targets : Finset IndexBuckets) :
-    Pr[fun result => ∃ found,result.1=some found ∧ (samplingData found.2).1 ∈ targets |
-      (($ᵗ Digest : ProbComp Digest) >>= fun rho =>
-        roRun secret (digestSearch rho message 0 fuel) cache)] ≤
-      targets.card/(2 : ENNReal)^52+cachedTargetCount targets cache/(2 : ENNReal)^128 :=
-  by
-    have h := uniform_nonce_target_bound secret message fuel hlimit cache targets
-    apply h.trans
-    apply add_le_add le_rfl
-    exact ENNReal.div_le_div_right (cachedTargetNonces_card_le_count message fuel cache targets) _
-
-noncomputable def targetExcess (targets : Finset IndexBuckets) (cache : RCache) : ℝ :=
-  (cachedTargetCount targets cache).toReal -
-    (QueryCache.enncard cache).toReal*(targetRate targets).toReal
-
-theorem targetExcess_cacheQuery (targets : Finset IndexBuckets) (cache : RCache)
-    (hfinite : Finite cache) (input : HashInput) (answer : HashOutput)
-    (hfresh : cache input=none) :
-    targetExcess targets (cache.cacheQuery input answer)=targetExcess targets cache+
-      (if AcceptedTarget targets answer then 1 else 0)-(targetRate targets).toReal := by
-  have hc := cachedTargetCount_ne_top targets cache hfinite
-  have hn : QueryCache.enncard cache ≠ ⊤ := by
-    rw [← hfinite.cachedInputs_ncard_toENNReal_eq_enncard]
-    finiteness
-  unfold targetExcess
-  rw [cachedTargetCount_cacheQuery targets cache input answer hfresh,
-    enncard_cacheQuery_of_fresh cache input answer hfresh,
-    ENNReal.toReal_add hn (by finiteness),ENNReal.toReal_one]
-  split_ifs <;> simp only [add_zero,ENNReal.toReal_add hc (by finiteness),ENNReal.toReal_one] <;> ring
-
-theorem expected_acceptedTarget_choice (targets : Finset IndexBuckets) (yes no : ENNReal) :
-    expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
-      (fun answer => if AcceptedTarget targets answer then yes else no)=
-      targetRate targets*yes+(1-targetRate targets)*no := by
-  have hnot : Pr[fun answer => ¬AcceptedTarget targets answer |
-      ($ᵗ HashOutput : ProbComp HashOutput)]=1-targetRate targets := by
-    have h := probEvent_compl ($ᵗ HashOutput : ProbComp HashOutput) (AcceptedTarget targets)
-    rw [probFailure_of_liftM_PMF,tsub_zero,acceptedTarget_probability,add_comm] at h
-    exact ENNReal.eq_sub_of_add_eq' (by simp) h
-  have hsplit (answer : HashOutput) :
-      (if AcceptedTarget targets answer then yes else no)=
-      (if AcceptedTarget targets answer then (1 : ENNReal) else 0)*yes+
-        (if ¬AcceptedTarget targets answer then (1 : ENNReal) else 0)*no := by
-    by_cases h : AcceptedTarget targets answer <;>
-      simp only [h,if_true,if_false,not_true_eq_false,not_false_eq_true,one_mul,zero_mul,zero_add,add_zero]
-  simp_rw [hsplit]
-  rw [expectedValue_add,expectedValue_mul_const,expectedValue_mul_const,
-    expectedValue_ite_one,expectedValue_ite_one,acceptedTarget_probability,hnot]
-
-theorem expected_targetExcess_second_le (targets : Finset IndexBuckets) (cache : RCache)
-    (hfinite : Finite cache) (input : HashInput) (hfresh : cache input=none) :
-    expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
-      (fun answer => positiveScoreMoment (targetExcess targets (cache.cacheQuery input answer)) 2) ≤
-      positiveScoreMoment (targetExcess targets cache) 2+targetRate targets := by
-  simp_rw [targetExcess_cacheQuery targets cache hfinite input _ hfresh]
-  have hchoice (answer : HashOutput) :
-      positiveScoreMoment (targetExcess targets cache+
-        (if AcceptedTarget targets answer then 1 else 0)-(targetRate targets).toReal) 2=
-      if AcceptedTarget targets answer then
-        positiveScoreMoment (targetExcess targets cache+(1-(targetRate targets).toReal)) 2
-      else positiveScoreMoment (targetExcess targets cache+(-(targetRate targets).toReal)) 2 := by
-    split_ifs <;> congr 1 <;> ring
-  simp_rw [hchoice]
-  rw [expected_acceptedTarget_choice]
-  exact bernoulliExcess_secondMoment_ennreal _ _ (targetRate_le_one targets)
-
-theorem singleton_targetRate_sum :
-    (∑ point : IndexBuckets,targetRate {point})=acceptanceProbability := by
-  simp only [targetRate,Finset.card_singleton,Nat.cast_one,Finset.sum_const,
-    Finset.card_univ,nsmul_eq_mul]
-  have hc : Fintype.card IndexBuckets=2^52 := by
-    norm_num [IndexBuckets,Fintype.card_prod,Fintype.card_fun]
-  rw [hc,Nat.cast_pow,Nat.cast_ofNat,← mul_assoc]
-  rw [one_div,ENNReal.mul_inv_cancel (by norm_num) (by finiteness),one_mul]
-
-noncomputable def allTargetMoment (cache : RCache) : ENNReal :=
-  ∑ point : IndexBuckets,positiveScoreMoment (targetExcess {point} cache) 2
-
-attribute [local irreducible] allTargetMoment cachedTargetCount targetExcess targetRate acceptanceProbability
-
-theorem allTargetMoment_empty : allTargetMoment ∅=0 := by
-  simp [allTargetMoment,targetExcess,cachedTargetCount_empty,positiveScoreMoment]
-
-theorem expected_allTargetMoment_fresh (cache : RCache) (hfinite : Finite cache)
-    (input : HashInput) (hfresh : cache input=none) :
-    expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
-      (fun answer => allTargetMoment (cache.cacheQuery input answer)) ≤
-      allTargetMoment cache+acceptanceProbability := by
-  calc
-    _ = ∑ point : IndexBuckets,expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
-        (fun answer => positiveScoreMoment (targetExcess {point} (cache.cacheQuery input answer)) 2) := by
-      unfold allTargetMoment
-      exact expectedValue_finsetSum _ _ _
-    _ ≤ ∑ point : IndexBuckets,(positiveScoreMoment (targetExcess {point} cache) 2+targetRate {point}) :=
-      Finset.sum_le_sum (fun point _ => expected_targetExcess_second_le {point} cache hfinite input hfresh)
-    _ = _ := by
-      rw [Finset.sum_add_distrib,singleton_targetRate_sum]
-      unfold allTargetMoment
-      rfl
-
-private theorem constant_hashQueryCharge (rate : ENNReal) (query : SphincsSecurity.OracleWorld.Domain)
-    (cache : RCache) :
-    SphincsSecurity.hashQueryCharge (fun _ _ => rate) cache query=
-      (if query matches .inr _ then rate else 0) := by
-  cases query <;> rfl
-
-theorem expected_allTargetMoment_step (query : SphincsSecurity.OracleWorld.Domain)
-    (cache : RCache) (hfinite : Finite cache) :
-    (∑' result,Pr[= result | (SphincsSecurity.romImpl query).run cache]*allTargetMoment result.2) ≤
-      allTargetMoment cache+(if query matches .inr _ then acceptanceProbability else 0) := by
-  have h := SphincsSecurity.expected_potential_romImpl_le_charge allTargetMoment
-    (fun _ _ => acceptanceProbability) (fun current hc input hf =>
-      expected_allTargetMoment_fresh current hc input hf) query cache hfinite
-  rw [constant_hashQueryCharge] at h
-  exact h
-
-/-- A simultaneous cache exception over all index/bucket labels. -/
-def TargetCacheExceptional (cache : RCache) : Prop :=
-  ∃ point : IndexBuckets,(2^71 : ℝ) < targetExcess {point} cache
-
-theorem targetCacheExceptional_moment (cache : RCache) (hbad : TargetCacheExceptional cache) :
-    (2^142 : ENNReal) ≤ allTargetMoment cache := by
-  obtain ⟨point,hpoint⟩ := hbad
-  have hpower : (2^142 : ℝ) ≤ max (targetExcess {point} cache) 0^2 := by
-    calc
-      _ = (2^71 : ℝ)^2 := by rw [← pow_mul]
-      _ ≤ _ := pow_le_pow_left₀ (by positivity) (hpoint.le.trans (le_max_left _ _)) 2
-  have hreal := ENNReal.ofReal_le_ofReal hpower
-  rw [ENNReal.ofReal_pow (by positivity),ENNReal.ofReal_ofNat] at hreal
-  unfold allTargetMoment
-  apply hreal.trans
-  exact (Finset.single_le_sum (s := Finset.univ)
-    (f := fun point => positiveScoreMoment (targetExcess {point} cache) 2)
-    (fun _ _ => bot_le) (Finset.mem_univ point))
-
-/-- Any adaptive public-oracle computation satisfies the cache concentration
-bound on executions within its hash-call budget. No independence assumptions
-are imposed on the inputs or stopping rule. -/
-theorem adaptive_targetCache_exception {Result : Type}
-    (program : OracleComp SphincsSecurity.OracleWorld Result) (budget : Nat) :
-    Pr[fun result => result.1.2 ≤ budget ∧ TargetCacheExceptional result.2 |
-      (simulateQ SphincsSecurity.romImpl (SphincsSecurity.countHashQueries program)).run ∅] ≤
-      acceptanceProbability*budget/(2 : ENNReal)^142 := by
-  have h := SphincsSecurity.expected_truncatedPotential_le allTargetMoment acceptanceProbability
-    expected_allTargetMoment_step program ∅ SphincsSecurity.finite_empty budget
-  rw [allTargetMoment_empty,zero_add] at h
-  rw [ENNReal.le_div_iff_mul_le (Or.inl (by norm_num)) (Or.inl (by finiteness))]
-  calc
-    _ = expectedValue
-        ((simulateQ SphincsSecurity.romImpl (SphincsSecurity.countHashQueries program)).run ∅)
-        (fun result => if result.1.2 ≤ budget ∧ TargetCacheExceptional result.2 then (2 : ENNReal)^142 else 0) := by
-      rw [← expectedValue_ite_one,← expectedValue_mul_const]
-      congr 1
-      funext result
-      split_ifs <;> simp
-    _ ≤ expectedValue
-        ((simulateQ SphincsSecurity.romImpl (SphincsSecurity.countHashQueries program)).run ∅)
-        (fun result => SphincsSecurity.truncatedPotential allTargetMoment acceptanceProbability
-          budget result.1.2 result.2) := by
-      apply expectedValue_mono
-      intro result
-      by_cases hb : result.1.2 ≤ budget ∧ TargetCacheExceptional result.2
-      · rw [if_pos hb,SphincsSecurity.truncatedPotential,if_pos hb.1]
-        exact (targetCacheExceptional_moment result.2 hb.2).trans le_self_add
-      · rw [if_neg hb]
-        exact bot_le
-    _ ≤ _ := h
-
-theorem targetCount_bound_of_no_exception (cache : RCache) (hfinite : Finite cache)
-    (budget : Nat) (hsize : QueryCache.enncard cache ≤ budget)
-    (hclean : ¬TargetCacheExceptional cache) (point : IndexBuckets) :
-    cachedTargetCount {point} cache ≤ (budget : ENNReal)*targetRate {point}+(2 : ENNReal)^71 := by
-  have hc := cachedTargetCount_ne_top {point} cache hfinite
-  have hn : QueryCache.enncard cache ≠ ⊤ := by
-    rw [← hfinite.cachedInputs_ncard_toENNReal_eq_enncard]
-    finiteness
-  have hr : targetRate {point} ≠ ⊤ := ne_top_of_le_ne_top (by finiteness) (targetRate_le_one {point})
-  apply (ENNReal.toReal_le_toReal hc (by finiteness)).mp
-  rw [ENNReal.toReal_add (by finiteness) (by finiteness),ENNReal.toReal_mul]
-  have hcache := ENNReal.toReal_mono (by finiteness) hsize
-  have hex : targetExcess {point} cache ≤ (2^71 : ℝ) :=
-    le_of_not_gt (fun h => hclean ⟨point,h⟩)
-  have hscale := mul_le_mul_of_nonneg_right hcache (ENNReal.toReal_nonneg (a := targetRate {point}))
-  simp only [targetExcess] at hex
-  norm_num at hcache hscale ⊢
-  linarith
-
-theorem uniform_nonce_point_bound_clean (secret : BitVec 256) (message : Message)
-    (fuel : Nat) (hlimit : fuel ≤ 2^32) (cache : RCache) (hfinite : Finite cache)
-    (budget : Nat) (hsize : QueryCache.enncard cache ≤ budget)
-    (hclean : ¬TargetCacheExceptional cache) (point : IndexBuckets) :
-    Pr[fun result => ∃ found,result.1=some found ∧ (samplingData found.2).1=point |
-      (($ᵗ Digest : ProbComp Digest) >>= fun rho =>
-        roRun secret (digestSearch rho message 0 fuel) cache)] ≤
-      1/(2 : ENNReal)^52+
-        ((budget : ENNReal)*targetRate {point}+(2 : ENNReal)^71)/(2 : ENNReal)^128 := by
-  have h := uniform_nonce_target_bound_count secret message fuel hlimit cache {point}
-  simp only [Finset.mem_singleton,Finset.card_singleton,Nat.cast_one] at h
-  apply h.trans
-  apply add_le_add le_rfl
-  exact ENNReal.div_le_div_right (targetCount_bound_of_no_exception cache hfinite budget hsize hclean point) _
-
-/-- The proposal acceptance factor 16/17 follows from the clean-cache bound
-once the source digest acceptance is at most 1/16. This numerical acceptance
-hypothesis is explicit; it is not inferred from an external model. -/
-theorem uniform_nonce_point_cap (secret : BitVec 256) (message : Message)
-    (fuel : Nat) (hlimit : fuel ≤ 2^32) (cache : RCache) (hfinite : Finite cache)
-    (budget : Nat) (hsize : QueryCache.enncard cache ≤ budget) (hbudget : budget ≤ 2^127)
-    (hclean : ¬TargetCacheExceptional cache) (haccept : acceptanceProbability ≤ 1/16)
-    (point : IndexBuckets) :
-    Pr[fun result => ∃ found,result.1=some found ∧ (samplingData found.2).1=point |
-      (($ᵗ Digest : ProbComp Digest) >>= fun rho =>
-        roRun secret (digestSearch rho message 0 fuel) cache)] ≤
-      (17/16 : ENNReal)/(2 : ENNReal)^52 := by
-  have h := uniform_nonce_point_bound_clean secret message fuel hlimit cache hfinite budget hsize hclean point
-  have hr : targetRate {point} ≤ 1/(2 : ENNReal)^52*(1/16) := by
-    unfold targetRate
-    simp only [Finset.card_singleton,Nat.cast_one]
-    exact mul_le_mul' le_rfl haccept
-  have hq : (budget : ENNReal) ≤ (2 : ENNReal)^127 := by exact_mod_cast hbudget
-  apply h.trans
-  calc
-    _ ≤ 1/(2 : ENNReal)^52+
-        ((2 : ENNReal)^127*(1/(2 : ENNReal)^52*(1/16))+(2 : ENNReal)^71)/(2 : ENNReal)^128 := by
-      apply add_le_add le_rfl
-      apply ENNReal.div_le_div_right
-      exact add_le_add (mul_le_mul' hq hr) le_rfl
-    _ = _ := by
-      apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-      simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
-        ENNReal.toReal_pow,ENNReal.toReal_ofNat,ENNReal.toReal_one]
-      norm_num
-
-end SigGolfCandidate.T3.Sampling
-
-namespace SigGolfCandidate.T3.Sampling
-open OracleComp OracleSpec OracleComp.EvalDist ENNReal
-open SphincsSecurity.Completeness (searchLoop failMass)
-open SigGolfCandidate.T3.DigestSampling
-open SigGolfCandidate.T3.BPORS (finiteAverage expected_uniform_eq_finiteAverage)
-open SphincsSecurity (Finite)
-attribute [local instance] Classical.propDecidable
-attribute [local irreducible] digestSearch Finset.univ BPORS.finiteAverage DigestSampling.samplingData
-set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
-set_option backward.isDefEq.respectTransparency false
-
-theorem expected_publicSearch_completed_le_of_cached_scores {β γ : Type} (secret : BitVec 256)
-    (inputs : Nat → HashInput) (decoder : HashOutput → Option β)
-    (result : Nat → β → γ) (payoff : γ → ENNReal) (weight : β → ENNReal)
-    (hweight : ∀ counter value,payoff (result counter value)=weight value)
-    (price : ENNReal) (hstep : acceptedWeight decoder weight+failMass decoder*price ≤ price)
-    (bound : Nat)
-    (hinj : ∀ left right,left < bound → right < bound → inputs left=inputs right → left=right) :
-    ∀ fuel counter,counter+fuel ≤ bound → ∀ cache : RCache,
-      CachedTrialScoresBound inputs decoder weight price counter bound cache →
-      expectedValue (roRun secret
-        (publicProgram (searchLoop inputs decoder (fun c v => pure (result c v)) fuel counter)) cache)
-        (fun output => output.1.elim price payoff) ≤ price := by
-  intro fuel
-  induction fuel with
-  | zero => intro counter _ cache _;simp [searchLoop,publicProgram]
-  | succ fuel ih =>
-      intro counter hlimit cache hcache
-      rw [publicSearch_succ,roRun_bind,roRun_publicQuery,expectedValue_bind]
-      cases hc : cache (inputs counter) with
-      | some answer =>
-          have hp := hcache counter le_rfl (by omega) answer hc
-          rw [randomOracle.run_eq,hc]
-          simp only [expectedValue_pure]
-          cases hd : decoder answer with
-          | none =>
-              exact ih (counter+1) (by omega) cache
-                (fun c hstart hbound answer ha => hcache c (by omega) hbound answer ha)
-          | some value =>
-              simpa only [roRun_pure,expectedValue_pure,Option.elim_some,hweight,hd] using hp
-      | none =>
-          rw [expectedValue_fresh _ _ hc]
-          calc
-            _ ≤ expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
-                (fun answer => (decoder answer).elim price weight) := by
-              apply expectedValue_mono
-              intro answer
-              cases hd : decoder answer with
-              | some value => simp [hweight]
-              | none =>
-                  apply ih (counter+1) (by omega) _
-                  intro c hstart hbound output ho
-                  have hne : inputs c ≠ inputs counter := by
-                    intro he
-                    have hh := hinj c counter hbound (by omega) he
-                    omega
-                  have hh : cache (inputs c)=some output :=
-                    (QueryCache.cacheQuery_of_ne cache answer hne).symm.trans ho
-                  exact hcache c (by omega) hbound output hh
-            _ = acceptedWeight decoder weight+failMass decoder*price :=
-              uniform_decoder_weight decoder weight price
-            _ ≤ price := hstep
-
-noncomputable def completedTargetScore (targets : Finset IndexBuckets)
-    (found : Option (BitVec 32 × HashOutput)) : ENNReal :=
-  found.elim (finiteAverage (targetWeight targets))
-    (fun value => targetWeight targets (samplingData value.2).1)
-
-theorem targetWeight_average_le_one (targets : Finset IndexBuckets) :
-    finiteAverage (targetWeight targets) ≤ 1 := by
-  rw [← expected_uniform_eq_finiteAverage]
-  apply expectedValue_le_of_le
-  intro label
-  unfold targetWeight
-  split_ifs <;> norm_num
-
-private theorem option_weight_le_one {Value : Type} (found : Option Value)
-    (fallback : ENNReal) (weight : Value → ENNReal)
-    (hmiss : fallback ≤ 1) (hvalue : ∀ value,weight value ≤ 1) :
-    found.elim fallback weight ≤ 1 := by
-  cases found with
-  | none => exact hmiss
-  | some value => exact hvalue value
-
-theorem completedTargetScore_le_one (targets : Finset IndexBuckets)
-    (found : Option (BitVec 32 × HashOutput)) : completedTargetScore targets found ≤ 1 := by
-  apply option_weight_le_one found _ _ (targetWeight_average_le_one targets)
-  intro value
-  unfold targetWeight
-  split_ifs <;> norm_num
-
-/-- Exhaustion receives its uniform fallback mass in the same recurrence as
-successful outputs; it is not charged as an additional failure event. -/
-theorem completed_search_target_le_of_no_cached_hit (secret : BitVec 256) (rho : Digest)
-    (message : Message) (fuel : Nat) (hlimit : fuel ≤ 2^32) (cache : RCache)
-    (targets : Finset IndexBuckets) (hno : ¬CachedTarget rho message fuel cache targets) :
-    expectedValue (roRun secret (digestSearch rho message 0 fuel) cache)
-      (fun result => completedTargetScore targets result.1) ≤ finiteAverage (targetWeight targets) := by
-  rw [digestSearch_public]
-  apply expected_publicSearch_completed_le_of_cached_scores secret (digestTrial rho message) digestDecode
-    (fun c output => (BitVec.ofNat 32 c,output))
-    (fun found => targetWeight targets (samplingData found.2).1)
-    (fun output => targetWeight targets (samplingData output).1) (fun _ _ => rfl)
-    (finiteAverage (targetWeight targets)) _ fuel
-    (fun _ _ hl hr he => digestTrial_injective rho message (lt_of_lt_of_le hl hlimit)
-      (lt_of_lt_of_le hr hlimit) he) fuel 0 (by omega) cache
-  · intro c hc hf answer ha
-    by_cases hadm : admissible (selections answer)=true
-    · have hnot : (samplingData answer).1 ∉ targets :=
-        fun ht => hno ⟨c,hf,answer,ha,hadm,ht⟩
-      simp only [digestDecode,hadm,ite_true,Option.elim_some,targetWeight,hnot,ite_false]
-      exact bot_le
-    · simp only [digestDecode,hadm,Bool.false_eq_true,ite_false,Option.elim_none]
-      exact bot_le
-  · rw [digest_acceptedWeight]
-    calc
-      _ = finiteAverage (targetWeight targets)*(acceptanceProbability+failMass digestDecode) := by ring
-      _ = finiteAverage (targetWeight targets) := by
-        rw [digest_failMass,add_tsub_cancel_of_le digest_acceptanceProbability_le_one,mul_one]
-      _ ≤ _ := le_rfl
-
-theorem completed_search_target_le_cached_event (secret : BitVec 256) (rho : Digest)
-    (message : Message) (fuel : Nat) (hlimit : fuel ≤ 2^32) (cache : RCache)
-    (targets : Finset IndexBuckets) :
-    expectedValue (roRun secret (digestSearch rho message 0 fuel) cache)
-      (fun result => completedTargetScore targets result.1) ≤
-      finiteAverage (targetWeight targets)+if CachedTarget rho message fuel cache targets then 1 else 0 := by
-  by_cases h : CachedTarget rho message fuel cache targets
-  · rw [if_pos h]
-    exact (expectedValue_le_of_le _ (fun _ => completedTargetScore_le_one targets _)).trans
-      (le_add_left le_rfl)
-  · rw [if_neg h,add_zero]
-    exact completed_search_target_le_of_no_cached_hit secret rho message fuel hlimit cache targets h
-
-theorem uniform_nonce_completed_target_bound (secret : BitVec 256) (message : Message)
-    (fuel : Nat) (hlimit : fuel ≤ 2^32) (cache : RCache) (targets : Finset IndexBuckets) :
-    expectedValue (($ᵗ Digest : ProbComp Digest) >>= fun rho =>
-      roRun secret (digestSearch rho message 0 fuel) cache)
-      (fun result => completedTargetScore targets result.1) ≤
-      targets.card/(2 : ENNReal)^52+cachedTargetCount targets cache/(2 : ENNReal)^128 := by
-  rw [expectedValue_bind]
-  calc
-    _ ≤ expectedValue ($ᵗ Digest : ProbComp Digest) (fun rho =>
-        finiteAverage (targetWeight targets)+if CachedTarget rho message fuel cache targets then 1 else 0) :=
-      expectedValue_mono _ fun rho => completed_search_target_le_cached_event secret rho message fuel hlimit cache targets
-    _ = targets.card/(2 : ENNReal)^52+
-        (cachedTargetNonces message fuel cache targets).card/(2 : ENNReal)^128 := by
-      rw [expectedValue_add,expectedValue_const (by simp),expectedValue_ite_one,
-        probEvent_uniformSample,targetWeight_average]
-      simp only [Fintype.card_bitVec,Nat.cast_pow,Nat.cast_ofNat,cachedTargetNonces]
-    _ ≤ _ := add_le_add le_rfl (ENNReal.div_le_div_right
-      (cachedTargetNonces_card_le_count message fuel cache targets) _)
-
-/-- Complete a missing digest observation with an independent uniform label.
-This is ghost randomness: no public or private hash query is added. -/
-noncomputable def completeLabel (observed : Option HashOutput) : ProbComp IndexBuckets :=
-  observed.elim ($ᵗ IndexBuckets) (fun output => pure (samplingData output).1)
-
-private theorem expectedValue_option {Value Label : Type} (observed : Option Value)
-    (fallback : ProbComp Label) (next : Value → ProbComp Label) (payoff : Label → ENNReal) :
-    expectedValue (observed.elim fallback next) payoff=
-      observed.elim (expectedValue fallback payoff) (fun value => expectedValue (next value) payoff) := by
-  cases observed <;> rfl
-
-theorem completeLabel_expected (observed : Option HashOutput) (payoff : IndexBuckets → ENNReal) :
-    expectedValue (completeLabel observed) payoff=
-      observed.elim (finiteAverage payoff) (fun output => payoff (samplingData output).1) := by
-  rw [completeLabel,expectedValue_option,expected_uniform_eq_finiteAverage]
-  simp only [expectedValue_pure]
-
-noncomputable def completeRecord {Record : Type} (observed : Record → Option HashOutput)
-    (program : ProbComp Record) : ProbComp (Record × IndexBuckets) := do
-  let record ← program
-  let label ← completeLabel (observed record)
-  pure (record,label)
-
-/-- Dropping the ghost label preserves every observation of the original
-record, including its output signature and final oracle cache. -/
-theorem completeRecord_erasure {Record : Type} (observed : Record → Option HashOutput)
-    (program : ProbComp Record) :
-    𝒮[Prod.fst <$> completeRecord observed program]=𝒮[program] := by
-  unfold completeRecord
-  simp only [map_bind,map_pure]
-  trans 𝒮[program >>= fun record => pure record]
-  · apply OracleComp.DeferredSampling.evalSPMF_bind_congr_left
-    intro record
-    exact OracleComp.DeferredSampling.evalSPMF_bind_const_neverFails _ (by simp) _
-  · simp
-
-theorem completeRecord_expected {Record : Type} (observed : Record → Option HashOutput)
-    (program : ProbComp Record) (payoff : IndexBuckets → ENNReal) :
-    expectedValue (completeRecord observed program) (fun result => payoff result.2)=
-      expectedValue program (fun record =>
-        (observed record).elim (finiteAverage payoff) (fun output => payoff (samplingData output).1)) := by
-  rw [completeRecord,expectedValue_bind]
-  apply congrArg
-  funext record
-  rw [expectedValue_bind]
-  simp only [expectedValue_pure]
-  exact completeLabel_expected _ payoff
-
-theorem clean_point_bound_arithmetic (cache : RCache) (hfinite : Finite cache)
-    (budget : Nat) (hsize : QueryCache.enncard cache ≤ budget) (hbudget : budget ≤ 2^127)
-    (hclean : ¬TargetCacheExceptional cache) (haccept : acceptanceProbability ≤ 1/16)
-    (point : IndexBuckets) :
-    1/(2 : ENNReal)^52+cachedTargetCount {point} cache/(2 : ENNReal)^128 ≤
-      (17/16 : ENNReal)/(2 : ENNReal)^52 := by
-  have hc := targetCount_bound_of_no_exception cache hfinite budget hsize hclean point
-  have hr : targetRate {point} ≤ 1/(2 : ENNReal)^52*(1/16) := by
-    unfold targetRate
-    simp only [Finset.card_singleton,Nat.cast_one]
-    exact mul_le_mul' le_rfl haccept
-  have hq : (budget : ENNReal) ≤ (2 : ENNReal)^127 := by exact_mod_cast hbudget
-  calc
-    _ ≤ 1/(2 : ENNReal)^52+
-        ((2 : ENNReal)^127*(1/(2 : ENNReal)^52*(1/16))+(2 : ENNReal)^71)/(2 : ENNReal)^128 := by
-      apply add_le_add le_rfl
-      apply ENNReal.div_le_div_right
-      exact hc.trans (add_le_add (mul_le_mul' hq hr) le_rfl)
-    _ = _ := by
-      apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-      simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
-        ENNReal.toReal_pow,ENNReal.toReal_ofNat,ENNReal.toReal_one]
-      norm_num
-
-end SigGolfCandidate.T3.Sampling
 
 namespace SigGolfCandidate.T3.Security
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -3129,7 +559,7 @@ theorem freshNoncePayloadRecord_erasure (secret : BitVec 256) (cache : Cache)
 theorem freshNoncePayloadRecord_target_bound (secret : BitVec 256) (cache : Cache)
     (message : Message) (oracleCache : RCache) (targets : Finset IndexBuckets) :
     Pr[fun result => result.2 ∈ targets | freshNoncePayloadRecord secret cache message oracleCache] ≤
-      targets.card/(2 : ENNReal)^52+cachedTargetCount targets oracleCache/(2 : ENNReal)^128 := by
+      targets.card/(2 : ENNReal)^59+cachedTargetCount targets oracleCache/(2 : ENNReal)^128 := by
   rw [← expectedValue_ite_one]
   change expectedValue (completeRecord _ _) (fun result => targetWeight targets result.2) ≤ _
   rw [completeRecord_expected,expectedValue_bind]
@@ -3148,7 +578,7 @@ theorem freshNoncePayloadRecord_point_cap (secret : BitVec 256) (cache : Cache)
     (hclean : ¬TargetCacheExceptional oracleCache) (haccept : acceptanceProbability ≤ 1/16)
     (point : IndexBuckets) :
     Pr[fun result => result.2=point | freshNoncePayloadRecord secret cache message oracleCache] ≤
-      (17/16 : ENNReal)/(2 : ENNReal)^52 := by
+      (17/16 : ENNReal)/(2 : ENNReal)^59 := by
   have h := freshNoncePayloadRecord_target_bound secret cache message oracleCache {point}
   simp only [Finset.mem_singleton,Finset.card_singleton,Nat.cast_one] at h
   exact h.trans (clean_point_bound_arithmetic oracleCache hfinite budget hsize hbudget hclean haccept point)
@@ -3189,11 +619,11 @@ theorem freshNoncePayloadLaw_scaled_cap (secret : BitVec 256) (cache : Cache)
     (point : IndexBuckets) :
     (16/17 : ENNReal)*((freshNoncePayloadLaw secret cache message oracleCache).map Prod.snd) point ≤
       (PMF.uniformOfFintype IndexBuckets) point := by
-  have hc : Fintype.card IndexBuckets=2^52 := by
+  have hc : Fintype.card IndexBuckets=2^59 := by
     norm_num [IndexBuckets,Fintype.card_prod,Fintype.card_fun]
   rw [freshNoncePayloadLaw_label_probability,PMF.uniformOfFintype_apply,hc,Nat.cast_pow,Nat.cast_ofNat]
   calc
-    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^52) :=
+    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^59) :=
       mul_le_mul' le_rfl (freshNoncePayloadRecord_point_cap secret cache message oracleCache
         hfinite budget hsize hbudget hclean haccept point)
     _ = _ := by
@@ -3202,257 +632,7 @@ theorem freshNoncePayloadLaw_scaled_cap (secret : BitVec 256) (cache : Cache)
 
 end SigGolfCandidate.T3.Security
 
-namespace SigGolfCandidate.T3.Acceptance
-open OracleComp OracleSpec OracleComp.EvalDist ENNReal
-open Finset Polynomial
-open SphincsSecurity.Completeness.Octopus
-open SigGolfCandidate.T3.DigestSampling
-open scoped BigOperators
-attribute [local instance] Classical.propDecidable
-attribute [local irreducible] Finset.univ
-set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
-set_option backward.isDefEq.respectTransparency false
 
-noncomputable def weightMono (y : ENNReal) (H : Nat) (S : Finset ℕ) : ENNReal[X] :=
-  if S = ∅ then 0 else monomial S.card (y ^ oc H S)
-
-/-- `weightPoly y H = ∑_{∅ ≠ S ⊆ [0, 2^H)} y^(oc S) X^|S|`. -/
-noncomputable def weightPoly (y : ENNReal) (H : Nat) : ENNReal[X] := ∑ S ∈ (range (2 ^ H)).powerset, weightMono y H S
-
-theorem weightMono_glue (y : ENNReal) {H : ℕ} {L R : Finset ℕ} (hL : Below H L) (hR : Below H R) :
-    weightMono y (H + 1) (glue H L R) =
-      (if R = ∅ then C y * weightMono y H L else 0) + (if L = ∅ then C y * weightMono y H R else 0) +
-        weightMono y H L * weightMono y H R := by
-  by_cases hL0 : L = ∅ <;> by_cases hR0 : R = ∅
-  · subst hL0; subst hR0; simp [weightMono, glue_empty_empty]
-  · subst hL0
-    rw [weightMono, if_neg (glue_ne_empty_right hR0), card_glue hL, oc_glue_right hR hR0]
-    simp only [weightMono, hR0, if_true, if_false, zero_mul, add_zero, zero_add, C_mul_monomial, pow_succ,
-      mul_comm, card_empty]
-  · subst hR0
-    rw [weightMono, if_neg (glue_ne_empty_left hL0), card_glue hL, oc_glue_left hL hL0]
-    simp only [weightMono, hL0, if_true, if_false, zero_mul, add_zero, C_mul_monomial, pow_succ,
-      mul_comm, card_empty]
-  · rw [weightMono, if_neg (glue_ne_empty_left hL0), card_glue hL, oc_glue_both hL hR hL0 hR0]
-    simp [weightMono, hL0, hR0, monomial_mul_monomial, pow_add]
-
-theorem weightPoly_succ (y : ENNReal) (H : Nat) : weightPoly y (H + 1) = C (2 * y) * weightPoly y H + weightPoly y H * weightPoly y H := by
-  unfold weightPoly
-  rw [sum_powerset_succ]
-  have hmem : ∀ S ∈ (range (2 ^ H)).powerset, Below H S := fun S hS => (below_iff H S).mpr hS
-  rw [sum_congr rfl fun L hL => sum_congr rfl fun R hR => weightMono_glue y (hmem L hL) (hmem R hR)]
-  simp only [sum_add_distrib]
-  rw [sum_mul_sum]
-  congr 1
-  have e1 : ∀ L ∈ (range (2 ^ H)).powerset, ∑ R ∈ (range (2 ^ H)).powerset,
-      (if R = ∅ then C y * weightMono y H L else 0) = C y * weightMono y H L := by
-    intro L _; rw [sum_ite_eq']; simp
-  rw [sum_congr rfl e1, sum_comm]
-  rw [sum_congr rfl fun R _ => sum_ite_eq' (range (2 ^ H)).powerset ∅ (fun _ => C y * weightMono y H R)]
-  simp only [empty_mem_powerset, if_true]
-  rw [← mul_sum, ← two_mul, ← mul_assoc]
-  congr 1
-  simp [map_mul]
-  have hC : C (2 : ENNReal)=(2 : ENNReal[X]) := by
-    rw [show (2 : ENNReal)=1+1 by norm_num,map_add,map_one]
-    norm_num
-  rw [hC]
-
-theorem weightPoly_zero (y : ENNReal) : weightPoly y 0 = X := by
-  unfold weightPoly
-  have : (range (2 ^ 0)).powerset = {∅, {0}} := by decide
-  rw [this, sum_pair (by decide)]
-  simp [weightMono, oc, octH, xorSum, X]
-
-theorem coeff_weightPoly_succ (y : ENNReal) (H j : Nat) : (weightPoly y (H + 1)).coeff j =
-    2 * y * (weightPoly y H).coeff j + ∑ i ∈ range (j + 1), (weightPoly y H).coeff i * (weightPoly y H).coeff (j - i) := by
-  rw [weightPoly_succ, coeff_add, coeff_C_mul, coeff_mul,
-    Finset.Nat.sum_antidiagonal_eq_sum_range_succ_mk]
-
-theorem coeff_weightPoly (y : ENNReal) (H j : Nat) (hj : j ≠ 0) :
-    (weightPoly y H).coeff j = ∑ S ∈ powersetCard j (range (2 ^ H)), y ^ oc H S := by
-  unfold weightPoly
-  rw [finsetSum_coeff, powersetCard_eq_filter, sum_filter]
-  refine sum_congr rfl fun S _ => ?_
-  unfold weightMono
-  by_cases h : S = ∅
-  · subst h; simp [Ne.symm hj]
-  · simp [h, coeff_monomial]
-
-
-theorem half_weightPoly_succ (H : Nat) :
-    weightPoly (1/2) (H+1)=weightPoly (1/2) H+weightPoly (1/2) H*weightPoly (1/2) H := by
-  rw [weightPoly_succ]
-  have he : (2 : ENNReal)*(1/2)=1 := by
-    rw [one_div,ENNReal.mul_inv_cancel (by norm_num) (by finiteness)]
-  rw [he,Polynomial.C_1,one_mul]
-
-theorem half_weightPoly_coeff_succ (H j : Nat) :
-    (weightPoly (1/2) (H+1)).coeff j=(weightPoly (1/2) H).coeff j+
-      ∑ i ∈ range (j+1),(weightPoly (1/2) H).coeff i*(weightPoly (1/2) H).coeff (j-i) := by
-  rw [half_weightPoly_succ,coeff_add,coeff_mul,Finset.Nat.sum_antidiagonal_eq_sum_range_succ_mk]
-
-theorem half_coefficients (H : Nat) :
-    (weightPoly (1/2) H).coeff 0=0 ∧
-    (weightPoly (1/2) H).coeff 1=1 ∧
-    (weightPoly (1/2) H).coeff 2=H ∧
-    (weightPoly (1/2) H).coeff 3=2*(H.choose 2 : ENNReal) := by
-  induction H with
-  | zero => norm_num [weightPoly_zero,Polynomial.coeff_X]
-  | succ H ih =>
-      obtain ⟨h0,h1,h2,h3⟩ := ih
-      simp only [half_weightPoly_coeff_succ,Finset.sum_range_succ,Finset.sum_range_zero,
-        h0,h1,h2,h3,Nat.reduceSub,mul_zero,zero_mul,zero_add,add_zero,mul_one,one_mul]
-      constructor
-      · trivial
-      constructor
-      · trivial
-      constructor
-      · push_cast;ring
-      · rw [Nat.choose_succ_succ,Nat.choose_one_right]
-        push_cast
-        ring
-
-/-- The inverse-power authentication moment for unordered triples. The tree
-recurrence at y=1/2 reduces to Q(H+1)=Q(H)+Q(H)^2. -/
-theorem unordered_triple_half_moment :
-    (∑ leaves ∈ powersetCard 3 (range 256),(1/2 : ENNReal)^oc 8 leaves)=56 := by
-  have h := (half_coefficients 8).2.2.2
-  rw [coeff_weightPoly (1/2) 8 3 (by decide)] at h
-  norm_num [Nat.choose] at h ⊢
-  exact h
-
-theorem injective_tuple_set_sum (k n : Nat) (weight : Finset Nat → ENNReal) :
-    (∑ value : Fin k → Fin n,if Function.Injective value then weight (valList value).toFinset else 0)=
-      (k.factorial : ENNReal)*∑ leaves ∈ powersetCard k (range n),weight leaves := by
-  rw [← sum_filter]
-  have hmap : ∀ value ∈ (univ.filter fun value : Fin k → Fin n => Function.Injective value),
-      (valList value).toFinset ∈ powersetCard k (range n) := by
-    intro value hv
-    have hinj := (mem_filter.mp hv).2
-    apply mem_powersetCard.mpr
-    constructor
-    · intro leaf hl
-      obtain ⟨index,rfl⟩ := (mem_valList value leaf).mp (List.mem_toFinset.mp hl)
-      exact mem_range.mpr (value index).isLt
-    · rw [List.toFinset_card_of_nodup ((valList_nodup value).mpr hinj)]
-      simp [valList]
-  rw [← sum_fiberwise_of_maps_to' hmap weight]
-  calc
-    _ = ∑ leaves ∈ powersetCard k (range n),(k.factorial : ENNReal)*weight leaves := by
-      apply sum_congr rfl
-      intro leaves hl
-      rw [sum_const,nsmul_eq_mul,filter_filter,card_fiber k n leaves hl]
-    _ = _ := by rw [mul_sum]
-
-def sortedTriple (value : Fin 3 → Fin 256) : List Nat :=
-  (valList value).mergeSort (· ≤ ·)
-
-theorem sortedTriple_nodup (value : Fin 3 → Fin 256) :
-    (sortedTriple value).Nodup ↔ Function.Injective value := by
-  rw [← valList_nodup]
-  exact (List.mergeSort_perm (valList value) (· ≤ ·)).nodup_iff
-
-theorem sortedTriple_set_sort (value : Fin 3 → Fin 256) (hinj : Function.Injective value) :
-    sortedTriple value=(valList value).toFinset.sort := by
-  have hs : (sortedTriple value).toFinset=(valList value).toFinset :=
-    List.toFinset_eq_of_perm _ _ (List.mergeSort_perm (valList value) (· ≤ ·))
-  have h : (sortedTriple value).toFinset.sort=sortedTriple value :=
-    (List.toFinset_sort (· ≤ ·) ((sortedTriple_nodup value).mpr hinj)).mpr
-      List.sortedLE_mergeSort.pairwise
-  rw [hs] at h
-  exact h.symm
-
-theorem authCount_sortedTriple (value : Fin 3 → Fin 256) (hinj : Function.Injective value) :
-    authCount (sortedTriple value)=oc 8 (valList value).toFinset := by
-  rw [Correctness.authCount_eq_octH _ (by simp [sortedTriple,valList])
-    ((sortedTriple_nodup value).mpr hinj),sortedTriple_set_sort value hinj]
-  rfl
-
-noncomputable def tripleWeight (value : Fin 3 → Fin 256) : ENNReal :=
-  if Function.Injective value then (1/2 : ENNReal)^authCount (sortedTriple value) else 0
-
-theorem tripleWeight_average : BPORS.finiteAverage tripleWeight=21/(2 : ENNReal)^20 := by
-  unfold BPORS.finiteAverage
-  have hvalue (value : Fin 3 → Fin 256) :
-      tripleWeight value=if Function.Injective value then
-        (1/2 : ENNReal)^oc 8 (valList value).toFinset else 0 := by
-    unfold tripleWeight
-    by_cases h : Function.Injective value
-    · rw [if_pos h,if_pos h,authCount_sortedTriple value h]
-    · rw [if_neg h,if_neg h]
-  simp_rw [hvalue]
-  rw [injective_tuple_set_sum 3 256 (fun leaves => (1/2 : ENNReal)^oc 8 leaves),unordered_triple_half_moment]
-  have hfact : Nat.factorial 3=6 := by decide
-  rw [hfact]
-  simp only [Fintype.card_fun,Fintype.card_fin,Nat.cast_pow,Nat.cast_ofNat]
-  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-  norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_pow]
-
-noncomputable def forestWeight (leaves : LeafChoices) : ENNReal :=
-  ∏ coordinate : Fin 7,tripleWeight (leaves coordinate)
-
-theorem forestWeight_average :
-    BPORS.finiteAverage forestWeight=(21/(2 : ENNReal)^20)^7 := by
-  unfold forestWeight
-  rw [BPORS.finiteAverage_product 7]
-  simp only [tripleWeight_average,prod_const,card_univ,Fintype.card_fin]
-
-theorem leafAdmissible_conditions (leaves : LeafChoices) (h : leafAdmissible leaves=true) :
-    (∀ coordinate,Function.Injective (leaves coordinate)) ∧
-      (∑ coordinate : Fin 7,authCount (sortedTriple (leaves coordinate))) ≤ 103 := by
-  unfold leafAdmissible admissible at h
-  simp only [Bool.and_eq_true,List.all_eq_true,decide_eq_true_eq] at h
-  have hall := h.1
-  have hbudget := h.2
-  constructor
-  · intro coordinate
-    apply (sortedTriple_nodup (leaves coordinate)).mp
-    have hmem : (⟨0,sortedTriple (leaves coordinate)⟩ : Selection) ∈ leafSelections leaves :=
-      List.mem_ofFn.mpr ⟨coordinate,rfl⟩
-    exact hall _ hmem
-  · have hsum : ((leafSelections leaves).map fun sel => authCount sel.leaves).sum=
-        ∑ coordinate : Fin 7,authCount (sortedTriple (leaves coordinate)) := by
-      simp only [leafSelections,List.map_ofFn,List.sum_ofFn]
-      rfl
-    rw [hsum] at hbudget
-    omega
-
-/-- The source acceptance predicate has a small exponential moment even
-without evaluating its exact joint histogram. -/
-theorem acceptance_indicator_le_moment (leaves : LeafChoices) :
-    (if leafAdmissible leaves then (1 : ENNReal) else 0) ≤ (2 : ENNReal)^103*forestWeight leaves := by
-  by_cases h : leafAdmissible leaves=true
-  · rw [if_pos h]
-    obtain ⟨hinj,hbudget⟩ := leafAdmissible_conditions leaves h
-    have hw : forestWeight leaves=(1/2 : ENNReal)^
-        (∑ coordinate : Fin 7,authCount (sortedTriple (leaves coordinate))) := by
-      unfold forestWeight
-      simp only [tripleWeight,hinj,if_true]
-      rw [Finset.prod_pow_eq_pow_sum]
-    rw [hw]
-    calc
-      (1 : ENNReal) = (2 : ENNReal)^103*(1/2 : ENNReal)^103 := by
-        rw [← mul_pow,one_div,ENNReal.mul_inv_cancel (by norm_num) (by finiteness),one_pow]
-      _ ≤ _ := mul_le_mul' le_rfl (pow_le_pow_of_le_one bot_le (by norm_num) hbudget)
-  · rw [if_neg h]
-    exact bot_le
-
-/-- Source-level upper bound sufficient for the 16/17 proposal coupling.
-It applies to the original cap 124 and to the weighted-pair cap 123. -/
-theorem acceptanceProbability_le_one_sixteenth : acceptanceProbability ≤ (1/16 : ENNReal) := by
-  calc
-    _ ≤ BPORS.finiteAverage (fun leaves : LeafChoices => (2 : ENNReal)^103*forestWeight leaves) := by
-      unfold acceptanceProbability BPORS.finiteAverage
-      exact ENNReal.div_le_div_right (sum_le_sum fun leaves _ => acceptance_indicator_le_moment leaves) _
-    _ = (2 : ENNReal)^103*(21/(2 : ENNReal)^20)^7 := by
-      rw [finiteAverage_const_mul,forestWeight_average]
-    _ ≤ _ := by
-      apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-      norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_pow]
-
-end SigGolfCandidate.T3.Acceptance
 
 namespace SigGolfCandidate.T3.Security
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -3831,7 +1011,7 @@ theorem payload_completed_target_bound (cache : T3.Cache) (message : Message) (s
     expectedValue (run (payloadRecord cache message) state)
       (fun result => result.1.2.elim (BPORS.finiteAverage (Sampling.targetWeight targets))
         (fun output => Sampling.targetWeight targets (DigestSampling.samplingData output).1)) ≤
-      targets.card/(2 : ENNReal)^52+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
+      targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
   rw [payloadRecord,run_bind,run_privateNonce_fresh message state hfresh]
   simp only [bind_assoc,pure_bind,expectedValue_bind]
   calc
@@ -3848,7 +1028,7 @@ theorem payload_completed_target_bound (cache : T3.Cache) (message : Message) (s
       uniform_hash_low_expectation (fun rho =>
         expectedValue (Sampling.roRun 0 (digestSearch rho message 0 attemptLimit) state.2)
           (fun result => Sampling.completedTargetScore targets result.1))
-    _ ≤ targets.card/(2 : ENNReal)^52+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
+    _ ≤ targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
       rw [← expectedValue_bind]
       exact Sampling.uniform_nonce_completed_target_bound 0 message attemptLimit (by decide) state.2 targets
 
@@ -3879,7 +1059,7 @@ theorem signing_completed_target_bound (cache : T3.Cache) (message : Message) (s
     expectedValue (run (signingRecord cache message) state)
       (fun result => result.1.2.elim (BPORS.finiteAverage (Sampling.targetWeight targets))
         (fun output => Sampling.targetWeight targets (DigestSampling.samplingData output).1)) ≤
-      targets.card/(2 : ENNReal)^52+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
+      targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
   rw [signingRecord,run_bind,expectedValue_bind]
   apply expectedValue_le_of_support
   intro result hresult
@@ -3899,7 +1079,7 @@ noncomputable def signingRecordLaw (cache : T3.Cache) (message : Message) (state
 theorem signingRecordLaw_target_bound (cache : T3.Cache) (message : Message) (state : State)
     (hfresh : state.1 (.inr (.inl message))=none) (targets : Finset DigestSampling.IndexBuckets) :
     Pr[fun result => result.2 ∈ targets | signingRecordLaw cache message state] ≤
-      targets.card/(2 : ENNReal)^52+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
+      targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
   rw [← expectedValue_ite_one]
   change expectedValue (Sampling.completeRecord (fun result => result.1.2)
     (run (signingRecord cache message) state)) (fun result => Sampling.targetWeight targets result.2) ≤ _
@@ -3914,7 +1094,7 @@ theorem signingRecordLaw_scaled_cap (cache : T3.Cache) (message : Message) (stat
     (hclean : ¬Sampling.TargetCacheExceptional state.2) (point : DigestSampling.IndexBuckets) :
     (16/17 : ENNReal)*((signingRecordLaw cache message state).map Prod.snd) point ≤
       (PMF.uniformOfFintype DigestSampling.IndexBuckets) point := by
-  have hc : Fintype.card DigestSampling.IndexBuckets=2^52 := by
+  have hc : Fintype.card DigestSampling.IndexBuckets=2^59 := by
     norm_num [DigestSampling.IndexBuckets,Fintype.card_prod,Fintype.card_fun]
   have h := signingRecordLaw_target_bound cache message state hfresh {point}
   simp only [Finset.mem_singleton,Finset.card_singleton,Nat.cast_one] at h
@@ -3923,7 +1103,7 @@ theorem signingRecordLaw_scaled_cap (cache : T3.Cache) (message : Message) (stat
   rw [← PMF.monad_map_eq_map,← PMF.probOutput_eq_apply,probOutput_map,
     PMF.uniformOfFintype_apply,hc,Nat.cast_pow,Nat.cast_ofNat]
   calc
-    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^52) := mul_le_mul' le_rfl hpoint
+    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^59) := mul_le_mul' le_rfl hpoint
     _ = _ := by
       apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
       norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_inv,ENNReal.toReal_pow]
@@ -5647,51 +2827,7 @@ theorem logged_source {Result : Type} (program : OracleComp LazyPrivate.Interact
 end SigGolfCandidate.T3.Security.ProposalOverflow
 
 
-/-! Authored module: BaseAudit. -/
-section
-namespace SigGolfCandidate.T3.BaseAudit
-set_option maxRecDepth 10000
-set_option maxHeartbeats 1000000
 
-def zU : ℚ := 1/(1-6931471808/(10000000000*131072))
-def p0 : ℚ := (21029023701529647332541511041 / 40564819207303340847894502572032)
-def b0 : ℚ := (10103062101 / 10000000000)
-theorem step_0 : zU*((1-p0)*b0+p0) ≤ b0 := by norm_num [zU,p0,b0]
-def p1 : ℚ := (13438493322695279285719487280856565 / 21267647932558653966460912964485513216)
-def b1 : ℚ := (201687968779 / 200000000000)
-theorem step_1 : zU*((1-p1)*b1+p1) ≤ b1 := by norm_num [zU,p1,b1]
-def p2 : ℚ := (27179160510794301985010390415765999 / 42535295865117307932921825928971026432)
-def b2 : ℚ := (1008345227909 / 1000000000000)
-theorem step_2 : zU*((1-p2)*b2+p2) ≤ b2 := by norm_num [zU,p2,b2]
-def p3 : ℚ := (27179160510794301985010390415765999 / 42535295865117307932921825928971026432)
-def b3 : ℚ := (1008345227909 / 1000000000000)
-theorem step_3 : zU*((1-p3)*b3+p3) ≤ b3 := by norm_num [zU,p3,b3]
-def p4 : ℚ := (33210373316701753609053794695642145 / 42535295865117307932921825928971026432)
-def b4 : ℚ := (503409673483 / 500000000000)
-theorem step_4 : zU*((1-p4)*b4+p4) ≤ b4 := by norm_num [zU,p4,b4]
-
-theorem signing_envelope :
-    (2 : ℝ)^((123036 : ℝ)/131072) * ((10103062101 / 10000000000) * (201687968779 / 200000000000) * (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (503409673483 / 500000000000)) ≤ 2 := by
-  have hsplit : (2 : ℝ)^((123036 : ℝ)/131072) = 2/(2 : ℝ)^((8036 : ℝ)/131072) := by
-    rw [_root_.eq_div_iff (by positivity), ← Real.rpow_add (by norm_num)]
-    norm_num
-  have hlo := SigGolfCandidate.Budget.rpow_two_ge (8036/131072) (by norm_num)
-  have hn : ((10103062101 / 10000000000) * (201687968779 / 200000000000) * (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (503409673483 / 500000000000) : ℝ) ≤
-      1+0.6931471803*(8036/131072)+(0.6931471803*(8036/131072))^2/2 := by norm_num
-  rw [hsplit, div_mul_eq_mul_div, div_le_iff₀ (by positivity)]
-  nlinarith
-
-
-/-- The actual source charges one fewer fixed compression than the search model. -/
-theorem source_signing_envelope :
-    (2 : ℝ)^((123035 : ℝ)/131072) * ((10103062101 / 10000000000) * (201687968779 / 200000000000) * (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (503409673483 / 500000000000)) ≤ 2 := by
-  calc
-    _ ≤ (2 : ℝ)^((123036 : ℝ)/131072) * ((10103062101 / 10000000000) * (201687968779 / 200000000000) * (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (503409673483 / 500000000000)) := by gcongr <;> norm_num
-    _ ≤ 2 := signing_envelope
-
-end SigGolfCandidate.T3.BaseAudit
-
-end
 
 /-! Authored module: QuerySpace. -/
 section
@@ -5753,7 +2889,7 @@ theorem header_tag (tag lay tree position index : Nat) :
   rw [header_toNat]
   have ht := Nat.mod_lt tag (by decide : 0<256)
   norm_num only [Nat.reducePow] at *
-  omega
+  split_ifs <;> omega
 
 theorem header_ne_of_tag {tag tag' lay lay' tree tree' position position' index index' : Nat}
     (h : tag%256 ≠ tag'%256) :
@@ -5768,7 +2904,7 @@ theorem header_layer (tag lay tree position index : Nat) :
   have ht := Nat.mod_lt tag (by decide : 0<256)
   have hl := Nat.mod_lt lay (by decide : 0<256)
   norm_num only [Nat.reducePow] at *
-  omega
+  split_ifs <;> omega
 
 theorem header_ne_of_layer {tag tag' lay lay' tree tree' position position' index index' : Nat}
     (h : lay%256 ≠ lay'%256) :
@@ -5992,7 +3128,7 @@ theorem digestSearch_none_table (outputs : SearchKey → HashOutput)
         searchQuery (.inr (family,⟨c,hc⟩)) := by
       simp only [searchQuery,Sum.elim_inr,digestQuery,Sampling.digestTrial,Nat.zero_add]
     rw [hinput,tableAnswers_apply]
-  have hd (value : HashOutput) : Sampling.digestDecode value=none ↔ admissible (selections value)=false := by
+  have hd (value : HashOutput) : Sampling.digestDecode value=none ↔ digestAdmissible value=false := by
     simp [Sampling.digestDecode]
   constructor
   · intro h c
@@ -6034,313 +3170,7 @@ section
 /-! Exact fresh BPORS digest acceptance for cap 124. This file counts the
 source rejection predicate; it does not assert any adaptive security coupling. -/
 noncomputable section
-namespace SigGolfCandidate.T3.DigestCounting
-open scoped BigOperators
-open Finset
 
-set_option maxRecDepth 100000
-set_option maxHeartbeats 4000000
-set_option exponentiation.threshold 20000
-set_option backward.isDefEq.respectTransparency false
-
-def admissibleTuples : Nat := 193958509171044860357831520879372864269611696128
-def p0 : Rat := 21029023701529647332541511041 / 40564819207303340847894502572032
-theorem admissible_tuples : admissibleTuples = 193958509171044860357831520879372864269611696128 := rfl
-
-abbrev RawChild := Fin 3 → Fin 256
-abbrev GoodChild := {v : RawChild // Function.Injective v}
-abbrev GoodForest := Fin 7 → GoodChild
-
-def childSet (v : RawChild) : Finset Nat := (SigGolfCandidate.Budget.Octopus.valList v).toFinset
-
-def childWeight (v : GoodChild) : Nat := SigGolfCandidate.Budget.Octopus.oc 8 (childSet v.val)
-def forestWeight (forest : GoodForest) : Nat := ∑ c : Fin 7, childWeight (forest c)
-
-def childSets : Finset (Finset Nat) := powersetCard 3 (range 256)
-
-theorem childSet_mem (v : RawChild) (hv : Function.Injective v) : childSet v ∈ childSets := by
-  rw [childSets,mem_powersetCard]
-  constructor
-  · intro x hx
-    rw [childSet,List.mem_toFinset,SigGolfCandidate.Budget.Octopus.mem_valList] at hx
-    obtain ⟨i,rfl⟩ := hx
-    exact mem_range.mpr (v i).isLt
-  · rw [childSet,List.toFinset_card_of_nodup ((SigGolfCandidate.Budget.Octopus.valList_nodup v).mpr hv)]
-    simp [SigGolfCandidate.Budget.Octopus.valList]
-
-abbrev ChildTuple := Fin 3 → Fin 256
-
-def sortedChild (v : ChildTuple) : List Nat :=
-  (Budget.Octopus.valList v).mergeSort (· ≤ ·)
-
-theorem sortedChild_nodup (v : ChildTuple) :
-    (sortedChild v).Nodup ↔ Function.Injective v := by
-  rw [sortedChild, (List.mergeSort_perm (Budget.Octopus.valList v) (· ≤ ·)).nodup_iff]
-  exact Budget.Octopus.valList_nodup v
-
-theorem sortedChild_length (v : ChildTuple) : (sortedChild v).length = 3 := by
-  simp [sortedChild,Budget.Octopus.valList]
-
-theorem sortedChild_eq (v : ChildTuple) (hv : Function.Injective v) :
-    sortedChild v = (Budget.Octopus.valList v).toFinset.sort := by
-  apply List.Perm.eq_of_pairwise' (r := (· ≤ ·))
-    (List.pairwise_mergeSort' _ _) (Finset.pairwise_sort _ _)
-  refine (List.mergeSort_perm _ _).trans ?_
-  rw [List.perm_ext_iff_of_nodup ((Budget.Octopus.valList_nodup v).mpr hv)
-    (Finset.sort_nodup _ _)]
-  intro a
-  simp
-
-theorem source_child_auth (v : ChildTuple) (hv : Function.Injective v) :
-    authCount (sortedChild v) =
-      Budget.Octopus.octH 8 (Budget.Octopus.valList v).toFinset.sort := by
-  rw [Correctness.authCount_eq_octH _ (sortedChild_length v) ((sortedChild_nodup v).mpr hv),
-    sortedChild_eq v hv]
-  rfl
-
-
-/-- Every three-element leaf subset has six ordered injective enumerations. -/
-theorem child_weighted_sum (y : Nat) :
-    (∑ v : GoodChild, y^childWeight v) = 6*(SigGolfCandidate.Budget.Octopus.Q y 8).coeff 3 := by
-  classical
-  rw [SigGolfCandidate.Budget.Octopus.coeff_Q y 8 3 (by decide)]
-  change _ = 6*∑ S ∈ childSets, y^(SigGolfCandidate.Budget.Octopus.oc 8 S)
-  let good : Finset RawChild := univ.filter Function.Injective
-  have hmem : ∀ v ∈ good, childSet v ∈ childSets := by
-    intro v hv
-    exact childSet_mem v (mem_filter.mp hv).2
-  have hsub := Finset.sum_subtype (p := Function.Injective) (F := inferInstance) good
-    (fun v => by simp [good]) (fun v => y^(SigGolfCandidate.Budget.Octopus.oc 8 (childSet v)))
-  change (∑ v : GoodChild, y^(Budget.Octopus.oc 8 (childSet v.val))) = _
-  rw [← hsub,← sum_fiberwise_of_maps_to hmem]
-  rw [mul_sum]
-  apply sum_congr rfl
-  intro S hS
-  have hc : (good.filter fun v => childSet v=S).card = 6 := by
-    have h := SigGolfCandidate.Budget.Octopus.card_fiber 3 256 S hS
-    simpa only [good,filter_filter,childSet,show Nat.factorial 3=6 by decide] using h
-  calc
-    (∑ v ∈ good.filter (fun v => childSet v=S), y^SigGolfCandidate.Budget.Octopus.oc 8 (childSet v)) =
-      ∑ _v ∈ good.filter (fun v => childSet v=S), y^SigGolfCandidate.Budget.Octopus.oc 8 S := by
-        apply sum_congr rfl
-        intro v hv
-        rw [(mem_filter.mp hv).2]
-    _ = 6*y^SigGolfCandidate.Budget.Octopus.oc 8 S := by rw [sum_const,smul_eq_mul,hc]
-
-/-- Seven coordinates multiply their generating sums exactly. -/
-theorem forest_weighted_sum (y : Nat) :
-    (∑ f : GoodForest, y^forestWeight f) = (6*(SigGolfCandidate.Budget.Octopus.Q y 8).coeff 3)^7 := by
-  classical
-  have hp := Fintype.prod_sum (fun _c : Fin 7 => fun v : GoodChild => y^childWeight v)
-  simp only [forestWeight,Finset.prod_pow_eq_pow_sum] at *
-  rw [← hp]
-  simp only [child_weighted_sum,prod_const,card_univ,Fintype.card_fin]
-
-/-- Truncation in a radix exceeding the number of terms cannot introduce a carry. -/
-theorem mod_pow_sum {α : Type} [DecidableEq α] {y n : Nat} (hn : 0<n)
-    (P : Finset α) (g : α → Nat) (hP : P.card<y) :
-    (∑ a ∈ P, y^g a) % y^n = ∑ a ∈ P.filter (g · < n), y^g a := by
-  rw [← sum_filter_add_sum_filter_not P (g · < n)]
-  obtain ⟨c,hc⟩ : y^n ∣ ∑ a ∈ P.filter (fun a => ¬g a<n), y^g a :=
-    dvd_sum fun a ha => pow_dvd_pow y (not_lt.mp (mem_filter.mp ha).2)
-  rw [hc,Nat.add_mul_mod_self_left]
-  apply Nat.mod_eq_of_lt
-  have hy : 1≤y := by omega
-  calc
-    ∑ a ∈ P.filter (g · < n), y^g a ≤ ∑ _a ∈ P.filter (g · < n), y^(n-1) :=
-      sum_le_sum fun a ha => Nat.pow_le_pow_right hy (by have := (mem_filter.mp ha).2;omega)
-    _ = (P.filter (g · < n)).card*y^(n-1) := by rw [sum_const,smul_eq_mul]
-    _ ≤ P.card*y^(n-1) := Nat.mul_le_mul_right _ (card_filter_le _ _)
-    _ < y*y^(n-1) := Nat.mul_lt_mul_of_pos_right hP (by positivity)
-    _ = y^n := by rw [←pow_succ'];congr 1;omega
-
-theorem sum_pow_mod_pred {α : Type} [DecidableEq α] {y : Nat} (hy : 3≤y)
-    (P : Finset α) (g : α → Nat) :
-    (∑ a ∈ P, y^g a)%(y-1)=P.card%(y-1) := by
-  have hmod : y%(y-1)=1 := by
-    calc
-      y%(y-1)=(y-1+1)%(y-1) := by rw [Nat.sub_add_cancel (by omega)]
-      _ = 1%(y-1) := Nat.add_mod_left _ _
-      _ = 1 := Nat.mod_eq_of_lt (by omega)
-  rw [sum_nat_mod]
-  rw [sum_congr rfl fun a _ => by rw [Nat.pow_mod,hmod,one_pow]]
-  simp
-
-theorem packed_card {α : Type} [DecidableEq α] {y n : Nat} (hy : 3≤y) (hn : 0<n)
-    (P : Finset α) (g : α → Nat) (hP : P.card<y-1) :
-    ((∑ a ∈ P,y^g a)%y^n)%(y-1)=(P.filter (g · < n)).card := by
-  rw [mod_pow_sum hn P g (by omega),sum_pow_mod_pred hy,
-    Nat.mod_eq_of_lt ((card_filter_le _ _).trans_lt hP)]
-
-theorem piter_entry (k y m n j : Nat) (hm : 1 < m) (hj : j ≤ k) :
-    (Budget.Octopus.piter k y m n [0,1]).getD j 0 = (Budget.Octopus.Q y n).coeff j % m := by
-  have h := Budget.Octopus.rep_piter (K := k) (y := y) (M := m) n 0 [0,1]
-    (Budget.Octopus.rep_zero k y m hm)
-  simpa only [Nat.zero_add] using h j hj
-
-def packingRadix : Nat := 2^176
-def packingModulus : Nat := packingRadix^104
-
-def childPacked : Nat := (SigGolfCandidate.Budget.Octopus.piter 3 packingRadix packingModulus 8 [0,1]).getD 3 0
-
-def packedCount : Nat := ((6*childPacked)^7 % packingModulus) % (packingRadix-1)
-
-theorem childPacked_eq_mod :
-    childPacked=(SigGolfCandidate.Budget.Octopus.Q packingRadix 8).coeff 3 % packingModulus := by
-  have hm : 1 < packingModulus := by
-    unfold packingModulus
-    exact one_lt_pow₀ (by norm_num [packingRadix]) (by decide)
-  unfold childPacked
-  exact piter_entry 3 packingRadix packingModulus 8 3 hm (by decide)
-
-theorem six_pow_mod (a m : Nat) :
-    (6*(a%m))^7 % m = (6*a)^7 % m := ((Nat.mod_modEq a m).mul_left 6).pow 7
-
-theorem childPacked_power_mod :
-    (6*childPacked)^7 % packingModulus =
-      (6*(SigGolfCandidate.Budget.Octopus.Q packingRadix 8).coeff 3)^7 % packingModulus := by
-  rw [childPacked_eq_mod]
-  exact six_pow_mod _ _
-
-theorem forest_card_small : Fintype.card GoodForest < packingRadix-1 := by
-  let forget : GoodForest → DigestSampling.LeafChoices := fun f c => (f c).val
-  have hi : Function.Injective forget := by
-    intro a b hab
-    funext c
-    exact Subtype.ext (congrFun hab c)
-  calc
-    Fintype.card GoodForest ≤ Fintype.card DigestSampling.LeafChoices :=
-      Fintype.card_le_of_injective forget hi
-    _ = (256^3)^7 := by
-      simp only [DigestSampling.LeafChoices, Fintype.card_fun, Fintype.card_fin]
-    _ < packingRadix-1 := by norm_num [packingRadix]
-
-/-- Kernel evaluation of eight four-entry DP rows and one seventh power.
-This does not enumerate the 168-bit leaf space. -/
-theorem packedCount_value : packedCount=193958509171044860357831520879372864269611696128 := by
-  decide +kernel
-
-theorem good_forest_count :
-    (univ.filter fun f : GoodForest => forestWeight f<104).card = admissibleTuples := by
-  have h := packed_card (y := packingRadix) (n := 104)
-    (by norm_num [packingRadix]) (by decide) univ forestWeight
-    (by simpa only [card_univ] using forest_card_small)
-  rw [forest_weighted_sum, show packingRadix^104 = packingModulus from rfl,
-    ← childPacked_power_mod] at h
-  change packedCount=_ at h
-  rw [←h,packedCount_value,admissible_tuples]
-
-
-theorem source_leaf_condition (leaves : DigestSampling.LeafChoices) :
-    DigestSampling.leafAdmissible leaves = true ↔
-      (∀ c, Function.Injective (leaves c)) ∧
-      21 + (∑ c : Fin 7, authCount (sortedChild (leaves c))) ≤ 124 := by
-  simp only [DigestSampling.leafAdmissible, DigestSampling.leafSelections, admissible,
-    Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, List.mem_ofFn,
-    forall_exists_index, List.map_ofFn, List.sum_ofFn, Function.comp_def]
-  constructor
-  · rintro ⟨hi, hc⟩
-    exact ⟨fun c => (sortedChild_nodup _).mp (hi _ c rfl), hc⟩
-  · rintro ⟨hi, hc⟩
-    refine ⟨?_, hc⟩
-    intro x c hx
-    subst x
-    exact (sortedChild_nodup _).mpr (hi c)
-
-def forgetForest (forest : GoodForest) : DigestSampling.LeafChoices := fun c => (forest c).val
-
-theorem forest_admissible (forest : GoodForest) :
-    DigestSampling.leafAdmissible (forgetForest forest) = true ↔ forestWeight forest < 104 := by
-  rw [source_leaf_condition]
-  have hi : ∀ c, Function.Injective (forgetForest forest c) := fun c => (forest c).property
-  have he : (∑ c : Fin 7, authCount (sortedChild (forgetForest forest c))) = forestWeight forest := by
-    apply Finset.sum_congr rfl
-    intro c _
-    exact source_child_auth _ (hi c)
-  constructor
-  · intro h
-    have hc := h.2
-    rw [he] at hc
-    omega
-  · intro h
-    exact ⟨hi, by rw [he]; omega⟩
-
-def acceptedEquiv :
-    {leaves : DigestSampling.LeafChoices // DigestSampling.leafAdmissible leaves = true} ≃
-      {forest : GoodForest // forestWeight forest < 104} where
-  toFun leaves :=
-    let forest : GoodForest := fun c => ⟨leaves.val c, (source_leaf_condition leaves.val).mp leaves.property |>.1 c⟩
-    ⟨forest, (forest_admissible forest).mp leaves.property⟩
-  invFun forest := ⟨forgetForest forest.val, (forest_admissible forest.val).mpr forest.property⟩
-  left_inv _ := rfl
-  right_inv _ := rfl
-
-/-- Exact accepted-leaf cardinality of the source cap-124 digest predicate. -/
-theorem leaf_acceptance_count :
-    Fintype.card {leaves : DigestSampling.LeafChoices //
-      DigestSampling.leafAdmissible leaves = true} = admissibleTuples := by
-  rw [Fintype.card_congr acceptedEquiv, Fintype.card_subtype]
-  exact good_forest_count
-
-open OracleComp OracleSpec ENNReal OracleComp.EvalDist
-
-theorem leafChoices_card : Fintype.card DigestSampling.LeafChoices = 2^168 := by
-  simp only [DigestSampling.LeafChoices, Fintype.card_fun, Fintype.card_fin]
-  norm_num
-
-theorem acceptanceProbability_of_count
-    (hc : Fintype.card {leaves : DigestSampling.LeafChoices //
-      DigestSampling.leafAdmissible leaves = true} = admissibleTuples) :
-    DigestSampling.acceptanceProbability = (admissibleTuples : ENNReal)/2^168 := by
-  have h : expectedValue ($ᵗ DigestSampling.LeafChoices : ProbComp DigestSampling.LeafChoices)
-      (fun leaves => if DigestSampling.leafAdmissible leaves then 1 else 0) =
-        DigestSampling.acceptanceProbability := BPORS.expected_uniform_eq_finiteAverage _
-  rw [expectedValue_ite_one, probEvent_uniformSample, ← Fintype.card_subtype, hc,
-    leafChoices_card] at h
-  simpa only [Nat.cast_pow, Nat.cast_ofNat] using h.symm
-
-theorem digest_probability_of_count
-    (hc : Fintype.card {leaves : DigestSampling.LeafChoices //
-      DigestSampling.leafAdmissible leaves = true} = admissibleTuples) :
-    Pr[fun answer => (Sampling.digestDecode answer).isSome |
-      ($ᵗ HashOutput : ProbComp HashOutput)] = (admissibleTuples : ENNReal)/2^168 := by
-  have h := DigestSampling.accepted_samplingData (fun _ => 1)
-  rw [BPORS.History.finiteAverage_constant, one_mul, expectedValue_ite_one,
-    acceptanceProbability_of_count hc] at h
-  have he (answer : HashOutput) : (Sampling.digestDecode answer).isSome = admissible (selections answer) := by
-    cases ha : admissible (selections answer) <;> simp only [Sampling.digestDecode, ha,
-      Bool.false_eq_true, if_false, if_true, Option.isSome_none, Option.isSome_some]
-  simpa only [he] using h
-
-theorem count_ratio_eq_p0 :
-    (admissibleTuples : ENNReal)/2^168 = ENNReal.ofReal (p0 : Real) := by
-  rw [admissible_tuples]
-  norm_num only [p0, Rat.cast_div, Rat.cast_ofNat]
-  rw [ENNReal.ofReal_div_of_pos (by positivity)]
-  norm_num only [ENNReal.ofReal_ofNat]
-  apply (ENNReal.div_eq_div_iff (by norm_num) (by norm_num) (by norm_num) (by norm_num)).mpr
-  norm_num
-
-/-- Exact acceptance probability of the actual digest search decoder under one
-fresh uniform 256-bit hash answer. Adaptive freshness is a separate obligation. -/
-theorem digest_uniform_probability :
-    Pr[fun answer => (Sampling.digestDecode answer).isSome |
-      ($ᵗ HashOutput : ProbComp HashOutput)] = (admissibleTuples : ENNReal)/2^168 :=
-  digest_probability_of_count leaf_acceptance_count
-
-theorem digest_probability_eq_p0 :
-    Pr[fun answer => (Sampling.digestDecode answer).isSome |
-      ($ᵗ HashOutput : ProbComp HashOutput)] = ENNReal.ofReal (p0 : Real) := by
-  rw [digest_uniform_probability, count_ratio_eq_p0]
-
-theorem acceptanceProbability_eq_p0 :
-    DigestSampling.acceptanceProbability = ENNReal.ofReal (p0 : Real) := by
-  rw [acceptanceProbability_of_count leaf_acceptance_count, count_ratio_eq_p0]
-
-#print axioms leaf_acceptance_count
-#print axioms digest_uniform_probability
-#print axioms digest_probability_eq_p0
-end SigGolfCandidate.T3.DigestCounting
 
 end
 
@@ -6677,10 +3507,10 @@ def signForest (index : Nat) (chosen : List Selection) :
     (fun (state : List Digest × List Digest × List Digest) coord => do
       let sel := chosen.getD coord ⟨0,[]⟩
       let (levels,secrets) ← buildFts index coord
-      let selected := sel.leaves.map (fun s => sel.bucket*256+s)
+      let selected := sel.leaves.map (fun s => sel.bucket*128+s)
       let opened := selected.map (fun s => secrets.getD s 0)
-      let inner := (frontier selected 8 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
-      let outer := (List.range 3).map fun j => (levels.getD (8+j) []).getD (sel.bucket/2^j ^^^ 1) 0
+      let inner := (frontier selected 7 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
+      let outer := (List.range 4).map fun j => (levels.getD (7+j) []).getD (sel.bucket/2^j ^^^ 1) 0
       pure (state.1 ++ opened,state.2.1 ++ inner ++ outer,
         state.2.2 ++ [(levels.getD 11 []).getD 0 0])) ([],[],[])
 
@@ -7113,7 +3943,7 @@ theorem digestSearch_none_agreement (outputs : QuerySpace.SearchKey → HashOutp
       simp only [QuerySpace.searchQuery,Sum.elim_inr,QuerySpace.digestQuery,Sampling.digestTrial,Nat.zero_add]
     rw [hinput,hagree]
 
-  have hd (value : HashOutput) : Sampling.digestDecode value=none ↔ admissible (selections value)=false := by
+  have hd (value : HashOutput) : Sampling.digestDecode value=none ↔ digestAdmissible value=false := by
     simp [Sampling.digestDecode]
   constructor
   · intro h c
@@ -7329,7 +4159,7 @@ theorem digest_failMass_of_acceptance
       ($ᵗ HashOutput : ProbComp HashOutput)]=ENNReal.ofReal (DigestCounting.p0 : ℝ)) :
     failMass Sampling.digestDecode=ENNReal.ofReal (1-(DigestCounting.p0 : ℝ)) := by
   rw [failMass_eq_one_sub_accept,haccept,
-    ENNReal.ofReal_sub 1 (by norm_num [DigestCounting.p0])]
+    ENNReal.ofReal_sub 1 (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0])]
   simp
 
 theorem digest_moment_step_of_acceptance
@@ -7337,8 +4167,8 @@ theorem digest_moment_step_of_acceptance
       ($ᵗ HashOutput : ProbComp HashOutput)]=ENNReal.ofReal (DigestCounting.p0 : ℝ)) :
     SigGolfCandidate.Budget.zOf 131072 *
       (failMass Sampling.digestDecode*digestEnvelope+(1-failMass Sampling.digestDecode)) ≤ digestEnvelope := by
-  have hp0 : 0 ≤ (DigestCounting.p0 : ℝ) := by norm_num [DigestCounting.p0]
-  have hp1 : 0 ≤ 1-(DigestCounting.p0 : ℝ) := by norm_num [DigestCounting.p0]
+  have hp0 : 0 ≤ (DigestCounting.p0 : ℝ) := by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]
+  have hp1 : 0 ≤ 1-(DigestCounting.p0 : ℝ) := by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]
   have hb0 : 0 ≤ (BaseAudit.b0 : ℝ) := by norm_num [BaseAudit.b0]
   have hz0 : 0 ≤ (BaseAudit.zU : ℝ) := by norm_num [BaseAudit.zU]
   have hs : 1-(1-(DigestCounting.p0 : ℝ))=(DigestCounting.p0 : ℝ) := by ring
@@ -7352,7 +4182,7 @@ theorem digest_moment_step_of_acceptance
         ((1-(DigestCounting.p0 : ℝ))*(BaseAudit.b0 : ℝ)+(DigestCounting.p0 : ℝ))) := by
       rw [← ENNReal.ofReal_mul hp1,← ENNReal.ofReal_add (mul_nonneg hp1 hb0) hp0,
         ← ENNReal.ofReal_mul hz0]
-    _ ≤ _ := by apply ENNReal.ofReal_le_ofReal;norm_num [BaseAudit.zU,DigestCounting.p0,BaseAudit.b0]
+    _ ≤ _ := by apply ENNReal.ofReal_le_ofReal;norm_num [BaseAudit.zU,DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0,BaseAudit.b0]
 
 theorem V_digestSearch_fresh_of_acceptance (secret : BitVec 256)
     (rho : Digest) (message : Message) (fuel counter : Nat)
@@ -7378,19 +4208,19 @@ noncomputable local instance : SampleableType (QuerySpace.SearchKey → HashOutp
 theorem digest_failure_power :
     failMass Sampling.digestDecode^attemptLimit ≤ 1/(2 : ENNReal)^450 :=
   digest_failure_power_of_acceptance (DigestCounting.p0 : ℝ)
-    (by norm_num [DigestCounting.p0]) (by norm_num [DigestCounting.p0]) DigestCounting.digest_probability_eq_p0
+    (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]) (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]) DigestCounting.digest_probability_eq_p0
 
 theorem tableGood_failure_small :
     Pr[fun outputs => ¬tableGood outputs |
       ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤ 1/(2 : ENNReal)^65 :=
   tableGood_failure_small_of_acceptance (DigestCounting.p0 : ℝ)
-    (by norm_num [DigestCounting.p0]) (by norm_num [DigestCounting.p0]) DigestCounting.digest_probability_eq_p0
+    (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]) (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]) DigestCounting.digest_probability_eq_p0
 
 theorem tableGoodFor_failure_small (message : Message) :
     Pr[fun outputs => ¬tableGoodFor message outputs |
       ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤ 1/(2 : ENNReal)^321 :=
   tableGoodFor_failure_small_of_acceptance message (DigestCounting.p0 : ℝ)
-    (by norm_num [DigestCounting.p0]) (by norm_num [DigestCounting.p0]) DigestCounting.digest_probability_eq_p0
+    (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]) (by norm_num [DigestCounting.p0,SigGolfResearch.Gate6.Budget.p0]) DigestCounting.digest_probability_eq_p0
 
 theorem tableGoodFor_failure_128 (message : Message) :
     Pr[fun outputs => ¬tableGoodFor message outputs |
@@ -7772,7 +4602,7 @@ theorem signingMoment_le_two : signingMoment ≤ 2 := by
   rw [ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^((123035 : ℝ)/131072) by positivity)] at hcast
   norm_num only [ENNReal.ofReal_ofNat] at hcast
   have he : digestEnvelope*encodingEnvelope 0*encodingEnvelope 1*encodingEnvelope 2*encodingEnvelope 3 =
-      ENNReal.ofReal ((10103062101 / 10000000000) * (201687968779 / 200000000000) *
+      ENNReal.ofReal ((1008243682763 / 1000000000000) * (201687968779 / 200000000000) *
         (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (503409673483 / 500000000000) : ℝ) := by
     change ENNReal.ofReal (BaseAudit.b0 : ℝ)*ENNReal.ofReal (BaseAudit.b1 : ℝ)*
       ENNReal.ofReal (BaseAudit.b2 : ℝ)*ENNReal.ofReal (BaseAudit.b3 : ℝ)*ENNReal.ofReal (BaseAudit.b4 : ℝ) = _
@@ -8400,7 +5230,7 @@ macro "hashes" : tactic => `(tactic| aesop (config := { maxRuleApplications := 1
 @[aesop safe apply] theorem hashOnly_sign (cache : Cache) (message : Message) :
  HashOnly (sign cache message) := by unfold sign; hashes
 @[aesop safe apply] theorem hashOnly_recoverChild (index coord : Nat) (leaves : List Nat)
- (values : List Digest) (proof : Fin 124 → Digest) (level node used : Nat) :
+ (values : List Digest) (proof : Fin 121 → Digest) (level node used : Nat) :
  HashOnly (recoverChild index coord leaves values proof level node used) := by
  induction level generalizing node used with
  | zero => unfold recoverChild; hashes
@@ -9481,7 +6311,7 @@ macro "verdict_queries" : tactic => `(tactic|
   aesop (config := { maxRuleApplications := 1000 }) (add simp MacGame.NonMac))
 
 theorem recoverChild_nonMac (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 124 → Digest) (level node used : Nat) :
+    (proof : Fin 121 → Digest) (level node used : Nat) :
     NonMac (recoverChild index coord leaves values proof level node used) := by
   induction level generalizing node used with
   | zero => unfold recoverChild;verdict_queries
@@ -10293,7 +7123,7 @@ theorem authenticated_completed_target_bound (published : T3.Cache) (request : R
     expectedValue (LazyPrivate.run (FullGame.authenticatedRecord published request) state)
       (fun result => result.1.2.elim (BPORS.finiteAverage (Sampling.targetWeight targets))
         (fun output => Sampling.targetWeight targets (DigestSampling.samplingData output).1)) ≤
-      targets.card/(2 : ENNReal)^52+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
+      targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.2/(2 : ENNReal)^128 := by
   rw [FullGame.authenticatedRecord,LazyPrivate.run_bind,expectedValue_bind]
   apply expectedValue_le_of_support
   intro result hresult
@@ -10313,7 +7143,7 @@ theorem counted_completed_target_bound (published : T3.Cache) (request : Request
     expectedValue (run (FullGame.authenticatedRecord published request) state)
       (fun result => result.1.2.elim (BPORS.finiteAverage (Sampling.targetWeight targets))
         (fun output => Sampling.targetWeight targets (DigestSampling.samplingData output).1)) ≤
-      targets.card/(2 : ENNReal)^52+Sampling.cachedTargetCount targets state.2.2/(2 : ENNReal)^128 := by
+      targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.2.2/(2 : ENNReal)^128 := by
   have h := congrArg (fun program => expectedValue program
     (fun result : (Option Signature × Option HashOutput) × LazyPrivate.State =>
       result.1.2.elim (BPORS.finiteAverage (Sampling.targetWeight targets))
@@ -10330,7 +7160,7 @@ noncomputable def recordLaw (published : T3.Cache) (request : Request) (state : 
 theorem recordLaw_target_bound (published : T3.Cache) (request : Request) (state : State)
     (hfresh : state.2.1 (.inr (.inl request.message))=none) (targets : Finset DigestSampling.IndexBuckets) :
     Pr[fun result => result.2 ∈ targets | recordLaw published request state] ≤
-      targets.card/(2 : ENNReal)^52+Sampling.cachedTargetCount targets state.2.2/(2 : ENNReal)^128 := by
+      targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.2.2/(2 : ENNReal)^128 := by
   rw [← expectedValue_ite_one]
   change expectedValue (Sampling.completeRecord (fun result => result.1.2)
     (run (FullGame.authenticatedRecord published request) state))
@@ -10345,7 +7175,7 @@ theorem recordLaw_scaled_cap (published : T3.Cache) (request : Request) (state :
     (hclean : ¬Sampling.TargetCacheExceptional state.2.2) (point : DigestSampling.IndexBuckets) :
     (16/17 : ENNReal)*((recordLaw published request state).map Prod.snd) point ≤
       (PMF.uniformOfFintype DigestSampling.IndexBuckets) point := by
-  have hc : Fintype.card DigestSampling.IndexBuckets=2^52 := by
+  have hc : Fintype.card DigestSampling.IndexBuckets=2^59 := by
     norm_num [DigestSampling.IndexBuckets,Fintype.card_prod,Fintype.card_fun]
   have h := recordLaw_target_bound published request state hfresh {point}
   simp only [Finset.mem_singleton,Finset.card_singleton,Nat.cast_one] at h
@@ -10354,7 +7184,7 @@ theorem recordLaw_scaled_cap (published : T3.Cache) (request : Request) (state :
   rw [← PMF.monad_map_eq_map,← PMF.probOutput_eq_apply,probOutput_map,
     PMF.uniformOfFintype_apply,hc,Nat.cast_pow,Nat.cast_ofNat]
   calc
-    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^52) := mul_le_mul' le_rfl hpoint
+    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^59) := mul_le_mul' le_rfl hpoint
     _ = _ := by
       apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
       norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_inv,ENNReal.toReal_pow]
@@ -10984,6 +7814,50 @@ end SigGolfCandidate.T3.Security.CountedPrivate
 end
 
 
+namespace SigGolfResearch.Gate6.NativeCache
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+open SigGolfCandidate.T3
+open SigGolfCandidate.T3.Security
+open SphincsSecurity (Finite)
+open SphincsSecurity.QueryCap (counted counted_pure counted_query_bind)
+set_option autoImplicit false
+set_option Elab.async false
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+attribute [local irreducible] totalWeight
+
+theorem expected_totalWeight_step (q : Nat) (query : SphincsSecurity.OracleWorld.Domain)
+    (cache : RCache) (hfinite : Finite cache) :
+    expectedValue ((SphincsSecurity.romImpl query).run cache) (fun result => totalWeight q result.2) ≤
+      totalWeight q cache := by
+  have h := SphincsSecurity.expected_potential_romImpl_le_charge (totalWeight q)
+    (fun _ _ => 0) (fun current hc input hf =>
+      (expected_totalWeight_fresh q current hc input hf).trans_eq (add_zero _).symm) query cache hfinite
+  have hz : SphincsSecurity.hashQueryCharge (fun _ _ => (0 : ENNReal)) cache query=0 := by
+    cases query <;> rfl
+  rw [hz,add_zero] at h
+  exact h
+
+/-- The native T3 interpreter includes arbitrary public coins, memoized public
+hashes and private-table queries. Private queries preserve this public potential. -/
+theorem lazy_query_weight (q : Nat) (input : Spec.Domain) (state : LazyPrivate.State)
+    (hfinite : Finite state.2) :
+    expectedValue (LazyPrivate.run (liftM (Spec.query input)) state)
+      (fun result => totalWeight q result.2.2) ≤ totalWeight q state.2 := by
+  rw [LazyPrivate.run_query]
+  cases input with
+  | inl input =>
+      simp only [PrivateTable.lazyImpl,StateT.run_mk,expectedValue_bind,expectedValue_pure]
+      exact expected_totalWeight_step q input state.2 hfinite
+  | inr coordinate =>
+      simp only [PrivateTable.lazyImpl,StateT.run_mk,expectedValue_bind,expectedValue_pure]
+      rw [expectedValue_const (by simp)]
+
+
+end SigGolfResearch.Gate6.NativeCache
+
 -- SEC full-game composition: CacheFirstException
 section
 namespace SigGolfCandidate.T3.Security.CountedPrivate
@@ -11025,9 +7899,9 @@ theorem observe_query_bind {α : Type} (input : T3.Spec.Domain)
 
 theorem exception_potential_ge_one (state : LazyPrivate.State)
     (hbad : Sampling.TargetCacheExceptional state.2) (budget : Nat) :
-    1 ≤ (Sampling.allTargetMoment state.2+DigestSampling.acceptanceProbability*budget)/(2 : ENNReal)^142 := by
+    1 ≤ (Sampling.allTargetMoment state.2+DigestSampling.acceptanceProbability*budget)/(2 : ENNReal)^94 := by
   calc
-    1 = (2 : ENNReal)^142/(2 : ENNReal)^142 :=
+    1 = (2 : ENNReal)^94/(2 : ENNReal)^94 :=
       (ENNReal.div_self (by norm_num) (by finiteness)).symm
     _ ≤ _ := ENNReal.div_le_div_right
       ((Sampling.targetCacheExceptional_moment state.2 hbad).trans le_self_add) _
@@ -11036,16 +7910,16 @@ theorem query_remaining_potential (input : T3.Spec.Domain) (state : LazyPrivate.
     (hfinite : SphincsSecurity.Finite state.2) (remaining : Nat) :
     expectedValue (LazyPrivate.run (liftM (T3.Spec.query input)) state)
       (fun result => (Sampling.allTargetMoment result.2.2+
-        DigestSampling.acceptanceProbability*remaining)/(2 : ENNReal)^142) ≤
+        DigestSampling.acceptanceProbability*remaining)/(2 : ENNReal)^94) ≤
       (Sampling.allTargetMoment state.2+
-        DigestSampling.acceptanceProbability*((FullGame.queryCharge input+remaining : Nat) : ENNReal))/(2 : ENNReal)^142 := by
+        DigestSampling.acceptanceProbability*((FullGame.queryCharge input+remaining : Nat) : ENNReal))/(2 : ENNReal)^94 := by
   have hmass : Pr[⊥ | LazyPrivate.run (liftM (T3.Spec.query input)) state]=0 := by simp
   have he : expectedValue (LazyPrivate.run (liftM (T3.Spec.query input)) state)
       (fun result => (Sampling.allTargetMoment result.2.2+
-        DigestSampling.acceptanceProbability*remaining)/(2 : ENNReal)^142)=
+        DigestSampling.acceptanceProbability*remaining)/(2 : ENNReal)^94)=
       (expectedValue (LazyPrivate.run (liftM (T3.Spec.query input)) state)
         (fun result => Sampling.allTargetMoment result.2.2)+
-          DigestSampling.acceptanceProbability*remaining)/(2 : ENNReal)^142 := by
+          DigestSampling.acceptanceProbability*remaining)/(2 : ENNReal)^94 := by
     simp only [div_eq_mul_inv,expectedValue_mul_const,expectedValue_add]
     rw [expectedValue_const hmass]
   rw [he]
@@ -11063,7 +7937,7 @@ after the first exception and retains the original result and final caches. -/
 theorem observe_exception_bound {α : Type} (program : M α) (state : LazyPrivate.State)
     (hfinite : SphincsSecurity.Finite state.2) (budget : Nat) :
     Pr[fun result => result.calls≤budget ∧ result.exceptional=true | observe program state] ≤
-      (Sampling.allTargetMoment state.2+DigestSampling.acceptanceProbability*budget)/(2 : ENNReal)^142 := by
+      (Sampling.allTargetMoment state.2+DigestSampling.acceptanceProbability*budget)/(2 : ENNReal)^94 := by
   induction program using OracleComp.inductionOn generalizing state budget with
   | pure value =>
       by_cases hb : Sampling.TargetCacheExceptional state.2
@@ -11086,7 +7960,7 @@ theorem observe_exception_bound {α : Type} (program : M α) (state : LazyPrivat
               calc
                 _ ≤ expectedValue (LazyPrivate.run (liftM (T3.Spec.query input)) state)
                     (fun middle => (Sampling.allTargetMoment middle.2.2+
-                      DigestSampling.acceptanceProbability*remaining)/(2 : ENNReal)^142) := by
+                      DigestSampling.acceptanceProbability*remaining)/(2 : ENNReal)^94) := by
                   apply expectedValue_mono_of_support
                   intro middle hm
                   exact ih middle.1 middle.2 (lazy_query_public_finite input state hfinite middle hm) remaining
@@ -11097,7 +7971,7 @@ theorem observe_exception_bound {α : Type} (program : M α) (state : LazyPrivat
           calc
             _ ≤ expectedValue (LazyPrivate.run (liftM (T3.Spec.query input)) state)
                 (fun middle => (Sampling.allTargetMoment middle.2.2+
-                  DigestSampling.acceptanceProbability*budget)/(2 : ENNReal)^142) := by
+                  DigestSampling.acceptanceProbability*budget)/(2 : ENNReal)^94) := by
               apply expectedValue_mono_of_support
               intro middle hm
               exact ih middle.1 middle.2 (lazy_query_public_finite input state hfinite middle hm) budget
@@ -11107,17 +7981,17 @@ theorem observe_exception_bound {α : Type} (program : M α) (state : LazyPrivat
 
 theorem observe_empty_exception_bound {α : Type} (program : M α) (budget : Nat) :
     Pr[fun result => result.calls≤budget ∧ result.exceptional=true | observe program (∅,∅)] ≤
-      DigestSampling.acceptanceProbability*budget/(2 : ENNReal)^142 := by
+      DigestSampling.acceptanceProbability*budget/(2 : ENNReal)^94 := by
   simpa only [Sampling.allTargetMoment_empty,zero_add] using
     observe_exception_bound program (∅,∅) SphincsSecurity.finite_empty budget
 
 theorem observe_empty_exception_small {α : Type} (program : M α) (budget : Nat) :
     Pr[fun result => result.calls≤budget ∧ result.exceptional=true | observe program (∅,∅)] ≤
-      budget/(2 : ENNReal)^146 := by
+      budget/(2 : ENNReal)^98 := by
   calc
-    _ ≤ DigestSampling.acceptanceProbability*budget/(2 : ENNReal)^142 :=
+    _ ≤ DigestSampling.acceptanceProbability*budget/(2 : ENNReal)^94 :=
       observe_empty_exception_bound program budget
-    _ ≤ (1/16 : ENNReal)*budget/(2 : ENNReal)^142 :=
+    _ ≤ (1/16 : ENNReal)*budget/(2 : ENNReal)^94 :=
       ENNReal.div_le_div_right (mul_le_mul' Acceptance.acceptanceProbability_le_one_sixteenth le_rfl) _
     _ = _ := by
       apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
@@ -11193,7 +8067,7 @@ theorem real_to_clean_observed (adversary : Adversary) (q : Nat) (hq : q < 2^256
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.value=true ∧ result.calls≤q ∧ result.exceptional=false |
         observedExperiment adversary]+
-        q/(2 : ENNReal)^146+((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
+        q/(2 : ENNReal)^98+((2 : ENNReal)^224)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   have h := FullGame.real_to_ideal_lazy adversary q hq
   rw [← observedExperiment_event] at h
   apply h.trans
@@ -11322,7 +8196,7 @@ theorem run_exception_bound {α : Type} (program : M α) (state : State)
     Pr[fun result => result.2.source.1 ≤ state.source.1+budget ∧ result.2.exceptional=true |
       run program state] ≤
       (Sampling.allTargetMoment state.source.2.2+
-        DigestSampling.acceptanceProbability*budget)/(2 : ENNReal)^142 := by
+        DigestSampling.acceptanceProbability*budget)/(2 : ENNReal)^94 := by
   induction program using OracleComp.inductionOn generalizing state budget with
   | pure value => simp [run_pure,hflag]
   | query_bind input next ih =>
@@ -11350,7 +8224,7 @@ theorem run_exception_bound {α : Type} (program : M α) (state : State)
               calc
                 _ ≤ expectedValue (LazyPrivate.run (liftM (T3.Spec.query input)) state.source.2)
                     (fun middle => (Sampling.allTargetMoment middle.2.2+
-                      DigestSampling.acceptanceProbability*remaining)/(2 : ENNReal)^142) := by
+                      DigestSampling.acceptanceProbability*remaining)/(2 : ENNReal)^94) := by
                   apply expectedValue_mono_of_support
                   intro middle hm
                   by_cases hmBad : Sampling.TargetCacheExceptional middle.2.2
@@ -11366,7 +8240,7 @@ theorem run_exception_bound {α : Type} (program : M α) (state : State)
         · calc
             _ ≤ expectedValue (LazyPrivate.run (liftM (T3.Spec.query input)) state.source.2)
                 (fun middle => (Sampling.allTargetMoment middle.2.2+
-                  DigestSampling.acceptanceProbability*budget)/(2 : ENNReal)^142) := by
+                  DigestSampling.acceptanceProbability*budget)/(2 : ENNReal)^94) := by
               apply expectedValue_mono_of_support
               intro middle hm
               by_cases hmBad : Sampling.TargetCacheExceptional middle.2.2
@@ -11379,6 +8253,146 @@ theorem run_exception_bound {α : Type} (program : M α) (state : State)
             _ ≤ _ := by
               simpa only [FullGame.queryCharge,if_neg hc,Nat.zero_add] using
                 CountedPrivate.query_remaining_potential input state.source.2 hfinite budget
+
+
+theorem gate6_bad_potential (q : Nat) (cache : Sampling.RCache)
+    (hq : QueryCache.enncard cache ≤ q) (hbad : Sampling.TargetCacheExceptional cache) :
+    1 ≤ SigGolfResearch.Gate6.NativeCache.totalWeight q cache :=
+  SigGolfResearch.Gate6.NativeCache.totalWeight_bad q cache hq
+    ((Sampling.targetCacheExceptional_iff_native cache).mp hbad)
+
+/-- Exponential all-prefix bound in the actual counted stateful source
+interpreter. The starting source counter is retained exactly. -/
+theorem gate6_run_exception_bound {α : Type} (program : M α) (state : State)
+    (hflag : state.exceptional=false) (hfinite : SphincsSecurity.Finite state.source.2.2)
+    (budget q : Nat) (hcap : QueryCache.enncard state.source.2.2+(budget : ENNReal) ≤ q) :
+    Pr[fun result => result.2.source.1 ≤ state.source.1+budget ∧ result.2.exceptional=true |
+      run program state] ≤ SigGolfResearch.Gate6.NativeCache.totalWeight q state.source.2.2 := by
+  induction program using OracleComp.inductionOn generalizing state budget with
+  | pure value => simp [run_pure,hflag]
+  | query_bind input next ih =>
+      by_cases hb : Sampling.TargetCacheExceptional state.source.2.2
+      · exact probEvent_le_one.trans (gate6_bad_potential q state.source.2.2 (le_self_add.trans hcap) hb)
+      · rw [run_bind,probEvent_bind_eq_expectedValue,run_query]
+        rw [CountedPrivate.run_query]
+        simp only [Functor.map_map,expectedValue_map,Function.comp_def,flag_of_clean state hflag hb]
+        by_cases hc : Derivation.charged input
+        · cases budget with
+          | zero =>
+              apply le_trans (b := 0) ?_ bot_le
+              apply expectedValue_le_of_support
+              intro middle hm
+              apply le_of_eq
+              apply probEvent_eq_zero
+              intro result hr hwin
+              have hsource := run_project_support (next middle.1)
+                ⟨(state.source.1+FullGame.queryCharge input,middle.2),
+                  decide (Sampling.TargetCacheExceptional middle.2.2)⟩ result hr
+              have hmon := CountedPrivate.count_monotone _ _ _ hsource
+              simp only [FullGame.queryCharge,if_pos hc] at hmon
+              omega
+          | succ remaining =>
+              calc
+                _  ≤  expectedValue (LazyPrivate.run (liftM (Spec.query input)) state.source.2)
+                    (fun middle => SigGolfResearch.Gate6.NativeCache.totalWeight q middle.2.2) := by
+                  apply expectedValue_mono_of_support
+                  intro middle hm
+                  have hs := CountedPrivate.lazy_query_public_size input state.source.2 middle hm
+                  simp only [FullGame.queryCharge,if_pos hc,Nat.cast_one] at hs
+                  have hn : QueryCache.enncard middle.2.2+(remaining : ENNReal) ≤ q := by
+                    calc
+                      _  ≤  (QueryCache.enncard state.source.2.2+1)+remaining := add_le_add hs le_rfl
+                      _ = QueryCache.enncard state.source.2.2+((remaining+1 : Nat) : ENNReal) := by push_cast;ring
+                      _  ≤  _ := hcap
+                  by_cases hmBad : Sampling.TargetCacheExceptional middle.2.2
+                  · exact probEvent_le_one.trans (gate6_bad_potential q middle.2.2 (le_self_add.trans hn) hmBad)
+                  · have hi := ih middle.1
+                      ⟨(state.source.1+FullGame.queryCharge input,middle.2),
+                        decide (Sampling.TargetCacheExceptional middle.2.2)⟩
+                      (by simp [hmBad]) (CountedPrivate.lazy_query_public_finite input state.source.2 hfinite middle hm) remaining hn
+                    simpa only [FullGame.queryCharge,if_pos hc,Nat.add_assoc,Nat.add_comm 1] using hi
+                _  ≤  _ := SigGolfResearch.Gate6.NativeCache.lazy_query_weight q input state.source.2 hfinite
+        · calc
+            _  ≤  expectedValue (LazyPrivate.run (liftM (Spec.query input)) state.source.2)
+                (fun middle => SigGolfResearch.Gate6.NativeCache.totalWeight q middle.2.2) := by
+              apply expectedValue_mono_of_support
+              intro middle hm
+              have hs := CountedPrivate.lazy_query_public_size input state.source.2 middle hm
+              simp only [FullGame.queryCharge,if_neg hc,Nat.cast_zero,add_zero] at hs
+              have hn : QueryCache.enncard middle.2.2+(budget : ENNReal) ≤ q :=
+                (add_le_add hs le_rfl).trans hcap
+              by_cases hmBad : Sampling.TargetCacheExceptional middle.2.2
+              · exact probEvent_le_one.trans (gate6_bad_potential q middle.2.2 (le_self_add.trans hn) hmBad)
+              · have hi := ih middle.1
+                  ⟨(state.source.1+FullGame.queryCharge input,middle.2),
+                    decide (Sampling.TargetCacheExceptional middle.2.2)⟩
+                  (by simp [hmBad]) (CountedPrivate.lazy_query_public_finite input state.source.2 hfinite middle hm) budget hn
+                simpa only [FullGame.queryCharge,if_neg hc,Nat.add_zero] using hi
+            _  ≤  _ := SigGolfResearch.Gate6.NativeCache.lazy_query_weight q input state.source.2 hfinite
+
+theorem gate6_run_empty_tail {α : Type} (program : M α) (q : Nat) (hq : q ≤ 2^127) :
+    Pr[fun result => result.2.source.1 ≤ q ∧ result.2.exceptional=true |
+      run program ⟨(0,∅,∅),false⟩] ≤ (2^700 : ENNReal)⁻¹ := by
+  have h := gate6_run_exception_bound program ⟨(0,∅,∅),false⟩ rfl SphincsSecurity.finite_empty q q (by simp)
+  simpa only [Nat.zero_add] using h.trans (SigGolfResearch.Gate6.NativeCache.initial_totalWeight_le q hq)
+
+
+theorem gate6_not_bad_of_zero (cache : SigGolfResearch.Gate6.NativeCache.RCache) (hfinite : SphincsSecurity.Finite cache)
+    (hzero : QueryCache.enncard cache=0) : ¬Sampling.TargetCacheExceptional cache := by
+  intro hbad
+  obtain ⟨mark,hmark⟩ := (Sampling.targetCacheExceptional_iff_native cache).mp hbad
+  have hc : SigGolfResearch.Gate6.NativeCache.count mark cache=0 :=
+    le_antisymm ((SigGolfResearch.Gate6.NativeCache.count_le_enncard mark cache hfinite).trans_eq hzero) bot_le
+  norm_num [hzero,hc] at hmark
+
+/-- A zero charged-query execution can never create an exceptional cache. -/
+theorem gate6_run_zero_exception {α : Type} (program : M α) (state : State)
+    (hflag : state.exceptional=false) (hfinite : SphincsSecurity.Finite state.source.2.2)
+    (hzero : QueryCache.enncard state.source.2.2=0) :
+    Pr[fun result => result.2.source.1 ≤ state.source.1 ∧ result.2.exceptional=true |
+      run program state]=0 := by
+  apply le_antisymm _ bot_le
+  induction program using OracleComp.inductionOn generalizing state with
+  | pure value => simp [run_pure,hflag]
+  | query_bind input next ih =>
+      have hb := gate6_not_bad_of_zero state.source.2.2 hfinite hzero
+      rw [run_bind,probEvent_bind_eq_expectedValue,run_query,CountedPrivate.run_query]
+      simp only [Functor.map_map,expectedValue_map,Function.comp_def,flag_of_clean state hflag hb]
+      apply expectedValue_le_of_support
+      intro middle hm
+      apply le_of_eq
+      by_cases hc : Derivation.charged input
+      · apply probEvent_eq_zero
+        intro result hr hwin
+        have hsource := run_project_support (next middle.1)
+          ⟨(state.source.1+FullGame.queryCharge input,middle.2),
+            decide (Sampling.TargetCacheExceptional middle.2.2)⟩ result hr
+        have hmon := CountedPrivate.count_monotone _ _ _ hsource
+        simp only [FullGame.queryCharge,if_pos hc] at hmon
+        omega
+      · have hf := CountedPrivate.lazy_query_public_finite input state.source.2 hfinite middle hm
+        have hs := CountedPrivate.lazy_query_public_size input state.source.2 middle hm
+        simp only [FullGame.queryCharge,if_neg hc,Nat.cast_zero,add_zero,hzero] at hs
+        have hz : QueryCache.enncard middle.2.2=0 := le_antisymm hs bot_le
+        have hn := gate6_not_bad_of_zero middle.2.2 hf hz
+        have hi := ih middle.1
+          ⟨(state.source.1+FullGame.queryCharge input,middle.2),decide (Sampling.TargetCacheExceptional middle.2.2)⟩
+          (by simp [hn]) hf hz
+        simpa only [FullGame.queryCharge,if_neg hc,Nat.add_zero] using le_antisymm hi bot_le
+
+theorem gate6_run_empty_linear_charge {α : Type} (program : M α) (q bits : Nat)
+    (hq : q ≤ 2^127) (hbits : bits ≤ 700) :
+    Pr[fun result => result.2.source.1 ≤ q ∧ result.2.exceptional=true |
+      run program ⟨(0,∅,∅),false⟩] ≤ (q : ENNReal)/2^bits := by
+  by_cases hz : q=0
+  · subst q
+    rw [gate6_run_zero_exception program ⟨(0,∅,∅),false⟩ rfl SphincsSecurity.finite_empty (by simp)]
+    exact bot_le
+  · calc
+      _ ≤ (2^700 : ENNReal)⁻¹ := gate6_run_empty_tail program q hq
+      _ ≤ (2^bits : ENNReal)⁻¹ := ENNReal.inv_le_inv.mpr (pow_le_pow_right₀ (by norm_num) hbits)
+      _ = (1 : ENNReal)/2^bits := by simp
+      _ ≤ _ := ENNReal.div_le_div_right (by exact_mod_cast (show 1 ≤ q by omega)) _
 
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
@@ -11400,7 +8414,7 @@ theorem monitored_completed_target_bound (published : T3.Cache) (request : Reque
     expectedValue (run (FullGame.authenticatedRecord published request) state)
       (fun result => result.1.2.elim (BPORS.finiteAverage (Sampling.targetWeight targets))
         (fun output => Sampling.targetWeight targets (DigestSampling.samplingData output).1)) ≤
-      targets.card/(2 : ENNReal)^52+Sampling.cachedTargetCount targets state.source.2.2/(2 : ENNReal)^128 := by
+      targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.source.2.2/(2 : ENNReal)^128 := by
   have h := congrArg (fun program => expectedValue program
     (fun result : (Option Signature × Option HashOutput) × CountedPrivate.State =>
       result.1.2.elim (BPORS.finiteAverage (Sampling.targetWeight targets))
@@ -11417,7 +8431,7 @@ noncomputable def recordLaw (published : T3.Cache) (request : Request) (state : 
 theorem recordLaw_target_bound (published : T3.Cache) (request : Request) (state : State)
     (hfresh : state.source.2.1 (.inr (.inl request.message))=none) (targets : Finset DigestSampling.IndexBuckets) :
     Pr[fun result => result.2 ∈ targets | recordLaw published request state] ≤
-      targets.card/(2 : ENNReal)^52+Sampling.cachedTargetCount targets state.source.2.2/(2 : ENNReal)^128 := by
+      targets.card/(2 : ENNReal)^59+Sampling.cachedTargetCount targets state.source.2.2/(2 : ENNReal)^128 := by
   rw [← expectedValue_ite_one]
   change expectedValue (Sampling.completeRecord (fun result => result.1.2)
     (run (FullGame.authenticatedRecord published request) state))
@@ -11432,7 +8446,7 @@ theorem recordLaw_scaled_cap (published : T3.Cache) (request : Request) (state :
     (hclean : ¬Sampling.TargetCacheExceptional state.source.2.2) (point : DigestSampling.IndexBuckets) :
     (16/17 : ENNReal)*((recordLaw published request state).map Prod.snd) point ≤
       (PMF.uniformOfFintype DigestSampling.IndexBuckets) point := by
-  have hc : Fintype.card DigestSampling.IndexBuckets=2^52 := by
+  have hc : Fintype.card DigestSampling.IndexBuckets=2^59 := by
     norm_num [DigestSampling.IndexBuckets,Fintype.card_prod,Fintype.card_fun]
   have h := recordLaw_target_bound published request state hfresh {point}
   simp only [Finset.mem_singleton,Finset.card_singleton,Nat.cast_one] at h
@@ -11441,7 +8455,7 @@ theorem recordLaw_scaled_cap (published : T3.Cache) (request : Request) (state :
   rw [← PMF.monad_map_eq_map,← PMF.probOutput_eq_apply,probOutput_map,
     PMF.uniformOfFintype_apply,hc,Nat.cast_pow,Nat.cast_ofNat]
   calc
-    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^52) := mul_le_mul' le_rfl hpoint
+    _ ≤ (16/17 : ENNReal)*((17/16 : ENNReal)/(2 : ENNReal)^59) := mul_le_mul' le_rfl hpoint
     _ = _ := by
       apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
       norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_inv,ENNReal.toReal_pow]
@@ -11850,20 +8864,10 @@ theorem event_lift {α : Type} (program : ProbComp α) (predicate : α → Prop)
   simp only [probEvent_eq_tsum_ite]
   rfl
 
-theorem experiment_exception_bound (adversary : Adversary) (q : Nat) :
+theorem experiment_exception_bound (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.2.source.1≤q ∧ result.2.exceptional=true | experiment adversary] ≤
       q/(2 : ENNReal)^146 := by
-  have h := run_exception_bound (FullGame.idealGame adversary) ⟨(0,∅,∅),false⟩ rfl
-    SphincsSecurity.finite_empty q
-  simp only [Nat.zero_add,Sampling.allTargetMoment_empty,zero_add] at h
-  apply h.trans
-  calc
-    _ ≤ (1/16 : ENNReal)*q/(2 : ENNReal)^142 :=
-      ENNReal.div_le_div_right (mul_le_mul' Acceptance.acceptanceProbability_le_one_sixteenth le_rfl) _
-    _ = _ := by
-      apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-      norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_pow]
-      ring
+  exact gate6_run_empty_linear_charge (FullGame.idealGame adversary) q 146 hq (by decide)
 
 /-- Cache concentration and proposal history now refer to the same complete
 adaptive experiment, preserving the source count and both oracle tables. -/
@@ -11875,7 +8879,7 @@ theorem traced_exception_bound (adversary : Adversary) (q : Nat) (hq : q ≤ 2^1
     (tracedExperiment_erasure adversary q hq)
   simp only [probEvent_map,Function.comp_def,Prod.map,id_eq,event_lift] at h
   rw [h]
-  exact experiment_exception_bound adversary q
+  exact experiment_exception_bound adversary q hq
 
 theorem split_bounded_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2.2.source.1≤q ∧
@@ -12984,7 +9988,7 @@ macro "public_verdict_queries" : tactic => `(tactic|
   | succ fuel ih => unfold digestSearch; public_verdict_queries
 
 theorem recoverChild_public (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 124 → Digest) (level node used : Nat) :
+    (proof : Fin 121 → Digest) (level node used : Nat) :
     Only (recoverChild index coord leaves values proof level node used) := by
   induction level generalizing node used with
   | zero => unfold recoverChild;public_verdict_queries
@@ -13131,7 +10135,7 @@ theorem secret_at_coordinate (answers : Answers) (sig : Signature) (output : Has
     (coord : Fin 7) (slot : Fin 3) :
     sig.secrets ⟨3*coord.val+slot.val,by omega⟩=
       (evalWithAnswerFn answers (buildFts (output.toNat%2^31) coord.val)).2.getD
-        (((selections output).getD coord.val ⟨0,[]⟩).bucket*256+
+        (((selections output).getD coord.val ⟨0,[]⟩).bucket*128+
           ((selections output).getD coord.val ⟨0,[]⟩).leaves.getD slot.val 0) 0 := by
   rw [hs]
   have hlen : ((selections output).getD coord.val ⟨0,[]⟩).leaves.length=3 :=
@@ -13221,7 +10225,7 @@ theorem journal_entry_openings (published : T3.Cache) (history : History) (state
         (output.toNat%2^31) (selections output) 7).getD i.val 0) ∧
       (∀ coord : Fin 7,∀ slot : Fin 3,sig.secrets ⟨3*coord.val+slot.val,by omega⟩=
         (evalWithAnswerFn (SourceReplay.answers state.source.2) (buildFts (output.toNat%2^31) coord.val)).2.getD
-          (((selections output).getD coord.val ⟨0,[]⟩).bucket*256+
+          (((selections output).getD coord.val ⟨0,[]⟩).bucket*128+
             ((selections output).getD coord.val ⟨0,[]⟩).leaves.getD slot.val 0) 0) := by
   have hresolve := hj.2.1 (message,(some sig,some output)) he
   have hfields := SigningRecords.authenticatedRecord_fields (SourceReplay.answers state.source.2)
@@ -13253,8 +10257,8 @@ theorem journalLabels_outputs (journal : Journal) :
       unfold journalLabels journalOutputs at *
       cases hd : entry.2.2 <;> simp [hd,ih]
 
-def chosenLeaves (output : HashOutput) (coord : Fin 7) : Finset (Fin 256) :=
-  ((((selections output).getD coord.val ⟨0,[]⟩).leaves).map fun leaf => Fin.ofNat 256 leaf).toFinset
+def chosenLeaves (output : HashOutput) (coord : Fin 7) : Finset (Fin 128) :=
+  ((((selections output).getD coord.val ⟨0,[]⟩).leaves).map fun leaf => Fin.ofNat 128 leaf).toFinset
 
 theorem chosenLeaves_card (output : HashOutput) (coord : Fin 7) : (chosenLeaves output coord).card≤3 := by
   unfold chosenLeaves
@@ -13262,7 +10266,7 @@ theorem chosenLeaves_card (output : HashOutput) (coord : Fin 7) : (chosenLeaves 
   rw [List.length_map,selection_leaves_length output _ (Correctness.selection_getD_mem output coord.val coord.isLt)]
 
 theorem chosenLeaves_mem (output : HashOutput) (coord : Fin 7) (slot : Fin 3) :
-    Fin.ofNat 256 (((selections output).getD coord.val ⟨0,[]⟩).leaves.getD slot.val 0) ∈ chosenLeaves output coord := by
+    Fin.ofNat 128 (((selections output).getD coord.val ⟨0,[]⟩).leaves.getD slot.val 0) ∈ chosenLeaves output coord := by
   rw [chosenLeaves,List.mem_toFinset,List.mem_map]
   refine ⟨_,?_,rfl⟩
   have hl := selection_leaves_length output _ (Correctness.selection_getD_mem output coord.val coord.isLt)
@@ -13271,7 +10275,7 @@ theorem chosenLeaves_mem (output : HashOutput) (coord : Fin 7) (slot : Fin 3) :
   exact List.getElem_mem _
 
 theorem chosen_leaf_bound (output : HashOutput) (coord : Fin 7) (slot : Fin 3) :
-    ((selections output).getD coord.val ⟨0,[]⟩).leaves.getD slot.val 0<256 := by
+    ((selections output).getD coord.val ⟨0,[]⟩).leaves.getD slot.val 0<128 := by
   have hm := Correctness.selection_getD_mem output coord.val coord.isLt
   have hl := selection_leaves_length output _ hm
   apply selection_leaf_bound output _ _ hm
@@ -13292,14 +10296,14 @@ theorem sampling_bucket_value (output : HashOutput) (coord : Fin 7) :
 /-- Union of all potentially disclosed leaves for one indexed bucket. A
 selected digest is retained even if its payload later fails; this is a safe
 superset of all successful-signature disclosures. -/
-def exposedLeaves : List HashOutput → Fin (2^31) → Fin 7 → Fin 8 → Finset (Fin 256)
+def exposedLeaves : List HashOutput → Fin (2^31) → Fin 7 → Fin 16 → Finset (Fin 128)
   | [],_,_,_ => ∅
   | output::tail,index,coord,bucket =>
       if (DigestSampling.samplingData output).1.1=index ∧ (DigestSampling.samplingData output).1.2 coord=bucket
       then chosenLeaves output coord ∪ exposedLeaves tail index coord bucket
       else exposedLeaves tail index coord bucket
 
-theorem exposedLeaves_card (outputs : List HashOutput) (index : Fin (2^31)) (coord : Fin 7) (bucket : Fin 8) :
+theorem exposedLeaves_card (outputs : List HashOutput) (index : Fin (2^31)) (coord : Fin 7) (bucket : Fin 16) :
     (exposedLeaves outputs index coord bucket).card ≤
       3*((atIndex index (outputs.map (fun output => (DigestSampling.samplingData output).1))).map
         (fun row => row coord)).count bucket := by
@@ -13317,7 +10321,7 @@ theorem exposedLeaves_card (outputs : List HashOutput) (index : Fin (2^31)) (coo
       · simpa only [exposedLeaves,hi,false_and,ite_false,List.map_cons,atIndex_cons] using ih
 
 theorem exposedLeaves_of_member (outputs : List HashOutput) (output : HashOutput) (ho : output ∈ outputs)
-    (coord : Fin 7) (leaf : Fin 256) (hl : leaf ∈ chosenLeaves output coord) :
+    (coord : Fin 7) (leaf : Fin 128) (hl : leaf ∈ chosenLeaves output coord) :
     leaf ∈ exposedLeaves outputs (DigestSampling.samplingData output).1.1 coord
       ((DigestSampling.samplingData output).1.2 coord) := by
   induction outputs with
@@ -13336,7 +10340,7 @@ theorem exposedLeaves_of_member (outputs : List HashOutput) (output : HashOutput
 /-- The exact multiplicity bound required by the checked BPORS envelope. It
 holds for the actual first-record journal and its full proposal history. -/
 theorem journal_exposure_card (published : T3.Cache) (history : History) (state : State) (journal : Journal)
-    (hj : JournalOK published history state journal) (index : Fin (2^31)) (coord : Fin 7) (bucket : Fin 8) :
+    (hj : JournalOK published history state journal) (index : Fin (2^31)) (coord : Fin 7) (bucket : Fin 16) :
     (exposedLeaves (journalOutputs journal) index coord bucket).card ≤
       3*((atIndex index history).map (fun row => row coord)).count bucket := by
   have h := exposedLeaves_card (journalOutputs journal) index coord bucket
@@ -13353,14 +10357,14 @@ sets whose cardinalities are bounded by the same proposal history. -/
 theorem journal_opened_exposure (published : T3.Cache) (history : History) (state : State) (journal : Journal)
     (hj : JournalOK published history state journal) (message : Message) (sig : Signature) (output : HashOutput)
     (he : (message,(some sig,some output)) ∈ journal) (coord : Fin 7) (slot : Fin 3) :
-    ∃ leaf : Fin 256,
+    ∃ leaf : Fin 128,
       leaf ∈ exposedLeaves (journalOutputs journal) (DigestSampling.samplingData output).1.1 coord
         ((DigestSampling.samplingData output).1.2 coord) ∧
       sig.secrets ⟨3*coord.val+slot.val,by omega⟩=
         (evalWithAnswerFn (SourceReplay.answers state.source.2)
           (buildFts (DigestSampling.samplingData output).1.1.val coord.val)).2.getD
-            (((DigestSampling.samplingData output).1.2 coord).val*256+leaf.val) 0 := by
-  let leaf := Fin.ofNat 256 (((selections output).getD coord.val ⟨0,[]⟩).leaves.getD slot.val 0)
+            (((DigestSampling.samplingData output).1.2 coord).val*128+leaf.val) 0 := by
+  let leaf := Fin.ofNat 128 (((selections output).getD coord.val ⟨0,[]⟩).leaves.getD slot.val 0)
   refine ⟨leaf,?_,?_⟩
   · exact exposedLeaves_of_member (journalOutputs journal) output
       (journal_output_mem journal message (some sig) output he) coord leaf (chosenLeaves_mem output coord slot)
@@ -13389,15 +10393,17 @@ source-signing disclosures for each index, through the multiplicity-preserving
 journal. This is a fixed-state probability bound for a fresh independent draw. -/
 theorem journal_coverage_bound (published : T3.Cache) (history : History) (state : State) (journal : Journal)
     (hj : JournalOK published history state journal) (index : Fin (2^31)) :
-    Pr[fun draw : Fin 7 → (Fin 8 × (Fin 3 → Fin 256)) =>
-      ∀ coord,BPORS.Covered (exposedLeaves (journalOutputs journal) index coord (draw coord).1) (draw coord).2 |
-        ($ᵗ (Fin 7 → (Fin 8 × (Fin 3 → Fin 256))) : ProbComp _)] ≤ wordEnvelope (atIndex index history) := by
+    Pr[fun output : HashOutput => digestAdmissible output=true ∧
+      SigGolfResearch.Gate6.CoordinateCovered (exposedLeaves (journalOutputs journal) index)
+        (SigGolfResearch.Gate6.rawDraw (SigGolfResearch.Gate6.digestRecord output)).1 |
+      ($ᵗ HashOutput : ProbComp HashOutput)] ≤ wordEnvelope (atIndex index history) := by
+  simp_rw [SigGolfResearch.Gate6.Source.actual_predicate_iff]
   let word := atIndex index history
-  let table : Fin 7 → Fin word.length → Fin 8 := fun coord i => (word.get i) coord
+  let table : Fin 7 → Fin word.length → Fin 16 := fun coord i => (word.get i) coord
   have htable (coord : Fin 7) : List.ofFn (table coord)=word.map (fun row => row coord) := by
     change List.ofFn (fun i : Fin word.length => (word.get i) coord)=_
     simpa only [List.ofFn_get] using (List.ofFn_comp' word.get (fun row => row coord))
-  have h := BPORS.Numeric.covered_le_forestEnvelope table
+  have h := SigGolfResearch.Gate6.accepted_covered_le_forestEnvelope table
     (exposedLeaves (journalOutputs journal) index) (by
       intro coord bucket
       rw [htable]
@@ -13412,9 +10418,10 @@ charging are separate obligations; this theorem is pointwise in the journal. -/
 theorem journal_average_coverage_bound (published : T3.Cache) (history : History) (state : State)
     (journal : Journal) (hj : JournalOK published history state journal) :
     expectedValue ($ᵗ (Fin (2^31)) : ProbComp _)
-      (fun index => Pr[fun draw : Fin 7 → (Fin 8 × (Fin 3 → Fin 256)) =>
-        ∀ coord,BPORS.Covered (exposedLeaves (journalOutputs journal) index coord (draw coord).1) (draw coord).2 |
-          ($ᵗ (Fin 7 → (Fin 8 × (Fin 3 → Fin 256))) : ProbComp _)]) ≤
+      (fun index => Pr[fun output : HashOutput => digestAdmissible output=true ∧
+        SigGolfResearch.Gate6.CoordinateCovered (exposedLeaves (journalOutputs journal) index)
+          (SigGolfResearch.Gate6.rawDraw (SigGolfResearch.Gate6.digestRecord output)).1 |
+          ($ᵗ HashOutput : ProbComp HashOutput)]) ≤
       fullPrice history/(2 : ENNReal)^128 := by
   apply le_trans (expectedValue_mono _ (fun index => journal_coverage_bound published history state journal hj index))
   rw [BPORS.expected_uniform_eq_finiteAverage]
@@ -15645,20 +12652,10 @@ theorem real_to_bounded_trace (checker : Checker Forgery) (adversary : Adversary
     (add_le_add le_rfl (winning_trace_overflow checker adversary q hq))
 
 
-theorem experiment_exception_bound (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) :
+theorem experiment_exception_bound (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.2.source.1≤q ∧ result.2.exceptional=true | experiment checker adversary] ≤
       q/(2 : ENNReal)^146 := by
-  have h := run_exception_bound (GameWith.idealGame checker adversary) ⟨(0,∅,∅),false⟩ rfl
-    SphincsSecurity.finite_empty q
-  simp only [Nat.zero_add,Sampling.allTargetMoment_empty,zero_add] at h
-  apply h.trans
-  calc
-    _ ≤ (1/16 : ENNReal)*q/(2 : ENNReal)^142 :=
-      ENNReal.div_le_div_right (mul_le_mul' Acceptance.acceptanceProbability_le_one_sixteenth le_rfl) _
-    _ = _ := by
-      apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-      norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_pow]
-      ring
+  exact gate6_run_empty_linear_charge (GameWith.idealGame checker adversary) q 146 hq (by decide)
 
 /-- Cache concentration and proposal history now refer to the same complete
 adaptive experiment, preserving the source count and both oracle tables. -/
@@ -15670,7 +12667,7 @@ theorem traced_exception_bound (checker : Checker Forgery) (adversary : Adversar
     (tracedExperiment_erasure checker adversary q hq)
   simp only [probEvent_map,Function.comp_def,Prod.map,id_eq,event_lift] at h
   rw [h]
-  exact experiment_exception_bound checker adversary q
+  exact experiment_exception_bound checker adversary q hq
 
 theorem split_bounded_trace (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2.2.source.1≤q ∧
@@ -17710,7 +14707,7 @@ def Conclusion (answers : Answers) (message : Message) (witness : WBytes)
   ∃ digestAnswer : HashOutput, (wdc witness).toNat < attemptLimit ∧
       evalWithAnswerFn answers (digest (wrho witness) message (wdc witness))=digestAnswer ∧
       (∃ prior,(⟨prior,.inl (.inr (pad64 (digestInput (wrho witness) message (wdc witness)))),digestAnswer⟩ :
-        FirstHit.QueryEvent) ∈ events) ∧ Shaped digestAnswer witness ∧
+        FirstHit.QueryEvent) ∈ events) ∧ Shaped digestAnswer witness ∧ digestGate digestAnswer=true ∧
       (ActualHit answers events ∨
         (∃ lay : Layer, Extract.Diverge answers witness (digestAnswer.toNat % 2^31) lay
           (events.map FirstHit.QueryEvent.input) ∧
@@ -17737,7 +14734,7 @@ theorem verifyP_recorded (message : Message) (publicKey : Digest) (witness : WBy
   obtain ⟨prior,hevent⟩ := public_occurrence _ hp before result hr answers ha _ hquery
   have hanswer : answers (.inl (.inr (pad64 (digestInput (wrho witness) message (wdc witness)))))=digestAnswer :=
     hdigest
-  refine ⟨digestAnswer,hcounter,hdigest,⟨prior,by simpa only [hanswer] using hevent⟩,hshape,?_⟩
+  refine ⟨digestAnswer,hcounter,hdigest,⟨prior,by simpa only [hanswer] using hevent⟩,hshape,by simpa only [← hdigest] using verifyP_digestGate answers message publicKey witness hv,?_⟩
   rcases halternatives with hhit | hdiverge | hhonest
   · exact Or.inl (hit_recorded _ hp before result hr answers ha hhit)
   · obtain ⟨lay,hdiverge,hgood⟩ := hdiverge
@@ -17788,8 +14785,8 @@ theorem ActualHit.mono {answers : Answers} {events events' : List FirstHit.Query
 theorem Conclusion.mono {answers : Answers} {message : Message} {witness : WBytes}
     {events events' : List FirstHit.QueryEvent} (h : Conclusion answers message witness events)
     (hsub : ∀ event ∈ events,event ∈ events') : Conclusion answers message witness events' := by
-  obtain ⟨N,hcounter,hdigest,⟨prior,hevent⟩,hshape,halt⟩ := h
-  refine ⟨N,hcounter,hdigest,⟨prior,hsub _ hevent⟩,hshape,?_⟩
+  obtain ⟨N,hcounter,hdigest,⟨prior,hevent⟩,hshape,hgate,halt⟩ := h
+  refine ⟨N,hcounter,hdigest,⟨prior,hsub _ hevent⟩,hshape,hgate,?_⟩
   rcases halt with hhit | ⟨lay,hdiv,hgood⟩ | hgood
   · exact Or.inl (hhit.mono hsub)
   · refine Or.inr (Or.inl ⟨lay,hdiv.mono ?_,hgood⟩)
@@ -17904,7 +14901,7 @@ theorem verifyP_extracted_in {α : Type} (program : M α) (hp : SourceReplay.Has
   obtain ⟨N,hcounter,hdigest,hquery,hshape,halt⟩ := Extract.verifyP_extract_full answers message publicKey witness hpk hv
   obtain ⟨prior,hevent⟩ := public_occurrence program hp before result hr answers ha _ (hsub _ hquery)
   have hans : answers (.inl (.inr (pad64 (digestInput (wrho witness) message (wdc witness)))))=N := hdigest
-  refine ⟨N,hcounter,hdigest,⟨prior,by simpa only [hans] using hevent⟩,hshape,?_⟩
+  refine ⟨N,hcounter,hdigest,⟨prior,by simpa only [hans] using hevent⟩,hshape,by simpa only [← hdigest] using verifyP_digestGate answers message publicKey witness hv,?_⟩
   rcases halt with hhit | ⟨lay,hdiv,hgood⟩ | hgood
   · exact Or.inl (hit_recorded program hp before result hr answers ha (hhit.mono hsub))
   · refine Or.inr (Or.inl ⟨lay,hdiv.mono ?_,hgood⟩)
@@ -18725,193 +15722,7 @@ end
 
 /-! Authored module: NearCoverage. -/
 section
-namespace SigGolfCandidate.T3.BPORS
-open OracleComp OracleSpec OracleComp.EvalDist ENNReal
-open scoped BigOperators
-set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
-set_option backward.isDefEq.respectTransparency false
-attribute [local instance] Classical.propDecidable
 
-/-- Two of a coordinate's three distinct requested leaves are exposed; the
-omitted leaf remains available for a separate hidden-secret guess charge. -/
-def OmitCovered (exposed : Finset (Fin 256)) (omitted : Fin 3)
-    (draw : Fin 3 → Fin 256) : Prop := Covered exposed (omitted.removeNth draw)
-
-theorem omitCovered_of_all_but (exposed : Finset (Fin 256)) (omitted : Fin 3)
-    (draw : Fin 3 → Fin 256) (hinj : Function.Injective draw)
-    (hcovered : ∀ slot, slot ≠ omitted → draw slot ∈ exposed) :
-    OmitCovered exposed omitted draw := by
-  refine ⟨hinj.comp Fin.succAbove_right_injective, ?_⟩
-  intro slot
-  exact hcovered (omitted.succAbove slot) (Fin.succAbove_ne omitted slot)
-
-noncomputable def omitCoveredEquiv (exposed : Finset (Fin 256)) (omitted : Fin 3) :
-    {draw : Fin 3 → Fin 256 // OmitCovered exposed omitted draw} ≃
-      ({draw : Fin 2 → Fin 256 // Covered exposed draw} × Fin 256) where
-  toFun draw := (⟨omitted.removeNth draw.1, draw.2⟩, draw.1 omitted)
-  invFun draw := ⟨omitted.insertNth draw.2 draw.1.1, by
-    simpa only [OmitCovered, Fin.removeNth_insertNth] using draw.1.2⟩
-  left_inv draw := by
-    apply Subtype.ext
-    exact Fin.insertNth_eq_iff.mpr ⟨rfl, rfl⟩
-  right_inv draw := by
-    apply Prod.ext
-    · apply Subtype.ext
-      dsimp only
-      exact Fin.removeNth_insertNth (α := fun _ : Fin 3 => Fin 256) omitted draw.2 draw.1.1
-    · dsimp only
-      exact Fin.insertNth_apply_same (α := fun _ : Fin 3 => Fin 256) omitted draw.2 draw.1.1
-
-theorem omitCovered_count (exposed : Finset (Fin 256)) (omitted : Fin 3) :
-    (Finset.univ.filter fun draw : Fin 3 → Fin 256 => OmitCovered exposed omitted draw).card =
-      exposed.card.descFactorial 2 * 256 := by
-  rw [← Fintype.card_subtype, Fintype.card_congr (omitCoveredEquiv exposed omitted),
-    Fintype.card_prod, Fintype.card_subtype, covered_count, Fintype.card_fin]
-
-noncomputable def bucketOmitCoveredEquiv (exposed : Fin 8 → Finset (Fin 256))
-    (omitted : Fin 3) :
-    {draw : Fin 8 × (Fin 3 → Fin 256) // OmitCovered (exposed draw.1) omitted draw.2} ≃
-      (bucket : Fin 8) × {draw : Fin 3 → Fin 256 // OmitCovered (exposed bucket) omitted draw} where
-  toFun draw := ⟨draw.1.1, draw.1.2, draw.2⟩
-  invFun draw := ⟨(draw.1, draw.2.1), draw.2.2⟩
-  left_inv _ := rfl
-  right_inv _ := rfl
-
-theorem bucket_omitCovered_count (exposed : Fin 8 → Finset (Fin 256)) (omitted : Fin 3) :
-    (Finset.univ.filter fun draw : Fin 8 × (Fin 3 → Fin 256) =>
-      OmitCovered (exposed draw.1) omitted draw.2).card =
-      (∑ bucket, (exposed bucket).card.descFactorial 2) * 256 := by
-  rw [← Fintype.card_subtype, Fintype.card_congr (bucketOmitCoveredEquiv exposed omitted),
-    Fintype.card_sigma]
-  simp only [Fintype.card_subtype, omitCovered_count, Finset.sum_mul]
-
-theorem bucket_omitCovered_probability (exposed : Fin 8 → Finset (Fin 256)) (omitted : Fin 3) :
-    Pr[fun draw : Fin 8 × (Fin 3 → Fin 256) => OmitCovered (exposed draw.1) omitted draw.2 |
-      ($ᵗ (Fin 8 × (Fin 3 → Fin 256)) : ProbComp _)] =
-      (∑ bucket, ((exposed bucket).card.descFactorial 2 : ENNReal)) / (8 * 256^2) := by
-  rw [probEvent_uniformSample, bucket_omitCovered_count]
-  simp only [Fintype.card_prod, Fintype.card_fun, Fintype.card_fin, Nat.cast_mul,
-    Nat.cast_pow, Nat.cast_ofNat, Nat.cast_sum]
-  rw [div_eq_mul_inv, mul_assoc]
-  congr 1
-  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-  norm_num [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_pow]
-
-theorem uniform_forall_probability {α : Type} [Fintype α] [SampleableType α]
-    (count : Nat) (event : Fin count → α → Prop) :
-    Pr[fun draw : Fin count → α => ∀ coord, event coord (draw coord) |
-      ($ᵗ (Fin count → α) : ProbComp _)] =
-      ∏ coord, Pr[event coord | ($ᵗ α : ProbComp _)] := by
-  rw [probEvent_uniformSample, ← Fintype.card_subtype,
-    Fintype.card_congr (Equiv.subtypePiEquivPi (p := event)), Fintype.card_pi]
-  simp only [probEvent_uniformSample, Fintype.card_subtype, Nat.cast_prod, Fintype.card_fun,
-    Fintype.card_fin, Nat.cast_pow, div_eq_mul_inv, ENNReal.inv_pow, Finset.prod_mul_distrib,
-    Finset.prod_const, Finset.card_univ, Fintype.card_fin]
-
-def NearCovered (exposed : Fin 7 → Fin 8 → Finset (Fin 256))
-    (missing : Fin 7) (omitted : Fin 3) (draw : Fin 7 → (Fin 8 × (Fin 3 → Fin 256))) : Prop :=
-  ∀ coord, if coord = missing then OmitCovered (exposed coord (draw coord).1) omitted (draw coord).2
-    else Covered (exposed coord (draw coord).1) (draw coord).2
-
-theorem nearCovered_of_all_but (exposed : Fin 7 → Fin 8 → Finset (Fin 256))
-    (missing : Fin 7) (omitted : Fin 3) (draw : Fin 7 → (Fin 8 × (Fin 3 → Fin 256)))
-    (hinj : ∀ coord, Function.Injective (draw coord).2)
-    (hcovered : ∀ coord slot, (coord, slot) ≠ (missing, omitted) →
-      (draw coord).2 slot ∈ exposed coord (draw coord).1) :
-    NearCovered exposed missing omitted draw := by
-  intro coord
-  by_cases hcoord : coord = missing
-  · rw [if_pos hcoord]
-    apply omitCovered_of_all_but _ _ _ (hinj coord)
-    intro slot hslot
-    exact hcovered coord slot (fun he => hslot (Prod.mk.inj he).2)
-  · rw [if_neg hcoord]
-    exact ⟨hinj coord, fun slot => hcovered coord slot (fun he => hcoord (Prod.mk.inj he).1)⟩
-
-theorem nearCovered_probability (exposed : Fin 7 → Fin 8 → Finset (Fin 256))
-    (missing : Fin 7) (omitted : Fin 3) :
-    Pr[NearCovered exposed missing omitted |
-      ($ᵗ (Fin 7 → (Fin 8 × (Fin 3 → Fin 256))) : ProbComp _)] =
-      ∏ coord, if coord = missing then
-        (∑ bucket, ((exposed coord bucket).card.descFactorial 2 : ENNReal)) / (8 * 256^2)
-      else (∑ bucket, ((exposed coord bucket).card.descFactorial 3 : ENNReal)) / (8 * 256^3) := by
-  unfold NearCovered
-  rw [uniform_forall_probability 7 (fun coord (draw : Fin 8 × (Fin 3 → Fin 256)) =>
-    if coord = missing then OmitCovered (exposed coord draw.1) omitted draw.2
-    else Covered (exposed coord draw.1) draw.2)]
-  apply Finset.prod_congr rfl
-  intro coord _
-  by_cases he : coord = missing
-  · simp only [he, if_true]
-    exact bucket_omitCovered_probability _ omitted
-  · simp only [he, if_false]
-    exact bucket_covered_probability _
-
-theorem near_denominator_product (missing : Fin 7) :
-    (∏ coord : Fin 7, if coord = missing then ((256 : ENNReal)^2)⁻¹
-      else ((256 : ENNReal)^3)⁻¹) = ((2 : ENNReal)^160)⁻¹ := by
-  have he : (∏ coord : Fin 7, if coord = missing then ((256 : ENNReal)^2)⁻¹
-      else ((256 : ENNReal)^3)⁻¹) =
-      ((256 : ENNReal)^2)⁻¹ * (((256 : ENNReal)^3)⁻¹)^6 := by
-    rw [Finset.prod_ite]
-    have hfilter : (Finset.univ.filter fun coord : Fin 7 => coord = missing) = {missing} := by
-      ext coord
-      simp
-    rw [hfilter]
-    simp [Finset.prod_const, Finset.filter_ne']
-  rw [he]
-  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-  norm_num [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_pow]
-
-theorem div_bucket_leaf_power (value : ENNReal) (power : Nat) :
-    value / (8 * (256 : ENNReal)^power) = value / 8 / 256^power := by
-  simp only [div_eq_mul_inv]
-  rw [ENNReal.mul_inv (Or.inl (by norm_num : (8 : ENNReal) ≠ 0))
-    (Or.inl (by finiteness : (8 : ENNReal) ≠ ⊤)), mul_assoc]
-
-theorem nearCovered_le_wordEnvelope
-    (word : List History.Buckets) (exposed : Fin 7 → Fin 8 → Finset (Fin 256))
-    (hcard : ∀ coord bucket, (exposed coord bucket).card ≤
-      3 * (word.map (fun row => row coord)).count bucket)
-    (missing : Fin 7) (omitted : Fin 3) :
-    Pr[NearCovered exposed missing omitted |
-      ($ᵗ (Fin 7 → (Fin 8 × (Fin 3 → Fin 256))) : ProbComp _)] ≤
-      History.nearWordEnvelope missing word := by
-  rw [nearCovered_probability]
-  calc
-    _ ≤ ∏ coord : Fin 7, if coord = missing then
-        Numeric.nearCoordinateEnvelope (word.map (fun row => row coord)) / 256^2
-      else coordinateEnvelope (word.map (fun row => row coord)) / 256^3 := by
-      apply Finset.prod_le_prod'
-      intro coord _
-      by_cases he : coord = missing
-      · simp only [he, if_true, Numeric.nearCoordinateEnvelope, div_bucket_leaf_power]
-        apply ENNReal.div_le_div_right
-        apply ENNReal.div_le_div_right
-        apply Finset.sum_le_sum
-        intro bucket _
-        exact_mod_cast Nat.descFactorial_le 2 (hcard missing bucket)
-      · simp only [he, if_false, coordinateEnvelope, bucketMass, div_bucket_leaf_power]
-        apply ENNReal.div_le_div_right
-        apply ENNReal.div_le_div_right
-        apply Finset.sum_le_sum
-        intro bucket _
-        exact_mod_cast Nat.descFactorial_le 3 (hcard coord bucket)
-    _ = _ := by
-      have hf : (fun coord : Fin 7 => if coord = missing then
-          Numeric.nearCoordinateEnvelope (word.map (fun row => row coord)) / 256^2
-        else coordinateEnvelope (word.map (fun row => row coord)) / 256^3) =
-          (fun coord : Fin 7 =>
-            (if coord = missing then Numeric.nearCoordinateEnvelope (word.map (fun row => row coord))
-              else coordinateEnvelope (word.map (fun row => row coord))) *
-            (if coord = missing then ((256 : ENNReal)^2)⁻¹ else ((256 : ENNReal)^3)⁻¹)) := by
-        funext coord
-        split_ifs <;> rfl
-      rw [hf, Finset.prod_mul_distrib, near_denominator_product]
-      rfl
-
-end SigGolfCandidate.T3.BPORS
 
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -18922,13 +15733,19 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 
+def journalNearEvent (journal : Journal) (index : Fin (2^31))
+    (missing : Fin 7) (omitted : Fin 3) (output : HashOutput) : Prop :=
+  (SigGolfResearch.Gate6.digestRecord output).2.2.1=0 ∧
+    BPORS.NearCovered (exposedLeaves (journalOutputs journal) index) missing omitted
+      (SigGolfResearch.Gate6.rawDraw (SigGolfResearch.Gate6.digestRecord output)).1
+
 /-- The deficient-coordinate envelope now bounds the actual disclosed-leaf
 journal, for any one of the 21 possible missing openings. -/
 theorem journal_near_coverage_bound (published : T3.Cache) (history : History)
     (state : State) (journal : Journal) (hj : JournalOK published history state journal)
     (index : Fin (2^31)) (missing : Fin 7) (omitted : Fin 3) :
-    Pr[BPORS.NearCovered (exposedLeaves (journalOutputs journal) index) missing omitted |
-      ($ᵗ (Fin 7 → (Fin 8 × (Fin 3 → Fin 256))) : ProbComp _)] ≤
+    Pr[journalNearEvent journal index missing omitted |
+      ($ᵗ HashOutput : ProbComp HashOutput)] ≤
       nearWordEnvelope missing (atIndex index history) :=
   BPORS.nearCovered_le_wordEnvelope (atIndex index history) _
     (journal_exposure_card published history state journal hj index) missing omitted
@@ -18937,13 +15754,12 @@ theorem journal_any_missing_coverage_bound (published : T3.Cache) (history : His
     (state : State) (journal : Journal) (hj : JournalOK published history state journal)
     (index : Fin (2^31)) :
     Pr[fun draw => ∃ missing : Fin 7 × Fin 3,
-      BPORS.NearCovered (exposedLeaves (journalOutputs journal) index) missing.1 missing.2 draw |
-      ($ᵗ (Fin 7 → (Fin 8 × (Fin 3 → Fin 256))) : ProbComp _)] ≤
+      journalNearEvent journal index missing.1 missing.2 draw |
+      ($ᵗ HashOutput : ProbComp HashOutput)] ≤
       3 * ∑ missing : Fin 7, nearWordEnvelope missing (atIndex index history) := by
   have hu := probEvent_exists_finset_le_sum (Finset.univ : Finset (Fin 7 × Fin 3))
-    ($ᵗ (Fin 7 → (Fin 8 × (Fin 3 → Fin 256))) : ProbComp _)
-    (fun missing => BPORS.NearCovered (exposedLeaves (journalOutputs journal) index)
-      missing.1 missing.2)
+    ($ᵗ HashOutput : ProbComp HashOutput)
+    (fun missing => journalNearEvent journal index missing.1 missing.2)
   simp only [Finset.mem_univ, true_and] at hu
   apply hu.trans
   calc
@@ -18961,8 +15777,8 @@ theorem journal_average_near_coverage_bound (published : T3.Cache) (history : Hi
     (state : State) (journal : Journal) (hj : JournalOK published history state journal) :
     expectedValue ($ᵗ (Fin (2^31)) : ProbComp _)
       (fun index => Pr[fun draw => ∃ missing : Fin 7 × Fin 3,
-        BPORS.NearCovered (exposedLeaves (journalOutputs journal) index) missing.1 missing.2 draw |
-        ($ᵗ (Fin 7 → (Fin 8 × (Fin 3 → Fin 256))) : ProbComp _)]) ≤
+        journalNearEvent journal index missing.1 missing.2 draw |
+        ($ᵗ HashOutput : ProbComp HashOutput)]) ≤
       fullNearPrice history / (2 : ENNReal)^128 := by
   apply le_trans (expectedValue_mono _ (fun index =>
     journal_any_missing_coverage_bound published history state journal hj index))

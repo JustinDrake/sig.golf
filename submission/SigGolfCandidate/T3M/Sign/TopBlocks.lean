@@ -4,10 +4,10 @@ import SigGolfCandidate.T3M.Sign.Basic
 # Sign: block specifications of layer 0 (words 427..542)
 
 `layer_0` (427): `lay = tree = 0`, `N = 58`, `N4 = 49`, `target = 126`, the leaf `index >> 19 & 4095`
-(`s2`, `a4`), `counter_search`; 441: the signature-only leaf (values to `SIG + 2336`); 447: the
-sibling leaf (root to `SIG + 3264`); 456/464: the leaves of the sibling pair (roots to `NODE`,
-`NODE + 48`); 470: the pair node `T3(2048 + pair)` and its HASH; 486: the pair node to `SIG + 3280`,
-`level = 2`, `out = SIG + 3296`, `step = 1024`; `tp_mask` (498..539): the mask of the sibling at
+(`s2`, `a4`), `counter_search`; 441: the signature-only leaf (values to `SIG + 2288`); 447: the
+sibling leaf (root to `SIG + 3216`); 456/464: the leaves of the sibling pair (roots to `NODE`,
+`NODE + 48`); 470: the pair node `T3(2048 + pair)` and its HASH; 486: the pair node to `SIG + 3232`,
+`level = 2`, `out = SIG + 3248`, `step = 1024`; `tp_mask` (498..539): the mask of the sibling at
 `level` xor the cached node of `REGION`; 540: `HALT(0)`.
 -/
 
@@ -88,11 +88,11 @@ theorem blk427_spec (s : MachineState) (hpc : s.pc = pcOf 427) (index : Nat) (hi
   · intro r hr; simp at hr; cases r <;> simp_all [blk_427.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_427.res, rv_simp]
 
-/-- 441..446: the signature-only leaf (`t6 = 1`, digits at `DIGITS`, values to `SIG + 2336`). -/
+/-- 441..446: the signature-only leaf (`t6 = 1`, digits at `DIGITS`, values to `SIG + 2288`). -/
 theorem blk441_spec (s : MachineState) (hpc : s.pc = pcOf 441) :
     ∃ t, Steps image s 6 6 t ∧ t.pc = pcOf (1013 + 27) ∧ t.getReg .x1 = pcOf 447 ∧
       t.getReg .x31 = BitVec.ofNat 64 1 ∧ t.getReg .x22 = BitVec.ofNat 64 DIGITS ∧
-      t.getReg .x23 = BitVec.ofNat 64 (SIG + 2336) ∧
+      t.getReg .x23 = BitVec.ofNat 64 (SIG + 2288) ∧
       RegsExcept s t [.x1, .x22, .x23, .x31] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound blk_441 codeAt_441 s hpc (by simp [blk_441.res, rv_simp]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -104,12 +104,12 @@ theorem blk441_spec (s : MachineState) (hpc : s.pc = pcOf 441) :
   · intro r hr; simp at hr; cases r <;> simp_all [blk_441.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_441.res, rv_simp]
 
-/-- 447..455: the sibling leaf `a4 xor 1` (zero digits, root to `SIG + 3264`). -/
+/-- 447..455: the sibling leaf `a4 xor 1` (zero digits, root to `SIG + 3216`). -/
 theorem blk447_spec (s : MachineState) (hpc : s.pc = pcOf 447) (leaf : Nat) (hl : leaf < 4096)
     (h14 : s.getReg .x14 = BitVec.ofNat 64 leaf) :
     ∃ t, Steps image s 9 9 t ∧ t.pc = pcOf (1013 + 27) ∧ t.getReg .x1 = pcOf 456 ∧
       t.getReg .x31 = BitVec.ofNat 64 0 ∧ t.getReg .x22 = BitVec.ofNat 64 ZDIG ∧
-      t.getReg .x23 = BitVec.ofNat 64 DUMMY ∧ t.getReg .x25 = BitVec.ofNat 64 (SIG + 3264) ∧
+      t.getReg .x23 = BitVec.ofNat 64 DUMMY ∧ t.getReg .x25 = BitVec.ofNat 64 (SIG + 3216) ∧
       t.getReg .x18 = BitVec.ofNat 64 (leaf ^^^ 1) ∧
       RegsExcept s t [.x1, .x18, .x22, .x23, .x25, .x31] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound blk_447 codeAt_447 s hpc (by simp [blk_447.res, rv_simp]),
@@ -168,7 +168,7 @@ theorem blk470_spec (s : MachineState) (hpc : s.pc = pcOf 470) (p : Nat) (hp : p
       t.getReg .x10 = BitVec.ofNat 64 NODE ∧ t.getReg .x11 = BitVec.ofNat 64 64 ∧
       t.getReg .x12 = BitVec.ofNat 64 NOUT ∧
       t.getMem (BitVec.ofNat 64 (NODE + 16)) = BitVec.ofNat 64 (hdr0 3 0 0 0) ∧
-      t.getMem (BitVec.ofNat 64 (NODE + 24)) = BitVec.ofNat 64 (hdr1 0 (2048 + p / 2)) ∧
+      t.getMem (BitVec.ofNat 64 (NODE + 24)) = BitVec.ofNat 64 (hdr1 (2048 + p / 2) 0) ∧
       RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x28] ∧
       Frame s t (fun A => A = NODE + 16 ∨ A = NODE + 24) := by
   refine ⟨_, symRun_sound blk_470 codeAt_470 s hpc (by simp [blk_470.res, rv_simp]),
@@ -181,7 +181,7 @@ theorem blk470_spec (s : MachineState) (hpc : s.pc = pcOf 470) (p : Nat) (hp : p
     rw [hdr0_eq 3 0 0 0 (by norm_num) (by norm_num) (by norm_num) (by norm_num)]
     norm_num
   · simp only [Result.toState_getMem, blk_470.res, NODE]; t3n [h18]
-    rw [ofNat_shr p 1 (by omega), pow_one, ofNat_add_ofNat, ofNat_shl, hdr1_eq 0 (2048 + p / 2) (by norm_num) (by omega)]
+    rw [ofNat_shr p 1 (by omega), pow_one, ofNat_add_ofNat, hdr1_eq (2048 + p / 2) 0 (by omega) (by norm_num)]
     congr 1; ring
   · intro r hr; simp at hr; cases r <;> simp_all [blk_470.res, rv_simp] <;> rfl
   · intro A hA hn
@@ -193,15 +193,15 @@ theorem blk470_spec (s : MachineState) (hpc : s.pc = pcOf 470) (p : Nat) (hp : p
 theorem fetch_485 (s : MachineState) (hpc : s.pc = pcOf 485) : fetch image s = some (.base .ECALL) :=
   (codeAt_485.fetch s hpc).trans rfl
 
-/-- 486..497: the pair node to `SIG + 3280`; `level = 2`, `out = SIG + 3296`, `step = 1024`. -/
+/-- 486..497: the pair node to `SIG + 3232`; `level = 2`, `out = SIG + 3248`, `step = 1024`. -/
 theorem blk486_spec (s : MachineState) (hpc : s.pc = pcOf 486) :
     ∃ t, Steps image s 12 12 t ∧ t.pc = pcOf 498 ∧
-      t.getMem (BitVec.ofNat 64 (SIG + 3280)) = s.getMem (BitVec.ofNat 64 NOUT) ∧
-      t.getMem (BitVec.ofNat 64 (SIG + 3288)) = s.getMem (BitVec.ofNat 64 (NOUT + 8)) ∧
-      t.getReg .x22 = BitVec.ofNat 64 2 ∧ t.getReg .x24 = BitVec.ofNat 64 (SIG + 3296) ∧
+      t.getMem (BitVec.ofNat 64 (SIG + 3232)) = s.getMem (BitVec.ofNat 64 NOUT) ∧
+      t.getMem (BitVec.ofNat 64 (SIG + 3240)) = s.getMem (BitVec.ofNat 64 (NOUT + 8)) ∧
+      t.getReg .x22 = BitVec.ofNat 64 2 ∧ t.getReg .x24 = BitVec.ofNat 64 (SIG + 3248) ∧
       t.getReg .x20 = BitVec.ofNat 64 1024 ∧
       RegsExcept s t [.x6, .x7, .x20, .x22, .x24, .x29, .x30] ∧
-      Frame s t (fun A => A = SIG + 3280 ∨ A = SIG + 3288) := by
+      Frame s t (fun A => A = SIG + 3232 ∨ A = SIG + 3240) := by
   refine ⟨_, symRun_sound blk_486 codeAt_486 s hpc (by simp [blk_486.res, rv_simp]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [blk_486.res, E.eval]

@@ -67,7 +67,7 @@ structure BtPre (sk : SecretKey) (cache : Bytes 32768) (lay : Layer) (tree sel :
   hsel : sel < 2 ^ height lay
   hdb : ∀ i < 43, ds.getD i 0 ≤ 7
   digits : ∀ i < 43, s.getByte (BitVec.ofNat 64 (DIGITS + i)) = BitVec.ofNat 8 (ds.getD i 0)
-  hsb : SIG ≤ sb ∧ sb + 16 * (43 + height lay) ≤ SIG + 5824
+  hsb : SIG ≤ sb ∧ sb + 16 * (43 + height lay) ≤ SIG + 5776
   hsb8 : sb % 8 = 0
 
 /-- Doublewords the leaf loop of `build_tree` may change. -/
@@ -471,6 +471,7 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 32768} {lay : Layer} {tree sel :
         rw [Nat.div_eq_of_lt hs.htree]
         have := lay.isLt
         omega
+      packed := by change T3.packedNodeTag 3; decide
       htree := hs.htree
       hh1 := by show 1 ≤ height lay; omega
       hh := by show height lay ≤ 12; omega

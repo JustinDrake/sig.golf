@@ -113,10 +113,10 @@ def ftsBody (chosen : List Selection) (index : Nat) (state : List Digest × List
     (coord : Nat) : M (List Digest × List Digest × List Digest) := do
   let sel := chosen.getD coord ⟨0,[]⟩
   let (levels,secrets) ← buildFts index coord
-  let selected := sel.leaves.map (fun s => sel.bucket*256+s)
+  let selected := sel.leaves.map (fun s => sel.bucket*128+s)
   let opened := selected.map (fun s => secrets.getD s 0)
-  let inner := (T3.frontier selected 8 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
-  let outer := (List.range 3).map fun j => (levels.getD (8+j) []).getD (sel.bucket/2^j ^^^ 1) 0
+  let inner := (T3.frontier selected 7 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
+  let outer := (List.range 4).map fun j => (levels.getD (7+j) []).getD (sel.bucket/2^j ^^^ 1) 0
   pure (state.1 ++ opened,state.2.1 ++ inner ++ outer,
     state.2.2 ++ [(levels.getD 11 []).getD 0 0])
 
@@ -153,18 +153,18 @@ structure CoordInv (sk : SecretKey) (cache : Bytes 32768) (N : HashOutput) (s0 :
 open SigGolfCandidate.T3M (bucket_div_eight bucket_div_outer) in
 /-- The leaves of an accepted selection and Core's `frontier` of them. -/
 theorem sel_facts {sel : Selection} (hs : SelOk sel) :
-    sel.leaves.map (fun s => sel.bucket * 256 + s) = [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2] ∧
+    sel.leaves.map (fun s => sel.bucket * 128 + s) = [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2] ∧
     selLeaf sel 0 < selLeaf sel 1 ∧ selLeaf sel 1 < selLeaf sel 2 ∧ selLeaf sel 2 < 2048 ∧
-    lcaLevel (selLeaf sel 0) (selLeaf sel 1) ≤ 8 ∧ lcaLevel (selLeaf sel 1) (selLeaf sel 2) ≤ 8 ∧
-    (∀ g ∈ [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2], g / 2 ^ 8 = sel.bucket) ∧
-    T3.frontier [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2] 8 sel.bucket =
-      mf 8 8 [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2] := by
+    lcaLevel (selLeaf sel 0) (selLeaf sel 1) ≤ 7 ∧ lcaLevel (selLeaf sel 1) (selLeaf sel 2) ≤ 7 ∧
+    (∀ g ∈ [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2], g / 2 ^ 7 = sel.bucket) ∧
+    T3.frontier [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2] 7 sel.bucket =
+      mf 7 7 [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2] := by
   obtain ⟨x0, x1, x2, hl, h01, h12, h2⟩ := hs.exists
   have hb := hs.b
-  have e0 : selLeaf sel 0 = sel.bucket * 256 + x0 := by unfold selLeaf; rw [hl]; rfl
-  have e1 : selLeaf sel 1 = sel.bucket * 256 + x1 := by unfold selLeaf; rw [hl]; rfl
-  have e2 : selLeaf sel 2 = sel.bucket * 256 + x2 := by unfold selLeaf; rw [hl]; rfl
-  have hdiv : ∀ g ∈ [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2], g / 2 ^ 8 = sel.bucket := by
+  have e0 : selLeaf sel 0 = sel.bucket * 128 + x0 := by unfold selLeaf; rw [hl]; rfl
+  have e1 : selLeaf sel 1 = sel.bucket * 128 + x1 := by unfold selLeaf; rw [hl]; rfl
+  have e2 : selLeaf sel 2 = sel.bucket * 128 + x2 := by unfold selLeaf; rw [hl]; rfl
+  have hdiv : ∀ g ∈ [selLeaf sel 0, selLeaf sel 1, selLeaf sel 2], g / 2 ^ 7 = sel.bucket := by
     intro g hg
     simp only [List.mem_cons, List.mem_nil_iff, or_false] at hg
     rcases hg with rfl | rfl | rfl
@@ -174,7 +174,7 @@ theorem sel_facts {sel : Selection} (hs : SelOk sel) :
   refine ⟨by rw [hl, e0, e1, e2]; rfl, by omega, by omega, by omega, ?_, ?_, hdiv, ?_⟩
   · rw [e0, e1]; exact lca_le_eight (by omega) (by omega) (by omega)
   · rw [e1, e2]; exact lca_le_eight (by omega) (by omega) (by omega)
-  · refine frontier_eq_mf _ 8 sel.bucket _ ?_ (by simp) (fun g => ⟨fun h => ⟨h, hdiv g h⟩, fun h => h.1⟩)
+  · refine frontier_eq_mf _ 7 sel.bucket _ ?_ (by simp) (fun g => ⟨fun h => ⟨h, hdiv g h⟩, fun h => h.1⟩)
     simp only [List.pairwise_cons, List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq,
       List.Pairwise.nil, and_true, IsEmpty.forall_iff, implies_true]
     omega
@@ -213,10 +213,10 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s
     rfl
   set pp := SIG + 352 + 16 * st.2.1.length with hpp
   set sd := SIG + 16 + 16 * st.1.length with hsd
-  have hsb7 : slotBase (selections N) 7 ≤ 124 := slotBase_seven_le N hchosen hadm
-  have hsbc : slotBase (selections N) (c + 1) ≤ 124 :=
+  have hsb7 : slotBase (selections N) 7 ≤ 121 := slotBase_seven_le N hchosen hadm
+  have hsbc : slotBase (selections N) (c + 1) ≤ 121 :=
     le_trans (slotBase_mono _ (by omega)) hsb7
-  have hsb0 : slotBase (selections N) c ≤ 124 := le_trans (slotBase_mono _ (by omega)) hsb7
+  have hsb0 : slotBase (selections N) c ≤ 121 := le_trans (slotBase_mono _ (by omega)) hsb7
   have hl2 := ht.len2
   have hl1 := ht.len1
   obtain ⟨v, k, stv, hk, vpc, vx8, vx16, vx26, vsec, vem, vroot, vlen, vr, vf⟩ :=
@@ -235,12 +235,12 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s
     have h1 : g / 2 ^ l < 2 ^ (11 - l) := by
       rw [Nat.div_lt_iff_lt_mul (Nat.two_pow_pos l), ← pow_add, Nat.sub_add_cancel (by omega)]; omega
     exact Nat.xor_lt_two_pow h1 (Nat.one_lt_two_pow (by omega))
-  have hval : ∀ p ∈ mf 8 8 [g0, g1, g2] ++ outerL g2 8 3, nodeVal u p = coreVal p := by
+  have hval : ∀ p ∈ mf 7 7 [g0, g1, g2] ++ outerL g2 7 4, nodeVal u p = coreVal p := by
     intro p hp
     rcases List.mem_append.mp hp with hm | hm
-    · have hlca : ∀ a ∈ [g0, g1, g2], ∀ b ∈ [g0, g1, g2], a ≠ b → lcaLevel a b ≤ 8 :=
-        fun a ha b hb hab => (SigGolfCandidate.T3M.div_eq_iff_lca hab 8).mp (by rw [hdiv a ha, hdiv b hb])
-      obtain ⟨hl, g, hg, he⟩ := mem_mf 8 hlca le_rfl le_rfl hm
+    · have hlca : ∀ a ∈ [g0, g1, g2], ∀ b ∈ [g0, g1, g2], a ≠ b → lcaLevel a b ≤ 7 :=
+        fun a ha b hb hab => (SigGolfCandidate.T3M.div_eq_iff_lca hab 7).mp (by rw [hdiv a ha, hdiv b hb])
+      obtain ⟨hl, g, hg, he⟩ := mem_mf 7 hlca le_rfl le_rfl hm
       have hg' : g < 2048 := by simp only [List.mem_cons, List.mem_nil_iff, or_false] at hg; omega
       obtain ⟨l, i⟩ := p
       simp only at hl he
@@ -248,22 +248,22 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s
       exact nodeVal_heap uheap (by omega) (hpos g hg' l (by omega))
     · simp only [outerL, List.mem_map, List.mem_range] at hm
       obtain ⟨j, hj, rfl⟩ := hm
-      exact nodeVal_heap uheap (by omega) (hpos g2 hg2 (8 + j) (by omega))
-  have hprf : DigsAt v pp ((mf 8 8 [g0, g1, g2] ++ outerL g2 8 3).map coreVal) := vem.digsAt coreVal hval
+      exact nodeVal_heap uheap (by omega) (hpos g2 hg2 (7 + j) (by omega))
+  have hprf : DigsAt v pp ((mf 7 7 [g0, g1, g2] ++ outerL g2 7 4).map coreVal) := vem.digsAt coreVal hval
   -- Core's lists
-  have hinner : (T3.frontier (sel.leaves.map fun s => sel.bucket * 256 + s) 8 sel.bucket).map
-      (fun p => (levels.getD p.1 []).getD p.2 0) = (mf 8 8 [g0, g1, g2]).map coreVal := by
+  have hinner : (T3.frontier (sel.leaves.map fun s => sel.bucket * 128 + s) 7 sel.bucket).map
+      (fun p => (levels.getD p.1 []).getD p.2 0) = (mf 7 7 [g0, g1, g2]).map coreVal := by
     rw [hselected, hfront]
-  have houter : ((List.range 3).map fun j => (levels.getD (8 + j) []).getD (sel.bucket / 2 ^ j ^^^ 1) 0) =
-      (outerL g2 8 3).map coreVal := by
+  have houter : ((List.range 4).map fun j => (levels.getD (7 + j) []).getD (sel.bucket / 2 ^ j ^^^ 1) 0) =
+      (outerL g2 7 4).map coreVal := by
     unfold outerL
     rw [List.map_map]
     apply List.map_congr_left
     intro j _
     simp only [Function.comp, hcore]
     rw [hg2', SigGolfCandidate.T3M.selLeaf, bucket_div_outer (by have := hs.l2; omega)]
-  have hflen : (T3.frontier (sel.leaves.map fun s => sel.bucket * 256 + s) 8 sel.bucket).length =
-      (mf 8 8 [g0, g1, g2]).length := by rw [hselected, hfront]
+  have hflen : (T3.frontier (sel.leaves.map fun s => sel.bucket * 128 + s) 7 sel.bucket).length =
+      (mf 7 7 [g0, g1, g2]).length := by rw [hselected, hfront]
   have hsecv : ∀ i < 3, memDig u (SEC + 16 * [g0, g1, g2].getD i 0) =
       secrets.getD ([g0, g1, g2].getD i 0) 0 := by
     intro i hi
@@ -287,7 +287,7 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s
       · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))))
       · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h)))))))
       · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨h.1, by sgo⟩))))))))
-  have hnS : ∀ A, A < 2 ^ 64 → SIG ≤ A → A < SIG + 5824 → ¬ FtsScr A := by
+  have hnS : ∀ A, A < 2 ^ 64 → SIG ≤ A → A < SIG + 5776 → ¬ FtsScr A := by
     intro A _ h1 h2 h; unfold FtsScr FlW at h; sgo
   have hnF : ∀ A, A < 2 ^ 64 → FOREST ≤ A → A < FOREST + 128 → ¬ FtsScr A := by
     intro A _ h1 h2 h; unfold FtsScr FlW at h; sgo
@@ -295,7 +295,7 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s
     intro A _ h1 h2 h; unfold FtsScr FlW at h; sgo
   have hml := vlen
   set W2 : Nat → Prop := fun A => (sd ≤ A ∧ A < sd + 48) ∨
-    (pp ≤ A ∧ A < pp + 16 * ((mf 8 8 [g0, g1, g2]).length + 3)) ∨ A = FOREST + rootOff c ∨
+    (pp ≤ A ∧ A < pp + 16 * ((mf 7 7 [g0, g1, g2]).length + 4)) ∨ A = FOREST + rootOff c ∨
     A = FOREST + rootOff c + 8 with hW2
   have hro : rootOff c ≤ 112 := by unfold rootOff; split_ifs <;> omega
   have hro' : ∀ j < c, rootOff j + 16 ≤ rootOff c := by
@@ -319,7 +319,7 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s
     rfl
   · simp [ht.len3]
   · -- the opened secrets
-    show DigsAt v (SIG + 16) (st.1 ++ (sel.leaves.map fun s => sel.bucket * 256 + s).map fun s => secrets.getD s 0)
+    show DigsAt v (SIG + 16) (st.1 ++ (sel.leaves.map fun s => sel.bucket * 128 + s).map fun s => secrets.getD s 0)
     refine DigsAt.append ((ht.opened.frame hFu (by sgo) (fun A h1 h2 => hnS A (by sgo) (by sgo) (by sgo))).frame vf
       (by sgo) (fun A h1 h2 h => by rcases h with h | h | h | h <;> sgo)) ?_
     rw [hselected]
@@ -336,9 +336,9 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s
     · simpa [show sd + 16 * 2 = SIG + 16 + 16 * st.1.length + 32 by omega] using e2
   · -- the proof slots
     show DigsAt v (SIG + 352) (st.2.1 ++
-      (T3.frontier (sel.leaves.map fun s => sel.bucket * 256 + s) 8 sel.bucket).map
+      (T3.frontier (sel.leaves.map fun s => sel.bucket * 128 + s) 7 sel.bucket).map
         (fun p => (levels.getD p.1 []).getD p.2 0) ++
-      (List.range 3).map fun j => (levels.getD (8 + j) []).getD (sel.bucket / 2 ^ j ^^^ 1) 0)
+      (List.range 4).map fun j => (levels.getD (7 + j) []).getD (sel.bucket / 2 ^ j ^^^ 1) 0)
     rw [hinner, houter, List.append_assoc, ← List.map_append]
     refine DigsAt.append ((ht.proofs.frame hFu (by sgo) (fun A h1 h2 => hnS A (by sgo) (by sgo) (by sgo))).frame vf
       (by sgo) (fun A h1 h2 h => by rcases h with h | h | h | h <;> sgo)) hprf
@@ -366,7 +366,7 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 32768} {N : HashOutput} {s
       uf.get (by sgo) (by unfold FtW FlW LevW ftsLev; simp only; sgo)]
     exact ht.sel c' hc' j hj
   · -- the frame
-    have hflen' : (T3.frontier [g0, g1, g2] 8 sel.bucket).length = (mf 8 8 [g0, g1, g2]).length := by rw [hfront]
+    have hflen' : (T3.frontier [g0, g1, g2] 7 sel.bucket).length = (mf 7 7 [g0, g1, g2]).length := by rw [hfront]
     refine (ht.frame.trans (hFu.trans vf)).mono (fun A _ h => ?_)
     unfold CoordW at *
     simp only [List.length_append, List.length_map, hselected, List.length_cons, List.length_nil,

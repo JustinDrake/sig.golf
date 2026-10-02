@@ -90,7 +90,7 @@ theorem rl1010_spec (hpc : s.pc = pcOf 1010) (i n : Nat) (hi : i < 2 ^ 63) (hn :
 
 /-- The chain value `values[i]` (at `P + 16 i`) to `CHAIN+48` and to the witness chain block `W` (`+48`);
 `W -= 64`; the digit address `DIGITS + i`. -/
-theorem rl1011_spec (hpc : s.pc = pcOf 1011) (i P W : Nat) (hP : 0x7000 ≤ P) (hPi : P + 16 * i + 16 ≤ 0x7000 + 5824)
+theorem rl1011_spec (hpc : s.pc = pcOf 1011) (i P W : Nat) (hP : 0x7000 ≤ P) (hPi : P + 16 * i + 16 ≤ 0x7000 + 5776)
     (hP8 : P % 8 = 0) (hW8 : W % 8 = 0) (hW : 64 ≤ W) (hW' : W + 64 ≤ 0x7000)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 i) (h16 : s.getReg .x16 = BitVec.ofNat 64 P)
     (h23 : s.getReg .x23 = BitVec.ofNat 64 W) :
@@ -388,7 +388,7 @@ theorem ex_valid (x : Nat) (h1 : x % 8 = 0) (h2 : x + 8 ≤ 2 ^ 24) : accessVali
 
 /-- Merkle level with leaf bit 1: the sibling (at `P`) to the witness `[M, M+16)` and to `NODE`, the node `NOUT`
 to `NODE + 48`. -/
-theorem rl1080_spec (hpc : s.pc = pcOf 1080) (P M : Nat) (hP8 : P % 8 = 0) (hP : 0x7000 ≤ P) (hP' : P + 16 ≤ 0x7000 + 5824)
+theorem rl1080_spec (hpc : s.pc = pcOf 1080) (P M : Nat) (hP8 : P % 8 = 0) (hP : 0x7000 ≤ P) (hP' : P + 16 ≤ 0x7000 + 5776)
     (hM8 : M % 8 = 0) (hM : 0x800 ≤ M) (hM' : M + 64 ≤ 0x7000)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 P) (h24 : s.getReg .x24 = BitVec.ofNat 64 M) :
     ∃ t, Steps image s 19 19 t ∧ t.pc = pcOf 1117 ∧
@@ -424,7 +424,7 @@ theorem rl1080_spec (hpc : s.pc = pcOf 1080) (P M : Nat) (hP8 : P % 8 = 0) (hP :
 
 /-- Merkle level with leaf bit 0: the sibling to the witness `[M+48, M+64)` and to `NODE + 48`, the node `NOUT`
 to `NODE`. -/
-theorem rl1099_spec (hpc : s.pc = pcOf 1099) (P M : Nat) (hP8 : P % 8 = 0) (hP : 0x7000 ≤ P) (hP' : P + 16 ≤ 0x7000 + 5824)
+theorem rl1099_spec (hpc : s.pc = pcOf 1099) (P M : Nat) (hP8 : P % 8 = 0) (hP : 0x7000 ≤ P) (hP' : P + 16 ≤ 0x7000 + 5776)
     (hM8 : M % 8 = 0) (hM : 0x800 ≤ M) (hM' : M + 64 ≤ 0x7000)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 P) (h24 : s.getReg .x24 = BitVec.ofNat 64 M) :
     ∃ t, Steps image s 18 18 t ∧ t.pc = pcOf 1117 ∧
@@ -464,9 +464,9 @@ theorem rl1117_spec (hpc : s.pc = pcOf 1117) (lay tree leaf hh j : Nat) (hlay : 
     (h18 : s.getReg .x18 = BitVec.ofNat 64 leaf) (h15 : s.getReg .x15 = BitVec.ofNat 64 hh)
     (h20 : s.getReg .x20 = BitVec.ofNat 64 j) :
     ∃ t, Steps image s 21 21 t ∧ t.pc = pcOf 1138 ∧
-      t.getMem (BitVec.ofNat 64 (NODE + 16)) = BitVec.ofNat 64 (769 + 65536 * lay) ∧
+      t.getMem (BitVec.ofNat 64 (NODE + 16)) = BitVec.ofNat 64 (769 + 65536 * lay + 2^32 * tree) ∧
       t.getMem (BitVec.ofNat 64 (NODE + 24)) =
-        BitVec.ofNat 64 (tree + 2 ^ 32 * (2 ^ (hh - j - 1) + leaf / 2 ^ (j + 1))) ∧
+        BitVec.ofNat 64 (2 ^ (hh - j - 1) + leaf / 2 ^ (j + 1)) ∧
       t.getReg .x10 = BitVec.ofNat 64 NODE ∧ t.getReg .x11 = BitVec.ofNat 64 64 ∧
       t.getReg .x12 = BitVec.ofNat 64 NOUT ∧
       RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x13, .x28, .x30] ∧
@@ -475,8 +475,9 @@ theorem rl1117_spec (hpc : s.pc = pcOf 1117) (lay tree leaf hh j : Nat) (hlay : 
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [Result.toState_pc, eblk_1117.res, E.eval]
   · simp only [Result.toState_getMem, eblk_1117.res]
-    t3n [h8]
-    rw [if_neg (by decide), ofNat_or_disjoint 769 (lay * 65536) 16 (by norm_num) (by omega)]
+    t3n [h8, h9]
+    rw [if_neg (by decide), ofNat_or_disjoint 769 (lay * 65536) 16 (by norm_num) (by omega),
+      ofNat_or_disjoint' (lay * 65536 + 769) (tree * 4294967296) 32 (by omega) (by omega)]
     congr 1; ring
   · simp only [Result.toState_getMem, eblk_1117.res, NODE]
     t3n [h9, h15, h20, h18]
@@ -487,9 +488,7 @@ theorem rl1117_spec (hpc : s.pc = pcOf 1117) (lay tree leaf hh j : Nat) (hlay : 
     have e2 : (j + 1) % 18446744073709551616 % 64 = j + 1 := by omega
     have hp : 2 ^ (hh - j - 1) ≤ 2 ^ 12 := Nat.pow_le_pow_right (by norm_num) (by omega)
     have hq : leaf / 2 ^ (j + 1) < 2 ^ 32 := lt_of_le_of_lt (Nat.div_le_self _ _) hl
-    rw [e1, e2, ofNat_shr _ _ (by omega), Nat.one_mul, ofNat_add_ofNat, ofNat_shl,
-      ofNat_or_disjoint' tree _ 32 htree (by omega)]
-    congr 1; ring
+    rw [e1, e2, ofNat_shr _ _ (by omega), Nat.one_mul, ofNat_add_ofNat]
   · simp [eblk_1117.res, rv_simp]
   · simp [eblk_1117.res, rv_simp]
   · simp [eblk_1117.res, rv_simp]

@@ -28,7 +28,7 @@ attribute [local instance] Classical.propDecidable
 
 /-- Admissible digest outputs (the signer's acceptance test). -/
 noncomputable def admissibleSet : Finset HashOutput :=
-  Finset.univ.filter fun x => admissible (selections x) = true
+  Finset.univ.filter fun x => digestAdmissible x = true
 
 theorem acceptedWeight_eq_sum (w : HashOutput → ENNReal) :
     Sampling.acceptedWeight Sampling.digestDecode w =

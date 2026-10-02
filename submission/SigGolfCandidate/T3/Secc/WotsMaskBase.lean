@@ -143,10 +143,14 @@ theorem eval_bind_of {T T' : Answers} {α β : Type} {p : M α} {f : α → M β
 /-- A header keeps only `tag mod 2^8`, `lay mod 2^8`, `tree mod 2^40`, `position mod 2^32`, `index mod 2^32`. -/
 theorem header_normal (t l tr p ix : Nat) :
     header t l tr p ix = header (t % 256) (l % 256) (tr % 2 ^ 40) (p % 2 ^ 32) (ix % 2 ^ 32) := by
-  unfold header
-  apply congrArg (BitVec.ofNat 128)
-  simp only [Nat.reducePow]
-  omega
+  have htag : packedNodeTag (t % 256) ↔ packedNodeTag t := by simp only [packedNodeTag, Nat.mod_mod]
+  have htlo : tr % 1099511627776 % 4294967296 = tr % 4294967296 := by omega
+  have hthi : tr % 1099511627776 / 4294967296 % 256 = tr / 4294967296 % 256 := by omega
+  by_cases h : packedNodeTag t
+  · have h' := htag.mpr h
+    simp only [header, if_pos h, if_pos h', Nat.mod_mod, Nat.reducePow, htlo, hthi]
+  · have h' : ¬packedNodeTag (t % 256) := fun e => h (htag.mp e)
+    simp only [header, if_neg h, if_neg h', Nat.mod_mod, Nat.reducePow, htlo, hthi]
 
 theorem header_fields {t l tr p ix t' l' tr' p' ix' : Nat}
     (h : header t l tr p ix = header t' l' tr' p' ix') :

@@ -119,7 +119,7 @@ end Generic
 
 /-! ## Coordinates and the shared world -/
 
-/-- FTS secret positions: (index, coordinate, global leaf `256·bucket + leaf`). -/
+/-- FTS secret positions: (index, coordinate, global leaf `128·bucket + leaf`). -/
 abbrev FtsCoord := Fin (2^31) × Fin 7 × Fin 2048
 
 def toLeafPos (f : FtsCoord) : CanonGraph.FtsLeafPos := ⟨f.1, f.2.1, f.2.2⟩
@@ -220,7 +220,7 @@ theorem decodeProbe_of_hdr {x : HashInput} {t l tr p ix : Nat} (hx : Extract.hdr
   apply ht
   have h1 := congrArg (fun v : BitVec 128 => v.toNat % 2 ^ 16 / 2 ^ 8) hh
   simp only [header, BitVec.toNat_ofNat] at h1
-  omega
+  split_ifs at h1 <;> omega
 
 /-! ## Secrets, openings, disclosures, guesses -/
 
@@ -289,8 +289,8 @@ theorem honestInput_ftsLeaf (answers : Answers) (f : FtsCoord) :
   rw [h]
   rfl
 
-/-- Global leaf of a selection (bucket < 8, leaf < 256 for every selection). -/
-def leafIndex (bucket leaf : Nat) : Fin 2048 := ⟨(bucket * 256 + leaf) % 2048, Nat.mod_lt _ (by decide)⟩
+/-- Global leaf of a selection (bucket < 16, leaf < 128 for every selection). -/
+def leafIndex (bucket leaf : Nat) : Fin 2048 := ⟨(bucket * 128 + leaf) % 2048, Nat.mod_lt _ (by decide)⟩
 
 /-- The signer's FTS index of a digest output. -/
 def outputIndex (output : HashOutput) : Fin (2^31) := ⟨output.toNat % 2 ^ 31, Nat.mod_lt _ (by positivity)⟩

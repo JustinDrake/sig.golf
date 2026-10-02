@@ -10,7 +10,7 @@ The heap arena holds node `(ℓ, i)` of the coordinate tree at heap index `hp (�
 * `desc_loop` : the descent (`fr_desc`, 296..309) from `LEV = l` emits `descL g l` at `PP`;
 * `asc_loop` : the ascent (`fr_asc`, 311..327) from `LEV = 0` emits `ascR g e` and stops at the level `e`
   where the next leaf's ancestor is the right sibling (or at 8 for the last leaf);
-* `fr_leaves` : the three leaves (`fr_leaf`, 280..330) emit `mf 8 8 [g0, g1, g2]` — Core's `frontier`.
+* `fr_leaves` : the three leaves (`fr_leaf`, 280..330) emit `mf 7 7 [g0, g1, g2]` — Core's `frontier`.
 -/
 
 namespace SigGolfCandidate.T3M.Sign
@@ -191,11 +191,11 @@ theorem ascFrom_length_le (g : Nat) : ∀ n l, (ascFrom g l n).length ≤ n
     have := ascFrom_length_le g n (l + 1)
     split_ifs <;> simp <;> omega
 
-/-- **The ascent** (`fr_asc`, 311..327) from `LEV = l` to the stop level `e = l + n ≤ 8` (the next leaf's
-ancestor is the right sibling at `e`, or `e = 8`): emits `ascFrom g l n` and ends at `fr_asc_done` (328). -/
-theorem asc_loop (t0 : MachineState) (g nxt e : Nat) (hg : g < 2048) (he : e ≤ 8) (hnxt : nxt < 2 ^ 64)
+/-- **The ascent** (`fr_asc`, 311..327) from `LEV = l` to the stop level `e = l + n ≤ 7` (the next leaf's
+ancestor is the right sibling at `e`, or `e = 7`): emits `ascFrom g l n` and ends at `fr_asc_done` (328). -/
+theorem asc_loop (t0 : MachineState) (g nxt e : Nat) (hg : g < 2048) (he : e ≤ 7) (hnxt : nxt < 2 ^ 64)
     (hne : ∀ l' < e, (2048 + g) / 2 ^ l' % 2 = 0 → nxt / 2 ^ l' ≠ (2048 + g) / 2 ^ l' ^^^ 1)
-    (hend : e = 8 ∨ ((2048 + g) / 2 ^ e % 2 = 0 ∧ nxt / 2 ^ e = (2048 + g) / 2 ^ e ^^^ 1)) :
+    (hend : e = 7 ∨ ((2048 + g) / 2 ^ e % 2 = 0 ∧ nxt / 2 ^ e = (2048 + g) / 2 ^ e ^^^ 1)) :
     ∀ (n l : Nat), l + n = e → ∀ (t : MachineState) (pp : Nat),
     t.pc = pcOf 311 → t.getReg .x22 = BitVec.ofNat 64 l → t.getReg .x20 = BitVec.ofNat 64 (2048 + g) →
     t.getReg .x21 = BitVec.ofNat 64 nxt → t.getReg .x2 = BitVec.ofNat 64 FTS → t.getReg .x16 = BitVec.ofNat 64 pp →
@@ -209,12 +209,12 @@ theorem asc_loop (t0 : MachineState) (g nxt e : Nat) (hg : g < 2048) (he : e ≤
     have hl : l = e := by omega
     subst hl
     obtain ⟨t1, st1, t1pc, t1r, t1f⟩ := blk311_spec t hpc l (by omega) h22
-    by_cases h8 : ¬ l < 8
+    by_cases h8 : ¬ l < 7
     · rw [if_neg h8] at t1pc
       exact ⟨t1, 2, st1, by omega, t1pc, by rw [t1r.get (by simp)]; exact h22,
         by rw [t1r.get (by simp), h16]; simp [ascFrom], Emitted.nil _ _ _, t1r.mono (by simp),
         t1f.mono (fun _ _ h => h.elim)⟩
-    · have hl8 : l < 8 := by omega
+    · have hl8 : l < 7 := by omega
       obtain ⟨hb, hs⟩ : (2048 + l * 0 + g) / 2 ^ l % 2 = 0 ∧ nxt / 2 ^ l = (2048 + g) / 2 ^ l ^^^ 1 := by
         rcases hend with h | h
         · omega
@@ -320,9 +320,9 @@ theorem asc_loop (t0 : MachineState) (g nxt e : Nat) (hg : g < 2048) (he : e ≤
 `nxt`, descent from `DSTART = s`, ascent stopping at `e`; emits `descL g s ++ ascR g e`, sets `DSTART = e`,
 `J = j + 1`. -/
 theorem fr_leaf_step (t0 : MachineState) (j g nxt s e rowp pp : Nat) (hj : j < 3) (hg : g < 2048)
-    (hs : s ≤ 8) (he : e ≤ 8) (hnxt : nxt < 2 ^ 64)
+    (hs : s ≤ 7) (he : e ≤ 7) (hnxt : nxt < 2 ^ 64)
     (hne : ∀ l' < e, (2048 + g) / 2 ^ l' % 2 = 0 → nxt / 2 ^ l' ≠ (2048 + g) / 2 ^ l' ^^^ 1)
-    (hend : e = 8 ∨ ((2048 + g) / 2 ^ e % 2 = 0 ∧ nxt / 2 ^ e = (2048 + g) / 2 ^ e ^^^ 1))
+    (hend : e = 7 ∨ ((2048 + g) / 2 ^ e % 2 = 0 ∧ nxt / 2 ^ e = (2048 + g) / 2 ^ e ^^^ 1))
     (hrow : rowp + 8 * j + 16 ≤ 2 ^ 24) (hrow8 : rowp % 8 = 0)
     (t : MachineState) (hpc : t.pc = pcOf 280) (h19 : t.getReg .x19 = BitVec.ofNat 64 j)
     (h23 : t.getReg .x23 = BitVec.ofNat 64 s) (h25 : t.getReg .x25 = BitVec.ofNat 64 rowp)
@@ -404,9 +404,9 @@ theorem fr_leaf_step (t0 : MachineState) (j g nxt s e rowp pp : Nat) (hj : j < 3
     · exact h.elim
 
 open SigGolfCandidate.T3M (heap_sib_inv heap_sib lcaLevel_pos div_eq_iff_lca) in
-/-- The stop test of the ascent of `g` with next leaf `g' > g` (LCA level `d ≤ 8`): the walk stops exactly at
+/-- The stop test of the ascent of `g` with next leaf `g' > g` (LCA level `d ≤ 7`): the walk stops exactly at
 level `d - 1`. -/
-theorem stop_facts {g g' : Nat} (hg : g < 2048) (hg' : g' < 2048) (hlt : g < g') (hd : lcaLevel g g' ≤ 8) :
+theorem stop_facts {g g' : Nat} (hg : g < 2048) (hg' : g' < 2048) (hlt : g < g') (hd : lcaLevel g g' ≤ 7) :
     (∀ l' < lcaLevel g g' - 1, (2048 + g) / 2 ^ l' % 2 = 0 →
       (2048 + g') / 2 ^ l' ≠ (2048 + g) / 2 ^ l' ^^^ 1) ∧
     ((2048 + g) / 2 ^ (lcaLevel g g' - 1) % 2 = 0 ∧
@@ -433,7 +433,7 @@ theorem stop_facts {g g' : Nat} (hg : g < 2048) (hg' : g' < 2048) (hlt : g < g')
 
 /-- The last leaf's ascent never stops before level 8 (`NXT = 0`). -/
 theorem stop_last {g : Nat} (hg : g < 2048) :
-    ∀ l' < 8, (2048 + g) / 2 ^ l' % 2 = 0 → 0 / 2 ^ l' ≠ (2048 + g) / 2 ^ l' ^^^ 1 := by
+    ∀ l' < 7, (2048 + g) / 2 ^ l' % 2 = 0 → 0 / 2 ^ l' ≠ (2048 + g) / 2 ^ l' ^^^ 1 := by
   intro l' hl' _ h
   have h2 : 2 ≤ (2048 + g) / 2 ^ l' := by
     rw [heap_eq (by omega)]
@@ -446,9 +446,9 @@ theorem stop_last {g : Nat} (hg : g < 2048) :
   omega
 
 /-- **The multiproof walk of one coordinate** (`fts_sec_done` .. `fr_done`, words 278..330): for the sorted
-row `g0 < g1 < g2` (LCA levels ≤ 8) the machine emits `mf 8 8 [g0, g1, g2]` at `PP`. -/
+row `g0 < g1 < g2` (LCA levels ≤ 7) the machine emits `mf 7 7 [g0, g1, g2]` at `PP`. -/
 theorem fr_three (t0 t : MachineState) (g0 g1 g2 rowp pp : Nat) (hg2 : g2 < 2048) (h01 : g0 < g1) (h12 : g1 < g2)
-    (hl01 : lcaLevel g0 g1 ≤ 8) (hl12 : lcaLevel g1 g2 ≤ 8)
+    (hl01 : lcaLevel g0 g1 ≤ 7) (hl12 : lcaLevel g1 g2 ≤ 7)
     (hrow : rowp + 32 ≤ 2 ^ 24) (hrow8 : rowp % 8 = 0)
     (hpc : t.pc = pcOf 278) (h25 : t.getReg .x25 = BitVec.ofNat 64 rowp)
     (h2 : t.getReg .x2 = BitVec.ofNat 64 FTS) (h16 : t.getReg .x16 = BitVec.ofNat 64 pp)
@@ -458,11 +458,11 @@ theorem fr_three (t0 t : MachineState) (g0 g1 g2 rowp pp : Nat) (hg2 : g2 < 2048
     (hpp8 : pp % 8 = 0) (hppl : pp + 16 * 48 ≤ FTS) (hdisj : pp + 16 * 48 ≤ rowp)
     (hheap : ∀ A, FTS ≤ A → A < FTS + 65536 → t.getMem (BitVec.ofNat 64 A) = t0.getMem (BitVec.ofNat 64 A)) :
     ∃ u k, Steps image t k k u ∧ k ≤ 1000 ∧ u.pc = pcOf 331 ∧
-      u.getReg .x16 = BitVec.ofNat 64 (pp + 16 * (mf 8 8 [g0, g1, g2]).length) ∧
+      u.getReg .x16 = BitVec.ofNat 64 (pp + 16 * (mf 7 7 [g0, g1, g2]).length) ∧
       u.getReg .x20 = BitVec.ofNat 64 (2048 + g2) ∧
-      Emitted t0 u pp (mf 8 8 [g0, g1, g2]) ∧ (mf 8 8 [g0, g1, g2]).length ≤ 48 ∧
+      Emitted t0 u pp (mf 7 7 [g0, g1, g2]) ∧ (mf 7 7 [g0, g1, g2]).length ≤ 48 ∧
       RegsExcept t u [.x6, .x7, .x16, .x19, .x20, .x21, .x22, .x23, .x28] ∧
-      Frame t u (fun A => pp ≤ A ∧ A < pp + 16 * (mf 8 8 [g0, g1, g2]).length) := by
+      Frame t u (fun A => pp ≤ A ∧ A < pp + 16 * (mf 7 7 [g0, g1, g2]).length) := by
   have hpos01 := SigGolfCandidate.T3M.lcaLevel_pos g0 g1
   have hpos12 := SigGolfCandidate.T3M.lcaLevel_pos g1 g2
   set e0 := lcaLevel g0 g1 - 1 with he0
@@ -474,13 +474,13 @@ theorem fr_three (t0 t : MachineState) (g0 g1 g2 rowp pp : Nat) (hg2 : g2 < 2048
   obtain ⟨s12, s12e⟩ := stop_facts (by omega) (by omega) h12 hl12
   -- leaf 0
   obtain ⟨u0, k0, st0, hk0, u0pc, u0x19, u0x23, u0x20, u0x16, u0em, u0len, u0r, u0f⟩ :=
-    fr_leaf_step t0 0 g0 (2048 + g1) 8 e0 rowp pp (by norm_num) (by omega) le_rfl (by omega) (by omega)
+    fr_leaf_step t0 0 g0 (2048 + g1) 7 e0 rowp pp (by norm_num) (by omega) le_rfl (by omega) (by omega)
       s01 (Or.inr s01e) (by omega) hrow8 t1 t1pc t1x19 t1x23 (by rw [t1r.get (by simp)]; exact h25)
       (by rw [t1r.get (by simp)]; exact h2) (by rw [t1r.get (by simp)]; exact h16)
       (by rw [t1f.get (by omega) (fun h => h)]; simpa using hm0) (fun h => absurd h (by norm_num))
       (fun _ => ⟨g1, by omega, rfl, by rw [t1f.get (by omega) (fun h => h)]; simpa using hm1⟩)
       hpp8 (by omega) hheap0
-  set L0 := descL g0 8 ++ ascR g0 e0 with hL0
+  set L0 := descL g0 7 ++ ascR g0 e0 with hL0
   have hu0row : ∀ A, rowp ≤ A → A < rowp + 24 → u0.getMem (BitVec.ofNat 64 A) = t.getMem (BitVec.ofNat 64 A) :=
     fun A h1 h2' => (u0f.get (by omega) (by omega)).trans (t1f.get (by omega) (fun h => h))
   have hu0heap : ∀ A, FTS ≤ A → A < FTS + 65536 → u0.getMem (BitVec.ofNat 64 A) = t0.getMem (BitVec.ofNat 64 A) :=
@@ -501,16 +501,16 @@ theorem fr_three (t0 t : MachineState) (g0 g1 g2 rowp pp : Nat) (hg2 : g2 < 2048
     fun A h1 h2' => (u1f.get (by sgo) (by sgo)).trans (hu0heap A h1 h2')
   -- leaf 2
   obtain ⟨u2, k2, st2', hk2, u2pc, u2x19, u2x23, u2x20, u2x16, u2em, u2len, u2r, u2f⟩ :=
-    fr_leaf_step t0 2 g2 0 e1 8 rowp (pp + 16 * L0.length + 16 * L1.length) (by norm_num) hg2 (by omega)
+    fr_leaf_step t0 2 g2 0 e1 7 rowp (pp + 16 * L0.length + 16 * L1.length) (by norm_num) hg2 (by omega)
       le_rfl (by norm_num) (stop_last hg2) (Or.inl rfl) (by omega) hrow8 u1 u1pc u1x19 u1x23
       (by rw [u1r.get (by simp), u0r.get (by simp), t1r.get (by simp)]; exact h25)
       (by rw [u1r.get (by simp), u0r.get (by simp), t1r.get (by simp)]; exact h2) u1x16
       (by rw [hu1row _ (by omega) (by omega)]; simpa using hm2) (fun _ => rfl) (fun h => absurd rfl h)
       (by omega) (by omega) hu1heap
-  set L2 := descL g2 e1 ++ ascR g2 8 with hL2
+  set L2 := descL g2 e1 ++ ascR g2 7 with hL2
   obtain ⟨u3, st3, u3pc, u3r, u3f⟩ := blk280_spec u2 u2pc 3 (by norm_num) u2x19
   rw [if_neg (by norm_num)] at u3pc
-  have hmf : mf 8 8 [g0, g1, g2] = L0 ++ L1 ++ L2 := by
+  have hmf : mf 7 7 [g0, g1, g2] = L0 ++ L1 ++ L2 := by
     simp only [mf, hL0, hL1, hL2, he0, he1, List.append_assoc]
   rw [hmf]
   refine ⟨u3, 2 + (k0 + (k1 + (k2 + 2))), st1.trans (st0.trans (st1'.trans (st2'.trans st3))), by omega, u3pc,

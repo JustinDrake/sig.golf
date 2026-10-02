@@ -82,6 +82,7 @@ theorem noContact_caseC (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
   obtain ⟨hlen, forgery, hf, hfresh, m, w, hof, hv, hsub⟩ :=
     WotsExtract.verdict_accepting g.value.1 t.value t.state c hc z.2 hac hcval
   obtain ⟨N, hdc, hN, hdq, hS, hcase⟩ := WotsExtract.verifyP_wots_cases_route z.2 m g.value.1 w hpk hv
+  have hgate : digestGate N=true := by simpa only [← hN] using verifyP_digestGate z.2 m g.value.1 w hv
   -- the verifier's queries are clear for the final knowledge
   have hsteps : StepsAgree z.2 t.steps := by
     intro step hstep event heq hi
@@ -127,7 +128,7 @@ theorem noContact_caseC (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     rw [hNz] at hev
     exact List.mem_append_right _ (List.mem_append_right _ hev)
   have hcaseC : BPB.CaseCAt z.2 m w (QueryRecorded.recordedTrace z.1).events :=
-    ⟨N, hdc, hN, hdigest, hS, hgood, hfts⟩
+    ⟨N, hdc, hN, hdigest, hS, hgate, hgood, hfts⟩
   have hext : SourceReplay.Extends t.untag.state (QueryRecorded.recordedTrace z.1).state := by
     rw [hstate]; exact htc
   by_cases hsd : BPB.SignedDigest t.value.2 m w

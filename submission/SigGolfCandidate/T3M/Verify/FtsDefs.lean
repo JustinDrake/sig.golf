@@ -1,4 +1,4 @@
-import SigGolfCandidate.T3M.Verify.FtsCheck
+import SigGolfCandidate.T3M.Verify.DigestGate
 
 /-!
 # The FTS stream machine: invariants at the block boundaries (T3M)
@@ -10,7 +10,7 @@ Ghost context `FCtx` (public key, witness, digest answer `a`): `idx = a mod 2^31
   stream (and the zero memory after the witness) from the header pointer `ptr` on are original — **an overflowing
   stream reads only original witness bytes** (the verifier writes only behind the pointer and inside the segment
   being hashed);
-* `FB F c m` : the constant registers (`gkF`, coordinate words `ckF c`, `s6 = idx`), `Glob`, the 21 sorted heap
+* `FB F c m` : the constant registers (`gkF`, coordinate words `packedCK c F.idx`, `s6 = idx`), `Glob`, the 21 sorted heap
   indices at `ETAB`, the stack sentinel, the zero pads of the merge frames;
 * `StackOK stk m` : stack element `i` (from the bottom) in merge frame `i + 1` (`pnode` at `+0`, `Q` at `-16`);
 * `PendOK` : the pending block (leaf block with its header, or the popped merge frame `[pnode | T | 0 | node]`);
@@ -55,7 +55,7 @@ def leafW0 (c : Nat) : Nat := 0x901 + 65536 * c
 
 structure FB (F : FCtx) (c : Nat) (m : MachineState) : Prop where
   glob : Glob gkF F.w F.pk m
-  ck : KnownOK (ckF c) m
+  ck : KnownOK (packedCK c F.idx) m
   idx : m.getReg .x22 = BitVec.ofNat 64 F.idx
   etab : ∀ s, s < 21 → m.getMem (BitVec.ofNat 64 (ETAB + 8 * s)) = BitVec.ofNat 64 (2048 + F.g s)
   sent : m.getMem (BitVec.ofNat 64 SENTINEL) = -1#64
@@ -76,12 +76,12 @@ def RootsOK (roots : List Digest) (m : MachineState) : Prop :=
 /-- The pending block of the next segment (at `x10`), with its header written. -/
 def PendOK (F : FCtx) (c d : Nat) (node : Digest) (m : MachineState) : Pending → Prop
   | .leaf s g => s / 3 = c ∧ s < 21 ∧ g = F.g s ∧ m.getReg .x10 = BitVec.ofNat 64 (WIT + 64 + 48 * s) ∧
-      m.getMem (BitVec.ofNat 64 (leafT s)) = BitVec.ofNat 64 (leafW0 c) ∧
-      m.getMem (BitVec.ofNat 64 (leafT s + 8)) = BitVec.ofNat 64 (hdr1 F.idx g)
+      m.getMem (BitVec.ofNat 64 (leafT s)) = BitVec.ofNat 64 (hdr1 (leafW0 c) F.idx) ∧
+      m.getMem (BitVec.ofNat 64 (leafT s + 8)) = BitVec.ofNat 64 (hdr1 g 0)
   | .merge heap left => d + 1 ≤ 2 ∧ heap < 2048 ∧ m.getReg .x10 = BitVec.ofNat 64 (frameA (d + 1)) ∧
       DigAt m (frameA (d + 1)) left ∧
-      m.getMem (BitVec.ofNat 64 (frameA (d + 1) + 16)) = BitVec.ofNat 64 (nodeW0 c) ∧
-      m.getMem (BitVec.ofNat 64 (frameA (d + 1) + 24)) = BitVec.ofNat 64 (hdr1 F.idx heap) ∧
+      m.getMem (BitVec.ofNat 64 (frameA (d + 1) + 16)) = BitVec.ofNat 64 (hdr1 (nodeW0 c) F.idx) ∧
+      m.getMem (BitVec.ofNat 64 (frameA (d + 1) + 24)) = BitVec.ofNat 64 (hdr1 heap 0) ∧
       DigAt m (frameA (d + 1) + 48) node
 
 def isLeafP : Pending → Bool
@@ -211,14 +211,14 @@ structure CoordIn (F : FCtx) (c : Nat) (roots : List Digest) (stk : List (Digest
 /-! ## Budgets -/
 
 def segRem (c j d : Nat) : Nat := 5 - 2 * j + d + 5 * (6 - c)
-def tailsRem (c j d : Nat) : Nat := 4 * ((2 - j) + 2 * (6 - c)) + 8 * (d + 2 - j + 2 * (6 - c)) + (1 + (6 - c))
+def tailsRem (c j d : Nat) : Nat := 4 * ((2 - j) + 2 * (6 - c)) + 7 * (d + 2 - j + 2 * (6 - c)) + (1 + (6 - c))
 def leafRem (c j : Nat) : Nat := (if j = 0 then 13 else if j = 1 then 7 else 0) + 20 * (6 - c)
-def coordRem (c : Nat) : Nat := 5 * (6 - c) + 2
+def coordRem (c : Nat) : Nat := 7 * (6 - c) + 4
 
 /-- Accepting runs from a dispatch: 15 per segment, 16 per fold (at most 124 in total), tails, leaf codes,
 coordinate ends, the forest (24). -/
 def Afts (c j d folds A' : Nat) : Nat :=
-  15 * segRem c j d + 16 * (124 - folds) + tailsRem c j d + leafRem c j + coordRem c + 24 + A'
+  15 * segRem c j d + 15 * (121 - folds) + tailsRem c j d + leafRem c j + coordRem c + 24 + A'
 /-- Every run from a dispatch: at most 191 per segment. -/
 def Cfts (c j d C' : Nat) : Nat := 191 * segRem c j d + tailsRem c j d + leafRem c j + coordRem c + 24 + C'
 

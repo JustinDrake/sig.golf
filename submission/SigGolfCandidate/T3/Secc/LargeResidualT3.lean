@@ -100,14 +100,14 @@ def chainItem (L : LeafPos) (i d : Nat) : Coord :=
 
 /-- The opened secrets of one FTS coordinate (Core's `signPayload` order). -/
 def ftsOpened (index : Fin (2^31)) (coord : Nat) (sel : Selection) : List Coord :=
-  (sel.leaves.map (fun s => sel.bucket * 256 + s)).filterMap fun leaf =>
+  (sel.leaves.map (fun s => sel.bucket * 128 + s)).filterMap fun leaf =>
     if h : leaf < 2048 then some (.inr (.inr ⟨index, fin7 coord, ⟨leaf, h⟩⟩)) else none
 
-/-- The proof nodes of one FTS coordinate: frontier (inner) nodes, then the three outer nodes. -/
+/-- The proof nodes of one FTS coordinate: frontier (inner) nodes, then the four outer nodes. -/
 def ftsProof (index : Fin (2^31)) (coord : Nat) (sel : Selection) : List Coord :=
-  ((frontier (sel.leaves.map (fun s => sel.bucket * 256 + s)) 8 sel.bucket).filterMap fun p =>
+  ((frontier (sel.leaves.map (fun s => sel.bucket * 128 + s)) 7 sel.bucket).filterMap fun p =>
       ftsChild index (fin7 coord) p.1 p.2) ++
-    ((List.range 3).filterMap fun j => ftsChild index (fin7 coord) (8 + j) (sel.bucket / 2 ^ j ^^^ 1))
+    ((List.range 4).filterMap fun j => ftsChild index (fin7 coord) (7 + j) (sel.bucket / 2 ^ j ^^^ 1))
 
 /-- The FTS part of a signature: opened secrets and proof nodes, coordinate by coordinate. -/
 def ftsItems (index : Fin (2^31)) (chosen : List Selection) : List Coord :=

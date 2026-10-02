@@ -29,7 +29,7 @@ def leafQuery (index coord : Nat) (leaves : List Nat) (values : List Digest) (pa
 
 /-- **A returning subtree run queried every selected leaf below it.** -/
 theorem recoverChildP_leaf_queried (answers : Correctness.Answers) (index coord : Nat) (leaves : List Nat)
-    (values : List Digest) (proof : Fin 124 → Digest) (pads : Pads) :
+    (values : List Digest) (proof : Fin 121 → Digest) (pads : Pads) :
     ∀ level node used (v : Digest) (next : Nat),
       evalWithAnswerFn answers (recoverChildP index coord leaves values proof pads level node used) =
         some (v, next) →
@@ -84,14 +84,14 @@ theorem recoverChildP_leaf_queried (answers : Correctness.Answers) (index coord 
 /-- Position facts of the `j`-th selected leaf of a machine-accepted selection. -/
 theorem selLeaf_facts (sel : Selection) (hs : SelOk sel) (j : Nat) (hj : j < 3) :
     (selectedLeaves sel).idxOf (selLeaf sel j) = j ∧ selLeaf sel j ∈ selectedLeaves sel ∧
-      sel.bucket * 2 ^ 8 ≤ selLeaf sel j ∧ selLeaf sel j < (sel.bucket + 1) * 2 ^ 8 := by
+      sel.bucket * 2 ^ 7 ≤ selLeaf sel j ∧ selLeaf sel j < (sel.bucket + 1) * 2 ^ 7 := by
   have hsel := hs.selected
   have h01 := hs.s01
   have h12 := hs.s12
   have h2 := hs.l2
-  have e0 : selLeaf sel 0 = sel.bucket * 256 + sel.leaves.getD 0 0 := rfl
-  have e1 : selLeaf sel 1 = sel.bucket * 256 + sel.leaves.getD 1 0 := rfl
-  have e2 : selLeaf sel 2 = sel.bucket * 256 + sel.leaves.getD 2 0 := rfl
+  have e0 : selLeaf sel 0 = sel.bucket * 128 + sel.leaves.getD 0 0 := rfl
+  have e1 : selLeaf sel 1 = sel.bucket * 128 + sel.leaves.getD 1 0 := rfl
+  have e2 : selLeaf sel 2 = sel.bucket * 128 + sel.leaves.getD 2 0 := rfl
   generalize sel.leaves.getD 0 0 = x0 at h01 e0
   generalize sel.leaves.getD 1 0 = x1 at h01 h12 e1
   generalize sel.leaves.getD 2 0 = x2 at h12 h2 e2
@@ -136,10 +136,10 @@ theorem recoverFtsP_leaf_queried (answers : Correctness.Answers) (sig : Signatur
   rw [queried_bind]
   apply List.mem_append_left
   rcases h1 : evalWithAnswerFn answers (recoverChildP index c (selectedLeaves (chosen.getD c ⟨0, []⟩))
-      (FtsExtract.coordValues sig c) sig.proof pads 8 (chosen.getD c ⟨0, []⟩).bucket (us c)) with _ | ⟨value, next⟩
+      (FtsExtract.coordValues sig c) sig.proof pads 7 (chosen.getD c ⟨0, []⟩).bucket (us c)) with _ | ⟨value, next⟩
   · simp only [FtsExtract.coordValues] at h1; rw [h1] at hstep; simp at hstep
   obtain ⟨hidx, hmem, hlo, hhi⟩ := selLeaf_facts _ (hc c hc7) j hj
-  have hq1 := recoverChildP_leaf_queried answers index c _ _ sig.proof pads 8 _ (us c) value next h1 _ hmem hlo hhi
+  have hq1 := recoverChildP_leaf_queried answers index c _ _ sig.proof pads 7 _ (us c) value next h1 _ hmem hlo hhi
   simp only [leafQuery, hidx] at hq1
   have hval : (FtsExtract.coordValues sig c).getD j 0 = sig.secrets ⟨(c * 3 + j) % 21, Nat.mod_lt _ (by decide)⟩ := by
     simp [FtsExtract.coordValues, hj]
@@ -172,6 +172,10 @@ theorem verifyP_fts_run (answers : Correctness.Answers) (m : Message) (pk : Dige
   swap
   · rw [if_pos (by simpa using hsel)] at hv; simp at hv
   rw [if_neg (by simpa using hsel)] at hv ⊢
+  by_cases hg : digestGate N = true
+  swap
+  · rw [if_pos (by simpa using hg)] at hv; simp at hv
+  rw [if_neg (by simpa using hg)] at hv ⊢
   rw [evalWithAnswerFn_bind] at hv
   rw [queried_bind]
   generalize hR : evalWithAnswerFn answers (ftsP w (N.toNat % 2 ^ 31) (selections N)) = rr at hv ⊢
@@ -232,7 +236,7 @@ theorem verifyP_leaf_queried (answers : Correctness.Answers) (m : Message) (pk :
     exact hq
   -- the opened position's probe is this query
   have hb := hsok.b
-  have hl256 : leaf < 256 := by
+  have hl256 : leaf < 128 := by
     have := hsok.l2; have := hsok.s01; have := hsok.s12
     rcases (show j = 0 ∨ j = 1 ∨ j = 2 by omega) with rfl | rfl | rfl <;> omega
   have hpos : (BPair.leafIndex sel.bucket leaf).val = selLeaf sel j := by
