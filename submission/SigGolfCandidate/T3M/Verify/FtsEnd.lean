@@ -68,7 +68,7 @@ theorem tailP_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dig
     fun B hB h1 => by rw [hmem B hB, if_neg h1]
   have hfb : FB F c u := by
     refine ⟨hu.glob _ _ _ h.fb.glob (RelOK.nil m), fun p hp => ?_, ?_, fun s hs => ?_, ?_, fun dd h1 h2 => ?_, hc7⟩
-    · rw [hu.keep p.1 (by simp only [ckF, List.mem_cons, List.not_mem_nil, or_false] at hp; rcases hp with rfl | rfl <;> simp)]
+    · rw [hu.keep p.1 (by simp only [packedCK, List.mem_cons, List.not_mem_nil, or_false] at hp; rcases hp with rfl | rfl <;> simp)]
       exact h.fb.ck p hp
     · rw [hu.keep .x22 (by simp)]; exact h.fb.idx
     · rw [hfr _ (by unfold ETAB; omega) (by unfold ETAB frameA; omega)]
@@ -195,7 +195,7 @@ theorem coord_step (F : FCtx) (c : Nat) (roots : List Digest) (stk : List (Diges
     simp only [coordKnown, List.mem_append, List.mem_singleton] at hp
     rcases hp with (hp | hp) | rfl
     · exact h.fb.glob.1 p hp
-    · exact h.fb.ck p hp
+    · exact h.fb.leafCK p hp
     · exact h.s9
   have tC := coordCheck1_at c hc7
   unfold coordCheck1 at tC
@@ -246,7 +246,19 @@ theorem coord_step (F : FCtx) (c : Nat) (roots : List Digest) (stk : List (Diges
     have hpost : KnownOK (coordKnown (c + 1)) u := by
       have := hu.known; simp only [coordPost, if_pos hc6] at this; exact this
     have hst : Steps image m 7 7 u := hu.steps.of_eq (by simp [coordSpec, hc6]) (by simp [coordSpec, hc6])
-    refine ⟨u, hst, ⟨⟨hu.glob _ _ _ h.fb.glob (RelOK.nil m), fun p hp => hpost p (by simp [coordKnown, hp]),
+    have hck : KnownOK (packedCK (c + 1) F.idx) u := by
+      intro p hp
+      simp only [packedCK, List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl
+      · rw [hu.regs (.x27, .bin .add (.reg .x27) (cw 65536)) (by simp [coordSpec, hc6])]
+        have hr := h.fb.ck (.x27, BitVec.ofNat 64 (hdr1 (0xa01 + 65536 * c) F.idx)) (by simp [packedCK])
+        simp only [E.eval, BinOp.eval, cw, hr, BitVec.ofNat_add_ofNat]
+        congr 1
+        unfold hdr1
+        have hi := F.idx_lt
+        omega
+      · exact hpost _ (by simp [coordKnown, leafCK])
+    refine ⟨u, hst, ⟨⟨hu.glob _ _ _ h.fb.glob (RelOK.nil m), hck,
       by rw [hu.keep .x22 (by simp)]; exact h.fb.idx, fun s hs => by rw [hmem]; exact h.fb.etab s hs,
       by rw [hmem]; exact h.fb.sent, fun d h1 h2 => by rw [hmem, hmem]; exact h.fb.fpad d h1 h2, by omega⟩,
       ?_, ?_, ?_, fun h0 => absurd h0 (by decide), ?_, StackOK.nil u, hrts, hlen, h.wit.transport hmem, ?_⟩⟩
