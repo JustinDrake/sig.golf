@@ -9,9 +9,9 @@ import SigGolfCandidate.T3M.Sign.LowTree
 # Sign: layer 0 (words 427..542) refines `signLayers cache index 1`
 
 `layer_0` (427): the layer-0 `counter_search` (E's kernel), then Core's `signTop`: the signature-only leaf
-(values to `SIG + 2336`), the sibling leaf (root to the path slot `SIG + 3264`), the two leaves of the sibling
-pair (roots to `NODE`, `NODE + 48`), their node hash (to `SIG + 3280`), the ten masked cache nodes (`tp_masks`,
-to `SIG + 3296 ..`), `HALT(0)`. `l0Spec_of : CounterSearchSpec sk → L0Spec sk cache`.
+(values to `SIG + 2256`), the sibling leaf (root to the path slot `SIG + 3184`), the two leaves of the sibling
+pair (roots to `NODE`, `NODE + 48`), their node hash (to `SIG + 3200`), the ten masked cache nodes (`tp_masks`,
+to `SIG + 3216 ..`), `HALT(0)`. `l0Spec_of : CounterSearchSpec sk → L0Spec sk cache`.
 -/
 
 namespace SigGolfCandidate.T3M.Sign
@@ -37,11 +37,11 @@ theorem route_0 {index : Nat} (h : index < 2 ^ 31) : route index 0 = (index / 2 
 
 /-! ## The leaves of layer 0 -/
 
-/-- The signature-only leaf (values to `SIG + 2336`; `dest` = the unused root slot left in `s9`). -/
+/-- The signature-only leaf (values to `SIG + 2256`; `dest` = the unused root slot left in `s9`). -/
 def tl0 (leaf : Nat) (ds : List Nat) (dest : Nat) : LeafArgs :=
-  ⟨0, 0, leaf, ds, true, DIGITS, SIG + 2336, dest, 447⟩
-/-- The sibling leaf (root to the path slot `SIG + 3264`). -/
-def tl1 (leaf : Nat) : LeafArgs := ⟨0, 0, leaf ^^^ 1, [], false, ZDIG, DUMMY, SIG + 3264, 456⟩
+  ⟨0, 0, leaf, ds, true, DIGITS, SIG + 2256, dest, 447⟩
+/-- The sibling leaf (root to the path slot `SIG + 3184`). -/
+def tl1 (leaf : Nat) : LeafArgs := ⟨0, 0, leaf ^^^ 1, [], false, ZDIG, DUMMY, SIG + 3184, 456⟩
 /-- The left leaf of the sibling pair (root to `NODE`). -/
 def tl2 (leaf : Nat) : LeafArgs := ⟨0, 0, (leaf / 2 ^^^ 1) * 2, [], false, ZDIG, DUMMY, NODE, 464⟩
 /-- The right leaf of the sibling pair (root to `NODE + 48`). -/
@@ -191,8 +191,8 @@ theorem frame_l0_trans {s t u : MachineState} (h1 : Frame s t L0W) (h2 : Frame t
   (h1.trans h2).mono (fun A _ h => by rcases h with h | h <;> exact h)
 
 theorem leafW_l0 {A : LeafArgs} (hlay : A.lay = 0)
-    (hv : A.valp + 16 * 58 ≤ SIG ∨ (SIG + 2336 ≤ A.valp ∧ A.valp + 16 * 58 ≤ SIG + 3456) ∨ SIG + 5824 ≤ A.valp)
-    (hd : A.dest + 16 ≤ SIG ∨ (SIG + 2336 ≤ A.dest ∧ A.dest + 16 ≤ SIG + 3456) ∨ SIG + 5824 ≤ A.dest) :
+    (hv : A.valp + 16 * 58 ≤ SIG ∨ (SIG + 2256 ≤ A.valp ∧ A.valp + 16 * 58 ≤ SIG + 3376) ∨ SIG + 5744 ≤ A.valp)
+    (hd : A.dest + 16 ≤ SIG ∨ (SIG + 2256 ≤ A.dest ∧ A.dest + 16 ≤ SIG + 3376) ∨ SIG + 5744 ≤ A.dest) :
     ∀ X, LeafW A X → L0W X := by
   have hn : A.n = 58 := by show chainCount A.lay = 58; rw [hlay]; rfl
   intro X hX
@@ -285,10 +285,10 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
         rw [u1f.getByte (by sgo) (fun h => h)]; exact udig i hi)
       (fun i hi => ⟨by show ds.getD i 0 < 256; have := hd7 i hi; omega, fun h => by simp [tl0] at h⟩)
       (by show DIGITS + 58 ≤ 2 ^ 24; sgo) (fun i hi => by unfold LeafW; simp only [tl0, LeafArgs.n, chainCount_0]; sgo)
-      (by show (SIG + 2336) % 8 = 0; sgo) (by show SIG + 2336 + 16 * 58 ≤ 2 ^ 24; sgo)
-      (Or.inl (by show SIG + 2336 + 16 * 58 ≤ PRIV; sgo)) (fun h => by simp [tl0] at h)
+      (by show (SIG + 2256) % 8 = 0; sgo) (by show SIG + 2256 + 16 * 58 ≤ 2 ^ 24; sgo)
+      (Or.inl (by show SIG + 2256 + 16 * 58 ≤ PRIV; sgo)) (fun h => by simp [tl0] at h)
       (by show dest0 + 16 ≤ 2 ^ 24; omega) (Or.inl (by show dest0 + 16 ≤ PRIV; sgo))
-      (Or.inl (by show dest0 + 16 ≤ SIG + 2336; sgo))
+      (Or.inl (by show dest0 + 16 ≤ SIG + 2256; sgo))
   obtain ⟨k0le, c0le⟩ := tl0_costs leaf dest0 hd7
   obtain ⟨k1, c1, k2, c2, k3, c3⟩ := tl_costs leaf
   have hL0 := buildLeaf_tsimS subAt_sign sk hp0 u1pc
@@ -298,9 +298,9 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
     (by omega) (fun _ _ h => h)
   obtain ⟨root0, values⟩ := r0
   obtain ⟨v0pc, -, v0vals, v0len, -, v0r, v0f⟩ := hv0
-  have hbv0 : Base sk cache v0 := base_leaf hbu1 rfl v0f v0r (Or.inl (by show SIG + 2336 + 16 * 58 ≤ PRIV; sgo))
-    (Or.inl (by show SIG + 2336 + 16 * 58 ≤ REGION; sgo)) (Or.inl (by show dest0 + 16 ≤ REGION; sgo))
-    (Or.inl (by show dest0 + 16 ≤ ZDIG; sgo)) (Or.inl (by show SIG + 2336 + 16 * 58 ≤ ZDIG; sgo))
+  have hbv0 : Base sk cache v0 := base_leaf hbu1 rfl v0f v0r (Or.inl (by show SIG + 2256 + 16 * 58 ≤ PRIV; sgo))
+    (Or.inl (by show SIG + 2256 + 16 * 58 ≤ REGION; sgo)) (Or.inl (by show dest0 + 16 ≤ REGION; sgo))
+    (Or.inl (by show dest0 + 16 ≤ ZDIG; sgo)) (Or.inl (by show SIG + 2256 + 16 * 58 ≤ ZDIG; sgo))
   have trv0 : TopRegs leaf v0 := tr1.of v0r (by decide)
   have fv0 : Frame t v0 L0W := frame_l0_trans (frame_l0_trans (frame_l0_trans (frame_l0 t1f (fun _ h => h.elim))
     (frame_l0 uf (fun A hA => by unfold CsW at hA; unfold L0W; constructor <;> sgo)))
@@ -309,7 +309,7 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
   show TBSim image sk v0 36000 ((topPath (cacheDec cache) leaf >>= fun path => pure (values, path)) >>=
     fun part => pure (some [part])) (L0Post t)
   simp only [topPath, bind_assoc, pure_bind]
-  -- the sibling leaf (root to the path slot `SIG + 3264`)
+  -- the sibling leaf (root to the path slot `SIG + 3184`)
   obtain ⟨v0a, s447, v0apc, v0ax1, v0ax31, v0ax22, v0ax23, v0ax25, v0ax18, v0ar, v0af⟩ :=
     blk447_spec v0 v0pc leaf hl trv0.x14
   have hbv0a : Base sk cache v0a := hbv0.frame v0af v0ar (by decide) (fun _ _ _ h => h)
@@ -323,17 +323,17 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
         show ([] : List Nat).getD i 0 ≤ _; simp⟩)
       (by show ZDIG + 58 ≤ 2 ^ 24; sgo) (fun i hi => by unfold LeafW; simp only [tl1, LeafArgs.n, chainCount_0]; sgo)
       (by show DUMMY % 8 = 0; sgo) (by show DUMMY + 16 * 58 ≤ 2 ^ 24; sgo) (Or.inr (by show LEAFPK + 960 ≤ DUMMY; sgo))
-      (fun _ => by show (SIG + 3264) % 8 = 0; sgo) (by show SIG + 3264 + 16 ≤ 2 ^ 24; sgo)
-      (Or.inl (by show SIG + 3264 + 16 ≤ PRIV; sgo)) (Or.inl (by show SIG + 3264 + 16 ≤ DUMMY; sgo))
+      (fun _ => by show (SIG + 3184) % 8 = 0; sgo) (by show SIG + 3184 + 16 ≤ 2 ^ 24; sgo)
+      (Or.inl (by show SIG + 3184 + 16 ≤ PRIV; sgo)) (Or.inl (by show SIG + 3184 + 16 ≤ DUMMY; sgo))
   have hL1 := buildLeaf_tsimS subAt_sign sk hp1 v0apc
   rw [k1, c1] at hL1
   refine TBSim.mono (TBSim.steps s447 (TBSim.bind (W₂ := 18600) (TSim.toTBSim hL1 (by norm_num))
     (fun r1 v1 hv1 => ?_))) (by omega) (fun _ _ h => h)
   obtain ⟨v1pc, v1root, -, -, -, v1r, v1f⟩ := hv1
-  have v1root' : DigAt v1 (SIG + 3264) r1.1 := v1root rfl
+  have v1root' : DigAt v1 (SIG + 3184) r1.1 := v1root rfl
   have hbv1 : Base sk cache v1 := base_leaf hbv0a rfl v1f v1r (Or.inr (by show LEAFPK + 960 ≤ DUMMY; sgo))
-    (Or.inr (by show REGION + 32736 ≤ DUMMY; sgo)) (Or.inl (by show SIG + 3264 + 16 ≤ REGION; sgo))
-    (Or.inl (by show SIG + 3264 + 16 ≤ ZDIG; sgo)) (Or.inr (by show ZDIG + 64 ≤ DUMMY; sgo))
+    (Or.inr (by show REGION + 32736 ≤ DUMMY; sgo)) (Or.inl (by show SIG + 3184 + 16 ≤ REGION; sgo))
+    (Or.inl (by show SIG + 3184 + 16 ≤ ZDIG; sgo)) (Or.inr (by show ZDIG + 64 ≤ DUMMY; sgo))
   have trv1 : TopRegs leaf v1 := trv0a.of v1r (by decide)
   have fv1 : Frame t v1 L0W := frame_l0_trans (frame_l0_trans fv0 (frame_l0 v0af (fun _ h => h.elim)))
     (frame_l0 v1f (leafW_l0 rfl (by simp only [tl1]; sgo) (by simp only [tl1]; sgo)))
@@ -444,7 +444,7 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
   unfold nodeHash
   refine TBSim.mono (TBSim.steps s470 (TBSim.of_eq (TBSim.shortHash_bind (W := 516) (fetch_485 v3a v3apc) h5 hv hq
     (fun a => ?_)) rfl (by rw [hblk]))) (by omega) (fun _ _ h => h)
-  -- the node to the path slot `SIG + 3280`, the masked cache nodes
+  -- the node to the path slot `SIG + 3200`, the masked cache nodes
   have hwf := Frame.writeHash v3a a NOUT v3ax12 (by decide)
   have hlo := DigAt.writeHash_lo v3a a NOUT v3ax12 (by decide)
   obtain ⟨w, s486, wpc, wm0, wm8, wx22, wx24, wx20, wr, wf⟩ :=
@@ -469,12 +469,12 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
   rw [if_neg (by norm_num)] at x1pc
   obtain ⟨x2, s540, x2pc, x2x5, x2x10, -, x2f⟩ := blk540_spec x1 x1pc
   have fwx : Frame w x2 (fun A => TMW A ∨ False ∨ False) := hx.frame.trans (x1f.trans x2f)
-  have K3296 : KeepI w x2 SIG (SIG + 3296) := KeepI.of_frame fwx (fun A h1 h2 hA => by
+  have K3296 : KeepI w x2 SIG (SIG + 3216) := KeepI.of_frame fwx (fun A h1 h2 hA => by
     rcases hA with hA | hA | hA
     · unfold TMW at hA; sgo
     · exact hA
     · exact hA)
-  have K3280 : KeepI v1 x2 SIG (SIG + 3280) :=
+  have K3280 : KeepI v1 x2 SIG (SIG + 3200) :=
     ((((((KeepI.of_frame v1af (fun _ _ _ h => h)).trans (KeepI.of_frame v2f (fun A h1 h2 hA => by
       unfold LeafW at hA; simp only [tl2, LeafArgs.n, chainCount_0] at hA; sgo))).trans
       (KeepI.of_frame v2af (fun _ _ _ h => h))).trans (KeepI.of_frame v3f (fun A h1 h2 hA => by
@@ -482,7 +482,7 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
       (KeepI.of_frame v3af (fun A h1 h2 hA => by sgo))).trans
       ((KeepI.of_frame hwf (fun A h1 h2 hA => by sgo)).trans (KeepI.of_frame wf (fun A h1 h2 hA => by sgo)))).trans
       (K3296.mono le_rfl (by omega))
-  have K3264 : KeepI v0 x2 SIG (SIG + 3264) :=
+  have K3264 : KeepI v0 x2 SIG (SIG + 3184) :=
     ((KeepI.of_frame v0af (fun _ _ _ h => h)).trans (KeepI.of_frame v1f (fun A h1 h2 hA => by
       unfold LeafW at hA; simp only [tl1, LeafArgs.n, chainCount_0] at hA; sgo))).trans (K3280.mono le_rfl (by omega))
   refine TBSim.pure_steps (s498.trans s540) ⟨values, _, rfl, ⟨x2pc, x2x5, x2x10⟩, fun i hi => ?_, fun j hj => ?_, ?_⟩
@@ -491,12 +491,12 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
   · -- the path: the sibling leaf, the pair node, the masked cache nodes
     rcases j with _ | _ | j
     · exact K3280.digAt v1root' (by omega) (by omega) (by sgo)
-    · show DigAt x2 (SIG + 3264 + 16 * 1) (a.extractLsb' 0 128)
-      rw [show SIG + 3264 + 16 * 1 = SIG + 3280 by omega]
+    · show DigAt x2 (SIG + 3184 + 16 * 1) (a.extractLsb' 0 128)
+      rw [show SIG + 3184 + 16 * 1 = SIG + 3200 by omega]
       exact K3296.digAt ⟨wm0.trans hlo.1, wm8.trans hlo.2⟩ (by omega) (by omega) (by sgo)
-    · show DigAt x2 (SIG + 3264 + 16 * (j + 2)) (rest.getD j 0)
+    · show DigAt x2 (SIG + 3184 + 16 * (j + 2)) (rest.getD j 0)
       have := hx.out j (by rw [hlen]; omega)
-      rw [show SIG + 3264 + 16 * (j + 2) = SIG + 3296 + 16 * j by omega]
+      rw [show SIG + 3184 + 16 * (j + 2) = SIG + 3216 + 16 * j by omega]
       exact this.frame (x1f.trans x2f) (by sgo) (fun h => by rcases h with h | h <;> exact h)
         (fun h => by rcases h with h | h <;> exact h)
   · exact frame_l0_trans fw (frame_l0 fwx (fun A hA => by

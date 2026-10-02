@@ -4,11 +4,11 @@ import SigGolfCandidate.T3M.Search.Arith
 /-!
 # `select_ok` (stream E; shared by sign at base 543 and expand at base 354)
 
-`select_ok` (kernel offsets 3..102): for each coordinate `c < 7` extract the 27-bit window of `N` at
-bit `31 + 27c` (two doublewords at `NBUF`), split it into bucket and three leaves, sort the leaves
+`select_ok` (kernel offsets 3..102): for each coordinate `c < 7` extract the 25-bit window of `N` at
+bit `31 + 25c` (two doublewords at `NBUF`), split it into bucket and three leaves, sort the leaves
 (three compare-exchanges), reject a repeated leaf, accumulate `4 + bitlen (a ⊕ b) + bitlen (b ⊕ c)`
-onto `21`, store the row `256 bucket + leaf` (three doublewords at `SEL + 24c`); finally accept iff the
-total is `< 125`. Result in `a3` (`x13`), return through `ra`.
+onto `21`, store the row `128 bucket + leaf` (three doublewords at `SEL + 24c`); finally accept iff the
+total is `< 120`. Result in `a3` (`x13`), return through `ra`.
 -/
 
 namespace SigGolfCandidate.T3M.Search
@@ -61,32 +61,32 @@ theorem so9_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcOf (b 
   · intro r hr; simp at hr; cases r <;> simp_all [st_9, blk354_9.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_9, blk354_9.res, rv_simp]
 
-/-- Fields of the window `u`: bucket row base `t1 = 256 (u mod 8)`, leaves `s6, s7, s8`; first
+/-- Fields of the window `u`: bucket row base `t1 = 128 (u mod 16)`, leaves `s6, s7, s8`; first
 compare-exchange test `s7 ≥ s6`. -/
 theorem so31_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcOf (b + 31))
-    (u : Nat) (hu : u < 2 ^ 27) (h28 : s.getReg .x28 = BitVec.ofNat 64 u) :
+    (u : Nat) (hu : u < 2 ^ 25) (h28 : s.getReg .x28 = BitVec.ofNat 64 u) :
     ∃ t, Steps image s 9 9 t ∧
-      t.pc = (if u / 8 % 256 ≤ u / 2 ^ 11 % 256 then pcOf (b + 43) else pcOf (b + 40)) ∧
-      t.getReg .x6 = BitVec.ofNat 64 (u % 8 * 256) ∧
-      t.getReg .x22 = BitVec.ofNat 64 (u / 8 % 256) ∧
-      t.getReg .x23 = BitVec.ofNat 64 (u / 2 ^ 11 % 256) ∧
-      t.getReg .x24 = BitVec.ofNat 64 (u / 2 ^ 19 % 256) ∧
+      t.pc = (if u / 16 % 128 ≤ u / 2 ^ 11 % 128 then pcOf (b + 43) else pcOf (b + 40)) ∧
+      t.getReg .x6 = BitVec.ofNat 64 (u % 16 * 128) ∧
+      t.getReg .x22 = BitVec.ofNat 64 (u / 16 % 128) ∧
+      t.getReg .x23 = BitVec.ofNat 64 (u / 2 ^ 11 % 128) ∧
+      t.getReg .x24 = BitVec.ofNat 64 (u / 2 ^ 18 % 128) ∧
       RegsExcept s t [.x6, .x22, .x23, .x24] ∧ Frame s t (fun _ => False) := by
   have hu' : u < 2 ^ 64 := by omega
   refine ⟨_, symRun_sound (run_31 hK.2) (codeAt_k_31 hK) s hpc (by simp [st_31, blk354_31.res, rv_simp]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, pcE_31, rebase, blk354_31.res, E.eval, CmpOp.eval, h28, BinOp.eval,
-      ofNat_shr _ _ hu', ofNat_and255]
+      ofNat_shr _ _ hu', ofNat_and127]
     rw [ofNat_slt _ _ (by omega) (by omega)]
-    by_cases h : u / 8 % 256 ≤ u / 2 ^ 11 % 256 <;> simp [h]
+    by_cases h : u / 16 % 128 ≤ u / 2 ^ 11 % 128 <;> simp [h]
   · simp only [Result.toState_getReg, st_31, blk354_31.res]
-    t3n [h28, ofNat_shr _ _ hu', ofNat_and7, ofNat_and255]
+    t3n [h28, ofNat_shr _ _ hu', ofNat_and15, ofNat_and127]
   · simp only [Result.toState_getReg, st_31, blk354_31.res]
-    t3n [h28, ofNat_shr _ _ hu', ofNat_and7, ofNat_and255]
+    t3n [h28, ofNat_shr _ _ hu', ofNat_and15, ofNat_and127]
   · simp only [Result.toState_getReg, st_31, blk354_31.res]
-    t3n [h28, ofNat_shr _ _ hu', ofNat_and7, ofNat_and255]
+    t3n [h28, ofNat_shr _ _ hu', ofNat_and15, ofNat_and127]
   · simp only [Result.toState_getReg, st_31, blk354_31.res]
-    t3n [h28, ofNat_shr _ _ hu', ofNat_and7, ofNat_and255]
+    t3n [h28, ofNat_shr _ _ hu', ofNat_and15, ofNat_and127]
   · intro r hr; simp at hr; cases r <;> simp_all [st_31, blk354_31.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_31, blk354_31.res, rv_simp]
 
@@ -234,18 +234,18 @@ theorem so53_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcOf (b
     t3n [h25]
     rw [if_neg (by omega), if_neg (by omega), if_neg (by omega)]
 
-/-- `sel_check`: accept iff `s5 < 125`. -/
+/-- `sel_check`: accept iff `s5 < 120`. -/
 theorem so97_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcOf (b + 97)) (S : Nat)
     (hS : S < 2 ^ 63) (h21 : s.getReg .x21 = BitVec.ofNat 64 S) :
-    ∃ t, Steps image s 2 2 t ∧ t.pc = (if 125 ≤ S then pcOf (b + 101) else pcOf (b + 99)) ∧
+    ∃ t, Steps image s 2 2 t ∧ t.pc = (if 120 ≤ S then pcOf (b + 101) else pcOf (b + 99)) ∧
       RegsExcept s t [.x6] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound (run_97 hK.2) (codeAt_k_97 hK) s hpc (by simp [st_97, blk354_97.res, rv_simp]),
     ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, pcE_97, rebase, blk354_97.res, E.eval, CmpOp.eval, h21]
     rw [ofNat_slt _ _ hS (by omega)]
-    by_cases h : 125 ≤ S
-    · simp [h, show ¬ S < 125 by omega]
-    · simp [h, show S < 125 by omega]
+    by_cases h : 120 ≤ S
+    · simp [h, show ¬ S < 120 by omega]
+    · simp [h, show S < 120 by omega]
   · intro r hr; simp at hr; cases r <;> simp_all [st_97, blk354_97.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_97, blk354_97.res, rv_simp]
 
@@ -306,23 +306,23 @@ theorem exch {rlo rhi : Reg} {o nxt : Nat}
 /-- From the window `u` in `t3` (offset 31) to offset 51: bucket base in `t1`, the sorted leaves in
 `s6 ≤ s7 ≤ s8` (`sort3`), at most 20 cycles. -/
 theorem sort_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcOf (b + 31))
-    (u : Nat) (hu : u < 2 ^ 27) (h28 : s.getReg .x28 = BitVec.ofNat 64 u) :
+    (u : Nat) (hu : u < 2 ^ 25) (h28 : s.getReg .x28 = BitVec.ofNat 64 u) :
     ∃ k t, Steps image s k k t ∧ k ≤ 20 ∧ t.pc = pcOf (b + 51) ∧
-      t.getReg .x6 = BitVec.ofNat 64 (u % 8 * 256) ∧
-      t.getReg .x22 = BitVec.ofNat 64 ((sort3 (u / 8 % 256) (u / 2 ^ 11 % 256) (u / 2 ^ 19 % 256)).getD 0 0) ∧
-      t.getReg .x23 = BitVec.ofNat 64 ((sort3 (u / 8 % 256) (u / 2 ^ 11 % 256) (u / 2 ^ 19 % 256)).getD 1 0) ∧
-      t.getReg .x24 = BitVec.ofNat 64 ((sort3 (u / 8 % 256) (u / 2 ^ 11 % 256) (u / 2 ^ 19 % 256)).getD 2 0) ∧
+      t.getReg .x6 = BitVec.ofNat 64 (u % 16 * 128) ∧
+      t.getReg .x22 = BitVec.ofNat 64 ((sort3 (u / 16 % 128) (u / 2 ^ 11 % 128) (u / 2 ^ 18 % 128)).getD 0 0) ∧
+      t.getReg .x23 = BitVec.ofNat 64 ((sort3 (u / 16 % 128) (u / 2 ^ 11 % 128) (u / 2 ^ 18 % 128)).getD 1 0) ∧
+      t.getReg .x24 = BitVec.ofNat 64 ((sort3 (u / 16 % 128) (u / 2 ^ 11 % 128) (u / 2 ^ 18 % 128)).getD 2 0) ∧
       RegsExcept s t [.x6, .x22, .x23, .x24, .x7] ∧ Frame s t (fun _ => False) := by
   obtain ⟨t1, s1, p1, h6, h22, h23, h24, r1, f1⟩ := so31_spec hK s hpc u hu h28
   obtain ⟨k2, t2, s2, k2le, p2, a22, a23, r2, f2⟩ :=
     exch (so40_spec hK) t1 _ _ p1 h22 h23
-  have b24 : t2.getReg .x24 = BitVec.ofNat 64 (u / 2 ^ 19 % 256) := by
+  have b24 : t2.getReg .x24 = BitVec.ofNat 64 (u / 2 ^ 18 % 128) := by
     rw [r2.get (by decide), h24]
   obtain ⟨t3, s3, p3, r3, f3⟩ := so43_spec hK t2 p2 _ _ (by omega) (by omega) b24 a23
   obtain ⟨k4, t4, s4, k4le, p4, a23', a24, r4, f4⟩ :=
-    exch (so44_spec hK) t3 (max (u / 8 % 256) (u / 2 ^ 11 % 256))
-      (u / 2 ^ 19 % 256) p3 (by rw [r3.get (by decide), a23]) (by rw [r3.get (by decide), b24])
-  have b22 : t4.getReg .x22 = BitVec.ofNat 64 (min (u / 8 % 256) (u / 2 ^ 11 % 256)) := by
+    exch (so44_spec hK) t3 (max (u / 16 % 128) (u / 2 ^ 11 % 128))
+      (u / 2 ^ 18 % 128) p3 (by rw [r3.get (by decide), a23]) (by rw [r3.get (by decide), b24])
+  have b22 : t4.getReg .x22 = BitVec.ofNat 64 (min (u / 16 % 128) (u / 2 ^ 11 % 128)) := by
     rw [r4.get (by decide), r3.get (by decide), a22]
   obtain ⟨t5, s5, p5, r5, f5⟩ := so47_spec hK t4 p4 _ _ (by omega) (by omega) a23' b22
   obtain ⟨k6, t6, s6, k6le, p6, a22', a23'', r6, f6⟩ :=
@@ -343,10 +343,10 @@ end sort
 
 /-! ## The coordinate loop -/
 
-/-- Row `c` of the selection table: three doublewords `256 bucket + leaf` at `SEL + 24 c`. -/
+/-- Row `c` of the selection table: three doublewords `128 bucket + leaf` at `SEL + 24 c`. -/
 def RowAt (t : MachineState) (N : BitVec 256) (c : Nat) : Prop :=
   ∀ j < 3, t.getMem (BitVec.ofNat 64 (SEL + 24 * c + 8 * j)) =
-    BitVec.ofNat 64 (selBucket N c * 256 + (selRow N c).getD j 0)
+    BitVec.ofNat 64 (selBucket N c * 128 + (selRow N c).getD j 0)
 
 /-- The selection table (21 doublewords at `SEL`): the only memory `select_ok` writes. -/
 def SelW (A : Nat) : Prop := SEL ≤ A ∧ A < SEL + 168
@@ -393,7 +393,7 @@ theorem sel_body (hK : KernAt image b) {s0 : MachineState} {N : BitVec 256} (hN 
   have hN1 : NAt t1 N := (hN.frame hI.frame).frame (f1.mono (by simp))
   obtain ⟨t2, s2, p2, h28, r2, f2⟩ := so9_spec hK t1 p1 c hc (by rw [r1.get (by decide), hI.x20]) N hN1
   obtain ⟨k3, t3, s3, k3le, p3, h6, h22, h23, h24, r3, f3⟩ := sort_spec hK t2 p2 _ (selWin_lt N c) h28
-  have hrow : ∀ j, (selRow N c).getD j 0 < 256 := selRow_lt N c
+  have hrow : ∀ j, (selRow N c).getD j 0 < 128 := selRow_lt N c
   have g22 : t3.getReg .x22 = BitVec.ofNat 64 ((selRow N c).getD 0 0) := h22
   have g23 : t3.getReg .x23 = BitVec.ofNat 64 ((selRow N c).getD 1 0) := h23
   have g24 : t3.getReg .x24 = BitVec.ofNat 64 ((selRow N c).getD 2 0) := h24
@@ -425,7 +425,7 @@ theorem sel_body (hK : KernAt image b) {s0 : MachineState} {N : BitVec 256} (hN 
     rw [rowOk]; simp only [ne_eq, e1, e2, not_false_eq_true, decide_true, Bool.and_self]
   have hcost := selCost_le N c
   obtain ⟨t6, s6, p6, h21', m0, m8, m16, h25', h20', r6, f6⟩ :=
-    so53_spec hK t5 p5 _ _ _ (selBucket N c * 256) (21 + selCost N c) (SEL + 24 * c) c (hrow 0) (hrow 1) (hrow 2)
+    so53_spec hK t5 p5 ((selRow N c).getD 0 0) ((selRow N c).getD 1 0) ((selRow N c).getD 2 0) (selBucket N c * 128) (21 + selCost N c) (SEL + 24 * c) c (by have := hrow 0; omega) (by have := hrow 1; omega) (by have := hrow 2; omega)
       (by simp only [SEL]; omega) (by simp only [SEL]; omega)
       (by rw [r5.get (by decide), r4.get (by decide), g22])
       (by rw [r5.get (by decide), r4.get (by decide), g23])
@@ -484,7 +484,7 @@ theorem sel_loop (hK : KernAt image b) {s0 : MachineState} {N : BitVec 256} (hN 
 
 /-- **`select_ok`** (kernel at base `b`, entry `b + 3`, return address `ret` in `ra`, `N` at `NBUF`):
 returns to `ret` within 640 cycles with `a3 = 1` iff `admissible (selections N)`; on acceptance the
-selection table at `SEL` holds row `c` = `256 bucket + leaf` (sorted leaves) for every coordinate.
+selection table at `SEL` holds row `c` = `128 bucket + leaf` (sorted leaves) for every coordinate.
 Writes only the table; changes only `selRegs`. -/
 theorem selectOk_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcOf (b + 3)) (ret : Nat)
     (h1 : s.getReg .x1 = pcOf ret) (N : BitVec 256) (hN : NAt s N) :
@@ -515,7 +515,7 @@ theorem selectOk_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcO
       List.all_eq_true.2 (fun c hc => hI7.ok c (List.mem_range.1 hc))
     have rr : RegsExcept s t3 selRegs := regs_mono ((hI7.regs.trans r2).trans r3) (by decide)
     have ff : Frame t1 t3 (fun _ => False) := (f2.trans f3).mono (by intro A _ hA; simpa using hA)
-    by_cases hc : 125 ≤ 21 + selCost N 7
+    by_cases hc : 120 ≤ 21 + selCost N 7
     · rw [if_pos hc] at p3
       obtain ⟨t4, s4, p4, h13, r4, f4⟩ := so101_spec hK t3 p3 ret (hx1 t3 rr)
       have hadm : T3.admissible (T3.selections N) = false := by

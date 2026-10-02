@@ -4,7 +4,7 @@ import SigGolfCandidate.T3.Proofs
 /-! # Proof slots of the honest stream (stream W)
 
 The siblings of the schedule's folds are exactly Core's proof positions: every fold sibling is in `slotPositions`
-(an empty frontier node or one of the three outer siblings), distinct folds of a coordinate have distinct siblings,
+(an empty frontier node or one of the four outer siblings), distinct folds of a coordinate have distinct siblings,
 so `foldSlot` is injective on the schedule's folds and `streamPlan` inverts it. -/
 namespace SigGolfCandidate.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
@@ -119,11 +119,11 @@ theorem sib_eq_imp {g g' k k' : Nat} (h : (k, g / 2 ^ k ^^^ 1) = (k', g' / 2 ^ k
     have := congrArg (· ^^^ 1) h
     simpa only [xor_one_xor_one] using this
 
-/-- Hypotheses on a selection the machine accepts: three strictly increasing local leaves below 256, bucket below 8. -/
+/-- Hypotheses on a selection the machine accepts: three strictly increasing local leaves below 128, bucket below 7. -/
 structure SelOk (sel : Selection) : Prop where
   len : sel.leaves.length = 3
-  b : sel.bucket < 8
-  l2 : sel.leaves.getD 2 0 < 256
+  b : sel.bucket < 16
+  l2 : sel.leaves.getD 2 0 < 128
   s01 : sel.leaves.getD 0 0 < sel.leaves.getD 1 0
   s12 : sel.leaves.getD 1 0 < sel.leaves.getD 2 0
 
@@ -157,9 +157,9 @@ theorem foldFacts (coord : Nat) (sel : Selection) (hs : SelOk sel) :
   have hsel := hs.selected
   have g01 : selLeaf sel 0 < selLeaf sel 1 := by unfold selLeaf; have := hs.s01; omega
   have g12 : selLeaf sel 1 < selLeaf sel 2 := by unfold selLeaf; have := hs.s12; omega
-  have bk0 : selLeaf sel 0 / 2 ^ 8 = sel.bucket := bucket_div_eight (by have := hs.s01; have := hs.s12; have := hs.l2; omega)
-  have bk1 : selLeaf sel 1 / 2 ^ 8 = sel.bucket := bucket_div_eight (by have := hs.s12; have := hs.l2; omega)
-  have bk2 : selLeaf sel 2 / 2 ^ 8 = sel.bucket := bucket_div_eight hs.l2
+  have bk0 : selLeaf sel 0 / 2 ^ 7 = sel.bucket := bucket_div_eight (by have := hs.s01; have := hs.s12; have := hs.l2; omega)
+  have bk1 : selLeaf sel 1 / 2 ^ 7 = sel.bucket := bucket_div_eight (by have := hs.s12; have := hs.l2; omega)
+  have bk2 : selLeaf sel 2 / 2 ^ 7 = sel.bucket := bucket_div_eight hs.l2
   unfold coordSchedule
   rw [hsel]
   simp only []
@@ -168,8 +168,8 @@ theorem foldFacts (coord : Nat) (sel : Selection) (hs : SelOk sel) :
   generalize selLeaf sel 2 = g2 at *
   have p01 := lcaLevel_pos g0 g1
   have p12 := lcaLevel_pos g1 g2
-  have l01 : lcaLevel g0 g1 ≤ 8 := (div_eq_iff_lca (by omega) 8).mp (by rw [bk0, bk1])
-  have l12 : lcaLevel g1 g2 ≤ 8 := (div_eq_iff_lca (by omega) 8).mp (by rw [bk1, bk2])
+  have l01 : lcaLevel g0 g1 ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [bk0, bk1])
+  have l12 : lcaLevel g1 g2 ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [bk1, bk2])
   have l02 : lcaLevel g0 g2 = max (lcaLevel g0 g1) (lcaLevel g1 g2) := lca_outer g01 g12
   have hne : lcaLevel g0 g1 ≠ lcaLevel g1 g2 := lca_ne g01 g12
   have c10 : lcaLevel g1 g0 = lcaLevel g0 g1 := lcaLevel_comm _ _
@@ -215,7 +215,7 @@ theorem xor_one_div_pow (x m : Nat) (hm : 1 ≤ m) : (x ^^^ 1) / 2 ^ m = x / 2 ^
   rw [pow_succ', ← Nat.div_div_eq_div_mul, ← Nat.div_div_eq_div_mul, xor_one_div_two]
 
 theorem SelOk.bucket_div {sel : Selection} (hs : SelOk sel) {g : Nat} (hg : g ∈ selectedLeaves sel) :
-    g / 2 ^ 8 = sel.bucket := by
+    g / 2 ^ 7 = sel.bucket := by
   rw [hs.selected] at hg
   have := hs.s01; have := hs.s12; have := hs.l2
   simp only [List.mem_cons, List.mem_nil_iff, or_false] at hg
@@ -233,33 +233,33 @@ theorem fold_sib_mem (coord : Nat) (sel : Selection) (hs : SelOk sel) :
   have hem := F.empty i hi r hr
   rw [← hseg] at hb htop hem
   unfold slotPositions Segment.sib
-  by_cases hk : seg.lo + r < 8
+  by_cases hk : seg.lo + r < 7
   · apply List.mem_append_left
-    apply frontier_mem 8 sel.bucket _ _ (by omega)
+    apply frontier_mem 7 sel.bucket _ _ (by omega)
     · rw [xor_one_div_pow _ _ (by omega), Nat.div_div_eq_div_mul, ← pow_add,
-        show seg.lo + r + (8 - (seg.lo + r)) = 8 by omega, hb]
+        show seg.lo + r + (7 - (seg.lo + r)) = 7 by omega, hb]
     · exact hem
     · right
       rw [xor_one_div_two, Nat.div_div_eq_div_mul, ← pow_succ]
       exact hasLeaf_self (F.leaf i hi) _
   · apply List.mem_append_right
     simp only [List.mem_map, List.mem_range]
-    refine ⟨seg.lo + r - 8, by omega, ?_⟩
-    have e : seg.g / 2 ^ (seg.lo + r) = sel.bucket / 2 ^ (seg.lo + r - 8) := by
-      rw [show seg.lo + r = 8 + (seg.lo + r - 8) by omega, pow_add, ← Nat.div_div_eq_div_mul, hb]
+    refine ⟨seg.lo + r - 7, by omega, ?_⟩
+    have e : seg.g / 2 ^ (seg.lo + r) = sel.bucket / 2 ^ (seg.lo + r - 7) := by
+      rw [show seg.lo + r = 7 + (seg.lo + r - 7) by omega, pow_add, ← Nat.div_div_eq_div_mul, hb]
       simp
-    rw [e, show 8 + (seg.lo + r - 8) = seg.lo + r by omega]
+    rw [e, show 7 + (seg.lo + r - 7) = seg.lo + r by omega]
 
 /-- The folds of one coordinate are as many as its proof positions (`authCount + 3`). -/
 theorem SelOk.exists {sel : Selection} (h : SelOk sel) :
-    ∃ x0 x1 x2, sel.leaves = [x0, x1, x2] ∧ x0 < x1 ∧ x1 < x2 ∧ x2 < 256 := by
+    ∃ x0 x1 x2, sel.leaves = [x0, x1, x2] ∧ x0 < x1 ∧ x1 < x2 ∧ x2 < 128 := by
   have hl := h.leaves_eq
   refine ⟨_, _, _, hl, h.s01, h.s12, h.l2⟩
 
 theorem coord_fold_count (coord : Nat) (sel : Selection) (hs : SelOk sel) :
     ((coordSchedule coord sel).map Segment.a).sum = (slotPositions sel).length := by
   obtain ⟨x0, x1, x2, hl, h01, h12, h2⟩ := hs.exists
-  have hb : ∀ leaf ∈ sel.leaves, leaf < 256 := by
+  have hb : ∀ leaf ∈ sel.leaves, leaf < 128 := by
     rw [hl]; simp only [List.mem_cons, List.mem_nil_iff, or_false]; omega
   have hn : sel.leaves.Nodup := by rw [hl]; simp; omega
   have hsorted : sel.leaves.SortedLE := by
@@ -271,17 +271,17 @@ theorem coord_fold_count (coord : Nat) (sel : Selection) (hs : SelOk sel) :
   unfold slotPositions selectedLeaves
   rw [List.length_append, hf]
   simp only [List.length_map, List.length_range]
-  have ha : authCount sel.leaves = 4 + lcaLevel x0 x1 + lcaLevel x1 x2 := by
+  have ha : authCount sel.leaves = 3 + lcaLevel x0 x1 + lcaLevel x1 x2 := by
     rw [hl]; simp [authCount, lcaLevel]; omega
   rw [ha]
-  have e01 := lca_bucket (b := sel.bucket) (show x0 < 256 by omega) (show x1 < 256 by omega) (by omega)
-  have e12 := lca_bucket (b := sel.bucket) (show x1 < 256 by omega) h2 (by omega)
-  have l01 := lca_le_eight (b := sel.bucket) (show x0 < 256 by omega) (show x1 < 256 by omega) (by omega)
-  have l12 := lca_le_eight (b := sel.bucket) (show x1 < 256 by omega) h2 (by omega)
-  have p01 := lcaLevel_pos (sel.bucket * 256 + x0) (sel.bucket * 256 + x1)
-  have p12 := lcaLevel_pos (sel.bucket * 256 + x1) (sel.bucket * 256 + x2)
-  have hne := lca_ne (show sel.bucket * 256 + x0 < sel.bucket * 256 + x1 by omega)
-    (show sel.bucket * 256 + x1 < sel.bucket * 256 + x2 by omega)
+  have e01 := lca_bucket (b := sel.bucket) (show x0 < 128 by omega) (show x1 < 128 by omega) (by omega)
+  have e12 := lca_bucket (b := sel.bucket) (show x1 < 128 by omega) h2 (by omega)
+  have l01 := lca_le_eight (b := sel.bucket) (show x0 < 128 by omega) (show x1 < 128 by omega) (by omega)
+  have l12 := lca_le_eight (b := sel.bucket) (show x1 < 128 by omega) h2 (by omega)
+  have p01 := lcaLevel_pos (sel.bucket * 128 + x0) (sel.bucket * 128 + x1)
+  have p12 := lcaLevel_pos (sel.bucket * 128 + x1) (sel.bucket * 128 + x2)
+  have hne := lca_ne (show sel.bucket * 128 + x0 < sel.bucket * 128 + x1 by omega)
+    (show sel.bucket * 128 + x1 < sel.bucket * 128 + x2 by omega)
   unfold coordSchedule selLeaf
   simp only [hl, List.getD_cons_zero, List.getD_cons_succ]
   rw [e01, e12] at *
@@ -393,7 +393,7 @@ theorem find?_unique {α : Type} (l : List α) (p : α → Bool) (x : α) (hx : 
 /-- **`streamPlan` inverts `foldSlot`.** -/
 theorem streamPlan_foldSlot (chosen : List Selection) (hc : ChosenOk chosen) {n r : Nat} (hn : n < 35)
     (hr : r < ((schedule chosen).getD n default).a)
-    (hk : foldSlot chosen ((schedule chosen).getD n default) r < 124) :
+    (hk : foldSlot chosen ((schedule chosen).getD n default) r < 119) :
     streamPlan chosen ⟨_, hk⟩ = some (n, r) := by
   unfold streamPlan
   apply find?_unique

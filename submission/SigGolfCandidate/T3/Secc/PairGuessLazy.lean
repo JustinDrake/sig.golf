@@ -202,7 +202,7 @@ theorem forced_searchL (rho : Digest) (m : Message) (counter fuel : Nat) (s : WS
       | some a =>
           rw [forced_trial_cached slot s _ a hc, pure_bind]
           simp only [pure_bind]
-          by_cases hadm : admissible (selections a) = true
+          by_cases hadm : digestAdmissible a = true
           · simp only [hadm, ↓reduceIte, forcedRun, SecretGuessObservation.runWith_pure, map_pure,
               Sampling.roRun_pure, evalSPMF_pure]
           · simp only [hadm, ↓reduceIte, Bool.false_eq_true]
@@ -212,7 +212,7 @@ theorem forced_searchL (rho : Digest) (m : Message) (counter fuel : Nat) (s : WS
           simp only [evalSPMF_bind, bind_assoc, pure_bind]
           rw [ro_uniform]
           refine bind_congr fun a => ?_
-          by_cases hadm : admissible (selections a) = true
+          by_cases hadm : digestAdmissible a = true
           · simp only [hadm, ↓reduceIte, forcedRun, SecretGuessObservation.runWith_pure, map_pure,
               Sampling.roRun_pure, evalSPMF_pure]
             rfl
@@ -259,7 +259,7 @@ theorem forced_searchL_core (rho : Digest) (m : Message) (counter fuel : Nat) (s
             simp only [Function.comp_apply, ne_eq, SPMF.pure_apply_eq_zero_iff, not_not] at hm
             rw [hm, readRow_false]
             exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
-      by_cases hadm : admissible (selections mid.1) = true
+      by_cases hadm : digestAdmissible mid.1 = true
       · simp only [hadm, ↓reduceIte] at hr
         rw [forcedRun, SecretGuessObservation.runWith_pure] at hr
         simp only [ne_eq, SPMF.pure_apply_eq_zero_iff, not_not] at hr

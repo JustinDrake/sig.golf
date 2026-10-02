@@ -6,6 +6,10 @@ the tails, the 7 coordinate ends and the forest. -/
 
 namespace SigGolfCandidate.T3M.Verify
 
+theorem gateCheckF_ok : gateCheckF = true := by decide +kernel
+theorem gateRejectCheckF_ok : gateRejectCheckF = true := by decide +kernel
+
+theorem setupLdCheckF_ok : setupLdCheckF = true := by decide +kernel
 theorem setupCheckF_ok : setupCheckF = true := by decide +kernel
 theorem leafCheck_all : (List.range 21).all leafCheck = true := by decide +kernel
 theorem leafDispCheck_all : (List.range 21).all leafDispCheck = true := by decide +kernel

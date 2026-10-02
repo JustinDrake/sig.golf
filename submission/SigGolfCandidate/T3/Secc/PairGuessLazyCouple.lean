@@ -90,13 +90,13 @@ theorem inline_hashL (ω : Omega U) (x : HashInput) : simulateQ (inlineAux ω) (
 
 theorem eval_digestSearch_succ (A : Answers) (rho : Digest) (m : Message) (counter fuel : Nat) :
     evalWithAnswerFn A (digestSearch rho m counter (fuel + 1)) =
-      if admissible (selections (A (.inl (.inr (pad64 (digestInput rho m (BitVec.ofNat 32 counter))))))) = true then
+      if digestAdmissible (A (.inl (.inr (pad64 (digestInput rho m (BitVec.ofNat 32 counter)))))) = true then
         some (BitVec.ofNat 32 counter, A (.inl (.inr (pad64 (digestInput rho m (BitVec.ofNat 32 counter))))))
       else evalWithAnswerFn A (digestSearch rho m (counter + 1) fuel) := by
   rw [digestSearch, evalWithAnswerFn_bind]
   rw [show evalWithAnswerFn A (digest rho m (BitVec.ofNat 32 counter)) =
     A (.inl (.inr (pad64 (digestInput rho m (BitVec.ofNat 32 counter))))) from eval_query' A _]
-  by_cases h : admissible (selections (A (.inl (.inr (pad64 (digestInput rho m (BitVec.ofNat 32 counter))))))) = true
+  by_cases h : digestAdmissible (A (.inl (.inr (pad64 (digestInput rho m (BitVec.ofNat 32 counter)))))) = true
   · simp only [h, ↓reduceIte]
     rfl
   · simp only [h, ↓reduceIte, Bool.false_eq_true]
@@ -109,7 +109,7 @@ theorem inline_searchL (ω : Omega U) (rho : Digest) (m : Message) (counter fuel
   | succ fuel ih =>
       rw [eval_digestSearch_succ, answers_digest hU ω _ _ (digestInput_mem _ _ _)]
       simp only [searchL, trialReq, simulateQ_bind, simulateQ_spec_query, inlineAux, inlineWith, pure_bind]
-      by_cases h : admissible (selections (rowVal (digestOf ω) (pad64 (digestInput rho m (BitVec.ofNat 32 counter))))) = true
+      by_cases h : digestAdmissible (rowVal (digestOf ω) (pad64 (digestInput rho m (BitVec.ofNat 32 counter)))) = true
       · simp only [h, ↓reduceIte, simulateQ_pure]
       · simp only [h, ↓reduceIte, Bool.false_eq_true]
         exact ih _

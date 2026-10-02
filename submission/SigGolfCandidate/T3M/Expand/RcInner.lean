@@ -109,7 +109,7 @@ theorem RcW_succ {sp l A : Nat} (h : RcW (sp - 48) l A) : RcW sp (l + 1) A := by
   · right; exact h
 
 section inner
-variable {sk : BitVec 256} {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 124 → Digest}
+variable {sk : BitVec 256} {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 119 → Digest}
 
 /-- **The inner node** (`hasLeaf` at level `l + 1`), given the recursion at level `l`. -/
 theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧ g2 < 2 ^ 11) {l : Nat}
@@ -213,7 +213,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   rcases r' with _ | ⟨vr, next'⟩
   · exact (TBSim.pure (Q := RcPost c index g0 g1 g2 values proof s (l + 1) node used e fresh ret sp) (a := none)
       h7).mono (by omega) (fun _ _ h => h)
-  obtain ⟨p7, x1_7, x2_7, x10_7, nout7, hnext', hnext'124, hvr, x18_7, x22_7, regs7, cur7, cntl7, cnt7, par7, str7,
+  obtain ⟨p7, x1_7, x2_7, x10_7, nout7, hnext', hnext'119, hvr, x18_7, x22_7, regs7, cur7, cntl7, cnt7, par7, str7,
     R67, F67, ctx7⟩ := h7
   have nF67 : ∀ A, sp - 48 ≤ A → A < 0x22000 → ¬ RcW (sp - 48) l A := nF45
   have g7 : ∀ A, sp - 48 ≤ A → A < sp → t7.getMem (BitVec.ofNat 64 A) = t6.getMem (BitVec.ofNat 64 A) :=
@@ -472,7 +472,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   refine ⟨p13, x1_13, by rw [x2_13]; congr 1; omega, by rw [r13.get (by decide)]; exact x10_12,
     ⟨by rw [f13.get (by decide) (by simp), f12.get (by decide) (by simp)]; exact hd.1,
       by rw [f13.get (by decide) (by simp), f12.get (by decide) (by simp)]; exact hd.2⟩, by omega,
-    hnext'124, fun h => absurd h (by simp),
+    hnext'119, fun h => absurd h (by simp),
     by rw [R1013.get (by decide), R710.get (by decide)]; exact x18_7,
     by rw [R1013.get (by decide), r10.get (by decide)]; exact x22_9,
     fun _ => ⟨by rw [R1013.get (by decide), r10.get (by decide)]; exact x23_9,

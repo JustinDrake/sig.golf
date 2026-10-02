@@ -3,9 +3,11 @@ import SigGolfCandidate.T3M.Witness.Encode
 
 /-! # The FTS normal form on shaped streams (stream W)
 
-Core's per-coordinate recovery (`recoverChildP` at the bucket node and the three outer folds) is `coordCanon` with
+Core's per-coordinate recovery (`recoverChildP` at the bucket node and the four outer folds) is `coordCanon` with
 the valuation `valOf proof base (slotPositions sel)`; for the decoded witness of a shaped stream this valuation agrees
 with the stream's reads at every fold, so `ftsP` and Core's padded `recoverFtsP` coincide (`ftsP_shaped`). -/
+set_option maxRecDepth 10000
+
 namespace SigGolfCandidate.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 set_option linter.unusedSimpArgs false
@@ -13,24 +15,24 @@ set_option linter.unusedTactic false
 set_option linter.unreachableTactic false
 
 /-- The valuation of proof positions by slots: position `p` reads slot `base + idxOf p ps`. -/
-def valOf (proof : Fin 124 → Digest) (base : Nat) (ps : List (Nat × Nat)) (p : Nat × Nat) : Digest :=
-  proof ⟨(base + ps.idxOf p) % 124, Nat.mod_lt _ (by decide)⟩
+def valOf (proof : Fin 119 → Digest) (base : Nat) (ps : List (Nat × Nat)) (p : Nat × Nat) : Digest :=
+  proof ⟨(base + ps.idxOf p) % 119, Nat.mod_lt _ (by decide)⟩
 
-theorem slotsMatch_valOf (proof : Fin 124 → Digest) (pads : Pads) (base : Nat) (ps : List (Nat × Nat))
+theorem slotsMatch_valOf (proof : Fin 119 → Digest) (pads : Pads) (base : Nat) (ps : List (Nat × Nat))
     (hnd : ps.Nodup) : SlotsMatch proof pads (valOf proof base ps) (valOf pads.fold base ps) base ps := by
   intro i hi h
   refine ⟨?_, ?_⟩ <;> simp only [valOf, List.Nodup.idxOf_getElem hnd, Nat.mod_eq_of_lt h]
 
 /-! ## Core's per-coordinate step -/
 
-/-- The three outer folds of `recoverFtsP` (one step). -/
+/-- The four outer folds of `recoverFtsP` (one step). -/
 def outerStepP (sig : Signature) (pads : Pads) (index coord bucket : Nat) (state : Option (Digest × Nat)) (j : Nat) :
     M (Option (Digest × Nat)) := do
   let some (value, used) := state | pure none
-  if h : used < 124 then
+  if h : used < 119 then
     let other := sig.proof ⟨used, h⟩
     let pair := if bucket / 2 ^ j % 2 = 0 then (value, other) else (other, value)
-    let parent ← nodeHashP 10 coord index (2 ^ (3 - j - 1) + bucket / 2 ^ (j + 1)) pair.1
+    let parent ← nodeHashP 10 coord index (2 ^ (4 - j - 1) + bucket / 2 ^ (j + 1)) pair.1
       (pads.fold ⟨used, h⟩) pair.2
     pure (some (parent, used + 1))
   else pure none
@@ -40,11 +42,11 @@ def ftsStepP (sig : Signature) (pads : Pads) (index : Nat) (chosen : List Select
     (state : Option (List Digest × Nat)) (coord : Nat) : M (Option (List Digest × Nat)) := do
   let some (roots, used) := state | pure none
   let sel := chosen.getD coord ⟨0, []⟩
-  let selected := sel.leaves.map (fun s => sel.bucket * 256 + s)
+  let selected := sel.leaves.map (fun s => sel.bucket * 128 + s)
   let values := (List.range 3).map (fun j => sig.secrets ⟨(coord * 3 + j) % 21, Nat.mod_lt _ (by decide)⟩)
-  let some (value, next) ← recoverChildP index coord selected values sig.proof pads 8 sel.bucket used
+  let some (value, next) ← recoverChildP index coord selected values sig.proof pads 7 sel.bucket used
     | pure none
-  let result ← (List.range 3).foldlM (outerStepP sig pads index coord sel.bucket) (some (value, next))
+  let result ← (List.range 4).foldlM (outerStepP sig pads index coord sel.bucket) (some (value, next))
   let some (root, next) := result | pure none
   pure (some (roots ++ [root], next))
 
@@ -52,33 +54,33 @@ theorem recoverFtsP_eq (sig : Signature) (pads : Pads) (index : Nat) (chosen : L
     recoverFtsP sig pads index chosen = (do
       let state ← (List.range 7).foldlM (ftsStepP sig pads index chosen) (some ([], 0))
       let some (roots, used) := state | pure none
-      if !(List.range (124 - used)).all (fun j =>
-          decide (sig.proof ⟨(used + j) % 124, Nat.mod_lt _ (by decide)⟩ = 0)) then return none
+      if !(List.range (119 - used)).all (fun j =>
+          decide (sig.proof ⟨(used + j) % 119, Nat.mod_lt _ (by decide)⟩ = 0)) then return none
       pure (some (← forestPk index roots))) := rfl
 
-/-- The outer folds climb `g`'s root path from level 8. -/
-theorem outer_climb (sig : Signature) (pads : Pads) (index coord bucket g : Nat) (hg : g / 2 ^ 8 = bucket)
-    (val pad : Nat × Nat → Digest) : ∀ n j0 (v : Digest) (u : Nat), j0 + n ≤ 3 → u + n ≤ 124 →
-      (∀ j < n, ∀ h : u + j < 124, sig.proof ⟨u + j, h⟩ = val (8 + j0 + j, g / 2 ^ (8 + j0 + j) ^^^ 1) ∧
-        pads.fold ⟨u + j, h⟩ = pad (8 + j0 + j, g / 2 ^ (8 + j0 + j) ^^^ 1)) →
+/-- The outer folds climb `g`'s root path from level 7. -/
+theorem outer_climb (sig : Signature) (pads : Pads) (index coord bucket g : Nat) (hg : g / 2 ^ 7 = bucket)
+    (val pad : Nat × Nat → Digest) : ∀ n j0 (v : Digest) (u : Nat), j0 + n ≤ 4 → u + n ≤ 119 →
+      (∀ j < n, ∀ h : u + j < 119, sig.proof ⟨u + j, h⟩ = val (7 + j0 + j, g / 2 ^ (7 + j0 + j) ^^^ 1) ∧
+        pads.fold ⟨u + j, h⟩ = pad (7 + j0 + j, g / 2 ^ (7 + j0 + j) ^^^ 1)) →
       (List.range' j0 n).foldlM (outerStepP sig pads index coord bucket) (some (v, u)) =
-        (fun v' => some (v', u + n)) <$> climbV index coord val pad g (8 + j0) n v := by
+        (fun v' => some (v', u + n)) <$> climbV index coord val pad g (7 + j0) n v := by
   intro n
   induction n with
   | zero => intro j0 v u _ _ _; simp
   | succ n ih =>
       intro j0 v u hj hu hm
-      have hb : g / 2 ^ (8 + j0) = bucket / 2 ^ j0 := by
+      have hb : g / 2 ^ (7 + j0) = bucket / 2 ^ j0 := by
         rw [pow_add, ← Nat.div_div_eq_div_mul, hg]
       obtain ⟨hv, hp⟩ := hm 0 (by omega) (by omega)
       simp only [Nat.add_zero] at hv hp
       rw [List.range'_succ, List.foldlM_cons, climbV_succ, map_bind]
       have hstep : outerStepP sig pads index coord bucket (some (v, u)) j0 =
-          (fun p => some (p, u + 1)) <$> climbStep index coord val pad g (8 + j0) v := by
+          (fun p => some (p, u + 1)) <$> climbStep index coord val pad g (7 + j0) v := by
         unfold outerStepP climbStep
-        simp only [dif_pos (show u < 124 by omega), hb, hv, hp]
-        have hh : 2 ^ (11 - (8 + j0 + 1)) + bucket / 2 ^ j0 / 2 = 2 ^ (3 - j0 - 1) + bucket / 2 ^ (j0 + 1) := by
-          rw [Nat.div_div_eq_div_mul, ← pow_succ, show 11 - (8 + j0 + 1) = 3 - j0 - 1 by omega]
+        simp only [dif_pos (show u < 119 by omega), hb, hv, hp]
+        have hh : 2 ^ (11 - (7 + j0 + 1)) + bucket / 2 ^ j0 / 2 = 2 ^ (4 - j0 - 1) + bucket / 2 ^ (j0 + 1) := by
+          rw [Nat.div_div_eq_div_mul, ← pow_succ, show 11 - (7 + j0 + 1) = 4 - j0 - 1 by omega]
         rw [hh]
         rcases Nat.mod_two_eq_zero_or_one (bucket / 2 ^ j0) with h0 | h0 <;>
           simp [h0, map_eq_bind_pure_comp]
@@ -86,17 +88,17 @@ theorem outer_climb (sig : Signature) (pads : Pads) (index coord bucket g : Nat)
       congr 1; funext x
       rw [ih (j0 + 1) x (u + 1) (by omega) (by omega) (fun j hj h => by
         have := hm (j + 1) (by omega) (by omega)
-        simpa only [show u + (j + 1) = u + 1 + j by omega, show 8 + j0 + (j + 1) = 8 + (j0 + 1) + j by omega]
+        simpa only [show u + (j + 1) = u + 1 + j by omega, show 7 + j0 + (j + 1) = 7 + (j0 + 1) + j by omega]
           using this)]
-      simp only [show u + 1 + n = u + (n + 1) by omega, show 8 + j0 + 1 = 8 + (j0 + 1) by omega]
+      simp only [show u + 1 + n = u + (n + 1) by omega, show 7 + j0 + 1 = 7 + (j0 + 1) by omega]
 
 theorem ftsStepP_some (sig : Signature) (pads : Pads) (index : Nat) (chosen : List Selection)
     (roots : List Digest) (used coord : Nat) :
     ftsStepP sig pads index chosen (some (roots, used)) coord = (do
       let some (value, next) ← recoverChildP index coord (selectedLeaves (chosen.getD coord ⟨0, []⟩))
         ((List.range 3).map (fun j => sig.secrets ⟨(coord * 3 + j) % 21, Nat.mod_lt _ (by decide)⟩))
-        sig.proof pads 8 (chosen.getD coord ⟨0, []⟩).bucket used | pure none
-      let result ← (List.range 3).foldlM (outerStepP sig pads index coord (chosen.getD coord ⟨0, []⟩).bucket)
+        sig.proof pads 7 (chosen.getD coord ⟨0, []⟩).bucket used | pure none
+      let result ← (List.range 4).foldlM (outerStepP sig pads index coord (chosen.getD coord ⟨0, []⟩).bucket)
         (some (value, next))
       let some (root, next) := result | pure none
       pure (some (roots ++ [root], next))) := rfl
@@ -104,7 +106,7 @@ theorem ftsStepP_some (sig : Signature) (pads : Pads) (index : Nat) (chosen : Li
 /-- **Core side of one coordinate.** -/
 theorem ftsStepP_canon (sig : Signature) (pads : Pads) (index : Nat) (chosen : List Selection)
     (roots : List Digest) (used coord : Nat) (hs : SelOk (chosen.getD coord ⟨0, []⟩))
-    (hfit : used + (slotPositions (chosen.getD coord ⟨0, []⟩)).length ≤ 124)
+    (hfit : used + (slotPositions (chosen.getD coord ⟨0, []⟩)).length ≤ 119)
     (val pad : Nat × Nat → Digest)
     (hm : SlotsMatch sig.proof pads val pad used (slotPositions (chosen.getD coord ⟨0, []⟩))) :
     ftsStepP sig pads index chosen (some (roots, used)) coord =
@@ -117,18 +119,18 @@ theorem ftsStepP_canon (sig : Signature) (pads : Pads) (index : Nat) (chosen : L
   generalize chosen.getD coord ⟨0, []⟩ = sel at *
   generalize hvals : (List.range 3).map (fun j => sig.secrets ⟨(coord * 3 + j) % 21, Nat.mod_lt _ (by decide)⟩) =
     values
-  have hsp : slotPositions sel = T3.frontier (selectedLeaves sel) 8 sel.bucket ++
-      (List.range 3).map (fun j => (8 + j, sel.bucket / 2 ^ j ^^^ 1)) := rfl
+  have hsp : slotPositions sel = T3.frontier (selectedLeaves sel) 7 sel.bucket ++
+      (List.range 4).map (fun j => (7 + j, sel.bucket / 2 ^ j ^^^ 1)) := rfl
   rw [hsp] at hfit hm ⊢
   rw [List.length_append] at hfit ⊢
   simp only [List.length_map, List.length_range] at hfit ⊢
-  have hF := recoverChildP_eq_dfsP index coord (selectedLeaves sel) values sig.proof pads val pad 8 sel.bucket used
+  have hF := recoverChildP_eq_dfsP index coord (selectedLeaves sel) values sig.proof pads val pad 7 sel.bucket used
     (by omega) hm.left
   have g01 : selLeaf sel 0 < selLeaf sel 1 := by unfold selLeaf; have := hs.s01; omega
   have g12 : selLeaf sel 1 < selLeaf sel 2 := by unfold selLeaf; have := hs.s12; omega
-  have hb2 : selLeaf sel 2 / 2 ^ 8 = sel.bucket := hs.bucket_div (by rw [hs.selected]; simp)
-  have hO := outer_climb sig pads index coord sel.bucket (selLeaf sel 2) hb2 val pad 3 0
-  have hbk : ∀ j, selLeaf sel 2 / 2 ^ (8 + 0 + j) = sel.bucket / 2 ^ j := by
+  have hb2 : selLeaf sel 2 / 2 ^ 7 = sel.bucket := hs.bucket_div (by rw [hs.selected]; simp)
+  have hO := outer_climb sig pads index coord sel.bucket (selLeaf sel 2) hb2 val pad 4 0
+  have hbk : ∀ j, selLeaf sel 2 / 2 ^ (7 + 0 + j) = sel.bucket / 2 ^ j := by
     intro j; rw [Nat.add_zero]; exact bucket_div_outer hs.l2
   have hD := dfsP_bucket (index := index) (coord := coord)
     (leafH := leafHP index coord (selectedLeaves sel) values pads)
@@ -138,7 +140,7 @@ theorem ftsStepP_canon (sig : Signature) (pads : Pads) (index : Nat) (chosen : L
   rw [hF, bind_map_left, ← hD, map_bind]
   congr 1; funext v
   dsimp only
-  rw [show List.range 3 = List.range' 0 3 from List.range_eq_range' ..]
+  rw [show List.range 4 = List.range' 0 4 from List.range_eq_range' ..]
   rw [hO v _ (by omega) (by omega) (fun j hj h => by
     have := hm.right j (by simp; omega) h
     simp only [List.getElem_map, List.getElem_range] at this
@@ -166,9 +168,9 @@ theorem chosenOk_of (N : HashOutput) (h : selectionsOk (selections N) = true) : 
   exact ⟨by rw [hl]; rfl, hb, by rw [hl]; simpa using h2, by rw [hl]; simpa using h01, by rw [hl]; simpa using h12⟩
 
 theorem slotPositions_length {sel : Selection} (hs : SelOk sel) :
-    (slotPositions sel).length = authCount sel.leaves + 3 := by
+    (slotPositions sel).length = authCount sel.leaves + 4 := by
   obtain ⟨x0, x1, x2, hl, h01, h12, h2⟩ := hs.exists
-  have hb : ∀ leaf ∈ sel.leaves, leaf < 256 := by
+  have hb : ∀ leaf ∈ sel.leaves, leaf < 128 := by
     rw [hl]; simp only [List.mem_cons, List.mem_nil_iff, or_false]; omega
   have hn : sel.leaves.Nodup := by rw [hl]; simp; omega
   have hsorted : sel.leaves.SortedLE := by
@@ -189,9 +191,9 @@ theorem sum_range_getD {α : Type} (items : List α) (d : α) (f : α → Nat) :
       simp only [Function.comp_def, List.getD_cons_succ, List.getD_cons_zero, ih, List.map_cons, List.sum_cons]
 
 theorem slotBase_seven_eq (N : HashOutput) (hc : ChosenOk (selections N)) :
-    slotBase (selections N) 7 = 21 + ((selections N).map fun s => authCount s.leaves).sum := by
+    slotBase (selections N) 7 = 28 + ((selections N).map fun s => authCount s.leaves).sum := by
   have e : ((List.range 7).map fun c => (slotPositions ((selections N).getD c ⟨0, []⟩)).length) =
-      (List.range 7).map fun c => authCount ((selections N).getD c ⟨0, []⟩).leaves + 3 :=
+      (List.range 7).map fun c => authCount ((selections N).getD c ⟨0, []⟩).leaves + 4 :=
     List.map_congr_left (fun c hc' => slotPositions_length (hc c (List.mem_range.mp hc')))
   unfold slotBase
   rw [e, ← sum_range_getD (selections N) ⟨0, []⟩ (fun s => authCount s.leaves), selections_length,
@@ -201,13 +203,13 @@ theorem slotBase_seven_eq (N : HashOutput) (hc : ChosenOk (selections N)) :
 
 /-- The used proof slots fit (Core's cap). -/
 theorem slotBase_seven_le (N : HashOutput) (hc : ChosenOk (selections N))
-    (hadm : admissible (selections N) = true) : slotBase (selections N) 7 ≤ 124 := by
+    (hadm : admissible (selections N) = true) : slotBase (selections N) 7 ≤ 119 := by
   have h := hadm
   simp only [admissible, Bool.and_eq_true, decide_eq_true_eq] at h
   have e : ((List.range 7).map fun c => (slotPositions ((selections N).getD c ⟨0, []⟩)).length) =
-      (List.range 7).map fun c => authCount ((selections N).getD c ⟨0, []⟩).leaves + 3 :=
+      (List.range 7).map fun c => authCount ((selections N).getD c ⟨0, []⟩).leaves + 4 :=
     List.map_congr_left (fun c hc' => slotPositions_length (hc c (List.mem_range.mp hc')))
-  have hsum : slotBase (selections N) 7 = 21 + ((selections N).map fun s => authCount s.leaves).sum := by
+  have hsum : slotBase (selections N) 7 = 28 + ((selections N).map fun s => authCount s.leaves).sum := by
     unfold slotBase
     rw [e, ← sum_range_getD (selections N) ⟨0, []⟩ (fun s => authCount s.leaves), selections_length,
       List.sum_map_add]
@@ -278,7 +280,7 @@ def decPad (N : HashOutput) (w : WBytes) (c : Nat) : Nat × Nat → Digest :=
   valOf (padDecP N w).fold (slotBase (selections N) c) (slotPositions ((selections N).getD c ⟨0, []⟩))
 
 theorem decoded_foldOk (N : HashOutput) (w : WBytes) (hc : ChosenOk (selections N))
-    (hle : slotBase (selections N) 7 ≤ 124) {c i r : Nat} (hc7 : c < 7) (hi : i < 5)
+    (hle : slotBase (selections N) 7 ≤ 119) {c i r : Nat} (hc7 : c < 7) (hi : i < 5)
     (hr : r < ((coordSchedule c ((selections N).getD c ⟨0, []⟩)).getD i default).a) :
     FoldOk w (decVal N w c) (decPad N w c) ((coordSchedule c ((selections N).getD c ⟨0, []⟩)).getD i default).g
       (((coordSchedule c ((selections N).getD c ⟨0, []⟩)).getD i default).lo + r)
@@ -291,7 +293,7 @@ theorem decoded_foldOk (N : HashOutput) (w : WBytes) (hc : ChosenOk (selections 
   rw [show (5 * c + i) / 5 = c by omega, show (5 * c + i) % 5 = i by omega] at hsplit hlt
   have hb1 := slotBase_mono (selections N) (show c + 1 ≤ 7 by omega)
   rw [slotBase_succ] at hb1
-  have hk : foldSlot (selections N) ((schedule (selections N)).getD (5 * c + i) default) r < 124 := by omega
+  have hk : foldSlot (selections N) ((schedule (selections N)).getD (5 * c + i) default) r < 119 := by omega
   have hplan := streamPlan_foldSlot (selections N) hc hn hr' hk
   have htop := (foldFacts c _ (hc c hc7)).top i hi
   have hpar : ((schedule (selections N)).getD (5 * c + i) default).heap r % 2 =
@@ -299,12 +301,12 @@ theorem decoded_foldOk (N : HashOutput) (w : WBytes) (hc : ChosenOk (selections 
         2 ^ (((coordSchedule c ((selections N).getD c ⟨0, []⟩)).getD i default).lo + r) % 2 := by
     rw [hsg]; unfold Segment.heap; exact heap_mod_two (by omega)
   have hidx : (slotBase (selections N) c + (slotPositions ((selections N).getD c ⟨0, []⟩)).idxOf
-      (((coordSchedule c ((selections N).getD c ⟨0, []⟩)).getD i default).sib r)) % 124 =
+      (((coordSchedule c ((selections N).getD c ⟨0, []⟩)).getD i default).sib r)) % 119 =
       foldSlot (selections N) ((schedule (selections N)).getD (5 * c + i) default) r := by
     rw [hsplit, Nat.mod_eq_of_lt (by omega)]
-  have hP : ∀ (x : Fin 124), x.val = foldSlot (selections N) ((schedule (selections N)).getD (5 * c + i) default) r →
+  have hP : ∀ (x : Fin 119), x.val = foldSlot (selections N) ((schedule (selections N)).getD (5 * c + i) default) r →
       (witDecP N w).signature.proof x = (witDecP N w).signature.proof ⟨_, hk⟩ := fun x hx => congrArg _ (Fin.ext hx)
-  have hQ : ∀ (x : Fin 124), x.val = foldSlot (selections N) ((schedule (selections N)).getD (5 * c + i) default) r →
+  have hQ : ∀ (x : Fin 119), x.val = foldSlot (selections N) ((schedule (selections N)).getD (5 * c + i) default) r →
       (padDecP N w).fold x = (padDecP N w).fold ⟨_, hk⟩ := fun x hx => congrArg _ (Fin.ext hx)
   constructor
   · show valOf _ _ _ _ = _
@@ -432,7 +434,7 @@ theorem foldlM_canon (step : Option (List Digest × Nat) → Nat → M (Option (
       simp only [List.foldlM_cons, List.foldlM_nil, hstep n (by omega), bind_map_left, map_bind,
         Functor.map_map, bind_pure]
 
-theorem dec_proof_tail (N : HashOutput) (w : WBytes) (h : Shaped N w) (k : Fin 124)
+theorem dec_proof_tail (N : HashOutput) (w : WBytes) (h : Shaped N w) (k : Fin 119)
     (hk : slotBase (selections N) 7 ≤ k.val) : (witDecP N w).signature.proof k = 0 := by
   have hc := chosenOk_of N h.1
   have hnone : streamPlan (selections N) k = none := by
@@ -469,14 +471,14 @@ theorem ftsP_shaped (N : HashOutput) (w : WBytes) (h : Shaped N w) :
   refine bind_congr (fun roots => ?_)
   have hend : ¬ streamEnd < segPtr (schedule (selections N)) (5 * 7) := by
     rw [show 5 * 7 = 35 by rfl, segPtr_end _ hc]; unfold streamEnd streamBase; omega
-  have htail : ((List.range (124 - slotBase (selections N) 7)).all fun j =>
-      decide ((witDecP N w).signature.proof ⟨(slotBase (selections N) 7 + j) % 124, Nat.mod_lt _ (by decide)⟩ = 0)) =
+  have htail : ((List.range (119 - slotBase (selections N) 7)).all fun j =>
+      decide ((witDecP N w).signature.proof ⟨(slotBase (selections N) 7 + j) % 119, Nat.mod_lt _ (by decide)⟩ = 0)) =
         true := by
     rw [List.all_eq_true]
     intro j hj
     rw [List.mem_range] at hj
     simp only [decide_eq_true_eq]
-    exact dec_proof_tail N w h _ (by simp only [Nat.mod_eq_of_lt (show slotBase (selections N) 7 + j < 124 by omega)]; omega)
+    exact dec_proof_tail N w h _ (by simp only [Nat.mod_eq_of_lt (show slotBase (selections N) 7 + j < 119 by omega)]; omega)
   dsimp only
   rw [if_neg hend, htail]
   rfl
@@ -501,6 +503,7 @@ theorem layersP_dec (N : HashOutput) (w : WBytes) : ∀ n root,
 def verifyTailP (pk : Digest) (w : WBytes) (N : HashOutput) : M Bool := do
   let chosen := selections N
   if !selectionsOk chosen then return false
+  if !digestGate N then return false
   let index := N.toNat % 2 ^ 31
   let some root ← ftsP w index chosen | pure false
   let some root ← layersP w index 4 root | pure false
@@ -517,12 +520,18 @@ theorem verifyTailP_shaped (pk : Digest) (N : HashOutput) (w : WBytes) (h : Shap
     verifyTailP pk w N = verifyPadsTail pk N (witDecP N w) (padDecP N w) := by
   unfold verifyTailP verifyPadsTail
   simp only []
-  rw [if_neg (by simp [h.1]), if_neg (by simp [h.2.1]), ftsP_shaped N w h]
-  simp only [layersP_dec]
-  refine bind_congr (fun r => ?_)
-  rcases r with _ | root
-  · rfl
-  · refine bind_congr (fun r => ?_)
-    rcases r with _ | root <;> rfl
+  rw [if_neg (by simp [h.1])]
+  cases hg : digestGate N with
+  | false => simp [digestAdmissible, hg]
+  | true =>
+      have ha : digestAdmissible N=true := by simp [digestAdmissible,h.2.1,hg]
+      simp only [ha, Bool.not_true, Bool.false_eq_true, ite_false]
+      rw [ftsP_shaped N w h]
+      simp only [layersP_dec]
+      refine bind_congr (fun r => ?_)
+      rcases r with _ | root
+      · rfl
+      · refine bind_congr (fun r => ?_)
+        rcases r with _ | root <;> rfl
 
 end SigGolfCandidate.T3M

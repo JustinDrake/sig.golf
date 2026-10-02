@@ -88,7 +88,7 @@ theorem expandEqExpandN_holds : ExpandEqExpandN := expand_eq_expandN
 
 /-- Core's padded recovery as a fold of canonical coordinate programs. -/
 theorem recoverFtsP_canon (sig : Signature) (pads : Pads) (index : Nat) (chosen : List Selection)
-    (hc : ChosenOk chosen) (hle : slotBase chosen 7 ≤ 124) :
+    (hc : ChosenOk chosen) (hle : slotBase chosen 7 ≤ 119) :
     recoverFtsP sig pads index chosen = (do
       let roots ← (List.range 7).foldlM (fun roots c => (fun v => roots ++ [v]) <$>
         coordCanon index c (leafHP index c (selectedLeaves (chosen.getD c ⟨0, []⟩))
@@ -97,8 +97,8 @@ theorem recoverFtsP_canon (sig : Signature) (pads : Pads) (index : Nat) (chosen 
           (valOf pads.fold (slotBase chosen c) (slotPositions (chosen.getD c ⟨0, []⟩)))
           (selLeaf (chosen.getD c ⟨0, []⟩) 0) (selLeaf (chosen.getD c ⟨0, []⟩) 1)
           (selLeaf (chosen.getD c ⟨0, []⟩) 2)) []
-      if !(List.range (124 - slotBase chosen 7)).all (fun j =>
-          decide (sig.proof ⟨(slotBase chosen 7 + j) % 124, Nat.mod_lt _ (by decide)⟩ = 0)) then return none
+      if !(List.range (119 - slotBase chosen 7)).all (fun j =>
+          decide (sig.proof ⟨(slotBase chosen 7 + j) % 119, Nat.mod_lt _ (by decide)⟩ = 0)) then return none
       pure (some (← forestPk index roots))) := by
   rw [recoverFtsP_eq]
   have B := foldlM_canon (ftsStepP sig pads index chosen) _ (fun c => slotBase chosen c)
@@ -111,14 +111,14 @@ theorem recoverFtsP_canon (sig : Signature) (pads : Pads) (index : Nat) (chosen 
   rw [B, bind_map_left]
 
 theorem eval_recoverFtsP_tail (answers : Correctness.Answers) (sig : Signature) (pads : Pads) (index : Nat)
-    (chosen : List Selection) (hc : ChosenOk chosen) (hle : slotBase chosen 7 ≤ 124) (root : Digest)
+    (chosen : List Selection) (hc : ChosenOk chosen) (hle : slotBase chosen 7 ≤ 119) (root : Digest)
     (h : evalWithAnswerFn answers (recoverFtsP sig pads index chosen) = some root) :
-    ∀ k : Fin 124, slotBase chosen 7 ≤ k.val → sig.proof k = 0 := by
+    ∀ k : Fin 119, slotBase chosen 7 ≤ k.val → sig.proof k = 0 := by
   rw [recoverFtsP_canon sig pads index chosen hc hle, evalWithAnswerFn_bind] at h
   intro k hk
   by_contra hne
-  have hall : ((List.range (124 - slotBase chosen 7)).all (fun j =>
-      decide (sig.proof ⟨(slotBase chosen 7 + j) % 124, Nat.mod_lt _ (by decide)⟩ = 0))) = false := by
+  have hall : ((List.range (119 - slotBase chosen 7)).all (fun j =>
+      decide (sig.proof ⟨(slotBase chosen 7 + j) % 119, Nat.mod_lt _ (by decide)⟩ = 0))) = false := by
     by_contra hc
     rw [Bool.not_eq_false, List.all_eq_true] at hc
     have := hc (k.val - slotBase chosen 7) (List.mem_range.mpr (by omega))
@@ -210,7 +210,7 @@ theorem verifyP_witEnc_eval (answers : Correctness.Answers) (m : Message) (pk : 
   have hc := chosenOk_of N hsel
   have hle := slotBase_seven_le N hc F.adm
   obtain ⟨root, hroot⟩ := F.root
-  have htail : ∀ k : Fin 124, slotBase (selections N) 7 ≤ k.val → w.signature.proof k = 0 := by
+  have htail : ∀ k : Fin 119, slotBase (selections N) 7 ≤ k.val → w.signature.proof k = 0 := by
     rw [F.sig]
     exact eval_recoverFtsP_tail answers σ 0 _ _ hc hle root (by rw [recoverFtsP_zero]; exact hroot)
   have hv : verifyP m pk (witEnc N w) =

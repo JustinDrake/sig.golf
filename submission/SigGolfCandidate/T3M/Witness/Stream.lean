@@ -172,7 +172,7 @@ theorem coordCanon_congr_leaf {index coord : Nat} {leafH leafH' : Nat → M Dige
 canonical coordinate program with the stream's siblings and pads; it ends at `segsEnd` with heap 1 and an empty
 stack. -/
 theorem ftsCoordP_canon (w : WBytes) (index coord : Nat) (sel : Selection) (ptr : Nat)
-    (val pad : Nat × Nat → Digest) (hb : sel.bucket < 8) (h2 : sel.leaves.getD 2 0 < 256)
+    (val pad : Nat × Nat → Digest) (hb : sel.bucket < 16) (h2 : sel.leaves.getD 2 0 < 128)
     (h01 : sel.leaves.getD 0 0 < sel.leaves.getD 1 0) (h12 : sel.leaves.getD 1 0 < sel.leaves.getD 2 0)
     (hok : SegsOk w val pad ptr (coordSchedule coord sel)) :
     ftsCoordP w index coord sel ptr =
@@ -186,16 +186,16 @@ theorem ftsCoordP_canon (w : WBytes) (index coord : Nat) (sel : Selection) (ptr 
   have g01 : selLeaf sel 0 < selLeaf sel 1 := by unfold selLeaf; omega
   have g12 : selLeaf sel 1 < selLeaf sel 2 := by unfold selLeaf; omega
   have g2l : selLeaf sel 2 < 2048 := by unfold selLeaf; omega
-  have bk0 : selLeaf sel 0 / 2 ^ 8 = sel.bucket := bucket_div_eight (by omega)
-  have bk1 : selLeaf sel 1 / 2 ^ 8 = sel.bucket := bucket_div_eight (by omega)
-  have bk2 : selLeaf sel 2 / 2 ^ 8 = sel.bucket := bucket_div_eight (by omega)
+  have bk0 : selLeaf sel 0 / 2 ^ 7 = sel.bucket := bucket_div_eight (by omega)
+  have bk1 : selLeaf sel 1 / 2 ^ 7 = sel.bucket := bucket_div_eight (by omega)
+  have bk2 : selLeaf sel 2 / 2 ^ 7 = sel.bucket := bucket_div_eight (by omega)
   generalize selLeaf sel 0 = g0 at *
   generalize selLeaf sel 1 = g1 at *
   generalize selLeaf sel 2 = g2 at *
   have p01 := lcaLevel_pos g0 g1
   have p12 := lcaLevel_pos g1 g2
-  have l01 : lcaLevel g0 g1 ≤ 8 := (div_eq_iff_lca (by omega) 8).mp (by rw [bk0, bk1])
-  have l12 : lcaLevel g1 g2 ≤ 8 := (div_eq_iff_lca (by omega) 8).mp (by rw [bk1, bk2])
+  have l01 : lcaLevel g0 g1 ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [bk0, bk1])
+  have l12 : lcaLevel g1 g2 ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [bk1, bk2])
   have l02 : lcaLevel g0 g2 = max (lcaLevel g0 g1) (lcaLevel g1 g2) := lca_outer g01 g12
   have hne : lcaLevel g0 g1 ≠ lcaLevel g1 g2 := lca_ne g01 g12
   have i0 : [g0, g1, g2].idxOf g0 = 0 := by simp

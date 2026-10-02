@@ -105,7 +105,7 @@ theorem search_weight_le_fresh_add_cached {β γ : Type} (secret : BitVec 256)
 
 theorem acceptanceProbability_ne_zero : acceptanceProbability ≠ 0 := by
   rw [DigestCounting.acceptanceProbability_eq_p0]
-  norm_num [DigestCounting.p0]
+  norm_num [DigestCounting.p0, SigGolfResearch.Gate6.Budget.p0]
 
 theorem acceptanceProbability_ne_top : acceptanceProbability ≠ ⊤ :=
   ne_top_of_le_ne_top (by simp) digest_acceptanceProbability_le_one

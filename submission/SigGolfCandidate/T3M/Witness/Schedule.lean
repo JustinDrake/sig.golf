@@ -3,7 +3,7 @@ import SigGolfCandidate.T3M.Witness.Layout
 /-! # The honest fold-stream schedule (stream W)
 
 For a coordinate with sorted distinct global leaves `g_0 < g_1 < g_2` (one bucket of the coordinate tree, so
-`g_j = 256 bucket + x_j`), let `d01`, `d12` be the levels of the lowest common ancestors of `(g_0, g_1)` and
+`g_j = 128 bucket + x_j`), let `d01`, `d12` be the levels of the lowest common ancestors of `(g_0, g_1)` and
 `(g_1, g_2)` (bit lengths of the XORs; Core's `authCount` sums them). They differ, and Core's post-order DFS
 (`recoverChild` at `(8, bucket)` and the three outer folds) has one of two shapes, which the W2 stack machine
 replays as exactly five segments:
@@ -75,12 +75,12 @@ def segPtr (segs : List Segment) (n : Nat) : Nat :=
 /-! ## Proof slots -/
 
 /-- Core's global leaves of a selection (the `selected` list of `recoverFts`). -/
-def selectedLeaves (sel : Selection) : List Nat := sel.leaves.map fun s => sel.bucket * 256 + s
+def selectedLeaves (sel : Selection) : List Nat := sel.leaves.map fun s => sel.bucket * 128 + s
 
 /-- Proof positions of one coordinate in Core's consumption order: the frontier of the bucket subtree, then the
 three outer siblings `(8 + j, bucket / 2^j ^^^ 1)`. -/
 def slotPositions (sel : Selection) : List (Nat × Nat) :=
-  frontier (selectedLeaves sel) 8 sel.bucket ++ (List.range 3).map fun j => (8 + j, sel.bucket / 2 ^ j ^^^ 1)
+  frontier (selectedLeaves sel) 7 sel.bucket ++ (List.range 4).map fun j => (7 + j, sel.bucket / 2 ^ j ^^^ 1)
 
 /-- First proof slot of coordinate `c` (Core's `used` when it starts coordinate `c`). -/
 def slotBase (chosen : List Selection) (c : Nat) : Nat :=
@@ -96,17 +96,17 @@ def foldPositions (segs : List Segment) : List (Nat × Nat) :=
 
 /-- `streamPlan chosen k`: the `(segment, fold)` position of the honest stream that carries proof slot `k`
 (`none` for slots beyond the used ones). -/
-def streamPlan (chosen : List Selection) (k : Fin 124) : Option (Nat × Nat) :=
+def streamPlan (chosen : List Selection) (k : Fin 119) : Option (Nat × Nat) :=
   (foldPositions (schedule chosen)).find? fun p =>
     foldSlot chosen ((schedule chosen).getD p.1 default) p.2 = k.val
 
 /-- Witness offset of the fold block carrying proof slot `k` (`none` if unused). -/
-def slotBlock (chosen : List Selection) (k : Fin 124) : Option Nat :=
+def slotBlock (chosen : List Selection) (k : Fin 119) : Option Nat :=
   (streamPlan chosen k).map fun p => foldBlock (segPtr (schedule chosen) p.1) p.2
 
 /-- Offset of proof slot `k`'s value in the witness (`L` or `R` of its fold block by the parity of the folded
 node), `none` if unused. -/
-def slotOffset (chosen : List Selection) (k : Fin 124) : Option Nat :=
+def slotOffset (chosen : List Selection) (k : Fin 119) : Option Nat :=
   (streamPlan chosen k).map fun p =>
     let seg := (schedule chosen).getD p.1 default
     foldBlock (segPtr (schedule chosen) p.1) p.2 + sibOff (seg.heap p.2 % 2)

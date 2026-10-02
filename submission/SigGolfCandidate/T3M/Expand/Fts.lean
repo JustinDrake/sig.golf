@@ -25,16 +25,16 @@ def ftsStep (sig : Signature) (index : Nat) (chosen : List Selection) (state : O
     (coord : Nat) : T3.M (Option (List Digest × Nat)) := do
   let some (roots,used) := state | pure none
   let sel := chosen.getD coord ⟨0,[]⟩
-  let selected := sel.leaves.map (fun s => sel.bucket*256+s)
+  let selected := sel.leaves.map (fun s => sel.bucket*128+s)
   let values := (List.range 3).map (fun j => sig.secrets ⟨(coord*3+j)%21,Nat.mod_lt _ (by decide)⟩)
-  let some (value,next) ← recoverChild index coord selected values sig.proof 8 sel.bucket used | pure none
-  let result ← (List.range 3).foldlM
+  let some (value,next) ← recoverChild index coord selected values sig.proof 7 sel.bucket used | pure none
+  let result ← (List.range 4).foldlM
     (fun (state : Option (Digest × Nat)) j => do
       let some (value,used) := state | pure none
-      if h : used < 124 then
+      if h : used < 119 then
         let other := sig.proof ⟨used,h⟩
         let pair := if sel.bucket/2^j%2=0 then (value,other) else (other,value)
-        let parent ← nodeHash 10 coord index (2^(3-j-1)+sel.bucket/2^(j+1)) pair.1 pair.2
+        let parent ← nodeHash 10 coord index (2^(4-j-1)+sel.bucket/2^(j+1)) pair.1 pair.2
         pure (some (parent,used+1))
       else pure none) (some (value,next))
   let some (root,next) := result | pure none
@@ -46,7 +46,7 @@ def ftsFold (sig : Signature) (index : Nat) (chosen : List Selection) : T3.M (Op
 
 /-- The canonical-tail check of `recoverFts` (proof slots `used .. 123` zero). -/
 def tailZero (sig : Signature) (used : Nat) : Bool :=
-  (List.range (124 - used)).all fun j => decide (sig.proof ⟨(used + j) % 124, Nat.mod_lt _ (by decide)⟩ = 0)
+  (List.range (119 - used)).all fun j => decide (sig.proof ⟨(used + j) % 119, Nat.mod_lt _ (by decide)⟩ = 0)
 
 theorem recoverFts_eq (sig : Signature) (index : Nat) (chosen : List Selection) :
     recoverFts sig index chosen = ftsFold sig index chosen >>= fun state => match state with
@@ -72,7 +72,7 @@ structure FtsPre (sig : Signature) (N : HashOutput) (s : MachineState) : Prop wh
   adm : T3.admissible (T3.selections N) = true
   rows : SelRows s N
   secrets : ∀ k (h : k < 21), DigAt s (0x7010 + 16 * k) (sig.secrets ⟨k, h⟩)
-  proof : ∀ k (h : k < 124), DigAt s (0x7160 + 16 * k) (sig.proof ⟨k, h⟩)
+  proof : ∀ k (h : k < 119), DigAt s (0x7160 + 16 * k) (sig.proof ⟨k, h⟩)
   f0 : s.getMem (BitVec.ofNat 64 FLEAF) = 0
   f8 : s.getMem (BitVec.ofNat 64 (FLEAF + 8)) = 0
   f48 : s.getMem (BitVec.ofNat 64 (FLEAF + 48)) = 0
@@ -98,7 +98,7 @@ def FtsPost (s : MachineState) (sig : Signature) (N : HashOutput) :
     Option (List Digest × Nat) → MachineState → Prop
   | none, t => FailedAt 354 t
   | some (roots, used), t => t.pc = pcOf 215 ∧ t.getReg .x5 = 0 ∧
-      t.getReg .x9 = BitVec.ofNat 64 (N.toNat % 2 ^ 31) ∧ t.getReg .x18 = BitVec.ofNat 64 used ∧ used ≤ 124 ∧
+      t.getReg .x9 = BitVec.ofNat 64 (N.toNat % 2 ^ 31) ∧ t.getReg .x18 = BitVec.ofNat 64 used ∧ used ≤ 119 ∧
       roots.length = 7 ∧ (∀ c < 7, DigAt t (FOREST + slotOff c) (roots.getD c 0)) ∧
       t.readWords (BitVec.ofNat 64 0x840) 128 = wordsOf (leafBytes sig) ∧
       t.readWords (BitVec.ofNat 64 0xC40) 1275 = wordsOf (streamBytes (T3.selections N) sig.proof) ∧

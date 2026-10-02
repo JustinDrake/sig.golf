@@ -106,9 +106,9 @@ theorem coordShape_sched (w : WBytes) (coord : Nat) (sel : Selection) (ptr : Nat
   have g01 : selLeaf sel 0 < selLeaf sel 1 := by unfold selLeaf; have := hs.s01; omega
   have g12 : selLeaf sel 1 < selLeaf sel 2 := by unfold selLeaf; have := hs.s12; omega
   have g2l : selLeaf sel 2 < 2048 := by unfold selLeaf; have := hs.l2; have := hs.b; omega
-  have bk0 : selLeaf sel 0 / 2 ^ 8 = sel.bucket := hs.bucket_div (by rw [hsel]; simp)
-  have bk1 : selLeaf sel 1 / 2 ^ 8 = sel.bucket := hs.bucket_div (by rw [hsel]; simp)
-  have bk2 : selLeaf sel 2 / 2 ^ 8 = sel.bucket := hs.bucket_div (by rw [hsel]; simp)
+  have bk0 : selLeaf sel 0 / 2 ^ 7 = sel.bucket := hs.bucket_div (by rw [hsel]; simp)
+  have bk1 : selLeaf sel 1 / 2 ^ 7 = sel.bucket := hs.bucket_div (by rw [hsel]; simp)
+  have bk2 : selLeaf sel 2 / 2 ^ 7 = sel.bucket := hs.bucket_div (by rw [hsel]; simp)
   unfold coordShape
   unfold coordSchedule at hok ⊢
   simp only [] at hok ⊢
@@ -117,8 +117,8 @@ theorem coordShape_sched (w : WBytes) (coord : Nat) (sel : Selection) (ptr : Nat
   generalize selLeaf sel 2 = g2 at *
   have p01 := lcaLevel_pos g0 g1
   have p12 := lcaLevel_pos g1 g2
-  have l01 : lcaLevel g0 g1 ≤ 8 := (div_eq_iff_lca (by omega) 8).mp (by rw [bk0, bk1])
-  have l12 : lcaLevel g1 g2 ≤ 8 := (div_eq_iff_lca (by omega) 8).mp (by rw [bk1, bk2])
+  have l01 : lcaLevel g0 g1 ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [bk0, bk1])
+  have l12 : lcaLevel g1 g2 ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [bk1, bk2])
   have l02 : lcaLevel g0 g2 = max (lcaLevel g0 g1) (lcaLevel g1 g2) := lca_outer g01 g12
   have hne : lcaLevel g0 g1 ≠ lcaLevel g1 g2 := lca_ne g01 g12
   have e0 : ∀ g, 2048 + g = (2048 + g) / 2 ^ 0 := by intro g; simp
@@ -218,9 +218,9 @@ theorem coordShape_inv (w : WBytes) (coord : Nat) (sel : Selection) (ptr p : Nat
   have g01 : selLeaf sel 0 < selLeaf sel 1 := by unfold selLeaf; have := hs.s01; omega
   have g12 : selLeaf sel 1 < selLeaf sel 2 := by unfold selLeaf; have := hs.s12; omega
   have g2l : selLeaf sel 2 < 2048 := by unfold selLeaf; have := hs.l2; have := hs.b; omega
-  have bk0 : selLeaf sel 0 / 2 ^ 8 = sel.bucket := hs.bucket_div (by rw [hsel]; simp)
-  have bk1 : selLeaf sel 1 / 2 ^ 8 = sel.bucket := hs.bucket_div (by rw [hsel]; simp)
-  have bk2 : selLeaf sel 2 / 2 ^ 8 = sel.bucket := hs.bucket_div (by rw [hsel]; simp)
+  have bk0 : selLeaf sel 0 / 2 ^ 7 = sel.bucket := hs.bucket_div (by rw [hsel]; simp)
+  have bk1 : selLeaf sel 1 / 2 ^ 7 = sel.bucket := hs.bucket_div (by rw [hsel]; simp)
+  have bk2 : selLeaf sel 2 / 2 ^ 7 = sel.bucket := hs.bucket_div (by rw [hsel]; simp)
   unfold coordShape at h
   unfold coordSchedule
   simp only [] at h ⊢
@@ -229,8 +229,8 @@ theorem coordShape_inv (w : WBytes) (coord : Nat) (sel : Selection) (ptr p : Nat
   generalize selLeaf sel 2 = g2 at *
   have p01 := lcaLevel_pos g0 g1
   have p12 := lcaLevel_pos g1 g2
-  have l01 : lcaLevel g0 g1 ≤ 8 := (div_eq_iff_lca (by omega) 8).mp (by rw [bk0, bk1])
-  have l12 : lcaLevel g1 g2 ≤ 8 := (div_eq_iff_lca (by omega) 8).mp (by rw [bk1, bk2])
+  have l01 : lcaLevel g0 g1 ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [bk0, bk1])
+  have l12 : lcaLevel g1 g2 ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [bk1, bk2])
   have l02 : lcaLevel g0 g2 = max (lcaLevel g0 g1) (lcaLevel g1 g2) := lca_outer g01 g12
   have dd : ∀ g a b, (2048 + g) / 2 ^ a / 2 ^ b = (2048 + g) / 2 ^ (a + b) := fun g a b => heap_div_pow g a b
   have d2 : ∀ g a, (2048 + g) / 2 ^ a / 2 = (2048 + g) / 2 ^ (a + 1) := fun g a => heap_div_two g a
@@ -410,7 +410,7 @@ theorem fold_shape_inv (w : WBytes) (chosen : List Selection) (hc : ChosenOk cho
         rwa [schedule_getD _ (by omega), show m / 5 = n by omega, show m % 5 = m - 5 * n by omega]
 
 theorem admissible_of_slotBase (N : HashOutput) (hc : ChosenOk (selections N))
-    (h : slotBase (selections N) 7 ≤ 124) : admissible (selections N) = true := by
+    (h : slotBase (selections N) 7 ≤ 119) : admissible (selections N) = true := by
   rw [slotBase_seven_eq N hc] at h
   simp only [admissible, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
   refine ⟨fun sel hm => ?_, h⟩
@@ -636,11 +636,13 @@ theorem verifyP_normal (m : Message) (pk : Digest) (w : WBytes) :
           · exfalso
             obtain ⟨ha, hm⟩ := (stream_shaped_iff N w hsel).mp (by rw [hf]; rfl)
             exact hS ⟨hsel, ha, hm⟩
-        rw [map_eq_bind_pure_comp]
-        apply OracleComp.bind_congr_of_forall_mem_support
-        intro r hr
-        rw [ftsP_none_of_shape w _ _ hnot r hr]
-        rfl
+        split_ifs with hg
+        · rfl
+        · rw [map_eq_bind_pure_comp]
+          apply OracleComp.bind_congr_of_forall_mem_support
+          intro r hr
+          rw [ftsP_none_of_shape w _ _ hnot r hr]
+          rfl
       · simp [hsel]
 
 theorem verifyPNormal_holds : VerifyPNormal := verifyP_normal

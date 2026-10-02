@@ -28,11 +28,11 @@ open SigGolfCandidate.T3M.Keygen (LevW n4)
 
 /-- First digest index of the piece of layer `n` (`n = 4`: the end of the signature). -/
 def lstart : Nat → Nat
-  | 0 => 146
-  | 1 => 216
-  | 2 => 266
-  | 3 => 315
-  | _ => 364
+  | 0 => 141
+  | 1 => 211
+  | 2 => 261
+  | 3 => 310
+  | _ => 359
 
 theorem lstart_mono (n : Nat) : lstart n ≤ lstart (n + 1) := by
   rcases n with _ | _ | _ | _ | n <;> simp [lstart]
@@ -40,7 +40,7 @@ theorem lstart_mono (n : Nat) : lstart n ≤ lstart (n + 1) := by
 /-- The layers below `n` may write anything but the FTS part of the signature and the pieces of the layers
 `≥ n`. -/
 def LayW (n : Nat) (A : Nat) : Prop :=
-  ¬ (SIG ≤ A ∧ A < SIG + 2336) ∧ ¬ (SIG + 16 * lstart n ≤ A ∧ A < SIG + 5824)
+  ¬ (SIG ≤ A ∧ A < SIG + 2256) ∧ ¬ (SIG + 16 * lstart n ≤ A ∧ A < SIG + 5744)
 
 /-- The piece `p = (values, path)` of layer `lay` in the signature. -/
 def PieceAt (u : MachineState) (lay : Layer) (p : Pieces) : Prop :=
@@ -64,8 +64,8 @@ theorem SLPost.pre {s t : MachineState} {n : Nat} (hf : Frame s t (fun _ => Fals
 
 /-- The three lower layers. -/
 theorem lay_cases {lay : Layer} (hlay : lay ≠ 0) :
-    (lay.val = 1 ∧ layIdx lay = 216 ∧ height lay = 7) ∨ (lay.val = 2 ∧ layIdx lay = 266 ∧ height lay = 6) ∨
-      (lay.val = 3 ∧ layIdx lay = 315 ∧ height lay = 6) := by
+    (lay.val = 1 ∧ layIdx lay = 211 ∧ height lay = 7) ∨ (lay.val = 2 ∧ layIdx lay = 261 ∧ height lay = 6) ∨
+      (lay.val = 3 ∧ layIdx lay = 310 ∧ height lay = 6) := by
   fin_cases lay
   · exact absurd rfl hlay
   · left; exact ⟨rfl, rfl, rfl⟩
@@ -73,8 +73,8 @@ theorem lay_cases {lay : Layer} (hlay : lay ≠ 0) :
   · right; right; exact ⟨rfl, rfl, rfl⟩
 
 theorem lay_facts {lay : Layer} (hlay : lay ≠ 0) :
-    lstart lay.val = layIdx lay ∧ lstart (lay.val + 1) = layIdx lay + 43 + height lay ∧ 216 ≤ layIdx lay ∧
-      layIdx lay + 43 + height lay ≤ 364 := by
+    lstart lay.val = layIdx lay ∧ lstart (lay.val + 1) = layIdx lay + 43 + height lay ∧ 211 ≤ layIdx lay ∧
+      layIdx lay + 43 + height lay ≤ 359 := by
   rcases lay_cases hlay with ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ <;> rw [h1, h2, h3] <;> simp [lstart]
 
 theorem csW_layW {n A : Nat} (h : CsW A) : LayW n A := by
@@ -386,10 +386,10 @@ theorem layer0_link (hL0 : L0Spec sk cache) {index : Nat} {root : Digest} {v : M
   subst h0
   refine ⟨fun i hi => ?_, fun j hj => ?_⟩
   · have := uv i hi
-    rw [show SIG + 2336 + 16 * i = SIG + 16 * (layIdx 0 + i) by simp [layIdx]; ring] at this
+    rw [show SIG + 2256 + 16 * i = SIG + 16 * (layIdx 0 + i) by simp [layIdx]; ring] at this
     exact this
   · have := up j hj
-    rw [show SIG + 3264 + 16 * j = SIG + 16 * (layIdx 0 + chainCount 0 + j) by simp [layIdx, chainCount]; ring]
+    rw [show SIG + 3184 + 16 * j = SIG + 16 * (layIdx 0 + chainCount 0 + j) by simp [layIdx, chainCount]; ring]
       at this
     exact this
 

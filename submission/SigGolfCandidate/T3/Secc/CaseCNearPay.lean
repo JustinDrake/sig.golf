@@ -91,7 +91,7 @@ theorem pairRun_honest (T : Correctness.Answers) (adversary : AdversaryP) (r : B
 /-- **The near payoff**: an alive memory with an admissible birth near-covered by the exposures. -/
 noncomputable def nearPayoff (q : Nat) (r : (Bool × QueryLog Requests × List Wots.Entry) × BPair.WStateL) : ENNReal :=
   if r.2.memory.births.length ≤ q ∧ r.2.memory.exposures.length ≤ BPORS.Numeric.proposalLength ∧
-      ∃ N ∈ r.2.memory.births, admissible (selections N) = true ∧ NearCoveredBy r.2.memory.exposures N then 1 else 0
+      ∃ N ∈ r.2.memory.births, admissible (selections N) = true ∧ digestGate N=true ∧ NearCoveredBy r.2.memory.exposures N then 1 else 0
 
 /-- **`1 ≤ nearPayoff` on the near event**, from the world ghost facts. -/
 theorem payoff_of_ghosts (q : Nat) (T : Correctness.Answers) (published : T3.Cache)
@@ -107,14 +107,14 @@ theorem payoff_of_ghosts (q : Nat) (T : Correctness.Answers) (published : T3.Cac
     (hbirths : r.2.memory.births.length ≤ r.1.2.2.length)
     (hexplen : r.2.memory.exposures.length ≤ r.1.2.1.length)
     (hq : r.1.2.2.length ≤ q) (hP : NearIn T r.1.2.1 r.1.2.2) : 1 ≤ nearPayoff q r := by
-  obtain ⟨m, w, N, f, hx, hN, hS, hgood, hsd, hlen, hf, hguess, hdis⟩ := hP
+  obtain ⟨m, w, N, f, hx, hN, hS, hgate, hgood, hsd, hlen, hf, hguess, hdis⟩ := hP
   -- the forgery digest is a birth
   have hbirth : N ∈ r.2.memory.births := by
     rcases hrows _ N hx (BPair.digestInput_mem _ _ _) with hb | ht
     · exact hb
     · exfalso
       obtain ⟨entry, he, hqe⟩ := htrials _ ht
-      exact caseC_not_signer_eval T published r.1.2.1 hlog m w N hN hS hgood hsd entry he hqe
+      exact caseC_not_signer_eval T published r.1.2.1 hlog m w N hN hS hgate hgood hsd entry he hqe
   -- twenty openings are exposed
   have hcov : NearCoveredBy r.2.memory.exposures N := by
     refine ⟨f, hf, fun g hg hne => ?_⟩
@@ -122,6 +122,6 @@ theorem payoff_of_ghosts (q : Nat) (T : Correctness.Answers) (published : T3.Cac
     exact ⟨output, hexp entry he σ output hσ hout, hgo⟩
   unfold nearPayoff
   rw [if_pos ⟨hbirths.trans hq, hexplen.trans (hlen.trans (by unfold BPORS.Numeric.proposalLength; norm_num)),
-    N, hbirth, hS.2.1, hcov⟩]
+    N, hbirth, hS.2.1, hgate, hcov⟩]
 
 end SigGolfCandidate.T3.Security.CaseC

@@ -59,7 +59,7 @@ theorem rcEm_leaf (L : List Nat) (pf : Nat → Digest) (node used : Nat) (e : Em
   unfold rcEm; simp [h]
 
 section leaf
-variable {sk : BitVec 256} {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 124 → Digest}
+variable {sk : BitVec 256} {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 119 → Digest}
 
 /-- The close-or-not step at a leaf (`rc_has` with level 0 .. `rc_open`). -/
 theorem rc_leaf_close {s t2 : MachineState} {node used : Nat} {e : Em} {fresh : Bool} {ret sp j : Nat}

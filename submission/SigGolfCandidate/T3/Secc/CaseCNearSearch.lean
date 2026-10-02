@@ -38,7 +38,7 @@ theorem ev_aux_bind {β : Type} (slot : Nat) (i : BPair.AuxL) (k : BPair.AuxSpec
 theorem searchL_succ (rho : Digest) (m : Message) (c fuel : Nat) :
     BPair.searchL rho m c (fuel + 1) =
       (liftM (BPair.WSpecL.query (.inl (.trial (Sampling.digestTrial rho m c)))) >>= fun output =>
-        if admissible (selections output) = true then pure (some (BitVec.ofNat 32 c, output))
+        if digestAdmissible output = true then pure (some (BitVec.ofNat 32 c, output))
         else BPair.searchL rho m (c + 1) fuel) := rfl
 
 theorem ev_uniform_eq (g : HashOutput → ENNReal) :
@@ -74,7 +74,7 @@ theorem search_law (slot : Nat) (rho : Digest) (m : Message)
           simp only [BPair.rowStep, hx]
           rw [expectedValue_pure, expectedValue_pure]
           dsimp only
-          by_cases had : admissible (selections a) = true
+          by_cases had : digestAdmissible a = true
           · have hd : Sampling.digestDecode a = some a := by simp [Sampling.digestDecode, had]
             simp only [hd, had, if_true]
             simp only [SecretGuessObservation.runWith, simulateQ_pure, StateT.run_pure, Sampling.roRun_pure,
@@ -92,7 +92,7 @@ theorem search_law (slot : Nat) (rho : Digest) (m : Message)
           funext a
           rw [expectedValue_pure]
           dsimp only
-          by_cases had : admissible (selections a) = true
+          by_cases had : digestAdmissible a = true
           · have hd : Sampling.digestDecode a = some a := by simp [Sampling.digestDecode, had]
             simp only [hd, had, if_true]
             simp only [SecretGuessObservation.runWith, simulateQ_pure, StateT.run_pure, Sampling.roRun_pure,

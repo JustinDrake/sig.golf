@@ -38,7 +38,7 @@ def CaseCAt (answers : Correctness.Answers) (message : Message) (witness : WByte
   ∃ digestAnswer : HashOutput, (wdc witness).toNat < attemptLimit ∧
     evalWithAnswerFn answers (digest (wrho witness) message (wdc witness)) = digestAnswer ∧
     (∃ prior, (⟨prior, .inl (.inr (pad64 (digestInput (wrho witness) message (wdc witness)))), digestAnswer⟩ :
-      FirstHit.QueryEvent) ∈ events) ∧ Shaped digestAnswer witness ∧
+      FirstHit.QueryEvent) ∈ events) ∧ Shaped digestAnswer witness ∧ digestGate digestAnswer = true ∧
     (∀ lay : Layer, Extract.Good answers witness (digestAnswer.toNat % 2 ^ 31) lay) ∧
     FtsExtract.FtsShaped answers digestAnswer witness
 
@@ -148,7 +148,7 @@ def ConclusionAB (answers : Correctness.Answers) (message : Message) (witness : 
   ∃ digestAnswer : HashOutput, (wdc witness).toNat < attemptLimit ∧
       evalWithAnswerFn answers (digest (wrho witness) message (wdc witness)) = digestAnswer ∧
       (∃ prior, (⟨prior, .inl (.inr (pad64 (digestInput (wrho witness) message (wdc witness)))), digestAnswer⟩ :
-        FirstHit.QueryEvent) ∈ events) ∧ Shaped digestAnswer witness ∧
+        FirstHit.QueryEvent) ∈ events) ∧ Shaped digestAnswer witness ∧ digestGate digestAnswer = true ∧
       (PaddedExtraction.ActualHit answers events ∨
         (∃ lay : Layer, Extract.Diverge answers witness (digestAnswer.toNat % 2 ^ 31) lay
           (events.map FirstHit.QueryEvent.input) ∧
@@ -173,17 +173,17 @@ theorem linked_split (adversary : AdversaryP) (answers : Correctness.Answers) (r
     GameCaseAB adversary answers result ∨ GameCaseC adversary answers Not result ∨
       GameCaseC adversary answers id result := by
   obtain ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness, hof, hc⟩ := h
-  obtain ⟨N, hdc, hN, hq, hS, hcase⟩ := hc
+  obtain ⟨N, hdc, hN, hq, hS, hgate, hcase⟩ := hc
   rcases hcase with hA | hB | ⟨hgood, hfts⟩
   · exact Or.inl ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness, hof,
-      N, hdc, hN, hq, hS, Or.inl hA⟩
+      N, hdc, hN, hq, hS, hgate, Or.inl hA⟩
   · exact Or.inl ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness, hof,
-      N, hdc, hN, hq, hS, Or.inr hB⟩
+      N, hdc, hN, hq, hS, hgate, Or.inr hB⟩
   · by_cases hsd : SignedDigest interaction.value.2 message witness
     · exact Or.inr (Or.inr ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness,
-        hof, hsd, N, hdc, hN, hq, hS, hgood, hfts⟩)
+        hof, hsd, N, hdc, hN, hq, hS, hgate, hgood, hfts⟩)
     · exact Or.inr (Or.inl ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness,
-        hof, hsd, N, hdc, hN, hq, hS, hgood, hfts⟩)
+        hof, hsd, N, hdc, hN, hq, hS, hgate, hgood, hfts⟩)
 
 /-! ## Logged signatures resolve in the interaction's final tables -/
 
@@ -286,7 +286,7 @@ theorem gameCaseC_signed_false (adversary : AdversaryP) (answers : Correctness.A
           simp only [Option.map_some, Option.some.injEq] at hexp
           subst hexp
           have F := expandN_facts answers message _ σ N wit hx
-          obtain ⟨N', -, hN', -, -, hgood, hfts⟩ := hC
+          obtain ⟨N', -, hN', -, -, -, hgood, hfts⟩ := hC
           have hNN : N' = N := by
             rw [← hN', wrho_witEnc, wdc_witEnc, F.sig]
             exact F.digest

@@ -196,7 +196,7 @@ theorem pubGood_verifyP (m : Message) (pk : Digest) (w : WBytes) : AllQueriesSat
   · rcases r with _ | N
     · exact allQ_pure _
     unfold verifyTailP
-    refine allQ_ite _ (allQ_pure _) (allQ_bind (pubGood_ftsP _ _ _) fun r => ?_)
+    refine allQ_ite _ (allQ_pure _) (allQ_ite _ (allQ_pure _) (allQ_bind (pubGood_ftsP _ _ _) fun r => ?_))
     rcases r with _ | root
     · exact allQ_pure _
     refine allQ_bind (pubGood_layersP _ _ _ _) fun r => ?_
@@ -228,7 +228,7 @@ theorem pubGood_counterSearch (lay : Layer) (tree leaf : Nat) (msg : Digest) : �
       · exact allQ_pure _
 
 theorem pubGood_recoverChild (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 124 → Digest) : ∀ level node used,
+    (proof : Fin 119 → Digest) : ∀ level node used,
     AllQueriesSatisfy (recoverChild index coord leaves values proof level node used) PubGood := by
   intro level
   induction level with

@@ -131,16 +131,16 @@ theorem score_sum (oldValues : Source → Value) (newValues : New → Value)
 
 /-- The three-opening BPORS scale is (3r)_3, rather than the cubic relaxation.
 This holds for arbitrary values attached to the r previous source records. -/
-theorem three_opening_average (records : Nat) (values : Fin records × Fin 3 → Fin 256) :
-    finiteAverage (fun target : Fin 3 → Fin 256 => score values target) =
-      ((3 * records).descFactorial 3 : ENNReal) / (256 : ENNReal)^3 := by
+theorem three_opening_average (records : Nat) (values : Fin records × Fin 3 → Fin 128) :
+    finiteAverage (fun target : Fin 3 → Fin 128 => score values target) =
+      ((3 * records).descFactorial 3 : ENNReal) / (128 : ENNReal)^3 := by
   simpa only [Fintype.card_prod, Fintype.card_fin, Nat.mul_comm, Nat.cast_ofNat] using
     (average_score (Target := Fin 3) values)
 
 /-- The same occurrence construction supplies the two-opening near case. -/
-theorem two_opening_average (records : Nat) (values : Fin records × Fin 3 → Fin 256) :
-    finiteAverage (fun target : Fin 2 → Fin 256 => score values target) =
-      ((3 * records).descFactorial 2 : ENNReal) / (256 : ENNReal)^2 := by
+theorem two_opening_average (records : Nat) (values : Fin records × Fin 3 → Fin 128) :
+    finiteAverage (fun target : Fin 2 → Fin 128 => score values target) =
+      ((3 * records).descFactorial 2 : ENNReal) / (128 : ENNReal)^2 := by
   simpa only [Fintype.card_prod, Fintype.card_fin, Nat.mul_comm, Nat.cast_ofNat] using
     (average_score (Target := Fin 2) values)
 

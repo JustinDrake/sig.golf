@@ -129,7 +129,7 @@ theorem fin7_val (c : Nat) (hc : c < 7) : (fin7 c).val = c := Nat.mod_eq_of_lt h
 
 /-- The opened secrets of a coordinate are the disclosed secret values. -/
 theorem forestOpened_eq (T : Answers) (index : Fin (2^31)) (coord : Nat) (hc : coord < 7) (sel : Selection)
-    (hb : sel.bucket < 8) (hl : ∀ leaf ∈ sel.leaves, leaf < 256) :
+    (hb : sel.bucket < 16) (hl : ∀ leaf ∈ sel.leaves, leaf < 128) :
     forestOpened T index.val coord sel = (ftsOpened index coord sel).map (honestValue T) := by
   unfold forestOpened ftsOpened
   rw [filterMap_map_getD _ _ _ 0 (fun a ha => by
@@ -139,16 +139,16 @@ theorem forestOpened_eq (T : Answers) (index : Fin (2^31)) (coord : Nat) (hc : c
   apply List.map_congr_left
   intro a ha
   obtain ⟨leaf, hleaf, rfl⟩ := List.mem_map.mp ha
-  have hlt : sel.bucket * 256 + leaf < 2048 := by have := hl leaf hleaf; omega
+  have hlt : sel.bucket * 128 + leaf < 2048 := by have := hl leaf hleaf; omega
   rw [dif_pos hlt]
-  change Extract.ftsSecret T index.val coord (sel.bucket * 256 + leaf) = _
-  have hs := ftsSecret_eq T ⟨index, fin7 coord, ⟨sel.bucket * 256 + leaf, hlt⟩⟩
+  change Extract.ftsSecret T index.val coord (sel.bucket * 128 + leaf) = _
+  have hs := ftsSecret_eq T ⟨index, fin7 coord, ⟨sel.bucket * 128 + leaf, hlt⟩⟩
   simp only [fin7_val coord hc] at hs
   exact hs
 
 /-- The proof nodes of a coordinate are the disclosed node values. -/
 theorem forestProof_eq (h : Agrees T labels) (index : Fin (2^31)) (coord : Nat) (hc : coord < 7) (sel : Selection)
-    (hb : sel.bucket < 8) :
+    (hb : sel.bucket < 16) :
     forestInner T index.val coord sel ++ forestOuter T index.val coord sel =
       (ftsProof index coord sel).map (honestValue T) := by
   have hcoord : (fin7 coord).val = coord := fin7_val coord hc
@@ -163,21 +163,21 @@ theorem forestProof_eq (h : Agrees T labels) (index : Fin (2^31)) (coord : Nat) 
   rw [List.map_append]
   congr 1
   · rw [filterMap_map_getD _ _ _ 0 (fun p hp => by
-      obtain ⟨h1, h2⟩ := frontier_bound _ 8 sel.bucket p hp
+      obtain ⟨h1, h2⟩ := frontier_bound _ 7 sel.bucket p hp
       exact ftsChild_isSome _ _ _ _ (by omega) (by
-        calc p.2 < (sel.bucket + 1) * 2 ^ (8 - p.1) := h2
-          _ ≤ 8 * 2 ^ (8 - p.1) := Nat.mul_le_mul_right _ (by omega)
+        calc p.2 < (sel.bucket + 1) * 2 ^ (7 - p.1) := h2
+          _ ≤ 16 * 2 ^ (7 - p.1) := Nat.mul_le_mul_right _ (by omega)
           _ = 2 ^ (11 - p.1) := by
-            rw [show 11 - p.1 = 3 + (8 - p.1) by omega, pow_add]; norm_num))]
+            rw [show 11 - p.1 = 4 + (7 - p.1) by omega, pow_add]; norm_num))]
     apply List.map_congr_left
     intro p hp
-    obtain ⟨h1, h2⟩ := frontier_bound _ 8 sel.bucket p hp
+    obtain ⟨h1, h2⟩ := frontier_bound _ 7 sel.bucket p hp
     exact hval _ _ (by omega) (by
-      calc p.2 < (sel.bucket + 1) * 2 ^ (8 - p.1) := h2
-        _ ≤ 8 * 2 ^ (8 - p.1) := Nat.mul_le_mul_right _ (by omega)
+      calc p.2 < (sel.bucket + 1) * 2 ^ (7 - p.1) := h2
+        _ ≤ 16 * 2 ^ (7 - p.1) := Nat.mul_le_mul_right _ (by omega)
         _ = 2 ^ (11 - p.1) := by
-          rw [show 11 - p.1 = 3 + (8 - p.1) by omega, pow_add]; norm_num)
-  · have hbound : ∀ j ∈ List.range 3, sel.bucket / 2 ^ j ^^^ 1 < 2 ^ (11 - (8 + j)) := by
+          rw [show 11 - p.1 = 4 + (7 - p.1) by omega, pow_add]; norm_num)
+  · have hbound : ∀ j ∈ List.range 4, sel.bucket / 2 ^ j ^^^ 1 < 2 ^ (11 - (7 + j)) := by
       intro j hj
       rw [List.mem_range] at hj
       apply Nat.xor_lt_two_pow
@@ -347,7 +347,7 @@ theorem flatMap_congr_mem {α β : Type} (l : List α) (f g : α → List β) (h
       rw [h a (List.mem_cons_self), ih fun b hb => h b (List.mem_cons_of_mem _ hb)]
 
 theorem selection_bounds (N : HashOutput) (c : Nat) (hc : c < 7) :
-    ((selections N).getD c ⟨0, []⟩).bucket < 8 ∧ ∀ leaf ∈ ((selections N).getD c ⟨0, []⟩).leaves, leaf < 256 := by
+    ((selections N).getD c ⟨0, []⟩).bucket < 16 ∧ ∀ leaf ∈ ((selections N).getD c ⟨0, []⟩).leaves, leaf < 128 := by
   simp only [selections, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range hc,
     Option.map_some, Option.getD_some]
   refine ⟨Nat.mod_lt _ (by decide), fun leaf hleaf => ?_⟩

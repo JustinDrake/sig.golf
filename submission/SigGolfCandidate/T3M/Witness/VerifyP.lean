@@ -121,7 +121,7 @@ def ftsCoordP (w : WBytes) (index coord : Nat) (sel : Selection) (ptr : Nat) :
   if E2 = 1 ∧ s2 = [] then pure (some (n2, p2)) else pure none
 
 /-- The FTS: coordinates 0..6 over one stream pointer, then reject (`fold-limit`) if the pointer passed
-`streamEnd` (more than 124 fold blocks), then the forest pk `[root_0 | T(11) | root_1 .. root_6]`. -/
+`streamEnd` (more than 119 fold blocks), then the forest pk `[root_0 | T(11) | root_1 .. root_6]`. -/
 def ftsP (w : WBytes) (index : Nat) (chosen : List Selection) : M (Option Digest) := do
   let state ← (List.range 7).foldlM
     (fun (state : Option (List Digest × Nat)) coord => do
@@ -170,6 +170,7 @@ def verifyP (m : Message) (pk : Digest) (w : WBytes) : M Bool := do
   let some N ← digestP m w | pure false
   let chosen := selections N
   if !selectionsOk chosen then return false
+  if !digestGate N then return false
   let index := N.toNat % 2 ^ 31
   let some root ← ftsP w index chosen | pure false
   let some root ← layersP w index 4 root | pure false
@@ -185,7 +186,7 @@ formats; at zero pads it is `T3.verify` (`verifyPads_zero`). -/
 /-- The free bytes of a witness. -/
 structure Pads where
   leaf : Fin 22 → Digest
-  fold : Fin 124 → Digest
+  fold : Fin 119 → Digest
   chain : (lay : Layer) → Fin (chainCount lay) → Digest × Digest
   merkle : (lay : Layer) → Fin (height lay) → Digest
 
@@ -195,17 +196,17 @@ instance : Zero Pads := ⟨⟨fun _ => 0, fun _ => 0, fun _ _ => (0, 0), fun _ _
 /-- Fold pad of the node `(level + 1, node)` of Core's DFS: the slot consumed by its empty child (`used` when
 the left child is empty, `next` when the right one is), zero for a merge (both children non-empty). -/
 def foldPad (pads : Pads) (leaves : List Nat) (level node used next : Nat) : Digest :=
-  if !hasLeaf leaves level (2 * node) then pads.fold ⟨used % 124, Nat.mod_lt _ (by decide)⟩
-  else if !hasLeaf leaves level (2 * node + 1) then pads.fold ⟨next % 124, Nat.mod_lt _ (by decide)⟩
+  if !hasLeaf leaves level (2 * node) then pads.fold ⟨used % 119, Nat.mod_lt _ (by decide)⟩
+  else if !hasLeaf leaves level (2 * node + 1) then pads.fold ⟨next % 119, Nat.mod_lt _ (by decide)⟩
   else 0
 
 /-- Core's `recoverChild` with pads: the leaf of slot `s = 3 coord + j` hashes `P_s`, `P_{s+1}`; a fold hashes
 the pad of its proof slot. -/
 def recoverChildP (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 124 → Digest) (pads : Pads) : Nat → Nat → Nat → M (Option (Digest × Nat))
+    (proof : Fin 119 → Digest) (pads : Pads) : Nat → Nat → Nat → M (Option (Digest × Nat))
   | level, node, used =>
       if !hasLeaf leaves level node then
-        if h : used < 124 then pure (some (proof ⟨used, h⟩, used + 1)) else pure none
+        if h : used < 119 then pure (some (proof ⟨used, h⟩, used + 1)) else pure none
       else match level with
       | 0 => do
           let s := 3 * coord + leaves.idxOf node
@@ -228,25 +229,25 @@ def recoverFtsP (sig : Signature) (pads : Pads) (index : Nat) (chosen : List Sel
     (fun (state : Option (List Digest × Nat)) coord => do
       let some (roots, used) := state | pure none
       let sel := chosen.getD coord ⟨0, []⟩
-      let selected := sel.leaves.map (fun s => sel.bucket * 256 + s)
+      let selected := sel.leaves.map (fun s => sel.bucket * 128 + s)
       let values := (List.range 3).map (fun j => sig.secrets ⟨(coord * 3 + j) % 21, Nat.mod_lt _ (by decide)⟩)
-      let some (value, next) ← recoverChildP index coord selected values sig.proof pads 8 sel.bucket used
+      let some (value, next) ← recoverChildP index coord selected values sig.proof pads 7 sel.bucket used
         | pure none
-      let result ← (List.range 3).foldlM
+      let result ← (List.range 4).foldlM
         (fun (state : Option (Digest × Nat)) j => do
           let some (value, used) := state | pure none
-          if h : used < 124 then
+          if h : used < 119 then
             let other := sig.proof ⟨used, h⟩
             let pair := if sel.bucket / 2 ^ j % 2 = 0 then (value, other) else (other, value)
-            let parent ← nodeHashP 10 coord index (2 ^ (3 - j - 1) + sel.bucket / 2 ^ (j + 1)) pair.1
+            let parent ← nodeHashP 10 coord index (2 ^ (4 - j - 1) + sel.bucket / 2 ^ (j + 1)) pair.1
               (pads.fold ⟨used, h⟩) pair.2
             pure (some (parent, used + 1))
           else pure none) (some (value, next))
       let some (root, next) := result | pure none
       pure (some (roots ++ [root], next))) (some ([], 0))
   let some (roots, used) := state | pure none
-  if !(List.range (124 - used)).all (fun j =>
-      decide (sig.proof ⟨(used + j) % 124, Nat.mod_lt _ (by decide)⟩ = 0)) then return none
+  if !(List.range (119 - used)).all (fun j =>
+      decide (sig.proof ⟨(used + j) % 119, Nat.mod_lt _ (by decide)⟩ = 0)) then return none
   pure (some (← forestPk index roots))
 
 /-- Core's `recoverLayer` with the chain and Merkle pads. -/
@@ -279,7 +280,7 @@ def verifyLayersP (w : Witness) (pads : Pads) (index : Nat) : Nat → Digest →
 /-- Core's verification after the digest query, with pads: admissibility, FTS, layers, comparison. -/
 def verifyPadsTail (pk : Digest) (output : HashOutput) (w : Witness) (pads : Pads) : M Bool := do
   let chosen := selections output
-  if !admissible chosen then return false
+  if !digestAdmissible output then return false
   let index := output.toNat % 2 ^ 31
   let some root ← recoverFtsP w.signature pads index chosen | pure false
   let some root ← verifyLayersP w pads index 4 root | pure false

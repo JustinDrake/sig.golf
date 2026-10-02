@@ -118,23 +118,23 @@ theorem rc840_spec (hpc : s.pc = pcOf 840) (j : Nat) (hj : j < 3) (h20 : s.getRe
   · ex_regs eblk_840.res
   · intro A _ _; simp [eblk_840.res, rv_simp]
 
-/-- No leaf in the subtree: out of slots (`s2 ≥ 124`) fails. -/
+/-- No leaf in the subtree: out of slots (`s2 ≥ 119`) fails. -/
 theorem rc843_spec (hpc : s.pc = pcOf 843) (used : Nat) (hu : used < 2 ^ 63)
     (h18 : s.getReg .x18 = BitVec.ofNat 64 used) :
-    ∃ t, Steps image s 2 2 t ∧ t.pc = (if 124 ≤ used then pcOf 354 else pcOf 845) ∧
+    ∃ t, Steps image s 2 2 t ∧ t.pc = (if 119 ≤ used then pcOf 354 else pcOf 845) ∧
       RegsExcept s t [.x28] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound eblk_843 codeAt_843 s hpc (by simp [eblk_843.res, rv_simp]), ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, eblk_843.res, E.eval, CmpOp.eval, BinOp.eval, rebase, RegFile.get, h18,
       BitVec.ofNat_eq_ofNat]
-    rw [ex_slt used 124 hu (by omega)]
-    by_cases h : 124 ≤ used
-    · simp [h, show ¬ used < 124 by omega]
-    · simp [h, show used < 124 by omega]
+    rw [ex_slt used 119 hu (by omega)]
+    by_cases h : 119 ≤ used
+    · simp [h, show ¬ used < 119 by omega]
+    · simp [h, show used < 119 by omega]
   · ex_regs eblk_843.res
   · intro A _ _; simp [eblk_843.res, rv_simp]
 
 /-- The empty subtree: proof slot `s2` to `NOUT`, `s2 += 1`, `a0 = 0`, to `rc_ret`. -/
-theorem rc845_spec (hpc : s.pc = pcOf 845) (used : Nat) (hu : used < 124)
+theorem rc845_spec (hpc : s.pc = pcOf 845) (used : Nat) (hu : used < 119)
     (h18 : s.getReg .x18 = BitVec.ofNat 64 used) :
     ∃ t, Steps image s 13 13 t ∧ t.pc = pcOf 994 ∧
       t.getMem (BitVec.ofNat 64 NOUT) = s.getMem (BitVec.ofNat 64 (0x7160 + 16 * used)) ∧
@@ -386,8 +386,7 @@ theorem rc918_spec (hpc : s.pc = pcOf 918) (fp : Nat) (hfp8 : fp % 8 = 0) (hfp :
     t3n []
     rw [hlv, hnd, show (11#64 : BitVec 64) = BitVec.ofNat 64 11 from rfl, ofNat_sub_ofNat 11 level hl' (by omega),
       BitVec.toNat_ofNat, Nat.mod_eq_of_lt (show 11 - level < 2 ^ 64 by omega),
-      Nat.mod_eq_of_lt (show 11 - level < 64 by omega), Nat.one_mul, ofNat_add_ofNat] <;>
-      apply congrArg (BitVec.ofNat 64) <;> ring
+      Nat.mod_eq_of_lt (show 11 - level < 64 by omega), Nat.one_mul, ofNat_add_ofNat]
   · ex_regs eblk_918.res
   · intro A hA hn
     simp only [NODE] at hn

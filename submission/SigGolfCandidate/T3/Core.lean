@@ -32,10 +32,10 @@ def capacity (lay : Layer) : Nat := if lay = 0 then 210 else 301
 def attemptLimit : Nat := 2 ^ 20
 def counterLimit : Nat := 2 ^ 22
 def coordinates : Nat := 7
-def bucketBits : Nat := 3
-def childHeight : Nat := 8
+def bucketBits : Nat := 4
+def childHeight : Nat := 7
 def openings : Nat := 21
-def authCapacity : Nat := 124
+def authCapacity : Nat := 119
 def zero16 : HashInput := List.replicate 16 0
 
 /-- Tree-node and FTS leaf headers keep the fixed tree in word zero and the
@@ -189,15 +189,21 @@ structure Selection where
 
 def selections (output : HashOutput) : List Selection :=
   (List.range 7).map fun c =>
-    let number := output.toNat / 2^(31+27*c)
-    ⟨number % 8, ((List.range 3).map fun j => number / 2^(3+8*j) % 256).mergeSort (· ≤ ·)⟩
+    let number := output.toNat / 2^(31+25*c)
+    ⟨number % 16, ((List.range 3).map fun j => number / 2^(4+7*j) % 128).mergeSort (· ≤ ·)⟩
 
 def authCount (leaves : List Nat) : Nat :=
-  8 + ((leaves.zip (leaves.drop 1)).map fun p => (p.1 ^^^ p.2).log2 + 1).sum - 4
+  7 + ((leaves.zip (leaves.drop 1)).map fun p => (p.1 ^^^ p.2).log2 + 1).sum - 4
 
 def admissible (chosen : List Selection) : Bool :=
   chosen.all (fun s => decide (s.leaves.Nodup)) &&
-    decide (21 + (chosen.map fun s => authCount s.leaves).sum ≤ 124)
+    decide (28 + (chosen.map fun s => authCount s.leaves).sum ≤ 119)
+
+/-- Five independent high bits screen the digest; the selector occupies bits31..205. -/
+def digestGate (output : HashOutput) : Bool := decide (output.toNat / 2^206 % 32 = 0)
+
+def digestAdmissible (output : HashOutput) : Bool :=
+  admissible (selections output) && digestGate output
 
 def digestInput (rho : Digest) (message : Message) (counter : BitVec 32) : HashInput :=
   bytesLE 16 rho ++ bytesLE 16 (header 12 0 0 0 counter.toNat) ++ bytesLE 32 message
@@ -210,7 +216,7 @@ def digestSearch (rho : Digest) (message : Message) (counter : Nat) :
   | 0 => pure none
   | fuel+1 => do
       let output ← digest rho message (BitVec.ofNat 32 counter)
-      if admissible (selections output) then return some (BitVec.ofNat 32 counter, output)
+      if digestAdmissible output then return some (BitVec.ofNat 32 counter, output)
       digestSearch rho message (counter+1) fuel
 
 def ftsLeaf (index coord leaf : Nat) (secret : Digest) : M Digest :=
@@ -291,7 +297,7 @@ structure LayerSignature (lay : Layer) where
 structure Signature where
   rho : Digest
   secrets : Fin 21 → Digest
-  proof : Fin 124 → Digest
+  proof : Fin 119 → Digest
   layers : (lay : Layer) → LayerSignature lay
 
 structure Witness where
@@ -311,10 +317,10 @@ def signPayload (cache : Cache) (message : Message) : M (Option Signature) := do
     (fun (state : List Digest × List Digest × List Digest) coord => do
       let sel := chosen.getD coord ⟨0,[]⟩
       let (levels,secrets) ← buildFts index coord
-      let selected := sel.leaves.map (fun s => sel.bucket*256+s)
+      let selected := sel.leaves.map (fun s => sel.bucket*128+s)
       let opened := selected.map (fun s => secrets.getD s 0)
-      let inner := (frontier selected 8 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
-      let outer := (List.range 3).map fun j => (levels.getD (8+j) []).getD (sel.bucket/2^j ^^^ 1) 0
+      let inner := (frontier selected 7 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
+      let outer := (List.range 4).map fun j => (levels.getD (7+j) []).getD (sel.bucket/2^j ^^^ 1) 0
       pure (state.1 ++ opened,state.2.1 ++ inner ++ outer,
         state.2.2 ++ [(levels.getD 11 []).getD 0 0])) ([],[],[])
   let root ← forestPk index state.2.2
@@ -336,10 +342,10 @@ def serialize (sig : Signature) : HashInput :=
     (List.ofFn fun lay => serializeLayer (sig.layers lay)).flatten
 
 def recoverChild (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 124 → Digest) : Nat → Nat → Nat → M (Option (Digest × Nat))
+    (proof : Fin 119 → Digest) : Nat → Nat → Nat → M (Option (Digest × Nat))
   | level,node,used =>
       if !hasLeaf leaves level node then
-        if h : used < 124 then pure (some (proof ⟨used,h⟩,used+1)) else pure none
+        if h : used < 119 then pure (some (proof ⟨used,h⟩,used+1)) else pure none
       else match level with
       | 0 => do
           let value ← ftsLeaf index coord node (values.getD (leaves.idxOf node) 0)
@@ -355,23 +361,23 @@ def recoverFts (sig : Signature) (index : Nat) (chosen : List Selection) : M (Op
     (fun (state : Option (List Digest × Nat)) coord => do
       let some (roots,used) := state | pure none
       let sel := chosen.getD coord ⟨0,[]⟩
-      let selected := sel.leaves.map (fun s => sel.bucket*256+s)
+      let selected := sel.leaves.map (fun s => sel.bucket*128+s)
       let values := (List.range 3).map (fun j => sig.secrets ⟨(coord*3+j)%21,Nat.mod_lt _ (by decide)⟩)
-      let some (value,next) ← recoverChild index coord selected values sig.proof 8 sel.bucket used | pure none
-      let result ← (List.range 3).foldlM
+      let some (value,next) ← recoverChild index coord selected values sig.proof 7 sel.bucket used | pure none
+      let result ← (List.range 4).foldlM
         (fun (state : Option (Digest × Nat)) j => do
           let some (value,used) := state | pure none
-          if h : used < 124 then
+          if h : used < 119 then
             let other := sig.proof ⟨used,h⟩
             let pair := if sel.bucket/2^j%2=0 then (value,other) else (other,value)
-            let parent ← nodeHash 10 coord index (2^(3-j-1)+sel.bucket/2^(j+1)) pair.1 pair.2
+            let parent ← nodeHash 10 coord index (2^(4-j-1)+sel.bucket/2^(j+1)) pair.1 pair.2
             pure (some (parent,used+1))
           else pure none) (some (value,next))
       let some (root,next) := result | pure none
       pure (some (roots ++ [root],next))) (some ([],0))
   let some (roots,used) := state | pure none
-  if !(List.range (124-used)).all (fun j =>
-      decide (sig.proof ⟨(used+j)%124,Nat.mod_lt _ (by decide)⟩ = 0)) then return none
+  if !(List.range (119-used)).all (fun j =>
+      decide (sig.proof ⟨(used+j)%119,Nat.mod_lt _ (by decide)⟩ = 0)) then return none
   pure (some (← forestPk index roots))
 
 def recoverLayer (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) : M Digest := do
@@ -419,7 +425,7 @@ def verify (message : Message) (pk : Digest) (w : Witness) : M Bool := do
   if w.digestCounter.toNat ≥ attemptLimit then return false
   let output ← digest w.signature.rho message w.digestCounter
   let chosen := selections output
-  if !admissible chosen then return false
+  if !digestAdmissible output then return false
   let index := output.toNat%2^31
   let some root ← recoverFts w.signature index chosen | pure false
   let some root ← verifyLayers w index 4 root | pure false

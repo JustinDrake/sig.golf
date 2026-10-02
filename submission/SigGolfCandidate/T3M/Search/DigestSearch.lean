@@ -1,4 +1,4 @@
-import SigGolfCandidate.T3M.Search.SelectOk
+import SigGolfCandidate.T3M.Search.Gate
 import SigGolfCandidate.T3M.Search.CounterSearch
 
 /-!
@@ -11,8 +11,8 @@ The loop `ds_loop` (19 words at `d`: expand `d = 30`, sign `d = 153`) with the k
 `I = 2^20` jumps to `fail` (`b`).
 
 * `digestSearch_tbsim`: from `DsPre` (`d`, `I = 0`), the machine refines
-  `digestSearch rho m 0 attemptLimit` within `2^20 · 666 + 664` cycles (a failing trial costs
-  `26 + k ≤ 666` cycles, `k ≤ 640` the `select_ok` run), ending in `DsPost`;
+  `digestSearch rho m 0 attemptLimit` within `2^20 · 672 + 670` cycles (a failing trial costs
+  `26 + k ≤ 672` cycles, `k ≤ 640` the `select_ok` run), ending in `DsPost`;
 * `digestSearch_spec`: the same in the shape of t3m/s `Sign/Kernels.lean` (`DigestSearchSpec`).
 -/
 
@@ -122,7 +122,7 @@ theorem ds14_fetch (hD : DsAt image d b) (s : MachineState) (hpc : s.pc = pcOf (
 
 /-- `jal ra, select_ok`. -/
 theorem ds15_spec (hD : DsAt image d b) (s : MachineState) (hpc : s.pc = pcOf (d + 15)) :
-    ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf (b + 3) ∧ t.getReg .x1 = pcOf (d + 16) ∧
+    ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf (gatePc b) ∧ t.getReg .x1 = pcOf (d + 16) ∧
       RegsExcept s t [.x1] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound (run_ds15 hD.2) (codeAt_ds_15 hD) s hpc
     (by simp [stds_15, blkds30_15.res, rv_simp]), ?_, ?_, ?_, ?_⟩
@@ -178,7 +178,7 @@ structure DsPre (d : Nat) (s : MachineState) (rho : Digest) (m : T3.Message) : P
 
 /-- Entry `j` of selection row `c`: `256 bucket + x_j` (S's `selEntry`). -/
 def selEntry (N : HashOutput) (c j : Nat) : Nat :=
-  ((T3.selections N).getD c ⟨0, []⟩).bucket * 256 + ((T3.selections N).getD c ⟨0, []⟩).leaves.getD j 0
+  ((T3.selections N).getD c ⟨0, []⟩).bucket * 128 + ((T3.selections N).getD c ⟨0, []⟩).leaves.getD j 0
 
 /-- The selection rows of `N` at `SEL` (row `c` at `SEL + 24 c`; S's `SelRows`). -/
 def SelRows (t : MachineState) (N : HashOutput) : Prop :=
@@ -206,7 +206,7 @@ def DsPostS (b d : Nat) (s : MachineState) : Option (BitVec 32 × HashOutput) �
 def dsCostS : Nat := T3.attemptLimit * 700 + 100
 
 theorem selEntry_eq (N : HashOutput) (c j : Nat) (hc : c < 7) :
-    selEntry N c j = selBucket N c * 256 + (selRow N c).getD j 0 := by
+    selEntry N c j = selBucket N c * 128 + (selRow N c).getD j 0 := by
   simp [selEntry, selections_eq, List.getD_eq_getElem?_getD, hc]
 
 theorem NAt.writeHash (t : MachineState) (a : BitVec 256) (h12 : t.getReg .x12 = BitVec.ofNat 64 NBUF) :
@@ -229,11 +229,11 @@ structure DsInv (d : Nat) (s0 : MachineState) (i : Nat) (t : MachineState) : Pro
   frame : Frame s0 t DsW
 
 /-- **The search loop**: from `ds_loop` at trial `i` with `F = 2^20 - i` trials left, within
-`F · 666 + 664` cycles. -/
+`F · 672 + 670` cycles. -/
 theorem ds_loop (hD : DsAt image d b) (hK : KernAt image b) {s0 : MachineState} {rho : Digest}
     {m : T3.Message} (hpre : DsPre d s0 rho m) :
     ∀ F i t, i + F = 2 ^ 20 → DsInv d s0 i t →
-      TBSim image sk t (F * 666 + 664) (T3.digestSearch rho m i F) (DsPost b d s0) := by
+      TBSim image sk t (F * 672 + 670) (T3.digestSearch rho m i F) (DsPost b d s0) := by
   intro F
   induction F with
   | zero =>
@@ -283,11 +283,11 @@ theorem ds_loop (hD : DsAt image d b) (hK : KernAt image b) {s0 : MachineState} 
     have h5 : u.getReg .x5 = 0 := by rw [ru.get (by decide), hpre.x5]
     have prog : T3.digestSearch rho m i (F + 1) =
         (T3.publicHash (T3.digestInput rho m (BitVec.ofNat 32 i)) >>= fun output =>
-          if T3.admissible (T3.selections output) then pure (some (BitVec.ofNat 32 i, output))
+          if T3.digestAdmissible output then pure (some (BitVec.ofNat 32 i, output))
           else T3.digestSearch rho m (i + 1) F) := rfl
     rw [prog]
     refine (TBSim.steps (s1.trans s2) (TBSim.publicHash_bind (ds14_fetch hD u p2) h5 hv hq
-      (W := 644 + (F * 666 + 664)) (fun a => ?_))).mono ?_ (fun _ _ h => h)
+      (W := 650 + (F * 672 + 670)) (fun a => ?_))).mono ?_ (fun _ _ h => h)
     swap
     · rw [blocks_digestInput]; ring_nf; omega
     -- the answer `a` at `NBUF`
@@ -295,7 +295,7 @@ theorem ds_loop (hD : DsAt image d b) (hK : KernAt image b) {s0 : MachineState} 
     have hN : NAt (writeHash u a) a := NAt.writeHash u a h12
     have fw := Frame.writeHash u a NBUF h12 (by decide)
     obtain ⟨t15, s15, p15, h1, r15, f15⟩ := ds15_spec hD (writeHash u a) pw
-    obtain ⟨k, t16, s16, hk, p16, h13, hrows, r16, f16⟩ := selectOk_spec hK t15 p15 (d + 16) h1 a
+    obtain ⟨k, t16, s16, hk, p16, h13, hrows, r16, f16⟩ := gatedSelect_spec hK hD.1.2 t15 p15 (d + 16) h1 a
       (NAt.frame hN (f15.mono (fun _ _ h => h.elim)))
     obtain ⟨t17, s17, p17, r17, f17⟩ := ds16_spec hD t16 p16 _ h13
     have r17' : RegsExcept s0 t17 dsRegs :=
@@ -311,14 +311,14 @@ theorem ds_loop (hD : DsAt image d b) (hK : KernAt image b) {s0 : MachineState} 
       · exact Or.inr (Or.inr (Or.inr h)))
     have hN17 : NAt t17 a :=
       NAt.frame (NAt.frame (NAt.frame hN (f15.mono (fun _ _ h => h.elim))) f16) (f17.mono (fun _ _ h => h.elim))
-    by_cases hadm : T3.admissible (T3.selections a) = true
+    by_cases hadm : T3.digestAdmissible a = true
     · simp only [hadm, ↓reduceIte] at p17 ⊢
       refine (TBSim.steps (s15.trans (s16.trans s17)) (TBSim.pure ?_)).mono (by omega) (fun _ _ h => h)
-      refine ⟨p17, by rw [r17'.get (by decide), hpre.x5], hadm, hN17, ?_, r17', f17', by rw [hc]; exact hi,
+      refine ⟨p17, by rw [r17'.get (by decide), hpre.x5], (by have hh := hadm; simp only [T3.digestAdmissible, Bool.and_eq_true] at hh; exact hh.1), hN17, ?_, r17', f17', by rw [hc]; exact hi,
         by rw [hc, x19']⟩
       intro c hc7 j hj
       rw [f17.get (by simp only [SEL]; omega) (fun h => h), hrows hadm c hc7 j hj, selEntry_eq a c j hc7]
-    · have hadm' : T3.admissible (T3.selections a) = false := by simpa using hadm
+    · have hadm' : T3.digestAdmissible a = false := by simpa using hadm
       simp only [hadm', Bool.false_eq_true, ↓reduceIte] at p17 ⊢
       obtain ⟨t18, s18, p18, h19, r18, f18⟩ := ds17_spec hD t17 p17 i x19'
       have hI' : DsInv d s0 (i + 1) t18 :=
@@ -328,10 +328,10 @@ theorem ds_loop (hD : DsAt image d b) (hK : KernAt image b) {s0 : MachineState} 
         (by omega) (fun _ _ h => h)
 
 /-- **The digest search refines Core's `digestSearch`** (`ds_loop` at `d`, kernel at `b`): from `DsPre`,
-`digestSearch rho m 0 attemptLimit` query for query within `2^20 · 666 + 664` cycles, ending in `DsPost`. -/
+`digestSearch rho m 0 attemptLimit` query for query within `2^20 · 672 + 670` cycles, ending in `DsPost`. -/
 theorem digestSearch_tbsim (hD : DsAt image d b) (hK : KernAt image b) {s0 : MachineState} {rho : Digest}
     {m : T3.Message} (hpre : DsPre d s0 rho m) :
-    TBSim image sk s0 (2 ^ 20 * 666 + 664) (T3.digestSearch rho m 0 T3.attemptLimit) (DsPost b d s0) :=
+    TBSim image sk s0 (2 ^ 20 * 672 + 670) (T3.digestSearch rho m 0 T3.attemptLimit) (DsPost b d s0) :=
   ds_loop hD hK hpre (2 ^ 20) 0 s0 (by norm_num)
     ⟨hpre.pc, by norm_num, hpre.x19, RegsExcept.refl _ _, Frame.refl _ _⟩
 

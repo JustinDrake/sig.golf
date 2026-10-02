@@ -7,7 +7,7 @@ import SigGolfCandidate.T3.Secc.PairGuessWorld
 * `selection_getD`: the `c`-th selection of an output is its raw bucket with its sorted raw leaves;
 * `outLeaves_injective`: an admissible output has three distinct raw leaves in every coordinate;
 * `mem_openedPositions` / `opened_mem`: the opened positions (B-PAIR's `openedPositions`) are exactly
-  `(index, c, 256·bucket_c + leaf)` for the raw leaves;
+  `(index, c, 128·bucket_c + leaf)` for the raw leaves;
 * `coordCovered_of_opened`: if every opened position of `N` is opened by some exposure, `N` is covered.
 -/
 
@@ -50,13 +50,13 @@ theorem outputIndex_eq (x : HashOutput) : BPair.outputIndex x = outIdx x := by
   rw [show (BPair.outputIndex x).val = x.toNat % 2 ^ 31 from rfl, ← rawView_index]
   rfl
 
-theorem leafIndex_val (b : Fin 8) (leaf : Fin 256) : (BPair.leafIndex b.val leaf.val).val = b.val * 256 + leaf.val := by
+theorem leafIndex_val (b : Fin 16) (leaf : Fin 128) : (BPair.leafIndex b.val leaf.val).val = b.val * 128 + leaf.val := by
   unfold BPair.leafIndex
   simp only
   apply Nat.mod_eq_of_lt
   omega
 
-theorem leafIndex_inj {b b' : Fin 8} {leaf leaf' : Fin 256}
+theorem leafIndex_inj {b b' : Fin 16} {leaf leaf' : Fin 128}
     (h : BPair.leafIndex b.val leaf.val = BPair.leafIndex b'.val leaf'.val) : b = b' ∧ leaf = leaf' := by
   have hv := congrArg Fin.val h
   rw [leafIndex_val, leafIndex_val] at hv

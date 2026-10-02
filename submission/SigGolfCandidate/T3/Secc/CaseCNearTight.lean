@@ -3,7 +3,7 @@ import SigGolfCandidate.T3.Secc.CaseCNearClose
 /-!
 # Stream CC: the near price with room for the reuse charge (`≤ 103 − 1/16`), hence A's exact `NearBound`
 
-SEC's `fullNearPrice_bound` rounds the near price up to `103`; the exact Poisson value is `≈ 102.543`, so the same
+SEC's `fullNearPrice_bound` rounds the near price up to `103`; the exact Poisson value is `≈ 79.4963`, so the same
 arithmetic gives `≤ 1647/16 = 103 − 1/16`, which leaves room for the near bank's reuse charge `1/16` per birth:
 
 * `poisson_near_bound_tight`, `uniform_history_near_bound_tight`, `fullNearPrice_bound_tight` (SEC's proofs, final
@@ -23,7 +23,7 @@ set_option linter.unusedSimpArgs false
 set_option maxHeartbeats 10000000
 
 theorem poisson_near_bound_tight :
-    21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^220 ≤ 1647 / 16 := by
+    21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^225 ≤ 1647 / 16 := by
   unfold poissonEnvelope
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
   simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
@@ -32,11 +32,11 @@ theorem poisson_near_bound_tight :
 
 theorem uniform_history_near_bound_tight (missing : Fin 7) :
     21*(2 : ENNReal)^128*binomialAverage (1/2^31) proposalLength (fun steps =>
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 8) : ProbComp _) (nearForestEnvelope missing)) ≤ 1647 / 16 := by
+      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) (nearForestEnvelope missing)) ≤ 1647 / 16 := by
   calc
-    _ ≤ 21*(2 : ENNReal)^128*(poissonEnvelope nearCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^220) :=
+    _ ≤ 21*(2 : ENNReal)^128*(poissonEnvelope nearCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^225) :=
       mul_le_mul' le_rfl (near_forest_binomial_bound (1/2^31) (by norm_num) proposalLength missing)
-    _ = 21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^220 := by
+    _ = 21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^225 := by
       simp only [div_eq_mul_inv,mul_one,one_mul,mul_assoc]
     _ ≤ _ := poisson_near_bound_tight
 
@@ -55,7 +55,7 @@ theorem fullNearPrice_bound_tight : uniformWordAverage Numeric.proposalLength fu
   simp_rw [Numeric.near_forest_first_moment] at h
   have he : uniformWordAverage Numeric.proposalLength fullNearPrice=
       21*(2 : ENNReal)^128*binomialAverage (1/2^31) Numeric.proposalLength
-        (fun count => envelope Numeric.nearCoeffs count/2^220) := by
+        (fun count => envelope Numeric.nearCoeffs count/2^225) := by
     unfold fullNearPrice
     rw [uniformWordAverage_mul_left]
     simp_rw [uniformWordAverage_sum,near_mean_at_index]

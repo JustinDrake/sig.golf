@@ -29,7 +29,7 @@ attribute [local instance] Classical.propDecidable
 /-- **The bank certificate of a router state** (CC's `core_win` premise). -/
 def CertGhost (st : RouterState) : Prop :=
   st.exposures.length ≤ BPORS.Numeric.proposalLength ∧
-    (st.reused = true ∨ ∃ p ∈ st.births, admissible (selections p.2) = true ∧ CaseC.CoveredBy st.exposures p.2)
+    (st.reused = true ∨ ∃ p ∈ st.births, admissible (selections p.2) = true ∧ digestGate p.2=true ∧ CaseC.CoveredBy st.exposures p.2)
 
 /-- The router finished with an accepting verdict and a certificate. -/
 def CertOut {U : Finset HashInput} (r : Option (Option (Bool × RouterState)) × LargeResidual.State WCoord (Cell U)) :

@@ -54,6 +54,7 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
   obtain ⟨hlen, forgery, hf, hfresh, m, w, hof, hv, hsub⟩ :=
     WotsExtract.verdict_accepting g.value.1 t.value t.state c hc z.2 hac hcval
   obtain ⟨N, hdc, hN, hdq, hS, hcase⟩ := WotsExtract.verifyP_wots_cases_route z.2 m g.value.1 w hpk hv
+  have hgate : digestGate N=true := by simpa only [← hN] using verifyP_digestGate z.2 m g.value.1 w hv
   have hsteps : StepsAgree z.2 t.steps := by
     intro step hstep event heq hi
     have hev : event ∈ t.untag.events := by
@@ -103,7 +104,7 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     rw [hNz] at hev
     exact List.mem_append_right _ (List.mem_append_right _ hev)
   have hcaseC : BPB.CaseCAt z.2 m w (QueryRecorded.recordedTrace z.1).events :=
-    ⟨N, hdc, hN, hdigest, hS, hgood, hfts⟩
+    ⟨N, hdc, hN, hdigest, hS, hgate, hgood, hfts⟩
   have hext : SourceReplay.Extends t.untag.state (QueryRecorded.recordedTrace z.1).state := by
     rw [hstate]; exact htc
   have hsd : ¬BPB.SignedDigest t.value.2 m w := fun hsd =>
@@ -116,7 +117,7 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
   have halive : st.exposures.length ≤ BPORS.Numeric.proposalLength := by
     have h1 : st.exposures.length ≤ signCount t.steps := exposures_fold_le U z.2 g.value.2 t.steps c.events
     rw [signCount_eq_length, ← hlog] at h1
-    have : BPORS.Numeric.proposalLength = 4573625196 := rfl
+    have : BPORS.Numeric.proposalLength = 4303355904 := rfl
     omega
   refine ⟨halive, ?_⟩
   by_cases hr : st.reused = true
@@ -132,7 +133,7 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     (FirstHit.recorded_support _ _ _ hu)
   have hagree' : ∀ input answer, SourceReplay.known t.state input = some answer → z.2 input = answer :=
     fun input answer h => hac input answer (SourceReplay.known_mono _ _ htc h)
-  have hnot := BPB.caseC_fresh_not_signer z.2 g.value.2 t.value.2 t.state hres' hagree' m w N hN hS hgood hsd
+  have hnot := BPB.caseC_fresh_not_signer z.2 g.value.2 t.value.2 t.state hres' hagree' m w N hN hS hgate hgood hsd
   have hnotrial : Xs ∉ (t.steps.foldl (routerStep U z.2 (honestNonce z.2) g.value.2) RouterState.initial).trials := by
     intro hm
     rcases trials_steps U z.2 g.value.2 t.steps RouterState.initial Xs hm with h0 | ⟨r, o, e, hmem, hcr, hrow⟩
@@ -158,7 +159,7 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     obtain ⟨prior, hev⟩ := hsub _ hdq
     apply hI2
     exact seen_events_self U c.events _ prior Xs _ hev
-  refine ⟨(Xs, N), hbirth, hS.2.1, ?_⟩
+  refine ⟨(Xs, N), hbirth, hS.2.1, hgate, ?_⟩
   -- every opened position is opened by an exposure
   intro f hfo
   have hS' : Shaped (evalWithAnswerFn z.2 (digest (wrho w) m (wdc w))) w := by rw [hN]; exact hS

@@ -301,7 +301,7 @@ theorem blk265_spec (s : MachineState) (hpc : s.pc = pcOf 265) (j rowp sdst g : 
 
 /-- `fts_sec_done` (278..279): `DSTART = 8`, `J = 0`. -/
 theorem blk278_spec (s : MachineState) (hpc : s.pc = pcOf 278) :
-    ∃ t, Steps image s 2 2 t ∧ t.pc = pcOf 280 ∧ t.getReg .x23 = BitVec.ofNat 64 8 ∧
+    ∃ t, Steps image s 2 2 t ∧ t.pc = pcOf 280 ∧ t.getReg .x23 = BitVec.ofNat 64 7 ∧
       t.getReg .x19 = BitVec.ofNat 64 0 ∧ RegsExcept s t [.x19, .x23] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound blk_278 codeAt_278 s hpc (by simp [blk_278.res, rv_simp]), ?_, ?_, ?_, ?_, ?_⟩
   · simp [blk_278.res, E.eval]
@@ -478,11 +478,11 @@ theorem blk310_spec (s : MachineState) (hpc : s.pc = pcOf 310) :
 /-- `fr_asc` (311): `LEV ≥ 8` ends the ascent. -/
 theorem blk311_spec (s : MachineState) (hpc : s.pc = pcOf 311) (l : Nat) (hl : l < 2 ^ 63)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 l) :
-    ∃ t, Steps image s 2 2 t ∧ t.pc = (if l < 8 then pcOf 313 else pcOf 328) ∧
+    ∃ t, Steps image s 2 2 t ∧ t.pc = (if l < 7 then pcOf 313 else pcOf 328) ∧
       RegsExcept s t [.x6] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound blk_311 codeAt_311 s hpc (by simp [blk_311.res, rv_simp]), ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, blk_311.res, E.eval, CmpOp.eval, h22, ofNat_slt l 8 hl (by norm_num)]
-    by_cases h : l < 8 <;> simp [h]
+  · simp only [Result.toState_pc, blk_311.res, E.eval, CmpOp.eval, h22, ofNat_slt l 7 hl (by norm_num)]
+    by_cases h : l < 7 <;> simp [h]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_311.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_311.res, rv_simp]
 
@@ -581,7 +581,7 @@ theorem blk328_spec (s : MachineState) (hpc : s.pc = pcOf 328) (j : Nat)
 
 /-- `fr_done` (331): `LEV = 8`. -/
 theorem blk331_spec (s : MachineState) (hpc : s.pc = pcOf 331) :
-    ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 332 ∧ t.getReg .x22 = BitVec.ofNat 64 8 ∧
+    ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 332 ∧ t.getReg .x22 = BitVec.ofNat 64 7 ∧
       RegsExcept s t [.x22] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound blk_331 codeAt_331 s hpc (by simp [blk_331.res, rv_simp]), ?_, ?_, ?_, ?_⟩
   · simp [blk_331.res, E.eval]

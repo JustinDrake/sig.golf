@@ -137,7 +137,7 @@ theorem treeHit_mono {answers : Answers} {index coord : Nat} {secret : Nat → D
 distinct-input hit at its own position or is honest: all its queries are honest inputs and its selected leaves
 carry the honest secrets with zero pads. -/
 theorem recoverChildP_extract (answers : Answers) (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 124 → Digest) (pads : Pads) (secret : Nat → Digest) :
+    (proof : Fin 119 → Digest) (pads : Pads) (secret : Nat → Digest) :
     ∀ level node used (v : Digest) (next : Nat), level ≤ 11 → node < 2 ^ (11 - level) →
       evalWithAnswerFn answers (recoverChildP index coord leaves values proof pads level node used) =
         some (v, next) →
@@ -248,24 +248,24 @@ theorem recoverChildP_extract (answers : Answers) (index coord : Nat) (leaves : 
         simp only [hh, Bool.not_false, if_true]
         split <;> simp [AllHonest]
 
-/-! ## The three outer folds -/
+/-! ## The four outer folds -/
 
 theorem outerStepP_some_lt (sig : Signature) (pads : Pads) (index coord bucket : Nat) (w : Digest) (u j : Nat)
-    (h : u < 124) : outerStepP sig pads index coord bucket (some (w, u)) j =
-      (nodeHashP 10 coord index (2 ^ (11 - (8 + j + 1)) + bucket / 2 ^ (j + 1))
+    (h : u < 119) : outerStepP sig pads index coord bucket (some (w, u)) j =
+      (nodeHashP 10 coord index (2 ^ (11 - (7 + j + 1)) + bucket / 2 ^ (j + 1))
         (if bucket / 2 ^ j % 2 = 0 then w else sig.proof ⟨u, h⟩) (pads.fold ⟨u, h⟩)
         (if bucket / 2 ^ j % 2 = 0 then sig.proof ⟨u, h⟩ else w) >>= fun parent => pure (some (parent, u + 1))) := by
   unfold outerStepP
-  simp only [dif_pos h, show 3 - j - 1 = 11 - (8 + j + 1) by omega]
+  simp only [dif_pos h, show 4 - j - 1 = 11 - (7 + j + 1) by omega]
   split <;> rfl
 
 theorem outer_extract (answers : Answers) (sig : Signature) (pads : Pads) (index coord bucket : Nat)
-    (secret : Nat → Digest) (hb : bucket < 8) (v0 : Digest) (u0 : Nat) :
-    ∀ n, n ≤ 3 → ∀ (v : Digest) (u : Nat),
+    (secret : Nat → Digest) (hb : bucket < 16) (v0 : Digest) (u0 : Nat) :
+    ∀ n, n ≤ 4 → ∀ (v : Digest) (u : Nat),
       evalWithAnswerFn answers ((List.range n).foldlM (outerStepP sig pads index coord bucket) (some (v0, u0))) =
         some (v, u) →
-      v = honL answers index coord secret (8 + n) (bucket / 2 ^ n) →
-      (v0 = honL answers index coord secret 8 bucket ∧ AllHonest answers index coord secret
+      v = honL answers index coord secret (7 + n) (bucket / 2 ^ n) →
+      (v0 = honL answers index coord secret 7 bucket ∧ AllHonest answers index coord secret
           (queried answers ((List.range n).foldlM (outerStepP sig pads index coord bucket) (some (v0, u0))))) ∨
       TreeHit answers index coord secret
         (queried answers ((List.range n).foldlM (outerStepP sig pads index coord bucket) (some (v0, u0)))) := by
@@ -289,24 +289,24 @@ theorem outer_extract (answers : Answers) (sig : Signature) (pads : Pads) (index
       · rw [hs] at hrun; simp [outerStepP] at hrun
       try rw [hs] at hrun
       simp only [List.foldlM_cons, List.foldlM_nil, bind_pure] at hrun ⊢
-      by_cases hu : u' < 124
+      by_cases hu : u' < 119
       · rw [outerStepP_some_lt _ _ _ _ _ _ _ _ hu] at hrun ⊢
         rw [queried_bind, nodeHashP_eq_shortHash, queried_shortHash, pad64_nodeInputP, queried_pure,
           List.append_nil]
         rw [evalWithAnswerFn_bind, nodeHashP_eq_shortHash, eval_shortHash_out _ _ (pad64_nodeInputP ..)] at hrun
         simp only [evalWithAnswerFn_pure, Option.some.injEq, Prod.mk.injEq] at hrun
         obtain ⟨rfl, -⟩ := hrun
-        rw [show 8 + (n + 1) = 8 + n + 1 by omega, honL] at hv
+        rw [show 7 + (n + 1) = 7 + n + 1 by omega, honL] at hv
         have hdiv : bucket / 2 ^ (n + 1) = bucket / 2 ^ n / 2 := by rw [pow_succ, Nat.div_div_eq_div_mul]
-        have hB : bucket / 2 ^ (n + 1) < 2 ^ (11 - (8 + n + 1)) := by
-          have : n = 0 ∨ n = 1 ∨ n = 2 := by omega
-          rcases this with rfl | rfl | rfl <;> simp <;> omega
-        by_cases heq : nodeInputP 10 coord index (2 ^ (11 - (8 + n + 1)) + bucket / 2 ^ (n + 1))
+        have hB : bucket / 2 ^ (n + 1) < 2 ^ (11 - (7 + n + 1)) := by
+          have : n = 0 ∨ n = 1 ∨ n = 2 ∨ n = 3 := by omega
+          rcases this with rfl | rfl | rfl | rfl <;> simp <;> omega
+        by_cases heq : nodeInputP 10 coord index (2 ^ (11 - (7 + n + 1)) + bucket / 2 ^ (n + 1))
               (if bucket / 2 ^ n % 2 = 0 then w else sig.proof ⟨u', hu⟩) (pads.fold ⟨u', hu⟩)
               (if bucket / 2 ^ n % 2 = 0 then sig.proof ⟨u', hu⟩ else w) =
-            honInputL answers index coord secret (8 + n + 1) (bucket / 2 ^ (n + 1))
+            honInputL answers index coord secret (7 + n + 1) (bucket / 2 ^ (n + 1))
         · obtain ⟨hlft, -, -, hrgt⟩ := nodeInputP_fields heq
-          have hw : w = honL answers index coord secret (8 + n) (bucket / 2 ^ n) := by
+          have hw : w = honL answers index coord secret (7 + n) (bucket / 2 ^ n) := by
             rcases Nat.mod_two_eq_zero_or_one (bucket / 2 ^ n) with h0 | h0
             · simp only [h0, if_true] at hlft
               rw [hlft]; congr 1; omega
@@ -317,11 +317,11 @@ theorem outer_extract (answers : Answers) (sig : Signature) (pads : Pads) (index
             refine ⟨hv0, allHonest_append a ?_⟩
             intro q hq
             rw [List.mem_singleton] at hq
-            exact ⟨8 + n + 1, bucket / 2 ^ (n + 1), by omega, hB, by rw [hq, heq]⟩
+            exact ⟨7 + n + 1, bucket / 2 ^ (n + 1), by omega, hB, by rw [hq, heq]⟩
           · right
             exact treeHit_mono t fun q hq => List.mem_append_left _ hq
         · right
-          exact ⟨_, List.mem_append_right _ (List.mem_singleton_self _), 8 + n + 1, bucket / 2 ^ (n + 1),
+          exact ⟨_, List.mem_append_right _ (List.mem_singleton_self _), 7 + n + 1, bucket / 2 ^ (n + 1),
             by omega, hB, ⟨heq, hv⟩, sameHeader_nodeInputP ..⟩
       · rw [show outerStepP sig pads index coord bucket (some (w, u')) n = pure none by
           unfold outerStepP; simp only [dif_neg hu]] at hrun
@@ -337,23 +337,23 @@ def coordValues (sig : Signature) (coord : Nat) : List Digest :=
 coordinate root, the step's queries are all honest and its selected leaves honest, or one of them is a hit. -/
 theorem ftsStepP_extract (answers : Answers) (sig : Signature) (pads : Pads) (index : Nat)
     (chosen : List Selection) (secret : Nat → Digest) (R : List Digest) (u coord : Nat)
-    (hb : (chosen.getD coord ⟨0, []⟩).bucket < 8) (R' : List Digest) (u' : Nat)
+    (hb : (chosen.getD coord ⟨0, []⟩).bucket < 16) (R' : List Digest) (u' : Nat)
     (hrun : evalWithAnswerFn answers (ftsStepP sig pads index chosen (some (R, u)) coord) = some (R', u')) :
     ∃ root, R' = R ++ [root] ∧ (root = honL answers index coord secret 11 0 →
       (AllHonest answers index coord secret (queried answers (ftsStepP sig pads index chosen (some (R, u)) coord)) ∧
-        LeavesHonest coord (selectedLeaves (chosen.getD coord ⟨0, []⟩)) (coordValues sig coord) pads secret 8
+        LeavesHonest coord (selectedLeaves (chosen.getD coord ⟨0, []⟩)) (coordValues sig coord) pads secret 7
           (chosen.getD coord ⟨0, []⟩).bucket) ∨
       TreeHit answers index coord secret (queried answers (ftsStepP sig pads index chosen (some (R, u)) coord))) := by
   rw [ftsStepP_some] at hrun ⊢
   rw [evalWithAnswerFn_bind] at hrun
   rcases h1 : evalWithAnswerFn answers (recoverChildP index coord (selectedLeaves (chosen.getD coord ⟨0, []⟩))
-      (coordValues sig coord) sig.proof pads 8 (chosen.getD coord ⟨0, []⟩).bucket u) with _ | ⟨value, next⟩
+      (coordValues sig coord) sig.proof pads 7 (chosen.getD coord ⟨0, []⟩).bucket u) with _ | ⟨value, next⟩
   · simp only [coordValues] at h1; rw [h1] at hrun; simp at hrun
   simp only [coordValues] at h1
   rw [h1] at hrun
   dsimp only at hrun
   rw [evalWithAnswerFn_bind] at hrun
-  rcases h2 : evalWithAnswerFn answers ((List.range 3).foldlM
+  rcases h2 : evalWithAnswerFn answers ((List.range 4).foldlM
       (outerStepP sig pads index coord (chosen.getD coord ⟨0, []⟩).bucket) (some (value, next))) with _ | ⟨root, n2⟩
   · rw [h2] at hrun; simp at hrun
   rw [h2] at hrun
@@ -365,11 +365,11 @@ theorem ftsStepP_extract (answers : Answers) (sig : Signature) (pads : Pads) (in
   rw [queried_bind, h2]
   dsimp only
   rw [queried_pure, List.append_nil]
-  have hv : root = honL answers index coord secret (8 + 3) ((chosen.getD coord ⟨0, []⟩).bucket / 2 ^ 3) := by
+  have hv : root = honL answers index coord secret (7 + 4) ((chosen.getD coord ⟨0, []⟩).bucket / 2 ^ 4) := by
     rw [Nat.div_eq_of_lt (by simpa using hb)]; exact hroot
-  rcases outer_extract answers sig pads index coord _ secret hb value next 3 (le_refl _) root n2 h2 hv with
+  rcases outer_extract answers sig pads index coord _ secret hb value next 4 (le_refl _) root n2 h2 hv with
     ⟨hv0, a2⟩ | t2
-  · rcases recoverChildP_extract answers index coord _ _ sig.proof pads secret 8 _ u value next (by decide)
+  · rcases recoverChildP_extract answers index coord _ _ sig.proof pads secret 7 _ u value next (by decide)
         (by simpa using hb) h1 hv0 with ⟨a1, l1⟩ | t1
     · left
       exact ⟨allHonest_append a1 a2, l1⟩
@@ -384,7 +384,7 @@ theorem ftsStepP_extract (answers : Answers) (sig : Signature) (pads : Pads) (in
 root, and the fold's queries exactly the steps' queries in order. -/
 theorem ftsFold_runs (answers : Answers) (sig : Signature) (pads : Pads) (index : Nat) (chosen : List Selection)
     (secret : Nat → Nat → Digest) : ∀ n (roots : List Digest) (used : Nat),
-      (∀ c < n, (chosen.getD c ⟨0, []⟩).bucket < 8) →
+      (∀ c < n, (chosen.getD c ⟨0, []⟩).bucket < 16) →
       evalWithAnswerFn answers ((List.range n).foldlM (ftsStepP sig pads index chosen) (some ([], 0))) =
         some (roots, used) →
       roots.length = n ∧ ∃ us : Nat → Nat, us n = used ∧
@@ -497,13 +497,13 @@ coordinate tree, at its own position) and every selected leaf carries its honest
 some issued query is a distinct-input `HashHit` on the honest input at its position. -/
 theorem recoverFtsP_extract (answers : Answers) (sig : Signature) (pads : Pads) (index : Nat)
     (chosen : List Selection) (secret : Nat → Nat → Digest) (v : Digest)
-    (hb : ∀ c < 7, (chosen.getD c ⟨0, []⟩).bucket < 8)
+    (hb : ∀ c < 7, (chosen.getD c ⟨0, []⟩).bucket < 16)
     (hrun : evalWithAnswerFn answers (recoverFtsP sig pads index chosen) = some v)
     (hroot : v = evalWithAnswerFn answers (forestPk index (honRoots answers index secret))) :
     ((∀ q ∈ queried answers (recoverFtsP sig pads index chosen),
         q = .inl (.inr (pad64 (Extract.forestInput index (honRoots answers index secret)))) ∨
         ∃ c < 7, ∃ l n, l ≤ 11 ∧ n < 2 ^ (11 - l) ∧ q = .inl (.inr (honInputL answers index c (secret c) l n))) ∧
-      ∀ c < 7, LeavesHonest c (selectedLeaves (chosen.getD c ⟨0, []⟩)) (coordValues sig c) pads (secret c) 8
+      ∀ c < 7, LeavesHonest c (selectedLeaves (chosen.getD c ⟨0, []⟩)) (coordValues sig c) pads (secret c) 7
         (chosen.getD c ⟨0, []⟩).bucket) ∨
     ∃ actual, .inl (.inr actual) ∈ queried answers (recoverFtsP sig pads index chosen) ∧
       ((HashHit answers (pad64 (Extract.forestInput index (honRoots answers index secret))) actual ∧
@@ -518,8 +518,8 @@ theorem recoverFtsP_extract (answers : Answers) (sig : Signature) (pads : Pads) 
   · rw [hs] at hrun; simp at hrun
   try rw [hs] at hrun
   dsimp only at hrun ⊢
-  by_cases hz : (!(List.range (124 - used)).all (fun j =>
-      decide (sig.proof ⟨(used + j) % 124, Nat.mod_lt _ (by decide)⟩ = 0))) = true
+  by_cases hz : (!(List.range (119 - used)).all (fun j =>
+      decide (sig.proof ⟨(used + j) % 119, Nat.mod_lt _ (by decide)⟩ = 0))) = true
   · rw [if_pos hz] at hrun; simp at hrun
   rw [if_neg hz] at hrun ⊢
   rw [queried_bind, forestPk_eq_shortHash, queried_shortHash, queried_pure, List.append_nil]
@@ -534,7 +534,7 @@ theorem recoverFtsP_extract (answers : Answers) (sig : Signature) (pads : Pads) 
     have hcoord : ∀ c < 7,
         (AllHonest answers index c (secret c)
             (queried answers (ftsStepP sig pads index chosen (some (roots.take c, us c)) c)) ∧
-          LeavesHonest c (selectedLeaves (chosen.getD c ⟨0, []⟩)) (coordValues sig c) pads (secret c) 8
+          LeavesHonest c (selectedLeaves (chosen.getD c ⟨0, []⟩)) (coordValues sig c) pads (secret c) 7
             (chosen.getD c ⟨0, []⟩).bucket) ∨
         TreeHit answers index c (secret c)
           (queried answers (ftsStepP sig pads index chosen (some (roots.take c, us c)) c)) := by
@@ -572,7 +572,7 @@ theorem recoverFtsP_extract (answers : Answers) (sig : Signature) (pads : Pads) 
 /-- On a selection the machine accepts, the honest-leaves clause names the three opened secrets
 `sig.secrets (3 coord + j)` and the leaf pads `P_{3 coord + j}`, `P_{3 coord + j + 1}`. -/
 theorem leavesHonest_selOk (sig : Signature) (pads : Pads) (secret : Nat → Digest) (coord : Nat) (sel : Selection)
-    (hs : SelOk sel) (h : LeavesHonest coord (selectedLeaves sel) (coordValues sig coord) pads secret 8 sel.bucket) :
+    (hs : SelOk sel) (h : LeavesHonest coord (selectedLeaves sel) (coordValues sig coord) pads secret 7 sel.bucket) :
     ∀ j < 3, sig.secrets ⟨(coord * 3 + j) % 21, Nat.mod_lt _ (by decide)⟩ = secret (selLeaf sel j) ∧
       pads.leaf ⟨(3 * coord + j) % 22, Nat.mod_lt _ (by decide)⟩ = 0 ∧
       pads.leaf ⟨(3 * coord + j + 1) % 22, Nat.mod_lt _ (by decide)⟩ = 0 := by
@@ -582,9 +582,9 @@ theorem leavesHonest_selOk (sig : Signature) (pads : Pads) (secret : Nat → Dig
   have h12 := hs.s12
   have h2 := hs.l2
   have hb := hs.b
-  have e0 : selLeaf sel 0 = sel.bucket * 256 + sel.leaves.getD 0 0 := rfl
-  have e1 : selLeaf sel 1 = sel.bucket * 256 + sel.leaves.getD 1 0 := rfl
-  have e2 : selLeaf sel 2 = sel.bucket * 256 + sel.leaves.getD 2 0 := rfl
+  have e0 : selLeaf sel 0 = sel.bucket * 128 + sel.leaves.getD 0 0 := rfl
+  have e1 : selLeaf sel 1 = sel.bucket * 128 + sel.leaves.getD 1 0 := rfl
+  have e2 : selLeaf sel 2 = sel.bucket * 128 + sel.leaves.getD 2 0 := rfl
   generalize sel.leaves.getD 0 0 = x0 at h01 e0
   generalize sel.leaves.getD 1 0 = x1 at h01 h12 e1
   generalize sel.leaves.getD 2 0 = x2 at h12 h2 e2
@@ -598,9 +598,9 @@ theorem leavesHonest_selOk (sig : Signature) (pads : Pads) (secret : Nat → Dig
   have hmem : selLeaf sel j ∈ selectedLeaves sel := by
     rw [hsel]
     rcases hj3 with rfl | rfl | rfl <;> simp
-  have hlo : sel.bucket * 2 ^ 8 ≤ selLeaf sel j := by
+  have hlo : sel.bucket * 2 ^ 7 ≤ selLeaf sel j := by
     rcases hj3 with rfl | rfl | rfl <;> simp only [e0, e1, e2] <;> omega
-  have hhi : selLeaf sel j < (sel.bucket + 1) * 2 ^ 8 := by
+  have hhi : selLeaf sel j < (sel.bucket + 1) * 2 ^ 7 := by
     rcases hj3 with rfl | rfl | rfl <;> simp only [e0, e1, e2] <;> omega
   obtain ⟨hv, hp0, hp1⟩ := h _ hmem hlo hhi
   simp only [hidx] at hv hp0 hp1
