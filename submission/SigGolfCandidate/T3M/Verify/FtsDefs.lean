@@ -213,7 +213,7 @@ structure CoordIn (F : FCtx) (c : Nat) (roots : List Digest) (stk : List (Digest
 def segRem (c j d : Nat) : Nat := 5 - 2 * j + d + 5 * (6 - c)
 def tailsRem (c j d : Nat) : Nat := 4 * ((2 - j) + 2 * (6 - c)) + 8 * (d + 2 - j + 2 * (6 - c)) + (1 + (6 - c))
 def leafRem (c j : Nat) : Nat := (if j = 0 then 13 else if j = 1 then 7 else 0) + 20 * (6 - c)
-def coordRem (c : Nat) : Nat := 7 * (6 - c) + 4
+def coordRem (c : Nat) : Nat := 5 * (6 - c) + 2
 
 /-- Accepting runs from a dispatch: 15 per segment, 16 per fold (at most 124 in total), tails, leaf codes,
 coordinate ends, the forest (24). -/
