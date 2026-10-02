@@ -45,7 +45,8 @@ theorem forestIn_words (index : Nat) {roots : List Digest} (hlen : roots.length 
   rw [pad64_of_aligned _ (by rw [forestIn_length index hlen])]
   unfold forestIn
   rw [wordsOf_append _ _ (by simp only [List.length_append, bytesLE_length]),
-    wordsOf_append _ _ (by simp only [bytesLE_length]), wordsOf_header] <;> simp [T3.packedNodeTag]
+    wordsOf_append _ _ (by simp only [bytesLE_length]), wordsOf_header]
+  rfl
 
 /-! ## The signature -/
 

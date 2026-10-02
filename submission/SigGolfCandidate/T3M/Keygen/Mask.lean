@@ -118,7 +118,8 @@ theorem mask_one {pre : List (List Digest)} (hpl : pre.length < 10) {cur : List 
       (by decide) ?_
     rw [wordsOf_privateInput_tweak, header_lo, header_hi, readWords_eight, fr PRIV (by simp),
       fr (PRIV + 8) (by simp), t2a, t2b, fr (PRIV + 32) (by simp), fr (PRIV + 40) (by simp),
-      fr (PRIV + 48) (by simp), fr (PRIV + 56) (by simp), hm.p0, hm.p8, hm.p32, hm.p40, hm.p48, hm.p56] <;> simp [T3.packedNodeTag]
+      fr (PRIV + 48) (by simp), fr (PRIV + 56) (by simp), hm.p0, hm.p8, hm.p32, hm.p40, hm.p48, hm.p56]
+    rfl
   have hv : hashArgumentsValid t2 = true :=
     hashArgs_const t2 PRIV 64 MOUT t2x10 t2x11 t2x12 (by decide) (by decide) (by decide) (by decide)
       (by decide)

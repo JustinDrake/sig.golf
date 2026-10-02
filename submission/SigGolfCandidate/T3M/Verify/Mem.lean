@@ -18,8 +18,12 @@ no phase-independent "witness unchanged" invariant (W2 pattern, WC2 `Mem`); what
 Every checked run (`Spec.specB`) writes only (a) constant addresses that are safe low-memory words (`safeAddr`), the
 counter word by a low-half `sw`, or explicitly allowed witness words (`allow`, `≥ WLO = WIT + 64`), or
 (b) **pointer-relative** addresses `r + off` (`r ∈ rel`, `off < 4096`; the FTS stream pointer `a4`), with
-`RelOK rel s` (the pointer is `≥ WLO` and `< 2^40`) supplied by the caller. The caller accounts for the
+`RelOK rel s` (the pointer is `≥ WLO` and `< 2^23`) supplied by the caller. The caller accounts for the
 witness writes through the run's exact memory (`SpecRes.mem`, `Orig_toState`).
+
+T3K: the verify image embeds twelve doublewords at `DATA = 2^24 - 96` (`DataOK`, part of `Glob`). Every checked
+write (allowed witness words `< 2^23`, pointer-relative writes below `2^23 + 4096`) and every hash destination
+(`safeDest`: `d + 32 ≤ 2^23`) stays below them, so `Glob` keeps them (`memOKA_data`).
 -/
 
 set_option linter.unusedSimpArgs false
@@ -206,8 +210,21 @@ def PHalf (s : MachineState) : Prop := (s.getMem (BitVec.ofNat 64 CTRW)).toNat /
 def WitHdr (w : WBytes) (s : MachineState) : Prop :=
   ∀ j, j < 8 → s.getMem (BitVec.ofNat 64 (WIT + 8 * j)) = wword w j
 
+/-- The verify image's embedded doublewords (`Images.verifyData`, little endian): the layer-3 constants `2^40`,
+`M2c`, `M1c`, `0x30101`, `0x3fe00`, the FTS setup constants `A4_0`, `A4_LIMIT`, `0xa01`, `0x901`, `tbN`, `tbL`, a zero
+pad. -/
+def dataWords : List Nat :=
+  [2 ^ 40, 17311559823019733055, 8198552921648689607, 0x30101, 0x3fe00, 2256, 12456, 0xa01, 0x901, 7072, 15264, 0]
+
+/-- The data section's base: `dataBase` of the verify image (`16 ⌊(2^24 - 96) / 16⌋`). -/
+def DATA : Nat := 16777120
+
+/-- The embedded doublewords are in place. -/
+def DataOK (s : MachineState) : Prop :=
+  ∀ k, k < 12 → s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)
+
 def Glob (gk : List (Reg × Word)) (w : WBytes) (pk : Digest) (s : MachineState) : Prop :=
-  (∀ p ∈ gk, s.getReg p.1 = p.2) ∧ WitHdr w s ∧ PkOK pk s ∧ PZero s ∧ PHalf s
+  (∀ p ∈ gk, s.getReg p.1 = p.2) ∧ WitHdr w s ∧ PkOK pk s ∧ PZero s ∧ PHalf s ∧ DataOK s
 
 /-! ## Witness predicates (reads past the witness see zero memory) -/
 
@@ -275,7 +292,7 @@ def relOK (rel : List Reg) (a : Addr) : Bool :=
 def memOKA (allow : List Nat) (rel : List Reg) (ws : SymMem) : Bool :=
   ws.all fun p => relOK rel p.1 || (p.1.base.isNone &&
     (safeAddr p.1.off.toNat || (p.1.off.toNat == CTRW && isLowW CTRW p.2) ||
-      (allow.contains p.1.off.toNat && decide (WLO ≤ p.1.off.toNat))))
+      (allow.contains p.1.off.toNat && decide (WLO ≤ p.1.off.toNat ∧ p.1.off.toNat < 2 ^ 23))))
 
 /-- No witness write at all. -/
 def memOK (ws : SymMem) : Bool := memOKA [] [] ws
@@ -284,7 +301,7 @@ def regsOK (gk : List (Reg × Word)) (rf : RegFile) : Bool := gk.all fun p => E.
 
 /-- The pointer registers of relative writes point into the witness area (`≥ WLO`) and are small. -/
 def RelOK (rel : List Reg) (s : MachineState) : Prop :=
-  ∀ r ∈ rel, WLO ≤ (s.getReg r).toNat ∧ (s.getReg r).toNat < 2 ^ 40
+  ∀ r ∈ rel, WLO ≤ (s.getReg r).toNat ∧ (s.getReg r).toNat < 2 ^ 23
 
 theorem RelOK.nil (s : MachineState) : RelOK [] s := fun _ h => by simp at h
 
@@ -319,7 +336,7 @@ theorem memOKA_cases {allow : List Nat} {rel : List Reg} {ws : SymMem} (h : memO
     (∃ r ∈ rel, p.1.base = some (.reg r) ∧ p.1.off.toNat < 4096) ∨
     (p.1.base = none ∧
       (safeAddr p.1.off.toNat = true ∨ (p.1.off.toNat = CTRW ∧ isLowW CTRW p.2 = true) ∨
-        (p.1.off.toNat ∈ allow ∧ WLO ≤ p.1.off.toNat))) := by
+        (p.1.off.toNat ∈ allow ∧ WLO ≤ p.1.off.toNat ∧ p.1.off.toNat < 2 ^ 23))) := by
   have := List.all_eq_true.mp h p hp
   simp only [Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq,
     Option.isNone_iff_eq_none] at this
@@ -423,17 +440,48 @@ theorem memOKA_ctr {allow : List Nat} {rel : List Reg} {ws : SymMem} (h : memOKA
         · unfold WLO WIT CTRW at h3; omega
     · rw [if_neg he]; exact ih'
 
+/-- A `memOKA` write list leaves every word at or above `2^23 + 4096` alone (the embedded data). -/
+theorem memOKA_data {allow : List Nat} {rel : List Reg} {ws : SymMem} (h : memOKA allow rel ws = true)
+    (s : MachineState) (hrel : RelOK rel s) (A : Nat) (hA : 2 ^ 23 + 4096 ≤ A) (hA' : A < 2 ^ 64) :
+    ∀ p ∈ ws, BitVec.ofNat 64 A ≠ p.1.eval s := by
+  intro p hp'
+  rcases memOKA_cases h hp' with ⟨r, hr, hb, hoff⟩ | ⟨hb, hc⟩
+  · obtain ⟨hev, -⟩ := relWrite_ge hrel hr hb hoff
+    have h2 := (hrel r hr).2
+    intro heq
+    have : (p.1.eval s).toNat = A := by rw [← heq, ofNat_toNat_lt _ hA']
+    omega
+  · obtain ⟨⟨b, off⟩, v⟩ := p
+    simp only at hb; subst hb
+    simp only [Addr.eval]
+    intro heq
+    have hoff : off.toNat = A := by rw [← heq, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hA']
+    simp only [hoff] at hc
+    rcases hc with h1 | ⟨h2, -⟩ | ⟨-, h4⟩
+    · have := (safeAddr_spec h1).1; unfold WIT at this; omega
+    · unfold CTRW at h2; omega
+    · omega
+
+theorem DATA_ge (k : Nat) (hk : k < 12) : 2 ^ 23 + 4096 ≤ DATA + 8 * k ∧ DATA + 8 * k + 8 ≤ 2 ^ 24 := by
+  unfold DATA; omega
+
+/-- One embedded doubleword, at a given address with a given value. -/
+theorem DataOK.word {s : MachineState} (h : DataOK s) (k : Nat) (hk : k < 12) (v : Nat)
+    (hv : dataWords.getD k 0 = v) (a : Nat) (ha : a = DATA + 8 * k) :
+    s.getMem (BitVec.ofNat 64 a) = BitVec.ofNat 64 v := by
+  subst hv ha; exact h k hk
+
 theorem Glob_toState_allow {gk0 gk : List (Reg × Word)} {w : WBytes} {pk : Digest} {s : MachineState}
     {allow : List Nat} {rel : List Reg}
     (hG : Glob gk0 w pk s) (σ : SymState) (pc : Word) (hm : memOKA allow rel σ.mem = true)
     (hrel : RelOK rel s) (hr : regsOK gk σ.regs = true) : Glob gk w pk (σ.toState s pc) := by
-  obtain ⟨-, h0, h2, h3, h4⟩ := hG
+  obtain ⟨-, h0, h2, h3, h4, h5⟩ := hG
   have fr : ∀ A, A < 2 ^ 64 → Prot A →
       (σ.toState s pc).getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA hp
     rw [SymState.toState_getMem]
     exact memEval_frame s _ _ (memOKA_prot hm s hrel A hA hp)
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro p hp
     have := List.all_eq_true.mp hr p hp
     rw [SymState.toState_getReg, E.beq_eq this]; rfl
@@ -446,6 +494,10 @@ theorem Glob_toState_allow {gk0 gk : List (Reg × Word)} {w : WBytes} {pk : Dige
     rw [fr a this (Or.inl ha)]; exact h3 a ha
   · show (memEval s σ.mem (BitVec.ofNat 64 CTRW)).toNat / 2 ^ 32 = 0
     rw [memOKA_ctr hm s hrel]; exact h4
+  · intro k hk
+    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
+    rw [SymState.toState_getMem, memEval_frame s _ _ (memOKA_data hm s hrel _ hk1 (by omega))]
+    exact h5 k hk
 
 theorem Glob_toState {gk0 gk : List (Reg × Word)} {w : WBytes} {pk : Digest} {s : MachineState}
     (hG : Glob gk0 w pk s) (σ : SymState) (pc : Word) (hm : memOK σ.mem = true)
@@ -504,12 +556,12 @@ theorem WitAll_writeHash {w : WBytes} {s : MachineState} (hW : WitAll w s)
 
 /-- A hash destination (32 bytes) that no protected word occupies. -/
 def safeDest (d : Nat) : Bool :=
-  decide (d % 8 = 0) && decide (d + 32 ≤ MEMORY_BYTES) &&
+  decide (d % 8 = 0) && decide (d + 32 ≤ 2 ^ 23) &&
     (pSlots ++ [0xA0, 0xA8, CTRW] ++ (List.range 8).map (fun j => WIT + 8 * j)).all
       (fun q => decide (q + 8 ≤ d ∨ d + 32 ≤ q))
 
 /-- Every aligned destination in the witness area past the header is safe. -/
-theorem safeDest_hi (d : Nat) (h : WLO ≤ d) (h8 : d % 8 = 0) (hm : d + 32 ≤ 2 ^ 24) :
+theorem safeDest_hi (d : Nat) (h : WLO ≤ d) (h8 : d % 8 = 0) (hm : d + 32 ≤ 2 ^ 23) :
     safeDest d = true := by
   simp only [safeDest, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, MEMORY_BYTES]
   refine ⟨⟨by simpa using h8, by simpa using hm⟩, fun q hq => Or.inl ?_⟩
@@ -521,17 +573,17 @@ theorem safeDest_hi (d : Nat) (h : WLO ≤ d) (h8 : d % 8 = 0) (hm : d + 32 ≤ 
 theorem Glob_writeHash {gk : List (Reg × Word)} {w : WBytes} {pk : Digest} {s : MachineState}
     (hG : Glob gk w pk s) (ans : BitVec 256) (d : Nat) (hd : s.getReg .x12 = BitVec.ofNat 64 d)
     (hsafe : safeDest d = true) : Glob gk w pk (writeHash s ans) := by
-  obtain ⟨h1, h0, h2, h3, h4⟩ := hG
-  simp only [safeDest, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, MEMORY_BYTES] at hsafe
+  obtain ⟨h1, h0, h2, h3, h4, h5⟩ := hG
+  simp only [safeDest, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true] at hsafe
   obtain ⟨⟨-, hd1⟩, hd2⟩ := hsafe
-  have hd1' : d + 32 ≤ 2 ^ 24 := by simpa using hd1
+  have hd1' : d + 32 ≤ 2 ^ 24 := by omega
   have fr : ∀ A, A < 2 ^ 64 → (A + 8 ≤ d ∨ d + 32 ≤ A) →
       (writeHash s ans).getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA hp
     rw [writeHash_getMem_ofNat s ans d A hd hA (by omega)]
     rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega)]
   have hps : ∀ a ∈ pSlots, a < WIT := by decide
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro p hp; rw [writeHash_getReg]; exact h1 p hp
   · intro j hj
     have hm : WIT + 8 * j ∈ pSlots ++ [0xA0, 0xA8, CTRW] ++ (List.range 8).map (fun j => WIT + 8 * j) :=
@@ -551,6 +603,9 @@ theorem Glob_writeHash {gk : List (Reg × Word)} {w : WBytes} {pk : Digest} {s :
   · have mc : CTRW ∈ pSlots ++ [0xA0, 0xA8, CTRW] ++ (List.range 8).map (fun j => WIT + 8 * j) := by simp
     show ((writeHash s ans).getMem (BitVec.ofNat 64 CTRW)).toNat / 2 ^ 32 = 0
     rw [fr CTRW (by unfold CTRW; omega) (hd2 _ mc)]; exact h4
+  · intro k hk
+    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
+    rw [fr _ (by omega) (Or.inr (by omega))]; exact h5 k hk
 
 theorem Known_writeHash {known : List (Reg × Word)} {s : MachineState}
     (h : ∀ p ∈ known, s.getReg p.1 = p.2) (a : BitVec 256) : ∀ p ∈ known, (writeHash s a).getReg p.1 = p.2 := by
