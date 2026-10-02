@@ -6,8 +6,8 @@ import SigGolfCandidate.Verify.Top
 * `verify_refines`: the verify program refines `verifyRef` (value and number of hash calls),
   as an equality of oracle computations.
 * `verify_terminates`: for every fixed oracle and input, the run finishes within `cycleBoundAll`
-  (= 16834) cycles (in particular `< CYCLE_LIMIT`).
-* `verify_accept_cycles`: accepting runs take at most `cycleBound` (= 10249) cycles.
+  (= 16829) cycles (in particular `< CYCLE_LIMIT`).
+* `verify_accept_cycles`: accepting runs take at most `cycleBound` (= 10239) cycles.
 -/
 
 namespace SigGolfCandidate.Verify

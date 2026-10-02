@@ -313,7 +313,7 @@ def tailFKnown : List (Reg × Word) := gkP ++ [(.x12, 0x130)]
 mask `sp = TMASK` are loaded from the verifier's data words through `sp = dataBase` and resolved
 from protected memory in `tailF_step`. Retaining the x28=2688 initializer for carried-base subtraction makes the accepting tail take12 instructions. -/
 def rootK : List (Reg × Word) :=
-  baseK ++ [(.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x14, KT4), (.x4, 0x1000000000000000)]
+  baseK ++ [(.x29, KT), (.x26, 6), (.x28, 2688), (.x15, TTA5), (.x24, 0x29000), (.x4, 0x1000000000000000)]
 def rootPost : List (Reg × Word) := rootK ++ [(.x11, 64), (.x12, 0x130)]
 
 def tailFSpec (c : Nat) : Spec :=
@@ -432,9 +432,9 @@ def pindE (r : Nat) : E :=
 /-- `tau mod 2^32` in the high half of word 0 (the relabelled `p` slot). -/
 def lo32E : E := .bin .sll idxE (cw 32)
 /-- Word 0 of the node buffers: `twLo 10 0 idx idx`. -/
-def nbW0E : E := .bin .add (.bin .add hiE (cw 0xA01)) lo32E
+def nbW0E : E := .bin .add (.bin .sll idxE (cw 24)) (cw 1537)
 /-- Word 0 of the leaf buffer: `twLo 9 0 idx idx`. -/
-def cbW0E : E := .bin .add nbW0E (.c (BitVec.ofNat 64 18446744073709551360))
+def cbW0E : E := .bin .add (.bin .sll idxE (cw 24)) (cw 1281)
 
 /-- The pre-masked selector word `k`: the witness word at `0x1100 + 8 k` masked with the data word
 `PMASK` (`0x78` in every byte). -/
@@ -455,7 +455,7 @@ def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 4992), (.x15, 0),
     (.x18, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 96, [], none, 96⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 92, [], none, 92⟩
 
 def startCheck : Bool :=
   specB [] (runAt k0 [1] 0 []) specLim k0x [] &&
