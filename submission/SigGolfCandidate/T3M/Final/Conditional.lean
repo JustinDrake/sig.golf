@@ -3,20 +3,19 @@ import SigGolfCandidate.T3M.Final.SourceDischarge
 import SigGolfCandidate.T3M.Final.Transfer
 
 /-!
-# The T3 certificate, conditional on exactly what is not yet proved: SEC's padded-game security
+# The complete T3 machine certificate and its source security premise
 
-Seven of `Pending`'s nine machine fields are proved (`Final/Discharge`: keygen ×2, sign ×2, verify ×3) and every
-`SourceFacts` field except padded-game security comes from the checked source closure (`Final/SourceDischarge`).
-So the organizer's certificate for the T3 submission at `C = 9213` needs only these three hypotheses: SEC's
-`SecurityP` and stream E's two expand statements. When they are proved this becomes an unconditional
-`SigGolf.Certificate submissionNew 9213`.
+`pending_holds` proves all nine machine fields. `sourceFacts_of_securityP` supplies all source fields from the
+checked source closure and its security argument. `certificate_of_security` therefore yields the current
+organizer certificate at `C = 9203` once supplied `T3.Secc.t3_securityP`, as done in `Solution.lean`.
+The more general `certificate_of_remaining` interface is retained for explicit expansion refinements.
 -/
 
 namespace SigGolfCandidate.T3M.Final
 
 /-- The full current-contract certificate from SEC's padded-game security and the two expand refinements. -/
 theorem certificate_of_remaining (security : SecurityP) (expandRefines : ExpandRefines)
-    (expandTerminates : ExpandTerminates) : SigGolf.Certificate submissionNew 9213 :=
+    (expandTerminates : ExpandTerminates) : SigGolf.Certificate submissionNew 9203 :=
   certificateNew_of
     { keygen_run_counts := keygen_run_counts_holds
       keygen_runWith := keygen_runWith_holds
@@ -31,7 +30,7 @@ theorem certificate_of_remaining (security : SecurityP) (expandRefines : ExpandR
 
 /-- **The T3 certificate given only SEC's padded-game security**: every machine statement is proved (`pending_holds`)
 and every other source fact comes from the checked closure. -/
-theorem certificate_of_security (security : SecurityP) : SigGolf.Certificate submissionNew 9213 :=
+theorem certificate_of_security (security : SecurityP) : SigGolf.Certificate submissionNew 9203 :=
   certificateNew_of pending_holds (sourceFacts_of_securityP security)
 
 end SigGolfCandidate.T3M.Final

@@ -115,7 +115,8 @@ theorem forestInput_words (index : Nat) (roots : List Digest) (hlen : roots.leng
     rw [List.length_flatMap]; simp [bytesLE_length, hlen]
   rw [pad64_of_aligned _ (by simp only [List.length_append, bytesLE_length, hfl])]
   rw [wordsOf_append _ _ (by simp only [List.length_append, bytesLE_length]),
-    wordsOf_append _ _ (by simp only [bytesLE_length]), wordsOf_header] <;> simp [T3.packedNodeTag]
+    wordsOf_append _ _ (by simp only [bytesLE_length]), wordsOf_header]
+  rfl
 
 theorem forestInput_length (index : Nat) (roots : List Digest) (hlen : roots.length = 7) :
     (pad64 (bytesLE 16 (roots.getD 0 0) ++ bytesLE 16 (header 11 0 index 0 0) ++
