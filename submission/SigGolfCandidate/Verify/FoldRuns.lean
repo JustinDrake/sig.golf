@@ -89,8 +89,7 @@ def dispGp (lay ci : Nat) : E :=
     else if ci = 0 then mkBin .and (.reg .x23) (cw 63)
     else mkBin .and (.reg .x23) (.c (BitVec.ofNat 64 (2 ^ 64 - 64)))
   let sh := if nCh lay = 2 ∧ ci = 1 then m4Sh lay ci + 2 - 6 else m4Sh lay ci + 2
-  if nCh lay = 1 then mkBin .sll (mkAdd (.reg .x23) (cw (m4Hi lay ci / 2 ^ sh))) (cw sh)
-  else mkAdd (mkBin .sll idx (cw sh)) (cw (m4Hi lay ci))
+  mkAdd (mkBin .sll idx (cw sh)) (cw (m4Hi lay ci))
 
 /-- The target of the chunk dispatch (`jalr zero, lo(gp)`). -/
 def dispTgt (lay ci : Nat) : E :=
@@ -118,7 +117,7 @@ def lvlMem (lay lam t : Nat) (nb : E) : List (Addr × E) :=
 
 /-- Known registers at the start of level `lam`. -/
 def foldK (lay len : Nat) : List (Reg × Word) :=
-  fk false 0x340 len ++ [(.x22, BitVec.ofNat 64 (5632 + 2688 * lay))]
+  fk false 0x340 len ++ [(.x22, BitVec.ofNat 64 (6336 + 2688 * lay))]
 
 def lvlK (lay lam : Nat) : List (Reg × Word) :=
   foldK lay (if lam = 0 then 704 else 64)

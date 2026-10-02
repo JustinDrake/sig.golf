@@ -564,8 +564,8 @@ theorem encpost_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a 
             rwa [hdA, hdB] at this
           · exact hpad false (decide_eq_false (by omega)) _ hb
           · exact hsel _ hb)
-        exact ⟨19 + selSteps hi, by omega,
-          22 + selSteps hi, by omega, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
+        exact ⟨17 + selSteps hi, by omega,
+          20 + selSteps hi, by omega, u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [specRej2, rejK]),
           hu.regs (.x10, cw 1) (by simp [specRej2, rejK])⟩
       · have hn0 : hi ≠ 0 := by intro he; exact hlt ((selected_nat_facts a).1 he)
         obtain ⟨u, hu⟩ := specO_run (hR1 hn0) s hpc hK (encObligs_holds s) (by

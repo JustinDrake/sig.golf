@@ -149,32 +149,12 @@ theorem add_hi_sub (a h d : Word) : a + h + (d - h) = a + d := by
   simp only [BitVec.toNat_add, BitVec.toNat_sub]
   omega
 
-theorem m4Sh_le (lay ci : Nat) : m4Sh lay ci ≤ 7 := by
-  unfold m4Sh m4Get
-  rcases lay with _ | _ | _ | _ | _ | lay <;> rcases ci with _ | _ | ci <;> simp [m4Tab]
-
-/-- Every dispatch page `m4Hi` is a multiple of the block stride, so single-chunk layers can fold it
-into the index (`addi gp, x23, hi >> sh; slli gp, gp, sh`). -/
-theorem m4Hi_dvd (lay ci : Nat) : 2 ^ (m4Sh lay ci + 2) ∣ m4Hi lay ci := by
-  unfold m4Hi m4Sh m4Get
-  rcases lay with _ | _ | _ | _ | _ | lay <;> rcases ci with _ | _ | ci <;> simp [m4Tab]
-
-theorem shl_add_ofNat (x : Word) (K n : Nat) :
-    (x + BitVec.ofNat 64 K) <<< n = x <<< n + BitVec.ofNat 64 (K * 2 ^ n) := by
-  apply BitVec.eq_of_toNat_eq
-  simp only [BitVec.toNat_shiftLeft, BitVec.toNat_add, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
-  rw [Nat.mod_mul_mod, Nat.add_mul, Nat.add_mod, Nat.mod_mul_mod]
-
 theorem dispTgt_eval (lay ci : Nat) (s : MachineState) :
     (dispTgt lay ci).eval s = dispVal lay ci (s.getReg .x23) := by
   have hsh : ∀ n, (BitVec.ofNat 64 n).toNat % 64 = n % 64 := fun n => by
     rw [BitVec.toNat_ofNat]; omega
-  have hle := m4Sh_le lay ci
-  have hdv := m4Hi_dvd lay ci
   unfold dispTgt dispGp dispVal
-  split_ifs <;> simp only [mkBin_eval, mkAdd_eval, BinOp.eval, E.eval, cw, hsh, add_hi_sub] <;> try omega
-  all_goals
-    rw [shl_add_ofNat, Nat.mod_eq_of_lt (show m4Sh lay ci + 2 < 64 by omega), Nat.div_mul_cancel hdv, add_hi_sub]
+  split_ifs <;> simp only [mkBin_eval, mkAdd_eval, BinOp.eval, E.eval, cw, hsh, add_hi_sub]
 
 theorem dispVal_tab4 : ∀ E, E < 32 → dispVal 4 0 (BitVec.ofNat 64 (E + 32)) =
     pcOf (m4Pc 4 0 (E / 2 ^ chB0 4 0 % 2 ^ chBits 4 0) 0) := by decide +kernel

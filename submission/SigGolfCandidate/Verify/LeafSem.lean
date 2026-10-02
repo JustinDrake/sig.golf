@@ -110,7 +110,7 @@ theorem leaf_dispatch_run (lay t E : Nat) (hlay : lay < 5) (ht : t < nCopy lay)
       · intro p hp
         simp only [leafPost, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
         rcases hp with hp | hp | hp
-        · exact hs.known p (by simpa [foldK, fk, gkOf] using List.mem_append_left [(.x22, BitVec.ofNat 64 (5632 + 2688 * 0))] hp)
+        · exact hs.known p (by simpa [foldK, fk, gkOf] using List.mem_append_left [(.x22, BitVec.ofNat 64 (6336 + 2688 * 0))] hp)
         · subst hp
           rw [hs.keep .x27 (by simp [slotEnterKeep])]
           exact hu.known (.x27, 0x40401#64) (by simp [leafPost])
@@ -208,7 +208,7 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
     exact hu.known (.x27, 0x40401#64) (by simp [leafPost])
   have h22u : u.getReg .x22 = BitVec.ofNat 64 (s6N L.lay) := by
     rw [s6N_eq]
-    exact hK2'.1 (.x22, BitVec.ofNat 64 (5632 + 2688 * L.lay)) (by simp [foldK])
+    exact hK2'.1 (.x22, BitVec.ofNat 64 (6336 + 2688 * L.lay)) (by simp [foldK])
   have hm0 : u.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 (Ref.LeafCarry.leafHeader L.lay) := by
     rw [hmem]
     by_cases h4 : L.lay < 4

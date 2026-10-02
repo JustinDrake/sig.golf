@@ -8,9 +8,9 @@ Every start of layer `lay` (layer 4: a PORS root tail; below: a block of the las
 layer `lay + 1`) runs its own copy of the transition (`trPc lay c`):
 * route and encoding (`stepsA` steps up to the encoding `ecall`; the counter is read from the
   witness, `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `2320`);
-* the encoding check (`or; blt` for the top bits, the SWAR digit sum, `remu` by `x18 = 4095`,
+* the encoding check (`or; blt` for the top bits, the 7-step SWAR digit sum, `remu` by `x18 = 4095`,
   `bne KT`), then the chain prologue `li s6, base`, the extraction of triple 0
-  and `jalr ra` into the layer-shared chain code (24 steps, 27 cycles);
+  and `jalr ra` into the layer-shared chain code (22 steps, 25 cycles);
 * at the return pc `retPc lay c`: the leaf tweak and the dispatch into the fold's shape block. -/
 
 namespace SigGolfCandidate.Verify
@@ -119,9 +119,19 @@ def selBrs (out hi : Nat) : List Br :=
 def m1E : E := .c M1w
 def m2E : E := .c M2w
 def orE (out hi : Nat) : E := .bin .or (d0E out hi) (d1E out hi)
-def swA3 (out hi : Nat) : E :=
+/-- The reference lane word: `((A >> 3) & M1) + (A & M1) + ((B >> 3) & M1) + (B & M1)`
+(11 six-bit lanes of two digits each; `Swar.sw1`). -/
+def swA3ref (out hi : Nat) : E :=
   .bin .add (.bin .add (.bin .add (.bin .and (.bin .srl (d0E out hi) (cw 3)) m1E) (.bin .and (d0E out hi) m1E))
     (.bin .and (.bin .srl (d1E out hi) (cw 3)) m1E)) (.bin .and (d1E out hi) m1E)
+/-- The even-digit lanes `t1 = (A & M1) + (B & M1)`. -/
+def swT1 (out hi : Nat) : E := .bin .add (.bin .and (d0E out hi) m1E) (.bin .and (d1E out hi) m1E)
+/-- The lane word as the machine computes it in 7 ALU steps: `t1 + ((A + B - t1) >> 3)`; equal to
+`swA3ref` when both words are below `2^63` (`LayArith.swA3_eval`): `A + B - t1` is the sum of the
+odd-digit parts, a multiple of 8 without overflow. -/
+def swA3 (out hi : Nat) : E :=
+  .bin .add (swT1 out hi)
+    (.bin .srl (.bin .sub (.bin .add (d0E out hi) (d1E out hi)) (swT1 out hi)) (cw 3))
 def swA4 (out hi : Nat) : E := .bin .add (swA3 out hi) (.bin .srl (swA3 out hi) (cw 6))
 def swA5 (out hi : Nat) : E := .bin .and (swA4 out hi) m2E
 def swA6 (out hi : Nat) : E := .bin .add (swA5 out hi) (.bin .srl (swA5 out hi) (cw 12))
@@ -134,8 +144,8 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E (out hi : Nat) : E := .bin .add (.bin .and (.bin .sll (d0E out hi) (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 (out hi : Nat) : E := .bin .and (.bin .add (.bin .and (.bin .sll (d0E out hi) (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB (_lay : Nat) : Nat := 27
-def stepsBPath (hi _lay : Nat) : Nat := 21 + selSteps hi
+def stepsB (lay : Nat) : Nat := (if lay = 4 then 26 else 25)
+def stepsBPath (hi lay : Nat) : Nat := (if lay = 4 then 20 else 19) + selSteps hi
 def cyclesBPath (hi lay : Nat) : Nat := stepsBPath hi lay + 3
 
 theorem stepsBPath_le (hi lay : Nat) : stepsBPath hi lay ≤ stepsB lay := by
@@ -167,15 +177,15 @@ def rej1Steps (hi : Nat) : Nat := if hi = 1 then 8 else 11
 def specRej1 (out hi : Nat) : Spec := ⟨rejK, [], rejectPc + 2, true, rej1Steps hi,
   padBrs out hi true ++ selBrs out hi, none, rej1Steps hi⟩
 def specRej2 (out hi : Nat) (lay : Nat) : Spec :=
-  ⟨rejK, [], rejectPc + 2, true, 19 + selSteps hi,
+  ⟨rejK, [], rejectPc + 2, true, 17 + selSteps hi,
     [⟨.ne, (swS out hi lay), .c (KTof lay), true⟩] ++ padBrs out hi false ++ selBrs out hi,
-    none, 22 + selSteps hi⟩
+    none, 20 + selSteps hi⟩
 
 /-! ## Leaf -/
 
 /-- The leaf code at the return pc: the leaf tweak, then the dispatch into the shape block of
 chunk 0. -/
-def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay < 4 then 6 else 7
+def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay < 4 then 7 else 8
 
 def leafRawSteps (lay : Nat) : Nat := if lay = 0 then 7 else leafSteps lay
 
