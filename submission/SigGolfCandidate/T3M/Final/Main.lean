@@ -4,17 +4,17 @@ import SigGolfCandidate.T3M.Final.BridgeMain
 /-!
 # The T3 certificate (legacy contract)
 
-`certificate_of : Pending → SourceFacts → Legacy.Certificate T3M.submission 9085` — every organizer requirement from the
+`certificate_of : Pending → SourceFacts → Legacy.Certificate T3M.submission 9183` — every organizer requirement from the
 named machine statements (`Pending`) and source statements (`SourceFacts`), nothing else:
 
 | field | proof |
 |---|---|
 | `admissible` | `T3M.submission_admissible` (M0, kernel `decide` on chunked images) |
-| `termination` | keygen exact (`KeygenRunWith`: 39,734,959 cycles), sign / expand / verify `…Terminates` |
+| `termination` | keygen exact (`KeygenRunWith`: 39,960,239 cycles), sign / expand / verify `…Terminates` |
 | `completeness` | `submission_complete` (`Final/Completeness`) |
 | `compressionBounds` | `submission_compressionBounds` (`Final/Budgets`) |
 | `security` | `submission_secure` (`Final/BridgeMain`) with `qfacts` |
-| `verificationBound` | `honest_success_verify` + `VerifyAcceptCycles` (8986) + `witnessCycles 25240 = 99` |
+| `verificationBound` | `honest_success_verify` + `VerifyAcceptCycles` (9084) + `witnessCycles 25240 = 99` |
 -/
 
 open OracleComp OracleSpec
@@ -46,7 +46,7 @@ theorem submission_terminates (P : Pending) : submission.Terminates := by
   cases phase with
   | keygen =>
     rw [P.keygen_runWith hash input]
-    exact ⟨rfl, show (39734959 : ℕ) < 2 ^ 32 by norm_num⟩
+    exact ⟨rfl, show (39960239 : ℕ) < 2 ^ 32 by norm_num⟩
   | sign =>
     obtain ⟨sk, cache, m⟩ := input
     exact P.sign_terminates hash sk cache m
@@ -61,8 +61,8 @@ theorem witnessCycles_eq : witnessCycles submission.sizes.witness = 99 := rfl
 
 theorem claimedC_eq : claimedC = verifyCycleBound + witnessCycles submission.sizes.witness := rfl
 
-/-- **Verification bound** `9085 = 8986 + ⌈25240 / 256⌉`. -/
-theorem submission_verificationBound (P : Pending) : submission.VerificationBound 9085 := by
+/-- **Verification bound** `9183 = 9084 + ⌈25240 / 256⌉`. -/
+theorem submission_verificationBound (P : Pending) : submission.VerificationBound 9183 := by
   intro hash sk m
   dsimp only
   intro h
@@ -73,7 +73,7 @@ theorem submission_verificationBound (P : Pending) : submission.VerificationBoun
   omega
 
 /-- **The T3 certificate** (legacy contract), from the machine and source statements. -/
-theorem certificate_of (P : Pending) (S : SourceFacts) : Certificate submission 9085 where
+theorem certificate_of (P : Pending) (S : SourceFacts) : Certificate submission 9183 where
   admissible := submission_admissible
   termination := submission_terminates P
   completeness := submission_complete P S

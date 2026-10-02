@@ -212,10 +212,9 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
   · intro A hA hz hE
     rw [hframe A (by unfold WIT at hA; omega) (by omega)]
     exact hs.zero A hA hz (by omega)
-  · intro k hk
-    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
-    rw [hframe _ (by omega) (Or.inr (by unfold ETAB; omega))]
-    exact hs.data k hk
+  · apply hs.data.congr
+    intro A hA hEnd
+    exact hframe A (by omega) (Or.inr (by unfold ETAB Search.TOP_DATA at *; omega))
 
 end SigGolfCandidate.T3M.Verify
 
@@ -436,7 +435,7 @@ theorem sel_setup (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (
   · intro j hj; rw [hmem]; exact hu.wit j hj
   · exact ⟨(hmem _).trans hu.pk.1, (hmem _).trans hu.pk.2⟩
   · intro A hA hz _; rw [hmem]; exact hu.zero A hA hz
-  · intro k hk; rw [hmem]; exact hu.data k hk
+  · exact hu.data.congr (fun A _ _ => hmem _)
 
 /-! ## All seven coordinates -/
 

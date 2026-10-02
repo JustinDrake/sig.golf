@@ -1,5 +1,5 @@
 import SigGolfCandidate.T3M.Verify.MerkleCheck
-import SigGolfCandidate.T3M.Verify.LayerGood
+import SigGolfCandidate.T3M.Verify.LayerLower
 import SigGolfCandidate.T3M.Verify.Arith
 
 /-! # V3: the Merkle shape blocks refine `leafHash >>= merkleP` (from V1's `LeafOut` to `MkEnd`)
@@ -680,7 +680,7 @@ def mkFuel (lay : Nat) : Nat := 3 + mkFuelR lay 0 (hL lay)
 /-- Cycles of a layer's Merkle phase: the entry (2), the leaf-pk HASH (`8 · lfBlocks`), the levels. -/
 def mkCyc (lay : Nat) : Nat := 2 + 8 * lfBlocks lay + mkCycR lay 0 (hL lay)
 
-theorem mkCyc_vals : mkCyc 0 = 292 ∧ mkCyc 1 = 186 ∧ mkCyc 2 = 172 ∧ mkCyc 3 = 172 := by decide
+theorem mkCyc_vals : mkCyc 0 = 284 ∧ mkCyc 1 = 186 ∧ mkCyc 2 = 172 ∧ mkCyc 3 = 172 := by decide
 theorem mkFuel_vals : mkFuel 0 = 89 ∧ mkFuel 1 = 50 ∧ mkFuel 2 = 43 ∧ mkFuel 3 = 43 := by decide
 
 theorem mkBits_stabBits (lay : Nat) (hlay : lay < 4) : mkBits lay 0 = stabBits lay := by
@@ -688,7 +688,7 @@ theorem mkBits_stabBits (lay : Nat) (hlay : lay < 4) : mkBits lay 0 = stabBits l
 
 /-- **The Merkle phase of a layer** (V3): from V1's `LeafOut`, the shape block(s) of the leaf refine
 `leafHash lay tree leaf ends >>= merkleP w index lay` with fuel `mkFuel lay` and exactly `mkCyc lay` cycles on every
-path (292 / 186 / 172 / 172 for layers 0..3), continued by `K` at `MkEnd`. -/
+path (284 / 186 / 172 / 172 for layers 0..3), continued by `K` at `MkEnd`. -/
 theorem merkle_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends : List Digest) (u : MachineState)
     (hidx : index < 2 ^ 31) (hu : LeafOut w pk index lay ends u)
     (K : Digest → OracleComp HashSpec Obs) (N C A : Nat) (Q : Prop)
@@ -714,7 +714,7 @@ theorem merkle_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends
   have h10u : u.getReg .x10 = BitVec.ofNat 64 (lfBase lay.val) :=
     hkU (.x10, BitVec.ofNat 64 (if lay.val = 0 then 512 else 768)) (by simp [lfK, postLf])
   have h11u : u.getReg .x11 = BitVec.ofNat 64 (lfBytes lay.val) :=
-    hkU (.x11, BitVec.ofNat 64 (if lay.val = 0 then 960 else 704)) (by simp [lfK, postLf])
+    hkU (.x11, BitVec.ofNat 64 (if lay.val = 0 then 896 else 704)) (by simp [lfK, postLf])
   have h10 : t.getReg .x10 = u.getReg .x10 := ht.keep .x10 (by simp [mkEntKeep])
   have h11 : t.getReg .x11 = u.getReg .x11 := ht.keep .x11 (by simp [mkEntKeep])
   have hkt : KnownOK (mkEntPost lay.val 0 (mkSh lay.val 0 (route index lay).1)) t := ht.known

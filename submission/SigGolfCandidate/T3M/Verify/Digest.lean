@@ -196,10 +196,11 @@ theorem digest_step (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineStat
         unfold WIT at hA
         rw [frame A (by omega) (by omega) (by omega) (by omega) (by omega)]
         exact hs.zero A hA (by omega)
-      · intro k hk
-        obtain ⟨hk1, hk2⟩ := DATA_ge k hk
-        rw [frame _ (by omega) (by omega) (by omega) (by omega) (by omega)]
-        exact hs.data k hk
+      · apply hs.data.congr
+        intro A hA hEnd
+        exact frame A (by omega) (by unfold Search.TOP_DATA at hA; omega)
+          (by unfold Search.TOP_DATA at hA; omega) (by unfold Search.TOP_DATA at hA; omega)
+          (by unfold Search.TOP_DATA at hA; omega)
 
 theorem digest_out (m : T3.Message) (pk : Digest) (w : WBytes) (t : MachineState) (ht : DgPre m pk w t)
     (a : HashOutput) : DgOut m pk w a (writeHash t a) := by
@@ -221,10 +222,10 @@ theorem digest_out (m : T3.Message) (pk : Digest) (w : WBytes) (t : MachineState
     unfold WIT at hA
     rw [writeHash_frame t a 96 A h12 (by omega) (by omega) (by omega)]
     exact ht.zero A (by unfold WIT; omega) (by omega)
-  · intro k hk
-    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
-    rw [writeHash_frame t a 96 _ h12 (by omega) (by omega) (Or.inr (by omega))]
-    exact ht.data k hk
+  · apply ht.data.congr
+    intro A hA hEnd
+    exact writeHash_frame t a 96 A h12 (by omega) (by omega)
+      (Or.inr (by unfold Search.TOP_DATA at hA; omega))
 
 /-- The digest piece of `verifyP`: rejection (`dc ≥ 2^20`, HALT(1), no query) or the digest query (one block)
 followed by the continuation on the post-digest state. -/

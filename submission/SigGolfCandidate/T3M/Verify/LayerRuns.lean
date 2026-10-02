@@ -56,9 +56,9 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 /-- Merkle height. -/
 def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
 /-- Steps of A (layer 3 includes the 24 `hyper` constants; layer 0 has `mv` and `lui; or`). -/
-def stepsA (lay : Nat) : Nat := if lay = 3 then 24 else if lay = 0 then 15 else 15
+def stepsA (lay : Nat) : Nat := if lay = 3 then 24 else if lay = 0 then 16 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 0 then 65 else if lay = 3 then 54 else 45
+def retOff (lay : Nat) : Nat := if lay = 0 then 69 else if lay = 3 then 54 else 45
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
@@ -182,7 +182,7 @@ def tgtt : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x1fe
 
 def specBt (p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, .bin .sll a7E (kw 2)), (.x3, totE), (.x14, x14t), (.x25, .bin .and c34E (kw M4c))],
-   [], 0, false, 49, [totBr false, rngBr 61 false], some tgtt, 55⟩
+   [], 0, false, 52, [totBr false, rngBr 61 false], some tgtt, 58⟩
 
 /-- After the top decode: the 2-bit masks, the quad mask in `s8`, `t4 = 8` (no checksum chain). -/
 def postBt (p : Nat) : List (Reg × Word) :=
@@ -192,7 +192,7 @@ def postBt (p : Nat) : List (Reg × Word) :=
     (.x1, pcOf (p + retOff 0))]
 
 def rejTot : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 40, [totBr true, rngBr 61 false], none, 46⟩
+  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 42, [totBr true, rngBr 61 false], none, 48⟩
 
 /-! ## The leaf-pk block -/
 
@@ -208,7 +208,7 @@ def tgtLf (lay : Nat) : E :=
 def specLf (lay : Nat) : Spec :=
   if lay = 0 then
     ⟨[(.x14, x14lf lay)],
-     [(⟨none, BitVec.ofNat 64 1464⟩, kw 0), (⟨none, BitVec.ofNat 64 1456⟩, kw 0), (⟨none, BitVec.ofNat 64 536⟩, .reg .x4),
+     [(⟨none, BitVec.ofNat 64 1400⟩, kw 0), (⟨none, BitVec.ofNat 64 1392⟩, kw 0), (⟨none, BitVec.ofNat 64 536⟩, .reg .x4),
       (⟨none, BitVec.ofNat 64 528⟩, kw (hw 2 0))], 0, false, 13, [], some (tgtLf lay), 13⟩
   else
     ⟨[(.x14, x14lf lay)],
@@ -217,7 +217,7 @@ def specLf (lay : Nat) : Spec :=
 
 def postLf (lay : Nat) : List (Reg × Word) :=
   leafK lay ++ [(.x3, BitVec.ofNat 64 (hw 2 lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)),
-    (.x10, BitVec.ofNat 64 (if lay = 0 then 512 else 768)), (.x11, BitVec.ofNat 64 (if lay = 0 then 960 else 704)),
+    (.x10, BitVec.ofNat 64 (if lay = 0 then 512 else 768)), (.x11, BitVec.ofNat 64 (if lay = 0 then 896 else 704)),
     (.x15, 0xce000)]
 
 /-! ## The checks of a copy -/
@@ -226,14 +226,18 @@ def keepA : List Reg := []
 def keepB : List Reg := [.x4, .x23, .x30]
 def keepLf : List Reg := [.x23, .x30, .x22]
 
+def keepTopCall : List Reg := [.x2, .x3, .x4, .x5, .x6, .x7, .x8, .x9, .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17, .x18, .x19, .x20, .x21, .x22, .x23, .x24, .x25, .x26, .x27, .x28, .x29, .x30, .x31]
+
+/-- The two direct jumps preserve the top leaf return address and enter the shared packed decoder. -/
+def specTopCall (p : Nat) : Spec :=
+  ⟨[(.x1, kw (0x1000 + 4 * (p + 69)))], [], 96160, false, 2, [], none, 2⟩
+
 /-- All runs of the transition copy at `p` of layer `lay` and of its leaf-pk block. -/
 def copyCheck (lay p : Nat) : Bool :=
   specB [] [] baseK (runAt (preK lay) [] p [.br false]) (specA lay p) [] (bK lay) keepA &&
   specB [] [] [] (runAt (preK lay) [] p [.br true]) (rejA lay p) [] [] [] &&
   (if lay = 0 then
-    specB [] [] baseK (runAt (bK lay) [] (p + stepsA lay + 1) [.br false, .br false, .jmp]) (specBt p) [] (postBt p) keepB &&
-    specB [] [] [] (runAt (bK lay) [] (p + stepsA lay + 1) [.br false, .br true]) rejTot [] [] [] &&
-    specB [] [] [] (runAt (bK lay) [] (p + stepsA lay + 1) [.br true]) (rejRng 61) [] [] []
+    specB [] [] [] (runAt [] [96160] (p + stepsA lay + 1) []) (specTopCall p) [] [] keepTopCall
   else
     specB [] [] baseK (runAt (bK lay) [] (p + stepsA lay + 1) [.br false, .br false, .jmp]) (specBl lay p) []
       (postBl lay p) keepB &&

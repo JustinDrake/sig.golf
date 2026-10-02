@@ -225,9 +225,9 @@ theorem honestPieces_eq (h : Agrees T labels) (index : Fin (2^31)) (lay : Layer)
     rw [List.mem_range] at hi
     have hi58 : i < 58 := lt_of_lt_of_le hi (by fin_cases lay <;> decide)
     have hd : (Wots.referenceDigits T (routeAddr index.val lay)).getD i 0 ≤ 7 := by
-      have hle : (Wots.referenceDigits T (routeAddr index.val lay)).getD i 0 ≤ 2 ^ width lay i - 1 :=
+      have hle : (Wots.referenceDigits T (routeAddr index.val lay)).getD i 0 ≤ maxDigit lay i :=
         WotsExtract.depth_le T ⟨routeAddr index.val lay, i⟩ hi
-      have hw : 2 ^ width lay i - 1 ≤ 7 := by unfold width; split_ifs <;> norm_num
+      have hw : maxDigit lay i ≤ 7 := by unfold maxDigit; split_ifs <;> norm_num
       omega
     exact chainItem_value h ⟨lay, ⟨_, ht31⟩, ⟨_, hl4096⟩⟩ _ i hi58 hd
   · have hc : ∀ j ∈ List.range (height lay),

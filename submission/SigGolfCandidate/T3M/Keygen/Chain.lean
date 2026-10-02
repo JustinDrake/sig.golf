@@ -46,7 +46,7 @@ theorem sub0_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineStat
     (hpc : s.pc = pcOf (b + 0)) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf (b + 1) ∧ t.getReg .x20 = BitVec.ofNat 64 0 ∧
       RegsExcept s t [.x20] ∧ Frame s t (fun _ => False) := by
-  have hrun := run_0 h.2
+  have hrun := run_0 h.2.1
   refine ⟨_, symRun_sound hrun (codeAt_sub_0 h) s hpc (by simp [st_0, blk117_0.res, rv_simp]),
     ?_, ?_, ?_, ?_⟩
   · simp [pcE_0, Result.toState_pc, E.eval]
@@ -59,7 +59,7 @@ theorem sub1_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineStat
     (h20 : s.getReg .x20 = BitVec.ofNat 64 m) (h17 : s.getReg .x17 = BitVec.ofNat 64 cap) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = (if m = cap then pcOf (b + 2) else pcOf (b + 8)) ∧
       RegsExcept s t [] ∧ Frame s t (fun _ => False) := by
-  have hrun := run_1 h.2
+  have hrun := run_1 h.2.1
   refine ⟨_, symRun_sound hrun (codeAt_sub_1 h) s hpc (by simp [st_1, blk117_1.res, rv_simp]),
     ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, pcE_1, rebase, blk117_1.res, E.eval, CmpOp.eval, h20, h17]
@@ -79,7 +79,7 @@ theorem sub2_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineStat
       t.getMem (BitVec.ofNat 64 valp) = s.getMem (BitVec.ofNat 64 (CHAIN + 48)) ∧
       t.getMem (BitVec.ofNat 64 (valp + 8)) = s.getMem (BitVec.ofNat 64 (CHAIN + 56)) ∧
       RegsExcept s t [.x6, .x7, .x29] ∧ Frame s t (fun A => A = valp ∨ A = valp + 8) := by
-  have hrun := run_2 h.2
+  have hrun := run_2 h.2.1
   have hobl : Oblig.all s st_2.obl := by
     simp only [st_2, blk117_2.res]
     t3n [h23]
@@ -102,7 +102,7 @@ theorem sub8_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineStat
     (h20 : s.getReg .x20 = BitVec.ofNat 64 m) (h21 : s.getReg .x21 = BitVec.ofNat 64 e) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = (if m = e then pcOf (b + 26) else pcOf (b + 9)) ∧
       RegsExcept s t [] ∧ Frame s t (fun _ => False) := by
-  have hrun := run_8 h.2
+  have hrun := run_8 h.2.1
   refine ⟨_, symRun_sound hrun (codeAt_sub_8 h) s hpc (by simp [st_8, blk117_8.res, rv_simp]),
     ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, pcE_8, rebase, blk117_8.res, E.eval, CmpOp.eval, h20, h21]
@@ -126,7 +126,7 @@ theorem sub9_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineStat
         BitVec.ofNat 64 (257 + 65536 * lay + 2 ^ 32 * (m + 256 * i)) ∧
       RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x28, .x30] ∧
       Frame s t (fun A => A = CHAIN + 16) := by
-  have hrun := run_9 h.2
+  have hrun := run_9 h.2.1
   refine ⟨_, symRun_sound hrun (codeAt_sub_9 h) s hpc (by simp [st_9, blk117_9.res, rv_simp]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [pcE_9, Result.toState_pc, E.eval]
@@ -150,7 +150,7 @@ theorem sub24_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
     (hpc : s.pc = pcOf (b + 24)) (m : Nat) (h20 : s.getReg .x20 = BitVec.ofNat 64 m) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = pcOf (b + 1) ∧ t.getReg .x20 = BitVec.ofNat 64 (m + 1) ∧
       RegsExcept s t [.x20] ∧ Frame s t (fun _ => False) := by
-  have hrun := run_24 h.2
+  have hrun := run_24 h.2.1
   refine ⟨_, symRun_sound hrun (codeAt_sub_24 h) s hpc (by simp [st_24, blk117_24.res, rv_simp]),
     ?_, ?_, ?_, ?_⟩
   · simp [pcE_24, Result.toState_pc, E.eval]
@@ -161,7 +161,7 @@ theorem sub24_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
 theorem sub26_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 26)) (k : Nat) (h1 : s.getReg .x1 = pcOf k) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf k ∧ RegsExcept s t [] ∧ Frame s t (fun _ => False) := by
-  have hrun := run_26 h.2
+  have hrun := run_26 h.2.1
   refine ⟨_, symRun_sound hrun (codeAt_sub_26 h) s hpc (by simp [st_26, blk117_26.res, rv_simp]),
     ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, pcE_26, blk117_26.res, rv_simp, h1, pcOf_and_max]

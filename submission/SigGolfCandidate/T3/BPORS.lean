@@ -6550,9 +6550,9 @@ theorem source_prefix (answers : Answers) (labels : Labels) (h : Agrees answers 
 theorem source_endpoint (answers : Answers) (labels : Labels) (h : Agrees answers (sourceSeeds answers) labels)
     (address : Address) :
     leafEnd answers address.layer address.tree.val address.leaf.val address.chain.val=
-      value (sourceSeeds answers) labels address (2^width address.layer address.chain.val-1) := by
+      value (sourceSeeds answers) labels address (maxDigit address.layer address.chain.val) := by
   apply source_prefix answers labels h address
-  unfold width
+  unfold maxDigit
   split_ifs <;> decide
 
 end SigGolfCandidate.T3.Security.ChainGraph

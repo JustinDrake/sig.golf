@@ -183,7 +183,7 @@ theorem abstract_sign_encoded_value (P : Pending) (sk : SecretKey) (cache : Cach
   exact h
 
 theorem abstract_expand_raw_cost (P : Pending) (m : Message) (pk : PublicKey)
-    (sig : Bytes 5728) (hash : Hash) :
+    (sig : Bytes 5664) (hash : Hash) :
     (evalWithAnswerFn hash (submission.run .expand (m,pk,sig))).hashCompressions =
       (evalWithAnswerFn hash (mrealize 0 (T3.Cost.countBlocks (expandN m pk (sigDec sig))))).2 := by
   exact abstract_count_refinement 0 hash (expandN m pk (sigDec sig))
