@@ -134,7 +134,7 @@ theorem tailF_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dig
 
 /-! ## The coordinate end -/
 
-/-- At `forest` (pc 647) after coordinate 6: the seven roots in the forest frame, `a4` at the next header. -/
+/-- At `forest` (pc 648) after coordinate 6: the seven roots in the forest frame, `a4` at the next header. -/
 structure ForestIn (F : FCtx) (roots : List Digest) (ptr folds : Nat) (m : MachineState) : Prop where
   glob : Glob gkF F.w F.pk m
   idx : m.getReg .x22 = BitVec.ofNat 64 F.idx
@@ -249,17 +249,25 @@ theorem coord_step (F : FCtx) (c : Nat) (roots : List Digest) (stk : List (Diges
       · rw [hu.regs (.x27, .bin .add (.reg .x27) (cw 65536)) (by simp [coordSpec, hc6])]
         have hr := h.fb.ck (.x27, BitVec.ofNat 64 (hdr1 (0xa01 + 65536 * c) F.idx)) (by simp [packedCK])
         simp only [Rv.E.eval, BinOp.eval, cw, hr, BitVec.ofNat_add_ofNat]
-        apply congrArg (BitVec.ofNat 64)
-        unfold hdr1
         have hi := F.idx_lt
-        omega
+        have hnum : hdr1 (0xa01 + 65536 * c) F.idx + 65536 =
+            hdr1 (0xa01 + 65536 * (c + 1)) F.idx := by
+          have hb : 0xa01 + 65536 * c < 2^32 := by omega
+          have hb' : 0xa01 + 65536 * (c+1) < 2^32 := by omega
+          simp only [hdr1, Nat.mod_eq_of_lt hb, Nat.mod_eq_of_lt hb']
+          omega
+        exact congrArg (BitVec.ofNat 64) hnum
       · rw [hu.regs (.x28, .bin .add (.reg .x28) (cw 65536)) (by simp [coordSpec, hc6])]
         have hr := h.fb.ck (.x28, BitVec.ofNat 64 (hdr1 (0x901 + 65536 * c) F.idx)) (by simp [packedCK])
         simp only [Rv.E.eval, BinOp.eval, cw, hr, BitVec.ofNat_add_ofNat]
-        apply congrArg (BitVec.ofNat 64)
-        unfold hdr1
         have hi := F.idx_lt
-        omega
+        have hnum : hdr1 (0x901 + 65536 * c) F.idx + 65536 =
+            hdr1 (0x901 + 65536 * (c + 1)) F.idx := by
+          have hb : 0x901 + 65536 * c < 2^32 := by omega
+          have hb' : 0x901 + 65536 * (c+1) < 2^32 := by omega
+          simp only [hdr1, Nat.mod_eq_of_lt hb, Nat.mod_eq_of_lt hb']
+          omega
+        exact congrArg (BitVec.ofNat 64) hnum
     refine ⟨u, hst, ⟨⟨hu.glob _ _ _ h.fb.glob (RelOK.nil m), hck,
       by rw [hu.keep .x22 (by simp)]; exact h.fb.idx, fun s hs => by rw [hmem]; exact h.fb.etab s hs,
       by rw [hmem]; exact h.fb.sent, fun d h1 h2 => by rw [hmem, hmem]; exact h.fb.fpad d h1 h2, by omega⟩,
@@ -296,7 +304,6 @@ structure FtsOut (F : FCtx) (root : Digest) (u : MachineState) : Prop where
   pc : u.pc = pcOf layerPc
   root : DigAt u 0x100 root
   wit : Orig F.w (fun o => o < 64 ∨ 11288 ≤ o) u
-  carry1 : u.getReg .x6 = 1
 
 theorem hdr0_forest (idx : Nat) (hi : idx < 2 ^ 32) : hdr0 11 0 idx 0 = 0xb01 := by
   rw [hdr0_eq 11 0 idx 0 (by decide) (by decide) hi (by decide)]; norm_num
@@ -403,7 +410,7 @@ theorem forest_step (F : FCtx) (roots : List Digest) (ptr folds : Nat) (m : Mach
       · rw [hmem _ (by norm_num), if_pos (by unfold FOREST; omega), hdr1_forest F.idx hi32]
     refine ⟨u, hu.steps, hu.ecall rfl, hu.known (.x5, 0) (by simp [baseK]),
       hashArgs_of u _ 128 _ h10 h11 h12 (by unfold FOREST; omega) (by decide) (by unfold FOREST; norm_num)
-        (by decide) (by norm_num), hin, fun ans => ⟨?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+        (by decide) (by norm_num), hin, fun ans => ⟨?_, ?_, ?_, ?_, ?_⟩⟩
     · exact Glob_writeHash (hu.glob _ _ _ h.glob (RelOK.nil m)) ans 0x100 h12 (by decide)
     · rw [writeHash_getReg, hu.keep .x22 (by simp)]; exact h.idx
     · rw [writeHash_pc, hu.pc rfl]; exact pcOf_add4 655
@@ -415,7 +422,5 @@ theorem forest_step (F : FCtx) (roots : List Digest) (ptr folds : Nat) (m : Mach
       have hp := h.hptr
       exact hw2.mono (fun o ho => ⟨by rcases ho with ho | ho; exact Or.inl ho; exact Or.inr (Or.inr (by omega)),
         Or.inr (by unfold WIT; omega)⟩)
-    · rw [writeHash_getReg]
-      exact hu.known (.x6, 1) (by simp [baseK])
 
 end SigGolfCandidate.T3M.Verify
