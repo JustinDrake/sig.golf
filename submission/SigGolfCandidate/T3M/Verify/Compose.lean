@@ -11,8 +11,8 @@ import SigGolfCandidate.T3M.Verify.FtsGood
   `lCyc (n + 1) = layerCost n 0 + mkCyc n + lCyc n` (V1's chains/transition/leaf-pk block, V3's Merkle), `lCyc 0 = 8`
   (the compare): **`lCyc 4 = 6175`**, `lFuel 4 = 7974`;
 * `after_good`: from V2's `FtsOut` (via V1's `layerIn_of_fts`), `afterFts` — V2's `verifyP_good_fts` interface;
-* **`verifyP_good`**: from the initial state (`InitOK`), `GoodQ s 15397 15404 True 9137 (ccM (verifyP m pk w) Kb)`:
-  every run finishes within 15,410 cycles, accepting runs within **9,137 = 2956 + 6181** (V2: 128 + P + 918 + 15 F with
+* **`verifyP_good`**: from the initial state (`InitOK`), `GoodQ s 15397 15404 True 9136 (ccM (verifyP m pk w) Kb)`:
+  every run finishes within 15,410 cycles, accepting runs within **9,136 = 2955 + 6181** (V2: 127 + P + 918 + 15 F with
   `P ≤ 56`, `F ≤ 124`; V1: 1367 + 1349 + 1349 + 1280; V3: 172 + 172 + 186 + 292 + 8). -/
 
 set_option linter.unusedSimpArgs false
@@ -197,9 +197,9 @@ theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutpu
   exact GoodQ.steps' hst hg (by omega) (by omega) (fun q => ⟨q, by omega⟩)
 
 /-- **The whole verify run**: from the initial state, every run finishes within 15404 cycles with fuel 15397, and
-accepting runs take at most `9137 = 2956 + 6181` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
+accepting runs take at most `9136 = 2955 + 6181` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
 theorem verifyP_good (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
-    GoodQ s 15397 15404 True 9137 (ccM (verifyP m pk w) Kb) :=
+    GoodQ s 15397 15404 True 9136 (ccM (verifyP m pk w) Kb) :=
   verifyP_good_fts m pk w s hs 7999 6181 True (fun a root u h => after_good pk w True trivial a root u h)
 
 end SigGolfCandidate.T3M
