@@ -1,7 +1,7 @@
 import SigGolfCandidate.T3M.Verify.ChainCheckT1
 
 /-! Kernel check of the lower chain code, triples 4 and 5: their `ttab` slots and shared blocks, in
-halves (the import chain serializes the check files to bound parallel build memory). -/
+halves (two import chains limit concurrent heavy checks to respect hosted memory). -/
 
 namespace SigGolfCandidate.T3M
 

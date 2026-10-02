@@ -74,7 +74,7 @@ def mkEc (lay leaf k : Nat) : Nat :=
 def mkFin (lay leaf : Nat) : Nat :=
   mkShp lay (mkNch lay - 1) (mkSh lay (mkNch lay - 1) leaf) + mkOff lay (mkNch lay - 1) (mkBits lay (mkNch lay - 1)) + 1
 /-- Instruction steps from after HASH `k` to the next HASH (layer 0, level 5: the chunk dispatch and the table word). -/
-def mkLvlSt (lay k : Nat) : Nat := mkBody lay k + 1 + (if lay = 0 ∧ k = 5 then 6 else 0)
+def mkLvlSt (lay k : Nat) : Nat := mkBody lay k + 1 + (if lay = 0 ∧ k = 5 then 4 else 0)
 
 theorem mk_facts (lay k : Nat) (hlay : lay < 4) (hk : k < hL lay) :
     mkCi lay k < mkNch lay ∧ mkLo lay (mkCi lay k) ≤ k ∧ k - mkLo lay (mkCi lay k) < mkBits lay (mkCi lay k) ∧
@@ -374,11 +374,19 @@ theorem dispTgt_eval (leaf : Nat) (hleaf : leaf < 4096) (s : MachineState)
   have hsh : mkSh 0 1 leaf = leaf / 64 := by simp only [mkSh, mkLo, mkBits]; norm_num; omega
   rw [hsh, show mkTab 0 1 = 209832 from rfl]
   simp only [mkDispTgt, E.eval, BinOp.eval, kw, h23, show hL 0 = 12 from rfl]
-  have hm : (BitVec.ofNat 64 (2 ^ 12 + leaf) >>> ((BitVec.ofNat 64 4).toNat % 64) &&& BitVec.ofNat 64 252) =
-      BitVec.ofNat 64 (4 * (leaf / 64)) := by
+  have hq : (BitVec.ofNat 64 (2 ^ 12 + leaf) >>> ((BitVec.ofNat 64 6).toNat % 64)) =
+      BitVec.ofNat 64 (64 + leaf / 64) := by
     apply BitVec.eq_of_toNat_eq
-    rw [toNat_andc _ _ (by norm_num), toNat_srl _ _ (by norm_num), BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega),
-      show (252 : Nat) = 4 * (2 ^ 6 - 1) by norm_num, land4, BitVec.toNat_ofNat]
+    rw [toNat_srl _ _ (by norm_num)]
+    simp only [BitVec.toNat_ofNat]
+    norm_num
+    omega
+  rw [hq]
+  have hm : (BitVec.ofNat 64 (64 + leaf / 64) <<< ((BitVec.ofNat 64 2).toNat % 64)) =
+      BitVec.ofNat 64 (256 + 4 * (leaf / 64)) := by
+    apply BitVec.eq_of_toNat_eq
+    rw [toNat_sll _ _ (by norm_num)]
+    simp only [BitVec.toNat_ofNat]
     norm_num
     omega
   rw [hm, ofNat_add_ofNat, even_andNot1' _ (by omega)]
@@ -387,7 +395,7 @@ theorem dispTgt_eval (leaf : Nat) (hleaf : leaf < 4096) (s : MachineState)
 theorem lfK_mkK (lay : Nat) : ∀ p ∈ mkK lay, p ∈ lfK lay := by
   intro p hp
   simp only [mkK, baseK, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-  rcases hp with (rfl | rfl) | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+  rcases hp with (rfl | rfl) | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
     simp [lfK, postLf, leafK, lfKeepK, baseK]
 
 /-- **One level**: from `MAfter … k v s`, the level's body (and for layer 0's level 5 the chunk dispatch and the
@@ -435,7 +443,7 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
     have hst : Steps image s (mkLvlSt lay.val k) (mkLvlSt lay.val k) t := by
       have := ht1.steps.trans ht.steps
       simp only [mkLvlSpecD, mkEntSpec, hlk] at this
-      rw [show mkLvlSt lay.val k = mkBody lay.val k + 5 + 2 by rw [mkLvlSt, if_pos ⟨hl0, hk5⟩]]
+      rw [show mkLvlSt lay.val k = mkBody lay.val k + 3 + 2 by rw [mkLvlSt, if_pos ⟨hl0, hk5⟩]]
       exact this
     have hmem : ∀ A, t.getMem A =
         memEval s (mkLvlMem lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) k) A := by
@@ -603,8 +611,8 @@ def mkFuel (lay : Nat) : Nat := 3 + mkFuelR lay 0 (hL lay)
 /-- Cycles of a layer's Merkle phase: the entry (2), the leaf-pk HASH (`8 · lfBlocks`), the levels. -/
 def mkCyc (lay : Nat) : Nat := 2 + 8 * lfBlocks lay + mkCycR lay 0 (hL lay)
 
-theorem mkCyc_vals : mkCyc 0 = 294 ∧ mkCyc 1 = 186 ∧ mkCyc 2 = 172 ∧ mkCyc 3 = 172 := by decide
-theorem mkFuel_vals : mkFuel 0 = 91 ∧ mkFuel 1 = 50 ∧ mkFuel 2 = 43 ∧ mkFuel 3 = 43 := by decide
+theorem mkCyc_vals : mkCyc 0 = 292 ∧ mkCyc 1 = 186 ∧ mkCyc 2 = 172 ∧ mkCyc 3 = 172 := by decide
+theorem mkFuel_vals : mkFuel 0 = 89 ∧ mkFuel 1 = 50 ∧ mkFuel 2 = 43 ∧ mkFuel 3 = 43 := by decide
 
 theorem mkBits_stabBits (lay : Nat) (hlay : lay < 4) : mkBits lay 0 = stabBits lay := by
   interval_cases lay <;> decide
