@@ -17,11 +17,11 @@ noncomputable def tripleSet (v : Triple) (hv : Function.Injective v) : ChildSet 
 abbrev Enumeration (s : ChildSet) := {v : Triple // Function.Injective v ∧ slotSet v=s.val}
 
 noncomputable def orderedEquiv : {s : Slots // SlotsAccepted s} ≃
-    (Σ f : {s : SetFamily // familyCost s≤91}, (bank : Bank) → Enumeration (f.val bank)) where
+    (Σ f : {s : SetFamily // familyCost s≤90}, (bank : Bank) → Enumeration (f.val bank)) where
   toFun s := ⟨⟨fun b => tripleSet (s.val b) (s.property.1 b),s.property.2⟩,
     fun b => ⟨s.val b,s.property.1 b,rfl⟩⟩
   invFun x := ⟨fun b => (x.2 b).val,fun b => (x.2 b).property.1,by
-    change (∑ b,octH 7 (slotSet (x.2 b).val).sort)≤91
+    change (∑ b,octH 7 (slotSet (x.2 b).val).sort)≤90
     simp_rw [(x.2 _).property.2]
     exact x.1.property⟩
   left_inv s := by apply Subtype.ext;rfl
@@ -49,17 +49,17 @@ theorem sigma_card_constant {α : Type} {β : α → Type} [Fintype α] [∀a,Fi
   rw [Fintype.card_sigma]
   simp only [hc,sum_const,card_univ,smul_eq_mul]
 
-theorem enumeration_family_card (f : {s : SetFamily // familyCost s≤91}) :
+theorem enumeration_family_card (f : {s : SetFamily // familyCost s≤90}) :
     Fintype.card ((bank : Bank) → Enumeration (f.val bank))=6^7 := by
   rw [Fintype.card_pi]
   simp only [enumeration_card,prod_const,card_univ,Bank,Fintype.card_fin]
 
 theorem ordered_accepted_card : Fintype.card {s : Slots // SlotsAccepted s} =
-    6^7 * 11745615142360328454399329854533140480 := by
+    6^7 * 7581131291966449566946462729286713344 := by
   have hfirst := Fintype.card_congr orderedEquiv
-  have hmiddle := sigma_card_constant (β:=fun f : {s : SetFamily // familyCost s≤91} =>
+  have hmiddle := sigma_card_constant (β:=fun f : {s : SetFamily // familyCost s≤90} =>
     (bank : Bank) → Enumeration (f.val bank)) (6^7) enumeration_family_card
-  have hlast : Fintype.card {s : SetFamily // familyCost s≤91}=11745615142360328454399329854533140480 := by
+  have hlast : Fintype.card {s : SetFamily // familyCost s≤90}=7581131291966449566946462729286713344 := by
     rw [Fintype.card_subtype]
     exact capped_family_card
   exact hfirst.trans (hmiddle.trans ((congrArg (fun n => n*6^7) hlast).trans (Nat.mul_comm _ _)))

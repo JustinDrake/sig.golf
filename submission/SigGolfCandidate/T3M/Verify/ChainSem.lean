@@ -1258,7 +1258,8 @@ theorem x_step (c : LCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.know
     (hrun : vrun (c.tX (3 * t + 2)) 5 = some (xJ (if t + 1 < 7 then .x16 else .x17) (9 * ((t + 1) % 7)) .x2
       (BitVec.ofNat 64 (32 * (t + 1)) - BitVec.ofNat 64 1760)))
     (acc : List Digest) (s : MachineState) (hs : c.EndInv s0 (3 * t + 2) acc s) :
-    ∃ u, Steps vimage s 4 4 u ∧ c.ChainIn s0 (3 * t + 3) acc u := by
+    ∃ u, Steps vimage s (if 9 * ((t + 1) % 7) = 9 then 3 else 4)
+      (if 9 * ((t + 1) % 7) = 9 then 3 else 4) u ∧ c.ChainIn s0 (3 * t + 3) acc u := by
   obtain ⟨⟨hR, hF, hS⟩, hlen, h25, hpc⟩ := hs
   have kr : ∀ r v, (r, v) ∈ c.known → r ∉ chainRegs → s.getReg r = v := fun r v hm hn =>
     (hR r hn).trans (hk _ hm)

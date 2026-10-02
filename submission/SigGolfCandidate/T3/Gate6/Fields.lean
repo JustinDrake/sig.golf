@@ -31,7 +31,7 @@ theorem digestRecord_gate_zero (output : BitVec 256) :
 theorem digest_acceptance_iff (output : BitVec 256) :
     DigestAccepted output ↔ output.toNat/2^206%32=0 ∧
       (∀ c, Function.Injective ((digestRecord output).2.1 c)) ∧
-      (∑ c,childAuth ((digestRecord output).2.1 c))≤91 := by
+      (∑ c,childAuth ((digestRecord output).2.1 c))≤90 := by
   change ((digestRecord output).2.2.1=0 ∧ _ ∧ _) ↔ _
   rw [digestRecord_gate_zero]
 

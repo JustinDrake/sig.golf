@@ -41,12 +41,12 @@ noncomputable def referenceSearch (answers : Answers) (L : LeafAddr) : Option (B
   evalWithAnswerFn answers (counterSearch L.lay L.tree L.leaf (leafMsg answers L) 0 counterLimit)
 
 /-- A fixed valid word used when the honest search fails (the record's `dummy`; conservative).
-Top layer: 49 radix-4 chains then 9 radix-8 chains, digit sum 126 (48·2 + 3 + 9·3). Lower layers: 42 radix-8
-data digits summing to 190 (22·5 + 20·4) and the checksum digit `target − 190` (5 at layers 1, 2; 4 at layer 3).
+Top layer: 49 radix-4 chains then 9 radix-8 chains, digit sum 125 (49·2 + 9·3). Lower layers: 42 radix-8
+data digits summing to 190 (22·5 + 20·4) and the checksum digit `target − 190` (4 at every lower layer).
 Validity in `T3.code` is proved where it is used. -/
 def dummyDigits (lay : Layer) : List Nat :=
-  if lay.val = 0 then List.replicate 48 2 ++ [3] ++ List.replicate 9 3
-  else List.replicate 22 5 ++ List.replicate 20 4 ++ [if lay.val = 3 then 4 else 5]
+  if lay.val = 0 then List.replicate 49 2 ++ List.replicate 9 3
+  else List.replicate 22 5 ++ List.replicate 20 4 ++ [4]
 
 /-- The reference word of every leaf, signed or not (record: `referenceFamilyWords selections dummy`). -/
 noncomputable def referenceDigits (answers : Answers) (L : LeafAddr) : List Nat :=

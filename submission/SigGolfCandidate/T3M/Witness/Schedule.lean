@@ -96,17 +96,17 @@ def foldPositions (segs : List Segment) : List (Nat × Nat) :=
 
 /-- `streamPlan chosen k`: the `(segment, fold)` position of the honest stream that carries proof slot `k`
 (`none` for slots beyond the used ones). -/
-def streamPlan (chosen : List Selection) (k : Fin 119) : Option (Nat × Nat) :=
+def streamPlan (chosen : List Selection) (k : Fin 118) : Option (Nat × Nat) :=
   (foldPositions (schedule chosen)).find? fun p =>
     foldSlot chosen ((schedule chosen).getD p.1 default) p.2 = k.val
 
 /-- Witness offset of the fold block carrying proof slot `k` (`none` if unused). -/
-def slotBlock (chosen : List Selection) (k : Fin 119) : Option Nat :=
+def slotBlock (chosen : List Selection) (k : Fin 118) : Option Nat :=
   (streamPlan chosen k).map fun p => foldBlock (segPtr (schedule chosen) p.1) p.2
 
 /-- Offset of proof slot `k`'s value in the witness (`L` or `R` of its fold block by the parity of the folded
 node), `none` if unused. -/
-def slotOffset (chosen : List Selection) (k : Fin 119) : Option Nat :=
+def slotOffset (chosen : List Selection) (k : Fin 118) : Option Nat :=
   (streamPlan chosen k).map fun p =>
     let seg := (schedule chosen).getD p.1 default
     foldBlock (segPtr (schedule chosen) p.1) p.2 + sibOff (seg.heap p.2 % 2)

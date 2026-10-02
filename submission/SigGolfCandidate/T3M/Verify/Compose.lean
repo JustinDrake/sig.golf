@@ -9,11 +9,11 @@ import SigGolfCandidate.T3M.Verify.FtsGood
 * **`layers_good`**: from layer `n - 1`'s transition (or the compare for `n = 0`), `layersP w index n M` continued by
   `afterFts`'s final comparison: fuel `lFuel n`, at most `lCyc n` cycles on every path;
   `lCyc (n + 1) = layerCost n 0 + mkCyc n + lCyc n` (V1's chains/transition/leaf-pk block, V3's Merkle), `lCyc 0 = 8`
-  (the compare): **`lCyc 4 = 6175`**, `lFuel 4 = 7974`;
+  (the compare): **`lCyc 4 = 6185`**, `lFuel 4 = 7974`;
 * `after_good`: from V2's `FtsOut` (via V1's `layerIn_of_fts`), `afterFts` — V2's `verifyP_good_fts` interface;
-* **`verifyP_good`**: from the initial state (`InitOK`), `GoodQ s 15399 15406 True 9064 (ccM (verifyP m pk w) Kb)`:
-  every run finishes within 15,410 cycles, accepting runs within **9,137 = 2883 + 6181** (V2: 128 + P + 918 + 15 F with
-  `P ≤ 56`, `F ≤ 124`; V1: 1367 + 1349 + 1349 + 1280; V3: 172 + 172 + 186 + 292 + 8). -/
+* **`verifyP_good`**: from the initial state (`InitOK`), `GoodQ s 15367 15374 True 9027 (ccM (verifyP m pk w) Kb)`:
+  every run finishes within 15,374 cycles, accepting runs within **9,027 = 2836 + 6191** (V2: 128 + P + 3 + 879 + 15 F with
+  `P ≤ 56`, `F ≤ 118`; V1: 1365 + 1356 + 1356 + 1278; V3: 172 + 172 + 186 + 292 + 8). -/
 
 set_option linter.unusedSimpArgs false
 
@@ -149,7 +149,7 @@ def lFuel : Nat → Nat
   | 0 => 9
   | n + 1 => layerFuel n + mkFuel n + lFuel n
 
-theorem lCyc_4 : lCyc 4 = 6175 := by decide
+theorem lCyc_4 : lCyc 4 = 6185 := by decide
 theorem lFuel_4 : lFuel 4 = 7974 := by decide
 
 /-- **The layers and the compare**: from `RestIn … n M s`, `layersP w index n M` continued by `kFin pk`. -/
@@ -181,11 +181,11 @@ theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^
 /-! ## From V2's `FtsOut` and from the initial state -/
 
 /-- **After the FTS** (V2's `verifyP_good_fts` interface): from `FtsOut`, `afterFts` — the four layers and the
-compare — with fuel and every-path bound 7999 (`6 + lFuel 4 = 7980`) and accepting cycles 6181 (`6 + lCyc 4`; T3K: the
+compare — with fuel and every-path bound 7999 (`6 + lFuel 4 = 7980`) and accepting cycles 6191 (`6 + lCyc 4`; T3K: the
 6-cycle load block at 656 before layer 3's copy at 662). -/
 theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutput) (root : Digest) (u : MachineState)
     (h : FtsOut ⟨pk, w, a⟩ root u) :
-    GoodQ u 7999 7999 Q 6181 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
+    GoodQ u 7999 7999 Q 6191 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
   have hidx : a.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by decide)
   obtain ⟨t, hst, hL3⟩ := layerIn_of_fts w pk _ root u hidx h.glob h.idx h.pc h.root h.wit
   have hg := layers_good w pk _ hidx Q hQ 4 le_rfl root t (by simpa [RestIn] using hL3)
@@ -196,10 +196,10 @@ theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutpu
   rw [lFuel_4, lCyc_4] at hg
   exact GoodQ.steps' hst hg (by omega) (by omega) (fun q => ⟨q, by omega⟩)
 
-/-- **The whole verify run**: from the initial state, every run finishes within 15406 cycles with fuel 15399, and
-accepting runs take at most `9064 = 2883 + 6181` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
+/-- **The whole verify run**: from the initial state, every run finishes within 15374 cycles with fuel 15367, and
+accepting runs take at most `9027 = 2836 + 6191` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
 theorem verifyP_good (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
-    GoodQ s 15399 15406 True 9064 (ccM (verifyP m pk w) Kb) :=
-  verifyP_good_fts m pk w s hs 7999 6181 True (fun a root u h => after_good pk w True trivial a root u h)
+    GoodQ s 15367 15374 True 9027 (ccM (verifyP m pk w) Kb) :=
+  verifyP_good_fts m pk w s hs 7999 6191 True (fun a root u h => after_good pk w True trivial a root u h)
 
 end SigGolfCandidate.T3M
