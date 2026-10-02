@@ -24,7 +24,7 @@ def topOf (vs : List Nat) (s : Nat) : Nat :=
 
 /-- The fold of leaf `s`. -/
 def Yof (vs : List Nat) (st : SchedState) (s : Nat) : SchedState × Nat × Nat × Nat :=
-  (List.range (topOf vs s)).foldl schedStep (st, porsT ||| vs.getD s 0, 0, (porsT ||| vs.getD s 0) % 8)
+  (List.range (topOf vs s)).foldl schedStep (st, porsT ||| vs.getD s 0, 0, (porsT ||| vs.getD s 0) % 2)
 
 /-- `schedLeaf` through its fold. -/
 theorem schedLeaf_eq (vs : List Nat) (st : SchedState) (s : Nat) :
@@ -34,7 +34,7 @@ theorem schedLeaf_eq (vs : List Nat) (st : SchedState) (s : Nat) :
   unfold schedLeaf Yof topOf
   simp only
   generalize (List.range (if s + 1 < vs.length then bitLen (vs.getD s 0 ^^^ vs.getD (s + 1) 0) - 1 else porsH)).foldl
-    schedStep (st, porsT ||| vs.getD s 0, 0, (porsT ||| vs.getD s 0) % 8) = Z
+    schedStep (st, porsT ||| vs.getD s 0, 0, (porsT ||| vs.getD s 0) % 2) = Z
   obtain ⟨st', E', cnt', t'⟩ := Z
   simp only
   split <;> simp
@@ -210,12 +210,12 @@ theorem sch_leaf (levels : List (List Val)) (L : List Nat) (t0 : MachineState) (
     exact ctx.lvslots l hl i hi
   obtain ⟨k4, c4, t4, hs4, hc4, pc4, x18', hE1', hE2', x30', st4, rd4, hR4, hmono4, r4, f4⟩ :=
     sch_inner levels ctx.lvlen ctx.lvvals (topOf (L.map keyV) s) htop14 (14 * s) (by omega) (topOf (L.map keyV) s) 0
-      (st, E0, 0, E0 % 8) t3 (by omega) (by simp only [ht3, blk259.res, rv_simp])
+      (st, E0, 0, E0 % 2) t3 (by omega) (by simp only [ht3, blk259.res, rv_simp])
       (by simp only [ht3, blk259.res, rv_simp] <;> rfl) (by rw [r3.get .x20, x20', htop])
       x18 (by simp only; omega) (by simp only; omega) (by rw [rt3.get .x30, t30]) hst3 hrd3
       (by simp only; omega) hlvt3
   rw [← List.range_eq_range'] at x18' hE1' hE2' st4 rd4 hR4 hmono4 f4
-  have hY : (List.range (topOf (L.map keyV) s)).foldl schedStep (st, E0, 0, E0 % 8) = Yof (L.map keyV) st s := rfl
+  have hY : (List.range (topOf (L.map keyV) s)).foldl schedStep (st, E0, 0, E0 % 2) = Yof (L.map keyV) st s := rfl
   rw [hY] at x18' hE1' hE2' st4 rd4 hR4 hmono4 f4
   simp only at hmono4 f4
   obtain ⟨hlr, hls⟩ := schedLeaf_eq (L.map keyV) st s
@@ -367,10 +367,10 @@ signature's auth slots; ends at 296. -/
 theorem sched_run (levels : List (List Val)) (L : List Nat) (t : MachineState) (ctx : SchCtx levels L t)
     (tpc : t.pc = pcOf 238) (t19 : t.getReg .x19 = BitVec.ofNat 64 (lvBase 14)) :
     ∃ k c t', Steps image t k c t' ∧ c ≤ 11 + 15 * 345 ∧ t'.pc = pcOf 296 ∧
-      t'.readWords (BitVec.ofNat 64 0x130) 2 = wordsOf ((levels.getD 14 []).getD 0 []) ∧
+      t'.readWords (BitVec.ofNat 64 0x120) 2 = wordsOf ((levels.getD 14 []).getD 0 []) ∧
       ReadsAt levels (schedule (L.map keyV)).2 t' ∧
       RegsEq t t' schRegs ∧
-      Frame t t' (fun a => (0x130 ≤ a ∧ a < 0x140) ∨ schW' (schedule (L.map keyV)).2.length a) := by
+      Frame t t' (fun a => (0x120 ≤ a ∧ a < 0x130) ∨ schW' (schedule (L.map keyV)).2.length a) := by
   have hs1 := symRun_sound blk238 codeAt_238 t tpc (by
     simp only [blk238.res, rv_simp, t19, accessValid_ofNat, ofNat_add_ofNat]; unfold lvBase; norm_num)
   set t1 := blk238.res.toState t with ht1
@@ -379,8 +379,8 @@ theorem sched_run (levels : List (List Val)) (L : List Nat) (t : MachineState) (
   have hroot := (ctx.lvslots 14 (by norm_num)) 0 (by rw [ctx.lvlen 14 (by norm_num)]; norm_num)
   simp only [Nat.mul_zero, Nat.add_zero] at hroot
   have hm1 : ∀ a : Nat, a < 2 ^ 64 → t1.getMem (BitVec.ofNat 64 a) =
-      if a = 0x760 then 0 else if a = 0x138 then t.getMem (BitVec.ofNat 64 (lvBase 14 + 8))
-      else if a = 0x130 then t.getMem (BitVec.ofNat 64 (lvBase 14)) else t.getMem (BitVec.ofNat 64 a) := by
+      if a = 0x760 then 0 else if a = 0x128 then t.getMem (BitVec.ofNat 64 (lvBase 14 + 8))
+      else if a = 0x120 then t.getMem (BitVec.ofNat 64 (lvBase 14)) else t.getMem (BitVec.ofNat 64 a) := by
     intro a ha
     simp only [ht1, blk238.res, rv_simp, t19, ofNat_add_ofNat, ofNat_eq_iff]
     have : lvBase 14 = 0xB0000 - 32 := rfl
@@ -415,8 +415,8 @@ theorem sched_run (levels : List (List Val)) (L : List Nat) (t : MachineState) (
     (r1.trans rg2).mono (by intro q hq; simp [schRegs] at hq ⊢; tauto), ?_⟩
   · rw [fr2.readWords _ _ (by norm_num) (by intro i hi; simp only [schW']; omega), readWords_ofNat_two,
       hm1 _ (by norm_num), hm1 _ (by norm_num)]
-    simp only [show ¬ ((0x130 : Nat) = 0x760) by norm_num, show ¬ ((0x138 : Nat) = 0x760) by norm_num,
-      show ¬ ((0x130 : Nat) = 0x138) by norm_num, if_false, if_true]
+    simp only [show ¬ ((0x120 : Nat) = 0x760) by norm_num, show ¬ ((0x128 : Nat) = 0x760) by norm_num,
+      show ¬ ((0x120 : Nat) = 0x128) by norm_num, if_false, if_true]
     rw [← readWords_ofNat_two, hroot]
     exact congrArg wordsOf (getD_of_lt (by rw [ctx.lvlen 14 (by norm_num)]; norm_num)).symm
   · intro a ha hW

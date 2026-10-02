@@ -18,7 +18,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
   SigGolfCandidate.Sign
 
 /-- The constant part of the layer phase: `t0 = 0`, `t2 = 2^22`, `s6 = idx`, `s9 = X`, the SWAR
-masks; the zero words of `CB`, `LF`, `NB`; the witness. -/
+masks; the zero P slot of the encoding block, the zero words of `CB`, `LF`, `NB`; the witness. -/
 structure LCtx (w : List Byte) (idx : Nat) (t : MachineState) : Prop where
   hidx : idx < 2 ^ 34
   x5 : t.getReg .x5 = 0
@@ -27,6 +27,7 @@ structure LCtx (w : List Byte) (idx : Nat) (t : MachineState) : Prop where
   x25 : t.getReg .x25 = BitVec.ofNat 64 0x30000
   x26 : t.getReg .x26 = swM1
   x27 : t.getReg .x27 = swM2
+  ebP : t.readWords (BitVec.ofNat 64 0x110) 2 = [0, 0]
   cbz : t.readWords (BitVec.ofNat 64 0x30150) 4 = [0, 0, 0, 0]
   lfz : t.readWords (BitVec.ofNat 64 0x30250) 2 = [0, 0]
   nbz : t.readWords (BitVec.ofNat 64 0x301D0) 2 = [0, 0]
@@ -34,7 +35,7 @@ structure LCtx (w : List Byte) (idx : Nat) (t : MachineState) : Prop where
 
 /-- Addresses `LCtx` reads. -/
 def lctxA (a : Nat) : Prop :=
-  (0x30150 ≤ a ∧ a < 0x30170) ∨ (0x30250 ≤ a ∧ a < 0x30260) ∨
+  (0x110 ≤ a ∧ a < 0x120) ∨ (0x30150 ≤ a ∧ a < 0x30170) ∨ (0x30250 ≤ a ∧ a < 0x30260) ∨
     (0x301D0 ≤ a ∧ a < 0x301E0) ∨ witA a
 
 /-- Registers `LCtx` reads. -/
@@ -43,7 +44,7 @@ def lctxRegs : List Reg := [.x5, .x7, .x22, .x25, .x26, .x27]
 theorem LCtx.frame {w : List Byte} {idx : Nat} {s t : MachineState} {W : Nat → Prop} {l : List Reg}
     (h : LCtx w idx s) (hf : Frame s t W) (hr : RegsEq s t l) (hW : ∀ a, lctxA a → ¬ W a)
     (hl : ∀ r ∈ lctxRegs, r ∉ l := by decide) : LCtx w idx t := by
-  refine ⟨h.hidx, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, h.wit.frame hf (fun a ha => hW a (by
+  refine ⟨h.hidx, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, h.wit.frame hf (fun a ha => hW a (by
     unfold lctxA; simp only [ha, or_true]))⟩
   · rw [hr.get .x5 (hl _ (by decide)), h.x5]
   · rw [hr.get .x7 (hl _ (by decide)), h.x7]
@@ -51,6 +52,7 @@ theorem LCtx.frame {w : List Byte} {idx : Nat} {s t : MachineState} {W : Nat →
   · rw [hr.get .x25 (hl _ (by decide)), h.x25]
   · rw [hr.get .x26 (hl _ (by decide)), h.x26]
   · rw [hr.get .x27 (hl _ (by decide)), h.x27]
+  · rw [hf.readWords _ _ (by norm_num) (fun i hi => hW _ (by unfold lctxA; omega)), h.ebP]
   · rw [hf.readWords _ _ (by norm_num) (fun i hi => hW _ (by unfold lctxA; omega)), h.cbz]
   · rw [hf.readWords _ _ (by norm_num) (fun i hi => hW _ (by unfold lctxA; omega)), h.lfz]
   · rw [hf.readWords _ _ (by norm_num) (fun i hi => hW _ (by unfold lctxA; omega)), h.nbz]

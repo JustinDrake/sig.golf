@@ -5,7 +5,7 @@ import Mathlib.Data.List.GetD
 # The segment stream as it is being written
 
 `curStream sig segs cnt` : the stream bytes after the completed segments `segs` and `cnt` items
-of the current segment: `segStream sig segs`, an (unwritten, zero) 64-byte header, then the items.
+of the current segment: `segStream sig segs`, an (unwritten, zero) 8-byte header, then the items.
 The machine writes the header byte when the segment ends (`curStream_emit`) and appends items one
 by one (`curStream_succ`).
 -/
@@ -21,10 +21,10 @@ def nsum (segs : List Nat) : Nat := (segs.map (· % 16)).sum
 
 /-- `n` auth items from item `r0` on. -/
 def items (sig : List Byte) (r0 n : Nat) : List Byte :=
-  ((List.range n).map fun i => sigAuth sig (r0 + i) ++ zeros 48).flatten
+  ((List.range n).map fun i => sigAuth sig (r0 + i)).flatten
 
 def curStream (sig : List Byte) (segs : List Nat) (cnt : Nat) : List Byte :=
-  segStream sig segs ++ zeros 64 ++ items sig (nsum segs) cnt
+  segStream sig segs ++ zeros 8 ++ items sig (nsum segs) cnt
 
 theorem streamFold_snd (sig : List Byte) (segs : List Nat) :
     (segs.foldl (streamStep sig) ([], 0)).2 = nsum segs := by
@@ -37,7 +37,7 @@ theorem streamFold_snd (sig : List Byte) (segs : List Nat) :
 
 theorem segStream_snoc (sig : List Byte) (segs : List Nat) (b : Nat) :
     segStream sig (segs ++ [b]) =
-      segStream sig segs ++ [byte b] ++ zeros 63 ++ items sig (nsum segs) (b % 16) := by
+      segStream sig segs ++ [byte b] ++ zeros 7 ++ items sig (nsum segs) (b % 16) := by
   unfold segStream
   rw [List.foldl_append, List.foldl_cons, List.foldl_nil]
   simp only [streamStep, items]
@@ -47,11 +47,11 @@ theorem nsum_snoc (segs : List Nat) (b : Nat) : nsum (segs ++ [b]) = nsum segs +
   simp [nsum]
 
 theorem items_succ (sig : List Byte) (r0 n : Nat) :
-    items sig r0 (n + 1) = items sig r0 n ++ (sigAuth sig (r0 + n) ++ zeros 48) := by
+    items sig r0 (n + 1) = items sig r0 n ++ sigAuth sig (r0 + n) := by
   simp [items, List.range_succ]
 
 theorem curStream_succ (sig : List Byte) (segs : List Nat) (cnt : Nat) :
-    curStream sig segs (cnt + 1) = curStream sig segs cnt ++ (sigAuth sig (nsum segs + cnt) ++ zeros 48) := by
+    curStream sig segs (cnt + 1) = curStream sig segs cnt ++ sigAuth sig (nsum segs + cnt) := by
   simp [curStream, items_succ]
 
 theorem getD_zeros (k i : Nat) : (zeros k).getD i 0 = 0 := by
@@ -68,16 +68,13 @@ theorem getD_sigAuth (sig : List Byte) (hsig : sig.length = 6032) (r k : Nat) (h
   rw [if_pos hk]; congr 2; ring
 
 theorem length_items (sig : List Byte) (hsig : sig.length = 6032) (r0 n : Nat) (hr : r0 + n ≤ 117) :
-    (items sig r0 n).length = 64 * n := by
+    (items sig r0 n).length = 16 * n := by
   induction n with
   | zero => simp [items]
-  | succ n ih =>
-    rw [items_succ, List.length_append, List.length_append, ih (by omega),
-      length_sigAuth sig hsig _ (by omega)]
-    simp [zeros]; ring
+  | succ n ih => rw [items_succ, List.length_append, ih (by omega), length_sigAuth sig hsig _ (by omega)]; ring
 
 theorem length_segStream (sig : List Byte) (hsig : sig.length = 6032) :
-    ∀ segs : List Nat, nsum segs ≤ 117 → (segStream sig segs).length = 64 * segs.length + 64 * nsum segs := by
+    ∀ segs : List Nat, nsum segs ≤ 117 → (segStream sig segs).length = 8 * segs.length + 16 * nsum segs := by
   intro segs
   induction segs using List.reverseRecOn with
   | nil => intro _; simp [segStream, nsum]
@@ -98,10 +95,10 @@ theorem curStream_emit (sig : List Byte) (segs : List Nat) (b cnt : Nat) (hb : b
     (curStream sig (segs ++ [b]) 0).getD i 0 =
       if i = (segStream sig segs).length then byte b else (curStream sig segs cnt).getD i 0 := by
   have hl : curStream sig (segs ++ [b]) 0 =
-      segStream sig segs ++ ([byte b] ++ zeros 63 ++ items sig (nsum segs) cnt ++ zeros 64) := by
+      segStream sig segs ++ ([byte b] ++ zeros 7 ++ items sig (nsum segs) cnt ++ zeros 8) := by
     simp only [curStream, segStream_snoc, hb, nsum_snoc, items, List.range_zero, List.map_nil,
       List.flatten_nil, List.append_nil, List.append_assoc]
-  have hr : curStream sig segs cnt = segStream sig segs ++ (zeros 64 ++ items sig (nsum segs) cnt) := by
+  have hr : curStream sig segs cnt = segStream sig segs ++ (zeros 8 ++ items sig (nsum segs) cnt) := by
     simp only [curStream, List.append_assoc]
   rw [hl, hr]
   set P := segStream sig segs
@@ -115,7 +112,7 @@ theorem curStream_emit (sig : List Byte) (segs : List Nat) (b cnt : Nat) (hb : b
     · rw [if_neg h2]
       obtain ⟨k, hk⟩ : ∃ k, i - P.length = k + 1 := ⟨i - P.length - 1, by omega⟩
       rw [hk, List.cons_append, List.nil_append, List.getD_cons_succ,
-        show zeros 64 = 0 :: zeros 63 from rfl, List.cons_append, List.getD_cons_succ,
-        ← List.append_assoc, show (0 : Byte) :: zeros 63 = zeros 64 from rfl, getD_append_zeros]
+        show zeros 8 = 0 :: zeros 7 from rfl, List.cons_append, List.getD_cons_succ,
+        ← List.append_assoc, show (0 : Byte) :: zeros 7 = zeros 8 from rfl, getD_append_zeros]
 
 end SigGolfCandidate.Expand

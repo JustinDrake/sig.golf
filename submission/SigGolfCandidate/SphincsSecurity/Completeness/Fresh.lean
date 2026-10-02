@@ -487,9 +487,9 @@ theorem Avoids.signDigestPairs (secretKey : Seeded.SecretKey) (message : Message
 A layer's own work is its counter search, under its encoding tweak, and its tree. -/
 
 theorem Avoids.encodingSearch (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
-    (leaf : LeafIndex) (message : EncMessage)
-    (hencode : ∀ (first : PublicParameter) (payload : HashInput),
-      tweakableHashInput first (.encoding lay tree leaf) payload ≠ target) :
+    (leaf : LeafIndex) (message : Digest)
+    (hencode : ∀ payload : HashInput,
+      tweakableHashInput parameter (.encoding lay tree leaf) payload ≠ target) :
     ∀ (attempts start : Nat),
       Avoids f target (Concrete.encodingSearch parameter lay tree leaf message attempts start
         : OracleComp HashSpec (Option (Counter × Encoding))) := by
@@ -502,25 +502,22 @@ theorem Avoids.encodingSearch (parameter : PublicParameter) (lay : Layer) (tree 
       refine Avoids.bind f target ?_ ?_
       · rw [Concrete.encode]
         exact Avoids.bind f target
-          (Avoids.oracleHash f target _ (hencode _ _)) (Avoids.pure' f target _)
+          (Avoids.tweakableHash f target parameter _ _ (hencode _)) (Avoids.pure' f target _)
       · split
         · exact Avoids.pure' f target _
         · exact ih _
 
 /-- Different layers' counter searches hash under different layer fields, so none of them caches another's inputs. -/
-theorem encodingInput_ne_of_layer_ne (first first' : PublicParameter) {lay lay' : Layer}
+theorem encodingInput_ne_of_layer_ne (parameter : PublicParameter) {lay lay' : Layer}
     (hlay : lay ≠ lay') (tree tree' : TreeIndex) (leaf leaf' : LeafIndex)
     (payload payload' : HashInput) :
-    tweakableHashInput first (.encoding lay tree leaf) payload
-      ≠ tweakableHashInput first' (.encoding lay' tree' leaf') payload' := by
+    tweakableHashInput parameter (.encoding lay tree leaf) payload
+      ≠ tweakableHashInput parameter (.encoding lay' tree' leaf') payload' := by
   intro h
   apply hlay
   simp only [tweakableHashInput] at h
-  have hlen1 : (bytesLE 16 first).length = 16 := bytesLE_length 16 first
-  have hlen2 : (bytesLE 16 first').length = 16 := bytesLE_length 16 first'
-  obtain ⟨hprefix, _⟩ := List.append_inj h (by
-    rw [List.length_append, List.length_append, tweakBytes_length, tweakBytes_length, hlen1, hlen2])
-  obtain ⟨htweak, _⟩ := List.append_inj' hprefix (by rw [hlen1, hlen2])
+  obtain ⟨hprefix, _⟩ := List.append_inj h (by simp [tweakBytes_length, bytesLE_length])
+  obtain ⟨htweak, _⟩ := List.append_inj' hprefix (by simp [bytesLE_length])
   have hfields := SphincsSecurity.tweakBytes_eq_iff.mp htweak
   dsimp [hashDomainFields, tweakFields] at hfields
   simp only [TweakFields.mk.injEq] at hfields
@@ -556,22 +553,22 @@ structure Structural (parameter : PublicParameter) (seed : MasterSeed) (target :
 
 /-- An encoding input is structural for no honest step: its tag is `4`, which none of them use, and the derivation domains are a different byte layout. -/
 theorem structural_encoding (parameter : PublicParameter) (seed : MasterSeed) (lay' : Layer)
-    (tree' : TreeIndex) (leaf' : LeafIndex) (first : PublicParameter) (payload' : HashInput) :
-    Structural parameter seed (tweakableHashInput first (.encoding lay' tree' leaf') payload') where
-  chain _ _ _ _ _ _ := tweakableHashInput_ne_of_tag_ne' parameter first
+    (tree' : TreeIndex) (leaf' : LeafIndex) (payload' : HashInput) :
+    Structural parameter seed (tweakableHashInput parameter (.encoding lay' tree' leaf') payload') where
+  chain _ _ _ _ _ _ := tweakableHashInput_ne_of_tag_ne parameter
     (by dsimp [hashDomainFields, tweakFields]; decide) _ _
-  leafHash _ _ _ _ := tweakableHashInput_ne_of_tag_ne' parameter first
+  leafHash _ _ _ _ := tweakableHashInput_ne_of_tag_ne parameter
     (by dsimp [hashDomainFields, tweakFields]; decide) _ _
-  node _ _ _ _ _ := tweakableHashInput_ne_of_tag_ne' parameter first
+  node _ _ _ _ _ := tweakableHashInput_ne_of_tag_ne parameter
     (by dsimp [hashDomainFields, tweakFields]; decide) _ _
-  ftsLeaf _ _ _ _ := tweakableHashInput_ne_of_tag_ne' parameter first
+  ftsLeaf _ _ _ _ := tweakableHashInput_ne_of_tag_ne parameter
     (by dsimp [hashDomainFields, tweakFields]; decide) _ _
-  ftsNodeHash _ _ _ _ := tweakableHashInput_ne_of_tag_ne' parameter first
+  ftsNodeHash _ _ _ _ := tweakableHashInput_ne_of_tag_ne parameter
     (by dsimp [hashDomainFields, tweakFields]; decide) _ _
-  msg _ := tweakableHashInput_ne_of_tag_ne' parameter first
+  msg _ := tweakableHashInput_ne_of_tag_ne parameter
     (by dsimp [hashDomainFields, tweakFields]; decide) _ _
   randomizer _ _ := randomizerHashInput_ne_tweakableHashInput _ _ _ _ _ _ _
-  derive _ := keygenHashInput_ne_tweakableHashInput parameter first _ _ seed _
+  derive _ := keygenHashInput_ne_tweakableHashInput parameter parameter _ _ seed _
 
 /-! ## What the bundle gives
 
@@ -627,22 +624,21 @@ theorem cache_none_of_avoids {α : Type} (oa : OracleComp HashSpec α) (cache : 
   obtain ⟨f, hf⟩ := QueryCache.exists_agreesWithFn (spec := HashSpec) r.2
   exact cache_eq_none_of_not_mem_queriedInputs oa cache r.1 r.2 hr f hf target hnone (havoid f)
 
-/-- No encoding input of a layer in `pending` is cached, whatever its message (the first half of the
-message sits in the parameter slot, so the parameter is not used). -/
-def EncodingFresh (_parameter : PublicParameter) (pending : Layer → Prop)
+/-- No encoding input of a layer in `pending` is cached. -/
+def EncodingFresh (parameter : PublicParameter) (pending : Layer → Prop)
     (cache : QueryCache HashSpec) : Prop :=
-  ∀ lay, pending lay → ∀ (tree : TreeIndex) (leaf : LeafIndex) (first : PublicParameter)
-    (payload : HashInput), cache (tweakableHashInput first (.encoding lay tree leaf) payload) = none
+  ∀ lay, pending lay → ∀ (tree : TreeIndex) (leaf : LeafIndex) (payload : HashInput),
+    cache (tweakableHashInput parameter (.encoding lay tree leaf) payload) = none
 
 theorem EncodingFresh.step {α : Type} {parameter : PublicParameter} {pending : Layer → Prop}
     {cache : QueryCache HashSpec} (hfresh : EncodingFresh parameter pending cache)
     (oa : OracleComp HashSpec α) (r : α × QueryCache HashSpec)
     (hr : r ∈ support ((simulateQ (randomOracle : QueryImpl HashSpec _) oa).run cache))
     (havoid : ∀ (f : QueryImpl HashSpec Id) (lay : Layer), pending lay →
-      ∀ (tree : TreeIndex) (leaf : LeafIndex) (first : PublicParameter) (payload : HashInput),
-        Avoids f (tweakableHashInput first (.encoding lay tree leaf) payload) oa) :
-    EncodingFresh parameter pending r.2 := fun lay hlay tree leaf first payload =>
-  cache_none_of_avoids oa cache r hr _ (hfresh lay hlay tree leaf first payload)
-    (fun f => havoid f lay hlay tree leaf first payload)
+      ∀ (tree : TreeIndex) (leaf : LeafIndex) (payload : HashInput),
+        Avoids f (tweakableHashInput parameter (.encoding lay tree leaf) payload) oa) :
+    EncodingFresh parameter pending r.2 := fun lay hlay tree leaf payload =>
+  cache_none_of_avoids oa cache r hr _ (hfresh lay hlay tree leaf payload)
+    (fun f => havoid f lay hlay tree leaf payload)
 
 end SphincsSecurity.Completeness

@@ -8,8 +8,8 @@ import SigGolfCandidate.Expand.PorsBlk2
 * `porsEnd_sim` : the final checks of `Ref.porsRoot` (folds, `E = 1`, empty stack).
 
 The stack lives at `STK = X + 1344` (`StkOK`); the segment pointer stays below
-`4992 + 960 (2 s - k)` (`s` leaves done, `k` entries on the stack: one segment per leaf start and
-one per merge, each at most 960 bytes), so every read stays inside the witness buffer.
+`272 + 232 (2 s - k)` (`s` leaves done, `k` entries on the stack: one segment per leaf start and
+one per merge, each at most 232 bytes), so every read stays inside the witness buffer.
 -/
 
 set_option linter.unusedSimpArgs false
@@ -86,7 +86,7 @@ def LoopOut (w : List Byte) (idx : Nat) (K : Nat → Nat) (u : MachineState) (pt
   | (ptr', E', folds', node', stk'), t => t.pc = pcOf 620 ∧ PCtx w idx K t ∧
       t.getReg .x9 = BitVec.ofNat 64 (0x800 + ptr') ∧ t.getReg .x19 = BitVec.ofNat 64 E' ∧
       t.getReg .x20 = BitVec.ofNat 64 folds' ∧ t.getReg .x21 = BitVec.ofNat 64 (0x30540 + 32 * stk'.length) ∧
-      StkOK t stk' ∧ stk'.length ≤ k ∧ ptr' % 8 = 0 ∧ ptr' ≤ ptr + 960 * (k - stk'.length + 1) ∧
+      StkOK t stk' ∧ stk'.length ≤ k ∧ ptr' % 8 = 0 ∧ ptr' ≤ ptr + 232 * (k - stk'.length + 1) ∧
       folds' ≤ folds + 14 * (k - stk'.length + 1) ∧ E' < 2 ^ 15 ∧ node'.length = 16 ∧
       t.readWords (BitVec.ofNat 64 0x30080) 2 = wordsOf node' ∧
       RegsEq u t loopRegs ∧ Frame u t segW
@@ -101,9 +101,9 @@ theorem segLoop_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) :
     PCtx w idx K t → t.pc = pcOf 550 → t.getReg .x9 = BitVec.ofNat 64 (0x800 + ptr) →
     t.getReg .x19 = BitVec.ofNat 64 E → t.getReg .x20 = BitVec.ofNat 64 folds →
     t.getReg .x21 = BitVec.ofNat 64 (0x30540 + 32 * stk.length) → StkOK t stk → stk.length ≤ 15 →
-    ptr % 8 = 0 → ptr + 960 * (stk.length + 1) ≤ 0x10000 → folds + 14 * (stk.length + 1) < 2 ^ 30 → E < 2 ^ 15 →
+    ptr % 8 = 0 → ptr + 232 * (stk.length + 1) ≤ 0x4000 → folds + 14 * (stk.length + 1) < 2 ^ 30 → E < 2 ^ 15 →
     PendOK idx node pending t →
-    Sim eimg t (1100 * (stk.length + 1)) (segLoop idx w ptr E folds pending node stk)
+    Sim eimg t (600 * (stk.length + 1)) (segLoop idx w ptr E folds pending node stk)
       (OPost (LoopOut w idx K t ptr folds stk.length)) := by
   intro stk
   induction stk with
@@ -145,7 +145,7 @@ theorem segLoop_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) :
     simp only [List.length_cons] at h21 hk hptr' hf ⊢
     simp only [segLoop]
     refine (Sim.bind (segment_sim w idx K ptr E folds pending node t hc hpc h9 h19 hptr (by omega)
-      hE hpend) (W₂ := 1100 * (rest.length + 1) + 100) (fun r t1 h1 => ?_)).mono (by ring_nf; omega)
+      hE hpend) (W₂ := 600 * (rest.length + 1) + 100) (fun r t1 h1 => ?_)).mono (by ring_nf; omega)
       (fun _ _ h => h)
     rcases r with _ | ⟨ptr', E', folds', node', merge⟩
     · dsimp only
@@ -196,7 +196,7 @@ theorem segLoop_sim (w : List Byte) (idx : Nat) (K : Nat → Nat) :
     have g4 : ∀ x, t4.getMem x = t2.getMem x := fun x => by rw [m4, m3]
     have hstk5 : StkOK t5 rest := (hstk2.tail.frame (W := fun _ => False) (fun x _ _ => g4 _) (fun _ _ h => h)
       (by omega)).frame f5 (fun a h1 h2 => by unfold stkA at h1; omega) (by omega)
-    have hih := ih (ptr + 64 + 64 * (wbyte w ptr % 16)) (E' / 2) (folds + wbyte w ptr % 16)
+    have hih := ih (ptr + 8 + 16 * (wbyte w ptr % 16)) (E' / 2) (folds + wbyte w ptr % 16)
       (.merge (E' / 2) pnode) node' t5 c5 p5
       (by rw [r5.get .x9, r4.get .x9, r3.get .x9, z9]) x19'
       (by rw [r5.get .x20, r4.get .x20, r3.get .x20, z20]) (by rw [r5.get .x21, x21']) hstk5 (by omega)
