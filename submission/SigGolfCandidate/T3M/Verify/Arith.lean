@@ -37,6 +37,15 @@ theorem merge_w4_toNat (w v : BitVec 64) :
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_setWidth]
   rw [← e, this]
 
+theorem merge_hi (a b : Nat) :
+    StoreKind.merge .w (BitVec.ofNat 64 a) 4 (BitVec.ofNat 64 b) = BitVec.ofNat 64 (hdr1 a b) := by
+  apply BitVec.eq_of_toNat_eq
+  rw [merge_w4_toNat]
+  have h := hdr1_lt a b
+  simp only [BitVec.toNat_ofNat]
+  unfold hdr1 at h ⊢
+  omega
+
 /-- Both halves of a doubleword written by two `sw`. -/
 theorem merge_sw2_toNat (old a b : BitVec 64) :
     (StoreKind.merge .w (StoreKind.merge .w old 0 a) 4 b).toNat = a.toNat % 2 ^ 32 + 2 ^ 32 * (b.toNat % 2 ^ 32) := by
