@@ -285,7 +285,7 @@ theorem lw_sext (e h : Nat) (he : e < 2 ^ 32) (hh : h % 2 ^ 32 = 0) :
   unfold Rev.sext32
   split_ifs <;> simp_all <;> omega
 
-/-- The leaf header field read by `lw x23, -32(x3)` (the high word of header `0` is ignored). -/
+/-- The leaf header field read by `lw x23, 48(x3)` (`x3 = 8 x + sp`; the high word of header `0` is ignored). -/
 theorem rtW_lw (n : Nat) : (UnOp.ld .w 0).eval (rtW n) = Rev.revWord (2 ^ 14 ||| n) := by
   have he : Rev.efield (2 ^ 14 ||| n) < 2 ^ 32 := Rev.revBits_lt 32 _
   have hs : Rev.sext32 (Rev.efield (2 ^ 14 ||| n)) < 2 ^ 64 := by

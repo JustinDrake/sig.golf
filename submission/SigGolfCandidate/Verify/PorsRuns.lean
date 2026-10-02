@@ -348,7 +348,8 @@ def leafBrs (s : Nat) (d1 d2 : Bool) : List Br :=
 
 /-- The table address `8 x + RTAB` of leaf `s`'s header. -/
 def rtE (s : Nat) : E := .bin .add (xE s) (cw RTAB)
-/-- The header field `lw x23, -32(x3)`: the sign-extended low word of the table entry. -/
+/-- The header field `lw x23, 48(x3)` (`x3 = 8 x + sp`, `sp + 48 = RTAB`): the sign-extended low
+word of the table entry. -/
 def rtLw (s : Nat) : E := .un (.ld .w 0) (.ld (rtE s))
 
 def leafSpec (s : Nat) : Spec :=
@@ -401,7 +402,7 @@ def k1 : List (Reg × Word) := k0x ++ [(.x18, 0xFFF)]
 def specLim : Spec := ⟨[(.x18, .un (.ld .wu 4) (ldE RTAB))], [], 1, false, 1, [], none, 1⟩
 
 /-- Digest phase: witness bases and `P1 .. P5`. The prologue loads `x18 = 0xFFF` (`FLIM`, the
-`x18`-relative witness base and the fold limit) from the high word of header `0`, so the inlined
+`x18`-relative witness base and the fold limit) from the high word of header `0`, so the relocated
 leaf head needs no `x18` restore. -/
 def gkD : List (Reg × Word) := [(.x5, 0), (.x19, 7), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x2, 0xFDFFB0)]
 def dgK : List (Reg × Word) := gkD ++ [(.x18, 0xFFF), (.x10, 0), (.x11, 64), (.x12, 0), (.x15, 0)]
@@ -453,7 +454,7 @@ def setupPost : List (Reg × Word) :=
   gkP ++ [(.x20, BitVec.ofNat 64 tbN), (.x14, 4992), (.x15, 0),
     (.x18, BitVec.ofNat 64 FLIM)]
 
-def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 97, [], none, 97⟩
+def setupSpec : Spec := ⟨[(.x22, idxE)], psetupMem, leafPc 0, false, 96, [], none, 96⟩
 
 def startCheck : Bool :=
   specB [] (runAt k0 [1] 0 []) specLim k0x [] &&
