@@ -139,10 +139,16 @@ def AUTHBASE : Word := 5452
 
 /-- Layer phase: masks, `KT`, `P6` (the step-7 MU register), and the W1a chain constants. -/
 def gkL0 : List (Reg × Word) :=
-  baseK ++ [(.x20, M1w), (.x21, M2w), (.x29, KT), (.x26, 6), (.x28, 2688), (.x2, TMASK),
+  baseK ++ [(.x20, M1w), (.x21, M2w), (.x22, KT), (.x26, 6), (.x28, 2688), (.x2, TMASK),
     (.x15, TTA5), (.x4, 0x1000000000000000), (.x24, AUTHBASE)]
 
-/-- The layer phase (the same list: W1a keeps no layer-4-only constant). -/
+/-- The layer-4 entry (the root tail's state): `x29` still holds the PORS chain page;
+`KT` is installed into `x22` during the layer-4 transition. -/
+def gkL4 : List (Reg × Word) :=
+  baseK ++ [(.x20, M1w), (.x21, M2w), (.x26, 6), (.x28, 2688), (.x2, TMASK),
+    (.x15, TTA5), (.x4, 0x1000000000000000), (.x24, AUTHBASE)]
+
+/-- The layer phase (lower layers carry `KT` in `x22`). -/
 def gkL : List (Reg × Word) := gkL0
 
 /-- The `P` slots (`+16 .. +32`) of the hash buffers CB, NB, RB2, LB. (The encoding block carries its

@@ -5,7 +5,7 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=13712 witness bytes, K=131072 cache bytes.
-The claim C=10252 is accepting verifier bound10198 plus witness charge54.
+The claim C=10251 is accepting verifier bound10197 plus witness charge54.
 The root-compare sequence preserves the child hash destination in x12, eliminating 32 ADDI instructions.
 Frodan's accepted 7895876537ee1f5651401e321564ef0e4ec5a5a3 carries the lower
 fold-dispatch page bias in x23 and relocates top return slots, saving six cycles.
@@ -112,7 +112,7 @@ theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4720 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10252 :=
+theorem certificate : SigGolf.Certificate submission 10251 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

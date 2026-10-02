@@ -134,7 +134,7 @@ theorem FreshW_packed_sib {lay lam k : Nat} (hl : lay < 5) (h0 : 0 < lay)
 
 /-! ## Addresses of the chain code -/
 
-theorem bk_eval (s : MachineState) (lay i k : Nat) (hx : s.getReg .x22 = BitVec.ofNat 64 (s6N lay))
+theorem bk_eval (s : MachineState) (lay i k : Nat) (hx : s.getReg .x29 = BitVec.ofNat 64 (s6N lay))
     (hl : lay < 5) (hi : i < 42) (hk : k < 2 ^ 20) :
     (bk i k).eval s = BitVec.ofNat 64 (blkN lay i + k) := by
   unfold bk
@@ -145,7 +145,7 @@ theorem bk_eval (s : MachineState) (lay i k : Nat) (hx : s.getReg .x22 = BitVec.
   simp only [BitVec.toNat_add, BitVec.toNat_sub, BitVec.toNat_ofNat]
   omega
 
-theorem ldK_eval (s : MachineState) (lay i k : Nat) (hx : s.getReg .x22 = BitVec.ofNat 64 (s6N lay))
+theorem ldK_eval (s : MachineState) (lay i k : Nat) (hx : s.getReg .x29 = BitVec.ofNat 64 (s6N lay))
     (hl : lay < 5) (hi : i < 42) (hk : k < 2 ^ 20) :
     (ldK i k).eval s = s.getMem (BitVec.ofNat 64 (blkN lay i + k)) := by
   unfold ldK
@@ -263,7 +263,7 @@ def CB0 (lay : Nat) (s : MachineState) : Prop :=
 
 /-- The registers and buffers common to the whole chain phase (`acc` = the chain ends so far). -/
 def ChBase (c : CCtx) (i : Nat) (acc : List Val) (s : MachineState) : Prop :=
-  Glob gkL c.wl c.pk s ∧ KnownOK chK0 s ∧ c.Regs s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N c.lay) ∧
+  Glob gkL c.wl c.pk s ∧ KnownOK chK0 s ∧ c.Regs s ∧ s.getReg .x29 = BitVec.ofNat 64 (s6N c.lay) ∧
   s.getReg .x1 = c.ret ∧ LBOk acc s ∧
   acc.length = i ∧ (∀ v ∈ acc, v.length = 16) ∧ CB0 c.lay s ∧ EncHeader c.lay s
 
@@ -746,7 +746,7 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i <
   have hobl : ∀ o ∈ r.st.obl, o.holds s := by
     simp only [hr, headExp, List.mem_cons, List.not_mem_nil, or_false]
     rintro o (rfl | rfl | rfl | rfl)
-    · show ((E.reg .x22).eval s).toNat % 8 = 0
+    · show ((E.reg .x29).eval s).toNat % 8 = 0
       simp only [E.eval, h22, BitVec.toNat_ofNat]; have := s6N_mod8 c.lay; rw [s6N_eq] at this ⊢; omega
     · show accessValid ((bk i 4).eval s) 1 = true
       rw [bke 4 (by omega)]; have := valid_of B 4 1 (by omega) (by omega) (by omega); simpa using this
@@ -756,7 +756,7 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i <
       rw [bke 0 (by omega)]; have := valid_of B 0 8 (by omega) (by omega) (by omega); simpa using this
   obtain ⟨hst, hec⟩ := crun hrun s hpc hK hobl (by simp [hr, headExp])
   set t := r.toState s with ht
-  have a0e : (addC (.reg .x22) (offW i)).eval s = BitVec.ofNat 64 B := by
+  have a0e : (addC (.reg .x29) (offW i)).eval s = BitVec.ofNat 64 B := by
     have := bke 0 (by omega); unfold bk at this; rw [norm_eval] at this
     rw [addC_eval] at this ⊢; simpa using this
   have treg : ∀ x, x ≠ .x10 → x ≠ .x12 → x ≠ .x25 → t.getReg x = s.getReg x := by
@@ -778,7 +778,7 @@ theorem head_step (c : CCtx) (hc : c.ok) (i : Nat) (hi : i < 42) (hd : dig c i <
       else if A = BitVec.ofNat 64 (B + 8) then c.x31 else s.getMem A := by
     intro A
     rw [ht, PRes.toState_getMem]
-    show memEval s [(bk i 0, .bin (.st .b 4) (addC (.reg .x22) (offW i)) (posE d)), (bk i 8, .reg .x31)] A = _
+    show memEval s [(bk i 0, .bin (.st .b 4) (addC (.reg .x29) (offW i)) (posE d)), (bk i 8, .reg .x31)] A = _
     rw [memEval_cons, memEval_cons, bke 0 (by omega), bke 8 (by omega)]
     simp only [E.eval, BinOp.eval, posE, Nat.add_zero, a0e, hR.2.2.2.2]
     rfl

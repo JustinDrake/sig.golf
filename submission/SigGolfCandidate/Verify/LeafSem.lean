@@ -65,7 +65,7 @@ theorem layFC_check (L : LCtx) (hL : L.ok) :
 the tweak word, `tau`, the CB word, and the chain array of the layers `< lay` still the witness. -/
 def LeafCarry (L : LCtx) (s : MachineState) : Prop :=
   s.getReg .x30 = BitVec.ofNat 64 (if L.lay = 0 then L.e else L.tau) ∧
-  CB0 L.lay s ∧ Fresh L.wl L.lay 42 s ∧ s.getReg .x22 = BitVec.ofNat 64 (s6N L.lay) ∧ EncHeader L.lay s
+  CB0 L.lay s ∧ Fresh L.wl L.lay 42 s ∧ s.getReg .x29 = BitVec.ofNat 64 (s6N L.lay) ∧ EncHeader L.lay s
 
 /-- The leaf tweak word 0 with byte 1 (the tag 2) replaced by 3: the node tweak word 0. -/
 theorem leaf_nb0 (lay : Nat) (hl : lay < 5) :
@@ -115,7 +115,7 @@ theorem leaf_dispatch_run (lay t E : Nat) (hlay : lay < 5) (ht : t < nCopy lay)
       · intro p hp
         simp only [leafPost, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
         rcases hp with hp | hp
-        · exact hs.known p (by simpa [foldK, fk, gkOf] using List.mem_append_left [(.x22, BitVec.ofNat 64 (5632 + 2688 * 0))] hp)
+        · exact hs.known p (by simpa [foldK, fk, gkOf] using List.mem_append_left [(.x29, BitVec.ofNat 64 (5632 + 2688 * 0))] hp)
         · subst hp
           rw [s6N_eq]
           exact hs.known _ (by simp [foldK])
@@ -205,9 +205,9 @@ theorem leaf_step (L : LCtx) (hL : L.ok) (t : Nat) (ht : t < nCopy L.lay) (a : B
       simp only [leafKeep, List.mem_cons, List.not_mem_nil, or_false] at hx
       rcases hx with rfl | rfl | rfl | rfl <;> simp [fkeep]
     exact (hkeep2 x hx').trans (hu.keep x hx)
-  have h22u : u.getReg .x22 = BitVec.ofNat 64 (s6N L.lay) := by
+  have h22u : u.getReg .x29 = BitVec.ofNat 64 (s6N L.lay) := by
     rw [s6N_eq]
-    exact hK2'.1 (.x22, BitVec.ofNat 64 (5632 + 2688 * L.lay)) (by simp [foldK])
+    exact hK2'.1 (.x29, BitVec.ofNat 64 (5632 + 2688 * L.lay)) (by simp [foldK])
   have hm0 : u.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 (Ref.MaskHeader.leafHeader L.lay) := by
     rw [hmem]
     by_cases h4 : L.lay < 4
