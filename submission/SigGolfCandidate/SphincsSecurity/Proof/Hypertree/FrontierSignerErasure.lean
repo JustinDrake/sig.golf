@@ -17,20 +17,12 @@ def IsSigningFrontier (key : SecretKey) (f : QueryImpl HashSpec Id)
 
 def frontierLayerMessage (parameter : PublicParameter) (ftsSecret : Index → FtsTree → FtsLeaf → Digest)
     (words : OtsReferenceWords) (frontier : OtsFrontierValues) (index : Index) (lay : Layer) :
-    OracleComp HashSpec EncMessage :=
+    OracleComp HashSpec Digest :=
   if hbelow : lay.val + 1 < numLayers then
     let below : Layer := ⟨lay.val + 1, hbelow⟩
-    do
-      let left ← frontierTreeNode parameter below (treeIndexAt index below)
-        (words below (treeIndexAt index below)) (frontier below (treeIndexAt index below))
-        (layerHeight below - 1) 0
-      let right ← frontierTreeNode parameter below (treeIndexAt index below)
-        (words below (treeIndexAt index below)) (frontier below (treeIndexAt index below))
-        (layerHeight below - 1) 1
-      return (left, right)
-  else do
-    let key ← ftsKey parameter index (ftsSecret index)
-    return (0, key)
+    frontierTreeNode parameter below (treeIndexAt index below)
+      (words below (treeIndexAt index below)) (frontier below (treeIndexAt index below)) (layerHeight below) 0
+  else ftsKey parameter index (ftsSecret index)
 
 def frontierLayerSearch (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (ftsSecret : Index → FtsTree → FtsLeaf → Digest) (words : OtsReferenceWords)
@@ -63,8 +55,8 @@ theorem eval_frontierLayerMessage (key : SecretKey) (f : QueryImpl HashSpec Id)
       evalWithAnswerFn f (layerMessage key index lay) := by
   unfold frontierLayerMessage layerMessage
   split_ifs
-  · simp only [treeTop, evalWithAnswerFn_bind, evalWithAnswerFn_pure,
-      eval_frontierTreeNode _ _ _ _ _ _ _ (hfrontier _ _)]
+  · rw [treeRoot]
+    exact eval_frontierTreeNode _ _ _ _ _ _ _ (hfrontier _ _) _ _
   · rfl
 
 theorem eval_signLayer_search (key : SecretKey) (f : QueryImpl HashSpec Id) (index : Index) (lay : Layer) :

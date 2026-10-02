@@ -23,7 +23,7 @@ structure Base (W : List Word) (t : MachineState) : Prop where
   sk : ∀ k < 4, t.getMem (BitVec.ofNat 64 (1728 + 8 * k)) = W.getD k 0
   skIn : ∀ k < 4, t.getMem (BitVec.ofNat 64 (128 + 8 * k)) = W.getD k 0
   zero : ∀ A ∈ zeroKeys, t.getMem (BitVec.ofNat 64 A) = 0
-  w832 : t.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 66305
+  w832 : t.getMem (BitVec.ofNat 64 832) = BitVec.ofNat 64 513
   tail : ∀ A, 0x14B20 ≤ A → A < 0x24B00 → t.getMem (BitVec.ofNat 64 A) = 0
 
 /-- A doubleword key that does not touch `Base`. -/

@@ -13,21 +13,21 @@ def EntryMarker (parameter : PublicParameter) (words : OtsReferenceWords) (addre
     (entry : HashInput × HashOutput) : Prop :=
   AtEncodingPosition parameter entry.1 ⟨address.1, address.2.1, address.2.2.1⟩ ∧
     entry.1 ∈ canonicalEncodingInputs parameter ∧
-    ∃ candidate, decodeEncodingOutput address.1 entry.2 = some candidate ∧
-      OtsCode.UnitNeighborAt address.1 (words address.1 address.2.1 address.2.2.1) candidate address.2.2.2
+    ∃ candidate, decodeEncodingOutput entry.2 = some candidate ∧
+      OtsCode.UnitNeighborAt (words address.1 address.2.1 address.2.2.1) candidate address.2.2.2
 
 theorem entryMarker_encoding_iff (parameter : PublicParameter) (words : OtsReferenceWords) (address : OtsPrefix.ChainAddress)
-    (message : EncMessage) (counter : Counter) (output : HashOutput) :
+    (message : Digest) (counter : Counter) (output : HashOutput) :
     EntryMarker parameter words address
-      (tweakableHashInput message.1 (.encoding address.1 address.2.1 address.2.2.1)
-        (digestBytes message.2 ++ counterBytes counter), output) ↔
-      ∃ candidate, decodeEncodingOutput address.1 output = some candidate ∧
-        OtsCode.UnitNeighborAt address.1 (words address.1 address.2.1 address.2.2.1) candidate address.2.2.2 := by
+      (tweakableHashInput parameter (.encoding address.1 address.2.1 address.2.2.1)
+        (digestBytes message ++ counterBytes counter), output) ↔
+      ∃ candidate, decodeEncodingOutput output = some candidate ∧
+        OtsCode.UnitNeighborAt (words address.1 address.2.1 address.2.2.1) candidate address.2.2.2 := by
   have hcounter : counter.toNat < 2 ^ counterBits := counter.isLt
   have hin := encodingRetryInput_mem_canonicalEncodingInputs_wide parameter
     ⟨address.1, address.2.1, address.2.2.1⟩ message ⟨counter.toNat, hcounter⟩
   simp only [encodingRetryInput, BitVec.ofNat_toNat] at hin
-  exact and_iff_right ⟨_, _, rfl⟩ |>.trans (and_iff_right hin)
+  exact and_iff_right ⟨_, rfl⟩ |>.trans (and_iff_right hin)
 
 def Seen (parameter : PublicParameter) (words : OtsReferenceWords) (address : OtsPrefix.ChainAddress)
     (trace : OtsContactTrace.Trace) : Prop := ∃ entry ∈ trace.toList, EntryMarker parameter words address entry

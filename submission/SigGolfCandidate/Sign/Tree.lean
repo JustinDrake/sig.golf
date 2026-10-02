@@ -4,8 +4,7 @@ import SigGolfCandidate.Sign.TreeLevel
 # `sign`, tree_build as a whole (instructions 510 .. 603)
 
 `tree_sim` : from `tb_leaf_loop` (`EP = 0`) the machine refines `buildTree S lay tau h e x`: the
-root's two children in the node buffer (`0x1e0 .. 0x1ff`, the input of the root hash), the captured chain
-values at `SIGL + 8`, the path at `SIGL + 680`.
+root in `TA[0]`, the captured chain values at `SIGL + 8`, the path at `SIGL + 680`.
 -/
 
 set_option linter.unusedSimpArgs false
@@ -22,7 +21,7 @@ def treeRegs : List Reg := leavesRegs ++ [.x15] ++ tlevRegs
 /-- Result of tree_build. -/
 def TreePost (p : TreePar) (tt : MachineState) (r : Val × List Val × List Val) (t : MachineState) :
     Prop :=
-  t.pc = pcOf 630 ∧ r.1.length = 32 ∧ t.readWords (BitVec.ofNat 64 0x1E0) 4 = wordsOf r.1 ∧
+  t.pc = pcOf 630 ∧ r.1.length = 16 ∧ Slots t 0xB0000 [r.1] ∧
   r.2.1.length = 42 ∧ (∀ v ∈ r.2.1, v.length = 16) ∧ Slots t (p.sigl + 8) r.2.1 ∧
   r.2.2.length = p.h ∧ (∀ v ∈ r.2.2, v.length = 16) ∧ Slots t (p.sigl + 680) r.2.2 ∧
   RegsEq tt t treeRegs ∧ Frame tt t (treeW p)
@@ -30,9 +29,8 @@ def TreePost (p : TreePar) (tt : MachineState) (r : Val × List Val × List Val)
 theorem buildTree_eq (S : List Byte) (lay tau h e : Nat) (x : List Nat) :
     buildTree S lay tau h e x =
       buildLeaves S lay tau h e x >>= fun q =>
-        (List.range' 1 (h - 1)).foldlM (levelStep (nodeInput lay tau) e) (q.1, []) >>= fun st =>
-          levelStep (nodeInput lay tau) e st h >>= fun st' =>
-            pure (st.1.getD 0 [] ++ st.1.getD 1 [], q.2, st'.2) := by
+        (List.range' 1 h).foldlM (levelStep (nodeInput lay tau) e) (q.1, []) >>= fun st =>
+          pure (st.1.getD 0 [], q.2, st.2) := by
   simp only [buildTree, buildLevels, bind_assoc, pure_bind]
 
 /-- Cycle bound of tree_build. -/
@@ -107,33 +105,17 @@ theorem tree_sim (S : List Byte) (hS : S.length = 32) (x : List Nat) (p : TreePa
     · rw [rt3.get .x30, ctx.x30]
     · have := ctx.hsigl
       rw [ft3.readWords _ _ (by norm_num) (by intro i hi; simp only [leavesW]; omega), ctx.nbP]
-  have e45 : 17 + (2 ^ (p.h - 1 - (p.h - 1)) * 26 + 2) = 45 := by rw [Nat.sub_self]; rfl
-  refine (Sim.steps hs3 (Sim.bind (W₂ := 45) (tlevels_sim p t3 vctx q.1 hlv hlvv
+  refine (Sim.steps hs3 (Sim.bind (W₂ := 0) (tlevels_sim p t3 vctx q.1 hlv hlvv
     (hlvs.frame f3 (by omega) (by simp)) (by simp only [ht3, treeEntryState, blk2986.res, blk2980.res, blk591.res, rv_simp])
-    (by simp only [ht3, treeEntryState, blk2986.res, blk2980.res, blk591.res, rv_simp]) (by rw [rt3.get .x17, ctx.x17])
-    (p.h - 1) (by omega))
-    (fun st t3' h3' => ?_))).mono (by omega) (fun _ _ h => h)
-  -- the last level: the root; its two inputs stay in the node buffer
-  have hlast := tlevel_body2 p t3 vctx (p.h - 1) (by omega) st t3' h3'
-  rw [show 1 + (p.h - 1) = p.h by omega] at hlast
-  obtain ⟨-, hl3, hv3, -, -, -, -, -, -, -, -, -⟩ := h3'
-  have hl3' : st.1.length = 2 := by rw [hl3, show p.h - (p.h - 1) = 1 by omega]; rfl
-  refine (Sim.bind (W₂ := 0) hlast (fun st' t4 h4 => ?_)).mono (by omega) (fun _ _ h => h)
-  obtain ⟨h4, hnL, hnR⟩ := h4
-  rw [show p.h - 1 + 1 = p.h by omega] at h4
-  rw [show 2 * (2 ^ (p.h - 1 - (p.h - 1)) - 1) = 0 by rw [Nat.sub_self]; rfl] at hnL hnR
+    (by simp only [ht3, treeEntryState, blk2986.res, blk2980.res, blk591.res, rv_simp]) (by rw [rt3.get .x17, ctx.x17]))
+    (fun st t4 h4 => ?_))).mono (by omega) (fun _ _ h => h)
   obtain ⟨-, hl4, hv4, hs4, hp4, hpv4, hps4, pc4, -, -, vregs, vframe⟩ := h4
-  have hLl : (st.1.getD 0 []).length = 16 := by
-    rw [getD_of_lt (by rw [hl3']; norm_num)]; exact hv3 _ (List.getElem_mem _)
-  have hRl : (st.1.getD 1 []).length = 16 := by
-    rw [getD_of_lt (by rw [hl3']; norm_num)]; exact hv3 _ (List.getElem_mem _)
   refine Sim.pure ⟨by rw [pc4, if_neg (lt_irrefl _)], ?_, ?_, hc1, hc2, ?_, hp4, hpv4, hps4, ?_, ?_⟩
-  · show (st.1.getD 0 [] ++ st.1.getD 1 []).length = 32
-    rw [List.length_append, hLl, hRl]
-  · have e := readWords_ofNat_add t4 0x1E0 2 2
-    rw [show (2 + 2 : Nat) = 4 from rfl, show (0x1E0 + 8 * 2 : Nat) = 496 from rfl] at e
-    rw [e, wordsOf_append _ _ (by omega)]
-    exact congrArg₂ (· ++ ·) hnL hnR
+  · rw [getD_of_lt (by rw [hl4]; simp)]; exact hv4 _ (List.getElem_mem _)
+  · intro i hi
+    simp at hi; subst hi
+    have := hs4.getD 0 (by rw [hl4]; simp)
+    simpa using this
   · refine hc3.frame (f3.trans vframe) (by rw [hc1]; omega) ?_
     intro i hi; rw [hc1] at hi
     have := ctx.hsigl; have := ctx.hlay
