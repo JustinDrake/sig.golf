@@ -40,7 +40,7 @@ theorem serialize_length (sig : Signature) : (serialize sig).length = 5728 := by
   simp_rw [serializeLayer_length]
   decide
 
-theorem cacheBytes_length (cache : Cache) : (cacheBytes cache).length = 32768 := by
+theorem cacheBytes_length (cache : Cache) : (cacheBytes cache).length = 131072 := by
   simp only [cacheBytes,List.length_append,bytesLE_length,List.length_ofFn]
 
 theorem serializeLayer_injective (lay : Layer) : Function.Injective (@serializeLayer lay) := by
@@ -111,8 +111,8 @@ theorem route_top_tree (index : Nat) (hindex : index < 2^31) : (route index 0).2
 
 /-- Every retained-cache read is in the MAC-authenticated region without wrapping. -/
 theorem topPath_offset_bound (leaf level byte : Nat) (hleaf : leaf<4096)
-    (hlo : 2≤level) (hhi : level<12) (hb : byte<16) :
-    16*(2048-2^(13-level)+(leaf/2^level ^^^ 1))+byte<32736 := by
+    (hlo : 0≤level) (hhi : level<12) (hb : byte<16) :
+    16*(8192-2^(13-level)+(leaf/2^level ^^^ 1))+byte<131040 := by
   have hdiv : leaf/2^level < 2^(12-level) := by
     rw [Nat.div_lt_iff_lt_mul (by positivity),← Nat.pow_add,Nat.sub_add_cancel (by omega)]
     exact hleaf
@@ -120,9 +120,9 @@ theorem topPath_offset_bound (leaf level byte : Nat) (hleaf : leaf<4096)
   interval_cases level <;> norm_num at hsib ⊢ <;> omega
 
 theorem topPath_offset_mod (leaf level byte : Nat) (hleaf : leaf<4096)
-    (hlo : 2≤level) (hhi : level<12) (hb : byte<16) :
-    (16*(2048-2^(13-level)+(leaf/2^level ^^^ 1))+byte)%32736 =
-      16*(2048-2^(13-level)+(leaf/2^level ^^^ 1))+byte :=
+    (hlo : 0≤level) (hhi : level<12) (hb : byte<16) :
+    (16*(8192-2^(13-level)+(leaf/2^level ^^^ 1))+byte)%131040 =
+      16*(8192-2^(13-level)+(leaf/2^level ^^^ 1))+byte :=
   Nat.mod_eq_of_lt (topPath_offset_bound leaf level byte hleaf hlo hhi hb)
 
 @[simp] theorem privateInput_short (secret : BitVec 256) (h : BitVec 128) :
@@ -1125,7 +1125,7 @@ def weight : Query → Nat
   | .inl (.inr input) => input.length/64
   | .inr (.inl _) => 1
   | .inr (.inr (.inl _)) => 2
-  | .inr (.inr (.inr _)) => 513
+  | .inr (.inr (.inr _)) => 2049
 
 abbrev qry (q : Query) : M (T3.Spec.Range q) := T3.Spec.query q
 
@@ -1386,14 +1386,21 @@ theorem bound_privatePair (tag lay tree position index : Nat) :
   unfold privatePair privateHash
   exact Bound.qry_bind (k := 0) trivial (fun _ => .pure _ 0 trivial) (by simp only [weight];omega)
 
-theorem bound_privateMac (region : Region) : CBound (fun _ => True) 513 (privateMac region) := by
-  change CBound _ _ (qry (.inr (.inr (.inr region))))
-  rw [← bind_pure (qry _)]
-  exact Bound.qry_bind (k := 0) trivial (fun _ => .pure _ 0 trivial) (by simp only [weight];omega)
+theorem bound_privateMacKey : CBound (fun _ => True) 2 privateMacKey := by
+  unfold privateMacKey privateHash
+  refine Bound.qry_bind (k := 1) trivial (fun _ => ?_) (by decide)
+  exact Bound.qry_bind (k := 0) trivial (fun _ => .pure _ 0 trivial) (by decide)
+
+theorem bound_privateMac (region : Region) : CBound (fun _ => True) 2 (privateMac region) := by
+  unfold privateMac
+  exact bound_privateMacKey.bind' (l := 0) (fun _ _ => .pure _ 0 trivial) (by decide)
+
+theorem bound_pairedMask (level pair : Nat) : CBound (fun _ => True) 1 (pairedMask level pair) :=
+  bound_privatePair 13 0 0 level pair
 
 theorem bound_mask (level index : Nat) : CBound (fun _ => True) 1 (mask level index) := by
   unfold mask
-  exact (bound_privatePair 13 0 0 level index).bind' (fun _ _ => .pure _ 0 trivial) (by decide)
+  exact (bound_pairedMask level (index/2)).bind' (l := 0) (fun _ _ => .pure _ 0 trivial) (by decide)
 
 theorem bound_chain (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
     CBound (fun _ => True) count (chain lay tree leaf i start count value) := by
@@ -1502,23 +1509,26 @@ theorem bound_buildTopTree (tree selected : Nat) :
   · refine (bound_buildLevels 3 0 tree 12 state.1 hstate).bind' (l := 0)
       (fun levels hlevels => .pure (levels,state.2) 0 hlevels) (by decide)
 
-theorem bound_keygenPayload : CBound (fun _ => True) 1046525 keygenPayload := by
-  unfold keygenPayload
-  refine (bound_buildTopTree 0 0).bind' (l := 2046) (fun result _ => ?_) (by decide)
-  refine (Bound.mapM_list (P := GoodQuery) (List.range' 2 10) _
-    (fun level => 2^(12-level)) (fun level _ => ?_)).bind' (l := 0)
-    (fun masked _ => .pure _ 0 trivial) ?_
-  · have hm := Bound.mapM_list (P := GoodQuery) (List.range (2^(12-level)))
-      (fun i => do let value ← mask level i;pure ((result.1.getD level []).getD i 0 ^^^ value))
-      (fun _ => 1) (fun i _ => (bound_mask level i).bind' (l := 0) (fun _ _ => .pure _ 0 trivial) (by decide))
-    exact (hm.mono (fun _ h => h) (fun _ _ => trivial)).mono_k (by simp)
-  · decide +kernel
+theorem bound_maskedLevel (nodes : List Digest) (level : Nat) :
+    CBound (fun _ => True) (2^(11-level)) (maskedLevel nodes level) := by
+  unfold maskedLevel
+  refine (Bound.mapM_list (P := GoodQuery) (List.range (2^(11-level))) _ (fun _ => 1)
+    (fun pair _ => (bound_pairedMask level pair).bind' (l := 0)
+      (fun _ _ => .pure _ 0 trivial) (by decide))).bind' (l := 0)
+      (fun _ _ => .pure _ 0 trivial) (by simp)
 
-/-- Source keygen fits the organizer's compression budget for every possible
-oracle response sequence, including the 513-block cache authentication. -/
-theorem bound_keygen : CBound (fun _ => True) 1047038 keygen := by
+theorem bound_keygenPayload : CBound (fun _ => True) 1048574 keygenPayload := by
+  unfold keygenPayload
+  refine (bound_buildTopTree 0 0).bind' (l := 4095) (fun result _ => ?_) (by decide)
+  refine (Bound.mapM_list (P := GoodQuery) (List.range' 0 12) _ (fun level => 2^(11-level))
+    (fun level _ => bound_maskedLevel (result.1.getD level []) level)).bind' (l := 0)
+    (fun _ _ => .pure _ 0 trivial) ?_
+  decide +kernel
+
+/-- The complete paired-mask keygen including both MAC derivations fits 2^20. -/
+theorem bound_keygen : CBound (fun _ => True) 1048576 keygen := by
   unfold keygen
-  refine bound_keygenPayload.bind' (l := 513) (fun result _ => ?_) (by decide)
+  refine bound_keygenPayload.bind' (l := 2) (fun result _ => ?_) (by decide)
   exact (bound_privateMac result.2).bind' (l := 0) (fun _ _ => .pure _ 0 trivial) (by decide)
 
 theorem keygen_compression_bound :
@@ -1830,16 +1840,12 @@ theorem bound_forestPk (index : Nat) (roots : List Digest) (hlen : roots.length=
     SphincsSecurity.bytesLE_length,digest_list_bytes_length,List.length_drop,hlen]
 
 theorem bound_topPath (cache : Cache) (leaf : Nat) :
-    CBound (fun result => result.length=12) 773 (topPath cache leaf) := by
+    CBound (fun result => result.length=12) 12 (topPath cache leaf) := by
   unfold topPath
-  refine (bound_buildTopLeaf 0 (leaf ^^^ 1)).bind' (l := 519) (fun sibling _ => ?_) (by decide)
-  refine (bound_buildTopLeaf 0 _).bind' (l := 265) (fun left _ => ?_) (by decide)
-  refine (bound_buildTopLeaf 0 _).bind' (l := 11) (fun right _ => ?_) (by decide)
-  refine (bound_nodeHash 3 0 0 _ left.1 right.1).bind' (l := 10) (fun siblingPair _ => ?_) (by decide)
-  refine (Bound.mapM_list (P := GoodQuery) (List.range' 2 10) _ (fun _ => 1)
-    (fun level _ => (bound_mask level _).bind' (l := 0) (fun _ _ => .pure _ 0 trivial) (by decide))).bind'
-    (l := 0) (fun rest hrest => ?_) (by simp)
-  exact .pure ([sibling.1,siblingPair]++rest) 0 (by simpa using hrest)
+  apply (Bound.mapM_list (P := GoodQuery) (List.range 12) _ (fun _ => 1)
+    (fun level _ => (bound_mask level _).bind' (l := 0)
+      (fun _ _ => .pure _ 0 trivial) (by decide))).mono_k
+  simp
 
 theorem sum_getD (x : List Nat) : ∑ i ∈ range x.length,x.getD i 0=x.sum := by
   induction x with
@@ -1893,11 +1899,11 @@ theorem bound_topSignatureLeaf (tree leaf : Nat) (digits : List Nat) (hlen : dig
     exact .pure (0,state.2) 0 hstate
 
 theorem bound_signTop (cache : Cache) (leaf : Nat) (digits : List Nat)
-    (hlen : digits.length=58) (hsum : digits.sum=125) :
-    CBound (fun result => result.1.length=58 ∧ result.2.length=12) 928 (signTop cache leaf digits) := by
+    (hlen : digits.length=58) (hsum : digits.sum=126) :
+    CBound (fun result => result.1.length=58 ∧ result.2.length=12) 167 (signTop cache leaf digits) := by
   unfold signTop
-  refine (bound_topSignatureLeaf 0 leaf digits hlen).bind' (l := 773) (fun result hr => ?_)
-    (by rw [hsum]; omega)
+  refine (bound_topSignatureLeaf 0 leaf digits hlen).bind' (l := 12) (fun result hr => ?_)
+    (by rw [hsum])
   refine (bound_topPath cache leaf).bind' (l := 0) (fun path hp => ?_) (by decide)
   exact .pure (result.2,path) 0 ⟨hr,hp⟩
 
@@ -1961,9 +1967,9 @@ theorem bound_digestSearch (rho : Digest) (message : Message) :
 
 def layerFixedCost : Nat → Nat
   | 0 => 0
-  | n+1 => if n=0 then 928 else treeCost (Fin.ofNat 4 n)+layerFixedCost n
+  | n+1 => if n=0 then 167 else treeCost (Fin.ofNat 4 n)+layerFixedCost n
 
-theorem layerFixedCost_four : layerFixedCost 4=86685 := by decide +kernel
+theorem layerFixedCost_four : layerFixedCost 4=85924 := by decide +kernel
 
 theorem bound_signLayers (cache : Cache) (index : Nat) :
     ∀ n message,CBound (fun _ => True) (n*counterLimit+layerFixedCost n)
@@ -2008,33 +2014,33 @@ theorem bound_privateNonce (message : Message) :
 /-- A deterministic ceiling on all source signing traces, including failures.
 The probabilistic budget separately charges the two bounded searches. -/
 theorem bound_signPayload (cache : Cache) (message : Message) :
-    CBound (fun _ => True) (122522+attemptLimit+4*counterLimit) (signPayload cache message) := by
+    CBound (fun _ => True) (121761+attemptLimit+4*counterLimit) (signPayload cache message) := by
   unfold signPayload
-  refine (bound_privateNonce message).bind' (l := 122520+attemptLimit+4*counterLimit)
+  refine (bound_privateNonce message).bind' (l := 121759+attemptLimit+4*counterLimit)
     (fun rho _ => ?_) (by omega)
-  refine (bound_digestSearch rho message attemptLimit 0).bind' (l := 122520+4*counterLimit)
+  refine (bound_digestSearch rho message attemptLimit 0).bind' (l := 121759+4*counterLimit)
     (fun found _ => ?_) (by omega)
   cases found with
   | none => exact .pure _ _ trivial
   | some pair =>
       obtain ⟨counter,output⟩ := pair
       dsimp only
-      refine Bound.bind' (l := 86687+4*counterLimit) (Bound.foldlM_range 7 _
+      refine Bound.bind' (l := 85926+4*counterLimit) (Bound.foldlM_range 7 _
         (fun coord (state : List Digest × List Digest × List Digest) => state.2.2.length=coord)
         (fun _ => 5119) ([],[],[]) rfl (fun coord _ state hstate => ?_))
         (fun state hstate => ?_) (by rw [sum_const_range];omega)
       · refine (bound_buildFts _ coord).bind' (l := 0) (fun result _ => ?_) (by decide)
         exact .pure _ 0 (by simp [hstate])
-      · refine (bound_forestPk _ state.2.2 hstate).bind' (l := 86685+4*counterLimit)
+      · refine (bound_forestPk _ state.2.2 hstate).bind' (l := 85924+4*counterLimit)
           (fun root _ => ?_) (by omega)
         refine (bound_signLayers cache _ 4 root).bind' (l := 0) (fun layers _ => ?_)
           (by rw [layerFixedCost_four];omega)
         cases layers <;> exact .pure _ 0 trivial
 
 theorem bound_sign (cache : Cache) (message : Message) :
-    CBound (fun _ => True) (123035+attemptLimit+4*counterLimit) (sign cache message) := by
+    CBound (fun _ => True) (121763+attemptLimit+4*counterLimit) (sign cache message) := by
   unfold sign
-  refine (bound_privateMac cache.region).bind' (l := 122522+attemptLimit+4*counterLimit)
+  refine (bound_privateMac cache.region).bind' (l := 121761+attemptLimit+4*counterLimit)
     (fun tag _ => ?_) (by omega)
   split
   · exact .pure _ _ trivial
@@ -2042,7 +2048,7 @@ theorem bound_sign (cache : Cache) (message : Message) :
 
 theorem sign_compression_ceiling (secret : BitVec 256) (cache : Cache) (message : Message) :
     ∀ result ∈ support (World.countBlocks (realize secret (sign cache message))),
-      result.2 ≤ 17948827 := by
+      result.2 ≤ 17947555 := by
   intro result hr
   rw [World.countBlocks,← realize_count] at hr
   exact (bound_sign cache message).count_support result
@@ -2903,7 +2909,7 @@ def recoveryLayersCost : Nat → Nat
   | 0 => 0
   | n+1 => recoverLayerCost (Fin.ofNat 4 n)+recoveryLayersCost n
 
-theorem recoveryLayersCost_four : recoveryLayersCost 4=485 := by decide +kernel
+theorem recoveryLayersCost_four : recoveryLayersCost 4=481 := by decide +kernel
 
 theorem bound_verifyLayers (w : Witness) (index : Nat) :
     ∀ n root,CBound (fun _ => True) (n+recoveryLayersCost n) (verifyLayers w index n root) := by
@@ -3097,7 +3103,7 @@ theorem bound_verify (message : Message) (pk : Digest) (w : Witness) :
       | none => exact .pure _ _ trivial
       | some forest =>
           refine (bound_verifyLayers w (output.toNat%2^31) 4 forest).bind'
-            (l := 0) (fun root _ => ?_) (by rw [recoveryLayersCost_four])
+            (l := 0) (fun root _ => ?_) (by rw [recoveryLayersCost_four]; decide)
           cases root <;> exact .pure _ 0 trivial
 
 theorem verify_compression_bound (secret : BitVec 256) (message : Message) (pk : Digest) (w : Witness) :
@@ -3118,7 +3124,7 @@ theorem bound_expand (message : Message) (pk : Digest) (sig : Signature) :
       have hadm := hf counter output rfl
       dsimp only
       refine ((bound_recoverFts sig (output.toNat%2^31) (selections output)).mono_k
-        (forestRecoveryCost_le output hadm)).bind' (l := 4*counterLimit+485)
+        (forestRecoveryCost_le output hadm)).bind' (l := 4*counterLimit+481)
         (fun forest _ => ?_) (by omega)
       cases forest with
       | none => exact .pure _ _ trivial
@@ -3552,13 +3558,19 @@ theorem sign_honest_cache (answers : Answers) (message : Message) :
   exact sign_valid_cache answers _ message (keygen_cache_tag answers)
 
 theorem privateMac_count (region : Region) :
-    countBlocks (privateMac region)=(fun tag => (tag,513)) <$> privateMac region := by
-  exact countWith_query weight (.inr (.inr (.inr region)))
+    countBlocks (privateMac region)=(fun tag => (tag,2)) <$> privateMac region := by
+  have hc (h : BitVec 128) : countWith weight (privateHash (.inl h)) =
+      (fun a => (a,1)) <$> privateHash (.inl h) :=
+    Cost.countWith_query weight (.inr (.inl h))
+  unfold privateMac privateMacKey countBlocks
+  simp only [Cost.countWith_bind,hc,Cost.countWith_pure,bind_assoc,map_bind,
+    bind_map_left,Functor.map_map,pure_bind,map_pure,Function.comp_def,
+    Nat.add_zero,Nat.reduceAdd]
 
-/-- A rejected cache spends exactly the MAC's 513 compressions. -/
+/-- A rejected cache spends exactly the MAC's two compressions. -/
 theorem sign_bad_cache_count (answers : Answers) (cache : Cache) (message : Message)
     (hbad : evalWithAnswerFn answers (privateMac cache.region) ≠ cache.tag) :
-    evalWithAnswerFn answers (countBlocks (sign cache message))=(none,513) := by
+    evalWithAnswerFn answers (countBlocks (sign cache message))=(none,2) := by
   unfold sign countBlocks
   rw [countWith_bind]
   change evalWithAnswerFn answers (countBlocks (privateMac cache.region) >>= _) = _
@@ -4052,25 +4064,25 @@ set_option backward.isDefEq.respectTransparency false
 set_option linter.unusedSimpArgs false
 
 def cacheWordList (f : Nat → Nat → Digest) : List Digest :=
-  (List.range' 2 10).flatMap fun level => (List.range (2^(12-level))).map (f level)
+  (List.range' 0 12).flatMap fun level => (List.range (2^(12-level))).map (f level)
 
 theorem cacheWordList_prefix_length (f : Nat → Nat → Digest) (level : Nat)
-    (hlo : 2 ≤ level) (hhi : level ≤ 12) :
-    ((List.range' 2 (level-2)).flatMap fun j => (List.range (2^(12-j))).map (f j)).length=
-      2048-2^(13-level) := by
+    (hlo : 0 ≤ level) (hhi : level ≤ 12) :
+    ((List.range' 0 level).flatMap fun j => (List.range (2^(12-j))).map (f j)).length=
+      8192-2^(13-level) := by
   simp only [List.length_flatMap,List.length_map,List.length_range]
   interval_cases level <;> decide +kernel
 
-theorem cacheWordList_length (f : Nat → Nat → Digest) : (cacheWordList f).length=2046 := by
+theorem cacheWordList_length (f : Nat → Nat → Digest) : (cacheWordList f).length=8190 := by
   exact cacheWordList_prefix_length f 12 (by decide) (by decide)
 
 theorem cacheWordList_getD (f : Nat → Nat → Digest) (level node : Nat)
-    (hlo : 2 ≤ level) (hhi : level < 12) (hnode : node < 2^(12-level)) :
-    (cacheWordList f).getD (2048-2^(13-level)+node) 0=f level node := by
+    (hlo : 0 ≤ level) (hhi : level < 12) (hnode : node < 2^(12-level)) :
+    (cacheWordList f).getD (8192-2^(13-level)+node) 0=f level node := by
   unfold cacheWordList
-  have hrange : List.range' 2 10=List.range' 2 (level-2)++List.range' level (12-level) := by
-    have he := List.range'_append_1 (s := 2) (m := level-2) (n := 12-level)
-    rw [show 2+(level-2)=level by omega,show (level-2)+(12-level)=10 by omega] at he
+  have hrange : List.range' 0 12=List.range' 0 level++List.range' level (12-level) := by
+    have he := List.range'_append_1 (s := 0) (m := level) (n := 12-level)
+    rw [Nat.zero_add,show level+(12-level)=12 by omega] at he
     exact he.symm
   rw [hrange,List.flatMap_append]
   rw [List.getD_append_right _ _ _ _ (by rw [cacheWordList_prefix_length f level hlo (by omega)];omega)]
@@ -4080,14 +4092,14 @@ theorem cacheWordList_getD (f : Nat → Nat → Digest) (level node : Nat)
   simp [List.getD_eq_getElem,hnode]
 
 theorem cacheWordList_serialized_length (f : Nat → Nat → Digest) :
-    ((cacheWordList f).flatMap (bytesLE 16)).length=32736 := by
+    ((cacheWordList f).flatMap (bytesLE 16)).length=131040 := by
   rw [digest_list_bytes_length,cacheWordList_length]
 
 def cacheRegion (f : Nat → Nat → Digest) : Region :=
   let raw := ((cacheWordList f).flatMap (bytesLE 16)).toArray
   fun i => raw.getD i.val 0
 
-theorem cacheRegion_get (f : Nat → Nat → Digest) (i : Fin 32736) :
+theorem cacheRegion_get (f : Nat → Nat → Digest) (i : Fin 131040) :
     cacheRegion f i=((cacheWordList f).flatMap (bytesLE 16)).getD i.val 0 := by
   simp only [cacheRegion,Array.getD_eq_getD_getElem?,List.getElem?_toArray,List.getD_eq_getElem?_getD]
 
@@ -4102,35 +4114,70 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 set_option linter.unusedSimpArgs false
 
-theorem cacheWord_offset_bound (level node : Nat) (hlo : 2 ≤ level) (hhi : level < 12)
-    (hnode : node < 2^(12-level)) : 2048-2^(13-level)+node < 2046 := by
+theorem cacheWord_offset_bound (level node : Nat) (hlo : 0 ≤ level) (hhi : level < 12)
+    (hnode : node < 2^(12-level)) : 8192-2^(13-level)+node < 8190 := by
   interval_cases level <;> norm_num at hnode ⊢ <;> omega
 
 theorem cacheRegion_read (f : Nat → Nat → Digest) (level node : Nat)
-    (hlo : 2 ≤ level) (hhi : level < 12) (hnode : node < 2^(12-level)) :
+    (hlo : 0 ≤ level) (hhi : level < 12) (hnode : node < 2^(12-level)) :
     readDigest (List.ofFn fun i : Fin 16 =>
-      cacheRegion f ⟨(16*(2048-2^(13-level)+node)+i.val)%32736,Nat.mod_lt _ (by decide)⟩)=f level node := by
+      cacheRegion f ⟨(16*(8192-2^(13-level)+node)+i.val)%131040,Nat.mod_lt _ (by decide)⟩)=f level node := by
   have hword := cacheWord_offset_bound level node hlo hhi hnode
   have he : (List.ofFn fun i : Fin 16 =>
-      cacheRegion f ⟨(16*(2048-2^(13-level)+node)+i.val)%32736,Nat.mod_lt _ (by decide)⟩)=
+      cacheRegion f ⟨(16*(8192-2^(13-level)+node)+i.val)%131040,Nat.mod_lt _ (by decide)⟩)=
       (List.ofFn fun i : Fin 16 => ((cacheWordList f).flatMap (bytesLE 16)).getD
-        (16*(2048-2^(13-level)+node)+i.val) 0) := by
+        (16*(8192-2^(13-level)+node)+i.val) 0) := by
     congr 1
     funext i
     rw [cacheRegion_get]
-    simp only [Fin.val_mk,Nat.mod_eq_of_lt (show 16*(2048-2^(13-level)+node)+i.val < 32736 by omega)]
+    simp only [Fin.val_mk,Nat.mod_eq_of_lt (show 16*(8192-2^(13-level)+node)+i.val < 131040 by omega)]
   rw [he,readDigest_flatMap _ _ (by rw [cacheWordList_length];exact hword),
     cacheWordList_getD f level node hlo hhi hnode]
 
 def maskedTop (answers : Answers) (level node : Nat) : Digest :=
   treeValue (builtTree answers 0 0) level node ^^^ evalWithAnswerFn answers (mask level node)
 
+theorem eval_mask_even (A : Answers) (level pair : Nat) :
+    evalWithAnswerFn A (mask level (2*pair))=(evalWithAnswerFn A (pairedMask level pair)).1 := by
+  simp [mask,evalWithAnswerFn_bind,evalWithAnswerFn_pure,Nat.mul_div_cancel_left]
+
+theorem eval_mask_odd (A : Answers) (level pair : Nat) :
+    evalWithAnswerFn A (mask level (2*pair+1))=(evalWithAnswerFn A (pairedMask level pair)).2 := by
+  have hd : (2*pair+1)/2=pair := by omega
+  have hm : (2*pair+1)%2=1 := by omega
+  simp [mask,evalWithAnswerFn_bind,evalWithAnswerFn_pure,hd,hm]
+
+theorem paired_list (f : Nat → Digest) (n : Nat) :
+    (List.range n).flatMap (fun p => [f (2*p),f (2*p+1)])=(List.range (2*n)).map f := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      rw [List.range_succ,List.flatMap_append,ih]
+      have hr : List.range (2*(n+1))=List.range (2*n)++[2*n,2*n+1] := by
+        rw [show 2*(n+1)=((2*n)+1)+1 by omega,List.range_succ,List.range_succ]
+        simp only [List.append_assoc,List.singleton_append]
+      rw [hr,List.map_append]
+      rfl
+
+theorem eval_maskedLevel (A : Answers) (nodes : List Digest) (level : Nat) (hl : level < 12) :
+    evalWithAnswerFn A (maskedLevel nodes level)=
+      (List.range (2^(12-level))).map fun node => nodes.getD node 0 ^^^ evalWithAnswerFn A (mask level node) := by
+  simp only [maskedLevel,evalWithAnswerFn_bind,eval_mapM,evalWithAnswerFn_pure]
+  have h : (List.range (2^(11-level))).map (fun pair =>
+      [nodes.getD (2*pair) 0 ^^^ (evalWithAnswerFn A (pairedMask level pair)).1,
+       nodes.getD (2*pair+1) 0 ^^^ (evalWithAnswerFn A (pairedMask level pair)).2]) =
+      (List.range (2^(11-level))).map (fun pair =>
+      [nodes.getD (2*pair) 0 ^^^ evalWithAnswerFn A (mask level (2*pair)),
+       nodes.getD (2*pair+1) 0 ^^^ evalWithAnswerFn A (mask level (2*pair+1))]) := by
+    simp only [eval_mask_even,eval_mask_odd]
+  rw [h,← List.flatMap_def,paired_list (fun node => nodes.getD node 0 ^^^ evalWithAnswerFn A (mask level node))]
+  rw [show 2*(2^(11-level))=2^(12-level) by
+    rw [show 12-level=(11-level)+1 by omega,pow_succ];omega]
+
+
 def cachePayloadProgram (builder : M (List (List Digest) × List Digest)) : M (Digest × Region) := do
   let (levels,_) ← builder
-  let masked ← (List.range' 2 10).mapM fun level =>
-    (List.range (2^(12-level))).mapM fun i => do
-      let value ← mask level i
-      pure ((levels.getD level []).getD i 0 ^^^ value)
+  let masked ← (List.range' 0 12).mapM fun level => maskedLevel (levels.getD level []) level
   let raw := (masked.flatten.flatMap (bytesLE 16)).toArray
   pure ((levels.getD 12 []).getD 0 0,fun i => raw.getD i.val 0)
 
@@ -4142,6 +4189,16 @@ theorem eval_cachePayloadProgram (answers : Answers) (builder : M (List (List Di
        cacheRegion fun level node => treeValue (evalWithAnswerFn answers builder).1 level node ^^^
          evalWithAnswerFn answers (mask level node)) := by
   simp only [cachePayloadProgram,evalWithAnswerFn_bind,eval_mapM,evalWithAnswerFn_pure]
+  have h : (List.range' 0 12).map (fun level => evalWithAnswerFn answers
+      (maskedLevel ((evalWithAnswerFn answers builder).1.getD level []) level)) =
+      (List.range' 0 12).map (fun level => (List.range (2^(12-level))).map fun node =>
+        treeValue (evalWithAnswerFn answers builder).1 level node ^^^ evalWithAnswerFn answers (mask level node)) := by
+    apply List.map_congr_left
+    intro level hlevel
+    have hl : level < 12 := by have := (List.mem_range'_1.mp hlevel); omega
+    rw [eval_maskedLevel answers _ level hl]
+    rfl
+  rw [h]
   rfl
 
 def PayloadCorrect (answers : Answers) (result : Digest × Region) : Prop :=
@@ -4176,10 +4233,10 @@ theorem keygen_correct (answers : Answers) : KeygenCorrect answers (evalWithAnsw
 
 theorem honest_cache_read (answers : Answers) (cache : Cache)
     (hcache : cache.region=cacheRegion (maskedTop answers)) (leaf level : Nat)
-    (hleaf : leaf < 4096) (hlo : 2 ≤ level) (hhi : level < 12) :
+    (hleaf : leaf < 4096) (hlo : 0 ≤ level) (hhi : level < 12) :
     let sibling := leaf/2^level ^^^ 1
-    let offset := 16*(2048-2^(13-level)+sibling)
-    readDigest (List.ofFn fun i : Fin 16 => cache.region ⟨(offset+i.val)%32736,Nat.mod_lt _ (by decide)⟩) ^^^
+    let offset := 16*(8192-2^(13-level)+sibling)
+    readDigest (List.ofFn fun i : Fin 16 => cache.region ⟨(offset+i.val)%131040,Nat.mod_lt _ (by decide)⟩) ^^^
       evalWithAnswerFn answers (mask level sibling)=treeValue (builtTree answers 0 0) level sibling := by
   dsimp only
   rw [hcache,cacheRegion_read]
@@ -4209,21 +4266,10 @@ theorem eval_topPath_honest (answers : Answers) (cache : Cache) (leaf : Nat)
     (hcache : cache.region=cacheRegion (maskedTop answers)) (hleaf : leaf < 4096) :
     evalWithAnswerFn answers (topPath cache leaf)=
       (List.range 12).map (fun j => treeValue (builtTree answers 0 0) j (leaf/2^j ^^^ 1)) := by
-  have hs : leaf ^^^ 1 < 4096 := Nat.xor_lt_two_pow (n := 12) hleaf (by decide)
-  have hp : leaf/2 ^^^ 1 < 2048 := Nat.xor_lt_two_pow (n := 11) (by omega) (by decide)
   simp only [topPath,evalWithAnswerFn_bind,eval_mapM,evalWithAnswerFn_pure]
-  simp only [eval_buildLeaf_root answers 0 0 _ [] (validDigits_nil 0)]
-  have hdiv : ((leaf/2 ^^^ 1)*2)/2=leaf/2 ^^^ 1 := by omega
-  rw [hdiv,show (leaf/2 ^^^ 1)*2=2*(leaf/2 ^^^ 1) by omega,top_parent answers _ hp]
-  rw [← builtTree_leaf answers 0 0 (leaf ^^^ 1) hs]
-  have hr : List.range 12=[0,1]++List.range' 2 10 := by decide
-  rw [hr,List.map_append,List.map_cons,List.map_cons,List.map_nil]
-  simp only [pow_zero,Nat.div_one,pow_one]
-  congr 1
   apply List.map_congr_left
   intro level hlevel
-  obtain ⟨i,hi,he⟩ := List.mem_range'.mp hlevel
-  exact honest_cache_read answers cache hcache leaf level hleaf (by omega) (by omega)
+  exact honest_cache_read answers cache hcache leaf level hleaf (by omega) (List.mem_range.mp hlevel)
 
 def honestPieces (answers : Answers) (lay : Layer) (tree leaf : Nat) (digits : List Nat) : Pieces :=
   ((List.range (chainCount lay)).map (leafValue answers lay tree leaf digits),

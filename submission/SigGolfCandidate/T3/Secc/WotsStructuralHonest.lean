@@ -144,11 +144,19 @@ theorem sat_privatePair (T : Answers) (tag lay tree position index : Nat) :
   exact QueriesSat.bind (sat_privateHash T _) (QueriesSat.pure' _)
 
 theorem sat_mask (T : Answers) (level index : Nat) : QueriesSat T (HonestQuery T) (T3.mask level index) := by
-  unfold T3.mask
+  unfold T3.mask T3.pairedMask
   exact QueriesSat.bind (sat_privatePair T _ _ _ _ _) (QueriesSat.pure' _)
 
-theorem sat_privateMac (T : Answers) (region : Region) : QueriesSat T (HonestQuery T) (T3.privateMac region) :=
-  sat_privateHash T _
+theorem sat_privateMac (T : Answers) (region : Region) : QueriesSat T (HonestQuery T) (T3.privateMac region) := by
+  unfold T3.privateMac T3.privateMacKey
+  exact QueriesSat.bind (QueriesSat.bind (sat_privateHash T _) (QueriesSat.bind
+    (sat_privateHash T _) (QueriesSat.pure' _))) (QueriesSat.pure' _)
+
+theorem sat_maskedLevel (T : Answers) (nodes : List Digest) (level : Nat) :
+    QueriesSat T (HonestQuery T) (T3.maskedLevel nodes level) := by
+  unfold T3.maskedLevel T3.pairedMask
+  exact QueriesSat.bind (QueriesSat.mapM _ _ fun _ _ =>
+    QueriesSat.bind (sat_privatePair T _ _ _ _ _) (QueriesSat.pure' _)) (QueriesSat.pure' _)
 
 theorem sat_privateNonce (T : Answers) (message : Message) :
     QueriesSat T (HonestQuery T) (T3.privateNonce message) := by
@@ -541,8 +549,7 @@ theorem sat_keygenPayload (T : Answers) : QueriesSat T (HonestQuery T) keygenPay
   refine QueriesSat.bind (sat_buildTree T 0 0 0 [] (Cost.validDigits_nil 0) (by decide)) ?_
   generalize evalWithAnswerFn T (T3.buildTree 0 0 0 []) = x
   obtain ⟨levels, values⟩ := x
-  refine QueriesSat.bind (QueriesSat.mapM _ _ fun level _ => QueriesSat.mapM _ _ fun i _ =>
-    QueriesSat.bind (sat_mask T _ _) (QueriesSat.pure' _)) (QueriesSat.pure' _)
+  exact QueriesSat.bind (QueriesSat.mapM _ _ fun level _ => sat_maskedLevel T _ _) (QueriesSat.pure' _)
 
 /-- **Honest key generation issues only honest queries.** -/
 theorem sat_keygen (T : Answers) : QueriesSat T (HonestQuery T) keygen := by
@@ -556,30 +563,8 @@ theorem sat_keygen (T : Answers) : QueriesSat T (HonestQuery T) keygen := by
 
 theorem sat_topPath (T : Answers) (cache : Cache) (leaf : Nat) (hleaf : leaf < 4096) :
     QueriesSat T (HonestQuery T) (topPath cache leaf) := by
-  have hs : leaf ^^^ 1 < 4096 := Nat.xor_lt_two_pow (n := 12) hleaf (by decide)
-  have hp : leaf / 2 ^^^ 1 < 2048 := Nat.xor_lt_two_pow (n := 11) (by omega) (by decide)
   unfold topPath
-  refine QueriesSat.bind (sat_buildLeaf T 0 0 _ [] (Cost.validDigits_nil 0) false (by decide) (by omega)) ?_
-  refine QueriesSat.bind (sat_buildLeaf T 0 0 _ [] (Cost.validDigits_nil 0) false (by decide) (by omega)) ?_
-  refine QueriesSat.bind (sat_buildLeaf T 0 0 _ [] (Cost.validDigits_nil 0) false (by decide) (by omega)) ?_
-  refine QueriesSat.bind ?_ ?_
-  · rw [Correctness.eval_buildLeaf_root T 0 0 _ [] (Cost.validDigits_nil 0),
-      Correctness.eval_buildLeaf_root T 0 0 _ [] (Cost.validDigits_nil 0)]
-    apply sat_nodeHash
-    have hdiv : (leaf / 2 ^^^ 1) * 2 / 2 = leaf / 2 ^^^ 1 := by omega
-    refine Or.inr ⟨.node 0 0 0 ((leaf / 2 ^^^ 1) * 2 / 2), ⟨by decide, by decide, ?_⟩, ?_⟩
-    · rw [hdiv]
-      exact hp
-    · show pad64 (nodeInputP 3 0 0 (2048 + (leaf / 2 ^^^ 1) * 2 / 2) _ 0 _) =
-        pad64 (nodeInputP 3 (0 : Layer).val 0 (2 ^ (height 0 - 0 - 1) + (leaf / 2 ^^^ 1) * 2 / 2)
-          (treeValue (builtTree T 0 0) 0 (2 * ((leaf / 2 ^^^ 1) * 2 / 2))) 0
-          (treeValue (builtTree T 0 0) 0 (2 * ((leaf / 2 ^^^ 1) * 2 / 2) + 1)))
-      rw [hdiv, Correctness.builtTree_leaf T 0 0 _ (by change 2 * (leaf / 2 ^^^ 1) < 4096; omega),
-        Correctness.builtTree_leaf T 0 0 _ (by change 2 * (leaf / 2 ^^^ 1) + 1 < 4096; omega),
-        show 2 * (leaf / 2 ^^^ 1) = (leaf / 2 ^^^ 1) * 2 by omega]
-      rfl
-  · exact QueriesSat.bind (QueriesSat.mapM _ _ fun level _ => QueriesSat.bind (sat_mask T _ _)
-      (QueriesSat.pure' _)) (QueriesSat.pure' _)
+  exact QueriesSat.mapM _ _ fun level _ => QueriesSat.bind (sat_mask T _ _) (QueriesSat.pure' _)
 
 theorem sat_signTop (T : Answers) (cache : Cache) (leaf : Nat) (digits : List Nat)
     (hvalid : Cost.ValidDigits 0 digits) (hleaf : leaf < 4096) :

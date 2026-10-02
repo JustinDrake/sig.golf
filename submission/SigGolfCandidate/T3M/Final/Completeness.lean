@@ -47,7 +47,7 @@ theorem keygen_value (P : Pending) (sk : SecretKey) :
   value_of_counts (F := fun p : Digest × Cache => some ((p.1 : PublicKey), cacheB p.2)) (P.keygen_run_counts sk)
 
 set_option maxRecDepth 100000 in
-theorem sign_value (P : Pending) (sk : SecretKey) (cache : Bytes 32768) (m : Message) :
+theorem sign_value (P : Pending) (sk : SecretKey) (cache : Bytes 131072) (m : Message) :
     (fun r => r.value) <$> submission.run .sign (sk, cache, m) =
       Option.map sigB <$> mrealize sk (sign (cacheDec cache) m) :=
   value_of_counts (F := Option.map sigB) (P.sign_refines sk cache m)
