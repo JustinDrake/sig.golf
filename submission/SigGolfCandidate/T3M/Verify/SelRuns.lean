@@ -45,7 +45,7 @@ def bbE (c : Nat) : E := .bin .sll (.bin .or (.bin .and (gpE c) (cw 7)) (cw 8)) 
 def xE (c j : Nat) : E := .bin .or (.bin .and (.bin .srl (gpE c) (cw (3 + 8 * j))) (cw 255)) (bbE c)
 
 /-- Start of coordinate `c`'s selection code (`selStart 7 = 359 = fts_setup`). -/
-def selStart (c : Nat) : Nat := [23, 71, 120, 167, 216, 263, 312, 359].getD c 0
+def selStart (c : Nat) : Nat := [23, 71, 120, 167, 216, 263, 312, 394].getD c 0
 def selJoin (c : Nat) : Nat := selStart (c + 1)
 
 /-- Extraction length (1 or 3 instructions). -/
