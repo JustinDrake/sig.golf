@@ -5,7 +5,7 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
-The claim C=10288 is accepting verifier bound10233 plus witness charge55.
+The claim C=10257 is accepting verifier bound10202 plus witness charge55.
 This candidate retains the accepted ordered root-children message construction and adds
 length-separated leaf header reuse, a preserved selector threshold, a reversible
 top heap address reflection, carried upper-layer leaf headers, and rotated encoding
@@ -55,7 +55,7 @@ relabelled heap field, then take two known directions without branch tests.
 Nonroot entries use copied suffixes without a join; the root retains its join.
 Short segments retain parity-only guards and normalize ignored lookahead in
 the abstract signature. The compressed-tree certificate bounds all decoded
-segment costs by2322, including the exact final/root segment exception.
+segment costs by2291, including the exact final/root segment exception.
 
 The signer and expander share a straight-line selector in existing padding.
 Their oracle-query sequences match the byte reference; no extra hash queries
@@ -97,7 +97,7 @@ theorem layout_offsets : submission.layout =
   { message := 32, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4352 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10288 :=
+theorem certificate : SigGolf.Certificate submission 10257 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

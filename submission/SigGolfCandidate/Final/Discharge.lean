@@ -726,7 +726,7 @@ theorem recoverRun_cost_le (f : QueryImpl HashSpec Id)
     (parameter : PublicParameter) (index : Index)
     (leaves : IndexGroup → FtsLeaf) (fts : FtsSignature) (r : PorsMachine.Run)
     (hrun : PorsMachine.recoverRun f parameter index (slotValue leaves) fts = some r) :
-    cheapSegments (decodedFolds fts)+extra ((decodedFolds fts).getLastD 0)≤2322 := by
+    cheapSegments (decodedFolds fts)+extra ((decodedFolds fts).getLastD 0)≤2291 := by
   obtain ⟨p,q,fl,fr,cl,cr,ha,hk,left,right,hfold,hcred⟩ :=
     SiggolfReverseRootLast.recoverRun_root_decomposition credit f parameter index leaves fts r hrun
   obtain ⟨slot,hperm,hsorted,hsegments,hfolds,hadm,hbij⟩ :=
@@ -1255,7 +1255,7 @@ theorem porsRoot_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
     (leaves : IndexGroup → FtsLeaf) (node : Ref.Val)
     (hrun : evalWithAnswerFn hash
       (Ref.porsRoot index (List.ofFn fun r => (leaves r).val) wl) = some node) :
-    decodedCostRem wl 0 ≤ 2322 := by
+    decodedCostRem wl 0 ≤ 2291 := by
   let f : QueryImpl SphincsSecurity.HashSpec Id := fun q => hash (fmtQ q)
   have he := congrArg (evalWithAnswerFn hash) (porsRoot_eq index wl hl leaves)
   rw [hrun, evalWithAnswerFn_map, Final.evalWithAnswerFn_relabel,
@@ -1271,7 +1271,7 @@ theorem porsRoot_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
 theorem verifyList_exact_cost (hash : SigGolfCandidate.Legacy.Hash)
     (ml pkl wl : List Byte) (hl : wl.length = 16384)
     (hverify : evalWithAnswerFn hash (Ref.verifyList ml pkl wl) = true) :
-    decodedCostRem wl 0 ≤ 2322 := by
+    decodedCostRem wl 0 ≤ 2291 := by
   unfold Ref.verifyList at hverify
   cases hc : Ref.countersOk wl with
   | false => simp [hc] at hverify
@@ -1303,7 +1303,7 @@ zero-inclusive compressed-tree certificate, with the final root cost restored. -
 theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
     (hpk : pkl.length = 16) (hwl : wl.length = 16384) (s : MachineState)
     (hs : InitOK ml pkl wl s) :
-    GoodQ s fuelBound cycleBoundAll True 10233 (cc (verifyList ml pkl wl) Kb) := by
+    GoodQ s fuelBound cycleBoundAll True 10202 (cc (verifyList ml pkl wl) Kb) := by
   intro F hF
   have hg := main_good_decoded ml pkl wl hml hpk hwl s hs F hF
   refine ⟨hg.1, fun hash => ⟨(hg.2 hash).1, (hg.2 hash).2.1, fun hsucc => ⟨trivial, ?_⟩⟩⟩
@@ -1320,7 +1320,7 @@ theorem main_good_tight (ml pkl wl : List Byte) (hml : ml.length = 32)
 
 theorem verify_good_tight (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (s : MachineState) (hs : initialState submission .verify input = some s) :
-    GoodQ s fuelBound cycleBoundAll True 10233
+    GoodQ s fuelBound cycleBoundAll True 10202
       (cc (verifyRef input.1 input.2.1 input.2.2) Kb) := by
   obtain ⟨m, pk, w⟩ := input
   exact main_good_tight _ _ _ (length_toList m) (length_toList pk)
@@ -1331,7 +1331,7 @@ over hash answers and arbitrary witnesses. The witness charge is separate. -/
 theorem verify_accept_cycles_tight (hash : Hash)
     (input : SigGolfCandidate.Legacy.Input submission.sizes .verify)
     (h : (submission.runWith hash .verify input).value = some ()) :
-    (submission.runWith hash .verify input).cycles ≤ 10233 := by
+    (submission.runWith hash .verify input).cycles ≤ 10202 := by
   obtain ⟨s, hs⟩ := init_exists input
   have hg := (verify_good_tight input s hs CYCLE_LIMIT (by unfold CYCLE_LIMIT fuelBound; norm_num)).2 hash
   rw [runWith_eq submission hash .verify input s hs, image_eq] at h ⊢
