@@ -241,8 +241,7 @@ theorem authenticatedSign_hashOnly (published : T3.Cache) (request : Request) :
     SourceReplay.HashOnly (FullGame.authenticatedSign published request) := by
   unfold FullGame.authenticatedSign
   apply SourceQueries.bind_allowed SourceReplay.IsHash
-  · unfold privateMac privateHash
-    exact (allQueriesSatisfy_query_iff _ _).mpr trivial
+  · exact SourceQueries.privateMac_allowed SourceReplay.IsHash (fun _ => trivial) request.cache.region
   · intro tag
     rcases Classical.em (request.cache = published) with h | h
     · rw [if_pos h]

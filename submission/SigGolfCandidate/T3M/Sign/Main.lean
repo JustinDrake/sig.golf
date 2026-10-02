@@ -39,13 +39,13 @@ theorem kernels (sk : BitVec 256) : Kernels sk := ⟨digestSearchSpec sk, counte
 /-- Cycle bound of the sign phase (before the final `ECALL`). -/
 def signC : Nat := frontC + dsCost + midC
 
-theorem signC_eq : signC = 3612954843 := by rfl
+theorem signC_eq : signC = 3615440586 := by rfl
 
 theorem signC_lt : signC + 1 < CYCLE_LIMIT := by
   rw [signC_eq]; norm_num [CYCLE_LIMIT]
 
 section phase
-variable {sk : SecretKey} {cache : Bytes 32768}
+variable {sk : SecretKey} {cache : Bytes 131072}
 
 /-- **Sign on the machine** (given layer 0). -/
 theorem sign_tbsim_of (hL0 : L0Spec sk cache) (m : Message) :
@@ -54,19 +54,19 @@ theorem sign_tbsim_of (hL0 : L0Spec sk cache) (m : Message) :
 
 /-- The signature buffer at `HALT(0)`. -/
 theorem payPost_output {sig : Signature} {u : MachineState}
-    (h : ∀ k < 358, DigAt u (SIG + 16 * k) ((sigDigests sig).getD k 0)) :
+    (h : ∀ k < 355, DigAt u (SIG + 16 * k) ((sigDigests sig).getD k 0)) :
     readOutput submission.sizes submission.layout .sign u = sigB sig := by
   have hd : DigsAt u SIG (sigDigests sig) := fun k hk => h k (by rw [length_sigDigests] at hk; exact hk)
   have hw := hd.words
   rw [length_sigDigests] at hw
-  have hl : ((sigDigests sig).flatMap (bytesLE 16)).length = 8 * 716 := by
+  have hl : ((sigDigests sig).flatMap (bytesLE 16)).length = 8 * 710 := by
     have : ∀ ds : List Digest, (ds.flatMap (bytesLE 16)).length = 16 * ds.length := fun ds => by
       induction ds with
       | nil => rfl
       | cons d ds ih => rw [List.flatMap_cons, List.length_append, bytesLE_length, ih, List.length_cons]; ring
     rw [this, length_sigDigests]
-  have e := readBuffer_of_words u SIG 716 ((sigDigests sig).flatMap (bytesLE 16)) (by decide) (by decide) hl hw
-  show readBuffer u SIG (8 * 716) = sigB sig
+  have e := readBuffer_of_words u SIG 710 ((sigDigests sig).flatMap (bytesLE 16)) (by decide) (by decide) hl hw
+  show readBuffer u SIG (8 * 710) = sigB sig
   rw [e, sigB, serialize_eq]
 
 /-- **Sign refinement** (given layer 0): value, calls and compressions of the phase are Core's
@@ -95,17 +95,17 @@ theorem sign_terminates_of (hL0 : L0Spec sk cache) (hash : Hash) (m : Message) :
 
 end phase
 
-/-- **Sign refinement.** For every secret key, every cache (also a tampered one, rejected after the one MAC
-query) and every message: value, calls and compressions of the sign phase are those of Core's
+/-- **Sign refinement.** For every secret key, every cache (also a tampered one, rejected after the two MAC-key
+queries) and every message: value, calls and compressions of the sign phase are those of Core's
 `sign (cacheDec cache) m`, with the output `sigB`. -/
-theorem sign_refines (sk : SecretKey) (cache : Bytes 32768) (m : Message) :
+theorem sign_refines (sk : SecretKey) (cache : Bytes 131072) (m : Message) :
     (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$> submission.run .sign (sk, cache, m) =
       (fun p => (p.1.map sigB, p.2.1, p.2.2)) <$> countBoth (mrealize sk (sign (cacheDec cache) m)) :=
   sign_refines_of (l0Spec_of (counterSearchSpec sk)) m
 
 /-- **Sign termination.** Under every fixed oracle and for every input: finished, within
-`signC + 1 = 3,612,954,844 < 2^32` cycles. -/
-theorem sign_terminates (hash : Hash) (sk : SecretKey) (cache : Bytes 32768) (m : Message) :
+`signC + 1 = 3,615,440,587 < 2^32` cycles. -/
+theorem sign_terminates (hash : Hash) (sk : SecretKey) (cache : Bytes 131072) (m : Message) :
     (submission.runWith hash .sign (sk, cache, m)).finished = true ∧
       (submission.runWith hash .sign (sk, cache, m)).cycles < CYCLE_LIMIT :=
   sign_terminates_of (l0Spec_of (counterSearchSpec sk)) hash m

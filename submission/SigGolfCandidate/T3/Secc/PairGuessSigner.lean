@@ -90,10 +90,12 @@ theorem privateNonce_free (message : Message) : AllQueriesSatisfy (privateNonce 
   cases hf
 
 theorem privateMac_free (region : Region) : AllQueriesSatisfy (privateMac region) FtsFree := by
-  unfold privateMac privateHash
-  refine (allQueriesSatisfy_query_iff _ _).mpr ?_
-  rintro ⟨f, hf⟩
-  cases hf
+  have hquery (i : Nat) : AllQueriesSatisfy (privateHash (.inl (header 14 0 0 0 i))) FtsFree := by
+    exact (allQueriesSatisfy_query_iff _ _).mpr (not_isFtsPair_header (by decide : 14 % 256 ≠ 8))
+  unfold privateMac privateMacKey
+  apply bind_allowed FtsFree
+  · exact bind_allowed FtsFree (hquery 0) (fun _ => bind_allowed FtsFree (hquery 1) (fun _ => pure_allowed _ _))
+  · intro key; exact pure_allowed _ _
 
 theorem chainStep_free (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
     AllQueriesSatisfy (shortHash (chainInput lay tree leaf i step value)) FtsFree := by
@@ -117,7 +119,7 @@ theorem nodeHash_free {tag : Nat} (lay tree heap : Nat) (left right : Digest) (h
   exact shortHash_free _ _ _ _ _ _ ht
 
 theorem mask_free (level index : Nat) : AllQueriesSatisfy (mask level index) FtsFree := by
-  unfold mask
+  unfold mask pairedMask
   exact bind_allowed FtsFree (privatePair_free _ _ _ _ (by decide)) fun _ => pure_allowed _ _
 
 theorem buildLeaf_free (lay : Layer) (tree leaf : Nat) (digits : List Nat) (signatureOnly : Bool) :
@@ -163,13 +165,19 @@ theorem buildTree_free (lay : Layer) (tree selected : Nat) (digits : List Nat) :
   · intro state
     exact bind_allowed FtsFree (buildLevels_free _ _ _ _ (by decide)) fun _ => pure_allowed _ _
 
+theorem maskedLevel_free (nodes : List Digest) (level : Nat) :
+    AllQueriesSatisfy (maskedLevel nodes level) FtsFree := by
+  unfold maskedLevel pairedMask
+  apply bind_allowed FtsFree
+  · exact mapM_allowed FtsFree _ _ (fun pair => bind_allowed FtsFree (privatePair_free _ _ _ _ (by decide)) (fun _ => pure_allowed _ _))
+  · intro _; exact pure_allowed _ _
+
 theorem keygenPayload_free : AllQueriesSatisfy keygenPayload FtsFree := by
   unfold keygenPayload
   apply bind_allowed FtsFree (buildTree_free _ _ _ _)
   intro built
   apply bind_allowed FtsFree
-  · exact mapM_allowed FtsFree _ _ fun level => mapM_allowed FtsFree _ _ fun i =>
-      bind_allowed FtsFree (mask_free _ _) fun _ => pure_allowed _ _
+  · exact mapM_allowed FtsFree _ _ (fun level => maskedLevel_free _ _)
   · intro _
     exact pure_allowed _ _
 
@@ -216,19 +224,8 @@ theorem forestPk_free (index : Nat) (roots : List Digest) : AllQueriesSatisfy (f
 
 theorem topPath_free (cache : T3.Cache) (leaf : Nat) : AllQueriesSatisfy (topPath cache leaf) FtsFree := by
   unfold topPath
-  apply bind_allowed FtsFree (buildLeaf_free _ _ _ _ _)
-  intro sibling
-  apply bind_allowed FtsFree (buildLeaf_free _ _ _ _ _)
-  intro left
-  apply bind_allowed FtsFree (buildLeaf_free _ _ _ _ _)
-  intro right
-  apply bind_allowed FtsFree (nodeHash_free _ _ _ _ _ (by decide))
-  intro siblingPair
-  apply bind_allowed FtsFree
-  · exact mapM_allowed FtsFree _ _ fun level =>
-      bind_allowed FtsFree (mask_free _ _) fun _ => pure_allowed _ _
-  · intro _
-    exact pure_allowed _ _
+  exact mapM_allowed FtsFree _ _ fun level =>
+    bind_allowed FtsFree (mask_free _ _) fun _ => pure_allowed _ _
 
 theorem signTop_free (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
     AllQueriesSatisfy (signTop cache leaf digits) FtsFree := by

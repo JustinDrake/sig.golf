@@ -17,8 +17,8 @@ For `1 ≤ q ≤ budgetSplit` (x = q/2^128 ≤ 2^-14):
       ≤ (151/100)·x + rest                                                 (rates ≤ 151/100; reference_class_budget)
       ≤ smallBound q,
 
-with `rest = r·q·e/n + nearTerm q + pairTerm q + 2^-700 ≤ (1/400 + 1/1000)·x + 106·x² + 2^-700`; the closing allowances
-are `7/4`, `2^11`, `2^-132` (first order `151/100 + 1/400 + 1/1000 ≤ 7/4`).
+with `rest = r·q·e/n + nearTerm q + pairTerm q + 2^-700 ≤ (1 / 25 + 1/1000)·x + 407·x² + 2^-700`; the closing allowances
+are `7/4`, `2^9`, `2^-132` (first order `151/100 + 1 / 25 + 1/1000 ≤ 7/4`).
 
 Every primitive bound is imported (C: two-edge, contacts, two contacts, marker-first restart; E: encoding match, marker
 sum, contact-first; S: structural; F2: transport, counts). The only hypothesis is the case-(C) contract
@@ -41,10 +41,10 @@ namespace SmallR
 noncomputable def classRate : ENNReal := 151 / 100
 
 theorem inv_one_sub_le (q : Nat) (hs : q ≤ SeccClosing.budgetSplit) :
-    (1 - (q : ENNReal) / 2 ^ 128)⁻¹ ≤ 16384 / 16383 := by
-  calc (1 - (q : ENNReal) / 2 ^ 128)⁻¹ ≤ (16383 / 16384 : ENNReal)⁻¹ :=
+    (1 - (q : ENNReal) / 2 ^ 128)⁻¹ ≤ 4096 / 4095 := by
+  calc (1 - (q : ENNReal) / 2 ^ 128)⁻¹ ≤ (4095 / 4096 : ENNReal)⁻¹ :=
         ENNReal.inv_le_inv.mpr (SeccClosing.one_sub_x_ge_of_small q hs)
-    _ = 16384 / 16383 := ENNReal.inv_div (Or.inl (by simp)) (Or.inl (by simp))
+    _ = 4096 / 4095 := ENNReal.inv_div (Or.inl (by simp)) (Or.inl (by simp))
 
 theorem prefixCoeff_le (q : Nat) (hs : q ≤ SeccClosing.budgetSplit) : prefixCoeff q ≤ classRate := by
   have hx := SeccClosing.x_le_of_small q hs
@@ -54,8 +54,8 @@ theorem prefixCoeff_le (q : Nat) (hs : q ≤ SeccClosing.budgetSplit) : prefixCo
   rw [div_eq_mul_inv _ (1 - x), div_eq_mul_inv _ ((1 - x) ^ 2), div_eq_mul_inv _ (1 - x), ENNReal.inv_pow]
   generalize (1 - x)⁻¹ = u at hu ⊢
   calc ((3 / 2 : ENNReal) + 4 * x + 2 * x ^ 2) * u + 4 * x * u ^ 2 + 2 * 57 * x * u
-      ≤ ((3 / 2 : ENNReal) + 4 * ((2:ENNReal)^14)⁻¹ + 2 * (((2:ENNReal)^14)⁻¹)^2) * (16384/16383) +
-          4 * ((2:ENNReal)^14)⁻¹ * (16384/16383)^2 + 2 * 57 * ((2:ENNReal)^14)⁻¹ * (16384/16383) := by
+      ≤ ((3 / 2 : ENNReal) + 4 * ((2:ENNReal)^14)⁻¹ + 2 * (((2:ENNReal)^14)⁻¹)^2) * (4096/4095) +
+          4 * ((2:ENNReal)^14)⁻¹ * (4096/4095)^2 + 2 * 57 * ((2:ENNReal)^14)⁻¹ * (4096/4095) := by
         gcongr
     _ ≤ 151 / 100 := by
         apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
@@ -70,7 +70,7 @@ theorem encodingCoeff_le (q : Nat) (hs : q ≤ SeccClosing.budgetSplit) : encodi
   generalize (q : ENNReal) / 2 ^ 128 = x at hx hu ⊢
   rw [div_eq_mul_inv _ (1 - x)]
   generalize (1 - x)⁻¹ = u at hu ⊢
-  calc (1 : ENNReal) + 2 * 3306 * x * u ≤ 1 + 2 * 3306 * ((2:ENNReal)^14)⁻¹ * (16384/16383) := by gcongr
+  calc (1 : ENNReal) + 2 * 3306 * x * u ≤ 1 + 2 * 3306 * ((2:ENNReal)^14)⁻¹ * (4096/4095) := by gcongr
     _ ≤ 151 / 100 := by
         apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
         simp (disch := finiteness) only [ENNReal.toReal_add, ENNReal.toReal_mul, ENNReal.toReal_div,
@@ -94,13 +94,13 @@ theorem digestRate_le : 1 + SeccClosing.cacheRate ≤ classRate := by
 /-! ## The remaining terms below the split -/
 
 theorem excess_le (q : Nat) :
-    ((signRatio * q : Nat) : ENNReal) * SeccClosing.excessRate / 2 ^ 128 ≤ (1 / 400) * ((q : ENNReal) / 2 ^ 128) := by
+    ((signRatio * q : Nat) : ENNReal) * SeccClosing.excessRate / 2 ^ 128 ≤ (1 / 25) * ((q : ENNReal) / 2 ^ 128) := by
   rw [SeccClosing.excessRate_def]
   unfold signRatio
   push_cast
   simp only [div_eq_mul_inv]
-  calc (201 : ENNReal) * q * (987 * 100000000⁻¹) * (2 ^ 128)⁻¹
-      = (201 * (987 * 100000000⁻¹)) * (q * (2 ^ 128)⁻¹) := by ring
+  calc (201 : ENNReal) * q * (18400 * 100000000⁻¹) * (2 ^ 128)⁻¹
+      = (201 * (18400 * 100000000⁻¹)) * (q * (2 ^ 128)⁻¹) := by ring
     _ ≤ (1 * 400⁻¹) * (q * (2 ^ 128)⁻¹) := by
         gcongr ?_ * _
         apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
@@ -109,25 +109,25 @@ theorem excess_le (q : Nat) :
         norm_num
 
 theorem nearTerm_le (q : Nat) (hs : q ≤ SeccClosing.budgetSplit) :
-    nearTerm q ≤ 104 * ((q : ENNReal) / 2 ^ 128) ^ 2 + (1 / 1000) * ((q : ENNReal) / 2 ^ 128) := by
+    nearTerm q ≤ 405 * ((q : ENNReal) / 2 ^ 128) ^ 2 + (1 / 1000) * ((q : ENNReal) / 2 ^ 128) := by
   have hg := SeccClosing.div_sub_le_of_small q hs
   unfold nearTerm nearPrice signRatio
   rw [SeccClosing.cacheRate_def, ← div_eq_mul_inv (q : ENNReal)]
-  have hinner : (103 : ENNReal) * q / 2 ^ 128 + 21 * ((201 * q : ℕ) : ENNReal) * ((2 : ENNReal) ^ 25)⁻¹ / 2 ^ 128 +
+  have hinner : (404 : ENNReal) * q / 2 ^ 128 + 21 * ((201 * q : ℕ) : ENNReal) * ((2 : ENNReal) ^ 25)⁻¹ / 2 ^ 128 +
       21 * (2 : ENNReal)⁻¹ ^ 700 =
-      (103 + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹) * ((q : ENNReal) / 2 ^ 128) + 21 * (2 : ENNReal)⁻¹ ^ 700 := by
+      (404 + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹) * ((q : ENNReal) / 2 ^ 128) + 21 * (2 : ENNReal)⁻¹ ^ 700 := by
     push_cast
     simp only [div_eq_mul_inv]
     ring
   rw [hinner]
   generalize (q : ENNReal) / 2 ^ 128 = x at hg ⊢
   generalize (q : ENNReal) / ((2 ^ 128 - q : ℕ) : ENNReal) = g at hg ⊢
-  calc g * ((103 + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹) * x + 21 * (2 : ENNReal)⁻¹ ^ 700)
-      ≤ (16384 / 16383 * x) * ((103 + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹) * x + 21 * (2 : ENNReal)⁻¹ ^ 700) := by
+  calc g * ((404 + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹) * x + 21 * (2 : ENNReal)⁻¹ ^ 700)
+      ≤ (4096 / 4095 * x) * ((404 + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹) * x + 21 * (2 : ENNReal)⁻¹ ^ 700) := by
         gcongr
-    _ = (16384 / 16383 * (103 + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹)) * x ^ 2 +
-          (16384 / 16383 * (21 * (2 : ENNReal)⁻¹ ^ 700)) * x := by ring
-    _ ≤ 104 * x ^ 2 + (1 / 1000) * x := by
+    _ = (4096 / 4095 * (404 + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹)) * x ^ 2 +
+          (4096 / 4095 * (21 * (2 : ENNReal)⁻¹ ^ 700)) * x := by ring
+    _ ≤ 405 * x ^ 2 + (1 / 1000) * x := by
         gcongr
         · apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
           simp (disch := finiteness) only [ENNReal.toReal_add, ENNReal.toReal_mul, ENNReal.toReal_div,
@@ -150,8 +150,8 @@ theorem pairTerm_le (q : Nat) (hs : q ≤ SeccClosing.budgetSplit) :
   calc (q.choose 2 : ENNReal) * ((2 ^ 128 - q : ℕ) : ENNReal)⁻¹ ^ 2
       ≤ ((q : ENNReal) * q) * ((2 ^ 128 - q : ℕ) : ENNReal)⁻¹ ^ 2 := by gcongr
     _ = ((q : ENNReal) / ((2 ^ 128 - q : ℕ) : ENNReal)) ^ 2 := by rw [div_eq_mul_inv]; ring
-    _ ≤ (16384 / 16383 * ((q : ENNReal) / 2 ^ 128)) ^ 2 := by gcongr
-    _ = (16384 / 16383 : ENNReal) ^ 2 * ((q : ENNReal) / 2 ^ 128) ^ 2 := mul_pow _ _ _
+    _ ≤ (4096 / 4095 * ((q : ENNReal) / 2 ^ 128)) ^ 2 := by gcongr
+    _ = (4096 / 4095 : ENNReal) ^ 2 * ((q : ENNReal) / 2 ^ 128) ^ 2 := mul_pow _ _ _
     _ ≤ 2 * ((q : ENNReal) / 2 ^ 128) ^ 2 := by
         gcongr
         apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
@@ -215,7 +215,7 @@ theorem small_route (hC : CaseCSmallBound) :
   have hex := excess_le q
   have hnear := nearTerm_le q hs
   have hpair := pairTerm_le q hs
-  apply SeccClosing.smallBound_of_le q _ (classRate + 1 / 400 + 1 / 1000) 106 ((2 : ENNReal)⁻¹ ^ 700)
+  apply SeccClosing.smallBound_of_le q _ (classRate + 1 / 25 + 1 / 1000) 407 ((2 : ENNReal)⁻¹ ^ 700)
   · rw [SeccClosing.smallCoefficient_def]
     unfold classRate
     apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
@@ -223,7 +223,7 @@ theorem small_route (hC : CaseCSmallBound) :
       ENNReal.toReal_one]
     norm_num
   · rw [SeccClosing.smallQuadratic_def]
-    exact_mod_cast (by norm_num : (106 : ℕ) ≤ 2 ^ 11)
+    exact_mod_cast (by norm_num : (407 : ℕ) ≤ 2 ^ 9)
   · rw [SeccClosing.smallAbsolute_def, ← ENNReal.inv_pow]
     exact ENNReal.inv_le_inv.mpr (pow_le_pow_right₀ one_le_two (by norm_num : 132 ≤ 700))
   generalize (q : ENNReal) / 2 ^ 128 = x at hcq hex hnear hpair
@@ -237,13 +237,13 @@ theorem small_route (hC : CaseCSmallBound) :
             ((signRatio * q : Nat) : ENNReal) * SeccClosing.excessRate / 2 ^ 128 + nearTerm q + BPair.pairTerm q +
             (2 : ENNReal)⁻¹ ^ 700) := add_le_add hab hc
     _ ≤ (classRate / 2 ^ 128 * EP + classRate / 2 ^ 128 * EE + classRate / 2 ^ 128 * EO) +
-          (classRate / 2 ^ 128 * EM + 1 / 400 * x + (104 * x ^ 2 + 1 / 1000 * x) + 2 * x ^ 2 +
+          (classRate / 2 ^ 128 * EM + 1 / 25 * x + (405 * x ^ 2 + 1 / 1000 * x) + 2 * x ^ 2 +
             (2 : ENNReal)⁻¹ ^ 700) := by gcongr
     _ = classRate / 2 ^ 128 * (EP + EE + EO + EM) +
-          (1 / 400 * x + (104 * x ^ 2 + 1 / 1000 * x) + 2 * x ^ 2 + (2 : ENNReal)⁻¹ ^ 700) := by ring
-    _ ≤ classRate * x + (1 / 400 * x + (104 * x ^ 2 + 1 / 1000 * x) + 2 * x ^ 2 + (2 : ENNReal)⁻¹ ^ 700) := by
+          (1 / 25 * x + (405 * x ^ 2 + 1 / 1000 * x) + 2 * x ^ 2 + (2 : ENNReal)⁻¹ ^ 700) := by ring
+    _ ≤ classRate * x + (1 / 25 * x + (405 * x ^ 2 + 1 / 1000 * x) + 2 * x ^ 2 + (2 : ENNReal)⁻¹ ^ 700) := by
         gcongr
-    _ = (classRate + 1 / 400 + 1 / 1000) * x + 106 * x ^ 2 + (2 : ENNReal)⁻¹ ^ 700 := by ring
+    _ = (classRate + 1 / 25 + 1 / 1000) * x + 407 * x ^ 2 + (2 : ENNReal)⁻¹ ^ 700 := by ring
 
 /-- **SecurityP from the routes**: the small route (with the case-(C) contract) and any large-route bound give `SecurityP` (`SeccClosing.securityP_of_routes`). -/
 theorem securityP_of_small (hC : CaseCSmallBound)

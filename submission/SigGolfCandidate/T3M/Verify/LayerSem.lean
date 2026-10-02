@@ -800,20 +800,20 @@ open SigGolfCandidate.T3 (Digest HashOutput Layer route height chainCount counte
   dataDigits pad64)
 
 theorem totBr_iff {u : MachineState} {a : BitVec 256} (h : AnsAt u a) (hr : ansV a / 2 ^ 64 < 2 ^ 61) (d : Bool) :
-    Br.holds u (totBr d) ↔ d = decide (topSum (ansV a) ≠ 125) := by
+    Br.holds u (totBr d) ↔ d = decide (topSum (ansV a) ≠ 126) := by
   have ht := totE_eval h hr
   simp only [totBr, Br.holds, CmpOp.eval, kw]
-  have e : (totE.eval u != (BitVec.ofNat 64 125 : Word)) = decide (topSum (ansV a) ≠ 125) := by
-    by_cases h0 : topSum (ansV a) = 125
-    · have : totE.eval u = BitVec.ofNat 64 125 := by
+  have e : (totE.eval u != (BitVec.ofNat 64 126 : Word)) = decide (topSum (ansV a) ≠ 126) := by
+    by_cases h0 : topSum (ansV a) = 126
+    · have : totE.eval u = BitVec.ofNat 64 126 := by
         apply BitVec.eq_of_toNat_eq; rw [ht, h0]; rfl
       rw [this, decide_eq_false (by omega)]; rfl
-    · have : totE.eval u ≠ BitVec.ofNat 64 125 := by
+    · have : totE.eval u ≠ BitVec.ofNat 64 126 := by
         intro he; have := congrArg BitVec.toNat he
-        rw [ht, BitVec.toNat_ofNat, show 125 % 2 ^ 64 = 125 by norm_num] at this; exact h0 this
+        rw [ht, BitVec.toNat_ofNat, show 126 % 2 ^ 64 = 126 by norm_num] at this; exact h0 this
       rw [decide_eq_true h0]; exact bne_iff_ne.mpr this
-  show (totE.eval u != (E.c (BitVec.ofNat 64 125)).eval u) = d ↔ _
-  rw [show (E.c (BitVec.ofNat 64 125)).eval u = BitVec.ofNat 64 125 from rfl, e]; exact eq_comm
+  show (totE.eval u != (E.c (BitVec.ofNat 64 126)).eval u) = d ↔ _
+  rw [show (E.c (BitVec.ofNat 64 126)).eval u = BitVec.ofNat 64 126 from rfl, e]; exact eq_comm
 
 /-- The top chain context from the answer `a` (transition copy at `p`): `d0 = v0`, `d1 = v1 << 2`. -/
 def qctxOf (w : WBytes) (index : Nat) (a : BitVec 256) (p : Nat) : QCtx :=
@@ -825,8 +825,8 @@ for `qctxOf`, which fits the answer (`TopFit`). -/
 theorem encBt_step (w : WBytes) (pk : Digest) (index : Nat) (c : Nat) (hc : c < nCopy 0)
     (hidx : index < 2 ^ 31) (t : MachineState) (ht : EncPre w pk index 0 c t) (a : BitVec 256) :
     (decode 0 (a.extractLsb' 0 128) = none → ∃ v k cy, Steps image (writeHash t a) k cy v ∧
-        fetch image v = some (.base .ECALL) ∧ v.getReg .x5 = 1 ∧ v.getReg .x10 = 1 ∧ k ≤ 40 ∧ cy ≤ 46) ∧
-    (decode 0 (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 49 55 s0 ∧
+        fetch image v = some (.base .ECALL) ∧ v.getReg .x5 = 1 ∧ v.getReg .x10 = 1 ∧ k ≤ 42 ∧ cy ≤ 48) ∧
+    (decode 0 (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 52 58 s0 ∧
         (qctxOf w index a (trPc 0 c)).TopOk ∧ (qctxOf w index a (trPc 0 c)).TopFit (a.extractLsb' 0 128) ∧
         (∀ p ∈ (qctxOf w index a (trPc 0 c)).known, s0.getReg p.1 = p.2) ∧
         (qctxOf w index a (trPc 0 c)).Orig0 s0 ∧ (qctxOf w index a (trPc 0 c)).lctx.Orig0 s0 ∧
@@ -854,7 +854,7 @@ theorem encBt_step (w : WBytes) (pk : Digest) (index : Nat) (c : Nat) (hc : c < 
       exact ⟨v, 7, 7, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejRng]),
         hv.regs (.x10, kw 1) (by simp [rejRng]), by norm_num, by norm_num⟩
     · have hr' : ansV a / 2 ^ 64 < 2 ^ 61 := by rw [ansV_hi]; omega
-      have htot : topSum (ansV a) ≠ 125 := by
+      have htot : topSum (ansV a) ≠ 126 := by
         intro htot
         rw [hdec, if_neg (by rw [ansV_hi]; simpa using hr), if_pos htot] at hnone
         cases hnone
@@ -863,14 +863,14 @@ theorem encBt_step (w : WBytes) (pk : Digest) (index : Nat) (c : Nat) (hc : c < 
         rcases hb with rfl | rfl
         · exact (totBr_iff hans hr' true).mpr (by rw [decide_eq_true htot])
         · exact (rngBr_iff hans 61 (by norm_num) false).mpr (by rw [decide_eq_false hr])) (by simp)
-      exact ⟨v, 40, 46, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejTot]),
+      exact ⟨v, 42, 48, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejTot]),
         hv.regs (.x10, kw 1) (by simp [rejTot]), by norm_num, by norm_num⟩
   · intro hsome
     have hr0 : (a.extractLsb' 64 64).toNat / 2 ^ 61 = 0 := by
       by_contra hne
       apply hsome; rw [hdec, if_pos (by rw [ansV_hi]; exact hne)]
     have hr' : ansV a / 2 ^ 64 < 2 ^ 61 := by rw [ansV_hi]; omega
-    have htot : topSum (ansV a) = 125 := by
+    have htot : topSum (ansV a) = 126 := by
       by_contra htot
       apply hsome
       rw [hdec, if_neg (by rw [ansV_hi]; simpa using hr0), if_neg htot]

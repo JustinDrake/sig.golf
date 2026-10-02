@@ -391,15 +391,19 @@ theorem chain_good (c : QCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
       have hrun2 := c.chk_rung i (c.dig i) hi (le_refl _) (by omega) (fun h h' => absurd h0' (by omega))
       obtain ⟨t, hst, hP⟩ := c.headJ_step hc hk h0 i hi hd (i / 4 == 0 && i != 48)
         (fun h => by simp at h; omega) (fun h => by simp at h; omega) hsp hrp hrun1 hrun2 acc s hs
-      refine Verify.GoodQ.steps' hst (hsteps _ _ hP) (by omega) ?_ (fun hq => ⟨hq, ?_⟩)
+      refine Verify.GoodQ.steps' hst (hsteps _ _ hP) (by split <;> omega) ?_ (fun hq => ⟨hq, ?_⟩)
       · unfold chainCost preCost; rw [if_pos h0', if_neg h3]
         by_cases h2 : c.dig i = 2
         · rw [if_pos h2, h2]; norm_num; omega
-        · rw [if_neg h2, if_pos (by omega)]; omega
+        · have hlt : c.dig i < 2 := by omega
+          simp only [if_neg h2, if_pos hlt]
+          omega
       · unfold chainCost preCost; rw [if_pos h0', if_neg h3]
         by_cases h2 : c.dig i = 2
         · rw [if_pos h2, h2]; norm_num; omega
-        · rw [if_neg h2, if_pos (by omega)]; omega
+        · have hlt : c.dig i < 2 := by omega
+          simp only [if_neg h2, if_pos hlt]
+          omega
     · have hn0 : i % 4 ≠ 0 := fun h => h0' (Or.inl h)
       have hrun := c.chk_headR i (by omega) hn0 hd
       obtain ⟨t, hst, hP⟩ := c.headR_step hc hk h0 i hi (by omega) hd hsp
@@ -726,7 +730,7 @@ namespace QCtx
 def cbase (i : Nat) : Nat := (if i % 4 = 0 ∨ i = 48 then 34 else 33) + xCost i
 
 /-- The saving of a maximal digit (the copy instead of a head and the last rung). -/
-def zc (i d : Nat) : Nat := if d = 3 then 1 else if d = 2 then 1 else 0
+def zc (_i d : Nat) : Nat := if d = 3 then 1 else if d = 2 then 1 else 0
 
 theorem chainCost_add (i d : Nat) (hd : d < 4) : chainCost i d + 9 * d + zc i d = cbase i := by
   unfold chainCost zc cbase
@@ -810,14 +814,14 @@ theorem topS_eq (c : QCtx) {value : Digest} (h : c.TopFit value) : c.topS = (dat
   conv_rhs => rw [hD]
   rw [hC]
 
-/-- **The cost of an accepting top chain phase**: `1194 - Z` (the 58 digits sum to `125`). -/
-theorem topCost_accept (c : QCtx) {value : Digest} (h : c.TopFit value) (hsum : (dataDigits 0 value).sum = 125) :
-    c.topCost + c.topZ = 1194 := by
+/-- **The cost of an accepting top chain phase**: `1185 - Z` (the 58 digits sum to `126`). -/
+theorem topCost_accept (c : QCtx) {value : Digest} (h : c.TopFit value) (hsum : (dataDigits 0 value).sum = 126) :
+    c.topCost + c.topZ = 1185 := by
   have := c.topCost_add
   rw [c.topS_eq h, hsum] at this
   omega
 
-/-- Below the new savings threshold, top digits cannot sum to the required 125. -/
+/-- Below the new savings threshold, top digits cannot sum to the required127. -/
 def noSave (_i : Nat) : Nat := 1
 
 theorem digit_le_noSave (i d : Nat) (hd : d < 4) : d ≤ noSave i + 2 * zc i d := by
@@ -853,13 +857,13 @@ theorem triSum_le (c : QCtx) : ∀ n i, i + n ≤ 42 →
     simp only [List.range'_succ, List.map_cons, List.sum_cons]
     omega
 
-theorem topZ_ge_eleven (c : QCtx) {value : Digest} (h : c.TopFit value)
-    (hsum : (dataDigits 0 value).sum = 125) : 11 ≤ c.topZ := by
+theorem topZ_ge_twelve (c : QCtx) {value : Digest} (h : c.TopFit value)
+    (hsum : (dataDigits 0 value).sum = 126) : 12 ≤ c.topZ := by
   have hq := c.quadSum_le 49 0
   have hl := c.triSum_le 9 33 (by decide)
   have hb : ((List.range' 0 49).map noSave).sum = 49 := by decide
   rw [hb] at hq
-  have ht : c.topS = 125 := by rw [c.topS_eq h, hsum]
+  have ht : c.topS = 126 := by rw [c.topS_eq h, hsum]
   unfold topS at ht
   unfold topZ LCtx.zSum
   omega

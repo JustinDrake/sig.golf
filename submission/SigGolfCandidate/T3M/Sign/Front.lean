@@ -1,3 +1,4 @@
+import SigGolfCandidate.T3M.FullCache.MacRun
 import SigGolfCandidate.T3M.Sign.FrontBlocks
 import SigGolfCandidate.T3M.Sign.Kernels
 import SigGolfCandidate.T3M.Sign.Init
@@ -65,10 +66,10 @@ def FrontW (X : Nat) : Prop :=
   (TAG ≤ X ∧ X < TAG + 32) ∨ (MACBLK ≤ X ∧ X < MACBLK + 64) ∨ (MACOUT ≤ X ∧ X < MACOUT + 32) ∨
     (PRIV ≤ X ∧ X < PRIV + 64) ∨ (NONCE ≤ X ∧ X < NONCE + 96) ∨ (RHOOUT ≤ X ∧ X < RHOOUT + 32) ∨
     (SIG ≤ X ∧ X < SIG + 16) ∨ (DIG ≤ X ∧ X < DIG + 64) ∨ (NBUF ≤ X ∧ X < NBUF + 32) ∨
-    (SEL ≤ X ∧ X < SEL + 168)
+    (SEL ≤ X ∧ X < SEL + 168) ∨ (0x70000 ≤ X ∧ X < 0x70040)
 
 /-- At `ds_done` (word 172) after a successful digest search with output `N`. -/
-structure AfterDs (sk : SecretKey) (cache : Bytes 32768) (m : Message) (rho : Digest) (N : HashOutput)
+structure AfterDs (sk : SecretKey) (cache : Bytes 131072) (m : Message) (rho : Digest) (N : HashOutput)
     (t : MachineState) : Prop where
   pc : t.pc = pcOf 172
   x5 : t.getReg .x5 = 0
@@ -85,7 +86,7 @@ structure AfterDs (sk : SecretKey) (cache : Bytes 32768) (m : Message) (rho : Di
   frame : Frame (sinit sk cache m) t FrontW
 
 /-- `Base` at `ds_done`: the private prefix, the loaded region, and the never-written zeros. -/
-theorem AfterDs.base {sk : SecretKey} {cache : Bytes 32768} {m : Message} {rho : Digest} {N : HashOutput}
+theorem AfterDs.base {sk : SecretKey} {cache : Bytes 131072} {m : Message} {rho : Digest} {N : HashOutput}
     {t : MachineState} (h : AfterDs sk cache m rho N t) : Base sk cache t := by
   refine ⟨h.x5, h.p0, h.p8, h.p32, h.p40, h.p48, h.p56, fun k hk => ?_, fun A hA hn => ?_⟩
   · rw [h.frame.get (by sg_omega) (by unfold FrontW; sg_omega), show REGION + 8 * k = CACHE + 8 * (k + 4) by sg_omega,
@@ -195,7 +196,7 @@ theorem cmp_chain (t : MachineState) (hpc : t.pc = pcOf 47) (a tag : BitVec 256)
 
 /-- Cycles of the front up to the digest search (MAC block, MAC, compares, nonce block, nonce,
 `rho` copies). -/
-def frontC : Nat := 46 + 8 * 513 + 16 + 59 + 8 * 2 + 30
+def frontC : Nat := 17 + 2489875 + 1 + 16 + 59 + 8 * 2 + 30
 
 /-- The 16 doublewords of the nonce input `S0 | T7 | S1 | 0^16 | m | 0^32`. -/
 theorem wordsOf_nonce (sk : BitVec 256) (m : T3.Message) :
@@ -213,7 +214,7 @@ theorem wordsOf_nonce (sk : BitVec 256) (m : T3.Message) :
   rfl
 
 section front
-variable {sk : SecretKey} {cache : Bytes 32768} {m : Message}
+variable {sk : SecretKey} {cache : Bytes 131072} {m : Message}
 
 /-- **The front**: the MAC check, the nonce and the digest search, then `payloadRest`. -/
 theorem sign_front (hK : DigestSearchSpec sk) {W : Nat} {Q : Option Signature → MachineState → Prop}
@@ -222,41 +223,43 @@ theorem sign_front (hK : DigestSearchSpec sk) {W : Nat} {Q : Option Signature �
       TBSim image sk t W (payloadRest (cacheDec cache) rho N) Q) :
     TBSim image sk (sinit sk cache m) (frontC + dsCost + W) (sign (cacheDec cache) m) Q := by
   set s0 := sinit sk cache m with hs0
-  obtain ⟨t1, st1, p1, x5, x10, x11, x12, g0, g8, g16, g24, m0, m8, m16, m24, m32, m40, m48, m56, r1, f1⟩ :=
-    blk0_spec s0 (sinit_pc sk cache m)
+  obtain ⟨t1, st1, p1, x5, g0, g8, g16, g24, r1, f1⟩ := blk0_spec s0 (sinit_pc sk cache m)
   have e1 : ∀ X, X < 2 ^ 64 → ¬ ((TAG ≤ X ∧ X < TAG + 32) ∨ (MACBLK ≤ X ∧ X < MACBLK + 64)) →
       t1.getMem (BitVec.ofNat 64 X) = s0.getMem (BitVec.ofNat 64 X) := fun X hX h => f1.get hX h
-  have hv : hashArgumentsValid t1 = true :=
-    hashArgs_const t1 MACBLK 32832 MACOUT x10 x11 x12 (by decide) (by decide) (by decide) (by decide) (by decide)
-  have hq : hashInput t1 = toQ (privateInput sk (.inr (.inr (cacheDec cache).region))) := by
-    obtain ⟨s0a, s0b, s1a, s1b⟩ := sk_words sk
-    refine hashInput_toQ t1 _ 512 MACBLK (privateInput_mac_length sk _) x10 (by decide) (by decide)
-      x11 (by decide) ?_
-    rw [wordsOf_mac']
-    show t1.readWords (BitVec.ofNat 64 MACBLK) (8 + (4092 + 4)) = _
-    rw [readWords_add, readWords_add, show MACBLK + 8 * 8 = REGION from rfl,
-      show REGION + 8 * 4092 = 0x11000 from rfl, readWords_eight, m0, m8, m16, m24, m32, m40, m48, m56,
-      show SK = SK + 8 * 0 from rfl, sinit_sk sk cache m 0 (by decide), sinit_sk sk cache m 1 (by decide),
-      sinit_sk sk cache m 2 (by decide), sinit_sk sk cache m 3 (by decide),
-      frame_readWords f1 REGION 4092 (by decide) (fun i _ h => by sg_omega),
-      frame_readWords f1 0x11000 4 (by decide) (fun i _ h => by sg_omega), sinit_region]
-    have z : ∀ X, (X = 0x11000 ∨ X = 0x11008 ∨ X = 0x11010 ∨ X = 0x11018) →
-        s0.getMem (BitVec.ofNat 64 X) = 0 := fun X hX => sinit_zero sk cache m X (by omega) (by omega)
-    rw [show (4 : Nat) = 2 + 2 from rfl, readWords_add, readWords_two, readWords_two, z 0x11000 (by decide),
-      z (0x11000 + 8) (by decide), z (0x11000 + 8 * 2) (by decide), z (0x11000 + 8 * 2 + 8) (by decide)]
-    simp only [List.append_assoc, List.cons_append, List.nil_append]
+  have hsk : FullCache.SkAt t1 sk := by
+    intro j
+    rw [e1 _ (by sg_omega) (by sg_omega)]
+    exact sinit_sk sk cache m j.val j.isLt
+  have hregion : t1.readWords (BitVec.ofNat 64 REGION) 16380 = wordsOf (List.ofFn (cacheDec cache).region) := by
+    rw [frame_readWords f1 REGION 16380 (by decide) (fun i _ h => by sg_omega)]
+    exact sinit_region sk cache m
   rw [sign_eq]
-  refine TBSim.of_eq (W := 46 + (8 * 513 + (16 + (59 + (8 * 2 + (30 + (dsCost + W))))))) ?_ rfl
+  refine TBSim.of_eq (W := 17 + (2489875 + (1 + (16 + (59 + (8 * 2 + (30 + (dsCost + W)))))))) ?_ rfl
     (by unfold frontC; ring)
   refine TBSim.steps st1 ?_
-  refine TBSim.privateMac_bind (W := 16 + (59 + (8 * 2 + (30 + (dsCost + W))))) (fetch_46 t1 p1) x5 hv hq
-    (fun a => ?_)
-  -- after the MAC: compare with the saved tag
-  set t2 := writeHash t1 a
-  have hwf := Frame.writeHash t1 a MACOUT x12 (by decide)
-  have ha : OutAt t2 MACOUT a := fun k hk => by
-    rw [getMem_writeHash t1 a MACOUT _ x12 (by decide) (by sg_omega)]
-    interval_cases k <;> simp
+  refine TBSim.bind ((FullCache.mac_tsim true sk (cacheDec cache).region t1 p1 x5 hsk hregion).toTBSim (by decide))
+    (fun a tm hm => ?_)
+  obtain ⟨t2, stm, pcm, rm, fm⟩ := blk1432_spec tm hm.pc
+  refine TBSim.steps stm ?_
+  have t2x5 : t2.getReg .x5 = 0 := by rw [rm.get (by simp),hm.x5]
+  have hwf : Frame t1 t2 (fun X => (PRIV ≤ X ∧ X < PRIV+64) ∨
+      (0x70000 ≤ X ∧ X < 0x70040) ∨ (MACOUT ≤ X ∧ X < MACOUT+32)) :=
+    (hm.frame.trans fm).mono (by
+      intro X hX h; rcases h with h | h
+      · exact h
+      · exact h.elim)
+  have ha : OutAt t2 MACOUT a := by
+    have hw : t2.readWords (BitVec.ofNat 64 MACOUT) 4 = wordsOf (bytesLE 32 a) := by
+      rw [frame_readWords fm MACOUT 4 (by decide) (by intro i hi h; exact h)]
+      exact hm.words
+    rw [show (4:Nat)=2+2 from rfl,readWords_add,readWords_two,readWords_two,wordsOf_bytesLE32] at hw
+    simp only [List.cons_append,List.nil_append,List.cons.injEq] at hw
+    intro k hk
+    interval_cases k
+    · exact hw.1
+    · exact hw.2.1
+    · exact hw.2.2.1
+    · exact hw.2.2.2.1
   have ht : OutAt t2 TAG (cacheDec cache).tag := fun k hk => by
     rw [hwf.get (by sg_omega) (by sg_omega)]
     have := sinit_tag sk cache m k hk
@@ -265,7 +268,7 @@ theorem sign_front (hK : DigestSearchSpec sk) {W : Nat} {Q : Option Signature �
     · rw [show TAG + 8 * 1 = TAG + 8 from rfl, g8]; exact this
     · rw [show TAG + 8 * 2 = TAG + 16 from rfl, g16]; exact this
     · rw [show TAG + 8 * 3 = TAG + 24 from rfl, g24]; exact this
-  obtain ⟨heq, hne⟩ := cmp_chain t2 (by rw [pc_writeHash, p1, pcOf_add4]) a _ ha ht
+  obtain ⟨heq, hne⟩ := cmp_chain t2 pcm a _ ha ht
   by_cases hat : a = (cacheDec cache).tag
   swap
   · -- tampered cache: `fail`
@@ -280,11 +283,11 @@ theorem sign_front (hK : DigestSearchSpec sk) {W : Nat} {Q : Option Signature �
   obtain ⟨t4, st4, p4, y10, y11, y12, q0, q8, q32, q40, q48, q56, n0, n8, n16, n24, n32, n40, n48, n56, n64, n72,
     n80, n88, r4, f4⟩ := blk63_spec t3 p3
   have f04 : Frame s0 t4 (fun X => ((TAG ≤ X ∧ X < TAG + 32) ∨ (MACBLK ≤ X ∧ X < MACBLK + 64)) ∨
-      (MACOUT ≤ X ∧ X < MACOUT + 32) ∨ (PRIV ≤ X ∧ X < PRIV + 64) ∨ (NONCE ≤ X ∧ X < NONCE + 96)) :=
+      (MACOUT ≤ X ∧ X < MACOUT + 32) ∨ (PRIV ≤ X ∧ X < PRIV + 64) ∨ (NONCE ≤ X ∧ X < NONCE + 96) ∨ (0x70000 ≤ X ∧ X < 0x70040)) :=
     (((f1.trans hwf).trans f3).trans f4).mono (fun X _ h => by
       rcases h with ((h | h) | h) | h
       · exact Or.inl h
-      · exact Or.inr (Or.inl h)
+      · sg_omega
       · exact h.elim
       · sg_omega)
   have k : ∀ j < 4, t3.getMem (BitVec.ofNat 64 (SK + 8 * j)) = sk.extractLsb' (64 * j) 64 := fun j hj => by
@@ -294,7 +297,7 @@ theorem sign_front (hK : DigestSearchSpec sk) {W : Nat} {Q : Option Signature �
     rw [f3.get (by sg_omega) (fun h => h), hwf.get (by sg_omega) (by sg_omega), e1 _ (by sg_omega) (by sg_omega)]
     exact sinit_msg sk cache m j hj
   have x5' : t4.getReg .x5 = 0 := by
-    rw [r4.get (by decide), r3.get (by decide), getReg_writeHash, x5]
+    rw [r4.get (by decide), r3.get (by decide), t2x5]
   have hv4 : hashArgumentsValid t4 = true :=
     hashArgs_const t4 NONCE 128 RHOOUT y10 y11 y12 (by decide) (by decide) (by decide) (by decide) (by decide)
   have hq4 : hashInput t4 = toQ (privateInput sk (.inr (.inl m))) := by
@@ -337,7 +340,7 @@ theorem sign_front (hK : DigestSearchSpec sk) {W : Nat} {Q : Option Signature �
   obtain ⟨upc, ux5, uadm, unb, usel, ur, uf⟩ := hu
   refine hrest _ N u ?_
   have f06 : Frame s0 t6 (fun X => (((TAG ≤ X ∧ X < TAG + 32) ∨ (MACBLK ≤ X ∧ X < MACBLK + 64)) ∨
-      (MACOUT ≤ X ∧ X < MACOUT + 32) ∨ (PRIV ≤ X ∧ X < PRIV + 64) ∨ (NONCE ≤ X ∧ X < NONCE + 96)) ∨
+      (MACOUT ≤ X ∧ X < MACOUT + 32) ∨ (PRIV ≤ X ∧ X < PRIV + 64) ∨ (NONCE ≤ X ∧ X < NONCE + 96) ∨ (0x70000 ≤ X ∧ X < 0x70040)) ∨
       (RHOOUT ≤ X ∧ X < RHOOUT + 32) ∨ (SIG ≤ X ∧ X < SIG + 16) ∨ (DIG ≤ X ∧ X < DIG + 64)) :=
     ((f04.trans hwf5).trans f6).mono (fun X _ h => by
       rcases h with (h | h) | h

@@ -475,7 +475,7 @@ theorem privateInput_tweak_length (sk : BitVec 256) (tw : BitVec 128) :
     (privateInput sk (.inl tw)).length = 64 := by
   rw [privateInput_tweak]; simp [bytesLE_length, zero16]
 
-/-- The MAC input: `S0 | T14 | S1 | 0^16 | region | 0^32` (513 blocks). -/
+/-- The MAC input: `S0 | T14 | S1 | 0^16 | region | 0^32` (2049 blocks; unused legacy coordinate). -/
 theorem privateInput_mac_eq (sk : BitVec 256) (region : Region) :
     privateInput sk (.inr (.inr region)) = bytesLE 16 (sk.extractLsb' 0 128) ++
       bytesLE 16 (header 14 0 0 0 0) ++ bytesLE 16 (sk.extractLsb' 128 128) ++ zero16 ++
@@ -484,7 +484,7 @@ theorem privateInput_mac_eq (sk : BitVec 256) (region : Region) :
     List.length_ofFn]
 
 theorem privateInput_mac_length (sk : BitVec 256) (region : Region) :
-    (privateInput sk (.inr (.inr region))).length = 32832 := by
+    (privateInput sk (.inr (.inr region))).length = 131136 := by
   rw [privateInput_mac_eq]
   simp only [List.length_append, bytesLE_length, List.length_ofFn, List.length_replicate, zero16]
 
@@ -627,19 +627,19 @@ theorem readBuffer_of_words (t : MachineState) (A m : Nat) (l : List UInt8) (hA 
 /-! ## The cache codec -/
 
 /-- The cache as the organizer's 32,768-byte object (`cacheBytes`, little endian). -/
-def cacheB (c : Cache) : Bytes 32768 := BitVec.ofNat _ (readLE (cacheBytes c))
+def cacheB (c : Cache) : Bytes 131072 := BitVec.ofNat _ (readLE (cacheBytes c))
 
-/-- The inverse of `cacheB`: tag = bytes `[0, 32)`, region = bytes `[32, 32768)`. -/
-def cacheDec (b : Bytes 32768) : Cache :=
+/-- The inverse of `cacheB`: tag = bytes `[0, 32)`, region = bytes `[32, 131072)`. -/
+def cacheDec (b : Bytes 131072) : Cache :=
   ⟨b.extractLsb' 0 256, fun i => UInt8.ofNat (b.toNat / 256 ^ (32 + i.val) % 256)⟩
 
-theorem cacheBytes_length (c : Cache) : (cacheBytes c).length = 32768 := by
+theorem cacheBytes_length (c : Cache) : (cacheBytes c).length = 131072 := by
   simp only [cacheBytes, List.length_append, bytesLE_length, List.length_ofFn]
 
 theorem two_pow_eight_mul (n : Nat) : (2 : Nat) ^ (8 * n) = 256 ^ n := by
   rw [pow_mul]; norm_num
 
-theorem readLE_cacheBytes_lt (c : Cache) : readLE (cacheBytes c) < 2 ^ (8 * 32768) := by
+theorem readLE_cacheBytes_lt (c : Cache) : readLE (cacheBytes c) < 2 ^ (8 * 131072) := by
   have := readLE_lt (cacheBytes c)
   rwa [cacheBytes_length, ← two_pow_eight_mul] at this
 
@@ -663,19 +663,19 @@ theorem cacheDec_cacheB (c : Cache) : cacheDec (cacheB c) = c := by
     simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn, i.isLt]
     simp
 
-theorem cacheB_cacheDec (b : Bytes 32768) : cacheB (cacheDec b) = b := by
+theorem cacheB_cacheDec (b : Bytes 131072) : cacheB (cacheDec b) = b := by
   apply BitVec.eq_of_toNat_eq
   have hb := b.isLt
-  have e2 : (256 : Nat) ^ 32768 = 256 ^ 32736 * 256 ^ 32 := (pow_add 256 32736 32 : _)
-  have hb' : b.toNat < 256 ^ 32736 * 256 ^ 32 := by
+  have e2 : (256 : Nat) ^ 131072 = 256 ^ 131040 * 256 ^ 32 := (pow_add 256 131040 32 : _)
+  have hb' : b.toNat < 256 ^ 131040 * 256 ^ 32 := by
     have h := hb
     rw [two_pow_eight_mul, e2] at h; exact h
   have h256 : (2 : Nat) ^ 256 = 256 ^ 32 := by norm_num
-  have h3 : b.toNat / 256 ^ 32 < 256 ^ 32736 := (Nat.div_lt_iff_lt_mul (by positivity)).mpr hb'
+  have h3 : b.toNat / 256 ^ 32 < 256 ^ 131040 := (Nat.div_lt_iff_lt_mul (by positivity)).mpr hb'
   unfold cacheB cacheDec cacheBytes
   rw [BitVec.toNat_ofNat, readLE_append, readLE_bytesLE, bytesLE_length]
-  have e : List.ofFn (fun i : Fin 32736 => UInt8.ofNat (b.toNat / 256 ^ (32 + i.val) % 256)) =
-      List.ofFn fun i : Fin 32736 => UInt8.ofNat (b.toNat / 256 ^ 32 / 256 ^ i.val % 256) := by
+  have e : List.ofFn (fun i : Fin 131040 => UInt8.ofNat (b.toNat / 256 ^ (32 + i.val) % 256)) =
+      List.ofFn fun i : Fin 131040 => UInt8.ofNat (b.toNat / 256 ^ 32 / 256 ^ i.val % 256) := by
     exact congrArg List.ofFn (funext fun i => by rw [pow_add, Nat.div_div_eq_div_mul])
   rw [e, readLE_ofFn_digits, BitVec.extractLsb'_toNat, Nat.shiftRight_zero, h256, Nat.mod_eq_of_lt h3,
     Nat.mod_add_div]

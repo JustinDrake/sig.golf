@@ -6,7 +6,7 @@ import SigGolfCandidate.T3.Secc.LargeCouplingRoute
 # LR-34 (assembly): the large-route certificate bound and the large route
 
 * `lazy_noFail` — the lazy run from the initial state never fails (its eager average, `run_posterior`, does not);
-* **`bank_cert_le`** — CC's bank inside the lazy router: `Pr[CertOut | lazy router] ≤ q·987/10^8/2^128 +
+* **`bank_cert_le`** — CC's bank inside the lazy router: `Pr[CertOut | lazy router] ≤ q·18400/10^8/2^128 +
   E[mass]/2^128` (`bank_router`, `core_win`, `core_initial`, the mass allowance `slackT`);
 * **`large_cert_bound : LargeCertBound adversary q hq`** — with the certificate coupling `cert_le_lazy`;
 * **`large_route`** — `Pr[CleanWin q | tracedExperiment adversary q hq] ≤ largeBound q` (`large_route_of_cert`), and
@@ -117,7 +117,7 @@ theorem certOut_le_psi (q : Nat) (r : Option (Option (Bool × RouterState)) × L
 /-- **CC's bank inside the lazy router.** -/
 theorem bank_cert_le (hUpub : SeccLaw.publicUniverse ⊆ U) (initLaw : PMF AuxData) (adversary : AdversaryP) (q : Nat) :
     Pr[CertOut | lazyRun (auxLaw initLaw) q (router U adversary q) LargeResidual.initial] ≤
-      (q : ENNReal) * (987 / 100000000) / 2 ^ 128 +
+      (q : ENNReal) * (18400 / 100000000) / 2 ^ 128 +
         (∑' r, Pr[= r | lazyRun (auxLaw initLaw) q (router U adversary q) LargeResidual.initial] *
           (r.2.counters.mass : ENNReal)) / 2 ^ 128 := by
   set L := lazyRun (auxLaw initLaw) q (router U adversary q) LargeResidual.initial with hL
@@ -180,7 +180,7 @@ theorem large_cert_bound (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
       LargeResidual.initial] * (r.2.counters.mass : ENNReal)) = routerMass adversary q := rfl
   rw [hrm, SeccClosing.excessRate_def]
   calc
-    _ = routerMass adversary q / 2 ^ 128 + (q : ENNReal) * (987 / 100000000) / 2 ^ 128 := add_comm _ _
+    _ = routerMass adversary q / 2 ^ 128 + (q : ENNReal) * (18400 / 100000000) / 2 ^ 128 := add_comm _ _
     _ ≤ _ := by
       simp only [add_assoc]
       exact add_le_add le_rfl le_self_add

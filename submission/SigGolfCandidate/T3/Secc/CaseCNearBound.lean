@@ -4,13 +4,13 @@ import SigGolfCandidate.T3.Secc.CaseCNearSign
 # Stream CC: the near bank bound in B-PAIR's lazy forced world
 
 `forced_payoff_le`: for every slot, `ω`, adversary and budget `q`, the expected near payoff of the lazy forced run of
-the world game is at most `q·(103 + 1/16)/2^128`:
+the world game is at most `q·(404 + 1/16)/2^128`:
 
     E_{forcedRun envL slot (worldGameCore hU ω adversary) initL}[nearPayoff q]
       = E_{ghost run}[nearPayoff q ∘ proj]   (run_project)
       ≤ E_{ghost run}[ΦI q]                  (payoff_le_ΦI)
       ≤ ΦI q initG                           (worldGame_ΦI: the handler-level supermartingale)
-      ≤ q·(103 + 1/16)/2^128                 (ΦI_initial).
+      ≤ q·(404 + 1/16)/2^128                 (ΦI_initial).
 -/
 
 namespace SigGolfCandidate.T3.Security.CaseC
@@ -33,7 +33,7 @@ theorem worldGame_ΦI {U : Finset HashInput} (hU : CanonGraph.canonInputs ⊆ U)
 theorem forced_payoff_le {U : Finset HashInput} (hU : CanonGraph.canonInputs ⊆ U) (ω : BPair.Omega U)
     (adversary : AdversaryP) (slot q : Nat) :
     expectedValue (SecretGuessObservation.forcedRun BPair.envL slot (BPair.worldGameCore hU ω adversary) BPair.initL)
-      (nearPayoff q) ≤ (q : ENNReal) * (103 + 1 / 16) / 2 ^ 128 := by
+      (nearPayoff q) ≤ (q : ENNReal) * (404 + 1 / 16) / 2 ^ 128 := by
   unfold SecretGuessObservation.forcedRun
   rw [← projS_initG, expectedValue_project BPair.envL slot _ initG (nearPayoff q)]
   calc
@@ -46,7 +46,7 @@ theorem forced_payoff_le {U : Finset HashInput} (hU : CanonGraph.canonInputs ⊆
 theorem forced_payoff_sum_le {U : Finset HashInput} (hU : CanonGraph.canonInputs ⊆ U) (ω : BPair.Omega U)
     (adversary : AdversaryP) (slot q : Nat) :
     ∑' r, Pr[= r | SecretGuessObservation.forcedRun BPair.envL slot (BPair.worldGameCore hU ω adversary) BPair.initL] *
-      nearPayoff q r ≤ (q : ENNReal) * (103 + 1 / 16) / 2 ^ 128 :=
+      nearPayoff q r ≤ (q : ENNReal) * (404 + 1 / 16) / 2 ^ 128 :=
   forced_payoff_le hU ω adversary slot q
 
 end SigGolfCandidate.T3.Security.CaseC

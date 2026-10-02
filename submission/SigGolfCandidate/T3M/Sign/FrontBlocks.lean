@@ -3,41 +3,27 @@ import SigGolfCandidate.T3M.Sign.Basic
 /-!
 # Sign: block specifications of the front (words 0..152)
 
-`start` (0..45): `t0 = 0`, the cache tag saved to `TAG`, the MAC prefix `S0 | T14 | S1 | 0^16` at
-`MACBLK = 0x8FE0` (its bytes 32..64 overwrite the tag slot), the MAC HASH arguments; 46: the MAC `ECALL`;
-47..62: the four doubleword compares `MACOUT` vs `TAG` (`bne -> fail`); 63..121: the private prefix at
-`PRIV`, the nonce block `S0 | T7 | S1 | 0^16 | m` at `NONCE`, the nonce HASH arguments; 122: the nonce
-`ECALL`; 123..152: `rho` to the signature and to `DIG`, `m` to `DIG + 32`, `I := 0`.
+`start` saves the old tag and jumps to the shared two-key polynomial MAC routine.
+Words47..62 compare its four words with the saved tag;63..121 build the nonce input;
+122queries the nonce, and123..152 copy rho and the message into the digest-search buffer.
 -/
 
 namespace SigGolfCandidate.T3M.Sign
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 open SigGolfCandidate.T3M.Keygen (PRIV SEEDS CHAIN NODE NOUT LOUT LEAFPK MOUT ZDIG DUMMY TOP MACBLK REGION)
 
-/-- `start` (0..45): the tag saved, the MAC prefix, the MAC HASH arguments. -/
+/-- Save the four tag words, then enter the shared polynomial MAC routine. -/
 theorem blk0_spec (s : MachineState) (hpc : s.pc = pcOf 0) :
-    ∃ t, Steps image s 46 46 t ∧ t.pc = pcOf 46 ∧ t.getReg .x5 = 0 ∧
-      t.getReg .x10 = BitVec.ofNat 64 MACBLK ∧ t.getReg .x11 = BitVec.ofNat 64 32832 ∧
-      t.getReg .x12 = BitVec.ofNat 64 MACOUT ∧
+    ∃ t, Steps image s 17 17 t ∧ t.pc = pcOf 1227 ∧ t.getReg .x5 = 0 ∧
       t.getMem (BitVec.ofNat 64 TAG) = s.getMem (BitVec.ofNat 64 CACHE) ∧
       t.getMem (BitVec.ofNat 64 (TAG + 8)) = s.getMem (BitVec.ofNat 64 (CACHE + 8)) ∧
       t.getMem (BitVec.ofNat 64 (TAG + 16)) = s.getMem (BitVec.ofNat 64 (CACHE + 16)) ∧
       t.getMem (BitVec.ofNat 64 (TAG + 24)) = s.getMem (BitVec.ofNat 64 (CACHE + 24)) ∧
-      t.getMem (BitVec.ofNat 64 MACBLK) = s.getMem (BitVec.ofNat 64 SK) ∧
-      t.getMem (BitVec.ofNat 64 (MACBLK + 8)) = s.getMem (BitVec.ofNat 64 (SK + 8)) ∧
-      t.getMem (BitVec.ofNat 64 (MACBLK + 16)) = BitVec.ofNat 64 3585 ∧
-      t.getMem (BitVec.ofNat 64 (MACBLK + 24)) = 0 ∧
-      t.getMem (BitVec.ofNat 64 (MACBLK + 32)) = s.getMem (BitVec.ofNat 64 (SK + 16)) ∧
-      t.getMem (BitVec.ofNat 64 (MACBLK + 40)) = s.getMem (BitVec.ofNat 64 (SK + 24)) ∧
-      t.getMem (BitVec.ofNat 64 (MACBLK + 48)) = 0 ∧ t.getMem (BitVec.ofNat 64 (MACBLK + 56)) = 0 ∧
-      RegsExcept s t [.x5, .x6, .x7, .x10, .x11, .x12, .x28, .x29, .x30] ∧
+      RegsExcept s t [.x5, .x6, .x7, .x29, .x30] ∧
       Frame s t (fun A => (TAG ≤ A ∧ A < TAG + 32) ∨ (MACBLK ≤ A ∧ A < MACBLK + 64)) := by
   refine ⟨_, symRun_sound blk_0 codeAt_0 s hpc (by simp [blk_0.res, rv_simp]),
-    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [blk_0.res, E.eval]
-  · simp [blk_0.res, rv_simp]
-  · simp [blk_0.res, rv_simp]
-  · simp [blk_0.res, rv_simp]
   · simp [blk_0.res, rv_simp]
   all_goals first
     | (simp only [Result.toState_getMem, blk_0.res, TAG, CACHE, MACBLK, SK]; t3n [])
@@ -48,6 +34,15 @@ theorem blk0_spec (s : MachineState) (hpc : s.pc = pcOf 0) :
     simp only [Result.toState_getMem, blk_0.res]
     t3n []
     repeat rw [if_neg (by omega)]
+
+/-- Return from the shared MAC to the existing four-word comparison chain. -/
+theorem blk1432_spec (s : MachineState) (hpc : s.pc = pcOf 1432) :
+    ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 47 ∧
+      RegsExcept s t [] ∧ Frame s t (fun _ => False) := by
+  refine ⟨_, symRun_sound blk_1432 codeAt_1432 s hpc (by simp [blk_1432.res, rv_simp]), ?_, ?_, ?_⟩
+  · simp [blk_1432.res, E.eval]
+  · intro r hr; cases r <;> simp [blk_1432.res, rv_simp] <;> rfl
+  · intro A hA hn; simp [blk_1432.res, rv_simp]
 
 theorem fetch_46 (s : MachineState) (hpc : s.pc = pcOf 46) : fetch image s = some (.base .ECALL) :=
   (codeAt_46.fetch s hpc).trans rfl

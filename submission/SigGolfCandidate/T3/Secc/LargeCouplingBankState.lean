@@ -227,7 +227,7 @@ theorem psi_cert (q : Nat) (st : RouterState) (h : CertGhost st) : 1 ≤ psi q s
       exact List.mem_map_of_mem hp
 
 /-- **The initial potential** (CC's `core_initial`). -/
-theorem psi_initial (q : Nat) : psi q RouterState.initial ≤ (q : ENNReal) * (987 / 100000000) / 2 ^ 128 := by
+theorem psi_initial (q : Nat) : psi q RouterState.initial ≤ (q : ENNReal) * (18400 / 100000000) / 2 ^ 128 := by
   have h0 : reuseC RouterState.initial = 0 := by
     unfold reuseC
     apply ENNReal.tsum_eq_zero.mpr

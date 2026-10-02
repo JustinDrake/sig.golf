@@ -160,7 +160,7 @@ theorem expandLayers_succ (sig : Signature) (index n : Nat) (value : Digest) :
     rcases r' with _ | ⟨a, b⟩ <;> rfl
 
 theorem ltable (lay : Layer) :
-    0x7000 ≤ lP lay ∧ lP lay + 16 * (chainCount lay + height lay) ≤ 0x7000 + 5728 ∧ lP lay % 8 = 0 ∧
+    0x7000 ≤ lP lay ∧ lP lay + 16 * (chainCount lay + height lay) ≤ 0x7000 + 5680 ∧ lP lay % 8 = 0 ∧
     lWC lay % 8 = 0 ∧ lWM lay % 8 = 0 ∧ 0x800 + 64 * (height lay - 1) ≤ lWM lay ∧
     lWM lay + 64 + 64 * (chainCount lay - 1) ≤ lWC lay ∧ lWC lay + 64 ≤ 0x7000 ∧ lD lay + 8 ≤ 0x828 ∧
     0x810 ≤ lD lay ∧ lk lay < 2 := by

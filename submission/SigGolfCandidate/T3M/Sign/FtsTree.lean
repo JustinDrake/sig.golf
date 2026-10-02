@@ -51,7 +51,7 @@ def FlW (A : Nat) : Prop :=
 def flRegs : List Reg := [.x6, .x7, .x10, .x11, .x12, .x18, .x28, .x29, .x30]
 
 /-- Entry facts of coordinate `c`'s tree (index `idx`). -/
-structure FlPre (sk : SecretKey) (cache : Bytes 32768) (c idx : Nat) (s : MachineState) : Prop where
+structure FlPre (sk : SecretKey) (cache : Bytes 131072) (c idx : Nat) (s : MachineState) : Prop where
   base : Base sk cache s
   x2 : s.getReg .x2 = BitVec.ofNat 64 FTS
   x8 : s.getReg .x8 = BitVec.ofNat 64 c
@@ -84,7 +84,7 @@ theorem buildFts_eq (idx c : Nat) : buildFts idx c = (do
     pure (levels, state.2)) := rfl
 
 section loop
-variable {sk : SecretKey} {cache : Bytes 32768} {c idx : Nat} {s0 : MachineState}
+variable {sk : SecretKey} {cache : Bytes 131072} {c idx : Nat} {s0 : MachineState}
   (hpre : FlPre sk cache c idx s0)
 include hpre
 
@@ -291,7 +291,7 @@ def FtW (c idx : Nat) (X : Nat) : Prop := FlW X ∨ LevW (ftsLev c idx) X
 
 /-- **`buildFts`** from `fts_coord` (word 186, `coord = c < 7`): the leaf loop and `build_levels`, exactly;
 back at word 256 with the coordinate tree in the heap at `FTS` and the secrets at `SEC`. -/
-theorem buildFts_tsim {sk : SecretKey} {cache : Bytes 32768} {c idx : Nat} {s : MachineState}
+theorem buildFts_tsim {sk : SecretKey} {cache : Bytes 131072} {c idx : Nat} {s : MachineState}
     (hs : FlPre sk cache c idx s) (hpc : s.pc = pcOf 186) :
     TSim image sk s (3 + 1024 * 105 + 9 + 79904) (3 + 1024 * 126 + 9 + 94233) (1024 * 3 + 2047)
       (1024 * 3 + 2047) (buildFts idx c)

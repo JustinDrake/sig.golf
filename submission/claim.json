@@ -1,13 +1,13 @@
 {
-  "S": 5728,
+  "S": 5680,
   "W": 25240,
-  "K": 32768,
-  "C": 9154,
+  "K": 131072,
+  "C": 9044,
   "layout": {
     "message": 64,
     "secret_key": 128,
     "public_key": 160,
-    "cache": 36864,
+    "cache": 524288,
     "signature": 28672,
     "witness": 2048
   }
