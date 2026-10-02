@@ -11,23 +11,15 @@ import SigGolfCandidate.Ref.Count
 * the oracle input format `fmt` per input kind (`fmt_chainInput`, `fmt_nodeInput`,
   `fmt_porsNodeInput`, `fmt_porsLeafInput`, `fmt_digestInput`, ...);
 * parameter and layout tables (`height_values`, `shiftBelow_values`, `sigLayerOff_values`,
-  `pathOff_values`, `blockOff_eq`, ...);
+  `witLayerOff_values`, ...);
 * expand: every partial witness `expandOf`
-  returns has `witBytes = 16384` bytes (`length_of_expandOf`).
+  returns has `witBytes = 6348` bytes (`length_of_expandOf`).
 -/
 
 namespace SigGolfCandidate.Ref
 open SigGolfCandidate.Legacy
 
 theorem byte_toNat (v : Nat) : (byte v).toNat = v % 256 := by simp [byte]
-
-theorem leNat_append (xs ys : List Byte) :
-    leNat (xs ++ ys) = leNat xs + 256 ^ xs.length * leNat ys := by
-  induction xs with
-  | nil => simp [leNat]
-  | cons b bs ih =>
-    simp only [List.cons_append, leNat, List.length_cons, Nat.pow_succ, ih]
-    ring
 
 theorem leNat_lt (l : List Byte) : leNat l < 256 ^ l.length := by
   induction l with
@@ -141,40 +133,24 @@ theorem fmt_of_digest (x : List Byte) (h : IsDigestFmt x) : fmt x = ⟨0, ofList
   rw [if_neg (fun hc => by have := hc.1.symm.trans h.1; omega),
     if_neg (fun hc => by have := hc.1.symm.trans h.1; omega), if_pos h]
 
-theorem fmt_of_padChain (x : List Byte) (h : IsPadChainFmt x) :
-    fmt x = ⟨0, ofList _ (padChainBlock x)⟩ := by
-  unfold fmt
-  rw [if_neg (fun hc => by have := hc.1.symm.trans h.1; omega),
-    if_neg (fun hc => by have := hc.1.symm.trans h.1; omega),
-    if_neg (fun hc => by have := hc.1.symm.trans h.1; omega), if_pos h]
-
 theorem fmt_of_plain (x : List Byte) (h1 : ¬ IsChainFmt x) (h2 : ¬ IsNodeFmt x)
-    (h3 : ¬ IsDigestFmt x) (h4 : ¬ IsPadChainFmt x) : fmt x = pad64 x := by
-  unfold fmt; rw [if_neg h1, if_neg h2, if_neg h3, if_neg h4]
+    (h3 : ¬ IsDigestFmt x) : fmt x = pad64 x := by
+  unfold fmt; rw [if_neg h1, if_neg h2, if_neg h3]
 
 /-- An input whose tag byte (byte 1) is none of `1, 3, 12` is zero padded. -/
 theorem fmt_of_tag (x : List Byte) (h : x.getD 1 0 ∉ [byte 1, byte 3, byte 12]) :
     fmt x = pad64 x := by
   simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at h
-  exact fmt_of_plain x (fun hc => h.1 hc.2) (fun hc => h.2.1 hc.2) (fun hc => h.2.2 hc.2) (fun hc => h.1 hc.2)
+  exact fmt_of_plain x (fun hc => h.1 hc.2) (fun hc => h.2.1 hc.2) (fun hc => h.2.2 hc.2)
 
-/-- An input of length other than `48, 64, 96, 80` is zero padded. -/
-theorem fmt_of_length (x : List Byte) (h : x.length ≠ 48 ∧ x.length ≠ 64 ∧ x.length ≠ 96 ∧ x.length ≠ 80) :
+/-- An input of length other than `48, 64, 96` is zero padded. -/
+theorem fmt_of_length (x : List Byte) (h : x.length ≠ 48 ∧ x.length ≠ 64 ∧ x.length ≠ 96) :
     fmt x = pad64 x :=
-  fmt_of_plain x (fun hc => h.1 hc.1) (fun hc => h.2.1 hc.1) (fun hc => h.2.2.1 hc.1) (fun hc => h.2.2.2 hc.1)
+  fmt_of_plain x (fun hc => h.1 hc.1) (fun hc => h.2.1 hc.1) (fun hc => h.2.2 hc.1)
 
 theorem getD_one_thInput (t lay tau p j : Nat) (payload : List Byte) :
     (thInput (tweak t lay tau p j) payload).getD 1 0 = byte t := by
   simp [thInput, tweak]
-
-/-- A `thInput` whose tag is not `1` is no W1a padded chain input. -/
-theorem not_padChain_thInput (t lay tau p j : Nat) (pl : List Byte) (ht : byte t ≠ byte 1) :
-    ¬ IsPadChainFmt (thInput (tweak t lay tau p j) pl) :=
-  fun hd => ht ((getD_one_thInput t lay tau p j pl).symm.trans hd.2)
-
-/-- An input of length other than `80` is no W1a padded chain input. -/
-theorem not_padChain_of_length (x : List Byte) (h : x.length ≠ 80) : ¬ IsPadChainFmt x :=
-  fun hd => h hd.1
 
 /-- `thInput` with a tag other than `1, 3, 12` is zero padded. -/
 theorem fmt_thInput (t lay tau p j : Nat) (payload : List Byte)
@@ -314,9 +290,6 @@ theorem length_nodeBlock (x : List Byte) (h : x.length = 64) : (nodeBlock x).len
 theorem length_digestBlock (x : List Byte) (h : x.length = 96) : (digestBlock x).length = 64 := by
   simp [digestBlock, slice, h]
 
-theorem length_padChainBlock (x : List Byte) (h : x.length = 80) : (padChainBlock x).length = 64 := by
-  simp [padChainBlock, slice, h]
-
 theorem length_padTo64 (x : List Byte) : (padTo64 x).length = 64 * (padBlocks x.length + 1) := by
   simp only [padTo64, List.length_append, length_zeros, padBlocks]; omega
 
@@ -337,19 +310,15 @@ theorem toList_fmt (x : List Byte) : toList (fmt x).2 = fmtList x := by
   · have e := congrArg (fun q : Query => toList q.2) (fmt_of_digest x h3)
     refine e.trans ((key _ (length_digestBlock x h3.1)).trans ?_)
     unfold fmtList; rw [if_neg h1, if_neg h2, if_pos h3]
-  by_cases h4 : IsPadChainFmt x
-  · have e := congrArg (fun q : Query => toList q.2) (fmt_of_padChain x h4)
-    refine e.trans ((key _ (length_padChainBlock x h4.1)).trans ?_)
-    unfold fmtList; rw [if_neg h1, if_neg h2, if_neg h3, if_pos h4]
-  · have e := congrArg (fun q : Query => toList q.2) (fmt_of_plain x h1 h2 h3 h4)
+  · have e := congrArg (fun q : Query => toList q.2) (fmt_of_plain x h1 h2 h3)
     refine e.trans ((toList_ofList _ _ (length_padTo64 x)).trans ?_)
-    unfold fmtList; rw [if_neg h1, if_neg h2, if_neg h3, if_neg h4]
+    unfold fmtList; rw [if_neg h1, if_neg h2, if_neg h3]
 
 /-- Bytes `0..4` and `8..12` (tag, layer, ... and `tau mod 2^32`) are copied by every case of `fmt`. -/
 theorem getD_fmtList (x : List Byte) (i : Nat) (hi : i < 4 ∨ (8 ≤ i ∧ i < 12)) :
     (fmtList x).getD i 0 = x.getD i 0 := by
   unfold fmtList
-  split_ifs with h1 h2 h3 h4
+  split_ifs with h1 h2 h3
   · unfold chainBlock slice
     simp only [List.getD_eq_getElem?_getD, List.append_assoc]
     rcases hi with hi | hi
@@ -371,15 +340,6 @@ theorem getD_fmtList (x : List Byte) (i : Nat) (hi : i < 4 ∨ (8 ≤ i ∧ i < 
   · unfold digestBlock
     simp only [List.getD_eq_getElem?_getD, List.append_assoc]
     rw [List.getElem?_append_left (by simp [h3.1]; omega), List.getElem?_take_of_lt (by omega)]
-  · unfold padChainBlock slice
-    simp only [List.getD_eq_getElem?_getD, List.append_assoc]
-    rcases hi with hi | hi
-    · rw [List.getElem?_append_left (by simp [h4.1]; omega), List.getElem?_take_of_lt hi]
-    · rw [List.getElem?_append_right (by simp [h4.1]; omega),
-        List.getElem?_append_right (by simp; omega), List.getElem?_append_left (by simp [h4.1]; omega),
-        List.getElem?_take_of_lt (by simp [h4.1]; omega), List.getElem?_drop]
-      simp only [List.length_take, length_le32, h4.1]
-      congr 2; omega
   · unfold padTo64
     simp only [List.getD_eq_getElem?_getD, List.getElem?_append, zeros]
     split
@@ -395,17 +355,12 @@ theorem getD_toList_fmt (x : List Byte) (i : Nat) (hi : i < 4 ∨ (8 ≤ i ∧ i
   rw [toList_fmt, getD_fmtList x i hi]
 
 /-- Every case other than the digest has as many blocks as the zero padding. -/
-theorem blocks_fmt (x : List Byte) (h : ¬ IsDigestFmt x) (h' : ¬ IsPadChainFmt x) :
-    (fmt x).blocks = (pad64 x).blocks := by
+theorem blocks_fmt (x : List Byte) (h : ¬ IsDigestFmt x) : (fmt x).blocks = (pad64 x).blocks := by
   by_cases h1 : IsChainFmt x
   · rw [fmt_of_chain x h1]; show 0 + 1 = padBlocks x.length + 1; rw [h1.1]; rfl
   by_cases h2 : IsNodeFmt x
   · rw [fmt_of_node x h2]; show 0 + 1 = padBlocks x.length + 1; rw [h2.1]; rfl
-  rw [fmt_of_plain x h1 h2 h h']
-
-/-- The W1a padded chain block is one block (its zero padding would be two). -/
-theorem blocks_fmt_padChain (x : List Byte) (h : IsPadChainFmt x) : (fmt x).blocks = 1 := by
-  rw [fmt_of_padChain x h]; rfl
+  rw [fmt_of_plain x h1 h2 h]
 
 /-- The digest block is one block (its zero padding would be two). -/
 theorem blocks_fmt_digest (x : List Byte) (h : IsDigestFmt x) : (fmt x).blocks = 1 := by
@@ -414,9 +369,7 @@ theorem blocks_fmt_digest (x : List Byte) (h : IsDigestFmt x) : (fmt x).blocks =
 theorem blocks_fmt_le (x : List Byte) : (fmt x).blocks ≤ (pad64 x).blocks := by
   by_cases h : IsDigestFmt x
   · rw [blocks_fmt_digest x h]; show 1 ≤ padBlocks x.length + 1; omega
-  by_cases h' : IsPadChainFmt x
-  · rw [blocks_fmt_padChain x h']; show 1 ≤ padBlocks x.length + 1; omega
-  · rw [blocks_fmt x h h']
+  · rw [blocks_fmt x h]
 
 /-! ## Parameter tables -/
 
@@ -426,35 +379,31 @@ theorem shiftBelow_values :
 theorem topH_eq : topH = 11 := rfl
 theorem topN_values : (List.range (topH + 1)).map topN =
     [0, 2048, 3072, 3584, 3840, 3968, 4032, 4064, 4080, 4088, 4092, 4094] := by decide
-theorem regionBytes_eq : regionBytes = 32736 := by decide
-
-theorem cachePadBytes_eq : cachePadBytes = 32768 := by decide
+theorem regionBytes_eq : regionBytes = 65504 := by decide
 theorem porsT_eq : porsT = 16384 := rfl
 theorem porsSegs_eq : porsSegs = 29 := rfl
 
 /-! ## Signature and witness layout -/
 
-theorem headBytes_eq : headBytes = 2128 := rfl
+theorem headBytes_eq : headBytes = 2144 := rfl
 theorem sigLayerOff_values :
-    (List.range (nLayers + 1)).map sigLayerOff = [2128, 2976, 3744, 4512, 5280, 6032] := by
+    (List.range (nLayers + 1)).map sigLayerOff = [2144, 2992, 3760, 4528, 5296, 6048] := by
   decide
 theorem bodyBytes_eq (lay : Nat) : bodyBytes lay = sigLayerBytes lay - 4 := by
   simp only [bodyBytes, sigLayerBytes]; omega
+/-- The witness layer offsets are the signature's plus `280`, so the body copy is one block. -/
+theorem witLayerOff_eq_sig (lay : Nat) (h : lay ≤ nLayers) : witLayerOff lay = sigLayerOff lay + 280 := by
+  simp only [nLayers] at h
+  interval_cases lay <;> decide
 theorem sigBytes_eq_sigLayerOff : sigBytes = sigLayerOff nLayers := by decide
-theorem wStream_eq : wStream = 5504 := rfl
-theorem streamBytes_eq : streamBytes = 9344 := rfl
-theorem wC4_eq : wC4 = 2688 := rfl
-theorem wPaths_eq : wPaths = 2704 := rfl
-theorem pathOff_values :
-    (List.range (nLayers + 1)).map pathOff = [2704, 4032, 4416, 4800, 5184, 5504] := by
+theorem wStream_eq : wStream = 272 := rfl
+theorem streamBytes_eq : streamBytes = 2152 := rfl
+theorem wLayers_eq : wLayers = 2424 := rfl
+theorem witLayerOff_values :
+    (List.range (nLayers + 1)).map witLayerOff = [2424, 3272, 4040, 4808, 5576, 6328] := by
   decide
-theorem wChains_eq : wChains = 2944 := by decide
-theorem blockOff_eq (lay i : Nat) : blockOff lay i = 2944 + 2688 * lay + 64 * i := by
-  simp only [blockOff, wChains_eq, nChains]
-theorem witBytes_eq : witBytes = blockOff nLayers 0 := by decide
-theorem wPi_eq : wPi = 2672 := rfl
-theorem wRho_eq : wRho = 3008 := by unfold wRho; rw [blockOff_eq]
-theorem wSec_eq (s : Nat) : wSec s = 3072 + 64 * s := by unfold wSec; rw [blockOff_eq]; omega
+theorem witCounters_eq : witCounters = 6328 := by decide
+theorem witBytes_eq : witBytes = witCounters + 4 * nLayers := by decide
 
 /-! ## expand: witness length -/
 
@@ -481,57 +430,27 @@ private theorem length_flatten_map_range' (n : Nat) (f : Nat → List Byte) (g :
       ih (fun i hi => hf i (by omega))]
     simp [hf n (by omega)]
 
-theorem length_lowerPaths (sig : List Byte) (hsig : sig.length = sigBytes) :
-    (lowerPaths sig).length = 368 := by
-  have hs : sig.length = 6032 := hsig
-  have hoff : ∀ lay, lay < nLayers → sigLayerOff lay + bodyBytes lay ≤ 6032 := by decide
-  have hpath : ∀ lay, lay < nLayers → (sigPath sig lay).length = 16 * height lay :=
-    fun lay hl => length_slice _ _ _ (by
-      have := hoff lay hl; rw [hs]; simp only [bodyBytes] at this; omega)
-  unfold lowerPaths
-  rw [length_flatten_map_range' _ _ (fun i => 16 * height (i + 1)) (fun i hi =>
-    hpath (i + 1) (by unfold nLayers at *; omega))]
-  decide
-
-/-- The partial witness built by `expand` has `witBytes = 16384` bytes (for a signature of
+/-- The partial witness built by `expand` has `witBytes = 6348` bytes (for a signature of
 `sigBytes` bytes and 15 sorted leaves). -/
 theorem length_witnessList (sig : List Byte) (hsig : sig.length = sigBytes) (v vs segs : List Nat)
     (hvs : vs.length = porsK) : (witnessList sig v vs segs).length = witBytes := by
-  have hs : sig.length = 6032 := hsig
-  have hoff : ∀ lay, lay < nLayers → sigLayerOff lay + bodyBytes lay ≤ 6032 := by decide
+  have hs : sig.length = 6048 := hsig
+  have hoff : ∀ lay, lay < nLayers → sigLayerOff lay + bodyBytes lay ≤ 6048 := by decide
   have hitem : ∀ i, i < porsK → (sigItem sig i).length = 16 := fun i hi =>
     length_slice _ _ _ (by rw [hs]; unfold porsK at hi; omega)
-  have hpath : ∀ lay, lay < nLayers → (sigPath sig lay).length = 16 * height lay :=
-    fun lay hl => length_slice _ _ _ (by
-      have := hoff lay hl; rw [hs]; simp only [bodyBytes] at this; omega)
-  have hrho : (sigRho sig).length = 16 := length_slice _ _ _ (by rw [hs]; decide)
-  have hslot : ∀ lay i, (slotOf sig segs lay i).length = 16 := by
-    intro lay i
-    unfold slotOf
-    split
-    · exact hrho
-    · split
-      · exact hitem _ (by unfold porsK at *; omega)
-      · split
-        · rename_i h
-          exact length_slice _ _ _ (by rw [length_lowerPaths sig hsig]; omega)
-        · split
-          · simp
-          · exact length_zeros 16
-  have hchain : ∀ lay, lay < nLayers → (chainRegion sig segs lay).length = 2688 := by
-    intro lay hl
-    unfold chainRegion
-    rw [length_flatten_map_range _ 64 _ (fun i hi => by
-      simp only [List.length_append, length_zeros, hslot]
-      rw [sigChain, length_slice _ _ _ (by
-        have := hoff lay hl; rw [hs]; simp only [bodyBytes, nChains] at this hi; omega)])]
-    rfl
+  have hbody : ∀ lay, lay < nLayers → (sigLayerBody sig lay).length = bodyBytes lay :=
+    fun lay hl => length_slice _ _ _ (by have := hoff lay hl; rw [hs]; omega)
   unfold witnessList witnessBody
-  simp only [List.length_append, List.length_map, length_zeros, hvs,
-    hpath 0 (by decide), length_flatten_map_range _ _ _ hchain]
+  simp only [List.length_append, List.length_map, List.length_take, length_zeros, hvs,
+    length_flatten_map_range _ _ _ hitem, length_flatten_map_range' _ _ _ hbody]
+  rw [show (sigRho sig).length = 16 from length_slice _ _ _ (by rw [hs]; decide)]
+  have : ((List.range nLayers).map bodyBytes).sum = 3904 := by decide
+  rw [this]
+  have : min streamBytes ((segStream sig segs).length + streamBytes) = streamBytes := by omega
+  rw [this]
   decide
 
-/-- Every witness `expandOf` returns has `witBytes = 16384` bytes. -/
+/-- Every witness `expandOf` returns has `witBytes = 6348` bytes. -/
 theorem length_of_expandOf (sig : List Byte) (hsig : sig.length = sigBytes) (N : Nat)
     (w : List Byte) (h : expandOf sig N = some w) : w.length = witBytes := by
   unfold expandOf at h
@@ -544,122 +463,5 @@ theorem length_of_expandOf (sig : List Byte) (hsig : sig.length = sigBytes) (N :
   · cases h
   cases h
   exact length_witnessList _ hsig _ _ _ (by simp [sortLeaves, leavesOf, porsK])
-
-/-! ## W1: the 16384-byte view of the witness -/
-
-theorem length_extW (w : List Byte) : (extW w).length = witLead + w.length := by
-  unfold extW; rw [List.length_append, length_zeros]
-
-theorem cutW_extW (w : List Byte) : cutW (extW w) = w := by
-  unfold cutW extW; exact List.drop_left' (length_zeros _)
-
-theorem length_cutW (w : List Byte) : (cutW w).length = w.length - witLead := by
-  simp [cutW]
-
-theorem extW_cutW (w : List Byte) (h : w.take witLead = zeros witLead) : extW (cutW w) = w := by
-  unfold extW cutW; rw [← h, List.take_append_drop]
-
-/-- The partial witness starts with the view's zero lead. -/
-theorem take_witnessList (sig : List Byte) (v vs segs : List Nat) :
-    (witnessList sig v vs segs).take witLead = zeros witLead := by
-  unfold witnessList witnessBody
-  simp only [List.append_assoc]
-  exact List.take_left' (by rw [length_zeros]; rfl)
-
-/-- Writing the counters keeps the zero lead. -/
-theorem take_withCounters (w0 : List Byte) (cs : List Nat) (hw : wC4 ≤ w0.length) :
-    (withCounters w0 cs).take witLead = w0.take witLead := by
-  unfold withCounters
-  simp only [List.append_assoc]
-  rw [List.take_append_of_le_length (by simp; rw [wC4_eq] at hw ⊢; unfold witLead; omega),
-    List.take_take, show min witLead wC4 = witLead from rfl]
-
-/-- A tweak slot of the partial witness has 16 bytes. -/
-theorem length_slotOf (sig : List Byte) (hsig : sig.length = sigBytes) (segs : List Nat) (lay i : Nat) :
-    (slotOf sig segs lay i).length = 16 := by
-  have hs : sig.length = 6032 := hsig
-  unfold slotOf
-  split
-  · exact length_slice _ _ _ (by rw [hs]; decide)
-  · split
-    · rename_i h; unfold sigItem; exact length_slice _ _ _ (by rw [hs]; unfold porsK at h; omega)
-    · split
-      · rename_i h
-        exact length_slice _ _ _ (by rw [length_lowerPaths sig hsig]; omega)
-      · split
-        · simp
-        · exact length_zeros 16
-
-/-- The 16384-byte view of the witness cut out of a view with a zero lead is that view. -/
-theorem extW_toList_cutW (w : List Byte) (hl : w.length = 16384) (hz : w.take witLead = zeros witLead) :
-    extW (toList (ofList 13712 (cutW w))) = w := by
-  rw [toList_ofList 13712 _ (by rw [length_cutW, hl]; rfl), extW_cutW w hz]
-
-/-- The view of a honest witness (the partial witness with its counters). -/
-theorem extW_toList_cutW_withCounters (w0 : List Byte) (cs : List Nat) (hl : (withCounters w0 cs).length = 16384)
-    (hw : wC4 ≤ w0.length) (hz : w0.take witLead = zeros witLead) :
-    extW (toList (ofList 13712 (cutW (withCounters w0 cs)))) = withCounters w0 cs :=
-  extW_toList_cutW _ hl (by rw [take_withCounters w0 cs hw, hz])
-
-
-/-! ## W1a: the padded chain step -/
-
-/-- The W1a chain block of a padded chain input: `tw(1, lay, tau, splitP p, j) || pad || v`. -/
-theorem fmt_thInput_padChain (lay tau p j : Nat) (pad : List Byte) (v : Val) (hpad : pad.length = 32)
-    (hv : v.length = 16) (hp : p < 2 ^ 32) :
-    fmt (thInput (tweak 1 lay tau p j) (pad ++ v)) =
-      ⟨0, ofList _ (tweak 1 lay tau (splitP p) j ++ pad ++ v)⟩ := by
-  have hc : IsPadChainFmt (thInput (tweak 1 lay tau p j) (pad ++ v)) :=
-    ⟨by simp [thInput, tweak, hv, hpad, length_P], getD_one_thInput _ _ _ _ _ _⟩
-  rw [fmt_of_padChain _ hc]
-  congr 2
-  unfold padChainBlock slice
-  rw [thInput_split]
-  have e4 : ∀ (l : List Byte) (a b c d : Byte), ([a, b, c, d] ++ l).take 4 = [a, b, c, d] :=
-    fun l a b c d => rfl
-  have d4 : ∀ (l : List Byte) (a b c d : Byte), ([a, b, c, d] ++ l).drop 4 = l :=
-    fun l a b c d => rfl
-  rw [e4, d4, take_app _ (length_le32 p), leNat_le32, Nat.mod_eq_of_lt hp]
-  rw [show (8 : Nat) = 4 + 4 from rfl, ← List.drop_drop, d4, drop_app _ (length_le32 p),
-    show 32 = 4 + 28 from rfl, ← List.drop_drop, d4, show 28 = 4 + 24 from rfl, ← List.drop_drop,
-    drop_app _ (length_le32 p), show 24 = 4 + 20 from rfl, ← List.drop_drop,
-    drop_app _ (length_le32 _), show 20 = 4 + 16 from rfl, ← List.drop_drop,
-    drop_app _ (length_le32 _), drop_app _ length_P,
-    show 64 = 4 + 60 from rfl, ← List.drop_drop, d4, show 60 = 4 + 56 from rfl, ← List.drop_drop,
-    drop_app _ (length_le32 p), show 56 = 4 + 52 from rfl, ← List.drop_drop,
-    drop_app _ (length_le32 _), show 52 = 4 + 48 from rfl, ← List.drop_drop,
-    drop_app _ (length_le32 _), show 48 = 16 + 32 from rfl, ← List.drop_drop, drop_app _ length_P,
-    drop_app _ hpad, take_app _ hpad]
-  have : (le32 (tau % 2 ^ 32) ++ (le32 j ++ (P ++ (pad ++ v)))).take (4 + 4) =
-      le32 (tau % 2 ^ 32) ++ le32 j := by
-    rw [List.take_add, take_app _ (length_le32 _), drop_app _ (length_le32 _), take_app _ (length_le32 _)]
-  rw [this]
-  simp [tweak]
-
-/-- The W1a chain step with a nonzero pad. -/
-theorem fmt_chainInputP_pad (lay tau e i mu : Nat) (pad : List Byte) (v : Val) (hpad : pad.length = 32)
-    (hv : v.length = 16) (hne : pad ≠ zeros 32) (hmu : 1 ≤ mu) (hmu' : mu ≤ 8) (hi : i < 2 ^ 24) :
-    fmt (chainInputP lay tau e i mu pad v) =
-      ⟨0, ofList _ (tweak 1 lay tau (mu - 1 + 256 * i) e ++ pad ++ v)⟩ := by
-  unfold chainInputP
-  rw [if_neg hne, fmt_thInput_padChain _ _ _ _ _ _ hpad hv (by omega)]
-  have : splitP (8 * i + mu - 1) = mu - 1 + 256 * i := by unfold splitP; omega
-  rw [this]
-
-/-- Every W1a chain step (any pad) is one block `tw' || pad || v`. -/
-theorem fmt_chainInputP (lay tau e i mu : Nat) (pad : List Byte) (v : Val) (hpad : pad.length = 32)
-    (hv : v.length = 16) (hmu : 1 ≤ mu) (hmu' : mu ≤ 8) (hi : i < 2 ^ 24) :
-    fmt (chainInputP lay tau e i mu pad v) =
-      ⟨0, ofList _ (tweak 1 lay tau (mu - 1 + 256 * i) e ++ pad ++ v)⟩ := by
-  by_cases h : pad = zeros 32
-  · have e : chainInputP lay tau e i mu pad v = chainInput lay tau e i mu v := by
-      unfold chainInputP; rw [if_pos h]
-    rw [e, fmt_chainInput _ _ _ _ _ _ hv hmu hmu' hi, h]
-  · exact fmt_chainInputP_pad _ _ _ _ _ _ _ hpad hv h hmu hmu' hi
-
-theorem blocks_chainInputP (lay tau e i mu : Nat) (pad : List Byte) (v : Val) (hpad : pad.length = 32)
-    (hv : v.length = 16) (hmu : 1 ≤ mu) (hmu' : mu ≤ 8) (hi : i < 2 ^ 24) :
-    (fmt (chainInputP lay tau e i mu pad v)).blocks = 1 := by
-  rw [fmt_chainInputP _ _ _ _ _ _ _ hpad hv hmu hmu' hi]; rfl
 
 end SigGolfCandidate.Ref

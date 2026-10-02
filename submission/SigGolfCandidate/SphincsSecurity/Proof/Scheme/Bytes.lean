@@ -136,21 +136,6 @@ theorem tweakableHashInput_injective (parameter : PublicParameter) {d1 d2 : Hash
   obtain ⟨htweak, _⟩ := List.append_inj' hprefix (by simp [bytesLE_length])
   exact ⟨tweakBytes_injective h1 h2 htweak, hpayload⟩
 
-/-- The same across parameters: the tweak and the parameter slot are fixed-length prefixes, so the input
-determines the position, the 16 bytes in the parameter slot and the payload. The encoding hash carries the
-first half of its message in that slot. -/
-theorem tweakableHashInput_injective' {parameter1 parameter2 : PublicParameter} {d1 d2 : HashDomain}
-    (h1 : d1.InRange) (h2 : d2.InRange) {payload1 payload2 : HashInput}
-    (h : tweakableHashInput parameter1 d1 payload1 = tweakableHashInput parameter2 d2 payload2) :
-    d1 = d2 ∧ parameter1 = parameter2 ∧ payload1 = payload2 := by
-  simp only [tweakableHashInput] at h
-  have hlen1 : (bytesLE 16 parameter1).length = 16 := bytesLE_length 16 parameter1
-  have hlen2 : (bytesLE 16 parameter2).length = 16 := bytesLE_length 16 parameter2
-  obtain ⟨hprefix, hpayload⟩ := List.append_inj h (by
-    rw [List.length_append, List.length_append, tweakBytes_length, tweakBytes_length, hlen1, hlen2])
-  obtain ⟨htweak, hparameter⟩ := List.append_inj' hprefix (by rw [hlen1, hlen2])
-  exact ⟨tweakBytes_injective h1 h2 htweak, bytesLE_injective hparameter, hpayload⟩
-
 theorem tweakableHashInput_ne_message (parameter : PublicParameter) (domain : HashDomain)
     (hdomain : domain ≠ .message) (payload messagePayload : HashInput) :
     tweakableHashInput parameter domain payload ≠
@@ -160,22 +145,6 @@ theorem tweakableHashInput_ne_message (parameter : PublicParameter) (domain : Ha
   obtain ⟨hprefix, _⟩ := List.append_inj hinput
     (by simp [tweakBytes_length, bytesLE_length])
   obtain ⟨htweak, _⟩ := List.append_inj' hprefix (by simp [bytesLE_length])
-  apply hdomain
-  cases domain <;>
-    simp_all [tweakBytes_eq_iff, hashDomainFields, tweakFields, TweakFields.mk.injEq]
-
-/-- The same across parameters. -/
-theorem tweakableHashInput_ne_message' (parameter1 parameter2 : PublicParameter) (domain : HashDomain)
-    (hdomain : domain ≠ .message) (payload messagePayload : HashInput) :
-    tweakableHashInput parameter1 domain payload ≠
-      tweakableHashInput parameter2 .message messagePayload := by
-  intro hinput
-  simp only [tweakableHashInput] at hinput
-  have hlen1 : (bytesLE 16 parameter1).length = 16 := bytesLE_length 16 parameter1
-  have hlen2 : (bytesLE 16 parameter2).length = 16 := bytesLE_length 16 parameter2
-  obtain ⟨hprefix, _⟩ := List.append_inj hinput (by
-    rw [List.length_append, List.length_append, tweakBytes_length, tweakBytes_length, hlen1, hlen2])
-  obtain ⟨htweak, _⟩ := List.append_inj' hprefix (by rw [hlen1, hlen2])
   apply hdomain
   cases domain <;>
     simp_all [tweakBytes_eq_iff, hashDomainFields, tweakFields, TweakFields.mk.injEq]

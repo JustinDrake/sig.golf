@@ -4,11 +4,10 @@ import SigGolfCandidate.SphincsSecurity.Completeness.Octopus.Prob
 /-!
 # What one uniform answer shows
 
-The randomizer search reads its leaf indices from bits `34 .. 243` of a uniform `256`-bit
-answer. Splitting a bit vector into its low and high bits is a bijection, so a condition on one
-part has its exact counting share. This module also counts ordinary low-half truncation;
-`Proof/Ots/EncodingSelection.lean` combines the two halves for the conditional encoding selector.
-The admissible randomizer share is counted in `Octopus/`.
+A trial of either search reads a few low bits of a uniform `256`-bit answer: the counter search its
+low `128` bits, the randomizer search its leaf indices, bits `34 .. 243`. Splitting a bit vector into
+its low and high bits is a bijection, so a condition on the low bits holds for exactly the share of
+answers the condition has among the low bits alone. The admissible share is counted in `Octopus/`.
 -/
 
 open OracleComp ENNReal Finset
@@ -125,9 +124,9 @@ theorem admissible_iff (u : HashOutput) :
     valList_digestLeaves, htrunc]
   simp [ftsAuthCapacity]
 
-/-- A uniform answer's digest is admissible with probability at least `1/3410`. -/
+/-- A uniform answer's digest is admissible with probability at least `1/2142`. -/
 theorem probEvent_admissible_ge :
-    (3410 : ℝ≥0∞)⁻¹ ≤ Pr[fun u : HashOutput => Concrete.Admissible (truncateMessageDigest u) |
+    (2142 : ℝ≥0∞)⁻¹ ≤ Pr[fun u : HashOutput => Concrete.Admissible (truncateMessageDigest u) |
       ($ᵗ HashOutput : ProbComp HashOutput)] := by
   calc
     _ ≤ ((Nat.factorial 15 * Octopus.Nadm : ℕ) : ℝ≥0∞) / 2 ^ 210 := by

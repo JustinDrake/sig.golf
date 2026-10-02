@@ -1,6 +1,5 @@
 import SigGolfCandidate.Legacy
 import SigGolfCandidate.CacheBytes
-import SigGolfCandidate.Ref.AddressFormat
 import Mathlib.Data.List.Sort
 
 /-!
@@ -74,11 +73,7 @@ def slice (l : List Byte) (off len : Nat) : List Byte := (l.drop off).take len
 
 def nChains : Nat := 42
 /-- The WOTS target sum (the 42 3-bit digits of an accepted encoding sum to it). -/
-def targetSum : Nat := 185
-
-/-- Layer four uses a target one larger than the top four layers. -/
-def targetFor (lay : Nat) : Nat := targetSum + if 4 ≤ lay then 1 else 0
-
+def targetSum : Nat := 181
 /-- Old name of `targetSum`. -/
 abbrev target : Nat := targetSum
 /-- The number of hypertree layers `d`. -/
@@ -93,18 +88,17 @@ def porsK : Nat := 15
 /-- PORS leaves (`POR_T = 2^14`). -/
 def porsT : Nat := 2 ^ porsH
 /-- Authentication-node slots (`POR_M`, the octopus bound). -/
-def porsM : Nat := 117
+def porsM : Nat := 118
 /-- Schedule segments (`POR_SEGS = 2 k - 1`: one per leaf start, one per merge). -/
 def porsSegs : Nat := 2 * porsK - 1
 /-- Digest trials `A_max`. -/
-def aMax : Nat := 2 ^ 19
+def aMax : Nat := 2 ^ 20
 /-- The counter limit `C_max`: the signer tries `c < cMax`, the verifier rejects `c ≥ cMax`. -/
 def cMax : Nat := 2 ^ 22
 /-- Signature bytes `S`. -/
-def sigBytes : Nat := 6032
-/-- Bytes of the witness view `0x800 .. 0x4800` the reference reads (the witness `W = 13712`
-sits at `0x1270`, after the view's 2672-byte zero lead; `Ref.extW`). -/
-def witBytes : Nat := 16384
+def sigBytes : Nat := 6048
+/-- Witness bytes `W`. -/
+def witBytes : Nat := 6348
 
 /-- Height of hypertree layer `lay` (layer 0 = top): `heights[lay]`. -/
 def height (lay : Nat) : Nat := heights.getD lay 0
@@ -125,10 +119,7 @@ abbrev topH : Nat := height 0
 def topN (l : Nat) : Nat := ((List.range l).map fun k => 2 ^ (topH - k)).sum
 
 /-- Bytes of the masked-node region (levels `0 .. topH - 1`): `16 * N_topH = 65504`. -/
-def regionBytes : Nat := 16 * (topN topH - topN 1)
-
-/-- Padding before the tag; positive-level node offsets retain their tree-build addresses. -/
-def cachePadBytes : Nat := 16 * topN 1
+def regionBytes : Nat := 16 * topN topH
 
 /-- The cache: tag (32) | region | zeros, `CACHE_BYTES = 2^17` in total. -/
 def cacheBytes : Nat := CACHE_BYTES
@@ -140,10 +131,10 @@ def cacheNodeOff (l j : Nat) : Nat := 32 + 16 * (topN l + j)
 def cacheNode (cache : List Byte) (l j : Nat) : Val := slice cache (cacheNodeOff l j) 16
 
 /-- The cache's MAC tag (bytes `0 .. 32`). -/
-def cacheTag (cache : List Byte) : List Byte := slice cache cachePadBytes 32
+def cacheTag (cache : List Byte) : List Byte := slice cache 0 32
 
 /-- The cache's masked-node region (bytes `32 .. 32 + regionBytes`). -/
-def cacheRegion (cache : List Byte) : List Byte := slice cache (cachePadBytes + 32) regionBytes
+def cacheRegion (cache : List Byte) : List Byte := slice cache 32 regionBytes
 
 /-- Bytewise XOR (the shorter length). -/
 def xorBytes (a b : List Byte) : List Byte := List.zipWith (· ^^^ ·) a b
@@ -190,12 +181,6 @@ def IsDigestFmt (x : List Byte) : Prop := x.length = 96 ∧ x.getD 1 0 = byte 12
 instance (x : List Byte) : Decidable (IsDigestFmt x) :=
   inferInstanceAs (Decidable (x.length = 96 ∧ x.getD 1 0 = byte 12))
 
-/-- W1a padded chain inputs `tw ‖ P ‖ pad ‖ v`: 80 bytes with tag byte `1`. -/
-def IsPadChainFmt (x : List Byte) : Prop := x.length = 80 ∧ x.getD 1 0 = byte 1
-
-instance (x : List Byte) : Decidable (IsPadChainFmt x) :=
-  inferInstanceAs (Decidable (x.length = 80 ∧ x.getD 1 0 = byte 1))
-
 /-- The split chain position `p' = (p mod 8) | (p div 8) << 8` (byte 4 = `mu - 1`, byte 5 = `i`
 for `p = 8 i + mu - 1`). -/
 def splitP (p : Nat) : Nat := p % 8 + 256 * (p / 8)
@@ -211,11 +196,6 @@ the `p` field (bytes 4..8) replaced by `splitP p`. -/
 def chainBlock (x : List Byte) : List Byte :=
   x.take 4 ++ le32 (splitP (leNat (slice x 4 4))) ++ slice x 8 8 ++ zeros 32 ++ x.drop 32
 
-/-- The W1a chain block of a padded input `x = tw || P || pad || v`: `tw' || pad || v` (`P` dropped
-and `tw'` the split-position tweak, as in `chainBlock`; with `pad = 0^32` it is `chainBlock`). -/
-def padChainBlock (x : List Byte) : List Byte :=
-  x.take 4 ++ le32 (splitP (leNat (slice x 4 4))) ++ slice x 8 8 ++ slice x 32 32 ++ x.drop 64
-
 /-- The block of a node input `enc(t, lay, tau, lam, j) || P || L || R`:
 `enc(t, lay, tau, 0, heapIndex h lam j) || P || L || R`. -/
 def nodeBlock (x : List Byte) : List Byte :=
@@ -227,15 +207,13 @@ def digestBlock (x : List Byte) : List Byte := x.take 16 ++ slice x 32 16 ++ x.d
 
 /-- **The oracle input format** `f` (`PROGRAMS.md`, FORMAT; `ref.f_query`): chain inputs, hypertree
 node inputs (tag 3) and digest inputs become the one-block `chainBlock`, `nodeBlock`,
-`digestBlock`, and a W1a padded chain input (80 bytes, tag 1) becomes the one-block `padChainBlock`;
-every other input is zero padded (`pad64`). PORS node inputs (tag 10) are built
+`digestBlock`; every other input is zero padded (`pad64`). PORS node inputs (tag 10) are built
 in their relabeled form already (`porsNodeInput`), so zero padding (the identity on 64 bytes)
 is exactly `ref.f_query` on the signer's tag-10 inputs and `ref.node_query`'s raw blocks. -/
 def fmt (x : List Byte) : Query :=
   if IsChainFmt x then ⟨0, ofList _ (chainBlock x)⟩
   else if IsNodeFmt x then ⟨0, ofList _ (nodeBlock x)⟩
   else if IsDigestFmt x then ⟨0, ofList _ (digestBlock x)⟩
-  else if IsPadChainFmt x then ⟨0, ofList _ (padChainBlock x)⟩
   else pad64 x
 
 /-- The bytes of `fmt x` (`toList_fmt`). -/
@@ -243,17 +221,10 @@ def fmtList (x : List Byte) : List Byte :=
   if IsChainFmt x then chainBlock x
   else if IsNodeFmt x then nodeBlock x
   else if IsDigestFmt x then digestBlock x
-  else if IsPadChainFmt x then padChainBlock x
   else padTo64 x
 
-/-- The address-header relabelling. It preserves the oracle query block count. -/
-def addrFmt (x : List Byte) : Query := AddressFormat.queryPerm (fmt x)
-
-@[simp] theorem addrFmt_blocks (x : List Byte) : (addrFmt x).blocks = (fmt x).blocks :=
-  AddressFormat.queryPerm_blocks (fmt x)
-
 /-- One oracle call on `fmt x`. -/
-def H (x : List Byte) : OracleComp HashSpec (BitVec 256) := HashSpec.query (addrFmt x)
+def H (x : List Byte) : OracleComp HashSpec (BitVec 256) := HashSpec.query (fmt x)
 
 /-- One paired seed derivation: the full 32-byte answer on `fmt x` as two 16-byte secrets
 (low half, high half). -/
@@ -265,21 +236,6 @@ def prf2 (x : List Byte) : OracleComp HashSpec (Val × Val) := do
 def hash16 (x : List Byte) : OracleComp HashSpec Val := do
   let a ← H x
   pure (answerBytes 16 a)
-
-/-- Encoding-only half selection: keep the low half when its padding bit is clear,
-otherwise use the independent high half. Ordinary hashes are unchanged. -/
-def encodingGate {n : Nat} (a : BitVec n) : Bool := !(a.extractLsb' 60 4).ult 1#4
-
-def encodingAnswer (a : BitVec 256) : BitVec 256 :=
-  if a.getLsbD 127 then
-    if encodingGate a then a >>> 128 else a
-  else if a.getLsbD 63 then a >>> 64 else a
-
-def encodingBytes (a : BitVec 256) : Val := answerBytes 16 (encodingAnswer a)
-
-def encodingHash (x : List Byte) : OracleComp HashSpec Val := do
-  let a ← H x
-  pure (encodingBytes a)
 
 /-- `Th(P, tw, payload)`: the first 16 bytes of `H(fmt(tw || 0^16 || payload))`. -/
 def th (tw payload : List Byte) : OracleComp HashSpec Val := hash16 (thInput tw payload)
@@ -305,11 +261,9 @@ def leafInput (lay tau e : Nat) (ends : List Val) : List Byte :=
 def nodeInput (lay tau lam j : Nat) (l r : Val) : List Byte :=
   thInput (tweak 3 lay tau lam j) (l ++ r)
 
-/-- Encoding of the 32-byte message `M` with counter `c`: `tw(4, lay, tau, 0, e) || M || LE32 c`
-(52 bytes). `M` is `L || R`, the two children of the root of the tree below, and sits where the other
-hashes carry `P || payload`; the bottom layer signs `P || PORS root`. -/
+/-- Encoding of `M` with counter `c`: `tw(4, lay, tau, 0, e) || P || M || LE32 c` (52 bytes). -/
 def encInput (lay tau e : Nat) (M : Val) (c : Nat) : List Byte :=
-  tweak 4 lay tau 0 e ++ M ++ le32 c
+  thInput (tweak 4 lay tau 0 e) (M ++ le32 c)
 
 /-- One-block randomizer trial: domain bytes `1,7`, 26 secret bytes, the message and `LE32 a`. -/
 def rndInput (S m : List Byte) (a : Nat) : List Byte :=
@@ -326,9 +280,6 @@ def porsLeafInput (idx j : Nat) (s : Val) : List Byte := thInput (tweak 9 0 idx 
 real block of `ref.node_query` (for every `H`; `le32` keeps `H mod 2^32`), and of the signer's
 node `(lam, j)` after `ref.f_query` for `H = 2^(14 - lam) + j`. -/
 def porsNodeInput (idx H : Nat) (l r : Val) : List Byte := thInput (tweak 10 0 idx 0 H) (l ++ r)
-
-/-- `tau` with its low half cleared (the relabelled PORS tweaks carry `tau mod 2^32` in the `p` slot). -/
-def tauH (idx : Nat) : Nat := idx / 2 ^ 32 * 2 ^ 32
 
 /-- Message digest: `tw(12, 0, 0, 0, 0) || P || rho || 0^16 || m` (96 bytes). -/
 def digestInput (rho m : List Byte) : List Byte := thInput (tweak 12 0 0 0 0) (rho ++ zeros 16 ++ m)
@@ -361,7 +312,7 @@ def bitLen (x : Nat) : Nat := if x = 0 then 0 else Nat.log2 x + 1
 
 /-- `ref.octopus_size vs = 14 + sum_{s ≥ 1} bitlen(vs[s-1] xor vs[s]) - 2 (|vs| - 1)`, written as
 `14 + 2 + sum - 2 |vs|` (equal whenever Python's value is `≥ 0`, which it always is on sorted
-distinct lists; the Nat truncation to `0` does not change any comparison `≤ 117` either). -/
+distinct lists; the Nat truncation to `0` does not change any comparison `≤ 118` either). -/
 def octopusSize (vs : List Nat) : Nat :=
   porsH + 2 + (List.zipWith (fun a b => bitLen (a ^^^ b)) vs vs.tail).sum - 2 * vs.length
 
@@ -369,7 +320,7 @@ def octopusSize (vs : List Nat) : Nat :=
 def sortLeaves (v : List Nat) : List Nat := v.insertionSort (· ≤ ·)
 
 /-- `ref.admissible`: the 15 leaf indices of `N` are pairwise distinct and their octopus (in
-sorted order) has at most `porsM = 117` nodes. -/
+sorted order) has at most `porsM = 118` nodes. -/
 def admissible (N : Nat) : Bool :=
   decide (leavesOf N).Nodup && decide (octopusSize (sortLeaves (leavesOf N)) ≤ porsM)
 
@@ -385,14 +336,14 @@ deriving DecidableEq, Repr
 
 /-- One height `h` of the inner `while h < top` loop of leaf processing; state
 `(st, E, cnt, t)`. If the stack top equals `E`: emit the segment `cnt | 16 | 32 t`, pop, go up
-(`t` = the low three bits of the new `E`); else record the witness sibling `(h, (E xor 1) - 2^14 / 2^h)`,
+(`t` = bit 0 of the new `E`); else record the witness sibling `(h, (E xor 1) - 2^14 / 2^h)`,
 count it, go up. -/
 def schedStep (x : SchedState × Nat × Nat × Nat) (h : Nat) : SchedState × Nat × Nat × Nat :=
   let (st, E, cnt, t) := x
   match st.stack with
   | Q :: rest =>
     if Q = E then ({ st with segs := st.segs ++ [cnt ||| 16 ||| 32 * t], stack := rest },
-      E / 2, 0, E / 2 % 8)
+      E / 2, 0, E / 2 % 2)
     else ({ st with reads := st.reads ++ [(h, (E ^^^ 1) - porsT / 2 ^ h)] }, E / 2, cnt + 1, t)
   | [] => ({ st with reads := st.reads ++ [(h, (E ^^^ 1) - porsT / 2 ^ h)] }, E / 2, cnt + 1, t)
 
@@ -403,7 +354,7 @@ def schedLeaf (vs : List Nat) (st : SchedState) (s : Nat) : SchedState :=
   let k := vs.length
   let E := porsT ||| vs.getD s 0
   let top := if s + 1 < k then bitLen (vs.getD s 0 ^^^ vs.getD (s + 1) 0) - 1 else porsH
-  let (st, E, cnt, t) := (List.range top).foldl schedStep (st, E, 0, E % 8)
+  let (st, E, cnt, t) := (List.range top).foldl schedStep (st, E, 0, E % 2)
   let st := { st with segs := st.segs ++ [cnt ||| 32 * t] }
   if s + 1 < k then { st with stack := (E ^^^ 1) :: st.stack } else st
 
@@ -418,12 +369,12 @@ def digitsOfWord (d : Nat) : List Nat := (List.range 21).map fun r => d / 8 ^ r 
 /-- TargetSum decoding of an encoding output `v` (first 16 bytes): `d0`, `d1` = the two LE 64-bit
 halves; reject if bit 63 of `d0` or of `d1` is set, else the 42 digits (21 of `d0`, then 21 of
 `d1`) if they sum to `targetSum`. -/
-def decodeDigits (lay : Nat) (v : Val) : Option (List Nat) :=
+def decodeDigits (v : Val) : Option (List Nat) :=
   let d0 := leNat (slice v 0 8)
   let d1 := leNat (slice v 8 8)
   if d0 < 2 ^ 63 ∧ d1 < 2 ^ 63 then
     let x := digitsOfWord d0 ++ digitsOfWord d1
-    if x.sum = targetFor lay then some x else none
+    if x.sum = targetSum then some x else none
   else none
 
 end SigGolfCandidate.Ref

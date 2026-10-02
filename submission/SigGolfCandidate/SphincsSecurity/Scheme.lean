@@ -5,16 +5,14 @@ import VCVio.OracleComp.QueryTracking.RandomOracle.Simulation
 /-!
 # SPHINCS+ scheme
 
-Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sums `[185,185,185,185,186]`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
+Parameters, serialized hash inputs, key generation, signing, and verification for the instance defined in `doc/sphincs/main.tex`, with the changes of the SPHINCS-golf variant: five layers of heights `(11,6,6,6,5)`, target sum `181`, paired secret derivations (one query yields two secrets), a top tree cached by key generation (masked, and authenticated by a MAC keyed with the master seed), no public-parameter derivation (`P = 0`), a message digest that does not bind the root, a verifier that rejects counters at or above `C_max`, and a signer that builds every tree it touches exactly once, in the query order of the reference implementation.
 
 The few-time signature is PORS+FP (`work/design/SPEC-pors.md`, reference `work/py-pors/ref.py`): one Merkle
 tree of height `14` per instance `idx`, the full 256-bit digest split into `idx` (34 bits) and `k = 15`
 leaf indices, admissible when the indices are distinct and their octopus (the pruned authentication set)
-has at most `117` nodes. The signature is *witness-shaped*: the sorted leaves' digest slots, their secrets,
+has at most `118` nodes. The signature is *witness-shaped*: the sorted leaves' digest slots, their secrets,
 and the stack-machine segments of the verifier with the authentication nodes they fold. The verifier is the
-stack machine of `ref.pors_root`, and the tree root is the bottom layer's message. A one-time signature of
-layers `0, ..., 3` signs the two children of the root of the tree below it in one encoding hash, so the
-roots of the four lower trees are never hashed by the verifier. Tree nodes are hashed
+stack machine of `ref.pors_root`, and the tree root is the bottom layer's message. Tree nodes are hashed
 under their heap index (tag `10`, position `0`), the relabeled form of `ref.py`'s node tweaks.
 -/
 
@@ -27,15 +25,13 @@ namespace SphincsSecurity
 def digestBits : Nat := 128
 def hashOutputBits : Nat := 256
 def messageBits : Nat := 256
-/-- The width of the parameter slot of a hash input. It is the digest width by definition: the encoding
-hash carries the first half of its message, a digest, in that slot. -/
-abbrev publicParameterBits : Nat := digestBits
+def publicParameterBits : Nat := 128
 def randomnessBits : Nat := 128
 def counterBits : Nat := 32
 def winternitzBits : Nat := 3
 def chainLength : Nat := 2 ^ winternitzBits
 def numChains : Nat := 42
-def targetSum : Nat := 185
+def targetSum : Nat := 181
 def numLayers : Nat := 5
 def totalHeight : Nat := 34
 /-- The tallest layer, the top one, `h_0 = 11`, which bounds every layer's leaf index. -/
@@ -44,17 +40,15 @@ def maxLayerHeight : Nat := 11
 def ftsTreeHeight : Nat := 14
 /-- `k`, the leaf indices a digest carries (its slots) and the leaves a signature opens. -/
 def ftsOpenings : Nat := 15
-/-- The authentication-node budget: an admissible digest's octopus has at most `117` nodes, and the verifier
-accepts at most `117` folds. -/
-def ftsAuthCapacity : Nat := 117
+/-- The authentication-node budget: an admissible digest's octopus has at most `118` nodes, and the verifier
+accepts at most `118` folds. -/
+def ftsAuthCapacity : Nat := 118
 /-- The verifier's segments: one per opened leaf and one per merge, `2k - 1 = 29`. -/
 def ftsSegments : Nat := 2 * ftsOpenings - 1
 /-- Signatures allowed per key pair, `q_s`. -/
 def signatureLimit : Nat := 2 ^ 32
-/-- Digest attempts per signature. Each derived randomizer pair supplies two attempts. -/
+/-- Digest attempts per signature, `A_max`. -/
 def digestAttemptLimit : Nat := 2 ^ 20
-/-- Randomizer derivation pairs per signature. -/
-def digestPairLimit : Nat := 2 ^ 19
 /-- Encoding counters tried per layer, `C_max`. -/
 def encodingAttemptLimit : Nat := 2 ^ 22
 
@@ -67,9 +61,6 @@ abbrev PublicParameter := BitVec publicParameterBits
 abbrev Randomness := Digest
 abbrev Counter := BitVec counterBits
 abbrev Layer := Fin numLayers
-
-/-- The target sum at a particular one-time-signature layer. -/
-def targetFor (lay : Layer) : Nat := targetSum + if 4 ≤ lay.val then 1 else 0
 /-- `idx`, which few-time key signs. -/
 abbrev Index := Fin (2 ^ totalHeight)
 /-- `tau`, a tree of any layer. Layer `lay` only uses the values below `2^(sum_{j < lay} h_j)`. -/
@@ -90,10 +81,6 @@ sentinel whose value is `2^14`. -/
 abbrev SlotCode := Fin (ftsOpenings + 1)
 abbrev FtsLeaf := Fin (2 ^ ftsTreeHeight)
 abbrev Encoding := ChainIndex → Digit
-/-- What a one-time signature signs: the two children `(X_{h-1,0}, X_{h-1,1})` of the root of the tree
-below, or `(0, FtsKey)` at the bottom layer. The pair is hashed where the other hashes carry `P || M`, so
-the bottom layer's encoding input is `tweak || 0^16 || FtsKey || counter`. -/
-abbrev EncMessage := Digest × Digest
 abbrev HashInput := List UInt8
 /-- A pair of chains `(2k, 2k + 1)` of a one-time key, whose secrets one derivation query yields. -/
 abbrev ChainPair := Fin (numChains / 2)
@@ -139,17 +126,6 @@ def heightBelow (lay : Layer) : Nat := totalHeight - heightAbove lay - layerHeig
 def truncateHash (output : HashOutput) : Digest :=
   output.extractLsb' 0 digestBits
 
-/-- Encoding-only gated selection among three overlapping windows; all other hash domains keep their usual truncation. -/
-def encodingGate {n : Nat} (a : BitVec n) : Bool := !(a.extractLsb' 60 4).ult 1#4
-
-def selectEncodingAnswer (a : HashOutput) : HashOutput :=
-  if a.getLsbD 127 then
-    if encodingGate a then a >>> 128 else a
-  else if a.getLsbD 63 then a >>> 64 else a
-
-def selectEncodingDigest (a : HashOutput) : Digest :=
-  truncateHash (selectEncodingAnswer a)
-
 /-- The message digest is the full 256-bit answer: the index (`h = 34` bits), the `k = 15` leaf indices of
 `14` bits each, and `12` unused bits. -/
 def messageDigestBits : Nat := hashOutputBits
@@ -184,18 +160,13 @@ structure Segment where
   parity : Bool
   nodes : Fin folds.val → Digest
   parity_normal : folds.val = 0 → parity = false
-  lookahead : Fin 4
-  lookahead_normal : folds.val < 3 → lookahead = 0
 deriving DecidableEq
 
 /-- A segment with `parity` normalised: kept when there is a fold, `false` otherwise. -/
-def Segment.normalized (folds : Fin 16) (merge parity : Bool) (nodes : Fin folds.val → Digest)
-    (lookahead : Fin 4 := 0) : Segment :=
-  ⟨folds, merge, parity && decide (folds.val ≠ 0), nodes, (fun h => by simp [h]),
-    (if folds.val < 3 then 0 else lookahead), fun h => by simp [h]⟩
+def Segment.normalized (folds : Fin 16) (merge parity : Bool) (nodes : Fin folds.val → Digest) : Segment :=
+  ⟨folds, merge, parity && decide (folds.val ≠ 0), nodes, fun h => by simp [h]⟩
 
-instance : Inhabited Segment := ⟨⟨0, false, false, fun index => index.elim0,
-  (fun _ => rfl), 0, fun _ => rfl⟩⟩
+instance : Inhabited Segment := ⟨⟨0, false, false, fun index => index.elim0, fun _ => rfl⟩⟩
 
 /-- The node `i` of a segment, or zero past its folds. -/
 def Segment.node (segment : Segment) (i : Nat) : Digest :=
@@ -308,11 +279,11 @@ def keygenHashInput (parameter : PublicParameter) (domain : KeygenDomain)
 /-! ### The cache
 
 Key generation publishes a 128 KiB cache: the 32-byte MAC tag, then the masked nodes of the top tree at
-levels `1, ..., 10` (level ascending, index ascending within a level). The root is not stored; it is the
+levels `0, ..., 10` (level ascending, index ascending within a level). The root is not stored; it is the
 public key. The signer reads the top layer's authentication path from the cache after checking the tag. -/
 
-/-- The masked internal nodes below the root: rowr stores levelr+1, with2^(10-r) nodes. -/
-abbrev TopRegion := (level : Fin (maxLayerHeight - 1)) → Fin (2 ^ (maxLayerHeight - (level.val + 1))) → Digest
+/-- The masked nodes of the top tree below its root: level `l < 11` holds `2^(11 - l)` nodes. -/
+abbrev TopRegion := (level : Fin maxLayerHeight) → Fin (2 ^ (maxLayerHeight - level.val)) → Digest
 
 /-- The cache: the MAC tag (the full 256-bit hash answer) and the masked-node region. Unused bytes of the
 128 KiB buffer are zero and not part of the abstract cache. -/
@@ -323,16 +294,14 @@ deriving DecidableEq
 
 /-- The masked node `(level, nodeIdx)`, or zero outside the region. -/
 def TopCache.node (cache : TopCache) (level nodeIdx : Nat) : Digest :=
-  if hlevel : 0 < level ∧ level < maxLayerHeight then
-    if hnode : nodeIdx < 2 ^ (maxLayerHeight - level) then
-      cache.region ⟨level - 1, by omega⟩ ⟨nodeIdx, by
-        simpa only [Nat.sub_add_cancel (by omega : 1 ≤ level)] using hnode⟩
+  if hlevel : level < maxLayerHeight then
+    if hnode : nodeIdx < 2 ^ (maxLayerHeight - level) then cache.region ⟨level, hlevel⟩ ⟨nodeIdx, hnode⟩
     else 0
   else 0
 
-/-- The internal region's bytes: levels1..10, each node as16 bytes,32736 bytes in all. -/
+/-- The region's bytes: level by level, each node as 16 bytes, `65504` bytes in all. -/
 def regionBytes (region : TopRegion) : HashInput :=
-  (List.ofFn fun level : Fin (maxLayerHeight - 1) => (List.ofFn (region level)).flatMap (bytesLE 16)).flatten
+  (List.ofFn fun level : Fin maxLayerHeight => (List.ofFn (region level)).flatMap (bytesLE 16)).flatten
 
 /-- `tweak(14, 0, 0, 0, 0) || P || S || region`: the MAC over the region, keyed by the master seed. -/
 def macHashInput (parameter : PublicParameter) (seed : MasterSeed) (region : TopRegion) : HashInput :=
@@ -340,7 +309,7 @@ def macHashInput (parameter : PublicParameter) (seed : MasterSeed) (region : Top
 
 /-! ### The target-sum code
 
-`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and the code is the words of digit sum `T = 185`. Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
+`v = 42` chunks of `w = 3` bits, 21 in each half of the digest, one pinned bit per half, and the code is the words of digit sum `T = 181`. Two distinct words of equal sum are incomparable, which is what removes the Winternitz checksum and the reason why we need the counter. -/
 
 namespace TargetSum
 
@@ -348,10 +317,10 @@ namespace TargetSum
 def sum (x : Encoding) : Nat := ∑ i, (x i).val
 
 /-- Membership in the code `C`: digit sum `T`. -/
-def Valid (lay : Layer) (x : Encoding) : Prop := sum x = targetFor lay
+def Valid (x : Encoding) : Prop := sum x = targetSum
 
-instance (lay : Layer) : DecidablePred (Valid lay) :=
-  fun x => inferInstanceAs (Decidable (sum x = targetFor lay))
+instance : DecidablePred Valid :=
+  fun x => inferInstanceAs (Decidable (sum x = targetSum))
 
 /-- `v / 2 = 21` digits in each half of the digest. -/
 def digitsPerHalf : Nat := numChains / 2
@@ -365,8 +334,8 @@ def digestEncoding (digest : Digest) : Encoding :=
   fun i => (digest.extractLsb' (digitOffset i) winternitzBits).toFin
 
 /-- Decode the concrete little-endian layout: 21 three-bit digits, padding bit 63, 21 digits, and padding bit 127. A digest decodes exactly when both padding bits are clear and the digits reach the target sum. -/
-def decodeDigest (lay : Layer) (digest : Digest) : Option Encoding :=
-  if digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false ∧ Valid lay (digestEncoding digest)
+def decodeDigest (digest : Digest) : Option Encoding :=
+  if digest.getLsbD 63 = false ∧ digest.getLsbD 127 = false ∧ Valid (digestEncoding digest)
   then some (digestEncoding digest) else none
 
 end TargetSum
@@ -380,13 +349,6 @@ abbrev HashSpec := HashInput →ₒ HashOutput
 
 /-- Private uniform sampling and the shared hash oracle. Only hash calls count toward the query budget. -/
 abbrev OracleWorld := unifSpec + HashSpec
-
-/-- The 32 witness bytes between `tweak ‖ P` and a chain value in a W1a chain block
-(`[tweak 16 | pad 32 | value 16]`), as two digests. Honest verification uses `0`. -/
-abbrev Pad := Digest × Digest
-
-/-- One pad per (layer, chain): the forgery's padding. It is not part of the signature. -/
-abbrev ChainPads := Layer → ChainIndex → Pad
 
 namespace Concrete
 
@@ -457,18 +419,16 @@ def leafHash (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (lea
     (endpoints : ChainIndex → Digest) : m Digest :=
   tweakableHash parameter (.leaf lay tree leaf) (leafPayload endpoints)
 
-/-- `Enc(lay, tau, e, (M_0, M_1), c)`: hash `tweak || M_0 || M_1 || c` under the leaf's encoding tweak, and
-decode. The message's first half takes the place of the public parameter in the hash input, so the
-parameter argument is not used; it is kept so that every hash routine has the same shape. -/
-def encode (_parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : EncMessage) (counter : Counter) : m (Option Encoding) := do
-  let answer ← oracleHash (tweakableHashInput message.1 (.encoding lay tree leaf)
-    (bytesLE 16 message.2 ++ bytesLE 4 counter))
-  return TargetSum.decodeDigest lay (selectEncodingDigest answer)
+/-- `Enc(P, lay, tau, e, M, c)`: hash the message with the counter under the leaf's encoding tweak, and decode. -/
+def encode (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
+    (message : Digest) (counter : Counter) : m (Option Encoding) := do
+  let digest ← tweakableHash parameter (.encoding lay tree leaf)
+    (bytesLE 16 message ++ bytesLE 4 counter)
+  return TargetSum.decodeDigest digest
 
 /-- `OtsLeaf`: the verifier's leaf, or nothing if the counter does not encode the message. -/
 def otsLeaf (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) : m (Option Digest) := do
+    (message : Digest) (counter : Counter) (values : ChainIndex → Digest) : m (Option Digest) := do
   let some encoding ← encode parameter lay tree leaf message counter | return none
   let endpoints ← sequenceFin fun chainIdx =>
     recoverChain parameter lay tree leaf chainIdx (encoding chainIdx) (values chainIdx)
@@ -481,8 +441,7 @@ def otsLeaf (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf
 def nodePayload (left right : Digest) : HashInput :=
   bytesLE 16 left ++ bytesLE 16 right
 
-/-- `TreeFold`: fold a leaf and the first `levels` nodes of a path into the node above the leaf at that
-level (the layer's root for `levels = h`). -/
+/-- `TreeFold`: fold a leaf and a path into the layer's root. -/
 def treeFold (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
     (path : Nat → Digest) : Nat → Digest → m Digest
   | 0, value => pure value
@@ -494,11 +453,6 @@ def treeFold (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (lea
         tweakableHash parameter (.node lay tree (levels + 1) nodeIdx) (nodePayload sibling current)
       else
         tweakableHash parameter (.node lay tree (levels + 1) nodeIdx) (nodePayload current sibling)
-
-/-- The two children of the root in order: the node the fold reaches below the root and the path's top
-sibling, the sibling first when the leaf is in the right half. -/
-def topPair (right : Bool) (current sibling : Digest) : EncMessage :=
-  if right then (sibling, current) else (current, sibling)
 
 /-! ### The few-time signature (PORS) -/
 
@@ -569,8 +523,7 @@ def recoverSegments (parameter : PublicParameter) (index : Index) (segments : Fi
         let segment := segments ⟨state.segment, hsegment⟩
         if ftsTreeHeight < segment.folds.val then
           return none
-        else if segment.folds.val ≠ 0 ∧ (segment.parity ≠ decide (state.heap % 2 = 1) ∨
-            (3 ≤ segment.folds.val ∧ segment.lookahead.val ≠ state.heap / 2 % 4)) then
+        else if segment.folds.val ≠ 0 ∧ segment.parity ≠ decide (state.heap % 2 = 1) then
           return none
         else
           let start ← match pending with
@@ -621,7 +574,7 @@ def recoverLeaves (parameter : PublicParameter) (index : Index) (values : SlotCo
         return none
 
 /-- `FtsRec`, the stack machine of `ref.pors_root`: run the `k` leaves, then accept the node as the PORS root
-if there were at most `117` folds, the node is the root (heap index `1`) and the stack is empty. -/
+if there were at most `118` folds, the node is the root (heap index `1`) and the stack is empty. -/
 def ftsRecover (parameter : PublicParameter) (index : Index) (values : SlotCode → Nat)
     (fts : FtsSignature) : m (Option Digest) := do
   let some state ← recoverLeaves parameter index values fts ftsOpenings 0 0 RecoverState.initial
@@ -680,7 +633,7 @@ def sortedLeaves (leaves : IndexGroup → FtsLeaf) : List Nat :=
   (sortedSlots leaves).map fun r => (leaves r).val
 
 /-- The signer's (and the verifier's) condition on a digest's leaf indices: pairwise distinct, and an
-octopus of at most `117` nodes. -/
+octopus of at most `118` nodes. -/
 def AdmissibleLeaves (leaves : IndexGroup → FtsLeaf) : Prop :=
   Function.Injective leaves ∧ octopusSize (sortedLeaves leaves) ≤ ftsAuthCapacity
 
@@ -699,7 +652,6 @@ structure ScheduleSegment where
   merge : Bool
   parity : Bool
   reads : List (Nat × Nat)
-  lookahead : Fin 4
 deriving DecidableEq, Inhabited
 
 /-- The schedule's state: the finished segments, the stack of sibling heap indices the pending nodes wait
@@ -710,7 +662,6 @@ structure ScheduleState where
   heap : Nat
   parity : Bool
   reads : List (Nat × Nat)
-  lookahead : Fin 4
 
 /-- One height of a leaf's climb: merge if the stack's top waits for the current node (the open segment
 ends with a merge, and the next one starts one level up), else fold with the witness sibling. -/
@@ -721,9 +672,8 @@ def scheduleStep (state : ScheduleState) (height : Nat) : ScheduleState :=
   match state.stack with
   | top :: rest =>
       if top = state.heap then
-        { state with done := state.done ++ [⟨true, state.parity, state.reads, state.lookahead⟩], stack := rest,
-                     heap := state.heap / 2, parity := decide (state.heap / 2 % 2 = 1), reads := [],
-                     lookahead := ⟨state.heap / 2 / 2 % 4, Nat.mod_lt _ (by decide)⟩ }
+        { state with done := state.done ++ [⟨true, state.parity, state.reads⟩], stack := rest,
+                     heap := state.heap / 2, parity := decide (state.heap / 2 % 2 = 1), reads := [] }
       else fold
   | [] => fold
 
@@ -738,9 +688,8 @@ def scheduleLeaves : List Nat → ScheduleState → ScheduleState
         | [] => ftsTreeHeight
         | w :: _ => bitLength (v ^^^ w) - 1
       let state := (List.range top).foldl scheduleStep
-        { state with heap := heap, parity := decide (heap % 2 = 1), reads := [],
-                     lookahead := ⟨heap / 2 % 4, Nat.mod_lt _ (by decide)⟩ }
-      let state := { state with done := state.done ++ [⟨false, state.parity, state.reads, state.lookahead⟩] }
+        { state with heap := heap, parity := decide (heap % 2 = 1), reads := [] }
+      let state := { state with done := state.done ++ [⟨false, state.parity, state.reads⟩] }
       scheduleLeaves rest (match rest with
         | [] => state
         | _ :: _ => { state with stack := (state.heap ^^^ 1) :: state.stack })
@@ -748,7 +697,7 @@ def scheduleLeaves : List Nat → ScheduleState → ScheduleState
 /-- `ref.schedule`: the honest segments of the sorted leaves. For an admissible digest there are `29` of
 them, each with at most `14` reads, and `octopusSize` reads in all. -/
 def schedule (sorted : List Nat) : List ScheduleSegment :=
-  (scheduleLeaves sorted ⟨[], [], 0, false, [], 0⟩).done
+  (scheduleLeaves sorted ⟨[], [], 0, false, []⟩).done
 
 /-- The number of folds of a schedule segment, as a segment field. -/
 def ScheduleSegment.folds (segment : ScheduleSegment) : Fin 16 :=
@@ -756,13 +705,12 @@ def ScheduleSegment.folds (segment : ScheduleSegment) : Fin 16 :=
 
 /-- `ref.schedule`'s segment byte `a | 16 merge | 32 t` (before normalisation). -/
 def ScheduleSegment.byte (segment : ScheduleSegment) : Nat :=
-  segment.reads.length + 16 * (if segment.merge then 1 else 0) +
-    32 * (if segment.parity then 1 else 0) + 64 * segment.lookahead.val
+  segment.reads.length + 16 * (if segment.merge then 1 else 0) + 32 * (if segment.parity then 1 else 0)
 
 /-- The segment with the given nodes, its parity normalised. -/
 def ScheduleSegment.toSegment (segment : ScheduleSegment) (nodes : Fin segment.folds.val → Digest) :
     Segment :=
-  Segment.normalized segment.folds segment.merge segment.parity nodes segment.lookahead
+  Segment.normalized segment.folds segment.merge segment.parity nodes
 
 /-- The honest PORS signature of the digest's leaves: the slots in the order of their leaves, the leaves'
 secrets, and the schedule's segments with the tree's nodes (`node level nodeIdx`) at their read positions. -/
@@ -784,11 +732,9 @@ def honestFts (leaves : IndexGroup → FtsLeaf) (secret : FtsLeaf → Digest) (n
 def signaturePath (signature : Signature) (lay : Layer) (level : Nat) : Digest :=
   if hlevel : level < layerHeight lay then (signature.layers lay).path ⟨level, hlevel⟩ else 0
 
-/-- The hypertree walk, from the bottom layer up: `remaining + 1` enters at layer `remaining`, folds the
-leaf to the node below the root, and hands the root's two children to the layer above as its message. The
-root itself is not hashed; layer `0` returns the two children of the public root. -/
+/-- The hypertree walk, from the bottom layer up: `remaining + 1` enters at layer `remaining`, and layer `0`'s fold returns the value compared against the public root. -/
 def verifyLayers (parameter : PublicParameter) (index : Index) (signature : Signature) :
-    Nat → EncMessage → m (Option EncMessage)
+    Nat → Digest → m (Option Digest)
   | 0, message => pure (some message)
   | remaining + 1, message => do
       if hlayer : remaining < numLayers then
@@ -798,17 +744,10 @@ def verifyLayers (parameter : PublicParameter) (index : Index) (signature : Sign
         let part := signature.layers lay
         let some value ← otsLeaf parameter lay tree leaf message part.counter part.chainValues
           | return none
-        let node ← treeFold parameter lay tree leaf (signaturePath signature lay) (layerHeight lay - 1) value
-        verifyLayers parameter index signature remaining
-          (topPair (leaf.val.testBit (layerHeight lay - 1)) node
-            (signaturePath signature lay (layerHeight lay - 1)))
+        let root ← treeFold parameter lay tree leaf (signaturePath signature lay) (layerHeight lay) value
+        verifyLayers parameter index signature remaining root
       else
         pure none
-
-/-- The public root from its two children: the top tree's last node hash. -/
-def topRoot (parameter : PublicParameter) (index : Index) (top : EncMessage) : m Digest :=
-  tweakableHash parameter (.node topLayer (treeIndexAt index topLayer) (layerHeight topLayer) 0)
-    (nodePayload top.1 top.2)
 
 /-- Every layer's counter is below `C_max`. The verifier checks this first, without a query. -/
 def CountersInRange (signature : Signature) : Prop :=
@@ -818,99 +757,20 @@ instance (signature : Signature) : Decidable (CountersInRange signature) :=
   inferInstanceAs (Decidable (∀ lay, (signature.layers lay).counter.toNat < encodingAttemptLimit))
 
 /-- `Ver` after the counter check: recompute the digest, recover the PORS root with the stack machine (which
-enforces admissibility: strictly increasing leaves, at most `117` folds), walk the layers, hash the top
-tree's root from its two children and compare with the public root. -/
+enforces admissibility: strictly increasing leaves, at most `118` folds), walk the layers and compare with
+the root. -/
 def verifyCore (publicKey : PublicKey) (message : Message) (signature : Signature) : m Bool := do
   let digest ← messageDigest publicKey.parameter publicKey.root message signature.randomness
   let index := digestIndex digest
   let some ftsPublicKey ← ftsRecover publicKey.parameter index (slotValue (digestLeaves digest))
       signature.fts
     | return false
-  let some top ← verifyLayers publicKey.parameter index signature numLayers
-      (0, ftsPublicKey)
-    | return false
-  let root ← topRoot publicKey.parameter index top
+  let some root ← verifyLayers publicKey.parameter index signature numLayers ftsPublicKey | return false
   return decide (root = publicKey.root)
 
 /-- `Ver(pk, m, sigma)`: reject any counter at or above `C_max`, then verify. -/
 def verify (publicKey : PublicKey) (message : Message) (signature : Signature) : m Bool :=
   if CountersInRange signature then verifyCore publicKey message signature else pure false
-
-/-! ### The padded verifier
-
-The W1a machine hashes every chain step in place in its witness block `[tweak | pad | value]`; the
-32 pad bytes are the forgery's choice. `verifyP` is `verify` with that pad in every chain payload:
-`chainPayload 0 v` is the record payload, so with zero pads it is `verify` (`verifyP_zero`). -/
-
-/-- The payload of a chain step: the record's 16-byte value when `pad = 0`, otherwise the 48-byte
-`pad ‖ value` (three digests, so still a canonical-graph payload at the same chain position). -/
-def chainPayload (pad : Pad) (value : Digest) : HashInput :=
-  if pad = 0 then bytesLE 16 value else bytesLE 16 pad.1 ++ bytesLE 16 pad.2 ++ bytesLE 16 value
-
-/-- `chainWalk` with a constant pad on every step. -/
-def chainWalkP (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (chainIdx : ChainIndex) (pad : Pad) : Nat → Nat → Digest → m Digest
-  | _, 0, value => pure value
-  | start, steps + 1, value => do
-      let previous ← chainWalkP parameter lay tree leaf chainIdx pad start steps value
-      if hstep : start + steps < chainLength - 1 then
-        tweakableHash parameter (.chain lay tree leaf chainIdx ⟨start + steps, hstep⟩)
-          (chainPayload pad previous)
-      else
-        pure 0
-
-/-- The verifier's half of a padded chain. -/
-def recoverChainP (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (chainIdx : ChainIndex) (pad : Pad) (digit : Digit) (value : Digest) : m Digest :=
-  chainWalkP parameter lay tree leaf chainIdx pad digit.val (chainLength - 1 - digit.val) value
-
-/-- `otsLeaf` with per-chain pads. -/
-def otsLeafP (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : EncMessage) (counter : Counter) (values : ChainIndex → Digest) (pads : ChainIndex → Pad) :
-    m (Option Digest) := do
-  let some encoding ← encode parameter lay tree leaf message counter | return none
-  let endpoints ← sequenceFin fun chainIdx =>
-    recoverChainP parameter lay tree leaf chainIdx (pads chainIdx) (encoding chainIdx) (values chainIdx)
-  let value ← leafHash parameter lay tree leaf endpoints
-  return some value
-
-/-- `verifyLayers` with the forgery's pads. -/
-def verifyLayersP (parameter : PublicParameter) (index : Index) (signature : Signature)
-    (pads : ChainPads) : Nat → EncMessage → m (Option EncMessage)
-  | 0, message => pure (some message)
-  | remaining + 1, message => do
-      if hlayer : remaining < numLayers then
-        let lay : Layer := ⟨remaining, hlayer⟩
-        let tree := treeIndexAt index lay
-        let leaf := leafIndexAt index lay
-        let part := signature.layers lay
-        let some value ← otsLeafP parameter lay tree leaf message part.counter part.chainValues (pads lay)
-          | return none
-        let node ← treeFold parameter lay tree leaf (signaturePath signature lay) (layerHeight lay - 1) value
-        verifyLayersP parameter index signature pads remaining
-          (topPair (leaf.val.testBit (layerHeight lay - 1)) node
-            (signaturePath signature lay (layerHeight lay - 1)))
-      else
-        pure none
-
-/-- `verifyCore` with the forgery's pads: only the layer walk changes. -/
-def verifyCoreP (publicKey : PublicKey) (message : Message) (signature : Signature) (pads : ChainPads) :
-    m Bool := do
-  let digest ← messageDigest publicKey.parameter publicKey.root message signature.randomness
-  let index := digestIndex digest
-  let some ftsPublicKey ← ftsRecover publicKey.parameter index (slotValue (digestLeaves digest))
-      signature.fts
-    | return false
-  let some top ← verifyLayersP publicKey.parameter index signature pads numLayers
-      (0, ftsPublicKey)
-    | return false
-  let root ← topRoot publicKey.parameter index top
-  return decide (root = publicKey.root)
-
-/-- **The padded verifier** `VerP(pk, m, σ, pads)`: `verify` with the forgery's chain pads. -/
-def verifyP (publicKey : PublicKey) (message : Message) (signature : Signature) (pads : ChainPads) :
-    m Bool :=
-  if CountersInRange signature then verifyCoreP publicKey message signature pads else pure false
 
 /-! ### Building trees
 
@@ -977,16 +837,11 @@ def buildLayerTable (parameter : PublicParameter) (lay : Layer) (tree : TreeInde
     (layerHeight lay)
   return (leaves, table)
 
-/-- The two children of the root of a node table of height `height`. -/
-def tableTop (table : Nat → Nat → Digest) (height : Nat) : EncMessage :=
-  (table (height - 1) 0, table (height - 1) 1)
-
-/-- Build the tree `(lay, tau)` once, up to its root. Returns the chain values of leaf `leaf` at `digits`,
-the authentication path of `leaf` (level `l` holds `X_{l, floor(e / 2^l) xor 1}`) and the root's two
-children, the message of the layer above. -/
+/-- Build the tree `(lay, tau)` once. Returns the chain values of leaf `leaf` at `digits`, the
+authentication path of `leaf` (level `l` holds `X_{l, floor(e / 2^l) xor 1}`) and the root. -/
 def buildLayerTree (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
     (secret : LeafIndex → ChainIndex → m Digest) (leaf : LeafIndex) (digits : Encoding) :
-    m ((ChainIndex → Digest) × (Nat → Digest) × EncMessage) := do
+    m ((ChainIndex → Digest) × (Nat → Digest) × Digest) := do
   let leaves ← sequenceFin (n := 2 ^ layerHeight lay) fun leafNat =>
     buildLeaf parameter lay tree (leafOfNat leafNat.val) (secret (leafOfNat leafNat.val))
       (if leafNat.val = leaf.val then digits else zeroEncoding)
@@ -998,7 +853,7 @@ def buildLayerTree (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex
     (layerHeight lay)
   let values := if h : leaf.val < 2 ^ layerHeight lay then (leaves ⟨leaf.val, h⟩).1 else fun _ => 0
   return (values, fun level => table level (Nat.xor (leaf.val / 2 ^ level) 1),
-    tableTop table (layerHeight lay))
+    table (layerHeight lay) 0)
 
 /-- Build the PORS tree of instance `index` once: leaves `j = 0, ..., 2^14 - 1` (secret, then leaf hash),
 then the levels bottom-up, each left to right, node `(level, nodeIdx)` under its heap index. Returns the
@@ -1020,7 +875,7 @@ def buildFtsTree (parameter : PublicParameter) (index : Index) (secret : FtsLeaf
 /-- `OtsSign`'s counter search: the least counter from `counter` on whose encoding decodes, trying at
 most `attempts` counters. -/
 def encodingSearch (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
-    (message : EncMessage) : Nat → Nat → m (Option (Counter × Encoding))
+    (message : Digest) : Nat → Nat → m (Option (Counter × Encoding))
   | 0, _ => pure none
   | attempts + 1, counter => do
       match ← encode parameter lay tree leaf message (BitVec.ofNat counterBits counter) with
@@ -1034,7 +889,7 @@ abbrev LayerOutput := Counter × (ChainIndex → Digest) × (Nat → Digest)
 leaf `leaf` (per chain, its secret and then its first `x_i` steps), and the authentication path read
 through `topNode` (level `l` holds node `(l, floor(e / 2^l) xor 1)`). The top tree is not rebuilt. -/
 def signTopLayer (parameter : PublicParameter) (index : Index)
-    (secret : LeafIndex → ChainIndex → m Digest) (topNode : Nat → Nat → m Digest) (message : EncMessage) :
+    (secret : LeafIndex → ChainIndex → m Digest) (topNode : Nat → Nat → m Digest) (message : Digest) :
     m (Option LayerOutput) := do
   let tree := treeIndexAt index topLayer
   let leaf := leafIndexAt index topLayer
@@ -1049,11 +904,11 @@ def signTopLayer (parameter : PublicParameter) (index : Index)
   return some (counter, values, fun level => if h : level < maxLayerHeight then path ⟨level, h⟩ else 0)
 
 /-- The hypertree, from the bottom layer up: `remaining + 1` signs `message` at layer `remaining`
-(counter search, then the tree built once), and its root's two children are the message of layer
-`remaining - 1`. The top layer (`remaining = 0`) is signed from the cache by `signTopLayer`. -/
+(counter search, then the tree built once), and its root is the message of layer `remaining - 1`. The
+top layer (`remaining = 0`) is signed from the cache by `signTopLayer`. -/
 def signLayers (parameter : PublicParameter) (index : Index)
     (secret : Layer → TreeIndex → LeafIndex → ChainIndex → m Digest) (topNode : Nat → Nat → m Digest) :
-    Nat → EncMessage → m (Option (Layer → LayerOutput))
+    Nat → Digest → m (Option (Layer → LayerOutput))
   | 0, _ => pure (some fun _ => (0, fun _ => 0, fun _ => 0))
   | remaining + 1, message =>
       if hlayer : remaining < numLayers then
@@ -1069,8 +924,8 @@ def signLayers (parameter : PublicParameter) (index : Index)
           let some (counter, encoding) ←
               encodingSearch parameter lay tree leaf message encodingAttemptLimit 0
             | return none
-          let (values, path, top) ← buildLayerTree parameter lay tree (secret lay tree) leaf encoding
-          let some rest ← signLayers parameter index secret topNode remaining top | return none
+          let (values, path, root) ← buildLayerTree parameter lay tree (secret lay tree) leaf encoding
+          let some rest ← signLayers parameter index secret topNode remaining root | return none
           return some fun other => if other = lay then (counter, values, path) else rest other
       else
         pure none
@@ -1080,21 +935,20 @@ def LayerOutput.toSignature (lay : Layer) (output : LayerOutput) : LayerSignatur
   ⟨output.1, output.2.1, fun level => output.2.2 level.val⟩
 
 /-- `Sig` after the digest loop, with the secret derivations and the top tree's nodes as arguments:
-build the PORS tree once, read the opening off it, then sign the layers from the bottom up, the bottom
-layer's message being `(0, root)` for the tree's root. -/
+build the PORS tree once, read the opening off it, then sign the layers from the bottom up, the tree's root
+being the bottom layer's message. -/
 def signFrom (parameter : PublicParameter) (index : Index)
     (ftsSecret : FtsTree → FtsLeaf → m Digest)
     (otsSecret : Layer → TreeIndex → LeafIndex → ChainIndex → m Digest)
     (topNode : Nat → Nat → m Digest)
     (randomness : Randomness) (leaves : IndexGroup → FtsLeaf) : m (Option Signature) := do
   let (secrets, table) ← buildFtsTree parameter index (ftsSecret porsTree)
-  let some parts ← signLayers parameter index otsSecret topNode numLayers
-      (0, table ftsTreeHeight 0)
+  let some parts ← signLayers parameter index otsSecret topNode numLayers (table ftsTreeHeight 0)
     | return none
   return some ⟨randomness, honestFts leaves secrets table,
     fun lay => LayerOutput.toSignature lay (parts lay)⟩
 
-attribute [irreducible] verify verifyP
+attribute [irreducible] verify
 
 /-! ### The builders with paired secrets
 
@@ -1133,11 +987,11 @@ def buildLayerTablePaired (parameter : PublicParameter) (lay : Layer) (tree : Tr
 /-- `buildLayerTree` with pair getters. -/
 def buildLayerTreePaired (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
     (secret : LeafIndex → ChainPair → m (Digest × Digest)) (leaf : LeafIndex) (digits : Encoding) :
-    m ((ChainIndex → Digest) × (Nat → Digest) × EncMessage) := do
+    m ((ChainIndex → Digest) × (Nat → Digest) × Digest) := do
   let (leaves, table) ← buildLayerTablePaired parameter lay tree secret leaf digits
   let values := if h : leaf.val < 2 ^ layerHeight lay then (leaves ⟨leaf.val, h⟩).1 else fun _ => 0
   return (values, fun level => table level (Nat.xor (leaf.val / 2 ^ level) 1),
-    tableTop table (layerHeight lay))
+    table (layerHeight lay) 0)
 
 /-- `buildFtsTree` with pair getters: per pair, its secrets, the leaf hash of `2q`, of `2q + 1`; then the
 levels. -/
@@ -1160,7 +1014,7 @@ def buildFtsTreePaired (parameter : PublicParameter) (index : Index)
 /-- `signTopLayer` with pair getters: per pair, its secrets, the first `x_{2k}` steps of chain `2k`, the
 first `x_{2k+1}` steps of chain `2k + 1`. -/
 def signTopLayerPaired (parameter : PublicParameter) (index : Index)
-    (secret : LeafIndex → ChainPair → m (Digest × Digest)) (topNode : Nat → Nat → m Digest) (message : EncMessage) :
+    (secret : LeafIndex → ChainPair → m (Digest × Digest)) (topNode : Nat → Nat → m Digest) (message : Digest) :
     m (Option LayerOutput) := do
   let tree := treeIndexAt index topLayer
   let leaf := leafIndexAt index topLayer
@@ -1180,7 +1034,7 @@ def signTopLayerPaired (parameter : PublicParameter) (index : Index)
 /-- `signLayers` with pair getters. -/
 def signLayersPaired (parameter : PublicParameter) (index : Index)
     (secret : Layer → TreeIndex → LeafIndex → ChainPair → m (Digest × Digest)) (topNode : Nat → Nat → m Digest) :
-    Nat → EncMessage → m (Option (Layer → LayerOutput))
+    Nat → Digest → m (Option (Layer → LayerOutput))
   | 0, _ => pure (some fun _ => (0, fun _ => 0, fun _ => 0))
   | remaining + 1, message =>
       if hlayer : remaining < numLayers then
@@ -1196,8 +1050,8 @@ def signLayersPaired (parameter : PublicParameter) (index : Index)
           let some (counter, encoding) ←
               encodingSearch parameter lay tree leaf message encodingAttemptLimit 0
             | return none
-          let (values, path, top) ← buildLayerTreePaired parameter lay tree (secret lay tree) leaf encoding
-          let some rest ← signLayersPaired parameter index secret topNode remaining top | return none
+          let (values, path, root) ← buildLayerTreePaired parameter lay tree (secret lay tree) leaf encoding
+          let some rest ← signLayersPaired parameter index secret topNode remaining root | return none
           return some fun other => if other = lay then (counter, values, path) else rest other
       else
         pure none
@@ -1209,8 +1063,7 @@ def signFromPaired (parameter : PublicParameter) (index : Index)
     (topNode : Nat → Nat → m Digest)
     (randomness : Randomness) (leaves : IndexGroup → FtsLeaf) : m (Option Signature) := do
   let (secrets, table) ← buildFtsTreePaired parameter index (ftsSecret porsTree)
-  let some parts ← signLayersPaired parameter index otsSecret topNode numLayers
-      (0, table ftsTreeHeight 0)
+  let some parts ← signLayersPaired parameter index otsSecret topNode numLayers (table ftsTreeHeight 0)
     | return none
   return some ⟨randomness, honestFts leaves secrets table,
     fun lay => LayerOutput.toSignature lay (parts lay)⟩
@@ -1244,11 +1097,6 @@ variable {m : Type → Type} [Monad m] [HasQuery HashSpec m]
 def splitSecrets (output : HashOutput) : Digest × Digest :=
   (truncateHash output, output.extractLsb' digestBits digestBits)
 
-/-- A single compression supplies two independent randomizer candidates. -/
-def deriveRandomizerPair (parameter : PublicParameter) (seed : MasterSeed)
-    (message : Message) (trial : BitVec 32) : m (Randomness × Randomness) := do
-  return splitSecrets (← Concrete.oracleHash (randomizerHashInput parameter seed message trial))
-
 /-- `sk_{lay,tau,e,2k}` and `sk_{lay,tau,e,2k+1}`, derived from the seed with one query. -/
 def otsSecret (parameter : PublicParameter) (seed : MasterSeed) (lay : Layer) (tree : TreeIndex)
     (leaf : LeafIndex) (pair : ChainPair) : m (Digest × Digest) := do
@@ -1273,23 +1121,19 @@ in turn. -/
 def maskRegion (parameter : PublicParameter) (seed : MasterSeed) (table : Nat → Nat → Digest) :
     m TopRegion :=
   do
-  let rows ← sequenceFin fun level : Fin (maxLayerHeight - 1) => do
-    let row ← sequenceFin fun nodeIdx : Fin (2 ^ (maxLayerHeight - (level.val + 1))) => do
-      let mask ← maskSecret parameter seed (level.val + 1) nodeIdx.val
-      return table (level.val + 1) nodeIdx.val ^^^ mask
-    return fun nodeIdx : Nat => if h : nodeIdx < 2 ^ (maxLayerHeight - (level.val + 1)) then row ⟨nodeIdx, h⟩ else 0
+  let rows ← sequenceFin fun level : Fin maxLayerHeight => do
+    let row ← sequenceFin fun nodeIdx : Fin (2 ^ (maxLayerHeight - level.val)) => do
+      let mask ← maskSecret parameter seed level.val nodeIdx.val
+      return table level.val nodeIdx.val ^^^ mask
+    return fun nodeIdx : Nat => if h : nodeIdx < 2 ^ (maxLayerHeight - level.val) then row ⟨nodeIdx, h⟩ else 0
   return fun level nodeIdx => rows level nodeIdx.val
 
 /-- The top tree's node `(l, j)` as the signer reads it: the cached masked node, unmasked with a freshly
 derived mask. -/
 def cachedTopNode (parameter : PublicParameter) (seed : MasterSeed) (cache : TopCache) (level nodeIdx : Nat) :
     m Digest := do
-  if level = 0 then
-    return (← buildLeafPaired parameter topLayer rootTree (leafOfNat nodeIdx)
-      (otsSecret parameter seed topLayer rootTree (leafOfNat nodeIdx)) zeroEncoding).2
-  else
-    let mask ← maskSecret parameter seed level nodeIdx
-    return cache.node level nodeIdx ^^^ mask
+  let mask ← maskSecret parameter seed level nodeIdx
+  return cache.node level nodeIdx ^^^ mask
 
 /-- Build the top tree from the supplied seed (its root is the public key), mask its nodes below the root,
 and authenticate the masked region with the MAC. There is no parameter derivation: `P = 0`. -/
@@ -1319,24 +1163,10 @@ def signDigestLoop (secretKey : SecretKey) (message : Message) : Nat → Nat →
       | some (index, leaves) => return some (randomness, index, leaves)
       | none => signDigestLoop secretKey message attempts (trial + 1)
 
-/-- Digest search in pairs. The counter names a derivation answer; each answer
-is consumed low-half first, high-half second, stopping at the first success. -/
-def signDigestPairs (secretKey : SecretKey) (message : Message) : Nat → Nat →
-    m (Option (Randomness × Index × (IndexGroup → FtsLeaf)))
-  | 0, _ => pure none
-  | attempts + 1, trial => do
-      let pair ← deriveRandomizerPair secretKey.parameter secretKey.seed message (BitVec.ofNat 32 trial)
-      match ← signAttempt secretKey message pair.1 with
-      | some (index, leaves) => return some (pair.1, index, leaves)
-      | none =>
-          match ← signAttempt secretKey message pair.2 with
-          | some (index, leaves) => return some (pair.2, index, leaves)
-          | none => signDigestPairs secretKey message attempts (trial + 1)
-
 /-- `Sig(sk, m)` after the MAC check: the digest loop, the PORS tree built once, then the layers from the
 bottom up, each a counter search followed by its tree built once, and the top layer from the cache. -/
 def signChecked (secretKey : SecretKey) (cache : TopCache) (message : Message) : m (Option Signature) := do
-  let some (randomness, index, leaves) ← signDigestPairs secretKey message digestPairLimit 0
+  let some (randomness, index, leaves) ← signDigestLoop secretKey message digestAttemptLimit 0
     | return none
   signFromPaired secretKey.parameter index (ftsSecret secretKey.parameter secretKey.seed index)
     (otsSecret secretKey.parameter secretKey.seed)

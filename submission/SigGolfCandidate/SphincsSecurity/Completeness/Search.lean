@@ -52,7 +52,7 @@ theorem fresh_run (input : HashInput) (cache : QueryCache HashSpec) (hfresh : ca
     from rfl, probEvent_bind_eq_tsum]
   exact tsum_congr fun u => by rw [probOutput_uniformSample]
 
-/-- A search over fresh inputs, distinct below `bound`, exhausts all `n` trials with probability at most the per-trial rejection share to the `n`. The bound is what the counter search needs: its inputs carry a 32-bit counter, so they repeat only after `2 ^ 32` trials, well past its `2 ^ 22`-trial budget. -/
+/-- A search over fresh inputs, distinct below `bound`, exhausts all `n` trials with probability at most the per-trial rejection share to the `n`. The bound is what the counter search needs: its inputs carry a 32-bit counter, so they repeat only after `2 ^ 32` trials, well past its `2 ^ 20`-trial budget. -/
 theorem probEvent_searchLoop (inputs : Nat → HashInput) (decode : HashOutput → Option β)
     (success : Nat → β → OracleComp HashSpec γ) (bound : Nat)
     (hinj : ∀ s s', s < bound → s' < bound → inputs s = inputs s' → s = s') :
@@ -181,14 +181,14 @@ search over the encoding inputs. -/
 open Concrete in
 /-- The counter search, as a search over its encoding inputs. -/
 theorem encodingSearch_eq_searchLoop (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
-    (leaf : LeafIndex) (message : EncMessage) :
+    (leaf : LeafIndex) (message : Digest) :
     ∀ (n t : Nat),
       (encodingSearch parameter lay tree leaf message n t
         : OracleComp HashSpec (Option (Counter × Encoding)))
         = searchLoop
-            (fun c => tweakableHashInput message.1 (.encoding lay tree leaf)
-              (bytesLE 16 message.2 ++ bytesLE 4 (BitVec.ofNat counterBits c)))
-            (fun out => TargetSum.decodeDigest lay (selectEncodingDigest out))
+            (fun c => tweakableHashInput parameter (.encoding lay tree leaf)
+              (bytesLE 16 message ++ bytesLE 4 (BitVec.ofNat counterBits c)))
+            (fun out => TargetSum.decodeDigest (truncateHash out))
             (fun c encoding => pure (BitVec.ofNat counterBits c, encoding))
             n t := by
   intro n
@@ -197,8 +197,8 @@ theorem encodingSearch_eq_searchLoop (parameter : PublicParameter) (lay : Layer)
   | succ n ih =>
       intro t
       rw [encodingSearch, searchLoop]
-      simp only [encode, oracleHash, bind_assoc, pure_bind, ih]
+      simp only [encode, tweakableHash, oracleHash, bind_assoc, pure_bind, ih]
       refine bind_congr fun answer => ?_
-      cases TargetSum.decodeDigest lay (selectEncodingDigest answer) <;> rfl
+      cases TargetSum.decodeDigest (truncateHash answer) <;> rfl
 
 end SphincsSecurity.Completeness

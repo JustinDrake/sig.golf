@@ -52,7 +52,7 @@ noncomputable def causalFrontierGameRest (parameter : PublicParameter) (root : D
     ProbComp (Bool × SigningBoundaryTrace) := do
   let result ← causalFrontierAdversaryRun parameter root external ftsSecret words frontier
     (adversary.main ⟨root, parameter⟩)
-  let checked := boundaryEval parameter external (verifyP ⟨root, parameter⟩ result.1.1.message result.1.1.signature result.1.1.pads)
+  let checked := boundaryEval parameter external (verify ⟨root, parameter⟩ result.1.1.message result.1.1.signature)
   pure (decide (SigningTranscript.Valid result.1.2 ∧ ¬SigningTranscript.Contains result.1.2 result.1.1) && checked.1,
     result.2 * checked.2)
 
