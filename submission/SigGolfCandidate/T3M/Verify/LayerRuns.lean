@@ -58,7 +58,7 @@ def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
 /-- Steps of A (layer 3 includes the 24 `hyper` constants; layer 0 has `mv` and `lui; or`). -/
 def stepsA (lay : Nat) : Nat := if lay = 3 then 22 else if lay = 0 then 16 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 0 then 71 else if lay = 3 then 54 else 47
+def retOff (lay : Nat) : Nat := if lay = 0 then 69 else if lay = 3 then 52 else 45
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
@@ -138,9 +138,11 @@ def a6E : E := .ld (kw 320)
 def a7E : E := .ld (kw 328)
 def b1E : E := .bin .sll a7E (kw 1)
 /-- The lower decode's partial sums (`sw1`) and the digit sum (`remu 4095`). -/
-def sw1E : E :=
+def sw1RefE : E :=
   .bin .add (.bin .add (.bin .add (.bin .and (.bin .srl a6E (kw 3)) (kw M1c)) (.bin .and a6E (kw M1c)))
     (.bin .and (.bin .srl b1E (kw 3)) (kw M1c))) (.bin .and b1E (kw M1c))
+def swLowE : E := .bin .add (.bin .and a6E (kw M1c)) (.bin .and b1E (kw M1c))
+def sw1E : E := .bin .add swLowE (.bin .srl (.bin .sub (.bin .add a6E b1E) swLowE) (kw 3))
 def sumE : E := .bin .remu (.bin .and (.bin .add sw1E (.bin .srl sw1E (kw 6))) (kw M2c)) (kw 4095)
 def t4E (lay : Nat) : E := .bin .sub (kw (tgtL lay)) sumE
 def rngBr (k : Nat) (d : Bool) : Br := ⟨.ne, .bin .srl a7E (kw k), kw 0, d⟩
@@ -153,14 +155,14 @@ def tgtl : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe
 
 def specBl (lay p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, a7lE), (.x25, sumE), (.x29, t4E lay), (.x3, .bin .srl a6E (kw 63)), (.x14, x14l)],
-   [], 0, false, 31, [ckBr lay false, rngBr 62 false], some tgtl, 34⟩
+   [], 0, false, 29, [ckBr lay false, rngBr 62 false], some tgtl, 32⟩
 
 def postBl (lay p : Nat) : List (Reg × Word) :=
   layK lay ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x15, 0x6e000), (.x1, pcOf (p + retOff lay))]
 
 def rejRng (k : Nat) : Spec := ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 7, [rngBr k true], none, 7⟩
 def rejCk (lay : Nat) : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 25, [ckBr lay true, rngBr 62 false], none, 28⟩
+  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 23, [ckBr lay true, rngBr 62 false], none, 26⟩
 
 /-- The top decode's sums: the 3-bit SWAR of `g = v1 >>> 34` (`remu 4095` into `t4`), the 2-bit SWAR of `v0` and
 `c = v1 mod 2^34` (`remu 255`), the total. -/
@@ -170,7 +172,9 @@ def s3E : E := .bin .remu (.bin .and (.bin .add p3E (.bin .srl p3E (kw 6))) (kw 
 def c34E : E := .bin .srl (.bin .sll a7E (kw 30)) (kw 30)
 def l1E : E := .bin .add (.bin .and (.bin .srl a6E (kw 2)) (kw M4c)) (.bin .and a6E (kw M4c))
 def l2E : E := .bin .add (.bin .and (.bin .srl c34E (kw 2)) (kw M4c)) (.bin .and c34E (kw M4c))
-def lE : E := .bin .add l1E l2E
+def lRefE : E := .bin .add l1E l2E
+def lLowE : E := .bin .add (.bin .and a6E (kw M4c)) (.bin .and c34E (kw M4c))
+def lE : E := .bin .add lLowE (.bin .srl (.bin .sub (.bin .add a6E c34E) lLowE) (kw 2))
 def pE : E := .bin .add (.bin .and (.bin .srl lE (kw 4)) (kw M8c)) (.bin .and lE (kw M8c))
 def totE : E := .bin .add (.bin .remu pE (kw 255)) s3E
 def totBr (d : Bool) : Br := ⟨.ne, totE, kw 126, d⟩
@@ -179,7 +183,7 @@ def tgtt : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x1fe
 
 def specBt (p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, .bin .sll a7E (kw 2)), (.x3, totE), (.x14, x14t), (.x25, .bin .and c34E (kw M4c))],
-   [], 0, false, 54, [totBr false, rngBr 61 false], some tgtt, 60⟩
+   [], 0, false, 52, [totBr false, rngBr 61 false], some tgtt, 58⟩
 
 /-- After the top decode: the 2-bit masks, the quad mask in `s8`, `t4 = 8` (no checksum chain). -/
 def postBt (p : Nat) : List (Reg × Word) :=
@@ -189,7 +193,7 @@ def postBt (p : Nat) : List (Reg × Word) :=
     (.x1, pcOf (p + retOff 0))]
 
 def rejTot : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 44, [totBr true, rngBr 61 false], none, 50⟩
+  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 42, [totBr true, rngBr 61 false], none, 48⟩
 
 /-! ## The leaf-pk block -/
 
