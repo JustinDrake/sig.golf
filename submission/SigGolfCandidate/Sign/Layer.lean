@@ -362,21 +362,18 @@ theorem enc_digits (lay c d0 d1 : Nat) (hlay : lay < 6) (hd0 : d0 < 2 ^ 63) (hd1
     omega
 
 /-- Tree setup (457 .. 470): TA, the PB/CB/LB tweak words, `NCNT = 2^h`, `CB+32..48` cleared. -/
-theorem tree_setup (S : List Byte) (lay tau h e d0 d1 : Nat) (hlay : lay < 6) (htau : tau < 2 ^ 30)
+theorem tree_setup (S : List Byte) (lay tau h e d0 d1 : Nat) (hlay : lay < 5) (htau : tau < 2 ^ 30)
     (hh : 1 ≤ h ∧ h ≤ 6) (hheight : h = height lay) (he : e < 2 ^ h) (t : MachineState) (tpc : t.pc = pcOf 509)
     (hdig : t.readWords (BitVec.ofNat 64 0x780) 42 = (digitsOfWord d0 ++ digitsOfWord d1).map (BitVec.ofNat 64))
     (t5 : t.getReg .x5 = 0) (t8 : t.getReg .x8 = BitVec.ofNat 64 lay) (t9 : t.getReg .x9 = BitVec.ofNat 64 h)
     (t13 : t.getReg .x13 = BitVec.ofNat 64 e) (t18 : t.getReg .x18 = BitVec.ofNat 64 (0x900 + 856 * lay))
     (t30 : t.getReg .x30 = BitVec.ofNat 64 tau) (tst : Statics S t) :
-    ∃ tt, Steps image t 13 13 tt ∧
+    ∃ tt k c, Steps image t k c tt ∧ c≤20 ∧
       TreeCtx S (digitsOfWord d0 ++ digitsOfWord d1) ⟨lay, tau, h, e, 0x900 + 856 * lay⟩ tt ∧
       tt.pc = pcOf 522 ∧ tt.getReg .x20 = BitVec.ofNat 64 0 ∧
       RegsEq t tt [.x3, .x17, .x19, .x20, .x29] ∧
       Frame t tt (fun a => a = 0x6A0 ∨ a = 0xC0 ∨ a = 0x340 ∨ a = 0xE0 ∨ a = 0xE8) := by
-  have hs := symRun_sound blk509 codeAt_509 t tpc (by simp only [blk509.res, rv_simp])
-  have hc1 : blk509.res.cycles = 13 := rfl
-  have hk1 : blk509.res.steps = 13 := rfl
-  rw [hc1, hk1] at hs
+  obtain ⟨k,c,hs,hc⟩ := carryRun509 t tpc
   set tt := blk509.res.toState t with htt
   have f : Frame t tt (fun a => a = 0x6A0 ∨ a = 0xC0 ∨ a = 0x340 ∨ a = 0xE0 ∨ a = 0xE8) := by
     apply frame_toState; intro x hx hW
@@ -391,7 +388,7 @@ theorem tree_setup (S : List Byte) (lay tau h e d0 d1 : Nat) (hlay : lay < 6) (h
     rw [f.readWords _ _ (by norm_num) (by intro i hi; omega), hdig]
   have hp1 : 1 ≤ 2 ^ h := Nat.one_le_two_pow
   have hp32 : 2 ^ h ≤ 64 := pow_le32 _ hh.2
-  refine ⟨tt, hs, ?_, by simp only [htt, blk509.res, rv_simp], by simp only [htt, blk509.res, rv_simp], r, f⟩
+  refine ⟨tt,k,c,hs,hc,?_, by simp only [htt, blk509.res, rv_simp], by simp only [htt, blk509.res, rv_simp], r, f⟩
   refine ⟨by show lay < 7; omega, htau, hh.2, he, rfl, hheight, fun i => digits_lt d0 d1 i, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [r.get .x5, t5]
@@ -420,11 +417,9 @@ theorem tree_setup (S : List Byte) (lay tau h e d0 d1 : Nat) (hlay : lay < 6) (h
   · rw [show (4 : Nat) = 2 + 2 from rfl, readWords_ofNat_add,
       f.readWords _ _ (by norm_num) (by intro i hi; omega), tst.cbP, readWords_ofNat_two]
     simp only [htt, blk509.res, rv_simp]; rfl
-  · simp only [htt, blk509.res, rv_simp, t8]
-    bvsimp [ofNat_eq_iff]
-    rw [ofNat_or_disjoint (lay * 65536) 1025 16 (by omega) (by norm_num) (by omega)]
-    unfold twWord0; congr 1
-    rw [Nat.div_eq_of_lt (by omega : tau < 2 ^ 32), Nat.mod_eq_of_lt (a := lay) (by omega)]; omega
+  · simp only [htt,blk509.res,rv_simp,t8]
+    rw [carryLeafWord lay tau (by omega) (by omega)]
+    interval_cases lay <;> simp [Ref.LeafCarry.leafHeader]
   · rw [f.readWords _ _ (by norm_num) (by intro i hi; omega), tst.lbP]
   · rw [f.readWords _ _ (by norm_num) (by intro i hi; omega), tst.nbP]
 
@@ -495,10 +490,10 @@ def LaysPost (t0 : MachineState) (n : Nat) : Option (List LayerSig) → MachineS
       t.pc = pcOf 718 ∧ t.getReg .x5 = 0 ∧ Frame t0 t (layW n)
 
 /-- Cycle bound of one layer below the top. -/
-def layCyc : Nat := 26 + ((2 ^ 22) * 64 + 2) + (127 + (13 + (treeCyc + 13)))
+def layCyc : Nat := 26 + ((2 ^ 22) * 64 + 2) + (127 + (20 + (treeCyc + 13)))
 
 /-- Cycle bound of the top layer. -/
-def topCyc : Nat := 26 + ((2 ^ 22) * 64 + 2) + (127 + (9 + (21 * 684 + ((17 + (21 * 844 + (4 + (88 + 9)))) + 10 * 36))))
+def topCyc : Nat := 26 + ((2 ^ 22) * 64 + 2) + (127 + (9 + (21 * 684 + ((20 + (21 * 844 + (4 + (88 + 9)))) + 10 * 36))))
 
 /-- End of a layer (instructions 630 .. 636 and the detour 1820 .. 1825): the root's two children (the
 input of the root hash, still in the node buffer) → `EB+16 .. EB+48`, next layer. -/
@@ -594,7 +589,7 @@ theorem top_layer_sim (S cache : List Byte) (hS : S.length = 32) (hcache : cache
   rw [signTop_eq, show cMax = 2 ^ 22 - 1 + 1 from rfl]
   have henc := encLoop_sim encCode 0 tau e M t4 emem (2 ^ 22 - 1) 0 t4 (by norm_num)
     ⟨pc4, x46, by norm_num, RegsEq.refl _ _, Frame.refl _ _⟩
-  refine (Sim.steps hs4 (Sim.bind (W₂ := 127 + (9 + (21 * 684 + ((17 + (21 * 844 + (4 + (88 + 9)))) + 10 * 36)))) henc
+  refine (Sim.steps hs4 (Sim.bind (W₂ := 127 + (9 + (21 * 684 + ((20 + (21 * 844 + (4 + (88 + 9)))) + 10 * 36)))) henc
     (fun r t5 h5 => ?_))).mono (by unfold topCyc; omega) (fun _ _ h => h)
   rcases r with _ | ⟨c, x⟩
   · exact (Sim.pure (Q := LaysPost t 0) (a := none) (s := t5) h5).mono (by omega) (fun _ _ h => h)
@@ -658,9 +653,9 @@ theorem layers_sim (S cache : List Byte) (hS : S.length = 32) (hcache : cache.le
     rw [signLayers_succ, show cMax = 2 ^ 22 - 1 + 1 from rfl]
     have henc := encLoop_sim encCode (n + 1) tau e M t4 emem (2 ^ 22 - 1) 0 t4 (by norm_num)
       ⟨pc4, x46, by norm_num, RegsEq.refl _ _, Frame.refl _ _⟩
-    have hW : c0 + ((2 ^ 22 - 1 + 1) * 64 + 2 + (127 + (13 + (treeCyc + (13 + (n * layCyc + topCyc + 0)))))) ≤
+    have hW : c0 + ((2 ^ 22 - 1 + 1) * 64 + 2 + (127 + (20 + (treeCyc + (13 + (n * layCyc + topCyc + 0)))))) ≤
         (n + 1) * layCyc + topCyc := by
-      have hL : 26 + ((2 ^ 22) * 64 + 2) + (127 + (13 + (treeCyc + 13))) = layCyc := rfl
+      have hL : 26 + ((2 ^ 22) * 64 + 2) + (127 + (20 + (treeCyc + 13))) = layCyc := rfl
       rw [Nat.add_mul n 1 layCyc, Nat.one_mul]; omega
     refine (Sim.steps hs4 (Sim.bind henc (fun r t5 h5 => ?_))).mono hW (fun _ _ h => h)
     rcases r with _ | ⟨c, x⟩
@@ -678,12 +673,12 @@ theorem layers_sim (S cache : List Byte) (hS : S.length = 32) (hcache : cache.le
       have ftu := ft5.trans fu
       have stu : Statics S u := hh.st.frame ftu (by
         intro a ha; simp only [staticA] at ha; simp only [encW]; omega)
-      obtain ⟨tt, hs6, tctx, pc6, x620, r6, f6⟩ := tree_setup S (n + 1) tau (height (n + 1)) e d0 d1 (by omega) htau30
+      obtain ⟨tt,k6,c6,hs6,hc6,tctx,pc6,x620,r6,f6⟩ := tree_setup S (n + 1) tau (height (n + 1)) e d0 d1 (by omega) htau30
         ⟨by omega, hhb.2⟩ rfl he32 u pcu digu (by rw [rtu.get .x5, hh.x5]) (by rw [rtu.get .x8, hh.x8])
         (by rw [ru.get .x9, r5.get .x9, x49]) (by rw [ru.get .x13, r5.get .x13, x413])
         (by rw [rtu.get .x18, hh.x18]) (by rw [ru.get .x30, r5.get .x30, x430]) stu
-      refine Sim.steps hsu (Sim.steps hs6 (Sim.bind (tree_sim S hS _ ⟨n + 1, tau, height (n + 1), e,
-        0x900 + 856 * (n + 1)⟩ tt tctx (show 1 ≤ height (n + 1) by omega) pc6 x620) (fun tr t7 h7 => ?_)))
+      refine Sim.steps hsu ((Sim.steps hs6 (Sim.bind (W₂ := 13+(n*layCyc+topCyc+0)) (tree_sim S hS _ ⟨n + 1, tau, height (n + 1), e,
+        0x900 + 856 * (n + 1)⟩ tt tctx (show 1 ≤ height (n + 1) by omega) pc6 x620) (fun tr t7 h7 => ?_))).mono (by omega) (fun _ _ h=>h))
       obtain ⟨pc7, hr1, hroot, hv1, hvv, hvs, hp1, hpv, hps, r7, f7⟩ := h7
       have rt7 : RegsEq t t7 ((([.x3, .x6, .x9, .x13, .x28, .x29, .x30, .x31] ++ encRegs) ++ [.x3, .x14]) ++
           [.x3, .x17, .x19, .x20, .x29] ++ treeRegs) := (rtu.trans r6).trans r7

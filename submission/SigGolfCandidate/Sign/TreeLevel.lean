@@ -16,6 +16,34 @@ set_option linter.unnecessarySeqFocus false
 namespace SigGolfCandidate.Sign
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.Ref
 
+theorem addrFmt_nodeInput_nonTop (lay tau lam j : Nat) (l r : Val) (hl : l.length=16) (hr : r.length=16) (hlay : lay%256≠0) :
+    addrFmt (nodeInput lay tau lam j l r)=fmt (nodeInput lay tau lam j l r) := by
+  rw [addrFmt_nodeInput]
+  have hsz : (fmt (nodeInput lay tau lam j l r)).1=0 := by
+    have hlen : (nodeInput lay tau lam j l r).length=64 := by simp [nodeInput,thInput,hl,hr]
+    have hb:=blocks_fmt_le (nodeInput lay tau lam j l r)
+    change (fmt (nodeInput lay tau lam j l r)).1+1≤padBlocks (nodeInput lay tau lam j l r).length+1 at hb
+    rw [hlen] at hb
+    norm_num [padBlocks] at hb
+    omega
+  rw [Ref.LeafCarry.query_fixed_length _ (by
+    have hb:=TopHeap.query_blocks (fmt (nodeInput lay tau lam j l r))
+    change (TopHeap.query _).1+1=(fmt _).1+1 at hb
+    omega)]
+  have htop : TopHeap.query (fmt (nodeInput lay tau lam j l r))=fmt (nodeInput lay tau lam j l r) := by
+    apply TopHeap.query_fixed
+    have h2 := leNat_div_mod (toList (fmt (nodeInput lay tau lam j l r)).2) 2
+    rw [leNat_toList, getD_toList_fmt _ 2 (Or.inl (by omega))] at h2
+    simp [nodeInput,thInput,tweak,byte_toNat] at h2
+    change (fmt (nodeInput lay tau lam j l r)).2.toNat/65536%256=lay%256 at h2
+    intro h
+    omega
+  rw [htop]
+  apply EncodingRotate.query_fixed
+  have hc:=fmt_low_bytes (nodeInput lay tau lam j l r)
+  simp [nodeInput,thInput,tweak,byte_toNat] at hc ⊢
+  omega
+
 theorem xor1_lt (a n : Nat) (ha : a < 2 ^ n) (hn : 1 ≤ n) : a ^^^ 1 < 2 ^ n :=
   Nat.xor_lt_two_pow ha (lt_of_lt_of_le (by norm_num) (Nat.pow_le_pow_right (by norm_num) hn))
 
@@ -161,7 +189,9 @@ theorem tlevel_body2 (p : TreePar) (t0 : MachineState) (ctx : TLevCtx p t0) (j :
       simp only [c] at hj' ⊢
       show addrFmt (nodeInput p.lay p.tau (1 + j) j' l r) =
         pad64 (nodeFmt 3 p.lay p.tau 0 (2 ^ (p.h - 1 - j) + j') l r)
-      rw [addrFmt_nodeInput, fmt_nodeInput _ _ _ _ _ _ hl hr (by omega) (by omega) (by omega),
+      rw [addrFmt_nodeInput_nonTop _ _ _ _ _ _ hl hr (by
+          have hp : p.lay≠0 := by intro heq; have hh := ctx.hh; have he := ctx.hheight; simp [heq,height,heights] at he; omega
+          rw [Nat.mod_eq_of_lt (by omega : p.lay<256)];exact hp), fmt_nodeInput _ _ _ _ _ _ hl hr (by omega) (by omega) (by omega),
         pad64_len64 _ (length_nodeFmt _ _ _ _ _ _ _ hl hr)]
       unfold heapIndex nodeFmt
       rw [← ctx.hheight, show p.h - (1 + j) = p.h - 1 - j by omega])

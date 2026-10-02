@@ -5,14 +5,15 @@ import SigGolfCandidate.Transfer.Final
 # Stateless SPHINCS+ with gated overlapping-window encoding
 
 S=6032 signature bytes, W=14080 witness bytes, K=131072 cache bytes.
-The claim C=10310 is accepting verifier bound10255 plus witness charge55.
+The claim C=10304 is accepting verifier bound10249 plus witness charge55.
+This candidate retains the accepted ordered root-children message construction and adds
+length-separated leaf header reuse, a preserved selector threshold, a reversible
+top heap address reflection, carried upper-layer leaf headers, and rotated encoding
+payload lanes. The encoding header remains in memory and only its layer byte is updated,
+removing four header subtractions and one unused register initializer.
+Sparse temporary PORS cells share consumed chain-tweak slots. The certificate checks the concrete programs and query map.
 PORS has height14,15 openings and authentication cap117. The five WOTS
 checksum targets are[185,185,185,185,186].
-
-PORS setup falls through into relocated leaf blocks, removing one jump.
-The top Merkle path uses a2048-slot, two-jump dispatch DAG over shared
-six-bit prefixes and five-bit suffixes, removing three dispatch cycles.
-The verify image, including its16KiB dispatch table, is939072 bytes.
 
 For oracle words A,B,C,D, select AB when B's top bit is clear and A's top
 bit is clear; select BC when B's top bit is clear and A's top bit is set.
@@ -67,14 +68,9 @@ c216d85858f8a7dcd68a2782cc27cfd057d45b67. Earlier public sources include
 4528ff23136b01e342c77eedaf2f6d74ad961d15, and
 0ba3dc24993dd3491a0a6a064c7cd9fbb9aa6439.
 
-The external witness omits internal cache words and stores the sparse PORS stream in
-consumed tweak slots. Authentication paths are contiguous. The external witness begins
-at0x1100 and has14080bytes, with charge55.
-
-The verifier reserves x4 for the constant 2^60 and uses an unsigned comparison for
-the gated selector case. Branch-specific padding checks remove one worst-case cycle
-from each of the five layers; the single root-tail initializer costs one cycle, for a
-net four-cycle reduction from the 10263-cycle parent bound.
+The external witness omits its internal zero prefix. Temporary PORS cells share consumed
+chain tweak slots, and authentication paths use contiguous 16-byte cells. The external
+witness begins at 0x1100 and has 14080 bytes, with charge 55.
 
 The certificate covers all four images, universal termination, per-seed
 completeness, honest compression budgets,127-bit security and accepting
@@ -95,7 +91,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 19200, signature := 150272, witness := 4352 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 10310 :=
+theorem certificate : SigGolf.Certificate submission 10304 :=
   SigGolfCandidate.certificateNew
 
 end SigGolf.Challenge

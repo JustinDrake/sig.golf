@@ -319,6 +319,7 @@ theorem layer_step (w : List Byte) (hw : w.length = 16384) (hz : ∀ j < 4, w.ge
       by rw [y24]; try exact ofNat_congr (by ring), RegsEq.refl _ _, Frame.refl _ _⟩
   rw [verifyLeaf_eq, bind_assoc]
   simp only [foldPath_take_eq]
+  have hsetup : (if n + 1 = 4 then 29 else 32 : Nat) ≤ 32 := by split <;> omega
   refine (Sim.steps hs6 (Sim.steps hs7 (Sim.bind hch (W₂ := 300 + (n + 1) * LW) (fun ends t8 h8 => ?_)))).mono
     (by omega) (fun _ _ h => h)
   -- the leaf

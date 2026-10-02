@@ -385,9 +385,16 @@ theorem pad64_leafPayload4 (lay tau e : Nat) (ends : List Val) (hl : ends.length
 theorem addrFmt_leafInput_words (lay tau e : Nat) (ends : List Val) (hl : ends.length = 42)
     (hv : ∀ v ∈ ends, v.length = 16) :
     addrFmt (leafInput lay tau e ends) = queryOfWords 10
-      ([BitVec.ofNat 64 (twLo 4 lay tau 0), BitVec.ofNat 64 (twHi tau e), 0, 0] ++
+      ([BitVec.ofNat 64 (Ref.LeafCarry.header (BitVec.ofNat 64 (twLo 4 lay tau 0)).toNat), BitVec.ofNat 64 (twHi tau e), 0, 0] ++
         (ends.map fun v => [vw0 v, vw1 v]).flatten) := by
   rw [addrFmt_leafInput_tag4 lay tau e ends hl hv, pad64_leafPayload4 lay tau e ends hl hv]
+  have hlen : ((ends.map fun v => [vw0 v, vw1 v]).flatten).length = 84 := by
+    have hf (vs : List Val) : ((vs.map fun v => [vw0 v, vw1 v]).flatten).length = 2 * vs.length := by
+      induction vs with
+      | nil => rfl
+      | cons v vs ih => simp [List.flatten_cons] at ih ⊢; omega
+    simpa only [hl] using hf ends
+  exact Ref.LeafCarry.query_words _ _ (by simp [hlen])
 
 theorem pad64_digestInput (rho m : List Byte) (hr : rho.length = 16) (hm : m.length = 32) :
     pad64 (digestInput rho m) = queryOfWords 1

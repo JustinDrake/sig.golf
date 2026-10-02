@@ -116,8 +116,8 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     LayerIn ⟨wl, pk, lay - 1, idx⟩ v u := by
   have hfc := layFC_ok ⟨wl, pk, lay, idx⟩ ⟨h7, hidx, hwl⟩
   have hh := heightL_le lay h7
-  obtain ⟨hG, hK, -, -, -, hm0, hm8, hvl, hF, hpc, hFresh, h12, _⟩ := hu
-  obtain ⟨h27, h30, hCB, -, -⟩ := hc
+  obtain ⟨hG, hK, -, hNB, -, hm0, hm8, hvl, hF, hpc, hFresh, h12⟩ := hu
+  obtain ⟨h27, h30, hCB, -, -, hEH⟩ := hc
   have hsw := sib_words (layFC ⟨wl, pk, lay, idx⟩) hfc (heightL lay - 1)
     (by show heightL lay - 1 < heightL lay; omega) u hG hFresh
   have hsl := length_sib (layFC ⟨wl, pk, lay, idx⟩) hfc (heightL lay - 1)
@@ -137,7 +137,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
       unfold lvlK; rw [if_neg (by omega)]
     rw [← e]; exact hK
   have kf : ∀ r ∈ fkeep false, u.getReg r = s0.getReg r := hF.1
-  refine ⟨hG, ?_, ?_, hm0, hm8, hvl, fun _ => trivial, ?_, ?_,
+  refine ⟨hG, ?_, ?_, hm0, hm8, hvl, fun _ => trivial, ?_, ?_, ?_,
     fun h => absurd h (show ¬ (lay - 1 = 4) by omega), fun _ => ?_, ?_⟩
   · simp only [LCtx.lay, preK, if_neg (show lay - 1 ≠ 4 by omega), aK, Nat.sub_add_cancel h1]
     intro p hp
@@ -153,8 +153,19 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     rw [kf _ (by simp [fkeep]), h30]
     simp only [LCtx.tau, LCtx.lay, if_neg (show lay ≠ 0 by omega)]
     rw [layS_succ (lay - 1) (by omega), Nat.sub_add_cancel h1]
-  · rw [hF.2 _ (by omega) (Or.inl (by omega))]
-    exact hCB
+  · intro _
+    have hn := hNB.2 (by omega : heightL lay - 1 ≠ 0)
+    rw [hn]
+    congr 1
+    simp only [FCtx.lo0, layFC, LCtx.tau]
+    have ht := tau_lt lay idx h7 hidx
+    rw [Nat.div_eq_of_lt (by omega : idx / 2 ^ (layS lay + heightL lay) < 2 ^ 32)]
+    rw [Nat.sub_add_cancel h1]
+    omega
+  · intro _
+    change EncHeader (lay - 1 + 1) u
+    rw [Nat.sub_add_cancel h1]
+    exact hEH.frame (hF.2 0x100 (by decide) (Or.inl (by decide)))
   · exact Fresh_sub hFresh (fun a b k hw => FreshW_layer h1 hw)
   · show u.getMem (BitVec.ofNat 64 (topSib (lay - 1))) =
         vw0 (witSib wl (lay - 1 + 1) (heightL (lay - 1 + 1) - 1)) ∧
@@ -192,6 +203,14 @@ theorem layer_good (L : LCtx) (hL : L.ok) (X : Val) (Kopt : Option Val → Oracl
     (hK1 : L.lay ≠ 0 → ∀ v u, LayerIn ⟨L.wl, L.pk, L.lay - 1, L.idx⟩ v u → Good u N C (Kopt (some v)))
     (s : MachineState) (hs : LayerIn L X s) :
     Good s (N + 5000) (C + layerCost L.lay) (cc (layerSpec L.wl L.idx L.lay (L.msg X)) Kopt) := by
+  have hmsglen : (L.msg X).length = 32 := by
+    rcases hs with ⟨_, _, _, _, _, hx, _, _, _, _, _, hsib, _⟩
+    unfold LCtx.msg
+    split_ifs with h4
+    · simp [P, hx]
+    · have hv := (hsib h4).2.2
+      unfold topPair
+      split <;> simp [hx, hv]
   have hL' := hL
   obtain ⟨hlay, hidx, hwl⟩ := hL'
   obtain ⟨t, ht, t1, hst1, hf1, h51, hv1, hin1, hblk1, hpost1⟩ := enc_step L hL X s hs
@@ -246,7 +265,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (X : Val) (Kopt : Option Val → Oracl
             intro ans
             obtain ⟨hfi, hcar⟩ := hpost3 ans
             have hnH : NodeH (layFC L) :=
-              ⟨rfl, by simp [layFC, Nat.mod_eq_of_lt (show L.lay < 256 by omega), heightL_eq _ hlay]⟩
+              ⟨rfl, rfl, by have := tau_lt L.lay L.idx hL.1 hL.2.1; simpa [layFC, LCtx.tau] using (show L.tau < 2 ^ 32 by exact lt_of_lt_of_le this (by decide))⟩
             simp only [cc_pure]
             by_cases h0 : L.lay = 0
             · rw [if_pos h0, if_pos h0, nodeInput_eq, witPath_eq L hlay,
@@ -272,7 +291,7 @@ theorem layer_good (L : LCtx) (hL : L.ok) (X : Val) (Kopt : Option Val → Oracl
             (fun root => cc (pure (some root)) Kopt))
             hf3 h53 hv3 hin3 H3
           rw [addrFmt_leafInput_words _ _ _ _ hends hvs, blocks_q] at h3
-          have hls : leafSteps L.lay ≤ 13 := by unfold leafSteps; split <;> omega
+          have hls : leafSteps L.lay ≤ 13 := by unfold leafSteps; split_ifs <;> omega
           exact Good.steps' hst3 h3 (by omega) (by omega))
         t2 hent
       have e1 : List.range nChains = List.range 42 := rfl
@@ -323,7 +342,7 @@ theorem val_eq_iff (M P : Val) (hM : M.length = 16) (hP : P.length = 16) :
 def FinalIn (wl pk : List Byte) (idx : Nat) (M : Val) (s : MachineState) : Prop :=
   ∃ u a, FoldEndL ⟨wl, pk, 0, idx⟩ u ∧ s = writeHash u a ∧ M = answerBytes 16 a
 
-theorem cmp_link : ∀ t, t < 32 → m4Pc 0 1 t 4 + 8 + 1 = cmpPc t := by decide
+theorem cmp_link : ∀ t, t < 32 → m4Pc 0 1 t 4 + 8 + 1 = cmpPc (31 - t) := by decide
 
 theorem compare_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (M : Val)
     (s : MachineState) (hs : FinalIn wl pk idx M s) : Good s 8 8 (pure (M == pk, 0)) := by
@@ -341,7 +360,7 @@ theorem compare_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (M :
     rcases List.mem_append.mp hp with hp | hp
     · exact List.mem_append_left _ (List.mem_append_left _ hp)
     · simpa [layFC, dstOf] using List.mem_append_right (foldK 0 64) hp
-  have hpc' : (writeHash u a).pc = pcOf (cmpPc tt) := by
+  have hpc' : (writeHash u a).pc = pcOf (cmpPc (31 - tt)) := by
     rw [writeHash_pc, hpc, pcOf_add4, ← cmp_link tt htt2]
     rfl
   have m0 : (writeHash u a).getMem (BitVec.ofNat 64 384) = vw0 (answerBytes 16 a) :=
@@ -351,7 +370,7 @@ theorem compare_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (M :
   have p0 : (writeHash u a).getMem (BitVec.ofNat 64 160) = w64 (pk.take 8) := hG'.2.2.1.1
   have p1 : (writeHash u a).getMem (BitVec.ofNat 64 168) = w64 (pk.drop 8) := hG'.2.2.1.2
   have heq := val_eq_iff (answerBytes 16 a) pk (by simp) hpk
-  obtain ⟨r1, r2⟩ := lc_cmp (lay := 0) (by omega) htt2 rfl
+  obtain ⟨r1, r2⟩ := lc_cmp (lay := 0) (by omega) (show 31 - tt < 32 by omega) rfl
   by_cases e0 : vw0 (answerBytes 16 a) = w64 (pk.take 8)
   · obtain ⟨v, hv⟩ := spec_run r1 _ hpc' hK' (by
       intro b hb
@@ -434,6 +453,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The cycles of the five layers and the comparison (`8`). Against the head without the pair
 message: `-14` per lower layer (no root hash) and `+4` in each upper transition (the sibling copy). -/
-theorem layersCost_5 : layersCost 5 = 7475 := by decide
+theorem layersCost_5 : layersCost 5 = 7469 := by decide
 
 end SigGolfCandidate.Verify

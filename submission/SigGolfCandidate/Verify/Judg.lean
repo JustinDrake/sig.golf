@@ -185,11 +185,11 @@ theorem Good.encodingHashF {s : MachineState} {N C : Nat} {x : List Byte}
   have hh := Good.hashH hf ht0 hv hin h
   simpa only [encodingHash, cc_bind, cc_pure] using hh
 
-/-- Total encoding formatting, including malformed message lengths. -/
-theorem fmt_enc (lay tau e : Nat) (M : Val) (c : Nat) :
+/-- Encoding formatting for the exact32-byte root-pair message. -/
+theorem fmt_enc (lay tau e : Nat) (M : Val) (c : Nat) (hM : M.length = 32) :
     addrFmt (encInput lay tau e M c) =
-      LeafClass.query (EncodingRotate.query (pad64 (encInput lay tau e M c))) := by
-  rw [addrFmt_encInput, Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide)]
+      EncodingRotate.query (pad64 (encInput lay tau e M c)) := by
+  rw [addrFmt_encInput_valid _ _ _ _ hM, Ref.fmt_of_tag _ (by simp [encInput, tweak]; decide)]
 
 /-- Zero-padded `thInput` for the tags that `addrFmt` leaves alone (not 1, 3, 12). -/
 theorem fmt_th (t lay tau p j : Nat) (payload : List Byte)
