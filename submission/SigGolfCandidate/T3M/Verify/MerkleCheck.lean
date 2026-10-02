@@ -35,7 +35,5 @@ theorem mkLvl_of {lay ci sh : Nat} (h : mkBlockCheck lay ci sh = true) (kk : Nat
   simp only [mkBlockCheck, Bool.and_eq_true] at h
   exact List.all_eq_true.mp h.2 kk (List.mem_range.mpr hkk)
 
-theorem cmpCheck_at (c : Nat) (hc : c < 64) : cmpCheck c = true :=
-  List.all_eq_true.mp cmpCheck_all c (List.mem_range.mpr hc)
 
 end SigGolfCandidate.T3M
