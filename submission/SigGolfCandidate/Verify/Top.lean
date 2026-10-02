@@ -147,7 +147,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hregs : KnownOK gkL0 u := by
       intro p hp
       simp only [gkL0, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact hg0.1 p (by simp [rootK, hp])
       · exact hm1
       · exact hm2
@@ -156,7 +156,7 @@ theorem tailF_step (P : PCtx) (_hP : P.ok) (s0 : MachineState) (x c ptr E folds 
     have hknown : KnownOK l4K u := by
       intro p hp
       simp only [l4K, List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp
-      rcases hp with hp | rfl | rfl | rfl | rfl
+      rcases hp with hp | rfl | rfl | rfl
       · exact hregs p hp
       all_goals first | exact htag | exact hu.known _ (by simp [rootPost, rootK])
     have hmem : ∀ A, u.getMem A = m.getMem A := fun A => by rw [hu.mem]; rfl
@@ -182,7 +182,7 @@ Final.Discharge supplies the additional universal structural credit. Sparse init
 The prologue loads `x18 = 0xFFF` from the high word of header `0`, so the setup tail has no
 `x18` restore (`-1`), and the leaf heads address the header table from `sp`, so it loads no
 table-page register (`-1`). The last leaf forms its table base as `x29 - 576` (`-1`). -/
-def cycleBound : Nat := 10250
+def cycleBound : Nat := 10249
 
 /-- A cycle bound of every run (`256` per segment instead of the precise segment costs). -/
 def cycleBoundAll : Nat := 16834
@@ -193,8 +193,8 @@ def fuelBound : Nat := 45000
 
 def Kb : Bool → OracleComp HashSpec Obs := fun b => pure (b, 0)
 
-theorem layersCost_val : layersCost 5 = 7466 := by decide
-theorem layC_val : layC = 7466 := by unfold layC; rfl
+theorem layersCost_val : layersCost 5 = 7465 := by decide
+theorem layC_val : layC = 7465 := by unfold layC; rfl
 
 theorem tail_eq (pk : List Byte) (w : List Byte) (idx : Nat) (M : Val) :
     cc (do
