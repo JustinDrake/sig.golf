@@ -129,25 +129,14 @@ structure InitOK (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) 
   pk : PkOK pk s
   wit : WitAll w s
   zero : ∀ A, A < WIT → (A < 0x40 ∨ (0x60 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → s.getMem (BitVec.ofNat 64 A) = 0
-  /-- The embedded data words at `DATA` (T3K). -/
-  data : DataOK s
-
-theorem verifyData_length : (submission.image .verify).data.length = 96 := rfl
-
-theorem dataBase_verify : dataBase (submission.image .verify) = DATA := by
-  unfold dataBase; rw [verifyData_length]; decide
-
-/-- The embedded doublewords read back as `dataWords`. -/
-theorem verifyData_word (k : Nat) (hk : k < 12) :
-    bytesToWordLE ((((submission.image .verify).data).drop (8 * k)).take 8) =
-      BitVec.ofNat 64 (dataWords.getD k 0) := by
-  interval_cases k <;> decide +kernel
 
 theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) : InitOK m pk w s := by
   unfold initialState at h
   simp only [submission_admissible.2 .verify, if_true, Option.some.injEq] at h
   subst h
+  have e1 : (submission.image .verify).data = [] := rfl
+  simp only [e1, MachineState.writeBytesAsWords_nil]
   have hl : inputBuffers submission.sizes submission.layout .verify (m, pk, w) =
       [(0x40, bytes m), (0xA0, bytes pk), (0x800, bytes w)] := rfl
   rw [hl]
@@ -155,30 +144,17 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
   have lm : (bytes m).length = 32 := length_bytes m
   have lp : (bytes pk).length = 16 := length_bytes pk
   have lw : (bytes w).length = 25240 := length_bytes w
-  have lD := verifyData_length
-  have eD := dataBase_verify
   set blank : MachineState := { regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 }
-  set s0 := blank.writeBytesAsWords (BitVec.ofNat 64 (dataBase (submission.image .verify)))
-    (submission.image .verify).data
-  set s1 := s0.writeBytesAsWords (BitVec.ofNat 64 0x40) (bytes m)
+  set s1 := blank.writeBytesAsWords (BitVec.ofNat 64 0x40) (bytes m)
   set s2 := s1.writeBytesAsWords (BitVec.ofNat 64 0xA0) (bytes pk)
   set s3 := s2.writeBytesAsWords (BitVec.ofNat 64 0x800) (bytes w)
   have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 (dataBase (submission.image .verify)))).getMem A =
       s3.getMem A := fun A => by simp [MachineState.setReg, MachineState.getMem]
-  have g0 : ∀ A, A < 2 ^ 64 → s0.getMem (BitVec.ofNat 64 A) =
-      if DATA ≤ A ∧ A < DATA + 8 * ((96 + 7) / 8) ∧ (A - DATA) % 8 = 0 then
-        bytesToWordLE ((((submission.image .verify).data).drop (A - DATA)).take 8) else 0 := by
-    intro A hA
-    rw [getMem_writeBytesAsWords (submission.image .verify).data blank (dataBase (submission.image .verify)) A
-      (by rw [lD, eD]; unfold DATA; omega) hA, lD, eD]; rfl
-  have g0z : ∀ A, A < DATA → s0.getMem (BitVec.ofNat 64 A) = 0 := by
-    intro A hA
-    rw [g0 A (by unfold DATA at hA; omega), if_neg (by omega)]
   have g1 : ∀ A, A < 2 ^ 64 → s1.getMem (BitVec.ofNat 64 A) =
       if 0x40 ≤ A ∧ A < 0x40 + 8 * ((32 + 7) / 8) ∧ (A - 0x40) % 8 = 0 then
-        bytesToWordLE (((bytes m).drop (A - 0x40)).take 8) else s0.getMem (BitVec.ofNat 64 A) := by
+        bytesToWordLE (((bytes m).drop (A - 0x40)).take 8) else 0 := by
     intro A hA
-    rw [getMem_writeBytesAsWords _ s0 0x40 A (by rw [lm]; omega) hA, lm]
+    rw [getMem_writeBytesAsWords _ blank 0x40 A (by rw [lm]; omega) hA, lm]; rfl
   have g2 : ∀ A, A < 2 ^ 64 → s2.getMem (BitVec.ofNat 64 A) =
       if 0xA0 ≤ A ∧ A < 0xA0 + 8 * ((16 + 7) / 8) ∧ (A - 0xA0) % 8 = 0 then
         bytesToWordLE (((bytes pk).drop (A - 0xA0)).take 8) else s1.getMem (BitVec.ofNat 64 A) := by
@@ -189,7 +165,7 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
         bytesToWordLE (((bytes w).drop (A - 0x800)).take 8) else s2.getMem (BitVec.ofNat 64 A) := by
     intro A hA
     rw [getMem_writeBytesAsWords _ s2 0x800 A (by rw [lw]; omega) hA, lw]
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro p hp
     have hr1 : ∀ (st : MachineState) (base : Word) (l : List (BitVec 8)),
         (st.writeBytesAsWords base l).regs = st.regs := by
@@ -204,7 +180,7 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
           unfold MachineState.writeBytesAsWords
           rw [ih _ (by simp only [List.length_drop, List.length_cons]; omega)]
           rfl
-    have hr : s3.regs = blank.regs := by simp only [s3, s2, s1, s0, hr1]
+    have hr : s3.regs = blank.regs := by simp only [s3, s2, s1, hr1]
     simp only [k0, List.mem_cons, List.not_mem_nil, or_false] at hp
     rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
       rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
@@ -222,7 +198,7 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
           unfold MachineState.writeBytesAsWords
           rw [ih _ (by simp only [List.length_drop, List.length_cons]; omega)]
           rfl
-    simp only [MachineState.pc_setReg, s3, s2, s1, s0, hp1, blank]
+    simp only [MachineState.pc_setReg, s3, s2, s1, hp1, blank]
     rfl
   · intro k hk
     rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
@@ -242,16 +218,10 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
         bytes_word w j (by omega)]
       rfl
     · rw [if_neg (by unfold WIT; omega), g2 _ (by unfold WIT; omega), if_neg (by unfold WIT; omega),
-        g1 _ (by unfold WIT; omega), if_neg (by unfold WIT; omega), g0z _ (by unfold WIT DATA; omega),
-        wword_zero w j (by omega)]
+        g1 _ (by unfold WIT; omega), if_neg (by unfold WIT; omega), wword_zero w j (by omega)]
   · intro A hA hz
     unfold WIT at hA
     rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
-      if_neg (by omega), g0z A (by unfold DATA; omega)]
-  · intro k hk
-    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
-    rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
-      if_neg (by omega), g0 _ (by omega), if_pos (by omega), show DATA + 8 * k - DATA = 8 * k by omega,
-      verifyData_word k hk]
+      if_neg (by omega)]
 
 end SigGolfCandidate.T3M.Verify

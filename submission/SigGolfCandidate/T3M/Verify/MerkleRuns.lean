@@ -16,14 +16,13 @@ layer 0 has two chunks, levels 0..5 and 6..11, the other layers one). Level `l` 
 with `blk(l) = WIT + layerBase lay + 64 (h - 1 - l)` (V1's `s6 - 1024 - 64 (l + 1)`, top `s6 - 960 - 64 (l + 1)`),
 `cur(l) = blk(l) + 48 · bit l`. After the last level: the root HASH (`li a2, 0x100 / 0x180; ecall`) followed by the next
 layer's transition copy (`trPc (lay - 1) sh`) or a compare copy (`xcmp`); after level 5 of layer 0's chunk 0 the
-dispatch `slli a4, gp, 2; add a4, a5; jalr -608(a4)` into `stab_0_1` (gp = s7 >> 6 from the level's heap store,
-a5 = 0xce000 carried from leaf-pk).
+dispatch `lui a5, 0xce; srli a4, s7, 4; andi a4, 0xfc; add a4, a5; jalr -352(a4)` into `stab_0_1`.
 
 Families (each a path run checked by `specB`, kernel-checked in `MerkleCheck*`):
 * `mkEntCheck lay ci sh`: the table word `j shp_lay_ci_sh` and the first `addi a2`, to the first `ecall` (2 steps);
 * `mkLvlCheck lay ci sh kk`: level `mkLo lay ci + kk` from after its `ecall` to the next `ecall` (or through the chunk
   dispatch to its symbolic jump);
-* `cmpCheck c`: the compare copy `c` (low `ld/ld/bne`, high SUB-as-exit HALT).
+* `cmpCheck c`: the compare copy `c` (`ld/ld/bne` twice, HALT(0) / HALT(1)).
 
 Layout facts (word indices, `t3m/images/verify.labels`): `stab_3_0` 209512, `stab_2_0` 209576, `stab_1_0` 209640,
 `stab_0_0` 209768, `stab_0_1` 209832; `shp_3_0_sh` = 5483 + 101 sh, `shp_2_0_sh` = 11947 + 101 sh, `shp_1_0_sh` =
@@ -73,7 +72,7 @@ def mkHeap (lay ci sh l : Nat) : Nat := (2 ^ hL lay + sh * 2 ^ mkLo lay ci) / 2 
 /-- The constant registers of the Merkle code: `t0`, `s2`, `s6`, `tp = T(3)`'s word 0, the heap registers 1..7. -/
 def mkK (lay : Nat) : List (Reg × Word) :=
   baseK ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)), (.x6, 1), (.x7, 2), (.x8, 3),
-    (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x15, 0xce000)]
+    (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
 
 /-- Registers that no Merkle run writes or knows (kept for the next transition: `sp`, `s4`, `s5`, `s7`, `s8`, `s11`,
 `t3`, `t5`, ...). -/
@@ -87,7 +86,7 @@ def mkEntSpec (lay ci sh : Nat) : Spec := ⟨[], [], mkShp lay ci sh + 1, true, 
 def mkEntPost (lay ci sh : Nat) : List (Reg × Word) :=
   mkK lay ++ [(.x12, BitVec.ofNat 64 (mkCur lay (mkLo lay ci) (sh % 2)))]
 
-def mkEntKeep : List Reg := mkKeep ++ [.x10, .x11, .x14]
+def mkEntKeep : List Reg := mkKeep ++ [.x10, .x11, .x14, .x15]
 
 def mkEntCheck (lay ci sh : Nat) : Bool :=
   specB [] [] baseK (runAt (mkK lay) [] (mkTab lay ci + sh) []) (mkEntSpec lay ci sh) [] (mkEntPost lay ci sh) mkEntKeep
@@ -100,15 +99,15 @@ def mkHeapE (lay ci sh l : Nat) : E :=
 
 /-- The two header writes of level `l`: word 1 `tree | heap << 32` (two `sw`), word 0 `T(3)`. -/
 def mkLvlMem (lay ci sh l : Nat) : List (Addr × E) :=
-  [(⟨none, BitVec.ofNat 64 (mkBlk lay l + 24)⟩,
-      .bin (.st .w 4) (.bin (.st .w 0) (.ld (kw (mkBlk lay l + 24))) (.reg .x30)) (mkHeapE lay ci sh l)),
-   (⟨none, BitVec.ofNat 64 (mkBlk lay l + 16)⟩, kw (hw 3 lay))]
+  [(⟨none, BitVec.ofNat 64 (mkBlk lay l + 24)⟩, mkHeapE lay ci sh l),
+   (⟨none, BitVec.ofNat 64 (mkBlk lay l + 16)⟩,
+      .bin (.st .w 4) (kw (hw 3 lay)) (.reg .x30))]
 
 def mkLvlAllow (lay l : Nat) : List Nat := [mkBlk lay l + 16, mkBlk lay l + 24]
 
-/-- The chunk-1 dispatch target of layer 0 (`((s7 >> 6) << 2) + 0xce000 - 608`, even). -/
+/-- The chunk-1 dispatch target of layer 0 (`(s7 >> 4 & 0xfc) + 0xce000 - 352`, even). -/
 def mkDispTgt : E :=
-  .bin .and (.bin .add (.bin .sll (.bin .srl (.reg .x23) (kw 6)) (kw 2)) (kw 843168)) (.c (~~~1#64))
+  .bin .and (.bin .add (.bin .and (.bin .srl (.reg .x23) (kw 4)) (kw 0xfc)) (kw 843424)) (.c (~~~1#64))
 
 /-- Steps of the level body (after its `ecall`, before the next `addi a2` / `li a2` / dispatch). -/
 def mkBody (lay l : Nat) : Nat := (if l = 0 then 1 else 0) + 3 + (if mkReg lay l then 1 else 2)
@@ -127,8 +126,8 @@ def mkLvlSpecN (lay ci sh kk : Nat) : Spec :=
 
 /-- Level 5 of layer 0's chunk 0, ending with the chunk-1 dispatch (a jump to `stab_0_1`). -/
 def mkLvlSpecD (lay ci sh kk : Nat) : Spec :=
-  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), 0, false, mkBody lay (mkLo lay ci + kk) + 3, [], some mkDispTgt,
-    mkBody lay (mkLo lay ci + kk) + 3⟩
+  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), 0, false, mkBody lay (mkLo lay ci + kk) + 5, [], some mkDispTgt,
+    mkBody lay (mkLo lay ci + kk) + 5⟩
 
 /-- Known at the level body's start: the constants, and `a1 = 64` after the leaf-pk HASH. -/
 def mkLvlK (lay l : Nat) : List (Reg × Word) := mkK lay ++ (if l = 0 then [] else [(.x11, 64)])
@@ -143,7 +142,7 @@ def mkLvlPostD (lay ci kk : Nat) : List (Reg × Word) :=
 def mkLvlCheckN (lay ci sh kk : Nat) : Bool :=
   specB (mkLvlAllow lay (mkLo lay ci + kk)) [] baseK
     (runAt (mkLvlK lay (mkLo lay ci + kk)) [] (mkShp lay ci sh + mkOff lay ci kk + 2) [])
-    (mkLvlSpecN lay ci sh kk) [] (mkLvlPostN lay ci sh kk) (mkKeep ++ [.x14])
+    (mkLvlSpecN lay ci sh kk) [] (mkLvlPostN lay ci sh kk) (mkKeep ++ [.x14, .x15])
 
 def mkLvlCheckD (lay ci sh kk : Nat) : Bool :=
   specB (mkLvlAllow lay (mkLo lay ci + kk)) [] baseK
