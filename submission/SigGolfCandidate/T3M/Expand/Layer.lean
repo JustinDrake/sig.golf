@@ -62,7 +62,7 @@ theorem leafInput_words' (lay : Layer) (tree leaf : Nat) (ends : List Digest) (h
     rfl
   · rw [h, if_neg (by decide)]
     simp only [Nat.reduceMul, Nat.reduceSub, Nat.reduceAdd, Nat.reduceMod, List.replicate_zero,
-      wordsOf_nil, List.append_nil]
+      wordsOf_nil, List.append_nil, T3.packedNodeTag, Nat.reduceEqDiff, or_self, if_false]
 
 /-- The leaf-pk HASH length in blocks: `16 (N + 1)` bytes rounded up. -/
 def leafBlocks' (lay : Layer) : Nat := (16 * (chainCount lay + 1) + 63) / 64
@@ -268,12 +268,12 @@ theorem nodeInput_length' (tag lay tree heap : Nat) (l r : Digest) :
     (bytesLE 16 l ++ bytesLE 16 (header tag lay tree 0 heap) ++ zero16 ++ bytesLE 16 r).length = 64 := by
   simp [bytesLE_length, zero16]
 
-theorem wordsOf_nodeInput' (tag lay tree heap : Nat) (l r : Digest) :
+theorem wordsOf_nodeInput' (tag lay tree heap : Nat) (l r : Digest) (hn : T3.packedNodeTag tag := by decide) :
     wordsOf (bytesLE 16 l ++ bytesLE 16 (header tag lay tree 0 heap) ++ zero16 ++ bytesLE 16 r) =
-      [l.extractLsb' 0 64, l.extractLsb' 64 64, BitVec.ofNat 64 (hdr0 tag lay tree 0),
-        BitVec.ofNat 64 (hdr1 tree heap), 0, 0, r.extractLsb' 0 64, r.extractLsb' 64 64] := by
+      [l.extractLsb' 0 64, l.extractLsb' 64 64, BitVec.ofNat 64 (hdr0 tag lay tree tree),
+        BitVec.ofNat 64 (hdr1 heap 0), 0, 0, r.extractLsb' 0 64, r.extractLsb' 64 64] := by
   rw [wordsOf_append _ _ (by simp [bytesLE_length, zero16]), wordsOf_append _ _ (by simp [bytesLE_length]),
-    wordsOf_append _ _ (by simp [bytesLE_length]), wordsOf_bytesLE16, wordsOf_header, wordsOf_zero16,
+    wordsOf_append _ _ (by simp [bytesLE_length]), wordsOf_bytesLE16, wordsOf_packed_header _ _ _ _ _ hn, wordsOf_zero16,
     wordsOf_bytesLE16]
   rfl
 
@@ -397,7 +397,7 @@ theorem rl_mk_step {tc : MachineState} {sig : Signature} {lay : Layer} {tree lea
       bytesLE 16 R)) := by
     rw [pad64_of_aligned _ (by rw [nodeInput_length'])]
     refine hashInput_toQ t4 _ 0 NODE (nodeInput_length' _ _ _ _ _ _) h10 (by decide) (by decide) h11 (by decide) ?_
-    rw [wordsOf_nodeInput', readWords_eight, f34 _ (by decide) (by decide) (by decide),
+    rw [wordsOf_nodeInput' 3 _ _ _ _ _ (by decide), readWords_eight, f34 _ (by decide) (by decide) (by decide),
       f34 _ (by decide) (by decide) (by decide), h16, h24',
       f34 _ (by decide) (by decide) (by decide),
       f34 _ (by decide) (by decide) (by decide),
@@ -406,7 +406,7 @@ theorem rl_mk_step {tc : MachineState} {sig : Signature} {lay : Layer} {tree lea
       show NODE + 48 + 8 = NODE + 56 from rfl, nr.1, nr.2,
       f3.get (by decide) (by simp only [NODE]; have := sideOff_le leaf j; omega), hn32,
       f3.get (by decide) (by simp only [NODE]; have := sideOff_le leaf j; omega), hn40,
-      hdr0_eq 3 lay.val tree 0 (by decide) (by omega) htree (by decide), hdr1_eq tree heap htree hheap']
+      hdr0_eq 3 lay.val tree tree (by decide) (by omega) htree htree, hdr1_eq heap 0 hheap' (by decide)]
     congr 3
   have hv : hashArgumentsValid t4 = true :=
     hashArgs_const t4 NODE 64 NOUT h10 h11 h12 (by decide) (by decide) (by decide) (by decide) (by decide)

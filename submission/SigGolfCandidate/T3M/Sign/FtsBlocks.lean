@@ -157,8 +157,8 @@ theorem blk211_spec (s : MachineState) (hpc : s.pc = pcOf 211) (c idx leaf : Nat
       t.getReg .x12 = BitVec.ofNat 64 LFOUT ∧
       t.getMem (BitVec.ofNat 64 (FLEAF + 32)) = s.getMem (BitVec.ofNat 64 (SEC + 16 * leaf)) ∧
       t.getMem (BitVec.ofNat 64 (FLEAF + 40)) = s.getMem (BitVec.ofNat 64 (SEC + 16 * leaf + 8)) ∧
-      t.getMem (BitVec.ofNat 64 (FLEAF + 16)) = BitVec.ofNat 64 (2305 + 65536 * c) ∧
-      t.getMem (BitVec.ofNat 64 (FLEAF + 24)) = BitVec.ofNat 64 (idx + 2 ^ 32 * leaf) ∧
+      t.getMem (BitVec.ofNat 64 (FLEAF + 16)) = BitVec.ofNat 64 (2305 + 65536 * c + 2^32 * idx) ∧
+      t.getMem (BitVec.ofNat 64 (FLEAF + 24)) = BitVec.ofNat 64 leaf ∧
       RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x28, .x29, .x30] ∧
       Frame s t (fun A => A = FLEAF + 16 ∨ A = FLEAF + 24 ∨ A = FLEAF + 32 ∨ A = FLEAF + 40) := by
   have hobl : Oblig.all s blk_211.res.st.obl := by
@@ -177,13 +177,12 @@ theorem blk211_spec (s : MachineState) (hpc : s.pc = pcOf 211) (c idx leaf : Nat
     t3n [h18]
     congr 2; omega
   · simp only [Result.toState_getMem, blk_211.res, FLEAF]
-    t3n [h8]
-    rw [ofNat_or_disjoint' 2305 (c * 65536) 16 (by norm_num) (by omega)]
+    t3n [h8, h9]
+    rw [ofNat_or_disjoint' 2305 (c * 65536) 16 (by norm_num) (by omega),
+      ofNat_or_disjoint' (2305 + c * 65536) (idx * 4294967296) 32 (by omega) (by omega)]
     congr 1; omega
   · simp only [Result.toState_getMem, blk_211.res, FLEAF]
-    t3n [h9, h18]
-    rw [ofNat_or_disjoint' idx (leaf * 4294967296) 32 hidx (by omega)]
-    congr 1; omega
+    t3n [h18]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_211.res, rv_simp] <;> rfl
   · intro A hA hn
     simp only [FLEAF] at hn

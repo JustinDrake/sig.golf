@@ -233,8 +233,8 @@ theorem rc868_spec (hpc : s.pc = pcOf 868) (c j g index : Nat) (hc : c < 7) (hj 
       t.getReg .x24 = BitVec.ofNat 64 (g % 2) ∧
       t.getMem (BitVec.ofNat 64 (FLEAF + 32)) = s.getMem (BitVec.ofNat 64 (0x7010 + 16 * (3 * c + j))) ∧
       t.getMem (BitVec.ofNat 64 (FLEAF + 40)) = s.getMem (BitVec.ofNat 64 (0x7010 + 16 * (3 * c + j) + 8)) ∧
-      t.getMem (BitVec.ofNat 64 (FLEAF + 16)) = BitVec.ofNat 64 (2305 + 65536 * c) ∧
-      t.getMem (BitVec.ofNat 64 (FLEAF + 24)) = BitVec.ofNat 64 (index + 2 ^ 32 * g) ∧
+      t.getMem (BitVec.ofNat 64 (FLEAF + 16)) = BitVec.ofNat 64 (2305 + 65536 * c + 2^32 * index) ∧
+      t.getMem (BitVec.ofNat 64 (FLEAF + 24)) = BitVec.ofNat 64 g ∧
       t.getReg .x10 = BitVec.ofNat 64 FLEAF ∧ t.getReg .x11 = BitVec.ofNat 64 64 ∧
       t.getReg .x12 = BitVec.ofNat 64 NOUT ∧
       RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x14, .x23, .x24, .x28, .x30] ∧
@@ -254,12 +254,11 @@ theorem rc868_spec (hpc : s.pc = pcOf 868) (c j g index : Nat) (hc : c < 7) (hj 
     congr 2; ring
   · simp only [Result.toState_getMem, eblk_868.res, rv_simp, h8, h20, h9, h29, secA, FLEAF]
     t3n []
-    rw [ofNat_or_disjoint' 2305 (c * 65536) 16 (by norm_num) (by omega)]
+    rw [ofNat_or_disjoint' 2305 (c * 65536) 16 (by norm_num) (by omega),
+      ofNat_or_disjoint' (2305 + c * 65536) (index * 4294967296) 32 (by omega) (by omega)]
     congr 1; ring
-  · simp only [Result.toState_getMem, eblk_868.res, rv_simp, h8, h20, h9, h29, secA, FLEAF]
-    t3n []
-    rw [ofNat_or_disjoint' index (g * 4294967296) 32 hi (by omega)]
-    congr 1; ring
+  · simp only [Result.toState_getMem, eblk_868.res, rv_simp, h8, h20, h9, h29, secA, FLEAF] <;>
+      t3n [] <;> rfl
   · simp [eblk_868.res, rv_simp]
   · simp [eblk_868.res, rv_simp]
   · simp [eblk_868.res, rv_simp]
@@ -358,8 +357,8 @@ theorem rc918_spec (hpc : s.pc = pcOf 918) (fp : Nat) (hfp8 : fp % 8 = 0) (hfp :
       t.getMem (BitVec.ofNat 64 (NODE + 8)) = s.getMem (BitVec.ofNat 64 (fp + 40)) ∧
       t.getMem (BitVec.ofNat 64 (NODE + 48)) = s.getMem (BitVec.ofNat 64 NOUT) ∧
       t.getMem (BitVec.ofNat 64 (NODE + 56)) = s.getMem (BitVec.ofNat 64 (NOUT + 8)) ∧
-      t.getMem (BitVec.ofNat 64 (NODE + 16)) = BitVec.ofNat 64 (2561 + 65536 * c) ∧
-      t.getMem (BitVec.ofNat 64 (NODE + 24)) = BitVec.ofNat 64 (index + 2 ^ 32 * (2 ^ (11 - level) + node)) ∧
+      t.getMem (BitVec.ofNat 64 (NODE + 16)) = BitVec.ofNat 64 (2561 + 65536 * c + 2^32 * index) ∧
+      t.getMem (BitVec.ofNat 64 (NODE + 24)) = BitVec.ofNat 64 (2 ^ (11 - level) + node) ∧
       RegsExcept s t [.x6, .x7, .x13, .x28, .x29, .x30] ∧
       Frame s t (fun A => A = NODE ∨ A = NODE + 8 ∨ A = NODE + 16 ∨ A = NODE + 24 ∨ A = NODE + 48 ∨
         A = NODE + 56) := by
@@ -380,16 +379,15 @@ theorem rc918_spec (hpc : s.pc = pcOf 918) (fp : Nat) (hfp8 : fp % 8 = 0) (hfp :
       t3n []
   · simp only [Result.toState_getMem, eblk_918.res, rv_simp, h2, h8, h9, ofNat_add_ofNat, NODE, NOUT]
     t3n []
-    rw [ofNat_or_disjoint' 2561 (c * 65536) 16 (by norm_num) (by omega)]
+    rw [ofNat_or_disjoint' 2561 (c * 65536) 16 (by norm_num) (by omega),
+      ofNat_or_disjoint' (2561 + c * 65536) (index * 4294967296) 32 (by omega) (by omega)]
     congr 1; ring
   · simp only [Result.toState_getMem, eblk_918.res, rv_simp, h2, h8, h9, ofNat_add_ofNat, NODE, NOUT]
     t3n []
     rw [hlv, hnd, show (11#64 : BitVec 64) = BitVec.ofNat 64 11 from rfl, ofNat_sub_ofNat 11 level hl' (by omega),
       BitVec.toNat_ofNat, Nat.mod_eq_of_lt (show 11 - level < 2 ^ 64 by omega),
-      Nat.mod_eq_of_lt (show 11 - level < 64 by omega), Nat.one_mul, ofNat_add_ofNat, ofNat_shl]
-    have hp : 2 ^ (11 - level) ≤ 2 ^ 10 := Nat.pow_le_pow_right (by norm_num) (by omega)
-    rw [ofNat_or_disjoint' index _ 32 hi (by omega)]
-    congr 1; ring
+      Nat.mod_eq_of_lt (show 11 - level < 64 by omega), Nat.one_mul, ofNat_add_ofNat] <;>
+      apply congrArg (BitVec.ofNat 64) <;> ring
   · ex_regs eblk_918.res
   · intro A hA hn
     simp only [NODE] at hn
