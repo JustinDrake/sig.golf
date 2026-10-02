@@ -233,13 +233,13 @@ theorem pmask_byte (W : Word) (k : Nat) (hk : k < 8) :
 theorem piT_eval {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (s : Nat) (hs : s < 15) :
     (piT s).eval m = BitVec.ofNat 64 (8 * (witPi P.wl s / 8 % 16)) := by
   have hp : m.getMem (BitVec.ofNat 64 (PMS + 8 * (s / 8))) =
-      w64 (slice P.wl (2304 + 8 * (s / 8)) 8) &&& PMASK :=
+      w64 (slice P.wl (2672 + 8 * (s / 8)) 8) &&& PMASK :=
     (h.prot (protP_pms _ (by omega))).trans (h.s0ok.pmask _ (by omega))
   apply BitVec.eq_of_toNat_eq
   show (LoadKind.bu.fromWord (m.getMem (BitVec.ofNat 64 (PMS + 8 * (s / 8)))) (s % 8)).toNat = _
   rw [hp, pmask_byte _ _ (Nat.mod_lt _ (by decide)), bu_w64 _ _ (by simp [slice]),
     getD_slice _ _ _ (Nat.mod_lt _ (by decide))]
-  have hw : (P.wl.getD (2304 + 8 * (s / 8) + s % 8) 0).toNat = witPi P.wl s := by
+  have hw : (P.wl.getD (2672 + 8 * (s / 8) + s % 8) 0).toNat = witPi P.wl s := by
     unfold witPi; congr 2; unfold wPi; omega
   rw [hw, land0x78 _ (by unfold witPi; exact (P.wl.getD _ 0).isLt), ofNat_toNat_lt _ (by omega)]
 
@@ -295,6 +295,11 @@ theorem rtW_lw (n : Nat) : (UnOp.ld .w 0).eval (rtW n) = Rev.revWord (2 ^ 14 |||
   rw [rtW, Rev.revWord, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hs, Nat.zero_div]
   exact lw_sext _ _ he hh
 
+
+theorem rtW2_hi : (UnOp.ld .wu 4).eval (rtW 2) = BitVec.ofNat 64 tbL := by decide +kernel
+
+/-- Constant-address validity is discharged inside `checkValid`, not emitted as a symbolic obligation. -/
+theorem leafTb_read_valid : accessValid (BitVec.ofNat 64 (RTAB + 20)) 4 = true := by decide
 
 theorem leafObl1_holds {P : PCtx} {s0 m : MachineState} {tb : Nat} (h : PB P s0 m tb) (s : Nat)
     (hs : s < 15) : ∀ o ∈ leafObl1 s, o.holds m := by
@@ -425,7 +430,14 @@ theorem pleaf_step (P : PCtx) (hP : P.ok) (s0 : MachineState) (s : Nat) (st : Po
     obtain ⟨u, hu⟩ := pspec_run cAcc m h.pc hK hbr' hob
     have hx := xE_eval h.pb s hs
     have hK' := hu.known
-    have r20 : u.getReg .x20 = BitVec.ofNat 64 (tbOf s) := hK' (.x20, BitVec.ofNat 64 (tbOf s)) (by simp [pleafPost])
+    have r20 : u.getReg .x20 = BitVec.ofNat 64 (tbOf s) := by
+      rw [hu.regs (.x20, leafTbE s) (by simp [leafSpec])]
+      by_cases h14 : s = 14
+      · subst s
+        change (UnOp.ld .wu 4).eval (m.getMem (BitVec.ofNat 64 (RTAB + 8 * 2))) = BitVec.ofNat 64 tbL
+        rw [h.pb.rtab 2 (by decide)]
+        exact rtW2_hi
+      · simp [leafTbE, h14, tbOf, cw, E.eval]
     have pb := h.pb.run hu r20 (by simp [pleafKeep])
     have hlook := psr_look hu
     have hsec : ∀ k, k < 2 → m.getMem (BitVec.ofNat 64 (secA s + 8 * k)) =
@@ -584,25 +596,25 @@ theorem dispCheck2_ok (c tb : Nat) (hc : c < 210) (h1 : c < 15 → tb = tbOf c) 
 theorem wbyte_lt (wl : List Byte) (off : Nat) : wbyte wl off < 256 := (wl.getD off 0).isLt
 
 theorem dispT_eval {P : PCtx} {s0 m : MachineState} {tb' : Nat} (pb : PB P s0 m tb') (ptr tb : Nat)
-    (hfr : m.getReg .x14 = BitVec.ofNat 64 (ptr + 960)) (hp : 4032 ≤ ptr) (hp8 : ptr % 8 = 0)
+    (hfr : m.getReg .x14 = BitVec.ofNat 64 (ptr + 1536)) (hp : 5504 ≤ ptr) (hp8 : ptr % 8 = 0)
     (hp2 : ptr < 65536) (_htb : tb < 2 ^ 32) :
     (dispT tb).eval m = BitVec.ofNat 64 (tb + 32 * wbyte P.wl ptr) := by
   have hb := wit_byte pb.wit ptr hp2
   rw [show 0x800 + ptr / 8 * 8 = 0x800 + ptr by omega, show ptr % 8 = 0 from hp8] at hb
   have hbl := wbyte_lt P.wl ptr
   apply BitVec.eq_of_toNat_eq
-  show ((LoadKind.bu.fromWord (m.getMem (m.getReg .x14 + BitVec.ofNat 64 1088)) 0 <<<
+  show ((LoadKind.bu.fromWord (m.getMem (m.getReg .x14 + BitVec.ofNat 64 512)) 0 <<<
     ((BitVec.ofNat 64 5).toNat % 64)) + BitVec.ofNat 64 tb).toNat = _
-  rw [hfr, BitVec.ofNat_add_ofNat, show ptr + 960 + 1088 = 0x800 + ptr by omega, show (BitVec.ofNat 64 5).toNat % 64 = 5 from rfl]
+  rw [hfr, BitVec.ofNat_add_ofNat, show ptr + 1536 + 512 = 0x800 + ptr by omega, show (BitVec.ofNat 64 5).toNat % 64 = 5 from rfl]
   simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, hb, Nat.shiftLeft_eq]
   omega
 
-theorem dispObl_holds {m : MachineState} (ptr : Nat) (hfr : m.getReg .x14 = BitVec.ofNat 64 (ptr + 960))
-    (hp : 4032 ≤ ptr) (hp8 : ptr % 8 = 0) (hp2 : ptr < 65536) : ∀ o ∈ dispObl, o.holds m := by
+theorem dispObl_holds {m : MachineState} (ptr : Nat) (hfr : m.getReg .x14 = BitVec.ofNat 64 (ptr + 1536))
+    (hp : 5504 ≤ ptr) (hp8 : ptr % 8 = 0) (hp2 : ptr < 65536) : ∀ o ∈ dispObl, o.holds m := by
   intro o ho
   simp only [dispObl, List.mem_cons, List.not_mem_nil, or_false] at ho
   rcases ho with rfl | rfl
-  · simp only [Oblig.holds, E.eval, hfr, ofNat_toNat_lt _ (show ptr + 960 < 2 ^ 64 by omega)]; omega
+  · simp only [Oblig.holds, E.eval, hfr, ofNat_toNat_lt _ (show ptr + 1536 < 2 ^ 64 by omega)]; omega
   · simp only [Oblig.holds, Addr.eval, E.eval, hfr, BitVec.ofNat_add_ofNat, accessValid, rangeValid,
       Bool.and_eq_true, decide_eq_true_eq, MEMORY_BYTES]
     rw [ofNat_toNat_lt _ (by omega)]; omega
@@ -1153,7 +1165,7 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
       · simpa only [posCheck1, posCodePc, if_neg hnj, if_neg hh, prefixPosSpec, if_neg hp,
           if_neg (show ¬ (3 ≤ a ∧ i = prefixN a) by omega)] using
           posCheck_at V t (14-a+i) t' h.hV h.ht hp14 ht'2 ht'13
-  have hsa : ∀ q, q = 0 ∨ q = 8 → (addC (.reg .x14) (BitVec.ofNat 64 (192 + 64 * (14 - a + i) + q))).eval m =
+  have hsa : ∀ q, q = 0 ∨ q = 8 → (addC (.reg .x14) (BitVec.ofNat 64 ((2^64 - 384) + 64 * (14 - a + i) + q))).eval m =
       BitVec.ofNat 64 (0x800 + (ptr + 64 + 64 * i) + q) := by
     intro q hq
     rw [addC_eval]
@@ -1162,7 +1174,7 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
     simp only [BitVec.toNat_ofNat]
     omega
   have hva : ∀ q, q = 0 ∨ q = 8 →
-      accessValid ((addC (.reg .x14) (BitVec.ofNat 64 (192 + 64 * (14 - a + i) + q))).eval m) 8 = true := by
+      accessValid ((addC (.reg .x14) (BitVec.ofNat 64 ((2^64 - 384) + 64 * (14 - a + i) + q))).eval m) 8 = true := by
     intro q hq
     rw [hsa q hq]
     simp only [accessValid, rangeValid, Bool.and_eq_true, decide_eq_true_eq, MEMORY_BYTES]
@@ -1201,9 +1213,9 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
       intro o ho
       simp only [posObl, List.mem_cons, List.not_mem_nil, or_false] at ho
       rcases ho with rfl | rfl
-      · change accessValid (m.getReg .x14 + BitVec.ofNat 64 (192 + 64 * (14 - a + i) + 8)) 8 = true
+      · change accessValid (m.getReg .x14 + BitVec.ofNat 64 ((2^64 - 384) + 64 * (14 - a + i) + 8)) 8 = true
         simpa only [addC_eval, Rv.E.eval] using hva 8 (Or.inr rfl)
-      · change accessValid (m.getReg .x14 + BitVec.ofNat 64 (192 + 64 * (14 - a + i))) 8 = true
+      · change accessValid (m.getReg .x14 + BitVec.ofNat 64 ((2^64 - 384) + 64 * (14 - a + i))) 8 = true
         simpa only [Nat.add_zero, addC_eval, Rv.E.eval] using hva 0 (Or.inl rfl))
   have hK' := hu.known
   have kp := hu.keep
@@ -1212,11 +1224,11 @@ theorem pos_step (P : PCtx) (s0 : MachineState) (s x V t a i ptr E folds : Nat) 
   obtain ⟨sb0, sb1⟩ := psib_words h.pb (ptr + 64 + 64 * i) (by omega) (by omega)
   set sib := wbytes P.wl (ptr + 64 + 64 * i) 16 with hsib
   have hsl : sib.length = 16 := by simp [hsib, wbytes]
-  have e1 : (ldR .x14 (192 + 64 * (14 - a + i))).eval m = vw0 sib := by
-    show m.getMem ((addC (.reg .x14) (BitVec.ofNat 64 (192 + 64 * (14 - a + i)))).eval m) = _
-    rw [show 192 + 64 * (14 - a + i) = 192 + 64 * (14 - a + i) + 0 from rfl, hsa 0 (Or.inl rfl), Nat.add_zero]; exact sb0
-  have e2 : (ldR .x14 (192 + 64 * (14 - a + i) + 8)).eval m = vw1 sib := by
-    show m.getMem ((addC (.reg .x14) (BitVec.ofNat 64 (192 + 64 * (14 - a + i) + 8))).eval m) = _
+  have e1 : (ldR .x14 ((2^64 - 384) + 64 * (14 - a + i))).eval m = vw0 sib := by
+    show m.getMem ((addC (.reg .x14) (BitVec.ofNat 64 ((2^64 - 384) + 64 * (14 - a + i)))).eval m) = _
+    rw [show (2^64 - 384) + 64 * (14 - a + i) = (2^64 - 384) + 64 * (14 - a + i) + 0 from rfl, hsa 0 (Or.inl rfl), Nat.add_zero]; exact sb0
+  have e2 : (ldR .x14 ((2^64 - 384) + 64 * (14 - a + i) + 8)).eval m = vw1 sib := by
+    show m.getMem ((addC (.reg .x14) (BitVec.ofNat 64 ((2^64 - 384) + 64 * (14 - a + i) + 8))).eval m) = _
     rw [hsa 8 (Or.inr rfl)]; exact sb1
   have ht := h.ht
   have hpm := prefix_spec_mem V t a i bits t'

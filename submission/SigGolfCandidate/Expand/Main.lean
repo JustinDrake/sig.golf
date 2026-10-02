@@ -67,9 +67,9 @@ theorem start_hash (s : MachineState) (rho msg : List Byte) (hr : rho.length = 1
 
 
 /-- The outcome of `expand` in the form `Sim.run_eq` needs. -/
-def Qexp (r : Option (Bytes 14080)) (t : MachineState) : Prop :=
+def Qexp (r : Option (Bytes 13712)) (t : MachineState) : Prop :=
   fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
-    r = if t.getReg .x10 = 0 then some (readBuffer t 0x1100 14080) else none
+    r = if t.getReg .x10 = 0 then some (readBuffer t 0x1270 13712) else none
 
 theorem qexp_none (t : MachineState) (h : Final none t) : Qexp none t := by
   obtain ⟨h1, h2, h3⟩ := h
@@ -116,7 +116,7 @@ theorem phase1 (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6032) (
       intro a ha hk; rw [getByte_ofNat _ _ ha, t3m, ← getByte_ofNat _ _ ha]; exact hb2 a ha hk
     have hc : SchCtx A sig t3 := ⟨hA.frame t3m, hSK.lt, by rw [t3m]; exact hsent,
       fun j hj => by rw [hb3 _ (by omega) (by omega)]; exact hsok j hj, hsig⟩
-    have hz3 : ∀ i < 9408, t3.getByte (BitVec.ofNat 64 (0x17C0 + i)) = 0 := by
+    have hz3 : ∀ i < 9408, t3.getByte (BitVec.ofNat 64 (0x1D80 + i)) = 0 := by
       intro i hi; rw [hb3 _ (by omega) (by omega)]; exact hz _ (by omega) (by omega)
     have hsched := sch_run A sig t3 hc hp.1 t3pc hz3 (by rw [hcr]; exact hoct) (by rw [hcs]; simp [vsOf])
     refine Run.seq (B₂ := 7643) hsched (fun t4 h4 => ?_) (by norm_num)
@@ -141,7 +141,7 @@ theorem phase1 (ans : BitVec 256) (sig : List Byte) (hsig : sig.length = 6032) (
         intro p hp'
         rw [t5m, t4fr _ (by omega) (by unfold SW; omega)]; exact hc.arr p hp'
       -- bytes of t5 outside KEYS and the scheduler's writes are those of s2
-      have hb5 : ∀ a, a < 2 ^ 64 → ¬ (0x6E0 ≤ a ∧ a < 0x7E0) → ¬ (0x17C0 ≤ a ∧ a < 0x17C0 + 9408) →
+      have hb5 : ∀ a, a < 2 ^ 64 → ¬ (0x6E0 ≤ a ∧ a < 0x7E0) → ¬ (0x1D80 ≤ a ∧ a < 0x1D80 + 9408) →
           t5.getByte (BitVec.ofNat 64 a) = s2.getByte (BitVec.ofNat 64 a) := by
         intro a ha h1 h2
         rw [getByte_ofNat _ _ ha, t5m, t4fr _ (by omega) (by unfold SW; omega), ← getByte_ofNat _ _ ha,
@@ -261,7 +261,7 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.
     (hz : ∀ a, 0x800 ≤ a → a < 0x24B00 → s.getByte (BitVec.ofNat 64 a) = 0) :
     Sign.Sim image s (13 + (8 + (15000 + (400000 + (34 + 5 * ExP.LW)) + 0)))
       ((liftM (HashSpec.query (addrFmt (digestInput (sigRho sig) msg))) : OracleComp HashSpec _) >>= fun a =>
-        afterD sig a.toNat >>= fun r => pure (r.map fun l => ofList 14080 (cutW l))) Qexp := by
+        afterD sig a.toNat >>= fun r => pure (r.map fun l => ofList 13712 (cutW l))) Qexp := by
   have hr : (sigRho sig).length = 16 := by simp [sigRho, slice, hsig]
   have hst := symRun_sound blk0 codeAt_0 s hpc (by simp only [blk0.res, rv_simp])
   rw [show blk0.res.cycles = 13 by kernel_rfl] at hst
@@ -279,7 +279,7 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.
   have hb : (addrFmt (digestInput (sigRho sig) msg)).blocks = 1 :=
     by rw [addrFmt_blocks]; exact blocks_fmt_digest _ ⟨by simp [digestInput, thInput, hr, hmsg, length_tweak, P, zeros], rfl⟩
   have := Sign.Sim.query_bind (W := 15000 + (400000 + (34 + 5 * ExP.LW)) + 0)
-    (f := fun a => afterD sig a.toNat >>= fun r => (pure (r.map fun l => ofList 14080 (cutW l)) : OracleComp HashSpec _))
+    (f := fun a => afterD sig a.toNat >>= fun r => (pure (r.map fun l => ofList 13712 (cutW l)) : OracleComp HashSpec _))
     (Q := Qexp) e1 x5 hv hq (fun a => ?_)
   · rw [hb] at this; exact this
   set s2 := writeHash s1 a with hs2
@@ -303,7 +303,7 @@ theorem expand_sim (sig msg : List Byte) (hsig : sig.length = 6032) (hmsg : msg.
 theorem expandRef_eq (m : Message) (pk : PublicKey) (σ : Bytes 6032) :
     expandRef m pk σ = (liftM (HashSpec.query (addrFmt (digestInput (sigRho (toList σ)) (toList m)))) :
       OracleComp HashSpec _) >>= fun a => afterD (toList σ) a.toNat >>= fun r =>
-        pure (r.map fun l => ofList 14080 (cutW l)) := by
+        pure (r.map fun l => ofList 13712 (cutW l)) := by
   simp only [expandRef, expandList, digest, H, bind_assoc, pure_bind]
   rfl
 
@@ -337,7 +337,7 @@ theorem sim_sI (m : Message) (pk : PublicKey) (σ : Bytes 6032) :
   · intro j hj; rw [sI_getByte _ _ _ _ (by omega), if_pos (by omega)]; simp [toList]
   · intro a h1 h2; rw [sI_getByte _ _ _ _ (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega)]
 
-theorem qexp_halt (r : Option (Bytes 14080)) (t : MachineState) (h : Qexp r t) :
+theorem qexp_halt (r : Option (Bytes 13712)) (t : MachineState) (h : Qexp r t) :
     fetch (submission.image .expand) t = some (.base .ECALL) ∧ t.getReg .x5 = 1 ∧
       id r = if t.getReg .x10 = 0 then some (readOutput submission.sizes submission.layout .expand t) else none :=
   ⟨h.1, h.2.1, h.2.2⟩

@@ -90,7 +90,7 @@ section wit
 variable (wl : List Byte) (hl : wl.length = 16384)
 
 theorem path_bound (lay : Layer) :
-    Ref.pathOff lay.val + 16 * SphincsSecurity.layerHeight lay ≤ 2944 := by
+    Ref.pathOff lay.val + Ref.pathStride lay.val * SphincsSecurity.layerHeight lay ≤ 16384 := by
   fin_cases lay <;> decide
 
 theorem lay_lt (lay : Layer) : lay.val < 5 := lay.isLt
@@ -126,6 +126,9 @@ theorem witPath_eq (lay : Layer) :
   unfold SphincsSecurity.Concrete.signaturePath
   rw [dif_pos hl2]
   have hb := path_bound lay
+  have hs : 16 ≤ Ref.pathStride lay.val := by unfold Ref.pathStride; split_ifs <;> decide
+  have hm := Nat.mul_le_mul_left (Ref.pathStride lay.val) (show l + 1 ≤ SphincsSecurity.layerHeight lay by omega)
+  rw [Nat.mul_add, Nat.mul_one] at hm
   exact (dv_ofList_slice _ _ (by omega)).symm
 
 omit hl in
@@ -290,7 +293,8 @@ theorem witSib_eq (wl : List Byte) (hl : wl.length = 16384) (lay : Layer) (l : N
   unfold SphincsSecurity.Concrete.signaturePath
   rw [dif_pos hl2]
   have hb := path_bound lay
-  have hm := Nat.mul_le_mul_left 16 (show l + 1 ≤ SphincsSecurity.layerHeight lay by omega)
+  have hs : 16 ≤ Ref.pathStride lay.val := by unfold Ref.pathStride; split_ifs <;> decide
+  have hm := Nat.mul_le_mul_left (Ref.pathStride lay.val) (show l + 1 ≤ SphincsSecurity.layerHeight lay by omega)
   rw [Nat.mul_add, Nat.mul_one] at hm
   exact (dv_ofList_slice _ _ (by omega)).symm
 
@@ -814,7 +818,7 @@ end pors
 
 /-- **verify** (W1a, padded): `verifyRef m pk w` is the relabelled padded abstract verifier on `⟨pk, 0⟩`,
 `witDec w` and the witness pads `padOf (toList w)` (rejecting paths included). -/
-theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 14080) :
+theorem verifyRef_eqP (m : Bytes 32) (pk : Bytes 16) (w : Bytes 13712) :
     Ref.verifyRef m pk w =
       relabel fmtQ (SphincsSecurity.Concrete.verifyP (m := AComp) ⟨pk, 0⟩ m (witDec w)
         (padOf (Ref.extW (Ref.toList w)))) := by

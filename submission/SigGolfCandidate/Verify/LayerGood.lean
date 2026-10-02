@@ -65,7 +65,7 @@ theorem witPath_eq (L : LCtx) (hL : L.lay < 5) : witPath L.wl L.lay = (layFC L).
   simp only [heightL_eq _ hL]
   apply List.map_congr_left
   intro l _
-  simp [witSib, pathOff_eqL _ hL, pathStrideL]
+  simp [witSib, pathOff_eqL _ hL, pathStrideL, pathStride]
 
 theorem Good.reject {s : MachineState} (hf : fetch image s = some (.base .ECALL))
     (h5 : s.getReg .x5 = 1) (h10 : s.getReg .x10 = 1) : Good s 1 1 (pure (false, 0)) := by
@@ -177,7 +177,7 @@ theorem foldInv_layerIn (wl pk : List Byte) (lay idx : Nat) (h1 : 1 ≤ lay) (h7
     have e2 : witSib wl (lay - 1 + 1) (heightL (lay - 1 + 1) - 1) =
         (layFC ⟨wl, pk, lay, idx⟩).sib (heightL lay - 1) := by
       rw [Nat.sub_add_cancel h1]
-      simp [witSib, FCtx.sib, layFC, pathOff_eqL _ h7, pathStrideL, show lay ≠ 0 by omega]
+      simp [witSib, FCtx.sib, layFC, pathOff_eqL _ h7, pathStrideL, pathStride, show lay ≠ 0 by omega]
     rw [e1, e2]
     exact ⟨hsw.1, hsw.2, hsl⟩
   · refine ⟨(layFC ⟨wl, pk, lay, idx⟩).blk (nCh lay - 1), ?_, ?_, fun _ => ?_⟩
@@ -223,8 +223,8 @@ theorem layer_good (L : LCtx) (hL : L.ok) (X : Val) (Kopt : Option Val → Oracl
   have hhL := heightL_le L.lay hlay
   have hcb : chainsBound L.lay ≥ 1200 := by unfold chainsBound; omega
   have hsA : stepsA L.lay ≤ 16 := by unfold stepsA stepsT; split_ifs <;> omega
-  have hcB : cyclesB L.lay ≤ 32 := by unfold cyclesB stepsB; split_ifs <;> omega
-  have hsB : stepsB L.lay ≤ 29 := by unfold stepsB; split_ifs <;> omega
+  have hcB : cyclesB L.lay ≤ 32 := by unfold cyclesB stepsB; omega
+  have hsB : stepsB L.lay ≤ 29 := by unfold stepsB; omega
   have H : ∀ a, Good (writeHash t1 a) (N + 4900) (C + layerCost L.lay - stepsA L.lay - 8)
       (cc (match decodeDigits L.lay (encodingBytes a) with
         | none => pure none
@@ -453,6 +453,6 @@ theorem layers_good (wl pk : List Byte) (hpk : pk.length = 16) (idx : Nat) (hidx
 
 /-- The cycles of the five layers and the comparison (`8`). Against the head without the pair
 message: `-14` per lower layer (no root hash) and `+4` in each upper transition (the sibling copy). -/
-theorem layersCost_5 : layersCost 5 = 7456 := by decide
+theorem layersCost_5 : layersCost 5 = 7451 := by decide
 
 end SigGolfCandidate.Verify

@@ -47,7 +47,7 @@ structure FCtx where
 
 def FCtx.ok (fc : FCtx) : Prop :=
   2 ≤ fc.h ∧ fc.h ≤ 11 ∧ fc.E < 2 ^ fc.h ∧ fc.t < 256 ∧ fc.f2 < 256 ∧ fc.wl.length = 16384 ∧
-  fc.sibOff % 8 = 0 ∧ fc.sibOff + pathStrideL fc.lay * fc.h ≤ 2944 ∧ safeDest fc.dst = true ∧
+  fc.sibOff % 8 = 0 ∧ fc.sibOff + pathStrideL fc.lay * fc.h ≤ (if fc.lay = 0 then 2944 else 16384) ∧ safeDest fc.dst = true ∧
   (fc.dst + 32 ≤ 0x340 ∨ 0x390 ≤ fc.dst) ∧ fc.lay < 5 ∧ fc.h = heightL fc.lay ∧
   fc.sibOff = pathOffL fc.lay ∧ fc.dst = dstOf fc.lay
 
@@ -149,12 +149,32 @@ theorem add_hi_sub (a h d : Word) : a + h + (d - h) = a + d := by
   simp only [BitVec.toNat_add, BitVec.toNat_sub]
   omega
 
+theorem m4Sh_le (lay ci : Nat) : m4Sh lay ci ≤ 7 := by
+  unfold m4Sh m4Get
+  rcases lay with _ | _ | _ | _ | _ | lay <;> rcases ci with _ | _ | ci <;> simp [m4Tab]
+
+/-- Every dispatch page `m4Hi` is a multiple of the block stride, so single-chunk layers can fold it
+into the index (`addi gp, x23, hi >> sh; slli gp, gp, sh`). -/
+theorem m4Hi_dvd (lay ci : Nat) : 2 ^ (m4Sh lay ci + 2) ∣ m4Hi lay ci := by
+  unfold m4Hi m4Sh m4Get
+  rcases lay with _ | _ | _ | _ | _ | lay <;> rcases ci with _ | _ | ci <;> simp [m4Tab]
+
+theorem shl_add_ofNat (x : Word) (K n : Nat) :
+    (x + BitVec.ofNat 64 K) <<< n = x <<< n + BitVec.ofNat 64 (K * 2 ^ n) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_shiftLeft, BitVec.toNat_add, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
+  rw [Nat.mod_mul_mod, Nat.add_mul, Nat.add_mod, Nat.mod_mul_mod]
+
 theorem dispTgt_eval (lay ci : Nat) (s : MachineState) :
     (dispTgt lay ci).eval s = dispVal lay ci (s.getReg .x23) := by
   have hsh : ∀ n, (BitVec.ofNat 64 n).toNat % 64 = n % 64 := fun n => by
     rw [BitVec.toNat_ofNat]; omega
+  have hle := m4Sh_le lay ci
+  have hdv := m4Hi_dvd lay ci
   unfold dispTgt dispGp dispVal
-  split_ifs <;> simp only [mkBin_eval, mkAdd_eval, BinOp.eval, E.eval, cw, hsh, add_hi_sub]
+  split_ifs <;> simp only [mkBin_eval, mkAdd_eval, BinOp.eval, E.eval, cw, hsh, add_hi_sub] <;> try omega
+  all_goals
+    rw [shl_add_ofNat, Nat.mod_eq_of_lt (show m4Sh lay ci + 2 < 64 by omega), Nat.div_mul_cancel hdv, add_hi_sub]
 
 theorem dispVal_tab4 : ∀ E, E < 32 → dispVal 4 0 (BitVec.ofNat 64 (E + 32)) =
     pcOf (m4Pc 4 0 (E / 2 ^ chB0 4 0 % 2 ^ chBits 4 0) 0) := by decide +kernel
@@ -235,15 +255,32 @@ theorem FrameOK.trans {s0 s t : MachineState} (h1 : FrameOK s0 s)
 def FCtx.sib (fc : FCtx) (lam : Nat) : Val := slice fc.wl (fc.sibOff + pathStrideL fc.lay * lam) 16
 
 theorem sib_words (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam < fc.h) (s : MachineState)
-    (hG : Glob gkL fc.wl fc.pk s) (_hF : Fresh fc.wl fc.lay 42 s) :
+    (hG : Glob gkL fc.wl fc.pk s) (hF : Fresh fc.wl fc.lay 42 s) :
     s.getMem (BitVec.ofNat 64 (sibAddr fc.lay lam)) = vw0 (fc.sib lam) ∧
     s.getMem (BitVec.ofNat 64 (sibAddr fc.lay lam + 8)) = vw1 (fc.sib lam) := by
-  obtain ⟨-, h10, -, -, -, hwl, h8, hsz, -, -, -, -, hso, -⟩ := hfc
-  unfold pathStrideL at hsz
-  unfold sibAddr FCtx.sib pathStrideL
-  rw [vw0_slice, vw1_slice, ← hso, show 0x800 + fc.sibOff + 16 * lam = 0x800 + (fc.sibOff + 16 * lam) by omega,
-    show 0x800 + (fc.sibOff + 16 * lam) + 8 = 0x800 + (fc.sibOff + 16 * lam + 8) by omega]
-  exact ⟨wit_word hG.2.1 _ (by omega) (by omega), wit_word hG.2.1 _ (by omega) (by omega)⟩
+  obtain ⟨_, h10, _, _, _, hwl, h8, hsz, _, _, hly, hh, hso, _⟩ := hfc
+  unfold sibAddr FCtx.sib
+  rw [vw0_slice, vw1_slice, ← hso]
+  by_cases hz : fc.lay = 0
+  · have hstride : pathStrideL fc.lay = 16 := by simp [pathStrideL, hz]
+    rw [hstride] at hsz ⊢
+    simp only [hz, if_true] at hsz
+    rw [show 0x800 + fc.sibOff + 16 * lam = 0x800 + (fc.sibOff + 16 * lam) by omega,
+      show 0x800 + (fc.sibOff + 16 * lam) + 8 = 0x800 + (fc.sibOff + 16 * lam + 8) by omega]
+    exact ⟨wit_word hG.2.1 _ (by omega) (by omega), wit_word hG.2.1 _ (by omega) (by omega)⟩
+  · have hstride : pathStrideL fc.lay = 64 := by simp [pathStrideL, hz]
+    rw [hstride]
+    have h0 : 0 < fc.lay := by omega
+    have hlim : lam < heightL fc.lay := by omega
+    have hoff : fc.sibOff + 64 * lam = blockOff 0 (packedAuthCell fc.lay lam) := by
+      rw [hso, blockOff_eq]
+      have he : fc.lay = 1 ∨ fc.lay = 2 ∨ fc.lay = 3 ∨ fc.lay = 4 := by omega
+      rcases he with he | he | he | he <;> simp [he, pathOffL, packedAuthCell] <;> omega
+    have f0 := hF 0 (packedAuthCell fc.lay lam) 0 (FreshW_packed_sib hly h0 hlim (by decide))
+    have f1 := hF 0 (packedAuthCell fc.lay lam) 1 (FreshW_packed_sib hly h0 hlim (by decide))
+    rw [show 0x800 + fc.sibOff + 64 * lam = 0x800 + (fc.sibOff + 64 * lam) by omega, hoff]
+    exact ⟨by simpa only [blkN, Nat.mul_zero, Nat.add_zero] using f0,
+      by simpa only [blkN, Nat.mul_one] using f1⟩
 
 /-- The spec's input of fold level `lam` with current value `v`. -/
 def FCtx.input (fc : FCtx) (lam : Nat) (v : Val) : List Byte :=
@@ -255,7 +292,7 @@ theorem length_sib (fc : FCtx) (hfc : fc.ok) (lam : Nat) (hlam : lam < fc.h) :
   obtain ⟨-, h10, -, -, -, hwl, h8, hsz, -⟩ := hfc
   unfold FCtx.sib; apply length_slice16
   unfold pathStrideL at hsz ⊢
-  omega
+  split_ifs at hsz ⊢ <;> omega
 
 /-- The heap index of the output node of level `lam`. -/
 def FCtx.heap (fc : FCtx) (lam : Nat) : Nat :=

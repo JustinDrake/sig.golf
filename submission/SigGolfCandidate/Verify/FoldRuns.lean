@@ -19,8 +19,8 @@ def stW0 (a : Nat) (v : E) : E := .bin (.st .w 0) (ldE a) v
 
 /-- Layer heights (layer 0 = top) and witness offsets of the paths (W1a, `Ref.pathOff`). -/
 def heightL (lay : Nat) : Nat := [11, 6, 6, 6, 5].getD lay 0
-def pathOffL (lay : Nat) : Nat := [2336, 2512, 2608, 2704, 2800].getD lay 0
-def pathStrideL (_lay : Nat) : Nat := 16
+def pathOffL (lay : Nat) : Nat := [2704, 4032, 4416, 4800, 5184].getD lay 0
+def pathStrideL (lay : Nat) : Nat := if lay = 0 then 16 else 64
 
 /-- Known registers: FORS (`kind = true`) or layers. -/
 def gkOf (kind : Bool) : List (Reg × Word) := if kind then gkF else gkL
@@ -89,7 +89,8 @@ def dispGp (lay ci : Nat) : E :=
     else if ci = 0 then mkBin .and (.reg .x23) (cw 63)
     else mkBin .and (.reg .x23) (.c (BitVec.ofNat 64 (2 ^ 64 - 64)))
   let sh := if nCh lay = 2 ∧ ci = 1 then m4Sh lay ci + 2 - 6 else m4Sh lay ci + 2
-  mkAdd (mkBin .sll idx (cw sh)) (cw (m4Hi lay ci))
+  if nCh lay = 1 then mkBin .sll (mkAdd (.reg .x23) (cw (m4Hi lay ci / 2 ^ sh))) (cw sh)
+  else mkAdd (mkBin .sll idx (cw sh)) (cw (m4Hi lay ci))
 
 /-- The target of the chunk dispatch (`jalr zero, lo(gp)`). -/
 def dispTgt (lay ci : Nat) : E :=
@@ -117,7 +118,7 @@ def lvlMem (lay lam t : Nat) (nb : E) : List (Addr × E) :=
 
 /-- Known registers at the start of level `lam`. -/
 def foldK (lay len : Nat) : List (Reg × Word) :=
-  fk false 0x340 len ++ [(.x22, BitVec.ofNat 64 (6336 + 2688 * lay))]
+  fk false 0x340 len ++ [(.x22, BitVec.ofNat 64 (5632 + 2688 * lay))]
 
 def lvlK (lay lam : Nat) : List (Reg × Word) :=
   foldK lay (if lam = 0 then 704 else 64)

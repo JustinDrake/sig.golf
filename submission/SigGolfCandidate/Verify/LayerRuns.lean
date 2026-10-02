@@ -7,10 +7,10 @@ import SigGolfCandidate.Verify.PorsTab
 Every start of layer `lay` (layer 4: a PORS root tail; below: a block of the last fold chunk of
 layer `lay + 1`) runs its own copy of the transition (`trPc lay c`):
 * route and encoding (`stepsA` steps up to the encoding `ecall`; the counter is read from the
-  witness, `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `2320`);
+  witness, `c0 .. c3` in the tweak slot of block `(0, 0)`, `c4` at `2688`);
 * the encoding check (`or; blt` for the top bits, the 7-step SWAR digit sum, `remu` by `x18 = 4095`,
   `bne KT`), then the chain prologue `li s6, base`, the extraction of triple 0
-  and `jalr ra` into the layer-shared chain code (22 steps, 25 cycles);
+  and `jalr ra` into the layer-shared chain code (at most 25 steps, 28 cycles);
 * at the return pc `retPc lay c`: the leaf tweak and the dispatch into the fold's shape block. -/
 
 namespace SigGolfCandidate.Verify
@@ -75,9 +75,9 @@ def x31Er (lay : Nat) : E :=
 def uHE (lay : Nat) : E :=
   if lay = 0 then .bin .xor (uEr lay) (cw 4095) else .bin .or (uEr lay) (cw (2 ^ heightL lay))
 
-/-- The doubleword holding layer `lay`'s counter (`c4` at witness 2320, `c0 .. c3` in the tweak
+/-- The doubleword holding layer `lay`'s counter (`c4` at witness 2688, `c0 .. c3` in the tweak
 slot of chain block `(0, 0)` at witness 2944). -/
-def ctrA (lay : Nat) : Nat := if lay = 4 then 0x800 + 2320 else 0x800 + 2944 + 8 * (lay / 2)
+def ctrA (lay : Nat) : Nat := if lay = 4 then 0x800 + 2688 else 0x800 + 2944 + 8 * (lay / 2)
 def ctrE (lay : Nat) : E := .un (.ld .wu (4 * (lay % 2))) (ldE (ctrA lay))
 
 def encHeaderE (lay : Nat) : E :=
@@ -144,8 +144,8 @@ dispatch target (`jalr ra, -2048(a4)`). -/
 def x14E (out hi : Nat) : E := .bin .add (.bin .and (.bin .sll (d0E out hi) (cw 9)) (.c TMASK)) (.c TTA5)
 def tgt0 (out hi : Nat) : E := .bin .and (.bin .add (.bin .and (.bin .sll (d0E out hi) (cw 9)) (.c TMASK)) (cw 0x4f800)) (.c (~~~1#64))
 
-def stepsB (lay : Nat) : Nat := (if lay = 4 then 26 else 25)
-def stepsBPath (hi lay : Nat) : Nat := (if lay = 4 then 20 else 19) + selSteps hi
+def stepsB (_lay : Nat) : Nat := 25
+def stepsBPath (hi _lay : Nat) : Nat := 19 + selSteps hi
 def cyclesBPath (hi lay : Nat) : Nat := stepsBPath hi lay + 3
 
 theorem stepsBPath_le (hi lay : Nat) : stepsBPath hi lay ≤ stepsB lay := by
@@ -185,7 +185,7 @@ def specRej2 (out hi : Nat) (lay : Nat) : Spec :=
 
 /-- The leaf code at the return pc: the leaf tweak, then the dispatch into the shape block of
 chunk 0. -/
-def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay < 4 then 7 else 8
+def leafSteps (lay : Nat) : Nat := if lay = 0 then 8 else if lay < 4 then 6 else 7
 
 def leafRawSteps (lay : Nat) : Nat := if lay = 0 then 7 else leafSteps lay
 
