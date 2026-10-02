@@ -72,7 +72,7 @@ def mkHeap (lay ci sh l : Nat) : Nat := (2 ^ hL lay + sh * 2 ^ mkLo lay ci) / 2 
 /-- The constant registers of the Merkle code: `t0`, `s2`, `s6`, `tp = T(3)`'s word 0, the heap registers 1..7. -/
 def mkK (lay : Nat) : List (Reg × Word) :=
   baseK ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)), (.x6, 1), (.x7, 2), (.x8, 3),
-    (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
+    (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x15, 0xce000)]
 
 /-- Registers that no Merkle run writes or knows (kept for the next transition: `sp`, `s4`, `s5`, `s7`, `s8`, `s11`,
 `t3`, `t5`, ...). -/
@@ -86,7 +86,7 @@ def mkEntSpec (lay ci sh : Nat) : Spec := ⟨[], [], mkShp lay ci sh + 1, true, 
 def mkEntPost (lay ci sh : Nat) : List (Reg × Word) :=
   mkK lay ++ [(.x12, BitVec.ofNat 64 (mkCur lay (mkLo lay ci) (sh % 2)))]
 
-def mkEntKeep : List Reg := mkKeep ++ [.x10, .x11, .x14, .x15]
+def mkEntKeep : List Reg := mkKeep ++ [.x10, .x11, .x14]
 
 def mkEntCheck (lay ci sh : Nat) : Bool :=
   specB [] [] baseK (runAt (mkK lay) [] (mkTab lay ci + sh) []) (mkEntSpec lay ci sh) [] (mkEntPost lay ci sh) mkEntKeep
@@ -126,8 +126,8 @@ def mkLvlSpecN (lay ci sh kk : Nat) : Spec :=
 
 /-- Level 5 of layer 0's chunk 0, ending with the chunk-1 dispatch (a jump to `stab_0_1`). -/
 def mkLvlSpecD (lay ci sh kk : Nat) : Spec :=
-  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), 0, false, mkBody lay (mkLo lay ci + kk) + 5, [], some mkDispTgt,
-    mkBody lay (mkLo lay ci + kk) + 5⟩
+  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), 0, false, mkBody lay (mkLo lay ci + kk) + 4, [], some mkDispTgt,
+    mkBody lay (mkLo lay ci + kk) + 4⟩
 
 /-- Known at the level body's start: the constants, and `a1 = 64` after the leaf-pk HASH. -/
 def mkLvlK (lay l : Nat) : List (Reg × Word) := mkK lay ++ (if l = 0 then [] else [(.x11, 64)])
@@ -142,7 +142,7 @@ def mkLvlPostD (lay ci kk : Nat) : List (Reg × Word) :=
 def mkLvlCheckN (lay ci sh kk : Nat) : Bool :=
   specB (mkLvlAllow lay (mkLo lay ci + kk)) [] baseK
     (runAt (mkLvlK lay (mkLo lay ci + kk)) [] (mkShp lay ci sh + mkOff lay ci kk + 2) [])
-    (mkLvlSpecN lay ci sh kk) [] (mkLvlPostN lay ci sh kk) (mkKeep ++ [.x14, .x15])
+    (mkLvlSpecN lay ci sh kk) [] (mkLvlPostN lay ci sh kk) (mkKeep ++ [.x14])
 
 def mkLvlCheckD (lay ci sh kk : Nat) : Bool :=
   specB (mkLvlAllow lay (mkLo lay ci + kk)) [] baseK

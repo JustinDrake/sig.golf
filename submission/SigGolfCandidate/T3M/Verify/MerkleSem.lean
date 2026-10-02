@@ -74,7 +74,7 @@ def mkEc (lay leaf k : Nat) : Nat :=
 def mkFin (lay leaf : Nat) : Nat :=
   mkShp lay (mkNch lay - 1) (mkSh lay (mkNch lay - 1) leaf) + mkOff lay (mkNch lay - 1) (mkBits lay (mkNch lay - 1)) + 1
 /-- Instruction steps from after HASH `k` to the next HASH (layer 0, level 5: the chunk dispatch and the table word). -/
-def mkLvlSt (lay k : Nat) : Nat := mkBody lay k + 1 + (if lay = 0 ∧ k = 5 then 6 else 0)
+def mkLvlSt (lay k : Nat) : Nat := mkBody lay k + 1 + (if lay = 0 ∧ k = 5 then 5 else 0)
 
 theorem mk_facts (lay k : Nat) (hlay : lay < 4) (hk : k < hL lay) :
     mkCi lay k < mkNch lay ∧ mkLo lay (mkCi lay k) ≤ k ∧ k - mkLo lay (mkCi lay k) < mkBits lay (mkCi lay k) ∧
@@ -387,7 +387,7 @@ theorem dispTgt_eval (leaf : Nat) (hleaf : leaf < 4096) (s : MachineState)
 theorem lfK_mkK (lay : Nat) : ∀ p ∈ mkK lay, p ∈ lfK lay := by
   intro p hp
   simp only [mkK, baseK, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-  rcases hp with (rfl | rfl) | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+  rcases hp with (rfl | rfl) | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
     simp [lfK, postLf, leafK, lfKeepK, baseK]
 
 /-- **One level**: from `MAfter … k v s`, the level's body (and for layer 0's level 5 the chunk dispatch and the
@@ -435,7 +435,7 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
     have hst : Steps image s (mkLvlSt lay.val k) (mkLvlSt lay.val k) t := by
       have := ht1.steps.trans ht.steps
       simp only [mkLvlSpecD, mkEntSpec, hlk] at this
-      rw [show mkLvlSt lay.val k = mkBody lay.val k + 5 + 2 by rw [mkLvlSt, if_pos ⟨hl0, hk5⟩]]
+      rw [show mkLvlSt lay.val k = mkBody lay.val k + 4 + 2 by rw [mkLvlSt, if_pos ⟨hl0, hk5⟩]]
       exact this
     have hmem : ∀ A, t.getMem A =
         memEval s (mkLvlMem lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) k) A := by
@@ -603,8 +603,8 @@ def mkFuel (lay : Nat) : Nat := 3 + mkFuelR lay 0 (hL lay)
 /-- Cycles of a layer's Merkle phase: the entry (2), the leaf-pk HASH (`8 · lfBlocks`), the levels. -/
 def mkCyc (lay : Nat) : Nat := 2 + 8 * lfBlocks lay + mkCycR lay 0 (hL lay)
 
-theorem mkCyc_vals : mkCyc 0 = 294 ∧ mkCyc 1 = 186 ∧ mkCyc 2 = 172 ∧ mkCyc 3 = 172 := by decide
-theorem mkFuel_vals : mkFuel 0 = 91 ∧ mkFuel 1 = 50 ∧ mkFuel 2 = 43 ∧ mkFuel 3 = 43 := by decide
+theorem mkCyc_vals : mkCyc 0 = 293 ∧ mkCyc 1 = 186 ∧ mkCyc 2 = 172 ∧ mkCyc 3 = 172 := by decide
+theorem mkFuel_vals : mkFuel 0 = 90 ∧ mkFuel 1 = 50 ∧ mkFuel 2 = 43 ∧ mkFuel 3 = 43 := by decide
 
 theorem mkBits_stabBits (lay : Nat) (hlay : lay < 4) : mkBits lay 0 = stabBits lay := by
   interval_cases lay <;> decide
