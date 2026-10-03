@@ -164,11 +164,11 @@ def leafT (s : Nat) : Nat := WIT + 64 + 48 * s + 16
 def leafKnown (s : Nat) : List (Reg × Word) :=
   gkF ++ leafCK (s / 3) ++ (if s % 3 = 1 then [(.x20, BitVec.ofNat 64 tbN)] else [])
 
-def etabA (s : Nat) : Addr := ⟨some (.ld (cw (ETABs s))), 0⟩
+def etabA (s : Nat) : Addr := ⟨some (.ld (cw (ETABs s))), 16⟩
 
 def leafSpec (s : Nat) : Spec :=
-  ⟨[(.x23, .ld (.ld (cw (ETABs s)))), (.x10, cw (WIT + 64 + 48 * s))],
-    [(⟨none, BitVec.ofNat 64 (leafT s + 8)⟩, .ld (.ld (cw (ETABs s)))),
+  ⟨[(.x23, .ld (addC (.ld (cw (ETABs s))) 16#64)), (.x10, cw (WIT + 64 + 48 * s))],
+    [(⟨none, BitVec.ofNat 64 (leafT s + 8)⟩, .ld (addC (.ld (cw (ETABs s))) 16#64)),
       (⟨none, BitVec.ofNat 64 (leafT s)⟩, .reg .x28)],
     leafDisp s, false, (if s % 3 = 1 then 5 else 6), [], none, (if s % 3 = 1 then 5 else 6)⟩
 

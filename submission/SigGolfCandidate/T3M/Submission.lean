@@ -14,8 +14,8 @@ the images are the generated modules `T3M/Images/*` (frozen `.code` files, SHA-2
 Admission is proved image by image, as in the five-layer `Submission.lean`: the code list is
 rewritten to its chunks (`delta` inside an equation, so no equation lemma evaluates the list),
 `List.length_append` splits the length, and the kernel only counts each 256-word chunk; the layout
-half reads only the data section. The verify image has 238592 words and 65536 data bytes, totaling
-1019904 bytes, strictly below the 1048576-byte admission limit.
+half reads only the data section. The verify image has 238592 words and 65552 data bytes, totaling
+1019920 bytes, strictly below the 1048576-byte admission limit.
 -/
 
 namespace SigGolfCandidate.T3M

@@ -230,7 +230,7 @@ def DATA : Nat := 16777120
 /-- Public WOTS header table precedes the existing immutable lookup data. -/
 def HDATA : Nat := 16728064
 /-- Reversed FTS heap-label table, preceding both lower header and packed tables. -/
-def TAB : Nat := 16711680
+def TAB : Nat := 16711664
 
 def headerWord (k : Nat) : Nat :=
   0x101 + 65536 * (k / 512) + 2 ^ 40 * (k % 512 / 8) + 2 ^ 32 * (k % 8)
@@ -243,7 +243,7 @@ structure DataOK (s : MachineState) : Prop where
   sum : Search.SumTableOK s
   packed : Nonbinary.PackedTables s
   headers : ∀ k, k < 2048 → s.getMem (BitVec.ofNat 64 (HDATA + 8 * k)) = BitVec.ofNat 64 (headerWord k)
-  tab : ∀ j, j < 2048 → s.getMem (BitVec.ofNat 64 (TAB + 8 * j)) = BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + j))
+  tab : ∀ j, j < 2048 → s.getMem (BitVec.ofNat 64 (TAB + 16 + 8 * j)) = BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + j))
 
 instance {s : MachineState} : CoeFun (DataOK s) (fun _ => ∀ k, k < 12 →
     s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)) := ⟨DataOK.constants⟩
