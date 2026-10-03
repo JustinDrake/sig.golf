@@ -8,7 +8,7 @@ import SigGolfCandidate.T3M.Final.Pending
   `countCalls (mrealize 0 (verifyP m pk w))`, as an equality of oracle computations;
 * **`verify_terminates : Final.VerifyTerminates`** — under every fixed oracle the run finishes within
   `cycleBoundAll = 15430 < CYCLE_LIMIT` cycles;
-* **`verify_accept_cycles : Final.VerifyAcceptCycles`** — accepting runs take at most `cycleBound = 8881 =
+* **`verify_accept_cycles : Final.VerifyAcceptCycles`** — accepting runs take at most `cycleBound = 8879 =
   verifyCycleBound` cycles. -/
 
 namespace SigGolfCandidate.T3M
@@ -49,7 +49,7 @@ theorem verify_terminates : Final.VerifyTerminates := by
   refine ⟨?_, lt_of_le_of_lt hg.2.1 (by rw [cycleBoundAll_eq]; unfold CYCLE_LIMIT; norm_num)⟩
   simpa using hg.1
 
-/-- **Accepting verify cycles** (`Pending.verify_accept_cycles`): at most `verifyCycleBound = 8881`. -/
+/-- **Accepting verify cycles** (`Pending.verify_accept_cycles`): at most `verifyCycleBound = 8879`. -/
 theorem verify_accept_cycles : Final.VerifyAcceptCycles := by
   intro hash m pk w h
   obtain ⟨s, hs⟩ := init_exists_verify (m, pk, w)

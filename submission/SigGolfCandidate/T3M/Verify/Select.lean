@@ -564,7 +564,7 @@ theorem select_good (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput)
 theorem verifyP_good_sel (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     {N C A : Nat} {Q : Prop}
     (hfts : ∀ a t, SelIn pk w a 7 t → GoodQ t N C Q A (ccM (afterSel pk w a) Kb)) :
-    GoodQ s (N + 185) (C + 192) Q (A + 183) (ccM (verifyP m pk w) Kb) := by
+    GoodQ s (N + 186) (C + 193) Q (A + 183) (ccM (verifyP m pk w) Kb) := by
   rw [verifyP_eq, ccM_bind]
   have := digestP_good m pk w s hs (N := N + 168) (C := C + 168) (A := A + 159) (Q := Q)
     (fun o => ccM (match o with

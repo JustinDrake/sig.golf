@@ -45,7 +45,7 @@ private theorem verify_pair_check : ((verifyData.drop 0).take 16384).zipIdx.all 
     decide (p.1 = BitVec.ofNat 8 (Verify.Nonbinary.pairLookup p.2))) = true := by decide +kernel
 
 private theorem verify_tail_check : ((verifyData.drop 16384).take 64).zipIdx.all (fun p =>
-    decide (p.1 = BitVec.ofNat 8 (Verify.Nonbinary.tailSum p.2))) = true := by decide +kernel
+    decide (p.1 = BitVec.ofNat 8 (126 - Verify.Nonbinary.tailSum p.2))) = true := by decide +kernel
 
 theorem verifyData_sum (i : Nat) (hi : i < 128) :
     verifyData.getD (28672+i) 0 = BitVec.ofNat 8 (rankLookup i) := by
@@ -58,8 +58,8 @@ theorem verifyData_pair (i : Nat) (hi : i < 16384) :
     (by simp only [List.length_take,List.length_drop,verifyData_length]; decide) verify_pair_check
 
 theorem verifyData_tail (i : Nat) (hi : i < 64) :
-    verifyData.getD (16384+i) 0 = BitVec.ofNat 8 (Verify.Nonbinary.tailSum i) := by
-  exact checked_slice_get verifyData 16384 64 i (fun r => BitVec.ofNat 8 (Verify.Nonbinary.tailSum r)) hi
+    verifyData.getD (16384+i) 0 = BitVec.ofNat 8 (126 - Verify.Nonbinary.tailSum i) := by
+  exact checked_slice_get verifyData 16384 64 i (fun r => BitVec.ofNat 8 (126 - Verify.Nonbinary.tailSum r)) hi
     (by simp only [List.length_take,List.length_drop,verifyData_length]; decide) verify_tail_check
 
 end SigGolfCandidate.T3M.Search

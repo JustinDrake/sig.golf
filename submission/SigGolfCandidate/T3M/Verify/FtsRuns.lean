@@ -38,8 +38,7 @@ def forestSlot (c : Nat) : Nat := if c = 0 then 0x700 else 0x710 + 16 * c
 /-- Constant registers of the FTS phase: `t0`, `s2`, `a1 = 64`, `t4 = A4_LIMIT`, `t6 = 1 << 16`, the two tables. -/
 def gkF : List (Reg × Word) :=
   baseK ++ [(.x11, 64), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x31, 0x10000), (.x26, BitVec.ofNat 64 tbN),
-    (.x21, BitVec.ofNat 64 tbL), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x16, 6), (.x17, 7), (.x19, BitVec.ofNat 64 (frameA 0)),
-    (.x2, 0x1000000)]
+    (.x21, BitVec.ofNat 64 tbL), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x16, 6), (.x17, 7), (.x19, BitVec.ofNat 64 (frameA 0)), (.x2, 0x1000000)]
 
 /-- The coordinate words: `s11 = w0` of a node header, `t3 = w0` of a leaf header (coordinate `c`). -/
 def ckF (c : Nat) : List (Reg × Word) :=
@@ -335,16 +334,13 @@ def coordCheck1 (c : Nat) : Bool :=
 
 def capBr (d : Bool) : Br := ⟨.ltu, .c (BitVec.ofNat 64 A4_LIMIT), .reg .x14, d⟩
 
-/-- The FTS constants still live after the forest HASH, reused by layer 3 (`sp` and the step registers). -/
-def ftsCarryK : List (Reg × Word) := [(.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x2, 0x1000000)]
-
 def forestSpecF : Spec :=
   ⟨[(.x10, cw FOREST), (.x11, cw 128), (.x12, cw 0x100)],
     [(⟨none, BitVec.ofNat 64 (FOREST + 24)⟩, .reg .x22), (⟨none, BitVec.ofNat 64 (FOREST + 16)⟩, cw 0xb01)],
     655, true, 7, [capBr false], none, 7⟩
 
 def forestCheckF : Bool :=
-  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] (baseK ++ ftsCarryK) [.x22] &&
+  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] (baseK ++ [(.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x2, 0x1000000)]) [.x22] &&
   specB [] [] [] (runAt gkF [] forestPc [.br true]) (rejSpec 4 [capBr true]) [] [] []
 
 end SigGolfCandidate.T3M.Verify

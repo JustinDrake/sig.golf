@@ -55,7 +55,7 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 
 /-- Merkle height. -/
 def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
-/-- Steps of A (layer 3 includes the `hyper` constants not carried from the FTS; layer 0 has `mv` and `lui; or`). -/
+/-- Steps of A (layer 3 includes the 24 `hyper` constants; layer 0 has `mv` and `lui; or`). -/
 def stepsA (lay : Nat) : Nat := if lay = 3 then 18 else if lay = 0 then 16 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
 def retOff (lay : Nat) : Nat := if lay = 0 then 69 else if lay = 3 then 47 else 44
@@ -80,8 +80,8 @@ def M2c : Nat := 17311559823019733055
 def M4c : Nat := 3689348814741910323
 def M8c : Nat := 1085102592571150095
 
-/-- The known registers at a transition start (layer 3: `t0`, `s2`, the five constants of the load block
-`ld3Spec` and the five step registers carried from the FTS; `hyper` sets the rest). -/
+/-- The known registers at a transition start (layer 3: `t0`, `s2` and the five constants of the load block
+`ld3Spec`; `hyper` sets the rest). -/
 def preK (lay : Nat) : List (Reg × Word) :=
   if lay = 3 then baseK ++ [(.x28, BitVec.ofNat 64 (2 ^ 40)), (.x21, BitVec.ofNat 64 M2c), (.x20, BitVec.ofNat 64 M1c),
     (.x27, BitVec.ofNat 64 (hw 1 3)), (.x2, BitVec.ofNat 64 0x3fe00), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5)]
@@ -95,16 +95,15 @@ def layK (lay : Nat) : List (Reg × Word) :=
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (2 ^ 40)),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
 
-/-- T3K: after the forest HASH (word 656) a load block (656 .. 660: five `ld` of the embedded data words 0 .. 4,
-using the FTS's `sp = 0x1000000`) sets five of layer 3's constants (`2^40`, the SWAR masks, `s11`, `sp`); the
-transition copy proper starts at 661 (`trPc 3 0`). The step registers `x6 .. x9`, `x13` keep the FTS's values. -/
+/-- T3K: after the forest HASH (word 656) a load block (656 .. 660: five `ld` using preserved SP of the embedded
+data words 0 .. 4) sets five of layer 3's constants (`2^40`, the SWAR masks, `s11`, `sp`); the transition copy
+proper starts at 661 (`trPc 3 0`). -/
 def ld3Spec : Spec :=
   ⟨[(.x28, .ld (kw DATA)), (.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
       (.x27, .ld (kw (DATA + 24))), (.x2, .ld (kw (DATA + 32)))],
     [], 661, false, 5, [], none, 5⟩
 
-def ld3Check : Bool :=
-  specB [] [] baseK (runAt (baseK ++ [(.x2, 0x1000000)]) [661] 656 []) ld3Spec [] baseK [.x22, .x6, .x7, .x8, .x9, .x13]
+def ld3Check : Bool := specB [] [] baseK (runAt (baseK ++ [(.x2, 0x1000000)]) [661] 656 []) ld3Spec [] baseK [.x22, .x6, .x7, .x8, .x9, .x13]
 
 /-- ... and the encoding `ecall`'s arguments. -/
 def bK (lay : Nat) : List (Reg × Word) := layK lay ++ [(.x10, 256), (.x12, 320)]
