@@ -29,7 +29,7 @@ theorem tail_lbu {image : Image} (s : MachineState)
     (r : Nat) (hr : r < 64) (h14 : s.getReg .x14 = BitVec.ofNat 64 (TAIL_DATA + r))
     (ht : TailTableOK s) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 96217 ∧
-      t.getReg .x14 = BitVec.ofNat 64 (126 - tailSum r) ∧
+      t.getReg .x14 = BitVec.ofNat 64 (tailSum r) ∧
       RegsExcept s t [.x14] ∧ Frame s t (fun _ => False) := by
   have hz : signExtend12 (0 : BitVec 12) = (0 : Word) := rfl
   have hlt : TAIL_DATA + r < 2 ^ 64 := by unfold TAIL_DATA; omega
@@ -47,70 +47,52 @@ theorem tail_lbu {image : Image} (s : MachineState)
     exact MachineState.getReg_setReg_ne _ _ _ _ (Ne.symm hq)
   · intro A _ _; simp [MachineState.setReg, MachineState.setPC, MachineState.getMem]
 
-/-- Complementing the tail table permits a direct comparison and skips two additions on acceptance. -/
-def sumCode : List (BitVec 32) := [0x00ec8663]
+def sumCode : List (BitVec 32) := [0x00ec8cb3, 0xf82c8713, 0x02071663]
 sym_block sumBase := symRun { noAlias := true } sumCode (pcOf 96217) 200
-
-def tailRejectJumpCode : List (BitVec 32) := [0x0300006f]
-sym_block tailRejectJumpBase := symRun { noAlias := true } tailRejectJumpCode (pcOf 96218) 200
 
 theorem sum_spec {image : Image} (s : MachineState)
     (hc : CodeAt image (pcOf 96217) sumCode) (hpc : s.pc = pcOf 96217)
     (sum value : Nat) (hsum : sum ≤ 4335) (hvalue : value ≤ 9)
-    (h25 : s.getReg .x25 = BitVec.ofNat 64 sum)
-    (h14 : s.getReg .x14 = BitVec.ofNat 64 (126 - value)) :
-    ∃ t, Steps image s 1 1 t ∧
-      t.pc = (if sum + value = 126 then pcOf 96220 else pcOf 96218) ∧
-      RegsExcept s t [] ∧ Frame s t (fun _ => False) := by
-  refine ⟨_, symRun_sound sumBase hc s hpc (by simp [sumBase.res, rv_simp]), ?_, ?_, ?_⟩
+    (h25 : s.getReg .x25 = BitVec.ofNat 64 sum) (h14 : s.getReg .x14 = BitVec.ofNat 64 value) :
+    ∃ t, Steps image s 3 3 t ∧
+      t.pc = (if sum + value = 126 then pcOf 96220 else pcOf 96230) ∧
+      t.getReg .x25 = BitVec.ofNat 64 (sum + value) ∧
+      RegsExcept s t [.x25,.x14] ∧ Frame s t (fun _ => False) := by
+  refine ⟨_, symRun_sound sumBase hc s hpc (by simp [sumBase.res, rv_simp]), ?_, ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, sumBase.res, E.eval, CmpOp.eval, BinOp.eval,
-      h25, h14, BitVec.toNat_ofNat, Nat.reduceMod, beq_iff_eq]
-    have he : (BitVec.ofNat 64 sum = BitVec.ofNat 64 (126-value)) ↔ sum + value = 126 := by
-      rw [ofNat_inj (by omega) (by omega)]
-      omega
-    simp only [he]
-  · intro q hq; cases q <;> simp [sumBase.res, rv_simp] <;> rfl
+      h25, h14, BitVec.toNat_ofNat, Nat.reduceMod]
+    rw [ofNat_add_ofNat]
+    have hh : sum + value < 2 ^ 64 := by omega
+    rw [show 18446744073709551490#64 = -126#64 from rfl, ← BitVec.sub_eq_add_neg]
+    simp only [bne_iff_ne, ne_eq, BitVec.sub_eq_iff_eq_add, BitVec.zero_add,
+      ofNat_inj hh (by decide : 126 < 2 ^ 64)]
+    split_ifs <;> first | rfl | omega
+  · simp [sumBase.res, rv_simp, h25, h14, ofNat_add_ofNat]
+  · intro q hq; cases q <;> simp at hq <;> simp [sumBase.res, rv_simp] <;> rfl
   · intro A _ _; simp [sumBase.res, rv_simp]
 
-theorem tailRejectJump_spec {image : Image} (s : MachineState)
-    (hc : CodeAt image (pcOf 96218) tailRejectJumpCode) (hpc : s.pc = pcOf 96218) :
-    ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 96230 ∧
-      RegsExcept s t [] ∧ Frame s t (fun _ => False) := by
-  refine ⟨_, symRun_sound tailRejectJumpBase hc s hpc (by simp [tailRejectJumpBase.res, rv_simp]), ?_, ?_, ?_⟩
-  · rfl
-  · intro q hq; cases q <;> simp [tailRejectJumpBase.res, rv_simp] <;> rfl
-  · intro A _ _; simp [tailRejectJumpBase.res, rv_simp]
-
-/-- The tail comparison takes three instructions on acceptance and four on rejection. -/
-theorem tail_compare_spec {image : Image} (s : MachineState) (v : Digest) (sum : Nat)
+/-- The exact new five-word tail preserves the original high-bound/sum predicate. -/
+theorem tail_five_spec {image : Image} (s : MachineState) (v : Digest) (sum : Nat)
     (hptr : CodeAt image (pcOf 96215) ptrCode)
     (hload : CodeAt image (pcOf 96216) [0x00074703])
     (hsumcode : CodeAt image (pcOf 96217) sumCode)
-    (hreject : CodeAt image (pcOf 96218) tailRejectJumpCode)
     (hsum : sum ≤ 4335) (hv : v.toNat < 2 ^ 125)
     (hpc : s.pc = pcOf 96215) (h29 : s.getReg .x29 = topWindow v 17)
     (h25 : s.getReg .x25 = BitVec.ofNat 64 sum)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 TAIL_DATA) (ht : PackedTables s) :
-    ∃ t, Steps image s (if sum + tailWeight v = 126 then 3 else 4)
-      (if sum + tailWeight v = 126 then 3 else 4) t ∧
+    ∃ t, Steps image s 5 5 t ∧
       t.pc = (if sum + tailWeight v = 126 then pcOf 96220 else pcOf 96230) ∧
-      RegsExcept s t [.x14] ∧ Frame s t (fun _ => False) := by
+      t.getReg .x25 = BitVec.ofNat 64 (sum + tailWeight v) ∧
+      RegsExcept s t [.x25,.x14] ∧ Frame s t (fun _ => False) := by
   have hr : v.toNat / 2 ^ 119 < 64 := by omega
   rw [topWindow_tail v hv] at h29
   obtain ⟨s1,e1,p1,a1,r1,f1⟩ := ptr_spec s hptr hpc _ h29 h19
   obtain ⟨s2,e2,p2,a2,r2,f2⟩ := tail_lbu s1 hload p1 _ hr a1 (ht.frame f1).tail
-  obtain ⟨s3,e3,p3,r3,f3⟩ := sum_spec s2 hsumcode p2 sum _ hsum (tailSum_le _ hr)
+  obtain ⟨s3,e3,p3,a3,r3,f3⟩ := sum_spec s2 hsumcode p2 sum _ hsum (tailSum_le _ hr)
     (by rw [r2.get (by decide), r1.get (by decide), h25]) a2
-  rw [tailSum_eq v hv] at p3
-  by_cases ha : sum + tailWeight v = 126
-  · simp only [if_pos ha] at p3 ⊢
-    exact ⟨s3,(e1.trans e2).trans e3,p3,
-      ((r1.trans r2).trans r3).mono (by decide),((f1.trans f2).trans f3).mono (by simp)⟩
-  · simp only [if_neg ha] at p3 ⊢
-    obtain ⟨s4,e4,p4,r4,f4⟩ := tailRejectJump_spec s3 hreject p3
-    exact ⟨s4,((e1.trans e2).trans e3).trans e4,p4,
-      (((r1.trans r2).trans r3).trans r4).mono (by decide),
-      (((f1.trans f2).trans f3).trans f4).mono (by simp)⟩
+  rw [tailSum_eq v hv] at p3 a3
+  exact ⟨s3,(e1.trans e2).trans e3,p3,a3,
+    ((r1.trans r2).trans r3).mono (by decide), ((f1.trans f2).trans f3).mono (by simp)⟩
 
 private theorem tail_init_at : CodeAt Verify.image (pcOf 96214) tailInitCode := by
   have h := codeAt_from 96214 (by decide)
@@ -132,25 +114,17 @@ private theorem tail_sum_at : CodeAt Verify.image (pcOf 96217) sumCode := by
   have hp : sumCode <+: codeFrom 96217 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
 
-private theorem tail_reject_at : CodeAt Verify.image (pcOf 96218) tailRejectJumpCode := by
-  have h := codeAt_from 96218 (by decide)
-  have hp : tailRejectJumpCode <+: codeFrom 96218 := by decide +kernel
-  exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-
-/-- The complete tail takes four instructions on acceptance, five on rejection. -/
+/-- The final table address, byte lookup, addition and exact-sum branch take six steps. -/
 theorem tail_spec (s : MachineState) (v : Digest) (sum : Nat) (hsum : sum ≤ 4335)
     (hv : v.toNat < 2 ^ 125) (hpc : s.pc = pcOf 96214)
     (h29 : s.getReg .x29 = topWindow v 17) (h25 : s.getReg .x25 = BitVec.ofNat 64 sum)
     (ht : PackedTables s) :
-    ∃ t, Steps Verify.image s (if sum + tailWeight v = 126 then 4 else 5)
-      (if sum + tailWeight v = 126 then 4 else 5) t ∧
+    ∃ t, Steps Verify.image s 6 6 t ∧
       t.pc = (if sum + tailWeight v = 126 then pcOf 96220 else pcOf 96230) ∧
-      RegsExcept s t [.x14,.x19] ∧ Frame s t (fun _ => False) := by
+      t.getReg .x25 = BitVec.ofNat 64 (sum + tailWeight v) ∧
+      RegsExcept s t [.x25,.x14,.x19] ∧ Frame s t (fun _ => False) := by
   obtain ⟨s1,e1,p1,b1,r1,f1⟩ := tailInit_spec s _ tail_init_at hpc
-  obtain ⟨s2,e2,p2,r2,f2⟩ := tail_compare_spec s1 v sum tail_ptr_at tail_load_at tail_sum_at tail_reject_at hsum hv p1
+  obtain ⟨s2,e2,p2,a2,r2,f2⟩ := tail_five_spec s1 v sum tail_ptr_at tail_load_at tail_sum_at hsum hv p1
     (by rw [r1.get (by decide),h29]) (by rw [r1.get (by decide),h25]) b1 (ht.frame f1)
-  refine ⟨s2,?_,p2,(r1.trans r2).mono (by decide),(f1.trans f2).mono (by simp)⟩
-  by_cases ha : sum + tailWeight v = 126
-  · simpa only [if_pos ha] using e1.trans e2
-  · simpa only [if_neg ha] using e1.trans e2
+  exact ⟨s2,e1.trans e2,p2,a2,(r1.trans r2).mono (by decide),(f1.trans f2).mono (by simp)⟩
 end SigGolfCandidate.T3M.Verify.Nonbinary

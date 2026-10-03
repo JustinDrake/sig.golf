@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 128 KiB authenticated
-paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8909` cycles
-(accepting-verify bound `8810` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
+paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8908` cycles
+(accepting-verify bound `8809` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 524288, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,7 +19,7 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 8810); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 8809); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
@@ -57,8 +57,9 @@ prefix is 2716; the complete charged bound was 8980. erickeigen's read-only WOTS
 applied to the three lower layers: each lower chain head loads its chain/digit header from a 16 KiB image table
 placed below the existing data (the pair and tail tables keep their addresses), replacing the header bump and
 the first byte store; a three-instruction entry stub selects the layer's bank and the leaf-pk return restores
-`t3 = 2^40`, so each lower layer saves 23 cycles and its complete charged bound was 8911. The complemented top-decoder tail table
-removes two accepting instructions without changing the accepted encodings, giving 8909.
+`t3 = 2^40`, so each lower layer saves 23 cycles and the complete charged bound was 8911. Placing the table at
+`0xFF3800` (2 KiB of zero padding before the pair table) makes every bank midpoint 4096-aligned, so each entry stub
+is `lui; jalr` and the complete charged bound is 8908.
 
 
 
@@ -78,7 +79,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8909 :=
+theorem certificate : SigGolf.Certificate submission 8908 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge

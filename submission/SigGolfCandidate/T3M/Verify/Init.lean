@@ -152,14 +152,14 @@ structure InitOK (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) 
   /-- The embedded data words at `DATA` (T3K). -/
   data : DataOK s
 
-theorem verifyData_length : (submission.image .verify).data.length = 49152 := Search.verifyData_length
+theorem verifyData_length : (submission.image .verify).data.length = 51200 := Search.verifyData_length
 
 theorem dataBase_verify : dataBase (submission.image .verify) = HDATA := by
   unfold dataBase; rw [verifyData_length]; decide
 
 /-- The embedded doublewords read back as `dataWords`. -/
 theorem verifyData_word (k : Nat) (hk : k < 12) :
-    bytesToWordLE ((((submission.image .verify).data).drop (49056 + 8 * k)).take 8) =
+    bytesToWordLE ((((submission.image .verify).data).drop (51104 + 8 * k)).take 8) =
       BitVec.ofNat 64 (dataWords.getD k 0) := by
   interval_cases k <;> decide +kernel
 
@@ -247,7 +247,7 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
   have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 (dataBase (submission.image .verify)))).getMem A =
       s3.getMem A := fun A => by simp [MachineState.setReg, MachineState.getMem]
   have g0 : ∀ A, A < 2 ^ 64 → s0.getMem (BitVec.ofNat 64 A) =
-      if HDATA ≤ A ∧ A < HDATA + 8 * ((49152 + 7) / 8) ∧ (A - HDATA) % 8 = 0 then
+      if HDATA ≤ A ∧ A < HDATA + 8 * ((51200 + 7) / 8) ∧ (A - HDATA) % 8 = 0 then
         bytesToWordLE ((((submission.image .verify).data).drop (A - HDATA)).take 8) else 0 := by
     intro A hA
     rw [getMem_writeBytesAsWords (submission.image .verify).data blank (dataBase (submission.image .verify)) A
@@ -350,23 +350,23 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
       obtain ⟨hk1, hk2⟩ := DATA_ge k hk
       rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
         if_neg (by omega), g0 _ (by omega), if_pos (by unfold DATA HDATA; omega),
-        show DATA + 8 * k - HDATA = 49056 + 8 * k by unfold DATA HDATA; omega,
+        show DATA + 8 * k - HDATA = 51104 + 8 * k by unfold DATA HDATA; omega,
         verifyData_word k hk]
     · intro i hi
       rw [gb _ (by unfold Search.TOP_DATA HDATA; omega) (by unfold Search.TOP_DATA; omega)]
-      have hidx : Search.TOP_DATA + i - HDATA = 45056 + i := by
+      have hidx : Search.TOP_DATA + i - HDATA = 47104 + i := by
         unfold Search.TOP_DATA HDATA; omega
       rw [hidx]
       exact Search.verifyData_sum i hi
     · intro i hi
       rw [gb _ (by unfold PAIR_DATA HDATA; omega) (by unfold PAIR_DATA; omega)]
-      have hidx : PAIR_DATA + i - HDATA = 16384 + i := by
+      have hidx : PAIR_DATA + i - HDATA = 18432 + i := by
         unfold PAIR_DATA HDATA; omega
       rw [hidx]
       exact Search.verifyData_pair i hi
     · intro i hi
       rw [gb _ (by unfold TAIL_DATA HDATA; omega) (by unfold TAIL_DATA; omega)]
-      have hidx : TAIL_DATA + i - HDATA = 32768 + i := by
+      have hidx : TAIL_DATA + i - HDATA = 34816 + i := by
         unfold TAIL_DATA HDATA; omega
       rw [hidx]
       exact Search.verifyData_tail i hi

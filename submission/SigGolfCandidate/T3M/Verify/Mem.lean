@@ -221,9 +221,10 @@ def dataWords : List Nat :=
 /-- The data section's base: `dataBase` of the verify image (`16 ⌊(2^24 - 96) / 16⌋`). -/
 def DATA : Nat := 16777120
 
-/-- T3X: the image data's base (`dataBase`, `2^24 - 49152`): the read-only WOTS header table (16384 bytes, 4 banks
-of 64 chains x 8 digits), then T3W's data at `PAIR_DATA = HDATA + 16384`. -/
-def HDATA : Nat := 16728064
+/-- T3X: the image data's base (`dataBase`, `2^24 - 51200`): the read-only WOTS header table (16384 bytes, 4 banks
+of 64 chains x 8 digits), 2048 zero bytes (T3Y: 4096-aligned bank midpoints), then T3W's data at
+`PAIR_DATA = HDATA + 18432`. -/
+def HDATA : Nat := 16726016
 
 /-- T3X: the midpoint of layer `lay`'s 4096-byte header bank, shifted by the chain-index offset `koff`. -/
 def headerBank (lay koff : Nat) : Nat := HDATA + 4096 * lay + 2048 + 64 * koff

@@ -1,7 +1,8 @@
 import SigGolfCandidate.T3M.Verify.Compose
 
 /-! The complete verifier bound from the organizer's initial state.
-Accepting runs cost at most 2716 + 5 + 6089 = 8810 cycles (T3X: the lower layers' WOTS header table). The
+Accepting runs cost at most 2716 + 5 + 6088 = 8809 cycles (T3X: the lower layers' WOTS header table; T3Y: one-`lui`
+entry stubs). The
 conservative all-input cycle bound 15431 and fuel 15424 are retained. -/
 
 namespace SigGolfCandidate.T3M
@@ -18,7 +19,7 @@ def cycleBoundAll : Nat := 7384 + 8047
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 7377 + 8047
 
-theorem cycleBound_eq : cycleBound = 8810 := by unfold cycleBound; rw [lCyc_4]
+theorem cycleBound_eq : cycleBound = 8809 := by unfold cycleBound; rw [lCyc_4]
 theorem cycleBoundAll_eq : cycleBoundAll = 15431 := rfl
 theorem fuelBound_eq : fuelBound = 15424 := rfl
 
