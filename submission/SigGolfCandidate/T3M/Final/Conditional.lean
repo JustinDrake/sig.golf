@@ -7,7 +7,7 @@ import SigGolfCandidate.T3M.Final.Transfer
 
 `pending_holds` proves all nine machine fields. `sourceFacts_of_securityP` supplies all source fields from the
 checked source closure and its security argument. `certificate_of_security` therefore yields the current
-organizer certificate at `C = 8911` once supplied `T3.Secc.t3_securityP`, as done in `Solution.lean`.
+organizer certificate at `C = 8905` once supplied `T3.Secc.t3_securityP`, as done in `Solution.lean`.
 The more general `certificate_of_remaining` interface is retained for explicit expansion refinements.
 -/
 
@@ -15,7 +15,7 @@ namespace SigGolfCandidate.T3M.Final
 
 /-- The full current-contract certificate from SEC's padded-game security and the two expand refinements. -/
 theorem certificate_of_remaining (security : SecurityP) (expandRefines : ExpandRefines)
-    (expandTerminates : ExpandTerminates) : SigGolf.Certificate submissionNew 8911 :=
+    (expandTerminates : ExpandTerminates) : SigGolf.Certificate submissionNew 8905 :=
   certificateNew_of
     { keygen_run_counts := keygen_run_counts_holds
       keygen_runWith := keygen_runWith_holds
@@ -30,7 +30,7 @@ theorem certificate_of_remaining (security : SecurityP) (expandRefines : ExpandR
 
 /-- **The T3 certificate given only SEC's padded-game security**: every machine statement is proved (`pending_holds`)
 and every other source fact comes from the checked closure. -/
-theorem certificate_of_security (security : SecurityP) : SigGolf.Certificate submissionNew 8911 :=
+theorem certificate_of_security (security : SecurityP) : SigGolf.Certificate submissionNew 8905 :=
   certificateNew_of pending_holds (sourceFacts_of_securityP security)
 
 end SigGolfCandidate.T3M.Final

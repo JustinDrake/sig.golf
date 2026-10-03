@@ -47,7 +47,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
   have hidx := hs.idx
   have hA := encA_step w pk index 0 M s hs
   have hfuel : layerFuel 0 = 16 + 1 + 118 + 2321 + 13 := by decide
-  have hcost : layerCost 0 0 = 16 + 8 + 72 + 13 + 1183 := by decide
+  have hcost : layerCost 0 0 = 16 + 8 + 70 + 13 + 1183 := by decide
   have hsA : stepsA (0 : Layer).val = 16 := rfl
   unfold layerHead
   by_cases hctr : (wctr w 0).toNat ≥ counterLimit
@@ -59,7 +59,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     obtain ⟨t, hst, hf, h5, hv, hin, c, hc, hpre⟩ := hA.2 (by omega)
     rw [hsA] at hst
     have hblk := blocks_encodingInput 0 (route index 0).2 (route index 0).1 M (wctr w 0)
-    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 13 + 2321 + 118) (C + 13 + 1183 + 72) Q (A + 13 + 1183 + 72)
+    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 13 + 2321 + 118) (C + 13 + 1183 + 70) Q (A + 13 + 1183 + 70)
         (ccM (match decode 0 (a.extractLsb' 0 128) with
           | none => pure none
           | some digits => chainsP w 0 (route index 0).2 (route index 0).1 digits >>= R) K) := by

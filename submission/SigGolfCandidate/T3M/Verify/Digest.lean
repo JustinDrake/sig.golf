@@ -1,14 +1,14 @@
 import SigGolfCandidate.T3M.Verify.Init
 
 /-!
-# Prologue and digest (T3M verify words 0 .. 16)
+# Prologue and digest (T3M verify words 0 .. 15)
 
-`li s2, 4095; lwu gp, dc(s2); srli tp, gp, 20; bne tp, zero, rej0` (dc check, `dc < 2^20`), the header
+`ld s2, 0(sp); lwu gp, dc(s2); srli tp, gp, 20; bne tp, zero, rej0` (dc check, `dc < 2^20`), the header
 `T(12, 0, 0, 0, dc)` at `0x30` (`w0 = 0xc01`, `w1 = dc << 32`), `rho` copied to `0x20`, then the digest HASH of the
 block `[rho | T | m]` at `0x20` (one block, the message in place at `0x40`) into `N` at `0x60`.
 
 * `proCheck`, `proRejCheck` : the two path runs (kernel-checked);
-* `digest_step` : from `InitOK`, either HALT(1) after 8 steps (`dc ≥ 2^20`) or the digest `ECALL` after 16 steps with
+* `digest_step` : from `InitOK`, either HALT(1) after 7 steps (`dc ≥ 2^20`) or the digest `ECALL` after 15 steps with
   `hashInput = toQ (pad64 (digestInput (wrho w) m (wdc w)))`;
 * **`digestP_good`** : `GoodQ` of `ccM (digestP m w) K` from the initial state, given the continuation's judgment
   on every post-digest state (`DgOut`).
@@ -39,15 +39,56 @@ def proSpec : Spec :=
   ⟨[(.x4, cw 3073)],
     [(⟨none, BitVec.ofNat 64 0x28⟩, .ld (cw 0x808)), (⟨none, BitVec.ofNat 64 0x20⟩, .ld (cw 0x800)),
       (⟨none, BitVec.ofNat 64 0x30⟩, cw 0xc01), (⟨none, BitVec.ofNat 64 0x38⟩, .bin .sll lwuDc (cw 32))],
-    16, true, 16, [proBr false], none, 16⟩
+    15, true, 14, [proBr false], none, 14⟩
 
 def proPost : List (Reg × Word) := baseK ++ [(.x10, 32), (.x11, 64), (.x12, 96)]
 
-theorem proCheck : specB [] [] baseK (runAt k0 [] 0 [.br false]) proSpec [] proPost [] = true := by
+theorem proCheck : specB [] [] baseK (runAt baseK [] 1 [.br false]) proSpec [] proPost [] = true := by
   decide +kernel
 
-theorem proRejCheck : specB [] [] [] (runAt k0 [] 0 [.br true]) (rejSpec 8 [proBr true]) [] [] [] = true := by
+theorem proRejCheck : specB [] [] [] (runAt baseK [] 1 [.br true]) (rejSpec 6 [proBr true]) [] [] [] = true := by
   decide +kernel
+
+/-- Only the entry load reads the new prefix. Existing data and memory are unchanged. -/
+def initLdSpec : Spec := ⟨[(.x18, .ld (cw INIT_DATA))], [], 1, false, 1, [], none, 1⟩
+def initLdK : List (Reg × Word) := [(.x2, BitVec.ofNat 64 INIT_DATA)]
+theorem initLdCheck : specB [] [] [] (runAt initLdK [1] 0 []) initLdSpec [] [] [.x5] = true := by
+  decide +kernel
+
+structure ProReady (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) : Prop where
+  known : KnownOK baseK s
+  pc : s.pc = pcOf 1
+  msg : ∀ k, k < 4 → s.getMem (BitVec.ofNat 64 (0x40 + 8 * k)) = m.extractLsb' (64 * k) 64
+  pk : PkOK pk s
+  wit : WitAll w s
+  zero : ∀ A, A < WIT → (A < 0x40 ∨ (0x60 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → s.getMem (BitVec.ofNat 64 A) = 0
+  data : DataOK s
+
+theorem init_load (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
+    ∃ t, Steps image s 1 1 t ∧ ProReady m pk w t := by
+  have hk : KnownOK initLdK s := by
+    intro p hp
+    simp only [initLdK, List.mem_singleton] at hp
+    subst p
+    exact hs.sp
+  obtain ⟨t, ht⟩ := spec_run initLdCheck s hs.pc hk (by simp [initLdSpec]) (by simp)
+  have hm : ∀ A, t.getMem A = s.getMem A := fun A => by rw [ht.mem]; rfl
+  have h18 : t.getReg .x18 = 4095#64 := by
+    have h := ht.regs (.x18, .ld (cw INIT_DATA)) (by simp [initLdSpec])
+    exact h.trans hs.initConstant
+  have h5 : t.getReg .x5 = 0 :=
+    (ht.keep .x5 (by simp)).trans (hs.known (.x5, 0) (by simp [k0]))
+  refine ⟨t, ht.steps, ?_, ht.pc rfl, ?_, ?_, ?_, ?_, ?_⟩
+  · intro p hp
+    simp only [baseK, List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl
+    · exact h5
+    · exact h18
+  · intro k hk; rw [hm]; exact hs.msg k hk
+  · exact ⟨(hm _).trans hs.pk.1, (hm _).trans hs.pk.2⟩
+  · intro j hj; rw [hm]; exact hs.wit j hj
+  · intro A hA hz; rw [hm]; exact hs.zero A hA hz
+  · exact hs.data.congr (fun A _ _ => hm _)
 
 /-! ## Semantics -/
 
@@ -94,7 +135,7 @@ theorem proBr_iff (w : WBytes) (s : MachineState) (hW : WitAll w s) (d : Bool) :
 
 /-- After the prologue, before the digest `ECALL`: `s2`, `t0`, the HASH arguments, the digest block. -/
 structure DgPre (m : T3.Message) (pk : Digest) (w : WBytes) (t : MachineState) : Prop where
-  pc : t.pc = pcOf 16
+  pc : t.pc = pcOf 15
   known : KnownOK proPost t
   wit : WitAll w t
   pk : PkOK pk t
@@ -103,7 +144,7 @@ structure DgPre (m : T3.Message) (pk : Digest) (w : WBytes) (t : MachineState) :
 
 /-- After the digest `HASH` (answer `a`, the output `N` at `0x60`). -/
 structure DgOut (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState) : Prop where
-  pc : u.pc = pcOf 17
+  pc : u.pc = pcOf 16
   known : KnownOK proPost u
   wit : WitAll w u
   pk : PkOK pk u
@@ -111,13 +152,13 @@ structure DgOut (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u 
   zero : ∀ A, A < WIT → (A < 0x20 ∨ (0x80 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → u.getMem (BitVec.ofNat 64 A) = 0
   data : DataOK u
 
-theorem digest_step (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
-    ((wdc w).toNat ≥ attemptLimit → ∃ u, Steps image s 8 8 u ∧ fetch image u = some (.base .ECALL) ∧
+theorem pro_step (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : ProReady m pk w s) :
+    ((wdc w).toNat ≥ attemptLimit → ∃ u, Steps image s 6 6 u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    ((wdc w).toNat < attemptLimit → ∃ t, Steps image s 16 16 t ∧ fetch image t = some (.base .ECALL) ∧
+    ((wdc w).toNat < attemptLimit → ∃ t, Steps image s 14 14 t ∧ fetch image t = some (.base .ECALL) ∧
         hashArgumentsValid t = true ∧ hashInput t = toQ (pad64 (digestInput (wrho w) m (wdc w))) ∧
         DgPre m pk w t) := by
-  have hk : KnownOK k0 s := hs.known
+  have hk : KnownOK baseK s := hs.known
   constructor
   · intro hge
     obtain ⟨u, hu⟩ := spec_run proRejCheck s hs.pc hk (by
@@ -202,6 +243,22 @@ theorem digest_step (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineStat
           (by unfold HDATA at hA; omega) (by unfold HDATA at hA; omega)
           (by unfold HDATA at hA; omega)
 
+theorem digest_step (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
+    ((wdc w).toNat ≥ attemptLimit → ∃ u, Steps image s 7 7 u ∧ fetch image u = some (.base .ECALL) ∧
+        u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
+    ((wdc w).toNat < attemptLimit → ∃ t, Steps image s 15 15 t ∧ fetch image t = some (.base .ECALL) ∧
+        hashArgumentsValid t = true ∧ hashInput t = toQ (pad64 (digestInput (wrho w) m (wdc w))) ∧
+        DgPre m pk w t) := by
+  obtain ⟨r, hr, hready⟩ := init_load m pk w s hs
+  obtain ⟨hrej, hacc⟩ := pro_step m pk w r hready
+  constructor
+  · intro h
+    obtain ⟨u, hu, hu'⟩ := hrej h
+    exact ⟨u, hr.trans hu, hu'⟩
+  · intro h
+    obtain ⟨t, ht, ht'⟩ := hacc h
+    exact ⟨t, hr.trans ht, ht'⟩
+
 theorem digest_out (m : T3.Message) (pk : Digest) (w : WBytes) (t : MachineState) (ht : DgPre m pk w t)
     (a : HashOutput) : DgOut m pk w a (writeHash t a) := by
   have h12 : t.getReg .x12 = BitVec.ofNat 64 96 := ht.known (.x12, 96) (by simp [proPost])
@@ -233,7 +290,7 @@ theorem digestP_good (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineSta
     {N C A : Nat} {Q : Prop} (K : Option HashOutput → OracleComp HashSpec Obs)
     (hK : K none = pure (false, 0))
     (hcont : ∀ a u, DgOut m pk w a u → GoodQ u N C Q A (K (some a))) :
-    GoodQ s (N + 17) (C + 24) Q (A + 24) (ccM (digestP m w) K) := by
+    GoodQ s (N + 16) (C + 23) Q (A + 23) (ccM (digestP m w) K) := by
   obtain ⟨hrej, hacc⟩ := digest_step m pk w s hs
   unfold digestP
   by_cases hdc : (wdc w).toNat ≥ attemptLimit

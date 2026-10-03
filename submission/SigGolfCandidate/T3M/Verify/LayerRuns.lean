@@ -96,7 +96,7 @@ def layK (lay : Nat) : List (Reg × Word) :=
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
 
 /-- T3X: the layer constants during a lower layer's chain phase: `x28` is the midpoint of the layer's WOTS header
-bank (the entry stub `lui t3; addi t3; jalr` replaces `2^40`; the leaf-pk return restores it). -/
+bank (the entry stub `lui t3; jalr` replaces `2^40`; the leaf-pk return restores it). -/
 def chainK (lay : Nat) : List (Reg × Word) :=
   baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 lay)), (.x24, 0x10000), (.x2, 0x3fe00),
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64),
@@ -162,10 +162,11 @@ def a7lE : E := .bin .or b1E (.bin .srl a6E (kw 63))
 def x14l : E := .bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe00)) (kw 0x6e000)
 def tgtl : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe00)) (kw 448800)) (.c (~~~1#64))
 
-/-- T3X: B ends with `jal ra, stub_lay` and the stub `lui t3; addi t3; jalr zero, -1760(a4)` (3 more steps). -/
+/-- T3X: B ends with `jal ra, stub_lay` and the stub `lui t3; jalr zero, -1760(a4)` (2 more steps; T3Y: the bank
+midpoints are 4096-aligned, so one `lui` sets `t3`). -/
 def specBl (lay p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, a7lE), (.x25, sumE), (.x29, t4E lay), (.x3, .bin .srl a6E (kw 63)), (.x14, x14l)],
-   [], 0, false, 31, [ckBr lay false, rngBr 62 false], some tgtl, 34⟩
+   [], 0, false, 30, [ckBr lay false, rngBr 62 false], some tgtl, 33⟩
 
 def postBl (lay p : Nat) : List (Reg × Word) :=
   chainK lay ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x15, 0x6e000), (.x1, pcOf (p + retOff lay))]
