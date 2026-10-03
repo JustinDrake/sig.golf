@@ -8,13 +8,14 @@ import SigGolfCandidate.T3M.Verify.SourceSupport
 The machine follows the same arbitrary-witness source program `ftsP`. Its exact
 segment potential reads the next header at the actual witness pointer. Nonfinal
 folds zero and one cost 13 cycles; later nonfinal folds cost 14, and the final
-fold costs 13. A complete segment costs `15 + 14*a - min(a-1,2) + (if 2 ≤ a then 1 else 0)`.
+fold costs 13. A complete segment costs at most `15 + 14*a - min(a-1,2) + (if 2 ≤ a then 1 else 0)
+- (if a ≤ 2 then 1 else 0)`. The extra inline a=3 saving is conservatively ignored.
 
 The exact stream simulation pays `361 + streamCost w 1088 35`, including setup,
 leaves, merges, coordinate ends and the forest hash. The source-support bridge
 proves that every accepting machine execution has an admissible canonical
 schedule, even for adversarial witness bytes and arbitrary hash answers. The
-canonical schedule bound then gives 2480 cycles instead of the conservative 2613.
+canonical schedule bound then gives 2461 cycles instead of the conservative 2613.
 All-input termination remains 7227 cycles from `FtsReady`.
 -/
 
@@ -225,16 +226,25 @@ theorem seg_good {γ : Type} (F : FCtx) (c j : Nat) (roots : List Digest) (stk :
         simp only [foldsP, List.range_zero, List.foldlM_nil, pure_bind]
         exact hT _ _ _ (by rw [e1, e2]; exact (hnext ans).1 ha0))
     rw [hb1] at hg
-    have hsp : segPre (segA (wbyte F.w ptr).toNat) = 7 := by rw [ha0]; rfl
+    have hsp : segPre (segA (wbyte F.w ptr).toNat) = 6 := by rw [ha0]; rfl
     exact GoodQ.steps' (hst.of_eq hsp hsp) hg (by omega) (by omega) (fun q => by
       have hcost := ReversedCost.streamCost_step F.w ptr nrem hnrem
       change ReversedCost.streamCost F.w ptr nrem = ReversedCost.segCost (segA (wbyte F.w ptr).toNat) + ReversedCost.streamCost F.w (ptr+8+80*segA (wbyte F.w ptr).toNat) (nrem-1) at hcost
-      have hz : ReversedCost.segCost (segA (wbyte F.w ptr).toNat) = 15 := by rw [ha0]; rfl
+      have hz : ReversedCost.segCost (segA (wbyte F.w ptr).toNat) = 14 := by rw [ha0]; rfl
       exact ⟨⟨q.1, by omega⟩, by omega⟩)
   · have hapos : 0 < segA (wbyte F.w ptr).toNat := Nat.pos_of_ne_zero ha0
+    have hentry : entrySteps (tselJ j) (wbyte F.w ptr).toNat ≤
+        (if segA (wbyte F.w ptr).toNat ≤ 2 then 0 else 1) := by
+      by_cases hin : inlineRow (segX (tselJ j) (wbyte F.w ptr).toNat) (segA (wbyte F.w ptr).toNat)
+      · simp only [entrySteps, if_pos hin]
+        exact Nat.zero_le _
+      · have ha2 : ¬segA (wbyte F.w ptr).toNat ≤ 2 := fun ha2 => hin (Or.inl ha2)
+        simp only [entrySteps, if_neg hin, if_neg ha2, Nat.le_refl]
+    have hentry_le : entrySteps (tselJ j) (wbyte F.w ptr).toNat ≤ 1 := by
+      split_ifs at hentry <;> omega
     have hg := GoodQ.shortHash_bind (N := B + (15 * segA (wbyte F.w ptr).toNat - 2) + 1)
       (C := B + (15 * segA (wbyte F.w ptr).toNat - 2) + 1)
-      (A := A + ReversedCost.streamCost F.w (ptr + 8 + 80 * segA (wbyte F.w ptr).toNat) (nrem-1) + ReversedCost.foldRemaining 0 (segA (wbyte F.w ptr).toNat) + 1)
+      (A := A + ReversedCost.streamCost F.w (ptr + 8 + 80 * segA (wbyte F.w ptr).toNat) (nrem-1) + ReversedCost.foldRemaining 0 (segA (wbyte F.w ptr).toNat) + (if segA (wbyte F.w ptr).toNat ≤ 2 then 0 else 1))
       (Q := Q ∧ folds + segA (wbyte F.w ptr).toNat ≤ 115)
       (f := fun node1 => foldsP F.w F.idx c ptr (((wbyte F.w ptr).toNat % 16)) node1 E >>= fun p => TL p.1 p.2)
       (K := Rs) hf h5 hv hin (fun ans => by
@@ -250,13 +260,14 @@ theorem seg_good {γ : Type} (F : FCtx) (c j : Nat) (roots : List Digest) (stk :
         rw [hr]
         exact GoodQ.steps' hv1 hfg (by omega) (by omega) (fun q => ⟨q, by omega⟩))
     rw [hb1] at hg
-    have hsp : segPre (segA (wbyte F.w ptr).toNat) = 7 + (if 2 ≤ segA (wbyte F.w ptr).toNat then 1 else 0) := rfl
+    have hsp : segPre (segA (wbyte F.w ptr).toNat) = 7 + (if 2 ≤ segA (wbyte F.w ptr).toNat then 1 else 0) := by
+      simp only [segPre, if_neg ha0, Nat.sub_zero]
     have hsp_le : segPre (segA (wbyte F.w ptr).toNat) ≤ 8 := by rw [hsp]; split <;> omega
     exact GoodQ.steps' (hst.of_eq hsp hsp) hg (by omega) (by omega) (fun q => by
       have hcost := ReversedCost.streamCost_step F.w ptr nrem hnrem
       change ReversedCost.streamCost F.w ptr nrem = ReversedCost.segCost (segA (wbyte F.w ptr).toNat) + ReversedCost.streamCost F.w (ptr+8+80*segA (wbyte F.w ptr).toNat) (nrem-1) at hcost
       have hs := ReversedCost.foldRemaining_segment (segA (wbyte F.w ptr).toNat) hapos
-      exact ⟨⟨q.1, by omega⟩, by omega⟩)
+      split_ifs at hs ⊢ <;> exact ⟨⟨q.1, by omega⟩, by omega⟩)
 
 /-! ## The segment loop -/
 
@@ -290,7 +301,7 @@ theorem segLoop_good (F : FCtx) (c j : Nat) (roots : List Digest)
     by_cases hm : ((wbyte F.w ptr).toNat / 16 % 2) = 1
     · rw [if_pos hm, ccM_pure, hRs]
       rw [segX_m j _ hm] at hu
-      obtain ⟨u', hu', hh⟩ := (tailM_step F c j roots [] E' _ _ node' u hu).1 rfl
+      obtain ⟨n, u', hn, hu', hh⟩ := (tailM_step F c j roots [] E' _ _ node' u hu).1 rfl
       exact GoodQ.rejectAfter hu' hh (by omega) (by omega)
     · rw [if_neg hm, ccM_pure]
       rw [segX_nm j (wbyte F.w ptr).toNat (by unfold segM; omega)] at hu
@@ -316,7 +327,7 @@ theorem segLoop_good (F : FCtx) (c j : Nat) (roots : List Digest)
       obtain ⟨-, tQ, tE⟩ := tailM_step F c j roots ((pn, Qv) :: rest) E' _ _ node' u hu
       by_cases hq : Qv ≠ E'
       · rw [if_pos hq, ccM_pure, hRs]
-        obtain ⟨u', hu', hh⟩ := tQ pn Qv rest rfl hq
+        obtain ⟨n, u', hn, hu', hh⟩ := tQ pn Qv rest rfl hq
         exact GoodQ.rejectAfter hu' hh (by omega) (by omega)
       · rw [if_neg hq]
         have hq' : Qv = E' := by omega
@@ -509,10 +520,10 @@ The exact stream potential therefore admits the tighter bound for arbitrary witn
 theorem fts_good (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : FtsReady pk w a t)
     (R : Option Digest → OracleComp HashSpec Obs) (hR : R none = pure (false, 0)) (Bf Af : Nat) (Q : Prop)
     (hout : ∀ root u, FtsOut ⟨pk, w, a⟩ root u → GoodQ u Bf Bf Q Af (R (some root))) :
-    GoodQ t (Bf + 7227) (Bf + 7227) Q (Af + 2480) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
+    GoodQ t (Bf + 7227) (Bf + 7227) Q (Af + 2461) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
   have h := fts_good_exact pk w a t ht R hR Bf Af Q hout
   have hsel : selectionsOk (selections a) = true := (selectionsOk_iff a).mpr ht.1.ok
-  have hh := h.withSourceProperty (P := 361 + ReversedCost.streamCost w 1088 35 ≤ 2480) (by
+  have hh := h.withSourceProperty (P := 361 + ReversedCost.streamCost w 1088 35 ≤ 2461) (by
     intro o ho htrue
     obtain ⟨root,hr⟩ := ccM_some_support _ R hR o ho htrue
     have hshape : T3.admissible (selections a) = true ∧ StreamMatches (selections a) w := by
@@ -529,7 +540,7 @@ theorem fts_good (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) 
 theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    ∀ a t, SelIn pk w a 7 t → GoodQ t (Bf + 7230) (Bf + 7230) Q (Af + 2483) (ccM (afterSel pk w a) Kb) := by
+    ∀ a t, SelIn pk w a 7 t → GoodQ t (Bf + 7230) (Bf + 7230) Q (Af + 2464) (ccM (afterSel pk w a) Kb) := by
   intro a t ht
   cases hg : T3.digestGate a with
   | false =>
@@ -544,12 +555,12 @@ theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
 
 /-- **`verifyP` from the initial state up to the layers phase**: given the layers phase (V1/V3: layers 3..0 and the
 comparison, `afterFts`) from `FtsOut`, the whole verify run. Accepting cycles through the forest HASH:
-`184 + 3 + 2480 = 2667`, including the exact canonical stream-cost bound. -/
+`184 + 3 + 2461 = 2648`, including the exact canonical stream-cost bound. -/
 theorem verifyP_good_fts (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    GoodQ s (Bf + 7416) (Bf + 7423) Q (Af + 2667) (ccM (verifyP m pk w) Kb) :=
+    GoodQ s (Bf + 7416) (Bf + 7423) Q (Af + 2648) (ccM (verifyP m pk w) Kb) :=
   (verifyP_good_sel m pk w s hs (afterSel_good pk w Bf Af Q hout)).mono (by omega) (by omega)
     (fun q => ⟨q, by omega⟩)
 
