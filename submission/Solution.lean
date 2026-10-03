@@ -80,7 +80,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8749 :=
+theorem certificate : SigGolf.Certificate submission 8735 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge
