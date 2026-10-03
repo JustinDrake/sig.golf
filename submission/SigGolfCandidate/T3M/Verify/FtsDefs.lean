@@ -58,7 +58,7 @@ structure FB (F : FCtx) (c : Nat) (m : MachineState) : Prop where
   ck : KnownOK (packedCK c F.idx) m
   idx : m.getReg .x22 = BitVec.ofNat 64 F.idx
   etab : ∀ s, s < 21 → m.getMem (BitVec.ofNat 64 (ETAB + 8 * s)) = BitVec.ofNat 64 (TAB + 8 * F.g s)
-  sent : m.getMem (BitVec.ofNat 64 SENTINEL) = -1#64
+  sent : m.getMem (BitVec.ofNat 64 SENTINEL) = 1#64
   fpad : ∀ d, 1 ≤ d → d ≤ 2 → m.getMem (BitVec.ofNat 64 (frameA d + 32)) = 0 ∧
     m.getMem (BitVec.ofNat 64 (frameA d + 40)) = 0
   hc : c < 7
