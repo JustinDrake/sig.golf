@@ -5,11 +5,12 @@ import SigGolfCandidate.T3M.Verify.FtsGood
 
 /-! # The complete verifier: forest, signature layers, Merkle paths and root comparison
 
-The accepting forest bound is 2750 cycles at the 115-fold cap. The four layers and final
+The accepting forest bound is 2718 cycles at the 115-fold cap. The four layers and final
 comparison cost 6165 cycles; the six-cycle load block gives 6171 after the forest. Thus the
-accepting bound is 8921 cycles. Fuel 15455 and every-path cycle bound 15462 include the additional setup.
+accepting bound is 8889 cycles. Fuel 15423 and every-path cycle bound 15430 include the additional setup.
 The three-side segment headers and exact canonical accepting-shape accounting reduce the forest bound
-by 73 cycles relative to the paired-decoder parent; four credited suffix cuts save another eight cycles. -/
+by 73 cycles relative to the paired-decoder parent; packed leaf headers and persistent comparands
+save a further 32, and four credited suffix cuts save another eight cycles. -/
 
 set_option linter.unusedSimpArgs false
 
@@ -192,10 +193,10 @@ theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutpu
   rw [lFuel_4, lCyc_4] at hg
   exact GoodQ.steps' hst hg (by omega) (by omega) (fun q => ⟨q, by omega⟩)
 
-/-- **The whole verify run**: from the initial state, every run finishes within 15462 cycles with fuel 15455, and
-accepting runs take at most `8921 = 2750 + 6171` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
+/-- **The whole verify run**: from the initial state, every run finishes within 15430 cycles with fuel 15423, and
+accepting runs take at most `8889 = 2718 + 6171` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
 theorem verifyP_good (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
-    GoodQ s 15455 15462 True 8921 (ccM (verifyP m pk w) Kb) :=
+    GoodQ s 15423 15430 True 8889 (ccM (verifyP m pk w) Kb) :=
   verifyP_good_fts m pk w s hs 8046 6171 True (fun a root u h => after_good pk w True trivial a root u h)
 
 end SigGolfCandidate.T3M

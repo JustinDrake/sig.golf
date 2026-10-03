@@ -10,12 +10,12 @@ segment potential reads the next header at the actual witness pointer. Nonfinal
 folds zero and one cost 13 cycles; later nonfinal folds cost 15, and the final
 fold costs 13. A complete segment costs `15 + 15*a - 2*min(a-1,2)`.
 
-The exact stream simulation pays `395 + streamCost w 1088 35`, including setup,
+The exact stream simulation pays `363 + streamCost w 1088 35`, including setup,
 leaves, merges, coordinate ends and the forest hash. The source-support bridge
 proves that every accepting machine execution has an admissible canonical
 schedule, even for adversarial witness bytes and arbitrary hash answers. The
-canonical schedule bound then gives 2563 cycles instead of the conservative 2613.
-All-input termination remains 7220 cycles from `FtsReady`.
+canonical schedule bound then gives 2531 cycles instead of the conservative 2613.
+All-input termination remains 7188 cycles from `FtsReady`.
 -/
 
 set_option linter.unusedSimpArgs false
@@ -345,9 +345,9 @@ theorem leaf_good (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dige
     (by omega) (fun q => ⟨q, by omega⟩)
 
 /-- All-oracle cycles from a coordinate's leaf 0 (`c < 7`) or the forest (`c = 7`) to the end of the FTS. -/
-def Cent (c : Nat) : Nat := if c < 7 then 1046 + 1025 * (6 - c) else 24
+def Cent (c : Nat) : Nat := if c < 7 then 1040 + 1020 * (6 - c) else 23
 /-- Accepting cycles beyond the exact remaining stream cost. -/
-def Aent (c : Nat) : Nat := if c < 7 then 71 + 50 * (6 - c) else 24
+def Aent (c : Nat) : Nat := if c < 7 then 65 + 45 * (6 - c) else 23
 
 /-- The start of coordinate `c` (its leaf 0, empty stack) or, for `c = 7`, the forest. -/
 def NextIn (F : FCtx) (c : Nat) (roots : List Digest) (ptr folds : Nat) (m : MachineState) : Prop :=
@@ -363,16 +363,16 @@ theorem coord_good (F : FCtx) (c : Nat) (roots : List Digest) (ptr folds : Nat) 
     GoodQ m (Bf + Cent c) (Bf + Cent c) (Q ∧ folds ≤ 115) (Af + Aent c + SideCost.streamCost F.w ptr (5*(7-c)))
       (ccM (ftsCoordP F.w F.idx c (F.sel c) ptr) R) := by
   have hc7 := h.fb.hc
-  have ce : Cent c = 1046 + 1025 * (6 - c) := if_pos hc7
-  have ae : Aent c = 71 + 50 * (6 - c) := if_pos hc7
-  have lc0 : leafCode 0 = 7 := rfl
-  have lc1 : leafCode 1 = 6 := rfl
-  have lc2 : leafCode 2 = 7 := rfl
+  have ce : Cent c = 1040 + 1020 * (6 - c) := if_pos hc7
+  have ae : Aent c = 65 + 45 * (6 - c) := if_pos hc7
+  have lc0 : leafCode 0 = 6 := rfl
+  have lc1 : leafCode 1 = 5 := rfl
+  have lc2 : leafCode 2 = 6 := rfl
   have heq : segRem c 0 0 = 5*(7-c) := by unfold segRem; omega
   have hpot := congrArg (SideCost.streamCost F.w ptr) heq
   rw [ftsCoordP_eq, ccM_bind]
   refine (leaf_good F c 0 roots [] ptr folds m h 0 _ (by simp only [coordK0, ccM_pure, hR])
-    (Bf + 842 + 1025 * (6 - c)) (Af + 64 + 50 * (6 - c)) Q (fun stk0 E0 p0 f0 n0 u0 hu0 => ?_)).mono
+    (Bf + 837 + 1020 * (6 - c)) (Af + 59 + 45 * (6 - c)) Q (fun stk0 E0 p0 f0 n0 u0 hu0 => ?_)).mono
     (by lomega) (by lomega) (fun q => ⟨q, by lomega⟩)
   -- leaf 0 ended: push, leaf 1
   have hu0' : TailIn F c 0 roots stk0 1 E0 p0 f0 n0 u0 := hu0
@@ -382,7 +382,7 @@ theorem coord_good (F : FCtx) (c : Nat) (roots : List Digest) (ptr folds : Nat) 
   simp only [coordK0]
   rw [ccM_bind]
   refine GoodQ.steps' hu1 (leaf_good F c 1 roots ((n0, E0 ^^^ 1) :: stk0) p0 f0 u1 hl1 n0 _
-    (by simp only [coordK1, ccM_pure, hR]) (Bf + 436 + 1025 * (6 - c)) (Af + 47 + 50 * (6 - c)) Q
+    (by simp only [coordK1, ccM_pure, hR]) (Bf + 432 + 1020 * (6 - c)) (Af + 43 + 45 * (6 - c)) Q
     (fun stk1 E1 p1 f1 n1 u2 hu2 => ?_)) (by lomega) (by lomega) (fun q => ⟨q, by lomega⟩)
   -- leaf 1 ended: push, leaf 2
   have hu2' : TailIn F c 1 roots stk1 1 E1 p1 f1 n1 u2 := hu2
@@ -392,7 +392,7 @@ theorem coord_good (F : FCtx) (c : Nat) (roots : List Digest) (ptr folds : Nat) 
   simp only [coordK1]
   rw [ccM_bind]
   refine GoodQ.steps' hu3 (leaf_good F c 2 roots ((n1, E1 ^^^ 1) :: stk1) p1 f1 u3 hl2 n1 _
-    (by simp only [coordK2, ccM_pure, hR]) (Bf + 29 + 1025 * (6 - c)) (Af + 29 + 50 * (6 - c)) Q
+    (by simp only [coordK2, ccM_pure, hR]) (Bf + 26 + 1020 * (6 - c)) (Af + 26 + 45 * (6 - c)) Q
     (fun stk2 E2 p2 f2 n2 u4 hu4 => ?_)) (by lomega) (by lomega) (fun q => ⟨q, by lomega⟩)
   -- leaf 2 ended: final tail, coord_end
   have hu4' : TailIn F c 2 roots stk2 2 E2 p2 f2 n2 u4 := hu4
@@ -409,15 +409,15 @@ theorem coord_good (F : FCtx) (c : Nat) (roots : List Digest) (ptr folds : Nat) 
       · obtain ⟨u6, hu6, hl⟩ := cL hE1 rfl hc6
         have hn : NextIn F (c + 1) (roots ++ [n2]) p2 f2 u6 := by
           unfold NextIn; rw [if_pos (by omega)]; exact hl
-        have ce1 : Cent (c + 1) = 1046 + 1025 * (6 - (c + 1)) := if_pos (by omega)
-        have ae1 : Aent (c + 1) = 71 + 50 * (6 - (c + 1)) := if_pos (by omega)
+        have ce1 : Cent (c + 1) = 1040 + 1020 * (6 - (c + 1)) := if_pos (by omega)
+        have ae1 : Aent (c + 1) = 65 + 45 * (6 - (c + 1)) := if_pos (by omega)
         exact GoodQ.steps' (hu5.trans hu6) (hK n2 p2 f2 u6 hn) (by lomega) (by lomega) (fun q => ⟨q, by lomega⟩)
       · have hc6' : c = 6 := by omega
         obtain ⟨u6, hu6, hf⟩ := cF hE1 rfl hc6'
         have hn : NextIn F (c + 1) (roots ++ [n2]) p2 f2 u6 := by
           unfold NextIn; rw [if_neg (by omega)]; exact hf
-        have ce1 : Cent (c + 1) = 24 := if_neg (by omega)
-        have ae1 : Aent (c + 1) = 24 := if_neg (by omega)
+        have ce1 : Cent (c + 1) = 23 := if_neg (by omega)
+        have ae1 : Aent (c + 1) = 23 := if_neg (by omega)
         exact GoodQ.steps' (hu5.trans hu6) (hK n2 p2 f2 u6 hn) (by lomega) (by lomega) (fun q => ⟨q, by lomega⟩)
     · rw [if_neg (fun hh => hs hh.2), ccM_pure, hR]
       obtain ⟨u6, hu6, hh⟩ := cS hE1 hs
@@ -432,7 +432,7 @@ theorem coord_good (F : FCtx) (c : Nat) (roots : List Digest) (ptr folds : Nat) 
 theorem coords_good (F : FCtx) (R7 : Option (List Digest × Nat) → OracleComp HashSpec Obs)
     (hR7 : R7 none = pure (false, 0)) (Bf Af : Nat) (Q : Prop)
     (hfin : ∀ roots ptr folds m, ForestIn F roots ptr folds m →
-      GoodQ m (Bf + 24) (Bf + 24) (Q ∧ folds ≤ 115) (Af + 24 + SideCost.streamCost F.w ptr 0) (R7 (some (roots, ptr)))) :
+      GoodQ m (Bf + 23) (Bf + 23) (Q ∧ folds ≤ 115) (Af + 23 + SideCost.streamCost F.w ptr 0) (R7 (some (roots, ptr)))) :
     ∀ n c roots ptr folds m, c + n = 7 → NextIn F c roots ptr folds m →
       GoodQ m (Bf + Cent c) (Bf + Cent c) (Q ∧ folds ≤ 115) (Af + Aent c + SideCost.streamCost F.w ptr (5*(7-c)))
         (ccM ((List.range' c n).foldlM (ftsStep F) (some (roots, ptr))) R7) := by
@@ -462,7 +462,7 @@ theorem coords_good (F : FCtx) (R7 : Option (List Digest × Nat) → OracleComp 
 theorem fin_good (F : FCtx) (R : Option Digest → OracleComp HashSpec Obs) (hR : R none = pure (false, 0))
     (Bf Af : Nat) (Q : Prop) (hout : ∀ root u, FtsOut F root u → GoodQ u Bf Bf Q Af (R (some root))) :
     ∀ roots ptr folds m, ForestIn F roots ptr folds m →
-      GoodQ m (Bf + 24) (Bf + 24) (Q ∧ folds ≤ 115) (Af + 24 + SideCost.streamCost F.w ptr 0)
+      GoodQ m (Bf + 23) (Bf + 23) (Q ∧ folds ≤ 115) (Af + 23 + SideCost.streamCost F.w ptr 0)
         (ccM (ftsFin F (some (roots, ptr))) R) := by
   intro roots ptr folds m h
   obtain ⟨fRej, fOk⟩ := forest_step F roots ptr folds m h
@@ -480,11 +480,11 @@ theorem fin_good (F : FCtx) (R : Option Digest → OracleComp HashSpec Obs) (hR 
     rw [blocks_forestInput F.idx roots h.hroots] at hg
     exact GoodQ.steps' hu hg (by omega) (by omega) (fun q => ⟨⟨q, by omega⟩, by omega⟩)
 
-/-- Exact accepting stream cost, with unchanged 7220-cycle all-oracle termination bound. -/
+/-- Exact accepting stream cost, with a 7188-cycle all-oracle termination bound. -/
 theorem fts_good_exact (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : FtsReady pk w a t)
     (R : Option Digest → OracleComp HashSpec Obs) (hR : R none = pure (false, 0)) (Bf Af : Nat) (Q : Prop)
     (hout : ∀ root u, FtsOut ⟨pk, w, a⟩ root u → GoodQ u Bf Bf Q Af (R (some root))) :
-    GoodQ t (Bf + 7220) (Bf + 7220) Q (Af + 395 + SideCost.streamCost w 1088 35) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
+    GoodQ t (Bf + 7188) (Bf + 7188) Q (Af + 363 + SideCost.streamCost w 1088 35) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
   obtain ⟨u, hu, hl⟩ := fts_setup_step pk w a t ht
   have e : ftsP w (a.toNat % 2 ^ 31) (selections a) =
       List.foldlM (ftsStep ⟨pk, w, a⟩) (some ([], 1088)) (List.range 7) >>= ftsFin ⟨pk, w, a⟩ :=
@@ -494,8 +494,8 @@ theorem fts_good_exact (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
   have hc := coords_good ⟨pk, w, a⟩ (fun s => ccM (ftsFin ⟨pk, w, a⟩ s) R) (by simp only [ftsFin, ccM_pure, hR])
     Bf Af Q (fin_good ⟨pk, w, a⟩ R hR Bf Af Q hout) 7 0 [] 1088 0 u (by omega) hn
   change GoodQ u (Bf + Cent 0) (Bf + Cent 0) (Q ∧ 0 ≤ 115) (Af + Aent 0 + SideCost.streamCost w 1088 35) _ at hc
-  have ce : Cent 0 = 7196 := rfl
-  have ae : Aent 0 = 371 := rfl
+  have ce : Cent 0 = 7160 := rfl
+  have ae : Aent 0 = 335 := rfl
   exact GoodQ.steps' hu hc (by omega) (by omega) (fun q => ⟨q.1, by omega⟩)
 
 
@@ -504,10 +504,10 @@ The exact stream potential therefore admits the tighter bound for arbitrary witn
 theorem fts_good (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : FtsReady pk w a t)
     (R : Option Digest → OracleComp HashSpec Obs) (hR : R none = pure (false, 0)) (Bf Af : Nat) (Q : Prop)
     (hout : ∀ root u, FtsOut ⟨pk, w, a⟩ root u → GoodQ u Bf Bf Q Af (R (some root))) :
-    GoodQ t (Bf + 7220) (Bf + 7220) Q (Af + 2563) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
+    GoodQ t (Bf + 7188) (Bf + 7188) Q (Af + 2531) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
   have h := fts_good_exact pk w a t ht R hR Bf Af Q hout
   have hsel : selectionsOk (selections a) = true := (selectionsOk_iff a).mpr ht.1.ok
-  have hh := h.withSourceProperty (P := 395 + SideCost.streamCost w 1088 35 ≤ 2563) (by
+  have hh := h.withSourceProperty (P := 363 + SideCost.streamCost w 1088 35 ≤ 2531) (by
     intro o ho htrue
     obtain ⟨root,hr⟩ := ccM_some_support _ R hR o ho htrue
     have hshape : T3.admissible (selections a) = true ∧ StreamMatches (selections a) w := by
@@ -517,14 +517,15 @@ theorem fts_good (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) 
         have he := ftsP_none_of_shape w (a.toNat % 2^31) (selections a) hs (some root) hr
         cases he
       | some p => rfl
-    exact SideCost.streamCost_canonical w a hsel hshape.1 hshape.2)
+    have hcost := SideCost.streamCost_canonical w a hsel hshape.1 hshape.2
+    omega)
   exact hh.mono (le_refl _) (le_refl _) (fun q => ⟨q.1,by have := q.2; omega⟩)
 
 /-- `afterSel` (V2's interface of `verifyP_good_sel`) from the layers phase at `FtsOut`. -/
 theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    ∀ a t, SelIn pk w a 7 t → GoodQ t (Bf + 7223) (Bf + 7223) Q (Af + 2566) (ccM (afterSel pk w a) Kb) := by
+    ∀ a t, SelIn pk w a 7 t → GoodQ t (Bf + 7191) (Bf + 7191) Q (Af + 2534) (ccM (afterSel pk w a) Kb) := by
   intro a t ht
   cases hg : T3.digestGate a with
   | false =>
@@ -539,12 +540,12 @@ theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
 
 /-- **`verifyP` from the initial state up to the layers phase**: given the layers phase (V1/V3: layers 3..0 and the
 comparison, `afterFts`) from `FtsOut`, the whole verify run. Accepting cycles through the forest HASH:
-`184 + 3 + 2563 = 2750`, including the exact canonical stream-cost bound. -/
+`184 + 3 + 2531 = 2718`, including the exact canonical stream-cost bound. -/
 theorem verifyP_good_fts (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    GoodQ s (Bf + 7409) (Bf + 7416) Q (Af + 2750) (ccM (verifyP m pk w) Kb) :=
+    GoodQ s (Bf + 7377) (Bf + 7384) Q (Af + 2718) (ccM (verifyP m pk w) Kb) :=
   (verifyP_good_sel m pk w s hs (afterSel_good pk w Bf Af Q hout)).mono (by omega) (by omega)
     (fun q => ⟨q, by omega⟩)
 
