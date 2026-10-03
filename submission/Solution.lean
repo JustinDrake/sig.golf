@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 128 KiB authenticated
-paired-mask full cache. `S = 5616` bytes, `W = 24264` bytes, `K = 131072` bytes (cache), `C = 8683` cycles
-(accepting-verify bound `8588` plus the witness charge `⌈24264 / 256⌉ = 95`). Layout (bytes): message 64,
+paired-mask full cache. `S = 5616` bytes, `W = 24264` bytes, `K = 131072` bytes (cache), `C = 8675` cycles
+(accepting-verify bound `8580` plus the witness charge `⌈24264 / 256⌉ = 95`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 524288, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,13 +19,13 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 8588); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 8580); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
 The seven few-time banks retain 2,048 physical leaves each. Each digest selects one of 16 buckets per bank
 and three distinct leaves among its 128 leaves. Authentication uses at most 87 child nodes plus 28 outer
-nodes, for a cap of 115. Bits 206 through 208 of the digest must be zero; signing, expansion, and verification
+nodes, for a cap of 115. Bits 246 through 255 of the digest, as an unsigned ten-bit value, must be below 135; signing, expansion, and verification
 all enforce this gate. The top layer uses 51 radix-five and three radix-four chains, packed into 17 seven-bit
 triple ranks and six tail bits; strong decoding rejects ranks above 124 and requires digit sum 126. This
 removes four chain values, saving 64 bytes relative to the preceding full-cache construction. The
@@ -36,7 +36,7 @@ znan2's embedded constant loads, the lower seven-operation SWAR identity from i3
 patternrecognition9-del's live-root technique and terminal-store saving, and Frodan's PR362
 lower-chain dispatch saving. The full cache stores all 8190 top-tree nodes below the root, using paired
 masks and a two-key four-lane polynomial MAC. The reduced signing hash work supports WOTS targets
-126/195/195/194. The new packed decoder and 54-chain top verifier include a proved eleven-cycle minimum
+126/195/195/195. The new packed decoder and 54-chain top verifier include a proved eleven-cycle minimum
 terminal-store credit on every accepted top encoding. The forest verifier carries the complete leaf
 header and persistent coordinate comparands, reducing its accepting prefix by 32 cycles to 2791; the relabelled FTS header (word 1 bit-reversed, a
 2048-word header table) saves one cycle per fold, to 2676. The digest header word is formed by one instruction
@@ -115,15 +115,17 @@ F4: the merge code (`entry0_M` and both merge ladders with their tails, words 48
 end of the verify image (words 210432 .. 210675, chunk 822) that table `ptab_l`'s merge slots enter; the original
 re-dispatches through `s10 = ptab_n`, the copy through `s5 = ptab_l`. The 14 table switches `mv s4, s10 / s5` of the
 leaf codes are gone (each leaf dispatch adds its table register; the leaf code block is compacted to end at the
-forest, starting at 469), so the FTS accepting prefix becomes 2640 (fourteen cycles): the accepting bound is 8589 and
-the complete charged bound is 8684.
+forest, starting at 469), so the FTS accepting prefix becomes 2640 (fourteen cycles): the accepting bound is 8580 and
+the complete charged bound is 8675.
 
 
-FTS setup fallthrough: the reachable words 469..721 move to 401..653. The setup no longer jumps at word 401.
-External rejection branches retain their destinations, and indirect dispatch links follow the relocated code.
-The forest prefix drops from 2640 to 2639, so accepting verification is 8588 and the charged bound is 8683.
-The unsigned lower checksum branch is already present in the base; no additional checksum saving is claimed.
+
 -/
+
+/- This candidate preserves the promoted compact-witness implementation and revises
+the layer-3 source target and independent digest field, using the separately promoted
+parameter and security development of patternrecognition9-del PR455. Sign, Expand
+and Verify are revised for those exact source parameters. -/
 
 namespace SigGolf.Challenge
 
@@ -139,7 +141,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8683 :=
+theorem certificate : SigGolf.Certificate submission 8675 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge

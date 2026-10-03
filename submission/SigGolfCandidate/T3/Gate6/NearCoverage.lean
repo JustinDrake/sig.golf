@@ -198,15 +198,14 @@ theorem nearCovered_le_wordEnvelope
     (hcard : ∀ coord bucket, (exposed coord bucket).card ≤
       3*(word.map (fun row => row coord)).count bucket)
     (missing : Fin 7) (omitted : Fin 3) :
-    Pr[fun output => (SigGolfResearch.Gate6.digestRecord output).2.2.1=0 ∧
+    Pr[fun output => (SigGolfResearch.Gate6.digestRecord output).2.2.1.val<135 ∧
       NearCovered exposed missing omitted
         (SigGolfResearch.Gate6.rawDraw (SigGolfResearch.Gate6.digestRecord output)).1 |
       ($ᵗ HashOutput : ProbComp HashOutput)] ≤ History.nearWordEnvelope missing word := by
   rw [SigGolfResearch.Gate6.digest_gated_event_probability]
-  refine (ENNReal.div_le_div_right (nearCovered_le_rawWordEnvelope word exposed hcard missing omitted) 8).trans_eq ?_
-  simp only [rawNearWordEnvelope,History.nearWordEnvelope,div_eq_mul_inv,mul_assoc]
-  congr 1
-  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-  norm_num [ENNReal.toReal_mul,ENNReal.toReal_inv,ENNReal.toReal_pow]
+  refine (ENNReal.div_le_div_right
+    (nearCovered_le_rawWordEnvelope word exposed hcard missing omitted) (1024/135)).trans_eq ?_
+  unfold rawNearWordEnvelope History.nearWordEnvelope
+  rfl
 
 end SigGolfCandidate.T3.BPORS

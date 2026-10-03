@@ -6,8 +6,8 @@ import SigGolfCandidate.T3.Secc.CaseCSmallK
 
 `nearBoundK_of_chain`: if the pinned near event's probability (through `near_shared`, for every decomposition) is at
 most `(2^128 − q)⁻¹ · Σ_{slot < q} bound slot` (B-PAIR's `near_chain` shape), and every slot's expected payoff is at
-most `q·(404 + 1/16)/2^128` (CC's near bank in the forced lazy world), then `NearBoundK K` for every `K ≥ 404 + 1/16`
-(in particular `K = 405`).
+most `q·(872505/2048 + 1/16)/2^128` (CC's near bank in the forced lazy world), then `NearBoundK K` for every `K ≥ 872505/2048 + 1/16`
+(in particular `K = 872633/2048`).
 -/
 
 namespace SigGolfCandidate.T3.Security.CaseC
@@ -39,22 +39,22 @@ theorem nearTermK_ge (K : ENNReal) (q : Nat) :
   exact le_self_add
 
 /-- **`NearBoundK` from the guess chain and the per-slot near bank.** -/
-theorem nearBoundK_of_chain (K : ENNReal) (hK : (404 + 1 / 16 : ENNReal) ≤ K)
+theorem nearBoundK_of_chain (K : ENNReal) (hK : (872505 / 2048 + 1 / 16 : ENNReal) ≤ K)
     (bound : AdversaryP → Nat → Nat → ENNReal)
     (hchain : ∀ (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127),
       Pr[NearAll adversary q | SeccLaw.completedExperiment adversary q hq] ≤
         ((2 ^ 128 - q : Nat) : ENNReal)⁻¹ * ∑ slot ∈ Finset.range q, bound adversary q slot)
     (hbound : ∀ (adversary : AdversaryP) (q slot : Nat), slot < q →
-      bound adversary q slot ≤ (q : ENNReal) * (404 + 1 / 16) / 2 ^ 128) :
+      bound adversary q slot ≤ (q : ENNReal) * (872505 / 2048 + 1 / 16) / 2 ^ 128) :
     NearBoundK K := by
   intro adversary q hq _ _
   calc
     _ ≤ Pr[NearAll adversary q | SeccLaw.completedExperiment adversary q hq] := near_le_all adversary q hq
     _ ≤ ((2 ^ 128 - q : Nat) : ENNReal)⁻¹ * ∑ slot ∈ Finset.range q, bound adversary q slot := hchain adversary q hq
-    _ ≤ ((2 ^ 128 - q : Nat) : ENNReal)⁻¹ * ∑ _slot ∈ Finset.range q, (q : ENNReal) * (404 + 1 / 16) / 2 ^ 128 := by
+    _ ≤ ((2 ^ 128 - q : Nat) : ENNReal)⁻¹ * ∑ _slot ∈ Finset.range q, (q : ENNReal) * (872505 / 2048 + 1 / 16) / 2 ^ 128 := by
       apply mul_le_mul' le_rfl
       exact Finset.sum_le_sum fun slot hs => hbound adversary q slot (Finset.mem_range.mp hs)
-    _ = (q : ENNReal) * ((2 ^ 128 - q : Nat) : ENNReal)⁻¹ * ((404 + 1 / 16) * q / 2 ^ 128) := by
+    _ = (q : ENNReal) * ((2 ^ 128 - q : Nat) : ENNReal)⁻¹ * ((872505 / 2048 + 1 / 16) * q / 2 ^ 128) := by
       rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
       simp only [div_eq_mul_inv]
       ring
@@ -62,8 +62,8 @@ theorem nearBoundK_of_chain (K : ENNReal) (hK : (404 + 1 / 16 : ENNReal) ≤ K)
       gcongr
     _ ≤ _ := nearTermK_ge K q
 
-/-- `K = 405` covers the near price `404` and the reuse charge `1/16`. -/
-theorem near_price_le_104 : (404 + 1 / 16 : ENNReal) ≤ 405 := by
+/-- `K = 872633/2048` covers the near price `872505/2048` and the reuse charge `1/16` (exactly). -/
+theorem near_price_le_104 : (872505 / 2048 + 1 / 16 : ENNReal) ≤ 872633 / 2048 := by
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
   simp (disch := finiteness) only [ENNReal.toReal_add, ENNReal.toReal_div, ENNReal.toReal_ofNat,
     ENNReal.toReal_one]

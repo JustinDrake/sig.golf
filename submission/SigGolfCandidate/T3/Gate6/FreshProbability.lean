@@ -6,7 +6,7 @@ set_option maxHeartbeats 100000
 set_option maxRecDepth 10000
 
 noncomputable def acceptance : ENNReal :=
-  (6963897326262647489342145 : ENNReal)/19807040628566084398385987584
+  (940126139045457411061189575 : ENNReal)/2535301200456458802993406410752
 
 theorem fresh_acceptance_exact :
     Pr[Accepted | ($ᵗ RawRecord : ProbComp RawRecord)] = acceptance := by

@@ -13,7 +13,7 @@ The near analogue of `CaseCCore`: forecasts of the near score under future accep
 * `nearLedger_expose` / `nearLedger_search`: accepted exposures are a martingale, the digest rejection search a
   supermartingale;
 * `nearLedger_win`: an admissible target with 20 of its 21 openings exposed (`NearCoveredBy`) holds a full unit;
-* `nearLedger_initial`: `≤ budget · 404 / 2^128` (`fullNearPrice_bound`).
+* `nearLedger_initial`: `≤ budget · (872505/2048) / 2^128` (`fullNearPrice_bound`).
 
 The macro-step bank `nearPotential` on `BankCore` (same abstract state as `corePotential`): `near_birth` (charge
 `(1/16)/2^128`, the reuse mass of the new row), `near_sign`, `nearPotential_mono`, `near_win`, `near_initial`.
@@ -200,12 +200,16 @@ theorem nearLedger_win (R : Nat) (targets X : List HashOutput) (slack : Nat) (N 
     _ ≤ _ := le_self_add
 
 theorem nearLedger_initial (budget : Nat) :
-    nearLedger BPORS.Numeric.proposalLength [] [] budget ≤ (budget : ENNReal) * 404 / 2 ^ 128 := by
+    nearLedger BPORS.Numeric.proposalLength [] [] budget ≤ (budget : ENNReal) * (872505 / 2048) / 2 ^ 128 := by
   unfold nearLedger nearPriceForecast
   simp only [List.map_nil, List.sum_nil, zero_add]
   apply ENNReal.div_le_div_right
   apply mul_le_mul' le_rfl
-  simpa [labels] using BPORS.History.fullNearPrice_bound
+  have h := BPORS.History.fullNearPrice_bound.trans (show _ ≤ (872505 / 2048 : ENNReal) by
+    apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
+    simp (disch := finiteness) only [ENNReal.toReal_div, ENNReal.toReal_ofNat]
+    norm_num)
+  simpa [labels] using h
 
 /-! ## The macro-step near bank (abstract state `BankCore`) -/
 
@@ -376,7 +380,7 @@ theorem near_win (b : BankCore) (halive : ¬BPORS.Numeric.proposalLength < b.exp
 
 /-- **Initial near potential.** -/
 theorem near_initial (budget : Nat) :
-    nearPotential ⟨[], [], false, 0, budget⟩ ≤ (budget : ENNReal) * 404 / 2 ^ 128 := by
+    nearPotential ⟨[], [], false, 0, budget⟩ ≤ (budget : ENNReal) * (872505 / 2048) / 2 ^ 128 := by
   unfold nearPotential
   simp only [List.length_nil, Nat.not_lt_zero, if_false, Bool.false_eq_true, Nat.sub_zero, add_zero]
   exact nearLedger_initial budget
