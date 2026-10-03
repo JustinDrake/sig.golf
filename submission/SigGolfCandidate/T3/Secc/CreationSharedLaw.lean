@@ -63,7 +63,7 @@ theorem full_charge_le_shared_excess (cls : HashInput → Prop)
     expectedCharge (fun _ => classWeight cls budget) budget BPORS.History.fullPrice
       adversary budget hbudget ≤
       SeccLaw.expectedCharge adversary budget hbudget (fun _ => publicClass cls) +
-        (budget : ENNReal) * (11324/100000000) := by
+        (budget : ENNReal) * (987/100000000) := by
   rw [← expectedClassCount_eq_shared]
   exact full_charge_le_class_excess cls adversary budget hbudget
 

@@ -7,7 +7,7 @@ set_option maxRecDepth 10000
 attribute [local instance] Classical.propDecidable
 
 /-- Regroup the exact raw layout so that all scoring coordinates precede the
-independent three-bit acceptance gate and unused suffix. -/
+independent five-bit acceptance gate and unused suffix. -/
 def rawRecordViewEquiv : RawRecord ≃ RawView × (Padding × Unused) where
   toFun r := ((r.1.1,fun c => (r.1.2 c,r.2.1 c)),r.2.2)
   invFun r := ((r.1.1,fun c => (r.1.2 c).1),(fun c => (r.1.2 c).2,r.2))
@@ -34,11 +34,11 @@ theorem finiteAverage_div {α : Type} [Fintype α] (f : α → ENNReal) (d : ENN
   ring
 
 /-- An arbitrary nonnegative raw-coordinate payoff acquires precisely the
-independent three-bit gate factor under a uniform hash output. -/
+independent five-bit gate factor under a uniform hash output. -/
 theorem average_gate_weight (payoff : RawView → ENNReal) :
     BPORS.finiteAverage (fun output : HashOutput =>
       if digestGate output=true then payoff (rawView output) else 0)=
-        BPORS.finiteAverage payoff/8 := by
+        BPORS.finiteAverage payoff/32 := by
   have he (output : HashOutput) :
       (if digestGate output=true then payoff (rawView output) else 0)=
         (if (gateCoordinatesEquiv output).2.1=0 then payoff (gateCoordinatesEquiv output).1 else 0) := by
@@ -47,7 +47,7 @@ theorem average_gate_weight (payoff : RawView → ENNReal) :
   rw [BPORS.finiteAverage_equiv gateCoordinatesEquiv
     (fun p => if p.2.1=0 then payoff p.1 else 0),BPORS.finiteAverage_pair]
   have hi (view : RawView) : BPORS.finiteAverage
-      (fun suffix : Padding × Unused => if suffix.1=0 then payoff view else 0)=payoff view/8 := by
+      (fun suffix : Padding × Unused => if suffix.1=0 then payoff view else 0)=payoff view/32 := by
     rw [BPORS.finiteAverage_pair]
     change BPORS.finiteAverage (fun gate : Padding =>
       BPORS.finiteAverage (fun _ : Unused => if gate=0 then payoff view else 0))=_

@@ -6,7 +6,7 @@ import SigGolfCandidate.T3M.Sign.Basic
 Words 427..446 set up the layer-0 counter search and signature-only leaf. Word 447
 jumps to the appended path at 1433. Its twelve iterations (1438..1481) read one
 cached sibling, obtain the appropriate half of a paired mask, and write their XOR
-to `SIG + 3056 + 16 * level`. Word 1482 returns to the halt setup at 540.
+to `SIG + 3168 + 16 * level`. Word 1482 returns to the halt setup at 540.
 -/
 
 namespace SigGolfCandidate.T3M.Sign
@@ -45,7 +45,7 @@ theorem blk427_spec (s : MachineState) (hpc : s.pc = pcOf 427) (index : Nat) (hi
     (hm : s.getMem (BitVec.ofNat 64 IDXV) = BitVec.ofNat 64 index) :
     ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf 646 ∧ t.getReg .x1 = pcOf 441 ∧
       t.getReg .x8 = BitVec.ofNat 64 0 ∧ t.getReg .x9 = BitVec.ofNat 64 0 ∧
-      t.getReg .x26 = BitVec.ofNat 64 54 ∧ t.getReg .x27 = BitVec.ofNat 64 51 ∧
+      t.getReg .x26 = BitVec.ofNat 64 58 ∧ t.getReg .x27 = BitVec.ofNat 64 49 ∧
       t.getReg .x17 = BitVec.ofNat 64 126 ∧
       t.getReg .x18 = BitVec.ofNat 64 (index / 2 ^ 19 % 4096) ∧
       t.getReg .x14 = BitVec.ofNat 64 (index / 2 ^ 19 % 4096) ∧
@@ -73,11 +73,11 @@ theorem blk427_spec (s : MachineState) (hpc : s.pc = pcOf 427) (index : Nat) (hi
   · intro r hr; simp at hr; cases r <;> simp_all [blk_427.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_427.res, rv_simp]
 
-/-- 441..446: the signature-only leaf (`t6 = 1`, digits at `DIGITS`, values to `SIG + 2192`). -/
+/-- 441..446: the signature-only leaf (`t6 = 1`, digits at `DIGITS`, values to `SIG + 2240`). -/
 theorem blk441_spec (s : MachineState) (hpc : s.pc = pcOf 441) :
     ∃ t, Steps image s 6 6 t ∧ t.pc = pcOf (1013 + 27) ∧ t.getReg .x1 = pcOf 447 ∧
       t.getReg .x31 = BitVec.ofNat 64 1 ∧ t.getReg .x22 = BitVec.ofNat 64 DIGITS ∧
-      t.getReg .x23 = BitVec.ofNat 64 (SIG + 2192) ∧
+      t.getReg .x23 = BitVec.ofNat 64 (SIG + 2240) ∧
       RegsExcept s t [.x1, .x22, .x23, .x31] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound blk_441 codeAt_441 s hpc (by simp [blk_441.res, rv_simp]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -113,7 +113,7 @@ theorem blk447_spec (s : MachineState) (hpc : s.pc = pcOf 447) :
 
 theorem blk1433_spec (s : MachineState) (hpc : s.pc = pcOf 1433) :
     ∃ t, Steps image s 5 5 t ∧ t.pc = pcOf 1438 ∧
-      t.getReg .x22 = 0 ∧ t.getReg .x24 = BitVec.ofNat 64 (SIG+3056) ∧
+      t.getReg .x22 = 0 ∧ t.getReg .x24 = BitVec.ofNat 64 (SIG+3168) ∧
       t.getReg .x20 = BitVec.ofNat 64 4096 ∧
       RegsExcept s t [.x20,.x22,.x24] ∧ Frame s t (fun _ => False) := by
   refine ⟨_,symRun_sound blk_1433 codeAt_1433 s hpc (by simp [blk_1433.res,rv_simp]),?_,?_,?_,?_,?_,?_⟩
@@ -168,7 +168,7 @@ theorem fetch_1456 (s : MachineState) (hpc : s.pc = pcOf 1456) :
 
 theorem blk1457_spec (s : MachineState) (hpc : s.pc = pcOf 1457) (sib lo lv out : Nat)
     (hlo2 : 2≤lo) (hlo : lo≤4096) (hsib : sib<lo) (hlv : lv<12)
-    (hout0 : SIG+3056≤out) (hout : out+16≤SIG+3248) (hout8 : out%8=0)
+    (hout0 : SIG+3168≤out) (hout : out+16≤SIG+3360) (hout8 : out%8=0)
     (h23 : s.getReg .x23 = BitVec.ofNat 64 sib) (h20 : s.getReg .x20 = BitVec.ofNat 64 lo)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 lv) (h24 : s.getReg .x24 = BitVec.ofNat 64 out)
     (h12 : s.getReg .x12 = BitVec.ofNat 64 MOUT) :

@@ -1,7 +1,5 @@
 import SigGolfCandidate.T3M.Verify.Words
 import Mathlib.Data.Nat.Bitwise
-import SigGolfCandidate.T3M.Search.TopTables
-import SigGolfCandidate.T3M.Verify.Nonbinary.PairTables
 
 /-!
 # Verify memory: global invariant, witness predicates, checked writes (T3M)
@@ -216,34 +214,28 @@ def WitHdr (w : WBytes) (s : MachineState) : Prop :=
 `M2c`, `M1c`, `0x30101`, `0x3fe00`, the FTS setup constants `A4_0`, `A4_LIMIT`, `0xa01`, `0x901`, `tbN`, `tbL`, a zero
 pad. -/
 def dataWords : List Nat :=
-  [2 ^ 40, 17311559823019733055, 8198552921648689607, 0x30101, 0x3fe00, 2256, 11736, 0xa01, 0x901, 7072, 15264, 0]
+  [2 ^ 40, 17311559823019733055, 8198552921648689607, 0x30101, 0x3fe00, 2256, 11976, 0xa01, 0x901, 7072, 15264, 0]
 
 /-- The data section's base: `dataBase` of the verify image (`16 ⌊(2^24 - 96) / 16⌋`). -/
 def DATA : Nat := 16777120
 
-/-- Both the embedded constants and the checksum lookup bytes are in place. -/
-structure DataOK (s : MachineState) : Prop where
-  constants : ∀ k, k < 12 → s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)
-  sum : Search.SumTableOK s
-  packed : Nonbinary.PackedTables s
+/-- Read-only WOTS headers precede the original twelve constants. Each layer has 64 chains and eight digits. -/
+def HDATA : Nat := 16760736
 
-instance {s : MachineState} : CoeFun (DataOK s) (fun _ => ∀ k, k < 12 →
-    s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)) := ⟨DataOK.constants⟩
+def headerWord (k : Nat) : Nat :=
+  0x101 + 65536 * (k / 512) + 2 ^ 40 * (k % 512 / 8) + 2 ^ 32 * (k % 8)
 
-/-- The complete data invariant is preserved when all image-data doublewords stay unchanged. -/
-theorem DataOK.congr {s t : MachineState} (h : DataOK s)
-    (hm : ∀ A, Nonbinary.PAIR_DATA ≤ A → A + 8 ≤ 2 ^ 24 →
-      t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A)) : DataOK t := by
-  constructor
-  · intro k hk
-    rw [hm _ (by unfold DATA Nonbinary.PAIR_DATA; omega) (by unfold DATA; omega)]
-    exact h.constants k hk
-  · intro i hi
-    rw [T3M.getByte_eq_word _ _ (by unfold Search.TOP_DATA; omega),
-      hm _ (by unfold Search.TOP_DATA Nonbinary.PAIR_DATA; omega) (by unfold Search.TOP_DATA; omega),
-      ← T3M.getByte_eq_word _ _ (by unfold Search.TOP_DATA; omega)]
-    exact h.sum i hi
-  · exact h.packed.congr hm
+/-- The first twelve indices retain the old constant addresses; indices 12..2059 name WOTS headers. -/
+def dataAddr (k : Nat) : Nat := if k < 12 then DATA + 8 * k else HDATA + 8 * (k - 12)
+def dataValue (k : Nat) : Nat := if k < 12 then dataWords.getD k 0 else headerWord (k - 12)
+def dataOffset (k : Nat) : Nat := if k < 12 then 16384 + 8 * k else 8 * (k - 12)
+
+/-- Every embedded word is still equal to its image value. -/
+def DataOK (s : MachineState) : Prop :=
+  ∀ k, k < 2060 → s.getMem (BitVec.ofNat 64 (dataAddr k)) = BitVec.ofNat 64 (dataValue k)
+
+/-- Midpoint of a layer's 4096-byte header bank, adjusted for shared code indices. -/
+def headerBank (lay koff : Nat) : Nat := HDATA + 4096 * lay + 2048 + 64 * koff
 
 def Glob (gk : List (Reg × Word)) (w : WBytes) (pk : Digest) (s : MachineState) : Prop :=
   (∀ p ∈ gk, s.getReg p.1 = p.2) ∧ WitHdr w s ∧ PkOK pk s ∧ PZero s ∧ PHalf s ∧ DataOK s
@@ -484,14 +476,31 @@ theorem memOKA_data {allow : List Nat} {rel : List Reg} {ws : SymMem} (h : memOK
     · unfold CTRW at h2; omega
     · omega
 
-theorem DATA_ge (k : Nat) (hk : k < 12) : 2 ^ 23 + 4096 ≤ DATA + 8 * k ∧ DATA + 8 * k + 8 ≤ 2 ^ 24 := by
-  unfold DATA; omega
+theorem DATA_ge (k : Nat) (hk : k < 2060) :
+    2 ^ 23 + 4096 ≤ dataAddr k ∧ dataAddr k + 8 ≤ 2 ^ 24 := by
+  unfold dataAddr DATA HDATA; split_ifs <;> omega
 
-/-- One embedded doubleword, at a given address with a given value. -/
+/-- One of the original twelve embedded constants. -/
 theorem DataOK.word {s : MachineState} (h : DataOK s) (k : Nat) (hk : k < 12) (v : Nat)
     (hv : dataWords.getD k 0 = v) (a : Nat) (ha : a = DATA + 8 * k) :
     s.getMem (BitVec.ofNat 64 a) = BitVec.ofNat 64 v := by
-  subst hv ha; exact h k hk
+  have H := h k (by omega)
+  simpa only [dataAddr, dataValue, if_pos hk, hv, ha] using H
+
+/-- The stored WOTS header for a layer, chain and initial digit. -/
+theorem DataOK.header {s : MachineState} (h : DataOK s) (lay i d : Nat)
+    (hl : lay < 4) (hi : i < 64) (hd : d < 8) :
+    s.getMem (BitVec.ofNat 64 (HDATA + 4096 * lay + 64 * i + 8 * d)) =
+      BitVec.ofNat 64 (0x101 + 65536 * lay + 2 ^ 40 * i + 2 ^ 32 * d) := by
+  have H := h (12 + 512 * lay + 8 * i + d) (by omega)
+  simp only [dataAddr, dataValue, if_neg (by omega : ¬ 12 + 512 * lay + 8 * i + d < 12), headerWord] at H
+  have e0 : 12 + 512 * lay + 8 * i + d - 12 = 512 * lay + 8 * i + d := by omega
+  rw [e0] at H
+  have e1 : (512 * lay + 8 * i + d) / 512 = lay := by omega
+  have e2 : (512 * lay + 8 * i + d) % 512 / 8 = i := by omega
+  have e3 : (512 * lay + 8 * i + d) % 8 = d := by omega
+  rw [e1, e2, e3, show HDATA + 8 * (512 * lay + 8 * i + d) = HDATA + 4096 * lay + 64 * i + 8 * d by ring] at H
+  exact H
 
 theorem Glob_toState_allow {gk0 gk : List (Reg × Word)} {w : WBytes} {pk : Digest} {s : MachineState}
     {allow : List Nat} {rel : List Reg}
@@ -516,10 +525,10 @@ theorem Glob_toState_allow {gk0 gk : List (Reg × Word)} {w : WBytes} {pk : Dige
     rw [fr a this (Or.inl ha)]; exact h3 a ha
   · show (memEval s σ.mem (BitVec.ofNat 64 CTRW)).toNat / 2 ^ 32 = 0
     rw [memOKA_ctr hm s hrel]; exact h4
-  · apply h5.congr
-    intro A hA hAend
-    rw [SymState.toState_getMem, memEval_frame s _ _
-      (memOKA_data hm s hrel _ (by unfold Nonbinary.PAIR_DATA at hA; omega) (by omega))]
+  · intro k hk
+    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
+    rw [SymState.toState_getMem, memEval_frame s _ _ (memOKA_data hm s hrel _ hk1 (by omega))]
+    exact h5 k hk
 
 theorem Glob_toState {gk0 gk : List (Reg × Word)} {w : WBytes} {pk : Digest} {s : MachineState}
     (hG : Glob gk0 w pk s) (σ : SymState) (pc : Word) (hm : memOK σ.mem = true)
@@ -625,9 +634,9 @@ theorem Glob_writeHash {gk : List (Reg × Word)} {w : WBytes} {pk : Digest} {s :
   · have mc : CTRW ∈ pSlots ++ [0xA0, 0xA8, CTRW] ++ (List.range 8).map (fun j => WIT + 8 * j) := by simp
     show ((writeHash s ans).getMem (BitVec.ofNat 64 CTRW)).toNat / 2 ^ 32 = 0
     rw [fr CTRW (by unfold CTRW; omega) (hd2 _ mc)]; exact h4
-  · apply h5.congr
-    intro A hA hAend
-    exact fr A (by omega) (Or.inr (by unfold Nonbinary.PAIR_DATA at hA; omega))
+  · intro k hk
+    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
+    rw [fr _ (by omega) (Or.inr (by omega))]; exact h5 k hk
 
 theorem Known_writeHash {known : List (Reg × Word)} {s : MachineState}
     (h : ∀ p ∈ known, s.getReg p.1 = p.2) (a : BitVec 256) : ∀ p ∈ known, (writeHash s a).getReg p.1 = p.2 := by

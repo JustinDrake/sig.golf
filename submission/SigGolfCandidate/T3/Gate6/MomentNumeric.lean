@@ -96,11 +96,11 @@ open OracleComp.EvalDist SphincsSecurity.Concrete
 
 /-- Probability envelope after the 21 independent seven-bit leaves and five-bit gate. -/
 noncomputable def forestEnvelope {steps : Nat} (table : Fin 7 → Fin steps → Fin 16) : ENNReal :=
-  (∏ c, coordinateEnvelope (List.ofFn (table c)))/2^150
+  (∏ c, coordinateEnvelope (List.ofFn (table c)))/2^152
 
 theorem forest_first_moment (steps : Nat) :
     expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) forestEnvelope =
-      envelope meanCoeffs steps/2^234 := by
+      envelope meanCoeffs steps/2^236 := by
   change expectedValue _ (fun table => forestEnvelope table)=_
   simp only [forestEnvelope,div_eq_mul_inv]
   rw [expectedValue_mul_const,seven_coordinate_first_moment,firstMoment_power_coefficients,
@@ -108,7 +108,7 @@ theorem forest_first_moment (steps : Nat) :
 
 theorem forest_second_moment (steps : Nat) :
     expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _)
-      (fun table => forestEnvelope table^2)=envelope varianceCoeffs steps/2^496 := by
+      (fun table => forestEnvelope table^2)=envelope varianceCoeffs steps/2^500 := by
   simp only [forestEnvelope,div_eq_mul_inv,mul_pow]
   rw [expectedValue_mul_const,seven_coordinate_second_moment,secondMoment_power_coefficients,
     div_eq_mul_inv,ENNReal.inv_pow,ENNReal.inv_pow,ENNReal.inv_pow,← pow_mul,mul_assoc,← pow_add]
@@ -119,7 +119,7 @@ noncomputable def poissonEnvelope (a : List Nat) (mean : ENNReal) : ENNReal :=
 theorem forest_binomial_first_bound (p : ENNReal) (hp : p≤1) (trials : Nat) :
     binomialAverage p trials (fun steps =>
       expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) forestEnvelope) ≤
-        poissonEnvelope meanCoeffs ((trials : ENNReal)*p)/2^234 := by
+        poissonEnvelope meanCoeffs ((trials : ENNReal)*p)/2^236 := by
   simp_rw [forest_first_moment,div_eq_mul_inv]
   rw [binomialAverage_mul_right]
   exact mul_le_mul' (binomial_envelope_le_poisson p hp trials meanCoeffs) le_rfl
@@ -128,7 +128,7 @@ theorem forest_binomial_second_bound (p : ENNReal) (hp : p≤1) (trials : Nat) :
     binomialAverage p trials (fun steps =>
       expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _)
         (fun table => forestEnvelope table^2)) ≤
-        poissonEnvelope varianceCoeffs ((trials : ENNReal)*p)/2^496 := by
+        poissonEnvelope varianceCoeffs ((trials : ENNReal)*p)/2^500 := by
   simp_rw [forest_second_moment,div_eq_mul_inv]
   rw [binomialAverage_mul_right]
   exact mul_le_mul' (binomial_envelope_le_poisson p hp trials varianceCoeffs) le_rfl
@@ -140,7 +140,7 @@ def proposalLength : Nat := 4303355904
 
 /-- Concrete arithmetic for the mean polynomial, after leaf normalization. -/
 theorem poisson_mean_bound :
-    (2 : ENNReal)^128*poissonEnvelope meanCoeffs (proposalLength/2^31)/2^234 ≤ 37/64 := by
+    (2 : ENNReal)^128*poissonEnvelope meanCoeffs (proposalLength/2^31)/2^236 ≤ 1/4 := by
   unfold poissonEnvelope
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
   simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
@@ -149,7 +149,7 @@ theorem poisson_mean_bound :
 
 /-- Concrete arithmetic for the normalized second-moment excess term. -/
 theorem poisson_excess_bound :
-    (2 : ENNReal)^225*poissonEnvelope varianceCoeffs (proposalLength/2^31)/2^496 ≤ 18400/100000000 := by
+    (2 : ENNReal)^225*poissonEnvelope varianceCoeffs (proposalLength/2^31)/(2*2^500) ≤ 987/100000000 := by
   unfold poissonEnvelope
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
   simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
@@ -158,7 +158,7 @@ theorem poisson_excess_bound :
 
 /-- Concrete arithmetic for the sum over 21 possible missing openings. -/
 theorem poisson_near_bound :
-    21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^223 ≤ 404 := by
+    21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^225 ≤ 103 := by
   unfold poissonEnvelope
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
   simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
@@ -166,7 +166,7 @@ theorem poisson_near_bound :
   norm_num [nearCoeffs,proposalLength,Finset.sum_range_succ]
 
 theorem poisson_near_tight_bound :
-    21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^223 ≤ 6463/16 := by
+    21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^225 ≤ 1647/16 := by
   unfold poissonEnvelope
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
   simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
@@ -205,7 +205,7 @@ theorem near_coordinate_first_moment (steps : Nat) :
 noncomputable def nearForestEnvelope {steps : Nat} (missing : Fin 7)
     (table : Fin 7 → Fin steps → Fin 16) : ENNReal :=
   (∏ c, if c=missing then nearCoordinateEnvelope (List.ofFn (table c))
-    else coordinateEnvelope (List.ofFn (table c)))/2^143
+    else coordinateEnvelope (List.ofFn (table c)))/2^145
 
 theorem near_envelope_product (count : Nat) :
     envelope childCoefficients count^6*envelope nearChildCoefficients count=envelope nearCoeffs count := by
@@ -219,7 +219,7 @@ theorem near_envelope_product (count : Nat) :
 
 theorem near_forest_first_moment (steps : Nat) (missing : Fin 7) :
     expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) (nearForestEnvelope missing)=
-      envelope nearCoeffs steps/2^223 := by
+      envelope nearCoeffs steps/2^225 := by
   change expectedValue _ (fun table => nearForestEnvelope missing table)=_
   simp only [nearForestEnvelope,div_eq_mul_inv]
   rw [expectedValue_mul_const,uniform_coordinate_product steps (fun c word =>
@@ -245,14 +245,14 @@ theorem near_forest_first_moment (steps : Nat) (missing : Fin 7) :
   simp only [div_eq_mul_inv,mul_pow,ENNReal.inv_pow,← pow_mul]
   calc
     _ = (envelope childCoefficients steps^6*envelope nearChildCoefficients steps)*
-      ((2 : ENNReal)⁻¹^(12*6)*2⁻¹^8*2⁻¹^143) := by ring
+      ((2 : ENNReal)⁻¹^(12*6)*2⁻¹^8*2⁻¹^145) := by ring
     _ = _ := by rw [near_envelope_product,← pow_add,← pow_add]
 
 /-- Finite-population bound for one designated missing opening. -/
 theorem near_forest_binomial_bound (p : ENNReal) (hp : p≤1) (trials : Nat) (missing : Fin 7) :
     binomialAverage p trials (fun steps =>
       expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) (nearForestEnvelope missing)) ≤
-        poissonEnvelope nearCoeffs ((trials : ENNReal)*p)/2^223 := by
+        poissonEnvelope nearCoeffs ((trials : ENNReal)*p)/2^225 := by
   simp_rw [near_forest_first_moment,div_eq_mul_inv]
   rw [binomialAverage_mul_right]
   exact mul_le_mul' (binomial_envelope_le_poisson p hp trials nearCoeffs) le_rfl
@@ -263,33 +263,35 @@ theorem near_forest_binomial_bound (p : ENNReal) (hp : p≤1) (trials : Nat) (mi
 The separate adaptive-history domination obligation is not assumed here. -/
 theorem uniform_history_mean_bound :
     (2 : ENNReal)^128*binomialAverage (1/2^31) proposalLength (fun steps =>
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) forestEnvelope) ≤ 37/64 := by
+      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) forestEnvelope) ≤ 1/4 := by
   calc
-    _ ≤ (2 : ENNReal)^128*(poissonEnvelope meanCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^234) :=
+    _ ≤ (2 : ENNReal)^128*(poissonEnvelope meanCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^236) :=
       mul_le_mul' le_rfl (forest_binomial_first_bound (1/2^31) (by norm_num) proposalLength)
-    _ = (2 : ENNReal)^128*poissonEnvelope meanCoeffs (proposalLength/2^31)/2^234 := by
+    _ = (2 : ENNReal)^128*poissonEnvelope meanCoeffs (proposalLength/2^31)/2^236 := by
       simp only [div_eq_mul_inv,mul_one,one_mul,mul_assoc]
     _ ≤ _ := poisson_mean_bound
 
 theorem uniform_history_excess_bound :
     (2 : ENNReal)^225*binomialAverage (1/2^31) proposalLength (fun steps =>
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) (fun table => forestEnvelope table^2)) ≤
-        18400/100000000 := by
+      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) (fun table => forestEnvelope table^2))/2 ≤
+        987/100000000 := by
   calc
-    _ ≤ (2 : ENNReal)^225*(poissonEnvelope varianceCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^496) :=
-      mul_le_mul' le_rfl (forest_binomial_second_bound (1/2^31) (by norm_num) proposalLength)
-    _ = (2 : ENNReal)^225*poissonEnvelope varianceCoeffs (proposalLength/2^31)/2^496 := by
-      simp only [div_eq_mul_inv,mul_one,one_mul,mul_assoc]
+    _ ≤ (2 : ENNReal)^225*(poissonEnvelope varianceCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^500)/2 := by
+      exact ENNReal.div_le_div_right (mul_le_mul' le_rfl
+        (forest_binomial_second_bound (1/2^31) (by norm_num) proposalLength)) _
+    _ = (2 : ENNReal)^225*poissonEnvelope varianceCoeffs (proposalLength/2^31)/(2*2^500) := by
+      simp only [div_eq_mul_inv,mul_one,one_mul]
+      rw [ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by finiteness))]
+      ring
     _ ≤ _ := poisson_excess_bound
-
 
 theorem uniform_history_near_bound (missing : Fin 7) :
     21*(2 : ENNReal)^128*binomialAverage (1/2^31) proposalLength (fun steps =>
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) (nearForestEnvelope missing)) ≤ 404 := by
+      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) (nearForestEnvelope missing)) ≤ 103 := by
   calc
-    _ ≤ 21*(2 : ENNReal)^128*(poissonEnvelope nearCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^223) :=
+    _ ≤ 21*(2 : ENNReal)^128*(poissonEnvelope nearCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^225) :=
       mul_le_mul' le_rfl (near_forest_binomial_bound (1/2^31) (by norm_num) proposalLength missing)
-    _ = 21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^223 := by
+    _ = 21*(2 : ENNReal)^128*poissonEnvelope nearCoeffs (proposalLength/2^31)/2^225 := by
       simp only [div_eq_mul_inv,mul_one,one_mul,mul_assoc]
     _ ≤ _ := poisson_near_bound
 

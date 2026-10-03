@@ -4,7 +4,7 @@ import SigGolfCandidate.T3M.Keygen.Chain
 # Block specifications of the keygen main program (words 0..116)
 
 `start` (0): `t0 = 0`, the private prefix `S0 | . | S1 | 0^16` at `PRIV`, the leaf registers
-(`LAY = TREE = 0`, `N = 54`, `N4 = 51`, `SIGONLY = 0`, `DIGP = ZDIG`, `ARENA = TOP`, `LEAF = 0`);
+(`LAY = TREE = 0`, `N = 58`, `N4 = 49`, `SIGONLY = 0`, `DIGP = ZDIG`, `ARENA = TOP`, `LEAF = 0`);
 `kg_leaf` (26..36): `build_leaf` for leaf `LEAF` into `TOP + 16 (4096 + LEAF)`; 36: `build_levels`
 (tag 3, height 12); 39: `pk := node 1`; `kg_level`/`kg_mask` (48..84): the masked nodes of levels
 2..11 to the region at `0x9020`; 84: the MAC block at `0x8FE0` and the MAC `ECALL` (113); 114: `HALT`.
@@ -34,8 +34,8 @@ theorem blk0_spec (s : MachineState) (hpc : s.pc = pcOf 0) :
     ∃ t, Steps image s 26 26 t ∧ t.pc = pcOf 26 ∧
       t.getReg .x2 = BitVec.ofNat 64 TOP ∧ t.getReg .x5 = 0 ∧ t.getReg .x8 = BitVec.ofNat 64 0 ∧
       t.getReg .x9 = BitVec.ofNat 64 0 ∧ t.getReg .x18 = BitVec.ofNat 64 0 ∧
-      t.getReg .x22 = BitVec.ofNat 64 ZDIG ∧ t.getReg .x26 = BitVec.ofNat 64 54 ∧
-      t.getReg .x27 = BitVec.ofNat 64 51 ∧ t.getReg .x31 = BitVec.ofNat 64 0 ∧
+      t.getReg .x22 = BitVec.ofNat 64 ZDIG ∧ t.getReg .x26 = BitVec.ofNat 64 58 ∧
+      t.getReg .x27 = BitVec.ofNat 64 49 ∧ t.getReg .x31 = BitVec.ofNat 64 0 ∧
       t.getMem (BitVec.ofNat 64 PRIV) = s.getMem (BitVec.ofNat 64 0x80) ∧
       t.getMem (BitVec.ofNat 64 (PRIV + 8)) = s.getMem (BitVec.ofNat 64 0x88) ∧
       t.getMem (BitVec.ofNat 64 (PRIV + 32)) = s.getMem (BitVec.ofNat 64 0x90) ∧

@@ -9,7 +9,7 @@ block's pads and witness value; `QCtx.chains_good` the chains `0 .. 48`; `QCtx.t
 the quad code, `q48_done`, the lower code's chains `33 .. 41` (the top's `49 .. 57`) and the return `ctab[8]`.
 
 Cycle cost of chain `i < 49` at digit `d` (`chainCost`): the table chains (`A = 4q` and 48) `34 - 9 d` (copy 6), the
-inline chains `33 - 9 d` (copy 5), plus the dispatch after `D` (4) and after chain 48 (`q48_done`, 5). -/
+inline chains `32 - 9 d` (copy 4), plus the dispatch after `D` (4) and after chain 48 (`q48_done`, 6). -/
 
 set_option linter.unusedSimpArgs false
 
@@ -26,7 +26,7 @@ theorem blk_at (c : QCtx) (i : Nat) (hi : i < 48) :
   qblkCheck_at _ _ _ _ (by omega) (c.dig_lt4 _) (c.dig_lt4 _) (c.dig_lt4 _)
 
 theorem chk_headJ (c : QCtx) (i : Nat) (hi : i < 48) (h0 : i % 4 = 0) (hd : c.dig i < 3) :
-    vrun (c.startPc i) 7 = some (headJ .x19 (offT i) (i / 4 == 0) (c.rungPc i (c.dig i))) := by
+    vrun (c.startPc i) 7 = some (headJ .x19 (offT i) (i / 4 == 0) (c.rungPc i (c.dig i)) i) := by
   obtain ⟨q, rfl⟩ : ∃ q, i = 4 * q := ⟨i / 4, by omega⟩
   have eq : 4 * q / 4 = q := by omega
   have he := qentCheck_at q (c.kOf q) (by omega) (c.kOf_lt q (by omega))
@@ -75,28 +75,28 @@ theorem part_at (c : QCtx) (i : Nat) (hi : i < 48) (h0 : i % 4 ≠ 0) :
 
 theorem chk_headR (c : QCtx) (i : Nat) (hi : i < 48) (h0 : i % 4 ≠ 0) (hd : c.dig i < 3) :
     vrun (c.startPc i) 8 =
-      some (headR .x19 (offT i) (c.dig i) (if c.dig i = 2 then some (slotT i) else none) (c.startPc i)) := by
+      some (headR .x19 (offT i) (c.dig i) (if c.dig i = 2 then some (slotT i) else none) (c.startPc i) i) := by
   have hp := c.part_at i hi h0
   unfold partOK2 at hp
   rw [if_neg (by omega), Bool.and_eq_true] at hp
   exact rOK_eq hp.1
 
 theorem chk_copyF (c : QCtx) (i : Nat) (hi : i < 48) (h0 : i % 4 ≠ 0) (hd : c.dig i = 3) :
-    vrun (c.startPc i) 5 = some (copyF .x19 (offT i) (slotT i) (c.startPc i)) := by
+    vrun (c.startPc i) 4 = some (copyF .x19 (offT i) (slotT i) (c.startPc i)) := by
   have hp := c.part_at i hi h0
   unfold partOK2 at hp
   rw [if_pos hd] at hp
   exact rOK_eq hp
 
 theorem rungPc_inline (c : QCtx) (i : Nat) (hi : i < 48) (h0 : i % 4 ≠ 0) :
-    c.rungPc i (c.dig i) = c.startPc i + 5 := by
+    c.rungPc i (c.dig i) = c.startPc i + 4 := by
   simp only [rungPc, startPc, show i ≠ 48 by omega, h0, if_false]
   split_ifs <;> omega
 
-theorem q48_parts : (∀ d, d < 3 → vrun (q48tabIdx + 8 * d) 7 = some (headJ .x19 (offT 48) false (q48R0 + 2 * d))) ∧
+theorem q48_parts : (∀ d, d < 3 → vrun (q48tabIdx + 8 * d) 7 = some (headJ .x19 (offT 48) false (q48R0 + 2 * d) 48)) ∧
     vrun (q48tabIdx + 24) 7 = some (copyJ .x19 (offT 48) (slotT 48) false q48Done) ∧
     (∀ m, m < 3 → vrun (q48R0 + 2 * m) 3 = some (rungR m (if m = 2 then some (slotT 48) else none) (q48R0 + 2 * m))) ∧
-    vrun q48Done 6 = some q48D := by
+    vrun q48Done 7 = some q48D := by
   have h := q48Check_ok
   unfold q48Check at h
   simp only [Bool.and_eq_true] at h
@@ -130,7 +130,7 @@ theorem chk_rung (c : QCtx) (i m : Nat) (hi : i ≤ 48) (hm : c.dig i ≤ m) (hm
     unfold partOK2 at hp
     rw [if_neg (by have := c.dig_lt4 i; omega), Bool.and_eq_true] at hp
     have := List.all_eq_true.mp hp.2 m (List.mem_range'_1.mpr ⟨by omega, by omega⟩)
-    have hr : c.rungPc i m = c.startPc i + 7 + 2 * (m - (c.dig i + 1)) := by
+    have hr : c.rungPc i m = c.startPc i + 6 + 2 * (m - (c.dig i + 1)) := by
       simp only [rungPc, startPc, h48, h0, if_false]
       split_ifs <;> omega
     rw [hr]
@@ -187,17 +187,18 @@ namespace QCtx
 
 /-- After `q48_done` (the 49 quad-code ends in their slots; the lower code's `ChainIn 33` with a fresh base). -/
 def QOut (c : QCtx) (s0 : MachineState) (acc : List Digest) (u : MachineState) : Prop :=
-  (∀ x, x ∉ chainRegs → x ≠ .x14 → x ≠ .x15 → u.getReg x = s0.getReg x) ∧
-    u.getReg .x15 = BitVec.ofNat 64 0x6e000 ∧ Frame s0 u (c.Wr 49) ∧ acc.length = 49 ∧
+  (∀ x, x ∉ chainRegs → x ≠ .x14 → x ≠ .x15 → x ≠ .x28 → u.getReg x = s0.getReg x) ∧
+    u.getReg .x15 = BitVec.ofNat 64 0x6e000 ∧
+    u.getReg .x28 = BitVec.ofNat 64 (Verify.headerBank 0 16) ∧ Frame s0 u (c.Wr 49) ∧ acc.length = 49 ∧
     (∀ j < acc.length, DigAt u (slotT j) (acc.getD j 0)) ∧ c.lctx.ChainIn u 33 [] u
 
 def ChainNext (c : QCtx) (s0 : MachineState) (j : Nat) (acc : List Digest) (s : MachineState) : Prop :=
   if j ≤ 48 then c.ChainIn s0 j acc s else c.QOut s0 acc s
 
-/-- The dispatch after chain `i`: after a quad's `D` 4, after chain 48 (`q48_done`) 5. -/
-def xCost (i : Nat) : Nat := if i = 48 then 5 else if i % 4 = 3 then 4 else 0
+/-- The dispatch after chain `i`: after a quad's `D` 4, after chain 48 (`q48_done`) 6. -/
+def xCost (i : Nat) : Nat := if i = 48 then 6 else if i % 4 = 3 then 4 else 0
 
-theorem xCost_le (i : Nat) : xCost i ≤ 5 := by unfold xCost; split_ifs <;> omega
+theorem xCost_le (i : Nat) : xCost i ≤ 6 := by unfold xCost; split_ifs <;> omega
 
 theorem end_next (c : QCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.known, s0.getReg p.1 = p.2) (i : Nat)
     (hi : i ≤ 48) (acc : List Digest) (s : MachineState) (hs : c.EndInv s0 i acc s) :
@@ -206,10 +207,10 @@ theorem end_next (c : QCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.kn
   · subst h48
     have hs' := hs
     obtain ⟨⟨hR, hF, hS⟩, hlen, -, -⟩ := hs'
-    obtain ⟨u, hst, hu, hreg, h15, hmem⟩ := c.q48d_step hc hk q48_parts.2.2.2 acc s hs
+    obtain ⟨u, hst, hu, hreg, h15, h28, hmem⟩ := c.q48d_step hc hk q48_parts.2.2.2 acc s hs
     refine ⟨u, by simpa [xCost] using hst, ?_⟩
     unfold ChainNext; rw [if_neg (by omega)]
-    refine ⟨fun x hx h14 h15' => (hreg x h14 h15').trans (hR x hx), h15,
+    refine ⟨fun x hx h14 h15' h28' => (hreg x h14 h15' h28').trans (hR x hx), h15, h28,
       fun A hA hn => (hmem _).trans (hF A hA hn), hlen, fun j hj => ?_, hu⟩
     exact ⟨(hmem _).trans (hS j hj).1, (hmem _).trans (hS j hj).2⟩
   · by_cases h3 : i % 4 = 3
@@ -265,7 +266,7 @@ theorem steps_good (c : QCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
     (K : List Digest → OracleComp Legacy.HashSpec Verify.Obs) (N C A : Nat) (Q : Prop)
     (hK : ∀ v t, c.ChainNext s0 (i + 1) (acc ++ [v]) t → Verify.GoodQ t N C Q A (K (acc ++ [v]))) :
     ∀ k m, m + k = 2 → c.dig i ≤ m → ∀ v s, c.PreHash s0 i acc m v s →
-      Verify.GoodQ s (N + 3 * (3 - m) + 5) (C + preCost m + xCost i) Q (A + preCost m + xCost i)
+      Verify.GoodQ s (N + 3 * (3 - m) + 6) (C + preCost m + xCost i) Q (A + preCost m + xCost i)
         (Verify.ccM (c.rest i m v) (fun v => K (acc ++ [v]))) := by
   have hrc : ∀ m, m ≤ 2 → c.rungPc i m < 209920 := fun m hm => c.rungPc_lt i m hm
   have hx5 := xCost_le i
@@ -292,7 +293,7 @@ theorem steps_good (c : QCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
     obtain ⟨h5, hv, hin, hpost⟩ := c.prehash_step hc s0 hk h0 i m hi (by omega) hd acc v s hs
     rw [rest_succ c i m (by omega)]
     have hf := hs.2.2.2.2.2.2.2.2.2
-    have H : ∀ a : BitVec 256, Verify.GoodQ (writeHash s a) (N + 3 * (3 - (m + 1)) + 5 + 2)
+    have H : ∀ a : BitVec 256, Verify.GoodQ (writeHash s a) (N + 3 * (3 - (m + 1)) + 6 + 2)
         (C + preCost (m + 1) + xCost i + (if m + 1 = 2 then 2 else 1)) Q
         (A + preCost (m + 1) + xCost i + (if m + 1 = 2 then 2 else 1))
         (Verify.ccM (c.rest i (m + 1) (a.extractLsb' 0 128)) (fun v => K (acc ++ [v]))) := by
@@ -319,7 +320,7 @@ theorem steps_good (c : QCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
 
 /-- Cycle cost of chain `i < 49` at digit `d`, including the dispatch after it. -/
 def chainCost (i d : Nat) : Nat :=
-  (if i % 4 = 0 ∨ i = 48 then (if d = 3 then 6 else 34 - 9 * d) else (if d = 3 then 5 else 33 - 9 * d)) + xCost i
+  (if i % 4 = 0 ∨ i = 48 then (if d = 3 then 6 else 34 - 9 * d) else (if d = 3 then 4 else 32 - 9 * d)) + xCost i
 
 /-- **One chain of the quad code**: Core's `chainP` (width 2) with the block's pads and witness value. -/
 theorem chain_good (c : QCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.known, s0.getReg p.1 = p.2)
@@ -356,7 +357,7 @@ theorem chain_good (c : QCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
     · have hn0 : i % 4 ≠ 0 := fun h => h0' (Or.inl h)
       have hn48 : i ≠ 48 := fun h => h0' (Or.inr h)
       have hrun := c.chk_copyF i (by omega) hn0 h3
-      have hend : c.startPc i + 5 = c.endPc i := by
+      have hend : c.startPc i + 4 = c.endPc i := by
         simp only [startPc, endPc, if_neg hn48, if_neg hn0]
         have e : 4 * (i / 4) + i % 4 = i := by omega
         by_cases h1 : i % 4 = 1
@@ -379,7 +380,7 @@ theorem chain_good (c : QCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
     have hrp := c.rungPc_lt i (c.dig i) (by omega)
     by_cases h0' : i % 4 = 0 ∨ i = 48
     · have hrun1 : vrun (c.startPc i) 7 =
-          some (headJ .x19 (offT i) (i / 4 == 0 && i != 48) (c.rungPc i (c.dig i))) := by
+          some (headJ .x19 (offT i) (i / 4 == 0 && i != 48) (c.rungPc i (c.dig i)) i) := by
         by_cases h48 : i = 48
         · subst h48
           have := q48_parts.1 (c.dig 48) hd
@@ -480,7 +481,7 @@ def TopW (c : QCtx) (A : Nat) : Prop := (0x200 ≤ A ∧ A < 0x5D0) ∨ (c.S6 - 
 /-- After the top chain phase's return (`ctab[8] = jr ra`): the 58 ends in the top leaf-pk slots, registers outside
 `chainRegs`, `a5` as at the start, `a5` = the `ttab` window, memory outside `TopW` as at the start. -/
 def TopOut (c : QCtx) (s0 : MachineState) (ends : List Digest) (t : MachineState) : Prop :=
-  (∀ x, x ∉ chainRegs → x ≠ .x15 → t.getReg x = s0.getReg x) ∧ t.getReg .x15 = BitVec.ofNat 64 0x6e000 ∧
+  (∀ x, x ∉ chainRegs → x ≠ .x15 → x ≠ .x28 → t.getReg x = s0.getReg x) ∧ t.getReg .x15 = BitVec.ofNat 64 0x6e000 ∧
     Frame s0 t c.TopW ∧ ends.length = 58 ∧ (∀ j < 58, DigAt t (slotT j) (ends.getD j 0)) ∧ t.pc = pcOf c.ret
 
 /-- The top chain phase as a program: the quad code's 49 chains, then the lower code's 9 (the top's 49 .. 57). -/
@@ -520,8 +521,8 @@ theorem top_good (c : QCtx) (hc : c.TopOk) {s0 : MachineState} (hk : ∀ p ∈ c
     (fun e1 => Verify.ccM ((List.range' 33 9).foldlM c.lctx.chainF [] >>= fun e2 => pure (e1 ++ e2)) K)
     (N + 1 + 40 * 9) (C + 1 + c.lctx.chainsCost 33 9) (A + 1 + c.lctx.chainsCost 33 9) Q
     (fun e1 u hu => by
-      obtain ⟨hRu, h15u, hFu, hlen1, hSu, hIn⟩ := hu
-      have hku := c.lctx_known hk hRu h15u
+      obtain ⟨hRu, h15u, h28u, hFu, hlen1, hSu, hIn⟩ := hu
+      have hku := c.lctx_known hk hRu h15u h28u
       have hb0 : c.lctx.Orig0 u := by
         intro i hi1 hi2 k hk8
         have hb := c.lctx.blk_props hl i hi2
@@ -541,10 +542,10 @@ theorem top_good (c : QCtx) (hc : c.TopOk) {s0 : MachineState} (hk : ∀ p ∈ c
           refine c.lctx.ck8_good hl hku rfl (K (e1 ++ e2)) N C A Q e2 (fun t' ht' => hK _ t' ?_) t ht
           obtain ⟨⟨hR', hF', hS'⟩, hlen2, hpc'⟩ := ht'
           have hl2 : e2.length = 9 := by simpa [lctx] using hlen2
-          refine ⟨fun x hx h15 => ?_, ?_, ?_, by simp [hlen1, hl2], fun j hj => ?_, hpc'⟩
+          refine ⟨fun x hx h15 h28 => ?_, ?_, ?_, by simp [hlen1, hl2], fun j hj => ?_, hpc'⟩
           · by_cases h14 : x = .x14
             · subst h14; exact absurd (by decide) hx
-            · exact (hR' x hx).trans (hRu x hx h14 h15)
+            · exact (hR' x hx).trans (hRu x hx h14 h15 h28)
           · rw [hR' .x15 (by decide)]; exact h15u
           · refine (hFu.trans hF').mono ?_
             intro A _ h
@@ -723,7 +724,7 @@ namespace QCtx
 /-! ## The cost of the top chain phase -/
 
 /-- The digit-independent cost of chain `i < 49` (as if no digit were maximal). -/
-def cbase (i : Nat) : Nat := (if i % 4 = 0 ∨ i = 48 then 34 else 33) + xCost i
+def cbase (i : Nat) : Nat := (if i % 4 = 0 ∨ i = 48 then 34 else 32) + xCost i
 
 /-- The saving of a maximal digit (the copy instead of a head and the last rung). -/
 def zc (d : Nat) : Nat := if d = 3 then 1 else 0
@@ -745,7 +746,7 @@ theorem chainsCost_add (c : QCtx) : ∀ k i,
     simp only [chainsCost, List.range'_succ, List.map_cons, List.sum_cons] at h ⊢
     omega
 
-theorem cbase_sum : ((List.range' 0 49).map cbase).sum = 1683 := by decide
+theorem cbase_sum : ((List.range' 0 49).map cbase).sum = 1648 := by decide
 
 theorem lchainsCost_add (c : QCtx) : ∀ k i, i + k ≤ 42 →
     c.lctx.chainsCost i k + 9 * ((List.range' i k).map c.lctx.dig).sum +
@@ -766,7 +767,7 @@ def topZ (c : QCtx) : Nat := ((List.range' 0 49).map fun j => zc (c.dig j)).sum 
 /-- The digit sum of the top layer as the machine sees it. -/
 def topS (c : QCtx) : Nat := ((List.range' 0 49).map c.dig).sum + ((List.range' 33 9).map c.lctx.dig).sum
 
-theorem topCost_add (c : QCtx) : c.topCost + 9 * c.topS + c.topZ = 2319 := by
+theorem topCost_add (c : QCtx) : c.topCost + 9 * c.topS + c.topZ = 2278 := by
   have h1 := c.chainsCost_add 49 0
   have h2 := c.lchainsCost_add 9 33 (by omega)
   rw [cbase_sum] at h1
@@ -810,9 +811,9 @@ theorem topS_eq (c : QCtx) {value : Digest} (h : c.TopFit value) : c.topS = (dat
   conv_rhs => rw [hD]
   rw [hC]
 
-/-- **The cost of an accepting top chain phase**: `1185 - Z` (the 58 digits sum to `126`). -/
+/-- **The cost of an accepting top chain phase**: `1144 - Z` (the 58 digits sum to `126`). -/
 theorem topCost_accept (c : QCtx) {value : Digest} (h : c.TopFit value) (hsum : (dataDigits 0 value).sum = 126) :
-    c.topCost + c.topZ = 1185 := by
+    c.topCost + c.topZ = 1144 := by
   have := c.topCost_add
   rw [c.topS_eq h, hsum] at this
   omega

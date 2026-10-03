@@ -11,7 +11,7 @@ appended to the exposure list `X`. It absorbs every adaptive choice of later sig
 * `score_le_forecast`: the forecast dominates the current score;
 * `average_forecast`: averaged over a uniform target it is the completed-word price `E[fullPrice (labels X ++ W)]/2^128`
   with `W` uniform (the labels of accepted selections are uniform: admissibility reads only leaf bits);
-* `excessForecast` (the price above `theta = 63/64`) has the same martingale step, and `average_forecast_le` splits the
+* `excessForecast` (the price above `theta = 3/4`) has the same martingale step, and `average_forecast_le` splits the
   average into `theta` plus that excess.
 -/
 
@@ -179,7 +179,7 @@ theorem average_forecast (R : Nat) (X : List HashOutput) :
 /-! ## The excess forecast -/
 
 /-- The price threshold paid per digest birth (the rest of a unit pays the cache-reuse exception). -/
-noncomputable def theta : ENNReal := 63 / 64
+noncomputable def theta : ENNReal := 3 / 4
 
 /-- Expected completed-word price above `theta`. -/
 noncomputable def excessForecast (R : Nat) (X : List HashOutput) : ENNReal :=

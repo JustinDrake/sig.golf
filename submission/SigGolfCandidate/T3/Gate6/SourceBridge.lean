@@ -65,7 +65,7 @@ theorem source_selections (output : BitVec 256) :
 theorem source_leaf_condition (output : BitVec 256) :
     SigGolfCandidate.T3.admissible (selections output)=true ↔
       (∀ c,Function.Injective ((digestRecord output).2.1 c)) ∧
-      28+(∑ c,authCount (sortedChild ((digestRecord output).2.1 c)))≤115 := by
+      28+(∑ c,authCount (sortedChild ((digestRecord output).2.1 c)))≤118 := by
   rw [←source_selections]
   simp only [rawSelections,SigGolfCandidate.T3.admissible,Bool.and_eq_true,decide_eq_true_eq,List.all_eq_true,
     List.mem_ofFn,forall_exists_index,List.map_ofFn,List.sum_ofFn,Function.comp_def]

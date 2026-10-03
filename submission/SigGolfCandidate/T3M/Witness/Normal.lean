@@ -89,7 +89,7 @@ theorem rejectTail_false (w : WBytes) (N : HashOutput) : ∀ b ∈ support (reje
 /-! ## Zero pads: `verifyPads_zero` -/
 
 theorem recoverChildP_zero (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 115 → Digest) : ∀ level node used,
+    (proof : Fin 118 → Digest) : ∀ level node used,
     recoverChildP index coord leaves values proof 0 level node used =
       recoverChild index coord leaves values proof level node used := by
   intro level

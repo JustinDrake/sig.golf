@@ -10,7 +10,7 @@ import SigGolfCandidate.T3.Secc.CaseCNearPay
   message's search replays to a fresh exposure;
 * `ΦI q`: the memory near potential on invariant states, `⊤` elsewhere;
 * `payoff_le_ΦI`: CC's `nearPayoff` on the projected state is at most `ΦI`;
-* `ΦI_initial ≤ q·(404 + 1/16)/2^128`.
+* `ΦI_initial ≤ q·(103 + 1/16)/2^128`.
 -/
 
 namespace SigGolfCandidate.T3.Security.CaseC
@@ -139,7 +139,7 @@ noncomputable def ghostPot (q : Nat) (M : BPair.LazyMem × NearGhost) : ENNReal 
 /-- **The bank potential of a ghost state**: `⊤` off the invariant. -/
 noncomputable def ΦI (q : Nat) (s : GState) : ENNReal := if InvM s.memory then ghostPot q s.memory else ⊤
 
-theorem ΦI_initial (q : Nat) : ΦI q initG ≤ (q : ENNReal) * (404 + 1 / 16) / 2 ^ 128 := by
+theorem ΦI_initial (q : Nat) : ΦI q initG ≤ (q : ENNReal) * (103 + 1 / 16) / 2 ^ 128 := by
   unfold ΦI
   rw [if_pos (show InvM initG.memory from invM_empty)]
   exact mem_initial q

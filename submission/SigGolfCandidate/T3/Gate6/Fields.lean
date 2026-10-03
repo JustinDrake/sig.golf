@@ -19,19 +19,19 @@ theorem digestRecord_leaf (output : BitVec 256) (c : Bank) (j : Fin 3) :
   omega
 
 theorem digestRecord_gate (output : BitVec 256) :
-    (digestRecord output).2.2.1.val=output.toNat/2^206%8 := by
+    (digestRecord output).2.2.1.val=output.toNat/2^206%32 := by
   simp [digestRecord,BitVec.extractLsb'_toNat,Nat.shiftRight_eq_div_pow]
 
 theorem digestRecord_gate_zero (output : BitVec 256) :
-    (digestRecord output).2.2.1=0 ↔ output.toNat/2^206%8=0 := by
+    (digestRecord output).2.2.1=0 ↔ output.toNat/2^206%32=0 := by
   rw [←digestRecord_gate]
   exact Fin.ext_iff
 
 /-- Source-friendly decomposition of the actual acceptance predicate. -/
 theorem digest_acceptance_iff (output : BitVec 256) :
-    DigestAccepted output ↔ output.toNat/2^206%8=0 ∧
+    DigestAccepted output ↔ output.toNat/2^206%32=0 ∧
       (∀ c, Function.Injective ((digestRecord output).2.1 c)) ∧
-      (∑ c,childAuth ((digestRecord output).2.1 c))≤87 := by
+      (∑ c,childAuth ((digestRecord output).2.1 c))≤90 := by
   change ((digestRecord output).2.2.1=0 ∧ _ ∧ _) ↔ _
   rw [digestRecord_gate_zero]
 

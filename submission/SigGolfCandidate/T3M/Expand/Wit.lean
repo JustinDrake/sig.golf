@@ -245,65 +245,37 @@ theorem layerBytes_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
     length_flatMap_const _ 64 (fun i => by simp [bytesLE_length, T3M.zeros])]
   simp; ring
 
-theorem layerStorage_length' (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
-    (layerStorage lay leaf ls).length = 64 * (height lay + chainCount lay) + (if lay = 0 then 256 else 0) := by
-  simp [layerStorage, layerBytes_length, T3M.zeros]
-
-theorem readWords_zero (t : MachineState) (B n : Nat) (hB : B + 8 * n < 2 ^ 64)
-    (hz : ∀ j < n, t.getMem (BitVec.ofNat 64 (B + 8 * j)) = 0) :
-    t.readWords (BitVec.ofNat 64 B) n = List.replicate n 0 := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    rw [show n + 1 = n + 1 from rfl, readWords_add, ih (by omega) (fun j hj => hz j (by omega)),
-      readWords_one, hz n (by omega)]
-    simp [List.replicate_add]
-
 /-- **The witness doublewords** from its parts. -/
 theorem witList_words (t : MachineState) (N : HashOutput) (w : Witness)
     (hh : t.readWords (BitVec.ofNat 64 0x800) 8 = wordsOf (headerBytes w))
     (hleaf : t.readWords (BitVec.ofNat 64 0x840) 128 = wordsOf (leafBytes w.signature))
     (hstream : t.readWords (BitVec.ofNat 64 0xC40) 1275 =
       wordsOf (streamBytes (T3.selections N) w.signature.proof))
-    (hpad : t.readWords (BitVec.ofNat 64 0x4498) 32 = List.replicate 32 0)
     (hlay : ∀ lay : Layer, t.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay)) =
       wordsOf (layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay))) :
     t.readWords (BitVec.ofNat 64 0x800) 3155 = wordsOf (witList N w) := by
-  have hstorage : ∀ lay : Layer,
-      t.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay) + (if lay = 0 then 32 else 0)) =
-        wordsOf (layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) := by
-    intro lay
-    unfold layerStorage
-    by_cases hl : lay = 0
-    · subst lay
-      simp only [if_true]
-      rw [wordsOf_append _ _ (by rw [layerBytes_length]; decide),
-        show T3M.zeros 256 = List.replicate (8 * 32) 0 from rfl, wordsOf_replicate_zero, ← hlay 0, ← hpad]
-      rw [readWords_add]
-      rfl
-    · simp only [if_neg hl, T3M.zeros, List.replicate_zero, List.append_nil, Nat.add_zero]
-      exact hlay lay
   obtain ⟨l1, l2, l3⟩ := witList_length_parts N w
-  have l4 := fun lay : Layer => layerStorage_length' lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)
+  have l4 := fun lay : Layer => layerBytes_length lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)
   have hf : (List.finRange 4).flatMap (fun lay : Layer =>
-      layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) =
-      layerStorage 0 (route (N.toNat % 2 ^ 31) 0).1 (w.signature.layers 0) ++
-      layerStorage 1 (route (N.toNat % 2 ^ 31) 1).1 (w.signature.layers 1) ++
-      layerStorage 2 (route (N.toNat % 2 ^ 31) 2).1 (w.signature.layers 2) ++
-      layerStorage 3 (route (N.toNat % 2 ^ 31) 3).1 (w.signature.layers 3) := by
+      layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) =
+      layerBytes 0 (route (N.toNat % 2 ^ 31) 0).1 (w.signature.layers 0) ++
+      layerBytes 1 (route (N.toNat % 2 ^ 31) 1).1 (w.signature.layers 1) ++
+      layerBytes 2 (route (N.toNat % 2 ^ 31) 2).1 (w.signature.layers 2) ++
+      layerBytes 3 (route (N.toNat % 2 ^ 31) 3).1 (w.signature.layers 3) := by
     simp only [List.finRange_succ, List.finRange_zero, List.flatMap_cons, List.flatMap_nil, List.map_cons,
       List.map_nil, List.append_nil, List.append_assoc]
     rfl
   unfold witList
   rw [hf]
+  have e0 := l4 0; have e1 := l4 1; have e2 := l4 2; have e3 := l4 3
+  simp only [height, chainCount] at e0 e1 e2 e3
   simp only [List.append_assoc]
   rw [wordsOf_append _ _ (by rw [l1]), wordsOf_append _ _ (by rw [l2]), wordsOf_append _ _ (by rw [l3]),
-    wordsOf_append _ _ (by rw [layerStorage_length']; decide), wordsOf_append _ _ (by rw [layerStorage_length']; decide),
-    wordsOf_append _ _ (by rw [layerStorage_length']; decide), ← hh, ← hleaf, ← hstream]
-  have h0 := hstorage 0; have h1 := hstorage 1; have h2 := hstorage 2; have h3 := hstorage 3
+    wordsOf_append _ _ (by rw [e0]; decide), wordsOf_append _ _ (by rw [e1]; decide),
+    wordsOf_append _ _ (by rw [e2]; decide), ← hh, ← hleaf, ← hstream]
+  have h0 := hlay 0; have h1 := hlay 1; have h2 := hlay 2; have h3 := hlay 3
   rw [← h0, ← h1, ← h2, ← h3]
-  simp only [lBase, height, chainCount, show (0 : Layer) = 0 from rfl, if_true,
-    show (1 : Layer) ≠ 0 by decide, show (2 : Layer) ≠ 0 by decide, show (3 : Layer) ≠ 0 by decide, if_false, Nat.add_zero]
+  simp only [lBase, height, chainCount]
   rw [show (3155 : Nat) = 8 + (128 + (1275 + (560 + (400 + (392 + 392))))) from rfl, readWords_add, readWords_add,
     readWords_add, readWords_add, readWords_add, readWords_add]
   rfl

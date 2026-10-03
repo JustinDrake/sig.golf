@@ -67,17 +67,17 @@ def leafHP (index coord : Nat) (leaves : List Nat) (values : List Digest) (pads 
     (pads.leaf ⟨(3 * coord + leaves.idxOf node + 1) % 22, Nat.mod_lt _ (by decide)⟩)
 
 /-- Slots `used + i` hold the value and pad of the `i`-th position of `ps`. -/
-def SlotsMatch (proof : Fin 115 → Digest) (pads : Pads) (val pad : Nat × Nat → Digest) (used : Nat)
+def SlotsMatch (proof : Fin 118 → Digest) (pads : Pads) (val pad : Nat × Nat → Digest) (used : Nat)
     (ps : List (Nat × Nat)) : Prop :=
-  ∀ i (hi : i < ps.length) (h : used + i < 115), proof ⟨used + i, h⟩ = val ps[i] ∧ pads.fold ⟨used + i, h⟩ = pad ps[i]
+  ∀ i (hi : i < ps.length) (h : used + i < 118), proof ⟨used + i, h⟩ = val ps[i] ∧ pads.fold ⟨used + i, h⟩ = pad ps[i]
 
-theorem SlotsMatch.left {proof : Fin 115 → Digest} {pads : Pads} {val pad : Nat × Nat → Digest} {used : Nat}
+theorem SlotsMatch.left {proof : Fin 118 → Digest} {pads : Pads} {val pad : Nat × Nat → Digest} {used : Nat}
     {l r : List (Nat × Nat)} (h : SlotsMatch proof pads val pad used (l ++ r)) : SlotsMatch proof pads val pad used l := by
   intro i hi hb
   have := h i (by simp; omega) hb
   rwa [List.getElem_append_left hi] at this
 
-theorem SlotsMatch.right {proof : Fin 115 → Digest} {pads : Pads} {val pad : Nat × Nat → Digest} {used : Nat}
+theorem SlotsMatch.right {proof : Fin 118 → Digest} {pads : Pads} {val pad : Nat × Nat → Digest} {used : Nat}
     {l r : List (Nat × Nat)} (h : SlotsMatch proof pads val pad used (l ++ r)) :
     SlotsMatch proof pads val pad (used + l.length) r := by
   intro i hi hb
@@ -87,8 +87,8 @@ theorem SlotsMatch.right {proof : Fin 115 → Digest} {pads : Pads} {val pad : N
   simpa only [Nat.add_assoc] using this
 
 theorem recoverChildP_eq_dfsP (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 115 → Digest) (pads : Pads) (val pad : Nat × Nat → Digest) :
-    ∀ level node used, used + (frontier leaves level node).length ≤ 115 →
+    (proof : Fin 118 → Digest) (pads : Pads) (val pad : Nat × Nat → Digest) :
+    ∀ level node used, used + (frontier leaves level node).length ≤ 118 →
       SlotsMatch proof pads val pad used (frontier leaves level node) →
       recoverChildP index coord leaves values proof pads level node used =
         (fun v => some (v, used + (frontier leaves level node).length)) <$>
@@ -103,7 +103,7 @@ theorem recoverChildP_eq_dfsP (index coord : Nat) (leaves : List Nat) (values : 
       · have hh : hasLeaf leaves 0 node = false := by simpa using hh
         simp only [T3.frontier, hh, Bool.false_eq_true, ite_false, List.length_singleton] at hfit hm ⊢
         have hp := (hm 0 (by simp) (by omega)).1
-        simp only [recoverChildP, dfsP, hh, Bool.not_false, ite_true, dif_pos (show used < 115 by omega),
+        simp only [recoverChildP, dfsP, hh, Bool.not_false, ite_true, dif_pos (show used < 118 by omega),
           map_pure]
         simp only [Nat.add_zero] at hp
         rw [hp]; rfl
@@ -147,7 +147,7 @@ theorem recoverChildP_eq_dfsP (index coord : Nat) (leaves : List Nat) (values : 
       · have hh : hasLeaf leaves (level + 1) node = false := by simpa using hh
         simp only [T3.frontier, hh, Bool.false_eq_true, ite_false, List.length_singleton] at hfit hm ⊢
         have hp := (hm 0 (by simp) (by omega)).1
-        simp only [recoverChildP, dfsP, hh, Bool.not_false, ite_true, dif_pos (show used < 115 by omega),
+        simp only [recoverChildP, dfsP, hh, Bool.not_false, ite_true, dif_pos (show used < 118 by omega),
           map_pure]
         simp only [Nat.add_zero] at hp
         rw [hp]; rfl

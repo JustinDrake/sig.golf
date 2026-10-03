@@ -19,7 +19,7 @@ set_option maxRecDepth 8192
 
 /-! ## Main segments -/
 
-def seg_0 : List (BitVec 32) := [0x00000293, 0x08000e93, 0x00020f37, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x09000e93, 0x00020f37, 0x020f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x00020f37, 0x020f3823, 0x020f3c23, 0x00000413, 0x00000493, 0x03600d13, 0x03300d93, 0x00000f93, 0x00020b37, 0x460b0b13, 0x00050137, 0x00000913]
+def seg_0 : List (BitVec 32) := [0x00000293, 0x08000e93, 0x00020f37, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x09000e93, 0x00020f37, 0x020f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x00020f37, 0x020f3823, 0x020f3c23, 0x00000413, 0x00000493, 0x03a00d13, 0x03100d93, 0x00000f93, 0x00020b37, 0x460b0b13, 0x00050137, 0x00000913]
 def seg_26 : List (BitVec 32) := [0x00001337, 0x02695263]
 def seg_28 : List (BitVec 32) := [0x00021bb7, 0xa00b8b93, 0x006903b3, 0x00439393, 0x00238cb3, 0x1bc000ef]
 def seg_34 : List (BitVec 32) := [0x00190913, 0xfddff06f]
@@ -68,8 +68,8 @@ def sub_44 : List (BitVec 32) := [0x0019de13, 0x01041313, 0x020e1f13, 0x01e36333
 def sub_59 : List (BitVec 32) := [0x00000073]
 def sub_60 : List (BitVec 32) := [0x0019fe13, 0x004e1e13, 0x00020eb7, 0x040e8e93, 0x01de0e33, 0x00020f37, 0x1d0f0f13, 0x000e3303, 0x008e3383, 0x006f3023, 0x007f3423, 0x013b0e33]
 def sub_72 : List (BitVec 32) := [0x000e4883]
-def sub_73 : List (BitVec 32) := [0x00700a93, 0x00041463]
-def sub_75 : List (BitVec 32) := [0x6750006f]
+def sub_73 : List (BitVec 32) := [0x00700a93, 0x01b9d463]
+def sub_75 : List (BitVec 32) := [0x00300a93]
 def sub_76 : List (BitVec 32) := [0x000f8463]
 def sub_77 : List (BitVec 32) := [0x00088a93]
 def sub_78 : List (BitVec 32) := [0xec9ff0ef]
@@ -101,17 +101,8 @@ def subCode : List (BitVec 32) := layoutCode subL
 
 theorem subL_ok : layoutOk 0 subL = true := by decide +kernel
 
-
-/-- Exact appended mixed-radix endpoint helper; the relative words are shared by keygen and sign. -/
-def maxLow : List (BitVec 32) := [0x00300a93, 0x99b9d663]
-def maxHigh : List (BitVec 32) := [0x00400a93, 0x984ff06f]
-def maxLayout : Rv.Layout := [(0, maxLow), (2, maxHigh)]
-def maxDigitCode : List (BitVec 32) := layoutCode maxLayout
-theorem maxLayout_ok : layoutOk 0 maxLayout = true := by decide +kernel
-def seg_542 : List (BitVec 32) := List.replicate 575 0x00000013
-
 /-- The keygen image as a layout: the main segments, then the shared code at 117. -/
-def mainL : Rv.Layout := [(0, seg_0), (26, seg_26), (28, seg_28), (34, seg_34), (36, seg_36), (39, seg_39), (48, seg_48), (50, seg_50), (51, seg_51), (52, seg_52), (64, seg_64), (65, seg_65), (81, seg_81), (84, seg_84), (113, seg_113), (114, seg_114), (116, seg_116), (117, subCode), (277, seg_277), (289, seg_289), (295, seg_295), (309, seg_309), (310, seg_310), (330, seg_330), (334, seg_334), (542, seg_542), (1117, maxDigitCode)]
+def mainL : Rv.Layout := [(0, seg_0), (26, seg_26), (28, seg_28), (34, seg_34), (36, seg_36), (39, seg_39), (48, seg_48), (50, seg_50), (51, seg_51), (52, seg_52), (64, seg_64), (65, seg_65), (81, seg_81), (84, seg_84), (113, seg_113), (114, seg_114), (116, seg_116), (117, subCode), (277, seg_277), (289, seg_289), (295, seg_295), (309, seg_309), (310, seg_310), (330, seg_330), (334, seg_334)]
 
 theorem mainL_ok : layoutOk 0 mainL = true := by decide +kernel
 
@@ -173,23 +164,9 @@ theorem codeAt_334 : CodeAt image (pcOf 334) seg_334 :=
   codeAt_layout code_eq mainL_ok (i := 24) (by kernel_rfl) (by decide)
 
 /-- The shared subroutine code sits at base `b` of `image` (`b` = 117 in keygen, 1013 in sign). -/
-def SubAt (image : Image) (b : Nat) : Prop := CodeAt image (pcOf b) subCode ∧ (b = 117 ∨ b = 1013) ∧ CodeAt image (pcOf (b + 1000)) maxDigitCode
+def SubAt (image : Image) (b : Nat) : Prop := CodeAt image (pcOf b) subCode ∧ (b = 117 ∨ b = 1013)
 
-theorem codeAt_max : CodeAt image (pcOf 1117) maxDigitCode :=
-  codeAt_layout code_eq mainL_ok (i := 26) (by kernel_rfl) (by decide)
-theorem subAt_keygen : SubAt image 117 := ⟨codeAt_subCode, Or.inl rfl, codeAt_max⟩
-
-theorem codeAt_maxLow {image : Image} {b : Nat} (h : SubAt image b) :
-    CodeAt image (pcOf (b + 1000)) maxLow := by
-  have q := codeAt_sublayout (L := maxLayout) (b := b + 1000) h.2.2 maxLayout_ok
-    (i := 0) (o := 0) (seg := maxLow) (by kernel_rfl)
-  simpa only [Nat.add_zero] using q
-theorem codeAt_maxHigh {image : Image} {b : Nat} (h : SubAt image b) :
-    CodeAt image (pcOf (b + 1002)) maxHigh := by
-  have q := codeAt_sublayout (L := maxLayout) (b := b + 1000) h.2.2 maxLayout_ok
-    (i := 1) (o := 2) (seg := maxHigh) (by kernel_rfl)
-  simpa [Nat.add_assoc] using q
-
+theorem subAt_keygen : SubAt image 117 := ⟨codeAt_subCode, Or.inl rfl⟩
 
 theorem codeAt_sub_0 {image : Image} {b : Nat} (h : SubAt image b) :
     CodeAt image (pcOf (b + 0)) sub_0 :=
@@ -549,7 +526,7 @@ theorem run_73 {b : Nat} (hb : b = 117 ∨ b = 1013) :
 /-- The base-independent symbolic state of `sub_75`. -/
 def st_75 : SymState := blk117_75.res.st
 /-- The final pc of `sub_75` at base `b`. -/
-def pcE_75 (b : Nat) : E := .c (pcOf (b + 1000))
+def pcE_75 (b : Nat) : E := .c (pcOf (b + 76))
 theorem run_75 {b : Nat} (hb : b = 117 ∨ b = 1013) :
     symRun { noAlias := true } sub_75 (pcOf (b + 75)) 100 =
       some ⟨st_75, pcE_75 b, blk117_75.res.stop, blk117_75.res.steps, blk117_75.res.cycles⟩ := by
@@ -776,27 +753,5 @@ theorem run_159 {b : Nat} (hb : b = 117 ∨ b = 1013) :
   rcases hb with rfl | rfl
   · exact blk117_159.trans (congrArg some (by kernel_rfl))
   · exact blk1013_159.trans (congrArg some (by kernel_rfl))
-
-
-sym_block max117Low := symRun { noAlias := true } maxLow (pcOf (117 + 1000)) 100
-sym_block max1013Low := symRun { noAlias := true } maxLow (pcOf (1013 + 1000)) 100
-sym_block max117High := symRun { noAlias := true } maxHigh (pcOf (117 + 1002)) 100
-sym_block max1013High := symRun { noAlias := true } maxHigh (pcOf (1013 + 1002)) 100
-def maxLowState : SymState := max117Low.res.st
-def maxLowPC (b : Nat) : E := rebase max117Low.res.pc (pcOf (b + 76)) (pcOf (b + 1002))
-theorem run_maxLow {b : Nat} (hb : b = 117 ∨ b = 1013) :
-    symRun { noAlias := true } maxLow (pcOf (b + 1000)) 100 =
-      some ⟨maxLowState, maxLowPC b, max117Low.res.stop, max117Low.res.steps, max117Low.res.cycles⟩ := by
-  rcases hb with rfl | rfl
-  · exact max117Low.trans (congrArg some (by kernel_rfl))
-  · exact max1013Low.trans (congrArg some (by kernel_rfl))
-def maxHighState : SymState := max117High.res.st
-def maxHighPC (b : Nat) : E := .c (pcOf (b + 76))
-theorem run_maxHigh {b : Nat} (hb : b = 117 ∨ b = 1013) :
-    symRun { noAlias := true } maxHigh (pcOf (b + 1002)) 100 =
-      some ⟨maxHighState, maxHighPC b, max117High.res.stop, max117High.res.steps, max117High.res.cycles⟩ := by
-  rcases hb with rfl | rfl
-  · exact max117High.trans (congrArg some (by kernel_rfl))
-  · exact max1013High.trans (congrArg some (by kernel_rfl))
 
 end SigGolfCandidate.T3M.Keygen

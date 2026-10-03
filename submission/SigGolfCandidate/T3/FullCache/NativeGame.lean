@@ -22,7 +22,7 @@ macro "verdict_queries" : tactic => `(tactic|
   aesop (config := { maxRuleApplications := 1000 }) (add simp MacGame.NonMac))
 
 theorem recoverChild_nonMac (index coord : Nat) (leaves : List Nat) (values : List Digest)
-    (proof : Fin 115 → Digest) (level node used : Nat) :
+    (proof : Fin 118 → Digest) (level node used : Nat) :
     NonMac (recoverChild index coord leaves values proof level node used) := by
   induction level generalizing node used with
   | zero => unfold recoverChild;verdict_queries

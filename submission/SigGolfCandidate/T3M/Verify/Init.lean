@@ -1,6 +1,5 @@
 import SigGolfCandidate.T3M.Verify.Common
 import SigGolfCandidate.T3M.Submission
-import SigGolfCandidate.T3M.Search.TopData
 
 /-!
 # The initial state of the verify phase (T3M)
@@ -15,13 +14,10 @@ of `x` (`bytes_word`).
 -/
 
 set_option linter.unusedSimpArgs false
-set_option maxRecDepth 65536
-set_option maxHeartbeats 1600000
 
 namespace SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3 (Digest)
-open SigGolfCandidate.T3M.Verify.Nonbinary (PAIR_DATA TAIL_DATA)
 
 /-! ## Bytes to doublewords -/
 
@@ -116,22 +112,6 @@ theorem bytes_word {n : Nat} (x : Bytes n) (j : Nat) (h : 8 * j + 8 ≤ n) :
   rw [BitVec.toNat_ofNat, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow,
     show 8 * (8 * j) = 64 * j by ring, show 8 * 8 = 64 by rfl, Nat.mod_mod]
 
-theorem extractByte_or8 (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) (j : Nat) (hj : j < 8) :
-    extractByte (b0.zeroExtend 64 ||| (b1.zeroExtend 64 <<< (8 : Word)) |||
-      (b2.zeroExtend 64 <<< (16 : Word)) ||| (b3.zeroExtend 64 <<< (24 : Word)) |||
-      (b4.zeroExtend 64 <<< (32 : Word)) ||| (b5.zeroExtend 64 <<< (40 : Word)) |||
-      (b6.zeroExtend 64 <<< (48 : Word)) ||| (b7.zeroExtend 64 <<< (56 : Word))) j =
-      [b0, b1, b2, b3, b4, b5, b6, b7].getD j 0 := by
-  interval_cases j <;> (simp only [extractByte]; ext i hi; interval_cases i <;> simp)
-
-theorem extractByte_bytesToWordLE (bs : List (BitVec 8)) (j : Nat) (hj : j < 8) :
-    extractByte (bytesToWordLE bs) j = bs.getD j 0 := by
-  simp only [bytesToWordLE]
-  rw [extractByte_or8 _ _ _ _ _ _ _ _ j hj]
-  simp only [List.getD_eq_getElem?_getD]
-  interval_cases j <;> rfl
-
-
 /-! ## The initial state -/
 
 /-- All registers except `x2` are zero in the initial state. -/
@@ -152,16 +132,69 @@ structure InitOK (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) 
   /-- The embedded data words at `DATA` (T3K). -/
   data : DataOK s
 
-theorem verifyData_length : (submission.image .verify).data.length = 32768 := Search.verifyData_length
+set_option maxRecDepth 200000 in
+set_option maxHeartbeats 0 in
+theorem verifyData_length : (submission.image .verify).data.length = 16480 := rfl
 
-theorem dataBase_verify : dataBase (submission.image .verify) = PAIR_DATA := by
+theorem dataBase_verify : dataBase (submission.image .verify) = HDATA := by
   unfold dataBase; rw [verifyData_length]; decide
 
-/-- The embedded doublewords read back as `dataWords`. -/
-theorem verifyData_word (k : Nat) (hk : k < 12) :
-    bytesToWordLE ((((submission.image .verify).data).drop (32672 + 8 * k)).take 8) =
-      BitVec.ofNat 64 (dataWords.getD k 0) := by
-  interval_cases k <;> decide +kernel
+/-- Expected doubleword at a physical index in the image data. -/
+def physicalWord (k : Nat) : Nat := if k < 2048 then headerWord k else dataWords.getD (k - 2048) 0
+
+/-- A linear-time, kernel-reduced check of all image doublewords. -/
+def imageWordsCheck : List (BitVec 8) → Nat → Bool
+  | [], _ => true
+  | a :: b :: c :: d :: e :: f :: g :: h :: tail, k =>
+      (bytesToWordLE [a,b,c,d,e,f,g,h] == BitVec.ofNat 64 (physicalWord k)) && imageWordsCheck tail (k + 1)
+  | _, _ => false
+
+set_option maxRecDepth 200000 in
+set_option maxHeartbeats 0 in
+theorem verifyData_checked : imageWordsCheck (submission.image .verify).data 0 = true := by decide +kernel
+
+/-- A successful word check certifies every aligned eight-byte slice. -/
+theorem imageWordsCheck_word (j : Nat) : ∀ (l : List (BitVec 8)) (k : Nat),
+    imageWordsCheck l k = true → 8 * j + 8 ≤ l.length →
+    bytesToWordLE ((l.drop (8 * j)).take 8) = BitVec.ofNat 64 (physicalWord (k + j)) := by
+  induction j with
+  | zero =>
+    intro l k h hl
+    match l with
+    | a :: b :: c :: d :: e :: f :: g :: h' :: tail =>
+      simp only [imageWordsCheck, Bool.and_eq_true] at h
+      have H := h.1
+      simpa only [Nat.mul_zero, List.drop_zero, List.take_succ_cons, List.take_zero,
+        Nat.add_zero, beq_iff_eq] using H
+    | [] | [_] | [_,_] | [_,_,_] | [_,_,_,_] | [_,_,_,_,_] | [_,_,_,_,_,_] | [_,_,_,_,_,_,_] =>
+      simp_all
+  | succ j ih =>
+    intro l k h hl
+    match l with
+    | a :: b :: c :: d :: e :: f :: g :: h' :: tail =>
+      simp only [imageWordsCheck, Bool.and_eq_true] at h
+      have H := h.2
+      have ht : 8 * j + 8 ≤ tail.length := by simp only [List.length_cons] at hl; omega
+      have H' := ih tail (k + 1) H ht
+      rw [show 8 * (j + 1) = 8 * j + 8 by omega]
+      simpa only [List.drop_succ_cons, Nat.add_succ, Nat.add_zero,
+        show k + 1 + j = k + (j + 1) by omega] using H'
+    | [] | [_] | [_,_] | [_,_,_] | [_,_,_,_,_] | [_,_,_,_,_,_] | [_,_,_,_,_,_,_] =>
+      simp_all
+    | [_,_,_,_] => simp_all
+
+/-- Every logical data index reads its exact image value. -/
+theorem verifyData_word (k : Nat) (hk : k < 2060) :
+    bytesToWordLE ((((submission.image .verify).data).drop (dataOffset k)).take 8) =
+      BitVec.ofNat 64 (dataValue k) := by
+  by_cases h : k < 12
+  · have H := imageWordsCheck_word (2048 + k) _ 0 verifyData_checked (by rw [verifyData_length]; omega)
+    simpa only [dataOffset, dataValue, if_pos h, Nat.zero_add, physicalWord,
+      if_neg (by omega : ¬ 2048 + k < 2048), show 2048 + k - 2048 = k by omega,
+      show 8 * (2048 + k) = 16384 + 8 * k by ring] using H
+  · have H := imageWordsCheck_word (k - 12) _ 0 verifyData_checked (by rw [verifyData_length]; omega)
+    simpa only [dataOffset, dataValue, if_neg h, Nat.zero_add, physicalWord,
+      if_pos (by omega : k - 12 < 2048)] using H
 
 theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) : InitOK m pk w s := by
@@ -186,14 +219,14 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
   have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 (dataBase (submission.image .verify)))).getMem A =
       s3.getMem A := fun A => by simp [MachineState.setReg, MachineState.getMem]
   have g0 : ∀ A, A < 2 ^ 64 → s0.getMem (BitVec.ofNat 64 A) =
-      if PAIR_DATA ≤ A ∧ A < PAIR_DATA + 8 * ((32768 + 7) / 8) ∧ (A - PAIR_DATA) % 8 = 0 then
-        bytesToWordLE ((((submission.image .verify).data).drop (A - PAIR_DATA)).take 8) else 0 := by
+      if HDATA ≤ A ∧ A < HDATA + 8 * ((16480 + 7) / 8) ∧ (A - HDATA) % 8 = 0 then
+        bytesToWordLE ((((submission.image .verify).data).drop (A - HDATA)).take 8) else 0 := by
     intro A hA
     rw [getMem_writeBytesAsWords (submission.image .verify).data blank (dataBase (submission.image .verify)) A
-      (by rw [lD, eD]; unfold PAIR_DATA; omega) hA, lD, eD]; rfl
-  have g0z : ∀ A, A < PAIR_DATA → s0.getMem (BitVec.ofNat 64 A) = 0 := by
+      (by rw [lD, eD]; unfold HDATA; omega) hA, lD, eD]; rfl
+  have g0z : ∀ A, A < HDATA → s0.getMem (BitVec.ofNat 64 A) = 0 := by
     intro A hA
-    rw [g0 A (by unfold PAIR_DATA at hA; omega), if_neg (by omega)]
+    rw [g0 A (by unfold HDATA at hA; omega), if_neg (by omega)]
   have g1 : ∀ A, A < 2 ^ 64 → s1.getMem (BitVec.ofNat 64 A) =
       if 0x40 ≤ A ∧ A < 0x40 + 8 * ((32 + 7) / 8) ∧ (A - 0x40) % 8 = 0 then
         bytesToWordLE (((bytes m).drop (A - 0x40)).take 8) else s0.getMem (BitVec.ofNat 64 A) := by
@@ -209,22 +242,6 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
         bytesToWordLE (((bytes w).drop (A - 0x800)).take 8) else s2.getMem (BitVec.ofNat 64 A) := by
     intro A hA
     rw [getMem_writeBytesAsWords _ s2 0x800 A (by rw [lw]; omega) hA, lw]
-  have gb : ∀ A, PAIR_DATA ≤ A → A < 2 ^ 24 →
-      (s3.setReg .x2 (BitVec.ofNat 64 (dataBase (submission.image .verify)))).getByte
-        (BitVec.ofNat 64 A) = (submission.image .verify).data.getD (A - PAIR_DATA) 0 := by
-    intro A hA hA'
-    rw [T3M.getByte_eq_word _ _ (by omega), gm,
-      g3 _ (by omega), if_neg (by unfold PAIR_DATA at hA; omega),
-      g2 _ (by omega), if_neg (by unfold PAIR_DATA at hA; omega),
-      g1 _ (by omega), if_neg (by unfold PAIR_DATA at hA; omega),
-      g0 _ (by omega), if_pos (by unfold PAIR_DATA at *; omega),
-      extractByte_bytesToWordLE _ _ (Nat.mod_lt _ (by decide))]
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_take, List.getElem?_drop,
-      if_pos (Nat.mod_lt A (show 0 < 8 by decide))]
-    have hidx : A / 8 * 8 - PAIR_DATA + A % 8 = A - PAIR_DATA := by
-      unfold PAIR_DATA at hA ⊢
-      omega
-    rw [hidx]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro p hp
     have hr1 : ∀ (st : MachineState) (base : Word) (l : List (BitVec 8)),
@@ -278,33 +295,20 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
         bytes_word w j (by omega)]
       rfl
     · rw [if_neg (by unfold WIT; omega), g2 _ (by unfold WIT; omega), if_neg (by unfold WIT; omega),
-        g1 _ (by unfold WIT; omega), if_neg (by unfold WIT; omega), g0z _ (by unfold WIT PAIR_DATA; omega),
+        g1 _ (by unfold WIT; omega), if_neg (by unfold WIT; omega), g0z _ (by unfold WIT HDATA; omega),
         wword_zero w j (by omega)]
   · intro A hA hz
     unfold WIT at hA
     rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
-      if_neg (by omega), g0z A (by unfold PAIR_DATA; omega)]
-  · refine ⟨?_, ?_, ⟨?_, ?_⟩⟩
-    · intro k hk
-      obtain ⟨hk1, hk2⟩ := DATA_ge k hk
-      rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
-        if_neg (by omega), g0 _ (by omega), if_pos (by unfold DATA PAIR_DATA; omega),
-        show DATA + 8 * k - PAIR_DATA = 32672 + 8 * k by unfold DATA PAIR_DATA; omega,
-        verifyData_word k hk]
-    · intro i hi
-      rw [gb _ (by unfold Search.TOP_DATA PAIR_DATA; omega) (by unfold Search.TOP_DATA; omega)]
-      have hidx : Search.TOP_DATA + i - PAIR_DATA = 28672 + i := by
-        unfold Search.TOP_DATA PAIR_DATA; omega
-      rw [hidx]
-      exact Search.verifyData_sum i hi
-    · intro i hi
-      rw [gb _ (by omega) (by unfold PAIR_DATA; omega), Nat.add_sub_cancel_left]
-      exact Search.verifyData_pair i hi
-    · intro i hi
-      rw [gb _ (by unfold TAIL_DATA PAIR_DATA; omega) (by unfold TAIL_DATA; omega)]
-      have hidx : TAIL_DATA + i - PAIR_DATA = 16384 + i := by
-        unfold TAIL_DATA PAIR_DATA; omega
-      rw [hidx]
-      exact Search.verifyData_tail i hi
+      if_neg (by omega), g0z A (by unfold HDATA; omega)]
+  · intro k hk
+    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
+    have he : dataAddr k - HDATA = dataOffset k := by
+      unfold dataAddr dataOffset DATA HDATA; split_ifs <;> omega
+    have ha : HDATA ≤ dataAddr k ∧ dataAddr k < HDATA + 8 * ((16480 + 7) / 8) ∧
+        (dataAddr k - HDATA) % 8 = 0 := by
+      unfold dataAddr HDATA DATA; split_ifs <;> omega
+    rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
+      if_neg (by omega), g0 _ (by omega), if_pos ha, he, verifyData_word k hk]
 
 end SigGolfCandidate.T3M.Verify

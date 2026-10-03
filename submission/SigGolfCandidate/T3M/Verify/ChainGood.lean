@@ -8,9 +8,9 @@ From `ChainIn c s0 i` (code chain `i`'s code start: its `ttab` slot for `A = 3t`
 `ctab[t4]` for the checksum chain 42) the machine performs Core's `chainP` with the block's pads and witness value
 (`GoodQ` of V2's `Judg`), then the dispatch of the next triple (`ChainNext`).
 
-Cycle cost of code chain `i` at digit `d` (`chainCost`): the table slot's `j` (A and chain 42: 1), the head 5,
-rungs `d .. 6` (`sb` 1 + HASH 8 each, the last rung's `li a2` 1), or the max-digit copy (5; 4 for chain 42); then
-the dispatch after `C` (`xCost`: 4, after triple 13: 3) and after chain 42 the return (1). -/
+Cycle cost of code chain `i` at digit `d` (`chainCost`): the table heads retain the conservative
+`70 - 9*d` bound (max-digit copy 6, checksum copy 5); inline heads use `68 - 9*d` (max-digit copy 4).
+The dispatch after `C` costs 4, after triple 13 it costs 3, and the checksum return costs 1. -/
 
 set_option linter.unusedSimpArgs false
 
@@ -38,7 +38,7 @@ theorem blk_at (c : LCtx) (i : Nat) (hi : i < 42) :
   blkCheck_at _ _ _ (by omega) (c.dig_lt8 _ (by omega)) (c.dig_lt8 _ (by omega))
 
 theorem chk_headJ (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 = 0) (hd : c.dig i < 7) :
-    vrun (c.startPc i) 7 = some (headJ .x22 (offL i) (i / 3 == 0) (c.rungPc i (c.dig i))) := by
+    vrun (c.startPc i) 7 = some (headJ .x22 (offL i) (i / 3 == 0) (c.rungPc i (c.dig i)) i) := by
   obtain ⟨t, rfl⟩ : ∃ t, i = 3 * t := ⟨i / 3, by omega⟩
   have et : 3 * t / 3 = t := by omega
   have he := entCheck_at t (c.kOf t) (by omega) (c.kOf_lt t (by omega))
@@ -85,21 +85,21 @@ theorem part_at (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 ≠ 0) :
 
 theorem chk_headR (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 ≠ 0) (hd : c.dig i < 7) :
     vrun (c.startPc i) 8 =
-      some (headR .x22 (offL i) (c.dig i) (if c.dig i = 6 then some (slotL i) else none) (c.startPc i)) := by
+      some (headR .x22 (offL i) (c.dig i) (if c.dig i = 6 then some (slotL i) else none) (c.startPc i) i) := by
   have hp := c.part_at i hi h0
   unfold partOK at hp
   rw [if_neg (by omega), Bool.and_eq_true] at hp
   exact rOK_eq hp.1
 
 theorem chk_copyF (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 ≠ 0) (hd : c.dig i = 7) :
-    vrun (c.startPc i) 5 = some (copyF .x22 (offL i) (slotL i) (c.startPc i)) := by
+    vrun (c.startPc i) 4 = some (copyF .x22 (offL i) (slotL i) (c.startPc i)) := by
   have hp := c.part_at i hi h0
   unfold partOK at hp
   rw [if_pos hd] at hp
   exact rOK_eq hp
 
 theorem rungPc_inline (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 ≠ 0) :
-    c.rungPc i (c.dig i) = c.startPc i + 5 := by
+    c.rungPc i (c.dig i) = c.startPc i + 4 := by
   simp only [rungPc, startPc, show i ≠ 42 by omega, h0, if_false]
   split_ifs <;> omega
 
@@ -123,7 +123,7 @@ theorem chk_rung (c : LCtx) (i m : Nat) (hi : i < 42) (hm : c.dig i ≤ m) (hm6 
     unfold partOK at hp
     rw [if_neg (by have := c.dig_lt8 i hi; omega), Bool.and_eq_true] at hp
     have := List.all_eq_true.mp hp.2 m (List.mem_range'_1.mpr ⟨by omega, by omega⟩)
-    have hr : c.rungPc i m = c.startPc i + 7 + 2 * (m - (c.dig i + 1)) := by
+    have hr : c.rungPc i m = c.startPc i + 6 + 2 * (m - (c.dig i + 1)) := by
       simp only [rungPc, startPc, show i ≠ 42 by omega, h0, if_false]
       split_ifs <;> omega
     rw [hr]
@@ -141,7 +141,7 @@ namespace LCtx
 
 /-! ## The checksum chain's checks -/
 
-theorem ck_parts : (∀ c, c < 7 → vrun (ctabIdx + 8 * c) 7 = some (headJ .x22 (offL 42) false (ckR0 + 2 * c))) ∧
+theorem ck_parts : (∀ c, c < 7 → vrun (ctabIdx + 8 * c) 7 = some (headJ .x22 (offL 42) false (ckR0 + 2 * c) 42)) ∧
     vrun (ctabIdx + 56) 6 = some (copyN .x22 (offL 42) (slotL 42) ckDone) ∧
     vrun (ctabIdx + 64) 2 = some retR ∧
     (∀ m, m < 7 → vrun (ckR0 + 2 * m) 3 = some (rungR m (if m = 6 then some (slotL 42) else none) (ckR0 + 2 * m))) ∧
@@ -357,7 +357,7 @@ namespace LCtx
 /-- Cycle cost of code chain `i` at digit `d`, including the dispatch after it. -/
 def chainCost (i d : Nat) : Nat :=
   (if i % 3 = 0 then (if d = 7 then (if i = 42 then 5 else 6) else 70 - 9 * d)
-   else (if d = 7 then 5 else 69 - 9 * d)) + xCost i
+   else (if d = 7 then 4 else 68 - 9 * d)) + xCost i
 
 theorem dig42 (c : LCtx) : c.dig 42 = c.ck := by unfold dig; simp
 
@@ -404,7 +404,7 @@ theorem chain_good (c : LCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
           (fun hq => ⟨hq, le_refl _⟩)) (by omega) (by unfold chainCost; simp [h0', h7, h42]; omega)
           (fun hq => ⟨hq, by unfold chainCost; simp [h0', h7, h42]; omega⟩)
       · have hrun := c.chk_copyF i (by omega) h0' h7
-        have hend : c.startPc i + 5 = c.endPc i := by
+        have hend : c.startPc i + 4 = c.endPc i := by
           simp only [startPc, endPc, if_neg h42, if_neg h0']
           by_cases h1 : i % 3 = 1
           · have e1 : c.dig (3 * (i / 3) + 1) = 7 := by rw [show 3 * (i / 3) + 1 = i by omega, h7]
@@ -422,7 +422,7 @@ theorem chain_good (c : LCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
     have hsteps := c.steps_good hc hk h0 i hi hck acc K N C A Q hK (6 - c.dig i) (c.dig i) (by omega) (le_refl _)
     have hrp := c.rungPc_lt i (c.dig i) (by omega)
     by_cases h0' : i % 3 = 0
-    · have hrun1 : vrun (c.startPc i) 7 = some (headJ .x22 (offL i) (i / 3 == 0) (c.rungPc i (c.dig i))) := by
+    · have hrun1 : vrun (c.startPc i) 7 = some (headJ .x22 (offL i) (i / 3 == 0) (c.rungPc i (c.dig i)) i) := by
         by_cases h42 : i = 42
         · subst h42
           have := ck_parts.1 c.ck (by rw [dig42] at hd; exact hd)
@@ -550,7 +550,7 @@ namespace LCtx
 /-! ## The cost of the chain phase -/
 
 /-- The digit-independent cost of code chain `i` (as if no digit were maximal). -/
-def cbase (i : Nat) : Nat := (if i % 3 = 0 then 70 else 69) + xCost i
+def cbase (i : Nat) : Nat := (if i % 3 = 0 then 70 else 68) + xCost i
 
 /-- The saving of a maximal digit (the copy instead of a head and the last rung): 1, the checksum chain 2. -/
 def zc (i d : Nat) : Nat := if d = 7 then (if i = 42 then 2 else 1) else 0
@@ -583,15 +583,15 @@ theorem chainsCost_add (c : LCtx) (hck : c.ck < 8) : ∀ k i, i + k ≤ 43 →
     simp only [chainsCost, List.range'_succ, List.map_cons, List.sum_cons] at h ⊢
     omega
 
-theorem cbase_sum43 : ((List.range' 0 43).map cbase).sum = 3036 := by decide
-theorem cbase_sum_top : ((List.range' 33 9).map cbase).sum = 635 := by decide
+theorem cbase_sum43 : ((List.range' 0 43).map cbase).sum = 3008 := by decide
+theorem cbase_sum_top : ((List.range' 33 9).map cbase).sum = 629 := by decide
 
 /-- The weighted number of maximal digits of the code chains `i .. i + k - 1`. -/
 def zSum (c : LCtx) (i k : Nat) : Nat := ((List.range' i k).map fun j => zc j (c.dig j)).sum
 
-/-- **The chain phase of a lower layer**: `3036 - 9 target - Z` (the 43 digits sum to the target). -/
+/-- **The chain phase of a lower layer**: `3008 - 9 target - Z` (the 43 digits sum to the target). -/
 theorem chainsCost_lower (c : LCtx) (hck : c.ck < 8) (T : Nat) (hT : ((List.range' 0 43).map c.dig).sum = T) :
-    c.chainsCost 0 42 + chainCost 42 c.ck + 9 * T + c.zSum 0 43 = 3036 := by
+    c.chainsCost 0 42 + chainCost 42 c.ck + 9 * T + c.zSum 0 43 = 3008 := by
   have h := c.chainsCost_add hck 43 0 (le_refl _)
   rw [hT, cbase_sum43] at h
   have e : c.chainsCost 0 43 = c.chainsCost 0 42 + chainCost 42 c.ck := by
@@ -601,9 +601,9 @@ theorem chainsCost_lower (c : LCtx) (hck : c.ck < 8) (T : Nat) (hT : ((List.rang
   unfold zSum
   omega
 
-/-- **The top layer's code chains 33..41** (the radix-8 chains 49..57) and the return: `635 + 1 - 9 S - Z`. -/
+/-- **The top layer's code chains 33..41** (the radix-8 chains 49..57) and the return: `629 + 1 - 9 S - Z`. -/
 theorem chainsCost_top (c : LCtx) (hck : c.ck < 8) (S : Nat) (hS : ((List.range' 33 9).map c.dig).sum = S) :
-    c.chainsCost 33 9 + 9 * S + c.zSum 33 9 = 635 := by
+    c.chainsCost 33 9 + 9 * S + c.zSum 33 9 = 629 := by
   have h := c.chainsCost_add hck 9 33 (by omega)
   rw [hS, cbase_sum_top] at h
   unfold zSum

@@ -82,20 +82,18 @@ theorem RootsOK.frame {roots : List Digest} {m u : MachineState} (h : RootsOK ro
   obtain ⟨h1, h2⟩ := h k hk
   exact ⟨e1.trans h1, e2.trans h2⟩
 
-theorem FB.leafCK {F : FCtx} {c : Nat} {m : MachineState} (h : FB F c m) : KnownOK (leafCK c) m := by
+theorem FB.leafCK {F : FCtx} {c : Nat} {m : MachineState} (_h : FB F c m) : KnownOK (leafCK c) m := by
   intro p hp
-  simp only [SigGolfCandidate.T3M.Verify.leafCK, List.mem_singleton] at hp
-  subst p
-  exact h.ck (.x28, BitVec.ofNat 64 (0x901 + 65536 * c)) (by simp [packedCK])
+  simp [SigGolfCandidate.T3M.Verify.leafCK] at hp
 
-/-! ## The FTS setup (words 359 .. 376) -/
+/-! ## The FTS setup (words 359 .. 377) -/
 
 theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : FtsReady pk w a t) :
-    ∃ u, Steps image t 15 15 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
+    ∃ u, Steps image t 19 19 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
   obtain ⟨ht, hpc⟩ := ht
   have hk0 : KnownOK baseK t := ht.known
   have htidx : t.getReg .x22 = BitVec.ofNat 64 (a.toNat % 2 ^ 31) := ht.idx
-  -- words 359 .. 365: the six setup constants from the embedded data
+  -- words 362 .. 368: the six setup constants from the embedded data
   obtain ⟨t1, h1⟩ := spec_run setupLdCheckF_ok t hpc hk0 (by simp [setupLdSpec]) (by simp)
   have hm1 : ∀ A, t1.getMem A = t.getMem A := fun A => by rw [h1.mem]; rfl
   have r14 : t1.getReg .x14 = (E.ld (cw (DATA + 40))).eval t := h1.regs (.x14, .ld (cw (DATA + 40))) (by simp [setupLdSpec])
@@ -127,7 +125,7 @@ theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
     · exact e28
     · exact e26
     · exact e21
-  -- words 366 .. 372: the rest of the setup and `j 377`
+  -- words 366 .. 377: both packed headers, persistent comparands and `j 413`
   obtain ⟨u, hu⟩ := spec_run setupCheckF_ok t1 (h1.pc rfl) hk (by simp [setupSpecF]) (by simp)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
       if A = SENTINEL then -1#64 else t.getMem (BitVec.ofNat 64 A) := by
@@ -160,9 +158,10 @@ theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
     rw [hz CTRW (by unfold CTRW WIT; omega) (by unfold CTRW; omega) (Or.inl (by unfold CTRW ETAB; omega))
       (by unfold CTRW SENTINEL; omega)]
     rfl
-  · apply ht.data.congr
-    intro A hA hEnd
-    exact hfr A (by omega) (by unfold SENTINEL Nonbinary.PAIR_DATA at *; omega)
+  · intro k hk
+    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
+    rw [hfr _ (by omega) (by unfold SENTINEL; omega)]
+    exact ht.data k hk
   · intro p hp
     simp only [packedCK, List.mem_cons, List.not_mem_nil, or_false] at hp
     rcases hp with rfl | rfl
@@ -175,7 +174,15 @@ theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
       change (a.toNat % 2^31) * 2^32 + 0xa01 = 0xa01 % 2^32 + ((a.toNat % 2^31) % 2^32) * 2^32
       have hi := Nat.mod_lt a.toNat (by decide : 0 < 2^31)
       omega
-    · exact hpost _ (by simp [setupPost, leafCK])
+    · rw [hu.regs (.x28, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0x901)) (by simp [setupSpecF])]
+      simp only [E.eval, BinOp.eval, cw]
+      rw [h1.keep .x22 (by simp), htidx]
+      rw [ofNat_shl, BitVec.ofNat_add_ofNat]
+      congr 1
+      unfold hdr1 FCtx.idx
+      change (a.toNat % 2^31) * 2^32 + 0x901 = 0x901 % 2^32 + ((a.toNat % 2^31) % 2^32) * 2^32
+      have hi := Nat.mod_lt a.toNat (by decide : 0 < 2^31)
+      omega
   · rw [hu.keep .x22 (by simp), h1.keep .x22 (by simp)]; exact ht.idx
   · intro s hs
     rw [hfr _ (by unfold ETAB; omega) (by unfold ETAB SENTINEL; omega)]
@@ -232,7 +239,7 @@ theorem FCtx.g_lt (F : FCtx) (s : Nat) (hs : s < 21) : F.g s < 2048 := by
 
 /-! ## The leaf code -/
 
-def leafCode (j : Nat) : Nat := if j = 1 then 6 else 7
+def leafCode (j : Nat) : Nat := if j = 1 then 5 else 6
 
 theorem leafCheck_at (s : Nat) (hs : s < 21) : leafCheck s = true :=
   List.all_eq_true.mp leafCheck_all s (List.mem_range.mpr hs)
@@ -278,7 +285,8 @@ theorem leaf_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dige
     · simp only [E.eval, cw]
       rw [and2047_eval _ _ hT hg]
       congr 1; unfold hdr1; omega
-    · rw [hs3, swTreeE_eval m _ F.idx (leafW0 c) h.fb.idx rfl]
+    · simp only [E.eval, h.fb.ck (.x28, BitVec.ofNat 64 (hdr1 (0x901 + 65536 * c) F.idx))
+        (by simp [packedCK]), leafW0]
   have hfr : ∀ A, A < 2 ^ 64 → A ≠ leafT s → A ≠ leafT s + 8 →
       u.getMem (BitVec.ofNat 64 A) = m.getMem (BitVec.ofNat 64 A) := by
     intro A hA h1 h2; rw [hmem A hA, if_neg h2, if_neg h1]
@@ -294,7 +302,8 @@ theorem leaf_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dige
     rcases hp with rfl | rfl
     · rw [hu.keep .x27 (by simp)]
       exact h.fb.ck (.x27, BitVec.ofNat 64 (hdr1 (0xa01 + 65536 * c) F.idx)) (by simp [packedCK])
-    · exact hpost _ (by simp [leafPost, leafCK, hs3])
+    · rw [hu.keep .x28 (by simp)]
+      exact h.fb.ck (.x28, BitVec.ofNat 64 (hdr1 (0x901 + 65536 * c) F.idx)) (by simp [packedCK])
   · rw [hu.keep .x22 (by simp)]; exact h.fb.idx
   · intro s' hs'
     rw [hlo _ (by unfold ETAB leafT WIT; omega)]; exact h.fb.etab s' hs'
@@ -691,7 +700,7 @@ theorem FB.transport {F : FCtx} {c : Nat} {m u : MachineState} (h : FB F c m) (h
   simp only [packedCK, List.mem_cons, List.not_mem_nil, or_false] at hp
   rcases hp with rfl | rfl
   · rw [h27]; exact h.ck (.x27, BitVec.ofNat 64 (hdr1 (0xa01 + 65536 * c) F.idx)) (by simp [packedCK])
-  · rw [h28]; exact h.ck (.x28, BitVec.ofNat 64 (0x901 + 65536 * c)) (by simp [packedCK])
+  · rw [h28]; exact h.ck (.x28, BitVec.ofNat 64 (hdr1 (0x901 + 65536 * c) F.idx)) (by simp [packedCK])
 
 theorem StackOK.transport {stk : List (Digest × Nat)} {m u : MachineState} (h : StackOK stk m)
     (hmem : ∀ A, u.getMem A = m.getMem A) : StackOK stk u :=

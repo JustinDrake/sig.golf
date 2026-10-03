@@ -1,5 +1,3 @@
-import SigGolfCandidate.T3M.Expand.FrontBlocks
-import SigGolfCandidate.T3M.Search.CounterSearch
 import SigGolfCandidate.T3M.Expand.Init
 import SigGolfCandidate.T3M.Expand.Layer
 
@@ -34,9 +32,9 @@ theorem dig_eq_zero_iff (d : BitVec 128) : d = 0 ↔ d.extractLsb' 0 64 = 0 ∧ 
       simpa using this
 
 /-- **The canonical tail** `zt_loop`: proof slots `j .. 123` all zero, else `fail`. -/
-theorem zt_loop_spec (proof : Nat → Digest) : ∀ (n j : Nat) (s : MachineState), j + n = 115 →
+theorem zt_loop_spec (proof : Nat → Digest) : ∀ (n j : Nat) (s : MachineState), j + n = 118 →
     s.pc = pcOf 216 → s.getReg .x13 = BitVec.ofNat 64 j →
-    (∀ k, j ≤ k → k < 115 → DigAt s (0x7160 + 16 * k) (proof k)) →
+    (∀ k, j ≤ k → k < 118 → DigAt s (0x7160 + 16 * k) (proof k)) →
     ∃ c t, Steps image s c c t ∧ c ≤ 12 * n + 4 ∧
       (if (List.range n).all (fun i => decide (proof (j + i) = 0)) then
         t.pc = pcOf 228 ∧ RegsExcept s t [.x6, .x13, .x28, .x29] ∧ Frame s t (fun _ => False)
