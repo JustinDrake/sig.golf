@@ -63,6 +63,22 @@ python3 verifier/certificate.py pack --source submission --images /path/to/image
 python3 scripts/run.py --fresh-kernel
 ```
 
+For large certificates that cannot fit the archive, first produce the compressed proof outside
+the bundle and identify a public GitHub release-asset URL:
+
+```sh
+python3 verifier/certificate.py pack --source submission --images /path/to/images \
+  --export /path/to/binding.export --output submission/certificate \
+  --proof-url https://github.com/OWNER/REPO/releases/download/TAG/proof.export.gz \
+  --proof-output /path/to/proof.export.gz
+```
+
+Publish that exact generated file at the URL yourself; `pack` does not upload or create a release.
+The anonymous supervisor fetches it only after a cache miss, validates its complete compressed
+length and SHA-256, then validates the expanded bytes before kernel checking. Only public HTTPS
+GitHub release assets and allowlisted GitHub asset redirects are accepted. No credentials,
+cookies, or environment proxies are used. Download and expansion limits remain enforced.
+
 `pack` refuses to overwrite an existing bundle. After source or claim changes, produce a new
 bundle; the old manifest must not be relabeled. The local verifier freezes and identifies
 all admitted source file paths and bytes, ignoring empty directories that Git cannot transport.
@@ -70,14 +86,17 @@ This identifies review material but is not producer provenance.
 
 ### Bundle format
 
-`certificate/` contains exactly `manifest.json`, `proof.export.gz`, and the eight raw image
-files. Manifest version 1 records the source digest, canonical claim, exact Lean toolchain,
+`certificate/` contains exactly `manifest.json`, the eight raw image files, and `proof.export.gz`
+for embedded mode. Detached mode omits the proof file and specifies `proof.url` instead of
+`proof.file`. Manifest version 1 records the source digest, canonical claim, exact Lean toolchain,
 each file's name/length/SHA-256, and the expanded proof's length/SHA-256. Duplicate JSON fields,
 unknown files, symlinks, hardlinks, path traversal, and unsupported versions reject.
 
 The original source limit remains 16 MiB and the total entry limit remains 1000. A bundle adds
 at most 21 MiB: a compressed proof at most 16 MiB, a manifest at most 8 KiB, and four images
 each strictly below 1 MiB. Expanded proof length and digest are checked while streaming.
+Detached compressed proof data is separately capped at 128 MiB and does not enlarge the Git
+submission archive. It is fetched into private temporary storage, never into the frozen bundle.
 Code lengths must be multiples of four. Expanded proof data is capped at 4 GiB; process-tree
 memory and overall runtime limits still apply to parsing and checking it. The outer benchmark
 limit is 37 MiB. External Yukon
@@ -162,10 +181,20 @@ Explicit numeric overrides validate available CPUs, cgroup/physical memory, and 
 task-pool size and per-compiler `-j` are passed separately; a task-pool setting is not a formal hard
 bound on compiler subprocess count. No security setting, no-swap policy, or deadline is removed.
 
-There is no measured end-to-end speedup claim yet. Small native fixtures establish checker/reuse
-correctness, not the performance of the full signature development. New constructions and changed
-foundational definitions can still be expensive; computational proof terms may remain expensive
-to kernel-check. The implementation exposes the measurements needed to choose further changes.
+### Measured full workload
+
+[Run 37111733072](https://github.com/Layr-Labs/sig.golf/actions/runs/37111733072) accepted the
+unchanged submission at score 49,830,768 using four CPUs and 40 GiB. Verification took 47m40s:
+source construction 21m30s, export 27s, parse 13s, comparison/axioms 4s, and kernel replay 24m28s.
+The same scheme's earlier run took 71m59s, so this single comparison is approximately 34% faster;
+it is not a repeated statistical benchmark or a claim about all submissions.
+
+The exported proof measured 730,997,803 bytes and 110,780,561 gzip bytes (level 9). This cannot fit
+Yukon's 25 MiB archive limit. Certificate submission therefore needs detached transport for this
+workload. Eliminating construction alone leaves roughly 25 minutes of checking, not the earlier
+5-15-minute design target. Materially reducing that floor requires reusable checked candidate
+lemmas and cheaper-to-check computational proofs; the generic organizer base alone is insufficient.
+Native fixtures establish checker/reuse correctness, not that stronger performance claim.
 
 ## Merge policy
 
