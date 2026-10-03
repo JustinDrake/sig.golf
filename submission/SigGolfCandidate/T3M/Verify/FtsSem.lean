@@ -316,15 +316,14 @@ theorem leaf_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dige
         simp only [List.mem_singleton] at hp; subst hp; exact h.s4 hj1
       · simp at hp
   have hT : m.getMem (BitVec.ofNat 64 (ETABs s)) = BitVec.ofNat 64 (TAB + 8 * F.g s) := h.fb.etab s hs21
-  have hTab : m.getMem (BitVec.ofNat 64 (TAB + 8 * F.g s)) = FtsRev.rv (2048 + F.g s) :=
+  have hTab : m.getMem (BitVec.ofNat 64 (TAB + 16 + 8 * F.g s)) = FtsRev.rv (2048 + F.g s) :=
     h.fb.glob.2.2.2.2.2.tab (F.g s) hg
-  have hEA : (etabA s).eval m = BitVec.ofNat 64 (TAB + 8 * F.g s) := by
-    show m.getMem (BitVec.ofNat 64 (ETABs s)) + 0 = _
-    rw [hT]; exact BitVec.add_zero _
-  have hLD : (Rv.E.ld (Rv.E.ld (cw (ETABs s)))).eval m = FtsRev.rv (2048 + F.g s) := by
-    show m.getMem ((Rv.E.ld (cw (ETABs s))).eval m) = _
-    show m.getMem (m.getMem (BitVec.ofNat 64 (ETABs s))) = _
-    rw [hT, hTab]
+  have hEA : (etabA s).eval m = BitVec.ofNat 64 (TAB + 16 + 8 * F.g s) := by
+    show m.getMem (BitVec.ofNat 64 (ETABs s)) + 16#64 = _
+    rw [hT, ofNat_add_ofNat]; all_goals (congr 1 <;> omega)
+  have hLD : (Rv.E.ld (addC (Rv.E.ld (cw (ETABs s))) 16#64)).eval m = FtsRev.rv (2048 + F.g s) := by
+    change m.getMem (m.getMem (BitVec.ofNat 64 (ETABs s)) + 16#64) = _
+    rw [hT, ofNat_add_ofNat, show TAB + 8 * F.g s + 16 = TAB + 16 + 8 * F.g s by omega, hTab]
   obtain ⟨u, hu⟩ := spec_runN (leafCheck_at s hs21) m (by rw [h.pc]) hk (by simp [leafSpec]) (by
     intro o ho
     simp only [leafObl, List.mem_cons, List.not_mem_nil, or_false] at ho
@@ -374,7 +373,7 @@ theorem leaf_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dige
   · rw [hu.keep .x14 (by simp)]; exact h.a4
   · rw [hu.keep .x15 (by simp)]; exact h.a5
   · exact hpost (.x20, BitVec.ofNat 64 (tabPc (tselJ j))) (by simp [leafPost, hsm])
-  · have := hu.regs (.x23, .ld (.ld (cw (ETABs s)))) (by simp [leafSpec]); simp only at this
+  · have := hu.regs (.x23, .ld (addC (.ld (cw (ETABs s))) 16#64)) (by simp [leafSpec]); simp only at this
     rw [this]; exact hLD
   · rw [hu.keep .x25 (by simp)]; exact h.s9
   · refine h.stack.frame (fun i hi => ⟨?_, ?_, ?_⟩)
