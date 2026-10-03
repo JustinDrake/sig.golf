@@ -6,8 +6,8 @@ import SigGolfCandidate.T3M.Verify.FtsGood
 /-! # The complete verifier: forest, signature layers, Merkle paths and root comparison
 
 The reversed-label forest with three checked side bits costs at most2644 cycles
-from the initial state. The four layers and final comparison cost5938 cycles;
-the five-cycle loader gives5904 after the forest. The accepting bound is8548.
+from the initial state. The four layers and final comparison cost5932 cycles;
+the five-cycle loader gives5898 after the forest. The accepting bound is8542.
 Fuel15477 and the all-input cycle bound15484 retain conservative rejection margins.
 -/
 
@@ -218,8 +218,8 @@ def lFuel : Nat → Nat
   | 0 => 9
   | n + 1 => layerFuel n + (if n = 0 then mkFuel n else mkFuelP n) + lFuel n
 
-theorem lCyc_4 : lCyc 4 = 5899 := by decide
-theorem lFuel_4 : lFuel 4 = 7990 := by decide
+theorem lCyc_4 : lCyc 4 = 5893 := by decide
+theorem lFuel_4 : lFuel 4 = 7986 := by decide
 
 /-- **The layers and the compare**: from `RestIn … n M s`, `layersP w index n M` continued by `kFin pk`. -/
 theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^ 31) (Q : Prop) (hQ : Q) :
@@ -265,7 +265,7 @@ theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^
             rw [merklePairP_eq, hh]
             simp only [bind_assoc, pure_bind]
           rw [e, ccM_bind]
-          have hm := merkle_pair_good w pk index (Fin.ofNat 4 n) ends u hidx hu
+          have hm := merkle_pair_good w pk index (Fin.ofNat 4 n) ends u hidx hu (by rw [hv]; exact h0)
             (fun node => ccM (layersP w index n (T3.pairOf (route index (Fin.ofNat 4 n)).1 (height (Fin.ofNat 4 n))
               (wpath w (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).1 (height (Fin.ofNat 4 n) - 1))
               ((wmerklePad w (Fin.ofNat 4 n) (height (Fin.ofNat 4 n) - 1)).extractLsb' 32 96) node)) (kFin pk))
@@ -281,11 +281,11 @@ theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^
 /-! ## From V2's `FtsOut` and from the initial state -/
 
 /-- **After the FTS** (V2's `verifyP_good_fts` interface): from `FtsOut`, `afterFts` — the four layers and the
-compare — with fuel and every-path bound 8061 (`5 + lFuel 4 = 7995`) and accepting cycles 5904 (`5 + lCyc 4`; the
+compare — with fuel and every-path bound 8061 (`5 + lFuel 4 = 7991`) and accepting cycles 5898 (`5 + lCyc 4`; the
 five-cycle load block starts at630 and preserves the carried constants). -/
 theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutput) (root : Digest) (u : MachineState)
     (h : FtsOut ⟨pk, w, a⟩ root u) :
-    GoodQ u 8061 8061 Q 5904 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
+    GoodQ u 8061 8061 Q 5897 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
   have hidx : a.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by decide)
   obtain ⟨t, hst, hL3⟩ := layerIn_of_fts w pk _ root u hidx h.glob h.idx h.pc h.root h.wit
   have hg := layers_good w pk _ hidx Q hQ 4 le_rfl (root, 0, 0) t (by simpa [RestIn] using hL3)
@@ -297,9 +297,9 @@ theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutpu
   exact GoodQ.steps' hst hg (by omega) (by omega) (fun q => ⟨q, by omega⟩)
 
 /-- **The whole verify run**: from the initial state, every run finishes within 15484 cycles with fuel 15477, and
-accepting runs take at most `8548 = 2644 + 5904` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
+accepting runs take at most `8542 = 2644 + 5898` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
 theorem verifyP_good (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
-    GoodQ s 15477 15484 True 8548 (ccM (verifyP m pk w) Kb) :=
-  verifyP_good_fts m pk w s hs 8061 5904 True (fun a root u h => after_good pk w True trivial a root u h)
+    GoodQ s 15477 15484 True 8541 (ccM (verifyP m pk w) Kb) :=
+  verifyP_good_fts m pk w s hs 8061 5897 True (fun a root u h => after_good pk w True trivial a root u h)
 
 end SigGolfCandidate.T3M

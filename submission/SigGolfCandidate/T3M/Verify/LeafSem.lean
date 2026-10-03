@@ -72,7 +72,7 @@ def lfSlot (lay j : Nat) : Nat := if lay = 0 then slotT j else slotL j
 /-- The leaf bits of the first `stab` dispatch (the Merkle levels' chunk 0: 7 on layer 1, else 6). -/
 def stabBits (lay : Nat) : Nat := if lay = 1 then 7 else 6
 /-- Steps (= cycles) of the leaf-pk block. -/
-def lfSteps (lay : Nat) : Nat := if lay = 0 then 13 else if lay = 3 ∨ lay = 2 then 10 else 11
+def lfSteps (lay : Nat) : Nat := if lay = 0 then 12 else if lay = 3 ∨ lay = 2 then 10 else 11
 
 /-- The registers the block keeps that the Merkle code and the next transition read: `sp`, `t3`, the step
 registers `1 .. 7`, `s6`; below the top also the 3-bit masks `s4`, `s5` and `s8 = 0x10000`. -/
@@ -342,7 +342,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
 /-- Exact chain-end interface before the shared top leaf aggregation block. -/
 structure TopLeafReady (w : WBytes) (pk : Digest) (index c : Nat) (ends : List Digest)
     (t : MachineState) : Prop where
-  pc : t.pc = pcOf (trPc 0 c + 19)
+  pc : t.pc = pcOf (trPc 0 c + 18)
   glob : Glob (leafK 0) w pk t
   keep : KnownOK (lfKeepK 0) t
   s7 : t.getReg .x23 = BitVec.ofNat 64 (2 ^ hL 0 + (route index 0).1)
@@ -352,14 +352,15 @@ structure TopLeafReady (w : WBytes) (pk : Digest) (index c : Nat) (ends : List D
   ends : ∀ j < 54, DigAt t (slotT j) (ends.getD j 0)
   orig : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerBase 0 + 64 * height 0) t
 
-/-- The exact 13-instruction top leaf block, independent of the chain decoder representation. -/
+/-- The exact 12-instruction top leaf block (TOP-lui: `a5 = 0xce000` carried from the final tail dispatch),
+independent of the chain decoder representation. -/
 theorem leafT_step (w : WBytes) (pk : Digest) (index c : Nat) (hc : c < nCopy 0) (hidx : index < 2 ^ 31)
     (ends : List Digest) (t : MachineState) (ht : TopLeafReady w pk index c ends t) :
-    ∃ u, Steps image t 13 13 u ∧ LeafOut w pk index 0 ends u := by
+    ∃ u, Steps image t 12 12 u ∧ LeafOut w pk index 0 ends u := by
   obtain ⟨u, hu⟩ := spec_run (leafCheck_at 0 c (by norm_num) hc) t ht.pc ht.glob.1
     (by intro b hb; simp [specLf] at hb) (by simp)
   have hst := hu.steps
-  rw [show (specLf 0).steps = 13 by simp [specLf], show (specLf 0).cycles = 13 by simp [specLf]] at hst
+  rw [show (specLf 0).steps = 12 by simp [specLf], show (specLf 0).cycles = 12 by simp [specLf]] at hst
   refine ⟨u, hst, ?_⟩
   have hku : KnownOK (postLf 0) u := hu.known
   have hkeep := hu.keep

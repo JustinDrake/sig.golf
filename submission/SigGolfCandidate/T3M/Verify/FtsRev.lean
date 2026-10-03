@@ -142,4 +142,11 @@ theorem rv_ne_neg1 (E : Nat) (hE : E < 4096) : rv E ≠ -1#64 := by
   rw [hm, rv_inj (by omega) (by norm_num)] at h
   omega
 
+/-- The sentinel's low bit distinguishes it from every reversed small heap index. -/
+theorem rv_ne_sentinel (E : Nat) (hE : E < 4096) : rv E ≠ 1#64 := by
+  intro h
+  have hm : (1#64 : BitVec 64) = rv (2 ^ 63) := by decide +kernel
+  rw [hm, rv_inj (by omega) (by norm_num)] at h
+  omega
+
 end SigGolfCandidate.T3M.Verify.FtsRev

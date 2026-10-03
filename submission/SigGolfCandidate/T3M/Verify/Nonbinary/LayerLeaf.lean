@@ -15,14 +15,15 @@ def topChainWrites (A : Nat) : Prop := (512 ≤ A ∧ A < 1488) ∨ (14104 ≤ A
 theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : MachineState)
     (a : BitVec 256) (ends : List Digest) (ht : EncPre w pk index 0 c t)
     (he : TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s0)
-    (hp : s.pc = pcOf (trPc 0 c + 19))
-    (hr : RegsExcept s0 s topChainRegs) (hf : Frame s0 s topChainWrites)
+    (hp : s.pc = pcOf (trPc 0 c + 18))
+    (hr : RegsExcept s0 s topChainRegs) (hf : Frame s0 s topChainWrites) (h15 : s.getReg .x15 = 843776#64)
     (hlen : ends.length = 54) (hend : ∀j<54, DigAt s (slotT j) (ends.getD j 0)) :
     TopLeafReady w pk index c ends s := by
   have hk : KnownOK (leafK 0) s := by
     intro p hp
     simp [leafK,baseK] at hp
-    rcases hp with rfl | rfl | rfl
+    rcases hp with rfl | rfl | rfl | rfl
+    all_goals try exact h15
     all_goals rw [hr.get (by simp [topChainRegs]), he.regs.get (by simp [topEntryRegs]),writeHash_getReg]
     all_goals exact ht.glob.1 _ (by simp [bK,bKB,layK,baseK,hw])
   obtain ⟨D, hD, h12⟩ := ht.dst
