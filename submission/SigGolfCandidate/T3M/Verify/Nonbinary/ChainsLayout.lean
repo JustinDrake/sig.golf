@@ -62,51 +62,20 @@ def pcC (q dB dC : Nat) : Nat := pcB q dB dC+partLen q dB
 def pcX (q dB dC : Nat) : Nat := pcC q dB dC+partLen q dC
 def entW (q k : Nat) : Nat := if q<17 then 176744+256*k+8*q else 209920+8*k
 
-/-! T3Z on the Frodan layout: during the top chain phase `t3 = tBank = HDATA + 2049` (the layer-1 leaf
-return's `sub t3, t3, s2` from the layer-1 bank midpoint `headerBank 1 0`). A head reads the header word of chain
-`i`, first digit `d` (bank-0 byte `64 i + 8 d`) with `ld s9, (64 i + 8 d - 2049)(t3)`; the one word whose offset
-would be `-2049` (chain 0, digit 0: `0x101`) is `mv s9, s11` instead (`s11 = 0x101` on the top layer). -/
-
-/-- The top chain phase's table pointer (`Verify.topBank` in `LayerRuns`). -/
-def tBank : Nat := 16728064 + 2049
-
-/-- The 12-bit load offset of header word `(i, d)` from `t3 = HDATA + 2049`. -/
-def tOff (i d : Nat) : Word := BitVec.ofNat 64 (64 * i + 8 * d) - 2049
-def tKey (i d : Nat) : Addr := ⟨some (.reg .x28), tOff i d⟩
-/-- The head's header word: a table load, or `s11` for chain 0 / digit 0. -/
-def tLd (i d : Nat) : E := if i = 0 ∧ d = 0 then .reg .x27 else .ld (addC (.reg .x28) (tOff i d))
-def tObl (i d : Nat) : List Oblig := if i = 0 ∧ d = 0 then [] else [.valid (tKey i d) 8]
-
-/-- T3Z: an inline head loading the header with its first digit `d` from the table (no byte store), up to the
-first `ecall` (5 or 6 steps from `p`). -/
-def headRH (rb : Reg) (o : Word) (d : Nat) (slot : Option Nat) (p i : Nat) : Result :=
-  let n := if slot.isSome then 6 else 5
-  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) o)).set .x12
-      (match slot with
-       | some a => .c (BitVec.ofNat 64 a)
-       | none => addC (addC (.reg rb) o) 48)).set .x25 (tLd i d),
-    [(kAt rb o 24, .reg .x4), (kAt rb o 16, tLd i d)],
-    [.valid (kAt rb o 24) 8, .valid (kAt rb o 16) 8] ++ tObl i d⟩,
-    .c (pcOf (p + n)), .ecall, n, n⟩
-
-/-- T3Z: an inline max-digit copy without the bump, stopped after its 4 instructions. -/
-def copyFH (rb : Reg) (o : Word) (slot : Nat) (p : Nat) : Result :=
-  ⟨⟨copyRegs rb o, copyMem rb o slot, copyObl rb o⟩, .c (pcOf (p + 4)), .fuel, 4, 4⟩
-
 /-- T3Z (BIG3): a table-slot head loading the header word of chain `i` with its first digit `d` from the header
-table (`addi a0; addi a2, a0, 48; ld s9, tOff i d(t3); sd s9, 16(a0); sd tp, 24(a0)`), then `j tgt` past the first
+table (`addi a0; addi a2, a0, 48; ld s9, hOff i d(t3); sd s9, 16(a0); sd tp, 24(a0)`), then `j tgt` past the first
 rung's `sb` (6 steps). -/
 def headJD (rb : Reg) (o : Word) (tgt i d : Nat) : Result :=
-  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) o)).set .x12 (addC (addC (.reg rb) o) 48)).set .x25 (tLd i d),
-    [(kAt rb o 24,.reg .x4),(kAt rb o 16,tLd i d)],
-    [.valid (kAt rb o 24) 8,.valid (kAt rb o 16) 8] ++ tObl i d⟩,.c (pcOf tgt),.jump,6,6⟩
+  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) o)).set .x12 (addC (addC (.reg rb) o) 48)).set .x25 (hLoad i d),
+    [(kAt rb o 24,.reg .x4),(kAt rb o 16,hLoad i d)],
+    [.valid (kAt rb o 24) 8,.valid (kAt rb o 16) 8,.valid (hKey i d) 8]⟩,.c (pcOf tgt),.jump,6,6⟩
 
 /-- T3Z: the table-slot head for the penultimate digit (no `addi a2, a0, 48`: its terminal rung sets x12), the
 header word with the first digit `d` read from the table, then `j tgt` (5 steps). -/
 def headJDTerm (rb : Reg) (o : Word) (tgt i d : Nat) : Result :=
-  ⟨⟨(RegFile.init.set .x10 (addC (.reg rb) o)).set .x25 (tLd i d),
-    [(kAt rb o 24,.reg .x4),(kAt rb o 16,tLd i d)],
-    [.valid (kAt rb o 24) 8,.valid (kAt rb o 16) 8] ++ tObl i d⟩,.c (pcOf tgt),.jump,5,5⟩
+  ⟨⟨(RegFile.init.set .x10 (addC (.reg rb) o)).set .x25 (hLoad i d),
+    [(kAt rb o 24,.reg .x4),(kAt rb o 16,hLoad i d)],
+    [.valid (kAt rb o 24) 8,.valid (kAt rb o 16) 8,.valid (hKey i d) 8]⟩,.c (pcOf tgt),.jump,5,5⟩
 
 /-- T3Z: the rest of a table-slot chain's first rung after its `sb` (`[li a2, slot]`), up to the `ecall` (0 or 1
 step from `p`). -/

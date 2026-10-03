@@ -35,12 +35,12 @@ theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : Mac
     rcases h with h | h <;> omega) hk
   refine ⟨hp,hglob,?_,?_,?_,?_,hlen,hend,?_⟩
   · intro p hp
-    simp [lfKeepK,leaf28] at hp
+    simp [lfKeepK] at hp
     rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
     all_goals rw [hr.get (by simp [topChainRegs])]
     all_goals try exact he.s6
     all_goals rw [he.regs.get (by simp [topEntryRegs]),writeHash_getReg]
-    all_goals exact ht.glob.1 _ (by simp [bK,layK,entry28,baseK])
+    all_goals exact ht.glob.1 _ (by simp [bK,layK,baseK])
   · rw [hr.get (by simp [topChainRegs]),he.regs.get (by simp [topEntryRegs]),writeHash_getReg]
     exact ht.s7 0 rfl
   · rw [hr.get (by simp [topChainRegs]),he.regs.get (by simp [topEntryRegs]),writeHash_getReg]

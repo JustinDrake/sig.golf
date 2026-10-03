@@ -8,9 +8,10 @@ From `ChainIn c s0 i` (code chain `i`'s code start: its `ttab` slot for `A = 3t`
 `ctab[t4]` for the checksum chain 42) the machine performs Core's `chainP` with the block's pads and witness value
 (`GoodQ` of V2's `Judg`), then the dispatch of the next triple (`ChainNext`).
 
-Cycle cost of code chain `i` at digit `d` (`chainCost`): the table heads retain the conservative
-`69 - 9*d` bound (max-digit copy 6, checksum copy 5); inline heads use `68 - 9*d` (max-digit copy 4).
-The dispatch after `C` costs 4, after triple 13 it costs 3, and the checksum return costs 1. -/
+Cycle cost of code chain `i` at digit `d` (`chainCost`): V1: the table heads load their digit header and land on the first rung's `ecall`, `69 - 9 d`
+(max-digit copy 6, checksum copy 5); T3X inline heads (`B`, `C`) load their header from the image table and cost
+`68 - 9 d` (max-digit copy 4); then the dispatch after `C` (`xCost`: 4, after triple 13: 3) and after chain 42 the
+return (1). (Cost split of erickeigen 59cbf8ec.) -/
 
 set_option linter.unusedSimpArgs false
 
@@ -55,7 +56,7 @@ theorem chk_headJ (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 = 0) (hd : c.di
   exact ⟨rOK_eq he.1, rOK_eq he.2⟩
 
 theorem chk_copyJ (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 = 0) (hd : c.dig i = 7) :
-    vrun (c.startPc i) 7 = some (lowerCopyJ .x22 (offL i) (slotL i) (i / 3 == 0) (c.endPc i)) := by
+    vrun (c.startPc i) 7 = some (copyN .x22 (offL i) (slotL i) (c.endPc i)) := by
   obtain ⟨t, rfl⟩ : ∃ t, i = 3 * t := ⟨i / 3, by omega⟩
   have et : 3 * t / 3 = t := by omega
   have he := entCheck_at t (c.kOf t) (by omega) (c.kOf_lt t (by omega))
@@ -66,7 +67,7 @@ theorem chk_copyJ (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 = 0) (hd : c.di
     unfold startPc; rw [if_neg (by omega), if_pos h0, et]
   have hq : c.endPc (3 * t) = pcB t (c.dig (3 * t + 1)) (c.dig (3 * t + 2)) := by
     unfold endPc tB; rw [if_neg (by omega), if_pos h0, et]
-  rw [hs, hq, et]
+  rw [hs, hq]
   exact rOK_eq he
 
 /-- The inline part (`B`, `C`) check of chain `i` at its digit. -/
@@ -87,14 +88,14 @@ theorem part_at (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 ≠ 0) :
 
 theorem chk_headR (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 ≠ 0) (hd : c.dig i < 7) :
     vrun (c.startPc i) 8 =
-      some (lowerHeadR .x22 (offL i) (c.dig i) (if c.dig i = 6 then some (slotL i) else none) (c.startPc i) i) := by
+      some (headRH .x22 (offL i) (c.dig i) (if c.dig i = 6 then some (slotL i) else none) (c.startPc i) i) := by
   have hp := c.part_at i hi h0
   unfold partOK at hp
   rw [if_neg (by omega), Bool.and_eq_true] at hp
   exact rOK_eq hp.1
 
 theorem chk_copyF (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 ≠ 0) (hd : c.dig i = 7) :
-    vrun (c.startPc i) 4 = some (lowerCopyF .x22 (offL i) (slotL i) (c.startPc i)) := by
+    vrun (c.startPc i) 4 = some (copyFH .x22 (offL i) (slotL i) (c.startPc i)) := by
   have hp := c.part_at i hi h0
   unfold partOK at hp
   rw [if_pos hd] at hp
@@ -149,7 +150,7 @@ theorem ck_parts : (∀ c, c < 7 → vrun (ctabIdx + 8 * c) 7 =
     vrun (ctabIdx + 56) 6 = some (copyN .x22 (offL 42) (slotL 42) ckDone) ∧
     vrun (ctabIdx + 64) 2 = some retR ∧
     (∀ m, m < 7 → vrun (ckR0 + 2 * m) 3 = some (rungR m (if m = 6 then some (slotL 42) else none) (ckR0 + 2 * m))) ∧
-    vrun ckDone 2 = some ret4R := by
+    vrun ckDone 2 = some retR := by
   have h := ckCheck_ok
   unfold ckCheck at h
   simp only [Bool.and_eq_true] at h
@@ -252,11 +253,11 @@ def xCost (i : Nat) : Nat := if i = 42 then 1 else if i % 3 = 2 then (if i = 41 
 theorem xCost_le (i : Nat) : xCost i ≤ 4 := by unfold xCost; split_ifs <;> omega
 
 theorem end_next (c : LCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.known, s0.getReg p.1 = p.2) (i : Nat)
-    (hi : c.i0 ≤ i ∧ i ≤ 42) (hck : i = 42 → c.ck < 8) (acc : List Digest) (s : MachineState) (hs : c.EndInv s0 i acc s) :
+    (hi : c.i0 ≤ i ∧ i ≤ 42) (acc : List Digest) (s : MachineState) (hs : c.EndInv s0 i acc s) :
     ∃ u, Steps vimage s (xCost i) (xCost i) u ∧ c.ChainNext s0 (i + 1) acc u := by
   by_cases h42 : i = 42
   · subst h42
-    obtain ⟨u, hst, hu⟩ := c.ckdone_step hc hk (hck rfl) ck_parts.2.2.2.2 acc s hs
+    obtain ⟨u, hst, hu⟩ := c.ckdone_step hc hk ck_parts.2.2.2.2 acc s hs
     refine ⟨u, by simpa [xCost] using hst, ?_⟩
     unfold ChainNext; rw [if_neg (by omega)]; exact hu
   · by_cases h2 : i % 3 = 2
@@ -323,7 +324,7 @@ theorem steps_good (c : LCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
         (Verify.ccM (c.rest i 7 (a.extractLsb' 0 128)) (fun v => K (acc ++ [v]))) := by
       intro a
       rw [rest_7, Verify.ccM_pure]
-      obtain ⟨u, hu, hn⟩ := c.end_next hc hk i hi hck _ _ ((hpost a).2 rfl)
+      obtain ⟨u, hu, hn⟩ := c.end_next hc hk i hi _ _ ((hpost a).2 rfl)
       exact Verify.GoodQ.steps' hu (hK _ _ hn) (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)
     have h3 := Verify.GoodQ.shortHash_bind (f := c.rest i 7) (K := fun v => K (acc ++ [v])) hf h5 hv
       (by rw [chainInputP_pad]; exact hin) H
@@ -402,7 +403,7 @@ theorem chain_good (c : LCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
         rw [dig42] at h7
         unfold startPc endPc; simp only [if_true, h7]; exact this
       obtain ⟨t, hst, hE⟩ := c.copyN_step hc hk h0 hi.1 hsp hrun acc s hs
-      obtain ⟨u, hu, hn⟩ := c.end_next hc hk 42 hi hck _ _ hE
+      obtain ⟨u, hu, hn⟩ := c.end_next hc hk 42 hi _ _ hE
       refine Verify.GoodQ.steps' hst (Verify.GoodQ.steps' hu (hK _ u hn) (le_refl _) (le_refl _)
         (fun hq => ⟨hq, le_refl _⟩)) (by omega) (by unfold chainCost; simp; omega) (fun hq => ⟨hq, by unfold chainCost; simp; omega⟩)
     · by_cases h0' : i % 3 = 0
@@ -412,7 +413,7 @@ theorem chain_good (c : LCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
             have : i = 0 := by simp at h; omega
             exact ⟨this, hko (by omega)⟩)
           (fun h => by simp at h; omega) hsp hrun acc s hs
-        obtain ⟨u, hu, hn⟩ := c.end_next hc hk i hi hck _ _ hE
+        obtain ⟨u, hu, hn⟩ := c.end_next hc hk i hi _ _ hE
         refine Verify.GoodQ.steps' hst (Verify.GoodQ.steps' hu (hK _ u hn) (le_refl _) (le_refl _)
           (fun hq => ⟨hq, le_refl _⟩)) (by omega) (by unfold chainCost; simp [h0', h7, h42]; omega)
           (fun hq => ⟨hq, by unfold chainCost; simp [h0', h7, h42]; omega⟩)
@@ -425,7 +426,7 @@ theorem chain_good (c : LCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
           · have e2 : c.dig (3 * (i / 3) + 2) = 7 := by rw [show 3 * (i / 3) + 2 = i by omega, h7]
             rw [if_neg h1, if_neg h1]; unfold tC tX pcX; rw [e2]; rfl
         obtain ⟨t, hst, hE⟩ := c.copyF_step hc hk h0 i ⟨hi.1, by omega⟩ (by omega) hsp hend hrun acc s hs
-        obtain ⟨u, hu, hn⟩ := c.end_next hc hk i hi hck _ _ hE
+        obtain ⟨u, hu, hn⟩ := c.end_next hc hk i hi _ _ hE
         refine Verify.GoodQ.steps' hst (Verify.GoodQ.steps' hu (hK _ u hn) (le_refl _) (le_refl _)
           (fun hq => ⟨hq, le_refl _⟩)) (by omega) (by unfold chainCost; simp [h0', h7]; omega)
           (fun hq => ⟨hq, by unfold chainCost; simp [h0', h7]; omega⟩)

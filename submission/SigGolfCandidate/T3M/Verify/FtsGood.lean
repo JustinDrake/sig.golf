@@ -544,12 +544,12 @@ theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
 
 /-- **`verifyP` from the initial state up to the layers phase**: given the layers phase (V1/V3: layers 3..0 and the
 comparison, `afterFts`) from `FtsOut`, the whole verify run. Accepting cycles through the forest HASH:
-`184 + 3 + 2480 = 2667`, including the exact canonical stream-cost bound. -/
+`183 + 3 + 2480 = 2666` (digest header cut −1 on the words 0..358), including the exact canonical stream-cost bound. -/
 theorem verifyP_good_fts (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    GoodQ s (Bf + 7416) (Bf + 7423) Q (Af + 2667) (ccM (verifyP m pk w) Kb) :=
+    GoodQ s (Bf + 7416) (Bf + 7423) Q (Af + 2666) (ccM (verifyP m pk w) Kb) :=
   (verifyP_good_sel m pk w s hs (afterSel_good pk w Bf Af Q hout)).mono (by omega) (by omega)
     (fun q => ⟨q, by omega⟩)
 

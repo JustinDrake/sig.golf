@@ -377,6 +377,53 @@ def copyF (rb : Reg) (off : Word) (slot : Nat) (p : Nat) : Result :=
 def copyN (rb : Reg) (off : Word) (slot : Nat) (tgt : Nat) : Result :=
   ⟨⟨copyRegs rb off, copyMem rb off slot, copyObl rb off⟩, .c (pcOf tgt), .jump, 5, 5⟩
 
+/-! ### T3X: the lower chain code's heads read the WOTS header table
+
+(erickeigen 59cbf8ec's design, lower layers only.) During a lower layer's chain phase `x28` holds the midpoint of
+the layer's 4096-byte header bank (`Verify.headerBank`); a head loads its chain/digit header word with one `ld`
+instead of the running `s9` bump and the first step's byte store. A table-slot max-digit copy is then `copyN`.
+The top layer's chain code (`Nonbinary`) keeps `headJ` / `headR` / `copyJ` / `copyF` above. -/
+
+/-- Byte offset of the header of chain `i`, digit `d` from the bank midpoint. -/
+def hOff (i d : Nat) : Word := BitVec.ofNat 64 (64 * i + 8 * d) - 2048
+
+def hKey (i d : Nat) : Addr := ⟨some (.reg .x28), hOff i d⟩
+def hLoad (i d : Nat) : E := .ld (addC (.reg .x28) (hOff i d))
+
+/-- A table-slot head (V1): `addi a0, base, off; addi a2, a0, 48` (or, at digit 6, `addi a2, zero, slot`);
+`ld s9, hOff i d(t3); sd s9, 16(a0); sd tp, 24(a0)`, then `j tgt` (6 steps) straight onto the `ecall` of the first
+rung (the header already carries the step `d`, so the rung's byte store is skipped). -/
+def headJH (rb : Reg) (off : Word) (tgt i d : Nat) (slot : Option Nat) : Result :=
+  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) off)).set .x12
+      (match slot with
+       | some a => .c (BitVec.ofNat 64 a)
+       | none => addC (addC (.reg rb) off) 48)).set .x25 (hLoad i d),
+    [(kAt rb off 24, .reg .x4), (kAt rb off 16, hLoad i d)],
+    [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8, .valid (hKey i d) 8]⟩,
+    .c (pcOf tgt), .jump, 6, 6⟩
+
+/-- A lone `ecall` at `p` (the landing word of a table-slot head). -/
+def ecallR (p : Nat) : Result := ⟨SymState.init, .c (pcOf p), .ecall, 0, 0⟩
+
+/-- The landing offset of a table-slot head at digit `d` inside rung `d`: past the byte store (and the `li a2`). -/
+def landOff (d : Nat) : Nat := if d = 6 then 2 else 1
+
+/-- An inline head loading the header with its first digit `d` already set (no byte store), up to the first
+`ecall` (5 or 6 steps from `p`). -/
+def headRH (rb : Reg) (off : Word) (d : Nat) (slot : Option Nat) (p i : Nat) : Result :=
+  let n := if slot.isSome then 6 else 5
+  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) off)).set .x12
+      (match slot with
+       | some a => .c (BitVec.ofNat 64 a)
+       | none => addC (addC (.reg rb) off) 48)).set .x25 (hLoad i d),
+    [(kAt rb off 24, .reg .x4), (kAt rb off 16, hLoad i d)],
+    [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8, .valid (hKey i d) 8]⟩,
+    .c (pcOf (p + n)), .ecall, n, n⟩
+
+/-- An inline max-digit copy without the bump, stopped after its 4 instructions. -/
+def copyFH (rb : Reg) (off : Word) (slot : Nat) (p : Nat) : Result :=
+  ⟨⟨copyRegs rb off, copyMem rb off slot, copyObl rb off⟩, .c (pcOf (p + 4)), .fuel, 4, 4⟩
+
 /-- `slli/srli/mv a4, w, ·`: bit `b` of `w` to bit 9. -/
 def shE (w : Reg) (b : Nat) : E :=
   if b < 9 then .bin .sll (.reg w) (.c (BitVec.ofNat 64 (9 - b)))
@@ -412,42 +459,6 @@ def q48D : Result :=
 /-- `jr ra` (1 step). -/
 def retR : Result := ⟨⟨RegFile.init, [], []⟩, .bin .and (.reg .x1) (.c (~~~1#64)), .jump, 1, 1⟩
 
-def ret4R : Result := ⟨⟨RegFile.init, [], []⟩, .bin .and (.bin .add (.reg .x1) (.c 4)) (.c (~~~1#64)), .jump, 1, 1⟩
-
-
-/-! Read-only header table results for lower layers, credited to erickeigen (PR408). -/
-
-def hOff (i d : Nat) : Word := BitVec.ofNat 64 (64 * i + 8 * d) - 2048
-
-def hKey (i d : Nat) : Addr := ⟨some (.reg .x28), hOff i d⟩
-
-def hLoad (i d : Nat) : E := .ld (addC (.reg .x28) (hOff i d))
-
-def headJH (rb : Reg) (off : Word) (tgt i d : Nat) (slot : Option Nat) : Result :=
-  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) off)).set .x12
-      (match slot with
-       | some a => .c (BitVec.ofNat 64 a)
-       | none => addC (addC (.reg rb) off) 48)).set .x25 (hLoad i d),
-    [(kAt rb off 24, .reg .x4), (kAt rb off 16, hLoad i d)],
-    [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8, .valid (hKey i d) 8]⟩,
-    .c (pcOf tgt), .jump, 6, 6⟩
-
-def lowerHeadR (rb : Reg) (off : Word) (d : Nat) (slot : Option Nat) (p i : Nat) : Result :=
-  let n := if slot.isSome then 6 else 5
-  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) off)).set .x12
-      (match slot with
-       | some a => .c (BitVec.ofNat 64 a)
-       | none => addC (addC (.reg rb) off) 48)).set .x25 (hLoad i d),
-    [(kAt rb off 24, .reg .x4), (kAt rb off 16, hLoad i d)],
-    [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8, .valid (hKey i d) 8]⟩,
-    .c (pcOf (p + n)), .ecall, n, n⟩
-
-def lowerCopyJ (rb : Reg) (off : Word) (slot : Nat) (_first : Bool) (tgt : Nat) : Result :=
-  ⟨⟨copyRegs rb off, copyMem rb off slot, copyObl rb off⟩, .c (pcOf tgt), .jump, 5, 5⟩
-
-def lowerCopyF (rb : Reg) (off : Word) (slot : Nat) (p : Nat) : Result :=
-  ⟨⟨copyRegs rb off, copyMem rb off slot, copyObl rb off⟩, .c (pcOf (p + 4)), .fuel, 4, 4⟩
-
 /-! ## The lower chain code (triples, checksum) -/
 
 /-- Chain block `i` of a lower layer relative to `s6 = x22`: `64 (42 - i) - 1024`. -/
@@ -455,8 +466,13 @@ def offL (i : Nat) : Word := BitVec.ofNat 64 (64 * (42 - i)) - BitVec.ofNat 64 1
 /-- The lower leaf-pk slot of chain `i` (`0x300` for chain 0, `0x310 + 16 i` else). -/
 def slotL (i : Nat) : Nat := if i = 0 then 768 else 784 + 16 * i
 
+/-- The slot argument of a head at digit `d` of chain `i`. -/
+def hSlot (i d : Nat) : Option Nat := if d = 6 then some (slotL i) else none
+
+
 def triBase (t dB dC : Nat) : Nat := triBaseTab.getD (64 * t + 8 * dB + dC) 0
-/-- Words of an inline lower chain at digit `d`: copy4, otherwise header4 plus rungs. -/
+/-- Words of an inline chain at digit `d` (width 3): the copy 4, else the head 4 + rungs `2 (7 - d) + 1` (T3X:
+the header `ld` replaces the bump and the first byte store). -/
 def partLen (d : Nat) : Nat := if d = 7 then 4 else 19 - 2 * d
 def pcB (t dB dC : Nat) : Nat := triBase t dB dC + 15
 def pcC (t dB dC : Nat) : Nat := pcB t dB dC + partLen dB
@@ -471,20 +487,14 @@ def rungsOK (d0 slot p : Nat) : Bool :=
 
 /-- The inline code of lower chain `i` at digit `d`, from `p`. -/
 def partOK (i d p : Nat) : Bool :=
-  if d = 7 then rOK (vrun p 4) (lowerCopyF .x22 (offL i) (slotL i) p)
-  else rOK (vrun p 8) (lowerHeadR .x22 (offL i) d (if d = 6 then some (slotL i) else none) p i) &&
+  if d = 7 then rOK (vrun p 4) (copyFH .x22 (offL i) (slotL i) p)
+  else rOK (vrun p 8) (headRH .x22 (offL i) d (if d = 6 then some (slotL i) else none) p i) &&
     rungsOK (d + 1) (slotL i) (p + 6)
 
 /-- Slot `(t, k)` of `ttab`: chain `3t`'s head into rung `dA` of the shared block, or its copy. -/
-def ecallR (p : Nat) : Result := ⟨SymState.init, .c (pcOf p), .ecall, 0, 0⟩
-
-def landOff (d : Nat) : Nat := if d = 6 then 2 else 1
-
-def hSlot (i d : Nat) : Option Nat := if d = 6 then some (slotL i) else none
-
 def entCheck (t k : Nat) : Bool :=
   if k % 8 = 7 then
-    rOK (vrun (entW t k) 7) (lowerCopyJ .x22 (offL (3 * t)) (slotL (3 * t)) (t == 0) (pcB t (k / 8 % 8) (k / 64)))
+    rOK (vrun (entW t k) 7) (copyN .x22 (offL (3 * t)) (slotL (3 * t)) (pcB t (k / 8 % 8) (k / 64)))
   else rOK (vrun (entW t k) 7) (headJH .x22 (offL (3 * t))
       (triBase t (k / 8 % 8) (k / 64) + 2 * (k % 8) + landOff (k % 8)) (3 * t) (k % 8) (hSlot (3 * t) (k % 8))) &&
     rOK (vrun (triBase t (k / 8 % 8) (k / 64) + 2 * (k % 8) + landOff (k % 8)) 1)
@@ -513,7 +523,7 @@ def ckCheck : Bool :=
       (headJH .x22 (offL 42) (ckR0 + 2 * c + landOff c) 42 c (hSlot 42 c)) &&
     rOK (vrun (ckR0 + 2 * c + landOff c) 1) (ecallR (ckR0 + 2 * c + landOff c))) &&
     rOK (vrun (ctabIdx + 56) 6) (copyN .x22 (offL 42) (slotL 42) ckDone) &&
-    rOK (vrun (ctabIdx + 64) 2) retR && rungsOK 0 (slotL 42) ckR0 && rOK (vrun ckDone 2) ret4R
+    rOK (vrun (ctabIdx + 64) 2) retR && rungsOK 0 (slotL 42) ckR0 && rOK (vrun ckDone 2) retR
 
 /-! ## The top chain code (quads, chain 48) -/
 

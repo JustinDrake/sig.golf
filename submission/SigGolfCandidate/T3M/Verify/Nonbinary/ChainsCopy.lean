@@ -3,19 +3,6 @@ namespace SigGolfCandidate.T3M.Nonbinary
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3
 set_option linter.unusedSimpArgs false
-
-theorem headRH_keeps (rb : Reg) (o : Word) (d : Nat) (slot : Option Nat) (p i : Nat) :
-    Keeps (headRH rb o d slot p i) [.x10, .x12, .x25] := by
-  intro x hx
-  simp only [headRH]
-  rw [RegFile.get_set_ne _ _ (ne_of_not_mem hx (by simp)), RegFile.get_set_ne _ _ (ne_of_not_mem hx (by simp)),
-    RegFile.get_set_ne _ _ (ne_of_not_mem hx (by simp))]
-
-theorem copyFH_keeps (rb : Reg) (o : Word) (slot p : Nat) : Keeps (copyFH rb o slot p) [.x3, .x14] := by
-  intro x hx
-  simp only [copyFH, copyRegs]
-  rw [RegFile.get_set_ne _ _ (ne_of_not_mem hx (by simp)), RegFile.get_set_ne _ _ (ne_of_not_mem hx (by simp))]
-
 namespace NCtx
 
 theorem kAt_eval (c : NCtx) (hc : c.ok) {s : MachineState} (h19 : s.getReg .x19 = BitVec.ofNat 64 c.S3) (i : Nat)
@@ -34,30 +21,23 @@ head's header load `ld s9, hOff i d(t3)` reads word `8 i + d` of the header tabl
 never writes (its frame lies below `0x7000`). -/
 theorem header_load (c : NCtx) (hc : c.ok) {s0 s : MachineState} (h0 : c.Orig0 s0) (i d : Nat)
     (hi : i < 54) (hd : d < 8) (hF : Frame s0 s (c.Wr i))
-    (h28 : s.getReg .x28 = BitVec.ofNat 64 tBank)
-    (h27 : s.getReg .x27 = BitVec.ofNat 64 0x101) :
-    (∀ o ∈ tObl i d, o.holds s) ∧
-      (tLd i d).eval s = BitVec.ofNat 64 (w0 i + 2 ^ 32 * d) := by
-  by_cases h00 : i = 0 ∧ d = 0
-  · obtain ⟨rfl, rfl⟩ := h00
-    refine ⟨by simp [tObl], ?_⟩
-    rw [show tLd 0 0 = .reg .x27 from if_pos ⟨rfl, rfl⟩]
-    simp only [E.eval, h27]
-    unfold w0; norm_num
+    (h28 : s.getReg .x28 = BitVec.ofNat 64 (Verify.headerBank 0 0)) :
+    (Oblig.valid (hKey i d) 8).holds s ∧
+      (hLoad i d).eval s = BitVec.ofNat 64 (w0 i + 2 ^ 32 * d) := by
   have hb := c.blk_props hc 0 (by omega)
-  have hpos : 2049 ≤ tBank + (64 * i + 8 * d) := by unfold tBank; omega
   have hA : 2 ^ 23 + 4096 ≤ Verify.HDATA + 4096 * 0 + 64 * i + 8 * d ∧
       Verify.HDATA + 4096 * 0 + 64 * i + 8 * d + 8 ≤ 2 ^ 24 := by
     unfold Verify.HDATA; omega
-  have key : (tKey i d).eval s = BitVec.ofNat 64 (Verify.HDATA + 4096 * 0 + 64 * i + 8 * d) := by
-    simp only [tKey, Addr.eval, E.eval, h28, tOff]
-    change BitVec.ofNat 64 tBank +
-      (BitVec.ofNat 64 (64 * i + 8 * d) - BitVec.ofNat 64 2049) =
+  have key : (hKey i d).eval s = BitVec.ofNat 64 (Verify.HDATA + 4096 * 0 + 64 * i + 8 * d) := by
+    simp only [hKey, Addr.eval, E.eval, h28, hOff]
+    change BitVec.ofNat 64 (Verify.headerBank 0 0) +
+      (BitVec.ofNat 64 (64 * i + 8 * d) - BitVec.ofNat 64 2048) =
         BitVec.ofNat 64 (Verify.HDATA + 4096 * 0 + 64 * i + 8 * d)
-    rw [ofNat_add_off0 tBank (64 * i + 8 * d) 2049 hpos
-      (by unfold tBank; omega)]
+    rw [ofNat_add_off0 (Verify.headerBank 0 0) (64 * i + 8 * d) 2048
+      (by unfold Verify.headerBank Verify.HDATA; omega)
+      (by unfold Verify.headerBank Verify.HDATA; omega)]
     apply congrArg (BitVec.ofNat 64)
-    unfold tBank Verify.HDATA
+    unfold Verify.headerBank Verify.HDATA
     omega
   have fr : s.getMem (BitVec.ofNat 64 (Verify.HDATA + 4096 * 0 + 64 * i + 8 * d)) =
       s0.getMem (BitVec.ofNat 64 (Verify.HDATA + 4096 * 0 + 64 * i + 8 * d)) := by
@@ -66,16 +46,13 @@ theorem header_load (c : NCtx) (hc : c.ok) {s0 s : MachineState} (h0 : c.Orig0 s
     intro h
     rcases h with h | h <;> omega
   refine ⟨?_, ?_⟩
-  · simp only [tObl, if_neg h00, List.mem_cons, List.not_mem_nil, or_false]
-    rintro o rfl
-    show accessValid ((tKey i d).eval s) 8 = true
+  · show accessValid ((hKey i d).eval s) 8 = true
     rw [key]
     exact valid_ofNat _ 8 hA.2 (by unfold Verify.HDATA; omega)
-  · have he : (addC (.reg .x28) (tOff i d)).eval s =
+  · have he : (addC (.reg .x28) (hOff i d)).eval s =
         BitVec.ofNat 64 (Verify.HDATA + 4096 * 0 + 64 * i + 8 * d) := by
-      simpa only [tKey, Addr.eval, addC_eval, E.eval] using key
-    simp only [tLd, if_neg h00]
-    change s.getMem ((addC (.reg .x28) (tOff i d)).eval s) = _
+      simpa only [hKey, Addr.eval, addC_eval, E.eval] using key
+    change s.getMem ((addC (.reg .x28) (hOff i d)).eval s) = _
     rw [he, fr, h0.2.header 0 i d (by norm_num) (by omega) hd]
     all_goals (congr 1 <;> unfold w0 <;> omega)
 

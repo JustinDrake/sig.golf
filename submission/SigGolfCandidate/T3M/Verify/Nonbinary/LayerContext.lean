@@ -29,9 +29,7 @@ theorem nctx_known (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineStat
   all_goals try exact he.ra
   all_goals rw [he.regs.get (by simp [topEntryRegs]), writeHash_getReg]
   all_goals try exact ht.tp 0 rfl
-  all_goals first
-    | exact ht.glob.1 (.x28, BitVec.ofNat 64 (entry28 0)) (by simp [bK, layK])
-    | exact ht.glob.1 _ (by simp [bK, layK, entry28, baseK, nctxOf, NCtx.w1, hw])
+  all_goals exact ht.glob.1 _ (by simp [bK, layK, baseK, nctxOf, NCtx.w1, hw])
 
 theorem topEntry_orig (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineState) (a : BitVec 256)
     (ht : EncPre w pk index 0 c t)

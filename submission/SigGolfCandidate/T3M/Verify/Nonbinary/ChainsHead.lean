@@ -38,16 +38,15 @@ theorem headJ_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
   have h19 : s.getReg .x19 = BitVec.ofNat 64 c.S3 := kr _ _ (by simp [known]) (by decide)
   have keyE := c.kAt_eval hc h19 i hi
   have htable := c.header_load hc h0 i (c.dig i) hi (by omega) hF (kr _ _ (by simp [known]) (by decide))
-    (kr _ _ (by simp [known]) (by decide))
   set r := headJD .x19 (off i) (c.rungPc i (c.dig i) + 1) i (c.dig i) with hr
   have hobl : ∀ o ∈ r.st.obl, o.holds s := by
-    simp only [hr, headJD, List.mem_append, List.mem_cons, List.not_mem_nil, or_false]
-    rintro o ((rfl | rfl) | ho)
+    simp only [hr, headJD, List.mem_cons, List.not_mem_nil, or_false]
+    rintro o (rfl | rfl | rfl)
     · show accessValid ((kAt .x19 (off i) 24).eval s) 8 = true
       rw [keyE 24 (by omega)]; exact valid_ofNat _ _ (by omega) (by omega)
     · show accessValid ((kAt .x19 (off i) 16).eval s) 8 = true
       rw [keyE 16 (by omega)]; exact valid_ofNat _ _ (by omega) (by omega)
-    · exact htable.1 o ho
+    · exact htable.1
   have hst1 := piece_steps45 hrun1 hp0 s hpc hobl
   set t1 := r.toState s with ht1
   have hkeep := headJD_keeps .x19 (off i) (c.rungPc i (c.dig i) + 1) i (c.dig i)
@@ -70,7 +69,7 @@ theorem headJ_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
     simp only [hr, headJD]
     rw [memEval_two s _ _ _ _ (c.blk i + 24) (c.blk i + 16) A (keyE 24 (by omega)) (keyE 16 (by omega))
       (by omega) (by omega) hA]
-    change (if A = c.blk i + 24 then s.getReg .x4 else if A = c.blk i + 16 then (tLd i (c.dig i)).eval s
+    change (if A = c.blk i + 24 then s.getReg .x4 else if A = c.blk i + 16 then (hLoad i (c.dig i)).eval s
       else s.getMem (BitVec.ofNat 64 A)) = _
     rw [kr .x4 (BitVec.ofNat 64 c.w1) (by simp [known]) (by decide), htable.2]
   have hfr1 : Frame s t1 (fun A => A = c.blk i + 24 ∨ A = c.blk i + 16) := by
@@ -125,16 +124,15 @@ theorem headJTerm_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p �
   have h19 : s.getReg .x19 = BitVec.ofNat 64 c.S3 := kr _ _ (by simp [known]) (by decide)
   have keyE := c.kAt_eval hc h19 i hi
   have htable := c.header_load hc h0 i (c.dig i) hi (by omega) hF (kr _ _ (by simp [known]) (by decide))
-    (kr _ _ (by simp [known]) (by decide))
   set r := headJDTerm .x19 (off i) (c.rungPc i (c.dig i) + 1) i (c.dig i) with hr
   have hobl : ∀ o ∈ r.st.obl, o.holds s := by
-    simp only [hr, headJDTerm, List.mem_append, List.mem_cons, List.not_mem_nil, or_false]
-    rintro o ((rfl | rfl) | ho)
+    simp only [hr, headJDTerm, List.mem_cons, List.not_mem_nil, or_false]
+    rintro o (rfl | rfl | rfl)
     · show accessValid ((kAt .x19 (off i) 24).eval s) 8 = true
       rw [keyE 24 (by omega)]; exact valid_ofNat _ _ (by omega) (by omega)
     · show accessValid ((kAt .x19 (off i) 16).eval s) 8 = true
       rw [keyE 16 (by omega)]; exact valid_ofNat _ _ (by omega) (by omega)
-    · exact htable.1 o ho
+    · exact htable.1
   have hst1 := piece_steps45 hrun1 hp0 s hpc hobl
   set t1 := r.toState s with ht1
   have hkeep := headJDTerm_keeps .x19 (off i) (c.rungPc i (c.dig i) + 1) i (c.dig i)
@@ -152,7 +150,7 @@ theorem headJTerm_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p �
     simp only [hr, headJDTerm]
     rw [memEval_two s _ _ _ _ (c.blk i + 24) (c.blk i + 16) A (keyE 24 (by omega)) (keyE 16 (by omega))
       (by omega) (by omega) hA]
-    change (if A = c.blk i + 24 then s.getReg .x4 else if A = c.blk i + 16 then (tLd i (c.dig i)).eval s
+    change (if A = c.blk i + 24 then s.getReg .x4 else if A = c.blk i + 16 then (hLoad i (c.dig i)).eval s
       else s.getMem (BitVec.ofNat 64 A)) = _
     rw [kr .x4 (BitVec.ofNat 64 c.w1) (by simp [known]) (by decide), htable.2]
   have hfr1 : Frame s t1 (fun A => A = c.blk i + 24 ∨ A = c.blk i + 16) := by
