@@ -22,7 +22,7 @@ theorem haltSetup_spec (s : MachineState) (hpc : s.pc = pcOf 539) :
 
 theorem halt_at : CodeAt image (pcOf 541) [0x00000073] :=
   CodeAt.of_append (pre := Images.keygenCode.take 541)
-    (post := Images.keygenCode.drop 542) (by decide +kernel) _ (by decide +kernel) (by decide +kernel)
+    (post := []) (by decide +kernel) _ (by decide +kernel) (by decide +kernel)
 theorem fetch_541 (s : MachineState) (hpc : s.pc = pcOf 541) :
     fetch image s = some (.base .ECALL) := (halt_at.fetch s hpc).trans rfl
 

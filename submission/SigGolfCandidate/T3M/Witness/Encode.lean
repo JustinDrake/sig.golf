@@ -59,15 +59,11 @@ def layerBytes (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8
       else zeros 48 ++ bytesLE 16 (ls.path j)) ++
     (List.finRange (chainCount lay)).reverse.flatMap (fun i => zeros 48 ++ bytesLE 16 (ls.values i))
 
-/-- Physical storage keeps the old layer bases; the shorter top layer has a zero tail. -/
-def layerStorage (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8 :=
-  layerBytes lay leaf ls ++ zeros (if lay = 0 then 256 else 0)
-
 /-- The 25,240 witness bytes of `witEnc N w`. -/
 def witList (N : HashOutput) (w : Witness) : List UInt8 :=
   headerBytes w ++ leafBytes w.signature ++ streamBytes (selections N) w.signature.proof ++
     (List.finRange 4).flatMap fun lay =>
-      layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)
+      layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)
 
 /-- The machine witness of an expansion with digest answer `N` (byte `i` = `witList N w` at `i`). -/
 def witEnc (N : HashOutput) (w : Witness) : WBytes := BitVec.ofNat _ (readLE (witList N w))

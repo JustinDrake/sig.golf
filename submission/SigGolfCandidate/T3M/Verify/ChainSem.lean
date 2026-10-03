@@ -27,12 +27,12 @@ abbrev vimage : Image := Images.verifyImage
 theorem piece_steps {p f : Nat} {r : Result} (h : vrun p f = some r) (hp : p < 209920) (s : MachineState)
     (hpc : s.pc = pcOf p) (ho : ∀ o ∈ r.st.obl, o.holds s) :
     Steps vimage s r.steps r.cycles (r.toState s) :=
-  symRun_sound h (lcodeAt p (by omega)) s hpc ((Oblig.all_iff _ _).mpr ho)
+  symRun_sound h (lcodeAt p hp) s hpc ((Oblig.all_iff _ _).mpr ho)
 
 theorem piece_ecall {p f : Nat} {r : Result} (h : vrun p f = some r) (hp : p < 209920) (s : MachineState)
     (ho : ∀ o ∈ r.st.obl, o.holds s) (hst : r.stop = .ecall) :
     fetch vimage (r.toState s) = some (.base .ECALL) :=
-  symRun_ecall h (lcodeAt p (by omega)) s ((Oblig.all_iff _ _).mpr ho) hst
+  symRun_ecall h (lcodeAt p hp) s ((Oblig.all_iff _ _).mpr ho) hst
 
 /-! ## Word arithmetic -/
 
@@ -215,7 +215,7 @@ def known (c : LCtx) : List (Reg × Word) :=
   [(.x5, 0), (.x11, 64), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6),
    (.x28, BitVec.ofNat 64 (2 ^ 40)), (.x2, 0x3fe00), (.x15, 0x6e000), (.x22, BitVec.ofNat 64 c.S6),
    (.x4, BitVec.ofNat 64 c.w1), (.x27, BitVec.ofNat 64 (0x101 + 65536 * c.lay.val)),
-   (.x16, c.d0), (.x17, c.d1), (.x29, BitVec.ofNat 64 c.ck), (.x1, pcOf c.ret)]
+   (.x16, c.d0), (.x17, c.d1), (.x29, 7#64 - BitVec.ofNat 64 c.ck), (.x1, pcOf c.ret)]
 
 /-- The table row of triple `t`. -/
 def kOf (c : LCtx) (t : Nat) : Nat := c.dig (3 * t) + 8 * c.dig (3 * t + 1) + 64 * c.dig (3 * t + 2)
@@ -1344,7 +1344,7 @@ theorem x13_step (c : LCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.kn
   have hpc' : s.pc = pcOf (c.tX 41) := by rw [hpc]; unfold endPc; simp
   have hst := piece_steps hrun hp s hpc' (by simp [ctabX])
   have h15 : s.getReg .x15 = BitVec.ofNat 64 0x6e000 := kr .x15 0x6e000 (by simp [known]) (by decide)
-  have h29 : s.getReg .x29 = BitVec.ofNat 64 c.ck := kr .x29 _ (by simp [known]) (by decide)
+  have h29 : s.getReg .x29 = 7#64 - BitVec.ofNat 64 c.ck := kr .x29 _ (by simp [known]) (by decide)
   have hck := hc.2.2.2.2.2.2.1
   refine ⟨ctabX.toState s, hst, ⟨⟨fun x hx => (ctabX_keeps.reg s (not_mem_sub hx (by decide))).trans (hR x hx),
     hF.mono (fun A _ h => by
@@ -1355,13 +1355,12 @@ theorem x13_step (c : LCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.kn
   · rw [ctabX_keeps.reg s (by decide), h25 (by omega)]
   · rw [Result.toState_pc]
     simp only [ctabX, E.eval, BinOp.eval, h15, h29]
-    have e1 : BitVec.ofNat 64 c.ck <<< ((5 : Word).toNat % 64) = BitVec.ofNat 64 (32 * c.ck) := by
-      rw [show (5 : Word).toNat % 64 = 5 from rfl, ofNat_shl]; congr 1; ring
-    rw [e1, show (-2048 : Word) = BitVec.ofNat 64 0 - BitVec.ofNat 64 2048 from rfl]
-    have e2 : BitVec.ofNat 64 (32 * c.ck) + BitVec.ofNat 64 0x6e000 + (BitVec.ofNat 64 0 - BitVec.ofNat 64 2048) =
+    have e2 : BitVec.ofNat 64 0x6e000 - (7#64 - BitVec.ofNat 64 c.ck) <<< ((5 : Word).toNat % 64) + (-1824 : Word) =
         BitVec.ofNat 64 (0x1000 + 4 * (ctabIdx + 8 * c.ck)) := by
-      rw [tab_target _ _ _ _ (by omega) (by omega)]
-      congr 1; unfold ctabIdx; omega
+      have hk : c.ck ≤ 8 := hck
+      generalize c.ck = k at hk ⊢
+      unfold ctabIdx
+      interval_cases k <;> decide
     rw [e2, even_andNot1' _ (by omega)]
     unfold startPc; simp
 

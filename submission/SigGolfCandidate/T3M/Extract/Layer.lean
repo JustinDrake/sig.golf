@@ -22,13 +22,13 @@ def LayerShaped (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (di
       wmerklePad w lay j = 0) ∧
   (∀ i, i < chainCount lay →
     wvalue w lay i = leafValue answers lay (route index lay).2 (route index lay).1 digits i ∧
-      (digits.getD i 0 < maxDigit lay i → wchainPads w lay i = (0, 0)))
+      (digits.getD i 0 < 2 ^ width lay i - 1 → wchainPads w lay i = (0, 0)))
 
 /-- The padded chains of layer `lay` (the first part of `layerLeafP`). -/
 def layerChains (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) : M (List Digest) :=
   (List.finRange (chainCount lay)).mapM fun i =>
     chainP lay (route index lay).2 (route index lay).1 i.val (digits.getD i.val 0)
-      (maxDigit lay i.val - digits.getD i.val 0) (wchainPads w lay i.val).1 (wchainPads w lay i.val).2
+      (2 ^ width lay i.val - 1 - digits.getD i.val 0) (wchainPads w lay i.val).1 (wchainPads w lay i.val).2
       (wvalue w lay i.val)
 
 theorem layerLeafP_eq (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) :
@@ -67,13 +67,13 @@ theorem layerChains_queried (answers : Answers) (w : WBytes) (index : Nat) (lay 
     (leaf tree : Nat) (hleaf : (route index lay).1 = leaf) (htree : (route index lay).2 = tree)
     (i : Nat) (hi : i < chainCount lay) :
     ∀ q ∈ queried answers (chainP lay tree leaf i (digits.getD i 0)
-        (maxDigit lay i - digits.getD i 0) (wchainPads w lay i).1 (wchainPads w lay i).2 (wvalue w lay i)),
+        (2 ^ width lay i - 1 - digits.getD i 0) (wchainPads w lay i).1 (wchainPads w lay i).2 (wvalue w lay i)),
       q ∈ queried answers (layerChains w index lay digits) := by
   subst hleaf htree
   unfold layerChains
   exact queried_mapM_mem answers (fun i : Fin (chainCount lay) =>
     chainP lay (route index lay).2 (route index lay).1 i.val (digits.getD i.val 0)
-      (maxDigit lay i.val - digits.getD i.val 0) (wchainPads w lay i.val).1 (wchainPads w lay i.val).2
+      (2 ^ width lay i.val - 1 - digits.getD i.val 0) (wchainPads w lay i.val).1 (wchainPads w lay i.val).2
       (wvalue w lay i.val)) (List.finRange (chainCount lay)) ⟨i, hi⟩ (List.mem_finRange _)
 
 theorem map_finRange_val {β : Type} (n : Nat) (g : Nat → β) :
@@ -88,7 +88,7 @@ theorem height_le (lay : Layer) : height lay ≤ 12 := by fin_cases lay <;> deci
 
 theorem chainCount_le (lay : Layer) : chainCount lay ≤ 58 := by fin_cases lay <;> decide
 
-theorem width_le (lay : Layer) (i : Nat) : width lay i ≤ 3 := by unfold width; split_ifs <;> omega
+theorem width_le (lay : Layer) (i : Nat) : width lay i ≤ 3 := by unfold width; split <;> omega
 
 theorem layerP_extract (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat)
     (hidx : index < 2 ^ 31) (hvalid : Cost.ValidDigits lay digits)
@@ -147,11 +147,11 @@ theorem layerP_extract (answers : Answers) (w : WBytes) (index : Nat) (lay : Lay
     evalWithAnswerFn_bind, hleaf, htree] at hv0
   have hends : evalWithAnswerFn answers (layerChains w index lay digits) =
       (List.range (chainCount lay)).map (fun i => evalWithAnswerFn answers
-        (chainP lay tree leaf i (digits.getD i 0) (maxDigit lay i - digits.getD i 0)
+        (chainP lay tree leaf i (digits.getD i 0) (2 ^ width lay i - 1 - digits.getD i 0)
           (wchainPads w lay i).1 (wchainPads w lay i).2 (wvalue w lay i))) := by
     rw [layerChains, Correctness.eval_mapM, hleaf, htree]
     exact map_finRange_val _ (fun i => evalWithAnswerFn answers
-        (chainP lay tree leaf i (digits.getD i 0) (maxDigit lay i - digits.getD i 0)
+        (chainP lay tree leaf i (digits.getD i 0) (2 ^ width lay i - 1 - digits.getD i 0)
           (wchainPads w lay i).1 (wchainPads w lay i).2 (wvalue w lay i)))
   rcases leafHash_extract answers lay tree leaf (evalWithAnswerFn answers (layerChains w index lay digits))
       ((List.range (chainCount lay)).map (leafEnd answers lay tree leaf))
@@ -170,10 +170,10 @@ theorem layerP_extract (answers : Answers) (w : WBytes) (index : Nat) (lay : Lay
   have hd := hvalid i hi
   have hci := hE' i (List.mem_range.mpr hi)
   have hreach : evalWithAnswerFn answers
-      (chainP lay tree leaf i (digits.getD i 0) (maxDigit lay i - digits.getD i 0)
+      (chainP lay tree leaf i (digits.getD i 0) (2 ^ width lay i - 1 - digits.getD i 0)
         (wchainPads w lay i).1 (wchainPads w lay i).2 (wvalue w lay i)) =
       honestChainValue answers lay tree leaf i (leafSeed answers lay tree leaf i)
-        (digits.getD i 0 + (maxDigit lay i - digits.getD i 0)) := by
+        (digits.getD i 0 + (2 ^ width lay i - 1 - digits.getD i 0)) := by
     rw [hci, Nat.add_sub_cancel' hd]; rfl
   rcases chainP_extract answers lay tree leaf i _ _ _ _ _ _ hreach with ⟨hval, hpads⟩ | ⟨step, hstep, hq, hhit⟩
   · rw [hleaf, htree]
@@ -182,7 +182,7 @@ theorem layerP_extract (answers : Answers) (w : WBytes) (index : Nat) (lay : Lay
     exact Prod.ext h0 h1
   · exfalso
     apply hH
-    have hw : maxDigit lay i ≤ 7 := by unfold maxDigit; split_ifs <;> omega
+    have hw : 2 ^ width lay i ≤ 2 ^ 3 := Nat.pow_le_pow_right (by decide) (width_le lay i)
     have hc := chainCount_le lay
     refine ⟨.chain lay tree leaf i (digits.getD i 0 + step), _, ⟨htreeB, hleaf32, by omega, by omega⟩, ?_, hhit, ?_⟩
     · apply hqC
@@ -216,17 +216,17 @@ theorem layerP_shaped_core (answers : Answers) (N : HashOutput) (w : WBytes) (la
   obtain ⟨leaf, tree⟩ := r
   dsimp only at hs ⊢
   have hchains : ((List.finRange (chainCount lay)).mapM fun i =>
-      chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
+      chainP lay tree leaf i.val (digits.getD i.val 0) (2 ^ width lay i.val - 1 - digits.getD i.val 0)
         (wchainPads w lay i.val).1 (wchainPads w lay i.val).2 (wvalue w lay i.val)) =
       ((List.finRange (chainCount lay)).mapM fun i =>
-      chain lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
+      chain lay tree leaf i.val (digits.getD i.val 0) (2 ^ width lay i.val - 1 - digits.getD i.val 0)
         (wvalue w lay i.val)) := by
     congr 1
     funext i
-    by_cases hd : digits.getD i.val 0 < maxDigit lay i.val
+    by_cases hd : digits.getD i.val 0 < 2 ^ width lay i.val - 1
     · rw [(hs.2 i.val i.isLt).2 hd]
       exact chainP_zero _ _ _ _ _ _ _
-    · have h0 : maxDigit lay i.val - digits.getD i.val 0 = 0 := by omega
+    · have h0 : 2 ^ width lay i.val - 1 - digits.getD i.val 0 = 0 := by omega
       rw [h0]
       rfl
   rw [hchains]

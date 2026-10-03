@@ -1,5 +1,4 @@
 import SigGolfCandidate.T3M.Sign.Basic
-import SigGolfCandidate.T3M.Search.TopTables
 
 /-!
 # Sign: the base invariant (owned by instance F; shared)
@@ -20,14 +19,13 @@ open SphincsSecurity (bytesLE bytesLE_length)
 /-- Doublewords that sign never writes and that later phases read as zero. -/
 def NeverW (A : Nat) : Prop :=
   A = FLEAF ∨ A = FLEAF + 8 ∨ A = FLEAF + 48 ∨ A = FLEAF + 56 ∨ A = NODE + 32 ∨ A = NODE + 40 ∨
-    A = CHAIN ∨ A = CHAIN + 8 ∨ A = CHAIN + 32 ∨ A = CHAIN + 40 ∨ A = LEAFPK + 880 ∨ A = LEAFPK + 888 ∨
+    A = CHAIN ∨ A = CHAIN + 8 ∨ A = CHAIN + 32 ∨ A = CHAIN + 40 ∨ A = LEAFPK + 944 ∨ A = LEAFPK + 952 ∨
     (ZDIG ≤ A ∧ A < ZDIG + 64) ∨ A = ENC + 40 ∨ A = ENC + 48 ∨ A = ENC + 56 ∨ A = NBUF + 32
 
 /-- The doublewords `Base` is about. -/
 def BaseA (A : Nat) : Prop :=
   A = PRIV ∨ A = PRIV + 8 ∨ A = PRIV + 32 ∨ A = PRIV + 40 ∨ A = PRIV + 48 ∨ A = PRIV + 56 ∨
-    (REGION ≤ A ∧ A < REGION + 131040) ∨ NeverW A ∨
-      (Search.TOP_DATA ≤ A ∧ A < Search.TOP_DATA + 632)
+    (REGION ≤ A ∧ A < REGION + 131040) ∨ NeverW A
 
 /-- Facts every phase after the nonce relies on and preserves. -/
 structure Base (sk : SecretKey) (cache : Bytes 131072) (t : MachineState) : Prop where
@@ -40,14 +38,13 @@ structure Base (sk : SecretKey) (cache : Bytes 131072) (t : MachineState) : Prop
   p56 : t.getMem (BitVec.ofNat 64 (PRIV + 56)) = 0
   region : ∀ k < 16380, t.getMem (BitVec.ofNat 64 (REGION + 8 * k)) = cache.extractLsb' (64 * (k + 4)) 64
   zero : ∀ A < 2 ^ 64, NeverW A → t.getMem (BitVec.ofNat 64 A) = 0
-  table : Search.TableOK t
 
 theorem Base.frame {sk : SecretKey} {cache : Bytes 131072} {t u : MachineState} {W : Nat → Prop}
     {l : List Reg} (h : Base sk cache t) (hf : Frame t u W) (hr : RegsExcept t u l) (h5 : .x5 ∉ l)
     (hW : ∀ A, A < 2 ^ 64 → BaseA A → ¬ W A) : Base sk cache u := by
   have g : ∀ A, A < 2 ^ 64 → BaseA A → u.getMem (BitVec.ofNat 64 A) = t.getMem (BitVec.ofNat 64 A) :=
     fun A hA hb => hf.get hA (hW A hA hb)
-  refine ⟨by rw [hr.get h5, h.x5], ?_, ?_, ?_, ?_, ?_, ?_, fun k hk => ?_, fun A hA hn => ?_, ?_⟩
+  refine ⟨by rw [hr.get h5, h.x5], ?_, ?_, ?_, ?_, ?_, ?_, fun k hk => ?_, fun A hA hn => ?_⟩
   · rw [g _ (by sg_omega) (by unfold BaseA; simp), h.p0]
   · rw [g _ (by sg_omega) (by unfold BaseA; simp), h.p8]
   · rw [g _ (by sg_omega) (by unfold BaseA; simp), h.p32]
@@ -56,11 +53,7 @@ theorem Base.frame {sk : SecretKey} {cache : Bytes 131072} {t u : MachineState} 
   · rw [g _ (by sg_omega) (by unfold BaseA; simp), h.p56]
   · rw [g _ (by sg_omega) (by unfold BaseA; right; right; right; right; right; right; left; sg_omega),
       h.region k hk]
-  · rw [g _ hA (by unfold BaseA; right; right; right; right; right; right; right; left; exact hn), h.zero A hA hn]
-  · exact h.table.frame hf (fun i hi => hW _ (by unfold Search.TOP_DATA; omega) (by
-      unfold BaseA
-      right; right; right; right; right; right; right; right
-      unfold Search.TOP_DATA; omega))
+  · rw [g _ hA (by unfold BaseA; right; right; right; right; right; right; right; exact hn), h.zero A hA hn]
 
 /-! ## The cache region as Core's region -/
 

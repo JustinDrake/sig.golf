@@ -23,10 +23,10 @@ def kgLeaf (j : Nat) : LeafArgs := ⟨0, 0, j, [], false, ZDIG, DUMMY, TOP + 16 
 /-- The arguments of the top-tree `build_levels` call. -/
 def kgLev : LevArgs := ⟨3, 0, 0, 12, TOP, 39⟩
 
-theorem kgLeaf_n (j : Nat) : (kgLeaf j).n = 54 := rfl
+theorem kgLeaf_n (j : Nat) : (kgLeaf j).n = 58 := rfl
 
-theorem kgLeaf_costs (j : Nat) : (kgLeaf j).leafK = 7259 ∧ (kgLeaf j).leafC = 9050 ∧
-    (kgLeaf j).leafN = 241 ∧ (kgLeaf j).leafB = 254 := by
+theorem kgLeaf_costs (j : Nat) : (kgLeaf j).leafK = 7203 ∧ (kgLeaf j).leafC = 8995 ∧
+    (kgLeaf j).leafN = 240 ∧ (kgLeaf j).leafB = 254 := by
   have e : (kgLeaf j).leafK = (kgLeaf 0).leafK ∧ (kgLeaf j).leafC = (kgLeaf 0).leafC ∧
       (kgLeaf j).leafN = (kgLeaf 0).leafN ∧ (kgLeaf j).leafB = (kgLeaf 0).leafB := ⟨rfl, rfl, rfl, rfl⟩
   rw [e.1, e.2.1, e.2.2.1, e.2.2.2]
@@ -37,8 +37,8 @@ theorem kgLev_costs : kgLev.levK = 159782 ∧ kgLev.levC = 188447 ∧ kgLev.levN
 /-- The doublewords the leaf loop may change. -/
 def W1 (X : Nat) : Prop :=
   X = PRIV + 16 ∨ X = PRIV + 24 ∨ (SEEDS ≤ X ∧ X < SEEDS + 32) ∨ X = CHAIN + 16 ∨ X = CHAIN + 24 ∨
-    (CHAIN + 48 ≤ X ∧ X < CHAIN + 80) ∨ (LEAFPK ≤ X ∧ X < LEAFPK + 880) ∨ (LOUT ≤ X ∧ X < LOUT + 32) ∨
-    (DUMMY ≤ X ∧ X < DUMMY + 864) ∨ (TOP + 65536 ≤ X ∧ X < TOP + 131072)
+    (CHAIN + 48 ≤ X ∧ X < CHAIN + 80) ∨ (LEAFPK ≤ X ∧ X < LEAFPK + 944) ∨ (LOUT ≤ X ∧ X < LOUT + 32) ∨
+    (DUMMY ≤ X ∧ X < DUMMY + 928) ∨ (TOP + 65536 ≤ X ∧ X < TOP + 131072)
 
 /-- The registers the leaf loop may change. -/
 def loopRegs : List Reg := leafRegs ++ [.x18, .x25]
@@ -108,7 +108,7 @@ theorem kgLeaf_pre {j : Nat} (hj : j < 4096) {t : MachineState} (hr : RegsExcept
           hs.zero _ (by kg_omega) (by kg_omega) (by kg_omega), extractByte_zero]
         rfl
       hdigb := fun i _ => ⟨by show [].getD i 0 < 256; simp, fun _ => by show [].getD i 0 ≤ _; simp⟩
-      hdigp := by show ZDIG + 54 ≤ 2 ^ 24; decide
+      hdigp := by show ZDIG + 58 ≤ 2 ^ 24; decide
       hdigW := fun i hi => by
         rw [kgLeaf_n] at hi
         unfold LeafW
@@ -116,17 +116,17 @@ theorem kgLeaf_pre {j : Nat} (hj : j < 4096) {t : MachineState} (hr : RegsExcept
         dsimp only [kgLeaf]
         kg_omega
       hv8 := show DUMMY % 8 = 0 by decide
-      hv := by show DUMMY + 16 * 54 ≤ 2 ^ 24; decide
+      hv := by show DUMMY + 16 * 58 ≤ 2 ^ 24; decide
       hvs := Or.inr (by show LEAFPK + 960 ≤ DUMMY; decide)
       hd8 := by show (TOP + 16 * (4096 + j)) % 8 = 0; kg_omega
       hd := by show TOP + 16 * (4096 + j) + 16 ≤ 2 ^ 24; kg_omega
       hds := Or.inr (Or.inl (by show LEAFPK + 960 ≤ TOP + 16 * (4096 + j); kg_omega))
-      hdv := Or.inr (by show DUMMY + 16 * 54 ≤ TOP + 16 * (4096 + j); kg_omega) }
+      hdv := Or.inr (by show DUMMY + 16 * 58 ≤ TOP + 16 * (4096 + j); kg_omega) }
 
 /-- One leaf: `kg_leaf`, the call, `build_leaf`, `LEAF += 1`. -/
 theorem leafLoop_body {j : Nat} (hj : j < 4096) (acc : List Digest × List Digest) (t : MachineState)
     (ht : LoopInv s1 j acc t) :
-    TSim image sk t 7269 9060 241 254
+    TSim image sk t 7213 9005 240 254
       (do
         let (root, values) ← buildLeaf 0 0 j (if j = 0 then [] else [])
         pure (acc.1 ++ [root], if j = 0 then values else acc.2))
@@ -163,8 +163,8 @@ theorem leafLoop_body {j : Nat} (hj : j < 4096) (acc : List Digest × List Diges
       simp only [kgLeaf_n] at h
       unfold W1
       change X = PRIV + 16 ∨ X = PRIV + 24 ∨ (SEEDS ≤ X ∧ X < SEEDS + 32) ∨ X = CHAIN + 16 ∨
-        X = CHAIN + 24 ∨ (CHAIN + 48 ≤ X ∧ X < CHAIN + 80) ∨ (LEAFPK ≤ X ∧ X < LEAFPK + 16 * (54 + 1)) ∨
-        (LOUT ≤ X ∧ X < LOUT + 32) ∨ (DUMMY ≤ X ∧ X < DUMMY + 16 * 54) ∨
+        X = CHAIN + 24 ∨ (CHAIN + 48 ≤ X ∧ X < CHAIN + 80) ∨ (LEAFPK ≤ X ∧ X < LEAFPK + 16 * (58 + 1)) ∨
+        (LOUT ≤ X ∧ X < LOUT + 32) ∨ (DUMMY ≤ X ∧ X < DUMMY + 16 * 58) ∨
         (TOP + 16 * (4096 + j) ≤ X ∧ X < TOP + 16 * (4096 + j) + 16) at h
       kg_omega
     · exact h.elim
@@ -180,8 +180,8 @@ theorem leafLoop_body {j : Nat} (hj : j < 4096) (acc : List Digest × List Diges
       · unfold LeafW at h
         simp only [kgLeaf_n] at h
         change B = PRIV + 16 ∨ B = PRIV + 24 ∨ (SEEDS ≤ B ∧ B < SEEDS + 32) ∨ B = CHAIN + 16 ∨
-          B = CHAIN + 24 ∨ (CHAIN + 48 ≤ B ∧ B < CHAIN + 80) ∨ (LEAFPK ≤ B ∧ B < LEAFPK + 16 * (54 + 1)) ∨
-          (LOUT ≤ B ∧ B < LOUT + 32) ∨ (DUMMY ≤ B ∧ B < DUMMY + 16 * 54) ∨
+          B = CHAIN + 24 ∨ (CHAIN + 48 ≤ B ∧ B < CHAIN + 80) ∨ (LEAFPK ≤ B ∧ B < LEAFPK + 16 * (58 + 1)) ∨
+          (LOUT ≤ B ∧ B < LOUT + 32) ∨ (DUMMY ≤ B ∧ B < DUMMY + 16 * 58) ∨
           (TOP + 16 * (4096 + j) ≤ B ∧ B < TOP + 16 * (4096 + j) + 16) at h
         kg_omega
     exact (hold.snoc hd).frame t3f (by simp only [List.length_append, List.length_singleton, ht.len]; kg_omega)
@@ -192,13 +192,13 @@ def treeRegs : List Reg := loopRegs ++ [.x6] ++ [.x1, .x15, .x21] ++ levRegs
 
 /-- **The keygen top tree** `buildTree 0 0 0 []`: the 4096 leaves, then `build_levels`. -/
 theorem buildTree_tsim :
-    TSim image sk s1 29933611 37298212 991231 1044479 (buildTree 0 0 0 [])
+    TSim image sk s1 29704235 37072932 987135 1044479 (buildTree 0 0 0 [])
       (fun r t => t.pc = pcOf 39 ∧ HeapAt t kgLev 12 r.1 ∧ RegsExcept s1 t treeRegs ∧
         Frame s1 t (fun X => W1 X ∨ LevW kgLev X)) := by
   unfold buildTree
   refine (TSim.bind (k₂ := 159787) (c₂ := 188452) (n₂ := 4095) (b₂ := 4095)
-    (TSim.foldlM_range 4096 _ _ (LoopInv s1) (fun _ => 7269) (fun _ => 9060)
-    (fun _ => 241) (fun _ => 254) (fun j hj acc t ht => leafLoop_body hs hj acc t ht) (loopInv_zero hs))
+    (TSim.foldlM_range 4096 _ _ (LoopInv s1) (fun _ => 7213) (fun _ => 9005)
+    (fun _ => 240) (fun _ => 254) (fun j hj acc t ht => leafLoop_body hs hj acc t ht) (loopInv_zero hs))
     (fun st t ht => ?_)).of_eq rfl ?_ ?_ ?_ ?_
   rotate_left
   · rw [sumTo_const]

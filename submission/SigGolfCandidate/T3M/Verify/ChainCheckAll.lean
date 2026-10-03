@@ -1,4 +1,7 @@
+import SigGolfCandidate.T3M.Verify.ChainCheckT1
+import SigGolfCandidate.T3M.Verify.ChainCheckT3
 import SigGolfCandidate.T3M.Verify.ChainCheckT6
+import SigGolfCandidate.T3M.Verify.ChainCheckQ2
 
 /-! All chain families of the verify image: every `ttab`/`qtab` slot and every shared block. -/
 
@@ -40,6 +43,21 @@ theorem blkCheck_at (t dB dC : Nat) (ht : t < 14) (hB : dB < 8) (hC : dC < 8) :
   · have := List.all_eq_true.mp h1.2 (8 * dB + dC) (List.mem_range'_1.mpr ⟨by omega, by omega⟩)
     rwa [e1, e2] at this
 
-theorem ckCheck_ok : ckCheck = true := by decide +kernel
+theorem quadCheck_at (q : Nat) (hq : q < 12) : quadCheck q 0 256 = true := by
+  interval_cases q
+  exacts [quadCheck_0, quadCheck_1, quadCheck_2, quadCheck_3, quadCheck_4, quadCheck_5, quadCheck_6, quadCheck_7, quadCheck_8, quadCheck_9, quadCheck_10, quadCheck_11]
+
+theorem qentCheck_at (q k : Nat) (hq : q < 12) (hk : k < 256) : qentCheck q k = true := by
+  have h0 := quadCheck_at q hq
+  simp only [quadCheck, Bool.and_eq_true] at h0
+  exact List.all_eq_true.mp h0.1 k (List.mem_range'_1.mpr ⟨by omega, by omega⟩)
+
+theorem qblkCheck_at (q dB dC dD : Nat) (hq : q < 12) (hB : dB < 4) (hC : dC < 4) (hD : dD < 4) :
+    qblkCheck q dB dC dD = true := by
+  have h0 := quadCheck_at q hq
+  simp only [quadCheck, Bool.and_eq_true] at h0
+  have := List.all_eq_true.mp h0.2 (16 * dB + 4 * dC + dD) (List.mem_range'_1.mpr ⟨by omega, by omega⟩)
+  rwa [show (16 * dB + 4 * dC + dD) / 16 = dB by omega, show (16 * dB + 4 * dC + dD) / 4 % 4 = dC by omega,
+    show (16 * dB + 4 * dC + dD) % 4 = dD by omega] at this
 
 end SigGolfCandidate.T3M
