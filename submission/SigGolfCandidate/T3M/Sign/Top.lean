@@ -26,7 +26,7 @@ private theorem extractByte_zero_top (k : Nat) : extractByte (0 : Word) k = 0 :=
 
 /-! ## Core -/
 
-theorem signLayers_one (cache : Cache) (index : Nat) (root : Digest) :
+theorem signLayers_one (cache : Cache) (index : Nat) (root : T3.LayerMessage) :
     signLayers cache index 1 root = (do
       let some (_, digits) ← counterSearch 0 (route index 0).2 (route index 0).1 root 0 counterLimit | pure none
       let part ← signTop cache (route index 0).1 digits
@@ -57,16 +57,14 @@ private theorem sumTo_le_sumTo_top (f g : Nat → Nat) : ∀ n, (∀ j < n, f j 
 def tl0 (leaf : Nat) (ds : List Nat) (dest : Nat) : LeafArgs :=
   ⟨0, 0, leaf, ds, true, DIGITS, SIG + 2192, dest, 447⟩
 theorem tl0_costs (leaf dest : Nat) {ds : List Nat} (hd : ∀ i < 54, ds.getD i 0 ≤ 7) :
-    (tl0 leaf ds dest).leafK ≤ (tl0 leaf ds dest).leafC ∧ (tl0 leaf ds dest).leafC ≤ 18674 := by
+    (tl0 leaf ds dest).leafK ≤ (tl0 leaf ds dest).leafC ∧ (tl0 leaf ds dest).leafC ≤ 13328 := by
   have he : ∀ i < 54, (tl0 leaf ds dest).e i ≤ 7 := fun i hi => hd i hi
   have hiK : ∀ i, (tl0 leaf ds dest).iterK i ≤ (tl0 leaf ds dest).iterC i := fun i => by
-    unfold LeafArgs.iterK LeafArgs.iterC
-    norm_num [tl0, Keygen.rungK, Keygen.rungC, Keygen.headerK]
-    omega
-  have hiC : ∀ i < 54, (tl0 leaf ds dest).iterC i ≤ 331 := fun i hi => by
+    unfold LeafArgs.iterK LeafArgs.iterC; omega
+  have hiC : ∀ i < 54, (tl0 leaf ds dest).iterC i ≤ 219 := fun i hi => by
     have := he i hi
     have e1 : (tl0 leaf ds dest).iterC i =
-        21 + (if i < 51 then 5 else 3) + 1 + (42 * (tl0 leaf ds dest).e i + 10) + 0 := rfl
+        21 + (if i < 51 then 5 else 3) + 1 + (26 * (tl0 leaf ds dest).e i + 10) + 0 := rfl
     rw [e1]; split_ifs <;> omega
   have hpK : ∀ p < 27, (tl0 leaf ds dest).pairK p ≤ (tl0 leaf ds dest).pairC p := fun p _ => by
     have e1 : (tl0 leaf ds dest).pairK p = 19 + (tl0 leaf ds dest).iterK (2 * p) +
@@ -76,14 +74,14 @@ theorem tl0_costs (leaf dest : Nat) {ds : List Nat} (hd : ∀ i < 54, ds.getD i 
     have := hiK (2 * p)
     have := hiK (2 * p + 1)
     rw [e1, e2]; split_ifs <;> omega
-  have hpC : ∀ p < 27, (tl0 leaf ds dest).pairC p ≤ 691 := fun p hp => by
+  have hpC : ∀ p < 27, (tl0 leaf ds dest).pairC p ≤ 467 := fun p hp => by
     have e2 : (tl0 leaf ds dest).pairC p = 26 + (tl0 leaf ds dest).iterC (2 * p) +
         (if 2 * p + 1 < 54 then 3 + (tl0 leaf ds dest).iterC (2 * p + 1) else 0) := rfl
     have := hiC (2 * p) (by omega)
     have := hiC (2 * p + 1) (by omega)
     rw [e2]; split_ifs <;> omega
   have hs1 := sumTo_le_sumTo_top _ _ 27 hpK
-  have hs2 := sumTo_le_mul_top _ 691 27 hpC
+  have hs2 := sumTo_le_mul_top _ 467 27 hpC
   have hn : (tl0 leaf ds dest).n = 54 := rfl
   have hso : (tl0 leaf ds dest).so = true := rfl
   unfold LeafArgs.leafK LeafArgs.leafC
@@ -94,7 +92,7 @@ section top
 variable {sk : SecretKey} {cache : Bytes 131072}
 
 /-- `build_leaf`'s entry conditions for a layer-0 leaf from `Base` and the registers. -/
-theorem leafPreS_of {s : MachineState} {A : LeafArgs} (hb : Base sk cache s) (hlay : A.lay = 0)
+theorem leafPreS_of {s : MachineState} {A : LeafArgs} (hb : BaseL sk cache s) (hlay : A.lay = 0)
     (h1 : s.getReg .x1 = pcOf A.ret) (h8 : s.getReg .x8 = BitVec.ofNat 64 0)
     (h9 : s.getReg .x9 = BitVec.ofNat 64 A.tree) (h18 : s.getReg .x18 = BitVec.ofNat 64 A.leaf)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 A.digp) (h23 : s.getReg .x23 = BitVec.ofNat 64 A.valp)
@@ -107,10 +105,7 @@ theorem leafPreS_of {s : MachineState} {A : LeafArgs} (hb : Base sk cache s) (hl
     (hv8 : A.valp % 8 = 0) (hv : A.valp + 16 * 54 ≤ 2 ^ 24)
     (hvs : A.valp + 16 * 54 ≤ PRIV ∨ LEAFPK + 960 ≤ A.valp) (hd8 : A.so = false → A.dest % 8 = 0)
     (hd : A.dest + 16 ≤ 2 ^ 24) (hds : A.dest + 16 ≤ PRIV ∨ LEAFPK + 960 ≤ A.dest ∨ (CHAIN + 80 ≤ A.dest ∧ A.dest + 16 ≤ LOUT))
-    (hdv : A.dest + 16 ≤ A.valp ∨ A.valp + 16 * 54 ≤ A.dest)
-    (hroute : A.tree * 2 ^ height A.lay + A.leaf < 2 ^ 31)
-    (hleafHeight : A.leaf < 2 ^ height A.lay)
-    (hsteps : ∀ i < A.n, A.e i ≤ 8) : LeafPreS sk s A := by
+    (hdv : A.dest + 16 ≤ A.valp ∨ A.valp + 16 * 54 ≤ A.dest) : LeafPreS sk s A := by
   have hn : A.n = 54 := by show chainCount A.lay = 54; rw [hlay]; rfl
   have h4 : n4 A.lay = 51 := by rw [hlay]; rfl
   exact
@@ -127,20 +122,17 @@ theorem leafPreS_of {s : MachineState} {A : LeafArgs} (hb : Base sk cache s) (hl
       x31 := h31
       htree := htree
       hleaf := hleaf
-      hroute := hroute
-      hleafHeight := hleafHeight
-      hsteps := hsteps
       p0 := hb.p0
       p8 := hb.p8
       p32 := hb.p32
       p40 := hb.p40
       p48 := hb.p48
       p56 := hb.p56
-      z0 := hb.zero _ (by sgo) (by unfold NeverW; simp)
-      z8 := hb.zero _ (by sgo) (by unfold NeverW; simp)
-      z32 := hb.zero _ (by sgo) (by unfold NeverW; simp)
-      z40 := hb.zero _ (by sgo) (by unfold NeverW; simp)
-      ztail := fun _ => ⟨hb.zero _ (by sgo) (by unfold NeverW; simp), hb.zero _ (by sgo) (by unfold NeverW; simp)⟩
+      z0 := hb.zero _ (by sgo) (by unfold NeverWL; simp)
+      z8 := hb.zero _ (by sgo) (by unfold NeverWL; simp)
+      z32 := hb.zero _ (by sgo) (by unfold NeverWL; simp)
+      z40 := hb.zero _ (by sgo) (by unfold NeverWL; simp)
+      ztail := fun _ => ⟨hb.zero _ (by sgo) (by unfold NeverWL; simp), hb.zero _ (by sgo) (by unfold NeverWL; simp)⟩
       hdig := fun i hi => hdig i (by rw [hn] at hi; exact hi)
       hdigb := fun i hi => by rw [hlay]; exact hdigb i (by rw [hn] at hi; exact hi)
       hdigp := by rw [hn]; exact hdigp
@@ -154,15 +146,15 @@ theorem leafPreS_of {s : MachineState} {A : LeafArgs} (hb : Base sk cache s) (hl
       hdv := by rw [hn]; exact hdv }
 
 /-- `Base` survives a layer-0 leaf. -/
-theorem base_leaf {s t : MachineState} {A : LeafArgs} (hb : Base sk cache s) (hlay : A.lay = 0)
+theorem base_leaf {s t : MachineState} {A : LeafArgs} (hb : BaseL sk cache s) (hlay : A.lay = 0)
     (hf : Frame s t (LeafW A)) (hr : RegsExcept s t leafRegs)
     (hvB : A.valp + 16 * 54 ≤ PRIV ∨ LEAFPK + 960 ≤ A.valp) (hvR : A.valp + 16 * 54 ≤ REGION ∨ REGION + 131040 ≤ A.valp)
     (hdB : A.dest + 16 ≤ PRIV) (hdZ : A.dest + 16 ≤ ZDIG ∨ ZDIG + 64 ≤ A.dest)
     (hvZ : A.valp + 16 * 54 ≤ ZDIG ∨ ZDIG + 64 ≤ A.valp)
-    (hvT : A.valp + 16 * 54 ≤ Search.TOP_DATA) : Base sk cache t := by
+    (hvT : A.valp + 16 * 54 ≤ Search.TOP_DATA) : BaseL sk cache t := by
   have hn : A.n = 54 := by show chainCount A.lay = 54; rw [hlay]; rfl
   refine hb.frame hf hr (by decide) (fun X _ hB hW => ?_)
-  unfold BaseA NeverW Search.TOP_DATA at hB
+  unfold BaseAL NeverWL Search.TOP_DATA at hB
   unfold Search.TOP_DATA at hvT
   unfold LeafW at hW
   rw [hn] at hW
@@ -182,9 +174,9 @@ theorem TopRegs.of {leaf : Nat} {s t : MachineState} {l : List Reg} (h : TopRegs
     by rw [hr.get hl.2.2.2.1, h.x26], by rw [hr.get hl.2.2.2.2, h.x27]⟩
 
 /-- The zero digit row `ZDIG`. -/
-theorem zdig_byte {s : MachineState} (hb : Base sk cache s) {i : Nat} (hi : i < 54) :
+theorem zdig_byte {s : MachineState} (hb : BaseL sk cache s) {i : Nat} (hi : i < 54) :
     s.getByte (BitVec.ofNat 64 (ZDIG + i)) = BitVec.ofNat 8 0 := by
-  rw [getByte_eq_word s _ (by sgo), hb.zero _ (by sgo) (by unfold NeverW; sgo), extractByte_zero_top]
+  rw [getByte_eq_word s _ (by sgo), hb.zero _ (by sgo) (by unfold NeverWL; sgo), extractByte_zero_top]
   rfl
 
 /-- Writes allowed to layer 0, closed under composition. -/
@@ -243,11 +235,11 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
       x27 := t1x27
       htree := by norm_num
       hleaf := by omega
+      rR := h.encR.frame t1f (by sgo) (fun h => h) (fun h => h)
+      hpad := h.pad0
       msg := h.enc.frame t1f (by sgo) (fun h => h) (fun h => h)
       c32 := by rw [t1f.get (by sgo) (fun h => h)]; exact h.c32
-      z40 := by rw [t1f.get (by sgo) (fun h => h)]; exact h.base.zero _ (by sgo) (by unfold NeverW; simp)
-      z48 := by rw [t1f.get (by sgo) (fun h => h)]; exact h.base.zero _ (by sgo) (by unfold NeverW; simp)
-      z56 := by rw [t1f.get (by sgo) (fun h => h)]; exact h.base.zero _ (by sgo) (by unfold NeverW; simp)
+      z40 := by rw [t1f.get (by sgo) (fun h => h)]; exact h.base.zero _ (by sgo) (by unfold NeverWL; simp)
       table := h.base.table.frame t1f (fun _ _ h => h) }
   have hc0 : csCost 0 = counterLimit * 205 + 2000 := by unfold csCost; rw [if_pos rfl]
   refine TBSim.mono (TBSim.steps st1 (TBSim.bind (W₂ := 50000) (hK t1 0 0 _ root 441 hcs) (fun r u hu => ?_)))
@@ -270,12 +262,12 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
     rcases h with h | h
     · exact h.elim
     · exact h)
-  have hbu : Base sk cache u := h.base.frame ftu (t1r.trans ur) (by decide) (fun A _ hb hw => by
-    unfold BaseA NeverW Search.TOP_DATA at hb; unfold CsW at hw; sgo)
+  have hbu : BaseL sk cache u := h.base.frame ftu (t1r.trans ur) (by decide) (fun A _ hb hw => by
+    unfold BaseAL NeverWL Search.TOP_DATA at hb; unfold CsW at hw; sgo)
   have u14 : u.getReg .x14 = BitVec.ofNat 64 leaf := by rw [ur.get (by decide)]; exact t1x14
   obtain ⟨u1, su1, u1pc, u1x1, u1x31, u1x22, u1x23, u1r, u1f⟩ := blk441_spec u upc
   have g1 : ∀ r, r ∉ [.x1, .x22, .x23, .x31] → u1.getReg r = u.getReg r := fun r hr => u1r.get hr
-  have hbu1 : Base sk cache u1 := hbu.frame u1f u1r (by decide) (fun _ _ _ h => h)
+  have hbu1 : BaseL sk cache u1 := hbu.frame u1f u1r (by decide) (fun _ _ _ h => h)
   have tr1 : TopRegs leaf u1 :=
     ⟨by rw [g1 _ (by decide), ur.get (by decide)]; exact t1x8, by rw [g1 _ (by decide), ur.get (by decide)]; exact t1x9,
       by rw [g1 _ (by decide)]; exact u14, by rw [g1 _ (by decide), ur.get (by decide)]; exact t1x26,
@@ -294,18 +286,15 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
       (Or.inl (by show SIG + 2192 + 16 * 54 ≤ PRIV; sgo)) (fun h => by simp [tl0] at h)
       (by show dest0 + 16 ≤ 2 ^ 24; omega) (Or.inl (by show dest0 + 16 ≤ PRIV; sgo))
       (Or.inl (by show dest0 + 16 ≤ SIG + 2192; sgo))
-      (by change 0 * 2 ^ 12 + leaf < 2 ^ 31; omega)
-      (by change leaf < 4096; omega)
-      (fun i hi => by have := hd7 i hi; change ds.getD i 0 ≤ 8; omega)
   obtain ⟨k0le, c0le⟩ := tl0_costs leaf dest0 hd7
   have hL0 := buildLeaf_tsimS subAt_sign sk hp0 u1pc
   dsimp only
   rw [signTop, bind_assoc]
-  refine TBSim.mono (TBSim.steps su1 (TBSim.bind (W₂ := 30000) (TSim.toTBSim hL0 k0le) (fun r0 v0 hv0 => ?_)))
+  refine TBSim.mono (TBSim.steps su1 (TBSim.bind (W₂ := 36000) (TSim.toTBSim hL0 k0le) (fun r0 v0 hv0 => ?_)))
     (by omega) (fun _ _ h => h)
   obtain ⟨root0, values⟩ := r0
   obtain ⟨v0pc, -, v0vals, v0len, -, v0r, v0f⟩ := hv0
-  have hbv0 : Base sk cache v0 := base_leaf hbu1 rfl v0f v0r (Or.inl (by show SIG + 2192 + 16 * 54 ≤ PRIV; sgo))
+  have hbv0 : BaseL sk cache v0 := base_leaf hbu1 rfl v0f v0r (Or.inl (by show SIG + 2192 + 16 * 54 ≤ PRIV; sgo))
     (Or.inl (by show SIG + 2192 + 16 * 54 ≤ REGION; sgo)) (by show dest0 + 16 ≤ PRIV; sgo)
     (Or.inl (by show dest0 + 16 ≤ ZDIG; sgo)) (Or.inl (by show SIG + 2192 + 16 * 54 ≤ ZDIG; sgo))
     (by show SIG + 2192 + 16 * 54 ≤ Search.TOP_DATA; unfold Search.TOP_DATA; sgo)
@@ -314,12 +303,12 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
     (frame_l0 uf (fun A hA => by unfold CsW at hA; unfold L0W; constructor <;> sgo)))
     (frame_l0 u1f (fun _ h => h.elim)))
     (frame_l0 v0f (leafW_l0 rfl (by simp only [tl0]; sgo) (by simp only [tl0]; sgo)))
-  show TBSim image sk v0 30000 ((topPath (cacheDec cache) leaf >>= fun path => pure (values, path)) >>=
+  show TBSim image sk v0 36000 ((topPath (cacheDec cache) leaf >>= fun path => pure (values, path)) >>=
     fun part => pure (some [part])) (L0Post t)
   simp only [topPath, bind_assoc, pure_bind]
   obtain ⟨v1,s447,v1pc,v1r,v1f⟩ := blk447_spec v0 v0pc
   obtain ⟨w,s1433,wpc,wx22,wx24,wx20,wr,wf⟩ := blk1433_spec v1 v1pc
-  have hbw : Base sk cache w := (hbv0.frame v1f v1r (by decide) (fun _ _ _ h => h)).frame wf wr
+  have hbw : BaseL sk cache w := (hbv0.frame v1f v1r (by decide) (fun _ _ _ h => h)).frame wf wr
     (by decide) (fun _ _ _ h => h)
   have w14 : w.getReg .x14=BitVec.ofNat 64 leaf := by
     rw [wr.get (by decide),v1r.get (by decide),trv0.x14]

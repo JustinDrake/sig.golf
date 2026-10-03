@@ -23,8 +23,6 @@ theorem expandData_table (i : Nat) (hi : i < 628) : expandData.getD i 0 = tableB
 
 theorem signData_length : signData.length = 4096 := by decide +kernel
 theorem expandData_length : expandData.length = 4096 := by decide +kernel
-/-- n3-99: the 2048-word FTS header table (16384 bytes) comes first; BIG1 (T3X / T3Y): then the 16384-byte WOTS
-header table and 2048 zero bytes, then the base data at offset 34816. -/
 theorem verifyData_length : verifyData.length = 67584 := by decide +kernel
 
 private theorem checked_slice_get (bs : List (BitVec 8)) (base n i : Nat) (f : Nat → BitVec 8)
@@ -56,7 +54,7 @@ theorem verifyData_sum (i : Nat) (hi : i < 128) :
 
 theorem verifyData_pair (i : Nat) (hi : i < 16384) :
     verifyData.getD (34816+i) 0 = BitVec.ofNat 8 (Verify.Nonbinary.pairLookup i) := by
-  exact checked_slice_get verifyData 34816 16384 i (fun r => BitVec.ofNat 8 (Verify.Nonbinary.pairLookup r)) hi
+  simpa only [Nat.zero_add] using checked_slice_get verifyData 34816 16384 i (fun r => BitVec.ofNat 8 (Verify.Nonbinary.pairLookup r)) hi
     (by simp only [List.length_take,List.length_drop,verifyData_length]; decide) verify_pair_check
 
 theorem verifyData_tail (i : Nat) (hi : i < 64) :

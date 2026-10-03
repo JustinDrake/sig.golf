@@ -138,19 +138,22 @@ theorem verifyP_walk_extract (answers : Answers) (m : Message) (pk : Digest) (w 
   simp only at hv ⊢
   rw [evalWithAnswerFn_bind] at hv
   rw [queried_bind]
-  generalize hL : evalWithAnswerFn answers (layersP w index 4 root) = ll at hv ⊢
+  generalize hL : evalWithAnswerFn answers (layersP w index 4 (root, 0, 0)) = ll at hv ⊢
   rcases ll with _ | root'
   · simp at hv
   simp only [evalWithAnswerFn_pure, beq_iff_eq] at hv
   subst hv
   -- the hypertree walk
-  have htop : walkTarget answers index 0 = root' := by
+  have htop : (walkTarget answers index 0).1 = root' := by
     rw [hpk]; simp only [walkTarget, route_top_tree index hidx]
-  rcases layersP_walk answers w index hidx 4 le_rfl root (by rw [hL, htop]) with hhit | ⟨lay, _, hdiv, hgood⟩ | ⟨hgood, hroot⟩
+  rcases layersP_walk answers w index hidx 4 le_rfl (root, 0, 0) (by rw [hL, htop]) with
+    hhit | ⟨lay, _, hdiv, hgood⟩ | ⟨hgood, hroot⟩
   · exact Or.inl (hhit.mono fun q hq => by simp only [List.mem_append]; tauto)
   · exact Or.inr (Or.inl ⟨lay, hdiv.mono fun q hq => by simp only [List.mem_append]; tauto, hgood⟩)
   have hroot' : root = honestForest answers index := by
-    rw [hroot]; simp [walkTarget, honestMsg]
+    have h4 : ((root, 0, 0) : LayerMessage) = walkTarget answers index 4 := by simpa using hroot
+    simp [walkTarget, honestMsg] at h4
+    exact h4
   exact Or.inr (Or.inr ⟨fun l => hgood l l.isLt, by rw [hroot'],
     fun q hq => by simp only [List.mem_append]; tauto⟩)
 

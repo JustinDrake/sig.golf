@@ -20,7 +20,6 @@ import SigGolfCandidate.SphincsSecurity.Proof.Fts.CachedIndexHashMoments
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalQueryProjection
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.TerminalProposalWord
 import SigGolfCandidate.T3.Proofs
-import SigGolfCandidate.T3.PackedChain
 import Mathlib.RingTheory.Polynomial.Pochhammer
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.HashOutputSplit
 import SigGolfCandidate.SphincsSecurity.Proof.Base.BinomialMoments
@@ -3003,7 +3002,7 @@ macro "public_verdict_queries" : tactic => `(tactic|
 @[local aesop safe apply] theorem forestPk_public (index : Nat) (roots : List Digest) :
     Only (forestPk index roots) := by unfold forestPk; public_verdict_queries
 @[local aesop safe apply] theorem counterSearch_public (lay : Layer) (tree leaf : Nat)
-    (message : Digest) (counter fuel : Nat) : Only (counterSearch lay tree leaf message counter fuel) := by
+    (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) : Only (counterSearch lay tree leaf message counter fuel) := by
   induction fuel generalizing counter with
   | zero => unfold counterSearch; public_verdict_queries
   | succ fuel ih => unfold counterSearch; public_verdict_queries
@@ -3031,7 +3030,27 @@ theorem recoverLayer_public (sig : Signature) (index : Nat) (lay : Layer) (digit
   unfold recoverLayer;public_verdict_queries
 attribute [local aesop safe apply] recoverLayer_public
 
-theorem expandLayers_public (sig : Signature) (index n : Nat) (value : Digest) :
+theorem recoverPair_public (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
+    Only (recoverPair sig index lay digits) := by
+  unfold recoverPair;public_verdict_queries
+attribute [local aesop safe apply] recoverPair_public
+
+theorem rootHash_public (index : Nat) (lay : Layer) (pair : (Digest × BitVec 96 × Digest)) :
+    Only (rootHash index lay pair) := by
+  unfold rootHash;public_verdict_queries
+attribute [local aesop safe apply] rootHash_public
+
+theorem recoverNext_public (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
+    Only (recoverNext sig index n lay digits) := by
+  unfold recoverNext;split <;> public_verdict_queries
+attribute [local aesop safe apply] recoverNext_public
+
+theorem expandNext_public (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
+    Only (expandNext sig index n lay digits) := by
+  unfold expandNext;public_verdict_queries
+attribute [local aesop safe apply] expandNext_public
+
+theorem expandLayers_public (sig : Signature) (index n : Nat) (value : Digest × BitVec 96 × Digest) :
     Only (expandLayers sig index n value) := by
   induction n generalizing value with
   | zero => unfold expandLayers;public_verdict_queries
@@ -3043,7 +3062,7 @@ theorem expand_public (message : Message) (pk : Digest) (sig : Signature) :
   unfold expand;public_verdict_queries
 attribute [local aesop safe apply] expand_public
 
-theorem verifyLayers_public (witness : Witness) (index n : Nat) (root : Digest) :
+theorem verifyLayers_public (witness : Witness) (index n : Nat) (root : Digest × BitVec 96 × Digest) :
     Only (verifyLayers witness index n root) := by
   induction n generalizing root with
   | zero => unfold verifyLayers;public_verdict_queries
@@ -3100,7 +3119,7 @@ theorem payloadAfterDigest_forestRows (cache : T3.Cache) (rho : Digest) (output 
       let index := output.toNat%2^31
       let state ← forestRows index (selections output)
       let root ← forestPk index state.2.2
-      let some layers ← signLayers cache index 4 root | pure none
+      let some layers ← signLayers cache index 4 (root, 0, 0) | pure none
       pure (some ⟨rho,fun i => state.1.getD i.val 0,fun i => state.2.1.getD i.val 0,
         fun lay => piecesSignature lay (layers.getD lay.val ([],[]))⟩)) := rfl
 
@@ -3115,7 +3134,7 @@ theorem payloadAfterDigest_fields (answers : Answers) (cache : T3.Cache) (rho : 
   rw [payloadAfterDigest_forestRows] at hs
   simp only [evalWithAnswerFn_bind,eval_forestRows] at hs
   cases hp : evalWithAnswerFn answers (signLayers cache (output.toNat%2^31) 4
-    (evalWithAnswerFn answers (forestPk (output.toNat%2^31) (forestRoots answers (output.toNat%2^31) 7)))) with
+    (evalWithAnswerFn answers (forestPk (output.toNat%2^31) (forestRoots answers (output.toNat%2^31) 7)),0,0)) with
   | none => simp only [hp,evalWithAnswerFn_pure,reduceCtorEq] at hs
   | some parts =>
       simp only [hp,evalWithAnswerFn_pure,Option.some.injEq] at hs
@@ -6253,7 +6272,10 @@ theorem row_length (point : Point) (value : Digest) : (row point value).length=6
 
 theorem row_position {left right : Point} {value value' : Digest}
     (heq : row left value=row right value') : left=right := by
-  obtain ⟨hheader,_⟩ := chainInput_fields heq
+  unfold row chainInput at heq
+  obtain ⟨hprefix,_⟩ := List.append_inj heq (by simp [List.length_append,zero16,bytesLE_length])
+  obtain ⟨hprefix,_⟩ := List.append_inj hprefix (by simp [List.length_append,zero16,bytesLE_length])
+  obtain ⟨_,hheader⟩ := List.append_inj hprefix rfl
   have hl := left.1.layer.isLt
   have hr := right.1.layer.isLt
   have hlt := left.1.tree.isLt
@@ -6264,15 +6286,17 @@ theorem row_position {left right : Point} {value value' : Digest}
   have hrc := right.1.chain.isLt
   have hls := left.2.isLt
   have hrs := right.2.isLt
-  have hh := chainHeader_injective (by omega) (by omega) (by omega) (by omega)
-    (by omega) (by omega) (by omega) (by omega) hheader
+  have hh := header_injective (by decide : 1<256) (by omega) (by omega) (by omega) (by omega)
+    (by decide : 1<256) (by omega) (by omega) (by omega) (by omega) (bytesLE_injective hheader)
+  obtain ⟨hstep,hchain⟩ := pack_nat_injective (by omega : left.2.val<256)
+    (by omega : right.2.val<256) hh.2.2.2.1
   apply Prod.ext
-  · apply Address.ext
-    · exact hh.1
-    · exact Fin.ext hh.2.1
-    · exact Fin.ext hh.2.2.1
-    · exact Fin.ext hh.2.2.2.1
-  · exact Fin.ext hh.2.2.2.2
+  · apply Address.ext <;> apply Fin.ext
+    · exact hh.2.1
+    · exact hh.2.2.1
+    · exact hh.2.2.2.2
+    · exact hchain
+  · exact Fin.ext hstep
 
 /-- Honest chain steps at distinct addresses cannot alias, even when their
 secret inputs or oracle outputs happen to coincide. -/

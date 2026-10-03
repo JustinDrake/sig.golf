@@ -13,7 +13,7 @@ signature piece `a6`, the witness chain / Merkle blocks `s7` / `s8`, `jal recove
 namespace SigGolfCandidate.T3M.Expand
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 open SigGolfCandidate.T3 (Layer route height chainCount target)
-open SigGolfCandidate.T3M.Search (ENC csN4 ofNat_and_mask)
+open SigGolfCandidate.T3M.Search (ENC NOUT csN4 ofNat_and_mask)
 
 set_option autoImplicit false
 set_option maxRecDepth 8192
@@ -188,13 +188,13 @@ theorem l318_spec (hpc : s.pc = pcOf 318) (index : Nat) (hi : index < 2 ^ 31)
   · intro A _ _; simp [eblk_318.res, rv_simp]
 
 /-- After `counter_search`: the counter into the witness header (dword `0x820`, half 0), `a6 = 0x82e0`,
-`s7 = 0x6688`, `s8 = 0x5bc8`, `jal recover_layer`. -/
+`s7 = 0x6a58`, `s8 = 0x5f98`, `jal recover_layer`. -/
 theorem l262_spec (hpc : s.pc = pcOf 262) (c : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = pcOf 997 ∧ t.getReg .x1 = pcOf 272 ∧
       t.getMem (BitVec.ofNat 64 0x820) =
         replaceWord32 (s.getMem (BitVec.ofNat 64 0x820)) 0 ((BitVec.ofNat 64 c).truncate 32) ∧
-      t.getReg .x16 = BitVec.ofNat 64 0x82e0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x6688 ∧
-      t.getReg .x24 = BitVec.ofNat 64 0x5bc8 ∧
+      t.getReg .x16 = BitVec.ofNat 64 0x82e0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x6a58 ∧
+      t.getReg .x24 = BitVec.ofNat 64 0x5f98 ∧
       RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x820) := by
   refine ⟨_, symRun_sound eblk_262 codeAt_262 s hpc (by simp [eblk_262.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -212,13 +212,13 @@ theorem l262_spec (hpc : s.pc = pcOf 262) (c : Nat) (h19 : s.getReg .x19 = BitVe
     rw [if_neg (by omega)]
 
 /-- After `counter_search`: the counter into the witness header (dword `0x818`, half 1), `a6 = 0x7fd0`,
-`s7 = 0x5a48`, `s8 = 0x4f88`, `jal recover_layer`. -/
+`s7 = 0x5e18`, `s8 = 0x5358`, `jal recover_layer`. -/
 theorem l285_spec (hpc : s.pc = pcOf 285) (c : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = pcOf 997 ∧ t.getReg .x1 = pcOf 295 ∧
       t.getMem (BitVec.ofNat 64 0x818) =
         replaceWord32 (s.getMem (BitVec.ofNat 64 0x818)) 1 ((BitVec.ofNat 64 c).truncate 32) ∧
-      t.getReg .x16 = BitVec.ofNat 64 0x7fd0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x5a48 ∧
-      t.getReg .x24 = BitVec.ofNat 64 0x4f88 ∧
+      t.getReg .x16 = BitVec.ofNat 64 0x7fd0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x5e18 ∧
+      t.getReg .x24 = BitVec.ofNat 64 0x5358 ∧
       RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x818) := by
   refine ⟨_, symRun_sound eblk_285 codeAt_285 s hpc (by simp [eblk_285.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -236,13 +236,13 @@ theorem l285_spec (hpc : s.pc = pcOf 285) (c : Nat) (h19 : s.getReg .x19 = BitVe
     rw [if_neg (by omega)]
 
 /-- After `counter_search`: the counter into the witness header (dword `0x818`, half 0), `a6 = 0x7cb0`,
-`s7 = 0x4e08`, `s8 = 0x4348`, `jal recover_layer`. -/
+`s7 = 0x51d8`, `s8 = 0x4718`, `jal recover_layer`. -/
 theorem l308_spec (hpc : s.pc = pcOf 308) (c : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = pcOf 997 ∧ t.getReg .x1 = pcOf 318 ∧
       t.getMem (BitVec.ofNat 64 0x818) =
         replaceWord32 (s.getMem (BitVec.ofNat 64 0x818)) 0 ((BitVec.ofNat 64 c).truncate 32) ∧
-      t.getReg .x16 = BitVec.ofNat 64 0x7cb0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x4e08 ∧
-      t.getReg .x24 = BitVec.ofNat 64 0x4348 ∧
+      t.getReg .x16 = BitVec.ofNat 64 0x7cb0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x51d8 ∧
+      t.getReg .x24 = BitVec.ofNat 64 0x4718 ∧
       RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x818) := by
   refine ⟨_, symRun_sound eblk_308 codeAt_308 s hpc (by simp [eblk_308.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -260,13 +260,13 @@ theorem l308_spec (hpc : s.pc = pcOf 308) (c : Nat) (h19 : s.getReg .x19 = BitVe
     rw [if_neg (by omega)]
 
 /-- After `counter_search`: the counter into the witness header (dword `0x810`, half 1), `a6 = 0x7890`,
-`s7 = 0x4188`, `s8 = 0x3408`, `jal recover_layer`. -/
+`s7 = 0x4458`, `s8 = 0x36d8`, `jal recover_layer`. -/
 theorem l332_spec (hpc : s.pc = pcOf 332) (c : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = pcOf 997 ∧ t.getReg .x1 = pcOf 342 ∧
       t.getMem (BitVec.ofNat 64 0x810) =
         replaceWord32 (s.getMem (BitVec.ofNat 64 0x810)) 1 ((BitVec.ofNat 64 c).truncate 32) ∧
-      t.getReg .x16 = BitVec.ofNat 64 0x7890 ∧ t.getReg .x23 = BitVec.ofNat 64 0x4188 ∧
-      t.getReg .x24 = BitVec.ofNat 64 0x3408 ∧
+      t.getReg .x16 = BitVec.ofNat 64 0x7890 ∧ t.getReg .x23 = BitVec.ofNat 64 0x4458 ∧
+      t.getReg .x24 = BitVec.ofNat 64 0x36d8 ∧
       RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x810) := by
   refine ⟨_, symRun_sound eblk_332 codeAt_332 s hpc (by simp [eblk_332.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -284,15 +284,15 @@ theorem l332_spec (hpc : s.pc = pcOf 332) (c : Nat) (h19 : s.getReg .x19 = BitVe
     rw [if_neg (by omega)]
 
 
-/-- `compare`, first doubleword: the root (`ENC`) against the public key (`0xA0`). -/
+/-- `compare`, first doubleword: the root (`NOUT`) against the public key (`0xA0`). -/
 theorem c342_spec (hpc : s.pc = pcOf 342) :
     ∃ t, Steps image s 6 6 t ∧
-      t.pc = (if s.getMem (BitVec.ofNat 64 ENC) = s.getMem (BitVec.ofNat 64 0xA0) then pcOf 348 else pcOf 354) ∧
-      t.getReg .x28 = BitVec.ofNat 64 ENC ∧ t.getReg .x29 = BitVec.ofNat 64 0xA0 ∧
+      t.pc = (if s.getMem (BitVec.ofNat 64 NOUT) = s.getMem (BitVec.ofNat 64 0xA0) then pcOf 348 else pcOf 354) ∧
+      t.getReg .x28 = BitVec.ofNat 64 NOUT ∧ t.getReg .x29 = BitVec.ofNat 64 0xA0 ∧
       RegsExcept s t [.x6, .x7, .x28, .x29] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound eblk_342 codeAt_342 s hpc (by simp [eblk_342.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
     ?_, ?_, ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, eblk_342.res, E.eval, CmpOp.eval, rebase, rv_simp, ENC]
+  · simp only [Result.toState_pc, eblk_342.res, E.eval, CmpOp.eval, rebase, rv_simp, NOUT]
     split_ifs with h1 h2 h2 <;> simp_all
   · simp [eblk_342.res, rv_simp]
   · simp [eblk_342.res, rv_simp]
@@ -300,14 +300,14 @@ theorem c342_spec (hpc : s.pc = pcOf 342) :
   · intro A _ _; simp [eblk_342.res, rv_simp]
 
 /-- `compare`, second doubleword. -/
-theorem c348_spec (hpc : s.pc = pcOf 348) (h28 : s.getReg .x28 = BitVec.ofNat 64 ENC)
+theorem c348_spec (hpc : s.pc = pcOf 348) (h28 : s.getReg .x28 = BitVec.ofNat 64 NOUT)
     (h29 : s.getReg .x29 = BitVec.ofNat 64 0xA0) :
     ∃ t, Steps image s 3 3 t ∧
-      t.pc = (if s.getMem (BitVec.ofNat 64 (ENC + 8)) = s.getMem (BitVec.ofNat 64 0xA8) then pcOf 351 else pcOf 354) ∧
+      t.pc = (if s.getMem (BitVec.ofNat 64 (NOUT + 8)) = s.getMem (BitVec.ofNat 64 0xA8) then pcOf 351 else pcOf 354) ∧
       RegsExcept s t [.x6, .x7] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound eblk_348 codeAt_348 s hpc
-    (by simp [eblk_348.res, rv_simp, accessValid_iff, MEMORY_BYTES, h28, h29, ENC]), ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, eblk_348.res, E.eval, CmpOp.eval, rebase, rv_simp, ENC, h28, h29]
+    (by simp [eblk_348.res, rv_simp, accessValid_iff, MEMORY_BYTES, h28, h29, NOUT]), ?_, ?_, ?_⟩
+  · simp only [Result.toState_pc, eblk_348.res, E.eval, CmpOp.eval, rebase, rv_simp, NOUT, h28, h29]
     split_ifs with h1 h2 h2 <;> simp_all
   · ex_regs eblk_348.res
   · intro A _ _; simp [eblk_348.res, rv_simp]
@@ -342,8 +342,8 @@ def lD (lay : Layer) : Nat := ![0x810, 0x818, 0x818, 0x820] lay
 def lk (lay : Layer) : Nat := ![1, 0, 1, 0] lay
 /-- The layer's signature piece, witness chain block of chain 0, witness Merkle block of level 0. -/
 def lP (lay : Layer) : Nat := ![0x7890, 0x7cb0, 0x7fd0, 0x82e0] lay
-def lWC (lay : Layer) : Nat := ![0x4188, 0x4E08, 0x5A48, 0x6688] lay
-def lWM (lay : Layer) : Nat := ![0x3408, 0x4348, 0x4F88, 0x5BC8] lay
+def lWC (lay : Layer) : Nat := ![0x4458, 0x51D8, 0x5E18, 0x6A58] lay
+def lWM (lay : Layer) : Nat := ![0x36D8, 0x4718, 0x5358, 0x5F98] lay
 
 theorem route_fst (index : Nat) (lay : Layer) :
     (route index lay).1 = index / 2 ^ ((![19, 12, 6, 0] : Layer → Nat) lay) % 2 ^ height lay := rfl

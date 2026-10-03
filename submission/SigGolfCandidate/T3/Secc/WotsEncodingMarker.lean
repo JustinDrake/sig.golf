@@ -29,7 +29,7 @@ def chainAt (p : CanonGraph.LeafPos × Fin 58) : ChainAddr := ⟨leafOf p.1, p.2
 
 /-- An entry marking chain `a` (one witness of `MarkerAt`). -/
 def MarkEntry (T : Answers) (a : ChainAddr) (entry : Entry) : Prop :=
-  ∃ (message : Digest) (counter : BitVec 32) (digits : List Nat),
+  ∃ (message : Digest × BitVec 96 × Digest) (counter : BitVec 32) (digits : List Nat),
     entry.1 = encodingRow a.key message counter ∧
       referenceInput T a.key ≠ some (encodingRow a.key message counter) ∧
       decode a.key.lay (low entry.2) = some digits ∧

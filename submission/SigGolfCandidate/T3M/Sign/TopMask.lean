@@ -93,7 +93,7 @@ structure MInv (w0 : MachineState) (pre : List Digest) (w : MachineState) : Prop
 
 section masks
 variable {sk : SecretKey} {cache : Bytes 131072} {w0 : MachineState} {leaf : Nat}
-  (hb : Base sk cache w0) (hl : leaf<4096) (h14 : w0.getReg .x14=BitVec.ofNat 64 leaf)
+  (hb : BaseL sk cache w0) (hl : leaf<4096) (h14 : w0.getReg .x14=BitVec.ofNat 64 leaf)
 include hb hl h14
 
 theorem tp_mask_one {pre : List Digest} (hpl : pre.length<12) {w : MachineState}
@@ -108,16 +108,16 @@ theorem tp_mask_one {pre : List Digest} (hpl : pre.length<12) {w : MachineState}
   obtain ⟨t2,st2,t2pc,t2x10,t2x11,t2x12,t2x23,t2a,t2b,t2r,t2f⟩ :=
     blk1438_spec w (by rw [hw.pc, if_pos hpl]) leaf lv hl (by omega)
       (by rw [g _ (by decide),h14]) hw.x22
-  have fr : ∀ X, X<2^64 → BaseA X → t2.getMem (BitVec.ofNat 64 X)=w0.getMem (BitVec.ofNat 64 X) :=
-    fun X hX hba => (t2f.get hX (by unfold BaseA NeverW Search.TOP_DATA at hba; sg_omega)).trans
-      (hw.frame.get hX (by unfold BaseA NeverW Search.TOP_DATA at hba; unfold TMW; sg_omega))
+  have fr : ∀ X, X<2^64 → BaseAL X → t2.getMem (BitVec.ofNat 64 X)=w0.getMem (BitVec.ofNat 64 X) :=
+    fun X hX hba => (t2f.get hX (by unfold BaseAL NeverWL Search.TOP_DATA at hba; sg_omega)).trans
+      (hw.frame.get hX (by unfold BaseAL NeverWL Search.TOP_DATA at hba; unfold TMW; sg_omega))
   have hq : hashInput t2=toQ (privateInput sk (.inl (header 13 0 0 lv ((leaf/2^lv ^^^ 1)/2)))) := by
     refine hashInput_toQ t2 _ 0 PRIV (privateInput_tweak_length _ _) t2x10 (by decide) (by decide) t2x11
       (by decide) ?_
     rw [wordsOf_privateInput_tweak,header_lo,header_hi,readWords_eight,
-      fr PRIV (by decide) (by unfold BaseA; simp),fr (PRIV+8) (by decide) (by unfold BaseA; simp),t2a,t2b,
-      fr (PRIV+32) (by decide) (by unfold BaseA; simp),fr (PRIV+40) (by decide) (by unfold BaseA; simp),
-      fr (PRIV+48) (by decide) (by unfold BaseA; simp),fr (PRIV+56) (by decide) (by unfold BaseA; simp),
+      fr PRIV (by decide) (by unfold BaseAL; simp),fr (PRIV+8) (by decide) (by unfold BaseAL; simp),t2a,t2b,
+      fr (PRIV+32) (by decide) (by unfold BaseAL; simp),fr (PRIV+40) (by decide) (by unfold BaseAL; simp),
+      fr (PRIV+48) (by decide) (by unfold BaseAL; simp),fr (PRIV+56) (by decide) (by unfold BaseAL; simp),
       hb.p0,hb.p8,hb.p32,hb.p40,hb.p48,hb.p56]
     rfl
   have hv : hashArgumentsValid t2=true :=

@@ -1,5 +1,4 @@
 import SigGolfCandidate.T3M.Witness.Queries
-import SigGolfCandidate.T3M.Extract.Normalize
 
 /-! # Shared vocabulary of the padded structural extraction (streams PEX-L / PEX-F)
 
@@ -54,11 +53,16 @@ def forestInput (index : Nat) (roots : List Digest) : HashInput :=
 def honestForest (answers : Answers) (index : Nat) : Digest :=
   evalWithAnswerFn answers (forestPk index (ftsRootsHonest answers index))
 
-/-- The honest message signed at layer `lay`: the honest root of the layer below (`lay + 1`) for `lay < 3`, the
-honest forest pk for `lay = 3`. -/
-noncomputable def honestMsg (answers : Answers) (index : Nat) (lay : Layer) : Digest :=
-  if h : lay.val < 3 then honestRoot answers ⟨lay.val + 1, by omega⟩ (route index ⟨lay.val + 1, by omega⟩).2
-  else honestForest answers index
+/-- The honest children of the root of the layer-`lay` tree `tree`, as signed (zero pad between them). -/
+noncomputable def honestPair (answers : Answers) (lay : Layer) (tree : Nat) : LayerMessage :=
+  (treeValue (builtTree answers lay tree) (height lay - 1) 0, 0,
+    treeValue (builtTree answers lay tree) (height lay - 1) 1)
+
+/-- The honest message signed at layer `lay`: the honest root children of the layer below (`lay + 1`) for
+`lay < 3`, `(forest pk, 0, 0)` for `lay = 3`. -/
+noncomputable def honestMsg (answers : Answers) (index : Nat) (lay : Layer) : LayerMessage :=
+  if h : lay.val < 3 then honestPair answers ⟨lay.val + 1, by omega⟩ (route index ⟨lay.val + 1, by omega⟩).2
+  else (honestForest answers index, 0, 0)
 
 /-! ## Reference positions -/
 
@@ -89,7 +93,7 @@ noncomputable def honestInput (answers : Answers) : Pos → HashInput
 
 /-- The header of a position's honest input (independent of the answers table: `hdrBlock_honestInput`). -/
 def Pos.hdr : Pos → BitVec 128
-  | .chain lay tree lf i step => chainHeader lay tree lf i step
+  | .chain lay tree lf i step => header 1 lay.val tree (step + 256 * i) lf
   | .leaf lay tree lf => header 2 lay.val tree 0 lf
   | .node lay tree level nd => header 3 lay.val tree 0 (2 ^ (height lay - level - 1) + nd)
   | .forest index => header 11 0 index 0 0
@@ -99,7 +103,7 @@ def Pos.hdr : Pos → BitVec 128
 /-- Field bounds under which `Pos.hdr` is injective (`Pos.hdr_injective`): every position the extraction names
 satisfies them. -/
 def Pos.Bounded : Pos → Prop
-  | .chain _ tree lf i step => tree < 2 ^ 31 ∧ lf < 4096 ∧ i < 64 ∧ step < 8
+  | .chain _ tree lf i step => tree < 2 ^ 40 ∧ lf < 2 ^ 32 ∧ i < 2 ^ 24 ∧ step < 256
   | .leaf _ tree lf => tree < 2 ^ 40 ∧ lf < 2 ^ 32
   | .node lay tree level nd => tree < 2 ^ 40 ∧ level < height lay ∧ nd < 2 ^ (height lay - level - 1)
   | .forest index => index < 2 ^ 40
@@ -109,10 +113,8 @@ def Pos.Bounded : Pos → Prop
 /-- The header block (bytes `[16,32)`) of an input. -/
 def hdrBlock (input : HashInput) : HashInput := (input.drop 16).take 16
 
-/-- Actual and honest inputs carry the same role-specific reference key.
-The actual HASH input, including its arbitrary chain high pad, is unchanged. -/
-def SameHeader (actual honest : HashInput) : Prop :=
-  canonicalHeader (hdrBlock actual) = canonicalHeader (hdrBlock honest)
+/-- Actual and honest inputs carry the same header block (same tag and position). -/
+def SameHeader (actual honest : HashInput) : Prop := hdrBlock actual = hdrBlock honest
 
 /-- A header-preserving distinct-input hit on an honest reference at a bounded position, at an actual public
 query of `qs`. (With `Pos.hdr_injective` the position is a function of the actual input: `posOf_hit`.) -/

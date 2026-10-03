@@ -1,5 +1,4 @@
 import SigGolfCandidate.T3.Secc.PairGuessWorld
-import SigGolfCandidate.T3.PackedChain
 
 /-!
 # B-PAIR (2/4): the FTS secrets enter the honest computation only through the opened positions
@@ -100,18 +99,9 @@ theorem privateMac_free (region : Region) : AllQueriesSatisfy (privateMac region
 
 theorem chainStep_free (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
     AllQueriesSatisfy (shortHash (chainInput lay tree leaf i step value)) FtsFree := by
-  unfold shortHash publicHash
-  apply bind_allowed FtsFree
-  · apply (allQueriesSatisfy_query_iff _ _).mpr
-    change decodeProbe (pad64 (chainInput lay tree leaf i step value)) = none
-    rw [decodeProbe_eq_none, chainInput_padded]
-    intro f c he
-    have hh := congrArg Extract.hdrBlock he
-    rw [hdrBlock_probeInput] at hh
-    change ((chainInput lay tree leaf i step value).drop 16).take 16 = _ at hh
-    rw [chainInput_header] at hh
-    exact chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ (bytesLE_injective hh)
-  · intro _; exact pure_allowed _ _
+  unfold chainInput
+  rw [zero16_eq]
+  exact shortHash_free 0 _ _ _ _ _ (by decide)
 
 theorem chain_free (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
     AllQueriesSatisfy (chain lay tree leaf i start count value) FtsFree := by
@@ -197,7 +187,7 @@ theorem keygen_free : AllQueriesSatisfy keygen FtsFree := by
   intro generated
   exact bind_allowed FtsFree (privateMac_free _) fun _ => pure_allowed _ _
 
-theorem counterSearch_free (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
+theorem counterSearch_free (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) :
     AllQueriesSatisfy (counterSearch lay tree leaf message counter fuel) FtsFree := by
   induction fuel generalizing counter with
   | zero => exact pure_allowed _ _
@@ -243,7 +233,7 @@ theorem signTop_free (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
   exact bind_allowed FtsFree (buildLeaf_free _ _ _ _ _) fun _ =>
     bind_allowed FtsFree (topPath_free _ _) fun _ => pure_allowed _ _
 
-theorem signLayers_free (cache : T3.Cache) (index n : Nat) (message : Digest) :
+theorem signLayers_free (cache : T3.Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
     AllQueriesSatisfy (signLayers cache index n message) FtsFree := by
   induction n generalizing message with
   | zero => exact pure_allowed _ _
@@ -658,7 +648,7 @@ noncomputable def signerForest (output : HashOutput) : List Digest × List Diges
 noncomputable def signerLayers (request : Request) (output : HashOutput) : Option (List Pieces) :=
   evalWithAnswerFn (Omega.answers hU ω (fun _ => 0)) (signLayers request.cache (output.toNat % 2 ^ 31) 4
     (evalWithAnswerFn (Omega.answers hU ω (fun _ => 0))
-      (forestPk (output.toNat % 2 ^ 31) (signerForest hU ω output).2.2)))
+      (forestPk (output.toNat % 2 ^ 31) (signerForest hU ω output).2.2),0,0))
 
 /-- The signer's output when the opened secrets at digest output `output` are `opener output`. -/
 noncomputable def signWith (published : T3.Cache) (request : Request) (opener : HashOutput → List Digest) :
@@ -707,7 +697,7 @@ theorem sign_answers (fts : FtsCoord → Digest) (published : T3.Cache) (request
         cases evalWithAnswerFn (Omega.answers hU ω (fun _ => 0)) (signLayers request.cache (output.toNat % 2 ^ 31) 4
             (evalWithAnswerFn (Omega.answers hU ω (fun _ => 0)) (forestPk (output.toNat % 2 ^ 31)
               (evalWithAnswerFn (Omega.answers hU ω (fun _ => 0))
-                (Correctness.signForest (output.toNat % 2 ^ 31) (selections output))).2.2))) with
+                (Correctness.signForest (output.toNat % 2 ^ 31) (selections output))).2.2),0,0)) with
         | none => rfl
         | some pieces => rfl
   · rfl

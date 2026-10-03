@@ -71,19 +71,9 @@ theorem privateMac_dn (region : Region) : AllQueriesSatisfy (privateMac region) 
 
 theorem chainStep_dn (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
     AllQueriesSatisfy (shortHash (chainInput lay tree leaf i step value)) NotDN := by
-  unfold shortHash publicHash
-  apply bind_allowed NotDN
-  · apply (allQueriesSatisfy_query_iff _ _).mpr
-    intro hm
-    obtain ⟨rho, m, ctr, he⟩ := mem_digestInputs.mp hm
-    have hh := congrArg Extract.hdrBlock he
-    rw [chainInput_padded, Extract.hdrBlock_pad64 _ (by rw [digestInput_length]; omega)] at hh
-    change ((chainInput lay tree leaf i step value).drop 16).take 16 = _ at hh
-    rw [chainInput_header] at hh
-    unfold digestInput at hh
-    rw [Extract.hdrBlock_prefix] at hh
-    exact chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ (bytesLE_injective hh)
-  · intro _; exact pure_allowed _ _
+  unfold chainInput
+  rw [zero16_eq]
+  exact shortHash_dn 0 _ _ _ _ _ (by decide)
 
 theorem chain_dn (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
     AllQueriesSatisfy (chain lay tree leaf i start count value) NotDN := by
@@ -169,7 +159,7 @@ theorem keygen_dn : AllQueriesSatisfy keygen NotDN := by
   intro generated
   exact bind_allowed NotDN (privateMac_dn _) fun _ => pure_allowed _ _
 
-theorem counterSearch_dn (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
+theorem counterSearch_dn (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) :
     AllQueriesSatisfy (counterSearch lay tree leaf message counter fuel) NotDN := by
   induction fuel generalizing counter with
   | zero => exact pure_allowed _ _
@@ -198,7 +188,7 @@ theorem signTop_dn (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
   exact bind_allowed NotDN (buildLeaf_dn _ _ _ _ _) fun _ =>
     bind_allowed NotDN (topPath_dn _ _) fun _ => pure_allowed _ _
 
-theorem signLayers_dn (cache : T3.Cache) (index n : Nat) (message : Digest) :
+theorem signLayers_dn (cache : T3.Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
     AllQueriesSatisfy (signLayers cache index n message) NotDN := by
   induction n generalizing message with
   | zero => exact pure_allowed _ _

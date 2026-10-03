@@ -44,7 +44,7 @@ theorem toNat_extract0_mod (N : BitVec 256) : (N.extractLsb' 0 64).toNat % 2 ^ 3
 def ExpQ : Option (HashOutput × Witness) → MachineState → Prop
   | none, t => FailedAt 354 t
   | some (N, w), t => t.pc = pcOf 353 ∧ t.getReg .x5 = BitVec.ofNat 64 1 ∧ t.getReg .x10 = BitVec.ofNat 64 0 ∧
-      t.readWords (BitVec.ofNat 64 0x800) 3033 = wordsOf (witList N w)
+      t.readWords (BitVec.ofNat 64 0x800) 3155 = wordsOf (witList N w)
 
 /-- An all-oracle cycle bound of `expand`. -/
 def expCost : Nat := 30 + (2 ^ 20 * 672 + 670) + 16 + ftsCost + 1 + (12 * 115 + 4) + 36 + lcost 4 + 11
@@ -181,9 +181,9 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
       · exact h
       · simp only [FOREST, FOUT, ENC] at h h8 h9 h10 h11; omega
     have nFts : ∀ A, (A < 0x22000 - 512 ∨ 0x22000 ≤ A) → (A < NODE ∨ NOUT + 32 ≤ A ∨ A = NODE + 32 ∨ A = NODE + 40) →
-        (A < FLEAF ∨ FLEAF + 64 ≤ A) → (A < FOREST ∨ FOREST + 128 ≤ A) → (A < 0x840 ∨ 0x3148 ≤ A) → ¬ FtsW A := by
+        (A < FLEAF ∨ FLEAF + 64 ≤ A) → (A < FOREST ∨ FOREST + 128 ≤ A) → (A < 0x840 ∨ 0x3418 ≤ A) → ¬ FtsW A := by
       intro A h1 h2 h3 h4 h5 h; unfold FtsW at h; simp only [NODE, NOUT, FLEAF, FOREST] at h h2 h3 h4; omega
-    have hm7' : ∀ A, A < 2 ^ 64 → (A < 0x800 ∨ 0x3148 ≤ A) → (A < DIG ∨ DIG + 64 ≤ A) →
+    have hm7' : ∀ A, A < 2 ^ 64 → (A < 0x800 ∨ 0x3418 ≤ A) → (A < DIG ∨ DIG + 64 ≤ A) →
         (A < NBUF ∨ NBUF + 32 ≤ A) → (A < Search.SEL ∨ Search.SEL + 168 ≤ A) → A ≠ IDXV →
         (A < 0x22000 - 512 ∨ 0x22000 ≤ A) → (A < NODE ∨ NOUT + 32 ≤ A ∨ A = NODE + 32 ∨ A = NODE + 40) →
         (A < FLEAF ∨ FLEAF + 64 ≤ A) → (A < FOREST ∨ FOREST + 128 ≤ A) → (A < FOUT ∨ FOUT + 32 ≤ A) →
@@ -192,15 +192,21 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
         intro A hA h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12
         have e1 : A < 0x800 ∨ 0x810 ≤ A := by rcases h1 with h | h <;> [exact Or.inl h; exact Or.inr (by omega)]
         have e2 : A ≠ 0x810 := by rcases h1 with h | h <;> omega
-        have e3 : A < 0x840 ∨ 0x3148 ≤ A := by rcases h1 with h | h <;> [exact Or.inl (by omega); exact Or.inr h]
+        have e3 : A < 0x840 ∨ 0x3418 ≤ A := by rcases h1 with h | h <;> [exact Or.inl (by omega); exact Or.inr h]
         exact hm7 A hA e1 h2 h3 h4 h5 e2 (nFts A h6 h7 h8 h9 e3) h9 h10 h11 h12
-    have hL : LInv sig index 4 root t7 := by
-      refine ⟨by rw [p7]; rfl, le_refl _, by rw [r7.get (by decide)]; exact h5_6, hi, ?_, e7, ⟨0, by norm_num, ?_⟩,
-        ?_, ?_, ?_⟩
+    have hL : LInv sig index 4 (root, 0, 0) t7 := by
+      refine ⟨by rw [p7]; rfl, le_refl _, by rw [r7.get (by decide)]; exact h5_6, hi, ?_,
+        by rw [if_neg (by decide)]; exact e7, fun _ => ⟨?_, ?_⟩, rfl, ⟨0, by norm_num, ?_⟩, ?_, ?_, ?_⟩
       · rw [f7.get (by decide) (by simp only [IDXV, FOREST, FOUT, ENC]; omega), f6.get (by decide) (by simp),
           f5.get (by decide) (by simp), f4.get (by decide) (nFts _ (by simp only [IDXV]; omega)
             (by simp only [IDXV, NODE, NOUT]; omega) (by simp only [IDXV, FLEAF]; omega)
             (by simp only [IDXV, FOREST]; omega) (by simp only [IDXV]; omega)), idx3, hidx]
+      · rw [hm7' _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide) (by decide) (by decide), hz0 _ (by decide) (by decide) (by decide) (by decide)]
+        show (0 : BitVec 64) = BitVec.extractLsb' 0 64 (0 : BitVec 128); decide
+      · rw [hm7' _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide) (by decide) (by decide), hz0 _ (by decide) (by decide) (by decide) (by decide)]
+        show (0 : BitVec 64) = BitVec.extractLsb' 64 64 (0 : BitVec 128); decide
       · rw [hm7' (ENC + 32) (by decide) (by simp only [ENC]; omega) (by simp only [ENC, DIG]; omega)
           (by simp only [ENC, NBUF]; omega) (by simp only [ENC, Search.SEL]; omega) (by simp only [ENC, IDXV]; omega)
           (by simp only [ENC]; omega) (by simp only [ENC, NODE, NOUT]; omega) (by simp only [ENC, FLEAF]; omega)
@@ -234,7 +240,7 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
             (by simp only [Search.SEL]; omega) (by simp only [IDXV]; omega) (by omega)
             (by simp only [NODE]; omega) (by simp only [FLEAF]; omega) (by simp only [FOREST]; omega)
             (by simp only [FOUT]; omega) (by simp only [ENC]; omega) (by simp only [ENC]; omega)).trans hd.2⟩
-      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
         · rw [hm7' _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
             (by decide) (by decide) (by decide) (by decide) (by decide),
             hz0 _ (by decide) (by decide) (by decide) (by decide)]
@@ -250,7 +256,7 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
         · exact h
         · exact h
         · simp only [Search.TOP_DATA, FOREST, FOUT, ENC] at h; omega
-    refine (TBSim.bind (W₂ := 11) (layers_tbsim (sk := sk) 4 root t7 hL) (fun r8 t8 h8 => ?_)).mono (by omega)
+    refine (TBSim.bind (W₂ := 11) (layers_tbsim (sk := sk) 4 (root, 0, 0) t7 hL) (fun r8 t8 h8 => ?_)).mono (by omega)
       (fun _ _ h => h)
     rcases r8 with _ | ⟨root', counters⟩
     · exact (TBSim.pure (Q := ExpQ) (a := none) h8).mono (by omega) (fun _ _ h => h)
@@ -270,10 +276,10 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
         (by simp only [ENC]; omega) (by simp only [ENC]; omega)]
       exact einit_pk m pk σ j hj
     obtain ⟨t9, st9, p9, x28, x29, r9, f9⟩ := c342_spec t8 p8
-    have hlo : (t8.getMem (BitVec.ofNat 64 ENC) = t8.getMem (BitVec.ofNat 64 0xA0)) ↔
+    have hlo : (t8.getMem (BitVec.ofNat 64 NOUT) = t8.getMem (BitVec.ofNat 64 0xA0)) ↔
         root'.extractLsb' 0 64 = pk.extractLsb' 0 64 := by
       rw [e8.1, show (0xA0 : Nat) = 0xA0 + 8 * 0 from rfl, hpk 0 (by decide)]
-    have hhi : (t9.getMem (BitVec.ofNat 64 (ENC + 8)) = t9.getMem (BitVec.ofNat 64 0xA8)) ↔
+    have hhi : (t9.getMem (BitVec.ofNat 64 (NOUT + 8)) = t9.getMem (BitVec.ofNat 64 0xA8)) ↔
         root'.extractLsb' 64 64 = pk.extractLsb' 64 64 := by
       rw [f9.get (by decide) (by simp), f9.get (by decide) (by simp), e8.2,
         show (0xA8 : Nat) = 0xA0 + 8 * 1 from rfl, hpk 1 (by decide)]
@@ -301,9 +307,9 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
         (fun _ _ h => h)
       have f811 : Frame t8 t11 (fun _ => False) := ((f9.trans f10).trans f11).mono (fun _ _ h => by
         rcases h with (h | h) | h <;> exact h)
-      rw [frame_readWords f811 0x800 3033 (by decide) (fun _ _ h => h)]
+      rw [frame_readWords f811 0x800 3155 (by decide) (fun _ _ h => h)]
       -- memory of `t8` from the loaded state
-      have nLW : ∀ A, (A < 0x810 ∨ (0x828 ≤ A ∧ A < 0x3148)) → ¬ LW index 4 A := by
+      have nLW : ∀ A, (A < 0x810 ∨ (0x828 ≤ A ∧ A < 0x3418)) → ¬ LW index 4 A := by
         intro A hA h
         rcases h with h | h | ⟨lay, _, h | h⟩
         · unfold Search.CsW Search.DigW at h; simp only [ENC, Search.EOUT, Search.DIGITS] at h; omega
@@ -326,10 +332,10 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
           frame_readWords F47 0x840 128 (by decide) (fun i hi => by
             rintro ((h' | h') | h'); exact h'; exact h'; exact nFo _ (by omega) h')]
         exact hleaf
-      have hstream8 : t8.readWords (BitVec.ofNat 64 0xC40) 1185 =
+      have hstream8 : t8.readWords (BitVec.ofNat 64 0xC40) 1275 =
           wordsOf (T3M.streamBytes (T3.selections N) sig.proof) := by
-        rw [frame_readWords f8 0xC40 1185 (by decide) (fun i hi => nLW _ (by omega)),
-          frame_readWords F47 0xC40 1185 (by decide) (fun i hi => by
+        rw [frame_readWords f8 0xC40 1275 (by decide) (fun i hi => nLW _ (by omega)),
+          frame_readWords F47 0xC40 1275 (by decide) (fun i hi => by
             rintro ((h' | h') | h'); exact h'; exact h'; exact nFo _ (by omega) h')]
         exact hstream
       -- the header doublewords
@@ -408,11 +414,11 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
           rw [← e]; exact hout.2.1 i h
         · have e : lpath sig lay j = (sig.layers lay).path ⟨j, h⟩ := by unfold lpath; rw [dif_pos h]
           rw [← e]; exact hout.2.2 j h
-        · have hA : 0x3148 ≤ A ∧ A < 0x66C8 := by
+        · have hA : 0x3418 ≤ A ∧ A < 0x6A98 := by
             constructor
-            · have : 0x3148 ≤ lBase lay := by fin_cases lay <;> decide
+            · have : 0x3418 ≤ lBase lay := by fin_cases lay <;> decide
               omega
-            · have : lBase lay + 64 * (height lay + chainCount lay) ≤ 0x66C8 := by fin_cases lay <;> decide
+            · have : lBase lay + 64 * (height lay + chainCount lay) ≤ 0x6A98 := by fin_cases lay <;> decide
               omega
           have nLW' : ¬ LW index 4 A := by
             rintro (h | h | ⟨lay', _, h | h⟩)
@@ -428,7 +434,27 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
             (by simp only [Search.SEL]; omega) (by simp only [IDXV]; omega) (by omega) (by simp only [NODE]; omega)
             (by simp only [FLEAF]; omega) (by simp only [FOREST]; omega) (by simp only [FOUT]; omega)
             (by simp only [ENC]; omega) (by simp only [ENC]; omega), hz0 A (by omega) (by omega) (by omega) (by omega)]
-      exact witList_words t8 N ⟨sig, counter, fun lay => counters.getD lay.val 0⟩ hh hleaf8 hstream8 hlay
+      have hpad : t8.readWords (BitVec.ofNat 64 0x4498) 32 = List.replicate 32 0 := by
+        apply readWords_zero t8 0x4498 32 (by decide)
+        intro j hj
+        have nLWgap : ¬ LW index 4 (0x4498 + 8 * j) := by
+          rintro (h | h | ⟨lay, _, h | h⟩)
+          · unfold Search.CsW Search.DigW at h
+            simp only [ENC, Search.EOUT, Search.DIGITS] at h; omega
+          · unfold RlScratch at h
+            simp only [CHAIN, NODE, NOUT, LEAFPK, ENC] at h; omega
+          · fin_cases lay <;> simp [lD] at h <;> omega
+          · unfold RlWit sideOff at h
+            fin_cases lay <;> norm_num [lWC, lWM, height, chainCount] at h
+            all_goals rcases h with ⟨i, hi, h | h⟩ | ⟨i, hi, h | h⟩
+            all_goals first | (split_ifs at h <;> omega) | omega
+        rw [g87 _ (by omega) nLWgap,
+          hm7' _ (by omega) (by omega) (by simp only [DIG]; omega) (by simp only [NBUF]; omega)
+            (by simp only [Search.SEL]; omega) (by simp only [IDXV]; omega) (by omega)
+            (by simp only [NODE, NOUT]; omega) (by simp only [FLEAF]; omega) (by simp only [FOREST]; omega)
+            (by simp only [FOUT]; omega) (by simp only [ENC]; omega) (by simp only [ENC]; omega)]
+        exact hz0 _ (by omega) (by omega) (by omega) (by omega)
+      exact witList_words t8 N ⟨sig, counter, fun lay => counters.getD lay.val 0⟩ hh hleaf8 hstream8 hpad hlay
     · simp only [ne_eq, heq, not_false_eq_true, ↓reduceIte]
       by_cases h0 : root'.extractLsb' 0 64 = pk.extractLsb' 0 64
       · rw [if_pos (hlo.mpr h0)] at p9

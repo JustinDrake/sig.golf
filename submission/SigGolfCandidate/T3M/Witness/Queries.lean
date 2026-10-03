@@ -1,5 +1,4 @@
 import SigGolfCandidate.T3M.Witness.Honest
-import SigGolfCandidate.T3.PackedChain
 
 /-! # Query shapes of the witness-layer programs (stream W)
 
@@ -84,9 +83,8 @@ theorem pubGood_ftsLeaf (index coord leaf : Nat) (s : Digest) :
     AllQueriesSatisfy (ftsLeaf index coord leaf s) PubGood :=
   pubGood_shortHash _ (by simp [bytesLE_length, zero16])
 
-theorem pubGood_chainP (lay : Layer) (tree leaf i start count : Nat) (p0 p1 : Digest)
-    (headerPad : BitVec 64) (v : Digest) :
-    AllQueriesSatisfy (chainP lay tree leaf i start count p0 p1 headerPad v) PubGood :=
+theorem pubGood_chainP (lay : Layer) (tree leaf i start count : Nat) (p0 p1 v : Digest) :
+    AllQueriesSatisfy (chainP lay tree leaf i start count p0 p1 v) PubGood :=
   allQ_foldlM _ _ (fun _ _ => pubGood_shortHash _ (by simp [chainInputP, bytesLE_length])) _
 
 theorem pubGood_chain (lay : Layer) (tree leaf i start count : Nat) (v : Digest) :
@@ -105,7 +103,7 @@ theorem pubGood_digest (rho : Digest) (m : Message) (c : BitVec 32) :
     AllQueriesSatisfy (digest rho m c) PubGood :=
   pubGood_publicHash _ (by simp [digestInput, bytesLE_length])
 
-theorem pubGood_encoding (lay : Layer) (tree leaf : Nat) (msg : Digest) (c : BitVec 32) :
+theorem pubGood_encoding (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) (c : BitVec 32) :
     AllQueriesSatisfy (shortHash (encodingInput lay tree leaf msg c)) PubGood :=
   pubGood_shortHash _ (by simp [encodingInput, bytesLE_length])
 
@@ -173,9 +171,23 @@ theorem pubGood_ftsP (w : WBytes) (index : Nat) (chosen : List Selection) :
 theorem pubGood_layerP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) :
     AllQueriesSatisfy (layerP w index lay digits) PubGood := by
   unfold layerP
-  exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_chainP _ _ _ _ _ _ _ _ _ _) fun _ =>
+  exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_chainP _ _ _ _ _ _ _ _ _) fun _ =>
     allQ_bind (pubGood_leafHash _ _ _ _) fun _ =>
       allQ_foldlM _ _ (fun _ _ => pubGood_nodeHashP _ _ _ _ _ _ _) _
+
+theorem pubGood_layerPairP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) :
+    AllQueriesSatisfy (layerPairP w index lay digits) PubGood := by
+  unfold layerPairP
+  exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_chainP _ _ _ _ _ _ _ _ _) fun _ =>
+    allQ_bind (pubGood_leafHash _ _ _ _) fun _ =>
+      allQ_bind (allQ_foldlM _ _ (fun _ _ => pubGood_nodeHashP _ _ _ _ _ _ _) _) fun _ => allQ_pure _
+
+theorem pubGood_layerNextP (w : WBytes) (index n : Nat) (lay : Layer) (digits : List Nat) :
+    AllQueriesSatisfy (layerNextP w index n lay digits) PubGood := by
+  unfold layerNextP
+  split
+  · exact allQ_map _ (pubGood_layerP _ _ _ _)
+  · exact pubGood_layerPairP _ _ _ _
 
 theorem pubGood_layersP (w : WBytes) (index : Nat) : ∀ n root,
     AllQueriesSatisfy (layersP w index n root) PubGood := by
@@ -187,7 +199,7 @@ theorem pubGood_layersP (w : WBytes) (index : Nat) : ∀ n root,
       unfold layersP
       refine allQ_ite _ (allQ_pure _) (allQ_bind (pubGood_encoding _ _ _ _ _) fun d => ?_)
       split
-      · exact allQ_bind (pubGood_layerP _ _ _ _) fun _ => ih _
+      · exact allQ_bind (pubGood_layerNextP _ _ _ _ _) fun _ => ih _
       · exact allQ_pure _
 
 /-- **Every query of `verifyP` is a public hash of a nonempty aligned input.** -/
@@ -216,7 +228,7 @@ theorem pubGood_digestSearch (rho : Digest) (m : Message) : ∀ fuel counter,
       unfold digestSearch
       exact allQ_bind (pubGood_digest _ _ _) fun _ => allQ_ite _ (allQ_pure _) (ih _)
 
-theorem pubGood_counterSearch (lay : Layer) (tree leaf : Nat) (msg : Digest) : ∀ fuel counter,
+theorem pubGood_counterSearch (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) : ∀ fuel counter,
     AllQueriesSatisfy (counterSearch lay tree leaf msg counter fuel) PubGood := by
   intro fuel
   induction fuel with
@@ -279,6 +291,23 @@ theorem pubGood_recoverLayer (sig : Signature) (index : Nat) (lay : Layer) (digi
   exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_chain _ _ _ _ _ _ _) fun _ =>
     allQ_bind (pubGood_leafHash _ _ _ _) fun _ => allQ_foldlM _ _ (fun _ _ => pubGood_nodeHash _ _ _ _ _ _) _
 
+theorem pubGood_recoverPair (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
+    AllQueriesSatisfy (recoverPair sig index lay digits) PubGood := by
+  unfold recoverPair
+  exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_chain _ _ _ _ _ _ _) fun _ =>
+    allQ_bind (pubGood_leafHash _ _ _ _) fun _ =>
+      allQ_bind (allQ_foldlM _ _ (fun _ _ => pubGood_nodeHash _ _ _ _ _ _) _) fun _ => allQ_pure _
+
+theorem pubGood_rootHash (index : Nat) (lay : Layer) (pair : Digest × BitVec 96 × Digest) :
+    AllQueriesSatisfy (rootHash index lay pair) PubGood := by
+  unfold rootHash
+  exact pubGood_nodeHash _ _ _ _ _ _
+
+theorem pubGood_expandNext (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
+    AllQueriesSatisfy (expandNext sig index n lay digits) PubGood := by
+  unfold expandNext
+  exact allQ_bind (pubGood_recoverPair _ _ _ _) fun _ => allQ_bind (pubGood_rootHash _ _ _) fun _ => allQ_pure _
+
 theorem pubGood_expandLayers (sig : Signature) (index : Nat) : ∀ n root,
     AllQueriesSatisfy (expandLayers sig index n root) PubGood := by
   intro n
@@ -290,7 +319,7 @@ theorem pubGood_expandLayers (sig : Signature) (index : Nat) : ∀ n root,
       refine allQ_bind (pubGood_counterSearch _ _ _ _ _ _) fun r => ?_
       rcases r with _ | ⟨c, digits⟩
       · exact allQ_pure _
-      refine allQ_bind (pubGood_recoverLayer _ _ _ _) fun _ => allQ_bind (ih _) fun r => ?_
+      refine allQ_bind (pubGood_expandNext _ _ _ _ _) fun _ => allQ_bind (ih _) fun r => ?_
       rcases r with _ | ⟨root', cs⟩ <;> exact allQ_pure _
 
 /-- **Every query of `expandN` is a public hash of a nonempty aligned input.** -/
@@ -461,20 +490,13 @@ theorem nodeHash_eq_shortHash (tag lay tree heap : Nat) (left right : Digest) :
     nodeHash tag lay tree heap left right = shortHash (nodeInputP tag lay tree heap left 0 right) := by
   simp only [nodeHash, nodeInputP, block4, bytesLE_zero]
 
-theorem chainInputP_eq_block4 (lay : Layer) (tree leaf i step : Nat) (pad0 pad1 : Digest)
-    (headerPad : BitVec 64) (value : Digest) :
-    chainInputP lay tree leaf i step pad0 pad1 headerPad value =
-      block4 pad0 (chainHeaderP lay tree leaf i step headerPad) pad1 value := rfl
+theorem chainInputP_eq_block4 (lay : Layer) (tree leaf i step : Nat) (pad0 pad1 value : Digest) :
+    chainInputP lay tree leaf i step pad0 pad1 value =
+      block4 pad0 (header 1 lay.val tree (step + 256 * i) leaf) pad1 value := rfl
 
-theorem chainInput_eq_source (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
-    chainInput lay tree leaf i step value = chainInputP lay tree leaf i step 0 0
-      ((chainHeader lay tree leaf i step).extractLsb' 64 64) value := by
-  simp only [chainInput, chainInputP, bytesLE_zero, chainHeaderP_source]
-
-theorem chainInput_eq_zero (lay : Layer) (tree leaf i step : Nat) (value : Digest)
-    (ht : tree < 2^31) (hl : leaf < 4096) (hi : i < 64) (hs : step < 8) :
-    chainInput lay tree leaf i step value = chainInputP lay tree leaf i step 0 0 0 value := by
-  rw [chainInput_eq_source, T3M.chainHeader_high_zero _ _ _ _ _ ht hl hi hs]
+theorem chainInput_eq_zero (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
+    chainInput lay tree leaf i step value = chainInputP lay tree leaf i step 0 0 value := by
+  simp only [chainInput, chainInputP, bytesLE_zero]
 
 @[simp] theorem pad64_ftsLeafInputP (index coord leaf : Nat) (pad0 secret pad1 : Digest) :
     pad64 (ftsLeafInputP index coord leaf pad0 secret pad1) = ftsLeafInputP index coord leaf pad0 secret pad1 :=
@@ -484,10 +506,8 @@ theorem chainInput_eq_zero (lay : Layer) (tree leaf i step : Nat) (value : Diges
     pad64 (nodeInputP tag lay tree heap left pad right) = nodeInputP tag lay tree heap left pad right :=
   pad64_block4 _ _ _ _
 
-@[simp] theorem pad64_chainInputP (lay : Layer) (tree leaf i step : Nat) (pad0 pad1 : Digest)
-    (headerPad : BitVec 64) (value : Digest) :
-    pad64 (chainInputP lay tree leaf i step pad0 pad1 headerPad value) =
-      chainInputP lay tree leaf i step pad0 pad1 headerPad value :=
+@[simp] theorem pad64_chainInputP (lay : Layer) (tree leaf i step : Nat) (pad0 pad1 value : Digest) :
+    pad64 (chainInputP lay tree leaf i step pad0 pad1 value) = chainInputP lay tree leaf i step pad0 pad1 value :=
   pad64_block4 _ _ _ _
 
 /-- No semantic bounds are needed to extract pads and payload from matching FTS queries. -/
@@ -507,59 +527,11 @@ theorem nodeInputP_fields {tag lay tree heap tag' lay' tree' heap' : Nat}
 
 theorem chainInputP_fields {lay lay' : Layer} {tree leaf i step tree' leaf' i' step' : Nat}
     {pad0 pad1 value pad0' pad1' value' : Digest}
-    {headerPad headerPad' : BitVec 64}
-    (h : chainInputP lay tree leaf i step pad0 pad1 headerPad value =
-      chainInputP lay' tree' leaf' i' step' pad0' pad1' headerPad' value') :
-    pad0 = pad0' ∧ chainHeaderP lay tree leaf i step headerPad =
-      chainHeaderP lay' tree' leaf' i' step' headerPad' ∧ pad1 = pad1' ∧ value = value' :=
+    (h : chainInputP lay tree leaf i step pad0 pad1 value =
+      chainInputP lay' tree' leaf' i' step' pad0' pad1' value') :
+    pad0 = pad0' ∧ header 1 lay.val tree (step + 256 * i) leaf =
+      header 1 lay'.val tree' (step' + 256 * i') leaf' ∧ pad1 = pad1' ∧ value = value' :=
   block4_injective h
-
-theorem chainInputP_headerPad_eq {lay lay' : Layer} {tree leaf i step tree' leaf' i' step' : Nat}
-    {pad0 pad1 value pad0' pad1' value' : Digest} {headerPad headerPad' : BitVec 64}
-    (h : chainInputP lay tree leaf i step pad0 pad1 headerPad value =
-      chainInputP lay' tree' leaf' i' step' pad0' pad1' headerPad' value') :
-    headerPad = headerPad' := by
-  have hh := congrArg (fun x : Digest => x.extractLsb' 64 64) (chainInputP_fields h).2.1
-  simpa only [chainHeaderP, BitVec.extractLsb'_append_eq_left] using hh
-
-private theorem low64_toNat_eq (x y : Digest)
-    (h : x.extractLsb' 0 64 = y.extractLsb' 0 64) :
-    x.toNat % 2^64 = y.toNat % 2^64 := by
-  have hn := congrArg BitVec.toNat h
-  simpa only [BitVec.extractLsb'_toNat, Nat.shiftRight_zero] using hn
-
-private theorem marker_of_low64_eq (x y : Digest)
-    (h : x.extractLsb' 0 64 = y.extractLsb' 0 64) :
-    x.toNat / 2^56 % 256 = y.toNat / 2^56 % 256 := by
-  have := low64_toNat_eq x y h
-  omega
-
-private theorem firstByte_of_low64_eq (x y : Digest)
-    (h : x.extractLsb' 0 64 = y.extractLsb' 0 64) :
-    x.toNat % 256 = y.toNat % 256 := by
-  have := low64_toNat_eq x y h
-  omega
-
-/-- Replacing the source high word never changes the packed role marker. -/
-theorem chainHeaderP_marker (lay : Layer) (tree leaf i step : Nat) (headerPad : BitVec 64) :
-    (chainHeaderP lay tree leaf i step headerPad).toNat / 2^56 % 256 = 193 :=
-  (marker_of_low64_eq _ _ BitVec.extractLsb'_append_eq_right).trans
-    (T3.chainHeader_marker lay tree leaf i step)
-
-theorem chainHeaderP_firstByte (lay : Layer) (tree leaf i step : Nat) (headerPad : BitVec 64) :
-    128 ≤ (chainHeaderP lay tree leaf i step headerPad).toNat % 256 := by
-  rw [firstByte_of_low64_eq (chainHeaderP lay tree leaf i step headerPad)
-    (chainHeader lay tree leaf i step) BitVec.extractLsb'_append_eq_right]
-  exact T3.chainHeader_firstByte lay tree leaf i step
-
-/-- Arbitrary witness high pads cannot alias any nonchain role header, without bounds. -/
-theorem chainHeaderP_ne_header (lay : Layer) (tree leaf i step : Nat) (headerPad : BitVec 64)
-    (tag roleLay roleTree position index : Nat) :
-    chainHeaderP lay tree leaf i step headerPad ≠ header tag roleLay roleTree position index := by
-  intro he
-  have hc := chainHeaderP_firstByte lay tree leaf i step headerPad
-  rw [he, T3.header_firstByte] at hc
-  omega
 
 /-- Matching any canonical FTS leaf forces both pads to zero, even before proving header bounds. -/
 theorem ftsLeafInputP_eq_canonical {index coord leaf index' coord' leaf' : Nat}
@@ -583,19 +555,11 @@ theorem nodeInputP_eq_canonical {tag lay tree heap tag' lay' tree' heap' : Nat}
 
 /-- Matching any actual Core chain query forces both pads to zero. -/
 theorem chainInputP_eq_canonical {lay lay' : Layer} {tree leaf i step tree' leaf' i' step' : Nat}
-    {pad0 pad1 value value' : Digest} {headerPad : BitVec 64}
-    (h : chainInputP lay tree leaf i step pad0 pad1 headerPad value = chainInput lay' tree' leaf' i' step' value') :
-    pad0 = 0 ∧ chainHeaderP lay tree leaf i step headerPad =
-      chainHeader lay' tree' leaf' i' step' ∧ pad1 = 0 ∧ value = value' := by
-  simpa only [chainHeaderP_source] using
-    chainInputP_fields (h.trans (chainInput_eq_source _ _ _ _ _ _))
-
-/-- Full-input equality, not a hash collision, determines the free high word. -/
-theorem chainInputP_headerPad_canonical {lay lay' : Layer} {tree leaf i step tree' leaf' i' step' : Nat}
-    {pad0 pad1 value value' : Digest} {headerPad : BitVec 64}
-    (h : chainInputP lay tree leaf i step pad0 pad1 headerPad value = chainInput lay' tree' leaf' i' step' value') :
-    headerPad = (chainHeader lay' tree' leaf' i' step').extractLsb' 64 64 :=
-  chainInputP_headerPad_eq (h.trans (chainInput_eq_source _ _ _ _ _ _))
+    {pad0 pad1 value value' : Digest}
+    (h : chainInputP lay tree leaf i step pad0 pad1 value = chainInput lay' tree' leaf' i' step' value') :
+    pad0 = 0 ∧ header 1 lay.val tree (step + 256 * i) leaf =
+      header 1 lay'.val tree' (step' + 256 * i') leaf' ∧ pad1 = 0 ∧ value = value' :=
+  chainInputP_fields (h.trans (chainInput_eq_zero _ _ _ _ _ _))
 
 /-- Full FTS query injectivity. The header stores 8-bit coordinates, a 40-bit index,
 32-bit leaf indices; bounds prevent truncation, not adversarial padding. -/
@@ -622,22 +586,25 @@ theorem nodeInputP_injective {tag lay tree heap tag' lay' tree' heap' : Nat}
   obtain ⟨ht, hl, htr, _, hh⟩ := header_injective ht hl htr (by decide) hh ht' hl' htr' (by decide) hh' he
   exact ⟨ht, hl, htr, hh, hleft, hpad, hright⟩
 
-/-- The complete packed low word is injective on the entire source graph domain. -/
+/-- Separate the chain and step packed into the 32-bit position field. The general
+bounds here (24-bit chain, 8-bit step) are much weaker than T3's 58 chains/8 steps. -/
 theorem chainInputP_injective {lay lay' : Layer} {tree leaf i step tree' leaf' i' step' : Nat}
     {pad0 pad1 value pad0' pad1' value' : Digest}
-    {headerPad headerPad' : BitVec 64}
-    (ht : tree < 2^31) (hl : leaf < 4096) (hi : i < 64) (hs : step < 8)
-    (ht' : tree' < 2^31) (hl' : leaf' < 4096) (hi' : i' < 64) (hs' : step' < 8)
-    (h : chainInputP lay tree leaf i step pad0 pad1 headerPad value =
-      chainInputP lay' tree' leaf' i' step' pad0' pad1' headerPad' value') :
+    (ht : tree < 2^40) (hl : leaf < 2^32) (hi : i < 2^24) (hs : step < 256)
+    (ht' : tree' < 2^40) (hl' : leaf' < 2^32) (hi' : i' < 2^24) (hs' : step' < 256)
+    (h : chainInputP lay tree leaf i step pad0 pad1 value =
+      chainInputP lay' tree' leaf' i' step' pad0' pad1' value') :
     lay = lay' ∧ tree = tree' ∧ leaf = leaf' ∧ i = i' ∧ step = step' ∧
-      pad0 = pad0' ∧ pad1 = pad1' ∧ value = value' ∧ headerPad = headerPad' := by
+      pad0 = pad0' ∧ pad1 = pad1' ∧ value = value' := by
   obtain ⟨hp0, he, hp1, hv⟩ := chainInputP_fields h
-  have hlo := congrArg (fun x : Digest => x.extractLsb' 0 64) he
-  simp only [chainHeaderP, BitVec.extractLsb'_append_eq_right] at hlo
-  obtain ⟨hla, htree, hleaf, hindex, hstep⟩ := chainHeader_low_injective
-    ht hl hi hs ht' hl' hi' hs' hlo
-  exact ⟨hla, htree, hleaf, hindex, hstep, hp0, hp1, hv, chainInputP_headerPad_eq h⟩
+  have hla : lay.val < 256 := lt_trans lay.isLt (by decide)
+  have hla' : lay'.val < 256 := lt_trans lay'.isLt (by decide)
+  have hp : step + 256 * i < 2^32 := by omega
+  have hp' : step' + 256 * i' < 2^32 := by omega
+  obtain ⟨_, hla, ht, hpos, hl⟩ := header_injective (by decide) hla ht hp hl
+    (by decide) hla' ht' hp' hl' he
+  obtain ⟨hs, hi⟩ := pack_nat_injective hs hs' hpos
+  exact ⟨Fin.ext hla, ht, hl, hi, hs, hp0, hp1, hv⟩
 
 end SigGolfCandidate.T3M.SecurityInputs
 
@@ -776,11 +743,11 @@ theorem foldlM_range'_eq_hashPath (input : Nat → Digest → HashInput)
 /-- The actual padded chain is the generic extraction path with the absolute
 chain-step index offset by `start`. -/
 theorem chainP_eq_hashPath (lay : Layer) (tree leaf i start count : Nat)
-    (pad0 pad1 : Digest) (headerPad : BitVec 64) (initial : Digest) :
-    chainP lay tree leaf i start count pad0 pad1 headerPad initial =
-      hashPath (fun step value => chainInputP lay tree leaf i (start + step) pad0 pad1 headerPad value)
+    (pad0 pad1 initial : Digest) :
+    chainP lay tree leaf i start count pad0 pad1 initial =
+      hashPath (fun step value => chainInputP lay tree leaf i (start + step) pad0 pad1 value)
         count initial := by
-  exact foldlM_range'_eq_hashPath (fun step value => chainInputP lay tree leaf i step pad0 pad1 headerPad value)
+  exact foldlM_range'_eq_hashPath (fun step value => chainInputP lay tree leaf i step pad0 pad1 value)
     start count initial
 
 /-- Finite indices enumerate the same natural indices, in the same order. -/
@@ -871,41 +838,36 @@ theorem honestChainValue_succ (answers : Answers) (lay : Layer) (tree leaf i : N
   rw [Correctness.eval_chain_add]
   simp [chain]
 
-def chainPathInput (lay : Layer) (tree leaf i start : Nat) (pad0 pad1 : Digest) (headerPad : BitVec 64) :
+def chainPathInput (lay : Layer) (tree leaf i start : Nat) (pad0 pad1 : Digest) :
     Nat → Digest → HashInput := fun step value =>
-  chainInputP lay tree leaf i (start + step) pad0 pad1 headerPad value
+  chainInputP lay tree leaf i (start + step) pad0 pad1 value
 
 /-- Chain extraction on the exact padded step inputs. The unused pads of a
 zero-length chain are intentionally unconstrained. -/
 theorem chainPath_extract (answers : Answers) (lay : Layer) (tree leaf i start count : Nat)
-    (pad0 pad1 : Digest) (headerPad : BitVec 64) (value seed : Digest)
-    (ht : tree < 2^31) (hl : leaf < 4096) (hi : i < 64)
-    (hsteps : count = 0 ∨ start + count ≤ 8)
-    (reaches : pathValue answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value count =
+    (pad0 pad1 value seed : Digest)
+    (reaches : pathValue answers (chainPathInput lay tree leaf i start pad0 pad1) value count =
       honestChainValue answers lay tree leaf i seed (start + count)) :
     (value = honestChainValue answers lay tree leaf i seed start ∧
-      (0 < count → pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0)) ∨
+      (0 < count → pad0 = 0 ∧ pad1 = 0)) ∨
       ∃ step, step < count ∧
-        .inl (.inr (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value step))) ∈
-          queried answers (hashPath (chainPathInput lay tree leaf i start pad0 pad1 headerPad) count value) ∧
+        .inl (.inr (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1) value step))) ∈
+          queried answers (hashPath (chainPathInput lay tree leaf i start pad0 pad1) count value) ∧
         HashHit answers
           (pad64 (chainInput lay tree leaf i (start + step)
             (honestChainValue answers lay tree leaf i seed (start + step))))
-          (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value step)) := by
-  have h := hashPath_extract answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad)
+          (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1) value step)) := by
+  have h := hashPath_extract answers (chainPathInput lay tree leaf i start pad0 pad1)
     (fun step => chainInput lay tree leaf i (start + step)
       (honestChainValue answers lay tree leaf i seed (start + step)))
     (fun step => honestChainValue answers lay tree leaf i seed (start + step))
-    (fun _ => pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0) value count
+    (fun _ => pad0 = 0 ∧ pad1 = 0) value count
     (fun step _ => by simpa only [Nat.add_assoc] using
       honestChainValue_succ answers lay tree leaf i seed (start + step))
-    (fun step hstep current heq => by
-      have hs : start + step < 8 := by rcases hsteps with hz | hb <;> omega
-      simp only [chainPathInput, chainInput_eq_zero _ _ _ _ _ _ ht hl hi hs,
-        pad64_chainInputP] at heq
-      have hhp := chainInputP_headerPad_eq heq
+    (fun step _ current heq => by
+      simp only [chainPathInput, chainInput_eq_zero, pad64_chainInputP] at heq
       obtain ⟨hp0, _, hp1, hv⟩ := chainInputP_fields heq
-      exact ⟨hv, hp0, hp1, hhp⟩) reaches
+      exact ⟨hv, hp0, hp1⟩) reaches
   rcases h with ⟨hvalue, hpads⟩ | hhit
   · exact Or.inl ⟨by simpa using hvalue, fun hcount => hpads 0 hcount⟩
   · exact Or.inr hhit
@@ -913,22 +875,20 @@ theorem chainPath_extract (answers : Answers) (lay : Layer) (tree leaf i start c
 /-- The chain result applied to `chainP` itself, with the hit in its actual query
 trace. No bound on the adversarial pad values is assumed. -/
 theorem chainP_extract (answers : Answers) (lay : Layer) (tree leaf i start count : Nat)
-    (pad0 pad1 : Digest) (headerPad : BitVec 64) (value seed : Digest)
-    (ht : tree < 2^31) (hl : leaf < 4096) (hi : i < 64)
-    (hsteps : count = 0 ∨ start + count ≤ 8)
-    (reaches : evalWithAnswerFn answers (chainP lay tree leaf i start count pad0 pad1 headerPad value) =
+    (pad0 pad1 value seed : Digest)
+    (reaches : evalWithAnswerFn answers (chainP lay tree leaf i start count pad0 pad1 value) =
       honestChainValue answers lay tree leaf i seed (start + count)) :
     (value = honestChainValue answers lay tree leaf i seed start ∧
-      (0 < count → pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0)) ∨
+      (0 < count → pad0 = 0 ∧ pad1 = 0)) ∨
       ∃ step, step < count ∧
-        .inl (.inr (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value step))) ∈
-          queried answers (chainP lay tree leaf i start count pad0 pad1 headerPad value) ∧
+        .inl (.inr (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1) value step))) ∈
+          queried answers (chainP lay tree leaf i start count pad0 pad1 value) ∧
         HashHit answers
           (pad64 (chainInput lay tree leaf i (start + step)
             (honestChainValue answers lay tree leaf i seed (start + step))))
-          (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value step)) := by
+          (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1) value step)) := by
   rw [chainP_eq_hashPath] at reaches ⊢
-  exact chainPath_extract answers lay tree leaf i start count pad0 pad1 headerPad value seed ht hl hi hsteps reaches
+  exact chainPath_extract answers lay tree leaf i start count pad0 pad1 value seed reaches
 
 /-- Merkle authentication input, retaining the machine's heap index and the
 witness pad in the middle of its 64-byte block. -/
@@ -973,7 +933,7 @@ def layerLeafP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) : M 
   let (leaf, tree) := route index lay
   let ends ← (List.finRange (chainCount lay)).mapM fun i =>
     chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
-      (wchainPads w lay i.val).1 (wchainPads w lay i.val).2 (wchainHeaderPad w lay i.val) (wvalue w lay i.val)
+      (wchainPads w lay i.val).1 (wchainPads w lay i.val).2 (wvalue w lay i.val)
   leafHash lay tree leaf ends
 
 /-- Exact program equality, preserving all queries and their order. -/
@@ -1020,6 +980,24 @@ theorem layerP_merkle_extract (answers : Answers) (w : WBytes) (index : Nat)
     refine ⟨step, hstep, _, ?_, hhit⟩
     rw [layerP_eq_hashPath, queried_bind]
     exact List.mem_append_right _ hquery
+
+/-- Exact program equality for the pair handover (no last fold). -/
+theorem layerPairP_eq_hashPath (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) :
+    layerPairP w index lay digits = (layerLeafP w index lay digits >>= fun value =>
+      hashPath (merkleInput 3 lay.val (route index lay).2 (height lay) (route index lay).1
+        (wpath w lay (route index lay).1) (wmerklePad w lay)) (height lay - 1) value >>= fun node =>
+      pure (pairOf (route index lay).1 (height lay) (wpath w lay (route index lay).1 (height lay - 1))
+        ((wmerklePad w lay (height lay - 1)).extractLsb' 32 96) node)) := by
+  unfold layerPairP layerLeafP
+  rcases route index lay with ⟨leaf, tree⟩
+  dsimp only
+  rw [bind_assoc]
+  congr 1
+  funext ends
+  congr 1
+  funext value
+  rw [← foldlM_finRange_eq_hashPath]
+  rfl
 
 /-- The honest reference recurrence required by `merklePath_extract`, now proved
 from the stored tree's actual node-hash recurrence. Siblings use xor 1; the heap

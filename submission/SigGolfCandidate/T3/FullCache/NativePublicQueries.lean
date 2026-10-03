@@ -40,7 +40,7 @@ attribute [local aesop safe apply] SourceQueries.pure_allowed SourceQueries.bind
   forestPk_nonMac digest_nonMac
 macro "public_queries" : tactic => `(tactic| aesop (config := { maxRuleApplications := 1000 }))
 
-theorem counterSearch_nonMac (lay : Layer) (tree leaf : Nat) (message : Digest)
+theorem counterSearch_nonMac (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest)
     (counter fuel : Nat) : NonMac (counterSearch lay tree leaf message counter fuel) := by
   induction fuel generalizing counter with
   | zero => unfold counterSearch; public_queries

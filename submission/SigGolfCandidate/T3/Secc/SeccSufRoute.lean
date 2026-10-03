@@ -1,5 +1,4 @@
 import SigGolfCandidate.T3.Secc.SeccSufSigned
-import SigGolfCandidate.T3.PackedChain
 
 /-! # B-SUF (4/4): routing lemmas R3, R4, R6 of BP-B §2.1
 
@@ -144,7 +143,7 @@ theorem counterSearch_good (answers : Correctness.Answers) (w : WBytes) (index :
 /-- The honest message of layer 3 is Core's forest public key on the source-built roots. -/
 theorem honestMsg_three (answers : Correctness.Answers) (index : Nat) :
     Extract.honestMsg answers index (Fin.ofNat 4 3) =
-      evalWithAnswerFn answers (forestPk index (Correctness.forestRoots answers index 7)) := by
+      (evalWithAnswerFn answers (forestPk index (Correctness.forestRoots answers index 7)), 0, 0) := by
   rw [show (Fin.ofNat 4 3 : Layer) = 3 from rfl]
   simp only [Extract.honestMsg, show ¬((3 : Layer).val < 3) by decide, dite_false, Extract.honestForest,
     BSuf.ftsRootsHonest_eq]
@@ -152,7 +151,7 @@ theorem honestMsg_three (answers : Correctness.Answers) (index : Nat) :
 /-- The signer's layer signing succeeds from every honest layer message when every layer is `Good`. -/
 theorem signLayers_good (answers : Correctness.Answers) (cache : T3.Cache) (index : Nat) (w : WBytes)
     (hgood : ∀ lay : Layer, Extract.Good answers w index lay) :
-    ∀ n, n ≤ 4 → ∀ value : Digest, (∀ k, n = k + 1 → value = Extract.honestMsg answers index (Fin.ofNat 4 k)) →
+    ∀ n, n ≤ 4 → ∀ value : Digest × BitVec 96 × Digest, (∀ k, n = k + 1 → value = Extract.honestMsg answers index (Fin.ofNat 4 k)) →
       ∃ pieces, evalWithAnswerFn answers (signLayers cache index n value) = some pieces := by
   intro n
   induction n with
@@ -173,8 +172,9 @@ theorem signLayers_good (answers : Correctness.Answers) (cache : T3.Cache) (inde
         have htree := Correctness.eval_buildTree_result answers (Fin.ofNat 4 (k + 1))
           (route index (Fin.ofNat 4 (k + 1))).2 (route index (Fin.ofNat 4 (k + 1))).1 digits hvalid
           (route_leaf_bound index _)
-        obtain ⟨pieces, hp⟩ := ih (by omega) (((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
-            (route index (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1))) []).getD 0 0)
+        obtain ⟨pieces, hp⟩ := ih (by omega) ((((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
+            (route index (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1)) - 1) []).getD 0 0, 0, ((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
+            (route index (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1)) - 1) []).getD 1 0))
           (fun k' hk' => by
             have hkk : k' = k := by omega
             rw [hkk, BSuf.honestMsg_lower answers index k (by omega)]
@@ -196,7 +196,7 @@ theorem selected_payload_succeeds (answers : Correctness.Answers) (cache : T3.Ca
     unfold payloadRecordForNonce
     simp only [evalWithAnswerFn_bind, hds, evalWithAnswerFn_pure]
   obtain ⟨pieces, hp⟩ := signLayers_good answers cache (N.toNat % 2 ^ 31) w hgood 4 le_rfl
-    (evalWithAnswerFn answers (forestPk (N.toNat % 2 ^ 31) (Correctness.forestRoots answers (N.toNat % 2 ^ 31) 7)))
+    (evalWithAnswerFn answers (forestPk (N.toNat % 2 ^ 31) (Correctness.forestRoots answers (N.toNat % 2 ^ 31) 7)), 0, 0)
     (fun k hk => by
       obtain rfl : k = 3 := by omega
       exact (honestMsg_three answers _).symm)
@@ -210,11 +210,8 @@ Every public query of the signer's payload work (`payloadAfterDigest`: FTS trees
 pks, Merkle nodes, encodings) is `pad64` of an input whose header block (bytes `[16,32)`) is a `header` with tag in
 `{1,2,3,4,9,10,11}`; a digest input's header tag is 12. The tag is byte 1 of the header block (`hdrTag`). -/
 
-/-- Logical role: packed chains have the discriminator bit; all other roles
-retain the original byte-1 tag. -/
-def hdrTag (input : HashInput) : Nat :=
-  if 128 ≤ ((Extract.hdrBlock input).getD 0 0).toNat then 1
-  else ((Extract.hdrBlock input).getD 1 0).toNat
+/-- Byte 1 of the header block of an input (the header's tag byte). -/
+def hdrTag (input : HashInput) : Nat := ((Extract.hdrBlock input).getD 1 0).toNat
 
 theorem header_byte1 (tag lay tree position index : Nat) :
     ((SphincsSecurity.bytesLE 16 (header tag lay tree position index)).getD 1 0).toNat = tag % 256 := by
@@ -245,15 +242,7 @@ theorem header_byte1 (tag lay tree position index : Nat) :
 theorem hdrTag_eq {input : HashInput} {tag lay tree position index : Nat}
     (h : Extract.hdrBlock input = SphincsSecurity.bytesLE 16 (header tag lay tree position index)) :
     hdrTag input = tag % 256 := by
-  unfold hdrTag
-  rw [h, bytesLE16_first_toNat, header_firstByte, if_neg (by decide)]
-  exact header_byte1 _ _ _ _ _
-
-theorem hdrTag_chainInput (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
-    hdrTag (pad64 (chainInput lay tree leaf i step value)) = 1 := by
-  rw [chainInput_padded]
-  unfold hdrTag Extract.hdrBlock
-  rw [chainInput_header, bytesLE16_first_toNat, if_pos (chainHeader_firstByte _ _ _ _ _)]
+  unfold hdrTag; rw [h]; exact header_byte1 _ _ _ _ _
 
 theorem hdrBlock_digestInput (rho : Digest) (m : Message) (c : BitVec 32) :
     Extract.hdrBlock (pad64 (digestInput rho m c)) = SphincsSecurity.bytesLE 16 (header 12 0 0 0 c.toNat) := by
@@ -286,15 +275,9 @@ theorem mask_ok (level index : Nat) : AllQueriesSatisfy (mask level index) NotDi
 theorem chain_ok (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
     AllQueriesSatisfy (chain lay tree leaf i start count value) NotDigestQ := by
   unfold chain
-  apply SourceQueries.foldlM_allowed NotDigestQ
-  intro v step
-  unfold shortHash publicHash
-  apply SourceQueries.bind_allowed
-  · apply (allQueriesSatisfy_query_iff _ _).mpr
-    change hdrTag (pad64 (chainInput lay tree leaf i step v)) ≠ 12
-    rw [hdrTag_chainInput]
-    decide
-  · intro _; exact SourceQueries.pure_allowed _ _
+  exact SourceQueries.foldlM_allowed NotDigestQ _ _ (fun v step =>
+    shortHash_ok (tag := 1) (by rw [chainInput_eq_zero]; exact Extract.hdrBlock_chainInputP _ _ _ _ _ _ _ _)
+      (by decide)) _
 
 theorem leafHash_ok (lay : Layer) (tree leaf : Nat) (ends : List Digest) :
     AllQueriesSatisfy (leafHash lay tree leaf ends) NotDigestQ := by
@@ -320,13 +303,13 @@ theorem forestPk_ok (index : Nat) (roots : List Digest) : AllQueriesSatisfy (for
   rw [Extract.forestPk_eq_shortHash]
   exact shortHash_ok (tag := 11) (Extract.hdrBlock_listInput _ _ _) (by decide)
 
-theorem encoding_ok (lay : Layer) (tree leaf : Nat) (message : Digest) (counter : BitVec 32) :
+theorem encoding_ok (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter : BitVec 32) :
     AllQueriesSatisfy (shortHash (encodingInput lay tree leaf message counter)) NotDigestQ :=
   shortHash_ok (tag := 4) (by
     rw [Extract.hdrBlock_pad64 _ (by simp [encodingInput, SphincsSecurity.bytesLE_length])]
     exact Extract.hdrBlock_prefix _ _ _) (by decide)
 
-theorem counterSearch_ok (lay : Layer) (tree leaf : Nat) (message : Digest) :
+theorem counterSearch_ok (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
     ∀ fuel counter, AllQueriesSatisfy (counterSearch lay tree leaf message counter fuel) NotDigestQ := by
   intro fuel
   induction fuel with
@@ -386,7 +369,7 @@ theorem signTop_ok (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
 
 attribute [local aesop safe apply] signTop_ok
 
-theorem signLayers_ok (cache : T3.Cache) (index n : Nat) (message : Digest) :
+theorem signLayers_ok (cache : T3.Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
     AllQueriesSatisfy (signLayers cache index n message) NotDigestQ := by
   induction n generalizing message with
   | zero => unfold signLayers; aesop (config := { maxRuleApplications := 1000 })

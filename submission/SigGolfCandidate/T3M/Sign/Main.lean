@@ -29,8 +29,8 @@ theorem digestSearchSpec (sk : BitVec 256) : DigestSearchSpec sk := fun s rho m 
 
 theorem counterSearchSpec (sk : BitVec 256) : CounterSearchSpec sk := fun s lay tree leaf msg ret h =>
   (Search.counterSearch_spec Search.kernAt_sign s lay tree leaf msg ret
-    ⟨h.pc, h.x1, h.x5, h.x8, h.x9, h.x18, h.x17, h.x26, h.x27, h.htree, h.hleaf, h.msg, h.c32, h.z40, h.z48,
-      h.z56, h.table⟩).mono le_rfl (fun r t ht => by rcases r with _ | _; exacts [⟨ht.pc, ht.x5, ht.x10⟩, ht])
+    ⟨h.pc, h.x1, h.x5, h.x8, h.x9, h.x18, h.x17, h.x26, h.x27, h.htree, h.hleaf, h.rR, h.hpad, h.msg, h.c32,
+      h.z40, h.table⟩).mono le_rfl (fun r t ht => by rcases r with _ | _; exacts [⟨ht.pc, ht.x5, ht.x10⟩, ht])
 
 theorem kernels (sk : BitVec 256) : Kernels sk := ⟨digestSearchSpec sk, counterSearchSpec sk⟩
 
@@ -39,7 +39,7 @@ theorem kernels (sk : BitVec 256) : Kernels sk := ⟨digestSearchSpec sk, counte
 /-- Cycle bound of the sign phase (before the final `ECALL`). -/
 def signC : Nat := frontC + dsCost + midC
 
-theorem signC_eq : signC = 3618569222 := by rfl
+theorem signC_eq : signC = 3616257542 := by rfl
 
 theorem signC_lt : signC + 1 < CYCLE_LIMIT := by
   rw [signC_eq]; norm_num [CYCLE_LIMIT]
@@ -104,7 +104,7 @@ theorem sign_refines (sk : SecretKey) (cache : Bytes 131072) (m : Message) :
   sign_refines_of (l0Spec_of (counterSearchSpec sk)) m
 
 /-- **Sign termination.** Under every fixed oracle and for every input: finished, within
-`signC + 1 = 3,618,569,223 < 2^32` cycles. -/
+`signC + 1 = 3,616,257,543 < 2^32` cycles. -/
 theorem sign_terminates (hash : Hash) (sk : SecretKey) (cache : Bytes 131072) (m : Message) :
     (submission.runWith hash .sign (sk, cache, m)).finished = true ∧
       (submission.runWith hash .sign (sk, cache, m)).cycles < CYCLE_LIMIT :=

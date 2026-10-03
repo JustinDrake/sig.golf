@@ -30,7 +30,7 @@ attribute [local irreducible] referenceGame offlineGame
 
 /-- Class E (BP-A §1.2): an encoding row of any leaf, message and counter. -/
 def EncodingInput (input : HashInput) : Prop :=
-  ∃ (L : LeafAddr) (message : Digest) (counter : BitVec 32), input = encodingRow L message counter
+  ∃ (L : LeafAddr) (message : Digest × BitVec 96 × Digest) (counter : BitVec 32), input = encodingRow L message counter
 
 /-- The class predicate in F2's `refCount` form (reads no table). -/
 def EncodingRow : Answers → T3.Spec.Domain → Prop
@@ -45,7 +45,7 @@ namespace Enc
 
 /-! ## The honest search stops at its first success -/
 
-theorem counterSearch_first (T : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest) :
+theorem counterSearch_first (T : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
     ∀ fuel start k digits, k < fuel →
       (∀ i < k, decode lay ((T (.inl (.inr (pad64 (encodingInput lay tree leaf message
         (BitVec.ofNat 32 (start + i))))))).extractLsb' 0 128) = none) →
@@ -92,7 +92,7 @@ theorem reached_valid_reference {T : Answers} {L : LeafAddr} {input : HashInput}
 
 /-- An entry witnessing `EncodingMatchAt` at a non-aliased leaf, with `T`'s reference objects. -/
 def MatchEntry (T : Answers) (entry : Entry) : Prop :=
-  ∃ (L : CanonGraph.LeafPos) (message : Digest) (counter : BitVec 32),
+  ∃ (L : CanonGraph.LeafPos) (message : Digest × BitVec 96 × Digest) (counter : BitVec 32),
     entry.1 = encodingRow (leafOf L) message counter ∧
       referenceInput T (leafOf L) ≠ some (encodingRow (leafOf L) message counter) ∧
       decode L.lay (low entry.2) = some (referenceDigits T (leafOf L))

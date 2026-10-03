@@ -16,14 +16,14 @@ whole certificate from the named statements below; nothing else is assumed.
 | field | statement | stream |
 |---|---|---|
 | `keygen_run_counts` | `KeygenRunCounts` (value, calls and compressions = `countBoth (mrealize sk keygen)`) | K (proved, t3m/m0k 924ddbe) |
-| `keygen_runWith` | `KeygenRunWith` (every oracle: finished, 53,919,407 cycles) | K |
+| `keygen_runWith` | `KeygenRunWith` (every oracle: finished, 39,960,239 cycles) | K (proved, t3m/m0k 924ddbe) |
 | `sign_refines` | `SignRefines` (`countBoth (mrealize sk (sign (cacheDec cache) m))`, output `sigB`) | S |
 | `sign_terminates` | `SignTerminates` | S |
 | `expand_refines` | `ExpandRefines` (`countBoth (mrealize 0 (expandN m pk (sigDec s)))`, output `witEnc`) | E |
 | `expand_terminates` | `ExpandTerminates` | E |
 | `verify_refines` | `VerifyRefines` (`countCalls (mrealize 0 (verifyP m pk w))`) | V3 |
 | `verify_terminates` | `VerifyTerminates` | V3 |
-| `verify_accept_cycles` | `VerifyAcceptCycles` (accepting runs take at most `verifyCycleBound = 8446` cycles) | V3 |
+| `verify_accept_cycles` | `VerifyAcceptCycles` (accepting runs take at most `verifyCycleBound = 8631` cycles) | V3 |
 
 **`SourceFacts`** — source-level theorems: CLOSURE's completeness and two compression moments
 (stated on the verbatim copies in `Source`), the hash-only facts of Core's four programs (CLOSURE's
@@ -31,7 +31,7 @@ whole certificate from the named statements below; nothing else is assumed.
 
 The witness layer (stream W: `verifyP_witEnc_eval`, `honestB_eval`, `expand_eq_expandN`, query shapes) is
 already proved and is used directly. The signature codec is stream E's `T3M/SigCodec` (`T3M.sigB`, `T3M.sigDec`,
-`sigDec_sigB`, `sigB_sigDec`). `C = verifyCycleBound + witnessCycles 24264 = 8446 + 95 = 8541`.
+`sigDec_sigB`, `sigB_sigDec`). `C = verifyCycleBound + witnessCycles 25240 = 8631 + 99 = 8730`.
 -/
 
 namespace SigGolfCandidate.T3M.Final
@@ -39,10 +39,10 @@ open SigGolfCandidate.Legacy OracleComp OracleSpec ENNReal OracleComp.EvalDist
 open SigGolfCandidate.T3 (keygen sign expand verify Signature Cache Digest Witness realize)
 
 /-- The accepting-verify cycle bound (worst accepting path of the frozen verify image). -/
-def verifyCycleBound : Nat := 8446
+def verifyCycleBound : Nat := 8631
 
-/-- The claimed `C`: `verifyCycleBound + ⌈24264 / 256⌉`. -/
-def claimedC : Nat := 8541
+/-- The claimed `C`: `verifyCycleBound + ⌈25240 / 256⌉`. -/
+def claimedC : Nat := 8730
 
 /-! ## Machine statements -/
 
@@ -51,11 +51,11 @@ def KeygenRunCounts : Prop := ∀ sk : SecretKey,
   (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$> submission.run .keygen sk =
     (fun p => (some ((p.1.1 : PublicKey), cacheB p.1.2), p.2.1, p.2.2)) <$> countBoth (mrealize sk keygen)
 
-/-- **Keygen under a fixed oracle** (K: `T3M.Keygen.keygen_runWith`): finished, exactly 53,919,407 cycles. -/
+/-- **Keygen under a fixed oracle** (K: `T3M.Keygen.keygen_runWith`): finished, exactly 39,960,239 cycles. -/
 def KeygenRunWith : Prop := ∀ (hash : Hash) (sk : SecretKey),
   submission.runWith hash .keygen sk =
     ⟨some (((evalWithAnswerFn hash (mrealize sk keygen)).1 : PublicKey),
-      cacheB (evalWithAnswerFn hash (mrealize sk keygen)).2), true, 53919407, 995328, 1048576⟩
+      cacheB (evalWithAnswerFn hash (mrealize sk keygen)).2), true, 39960239, 995328, 1048576⟩
 
 /-- **Sign refinement** (S). For every input (arbitrary cache bytes, decoded by `cacheDec`; the source
 signer checks the MAC first): value, calls and compressions are those of Core's signer. -/
@@ -82,18 +82,18 @@ def ExpandTerminates : Prop := ∀ (hash : Hash) (m : Message) (pk : PublicKey) 
 
 /-- **Verify refinement** (V). For every input (arbitrary witness bytes): accepts exactly when the
 byte-level verifier `verifyP` returns `true`, with the same hash calls. -/
-def VerifyRefines : Prop := ∀ (m : Message) (pk : PublicKey) (w : Bytes 24264),
+def VerifyRefines : Prop := ∀ (m : Message) (pk : PublicKey) (w : Bytes 25240),
   (fun r => (r.value, r.hashCalls)) <$> submission.run .verify (m, pk, w) =
     (fun p => (if p.1 then some () else none, p.2)) <$> countCalls (mrealize 0 (verifyP m pk w))
 
 /-- **Verify termination** (V). -/
-def VerifyTerminates : Prop := ∀ (hash : Hash) (m : Message) (pk : PublicKey) (w : Bytes 24264),
+def VerifyTerminates : Prop := ∀ (hash : Hash) (m : Message) (pk : PublicKey) (w : Bytes 25240),
   (submission.runWith hash .verify (m, pk, w)).finished = true ∧
     (submission.runWith hash .verify (m, pk, w)).cycles < CYCLE_LIMIT
 
 /-- **Accepting verify cycles** (V): under every fixed oracle, an accepting run takes at most
-`verifyCycleBound = 8446` cycles. -/
-def VerifyAcceptCycles : Prop := ∀ (hash : Hash) (m : Message) (pk : PublicKey) (w : Bytes 24264),
+`verifyCycleBound = 8631` cycles. -/
+def VerifyAcceptCycles : Prop := ∀ (hash : Hash) (m : Message) (pk : PublicKey) (w : Bytes 25240),
   (submission.runWith hash .verify (m, pk, w)).value.isSome = true →
     (submission.runWith hash .verify (m, pk, w)).cycles ≤ verifyCycleBound
 

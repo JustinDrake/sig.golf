@@ -9,7 +9,7 @@ import SigGolfCandidate.T3M.Verify.FtsSem
   coordinate words, the forest slot and the root list advanced) or, after coordinate 6, the forest (`ForestIn`);
 * `forest_step`: the pointer cap (reject after more than 115 folds: `streamEnd < ptr`), the forest frame
   `[root_0 | T(11) | root_1 .. root_6]` and its two-block HASH into the encoding block;
-* **`FtsOut F root u`**: the state after the forest HASH at `xtr3_1` (pc 588), the layers phase's entry.
+* **`FtsOut F root u`**: the state after the forest HASH at `xtr3_1` (pc 656), the layers phase's entry.
 -/
 
 set_option linter.unusedSimpArgs false
@@ -33,11 +33,11 @@ theorem jmp24_eval (m : MachineState) (c j : Nat) (h : m.getReg .x24 = BitVec.of
 
 theorem lnk_next (c j : Nat) (hj : j < 2) : lnk c j = 0x1000 + 4 * leafPc (3 * c + (j + 1)) := by
   unfold lnk leafRet leafPc
-  omega
+  split_ifs <;> omega
 
 theorem lnk_end (c : Nat) : lnk c 2 = 0x1000 + 4 * coordEndPc c := by
   unfold lnk leafRet leafPc coordEndPc
-  omega
+  split_ifs <;> omega
 
 theorem xor1_lt (E : Nat) (hE : E < 4096) : E ^^^ 1 < 4096 := Nat.xor_lt_two_pow (n := 12) hE (by norm_num)
 
@@ -48,7 +48,6 @@ theorem tailP_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dig
     (node : Digest) (m : MachineState) (h : TailIn F c j roots stk 1 E ptr folds node m) :
     ∃ u, Steps image m 4 4 u ∧ LeafIn F c (j + 1) roots ((node, E ^^^ 1) :: stk) ptr folds u := by
   obtain ⟨k, hk, hpc⟩ := h.pc
-  rw [show tailPcT (tselJ j) 1 k = tailPc 1 k by simp [tailPcT, cpOff]] at hpc
   obtain ⟨hc7, hj3, hdj, hd2, folds0, a0, hb0, ha0, hf0⟩ := h.bnd
   have hj2 : j < 2 := h.hX.2.1 rfl
   have hE := h.hE
@@ -73,8 +72,8 @@ theorem tailP_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dig
     · rw [hu.keep p.1 (by simp only [packedCK, List.mem_cons, List.not_mem_nil, or_false] at hp; rcases hp with rfl | rfl <;> simp)]
       exact h.fb.ck p hp
     · rw [hu.keep .x22 (by simp)]; exact h.fb.idx
-    · rw [hfr _ (by unfold leafT WIT; omega) (by unfold leafT frameA WIT; omega)]
-      exact h.fb.thdr s hs
+    · rw [hfr _ (by unfold ETAB; omega) (by unfold ETAB frameA; omega)]
+      exact h.fb.etab s hs
     · rw [hfr _ (by unfold SENTINEL; omega) (by unfold SENTINEL frameA; omega)]
       exact h.fb.sent
     · rw [hfr _ (by unfold frameA; omega) (by unfold frameA; omega),
@@ -93,10 +92,14 @@ theorem tailP_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dig
       hfr _ (by unfold frameA; omega) (by unfold frameA; omega),
       hfr _ (by unfold frameA; omega) (by unfold frameA; omega)⟩)) node (E ^^^ 1) hn hq (xor1_lt E hE)
   have hr := h.hroots
-  refine ⟨u, hu.steps, ⟨hfb, hpcu, ?_, ?_, ?_, hstk, ?_, h.hroots, ?_, ?_⟩⟩
+  refine ⟨u, hu.steps, ⟨hfb, hpcu, ?_, ?_, ?_, ?_, hstk, ?_, h.hroots, ?_, ?_⟩⟩
   · rw [hu.keep .x14 (by simp)]; exact h.a4
   · have := hu.known (.x15, BitVec.ofNat 64 (frameA (stk.length + 1))) (by simp [ka5])
     simpa using this
+  · intro hj1
+    have hj0 : j = 0 := by omega
+    subst hj0
+    rw [hu.keep .x20 (by simp), h.s4]; rfl
   · rw [hu.keep .x25 (by simp)]; exact h.s9
   · exact h.rts.frame (fun k' hkr => ⟨hfr (forestSlot k') (by unfold forestSlot; split <;> omega)
       (by unfold forestSlot frameA; split <;> omega),
@@ -114,7 +117,6 @@ theorem tailF_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dig
     (node : Digest) (m : MachineState) (h : TailIn F c j roots stk 2 E ptr folds node m) :
     j = 2 ∧ ∃ u, Steps image m 1 1 u ∧ CoordIn F c roots stk E ptr folds node u := by
   obtain ⟨k, hk, hpc⟩ := h.pc
-  rw [show tailPcT (tselJ j) 2 k = tailPc 2 k by simp [tailPcT, cpOff]] at hpc
   have hj : j = 2 := h.hX.2.2 rfl
   subst hj
   refine ⟨rfl, ?_⟩
@@ -133,7 +135,7 @@ theorem tailF_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dig
 
 /-! ## The coordinate end -/
 
-/-- At `forest` (pc 580) after coordinate 6: the seven roots in the forest frame, `a4` at the next header. -/
+/-- At `forest` (pc 648) after coordinate 6: the seven roots in the forest frame, `a4` at the next header. -/
 structure ForestIn (F : FCtx) (roots : List Digest) (ptr folds : Nat) (m : MachineState) : Prop where
   glob : Glob gkF F.w F.pk m
   idx : m.getReg .x22 = BitVec.ofNat 64 F.idx
@@ -263,9 +265,9 @@ theorem coord_step (F : FCtx) (c : Nat) (roots : List Digest) (stk : List (Diges
           omega
         exact congrArg (BitVec.ofNat 64) hnum
     refine ⟨u, hst, ⟨⟨hu.glob _ _ _ h.fb.glob (RelOK.nil m), hck,
-      by rw [hu.keep .x22 (by simp)]; exact h.fb.idx, fun s hs => by rw [hmem]; exact h.fb.thdr s hs,
+      by rw [hu.keep .x22 (by simp)]; exact h.fb.idx, fun s hs => by rw [hmem]; exact h.fb.etab s hs,
       by rw [hmem]; exact h.fb.sent, fun d h1 h2 => by rw [hmem, hmem]; exact h.fb.fpad d h1 h2, by omega⟩,
-      ?_, ?_, ?_, ?_, StackOK.nil u, hrts, hlen, h.wit.transport hmem, ?_⟩⟩
+      ?_, ?_, ?_, fun h0 => absurd h0 (by decide), ?_, StackOK.nil u, hrts, hlen, h.wit.transport hmem, ?_⟩⟩
     · rw [hu.pc rfl]; simp only [coordSpec, coordNext, if_pos hc6]; rfl
     · rw [hu.keep .x14 (by simp)]; exact h.a4
     · rw [hu.keep .x15 (by simp)]; exact h.a5
@@ -287,17 +289,17 @@ theorem coord_step (F : FCtx) (c : Nat) (roots : List Digest) (stk : List (Diges
 
 /-! ## The forest -/
 
-/-- The state after the forest HASH, at `xtr3_1` (pc 588): the layers phase (V1) starts here. The forest pk `root` is
+/-- The state after the forest HASH, at `xtr3_1` (pc 656): the layers phase (V1) starts here. The forest pk `root` is
 the encoding block's message field (`0x100`), `s6 = idx`, `Glob baseK` (`t0 = 0`, `s2 = 0xFFF`; the witness header with
 the four counters; pk; the zero words and the counter's high half of the encoding block), and every witness word of
-the header and of the layer region (offsets ≥ `streamEnd` = 10568, with the zero memory past W up to `WX`) is
+the header and of the layer region (offsets ≥ `streamEnd` = 11288, with the zero memory past W up to `WX`) is
 original. -/
 structure FtsOut (F : FCtx) (root : Digest) (u : MachineState) : Prop where
-  glob : Glob baseK F.w F.pk u
+  glob : Glob carryK F.w F.pk u
   idx : u.getReg .x22 = BitVec.ofNat 64 F.idx
   pc : u.pc = pcOf layerPc
   root : DigAt u 0x100 root
-  wit : Orig F.w (fun o => o < 64 ∨ 10568 ≤ o) u
+  wit : Orig F.w (fun o => o < 64 ∨ 11288 ≤ o) u
 
 theorem hdr0_forest (idx : Nat) (hi : idx < 2 ^ 32) : hdr0 11 0 idx 0 = 0xb01 := by
   rw [hdr0_eq 11 0 idx 0 (by decide) (by decide) hi (by decide)]; norm_num
@@ -402,12 +404,12 @@ theorem forest_step (F : FCtx) (roots : List Digest) (ptr folds : Nat) (m : Mach
       · rw [hmem _ (by norm_num), if_neg (by unfold FOREST; omega), if_pos (by unfold FOREST; omega),
           hdr0_forest F.idx hi32]
       · rw [hmem _ (by norm_num), if_pos (by unfold FOREST; omega), hdr1_forest F.idx hi32]
-    refine ⟨u, hu.steps, hu.ecall rfl, hu.known (.x5, 0) (by simp [baseK]),
+    refine ⟨u, hu.steps, hu.ecall rfl, hu.known (.x5, 0) (by simp [carryK, baseK]),
       hashArgs_of u _ 128 _ h10 h11 h12 (by unfold FOREST; omega) (by decide) (by unfold FOREST; norm_num)
         (by decide) (by norm_num), hin, fun ans => ⟨?_, ?_, ?_, ?_, ?_⟩⟩
     · exact Glob_writeHash (hu.glob _ _ _ h.glob (RelOK.nil m)) ans 0x100 h12 (by decide)
     · rw [writeHash_getReg, hu.keep .x22 (by simp)]; exact h.idx
-    · rw [writeHash_pc, hu.pc rfl]; exact pcOf_add4 587
+    · rw [writeHash_pc, hu.pc rfl]; exact pcOf_add4 655
     · exact writeHash_lo u ans 0x100 h12 (by norm_num)
     · have hw : Orig F.w (fun o => o < 64 ∨ leafNT o ∨ ptr ≤ o) u :=
         h.wit.frame (fun jj h1 h2 => hfr _ (by unfold WIT WX at *; omega) (by unfold WIT FOREST; omega)

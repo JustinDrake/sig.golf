@@ -21,30 +21,29 @@ open SigGolfCandidate.T3M.Search (FailedAt kernAt_expand codeAt_k_2)
 
 set_option autoImplicit false
 
-private theorem dataBase_of_data_length (im : Image) (h : im.data.length = 4096) :
-    dataBase im = Search.TOP_DATA := by
-  unfold dataBase
-  rw [h]
-  rfl
-
+set_option maxRecDepth 100000 in
 theorem initialState_expand (m : Message) (pk : PublicKey) (σ : Bytes 5616) :
     initialState submission .expand (m, pk, σ) = some (einit m pk σ) := by
   have hv := submission_expand_valid
   have hd : dataBase (submission.image .expand) = Search.TOP_DATA := by
-    exact dataBase_of_data_length _ Search.expandData_length
+    unfold dataBase
+    change 16 * ((MEMORY_BYTES - Images.expandData.length) / 16) = _
+    rw [Search.expandData_length]
+    rfl
   unfold initialState
   rw [if_pos hv, hd]
   simp only [submission_expand, Images.expandImage, inputBuffers, List.foldl_cons, List.foldl_nil]
   rfl
 
-theorem lcost_four : lcost 4 ≤ 2831226883 := by decide
+theorem lcost_four : lcost 4 ≤ 2831201263 := by decide
 
 theorem expCost_lt : expCost + 1 < CYCLE_LIMIT := by
   have h := lcost_four
   unfold expCost ftsCost CYCLE_LIMIT
   omega
 
-theorem witList_length (N : HashOutput) (w : Witness) : (witList N w).length = 8 * 3033 := by
+set_option maxRecDepth 4096 in
+theorem witList_length (N : HashOutput) (w : Witness) : (witList N w).length = 8 * 3155 := by
   obtain ⟨l1, l2, l3⟩ := witList_length_parts N w
   unfold witList
   rw [List.length_append, List.length_append, List.length_append, l1, l2, l3, List.length_flatMap]
@@ -53,9 +52,9 @@ theorem witList_length (N : HashOutput) (w : Witness) : (witList N w).length = 8
 
 /-- The witness at `accept`. -/
 theorem expq_output {N : HashOutput} {w : Witness} {t : MachineState}
-    (h : t.readWords (BitVec.ofNat 64 0x800) 3033 = wordsOf (witList N w)) :
+    (h : t.readWords (BitVec.ofNat 64 0x800) 3155 = wordsOf (witList N w)) :
     readOutput submission.sizes submission.layout .expand t = witEnc N w :=
-  readBuffer_of_words t 0x800 3033 (witList N w) (by decide) (by decide) (witList_length N w) h
+  readBuffer_of_words t 0x800 3155 (witList N w) (by decide) (by decide) (witList_length N w) h
 
 /-- The final states: at a `HALT` `ECALL` with `t0 = 1`; `a0 = 0` and the witness iff accepted. -/
 theorem expq_halt (a : Option (HashOutput × Witness)) (t : MachineState) (h : ExpQ a t) :

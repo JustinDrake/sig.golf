@@ -25,8 +25,7 @@ def btLeaf (lay : Layer) (tree sel : Nat) (ds : List Nat) (sb l : Nat) : LeafArg
     if l = sel then sb else DUMMY, LOW + 16 * (2 ^ height lay + l), 1191⟩
 
 theorem btLeaf_costs (lay : Layer) (hlay : lay ≠ 0) (tree sel : Nat) (ds : List Nat) (sb l : Nat) :
-    (btLeaf lay tree sel ds sb l).leafK = (if lay = 1 then 13800 else 14101) ∧
-    (btLeaf lay tree sel ds sb l).leafC = (if lay = 1 then 16148 else 16449) ∧
+    (btLeaf lay tree sel ds sb l).leafK = 8081 ∧ (btLeaf lay tree sel ds sb l).leafC = 10429 ∧
     (btLeaf lay tree sel ds sb l).leafN = 324 ∧ (btLeaf lay tree sel ds sb l).leafB = 334 := by
   have e : (btLeaf lay tree sel ds sb l).leafK = (btLeaf lay 0 0 [] 0 1).leafK ∧
       (btLeaf lay tree sel ds sb l).leafC = (btLeaf lay 0 0 [] 0 1).leafC ∧
@@ -62,10 +61,9 @@ structure BtPre (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (tree sel 
   x26 : s.getReg .x26 = BitVec.ofNat 64 43
   x27 : s.getReg .x27 = BitVec.ofNat 64 0
   x31 : s.getReg .x31 = BitVec.ofNat 64 0
-  base : Base sk cache s
+  base : BaseL sk cache s
   hlay : lay ≠ 0
   htree : tree < 2 ^ 32
-  hroute : ∀ l < 2 ^ height lay, tree * 2 ^ height lay + l < 2 ^ 31
   hsel : sel < 2 ^ height lay
   hdb : ∀ i < 43, ds.getD i 0 ≤ 7
   digits : ∀ i < 43, s.getByte (BitVec.ofNat 64 (DIGITS + i)) = BitVec.ofNat 8 (ds.getD i 0)
@@ -129,8 +127,8 @@ theorem bt_leafPre {l : Nat} (hl : l < 2 ^ height lay) {t : MachineState}
     fun r hr' => hr.get hr'
   have m : ∀ X, X < 2 ^ 64 → ¬ BtW sb (height lay) X → t.getMem (BitVec.ofNat 64 X) = s1.getMem (BitVec.ofNat 64 X) :=
     fun X hX hn' => hf.get hX hn'
-  have hz : ∀ X, X < 2 ^ 64 → NeverW X → t.getMem (BitVec.ofNat 64 X) = 0 := fun X hX hnw =>
-    (m X hX (by unfold NeverW at hnw; unfold BtW; rcases hH with h | h <;> rw [h] <;> sgo)).trans
+  have hz : ∀ X, X < 2 ^ 64 → NeverWL X → t.getMem (BitVec.ofNat 64 X) = 0 := fun X hX hnw =>
+    (m X hX (by unfold NeverWL at hnw; unfold BtW; rcases hH with h | h <;> rw [h] <;> sgo)).trans
       (hs.base.zero X hX hnw)
   refine
     { x1 := h1
@@ -146,19 +144,16 @@ theorem bt_leafPre {l : Nat} (hl : l < 2 ^ height lay) {t : MachineState}
       x31 := by rw [g _ (by decide), hs.x31]; rfl
       htree := hs.htree
       hleaf := by show l < 2 ^ 32; omega
-      hroute := hs.hroute l hl
-      hleafHeight := hl
-      hsteps := fun i _ => by change T3.maxDigit lay i ≤ 8; simp [T3.maxDigit, hlay]
       p0 := by rw [m _ (by decide) (by unfold BtW; sgo), hs.base.p0]
       p8 := by rw [m _ (by decide) (by unfold BtW; sgo), hs.base.p8]
       p32 := by rw [m _ (by decide) (by unfold BtW; sgo), hs.base.p32]
       p40 := by rw [m _ (by decide) (by unfold BtW; sgo), hs.base.p40]
       p48 := by rw [m _ (by decide) (by unfold BtW; sgo), hs.base.p48]
       p56 := by rw [m _ (by decide) (by unfold BtW; sgo), hs.base.p56]
-      z0 := hz _ (by decide) (by unfold NeverW; simp)
-      z8 := hz _ (by decide) (by unfold NeverW; simp)
-      z32 := hz _ (by decide) (by unfold NeverW; simp)
-      z40 := hz _ (by decide) (by unfold NeverW; simp)
+      z0 := hz _ (by decide) (by unfold NeverWL; simp)
+      z8 := hz _ (by decide) (by unfold NeverWL; simp)
+      z32 := hz _ (by decide) (by unfold NeverWL; simp)
+      z40 := hz _ (by decide) (by unfold NeverWL; simp)
       ztail := fun h => by rw [hn] at h; exact absurd h (by norm_num)
       hdig := fun i hi => by
         rw [hn] at hi
@@ -170,7 +165,7 @@ theorem bt_leafPre {l : Nat} (hl : l < 2 ^ height lay) {t : MachineState}
           exact hs.digits i hi
         · simp only [hls, if_false, List.getD_nil]
           rw [hf.getByte (by sgo) (by unfold BtW; rcases hH with h | h <;> rw [h] <;> sgo),
-            getByte_eq_word s1 _ (by sgo), hs.base.zero _ (by sgo) (by unfold NeverW; sgo), extractByte_zero']
+            getByte_eq_word s1 _ (by sgo), hs.base.zero _ (by sgo) (by unfold NeverWL; sgo), extractByte_zero']
           rfl
       hdigb := fun i hi => by
         rw [hn] at hi
@@ -213,8 +208,7 @@ theorem bt_leafPre {l : Nat} (hl : l < 2 ^ height lay) {t : MachineState}
 /-- **One leaf** of `build_tree`'s loop. -/
 theorem bt_body {l : Nat} (hl : l < 2 ^ height lay) {st : List Digest × List Digest} {t : MachineState}
     (ht : BtInv s1 sb sel (height lay) l st t) :
-    TSim image sk t ((if lay = 1 then 13815 else 14116) + (if l = sel then 3 else 0))
-      ((if lay = 1 then 16163 else 16464) + (if l = sel then 3 else 0)) 324 334
+    TSim image sk t (8096 + (if l = sel then 3 else 0)) (10444 + (if l = sel then 3 else 0)) 324 334
       (btBody lay tree sel ds st l) (BtInv s1 sb sel (height lay) (l + 1)) := by
   have hlay := hs.hlay
   have hH := height_low hlay
@@ -260,8 +254,7 @@ theorem bt_body {l : Nat} (hl : l < 2 ^ height lay) {st : List Digest × List Di
   rw [cK, cC, cN, cB] at hleaf
   unfold btBody
   refine (TSim.steps (st1.trans (st2.trans (st3.trans st4))) (TSim.bind (k₂ := 2) (c₂ := 2) (n₂ := 0) (b₂ := 0)
-    hleaf (fun r u hu => ?_))).of_eq rfl (by rw [hk3]; split_ifs <;> omega)
-      (by rw [hk3]; split_ifs <;> omega) rfl rfl
+    hleaf (fun r u hu => ?_))).of_eq rfl (by rw [hk3]; omega) (by rw [hk3]; omega) rfl rfl
   obtain ⟨upc, uroot, uvals, ulen, -, ur, uf⟩ := hu
   obtain ⟨root, values⟩ := r
   obtain ⟨t5, st5, t5pc, t5x13, t5r, t5f⟩ := blk1191_spec u upc l
@@ -394,7 +387,7 @@ def btAllRegs : List Reg :=
 /-- Doublewords `build_tree` may change. -/
 def BtAllW (lay : Layer) (tree sb : Nat) (A : Nat) : Prop :=
   BtW sb (height lay) A ∨ LevW (btLev lay tree) A ∨ (sb + 16 * 43 ≤ A ∧ A < sb + 16 * (43 + height lay)) ∨
-    A = ENC ∨ A = ENC + 8
+    A = ENC ∨ A = ENC + 8 ∨ A = ENC + 48 ∨ A = ENC + 56
 
 /-- The exit of `build_tree`: back at `ret` with the values, the path and the root (to `ENC`). -/
 structure BtPost (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (tree sel sb ret : Nat) (s : MachineState)
@@ -403,13 +396,14 @@ structure BtPost (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (tree sel
   vlen : r.2.length = 43
   vals : DigsAt u sb r.2
   path : DigsAt u (sb + 16 * 43) ((List.range (height lay)).map fun j => (r.1.getD j []).getD (sel / 2 ^ j ^^^ 1) 0)
-  root : DigAt u ENC ((r.1.getD (height lay) []).getD 0 0)
-  base : Base sk cache u
+  root : DigAt u ENC ((r.1.getD (height lay - 1) []).getD 0 0)
+  rootR : DigAt u (ENC + 48) ((r.1.getD (height lay - 1) []).getD 1 0)
+  base : BaseL sk cache u
   regs : RegsExcept s u btAllRegs
   frame : Frame s u (BtAllW lay tree sb)
 
 /-- Cycle bound of `build_tree` (≤ 128 leaves of 10,447 cycles, `build_levels`, the path). -/
-def btCost : Nat := 2127776
+def btCost : Nat := 128 * 10447 + 20000
 
 theorem sumTo_le_mul (f : Nat → Nat) (b : Nat) : ∀ n, (∀ j < n, f j ≤ b) → sumTo f n ≤ n * b
   | 0, _ => by simp [sumTo]
@@ -489,10 +483,10 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
       has := Or.inl (by show NOUT + 32 ≤ LOW; decide)
       z32 := by
         rw [f2.get (by sgo) (by unfold BtW; sgo)]
-        exact hs.base.zero _ (by sgo) (by unfold NeverW; simp)
+        exact hs.base.zero _ (by sgo) (by unfold NeverWL; simp)
       z40 := by
         rw [f2.get (by sgo) (by unfold BtW; sgo)]
-        exact hs.base.zero _ (by sgo) (by unfold NeverW; simp)
+        exact hs.base.zero _ (by sgo) (by unfold NeverWL; simp)
       hlen := ht.len
       hleaves := by
         show DigsAt t2 (LOW + 16 * 2 ^ height lay) st.1
@@ -500,7 +494,7 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
           rcases h with h | h <;> exact h) }
   have hlev := buildLevels_tsim subAt_sign sk hlp t2pc
   obtain ⟨hlk, hlc⟩ := btLev_costs lay hlay tree
-  refine TBSim.mono (TBSim.steps (st1.trans st2) (TBSim.bind (W₂ := 100) (TSim.toTBSim hlev hlk)
+  refine TBSim.mono (TBSim.steps (st1.trans st2) (TBSim.bind (W₂ := 110) (TSim.toTBSim hlev hlk)
     (fun levels u hu => ?_))) (by omega) (fun _ _ h => h)
   obtain ⟨upc, uheap, ur, uf⟩ := hu
   have gu : ∀ r, r ∉ btRegs ++ [.x6] ++ [.x1, .x21] ++ levRegs → u.getReg r = s1.getReg r := fun r hr =>
@@ -514,12 +508,13 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
     (by rw [pow_succ]; omega) (height lay) 0 (by omega) v (sb + 16 * 43) vpc vx13
     (by rw [gv _ (by decide), hs.x15]) vx19 (by rw [gv _ (by decide), hs.x2]) vx24 (by omega) (by sgo)
     (fun A h1 h2 => vf.get (by sgo) (fun h => h))
-  obtain ⟨x, stx, xpc, xm0, xm8, xr, xf⟩ := blk1214_spec w wpc LOW ret (by decide) (by decide)
-    (by rw [wr.get (by simp), gv _ (by decide), hs.x2])
+  obtain ⟨x, stx, xpc, xm0, xm8, xm48, xm56, xr, xf⟩ := blk1214_full w wpc LOW ret (by decide) (by decide)
+    (by decide) (by rw [wr.get (by simp), gv _ (by decide), hs.x2])
     (by rw [wr.get (by simp), gv _ (by decide), h4])
   refine TBSim.mono (TBSim.pure_steps (stv.trans (stw.trans stx)) ?_) (by omega) (fun _ _ h => h)
   -- the frames
-  have fux : Frame u x (fun A => (sb + 16 * 43 ≤ A ∧ A < sb + 16 * 43 + 16 * height lay) ∨ A = ENC ∨ A = ENC + 8) :=
+  have fux : Frame u x (fun A => (sb + 16 * 43 ≤ A ∧ A < sb + 16 * 43 + 16 * height lay) ∨ A = ENC ∨ A = ENC + 8 ∨ A = ENC + 48 ∨
+      A = ENC + 56) :=
     ((vf.trans wf).trans xf).mono (fun A _ h => by
       rcases h with (h | h) | h
       · exact h.elim
@@ -531,9 +526,9 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
     · exact Or.inr (Or.inl h)
     · exact Or.inr (Or.inr (Or.inl ⟨h.1, by omega⟩))
     · exact Or.inr (Or.inr (Or.inr h)))
-  have hW : ∀ A, A < 2 ^ 64 → BaseA A → ¬ BtAllW lay tree sb A := by
+  have hW : ∀ A, A < 2 ^ 64 → BaseAL A → ¬ BtAllW lay tree sb A := by
     intro A _ hb hw
-    unfold BaseA NeverW Search.TOP_DATA at hb
+    unfold BaseAL NeverWL Search.TOP_DATA at hb
     unfold BtAllW BtW LevW at hw
     simp only [btLev] at hw
     rcases hH with h | h <;> rw [h] at hw <;> sgo
@@ -542,11 +537,12 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
     (((((ht.regs.trans t1r).trans t2r).trans ur).trans vr).trans wr).trans xr
   -- the heap levels
   obtain ⟨-, hlv⟩ := uheap
-  refine ⟨xpc, (ht.vals hsel).1, ?_, ?_, ?_, hs.base.frame f1x r1x (by decide) hW, ?_, ?_⟩
+  refine ⟨xpc, (ht.vals hsel).1, ?_, ?_, ?_, ?_, hs.base.frame f1x r1x (by decide) hW, ?_, ?_⟩
   · -- the values survive the levels and the path
     obtain ⟨hl2, hv⟩ := ht.vals hsel
     have ftx : Frame t x (fun A => LevW (btLev lay tree) A ∨
-        (sb + 16 * 43 ≤ A ∧ A < sb + 16 * 43 + 16 * height lay) ∨ A = ENC ∨ A = ENC + 8) :=
+        (sb + 16 * 43 ≤ A ∧ A < sb + 16 * 43 + 16 * height lay) ∨ A = ENC ∨ A = ENC + 8 ∨ A = ENC + 48 ∨
+      A = ENC + 56) :=
       ((t1f.trans t2f).trans (uf.trans fux)).mono (fun A _ h => by
         rcases h with (h | h) | h
         · exact h.elim
@@ -573,13 +569,22 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
     rw [show LOW + 16 * (2 ^ (height lay - i) + (sel / 2 ^ i ^^^ 1)) =
       LOW + 16 * 2 ^ (height lay - i) + 16 * (sel / 2 ^ i ^^^ 1) by ring, memDig_eq hdi] at he
     exact he.frame xf (by sgo) (by sgo) (by sgo)
-  · -- the root
-    obtain ⟨hl0, hd⟩ := hlv (height lay) le_rfl
-    have hd0 := hd 0 (by rw [hl0]; simp [btLev])
-    simp only [btLev, Nat.sub_self, pow_zero, Nat.mul_zero, Nat.add_zero, Nat.mul_one] at hd0
+  · -- the root's left child (heap node 2)
+    obtain ⟨hl0, hd⟩ := hlv (height lay - 1) (by simp only [btLev]; omega)
+    have h1 : height lay - (height lay - 1) = 1 := by omega
+    have hd0 := hd 0 (by rw [hl0]; simp [btLev, h1])
+    simp only [btLev, h1, pow_one, Nat.mul_zero, Nat.add_zero] at hd0
     refine ⟨?_, ?_⟩
     · rw [xm0, wf.get (by sgo) (by sgo), vf.get (by sgo) (fun h => h)]; exact hd0.1
     · rw [xm8, wf.get (by sgo) (by sgo), vf.get (by sgo) (fun h => h)]; exact hd0.2
+  · -- the root's right child (heap node 3)
+    obtain ⟨hl0, hd⟩ := hlv (height lay - 1) (by simp only [btLev]; omega)
+    have h1 : height lay - (height lay - 1) = 1 := by omega
+    have hd1 := hd 1 (by rw [hl0]; simp [btLev, h1])
+    simp only [btLev, h1, pow_one, Nat.mul_one] at hd1
+    refine ⟨?_, ?_⟩
+    · rw [xm48, wf.get (by sgo) (by sgo), vf.get (by sgo) (fun h => h)]; exact hd1.1
+    · rw [xm56, wf.get (by sgo) (by sgo), vf.get (by sgo) (fun h => h)]; exact hd1.2
   · exact (hr0.trans r1x).mono (by decide)
   · exact (hf0.trans f1x).mono (fun A _ h => by rcases h with h | h; exact h.elim; exact h)
 
@@ -611,7 +616,6 @@ theorem buildTree_tbsim {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {t
       hlay := hlay
       htree := hs.htree
       hsel := hsel
-      hroute := hs.hroute
       hdb := hs.hdb
       digits := fun i hi => by rw [s1f.getByte (by sgo) (fun h => h)]; exact hs.digits i hi
       hsb := hsb
@@ -619,14 +623,14 @@ theorem buildTree_tbsim {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {t
   have h0 : BtInv s1 sb sel (height lay) 0 ([], []) s1 :=
     ⟨s1pc, s1x13, RegsExcept.refl _ _, Frame.refl _ _, rfl, DigsAt.nil _ _, fun h => absurd h (by omega)⟩
   have hloop := TSim.foldlM_range (image := image) (sk := sk) (2 ^ height lay) (btBody lay tree sel ds) ([], [])
-    (BtInv s1 sb sel (height lay)) (fun l => (if lay = 1 then 13815 else 14116) + (if l = sel then 3 else 0))
-    (fun l => (if lay = 1 then 16163 else 16464) + (if l = sel then 3 else 0)) (fun _ => 324) (fun _ => 334)
+    (BtInv s1 sb sel (height lay)) (fun l => 8096 + (if l = sel then 3 else 0))
+    (fun l => 10444 + (if l = sel then 3 else 0)) (fun _ => 324) (fun _ => 334)
     (fun l hl st t ht => bt_body hs1 hl ht) h0
-  have hkc : sumTo (fun l => (if lay = 1 then 13815 else 14116) + (if l = sel then 3 else 0)) (2 ^ height lay) ≤
-      sumTo (fun l => (if lay = 1 then 16163 else 16464) + (if l = sel then 3 else 0)) (2 ^ height lay) :=
+  have hkc : sumTo (fun l => 8096 + (if l = sel then 3 else 0)) (2 ^ height lay) ≤
+      sumTo (fun l => 10444 + (if l = sel then 3 else 0)) (2 ^ height lay) :=
     sumTo_le_sumTo _ _ _ (fun j _ => by split_ifs <;> omega)
-  have hcb : sumTo (fun l => (if lay = 1 then 16163 else 16464) + (if l = sel then 3 else 0)) (2 ^ height lay) ≤ 128 * 16467 :=
-    le_trans (sumTo_le_mul _ 16467 _ (fun j _ => by split_ifs <;> omega)) (Nat.mul_le_mul_right _ hHp)
+  have hcb : sumTo (fun l => 10444 + (if l = sel then 3 else 0)) (2 ^ height lay) ≤ 128 * 10447 :=
+    le_trans (sumTo_le_mul _ 10447 _ (fun j _ => by split_ifs <;> omega)) (Nat.mul_le_mul_right _ hHp)
   rw [buildTree_eq]
   exact TBSim.mono (TBSim.steps st1 (TBSim.bind (W₂ := 19000) (TSim.toTBSim hloop hkc)
     (fun st t ht => bt_tail hs1 (by rw [s1x4, h1]) s1r s1f ht))) (by unfold btCost; omega) (fun _ _ h => h)
