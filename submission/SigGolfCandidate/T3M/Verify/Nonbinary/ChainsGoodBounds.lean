@@ -52,11 +52,11 @@ theorem rungPc_lt (c : NCtx) (i m : Nat) (hm : m≤ last i) : c.rungPc i m<21043
   split_ifs <;> omega
 
 theorem inline_rungPc (c : NCtx) (i : Nat) (h0 : i%3≠0) :
-    c.rungPc i (c.dig i)=c.startPc i+(if c.dig i=last i then 4 else 5) := by
+    c.rungPc i (c.dig i)=c.startPc i+(if c.dig i=last i then 3 else 4) := by
   simp [rungPc,h0]
 
 theorem inline_copy_end (c : NCtx) (i : Nat) (h0 : i%3≠0) (hd : c.dig i=topMax i) :
-    c.startPc i+5=c.endPc i := by
+    c.startPc i+4=c.endPc i := by
   have e1 : i%3=1 → c.dig (3*(i/3)+1)=c.dig i := fun h => by rw [show 3*(i/3)+1=i by omega]
   have e2 : i%3=2 → c.dig (3*(i/3)+2)=c.dig i := fun h => by rw [show 3*(i/3)+2=i by omega]
   unfold startPc endPc qB qC qX pcX pcC partLen

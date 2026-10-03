@@ -1,11 +1,12 @@
 import SigGolfCandidate.T3M.Verify.Compose
 
 /-! The complete verifier bound from the organizer's initial state.
-Accepting runs cost at most 2675 + 6 + 6062 = 8743 cycles (n3-99 relabelled FTS: 2791 → 2676; digest header cut
+Accepting runs cost at most 2675 + 6 + 5963 = 8644 cycles (n3-99 relabelled FTS: 2791 → 2676; digest header cut
 2676 → 2675; lower-layer cuts and the T3X WOTS header table with T3Y one-`lui` entry stubs: layers
-1338 / 1321 / 1321 / 1290 for layers 3..0 (top: cryptogakusei's complemented decoder tail, −2), Merkle 168 / 168 / 181 / 273 for layers 3..0 after the BIG2 header
+1338 / 1321 / 1321 / 1236 for layers 3..0 (top: cryptogakusei's complemented decoder tail, −2; BIG3 T3Z header-table
+heads, −54), Merkle 168 / 168 / 181 / 273 for layers 3..0 after the BIG2 header
 word-0 merge, compare 8). The all-input
-cycle bound is 15425 and the fuel 15418 (`6 + lFuel 4 = 8050` after the forest). -/
+cycle bound is 15419 and the fuel 15412 (`6 + lFuel 4 = 8021 ≤ 8044` after the forest). -/
 
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
@@ -16,14 +17,14 @@ the layers and the compare. -/
 def cycleBound : Nat := 2675 + 6 + lCyc 4
 
 /-- A cycle bound of every run under every oracle. -/
-def cycleBoundAll : Nat := 7375 + 8050
+def cycleBoundAll : Nat := 7375 + 8044
 
 /-- A step bound (fuel) sufficient for every run. -/
-def fuelBound : Nat := 7368 + 8050
+def fuelBound : Nat := 7368 + 8044
 
-theorem cycleBound_eq : cycleBound = 8743 := by unfold cycleBound; rw [lCyc_4]
-theorem cycleBoundAll_eq : cycleBoundAll = 15425 := rfl
-theorem fuelBound_eq : fuelBound = 15418 := rfl
+theorem cycleBound_eq : cycleBound = 8644 := by unfold cycleBound; rw [lCyc_4]
+theorem cycleBoundAll_eq : cycleBoundAll = 15419 := rfl
+theorem fuelBound_eq : fuelBound = 15412 := rfl
 
 /-- **The whole verify run** from the organizer's initial state. -/
 theorem verify_good (input : Legacy.Input submission.sizes .verify) (s : MachineState)

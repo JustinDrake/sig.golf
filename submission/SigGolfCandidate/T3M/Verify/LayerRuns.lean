@@ -81,18 +81,21 @@ def M4c : Nat := 3689348814741910323
 def M8c : Nat := 1085102592571150095
 
 /-- The known registers at a transition start (layer 3: `t0`, `s2` and the five constants of the load block
-`ld3Spec`; `hyper` sets the rest). -/
+`ld3Spec`; `hyper` sets the rest). T3Z (BIG3): below layer 3, `t3` is the midpoint of the header table's bank 0
+(the leaf-pk restore `lui t3, 0xff4` of the layer above). -/
 def preK (lay : Nat) : List (Reg × Word) :=
   if lay = 3 then baseK ++ [(.x28, BitVec.ofNat 64 (2 ^ 40)), (.x21, BitVec.ofNat 64 M2c), (.x20, BitVec.ofNat 64 M1c),
     (.x27, BitVec.ofNat 64 (hw 1 3)), (.x2, BitVec.ofNat 64 0x3fe00)]
   else baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 (lay + 1))), (.x24, 0x10000), (.x2, 0x3fe00),
-    (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (2 ^ 40)),
+    (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (headerBank 0 0)),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
 
-/-- The constant registers through a layer (after A): `s11 = 0x101 | lay << 16`, the masks, the step registers. -/
+/-- The constant registers through a layer (after A): `s11 = 0x101 | lay << 16`, the masks, the step registers
+(T3Z: `t3` as in `preK`). -/
 def layK (lay : Nat) : List (Reg × Word) :=
   baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 lay)), (.x24, 0x10000), (.x2, 0x3fe00),
-    (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (2 ^ 40)),
+    (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64),
+    (.x28, BitVec.ofNat 64 (if lay = 3 then 2 ^ 40 else headerBank 0 0)),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
 
 /-- T3X: the layer constants during a lower layer's chain phase: `x28` is the midpoint of the layer's WOTS header
@@ -197,8 +200,8 @@ def specBt (p : Nat) : Spec :=
 /-- After the top decode: the 2-bit masks, the quad mask in `s8`, `t4 = 8` (no checksum chain). -/
 def postBt (p : Nat) : List (Reg × Word) :=
   baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 0)), (.x2, 0x3fe00), (.x20, BitVec.ofNat 64 M4c), (.x21, BitVec.ofNat 64 M8c),
-    (.x11, 64), (.x28, BitVec.ofNat 64 (2 ^ 40)), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7),
-    (.x22, BitVec.ofNat 64 (s6v 0)), (.x19, BitVec.ofNat 64 s3v), (.x24, 0x1fe00), (.x29, 8), (.x15, 0xae000),
+    (.x11, 64), (.x28, BitVec.ofNat 64 (headerBank 0 0)), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6),
+    (.x31, 7), (.x22, BitVec.ofNat 64 (s6v 0)), (.x19, BitVec.ofNat 64 s3v), (.x24, 0x1fe00), (.x29, 8), (.x15, 0xae000),
     (.x1, pcOf (p + retOff 0))]
 
 def rejTot : Spec :=
@@ -235,9 +238,10 @@ def specLf (lay : Nat) : Spec :=
      [(⟨none, BitVec.ofNat 64 792⟩, .reg .x4), (⟨none, BitVec.ofNat 64 784⟩, kw (hw 2 lay))], 0, false, 11, [],
      some (tgtLf lay), 11⟩
 
-/-- T3X lower layers: the inline `slli t3, t1, 40` set `t3 = 2^40` again. -/
+/-- T3X lower layers: the return `jal zero, restore` and (T3Z, BIG3) `lui t3, 0xff4` set `t3` = the midpoint of the
+header table's bank 0 (the next lower layer's stub overwrites it; the top layer's heads read their table with it). -/
 def postLf (lay : Nat) : List (Reg × Word) :=
-  leafK lay ++ (if lay = 0 then [] else [(.x28, BitVec.ofNat 64 (2 ^ 40))]) ++
+  leafK lay ++ (if lay = 0 then [] else [(.x28, BitVec.ofNat 64 (headerBank 0 0))]) ++
    [(.x3, BitVec.ofNat 64 (hw 2 lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)),
     (.x10, BitVec.ofNat 64 (if lay = 0 then 512 else 768)), (.x11, BitVec.ofNat 64 (if lay = 0 then 896 else 704)),
     (.x15, 0xce000)]

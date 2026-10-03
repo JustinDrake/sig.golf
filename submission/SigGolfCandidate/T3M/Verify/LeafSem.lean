@@ -81,7 +81,7 @@ def lfSteps (lay : Nat) : Nat := if lay = 0 then 13 else 11
 /-- The registers the block keeps that the Merkle code and the next transition read: `sp`, `t3`, the step
 registers `1 .. 7`, `s6`; below the top also the 3-bit masks `s4`, `s5` and `s8 = 0x10000`. -/
 def lfKeepK (lay : Nat) : List (Reg × Word) :=
-  [(.x2, 0x3fe00), (.x28, BitVec.ofNat 64 (2 ^ 40)), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6),
+  [(.x2, 0x3fe00), (.x28, BitVec.ofNat 64 (headerBank 0 0)), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6),
    (.x31, 7), (.x22, BitVec.ofNat 64 (s6v lay))] ++
   (if lay = 0 then [] else [(.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x24, 0x10000)])
 
@@ -300,8 +300,8 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
     · exact hku p hp
     · have h22 : s0.getReg .x22 = BitVec.ofNat 64 (s6v lay.val) :=
         hk (.x22, BitVec.ofNat 64 L.S6) (by simp [LCtx.known])
-      -- T3X: `t3 = 2^40` (restored) and `t1 = 1` (known at the start) come from `postLf`
-      have m28 : ((.x28 : Reg), BitVec.ofNat 64 (2 ^ 40)) ∈ postLf lay.val := by
+      -- T3X: `t3` (restored; T3Z: the header bank-0 midpoint) and `t1 = 1` (known at the start) come from `postLf`
+      have m28 : ((.x28 : Reg), BitVec.ofNat 64 (headerBank 0 0)) ∈ postLf lay.val := by
         simp [postLf, h0]
       have m6 : ((.x6 : Reg), (1 : Word)) ∈ postLf lay.val := by
         simp [postLf, leafK, h0]
