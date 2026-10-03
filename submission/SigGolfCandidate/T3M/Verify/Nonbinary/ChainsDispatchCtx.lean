@@ -30,7 +30,7 @@ theorem end_dispatch (c : NCtx) (hc : c.ok) (hds : c.DigitsOk) {s0 : MachineStat
     (q : Nat) (hq : q<16) (acc : List Digest) (s : MachineState)
     (hs : c.EndInv s0 (3*q+2) acc s) :
     ∃t,Steps vimage s 4 4 t ∧ c.ChainIn s0 (3*(q+1)) acc t := by
-  obtain ⟨⟨hR,hF,hS⟩,hlen,hpc⟩ := hs
+  obtain ⟨⟨hR,hF,hS⟩,hlen,h25,hpc⟩ := hs
   have hr := c.dispatch_at hds q (by omega)
   rw [if_pos hq] at hr
   have hbound : c.endPc (3*q+2)<210432 := by
@@ -39,10 +39,12 @@ theorem end_dispatch (c : NCtx) (hc : c.ok) (hds : c.DigitsOk) {s0 : MachineStat
   obtain ⟨t,st,pt,rt,ft⟩ := dispatch_step (by omega) hbound hr s v hpc
     ((hR _ (by decide)).trans he.lo) ((hR _ (by decide)).trans he.hi)
     ((hR _ (by decide)).trans he.mask) ((hR _ (by decide)).trans he.table)
-  refine ⟨t,st,⟨⟨fun x hx => ?_,(hF.trans ft).mono (by intro A hA h;rcases h with h|h;simpa only [show 3*q+2+1=3*(q+1) by omega] using h;contradiction),fun j hj => ?_⟩,by omega,?_⟩⟩
+  refine ⟨t,st,⟨⟨fun x hx => ?_,(hF.trans ft).mono (by intro A hA h;rcases h with h|h;simpa only [show 3*q+2+1=3*(q+1) by omega] using h;contradiction),fun j hj => ?_⟩,by omega,fun _ => ?_,?_⟩⟩
   · rw [rt.get (by intro h;simp only [List.mem_singleton] at h;subst x;exact hx (by decide))]
     exact hR x hx
   · exact (hS j hj).frame ft (by have := slot_props j (by omega);omega) (by simp) (by simp)
+  · rw [rt.get (by decide),h25]
+    congr 1
   · rw [pt]
     unfold startPc
     rw [if_pos (show 3*(q+1)%3=0 by omega),show 3*(q+1)/3=q+1 by omega,c.fit_rank hf hv (q+1) (by omega)]
@@ -74,14 +76,15 @@ theorem tailInitial_known (c : NCtx) {s0 t : MachineState}
 
 theorem tailInitial_orig (c : NCtx) {s0 t : MachineState} (h0 : c.Orig0 s0) :
     c.Orig0 (tailInitial s0 t) := by
-  refine ⟨fun i hi k hk => h0.1 i hi k hk, h0.2.congr (fun A _ _ => tailInitial_mem s0 t _)⟩
+  intro i hi k hk
+  exact h0 i hi k hk
 
 /-- The final radix-four table changes x15; the baseline rebase preserves memory exactly. -/
 theorem end_tail (c : NCtx) (hc : c.ok) (hds : c.DigitsOk) {s0 : MachineState} {v : Digest}
     (he : Encoded v s0) (hf : c.Fit v) (hv : v.toNat<2^125)
     (acc : List Digest) (s : MachineState) (hs : c.EndInv s0 50 acc s) :
     ∃t,Steps vimage s 4 4 t ∧ c.ChainIn (tailInitial s0 t) 51 acc t := by
-  obtain ⟨⟨hR,hF,hS⟩,hlen,hpc⟩ := hs
+  obtain ⟨⟨hR,hF,hS⟩,hlen,h25,hpc⟩ := hs
   have hr := c.dispatch_at hds 16 (by decide)
   norm_num at hr
   have hbound : c.endPc 50<210432 := by
@@ -89,7 +92,7 @@ theorem end_tail (c : NCtx) (hc : c.ok) (hds : c.DigitsOk) {s0 : MachineState} {
     simpa only [endPc,Nat.reduceMod,if_false,Nat.reduceEqDiff] using (show c.qX 50<210432 by omega)
   obtain ⟨t,st,pt,rt,ft⟩ := tail_dispatch_step hbound hr s (v.toNat/2^119) (by omega) hpc
     ((hR _ (by decide)).trans he.tail)
-  refine ⟨t,st,⟨⟨fun x hx => ?_,?_,fun j hj => ?_⟩,by omega,?_⟩⟩
+  refine ⟨t,st,⟨⟨fun x hx => ?_,?_,fun j hj => ?_⟩,by omega,fun _ => ?_,?_⟩⟩
   · by_cases hx15 : x=.x15
     · subst x;rw [tailInitial_15]
     · rw [tailInitial_regs _ _ _ hx15,rt.get (by simp only [List.mem_cons,List.mem_singleton,List.not_mem_nil,or_false,not_or];exact ⟨fun h => hx (by rw [h];decide),hx15⟩)]
@@ -98,6 +101,7 @@ theorem end_tail (c : NCtx) (hc : c.ok) (hds : c.DigitsOk) {s0 : MachineState} {
     rw [tailInitial_mem]
     exact ft.get hA (by simp) |>.trans (hF.get hA hn)
   · exact (hS j hj).frame ft (by have := slot_props j (by omega);omega) (by simp) (by simp)
+  · rw [rt.get (by decide),h25]
   · rw [pt]
     change pcOf (entW 17 (v.toNat/2^119))=pcOf (entW 17 (c.kOf 17))
     rw [c.fit_tail hf hv]

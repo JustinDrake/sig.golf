@@ -42,7 +42,7 @@ theorem blk_at (c : NCtx) (hd : c.DigitsOk) (i : Nat) (hi : i<54) :
 
 theorem chk_headJ (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54)
     (h0 : i%3=0) (hd : c.dig i< last i) :
-    vrun (c.startPc i) 7=some (headJD .x19 (off i) (c.rungPc i (c.dig i)+1) i (c.dig i)) := by
+    vrun (c.startPc i) 7=some (headJ .x19 (off i) (i/3==0) (c.rungPc i (c.dig i))) := by
   obtain ⟨q,rfl⟩ : ∃q,i=3*q := ⟨i/3,by omega⟩
   have eq : 3*q/3=q := by omega
   have he := entCheck_at q (c.kOf q) (by omega) (c.kOf_lt hds q (by omega))
@@ -53,12 +53,12 @@ theorem chk_headJ (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54)
   have hs : c.startPc (3*q)=entW q (c.kOf q) := by simp [startPc,h0,eq]
   have hr : c.rungPc (3*q) (c.dig (3*q))=base q (c.dig (3*q+1)) (c.dig (3*q+2))+2*c.dig (3*q) := by
     simp [rungPc,qb,h0,eq]
-  rw [hs,hr]
+  rw [hs,hr,eq]
   exact rOK_eq he
 
 theorem chk_headJTerm (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54)
     (h0 : i%3=0) (hd : c.dig i=last i) :
-    vrun (c.startPc i) 7=some (headJDTerm .x19 (off i) (c.rungPc i (c.dig i)+1) i (c.dig i)) := by
+    vrun (c.startPc i) 7=some (headJTerm .x19 (off i) (i/3==0) (c.rungPc i (c.dig i))) := by
   obtain ⟨q,rfl⟩ : ∃q,i=3*q := ⟨i/3,by omega⟩
   have eq : 3*q/3=q := by omega
   have he := entCheck_at q (c.kOf q) (by omega) (c.kOf_lt hds q (by omega))
@@ -71,12 +71,12 @@ theorem chk_headJTerm (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54)
   have hs : c.startPc (3*q)=entW q (c.kOf q) := by simp [startPc,h0,eq]
   have hr : c.rungPc (3*q) (c.dig (3*q))=base q (c.dig (3*q+1)) (c.dig (3*q+2))+2*c.dig (3*q) := by
     simp [rungPc,qb,h0,eq]
-  rw [hs,hr]
+  rw [hs,hr,eq]
   exact rOK_eq he
 
 theorem chk_copyJ (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54)
     (h0 : i%3=0) (hd : c.dig i=topMax i) :
-    vrun (c.startPc i) 7=some (copyN .x19 (off i) (slot i) (c.endPc i)) := by
+    vrun (c.startPc i) 7=some (copyJ .x19 (off i) (slot i) (i/3==0) (c.endPc i)) := by
   obtain ⟨q,rfl⟩ : ∃q,i=3*q := ⟨i/3,by omega⟩
   have eq : 3*q/3=q := by omega
   have he := entCheck_at q (c.kOf q) (by omega) (c.kOf_lt hds q (by omega))
@@ -86,7 +86,7 @@ theorem chk_copyJ (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54)
   rw [k1,k2,k3,if_pos hd'] at he
   have hs : c.startPc (3*q)=entW q (c.kOf q) := by simp [startPc,h0,eq]
   have he' : c.endPc (3*q)=pcB q (c.dig (3*q+1)) (c.dig (3*q+2)) := by simp [endPc,qB,h0,eq]
-  rw [hs,he']
+  rw [hs,he',eq]
   exact rOK_eq he
 
 theorem part_at (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54) (h0 : i%3≠0) :
@@ -106,7 +106,7 @@ theorem part_at (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54) (h0 : i%3≠
 
 theorem chk_headR (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54)
     (h0 : i%3≠0) (hd : c.dig i< last i) :
-    vrun (c.startPc i) 8=some (headRH .x19 (off i) (c.dig i) none (c.startPc i) i) := by
+    vrun (c.startPc i) 8=some (headR .x19 (off i) (c.dig i) none (c.startPc i)) := by
   have hp := c.part_at hds i hi h0
   unfold partOK at hp
   have hd' : c.dig i< mx (i/3)-1 := hd
@@ -116,7 +116,7 @@ theorem chk_headR (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54)
 
 theorem chk_headRTerm (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54)
     (h0 : i%3≠0) (hd : c.dig i=last i) :
-    vrun (c.startPc i) 8=some (headRHT .x19 (off i) (c.dig i) (slot i) (c.startPc i) i) := by
+    vrun (c.startPc i) 8=some (headRTerm .x19 (off i) (c.dig i) (slot i) (c.startPc i)) := by
   have hp := c.part_at hds i hi h0
   unfold partOK at hp
   have hd' : c.dig i=mx (i/3)-1 := hd
@@ -127,7 +127,7 @@ theorem chk_headRTerm (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54)
 
 theorem chk_copyF (c : NCtx) (hds : c.DigitsOk) (i : Nat) (hi : i<54)
     (h0 : i%3≠0) (hd : c.dig i=topMax i) :
-    vrun (c.startPc i) 4=some (copyFH .x19 (off i) (slot i) (c.startPc i)) := by
+    vrun (c.startPc i) 5=some (copyF .x19 (off i) (slot i) (c.startPc i)) := by
   have hp := c.part_at hds i hi h0
   unfold partOK at hp
   change c.dig i=mx (i/3) at hd
@@ -146,7 +146,7 @@ theorem chk_rung (c : NCtx) (hds : c.DigitsOk) (i m : Nat) (hi : i<54)
     unfold blockCheck at hb
     simp only [Bool.and_eq_true] at hb
     have hn : m< mx q := by simpa only [last,topMax,eq] using (show m< topMax (3*q) by unfold last at hm2;omega)
-    have hh := List.all_eq_true.mp hb.1.1.1.2 m (List.mem_range'_1.mpr ⟨by omega,by omega⟩)
+    have hh := List.all_eq_true.mp hb.1.1.1 m (List.mem_range'_1.mpr ⟨by omega,by omega⟩)
     have hr : c.rungPc (3*q) m=base q (c.dig (3*q+1)) (c.dig (3*q+2))+2*m := by simp [rungPc,qb,h0,eq]
     have ht : (m+1=mx q) ↔ m=last (3*q) := by unfold last topMax;rw [eq];omega
     simpa only [rungsOK,Nat.sub_zero,Nat.add_zero,hr,ht] using rOK_eq hh
@@ -157,27 +157,11 @@ theorem chk_rung (c : NCtx) (hds : c.DigitsOk) (i m : Nat) (hi : i<54)
     rw [if_neg (by omega),Bool.and_eq_true] at hp
     have hmmax : m< mx (i/3) := by change m<topMax i;unfold last at hm2;omega
     have hh := List.all_eq_true.mp hp.2 m (List.mem_range'_1.mpr ⟨by omega,by omega⟩)
-    have hr : c.rungPc i m=c.startPc i+6+2*(m-(c.dig i+1)) := by
+    have hr : c.rungPc i m=c.startPc i+7+2*(m-(c.dig i+1)) := by
       unfold rungPc
       rw [if_neg h0,if_neg (by omega)]
       omega
     have ht : (m+1=mx (i/3)) ↔ m=last i := by unfold last topMax;omega
     simpa only [hr,ht] using rOK_eq hh
-
-/-- T3Z: a table-slot chain's first rung entered past its `sb` (the head's `j` target). -/
-theorem chk_tail (c : NCtx) (hds : c.DigitsOk) (i m : Nat) (hi : i<54) (h0 : i%3=0) (hm2 : m ≤ last i) :
-    vrun (c.rungPc i m+1) 2=some (tailR (if m=last i then some (slot i) else none) (c.rungPc i m+1)) := by
-  have hmx := topMax_bounds i
-  obtain ⟨q,rfl⟩ : ∃q,i=3*q := ⟨i/3,by omega⟩
-  have eq : 3*q/3=q := by omega
-  have hb := c.blk_at hds (3*q) hi
-  rw [eq] at hb
-  unfold blockCheck at hb
-  simp only [Bool.and_eq_true] at hb
-  have hn : m< mx q := by simpa only [last,topMax,eq] using (show m< topMax (3*q) by unfold last at hm2;omega)
-  have hh := List.all_eq_true.mp hb.1.1.1.1 m (List.mem_range.mpr hn)
-  have hr : c.rungPc (3*q) m=base q (c.dig (3*q+1)) (c.dig (3*q+2))+2*m := by simp [rungPc,qb,h0,eq]
-  have ht : (m+1=mx q) ↔ m=last (3*q) := by unfold last topMax;rw [eq];omega
-  simpa only [hr,ht] using rOK_eq hh
 
 end SigGolfCandidate.T3M.Nonbinary.NCtx

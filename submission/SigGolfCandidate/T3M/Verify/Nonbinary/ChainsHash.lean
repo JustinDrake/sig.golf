@@ -4,14 +4,6 @@ namespace SigGolfCandidate.T3M.Nonbinary
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3
 set_option linter.unusedSimpArgs false
-
-theorem tailR_keeps (slot : Option Nat) (p : Nat) : Keeps (tailR slot p) [.x12] := by
-  intro x hx
-  simp only [tailR]
-  split
-  · rw [RegFile.get_set_ne _ _ (ne_of_not_mem hx (by simp))]
-  · rfl
-
 namespace NCtx
 
 /-- **The HASH of step `m` of chain `i`.** -/
@@ -23,7 +15,7 @@ theorem prehash_step (c : NCtx) (hc : c.ok) (s0 : MachineState) (hk : ∀ p ∈ 
       ∀ a : BitVec 256,
         (m < last i → c.StepInv s0 i acc (m + 1) (a.extractLsb' 0 128) (writeHash t a)) ∧
         (m = last i → c.EndInv s0 i (acc ++ [a.extractLsb' 0 128]) (writeHash t a)) := by
-  obtain ⟨⟨hR, hF, hS⟩, hlen, h16, h24, hv, h10, h12, hpc, -⟩ := ht
+  obtain ⟨⟨hR, hF, hS⟩, hlen, h25, h16, h24, hv, h10, h12, hpc, -⟩ := ht
   have hb := c.blk_props hc i hi
   have hlast := last_bounds i
   have hmax := topMax_bounds i
@@ -53,7 +45,7 @@ theorem prehash_step (c : NCtx) (hc : c.ok) (s0 : MachineState) (hk : ∀ p ∈ 
       have fget : ∀ A, A < 2 ^ 64 → ¬ (c.blk i + 48 ≤ A ∧ A < c.blk i + 48 + 32) →
           (writeHash t a).getMem (BitVec.ofNat 64 A) = t.getMem (BitVec.ofNat 64 A) := fun A hA hn => fr A hA hn
       refine ⟨⟨fun x hx => by rw [getReg_writeHash]; exact hR x hx, fW, fun j hj => ?_⟩, hlen,
-        ⟨?_, ?_, ?_⟩, DigAt.writeHash_lo t a _ d12 (by omega),
+        by rw [getReg_writeHash]; exact h25, ⟨?_, ?_, ?_⟩, DigAt.writeHash_lo t a _ d12 (by omega),
         by rw [getReg_writeHash]; exact h10, fun _ => by rw [getReg_writeHash]; exact d12, ?_⟩
       · have hj' := hS j hj
         have hsj := slot_props j (by omega)
@@ -75,7 +67,8 @@ theorem prehash_step (c : NCtx) (hc : c.ok) (s0 : MachineState) (hk : ∀ p ∈ 
         have hlo := hc.2.2.2.1
         unfold WrIn Wr blk at *
         omega)
-      refine ⟨⟨fun x hx => by rw [getReg_writeHash]; exact hR x hx, fW, fun j hj => ?_⟩, by simp [hlen], ?_⟩
+      refine ⟨⟨fun x hx => by rw [getReg_writeHash]; exact hR x hx, fW, fun j hj => ?_⟩, by simp [hlen],
+        by rw [getReg_writeHash]; exact h25, ?_⟩
       · rw [List.length_append, List.length_singleton] at hj
         by_cases hjl : j < acc.length
         · have hj' := hS j hjl
@@ -157,55 +150,27 @@ theorem rung_piece (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
   · rw [Result.toState_pc]; simp only [hr, rungR]
     by_cases h2 : m = last i <;> simp [h2, E.eval]
 
-/-- T3Z: **the rest of a table-slot chain's first rung** after its `sb` (the head's jump target): `[li a2, slot]`,
-up to the `ecall`. -/
-theorem tail_piece (i m p : Nat) (hp : p < 210432)
-    (hrun : vrun p 2 = some (tailR (if m = last i then some (slot i) else none) p)) (s : MachineState)
-    (hpc : s.pc = pcOf p) :
-    ∃ t, Steps vimage s (if m = last i then 1 else 0) (if m = last i then 1 else 0) t ∧
-      fetch vimage t = some (.base .ECALL) ∧ (∀ x, x ≠ .x12 → t.getReg x = s.getReg x) ∧
-      (m = last i → t.getReg .x12 = BitVec.ofNat 64 (slot i)) ∧ (m ≠ last i → t.getReg .x12 = s.getReg .x12) ∧
-      Frame s t (fun _ => False) ∧ t.pc = pcOf (p + (if m = last i then 1 else 0)) := by
-  set r := tailR (if m = last i then some (slot i) else none) p with hr
-  have hobl : ∀ o ∈ r.st.obl, o.holds s := by simp [hr, tailR]
-  have hst := piece_steps45 hrun hp s hpc hobl
-  have hec := piece_ecall45 hrun hp s hobl (by simp [hr, tailR])
-  have hn : r.steps = (if m = last i then 1 else 0) ∧ r.cycles = (if m = last i then 1 else 0) := by
-    simp only [hr, tailR]; split <;> simp_all
-  rw [hn.1, hn.2] at hst
-  have hkeep := tailR_keeps (if m = last i then some (slot i) else none) p
-  refine ⟨r.toState s, hst, hec, fun x hx => hkeep.reg s (by simpa using hx), fun h2 => ?_, fun h2 => ?_,
-    fun A hA _ => ?_, ?_⟩
-  · rw [Result.toState_getReg]
-    simp only [hr, tailR, if_pos h2]
-    rw [RegFile.get_set_self _ _ (by decide)]; rfl
-  · rw [Result.toState_getReg]
-    simp only [hr, tailR, if_neg h2]
-    rw [RegFile.init_get_eval]
-  · rw [Result.toState_getMem]; simp [hr, tailR, memEval]
-  · rw [Result.toState_pc]; simp only [hr, tailR]
-    by_cases h2 : m = last i <;> simp [h2, E.eval]
-
 /-- **A rung after a step's hash.** -/
 theorem rung_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.known, s0.getReg p.1 = p.2)
     (i m : Nat) (hi : i < 54) (hm : m ≤ last i) (hp : c.rungPc i m < 210432)
     (hrun : vrun (c.rungPc i m) 3 = some (rungR m (if m = last i then some (slot i) else none) (c.rungPc i m)))
     (acc : List Digest) (v : Digest) (s : MachineState) (hs : c.StepInv s0 i acc m v s) :
     ∃ t, Steps vimage s (if m = last i then 2 else 1) (if m = last i then 2 else 1) t ∧ c.PreHash s0 i acc m v t := by
-  obtain ⟨⟨hR, hF, hS⟩, hlen, hH, hv, h10, h12, hpc⟩ := hs
+  obtain ⟨⟨hR, hF, hS⟩, hlen, h25, hH, hv, h10, h12, hpc⟩ := hs
   have hb := c.blk_props hc i hi
   have hlast := last_bounds i
   have hmax := topMax_bounds i
   have hlastEq : last i + 1 = topMax i := by unfold last; omega
   obtain ⟨t, hst, hec, hreg, h12a, h12b, h16, hfr, hpc'⟩ :=
     c.rung_piece hc hk i m (c.rungPc i m) hi hm hp hrun s hpc hR h10 hH
-  refine ⟨t, hst, ⟨⟨fun x hx => ?_, (hF.trans hfr).mono ?_, fun j hj => ?_⟩, hlen, h16, ?_, ?_, ?_, ?_, ?_, hec⟩⟩
+  refine ⟨t, hst, ⟨⟨fun x hx => ?_, (hF.trans hfr).mono ?_, fun j hj => ?_⟩, hlen, ?_, h16, ?_, ?_, ?_, ?_, ?_, hec⟩⟩
   · rw [hreg x (ne_of_not_mem hx (by simp [chainRegs]))]; exact hR x hx
   · intro A _ h; rcases h with h | h
     · exact h
     · right; left; omega
   · have hsj := slot_props j (by omega)
     exact (hS j hj).frame hfr (by omega) (by omega) (by omega)
+  · rw [hreg _ (by decide)]; exact h25
   · rw [hfr _ (by omega) (by omega)]; exact hH.2.2
   · exact hv.frame hfr (by omega) (by omega) (by omega)
   · rw [hreg _ (by decide)]; exact h10

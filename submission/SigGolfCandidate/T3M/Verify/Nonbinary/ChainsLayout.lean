@@ -52,43 +52,22 @@ def baseTab : List Nat := [
 def base (q dB dC : Nat) : Nat :=
   baseTab.getD (if q<17 then 25*q+5*dB+dC else 425+4*dB+dC) 0
 
-/-- T3Z (BIG3): an inline chain's part is one word shorter than before (the head loads its header word from the
-WOTS header table, so neither the running `s9` bump nor the first rung's `sb` is left; a max-digit copy has no
-bump). -/
 def partLen (q d : Nat) : Nat :=
-  if d=mx q then 4 else if d+1=mx q then 6 else 5+2*(mx q-d)
+  if d=mx q then 5 else if d+1=mx q then 7 else 6+2*(mx q-d)
 def pcB (q dB dC : Nat) : Nat := base q dB dC+2*mx q+1
 def pcC (q dB dC : Nat) : Nat := pcB q dB dC+partLen q dB
 def pcX (q dB dC : Nat) : Nat := pcC q dB dC+partLen q dC
 def entW (q k : Nat) : Nat := if q<17 then 176744+256*k+8*q else 209920+8*k
 
-/-- T3Z (BIG3): a table-slot head loading the header word of chain `i` with its first digit `d` from the header
-table (`addi a0; addi a2, a0, 48; ld s9, hOff i d(t3); sd s9, 16(a0); sd tp, 24(a0)`), then `j tgt` past the first
-rung's `sb` (6 steps). -/
-def headJD (rb : Reg) (o : Word) (tgt i d : Nat) : Result :=
-  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) o)).set .x12 (addC (addC (.reg rb) o) 48)).set .x25 (hLoad i d),
-    [(kAt rb o 24,.reg .x4),(kAt rb o 16,hLoad i d)],
-    [.valid (kAt rb o 24) 8,.valid (kAt rb o 16) 8,.valid (hKey i d) 8]⟩,.c (pcOf tgt),.jump,6,6⟩
+/-- Table head for the penultimate digit: its terminal rung sets x12 itself. -/
+def headJTerm (rb : Reg) (o : Word) (first : Bool) (tgt : Nat) : Result :=
+  ⟨⟨(RegFile.init.set .x10 (addC (.reg rb) o)).set .x25 (s9E first),
+    [(kAt rb o 24,.reg .x4),(kAt rb o 16,s9E first)],
+    [.valid (kAt rb o 24) 8,.valid (kAt rb o 16) 8]⟩,.c (pcOf tgt),.jump,5,5⟩
 
-/-- T3Z: the table-slot head for the penultimate digit (no `addi a2, a0, 48`: its terminal rung sets x12), the
-header word with the first digit `d` read from the table, then `j tgt` (5 steps). -/
-def headJDTerm (rb : Reg) (o : Word) (tgt i d : Nat) : Result :=
-  ⟨⟨(RegFile.init.set .x10 (addC (.reg rb) o)).set .x25 (hLoad i d),
-    [(kAt rb o 24,.reg .x4),(kAt rb o 16,hLoad i d)],
-    [.valid (kAt rb o 24) 8,.valid (kAt rb o 16) 8,.valid (hKey i d) 8]⟩,.c (pcOf tgt),.jump,5,5⟩
-
-/-- T3Z: the rest of a table-slot chain's first rung after its `sb` (`[li a2, slot]`), up to the `ecall` (0 or 1
-step from `p`). -/
-def tailR (slot : Option Nat) (p : Nat) : Result :=
-  let n := if slot.isSome then 1 else 0
-  ⟨⟨(match slot with
-      | some a => RegFile.init.set .x12 (.c (BitVec.ofNat 64 a))
-      | none => RegFile.init), [], []⟩, .c (pcOf (p + n)), .ecall, n, n⟩
-
-/-- T3Z: inline terminal head (no `addi a2, a0, 48`; `li a2, slot` before the `ecall`), the header word with the
-first digit `d` read from the table: up to the first `ecall` (5 steps). -/
-def headRHT (rb : Reg) (o : Word) (d sl p i : Nat) : Result :=
-  {headRH rb o d (some sl) p i with pc:=.c (pcOf (p+5)),steps:=5,cycles:=5}
+/-- Inline terminal head/rung saves the overwritten x12 initialization. -/
+def headRTerm (rb : Reg) (o : Word) (d sl p : Nat) : Result :=
+  {headR rb o d (some sl) p with pc:=.c (pcOf (p+6)),steps:=6,cycles:=6}
 
 def shift10 (w : Reg) (b : Nat) : E :=
   if b<10 then .bin .sll (.reg w) (.c (BitVec.ofNat 64 (10-b)))
@@ -109,34 +88,28 @@ def rungsOK (q d0 sl p : Nat) : Bool :=
     rOK (vrun (p+2*(m-d0)) 3)
       (rungR m (if m+1=mx q then some sl else none) (p+2*(m-d0)))
 
-/-- T3Z: every table-slot rung of a shared block entered past its `sb`. -/
-def tailsOK (q sl p : Nat) : Bool :=
-  (List.range (mx q)).all fun m =>
-    rOK (vrun (p+2*m+1) 2) (tailR (if m+1=mx q then some sl else none) (p+2*m+1))
-
 def partOK (q i d p : Nat) : Bool :=
-  if d=mx q then rOK (vrun p 4) (copyFH .x19 (off i) (slot i) p)
+  if d=mx q then rOK (vrun p 5) (copyF .x19 (off i) (slot i) p)
   else rOK (vrun p 8)
-      (if d+1=mx q then headRHT .x19 (off i) d (slot i) p i
-       else headRH .x19 (off i) d none p i) &&
-    rungsOK q (d+1) (slot i) (p+6)
+      (if d+1=mx q then headRTerm .x19 (off i) d (slot i) p
+       else headR .x19 (off i) d none p) &&
+    rungsOK q (d+1) (slot i) (p+7)
 
 def entCheck (q k : Nat) : Bool :=
   let dA := k%(mx q+1)
   let dB := k/(mx q+1)%(mx q+1)
   let dC := k/(mx q+1)^2
   if dA=mx q then rOK (vrun (entW q k) 7)
-    (copyN .x19 (off (3*q)) (slot (3*q)) (pcB q dB dC))
+    (copyJ .x19 (off (3*q)) (slot (3*q)) (q==0) (pcB q dB dC))
   else rOK (vrun (entW q k) 7)
-    (if dA+1=mx q then headJDTerm .x19 (off (3*q)) (base q dB dC+2*dA+1) (3*q) dA
-     else headJD .x19 (off (3*q)) (base q dB dC+2*dA+1) (3*q) dA)
+    (if dA+1=mx q then headJTerm .x19 (off (3*q)) (q==0) (base q dB dC+2*dA)
+     else headJ .x19 (off (3*q)) (q==0) (base q dB dC+2*dA))
 
 def dispatchOK (q dB dC : Nat) : Bool :=
   rOK (vrun (pcX q dB dC) 5)
     (if q<16 then dispatchR (q+1) else if q=16 then tailDispatchR else retR)
 
 def blockCheck (q dB dC : Nat) : Bool :=
-  tailsOK q (slot (3*q)) (base q dB dC) &&
   rungsOK q 0 (slot (3*q)) (base q dB dC) &&
   partOK q (3*q+1) dB (pcB q dB dC) &&
   partOK q (3*q+2) dC (pcC q dB dC) && dispatchOK q dB dC
@@ -149,12 +122,12 @@ theorem piece_steps45 {p f : Nat} {r : Result} (h : vrun p f=some r)
     (hp : p<210432) (s : MachineState) (hpc : s.pc=pcOf p)
     (ho : ∀o∈r.st.obl,o.holds s) :
     Steps Images.verifyImage s r.steps r.cycles (r.toState s) :=
-  symRun_sound h (lcodeAt p hp) s hpc ((Oblig.all_iff _ _).mpr ho)
+  symRun_sound h (lcodeAt p (by omega)) s hpc ((Oblig.all_iff _ _).mpr ho)
 
 theorem piece_ecall45 {p f : Nat} {r : Result} (h : vrun p f=some r)
     (hp : p<210432) (s : MachineState) (ho : ∀o∈r.st.obl,o.holds s)
     (hst : r.stop=.ecall) :
     fetch Images.verifyImage (r.toState s)=some (.base .ECALL) :=
-  symRun_ecall h (lcodeAt p hp) s ((Oblig.all_iff _ _).mpr ho) hst
+  symRun_ecall h (lcodeAt p (by omega)) s ((Oblig.all_iff _ _).mpr ho) hst
 
 end SigGolfCandidate.T3M.Nonbinary

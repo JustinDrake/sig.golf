@@ -54,7 +54,7 @@ theorem steps_good (c : NCtx) (hc : c.ok) (hds : c.DigitsOk) {s0 : MachineState}
       obtain rfl : m=last i := by omega
       obtain ⟨h5,hv,hin,hpost⟩ := c.prehash_step hc s0 hk h0 i (last i) hi (le_refl _) hd acc v s hs
       rw [rest_succ c i (last i) (le_refl _)]
-      have hf := hs.2.2.2.2.2.2.2.2
+      have hf := hs.2.2.2.2.2.2.2.2.2
       have H : ∀a : BitVec 256,Verify.GoodQ (writeHash s a) N C Q A
           (Verify.ccM (c.rest i (last i+1) (a.extractLsb' 0 128)) (fun v => K (acc++[v]))) := by
         intro a
@@ -68,7 +68,7 @@ theorem steps_good (c : NCtx) (hc : c.ok) (hds : c.DigitsOk) {s0 : MachineState}
       intro m hm hd v s hs
       obtain ⟨h5,hv,hin,hpost⟩ := c.prehash_step hc s0 hk h0 i m hi (by omega) hd acc v s hs
       rw [rest_succ c i m (by omega)]
-      have hf := hs.2.2.2.2.2.2.2.2
+      have hf := hs.2.2.2.2.2.2.2.2.2
       have H : ∀a : BitVec 256,Verify.GoodQ (writeHash s a) (N+3*(topMax i-(m+1))+5+2)
           (C+preCost i (m+1)+(if m+1=last i then 2 else 1)) Q
           (A+preCost i (m+1)+(if m+1=last i then 2 else 1))

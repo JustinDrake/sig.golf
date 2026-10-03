@@ -12,8 +12,8 @@ set_option linter.unusedSimpArgs false
 theorem next_inline (c : NCtx) (s0 : MachineState) (i : Nat) (hi : i<54) (h2 : i%3≠2)
     (acc : List Digest) (s : MachineState) (hs : c.EndInv s0 i acc s) :
     c.ChainIn s0 (i+1) acc s := by
-  obtain ⟨hB,hlen,hpc⟩ := hs
-  refine ⟨hB,hlen,?_⟩
+  obtain ⟨hB,hlen,h25,hpc⟩ := hs
+  refine ⟨hB,hlen,fun _ => by rw [h25];rfl,?_⟩
   rw [hpc]
   unfold endPc startPc
   have e : (i+1)/3=i/3 := by omega

@@ -15,18 +15,18 @@ def creditSum (f : Nat → Nat) : Nat := ((List.range 54).map fun i => digitCred
 def totalCost (f : Nat → Nat) : Nat := ((List.range 54).map fun i => chainCost i (f i)).sum
 
 theorem chainCost_balance (i d : Nat) (hd : d≤topMax i) :
-    chainCost i d+9*d+digitCredit i d=5+tableJump i+9*topMax i := by
+    chainCost i d+9*d+digitCredit i d=6+tableJump i+9*topMax i := by
   have hm := topMax_bounds i
   have hl : last i+1=topMax i := by unfold last;omega
   unfold chainCost digitCredit
   split_ifs <;> omega
 
 theorem total_balance (f : Nat → Nat) (hd : ∀i,i<54 → f i≤topMax i) :
-    totalCost f+9*digitSum f+creditSum f=2205 := by
+    totalCost f+9*digitSum f+creditSum f=2259 := by
   have H : ∀ l : List Nat,(∀i∈l,f i≤topMax i) →
       (l.map fun i => chainCost i (f i)).sum+9*(l.map f).sum+
         (l.map fun i => digitCredit i (f i)).sum=
-        (l.map fun i => 5+tableJump i+9*topMax i).sum := by
+        (l.map fun i => 6+tableJump i+9*topMax i).sum := by
     intro l
     induction l with
     | nil => simp
@@ -37,12 +37,12 @@ theorem total_balance (f : Nat → Nat) (hd : ∀i,i<54 → f i≤topMax i) :
       simp only [List.map_cons,List.sum_cons]
       omega
   have hs := H (List.range 54) (fun i hi => hd i (List.mem_range.mp hi))
-  have he : ((List.range 54).map fun i => 5+tableJump i+9*topMax i).sum=2205 := by decide +kernel
+  have he : ((List.range 54).map fun i => 6+tableJump i+9*topMax i).sum=2259 := by decide +kernel
   exact hs.trans he
 
 /-- Exact cost of all chains, seventeen four-instruction dispatches, and the final jump. -/
 theorem total_cost_credit (f : Nat → Nat) (hd : ∀i,i<54 → f i≤topMax i)
-    (hs : digitSum f=126) : totalCost f+17*4+1+creditSum f=1140 := by
+    (hs : digitSum f=126) : totalCost f+17*4+1+creditSum f=1194 := by
   have h := total_balance f hd
   omega
 
@@ -98,7 +98,7 @@ theorem source_accepted_sum {v : Digest} {digits : List Nat}
   rw [T3.Nonbinary.dataDigits_parse hp,T3.Nonbinary.wordDigits_sum,hs]
 
 theorem source_accepted_total {v : Digest} {digits : List Nat}
-    (h : T3.decode 0 v=some digits) : totalCost (coreDigit 0 v)+17*4+1≤1129 := by
+    (h : T3.decode 0 v=some digits) : totalCost (coreDigit 0 v)+17*4+1≤1183 := by
   have hd : ∀i,i<54 → coreDigit 0 v i≤topMax i := by
     intro i hi
     have hc := T3.Nonbinary.coreDigit_le (0:Layer) v i

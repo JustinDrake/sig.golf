@@ -17,7 +17,7 @@ theorem end_return (c : NCtx) (hc : c.ok) (hds : c.DigitsOk) {s0 b : MachineStat
     (hk : ∀ p ∈ c.known, s0.getReg p.1=p.2)
     (acc : List Digest) (s : MachineState) (hs : c.EndInv (tailInitial s0 b) 53 acc s) :
     ∃ t, Steps vimage s 1 1 t ∧ c.TopOut s0 acc t := by
-  obtain ⟨⟨hR,hF,hS⟩,hlen,hpc⟩ := hs
+  obtain ⟨⟨hR,hF,hS⟩,hlen,_,hpc⟩ := hs
   have hr := c.dispatch_at hds 17 (by decide)
   norm_num at hr
   have hp : c.endPc 53 < 210432 := by
@@ -115,7 +115,7 @@ theorem top_good (c : NCtx) (hc : c.ok) {s0 : MachineState} {v : Digest} {ds : L
     (K : List Digest → OracleComp Legacy.HashSpec Verify.Obs) (N C A : Nat) (Q : Prop)
     (hK : ∀ acc t,c.TopOut s0 acc t → Verify.GoodQ t N C Q A (K acc))
     (s : MachineState) (hs : c.ChainIn s0 0 [] s) :
-    Verify.GoodQ s (N+2321) (C+1129) Q (A+1129) (Verify.ccM c.topP K) := by
+    Verify.GoodQ s (N+2321) (C+1183) Q (A+1183) (Verify.ccM c.topP K) := by
   have hd := decode_facts hv
   have H := c.top_good_exact hc hk h0 he hf hd.1 hd.2.1 K N C A Q hK s hs
   have e : c.chainsCost 0 54=totalCost (coreDigit 0 v) := by

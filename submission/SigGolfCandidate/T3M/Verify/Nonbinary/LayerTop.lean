@@ -25,7 +25,7 @@ theorem nctx_initial (w : WBytes) (index : Nat) (v : Digest) (p : Nat) (u s : Ma
     (nctxOf w index v p).ChainIn s 0 [] s := by
   let c := nctxOf w index v p
   have hf : c.Fit v := fun i hi => rfl
-  refine ⟨⟨fun r hr => rfl, Frame.refl s _, by simp⟩,rfl,?_⟩
+  refine ⟨⟨fun r hr => rfl, Frame.refl s _, by simp⟩,rfl,by simp,?_⟩
   rw [he.pc]
   change pcOf (176744 + 256 * (v.toNat % 128)) = pcOf (c.startPc 0)
   rw [NCtx.startPc, if_pos (by decide), c.fit_rank hf hvalid 0 (by decide)]
@@ -47,7 +47,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
   have hidx := hs.idx
   have hA := encA_step w pk index 0 M s hs
   have hfuel : layerFuel 0 = 16 + 1 + 118 + 2321 + 13 := by decide
-  have hcost : layerCost 0 0 = 16 + 8 + 70 + 13 + 1129 := by decide
+  have hcost : layerCost 0 0 = 16 + 8 + 68 + 13 + 1183 := by decide
   have hsA : stepsA (0 : Layer).val = 16 := rfl
   unfold layerHead
   by_cases hctr : (wctr w 0).toNat ≥ counterLimit
@@ -59,7 +59,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     obtain ⟨t, hst, hf, h5, hv, hin, c, hc, hpre⟩ := hA.2 (by omega)
     rw [hsA] at hst
     have hblk := blocks_encodingInput 0 (route index 0).2 (route index 0).1 M (wctr w 0)
-    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 13 + 2321 + 118) (C + 13 + 1129 + 70) Q (A + 13 + 1129 + 70)
+    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 13 + 2321 + 118) (C + 13 + 1183 + 68) Q (A + 13 + 1183 + 68)
         (ccM (match decode 0 (a.extractLsb' 0 128) with
           | none => pure none
           | some digits => chainsP w 0 (route index 0).2 (route index 0).1 digits >>= R) K) := by
@@ -80,11 +80,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
         let L := nctxOf w index (a.extractLsb' 0 128) (trPc 0 c)
         have hLok : L.ok := nctx_ok w index _ c hidx
         have hkn : KnownOK L.known s0 := nctx_known w pk index c t s0 a hpre he
-        have h12 : t.getReg .x12 = 320#64 := hpre.glob.1 (_, _) (by simp [bK])
-        have hDs0 : DataOK s0 := (Glob_writeHash hpre.glob a 320 h12 (by decide)).2.2.2.2.2.congr
-          (fun A _ hA => he.frame.get (by omega) (by simp))
-        have hO := nctx_orig w index (a.extractLsb' 0 128) (trPc 0 c) s0
-          (topEntry_orig w pk index c t s0 a hpre he) hDs0
+        have hO := nctx_orig w index (a.extractLsb' 0 128) (trPc 0 c) s0 (topEntry_orig w pk index c t s0 a hpre he)
         have hfit : L.Fit (a.extractLsb' 0 128) := fun i hi => rfl
         have hdec := NCtx.decode_facts hds
         have hIn := nctx_initial w index _ (trPc 0 c) _ s0 he hdec.2.1

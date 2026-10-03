@@ -29,7 +29,7 @@ theorem nctx_known (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineStat
   all_goals try exact he.ra
   all_goals rw [he.regs.get (by simp [topEntryRegs]), writeHash_getReg]
   all_goals try exact ht.tp 0 rfl
-  all_goals exact ht.glob.1 _ (by simp [bK, layK, baseK, nctxOf, NCtx.w1, hw])
+  all_goals exact ht.glob.1 _ (by simp [bK, layK, entry28, baseK, nctxOf, NCtx.w1, hw])
 
 theorem topEntry_orig (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineState) (a : BitVec 256)
     (ht : EncPre w pk index 0 c t)
@@ -42,10 +42,9 @@ theorem topEntry_orig (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineS
   exact hu.frame (fun j hj hp => he.frame.get (by unfold WIT WX at *; omega) (by simp))
 
 theorem nctx_orig (w : WBytes) (index : Nat) (v : Digest) (p : Nat) (s : MachineState)
-    (ho : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) s) (hD : DataOK s) :
+    (ho : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) s) :
     (nctxOf w index v p).Orig0 s := by
-  refine ⟨fun i hi k hk => ?_, hD⟩
-  clear hD
+  intro i hi k hk
   apply origW_of ho _
   all_goals simp only [NCtx.blk, nctxOf]
   all_goals norm_num [WIT, WX, layerEnd] at *

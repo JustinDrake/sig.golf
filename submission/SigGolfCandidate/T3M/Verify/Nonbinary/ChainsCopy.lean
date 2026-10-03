@@ -16,45 +16,23 @@ theorem lAt_eval (c : NCtx) (hc : c.ok) {s : MachineState} (h19 : s.getReg .x19 
   simp only [lAt, E.eval, addC_eval, h19]
   rw [c.base_off hc i hi k hk]
 
-/-- T3Z (BIG3, the table-load proof of erickeigen's 59cbf8ec / our T3X `LCtx.header_load` on the top layer): a
-head's header load `ld s9, hOff i d(t3)` reads word `8 i + d` of the header table's bank 0, which the chain phase
-never writes (its frame lies below `0x7000`). -/
-theorem header_load (c : NCtx) (hc : c.ok) {s0 s : MachineState} (h0 : c.Orig0 s0) (i d : Nat)
-    (hi : i < 54) (hd : d < 8) (hF : Frame s0 s (c.Wr i))
-    (h28 : s.getReg .x28 = BitVec.ofNat 64 (Verify.headerBank 0 0)) :
-    (Oblig.valid (hKey i d) 8).holds s ∧
-      (hLoad i d).eval s = BitVec.ofNat 64 (w0 i + 2 ^ 32 * d) := by
-  have hb := c.blk_props hc 0 (by omega)
-  have hA : 2 ^ 23 + 4096 ≤ Verify.HDATA + 4096 * 0 + 64 * i + 8 * d ∧
-      Verify.HDATA + 4096 * 0 + 64 * i + 8 * d + 8 ≤ 2 ^ 24 := by
-    unfold Verify.HDATA; omega
-  have key : (hKey i d).eval s = BitVec.ofNat 64 (Verify.HDATA + 4096 * 0 + 64 * i + 8 * d) := by
-    simp only [hKey, Addr.eval, E.eval, h28, hOff]
-    change BitVec.ofNat 64 (Verify.headerBank 0 0) +
-      (BitVec.ofNat 64 (64 * i + 8 * d) - BitVec.ofNat 64 2048) =
-        BitVec.ofNat 64 (Verify.HDATA + 4096 * 0 + 64 * i + 8 * d)
-    rw [ofNat_add_off0 (Verify.headerBank 0 0) (64 * i + 8 * d) 2048
-      (by unfold Verify.headerBank Verify.HDATA; omega)
-      (by unfold Verify.headerBank Verify.HDATA; omega)]
-    apply congrArg (BitVec.ofNat 64)
-    unfold Verify.headerBank Verify.HDATA
-    omega
-  have fr : s.getMem (BitVec.ofNat 64 (Verify.HDATA + 4096 * 0 + 64 * i + 8 * d)) =
-      s0.getMem (BitVec.ofNat 64 (Verify.HDATA + 4096 * 0 + 64 * i + 8 * d)) := by
-    apply hF (Verify.HDATA + 4096 * 0 + 64 * i + 8 * d) (by omega)
-    unfold Wr
-    intro h
-    rcases h with h | h <;> omega
-  refine ⟨?_, ?_⟩
-  · show accessValid ((hKey i d).eval s) 8 = true
-    rw [key]
-    exact valid_ofNat _ 8 hA.2 (by unfold Verify.HDATA; omega)
-  · have he : (addC (.reg .x28) (hOff i d)).eval s =
-        BitVec.ofNat 64 (Verify.HDATA + 4096 * 0 + 64 * i + 8 * d) := by
-      simpa only [hKey, Addr.eval, addC_eval, E.eval] using key
-    change s.getMem ((addC (.reg .x28) (hOff i d)).eval s) = _
-    rw [he, fr, h0.2.header 0 i d (by norm_num) (by omega) hd]
-    all_goals (congr 1 <;> unfold w0 <;> omega)
+/-- `s9` of a head or copy in a table slot: `mv s9, s11` (chain 0) or the bump. -/
+theorem s9v (c : NCtx) {s0 s : MachineState} (hk : ∀ p ∈ c.known, s0.getReg p.1 = p.2)
+    (hR : ∀ x ∉ chainRegs, s.getReg x = s0.getReg x) (i : Nat) (hi : i < 54) (first : Bool)
+    (hfirst : first = true → i = 0) (hfirst' : first = false → i ≠ 0)
+    (h25 : i ≠ 0 → s.getReg .x25 = BitVec.ofNat 64 (w0 (i - 1))) :
+    (s9E first).eval s = BitVec.ofNat 64 (w0 i) := by
+  have kr : ∀ r v, (r, v) ∈ c.known → r ∉ chainRegs → s.getReg r = v := fun r v hm hn =>
+    (hR r hn).trans (hk _ hm)
+  cases first
+  · simp only [s9E, bumpE, Bool.false_eq_true, if_false, E.eval, BinOp.eval]
+    have hne := hfirst' rfl
+    rw [h25 hne, kr .x28 (BitVec.ofNat 64 (2 ^ 40)) (by simp [known]) (by decide), ofNat_add_ofNat]
+    congr 1; unfold w0; omega
+  · obtain rfl := hfirst rfl
+    simp only [s9E, if_true, E.eval]
+    rw [kr .x27 (BitVec.ofNat 64 0x101) (by simp [known]) (by decide)]
+    rfl
 
 theorem copy_mem (c : NCtx) (hc : c.ok) {s : MachineState} (h19 : s.getReg .x19 = BitVec.ofNat 64 c.S3) (i : Nat)
     (hi : i < 54) (A : Nat) (hA : A < 2 ^ 64) :
@@ -113,46 +91,54 @@ theorem copy_post (c : NCtx) (hc : c.ok) {s0 s t : MachineState} (h0 : c.Orig0 s
       · rw [tm _ (by omega), if_neg (by omega), if_pos rfl]; exact hv.1
       · rw [tm _ (by omega), if_pos rfl]; exact hv.2
 
-/-- **The max-digit copy of a table-slot chain** (`A = 3q`; T3Z: no `s9` update), then `j` past the shared
-block's `A` rungs (5 steps). -/
-theorem copyN_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.known, s0.getReg p.1 = p.2)
-    (h0 : c.Orig0 s0) (i : Nat) (hi : i < 54)
+/-- **The max-digit copy of a table-slot chain** (`A = 4q`, chain 48). -/
+theorem copyJ_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.known, s0.getReg p.1 = p.2)
+    (h0 : c.Orig0 s0) (i : Nat) (hi : i < 54) (first : Bool)
+    (hfirst : first = true → i = 0) (hfirst' : first = false → i ≠ 0)
     (hp0 : c.startPc i < 210432)
-    (hrun : vrun (c.startPc i) 7 = some (copyN .x19 (off i) (slot i) (c.endPc i)))
+    (hrun : vrun (c.startPc i) 7 = some (copyJ .x19 (off i) (slot i) first (c.endPc i)))
+    (acc : List Digest) (s : MachineState) (hs : c.ChainIn s0 i acc s) :
+    ∃ t, Steps vimage s 6 6 t ∧ c.EndInv s0 i (acc ++ [c.val i]) t := by
+  obtain ⟨⟨hR, hF, hS⟩, hlen, h25, hpc⟩ := hs
+  have kr : ∀ r v, (r, v) ∈ c.known → r ∉ chainRegs → s.getReg r = v := fun r v hm hn =>
+    (hR r hn).trans (hk _ hm)
+  have h19 : s.getReg .x19 = BitVec.ofNat 64 c.S3 := kr _ _ (by simp [known]) (by decide)
+  set r := copyJ .x19 (off i) (slot i) first (c.endPc i) with hr
+  have hst := piece_steps45 hrun hp0 s hpc (by simpa [hr, copyJ] using c.copy_obl hc h19 i hi)
+  have hkeep := copyJ_keeps .x19 (off i) (slot i) first (c.endPc i)
+  obtain ⟨hF', hS'⟩ := c.copy_post (t := r.toState s) hc h0 i hi acc hlen hF hS h19
+    (fun A _ => by rw [Result.toState_getMem]; rfl)
+  have s9 := c.s9v hk hR i hi first hfirst hfirst' h25
+  refine ⟨r.toState s, hst, ⟨⟨fun x hx => (hkeep.reg s (LCtx.not_mem_sub hx (by decide))).trans (hR x hx), hF', hS'⟩,
+    by simp [hlen], ?_, ?_⟩⟩
+  · rw [Result.toState_getReg]; simp only [hr, copyJ]
+    rw [RegFile.get_set_self _ _ (by decide), s9]
+  · rw [Result.toState_pc]; rfl
+
+/-- **The max-digit copy of an inline chain** (`B`, `C`, `D`). -/
+theorem copyF_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.known, s0.getReg p.1 = p.2)
+    (h0 : c.Orig0 s0) (i : Nat) (hi : i < 54) (hi0 : i ≠ 0) (hp0 : c.startPc i < 210432)
+    (hend : c.startPc i + 5 = c.endPc i)
+    (hrun : vrun (c.startPc i) 5 = some (copyF .x19 (off i) (slot i) (c.startPc i)))
     (acc : List Digest) (s : MachineState) (hs : c.ChainIn s0 i acc s) :
     ∃ t, Steps vimage s 5 5 t ∧ c.EndInv s0 i (acc ++ [c.val i]) t := by
-  obtain ⟨⟨hR, hF, hS⟩, hlen, hpc⟩ := hs
+  obtain ⟨⟨hR, hF, hS⟩, hlen, h25, hpc⟩ := hs
   have kr : ∀ r v, (r, v) ∈ c.known → r ∉ chainRegs → s.getReg r = v := fun r v hm hn =>
     (hR r hn).trans (hk _ hm)
   have h19 : s.getReg .x19 = BitVec.ofNat 64 c.S3 := kr _ _ (by simp [known]) (by decide)
-  set r := copyN .x19 (off i) (slot i) (c.endPc i) with hr
-  have hst := piece_steps45 hrun hp0 s hpc (by simpa [hr, copyN] using c.copy_obl hc h19 i hi)
-  have hkeep := copyN_keeps .x19 (off i) (slot i) (c.endPc i)
+  set r := copyF .x19 (off i) (slot i) (c.startPc i) with hr
+  have hst := piece_steps45 hrun hp0 s hpc (by simpa [hr, copyF] using c.copy_obl hc h19 i hi)
+  have hkeep := copyF_keeps .x19 (off i) (slot i) (c.startPc i)
   obtain ⟨hF', hS'⟩ := c.copy_post (t := r.toState s) hc h0 i hi acc hlen hF hS h19
     (fun A _ => by rw [Result.toState_getMem]; rfl)
   refine ⟨r.toState s, hst, ⟨⟨fun x hx => (hkeep.reg s (LCtx.not_mem_sub hx (by decide))).trans (hR x hx), hF', hS'⟩,
-    by simp [hlen], ?_⟩⟩
-  rw [Result.toState_pc]; rfl
-
-/-- **The max-digit copy of an inline chain** (`B`, `C`; T3Z: no bump, 4 instructions). -/
-theorem copyFH_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.known, s0.getReg p.1 = p.2)
-    (h0 : c.Orig0 s0) (i : Nat) (hi : i < 54) (hp0 : c.startPc i < 210432)
-    (hend : c.startPc i + 4 = c.endPc i)
-    (hrun : vrun (c.startPc i) 4 = some (copyFH .x19 (off i) (slot i) (c.startPc i)))
-    (acc : List Digest) (s : MachineState) (hs : c.ChainIn s0 i acc s) :
-    ∃ t, Steps vimage s 4 4 t ∧ c.EndInv s0 i (acc ++ [c.val i]) t := by
-  obtain ⟨⟨hR, hF, hS⟩, hlen, hpc⟩ := hs
-  have kr : ∀ r v, (r, v) ∈ c.known → r ∉ chainRegs → s.getReg r = v := fun r v hm hn =>
-    (hR r hn).trans (hk _ hm)
-  have h19 : s.getReg .x19 = BitVec.ofNat 64 c.S3 := kr _ _ (by simp [known]) (by decide)
-  set r := copyFH .x19 (off i) (slot i) (c.startPc i) with hr
-  have hst := piece_steps45 hrun hp0 s hpc (by simpa [hr, copyFH] using c.copy_obl hc h19 i hi)
-  have hkeep := copyFH_keeps .x19 (off i) (slot i) (c.startPc i)
-  obtain ⟨hF', hS'⟩ := c.copy_post (t := r.toState s) hc h0 i hi acc hlen hF hS h19
-    (fun A _ => by rw [Result.toState_getMem]; rfl)
-  refine ⟨r.toState s, hst, ⟨⟨fun x hx => (hkeep.reg s (LCtx.not_mem_sub hx (by decide))).trans (hR x hx), hF', hS'⟩,
-    by simp [hlen], ?_⟩⟩
-  rw [Result.toState_pc]; simp only [hr, copyFH, E.eval]; rw [hend]
+    by simp [hlen], ?_, ?_⟩⟩
+  · rw [Result.toState_getReg]; simp only [hr, copyF]
+    rw [RegFile.get_set_self _ _ (by decide)]
+    simp only [bumpE, E.eval, BinOp.eval]
+    rw [h25 hi0, kr .x28 (BitVec.ofNat 64 (2 ^ 40)) (by simp [known]) (by decide), ofNat_add_ofNat]
+    congr 1; unfold w0; omega
+  · rw [Result.toState_pc]; simp only [hr, copyF, E.eval]; rw [hend]
 
 
 end NCtx

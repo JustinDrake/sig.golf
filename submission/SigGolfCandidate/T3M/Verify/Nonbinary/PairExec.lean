@@ -25,6 +25,16 @@ sym_block pairPtrBase := symRun { noAlias := true } pairPtrCode 0#64 200
 theorem pairPtr_run (pc : Word) : symRun { noAlias := true } pairPtrCode pc 200 =
     some ⟨pairPtrBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
 
+def pairPtrHiCode : List (BitVec 32) := [0x0188f733, 0x01370733]
+sym_block pairPtrHiBase := symRun { noAlias := true } pairPtrHiCode 0#64 200
+theorem pairPtrHi_run (pc : Word) : symRun { noAlias := true } pairPtrHiCode pc 200 =
+    some ⟨pairPtrHiBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
+
+def pairTailHiCode : List (BitVec 32) := [0x00ec8cb3, 0x00e8de93]
+sym_block pairTailHiBase := symRun { noAlias := true } pairTailHiCode 0#64 200
+theorem pairTailHi_run (pc : Word) : symRun { noAlias := true } pairTailHiCode pc 200 =
+    some ⟨pairTailHiBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
+
 def pairShift0Code : List (BitVec 32) := [0x00e85e93]
 sym_block pairShift0Base := symRun { noAlias := true } pairShift0Code 0#64 200
 theorem pairShift0_run (pc : Word) : symRun { noAlias := true } pairShift0Code pc 200 =
@@ -45,10 +55,10 @@ sym_block singleTailBase := symRun { noAlias := true } singleTailCode 0#64 200
 theorem singleTail_run (pc : Word) : symRun { noAlias := true } singleTailCode pc 200 =
     some ⟨singleTailBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
 
-def pairCrossCode : List (BitVec 32) := [0x00189893, 0x01d8e8b3, 0x00088e93]
+def pairCrossCode : List (BitVec 32) := [0x00189893, 0x01d8e8b3]
 sym_block pairCrossBase := symRun { noAlias := true } pairCrossCode 0#64 200
 theorem pairCross_run (pc : Word) : symRun { noAlias := true } pairCrossCode pc 200 =
-    some ⟨pairCrossBase.res.st, .c (pc + 4 + 4 + 4), .endOfCode, 3, 3⟩ := by rfl
+    some ⟨pairCrossBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
 
 def tailInitCode : List (BitVec 32) := [0x00ffc9b7]
 sym_block tailInitBase := symRun { noAlias := true } tailInitCode 0#64 200
@@ -81,6 +91,35 @@ theorem pairPtr0_spec {image : Image} (s : MachineState) (pc : Word)
     congr 1; omega
   · intro q hq; cases q <;> simp at hq <;> simp [pairPtr0Base.res,rv_simp] <;> rfl
   · intro A _ _; simp [pairPtr0Base.res,rv_simp]
+
+theorem pairPtrHi_spec {image : Image} (s : MachineState) (pc : Word)
+    (hc : CodeAt image pc pairPtrHiCode) (hpc : s.pc = pc) (v : Digest) (q : Nat)
+    (hq : q < 8 ∨ (9 ≤ q ∧ q < 16))
+    (hw : s.getReg .x17 = topWindow v q) (hb : s.getReg .x19 = BitVec.ofNat 64 PAIR_DATA)
+    (hm : s.getReg .x24 = 16383#64) :
+    ∃ t, Steps image s 2 2 t ∧ t.pc = pc + 4 + 4 ∧
+      t.getReg .x14 = BitVec.ofNat 64 (PAIR_DATA + pairRank v q) ∧
+      RegsExcept s t [.x14] ∧ Frame s t (fun _ => False) := by
+  refine ⟨_,symRun_sound (pairPtrHi_run pc) hc s hpc (by simp [pairPtrHiBase.res,rv_simp]),?_,?_,?_,?_⟩
+  · rfl
+  · simp only [Result.toState_getReg,pairPtrHiBase.res,rv_simp,hw,hb,hm,pairWindow_rank v q hq,ofNat_add_ofNat]
+    congr 1; omega
+  · intro q hq; cases q <;> simp at hq <;> simp [pairPtrHiBase.res,rv_simp] <;> rfl
+  · intro A _ _; simp [pairPtrHiBase.res,rv_simp]
+
+theorem pairTailHi_spec {image : Image} (s : MachineState) (pc : Word)
+    (hc : CodeAt image pc pairTailHiCode) (hpc : s.pc = pc) (W : Word) (sum value : Nat)
+    (hw : s.getReg .x17 = W) (hs : s.getReg .x25 = BitVec.ofNat 64 sum)
+    (hv : s.getReg .x14 = BitVec.ofNat 64 value) :
+    ∃ t, Steps image s 2 2 t ∧ t.pc = pc + 4 + 4 ∧
+      t.getReg .x29 = W >>> 14 ∧ t.getReg .x25 = BitVec.ofNat 64 (sum + value) ∧
+      RegsExcept s t [.x25,.x29] ∧ Frame s t (fun _ => False) := by
+  refine ⟨_,symRun_sound (pairTailHi_run pc) hc s hpc (by simp [pairTailHiBase.res,rv_simp]),?_,?_,?_,?_,?_⟩
+  · rfl
+  · simp [pairTailHiBase.res,rv_simp,hw]
+  · simp [pairTailHiBase.res,rv_simp,hs,hv,ofNat_add_ofNat]
+  · intro q hq; cases q <;> simp at hq <;> simp [pairTailHiBase.res,rv_simp] <;> rfl
+  · intro A _ _; simp [pairTailHiBase.res,rv_simp]
 
 theorem pairPtr_spec {image : Image} (s : MachineState) (pc : Word)
     (hc : CodeAt image pc pairPtrCode) (hpc : s.pc = pc) (v : Digest) (q : Nat)
@@ -152,13 +191,12 @@ theorem singlePtr_spec {image : Image} (s : MachineState) (pc : Word)
 theorem pairCross_spec {image : Image} (s : MachineState) (pc : Word)
     (hc : CodeAt image pc pairCrossCode) (hpc : s.pc = pc) (v : Digest)
     (hw : s.getReg .x29 = v.extractLsb' 0 64 >>> 63) (hh : s.getReg .x17 = v.extractLsb' 64 64) :
-    ∃ t, Steps image s 3 3 t ∧ t.pc = pc + 4 + 4 + 4 ∧
-      t.getReg .x17 = v.extractLsb' 63 64 ∧ t.getReg .x29 = topWindow v 9 ∧
-      RegsExcept s t [.x17,.x29] ∧ Frame s t (fun _ => False) := by
-  refine ⟨_,symRun_sound (pairCross_run pc) hc s hpc (by simp [pairCrossBase.res,rv_simp]),?_,?_,?_,?_,?_⟩
+    ∃ t, Steps image s 2 2 t ∧ t.pc = pc + 4 + 4 ∧
+      t.getReg .x17 = v.extractLsb' 63 64 ∧
+      RegsExcept s t [.x17] ∧ Frame s t (fun _ => False) := by
+  refine ⟨_,symRun_sound (pairCross_run pc) hc s hpc (by simp [pairCrossBase.res,rv_simp]),?_,?_,?_,?_⟩
   · rfl
   · simpa [pairCrossBase.res,rv_simp,hw,hh] using topWindow_cross v
-  · simpa [pairCrossBase.res,rv_simp,hw,hh,topWindow] using topWindow_cross v
   · intro q hq; cases q <;> simp at hq <;> simp [pairCrossBase.res,rv_simp] <;> rfl
   · intro A _ _; simp [pairCrossBase.res,rv_simp]
 

@@ -31,11 +31,9 @@ def ok (c : NCtx) : Prop :=
   c.tree < 2 ^ 32 ∧ c.leaf < 2 ^ 32 ∧ c.S3 % 8 = 0 ∧ 0x800 + 11288 + 1664 ≤ c.S3 ∧ c.S3 + 2064 ≤ 0x7000 ∧
     c.ret < 209920
 
-/-- T3Z (BIG3): `x28` is the midpoint of the WOTS header table's bank 0 (set by the lower layers' leaf-pk restore
-`lui t3, 0xff4`); every head reads its header word from the table. -/
 def known (c : NCtx) : List (Reg × Word) :=
   [(.x5, 0), (.x11, 64), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6),
-   (.x28, BitVec.ofNat 64 (Verify.headerBank 0 0)), (.x19, BitVec.ofNat 64 c.S3),
+   (.x28, BitVec.ofNat 64 (2 ^ 40)), (.x19, BitVec.ofNat 64 c.S3),
    (.x4, BitVec.ofNat 64 c.w1), (.x27, BitVec.ofNat 64 0x101), (.x1, pcOf c.ret)]
 
 def kOf (c : NCtx) (q : Nat) : Nat :=
@@ -49,7 +47,7 @@ def startPc (c : NCtx) (i : Nat) : Nat :=
 
 def rungPc (c : NCtx) (i m : Nat) : Nat :=
   if i%3=0 then c.qb i+2*m
-  else c.startPc i + (if c.dig i = last i then 3 else 4) + 2*(m-c.dig i)
+  else c.startPc i + (if c.dig i = last i then 4 else 5) + 2*(m-c.dig i)
 def endPc (c : NCtx) (i : Nat) : Nat :=
   if i%3=0 then c.qB i else if i%3=1 then c.qC i else c.qX i
 
@@ -59,18 +57,16 @@ def Wr (c : NCtx) (i : Nat) (A : Nat) : Prop :=
 def WrIn (c : NCtx) (i : Nat) (A : Nat) : Prop :=
   c.Wr i A ∨ (c.blk i + 16 ≤ A ∧ A < c.blk i + 32) ∨ (c.blk i + 48 ≤ A ∧ A < c.blk i + 80)
 
-/-- The chain blocks hold the witness at the start `s0`, and (T3Z) the image data (the WOTS header table) is in
-place. -/
 def Orig0 (c : NCtx) (s0 : MachineState) : Prop :=
-  (∀ i, i < 54 → ∀ k < 8, OrigW c.w s0 (c.blk i + 8 * k)) ∧ Verify.DataOK s0
+  ∀ i, i < 54 → ∀ k < 8, OrigW c.w s0 (c.blk i + 8 * k)
 
 def Base (c : NCtx) (s0 : MachineState) (W : Nat → Prop) (acc : List Digest) (s : MachineState) : Prop :=
   (∀ x, x ∉ chainRegs → s.getReg x = s0.getReg x) ∧ Frame s0 s W ∧
     (∀ j < acc.length, DigAt s (slot j) (acc.getD j 0))
 
-/-- Before chain `i`'s code (T3Z: no running `x25`; the heads read the header table). -/
 def ChainIn (c : NCtx) (s0 : MachineState) (i : Nat) (acc : List Digest) (s : MachineState) : Prop :=
-  c.Base s0 (c.Wr i) acc s ∧ acc.length = i ∧ s.pc = pcOf (c.startPc i)
+  c.Base s0 (c.Wr i) acc s ∧ acc.length = i ∧ (i ≠ 0 → s.getReg .x25 = BitVec.ofNat 64 (w0 (i - 1))) ∧
+    s.pc = pcOf (c.startPc i)
 
 def HdrOk (c : NCtx) (i : Nat) (s : MachineState) : Prop :=
   (s.getMem (BitVec.ofNat 64 (c.blk i + 16))).toNat % 2 ^ 32 = 0x101 ∧
@@ -79,13 +75,13 @@ def HdrOk (c : NCtx) (i : Nat) (s : MachineState) : Prop :=
 
 def StepInv (c : NCtx) (s0 : MachineState) (i : Nat) (acc : List Digest) (m : Nat) (v : Digest)
     (s : MachineState) : Prop :=
-  c.Base s0 (c.WrIn i) acc s ∧ acc.length = i ∧
+  c.Base s0 (c.WrIn i) acc s ∧ acc.length = i ∧ s.getReg .x25 = BitVec.ofNat 64 (w0 i) ∧
     c.HdrOk i s ∧ DigAt s (c.blk i + 48) v ∧ s.getReg .x10 = BitVec.ofNat 64 (c.blk i) ∧
     (m < last i → s.getReg .x12 = BitVec.ofNat 64 (c.blk i + 48)) ∧ s.pc = pcOf (c.rungPc i m)
 
 def PreHash (c : NCtx) (s0 : MachineState) (i : Nat) (acc : List Digest) (m : Nat) (v : Digest)
     (t : MachineState) : Prop :=
-  c.Base s0 (c.WrIn i) acc t ∧ acc.length = i ∧
+  c.Base s0 (c.WrIn i) acc t ∧ acc.length = i ∧ t.getReg .x25 = BitVec.ofNat 64 (w0 i) ∧
     t.getMem (BitVec.ofNat 64 (c.blk i + 16)) = BitVec.ofNat 64 (w0 i + 2 ^ 32 * m) ∧
     t.getMem (BitVec.ofNat 64 (c.blk i + 24)) = BitVec.ofNat 64 c.w1 ∧ DigAt t (c.blk i + 48) v ∧
     t.getReg .x10 = BitVec.ofNat 64 (c.blk i) ∧
@@ -93,7 +89,8 @@ def PreHash (c : NCtx) (s0 : MachineState) (i : Nat) (acc : List Digest) (m : Na
     t.pc = pcOf (c.rungPc i m + (if m = last i then 2 else 1)) ∧ fetch vimage t = some (.base .ECALL)
 
 def EndInv (c : NCtx) (s0 : MachineState) (i : Nat) (acc : List Digest) (s : MachineState) : Prop :=
-  c.Base s0 (c.Wr (i + 1)) acc s ∧ acc.length = i + 1 ∧ s.pc = pcOf (c.endPc i)
+  c.Base s0 (c.Wr (i + 1)) acc s ∧ acc.length = i + 1 ∧ s.getReg .x25 = BitVec.ofNat 64 (w0 i) ∧
+    s.pc = pcOf (c.endPc i)
 
 /-! ## Geometry -/
 
@@ -157,7 +154,7 @@ theorem orig_frame {c : NCtx} {s0 t : MachineState} {W : Nat → Prop} (hF : Fra
   have := c.blk_props hc i hi
   unfold OrigW
   rw [hF _ (by omega) hW]
-  exact h0.1 i hi k hk
+  exact h0 i hi k hk
 
 theorem pads_at {c : NCtx} {s0 t : MachineState} (hc : c.ok) (h0 : c.Orig0 s0) {i : Nat}
     (hi : i < 54) (hF : Frame s0 t (c.WrIn i)) :

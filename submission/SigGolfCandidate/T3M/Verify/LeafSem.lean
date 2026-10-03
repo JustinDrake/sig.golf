@@ -18,7 +18,7 @@ for every copy by the kernel (`leafCheck_at`).
 `1 .. 7`, `tp = T(3, lay)`, `a0`, `a1`, `a5`, `s6`); `s7 = 2^h + leaf`, `t5 = tree`; the chain ends in the leaf-pk
 slots, the leaf header words (and the top's zero words); the witness of the layers below and of this layer's Merkle
 blocks original. `leafL_step` (from the lower chain phase's `ChainOut 43`) and `leafT_step` (from the top's `TopOut`)
-reach it in 12 resp. 13 steps (= cycles; T3X lower layers include the return jump and the `t3 = 2^40` restore). -/
+reach it in 12 resp. 13 steps (= cycles). -/
 
 set_option linter.unusedSimpArgs false
 
@@ -30,13 +30,9 @@ open SigGolfCandidate.T3 (Digest HashOutput Layer route height chainCount counte
 
 /-! ## The leaf-pk block with all untouched registers kept -/
 
-/-- The registers the leaf-pk block neither writes nor knows at its start (T3X lower layers: `t1` is known and
-`t3` is restored to `2^40`). -/
-def keepLfAll (lay : Nat) : List Reg :=
-  if lay = 0 then [.x1, .x2, .x6, .x7, .x8, .x9, .x12, .x13, .x16, .x17, .x19, .x20, .x21, .x22, .x23,
-    .x24, .x25, .x26, .x28, .x29, .x30, .x31]
-  else [.x1, .x2, .x7, .x8, .x9, .x12, .x13, .x16, .x17, .x19, .x20, .x21, .x22, .x23,
-    .x24, .x25, .x26, .x29, .x30, .x31]
+/-- The registers the leaf-pk block neither writes nor knows at its start. -/
+def keepLfAll (lay : Nat) : List Reg := [.x1, .x2, .x7, .x8, .x9, .x12, .x13, .x16, .x17, .x19, .x20, .x21, .x22, .x23,
+  .x24, .x25, .x26, .x29, .x30, .x31] ++ (if lay = 0 then [.x6, .x28] else [])
 
 /-- `copyCheck`'s leaf-pk part, keeping `keepLfAll`. -/
 def leafCheck (lay p : Nat) : Bool :=
@@ -76,12 +72,12 @@ def lfSlot (lay j : Nat) : Nat := if lay = 0 then slotT j else slotL j
 /-- The leaf bits of the first `stab` dispatch (the Merkle levels' chunk 0: 7 on layer 1, else 6). -/
 def stabBits (lay : Nat) : Nat := if lay = 1 then 7 else 6
 /-- Steps (= cycles) of the leaf-pk block. -/
-def lfSteps (lay : Nat) : Nat := if lay = 0 then 13 else 12
+def lfSteps (lay : Nat) : Nat := if lay = 0 then 13 else if lay = 3 then 11 else 12
 
 /-- The registers the block keeps that the Merkle code and the next transition read: `sp`, `t3`, the step
 registers `1 .. 7`, `s6`; below the top also the 3-bit masks `s4`, `s5` and `s8 = 0x10000`. -/
 def lfKeepK (lay : Nat) : List (Reg × Word) :=
-  [(.x2, 0x3fe00), (.x28, BitVec.ofNat 64 (headerBank 0 0)), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6),
+  [(.x2, 0x3fe00), (.x28, BitVec.ofNat 64 (leaf28 lay)), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6),
    (.x31, 7), (.x22, BitVec.ofNat 64 (s6v lay))] ++
   (if lay = 0 then [] else [(.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x24, 0x10000)])
 
@@ -237,32 +233,34 @@ theorem geomT : s6v 0 = 15064 ∧ layerBase 0 = 11288 ∧ height 0 = 12 ∧ laye
 /-! ## The leaf-pk block -/
 
 /-- **The lower leaf-pk block**: from the lower chain phase's `ChainOut 43` (base `s0` = `encB_step`'s state) to
-`LeafOut` in 12 steps (T3X: the return jump to the restore slot and `slli t3, t1, 40`). -/
+`LeafOut` in 12 steps. -/
 theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay : lay ≠ 0) (c : Nat)
     (hc : c < nCopy lay.val) (hidx : index < 2 ^ 31) (a : BitVec 256) (s0 : MachineState)
     (hk : ∀ p ∈ (lctxOf w index lay a (trPc lay.val c)).known, s0.getReg p.1 = p.2)
-    (hG : Glob (chainK lay.val) w pk s0) (hO : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd lay.val) s0)
+    (hG : Glob (lowerLayK lay.val) w pk s0) (hO : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd lay.val) s0)
     (h23 : s0.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay.val + (route index lay).1))
     (h30 : s0.getReg .x30 = BitVec.ofNat 64 (route index lay).2)
     (ends : List Digest) (t : MachineState)
     (ht : (lctxOf w index lay a (trPc lay.val c)).ChainOut s0 43 ends t) :
-    ∃ u, Steps image t 12 12 u ∧ LeafOut w pk index lay ends u := by
+    ∃ u, Steps image t (lfSteps lay.val) (lfSteps lay.val) u ∧ LeafOut w pk index lay ends u := by
   set L := lctxOf w index lay a (trPc lay.val c) with hLd
   have h0 : lay.val ≠ 0 := fun h => hlay (Fin.ext h)
   obtain ⟨⟨hR, hF, hS⟩, hlen, hpc⟩ := ht
-  have hkL : ∀ q ∈ chainK lay.val, s0.getReg q.1 = q.2 := hG.1
+  have hkL : ∀ q ∈ lowerLayK lay.val, s0.getReg q.1 = q.2 := hG.1
   have hknown : KnownOK (leafK lay.val) t := by
     intro p hp
-    simp only [leafK, baseK, if_neg h0, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with ((rfl | rfl) | rfl) | rfl
-    · rw [hR .x5 (by simp [chainRegs])]; exact hkL (_, _) (by simp [chainK, baseK])
-    · rw [hR .x18 (by simp [chainRegs])]; exact hkL (_, _) (by simp [chainK, baseK])
-    · rw [hR .x27 (by simp [chainRegs])]; exact hkL (_, _) (by simp [chainK])
-    · rw [hR .x6 (by simp [chainRegs])]; exact hkL (_, _) (by simp [chainK])
+    simp only [leafK, if_neg h0, baseK, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with ((rfl | rfl) | rfl) | (rfl | rfl)
+    · rw [hR .x5 (by simp [chainRegs])]; exact hkL (_, _) (by simp [lowerLayK, baseK])
+    · rw [hR .x18 (by simp [chainRegs])]; exact hkL (_, _) (by simp [lowerLayK, baseK])
+    · rw [hR .x27 (by simp [chainRegs])]; exact hkL (_, _) (by simp [lowerLayK])
+    · rw [hR .x6 (by simp [chainRegs])]; exact hkL (_, _) (by simp [lowerLayK])
+    · rw [hR .x28 (by simp [chainRegs])]; exact hkL (_, _) (by simp [lowerLayK])
   obtain ⟨u, hu⟩ := spec_run (leafCheck_at lay.val c lay.isLt hc) t (by rw [hpc]; rfl) hknown
     (by intro b hb; simp [specLf, h0] at hb) (by simp)
   have hst := hu.steps
-  rw [show (specLf lay.val).steps = 12 by simp [specLf, h0], show (specLf lay.val).cycles = 12 by simp [specLf, h0]]
+  rw [show (specLf lay.val).steps = lfSteps lay.val by simp [specLf, lfSteps, h0],
+    show (specLf lay.val).cycles = lfSteps lay.val by simp [specLf, lfSteps, h0]]
     at hst
   refine ⟨u, hst, ?_⟩
   have hku : KnownOK (postLf lay.val) u := hu.known
@@ -300,18 +298,15 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
     · exact hku p hp
     · have h22 : s0.getReg .x22 = BitVec.ofNat 64 (s6v lay.val) :=
         hk (.x22, BitVec.ofNat 64 L.S6) (by simp [LCtx.known])
-      -- T3X: `t3` (restored; T3Z: the header bank-0 midpoint) and `t1 = 1` (known at the start) come from `postLf`
-      have m28 : ((.x28 : Reg), BitVec.ofNat 64 (headerBank 0 0)) ∈ postLf lay.val := by
-        simp [postLf, h0]
-      have m6 : ((.x6 : Reg), (1 : Word)) ∈ postLf lay.val := by
-        simp [postLf, leafK, h0]
       simp only [lfKeepK, if_neg h0, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
       rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) | (rfl | rfl | rfl)
       all_goals first
-        | exact hku _ m28
-        | exact hku _ m6
-        | rw [hkeep _ (by simp [keepLfAll, h0]), hR _ (by simp [chainRegs])]; exact h22
-        | rw [hkeep _ (by simp [keepLfAll, h0]), hR _ (by simp [chainRegs])]; exact hkL (_, _) (by simp [chainK])
+        | exact hku (.x28, BitVec.ofNat 64 (leaf28 lay.val)) (by simp [postLf, h0])
+        | exact hku (.x6, 1) (by simp [postLf, leafK, h0])
+        | rw [hkeep _ (by simp [keepLfAll, h0]), hR _ (by simp [chainRegs])]
+      all_goals first
+        | exact h22
+        | exact hkL (_, _) (by simp [lowerLayK])
   · rw [hkeep .x23 (by simp [keepLfAll, h0]), hR .x23 (by simp [chainRegs]), h23]
   · rw [hkeep .x30 (by simp [keepLfAll, h0]), hR .x30 (by simp [chainRegs]), h30]
   · rw [hlen, LCtx.chainCount_lower lay hlay]; rfl
