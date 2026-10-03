@@ -38,7 +38,7 @@ def forestSlot (c : Nat) : Nat := if c = 0 then 0x700 else 0x710 + 16 * c
 /-- Constant registers of the FTS phase: `t0`, `s2`, `a1 = 64`, `t4 = A4_LIMIT`, `t6 = 1 << 16`, the two tables. -/
 def gkF : List (Reg × Word) :=
   baseK ++ [(.x11, 64), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x31, 0x10000), (.x26, BitVec.ofNat 64 tbN),
-    (.x21, BitVec.ofNat 64 tbL), (.x6, 1), (.x19, BitVec.ofNat 64 (frameA 0))]
+    (.x21, BitVec.ofNat 64 tbL), (.x6, 1), (.x19, BitVec.ofNat 64 (frameA 0)), (.x2, 0x1000000)]
 
 /-- The coordinate words: `s11 = w0` of a node header, `t3 = w0` of a leaf header (coordinate `c`). -/
 def ckF (c : Nat) : List (Reg × Word) :=
@@ -111,10 +111,10 @@ def setupPost : List (Reg × Word) :=
 `ld`, data words 5 .. 10); the rest of the setup is words 369 .. 379 and `j 413` at 380. -/
 def setupLdK : List (Reg × Word) :=
   baseK ++ [(.x14, BitVec.ofNat 64 A4_0), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x27, BitVec.ofNat 64 0xa01),
-    (.x28, BitVec.ofNat 64 0x901), (.x26, BitVec.ofNat 64 tbN), (.x21, BitVec.ofNat 64 tbL)]
+    (.x28, BitVec.ofNat 64 0x901), (.x26, BitVec.ofNat 64 tbN), (.x21, BitVec.ofNat 64 tbL), (.x2, 0x1000000)]
 
 def setupLdSpec : Spec :=
-  ⟨[(.x14, .ld (cw (DATA + 40))), (.x29, .ld (cw (DATA + 48))), (.x27, .ld (cw (DATA + 56))),
+  ⟨[(.x2, cw 0x1000000), (.x14, .ld (cw (DATA + 40))), (.x29, .ld (cw (DATA + 48))), (.x27, .ld (cw (DATA + 56))),
       (.x28, .ld (cw (DATA + 64))), (.x26, .ld (cw (DATA + 72))), (.x21, .ld (cw (DATA + 80)))],
     [], 369, false, 7, [], none, 7⟩
 
@@ -317,7 +317,7 @@ def forestSpecF : Spec :=
     655, true, 7, [capBr false], none, 7⟩
 
 def forestCheckF : Bool :=
-  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] baseK [.x22] &&
+  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] (baseK ++ [(.x6, 1), (.x2, 0x1000000)]) [.x22] &&
   specB [] [] [] (runAt gkF [] forestPc [.br true]) (rejSpec 4 [capBr true]) [] [] []
 
 end SigGolfCandidate.T3M.Verify

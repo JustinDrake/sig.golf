@@ -389,10 +389,10 @@ def xJ (w : Reg) (b : Nat) (mreg : Reg) (imm : Word) : Result :=
     .bin .and (.bin .add (.bin .add (.bin .and (shE w b) (.reg mreg)) (.reg .x15)) (.c imm)) (.c (~~~1#64)),
     .jump, (if b = 9 then 3 else 4), (if b = 9 then 3 else 4)⟩
 
-/-- After triple 13: `slli a4, t4, 5; add a4, a4, a5; jalr zero, -2048(a4)` into `ctab` (3 steps). -/
+/-- After triple 13: `slli a4, t4, 5; sub a4, a5, a4; jalr zero, -1824(a4)` into `ctab` (3 steps; `t4 = 7 - ck`). -/
 def ctabX : Result :=
-  ⟨⟨RegFile.init.set .x14 (.bin .add (.bin .sll (.reg .x29) (.c 5)) (.reg .x15)), [], []⟩,
-    .bin .and (.bin .add (.bin .add (.bin .sll (.reg .x29) (.c 5)) (.reg .x15)) (.c (-2048))) (.c (~~~1#64)),
+  ⟨⟨RegFile.init.set .x14 (.bin .sub (.reg .x15) (.bin .sll (.reg .x29) (.c 5))), [], []⟩,
+    .bin .and (.bin .add (.bin .sub (.reg .x15) (.bin .sll (.reg .x29) (.c 5))) (.c (-1824))) (.c (~~~1#64)),
     .jump, 3, 3⟩
 
 /-- After quad 11: `srli a4, a7, 29; andi a4, a4, 0x60; add a4, a4, a5; jalr zero, -1760(a4)` into `q48tab`. -/

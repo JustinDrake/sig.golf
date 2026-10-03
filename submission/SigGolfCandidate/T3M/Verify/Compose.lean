@@ -5,11 +5,15 @@ import SigGolfCandidate.T3M.Verify.FtsGood
 
 /-! # The complete verifier: forest, signature layers, Merkle paths and root comparison
 
-The accepting forest bound is 2791 cycles at the 115-fold cap. The four layers and final
-comparison cost 6173 cycles; the six-cycle load block gives 6179 after the forest. Thus the
-accepting bound is 8970 cycles. The previous conservative fuel 15414 and every-path cycle
+The accepting forest bound is 2790 cycles at the 115-fold cap (the digest header is one
+instruction). The four layers and final
+comparison cost 6164 cycles; the five-cycle load block gives 6169 after the forest. Thus the
+accepting bound is 8959 cycles. The previous conservative fuel 15414 and every-path cycle
 bound 15421 remain valid. The paired decoder lowers the top accepting transition by 46 cycles;
-the last lower layer target 194 adds 9 cycles. -/
+the last lower layer target 194 adds 9 cycles. The lower checksum register, leaf dispatch and
+layer-3 index copy cuts and the top Merkle chunk-0 dispatch cut save 8 cycles; the FTS exit's
+carried `sp` and `t1` save one load-block and one layer-3 A cycle (layers 1361 + 1345 + 1345 + 1292,
+Merkle 172 + 172 + 186 + 283, compare 8). -/
 
 set_option linter.unusedSimpArgs false
 
@@ -145,8 +149,8 @@ def lFuel : Nat → Nat
   | 0 => 9
   | n + 1 => layerFuel n + mkFuel n + lFuel n
 
-theorem lCyc_4 : lCyc 4 = 6173 := by decide
-theorem lFuel_4 : lFuel 4 = 8040 := by decide
+theorem lCyc_4 : lCyc 4 = 6164 := by decide
+theorem lFuel_4 : lFuel 4 = 8031 := by decide
 
 /-- **The layers and the compare**: from `RestIn … n M s`, `layersP w index n M` continued by `kFin pk`. -/
 theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^ 31) (Q : Prop) (hQ : Q) :
@@ -177,13 +181,13 @@ theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^
 /-! ## From V2's `FtsOut` and from the initial state -/
 
 /-- **After the FTS** (V2's `verifyP_good_fts` interface): from `FtsOut`, `afterFts` — the four layers and the
-compare — with fuel and every-path bound 8046 (`6 + lFuel 4 = 8046`) and accepting cycles 6179 (`6 + lCyc 4`; T3K: the
-6-cycle load block at 656 before layer 3's copy at 662). -/
+compare — with fuel and every-path bound 8046 (`5 + lFuel 4 = 8036`) and accepting cycles 6169 (`5 + lCyc 4`; T3K: the
+5-cycle load block at 656 before layer 3's copy at 661). -/
 theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutput) (root : Digest) (u : MachineState)
     (h : FtsOut ⟨pk, w, a⟩ root u) :
-    GoodQ u 8046 8046 Q 6179 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
+    GoodQ u 8046 8046 Q 6169 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
   have hidx : a.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by decide)
-  obtain ⟨t, hst, hL3⟩ := layerIn_of_fts w pk _ root u hidx h.glob h.idx h.pc h.root h.wit
+  obtain ⟨t, hst, hL3⟩ := layerIn_of_fts w pk _ root u hidx h.glob h.idx h.pc h.root h.wit h.carry1 h.carrySP
   have hg := layers_good w pk _ hidx Q hQ 4 le_rfl root t (by simpa [RestIn] using hL3)
   have e : ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb =
       ccM (layersP w (a.toNat % 2 ^ 31) 4 root) (kFin pk) := by
@@ -193,9 +197,9 @@ theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutpu
   exact GoodQ.steps' hst hg (by omega) (by omega) (fun q => ⟨q, by omega⟩)
 
 /-- **The whole verify run**: from the initial state, every run finishes within 15421 cycles with fuel 15414, and
-accepting runs take at most `8970 = 2791 + 6179` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
+accepting runs take at most `8959 = 2790 + 6169` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
 theorem verifyP_good (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
-    GoodQ s 15414 15421 True 8970 (ccM (verifyP m pk w) Kb) :=
-  verifyP_good_fts m pk w s hs 8046 6179 True (fun a root u h => after_good pk w True trivial a root u h)
+    GoodQ s 15414 15421 True 8959 (ccM (verifyP m pk w) Kb) :=
+  verifyP_good_fts m pk w s hs 8046 6169 True (fun a root u h => after_good pk w True trivial a root u h)
 
 end SigGolfCandidate.T3M

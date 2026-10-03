@@ -117,7 +117,7 @@ theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
   have hk : KnownOK setupLdK t1 := by
     intro p hp
     simp only [setupLdK, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl
+    rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl
     · exact h1.known p hp
     · exact e14
     · exact e29
@@ -125,6 +125,7 @@ theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
     · exact e28
     · exact e26
     · exact e21
+    · exact h1.regs (.x2, cw 0x1000000) (by simp [setupLdSpec])
   -- words 366 .. 377: both packed headers, persistent comparands and `j 413`
   obtain ⟨u, hu⟩ := spec_run setupCheckF_ok t1 (h1.pc rfl) hk (by simp [setupSpecF]) (by simp)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
