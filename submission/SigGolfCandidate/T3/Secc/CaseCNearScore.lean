@@ -134,16 +134,8 @@ theorem average_near_coordinate (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fi
 theorem average_near_at_index (X : List HashOutput) (i : Fin (2 ^ 31)) (missing : Fin 7) (omitted : Fin 3) :
     BPORS.finiteAverage (fun v : Fin 7 → Fin 16 × (Fin 3 → Fin 128) =>
         ∏ c : Fin 7, if c = missing then coordNearScore X i c (v c).1 (v c).2 omitted
-          else coordScore X i c (v c).1 (v c).2)/(1024/135) =
+          else coordScore X i c (v c).1 (v c).2)/8 =
       BPORS.History.nearWordEnvelope missing (BPORS.History.atIndex i (labels X)) := by
-  suffices h : BPORS.finiteAverage (fun v : Fin 7 → Fin 16 × (Fin 3 → Fin 128) =>
-      ∏ c : Fin 7, if c = missing then coordNearScore X i c (v c).1 (v c).2 omitted
-        else coordScore X i c (v c).1 (v c).2) =
-      (∏ c : Fin 7, if c = missing then BPORS.Numeric.nearCoordinateEnvelope
-        ((BPORS.History.atIndex i (labels X)).map fun row => row c)
-      else BPORS.coordinateEnvelope ((BPORS.History.atIndex i (labels X)).map fun row => row c))/2^140 by
-    unfold BPORS.History.nearWordEnvelope
-    rw [h]
   rw [BPORS.finiteAverage_product 7 (fun c (d : Fin 16 × (Fin 3 → Fin 128)) =>
     if c = missing then coordNearScore X i c d.1 d.2 omitted else coordScore X i c d.1 d.2)]
   have hc : ∀ c : Fin 7, BPORS.finiteAverage (fun d : Fin 16 × (Fin 3 → Fin 128) =>
@@ -161,6 +153,7 @@ theorem average_near_at_index (X : List HashOutput) (i : Fin (2 ^ 31)) (missing 
         (Or.inl (by norm_num))]
       norm_num
   simp_rw [hc]
+  unfold BPORS.History.nearWordEnvelope
   rw [Finset.prod_mul_distrib, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
   have hsplit : (∏ c : Fin 7, if c = missing then BPORS.Numeric.nearCoordinateEnvelope
         ((BPORS.History.atIndex i (labels X)).map fun row => row c)
@@ -182,7 +175,7 @@ theorem average_near_at_index (X : List HashOutput) (i : Fin (2 ^ 31)) (missing 
     intro c hc
     have hne : c ≠ missing := by simpa using hc
     simp only [hne, if_false]
-  rw [hsplit, div_eq_mul_inv, mul_assoc]
+  rw [hsplit, div_eq_mul_inv, mul_assoc, mul_assoc]
   congr 1
   apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
   norm_num [ENNReal.toReal_mul,ENNReal.toReal_pow,ENNReal.toReal_inv]

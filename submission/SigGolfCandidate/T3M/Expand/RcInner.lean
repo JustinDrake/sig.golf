@@ -67,7 +67,7 @@ theorem rcEm_inner (L : List Nat) (pf : Nat → Digest) (l node used : Nat) (e :
        let e2 := rcEm L pf l (2 * node + 1) u1 e1
        if hasLeaf L l (2 * node) = false then ⟨e2.segs, e2.cur ++ [(true, pf used)], e2.par⟩
        else if hasLeaf L l (2 * node + 1) = false then ⟨e2.segs, e2.cur ++ [(false, pf u1)], e2.par⟩
-       else e2.close true (node % 8)) := by
+       else e2.close true (node % 2)) := by
   rw [rcEm]; simp [h]
 
 theorem node_bound (node l : Nat) (hl : l + 1 ≤ 11) (h : node * 2 ^ (l + 1) < 2 ^ 11) :
@@ -81,15 +81,15 @@ theorem node_bound (node l : Nat) (hl : l + 1 ≤ 11) (h : node * 2 ^ (l + 1) < 
   have : 2 * node + 1 < 2 ^ (11 - (l + 1)) * 2 := by omega
   exact Nat.mul_lt_mul_of_pos_right this hp
 
-theorem streamAt_zero {t : MachineState} {e : Em} (hS : StreamAt t e) (k : Nat) (hk : k < 1275)
+theorem streamAt_zero {t : MachineState} {e : Em} (hS : StreamAt t e) (k : Nat) (hk : k < 1185)
     (hge : (img e).length ≤ k) : t.getMem (BitVec.ofNat 64 (0xC40 + 8 * k)) = 0 := by
   rw [hS k hk, getD_of_ge_len _ _ _ hge]
 
 /-- A fold block written after the image (values given doubleword by doubleword). -/
 theorem streamAt_fold' {s t : MachineState} {e : Em} (f : Fold) (hS : StreamAt s e)
-    (hw : ∀ r < 10, (img e).length + r < 1275 →
+    (hw : ∀ r < 10, (img e).length + r < 1185 →
       t.getMem (BitVec.ofNat 64 (0xC40 + 8 * ((img e).length + r))) = (foldWords f).getD r 0)
-    (hrest : ∀ k < 1275, (k < (img e).length ∨ (img e).length + 10 ≤ k) →
+    (hrest : ∀ k < 1185, (k < (img e).length ∨ (img e).length + 10 ≤ k) →
       t.getMem (BitVec.ofNat 64 (0xC40 + 8 * k)) = s.getMem (BitVec.ofNat 64 (0xC40 + 8 * k))) :
     StreamAt t ⟨e.segs, e.cur ++ [f], e.par⟩ := by
   intro k hk
@@ -143,7 +143,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   have F04 : Frame s t4 (fun A => ((A = sp - 48 ∨ A = sp - 40 ∨ A = sp - 32) ∨ False) ∨ False) :=
     (f2.trans f3).trans f4
   -- the left child's precondition
-  have hroomL : (img (rcEm [g0, g1, g2] (pfN proof) l (2 * node) used e)).length ≤ 1275 := by
+  have hroomL : (img (rcEm [g0, g1, g2] (pfN proof) l (2 * node) used e)).length ≤ 1185 := by
     have h := hpre.room
     rw [rcEm_inner _ _ _ _ _ _ h1] at h
     simp only [] at h
@@ -187,7 +187,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
     (by omega) (by omega) x2_5 (l + 1) node (by omega) (by omega) (by omega) m40' m32'
   set e1 := rcEm [g0, g1, g2] (pfN proof) l (2 * node) used e with he1
   set freshR := fresh && !hasLeaf [g0, g1, g2] l (2 * node) with hfreshR
-  have hroomR : (img (rcEm [g0, g1, g2] (pfN proof) l (2 * node + 1) next e1)).length ≤ 1275 := by
+  have hroomR : (img (rcEm [g0, g1, g2] (pfN proof) l (2 * node + 1) next e1)).length ≤ 1185 := by
     have h := hpre.room
     rw [rcEm_inner _ _ _ _ _ _ h1] at h
     simp only [] at h
@@ -231,7 +231,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   set e2 := rcEm [g0, g1, g2] (pfN proof) l (2 * node + 1) next e1 with he2
   set e' : Em := if ll = false then ⟨e2.segs, e2.cur ++ [(true, pfN proof used)], e2.par⟩
     else if rl = false then ⟨e2.segs, e2.cur ++ [(false, pfN proof next)], e2.par⟩
-    else e2.close true (node % 8) with he'
+    else e2.close true (node % 2) with he'
   have hlr : ll = true ∨ rl = true := (hasLeaf_succ_iff _ _ _).mp h1
   have hfr7 : (freshR && !rl) = false := by
     rcases hlr with h | h
@@ -241,7 +241,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   have F78 : Frame t7 t8 (fun A => A = NODE ∨ A = NODE + 8 ∨ A = NODE + 16 ∨ A = NODE + 24 ∨ A = NODE + 48 ∨
       A = NODE + 56) := f8
   have str8 : StreamAt t8 e2 := str7.frame F78 (fun k hk h => by simp only [NODE] at h; omega)
-  have hroom2 : (img e').length ≤ 1275 := by
+  have hroom2 : (img e').length ≤ 1185 := by
     have h := hpre.room
     rw [rcEm_inner _ _ _ _ _ _ h1] at h
     simp only [] at h
@@ -268,12 +268,12 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
       t9.getReg .x22 = BitVec.ofNat 64 (0xC40 + 8 * wl e') ∧ t9.getReg .x23 = BitVec.ofNat 64 e'.cur.length ∧
       t9.getReg .x24 = BitVec.ofNat 64 e'.par ∧ StreamAt t9 e' ∧
       RegsExcept t8 t9 [.x6, .x7, .x22, .x23, .x24, .x28, .x29, .x30] ∧
-      Frame t8 t9 (fun A => 0xC40 ≤ A ∧ A < 0xC40 + 8 * 1275) := by
+      Frame t8 t9 (fun A => 0xC40 ≤ A ∧ A < 0xC40 + 8 * 1185) := by
     by_cases hL : ll = false
     · have he'L : e' = ⟨e2.segs, e2.cur ++ [(true, pfN proof used)], e2.par⟩ := by rw [he', if_pos hL]
       rw [hL] at p8
       simp only [Bool.false_eq_true, ↓reduceIte] at p8
-      have hfit : (img e').length ≤ 1275 := hroom2
+      have hfit : (img e').length ≤ 1185 := hroom2
       rw [he'L, img_len_fold] at hfit
       obtain ⟨t9, s9, p9, w8, w16, x23_9, r9, f9⟩ := rc952_spec t8 p8 (sp - 48) (by omega) (by omega) x2_8
         (0xC40 + 8 * wl e2) e2.cur.length (by omega) (by omega) (by omega) x22_8 x23_8
@@ -307,7 +307,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
           rw [he', if_neg (by rw [hLt]; decide), if_pos hR]
         rw [hR] at p9
         simp only [Bool.false_eq_true, ↓reduceIte] at p9
-        have hfit : (img e').length ≤ 1275 := hroom2
+        have hfit : (img e').length ≤ 1185 := hroom2
         rw [he'R, img_len_fold] at hfit
         obtain ⟨t10, s10, p10, w56, w64, x23_10, r10, f10⟩ := rc963_spec t9 p9 (0xC40 + 8 * wl e2) e2.cur.length
           (by omega) (by omega) (by omega) x22_9 x23_9
@@ -334,11 +334,11 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
                 by ring, w64, hvr8', hvr']; simp [foldWords])
             | (rw [f10.get (by omega) (by omega), ← hpos, streamAt_zero str9 _ (by omega) (by omega)]; simp [foldWords])
       · have hRt : rl = true := by simpa using hR
-        have he'M : e' = e2.close true (node % 8) := by
+        have he'M : e' = e2.close true (node % 2) := by
           rw [he', if_neg (by rw [hLt]; decide), if_neg (by rw [hRt]; decide)]
         rw [hRt] at p9
         simp only [↓reduceIte] at p9
-        have hfit : (img e').length ≤ 1275 := hroom2
+        have hfit : (img e').length ≤ 1185 := hroom2
         rw [he'M, img_len_close] at hfit
         have hcnt2 : e2.cur.length ≤ l := cntl7 hRt
         obtain ⟨t10, s10, p10, wh, x22_10, x23_10, x24_10, r10, f10⟩ := rc975_spec t9 p9 (sp - 48) (by omega)
@@ -360,8 +360,8 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
           congr 1; simp; ring
   obtain ⟨k9, t9, s9, hk9, p9, x22_9, x23_9, x24_9, str9, r9, f9⟩ := hbr
   obtain ⟨t10, s10, p10, x10_10, x11_10, x12_10, r10, f10⟩ := rc987_spec t9 p9
-  have F810 : Frame t8 t10 (fun A => (0xC40 ≤ A ∧ A < 0xC40 + 8 * 1275) ∨ False) := f9.trans f10
-  have g10 : ∀ A, A < 2 ^ 64 → (A < 0xC40 ∨ 0xC40 + 8 * 1275 ≤ A) →
+  have F810 : Frame t8 t10 (fun A => (0xC40 ≤ A ∧ A < 0xC40 + 8 * 1185) ∨ False) := f9.trans f10
+  have g10 : ∀ A, A < 2 ^ 64 → (A < 0xC40 ∨ 0xC40 + 8 * 1185 ≤ A) →
       t10.getMem (BitVec.ofNat 64 A) = t8.getMem (BitVec.ofNat 64 A) :=
     fun A hA h => F810.get hA (by rintro (h' | h'); omega; exact h'.elim)
   set heap := 2 ^ (11 - (l + 1)) + node with hheap
@@ -434,7 +434,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
         have he21 : e2 = e1 := by rw [he2]; exact rcEm_empty _ _ _ _ _ _ hR
         rw [he21]; have := cntl5 hLt; omega
       · rw [if_neg hR]; simp [Em.close]
-  have hparE : e'.par < 8 := by
+  have hparE : e'.par < 2 := by
     rw [he']
     split_ifs
     · exact par7

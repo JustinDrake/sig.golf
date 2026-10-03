@@ -228,7 +228,6 @@ theorem wordEnvelope_sublist {left right : List Buckets} (h : left.Sublist right
     wordEnvelope left ≤ wordEnvelope right := by
   unfold wordEnvelope
   apply ENNReal.div_le_div_right
-  apply ENNReal.div_le_div_right
   exact Finset.prod_le_prod' fun c _ => coordinateEnvelope_sublist (h.map (fun row => row c))
 
 theorem nearCoordinateEnvelope_sublist {left right : List (Fin 16)} (h : left.Sublist right) :
@@ -242,7 +241,6 @@ theorem nearCoordinateEnvelope_sublist {left right : List (Fin 16)} (h : left.Su
 theorem nearWordEnvelope_sublist (missing : Fin 7) {left right : List Buckets}
     (h : left.Sublist right) : nearWordEnvelope missing left ≤ nearWordEnvelope missing right := by
   unfold nearWordEnvelope
-  apply ENNReal.div_le_div_right
   apply ENNReal.div_le_div_right
   apply Finset.prod_le_prod'
   intro c _
@@ -275,7 +273,7 @@ theorem adaptive_selected_full_excess {ι State Result : Type} {spec : OracleSpe
     (hselected : ∀ result,(selected result).Sublist result.2.1) :
     expectedValue ((simulateQ model.traced computation).run ([],state))
       (fun result => if result.2.1.length ≤ Numeric.proposalLength
-        then fullPrice (selected result)-1 else 0) ≤ 13145/100000000 := by
+        then fullPrice (selected result)-1 else 0) ≤ 11324/100000000 := by
   apply le_trans (model.capped_selected_expectation Numeric.proposalLength computation state selected
     hselected (fun word => fullPrice word-1)
     (fun _ _ h => tsub_le_tsub_right (fullPrice_sublist h) 1))
@@ -290,7 +288,7 @@ theorem adaptive_selected_near_price {ι State Result : Type} {spec : OracleSpec
     (hselected : ∀ result,(selected result).Sublist result.2.1) :
     expectedValue ((simulateQ model.traced computation).run ([],state))
       (fun result => if result.2.1.length ≤ Numeric.proposalLength
-        then fullNearPrice (selected result) else 0) ≤ 872505/2048 := by
+        then fullNearPrice (selected result) else 0) ≤ 404 := by
   apply le_trans (model.capped_selected_expectation Numeric.proposalLength computation state selected
     hselected fullNearPrice (fun _ _ h => fullNearPrice_sublist h))
   rw [hbase,Adaptive.ProposalModel.uniform_word_expectation]

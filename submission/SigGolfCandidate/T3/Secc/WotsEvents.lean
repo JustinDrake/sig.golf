@@ -46,7 +46,7 @@ data digits summing to 190 (22·5 + 20·4) and the checksum digit `target − 19
 Validity in `T3.code` is proved where it is used. -/
 def dummyDigits (lay : Layer) : List Nat :=
   if lay.val = 0 then List.replicate 31 4 ++ [2] ++ List.replicate 22 0
-  else List.replicate 22 5 ++ List.replicate 20 4 ++ [5]
+  else List.replicate 22 5 ++ List.replicate 20 4 ++ [if lay=3 then 4 else 5]
 
 /-- The reference word of every leaf, signed or not (record: `referenceFamilyWords selections dummy`). -/
 noncomputable def referenceDigits (answers : Answers) (L : LeafAddr) : List Nat :=

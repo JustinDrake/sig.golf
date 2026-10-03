@@ -46,9 +46,9 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     GoodQ s (N + layerFuel 0) (C + layerCost 0 0) Q (A + layerCost 0 0) (ccM (layerHead w index 0 M R) K) := by
   have hidx := hs.idx
   have hA := encA_step w pk index 0 M s hs
-  have hfuel : layerFuel 0 = 16 + 1 + 118 + 2321 + 13 := by decide
-  have hcost : layerCost 0 0 = 16 + 8 + 67 + 13 + 1129 := by decide
-  have hsA : stepsA (0 : Layer).val = 16 := rfl
+  have hfuel : layerFuel 0 = 12 + 1 + 118 + 2321 + 12 := by decide
+  have hcost : layerCost 0 0 = 12 + 8 + 70 + 12 + 1129 := by decide
+  have hsA : stepsA (0 : Layer).val = 12 := rfl
   unfold layerHead
   by_cases hctr : (wctr w 0).toNat ≥ counterLimit
   · rw [if_pos hctr, ccM_pure, hK0]
@@ -59,7 +59,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     obtain ⟨t, hst, hf, h5, hv, hin, c, hc, hpre⟩ := hA.2 (by omega)
     rw [hsA] at hst
     have hblk := blocks_encodingInput 0 (route index 0).2 (route index 0).1 M (wctr w 0)
-    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 13 + 2321 + 118) (C + 13 + 1129 + 67) Q (A + 13 + 1129 + 67)
+    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 12 + 2321 + 118) (C + 12 + 1129 + 70) Q (A + 12 + 1129 + 70)
         (ccM (match decode 0 (a.extractLsb' 0 128) with
           | none => pure none
           | some digits => chainsP w 0 (route index 0).2 (route index 0).1 digits >>= R) K) := by
@@ -90,8 +90,8 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
         have hIn := nctx_initial w index _ (trPc 0 c) _ s0 he hdec.2.1
         have hEnc := nctx_encoded _ s0 _ (trPc 0 c) he hdec.1
         have hG := L.top_good hLok hkn hO hEnc hfit hds (fun ends => ccM (R ends) K)
-          (N+13) (C+13) (A+13) Q (fun ends z hz => by
-            obtain ⟨hr,hf,hlen,hend,hpc⟩ := hz
+          (N+12) (C+12) (A+12) Q (fun ends z hz => by
+            obtain ⟨hr,hf,hlen,hend,hpc,h15⟩ := hz
             have hregs : RegsExcept s0 z topChainRegs := by
               intro r hrn
               apply hr r
@@ -99,7 +99,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
               · intro hh;subst r;exact hrn (by decide)
             have hframe : Frame s0 z topChainWrites := by
               exact hf
-            have hready := topLeafReady_of w pk index c t s0 z a ends hpre he hpc hregs hframe hlen
+            have hready := topLeafReady_of w pk index c t s0 z a ends hpre he hpc hregs hframe h15 hlen
               (fun j hj => by have h := hend j (by omega);exact h)
             obtain ⟨u,st,hu⟩ := leafT_step w pk index c hc hidx ends z hready
             exact GoodQ.steps' st (hR ends u hu) (by omega) (by omega) (fun hq => ⟨hq,by omega⟩)) s0 hIn

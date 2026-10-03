@@ -209,7 +209,7 @@ def outerFold (b : Nat) (proof : Fin 115 → Digest) (next j : Nat) : Fold :=
 /-- The written doublewords of the outer loop. -/
 def OW (A : Nat) : Prop :=
   A = NODE ∨ A = NODE + 8 ∨ A = NODE + 16 ∨ A = NODE + 24 ∨ A = NODE + 48 ∨ A = NODE + 56 ∨
-    (NOUT ≤ A ∧ A < NOUT + 32) ∨ (0xC40 ≤ A ∧ A < 0x3418)
+    (NOUT ≤ A ∧ A < NOUT + 32) ∨ (0xC40 ≤ A ∧ A < 0x3148)
 
 /-- The outer loop at `fts_outer` (word 100) before fold `j`: the value `value` at `NOUT`, the slot `u' = next + j`,
 the stream with the bucket DFS's emission `e1` and `j` outer folds. -/
@@ -233,7 +233,7 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
     (hb0 : selEntry N c 0 / 2 ^ 7 = b) (hg0 : selEntry N c 0 < 2 ^ 64) {e1 : Em} {next : Nat}
     {t4 : MachineState} (hst : Stat sig N t4) (h8 : t4.getReg .x8 = BitVec.ofNat 64 c)
     (h22 : t4.getReg .x22 = BitVec.ofNat 64 (0xC40 + 8 * wl e1))
-    (hroom : wl e1 + 1 + 10 * (e1.cur.length + 4) ≤ 1275) (hnext : next ≤ 115)
+    (hroom : wl e1 + 1 + 10 * (e1.cur.length + 4) ≤ 1185) (hnext : next ≤ 115)
     {j : Nat} (hj : j < 4) {value : Digest} {u' : Nat} {u : MachineState}
     (hinv : OInv sig.proof b e1 next t4 j value u' u) :
     TBSim image sk u 105 (outerStep sig (N.toNat % 2 ^ 31) c b (some (value, u')) j)
@@ -298,7 +298,7 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
       DigAt u4 NODE pl ∧ DigAt u4 (NODE + 48) pr ∧ u4.getReg .x23 = BitVec.ofNat 64 (e1.cur.length + j + 1) ∧
       StreamAt u4 ⟨e.segs, e.cur ++ [outerFold b sig.proof next j], e.par⟩ ∧
       RegsExcept u3 u4 [.x6, .x7, .x23, .x28, .x29, .x30] ∧
-      Frame u3 u4 (fun A => A = NODE ∨ A = NODE + 8 ∨ A = NODE + 48 ∨ A = NODE + 56 ∨ (0xC40 ≤ A ∧ A < 0x3418)) := by
+      Frame u3 u4 (fun A => A = NODE ∨ A = NODE + 8 ∨ A = NODE + 48 ∨ A = NODE + 56 ∨ (0xC40 ≤ A ∧ A < 0x3148)) := by
     have hcnt3 := hlenE
     by_cases hbit : b / 2 ^ j % 2 = 0
     · rw [if_pos hbit] at p3
@@ -317,7 +317,7 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
             0xC40 + 8 * wl e1 + 80 * (e1.cur.length + j) + 8 + 8 * r := by
           rw [hlenE]; ring
         rw [hpos, hside]
-        have hz : ∀ r, r < 10 → r ≠ 6 → r ≠ 7 → (img e).length + r < 1275 →
+        have hz : ∀ r, r < 10 → r ≠ 6 → r ≠ 7 → (img e).length + r < 1185 →
             u4.getMem (BitVec.ofNat 64 (0xC40 + 8 * wl e1 + 80 * (e1.cur.length + j) + 8 + 8 * r)) = 0 := by
           intro r hr h6 h7 hrk
           rw [f4.get (by omega) (by simp only [NODE]; omega), show 0xC40 + 8 * wl e1 + 80 * (e1.cur.length + j) + 8 +
@@ -353,7 +353,7 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
             0xC40 + 8 * wl e1 + 80 * (e1.cur.length + j) + 8 + 8 * r := by
           rw [hlenE]; ring
         rw [hpos, hside]
-        have hz : ∀ r, r < 10 → r ≠ 0 → r ≠ 1 → (img e).length + r < 1275 →
+        have hz : ∀ r, r < 10 → r ≠ 0 → r ≠ 1 → (img e).length + r < 1185 →
             u4.getMem (BitVec.ofNat 64 (0xC40 + 8 * wl e1 + 80 * (e1.cur.length + j) + 8 + 8 * r)) = 0 := by
           intro r hr h6 h7 hrk
           rw [f4.get (by omega) (by simp only [NODE]; omega), show 0xC40 + 8 * wl e1 + 80 * (e1.cur.length + j) + 8 +
@@ -375,14 +375,14 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
   have R05 : RegsExcept u u5 (([.x6] ++ [.x6] ++ [.x13, .x14, .x18, .x28] ++ [.x6, .x7, .x23, .x28, .x29, .x30]) ++
       [.x6, .x7, .x10, .x11, .x12, .x13, .x28, .x30]) := R04.trans r5
   have F35 : Frame u3 u5 (fun A => (A = NODE ∨ A = NODE + 8 ∨ A = NODE + 48 ∨ A = NODE + 56 ∨
-      (0xC40 ≤ A ∧ A < 0x3418)) ∨ (A = NODE + 16 ∨ A = NODE + 24)) := f4.trans f5
+      (0xC40 ≤ A ∧ A < 0x3148)) ∨ (A = NODE + 16 ∨ A = NODE + 24)) := f4.trans f5
   set heap := 2 ^ (3 - j) + b / 2 ^ (j + 1) with hheap
   have hheap' : heap < 2 ^ 32 := by
     have : 2 ^ (3 - j) ≤ 2 ^ 3 := Nat.pow_le_pow_right (by norm_num) (by omega)
     have : b / 2 ^ (j + 1) ≤ b := Nat.div_le_self _ _
     omega
   have F05 : Frame u u5 (fun A => ((False ∨ False) ∨ False) ∨ ((A = NODE ∨ A = NODE + 8 ∨ A = NODE + 48 ∨
-      A = NODE + 56 ∨ (0xC40 ≤ A ∧ A < 0x3418)) ∨ (A = NODE + 16 ∨ A = NODE + 24))) := (F02.trans f3).trans F35
+      A = NODE + 56 ∨ (0xC40 ≤ A ∧ A < 0x3148)) ∨ (A = NODE + 16 ∨ A = NODE + 24))) := (F02.trans f3).trans F35
   have hn32 : u5.getMem (BitVec.ofNat 64 (NODE + 32)) = 0 := by
     rw [F05.get (A := NODE + 32) (by decide) (by simp only [NODE]; decide)]; exact hstu.n32
   have hn40 : u5.getMem (BitVec.ofNat 64 (NODE + 40)) = 0 := by
@@ -421,7 +421,7 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
   have hd := DigAt.writeHash_lo u5 a NOUT x12_5 (by decide)
   have R07 := R06.trans r7
   have F37 : Frame u3 u7 (fun A => ((A = NODE ∨ A = NODE + 8 ∨ A = NODE + 48 ∨ A = NODE + 56 ∨
-      (0xC40 ≤ A ∧ A < 0x3418)) ∨ (A = NODE + 16 ∨ A = NODE + 24)) ∨ (NOUT ≤ A ∧ A < NOUT + 32) ∨ False) :=
+      (0xC40 ≤ A ∧ A < 0x3148)) ∨ (A = NODE + 16 ∨ A = NODE + 24)) ∨ (NOUT ≤ A ∧ A < NOUT + 32) ∨ False) :=
     F35.trans (fw.trans f7)
   refine ⟨p7, x19_7, ?_, by omega, ⟨by rw [f7.get (by decide) (fun h => h)]; exact hd.1,
     by rw [f7.get (by decide) (fun h => h)]; exact hd.2⟩, ?_, ?_, ?_, ?_⟩
@@ -469,7 +469,7 @@ def emAt (chosen : List Selection) (proof : Fin 115 → Digest) (c : Nat) : Em :
 def FtsW' (A : Nat) : Prop :=
   (0x22000 - 512 ≤ A ∧ A < 0x22000) ∨ A = NODE ∨ A = NODE + 8 ∨ A = NODE + 16 ∨ A = NODE + 24 ∨ A = NODE + 48 ∨
     A = NODE + 56 ∨ (NOUT ≤ A ∧ A < NOUT + 32) ∨ A = FLEAF + 16 ∨ A = FLEAF + 24 ∨ A = FLEAF + 32 ∨
-    A = FLEAF + 40 ∨ (FOREST ≤ A ∧ A < FOREST + 128 ∧ A ≠ FOREST + 16 ∧ A ≠ FOREST + 24) ∨ (0x840 ≤ A ∧ A < 0x3418)
+    A = FLEAF + 40 ∨ (FOREST ≤ A ∧ A < FOREST + 128 ∧ A ≠ FOREST + 16 ∧ A ≠ FOREST + 24) ∨ (0x840 ≤ A ∧ A < 0x3148)
 
 theorem not_FtsW'_stat {A : Nat} (h : StatA A) : ¬ FtsW' A := by
   unfold StatA at h; unfold FtsW'; simp only [SEL, FLEAF, NODE, NOUT, FOREST] at h ⊢; omega
@@ -665,7 +665,7 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
   have hst4 : Stat sig N t4 := hst3.frame R34 (by decide) (by decide) F34 (fun A hA h =>
     not_RcW_static (sp := 0x22000) (level := 7) (by norm_num) le_rfl hA h)
   have x8_4 : t4.getReg .x8 = BitVec.ofNat 64 c := ctx4.x8
-  have hroom : wl e1 + 1 + 10 * (e1.cur.length + 4) ≤ 1275 := by
+  have hroom : wl e1 + 1 + 10 * (e1.cur.length + 4) ≤ 1185 := by
     have := length_img e1; omega
   obtain ⟨t5, s5, p5, x19_5, r5, f5⟩ := f99_spec t4 p4
   have hO0 : OInv sig.proof sel.bucket e1 next t4 0 v next t5 := by

@@ -43,7 +43,7 @@ def pad1 (c : QCtx) (i : Nat) : Digest := wdig c.w (c.blk i - 0x800 + 32)
 def val (c : QCtx) (i : Nat) : Digest := wdig c.w (c.blk i - 0x800 + 48)
 
 def ok (c : QCtx) : Prop :=
-  c.tree < 2 ^ 32 ∧ c.leaf < 2 ^ 32 ∧ c.S3 % 8 = 0 ∧ 0x800 + 11288 + 1664 ≤ c.S3 ∧ c.S3 + 2064 ≤ 0x7000 ∧
+  c.tree < 2 ^ 32 ∧ c.leaf < 2 ^ 32 ∧ c.S3 % 8 = 0 ∧ 0x800 + 10568 + 1664 ≤ c.S3 ∧ c.S3 + 2064 ≤ 0x7000 ∧
     c.ret < 209920
 
 /-- The registers the quad code reads (and the lower code after it). -/
@@ -125,7 +125,7 @@ def EndInv (c : QCtx) (s0 : MachineState) (i : Nat) (acc : List Digest) (s : Mac
 /-! ## Geometry -/
 
 theorem blk_props (c : QCtx) (hc : c.ok) (i : Nat) (hi : i ≤ 48) :
-    c.blk i % 8 = 0 ∧ 0x800 + 11288 ≤ c.blk i ∧ c.blk i + 80 ≤ 0x7000 := by
+    c.blk i % 8 = 0 ∧ 0x800 + 10568 ≤ c.blk i ∧ c.blk i + 80 ≤ 0x7000 := by
   obtain ⟨-, -, h64, hlo, hhi, -⟩ := hc
   unfold blk; refine ⟨?_, ?_, ?_⟩ <;> omega
 

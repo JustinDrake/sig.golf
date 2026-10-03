@@ -19,24 +19,20 @@ theorem digestRecord_leaf (output : BitVec 256) (c : Bank) (j : Fin 3) :
   omega
 
 theorem digestRecord_gate (output : BitVec 256) :
-    (digestRecord output).2.2.1.val=output.toNat/2^246 := by
-  have hlt : output.toNat/2^246<2^10 := by
-    apply Nat.div_lt_of_lt_mul
-    calc output.toNat < 2^256 := output.isLt
-      _ = 2^246*2^10 := by norm_num
-  simp only [digestRecord,BitVec.val_toFin,BitVec.extractLsb'_toNat,Nat.shiftRight_eq_div_pow]
-  exact Nat.mod_eq_of_lt hlt
+    (digestRecord output).2.2.1.val=output.toNat/2^206%8 := by
+  simp [digestRecord,BitVec.extractLsb'_toNat,Nat.shiftRight_eq_div_pow]
 
-theorem digestRecord_gate_accept (output : BitVec 256) :
-    (digestRecord output).2.2.1.val<135 ↔ output.toNat/2^246<135 := by
-  rw [digestRecord_gate]
+theorem digestRecord_gate_zero (output : BitVec 256) :
+    (digestRecord output).2.2.1=0 ↔ output.toNat/2^206%8=0 := by
+  rw [←digestRecord_gate]
+  exact Fin.ext_iff
 
 /-- Source-friendly decomposition of the actual acceptance predicate. -/
 theorem digest_acceptance_iff (output : BitVec 256) :
-    DigestAccepted output ↔ output.toNat/2^246<135 ∧
+    DigestAccepted output ↔ output.toNat/2^206%8=0 ∧
       (∀ c, Function.Injective ((digestRecord output).2.1 c)) ∧
       (∑ c,childAuth ((digestRecord output).2.1 c))≤87 := by
-  change ((digestRecord output).2.2.1.val<135 ∧ _ ∧ _) ↔ _
-  rw [digestRecord_gate_accept]
+  change ((digestRecord output).2.2.1=0 ∧ _ ∧ _) ↔ _
+  rw [digestRecord_gate_zero]
 
 end SigGolfResearch.Gate6

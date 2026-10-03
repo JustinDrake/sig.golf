@@ -43,7 +43,7 @@ theorem expCost_lt : expCost + 1 < CYCLE_LIMIT := by
   omega
 
 set_option maxRecDepth 4096 in
-theorem witList_length (N : HashOutput) (w : Witness) : (witList N w).length = 8 * 3155 := by
+theorem witList_length (N : HashOutput) (w : Witness) : (witList N w).length = 8 * 3033 := by
   obtain ⟨l1, l2, l3⟩ := witList_length_parts N w
   unfold witList
   rw [List.length_append, List.length_append, List.length_append, l1, l2, l3, List.length_flatMap]
@@ -52,9 +52,9 @@ theorem witList_length (N : HashOutput) (w : Witness) : (witList N w).length = 8
 
 /-- The witness at `accept`. -/
 theorem expq_output {N : HashOutput} {w : Witness} {t : MachineState}
-    (h : t.readWords (BitVec.ofNat 64 0x800) 3155 = wordsOf (witList N w)) :
+    (h : t.readWords (BitVec.ofNat 64 0x800) 3033 = wordsOf (witList N w)) :
     readOutput submission.sizes submission.layout .expand t = witEnc N w :=
-  readBuffer_of_words t 0x800 3155 (witList N w) (by decide) (by decide) (witList_length N w) h
+  readBuffer_of_words t 0x800 3033 (witList N w) (by decide) (by decide) (witList_length N w) h
 
 /-- The final states: at a `HALT` `ECALL` with `t0 = 1`; `a0 = 0` and the witness iff accepted. -/
 theorem expq_halt (a : Option (HashOutput × Witness)) (t : MachineState) (h : ExpQ a t) :

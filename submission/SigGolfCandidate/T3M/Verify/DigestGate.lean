@@ -1,55 +1,45 @@
 import SigGolfCandidate.T3M.Verify.FtsCheck
 
-/-! The digest's ten-bit gate, before the FTS initialization. -/
+/-! The digest's three-bit gate, before the FTS initialization. -/
 namespace SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3 (Digest HashOutput)
 set_option linter.unusedSimpArgs false
 
 def FtsReady (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineState) : Prop :=
-  SelIn pk w a 7 (s.setPC (pcOf 359)) ∧ s.pc = pcOf 362
+  SelIn pk w a 7 (s.setPC (pcOf 380)) ∧ s.pc = pcOf 383
 
-theorem digest_gate_field (N : BitVec 256) : (N.extractLsb' 192 64 >>> 54).toNat = N.toNat / 2 ^ 246 := by
-  have h1 : N.toNat / 2 ^ 192 < 2 ^ 64 := Nat.div_lt_of_lt_mul (by
-    calc N.toNat < 2 ^ 256 := N.isLt
-      _ = 2 ^ 192 * 2 ^ 64 := by norm_num)
-  rw [BitVec.toNat_ushiftRight, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow, Nat.shiftRight_eq_div_pow,
-    Nat.mod_eq_of_lt h1, Nat.div_div_eq_div_mul]
-  all_goals norm_num
-
-/-- `srli 54; sltiu 135` on digest word 3 is Core's ten-bit gate. -/
-theorem digest_gate_ult (N : BitVec 256) :
-    BitVec.ult (N.extractLsb' 192 64 >>> 54) (BitVec.ofNat 64 135) = decide (N.toNat / 2 ^ 246 < 135) := by
-  simp only [BitVec.ult, digest_gate_field, BitVec.toNat_ofNat]
-  all_goals norm_num
+theorem digest_gate_word (N : BitVec 256) :
+    N.extractLsb' 192 64 >>> 14 &&& 7#64 = BitVec.ofNat 64 (N.toNat / 2 ^ 206 % 8) := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  simp only [BitVec.getLsbD_and, BitVec.getLsbD_ushiftRight, BitVec.getLsbD_extractLsb',
+    BitVec.getLsbD_ofNat, show (7 : Nat) = 2 ^ 3 - 1 from rfl,
+    show (8 : Nat) = 2 ^ 3 from rfl, Nat.testBit_two_pow_sub_one,
+    Nat.testBit_mod_two_pow, Nat.testBit_div_two_pow]
+  by_cases h : i < 3
+  · simp [h, hi, show 14 + i < 64 by omega, BitVec.testBit_toNat,
+      show 192 + (14 + i) = i + 206 by omega]
+  · simp [h]
 
 theorem gateBrF_holds (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineState)
     (hs : SelIn pk w a 7 s) (reject : Bool) :
     (gateBrF reject).holds s ↔ (!T3.digestGate a) = reject := by
   have hn : s.getReg .x28 = a.extractLsb' 192 64 := hs.nregs 3 (by decide)
-  change (((if BitVec.ult (s.getReg .x28 >>> 54) (BitVec.ofNat 64 135) then (1 : BitVec 64) else 0)
-    == BitVec.ofNat 64 0) = reject) ↔ _
-  rw [hn, digest_gate_ult]
-  simp only [T3.digestGate]
-  generalize a.toNat / 2 ^ 246 = v
-  by_cases hv : v < 135
-  · have h' : ¬ 135 ≤ v := by omega
-    cases reject <;> simp [hv, h']
-  · have h' : 135 ≤ v := by omega
-    cases reject <;> simp [hv, h']
+  have he : BitVec.ofNat 64 (a.toNat / 2 ^ 206 % 8) = 0#64 ↔ a.toNat / 2 ^ 206 % 8 = 0 :=
+    ofNat_inj (by have := Nat.mod_lt (a.toNat / 2 ^ 206) (show 0 < 8 by decide); omega) (by decide)
+  change ((s.getReg .x28 >>> 14 &&& 7#64 != 0#64) = reject) ↔ _
+  rw [hn, digest_gate_word]
+  cases reject <;> simp only [T3.digestGate] <;> simp
+  · exact he
+  · exact not_congr he
 
-
-/-- The gate preserves the reverse-table base until FTS setup replaces it. -/
-private theorem gateCheck_keep_sp :
-    specB [] [] baseK (runAt baseK [362] 359 [.br false])
-      ⟨[], [], 362, false, 3, [gateBrF false], none, 3⟩ [] baseK (.x2 :: selKeep) = true := by
-  decide +kernel
 
 theorem fts_gate_accept (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineState)
     (hs : SelIn pk w a 7 s) (hg : T3.digestGate a = true) :
     ∃ u, Steps image s 3 3 u ∧ FtsReady pk w a u := by
   have hb : (gateBrF false).holds s := (gateBrF_holds pk w a s hs false).2 (by rw [hg]; rfl)
-  obtain ⟨u, hu⟩ := spec_run gateCheck_keep_sp s hs.pc hs.known (by simpa using hb) (by simp)
+  obtain ⟨u, hu⟩ := spec_run gateCheckF_ok s hs.pc hs.known (by simpa using hb) (by simp)
   have hm : ∀ A, u.getMem A = s.getMem A := fun A => by rw [hu.mem]; rfl
   refine ⟨u, hu.steps, ⟨?_, hu.pc rfl⟩⟩
   refine ⟨rfl, hu.known, ?_, ?_, ?_, hs.ok, ?_, ?_, ?_, ?_, ?_⟩
@@ -61,10 +51,10 @@ theorem fts_gate_accept (pk : Digest) (w : WBytes) (a : HashOutput) (s : Machine
     rw [hu.keep .x22 (by decide)]; exact hs.idx
   · intro c k hc hk
     change u.getMem _ = _
-    rw [hm]; exact hs.etab c k hc hk
-  · intro j hj
+    rw [hm]; exact hs.thdr c k hc hk
+  · intro j hj hT
     change u.getMem _ = _
-    rw [hm]; exact hs.wit j hj
+    rw [hm]; exact hs.wit j hj hT
   · change PkOK pk u
     exact ⟨(hm _).trans hs.pk.1, (hm _).trans hs.pk.2⟩
   · intro A hA h1 h2
