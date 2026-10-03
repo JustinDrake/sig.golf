@@ -16,9 +16,9 @@ Budgets (fuel = all-oracle cycles `B`, accepting cycles `A`; `fo` = folds consum
   reject 6) (`segLoop_good`);
 * a coordinate from its leaf 0: `Cent c = 1032 + 1012 (6 - c)` / `Aent c = 132 + 112 (6 - c)` (+ `14 (115 - fo)`)
   (`coord_good`; F4: leaf codes 3 / 3 / 3); the forest 23 / 23 (cap check, frame, two-block HASH) (`fin_good`);
-* the FTS from `FtsReady`: **7137 / 2433** (`fts_good`). Every accepting run has 5 segments per coordinate (3 leaves,
-  2 merges): its accepting cost is exactly `823 + 14 F` (`F` = folds, at most 115 by the pointer cap); the bound
-  `2433 = 823 + 14 · 115` (n3-99 relabel; F5: was `2489 = 879 + 14 · 115`; F4: `2447 = 837 + 14 · 115`). Accepting runs satisfy `fo ≤ 115` at every point (`Q ∧ fo ≤ 115`).
+* the FTS from `FtsReady`: **7137 / 2432** (`fts_good`). Every accepting run has 5 segments per coordinate (3 leaves,
+  2 merges): its accepting cost is exactly `822 + 14 F` (`F` = folds, at most 115 by the pointer cap); the bound
+  `2432 = 822 + 14 · 115` (n3-99 relabel; F5: was `2489 = 879 + 14 · 115`; F4: `2447 = 837 + 14 · 115`). Accepting runs satisfy `fo ≤ 115` at every point (`Q ∧ fo ≤ 115`).
 
 `verifyP_good_fts`: `verifyP` from the initial state, given the layers phase (V1, V3) from `FtsOut`.
 -/
@@ -461,12 +461,12 @@ theorem fin_good (F : FCtx) (R : Option Digest → OracleComp HashSpec Obs) (hR 
     exact GoodQ.steps' hu hg (by omega) (by omega) (fun q => ⟨⟨q, by omega⟩, by omega⟩)
 
 /-- **The FTS stream machine refines `ftsP`**: from `FtsReady` (after the digest gate), 7137 cycles on every oracle;
-accepting runs take at most 2433 = 823 + 14 · 115 cycles to `FtsOut` (n3-99 relabel: 14 per fold; F5: the leaf codes read the
+accepting runs take at most 2432 = 822 + 14 · 115 cycles to `FtsOut` (n3-99 relabel: 14 per fold; F5: the leaf codes read the
 header word 1 the selection stored, 2 cycles per leaf). -/
 theorem fts_good (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : FtsReady pk w a t)
     (R : Option Digest → OracleComp HashSpec Obs) (hR : R none = pure (false, 0)) (Bf Af : Nat) (Q : Prop)
     (hout : ∀ root u, FtsOut ⟨pk, w, a⟩ root u → GoodQ u Bf Bf Q Af (R (some root))) :
-    GoodQ t (Bf + 7137) (Bf + 7137) Q (Af + 2433) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
+    GoodQ t (Bf + 7137) (Bf + 7137) Q (Af + 2432) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
   obtain ⟨u, hu, hl⟩ := fts_setup_step pk w a t ht
   have e : ftsP w (a.toNat % 2 ^ 31) (selections a) =
       List.foldlM (ftsStep ⟨pk, w, a⟩) (some ([], 1088)) (List.range 7) >>= ftsFin ⟨pk, w, a⟩ :=
@@ -483,7 +483,7 @@ theorem fts_good (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) 
 theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    ∀ a t, SelIn pk w a 7 t → GoodQ t (Bf + 7140) (Bf + 7140) Q (Af + 2436) (ccM (afterSel pk w a) Kb) := by
+    ∀ a t, SelIn pk w a 7 t → GoodQ t (Bf + 7140) (Bf + 7140) Q (Af + 2435) (ccM (afterSel pk w a) Kb) := by
   intro a t ht
   cases hg : T3.digestGate a with
   | false =>
@@ -498,13 +498,13 @@ theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
 
 /-- **`verifyP` from the initial state up to the layers phase**: given the layers phase (V1/V3: layers 3..0 and the
 comparison, `afterFts`) from `FtsOut`, the whole verify run. Accepting cycles through the forest HASH:
-`204 + 3 + 2433 = 2640` (`148 + P` with `P ≤ 56` for the words 0..379, F5: 21 table reads; `837 + 14 F` with `F ≤ 115`
-for the FTS; F4: the leaf codes 3 / 3 / 3, `823 + 14 F`). -/
+`204 + 3 + 2432 = 2639` (`148 + P` with `P ≤ 56` for the words 0..379, F5: 21 table reads; `837 + 14 F` with `F ≤ 115`
+for the FTS; F4: the leaf codes 3 / 3 / 3, `822 + 14 F`). -/
 theorem verifyP_good_fts (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    GoodQ s (Bf + 7368) (Bf + 7375) Q (Af + 2640) (ccM (verifyP m pk w) Kb) :=
+    GoodQ s (Bf + 7368) (Bf + 7375) Q (Af + 2639) (ccM (verifyP m pk w) Kb) :=
   (verifyP_good_sel m pk w s hs (afterSel_good pk w Bf Af Q hout)).mono (by omega) (by omega)
     (fun q => ⟨q, by omega⟩)
 

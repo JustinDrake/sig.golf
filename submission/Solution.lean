@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 128 KiB authenticated
-paired-mask full cache. `S = 5616` bytes, `W = 24264` bytes, `K = 131072` bytes (cache), `C = 8684` cycles
-(accepting-verify bound `8589` plus the witness charge `⌈24264 / 256⌉ = 95`). Layout (bytes): message 64,
+paired-mask full cache. `S = 5616` bytes, `W = 24264` bytes, `K = 131072` bytes (cache), `C = 8683` cycles
+(accepting-verify bound `8588` plus the witness charge `⌈24264 / 256⌉ = 95`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 524288, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,7 +19,7 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 8589); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 8588); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
@@ -119,7 +119,10 @@ forest, starting at 469), so the FTS accepting prefix becomes 2640 (fourteen cyc
 the complete charged bound is 8684.
 
 
-
+FTS setup fallthrough: the reachable words 469..721 move to 401..653. The setup no longer jumps at word 401.
+External rejection branches retain their destinations, and indirect dispatch links follow the relocated code.
+The forest prefix drops from 2640 to 2639, so accepting verification is 8588 and the charged bound is 8683.
+The unsigned lower checksum branch is already present in the base; no additional checksum saving is claimed.
 -/
 
 namespace SigGolf.Challenge
@@ -136,7 +139,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8684 :=
+theorem certificate : SigGolf.Certificate submission 8683 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge
