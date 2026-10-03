@@ -2,6 +2,7 @@ import SigGolf
 import SigGolfCandidate.T3M.Final.Conditional
 import SigGolfCandidate.T3.Secc.Final
 import SigGolfCandidate.T3.PackedHeap
+import SigGolfCandidate.T3M.Audit
 
 /-!
 # sig.golf solution: base T3 (four-layer hypertree with BPORS(7,4,7,3) few-time signatures)
