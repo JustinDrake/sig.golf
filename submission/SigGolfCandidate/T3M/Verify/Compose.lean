@@ -5,10 +5,10 @@ import SigGolfCandidate.T3M.Verify.FtsGood
 
 /-! # The complete verifier: forest, signature layers, Merkle paths and root comparison
 
-The reversed-label forest with three checked side bits costs at most2667 cycles
-from the initial state. The four layers and final comparison cost6014 cycles;
-the five-cycle loader gives6019 after the forest. The accepting bound is8686.
-Fuel15477 and the all-input cycle bound15484 retain conservative rejection margins.
+The reversed-label forest with three checked side bits costs at most 2666 cycles
+from the initial state. The four layers and final comparison cost 5957 cycles;
+the five-cycle loader gives 5962 after the forest. The accepting bound is 8628.
+Fuel 15477 and the all-input cycle bound 15484 retain conservative rejection margins.
 -/
 
 set_option linter.unusedSimpArgs false
@@ -197,9 +197,9 @@ theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutpu
   exact GoodQ.steps' hst hg (by omega) (by omega) (fun q => ⟨q, by omega⟩)
 
 /-- **The whole verify run**: from the initial state, every run finishes within 15484 cycles with fuel 15477, and
-accepting runs take at most `8629 = 2667 + 5962` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
+accepting runs take at most `8628 = 2666 + 5962` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
 theorem verifyP_good (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
-    GoodQ s 15477 15484 True 8629 (ccM (verifyP m pk w) Kb) :=
+    GoodQ s 15477 15484 True 8628 (ccM (verifyP m pk w) Kb) :=
   verifyP_good_fts m pk w s hs 8061 5962 True (fun a root u h => after_good pk w True trivial a root u h)
 
 end SigGolfCandidate.T3M
