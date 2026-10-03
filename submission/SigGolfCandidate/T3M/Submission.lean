@@ -6,7 +6,7 @@ import SigGolfCandidate.T3M.Images.Verify
 /-!
 # The T3 submission (four frozen images) and its static admission
 
-Sizes `S = 5664`, `W = 25240`, `K = 131072` and the shared layout of `t3m/images/set.txt` (message
+Sizes `S = 5680`, `W = 25240`, `K = 131072` and the shared layout of `t3m/images/set.txt` (message
 `0x40`, secret key `0x80`, public key `0xA0`, cache `0x80000`, signature `0x7000`, witness `0x800`);
 the images are the generated modules `T3M/Images/*` (frozen `.code` files, SHA-256 checked by
 `t3m/lean/gen_images.py`).
@@ -14,7 +14,7 @@ the images are the generated modules `T3M/Images/*` (frozen `.code` files, SHA-2
 Admission is proved image by image, as in the five-layer `Submission.lean`: the code list is
 rewritten to its chunks (`delta` inside an equation, so no equation lemma evaluates the list),
 `List.length_append` splits the length, and the kernel only counts each 256-word chunk; the layout
-half reads only the data section (4096-byte tables in the sign, expand, and verify images).
+half reads only the data section (empty, except the verify image's 96 bytes, T3K).
 -/
 
 namespace SigGolfCandidate.T3M
@@ -22,7 +22,7 @@ open SigGolfCandidate.Legacy
 
 /-- The T3 submission. -/
 def submission : Submission where
-  sizes := ⟨5664, 25240, 131072⟩
+  sizes := ⟨5680, 25240, 131072⟩
   layout := ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩
   image
     | .keygen => Images.keygenImage
@@ -30,7 +30,7 @@ def submission : Submission where
     | .expand => Images.expandImage
     | .verify => Images.verifyImage
 
-@[simp] theorem submission_sizes : submission.sizes = ⟨5664, 25240, 131072⟩ := rfl
+@[simp] theorem submission_sizes : submission.sizes = ⟨5680, 25240, 131072⟩ := rfl
 @[simp] theorem submission_layout : submission.layout = ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩ := rfl
 @[simp] theorem submission_keygen : submission.image .keygen = Images.keygenImage := rfl
 @[simp] theorem submission_sign : submission.image .sign = Images.signImage := rfl

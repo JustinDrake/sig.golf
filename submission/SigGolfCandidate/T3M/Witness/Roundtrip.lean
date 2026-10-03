@@ -81,7 +81,7 @@ theorem headerBytes_length (w : Witness) : (headerBytes w).length = 64 := by
 theorem leafBytes_length (sig : Signature) : (leafBytes sig).length = 1024 := by
   simp [leafBytes, zeros, bytesLE_length, List.length_flatMap, List.sum_replicate]
 
-theorem streamBytes_length (chosen : List Selection) (proof : Fin 118 → Digest) :
+theorem streamBytes_length (chosen : List Selection) (proof : Fin 115 → Digest) :
     (streamBytes chosen proof).length = 10200 := by
   simp only [streamBytes, zeros, List.length_take, List.length_append, List.length_replicate]
   omega
@@ -98,15 +98,11 @@ theorem layerBytes_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
     List.length_reverse, List.length_finRange, List.sum_replicate, smul_eq_mul]
   ring
 
-theorem layerStorage_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
-    (layerStorage lay leaf ls).length = 64 * (height lay + chainCount lay) + (if lay = 0 then 256 else 0) := by
-  simp only [layerStorage, List.length_append, layerBytes_length, zeros, List.length_replicate]
-
 theorem witList_length_eq (N : HashOutput) (w : Witness) : (witList N w).length = 25240 := by
   unfold witList
   rw [List.length_append, List.length_append, List.length_append, headerBytes_length, leafBytes_length,
     streamBytes_length, List.length_flatMap]
-  simp only [layerStorage_length]
+  simp only [layerBytes_length]
   simp [List.finRange, height, chainCount]
 
 theorem wdig_witEnc (N : HashOutput) (w : Witness) (off : Nat) :
@@ -240,7 +236,7 @@ theorem win_stream (off n : Nat) (h1 : 1088 ≤ off) (h : off + n ≤ 11288) :
 
 theorem win_layers (off n : Nat) (h1 : 11288 ≤ off) :
     window (witList N w) off n = window ((List.finRange 4).flatMap fun lay =>
-      layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) (off - 11288) n := by
+      layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) (off - 11288) n := by
   unfold witList
   rw [window_append_right _ _ _ _ (by simp [headerBytes_length, leafBytes_length, streamBytes_length]; omega)]
   simp [headerBytes_length, leafBytes_length, streamBytes_length]
@@ -317,14 +313,14 @@ theorem wleafPad_witEnc (N : HashOutput) (w : Witness) (s : Nat) (hs : s < 22) :
 theorem foldBytes_length (E : Nat) (sib : Digest) : (foldBytes E sib).length = 80 := by
   unfold foldBytes; split <;> simp [zeros, bytesLE_length]
 
-theorem segBytes_length (chosen : List Selection) (proof : Fin 118 → Digest) (seg : Segment) :
+theorem segBytes_length (chosen : List Selection) (proof : Fin 115 → Digest) (seg : Segment) :
     (segBytes chosen proof seg).length = 8 + 80 * seg.a := by
   unfold segBytes
   simp only [List.length_append, List.length_singleton, zeros, List.length_replicate, List.length_flatMap,
     foldBytes_length, List.map_const', List.length_range, List.sum_replicate, smul_eq_mul]
   omega
 
-theorem stream_flat_length (chosen : List Selection) (proof : Fin 118 → Digest) :
+theorem stream_flat_length (chosen : List Selection) (proof : Fin 115 → Digest) :
     ((schedule chosen).flatMap (segBytes chosen proof)).length = ((schedule chosen).map fun s => 8 + 80 * s.a).sum := by
   rw [List.length_flatMap]; congr 1; exact List.map_congr_left (fun s _ => segBytes_length _ _ _)
 
@@ -337,7 +333,7 @@ theorem segPtr_le_end (chosen : List Selection) (_hc : ChosenOk chosen) {n : Nat
   omega
 
 /-- A window inside segment `n` of the encoded stream. -/
-theorem win_seg (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N)) (hle : slotBase (selections N) 7 ≤ 118)
+theorem win_seg (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N)) (hle : slotBase (selections N) 7 ≤ 115)
     {n : Nat} (hn : n < 35) (j m : Nat) (hjm : j + m ≤ 8 + 80 * ((schedule (selections N)).getD n default).a) :
     window (witList N w) (segPtr (schedule (selections N)) n + j) m =
       window (segBytes (selections N) w.signature.proof ((schedule (selections N)).getD n default)) j m := by
@@ -362,14 +358,14 @@ theorem win_seg (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N)) (h
     (by rw [segBytes_length, ← List.getD_eq_getElem _ default (by rw [schedule_length]; exact hn)]; exact hjm)]
   rw [List.getD_eq_getElem _ default (by rw [schedule_length]; exact hn)]
 
-theorem segBytes_header (chosen : List Selection) (proof : Fin 118 → Digest) (seg : Segment) :
+theorem segBytes_header (chosen : List Selection) (proof : Fin 115 → Digest) (seg : Segment) :
     window (segBytes chosen proof seg) 0 1 = [UInt8.ofNat seg.byte0] := by
   unfold segBytes window; simp
 
-theorem segBytes_fold (chosen : List Selection) (proof : Fin 118 → Digest) (seg : Segment) {r : Nat}
+theorem segBytes_fold (chosen : List Selection) (proof : Fin 115 → Digest) (seg : Segment) {r : Nat}
     (hr : r < seg.a) (j : Nat) (hj : j + 16 ≤ 80) :
     window (segBytes chosen proof seg) (8 + 80 * r + j) 16 =
-      window (foldBytes (seg.heap r) (proof ⟨foldSlot chosen seg r % 118, Nat.mod_lt _ (by decide)⟩)) j 16 := by
+      window (foldBytes (seg.heap r) (proof ⟨foldSlot chosen seg r % 115, Nat.mod_lt _ (by decide)⟩)) j 16 := by
   unfold segBytes
   have hl : ([UInt8.ofNat seg.byte0] ++ zeros 7).length = 8 := by simp [zeros]
   rw [window_append_right _ _ _ _ (by rw [hl]; omega), hl, show 8 + 80 * r + j - 8 = 80 * r + j by omega]
@@ -396,8 +392,8 @@ theorem foldBytes_pad (E : Nat) (sib : Digest) : window (foldBytes E sib) 32 16 
 
 theorem layer_prefix (N : HashOutput) (w : Witness) (lay : Layer) :
     (((List.finRange 4).take lay.val).map fun l =>
-        (layerStorage l (route (N.toNat % 2 ^ 31) l).1 (w.signature.layers l)).length).sum = layerBase lay - 11288 := by
-  simp only [layerStorage_length]
+        (layerBytes l (route (N.toNat % 2 ^ 31) l).1 (w.signature.layers l)).length).sum = layerBase lay - 11288 := by
+  simp only [layerBytes_length]
   fin_cases lay <;> simp [List.finRange, layerBase, height, chainCount]
 
 theorem win_layer (N : HashOutput) (w : Witness) (lay : Layer) (j m : Nat)
@@ -406,12 +402,10 @@ theorem win_layer (N : HashOutput) (w : Witness) (lay : Layer) (j m : Nat)
       window (layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) j m := by
   have hb : 11288 ≤ layerBase lay := by fin_cases lay <;> simp [layerBase]
   have hlen : ((List.finRange 4)[lay.val]'(by simp)) = lay := by simp
-  have key := window_flatMap (List.finRange 4) (fun l => layerStorage l (route (N.toNat % 2 ^ 31) l).1
-    (w.signature.layers l)) lay.val (by simp) j m (by rw [hlen, layerStorage_length]; omega)
+  have key := window_flatMap (List.finRange 4) (fun l => layerBytes l (route (N.toNat % 2 ^ 31) l).1
+    (w.signature.layers l)) lay.val (by simp) j m (by rw [hlen, layerBytes_length]; exact hjm)
   rw [layer_prefix N w lay, hlen] at key
   rw [win_layers _ _ _ _ (by omega), show layerBase lay + j - 11288 = (layerBase lay - 11288) + j by omega, key]
-  unfold layerStorage
-  exact window_append_left _ _ _ _ (by rw [layerBytes_length]; exact hjm)
 
 theorem layerBytes_merkle (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) (j : Fin (height lay)) (o : Nat)
     (ho : o + 16 ≤ 64) :
@@ -533,7 +527,7 @@ theorem Segment.matches_byte0 (seg : Segment) (h : seg.a ≤ 11) : seg.Matches s
   · intro _; split <;> omega
 
 theorem wbyte_seg_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N))
-    (hle : slotBase (selections N) 7 ≤ 118) {n : Nat} (hn : n < 35) :
+    (hle : slotBase (selections N) 7 ≤ 115) {n : Nat} (hn : n < 35) :
     (wbyte (witEnc N w) (segPtr (schedule (selections N)) n)).toNat = ((schedule (selections N)).getD n default).byte0 := by
   rw [wbyte_witEnc]
   have hw := win_seg N w hc hle hn 0 1 (by omega)
@@ -543,18 +537,18 @@ theorem wbyte_seg_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selectio
       have := schedule_a_le _ hc hn; omega); omega)]
 
 theorem streamMatches_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N))
-    (hle : slotBase (selections N) 7 ≤ 118) : StreamMatches (selections N) (witEnc N w) := by
+    (hle : slotBase (selections N) 7 ≤ 115) : StreamMatches (selections N) (witEnc N w) := by
   intro n hn
   rw [schedule_length] at hn
   rw [wbyte_seg_witEnc N w hc hle hn]
   exact Segment.matches_byte0 _ (by have := schedule_a_le _ hc hn; omega)
 
 theorem wfold_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N))
-    (hle : slotBase (selections N) 7 ≤ 118) {n r : Nat} (hn : n < 35)
+    (hle : slotBase (selections N) 7 ≤ 115) {n r : Nat} (hn : n < 35)
     (hr : r < ((schedule (selections N)).getD n default).a) :
     wdig (witEnc N w) (foldBlock (segPtr (schedule (selections N)) n) r +
         sibOff (((schedule (selections N)).getD n default).heap r % 2)) =
-      w.signature.proof ⟨foldSlot (selections N) ((schedule (selections N)).getD n default) r % 118,
+      w.signature.proof ⟨foldSlot (selections N) ((schedule (selections N)).getD n default) r % 115,
         Nat.mod_lt _ (by decide)⟩ ∧
     wdig (witEnc N w) (foldBlock (segPtr (schedule (selections N)) n) r + 32) = 0 := by
   have hs : sibOff (((schedule (selections N)).getD n default).heap r % 2) ≤ 48 := by unfold sibOff; split <;> omega
@@ -615,8 +609,8 @@ theorem foldSlot_surj (chosen : List Selection) (hc : ChosenOk chosen) {k : Nat}
 /-! ## The roundtrip -/
 
 theorem witDecP_proof_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N))
-    (hle : slotBase (selections N) 7 ≤ 118)
-    (htail : ∀ k : Fin 118, slotBase (selections N) 7 ≤ k.val → w.signature.proof k = 0) (k : Fin 118) :
+    (hle : slotBase (selections N) 7 ≤ 115)
+    (htail : ∀ k : Fin 115, slotBase (selections N) 7 ≤ k.val → w.signature.proof k = 0) (k : Fin 115) :
     (witDecP N (witEnc N w)).signature.proof k = w.signature.proof k := by
   show (match slotOffset (selections N) k with | some off => wdig (witEnc N w) off | none => 0) = _
   unfold slotOffset
@@ -645,8 +639,8 @@ theorem LayerSignature.ext' {lay : Layer} {x y : LayerSignature lay} (hv : x.val
 /-- **Roundtrip**: the decoded witness of an encoding is the encoded Core witness (whose proof tail beyond the used
 slots is zero, as `expand` guarantees). -/
 theorem witDecP_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N))
-    (hle : slotBase (selections N) 7 ≤ 118)
-    (htail : ∀ k : Fin 118, slotBase (selections N) 7 ≤ k.val → w.signature.proof k = 0) :
+    (hle : slotBase (selections N) 7 ≤ 115)
+    (htail : ∀ k : Fin 115, slotBase (selections N) 7 ≤ k.val → w.signature.proof k = 0) :
     witDecP N (witEnc N w) = w := by
   obtain ⟨⟨rho, secrets, proof, layers⟩, dc, ctr⟩ := w
   unfold witDecP
@@ -657,7 +651,7 @@ theorem witDecP_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections
   exact LayerSignature.ext' (funext fun i => wvalue_witEnc N _ lay i) (funext fun j => wpath_witEnc N _ lay j)
 
 theorem padDecP_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N))
-    (hle : slotBase (selections N) 7 ≤ 118) : padDecP N (witEnc N w) = 0 := by
+    (hle : slotBase (selections N) 7 ≤ 115) : padDecP N (witEnc N w) = 0 := by
   unfold padDecP
   show Pads.mk _ _ _ _ = Pads.mk _ _ _ _
   congr 1

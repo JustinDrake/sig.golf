@@ -370,9 +370,9 @@ theorem wordsOf_flatMap8 {α : Type} (f : α → List UInt8) (hf : ∀ x, (f x).
     rw [List.flatMap_cons, List.flatMap_cons, wordsOf_append _ _ (hf x), wordsOf_flatMap8 f hf xs]
 
 /-- **A segment's doublewords**: W's bytes (`segBytes`, siblings by `foldSlot`) are the emitted ones. -/
-theorem wordsOf_segBytes (chosen : List Selection) (proof : Fin 118 → Digest) (val : Nat × Nat → Digest)
+theorem wordsOf_segBytes (chosen : List Selection) (proof : Fin 115 → Digest) (val : Nat × Nat → Digest)
     (seg : Segment) (htop : seg.lo + seg.a ≤ 11) (hlo : seg.lo < 11)
-    (hval : ∀ r < seg.a, val (seg.sib r) = proof ⟨foldSlot chosen seg r % 118, Nat.mod_lt _ (by decide)⟩) :
+    (hval : ∀ r < seg.a, val (seg.sib r) = proof ⟨foldSlot chosen seg r % 115, Nat.mod_lt _ (by decide)⟩) :
     wordsOf (segBytes chosen proof seg) = segWords (toMSeg val seg) := by
   unfold segBytes segWords toMSeg
   rw [wordsOf_append8 _ _ (by rfl)]
@@ -401,14 +401,14 @@ theorem wordsOf_segBytes (chosen : List Selection) (proof : Fin 118 → Digest) 
 /-! ## The seven coordinates -/
 
 /-- Coordinate `c`'s valuation of the empty positions: the proof slot Core consumes there. -/
-def valC (chosen : List Selection) (proof : Fin 118 → Digest) (c : Nat) (q : Nat × Nat) : Digest :=
+def valC (chosen : List Selection) (proof : Fin 115 → Digest) (c : Nat) (q : Nat × Nat) : Digest :=
   pfN proof (slotBase chosen c + (slotPositions (chosen.getD c ⟨0, []⟩)).idxOf q)
 
 /-- The emitted segments of the coordinates `< n`. -/
-def emSegs (chosen : List Selection) (proof : Fin 118 → Digest) (n : Nat) : List MSeg :=
+def emSegs (chosen : List Selection) (proof : Fin 115 → Digest) (n : Nat) : List MSeg :=
   (List.range n).flatMap fun c => (coordSchedule c (chosen.getD c ⟨0, []⟩)).map (toMSeg (valC chosen proof c))
 
-theorem emSegs_succ (chosen : List Selection) (proof : Fin 118 → Digest) (n : Nat) :
+theorem emSegs_succ (chosen : List Selection) (proof : Fin 115 → Digest) (n : Nat) :
     emSegs chosen proof (n + 1) =
       emSegs chosen proof n ++ (coordSchedule n (chosen.getD n ⟨0, []⟩)).map (toMSeg (valC chosen proof n)) := by
   simp only [emSegs, List.range_succ, List.flatMap_append, List.flatMap_singleton]
@@ -422,7 +422,7 @@ theorem length_segs_words (v : Nat × Nat → Digest) : ∀ L : List Segment,
       List.map_cons, List.sum_cons]
     ring
 
-theorem length_emSegs_words (chosen : List Selection) (proof : Fin 118 → Digest) (hc : ChosenOk chosen) :
+theorem length_emSegs_words (chosen : List Selection) (proof : Fin 115 → Digest) (hc : ChosenOk chosen) :
     ∀ n ≤ 7, ((emSegs chosen proof n).flatMap segWords).length = 5 * n + 10 * slotBase chosen n
   | 0, _ => rfl
   | n + 1, h => by
@@ -464,8 +464,8 @@ theorem foldSlot_lt (chosen : List Selection) (hc : ChosenOk chosen) {c : Nat} (
   omega
 
 /-- **The stream doublewords**: W's honest stream bytes are the emitted segments of the seven coordinates. -/
-theorem wordsOf_schedule (chosen : List Selection) (proof : Fin 118 → Digest) (hc : ChosenOk chosen)
-    (h7 : slotBase chosen 7 ≤ 118) :
+theorem wordsOf_schedule (chosen : List Selection) (proof : Fin 115 → Digest) (hc : ChosenOk chosen)
+    (h7 : slotBase chosen 7 ≤ 115) :
     wordsOf ((schedule chosen).flatMap (segBytes chosen proof)) = (emSegs chosen proof 7).flatMap segWords := by
   unfold schedule emSegs
   rw [List.flatMap_assoc, List.flatMap_assoc, wordsOf_flatMap8 _ (fun c => by
@@ -491,7 +491,7 @@ theorem wordsOf_schedule (chosen : List Selection) (proof : Fin 118 → Digest) 
   refine wordsOf_segBytes chosen proof _ _ htop (by omega) (fun r hr => ?_)
   obtain ⟨hco, hlt⟩ := foldSlot_lt chosen hc hc7' hseg hr
   have hb := slotBase_mono chosen (show c + 1 ≤ 7 by omega)
-  have hlt' : foldSlot chosen (coordSchedule c (chosen.getD c ⟨0, []⟩))[i] r < 118 := by omega
+  have hlt' : foldSlot chosen (coordSchedule c (chosen.getD c ⟨0, []⟩))[i] r < 115 := by omega
   unfold valC
   rw [show slotBase chosen c + (slotPositions (chosen.getD c ⟨0, []⟩)).idxOf
       ((coordSchedule c (chosen.getD c ⟨0, []⟩))[i].sib r) =
@@ -508,8 +508,8 @@ theorem readWords_map (t : RiscvZkvm.Rv64.MachineState) (A : Nat) : ∀ n, t.rea
     rfl
 
 /-- **The stream at `fts_done`**: the emitted image of the seven coordinates reads as W's `streamBytes`. -/
-theorem stream_readWords (chosen : List Selection) (proof : Fin 118 → Digest) (hc : ChosenOk chosen)
-    (h7 : slotBase chosen 7 ≤ 118) (t : RiscvZkvm.Rv64.MachineState) (p : Nat)
+theorem stream_readWords (chosen : List Selection) (proof : Fin 115 → Digest) (hc : ChosenOk chosen)
+    (h7 : slotBase chosen 7 ≤ 115) (t : RiscvZkvm.Rv64.MachineState) (p : Nat)
     (hS : StreamAt t ⟨emSegs chosen proof 7, [], p⟩) :
     t.readWords (BitVec.ofNat 64 0xC40) 1275 = wordsOf (streamBytes chosen proof) := by
   have hlenW := length_emSegs_words chosen proof hc 7 le_rfl

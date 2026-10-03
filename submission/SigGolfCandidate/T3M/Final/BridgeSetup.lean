@@ -78,7 +78,7 @@ theorem sign_eq (P : Pending) (sk : SecretKey) (cache : Bytes 131072) (m : Messa
   exact h
 
 set_option maxRecDepth 100000 in
-theorem expand_eq (P : Pending) (m : Message) (pk : PublicKey) (s : Bytes 5664) :
+theorem expand_eq (P : Pending) (m : Message) (pk : PublicKey) (s : Bytes 5680) :
     (fun r => (r.value, r.hashCalls)) <$> submission.run .expand (m, pk, s) =
       Bridge.countCalls (relabel toQ (hrealize 0 (expandB m pk (sigDec s)))) := by
   have h := calls_of_counts (F := Option.map (fun x : T3.HashOutput × T3.Witness => witEnc x.1 x.2))

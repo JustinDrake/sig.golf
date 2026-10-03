@@ -1,4 +1,4 @@
-import SigGolfCandidate.T3M.Verify.ChainList
+import SigGolfCandidate.T3M.Verify.ChainQGood
 
 /-! # V1 lower chains: the whole chain phase of a lower layer
 
@@ -44,7 +44,7 @@ theorem lower_good (c : LCtx) (hc : c.ok) (hi0 : c.i0 = 0) (hko : c.koff = 0) (h
 
 /-- Core's chain `i` of layer `c.lay` with the digits `D` and the witness's pads and value (`layerP`'s term). -/
 def coreChain (c : LCtx) (D : List Nat) (i : Nat) : M Digest :=
-  chainP c.lay c.tree c.leaf i (D.getD i 0) (maxDigit c.lay i - D.getD i 0) (wchainPads c.w c.lay i).1
+  chainP c.lay c.tree c.leaf i (D.getD i 0) (2 ^ width c.lay i - 1 - D.getD i 0) (wchainPads c.w c.lay i).1
     (wchainPads c.w c.lay i).2 (wvalue c.w c.lay i)
 
 theorem chainCount_lower (lay : Layer) (h : lay ≠ 0) : chainCount lay = 43 := by
@@ -57,13 +57,14 @@ theorem fit_chain (c : LCtx) (hlay : c.lay ≠ 0) (hko : c.koff = 0) (D : List N
     chainP c.lay c.tree c.leaf (i + c.koff) (c.dig i) (7 - c.dig i) (c.pad0 i) (c.pad1 i) (c.val i) =
       c.coreChain D i := by
   unfold coreChain
-  have hw : maxDigit c.lay i = 7 := by simp [maxDigit, hlay]
+  have hw : width c.lay i = 3 := by simp [width, hlay]
   rw [← hD i hi, hw, hko, Nat.add_zero]
   have hn := chainCount_lower c.lay hlay
   have e : c.blk i - 0x800 = chainBlock c.lay i := by
     unfold blk chainBlock at *; rw [hS6]; rw [hn] at *; simp only at *; omega
   unfold pad0 pad1 val wchainPads wvalue
   rw [e]
+  rfl
 
 /-- **The lower chain phase is Core's**: `lowP` = the 43 chains of `layerP` (`mapM` over `finRange 43`). -/
 theorem lowP_eq (c : LCtx) (hlay : c.lay ≠ 0) (hko : c.koff = 0) (D : List Nat)

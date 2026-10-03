@@ -144,23 +144,23 @@ theorem f100_spec (hpc : s.pc = pcOf 100) (j : Nat) (hj : j ≤ 4) (h19 : s.getR
   · ex_regs eblk_100.res
   · intro A _ _; simp [eblk_100.res, rv_simp]
 
-/-- Out of proof slots (`s2 ≥ 118`) fails. -/
+/-- Out of proof slots (`s2 ≥ 115`) fails. -/
 theorem f102_spec (hpc : s.pc = pcOf 102) (used : Nat) (hu : used < 2 ^ 63)
     (h18 : s.getReg .x18 = BitVec.ofNat 64 used) :
-    ∃ t, Steps image s 2 2 t ∧ t.pc = (if 118 ≤ used then pcOf 354 else pcOf 104) ∧
+    ∃ t, Steps image s 2 2 t ∧ t.pc = (if 115 ≤ used then pcOf 354 else pcOf 104) ∧
       RegsExcept s t [.x6] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound eblk_102 codeAt_102 s hpc (by simp [eblk_102.res, rv_simp]), ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, eblk_102.res, E.eval, CmpOp.eval, BinOp.eval, rebase, RegFile.get, h18,
       BitVec.ofNat_eq_ofNat]
-    rw [ex_slt used 118 hu (by omega)]
-    by_cases h : 118 ≤ used
-    · simp [h, show ¬ used < 118 by omega]
-    · simp [h, show used < 118 by omega]
+    rw [ex_slt used 115 hu (by omega)]
+    by_cases h : 115 ≤ used
+    · simp [h, show ¬ used < 115 by omega]
+    · simp [h, show used < 115 by omega]
   · ex_regs eblk_102.res
   · intro A _ _; simp [eblk_102.res, rv_simp]
 
 /-- An outer fold: slot address `a3 = 0x7160 + 16 s2`, `s2 += 1`, `a4` the bucket, then by bit `s3` of the bucket. -/
-theorem f104_spec (hpc : s.pc = pcOf 104) (c g used j : Nat) (hc : c < 7) (hg : g < 2 ^ 64) (hu : used < 118)
+theorem f104_spec (hpc : s.pc = pcOf 104) (c g used j : Nat) (hc : c < 7) (hg : g < 2 ^ 64) (hu : used < 115)
     (hj : j < 4) (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h18 : s.getReg .x18 = BitVec.ofNat 64 used)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 j)
     (hrow : s.getMem (BitVec.ofNat 64 (SEL + 24 * c + 8 * 0)) = BitVec.ofNat 64 g) :
@@ -202,7 +202,7 @@ theorem foldA (ptr cnt : Nat) : BitVec.ofNat 64 cnt <<< ((6#64 : BitVec 64).toNa
 /-- `fts_outer` with bucket bit 1: the slot (at `P`) to `NODE` and to fold block `s7` at `L`, the node `NOUT` to
 `NODE + 48`, `s7 += 1`. -/
 theorem f120_spec (hpc : s.pc = pcOf 120) (P ptr cnt : Nat) (hP8 : P % 8 = 0) (hP : 0x7000 ≤ P)
-    (hP' : P + 16 ≤ 0x7000 + 5664) (hp8 : ptr % 8 = 0) (hptr : 0xC40 ≤ ptr) (hcnt : cnt < 2 ^ 20)
+    (hP' : P + 16 ≤ 0x7000 + 5680) (hp8 : ptr % 8 = 0) (hptr : 0xC40 ≤ ptr) (hcnt : cnt < 2 ^ 20)
     (hfit : ptr + 80 * cnt + 24 ≤ 0x3418) (h13 : s.getReg .x13 = BitVec.ofNat 64 P)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 ptr) (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt) :
     ∃ t, Steps image s 24 24 t ∧ t.pc = pcOf 167 ∧
@@ -242,7 +242,7 @@ theorem f120_spec (hpc : s.pc = pcOf 120) (P ptr cnt : Nat) (hP8 : P % 8 = 0) (h
 /-- `fts_outer_r` (bucket bit 0): the node `NOUT` to `NODE`, the slot (at `P`) to `NODE + 48` and to fold block
 `s7` at `R`, `s7 += 1`. -/
 theorem f144_spec (hpc : s.pc = pcOf 144) (P ptr cnt : Nat) (hP8 : P % 8 = 0) (hP : 0x7000 ≤ P)
-    (hP' : P + 16 ≤ 0x7000 + 5664) (hp8 : ptr % 8 = 0) (hptr : 0xC40 ≤ ptr) (hcnt : cnt < 2 ^ 20)
+    (hP' : P + 16 ≤ 0x7000 + 5680) (hp8 : ptr % 8 = 0) (hptr : 0xC40 ≤ ptr) (hcnt : cnt < 2 ^ 20)
     (hfit : ptr + 80 * cnt + 72 ≤ 0x3418) (h13 : s.getReg .x13 = BitVec.ofNat 64 P)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 ptr) (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt) :
     ∃ t, Steps image s 23 23 t ∧ t.pc = pcOf 167 ∧

@@ -107,7 +107,7 @@ theorem layerP_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer)
       ∀ i, i < chainCount lay →
         (depth answers ⟨routeLeaf index lay, i⟩ ≤ digits.getD i 0 →
           wvalue w lay i = leafValue answers lay (route index lay).2 (route index lay).1 digits i ∧
-            (digits.getD i 0 < maxDigit lay i → wchainPads w lay i = (0, 0))) ∧
+            (digits.getD i 0 < 2 ^ width lay i - 1 → wchainPads w lay i = (0, 0))) ∧
         (digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
           ContactAt answers (entriesOf answers (queried answers (layerP w index lay digits)))
               ⟨routeLeaf index lay, i⟩ ∧
@@ -172,12 +172,12 @@ theorem layerP_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer)
   have hends : evalWithAnswerFn answers (Extract.layerChains w index lay digits) =
       (List.range (chainCount lay)).map (fun i => evalWithAnswerFn answers
         (chainP lay (route index lay).2 (route index lay).1 i (digits.getD i 0)
-          (maxDigit lay i - digits.getD i 0) (wchainPads w lay i).1 (wchainPads w lay i).2
+          (2 ^ width lay i - 1 - digits.getD i 0) (wchainPads w lay i).1 (wchainPads w lay i).2
           (wvalue w lay i))) := by
     rw [Extract.layerChains, Correctness.eval_mapM]
     exact Extract.map_finRange_val _ (fun i => evalWithAnswerFn answers
         (chainP lay (route index lay).2 (route index lay).1 i (digits.getD i 0)
-          (maxDigit lay i - digits.getD i 0) (wchainPads w lay i).1 (wchainPads w lay i).2
+          (2 ^ width lay i - 1 - digits.getD i 0) (wchainPads w lay i).1 (wchainPads w lay i).2
           (wvalue w lay i)))
   rcases Extract.leafHash_extract answers lay (route index lay).2 (route index lay).1
       (evalWithAnswerFn answers (Extract.layerChains w index lay digits))
@@ -200,18 +200,18 @@ theorem layerP_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer)
   have hw : 2 ^ width lay i ≤ 2 ^ 3 := Nat.pow_le_pow_right (by decide) (Extract.width_le lay i)
   have hc := Extract.chainCount_le lay
   have hreach : evalWithAnswerFn answers
-      (chainP lay (route index lay).2 (route index lay).1 i (digits.getD i 0) (maxDigit lay i - digits.getD i 0)
+      (chainP lay (route index lay).2 (route index lay).1 i (digits.getD i 0) (2 ^ width lay i - 1 - digits.getD i 0)
         (wchainPads w lay i).1 (wchainPads w lay i).2 (wvalue w lay i)) =
       honestChainValue answers lay (route index lay).2 (route index lay).1 i
         (leafSeed answers lay (route index lay).2 (route index lay).1 i)
-        (digits.getD i 0 + (maxDigit lay i - digits.getD i 0)) := by
+        (digits.getD i 0 + (2 ^ width lay i - 1 - digits.getD i 0)) := by
     rw [hci, Nat.add_sub_cancel' hd]; rfl
-  have hdepth : depth answers ⟨routeLeaf index lay, i⟩ ≤ maxDigit lay i := depth_le answers ⟨routeLeaf index lay, i⟩ hi
+  have hdepth : depth answers ⟨routeLeaf index lay, i⟩ ≤ 2 ^ width lay i - 1 := depth_le answers ⟨routeLeaf index lay, i⟩ hi
   have hsrcC : SourceChain ⟨routeLeaf index lay, i⟩ := ⟨routeLeaf_source index lay hidx, hi⟩
-  have hcount : digits.getD i 0 + (maxDigit lay i - digits.getD i 0) < 2 ^ width lay i := by
-    have hm := Nonbinary.maxDigit_lt_pow_width lay i
+  have hcount : digits.getD i 0 + (2 ^ width lay i - 1 - digits.getD i 0) < 2 ^ width lay i := by
+    have : 1 ≤ 2 ^ width lay i := Nat.one_le_two_pow
     omega
-  rcases chain_cases answers ⟨routeLeaf index lay, i⟩ (digits.getD i 0) (maxDigit lay i - digits.getD i 0)
+  rcases chain_cases answers ⟨routeLeaf index lay, i⟩ (digits.getD i 0) (2 ^ width lay i - 1 - digits.getD i 0)
       (wchainPads w lay i).1 (wchainPads w lay i).2 (wvalue w lay i) (queried answers (layerP w index lay digits))
       (fun q hq => hqC q (Extract.layerChains_queried answers w index lay digits (route index lay).1
         (route index lay).2 rfl rfl i hi q hq))

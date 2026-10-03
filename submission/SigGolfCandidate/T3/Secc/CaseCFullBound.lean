@@ -4,7 +4,7 @@ import SigGolfCandidate.T3.Secc.CaseCFull
 # Stream CC: the full-certificate bound on the shared law
 
 `full_bound`: `Pr[CleanWin ∧ pinned case (C) with all 21 opened secrets disclosed | completedExperiment]
-≤ (3/4 + 1/16)/2^128 · E[digest births] + q·987/10^8/2^128`, and with SEC's `expectedBirths_le_shared` the births are at
+≤ (3/4 + 1/64)/2^128 · E[digest births] + q·11400/10^8/2^128`, and with SEC's `expectedBirths_le_shared` the births are at
 most the shared-law digest-class charge.
 -/
 
@@ -77,8 +77,8 @@ theorem completed_full_eq (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127
 /-- **The full-certificate bound** (births form). -/
 theorem full_bound_births (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) :
     Pr[fun z => QueryRecorded.CleanWin q z.1 ∧ PinnedC adversary FullQ z | SeccLaw.completedExperiment adversary q hq] ≤
-      (theta + 1 / 16) / 2 ^ 128 * CreationGame.expectedBirths IsDigestInput adversary q hq +
-        (q : ENNReal) * (987 / 100000000) / 2 ^ 128 := by
+      (theta + 1 / 64) / 2 ^ 128 * CreationGame.expectedBirths IsDigestInput adversary q hq +
+        (q : ENNReal) * (11400 / 100000000) / 2 ^ 128 := by
   calc
     _ ≤ Pr[fun z => FullEvent adversary q (z.1.1, z.1.2.2) z.2 | SeccLaw.completedExperiment adversary q hq] := by
       apply pmf_probEvent_mono

@@ -7,7 +7,7 @@ import SigGolfCandidate.T3M.Sign.BaseInv
 `topNode cache leaf level` is Core's cached sibling at level 0 through 11.
 `tp_mask_one` proves the appended loop, including the paired mask's parity-selected
 half, in exactly 44 instructions, 51 cycles, and one HASH call. `tp_masks` proves
-all twelve iterations and writes the path at `SIG + 3104`.
+all twelve iterations and writes the path at `SIG + 3120`.
 -/
 
 namespace SigGolfCandidate.T3M.Sign
@@ -78,18 +78,18 @@ theorem topNode_hi (cache : Bytes 131072) (leaf level : Nat) (hq : topSlot leaf 
 /-! ## Twelve cached siblings, with parity-selected paired masks -/
 
 def TMW (X : Nat) : Prop :=
-  X=PRIV+16 ∨ X=PRIV+24 ∨ (MOUT≤X ∧ X<MOUT+32) ∨ (SIG+3104≤X ∧ X<SIG+3296)
+  X=PRIV+16 ∨ X=PRIV+24 ∨ (MOUT≤X ∧ X<MOUT+32) ∨ (SIG+3120≤X ∧ X<SIG+3312)
 
 def tmRegs : List Reg := [.x6,.x7,.x10,.x11,.x12,.x20,.x22,.x23,.x24,.x28,.x29]
 
 structure MInv (w0 : MachineState) (pre : List Digest) (w : MachineState) : Prop where
   pc : w.pc = if pre.length<12 then pcOf 1438 else pcOf 1482
   x22 : w.getReg .x22 = BitVec.ofNat 64 pre.length
-  x24 : w.getReg .x24 = BitVec.ofNat 64 (SIG+3104+16*pre.length)
+  x24 : w.getReg .x24 = BitVec.ofNat 64 (SIG+3120+16*pre.length)
   x20 : w.getReg .x20 = BitVec.ofNat 64 (2^(12-pre.length))
   regs : RegsExcept w0 w tmRegs
   frame : Frame w0 w TMW
-  out : DigsAt w (SIG+3104) pre
+  out : DigsAt w (SIG+3120) pre
 
 section masks
 variable {sk : SecretKey} {cache : Bytes 131072} {w0 : MachineState} {leaf : Nat}
@@ -109,8 +109,8 @@ theorem tp_mask_one {pre : List Digest} (hpl : pre.length<12) {w : MachineState}
     blk1438_spec w (by rw [hw.pc, if_pos hpl]) leaf lv hl (by omega)
       (by rw [g _ (by decide),h14]) hw.x22
   have fr : ∀ X, X<2^64 → BaseA X → t2.getMem (BitVec.ofNat 64 X)=w0.getMem (BitVec.ofNat 64 X) :=
-    fun X hX hba => (t2f.get hX (by unfold BaseA NeverW Search.TOP_DATA at hba; sg_omega)).trans
-      (hw.frame.get hX (by unfold BaseA NeverW Search.TOP_DATA at hba; unfold TMW; sg_omega))
+    fun X hX hba => (t2f.get hX (by unfold BaseA NeverW at hba; sg_omega)).trans
+      (hw.frame.get hX (by unfold BaseA NeverW at hba; unfold TMW; sg_omega))
   have hq : hashInput t2=toQ (privateInput sk (.inl (header 13 0 0 lv ((leaf/2^lv ^^^ 1)/2)))) := by
     refine hashInput_toQ t2 _ 0 PRIV (privateInput_tweak_length _ _) t2x10 (by decide) (by decide) t2x11
       (by decide) ?_
@@ -142,7 +142,7 @@ theorem tp_mask_one {pre : List Digest} (hpl : pre.length<12) {w : MachineState}
     have := Nat.pow_le_pow_right (by norm_num : 0<2) (show 12-lv≤12 by omega); simpa using this
   obtain ⟨t3,st3,t3pc,t3a,t3b,t3x24,t3x20,t3x22,t3r,t3f⟩ :=
     blk1457_spec (writeHash t2 a) upc (leaf/2^lv ^^^ 1) (2^(12-lv)) lv
-      (SIG+3104+16*pre.length) hlo2 hlo hsib (by omega)
+      (SIG+3120+16*pre.length) hlo2 hlo hsib (by omega)
       (by sg_omega) (by sg_omega) (by sg_omega)
       (by rw [getReg_writeHash]; exact t2x23)
       (by rw [rw2.get (by decide)]; exact hw.x20)

@@ -53,7 +53,7 @@ theorem sign_value (P : Pending) (sk : SecretKey) (cache : Bytes 131072) (m : Me
   value_of_counts (F := Option.map sigB) (P.sign_refines sk cache m)
 
 set_option maxRecDepth 100000 in
-theorem expand_value (P : Pending) (m : Message) (pk : PublicKey) (s : Bytes 5664) :
+theorem expand_value (P : Pending) (m : Message) (pk : PublicKey) (s : Bytes 5680) :
     (fun r => r.value) <$> submission.run .expand (m, pk, s) = mrealize 0 (expandB m pk (sigDec s)) := by
   rw [value_of_counts (F := Option.map (fun x : T3.HashOutput × T3.Witness => witEnc x.1 x.2))
     (P.expand_refines m pk s), expandB, mrealize_map]

@@ -273,7 +273,7 @@ theorem adaptive_selected_full_excess {ι State Result : Type} {spec : OracleSpe
     (hselected : ∀ result,(selected result).Sublist result.2.1) :
     expectedValue ((simulateQ model.traced computation).run ([],state))
       (fun result => if result.2.1.length ≤ Numeric.proposalLength
-        then fullPrice (selected result)-1 else 0) ≤ 987/100000000 := by
+        then fullPrice (selected result)-1 else 0) ≤ 18400/100000000 := by
   apply le_trans (model.capped_selected_expectation Numeric.proposalLength computation state selected
     hselected (fun word => fullPrice word-1)
     (fun _ _ h => tsub_le_tsub_right (fullPrice_sublist h) 1))
@@ -288,7 +288,7 @@ theorem adaptive_selected_near_price {ι State Result : Type} {spec : OracleSpec
     (hselected : ∀ result,(selected result).Sublist result.2.1) :
     expectedValue ((simulateQ model.traced computation).run ([],state))
       (fun result => if result.2.1.length ≤ Numeric.proposalLength
-        then fullNearPrice (selected result) else 0) ≤ 103 := by
+        then fullNearPrice (selected result) else 0) ≤ 404 := by
   apply le_trans (model.capped_selected_expectation Numeric.proposalLength computation state selected
     hselected fullNearPrice (fun _ _ h => fullNearPrice_sublist h))
   rw [hbase,Adaptive.ProposalModel.uniform_word_expectation]

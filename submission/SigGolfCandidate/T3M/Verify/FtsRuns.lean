@@ -24,8 +24,8 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 
 /-- `a4` before the first segment: the header is read at `a4 + 880 = WIT + 1088`. -/
 def A4_0 : Nat := 2256
-/-- `a4` after 35 segments with exactly 118 folds (`t4`): the pointer cap. -/
-def A4_LIMIT : Nat := 11976
+/-- `a4` after 35 segments with exactly 115 folds (`t4`): the pointer cap. -/
+def A4_LIMIT : Nat := 11736
 def tbN : Nat := 0x1000 + 4 * 744
 def tbL : Nat := 0x1000 + 4 * 2792
 /-- Merge frame `d` (`[pnode | T | 0 | node]`, its `Q` at `- 16`; frame 0 = the empty stack, `Q` slot = sentinel). -/
@@ -127,8 +127,8 @@ def setupSpecF : Spec :=
 
 def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [413] 369 []) setupSpecF [] setupPost [.x22]
 
-/-- The five gate bits are N[206..210] = word3[14..18]. -/
-def gateEF : E := .bin .and (.bin .srl (.reg .x28) (cw 14)) (cw 31)
+/-- The three gate bits are N[206..210] = word3[14..18]. -/
+def gateEF : E := .bin .and (.bin .srl (.reg .x28) (cw 14)) (cw 7)
 def gateBrF (reject : Bool) : Br := ⟨.ne, gateEF, cw 0, reject⟩
 def gateCheckF : Bool :=
   specB [] [] baseK (runAt baseK [362] 359 [.br false])

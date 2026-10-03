@@ -247,6 +247,36 @@ theorem cs132_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcOf (
   · intro r hr; simp at hr; cases r <;> simp_all [st_132, blk354_132.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_132, blk354_132.res, rv_simp]
 
+/-- Top layer: the digit sum `S` into `s9`, the check `S = target`. -/
+theorem cs265_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcOf (b + 265)) (v : BitVec 128)
+    (T : Nat) (hT : T < 2 ^ 63) (h6 : s.getReg .x6 = v.extractLsb' 0 64) (h7 : s.getReg .x7 = v.extractLsb' 64 64)
+    (h25 : s.getReg .x25 = BitVec.ofNat 64 0) (h17 : s.getReg .x17 = BitVec.ofNat 64 T) :
+    ∃ t, Steps image s 173 173 t ∧
+      t.pc = (if (topDigits v).sum = T then pcOf (b + 438) else pcOf (b + 468)) ∧
+      t.getReg .x25 = BitVec.ofNat 64 (topDigits v).sum ∧
+      RegsExcept s t [.x25, .x28] ∧ Frame s t (fun _ => False) := by
+  have hS : (topDigits v).sum < 2 ^ 63 := by
+    have : ∀ x ∈ topDigits v, x ≤ 7 := by
+      intro x hx; simp only [topDigits, List.mem_map] at hx; obtain ⟨i, _, rfl⟩ := hx; split_ifs <;> omega
+    have := List.sum_le_card_nsmul (topDigits v) 7 this
+    rw [topDigits_length] at this; simp at this; omega
+  refine ⟨_, symRun_sound (run_265 hK.2) (codeAt_k_265 hK) s hpc (by simp [st_265, blk354_265.res, rv_simp]),
+    ?_, ?_, ?_, ?_⟩
+  · simp only [Result.toState_pc, pcE_265, rebase, blk354_265.res, E.eval, CmpOp.eval, BinOp.eval, h6, h7, h25,
+      h17]
+    simp only [BitVec.toNat_ofNat, Nat.reduceMod, Nat.reducePow, ext_and3, ext_shr_and3, ext_and7, ext_shr_and7,
+      ofNat_add_ofNat, Nat.add_zero, Nat.zero_add, Nat.reduceAdd, Nat.reduceLeDiff, ← topDigits_sum]
+    by_cases h : (topDigits v).sum = T
+    · simp [h]
+    · rw [if_neg h]; simp only [bne_iff_ne, ne_eq, ofNat_inj (by omega : (topDigits v).sum < 2 ^ 64)
+        (by omega : T < 2 ^ 64), h, not_false_eq_true, decide_true, if_true]
+  · simp only [Result.toState_getReg, st_265, blk354_265.res]
+    simp only [rv_simp, h6, h7, h25]
+    simp only [BitVec.toNat_ofNat, Nat.reduceMod, Nat.reducePow, ext_and3, ext_shr_and3, ext_and7, ext_shr_and7,
+      ofNat_add_ofNat, Nat.add_zero, Nat.zero_add, Nat.reduceAdd, Nat.reduceLeDiff, ← topDigits_sum]
+  · intro r hr; simp at hr; cases r <;> simp_all [st_265, blk354_265.res, rv_simp] <;> rfl
+  · intro A _ _; simp [st_265, blk354_265.res, rv_simp]
+
 /-- Lower layers: `jal cs_ok`. -/
 theorem cs262_spec (hK : KernAt image b) (s : MachineState) (hpc : s.pc = pcOf (b + 262)) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf (b + 438) ∧ RegsExcept s t [] ∧ Frame s t (fun _ => False) := by

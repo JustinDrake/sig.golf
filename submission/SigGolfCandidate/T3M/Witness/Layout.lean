@@ -11,7 +11,7 @@ on the machine).
 | `[0,16)` rho, `[16,20)` dc (LE32), `[20,36)` `c_0..c_3` (LE32), `[36,64)` zero | payload / dead |
 | `[64,1088)` | 21 FTS leaf blocks `[pad | T | secret | pad']` at stride 48 (`pad'` of block `s` = `pad` of `s+1`) |
 | `[1088,11288)` | fold stream: 35 segments (8-byte header, `a` × (64-byte fold block + 16-byte gap)) |
-| `[11288,15768)` | layer 0: 12 Merkle blocks (level `j` at `+64 (11-j)`), then 54 chain blocks (chain `i` at `+64 (53-i)`), with a 256-byte unused tail |
+| `[11288,15768)` | layer 0: 12 Merkle blocks (level `j` at `+64 (11-j)`), then 58 chain blocks (chain `i` at `+64 (57-i)`) |
 | `[15768,18968)`, `[18968,22104)`, `[22104,25240)` | layers 1, 2, 3 (`h` Merkle + 43 chain blocks each) |
 
 Reads at or beyond `wsize` return zero (`BitVec.extractLsb'` past the width is zero): during verify the machine's
@@ -48,8 +48,8 @@ def leafBlock (s : Nat) : Nat := 64 + 48 * s
 
 /-- First segment header of the fold stream. -/
 def streamBase : Nat := 1088
-/-- The pointer cap checked after coordinate 6 (`35 · 8 + 118 · 80` bytes after `streamBase`). -/
-def streamEnd : Nat := 10808
+/-- The pointer cap checked after coordinate 6 (`35 · 8 + 115 · 80` bytes after `streamBase`). -/
+def streamEnd : Nat := 10568
 /-- Fold block `r` of the segment whose header is at `ptr`: `[L | T | pad | R]` then a 16-byte gap. -/
 def foldBlock (ptr r : Nat) : Nat := ptr + 8 + 80 * r
 /-- The next header after a segment at `ptr` with `a` folds. -/

@@ -50,7 +50,7 @@ def ftsChild (index : Fin (2^31)) (coord : Fin 7) (level c : Nat) : Option Coord
 
 /-- The chain point whose low label is the end value (step `2^w − 1`) of chain `i` of a leaf. -/
 def endPoint (L : LeafPos) (i : Nat) : ChainGraph.Point :=
-  (⟨L.lay, L.tree, L.leaf, fin58 i⟩, ⟨(maxDigit L.lay i - 1) % 7, Nat.mod_lt _ (by decide)⟩)
+  (⟨L.lay, L.tree, L.leaf, fin58 i⟩, ⟨(2 ^ width L.lay i - 2) % 7, Nat.mod_lt _ (by decide)⟩)
 
 /-- The block (16 bytes) of a "first, header, rest" input holding item `i`. -/
 def listBlock (i : Nat) : Nat := if i = 0 then 0 else i + 1
