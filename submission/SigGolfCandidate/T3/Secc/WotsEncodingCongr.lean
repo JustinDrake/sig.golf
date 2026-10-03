@@ -2,22 +2,6 @@ import SigGolfCandidate.T3.Secc.WotsMaskRef
 import SigGolfCandidate.T3.Secc.WotsExtractWord
 import SigGolfCandidate.T3.Secc.CanonEncoding
 
-/-!
-# Stream E (congruence): honest programs read encoding rows only through the honest searches
-
-`Enc.NonEnc` holds for every query that is not a public input with a tag-4 (encoding) header block. Every honest
-T3 sub-program except `counterSearch` reads only such queries (`Mask.Respects Enc.NonEnc`). The honest searches
-read exactly the rows they reach (`Enc.RespAt`, a congruence relative to one table: tables agreeing with `T` on a
-set `S` that contains every query `p` issues under `T` evaluate `p` and issue its queries identically).
-
-Endpoints (namespace `SigGolfCandidate.T3.Security.Wots`):
-* `Enc.respAt_keygen`, `Enc.respAt_sign` — honest key generation and SEC's logged signer read only non-encoding
-  queries and the reached rows of the honest searches at route leaves (`Enc.Reached`);
-* `referenceGame_congr_reached` — R3's source program `referenceGame T adversary q` is the same for every table
-  agreeing with `T` on non-encoding queries and on all reached rows (honest charges included);
-* `leafMsg_congr_nonEnc`, `referenceSearch_congr_reached` — honest messages and reference searches likewise.
--/
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -27,110 +11,78 @@ open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
 open Mask
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
-
 namespace Enc
-
-/-! ## Non-encoding queries -/
-
-/-- A public input whose header block carries tag 4 (every encoding row; possibly more). -/
 def EncHeader (input : HashInput) : Prop :=
   ∃ l tr p ix, Extract.hdrBlock input = bytesLE 16 (header 4 l tr p ix)
-
-/-- Queries that are not tag-4 public inputs: coins, private coordinates, all other public inputs. -/
 def NonEnc : Spec.Domain → Prop
   | .inl (.inr input) => ¬ EncHeader input
   | _ => True
-
 theorem nonEnc_of_hdr (input : HashInput) (h : BitVec 128) (hblock : Extract.hdrBlock input = bytesLE 16 h)
     (htag : ∀ l tr p ix, h ≠ header 4 l tr p ix) : NonEnc (.inl (.inr input)) := by
   rintro ⟨l, tr, p, ix, he⟩
   rw [hblock] at he
   exact htag l tr p ix (bytesLE_injective he)
-
 theorem tag_ne_four {t : Nat} (ht : t % 256 ≠ 4) (l tr p ix : Nat) :
     ∀ l' tr' p' ix', header t l tr p ix ≠ header 4 l' tr' p' ix' := fun _ _ _ _ =>
   header_ne_of_tag (by simpa using ht)
-
 theorem nonEnc_block4 (x y z : Digest) {t : Nat} (ht : t % 256 ≠ 4) (l tr p ix : Nat) :
     NonEnc (.inl (.inr (block4 x (header t l tr p ix) y z))) :=
   nonEnc_of_hdr _ _ (Extract.hdrBlock_block4 x _ y z) (tag_ne_four ht l tr p ix)
-
 theorem nonEnc_prefixed (x : Digest) (rest : HashInput) {t : Nat} (ht : t % 256 ≠ 4) (l tr p ix : Nat) :
     NonEnc (.inl (.inr (pad64 (bytesLE 16 x ++ bytesLE 16 (header t l tr p ix) ++ rest)))) := by
   apply nonEnc_of_hdr _ _ _ (tag_ne_four ht l tr p ix)
   rw [Extract.hdrBlock_pad64 _ (by simp only [List.length_append, bytesLE_length]; omega), Extract.hdrBlock_prefix]
-
 theorem nonEnc_chainInput (lay : Layer) (tree leaf i s : Nat) (v : Digest) :
     NonEnc (.inl (.inr (pad64 (chainInput lay tree leaf i s v)))) := by
-  rintro ⟨l, tr, p, ix, he⟩
-  rw [chainInput_padded] at he
-  change ((chainInput lay tree leaf i s v).drop 16).take 16 = _ at he
-  rw [chainInput_header] at he
-  exact chainHeader_ne_header lay tree leaf i s 4 l tr p ix
-    (bytesLE_injective he)
-
+  apply nonEnc_of_hdr _ (header 1 lay.val tree (s + 256 * i) leaf) _ (tag_ne_four (by decide) _ _ _ _)
+  rw [chainInput_eq_zero, Extract.hdrBlock_chainInputP]
 theorem nonEnc_private (c : Coordinate) : NonEnc (.inr c) := trivial
-
-/-! ## Every honest sub-program but the counter search reads only non-encoding queries -/
-
 section Programs
-
 theorem respects_nodeHash (tag lay tree heap : Nat) (left right : Digest) (ht : tag % 256 ≠ 4) :
     Respects NonEnc (nodeHash tag lay tree heap left right) := by
   rw [nodeHash_eq_shortHash]
   apply Respects.shortHash
   rw [pad64_nodeInputP]
   exact nonEnc_block4 left 0 right ht lay tree 0 heap
-
 theorem respects_buildLevel (tag lay tree h level : Nat) (nodes : List Digest) (ht : tag % 256 ≠ 4) :
     Respects NonEnc (buildLevel tag lay tree h level nodes) :=
   Respects.mapM _ _ fun _ _ => respects_nodeHash _ _ _ _ _ _ ht
-
 theorem respects_buildLevels (tag lay tree h : Nat) (leaves : List Digest) (ht : tag % 256 ≠ 4) :
     Respects NonEnc (buildLevels tag lay tree h leaves) := by
   unfold buildLevels
   exact Respects.foldlM _ _ (fun level _ levels =>
     Respects.bind (respects_buildLevel tag lay tree h level _ ht) fun _ => Respects.pure' _) _
-
 theorem respects_leafHash (lay : Layer) (tree leaf : Nat) (ends : List Digest) :
     Respects NonEnc (leafHash lay tree leaf ends) := by
   unfold leafHash
   exact Respects.shortHash _ (nonEnc_prefixed _ _ (by decide) _ _ _ _)
-
 theorem respects_forestPk (index : Nat) (roots : List Digest) :
     Respects NonEnc (forestPk index roots) := by
   unfold forestPk
   exact Respects.shortHash _ (nonEnc_prefixed _ _ (by decide) _ _ _ _)
-
 theorem respects_ftsLeaf (index coord leaf : Nat) (secret : Digest) :
     Respects NonEnc (ftsLeaf index coord leaf secret) := by
   rw [ftsLeaf_eq_shortHash]
   apply Respects.shortHash
   rw [pad64_ftsLeafInputP]
   exact nonEnc_block4 0 secret 0 (by decide) coord index 0 leaf
-
 theorem respects_privatePair (tag lay tree position index : Nat) :
     Respects NonEnc (privatePair tag lay tree position index) :=
   Respects.privatePair _ _ _ _ _ trivial
-
 theorem respects_mask (level index : Nat) : Respects NonEnc (mask level index) := by
   unfold mask pairedMask
   exact Respects.bind (respects_privatePair _ _ _ _ _) fun _ => Respects.pure' _
-
 theorem respects_privateMac (region : Region) : Respects NonEnc (privateMac region) := by
   unfold privateMac privateMacKey
   exact Respects.bind (Respects.bind (Respects.privateHash _ trivial) fun _ =>
     Respects.bind (Respects.privateHash _ trivial) fun _ => Respects.pure' _) fun _ => Respects.pure' _
-
 theorem respects_maskedLevel (nodes : List Digest) (level : Nat) : Respects NonEnc (maskedLevel nodes level) := by
   unfold maskedLevel pairedMask
   exact Respects.bind (Respects.mapM _ _ fun _ _ =>
     Respects.bind (respects_privatePair _ _ _ _ _) fun _ => Respects.pure' _) fun _ => Respects.pure' _
-
 theorem respects_privateNonce (message : Message) : Respects NonEnc (privateNonce message) := by
   unfold privateNonce
   exact Respects.bind (Respects.privateHash _ trivial) fun _ => Respects.pure' _
-
 theorem respects_ftsRows (index coord : Nat) : Respects NonEnc (Correctness.ftsRows index coord) := by
   unfold Correctness.ftsRows
   refine Respects.foldlM _ _ (fun pair _ state => ?_) _
@@ -138,12 +90,10 @@ theorem respects_ftsRows (index coord : Nat) : Respects NonEnc (Correctness.ftsR
   rintro ⟨left, right⟩
   exact Respects.bind (respects_ftsLeaf _ _ _ _) fun _ =>
     Respects.bind (respects_ftsLeaf _ _ _ _) fun _ => Respects.pure' _
-
 theorem respects_buildFts (index coord : Nat) : Respects NonEnc (buildFts index coord) := by
   rw [Correctness.buildFts_eq]
   exact Respects.bind (respects_ftsRows index coord) fun rows =>
     Respects.bind (respects_buildLevels 10 coord index 11 rows.1 (by decide)) fun _ => Respects.pure' _
-
 theorem respects_signForest (index : Nat) (chosen : List Selection) :
     Respects NonEnc (Correctness.signForest index chosen) := by
   unfold Correctness.signForest
@@ -151,14 +101,12 @@ theorem respects_signForest (index : Nat) (chosen : List Selection) :
   refine Respects.bind (respects_buildFts index coord) ?_
   rintro ⟨levels, secrets⟩
   exact Respects.pure' _
-
 theorem respects_digest (rho : Digest) (message : Message) (counter : BitVec 32) :
     Respects NonEnc (digest rho message counter) := by
   unfold digest
   apply Respects.publicHash
   unfold digestInput
   exact nonEnc_prefixed _ _ (by decide) _ _ _ _
-
 theorem respects_digestSearch (rho : Digest) (message : Message) :
     ∀ fuel counter, Respects NonEnc (digestSearch rho message counter fuel) := by
   intro fuel
@@ -171,12 +119,10 @@ theorem respects_digestSearch (rho : Digest) (message : Message) :
       split
       · exact Respects.pure' _
       · exact ih _
-
 theorem respects_chain (lay : Layer) (tree leaf i start count : Nat) (v : Digest) :
     Respects NonEnc (chain lay tree leaf i start count v) := by
   unfold chain
   exact Respects.foldlM _ _ (fun step _ value => Respects.shortHash _ (nonEnc_chainInput _ _ _ _ _ _)) v
-
 theorem respects_leafHalf (lay : Layer) (tree leaf : Nat) (digits : List Nat) (signatureOnly : Bool)
     (pair : Nat) (seeds : Digest × Digest) (rows : List Digest × List Digest) (half : Nat) :
     Respects NonEnc (Correctness.leafHalf lay tree leaf digits signatureOnly pair seeds rows half) := by
@@ -191,14 +137,12 @@ theorem respects_leafHalf (lay : Layer) (tree leaf : Nat) (digits : List Nat) (s
       exact Respects.bind (respects_chain _ _ _ _ _ _ _) fun _ => Respects.pure' _
     · simp only [↓reduceIte]
       exact Respects.pure' _
-
 theorem respects_leafRows (lay : Layer) (tree leaf : Nat) (digits : List Nat) (signatureOnly : Bool) :
     Respects NonEnc (Correctness.leafRows lay tree leaf digits signatureOnly) := by
   unfold Correctness.leafRows
   refine Respects.foldlM _ _ (fun pair _ rows => ?_) _
   refine Respects.bind (respects_privatePair _ _ _ _ _) fun seeds => ?_
   exact Respects.foldlM _ _ (fun half _ rows => respects_leafHalf _ _ _ _ _ _ _ _ _) _
-
 theorem respects_buildLeaf (lay : Layer) (tree leaf : Nat) (digits : List Nat) (signatureOnly : Bool) :
     Respects NonEnc (buildLeaf lay tree leaf digits signatureOnly) := by
   rw [Correctness.buildLeaf_eq]
@@ -206,7 +150,6 @@ theorem respects_buildLeaf (lay : Layer) (tree leaf : Nat) (digits : List Nat) (
   split
   · exact Respects.pure' _
   · exact Respects.bind (respects_leafHash _ _ _ _) fun _ => Respects.pure' _
-
 theorem respects_treeRows (lay : Layer) (tree selected : Nat) (digits : List Nat) :
     Respects NonEnc (Correctness.treeRows lay tree selected digits) := by
   unfold Correctness.treeRows
@@ -214,13 +157,11 @@ theorem respects_treeRows (lay : Layer) (tree selected : Nat) (digits : List Nat
   refine Respects.bind (respects_buildLeaf _ _ _ _ _) ?_
   rintro ⟨root, values⟩
   exact Respects.pure' _
-
 theorem respects_buildTree (lay : Layer) (tree selected : Nat) (digits : List Nat) :
     Respects NonEnc (buildTree lay tree selected digits) := by
   rw [Correctness.buildTree_eq]
   exact Respects.bind (respects_treeRows _ _ _ _) fun rows =>
     Respects.bind (respects_buildLevels 3 _ _ _ _ (by decide)) fun _ => Respects.pure' _
-
 theorem respects_keygen : Respects NonEnc keygen := by
   unfold keygen
   rw [Correctness.keygenPayload_eq]
@@ -230,40 +171,28 @@ theorem respects_keygen : Respects NonEnc keygen := by
     exact Respects.bind (Respects.mapM _ _ fun level _ => respects_maskedLevel _ _) fun _ => Respects.pure' _
   · rcases payload with ⟨publicKey, region⟩
     exact Respects.bind (respects_privateMac region) fun _ => Respects.pure' _
-
 theorem respects_topPath (cache : Cache) (leaf : Nat) : Respects NonEnc (topPath cache leaf) := by
   unfold topPath
   exact Respects.mapM _ _ fun level _ =>
     Respects.bind (respects_mask _ _) fun _ => Respects.pure' _
-
 theorem respects_signTop (cache : Cache) (leaf : Nat) (digits : List Nat) :
     Respects NonEnc (signTop cache leaf digits) := by
   unfold signTop
   refine Respects.bind (respects_buildLeaf _ _ _ _ _) ?_
   rintro ⟨_, values⟩
   exact Respects.bind (respects_topPath _ _) fun _ => Respects.pure' _
-
 end Programs
-
-/-! ## Congruence relative to one table -/
-
-/-- `p` under `T` reads only queries in `S`: every table agreeing with `T` on `S` evaluates `p` and issues its
-queries identically. -/
 def RespAt (T : Answers) (S : Spec.Domain → Prop) {α : Type} (p : M α) : Prop :=
   ∀ T' : Answers, (∀ q, S q → T' q = T q) →
     evalWithAnswerFn T' p = evalWithAnswerFn T p ∧ SourceReplay.queried T' p = SourceReplay.queried T p
-
 section RespAt
 variable {T : Answers} {S : Spec.Domain → Prop}
-
 theorem RespAt.of_respects {S' : Spec.Domain → Prop} {α : Type} {p : M α} (h : Respects S' p)
     (hS : ∀ q, S' q → S q) : RespAt T S p := by
   intro T' hT'
   obtain ⟨he, hq⟩ := h T' T (fun q hq => hT' q (hS q hq))
   exact ⟨he, hq⟩
-
 theorem RespAt.pure' {α : Type} (x : α) : RespAt T S (pure x : M α) := fun _ _ => ⟨rfl, rfl⟩
-
 theorem RespAt.bind {α β : Type} {p : M α} {f : α → M β} (hp : RespAt T S p)
     (hf : RespAt T S (f (evalWithAnswerFn T p))) : RespAt T S (p >>= f) := by
   intro T' hT'
@@ -273,19 +202,11 @@ theorem RespAt.bind {α β : Type} {p : M α} {f : α → M β} (hp : RespAt T S
   · rw [evalWithAnswerFn_bind, evalWithAnswerFn_bind, he]
     exact he'
   · rw [SourceReplay.queried_bind, SourceReplay.queried_bind, hq, he, hq']
-
 theorem RespAt.eval_eq {α : Type} {p : M α} (h : RespAt T S p) {T' : Answers} (hT' : ∀ q, S q → T' q = T q) :
     evalWithAnswerFn T' p = evalWithAnswerFn T p := (h T' hT').1
-
 theorem RespAt.queried_eq {α : Type} {p : M α} (h : RespAt T S p) {T' : Answers} (hT' : ∀ q, S q → T' q = T q) :
     SourceReplay.queried T' p = SourceReplay.queried T p := (h T' hT').2
-
 end RespAt
-
-/-! ## The honest counter search reads exactly the rows it reaches -/
-
-/-- The counter search from `start` with `fuel` reads, under `T`, the rows `start + c` (`c < fuel`) such that every
-earlier row fails to decode; tables agreeing with `T` on those rows evaluate it identically. -/
 theorem respAt_counterSearch (T : Answers) (S : Spec.Domain → Prop) (lay : Layer) (tree leaf : Nat)
     (message : Digest) : ∀ fuel start,
       (∀ c < fuel, (∀ c' < c, decode lay (low (T (.inl (.inr (pad64 (encodingInput lay tree leaf message
@@ -316,29 +237,18 @@ theorem respAt_counterSearch (T : Answers) (S : Spec.Domain → Prop) (lay : Lay
         | some digits =>
             simp only [hd]
             exact RespAt.pure' _
-
-/-- The rows of leaf `L` reached by its honest search under `T` (honest message, counters `< 2^22`, every earlier
-counter invalid). -/
 def Reached (T : Answers) (L : LeafAddr) (input : HashInput) : Prop :=
   ∃ c < counterLimit, input = encodingRow L (leafMsg T L) (BitVec.ofNat 32 c) ∧
     ∀ c' < c, decode L.lay (low (T (.inl (.inr (encodingRow L (leafMsg T L) (BitVec.ofNat 32 c')))))) = none
-
-/-- A non-aliased leaf (`tree < 2^31`, `leaf < 4096`) as a shared-vocabulary leaf. -/
 def leafOf (L : CanonGraph.LeafPos) : LeafAddr := ⟨L.lay, L.tree.val, L.leaf.val⟩
-
-/-- The queries honest programs may read under `T`: non-encoding queries and the reached rows of every
-non-aliased leaf. -/
 def HonestQ (T : Answers) : Spec.Domain → Prop
   | .inl (.inr input) => ¬ EncHeader input ∨ ∃ L : CanonGraph.LeafPos, Reached T (leafOf L) input
   | _ => True
-
 theorem honestQ_of_nonEnc {T : Answers} {q : Spec.Domain} (h : NonEnc q) : HonestQ T q := by
   rcases q with (coin | input) | coordinate
   · trivial
   · exact Or.inl h
   · trivial
-
-/-- The honest search at a reached-row-covered leaf. -/
 theorem respAt_referenceSearch (T : Answers) (S : Spec.Domain → Prop) (L : LeafAddr)
     (hS : ∀ input, Reached T L input → S (.inl (.inr input))) :
     RespAt T S (counterSearch L.lay L.tree L.leaf (leafMsg T L) 0 counterLimit) := by
@@ -350,25 +260,18 @@ theorem respAt_referenceSearch (T : Answers) (S : Spec.Domain → Prop) (L : Lea
   · have := hprev c' hc'
     rw [Nat.zero_add] at this
     exact this
-
-/-- The route leaf of a source index as a non-aliased leaf. -/
 def routePos (index : Nat) (hindex : index < 2 ^ 31) (lay : Layer) : CanonGraph.LeafPos :=
   ⟨lay, ⟨(route index lay).2, lt_of_le_of_lt (Nat.div_le_self _ _) hindex⟩,
     ⟨(route index lay).1, lt_of_lt_of_le (route_leaf_bound index lay)
       (by calc 2 ^ height lay ≤ 2 ^ 12 := Nat.pow_le_pow_right (by decide) (Extract.height_le lay)
             _ = 4096 := by norm_num)⟩⟩
-
 theorem leafOf_routePos (index : Nat) (hindex : index < 2 ^ 31) (lay : Layer) :
     leafOf (routePos index hindex lay) = routeLeaf index lay := rfl
-
 theorem respAt_routeSearch (T : Answers) (index : Nat) (hindex : index < 2 ^ 31) (lay : Layer) :
     RespAt T (HonestQ T) (counterSearch lay (route index lay).2 (route index lay).1
       (leafMsg T (routeLeaf index lay)) 0 counterLimit) :=
   respAt_referenceSearch T (HonestQ T) (routeLeaf index lay)
     (fun input h => Or.inr ⟨routePos index hindex lay, h⟩)
-
-/-! ## The layer signer, the payload signer and SEC's logged signer -/
-
 theorem respAt_signLayers (T : Answers) (cache : Cache) (index : Nat) (hindex : index < 2 ^ 31) :
     ∀ n, n ≤ 4 → ∀ msg, (∀ m, n = m + 1 → msg = leafMsg T (routeLeaf index (Fin.ofNat 4 m))) →
       RespAt T (HonestQ T) (signLayers cache index n msg) := by
@@ -402,7 +305,6 @@ theorem respAt_signLayers (T : Answers) (cache : Cache) (index : Nat) (hindex : 
               · obtain rfl : m = m' := by omega
                 exact signedMsg_succ T index m (by omega)
               · cases evalWithAnswerFn T (signLayers cache index (m + 1) _) <;> exact RespAt.pure' _
-
 theorem respAt_signPayload (T : Answers) (cache : Cache) (message : Message) :
     RespAt T (HonestQ T) (signPayload cache message) := by
   rw [Correctness.signPayload_eq]
@@ -421,8 +323,6 @@ theorem respAt_signPayload (T : Answers) (cache : Cache) (message : Message) :
       exact signedMsg_top T _
     · generalize evalWithAnswerFn T (signLayers cache (output.toNat % 2 ^ 31) 4 _) = pieces
       rcases pieces with _ | pieces <;> exact RespAt.pure' _
-
-/-- **SEC's logged signer** reads only non-encoding queries and reached rows of route leaves. -/
 theorem respAt_sign (T : Answers) (published : T3.Cache) (request : Request) :
     RespAt T (HonestQ T) (FullGame.authenticatedSign published request) := by
   unfold FullGame.authenticatedSign
@@ -430,63 +330,44 @@ theorem respAt_sign (T : Answers) (published : T3.Cache) (request : Request) :
   split
   · exact respAt_signPayload T _ _
   · exact RespAt.pure' _
-
-/-- Honest key generation reads no encoding row. -/
 theorem respAt_keygen (T : Answers) : RespAt T (HonestQ T) keygen :=
   RespAt.of_respects respects_keygen fun _ h => honestQ_of_nonEnc h
-
 end Enc
-
 open Enc
-
-/-! ## R3's source program -/
-
 theorem keygenCharge_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) :
     keygenCharge T' = keygenCharge T := by
   unfold keygenCharge
   rw [(respAt_keygen T).queried_eq h]
-
 theorem signCharge_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (published : T3.Cache)
     (request : Request) : signCharge T' published request = signCharge T published request := by
   unfold signCharge
   rw [(respAt_sign T published request).queried_eq h]
-
 theorem offlineSign_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (published : T3.Cache)
     (request : Request) : offlineSign T' published request = offlineSign T published request := by
   unfold offlineSign
   rw [signCharge_congr h, (respAt_sign T published request).eval_eq h]
-
 theorem offlineImpl_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (published : T3.Cache) :
     offlineImpl T' published = offlineImpl T published := by
   unfold offlineImpl
   have hs : offlineSign T' published = offlineSign T published := funext (offlineSign_congr h published)
   rw [hs]
-
 theorem offlineGame_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (adversary : Final.AdversaryP) :
     offlineGame T' adversary = offlineGame T adversary := by
   unfold offlineGame offlineInteraction
   rw [keygenCharge_congr h, (respAt_keygen T).eval_eq h, offlineImpl_congr h]
-
-/-- **R3's capped source program depends on the table only through the honest queries** (non-encoding queries
-and the reached rows of non-aliased leaves). -/
 theorem referenceGame_congr_honest {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q)
     (adversary : Final.AdversaryP) (q : Nat) : referenceGame T' adversary q = referenceGame T adversary q := by
   unfold referenceGame
   rw [offlineGame_congr h]
-
-/-! ## Honest messages and reference searches -/
-
 theorem leafSeed_congr_nonEnc {T T' : Answers} (h : ∀ q, NonEnc q → T' q = T q) (lay : Layer) (tree leaf i : Nat) :
     leafSeed T' lay tree leaf i = leafSeed T lay tree leaf i := by
   unfold leafSeed
   rw [(Enc.respects_privatePair 0 lay.val tree (i / 2) leaf).eval_eq h]
-
 theorem leafEnd_congr_nonEnc {T T' : Answers} (h : ∀ q, NonEnc q → T' q = T q) (lay : Layer) (tree leaf i : Nat) :
     leafEnd T' lay tree leaf i = leafEnd T lay tree leaf i := by
   unfold leafEnd
   rw [leafSeed_congr_nonEnc h]
   exact (Enc.respects_chain _ _ _ _ _ _ _).eval_eq h
-
 theorem leafRoot_congr_nonEnc {T T' : Answers} (h : ∀ q, NonEnc q → T' q = T q) (lay : Layer) (tree leaf : Nat) :
     leafRoot T' lay tree leaf = leafRoot T lay tree leaf := by
   unfold leafRoot
@@ -495,7 +376,6 @@ theorem leafRoot_congr_nonEnc {T T' : Answers} (h : ∀ q, NonEnc q → T' q = T
     List.map_congr_left fun i _ => leafEnd_congr_nonEnc h lay tree leaf i
   rw [he]
   exact (Enc.respects_leafHash _ _ _ _).eval_eq h
-
 theorem builtTree_congr_nonEnc {T T' : Answers} (h : ∀ q, NonEnc q → T' q = T q) (lay : Layer) (tree : Nat) :
     builtTree T' lay tree = builtTree T lay tree := by
   unfold builtTree
@@ -503,7 +383,6 @@ theorem builtTree_congr_nonEnc {T T' : Answers} (h : ∀ q, NonEnc q → T' q = 
     funext (leafRoot_congr_nonEnc h lay tree)
   rw [hr]
   exact (Enc.respects_buildLevels 3 _ _ _ _ (by decide)).eval_eq h
-
 theorem honestForest_congr_nonEnc {T T' : Answers} (h : ∀ q, NonEnc q → T' q = T q) (index : Nat) :
     Extract.honestForest T' index = Extract.honestForest T index := by
   rw [Mask.honestForest_eq, Mask.honestForest_eq]
@@ -513,8 +392,6 @@ theorem honestForest_congr_nonEnc {T T' : Answers} (h : ∀ q, NonEnc q → T' q
       ((Enc.respects_buildFts index c).eval_eq h)
   rw [hl]
   exact (Enc.respects_forestPk _ _).eval_eq h
-
-/-- Honest messages read no encoding row. -/
 theorem leafMsg_congr_nonEnc {T T' : Answers} (h : ∀ q, NonEnc q → T' q = T q) (L : LeafAddr) :
     leafMsg T' L = leafMsg T L := by
   unfold leafMsg
@@ -522,26 +399,19 @@ theorem leafMsg_congr_nonEnc {T T' : Answers} (h : ∀ q, NonEnc q → T' q = T 
   · unfold Extract.honestRoot
     rw [builtTree_congr_nonEnc h]
   · exact honestForest_congr_nonEnc h _
-
 theorem nonEnc_of_honest {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) : ∀ q, NonEnc q → T' q = T q :=
   fun q hq => h q (honestQ_of_nonEnc hq)
-
-/-- The reference search of a non-aliased leaf is the same for every table agreeing with `T` on the honest
-queries. -/
 theorem referenceSearch_congr_honest {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q)
     (L : CanonGraph.LeafPos) : referenceSearch T' (leafOf L) = referenceSearch T (leafOf L) := by
   unfold referenceSearch
   rw [leafMsg_congr_nonEnc (nonEnc_of_honest h)]
   exact (respAt_referenceSearch T (HonestQ T) (leafOf L) (fun input hr => Or.inr ⟨L, hr⟩)).eval_eq h
-
 theorem referenceDigits_congr_honest {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q)
     (L : CanonGraph.LeafPos) : referenceDigits T' (leafOf L) = referenceDigits T (leafOf L) := by
   unfold referenceDigits
   rw [referenceSearch_congr_honest h]
-
 theorem referenceInput_congr_honest {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q)
     (L : CanonGraph.LeafPos) : referenceInput T' (leafOf L) = referenceInput T (leafOf L) := by
   unfold referenceInput
   rw [referenceSearch_congr_honest h, leafMsg_congr_nonEnc (nonEnc_of_honest h)]
-
 end SigGolfCandidate.T3.Security.Wots

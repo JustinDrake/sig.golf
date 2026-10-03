@@ -1,13 +1,10 @@
 import SigGolfCandidate.T3M.Keygen.Mask
 
-/-! Full-cache key-generation payload refinement. -/
 namespace SigGolfCandidate.T3M.Keygen
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3 (Digest Cache Region keygen keygenPayload buildTree mask privateMac privateInput
   header zero16 cacheBytes readLE)
 open SphincsSecurity (bytesLE bytesLE_length)
-
-/-- Core's region from its byte list. -/
 theorem ofFn_getD_toArray (n : Nat) (l : List UInt8) (h : l.length = n) :
     List.ofFn (fun i : Fin n => l.toArray.getD i.val 0) = l := by
   subst h
@@ -16,13 +13,10 @@ theorem ofFn_getD_toArray (n : Nat) (l : List UInt8) (h : l.length = n) :
   rw [List.getElem_ofFn]
   simp only [Array.getD, List.size_toArray, h2, dite_true]
   rfl
-
 theorem length_flatMap16 (ds : List Digest) : (ds.flatMap (bytesLE 16)).length = 16 * ds.length := by
   induction ds with
   | nil => rfl
   | cons d ds ih => rw [List.flatMap_cons, List.length_append, bytesLE_length, ih, List.length_cons]; ring
-
-/-- Unchanged doublewords read the same. -/
 theorem Frame.readWords {s t : MachineState} {W : Nat → Prop} (h : Frame s t W) (A : Nat) :
     ∀ m, A + 8 * m ≤ 2 ^ 64 → (∀ i < m, ¬ W (A + 8 * i)) →
       t.readWords (BitVec.ofNat 64 A) m = s.readWords (BitVec.ofNat 64 A) m
@@ -30,7 +24,6 @@ theorem Frame.readWords {s t : MachineState} {W : Nat → Prop} (h : Frame s t W
   | m + 1, hA, hW => by
     rw [readWords_add, readWords_add, Frame.readWords h A m (by omega) (fun i hi => hW i (by omega)),
       readWords_one, readWords_one, h.get (by omega) (hW m (by omega))]
-
 structure PayloadPost (sk : SecretKey) (r : Digest × Region) (t : MachineState) : Prop where
   pc : t.pc = pcOf 334
   x20 : t.getReg .x20 = BitVec.ofNat 64 1
@@ -41,14 +34,11 @@ structure PayloadPost (sk : SecretKey) (r : Digest × Region) (t : MachineState)
   k8 : t.getMem (BitVec.ofNat 64 0x88) = sk.extractLsb' 64 64
   k16 : t.getMem (BitVec.ofNat 64 0x90) = sk.extractLsb' 128 64
   k24 : t.getMem (BitVec.ofNat 64 0x98) = sk.extractLsb' 192 64
-
 section main
 variable {sk : SecretKey} {s1 : MachineState} (hs : KStart sk s1)
 include hs
-
-/-- **`keygenPayload`** from `KStart`. -/
 theorem payload_tsim :
-    TSim image sk s1 44036237 51429503 995326 1048574 keygenPayload (PayloadPost sk) := by
+    TSim image sk s1 30077069 37470335 995326 1048574 keygenPayload (PayloadPost sk) := by
   unfold keygenPayload
   refine (TSim.bind (k₂ := 143458) (c₂ := 172123) (n₂ := 4095) (b₂ := 4095) (buildTree_tsim hs)
     (fun r t ht => ?_)).of_eq rfl rfl rfl rfl rfl
@@ -108,12 +98,12 @@ theorem payload_tsim :
     intro X hX h; unfold MW at h; kg_omega
   refine ⟨by simpa only [hml, Nat.lt_irrefl, ite_false] using hu.pc, by rw [hu.x20, hml]; rfl, by rw [g _ (by decide), t4r.get (by decide), tregs.get (by decide),
     hs.x5], ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · -- pk = node 1
+  ·
     obtain ⟨hl12, hd12⟩ := hnodes 12 le_rfl
     have h0 := hd12.get (i := 0) (by rw [hl12]; decide)
     have hpk : DigAt t4 0xA0 ((levels.getD 12 []).getD 0 0) := ⟨by rw [t4a]; exact h0.1, by rw [t4b]; exact h0.2⟩
     exact hpk.frame hu.frame (by decide) (by unfold MW; kg_omega) (by unfold MW; kg_omega)
-  · -- the region
+  ·
     show u.readWords (BitVec.ofNat 64 REGION) 16380 =
       wordsOf (List.ofFn fun i : Fin 131040 => (masked.flatten.flatMap (bytesLE 16)).toArray.getD i.val 0)
     rw [ofFn_getD_toArray 131040 _ (by rw [length_flatMap16, hfl']), ← hu.out.words, hfl']
@@ -121,7 +111,5 @@ theorem payload_tsim :
   · rw [fu 0x88 (by decide) (nW 0x88 (by kg_omega)) (by decide) (by decide) (nM 0x88 (by kg_omega)), hs.k8]
   · rw [fu 0x90 (by decide) (nW 0x90 (by kg_omega)) (by decide) (by decide) (nM 0x90 (by kg_omega)), hs.k16]
   · rw [fu 0x98 (by decide) (nW 0x98 (by kg_omega)) (by decide) (by decide) (nM 0x98 (by kg_omega)), hs.k24]
-
 end main
-
 end SigGolfCandidate.T3M.Keygen

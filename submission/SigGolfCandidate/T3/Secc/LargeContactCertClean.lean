@@ -1,11 +1,5 @@
 import SigGolfCandidate.T3.Secc.LargeContactCert
 
-/-!
-# LR-34 (certificate coupling): `cert_of_clean`
-
-A contact-free clean win of the shared law satisfies the real certificate event `CertR` (see `LargeContactCert`).
--/
-
 namespace SigGolfCandidate.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final SigGolfCandidate.T3M.SecurityExtraction
@@ -16,8 +10,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance instDecidableEqCache_largeContactCertClean : DecidableEq T3.Cache := Classical.decEq _
-
-/-- **A contact-free clean win carries the router's certificate.** -/
 theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     (z : PaddedGame.TraceResult × Answers) (hz : z ∈ (SeccLaw.completedExperiment adversary q hq).support)
     (hwin : QueryRecorded.CleanWin q z.1) (hno : ¬Contact adversary q z) :
@@ -74,7 +66,6 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     simp only [chargeOf, List.map_append, List.sum_append] at htot hle
     rw [hte] at htot
     omega
-  -- verifier queries lie in the universe and were seen; they are clear for the final knowledge
   have hXU : ∀ X prior, (⟨prior, .inl (.inr X), z.2 (.inl (.inr X))⟩ : FirstHit.QueryEvent) ∈ c.events → X ∈ U := by
     intro X prior hev
     have hmem := List.mem_append_right g.events (List.mem_append_right t.events hev)
@@ -94,7 +85,6 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
       monitorRun_known U z.2 q g.value.2 t.steps c.events d hd
   rcases hcase with hprim | ⟨hgood, hfts, -⟩
   · exact (wotsPrimitiveRoute_false z.2 g.value.2 _ _ (Nat.mod_lt _ (by decide)) hprim hclear).elim
-  -- case (C): the forgery's randomizer was never signer-accepted
   have hNz : z.2 (.inl (.inr (pad64 (digestInput (wrho w) m (wdc w))))) = N := hN
   have hdigest : ∃ prior, (⟨prior, .inl (.inr (pad64 (digestInput (wrho w) m (wdc w)))), N⟩ :
       FirstHit.QueryEvent) ∈ (QueryRecorded.recordedTrace z.1).events := by
@@ -113,7 +103,6 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
   refine ⟨hcval, hmon', hcalls, ?_⟩
   set st := routerFold U z.2 g.value.2 t.steps c.events with hst
   have hlog : t.value.2 = stepLog t.steps := taggedRecord_log _ _ _ t ht
-  -- alive
   have halive : st.exposures.length ≤ BPORS.Numeric.proposalLength := by
     have h1 : st.exposures.length ≤ signCount t.steps := exposures_fold_le U z.2 g.value.2 t.steps c.events
     rw [signCount_eq_length, ← hlog] at h1
@@ -123,7 +112,6 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
   by_cases hr : st.reused = true
   · exact Or.inl hr
   right
-  -- the forgery's digest row is a birth
   set Xs := pad64 (digestInput (wrho w) m (wdc w)) with hXs
   have hXsU : Xs ∈ U := by
     obtain ⟨prior, hev⟩ := hsub _ hdq
@@ -160,7 +148,6 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     apply hI2
     exact seen_events_self U c.events _ prior Xs _ hev
   refine ⟨(Xs, N), hbirth, hS.2.1, hgate, ?_⟩
-  -- every opened position is opened by an exposure
   intro f hfo
   have hS' : Shaped (evalWithAnswerFn z.2 (digest (wrho w) m (wdc w))) w := by rw [hN]; exact hS
   have hF' : FtsExtract.FtsShaped z.2 (evalWithAnswerFn z.2 (digest (wrho w) m (wdc w))) w := by rw [hN]; exact hfts
@@ -193,5 +180,4 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
         · exact (hr hx).elim
       · cases hdis
   · cases hdis
-
 end SigGolfCandidate.T3.Security.LargeCoupling

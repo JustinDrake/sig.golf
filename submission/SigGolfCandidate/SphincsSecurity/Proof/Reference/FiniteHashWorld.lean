@@ -1,16 +1,13 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Reference.FixedHashBoundary
-namespace SphincsSecurity.Concrete
 
+namespace SphincsSecurity.Concrete
 open _root_.OracleComp OracleSpec OracleComp.DeferredSampling
 set_option backward.isDefEq.respectTransparency false
-
 noncomputable local instance instSampleableTypeForallSubtypeHashInputMemFinsetHashOutput (inputs : Finset HashInput) : SampleableType (inputs → HashOutput) :=
   SampleableType.ofFintype (inputs → HashOutput)
-
 noncomputable def sampleHashTable (inputs : Finset HashInput) : ProbComp (inputs → HashOutput) :=
   $ᵗ (inputs → HashOutput)
-
 theorem evalDist_finiteHashTable_extract {α : Type} (inputs : Finset HashInput) (input : inputs)
     (next : (inputs → HashOutput) → HashOutput → ProbComp α) :
     𝒮[do let table ← ($ᵗ (inputs → HashOutput) : ProbComp _); next table (table input)] =
@@ -23,17 +20,14 @@ theorem evalDist_finiteHashTable_extract {α : Type} (inputs : Finset HashInput)
     distribution >>= fun table => 𝒮[next table (table input)])
     (evalSPMF_uniformSample_bind_update (R := HashOutput) input)
   simpa only [evalSPMF_bind, bind_assoc, evalSPMF_pure, pure_bind, Function.update_self] using h.symm
-
 noncomputable def hashInputs {α : Type} (computation : OracleComp OracleWorld α) : Finset HashInput := by
   classical
   induction computation using OracleComp.construct with
   | pure _ => exact ∅
   | query_bind input _ tail =>
       exact (match input with | .inl _ => ∅ | .inr input => {input}) ∪ Finset.univ.biUnion tail
-
 @[simp] theorem hashInputs_pure {α : Type} (value : α) :
     hashInputs (pure value) = ∅ := rfl
-
 theorem hashInputs_query_bind {α : Type} (input : OracleWorld.Domain)
     (next : OracleWorld.Range input → OracleComp OracleWorld α) :
     hashInputs (liftM (OracleWorld.query input) >>= next) =
@@ -41,36 +35,29 @@ theorem hashInputs_query_bind {α : Type} (input : OracleWorld.Domain)
         Finset.univ.biUnion (fun output => hashInputs (next output)) := by
   simp only [hashInputs, OracleComp.construct_query_bind]
   cases input <;> rfl
-
 attribute [local irreducible] hashInputs
-
 theorem hashInputs_next_subset {α : Type} (input : OracleWorld.Domain)
     (next : OracleWorld.Range input → OracleComp OracleWorld α) (output : OracleWorld.Range input) :
     hashInputs (next output) ⊆ hashInputs (liftM (OracleWorld.query input) >>= next) := by
   intro row hrow
   rw [hashInputs_query_bind, Finset.mem_union]
   exact Or.inr (Finset.mem_biUnion.mpr ⟨output, Finset.mem_univ _, hrow⟩)
-
 theorem mem_hashInputs_hash_bind {α : Type} (input : HashInput)
     (next : HashOutput → OracleComp OracleWorld α) :
     input ∈ hashInputs (liftM (OracleWorld.query (.inr input)) >>= next) := by
   rw [hashInputs_query_bind, Finset.mem_union]
   exact Or.inl (Finset.mem_singleton_self _)
-
 noncomputable def finiteHashAnswer (cache : QueryCache HashSpec) (inputs : Finset HashInput)
     (table : inputs → HashOutput) : QueryImpl HashSpec Id :=
   fun input => (cache input).getD (if h : input ∈ inputs then table ⟨input, h⟩ else 0)
-
 theorem finiteHashAnswer_some (cache : QueryCache HashSpec) (inputs : Finset HashInput)
     (table : inputs → HashOutput) (input : HashInput) (output : HashOutput) (h : cache input = some output) :
     finiteHashAnswer cache inputs table input = output := by
   simp only [finiteHashAnswer, h, Option.getD_some]
-
 theorem finiteHashAnswer_none (cache : QueryCache HashSpec) (inputs : Finset HashInput)
     (table : inputs → HashOutput) (input : HashInput) (hin : input ∈ inputs) (h : cache input = none) :
     finiteHashAnswer cache inputs table input = table ⟨input, hin⟩ := by
   simp only [finiteHashAnswer, h, Option.getD_none, dif_pos hin]
-
 theorem finiteHashAnswer_cacheQuery (cache : QueryCache HashSpec) (inputs : Finset HashInput)
     (table : inputs → HashOutput) (input : HashInput) (hin : input ∈ inputs)
     (h : cache input = none) (output : HashOutput) :
@@ -85,14 +72,12 @@ theorem finiteHashAnswer_cacheQuery (cache : QueryCache HashSpec) (inputs : Fins
     · have hne : (⟨row, hrow⟩ : inputs) ≠ ⟨input, hin⟩ := fun hsub => heq (congrArg Subtype.val hsub)
       simp [finiteHashAnswer, QueryCache.cacheQuery, heq, hrow, hne]
     · simp [finiteHashAnswer, QueryCache.cacheQuery, heq, hrow]
-
 theorem romRun_query_bind {α : Type} (input : OracleWorld.Domain)
     (next : OracleWorld.Range input → OracleComp OracleWorld α) (cache : QueryCache HashSpec) :
     (simulateQ romImpl (liftM (OracleWorld.query input) >>= next)).run' cache =
       (romImpl input).run cache >>= fun result => (simulateQ romImpl (next result.1)).run' result.2 := by
   rw [simulateQ_bind, simulateQ_spec_query, StateT.run'_eq, StateT.run_bind, map_bind]
   rfl
-
 theorem evalDist_romRun_eq_finiteHash {α : Type} (computation : OracleComp OracleWorld α)
     (inputs : Finset HashInput) (hinputs : hashInputs computation ⊆ inputs) (cache : QueryCache HashSpec) :
     𝒮[(simulateQ romImpl computation).run' cache] =
@@ -147,5 +132,4 @@ theorem evalDist_romRun_eq_finiteHash {α : Type} (computation : OracleComp Orac
                 intro table
                 simp only [simulateQ_bind, simulateQ_spec_query, fixedHashWorld,
                   finiteHashAnswer_none cache inputs table input hin hcache, pure_bind]
-
 end SphincsSecurity.Concrete

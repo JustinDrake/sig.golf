@@ -2,35 +2,22 @@ import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.BuildEval
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.NoMessage
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.Replay
-/-!
-# Cached message inputs
-
-A uniformly sampled signer randomizer addresses an input already in a fixed cache with probability
-at most the number of matching cache entries divided by the randomizer space. This is used only
-while retaining the few-time coverage event that the cached answer must also satisfy.
--/
 
 open OracleComp OracleSpec ENNReal
-
 namespace SphincsSecurity
-
 noncomputable local instance instSampleableTypeRandomness : SampleableType Randomness :=
   Concrete.randomnessSampleableType
-
 def cachedMessageInputSet (cache : QueryCache HashSpec) (parameter : PublicParameter)
     (root : Digest) (message : Message) :
     Set ((t : HashSpec.Domain) × HashSpec.Range t) :=
   {entry ∈ cache.toSet | ∃ randomness,
     entry.1 = tweakableHashInput parameter .message
       (Concrete.messageDigestPayload root message randomness)}
-
 noncomputable def cachedMessageEntryCount (cache : QueryCache HashSpec)
     (parameter : PublicParameter) (root : Digest) (message : Message) : ℝ≥0∞ :=
   (((cachedMessageInputSet cache parameter root message).encard : ENat) : ℝ≥0∞)
-
 theorem card_randomness : Fintype.card Randomness = 2 ^ randomnessBits := by
   simp [digestBits, randomnessBits]
-
 noncomputable def Concrete.signDigestLoopContinuation
     (attempts : Nat) (secretKey : SecretKey) (message : Message)
     (randomness : Randomness)
@@ -41,9 +28,7 @@ noncomputable def Concrete.signDigestLoopContinuation
   | some (index, leaves) => pure (some (randomness, index, leaves), result.2)
   | none => (simulateQ romImpl
       (Concrete.signDigestLoop attempts secretKey message)).run result.2
-
 attribute [irreducible] Concrete.signDigestLoopContinuation
-
 theorem Concrete.signDigestLoop_run_succ_eq
     (attempts : Nat) (secretKey : SecretKey) (message : Message)
     (cache : QueryCache HashSpec) :
@@ -94,7 +79,6 @@ theorem Concrete.signDigestLoop_run_succ_eq
   | some selected =>
       rcases selected with ⟨index, leaves⟩
       simp [Concrete.signDigestLoopContinuation]
-
 theorem Concrete.signAfterDigest_some_randomness (f : QueryImpl HashSpec Id)
     (secretKey : SecretKey) (randomness : Randomness) (index : Index)
     (leaves : IndexGroup → FtsLeaf) (signature : Signature)
@@ -108,7 +92,6 @@ theorem Concrete.signAfterDigest_some_randomness (f : QueryImpl HashSpec Id)
     subst signature
     rfl
   · simp only [evalWithAnswerFn_pure, reduceCtorEq] at heval
-
 theorem Concrete.signAfterDigest_support_some_randomness
     (secretKey : SecretKey) (randomness : Randomness) (index : Index)
     (leaves : IndexGroup → FtsLeaf) (beforeCache afterCache : QueryCache HashSpec)
@@ -123,5 +106,4 @@ theorem Concrete.signAfterDigest_support_some_randomness
       beforeCache (some signature) afterCache hmem
   exact Concrete.signAfterDigest_some_randomness answerFn secretKey randomness index leaves
     signature heval
-
 end SphincsSecurity

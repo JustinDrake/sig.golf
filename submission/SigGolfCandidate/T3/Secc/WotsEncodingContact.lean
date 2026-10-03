@@ -2,20 +2,6 @@ import SigGolfCandidate.T3.Secc.WotsEncodingMarker
 import SigGolfCandidate.T3.Secc.WotsContacts
 import SigGolfCandidate.T3.Secc.WotsTransportCount
 
-/-!
-# Stream E: the contact-first branch of `MarkerAt ∧ ContactAt` (`reference_contactFirst_le`)
-
-`Pr_R3[∃ a, SourceChain a ∧ ContactFirst a] ≤ 57 · (q/2^128) · E_R3[contactCount]` (A's `ContactFirstBound`), where
-`ContactFirst T τ a := ∃ k, ContactAt T (τ.take k) a ∧ ¬MarkerAt T (τ.take k) a ∧ MarkerAt T τ a`.
-
-In E's lazy world (one pair of tables, free encoding rows fresh), contacts are a deterministic function of the
-history (chain rows are not free), so a *new* contact-first event needs a fresh free encoding row that is the first
-marker of an already-contacted chain: probability ≤ 57 · 2^-128 per contacted chain (`markEntry_cell_le`). History
-potential (pinned `QueryPause.traced_spmf_history_potential_le`) with charge `57 · #contacts(history)` per cell
-query; the total charge is ≤ `57 · |trace| · #contacts(trace)`, and `|trace| ≤ q` on R3's support
-(F2's `reference_trace_length`).
--/
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -28,19 +14,11 @@ set_option backward.isDefEq.respectTransparency false
 set_option linter.constructorNameAsVariable false
 attribute [local instance low] Classical.propDecidable
 attribute [local irreducible] referenceGame offlineGame
-
 namespace Enc
-
-/-! ## The event and its congruence -/
-
-/-- Contact strictly first at `a` (A's `SmallP.ContactFirst`, inlined). -/
 def ContactFirstAt (T : Answers) (trace : List Entry) (a : ChainAddr) : Prop :=
   ∃ k, ContactAt T (trace.take k) a ∧ ¬MarkerAt T (trace.take k) a ∧ MarkerAt T trace a
-
-/-- Contact-first at some source chain (finite index). -/
 def CFK (T : Answers) (trace : List Entry) : Prop :=
   ∃ p : CanonGraph.LeafPos × Fin 58, WotsExtract.SourceChain (chainAt p) ∧ ContactFirstAt T trace (chainAt p)
-
 theorem frontierValue_congr_honest {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q)
     (p : CanonGraph.LeafPos × Fin 58) : frontierValue T' (chainAt p) = frontierValue T (chainAt p) := by
   have hd : depth T' (chainAt p) = depth T (chainAt p) := by
@@ -49,7 +27,6 @@ theorem frontierValue_congr_honest {T T' : Answers} (h : ∀ q, HonestQ T q → 
   unfold frontierValue honestChainValue
   rw [hd, leafSeed_congr_nonEnc (nonEnc_of_honest h)]
   exact (Enc.respects_chain _ _ _ _ _ _ _).eval_eq (nonEnc_of_honest h)
-
 theorem contactAt_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (trace : List Entry)
     (p : CanonGraph.LeafPos × Fin 58) : ContactAt T' trace (chainAt p) ↔ ContactAt T trace (chainAt p) := by
   have hd : depth T' (chainAt p) = depth T (chainAt p) := by
@@ -57,19 +34,13 @@ theorem contactAt_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q)
     rw [referenceDigits_congr_honest h]
   unfold ContactAt
   rw [hd, frontierValue_congr_honest h p]
-
 theorem cfk_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (trace : List Entry) :
     CFK T' trace ↔ CFK T trace := by
   unfold CFK ContactFirstAt
   simp only [contactAt_congr h, markerAt_congr h]
-
-/-! ## Contacts of a trace -/
-
-/-- Contacted source chains of a trace (finite index). -/
 noncomputable def contacts (T : Answers) (trace : List Entry) : Nat :=
   (Finset.univ.filter fun p : CanonGraph.LeafPos × Fin 58 =>
     WotsExtract.SourceChain (chainAt p) ∧ ContactAt T trace (chainAt p)).card
-
 theorem contacts_mono (T : Answers) {trace trace' : List Entry} (hsub : ∀ e ∈ trace, e ∈ trace') :
     contacts T trace ≤ contacts T trace' := by
   unfold contacts
@@ -77,7 +48,6 @@ theorem contacts_mono (T : Answers) {trace trace' : List Entry} (hsub : ∀ e �
   intro p hp
   simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hp ⊢
   exact ⟨hp.1, WotsExtract.contactAt_mono hp.2 hsub⟩
-
 theorem contacts_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (trace : List Entry) :
     contacts T' trace = contacts T trace := by
   unfold contacts
@@ -89,13 +59,10 @@ theorem contacts_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) 
   · exact absurd ⟨h1.1, hiff.mp h1.2⟩ h2
   · exact absurd ⟨h2.1, hiff.mpr h2.2⟩ h1
   · rfl
-
-/-- The cost of a tail after a history: `57 · #contacts(history)` per cell query. -/
 noncomputable def costL (T : Answers) (F : Set EncIndex) : List Entry → List Entry → Nat
   | _, [] => 0
   | hist, e :: rest =>
       (if Lazy.IsCell encInput F e.1 then 57 * contacts T hist else 0) + costL T F (hist ++ [e]) rest
-
 theorem costL_le (T : Answers) (F : Set EncIndex) :
     ∀ (trace hist : List Entry), costL T F hist trace ≤ 57 * trace.length * contacts T (hist ++ trace) := by
   intro trace
@@ -112,9 +79,6 @@ theorem costL_le (T : Answers) (F : Set EncIndex) :
         split_ifs <;> omega
       rw [List.length_cons]
       nlinarith
-
-/-! ## A new contact-first event needs the first marker of a contacted chain -/
-
 theorem cfk_new {T : Answers} {h : List Entry} {e : Entry} (hold : ¬ CFK T h) (hnew : CFK T (h ++ [e])) :
     ∃ p : CanonGraph.LeafPos × Fin 58, WotsExtract.SourceChain (chainAt p) ∧ ContactAt T h (chainAt p) ∧
       MarkEntry T (chainAt p) e ∧ ¬ MarkerAt T h (chainAt p) := by
@@ -130,14 +94,9 @@ theorem cfk_new {T : Answers} {h : List Entry} {e : Entry} (hold : ¬ CFK T h) (
     · exact hme
   · rw [List.take_of_length_le (by rw [List.length_append, List.length_singleton]; omega)] at hnm
     exact absurd hm hnm
-
-/-! ## The history potential in the lazy world -/
-
-/-- Charge of one query after a history: `57 · #contacts` per cell query. -/
 noncomputable def cfCharge (T : Answers) (F : Set EncIndex) (h : FreeMonoid Entry) : RefWorld.Domain → Nat
   | .inl (.inr x) => if Lazy.IsCell encInput F x then 57 * contacts T h.toList else 0
   | _ => 0
-
 theorem costL_step (T : Answers) (F : Set EncIndex) (h : FreeMonoid Entry) (input : RefWorld.Domain)
     (answer : RefWorld.Range input) (tail : FreeMonoid Entry) :
     costL T F h.toList (Lazy.obs input answer * tail).toList =
@@ -146,18 +105,14 @@ theorem costL_step (T : Answers) (F : Set EncIndex) (h : FreeMonoid Entry) (inpu
   · simp [Lazy.obs, cfCharge]
   · simp only [Lazy.obs, FreeMonoid.toList_mul, FreeMonoid.toList_of, List.singleton_append, costL, cfCharge]
   · simp [Lazy.obs, cfCharge]
-
 theorem cfk_nil (T : Answers) : ¬ CFK T [] := by
   rintro ⟨p, -, k, -, -, hm⟩
   obtain ⟨entry, hmem, -⟩ := (markerAt_iff T _ _).mp hm
   simp at hmem
-
 theorem indicator_le_one (P : Prop) [Decidable P] : (if P then (1 : ENNReal) else 0) ≤ 1 := by
   split_ifs <;> simp
-
 section Step
 variable [∀ k : Set EncIndex, Fintype k] [∀ k : Set EncIndex, DecidableEq k]
-
 theorem cf_step (T : Answers) (F : Set EncIndex)
     (hother : ∀ x, ¬ Lazy.IsCell encInput F x → ∀ p,
       ¬ (WotsExtract.SourceChain (chainAt p) ∧ MarkEntry T (chainAt p) (x, T (.inl (.inr x)))))
@@ -232,8 +187,6 @@ theorem cf_step (T : Answers) (F : Set EncIndex)
   · rw [Lazy.lazyImpl_tick, tsum_probOutput_map_mul]
     simp only [Lazy.obs, mul_one, if_neg hold, mul_zero, tsum_zero]
     exact zero_le
-
-/-- **The contact-first potential in the lazy world.** -/
 theorem lazy_cf_le {α : Type} (T : Answers) (F : Set EncIndex)
     (hother : ∀ x, ¬ Lazy.IsCell encInput F x → ∀ p,
       ¬ (WotsExtract.SourceChain (chainAt p) ∧ MarkEntry T (chainAt p) (x, T (.inl (.inr x)))))
@@ -258,17 +211,9 @@ theorem lazy_cf_le {α : Type} (T : Answers) (F : Set EncIndex)
   simp only [one_mul] at key
   rw [if_neg (by simpa using cfk_nil T), zero_add] at key
   simpa using key
-
 end Step
-
-/-! ## Per table and over R3 -/
-
-/-- The contact-first indicator of a sample. -/
 noncomputable def cfInd (s : RefSample) : ENNReal := if CFK s.answers s.trace then 1 else 0
-
-/-- The contact-first charge of a sample: `57 · |trace| · #contacts`. -/
 noncomputable def cfCost (s : RefSample) : ENNReal := ((57 * s.trace.length * contacts s.answers s.trace : Nat) : ENNReal)
-
 theorem free_cf_le [∀ k : Set EncIndex, Fintype k] [∀ k : Set EncIndex, DecidableEq k]
     (adversary : AdversaryP) (q : Nat) (iX : ∀ k : Set EncIndex, Fintype (k → HashOutput)) (U : Finset HashInput)
     (hU : SeccLaw.publicUniverse ⊆ U) (privateTable : FullGame.FullTable) (pub : U → HashOutput) :
@@ -297,7 +242,6 @@ theorem free_cf_le [∀ k : Set EncIndex, Fintype k] [∀ k : Set EncIndex, Deci
   have := costL_le (eagerAnswers U privateTable pub) (freeSet (eagerAnswers U privateTable pub)) z.1.2.toList []
   rw [List.nil_append] at this
   exact_mod_cast this
-
 theorem reference_cfInd_le (adversary : AdversaryP) (q : Nat) :
     ∑' s, referenceExperiment adversary q s * cfInd s ≤
       (2 ^ 128 : ENNReal)⁻¹ * ∑' s, referenceExperiment adversary q s * cfCost s := by
@@ -306,7 +250,6 @@ theorem reference_cfInd_le (adversary : AdversaryP) (q : Nat) :
   exact reference_free_le adversary q (fun k => Pi.instFintype) cfInd cfCost _
     (fun privateTable pub => free_cf_le adversary q (fun k => Pi.instFintype) (referenceInputs adversary)
       (publicUniverse_sub adversary) privateTable pub)
-
 theorem chainAt_injective : Function.Injective chainAt := by
   rintro ⟨⟨lay, tree, leaf⟩, i⟩ ⟨⟨lay', tree', leaf'⟩, i'⟩ h
   simp only [chainAt, leafOf, ChainAddr.mk.injEq, LeafAddr.mk.injEq] at h
@@ -316,15 +259,12 @@ theorem chainAt_injective : Function.Injective chainAt := by
   have : i = i' := Fin.ext hi
   subst tree leaf i
   rfl
-
 theorem exists_chainAt {a : ChainAddr} (ha : WotsExtract.SourceChain a) : ∃ p, chainAt p = a := by
   obtain ⟨⟨ht, hl⟩, hc⟩ := ha
   have hh : 2 ^ height a.key.lay ≤ 4096 :=
     (Nat.pow_le_pow_right (by norm_num) (Extract.height_le a.key.lay)).trans (by norm_num)
   have hcc := Mask.chainCount_le a.key.lay
   exact ⟨⟨⟨a.key.lay, ⟨a.key.tree, ht⟩, ⟨a.key.leaf, by omega⟩⟩, ⟨a.chain, by omega⟩⟩, rfl⟩
-
-/-- Our contact count is C's `contactCount`. -/
 theorem contacts_eq_contactCount (s : RefSample) : contacts s.answers s.trace = contactCount s := by
   unfold contacts contactCount
   apply Finset.card_bij (fun p _ => chainAt p)
@@ -340,7 +280,6 @@ theorem contacts_eq_contactCount (s : RefSample) : contacts s.answers s.trace = 
     refine ⟨p, ?_, rfl⟩
     simp only [Finset.mem_filter, Finset.mem_univ, true_and]
     exact ha
-
 theorem cfCost_le (adversary : AdversaryP) (q : Nat) :
     ∑' s, referenceExperiment adversary q s * cfCost s ≤
       ((57 * q : Nat) : ENNReal) * ∑' s, referenceExperiment adversary q s * (contactCount s : ENNReal) := by
@@ -354,12 +293,8 @@ theorem cfCost_le (adversary : AdversaryP) (q : Nat) :
     unfold cfCost
     rw [contacts_eq_contactCount]
     exact_mod_cast Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hlen)
-
 end Enc
-
 open Enc in
-/-- **The contact-first branch (`reference_contactFirst_le`, A's `ContactFirstBound`)**: a first marker after a
-contact, at some source chain, has probability at most `57 · q/2^128 · E[#contacted source chains]`. -/
 theorem reference_contactFirst_le (adversary : AdversaryP) (q : Nat) :
     Pr[fun s => ∃ a, WotsExtract.SourceChain a ∧
         ∃ k, ContactAt s.answers (s.trace.take k) a ∧ ¬MarkerAt s.answers (s.trace.take k) a ∧
@@ -381,5 +316,4 @@ theorem reference_contactFirst_le (adversary : AdversaryP) (q : Nat) :
         push_cast
         rw [div_eq_mul_inv]
         ring
-
 end SigGolfCandidate.T3.Security.Wots

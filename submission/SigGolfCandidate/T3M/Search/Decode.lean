@@ -1,22 +1,8 @@
 import SigGolfCandidate.T3M.Search.Arith
 
-/-!
-# `counter_search`: the decode arithmetic (stream E)
-
-The answer value `v` (low 16 bytes of the HASH output) sits in two doublewords `lo = v[0,64)`,
-`hi = v[64,128)` (`t1`, `t2`). `counter_search` reads the digits with unrolled shift/mask code
-(lower layers: 42 radix-8 digits, one crossing the doubleword boundary; top layer: 51 radix-5 and
-three radix-4 digits) and sums them. Here: the shift/mask terms as `ofNat` digit values, Core's
-`dataDigits` as explicit lists (`lowDigits`, `topDigits`) and their sums term by term, and Core's
-`decode` restated with them.
--/
-
 namespace SigGolfCandidate.T3M.Search
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 open SigGolfCandidate.T3 (Digest Layer)
-
-/-! ## Digit terms -/
-
 theorem ext_shr_mask (v : BitVec 128) (base sh w : Nat) (h : sh + w ≤ 64) :
     (v.extractLsb' base 64 >>> sh) &&& BitVec.ofNat 64 (2 ^ w - 1) =
       BitVec.ofNat 64 (v.toNat / 2 ^ (base + sh) % 2 ^ w) := by
@@ -29,24 +15,18 @@ theorem ext_shr_mask (v : BitVec 128) (base sh w : Nat) (h : sh + w ≤ 64) :
   · simp only [hw, decide_true, Bool.and_true, Bool.true_and, show sh + i < 64 by omega, BitVec.testBit_toNat]
     congr 1; omega
   · simp [hw]
-
 @[simp] theorem ext_shr_and7 (v : BitVec 128) (base sh : Nat) (h : sh + 3 ≤ 64) :
     (v.extractLsb' base 64 >>> sh) &&& 7#64 = BitVec.ofNat 64 (v.toNat / 2 ^ (base + sh) % 8) :=
   ext_shr_mask v base sh 3 h
-
 @[simp] theorem ext_and7 (v : BitVec 128) (base : Nat) :
     v.extractLsb' base 64 &&& 7#64 = BitVec.ofNat 64 (v.toNat / 2 ^ base % 8) := by
   simpa using ext_shr_mask v base 0 3 (by omega)
-
 @[simp] theorem ext_shr_and3 (v : BitVec 128) (base sh : Nat) (h : sh + 2 ≤ 64) :
     (v.extractLsb' base 64 >>> sh) &&& 3#64 = BitVec.ofNat 64 (v.toNat / 2 ^ (base + sh) % 4) :=
   ext_shr_mask v base sh 2 h
-
 @[simp] theorem ext_and3 (v : BitVec 128) (base : Nat) :
     v.extractLsb' base 64 &&& 3#64 = BitVec.ofNat 64 (v.toNat / 2 ^ base % 4) := by
   simpa using ext_shr_mask v base 0 2 (by omega)
-
-/-- The lower-layer digit 21 (bits 63..65) across the two doublewords. -/
 theorem cross_low (v : BitVec 128) :
     (v.extractLsb' 0 64 >>> 63 ||| v.extractLsb' 64 64 <<< 1 &&& 7#64) =
       BitVec.ofNat 64 (v.toNat / 2 ^ 63 % 8) := by
@@ -65,27 +45,16 @@ theorem cross_low (v : BitVec 128) :
   · simp
   · simp only [show ¬ (i + 1 + 1 + 1 < 3) from by omega, decide_false, Bool.and_false, Bool.false_and,
       show ¬ (63 + (i + 1 + 1 + 1) < 64) from by omega, Bool.or_false]
-
-/-! ## Core's digits -/
-
-/-- The 42 radix-8 data digits of a lower layer. -/
 def lowDigits (v : Digest) : List Nat := (List.range 42).map fun i => v.toNat / 2 ^ (3 * i) % 8
-
-/-- The 51 radix-5 and three radix-4 data digits of the top layer. -/
 def topDigits (v : Digest) : List Nat := (List.range 54).map (T3.coreDigit 0 v)
-
 theorem dataDigits_low (lay : Layer) (h : lay ≠ 0) (v : Digest) : T3.dataDigits lay v = lowDigits v := by
   simp only [T3.dataDigits, T3.dataCount, h, if_false, lowDigits]
   congr 1
   funext i
   simp [T3.coreDigit, h]
-
 theorem dataDigits_top (v : Digest) : T3.dataDigits 0 v = topDigits v := rfl
-
 theorem lowDigits_length (v : Digest) : (lowDigits v).length = 42 := by simp [lowDigits]
 theorem topDigits_length (v : Digest) : (topDigits v).length = 54 := by simp [topDigits]
-
-/-- The lower-layer digit sum, term by term (`s9` of `counter_search`). -/
 theorem lowDigits_sum (v : Digest) : (lowDigits v).sum =
       v.toNat / 1 % 8 +
       v.toNat / 8 % 8 +
@@ -132,8 +101,6 @@ theorem lowDigits_sum (v : Digest) : (lowDigits v).sum =
   simp only [lowDigits, List.range_succ, List.range_zero, List.nil_append, List.map_append, List.map_cons,
     List.map_nil, List.sum_append, List.sum_cons, List.sum_nil]
   norm_num
-
-/-- The actual grouped digit sum, term by term. -/
 theorem topDigits_sum (v : Digest) : (topDigits v).sum =
       (v.toNat / 1 % 128) / 1 % 5 +
       (v.toNat / 1 % 128) / 5 % 5 +
@@ -192,11 +159,6 @@ theorem topDigits_sum (v : Digest) : (topDigits v).sum =
   simp only [topDigits, List.range_succ, List.range_zero, List.nil_append, List.map_append, List.map_cons,
     List.map_nil, List.sum_append, List.sum_cons, List.sum_nil]
   norm_num [T3.coreDigit]
-
-/-! ## `decode` -/
-
-/-- `decode` of a lower layer: range `v < 2^126`, digit sum `S ≤ target`, `target - S < 8`; the
-checksum digit `target - S` is appended. -/
 theorem decode_low (lay : Layer) (h : lay ≠ 0) (v : Digest) :
     T3.decode lay v =
       if v.toNat < 2 ^ 126 ∧ (lowDigits v).sum ≤ T3.target lay ∧ T3.target lay - (lowDigits v).sum < 8
@@ -206,13 +168,10 @@ theorem decode_low (lay : Layer) (h : lay ≠ 0) (v : Digest) :
   by_cases h1 : v.toNat < 2 ^ 126
   · simp only [show ¬ (v.toNat ≥ 2 ^ 126) from by omega, if_false, h1, true_and]
   · simp only [show v.toNat ≥ 2 ^ 126 from by omega, if_true, h1, false_and, if_false]
-
-/-- The top decode checks high bits, every packed rank, and the constant sum. -/
 theorem decode_top (v : Digest) :
     T3.decode 0 v = if v.toNat < 2 ^ 125 ∧ T3.topRanksValid v = true ∧ (topDigits v).sum = 126
       then some (topDigits v) else none := by
   unfold T3.decode
   simp only [T3.encodedBits, if_true, dataDigits_top, T3.target, Bool.and_eq_true, decide_eq_true_eq]
   split_ifs <;> simp_all <;> omega
-
 end SigGolfCandidate.T3M.Search

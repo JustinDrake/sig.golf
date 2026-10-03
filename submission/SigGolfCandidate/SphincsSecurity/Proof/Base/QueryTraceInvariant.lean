@@ -1,13 +1,11 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.QueryPauseTrace
 import SigGolfCandidate.SphincsSecurity.Proof.Reference.QueryAllocation
-namespace SphincsSecurity.QueryPause
 
+namespace SphincsSecurity.QueryPause
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
-
 variable {Index Trace Result : Type} {spec : OracleSpec Index} [Monoid Trace]
   (observation : (input : spec.Domain) → spec.Range input → Trace)
-
 theorem traced_simulation_invariant {State : Type} (impl : QueryImpl spec (StateT State PMF))
     (invariant : Trace → State → Prop)
     (hstep : ∀ history state, invariant history state → ∀ input,
@@ -27,12 +25,10 @@ theorem traced_simulation_invariant {State : Type} (impl : QueryImpl spec (State
       obtain ⟨middle, hmiddle, tail, htail, rfl⟩ := hresult
       simpa only [mul_assoc] using ih middle.1 (history * observation input middle.1) middle.2
         (hstep history state hinitial input middle hmiddle) tail htail
-
 theorem traced_counted_forget (selected : Index → Prop) [DecidablePred selected] (computation : OracleComp spec Result) :
     (fun result => (result.1.1, result.2)) <$> QueryCap.counted selected (traced observation computation) =
       QueryCap.counted selected computation := by
   rw [← QueryCap.counted_map, traced_forget]
-
 theorem traced_counted_le (selected : Index → Prop) [DecidablePred selected] (cost : Trace → Nat)
     (hcost : ∀ first second, cost (first * second) = cost first + cost second)
     (hstep : ∀ input answer, (if selected input then 1 else 0) ≤ cost (observation input answer))
@@ -48,5 +44,4 @@ theorem traced_counted_le (selected : Index → Prop) [DecidablePred selected] (
   rw [QueryCap.counted_query, support_map] at hcounted
   obtain ⟨answer, _, rfl⟩ := hcounted
   exact hstep input answer
-
 end SphincsSecurity.QueryPause

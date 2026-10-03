@@ -1,15 +1,48 @@
-import SigGolfCandidate.SphincsSecurity.Proof.Ots.EncodingNeighborProbability
+import SigGolfCandidate.SphincsSecurity.Proof.Scheme.Bytes
+import SigGolfCandidate.SphincsSecurity.Proof.Ots.EncodingProbability
 import SigGolfCandidate.SphincsSecurity.Proof.Ots.ReferenceEncodingTable
-namespace SphincsSecurity.Concrete
 
+section
+
+
+namespace SphincsSecurity.OtsCode
 open _root_.OracleComp OracleSpec ENNReal
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] Finset.univ
+noncomputable def decodingDigests (words : Finset Encoding) : Finset Digest :=
+  Finset.univ.filter fun digest => ∃ word ∈ words, decode digest = some word
+theorem mem_decodingDigests {words : Finset Encoding} {digest : Digest} :
+    digest ∈ decodingDigests words ↔ ∃ word ∈ words, decode digest = some word := by
+  simp only [decodingDigests, Finset.mem_filter, Finset.mem_univ, true_and]
+theorem decodingDigests_card_le (words : Finset Encoding) : (decodingDigests words).card ≤ words.card := by
+  apply Finset.card_le_card_of_injOn (fun digest => (decode digest).getD defaultWord)
+  · intro digest hd
+    obtain ⟨word, hw, hdecode⟩ := mem_decodingDigests.mp hd
+    simpa only [hdecode, Option.getD_some, Finset.mem_coe] using hw
+  · intro left hl right hr he
+    obtain ⟨leftWord, _, hleft⟩ := mem_decodingDigests.mp hl
+    obtain ⟨rightWord, _, hright⟩ := mem_decodingDigests.mp hr
+    simp only [hleft, hright, Option.getD_some] at he
+    exact decode_some_injective hleft (by rw [he]; exact hright)
+theorem decodingDigests_uniform_le (words : Finset Encoding) :
+    Pr[fun output : HashOutput => truncateHash output ∈ decodingDigests words | ($ᵗ HashOutput : ProbComp HashOutput)] ≤
+      (words.card : ENNReal) / Fintype.card Digest := by
+  rw [probEvent_uniform_truncateHash_mem]
+  exact ENNReal.div_le_div_right (Nat.cast_le.mpr (decodingDigests_card_le words)) _
+end SphincsSecurity.OtsCode
+end
 
+section
+
+
+namespace SphincsSecurity.Concrete
+open _root_.OracleComp OracleSpec ENNReal
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+attribute [local irreducible] Finset.univ
 def FreshEncodingSupport (reference : Encoding) (allowed : Finset HashOutput) : Prop :=
   allowed = Finset.univ ∨ ∀ output ∈ allowed, decodeEncodingOutput output = none ∨ decodeEncodingOutput output = some reference
-
 theorem firstSuccess_allowed_fresh {n : Nat} (index : Fin n) (reference : Encoding) (coordinate : Fin n) :
     FreshEncodingSupport reference (FirstSuccessTable.allowed decodeEncodingOutput index reference coordinate) := by
   unfold FirstSuccessTable.allowed
@@ -17,7 +50,6 @@ theorem firstSuccess_allowed_fresh {n : Nat} (index : Fin n) (reference : Encodi
   · exact Or.inr fun output ho => Or.inl ((FirstSuccessTable.mem_invalid _ _).mp ho)
   · exact Or.inr fun output ho => Or.inr ((FirstSuccessTable.mem_fiber _ _ _).mp ho)
   · exact Or.inl rfl
-
 theorem freshEncodingSupport_probability_le (reference : Encoding) (targets : Finset Encoding) (href : reference ∉ targets)
     (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport reference allowed) :
     Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests targets | PMF.uniformOfFinset allowed ha] ≤
@@ -45,7 +77,6 @@ theorem freshEncodingSupport_probability_le (reference : Encoding) (targets : Fi
       · simp only [PMF.uniformOfFinset_apply, if_neg hm, ite_self]
     rw [hzero]
     exact zero_le
-
 theorem freshEncodingSupport_neighbor_le (reference : Encoding) (lowered : ChainIndex)
     (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport reference allowed) :
     Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests (OtsCode.unitNeighbors reference lowered) |
@@ -55,7 +86,6 @@ theorem freshEncodingSupport_neighbor_le (reference : Encoding) (lowered : Chain
     exact (OtsCode.mem_unitNeighbors.mp h).ne rfl
   exact (freshEncodingSupport_probability_le reference _ href allowed ha hallowed).trans
     (ENNReal.div_le_div_right (Nat.cast_le.mpr (OtsCode.unitNeighbors_card_le reference lowered)) _)
-
 theorem freshEncodingSupport_all_neighbors_le (reference : Encoding)
     (allowed : Finset HashOutput) (ha : allowed.Nonempty) (hallowed : FreshEncodingSupport reference allowed) :
     Pr[fun output : HashOutput => truncateHash output ∈ OtsCode.decodingDigests (OtsCode.allUnitNeighbors reference) |
@@ -66,5 +96,5 @@ theorem freshEncodingSupport_all_neighbors_le (reference : Encoding)
     exact ht.ne rfl
   exact (freshEncodingSupport_probability_le reference _ href allowed ha hallowed).trans
     (ENNReal.div_le_div_right (Nat.cast_le.mpr (OtsCode.allUnitNeighbors_card_le reference)) _)
-
 end SphincsSecurity.Concrete
+end

@@ -1,20 +1,16 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.Honest
-namespace SphincsSecurity.Concrete.FiniteGraphSampling
 
+namespace SphincsSecurity.Concrete.FiniteGraphSampling
 open _root_.OracleComp OracleSpec OracleComp.DeferredSampling
 set_option backward.isDefEq.respectTransparency false
-
 variable {Node Cell Answer State : Type} [DecidableEq Cell]
-
 def read (input : Node → State → Cell) (advance : Node → Answer → State → State)
     (table : Cell → Answer) : List Node → State → State
   | [], state => state
   | node :: nodes, state => read input advance table nodes (advance node (table (input node state)) state)
-
 def Separated (input : Node → State → Cell) : Prop :=
   ∀ left right, left ≠ right → ∀ before after, input left before ≠ input right after
-
 omit [DecidableEq Cell] in
 theorem read_congr (input : Node → State → Cell) (advance : Node → Answer → State → State)
     (left right : Cell → Answer) (hagrees : ∀ node state, left (input node state) = right (input node state))
@@ -24,7 +20,6 @@ theorem read_congr (input : Node → State → Cell) (advance : Node → Answer 
   | cons node nodes ih =>
       simp only [read, hagrees]
       exact ih _
-
 theorem read_update_of_not_mem (input : Node → State → Cell)
     (advance : Node → Answer → State → State) (hsep : Separated input)
     (table : Cell → Answer) (nodes : List Node) (node : Node) (hnode : node ∉ nodes)
@@ -38,10 +33,8 @@ theorem read_update_of_not_mem (input : Node → State → Cell)
       have hrest : node ∉ rest := fun h => hnode (List.mem_cons_of_mem _ h)
       simp only [read, Function.update_of_ne (hsep first node hne state before)]
       exact ih hrest _
-
 variable [_root_.Finite Cell] [_root_.Finite Answer] [Nonempty Answer]
   [SampleableType Answer] [SampleableType (Cell → Answer)]
-
 noncomputable def plant (input : Node → State → Cell)
     (advance : Node → Answer → State → State) : List Node → State → ProbComp (State × (Cell → Answer))
   | [], state => do
@@ -51,7 +44,6 @@ noncomputable def plant (input : Node → State → Cell)
       let answer ← $ᵗ Answer
       let result ← plant input advance nodes (advance node answer state)
       pure (result.1, Function.update result.2 (input node state) answer)
-
 theorem evalDist_table_extract {Result : Type} (cell : Cell)
     (next : (Cell → Answer) → Answer → ProbComp Result) :
     𝒮[do let table ← ($ᵗ (Cell → Answer) : ProbComp _); next table (table cell)] =
@@ -63,7 +55,6 @@ theorem evalDist_table_extract {Result : Type} (cell : Cell)
     distribution >>= fun table => 𝒮[next table (table cell)])
     (evalSPMF_uniformSample_bind_update (R := Answer) cell)
   simpa only [evalSPMF_bind, bind_assoc, evalSPMF_pure, pure_bind, Function.update_self] using h.symm
-
 theorem evalDist_read_eq_plant (input : Node → State → Cell)
     (advance : Node → Answer → State → State) (hsep : Separated input)
     (nodes : List Node) (hnodes : nodes.Nodup) (state : State) :
@@ -91,5 +82,4 @@ theorem evalDist_read_eq_plant (input : Node → State → Cell)
         distribution >>= fun result => pure (result.1, Function.update result.2 (input node state) answer))
         (ih hnodes (advance node answer state))
       simpa only [evalSPMF_bind, evalSPMF_pure, bind_assoc, pure_bind] using h
-
 end SphincsSecurity.Concrete.FiniteGraphSampling

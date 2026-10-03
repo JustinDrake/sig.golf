@@ -1,18 +1,16 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ConcreteTargetShapeSigning
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.TargetShapeEnvelope
-namespace SphincsSecurity.Concrete
 
+namespace SphincsSecurity.Concrete
 open _root_.OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
 set_option backward.isDefEq.respectTransparency false
-
 theorem normalizedTargetLogProduct_cache_stable (key : SecretKey) (before after : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView) (remaining : Finset IndexGroup)
     (hcache : before ≤ after) (hsigned : SigningDigestsCached key.parameter before key.root log) :
     normalizedTargetLogProduct key after log payload target remaining = normalizedTargetLogProduct key before log payload target remaining := by
   simp only [normalizedTargetLogProduct, normalizedTargetLogMatch, eligibleSigningViews_cache_stable key before after log payload hcache hsigned]
-
 theorem sourceSubsetMatch_family (target source : FewTimeView) (family : Finset (Finset IndexGroup)) :
     (∏ group ∈ family, sourceSubsetMatch target source group) =
       sourceSubsetMatch target source (groupCoordinates family) := by
@@ -20,7 +18,6 @@ theorem sourceSubsetMatch_family (target source : FewTimeView) (family : Finset 
   | empty => simp [sourceSubsetMatch, groupCoordinates]
   | @insert group family hnot ih =>
       rw [Finset.prod_insert hnot, ih, sourceSubsetMatch_mul, groupCoordinates_insert]
-
 theorem normalizedSourceSubsetMatch_family (target source : FewTimeView) (family : Finset (Finset IndexGroup))
     (hdisjoint : (family : Set (Finset IndexGroup)).PairwiseDisjoint id) :
     (∏ group ∈ family, normalizedSourceSubsetMatch target source group) =
@@ -29,12 +26,10 @@ theorem normalizedSourceSubsetMatch_family (target source : FewTimeView) (family
     Finset.prod_pow_eq_pow_sum, sourceSubsetMatch_family]
   congr 2
   exact (Finset.card_biUnion hdisjoint).symm
-
 theorem TargetShapeValid.pairwiseDisjoint {groups family : Finset (Finset IndexGroup)} {remaining : Finset IndexGroup}
     (hvalid : TargetShapeValid groups remaining) (hfamily : family ⊆ groups) :
     (family : Set (Finset IndexGroup)).PairwiseDisjoint id :=
   fun first hfirst second hsecond hne => hvalid.disjoint first (hfamily hfirst) second (hfamily hsecond) hne
-
 theorem prod_add_family_expand (groups : Finset (Finset IndexGroup)) (a x : Finset IndexGroup → ENNReal) (c : ENNReal) :
     (∏ group ∈ groups, (a group + x group)) * c =
       ∑ removed ∈ groups.powerset, (∏ group ∈ removed, x group) * ((∏ group ∈ groups \ removed, a group) * c) := by
@@ -43,7 +38,6 @@ theorem prod_add_family_expand (groups : Finset (Finset IndexGroup)) (a x : Fins
   apply Finset.sum_congr rfl
   intro _ _
   ring
-
 theorem expected_cacheQuery_targetShapeMoments (key : SecretKey) (before : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView)
     (groups : Finset (Finset IndexGroup)) (remaining : Finset IndexGroup) (hvalid : TargetShapeValid groups remaining)
@@ -89,7 +83,6 @@ theorem expected_cacheQuery_targetShapeMoments (key : SecretKey) (before : Query
     apply tsum_congr
     intro output
     rw [hfamily output removed hremoved]
-
 theorem targetShapeMoments_cacheQuery_unchanged (key : SecretKey) (before : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView)
     (groups : Finset (Finset IndexGroup)) (remaining : Finset IndexGroup) (input : HashInput) (output : HashOutput)
@@ -106,7 +99,6 @@ theorem targetShapeMoments_cacheQuery_unchanged (key : SecretKey) (before : Quer
   · simp only [normalizedCachedTargetSubsetMatch, cachedTargetSubsetMatch_cacheQuery key.parameter before _ target group input output hfresh,
       hmessage, false_and, if_false, add_zero]
   · simp only [normalizedCachedTargetSubsetMatch, cachedTargetSubsetMatch_cacheQuery_self key.parameter before _ target group output hfresh]
-
 theorem expected_randomOracle_targetShapeMoments_le (key : SecretKey) (before : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView)
     (groups : Finset (Finset IndexGroup)) (remaining : Finset IndexGroup) (hvalid : TargetShapeValid groups remaining)
@@ -132,5 +124,4 @@ theorem expected_randomOracle_targetShapeMoments_le (key : SecretKey) (before : 
   · obtain ⟨output, houtput⟩ := Option.ne_none_iff_exists'.mp hfresh
     rw [randomOracle, QueryImpl.withCaching_run_some _ houtput, tsum_probOutput_pure_mul]
     exact le_self_add
-
 end SphincsSecurity.Concrete

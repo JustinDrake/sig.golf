@@ -3,32 +3,26 @@ import SigGolfCandidate.T3M.Keygen.Halt
 import SigGolfCandidate.T3M.FullCache.MacRun
 import SigGolfCandidate.T3M.Submission
 
-/-! Exact key generation with a complete masked tree and a four-lane polynomial MAC.
-The source and machine use4095 paired masks and two MAC-key queries. -/
 namespace SigGolfCandidate.T3M.Keygen
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3 (Digest Cache Region keygen keygenPayload cacheBytes readLE)
 open SphincsSecurity (bytesLE bytesLE_length)
-
 theorem initialState_keygen (sk : SecretKey) : initialState submission .keygen sk = some (kinit sk) := by
   have hv := submission_keygen_valid
   unfold initialState
   rw [if_pos hv]
   simp only [submission_keygen, Images.keygenImage, Images.keygenData, MachineState.writeBytesAsWords_nil]
   rfl
-
 structure KDone (r : Digest × Cache) (t : MachineState) : Prop where
   pc : t.pc = pcOf 541
   x5 : t.getReg .x5 = 1
   x10 : t.getReg .x10 = 0
   pk : t.readWords (BitVec.ofNat 64 0xA0) 2 = wordsOf (bytesLE 16 r.1)
   cache : t.readWords (BitVec.ofNat 64 0x80000) 16384 = wordsOf (cacheBytes r.2)
-
 section main
 variable {sk : SecretKey} {s1 : MachineState} (hs : KStart sk s1)
 include hs
-
-theorem keygen_from_start : TSim image sk s1 45739860 53919380 995328 1048576 keygen KDone := by
+theorem keygen_from_start : TSim image sk s1 31780692 39960212 995328 1048576 keygen KDone := by
   unfold keygen
   refine TSim.bind (k₂ := 1703623) (c₂ := 2489877) (n₂ := 2) (b₂ := 2)
     (payload_tsim hs) (fun r t ht => ?_)
@@ -55,18 +49,11 @@ theorem keygen_from_start : TSim image sk s1 45739860 53919380 995328 1048576 ke
       simp only [FullCache.MacW,FullCache.PRIV,FullCache.KEYS,FullCache.OutW,FullCache.macOut,Bool.false_eq_true,ite_false] at h
       omega)]
     exact congrArg _ ht.region
-
 end main
-
-/-! ## The phase -/
-
-/-- **Keygen on the machine**: from the loaded state, exactly Core's `keygen`. -/
 theorem keygen_tsim (sk : SecretKey) :
-    TSim image sk (kinit sk) 45739886 53919406 995328 1048576 keygen KDone := by
+    TSim image sk (kinit sk) 31780718 39960238 995328 1048576 keygen KDone := by
   obtain ⟨s1, st1, hs⟩ := kstart sk
   exact TSim.steps st1 (keygen_from_start hs)
-
-/-- The outputs at `HALT`. -/
 theorem kdone_output {r : Digest × Cache} {t : MachineState} (h : KDone r t) :
     readOutput submission.sizes submission.layout .keygen t = ((r.1 : PublicKey), cacheB r.2) := by
   show (readBuffer t 160 16, readBuffer t 0x80000 131072) = _
@@ -78,37 +65,25 @@ theorem kdone_output {r : Digest × Cache} {t : MachineState} (h : KDone r t) :
   refine Prod.ext ?_ e2
   refine e1.trans (BitVec.eq_of_toNat_eq ?_)
   rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt r.1.isLt]
-
-/-- **`keygen_run`**: the keygen phase is Core's `keygen` realized with the secret key, with
-outputs `(pk, cacheB ⟨tag, region⟩)`, exactly 53,919,407 cycles, 995,328 calls and 1,048,576
-compressions. -/
 theorem keygen_run (sk : SecretKey) :
     submission.run .keygen sk =
-      (fun r => ⟨some ((r.1 : PublicKey), cacheB r.2), true, 53919407, 995328, 1048576⟩) <$>
+      (fun r => ⟨some ((r.1 : PublicKey), cacheB r.2), true, 39960239, 995328, 1048576⟩) <$>
         mrealize sk keygen :=
   XSim.run_eq submission .keygen sk (initialState_keygen sk) (keygen_tsim sk) (by decide)
     (fun r => ((r.1 : PublicKey), cacheB r.2))
     (fun _ t h => ⟨fetch_541 t h.pc, h.x5, h.x10, kdone_output h⟩)
-
-/-- Core's `keygen` makes exactly 995,328 calls and 1,048,576 compressions. -/
 theorem keygen_countBoth (sk : SecretKey) :
     countBoth (mrealize sk keygen) = (fun a => (a, 995328, 1048576)) <$> mrealize sk keygen :=
   XSim.countBoth_eq (keygen_tsim sk)
-
-/-- Value, calls and compressions of the run = Core's value with its joint call / compression
-count. -/
 theorem keygen_run_counts (sk : SecretKey) :
     (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$> submission.run .keygen sk =
       (fun p => (some ((p.1.1 : PublicKey), cacheB p.1.2), p.2.1, p.2.2)) <$>
         countBoth (mrealize sk keygen) := by
   rw [keygen_run, keygen_countBoth, Functor.map_map, Functor.map_map]; rfl
-
-/-- Fixed-oracle form: finished, exactly 53,919,407 cycles (`< 2^32`), for every oracle. -/
 theorem keygen_runWith (hash : Hash) (sk : SecretKey) :
     submission.runWith hash .keygen sk =
       ⟨some (((evalWithAnswerFn hash (mrealize sk keygen)).1 : PublicKey),
-        cacheB (evalWithAnswerFn hash (mrealize sk keygen)).2), true, 53919407, 995328, 1048576⟩ := by
+        cacheB (evalWithAnswerFn hash (mrealize sk keygen)).2), true, 39960239, 995328, 1048576⟩ := by
   unfold Submission.runWith
   rw [keygen_run, evalWithAnswerFn_map]
-
 end SigGolfCandidate.T3M.Keygen

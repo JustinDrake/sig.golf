@@ -1,6 +1,65 @@
-import SigGolfCandidate.T3M.Search.TopExec
+import SigGolfCandidate.T3M.Search.KernelBlocks
+import SigGolfCandidate.T3M.Search.TopTables
 import SigGolfCandidate.T3M.Search.TopWindow
 import SigGolfCandidate.T3M.Search.TopSegments
+
+section
+
+
+namespace SigGolfCandidate.T3M.Search
+open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
+open SigGolfCandidate.T3 (Digest)
+set_option maxRecDepth 8192
+set_option maxHeartbeats 1200000
+set_option linter.unusedSimpArgs false
+variable {image : Image} {b : Nat}
+theorem top_lookup_access (r : Nat) (hr : r < 128) :
+    accessValid (BitVec.ofNat 64 (TOP_DATA + r)) 1 = true := by
+  have hlt : TOP_DATA + r < 2 ^ 64 := by unfold TOP_DATA; omega
+  simp only [accessValid_iff, MEMORY_BYTES, toNat_ofNat_lt hlt, Nat.mod_one,
+    and_true, true_and]
+  unfold TOP_DATA
+  omega
+theorem SumTableOK.rank (s : MachineState) (ht : SumTableOK s) (r : Nat) (hr : r < 128) :
+    (s.getByte (BitVec.ofNat 64 (TOP_DATA + r))).zeroExtend 64 = BitVec.ofNat 64 (rankLookup r) := by
+  rw [ht r hr]
+  have h := rankLookup_le r
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_setWidth, BitVec.toNat_ofNat]
+  omega
+theorem top_lbu (s : MachineState) (pc : Word) (inst : BitVec 32) (rd : Reg)
+    (hc : CodeAt image pc [inst]) (hpc : s.pc = pc)
+    (hd : decodeInstruction inst = some (.base (.LBU rd .x29 0)))
+    (r : Nat) (hr : r < 128) (h29 : s.getReg .x29 = BitVec.ofNat 64 (TOP_DATA + r))
+    (ht : SumTableOK s) :
+    Steps image s 1 1 ((s.setReg rd (BitVec.ofNat 64 (rankLookup r))).setPC (s.pc + 4)) := by
+  have hz : signExtend12 (0 : BitVec 12) = (0 : Word) := rfl
+  have hv : accessValid (s.getReg .x29 + signExtend12 0) 1 = true := by
+    rw [h29, hz]
+    simpa only [add_zero] using top_lookup_access r hr
+  have hs := steps_lbu hc hpc hd hv
+  simpa only [h29, hz, add_zero, SumTableOK.rank s ht r hr] using hs
+theorem top_lbu_spec (s : MachineState) (pc : Word) (inst : BitVec 32) (rd : Reg)
+    (hc : CodeAt image pc [inst]) (hpc : s.pc = pc)
+    (hd : decodeInstruction inst = some (.base (.LBU rd .x29 0))) (hrd : rd ≠ .x0)
+    (r : Nat) (hr : r < 128) (h29 : s.getReg .x29 = BitVec.ofNat 64 (TOP_DATA + r))
+    (ht : SumTableOK s) :
+    ∃ t, Steps image s 1 1 t ∧ t.pc = pc + 4 ∧
+      t.getReg rd = BitVec.ofNat 64 (rankLookup r) ∧ RegsExcept s t [rd] ∧
+      Frame s t (fun _ => False) := by
+  refine ⟨_, top_lbu s pc inst rd hc hpc hd r hr h29 ht, ?_, ?_, ?_, ?_⟩
+  · exact congrArg (fun p => p + 4) hpc
+  · exact MachineState.getReg_setReg_eq hrd
+  · intro q hq
+    simp only [List.mem_singleton] at hq
+    exact MachineState.getReg_setReg_ne _ _ _ _ (Ne.symm hq)
+  · intro A _ _; simp [MachineState.setReg, MachineState.setPC, MachineState.getMem]
+end SigGolfCandidate.T3M.Search
+end
+
+section
+
+
 
 namespace SigGolfCandidate.T3M.Search
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
@@ -8,16 +67,11 @@ open SigGolfCandidate.T3 (Digest)
 set_option maxRecDepth 8192
 set_option maxHeartbeats 600000
 set_option linter.unusedSimpArgs false
-
-/-- Common two-instruction address formation before all seventeen checksum byte loads. -/
-def rankPtrCode : List (BitVec 32) := [0x07fe7e93, 0x01ee8eb3]
+def rankPtrCode : List (BitVec 32) := [0x7fe7e93,32411315]
 sym_block rankPtrBase := symRun { noAlias := true } rankPtrCode 0#64 200
-
 theorem rankPtr_run (pc : Word) :
     symRun { noAlias := true } rankPtrCode pc 200 =
       some ⟨rankPtrBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
-
-/-- Forming a rank lookup address preserves the checksum, rolling input, and all memory. -/
 theorem rankPtr_spec {image : Image} (s : MachineState) (pc : Word)
     (hc : CodeAt image pc rankPtrCode) (hpc : s.pc = pc) (v : Digest) (j : Nat) (hj : j < 17)
     (h28 : s.getReg .x28 = topWindow v j) (h30 : s.getReg .x30 = BitVec.ofNat 64 TOP_DATA) :
@@ -29,10 +83,7 @@ theorem rankPtr_spec {image : Image} (s : MachineState) (pc : Word)
   · simpa only [Result.toState_getReg, rankPtrBase.res, rv_simp, h28, h30] using topRank_ptr v j hj
   · intro r hr; simp at hr; cases r <;> simp_all [rankPtrBase.res, rv_simp] <;> rfl
   · intro A _ _; simp [rankPtrBase.res, rv_simp]
-
-
 def rankStart (j : Nat) : Nat := if j = 0 then 267 else if j < 9 then 266 + 5 * j else 268 + 5 * j
-
 theorem rankPtr_placement {image : Image} {b : Nat} (h : KernAt image b) (j : Fin 17) :
     CodeAt image (pcOf (b + rankStart j.val)) rankPtrCode := by
   fin_cases j
@@ -53,13 +104,10 @@ theorem rankPtr_placement {image : Image} {b : Nat} (h : KernAt image b) (j : Fi
   · exact codeAt_top338 h
   · exact codeAt_top343 h
   · exact codeAt_top348 h
-
-def topInitCode : List (BitVec 32) := [0x00ffff37, 0x00030e13]
+def topInitCode : List (BitVec 32) := [0xffff37,200211]
 sym_block topInitBase := symRun { noAlias := true } topInitCode 0#64 200
-
 theorem topInit_run (pc : Word) : symRun { noAlias := true } topInitCode pc 200 =
     some ⟨topInitBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
-
 theorem topInit_spec {image : Image} (s : MachineState) (pc : Word)
     (hc : CodeAt image pc topInitCode) (hpc : s.pc = pc) (v : Digest)
     (h6 : s.getReg .x6 = v.extractLsb' 0 64) :
@@ -72,13 +120,10 @@ theorem topInit_spec {image : Image} (s : MachineState) (pc : Word)
   · rfl
   · intro r hr; simp at hr; cases r <;> simp_all [topInitBase.res, rv_simp] <;> rfl
   · intro A _ _; simp [topInitBase.res, rv_simp]
-
-def rankTailCode : List (BitVec 32) := [0x01dc8cb3, 0x007e5e13]
+def rankTailCode : List (BitVec 32) := [31231155,8281619]
 sym_block rankTailBase := symRun { noAlias := true } rankTailCode 0#64 200
-
 theorem rankTail_run (pc : Word) : symRun { noAlias := true } rankTailCode pc 200 =
     some ⟨rankTailBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
-
 theorem rankTail_spec {image : Image} (s : MachineState) (pc : Word)
     (hc : CodeAt image pc rankTailCode) (hpc : s.pc = pc) (W : Word) (sum rank : Nat)
     (h28 : s.getReg .x28 = W) (h25 : s.getReg .x25 = BitVec.ofNat 64 sum)
@@ -92,13 +137,10 @@ theorem rankTail_spec {image : Image} (s : MachineState) (pc : Word)
   · simp [rankTailBase.res, rv_simp, h25, h29, ofNat_add_ofNat]
   · intro r hr; simp at hr; cases r <;> simp_all [rankTailBase.res, rv_simp] <;> rfl
   · intro A _ _; simp [rankTailBase.res, rv_simp]
-
-def rankShiftCode : List (BitVec 32) := [0x007e5e13]
+def rankShiftCode : List (BitVec 32) := [8281619]
 sym_block rankShiftBase := symRun { noAlias := true } rankShiftCode 0#64 200
-
 theorem rankShift_run (pc : Word) : symRun { noAlias := true } rankShiftCode pc 200 =
     some ⟨rankShiftBase.res.st, .c (pc + 4), .endOfCode, 1, 1⟩ := by rfl
-
 theorem rankShift_spec {image : Image} (s : MachineState) (pc : Word)
     (hc : CodeAt image pc rankShiftCode) (hpc : s.pc = pc) (W : Word) (h28 : s.getReg .x28 = W) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pc + 4 ∧ t.getReg .x28 = W >>> 7 ∧
@@ -108,13 +150,10 @@ theorem rankShift_spec {image : Image} (s : MachineState) (pc : Word)
   · simp [rankShiftBase.res, rv_simp, h28]
   · intro r hr; simp at hr; cases r <;> simp_all [rankShiftBase.res, rv_simp] <;> rfl
   · intro A _ _; simp [rankShiftBase.res, rv_simp]
-
-def rankCrossCode : List (BitVec 32) := [0x00139e93, 0x01ceee33]
+def rankCrossCode : List (BitVec 32) := [1285779,30338611]
 sym_block rankCrossBase := symRun { noAlias := true } rankCrossCode 0#64 200
-
 theorem rankCross_run (pc : Word) : symRun { noAlias := true } rankCrossCode pc 200 =
     some ⟨rankCrossBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
-
 theorem rankCross_spec {image : Image} (s : MachineState) (pc : Word)
     (hc : CodeAt image pc rankCrossCode) (hpc : s.pc = pc) (v : Digest)
     (h28 : s.getReg .x28 = v.extractLsb' 0 64 >>> 63) (h7 : s.getReg .x7 = v.extractLsb' 64 64) :
@@ -125,5 +164,5 @@ theorem rankCross_spec {image : Image} (s : MachineState) (pc : Word)
   · simpa [rankCrossBase.res, rv_simp, h28, h7, topWindow] using topWindow_cross v
   · intro r hr; simp at hr; cases r <;> simp_all [rankCrossBase.res, rv_simp] <;> rfl
   · intro A _ _; simp [rankCrossBase.res, rv_simp]
-
 end SigGolfCandidate.T3M.Search
+end

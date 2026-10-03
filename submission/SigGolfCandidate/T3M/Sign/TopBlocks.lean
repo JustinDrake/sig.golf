@@ -1,20 +1,8 @@
 import SigGolfCandidate.T3M.Sign.Basic
 
-/-!
-# Sign: block specifications of layer 0 and the appended cached path
-
-Words 427..446 set up the layer-0 counter search and signature-only leaf. Word 447
-jumps to the appended path at 1433. Its twelve iterations (1438..1481) read one
-cached sibling, obtain the appropriate half of a paired mask, and write their XOR
-to `SIG + 3056 + 16 * level`. Word 1482 returns to the halt setup at 540.
--/
-
 namespace SigGolfCandidate.T3M.Sign
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 open SigGolfCandidate.T3M.Keygen (PRIV SEEDS CHAIN NODE NOUT LOUT LEAFPK MOUT ZDIG DUMMY TOP REGION)
-
-/-! ## Bit operations on small values -/
-
 theorem ofNat_and_mask (x k : Nat) (hk : k ≤ 64) :
     BitVec.ofNat 64 x &&& BitVec.ofNat 64 (2 ^ k - 1) = BitVec.ofNat 64 (x % 2 ^ k) := by
   apply BitVec.eq_of_toNat_eq
@@ -24,23 +12,17 @@ theorem ofNat_and_mask (x k : Nat) (hk : k ≤ 64) :
     Nat.and_two_pow_sub_one_eq_mod]
   have := Nat.pow_le_pow_right (by norm_num : 0 < 2) hk
   rw [Nat.mod_mod_of_dvd _ (Nat.pow_dvd_pow 2 hk), Nat.mod_eq_of_lt (lt_of_lt_of_le (Nat.mod_lt _ (by positivity)) this)]
-
 theorem ofNat_xor (a b : Nat) (ha : a < 2 ^ 64) (hb : b < 2 ^ 64) :
     BitVec.ofNat 64 a ^^^ BitVec.ofNat 64 b = BitVec.ofNat 64 (a ^^^ b) := by
   apply BitVec.eq_of_toNat_eq
   rw [BitVec.toNat_xor, BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt ha,
     Nat.mod_eq_of_lt hb, Nat.mod_eq_of_lt (Nat.xor_lt_two_pow ha hb)]
-
 theorem ofNat_sub_ofNat (a b : Nat) (ha : a < 2 ^ 64) (hb : b ≤ a) :
     BitVec.ofNat 64 a - BitVec.ofNat 64 b = BitVec.ofNat 64 (a - b) := by
   apply BitVec.eq_of_toNat_eq
   rw [BitVec.toNat_sub, BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt ha,
     Nat.mod_eq_of_lt (lt_of_le_of_lt hb ha), Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.sub_le a b) ha)]
   omega
-
-/-! ## The blocks -/
-
-/-- `layer_0` (427..440): the layer registers, the leaf `index >> 19 & 4095`, `counter_search`. -/
 theorem blk427_spec (s : MachineState) (hpc : s.pc = pcOf 427) (index : Nat) (hidx : index < 2 ^ 31)
     (hm : s.getMem (BitVec.ofNat 64 IDXV) = BitVec.ofNat 64 index) :
     ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf 646 ∧ t.getReg .x1 = pcOf 441 ∧
@@ -72,8 +54,6 @@ theorem blk427_spec (s : MachineState) (hpc : s.pc = pcOf 427) (index : Nat) (hi
     rfl
   · intro r hr; simp at hr; cases r <;> simp_all [blk_427.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_427.res, rv_simp]
-
-/-- 441..446: the signature-only leaf (`t6 = 1`, digits at `DIGITS`, values to `SIG + 2192`). -/
 theorem blk441_spec (s : MachineState) (hpc : s.pc = pcOf 441) :
     ∃ t, Steps image s 6 6 t ∧ t.pc = pcOf (1013 + 27) ∧ t.getReg .x1 = pcOf 447 ∧
       t.getReg .x31 = BitVec.ofNat 64 1 ∧ t.getReg .x22 = BitVec.ofNat 64 DIGITS ∧
@@ -88,21 +68,8 @@ theorem blk441_spec (s : MachineState) (hpc : s.pc = pcOf 441) :
   · simp [blk_441.res, rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_441.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_441.res, rv_simp]
-
-/-- `tp_done` (540): `t0 := 1`, `a0 := 0`, then the final `ECALL` (542). -/
-theorem blk540_spec (s : MachineState) (hpc : s.pc = pcOf 540) :
-    ∃ t, Steps image s 2 2 t ∧ t.pc = pcOf 542 ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 0 ∧
-      RegsExcept s t [.x5, .x10] ∧ Frame s t (fun _ => False) := by
-  refine ⟨_, symRun_sound blk_540 codeAt_540 s hpc (by simp [blk_540.res, rv_simp]), ?_, ?_, ?_, ?_, ?_⟩
-  · simp [blk_540.res, E.eval]
-  · simp [blk_540.res, rv_simp]
-  · simp [blk_540.res, rv_simp]
-  · intro r hr; simp at hr; cases r <;> simp_all [blk_540.res, rv_simp] <;> rfl
-  · intro A _ _; simp [blk_540.res, rv_simp]
-
 theorem fetch_542 (s : MachineState) (hpc : s.pc = pcOf 542) : fetch image s = some (.base .ECALL) :=
   (codeAt_542.fetch s hpc).trans rfl
-
 theorem blk447_spec (s : MachineState) (hpc : s.pc = pcOf 447) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 1433 ∧
       RegsExcept s t [] ∧ Frame s t (fun _ => False) := by
@@ -110,7 +77,6 @@ theorem blk447_spec (s : MachineState) (hpc : s.pc = pcOf 447) :
   · simp [blk_447.res,E.eval]
   · intro r hr; cases r <;> rfl
   · intro A _ _; simp [blk_447.res,rv_simp]
-
 theorem blk1433_spec (s : MachineState) (hpc : s.pc = pcOf 1433) :
     ∃ t, Steps image s 5 5 t ∧ t.pc = pcOf 1438 ∧
       t.getReg .x22 = 0 ∧ t.getReg .x24 = BitVec.ofNat 64 (SIG+3056) ∧
@@ -123,7 +89,6 @@ theorem blk1433_spec (s : MachineState) (hpc : s.pc = pcOf 1433) :
   · simp [blk_1433.res,rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_1433.res,rv_simp] <;> rfl
   · intro A _ _; simp [blk_1433.res,rv_simp]
-
 theorem blk1438_spec (s : MachineState) (hpc : s.pc = pcOf 1438) (leaf lv : Nat)
     (hl : leaf < 4096) (hlv : lv < 12)
     (h14 : s.getReg .x14 = BitVec.ofNat 64 leaf) (h22 : s.getReg .x22 = BitVec.ofNat 64 lv) :
@@ -162,10 +127,8 @@ theorem blk1438_spec (s : MachineState) (hpc : s.pc = pcOf 1438) (leaf lv : Nat)
     simp only [Result.toState_getMem,blk_1438.res]
     t3n []
     rw [if_neg (by omega),if_neg (by omega)]
-
 theorem fetch_1456 (s : MachineState) (hpc : s.pc = pcOf 1456) :
     fetch image s = some (.base .ECALL) := (codeAt_1456.fetch s hpc).trans rfl
-
 theorem blk1457_spec (s : MachineState) (hpc : s.pc = pcOf 1457) (sib lo lv out : Nat)
     (hlo2 : 2≤lo) (hlo : lo≤4096) (hsib : sib<lo) (hlv : lv<12)
     (hout0 : SIG+3056≤out) (hout : out+16≤SIG+3248) (hout8 : out%8=0)
@@ -230,7 +193,6 @@ theorem blk1457_spec (s : MachineState) (hpc : s.pc = pcOf 1457) (sib lo lv out 
     simp only [Result.toState_getMem,blk_1457.res]
     t3n [h24]
     rw [if_neg (by omega),if_neg (by omega)]
-
 theorem blk1482_spec (s : MachineState) (hpc : s.pc = pcOf 1482) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 540 ∧
       RegsExcept s t [] ∧ Frame s t (fun _ => False) := by
@@ -238,5 +200,4 @@ theorem blk1482_spec (s : MachineState) (hpc : s.pc = pcOf 1482) :
   · simp [blk_1482.res,E.eval]
   · intro r hr; cases r <;> rfl
   · intro A _ _; simp [blk_1482.res,rv_simp]
-
 end SigGolfCandidate.T3M.Sign

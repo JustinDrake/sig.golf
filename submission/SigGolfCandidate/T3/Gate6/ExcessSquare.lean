@@ -1,4 +1,5 @@
 import Mathlib
+
 namespace SigGolfResearch.Gate6.Excess
 open ENNReal
 theorem theta_excess_le_square (v m : ENNReal) (hv : v ≠ ⊤) (hm : m ≤ 37/64) :
@@ -17,5 +18,4 @@ theorem theta_excess_le_square (v m : ENNReal) (hv : v ≠ ⊤) (hm : m ≤ 37/6
     simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_pow,
       ENNReal.toReal_sub_of_le hlarge hv,ENNReal.toReal_div,ENNReal.toReal_ofNat]
     nlinarith [sq_nonneg (v.toReal-m.toReal-13/16)]
-
 end SigGolfResearch.Gate6.Excess

@@ -1,20 +1,17 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.QueryTraceInvariant
 import SigGolfCandidate.SphincsSecurity.Proof.Residual.RetainedObservation
-namespace SphincsSecurity.QueryPause
 
+namespace SphincsSecurity.QueryPause
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
-
 variable {Index Trace Result State : Type} {spec : OracleSpec Index} [Monoid Trace]
   (observation : (input : spec.Domain) → spec.Range input → Trace) (impl : QueryImpl spec (StateT State SPMF))
-
 theorem traced_spmf_query_bind (input : spec.Domain) (next : spec.Range input → OracleComp spec Result) (state : State) :
     (simulateQ impl (traced observation (liftM (spec.query input) >>= next))).run state =
       ((impl input).run state >>= fun middle =>
         (fun result => ((result.1.1, observation input middle.1 * result.1.2), result.2)) <$>
           (simulateQ impl (traced observation (next middle.1))).run middle.2) := by
   simp only [traced_query_bind, simulateQ_bind, simulateQ_map, simulateQ_spec_query, StateT.run_bind, StateT.run_map]
-
 theorem traced_spmf_history_potential_le (invariant : Trace → State → Prop)
     (hpreserve : ∀ history state, invariant history state → ∀ input result,
       (impl input).run state result ≠ 0 → invariant (history * observation input result.1) result.2)
@@ -84,7 +81,6 @@ theorem traced_spmf_history_potential_le (invariant : Trace → State → Prop)
               exact mul_le_of_le_one_right zero_le tsum_probOutput_le_one)
           rw [hconstant, hqueryMass, mul_one, mul_add, ← add_assoc]
           exact add_le_add (hstep history state hi input) le_rfl
-
 theorem traced_spmf_potential_le (invariant : Trace → State → Prop)
     (hpreserve : ∀ history state, invariant history state → ∀ input result,
       (impl input).run state result ≠ 0 → invariant (history * observation input result.1) result.2)
@@ -101,5 +97,4 @@ theorem traced_spmf_potential_le (invariant : Trace → State → Prop)
         ∑' result, Pr[= result | (simulateQ impl (traced observation computation)).run state] * (cost result.1.2 : ENNReal) := by
   exact traced_spmf_history_potential_le observation impl invariant hpreserve hmass potential rate
     (fun _ => cost) (fun _ => charge) (fun _ => hzero) (fun _ => hcost) hstep computation history state hi
-
 end SphincsSecurity.QueryPause

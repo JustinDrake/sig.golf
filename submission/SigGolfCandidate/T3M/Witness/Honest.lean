@@ -1,17 +1,9 @@
 import SigGolfCandidate.T3M.Witness.Normal
 import SigGolfCandidate.T3M.Witness.Roundtrip
 
-/-! # Honest acceptance (stream W; interface for F)
-
-`verifyP` on the encoded witness of an expansion behaves like Core's `verify` on the Core witness, pointwise
-under every answer function (same value, same number of calls), and so the whole honest pipeline with the machine's
-byte objects evaluates like Core's honest program. Also `expand_eq_expandN`, and the query-shape facts F and the
-bridge need (`HashOnly`, public-only, every public query 64-byte aligned). -/
 namespace SigGolfCandidate.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 set_option linter.unusedSimpArgs false
-
-/-- Core's honest pipeline (text of CLOSURE's `Completeness.honestProgram`). -/
 def honestProgramCore (message : Message) : M Bool := do
   let keys ← keygen
   let sig ← sign keys.2 message
@@ -22,8 +14,6 @@ def honestProgramCore (message : Message) : M Bool := do
     match witness with
     | none => pure false
     | some witness => verify message keys.1 witness
-
-/-- The honest pipeline with the machine's witness bytes: `expandB` (= `witEnc ∘ expandN`) and `verifyP`. -/
 def honestProgramB (message : Message) : M Bool := do
   let keys ← keygen
   let sig ← sign keys.2 message
@@ -34,37 +24,21 @@ def honestProgramB (message : Message) : M Bool := do
     match wb with
     | none => pure false
     | some wb => verifyP message keys.1 wb
-
-/-- Only hash queries (no uniform coins): CLOSURE's `SourceReplay.isHash`. -/
 def isHash : Spec.Domain → Prop
   | .inl (.inl _) => False
   | _ => True
-
-/-- Only public hash queries (no coins, no private coordinates). -/
 def isPublic : Spec.Domain → Prop
   | .inl (.inr _) => True
   | _ => False
-
-/-! ## Statements -/
-
-/-- `expand_eq_expandN`. -/
 def ExpandEqExpandN : Prop := ∀ (m : Message) (pk : Digest) (σ : Signature),
   expand m pk σ = Option.map Prod.snd <$> expandN m pk σ
-
-/-- **`verifyP_witEnc_eval`**: honest acceptance, pointwise over a fixed answer function, with call counts. -/
 def VerifyPWitEncEval : Prop := ∀ (answers : Correctness.Answers) (m : Message) (pk : Digest) (σ : Signature)
     (N : HashOutput) (w : Witness),
   evalWithAnswerFn answers (expandN m pk σ) = some (N, w) →
     evalWithAnswerFn answers (Cost.countCalls (verifyP m pk (witEnc N w))) =
       evalWithAnswerFn answers (Cost.countCalls (verify m pk w))
-
-/-- **`honestB_eval`**: the machine-object pipeline evaluates like Core's honest program. -/
 def HonestBEval : Prop := ∀ (answers : Correctness.Answers) (m : Message),
   evalWithAnswerFn answers (honestProgramB m) = evalWithAnswerFn answers (honestProgramCore m)
-
-/-! ## `expand_eq_expandN` -/
-
-/-- **`expand_eq_expandN`**: `expandN` is `expand` that also returns the digest answer. -/
 theorem expand_eq_expandN (m : Message) (pk : Digest) (σ : Signature) :
     expand m pk σ = Option.map Prod.snd <$> expandN m pk σ := by
   unfold expand expandN
@@ -81,12 +55,7 @@ theorem expand_eq_expandN (m : Message) (pk : Digest) (σ : Signature) :
       · simp
       · simp only
         split <;> simp
-
 theorem expandEqExpandN_holds : ExpandEqExpandN := expand_eq_expandN
-
-/-! ## Honest acceptance -/
-
-/-- Core's padded recovery as a fold of canonical coordinate programs. -/
 theorem recoverFtsP_canon (sig : Signature) (pads : Pads) (index : Nat) (chosen : List Selection)
     (hc : ChosenOk chosen) (hle : slotBase chosen 7 ≤ 115) :
     recoverFtsP sig pads index chosen = (do
@@ -109,7 +78,6 @@ theorem recoverFtsP_canon (sig : Signature) (pads : Pads) (index : Nat) (chosen 
         (slotsMatch_valOf _ _ _ _ (slotPositions_nodup _))) 7 le_rfl
   simp only [show slotBase chosen 0 = 0 from rfl] at B
   rw [B, bind_map_left]
-
 theorem eval_recoverFtsP_tail (answers : Correctness.Answers) (sig : Signature) (pads : Pads) (index : Nat)
     (chosen : List Selection) (hc : ChosenOk chosen) (hle : slotBase chosen 7 ≤ 115) (root : Digest)
     (h : evalWithAnswerFn answers (recoverFtsP sig pads index chosen) = some root) :
@@ -128,7 +96,6 @@ theorem eval_recoverFtsP_tail (answers : Correctness.Answers) (sig : Signature) 
     rw [← this]; congr 1; ext; simp [Nat.mod_eq_of_lt k.isLt]
   simp only [hall, Bool.not_false, if_true, evalWithAnswerFn_pure] at h
   exact absurd h (by simp)
-
 theorem selectionsOk_of_admissible (N : HashOutput) (h : admissible (selections N) = true) :
     selectionsOk (selections N) = true := by
   unfold selectionsOk
@@ -146,7 +113,6 @@ theorem selectionsOk_of_admissible (N : HashOutput) (h : admissible (selections 
   simp only [List.nodup_cons, List.mem_cons, List.mem_nil_iff, or_false, not_or] at hn
   simp only [Bool.and_eq_true, decide_eq_true_eq]
   omega
-/-- Facts an expansion establishes about its digest answer and witness. -/
 structure ExpandFacts (answers : Correctness.Answers) (m : Message) (pk : Digest) (σ : Signature) (N : HashOutput)
     (w : Witness) : Prop where
   sig : w.signature = σ
@@ -154,7 +120,6 @@ structure ExpandFacts (answers : Correctness.Answers) (m : Message) (pk : Digest
   digest : evalWithAnswerFn answers (digest σ.rho m w.digestCounter) = N
   adm : admissible (selections N) = true
   root : ∃ root, evalWithAnswerFn answers (recoverFts σ (N.toNat % 2 ^ 31) (selections N)) = some root
-
 theorem expandN_facts (answers : Correctness.Answers) (m : Message) (pk : Digest) (σ : Signature) (N : HashOutput)
     (w : Witness) (he : evalWithAnswerFn answers (expandN m pk σ) = some (N, w)) :
     ExpandFacts answers m pk σ N w := by
@@ -180,27 +145,20 @@ theorem expandN_facts (answers : Correctness.Answers) (m : Message) (pk : Digest
                 obtain ⟨_, hcounter, houtput, hadm⟩ := Correctness.digestSearch_some answers σ.rho m
                   attemptLimit 0 counter output (by decide) hd
                 exact ⟨rfl, by simpa using hcounter, houtput, hadm, ⟨forest, hf⟩⟩
-
 theorem eval_map (answers : Correctness.Answers) {α β : Type} (f : α → β) (oa : M α) :
     evalWithAnswerFn answers (f <$> oa) = f (evalWithAnswerFn answers oa) := by
   rw [map_eq_bind_pure_comp, evalWithAnswerFn_bind]; rfl
-
 theorem eval_countCalls_fst (answers : Correctness.Answers) {α : Type} (oa : M α) :
     (evalWithAnswerFn answers (Cost.countCalls oa)).1 = evalWithAnswerFn answers oa := by
   have := congrArg (evalWithAnswerFn answers) (Cost.fst_countWith (fun _ => 1) oa)
   rw [eval_map] at this
   exact this
-
-/-- Counted evaluation of a bind only depends on the continuation at the evaluated value. -/
 theorem eval_countCalls_bind_congr (answers : Correctness.Answers) {α β : Type} (oa : M α) (f g : α → M β)
     (h : f (evalWithAnswerFn answers oa) = g (evalWithAnswerFn answers oa)) :
     evalWithAnswerFn answers (Cost.countCalls (oa >>= f)) = evalWithAnswerFn answers (Cost.countCalls (oa >>= g)) := by
   have h1 := eval_countCalls_fst answers oa
   unfold Cost.countCalls at h1 ⊢
   rw [Cost.countWith_bind, Cost.countWith_bind, evalWithAnswerFn_bind, evalWithAnswerFn_bind, h1, h]
-
-/-- **`verifyP_witEnc_eval`**: on the encoded witness of an expansion, `verifyP` evaluates like Core's `verify`
-(same value, same number of calls) under every answer function. -/
 theorem verifyP_witEnc_eval (answers : Correctness.Answers) (m : Message) (pk : Digest) (σ : Signature)
     (N : HashOutput) (w : Witness) (he : evalWithAnswerFn answers (expandN m pk σ) = some (N, w)) :
     evalWithAnswerFn answers (Cost.countCalls (verifyP m pk (witEnc N w))) =
@@ -226,16 +184,11 @@ theorem verifyP_witEnc_eval (answers : Correctness.Answers) (m : Message) (pk : 
   apply eval_countCalls_bind_congr
   rw [F.sig, F.digest, verifyTailP_shaped pk N _ (shaped_witEnc N w hsel F.adm),
     witDecP_witEnc N w hc hle htail, padDecP_witEnc N w hc hle]
-
 theorem verifyPWitEncEval_holds : VerifyPWitEncEval := verifyP_witEnc_eval
-
-/-- Evaluation of `expandB` is the encoding of the evaluation of `expandN`. -/
 theorem eval_expandB (answers : Correctness.Answers) (m : Message) (pk : Digest) (σ : Signature) :
     evalWithAnswerFn answers (expandB m pk σ) =
       (evalWithAnswerFn answers (expandN m pk σ)).map (fun x => witEnc x.1 x.2) := by
   unfold expandB; rw [eval_map]
-
-/-- **`honestB_eval`**: the honest pipeline with the machine's witness bytes evaluates like Core's. -/
 theorem honestB_eval (answers : Correctness.Answers) (m : Message) :
     evalWithAnswerFn answers (honestProgramB m) = evalWithAnswerFn answers (honestProgramCore m) := by
   unfold honestProgramB honestProgramCore
@@ -253,7 +206,5 @@ theorem honestB_eval (answers : Correctness.Answers) (m : Message) :
           have := verifyP_witEnc_eval answers m _ sig N w hx
           have h1 := congrArg Prod.fst this
           rwa [eval_countCalls_fst, eval_countCalls_fst] at h1
-
 theorem honestBEval_holds : HonestBEval := honestB_eval
-
 end SigGolfCandidate.T3M

@@ -1,17 +1,6 @@
 import SigGolfCandidate.T3.Secc.CaseCBankReuse
 import SigGolfCandidate.T3.Secc.CaseCExcess
 
-/-!
-# Stream CC: the bank potential and its one-step bound
-
-`potential budget st` (zero once the ghost is dead or the budget is exceeded; `1 + reuse` once a reuse happened):
-
-    Σ_{N ∈ targets} forecast (horizon − |X|) X N  +  reusePotential  +  (budget − count) · excessForecast(…)/2^128.
-
-`potential_step`: for every interaction query, `E[potential after] ≤ potential before + birthCharge`, where a
-birth (fresh in-budget digest query) costs `(theta + 1/16)/2^128` and everything else costs nothing.
--/
-
 namespace SigGolfCandidate.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M.Final
@@ -20,9 +9,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance instDecidableEqCache_caseCBankStep : DecidableEq T3.Cache := Classical.decEq _
-
-/-! ## Transfers between the recorded and the lazy run -/
-
 theorem lazy_of_recorded {α : Type} (program : M α) (s : QueryRecorded.State) :
     (fun r : α × QueryRecorded.State => (r.1, lazyOf r.2)) <$> QueryRecorded.run program s =
       LazyPrivate.run program (lazyOf s) := by
@@ -35,48 +21,32 @@ theorem lazy_of_recorded {α : Type} (program : M α) (s : QueryRecorded.State) 
     _ = LazyPrivate.run program (lazyOf s) := by
       rw [QueryRecorded.run_erasure, MonitoredPrivate.run_erasure, CountedPrivate.run_erasure]
       rfl
-
 theorem expected_recorded {α : Type} (program : M α) (s : QueryRecorded.State)
     (f : α × LazyPrivate.State → ENNReal) :
     expectedValue (QueryRecorded.run program s) (fun r => f (r.1, lazyOf r.2)) =
       expectedValue (LazyPrivate.run program (lazyOf s)) f := by
   rw [← lazy_of_recorded, expectedValue_map]
-
 theorem recorded_lazy_support {α : Type} (program : M α) (s : QueryRecorded.State) (r : α × QueryRecorded.State)
     (hr : r ∈ support (QueryRecorded.run program s)) :
     (r.1, lazyOf r.2) ∈ support (LazyPrivate.run program (lazyOf s)) := by
   rw [← lazy_of_recorded, support_map]
   exact ⟨r, hr, rfl⟩
-
 theorem recorded_count_le {α : Type} (program : M α) (s : QueryRecorded.State) (r : α × QueryRecorded.State)
     (hr : r ∈ support (QueryRecorded.run program s)) : countOf s ≤ countOf r.2 :=
   CreationGame.recorded_count_monotone program s r hr
-
-/-! ## The potential -/
-
-/-- Forecasts of all targets. -/
 noncomputable def bankValue (g : Ghost) : ENNReal :=
   (g.targets.map fun N => forecast (horizon - g.exposures.length) g.exposures N).sum
-
-/-- The remaining-budget excess term (the creation charge above `theta`, paid in advance). -/
 noncomputable def excessTerm (budget count : Nat) (g : Ghost) : ENNReal :=
   ((budget - count : Nat) : ENNReal) * excessForecast (horizon - g.exposures.length) g.exposures / 2 ^ 128
-
-/-- The live potential, evaluated at a given count and lazy state. -/
 noncomputable def livePotential (budget count : Nat) (g : Ghost) (lazy : LazyPrivate.State) : ENNReal :=
   if g.dead = true ∨ budget < count then 0
   else if g.reused = true then 1 + reusePotential lazy
   else bankValue g + reusePotential lazy + excessTerm budget count g
-
-/-- **The bank potential.** -/
 noncomputable def potential (budget : Nat) (st : BankState) : ENNReal :=
   livePotential budget (countOf st.2) st.1 (lazyOf st.2)
-
-/-- The birth charge of a query. -/
 noncomputable def birthCharge (budget : Nat) : LazyPrivate.Interaction.Domain → BankState → ENNReal
   | .inl (.inr x), st => if Birth budget x st.2 then (theta + 1 / 64) / 2 ^ 128 else 0
   | _, _ => 0
-
 theorem livePotential_count_anti (budget : Nat) {count count' : Nat} (h : count ≤ count') (g : Ghost)
     (lazy : LazyPrivate.State) : livePotential budget count' g lazy ≤ livePotential budget count g lazy := by
   unfold livePotential
@@ -95,18 +65,13 @@ theorem livePotential_count_anti (budget : Nat) {count count' : Nat} (h : count 
     apply ENNReal.div_le_div_right
     apply mul_le_mul' _ le_rfl
     exact_mod_cast Nat.sub_le_sub_left h budget
-
 theorem expectedValue_liftM {α : Type} (X : ProbComp α) (g : α → ENNReal) :
     expectedValue (liftM X : PMF α) g = expectedValue X g := by
   unfold expectedValue
   rfl
-
 theorem expectedValue_pmf_map {α β : Type} (X : PMF α) (f : α → β) (g : β → ENNReal) :
     expectedValue (X.map f) g = expectedValue X (fun x => g (f x)) := by
   rw [← PMF.monad_map_eq_map, expectedValue_map]
-
-/-! ## World queries in the lazy tables -/
-
 theorem lazy_world_coin (n : Nat) (lazy : LazyPrivate.State)
     (r : SphincsSecurity.OracleWorld.Range (.inl n) × LazyPrivate.State)
     (hr : r ∈ support (LazyPrivate.run (forwardWorld (.inl n)) lazy)) : r.2 = lazy := by
@@ -120,13 +85,11 @@ theorem lazy_world_coin (n : Nat) (lazy : LazyPrivate.State)
   rw [support_map] at hstep
   obtain ⟨_, _, rfl⟩ := hstep
   rfl
-
 theorem lazy_world_cached (x : HashInput) (lazy : LazyPrivate.State) (a0 : HashOutput) (hx : lazy.2 x = some a0) :
     LazyPrivate.run (forwardWorld (.inr x)) lazy = pure (a0, lazy) := by
   change LazyPrivate.run (Sampling.publicHandler x) lazy = _
   rw [LazyPrivate.run_publicQuery, randomOracle.run_eq, hx]
   simp
-
 theorem lazy_world_fresh (x : HashInput) (lazy : LazyPrivate.State) (hx : lazy.2 x = none)
     (f : HashOutput × LazyPrivate.State → ENNReal) :
     expectedValue (LazyPrivate.run (forwardWorld (.inr x)) lazy) f =
@@ -135,11 +98,9 @@ theorem lazy_world_fresh (x : HashInput) (lazy : LazyPrivate.State) (hx : lazy.2
   rw [LazyPrivate.run_publicQuery, expectedValue_bind]
   simp only [expectedValue_pure]
   exact Sampling.expectedValue_fresh x lazy.2 hx (fun result => f (result.1, (lazy.1, result.2)))
-
 theorem digestRowOf_isDigest {x : HashInput} {m : Message} (h : DigestRowOf x m) : IsDigestInput x := by
   obtain ⟨p, rfl⟩ := h
   exact ⟨p.1, m, BitVec.ofNat 32 p.2.val, rfl⟩
-
 theorem reusePotential_public_nondigest (s : LazyPrivate.State) (x : HashInput) (a : HashOutput)
     (hx : s.2 x = none) (hnd : ¬IsDigestInput x) :
     reusePotential (s.1, s.2.cacheQuery x a) ≤ reusePotential s := by
@@ -151,23 +112,18 @@ theorem reusePotential_public_nondigest (s : LazyPrivate.State) (x : HashInput) 
     rw [if_neg (fun hr => hnd (digestRowOf_isDigest hr)), ENNReal.zero_div, add_zero] at h1
     exact h1
   · exact le_rfl
-
-
 theorem bankValue_birth (g : Ghost) (a : HashOutput) :
     bankValue { g with targets := g.targets ++ [a] } =
       bankValue g + forecast (horizon - g.exposures.length) g.exposures a := by
   simp [bankValue, List.map_append, List.sum_append]
-
 theorem livePotential_alive (budget count : Nat) (g : Ghost) (lazy : LazyPrivate.State)
     (hd : g.dead = false) (hb : ¬budget < count) (hr : g.reused = false) :
     livePotential budget count g lazy = bankValue g + reusePotential lazy + excessTerm budget count g := by
   simp [livePotential, hd, hb, hr]
-
 theorem livePotential_reused (budget count : Nat) (g : Ghost) (lazy : LazyPrivate.State)
     (hd : g.dead = false) (hb : ¬budget < count) (hr : g.reused = true) :
     livePotential budget count g lazy = 1 + reusePotential lazy := by
   simp [livePotential, hd, hb, hr]
-
 theorem livePotential_reuse_mono (budget count : Nat) (g : Ghost) {lazy lazy' : LazyPrivate.State}
     (h : reusePotential lazy' ≤ reusePotential lazy) :
     livePotential budget count g lazy' ≤ livePotential budget count g lazy := by
@@ -176,15 +132,12 @@ theorem livePotential_reuse_mono (budget count : Nat) (g : Ghost) {lazy lazy' : 
   · exact le_rfl
   · exact add_le_add le_rfl h
   · exact add_le_add (add_le_add le_rfl h) le_rfl
-
 theorem excessTerm_succ (budget count : Nat) (g : Ghost) (hc : count < budget) :
     excessTerm budget count g = excessTerm budget (count + 1) g +
       excessForecast (horizon - g.exposures.length) g.exposures / 2 ^ 128 := by
   unfold excessTerm
   have hn : budget - count = (budget - (count + 1)) + 1 := by omega
   rw [hn, Nat.cast_add, Nat.cast_one, add_mul, one_mul, ENNReal.add_div]
-
-/-- **One world query.** -/
 theorem world_step (published : T3.Cache) (budget : Nat) (input : SphincsSecurity.OracleWorld.Domain)
     (st : BankState) :
     expectedValue ((bankImpl published budget (.inl input)).run st) (fun r => potential budget r.2) ≤
@@ -250,7 +203,7 @@ theorem world_step (published : T3.Cache) (budget : Nat) (input : SphincsSecurit
                 ($ᵗ HashOutput : ProbComp HashOutput)] = 0), zero_le]
             have hd' : g.dead = false := by simpa using hd
             by_cases hr : g.reused = true
-            · -- after a reuse only the reuse potential remains
+            ·
               have hpt : potential budget st = 1 + reusePotential lz :=
                 livePotential_reused budget c g lz hd' hnot0 hr
               rw [hpt]
@@ -318,9 +271,6 @@ theorem world_step (published : T3.Cache) (budget : Nat) (input : SphincsSecurit
                 _ = _ := rfl
             · have hover : budget < c + 1 := by omega
               simp [livePotential, hover]
-
-/-! ## Signing requests: support facts -/
-
 theorem sign_other_nonce (published : T3.Cache) (request : Request) (lz : LazyPrivate.State)
     (result : (Option Signature × Option HashOutput) × LazyPrivate.State)
     (hr : result ∈ support (LazyPrivate.run (FullGame.authenticatedRecord published request) lz))
@@ -328,7 +278,6 @@ theorem sign_other_nonce (published : T3.Cache) (request : Request) (lz : LazyPr
     result.2.1 (.inr (.inl m')) = lz.1 (.inr (.inl m')) :=
   NonceFreshness.run_preserves m' _
     (MonitoredPrivate.authenticatedRecord_avoids m' published request (Or.inr (Ne.symm hm'))) lz result hr
-
 theorem sign_other_reuseMass (published : T3.Cache) (request : Request) (lz : LazyPrivate.State)
     (result : (Option Signature × Option HashOutput) × LazyPrivate.State)
     (hr : result ∈ support (LazyPrivate.run (FullGame.authenticatedRecord published request) lz))
@@ -350,7 +299,6 @@ theorem sign_other_reuseMass (published : T3.Cache) (request : Request) (lz : La
           (digestRowOf_isDigest ⟨p, rfl⟩)
         exact hm' (digestRowOf_unique ⟨p, rfl⟩ hrow)
       rw [hn]
-
 theorem sign_published_nonce (published : T3.Cache) (m : Message) (lz : LazyPrivate.State)
     (result : (Option Signature × Option HashOutput) × LazyPrivate.State)
     (hr : result ∈ support (LazyPrivate.run (FullGame.authenticatedRecord published ⟨m, published⟩) lz)) :
@@ -369,7 +317,6 @@ theorem sign_published_nonce (published : T3.Cache) (m : Message) (lz : LazyPriv
   have hc' : nonce.2.1 (.inr (.inl m)) = some hashed.1 := by rw [hn]; exact hc
   rw [hext.1 hc']
   simp
-
 theorem sign_unpublished (published : T3.Cache) (request : Request) (hc : request.cache ≠ published)
     (lz : LazyPrivate.State) (result : (Option Signature × Option HashOutput) × LazyPrivate.State)
     (hr : result ∈ support (LazyPrivate.run (FullGame.authenticatedRecord published request) lz)) :
@@ -379,10 +326,6 @@ theorem sign_unpublished (published : T3.Cache) (request : Request) (hc : reques
   simp only [hc, if_false, LazyPrivate.run_pure, mem_support_pure_iff] at hr
   subst hr
   exact LazyPrivate.privateMac_preserves_nonce request.cache.region request.message lz mac hmac
-
-/-! ## Signing requests: the step -/
-
-/-- `ghostSign` read through the lazy tables of the record. -/
 noncomputable def ghostSignL (published : T3.Cache) (request : Request) (g : Ghost) (before : QueryRecorded.State)
     (record : (Option Signature × Option HashOutput) × LazyPrivate.State) : Ghost :=
   if FreshSigning published request before then
@@ -394,19 +337,14 @@ noncomputable def ghostSignL (published : T3.Cache) (request : Request) (g : Gho
                  request.message),
                log := g.log ++ [⟨request, record.1.1⟩] }
   else { g with log := g.log ++ [⟨request, record.1.1⟩] }
-
 theorem ghostSign_eq (published : T3.Cache) (request : Request) (g : Ghost) (before : QueryRecorded.State)
     (record : (Option Signature × Option HashOutput) × QueryRecorded.State) :
     ghostSign published request g before record = ghostSignL published request g before (record.1, lazyOf record.2) :=
   rfl
-
 theorem livePotential_log (budget count : Nat) (g : Ghost) (l : QueryLog Requests) (lazy : LazyPrivate.State) :
     livePotential budget count { g with log := l } lazy = livePotential budget count g lazy := rfl
-
-/-- The selection weight of a fresh signing: the bank and excess terms after appending the selection. -/
 noncomputable def signWeight (budget count : Nat) (g : Ghost) (A : HashOutput) : ENNReal :=
   bankValue { g with exposures := g.exposures ++ [A] } + excessTerm budget count { g with exposures := g.exposures ++ [A] }
-
 theorem expectedValue_list_sum {α β : Type} (law : PMF α) (l : List β) (f : β → α → ENNReal) :
     expectedValue law (fun a => (l.map fun b => f b a).sum) = (l.map fun b => expectedValue law (f b)).sum := by
   induction l with
@@ -414,7 +352,6 @@ theorem expectedValue_list_sum {α β : Type} (law : PMF α) (l : List β) (f : 
   | cons b l ih =>
       simp only [List.map_cons, List.sum_cons]
       rw [expectedValue_add, ih]
-
 theorem freshPrice_signWeight (budget count : Nat) (g : Ghost) (hlen : g.exposures.length < horizon) :
     Sampling.WeightedSelection.freshPrice (signWeight budget count g) = bankValue g + excessTerm budget count g := by
   rw [← expected_accepted]
@@ -443,8 +380,6 @@ theorem freshPrice_signWeight (budget count : Nat) (g : Ghost) (hlen : g.exposur
       funext A; ring]
     rw [pmf_expectedValue_left_mul, excessForecast_step, hRR]
     ring
-
-/-- **One signing request**: the potential is a supermartingale step (no charge). -/
 theorem sign_step (published : T3.Cache) (budget : Nat) (request : Request) (st : BankState) :
     expectedValue ((bankImpl published budget (.inr request)).run st) (fun r => potential budget r.2) ≤
       potential budget st := by
@@ -472,7 +407,7 @@ theorem sign_step (published : T3.Cache) (budget : Nat) (request : Request) (st 
   change _ ≤ livePotential budget c g lz
   by_cases hfresh : FreshSigning published request st.2
   swap
-  · -- not a fresh published signing: only the log grows, the reuse potential does not increase
+  ·
     apply expectedValue_le_of_support
     intro r hr
     simp only [ghostSignL, hfresh, if_false, livePotential_log]
@@ -590,5 +525,4 @@ theorem sign_step (published : T3.Cache) (budget : Nat) (request : Request) (st 
     _ = livePotential budget c g lz := by
       rw [livePotential_alive budget c g lz hd' hb hr', hP]
       ring
-
 end SigGolfCandidate.T3.Security.CaseC

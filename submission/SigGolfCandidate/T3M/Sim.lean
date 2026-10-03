@@ -1,56 +1,23 @@
 import SigGolfCandidate.T3M.Bytes
 import SigGolfCandidate.Rv
 
-/-!
-# T3M simulation judgments
-
-Machine runs refine oracle computations (adapted from the five-layer `Keygen/XSim` and
-`Sign/Sim`, without their `Ref` dependency):
-
-* `countWith` / `countCalls` / `countBlocks` and the joint counter `countBoth`;
-* `Sim image s W oa Q` : the machine performs exactly the queries of `oa`, at most `W` cycles
-  (bounded; searches), with `Sim.run_eq`, `Sim.runWith`;
-* `XSim image s k c n b oa Q` : exactly the queries of `oa`, exactly `k` steps, `c` cycles, `n`
-  calls, `b` compressions (control flow independent of the answers), with `XSim.run_eq`;
-  `XSim.toSim` turns an exact run into a bounded one;
-* `machineHandler sk` / `mrealize sk` : Core's programs (`T3.M`) as organizer computations:
-  public inputs relabeled by `toQ`, private coordinates realized by the secret, coins never
-  occur (MACH-PLAN §1.2);
-* `TSim image sk s k c n b p Q := XSim image s k c n b (mrealize sk p) Q` (exact) and
-  `TBSim image sk s W p Q := Sim image s W (mrealize sk p) Q` (bounded) with combinators along
-  Core's structure: `bind`, `steps`, `foldlM_range'`, `mapM_list`, and one HASH `ECALL` for
-  `publicHash`, `shortHash`, `privatePair`, `privateMac`, `privateNonce`, `mask`.
--/
-
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 OracleComp OracleSpec SigGolfCandidate.Rv
 open SigGolfCandidate.T3 (M Spec publicHash shortHash privateHash privatePair privateMac privateNonce mask
   privateInput header pad64 Coordinate HashOutput Digest Region)
-
-/-! ## Counters -/
-
-/-- Forward a query and add its weight to the counter. -/
 def countImpl (wt : Query → Nat) : QueryImpl HashSpec (StateT Nat (OracleComp HashSpec)) :=
   fun q => do
     modify (· + wt q)
     liftM (HashSpec.query q)
-
-/-- The result and the total weight `wt q` of the queries made. -/
 def countWith (wt : Query → Nat) {α : Type} (oa : OracleComp HashSpec α) :
     OracleComp HashSpec (α × Nat) :=
   (simulateQ (countImpl wt) oa).run 0
-
-/-- The result and the number of oracle calls. -/
 def countCalls {α : Type} (oa : OracleComp HashSpec α) : OracleComp HashSpec (α × Nat) :=
   countWith (fun _ => 1) oa
-
-/-- The result and the number of compressions (64-byte blocks). -/
 def countBlocks {α : Type} (oa : OracleComp HashSpec α) : OracleComp HashSpec (α × Nat) :=
   countWith Query.blocks oa
-
 section countw
 variable (wt : Query → Nat) {α β : Type}
-
 theorem countImpl_run (oa : OracleComp HashSpec α) (n : Nat) :
     (simulateQ (countImpl wt) oa).run n = (fun p => (p.1, n + p.2)) <$> countWith wt oa := by
   unfold countWith
@@ -63,17 +30,14 @@ theorem countImpl_run (oa : OracleComp HashSpec α) (n : Nat) :
         (fun a => (a, s)) <$> (liftM (OracleSpec.query q) : OracleComp HashSpec _) := fun s => rfl
     simp only [hl, bind_map_left, ih _ (n + wt q), ih _ (0 + wt q), Functor.map_map]
     congr 1; funext a; congr 1; funext p; simp only [Prod.mk.injEq, true_and]; omega
-
 @[simp] theorem countWith_pure (a : α) : countWith wt (pure a : OracleComp HashSpec α) = pure (a, 0) :=
   rfl
-
 theorem countWith_bind (oa : OracleComp HashSpec α) (f : α → OracleComp HashSpec β) :
     countWith wt (oa >>= f) =
       countWith wt oa >>= fun p => (fun r => (r.1, p.2 + r.2)) <$> countWith wt (f p.1) := by
   conv_lhs => unfold countWith
   rw [simulateQ_bind, StateT.run_bind]
   exact congrArg _ (funext fun p => countImpl_run wt (f p.1) p.2)
-
 @[simp] theorem countWith_query (q : Query) :
     countWith wt (liftM (HashSpec.query q) : OracleComp HashSpec _) =
       (fun a => (a, wt q)) <$> (liftM (HashSpec.query q) : OracleComp HashSpec _) := by
@@ -81,7 +45,6 @@ theorem countWith_bind (oa : OracleComp HashSpec α) (f : α → OracleComp Hash
   rw [simulateQ_spec_query]
   simp only [countImpl, StateT.run_bind, StateT.run_modify, pure_bind, Nat.zero_add]
   rfl
-
 @[simp] theorem fst_countWith (oa : OracleComp HashSpec α) : Prod.fst <$> countWith wt oa = oa := by
   induction oa using OracleComp.inductionOn with
   | pure a => rfl
@@ -90,35 +53,25 @@ theorem countWith_bind (oa : OracleComp HashSpec α) (f : α → OracleComp Hash
     simp only [map_bind, bind_map_left, Functor.map_map]
     congr 1; funext a
     exact ih a
-
 end countw
-
 theorem countCalls_bind {α β : Type} (oa : OracleComp HashSpec α) (f : α → OracleComp HashSpec β) :
     countCalls (oa >>= f) =
       countCalls oa >>= fun p => (fun r => (r.1, p.2 + r.2)) <$> countCalls (f p.1) :=
   countWith_bind _ oa f
-
 @[simp] theorem countCalls_query (q : Query) :
     countCalls (liftM (HashSpec.query q) : OracleComp HashSpec _) =
       (fun a => (a, 1)) <$> (liftM (HashSpec.query q) : OracleComp HashSpec _) :=
   countWith_query _ q
-
 @[simp] theorem fst_countCalls {α : Type} (oa : OracleComp HashSpec α) :
     Prod.fst <$> countCalls oa = oa := fst_countWith _ oa
-
-/-- Forward a query, counting one call and its blocks. -/
 def countImpl2 : QueryImpl HashSpec (StateT (Nat × Nat) (OracleComp HashSpec)) :=
   fun q => do
     modify (fun p => (p.1 + 1, p.2 + Query.blocks q))
     liftM (HashSpec.query q)
-
-/-- The result, the number of oracle calls and the number of compressions. -/
 def countBoth {α : Type} (oa : OracleComp HashSpec α) : OracleComp HashSpec (α × Nat × Nat) :=
   (simulateQ countImpl2 oa).run (0, 0)
-
 section count
 variable {α β : Type}
-
 theorem countImpl2_run (oa : OracleComp HashSpec α) (c b : Nat) :
     (simulateQ countImpl2 oa).run (c, b) =
       (fun p => (p.1, c + p.2.1, b + p.2.2)) <$> countBoth oa := by
@@ -135,17 +88,14 @@ theorem countImpl2_run (oa : OracleComp HashSpec α) (c b : Nat) :
     rw [ih a (c + 1) (b + Query.blocks q), ih a (0 + 1) (0 + Query.blocks q), Functor.map_map]
     congr 1; funext p
     simp only [Prod.mk.injEq, true_and]; omega
-
 @[simp] theorem countBoth_pure (a : α) :
     countBoth (pure a : OracleComp HashSpec α) = pure (a, 0, 0) := rfl
-
 theorem countBoth_bind (oa : OracleComp HashSpec α) (f : α → OracleComp HashSpec β) :
     countBoth (oa >>= f) =
       countBoth oa >>= fun p => (fun r => (r.1, p.2.1 + r.2.1, p.2.2 + r.2.2)) <$> countBoth (f p.1) := by
   conv_lhs => unfold countBoth
   rw [simulateQ_bind, StateT.run_bind]
   exact congrArg _ (funext fun p => countImpl2_run (f p.1) p.2.1 p.2.2)
-
 @[simp] theorem countBoth_query (q : Query) :
     countBoth (liftM (HashSpec.query q) : OracleComp HashSpec _) =
       (fun a => (a, 1, q.blocks)) <$> (liftM (HashSpec.query q) : OracleComp HashSpec _) := by
@@ -153,8 +103,6 @@ theorem countBoth_bind (oa : OracleComp HashSpec α) (f : α → OracleComp Hash
   rw [simulateQ_spec_query]
   simp only [countImpl2, StateT.run_bind, StateT.run_modify, pure_bind, Nat.zero_add]
   rfl
-
-/-- The joint counter projects to `countCalls`. -/
 theorem countBoth_calls (oa : OracleComp HashSpec α) :
     (fun p => (p.1, p.2.1)) <$> countBoth oa = countCalls oa := by
   induction oa using OracleComp.inductionOn with
@@ -164,8 +112,6 @@ theorem countBoth_calls (oa : OracleComp HashSpec α) :
     simp only [map_bind, bind_map_left, Functor.map_map]
     congr 1; funext a
     rw [← ih a, Functor.map_map]
-
-/-- The joint counter projects to `countBlocks`. -/
 theorem countBoth_blocks (oa : OracleComp HashSpec α) :
     (fun p => (p.1, p.2.2)) <$> countBoth oa = countBlocks oa := by
   induction oa using OracleComp.inductionOn with
@@ -175,17 +121,11 @@ theorem countBoth_blocks (oa : OracleComp HashSpec α) :
     simp only [map_bind, bind_map_left, Functor.map_map]
     congr 1; funext a
     rw [show countWith Query.blocks (oa a) = countBlocks (oa a) from rfl, ← ih a, Functor.map_map]
-
 @[simp] theorem fst_countBoth (oa : OracleComp HashSpec α) : Prod.fst <$> countBoth oa = oa := by
   have := congrArg (fun x => Prod.fst <$> x) (countBoth_calls oa)
   simp only [Functor.map_map] at this
   rw [this, fst_countCalls]
-
 end count
-
-/-! ## `Sim`: bounded refinement -/
-
-/-- An outcome of a machine segment: spec value, calls, blocks, steps (fuel), cycles, state. -/
 structure Out (α : Type) where
   val : α
   calls : Nat
@@ -193,16 +133,8 @@ structure Out (α : Type) where
   steps : Nat
   cycles : Nat
   st : MachineState
-
-/-- Admissible outcomes: steps ≤ cycles ≤ W and the postcondition. -/
 def Out.Good {α : Type} (W : Nat) (Q : α → MachineState → Prop) (o : Out α) : Prop :=
   o.steps ≤ o.cycles ∧ o.cycles ≤ W ∧ Q o.val o.st
-
-/-- `Sim image s W oa Q`: running the machine from `s` performs exactly the oracle queries of
-`oa` (query for query) and reaches a state `t` with `Q a t` (`a` the value of `oa`), at most `W`
-cycles (and steps). There is a computation `oc` over the outcomes whose projection to
-`(value, calls, blocks)` is `countBoth oa`, and for every `fuel ≥ W`, `execute fuel image s` is `oc`
-followed by the rest of the execution charged with the outcome's costs. -/
 def Sim {α : Type} (image : Image) (s : MachineState) (W : Nat) (oa : OracleComp HashSpec α)
     (Q : α → MachineState → Prop) : Prop :=
   ∃ oc : OracleComp HashSpec {o : Out α // o.Good W Q},
@@ -210,7 +142,6 @@ def Sim {α : Type} (image : Image) (s : MachineState) (W : Nat) (oa : OracleCom
     ∀ fuel, W ≤ fuel → Riscv.execute fuel image s =
       oc >>= fun o => (fun r => r.charge o.1.cycles o.1.calls o.1.blocks) <$>
         Riscv.execute (fuel - o.1.steps) image o.1.st
-
 theorem steps_le_cycles {image : Image} {s t : MachineState} {k c : Nat}
     (h : Steps image s k c t) : k ≤ c := by
   induction h with
@@ -219,20 +150,16 @@ theorem steps_le_cycles {image : Image} {s t : MachineState} {k c : Nat}
     have : 1 ≤ instructionCycles i := by
       unfold instructionCycles; split <;> omega
     omega
-
 section sim
 variable {α β : Type} {image : Image}
-
 theorem Sim.pure_steps {s t : MachineState} {k c : Nat} {a : α} {Q : α → MachineState → Prop}
     (h : Steps image s k c t) (hQ : Q a t) : Sim image s c (pure a) Q := by
   refine ⟨pure ⟨⟨a, 0, 0, k, c, t⟩, steps_le_cycles h, le_refl _, hQ⟩, rfl, ?_⟩
   intro fuel hf
   rw [pure_bind, h.execute_le (le_trans (steps_le_cycles h) hf)]
-
 theorem Sim.pure {s : MachineState} {a : α} {Q : α → MachineState → Prop} (hQ : Q a s) :
     Sim image s 0 (pure a) Q :=
   Sim.pure_steps (Steps.refl s) hQ
-
 theorem Sim.mono {s : MachineState} {W W' : Nat} {oa : OracleComp HashSpec α}
     {Q Q' : α → MachineState → Prop} (h : Sim image s W oa Q) (hW : W ≤ W')
     (hQ : ∀ a t, Q a t → Q' a t) : Sim image s W' oa Q' := by
@@ -241,11 +168,9 @@ theorem Sim.mono {s : MachineState} {W W' : Nat} {oa : OracleComp HashSpec α}
   · rw [Functor.map_map]; exact hp
   · intro fuel hfuel
     rw [hf fuel (le_trans hW hfuel), bind_map_left]
-
 theorem Sim.of_eq {s : MachineState} {W : Nat} {oa ob : OracleComp HashSpec α}
     {Q : α → MachineState → Prop} (h : Sim image s W oa Q) (he : oa = ob) : Sim image s W ob Q :=
   he ▸ h
-
 theorem Sim.bind {s : MachineState} {W₁ W₂ : Nat} {oa : OracleComp HashSpec α}
     {f : α → OracleComp HashSpec β} {Q₁ : α → MachineState → Prop}
     {Q₂ : β → MachineState → Prop} (h₁ : Sim image s W₁ oa Q₁)
@@ -275,15 +200,12 @@ theorem Sim.bind {s : MachineState} {W₁ W₂ : Nat} {oa : OracleComp HashSpec 
     congr 1; funext o₂
     simp only [Functor.map_map, Execution.charge_charge, comb]
     rw [Nat.sub_sub]
-
 theorem Sim.steps {s t : MachineState} {k c W : Nat} {oa : OracleComp HashSpec α}
     {Q : α → MachineState → Prop} (h : Steps image s k c t) (h₂ : Sim image t W oa Q) :
     Sim image s (c + W) oa Q := by
   have := Sim.bind (Sim.pure_steps (Q := fun _ t' => t' = t) (a := ()) h rfl)
     (f := fun _ => oa) (fun _ t' ht => ht ▸ h₂)
   simpa using this
-
-/-- One HASH `ECALL`. -/
 theorem Sim.query {s : MachineState} {q : Query}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
     (hv : hashArgumentsValid s = true) (hq : hashInput s = q) :
@@ -299,7 +221,6 @@ theorem Sim.query {s : MachineState} {q : Query}
     obtain ⟨f, rfl⟩ : ∃ f, fuel = f + 1 := ⟨fuel - 1, by omega⟩
     rw [execute_hash f hf ht0 hv, bind_map_left]
     rfl
-
 theorem Sim.query_bind {s : MachineState} {q : Query} {W : Nat}
     {f : BitVec 256 → OracleComp HashSpec β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
@@ -307,7 +228,6 @@ theorem Sim.query_bind {s : MachineState} {q : Query} {W : Nat}
     (h : ∀ a, Sim image (writeHash s a) W (f a) Q) :
     Sim image s (8 * q.blocks + W) ((liftM (HashSpec.query q) : OracleComp HashSpec _) >>= f) Q :=
   Sim.bind (Sim.query hf ht0 hv hq) (fun a _ ht => ht ▸ h a)
-
 theorem Sim.foldlM_range' {γ : Type} (a n : Nat) (f : γ → Nat → OracleComp HashSpec γ) (init : γ)
     (Inv : Nat → γ → MachineState → Prop) (W : Nat)
     (hbody : ∀ j < n, ∀ acc t, Inv j acc t → Sim image t W (f acc (a + j)) (Inv (j + 1)))
@@ -322,7 +242,6 @@ theorem Sim.foldlM_range' {γ : Type} (a n : Nat) (f : γ → Nat → OracleComp
         simpa using hbody n (by omega) acc t ht)
     refine this.mono ?_ (fun _ _ h => h)
     rw [Nat.succ_mul]
-
 theorem Sim.foldlM_range {γ : Type} (n : Nat) (f : γ → Nat → OracleComp HashSpec γ) (init : γ)
     (Inv : Nat → γ → MachineState → Prop) (W : Nat)
     (hbody : ∀ j < n, ∀ acc t, Inv j acc t → Sim image t W (f acc j) (Inv (j + 1)))
@@ -330,15 +249,9 @@ theorem Sim.foldlM_range {γ : Type} (n : Nat) (f : γ → Nat → OracleComp Ha
     Sim image s (n * W) ((List.range n).foldlM f init) (Inv n) := by
   have := Sim.foldlM_range' 0 n f init Inv W (fun j hj acc t h => by simpa using hbody j hj acc t h) h0
   rwa [List.range_eq_range']
-
 end sim
-
-/-! ## Whole phases (bounded) -/
-
 section run
 variable {α : Type}
-
-/-- **Refinement of a whole phase.** -/
 theorem Sim.run_eq (submission : Submission) (phase : Phase) (input : Input submission.sizes phase)
     {s : MachineState} (hinit : initialState submission phase input = some s) {W : Nat}
     {oa : OracleComp HashSpec α} {Q : α → MachineState → Prop}
@@ -363,9 +276,6 @@ theorem Sim.run_eq (submission : Submission) (phase : Phase) (input : Input subm
   simp only [map_pure, Function.comp, toRunResult, Execution.charge, h3]
   congr 2
   split <;> simp_all
-
-/-- **Termination of a whole phase** under every fixed oracle: finished, and at most `W + 1`
-cycles (`W + 1 < CYCLE_LIMIT`). -/
 theorem Sim.runWith (submission : Submission) (phase : Phase) (input : Input submission.sizes phase)
     {s : MachineState} (hinit : initialState submission phase input = some s) {W : Nat}
     {oa : OracleComp HashSpec α} {Q : α → MachineState → Prop}
@@ -387,24 +297,15 @@ theorem Sim.runWith (submission : Submission) (phase : Phase) (input : Input sub
   constructor
   · split <;> rfl
   · omega
-
 end run
-
-/-! ## `XSim`: exact refinement -/
-
-/-- `XSim image s k c n b oa Q` : from `s` the machine performs exactly the oracle queries of
-`oa`, in exactly `k` steps (fuel) and `c` cycles, with exactly `n` HASH calls and `b`
-compressions, independently of the answers; the final state `t` satisfies `Q a t`. -/
 def XSim {α : Type} (image : Image) (s : MachineState) (k c n b : Nat)
     (oa : OracleComp HashSpec α) (Q : α → MachineState → Prop) : Prop :=
   ∃ oc : OracleComp HashSpec {p : α × MachineState // Q p.1 p.2},
     (fun p => (p.1.1, n, b)) <$> oc = countBoth oa ∧
     ∀ fuel, Riscv.execute (fuel + k) image s =
       oc >>= fun p => (fun r => r.charge c n b) <$> Riscv.execute fuel image p.1.2
-
 section
 variable {α β : Type} {image : Image}
-
 theorem XSim.val {n b : Nat} {oa : OracleComp HashSpec α}
     {Q : α → MachineState → Prop} {oc : OracleComp HashSpec {p : α × MachineState // Q p.1 p.2}}
     (h : (fun p => (p.1.1, n, b)) <$> oc = countBoth oa) :
@@ -412,17 +313,14 @@ theorem XSim.val {n b : Nat} {oa : OracleComp HashSpec α}
   have := congrArg (fun x => Prod.fst <$> x) h
   simp only [Functor.map_map, fst_countBoth] at this
   exact this
-
 theorem XSim.pure_steps {s t : MachineState} {k c : Nat} {a : α} {Q : α → MachineState → Prop}
     (h : Steps image s k c t) (hQ : Q a t) : XSim image s k c 0 0 (pure a) Q := by
   refine ⟨pure ⟨(a, t), hQ⟩, rfl, ?_⟩
   intro fuel
   rw [pure_bind, h.execute]
-
 theorem XSim.pure {s : MachineState} {a : α} {Q : α → MachineState → Prop} (hQ : Q a s) :
     XSim image s 0 0 0 0 (pure a) Q :=
   XSim.pure_steps (Steps.refl s) hQ
-
 theorem XSim.mono {s : MachineState} {k c n b : Nat} {oa : OracleComp HashSpec α}
     {Q Q' : α → MachineState → Prop} (h : XSim image s k c n b oa Q)
     (hQ : ∀ a t, Q a t → Q' a t) : XSim image s k c n b oa Q' := by
@@ -430,12 +328,10 @@ theorem XSim.mono {s : MachineState} {k c n b : Nat} {oa : OracleComp HashSpec �
   refine ⟨(fun p => ⟨p.1, hQ _ _ p.2⟩) <$> oc, ?_, ?_⟩
   · rw [Functor.map_map]; exact h1
   · intro fuel; rw [h3 fuel, bind_map_left]
-
 theorem XSim.of_eq {s : MachineState} {k c n b k' c' n' b' : Nat} {oa ob : OracleComp HashSpec α}
     {Q : α → MachineState → Prop} (h : XSim image s k c n b oa Q) (he : oa = ob)
     (hk : k = k') (hc : c = c') (hn : n = n') (hb : b = b') : XSim image s k' c' n' b' ob Q := by
   subst he hk hc hn hb; exact h
-
 private theorem count_bind_aux {P₁ : α × MachineState → Prop}
     {P₂ : β × MachineState → Prop} (oc₁ : OracleComp HashSpec {p // P₁ p})
     (oc₂ : {p // P₁ p} → OracleComp HashSpec {q // P₂ q}) (f : α → OracleComp HashSpec β)
@@ -446,7 +342,6 @@ private theorem count_bind_aux {P₁ : α × MachineState → Prop}
   rw [countBoth_bind, ← h₁, bind_map_left, map_bind]
   congr 1; funext p
   rw [← h₂ p, Functor.map_map]
-
 theorem XSim.bind {s : MachineState} {k₁ c₁ n₁ b₁ k₂ c₂ n₂ b₂ : Nat}
     {oa : OracleComp HashSpec α} {f : α → OracleComp HashSpec β}
     {Q₁ : α → MachineState → Prop} {Q₂ : β → MachineState → Prop}
@@ -468,15 +363,12 @@ theorem XSim.bind {s : MachineState} {k₁ c₁ n₁ b₁ k₂ c₂ n₂ b₂ : 
   rw [Functor.map_map]
   congr 1; funext r
   rw [Execution.charge_charge]
-
 theorem XSim.steps {s t : MachineState} {k c k' c' n b : Nat} {oa : OracleComp HashSpec α}
     {Q : α → MachineState → Prop} (h : Steps image s k c t) (h₂ : XSim image t k' c' n b oa Q) :
     XSim image s (k + k') (c + c') n b oa Q := by
   have := XSim.bind (XSim.pure_steps (Q := fun _ t' => t' = t) (a := ()) h rfl)
     (f := fun _ => oa) (fun _ t' ht => ht ▸ h₂)
   simpa using this
-
-/-- One HASH `ECALL`. -/
 theorem XSim.query {s : MachineState} {q : Query}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
     (hv : hashArgumentsValid s = true) (hq : hashInput s = q) :
@@ -488,8 +380,6 @@ theorem XSim.query {s : MachineState} {q : Query}
   · rw [Functor.map_map, countBoth_query]
   · intro fuel
     rw [execute_hash fuel hf ht0 hv, bind_map_left]
-
-/-- One HASH `ECALL` followed by a continuation. -/
 theorem XSim.query_bind {s : MachineState} {q : Query} {k c n b : Nat}
     {f : BitVec 256 → OracleComp HashSpec β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
@@ -498,24 +388,17 @@ theorem XSim.query_bind {s : MachineState} {q : Query} {k c n b : Nat}
     XSim image s (1 + k) (8 * q.blocks + c) (1 + n) (q.blocks + b)
       ((liftM (HashSpec.query q) : OracleComp HashSpec _) >>= f) Q :=
   XSim.bind (XSim.query hf ht0 hv hq) (fun a _ ht => ht ▸ h a)
-
-/-- Sum `f 0 + … + f (n-1)`. -/
 def sumTo (f : Nat → Nat) : Nat → Nat
   | 0 => 0
   | n + 1 => sumTo f n + f n
-
 theorem sumTo_const (c n : Nat) : sumTo (fun _ => c) n = n * c := by
   induction n with
   | zero => simp [sumTo]
   | succ n ih => simp [sumTo, ih, Nat.succ_mul]
-
 theorem sumTo_congr (f g : Nat → Nat) (n : Nat) (h : ∀ j < n, f j = g j) : sumTo f n = sumTo g n := by
   induction n with
   | zero => rfl
   | succ n ih => simp only [sumTo]; rw [ih (fun j hj => h j (by omega)), h n (by omega)]
-
-/-- Loop over `List.range' a n` with an invariant indexed by the number `j` of processed
-elements and iteration costs depending on `j`. -/
 theorem XSim.foldlM_range' {γ : Type} (a n : Nat) (f : γ → Nat → OracleComp HashSpec γ) (init : γ)
     (Inv : Nat → γ → MachineState → Prop) (K C N B : Nat → Nat)
     (hbody : ∀ j < n, ∀ acc t, Inv j acc t → XSim image t (K j) (C j) (N j) (B j) (f acc (a + j))
@@ -531,7 +414,6 @@ theorem XSim.foldlM_range' {γ : Type} (a n : Nat) (f : γ → Nat → OracleCom
       (Q₂ := Inv (n + 1)) (fun acc t ht => by
         simpa using hbody n (by omega) acc t ht)
     exact this
-
 theorem XSim.foldlM_range {γ : Type} (n : Nat) (f : γ → Nat → OracleComp HashSpec γ) (init : γ)
     (Inv : Nat → γ → MachineState → Prop) (K C N B : Nat → Nat)
     (hbody : ∀ j < n, ∀ acc t, Inv j acc t → XSim image t (K j) (C j) (N j) (B j) (f acc j)
@@ -542,8 +424,6 @@ theorem XSim.foldlM_range {γ : Type} (n : Nat) (f : γ → Nat → OracleComp H
   have := XSim.foldlM_range' 0 n f init Inv K C N B (fun j hj acc t h => by
     simpa using hbody j hj acc t h) h0
   rwa [List.range_eq_range']
-
-/-- `mapM` over a list, with an invariant on the results so far (`pre ++ results`). -/
 theorem XSim.mapM_list {γ δ : Type} (f : γ → OracleComp HashSpec δ) (K C N B : γ → Nat)
     (Inv : List δ → MachineState → Prop) :
     ∀ (xs : List γ) (pre : List δ) {s : MachineState},
@@ -564,14 +444,10 @@ theorem XSim.mapM_list {γ δ : Type} (f : γ → OracleComp HashSpec δ) (K C N
       refine (XSim.bind (k₂ := 0) (c₂ := 0) (n₂ := 0) (b₂ := 0) h2 (f := fun ds => Pure.pure (d :: ds))
         (fun ds u hu => XSim.pure (by simpa using hu))).of_eq rfl (by simp) (by simp) (by simp) (by simp)
     exact (XSim.bind h1 key).of_eq rfl (by simp) (by simp) (by simp) (by simp)
-
 theorem sumTo_succ_left (f : Nat → Nat) (n : Nat) : sumTo f (n + 1) = f 0 + sumTo (fun j => f (j + 1)) n := by
   induction n with
   | zero => simp [sumTo]
   | succ n ih => rw [sumTo, ih, sumTo]; omega
-
-/-- `mapM` over `List.range' a n` whose body depends on the position: the invariant is indexed by
-the results so far (`pre`, of length `a + j` after `j` elements). -/
 theorem XSim.mapM_range' {δ : Type} (f : Nat → OracleComp HashSpec δ) (K C N B : Nat → Nat)
     (Inv : List δ → MachineState → Prop) :
     ∀ (n a : Nat) (pre : List δ) {s : MachineState}, pre.length = a →
@@ -601,15 +477,11 @@ theorem XSim.mapM_range' {δ : Type} (f : Nat → OracleComp HashSpec δ) (K C N
         (by simp) (by simp)
     refine (XSim.bind h1 key).of_eq rfl ?_ ?_ ?_ ?_ <;>
       (rw [sumTo_succ_left]; simp only [Nat.add_zero]; congr 1; apply sumTo_congr; intro j _; congr 1; omega)
-
-/-- The counts of a refined computation are constant. -/
 theorem XSim.countBoth_eq {s : MachineState} {k c n b : Nat}
     {oa : OracleComp HashSpec α} {Q : α → MachineState → Prop} (h : XSim image s k c n b oa Q) :
     countBoth oa = (fun a => (a, n, b)) <$> oa := by
   obtain ⟨oc, hc, _⟩ := h
   rw [← hc, ← XSim.val hc, Functor.map_map]
-
-/-- An exact refinement is a bounded one (`k ≤ c`: every step costs at least one cycle). -/
 theorem XSim.toSim {s : MachineState} {k c n b : Nat} {oa : OracleComp HashSpec α}
     {Q : α → MachineState → Prop} (h : XSim image s k c n b oa Q) (hkc : k ≤ c) :
     Sim image s c oa Q := by
@@ -620,12 +492,7 @@ theorem XSim.toSim {s : MachineState} {k c n b : Nat} {oa : OracleComp HashSpec 
     have := he (fuel - k)
     rw [Nat.sub_add_cancel (le_trans hkc hf)] at this
     rw [this, bind_map_left]
-
 end
-
-/-! ## Whole phases (exact) -/
-
-/-- **A whole phase, exactly.** -/
 theorem XSim.run_eq {α : Type} (submission : Submission) (phase : Phase)
     (input : Input submission.sizes phase)
     {s : MachineState} (hinit : initialState submission phase input = some s) {k c n b : Nat}
@@ -646,52 +513,36 @@ theorem XSim.run_eq {α : Type} (submission : Submission) (phase : Phase)
   rw [execute_halt _ h1 h2, map_pure, map_pure]
   simp only [Function.comp, toRunResult, Execution.charge, h3, if_true, h4]
   rfl
-
-/-! ## Core programs on the machine -/
-
-/-- Core's queries as organizer queries: public inputs relabeled by `toQ`, private coordinates
-realized by the secret first (`privateInput`). Coins never occur in Core's hash-only programs
-(their answer here is an arbitrary constant). -/
 def machineHandler (sk : BitVec 256) : QueryImpl Spec (OracleComp HashSpec)
   | .inl (.inl n) => (Pure.pure (0 : Fin (n + 1)) : OracleComp HashSpec (Fin (n + 1)))
   | .inl (.inr input) => (HashSpec.query (toQ input) : OracleComp HashSpec _)
   | .inr c => (HashSpec.query (toQ (privateInput sk c)) : OracleComp HashSpec _)
-
-/-- The machine-facing reference of a Core program. -/
 def mrealize {α : Type} (sk : BitVec 256) (p : M α) : OracleComp HashSpec α :=
   simulateQ (machineHandler sk) p
-
 section mrealize
 variable {α β : Type} (sk : BitVec 256)
-
 @[simp] theorem mrealize_pure (a : α) : mrealize sk (Pure.pure a : M α) = Pure.pure a := rfl
-
 theorem mrealize_bind (p : M α) (f : α → M β) :
     mrealize sk (p >>= f) = mrealize sk p >>= fun a => mrealize sk (f a) := by
   unfold mrealize; rw [simulateQ_bind]
-
 theorem mrealize_map (f : α → β) (p : M α) : mrealize sk (f <$> p) = f <$> mrealize sk p := by
   unfold mrealize; rw [simulateQ_map]
-
 theorem mrealize_publicHash (input : List UInt8) :
     mrealize sk (publicHash input) =
       (liftM (HashSpec.query (toQ (pad64 input))) : OracleComp HashSpec _) := by
   unfold mrealize publicHash
   exact simulateQ_spec_query _ _
-
 theorem mrealize_privateHash (c : Coordinate) :
     mrealize sk (privateHash c) =
       (liftM (HashSpec.query (toQ (privateInput sk c))) : OracleComp HashSpec _) := by
   unfold mrealize privateHash
   exact simulateQ_spec_query _ _
-
 theorem mrealize_shortHash (input : List UInt8) :
     mrealize sk (shortHash input) = (fun a : BitVec 256 => a.extractLsb' 0 128) <$>
       (liftM (HashSpec.query (toQ (pad64 input))) : OracleComp HashSpec _) := by
   unfold shortHash
   rw [mrealize_bind, mrealize_publicHash]
   simp only [mrealize_pure, bind_pure_comp]
-
 theorem mrealize_privatePair (tag lay tree position index : Nat) :
     mrealize sk (privatePair tag lay tree position index) =
       (fun a : BitVec 256 => (a.extractLsb' 0 128, a.extractLsb' 128 128)) <$>
@@ -700,7 +551,6 @@ theorem mrealize_privatePair (tag lay tree position index : Nat) :
   unfold privatePair
   rw [mrealize_bind, mrealize_privateHash]
   simp only [mrealize_pure, bind_pure_comp]
-
 theorem mrealize_mask (level index : Nat) :
     mrealize sk (mask level index) =
       (fun a : BitVec 256 => if index % 2 = 0 then a.extractLsb' 0 128 else a.extractLsb' 128 128) <$>
@@ -709,7 +559,6 @@ theorem mrealize_mask (level index : Nat) :
   unfold mask T3.pairedMask
   rw [mrealize_bind, mrealize_privatePair]
   simp only [mrealize_pure, bind_pure_comp, Functor.map_map]
-
 theorem mrealize_privateMacKey :
     mrealize sk T3.privateMacKey = (do
       let a ← (liftM (HashSpec.query (toQ (privateInput sk (.inl (header 14 0 0 0 0))))) : OracleComp HashSpec _)
@@ -717,7 +566,6 @@ theorem mrealize_privateMacKey :
       pure (fun i => if i = 0 then a else b)) := by
   unfold T3.privateMacKey
   simp only [mrealize_bind, mrealize_privateHash, mrealize_pure]
-
 theorem mrealize_privateMac (region : Region) :
     mrealize sk (privateMac region) =
       (fun key => SiggolfT3Mac4.encodeTag (SiggolfT3Mac4.macTag key (List.ofFn region))) <$>
@@ -726,78 +574,58 @@ theorem mrealize_privateMac (region : Region) :
     (SiggolfT3Mac4.encodeTag (SiggolfT3Mac4.macTag key (List.ofFn region)) : BitVec 256)) = _
   rw [mrealize_bind]
   simp only [mrealize_pure, bind_pure_comp]
-
 theorem mrealize_privateNonce (m : T3.Message) :
     mrealize sk (privateNonce m) = (fun a : BitVec 256 => a.extractLsb' 0 128) <$>
       (liftM (HashSpec.query (toQ (privateInput sk (.inr (.inl m))))) : OracleComp HashSpec _) := by
   unfold privateNonce
   rw [mrealize_bind, mrealize_privateHash]
   simp only [mrealize_pure, bind_pure_comp]
-
 theorem mrealize_foldlM {γ δ : Type} (l : List δ) (f : γ → δ → M γ) (init : γ) :
     mrealize sk (l.foldlM f init) = l.foldlM (fun acc x => mrealize sk (f acc x)) init := by
   induction l generalizing init with
   | nil => rfl
   | cons x l ih => simp only [List.foldlM_cons, mrealize_bind, ih]
-
 theorem mrealize_mapM {γ δ : Type} (l : List γ) (f : γ → M δ) :
     mrealize sk (l.mapM f) = l.mapM (fun x => mrealize sk (f x)) := by
   induction l with
   | nil => rfl
   | cons x l ih => simp only [List.mapM_cons, mrealize_bind, ih, mrealize_pure]
-
 end mrealize
-
-/-! ## `TSim` and `TBSim`: machine runs of Core programs -/
-
-/-- Exact refinement of a Core program (realized with the secret `sk`). -/
 def TSim {α : Type} (image : Image) (sk : BitVec 256) (s : MachineState) (k c n b : Nat) (p : M α)
     (Q : α → MachineState → Prop) : Prop :=
   XSim image s k c n b (mrealize sk p) Q
-
-/-- Bounded refinement of a Core program. -/
 def TBSim {α : Type} (image : Image) (sk : BitVec 256) (s : MachineState) (W : Nat) (p : M α)
     (Q : α → MachineState → Prop) : Prop :=
   Sim image s W (mrealize sk p) Q
-
 section tsim
 variable {α β : Type} {image : Image} {sk : BitVec 256}
-
 theorem TSim.pure {s : MachineState} {a : α} {Q : α → MachineState → Prop} (hQ : Q a s) :
     TSim image sk s 0 0 0 0 (Pure.pure a) Q := XSim.pure hQ
-
 theorem TSim.pure_steps {s t : MachineState} {k c : Nat} {a : α} {Q : α → MachineState → Prop}
     (h : Steps image s k c t) (hQ : Q a t) : TSim image sk s k c 0 0 (Pure.pure a) Q :=
   XSim.pure_steps h hQ
-
 theorem TSim.mono {s : MachineState} {k c n b : Nat} {p : M α} {Q Q' : α → MachineState → Prop}
     (h : TSim image sk s k c n b p Q) (hQ : ∀ a t, Q a t → Q' a t) : TSim image sk s k c n b p Q' :=
   XSim.mono h hQ
-
 theorem TSim.of_eq {s : MachineState} {k c n b k' c' n' b' : Nat} {p q : M α}
     {Q : α → MachineState → Prop} (h : TSim image sk s k c n b p Q) (he : p = q)
     (hk : k = k') (hc : c = c') (hn : n = n') (hb : b = b') : TSim image sk s k' c' n' b' q Q := by
   subst he hk hc hn hb; exact h
-
 theorem TSim.bind {s : MachineState} {k₁ c₁ n₁ b₁ k₂ c₂ n₂ b₂ : Nat} {p : M α} {f : α → M β}
     {Q₁ : α → MachineState → Prop} {Q₂ : β → MachineState → Prop}
     (h₁ : TSim image sk s k₁ c₁ n₁ b₁ p Q₁)
     (h₂ : ∀ a t, Q₁ a t → TSim image sk t k₂ c₂ n₂ b₂ (f a) Q₂) :
     TSim image sk s (k₁ + k₂) (c₁ + c₂) (n₁ + n₂) (b₁ + b₂) (p >>= f) Q₂ := by
   unfold TSim; rw [mrealize_bind]; exact XSim.bind h₁ h₂
-
 theorem TSim.steps {s t : MachineState} {k c k' c' n b : Nat} {p : M α}
     {Q : α → MachineState → Prop} (h : Steps image s k c t) (h₂ : TSim image sk t k' c' n b p Q) :
     TSim image sk s (k + k') (c + c') n b p Q := XSim.steps h h₂
-
 theorem TSim.map {s : MachineState} {k c n b : Nat} {p : M α} (f : α → β)
     {Q : β → MachineState → Prop} (h : TSim image sk s k c n b p (fun a t => Q (f a) t)) :
     TSim image sk s k c n b (f <$> p) Q := by
   rw [map_eq_bind_pure_comp]
   exact (TSim.bind (k₂ := 0) (c₂ := 0) (n₂ := 0) (b₂ := 0) h (fun a t ht => TSim.pure ht)).of_eq rfl
     rfl rfl rfl rfl
-
-/-- One HASH `ECALL` answering a public query `publicHash input`. -/
 theorem TSim.publicHash_bind {s : MachineState} {input : List UInt8} {k c n b : Nat}
     {f : HashOutput → M β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
@@ -807,8 +635,6 @@ theorem TSim.publicHash_bind {s : MachineState} {input : List UInt8} {k c n b : 
       (publicHash input >>= f) Q := by
   unfold TSim; rw [mrealize_bind, mrealize_publicHash]
   exact XSim.query_bind hf ht0 hv hq h
-
-/-- One HASH `ECALL` answering `shortHash input` (the low 16 bytes). -/
 theorem TSim.shortHash_bind {s : MachineState} {input : List UInt8} {k c n b : Nat}
     {f : Digest → M β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
@@ -821,8 +647,6 @@ theorem TSim.shortHash_bind {s : MachineState} {input : List UInt8} {k c n b : N
   have := h a
   unfold TSim at this
   simpa only [Function.comp, pure_bind] using this
-
-/-- One HASH `ECALL` answering a private coordinate. -/
 theorem TSim.privateHash_bind {s : MachineState} {co : Coordinate} {k c n b : Nat}
     {f : HashOutput → M β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
@@ -832,8 +656,6 @@ theorem TSim.privateHash_bind {s : MachineState} {co : Coordinate} {k c n b : Na
       ((toQ (privateInput sk co)).blocks + b) (privateHash co >>= f) Q := by
   unfold TSim; rw [mrealize_bind, mrealize_privateHash]
   exact XSim.query_bind hf ht0 hv hq h
-
-/-- One HASH `ECALL` answering `privatePair` (both 16-byte halves). -/
 theorem TSim.privatePair_bind {s : MachineState} {tag lay tree position index : Nat} {k c n b : Nat}
     {f : Digest × Digest → M β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
@@ -849,8 +671,6 @@ theorem TSim.privatePair_bind {s : MachineState} {tag lay tree position index : 
   have := h a
   unfold TSim at this
   simpa only [Function.comp, pure_bind] using this
-
-/-- One HASH answering a parity-selected half of the paired mask. -/
 theorem TSim.mask_bind {s : MachineState} {level index : Nat} {k c n b : Nat}
     {f : Digest → M β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
@@ -864,8 +684,6 @@ theorem TSim.mask_bind {s : MachineState} {level index : Nat} {k c n b : Nat}
     unfold mask T3.pairedMask; rw [bind_assoc]; simp only [pure_bind]
   rw [this]
   exact TSim.privatePair_bind hf ht0 hv hq h
-
-/-- One HASH answering a complete private tweak; used for each MAC key. -/
 theorem TSim.privateTweak_bind {s : MachineState} {tw : BitVec 128} {k c n b : Nat}
     {f : HashOutput → M β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
@@ -875,8 +693,6 @@ theorem TSim.privateTweak_bind {s : MachineState} {tw : BitVec 128} {k c n b : N
   have hb : (toQ (privateInput sk (.inl tw))).blocks = 1 := by
     rw [blocks_toQ (privateInput_aligned _ _), privateInput_tweak_length]
   refine (TSim.privateHash_bind hf ht0 hv hq h).of_eq rfl rfl (by rw [hb]) rfl (by rw [hb])
-
-/-- One HASH `ECALL` answering the nonce (`privateNonce`, the low 16 bytes). -/
 theorem TSim.privateNonce_bind {s : MachineState} {m : T3.Message} {k c n b : Nat}
     {f : Digest → M β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
@@ -888,7 +704,6 @@ theorem TSim.privateNonce_bind {s : MachineState} {m : T3.Message} {k c n b : Na
     unfold privateNonce; rw [bind_assoc]; simp only [pure_bind]
   rw [this]
   exact TSim.privateHash_bind hf ht0 hv hq h
-
 theorem TSim.foldlM_range' {γ : Type} (a n : Nat) (f : γ → Nat → M γ) (init : γ)
     (Inv : Nat → γ → MachineState → Prop) (K C N B : Nat → Nat)
     (hbody : ∀ j < n, ∀ acc t, Inv j acc t → TSim image sk t (K j) (C j) (N j) (B j) (f acc (a + j))
@@ -898,7 +713,6 @@ theorem TSim.foldlM_range' {γ : Type} (a n : Nat) (f : γ → Nat → M γ) (in
       ((List.range' a n).foldlM f init) (Inv n) := by
   unfold TSim; rw [mrealize_foldlM]
   exact XSim.foldlM_range' a n (fun acc x => mrealize sk (f acc x)) init Inv K C N B hbody h0
-
 theorem TSim.foldlM_range {γ : Type} (n : Nat) (f : γ → Nat → M γ) (init : γ)
     (Inv : Nat → γ → MachineState → Prop) (K C N B : Nat → Nat)
     (hbody : ∀ j < n, ∀ acc t, Inv j acc t → TSim image sk t (K j) (C j) (N j) (B j) (f acc j)
@@ -908,7 +722,6 @@ theorem TSim.foldlM_range {γ : Type} (n : Nat) (f : γ → Nat → M γ) (init 
       ((List.range n).foldlM f init) (Inv n) := by
   unfold TSim; rw [mrealize_foldlM]
   exact XSim.foldlM_range n (fun acc x => mrealize sk (f acc x)) init Inv K C N B hbody h0
-
 theorem TSim.mapM_list {γ δ : Type} (f : γ → M δ) (K C N B : γ → Nat)
     (Inv : List δ → MachineState → Prop) (xs : List γ) (pre : List δ) {s : MachineState}
     (hbody : ∀ x ∈ xs, ∀ (pre' : List δ) t, Inv pre' t →
@@ -918,7 +731,6 @@ theorem TSim.mapM_list {γ δ : Type} (f : γ → M δ) (K C N B : γ → Nat)
       (fun ds u => Inv (pre ++ ds) u) := by
   unfold TSim; rw [mrealize_mapM]
   exact XSim.mapM_list (fun x => mrealize sk (f x)) K C N B Inv xs pre hbody h0
-
 theorem TSim.mapM_range {δ : Type} (n : Nat) (f : Nat → M δ) (K C N B : Nat → Nat)
     (Inv : List δ → MachineState → Prop) {s : MachineState}
     (hbody : ∀ (pre : List δ) t, pre.length < n → Inv pre t →
@@ -931,29 +743,21 @@ theorem TSim.mapM_range {δ : Type} (n : Nat) (f : Nat → M δ) (K C N B : Nat 
   have := XSim.mapM_range' (image := image) (fun x => mrealize sk (f x)) K C N B Inv n 0 [] rfl
     (fun pre' t _ h2 h3 => hbody pre' t (by omega) h3) h0
   simpa using this
-
 theorem TSim.toTBSim {s : MachineState} {k c n b : Nat} {p : M α} {Q : α → MachineState → Prop}
     (h : TSim image sk s k c n b p Q) (hkc : k ≤ c) : TBSim image sk s c p Q := XSim.toSim h hkc
-
-/-! Bounded combinators. -/
-
 theorem TBSim.pure {s : MachineState} {a : α} {Q : α → MachineState → Prop} (hQ : Q a s) :
     TBSim image sk s 0 (Pure.pure a) Q := Sim.pure hQ
-
 theorem TBSim.mono {s : MachineState} {W W' : Nat} {p : M α} {Q Q' : α → MachineState → Prop}
     (h : TBSim image sk s W p Q) (hW : W ≤ W') (hQ : ∀ a t, Q a t → Q' a t) :
     TBSim image sk s W' p Q' := Sim.mono h hW hQ
-
 theorem TBSim.bind {s : MachineState} {W₁ W₂ : Nat} {p : M α} {f : α → M β}
     {Q₁ : α → MachineState → Prop} {Q₂ : β → MachineState → Prop}
     (h₁ : TBSim image sk s W₁ p Q₁) (h₂ : ∀ a t, Q₁ a t → TBSim image sk t W₂ (f a) Q₂) :
     TBSim image sk s (W₁ + W₂) (p >>= f) Q₂ := by
   unfold TBSim; rw [mrealize_bind]; exact Sim.bind h₁ h₂
-
 theorem TBSim.steps {s t : MachineState} {k c W : Nat} {p : M α} {Q : α → MachineState → Prop}
     (h : Steps image s k c t) (h₂ : TBSim image sk t W p Q) : TBSim image sk s (c + W) p Q :=
   Sim.steps h h₂
-
 theorem TBSim.foldlM_range' {γ : Type} (a n : Nat) (f : γ → Nat → M γ) (init : γ)
     (Inv : Nat → γ → MachineState → Prop) (W : Nat)
     (hbody : ∀ j < n, ∀ acc t, Inv j acc t → TBSim image sk t W (f acc (a + j)) (Inv (j + 1)))
@@ -961,7 +765,5 @@ theorem TBSim.foldlM_range' {γ : Type} (a n : Nat) (f : γ → Nat → M γ) (i
     TBSim image sk s (n * W) ((List.range' a n).foldlM f init) (Inv n) := by
   unfold TBSim; rw [mrealize_foldlM]
   exact Sim.foldlM_range' a n (fun acc x => mrealize sk (f acc x)) init Inv W hbody h0
-
 end tsim
-
 end SigGolfCandidate.T3M

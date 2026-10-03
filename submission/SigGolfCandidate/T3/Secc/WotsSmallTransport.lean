@@ -1,20 +1,6 @@
 import SigGolfCandidate.T3.Secc.WotsTransport
 import SigGolfCandidate.T3.Secc.WotsTransportSplit
 
-/-!
-# Stream A: the source-sized case-(A)+(B) transport and pinned split
-
-F2's `caseAB_le_reference` transports the case event to R3's `WotsPrimitive` (all addresses). The R3 bounds of streams
-C/E/S are stated for W's source-sized `WotsExtract.WotsPrimitiveSrc` (finite sums over source chains, leaves and
-positions). This module re-runs F2's transport chain (`Ref.psi_of_verifierWots`, `good_imp`, `offline_le`,
-`fixed_game_le`, `caseAB_le_recorded`, `eager_le_reference`; every helper reused) for an arbitrary **trace event**:
-monotone in the trace and transferable between `ShortAgree` tables that agree on the trace (`TraceEvent`). Instances:
-
-* `srcEvent` = `WotsPrimitiveSrc` (`WotsPrimitiveSrc.transfer` below, as F2's `WotsPrimitive.transfer`);
-* `CaseABSrc`, **`caseABSrc_le_reference`**, and the pinned split **`completed_split_src`**
-  (`CaseABSrc ∨ CaseCFreshPinned ∨ CaseCSignedPinned`, W's `verifyP_wots_cases_src`; proof = F2's `completed_split`).
--/
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec OracleComp.EvalDist OracleComp.DeferredSampling ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final SigGolfCandidate.T3M.SecurityExtraction
@@ -25,25 +11,16 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] keygen verifyP expandB buildFts buildTree signPayload GameWith.idealGame
-
 noncomputable local instance instFintypeCoordinate_wotsSmallTransport : Fintype Coordinate := coordinateFintype
 noncomputable local instance instSampleableTypeFullTable_wotsSmallTransport : SampleableType FullGame.FullTable := Derivation.outputSampler Coordinate
 attribute [local instance] FiniteRowSplit.instSampleableTypeForallSubtypeHashInputMemFinsetHashOutput
-
 namespace SmallT
 open _root_.SigGolfCandidate.T3.Security.Wots.Ref
-
-/-! ## Trace events -/
-
-/-- A trace event the transport can carry: monotone in the trace, and transferable between tables that agree on
-short queries and on the trace's inputs. -/
 structure TraceEvent where
   holds : Answers → List Entry → Prop
   mono : ∀ {T : Answers} {trace trace' : List Entry}, holds T trace → (∀ e ∈ trace, e ∈ trace') → holds T trace'
   transfer : ∀ {A T : Answers} {trace : List Entry}, ShortAgree A T →
     (∀ e ∈ trace, A (.inl (.inr e.1)) = T (.inl (.inr e.1))) → holds A trace → holds T trace
-
-/-- `WotsPrimitiveSrc` transfers like F2's `WotsPrimitive.transfer` (source-sizedness reads no table). -/
 theorem wotsPrimitiveSrc_transfer {A T : Answers} {trace : List Entry} (hAT : ShortAgree A T)
     (htrace : ∀ e ∈ trace, A (.inl (.inr e.1)) = T (.inl (.inr e.1)))
     (h : WotsExtract.WotsPrimitiveSrc A trace) : WotsExtract.WotsPrimitiveSrc T trace := by
@@ -71,43 +48,26 @@ theorem wotsPrimitiveSrc_transfer {A T : Answers} {trace : List Entry} (hAT : Sh
   · refine Or.inr (Or.inr (Or.inr (Or.inr ⟨a, hsrc, ?_, ?_⟩)))
     · simpa only [MarkerAt, hrefi, hrefd] using ha
     · simpa only [ContactAt, hdepth, hfront] using hc
-
-/-- The source-sized WOTS primitive event as a trace event. -/
 def srcEvent : TraceEvent where
   holds := WotsExtract.WotsPrimitiveSrc
   mono := fun h hsub => WotsExtract.WotsPrimitiveSrc.mono h hsub
   transfer := fun hAT htrace h => wotsPrimitiveSrc_transfer hAT htrace h
-
-/-! ## Case events for a trace event -/
-
-/-- A forgery whose accepting byte verification carries the event among its own queries. -/
 def VerifierEv (Ev : TraceEvent) (answers : Answers) (publicKey : Digest) (forgery : ForgeryP) : Prop :=
   ∃ message witness, PaddedExtraction.WitnessOf answers publicKey forgery message witness ∧
     evalWithAnswerFn answers (verifyP message publicKey witness) = true ∧
     Ev.holds answers (entriesOf answers (queried answers (verifyP message publicKey witness)))
-
-/-- Case event on a recorded run, for every decomposition (F2's `CaseABAt` with `Ev`). -/
 def CaseABEvAt (Ev : TraceEvent) (adversary : AdversaryP) (result : FirstHit.Recorded Bool) (answers : Answers) :
     Prop :=
   ∀ generated interaction checked, GameSplit adversary result generated interaction checked →
     ∀ forgery, interaction.value.1 = some forgery → VerifierEv Ev answers generated.value.1 forgery
-
-/-- Case event of a shared-law sample, on the actual run. -/
 def CaseABEv (Ev : TraceEvent) (adversary : AdversaryP) (z : PaddedGame.TraceResult × Answers) : Prop :=
   CaseABEvAt Ev adversary (QueryRecorded.recordedTrace z.1) z.2
-
-/-- The recorded-side event: a won run of total charge at most `q` in the case event. -/
 def GoodEv (Ev : TraceEvent) (adversary : AdversaryP) (q : Nat) (result : FirstHit.Recorded Bool) (answers : Answers) :
     Prop :=
   result.value = true ∧ chargeSum result.events ≤ q ∧ CaseABEvAt Ev adversary result answers
-
-/-- The verdict accepts under `T` and its own queries carry the event. -/
 def PsiEv (Ev : TraceEvent) (T : Answers) (publicKey : Digest) (result : Option ForgeryP × QueryLog Requests) : Prop :=
   evalWithAnswerFn T (GameWith.verdict PaddedGame.checker publicKey result) = true ∧
     Ev.holds T (entriesOf T (SourceReplay.queried T (GameWith.verdict PaddedGame.checker publicKey result)))
-
-/-! ## The transport chain (F2's proofs with `Ev`) -/
-
 theorem psiEv_of_verifierEv (Ev : TraceEvent) (A T : Answers) (publicKey : Digest)
     (result : Option ForgeryP × QueryLog Requests) (hshort : ShortAgree A T)
     (hverdict : ∀ query ∈ SourceReplay.queried T (GameWith.verdict PaddedGame.checker publicKey result),
@@ -144,7 +104,6 @@ theorem psiEv_of_verifierEv (Ev : TraceEvent) (A T : Answers) (publicKey : Diges
   · exact Ev.mono hprimT (WotsExtract.entriesOf_mono fun query hq' => hsub query (hqsub query hq'))
   · obtain ⟨hmem, -⟩ := WotsExtract.mem_entriesOf_iff.mp (show (e.1, e.2) ∈ _ from he')
     exact hagree _ hmem
-
 theorem goodEv_imp (Ev : TraceEvent) (adversary : AdversaryP) (q : Nat) (T : Answers)
     (interaction : FirstHit.Recorded (Option ForgeryP × QueryLog Requests))
     (hi : interaction ∈ support (fixedInteraction adversary T))
@@ -206,7 +165,6 @@ theorem goodEv_imp (Ev : TraceEvent) (adversary : AdversaryP) (q : Nat) (T : Ans
         (chargeSum interaction.events + chargeSum (verdictRecord T interaction).events) := by
       simp only [combine, chargeSum_append]
     omega
-
 theorem offlineEv_le (Ev : TraceEvent) (adversary : AdversaryP) (q : Nat) (T : Answers) :
     Pr[fun x => PsiEv Ev T (evalWithAnswerFn T keygen).1 x.1 ∧
         keygenCharge T + x.2 + verdictCharge T (evalWithAnswerFn T keygen).1 x.1 ≤ q |
@@ -235,7 +193,6 @@ theorem offlineEv_le (Ev : TraceEvent) (adversary : AdversaryP) (q : Nat) (T : A
     unfold verdictCharge at hcharge
     simp only at hcharge
     omega
-
 theorem fixed_gameEv_le (Ev : TraceEvent) (adversary : AdversaryP) (q : Nat) (T : Answers) :
     Pr[fun result => GoodEv Ev adversary q result (cut result.state T) |
         fixedRecord T (GameWith.idealGame PaddedGame.checker adversary) (∅, ∅)] ≤
@@ -249,7 +206,6 @@ theorem fixed_gameEv_le (Ev : TraceEvent) (adversary : AdversaryP) (q : Nat) (T 
   refine le_trans (le_of_eq ?_) (offlineEv_le Ev adversary q T)
   rw [← hcount, probEvent_map]
   rfl
-
 theorem caseABEv_le_recorded (Ev : TraceEvent) (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) :
     Pr[fun z => QueryRecorded.CleanWin q z.1 ∧ CaseABEv Ev adversary z | SeccLaw.completedExperiment adversary q hq] ≤
       Pr[fun pair => GoodEv Ev adversary q pair.1 pair.2 | recordedCompleted adversary] := by
@@ -270,7 +226,6 @@ theorem caseABEv_le_recorded (Ev : TraceEvent) (adversary : AdversaryP) (q : Nat
         rfl
     _ = _ := by
         rw [completed_map, MonitoredPrivate.event_lift]
-
 theorem eagerEv_le_reference (Ev : TraceEvent) (adversary : AdversaryP) (q : Nat) :
     Pr[fun pair => GoodEv Ev adversary q pair.1 (cut pair.1.state pair.2) |
         eagerSide (referenceInputs adversary) (GameWith.idealGame PaddedGame.checker adversary) (∅, ∅)] ≤
@@ -282,8 +237,6 @@ theorem eagerEv_le_reference (Ev : TraceEvent) (adversary : AdversaryP) (q : Nat
   intro publicTable
   rw [probEvent_map, probEvent_map, fillAnswers_empty]
   exact fixed_gameEv_le Ev adversary q _
-
-/-- **Transport of a case event for any trace event** (F2's `caseAB_le_reference` with `Ev`). -/
 theorem caseABEv_le_reference (Ev : TraceEvent) (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) :
     Pr[fun z => QueryRecorded.CleanWin q z.1 ∧ CaseABEv Ev adversary z | SeccLaw.completedExperiment adversary q hq] ≤
       Pr[fun sample => Ev.holds sample.answers sample.trace | referenceExperiment adversary q] := by
@@ -292,28 +245,16 @@ theorem caseABEv_le_reference (Ev : TraceEvent) (adversary : AdversaryP) (q : Na
   refine (eagerEv_le_reference Ev adversary q).trans (le_of_eq ?_)
   unfold referenceExperiment
   rw [MonitoredPrivate.event_lift]
-
 end SmallT
-
 open SmallT
-
-/-! ## The source-sized instance -/
-
-/-- A forgery whose accepting byte verification has a source-sized WOTS primitive event on its own queries. -/
 abbrev VerifierWotsSrc (answers : Answers) (publicKey : Digest) (forgery : ForgeryP) : Prop :=
   VerifierEv srcEvent answers publicKey forgery
-
-/-- **Case (A)+(B), source-sized**, on the actual run. -/
 abbrev CaseABSrc (adversary : AdversaryP) (z : PaddedGame.TraceResult × Answers) : Prop :=
   CaseABEv srcEvent adversary z
-
-/-- **Source-sized transport**: `Pr[CleanWin ∧ CaseABSrc] ≤ Pr_R3[WotsPrimitiveSrc]`. -/
 theorem caseABSrc_le_reference (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) :
     Pr[fun z => QueryRecorded.CleanWin q z.1 ∧ CaseABSrc adversary z | SeccLaw.completedExperiment adversary q hq] ≤
       Pr[fun sample => WotsExtract.WotsPrimitiveSrc sample.answers sample.trace | referenceExperiment adversary q] :=
   caseABEv_le_reference srcEvent adversary q hq
-
-/-- **The pinned case split, source-sized** (F2's `completed_split` with W's `verifyP_wots_cases_src`). -/
 theorem completed_split_src (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     (z : PaddedGame.TraceResult × Answers) (hz : z ∈ (SeccLaw.completedExperiment adversary q hq).support)
     (hclean : QueryRecorded.CleanWin q z.1) :
@@ -375,5 +316,4 @@ theorem completed_split_src (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 1
       hof', hsigned, hCat⟩
   · exact Or.inl ⟨generated, interaction, checked, hsplit, hpk, hlen, _, hf', hfresh, message', witness',
       hof', hsigned, hCat⟩
-
 end SigGolfCandidate.T3.Security.Wots

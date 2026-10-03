@@ -1,17 +1,14 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.FrontierGameProjection
 import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.FrontierOracleMask
-namespace SphincsSecurity.Concrete
 
+namespace SphincsSecurity.Concrete
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
 attribute [local irreducible] frontierTreeNode referenceEncodingSearch boundaryEval
-
 variable (parameter : PublicParameter) (words : OtsReferenceWords)
   (f g : QueryImpl HashSpec Id) (h : AgreeOutsideOtsPrefixes parameter words f g)
-
 include h
-
 theorem eval_frontierTreeNode_eq_of_agree (lay : Layer) (tree : TreeIndex)
     (frontier : LeafIndex → ChainIndex → Digest) (level nodeIdx : Nat) :
     evalWithAnswerFn f (frontierTreeNode parameter lay tree (words lay tree) frontier level nodeIdx) =
@@ -23,7 +20,6 @@ theorem eval_frontierTreeNode_eq_of_agree (lay : Layer) (tree : TreeIndex)
     exact congrArg truncateHash (h.other (.leaf lay tree leaf) (by simp only [hashDomainFields, tweakFields]; decide) payload)
   · intro level nodeIdx payload
     exact congrArg truncateHash (h.other (.node lay tree level nodeIdx) (by simp only [hashDomainFields, tweakFields]; decide) payload)
-
 theorem eval_frontierTreePath_eq_of_agree (lay : Layer) (tree : TreeIndex)
     (frontier : LeafIndex → ChainIndex → Digest) (leaf : LeafIndex) :
     evalWithAnswerFn f (frontierTreePath parameter lay tree (words lay tree) frontier leaf) =
@@ -33,7 +29,6 @@ theorem eval_frontierTreePath_eq_of_agree (lay : Layer) (tree : TreeIndex)
   split_ifs
   · exact eval_frontierTreeNode_eq_of_agree parameter words f g h lay tree frontier _ _
   · rfl
-
 theorem eval_ftsNode_eq_of_agree (index : Index) (tree : FtsTree) (secret : FtsLeaf → Digest)
     (level nodeIdx : Nat) :
     evalWithAnswerFn f (ftsNode parameter index tree secret level nodeIdx) =
@@ -45,12 +40,10 @@ theorem eval_ftsNode_eq_of_agree (index : Index) (tree : FtsTree) (secret : FtsL
   | succ level ih =>
       simp only [ftsNode_succ_eq, evalWithAnswerFn_bind, ih, eval_tweakableHash]
       exact congrArg truncateHash (h.other (.ftsNode index tree (ftsHeapIndex (level + 1) nodeIdx)) (by simp only [hashDomainFields, tweakFields]; decide) _)
-
 theorem eval_ftsKey_eq_of_agree (index : Index) (secret : FtsTree → FtsLeaf → Digest) :
     evalWithAnswerFn f (ftsKey parameter index secret) = evalWithAnswerFn g (ftsKey parameter index secret) := by
   simp only [ftsKey]
   exact eval_ftsNode_eq_of_agree parameter words f g h _ _ _ _ _
-
 theorem eval_ftsOpen_eq_of_agree (index : Index) (leaves : IndexGroup → FtsLeaf)
     (secret : FtsTree → FtsLeaf → Digest) :
     evalWithAnswerFn f (ftsOpen parameter index leaves secret) =
@@ -58,7 +51,6 @@ theorem eval_ftsOpen_eq_of_agree (index : Index) (leaves : IndexGroup → FtsLea
   rw [eval_ftsOpen, eval_ftsOpen]
   exact congrArg (honestFts leaves (secret porsTree)) (funext fun level => funext fun nodeIdx =>
     eval_ftsNode_eq_of_agree parameter words f g h _ _ _ _ _)
-
 theorem eval_frontierLayerMessage_eq_of_agree (ftsSecret : Index → FtsTree → FtsLeaf → Digest)
     (frontier : OtsFrontierValues) (index : Index) (lay : Layer) :
     evalWithAnswerFn f (frontierLayerMessage parameter ftsSecret words frontier index lay) =
@@ -67,14 +59,12 @@ theorem eval_frontierLayerMessage_eq_of_agree (ftsSecret : Index → FtsTree →
   split_ifs
   · exact eval_frontierTreeNode_eq_of_agree parameter words f g h _ _ _ _ _
   · exact eval_ftsKey_eq_of_agree parameter words f g h _ _
-
 theorem eval_encode_eq_of_agree (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
     (message : Digest) (counter : Counter) :
     evalWithAnswerFn f (encodeAttempt parameter lay tree leaf message counter) =
       evalWithAnswerFn g (encodeAttempt parameter lay tree leaf message counter) := by
   simp only [encodeAttempt, evalWithAnswerFn_bind, evalWithAnswerFn_pure, eval_tweakableHash,
     h.other (.encoding lay tree leaf) (by simp only [hashDomainFields, tweakFields]; decide)]
-
 theorem referenceEncodingSearch_eq_of_agree (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex)
     (message : Digest) (attempts start : Nat) :
     referenceEncodingSearch parameter f lay tree leaf message attempts start =
@@ -83,7 +73,6 @@ theorem referenceEncodingSearch_eq_of_agree (lay : Layer) (tree : TreeIndex) (le
   | zero => simp only [referenceEncodingSearch]
   | succ attempts ih =>
       simp only [referenceEncodingSearch, eval_encode_eq_of_agree parameter words f g h, ih]
-
 theorem frontierLayerSearch_eq_of_agree (ftsSecret : Index → FtsTree → FtsLeaf → Digest)
     (frontier : OtsFrontierValues) (index : Index) (lay : Layer) :
     frontierLayerSearch parameter f ftsSecret words frontier index lay =
@@ -91,23 +80,19 @@ theorem frontierLayerSearch_eq_of_agree (ftsSecret : Index → FtsTree → FtsLe
   rw [frontierLayerSearch, frontierLayerSearch,
     eval_frontierLayerMessage_eq_of_agree parameter words f g h,
     referenceEncodingSearch_eq_of_agree parameter words f g h]
-
 theorem frontierSignLayer_eq_of_agree (ftsSecret : Index → FtsTree → FtsLeaf → Digest)
     (frontier : OtsFrontierValues) (index : Index) (lay : Layer) :
     frontierSignLayer parameter f ftsSecret words frontier index lay =
       frontierSignLayer parameter g ftsSecret words frontier index lay := by
   simp only [frontierSignLayer, frontierLayerSearch_eq_of_agree parameter words f g h,
     eval_frontierTreePath_eq_of_agree parameter words f g h]
-
 theorem frontierSignAfterDigest_eq_of_agree (ftsSecret : Index → FtsTree → FtsLeaf → Digest)
     (frontier : OtsFrontierValues) (randomness : Randomness) (index : Index) (leaves : IndexGroup → FtsLeaf) :
     frontierSignAfterDigest parameter f ftsSecret words frontier randomness index leaves =
       frontierSignAfterDigest parameter g ftsSecret words frontier randomness index leaves := by
   simp only [frontierSignAfterDigest, frontierSignLayer_eq_of_agree parameter words f g h,
     eval_ftsOpen_eq_of_agree parameter words f g h]
-
 theorem frontierRoot_eq_of_agree (frontier : OtsFrontierValues) :
     frontierRoot parameter f words frontier = frontierRoot parameter g words frontier :=
   eval_frontierTreeNode_eq_of_agree parameter words f g h _ _ _ _ _
-
 end SphincsSecurity.Concrete

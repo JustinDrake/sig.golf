@@ -1,20 +1,142 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
+import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.Extract
+import SigGolfCandidate.SphincsSecurity.Proof.Ots.OneTime
 import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.FrontierSigningEvaluation
-import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.FrontierTreeEvaluation
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.SignSupport
-namespace SphincsSecurity.Concrete
 
+section
+
+
+
+namespace SphincsSecurity.Concrete
+open _root_.OracleComp OracleSpec
+set_option backward.isDefEq.respectTransparency false
+def frontierOneTimePublicKey (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
+    (leaf : LeafIndex) (digits : Encoding) (frontier : ChainIndex → Digest) :
+    OracleComp HashSpec (ChainIndex → Digest) :=
+  sequenceFin fun chainIdx => recoverChain parameter lay tree leaf chainIdx (digits chainIdx) (frontier chainIdx)
+def frontierTreeNode (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
+    (digits : LeafIndex → Encoding) (frontier : LeafIndex → ChainIndex → Digest) :
+    Nat → Nat → OracleComp HashSpec Digest
+  | 0, nodeIdx => do
+      let leaf := leafOfNat nodeIdx
+      let endpoints ← frontierOneTimePublicKey parameter lay tree leaf (digits leaf) (frontier leaf)
+      leafHash parameter lay tree leaf endpoints
+  | level + 1, nodeIdx => do
+      let left ← frontierTreeNode parameter lay tree digits frontier level (2 * nodeIdx)
+      let right ← frontierTreeNode parameter lay tree digits frontier level (2 * nodeIdx + 1)
+      tweakableHash parameter (.node lay tree (level + 1) nodeIdx) (nodePayload left right)
+def frontierTreePath (parameter : PublicParameter) (lay : Layer) (tree : TreeIndex)
+    (digits : LeafIndex → Encoding) (frontier : LeafIndex → ChainIndex → Digest) (leaf : LeafIndex) :
+    OracleComp HashSpec (Fin maxLayerHeight → Digest) :=
+  sequenceFin fun level =>
+    if level.val < layerHeight lay then
+      frontierTreeNode parameter lay tree digits frontier level.val (Nat.xor (leaf.val / 2 ^ level.val) 1)
+    else pure 0
+def IsOtsFrontier (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
+    (lay : Layer) (tree : TreeIndex) (secret : LeafIndex → ChainIndex → Digest)
+    (digits : LeafIndex → Encoding) (frontier : LeafIndex → ChainIndex → Digest) : Prop :=
+  ∀ leaf chainIdx, evalWithAnswerFn f
+    (chainWalk parameter lay tree leaf chainIdx 0 (digits leaf chainIdx).val (secret leaf chainIdx)) =
+      frontier leaf chainIdx
+theorem eval_frontierOneTimePublicKey (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
+    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (secret frontier : ChainIndex → Digest)
+    (digits : Encoding)
+    (hfrontier : ∀ chainIdx, evalWithAnswerFn f
+      (chainWalk parameter lay tree leaf chainIdx 0 (digits chainIdx).val (secret chainIdx)) = frontier chainIdx) :
+    evalWithAnswerFn f (frontierOneTimePublicKey parameter lay tree leaf digits frontier) =
+      evalWithAnswerFn f (oneTimePublicKey parameter lay tree leaf secret) := by
+  simp only [frontierOneTimePublicKey, evalWithAnswerFn_sequenceFin, eval_oneTimePublicKey]
+  funext chainIdx
+  rw [← hfrontier chainIdx, eval_recoverChain]
+theorem eval_frontierTreeNode (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
+    (lay : Layer) (tree : TreeIndex) (secret : LeafIndex → ChainIndex → Digest)
+    (digits : LeafIndex → Encoding) (frontier : LeafIndex → ChainIndex → Digest)
+    (hfrontier : IsOtsFrontier parameter f lay tree secret digits frontier) (level nodeIdx : Nat) :
+    evalWithAnswerFn f (frontierTreeNode parameter lay tree digits frontier level nodeIdx) =
+      evalWithAnswerFn f (treeNode parameter lay tree secret level nodeIdx) := by
+  induction level generalizing nodeIdx with
+  | zero =>
+      rw [frontierTreeNode, treeNode_zero_eq, evalWithAnswerFn_bind, evalWithAnswerFn_bind,
+        eval_frontierOneTimePublicKey _ _ _ _ _ _ _ _ (hfrontier _)]
+  | succ level ih =>
+      simp only [frontierTreeNode, treeNode_succ_eq, evalWithAnswerFn_bind, ih]
+theorem eval_frontierTreePath (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
+    (lay : Layer) (tree : TreeIndex) (secret : LeafIndex → ChainIndex → Digest)
+    (digits : LeafIndex → Encoding) (frontier : LeafIndex → ChainIndex → Digest)
+    (hfrontier : IsOtsFrontier parameter f lay tree secret digits frontier) (leaf : LeafIndex) :
+    evalWithAnswerFn f (frontierTreePath parameter lay tree digits frontier leaf) =
+      evalWithAnswerFn f (treePath parameter lay tree secret leaf) := by
+  simp only [frontierTreePath, treePath, evalWithAnswerFn_sequenceFin]
+  funext level
+  split_ifs
+  · exact eval_frontierTreeNode _ _ _ _ _ _ _ hfrontier _ _
+  · rfl
+theorem eval_chainWalk_congr_tail (parameter : PublicParameter) (f g : QueryImpl HashSpec Id)
+    (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (chainIdx : ChainIndex)
+    (start steps : Nat) (value : Digest) (hsteps : start + steps ≤ chainLength - 1)
+    (hhash : ∀ (step : Fin (chainLength - 1)), start ≤ step.val → ∀ input : Digest,
+      truncateHash (f (tweakableHashInput parameter (.chain lay tree leaf chainIdx step) (digestBytes input))) =
+        truncateHash (g (tweakableHashInput parameter (.chain lay tree leaf chainIdx step) (digestBytes input)))) :
+    evalWithAnswerFn f (chainWalk parameter lay tree leaf chainIdx start steps value) =
+      evalWithAnswerFn g (chainWalk parameter lay tree leaf chainIdx start steps value) := by
+  induction steps with
+  | zero => rfl
+  | succ steps ih =>
+      have hstep : start + steps < chainLength - 1 := by omega
+      simp only [chainWalk, evalWithAnswerFn_bind, dif_pos hstep, eval_tweakableHash]
+      rw [ih (by omega)]
+      exact hhash ⟨start + steps, hstep⟩ (Nat.le_add_right start steps) _
+theorem eval_frontierTreeNode_congr (parameter : PublicParameter) (f g : QueryImpl HashSpec Id)
+    (lay : Layer) (tree : TreeIndex) (digits : LeafIndex → Encoding)
+    (frontier : LeafIndex → ChainIndex → Digest)
+    (hchain : ∀ (leaf : LeafIndex) (chainIdx : ChainIndex) (step : Fin (chainLength - 1)),
+      (digits leaf chainIdx).val ≤ step.val → ∀ input : Digest,
+      truncateHash (f (tweakableHashInput parameter (.chain lay tree leaf chainIdx step) (digestBytes input))) =
+        truncateHash (g (tweakableHashInput parameter (.chain lay tree leaf chainIdx step) (digestBytes input))))
+    (hleaf : ∀ (leaf : LeafIndex) (payload : HashInput),
+      truncateHash (f (tweakableHashInput parameter (.leaf lay tree leaf) payload)) =
+        truncateHash (g (tweakableHashInput parameter (.leaf lay tree leaf) payload)))
+    (hnode : ∀ (level nodeIdx : Nat) (payload : HashInput),
+      truncateHash (f (tweakableHashInput parameter (.node lay tree level nodeIdx) payload)) =
+        truncateHash (g (tweakableHashInput parameter (.node lay tree level nodeIdx) payload)))
+    (level nodeIdx : Nat) :
+    evalWithAnswerFn f (frontierTreeNode parameter lay tree digits frontier level nodeIdx) =
+      evalWithAnswerFn g (frontierTreeNode parameter lay tree digits frontier level nodeIdx) := by
+  have hkey : ∀ leaf, evalWithAnswerFn f
+      (frontierOneTimePublicKey parameter lay tree leaf (digits leaf) (frontier leaf)) =
+        evalWithAnswerFn g (frontierOneTimePublicKey parameter lay tree leaf (digits leaf) (frontier leaf)) := by
+    intro leaf
+    simp only [frontierOneTimePublicKey, evalWithAnswerFn_sequenceFin]
+    funext chainIdx
+    apply eval_chainWalk_congr_tail _ _ _ _ _ _ _ _ _ _ _ (hchain leaf chainIdx)
+    have hdigit := (digits leaf chainIdx).isLt
+    omega
+  induction level generalizing nodeIdx with
+  | zero =>
+      simp only [frontierTreeNode, evalWithAnswerFn_bind, leafHash, eval_tweakableHash]
+      rw [hkey]
+      exact hleaf _ _
+  | succ level ih =>
+      simp only [frontierTreeNode, evalWithAnswerFn_bind, eval_tweakableHash, ih]
+      exact hnode _ _ _
+end SphincsSecurity.Concrete
+end
+
+section
+
+
+
+
+namespace SphincsSecurity.Concrete
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
 attribute [local irreducible] boundaryEval sequenceFin chainWalk referenceEncodingSearch
-
 abbrev OtsReferenceWords := Layer → TreeIndex → LeafIndex → Encoding
 abbrev OtsFrontierValues := Layer → TreeIndex → LeafIndex → ChainIndex → Digest
-
 def IsSigningFrontier (key : SecretKey) (f : QueryImpl HashSpec Id)
     (words : OtsReferenceWords) (frontier : OtsFrontierValues) : Prop :=
   ∀ lay tree, IsOtsFrontier key.parameter f lay tree (key.otsSecret lay tree) (words lay tree) (frontier lay tree)
-
 def frontierLayerMessage (parameter : PublicParameter) (ftsSecret : Index → FtsTree → FtsLeaf → Digest)
     (words : OtsReferenceWords) (frontier : OtsFrontierValues) (index : Index) (lay : Layer) :
     OracleComp HashSpec Digest :=
@@ -23,19 +145,16 @@ def frontierLayerMessage (parameter : PublicParameter) (ftsSecret : Index → Ft
     frontierTreeNode parameter below (treeIndexAt index below)
       (words below (treeIndexAt index below)) (frontier below (treeIndexAt index below)) (layerHeight below) 0
   else ftsKey parameter index (ftsSecret index)
-
 def frontierLayerSearch (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (ftsSecret : Index → FtsTree → FtsLeaf → Digest) (words : OtsReferenceWords)
     (frontier : OtsFrontierValues) (index : Index) (lay : Layer) : Option (Counter × Encoding) × Nat :=
   referenceEncodingSearch parameter f lay (treeIndexAt index lay) (leafIndexAt index lay)
     (evalWithAnswerFn f (frontierLayerMessage parameter ftsSecret words frontier index lay)) encodingAttemptLimit 0
-
 def FrontierReferenceWord (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (ftsSecret : Index → FtsTree → FtsLeaf → Digest) (words : OtsReferenceWords)
     (frontier : OtsFrontierValues) (index : Index) (lay : Layer) : Prop :=
   ∀ counter word, (frontierLayerSearch parameter f ftsSecret words frontier index lay).1 = some (counter, word) →
     word = words lay (treeIndexAt index lay) (leafIndexAt index lay)
-
 def frontierSignLayer (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (ftsSecret : Index → FtsTree → FtsLeaf → Digest) (words : OtsReferenceWords)
     (frontier : OtsFrontierValues) (index : Index) (lay : Layer) : Option LayerPart × Nat :=
@@ -47,7 +166,6 @@ def frontierSignLayer (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
         evalWithAnswerFn f (frontierTreePath parameter lay (treeIndexAt index lay)
           (words lay (treeIndexAt index lay)) (frontier lay (treeIndexAt index lay)) (leafIndexAt index lay))),
         search.2 + if lay = topLayer then OtsCode.signingSteps word else treeNodeHashCost (layerHeight lay))
-
 theorem eval_frontierLayerMessage (key : SecretKey) (f : QueryImpl HashSpec Id)
     (words : OtsReferenceWords) (frontier : OtsFrontierValues)
     (hfrontier : IsSigningFrontier key f words frontier) (index : Index) (lay : Layer) :
@@ -58,7 +176,6 @@ theorem eval_frontierLayerMessage (key : SecretKey) (f : QueryImpl HashSpec Id)
   · rw [treeRoot]
     exact eval_frontierTreeNode _ _ _ _ _ _ _ (hfrontier _ _) _ _
   · rfl
-
 theorem eval_signLayer_search (key : SecretKey) (f : QueryImpl HashSpec Id) (index : Index) (lay : Layer) :
     evalWithAnswerFn f (signLayer key index lay) =
       (referenceEncodingSearch key.parameter f lay (treeIndexAt index lay) (leafIndexAt index lay)
@@ -73,11 +190,9 @@ theorem eval_signLayer_search (key : SecretKey) (f : QueryImpl HashSpec Id) (ind
       (evalWithAnswerFn f (layerMessage key index lay)) encodingAttemptLimit 0).1 with
   | none => rfl
   | some result => simp only [Option.map_some, evalWithAnswerFn_bind, evalWithAnswerFn_pure]
-
 theorem specLayerCost_isSome (key : SecretKey) (f : QueryImpl HashSpec Id) (index : Index) (lay : Layer) :
     (specLayerCost key f index lay).1.isSome = (evalWithAnswerFn f (signLayer key index lay)).isSome := by
   rw [eval_signLayer_search, specLayerCost, Option.isSome_map]
-
 theorem layersHashCostFrom_congr {α β : Type} (A : Layer → Option α × Nat) (B : Layer → Option β × Nat)
     (hcost : ∀ lay, (A lay).2 = (B lay).2) (hsome : ∀ lay, (A lay).1.isSome = (B lay).1.isSome)
     (remaining : Nat) : layersHashCostFrom A remaining = layersHashCostFrom B remaining := by
@@ -85,8 +200,6 @@ theorem layersHashCostFrom_congr {α β : Type} (A : Layer → Option α × Nat)
   | zero => rfl
   | succ r ih =>
       simp only [layersHashCostFrom, ih, hcost, hsome]
-
-/-- The frontier layer is the specification's layer, value and cost. -/
 theorem frontierSignLayer_eq_spec (key : SecretKey) (f : QueryImpl HashSpec Id)
     (words : OtsReferenceWords) (frontier : OtsFrontierValues)
     (hfrontier : IsSigningFrontier key f words frontier) (index : Index) (lay : Layer)
@@ -116,7 +229,6 @@ theorem frontierSignLayer_eq_spec (key : SecretKey) (f : QueryImpl HashSpec Id)
       funext chainIdx
       rw [hw]
       exact (hfrontier _ _ _ _).symm
-
 def frontierSignAfterDigest (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (ftsSecret : Index → FtsTree → FtsLeaf → Digest) (words : OtsReferenceWords)
     (frontier : OtsFrontierValues) (randomness : Randomness) (index : Index) (leaves : IndexGroup → FtsLeaf) :
@@ -128,7 +240,6 @@ def frontierSignAfterDigest (parameter : PublicParameter) (f : QueryImpl HashSpe
         fts := paths
         layers := fun lay => LayerSignature.ofPadded lay (parts lay) }),
     ftsOpenHashCost + sequenceLayersHashCost layers)
-
 theorem boundaryEval_signAfterDigest_frontier (key : SecretKey) (f : QueryImpl HashSpec Id)
     (words : OtsReferenceWords) (frontier : OtsFrontierValues)
     (hfrontier : IsSigningFrontier key f words frontier) (htop : KeyTopHonest f key)
@@ -151,5 +262,5 @@ theorem boundaryEval_signAfterDigest_frontier (key : SecretKey) (f : QueryImpl H
   simp only [frontierSignAfterDigest, hcost, signatureValue]
   congr 2
   simp only [hlayers]
-
 end SphincsSecurity.Concrete
+end

@@ -1,18 +1,5 @@
 import SigGolfCandidate.T3.Secc.WotsEncodingCongr
 
-/-!
-# Stream E (law): resampling the free encoding rows of R3's public table
-
-The **free rows** of a table `T` are the encoding rows of non-aliased leaves (`Enc.EncIndex`: leaf with
-`tree < 2^31`, `leaf < 4096`, any message, any 32-bit counter) that the leaf's honest search does not reach
-(`Enc.Reached`). They form a self-determined part of the public table: overwriting them changes neither the honest
-messages (no encoding row is read) nor the honest searches (the reached rows are untouched), so the free set is the
-same (`free_ov`). Hence (`uniform_resample`, generalising C's `PrefixGame.uniform_resample` to an arbitrary index
-type) R3's uniform public table equals the uniform table with its free rows overwritten by fresh uniform values
-(`public_resample`), and the overwritten table agrees with the original one on every honest query (`honest_ov`):
-R3's source program and the reference objects of every non-aliased leaf are unchanged.
--/
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -22,13 +9,7 @@ open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
 namespace Enc
-
-/-! ## Resampling a self-determined part of a uniform sample (arbitrary index type) -/
-
-/-- **Resampling a self-determined part of a uniform table** (C's `PrefixGame.uniform_resample`, with the part
-indexed by an arbitrary type). -/
 theorem uniform_resample {Ω K : Type} [Fintype Ω] [Nonempty Ω] {X : K → Type} [∀ k, Fintype (X k)]
     [∀ k, Nonempty (X k)] (d : Ω → K) (ov : ∀ k, Ω → X k → Ω) (rd : ∀ k, Ω → X k)
     (h1 : ∀ ω x, rd (d ω) (ov (d ω) ω x) = x) (h2 : ∀ ω x, ov (d ω) (ov (d ω) ω x) (rd (d ω) ω) = ω)
@@ -124,16 +105,12 @@ theorem uniform_resample {Ω K : Type} [Fintype Ω] [Nonempty Ω] {X : K → Typ
           rw [if_neg hω, mul_zero]
     _ = PMF.uniformOfFintype Ω ω₀ := by
         simp only [← hconst, ENNReal.tsum_mul_left, PMF.tsum_coe, mul_one]
-
-/-- Expectation of a bind of PMFs. -/
 theorem tsum_bind_mul {α β : Type} (μ : PMF α) (g : α → PMF β) (F : β → ENNReal) :
     ∑' b, (μ.bind g) b * F b = ∑' a, μ a * ∑' b, g a b * F b := by
   simp only [PMF.bind_apply, ← ENNReal.tsum_mul_right, ← ENNReal.tsum_mul_left]
   rw [ENNReal.tsum_comm]
   refine tsum_congr fun a => tsum_congr fun b => ?_
   rw [mul_assoc]
-
-/-- Expectation of a mapped PMF. -/
 theorem tsum_map_mul {α β : Type} (μ : PMF α) (f : α → β) (F : β → ENNReal) :
     ∑' b, (μ.map f) b * F b = ∑' a, μ a * F (f a) := by
   classical
@@ -144,8 +121,6 @@ theorem tsum_map_mul {α β : Type} (μ : PMF α) (f : α → β) (F : β → EN
   · rw [if_pos rfl]
   · intro b hb
     rw [if_neg hb, zero_mul]
-
-/-- Expectation form of `uniform_resample`. -/
 theorem uniform_resample_tsum {Ω K : Type} [Fintype Ω] [Nonempty Ω] {X : K → Type} [∀ k, Fintype (X k)]
     [∀ k, Nonempty (X k)] (d : Ω → K) (ov : ∀ k, Ω → X k → Ω) (rd : ∀ k, Ω → X k)
     (h1 : ∀ ω x, rd (d ω) (ov (d ω) ω x) = x) (h2 : ∀ ω x, ov (d ω) (ov (d ω) ω x) (rd (d ω) ω) = ω)
@@ -156,18 +131,10 @@ theorem uniform_resample_tsum {Ω K : Type} [Fintype Ω] [Nonempty Ω] {X : K �
   rw [tsum_bind_mul]
   refine tsum_congr fun ω => ?_
   rw [tsum_map_mul]
-
-/-! ## Encoding rows of non-aliased leaves -/
-
-/-- Index of the encoding rows of non-aliased leaves. -/
 abbrev EncIndex := CanonGraph.LeafPos × Digest × BitVec 32
-
-/-- The encoding row of an index. -/
 def encInput (e : EncIndex) : HashInput := encodingRow (leafOf e.1) e.2.1 e.2.2
-
 theorem encInput_length (e : EncIndex) : (encInput e).length = 64 := by
   simp [encInput, encodingRow, encodingInput, pad64, bytesLE_length]
-
 theorem encInput_injective : Function.Injective encInput := by
   rintro ⟨L, m, c⟩ ⟨L', m', c'⟩ he
   have he' := Sampling.pad64_inj_of_length (by simp only [encodingInput, List.length_append, bytesLE_length]) he
@@ -184,35 +151,22 @@ theorem encInput_injective : Function.Injective encInput := by
   have : leaf = leaf' := Fin.ext h3
   subst tree leaf
   rfl
-
 theorem encInput_short (e : EncIndex) : encInput e ∈ SeccLaw.publicUniverse :=
   SeccLaw.mem_publicUniverse _ (by rw [encInput_length]; unfold SeccLaw.maxInputLength; omega)
-
 theorem encInput_encHeader (e : EncIndex) : EncHeader (encInput e) := by
   refine ⟨e.1.lay.val, e.1.tree.val, 0, e.1.leaf.val, ?_⟩
   unfold encInput encodingRow encodingInput leafOf
   rw [Extract.hdrBlock_pad64 _ (by simp only [List.length_append, bytesLE_length]; omega)]
   simp [Extract.hdrBlock, List.append_assoc, bytesLE_length]
-
-/-- An encoding row reached by the honest search of a non-aliased leaf is that leaf's own row. -/
 theorem reached_encInput {T : Answers} {L : CanonGraph.LeafPos} {input : HashInput}
     (h : Reached T (leafOf L) input) : ∃ c : BitVec 32, input = encInput (L, leafMsg T (leafOf L), c) := by
   obtain ⟨c, -, rfl, -⟩ := h
   exact ⟨_, rfl⟩
-
-/-! ## Free rows -/
-
-/-- A free row of `T`: an encoding row of a non-aliased leaf that its honest search does not reach. -/
 def Free (T : Answers) (e : EncIndex) : Prop := ¬ Reached T (leafOf e.1) (encInput e)
-
-/-- The free set of a table. -/
 def freeSet (T : Answers) : Set EncIndex := {e | Free T e}
-
-/-- Reached rows are the same for tables agreeing on the honest queries (the reached set is self-determined). -/
 theorem reached_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (L : CanonGraph.LeafPos)
     (input : HashInput) : Reached T' (leafOf L) input ↔ Reached T (leafOf L) input := by
   have hm : leafMsg T' (leafOf L) = leafMsg T (leafOf L) := leafMsg_congr_nonEnc (nonEnc_of_honest h) _
-  -- rows reached under `T` agree
   have hrow : ∀ c, c < counterLimit → (∀ c' < c, decode (leafOf L).lay (low (T (.inl (.inr
       (encodingRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c')))))) = none) →
       T' (.inl (.inr (encodingRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c)))) =
@@ -224,7 +178,6 @@ theorem reached_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (
   constructor
   · rintro ⟨c, hc, rfl, hprev⟩
     refine ⟨c, hc, rfl, fun c' hc' => ?_⟩
-    -- the earliest valid row below `c` (under `T`) would be reached, hence agree, hence be valid under `T'`
     by_contra hvalid
     have hex : ∃ c'', c'' < c ∧ decode (leafOf L).lay (low (T (.inl (.inr
         (encodingRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c'')))))) ≠ none := ⟨c', hc', hvalid⟩
@@ -248,27 +201,18 @@ theorem reached_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (
       fun c'' hc'' => hprev c'' (lt_trans hc'' hc')
     rw [hrow c' (lt_trans hc' hc) hprev']
     exact hprev c' hc'
-
 theorem free_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) : freeSet T' = freeSet T := by
   ext e
   simp only [freeSet, Set.mem_ofPred_eq, Free]
   rw [reached_congr h]
-
-/-! ## Overwriting free rows of a public table -/
-
 section Overwrite
 variable {U : Finset HashInput}
-
-/-- Overwrite the encoding rows of the set `k` of a public table over `U`. -/
 noncomputable def ov (k : Set EncIndex) (pub : U → HashOutput) (y : k → HashOutput) : U → HashOutput :=
   fun u => if h : ∃ e, e ∈ k ∧ encInput e = u.val then y ⟨Classical.choose h, (Classical.choose_spec h).1⟩
     else pub u
-
-/-- Read the encoding rows of the set `k` off a public table over `U`. -/
 noncomputable def rd (hU : SeccLaw.publicUniverse ⊆ U) (k : Set EncIndex) (pub : U → HashOutput) :
     k → HashOutput :=
   fun e => pub ⟨encInput e.val, hU (encInput_short e.val)⟩
-
 theorem ov_at (hU : SeccLaw.publicUniverse ⊆ U) (k : Set EncIndex) (pub : U → HashOutput) (y : k → HashOutput)
     (e : k) : ov k pub y ⟨encInput e.val, hU (encInput_short e.val)⟩ = y e := by
   unfold ov
@@ -277,19 +221,16 @@ theorem ov_at (hU : SeccLaw.publicUniverse ⊆ U) (k : Set EncIndex) (pub : U �
   have he : Classical.choose h = e.val := encInput_injective (Classical.choose_spec h).2
   congr 1
   exact Subtype.ext he
-
 theorem ov_other (k : Set EncIndex) (pub : U → HashOutput) (y : k → HashOutput) (u : U)
     (hu : ∀ e, e ∈ k → encInput e ≠ u.val) : ov k pub y u = pub u := by
   unfold ov
   rw [dif_neg]
   rintro ⟨e, he, heq⟩
   exact hu e he heq
-
 theorem rd_ov (hU : SeccLaw.publicUniverse ⊆ U) (k : Set EncIndex) (pub : U → HashOutput) (y : k → HashOutput) :
     rd hU k (ov k pub y) = y := by
   funext e
   exact ov_at hU k pub y e
-
 theorem ov_ov_rd (hU : SeccLaw.publicUniverse ⊆ U) (k : Set EncIndex) (pub : U → HashOutput)
     (y : k → HashOutput) : ov k (ov k pub y) (rd hU k pub) = pub := by
   funext u
@@ -299,27 +240,19 @@ theorem ov_ov_rd (hU : SeccLaw.publicUniverse ⊆ U) (k : Set EncIndex) (pub : U
     congr 1
     exact Subtype.ext ((Classical.choose_spec h).2)
   · rfl
-
 end Overwrite
-
-/-! ## R3's tables with free rows overwritten -/
-
 section Tables
 variable (U : Finset HashInput)
-
 theorem eagerAnswers_public_mem (privateTable : FullGame.FullTable) (pub : U → HashOutput) (u : U) :
     eagerAnswers U privateTable pub (.inl (.inr u.val)) = pub u := by
   change SphincsSecurity.Concrete.finiteHashAnswer ∅ U pub u.val = pub u
   rw [SphincsSecurity.Concrete.finiteHashAnswer_none ∅ U pub u.val u.property (by simp)]
-
 theorem eagerAnswers_public_not_mem (privateTable : FullGame.FullTable) (pub : U → HashOutput)
     (input : HashInput) (h : input ∉ U) : eagerAnswers U privateTable pub (.inl (.inr input)) = (0 : HashOutput) := by
   change SphincsSecurity.Concrete.finiteHashAnswer ∅ U pub input = 0
   unfold SphincsSecurity.Concrete.finiteHashAnswer
   simp [h]
   rfl
-
-/-- The overwritten table agrees with the original one on every honest query of the original. -/
 theorem honest_ov (privateTable : FullGame.FullTable) (pub : U → HashOutput)
     (y : freeSet (eagerAnswers U privateTable pub) → HashOutput) :
     ∀ q, HonestQ (eagerAnswers U privateTable pub) q →
@@ -343,17 +276,11 @@ theorem honest_ov (privateTable : FullGame.FullTable) (pub : U → HashOutput)
         exact hr
     · rw [eagerAnswers_public_not_mem U _ _ input hin, eagerAnswers_public_not_mem U _ _ input hin]
   · simp only [eagerAnswers]
-
-/-- The free set is self-determined. -/
 theorem free_ov (privateTable : FullGame.FullTable) (pub : U → HashOutput)
     (y : freeSet (eagerAnswers U privateTable pub) → HashOutput) :
     freeSet (eagerAnswers U privateTable (ov (freeSet (eagerAnswers U privateTable pub)) pub y)) =
       freeSet (eagerAnswers U privateTable pub) :=
   free_congr (honest_ov U privateTable pub y)
-
-/-- **The free-row resampling of R3's public table** (expectation form): for every private table, averaging any
-function over the uniform public table equals averaging it over the uniform table with its free rows overwritten
-by fresh uniform values. -/
 theorem public_resample (iX : ∀ k : Set EncIndex, Fintype (k → HashOutput))
     [Fintype (U → HashOutput)] (hU : SeccLaw.publicUniverse ⊆ U) (privateTable : FullGame.FullTable)
     (F : (U → HashOutput) → ENNReal) :
@@ -364,9 +291,6 @@ theorem public_resample (iX : ∀ k : Set EncIndex, Fintype (k → HashOutput))
   @uniform_resample_tsum (U → HashOutput) (Set EncIndex) _ _ (fun k : Set EncIndex => k → HashOutput) iX _
     (fun pub => freeSet (eagerAnswers U privateTable pub)) (fun k pub y => ov k pub y) (fun k pub => rd hU k pub)
     (fun pub y => rd_ov hU _ pub y) (fun pub y => ov_ov_rd hU _ pub y) (fun pub y => free_ov U privateTable pub y) F
-
 end Tables
-
 end Enc
-
 end SigGolfCandidate.T3.Security.Wots

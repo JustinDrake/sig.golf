@@ -1,23 +1,17 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Seeded.StoppedRun
 
 open OracleComp OracleSpec
-
 namespace SphincsSecurity.Seeded
-
 set_option backward.isDefEq.respectTransparency false
-
 def hashBad (bad : HashInput → Prop) : OracleWorld.Domain → Prop
   | .inl _ => False
   | .inr input => bad input
-
 instance (bad : HashInput → Prop) [DecidablePred bad] : DecidablePred (hashBad bad) :=
   fun input => match input with
     | .inl _ => isFalse id
     | .inr input => inferInstanceAs (Decidable (bad input))
-
 def AgreeOutside (bad : HashInput → Prop) (left right : QueryCache HashSpec) : Prop :=
   ∀ input, ¬bad input → left input = right input
-
 theorem AgreeOutside.cacheQuery {bad : HashInput → Prop} {left right : QueryCache HashSpec}
     (h : AgreeOutside bad left right) (input : HashInput) (answer : HashOutput) :
     AgreeOutside bad (left.cacheQuery input answer) (right.cacheQuery input answer) := by
@@ -25,7 +19,6 @@ theorem AgreeOutside.cacheQuery {bad : HashInput → Prop} {left right : QueryCa
   by_cases heq : other = input
   · subst other; simp
   · simpa only [QueryCache.cacheQuery_of_ne _ _ heq] using h other hother
-
 theorem run'_stopBefore_eq {α : Type} (bad : HashInput → Prop) [DecidablePred bad]
     (computation : OracleComp OracleWorld α) (left right : QueryCache HashSpec)
     (h : AgreeOutside bad left right) :
@@ -64,7 +57,6 @@ theorem run'_stopBefore_eq {α : Type} (bad : HashInput → Prop) [DecidablePred
                 rw [QueryImpl.withCaching_run_some _ hleft, QueryImpl.withCaching_run_some _ hright]
                 simp only [pure_bind]
                 exact ih answer left right h
-
 theorem probEvent_cache_change_le {α : Type} (bad : HashInput → Prop) [DecidablePred bad]
     (computation : OracleComp OracleWorld α) (left right : QueryCache HashSpec)
     (h : AgreeOutside bad left right) (event : α → Prop) :
@@ -75,5 +67,4 @@ theorem probEvent_cache_change_le {α : Type} (bad : HashInput → Prop) [Decida
   rw [run'_stopBefore_eq bad computation left right h] at hbound
   exact hbound.trans (add_le_add
     (probEvent_stopBefore_le (hashBad bad) computation right event) le_rfl)
-
 end SphincsSecurity.Seeded

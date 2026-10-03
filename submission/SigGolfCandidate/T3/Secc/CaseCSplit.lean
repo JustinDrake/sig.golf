@@ -1,17 +1,5 @@
 import SigGolfCandidate.T3.Secc.CaseCLeaf
 
-/-!
-# Stream CC: the three-way split of the pinned fresh case (C)
-
-On a shared-law sample, every opened position of the forgery's digest is disclosed by the actual log or probed by
-the final verifier (`verdict_leaf_entries`), hence
-
-    CleanWin ∧ CaseCFreshPinned  ⇒  PinnedC FullQ ∨ PinnedC NearQ ∨ BPair.PairGuess
-
-(`caseC_three_way`): all 21 disclosed, exactly one undisclosed (and guessed), or two distinct undisclosed (both
-guessed: B-PAIR's pair event, for every decomposition of the run by `GameSplit` uniqueness).
--/
-
 namespace SigGolfCandidate.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -19,17 +7,12 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- **Near certificate**: exactly one opened position of the forgery's digest is undisclosed, and the verifier
-probed its honest leaf input (B-PAIR's `GuessedIn`). -/
 def NearQ (answers : Correctness.Answers) (log : QueryLog Requests) (message : Message) (witness : WBytes)
     (events : List FirstHit.QueryEvent) : Prop :=
   ∃ f ∈ BPair.openedPositions (evalWithAnswerFn answers (digest (wrho witness) message (wdc witness))),
     BPair.GuessedIn answers log (BPair.publicEntries events) f ∧
     ∀ g ∈ BPair.openedPositions (evalWithAnswerFn answers (digest (wrho witness) message (wdc witness))),
       g ≠ f → BPair.Disclosed answers log g
-
-/-- Two decompositions of a run share the keygen and interaction records and the verifier's events. -/
 theorem split_events_unique (adversary : AdversaryP) (result : FirstHit.Recorded Bool)
     (g i c g' i' c') (h : Wots.GameSplit adversary result g i c) (h' : Wots.GameSplit adversary result g' i' c') :
     g' = g ∧ i' = i ∧ c'.events = c.events := by
@@ -41,8 +24,6 @@ theorem split_events_unique (adversary : AdversaryP) (result : FirstHit.Recorded
   simp only at h1 h2
   rw [h1] at h2
   exact (List.append_cancel_left (List.append_cancel_left h2)).symm
-
-/-- **The three-way split.** -/
 theorem caseC_three_way (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     (z : PaddedGame.TraceResult × Correctness.Answers) (hz : z ∈ (SeccLaw.completedExperiment adversary q hq).support)
     (hclean : QueryRecorded.CleanWin q z.1) (hC : Wots.CaseCFreshPinned adversary z) :
@@ -83,5 +64,4 @@ theorem caseC_three_way (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
   obtain ⟨rfl, rfl, hce⟩ := split_events_unique adversary _ g i c g' i' c' hs hs'
   rw [hce]
   exact ⟨f0, g0, fun h => hne h.symm, (hsplit f0 hf0).resolve_left hnd0, (hsplit g0 hg0).resolve_left hnd1⟩
-
 end SigGolfCandidate.T3.Security.CaseC

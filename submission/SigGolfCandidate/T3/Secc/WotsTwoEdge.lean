@@ -1,17 +1,5 @@
 import SigGolfCandidate.T3.Secc.WotsPrefixGame
 
-/-!
-# Stream C: the two-edge bound on R3 (rate `(3/2 + 4x + 2x²)/(1−x)` per prefix query)
-
-* `PrefixRow` (class P, BP-A §1.2): canonical prefix rows of source chains; `prefixClassCount s` is its trace count
-  (definitionally F2's `refCount PrefixRow s`); `sourceChains` is the finite set of source chains.
-* `prefixCount_sum_le`: prefix rows of distinct source chains are disjoint, so the per-address counts sum to at most
-  the P count (record `allocation_le`).
-* `twoEdgeAt_cost_le` (per address, G1 + G3 through the mixture identity):
-  `(1 − x) · Pr_R3[TwoEdgeAt a] ≤ twoEdgeRate q · E_R3[prefixCount a]`.
-* **`reference_twoEdge_le`**: `Pr_R3[∃ a, SourceChain a ∧ TwoEdgeAt a] ≤ twoEdgeRate q · E_R3[P] / (1 − x)`.
--/
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -24,27 +12,17 @@ set_option backward.isDefEq.respectTransparency false
 set_option linter.constructorNameAsVariable false
 attribute [local instance low] Classical.propDecidable
 attribute [local irreducible] referenceGame offlineGame
-
-/-! ## Class P and the source chains -/
-
-/-- **Class P** (BP-A §1.2): a canonical prefix row of a source-sized chain. -/
 def PrefixRow (answers : Answers) : T3.Spec.Domain → Prop
   | .inl (.inr input) => ∃ a, WotsExtract.SourceChain a ∧ PrefixRowAt answers a input
   | _ => False
-
-/-- The P count of an R3 sample (the filter form of F2's `refCount PrefixRow`). -/
 noncomputable def prefixClassCount (s : RefSample) : Nat :=
   (s.trace.filter fun e => decide (PrefixRow s.answers (.inl (.inr e.1)))).length
-
-/-- All source chains (`WotsExtract.SourceChain`). Irreducible: elaboration must never unfold the `2^31` range. -/
 @[irreducible] noncomputable def sourceChains : Finset ChainAddr :=
   (Finset.univ : Finset Layer).biUnion fun lay => (Finset.range (2 ^ 31)).biUnion fun tree =>
     (Finset.range (2 ^ height lay)).biUnion fun leaf =>
       (Finset.range (chainCount lay)).image fun chain => (⟨⟨lay, tree, leaf⟩, chain⟩ : ChainAddr)
-
 theorem height_le (lay : Layer) : height lay ≤ 12 := by
   fin_cases lay <;> decide
-
 theorem mem_sourceChains (a : ChainAddr) : a ∈ sourceChains ↔ WotsExtract.SourceChain a := by
   unfold sourceChains
   simp only [Finset.mem_biUnion, Finset.mem_univ, true_and, Finset.mem_range, Finset.mem_image]
@@ -53,8 +31,6 @@ theorem mem_sourceChains (a : ChainAddr) : a ∈ sourceChains ↔ WotsExtract.So
     exact ⟨⟨htree, hleaf⟩, hchain⟩
   · intro ha
     exact ⟨a.key.lay, a.key.tree, ha.1.1, a.key.leaf, ha.1.2, a.chain, ha.2, rfl⟩
-
-/-- A canonical prefix row determines its source chain. -/
 theorem prefixRowAt_unique {answers : Answers} {a b : ChainAddr} (ha : WotsExtract.SourceChain a)
     (hb : WotsExtract.SourceChain b) {input : HashInput} (hia : PrefixRowAt answers a input)
     (hib : PrefixRowAt answers b input) : a = b := by
@@ -74,8 +50,6 @@ theorem prefixRowAt_unique {answers : Answers} {a b : ChainAddr} (ha : WotsExtra
   cases a; cases b
   simp only at hkey h ⊢
   rw [h.2.1, ← hkey]
-
-/-- **Allocation**: the per-address prefix counts of the source chains sum to at most the P count. -/
 theorem prefixCount_sum_le (s : RefSample) :
     ∑ a ∈ sourceChains, prefixCount a s ≤ prefixClassCount s := by
   unfold prefixCount prefixClassCount
@@ -103,18 +77,11 @@ theorem prefixCount_sum_le (s : RefSample) :
       rw [if_neg]
       intro hae
       exact hP ⟨a, (mem_sourceChains a).mp ha, hae⟩
-
-/-! ## The per-address bound -/
-
-/-- The two-edge rate (×1/n), as in the record's `prefixTwoEdgeRate`. -/
 noncomputable def twoEdgeRate (q : Nat) : ENNReal :=
   ((3 / 2 : ENNReal) + 4 * ((q : ENNReal) / 2 ^ 128) + 2 * ((q : ENNReal) / 2 ^ 128) ^ 2) / 2 ^ 128
-
 theorem card_digest : ((Fintype.card Digest : ℕ) : ENNReal) = 2 ^ 128 := by
   rw [Fintype.card_bitVec]
   norm_num
-
-/-- The counted generic run costs at most the expected `seedCost` (`hcharge` + `realRun_counted_forget`). -/
 theorem counted_le_cost (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (R : RefTables adversary) :
     ∑' r, realRun (fun _ => SphincsSecurity.Concrete.OtsPrefix.uniformImpl)
         (fun endpoint => SphincsSecurity.QueryCap.counted IsPrefixQuery (seedGame adversary q a R endpoint))
@@ -133,8 +100,6 @@ theorem counted_le_cost (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (R : 
     have hmem := PrefixGame.lazyRun_mem_support _ _ _ hlazy
     exact_mod_cast le_of_eq (seedGame_charge adversary q a R r.1 r.2.1 hmem)
   · rw [(PMF.apply_eq_zero_iff _ r).mpr hr, zero_mul, zero_mul]
-
-/-- **Per-address two-edge bound** (G1 + G3): `(1 − x) · Pr_R3[TwoEdgeAt a] ≤ twoEdgeRate q · E_R3[prefixCount a]`. -/
 theorem twoEdgeAt_cost_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 128) (a : ChainAddr)
     (ha : WotsExtract.SourceChain a) :
     (1 - (q : ENNReal) / 2 ^ 128) *
@@ -171,11 +136,6 @@ theorem twoEdgeAt_cost_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 128) 
     _ ≤ twoEdgeRate q * ∑' r, realRun (fun _ => SphincsSecurity.Concrete.OtsPrefix.uniformImpl)
           (seedGame adversary q a R) (fun _ _ => none) r * (seedCost a R r.2.1 : ENNReal) :=
         mul_le_mul' le_rfl (h3.trans (counted_le_cost adversary q a R))
-
-/-! ## The two-edge bound -/
-
-/-- **Two-edge bound on R3** (record `referenceContactGame_twoEdge_le`): the first-order constant is the generic
-lemma's 3/2. -/
 theorem reference_twoEdge_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 128) :
     Pr[fun s => ∃ a, WotsExtract.SourceChain a ∧ TwoEdgeAt s.answers s.trace a | referenceExperiment adversary q] ≤
       twoEdgeRate q * (∑' s, referenceExperiment adversary q s * (prefixClassCount s : ENNReal)) /
@@ -186,7 +146,6 @@ theorem reference_twoEdge_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 12
     rw [ENNReal.div_lt_iff (Or.inl (by simp)) (Or.inl (by simp)), one_mul]
     exact_mod_cast hq
   apply (ENNReal.le_div_iff_mul_le (Or.inl hpos) (Or.inl (by finiteness))).mpr
-  -- union bound over the source chains
   have hunion : Pr[fun s => ∃ a, WotsExtract.SourceChain a ∧ TwoEdgeAt s.answers s.trace a |
         referenceExperiment adversary q] ≤
       ∑ a ∈ sourceChains, Pr[fun s => TwoEdgeAt s.answers s.trace a | referenceExperiment adversary q] := by
@@ -226,5 +185,4 @@ theorem reference_twoEdge_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 12
         intro s
         apply mul_le_mul' le_rfl
         exact_mod_cast prefixCount_sum_le s
-
 end SigGolfCandidate.T3.Security.Wots

@@ -3,43 +3,33 @@ import SigGolfCandidate.SphincsSecurity.Proof.Fts.TargetShapeOperators
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.TargetShapeReindex
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.NormalizedTargetCacheQuery
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.TargetSigningMatchFactors
+
 set_option autoImplicit true
-
-/-! ## ClosedTargetMixedSigning -/
-
 namespace SphincsSecurity.Concrete
-
 open _root_.OracleComp OracleSpec ENNReal
 set_option backward.isDefEq.respectTransparency false
-
 noncomputable def normalizedTargetMixedMoment (key : SecretKey) (cache : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView)
     (groups : Fin m → Finset IndexGroup) (required : Finset IndexGroup) : ENNReal :=
   normalizedTargetCacheProduct key.parameter cache (tweakableHashInput key.parameter .message payload) target groups *
     normalizedTargetLogProduct key cache log payload target required
-
 end SphincsSecurity.Concrete
-
 namespace SphincsSecurity.Concrete
-
 open _root_.OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
 set_option backward.isDefEq.respectTransparency false
-
 noncomputable def targetShapeMoments (key : SecretKey) (cache : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView) : TargetShapeVector :=
   fun groups remaining =>
     (∏ group ∈ groups, normalizedCachedTargetSubsetMatch key.parameter cache
       (tweakableHashInput key.parameter .message payload) target group) *
         normalizedTargetLogProduct key cache log payload target remaining
-
 theorem targetShapeMoments_eq_indexed (key : SecretKey) (cache : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView)
     (groups : Finset (Finset IndexGroup)) (remaining : Finset IndexGroup) :
     targetShapeMoments key cache log payload target groups remaining =
       normalizedTargetMixedMoment key cache log payload target (targetGroupAt groups) remaining := by
   simp only [targetShapeMoments, normalizedTargetMixedMoment, normalizedTargetCacheProduct, prod_targetGroupAt]
-
 theorem targetShapeMoments_cacheLower_eq (key : SecretKey) (cache : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView)
     (groups : Finset (Finset IndexGroup)) (remaining : Finset IndexGroup) :
@@ -50,7 +40,6 @@ theorem targetShapeMoments_cacheLower_eq (key : SecretKey) (cache : QueryCache H
             target (targetGroupAt groups slot)) * normalizedTargetLogProduct key cache log payload target remaining := by
   rw [sum_targetGroupAt_removed_products, Finset.sum_mul]
   rfl
-
 theorem targetShapeMoments_reuse_eq (key : SecretKey) (cache : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView)
     (groups : Finset (Finset IndexGroup)) (remaining : Finset IndexGroup) (hvalid : TargetShapeValid groups remaining) :
@@ -67,7 +56,6 @@ theorem targetShapeMoments_reuse_eq (key : SecretKey) (cache : QueryCache HashSp
     (Finset.mem_powerset.mp (Finset.mem_erase.mp hselected).2)
   simp only [targetShapeMoments, Finset.prod_insert hnot]
   ring
-
 theorem targetShapeMoments_cross_eq (key : SecretKey) (cache : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView)
     (groups : Finset (Finset IndexGroup)) (remaining : Finset IndexGroup) :
@@ -83,5 +71,4 @@ theorem targetShapeMoments_cross_eq (key : SecretKey) (cache : QueryCache HashSp
   rw [← Finset.add_sum_erase _ _ (Finset.empty_mem_powerset remaining)]
   simp only [Finset.sdiff_empty, mul_add, Finset.mul_sum, Finset.sum_add_distrib]
   rfl
-
 end SphincsSecurity.Concrete

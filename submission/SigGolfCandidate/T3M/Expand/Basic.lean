@@ -1,26 +1,14 @@
 import SigGolfCandidate.T3M.Sim
 import SigGolfCandidate.T3M.Mem
 
-/-!
-# `expand`: generic bounded combinators (stream E, instance E-S)
-
-`TBSim` combinators the expand proof needs beyond M0's: a bounded `shortHash` step (`tb_shortHash_bind'`), `mapM`
-over `List.finRange n` with an index-aware invariant (`tb_mapM_finRange`), `foldlM` over `List.finRange n`
-(`tb_foldlM_finRange`), `map`.
--/
-
 namespace SigGolfCandidate.T3M.Expand
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv OracleComp
-
 theorem finRange_map_val (n : Nat) : (List.finRange n).map Fin.val = List.range' 0 n := by
   apply List.ext_getElem (by simp)
   intro i h1 h2
   simp
-
 section tb
 variable {image : Image} {sk : BitVec 256}
-
-/-- One HASH `ECALL` answering `shortHash input`, bounded. -/
 theorem tb_shortHash_bind' {β : Type} {s : MachineState} {input : List UInt8} {W : Nat}
     {f : T3.Digest → T3.M β} {Q : β → MachineState → Prop}
     (hf : fetch image s = some (.base .ECALL)) (ht0 : s.getReg .x5 = 0)
@@ -32,13 +20,10 @@ theorem tb_shortHash_bind' {β : Type} {s : MachineState} {input : List UInt8} {
   have := h a
   unfold TBSim at this
   simpa only [Function.comp, pure_bind] using this
-
 theorem tb_map {α β : Type} {s : MachineState} {W : Nat} {p : T3.M α} (f : α → β) {Q : β → MachineState → Prop}
     (h : TBSim image sk s W p (fun a t => Q (f a) t)) : TBSim image sk s W (f <$> p) Q := by
   rw [map_eq_bind_pure_comp]
   exact (TBSim.bind (W₂ := 0) h (fun a t ht => TBSim.pure ht)).mono (by omega) (fun _ _ h => h)
-
-/-- `mapM` over a list whose elements carry consecutive indices `idx x`, with an invariant on the results so far. -/
 theorem tb_mapM_idx {γ δ : Type} (f : γ → T3.M δ) (idx : γ → Nat) (W : Nat) (Inv : List δ → MachineState → Prop) :
     ∀ (xs : List γ) (pre : List δ) {s : MachineState}, xs.map idx = List.range' pre.length xs.length →
     (∀ x ∈ xs, ∀ (pre' : List δ) t, pre'.length = idx x → Inv pre' t →
@@ -58,8 +43,6 @@ theorem tb_mapM_idx {γ δ : Type} (f : γ → T3.M δ) (idx : γ → Nat) (W : 
       exact (TBSim.bind (W₂ := 0) h2 (f := fun ds => Pure.pure (d :: ds))
         (fun ds u hu => TBSim.pure ⟨by simp [hu.1], by simpa using hu.2⟩)).mono (by omega) (fun _ _ h => h)
     exact (TBSim.bind h1 key).mono (by rw [List.length_cons, Nat.succ_mul]; omega) (fun _ _ h => h)
-
-/-- `mapM` over `List.finRange n` with an index-aware invariant. -/
 theorem tb_mapM_finRange {δ : Type} (n : Nat) (f : Fin n → T3.M δ) (W : Nat) (Inv : List δ → MachineState → Prop)
     (hbody : ∀ (i : Fin n) (pre : List δ) t, pre.length = i.val → Inv pre t →
       TBSim image sk t W (f i) (fun d u => Inv (pre ++ [d]) u)) {s : MachineState} (h0 : Inv [] s) :
@@ -67,8 +50,6 @@ theorem tb_mapM_finRange {δ : Type} (n : Nat) (f : Fin n → T3.M δ) (W : Nat)
   have := tb_mapM_idx f Fin.val W Inv (List.finRange n) [] (by rw [finRange_map_val]; simp)
     (fun x _ pre' t h1 h2 => hbody x pre' t h1 h2) h0
   simpa using this
-
-/-- `foldlM` over `List.finRange n` with an index-aware invariant. -/
 theorem tb_foldlM_finRange {γ : Type} (n : Nat) (f : γ → Fin n → T3.M γ) (init : γ) (W : Nat)
     (Inv : Nat → γ → MachineState → Prop)
     (hbody : ∀ (i : Fin n) acc t, Inv i.val acc t → TBSim image sk t W (f acc i) (Inv (i.val + 1)))
@@ -92,7 +73,5 @@ theorem tb_foldlM_finRange {γ : Type} (n : Nat) (f : γ → Fin n → T3.M γ) 
       rwa [show k + 1 + xs.length = k + (xs.length + 1) by omega] at this
   have := gen (List.finRange n) 0 init s (by rw [finRange_map_val]; simp) h0
   simpa using this
-
 end tb
-
 end SigGolfCandidate.T3M.Expand

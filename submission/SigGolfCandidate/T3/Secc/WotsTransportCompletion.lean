@@ -1,15 +1,5 @@
 import SigGolfCandidate.T3.Secc.WotsTransportBase
 
-/-!
-# F2 (completion): uniform completion of a lazy recorded run is the eager table
-
-For a program whose public queries (on every path consistent with the private cache) lie in a finite set
-`inputs`, the lazy recorder `FirstHit.record` followed by an independent uniform completion of its final caches
-(`fillAnswers`) has the same law as the eager recorder `Ref.fixedRecord` on a uniform table, paired with that
-table (`record_completion`). The induction mirrors `PrivateTable.lazyRun_eq_completed_table`, carrying the
-completion of the *final* caches.
--/
-
 namespace SigGolfCandidate.T3.Security.Wots.Ref
 open OracleComp OracleSpec OracleComp.EvalDist OracleComp.DeferredSampling ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -21,30 +11,19 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] SphincsSecurity.Concrete.hashInputs
-
 noncomputable local instance instFintypeCoordinate_wotsTransportCompletion : Fintype Coordinate := coordinateFintype
 noncomputable local instance instSampleableTypeFullTable_wotsTransportCompletion : SampleableType FullGame.FullTable := Derivation.outputSampler Coordinate
--- SEC's sampler constant (`FiniteRowSplit`): every eager public table in F2 uses exactly this instance term, so
--- SEC's row-split lemmas apply syntactically (a different elaboration of `SampleableType.ofFintype` makes the
--- kernel compare `Fintype` instances of 256-bit outputs by evaluation).
 attribute [local instance] FiniteRowSplit.instSampleableTypeForallSubtypeHashInputMemFinsetHashOutput
-
-/-! ## Completed answers of caches -/
-
-/-- The caches `state` completed by tables: private coordinates by `privateTable`, public inputs of `inputs` by
-`publicTable` (others `0`, as `finiteHashAnswer`), coins `0`. -/
 noncomputable def fillAnswers (inputs : Finset HashInput) (state : LazyPrivate.State)
     (privateTable : FullGame.FullTable) (publicTable : inputs → HashOutput) : Answers
   | .inl (.inl n) => (⟨0, Nat.zero_lt_succ n⟩ : Fin (n + 1))
   | .inl (.inr input) => (state.2 input).getD (finiteHashAnswer ∅ inputs publicTable input)
   | .inr coordinate => (state.1 coordinate).getD (privateTable coordinate)
-
 theorem fillAnswers_empty (inputs : Finset HashInput) (privateTable : FullGame.FullTable)
     (publicTable : inputs → HashOutput) :
     fillAnswers inputs (∅, ∅) privateTable publicTable = eagerAnswers inputs privateTable publicTable := by
   funext query
   rcases query with (n | x) | c <;> rfl
-
 theorem fillAnswers_known (inputs : Finset HashInput) (state : LazyPrivate.State)
     (privateTable : FullGame.FullTable) (publicTable : inputs → HashOutput) (input : T3.Spec.Domain)
     (answer : T3.Spec.Range input) (h : SourceReplay.known state input = some answer) :
@@ -57,7 +36,6 @@ theorem fillAnswers_known (inputs : Finset HashInput) (state : LazyPrivate.State
   · change (state.1 c).getD _ = answer
     change state.1 c = some answer at h
     rw [h, Option.getD_some]
-
 theorem fillAnswers_public_update (inputs : Finset HashInput) (state : LazyPrivate.State)
     (privateTable : FullGame.FullTable) (publicTable : inputs → HashOutput) (x : HashInput) (hx : x ∈ inputs)
     (h : state.2 x = none) (value : HashOutput) :
@@ -83,7 +61,6 @@ theorem fillAnswers_public_update (inputs : Finset HashInput) (state : LazyPriva
               Function.update_of_ne (fun heq => hy (congrArg Subtype.val heq))]
           · simp [finiteHashAnswer, hyi]
   · rfl
-
 theorem fillAnswers_private_update (inputs : Finset HashInput) (state : LazyPrivate.State)
     (privateTable : FullGame.FullTable) (publicTable : inputs → HashOutput) (c : Coordinate)
     (h : state.1 c = none) (value : HashOutput) :
@@ -98,9 +75,6 @@ theorem fillAnswers_private_update (inputs : Finset HashInput) (state : LazyPriv
     · subst d
       rw [QueryCache.cacheQuery_self, h, Option.getD_some, Option.getD_none, Function.update_self]
     · rw [QueryCache.cacheQuery_of_ne _ _ hd, Function.update_of_ne hd]
-
-/-! ## Hash inputs of the recorded program -/
-
 theorem hashInputs_map {α β : Type} (f : α → β) (computation : OracleComp OracleWorld α) :
     hashInputs (f <$> computation) = hashInputs computation := by
   induction computation using OracleComp.inductionOn with
@@ -110,13 +84,9 @@ theorem hashInputs_map {α β : Type} (f : α → β) (computation : OracleComp 
         SphincsSecurity.Concrete.hashInputs_query_bind]
       simp only [ih]
       cases input <;> rfl
-
-/-- Every public query of the recorded program from `state`, along every path whose private answers are
-consistent with the private cache, lies in `inputs`. -/
 def InputsIn (inputs : Finset HashInput) {α : Type} (program : M α) (state : LazyPrivate.State) : Prop :=
   ∀ privateTable : FullGame.FullTable, (∀ c v, state.1 c = some v → privateTable c = v) →
     hashInputs (Derivation.tableRun privateTable (FirstHit.sourceRecord program state)) ⊆ inputs
-
 theorem tableRun_sourceRecord_query_bind {α : Type} (privateTable : FullGame.FullTable) (input : T3.Spec.Domain)
     (next : T3.Spec.Range input → M α) (state : LazyPrivate.State) :
     Derivation.tableRun privateTable (FirstHit.sourceRecord (liftM (T3.Spec.query input) >>= next) state) =
@@ -128,19 +98,15 @@ theorem tableRun_sourceRecord_query_bind {α : Type} (privateTable : FullGame.Fu
   rw [simulateQ_bind, simulateQ_spec_query]
   simp only [simulateQ_map]
   rfl
-
 theorem tableHandler_world (privateTable : FullGame.FullTable) (input : OracleWorld.Domain) :
     Derivation.tableHandler privateTable (.inl input) = liftM (OracleWorld.query input) := rfl
-
 theorem tableHandler_private (privateTable : FullGame.FullTable) (c : Coordinate) :
     Derivation.tableHandler privateTable (.inr c) = pure (privateTable c) := rfl
-
 theorem exists_consistent (state : LazyPrivate.State) :
     ∃ privateTable : FullGame.FullTable, ∀ c v, state.1 c = some v → privateTable c = v := by
   refine ⟨fun c => (state.1 c).getD 0, fun c v hc => ?_⟩
   change (state.1 c).getD 0 = v
   rw [hc, Option.getD_some]
-
 theorem InputsIn.public {inputs : Finset HashInput} {α : Type} {x : HashInput}
     {next : T3.Spec.Range (.inl (.inr x)) → M α} {state : LazyPrivate.State}
     (h : InputsIn inputs (liftM (T3.Spec.query (.inl (.inr x))) >>= next) state) :
@@ -160,7 +126,6 @@ theorem InputsIn.public {inputs : Finset HashInput} {α : Type} {x : HashInput}
     apply SphincsSecurity.Concrete.hashInputs_next_subset (.inr x) _ value
     rw [hashInputs_map]
     exact hrow
-
 theorem InputsIn.coin {inputs : Finset HashInput} {α : Type} {n : Nat}
     {next : Fin (n + 1) → M α} {state : LazyPrivate.State}
     (h : InputsIn inputs (liftM (T3.Spec.query (.inl (.inl n))) >>= next) state) (value : Fin (n + 1)) :
@@ -171,7 +136,6 @@ theorem InputsIn.coin {inputs : Finset HashInput} {α : Type} {n : Nat}
   apply SphincsSecurity.Concrete.hashInputs_next_subset (.inl n) _ value
   rw [hashInputs_map]
   exact hrow
-
 theorem InputsIn.priv {inputs : Finset HashInput} {α : Type} {c : Coordinate}
     {next : T3.Spec.Range (.inr c) → M α} {state : LazyPrivate.State}
     (h : InputsIn inputs (liftM (T3.Spec.query (.inr c)) >>= next) state) (value : T3.Spec.Range (.inr c))
@@ -194,9 +158,6 @@ theorem InputsIn.priv {inputs : Finset HashInput} {α : Type} {c : Coordinate}
   apply h table hstate
   rw [tableRun_sourceRecord_query_bind, tableHandler_private, pure_bind, hashInputs_map, hc]
   exact hrow
-
-/-! ## The completion lemma -/
-
 theorem advance_cached (state : LazyPrivate.State) (input : T3.Spec.Domain) (answer : T3.Spec.Range input)
     (h : SourceReplay.known state input = some answer) : FirstHit.advance state input answer = state := by
   rcases input with (n | x) | c
@@ -205,8 +166,6 @@ theorem advance_cached (state : LazyPrivate.State) (input : T3.Spec.Domain) (ans
     rw [PrivateTable.cacheQuery_cached state.2 x answer h]
   · change (state.1.cacheQuery c answer, state.2) = state
     rw [PrivateTable.cacheQuery_cached state.1 c answer h]
-
-/-- The continuation shared by both sides of the completion lemma after one query. -/
 noncomputable def completedTail {α : Type} (inputs : Finset HashInput) (input : T3.Spec.Domain)
     (next : T3.Spec.Range input → M α) (state : LazyPrivate.State) (middle : T3.Spec.Range input × LazyPrivate.State) :
     ProbComp (FirstHit.Recorded α × Answers) :=
@@ -215,13 +174,11 @@ noncomputable def completedTail {α : Type} (inputs : Finset HashInput) (input :
       (fun last => ((⟨last.value, ⟨state, input, middle.1⟩ :: last.events, last.state⟩ : FirstHit.Recorded α),
           fillAnswers inputs middle.2 privateTable publicTable)) <$>
         fixedRecord (fillAnswers inputs middle.2 privateTable publicTable) (next middle.1) middle.2
-
 theorem lazy_coin (state : LazyPrivate.State) (n : Nat) :
     LazyPrivate.run (liftM (T3.Spec.query (.inl (.inl n)))) state =
       (fun c => (c, state)) <$> (liftM (unifSpec.query n) : ProbComp (Fin (n + 1))) := by
   rw [LazyPrivate.run_query]
   rfl
-
 theorem lazy_public_fresh (state : LazyPrivate.State) (x : HashInput) (h : state.2 x = none) :
     LazyPrivate.run (liftM (T3.Spec.query (.inl (.inr x)))) state =
       (fun v => (v, (state.1, state.2.cacheQuery x v))) <$> ($ᵗ HashOutput : ProbComp HashOutput) := by
@@ -232,7 +189,6 @@ theorem lazy_public_fresh (state : LazyPrivate.State) (x : HashInput) (h : state
   rw [QueryImpl.withCaching_run_none _ h]
   simp only [bind_pure_comp]
   rfl
-
 theorem lazy_private_fresh (state : LazyPrivate.State) (c : Coordinate) (h : state.1 c = none) :
     LazyPrivate.run (liftM (T3.Spec.query (.inr c))) state =
       (fun v => (v, (state.1.cacheQuery c v, state.2))) <$> ($ᵗ HashOutput : ProbComp HashOutput) := by
@@ -241,21 +197,16 @@ theorem lazy_private_fresh (state : LazyPrivate.State) (c : Coordinate) (h : sta
   rw [QueryImpl.withCaching_run_none _ h]
   simp only [bind_map_left, bind_pure_comp]
   rfl
-
 theorem fixedWorld_public (F : Answers) (x : HashInput) :
     fixedWorld F (.inl (.inr x)) = pure (F (.inl (.inr x))) := rfl
-
 theorem fixedWorld_private (F : Answers) (c : Coordinate) :
     fixedWorld F (.inr c) = pure (F (.inr c)) := rfl
-
-/-- The eager side of the completion lemma. -/
 noncomputable def eagerSide (inputs : Finset HashInput) {α : Type} (program : M α) (state : LazyPrivate.State) :
     ProbComp (FirstHit.Recorded α × Answers) :=
   ($ᵗ FullGame.FullTable : ProbComp _) >>= fun privateTable =>
     ($ᵗ (inputs → HashOutput) : ProbComp _) >>= fun publicTable =>
       (fun result => (result, fillAnswers inputs state privateTable publicTable)) <$>
         fixedRecord (fillAnswers inputs state privateTable publicTable) program state
-
 theorem eagerSide_query_bind (inputs : Finset HashInput) {α : Type} (input : T3.Spec.Domain)
     (next : T3.Spec.Range input → M α) (state : LazyPrivate.State) :
     eagerSide inputs (liftM (T3.Spec.query input) >>= next) state =
@@ -268,7 +219,6 @@ theorem eagerSide_query_bind (inputs : Finset HashInput) {α : Type} (input : T3
                 (FirstHit.advance state input answer)) := by
   unfold eagerSide
   simp only [fixedRecord_query_bind, map_bind, Functor.map_map]
-
 theorem completion_coin (inputs : Finset HashInput) {α : Type} (n : Nat) (next : Fin (n + 1) → M α)
     (state : LazyPrivate.State) :
     𝒮[LazyPrivate.run (liftM (T3.Spec.query (.inl (.inl n)))) state >>= completedTail inputs _ next state] =
@@ -282,7 +232,6 @@ theorem completion_coin (inputs : Finset HashInput) {α : Type} (n : Nat) (next 
   apply evalSPMF_bind_congr'
   intro publicTable
   rfl
-
 theorem completion_cached (inputs : Finset HashInput) {α : Type} (input : T3.Spec.Domain)
     (next : T3.Spec.Range input → M α) (state : LazyPrivate.State) (answer : T3.Spec.Range input)
     (hk : SourceReplay.known state input = some answer) :
@@ -301,14 +250,12 @@ theorem completion_cached (inputs : Finset HashInput) {α : Type} (input : T3.Sp
   intro publicTable
   rw [fixedWorld_hash _ input hi, pure_bind, fillAnswers_known inputs state privateTable publicTable input answer hk,
     advance_cached state input answer hk]
-
 theorem fillAnswers_public_fresh (inputs : Finset HashInput) (state : LazyPrivate.State)
     (privateTable : FullGame.FullTable) (publicTable : inputs → HashOutput) (x : HashInput) (hx : x ∈ inputs)
     (h : state.2 x = none) :
     fillAnswers inputs state privateTable publicTable (.inl (.inr x)) = publicTable ⟨x, hx⟩ := by
   change (state.2 x).getD (finiteHashAnswer ∅ inputs publicTable x) = _
   rw [h, Option.getD_none, SphincsSecurity.Concrete.finiteHashAnswer_none ∅ inputs _ x hx rfl]
-
 theorem completion_public_fresh (inputs : Finset HashInput) {α : Type} (x : HashInput)
     (next : T3.Spec.Range (.inl (.inr x)) → M α) (state : LazyPrivate.State) (hx : x ∈ inputs)
     (hc : state.2 x = none) :
@@ -338,14 +285,12 @@ theorem completion_public_fresh (inputs : Finset HashInput) {α : Type} (x : Has
   intro publicTable
   rw [fixedWorld_public, pure_bind, fillAnswers_public_fresh inputs state privateTable publicTable x hx hc]
   rfl
-
 theorem fillAnswers_private_fresh (inputs : Finset HashInput) (state : LazyPrivate.State)
     (privateTable : FullGame.FullTable) (publicTable : inputs → HashOutput) (c : Coordinate)
     (h : state.1 c = none) :
     fillAnswers inputs state privateTable publicTable (.inr c) = privateTable c := by
   change (state.1 c).getD (privateTable c) = _
   rw [h, Option.getD_none]
-
 theorem completion_private_fresh (inputs : Finset HashInput) {α : Type} (c : Coordinate)
     (next : T3.Spec.Range (.inr c) → M α) (state : LazyPrivate.State) (hc : state.1 c = none) :
     𝒮[LazyPrivate.run (liftM (T3.Spec.query (.inr c))) state >>= completedTail inputs _ next state] =
@@ -375,8 +320,6 @@ theorem completion_private_fresh (inputs : Finset HashInput) {α : Type} (c : Co
   intro publicTable
   rw [fixedWorld_private, pure_bind, fillAnswers_private_fresh inputs state privateTable publicTable c hc]
   rfl
-
-/-- **Lazy recorder + uniform completion of its final caches = eager recorder on the uniform table.** -/
 theorem record_completion (inputs : Finset HashInput) {α : Type} (program : M α) (state : LazyPrivate.State)
     (h : InputsIn inputs program state) :
     𝒮[FirstHit.record program state >>= fun result =>
@@ -388,7 +331,6 @@ theorem record_completion (inputs : Finset HashInput) {α : Type} (program : M �
   | pure value =>
       simp only [eagerSide, FirstHit.record_pure, fixedRecord_pure, pure_bind, map_pure]
   | query_bind input next ih =>
-      -- the induction hypothesis behind every supported first answer
       have htail : ∀ middle ∈ support (LazyPrivate.run (liftM (T3.Spec.query input)) state),
           𝒮[(fun last => (⟨last.value, ⟨state, input, middle.1⟩ :: last.events, last.state⟩ :
               FirstHit.Recorded α)) <$> FirstHit.record (next middle.1) middle.2 >>= fun result =>
@@ -426,5 +368,4 @@ theorem record_completion (inputs : Finset HashInput) {α : Type} (program : M �
       · cases hc : state.1 c with
         | some v => exact completion_cached inputs _ next state v hc
         | none => exact completion_private_fresh inputs c next state hc
-
 end SigGolfCandidate.T3.Security.Wots.Ref

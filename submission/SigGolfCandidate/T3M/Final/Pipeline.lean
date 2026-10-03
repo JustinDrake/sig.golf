@@ -1,23 +1,9 @@
 import SigGolfCandidate.Legacy
 
-/-!
-# The honest pipeline, projected (generic in the submission; five-layer `Final/Pipeline` plus cost projections)
-
-* `success_honest_eq` : the success bit of one honest pipeline only depends on the phase outputs (`successPipe`);
-* `honest_success_verify` : under a fixed oracle, a successful pipeline ends with an accepting verify run and is
-  charged its cycles plus the witness charge;
-* `eval_costs_keygen`, `eval_costs_sign`, `eval_costs_expand` : under a fixed oracle, the recorded compression cost
-  of each budgeted phase is that phase's run (zero if the phase is not reached).
--/
-
 open OracleComp OracleSpec
-
 namespace SigGolfCandidate.T3M.Final
 open SigGolfCandidate.Legacy
-
 variable (sub : Submission)
-
-/-- The success bit of the honest pipeline, from the phase outputs only. -/
 def successPipe (sk : SecretKey) (m : Message) : OracleComp HashSpec Bool := do
   match (← (fun r => r.value) <$> sub.run .keygen sk) with
   | none => pure false
@@ -28,7 +14,6 @@ def successPipe (sk : SecretKey) (m : Message) : OracleComp HashSpec Bool := do
       match (← (fun r => r.value) <$> sub.run .expand (m, pk, σ)) with
       | none => pure false
       | some w => (fun r => r.value.isSome) <$> sub.run .verify (m, pk, w)
-
 theorem success_honest_eq (sk : SecretKey) (m : Message) :
     HonestResult.success <$> sub.honest sk m = successPipe sub sk m := by
   unfold Submission.honest successPipe
@@ -45,9 +30,6 @@ theorem success_honest_eq (sk : SecretKey) (m : Message) :
   rcases e.value with _ | w
   · simp
   simp
-
-/-- Under a fixed oracle, a successful honest pipeline ends with an accepting verify run, and its scored cycles are
-that run's cycles plus the witness charge. -/
 theorem honest_success_verify (hash : Hash) (sk : SecretKey) (m : Message)
     (h : (evalWithAnswerFn hash (sub.honest sk m)).success = true) :
     ∃ input : Input sub.sizes .verify,
@@ -69,7 +51,6 @@ theorem honest_success_verify (hash : Hash) (sk : SecretKey) (m : Message)
   · simp [he'] at h
   simp only [he', evalWithAnswerFn_bind, evalWithAnswerFn_pure] at h ⊢
   exact ⟨(m, pk, w), h, rfl⟩
-
 theorem eval_costs_keygen (hash : Hash) (sk : SecretKey) (m : Message) :
     (evalWithAnswerFn hash (sub.honest sk m)).costs .keygen = (sub.runWith hash .keygen sk).hashCompressions := by
   unfold Submission.honest Submission.runWith
@@ -86,7 +67,6 @@ theorem eval_costs_keygen (hash : Hash) (sk : SecretKey) (m : Message) :
   rcases he : e.value with _ | w
   · simp [recordCost]
   simp [recordCost]
-
 theorem eval_costs_sign (hash : Hash) (sk : SecretKey) (m : Message) :
     (evalWithAnswerFn hash (sub.honest sk m)).costs .sign =
       match (sub.runWith hash .keygen sk).value with
@@ -106,7 +86,6 @@ theorem eval_costs_sign (hash : Hash) (sk : SecretKey) (m : Message) :
   rcases he : e.value with _ | w
   · simp [recordCost]
   simp [recordCost]
-
 theorem eval_costs_expand (hash : Hash) (sk : SecretKey) (m : Message) :
     (evalWithAnswerFn hash (sub.honest sk m)).costs .expand =
       match (sub.runWith hash .keygen sk).value with
@@ -129,5 +108,4 @@ theorem eval_costs_expand (hash : Hash) (sk : SecretKey) (m : Message) :
   rcases he : e.value with _ | w
   · simp [recordCost]
   simp [recordCost]
-
 end SigGolfCandidate.T3M.Final

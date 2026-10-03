@@ -1,21 +1,6 @@
 import SigGolfCandidate.T3.Secc.LargeCouplingBankLazy
 import SigGolfCandidate.T3.Secc.SeccSufRoute
 
-/-!
-# LR-34 (bank, state): the router's bank potential and its invariant
-
-* `reuseC st` — CC's reuse mass `C` of the router ghost: `Σ_{m unsigned} reuseMass st.cache m`;
-* `bankOf q st` — CC's abstract bank of a router state (targets = births in order, slack `q − #births`);
-* `psi q st = corePotential (bankOf q st)`, `slackT q ws = (q − mass)/2^128`;
-* `BankInv U ws st` — the lazy world and the ghost agree: calls, mass ≤ calls, births ≤ calls, unsigned nonces
-  undisclosed, digest rows cached exactly when seen or trial rows (with the births' answers off the trials), trial
-  rows belong to signed messages.
-
-Macro steps of the potential: `psi_after` (any adversary/verifier query that is not a birth), `psi_birth_le`
-(CC's `core_birth`: a uniform fresh birth costs at most `(θ + 1/16)/2^128`), `reuseC_signed` (a fresh signing
-removes its message's reuse mass), `psi_cert` (CC's `core_win`: a certificate holds a full unit).
--/
-
 namespace SigGolfCandidate.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -26,23 +11,13 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- **The reuse mass of the unsigned messages** (CC's `C`). -/
 noncomputable def reuseC (st : RouterState) : ENNReal :=
   ∑' m : Message, if (st.memo.lookup m).isSome then 0 else CaseC.reuseMass st.cache m
-
-/-- **CC's abstract bank of a router state.** -/
 noncomputable def bankOf (q : Nat) (st : RouterState) : CaseC.BankCore :=
   ⟨(st.births.map Prod.snd).reverse, st.exposures, st.reused, reuseC st, q - st.births.length⟩
-
-/-- **The bank potential** of a router state. -/
 noncomputable def psi (q : Nat) (st : RouterState) : ENNReal := CaseC.corePotential (bankOf q st)
-
-/-- The remaining mass allowance of a world state, over `2^128`. -/
 noncomputable def slackT {U : Finset HashInput} (q : Nat) (ws : LargeResidual.State WCoord (Cell U)) : ENNReal :=
   ((q - ws.counters.mass : Nat) : ENNReal) / 2 ^ 128
-
-/-- **The bank invariant** of a lazy world state and a router state. -/
 structure BankInv (U : Finset HashInput) (ws : LargeResidual.State WCoord (Cell U)) (st : RouterState) : Prop where
   calls : ws.counters.calls = st.calls
   mass : ws.counters.mass ≤ ws.counters.calls
@@ -53,20 +28,12 @@ structure BankInv (U : Finset HashInput) (ws : LargeResidual.State WCoord (Cell 
     ∃ y, st.cache X = some y ∧ ws.rows ⟨X, hX⟩ = some y
   bornSeen : ∀ p ∈ st.births, p.1 ∈ st.seen
   trials : ∀ X ∈ st.trials, ∃ rho m c, X = pad64 (digestInput rho m c) ∧ (st.memo.lookup m).isSome
-
-/-! ## The potential under the router's steps -/
-
-/-- The router state after a birth of `X` answered `y`. -/
 def _root_.SigGolfCandidate.T3.Security.LargeResidual.RouterState.born (st : RouterState) (X : HashInput) (y : LargeResidual.HashOutput) : RouterState :=
   { st.after X with births := (X, y) :: st.births }
-
 theorem _root_.SigGolfCandidate.T3.Security.LargeResidual.RouterState.next_eq (U : Finset HashInput) (st : RouterState) (X : HashInput) (y : LargeResidual.HashOutput) :
     st.next U X y = if X ∈ U ∧ IsDigestRow X ∧ st.Fresh X then st.born X y else st.after X := rfl
-
 theorem bankOf_after (q : Nat) (st : RouterState) (X : HashInput) : bankOf q (st.after X) = bankOf q st := rfl
-
 theorem psi_after (q : Nat) (st : RouterState) (X : HashInput) : psi q (st.after X) = psi q st := rfl
-
 theorem cache_birth (st : RouterState) (X Z : HashInput) (y : LargeResidual.HashOutput) :
     (st.born X y).cache Z =
       if Z = X then some y else st.cache Z := by
@@ -75,8 +42,6 @@ theorem cache_birth (st : RouterState) (X Z : HashInput) (y : LargeResidual.Hash
   · subst h; simp
   · have hb : (Z == X) = false := by simpa using h
     rw [hb, if_neg h]
-
-/-- The digest trial inputs are injective in `(message, nonce, counter < 2^32)`. -/
 theorem digestTrial_inj {rho rho' : Digest} {m m' : Message} {c c' : Fin (2 ^ 32)}
     (h : Sampling.digestTrial rho m c.val = Sampling.digestTrial rho' m' c'.val) : m = m' ∧ rho = rho' ∧ c = c' := by
   have h' : pad64 (digestInput rho m (BitVec.ofNat 32 c.val)) = pad64 (digestInput rho' m' (BitVec.ofNat 32 c'.val)) := h
@@ -84,8 +49,6 @@ theorem digestTrial_inj {rho rho' : Digest} {m m' : Message} {c c' : Fin (2 ^ 32
   refine ⟨h3, h1, Fin.ext ?_⟩
   have := congrArg BitVec.toNat h2
   simpa only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt c.isLt, Nat.mod_eq_of_lt c'.isLt] using this
-
-/-- A sum of indicators of one input over all trial coordinates is at most one. -/
 theorem tsum_trial_indicator_le (X : HashInput) (a : ENNReal) :
     (∑' m : Message, ∑' p : Digest × Fin (2 ^ 32),
       if Sampling.digestTrial p.1 m p.2.val = X then a else 0) ≤ a := by
@@ -114,7 +77,6 @@ theorem tsum_trial_indicator_le (X : HashInput) (a : ENNReal) :
   · push Not at hex
     simp only [hex, if_false, tsum_zero]
     exact zero_le
-
 theorem admissibleEntry_birth (st : RouterState) (X Z : HashInput) (y : LargeResidual.HashOutput)
     (hX : st.cache X = none) :
     CaseC.admissibleEntry (st.born X y).cache Z ≤
@@ -127,8 +89,6 @@ theorem admissibleEntry_birth (st : RouterState) (X Z : HashInput) (y : LargeRes
     exact le_rfl
   · simp only [h, if_false, add_zero]
     exact le_rfl
-
-/-- **A birth adds at most its admissibility to the reuse mass.** -/
 theorem reuseC_birth (st : RouterState) (X : HashInput) (y : LargeResidual.HashOutput) (hX : st.cache X = none) :
     reuseC (st.born X y) ≤ reuseC st + CaseC.admInd y / 2 ^ 128 := by
   unfold reuseC CaseC.reuseMass
@@ -154,8 +114,6 @@ theorem reuseC_birth (st : RouterState) (X : HashInput) (y : LargeResidual.HashO
       simp only [div_eq_mul_inv]
       rw [ENNReal.tsum_mul_right]
       exact mul_le_mul' (tsum_trial_indicator_le X _) le_rfl
-
-/-- **A fresh signing removes its message's reuse mass.** -/
 theorem reuseC_signed (st : RouterState) (rho : Digest) (m : Message)
     (found : Option (BitVec 32 × LargeResidual.HashOutput))
     (hm : st.memo.lookup m = none) :
@@ -176,7 +134,6 @@ theorem reuseC_signed (st : RouterState) (rho : Digest) (m : Message)
     simp [List.lookup_cons]
   · have hb' : (m' == m) = false := by simpa using h
     simp only [List.lookup_cons, hb', if_neg h]
-
 theorem expectedValue_uniform_reply (f : LargeResidual.HashOutput → ENNReal) :
     expectedValue (liftM (PMF.uniformOfFintype LargeResidual.HashOutput) : SPMF LargeResidual.HashOutput) f =
       expectedValue ($ᵗ HashOutput : ProbComp HashOutput) (fun y => f y) := by
@@ -189,8 +146,6 @@ theorem expectedValue_uniform_reply (f : LargeResidual.HashOutput → ENNReal) :
       (Fintype.card LargeResidual.HashOutput : ENNReal)⁻¹ := by
     rw [SPMF.probOutput_eq_apply, SPMF.liftM_apply, PMF.uniformOfFintype_apply]
   rw [h1, h2]
-
-/-- **A fresh birth**, in expectation over its uniform answer (CC's `core_birth`). -/
 theorem psi_birth_le (q : Nat) (st : RouterState) (X : HashInput) (hX : st.cache X = none)
     (hlen : st.births.length < q) :
     expectedValue (liftM (PMF.uniformOfFintype LargeResidual.HashOutput) : SPMF LargeResidual.HashOutput)
@@ -214,8 +169,6 @@ theorem psi_birth_le (q : Nat) (st : RouterState) (X : HashInput) (hX : st.cache
     rfl
   congr 1
   exact congrArg CaseC.corePotential hb
-
-/-- **A certificate holds a full unit** (CC's `core_win`). -/
 theorem psi_cert (q : Nat) (st : RouterState) (h : CertGhost st) : 1 ≤ psi q st := by
   apply CaseC.core_win
   · exact not_lt.mpr h.1
@@ -225,8 +178,6 @@ theorem psi_cert (q : Nat) (st : RouterState) (h : CertGhost st) : 1 ≤ psi q s
       change p.2 ∈ (st.births.map Prod.snd).reverse
       rw [List.mem_reverse]
       exact List.mem_map_of_mem hp
-
-/-- **The initial potential** (CC's `core_initial`). -/
 theorem psi_initial (q : Nat) : psi q RouterState.initial ≤ (q : ENNReal) * (11324 / 100000000) / 2 ^ 128 := by
   have h0 : reuseC RouterState.initial = 0 := by
     unfold reuseC
@@ -239,5 +190,4 @@ theorem psi_initial (q : Nat) : psi q RouterState.initial ≤ (q : ENNReal) * (1
   unfold psi bankOf
   rw [h0]
   exact CaseC.core_initial q
-
 end SigGolfCandidate.T3.Security.LargeCoupling

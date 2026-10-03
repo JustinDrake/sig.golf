@@ -2,26 +2,16 @@ import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.RootCache
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.Secrets
 import SigGolfCandidate.SphincsSecurity.Proof.Reference.SigningTrace
+
 set_option autoImplicit true
-/-!
-# Direct adversary queries within the complete query budget
-
-The global game bound controls the direct hash intervals on every supported adversary path. The
-proof follows only signer replies that the concrete signer can actually return, rather than asking
-for a structural bound on continuations after impossible replies.
--/
-
 namespace SphincsSecurity
-
 open OracleComp OracleSpec
-
 noncomputable def expandedAdversaryImpl (secretKey : SecretKey) :
     QueryImpl (OracleWorld + SigningSpec) (OracleComp OracleWorld) := by
   intro input
   cases input with
   | inl worldInput => exact liftM (OracleWorld.query worldInput)
   | inr request => exact Concrete.scheme.sign secretKey request
-
 theorem forwardOracles_add_signingOracle_eq_withTraceAppend
     (secretKey : SecretKey) :
     forwardOracles + signingOracle Concrete.scheme secretKey =
@@ -30,7 +20,6 @@ theorem forwardOracles_add_signingOracle_eq_withTraceAppend
   cases input with
   | inl worldInput => rfl
   | inr request => rfl
-
 theorem simulateQ_expandedAdversaryImpl_query_bind_inl
     (secretKey : SecretKey) (worldInput : OracleWorld.Domain)
     (continuation : OracleWorld.Range worldInput →
@@ -40,7 +29,6 @@ theorem simulateQ_expandedAdversaryImpl_query_bind_inl
       (liftM (OracleWorld.query worldInput) >>= fun output =>
         simulateQ (expandedAdversaryImpl secretKey) (continuation output)) := by
   simp [expandedAdversaryImpl]
-
 theorem simulateQ_expandedAdversaryImpl_query_bind_inr
     (secretKey : SecretKey) (request : Message)
     (continuation : SigningSpec.Range request →
@@ -50,7 +38,6 @@ theorem simulateQ_expandedAdversaryImpl_query_bind_inr
       (Concrete.scheme.sign secretKey request >>= fun output =>
         simulateQ (expandedAdversaryImpl secretKey) (continuation output)) := by
   simp [expandedAdversaryImpl]
-
 theorem unloggedMappedAdversaryImpl_eq_simulateQ_expanded
     (secretKey : SecretKey) (input : (OracleWorld + SigningSpec).Domain) :
     unloggedMappedAdversaryImpl secretKey input =
@@ -60,9 +47,6 @@ theorem unloggedMappedAdversaryImpl_eq_simulateQ_expanded
       exact (simulateQ_spec_query
         (impl := romImpl) worldInput).symm
   | inr request => rfl
-
 namespace Concrete
-
 end Concrete
-
 end SphincsSecurity

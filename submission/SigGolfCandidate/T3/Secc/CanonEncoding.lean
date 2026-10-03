@@ -2,25 +2,6 @@ import SigGolfCandidate.T3.Secc.CanonGraphHonest
 import SigGolfCandidate.SphincsSecurity.Proof.Base.FirstSuccessFamily
 import SigGolfCandidate.SphincsSecurity.Proof.Base.UniformTableOverwrite
 
-/-!
-# Stream G: presampled encoding reference selections
-
-The honest signer's counter search at a source leaf `L` (`Wots.referenceSearch`) is a first-success search over
-the encoding rows `(L, honest message, counter)`, `counter < 2^22`. The honest message is a function of the
-canonical labels (`msgLabel`, `leafMsg_eq`), and encoding rows are never canonical cells, so for fixed labels the
-reference rows are a fixed injective family (`encCell`) of residual rows. The pinned first-success machinery then
-gives the exact law (`residual_selection_bind`, `selectionResidual_eq`): per-leaf selections with the product
-law `selectionLaw`, and given them the reference rows with the conditional law `rowsLaw` (rows before the selected
-counter invalid, the selected row in the fiber of the selected digest, later rows free — pinned
-`FirstSuccessTable.allowed`), all other rows uniform (`UniformTableSplit.Outside`). The bridges
-`referenceSearch_eq` / `referenceDigits_eq` / `referenceInput_eq` identify the shared vocabulary with the
-selections for any answers table whose public part is a programmed table.
-
-The decoder `decodeAt L` selects the low digest of a valid answer; `decode` is injective on digests
-(`decode_some_injective`), so conditioning on the digest is conditioning on the word. Decoders depend on the layer,
-so the pinned `FirstSuccessFamily` is generalised to per-index decoders (`selected_mul_rowsLaw`).
--/
-
 namespace SigGolfCandidate.T3.Security.CanonEncoding
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
@@ -31,20 +12,11 @@ open CanonGraph
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
--- No `Classical.propDecidable` here: mixing it with the structural `DecidableEq`/`Fintype` instances of the huge
--- index types makes instance unification evaluate `Finset.univ` (maximum recursion depth).
-
-/-! ## Source leaves and their honest messages -/
-
-/-- The index of the reference family: source leaves. -/
 abbrev EncLeaf := {L : LeafPos // L.Source}
-
 def EncLeaf.toWots (L : EncLeaf) : Wots.LeafAddr := ⟨L.1.lay, L.1.tree.val, L.1.leaf.val⟩
-
 theorem route_tree_lt (index : Nat) (hindex : index < 2 ^ 31) (lay : Layer) :
     (route index lay).2 < 2 ^ treeBits lay := by
   fin_cases lay <;> simp [route, treeBits, height] <;> omega
-
 theorem route_source (index : Nat) (hindex : index < 2 ^ 31) (lay : Layer) :
     ∃ L : EncLeaf, L.toWots = ⟨lay, (route index lay).2, (route index lay).1⟩ := by
   have hleaf := route_leaf_bound index lay
@@ -55,24 +27,18 @@ theorem route_source (index : Nat) (hindex : index < 2 ^ 31) (lay : Layer) :
     calc 2 ^ height lay ≤ 2 ^ 12 := Nat.pow_le_pow_right (by decide) (Extract.height_le lay)
       _ = 4096 := by norm_num)
   exact ⟨⟨⟨lay, ⟨(route index lay).2, ht31⟩, ⟨(route index lay).1, hl4096⟩⟩, htree, hleaf⟩, rfl⟩
-
 theorem childIndex_lt (L : EncLeaf) : L.1.tree.val * 2 ^ height L.1.lay + L.1.leaf.val < 2 ^ 31 := by
   obtain ⟨⟨lay, tree, leaf⟩, ht, hl⟩ := L
   change tree.val < 2 ^ treeBits lay at ht
   change leaf.val < 2 ^ height lay at hl
   change tree.val * 2 ^ height lay + leaf.val < 2 ^ 31
   fin_cases lay <;> simp [treeBits, height] at ht hl ⊢ <;> omega
-
-/-- The child tree (layer `lay + 1`) / forest index of a source leaf: `tree · 2^height + leaf < 2^31`. -/
 def childIndex (L : EncLeaf) : Fin (2^31) :=
   ⟨L.1.tree.val * 2 ^ height L.1.lay + L.1.leaf.val, childIndex_lt L⟩
-
-/-- The honest message of a source leaf read off labels (child-tree root, or forest pk at layer 3). -/
 def msgLabel (labels : Labels) (L : EncLeaf) : Digest :=
   if h : L.1.lay.val < 3 then
     treeLabel labels ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) (height ⟨L.1.lay.val + 1, by omega⟩) 0
   else (labels (.forest (childIndex L))).extractLsb' 0 128
-
 theorem leafMsg_eq {answers : Answers} {labels : Labels} (h : Agrees answers labels) (L : EncLeaf) :
     Wots.leafMsg answers L.toWots = msgLabel labels L := by
   unfold Wots.leafMsg msgLabel EncLeaf.toWots
@@ -80,21 +46,14 @@ theorem leafMsg_eq {answers : Answers} {labels : Labels} (h : Agrees answers lab
   split_ifs with hlay
   · exact honestRoot_eq h ⟨L.1.lay.val + 1, by omega⟩ (childIndex L)
   · exact honestForest_eq h (childIndex L)
-
-/-! ## The reference rows -/
-
-/-- The encoding search key of the reference family at `(L, counter)`: the honest message from labels. -/
 def encKey (labels : Labels) (x : EncLeaf × Fin (2^22)) : QuerySpace.EncodingKey :=
   ((x.1.1.lay, x.1.1.tree, x.1.1.leaf, msgLabel labels x.1), x.2)
-
 theorem encKey_injective (labels : Labels) : Function.Injective (encKey labels) := by
   rintro ⟨⟨⟨lay, tree, leaf⟩, hL⟩, c⟩ ⟨⟨⟨lay', tree', leaf'⟩, hL'⟩, c'⟩ heq
   simp only [encKey, Prod.mk.injEq] at heq
   obtain ⟨⟨h1, h2, h3, -⟩, h4⟩ := heq
   subst h1 h2 h3 h4
   rfl
-
-/-- Encoding rows are never canonical cells (tag 4). -/
 theorem encodingQuery_ne_cell (key : QuerySpace.EncodingKey) (secrets : Secrets) (node : Node) (labels : Labels) :
     QuerySpace.encodingQuery key ≠ cell secrets node labels := by
   intro heq
@@ -103,29 +62,17 @@ theorem encodingQuery_ne_cell (key : QuerySpace.EncodingKey) (secrets : Secrets)
     QuerySpace.queryHeader_encoding _ _ _ _ _
   rw [heq, hdrBlock_cell] at h1
   have h2 := bytesLE_injective h1
-  cases node with
-  | chain point =>
-      exact chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ h2
-  | _ =>
-      simp only [Node.toPos, Extract.Pos.hdr] at h2
-      exact QuerySpace.header_ne_of_tag (by decide) h2
-
+  cases node <;> simp only [Node.toPos, Extract.Pos.hdr] at h2 <;>
+    exact QuerySpace.header_ne_of_tag (by decide) h2
 noncomputable def encCell (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels)
     (x : EncLeaf × Fin (2^22)) : U :=
   ⟨QuerySpace.encodingQuery (encKey labels x), hE (encodingQuery_mem _)⟩
-
 theorem encCell_injective (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels) :
     Function.Injective (encCell U hE labels) := by
   intro left right heq
   exact encKey_injective labels (QuerySpace.encodingQuery_injective (congrArg Subtype.val heq))
-
-/-! ## Per-leaf first-success selections -/
-
-/-- Per-leaf decoder: the low digest of a valid encoding answer (`decode` is injective on digests, so the
-digest determines the word: `decode_some_injective`). -/
 def decodeAt (L : EncLeaf) (answer : HashOutput) : Option Digest :=
   if (decode L.1.lay (answer.extractLsb' 0 128)).isSome then some (answer.extractLsb' 0 128) else none
-
 theorem decodeAt_eq_some (L : EncLeaf) (answer : HashOutput) (d : Digest) :
     decodeAt L answer = some d ↔ answer.extractLsb' 0 128 = d ∧ (decode L.1.lay d).isSome := by
   unfold decodeAt
@@ -136,7 +83,6 @@ theorem decodeAt_eq_some (L : EncLeaf) (answer : HashOutput) (d : Digest) :
   · constructor
     · intro he; cases he
     · rintro ⟨rfl, h⟩; exact absurd h hs
-
 theorem decodeAt_eq_none (L : EncLeaf) (answer : HashOutput) :
     decodeAt L answer = none ↔ decode L.1.lay (answer.extractLsb' 0 128) = none := by
   unfold decodeAt
@@ -147,39 +93,25 @@ theorem decodeAt_eq_none (L : EncLeaf) (answer : HashOutput) :
     cases hd : decode L.1.lay (answer.extractLsb' 0 128) with
     | none => rfl
     | some w => rw [hd] at hs; exact absurd rfl hs
-
 abbrev Selection := Option (Fin (2^22) × Digest)
 abbrev Selections := EncLeaf → Selection
-
-/-- The selections of a public table: first-success search over the reference rows of each leaf. -/
 noncomputable def selectionsOf (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels)
     (table : U → HashOutput) : Selections :=
   fun L => FirstSuccessTable.select (decodeAt L) (fun c => table (encCell U hE labels (L, c)))
-
-/-- Product law of the per-leaf first-success selections (pinned `FirstSuccessTable.selected`). -/
 noncomputable def selectionLaw : PMF Selections :=
   FinitePmfProduct.law (fun L => FirstSuccessTable.selected (decodeAt L) (2^22))
-
-/-- Conditional law of the reference rows given the selections (pinned `FirstSuccessTable.afterSelect`:
-rows before the selected counter invalid, the selected row in the fiber of the selected digest, later rows free;
-all rows invalid when the search fails). -/
 noncomputable def rowsLaw (selections : Selections) : PMF (EncLeaf → Fin (2^22) → HashOutput) :=
   FinitePmfProduct.law (fun L => FirstSuccessTable.afterSelect (decodeAt L) (2^22) (selections L))
-
 theorem rowsLaw_apply (selections : Selections) (rows : EncLeaf → Fin (2^22) → HashOutput) :
     rowsLaw selections rows =
       ∏ L, FirstSuccessTable.afterSelect (decodeAt L) (2^22) (selections L) (rows L) :=
   FinitePmfProduct.apply _ _
-
 theorem afterSelect_some (L : EncLeaf) (i : Fin (2^22)) (d : Digest) :
     FirstSuccessTable.afterSelect (decodeAt L) (2^22) (some (i, d)) =
       FirstSuccessTable.constrained (FirstSuccessTable.allowed (decodeAt L) i d) := rfl
-
 theorem afterSelect_none (L : EncLeaf) :
     FirstSuccessTable.afterSelect (decodeAt L) (2^22) none =
       FirstSuccessTable.constrained (fun _ => FirstSuccessTable.invalid (decodeAt L)) := rfl
-
-/-- The allowed answers of a reference row given the selection `(i, d)`. -/
 theorem mem_allowed (L : EncLeaf) (i : Fin (2^22)) (d : Digest) (c : Fin (2^22)) (answer : HashOutput) :
     answer ∈ FirstSuccessTable.allowed (decodeAt L) i d c ↔
       (c < i → decode L.1.lay (answer.extractLsb' 0 128) = none) ∧
@@ -193,7 +125,6 @@ theorem mem_allowed (L : EncLeaf) (i : Fin (2^22)) (d : Digest) (c : Fin (2^22))
     exact ⟨fun h => ⟨fun h' => absurd h' (lt_irrefl _), fun _ => h⟩, fun h => h.2 rfl⟩
   · simp only [Finset.mem_univ, true_iff]
     exact ⟨fun h => absurd h hlt, fun h => absurd h heq⟩
-
 theorem selected_mul_rowsLaw (results : Selections) (tables : EncLeaf → Fin (2^22) → HashOutput) :
     selectionLaw results * rowsLaw results tables =
       if (fun L => FirstSuccessTable.select (decodeAt L) (tables L)) = results then
@@ -212,7 +143,6 @@ theorem selected_mul_rowsLaw (results : Selections) (tables : EncLeaf → Fin (2
       exact h (funext hall)
     obtain ⟨L, hL⟩ := hex
     exact Finset.prod_eq_zero (by simp) (if_neg hL)
-
 theorem uniform_bind_eq_selected {Result : Type}
     (next : Selections → (EncLeaf → Fin (2^22) → HashOutput) → PMF Result) :
     (PMF.uniformOfFintype (EncLeaf → Fin (2^22) → HashOutput)).bind
@@ -227,7 +157,6 @@ theorem uniform_bind_eq_selected {Result : Type}
   · rw [if_pos rfl]
   · intro results hne
     rw [if_neg (Ne.symm hne)]
-
 theorem selectionsOf_join (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels)
     (rows : EncLeaf × Fin (2^22) → HashOutput) (outside : UniformTableSplit.Outside (encCell U hE labels) → HashOutput) :
     selectionsOf U hE labels (UniformTableSplit.join (encCell U hE labels) (encCell_injective U hE labels) rows outside) =
@@ -237,9 +166,6 @@ theorem selectionsOf_join (U : Finset HashInput) (hE : encInputs ⊆ U) (labels 
   apply congrArg (FirstSuccessTable.select (decodeAt L))
   funext c
   exact UniformTableSplit.join_embed _ _ rows outside (L, c)
-
-/-- **Encoding law** (fixed labels): a uniform residual table is the join of conditioned reference rows
-(given product-law selections) and independent uniform other rows; the selections are its first successes. -/
 theorem residual_selection_bind {Result : Type} (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels)
     (next : Selections → (U → HashOutput) → PMF Result) :
     (PMF.uniformOfFintype (U → HashOutput)).bind (fun residual => next (selectionsOf U hE labels residual) residual) =
@@ -256,34 +182,27 @@ theorem residual_selection_bind {Result : Type} (U : Finset HashInput) (hE : enc
     (PMF.uniformOfFintype (UniformTableSplit.Outside (encCell U hE labels) → HashOutput)).bind
       (fun outside => next results (UniformTableSplit.join (encCell U hE labels) (encCell_injective U hE labels)
         (Function.uncurry rows) outside)))
-
-/-- Joint law of (selections, residual table) for fixed labels. -/
 noncomputable def selectionResidual (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels) :
     PMF (Selections × (U → HashOutput)) :=
   selectionLaw.bind (fun selections => (rowsLaw selections).bind (fun rows =>
     (PMF.uniformOfFintype (UniformTableSplit.Outside (encCell U hE labels) → HashOutput)).map (fun outside =>
       (selections, UniformTableSplit.join (encCell U hE labels) (encCell_injective U hE labels)
         (Function.uncurry rows) outside))))
-
 theorem selectionResidual_eq (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels) :
     selectionResidual U hE labels =
       (PMF.uniformOfFintype (U → HashOutput)).map (fun residual => (selectionsOf U hE labels residual, residual)) := by
   have h := residual_selection_bind U hE labels (fun selections residual => PMF.pure (selections, residual))
   simp only [PMF.map, selectionResidual, Function.comp_def] at h ⊢
   exact h.symm
-
 theorem selectionResidual_support (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels)
     (r : Selections × (U → HashOutput)) (hr : r ∈ (selectionResidual U hE labels).support) :
     r.1 = selectionsOf U hE labels r.2 := by
   rw [selectionResidual_eq, PMF.support_map] at hr
   obtain ⟨residual, -, rfl⟩ := hr
   rfl
-
 section SelectionBind
 noncomputable local instance instSampleableTypeHashOutput_canonEncoding : SampleableType HashOutput := SampleableType.ofFintype _
 noncomputable local instance instSampleableTypeForallSubtypeHashInputMemFinsetHashOutput_canonEncoding (U : Finset HashInput) : SampleableType (U → HashOutput) := SampleableType.ofFintype _
-
-/-- ProbComp form of the encoding law: sampling the residual = sampling (selections, residual). -/
 theorem residual_bind_selection {Result : Type} (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels)
     (next : Selections → (U → HashOutput) → ProbComp Result) :
     𝒮[do
@@ -293,15 +212,11 @@ theorem residual_bind_selection {Result : Type} (U : Finset HashInput) (hE : enc
   rw [selectionResidual_eq]
   simp only [← PMF.monad_map_eq_map, map_eq_bind_pure_comp, bind_assoc, pure_bind, evalSPMF_bind, evalSPMF_pure,
     Function.comp_apply, evalSPMF_uniformSample]
-
 noncomputable local instance instFintypeCoordinate_canonEncoding : Fintype Coordinate := coordinateFintype
 noncomputable local instance instSampleableTypeFullTable_canonEncoding : SampleableType FullGame.FullTable := Derivation.outputSampler Coordinate
 noncomputable local instance instSampleableTypeLabels_canonEncoding : SampleableType Labels := SampleableType.ofFintype _
 noncomputable local instance instSampleableTypeSecrets_canonEncoding : SampleableType Secrets := SampleableType.ofFintype _
 noncomputable local instance instSampleableTypeOtherHalves_canonEncoding : SampleableType OtherHalves := SampleableType.ofFintype _
-
-/-- **Combined law of the eager tables**: secrets, other private halves and labels uniform; given the labels,
-(selections, residual) with the joint law `selectionResidual`; the public table is the programmed residual. -/
 theorem tables_selection_bind {Result : Type} (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE : encInputs ⊆ U)
     (next : FullGame.FullTable → (U → HashOutput) → ProbComp Result) :
     𝒮[do
@@ -317,12 +232,7 @@ theorem tables_selection_bind {Result : Type} (U : Finset HashInput) (hU : canon
   rw [← evalSPMF_bind]
   exact residual_bind_selection U hE labels
     (fun _ residual => next (privateEquiv.symm (secrets, other)) (programmed U hU secrets labels residual))
-
 end SelectionBind
-
-/-! ## Programmed tables and the shared vocabulary -/
-
-/-- Selections are not changed by programming canonical cells. -/
 theorem selectionsOf_programmed (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE : encInputs ⊆ U)
     (secrets : Secrets) (labels : Labels) (residual : U → HashOutput) :
     selectionsOf U hE labels (programmed U hU secrets labels residual) = selectionsOf U hE labels residual := by
@@ -333,15 +243,12 @@ theorem selectionsOf_programmed (U : Finset HashInput) (hU : canonInputs ⊆ U) 
   apply programmed_other
   intro node heq
   exact encodingQuery_ne_cell _ secrets node labels heq
-
 theorem selection_valid (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels) (table : U → HashOutput)
     (L : EncLeaf) (r : Fin (2^22) × Digest) (hr : selectionsOf U hE labels table L = some r) :
     ∃ w, decode L.1.lay r.2 = some w := by
   have h := (FirstSuccessTable.select_some_iff _ _ r.1 r.2).mp hr
   obtain ⟨-, hs⟩ := (decodeAt_eq_some L _ r.2).mp h.1
   exact Option.isSome_iff_exists.mp hs
-
-/-- The counter search is the first-success selection of its rows (no probability). -/
 theorem counterSearch_select (answers : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest)
     (decodeLay : HashOutput → Option Digest)
     (hdecode : ∀ answer, decodeLay answer =
@@ -382,8 +289,6 @@ theorem counterSearch_select (answers : Answers) (lay : Layer) (tree leaf : Nat)
           | some r =>
               simp only [Option.map_some, Option.bind_some, Fin.val_succ,
                 show start + (r.1.val + 1) = start + 1 + r.1.val by omega]
-
-/-- The reference rows of a programmed table are the residual's (any answers whose public part on `U` is it). -/
 theorem answers_encCell (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE : encInputs ⊆ U)
     (answers : Answers) (labels : Labels) (residual : U → HashOutput)
     (hpub : ∀ x : U, answers (.inl (.inr x.val)) = programmed U hU (secretsOf answers) labels residual x)
@@ -393,9 +298,6 @@ theorem answers_encCell (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE : en
   apply programmed_other
   intro node heq
   exact encodingQuery_ne_cell _ _ node labels heq
-
-/-- **The honest counter search is the presampled selection** (any answers whose public part on `U` is a
-programmed table). -/
 theorem referenceSearch_eq (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE : encInputs ⊆ U)
     (answers : Answers) (labels : Labels) (residual : U → HashOutput)
     (hpub : ∀ x : U, answers (.inl (.inr x.val)) = programmed U hU (secretsOf answers) labels residual x)
@@ -419,7 +321,6 @@ theorem referenceSearch_eq (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE :
   rw [hrows]
   simp only [Nat.zero_add]
   rfl
-
 theorem referenceDigits_eq (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE : encInputs ⊆ U)
     (answers : Answers) (labels : Labels) (residual : U → HashOutput)
     (hpub : ∀ x : U, answers (.inl (.inr x.val)) = programmed U hU (secretsOf answers) labels residual x)
@@ -434,7 +335,6 @@ theorem referenceDigits_eq (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE :
   | some r =>
       simp only [Option.bind_some]
       cases decode L.1.lay r.2 <;> rfl
-
 theorem referenceInput_eq (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE : encInputs ⊆ U)
     (answers : Answers) (labels : Labels) (residual : U → HashOutput)
     (hpub : ∀ x : U, answers (.inl (.inr x.val)) = programmed U hU (secretsOf answers) labels residual x)
@@ -450,5 +350,4 @@ theorem referenceInput_eq (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE : 
       obtain ⟨w, hw⟩ := selection_valid U hE labels residual L r hsel
       simp only [Option.bind_some, hw, Option.map_some]
       rfl
-
 end SigGolfCandidate.T3.Security.CanonEncoding

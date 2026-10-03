@@ -1,15 +1,5 @@
 import SigGolfCandidate.T3.Secc.WotsExtractVerify
 
-/-!
-# LR-34 (LR-5): W's refined extraction with route leaves (local copy, see `plan/REQUESTS.md` LR34-1)
-
-Stream W's `verifyP_wots_cases_src` states encoding events at leaves with `SourceLeaf` (tree < 2^31); the large
-route's residual run tests encoding hits only at G's presampled route-range leaves. W's walk produces every event at
-`routeLeaf index lay` (`index < 2^31`), so this file re-runs W's last three walk steps (`layer_wots`,
-`layersP_wots_walk`, `verifyP_walk_wots`, `verifyP_wots_cases_src`, verbatim up to the predicate) with
-`WotsPrimitiveRoute index`, whose encoding event is at `routeLeaf index lay`.
--/
-
 namespace SigGolfCandidate.T3.Security.WotsExtract
 open OracleComp OracleSpec
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -18,14 +8,11 @@ open SigGolfCandidate.T3.Correctness (Answers treeValue builtTree leafSeed leafE
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
-/-- `WotsPrimitiveSrc` with the encoding event at a route leaf of `index`. -/
 def WotsPrimitiveRoute (index : Nat) (answers : Answers) (trace : List Entry) : Prop :=
   (∃ lay, EncodingMatchAt answers trace (routeLeaf index lay)) ∨ StructuralHitSrc answers trace ∨
     (∃ a, SourceChain a ∧ TwoEdgeAt answers trace a) ∨
     (∃ a b, SourceChain a ∧ SourceChain b ∧ a ≠ b ∧ ContactAt answers trace a ∧ ContactAt answers trace b) ∨
     (∃ a, SourceChain a ∧ MarkerAt answers trace a ∧ ContactAt answers trace a)
-
 theorem WotsPrimitiveRoute.mono {index : Nat} {answers : Answers} {trace trace' : List Entry}
     (h : WotsPrimitiveRoute index answers trace) (hsub : ∀ e ∈ trace, e ∈ trace') :
     WotsPrimitiveRoute index answers trace' := by
@@ -35,8 +22,6 @@ theorem WotsPrimitiveRoute.mono {index : Nat} {answers : Answers} {trace trace' 
   · exact Or.inr (Or.inr (Or.inl ⟨a, ha, twoEdgeAt_mono h hsub⟩))
   · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨a, b, ha, hb, hab, contactAt_mono h1 hsub, contactAt_mono h2 hsub⟩)))
   · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨a, ha, markerAt_mono hm hsub, contactAt_mono hc hsub⟩)))
-
-/-- W's `layer_wots` with the encoding event at the route leaf. -/
 theorem layer_wots_route (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (msg : Digest)
     (digits : List Nat) (hidx : index < 2 ^ 31) (hframe : Extract.Frame answers w index lay msg digits)
     (qs : List Spec.Domain) (henc : Extract.encodingQuery w index lay msg ∈ qs)
@@ -94,8 +79,6 @@ theorem layer_wots_route (answers : Answers) (w : WBytes) (index : Nat) (lay : L
       hsrcC i.val i.isLt, hsrcC j.val j.isLt, ?_, hcontact i.val i.isLt hi, hcontact j.val j.isLt hj⟩))))
     intro he
     exact hij (Fin.ext (ChainAddr.mk.inj he).2)
-
-/-- W's `layersP_wots_walk` with route-leaf encoding events. -/
 theorem layersP_wots_walk_route (answers : Answers) (w : WBytes) (index : Nat) (hidx : index < 2 ^ 31) :
     ∀ n, n ≤ 4 → ∀ root : Digest,
     evalWithAnswerFn answers (layersP w index n root) = some (Extract.walkTarget answers index 0) →
@@ -125,8 +108,6 @@ theorem layersP_wots_walk_route (answers : Answers) (w : WBytes) (index : Nat) (
           · have hl : l = Fin.ofNat 4 n := Fin.ext (by rw [hval]; omega)
             subst hl
             exact hgoodn
-
-/-- W's `verifyP_walk_wots` with route-leaf encoding events. -/
 theorem verifyP_walk_wots_route (answers : Answers) (m : Message) (pk : Digest) (w : WBytes)
     (hpk : pk = Extract.honestRoot answers 0 0)
     (hv : evalWithAnswerFn answers (verifyP m pk w) = true) :
@@ -194,8 +175,6 @@ theorem verifyP_walk_wots_route (answers : Answers) (m : Message) (pk : Digest) 
     rw [hroot]; simp [Extract.walkTarget, Extract.honestMsg]
   exact Or.inr ⟨fun l => hgood l l.isLt, by rw [hroot'],
     fun q hq => by simp only [List.mem_append]; tauto⟩
-
-/-- **W's refined extraction with route-leaf encoding events.** -/
 theorem verifyP_wots_cases_route (answers : Answers) (m : Message) (pk : Digest) (w : WBytes)
     (hpk : pk = Extract.honestRoot answers 0 0)
     (hv : evalWithAnswerFn answers (verifyP m pk w) = true) :
@@ -219,5 +198,4 @@ theorem verifyP_wots_cases_route (answers : Answers) (m : Message) (pk : Digest)
   rcases fts_structural answers N w hS hR with hhit | hshape
   · exact Or.inl (Or.inr (Or.inl (structuralHitSrc_mono hhit (entriesOf_mono hqV))))
   · exact Or.inr ⟨hgood, hshape, hqV'⟩
-
 end SigGolfCandidate.T3.Security.WotsExtract

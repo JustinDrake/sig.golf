@@ -1,11 +1,8 @@
 import SigGolfCandidate.SphincsSecurity.Proof.RandomizedStatement
 
 open OracleComp OracleSpec
-
 namespace SphincsSecurity.Seeded
-
 set_option backward.isDefEq.respectTransparency false
-
 noncomputable def stopBefore {α : Type} (bad : OracleWorld.Domain → Prop)
     [DecidablePred bad] (computation : OracleComp OracleWorld α) :
     OracleComp OracleWorld (Option α) :=
@@ -13,11 +10,9 @@ noncomputable def stopBefore {α : Type} (bad : OracleWorld.Domain → Prop)
     (fun input _ next => if bad input then pure none else do
       let answer ← liftM (OracleWorld.query input)
       next answer) computation
-
 theorem stopBefore_pure {α : Type} (bad : OracleWorld.Domain → Prop)
     [DecidablePred bad] (value : α) :
     stopBefore bad (pure value) = pure (some value) := rfl
-
 theorem stopBefore_query_bind {α : Type} (bad : OracleWorld.Domain → Prop)
     [DecidablePred bad] (input : OracleWorld.Domain)
     (next : OracleWorld.Range input → OracleComp OracleWorld α) :
@@ -25,7 +20,6 @@ theorem stopBefore_query_bind {α : Type} (bad : OracleWorld.Domain → Prop)
       (if bad input then pure none else do
         let answer ← liftM (OracleWorld.query input)
         stopBefore bad (next answer)) := rfl
-
 theorem run'_query_bind {α : Type} (input : OracleWorld.Domain)
     (next : OracleWorld.Range input → OracleComp OracleWorld α)
     (cache : QueryCache HashSpec) :
@@ -33,7 +27,6 @@ theorem run'_query_bind {α : Type} (input : OracleWorld.Domain)
       ((romImpl input).run cache >>= fun result =>
         (simulateQ romImpl (next result.1)).run' result.2) := by
   simp only [simulateQ_bind, simulateQ_spec_query, StateT.run'_eq, StateT.run_bind, map_bind]
-
 theorem probEvent_stopBefore_le {α : Type} (bad : OracleWorld.Domain → Prop)
     [DecidablePred bad] (computation : OracleComp OracleWorld α)
     (cache : QueryCache HashSpec) (event : α → Prop) :
@@ -49,7 +42,6 @@ theorem probEvent_stopBefore_le {α : Type} (bad : OracleWorld.Domain → Prop)
       · simp
       · simp only [run'_query_bind, probEvent_bind_eq_tsum]
         exact ENNReal.tsum_le_tsum fun result => mul_le_mul' le_rfl (ih result.1 result.2)
-
 theorem probEvent_le_stopBefore_add_failure {α : Type} (bad : OracleWorld.Domain → Prop)
     [DecidablePred bad] (computation : OracleComp OracleWorld α)
     (cache : QueryCache HashSpec) (event : α → Prop) :
@@ -68,5 +60,4 @@ theorem probEvent_le_stopBefore_add_failure {α : Type} (bad : OracleWorld.Domai
           ← ENNReal.tsum_add]
         exact ENNReal.tsum_le_tsum fun result =>
           (mul_le_mul' le_rfl (ih result.1 result.2)).trans_eq (mul_add ..)
-
 end SphincsSecurity.Seeded

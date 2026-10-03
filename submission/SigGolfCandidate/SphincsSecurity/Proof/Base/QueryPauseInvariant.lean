@@ -1,13 +1,11 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.QueryPause
-namespace SphincsSecurity.QueryPause
 
+namespace SphincsSecurity.QueryPause
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
-
 variable {Index Memory Result : Type} {spec : OracleSpec Index}
   (stop : Memory → Prop) [DecidablePred stop]
   (step : (input : spec.Domain) → spec.Range input → Memory → Memory)
-
 theorem run_invariant (invariant : Memory → Prop)
     (hstep : ∀ memory, invariant memory → ¬stop memory → ∀ input answer, invariant (step input answer memory))
     (computation : OracleComp spec Result) (memory : Memory) (hinitial : invariant memory)
@@ -27,7 +25,6 @@ theorem run_invariant (invariant : Memory → Prop)
       · rw [if_neg hs, mem_support_bind_iff] at hresult
         obtain ⟨answer, _, hresult⟩ := hresult
         exact ih answer (step input answer memory) (hstep memory hinitial hs input answer) result hresult
-
 theorem run_stopped_or_finished (computation : OracleComp spec Result) (memory : Memory)
     (result : Memory × OracleComp spec Result) (hresult : result ∈ support (run stop step computation memory)) :
     stop result.1 ∨ ∃ value, result.2 = pure value := by
@@ -45,7 +42,6 @@ theorem run_stopped_or_finished (computation : OracleComp spec Result) (memory :
       · rw [if_neg hs, mem_support_bind_iff] at hresult
         obtain ⟨answer, _, hresult⟩ := hresult
         exact ih answer (step input answer memory) result hresult
-
 theorem run_simulation_invariant {State : Type} (impl : QueryImpl spec (StateT State PMF))
     (invariant : Memory → State → Prop)
     (hstep : ∀ memory state, invariant memory state → ¬stop memory → ∀ input,
@@ -70,5 +66,4 @@ theorem run_simulation_invariant {State : Type} (impl : QueryImpl spec (StateT S
         obtain ⟨middle, hmiddle, hresult⟩ := hresult
         exact ih middle.1 (step input middle.1 memory) middle.2
           (hstep memory state hinitial hs input middle hmiddle) result hresult
-
 end SphincsSecurity.QueryPause

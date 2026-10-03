@@ -1,14 +1,6 @@
 import SigGolfCandidate.T3.Secc.LargeContactMonitor
 import SigGolfCandidate.T3.Secc.WotsTransport
 
-/-!
-# LR-34 (LR-5): every query of a recorded run lies in R3's eager universe
-
-`record_inputs`: if every path of `program` from `state` queries inside `U` (F2's `InputsIn`), every public event of
-a lazy record of `program` is in `U`. With F2's `referenceInputs_inputsIn` this puts every adversary and verifier
-query of the actual padded run in `Wots.referenceInputs adversary`, the universe the monitor tests.
--/
-
 namespace SigGolfCandidate.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -17,8 +9,6 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- **Every public event of a lazy record lies in an `InputsIn` universe.** -/
 theorem record_inputs (U : Finset HashInput) {α : Type} (program : M α) (state : LazyPrivate.State)
     (hin : Wots.Ref.InputsIn U program state) (result : FirstHit.Recorded α)
     (hr : result ∈ support (FirstHit.record program state)) :
@@ -64,13 +54,10 @@ theorem record_inputs (U : Finset HashInput) {α : Type} (program : M α) (state
         · cases hx
         · rw [hadv] at hl
           exact ih middle.1 _ hin' last hl e he x hx
-
-/-- Every public event of the recorded padded run lies in R3's universe. -/
 theorem trace_inputs (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (result : PaddedGame.TraceResult)
     (hr : result ∈ (PaddedGame.tracedExperiment adversary q hq).support) :
     ∀ e ∈ (QueryRecorded.recordedTrace result).events, ∀ x, e.input = .inl (.inr x) →
       x ∈ Wots.referenceInputs adversary :=
   record_inputs _ _ (∅, ∅) (Wots.Ref.referenceInputs_inputsIn adversary) _
     (PaddedExtraction.traced_record_support adversary q hq result hr)
-
 end SigGolfCandidate.T3.Security.LargeCoupling

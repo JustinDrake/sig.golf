@@ -2,23 +2,19 @@ import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Ots.EncodingSelectionCache
 import SigGolfCandidate.SphincsSecurity.Proof.Base.FirstSuccessTable
 import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.FrontierSigningEvaluation
-namespace SphincsSecurity.Concrete
 
+namespace SphincsSecurity.Concrete
 open _root_.OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
 set_option backward.isDefEq.respectTransparency false
-
 def decodeEncodingOutput (output : HashOutput) : Option Encoding := OtsCode.decode (truncateHash output)
-
 def referenceEncodingTable (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (position : EncodingPosition) (message : Digest) (attempts start : Nat) : Fin attempts → HashOutput :=
   fun index => f (encodingRetryInput parameter position message (start + index.val))
-
 def encodingTableResult {n : Nat} (table : Fin n → HashOutput) (start : Nat) : Option (Counter × Encoding) × Nat :=
   let result := FirstSuccessTable.select decodeEncodingOutput table
   (result.map (fun result => (BitVec.ofNat counterBits (start + result.1.val), result.2)),
     result.elim n (fun result => result.1.val + 1))
-
 theorem eval_encode_eq_decodeEncodingOutput (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (position : EncodingPosition) (message : Digest) (counter : Nat) :
     evalWithAnswerFn f (encodeAttempt parameter position.lay position.tree position.leafIdx message
@@ -26,7 +22,6 @@ theorem eval_encode_eq_decodeEncodingOutput (parameter : PublicParameter) (f : Q
         decodeEncodingOutput (f (encodingRetryInput parameter position message counter)) := by
   simp only [encodeAttempt, evalWithAnswerFn_bind, eval_tweakableHash, evalWithAnswerFn_pure]
   rfl
-
 theorem referenceEncodingSearch_eq_table (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (position : EncodingPosition) (message : Digest) (attempts start : Nat) :
     referenceEncodingSearch parameter f position.lay position.tree position.leafIdx message attempts start =
@@ -57,5 +52,4 @@ theorem referenceEncodingSearch_eq_table (parameter : PublicParameter) (f : Quer
           | some result =>
               rcases result with ⟨index, word⟩
               simp [Nat.add_comm, Nat.add_left_comm]
-
 end SphincsSecurity.Concrete

@@ -1,30 +1,44 @@
-import SigGolfCandidate.SphincsSecurity.Completeness.Octopus.Defs
+import SigGolfCandidate.SphincsSecurity.Scheme
+import Mathlib.Data.List.Sort
 import Mathlib.Algebra.Polynomial.Coeff
 import Mathlib.Algebra.BigOperators.NatAntidiagonal
 import Mathlib.Data.Finset.Sort
 import Mathlib.Data.Finset.Powerset
 
-/-!
-# PORS+FP admissibility: the octopus recursion and the generating polynomial
+section
 
-For a finite set `S ⊆ [0, 2^H)` let `oc H S = octH H (sort S)` (the `ref.octopus_size` formula
-on the sorted list, tree height `H`). Splitting `S ⊆ [0, 2^(H+1))` by the top bit,
-`S = L ∪ (R + 2^H)` with `L, R ⊆ [0, 2^H)` (`glue`), we show
 
-* `oc (H+1) (L ∪ ∅') = oc H L + 1`, `oc (H+1) (∅ ∪ R') = oc H R + 1`,
-  `oc (H+1) (L ∪ R') = oc H L + oc H R` (both nonempty)            (`oc_glue_*`)
+namespace SphincsSecurity.Completeness.Octopus
+open SphincsSecurity.Concrete (bitLength)
+def xorSum (vs : List Nat) : Nat := (List.zipWith (fun a b => bitLength (a ^^^ b)) vs vs.tail).sum
+def octH (H : Nat) (vs : List Nat) : Nat := H + 2 + xorSum vs - 2 * vs.length
+theorem octopusSize_eq (vs : List Nat) : Concrete.octopusSize vs = octH 14 vs := rfl
+def sortLeaves (v : List Nat) : List Nat := v.insertionSort (· ≤ ·)
+def leafOf (N r : Nat) : Nat := N / 2 ^ (34 + 14 * r) % 2 ^ 14
+def leavesOf (N : Nat) : List Nat := (List.range 15).map (leafOf N)
+def admissible (N : Nat) : Bool :=
+  decide (leavesOf N).Nodup && decide (Concrete.octopusSize (sortLeaves (leavesOf N)) ≤ 118)
+def Nadm : Nat := 587603809105224201844661965127195603157454143488
+def pstep (K y M : Nat) (T : List Nat) : List Nat :=
+  (List.range (K + 1)).map fun j =>
+    (2 * y * T.getD j 0 + ((List.range (j + 1)).map fun i => T.getD i 0 * T.getD (j - i) 0).sum) % M
+def piter (K y M : Nat) : Nat → List Nat → List Nat
+  | 0, T => T
+  | k + 1, T => piter K y M k (pstep K y M T)
+def pB : Nat := 224
+def packedCount : Nat := ((piter 15 (2 ^ pB) (2 ^ (pB * 119)) 14 [0, 1]).getD 15 0) % (2 ^ pB - 1)
+theorem packedCount_eq : packedCount = Nadm := by decide +kernel
+end SphincsSecurity.Completeness.Octopus
+end
 
-using `H + 2 + xorSum ≥ 2 |S|` (`two_card_le_E`, so the natural subtraction in `octH` never
-truncates). Hence the generating polynomial `Q y H = ∑_{∅ ≠ S ⊆ [0, 2^H)} y^(oc S) X^|S|` satisfies
-`Q y 0 = X` and `Q y (H+1) = 2 y Q + Q^2` (`Q_succ`), and `(Q y H).coeff j` is the sum of
-`y^(oc S)` over the `j`-subsets (`coeff_Q`).
--/
+section
+
+
+
+
 
 namespace SphincsSecurity.Completeness.Octopus
 open Finset Polynomial
-
-/-! ## Bits -/
-
 theorem testBit_add_two_pow {z H : ℕ} (hz : z < 2 ^ H) (i : ℕ) :
     (z + 2 ^ H).testBit i = (decide (i = H) || z.testBit i) := by
   rw [Nat.add_comm]
@@ -36,7 +50,6 @@ theorem testBit_add_two_pow {z H : ℕ} (hz : z < 2 ^ H) (i : ℕ) :
     have h2 : z < 2 ^ i := by rw [pow_succ] at hH; omega
     rw [Nat.testBit_lt_two_pow h1, Nat.testBit_lt_two_pow h2]
     simp [h.ne']
-
 theorem xor_shift_shift {x y H : ℕ} (hx : x < 2 ^ H) (hy : y < 2 ^ H) :
     (x + 2 ^ H) ^^^ (y + 2 ^ H) = x ^^^ y := by
   apply Nat.eq_of_testBit_eq; intro i
@@ -44,7 +57,6 @@ theorem xor_shift_shift {x y H : ℕ} (hx : x < 2 ^ H) (hy : y < 2 ^ H) :
   by_cases h : i = H
   · subst h; simp [Nat.testBit_lt_two_pow hx, Nat.testBit_lt_two_pow hy]
   · simp [h]
-
 theorem xor_cross {x y H : ℕ} (hx : x < 2 ^ H) (hy : y < 2 ^ H) :
     x ^^^ (y + 2 ^ H) = (x ^^^ y) + 2 ^ H := by
   apply Nat.eq_of_testBit_eq; intro i
@@ -53,26 +65,19 @@ theorem xor_cross {x y H : ℕ} (hx : x < 2 ^ H) (hy : y < 2 ^ H) :
   by_cases h : i = H
   · subst h; simp [Nat.testBit_lt_two_pow hx, Nat.testBit_lt_two_pow hy]
   · simp [h]
-
 theorem Concrete.bitLength_add_two_pow {z H : ℕ} (hz : z < 2 ^ H) : Concrete.bitLength (z + 2 ^ H) = H + 1 := by
   unfold Concrete.bitLength
   have h2 : z + 2 ^ H < 2 ^ (H + 1) := by rw [pow_succ]; omega
   rw [if_neg (by positivity),
     (Nat.log2_eq_iff (n := z + 2 ^ H) (k := H) (by positivity)).2 ⟨by omega, h2⟩]
-
 theorem Concrete.bitLength_cross {x y H : ℕ} (hx : x < 2 ^ H) (hy : y < 2 ^ H) :
     Concrete.bitLength (x ^^^ (y + 2 ^ H)) = H + 1 := by
   rw [xor_cross hx hy, Concrete.bitLength_add_two_pow (Nat.xor_lt_two_pow hx hy)]
-
-/-! ## `xorSum` -/
-
 @[simp] theorem xorSum_nil : xorSum [] = 0 := rfl
 @[simp] theorem xorSum_single (a : ℕ) : xorSum [a] = 0 := rfl
-
 theorem xorSum_cons_cons (a b : ℕ) (t : List ℕ) :
     xorSum (a :: b :: t) = Concrete.bitLength (a ^^^ b) + xorSum (b :: t) := by
   simp [xorSum]
-
 theorem xorSum_append (a : List ℕ) (x y : ℕ) (b : List ℕ) :
     xorSum (a ++ x :: y :: b) = xorSum (a ++ [x]) + Concrete.bitLength (x ^^^ y) + xorSum (y :: b) := by
   induction a with
@@ -83,7 +88,6 @@ theorem xorSum_append (a : List ℕ) (x y : ℕ) (b : List ℕ) :
     | cons d a =>
       simp only [List.cons_append] at ih ⊢
       rw [xorSum_cons_cons, ih, xorSum_cons_cons]; omega
-
 theorem xorSum_map_shift {H : ℕ} : ∀ (l : List ℕ), (∀ z ∈ l, z < 2 ^ H) →
     xorSum (l.map (· + 2 ^ H)) = xorSum l
   | [], _ => rfl
@@ -93,24 +97,12 @@ theorem xorSum_map_shift {H : ℕ} : ∀ (l : List ℕ), (∀ z ∈ l, z < 2 ^ H
     simp only [List.map_cons] at ih ⊢
     rw [xorSum_cons_cons, xorSum_cons_cons, ih,
       xor_shift_shift (h a (by simp)) (h b (by simp))]
-
-/-! ## Splitting a set by the top bit -/
-
-/-- `L ∪ (R + 2^H)`. -/
 def glue (H : ℕ) (L R : Finset ℕ) : Finset ℕ := L ∪ R.map (addRightEmbedding (2 ^ H))
-
-/-- The lower half. -/
 def lo (H : ℕ) (S : Finset ℕ) : Finset ℕ := S.filter (· < 2 ^ H)
-
-/-- The upper half, shifted down. -/
 def hi (H : ℕ) (S : Finset ℕ) : Finset ℕ := (S.filter (2 ^ H ≤ ·)).image (· - 2 ^ H)
-
-/-- Subsets of `[0, 2^H)`. -/
 def Below (H : ℕ) (S : Finset ℕ) : Prop := ∀ x ∈ S, x < 2 ^ H
-
 theorem below_iff (H : ℕ) (S : Finset ℕ) : Below H S ↔ S ∈ (range (2 ^ H)).powerset := by
   simp [Below, subset_iff]
-
 theorem mem_glue {H : ℕ} {L R : Finset ℕ} {x : ℕ} :
     x ∈ glue H L R ↔ x ∈ L ∨ (2 ^ H ≤ x ∧ x - 2 ^ H ∈ R) := by
   simp only [glue, mem_union, mem_map, addRightEmbedding_apply]
@@ -121,7 +113,6 @@ theorem mem_glue {H : ℕ} {L R : Finset ℕ} {x : ℕ} :
   · rintro (h | ⟨h1, h2⟩)
     · exact Or.inl h
     · exact Or.inr ⟨_, h2, by omega⟩
-
 theorem glue_below {H : ℕ} {L R : Finset ℕ} (hL : Below H L) (hR : Below H R) :
     Below (H + 1) (glue H L R) := by
   intro x hx
@@ -130,16 +121,13 @@ theorem glue_below {H : ℕ} {L R : Finset ℕ} (hL : Below H L) (hR : Below H R
   rcases hx with h | ⟨h1, h2⟩
   · have := hL x h; omega
   · have := hR _ h2; omega
-
 theorem lo_below (H : ℕ) (S : Finset ℕ) : Below H (lo H S) := by
   intro x hx; simp only [lo, mem_filter] at hx; exact hx.2
-
 theorem hi_below {H : ℕ} {S : Finset ℕ} (hS : Below (H + 1) S) : Below H (hi H S) := by
   intro x hx
   simp only [hi, mem_image, mem_filter] at hx
   obtain ⟨a, ⟨ha, h1⟩, rfl⟩ := hx
   have := hS a ha; rw [pow_succ] at this; omega
-
 theorem glue_lo_hi {H : ℕ} {S : Finset ℕ} : glue H (lo H S) (hi H S) = S := by
   ext x
   rw [mem_glue]
@@ -153,7 +141,6 @@ theorem glue_lo_hi {H : ℕ} {S : Finset ℕ} : glue H (lo H S) (hi H S) = S := 
     by_cases hx : x < 2 ^ H
     · exact Or.inl ⟨h, hx⟩
     · exact Or.inr ⟨by omega, x, ⟨h, by omega⟩, rfl⟩
-
 theorem lo_glue {H : ℕ} {L R : Finset ℕ} (hL : Below H L) : lo H (glue H L R) = L := by
   ext x
   simp only [lo, mem_filter, mem_glue]
@@ -162,7 +149,6 @@ theorem lo_glue {H : ℕ} {L R : Finset ℕ} (hL : Below H L) : lo H (glue H L R
     · exact h
     · omega
   · intro h; exact ⟨Or.inl h, hL x h⟩
-
 theorem hi_glue {H : ℕ} {L R : Finset ℕ} (hL : Below H L) : hi H (glue H L R) = R := by
   ext x
   simp only [hi, mem_image, mem_filter, mem_glue]
@@ -172,7 +158,6 @@ theorem hi_glue {H : ℕ} {L R : Finset ℕ} (hL : Below H L) : hi H (glue H L R
     · exact h2
   · intro h
     exact ⟨x + 2 ^ H, ⟨Or.inr ⟨by omega, by simpa using h⟩, by omega⟩, by omega⟩
-
 theorem card_glue {H : ℕ} {L R : Finset ℕ} (hL : Below H L) :
     (glue H L R).card = L.card + R.card := by
   unfold glue
@@ -182,22 +167,17 @@ theorem card_glue {H : ℕ} {L R : Finset ℕ} (hL : Below H L) :
   simp only [mem_map, addRightEmbedding_apply] at hx'
   obtain ⟨a, _, rfl⟩ := hx'
   have := hL _ hx; omega
-
 theorem glue_empty_empty (H : ℕ) : glue H ∅ ∅ = ∅ := by simp [glue]
-
 theorem glue_ne_empty_left {H : ℕ} {L R : Finset ℕ} (h : L ≠ ∅) : glue H L R ≠ ∅ := by
   intro h'
   obtain ⟨x, hx⟩ := nonempty_iff_ne_empty.mpr h
   have : x ∈ glue H L R := mem_glue.mpr (Or.inl hx)
   rw [h'] at this; simp at this
-
 theorem glue_ne_empty_right {H : ℕ} {L R : Finset ℕ} (h : R ≠ ∅) : glue H L R ≠ ∅ := by
   intro h'
   obtain ⟨x, hx⟩ := nonempty_iff_ne_empty.mpr h
   have : x + 2 ^ H ∈ glue H L R := mem_glue.mpr (Or.inr ⟨by omega, by simpa using hx⟩)
   rw [h'] at this; simp at this
-
-/-- Sorting a glued set. -/
 theorem sort_glue {H : ℕ} {L R : Finset ℕ} (hL : Below H L) :
     (glue H L R).sort = L.sort ++ R.sort.map (· + 2 ^ H) := by
   apply List.Pairwise.eq_of_mem_iff (r := (· < ·)) (sortedLT_sort _).pairwise
@@ -217,31 +197,21 @@ theorem sort_glue {H : ℕ} {L R : Finset ℕ} (hL : Below H L) :
     · rintro (h | ⟨c, hc, rfl⟩)
       · exact Or.inl h
       · exact Or.inr ⟨by omega, by simpa using hc⟩
-
-/-! ## The octopus recursion -/
-
-/-- `H + 2 + xorSum (sort S)`. -/
 def E (H : ℕ) (S : Finset ℕ) : ℕ := H + 2 + xorSum S.sort
-
-/-- The octopus size of a set (sorted). -/
 def oc (H : ℕ) (S : Finset ℕ) : ℕ := octH H S.sort
-
 theorem oc_eq (H : ℕ) (S : Finset ℕ) : oc H S = E H S - 2 * S.card := by
   simp [oc, octH, E, length_sort]
-
 theorem E_glue_left {H : ℕ} {L : Finset ℕ} (hL : Below H L) :
     E (H + 1) (glue H L ∅) = E H L + 1 := by
   unfold E
   rw [sort_glue hL]
   simp; omega
-
 theorem E_glue_right {H : ℕ} {R : Finset ℕ} (hR : Below H R) :
     E (H + 1) (glue H ∅ R) = E H R + 1 := by
   unfold E
   rw [sort_glue (by simp [Below])]
   simp only [sort_empty, List.nil_append]
   rw [xorSum_map_shift _ (fun z hz => hR z ((mem_sort _).mp hz))]; omega
-
 theorem E_glue_both {H : ℕ} {L R : Finset ℕ} (hL : Below H L) (hR : Below H R)
     (hL0 : L ≠ ∅) (hR0 : R ≠ ∅) : E (H + 1) (glue H L R) = E H L + E H R := by
   unfold E
@@ -260,7 +230,6 @@ theorem E_glue_both {H : ℕ} {L R : Finset ℕ} (hL : Below H L) (hR : Below H 
     have := xorSum_map_shift (y :: b) hb
     rw [List.map_cons] at this
     rw [this]; omega
-
 theorem below_zero {S : Finset ℕ} (hS : Below 0 S) (h0 : S ≠ ∅) : S = {0} := by
   obtain ⟨x, hx⟩ := nonempty_iff_ne_empty.mpr h0
   ext y
@@ -268,8 +237,6 @@ theorem below_zero {S : Finset ℕ} (hS : Below 0 S) (h0 : S ≠ ∅) : S = {0} 
   constructor
   · intro hy; have := hS y hy; simp at this; exact this
   · rintro rfl; have := hS x hx; simp at this; exact this ▸ hx
-
-/-- The octopus formula never truncates: `2 |S| ≤ H + 2 + xorSum (sort S)`. -/
 theorem two_card_le_E : ∀ (H : ℕ) (S : Finset ℕ), Below H S → S ≠ ∅ → 2 * S.card ≤ E H S
   | 0, S, hS, h0 => by
     rw [below_zero hS h0]; simp [E]
@@ -288,25 +255,19 @@ theorem two_card_le_E : ∀ (H : ℕ) (S : Finset ℕ), Below H S → S ≠ ∅ 
       · have h1 := two_card_le_E H _ hL hL0
         have h2 := two_card_le_E H _ hR hR0
         rw [E_glue_both hL hR hL0 hR0]; omega
-
 theorem oc_glue_left {H : ℕ} {L : Finset ℕ} (hL : Below H L) (hL0 : L ≠ ∅) :
     oc (H + 1) (glue H L ∅) = oc H L + 1 := by
   have := two_card_le_E H L hL hL0
   rw [oc_eq, oc_eq, E_glue_left hL, card_glue hL]; simp; omega
-
 theorem oc_glue_right {H : ℕ} {R : Finset ℕ} (hR : Below H R) (hR0 : R ≠ ∅) :
     oc (H + 1) (glue H ∅ R) = oc H R + 1 := by
   have := two_card_le_E H R hR hR0
   rw [oc_eq, oc_eq, E_glue_right hR, card_glue (by simp [Below])]; simp; omega
-
 theorem oc_glue_both {H : ℕ} {L R : Finset ℕ} (hL : Below H L) (hR : Below H R)
     (hL0 : L ≠ ∅) (hR0 : R ≠ ∅) : oc (H + 1) (glue H L R) = oc H L + oc H R := by
   have h1 := two_card_le_E H L hL hL0
   have h2 := two_card_le_E H R hR hR0
   rw [oc_eq, oc_eq, oc_eq, E_glue_both hL hR hL0 hR0, card_glue hL]; omega
-
-/-! ## Sums over subsets -/
-
 theorem sum_powerset_succ {M : Type*} [AddCommMonoid M] (H : ℕ) (f : Finset ℕ → M) :
     ∑ S ∈ (range (2 ^ (H + 1))).powerset, f S =
       ∑ L ∈ (range (2 ^ H)).powerset, ∑ R ∈ (range (2 ^ H)).powerset, f (glue H L R) := by
@@ -325,16 +286,9 @@ theorem sum_powerset_succ {M : Type*} [AddCommMonoid M] (H : ℕ) (f : Finset �
     rw [mem_product, ← below_iff, ← below_iff] at h
     simp only [lo_glue h.1, hi_glue h.1]
   · intro S _; simp only [glue_lo_hi]
-
-/-! ## The generating polynomial -/
-
-/-- `y^(oc S) X^|S|` for nonempty `S`. -/
 noncomputable def mono (y H : ℕ) (S : Finset ℕ) : ℕ[X] :=
   if S = ∅ then 0 else monomial S.card (y ^ oc H S)
-
-/-- `Q y H = ∑_{∅ ≠ S ⊆ [0, 2^H)} y^(oc S) X^|S|`. -/
 noncomputable def Q (y H : ℕ) : ℕ[X] := ∑ S ∈ (range (2 ^ H)).powerset, mono y H S
-
 theorem mono_glue (y : ℕ) {H : ℕ} {L R : Finset ℕ} (hL : Below H L) (hR : Below H R) :
     mono y (H + 1) (glue H L R) =
       (if R = ∅ then C y * mono y H L else 0) + (if L = ∅ then C y * mono y H R else 0) +
@@ -351,7 +305,6 @@ theorem mono_glue (y : ℕ) {H : ℕ} {L R : Finset ℕ} (hL : Below H L) (hR : 
       mul_comm, card_empty]
   · rw [mono, if_neg (glue_ne_empty_left hL0), card_glue hL, oc_glue_both hL hR hL0 hR0]
     simp [mono, hL0, hR0, monomial_mul_monomial, pow_add]
-
 theorem Q_succ (y H : ℕ) : Q y (H + 1) = C (2 * y) * Q y H + Q y H * Q y H := by
   unfold Q
   rw [sum_powerset_succ]
@@ -369,18 +322,15 @@ theorem Q_succ (y H : ℕ) : Q y (H + 1) = C (2 * y) * Q y H + Q y H * Q y H := 
   rw [← mul_sum, ← two_mul, ← mul_assoc]
   congr 1
   simp [map_mul]
-
 theorem Q_zero (y : ℕ) : Q y 0 = X := by
   unfold Q
   have : (range (2 ^ 0)).powerset = {∅, {0}} := by decide
   rw [this, sum_pair (by decide)]
   simp [mono, oc, octH, xorSum, X]
-
 theorem coeff_Q_succ (y H j : ℕ) : (Q y (H + 1)).coeff j =
     2 * y * (Q y H).coeff j + ∑ i ∈ range (j + 1), (Q y H).coeff i * (Q y H).coeff (j - i) := by
   rw [Q_succ, coeff_add, coeff_C_mul, coeff_mul,
     Finset.Nat.sum_antidiagonal_eq_sum_range_succ_mk]
-
 theorem coeff_Q (y H j : ℕ) (hj : j ≠ 0) :
     (Q y H).coeff j = ∑ S ∈ powersetCard j (range (2 ^ H)), y ^ oc H S := by
   unfold Q
@@ -390,5 +340,5 @@ theorem coeff_Q (y H j : ℕ) (hj : j ≠ 0) :
   by_cases h : S = ∅
   · subst h; simp [Ne.symm hj]
   · simp [h, coeff_monomial]
-
 end SphincsSecurity.Completeness.Octopus
+end

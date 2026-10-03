@@ -1,10 +1,9 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalWordDistribution
-namespace SphincsSecurity.Concrete
 
+namespace SphincsSecurity.Concrete
 open ENNReal
 attribute [local instance] Classical.propDecidable
-
 theorem proposalResidual_sum {α : Type*} (base target : PMF α) (accept : ENNReal)
     (hcap : ∀ index : α, accept * target index ≤ base index) :
     (∑' index : α, (base index - accept * target index)) = 1 - accept := by
@@ -14,19 +13,16 @@ theorem proposalResidual_sum {α : Type*} (base target : PMF α) (accept : ENNRe
       rw [ENNReal.tsum_add, ENNReal.tsum_mul_left, target.tsum_coe, mul_one]
     _ = ∑' index, base index := tsum_congr (fun index => tsub_add_cancel_of_le (hcap index))
     _ = 1 := base.tsum_coe
-
 noncomputable def proposalResidualLaw {α : Type*} (base target : PMF α) (accept : ENNReal)
     (hlt : accept < 1) (hcap : ∀ index, accept * target index ≤ base index) : PMF α :=
   PMF.normalize (fun index => base index - accept * target index)
     (by rw [proposalResidual_sum base target accept hcap]; exact ne_of_gt (tsub_pos_iff_lt.mpr hlt))
     (by rw [proposalResidual_sum base target accept hcap]; finiteness)
-
 theorem proposalResidualLaw_apply {α : Type*} (base target : PMF α) (accept : ENNReal)
     (hlt : accept < 1) (hcap : ∀ index, accept * target index ≤ base index) (index : α) :
     proposalResidualLaw base target accept hlt hcap index =
       (base index - accept * target index) * (1 - accept)⁻¹ := by
   simp only [proposalResidualLaw, PMF.normalize_apply, proposalResidual_sum base target accept hcap]
-
 theorem proposalResidualLaw_scaled {α : Type*} (base target : PMF α) (accept : ENNReal)
     (hlt : accept < 1) (hcap : ∀ index, accept * target index ≤ base index) (index : α) :
     (1 - accept) * proposalResidualLaw base target accept hlt hcap index = base index - accept * target index := by
@@ -35,12 +31,10 @@ theorem proposalResidualLaw_scaled {α : Type*} (base target : PMF α) (accept :
     _ = (base index - accept * target index) * ((1 - accept) * (1 - accept)⁻¹) := by ring
     _ = _ := by
       rw [ENNReal.mul_inv_cancel (ne_of_gt (tsub_pos_iff_lt.mpr hlt)) (by finiteness), mul_one]
-
 noncomputable def proposalAcceptanceCoin (accept : ENNReal) (hle : accept ≤ 1) : PMF Bool :=
   PMF.ofFintype (fun accepted => if accepted then accept else 1 - accept) (by
     simp only [Fintype.sum_bool, Bool.false_eq_true, if_false, if_true]
     exact (add_comm _ _).trans (tsub_add_cancel_of_le hle))
-
 theorem proposalAcceptanceCoin_bind_apply {Ω : Type*} (accept : ENNReal) (hle : accept ≤ 1)
     (continuation : Bool → PMF Ω) (outcome : Ω) :
     (proposalAcceptanceCoin accept hle).bind continuation outcome =
@@ -48,13 +42,11 @@ theorem proposalAcceptanceCoin_bind_apply {Ω : Type*} (accept : ENNReal) (hle :
   rw [PMF.bind_apply, tsum_fintype]
   simp only [Fintype.sum_bool, proposalAcceptanceCoin, PMF.ofFintype_apply, Bool.false_eq_true, if_false, if_true]
   exact add_comm _ _
-
 noncomputable def proposalRecordStep {α Ω : Type*} (base : PMF α) (record : PMF Ω) (label : Ω → α)
     (accept : ENNReal) (hlt : accept < 1) (hcap : ∀ index, accept * (record.map label) index ≤ base index) : PMF (α ⊕ Ω) :=
   (proposalAcceptanceCoin accept hlt.le).bind fun accepted =>
     if accepted then record.map Sum.inr
     else (proposalResidualLaw base (record.map label) accept hlt hcap).map Sum.inl
-
 theorem proposalRecordStep_reject {α Ω : Type*} (base : PMF α) (record : PMF Ω) (label : Ω → α)
     (accept : ENNReal) (hlt : accept < 1) (hcap : ∀ index, accept * (record.map label) index ≤ base index) (index : α) :
     proposalRecordStep base record label accept hlt hcap (.inl index) = base index - accept * (record.map label) index := by
@@ -63,7 +55,6 @@ theorem proposalRecordStep_reject {α Ω : Type*} (base : PMF α) (record : PMF 
   rw [proposalRecordStep, proposalAcceptanceCoin_bind_apply]
   simp only [Bool.false_eq_true, if_false, if_true, PMF.map_apply, Sum.inl.injEq, Sum.inl_ne_inr,
     tsum_ite_eq', if_false, tsum_zero, mul_zero, add_zero, proposalResidualLaw_scaled]
-
 theorem proposalRecordStep_accept {α Ω : Type*} (base : PMF α) (record : PMF Ω) (label : Ω → α)
     (accept : ENNReal) (hlt : accept < 1) (hcap : ∀ index, accept * (record.map label) index ≤ base index) (outcome : Ω) :
     proposalRecordStep base record label accept hlt hcap (.inr outcome) = accept * record outcome := by
@@ -72,7 +63,6 @@ theorem proposalRecordStep_accept {α Ω : Type*} (base : PMF α) (record : PMF 
   rw [proposalRecordStep, proposalAcceptanceCoin_bind_apply]
   simp only [Bool.false_eq_true, if_false, if_true, PMF.map_apply, Sum.inr.injEq, Sum.inr_ne_inl,
     tsum_ite_eq', if_false, tsum_zero, mul_zero, zero_add]
-
 theorem proposalRecordStep_label {α Ω : Type*} (base : PMF α) (record : PMF Ω) (label : Ω → α)
     (accept : ENNReal) (hlt : accept < 1) (hcap : ∀ index, accept * (record.map label) index ≤ base index) :
     (proposalRecordStep base record label accept hlt hcap).map (Sum.elim id label) = base := by
@@ -89,19 +79,16 @@ theorem proposalRecordStep_label {α Ω : Type*} (base : PMF α) (record : PMF �
   ext index
   rw [proposalAcceptanceCoin_bind_apply]
   simp only [Bool.false_eq_true, if_false, if_true, proposalResidualLaw_scaled, tsub_add_cancel_of_le (hcap index)]
-
 noncomputable def cappedRecordProposalBridge {α Ω : Type*} (base : PMF α) (record : PMF Ω) (label : Ω → α)
     (accept : ENNReal) (hpos : accept ≠ 0) (hlt : accept < 1)
     (hcap : ∀ index, accept * (record.map label) index ≤ base index) : PMF (List α × Ω) :=
   recordProposalBridge record (proposalResidualLaw base (record.map label) accept hlt hcap) accept hpos hlt.le
-
 theorem cappedRecordProposalBridge_nil {α Ω : Type*} (base : PMF α) (record : PMF Ω) (label : Ω → α)
     (accept : ENNReal) (hpos : accept ≠ 0) (hlt : accept < 1)
     (hcap : ∀ index, accept * (record.map label) index ≤ base index) (outcome : Ω) :
     cappedRecordProposalBridge base record label accept hpos hlt hcap ([], outcome) =
       proposalRecordStep base record label accept hlt hcap (.inr outcome) := by
   rw [cappedRecordProposalBridge, recordProposalBridge_nil, proposalRecordStep_accept]
-
 theorem cappedRecordProposalBridge_cons {α Ω : Type*} (base : PMF α) (record : PMF Ω) (label : Ω → α)
     (accept : ENNReal) (hpos : accept ≠ 0) (hlt : accept < 1)
     (hcap : ∀ index, accept * (record.map label) index ≤ base index) (head : α) (rest : List α) (outcome : Ω) :
@@ -109,10 +96,8 @@ theorem cappedRecordProposalBridge_cons {α Ω : Type*} (base : PMF α) (record 
       proposalRecordStep base record label accept hlt hcap (.inl head) *
         cappedRecordProposalBridge base record label accept hpos hlt hcap (rest, outcome) := by
   rw [cappedRecordProposalBridge, recordProposalBridge_cons, proposalResidualLaw_scaled, proposalRecordStep_reject]
-
 def prependProposalRecord {α Ω : Type*} (head : α) (result : List α × Ω) : List α × Ω :=
   (head :: result.1, result.2)
-
 private theorem prependProposalRecord_apply {α Ω : Type*} [DecidableEq α]
     (law : PMF (List α × Ω)) (head : α) (word : List α) (outcome : Ω) :
     (law.map (prependProposalRecord head)) (word, outcome) =
@@ -142,11 +127,9 @@ private theorem prependProposalRecord_apply {α Ω : Type*} [DecidableEq α]
       · rw [if_neg h]
         exact pmf_map_apply_zero_of_not_image _ _ _
           (fun source heq => h (List.cons.inj (congrArg Prod.fst heq)).1)
-
 noncomputable def proposalBridgeContinuation {α Ω : Type*} (law : PMF (List α × Ω)) : α ⊕ Ω → PMF (List α × Ω)
   | .inl head => law.map (prependProposalRecord head)
   | .inr outcome => PMF.pure ([], outcome)
-
 theorem cappedRecordProposalBridge_step {α Ω : Type*} (base : PMF α) (record : PMF Ω) (label : Ω → α)
     (accept : ENNReal) (hpos : accept ≠ 0) (hlt : accept < 1)
     (hcap : ∀ index, accept * (record.map label) index ≤ base index) :
@@ -196,5 +179,4 @@ theorem cappedRecordProposalBridge_step {α Ω : Type*} (base : PMF α) (record 
       change cappedRecordProposalBridge base record label accept hpos hlt hcap (head :: rest, outcome) = _
       rw [cappedRecordProposalBridge_cons, proposalRecordStep_reject, ← proposalResidualLaw_scaled base (record.map label) accept hlt hcap head]
       exact mul_assoc _ _ _
-
 end SphincsSecurity.Concrete

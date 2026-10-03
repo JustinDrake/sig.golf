@@ -1,17 +1,7 @@
 import SigGolfCandidate.T3M.Keygen.Chain
 
-/-!
-# Block specifications of the shared `build_leaf` subroutine (offsets 27..112 from the base)
-
-Registers: `x8` lay, `x9` tree, `x18` leaf, `x22` digits pointer, `x23` values pointer, `x25` leaf-pk
-destination, `x26` chain count, `x27` radix-4 chain count, `x31` signature-only flag, `x19` chain
-index, `x17` digit (capture step), `x21` end step, `x3` saved return address.
--/
-
 namespace SigGolfCandidate.T3M.Keygen
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
-
-/-- Prologue: link, word 1 of the chain and leaf headers, leaf header word 0, `I := 0`. -/
 theorem sub27_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 27)) (lay tree leaf : Nat) (hlay : lay < 256) (htree : tree < 2 ^ 32)
     (hleaf : leaf < 2 ^ 32) (h8 : s.getReg .x8 = BitVec.ofNat 64 lay)
@@ -49,8 +39,6 @@ theorem sub27_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
     simp only [Result.toState_getMem, st_27, blk117_27.res]
     t3n []
     rw [if_neg (by omega), if_neg (by omega), if_neg (by omega)]
-
-/-- `bl_loop`: `I ≥ N` leaves the chain loop. -/
 theorem sub41_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 41)) (i n : Nat) (hi : i < 2 ^ 63) (hn : n < 2 ^ 63)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 i) (h26 : s.getReg .x26 = BitVec.ofNat 64 n) :
@@ -64,8 +52,6 @@ theorem sub41_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
     by_cases hin : i < n <;> simp [hin]
   · intro r hr; cases r <;> simp_all [st_41, blk117_41.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_41, blk117_41.res, rv_simp]
-
-/-- Odd chains skip the PRF query. -/
 theorem sub42_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 42)) (i : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 i) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = (if i % 2 = 0 then pcOf (b + 44) else pcOf (b + 60)) ∧
@@ -77,8 +63,6 @@ theorem sub42_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
     rcases Nat.mod_two_eq_zero_or_one i with h2 | h2 <;> simp [h2]
   · intro r hr; simp at hr; cases r <;> simp_all [st_42, blk117_42.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_42, blk117_42.res, rv_simp]
-
-/-- The PRF header (tag 0, position `i / 2`, index = leaf) and the HASH arguments. -/
 theorem sub44_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 44)) (lay tree leaf i : Nat) (hlay : lay < 256) (htree : tree < 2 ^ 32)
     (hleaf : leaf < 2 ^ 32) (hi : i < 2 ^ 32) (h8 : s.getReg .x8 = BitVec.ofNat 64 lay)
@@ -116,13 +100,10 @@ theorem sub44_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
     simp only [Result.toState_getMem, st_44, blk117_44.res]
     t3n []
     rw [if_neg (by omega), if_neg (by omega)]
-
 theorem fetch_sub59 {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 59)) : fetch image s = some (.base .ECALL) :=
   ((codeAt_sub_59 h).fetch s hpc).trans rfl
-
 set_option maxRecDepth 100000 in
-/-- The seed of chain `i` (half `i % 2` of the PRF output) to `CHAIN+48`; `x28 := digp + i`. -/
 theorem sub60_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 60)) (i digp : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 i)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 digp) :
@@ -152,8 +133,6 @@ theorem sub60_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
     simp only [Result.toState_getMem, st_60, blk117_60.res]
     t3n []
     rw [if_neg (by omega), if_neg (by omega)]
-
-/-- The digit `lbu x17, 0(x28)` (stepped by hand: the address is unaligned). -/
 theorem sub72_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 72)) (a : Nat) (ha : a + 1 ≤ 2 ^ 24) (d : Nat) (hd : d < 256)
     (h28 : s.getReg .x28 = BitVec.ofNat 64 a) (hbyte : s.getByte (BitVec.ofNat 64 a) = BitVec.ofNat 8 d) :
@@ -174,8 +153,6 @@ theorem sub72_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
     rw [MachineState.getReg_setPC, MachineState.getReg_setReg_ne _ _ _ _ (Ne.symm hr)]
   · intro A _ _; simp
-
-/-- Lower layers retain endpoint seven; top layers branch to the mixed endpoint helper. -/
 theorem sub73_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 73)) (lay : Nat) (hlay : lay < 2 ^ 64)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 lay) :
@@ -194,8 +171,6 @@ theorem sub73_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
   · simp [st_73, blk117_73.res, rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [st_73, blk117_73.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_73, blk117_73.res, rv_simp]
-
-/-- The top selector jumps to its disjoint immutable helper without changing registers. -/
 theorem sub75_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 75)) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf (b + 1000) ∧
@@ -206,8 +181,6 @@ theorem sub75_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
   · simp [pcE_75, Result.toState_pc, E.eval]
   · intro r hr; cases r <;> simp_all [st_75, blk117_75.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_75, blk117_75.res, rv_simp]
-
-/-- The last three top chains use endpoint three, the first51 continue to endpoint four. -/
 theorem maxLow_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 1000)) (i n4 : Nat) (hi : i < 2 ^ 63) (hn : n4 < 2 ^ 63)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 i) (h27 : s.getReg .x27 = BitVec.ofNat 64 n4) :
@@ -222,7 +195,6 @@ theorem maxLow_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSt
   · simp [maxLowState, max117Low.res, rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [maxLowState, max117Low.res, rv_simp] <;> rfl
   · intro A _ _; simp [maxLowState, max117Low.res, rv_simp]
-
 theorem maxHigh_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 1002)) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = pcOf (b + 76) ∧ t.getReg .x21 = BitVec.ofNat 64 4 ∧
@@ -234,8 +206,6 @@ theorem maxHigh_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineS
   · simp [maxHighState, max117High.res, rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [maxHighState, max117High.res, rv_simp] <;> rfl
   · intro A _ _; simp [maxHighState, max117High.res, rv_simp]
-
-/-- `beqz SIGONLY`. -/
 theorem sub76_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 76)) (so : Bool) (h31 : s.getReg .x31 = BitVec.ofNat 64 (if so then 1 else 0)) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = (if so then pcOf (b + 77) else pcOf (b + 78)) ∧
@@ -247,7 +217,6 @@ theorem sub76_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
     cases so <;> simp
   · intro r hr; cases r <;> simp_all [st_76, blk117_76.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_76, blk117_76.res, rv_simp]
-
 theorem sub77_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 77)) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf (b + 78) ∧ t.getReg .x21 = s.getReg .x17 ∧
@@ -259,8 +228,6 @@ theorem sub77_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
   · simp [st_77, blk117_77.res, rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [st_77, blk117_77.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_77, blk117_77.res, rv_simp]
-
-/-- `jal ra, chain_run`. -/
 theorem sub78_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 78)) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf b ∧ t.getReg .x1 = pcOf (b + 79) ∧
@@ -272,8 +239,6 @@ theorem sub78_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
   · simp [st_78, blk117_78.res, rv_simp, RegFile.set]
   · intro r hr; simp at hr; cases r <;> simp_all [st_78, blk117_78.res, rv_simp, RegFile.set] <;> rfl
   · intro A _ _; simp [st_78, blk117_78.res, rv_simp]
-
-/-- `bnez SIGONLY` after the chain. -/
 theorem sub79_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 79)) (so : Bool) (h31 : s.getReg .x31 = BitVec.ofNat 64 (if so then 1 else 0)) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = (if so then pcOf (b + 92) else pcOf (b + 80)) ∧
@@ -285,8 +250,6 @@ theorem sub79_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
     cases so <;> simp
   · intro r hr; cases r <;> simp_all [st_79, blk117_79.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_79, blk117_79.res, rv_simp]
-
-/-- The end slot offset `16 i` (`+16` for `i > 0`). -/
 theorem sub80_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 80)) (i : Nat) (hi : i < 2 ^ 32) (h19 : s.getReg .x19 = BitVec.ofNat 64 i) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = (if i = 0 then pcOf (b + 83) else pcOf (b + 82)) ∧
@@ -303,7 +266,6 @@ theorem sub80_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
   · t3n [st_80, blk117_80.res, h19]; congr 1; omega
   · intro r hr; simp at hr; cases r <;> simp_all [st_80, blk117_80.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_80, blk117_80.res, rv_simp]
-
 theorem sub82_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 82)) (o : Nat) (h28 : s.getReg .x28 = BitVec.ofNat 64 o) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf (b + 83) ∧ t.getReg .x28 = BitVec.ofNat 64 (o + 16) ∧
@@ -315,8 +277,6 @@ theorem sub82_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
   · t3n [st_82, blk117_82.res, h28]
   · intro r hr; simp at hr; cases r <;> simp_all [st_82, blk117_82.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_82, blk117_82.res, rv_simp]
-
-/-- The chain end `CHAIN+48` to its slot `LEAFPK + o`. -/
 theorem sub83_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 83)) (o : Nat) (ho : o % 8 = 0) (ho' : LEAFPK + o + 16 ≤ 2 ^ 24)
     (h28 : s.getReg .x28 = BitVec.ofNat 64 o) :
@@ -347,8 +307,6 @@ theorem sub83_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
     simp only [Result.toState_getMem, st_83, blk117_83.res]
     t3n [h28]
     rw [if_neg (by omega), if_neg (by omega)]
-
-/-- `VALP += 16`, `I += 1`, back to `bl_loop`. -/
 theorem sub92_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 92)) (i v : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 i)
     (h23 : s.getReg .x23 = BitVec.ofNat 64 v) :
@@ -363,8 +321,6 @@ theorem sub92_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
   · t3n [st_92, blk117_92.res, h23]
   · intro r hr; simp at hr; cases r <;> simp_all [st_92, blk117_92.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_92, blk117_92.res, rv_simp]
-
-/-- `bl_chains_done`: signature-only leaves skip the leaf hash. -/
 theorem sub95_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 95)) (so : Bool) (h31 : s.getReg .x31 = BitVec.ofNat 64 (if so then 1 else 0)) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = (if so then pcOf (b + 112) else pcOf (b + 96)) ∧
@@ -376,8 +332,6 @@ theorem sub95_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
     cases so <;> simp
   · intro r hr; cases r <;> simp_all [st_95, blk117_95.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_95, blk117_95.res, rv_simp]
-
-/-- The leaf-pk HASH arguments: `LEAFPK`, `16 (N+1)` rounded up to whole blocks, `LOUT`. -/
 theorem sub96_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 96)) (n : Nat) (hn : n = 54 ∨ n = 43)
     (h26 : s.getReg .x26 = BitVec.ofNat 64 n) :
@@ -395,12 +349,9 @@ theorem sub96_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSta
   · simp [st_96, blk117_96.res, rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [st_96, blk117_96.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_96, blk117_96.res, rv_simp]
-
 theorem fetch_sub105 {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 105)) : fetch image s = some (.base .ECALL) :=
   ((codeAt_sub_105 h).fetch s hpc).trans rfl
-
-/-- The leaf root `LOUT` to `[DEST]`. -/
 theorem sub106_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 106)) (dest : Nat) (hd : dest % 8 = 0) (hd' : dest + 16 ≤ 2 ^ 24)
     (hdl : dest + 16 ≤ LOUT ∨ LOUT + 16 ≤ dest) (h25 : s.getReg .x25 = BitVec.ofNat 64 dest) :
@@ -425,8 +376,6 @@ theorem sub106_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSt
     simp only [Result.toState_getMem, st_106, blk117_106.res]
     t3n [h25]
     rw [if_neg (by omega), if_neg (by omega)]
-
-/-- `jalr gp`: back to the caller. -/
 theorem sub112_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineState)
     (hpc : s.pc = pcOf (b + 112)) (k : Nat) (h3 : s.getReg .x3 = pcOf k) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf k ∧ RegsExcept s t [] ∧ Frame s t (fun _ => False) := by
@@ -436,5 +385,4 @@ theorem sub112_spec {image : Image} {b : Nat} (h : SubAt image b) (s : MachineSt
   · simp only [Result.toState_pc, pcE_112, blk117_112.res, rv_simp, h3, pcOf_and_max]
   · intro r hr; cases r <;> simp_all [st_112, blk117_112.res, rv_simp] <;> rfl
   · intro A _ _; simp [st_112, blk117_112.res, rv_simp]
-
 end SigGolfCandidate.T3M.Keygen

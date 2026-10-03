@@ -1,19 +1,5 @@
 import SigGolfCandidate.T3.Secc.CaseCBankMain
 
-/-!
-# Stream CC: the deterministic bank invariant
-
-`BankInv published budget kg st` ties the bank's ghost to the recorded run:
-
-* `len`, `dead`: exposures and deaths are bounded by the ghost log;
-* `events`: every recorded event outside key generation that queries a fresh digest input either created a target,
-  happened over budget, or was queried by a logged signing request (under every agreeing completion);
-* `exposed`: while alive, the selected digest of every message whose nonce is cached is an exposure;
-* `logged`: a logged successful signature was made on the published cache with the cached nonce as randomizer.
-
-`bankInv_run`: the invariant holds along the whole bank run.
--/
-
 namespace SigGolfCandidate.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M.Final
@@ -23,27 +9,18 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance instDecidableEqCache_caseCLinkInv : DecidableEq T3.Cache := Classical.decEq _
-
-/-- A completion agreeing with the lazy tables. -/
 def Agrees (A : Correctness.Answers) (lazy : LazyPrivate.State) : Prop :=
   ∀ input answer, SourceReplay.known lazy input = some answer → A input = answer
-
 theorem Agrees.mono {A : Correctness.Answers} {lazy lazy' : LazyPrivate.State} (h : Agrees A lazy')
     (hext : SourceReplay.Extends lazy lazy') : Agrees A lazy :=
   fun input answer hk => h input answer (SourceReplay.known_mono lazy lazy' hext hk)
-
-/-- The public part of a recorded event. -/
 def eventPublic : FirstHit.QueryEvent → Option (HashInput × HashOutput)
   | ⟨_, .inl (.inr x), a⟩ => some (x, a)
   | _ => none
-
-/-- `x` is queried by a logged signing request (under every agreeing completion). -/
 def SignerQueried (published : T3.Cache) (log : QueryLog Requests) (lazy : LazyPrivate.State) (x : HashInput) :
     Prop :=
   ∃ entry ∈ log, ∀ A, Agrees A lazy →
     (.inl (.inr x) : T3.Spec.Domain) ∈ queried A (FullGame.authenticatedSign published entry.1)
-
-/-- **The bank invariant.** -/
 structure BankInv (published : T3.Cache) (budget : Nat) (kg : List FirstHit.QueryEvent) (st : BankState) : Prop where
   len : st.1.exposures.length ≤ st.1.log.length
   dead : st.1.dead = true → horizon < st.1.log.length
@@ -54,15 +31,11 @@ structure BankInv (published : T3.Cache) (budget : Nat) (kg : List FirstHit.Quer
       out ∈ st.1.exposures
   logged : ∀ entry ∈ st.1.log, ∀ σ, entry.2 = some σ → entry.1.cache = published ∧
     (lazyOf st.2).1 (.inr (.inl entry.1.message)) ≠ none ∧ σ.rho = nonceOf (lazyOf st.2) entry.1.message
-
-/-! ## Helpers -/
-
 theorem nonceOf_extends {lazy lazy' : LazyPrivate.State} (hext : SourceReplay.Extends lazy lazy') (m : Message)
     (h : lazy.1 (.inr (.inl m)) ≠ none) : nonceOf lazy' m = nonceOf lazy m ∧ lazy'.1 (.inr (.inl m)) ≠ none := by
   obtain ⟨o, ho⟩ := Option.ne_none_iff_exists'.mp h
   have h' := hext.1 ho
   simp [nonceOf, ho, h']
-
 theorem eval_privateNonce (A : Correctness.Answers) (lazy : LazyPrivate.State) (hA : Agrees A lazy) (m : Message)
     (h : lazy.1 (.inr (.inl m)) ≠ none) : evalWithAnswerFn A (privateNonce m) = nonceOf lazy m := by
   obtain ⟨o, ho⟩ := Option.ne_none_iff_exists'.mp h
@@ -71,7 +44,6 @@ theorem eval_privateNonce (A : Correctness.Answers) (lazy : LazyPrivate.State) (
   simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure, nonceOf, ho, Option.getD_some]
   rw [← hk]
   rfl
-
 theorem eval_payload_selected (A : Correctness.Answers) (cache : T3.Cache) (rho : Digest) (m : Message) :
     (evalWithAnswerFn A (payloadRecordForNonce cache rho m)).2 =
       (evalWithAnswerFn A (digestSearch rho m 0 attemptLimit)).map Prod.snd := by
@@ -82,7 +54,6 @@ theorem eval_payload_selected (A : Correctness.Answers) (cache : T3.Cache) (rho 
   | some found =>
       rcases found with ⟨c, out⟩
       simp [evalWithAnswerFn_bind]
-
 theorem eval_payloadAfterDigest_rho (A : Correctness.Answers) (cache : T3.Cache) (rho : Digest)
     (output : HashOutput) (σ : Signature) (h : evalWithAnswerFn A (payloadAfterDigest cache rho output) = some σ) :
     σ.rho = rho := by
@@ -91,7 +62,6 @@ theorem eval_payloadAfterDigest_rho (A : Correctness.Answers) (cache : T3.Cache)
   split at h
   all_goals (rw [evalWithAnswerFn_pure] at h; cases h)
   all_goals rfl
-
 theorem eval_payload_rho (A : Correctness.Answers) (cache : T3.Cache) (rho : Digest) (m : Message)
     (σ : Signature) (h : (evalWithAnswerFn A (payloadRecordForNonce cache rho m)).1 = some σ) : σ.rho = rho := by
   unfold payloadRecordForNonce at h
@@ -102,8 +72,6 @@ theorem eval_payload_rho (A : Correctness.Answers) (cache : T3.Cache) (rho : Dig
       rcases found with ⟨c, out⟩
       simp only [hd, evalWithAnswerFn_bind, evalWithAnswerFn_pure] at h
       exact eval_payloadAfterDigest_rho A cache rho out σ h
-
-/-- The recorded events of a run are the old events followed by the run's own record. -/
 theorem recorded_new_events {α : Type} (program : M α) (s : QueryRecorded.State) (r : α × QueryRecorded.State)
     (hr : r ∈ support (QueryRecorded.run program s)) :
     ∃ rec ∈ support (FirstHit.record program (lazyOf s)),
@@ -119,7 +87,6 @@ theorem recorded_new_events {α : Type} (program : M α) (s : QueryRecorded.Stat
     exact this
   · have := congrArg FirstHit.Recorded.value he
     exact this
-
 theorem bank_support_world (published : T3.Cache) (budget : Nat) (input : SphincsSecurity.OracleWorld.Domain)
     (st : BankState) (r : SphincsSecurity.OracleWorld.Range input × BankState)
     (hr : r ∈ ((bankImpl published budget (.inl input)).run st).support) :
@@ -130,7 +97,6 @@ theorem bank_support_world (published : T3.Cache) (budget : Nat) (input : Sphinc
   refine ⟨q, ?_, rfl⟩
   rw [MonitoredPrivate.pmf_support] at hq
   exact hq
-
 theorem bank_support_sign (published : T3.Cache) (budget : Nat) (request : Request)
     (st : BankState) (r : Option Signature × BankState)
     (hr : r ∈ ((bankImpl published budget (.inr request)).run st).support) :
@@ -143,7 +109,6 @@ theorem bank_support_sign (published : T3.Cache) (budget : Nat) (request : Reque
   refine ⟨q, ?_, rfl⟩
   rw [MonitoredPrivate.pmf_support] at hq
   exact hq
-
 theorem world_query_support (input : SphincsSecurity.OracleWorld.Domain) (s : QueryRecorded.State)
     (q : SphincsSecurity.OracleWorld.Range input × QueryRecorded.State)
     (hq : q ∈ support (QueryRecorded.run (forwardWorld input) s)) :
@@ -154,7 +119,6 @@ theorem world_query_support (input : SphincsSecurity.OracleWorld.Domain) (s : Qu
   rw [QueryRecorded.run_query_explicit, support_map] at hq
   obtain ⟨res, hres, rfl⟩ := hq
   exact ⟨rfl, rfl, hres⟩
-
 theorem world_private_eq (input : SphincsSecurity.OracleWorld.Domain) (lazy : LazyPrivate.State)
     (res : SphincsSecurity.OracleWorld.Range input × LazyPrivate.State)
     (hres : res ∈ support (LazyPrivate.run (forwardWorld input) lazy)) : res.2.1 = lazy.1 := by
@@ -167,7 +131,6 @@ theorem world_private_eq (input : SphincsSecurity.OracleWorld.Domain) (lazy : La
       rw [mem_support_pure_iff] at hres
       subst hres
       rfl
-
 theorem ghostWorld_fields (budget : Nat) (input : SphincsSecurity.OracleWorld.Domain) (g : Ghost)
     (s : QueryRecorded.State) (a : SphincsSecurity.OracleWorld.Range input) :
     (ghostWorld budget input g s a).exposures = g.exposures ∧ (ghostWorld budget input g s a).log = g.log ∧
@@ -181,9 +144,6 @@ theorem ghostWorld_fields (budget : Nat) (input : SphincsSecurity.OracleWorld.Do
         exact fun _ h => List.mem_append_left _ h
       · simp only [ghostWorld, hb, if_false, true_and]
         exact fun _ h => h
-
-/-! ## Preservation -/
-
 theorem bankInv_world (published : T3.Cache) (budget : Nat) (kg : List FirstHit.QueryEvent)
     (input : SphincsSecurity.OracleWorld.Domain) (st : BankState) (hinv : BankInv published budget kg st)
     (r : SphincsSecurity.OracleWorld.Range input × BankState)
@@ -244,28 +204,23 @@ theorem bankInv_world (published : T3.Cache) (budget : Nat) (kg : List FirstHit.
     refine ⟨h1, by rwa [hpriv], ?_⟩
     rw [h3]
     simp [nonceOf, hpriv]
-
 theorem queried_record_sign (A : Correctness.Answers) (published : T3.Cache) (request : Request) :
     SourceReplay.queried A (FullGame.authenticatedRecord published request) =
       queried A (FullGame.authenticatedSign published request) := by
   rw [← FullGame.authenticatedRecord_erasure, SigGolfCandidate.T3M.Extract.queried_map]
   rfl
-
 theorem eval_sign_of_record (A : Correctness.Answers) (published : T3.Cache) (request : Request) :
     evalWithAnswerFn A (FullGame.authenticatedSign published request) =
       (evalWithAnswerFn A (FullGame.authenticatedRecord published request)).1 := by
   rw [← FullGame.authenticatedRecord_erasure, SigGolfCandidate.T3M.eval_map]
-
 theorem ghostSign_log (published : T3.Cache) (request : Request) (g : Ghost) (s : QueryRecorded.State)
     (q : (Option Signature × Option HashOutput) × QueryRecorded.State) :
     (ghostSign published request g s q).log = g.log ++ [⟨request, q.1.1⟩] := by
   unfold ghostSign; split_ifs <;> rfl
-
 theorem ghostSign_targets (published : T3.Cache) (request : Request) (g : Ghost) (s : QueryRecorded.State)
     (q : (Option Signature × Option HashOutput) × QueryRecorded.State) :
     (ghostSign published request g s q).targets = g.targets := by
   unfold ghostSign; split_ifs <;> rfl
-
 theorem ghostSign_exposures_len (published : T3.Cache) (request : Request) (g : Ghost) (s : QueryRecorded.State)
     (q : (Option Signature × Option HashOutput) × QueryRecorded.State) :
     (ghostSign published request g s q).exposures.length ≤ g.exposures.length + 1 := by
@@ -274,7 +229,6 @@ theorem ghostSign_exposures_len (published : T3.Cache) (request : Request) (g : 
   · simp
   · cases q.1.2 <;> simp
   · simp
-
 theorem bankInv_sign (published : T3.Cache) (budget : Nat) (kg : List FirstHit.QueryEvent)
     (request : Request) (st : BankState) (hinv : BankInv published budget kg st)
     (r : Option Signature × BankState)
@@ -293,12 +247,12 @@ theorem bankInv_sign (published : T3.Cache) (budget : Nat) (kg : List FirstHit.Q
   set g' := ghostSign published request st.1 st.2 q with hg'
   show BankInv published budget kg (g', q.2)
   constructor
-  · -- exposures ≤ log
+  ·
     show g'.exposures.length ≤ g'.log.length
     rw [hlog, List.length_append, List.length_singleton]
     have := hinv.len
     omega
-  · -- dead ⇒ log beyond the horizon
+  ·
     intro hd
     rw [hlog, List.length_append, List.length_singleton]
     by_cases hf : FreshSigning published request st.2
@@ -313,7 +267,7 @@ theorem bankInv_sign (published : T3.Cache) (budget : Nat) (kg : List FirstHit.Q
         simpa [hg', ghostSign, hf] using hd
       have := hinv.dead hd0
       omega
-  · -- events
+  ·
     intro e he
     rw [hev, List.mem_append] at he
     rcases he with he | he
@@ -345,7 +299,7 @@ theorem bankInv_sign (published : T3.Cache) (budget : Nat) (kg : List FirstHit.Q
         · simp [eventPublic] at hxa
       rw [hin] at hmem
       exact hmem
-  · -- exposures of cached nonces
+  ·
     intro hdead m hm A hA c out hs
     by_cases hf : FreshSigning published request st.2
     · by_cases hh : horizon ≤ st.1.exposures.length
@@ -386,7 +340,7 @@ theorem bankInv_sign (published : T3.Cache) (budget : Nat) (kg : List FirstHit.Q
       obtain ⟨hno, _⟩ := nonceOf_extends hext m hm0
       rw [hno] at hs
       exact hinv.exposed hdead0 m hm0 A (hA.mono hext) c out hs
-  · -- logged signatures
+  ·
     intro entry he σ hσ
     rw [hlog, List.mem_append] at he
     rcases he with he | he
@@ -413,7 +367,6 @@ theorem bankInv_sign (published : T3.Cache) (budget : Nat) (kg : List FirstHit.Q
         rw [hrho, eval_privateNonce _ (lazyOf q.2) hA request.message hcached]
       · rw [if_neg hc] at hsign
         cases hsign
-
 theorem bankInv_step (published : T3.Cache) (budget : Nat) (kg : List FirstHit.QueryEvent)
     (input : LazyPrivate.Interaction.Domain) (st : BankState) (hinv : BankInv published budget kg st)
     (r : LazyPrivate.Interaction.Range input × BankState)
@@ -421,8 +374,6 @@ theorem bankInv_step (published : T3.Cache) (budget : Nat) (kg : List FirstHit.Q
   cases input with
   | inl input => exact bankInv_world published budget kg input st hinv r hr
   | inr request => exact bankInv_sign published budget kg request st hinv r hr
-
-/-- **The invariant along a bank run.** -/
 theorem bankInv_run {α : Type} (published : T3.Cache) (budget : Nat) (kg : List FirstHit.QueryEvent)
     (program : OracleComp LazyPrivate.Interaction α) (st : BankState) (hinv : BankInv published budget kg st)
     (r : α × BankState) (hr : r ∈ ((simulateQ (bankImpl published budget) program).run st).support) :
@@ -440,8 +391,6 @@ theorem bankInv_run {α : Type} (published : T3.Cache) (budget : Nat) (kg : List
       rw [PMF.mem_support_bind_iff] at hr
       obtain ⟨middle, hm, hr⟩ := hr
       exact ih middle.1 middle.2 (bankInv_step published budget kg input st hinv middle hm) hr
-
-/-- The invariant at the start of the bank run (after key generation). -/
 theorem bankInv_initial (published : T3.Cache) (budget : Nat)
     (generated : (Digest × T3.Cache) × QueryRecorded.State)
     (hg : generated ∈ support (QueryRecorded.run keygen QueryRecorded.initial)) :
@@ -458,5 +407,4 @@ theorem bankInv_initial (published : T3.Cache) (budget : Nat)
     exact NonceFreshness.keygen_nonce_fresh m (generated.1, lazyOf generated.2) hl
   · intro entry he
     simp [Ghost.empty] at he
-
 end SigGolfCandidate.T3.Security.CaseC

@@ -20,7 +20,6 @@ import SigGolfCandidate.SphincsSecurity.Proof.Fts.CachedIndexHashMoments
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalQueryProjection
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.TerminalProposalWord
 import SigGolfCandidate.T3.Proofs
-import SigGolfCandidate.T3.PackedChain
 import Mathlib.RingTheory.Polynomial.Pochhammer
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.HashOutputSplit
 import SigGolfCandidate.SphincsSecurity.Proof.Base.BinomialMoments
@@ -37,7 +36,6 @@ import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalPrefixExponential
 import SigGolfCandidate.T3M.Final.SecurityP
 import SigGolfCandidate.T3M.Witness.Queries
 
--- SEC full-game composition: CountedPrivate
 section
 namespace SigGolfCandidate.T3.Security.CountedPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -46,37 +44,28 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 abbrev State := Nat × LazyPrivate.State
-
-/-- Count all charged source queries, including cache hits, while retaining both
-lazy oracle tables. The counter includes the complete preceding execution. -/
 noncomputable def run {α : Type} (program : M α) (state : State) : ProbComp (α × State) :=
   (fun result => (result.1.1,(state.1+result.1.2,result.2))) <$>
     LazyPrivate.run (counted Derivation.charged program) state.2
-
 theorem run_pure {α : Type} (value : α) (state : State) :
     run (pure value : M α) state=pure (value,state) := by
   simp only [run,counted_pure,LazyPrivate.run_pure,map_pure,Nat.add_zero]
-
 theorem run_bind {α β : Type} (program : M α) (next : α → M β) (state : State) :
     run (program >>= next) state=(do
       let result ← run program state
       run (next result.1) result.2) := by
   simp only [run,counted_bind,LazyPrivate.run_bind,LazyPrivate.run_map,LazyPrivate.run_pure,
     map_bind,map_pure,bind_pure_comp,bind_map_left,Functor.map_map,Prod.map,id_eq,Nat.add_assoc]
-
 theorem run_map {α β : Type} (f : α → β) (program : M α) (state : State) :
     run (f <$> program) state=Prod.map f id <$> run program state := by
   simp only [run,counted_map,LazyPrivate.run_map,Functor.map_map,Function.comp_def,Prod.map,id_eq]
-
 theorem run_erasure {α : Type} (program : M α) (state : State) :
     Prod.map id Prod.snd <$> run program state=LazyPrivate.run program state.2 := by
   unfold run
   rw [Functor.map_map]
   change Prod.map Prod.fst id <$> LazyPrivate.run (counted Derivation.charged program) state.2=_
   rw [← LazyPrivate.run_map,counted_forget]
-
 theorem run_query (input : T3.Spec.Domain) (state : State) :
     run (liftM (T3.Spec.query input)) state=
       (fun result => (result.1,(state.1+FullGame.queryCharge input,result.2))) <$>
@@ -86,10 +75,8 @@ theorem run_query (input : T3.Spec.Domain) (state : State) :
     simpa only [counted_pure,Nat.add_zero,pure_bind,bind_pure,bind_pure_comp,map_pure,FullGame.queryCharge] using
       (counted_query_bind Derivation.charged input (fun answer => pure answer))
   simp only [run,hq,LazyPrivate.run_map,Functor.map_map,Function.comp_def,Prod.map,id_eq]
-
 noncomputable def handler : QueryImpl T3.Spec (StateT State ProbComp) :=
   fun input => StateT.mk fun state => run (liftM (T3.Spec.query input)) state
-
 theorem run_simulate {α : Type} (program : M α) (state : State) :
     (simulateQ handler program).run state=run program state := by
   induction program using OracleComp.inductionOn generalizing state with
@@ -97,35 +84,25 @@ theorem run_simulate {α : Type} (program : M α) (state : State) :
   | query_bind input next ih =>
       simp only [simulateQ_bind,simulateQ_spec_query,StateT.run_bind,
         handler,StateT.run_mk,run_bind,ih]
-
 theorem count_monotone {α : Type} (program : M α) (state : State) (result : α × State)
     (hr : result ∈ support (run program state)) : state.1 ≤ result.2.1 := by
   rw [run,support_map] at hr
   obtain ⟨middle,_,rfl⟩ := hr
   exact Nat.le_add_right _ _
-
 noncomputable def experiment (adversary : Adversary) : ProbComp (Bool × State) :=
   run (FullGame.idealGame adversary) (0,∅,∅)
-
 theorem experiment_event (adversary : Adversary) (q : Nat) :
     Pr[fun result => result.1=true ∧ result.2.1≤q | experiment adversary]=
       Pr[fun result => result.1.1=true ∧ result.1.2≤q | FullGame.idealLazyExperiment adversary] := by
   simp only [experiment,run,FullGame.idealLazyExperiment,probEvent_map,Function.comp_def,Nat.zero_add]
-
-/-- Full real-game authentication reduction in the counted lazy source state.
-No cache-validity or independence condition is imposed on the adversary. -/
 theorem real_to_counted_ideal (adversary : Adversary) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.1≤q | experiment adversary]+
         ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [experiment_event]
   exact FullGame.real_to_ideal_lazy adversary q hq
-
 end SigGolfCandidate.T3.Security.CountedPrivate
 end
-
-
--- SEC full-game composition: AuthenticatedProposal
 section
 namespace SigGolfCandidate.T3.Security.CountedPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -135,9 +112,6 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
 noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
-
-/-- Authenticating against the published cache does not reveal the nonce of a
-different message. The ignored MAC answer is still sampled and charged. -/
 theorem authenticated_completed_target_bound (published : T3.Cache) (request : Request)
     (state : LazyPrivate.State) (hfresh : state.1 (.inr (.inl request.message))=none)
     (targets : Finset DigestSampling.IndexBuckets) :
@@ -156,7 +130,6 @@ theorem authenticated_completed_target_bound (published : T3.Cache) (request : R
     exact h
   · simp only [LazyPrivate.run_pure,expectedValue_pure,Option.elim_none,Sampling.targetWeight_average]
     exact le_add_right le_rfl
-
 theorem counted_completed_target_bound (published : T3.Cache) (request : Request)
     (state : State) (hfresh : state.2.1 (.inr (.inl request.message))=none)
     (targets : Finset DigestSampling.IndexBuckets) :
@@ -171,12 +144,10 @@ theorem counted_completed_target_bound (published : T3.Cache) (request : Request
     (run_erasure (FullGame.authenticatedRecord published request) state)
   rw [expectedValue_map] at h
   exact h.trans_le (authenticated_completed_target_bound published request state.2 hfresh targets)
-
 noncomputable def recordLaw (published : T3.Cache) (request : Request) (state : State) :
     PMF (((Option Signature × Option HashOutput) × State) × DigestSampling.IndexBuckets) :=
   liftM (Sampling.completeRecord (fun result => result.1.2)
     (run (FullGame.authenticatedRecord published request) state))
-
 theorem recordLaw_target_bound (published : T3.Cache) (request : Request) (state : State)
     (hfresh : state.2.1 (.inr (.inl request.message))=none) (targets : Finset DigestSampling.IndexBuckets) :
     Pr[fun result => result.2 ∈ targets | recordLaw published request state] ≤
@@ -187,7 +158,6 @@ theorem recordLaw_target_bound (published : T3.Cache) (request : Request) (state
       (fun result => Sampling.targetWeight targets result.2) ≤ _
   rw [Sampling.completeRecord_expected]
   exact counted_completed_target_bound published request state hfresh targets
-
 theorem recordLaw_scaled_cap (published : T3.Cache) (request : Request) (state : State)
     (hfresh : state.2.1 (.inr (.inl request.message))=none)
     (hfinite : SphincsSecurity.Finite state.2.2) (budget : Nat)
@@ -208,7 +178,6 @@ theorem recordLaw_scaled_cap (published : T3.Cache) (request : Request) (state :
     _ = _ := by
       apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
       norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_inv,ENNReal.toReal_pow]
-
 theorem recordLaw_erasure (published : T3.Cache) (request : Request) (state : State) :
     (recordLaw published request state).map (fun result => (result.1.1.1,result.1.2))=
       (liftM (run (FullGame.authenticatedSign published request) state) : PMF (Option Signature × State)) := by
@@ -233,41 +202,30 @@ theorem recordLaw_erasure (published : T3.Cache) (request : Request) (state : St
   have h := evalSPMF_ext_iff.mp hg response
   rw [probOutput_map] at h
   exact h
-
 abbrev Interaction := LazyPrivate.Interaction
-
 noncomputable def interactionSource (published : T3.Cache) : QueryImpl Interaction M
   | .inl input => forwardWorld input
   | .inr request => FullGame.authenticatedSign published request
-
 def Outcome : Interaction.Domain → Type
   | .inl input => SphincsSecurity.OracleWorld.Range input × State
   | .inr _ => (((Option Signature × Option HashOutput) × State) × DigestSampling.IndexBuckets)
-
 noncomputable def interactionRecord (published : T3.Cache) : (input : Interaction.Domain) → State → PMF (Outcome input)
   | .inl input,state => liftM (run (forwardWorld input) state)
   | .inr request,state => recordLaw published request state
-
 def response : (input : Interaction.Domain) → Outcome input → Interaction.Range input
   | .inl _,result => result.1
   | .inr _,result => result.1.1.1
-
 def advance : (input : Interaction.Domain) → State → Outcome input → State
   | .inl _,_,result => result.2
   | .inr _,_,result => result.1.2
-
 def label : (input : Interaction.Domain) → Outcome input → DigestSampling.IndexBuckets
   | .inl _,_ => default
   | .inr _,result => result.2
-
 noncomputable def active (budget : Nat) : Interaction.Domain → State → Bool
   | .inl _,_ => false
   | .inr request,state => decide (
       state.2.1 (.inr (.inl request.message))=none ∧ SphincsSecurity.Finite state.2.2 ∧
       QueryCache.enncard state.2.2 ≤ budget ∧ ¬Sampling.TargetCacheExceptional state.2.2)
-
-/-- Authenticated requests with their exact query cost, final caches and completed
-selected digest. Invalid requests still run; activity is only a ghost trace flag. -/
 noncomputable def proposalModel (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127) :
     BPORS.Adaptive.ProposalModel Interaction State DigestSampling.IndexBuckets where
   Outcome := Outcome
@@ -290,7 +248,6 @@ noncomputable def proposalModel (published : T3.Cache) (budget : Nat) (hbudget :
         change decide (_ ∧ _ ∧ _ ∧ _)=true at hactive
         obtain ⟨hfresh,hfinite,hsize,hclean⟩ := of_decide_eq_true hactive
         exact recordLaw_scaled_cap published request state hfresh hfinite budget hsize hbudget hclean point
-
 theorem proposal_query_erasure (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (input : Interaction.Domain) (state : State) :
     (((proposalModel published budget hbudget).original input).run state)=
@@ -303,7 +260,6 @@ theorem proposal_query_erasure (published : T3.Cache) (budget : Nat) (hbudget : 
       rw [id_map]
       rfl
   | inr request => exact recordLaw_erasure published request state
-
 theorem proposal_execution_erasure {α : Type} (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (program : OracleComp Interaction α) (state : State) :
     (simulateQ (proposalModel published budget hbudget).original program).run state=
@@ -316,7 +272,6 @@ theorem proposal_execution_erasure {α : Type} (published : T3.Cache) (budget : 
       apply bind_congr
       intro result
       exact ih result.1 result.2
-
 theorem proposal_trace_erasure {α : Type} (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (program : OracleComp Interaction α)
     (history : List DigestSampling.IndexBuckets) (state : State) :
@@ -324,7 +279,6 @@ theorem proposal_trace_erasure {α : Type} (published : T3.Cache) (budget : Nat)
       (simulateQ (proposalModel published budget hbudget).traced program).run (history,state)=
       (liftM (run (simulateQ (interactionSource published) program) state) : PMF (α × State)) := by
   rw [(proposalModel published budget hbudget).traced_erasure,proposal_execution_erasure]
-
 theorem logged_source {α : Type} (published : T3.Cache) (program : OracleComp Interaction α) :
     simulateQ (interactionSource published) (ProposalOverflow.logged program)=
       FullGame.loggedWith (FullGame.authenticatedSign published) program := by
@@ -338,12 +292,8 @@ theorem logged_source {α : Type} (published : T3.Cache) (program : OracleComp I
   · rfl
   · apply WriterT.ext
     simp
-
 end SigGolfCandidate.T3.Security.CountedPrivate
 end
-
-
--- SEC full-game composition: AuthenticatedOverflow
 section
 namespace SigGolfCandidate.T3.Security.CountedPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -352,7 +302,6 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 theorem signing_trace_overflow {Result : Type} (published : T3.Cache)
     (budget : Nat) (hbudget : budget ≤ 2^127)
     (program : OracleComp Interaction Result) (state : State) :
@@ -360,7 +309,6 @@ theorem signing_trace_overflow {Result : Type} (published : T3.Cache)
       (simulateQ (counted (proposalModel published budget hbudget)).traced program).run ([],0,state)] ≤
       (2 : ENNReal)⁻¹ ^ 700 :=
   full_trace_overflow_bound (proposalModel published budget hbudget) rfl program state
-
 theorem signing_count_le_fragment (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (input : LazyPrivate.Interaction.Domain) (state : List DigestSampling.IndexBuckets × (Nat × State))
     (result : LazyPrivate.Interaction.Range input × (List DigestSampling.IndexBuckets × (Nat × State)))
@@ -370,9 +318,6 @@ theorem signing_count_le_fragment (published : T3.Cache) (budget : Nat) (hbudget
   cases input with
   | inl input => simp [proposalModel, active, logFragment]
   | inr request => simp only [logFragment, List.length_singleton]; split <;> omega
-
-/-- Failed and repeated requests count too, exactly as in the source game log.
-The active-request counter is bounded by this log on every supported execution. -/
 theorem signing_count_le_log {Result : Type} (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (program : OracleComp LazyPrivate.Interaction Result)
     (state : List DigestSampling.IndexBuckets × (Nat × State))
@@ -397,7 +342,6 @@ theorem signing_count_le_log {Result : Type} (published : T3.Cache) (budget : Na
       subst result
       simp only [List.length_append]
       omega
-
 theorem signing_log_overflow {Result : Type} (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (program : OracleComp LazyPrivate.Interaction Result) (state : State) :
     Pr[fun result => result.1.2.length ≤ 2^32 ∧ BPORS.Numeric.proposalLength < result.2.1.length |
@@ -420,9 +364,6 @@ theorem signing_log_overflow {Result : Type} (published : T3.Cache) (budget : Na
         (logged program)).run ([],0,state)) result = 0 := by
       simpa only [PMF.mem_support_iff, not_not] using hr
     simp only [PMF.probOutput_eq_apply, hz, ite_self, le_refl]
-
-/-- Overflow in the existing, unmodified concrete proposal model, restricted
-only by the source game's actual signing-log limit. -/
 theorem source_proposal_overflow {Result : Type} (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (program : OracleComp LazyPrivate.Interaction Result) (state : State) :
     Pr[fun result => result.1.2.length ≤ 2^32 ∧ BPORS.Numeric.proposalLength < result.2.1.length |
@@ -431,13 +372,8 @@ theorem source_proposal_overflow {Result : Type} (published : T3.Cache) (budget 
   rw [← counted_trace_erasure (proposalModel published budget hbudget) (logged program) ([],0,state),
     probEvent_map]
   exact signing_log_overflow published budget hbudget program state
-
-
 end SigGolfCandidate.T3.Security.CountedPrivate
 end
-
-
--- SEC full-game composition: FullGameTrace
 section
 namespace SigGolfCandidate.T3.Security.CountedPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -445,11 +381,7 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 abbrev History := List DigestSampling.IndexBuckets
-
-/-- Execute actual keygen and verdict around the authenticated proposal trace.
-The source counter starts before keygen and finishes after forgery verification. -/
 noncomputable def tracedExperiment (adversary : Adversary) (budget : Nat)
     (hbudget : budget ≤ 2^127) : PMF (Bool × (History × State)) := do
   let generated ← (liftM (run keygen (0,∅,∅)) : PMF _)
@@ -457,9 +389,6 @@ noncomputable def tracedExperiment (adversary : Adversary) (budget : Nat)
     (ProposalOverflow.logged (adversary generated.1.1 generated.1.2))).run ([],generated.2)
   let checked ← (liftM (run (FullGame.verdict generated.1.1 interaction.1) interaction.2.2) : PMF _)
   pure (checked.1,interaction.2.1,checked.2)
-
-/-- Adding the full proposal word leaves the complete source result and exact
-query count unchanged, including unsuccessful requests and rejected forgeries. -/
 theorem tracedExperiment_erasure (adversary : Adversary) (budget : Nat)
     (hbudget : budget ≤ 2^127) :
     Prod.map id Prod.snd <$> tracedExperiment adversary budget hbudget=
@@ -473,7 +402,6 @@ theorem tracedExperiment_erasure (adversary : Adversary) (budget : Nat)
   rw [logged_source] at h
   rw [← h,bind_map_left]
   simp only [bind_pure,Prod.map,id_eq]
-
 theorem tracedExperiment_event (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2.2.1≤q | tracedExperiment adversary q hq]=
       Pr[fun result => result.1=true ∧ result.2.1≤q | experiment adversary] := by
@@ -485,16 +413,12 @@ theorem tracedExperiment_event (adversary : Adversary) (q : Nat) (hq : q ≤ 2^1
     _ = _ := by
       simp only [probEvent_eq_tsum_ite]
       rfl
-
-/-- The real game is now reduced to the adaptive proposal experiment, with
-the original source counter covering setup, signing, expansion and verification. -/
 theorem real_to_traced (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.1≤q | tracedExperiment adversary q hq]+
         ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [tracedExperiment_event]
   exact real_to_counted_ideal adversary q (hq.trans_lt (by norm_num))
-
 theorem verdict_success_log (publicKey : Digest) (interaction : Option Forgery × QueryLog Requests)
     (state : State) (result : Bool × State)
     (hr : result ∈ support (run (FullGame.verdict publicKey interaction) state))
@@ -510,12 +434,8 @@ theorem verdict_success_log (publicKey : Digest) (interaction : Option Forgery �
       obtain ⟨middle,_,rfl⟩ := hr
       simp only [Bool.and_eq_true,decide_eq_true_eq] at hwin
       exact hwin.1
-
 end SigGolfCandidate.T3.Security.CountedPrivate
 end
-
-
--- SEC full-game composition: FullGameTraceBounds
 section
 namespace SigGolfCandidate.T3.Security.CountedPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -523,9 +443,6 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- The source verdict enforces the lifetime cap. Thus proposal overflow on
-winning executions has the same bound after setup and forgery verification. -/
 theorem winning_trace_overflow (adversary : Adversary) (budget : Nat)
     (hbudget : budget ≤ 2^127) :
     Pr[fun result => result.1=true ∧ BPORS.Numeric.proposalLength < result.2.1.length |
@@ -549,7 +466,6 @@ theorem winning_trace_overflow (adversary : Adversary) (budget : Nat)
     simp only [h,if_true,show interaction.1.2.length≤2^32 ∧
       BPORS.Numeric.proposalLength < interaction.2.1.length from ⟨hl,h.2⟩,le_refl]
   · simp only [h,if_false,zero_le]
-
 theorem split_winning_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2.2.1≤q | tracedExperiment adversary q hq] ≤
       Pr[fun result => result.1=true ∧ result.2.2.1≤q ∧
@@ -565,9 +481,6 @@ theorem split_winning_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127)
     · simp [hw,hw.1,hw.2,hn,Nat.not_lt.mpr hn]
     · simp [hw,hw.1,hw.2,hn,Nat.lt_of_not_ge hn]
   · simp only [hw,if_false,zero_le]
-
-/-- Full-game reduction with a finite proposal history. Only the bounded,
-clean-state disclosure/forgery analysis remains on this side of the reduction. -/
 theorem real_to_bounded_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.1≤q ∧
@@ -578,12 +491,8 @@ theorem real_to_bounded_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^12
   apply add_le_add_left
   exact (split_winning_trace adversary q hq).trans
     (add_le_add le_rfl (winning_trace_overflow adversary q hq))
-
 end SigGolfCandidate.T3.Security.CountedPrivate
 end
-
-
--- SEC full-game composition: CountedCache
 section
 namespace SigGolfCandidate.T3.Security.CountedPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -592,7 +501,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] Sampling.allTargetMoment DigestSampling.acceptanceProbability
-
 theorem lazy_query_public_finite (input : T3.Spec.Domain) (state : LazyPrivate.State)
     (hfinite : SphincsSecurity.Finite state.2) (result : T3.Spec.Range input × LazyPrivate.State)
     (hr : result ∈ support (LazyPrivate.run (liftM (T3.Spec.query input)) state)) :
@@ -609,7 +517,6 @@ theorem lazy_query_public_finite (input : T3.Spec.Domain) (state : LazyPrivate.S
         support_pure,Set.mem_singleton_iff] at hr
       obtain ⟨_,_,rfl⟩ := hr
       exact hfinite
-
 theorem lazy_query_public_size (input : T3.Spec.Domain) (state : LazyPrivate.State)
     (result : T3.Spec.Range input × LazyPrivate.State)
     (hr : result ∈ support (LazyPrivate.run (liftM (T3.Spec.query input)) state)) :
@@ -632,7 +539,6 @@ theorem lazy_query_public_size (input : T3.Spec.Domain) (state : LazyPrivate.Sta
         support_pure,Set.mem_singleton_iff] at hr
       obtain ⟨_,_,rfl⟩ := hr
       exact le_add_right le_rfl
-
 theorem lazy_query_moment (input : T3.Spec.Domain) (state : LazyPrivate.State)
     (hfinite : SphincsSecurity.Finite state.2) :
     expectedValue (LazyPrivate.run (liftM (T3.Spec.query input)) state)
@@ -653,15 +559,10 @@ theorem lazy_query_moment (input : T3.Spec.Domain) (state : LazyPrivate.State)
       simp only [PrivateTable.lazyImpl,StateT.run_mk,expectedValue_bind,expectedValue_pure]
       rw [expectedValue_const (by simp)]
       exact le_add_right le_rfl
-
-/-- Every reachable source cache is finite and contains at most as many public
-hash entries as the total charged query counter. -/
 def WellFormed (state : State) : Prop :=
   SphincsSecurity.Finite state.2.2 ∧ QueryCache.enncard state.2.2 ≤ state.1
-
 theorem initial_wellFormed : WellFormed (0,∅,∅) := by
   exact ⟨SphincsSecurity.finite_empty,by simp [QueryCache.enncard]⟩
-
 theorem query_wellFormed (input : T3.Spec.Domain) (state : State) (hw : WellFormed state)
     (result : T3.Spec.Range input × State)
     (hr : result ∈ support (run (liftM (T3.Spec.query input)) state)) : WellFormed result.2 := by
@@ -671,7 +572,6 @@ theorem query_wellFormed (input : T3.Spec.Domain) (state : State) (hw : WellForm
   change QueryCache.enncard middle.2.2≤((state.1+FullGame.queryCharge input : Nat) : ENNReal)
   rw [Nat.cast_add]
   exact (lazy_query_public_size input state.2 middle hm).trans (add_le_add hw.2 le_rfl)
-
 theorem run_wellFormed {α : Type} (program : M α) (state : State) (hw : WellFormed state)
     (result : α × State) (hr : result ∈ support (run program state)) : WellFormed result.2 := by
   induction program using OracleComp.inductionOn generalizing state result with
@@ -683,7 +583,6 @@ theorem run_wellFormed {α : Type} (program : M α) (state : State) (hw : WellFo
       rw [run_bind,mem_support_bind_iff] at hr
       obtain ⟨middle,hm,hr⟩ := hr
       exact ih middle.1 middle.2 (query_wellFormed input state hw middle hm) result hr
-
 theorem active_iff_fresh_clean (request : Request) (state : State) (hw : WellFormed state)
     (budget : Nat) (hcount : state.1≤budget) :
     active budget (.inr request) state=true ↔
@@ -693,12 +592,8 @@ theorem active_iff_fresh_clean (request : Request) (state : State) (hw : WellFor
   · exact fun h => ⟨h.1,h.2.2.2⟩
   · intro h
     exact ⟨h.1,hw.1,hw.2.trans (by exact_mod_cast hcount),h.2⟩
-
 end SigGolfCandidate.T3.Security.CountedPrivate
 end
-
-
--- SEC full-game composition: LoggedNonceFreshness
 section
 namespace SigGolfCandidate.T3.Security.CountedPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -708,26 +603,22 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
 noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
-
 theorem run_project_support {α : Type} (program : M α) (state : State) (result : α × State)
     (hr : result ∈ support (run program state)) :
     (result.1,result.2.2) ∈ support (LazyPrivate.run program state.2) := by
   rw [← run_erasure program state,support_map]
   exact ⟨result,hr,rfl⟩
-
 theorem run_nonce_preserves {α : Type} (protectedMessage : Message) (program : M α)
     (hprogram : NonceFreshness.Avoids protectedMessage program)
     (state : State) (result : α × State) (hr : result ∈ support (run program state)) :
     result.2.2.1 (.inr (.inl protectedMessage))=state.2.1 (.inr (.inl protectedMessage)) :=
   NonceFreshness.run_preserves protectedMessage program hprogram state.2
     (result.1,result.2.2) (run_project_support program state result hr)
-
 theorem forwardWorld_avoids (protectedMessage : Message) (input : SphincsSecurity.OracleWorld.Domain) :
     NonceFreshness.Avoids protectedMessage (forwardWorld input) := by
   unfold forwardWorld
   apply (allQueriesSatisfy_query_iff _ _).mpr
   simp [NonceFreshness.nonceQuery]
-
 theorem authenticatedSign_avoids (protectedMessage : Message) (published : T3.Cache) (request : Request)
     (hrequest : request.cache≠published ∨ request.message≠protectedMessage) :
     NonceFreshness.Avoids protectedMessage (FullGame.authenticatedSign published request) := by
@@ -739,14 +630,8 @@ theorem authenticatedSign_avoids (protectedMessage : Message) (published : T3.Ca
   · exact NonceFreshness.avoids_signPayload protectedMessage request.cache request.message
       (hrequest.resolve_left (not_not.mpr hc))
   · exact NonceFreshness.avoids_pure protectedMessage none
-
-/-- Absence is tested against the actual log. Invalid-cache requests and failed
-signatures are retained, and only a request on the published cache uses its nonce. -/
 def NoPublishedRequest (published : T3.Cache) (message : Message) (log : QueryLog Requests) : Prop :=
   ∀ entry ∈ log, entry.1.cache≠published ∨ entry.1.message≠message
-
-/-- Adaptive first-request freshness from the observed transcript, with no
-syntactic restriction on the adversary's other possible executions. -/
 theorem logged_nonce_fresh {α : Type} (protectedMessage : Message) (published : T3.Cache)
     (program : OracleComp Interaction α) (state : State)
     (hfresh : state.2.1 (.inr (.inl protectedMessage))=none)
@@ -778,16 +663,11 @@ theorem logged_nonce_fresh {α : Type} (protectedMessage : Message) (published :
           apply ih middle.1 middle.2 hf last hl
           intro entry he
           exact hlog entry (List.mem_cons_of_mem _ he)
-
 theorem counted_keygen_nonce_fresh (message : Message) (generated : (Digest × T3.Cache) × State)
     (hg : generated ∈ support (run keygen (0,∅,∅))) :
     generated.2.2.1 (.inr (.inl message))=none :=
   NonceFreshness.keygen_nonce_fresh message (generated.1,generated.2.2)
     (run_project_support keygen (0,∅,∅) generated hg)
-
-/-- In a winning-budget prefix with clean cache, every first request on the
-published cache is active in the proposal coupling. Prior failed or invalid
-requests need no special restriction beyond their recorded cache/message. -/
 theorem first_published_request_active {α : Type} (message : Message) (cache : T3.Cache)
     (generated : (Digest × T3.Cache) × State) (hg : generated ∈ support (run keygen (0,∅,∅)))
     (program : OracleComp Interaction α) (result : (α × QueryLog Requests) × State)
@@ -802,7 +682,6 @@ theorem first_published_request_active {α : Type} (message : Message) (cache : 
   apply (active_iff_fresh_clean ⟨message,cache⟩ result.2 hw budget hcount).mpr
   exact ⟨logged_nonce_fresh message generated.1.2 program generated.2
     (counted_keygen_nonce_fresh message generated hg) result hr hlog,hclean⟩
-
 theorem authenticatedSign_hashOnly (published : T3.Cache) (request : Request) :
     SourceReplay.HashOnly (FullGame.authenticatedSign published request) := by
   unfold FullGame.authenticatedSign
@@ -813,26 +692,19 @@ theorem authenticatedSign_hashOnly (published : T3.Cache) (request : Request) :
   · exact SourceQueries.signPayload_allowed SourceReplay.IsHash (fun _ => trivial) (fun _ => trivial)
       (fun _ => trivial) request.cache request.message
   · exact SourceQueries.pure_allowed _ _
-
 theorem authenticatedRecord_hashOnly (published : T3.Cache) (request : Request) :
     SourceReplay.HashOnly (FullGame.authenticatedRecord published request) := by
   apply (SourceQueries.map_allowed_iff SourceReplay.IsHash Prod.fst _).mp
   rw [FullGame.authenticatedRecord_erasure]
   exact authenticatedSign_hashOnly published request
-
-/-- The actual selected digest and signer failure/success replay after any
-intervening source calls once the same published-cache request has run. -/
 theorem authenticatedRecord_replay (published : T3.Cache) (request : Request)
     (before : LazyPrivate.State) (result : (Option Signature × Option HashOutput) × LazyPrivate.State)
     (hr : result ∈ support (LazyPrivate.run (FullGame.authenticatedRecord published request) before))
     (after : LazyPrivate.State) (hle : SourceReplay.Extends result.2 after) :
     LazyPrivate.run (FullGame.authenticatedRecord published request) after=pure (result.1,after) :=
   SourceReplay.replay_run _ (authenticatedRecord_hashOnly published request) before result hr after hle
-
 end SigGolfCandidate.T3.Security.CountedPrivate
 end
-
-
 namespace SigGolfResearch.Gate6.NativeCache
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3
@@ -846,7 +718,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] totalWeight
-
 theorem expected_totalWeight_step (q : Nat) (query : SphincsSecurity.OracleWorld.Domain)
     (cache : RCache) (hfinite : Finite cache) :
     expectedValue ((SphincsSecurity.romImpl query).run cache) (fun result => totalWeight q result.2) ≤
@@ -858,9 +729,6 @@ theorem expected_totalWeight_step (q : Nat) (query : SphincsSecurity.OracleWorld
     cases query <;> rfl
   rw [hz,add_zero] at h
   exact h
-
-/-- The native T3 interpreter includes arbitrary public coins, memoized public
-hashes and private-table queries. Private queries preserve this public potential. -/
 theorem lazy_query_weight (q : Nat) (input : Spec.Domain) (state : LazyPrivate.State)
     (hfinite : Finite state.2) :
     expectedValue (LazyPrivate.run (liftM (Spec.query input)) state)
@@ -873,11 +741,7 @@ theorem lazy_query_weight (q : Nat) (input : Spec.Domain) (state : LazyPrivate.S
   | inr coordinate =>
       simp only [PrivateTable.lazyImpl,StateT.run_mk,expectedValue_bind,expectedValue_pure]
       rw [expectedValue_const (by simp)]
-
-
 end SigGolfResearch.Gate6.NativeCache
-
--- SEC full-game composition: CacheFirstException
 section
 namespace SigGolfCandidate.T3.Security.CountedPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -886,15 +750,11 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] Sampling.allTargetMoment DigestSampling.acceptanceProbability
-
 structure Observation (α : Type) where
   value : α
   calls : Nat
   exceptional : Bool
   state : LazyPrivate.State
-
-/-- Ghost observation of every public cache visited by the source computation.
-Exceptions are latched even if a later query makes the cache clean again. -/
 noncomputable def observe {α : Type} (program : M α) : LazyPrivate.State → ProbComp (Observation α) :=
   OracleComp.construct
     (fun value state => pure ⟨value,0,decide (Sampling.TargetCacheExceptional state.2),state⟩)
@@ -903,11 +763,9 @@ noncomputable def observe {α : Type} (program : M α) : LazyPrivate.State → P
       (fun last => ⟨last.value,FullGame.queryCharge input+last.calls,
         decide (Sampling.TargetCacheExceptional state.2) || last.exceptional,last.state⟩) <$>
           next middle.1 middle.2) program
-
 theorem observe_pure {α : Type} (value : α) (state : LazyPrivate.State) :
     observe (pure value : M α) state=
       pure ⟨value,0,decide (Sampling.TargetCacheExceptional state.2),state⟩ := rfl
-
 theorem observe_query_bind {α : Type} (input : T3.Spec.Domain)
     (next : T3.Spec.Range input → M α) (state : LazyPrivate.State) :
     observe (liftM (T3.Spec.query input) >>= next) state=(do
@@ -915,7 +773,6 @@ theorem observe_query_bind {α : Type} (input : T3.Spec.Domain)
       (fun last => ⟨last.value,FullGame.queryCharge input+last.calls,
         decide (Sampling.TargetCacheExceptional state.2) || last.exceptional,last.state⟩) <$>
           observe (next middle.1) middle.2) := rfl
-
 theorem exception_potential_ge_one (state : LazyPrivate.State)
     (hbad : Sampling.TargetCacheExceptional state.2) (budget : Nat) :
     1 ≤ (Sampling.allTargetMoment state.2+DigestSampling.acceptanceProbability*budget)/(2 : ENNReal)^94 := by
@@ -924,7 +781,6 @@ theorem exception_potential_ge_one (state : LazyPrivate.State)
       (ENNReal.div_self (by norm_num) (by finiteness)).symm
     _ ≤ _ := ENNReal.div_le_div_right
       ((Sampling.targetCacheExceptional_moment state.2 hbad).trans le_self_add) _
-
 theorem query_remaining_potential (input : T3.Spec.Domain) (state : LazyPrivate.State)
     (hfinite : SphincsSecurity.Finite state.2) (remaining : Nat) :
     expectedValue (LazyPrivate.run (liftM (T3.Spec.query input)) state)
@@ -949,10 +805,6 @@ theorem query_remaining_potential (input : T3.Spec.Domain) (state : LazyPrivate.
           DigestSampling.acceptanceProbability*remaining :=
       add_le_add (lazy_query_moment input state hfinite) le_rfl
     _ = _ := by push_cast;ring
-
-/-- First-exception bound for any adaptive source program, with all private
-and public queries included in the actual budget. The observation keeps running
-after the first exception and retains the original result and final caches. -/
 theorem observe_exception_bound {α : Type} (program : M α) (state : LazyPrivate.State)
     (hfinite : SphincsSecurity.Finite state.2) (budget : Nat) :
     Pr[fun result => result.calls≤budget ∧ result.exceptional=true | observe program state] ≤
@@ -997,13 +849,11 @@ theorem observe_exception_bound {α : Type} (program : M α) (state : LazyPrivat
             _ ≤ _ := by
               simpa only [FullGame.queryCharge,if_neg hc,Nat.zero_add] using
                 query_remaining_potential input state hfinite budget
-
 theorem observe_empty_exception_bound {α : Type} (program : M α) (budget : Nat) :
     Pr[fun result => result.calls≤budget ∧ result.exceptional=true | observe program (∅,∅)] ≤
       DigestSampling.acceptanceProbability*budget/(2 : ENNReal)^94 := by
   simpa only [Sampling.allTargetMoment_empty,zero_add] using
     observe_exception_bound program (∅,∅) SphincsSecurity.finite_empty budget
-
 theorem observe_empty_exception_small {α : Type} (program : M α) (budget : Nat) :
     Pr[fun result => result.calls≤budget ∧ result.exceptional=true | observe program (∅,∅)] ≤
       budget/(2 : ENNReal)^98 := by
@@ -1016,12 +866,8 @@ theorem observe_empty_exception_small {α : Type} (program : M α) (budget : Nat
       apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
       norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_pow]
       ring
-
 end SigGolfCandidate.T3.Security.CountedPrivate
 end
-
-
--- SEC full-game composition: CacheObservationErasure
 section
 namespace SigGolfCandidate.T3.Security.CountedPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -1030,9 +876,6 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- The first-exception monitor preserves the original value, charged call count
-and both final oracle caches exactly. It contributes only an observation bit. -/
 theorem observe_counter_erasure {α : Type} (program : M α) (state : LazyPrivate.State) :
     (fun result : Observation α => ((result.value,result.calls),result.state)) <$> observe program state=
       LazyPrivate.run (counted Derivation.charged program) state := by
@@ -1054,10 +897,8 @@ theorem observe_counter_erasure {α : Type} (program : M α) (state : LazyPrivat
         rfl
       rw [he]
       simpa only [Functor.map_map] using h
-
 noncomputable def observedExperiment (adversary : Adversary) : ProbComp (Observation Bool) :=
   observe (FullGame.idealGame adversary) (∅,∅)
-
 theorem observedExperiment_event (adversary : Adversary) (q : Nat) :
     Pr[fun result => result.value=true ∧ result.calls≤q | observedExperiment adversary]=
       Pr[fun result => result.1.1=true ∧ result.1.2≤q | FullGame.idealLazyExperiment adversary] := by
@@ -1065,7 +906,6 @@ theorem observedExperiment_event (adversary : Adversary) (q : Nat) :
     Pr[fun result => result.1.1=true ∧ result.1.2≤q | program])
     (observe_counter_erasure (FullGame.idealGame adversary) (∅,∅))
   simpa only [observedExperiment,FullGame.idealLazyExperiment,probEvent_map,Function.comp_def] using h
-
 theorem split_observed_win (adversary : Adversary) (q : Nat) :
     Pr[fun result => result.value=true ∧ result.calls≤q | observedExperiment adversary] ≤
       Pr[fun result => result.value=true ∧ result.calls≤q ∧ result.exceptional=false |
@@ -1078,10 +918,6 @@ theorem split_observed_win (adversary : Adversary) (q : Nat) :
   by_cases hw : result.value=true ∧ result.calls≤q
   · cases hb : result.exceptional <;> simp [hw,hw.2,hb]
   · simp only [hw,if_false,zero_le]
-
-/-- Full real-game reduction to a source execution whose public cache was clean
-at every visited state. This controls the first exception, not just the final
-cache, and preserves actual costs even after an exception occurs. -/
 theorem real_to_clean_observed (adversary : Adversary) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.value=true ∧ result.calls≤q ∧ result.exceptional=false |
@@ -1094,12 +930,9 @@ theorem real_to_clean_observed (adversary : Adversary) (q : Nat) (hq : q < 2^256
   apply add_le_add_left
   exact (split_observed_win adversary q).trans
     (add_le_add le_rfl (observe_empty_exception_small (FullGame.idealGame adversary) q))
-
 end SigGolfCandidate.T3.Security.CountedPrivate
 end
-
-
-section -- MonitoredPrivate
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
@@ -1107,45 +940,34 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] Sampling.allTargetMoment DigestSampling.acceptanceProbability
-
 structure State where
   source : CountedPrivate.State
   exceptional : Bool
-
 noncomputable def flag (state : State) (next : CountedPrivate.State) : Bool :=
   state.exceptional || decide (Sampling.TargetCacheExceptional state.source.2.2) ||
     decide (Sampling.TargetCacheExceptional next.2.2)
-
-/-- The source interpreter carries a ghost bit recording any cache exception.
-Every source call still executes and retains its original query charge. -/
 noncomputable def handler : QueryImpl T3.Spec (StateT State ProbComp) :=
   fun input => StateT.mk fun state =>
     (fun result => (result.1,⟨result.2,flag state result.2⟩)) <$>
       CountedPrivate.run (liftM (T3.Spec.query input)) state.source
-
 noncomputable def run {α : Type} (program : M α) (state : State) : ProbComp (α × State) :=
   (simulateQ handler program).run state
-
 theorem run_pure {α : Type} (value : α) (state : State) :
     run (pure value : M α) state=pure (value,state) := rfl
-
 theorem run_bind {α β : Type} (program : M α) (next : α → M β) (state : State) :
     run (program >>= next) state=(do
       let result ← run program state
       run (next result.1) result.2) := by
   simp only [run,simulateQ_bind,StateT.run_bind]
-
 theorem run_map {α β : Type} (f : α → β) (program : M α) (state : State) :
     run (f <$> program) state=Prod.map f id <$> run program state := by
   simp only [run,simulateQ_map,StateT.run_map]
   rfl
-
 theorem run_query (input : T3.Spec.Domain) (state : State) :
     run (liftM (T3.Spec.query input)) state=
       (fun result => (result.1,⟨result.2,flag state result.2⟩)) <$>
         CountedPrivate.run (liftM (T3.Spec.query input)) state.source := by
   simp only [run,simulateQ_spec_query,handler,StateT.run_mk]
-
 theorem run_erasure {α : Type} (program : M α) (state : State) :
     Prod.map id State.source <$> run program state=CountedPrivate.run program state.source := by
   induction program using OracleComp.inductionOn generalizing state with
@@ -1155,16 +977,13 @@ theorem run_erasure {α : Type} (program : M α) (state : State) :
       apply bind_congr
       intro result
       exact ih result.1 ⟨result.2,flag state result.2⟩
-
 theorem run_project_support {α : Type} (program : M α) (state : State) (result : α × State)
     (hr : result ∈ support (run program state)) :
     (result.1,result.2.source) ∈ support (CountedPrivate.run program state.source) := by
   rw [← run_erasure program state,support_map]
   exact ⟨result,hr,rfl⟩
-
 theorem flag_monotone (state : State) (next : CountedPrivate.State)
     (h : state.exceptional=true) : flag state next=true := by simp [flag,h]
-
 theorem run_flag_monotone {α : Type} (program : M α) (state : State)
     (h : state.exceptional=true) (result : α × State) (hr : result ∈ support (run program state)) :
     result.2.exceptional=true := by
@@ -1179,15 +998,12 @@ theorem run_flag_monotone {α : Type} (program : M α) (state : State)
       rw [run_query,support_map] at hm
       obtain ⟨step,_,rfl⟩ := hm
       exact ih step.1 _ (flag_monotone state step.2 h) result hr
-
 def Coherent (state : State) : Prop :=
   Sampling.TargetCacheExceptional state.source.2.2 → state.exceptional=true
-
 theorem flag_coherent (state : State) (next : CountedPrivate.State) :
     Coherent ⟨next,flag state next⟩ := by
   intro h
   simp [flag,h]
-
 theorem run_coherent {α : Type} (program : M α) (state : State) (h : Coherent state)
     (result : α × State) (hr : result ∈ support (run program state)) : Coherent result.2 := by
   induction program using OracleComp.inductionOn generalizing state result with
@@ -1201,14 +1017,10 @@ theorem run_coherent {α : Type} (program : M α) (state : State) (h : Coherent 
       rw [run_query,support_map] at hm
       obtain ⟨step,_,rfl⟩ := hm
       exact ih step.1 _ (flag_coherent state step.2) result hr
-
 theorem flag_of_clean (state : State) (hflag : state.exceptional=false)
     (hclean : ¬Sampling.TargetCacheExceptional state.source.2.2) (next : CountedPrivate.State) :
     flag state next=decide (Sampling.TargetCacheExceptional next.2.2) := by
   simp [flag,hflag,hclean]
-
-/-- First-exception probability for the stateful source interpreter used by
-the joint proposal game. The starting counter need not be zero. -/
 theorem run_exception_bound {α : Type} (program : M α) (state : State)
     (hflag : state.exceptional=false) (hfinite : SphincsSecurity.Finite state.source.2.2)
     (budget : Nat) :
@@ -1272,16 +1084,11 @@ theorem run_exception_bound {α : Type} (program : M α) (state : State)
             _ ≤ _ := by
               simpa only [FullGame.queryCharge,if_neg hc,Nat.zero_add] using
                 CountedPrivate.query_remaining_potential input state.source.2 hfinite budget
-
-
 theorem gate6_bad_potential (q : Nat) (cache : Sampling.RCache)
     (hq : QueryCache.enncard cache ≤ q) (hbad : Sampling.TargetCacheExceptional cache) :
     1 ≤ SigGolfResearch.Gate6.NativeCache.totalWeight q cache :=
   SigGolfResearch.Gate6.NativeCache.totalWeight_bad q cache hq
     ((Sampling.targetCacheExceptional_iff_native cache).mp hbad)
-
-/-- Exponential all-prefix bound in the actual counted stateful source
-interpreter. The starting source counter is retained exactly. -/
 theorem gate6_run_exception_bound {α : Type} (program : M α) (state : State)
     (hflag : state.exceptional=false) (hfinite : SphincsSecurity.Finite state.source.2.2)
     (budget q : Nat) (hcap : QueryCache.enncard state.source.2.2+(budget : ENNReal) ≤ q) :
@@ -1348,14 +1155,11 @@ theorem gate6_run_exception_bound {α : Type} (program : M α) (state : State)
                   (by simp [hmBad]) (CountedPrivate.lazy_query_public_finite input state.source.2 hfinite middle hm) budget hn
                 simpa only [FullGame.queryCharge,if_neg hc,Nat.add_zero] using hi
             _  ≤  _ := SigGolfResearch.Gate6.NativeCache.lazy_query_weight q input state.source.2 hfinite
-
 theorem gate6_run_empty_tail {α : Type} (program : M α) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.2.source.1 ≤ q ∧ result.2.exceptional=true |
       run program ⟨(0,∅,∅),false⟩] ≤ (2^700 : ENNReal)⁻¹ := by
   have h := gate6_run_exception_bound program ⟨(0,∅,∅),false⟩ rfl SphincsSecurity.finite_empty q q (by simp)
   simpa only [Nat.zero_add] using h.trans (SigGolfResearch.Gate6.NativeCache.initial_totalWeight_le q hq)
-
-
 theorem gate6_not_bad_of_zero (cache : SigGolfResearch.Gate6.NativeCache.RCache) (hfinite : SphincsSecurity.Finite cache)
     (hzero : QueryCache.enncard cache=0) : ¬Sampling.TargetCacheExceptional cache := by
   intro hbad
@@ -1363,8 +1167,6 @@ theorem gate6_not_bad_of_zero (cache : SigGolfResearch.Gate6.NativeCache.RCache)
   have hc : SigGolfResearch.Gate6.NativeCache.count mark cache=0 :=
     le_antisymm ((SigGolfResearch.Gate6.NativeCache.count_le_enncard mark cache hfinite).trans_eq hzero) bot_le
   norm_num [hzero,hc] at hmark
-
-/-- A zero charged-query execution can never create an exceptional cache. -/
 theorem gate6_run_zero_exception {α : Type} (program : M α) (state : State)
     (hflag : state.exceptional=false) (hfinite : SphincsSecurity.Finite state.source.2.2)
     (hzero : QueryCache.enncard state.source.2.2=0) :
@@ -1398,7 +1200,6 @@ theorem gate6_run_zero_exception {α : Type} (program : M α) (state : State)
           ⟨(state.source.1+FullGame.queryCharge input,middle.2),decide (Sampling.TargetCacheExceptional middle.2.2)⟩
           (by simp [hn]) hf hz
         simpa only [FullGame.queryCharge,if_neg hc,Nat.add_zero] using le_antisymm hi bot_le
-
 theorem gate6_run_empty_linear_charge {α : Type} (program : M α) (q bits : Nat)
     (hq : q ≤ 2^127) (hbits : bits ≤ 700) :
     Pr[fun result => result.2.source.1 ≤ q ∧ result.2.exceptional=true |
@@ -1412,12 +1213,9 @@ theorem gate6_run_empty_linear_charge {α : Type} (program : M α) (q bits : Nat
       _ ≤ (2^bits : ENNReal)⁻¹ := ENNReal.inv_le_inv.mpr (pow_le_pow_right₀ (by norm_num) hbits)
       _ = (1 : ENNReal)/2^bits := by simp
       _ ≤ _ := ENNReal.div_le_div_right (by exact_mod_cast (show 1 ≤ q by omega)) _
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- MonitoredProposal
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
@@ -1426,8 +1224,6 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
 noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
-
-/-- Ghost cache monitoring preserves the exact completed-label marginal. -/
 theorem monitored_completed_target_bound (published : T3.Cache) (request : Request)
     (state : State) (hfresh : state.source.2.1 (.inr (.inl request.message))=none)
     (targets : Finset DigestSampling.IndexBuckets) :
@@ -1442,12 +1238,10 @@ theorem monitored_completed_target_bound (published : T3.Cache) (request : Reque
     (run_erasure (FullGame.authenticatedRecord published request) state)
   rw [expectedValue_map] at h
   exact h.trans_le (CountedPrivate.counted_completed_target_bound published request state.source hfresh targets)
-
 noncomputable def recordLaw (published : T3.Cache) (request : Request) (state : State) :
     PMF (((Option Signature × Option HashOutput) × State) × DigestSampling.IndexBuckets) :=
   liftM (Sampling.completeRecord (fun result => result.1.2)
     (run (FullGame.authenticatedRecord published request) state))
-
 theorem recordLaw_target_bound (published : T3.Cache) (request : Request) (state : State)
     (hfresh : state.source.2.1 (.inr (.inl request.message))=none) (targets : Finset DigestSampling.IndexBuckets) :
     Pr[fun result => result.2 ∈ targets | recordLaw published request state] ≤
@@ -1458,7 +1252,6 @@ theorem recordLaw_target_bound (published : T3.Cache) (request : Request) (state
       (fun result => Sampling.targetWeight targets result.2) ≤ _
   rw [Sampling.completeRecord_expected]
   exact monitored_completed_target_bound published request state hfresh targets
-
 theorem recordLaw_scaled_cap (published : T3.Cache) (request : Request) (state : State)
     (hfresh : state.source.2.1 (.inr (.inl request.message))=none)
     (hfinite : SphincsSecurity.Finite state.source.2.2) (budget : Nat)
@@ -1479,7 +1272,6 @@ theorem recordLaw_scaled_cap (published : T3.Cache) (request : Request) (state :
     _ = _ := by
       apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
       norm_num [ENNReal.toReal_mul,ENNReal.toReal_div,ENNReal.toReal_inv,ENNReal.toReal_pow]
-
 theorem recordLaw_erasure (published : T3.Cache) (request : Request) (state : State) :
     (recordLaw published request state).map (fun result => (result.1.1.1,result.1.2))=
       (liftM (run (FullGame.authenticatedSign published request) state) : PMF (Option Signature × State)) := by
@@ -1504,41 +1296,30 @@ theorem recordLaw_erasure (published : T3.Cache) (request : Request) (state : St
   have h := evalSPMF_ext_iff.mp hg response
   rw [probOutput_map] at h
   exact h
-
 abbrev Interaction := LazyPrivate.Interaction
-
 noncomputable def interactionSource (published : T3.Cache) : QueryImpl Interaction M
   | .inl input => forwardWorld input
   | .inr request => FullGame.authenticatedSign published request
-
 def Outcome : Interaction.Domain → Type
   | .inl input => SphincsSecurity.OracleWorld.Range input × State
   | .inr _ => (((Option Signature × Option HashOutput) × State) × DigestSampling.IndexBuckets)
-
 noncomputable def interactionRecord (published : T3.Cache) : (input : Interaction.Domain) → State → PMF (Outcome input)
   | .inl input,state => liftM (run (forwardWorld input) state)
   | .inr request,state => recordLaw published request state
-
 def response : (input : Interaction.Domain) → Outcome input → Interaction.Range input
   | .inl _,result => result.1
   | .inr _,result => result.1.1.1
-
 def advance : (input : Interaction.Domain) → State → Outcome input → State
   | .inl _,_,result => result.2
   | .inr _,_,result => result.1.2
-
 def label : (input : Interaction.Domain) → Outcome input → DigestSampling.IndexBuckets
   | .inl _,_ => default
   | .inr _,result => result.2
-
 noncomputable def active (budget : Nat) : Interaction.Domain → State → Bool
   | .inl _,_ => false
   | .inr request,state => decide (
       state.source.2.1 (.inr (.inl request.message))=none ∧ SphincsSecurity.Finite state.source.2.2 ∧
       QueryCache.enncard state.source.2.2 ≤ budget ∧ ¬Sampling.TargetCacheExceptional state.source.2.2)
-
-/-- Authenticated requests with their exact query cost, final caches and completed
-selected digest. Invalid requests still run; activity is only a ghost trace flag. -/
 noncomputable def proposalModel (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127) :
     BPORS.Adaptive.ProposalModel Interaction State DigestSampling.IndexBuckets where
   Outcome := Outcome
@@ -1561,7 +1342,6 @@ noncomputable def proposalModel (published : T3.Cache) (budget : Nat) (hbudget :
         change decide (_ ∧ _ ∧ _ ∧ _)=true at hactive
         obtain ⟨hfresh,hfinite,hsize,hclean⟩ := of_decide_eq_true hactive
         exact recordLaw_scaled_cap published request state hfresh hfinite budget hsize hbudget hclean point
-
 theorem proposal_query_erasure (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (input : Interaction.Domain) (state : State) :
     (((proposalModel published budget hbudget).original input).run state)=
@@ -1574,7 +1354,6 @@ theorem proposal_query_erasure (published : T3.Cache) (budget : Nat) (hbudget : 
       rw [id_map]
       rfl
   | inr request => exact recordLaw_erasure published request state
-
 theorem proposal_execution_erasure {α : Type} (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (program : OracleComp Interaction α) (state : State) :
     (simulateQ (proposalModel published budget hbudget).original program).run state=
@@ -1587,7 +1366,6 @@ theorem proposal_execution_erasure {α : Type} (published : T3.Cache) (budget : 
       apply bind_congr
       intro result
       exact ih result.1 result.2
-
 theorem proposal_trace_erasure {α : Type} (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (program : OracleComp Interaction α)
     (history : List DigestSampling.IndexBuckets) (state : State) :
@@ -1595,7 +1373,6 @@ theorem proposal_trace_erasure {α : Type} (published : T3.Cache) (budget : Nat)
       (simulateQ (proposalModel published budget hbudget).traced program).run (history,state)=
       (liftM (run (simulateQ (interactionSource published) program) state) : PMF (α × State)) := by
   rw [(proposalModel published budget hbudget).traced_erasure,proposal_execution_erasure]
-
 theorem logged_source {α : Type} (published : T3.Cache) (program : OracleComp Interaction α) :
     simulateQ (interactionSource published) (ProposalOverflow.logged program)=
       FullGame.loggedWith (FullGame.authenticatedSign published) program := by
@@ -1609,12 +1386,9 @@ theorem logged_source {α : Type} (published : T3.Cache) (program : OracleComp I
   · rfl
   · apply WriterT.ext
     simp
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- MonitoredOverflow
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open ProposalOverflow
@@ -1622,7 +1396,6 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 theorem signing_trace_overflow {Result : Type} (published : T3.Cache)
     (budget : Nat) (hbudget : budget ≤ 2^127)
     (program : OracleComp Interaction Result) (state : State) :
@@ -1630,7 +1403,6 @@ theorem signing_trace_overflow {Result : Type} (published : T3.Cache)
       (simulateQ (counted (proposalModel published budget hbudget)).traced program).run ([],0,state)] ≤
       (2 : ENNReal)⁻¹ ^ 700 :=
   full_trace_overflow_bound (proposalModel published budget hbudget) rfl program state
-
 theorem signing_count_le_fragment (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (input : LazyPrivate.Interaction.Domain) (state : List DigestSampling.IndexBuckets × (Nat × State))
     (result : LazyPrivate.Interaction.Range input × (List DigestSampling.IndexBuckets × (Nat × State)))
@@ -1640,9 +1412,6 @@ theorem signing_count_le_fragment (published : T3.Cache) (budget : Nat) (hbudget
   cases input with
   | inl input => simp [proposalModel, active, logFragment]
   | inr request => simp only [logFragment, List.length_singleton]; split <;> omega
-
-/-- Failed and repeated requests count too, exactly as in the source game log.
-The active-request counter is bounded by this log on every supported execution. -/
 theorem signing_count_le_log {Result : Type} (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (program : OracleComp LazyPrivate.Interaction Result)
     (state : List DigestSampling.IndexBuckets × (Nat × State))
@@ -1667,7 +1436,6 @@ theorem signing_count_le_log {Result : Type} (published : T3.Cache) (budget : Na
       subst result
       simp only [List.length_append]
       omega
-
 theorem signing_log_overflow {Result : Type} (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (program : OracleComp LazyPrivate.Interaction Result) (state : State) :
     Pr[fun result => result.1.2.length ≤ 2^32 ∧ BPORS.Numeric.proposalLength < result.2.1.length |
@@ -1690,9 +1458,6 @@ theorem signing_log_overflow {Result : Type} (published : T3.Cache) (budget : Na
         (logged program)).run ([],0,state)) result = 0 := by
       simpa only [PMF.mem_support_iff, not_not] using hr
     simp only [PMF.probOutput_eq_apply, hz, ite_self, le_refl]
-
-/-- Overflow in the existing, unmodified concrete proposal model, restricted
-only by the source game's actual signing-log limit. -/
 theorem source_proposal_overflow {Result : Type} (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (program : OracleComp LazyPrivate.Interaction Result) (state : State) :
     Pr[fun result => result.1.2.length ≤ 2^32 ∧ BPORS.Numeric.proposalLength < result.2.1.length |
@@ -1701,44 +1466,32 @@ theorem source_proposal_overflow {Result : Type} (published : T3.Cache) (budget 
   rw [← counted_trace_erasure (proposalModel published budget hbudget) (logged program) ([],0,state),
     probEvent_map]
   exact signing_log_overflow published budget hbudget program state
-
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- MonitoredGameTrace
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 noncomputable def experiment (adversary : Adversary) : ProbComp (Bool × State) :=
   run (FullGame.idealGame adversary) ⟨(0,∅,∅),false⟩
-
 theorem experiment_erasure (adversary : Adversary) :
     Prod.map id State.source <$> experiment adversary=CountedPrivate.experiment adversary :=
   run_erasure (FullGame.idealGame adversary) ⟨(0,∅,∅),false⟩
-
 theorem experiment_event (adversary : Adversary) (q : Nat) :
     Pr[fun result => result.1=true ∧ result.2.source.1≤q | experiment adversary]=
       Pr[fun result => result.1=true ∧ result.2.1≤q | CountedPrivate.experiment adversary] := by
   rw [← experiment_erasure adversary,probEvent_map]
   rfl
-
 theorem real_to_monitored_ideal (adversary : Adversary) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.source.1≤q | experiment adversary]+
         ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [experiment_event]
   exact CountedPrivate.real_to_counted_ideal adversary q hq
-
 abbrev History := List DigestSampling.IndexBuckets
-
-/-- Execute actual keygen and verdict around the authenticated proposal trace.
-The source counter starts before keygen and finishes after forgery verification. -/
 noncomputable def tracedExperiment (adversary : Adversary) (budget : Nat)
     (hbudget : budget ≤ 2^127) : PMF (Bool × (History × State)) := do
   let generated ← (liftM (run keygen ⟨(0,∅,∅),false⟩) : PMF _)
@@ -1746,9 +1499,6 @@ noncomputable def tracedExperiment (adversary : Adversary) (budget : Nat)
     (ProposalOverflow.logged (adversary generated.1.1 generated.1.2))).run ([],generated.2)
   let checked ← (liftM (run (FullGame.verdict generated.1.1 interaction.1) interaction.2.2) : PMF _)
   pure (checked.1,interaction.2.1,checked.2)
-
-/-- Adding the full proposal word leaves the complete source result and exact
-query count unchanged, including unsuccessful requests and rejected forgeries. -/
 theorem tracedExperiment_erasure (adversary : Adversary) (budget : Nat)
     (hbudget : budget ≤ 2^127) :
     Prod.map id Prod.snd <$> tracedExperiment adversary budget hbudget=
@@ -1762,7 +1512,6 @@ theorem tracedExperiment_erasure (adversary : Adversary) (budget : Nat)
   rw [logged_source] at h
   rw [← h,bind_map_left]
   simp only [bind_pure,Prod.map,id_eq]
-
 theorem tracedExperiment_event (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2.2.source.1≤q | tracedExperiment adversary q hq]=
       Pr[fun result => result.1=true ∧ result.2.source.1≤q | experiment adversary] := by
@@ -1774,16 +1523,12 @@ theorem tracedExperiment_event (adversary : Adversary) (q : Nat) (hq : q ≤ 2^1
     _ = _ := by
       simp only [probEvent_eq_tsum_ite]
       rfl
-
-/-- The real game is now reduced to the adaptive proposal experiment, with
-the original source counter covering setup, signing, expansion and verification. -/
 theorem real_to_traced (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.source.1≤q | tracedExperiment adversary q hq]+
         ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [tracedExperiment_event]
   exact real_to_monitored_ideal adversary q (hq.trans_lt (by norm_num))
-
 theorem verdict_success_log (publicKey : Digest) (interaction : Option Forgery × QueryLog Requests)
     (state : State) (result : Bool × State)
     (hr : result ∈ support (run (FullGame.verdict publicKey interaction) state))
@@ -1799,21 +1544,15 @@ theorem verdict_success_log (publicKey : Digest) (interaction : Option Forgery �
       obtain ⟨middle,_,rfl⟩ := hr
       simp only [Bool.and_eq_true,decide_eq_true_eq] at hwin
       exact hwin.1
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- MonitoredTraceBounds
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- The source verdict enforces the lifetime cap. Thus proposal overflow on
-winning executions has the same bound after setup and forgery verification. -/
 theorem winning_trace_overflow (adversary : Adversary) (budget : Nat)
     (hbudget : budget ≤ 2^127) :
     Pr[fun result => result.1=true ∧ BPORS.Numeric.proposalLength < result.2.1.length |
@@ -1837,7 +1576,6 @@ theorem winning_trace_overflow (adversary : Adversary) (budget : Nat)
     simp only [h,if_true,show interaction.1.2.length≤2^32 ∧
       BPORS.Numeric.proposalLength < interaction.2.1.length from ⟨hl,h.2⟩,le_refl]
   · simp only [h,if_false,zero_le]
-
 theorem split_winning_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2.2.source.1≤q | tracedExperiment adversary q hq] ≤
       Pr[fun result => result.1=true ∧ result.2.2.source.1≤q ∧
@@ -1853,9 +1591,6 @@ theorem split_winning_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127)
     · simp [hw,hw.1,hw.2,hn,Nat.not_lt.mpr hn]
     · simp [hw,hw.1,hw.2,hn,Nat.lt_of_not_ge hn]
   · simp only [hw,if_false,zero_le]
-
-/-- Full-game reduction with a finite proposal history. Only the bounded,
-clean-state disclosure/forgery analysis remains on this side of the reduction. -/
 theorem real_to_bounded_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.source.1≤q ∧
@@ -1866,31 +1601,23 @@ theorem real_to_bounded_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^12
   apply add_le_add_left
   exact (split_winning_trace adversary q hq).trans
     (add_le_add le_rfl (winning_trace_overflow adversary q hq))
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- JointGameBounds
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 theorem event_lift {α : Type} (program : ProbComp α) (predicate : α → Prop) :
     Pr[predicate | (liftM program : PMF α)]=Pr[predicate | program] := by
   simp only [probEvent_eq_tsum_ite]
   rfl
-
 theorem experiment_exception_bound (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.2.source.1≤q ∧ result.2.exceptional=true | experiment adversary] ≤
       q/(2 : ENNReal)^146 := by
   exact gate6_run_empty_linear_charge (FullGame.idealGame adversary) q 146 hq (by decide)
-
-/-- Cache concentration and proposal history now refer to the same complete
-adaptive experiment, preserving the source count and both oracle tables. -/
 theorem traced_exception_bound (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.2.2.source.1≤q ∧ result.2.2.exceptional=true |
       tracedExperiment adversary q hq] ≤ q/(2 : ENNReal)^146 := by
@@ -1900,7 +1627,6 @@ theorem traced_exception_bound (adversary : Adversary) (q : Nat) (hq : q ≤ 2^1
   simp only [probEvent_map,Function.comp_def,Prod.map,id_eq,event_lift] at h
   rw [h]
   exact experiment_exception_bound adversary q hq
-
 theorem split_bounded_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2.2.source.1≤q ∧
       result.2.1.length≤BPORS.Numeric.proposalLength | tracedExperiment adversary q hq] ≤
@@ -1916,10 +1642,6 @@ theorem split_bounded_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127)
   by_cases hw : result.1=true ∧ result.2.2.source.1≤q ∧ result.2.1.length≤BPORS.Numeric.proposalLength
   · cases hb : result.2.2.exceptional <;> simp [hw,hw.2.1,hb]
   · simp only [hw,if_false,zero_le]
-
-/-- Full real-game reduction to the joint clean, bounded-proposal experiment.
-The remaining winning event is ready for disclosure and structural forgery
-charging; no independence/cache-validity premise is imposed on the adversary. -/
 theorem real_to_clean_bounded_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.source.1≤q ∧
@@ -1933,12 +1655,9 @@ theorem real_to_clean_bounded_trace (adversary : Adversary) (q : Nat) (hq : q �
   apply add_le_add_left
   exact (split_bounded_trace adversary q hq).trans
     (add_le_add le_rfl (traced_exception_bound adversary q hq))
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- JointGamePrices
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
@@ -1946,9 +1665,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] BPORS.History.fullPrice BPORS.History.fullNearPrice
-
-/-- The previously checked BPORS excess price applies to the actual full
-monitored game, with setup and verdict included in the experiment. -/
 theorem full_game_excess_price (adversary : Adversary) (budget : Nat)
     (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment adversary budget hbudget)
@@ -1964,7 +1680,6 @@ theorem full_game_excess_price (adversary : Adversary) (budget : Nat)
   apply expectedValue_mono
   intro interaction
   exact expectedValue_le_of_le _ (fun _ => le_rfl)
-
 theorem full_game_near_price (adversary : Adversary) (budget : Nat)
     (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment adversary budget hbudget)
@@ -1980,9 +1695,6 @@ theorem full_game_near_price (adversary : Adversary) (budget : Nat)
   apply expectedValue_mono
   intro interaction
   exact expectedValue_le_of_le _ (fun _ => le_rfl)
-
-/-- Selection may depend on the entire final record, including verification.
-The only remaining interface here is deterministic sublist membership. -/
 theorem full_game_selected_excess (adversary : Adversary) (budget : Nat)
     (hbudget : budget ≤ 2^127) (selected : Bool × (History × State) → History)
     (hselected : ∀ result,(selected result).Sublist result.2.1) :
@@ -1995,7 +1707,6 @@ theorem full_game_selected_excess (adversary : Adversary) (budget : Nat)
   split_ifs
   · exact tsub_le_tsub_right (BPORS.History.fullPrice_sublist (hselected result)) 1
   · exact le_rfl
-
 theorem full_game_selected_near (adversary : Adversary) (budget : Nat)
     (hbudget : budget ≤ 2^127) (selected : Bool × (History × State) → History)
     (hselected : ∀ result,(selected result).Sublist result.2.1) :
@@ -2008,21 +1719,15 @@ theorem full_game_selected_near (adversary : Adversary) (budget : Nat)
   split_ifs
   · exact BPORS.History.fullNearPrice_sublist (hselected result)
   · exact le_rfl
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- ProposalDisclosure
+section
 namespace SigGolfCandidate.T3.BPORS.Adaptive.ProposalModel
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity.Concrete
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
-/-- Every supported proposal step contains a supported original record. An
-active step appends its selected label and preserves the preceding history. -/
 theorem traced_query_record {ι State Label : Type} {spec : OracleSpec ι}
     (model : ProposalModel spec State Label) (input : spec.Domain)
     (before : List Label × State) (result : spec.Range input × (List Label × State))
@@ -2045,7 +1750,6 @@ theorem traced_query_record {ι State Label : Type} {spec : OracleSpec ι}
   · rw [if_neg ha,PMF.mem_support_map_iff] at hr
     obtain ⟨record,ho,rfl⟩ := hr
     exact ⟨record,ho,rfl,rfl,List.Sublist.refl _,fun h => False.elim (ha h)⟩
-
 theorem traced_history_extends {ι State Label α : Type} {spec : OracleSpec ι}
     (model : ProposalModel spec State Label) (program : OracleComp spec α)
     (before : List Label × State) (result : α × (List Label × State))
@@ -2062,22 +1766,18 @@ theorem traced_history_extends {ι State Label α : Type} {spec : OracleSpec ι}
       obtain ⟨middle,hm,hr⟩ := hr
       obtain ⟨_,_,_,_,hprefix,_⟩ := traced_query_record model input before middle hm
       exact hprefix.trans (ih middle.1 middle.2 result hr)
-
 end SigGolfCandidate.T3.BPORS.Adaptive.ProposalModel
-
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 theorem pmf_support {α : Type} (program : ProbComp α) :
     (liftM program : PMF α).support=support program := by
   ext value
   rw [PMF.mem_support_iff,← PMF.probOutput_eq_apply,mem_support_iff]
   rfl
-
 theorem recordLaw_support (published : T3.Cache) (request : Request) (state : State)
     (record : ((Option Signature × Option HashOutput) × State) × DigestSampling.IndexBuckets)
     (hr : record ∈ (recordLaw published request state).support) :
@@ -2095,9 +1795,6 @@ theorem recordLaw_support (published : T3.Cache) (request : Request) (state : St
   intro output houtput
   rw [Sampling.completeLabel,houtput,Option.elim_some,support_pure,Set.mem_singleton_iff] at hp
   exact hp
-
-/-- The selected digest of every active authenticated request occurs in the
-actual coupled proposal word, including requests that fail after selection. -/
 theorem active_request_record (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (request : Request) (before : History × State)
     (ha : active budget (.inr request) before.2=true)
@@ -2117,17 +1814,14 @@ theorem active_request_record (published : T3.Cache) (budget : Nat) (hbudget : b
   change record.2 ∈ result.2.1 at hp
   rw [hsource.2 output houtput] at hp
   exact hp
-
 theorem empty_cache_clean : ¬Sampling.TargetCacheExceptional ∅ := by
   intro h
   have hp := Sampling.targetCacheExceptional_moment ∅ h
   rw [Sampling.allTargetMoment_empty] at hp
   norm_num at hp
-
 theorem initial_coherent : Coherent ⟨(0,∅,∅),false⟩ := by
   intro h
   exact False.elim (empty_cache_clean h)
-
 theorem clean_before_of_clean_after {α : Type} (program : M α) (before : State)
     (hc : Coherent before) (result : α × State) (hr : result ∈ support (run program before))
     (hflag : result.2.exceptional=false) : ¬Sampling.TargetCacheExceptional before.source.2.2 := by
@@ -2135,9 +1829,6 @@ theorem clean_before_of_clean_after {α : Type} (program : M α) (before : State
   have hh := run_flag_monotone program before (hc hbad) result hr
   rw [hflag] at hh
   contradiction
-
-/-- The first-request interface now applies in the joint monitored experiment.
-Nonce freshness is derived from the complete adaptive request log. -/
 theorem first_request_active {α : Type} (message : Message) (cache : T3.Cache)
     (generated : (Digest × T3.Cache) × State)
     (hg : generated ∈ support (run keygen ⟨(0,∅,∅),false⟩))
@@ -2158,12 +1849,9 @@ theorem first_request_active {α : Type} (message : Message) (cache : T3.Cache)
     (generated.1,generated.2.source) (run_project_support keygen ⟨(0,∅,∅),false⟩ generated hg)
     program (result.1,result.2.source) (run_project_support _ generated.2 result hr)
     hlog budget hcount hclean
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- DisclosureInvariant
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
@@ -2172,38 +1860,31 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
 noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
-
 abbrev WellFormed (state : State) := CountedPrivate.WellFormed state.source
-
 theorem run_lazy_support {α : Type} (program : M α) (before : State) (result : α × State)
     (hr : result ∈ support (run program before)) :
     (result.1,result.2.source.2) ∈ support (LazyPrivate.run program before.source.2) :=
   CountedPrivate.run_project_support program before.source (result.1,result.2.source)
     (run_project_support program before result hr)
-
 theorem run_extends {α : Type} (program : M α) (before : State) (result : α × State)
     (hr : result ∈ support (run program before)) :
     SourceReplay.Extends before.source.2 result.2.source.2 :=
   SourceReplay.run_extends program before.source.2 (result.1,result.2.source.2)
     (run_lazy_support program before result hr)
-
 theorem run_wellFormed {α : Type} (program : M α) (before : State) (hw : WellFormed before)
     (result : α × State) (hr : result ∈ support (run program before)) : WellFormed result.2 :=
   CountedPrivate.run_wellFormed program before.source hw (result.1,result.2.source)
     (run_project_support program before result hr)
-
 theorem run_count_monotone {α : Type} (program : M α) (before : State) (result : α × State)
     (hr : result ∈ support (run program before)) : before.source.1 ≤ result.2.source.1 :=
   CountedPrivate.count_monotone program before.source (result.1,result.2.source)
     (run_project_support program before result hr)
-
 theorem run_nonce_preserves {α : Type} (message : Message) (program : M α)
     (havoid : NonceFreshness.Avoids message program) (before : State) (result : α × State)
     (hr : result ∈ support (run program before)) :
     result.2.source.2.1 (.inr (.inl message))=before.source.2.1 (.inr (.inl message)) :=
   CountedPrivate.run_nonce_preserves message program havoid before.source
     (result.1,result.2.source) (run_project_support program before result hr)
-
 theorem authenticatedRecord_avoids (message : Message) (published : T3.Cache) (request : Request)
     (hrequest : request.cache≠published ∨ request.message≠message) :
     NonceFreshness.Avoids message (FullGame.authenticatedRecord published request) := by
@@ -2211,19 +1892,13 @@ theorem authenticatedRecord_avoids (message : Message) (published : T3.Cache) (r
     Prod.fst _).mp
   rw [FullGame.authenticatedRecord_erasure]
   exact CountedPrivate.authenticatedSign_avoids message published request hrequest
-
-/-- A used signing nonce is accompanied by an exact, replayable selected-digest
-record whose label is already covered by the proposal history. Failures are
-retained, so repeating a failed request cannot become a new disclosure. -/
 def Covered (published : T3.Cache) (history : History) (state : State) (message : Message) : Prop :=
   state.source.2.1 (.inr (.inl message))=none ∨
     ∃ record : Option Signature × Option HashOutput,
       SourceReplay.Resolves state.source.2 (FullGame.authenticatedRecord published ⟨message,published⟩) record ∧
       ∀ output,record.2=some output → (DigestSampling.samplingData output).1 ∈ history
-
 def Covers (published : T3.Cache) (history : History) (state : State) : Prop :=
   ∀ message,Covered published history state message
-
 theorem covered_preserves (published : T3.Cache) (beforeHistory afterHistory : History)
     (before after : State) (message : Message)
     (hc : Covered published beforeHistory before message)
@@ -2235,14 +1910,12 @@ theorem covered_preserves (published : T3.Cache) (beforeHistory afterHistory : H
   rcases hc with hf | ⟨record,hr,hlabel⟩
   · exact Or.inl (hfresh hf)
   · exact Or.inr ⟨record,hr.mono hext,fun output ho => hh.subset (hlabel output ho)⟩
-
 theorem covers_keygen (generated : (Digest × T3.Cache) × State)
     (hg : generated ∈ support (run keygen ⟨(0,∅,∅),false⟩)) :
     Covers generated.1.2 [] generated.2 := by
   intro message
   exact Or.inl (CountedPrivate.counted_keygen_nonce_fresh message
     (generated.1,generated.2.source) (run_project_support keygen ⟨(0,∅,∅),false⟩ generated hg))
-
 theorem fresh_active (published : T3.Cache) (budget : Nat) (request : Request) (state : State)
     (hw : WellFormed state) (hc : Coherent state) (hflag : state.exceptional=false)
     (hcount : state.source.1≤budget) (hfresh : state.source.2.1 (.inr (.inl request.message))=none) :
@@ -2254,7 +1927,6 @@ theorem fresh_active (published : T3.Cache) (budget : Nat) (request : Request) (
   have hh := hc hb
   rw [hflag] at hh
   contradiction
-
 theorem traced_query_covers (published : T3.Cache) (budget : Nat) (hbudget : budget≤2^127)
     (input : Interaction.Domain) (before : History × State)
     (hcover : Covers published before.1 before.2) (hw : WellFormed before.2)
@@ -2310,21 +1982,15 @@ theorem traced_query_covers (published : T3.Cache) (budget : Nat) (hbudget : bud
         rw [hstate]
         exact covered_preserves published before.1 result.2.1 before.2 record.1.2 message
           (hcover message) hext hh (fun hf => hn.trans hf)
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- DisclosureTrace
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- Every supported traced execution projects to a supported execution of the
-actual authenticated source, retaining its final query counter and caches. -/
 theorem traced_source_support {α : Type} (published : T3.Cache) (budget : Nat)
     (hbudget : budget≤2^127) (program : OracleComp Interaction α)
     (before : History × State) (result : α × (History × State))
@@ -2333,7 +1999,6 @@ theorem traced_source_support {α : Type} (published : T3.Cache) (budget : Nat)
   rw [← pmf_support,← proposal_trace_erasure published budget hbudget program before.1 before.2]
   rw [PMF.monad_map_eq_map,PMF.mem_support_map_iff]
   exact ⟨result,hr,rfl⟩
-
 theorem traced_query_source_support (published : T3.Cache) (budget : Nat)
     (hbudget : budget≤2^127) (input : Interaction.Domain)
     (before : History × State) (result : Interaction.Range input × (History × State))
@@ -2342,7 +2007,6 @@ theorem traced_query_source_support (published : T3.Cache) (budget : Nat)
   simpa only [simulateQ_spec_query] using
     traced_source_support published budget hbudget (liftM (Interaction.query input)) before result
       (by simpa only [simulateQ_spec_query] using hr)
-
 theorem run_false_before {α : Type} (program : M α) (before : State) (result : α × State)
     (hr : result ∈ support (run program before)) (hflag : result.2.exceptional=false) :
     before.exceptional=false := by
@@ -2352,10 +2016,6 @@ theorem run_false_before {α : Type} (program : M α) (before : State) (result :
       have h := run_flag_monotone program before hb result hr
       rw [hflag] at h
       contradiction
-
-/-- Global disclosure coverage for an arbitrary adaptive interaction. Repeated
-requests reuse exact prior records; first requests add their selected labels.
-Invalid-cache and failed requests require no special adversary restriction. -/
 theorem traced_covers {α : Type} (published : T3.Cache) (budget : Nat) (hbudget : budget≤2^127)
     (program : OracleComp Interaction α) (before : History × State)
     (hcover : Covers published before.1 before.2) (hw : WellFormed before.2) (hc : Coherent before.2)
@@ -2379,9 +2039,6 @@ theorem traced_covers {α : Type} (published : T3.Cache) (budget : Nat) (hbudget
       have hmCover := traced_query_covers published budget hbudget input before hcover hw hc hbefore hbound middle hm
       exact ih middle.1 middle.2 hmCover (run_wellFormed _ before.2 hw (middle.1,middle.2.2) hstep)
         (run_coherent _ before.2 hc (middle.1,middle.2.2) hstep) result hr hcount hflag
-
-/-- Instantiation at actual key generation, with the source counter already
-including all setup calls. The adversary and all request outcomes remain adaptive. -/
 theorem actual_interaction_covers {α : Type} (generated : (Digest × T3.Cache) × State)
     (hg : generated ∈ support (run keygen ⟨(0,∅,∅),false⟩)) (budget : Nat) (hbudget : budget≤2^127)
     (program : OracleComp Interaction α) (result : α × (History × State))
@@ -2391,25 +2048,18 @@ theorem actual_interaction_covers {α : Type} (generated : (Digest × T3.Cache) 
   traced_covers generated.1.2 budget hbudget program ([],generated.2) (covers_keygen generated hg)
     (run_wellFormed keygen ⟨(0,∅,∅),false⟩ CountedPrivate.initial_wellFormed generated hg)
     (run_coherent keygen ⟨(0,∅,∅),false⟩ initial_coherent generated hg) result hr hcount hflag
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- ResolvedAnswers
+section
 namespace SigGolfCandidate.T3.Security.SourceReplay
 open OracleComp OracleSpec
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
-/-- Complete a finite observed source table to a deterministic answer function.
-The choice on unobserved inputs is irrelevant to any resolved execution. -/
 def answers (state : LazyPrivate.State) : Correctness.Answers
   | .inl (.inl n) => (⟨0,Nat.zero_lt_succ n⟩ : Fin (n+1))
   | .inl (.inr input) => (state.2 input).getD 0
   | .inr coordinate => (state.1 coordinate).getD 0
-
 theorem answers_known (state : LazyPrivate.State) (input : T3.Spec.Domain)
     (answer : T3.Spec.Range input) (h : known state input=some answer) : answers state input=answer := by
   cases input with
@@ -2424,9 +2074,6 @@ theorem answers_known (state : LazyPrivate.State) (input : T3.Spec.Domain)
       change state.1 coordinate=some answer at h
       change (state.1 coordinate).getD (0 : HashOutput)=answer
       rw [h,Option.getD_some]
-
-/-- A replay certificate determines the result under every completion of its
-observed oracle answers, not just the canonical zero completion. -/
 theorem Resolves.eval {α : Type} {state : LazyPrivate.State} {program : M α} {value : α}
     (h : Resolves state program value) (oracleAnswers : Correctness.Answers)
     (hagrees : ∀ input answer,known state input=some answer → oracleAnswers input=answer) :
@@ -2438,20 +2085,16 @@ theorem Resolves.eval {α : Type} {state : LazyPrivate.State} {program : M α} {
       change evalWithAnswerFn oracleAnswers (next (simulateQ oracleAnswers (liftM (T3.Spec.query input))))=value
       rw [simulateQ_spec_query,hagrees input answer hanswer]
       exact ih
-
 theorem Resolves.value_unique {α : Type} {state : LazyPrivate.State} {program : M α}
     {value other : α} (h : Resolves state program value) (ho : Resolves state program other) : value=other :=
   (h.eval (answers state) (answers_known state)).symm.trans
     (ho.eval (answers state) (answers_known state))
-
 theorem supported_eval {α : Type} (program : M α) (hhash : HashOnly program)
     (before : LazyPrivate.State) (result : α × LazyPrivate.State)
     (hr : result ∈ support (LazyPrivate.run program before)) :
     evalWithAnswerFn (answers result.2) program=result.1 :=
   (resolves_of_run program hhash before result hr).eval _ (answers_known result.2)
-
 end SigGolfCandidate.T3.Security.SourceReplay
-
 namespace SigGolfCandidate.T3.Security.SigningRecords
 open OracleComp OracleSpec
 set_option maxHeartbeats 1000000
@@ -2460,14 +2103,12 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
 noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
-
 theorem payloadRecord_has_digest (answers : Correctness.Answers) (cache : T3.Cache) (message : Message)
     (hs : (evalWithAnswerFn answers (payloadRecord cache message)).1≠none) :
     (evalWithAnswerFn answers (payloadRecord cache message)).2≠none := by
   unfold payloadRecord at hs ⊢
   simp only [evalWithAnswerFn_bind] at hs ⊢
   exact payloadRecord_success_has_digest answers cache _ message hs
-
 theorem authenticatedRecord_success (answers : Correctness.Answers) (published : T3.Cache)
     (request : Request) (hs : (evalWithAnswerFn answers (FullGame.authenticatedRecord published request)).1≠none) :
     request.cache=published ∧ (evalWithAnswerFn answers (FullGame.authenticatedRecord published request)).2≠none := by
@@ -2477,7 +2118,6 @@ theorem authenticatedRecord_success (answers : Correctness.Answers) (published :
   · simp only [if_pos hcache] at hs ⊢
     exact ⟨hcache,payloadRecord_has_digest answers request.cache request.message hs⟩
   · simp only [if_neg hcache,evalWithAnswerFn_pure,ne_eq,not_true_eq_false] at hs
-
 theorem authenticatedRecord_selected_valid (answers : Correctness.Answers) (published : T3.Cache)
     (request : Request) (output : HashOutput)
     (ho : (evalWithAnswerFn answers (FullGame.authenticatedRecord published request)).2=some output) :
@@ -2488,12 +2128,9 @@ theorem authenticatedRecord_selected_valid (answers : Correctness.Answers) (publ
   · simp only [if_pos hcache,payloadRecord,evalWithAnswerFn_bind] at ho
     exact ⟨hcache,(payloadRecord_selected_valid answers request.cache _ request.message output ho).choose_spec.2⟩
   · simp only [if_neg hcache,evalWithAnswerFn_pure,reduceCtorEq] at ho
-
 end SigGolfCandidate.T3.Security.SigningRecords
 end
-
-
-section -- RecordDisclosure
+section
 namespace SigGolfCandidate.T3.Security.SourceReplay
 open OracleComp OracleSpec
 set_option maxHeartbeats 1000000
@@ -2502,7 +2139,6 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
 noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
-
 theorem privateNonce_caches (message : Message) (before : LazyPrivate.State)
     (result : Digest × LazyPrivate.State)
     (hr : result ∈ support (LazyPrivate.run (privateNonce message) before)) :
@@ -2512,7 +2148,6 @@ theorem privateNonce_caches (message : Message) (before : LazyPrivate.State)
   rw [LazyPrivate.run_pure,support_pure,Set.mem_singleton_iff] at hr
   subst result
   exact ⟨answer.1,hash_query_caches (NonceFreshness.nonceQuery message) trivial before answer ha⟩
-
 theorem authenticatedRecord_nonce_used (published : T3.Cache) (request : Request)
     (hcache : request.cache=published) (before : LazyPrivate.State)
     (result : (Option Signature × Option HashOutput) × LazyPrivate.State)
@@ -2525,7 +2160,6 @@ theorem authenticatedRecord_nonce_used (published : T3.Cache) (request : Request
   obtain ⟨nonce,hn,hr⟩ := hr
   obtain ⟨output,ho⟩ := privateNonce_caches request.message mac.2 nonce hn
   exact ⟨output,(run_extends _ nonce.2 result hr).1 ho⟩
-
 theorem Resolves.success_record {state : LazyPrivate.State} (published : T3.Cache) (request : Request)
     (record : Option Signature × Option HashOutput)
     (hr : Resolves state (FullGame.authenticatedRecord published request) record) (hs : record.1≠none) :
@@ -2539,9 +2173,7 @@ theorem Resolves.success_record {state : LazyPrivate.State} (published : T3.Cach
   refine ⟨hcache,hsuccess.2,?_⟩
   exact authenticatedRecord_nonce_used published request hcache state (record,state)
     (by rw [hr.run_eq_pure,support_pure]; exact Set.mem_singleton _)
-
 end SigGolfCandidate.T3.Security.SourceReplay
-
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec
 set_option maxHeartbeats 1000000
@@ -2550,9 +2182,6 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
 noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
-
-/-- Any successful signing record resolved in a covered state has an admissible
-selected digest whose BPORS label occurs in the actual proposal history. -/
 theorem covered_record_label (published : T3.Cache) (history : History) (state : State)
     (hc : Covers published history state) (request : Request) (record : Option Signature × Option HashOutput)
     (hr : SourceReplay.Resolves state.source.2 (FullGame.authenticatedRecord published request) record)
@@ -2574,9 +2203,6 @@ theorem covered_record_label (published : T3.Cache) (history : History) (state :
     rw [hreq] at hr
     have heq : old=record := ho.value_unique hr
     exact hlabels output (by rw [heq]; exact houtput)
-
-/-- Erasure of the selected-digest observation is exact even in the monitored
-interpreter, so every actual signer response has a supported complete record. -/
 theorem sign_response_record (published : T3.Cache) (request : Request) (before : State)
     (result : Option Signature × State)
     (hr : result ∈ support (run (FullGame.authenticatedSign published request) before)) :
@@ -2590,9 +2216,6 @@ theorem sign_response_record (published : T3.Cache) (request : Request) (before 
   exact ⟨observed.1.2,SourceReplay.resolves_of_run _
     (CountedPrivate.authenticatedRecord_hashOnly published request) before.source.2
     (observed.1,observed.2.source.2) (run_lazy_support _ before observed ho)⟩
-
-/-- Each entry in the real logged source execution remains exactly replayable
-from the final cache, including rejected requests and payload-search failures. -/
 theorem logged_records_resolve {α : Type} (published : T3.Cache) (program : OracleComp Interaction α)
     (before : State) (result : (α × QueryLog Requests) × State)
     (hr : result ∈ support (run (FullGame.loggedWith (FullGame.authenticatedSign published) program) before)) :
@@ -2620,9 +2243,6 @@ theorem logged_records_resolve {α : Type} (published : T3.Cache) (program : Ora
             obtain ⟨selected,hs⟩ := sign_response_record published request before middle hm
             exact ⟨selected,hs.mono (run_extends _ middle.2 last hl)⟩
           · exact ih middle.1 middle.2 last hl entry he
-
-/-- Actual adaptive signing-log disclosure bridge, with setup, failed requests
-and repeats accounted for by the same full proposal experiment. -/
 theorem traced_log_disclosures {α : Type} (generated : (Digest × T3.Cache) × State)
     (hg : generated ∈ support (run keygen ⟨(0,∅,∅),false⟩)) (budget : Nat) (hbudget : budget≤2^127)
     (program : OracleComp Interaction α) (result : (α × QueryLog Requests) × (History × State))
@@ -2646,21 +2266,15 @@ theorem traced_log_disclosures {α : Type} (generated : (Digest × T3.Cache) × 
   change selected=some output at houtput
   rw [houtput] at hresolve
   exact ⟨hcache,output,hresolve,hadmissible,hlabel⟩
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- DisclosureJournal
+section
 namespace SigGolfCandidate.T3.BPORS.Adaptive.ProposalModel
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity.Concrete
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
-/-- The active step's selected label is the final newly appended symbol. This
-retains multiplicity, unlike merely proving membership in the final word. -/
 theorem traced_query_record_suffix {ι State Label : Type} {spec : OracleSpec ι}
     (model : ProposalModel spec State Label) (input : spec.Domain)
     (before : List Label × State) (result : spec.Range input × (List Label × State))
@@ -2680,9 +2294,7 @@ theorem traced_query_record_suffix {ι State Label : Type} {spec : OracleSpec ι
   · rw [if_neg ha,PMF.mem_support_map_iff] at hr
     obtain ⟨record,ho,rfl⟩ := hr
     exact ⟨record,ho,rfl,rfl,[],(List.append_nil _).symm,fun h => False.elim (ha h)⟩
-
 end SigGolfCandidate.T3.BPORS.Adaptive.ProposalModel
-
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
@@ -2691,23 +2303,16 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
 noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
-
 abbrev JournalEntry := Message × (Option Signature × Option HashOutput)
 abbrev Journal := List JournalEntry
-
 def journalLabels (journal : Journal) : History :=
   journal.filterMap fun entry => entry.2.2.map (fun output => (DigestSampling.samplingData output).1)
-
-/-- Every nonce used by published-cache signing has exactly one retained first
-record. Its selected labels form a sublist of the actual proposal word, so the
-coupling preserves multiplicity as well as source replay semantics. -/
 def JournalOK (published : T3.Cache) (history : History) (state : State) (journal : Journal) : Prop :=
   (journal.map Prod.fst).Nodup ∧
   (∀ entry ∈ journal,SourceReplay.Resolves state.source.2
     (FullGame.authenticatedRecord published ⟨entry.1,published⟩) entry.2) ∧
   (∀ message,state.source.2.1 (.inr (.inl message))=none ∨ message ∈ journal.map Prod.fst) ∧
   (journalLabels journal).Sublist history
-
 theorem journal_keygen (generated : (Digest × T3.Cache) × State)
     (hg : generated ∈ support (run keygen ⟨(0,∅,∅),false⟩)) :
     JournalOK generated.1.2 [] generated.2 [] := by
@@ -2715,7 +2320,6 @@ theorem journal_keygen (generated : (Digest × T3.Cache) × State)
   intro message
   exact Or.inl (CountedPrivate.counted_keygen_nonce_fresh message
     (generated.1,generated.2.source) (run_project_support keygen ⟨(0,∅,∅),false⟩ generated hg))
-
 theorem journal_used_nonce (published : T3.Cache) (history : History) (state : State) (journal : Journal)
     (hj : JournalOK published history state journal) (message : Message)
     (hm : message ∈ journal.map Prod.fst) :
@@ -2728,7 +2332,6 @@ theorem journal_used_nonce (published : T3.Cache) (history : History) (state : S
   change entry.1=message at hkey
   rw [hkey] at hn
   exact hn
-
 theorem journal_keeps (published : T3.Cache) (beforeHistory afterHistory : History)
     (before after : State) (journal : Journal) (hj : JournalOK published beforeHistory before journal)
     (hext : SourceReplay.Extends before.source.2 after.source.2)
@@ -2739,7 +2342,6 @@ theorem journal_keeps (published : T3.Cache) (beforeHistory afterHistory : Histo
   refine ⟨hj.1,fun entry he => (hj.2.1 entry he).mono hext,?_,hj.2.2.2.trans hh⟩
   intro message
   exact (hj.2.2.1 message).elim (hfresh message) Or.inr
-
 theorem journal_append (published : T3.Cache) (beforeHistory afterHistory : History)
     (before after : State) (journal : Journal) (hj : JournalOK published beforeHistory before journal)
     (hext : SourceReplay.Extends before.source.2 after.source.2)
@@ -2775,7 +2377,6 @@ theorem journal_append (published : T3.Cache) (beforeHistory afterHistory : Hist
       · exact Or.inl ((hother other he).trans hf)
       · exact Or.inr (by simp only [List.map_append,List.mem_append]; exact Or.inl hm)
   · cases hd : record.2 <;> simpa [journalLabels,hd] using hh
-
 theorem traced_query_journal (published : T3.Cache) (budget : Nat) (hbudget : budget≤2^127)
     (input : Interaction.Domain) (before : History × State) (journal : Journal)
     (hj : JournalOK published before.1 before.2 journal) (hw : WellFormed before.2)
@@ -2848,12 +2449,9 @@ theorem traced_query_journal (published : T3.Cache) (budget : Nat) (hbudget : bu
         exact Or.inl ((run_nonce_preserves message _
           (authenticatedRecord_avoids message published request (Or.inl hcache))
             before.2 record.1 hsource.1).trans hf)
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- JournalTrace
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
@@ -2862,9 +2460,6 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
 noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
-
-/-- The full adaptive interaction admits a journal with one exact first record
-per used signing nonce. Its labels embed into the actual proposal word. -/
 theorem traced_journal {α : Type} (published : T3.Cache) (budget : Nat) (hbudget : budget≤2^127)
     (program : OracleComp Interaction α) (before : History × State) (journal : Journal)
     (hj : JournalOK published before.1 before.2 journal) (hw : WellFormed before.2) (hc : Coherent before.2)
@@ -2890,7 +2485,6 @@ theorem traced_journal {α : Type} (published : T3.Cache) (budget : Nat) (hbudge
       exact ih middle.1 middle.2 middleJournal hmJournal
         (run_wellFormed _ before.2 hw (middle.1,middle.2.2) hstep)
         (run_coherent _ before.2 hc (middle.1,middle.2.2) hstep) result hr hcount hflag
-
 theorem actual_interaction_journal {α : Type} (generated : (Digest × T3.Cache) × State)
     (hg : generated ∈ support (run keygen ⟨(0,∅,∅),false⟩)) (budget : Nat) (hbudget : budget≤2^127)
     (program : OracleComp Interaction α) (result : α × (History × State))
@@ -2900,9 +2494,6 @@ theorem actual_interaction_journal {α : Type} (generated : (Digest × T3.Cache)
   traced_journal generated.1.2 budget hbudget program ([],generated.2) [] (journal_keygen generated hg)
     (run_wellFormed keygen ⟨(0,∅,∅),false⟩ CountedPrivate.initial_wellFormed generated hg)
     (run_coherent keygen ⟨(0,∅,∅),false⟩ initial_coherent generated hg) result hr hcount hflag
-
-/-- A successful resolved response agrees with its unique first journal entry,
-including the selected digest. Repeating it introduces no further disclosure. -/
 theorem journal_contains_success (published : T3.Cache) (history : History) (state : State) (journal : Journal)
     (hj : JournalOK published history state journal) (request : Request)
     (record : Option Signature × Option HashOutput)
@@ -2926,10 +2517,6 @@ theorem journal_contains_success (published : T3.Cache) (history : History) (sta
   have he' : entry=(request.message,record) := Prod.ext hkey heq
   rw [← he']
   exact he
-
-/-- Every successful entry in the actual adaptive signing log is represented
-by the same first-record journal whose labels embed with multiplicity into the
-proposal history. No deduplication of the real lifetime log is performed. -/
 theorem actual_log_journal {α : Type} (generated : (Digest × T3.Cache) × State)
     (hg : generated ∈ support (run keygen ⟨(0,∅,∅),false⟩)) (budget : Nat) (hbudget : budget≤2^127)
     (program : OracleComp Interaction α) (result : (α × QueryLog Requests) × (History × State))
@@ -2958,39 +2545,28 @@ theorem actual_log_journal {α : Type} (generated : (Digest × T3.Cache) × Stat
     (SourceReplay.answers_known result.2.2.source.2)
   exact ⟨hcache,output,hmem,(SigningRecords.authenticatedRecord_selected_valid
     (SourceReplay.answers result.2.2.source.2) generated.1.2 entry.1 output (by rw [heval])).2⟩
-
-/-- Pointwise transfer of both existing BPORS prices to the actual first-record
-journal. This is the deterministic hypothesis required by the full-game moment
-bounds and remains valid after arbitrary adaptive repeated signing requests. -/
 theorem journal_prices (published : T3.Cache) (history : History) (state : State) (journal : Journal)
     (hj : JournalOK published history state journal) :
     BPORS.History.fullPrice (journalLabels journal)≤BPORS.History.fullPrice history ∧
       BPORS.History.fullNearPrice (journalLabels journal)≤BPORS.History.fullNearPrice history :=
   ⟨BPORS.History.fullPrice_sublist hj.2.2.2,BPORS.History.fullNearPrice_sublist hj.2.2.2⟩
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- PublicVerdict
+section
 namespace SigGolfCandidate.T3.Security.PublicVerdict
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
 def IsPublicHash : T3.Spec.Domain → Prop
   | .inl (.inr _) => True
   | _ => False
-
 abbrev Only {α : Type} (program : M α) := AllQueriesSatisfy program IsPublicHash
-
 attribute [local aesop safe apply] SourceQueries.pure_allowed SourceQueries.bind_allowed
   SourceQueries.map_allowed SourceQueries.foldlM_allowed SourceQueries.mapM_allowed
   SourceQueries.publicHash_allowed SourceQueries.shortHash_allowed SourceQueries.digest_allowed
 macro "public_verdict_queries" : tactic => `(tactic|
   aesop (config := { maxRuleApplications := 1000 }) (add simp IsPublicHash))
-
 @[local aesop safe apply] theorem chain_public (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
     Only (chain lay tree leaf i start count value) := by
   unfold chain; public_verdict_queries
@@ -3012,7 +2588,6 @@ macro "public_verdict_queries" : tactic => `(tactic|
   induction fuel generalizing counter with
   | zero => unfold digestSearch; public_verdict_queries
   | succ fuel ih => unfold digestSearch; public_verdict_queries
-
 theorem recoverChild_public (index coord : Nat) (leaves : List Nat) (values : List Digest)
     (proof : Fin 115 → Digest) (level node used : Nat) :
     Only (recoverChild index coord leaves values proof level node used) := by
@@ -3020,45 +2595,37 @@ theorem recoverChild_public (index coord : Nat) (leaves : List Nat) (values : Li
   | zero => unfold recoverChild;public_verdict_queries
   | succ level ih => unfold recoverChild;public_verdict_queries
 attribute [local aesop safe apply] recoverChild_public
-
 theorem recoverFts_public (sig : Signature) (index : Nat) (chosen : List Selection) :
     Only (recoverFts sig index chosen) := by
   unfold recoverFts;public_verdict_queries
 attribute [local aesop safe apply] recoverFts_public
-
 theorem recoverLayer_public (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
     Only (recoverLayer sig index lay digits) := by
   unfold recoverLayer;public_verdict_queries
 attribute [local aesop safe apply] recoverLayer_public
-
 theorem expandLayers_public (sig : Signature) (index n : Nat) (value : Digest) :
     Only (expandLayers sig index n value) := by
   induction n generalizing value with
   | zero => unfold expandLayers;public_verdict_queries
   | succ n ih => unfold expandLayers;public_verdict_queries
 attribute [local aesop safe apply] expandLayers_public
-
 theorem expand_public (message : Message) (pk : Digest) (sig : Signature) :
     Only (expand message pk sig) := by
   unfold expand;public_verdict_queries
 attribute [local aesop safe apply] expand_public
-
 theorem verifyLayers_public (witness : Witness) (index n : Nat) (root : Digest) :
     Only (verifyLayers witness index n root) := by
   induction n generalizing root with
   | zero => unfold verifyLayers;public_verdict_queries
   | succ n ih => unfold verifyLayers;public_verdict_queries
 attribute [local aesop safe apply] verifyLayers_public
-
 theorem verify_public (message : Message) (pk : Digest) (witness : Witness) :
     Only (verify message pk witness) := by
   unfold verify;public_verdict_queries
 attribute [local aesop safe apply] verify_public
-
 theorem checkForgery_public (publicKey : Digest) (log : QueryLog Requests) (forgery : Forgery) :
     Only (checkForgery publicKey log forgery) := by
   cases forgery <;> unfold checkForgery <;> public_verdict_queries
-
 theorem verdict_public (publicKey : Digest) (result : Option Forgery × QueryLog Requests) :
     Only (FullGame.verdict publicKey result) := by
   unfold FullGame.verdict
@@ -3067,8 +2634,6 @@ theorem verdict_public (publicKey : Digest) (result : Option Forgery × QueryLog
   | some forgery =>
       exact SourceQueries.bind_allowed _ (checkForgery_public publicKey result.2 forgery)
         (fun _ => SourceQueries.pure_allowed _ _)
-
-
 theorem only_avoids {α : Type} (program : M α) (hp : Only program) (message : Message) :
     NonceFreshness.Avoids message program := by
   induction program using OracleComp.inductionOn with
@@ -3080,12 +2645,9 @@ theorem only_avoids {α : Type} (program : M α) (hp : Only program) (message : 
       cases input with
       | inl input => simp [NonceFreshness.nonceQuery]
       | inr coordinate => exact False.elim hi
-
 end SigGolfCandidate.T3.Security.PublicVerdict
 end
-
-
-section -- SigningOpenings
+section
 namespace SigGolfCandidate.T3.Security.SigningRecords
 open OracleComp OracleSpec Correctness
 set_option maxHeartbeats 1000000
@@ -3094,7 +2656,6 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance : DecidableEq T3.Cache := Classical.decEq _
 noncomputable local instance : DecidableEq SiggolfT3Mac4.Cache := Classical.decEq _
-
 theorem payloadAfterDigest_forestRows (cache : T3.Cache) (rho : Digest) (output : HashOutput) :
     payloadAfterDigest cache rho output=(do
       let index := output.toNat%2^31
@@ -3103,9 +2664,6 @@ theorem payloadAfterDigest_forestRows (cache : T3.Cache) (rho : Digest) (output 
       let some layers ← signLayers cache index 4 root | pure none
       pure (some ⟨rho,fun i => state.1.getD i.val 0,fun i => state.2.1.getD i.val 0,
         fun lay => piecesSignature lay (layers.getD lay.val ([],[]))⟩)) := rfl
-
-/-- The exact FTS vectors returned by successful signing, independent of oracle
-randomness. Unused proof slots retain the source's zero padding. -/
 theorem payloadAfterDigest_fields (answers : Answers) (cache : T3.Cache) (rho : Digest)
     (output : HashOutput) (sig : Signature)
     (hs : evalWithAnswerFn answers (payloadAfterDigest cache rho output)=some sig) :
@@ -3121,7 +2679,6 @@ theorem payloadAfterDigest_fields (answers : Answers) (cache : T3.Cache) (rho : 
       simp only [hp,evalWithAnswerFn_pure,Option.some.injEq] at hs
       subst sig
       exact ⟨rfl,fun _ => rfl,fun _ => rfl⟩
-
 theorem recordForNonce_selected_payload (answers : Answers) (cache : T3.Cache) (rho : Digest)
     (message : Message) (sig : Signature) (output : HashOutput)
     (hs : (evalWithAnswerFn answers (payloadRecordForNonce cache rho message)).1=some sig)
@@ -3136,7 +2693,6 @@ theorem recordForNonce_selected_payload (answers : Answers) (cache : T3.Cache) (
       simp only [hd,evalWithAnswerFn_bind,evalWithAnswerFn_pure,Option.some.injEq] at hs ho
       subst output
       exact hs
-
 theorem authenticatedRecord_fields (answers : Answers) (published : T3.Cache) (request : Request)
     (sig : Signature) (output : HashOutput)
     (hr : evalWithAnswerFn answers (FullGame.authenticatedRecord published request)=(some sig,some output)) :
@@ -3152,11 +2708,7 @@ theorem authenticatedRecord_fields (answers : Answers) (published : T3.Cache) (r
   apply payloadAfterDigest_fields answers request.cache _ output sig
   exact recordForNonce_selected_payload answers request.cache _ request.message sig output
     (by rw [hr]) (by rw [hr])
-
 attribute [local irreducible] evalWithAnswerFn
-
-/-- Each coordinate contributes exactly three opened values to the signature,
-all from its selected bucket in the source-built FTS tree. -/
 theorem secret_at_coordinate (answers : Answers) (sig : Signature) (output : HashOutput)
     (hs : ∀ i,sig.secrets i=(forestOpenPrefix answers (output.toNat%2^31) (selections output) 7).getD i.val 0)
     (coord : Fin 7) (slot : Fin 3) :
@@ -3183,21 +2735,15 @@ theorem secret_at_coordinate (answers : Answers) (sig : Signature) (output : Has
     ((selections output).getD coord.val ⟨0,[]⟩)) 0 (by rw [hblock];exact slot.isLt)]
   simp only [forestOpened,List.getElem_map,
     List.getD_eq_getElem ((selections output).getD coord.val ⟨0,[]⟩).leaves 0 hj]
-
 end SigGolfCandidate.T3.Security.SigningRecords
 end
-
-
-section -- JournalCompletion
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- Public expansion and verification preserve the complete signing journal,
-while retaining their actual source query costs and any extended public cache. -/
 theorem journal_public_preserves {α : Type} (published : T3.Cache) (history : History)
     (before : State) (journal : Journal) (hj : JournalOK published history before journal)
     (program : M α) (hp : PublicVerdict.Only program) (result : α × State)
@@ -3207,10 +2753,6 @@ theorem journal_public_preserves {α : Type} (published : T3.Cache) (history : H
   intro message hf
   exact Or.inl ((run_nonce_preserves message program (PublicVerdict.only_avoids program hp message)
     before result hr).trans hf)
-
-/-- The multiplicity-preserving disclosure journal survives the actual final
-verdict of the full game. Its public key/cache are fixed by a replay of actual
-key generation under the very same final oracle table. -/
 theorem traced_game_journal (adversary : Adversary) (budget : Nat) (hbudget : budget≤2^127)
     (result : Bool × (History × State)) (hr : result ∈ (tracedExperiment adversary budget hbudget).support)
     (hcount : result.2.2.source.1≤budget) (hflag : result.2.2.exceptional=false) :
@@ -3240,9 +2782,6 @@ theorem traced_game_journal (adversary : Adversary) (budget : Nat) (hbudget : bu
       (run_extends _ interaction.2.2 checked hv)
   · exact journal_public_preserves generated.1.2 interaction.2.1 interaction.2.2 journal hj
       (FullGame.verdict generated.1.1 interaction.1) (PublicVerdict.verdict_public _ _) checked hv
-
-/-- The source openings associated with a journal entry are the exact fields
-of its returned signature, evaluated with the final table's observed answers. -/
 theorem journal_entry_openings (published : T3.Cache) (history : History) (state : State)
     (journal : Journal) (hj : JournalOK published history state journal)
     (message : Message) (sig : Signature) (output : HashOutput)
@@ -3260,12 +2799,9 @@ theorem journal_entry_openings (published : T3.Cache) (history : History) (state
     (hresolve.eval (SourceReplay.answers state.source.2) (SourceReplay.answers_known state.source.2))
   exact ⟨hfields.2.1,hfields.2.2.2.1,SigningRecords.secret_at_coordinate
     (SourceReplay.answers state.source.2) sig output hfields.2.2.2.1⟩
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- JournalExposure
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3.BPORS.History
@@ -3273,9 +2809,7 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 def journalOutputs (journal : Journal) : List HashOutput := journal.filterMap fun entry => entry.2.2
-
 theorem journalLabels_outputs (journal : Journal) :
     journalLabels journal=(journalOutputs journal).map (fun output => (DigestSampling.samplingData output).1) := by
   induction journal with
@@ -3283,15 +2817,12 @@ theorem journalLabels_outputs (journal : Journal) :
   | cons entry tail ih =>
       unfold journalLabels journalOutputs at *
       cases hd : entry.2.2 <;> simp [hd,ih]
-
 def chosenLeaves (output : HashOutput) (coord : Fin 7) : Finset (Fin 128) :=
   ((((selections output).getD coord.val ⟨0,[]⟩).leaves).map fun leaf => Fin.ofNat 128 leaf).toFinset
-
 theorem chosenLeaves_card (output : HashOutput) (coord : Fin 7) : (chosenLeaves output coord).card≤3 := by
   unfold chosenLeaves
   apply le_trans (List.toFinset_card_le _)
   rw [List.length_map,selection_leaves_length output _ (Correctness.selection_getD_mem output coord.val coord.isLt)]
-
 theorem chosenLeaves_mem (output : HashOutput) (coord : Fin 7) (slot : Fin 3) :
     Fin.ofNat 128 (((selections output).getD coord.val ⟨0,[]⟩).leaves.getD slot.val 0) ∈ chosenLeaves output coord := by
   rw [chosenLeaves,List.mem_toFinset,List.mem_map]
@@ -3300,7 +2831,6 @@ theorem chosenLeaves_mem (output : HashOutput) (coord : Fin 7) (slot : Fin 3) :
   rw [List.getD_eq_getElem ((selections output).getD coord.val ⟨0,[]⟩).leaves 0
     (by rw [hl]; exact slot.isLt)]
   exact List.getElem_mem _
-
 theorem chosen_leaf_bound (output : HashOutput) (coord : Fin 7) (slot : Fin 3) :
     ((selections output).getD coord.val ⟨0,[]⟩).leaves.getD slot.val 0<128 := by
   have hm := Correctness.selection_getD_mem output coord.val coord.isLt
@@ -3309,27 +2839,20 @@ theorem chosen_leaf_bound (output : HashOutput) (coord : Fin 7) (slot : Fin 3) :
   rw [List.getD_eq_getElem ((selections output).getD coord.val ⟨0,[]⟩).leaves 0
     (by rw [hl]; exact slot.isLt)]
   exact List.getElem_mem _
-
 theorem sampling_index_value (output : HashOutput) :
     (DigestSampling.samplingData output).1.1.val=output.toNat%2^31 := DigestSampling.rawView_index output
-
 theorem sampling_bucket_value (output : HashOutput) (coord : Fin 7) :
     ((DigestSampling.samplingData output).1.2 coord).val=((selections output).getD coord.val ⟨0,[]⟩).bucket := by
   change ((DigestSampling.rawView output).2 coord).1.val=_
   rw [← DigestSampling.rawSelections_eq_selections]
   rw [List.getD_eq_getElem _ _ (by simpa [DigestSampling.rawSelections] using coord.isLt)]
   simp only [DigestSampling.rawSelections,List.getElem_ofFn]
-
-/-- Union of all potentially disclosed leaves for one indexed bucket. A
-selected digest is retained even if its payload later fails; this is a safe
-superset of all successful-signature disclosures. -/
 def exposedLeaves : List HashOutput → Fin (2^31) → Fin 7 → Fin 16 → Finset (Fin 128)
   | [],_,_,_ => ∅
   | output::tail,index,coord,bucket =>
       if (DigestSampling.samplingData output).1.1=index ∧ (DigestSampling.samplingData output).1.2 coord=bucket
       then chosenLeaves output coord ∪ exposedLeaves tail index coord bucket
       else exposedLeaves tail index coord bucket
-
 theorem exposedLeaves_card (outputs : List HashOutput) (index : Fin (2^31)) (coord : Fin 7) (bucket : Fin 16) :
     (exposedLeaves outputs index coord bucket).card ≤
       3*((atIndex index (outputs.map (fun output => (DigestSampling.samplingData output).1))).map
@@ -3346,7 +2869,6 @@ theorem exposedLeaves_card (outputs : List HashOutput) (index : Fin (2^31)) (coo
         · simpa only [exposedLeaves,hi,hb,true_and,and_false,ite_false,atIndex_cons,List.map_cons,ite_true,
             List.count_cons_of_ne hb] using ih
       · simpa only [exposedLeaves,hi,false_and,ite_false,List.map_cons,atIndex_cons] using ih
-
 theorem exposedLeaves_of_member (outputs : List HashOutput) (output : HashOutput) (ho : output ∈ outputs)
     (coord : Fin 7) (leaf : Fin 128) (hl : leaf ∈ chosenLeaves output coord) :
     leaf ∈ exposedLeaves outputs (DigestSampling.samplingData output).1.1 coord
@@ -3363,9 +2885,6 @@ theorem exposedLeaves_of_member (outputs : List HashOutput) (output : HashOutput
         split_ifs
         · exact Finset.mem_union_right _ htail
         · exact htail
-
-/-- The exact multiplicity bound required by the checked BPORS envelope. It
-holds for the actual first-record journal and its full proposal history. -/
 theorem journal_exposure_card (published : T3.Cache) (history : History) (state : State) (journal : Journal)
     (hj : JournalOK published history state journal) (index : Fin (2^31)) (coord : Fin 7) (bucket : Fin 16) :
     (exposedLeaves (journalOutputs journal) index coord bucket).card ≤
@@ -3373,14 +2892,10 @@ theorem journal_exposure_card (published : T3.Cache) (history : History) (state 
   have h := exposedLeaves_card (journalOutputs journal) index coord bucket
   rw [← journalLabels_outputs] at h
   exact h.trans (Nat.mul_le_mul_left 3 (((atIndex_sublist index hj.2.2.2).map (fun row => row coord)).count_le bucket))
-
 theorem journal_output_mem (journal : Journal) (message : Message) (signature : Option Signature)
     (output : HashOutput) (he : (message,(signature,some output)) ∈ journal) : output ∈ journalOutputs journal := by
   rw [journalOutputs,List.mem_filterMap]
   exact ⟨(message,(signature,some output)),he,rfl⟩
-
-/-- All 21 actual returned secret values lie in the indexed bucket exposure
-sets whose cardinalities are bounded by the same proposal history. -/
 theorem journal_opened_exposure (published : T3.Cache) (history : History) (state : State) (journal : Journal)
     (hj : JournalOK published history state journal) (message : Message) (sig : Signature) (output : HashOutput)
     (he : (message,(some sig,some output)) ∈ journal) (coord : Fin 7) (slot : Fin 3) :
@@ -3400,12 +2915,9 @@ theorem journal_opened_exposure (published : T3.Cache) (history : History) (stat
       exact Nat.mod_eq_of_lt (chosen_leaf_bound output coord slot)
     rw [hleaf]
     exact (journal_entry_openings published history state journal hj message sig output he).2.2 coord slot
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- JournalCoverage
+section
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3.BPORS.History
@@ -3414,10 +2926,6 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- The established BPORS coverage envelope applies to the actual union of
-source-signing disclosures for each index, through the multiplicity-preserving
-journal. This is a fixed-state probability bound for a fresh independent draw. -/
 theorem journal_coverage_bound (published : T3.Cache) (history : History) (state : State) (journal : Journal)
     (hj : JournalOK published history state journal) (index : Fin (2^31)) :
     Pr[fun output : HashOutput => digestAdmissible output=true ∧
@@ -3438,10 +2946,6 @@ theorem journal_coverage_bound (published : T3.Cache) (history : History) (state
   change _ ≤ wordEnvelope word
   apply h.trans_eq
   simp only [BPORS.Numeric.forestEnvelope,wordEnvelope,htable]
-
-/-- Averaging a fresh, independent index also yields the full-price scale used
-by the complete-game BPORS moment estimates. Adaptive stopping and forgery hit
-charging are separate obligations; this theorem is pointwise in the journal. -/
 theorem journal_average_coverage_bound (published : T3.Cache) (history : History) (state : State)
     (journal : Journal) (hj : JournalOK published history state journal) :
     expectedValue ($ᵗ (Fin (2^31)) : ProbComp _)
@@ -3459,13 +2963,9 @@ theorem journal_average_coverage_bound (published : T3.Cache) (history : History
     norm_num [ENNReal.toReal_mul,ENNReal.toReal_inv,ENNReal.toReal_pow]
   simp only [div_eq_mul_inv]
   rw [mul_comm ((2 : ENNReal)^97),mul_assoc,hscale]
-
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- ResolvedQueries
+section
 namespace SigGolfCandidate.T3.Security.SourceReplay
 open OracleComp OracleSpec
 open SphincsSecurity.QueryCap (counted counted_pure counted_query_bind)
@@ -3473,20 +2973,14 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- The deterministic query trace used by local extraction lemmas. This is the
-same logging definition as the separately owned padded-verifier extraction. -/
 def queried {α : Type} (oracleAnswers : Correctness.Answers) (program : M α) : List T3.Spec.Domain :=
   ((simulateQ oracleAnswers.withLogging program).run).2.map Sigma.fst
-
 @[simp] theorem queried_pure {α : Type} (oracleAnswers : Correctness.Answers) (value : α) :
     queried oracleAnswers (pure value)=[] := rfl
-
 @[simp] theorem queried_query_bind {α : Type} (oracleAnswers : Correctness.Answers)
     (input : T3.Spec.Domain) (next : T3.Spec.Range input → M α) :
     queried oracleAnswers (liftM (T3.Spec.query input) >>= next)=
       input::queried oracleAnswers (next (oracleAnswers input)) := rfl
-
 theorem queried_bind {α β : Type} (oracleAnswers : Correctness.Answers) (program : M α) (next : α → M β) :
     queried oracleAnswers (program >>= next)=queried oracleAnswers program++
       queried oracleAnswers (next (evalWithAnswerFn oracleAnswers program)) := by
@@ -3496,9 +2990,6 @@ theorem queried_bind {α β : Type} (oracleAnswers : Correctness.Answers) (progr
       rw [bind_assoc,queried_query_bind,queried_query_bind,ih,evalWithAnswerFn_bind,
         show evalWithAnswerFn oracleAnswers (liftM (T3.Spec.query input))=oracleAnswers input from
           simulateQ_spec_query oracleAnswers input,List.cons_append]
-
-/-- Every query identified by a resolved local extraction is genuinely present
-in the final cache, with the same answer under every agreeing completion. -/
 theorem Resolves.queried_known {α : Type} {state : LazyPrivate.State} {program : M α} {value : α}
     (hr : Resolves state program value) (oracleAnswers : Correctness.Answers)
     (hagrees : ∀ input answer,known state input=some answer → oracleAnswers input=answer) :
@@ -3513,12 +3004,10 @@ theorem Resolves.queried_known {α : Type} {state : LazyPrivate.State} {program 
         rw [hagrees input answer ha]
         exact ha
       · exact ih query hq
-
 theorem hash_charged (input : T3.Spec.Domain) (hi : IsHash input) : Derivation.charged input := by
   cases input with
   | inl input => cases input <;> exact hi
   | inr coordinate => trivial
-
 theorem counted_hashOnly {α : Type} (program : M α) (hp : HashOnly program) :
     HashOnly (counted Derivation.charged program) := by
   induction program using OracleComp.inductionOn with
@@ -3530,9 +3019,6 @@ theorem counted_hashOnly {α : Type} (program : M α) (hp : HashOnly program) :
       refine ⟨hi,?_⟩
       intro answer
       exact SourceQueries.bind_allowed _ (ih answer (hn answer)) (fun _ => SourceQueries.pure_allowed _ _)
-
-/-- Counting hash-only source calls agrees exactly with the extracted query
-trace, including cached queries. The trace is not reduced to distinct inputs. -/
 theorem counted_query_length {α : Type} (oracleAnswers : Correctness.Answers) (program : M α)
     (hp : HashOnly program) :
     evalWithAnswerFn oracleAnswers (counted Derivation.charged program)=
@@ -3546,17 +3032,12 @@ theorem counted_query_length {α : Type} (oracleAnswers : Correctness.Answers) (
           simulateQ_spec_query oracleAnswers input,ih _ (hn _)]
       simp only [evalWithAnswerFn_pure,queried_query_bind,List.length_cons,
         if_pos (hash_charged input hi),Nat.add_comm 1]
-
 end SigGolfCandidate.T3.Security.SourceReplay
-
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
-/-- The padding owner's deterministic `queried` predicates can be discharged
-against the actual lazy table of the monitored source experiment. -/
 theorem supported_public_query_known {α : Type} (program : M α) (hp : SourceReplay.HashOnly program)
     (before : State) (result : α × State) (hr : result ∈ support (run program before))
     (input : HashInput)
@@ -3565,10 +3046,6 @@ theorem supported_public_query_known {α : Type} (program : M α) (hp : SourceRe
   (SourceReplay.resolves_of_run program hp before.source.2 (result.1,result.2.source.2)
     (run_lazy_support program before result hr)).queried_known
       (SourceReplay.answers result.2.source.2) (SourceReplay.answers_known result.2.source.2) _ hq
-
-/-- Exact cost transfer from a local extracted hash-only execution to the
-counter used by the full security game. All earlier setup/signing calls remain
-in the starting counter, and every replayed query is charged again. -/
 theorem supported_query_length {α : Type} (program : M α) (hp : SourceReplay.HashOnly program)
     (before : State) (result : α × State) (hr : result ∈ support (run program before)) :
     result.2.source.1=before.source.1+
@@ -3587,12 +3064,9 @@ theorem supported_query_length {α : Type} (program : M α) (hp : SourceReplay.H
   change observed.2=result.2.source.2 at hcache
   change (SourceReplay.queried (SourceReplay.answers observed.2) program).length=observed.1.2 at hlen
   rw [← hcounter,← hcache,hlen]
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-section -- AdaptiveFirstHit
+section
 namespace SigGolfCandidate.T3.Security.FirstHit
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity.QueryCap (counted counted_pure counted_query_bind)
@@ -3600,17 +3074,12 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 abbrev Test := LazyPrivate.State → (input : T3.Spec.Domain) → T3.Spec.Range input → Bool
-
 structure Observation (α : Type) where
   value : α
   calls : Nat
   hit : Bool
   state : LazyPrivate.State
-
-/-- Observe a predictable query/answer event while running every actual source
-query. The full result, both caches and the original charge are retained. -/
 noncomputable def observe {α : Type} (test : Test) (program : M α) : LazyPrivate.State → ProbComp (Observation α) :=
   OracleComp.construct
     (fun value state => pure ⟨value,0,false,state⟩)
@@ -3618,17 +3087,14 @@ noncomputable def observe {α : Type} (test : Test) (program : M α) : LazyPriva
       let middle ← LazyPrivate.run (liftM (T3.Spec.query input)) state
       (fun last => ⟨last.value,FullGame.queryCharge input+last.calls,
         test state input middle.1 || last.hit,last.state⟩) <$> next middle.1 middle.2) program
-
 theorem observe_pure {α : Type} (test : Test) (value : α) (state : LazyPrivate.State) :
     observe test (pure value : M α) state=pure ⟨value,0,false,state⟩ := rfl
-
 theorem observe_query_bind {α : Type} (test : Test) (input : T3.Spec.Domain)
     (next : T3.Spec.Range input → M α) (state : LazyPrivate.State) :
     observe test (liftM (T3.Spec.query input) >>= next) state=(do
       let middle ← LazyPrivate.run (liftM (T3.Spec.query input)) state
       (fun last => ⟨last.value,FullGame.queryCharge input+last.calls,
         test state input middle.1 || last.hit,last.state⟩) <$> observe test (next middle.1) middle.2) := rfl
-
 theorem observe_erasure {α : Type} (test : Test) (program : M α) (state : LazyPrivate.State) :
     (fun result : Observation α => ((result.value,result.calls),result.state)) <$> observe test program state=
       LazyPrivate.run (counted Derivation.charged program) state := by
@@ -3650,17 +3116,12 @@ theorem observe_erasure {α : Type} (test : Test) (program : M α) (state : Lazy
         rfl
       rw [he]
       simpa only [Functor.map_map] using h
-
 theorem split_first_hit {α : Type} (program : ProbComp (Observation α)) (flag : Bool) (budget : Nat) :
     Pr[fun result => result.calls≤budget ∧ (flag || result.hit)=true | program] ≤
       (if flag=true then 1 else 0)+Pr[fun result => result.calls≤budget ∧ result.hit=true | program] := by
   cases flag with
   | false => simp
   | true => exact probEvent_le_one.trans le_self_add
-
-/-- Full adaptive source first-hit bound from a per-query hazard. The budget is
-an event on the actual final call count, so neither a fixed query count nor any
-restriction on the adversary's other response paths is required. -/
 theorem observe_hit_bound {α : Type} (test : Test) (rate : ENNReal)
     (hstep : ∀ state input,
       Pr[fun result => test state input result.1=true |
@@ -3712,29 +3173,21 @@ theorem observe_hit_bound {α : Type} (test : Test) (rate : ENNReal)
             apply add_le_add _ le_rfl
             simpa only [FullGame.queryCharge,if_neg hc,Nat.cast_zero,zero_mul] using hstep state input
           _ = _ := zero_add _
-
 end SigGolfCandidate.T3.Security.FirstHit
 end
-
-
-section -- FreshPublicTargets
+section
 namespace SigGolfCandidate.T3.Security.FirstHit
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- Targets may depend on the complete state before the next query, but never
-on that query's fresh answer. Their multiplicity is bounded separately. -/
 abbrev PublicTargets := LazyPrivate.State → HashInput → Finset Digest
-
 noncomputable def publicTargetTest (targets : PublicTargets) : Test
   | state,.inl (.inr input),output =>
       decide (state.2 input=none ∧ output.extractLsb' 0 128 ∈ targets state input)
   | _,.inl (.inl _),_ => false
   | _,.inr _,_ => false
-
 theorem uniform_low_mem (targets : Finset Digest) :
     Pr[fun output => output.extractLsb' 0 128 ∈ targets | ($ᵗ HashOutput : ProbComp HashOutput)]=
       targets.card/(2 : ENNReal)^128 := by
@@ -3744,9 +3197,6 @@ theorem uniform_low_mem (targets : Finset Digest) :
   rw [h,probEvent_uniformSample]
   simp only [Finset.filter_mem_eq_inter,Finset.univ_inter,Fintype.card_bitVec,
     Nat.cast_pow,Nat.cast_ofNat]
-
-/-- The fresh public step samples its real random-oracle answer and updates
-the real cache. Cached queries cannot trigger this particular first-hit test. -/
 theorem public_target_step (targets : PublicTargets) (state : LazyPrivate.State) (input : HashInput) :
     Pr[fun result => publicTargetTest targets state (.inl (.inr input)) result.1=true |
       LazyPrivate.run (liftM (T3.Spec.query (.inl (.inr input)))) state]=
@@ -3766,7 +3216,6 @@ theorem public_target_step (targets : PublicTargets) (state : LazyPrivate.State)
     intro result _
     simp only [publicTargetTest,decide_eq_true_eq,not_and]
     exact fun h => False.elim (hfresh h)
-
 theorem public_target_hazard (targets : PublicTargets) (maxTargets : Nat)
     (hcard : ∀ state input,(targets state input).card ≤ maxTargets)
     (state : LazyPrivate.State) (input : T3.Spec.Domain) :
@@ -3784,9 +3233,6 @@ theorem public_target_hazard (targets : PublicTargets) (maxTargets : Nat)
           · exact ENNReal.div_le_div_right (by exact_mod_cast hcard state input) _
           · exact bot_le
   | inr coordinate => simp [publicTargetTest]
-
-/-- Actual adaptive public-target search, retaining the final-count cutoff.
-Every cached query and every private hash still consumes its original charge. -/
 theorem public_targets_bound {α : Type} (targets : PublicTargets) (maxTargets : Nat)
     (hcard : ∀ state input,(targets state input).card ≤ maxTargets)
     (program : M α) (state : LazyPrivate.State) (budget : Nat) :
@@ -3794,11 +3240,9 @@ theorem public_targets_bound {α : Type} (targets : PublicTargets) (maxTargets :
       observe (publicTargetTest targets) program state] ≤
       budget*((maxTargets : ENNReal)/(2 : ENNReal)^128) :=
   observe_hit_bound _ _ (public_target_hazard targets maxTargets hcard) program state budget
-
 noncomputable def onePublicTarget
     (target : LazyPrivate.State → HashInput → Option Digest) : PublicTargets :=
   fun state input => (target state input).toFinset
-
 theorem one_public_target_bound {α : Type} (target : LazyPrivate.State → HashInput → Option Digest)
     (program : M α) (state : LazyPrivate.State) (budget : Nat) :
     Pr[fun result => result.calls≤budget ∧ result.hit=true |
@@ -3810,29 +3254,21 @@ theorem one_public_target_bound {α : Type} (target : LazyPrivate.State → Hash
     cases target state input <;> simp
   simpa only [Nat.cast_one,mul_one_div] using
     public_targets_bound (onePublicTarget target) 1 hcard program state budget
-
 end SigGolfCandidate.T3.Security.FirstHit
 end
-
-
-section -- KnownTargetHits
+section
 namespace SigGolfCandidate.T3.Security.FirstHit
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- A structural parser chooses at most one honest reference query using only
-the state already available before the actual query. -/
 abbrev Reference := LazyPrivate.State → HashInput → Option HashInput
-
 noncomputable def knownTarget (reference : Reference) (state : LazyPrivate.State)
     (input : HashInput) : Option Digest := do
   let honest ← reference state input
   let output ← state.2 honest
   pure (output.extractLsb' 0 128)
-
 theorem knownTarget_eq_some (reference : Reference) (state : LazyPrivate.State)
     (input : HashInput) (target : Digest) :
     knownTarget reference state input=some target ↔
@@ -3842,7 +3278,6 @@ theorem knownTarget_eq_some (reference : Reference) (state : LazyPrivate.State)
   cases h : reference state input <;> simp
   rename_i honest
   cases ho : state.2 honest <;> simp
-
 theorem known_target_test_iff (reference : Reference) (state : LazyPrivate.State)
     (input : HashInput) (answer : HashOutput) :
     publicTargetTest (onePublicTarget (knownTarget reference)) state (.inl (.inr input)) answer=true ↔
@@ -3856,9 +3291,6 @@ theorem known_target_test_iff (reference : Reference) (state : LazyPrivate.State
     exact ⟨hfresh,honest,output,hr,ho,he.symm⟩
   · rintro ⟨hfresh,honest,output,hr,ho,he⟩
     exact ⟨hfresh,honest,output,hr,ho,he.symm⟩
-
-/-- In this event the two complete public inputs really are different: the
-reference was already cached whereas the actual input is fresh. -/
 theorem known_target_distinct (reference : Reference) (state : LazyPrivate.State)
     (input honest : HashInput) (answer output : HashOutput)
     (hfresh : state.2 input=none) (hknown : state.2 honest=some output)
@@ -3871,24 +3303,18 @@ theorem known_target_distinct (reference : Reference) (state : LazyPrivate.State
   intro he
   rw [he,hknown] at hfresh
   contradiction
-
-/-- Observe first hits in the same authenticated source game already connected
-to the real experiment: keygen, every request and the final verdict all run. -/
 noncomputable def experiment (test : Test) (adversary : Adversary) : ProbComp (Observation Bool) :=
   observe test (FullGame.idealGame adversary) (∅,∅)
-
 theorem experiment_erasure (test : Test) (adversary : Adversary) :
     (fun result : Observation Bool => ((result.value,result.calls),result.state)) <$>
       experiment test adversary=FullGame.idealLazyExperiment adversary :=
   observe_erasure test (FullGame.idealGame adversary) (∅,∅)
-
 theorem experiment_event (test : Test) (adversary : Adversary) (budget : Nat) :
     Pr[fun result => result.value=true ∧ result.calls≤budget | experiment test adversary]=
       Pr[fun result => result.1.1=true ∧ result.1.2≤budget | FullGame.idealLazyExperiment adversary] := by
   have h := congrArg (fun law => Pr[fun result => result.1.1=true ∧ result.1.2≤budget | law])
     (experiment_erasure test adversary)
   simpa only [probEvent_map,Function.comp_def] using h
-
 theorem experiment_split (test : Test) (adversary : Adversary) (budget : Nat) :
     Pr[fun result => result.value=true ∧ result.calls≤budget | experiment test adversary] ≤
       Pr[fun result => result.value=true ∧ result.calls≤budget ∧ result.hit=false |
@@ -3901,9 +3327,6 @@ theorem experiment_split (test : Test) (adversary : Adversary) (budget : Nat) :
   by_cases hw : result.value=true ∧ result.calls≤budget
   · cases hh : result.hit <;> simp [hw]
   · simp only [hw,if_false,zero_le]
-
-/-- Remove predictable fresh-public-target hits from the full real game at
-their actual charged rate. Authentication and derivation errors are unchanged. -/
 theorem real_to_no_public_target (targets : PublicTargets) (maxTargets : Nat)
     (hcard : ∀ state input,(targets state input).card ≤ maxTargets)
     (adversary : Adversary) (q : Nat) (hq : q < 2^256) :
@@ -3919,7 +3342,6 @@ theorem real_to_no_public_target (targets : PublicTargets) (maxTargets : Nat)
   apply add_le_add _ le_rfl
   exact (experiment_split _ adversary q).trans
     (add_le_add le_rfl (public_targets_bound targets maxTargets hcard _ _ q))
-
 theorem real_to_no_known_target (reference : Reference) (adversary : Adversary)
     (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
@@ -3932,12 +3354,9 @@ theorem real_to_no_known_target (reference : Reference) (adversary : Adversary)
     cases knownTarget reference state input <;> simp
   simpa only [Nat.cast_one,mul_one_div] using
     real_to_no_public_target (onePublicTarget (knownTarget reference)) 1 hcard adversary q hq
-
 end SigGolfCandidate.T3.Security.FirstHit
 end
-
-
-section -- EncodingTargets
+section
 namespace SigGolfCandidate.T3.Security.EncodingTargets
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open FirstHit
@@ -3945,44 +3364,33 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 def wordList {lay : Layer} (word : Encoding lay) : List Nat :=
   List.ofFn fun i => (word i).val
-
 theorem wordList_injective (lay : Layer) : Function.Injective (@wordList lay) := by
   intro left right he
   funext i
   apply Fin.ext
   exact congrFun (List.ofFn_injective he) i
-
 noncomputable def preimages (lay : Layer) (word : Encoding lay) : Finset Digest :=
   Finset.univ.filter (fun digest => decode lay digest=some (wordList word))
-
 @[simp] theorem mem_preimages (lay : Layer) (word : Encoding lay) (digest : Digest) :
     digest ∈ preimages lay word ↔ decode lay digest=some (wordList word) := by
   simp only [preimages,Finset.mem_filter,Finset.mem_univ,true_and]
-
 theorem preimages_card (lay : Layer) (word : Encoding lay) : (preimages lay word).card≤1 := by
   apply Finset.card_le_one.mpr
   intro left hl right hr
   exact decode_some_injective ((mem_preimages _ _ _).mp hl) ((mem_preimages _ _ _).mp hr)
-
 noncomputable def targets (lay : Layer) (words : Finset (Encoding lay)) : Finset Digest :=
   words.biUnion (preimages lay)
-
 @[simp] theorem mem_targets (lay : Layer) (words : Finset (Encoding lay)) (digest : Digest) :
     digest ∈ targets lay words ↔ ∃ word ∈ words,decode lay digest=some (wordList word) := by
   simp only [targets,Finset.mem_biUnion,mem_preimages]
-
-/-- The actual source decoder is injective on successful encodings, so a
-finite family of mixed/checksum words costs at most one digest target per word. -/
 theorem targets_card (lay : Layer) (words : Finset (Encoding lay)) :
     (targets lay words).card≤words.card := by
   calc
     _ ≤ ∑ word ∈ words,(preimages lay word).card := Finset.card_biUnion_le
     _ ≤ ∑ _word ∈ words,1 := Finset.sum_le_sum fun word _ => preimages_card lay word
     _ = _ := by simp
-
 theorem source_decoded_target {lay : Layer} {digest : Digest} {digits : List Nat}
     (hd : decode lay digest=some digits) (words : Finset (Encoding lay)) :
     digest ∈ targets lay words ↔ decodedWord hd ∈ words := by
@@ -3996,7 +3404,6 @@ theorem source_decoded_target {lay : Layer} {digest : Digest} {digits : List Nat
   · intro hw
     refine ⟨decodedWord hd,hw,?_⟩
     simpa only [wordList,decodedWord_list hd] using hd
-
 theorem uniform_target_words (lay : Layer) (words : Finset (Encoding lay)) :
     Pr[fun output => ∃ word ∈ words,
       decode lay (output.extractLsb' 0 128)=some (wordList word) |
@@ -4009,14 +3416,11 @@ theorem uniform_target_words (lay : Layer) (words : Finset (Encoding lay)) :
     probEvent_congr' (fun output _ => (mem_targets _ _ _).symm) rfl
   rw [he,uniform_low_mem]
   exact ENNReal.div_le_div_right (by exact_mod_cast targets_card lay words) _
-
 abbrev Family := (lay : Layer) × Finset (Encoding lay)
-
 noncomputable def selectedTargets (select : LazyPrivate.State → HashInput → Option Family) : PublicTargets :=
   fun state input => match select state input with
     | none => ∅
     | some family => targets family.1 family.2
-
 theorem selected_targets_card (select : LazyPrivate.State → HashInput → Option Family)
     (bound : Nat) (hb : ∀ state input family,select state input=some family → family.2.card ≤ bound)
     (state : LazyPrivate.State) (input : HashInput) :
@@ -4025,9 +3429,6 @@ theorem selected_targets_card (select : LazyPrivate.State → HashInput → Opti
   cases he : select state input with
   | none => simp
   | some family => exact (targets_card family.1 family.2).trans (hb _ _ _ he)
-
-/-- A family may be chosen adaptively for each actual query. Only the bound on
-its pre-answer word count is needed; arbitrary other oracle traffic is allowed. -/
 theorem selected_encoding_bound {α : Type}
     (select : LazyPrivate.State → HashInput → Option Family) (bound : Nat)
     (hb : ∀ state input family,select state input=some family → family.2.card ≤ bound)
@@ -4036,12 +3437,9 @@ theorem selected_encoding_bound {α : Type}
       observe (publicTargetTest (selectedTargets select)) program state] ≤
       budget*((bound : ENNReal)/(2 : ENNReal)^128) :=
   public_targets_bound _ bound (selected_targets_card select bound hb) program state budget
-
 abbrev PointedWord := (lay : Layer) × (Encoding lay × ChainIndex lay)
-
 noncomputable def unitFamily (word : PointedWord) : Family :=
   ⟨word.1,MixedCode.unitNeighbors word.2.1 word.2.2⟩
-
 theorem selected_unit_neighbor_bound {α : Type}
     (select : LazyPrivate.State → HashInput → Option PointedWord)
     (program : M α) (state : LazyPrivate.State) (budget : Nat) :
@@ -4057,12 +3455,9 @@ theorem selected_unit_neighbor_bound {α : Type}
       simp only [hs,Option.map_some,Option.some.injEq] at he
       rw [← he]
       exact unit_neighbors_bound word.1 word.2.1 word.2.2
-
 abbrev UnpointedWord := (lay : Layer) × Encoding lay
-
 noncomputable def allNeighborFamily (word : UnpointedWord) : Family :=
   ⟨word.1,MixedCode.allUnitNeighbors word.2⟩
-
 theorem selected_all_neighbor_bound {α : Type}
     (select : LazyPrivate.State → HashInput → Option UnpointedWord)
     (program : M α) (state : LazyPrivate.State) (budget : Nat) :
@@ -4078,28 +3473,21 @@ theorem selected_all_neighbor_bound {α : Type}
       simp only [hs,Option.map_some,Option.some.injEq] at he
       rw [← he]
       exact all_neighbors_bound word.1 word.2
-
 end SigGolfCandidate.T3.Security.EncodingTargets
 end
-
-
-section -- BackwardWork
+section
 namespace SigGolfCandidate.T3.MixedCode
 open scoped BigOperators
 set_option maxHeartbeats 1000000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 variable {code : Code}
-
-/-- Total number of chain steps lying below the reference disclosure. -/
 def backwardWork (reference candidate : Encoding code) : Nat :=
   ∑ i,((reference i).val-(candidate i).val)
-
 theorem backwardWork_zero_iff (reference candidate : Encoding code) :
     backwardWork reference candidate=0 ↔ ∀ i,(reference i).val ≤ (candidate i).val := by
   simp only [backwardWork,Finset.sum_eq_zero_iff,Finset.mem_univ,true_implies,
     Nat.sub_eq_zero_iff_le]
-
 theorem backwardWork_zero_valid_iff {reference candidate : Encoding code}
     (hr : Valid reference) (hc : Valid candidate) :
     backwardWork reference candidate=0 ↔ candidate=reference := by
@@ -4109,7 +3497,6 @@ theorem backwardWork_zero_valid_iff {reference candidate : Encoding code}
   · intro h
     subst candidate
     simp [backwardWork]
-
 theorem UnitNeighborAt.backwardWork_eq_one {reference candidate : Encoding code}
     {lowered : Fin code.n} (h : UnitNeighborAt reference candidate lowered) :
     backwardWork reference candidate=1 := by
@@ -4120,9 +3507,6 @@ theorem UnitNeighborAt.backwardWork_eq_one {reference candidate : Encoding code}
   · intro other _ ho
     exact Nat.sub_eq_zero_of_le (h.2.2.2 other ho)
   · simp
-
-/-- Exactly one backwards step forces the unit-neighbor shape already used
-for the 57/3306 encoding target counts. -/
 theorem backwardWork_one_iff {reference candidate : Encoding code}
     (hr : Valid reference) (hc : Valid candidate) :
     backwardWork reference candidate=1 ↔ ∃ lowered,UnitNeighborAt reference candidate lowered := by
@@ -4152,7 +3536,6 @@ theorem backwardWork_one_iff {reference candidate : Encoding code}
     omega
   · rintro ⟨lowered,hl⟩
     exact hl.backwardWork_eq_one
-
 theorem backwardWork_trichotomy {reference candidate : Encoding code}
     (hr : Valid reference) (hc : Valid candidate) :
     candidate=reference ∨ (∃ lowered,UnitNeighborAt reference candidate lowered) ∨
@@ -4162,7 +3545,6 @@ theorem backwardWork_trichotomy {reference candidate : Encoding code}
   · by_cases ho : backwardWork reference candidate=1
     · exact Or.inr (Or.inl ((backwardWork_one_iff hr hc).mp ho))
     · exact Or.inr (Or.inr (by omega))
-
 theorem distinct_backward_cases {reference candidate : Encoding code}
     (hr : Valid reference) (hc : Valid candidate) (hne : candidate≠reference) :
     candidate ∈ allUnitNeighbors reference ∨ 2≤backwardWork reference candidate := by
@@ -4170,9 +3552,6 @@ theorem distinct_backward_cases {reference candidate : Encoding code}
   · exact False.elim (hne he)
   · exact Or.inl (mem_allUnitNeighbors.mpr hu)
   · exact Or.inr ht
-
-/-- The two-step case either goes back twice on one chain or goes back on two
-different chains. This is a deterministic property of the actual code digits. -/
 theorem two_backward_steps {reference candidate : Encoding code}
     (h : 2≤backwardWork reference candidate) :
     (∃ i,(candidate i).val+2≤(reference i).val) ∨
@@ -4200,14 +3579,9 @@ theorem two_backward_steps {reference candidate : Encoding code}
       omega
     obtain ⟨j,hji,hj⟩ := hexj
     exact Or.inr ⟨i,j,Ne.symm hji,hi,hj⟩
-
 end SigGolfCandidate.T3.MixedCode
-
 namespace SigGolfCandidate.T3.Security.EncodingTargets
 open MixedCode
-
-/-- Apply the backwards-step classification to two successful source decoder
-outputs. Equal words imply equal digests by the checked mixed decoder. -/
 theorem decoded_backward_cases {lay : Layer} {referenceDigest candidateDigest : Digest}
     {referenceDigits candidateDigits : List Nat}
     (hr : decode lay referenceDigest=some referenceDigits)
@@ -4221,29 +3595,23 @@ theorem decoded_backward_cases {lay : Layer} {referenceDigest candidateDigest : 
     rw [← decodedWord_list hc,← decodedWord_list hr,he]
   rw [hl] at hc
   exact hne (decode_some_injective hc hr)
-
 end SigGolfCandidate.T3.Security.EncodingTargets
 end
-
-
-section -- FirstHitTrace
+section
 namespace SigGolfCandidate.T3.Security.FirstHit
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 structure QueryEvent where
   before : LazyPrivate.State
   input : T3.Spec.Domain
   answer : T3.Spec.Range input
-
 structure Recorded (α : Type) where
   value : α
   events : List QueryEvent
   state : LazyPrivate.State
-
 noncomputable def record {α : Type} (program : M α) : LazyPrivate.State → ProbComp (Recorded α) :=
   OracleComp.construct
     (fun value state => pure ⟨value,[],state⟩)
@@ -4251,23 +3619,17 @@ noncomputable def record {α : Type} (program : M α) : LazyPrivate.State → Pr
       let middle ← LazyPrivate.run (liftM (T3.Spec.query input)) state
       (fun last => ⟨last.value,⟨state,input,middle.1⟩::last.events,last.state⟩) <$>
         next middle.1 middle.2) program
-
 theorem record_pure {α : Type} (value : α) (state : LazyPrivate.State) :
     record (pure value : M α) state=pure ⟨value,[],state⟩ := rfl
-
 theorem record_query_bind {α : Type} (input : T3.Spec.Domain)
     (next : T3.Spec.Range input → M α) (state : LazyPrivate.State) :
     record (liftM (T3.Spec.query input) >>= next) state=(do
       let middle ← LazyPrivate.run (liftM (T3.Spec.query input)) state
       (fun last => ⟨last.value,⟨state,input,middle.1⟩::last.events,last.state⟩) <$>
         record (next middle.1) middle.2) := rfl
-
 def summarize {α : Type} (test : Test) (result : Recorded α) : Observation α :=
   ⟨result.value,(result.events.map (fun event => FullGame.queryCharge event.input)).sum,
     result.events.any (fun event => test event.before event.input event.answer),result.state⟩
-
-/-- Adding the precise pre-query states and sampled answers changes neither
-the actual first-hit flag nor any source query charge. -/
 theorem record_observe {α : Type} (test : Test) (program : M α) (state : LazyPrivate.State) :
     summarize test <$> record program state=observe test program state := by
   induction program using OracleComp.inductionOn generalizing state with
@@ -4282,7 +3644,6 @@ theorem record_observe {α : Type} (test : Test) (program : M α) (state : LazyP
         (ih middle.1 middle.2)
       simpa only [Functor.map_map,summarize,List.map_cons,List.sum_cons,List.any_cons,
         Function.comp_def] using h
-
 theorem record_erasure {α : Type} (program : M α) (state : LazyPrivate.State) :
     (fun result : Recorded α => (result.value,result.state)) <$> record program state=
       LazyPrivate.run program state := by
@@ -4293,13 +3654,11 @@ theorem record_erasure {α : Type} (program : M α) (state : LazyPrivate.State) 
       apply bind_congr
       intro middle
       simpa only [Functor.map_map,Function.comp_def] using ih middle.1 middle.2
-
 theorem recorded_support {α : Type} (program : M α) (state : LazyPrivate.State)
     (result : Recorded α) (hr : result ∈ support (record program state)) :
     (result.value,result.state) ∈ support (LazyPrivate.run program state) := by
   rw [← record_erasure,support_map]
   exact ⟨result,hr,rfl⟩
-
 theorem recorded_query_known {α : Type} (program : M α) (hp : SourceReplay.HashOnly program)
     (before : LazyPrivate.State) (result : Recorded α) (hr : result ∈ support (record program before)) :
     ∀ event ∈ result.events,SourceReplay.known result.state event.input=some event.answer ∧
@@ -4323,9 +3682,6 @@ theorem recorded_query_known {α : Type} (program : M α) (hp : SourceReplay.Has
           (SourceReplay.hash_query_caches input hi before middle hm),
           (SourceReplay.query_extends input before middle hm).trans hext⟩
       · exact ih middle.1 (hn middle.1) middle.2 last hl event he
-
-/-- A deterministic extraction's exact query list is the input projection of
-the real recorded execution, using the agreeing final oracle completion. -/
 theorem recorded_inputs {α : Type} (program : M α) (hp : SourceReplay.HashOnly program)
     (before : LazyPrivate.State) (result : Recorded α) (hr : result ∈ support (record program before))
     (answers : Correctness.Answers)
@@ -4348,9 +3704,6 @@ theorem recorded_inputs {α : Type} (program : M α) (hp : SourceReplay.HashOnly
         (SourceReplay.hash_query_caches input hi before middle hm)
       rw [List.map_cons,SourceReplay.queried_query_bind,hagrees input middle.1 hknown]
       exact congrArg (List.cons input) (ih middle.1 (hn middle.1) middle.2 last hl hagrees)
-
-/-- The bad event can now name a concrete actual query with its actual prior
-state, rather than an abstract flag disconnected from local extraction. -/
 theorem recorded_hit_bound {α : Type} (test : Test) (rate : ENNReal)
     (hstep : ∀ state input,
       Pr[fun result => test state input result.1=true |
@@ -4362,21 +3715,15 @@ theorem recorded_hit_bound {α : Type} (test : Test) (rate : ENNReal)
   have h := observe_hit_bound test rate hstep program state budget
   rw [← record_observe,probEvent_map] at h
   simpa only [Function.comp_def,summarize,List.any_eq_true] using h
-
 end SigGolfCandidate.T3.Security.FirstHit
 end
-
-
-section -- RecordedExtraction
+section
 namespace SigGolfCandidate.T3.Security.FirstHit
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- An input extracted by the padding proof has an actual occurrence, its
-actual pre-query state, and exactly the output in the agreeing final table. -/
 theorem extracted_public_occurrence {α : Type} (program : M α)
     (hp : SourceReplay.HashOnly program) (before : LazyPrivate.State)
     (result : Recorded α) (hr : result ∈ support (record program before))
@@ -4393,9 +3740,6 @@ theorem extracted_public_occurrence {α : Type} (program : M α)
   obtain ⟨hknown,hext⟩ := recorded_query_known program hp before result hr _ he
   have ha := SourceReplay.answers_known result.state _ _ hknown
   exact ⟨prior,by simpa only [ha] using he,hext⟩
-
-/-- The actual recorded source cost agrees with deterministic extraction for
-hash-only programs; duplicate and cached queries remain in both lists. -/
 theorem recorded_cost_eq_length {α : Type} (program : M α) (hp : SourceReplay.HashOnly program)
     (before : LazyPrivate.State) (result : Recorded α) (hr : result ∈ support (record program before)) :
     (result.events.map (fun event => FullGame.queryCharge event.input)).sum=
@@ -4418,15 +3762,11 @@ theorem recorded_cost_eq_length {α : Type} (program : M α) (hp : SourceReplay.
     simp only [FullGame.queryCharge,if_pos (SourceReplay.hash_charged query hi)]
   rw [List.map_congr_left hcharges]
   simp
-
-/-- This concrete witness event is exactly the known-target portion of the
-first-hit analysis. A target first created later is deliberately not included. -/
 def KnownPublicHit (reference : Reference) {α : Type} (result : Recorded α) : Prop :=
   ∃ prior input answer honest output,
     (⟨prior,.inl (.inr input),answer⟩ : QueryEvent) ∈ result.events ∧
     prior.2 input=none ∧ reference prior input=some honest ∧ prior.2 honest=some output ∧
     answer.extractLsb' 0 128=output.extractLsb' 0 128
-
 theorem knownPublicHit_iff (reference : Reference) {α : Type} (result : Recorded α) :
     KnownPublicHit reference result ↔
       ∃ event ∈ result.events,
@@ -4446,7 +3786,6 @@ theorem knownPublicHit_iff (reference : Reference) {α : Type} (result : Recorde
               (known_target_test_iff reference prior input answer).mp ht
             exact ⟨prior,input,answer,honest,output,he,hfresh,href,hknown,heq⟩
     | inr coordinate => simp [publicTargetTest] at ht
-
 theorem recorded_known_public_hit_bound {α : Type} (reference : Reference)
     (program : M α) (state : LazyPrivate.State) (budget : Nat) :
     Pr[fun result => (result.events.map (fun event => FullGame.queryCharge event.input)).sum≤budget ∧
@@ -4458,51 +3797,38 @@ theorem recorded_known_public_hit_bound {α : Type} (reference : Reference)
   have h := recorded_hit_bound _ _
     (public_target_hazard (onePublicTarget (knownTarget reference)) 1 hcard) program state budget
   simpa only [Nat.cast_one,mul_one_div,← knownPublicHit_iff] using h
-
 end SigGolfCandidate.T3.Security.FirstHit
 end
-
-
-section -- QueryRecordedSource
+section
 namespace SigGolfCandidate.T3.Security.QueryRecorded
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 structure State where
   base : MonitoredPrivate.State
   events : List FirstHit.QueryEvent
-
 noncomputable def handler : QueryImpl T3.Spec (StateT State ProbComp) :=
   fun input => StateT.mk fun state =>
     (fun result => (result.1,⟨result.2,state.events++[⟨state.base.source.2,input,result.1⟩]⟩)) <$>
       MonitoredPrivate.run (liftM (T3.Spec.query input)) state.base
-
 noncomputable def run {α : Type} (program : M α) (state : State) : ProbComp (α × State) :=
   (simulateQ handler program).run state
-
 theorem run_pure {α : Type} (value : α) (state : State) :
     run (pure value : M α) state=pure (value,state) := rfl
-
 theorem run_bind {α β : Type} (program : M α) (next : α → M β) (state : State) :
     run (program >>= next) state=(do let middle ← run program state;run (next middle.1) middle.2) := by
   simp only [run,simulateQ_bind,StateT.run_bind]
-
 theorem run_map {α β : Type} (f : α → β) (program : M α) (state : State) :
     run (f <$> program) state=Prod.map f id <$> run program state := by
   simp only [run,simulateQ_map,StateT.run_map]
   rfl
-
 theorem run_query (input : T3.Spec.Domain) (state : State) :
     run (liftM (T3.Spec.query input)) state=
       (fun result => (result.1,⟨result.2,state.events++[⟨state.base.source.2,input,result.1⟩]⟩)) <$>
         MonitoredPrivate.run (liftM (T3.Spec.query input)) state.base := by
   simp only [run,simulateQ_spec_query,handler,StateT.run_mk]
-
-/-- Recording the actual queries preserves the existing joint source counter
-and cache-exception monitor exactly. -/
 theorem run_erasure {α : Type} (program : M α) (state : State) :
     Prod.map id State.base <$> run program state=MonitoredPrivate.run program state.base := by
   induction program using OracleComp.inductionOn generalizing state with
@@ -4512,13 +3838,11 @@ theorem run_erasure {α : Type} (program : M α) (state : State) :
       apply bind_congr
       intro middle
       exact ih middle.1 ⟨middle.2,state.events++[⟨state.base.source.2,input,middle.1⟩]⟩
-
 theorem run_support {α : Type} (program : M α) (before : State) (result : α × State)
     (hr : result ∈ support (run program before)) :
     (result.1,result.2.base) ∈ support (MonitoredPrivate.run program before.base) := by
   rw [← run_erasure,support_map]
   exact ⟨result,hr,rfl⟩
-
 theorem run_query_explicit (input : T3.Spec.Domain) (state : State) :
     run (liftM (T3.Spec.query input)) state=
       (fun result =>
@@ -4528,15 +3852,10 @@ theorem run_query_explicit (input : T3.Spec.Domain) (state : State) :
         LazyPrivate.run (liftM (T3.Spec.query input)) state.base.source.2 := by
   rw [run_query,MonitoredPrivate.run_query,CountedPrivate.run_query]
   simp only [Functor.map_map]
-
 def recorded {α : Type} (result : α × State) : FirstHit.Recorded α :=
   ⟨result.1,result.2.events,result.2.base.source.2⟩
-
 def prepend {α : Type} (events : List FirstHit.QueryEvent) (result : FirstHit.Recorded α) :
     FirstHit.Recorded α := ⟨result.value,events++result.events,result.state⟩
-
-/-- The same joint run also projects to the first-hit query recorder. This
-is the coupling needed to use query charges and BPORS prices on one execution. -/
 theorem run_recorded {α : Type} (program : M α) (state : State) :
     recorded <$> run program state=
       prepend state.events <$> FirstHit.record program state.base.source.2 := by
@@ -4552,10 +3871,8 @@ theorem run_recorded {α : Type} (program : M α) (state : State) :
       congr 1
       funext last
       simp [prepend,List.append_assoc]
-
 def CostCoherent (state : State) : Prop :=
   state.base.source.1=(state.events.map (fun event => FullGame.queryCharge event.input)).sum
-
 theorem run_cost_coherent {α : Type} (program : M α) (before : State) (hc : CostCoherent before)
     (result : α × State) (hr : result ∈ support (run program before)) : CostCoherent result.2 := by
   induction program using OracleComp.inductionOn generalizing before result with
@@ -4574,7 +3891,6 @@ theorem run_cost_coherent {α : Type} (program : M α) (before : State) (hc : Co
           (fun event => FullGame.queryCharge event.input)).sum
       simp only [List.map_append,List.map_singleton,List.sum_append,List.sum_singleton]
       exact congrArg (fun n => n+FullGame.queryCharge input) hc
-
 theorem run_events_extend {α : Type} (program : M α) (before : State) (result : α × State)
     (hr : result ∈ support (run program before)) : before.events.IsPrefix result.2.events := by
   have hm : recorded result ∈ support (recorded <$> run program before) := by
@@ -4584,12 +3900,9 @@ theorem run_events_extend {α : Type} (program : M α) (before : State) (result 
   obtain ⟨last,hl,he⟩ := hm
   have hevents := congrArg FirstHit.Recorded.events he
   exact ⟨last.events,hevents⟩
-
 end SigGolfCandidate.T3.Security.QueryRecorded
 end
-
-
-section -- ProposalRefinement
+section
 namespace SigGolfCandidate.T3.BPORS.Adaptive.ProposalModel
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity.Concrete
@@ -4597,11 +3910,7 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 variable {ι State Label Extra : Type} {spec : OracleSpec ι}
-
-/-- Add observations to a proposal model while preserving its complete
-response/state/label law, not merely the marginal label distribution. -/
 structure Refinement (model : ProposalModel spec State Label) (Extra : Type) where
   project : Extra → State
   Outcome : spec.Domain → Type
@@ -4611,16 +3920,13 @@ structure Refinement (model : ProposalModel spec State Label) (Extra : Type) whe
   record_project : ∀ input state,(record input state).map (outcome input)=model.record input (project state)
   advance_project : ∀ input state result,
     project (advance input state result)=model.advance input (project state) (outcome input result)
-
 namespace Refinement
 variable {model : ProposalModel spec State Label} (refinement : Refinement model Extra)
-
 theorem label_project (input : spec.Domain) (state : Extra) :
     (refinement.record input state).map (fun result => model.label input (refinement.outcome input result))=
       (model.record input (refinement.project state)).map (model.label input) := by
   rw [← refinement.record_project input state,PMF.map_comp]
   rfl
-
 noncomputable def model' : ProposalModel spec Extra Label where
   Outcome := refinement.Outcome
   record := refinement.record
@@ -4636,7 +3942,6 @@ noncomputable def model' : ProposalModel spec Extra Label where
     intro input state ha point
     rw [refinement.label_project]
     exact model.cap input (refinement.project state) ha point
-
 theorem rejected_project (input : spec.Domain) (state : Extra) :
     refinement.model'.rejected input state=model.rejected input (refinement.project state) := by
   unfold rejected
@@ -4645,7 +3950,6 @@ theorem rejected_project (input : spec.Domain) (state : Extra) :
       ((refinement.record input state).map (fun result => model.label input (refinement.outcome input result)))
       model.accept model.lt_one _ else model.base)=_
   simp only [refinement.label_project]
-
 theorem bridge_project (input : spec.Domain) (state : Extra) :
     (recordProposalBridge (refinement.record input state) (refinement.model'.rejected input state)
       model.accept model.positive model.lt_one.le).map (Prod.map id (refinement.outcome input))=
@@ -4653,7 +3957,6 @@ theorem bridge_project (input : spec.Domain) (state : Extra) :
         (model.rejected input (refinement.project state)) model.accept model.positive model.lt_one.le := by
   rw [refinement.rejected_project,← refinement.record_project input state]
   simp only [recordProposalBridge,PMF.map_bind,PMF.bind_map,PMF.map_comp,Function.comp_def,Prod.map,id_eq]
-
 theorem traced_query_project (input : spec.Domain) (state : List Label × Extra) :
     Prod.map id (Prod.map id refinement.project) <$> (refinement.model'.traced input).run state=
       (model.traced input).run (state.1,refinement.project state.2) := by
@@ -4677,61 +3980,48 @@ theorem traced_query_project (input : spec.Domain) (state : List Label × Extra)
     simp_rw [refinement.advance_project]
     rw [← refinement.record_project input state.2,PMF.map_comp]
     rfl
-
 theorem traced_project {α : Type} (program : OracleComp spec α) (state : List Label × Extra) :
     Prod.map id (Prod.map id refinement.project) <$>
       (simulateQ refinement.model'.traced program).run state=
         (simulateQ model.traced program).run (state.1,refinement.project state.2) :=
   map_run_simulateQ_eq_of_query_map_eq _ _ (Prod.map id refinement.project)
     refinement.traced_query_project program state
-
 end Refinement
 end SigGolfCandidate.T3.BPORS.Adaptive.ProposalModel
 end
-
-
-section -- QueryRecordedProposal
+section
 namespace SigGolfCandidate.T3.Sampling
 open OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
-
 theorem completeRecord_map {A B : Type} (f : A → B) (observed : B → Option HashOutput)
     (program : ProbComp A) :
     Prod.map f id <$> completeRecord (fun record => observed (f record)) program=
       completeRecord observed (f <$> program) := by
   simp only [completeRecord,map_bind,map_pure,bind_map_left,Prod.map,id_eq]
-
 end SigGolfCandidate.T3.Sampling
-
 namespace SigGolfCandidate.T3.Security.QueryRecorded
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 noncomputable def recordLaw (published : T3.Cache) (request : Request) (state : State) :
     PMF (((Option Signature × Option HashOutput) × State) × DigestSampling.IndexBuckets) :=
   liftM (Sampling.completeRecord (fun result => result.1.2)
     (run (FullGame.authenticatedRecord published request) state))
-
 def Outcome : LazyPrivate.Interaction.Domain → Type
   | .inl input => SphincsSecurity.OracleWorld.Range input × State
   | .inr _ => (((Option Signature × Option HashOutput) × State) × DigestSampling.IndexBuckets)
-
 def outcome : (input : LazyPrivate.Interaction.Domain) → Outcome input → MonitoredPrivate.Outcome input
   | .inl _,result => (result.1,result.2.base)
   | .inr _,result => ((result.1.1,result.1.2.base),result.2)
-
 noncomputable def interactionRecord (published : T3.Cache) :
     (input : LazyPrivate.Interaction.Domain) → State → PMF (Outcome input)
   | .inl input,state => liftM (run (forwardWorld input) state)
   | .inr request,state => recordLaw published request state
-
 def advance : (input : LazyPrivate.Interaction.Domain) → State → Outcome input → State
   | .inl _,_,result => result.2
   | .inr _,_,result => result.1.2
-
 theorem recordLaw_project (published : T3.Cache) (request : Request) (state : State) :
     (recordLaw published request state).map (outcome (.inr request))=
       MonitoredPrivate.recordLaw published request state.base := by
@@ -4743,7 +4033,6 @@ theorem recordLaw_project (published : T3.Cache) (request : Request) (state : St
       MonitoredPrivate.State) × DigestSampling.IndexBuckets) => (liftM program : PMF _)) hm
   rw [liftM_map,PMF.monad_map_eq_map] at h
   exact h
-
 theorem interactionRecord_project (published : T3.Cache) (input : LazyPrivate.Interaction.Domain)
     (state : State) :
     (interactionRecord published input state).map (outcome input)=
@@ -4755,7 +4044,6 @@ theorem interactionRecord_project (published : T3.Cache) (input : LazyPrivate.In
       rw [run_erasure]
       rfl
   | inr request => exact recordLaw_project published request state
-
 noncomputable def refinement (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127) :
     BPORS.Adaptive.ProposalModel.Refinement (MonitoredPrivate.proposalModel published budget hbudget) State where
   project := State.base
@@ -4765,10 +4053,8 @@ noncomputable def refinement (published : T3.Cache) (budget : Nat) (hbudget : bu
   advance := advance
   record_project := interactionRecord_project published
   advance_project := by intro input state result;cases input <;> rfl
-
 noncomputable def proposalModel (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127) :=
   (refinement published budget hbudget).model'
-
 theorem proposal_trace_project {α : Type} (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (program : OracleComp LazyPrivate.Interaction α)
     (history : List DigestSampling.IndexBuckets) (state : State) :
@@ -4777,7 +4063,6 @@ theorem proposal_trace_project {α : Type} (published : T3.Cache) (budget : Nat)
         (simulateQ (MonitoredPrivate.proposalModel published budget hbudget).traced program).run
           (history,state.base) :=
   (refinement published budget hbudget).traced_project program (history,state)
-
 theorem recordLaw_erasure (published : T3.Cache) (request : Request) (state : State) :
     (recordLaw published request state).map (fun result => (result.1.1.1,result.1.2))=
       (liftM (run (FullGame.authenticatedSign published request) state) : PMF (Option Signature × State)) := by
@@ -4801,7 +4086,6 @@ theorem recordLaw_erasure (published : T3.Cache) (request : Request) (state : St
   have h := evalSPMF_ext_iff.mp hg response
   rw [probOutput_map] at h
   exact h
-
 theorem proposal_query_erasure (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (input : LazyPrivate.Interaction.Domain) (state : State) :
     (((proposalModel published budget hbudget).original input).run state)=
@@ -4813,7 +4097,6 @@ theorem proposal_query_erasure (published : T3.Cache) (budget : Nat) (hbudget : 
       rw [id_map]
       rfl
   | inr request => exact recordLaw_erasure published request state
-
 theorem proposal_execution_erasure {α : Type} (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (program : OracleComp LazyPrivate.Interaction α) (state : State) :
     (simulateQ (proposalModel published budget hbudget).original program).run state=
@@ -4826,7 +4109,6 @@ theorem proposal_execution_erasure {α : Type} (published : T3.Cache) (budget : 
       apply bind_congr
       intro result
       exact ih result.1 result.2
-
 theorem proposal_trace_erasure {α : Type} (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (program : OracleComp LazyPrivate.Interaction α)
     (history : List DigestSampling.IndexBuckets) (state : State) :
@@ -4834,12 +4116,9 @@ theorem proposal_trace_erasure {α : Type} (published : T3.Cache) (budget : Nat)
       (simulateQ (proposalModel published budget hbudget).traced program).run (history,state)=
       (liftM (run (simulateQ (MonitoredPrivate.interactionSource published) program) state) : PMF (α × State)) := by
   rw [(proposalModel published budget hbudget).traced_erasure,proposal_execution_erasure]
-
 end SigGolfCandidate.T3.Security.QueryRecorded
 end
-
-
-section -- QueryRecordedGame
+section
 namespace SigGolfCandidate.T3.Security.QueryRecorded
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
@@ -4847,16 +4126,12 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] keygen FullGame.idealGame
-
 def initial : State := ⟨⟨(0,∅,∅),false⟩,[]⟩
-
 theorem initial_cost : CostCoherent initial := rfl
-
 theorem lift_run_erasure {α : Type} (program : M α) (state : State) :
     Prod.map id State.base <$> (liftM (run program state) : PMF _)=
       (liftM (MonitoredPrivate.run program state.base) : PMF _) := by
   rw [← liftM_map,run_erasure]
-
 noncomputable def tracedExperiment (adversary : Adversary) (budget : Nat)
     (hbudget : budget ≤ 2^127) : PMF (Bool × (MonitoredPrivate.History × State)) := do
   let generated ← (liftM (run keygen initial) : PMF _)
@@ -4864,9 +4139,6 @@ noncomputable def tracedExperiment (adversary : Adversary) (budget : Nat)
     (ProposalOverflow.logged (adversary generated.1.1 generated.1.2))).run ([],generated.2)
   let checked ← (liftM (run (FullGame.verdict generated.1.1 interaction.1) interaction.2.2) : PMF _)
   pure (checked.1,interaction.2.1,checked.2)
-
-/-- Dropping only the query-event journal recovers the existing complete BPORS
-game, including its history, exact counter and first-cache-exception flag. -/
 theorem traced_base_erasure (adversary : Adversary) (budget : Nat) (hbudget : budget ≤ 2^127) :
     Prod.map id (Prod.map id State.base) <$> tracedExperiment adversary budget hbudget=
       MonitoredPrivate.tracedExperiment adversary budget hbudget := by
@@ -4885,7 +4157,6 @@ theorem traced_base_erasure (adversary : Adversary) (budget : Nat) (hbudget : bu
   simp only [Prod.map,id_eq]
   rw [← lift_run_erasure (FullGame.verdict generated.1.1 interaction.1) interaction.2.2,bind_map_left]
   rfl
-
 theorem traced_source_erasure (adversary : Adversary) (budget : Nat) (hbudget : budget ≤ 2^127) :
     Prod.map id Prod.snd <$> tracedExperiment adversary budget hbudget=
       (liftM (run (FullGame.idealGame adversary) initial) : PMF _) := by
@@ -4898,12 +4169,8 @@ theorem traced_source_erasure (adversary : Adversary) (budget : Nat) (hbudget : 
   rw [MonitoredPrivate.logged_source] at h
   rw [← h,bind_map_left]
   simp only [bind_pure,Prod.map,id_eq]
-
 def recordedTrace (result : Bool × (MonitoredPrivate.History × State)) : FirstHit.Recorded Bool :=
   recorded (result.1,result.2.2)
-
-/-- Dropping only the synthetic proposals recovers the actual source query
-recorder, so first-hit bounds and BPORS prices now refer to one joint law. -/
 theorem traced_record_erasure (adversary : Adversary) (budget : Nat) (hbudget : budget ≤ 2^127) :
     recordedTrace <$> tracedExperiment adversary budget hbudget=
       (liftM (FirstHit.record (FullGame.idealGame adversary) (∅,∅)) : PMF _) := by
@@ -4923,7 +4190,6 @@ theorem traced_record_erasure (adversary : Adversary) (budget : Nat) (hbudget : 
       rw [traced_source_erasure]
     _ = (liftM (recorded <$> run (FullGame.idealGame adversary) initial) : PMF _) := (liftM_map _ _).symm
     _ = _ := by rw [hr]
-
 theorem traced_cost_coherent (adversary : Adversary) (budget : Nat) (hbudget : budget ≤ 2^127)
     (result : Bool × (MonitoredPrivate.History × State))
     (hr : result ∈ (tracedExperiment adversary budget hbudget).support) : CostCoherent result.2.2 := by
@@ -4935,7 +4201,6 @@ theorem traced_cost_coherent (adversary : Adversary) (budget : Nat) (hbudget : b
   rw [MonitoredPrivate.pmf_support] at hp
   exact run_cost_coherent (FullGame.idealGame adversary) initial initial_cost
     (result.1,result.2.2) hp
-
 theorem known_public_hit_bound (reference : FirstHit.Reference) (adversary : Adversary)
     (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.2.2.base.source.1≤q ∧ FirstHit.KnownPublicHit reference (recordedTrace result) |
@@ -4958,7 +4223,6 @@ theorem known_public_hit_bound (reference : FirstHit.Reference) (adversary : Adv
       by_contra hn
       exact hr (by simpa only [PMF.mem_support_iff] using hn)
     simp only [PMF.probOutput_eq_apply,hz,ite_self,le_refl]
-
 theorem real_to_clean_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.base.source.1≤q ∧
@@ -4968,7 +4232,6 @@ theorem real_to_clean_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127)
   have h := MonitoredPrivate.real_to_clean_bounded_trace adversary q hq
   rw [← traced_base_erasure adversary q hq,probEvent_map] at h
   exact h
-
 theorem full_game_excess_price (adversary : Adversary) (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment adversary budget hbudget)
       (fun result => if result.2.1.length≤BPORS.Numeric.proposalLength
@@ -4976,7 +4239,6 @@ theorem full_game_excess_price (adversary : Adversary) (budget : Nat) (hbudget :
   have h := MonitoredPrivate.full_game_excess_price adversary budget hbudget
   rw [← traced_base_erasure adversary budget hbudget,expectedValue_map] at h
   exact h
-
 theorem full_game_near_price (adversary : Adversary) (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment adversary budget hbudget)
       (fun result => if result.2.1.length≤BPORS.Numeric.proposalLength
@@ -4984,23 +4246,18 @@ theorem full_game_near_price (adversary : Adversary) (budget : Nat) (hbudget : b
   have h := MonitoredPrivate.full_game_near_price adversary budget hbudget
   rw [← traced_base_erasure adversary budget hbudget,expectedValue_map] at h
   exact h
-
 end SigGolfCandidate.T3.Security.QueryRecorded
 end
-
-
-section -- JointQueryBounds
+section
 namespace SigGolfCandidate.T3.Security.QueryRecorded
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 def CleanWin (q : Nat) (result : Bool × (MonitoredPrivate.History × State)) : Prop :=
   result.1=true ∧ result.2.2.base.source.1≤q ∧
     result.2.1.length≤BPORS.Numeric.proposalLength ∧ result.2.2.base.exceptional=false
-
 theorem split_known_hit (reference : FirstHit.Reference) (adversary : Adversary)
     (q : Nat) (hq : q ≤ 2^127) :
     Pr[CleanWin q | tracedExperiment adversary q hq] ≤
@@ -5018,10 +4275,6 @@ theorem split_known_hit (reference : FirstHit.Reference) (adversary : Adversary)
     · simp [hw,hcount,hh]
     · simp [hw,hcount,hh]
   · simp only [hw,if_false,zero_le]
-
-/-- One joint security reduction retains the proposal prices, first cache
-exception, every actual query, both lazy tables and every original query charge.
-Only predictable known-target hits have been removed by this theorem. -/
 theorem real_to_clean_without_known (reference : FirstHit.Reference) (adversary : Adversary)
     (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment adversary] ≤
@@ -5036,7 +4289,6 @@ theorem real_to_clean_without_known (reference : FirstHit.Reference) (adversary 
   apply add_le_add _ le_rfl
   exact (split_known_hit reference adversary q hq).trans
     (add_le_add le_rfl (known_public_hit_bound reference adversary q hq))
-
 theorem traced_base_support (adversary : Adversary) (budget : Nat) (hbudget : budget ≤ 2^127)
     (result : Bool × (MonitoredPrivate.History × State))
     (hr : result ∈ (tracedExperiment adversary budget hbudget).support) :
@@ -5044,9 +4296,6 @@ theorem traced_base_support (adversary : Adversary) (budget : Nat) (hbudget : bu
       (MonitoredPrivate.tracedExperiment adversary budget hbudget).support := by
   rw [← traced_base_erasure,PMF.monad_map_eq_map,PMF.support_map]
   exact ⟨result,hr,rfl⟩
-
-/-- The query-recorded experiment inherits the actual first-record disclosure
-journal and its binding to the published key, with no fresh independence claim. -/
 theorem traced_game_journal (adversary : Adversary) (budget : Nat) (hbudget : budget ≤ 2^127)
     (result : Bool × (MonitoredPrivate.History × State))
     (hr : result ∈ (tracedExperiment adversary budget hbudget).support)
@@ -5056,9 +4305,6 @@ theorem traced_game_journal (adversary : Adversary) (budget : Nat) (hbudget : bu
         MonitoredPrivate.JournalOK generated.2 result.2.1 result.2.2.base journal :=
   MonitoredPrivate.traced_game_journal adversary budget hbudget (result.1,result.2.1,result.2.2.base)
     (traced_base_support adversary budget hbudget result hr) hcount hflag
-
-/-- Recording the actual source queries does not compromise the multiplicity
-bound on the FTS secrets exposed by the actual signing log. -/
 theorem traced_journal_exposure (adversary : Adversary) (budget : Nat) (hbudget : budget ≤ 2^127)
     (result : Bool × (MonitoredPrivate.History × State))
     (hr : result ∈ (tracedExperiment adversary budget hbudget).support)
@@ -5070,18 +4316,14 @@ theorem traced_journal_exposure (adversary : Adversary) (budget : Nat) (hbudget 
         BPORS.History.fullNearPrice (MonitoredPrivate.journalLabels journal)≤BPORS.History.fullNearPrice result.2.1 := by
   obtain ⟨generated,journal,hg,hj⟩ := traced_game_journal adversary budget hbudget result hr hcount hflag
   exact ⟨generated,journal,hg,hj,MonitoredPrivate.journal_prices generated.2 result.2.1 result.2.2.base journal hj⟩
-
 end SigGolfCandidate.T3.Security.QueryRecorded
 end
-
-
-section -- RecordComposition
+section
 namespace SigGolfCandidate.T3.Security.FirstHit
 open OracleComp OracleSpec
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
 theorem record_bind {α β : Type} (program : M α) (next : α → M β) (state : LazyPrivate.State) :
     record (program >>= next) state=(do
       let first ← record program state
@@ -5101,16 +4343,12 @@ theorem record_bind {α β : Type} (program : M α) (next : α → M β) (state 
       apply bind_congr
       intro last
       rfl
-
 theorem record_map {α β : Type} (f : α → β) (program : M α) (state : LazyPrivate.State) :
     record (f <$> program) state=
       (fun result : Recorded α => (⟨f result.value,result.events,result.state⟩ : Recorded β)) <$>
         record program state := by
   rw [map_eq_bind_pure_comp,record_bind]
   simp only [Function.comp_def,record_pure,map_pure,List.append_nil,bind_pure_comp]
-
-/-- A local hash-only verifier execution can be extracted from its surrounding
-adaptive source execution without dropping the earlier or later query events. -/
 theorem record_bind_support {α β : Type} (program : M α) (next : α → M β)
     (before : LazyPrivate.State) (result : Recorded β)
     (hr : result ∈ support (record (program >>= next) before)) :
@@ -5123,7 +4361,6 @@ theorem record_bind_support {α β : Type} (program : M α) (next : α → M β)
   rw [support_pure,Set.mem_singleton_iff] at hr
   subst result
   exact ⟨first,hf,last,hl,rfl,rfl,rfl⟩
-
 theorem recorded_tail_public_occurrence {α β : Type} (next : α → M β) (result : Recorded β)
     (first : Recorded α) (last : Recorded β)
     (hlast : last ∈ support (record (next first.value) first.state))
@@ -5135,13 +4372,9 @@ theorem recorded_tail_public_occurrence {α β : Type} (next : α → M β) (res
       ∈ result.events := by
   obtain ⟨prior,he,_⟩ := extracted_public_occurrence (next first.value) hp first.state last hlast input hq
   exact ⟨prior,hevents ▸ List.mem_append_right first.events he⟩
-
 end SigGolfCandidate.T3.Security.FirstHit
 end
-
-
-section -- GenericGame
-
+section
 namespace SigGolfCandidate.T3.Security.GameWith
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity (OracleWorld romImpl sampleMasterSeed)
@@ -5159,23 +4392,17 @@ noncomputable local instance : Fintype Region := CacheAuthentication.regionFinty
 noncomputable local instance : SampleableType FullTable := Derivation.outputSampler Coordinate
 noncomputable local instance : SampleableType OtherTable := otherSampler
 noncomputable local instance : SampleableType MacTable := CacheAuthentication.macTableSampler
-
-/-- The game reductions require only that final verification never reads the
-private cache-MAC table. The forgery object and all other verifier behavior remain arbitrary. -/
 structure Checker (Forgery : Type) where
   check : Digest → QueryLog Requests → Forgery → M Bool
   nonMac : ∀ pk log forgery, NonMac (check pk log forgery)
-
 variable {Forgery : Type}
 abbrev AdversaryFor (Forgery : Type) :=
   Digest → T3.Cache → OracleComp LazyPrivate.Interaction (Option Forgery)
-
 noncomputable def verdict (checker : Checker Forgery) (publicKey : Digest)
     (result : Option Forgery × QueryLog Requests) : M Bool := do
   let some forgery := result.1 | return false
   let verified ← checker.check publicKey result.2 forgery
   pure (decide (result.2.length ≤ 2^32) && verified)
-
 theorem verdict_nonMac (checker : Checker Forgery) (publicKey : Digest)
     (result : Option Forgery × QueryLog Requests) : NonMac (verdict checker publicKey result) := by
   unfold verdict
@@ -5184,24 +4411,20 @@ theorem verdict_nonMac (checker : Checker Forgery) (publicKey : Digest)
   | some forgery =>
       exact SourceQueries.bind_allowed _ (checker.nonMac publicKey result.2 forgery)
         (fun _ => SourceQueries.pure_allowed _ _)
-
 noncomputable def game (checker : Checker Forgery) (adversary : AdversaryFor Forgery) : M Bool := do
   let generated ← keygen
   let result ← loggedWith (fun request => sign request.cache request.message)
     (adversary generated.1 generated.2)
   verdict checker generated.1 result
-
 noncomputable def realExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) :
     ProbComp (Bool × Nat) :=
   sampleMasterSeed >>= fun secret =>
     (simulateQ romImpl (SphincsSecurity.countHashQueries
       (Derivation.realize (privateInput secret) (game checker adversary)))).run' ∅
-
 noncomputable def tableExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery)
     (q : Nat) : ProbComp (Option (Bool × Nat)) :=
   ($ᵗ FullTable : ProbComp _) >>= fun outputs =>
     (simulateQ romImpl (Derivation.tableRun outputs (Derivation.cap (game checker adversary) q))).run' ∅
-
 theorem private_derivation_event_bound (checker : Checker Forgery)
     (adversary : AdversaryFor Forgery) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2 ≤ q | realExperiment checker adversary] ≤
@@ -5209,11 +4432,9 @@ theorem private_derivation_event_bound (checker : Checker Forgery)
         tableExperiment checker adversary q] + q / ((2^256 : Nat) : ENNReal) :=
   Derivation.event_game_hop privateInput privateInput_injective
     privateInput_hit (game checker adversary) q hq (· = true)
-
 noncomputable def countedTableExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) : ProbComp (Bool × CountState) := do
   let table ← ($ᵗ FullTable : ProbComp _)
   run table (game checker adversary) (0,∅)
-
 theorem counted_table_event (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) :
     Pr[fun result => result.1=true ∧ result.2.1≤q | countedTableExperiment checker adversary]=
       Pr[fun outcome => ∃ result,outcome=some result ∧ result.1=true | tableExperiment checker adversary q] := by
@@ -5223,41 +4444,30 @@ theorem counted_table_event (checker : Checker Forgery) (adversary : AdversaryFo
   intro table
   apply congrArg
   exact table_cap_event table (game checker adversary) ∅ q (·=true)
-
-/-- Real seeded security now reduces to an unrestricted counted table game,
-retaining key generation, all requests, both forgery forms and the exact budget event. -/
 theorem real_to_counted_table (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.1≤q | countedTableExperiment checker adversary]+
         q/((2^256 : Nat) : ENNReal) := by
   rw [counted_table_event]
   exact private_derivation_event_bound checker adversary q hq
-
 noncomputable def splitTableExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) : ProbComp (Bool × CountState) := do
   let other ← ($ᵗ OtherTable : ProbComp _)
   let mac ← ($ᵗ MacTable : ProbComp _)
   run (joinTable other mac) (game checker adversary) (0,∅)
-
 theorem table_experiment_split (checker : Checker Forgery) (adversary : AdversaryFor Forgery) :
     𝒮[countedTableExperiment checker adversary]=𝒮[splitTableExperiment checker adversary] :=
   uniform_table_split_bind (fun table => run table (game checker adversary) (0,∅))
-
-
 noncomputable def checkContinuation (checker : Checker Forgery) (other : OtherTable) (publicKey : Digest)
     (result : (Option Forgery × QueryLog Requests) × CountState) : ProbComp (Bool × CountState) :=
   (simulateQ (baseHandler other) (verdict checker publicKey result.1)).run result.2
-
 noncomputable def realRest (checker : Checker Forgery) (other : OtherTable) (mac : MacTable) (adversary : AdversaryFor Forgery)
     (publicKey : Digest) (published : T3.Cache) (state : CountState) : ProbComp (Bool × CountState) :=
   RequestHop.run (worldHandler other) (MacGame.realSigner (baseHandler other) mac)
     (adversary publicKey published) state >>= checkContinuation checker other publicKey
-
 noncomputable def idealRest (checker : Checker Forgery) (other : OtherTable) (adversary : AdversaryFor Forgery)
     (publicKey : Digest) (published : T3.Cache) (state : CountState) : ProbComp (Bool × CountState) :=
   RequestHop.run (worldHandler other) (MacGame.idealSigner (baseHandler other) published)
     (adversary publicKey published) state >>= checkContinuation checker other publicKey
-
-
 theorem logged_source_run (other : OtherTable) (mac : MacTable)
     (program : OracleComp LazyPrivate.Interaction (Option Forgery)) (state : CountState) :
     (simulateQ (MacGame.sourceHandler (baseHandler other) mac) (loggedWith (fun request => sign request.cache request.message) program)).run state=
@@ -5268,7 +4478,6 @@ theorem logged_source_run (other : OtherTable) (mac : MacTable)
       (sign request.cache request.message)) program state=_
   exact congrArg (fun signer => RequestHop.run (worldHandler other) signer program state)
     (funext fun request => MacGame.source_signer_eq (baseHandler other) mac request)
-
 theorem source_rest_run (checker : Checker Forgery) (other : OtherTable) (mac : MacTable) (adversary : AdversaryFor Forgery)
     (publicKey : Digest) (published : T3.Cache) (state : CountState) :
     (simulateQ (MacGame.sourceHandler (baseHandler other) mac) (do
@@ -5281,9 +4490,6 @@ theorem source_rest_run (checker : Checker Forgery) (other : OtherTable) (mac : 
   intro result
   rw [MacGame.simulate_no_mac _ _ _ (verdict_nonMac checker publicKey result.1)]
   rfl
-
-/-- Expand actual key generation and the actual logged forgery game. The MAC
-derivations cost two and the public cache is retained through the whole execution. -/
 theorem fixed_game_expansion (checker : Checker Forgery) (other : OtherTable) (mac : MacTable) (adversary : AdversaryFor Forgery) :
     run (joinTable other mac) (game checker adversary) (0,∅)=
       (do
@@ -5299,9 +4505,6 @@ theorem fixed_game_expansion (checker : Checker Forgery) (other : OtherTable) (m
   simpa only [simulateQ_bind,StateT.run_bind] using
     source_rest_run checker other mac adversary generated.1.1
       ⟨MacGame.tagAt mac generated.1.2,generated.1.2⟩ (generated.2.1+2,generated.2.2)
-
-/-- The published tag is uniform even though its region was selected during
-actual key generation. The conditional key law is the proved four-lane retagging law. -/
 theorem refresh_published_mac (checker : Checker Forgery) (other : OtherTable) (adversary : AdversaryFor Forgery)
     (generated : (Digest × Region) × CountState) :
     𝒮[do
@@ -5316,18 +4519,14 @@ theorem refresh_published_mac (checker : Checker Forgery) (other : OtherTable) (
   exact MacGame.refresh_published generated.1.2 (fun tag mac =>
     realRest checker other mac adversary generated.1.1 ⟨tag,generated.1.2⟩
       (generated.2.1+2,generated.2.2))
-
-
 noncomputable def preparedExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) : ProbComp (Bool × CountState) := do
   let prepared ← setup
   let mac ← ($ᵗ MacTable : ProbComp _)
   realRest checker prepared.other (MacGame.retag mac prepared.published)
     adversary prepared.publicKey prepared.published prepared.state
-
 noncomputable def authenticatedExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) : ProbComp (Bool × CountState) := do
   let prepared ← setup
   idealRest checker prepared.other adversary prepared.publicKey prepared.published prepared.state
-
 theorem split_experiment_prepared (checker : Checker Forgery) (adversary : AdversaryFor Forgery) :
     𝒮[splitTableExperiment checker adversary]=𝒮[preparedExperiment checker adversary] := by
   unfold splitTableExperiment preparedExperiment setup
@@ -5339,7 +4538,6 @@ theorem split_experiment_prepared (checker : Checker Forgery) (adversary : Adver
   apply evalSPMF_bind_congr'
   intro generated
   exact refresh_published_mac checker other adversary generated
-
 theorem checkContinuation_long (checker : Checker Forgery) (other : OtherTable) (publicKey : Digest)
     (result : (Option Forgery × QueryLog Requests) × CountState)
     (hlong : 2^32 < result.1.2.length) (q : Nat) :
@@ -5352,7 +4550,6 @@ theorem checkContinuation_long (checker : Checker Forgery) (other : OtherTable) 
       simp
       intro count cache _ hshort
       exact False.elim (hn hshort)
-
 theorem rest_authentication_bound (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (prepared : Setup) (q : Nat) :
     Pr[fun result => result.1=true ∧ result.2.1≤q | do
       let mac ← ($ᵗ MacTable : ProbComp _)
@@ -5368,17 +4565,11 @@ theorem rest_authentication_bound (checker : Checker Forgery) (adversary : Adver
   refine h.trans (add_le_add le_rfl ?_)
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
   norm_num [ENNReal.toReal_mul,ENNReal.toReal_inv,ENNReal.toReal_pow]
-
-
 theorem prepared_authentication_bound (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) :
     Pr[fun result => result.1=true ∧ result.2.1≤q | preparedExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.1≤q | authenticatedExperiment checker adversary]+
         ((2 : ENNReal)^152)⁻¹ :=
   probEvent_bind_le_add setup _ _ _ _ (fun prepared => rest_authentication_bound checker adversary prepared q)
-
-/-- A full-game reduction, with no independent-tag or authenticated-request
-premise on the adversary. Key generation, failed requests, both forgery forms,
-all query charges, signed-output freshness and the lifetime limit are retained. -/
 theorem real_to_authenticated (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.1≤q | authenticatedExperiment checker adversary]+
@@ -5390,14 +4581,10 @@ theorem real_to_authenticated (checker : Checker Forgery) (adversary : Adversary
     probEvent_congr' (fun _ _ => Iff.rfl) he
   rw [hp] at h
   exact h.trans (add_le_add (prepared_authentication_bound checker adversary q) le_rfl)
-
-
 noncomputable def idealGame (checker : Checker Forgery) (adversary : AdversaryFor Forgery) : M Bool := do
   let generated ← keygen
   let result ← loggedWith (authenticatedSign generated.2) (adversary generated.1 generated.2)
   verdict checker generated.1 result
-
-
 theorem ideal_rest_run (checker : Checker Forgery) (other : OtherTable) (mac : MacTable) (adversary : AdversaryFor Forgery)
     (publicKey : Digest) (published : T3.Cache) (state : CountState) :
     (simulateQ (MacGame.sourceHandler (baseHandler other) mac) (do
@@ -5415,7 +4602,6 @@ theorem ideal_rest_run (checker : Checker Forgery) (other : OtherTable) (mac : M
   intro result
   rw [MacGame.simulate_no_mac _ _ _ (verdict_nonMac checker publicKey result.1)]
   rfl
-
 theorem fixed_ideal_expansion (checker : Checker Forgery) (other : OtherTable) (mac : MacTable) (adversary : AdversaryFor Forgery) :
     run (joinTable other mac) (idealGame checker adversary) (0,∅)=
       (do
@@ -5431,14 +4617,9 @@ theorem fixed_ideal_expansion (checker : Checker Forgery) (other : OtherTable) (
   simpa only [simulateQ_bind,StateT.run_bind] using
     ideal_rest_run checker other mac adversary generated.1.1
       ⟨MacGame.tagAt mac generated.1.2,generated.1.2⟩ (generated.2.1+2,generated.2.2)
-
-
 noncomputable def idealTableExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) : ProbComp (Bool × CountState) := do
   let table ← ($ᵗ FullTable : ProbComp _)
   run table (idealGame checker adversary) (0,∅)
-
-/-- The authenticated experiment is an ordinary source game in the same private
-and public tables. Off-cache requests reject, but their MAC query remains charged. -/
 theorem ideal_table_authenticated (checker : Checker Forgery) (adversary : AdversaryFor Forgery) :
     𝒮[idealTableExperiment checker adversary]=𝒮[authenticatedExperiment checker adversary] := by
   unfold idealTableExperiment
@@ -5453,13 +4634,9 @@ theorem ideal_table_authenticated (checker : Checker Forgery) (adversary : Adver
   intro generated
   exact sample_mac_at_bind generated.1.2 (fun tag =>
     idealRest checker other adversary generated.1.1 ⟨tag,generated.1.2⟩ (generated.2.1+2,generated.2.2))
-
 noncomputable def idealLazyExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) :
     ProbComp ((Bool × Nat) × LazyPrivate.State) :=
   LazyPrivate.run (SphincsSecurity.QueryCap.counted Derivation.charged (idealGame checker adversary)) (∅,∅)
-
-/-- The exact budget event is preserved when the ideal source game switches
-back to lazy private tables, which the concrete proposal model can inspect. -/
 theorem ideal_lazy_event (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) :
     Pr[fun result => result.1.1=true ∧ result.1.2≤q | idealLazyExperiment checker adversary]=
       Pr[fun result => result.1=true ∧ result.2.1≤q | authenticatedExperiment checker adversary] := by
@@ -5485,24 +4662,15 @@ theorem ideal_lazy_event (checker : Checker Forgery) (adversary : AdversaryFor F
   apply congrArg
   rw [run,tableHandler,countHandler_run,probEvent_map]
   simp only [plain_run,Function.comp_def,Nat.zero_add]
-
-/-- Full real-game authentication reduction in the lazy source state used for
-the adaptive disclosure trace. No authenticated-cache premise is assumed. -/
 theorem real_to_ideal_lazy (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1.1=true ∧ result.1.2≤q | idealLazyExperiment checker adversary]+
         ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [ideal_lazy_event]
   exact real_to_authenticated checker adversary q hq
-
-
 end SigGolfCandidate.T3.Security.GameWith
-
 end
-
-
-section -- GenericTrace
-
+section
 namespace SigGolfCandidate.T3.Security.GameWith
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
@@ -5510,57 +4678,40 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 variable {Forgery : Type}
-
 namespace Counted
 open CountedPrivate
-
 noncomputable def experiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) : ProbComp (Bool × State) :=
   run (GameWith.idealGame checker adversary) (0,∅,∅)
-
 theorem experiment_event (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) :
     Pr[fun result => result.1=true ∧ result.2.1≤q | experiment checker adversary]=
       Pr[fun result => result.1.1=true ∧ result.1.2≤q | GameWith.idealLazyExperiment checker adversary] := by
   simp only [experiment,run,GameWith.idealLazyExperiment,probEvent_map,Function.comp_def,Nat.zero_add]
-
-/-- Full real-game authentication reduction in the counted lazy source state.
-No cache-validity or independence condition is imposed on the adversary. -/
 theorem real_to_counted_ideal (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.1≤q | experiment checker adversary]+
         ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [experiment_event]
   exact GameWith.real_to_ideal_lazy checker adversary q hq
-
 end Counted
-
 namespace Monitored
 open MonitoredPrivate
-
-
 noncomputable def experiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) : ProbComp (Bool × State) :=
   run (GameWith.idealGame checker adversary) ⟨(0,∅,∅),false⟩
-
 theorem experiment_erasure (checker : Checker Forgery) (adversary : AdversaryFor Forgery) :
     Prod.map id State.source <$> experiment checker adversary=Counted.experiment checker adversary :=
   run_erasure (GameWith.idealGame checker adversary) ⟨(0,∅,∅),false⟩
-
 theorem experiment_event (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) :
     Pr[fun result => result.1=true ∧ result.2.source.1≤q | experiment checker adversary]=
       Pr[fun result => result.1=true ∧ result.2.1≤q | Counted.experiment checker adversary] := by
   rw [← experiment_erasure checker adversary,probEvent_map]
   rfl
-
 theorem real_to_monitored_ideal (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q < 2^256) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.source.1≤q | experiment checker adversary]+
         ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [experiment_event]
   exact Counted.real_to_counted_ideal checker adversary q hq
-
 abbrev History := List DigestSampling.IndexBuckets
-
-/-- Execute actual keygen and verdict around the authenticated proposal trace.
-The source counter starts before keygen and finishes after forgery verification. -/
 noncomputable def tracedExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat)
     (hbudget : budget ≤ 2^127) : PMF (Bool × (History × State)) := do
   let generated ← (liftM (run keygen ⟨(0,∅,∅),false⟩) : PMF _)
@@ -5568,9 +4719,6 @@ noncomputable def tracedExperiment (checker : Checker Forgery) (adversary : Adve
     (ProposalOverflow.logged (adversary generated.1.1 generated.1.2))).run ([],generated.2)
   let checked ← (liftM (run (GameWith.verdict checker generated.1.1 interaction.1) interaction.2.2) : PMF _)
   pure (checked.1,interaction.2.1,checked.2)
-
-/-- Adding the full proposal word leaves the complete source result and exact
-query count unchanged, including unsuccessful requests and rejected forgeries. -/
 theorem tracedExperiment_erasure (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat)
     (hbudget : budget ≤ 2^127) :
     Prod.map id Prod.snd <$> tracedExperiment checker adversary budget hbudget=
@@ -5584,7 +4732,6 @@ theorem tracedExperiment_erasure (checker : Checker Forgery) (adversary : Advers
   rw [logged_source] at h
   rw [← h,bind_map_left]
   simp only [bind_pure,Prod.map,id_eq]
-
 theorem tracedExperiment_event (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2.2.source.1≤q | tracedExperiment checker adversary q hq]=
       Pr[fun result => result.1=true ∧ result.2.source.1≤q | experiment checker adversary] := by
@@ -5596,16 +4743,12 @@ theorem tracedExperiment_event (checker : Checker Forgery) (adversary : Adversar
     _ = _ := by
       simp only [probEvent_eq_tsum_ite]
       rfl
-
-/-- The real game is now reduced to the adaptive proposal experiment, with
-the original source counter covering setup, signing, expansion and verification. -/
 theorem real_to_traced (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.source.1≤q | tracedExperiment checker adversary q hq]+
         ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   rw [tracedExperiment_event]
   exact real_to_monitored_ideal checker adversary q (hq.trans_lt (by norm_num))
-
 theorem verdict_success_log (checker : Checker Forgery) (publicKey : Digest) (interaction : Option Forgery × QueryLog Requests)
     (state : State) (result : Bool × State)
     (hr : result ∈ support (run (GameWith.verdict checker publicKey interaction) state))
@@ -5621,10 +4764,6 @@ theorem verdict_success_log (checker : Checker Forgery) (publicKey : Digest) (in
       obtain ⟨middle,_,rfl⟩ := hr
       simp only [Bool.and_eq_true,decide_eq_true_eq] at hwin
       exact hwin.1
-
-
-/-- The source verdict enforces the lifetime cap. Thus proposal overflow on
-winning executions has the same bound after setup and forgery verification. -/
 theorem winning_trace_overflow (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat)
     (hbudget : budget ≤ 2^127) :
     Pr[fun result => result.1=true ∧ BPORS.Numeric.proposalLength < result.2.1.length |
@@ -5648,7 +4787,6 @@ theorem winning_trace_overflow (checker : Checker Forgery) (adversary : Adversar
     simp only [h,if_true,show interaction.1.2.length≤2^32 ∧
       BPORS.Numeric.proposalLength < interaction.2.1.length from ⟨hl,h.2⟩,le_refl]
   · simp only [h,if_false,zero_le]
-
 theorem split_winning_trace (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2.2.source.1≤q | tracedExperiment checker adversary q hq] ≤
       Pr[fun result => result.1=true ∧ result.2.2.source.1≤q ∧
@@ -5664,9 +4802,6 @@ theorem split_winning_trace (checker : Checker Forgery) (adversary : AdversaryFo
     · simp [hw,hw.1,hw.2,hn,Nat.not_lt.mpr hn]
     · simp [hw,hw.1,hw.2,hn,Nat.lt_of_not_ge hn]
   · simp only [hw,if_false,zero_le]
-
-/-- Full-game reduction with a finite proposal history. Only the bounded,
-clean-state disclosure/forgery analysis remains on this side of the reduction. -/
 theorem real_to_bounded_trace (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.source.1≤q ∧
@@ -5677,15 +4812,10 @@ theorem real_to_bounded_trace (checker : Checker Forgery) (adversary : Adversary
   apply add_le_add_left
   exact (split_winning_trace checker adversary q hq).trans
     (add_le_add le_rfl (winning_trace_overflow checker adversary q hq))
-
-
 theorem experiment_exception_bound (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.2.source.1≤q ∧ result.2.exceptional=true | experiment checker adversary] ≤
       q/(2 : ENNReal)^146 := by
   exact gate6_run_empty_linear_charge (GameWith.idealGame checker adversary) q 146 hq (by decide)
-
-/-- Cache concentration and proposal history now refer to the same complete
-adaptive experiment, preserving the source count and both oracle tables. -/
 theorem traced_exception_bound (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.2.2.source.1≤q ∧ result.2.2.exceptional=true |
       tracedExperiment checker adversary q hq] ≤ q/(2 : ENNReal)^146 := by
@@ -5695,7 +4825,6 @@ theorem traced_exception_bound (checker : Checker Forgery) (adversary : Adversar
   simp only [probEvent_map,Function.comp_def,Prod.map,id_eq,event_lift] at h
   rw [h]
   exact experiment_exception_bound checker adversary q hq
-
 theorem split_bounded_trace (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2.2.source.1≤q ∧
       result.2.1.length≤BPORS.Numeric.proposalLength | tracedExperiment checker adversary q hq] ≤
@@ -5711,10 +4840,6 @@ theorem split_bounded_trace (checker : Checker Forgery) (adversary : AdversaryFo
   by_cases hw : result.1=true ∧ result.2.2.source.1≤q ∧ result.2.1.length≤BPORS.Numeric.proposalLength
   · cases hb : result.2.2.exceptional <;> simp [hw,hw.2.1,hb]
   · simp only [hw,if_false,zero_le]
-
-/-- Full real-game reduction to the joint clean, bounded-proposal experiment.
-The remaining winning event is ready for disclosure and structural forgery
-charging; no independence/cache-validity premise is imposed on the adversary. -/
 theorem real_to_clean_bounded_trace (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.source.1≤q ∧
@@ -5728,10 +4853,6 @@ theorem real_to_clean_bounded_trace (checker : Checker Forgery) (adversary : Adv
   apply add_le_add_left
   exact (split_bounded_trace checker adversary q hq).trans
     (add_le_add le_rfl (traced_exception_bound checker adversary q hq))
-
-
-/-- The previously checked BPORS excess price applies to the actual full
-monitored game, with setup and verdict included in the experiment. -/
 theorem full_game_excess_price (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat)
     (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment checker adversary budget hbudget)
@@ -5747,7 +4868,6 @@ theorem full_game_excess_price (checker : Checker Forgery) (adversary : Adversar
   apply expectedValue_mono
   intro interaction
   exact expectedValue_le_of_le _ (fun _ => le_rfl)
-
 theorem full_game_near_price (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat)
     (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment checker adversary budget hbudget)
@@ -5763,9 +4883,6 @@ theorem full_game_near_price (checker : Checker Forgery) (adversary : AdversaryF
   apply expectedValue_mono
   intro interaction
   exact expectedValue_le_of_le _ (fun _ => le_rfl)
-
-/-- Selection may depend on the entire final record, including verification.
-The only remaining interface here is deterministic sublist membership. -/
 theorem full_game_selected_excess (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat)
     (hbudget : budget ≤ 2^127) (selected : Bool × (History × State) → History)
     (hselected : ∀ result,(selected result).Sublist result.2.1) :
@@ -5778,7 +4895,6 @@ theorem full_game_selected_excess (checker : Checker Forgery) (adversary : Adver
   split_ifs
   · exact tsub_le_tsub_right (BPORS.History.fullPrice_sublist (hselected result)) 1
   · exact le_rfl
-
 theorem full_game_selected_near (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat)
     (hbudget : budget ≤ 2^127) (selected : Bool × (History × State) → History)
     (hselected : ∀ result,(selected result).Sublist result.2.1) :
@@ -5791,15 +4907,10 @@ theorem full_game_selected_near (checker : Checker Forgery) (adversary : Adversa
   split_ifs
   · exact BPORS.History.fullNearPrice_sublist (hselected result)
   · exact le_rfl
-
 end Monitored
 end SigGolfCandidate.T3.Security.GameWith
-
 end
-
-
-section -- GenericRecorded
-
+section
 namespace SigGolfCandidate.T3.Security.GameWith.Recorded
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal QueryRecorded
 set_option maxHeartbeats 1000000
@@ -5808,7 +4919,6 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] keygen GameWith.idealGame
 variable {Forgery : Type}
-
 noncomputable def tracedExperiment (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat)
     (hbudget : budget ≤ 2^127) : PMF (Bool × (MonitoredPrivate.History × State)) := do
   let generated ← (liftM (run keygen initial) : PMF _)
@@ -5816,9 +4926,6 @@ noncomputable def tracedExperiment (checker : Checker Forgery) (adversary : Adve
     (ProposalOverflow.logged (adversary generated.1.1 generated.1.2))).run ([],generated.2)
   let checked ← (liftM (run (GameWith.verdict checker generated.1.1 interaction.1) interaction.2.2) : PMF _)
   pure (checked.1,interaction.2.1,checked.2)
-
-/-- Dropping only the query-event journal recovers the existing complete BPORS
-game, including its history, exact counter and first-cache-exception flag. -/
 theorem traced_base_erasure (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat) (hbudget : budget ≤ 2^127) :
     Prod.map id (Prod.map id State.base) <$> tracedExperiment checker adversary budget hbudget=
       Monitored.tracedExperiment checker adversary budget hbudget := by
@@ -5837,7 +4944,6 @@ theorem traced_base_erasure (checker : Checker Forgery) (adversary : AdversaryFo
   simp only [Prod.map,id_eq]
   rw [← lift_run_erasure (GameWith.verdict checker generated.1.1 interaction.1) interaction.2.2,bind_map_left]
   rfl
-
 theorem traced_source_erasure (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat) (hbudget : budget ≤ 2^127) :
     Prod.map id Prod.snd <$> tracedExperiment checker adversary budget hbudget=
       (liftM (run (GameWith.idealGame checker adversary) initial) : PMF _) := by
@@ -5850,9 +4956,6 @@ theorem traced_source_erasure (checker : Checker Forgery) (adversary : Adversary
   rw [MonitoredPrivate.logged_source] at h
   rw [← h,bind_map_left]
   simp only [bind_pure,Prod.map,id_eq]
-
-/-- Dropping only the synthetic proposals recovers the actual source query
-recorder, so first-hit bounds and BPORS prices now refer to one joint law. -/
 theorem traced_record_erasure (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat) (hbudget : budget ≤ 2^127) :
     recordedTrace <$> tracedExperiment checker adversary budget hbudget=
       (liftM (FirstHit.record (GameWith.idealGame checker adversary) (∅,∅)) : PMF _) := by
@@ -5872,7 +4975,6 @@ theorem traced_record_erasure (checker : Checker Forgery) (adversary : Adversary
       rw [traced_source_erasure]
     _ = (liftM (recorded <$> run (GameWith.idealGame checker adversary) initial) : PMF _) := (liftM_map _ _).symm
     _ = _ := by rw [hr]
-
 theorem traced_cost_coherent (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat) (hbudget : budget ≤ 2^127)
     (result : Bool × (MonitoredPrivate.History × State))
     (hr : result ∈ (tracedExperiment checker adversary budget hbudget).support) : CostCoherent result.2.2 := by
@@ -5884,7 +4986,6 @@ theorem traced_cost_coherent (checker : Checker Forgery) (adversary : AdversaryF
   rw [MonitoredPrivate.pmf_support] at hp
   exact run_cost_coherent (GameWith.idealGame checker adversary) initial initial_cost
     (result.1,result.2.2) hp
-
 theorem known_public_hit_bound (checker : Checker Forgery) (reference : FirstHit.Reference) (adversary : AdversaryFor Forgery)
     (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.2.2.base.source.1≤q ∧ FirstHit.KnownPublicHit reference (recordedTrace result) |
@@ -5907,7 +5008,6 @@ theorem known_public_hit_bound (checker : Checker Forgery) (reference : FirstHit
       by_contra hn
       exact hr (by simpa only [PMF.mem_support_iff] using hn)
     simp only [PMF.probOutput_eq_apply,hz,ite_self,le_refl]
-
 theorem real_to_clean_trace (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
       Pr[fun result => result.1=true ∧ result.2.2.base.source.1≤q ∧
@@ -5917,7 +5017,6 @@ theorem real_to_clean_trace (checker : Checker Forgery) (adversary : AdversaryFo
   have h := Monitored.real_to_clean_bounded_trace checker adversary q hq
   rw [← traced_base_erasure checker adversary q hq,probEvent_map] at h
   exact h
-
 theorem full_game_excess_price (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment checker adversary budget hbudget)
       (fun result => if result.2.1.length≤BPORS.Numeric.proposalLength
@@ -5925,7 +5024,6 @@ theorem full_game_excess_price (checker : Checker Forgery) (adversary : Adversar
   have h := Monitored.full_game_excess_price checker adversary budget hbudget
   rw [← traced_base_erasure checker adversary budget hbudget,expectedValue_map] at h
   exact h
-
 theorem full_game_near_price (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment checker adversary budget hbudget)
       (fun result => if result.2.1.length≤BPORS.Numeric.proposalLength
@@ -5933,7 +5031,6 @@ theorem full_game_near_price (checker : Checker Forgery) (adversary : AdversaryF
   have h := Monitored.full_game_near_price checker adversary budget hbudget
   rw [← traced_base_erasure checker adversary budget hbudget,expectedValue_map] at h
   exact h
-
 theorem split_known_hit (checker : Checker Forgery) (reference : FirstHit.Reference) (adversary : AdversaryFor Forgery)
     (q : Nat) (hq : q ≤ 2^127) :
     Pr[CleanWin q | tracedExperiment checker adversary q hq] ≤
@@ -5951,10 +5048,6 @@ theorem split_known_hit (checker : Checker Forgery) (reference : FirstHit.Refere
     · simp [hw,hcount,hh]
     · simp [hw,hcount,hh]
   · simp only [hw,if_false,zero_le]
-
-/-- One joint security reduction retains the proposal prices, first cache
-exception, every actual query, both lazy tables and every original query charge.
-Only predictable known-target hits have been removed by this theorem. -/
 theorem real_to_clean_without_known (checker : Checker Forgery) (reference : FirstHit.Reference) (adversary : AdversaryFor Forgery)
     (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2≤q | realExperiment checker adversary] ≤
@@ -5969,15 +5062,9 @@ theorem real_to_clean_without_known (checker : Checker Forgery) (reference : Fir
   apply add_le_add _ le_rfl
   exact (split_known_hit checker reference adversary q hq).trans
     (add_le_add le_rfl (known_public_hit_bound checker reference adversary q hq))
-
-
 end SigGolfCandidate.T3.Security.GameWith.Recorded
-
 end
-
-
-section -- PaddedGame
-
+section
 namespace SigGolfCandidate.T3.Security.PaddedGame
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -5986,8 +5073,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] keygen checkForgeryP
-
-/-- Both padded forgery forms perform only public verification queries. -/
 theorem check_public (publicKey : Digest) (log : QueryLog Requests) (forgery : ForgeryP) :
     PublicVerdict.Only (checkForgeryP publicKey log forgery) := by
   have hv (message : Message) (witness : WBytes) : PublicVerdict.Only (verifyP message publicKey witness) :=
@@ -6005,7 +5090,6 @@ theorem check_public (publicKey : Digest) (log : QueryLog Requests) (forgery : F
       cases witness with
       | none => exact allQ_pure _
       | some witness => exact allQ_bind (hv message witness) fun _ => allQ_pure _
-
 theorem check_nonMac (publicKey : Digest) (log : QueryLog Requests) (forgery : ForgeryP) :
     FullGame.NonMac (checkForgeryP publicKey log forgery) := by
   apply allQ_mono (check_public publicKey log forgery)
@@ -6014,10 +5098,7 @@ theorem check_nonMac (publicKey : Digest) (log : QueryLog Requests) (forgery : F
   · exact h.elim
   · trivial
   · exact h.elim
-
 noncomputable def checker : GameWith.Checker ForgeryP := ⟨checkForgeryP,check_nonMac⟩
-
-/-- The generic reduction is definitionally the frozen padded source game. -/
 theorem game_eq (adversary : AdversaryP) : GameWith.game checker adversary=gameP adversary := by
   unfold GameWith.game gameP
   apply bind_congr
@@ -6027,28 +5108,19 @@ theorem game_eq (adversary : AdversaryP) : GameWith.game checker adversary=gameP
   apply bind_congr
   rintro ⟨forgery,log⟩
   cases forgery <;> rfl
-
 theorem realExperiment_eq (adversary : AdversaryP) :
     GameWith.realExperiment checker adversary=realExperimentP adversary := by
   unfold GameWith.realExperiment realExperimentP
   rw [game_eq]
-
 theorem verdict_public (publicKey : Digest) (result : Option ForgeryP × QueryLog Requests) :
     PublicVerdict.Only (GameWith.verdict checker publicKey result) := by
   unfold GameWith.verdict
   cases result.1 with
   | none => exact allQ_pure _
   | some forgery => exact allQ_bind (check_public publicKey result.2 forgery) fun _ => allQ_pure _
-
 abbrev TraceResult := Bool × (MonitoredPrivate.History × QueryRecorded.State)
-
-/-- One joint law for the exact padded game: real key generation, adaptive
-signing requests, arbitrary witness bytes, full query charges and proposal history. -/
 noncomputable def tracedExperiment (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
     PMF TraceResult := GameWith.Recorded.tracedExperiment checker adversary budget hbudget
-
-/-- Arbitrary witness padding introduces no additional authentication or
-private-coordinate reduction assumption. These errors retain their checked constants. -/
 theorem real_to_clean_trace (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2 ≤ q | realExperimentP adversary] ≤
       Pr[QueryRecorded.CleanWin q | tracedExperiment adversary q hq]+
@@ -6059,7 +5131,6 @@ theorem real_to_clean_trace (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2^127
       result.2.1.length ≤ BPORS.Numeric.proposalLength ∧ result.2.2.base.exceptional=false) from rfl]
   simpa only [realExperiment_eq,tracedExperiment] using
     GameWith.Recorded.real_to_clean_trace checker adversary q hq
-
 theorem real_to_clean_without_known (reference : FirstHit.Reference) (adversary : AdversaryP)
     (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.1=true ∧ result.2 ≤ q | realExperimentP adversary] ≤
@@ -6069,38 +5140,27 @@ theorem real_to_clean_without_known (reference : FirstHit.Reference) (adversary 
       q/(2 : ENNReal)^128+q/(2 : ENNReal)^146+(2 : ENNReal)⁻¹^700+
       ((2 : ENNReal)^152)⁻¹+q/((2^256 : Nat) : ENNReal) := by
   simpa only [realExperiment_eq,tracedExperiment,QueryRecorded.CleanWin] using GameWith.Recorded.real_to_clean_without_known checker reference adversary q hq
-
 theorem full_game_excess_price (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment adversary budget hbudget)
       (fun result => if result.2.1.length ≤ BPORS.Numeric.proposalLength
         then BPORS.History.fullPrice result.2.1-1 else 0) ≤ 11324/100000000 :=
   GameWith.Recorded.full_game_excess_price checker adversary budget hbudget
-
 theorem full_game_near_price (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment adversary budget hbudget)
       (fun result => if result.2.1.length ≤ BPORS.Numeric.proposalLength
         then BPORS.History.fullNearPrice result.2.1 else 0) ≤ 404 :=
   GameWith.Recorded.full_game_near_price checker adversary budget hbudget
-
-/-- The trace is the actual query execution of the authenticated padded game,
-including all expansion and byte-verification calls, not a separate sample. -/
 theorem traced_record_erasure (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
     QueryRecorded.recordedTrace <$> tracedExperiment adversary budget hbudget=
       (liftM (FirstHit.record (GameWith.idealGame checker adversary) (∅,∅)) : PMF _) :=
   GameWith.Recorded.traced_record_erasure checker adversary budget hbudget
-
 theorem traced_cost_coherent (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127)
     (result : TraceResult) (hr : result ∈ (tracedExperiment adversary budget hbudget).support) :
     QueryRecorded.CostCoherent result.2.2 :=
   GameWith.Recorded.traced_cost_coherent checker adversary budget hbudget result hr
-
 end SigGolfCandidate.T3.Security.PaddedGame
-
 end
-
-
-section -- PaddedJournal
-
+section
 namespace SigGolfCandidate.T3.Security.PaddedGame
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal MonitoredPrivate
 open SigGolfCandidate.T3M.Final
@@ -6108,7 +5168,6 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 theorem monitored_journal (adversary : AdversaryP) (budget : Nat) (hbudget : budget≤2^127)
     (result : Bool × (History × State)) (hr : result ∈ (GameWith.Monitored.tracedExperiment checker adversary budget hbudget).support)
     (hcount : result.2.2.source.1≤budget) (hflag : result.2.2.exceptional=false) :
@@ -6138,9 +5197,6 @@ theorem monitored_journal (adversary : AdversaryP) (budget : Nat) (hbudget : bud
       (run_extends _ interaction.2.2 checked hv)
   · exact journal_public_preserves generated.1.2 interaction.2.1 interaction.2.2 journal hj
       (GameWith.verdict checker generated.1.1 interaction.1) (verdict_public _ _) checked hv
-
-
-/-- The actual first-record journal survives arbitrary padded verification. -/
 theorem traced_game_journal (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127)
     (result : TraceResult) (hr : result ∈ (tracedExperiment adversary budget hbudget).support)
     (hcount : result.2.2.base.source.1 ≤ budget) (hflag : result.2.2.base.exceptional=false) :
@@ -6151,9 +5207,6 @@ theorem traced_game_journal (adversary : AdversaryP) (budget : Nat) (hbudget : b
   rw [← GameWith.Recorded.traced_base_erasure checker adversary budget hbudget,
     PMF.monad_map_eq_map,PMF.support_map]
   exact ⟨result,hr,rfl⟩
-
-/-- BPORS exposure prices and the actual query observer describe the same
-padded-game execution, with repeated requests included in the disclosure log. -/
 theorem traced_journal_exposure (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127)
     (result : TraceResult) (hr : result ∈ (tracedExperiment adversary budget hbudget).support)
     (hcount : result.2.2.base.source.1 ≤ budget) (hflag : result.2.2.base.exceptional=false) :
@@ -6164,14 +5217,9 @@ theorem traced_journal_exposure (adversary : AdversaryP) (budget : Nat) (hbudget
         BPORS.History.fullNearPrice (journalLabels journal) ≤ BPORS.History.fullNearPrice result.2.1 := by
   obtain ⟨generated,journal,hg,hj⟩ := traced_game_journal adversary budget hbudget result hr hcount hflag
   exact ⟨generated,journal,hg,hj,journal_prices generated.2 result.2.1 result.2.2.base journal hj⟩
-
 end SigGolfCandidate.T3.Security.PaddedGame
-
 end
-
-
-section -- PaddedSecurityBoundary
-
+section
 namespace SigGolfCandidate.T3.Security.PaddedGame
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M.Final
@@ -6179,8 +5227,6 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- For budgets at least the target denominator, the exact target is automatic. -/
 theorem large_budget (adversary : AdversaryP) (q : Nat) (hq : 2^127 ≤ q) :
     Pr[fun result => result.1=true ∧ result.2 ≤ q | realExperimentP adversary] ≤
       (q : ENNReal)/2^127 := by
@@ -6189,10 +5235,6 @@ theorem large_budget (adversary : AdversaryP) (q : Nat) (hq : 2^127 ≤ q) :
   calc
     (1 : ENNReal) = (2 : ENNReal)^127/(2 : ENNReal)^127 := (ENNReal.div_self (by positivity) (by finiteness)).symm
     _ ≤ _ := ENNReal.div_le_div_right hcast _
-
-/-- Precise remaining obligation for the frozen padded target. The hypothesis
-is the still-required adaptive structural bound on the actual clean game;
-none of it is inferred merely from the proposal expectation estimates. -/
 theorem securityP_of_clean_bound
     (hclean : ∀ (adversary : AdversaryP) (q : Nat), 1 ≤ q → ∀ hq : q ≤ 2^127,
       Pr[QueryRecorded.CleanWin q | tracedExperiment adversary q hq]+
@@ -6203,13 +5245,9 @@ theorem securityP_of_clean_bound
   · exact large_budget adversary q hq
   · have hsmall : q ≤ 2^127 := Nat.le_of_lt (Nat.lt_of_not_ge hq)
     exact (real_to_clean_trace adversary q hsmall).trans (hclean adversary q hpositive hsmall)
-
 end SigGolfCandidate.T3.Security.PaddedGame
-
 end
-
-
-section -- ChainGraph
+section
 namespace SigGolfCandidate.T3.Security.ChainGraph
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
@@ -6218,42 +5256,34 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- A finite superset of every chain address used by the four-layer source.
-No chain seed or endpoint is assumed public. -/
 structure Address where
   layer : Layer
   tree : Fin (2^31)
   leaf : Fin 4096
   chain : Fin 58
   deriving DecidableEq, Fintype
-
 @[ext] theorem Address.ext {left right : Address}
     (hlayer : left.layer=right.layer) (htree : left.tree=right.tree)
     (hleaf : left.leaf=right.leaf) (hchain : left.chain=right.chain) : left=right := by
   cases left
   cases right
   simp_all
-
 attribute [local irreducible] instFintypeAddress
-
 abbrev Point := Address × Fin 7
 abbrev Labels := Point → HashOutput
 abbrev Seeds := Address → Digest
-
 noncomputable local instance : SampleableType HashOutput := SampleableType.ofFintype _
 noncomputable local instance : SampleableType Labels := SampleableType.ofFintype _
-
-/-- Every step uses the source's exact two-word header and 64-byte input. -/
 def row (point : Point) (value : Digest) : HashInput :=
   chainInput point.1.layer point.1.tree.val point.1.leaf.val point.1.chain.val point.2.val value
-
 theorem row_length (point : Point) (value : Digest) : (row point value).length=64 := by
   simp [row,chainInput,zero16,bytesLE_length]
-
 theorem row_position {left right : Point} {value value' : Digest}
     (heq : row left value=row right value') : left=right := by
-  obtain ⟨hheader,_⟩ := chainInput_fields heq
+  unfold row chainInput at heq
+  obtain ⟨hprefix,_⟩ := List.append_inj heq (by simp [List.length_append,zero16,bytesLE_length])
+  obtain ⟨hprefix,_⟩ := List.append_inj hprefix (by simp [List.length_append,zero16,bytesLE_length])
+  obtain ⟨_,hheader⟩ := List.append_inj hprefix rfl
   have hl := left.1.layer.isLt
   have hr := right.1.layer.isLt
   have hlt := left.1.tree.isLt
@@ -6264,58 +5294,42 @@ theorem row_position {left right : Point} {value value' : Digest}
   have hrc := right.1.chain.isLt
   have hls := left.2.isLt
   have hrs := right.2.isLt
-  have hh := chainHeader_injective (by omega) (by omega) (by omega) (by omega)
-    (by omega) (by omega) (by omega) (by omega) hheader
+  have hh := header_injective (by decide : 1<256) (by omega) (by omega) (by omega) (by omega)
+    (by decide : 1<256) (by omega) (by omega) (by omega) (by omega) (bytesLE_injective hheader)
+  obtain ⟨hstep,hchain⟩ := pack_nat_injective (by omega : left.2.val<256)
+    (by omega : right.2.val<256) hh.2.2.2.1
   apply Prod.ext
-  · apply Address.ext
-    · exact hh.1
-    · exact Fin.ext hh.2.1
-    · exact Fin.ext hh.2.2.1
-    · exact Fin.ext hh.2.2.2.1
-  · exact Fin.ext hh.2.2.2.2
-
-/-- Honest chain steps at distinct addresses cannot alias, even when their
-secret inputs or oracle outputs happen to coincide. -/
+  · apply Address.ext <;> apply Fin.ext
+    · exact hh.2.1
+    · exact hh.2.2.1
+    · exact hh.2.2.2.2
+    · exact hchain
+  · exact Fin.ext hstep
 theorem row_separated (values : Point → Labels → Digest) :
     FiniteGraphSampling.Separated (fun point labels => row point (values point labels)) := by
   intro left right hne before after heq
   exact hne (row_position heq)
-
 def predecessor (point : Point) : Point :=
   (point.1,⟨point.2.val-1,by have := point.2.isLt;omega⟩)
-
 def prior (seeds : Seeds) (point : Point) (labels : Labels) : Digest :=
   if point.2.val=0 then seeds point.1 else (labels (predecessor point)).extractLsb' 0 128
-
 def input (seeds : Seeds) (point : Point) (labels : Labels) : HashInput := row point (prior seeds point labels)
-
 theorem input_separated (seeds : Seeds) : FiniteGraphSampling.Separated (input seeds) :=
   row_separated (prior seeds)
-
-/-- A finite query universe is used only to justify exact presampling. It
-contains every possible source chain input, not only inputs seen on one run. -/
 noncomputable def rows : Finset HashInput :=
   (Finset.univ : Finset Point).biUnion fun point => (Finset.univ : Finset Digest).image (row point)
-
 attribute [irreducible] rows
-
 theorem row_mem (point : Point) (value : Digest) : row point value ∈ rows := by
   classical
   rw [rows,Finset.mem_biUnion]
   simp only [Finset.mem_univ,true_and]
   exact ⟨point,Finset.mem_image.mpr ⟨value,Finset.mem_univ _,rfl⟩⟩
-
 noncomputable def cell (seeds : Seeds) (point : Point) (labels : Labels) : rows :=
   ⟨input seeds point labels,row_mem point (prior seeds point labels)⟩
-
 theorem cell_separated (seeds : Seeds) : FiniteGraphSampling.Separated (cell seeds) := by
   intro left right hne before after heq
   exact input_separated seeds left right hne before after (congrArg Subtype.val heq)
-
 noncomputable local instance : SampleableType (rows → HashOutput) := SampleableType.ofFintype _
-
-/-- Exact joint graph/table presampling for actual source chain headers. This
-keeps the entire residual oracle for an arbitrary subsequent adversary. -/
 theorem read_eq_plant (seeds : Seeds) (points : List Point) (hnodup : points.Nodup) (before : Labels) :
     𝒮[do
       let table ← ($ᵗ (rows → HashOutput) : ProbComp _)
@@ -6324,12 +5338,9 @@ theorem read_eq_plant (seeds : Seeds) (points : List Point) (hnodup : points.Nod
       𝒮[FiniteGraphSampling.plant (cell seeds)
         (fun point output labels => Function.update labels point output) points before] :=
   FiniteGraphSampling.evalDist_read_eq_plant (cell seeds) _ (cell_separated seeds) points hnodup before
-
 end SigGolfCandidate.T3.Security.ChainGraph
 end
-
-
-section -- ChainGraphResidual
+section
 namespace SigGolfCandidate.T3.Security.ChainGraph
 open OracleComp OracleSpec OracleComp.EvalDist OracleComp.DeferredSampling ENNReal
 open SphincsSecurity.Concrete FiniteGraphSampling
@@ -6341,20 +5352,15 @@ attribute [local irreducible] instFintypeAddress
 noncomputable local instance : SampleableType HashOutput := SampleableType.ofFintype _
 noncomputable local instance : SampleableType Labels := SampleableType.ofFintype _
 noncomputable local instance : SampleableType (rows → HashOutput) := SampleableType.ofFintype _
-
 noncomputable def order : List Point :=
   (Finset.univ : Finset Point).toList.mergeSort (fun left right => decide (left.2.val ≤ right.2.val))
-
 attribute [local irreducible] order
-
 theorem order_nodup : order.Nodup := by
   unfold order
   exact (List.mergeSort_perm _ _).nodup_iff.mpr (Finset.nodup_toList _)
-
 theorem mem_order (point : Point) : point ∈ order := by
   rw [order,List.mem_mergeSort]
   simp
-
 theorem order_sorted : order.Pairwise (fun left right => left.2.val ≤ right.2.val) := by
   have h := List.pairwise_mergeSort
     (le := fun left right : Point => decide (left.2.val ≤ right.2.val))
@@ -6362,27 +5368,22 @@ theorem order_sorted : order.Pairwise (fun left right => left.2.val ≤ right.2.
     (by intro a b;simp [Bool.or_eq_true];omega)
     (Finset.univ : Finset Point).toList
   simpa only [order,decide_eq_true_eq] using h
-
 theorem cell_injective (seeds : Seeds) (labels : Labels) :
     Function.Injective (fun point => cell seeds point labels) := by
   intro left right heq
   by_contra hne
   exact cell_separated seeds left right hne labels labels heq
-
 noncomputable def programmed (seeds : Seeds) (labels : Labels) (residual : rows → HashOutput) :
     rows → HashOutput := patch (fun point => cell seeds point labels) labels residual order
-
 theorem programmed_at (seeds : Seeds) (labels : Labels) (residual : rows → HashOutput) (point : Point) :
     programmed seeds labels residual (cell seeds point labels)=labels point :=
   patch_at _ (cell_injective seeds labels) labels residual order point (mem_order point)
-
 theorem programmed_other (seeds : Seeds) (labels : Labels) (residual : rows → HashOutput)
     (query : rows) (hquery : ∀ point, query.val ≠ input seeds point labels) :
     programmed seeds labels residual query=residual query := by
   apply patch_of_forall_ne
   intro point _ heq
   exact hquery point (congrArg Subtype.val heq)
-
 theorem replay_eq_programmed (seeds : Seeds) (labels : Labels) (residual : rows → HashOutput)
     (points : List Point) (hsorted : points.Pairwise (fun left right => left.2.val ≤ right.2.val))
     (before : Labels) (hagrees : ∀ point, point ∉ points → before point=labels point) :
@@ -6422,9 +5423,6 @@ theorem replay_eq_programmed (seeds : Seeds) (labels : Labels) (residual : rows 
         · rw [Function.update_of_ne heq]
           exact hagrees point (fun hmem => (List.mem_cons.mp hmem).elim heq hpoint)
       rw [replay,ih hsorted _ hafter,patch,hinput]
-
-/-- Honest chain labels can be sampled independently before the source runs;
-the remaining random oracle is retained and only the distinct honest rows are programmed. -/
 theorem plant_eq_uniform_programmed (seeds : Seeds) :
     𝒮[plant (cell seeds) (fun point output values => Function.update values point output)
       order (fun _ => 0)]=
@@ -6440,8 +5438,6 @@ theorem plant_eq_uniform_programmed (seeds : Seeds) :
   rw [replay_eq_programmed seeds labels residual order order_sorted _
     (fun point hpoint => (hpoint (mem_order point)).elim)]
   rfl
-
-/-- The complete graph/table law, not just an endpoint marginal, is unchanged. -/
 theorem read_eq_uniform_programmed (seeds : Seeds) :
     𝒮[do
       let table ← ($ᵗ (rows → HashOutput) : ProbComp _)
@@ -6452,8 +5448,6 @@ theorem read_eq_uniform_programmed (seeds : Seeds) :
         let residual ← ($ᵗ (rows → HashOutput) : ProbComp _)
         pure (labels,programmed seeds labels residual)] :=
   (read_eq_plant seeds order order_nodup _).trans (plant_eq_uniform_programmed seeds)
-
-/-- An arbitrary adaptive continuation sees exactly the same joint law. -/
 theorem read_bind_eq_uniform_programmed {Result : Type} (seeds : Seeds)
     (next : Labels → (rows → HashOutput) → ProbComp Result) :
     𝒮[do
@@ -6467,12 +5461,9 @@ theorem read_bind_eq_uniform_programmed {Result : Type} (seeds : Seeds)
   have h := congrArg (fun law : SPMF (Labels × (rows → HashOutput)) =>
     law >>= fun result => 𝒮[next result.1 result.2]) (read_eq_uniform_programmed seeds)
   simpa only [evalSPMF_bind,evalSPMF_pure,bind_assoc,pure_bind] using h
-
 end SigGolfCandidate.T3.Security.ChainGraph
 end
-
-
-section -- ChainSource
+section
 namespace SigGolfCandidate.T3.Security.ChainGraph
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal Correctness
 set_option maxHeartbeats 1000000
@@ -6480,30 +5471,22 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] instFintypeAddress order
-
 def value (seeds : Seeds) (labels : Labels) (address : Address) (step : Nat) : Digest :=
   if step=0 then seeds address
   else (labels (address,⟨(step-1)%7,Nat.mod_lt _ (by decide)⟩)).extractLsb' 0 128
-
 theorem value_zero (seeds : Seeds) (labels : Labels) (address : Address) :
     value seeds labels address 0=seeds address := by simp [value]
-
 theorem value_succ (seeds : Seeds) (labels : Labels) (address : Address) (step : Fin 7) :
     value seeds labels address (step.val+1)=(labels (address,step)).extractLsb' 0 128 := by
   simp [value,Nat.mod_eq_of_lt step.isLt]
-
 theorem prior_eq_value (seeds : Seeds) (labels : Labels) (point : Point) :
     prior seeds point labels=value seeds labels point.1 point.2.val := by
   have hmod : (point.2.val-1)%7=point.2.val-1 := Nat.mod_eq_of_lt (by have := point.2.isLt;omega)
   simp only [prior,value,predecessor,hmod]
-
 theorem row_pad64 (point : Point) (digest : Digest) : pad64 (row point digest)=row point digest := by
   simp [pad64,row_length]
-
-/-- Actual answer tables consistent with the presampled, source-header graph. -/
 def Agrees (answers : Answers) (seeds : Seeds) (labels : Labels) : Prop :=
   ∀ point, answers (.inl (.inr (input seeds point labels)))=labels point
-
 theorem source_step (answers : Answers) (seeds : Seeds) (labels : Labels) (h : Agrees answers seeds labels)
     (address : Address) (step : Fin 7) :
     evalWithAnswerFn answers (chain address.layer address.tree.val address.leaf.val address.chain.val
@@ -6518,7 +5501,6 @@ theorem source_step (answers : Answers) (seeds : Seeds) (labels : Labels) (h : A
   rw [hc]
   change (answers (.inl (.inr (pad64 (row (address,step) (value seeds labels address step.val)))))).extractLsb' 0 128=_
   rw [row_pad64,hh,value_succ]
-
 theorem source_chain (answers : Answers) (seeds : Seeds) (labels : Labels) (h : Agrees answers seeds labels)
     (address : Address) (start count : Nat) (hbound : start+count ≤ 7) :
     evalWithAnswerFn answers (chain address.layer address.tree.val address.leaf.val address.chain.val
@@ -6528,12 +5510,8 @@ theorem source_chain (answers : Answers) (seeds : Seeds) (labels : Labels) (h : 
   | succ count ih =>
       rw [eval_chain_add,ih (by omega)]
       simpa only [Nat.add_assoc] using source_step answers seeds labels h address ⟨start+count,by omega⟩
-
 def sourceSeeds (answers : Answers) : Seeds := fun address =>
   leafSeed answers address.layer address.tree.val address.leaf.val address.chain.val
-
-/-- The presampled chain model uses the actual private-pair halves chosen by
-buildLeaf, including the unused half at an odd chain count. -/
 theorem source_prefix (answers : Answers) (labels : Labels) (h : Agrees answers (sourceSeeds answers) labels)
     (address : Address) (count : Nat) (hcount : count ≤ 7) :
     evalWithAnswerFn answers (chain address.layer address.tree.val address.leaf.val address.chain.val 0 count
@@ -6541,8 +5519,6 @@ theorem source_prefix (answers : Answers) (labels : Labels) (h : Agrees answers 
       value (sourceSeeds answers) labels address count := by
   simpa only [value_zero,sourceSeeds,Nat.zero_add] using
     source_chain answers (sourceSeeds answers) labels h address 0 count (by simpa using hcount)
-
-/-- The final endpoint is the source's real endpoint for either width used by base T3. -/
 theorem source_endpoint (answers : Answers) (labels : Labels) (h : Agrees answers (sourceSeeds answers) labels)
     (address : Address) :
     leafEnd answers address.layer address.tree.val address.leaf.val address.chain.val=
@@ -6550,12 +5526,9 @@ theorem source_endpoint (answers : Answers) (labels : Labels) (h : Agrees answer
   apply source_prefix answers labels h address
   unfold maxDigit
   split_ifs <;> decide
-
 end SigGolfCandidate.T3.Security.ChainGraph
 end
-
-
-section -- ChainGraphSourceLaw
+section
 namespace SigGolfCandidate.T3.Security.ChainGraph
 open OracleComp OracleSpec OracleComp.EvalDist OracleComp.DeferredSampling ENNReal Correctness
 open SphincsSecurity.Concrete FiniteGraphSampling
@@ -6567,10 +5540,8 @@ attribute [local irreducible] instFintypeAddress order
 noncomputable local instance : SampleableType HashOutput := SampleableType.ofFintype _
 noncomputable local instance : SampleableType Labels := SampleableType.ofFintype _
 noncomputable local instance : SampleableType (rows → HashOutput) := SampleableType.ofFintype _
-
 def advance (point : Point) (output : HashOutput) (labels : Labels) : Labels :=
   Function.update labels point output
-
 theorem cell_congr (seeds : Seeds) (point : Point) (left right : Labels)
     (h : point.2.val ≠ 0 → left (predecessor point)=right (predecessor point)) :
     cell seeds point left=cell seeds point right := by
@@ -6580,7 +5551,6 @@ theorem cell_congr (seeds : Seeds) (point : Point) (left right : Labels)
   split_ifs with hz
   · rfl
   · rw [h hz]
-
 theorem read_preserves (seeds : Seeds) (table : rows → HashOutput) (points : List Point)
     (before : Labels) (point : Point) (hpoint : point ∉ points) :
     read (cell seeds) advance table points before point=before point := by
@@ -6592,7 +5562,6 @@ theorem read_preserves (seeds : Seeds) (table : rows → HashOutput) (points : L
       change read (cell seeds) advance table rest
         (Function.update before first (table (cell seeds first before))) point=before point
       rw [ih _ hrest,Function.update_of_ne hne]
-
 theorem read_consistent (seeds : Seeds) (table : rows → HashOutput) (points : List Point)
     (hnodup : points.Nodup) (hsorted : points.Pairwise (fun left right => left.2.val ≤ right.2.val))
     (before : Labels) : ∀ point ∈ points,
@@ -6625,47 +5594,34 @@ theorem read_consistent (seeds : Seeds) (table : rows → HashOutput) (points : 
           (Function.update before first (table (cell seeds first before))) first=_
         rw [read_preserves _ _ _ _ _ hfirst,Function.update_self]
       · exact ih hrest hsorted _ point hpoint
-
 noncomputable def graph (seeds : Seeds) (table : rows → HashOutput) : Labels :=
   read (cell seeds) advance table order (fun _ => 0)
-
 theorem graph_consistent (seeds : Seeds) (table : rows → HashOutput) (point : Point) :
     graph seeds table point=table (cell seeds point (graph seeds table)) :=
   read_consistent seeds table order order_nodup order_sorted _ point (mem_order point)
-
-/-- Retain every other answer; only the finite source-chain row universe changes. -/
 noncomputable def tableAnswers (table : rows → HashOutput) (outside : Answers) : Answers
   | .inl (.inr query) => if h : query ∈ rows then table ⟨query,h⟩ else outside (.inl (.inr query))
   | .inl (.inl query) => outside (.inl (.inl query))
   | .inr coordinate => outside (.inr coordinate)
-
 theorem tableAnswers_row (table : rows → HashOutput) (outside : Answers) (query : rows) :
     tableAnswers table outside (.inl (.inr query.val))=table query := by
   change (if h : query.val ∈ rows then table ⟨query.val,h⟩ else outside (.inl (.inr query.val)))=table query
   rw [dif_pos query.property]
-
 theorem tableAnswers_seed (table : rows → HashOutput) (outside : Answers) :
     sourceSeeds (tableAnswers table outside)=sourceSeeds outside := rfl
-
 theorem tableAnswers_leafSeed (table : rows → HashOutput) (outside : Answers)
     (lay : Layer) (tree leaf i : Nat) :
     leafSeed (tableAnswers table outside) lay tree leaf i=leafSeed outside lay tree leaf i := rfl
-
-/-- The graph built by the original random table agrees with its actual source answers. -/
 theorem graph_agrees (seeds : Seeds) (table : rows → HashOutput) (outside : Answers) :
     Agrees (tableAnswers table outside) seeds (graph seeds table) := by
   intro point
   rw [show input seeds point (graph seeds table)=(cell seeds point (graph seeds table)).val from rfl,
     tableAnswers_row]
   exact (graph_consistent seeds table point).symm
-
-/-- The programmed table agrees with the independently sampled source-chain labels. -/
 theorem programmed_agrees (seeds : Seeds) (labels : Labels) (residual : rows → HashOutput) (outside : Answers) :
     Agrees (tableAnswers (programmed seeds labels residual) outside) seeds labels := by
   intro point
   rw [show input seeds point labels=(cell seeds point labels).val from rfl,tableAnswers_row,programmed_at]
-
-/-- Actual source chain prefixes in the eager random table are the corresponding graph labels. -/
 theorem eager_source_prefix (table : rows → HashOutput) (outside : Answers) (address : Address)
     (count : Nat) (hcount : count ≤ 7) :
     evalWithAnswerFn (tableAnswers table outside)
@@ -6675,8 +5631,6 @@ theorem eager_source_prefix (table : rows → HashOutput) (outside : Answers) (a
   simpa only [tableAnswers_seed,tableAnswers_leafSeed] using
     source_prefix (tableAnswers table outside) (graph (sourceSeeds outside) table)
       (by rw [tableAnswers_seed];exact graph_agrees (sourceSeeds outside) table outside) address count hcount
-
-/-- The same source program in the residual table has those independently sampled labels. -/
 theorem programmed_source_prefix (labels : Labels) (residual : rows → HashOutput) (outside : Answers)
     (address : Address) (count : Nat) (hcount : count ≤ 7) :
     evalWithAnswerFn (tableAnswers (programmed (sourceSeeds outside) labels residual) outside)
@@ -6687,9 +5641,6 @@ theorem programmed_source_prefix (labels : Labels) (residual : rows → HashOutp
     source_prefix (tableAnswers (programmed (sourceSeeds outside) labels residual) outside) labels
       (by rw [tableAnswers_seed];exact programmed_agrees (sourceSeeds outside) labels residual outside)
       address count hcount
-
-/-- Exact joint law of the real source prefix and the entire remaining table.
-The continuation may adaptively depend on both, including all subsequent queries. -/
 theorem source_prefix_bind_eq_uniform {Result : Type} (outside : Answers) (address : Address)
     (count : Nat) (hcount : count ≤ 7) (next : Digest → (rows → HashOutput) → ProbComp Result) :
     𝒮[do
@@ -6705,12 +5656,9 @@ theorem source_prefix_bind_eq_uniform {Result : Type} (outside : Answers) (addre
   simp_rw [eager_source_prefix _ outside address count hcount]
   exact read_bind_eq_uniform_programmed (sourceSeeds outside)
     (fun labels table => next (value (sourceSeeds outside) labels address count) table)
-
 end SigGolfCandidate.T3.Security.ChainGraph
 end
-
-
-section -- ChainPrivateSeeds
+section
 namespace SigGolfCandidate.T3.Security.ChainGraph
 open OracleComp OracleSpec OracleComp.EvalDist OracleComp.DeferredSampling ENNReal Correctness
 set_option maxHeartbeats 1000000
@@ -6719,34 +5667,25 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] instFintypeAddress order
 noncomputable local instance : Fintype Coordinate := coordinateFintype
-
 abbrev HalfCoordinate := Coordinate × Fin 2
 abbrev HalfTable := HalfCoordinate → Digest
-
 noncomputable local instance : SampleableType Digest := SampleableType.ofFintype _
 noncomputable local instance : SampleableType FullGame.FullTable := Derivation.outputSampler Coordinate
 noncomputable local instance : SampleableType HalfTable := SampleableType.ofFintype _
 noncomputable local instance : SampleableType Seeds := SampleableType.ofFintype _
-
 noncomputable def outputEquiv : HashOutput ≃ Digest × Digest :=
   SphincsSecurity.splitHashOutputEquiv 128 (by decide)
-
 noncomputable def joinOutput (low high : Digest) : HashOutput := outputEquiv.symm (low,high)
-
 theorem joinOutput_low (low high : Digest) : (joinOutput low high).extractLsb' 0 128=low :=
   congrArg Prod.fst (outputEquiv.apply_symm_apply (low,high))
-
 theorem joinOutput_high (low high : Digest) : (joinOutput low high).extractLsb' 128 128=high :=
   congrArg Prod.snd (outputEquiv.apply_symm_apply (low,high))
-
 theorem joinOutput_parts (output : HashOutput) :
     joinOutput (output.extractLsb' 0 128) (output.extractLsb' 128 128)=output :=
   outputEquiv.symm_apply_apply output
-
 def halves (table : FullGame.FullTable) : HalfTable := fun coordinate =>
   if coordinate.2.val=0 then (table coordinate.1).extractLsb' 0 128
   else (table coordinate.1).extractLsb' 128 128
-
 noncomputable def halvesEquiv : FullGame.FullTable ≃ HalfTable where
   toFun := halves
   invFun table := fun coordinate => joinOutput (table (coordinate,0)) (table (coordinate,1))
@@ -6759,18 +5698,12 @@ noncomputable def halvesEquiv : FullGame.FullTable ≃ HalfTable where
     fin_cases half
     · exact joinOutput_low _ _
     · exact joinOutput_high _ _
-
-/-- Splitting every private answer is a bijection of the entire private table,
-so unused halves, MACs, masks and nonces remain in the joint experiment. -/
 theorem uniform_private_halves :
     𝒮[halves <$> ($ᵗ FullGame.FullTable : ProbComp _)]=𝒮[($ᵗ HalfTable : ProbComp _)] :=
   evalSPMF_map_bijective_uniform_cross (α := FullGame.FullTable) (β := HalfTable) halves halvesEquiv.bijective
-
 def seedCoordinate (address : Address) : HalfCoordinate :=
   (.inl (header 0 address.layer.val address.tree.val (address.chain.val/2) address.leaf.val),
     ⟨address.chain.val%2,Nat.mod_lt _ (by decide)⟩)
-
-/-- Pair packing does not make different source chains share a secret half. -/
 theorem seedCoordinate_injective : Function.Injective seedCoordinate := by
   intro left right heq
   have hp := congrArg Prod.fst heq
@@ -6794,47 +5727,32 @@ theorem seedCoordinate_injective : Function.Injective seedCoordinate := by
   · exact fields.2.2.2.2
   · have := fields.2.2.2.1
     omega
-
 def privateSeeds (table : FullGame.FullTable) : Seeds := halves table ∘ seedCoordinate
-
-/-- This is the exact secret-half projection of Core.buildLeaf. -/
 noncomputable def privateAnswers (table : FullGame.FullTable) (outside : Answers) : Answers
   | .inl query => outside (.inl query)
   | .inr coordinate => table coordinate
-
 theorem sourceSeeds_private (table : FullGame.FullTable) (outside : Answers) :
     sourceSeeds (privateAnswers table outside)=privateSeeds table := rfl
-
 abbrev OtherHalf := {coordinate : HalfCoordinate // coordinate ∉ Set.range seedCoordinate}
 abbrev OtherHalves := OtherHalf → Digest
 noncomputable local instance : SampleableType OtherHalves := SampleableType.ofFintype _
 noncomputable local instance : SampleableType (Seeds × OtherHalves) := SampleableType.ofFintype _
-
 noncomputable def splitHalvesEquiv : HalfTable ≃ Seeds × OtherHalves :=
   (Equiv.arrowCongr ((Equiv.Set.sumCompl (Set.range seedCoordinate)).symm.trans
     ((Equiv.ofInjective seedCoordinate seedCoordinate_injective).symm.sumCongr (Equiv.refl OtherHalf)))
     (Equiv.refl Digest)).trans (Equiv.sumArrowEquivProdArrow _ _ _)
-
 theorem splitHalves_seeds (table : HalfTable) : (splitHalvesEquiv table).1=table ∘ seedCoordinate := by
   funext address
   simp [splitHalvesEquiv,Equiv.sumArrowEquivProdArrow,Equiv.ofInjective]
-
 noncomputable def privateTableEquiv : FullGame.FullTable ≃ Seeds × OtherHalves :=
   halvesEquiv.trans splitHalvesEquiv
-
 theorem privateTableEquiv_seeds (table : FullGame.FullTable) :
     (privateTableEquiv table).1=privateSeeds table := splitHalves_seeds (halves table)
-
-/-- Exact private seed/residual factorization. The projection is not used to
-discard other private values on which the rest of the source game depends. -/
 theorem uniform_private_seed_residual :
     𝒮[privateTableEquiv <$> ($ᵗ FullGame.FullTable : ProbComp _)]=
       𝒮[do let seeds ← ($ᵗ Seeds : ProbComp _);let other ← ($ᵗ OtherHalves : ProbComp _);pure (seeds,other)] :=
   (evalSPMF_map_bijective_uniform_cross (α := FullGame.FullTable) (β := Seeds × OtherHalves) privateTableEquiv privateTableEquiv.bijective).trans
     (FullGame.uniform_product (A := Seeds) (B := OtherHalves)).symm
-
-/-- Any complete adaptive source continuation may be retained after the exact
-seed-table split; no independence from its private remainder is postulated. -/
 theorem private_seed_bind {Result : Type} (next : FullGame.FullTable → ProbComp Result) :
     𝒮[do let table ← ($ᵗ FullGame.FullTable : ProbComp _);next table]=
       𝒮[do
@@ -6845,12 +5763,9 @@ theorem private_seed_bind {Result : Type} (next : FullGame.FullTable → ProbCom
     law >>= fun result => 𝒮[next (privateTableEquiv.symm result)]) uniform_private_seed_residual
   simpa only [evalSPMF_map,evalSPMF_bind,bind_map_left,evalSPMF_pure,bind_assoc,pure_bind,
     Equiv.symm_apply_apply] using h
-
 end SigGolfCandidate.T3.Security.ChainGraph
 end
-
-
-section -- ChainInitialLaw
+section
 namespace SigGolfCandidate.T3.Security.ChainGraph
 open OracleComp OracleSpec OracleComp.EvalDist OracleComp.DeferredSampling ENNReal
 set_option maxHeartbeats 1000000
@@ -6865,13 +5780,9 @@ noncomputable local instance : SampleableType Seeds := SampleableType.ofFintype 
 noncomputable local instance : SampleableType OtherHalves := SampleableType.ofFintype _
 noncomputable local instance : SampleableType Labels := SampleableType.ofFintype _
 noncomputable local instance : SampleableType (rows → HashOutput) := SampleableType.ofFintype _
-
 theorem reconstructed_seeds (seeds : Seeds) (other : OtherHalves) :
     privateSeeds (privateTableEquiv.symm (seeds,other))=seeds := by
   rw [← privateTableEquiv_seeds,Equiv.apply_symm_apply]
-
-/-- Exact presampling of the whole private table and every finite source-chain
-row, retaining both table remainders for any complete adaptive continuation. -/
 theorem private_chain_tables_bind {Result : Type}
     (next : FullGame.FullTable → (rows → HashOutput) → ProbComp Result) :
     𝒮[do
@@ -6891,28 +5802,22 @@ theorem private_chain_tables_bind {Result : Type}
   intro other
   exact read_bind_eq_uniform_programmed seeds
     (fun _ table => next (privateTableEquiv.symm (seeds,other)) table)
-
 abbrev LowLabels := Point → Digest
 noncomputable local instance : SampleableType LowLabels := SampleableType.ofFintype _
 noncomputable local instance : SampleableType (LowLabels × LowLabels) := SampleableType.ofFintype _
-
 noncomputable def labelPairEquiv : Labels ≃ LowLabels × LowLabels :=
   (Equiv.arrowCongr (Equiv.refl Point) outputEquiv).trans
     (Equiv.arrowProdEquivProdArrow Point (fun _ => Digest) (fun _ => Digest))
-
 noncomputable def joinLabels (low high : LowLabels) : Labels :=
   fun point => joinOutput (low point) (high point)
-
 theorem labelPairEquiv_symm (low high : LowLabels) :
     labelPairEquiv.symm (low,high)=joinLabels low high := rfl
-
 theorem uniform_label_pair :
     𝒮[labelPairEquiv <$> ($ᵗ Labels : ProbComp _)]=
       𝒮[do let low ← ($ᵗ LowLabels : ProbComp _);let high ← ($ᵗ LowLabels : ProbComp _);pure (low,high)] :=
   (evalSPMF_map_bijective_uniform_cross (α := Labels) (β := LowLabels × LowLabels)
     labelPairEquiv labelPairEquiv.bijective).trans
     (FullGame.uniform_product (A := LowLabels) (B := LowLabels)).symm
-
 theorem labels_bind {Result : Type} (next : Labels → ProbComp Result) :
     𝒮[do let labels ← ($ᵗ Labels : ProbComp _);next labels]=
       𝒮[do
@@ -6923,18 +5828,13 @@ theorem labels_bind {Result : Type} (next : Labels → ProbComp Result) :
     law >>= fun result => 𝒮[next (labelPairEquiv.symm result)]) uniform_label_pair
   simpa only [evalSPMF_map,evalSPMF_bind,bind_map_left,evalSPMF_pure,bind_assoc,pure_bind,
     Equiv.symm_apply_apply,labelPairEquiv_symm] using h
-
 abbrev HiddenCoordinate := Address ⊕ Point
 abbrev HiddenLabels := HiddenCoordinate → Digest
 noncomputable local instance : SampleableType HiddenLabels := SampleableType.ofFintype _
 noncomputable local instance : SampleableType (Seeds × LowLabels) := SampleableType.ofFintype _
-
 def seedLowEquiv : HiddenLabels ≃ Seeds × LowLabels := Equiv.sumArrowEquivProdArrow Address Point Digest
-
 theorem seedLow_fst (hidden : HiddenLabels) : (seedLowEquiv hidden).1=hidden ∘ Sum.inl := rfl
-
 theorem seedLow_snd (hidden : HiddenLabels) : (seedLowEquiv hidden).2=hidden ∘ Sum.inr := rfl
-
 theorem seed_low_bind {Result : Type} (next : Seeds → LowLabels → ProbComp Result) :
     𝒮[do let seeds ← ($ᵗ Seeds : ProbComp _);let low ← ($ᵗ LowLabels : ProbComp _);next seeds low]=
       𝒮[do let hidden ← ($ᵗ HiddenLabels : ProbComp _);next (hidden ∘ Sum.inl) (hidden ∘ Sum.inr)] := by
@@ -6947,10 +5847,6 @@ theorem seed_low_bind {Result : Type} (next : Seeds → LowLabels → ProbComp R
     law >>= fun result => 𝒮[next result.1 result.2]) hpair
   simpa only [evalSPMF_map,evalSPMF_bind,bind_map_left,evalSPMF_pure,bind_assoc,pure_bind,
     seedLow_fst,seedLow_snd] using h.symm
-
-/-- Initial hidden seed and chain labels are one product-uniform digest table.
-All other private halves, high answer bits, and residual public rows remain in
-this equality and may be used by the subsequent source/adversary computation. -/
 theorem initial_hidden_law {Result : Type}
     (next : FullGame.FullTable → (rows → HashOutput) → ProbComp Result) :
     𝒮[do
@@ -6995,12 +5891,9 @@ theorem initial_hidden_law {Result : Type}
       let high ← ($ᵗ LowLabels : ProbComp _)
       let residual ← ($ᵗ (rows → HashOutput) : ProbComp _)
       next (privateTableEquiv.symm (seeds,other)) (programmed seeds (joinLabels low high) residual))
-
 end SigGolfCandidate.T3.Security.ChainGraph
 end
-
-
-section -- ChainHiddenProbe
+section
 namespace SigGolfCandidate.T3.Security.ChainGraph
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity.Concrete HiddenLabelObservation
@@ -7009,14 +5902,9 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] instFintypeAddress order
-
-/-- The predecessor of step zero is its private seed; later steps use the
-previous chain output. Both are coordinates of the same hidden digest table. -/
 def child (point : Point) : HiddenCoordinate :=
   if point.2.val=0 then .inl point.1 else .inr (predecessor point)
-
 def parent (point : Point) : HiddenCoordinate := .inr point
-
 theorem child_ne_parent (point : Point) : child point ≠ parent point := by
   unfold child parent
   split_ifs with hz
@@ -7025,28 +5913,21 @@ theorem child_ne_parent (point : Point) : child point ≠ parent point := by
     have hv := congrArg (fun p : Point => p.2.val) (Sum.inr.inj heq)
     simp only [predecessor] at hv
     omega
-
 def probe (point : Point) (candidate : Digest) : Probe HiddenCoordinate :=
   .pair (child point) (parent point) (child_ne_parent point) candidate
-
 theorem prior_hidden (hidden : HiddenLabels) (high : LowLabels) (point : Point) :
     prior (hidden ∘ Sum.inl) point (joinLabels (hidden ∘ Sum.inr) high)=hidden (child point) := by
   unfold prior child
   split_ifs
   · rfl
   · exact joinOutput_low _ _
-
 theorem output_hidden (hidden : HiddenLabels) (high : LowLabels) (point : Point) :
     ((joinLabels (hidden ∘ Sum.inr) high) point).extractLsb' 0 128=hidden (parent point) :=
   joinOutput_low _ _
-
 theorem row_value_injective (point : Point) : Function.Injective (row point) := by
   intro left right heq
   unfold row chainInput at heq
   exact SphincsSecurity.bytesLE_injective (List.append_inj heq rfl).2
-
-/-- The probe checks the exact byte input and honest output of this source
-chain step. It covers inputs guessed before the honest chain has been evaluated. -/
 theorem probe_keep_iff (hidden : HiddenLabels) (high : LowLabels) (point : Point)
     (candidate : Digest) (answer : HashOutput) :
     (probe point candidate).keep hidden answer ↔
@@ -7061,8 +5942,6 @@ theorem probe_keep_iff (hidden : HiddenLabels) (high : LowLabels) (point : Point
     exact ⟨fun hrow => hc ((row_value_injective point hrow).symm),Ne.symm hp⟩
   · rintro ⟨hc,hp⟩
     exact ⟨fun heq => hc (congrArg (row point) heq.symm),Ne.symm hp⟩
-
-/-- A failed probe leaves the original residual answer intact. -/
 theorem safe_row_answer (hidden : HiddenLabels) (high : LowLabels) (residual : rows → HashOutput)
     (point : Point) (candidate : Digest) (hmiss : hidden (child point) ≠ candidate) :
     programmed (hidden ∘ Sum.inl) (joinLabels (hidden ∘ Sum.inr) high) residual
@@ -7075,9 +5954,6 @@ theorem safe_row_answer (hidden : HiddenLabels) (high : LowLabels) (residual : r
   unfold input at heq
   rw [prior_hidden] at heq
   exact hmiss ((row_value_injective point heq).symm)
-
-/-- Until a hidden input or output is hit, the source's programmed oracle
-and the generic posterior probe return the same actual hash answer. -/
 theorem safe_query_answer (hidden : HiddenLabels) (high : LowLabels) (residual : rows → HashOutput)
     (point : Point) (candidate : Digest)
     (hkeep : (probe point candidate).keep hidden
@@ -7086,9 +5962,6 @@ theorem safe_query_answer (hidden : HiddenLabels) (high : LowLabels) (residual :
       ⟨row point candidate,row_mem point candidate⟩=
       residual ⟨row point candidate,row_mem point candidate⟩ :=
   safe_row_answer hidden high residual point candidate hkeep.1
-
-/-- Adaptive posterior loss for an actual base-T3 chain row. The remaining
-candidate-set invariant is explicit; fresh known targets are not substituted for it. -/
 theorem probe_failure_le (allowed : HiddenCoordinate → Finset Digest)
     (ha : ∀ coordinate,(allowed coordinate).Nonempty) (point : Point) (candidate : Digest)
     (rounds : Nat) (hmin : 2^128-rounds ≤ (allowed (child point)).card) :
@@ -7096,35 +5969,25 @@ theorem probe_failure_le (allowed : HiddenCoordinate → Finset Digest)
       1-(1-((2^128-rounds : Nat) : ENNReal)⁻¹)^2 :=
   lazyResponse_pair_failure_le_rounds allowed ha (child point) (parent point)
     (child_ne_parent point) candidate rounds hmin
-
-/-- Every surviving probe removes at most one candidate from each coordinate,
-including a private seed and a later chain label. -/
 theorem probe_candidates_step (allowed : HiddenCoordinate → Finset Digest)
     (point : Point) (candidate : Digest) (answer : HashOutput) (coordinate : HiddenCoordinate) :
     (allowed coordinate).card-1 ≤ ((probe point candidate).restrict allowed answer coordinate).card :=
   Probe.card_lower (probe point candidate) allowed answer coordinate
-
 end SigGolfCandidate.T3.Security.ChainGraph
 end
-
-
-section -- SourceRecorder
+section
 namespace SigGolfCandidate.T3.Security.FirstHit
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- The observed caches contain exactly the rows queried so far. Presampled
-tables remain separate and never enlarge these caches. -/
 def advance (state : LazyPrivate.State) (input : T3.Spec.Domain)
     (answer : T3.Spec.Range input) : LazyPrivate.State :=
   match input with
   | .inl (.inl _) => state
   | .inl (.inr query) => (state.1,state.2.cacheQuery query answer)
   | .inr coordinate => (state.1.cacheQuery coordinate answer,state.2)
-
 theorem randomOracle_cache_after {D : Type} [DecidableEq D] (input : D)
     (cache : QueryCache (D →ₒ HashOutput)) (result : HashOutput × QueryCache (D →ₒ HashOutput))
     (hr : result ∈ support ((randomOracle (spec := D →ₒ HashOutput) input).run cache)) :
@@ -7138,7 +6001,6 @@ theorem randomOracle_cache_after {D : Type} [DecidableEq D] (input : D)
       rw [QueryImpl.withCaching_run_some _ hc,mem_support_pure_iff] at hr
       subst result
       exact (PrivateTable.cacheQuery_cached cache input answer hc).symm
-
 theorem query_advance (state : LazyPrivate.State) (input : T3.Spec.Domain)
     (result : T3.Spec.Range input × LazyPrivate.State)
     (hr : result ∈ support (LazyPrivate.run (liftM (T3.Spec.query input)) state)) :
@@ -7163,9 +6025,6 @@ theorem query_advance (state : LazyPrivate.State) (input : T3.Spec.Domain)
         mem_support_pure_iff] at hr
       obtain ⟨middle,hm,rfl⟩ := hr
       exact congrArg (fun cache => (cache,state.2)) (randomOracle_cache_after coordinate state.1 middle hm)
-
-/-- Recording is a source transformation, so arbitrary adaptive source games
-can be moved to eager tables without losing actual pre-query states. -/
 noncomputable def sourceRecord {α : Type} (program : M α) : LazyPrivate.State → M (Recorded α) :=
   OracleComp.construct
     (fun value state => pure ⟨value,[],state⟩)
@@ -7173,19 +6032,14 @@ noncomputable def sourceRecord {α : Type} (program : M α) : LazyPrivate.State 
       let answer ← liftM (T3.Spec.query input)
       (fun last => ⟨last.value,⟨state,input,answer⟩::last.events,last.state⟩) <$>
         next answer (advance state input answer)) program
-
 theorem sourceRecord_pure {α : Type} (value : α) (state : LazyPrivate.State) :
     sourceRecord (pure value : M α) state=pure ⟨value,[],state⟩ := rfl
-
 theorem sourceRecord_query_bind {α : Type} (input : T3.Spec.Domain)
     (next : T3.Spec.Range input → M α) (state : LazyPrivate.State) :
     sourceRecord (liftM (T3.Spec.query input) >>= next) state=(do
       let answer ← liftM (T3.Spec.query input)
       (fun last => ⟨last.value,⟨state,input,answer⟩::last.events,last.state⟩) <$>
         sourceRecord (next answer) (advance state input answer)) := rfl
-
-/-- Exact equality with the existing actual-query recorder, including cached
-calls and the state before every public or private query. -/
 theorem sourceRecord_run {α : Type} (program : M α) (state : LazyPrivate.State) :
     Prod.fst <$> LazyPrivate.run (sourceRecord program state) state=record program state := by
   induction program using OracleComp.inductionOn generalizing state with
@@ -7200,12 +6054,9 @@ theorem sourceRecord_run {α : Type} (program : M α) (state : LazyPrivate.State
         (⟨last.value,⟨state,input,middle.1⟩::last.events,last.state⟩ : Recorded α)))
         (ih middle.1 middle.2)
       simpa only [Functor.map_map,Prod.map,id_eq,Function.comp_def] using h
-
 end SigGolfCandidate.T3.Security.FirstHit
 end
-
-
-section -- RecordedFiniteWorld
+section
 namespace SigGolfCandidate.T3.Security.ChainGraph
 open OracleComp OracleSpec OracleComp.EvalDist OracleComp.DeferredSampling ENNReal
 open SphincsSecurity.Concrete
@@ -7217,7 +6068,6 @@ noncomputable local instance : Fintype Coordinate := coordinateFintype
 noncomputable local instance : SampleableType FullGame.FullTable := Derivation.outputSampler Coordinate
 noncomputable local instance (inputs : Finset HashInput) : SampleableType (inputs → HashOutput) :=
   SampleableType.ofFintype _
-
 theorem recorded_private_table {α : Type} (program : M α) :
     𝒮[FirstHit.record program (∅,∅)]=
       𝒮[do
@@ -7228,17 +6078,11 @@ theorem recorded_private_table {α : Type} (program : M α) :
     (LazyPrivate.run_eq_table (FirstHit.sourceRecord program (∅,∅)) ∅)
   simpa only [← evalSPMF_map,map_bind,Functor.map_map,Prod.map,id_eq,Function.comp_def,
     FirstHit.sourceRecord_run,← StateT.run'_eq] using h
-
-/-- Evaluate the source recorder in total tables, with the actual caches still
-initialized empty inside the recorder. -/
 noncomputable def finiteRecorded {α : Type} (privateTable : FullGame.FullTable)
     (inputs : Finset HashInput) (publicTable : inputs → HashOutput) (program : M α) :
     ProbComp (FirstHit.Recorded α) :=
   simulateQ (fixedHashWorld (finiteHashAnswer ∅ inputs publicTable))
     (Derivation.tableRun privateTable (FirstHit.sourceRecord program (∅,∅)))
-
-/-- Joint finite-table law of the existing actual-query trace. This includes
-pre-query caches, answers, cached calls, and the complete adaptive result. -/
 theorem recorded_finite_tables {α : Type} (program : M α) (inputs : Finset HashInput)
     (hinputs : ∀ privateTable : FullGame.FullTable,
       hashInputs (Derivation.tableRun privateTable (FirstHit.sourceRecord program (∅,∅))) ⊆ inputs) :
@@ -7252,25 +6096,18 @@ theorem recorded_finite_tables {α : Type} (program : M α) (inputs : Finset Has
   intro privateTable
   exact evalDist_romRun_eq_finiteHash
     (Derivation.tableRun privateTable (FirstHit.sourceRecord program (∅,∅))) inputs (hinputs privateTable) ∅
-
-/-- A finite universe exists for every source program, including arbitrary
-adaptive adversaries. It also contains every possible honest chain row. -/
 noncomputable def recordedInputs {α : Type} (program : M α) : Finset HashInput :=
   rows ∪ (Finset.univ : Finset FullGame.FullTable).biUnion fun privateTable =>
     hashInputs (Derivation.tableRun privateTable (FirstHit.sourceRecord program (∅,∅)))
-
 attribute [irreducible] recordedInputs
-
 theorem rows_subset_recordedInputs {α : Type} (program : M α) : rows ⊆ recordedInputs program := by
   rw [recordedInputs]
   exact Finset.subset_union_left
-
 theorem program_subset_recordedInputs {α : Type} (program : M α) (privateTable : FullGame.FullTable) :
     hashInputs (Derivation.tableRun privateTable (FirstHit.sourceRecord program (∅,∅))) ⊆ recordedInputs program := by
   intro input hi
   rw [recordedInputs,Finset.mem_union]
   exact Or.inr (Finset.mem_biUnion.mpr ⟨privateTable,Finset.mem_univ _,hi⟩)
-
 theorem recorded_finite_law {α : Type} (program : M α) :
     𝒮[FirstHit.record program (∅,∅)]=
       𝒮[do
@@ -7278,12 +6115,9 @@ theorem recorded_finite_law {α : Type} (program : M α) :
         let publicTable ← ($ᵗ (recordedInputs program → HashOutput) : ProbComp _)
         finiteRecorded privateTable (recordedInputs program) publicTable program] :=
   recorded_finite_tables program (recordedInputs program) (program_subset_recordedInputs program)
-
 end SigGolfCandidate.T3.Security.ChainGraph
 end
-
-
-section -- PublicRowsSplit
+section
 namespace SigGolfCandidate.T3.Security.FiniteRowSplit
 open OracleComp OracleSpec OracleComp.EvalDist OracleComp.DeferredSampling ENNReal
 set_option maxHeartbeats 1000000
@@ -7293,33 +6127,25 @@ attribute [local instance] Classical.propDecidable
 noncomputable local instance (inputs : Finset HashInput) : SampleableType (inputs → HashOutput) :=
   SampleableType.ofFintype _
 variable (selected : Finset HashInput)
-
 def includeRow (inputs : Finset HashInput) (hrows : selected ⊆ inputs) : selected → inputs :=
   fun query => ⟨query.val,hrows query.property⟩
-
 theorem includeRow_injective (inputs : Finset HashInput) (hrows : selected ⊆ inputs) :
     Function.Injective (includeRow selected inputs hrows) := by
   intro left right heq
   apply Subtype.ext
   exact congrArg (fun query : inputs => query.val) heq
-
 abbrev ExtraRow (inputs : Finset HashInput) (hrows : selected ⊆ inputs) :=
   {query : inputs // query ∉ Set.range (includeRow selected inputs hrows)}
-
 noncomputable local instance (inputs : Finset HashInput) (hrows : selected ⊆ inputs) :
     SampleableType (ExtraRow selected inputs hrows → HashOutput) := SampleableType.ofFintype _
 noncomputable local instance (inputs : Finset HashInput) (hrows : selected ⊆ inputs) :
     SampleableType ((selected → HashOutput) × (ExtraRow selected inputs hrows → HashOutput)) := SampleableType.ofFintype _
-
-/-- Split the entire finite public table into chain selected and every other row.
-The second component is retained for arbitrary source and adversary queries. -/
 noncomputable def publicTableEquiv (inputs : Finset HashInput) (hrows : selected ⊆ inputs) :
     (inputs → HashOutput) ≃ (selected → HashOutput) × (ExtraRow selected inputs hrows → HashOutput) :=
   (Equiv.arrowCongr ((Equiv.Set.sumCompl (Set.range (includeRow selected inputs hrows))).symm.trans
     ((Equiv.ofInjective (includeRow selected inputs hrows) (includeRow_injective selected inputs hrows)).symm.sumCongr
       (Equiv.refl (ExtraRow selected inputs hrows)))) (Equiv.refl HashOutput)).trans
     (Equiv.sumArrowEquivProdArrow _ _ _)
-
 theorem publicTableEquiv_rows (inputs : Finset HashInput) (hrows : selected ⊆ inputs)
     (table : inputs → HashOutput) :
     (publicTableEquiv selected inputs hrows table).1=table ∘ includeRow selected inputs hrows := by
@@ -7328,7 +6154,6 @@ theorem publicTableEquiv_rows (inputs : Finset HashInput) (hrows : selected ⊆ 
     (Sum.inl ((Equiv.ofInjective (includeRow selected inputs hrows) (includeRow_injective selected inputs hrows)) query)))=
       table (includeRow selected inputs hrows query)
   rfl
-
 theorem publicTableEquiv_reconstruct (inputs : Finset HashInput) (hrows : selected ⊆ inputs)
     (chainTable : selected → HashOutput) (extra : ExtraRow selected inputs hrows → HashOutput) (query : selected) :
     (publicTableEquiv selected inputs hrows).symm (chainTable,extra) (includeRow selected inputs hrows query)=
@@ -7341,7 +6166,6 @@ theorem publicTableEquiv_reconstruct (inputs : Finset HashInput) (hrows : select
     _ = _ := congrArg
       (fun result : (selected → HashOutput) × (ExtraRow selected inputs hrows → HashOutput) => result.1 query)
       ((publicTableEquiv selected inputs hrows).apply_symm_apply (chainTable,extra))
-
 theorem public_table_bind {Result : Type} (inputs : Finset HashInput) (hrows : selected ⊆ inputs)
     (next : (inputs → HashOutput) → ProbComp Result) :
     𝒮[do let table ← ($ᵗ (inputs → HashOutput) : ProbComp _);next table]=
@@ -7362,12 +6186,9 @@ theorem public_table_bind {Result : Type} (inputs : Finset HashInput) (hrows : s
     law >>= fun result => 𝒮[next ((publicTableEquiv selected inputs hrows).symm result)]) hsplit
   simpa only [evalSPMF_map,evalSPMF_bind,bind_map_left,evalSPMF_pure,bind_assoc,pure_bind,
     Equiv.symm_apply_apply] using h
-
 end SigGolfCandidate.T3.Security.FiniteRowSplit
 end
-
-
-section -- RecordedHiddenLaw
+section
 namespace SigGolfCandidate.T3.Security.ChainGraph
 open OracleComp OracleSpec OracleComp.EvalDist OracleComp.DeferredSampling ENNReal FiniteRowSplit
 set_option maxHeartbeats 1000000
@@ -7381,13 +6202,8 @@ noncomputable local instance (inputs : Finset HashInput) : SampleableType (input
 noncomputable local instance : SampleableType HiddenLabels := SampleableType.ofFintype _
 noncomputable local instance : SampleableType OtherHalves := SampleableType.ofFintype _
 noncomputable local instance : SampleableType LowLabels := SampleableType.ofFintype _
-
 noncomputable local instance (inputs : Finset HashInput) (hrows : rows ⊆ inputs) :
     SampleableType (ExtraRow rows inputs hrows → HashOutput) := SampleableType.ofFintype _
-
-/-- Exact presampling law of the actual recorded adaptive source program.
-Only hidden labels are programmed; observed caches still start empty and track
-actual calls, so all existing query charges and cache-size bounds are retained. -/
 theorem recorded_hidden_law {α : Type} (program : M α) :
     𝒮[FirstHit.record program (∅,∅)]=
       𝒮[do
@@ -7416,12 +6232,9 @@ theorem recorded_hidden_law {α : Type} (program : M α) :
       finiteRecorded privateTable (recordedInputs program)
         ((publicTableEquiv rows (recordedInputs program) (rows_subset_recordedInputs program)).symm
           (chainTable,extra)) program)
-
 end SigGolfCandidate.T3.Security.ChainGraph
 end
-
-
-section -- PaddedHiddenLaw
+section
 namespace SigGolfCandidate.T3.Security.ChainGraph
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal FiniteRowSplit
 set_option maxHeartbeats 1000000
@@ -7434,9 +6247,6 @@ noncomputable local instance : SampleableType LowLabels := SampleableType.ofFint
 noncomputable local instance : SampleableType (rows → HashOutput) := SampleableType.ofFintype _
 noncomputable local instance (inputs : Finset HashInput) (hrows : rows ⊆ inputs) :
     SampleableType (ExtraRow rows inputs hrows → HashOutput) := SampleableType.ofFintype _
-
-/-- The exact source recorder in presampled hidden chain labels. Other private
-and public values remain independent sampled tables in the same experiment. -/
 noncomputable def hiddenRecorded {α : Type} (program : M α) : ProbComp (FirstHit.Recorded α) := do
   let hidden ← ($ᵗ HiddenLabels : ProbComp _)
   let other ← ($ᵗ OtherHalves : ProbComp _)
@@ -7446,13 +6256,10 @@ noncomputable def hiddenRecorded {α : Type} (program : M α) : ProbComp (FirstH
   finiteRecorded (privateTableEquiv.symm (hidden ∘ Sum.inl,other)) (recordedInputs program)
     ((publicTableEquiv rows (recordedInputs program) (rows_subset_recordedInputs program)).symm
       (programmed (hidden ∘ Sum.inl) (joinLabels (hidden ∘ Sum.inr) high) residual,extra)) program
-
 theorem hiddenRecorded_eq {α : Type} (program : M α) :
     𝒮[hiddenRecorded program]=𝒮[FirstHit.record program (∅,∅)] :=
   (recorded_hidden_law program).symm
-
 end SigGolfCandidate.T3.Security.ChainGraph
-
 namespace SigGolfCandidate.T3.Security.PaddedGame
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M.Final
@@ -7460,13 +6267,8 @@ attribute [local instance] Classical.propDecidable
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
 noncomputable def hiddenExperiment (adversary : AdversaryP) : ProbComp (FirstHit.Recorded Bool) :=
   ChainGraph.hiddenRecorded (GameWith.idealGame checker adversary)
-
-/-- Every event on the actual recorded padded game has exactly the same law
-in the hidden-label experiment. The BPORS trace remains the already checked
-joint trace; this equality transports its actual-query projection. -/
 theorem traced_hidden_event (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127)
     (event : FirstHit.Recorded Bool → Prop) :
     Pr[event ∘ QueryRecorded.recordedTrace | tracedExperiment adversary budget hbudget]=
@@ -7476,9 +6278,6 @@ theorem traced_hidden_event (adversary : AdversaryP) (budget : Nat) (hbudget : b
   rw [probEvent_map,MonitoredPrivate.event_lift] at h
   exact h.trans (probEvent_congr' (fun _ _ => Iff.rfl)
     (ChainGraph.hiddenRecorded_eq (GameWith.idealGame checker adversary)).symm)
-
-/-- The transport uses the actual compression counter, including honest and
-repeated calls, rather than the number of rows in the presampled tables. -/
 theorem traced_hidden_cost_event (adversary : AdversaryP) (budget q : Nat)
     (hbudget : budget ≤ 2^127) (event : FirstHit.Recorded Bool → Prop) :
     Pr[fun result => result.2.2.base.source.1 ≤ q ∧ event (QueryRecorded.recordedTrace result) |
@@ -7499,12 +6298,9 @@ theorem traced_hidden_cost_event (adversary : AdversaryP) (budget q : Nat)
       by_contra hn
       exact hr (by simpa only [PMF.mem_support_iff] using hn)
     simp only [PMF.probOutput_eq_apply,hz,ite_self]
-
 end SigGolfCandidate.T3.Security.PaddedGame
 end
-
-
-section -- ChainPosterior
+section
 namespace SigGolfCandidate.T3.Security.ChainGraph
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity.Concrete HiddenLabelObservation UniformTableCompletion
@@ -7513,7 +6309,6 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 theorem keep_programmed_iff (hidden : HiddenLabels) (high : LowLabels)
     (residual : rows → HashOutput) (point : Point) (candidate : Digest) :
     (probe point candidate).keep hidden
@@ -7523,7 +6318,6 @@ theorem keep_programmed_iff (hidden : HiddenLabels) (high : LowLabels)
   by_cases hmiss : hidden (child point) ≠ candidate
   · rw [safe_row_answer hidden high residual point candidate hmiss]
   · simp only [probe,Probe.keep,hmiss,false_and]
-
 theorem guarded_row {Result : Type} (hidden : HiddenLabels) (high : LowLabels)
     (residual : rows → HashOutput) (point : Point) (candidate : Digest)
     (stopped : SPMF Result) (next : HashOutput → HiddenLabels → (rows → HashOutput) → SPMF Result) :
@@ -7538,10 +6332,6 @@ theorem guarded_row {Result : Type} (hidden : HiddenLabels) (high : LowLabels)
   split_ifs with hkeep
   · rw [safe_query_answer hidden high residual point candidate hkeep]
   · rfl
-
-/-- A fresh actual chain query has exactly the posterior of the generic
-hidden-input/output probe. Both the remaining hidden labels and residual table
-are retained for arbitrary adaptive continuations. -/
 theorem fresh_row_posterior {Result : Type} (allowed : HiddenCoordinate → Finset Digest)
     (ha : ∀ coordinate,(allowed coordinate).Nonempty) (cache : ResidualTableCompletion.Cache rows)
     (high : LowLabels) (point : Point) (candidate : Digest)
@@ -7560,9 +6350,6 @@ theorem fresh_row_posterior {Result : Type} (allowed : HiddenCoordinate → Fins
   simp_rw [guarded_row]
   exact ResidualProbeCompletion.bind_fresh_probe allowed ha cache
     ⟨row point candidate,row_mem point candidate⟩ hfresh (probe point candidate) stopped next
-
-/-- Padding or a row outside the canonical chain family can only collide with
-the honest output. This part has exactly one 128-bit target. -/
 theorem output_failure (allowed : HiddenCoordinate → Finset Digest)
     (ha : ∀ coordinate,(allowed coordinate).Nonempty) (point : Point) :
     (lazyResponse allowed (.output (parent point))).toPMF none=(2 : ENNReal)⁻¹^128 := by
@@ -7570,21 +6357,15 @@ theorem output_failure (allowed : HiddenCoordinate → Finset Digest)
   have hc : Fintype.card SphincsSecurity.Digest=2^128 := by
     simp [SphincsSecurity.Digest,SphincsSecurity.digestBits]
   rw [hc,Nat.cast_pow,Nat.cast_ofNat,ENNReal.inv_pow]
-
 end SigGolfCandidate.T3.Security.ChainGraph
 end
-
-
-section -- SEC padded extraction composition: FreshPublicOccurrence
+section
 namespace SigGolfCandidate.T3.Security.FirstHit
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- A public event remains in the final cache even in a program which also
-uses coins. No determinism assumption is made about the enclosing adversary. -/
 theorem recorded_public_known {α : Type} (program : M α) (before : LazyPrivate.State)
     (result : Recorded α) (hr : result ∈ support (record program before))
     (prior : LazyPrivate.State) (input : HashInput) (answer : HashOutput)
@@ -7608,10 +6389,6 @@ theorem recorded_public_known {α : Type} (program : M α) (before : LazyPrivate
           (SourceReplay.hash_query_caches _ (by trivial) prior middle hm),
           (SourceReplay.query_extends _ prior middle hm).trans hx⟩
       · exact ih middle.1 middle.2 last hl he
-
-/-- If an initially absent public row is cached at the end, its first actual
-query appears in the recorder with an empty pre-query cell and the same answer.
-This covers cached verification calls by moving back to the charged creation. -/
 theorem newly_cached_public {α : Type} (program : M α) (before : LazyPrivate.State)
     (result : Recorded α) (hr : result ∈ support (record program before))
     (input : HashInput) (answer : HashOutput) (hbefore : before.2 input=none)
@@ -7655,9 +6432,6 @@ theorem newly_cached_public {α : Type} (program : M α) (before : LazyPrivate.S
             apply hmid
             rw [hadv]
             exact hbefore
-
-/-- An extracted public hit can always be charged at the first actual query,
-not at an arbitrary cached occurrence in the final verifier. -/
 theorem first_public_occurrence {α : Type} (program : M α) (result : Recorded α)
     (hr : result ∈ support (record program (∅,∅)))
     (prior : LazyPrivate.State) (input : HashInput) (answer : HashOutput)
@@ -7665,12 +6439,9 @@ theorem first_public_occurrence {α : Type} (program : M α) (result : Recorded 
     ∃ first,(⟨first,.inl (.inr input),answer⟩ : QueryEvent) ∈ result.events ∧ first.2 input=none :=
   newly_cached_public program (∅,∅) result hr input answer rfl
     (recorded_public_known program (∅,∅) result hr prior input answer he).1
-
 end SigGolfCandidate.T3.Security.FirstHit
 end
-
-
-section -- SEC padded extraction composition: PexActualTrace
+section
 namespace SigGolfCandidate.T3.Security.PaddedExtraction
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M Correctness
@@ -7678,10 +6449,8 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 theorem queried_eq {α : Type} (answers : Answers) (program : M α) :
     SourceReplay.queried answers program=SecurityExtraction.queried answers program := rfl
-
 theorem verifyP_hashOnly (message : Message) (publicKey : Digest) (witness : WBytes) :
     SourceReplay.HashOnly (verifyP message publicKey witness) := by
   apply allQ_mono (publicOnly_verifyP message publicKey witness)
@@ -7690,9 +6459,6 @@ theorem verifyP_hashOnly (message : Message) (publicKey : Digest) (witness : WBy
   · exact h.elim
   · trivial
   · trivial
-
-/-- Deterministic PEX queries embed in the actual recorder under any agreeing
-oracle completion, including the presampled honest targets created later. -/
 theorem public_occurrence {α : Type} (program : M α) (hp : SourceReplay.HashOnly program)
     (before : LazyPrivate.State) (result : FirstHit.Recorded α)
     (hr : result ∈ support (FirstHit.record program before)) (answers : Answers)
@@ -7708,12 +6474,10 @@ theorem public_occurrence {α : Type} (program : M α) (hp : SourceReplay.HashOn
   have hknown := (FirstHit.recorded_query_known program hp before result hr _ hevent).1
   have heq := ha _ _ hknown
   exact ⟨prior,by simpa only [heq] using hevent⟩
-
 def ActualHit (answers : Answers) (events : List FirstHit.QueryEvent) : Prop :=
   ∃ (position : Extract.Pos) (actual : HashInput) (prior : LazyPrivate.State), position.Bounded ∧ Extract.posOf actual=some position ∧
     (⟨prior,.inl (.inr actual),answers (.inl (.inr actual))⟩ : FirstHit.QueryEvent) ∈ events ∧
     SecurityExtraction.HashHit answers (Extract.honestInput answers position) actual
-
 theorem hit_recorded {α : Type} (program : M α) (hp : SourceReplay.HashOnly program)
     (before : LazyPrivate.State) (result : FirstHit.Recorded α)
     (hr : result ∈ support (FirstHit.record program before)) (answers : Answers)
@@ -7723,7 +6487,6 @@ theorem hit_recorded {α : Type} (program : M α) (hp : SourceReplay.HashOnly pr
   obtain ⟨position,actual,hbounded,hquery,hpos,hhit⟩ := Extract.hitIn_posOf hit
   obtain ⟨prior,hevent⟩ := public_occurrence program hp before result hr answers ha actual hquery
   exact ⟨position,actual,prior,hbounded,hpos,hevent,hhit⟩
-
 def Conclusion (answers : Answers) (message : Message) (witness : WBytes)
     (events : List FirstHit.QueryEvent) : Prop :=
   ∃ digestAnswer : HashOutput, (wdc witness).toNat < attemptLimit ∧
@@ -7736,10 +6499,6 @@ def Conclusion (answers : Answers) (message : Message) (witness : WBytes)
           ∀ above : Layer,above.val < lay.val → Extract.Good answers witness (digestAnswer.toNat % 2^31) above) ∨
         ((∀ lay : Layer,Extract.Good answers witness (digestAnswer.toNat % 2^31) lay) ∧
           FtsExtract.FtsShaped answers digestAnswer witness))
-
-/-- The completed PEX-L/F extraction on an actual accepting byte-verifier run.
-Every hit and encoding query is an actual recorded occurrence; no premise says
-its honest target was already cached before that query. -/
 theorem verifyP_recorded (message : Message) (publicKey : Digest) (witness : WBytes)
     (before : LazyPrivate.State) (result : FirstHit.Recorded Bool)
     (hr : result ∈ support (FirstHit.record (verifyP message publicKey witness) before))
@@ -7764,12 +6523,9 @@ theorem verifyP_recorded (message : Message) (publicKey : Digest) (witness : WBy
     rw [FirstHit.recorded_inputs _ hp before result hr answers ha,queried_eq]
     exact hdiverge
   · exact Or.inr (Or.inr hhonest)
-
 end SigGolfCandidate.T3.Security.PaddedExtraction
 end
-
-
-section -- SEC padded extraction composition: PexReference
+section
 namespace SigGolfCandidate.T3.Security.PaddedExtraction
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M Correctness
@@ -7777,19 +6533,12 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- The parser depends only on the actual input; its reference is computed
-from the actual pre-query cache. It never reads the final oracle completion. -/
 noncomputable def reference : FirstHit.Reference := fun state input =>
   (Extract.posOf input).map (Extract.honestInput (SourceReplay.answers state))
-
 theorem reference_of_pos (state : LazyPrivate.State) (input : HashInput) (position : Extract.Pos)
     (hpos : Extract.posOf input=some position) :
     reference state input=some (Extract.honestInput (SourceReplay.answers state) position) := by
   simp only [reference,hpos,Option.map_some]
-
-/-- The hidden-target remainder includes reference computations which are not
-yet determined, even when the final honest row happens already to be cached. -/
 def UnresolvedHit (answers : Answers) (events : List FirstHit.QueryEvent) : Prop :=
   ∃ (position : Extract.Pos) (actual : HashInput) (prior : LazyPrivate.State), position.Bounded ∧ Extract.posOf actual=some position ∧
     (⟨prior,.inl (.inr actual),answers (.inl (.inr actual))⟩ : FirstHit.QueryEvent) ∈ events ∧
@@ -7797,13 +6546,11 @@ def UnresolvedHit (answers : Answers) (events : List FirstHit.QueryEvent) : Prop
     SecurityExtraction.HashHit answers (Extract.honestInput answers position) actual ∧
     (reference prior actual≠some (Extract.honestInput answers position) ∨
       prior.2 (Extract.honestInput answers position)=none)
-
 theorem ActualHit.mono {answers : Answers} {events events' : List FirstHit.QueryEvent}
     (hit : ActualHit answers events) (hsub : ∀ event ∈ events,event ∈ events') :
     ActualHit answers events' := by
   obtain ⟨position,actual,prior,hbounded,hpos,hevent,hhit⟩ := hit
   exact ⟨position,actual,prior,hbounded,hpos,hsub _ hevent,hhit⟩
-
 theorem Conclusion.mono {answers : Answers} {message : Message} {witness : WBytes}
     {events events' : List FirstHit.QueryEvent} (h : Conclusion answers message witness events)
     (hsub : ∀ event ∈ events,event ∈ events') : Conclusion answers message witness events' := by
@@ -7816,10 +6563,6 @@ theorem Conclusion.mono {answers : Answers} {message : Message} {witness : WByte
     obtain ⟨event,hevent,rfl⟩ := List.mem_map.mp hin
     exact List.mem_map.mpr ⟨event,hsub _ hevent,rfl⟩
   · exact Or.inr (Or.inr hgood)
-
-/-- Complete, unconditioned split of an extracted hit in the actual program.
-The first query is charged once; future reference creation is retained on the
-right rather than incorrectly applying a known-target bound to it. -/
 theorem actualHit_known_or_unresolved {α : Type} (program : M α) (result : FirstHit.Recorded α)
     (hr : result ∈ support (FirstHit.record program (∅,∅))) (answers : Answers)
     (ha : ∀ input answer,SourceReplay.known result.state input=some answer → answers input=answer)
@@ -7838,20 +6581,14 @@ theorem actualHit_known_or_unresolved {α : Type} (program : M α) (result : Fir
         exact Or.inl ⟨first,actual,answers (.inl (.inr actual)),Extract.honestInput answers position,output,
           hfirst,hfresh,href,hout,by simpa only [heq] using hhit.2⟩
   · exact Or.inr ⟨position,actual,first,hbounded,hpos,hfirst,hfresh,hhit,Or.inl href⟩
-
-/-- The PEX parser is now an instantiated reference in the previously checked
-full padded-game bound, including both forgery forms and the actual counter. -/
 theorem padded_known_bound (adversary : Final.AdversaryP) (q : Nat) (hq : q ≤ 2^127) :
     Pr[fun result => result.2.2.base.source.1≤q ∧
       FirstHit.KnownPublicHit reference (QueryRecorded.recordedTrace result) |
       PaddedGame.tracedExperiment adversary q hq] ≤ q/(2 : ENNReal)^128 :=
   GameWith.Recorded.known_public_hit_bound PaddedGame.checker reference adversary q hq
-
 end SigGolfCandidate.T3.Security.PaddedExtraction
 end
-
-
-section -- SEC padded extraction composition: PexGame
+section
 namespace SigGolfCandidate.T3.Security.PaddedExtraction
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M Correctness Final
@@ -7860,18 +6597,12 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] keygen verifyP expandB
-
-/-- The exact two freshness relations of the frozen padded game. -/
 def Fresh (log : QueryLog Requests) : ForgeryP → Prop
   | .witness message _ => ¬∃ entry ∈ log,entry.1.message=message ∧ entry.2.isSome=true
   | .signature message signature => ¬∃ entry ∈ log,entry.1.message=message ∧ entry.2=some signature
-
-/-- The witness either is the submitted byte string, or is the actual expansion
-of the submitted signature under the same oracle completion. -/
 def WitnessOf (answers : Answers) (publicKey : Digest) : ForgeryP → Message → WBytes → Prop
   | .witness message witness, m, w => m=message ∧ w=witness
   | .signature message signature, m, w => m=message ∧ evalWithAnswerFn answers (expandB message publicKey signature)=some w
-
 theorem check_hashOnly (publicKey : Digest) (log : QueryLog Requests) (forgery : ForgeryP) :
     SourceReplay.HashOnly (checkForgeryP publicKey log forgery) := by
   apply allQ_mono (PaddedGame.check_public publicKey log forgery)
@@ -7880,9 +6611,6 @@ theorem check_hashOnly (publicKey : Digest) (log : QueryLog Requests) (forgery :
   · exact h.elim
   · trivial
   · trivial
-
-/-- Accepting either forgery form gives an actual accepting byte verification
-and retains the game's own freshness predicate and complete query inclusion. -/
 theorem check_accepting (answers : Answers) (publicKey : Digest) (log : QueryLog Requests)
     (forgery : ForgeryP) (hw : evalWithAnswerFn answers (checkForgeryP publicKey log forgery)=true) :
     Fresh log forgery ∧ ∃ message witness,WitnessOf answers publicKey forgery message witness ∧
@@ -7908,9 +6636,6 @@ theorem check_accepting (answers : Answers) (publicKey : Digest) (log : QueryLog
           simp only [checkForgeryP,SecurityExtraction.queried_bind,he,SecurityExtraction.queried_pure,
             List.append_nil]
           exact List.mem_append_right _ hi
-
-/-- Extraction can be lifted directly through a surrounding hash-only checker,
-so signature expansion and all of its duplicate queries remain in the trace. -/
 theorem verifyP_extracted_in {α : Type} (program : M α) (hp : SourceReplay.HashOnly program)
     (before : LazyPrivate.State) (result : FirstHit.Recorded α)
     (hr : result ∈ support (FirstHit.record program before)) (answers : Answers)
@@ -7931,7 +6656,6 @@ theorem verifyP_extracted_in {α : Type} (program : M α) (hp : SourceReplay.Has
     rw [FirstHit.recorded_inputs program hp before result hr answers ha,queried_eq]
     exact hsub _ hin
   · exact Or.inr (Or.inr hgood)
-
 theorem check_recorded (publicKey : Digest) (log : QueryLog Requests) (forgery : ForgeryP)
     (before : LazyPrivate.State) (result : FirstHit.Recorded Bool)
     (hr : result ∈ support (FirstHit.record (checkForgeryP publicKey log forgery) before))
@@ -7946,7 +6670,6 @@ theorem check_recorded (publicKey : Digest) (log : QueryLog Requests) (forgery :
   rw [hwin] at hw
   obtain ⟨hfresh,message,witness,hof,hv,hsub⟩ := check_accepting answers publicKey log forgery hw
   exact ⟨hfresh,message,witness,hof,verifyP_extracted_in _ hp before result hr answers ha message publicKey witness hpk hv hsub⟩
-
 theorem verdict_recorded (publicKey : Digest) (interaction : Option ForgeryP × QueryLog Requests)
     (before : LazyPrivate.State) (result : FirstHit.Recorded Bool)
     (hr : result ∈ support (FirstHit.record (GameWith.verdict PaddedGame.checker publicKey interaction) before))
@@ -7974,12 +6697,9 @@ theorem verdict_recorded (publicKey : Digest) (interaction : Option ForgeryP × 
         (by simpa only [hstate] using ha) hpk hcheckedWin
       obtain ⟨hfresh,message,witness,hof,hconclusion⟩ := hcheck
       exact ⟨hlength,forgery,rfl,hfresh,message,witness,hof,hevents ▸ hconclusion⟩
-
 end SigGolfCandidate.T3.Security.PaddedExtraction
 end
-
-
-section -- SEC padded extraction composition: PexFullGame
+section
 namespace SigGolfCandidate.T3.Security.PaddedExtraction
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M Correctness Final
@@ -7988,9 +6708,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] keygen verifyP expandB
-
-/-- A complete game extraction retains the actual key-generation and adaptive
-interaction records. Freshness is tested against that interaction's exact log. -/
 def GameConclusion (adversary : AdversaryP) (answers : Answers) (result : FirstHit.Recorded Bool) : Prop :=
   ∃ generated ∈ support (FirstHit.record keygen (∅,∅)),
     ∃ interaction ∈ support (FirstHit.record
@@ -8001,10 +6718,6 @@ def GameConclusion (adversary : AdversaryP) (answers : Answers) (result : FirstH
       ∃ forgery,interaction.value.1=some forgery ∧ Fresh interaction.value.2 forgery ∧
       ∃ message witness,WitnessOf answers generated.value.1 forgery message witness ∧
         Conclusion answers message witness result.events
-
-/-- PEX composed through the actual keygen, arbitrary adaptive adversary,
-logged authenticated signer, and both final forgery forms. The completion may
-be presampled and include honest targets which were not queried yet. -/
 theorem game_recorded (adversary : AdversaryP) (result : FirstHit.Recorded Bool)
     (hr : result ∈ support (FirstHit.record (GameWith.idealGame PaddedGame.checker adversary) (∅,∅)))
     (answers : Answers)
@@ -8037,8 +6750,6 @@ theorem game_recorded (adversary : AdversaryP) (result : FirstHit.Recorded Bool)
   intro event he
   rw [hevents,hrestEvents]
   exact List.mem_append_right _ (List.mem_append_right _ he)
-
-/-- Support of the recorded projection of the full joint padded experiment. -/
 theorem traced_record_support (adversary : AdversaryP) (budget : Nat) (hbudget : budget≤2^127)
     (result : PaddedGame.TraceResult)
     (hr : result ∈ (PaddedGame.tracedExperiment adversary budget hbudget).support) :
@@ -8050,9 +6761,6 @@ theorem traced_record_support (adversary : AdversaryP) (budget : Nat) (hbudget :
     exact ⟨result,hr,rfl⟩
   rw [PaddedGame.traced_record_erasure,MonitoredPrivate.pmf_support] at hm
   exact hm
-
-/-- Structural extraction and the existing BPORS journal now concern the same
-joint padded-game sample, not independently sampled verification transcripts. -/
 theorem traced_game (adversary : AdversaryP) (budget : Nat) (hbudget : budget≤2^127)
     (result : PaddedGame.TraceResult)
     (hr : result ∈ (PaddedGame.tracedExperiment adversary budget hbudget).support)
@@ -8060,9 +6768,6 @@ theorem traced_game (adversary : AdversaryP) (budget : Nat) (hbudget : budget≤
     (ha : ∀ input answer,SourceReplay.known result.2.2.base.source.2 input=some answer → answers input=answer)
     (hwin : result.1=true) : GameConclusion adversary answers (QueryRecorded.recordedTrace result) :=
   game_recorded adversary _ (traced_record_support adversary budget hbudget result hr) answers ha hwin
-
-/-- First-query target routing for every actual extracted hit in the same
-padded joint law. Hidden and adaptively created references remain explicit. -/
 theorem traced_hit_split (adversary : AdversaryP) (budget : Nat) (hbudget : budget≤2^127)
     (result : PaddedGame.TraceResult)
     (hr : result ∈ (PaddedGame.tracedExperiment adversary budget hbudget).support)
@@ -8072,12 +6777,8 @@ theorem traced_hit_split (adversary : AdversaryP) (budget : Nat) (hbudget : budg
     FirstHit.KnownPublicHit reference (QueryRecorded.recordedTrace result) ∨
       UnresolvedHit answers (QueryRecorded.recordedTrace result).events :=
   actualHit_known_or_unresolved _ _ (traced_record_support adversary budget hbudget result hr) answers ha hit
-
 end SigGolfCandidate.T3.Security.PaddedExtraction
 end
-
-
-/-! Authored module: AdaptiveCreationCharge. -/
 section
 namespace SigGolfCandidate.T3.BPORS.Adaptive
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -8086,9 +6787,7 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 namespace Creation
-
 theorem expectedValue_left_mul {α : Type} (law : PMF α)
     (factor : ENNReal) (payoff : α → ENNReal) :
     expectedValue law (fun result => factor * payoff result) =
@@ -8096,26 +6795,21 @@ theorem expectedValue_left_mul {α : Type} (law : PMF α)
   unfold expectedValue
   simp_rw [mul_left_comm _ factor]
   exact ENNReal.tsum_mul_left
-
-/-- Expected sum of charges fixed before each adaptive query's response. -/
 noncomputable def expectedCharges {ι σ α : Type} {spec : OracleSpec ι}
     (impl : QueryImpl spec (StateT σ PMF)) (charge : spec.Domain → σ → ENNReal)
     (program : OracleComp spec α) : σ → ENNReal :=
   OracleComp.construct (fun _ _ => 0)
     (fun input _ next state => charge input state +
       expectedValue ((impl input).run state) (fun result => next result.1 result.2)) program
-
 theorem expectedCharges_pure {ι σ α : Type} {spec : OracleSpec ι}
     (impl : QueryImpl spec (StateT σ PMF)) (charge : spec.Domain → σ → ENNReal)
     (value : α) (state : σ) : expectedCharges impl charge (pure value) state = 0 := rfl
-
 theorem expectedCharges_query_bind {ι σ α : Type} {spec : OracleSpec ι}
     (impl : QueryImpl spec (StateT σ PMF)) (charge : spec.Domain → σ → ENNReal)
     (input : spec.Domain) (next : spec.Range input → OracleComp spec α) (state : σ) :
     expectedCharges impl charge (OracleSpec.query input >>= next) state =
       charge input state + expectedValue ((impl input).run state)
         (fun result => expectedCharges impl charge (next result.1) result.2) := rfl
-
 theorem expectedCharges_mono {ι σ α : Type} {spec : OracleSpec ι}
     (impl : QueryImpl spec (StateT σ PMF)) (first second : spec.Domain → σ → ENNReal)
     (invariant : σ → Prop)
@@ -8138,7 +6832,6 @@ theorem expectedCharges_mono {ι σ α : Type} {spec : OracleSpec ι}
           rw [PMF.probOutput_eq_apply, PMF.apply_eq_zero_iff]
           exact hr
         rw [hp, zero_mul, zero_mul]
-
 theorem expected_accumulator {ι σ α : Type} {spec : OracleSpec ι}
     (impl : QueryImpl spec (StateT σ PMF)) (counter : σ → ENNReal)
     (charge : spec.Domain → σ → ENNReal)
@@ -8156,7 +6849,6 @@ theorem expected_accumulator {ι σ α : Type} {spec : OracleSpec ι}
         expectedCharges_query_bind]
       simp_rw [ih]
       rw [expectedValue_add, hstep, add_assoc]
-
 theorem expectedCharges_add {ι σ α : Type} {spec : OracleSpec ι}
     (impl : QueryImpl spec (StateT σ PMF)) (first second : spec.Domain → σ → ENNReal)
     (program : OracleComp spec α) (state : σ) :
@@ -8167,7 +6859,6 @@ theorem expectedCharges_add {ι σ α : Type} {spec : OracleSpec ι}
   | query_bind input next ih =>
       simp_rw [expectedCharges_query_bind, ih, expectedValue_add]
       ac_rfl
-
 theorem expectedCharges_scale {ι σ α : Type} {spec : OracleSpec ι}
     (impl : QueryImpl spec (StateT σ PMF)) (charge : spec.Domain → σ → ENNReal)
     (factor : ENNReal) (program : OracleComp spec α) (state : σ) :
@@ -8178,9 +6869,6 @@ theorem expectedCharges_scale {ι σ α : Type} {spec : OracleSpec ι}
   | query_bind input next ih =>
       simp_rw [expectedCharges_query_bind, ih, expectedValue_left_mul]
       exact (mul_add _ _ _).symm
-
-/-- Predictable source charges retain their expectation when an auxiliary
-counter is erased from the query implementation. -/
 theorem expectedCharges_project {ι σ τ α : Type} {spec : OracleSpec ι}
     (first : QueryImpl spec (StateT σ PMF)) (second : QueryImpl spec (StateT τ PMF))
     (project : σ → τ)
@@ -8197,17 +6885,12 @@ theorem expectedCharges_project {ι σ τ α : Type} {spec : OracleSpec ι}
       simp_rw [ih]
       rw [← hquery input state, expectedValue_map]
       rfl
-
 end Creation
-
 namespace ProposalModel
 variable {ι State Label : Type} {spec : OracleSpec ι}
-
-/-- The full proposal word's conditional price at the currently consumed prefix. -/
 noncomputable def completionPotential (model : ProposalModel spec State Label)
     (total : Nat) (payoff : List Label → ENNReal) (consumed : List Label) : ENNReal :=
   expectedValue (completeProposalWord model.base total consumed) payoff
-
 theorem completionPotential_query (model : ProposalModel spec State Label)
     (total : Nat) (payoff : List Label → ENNReal)
     (input : spec.Domain) (state : List Label × State) :
@@ -8218,7 +6901,6 @@ theorem completionPotential_query (model : ProposalModel spec State Label)
     (model.traced_query_complete total input state)
   rw [← PMF.monad_bind_eq_bind, expectedValue_bind] at h
   exact h
-
 theorem completionPotential_program {α : Type} (model : ProposalModel spec State Label)
     (total : Nat) (payoff : List Label → ENNReal)
     (program : OracleComp spec α) (state : List Label × State) :
@@ -8229,19 +6911,14 @@ theorem completionPotential_program {α : Type} (model : ProposalModel spec Stat
     (model.traced_complete total program state)
   rw [← PMF.monad_bind_eq_bind, expectedValue_bind] at h
   exact h
-
 theorem completionPotential_nil (model : ProposalModel spec State Label)
     (total : Nat) (payoff : List Label → ENNReal) :
     model.completionPotential total payoff [] =
       expectedValue (independentProposalWord model.base total) payoff := by
   rw [completionPotential, completeProposalWord_nil]
-
-/-- Charges depend on the pre-response state, and are clipped only by remaining
-creation mass. The original proposal/source experiment continues unchanged. -/
 def creationStep (weight : spec.Domain → (List Label × State) → Nat) (cap : Nat)
     (input : spec.Domain) (state : Nat × (List Label × State)) : Nat :=
   min (weight input state.2) (cap - state.1)
-
 noncomputable def creationImpl (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap : Nat) :
     QueryImpl spec (StateT (Nat × (List Label × State)) PMF) :=
@@ -8249,7 +6926,6 @@ noncomputable def creationImpl (model : ProposalModel spec State Label)
     (fun result => (result.1,
       (state.1 + creationStep weight cap input state, result.2))) <$>
         (model.traced input).run state.2
-
 theorem creation_query_project (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap : Nat)
     (input : spec.Domain) (state : Nat × (List Label × State)) :
@@ -8258,7 +6934,6 @@ theorem creation_query_project (model : ProposalModel spec State Label)
   simp only [creationImpl, StateT.run_mk, Functor.map_map]
   change id <$> (model.traced input).run state.2 = _
   exact id_map _
-
 theorem creation_program_project {α : Type} (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap : Nat)
     (program : OracleComp spec α) (state : Nat × (List Label × State)) :
@@ -8266,7 +6941,6 @@ theorem creation_program_project {α : Type} (model : ProposalModel spec State L
       (simulateQ model.traced program).run state.2 :=
   map_run_simulateQ_eq_of_query_map_eq _ _ Prod.snd
     (model.creation_query_project weight cap) program state
-
 theorem creation_query_potential (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap total : Nat)
     (payoff : List Label → ENNReal) (input : spec.Domain)
@@ -8276,7 +6950,6 @@ theorem creation_query_potential (model : ProposalModel spec State Label)
       model.completionPotential total payoff state.2.1 := by
   rw [creationImpl, StateT.run_mk, expectedValue_map]
   exact model.completionPotential_query total payoff input state.2
-
 theorem creation_query_mass_potential (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap total : Nat)
     (payoff : List Label → ENNReal) (input : spec.Domain)
@@ -8292,7 +6965,6 @@ theorem creation_query_mass_potential (model : ProposalModel spec State Label)
     (fun result => ((state.1 + creationStep weight cap input state : Nat) : ENNReal) *
       model.completionPotential total payoff result.2.1) = _
   rw [Creation.expectedValue_left_mul, model.completionPotential_query, Nat.cast_add, add_mul]
-
 theorem creation_query_mass_le (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap : Nat)
     (input : spec.Domain) (state : Nat × (List Label × State)) (hstate : state.1 ≤ cap)
@@ -8305,7 +6977,6 @@ theorem creation_query_mass_le (model : ProposalModel spec State Label)
   unfold creationStep
   have hmin := Nat.min_le_right (weight input state.2) (cap - state.1)
   omega
-
 theorem creation_program_mass_le {α : Type} (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap : Nat)
     (program : OracleComp spec α) (state : Nat × (List Label × State)) (hstate : state.1 ≤ cap)
@@ -8324,7 +6995,6 @@ theorem creation_program_mass_le {α : Type} (model : ProposalModel spec State L
       obtain ⟨middle, hm, hr⟩ := hr
       exact ih middle.1 middle.2
         (model.creation_query_mass_le weight cap input state hstate middle hm) hr
-
 theorem creation_program_potential {α : Type} (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap total : Nat)
     (payoff : List Label → ENNReal) (program : OracleComp spec α)
@@ -8337,7 +7007,6 @@ theorem creation_program_potential {α : Type} (model : ProposalModel spec State
       (model.creation_program_project weight cap program state)
   rw [expectedValue_map] at h
   exact h.trans (model.completionPotential_program total payoff program state.2)
-
 theorem creation_query_mass (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap : Nat)
     (input : spec.Domain) (state : Nat × (List Label × State)) :
@@ -8348,7 +7017,6 @@ theorem creation_query_mass (model : ProposalModel spec State Label)
   change expectedValue ((model.traced input).run state.2)
     (fun _ => ((state.1 + creationStep weight cap input state : Nat) : ENNReal)) = _
   rw [expectedValue_const (by simp), Nat.cast_add]
-
 theorem creation_program_mass {α : Type} (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap : Nat)
     (program : OracleComp spec α) (state : List Label × State) :
@@ -8362,7 +7030,6 @@ theorem creation_program_mass {α : Type} (model : ProposalModel spec State Labe
     (fun input before => (creationStep weight cap input before : ENNReal))
     (model.creation_query_mass weight cap) program (0, state)
   simpa only [Nat.cast_zero, zero_add] using h
-
 theorem creation_mass_le_source_charges {α : Type} (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap : Nat)
     (program : OracleComp spec α) (state : List Label × State) :
@@ -8381,9 +7048,6 @@ theorem creation_mass_le_source_charges {α : Type} (model : ProposalModel spec 
     _ = _ := Creation.expectedCharges_project _ _ Prod.snd
       (model.creation_query_project weight cap)
       (fun input before => (weight input before : ENNReal)) program (0, state)
-
-/-- Adaptive creation times cannot bias the completed-word charge upwards beyond
-the total predictable mass. No independence of query responses is assumed. -/
 theorem creation_charge_bound {α : Type} (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap total : Nat)
     (payoff : List Label → ENNReal) (program : OracleComp spec α)
@@ -8421,7 +7085,6 @@ theorem creation_charge_bound {α : Type} (model : ProposalModel spec State Labe
         rw [hp, zero_mul, zero_mul]
     _ = _ := by
       rw [Creation.expectedValue_left_mul, model.creation_program_potential]
-
 theorem creation_charge_from_empty {α : Type} (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap total : Nat)
     (payoff : List Label → ENNReal) (program : OracleComp spec α) (state : State) :
@@ -8431,7 +7094,6 @@ theorem creation_charge_from_empty {α : Type} (model : ProposalModel spec State
       (cap : ENNReal) * expectedValue (independentProposalWord model.base total) payoff := by
   simpa only [completionPotential_nil] using
     model.creation_charge_bound weight cap total payoff program (0, [], state) (Nat.zero_le _)
-
 theorem completionPotential_le_unit_excess (model : ProposalModel spec State Label)
     (total : Nat) (payoff : List Label → ENNReal) (consumed : List Label) :
     model.completionPotential total payoff consumed ≤
@@ -8442,9 +7104,6 @@ theorem completionPotential_le_unit_excess (model : ProposalModel spec State Lab
         (fun word => 1 + (payoff word - 1)) :=
       expectedValue_mono _ (fun _ => le_add_tsub)
     _ = _ := by rw [expectedValue_add, expectedValue_const (by simp)]
-
-/-- Keep the baseline creation count explicit. Only the excess is charged
-against the global mass cap, so disjoint query classes can share one budget. -/
 theorem creation_charge_split {α : Type} (model : ProposalModel spec State Label)
     (weight : spec.Domain → (List Label × State) → Nat) (cap total : Nat)
     (payoff : List Label → ENNReal) (program : OracleComp spec α) (state : State) :
@@ -8474,19 +7133,14 @@ theorem creation_charge_split {α : Type} (model : ProposalModel spec State Labe
         program (0, [], state) := Creation.expectedCharges_add _ _ _ _ _
     _ ≤ _ := add_le_add le_rfl
       (model.creation_charge_from_empty weight cap total (fun word => payoff word - 1) program state)
-
 end ProposalModel
 end SigGolfCandidate.T3.BPORS.Adaptive
-
 namespace SigGolfCandidate.T3.Security.QueryRecorded
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open BPORS.Adaptive
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
-/-- Concrete BPORS excess charged along adaptive executions of the actual
-query-recorded signer model, retaining the baseline class count. -/
 theorem adaptive_creation_full_charge {α : Type} (published : T3.Cache)
     (budget : Nat) (hbudget : budget ≤ 2^127)
     (weight : LazyPrivate.Interaction.Domain → (MonitoredPrivate.History × State) → Nat)
@@ -8507,9 +7161,6 @@ theorem adaptive_creation_full_charge {α : Type} (published : T3.Cache)
       (fun word => BPORS.History.fullPrice word - 1) ≤ _
   rw [ProposalModel.uniform_word_expectation]
   exact BPORS.History.fullPrice_excess_bound
-
-/-- The matching concrete near-certificate creation envelope. This is the
-creation component; the hidden-secret guess factor is a separate obligation. -/
 theorem adaptive_creation_near_charge {α : Type} (published : T3.Cache)
     (budget : Nat) (hbudget : budget ≤ 2^127)
     (weight : LazyPrivate.Interaction.Domain → (MonitoredPrivate.History × State) → Nat)
@@ -8527,18 +7178,13 @@ theorem adaptive_creation_near_charge {α : Type} (published : T3.Cache)
       BPORS.History.fullNearPrice ≤ _
   rw [ProposalModel.uniform_word_expectation]
   exact BPORS.History.fullNearPrice_bound
-
 end SigGolfCandidate.T3.Security.QueryRecorded
 end
-
-
-/-! Authored module: CreationGame. -/
 section
 namespace SigGolfCandidate.T3.BPORS.Adaptive.ProposalModel
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity.Concrete
 set_option backward.isDefEq.respectTransparency false
-
 theorem traced_query_inactive {ι State Label : Type} {spec : OracleSpec ι}
     (model : ProposalModel spec State Label) (input : spec.Domain)
     (state : List Label × State) (hinactive : model.active input state.2 = false) :
@@ -8547,9 +7193,7 @@ theorem traced_query_inactive {ι State Label : Type} {spec : OracleSpec ι}
   simp only [traced, proposalRecordImpl, StateT.run_mk, hinactive, Bool.false_eq_true,
     if_false, original, PMF.monad_map_eq_map, PMF.map_comp]
   rfl
-
 end SigGolfCandidate.T3.BPORS.Adaptive.ProposalModel
-
 namespace SigGolfCandidate.T3.Security.CreationGame
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open BPORS.Adaptive
@@ -8559,25 +7203,18 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] keygen
-
-/-- Route public-only source programs through the interaction oracle. The
-private branch is unreachable in the theorem below. -/
 def publicHandler : QueryImpl T3.Spec (OracleComp LazyPrivate.Interaction)
   | .inl input => LazyPrivate.Interaction.query (.inl input)
   | .inr _ => pure (0 : HashOutput)
-
 def publicProgram {α : Type} (program : M α) : OracleComp LazyPrivate.Interaction α :=
   simulateQ publicHandler program
-
 theorem publicProgram_pure {α : Type} (value : α) :
     publicProgram (pure value : M α) = pure value := by
   simp [publicProgram]
-
 theorem publicProgram_bind {α β : Type} (program : M α) (next : α → M β) :
     publicProgram (program >>= next) =
       (publicProgram program >>= fun value => publicProgram (next value)) := by
   simp only [publicProgram, simulateQ_bind]
-
 theorem traced_world (published : T3.Cache) (budget : Nat) (hbudget : budget ≤ 2^127)
     (input : SphincsSecurity.OracleWorld.Domain)
     (state : MonitoredPrivate.History × QueryRecorded.State) :
@@ -8586,9 +7223,6 @@ theorem traced_world (published : T3.Cache) (budget : Nat) (hbudget : budget ≤
         (liftM (QueryRecorded.run (forwardWorld input) state.2) : PMF _) := by
   rw [ProposalModel.traced_query_inactive _ _ _ (by rfl), QueryRecorded.proposal_query_erasure]
   rfl
-
-/-- The verifier's public queries run through the same proposal model and
-retain exactly the same events, counter, cache and history as the source run. -/
 theorem publicProgram_trace {α : Type} (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (program : M α) (hp : PublicVerdict.Only program)
     (state : MonitoredPrivate.History × QueryRecorded.State) :
@@ -8613,14 +7247,10 @@ theorem publicProgram_trace {α : Type} (published : T3.Cache) (budget : Nat)
         intro middle
         exact ih middle.1 (hp.2 middle.1) (state.1, middle.2)
       · exact False.elim hp.1
-
-/-- All adversary, signer and final-verifier queries after key generation are
-now one adaptive interaction program. This is the program charged by SEC. -/
 noncomputable def rest (adversary : AdversaryP) (publicKey : Digest) (published : T3.Cache) :
     OracleComp LazyPrivate.Interaction Bool := do
   let result ← ProposalOverflow.logged (adversary publicKey published)
   publicProgram (GameWith.verdict PaddedGame.checker publicKey result)
-
 theorem rest_trace (adversary : AdversaryP) (published : T3.Cache) (publicKey : Digest)
     (budget : Nat) (hbudget : budget ≤ 2^127) (state : QueryRecorded.State) :
     (simulateQ (QueryRecorded.proposalModel published budget hbudget).traced
@@ -8636,7 +7266,6 @@ theorem rest_trace (adversary : AdversaryP) (published : T3.Cache) (publicKey : 
   intro interaction
   rw [publicProgram_trace published budget hbudget _ (PaddedGame.verdict_public _ _)]
   rfl
-
 theorem padded_trace_eq (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
     PaddedGame.tracedExperiment adversary budget hbudget =
       (do
@@ -8647,12 +7276,8 @@ theorem padded_trace_eq (adversary : AdversaryP) (budget : Nat) (hbudget : budge
   apply bind_congr
   intro generated
   exact (rest_trace adversary generated.1.2 generated.1.1 budget hbudget generated.2).symm
-
 abbrev Weight := T3.Cache → LazyPrivate.Interaction.Domain →
   (MonitoredPrivate.History × QueryRecorded.State) → Nat
-
-/-- Ghost creation mass is accumulated around the exact padded experiment,
-including its final expansion and verification queries. -/
 noncomputable def experiment (weight : Weight) (cap : Nat)
     (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
     PMF (Bool × (Nat × (MonitoredPrivate.History × QueryRecorded.State))) := do
@@ -8660,7 +7285,6 @@ noncomputable def experiment (weight : Weight) (cap : Nat)
   (simulateQ ((QueryRecorded.proposalModel generated.1.2 budget hbudget).creationImpl
     (weight generated.1.2) cap) (rest adversary generated.1.1 generated.1.2)).run
       (0, [], generated.2)
-
 theorem experiment_project (weight : Weight) (cap : Nat)
     (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
     Prod.map id Prod.snd <$> experiment weight cap adversary budget hbudget =
@@ -8670,7 +7294,6 @@ theorem experiment_project (weight : Weight) (cap : Nat)
   intro generated
   exact (QueryRecorded.proposalModel generated.1.2 budget hbudget).creation_program_project
     (weight generated.1.2) cap _ (0, [], generated.2)
-
 theorem experiment_mass_le (weight : Weight) (cap : Nat)
     (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127)
     (result : Bool × (Nat × (MonitoredPrivate.History × QueryRecorded.State)))
@@ -8680,8 +7303,6 @@ theorem experiment_mass_le (weight : Weight) (cap : Nat)
   obtain ⟨generated, _, hr⟩ := hr
   exact (QueryRecorded.proposalModel generated.1.2 budget hbudget).creation_program_mass_le
     (weight generated.1.2) cap _ (0, [], generated.2) (Nat.zero_le _) result hr
-
-/-- Accumulated conditional completed-history price in the actual full game. -/
 noncomputable def expectedCharge (weight : Weight) (cap : Nat)
     (payoff : MonitoredPrivate.History → ENNReal)
     (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) : ENNReal :=
@@ -8695,7 +7316,6 @@ noncomputable def expectedCharge (weight : Weight) (cap : Nat)
           (QueryRecorded.proposalModel generated.1.2 budget hbudget).completionPotential
             BPORS.Numeric.proposalLength payoff before.2.1)
         (rest adversary generated.1.1 generated.1.2) (0, [], generated.2))
-
 theorem full_charge_le_mass_excess (weight : Weight) (cap : Nat)
     (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedCharge weight cap BPORS.History.fullPrice adversary budget hbudget ≤
@@ -8723,7 +7343,6 @@ theorem full_charge_le_mass_excess (weight : Weight) (cap : Nat)
       funext generated
       exact ((QueryRecorded.proposalModel generated.1.2 budget hbudget).creation_program_mass
         (weight generated.1.2) cap _ ([], generated.2)).symm
-
 theorem near_charge_le (weight : Weight) (cap : Nat)
     (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedCharge weight cap BPORS.History.fullNearPrice adversary budget hbudget ≤
@@ -8737,15 +7356,9 @@ theorem near_charge_le (weight : Weight) (cap : Nat)
       exact QueryRecorded.adaptive_creation_near_charge generated.1.2 budget hbudget
         (weight generated.1.2) cap _ generated.2
     _ = _ := expectedValue_const (by simp) _
-
 end SigGolfCandidate.T3.Security.CreationGame
 end
-
-
-/-! Authored module: NearCoverage. -/
 section
-
-
 namespace SigGolfCandidate.T3.Security.MonitoredPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open BPORS.History
@@ -8754,15 +7367,11 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 def journalNearEvent (journal : Journal) (index : Fin (2^31))
     (missing : Fin 7) (omitted : Fin 3) (output : HashOutput) : Prop :=
   (SigGolfResearch.Gate6.digestRecord output).2.2.1=0 ∧
     BPORS.NearCovered (exposedLeaves (journalOutputs journal) index) missing omitted
       (SigGolfResearch.Gate6.rawDraw (SigGolfResearch.Gate6.digestRecord output)).1
-
-/-- The deficient-coordinate envelope now bounds the actual disclosed-leaf
-journal, for any one of the 21 possible missing openings. -/
 theorem journal_near_coverage_bound (published : T3.Cache) (history : History)
     (state : State) (journal : Journal) (hj : JournalOK published history state journal)
     (index : Fin (2^31)) (missing : Fin 7) (omitted : Fin 3) :
@@ -8771,7 +7380,6 @@ theorem journal_near_coverage_bound (published : T3.Cache) (history : History)
       nearWordEnvelope missing (atIndex index history) :=
   BPORS.nearCovered_le_wordEnvelope (atIndex index history) _
     (journal_exposure_card published history state journal hj index) missing omitted
-
 theorem journal_any_missing_coverage_bound (published : T3.Cache) (history : History)
     (state : State) (journal : Journal) (hj : JournalOK published history state journal)
     (index : Fin (2^31)) :
@@ -8792,9 +7400,6 @@ theorem journal_any_missing_coverage_bound (published : T3.Cache) (history : His
     _ = _ := by
       simp only [Fintype.sum_prod_type, Finset.sum_const, Finset.card_univ,
         Fintype.card_fin, nsmul_eq_mul, Nat.cast_ofNat, Finset.mul_sum]
-
-/-- The actual exposure journal's union of all 21 one-missing-opening events
-has exactly the scale of the previously checked full near-price. -/
 theorem journal_average_near_coverage_bound (published : T3.Cache) (history : History)
     (state : State) (journal : Journal) (hj : JournalOK published history state journal) :
     expectedValue ($ᵗ (Fin (2^31)) : ProbComp _)
@@ -8814,12 +7419,8 @@ theorem journal_average_near_coverage_bound (published : T3.Cache) (history : Hi
   simp only [div_eq_mul_inv]
   rw [← hscale]
   exact le_of_eq (by ring)
-
 end SigGolfCandidate.T3.Security.MonitoredPrivate
 end
-
-
-/-! Authored module: CreationBudget. -/
 section
 namespace SigGolfCandidate.T3.Security.CreationGame
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -8828,17 +7429,12 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- Create targets only on fresh public queries of the selected class, before
-the actual source compression budget is exhausted. Signing requests have no
-birth charge here; their effect on previously created targets is separate. -/
 noncomputable def classWeight (cls : HashInput → Prop) (budget : Nat) :
     LazyPrivate.Interaction.Domain → (MonitoredPrivate.History × QueryRecorded.State) → Nat
   | .inl (.inr input), state =>
       if state.2.base.source.1 < budget ∧ cls input ∧ state.2.base.source.2.2 input = none
         then 1 else 0
   | _, _ => 0
-
 theorem classWeight_le_one (cls : HashInput → Prop) (budget : Nat)
     (input : LazyPrivate.Interaction.Domain) (state : MonitoredPrivate.History × QueryRecorded.State) :
     classWeight cls budget input state ≤ 1 := by
@@ -8848,9 +7444,6 @@ theorem classWeight_le_one (cls : HashInput → Prop) (budget : Nat)
       state.2.base.source.2.2 input = none then 1 else 0) ≤ 1
     split_ifs <;> omega
   · exact Nat.zero_le _
-
-/-- The creation cap does not discard a target while its actual source query
-is within budget. This uses source cost, not an independent ghost budget. -/
 theorem class_creationStep_eq (cls : HashInput → Prop) (budget : Nat)
     (input : LazyPrivate.Interaction.Domain)
     (state : Nat × (MonitoredPrivate.History × QueryRecorded.State))
@@ -8867,7 +7460,6 @@ theorem class_creationStep_eq (cls : HashInput → Prop) (budget : Nat)
     · omega
     · exact Nat.zero_le _
   · exact Nat.zero_le _
-
 theorem traced_query_source_support (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (input : LazyPrivate.Interaction.Domain)
     (before : MonitoredPrivate.History × QueryRecorded.State)
@@ -8880,14 +7472,12 @@ theorem traced_query_source_support (published : T3.Cache) (budget : Nat)
     ← (QueryRecorded.proposalModel published budget hbudget).traced_query_erasure input before,
     PMF.monad_map_eq_map, PMF.mem_support_map_iff]
   exact ⟨result, hr, rfl⟩
-
 theorem recorded_count_monotone {α : Type} (program : M α)
     (before : QueryRecorded.State) (result : α × QueryRecorded.State)
     (hr : result ∈ support (QueryRecorded.run program before)) :
     before.base.source.1 ≤ result.2.base.source.1 :=
   MonitoredPrivate.run_count_monotone program before.base (result.1, result.2.base)
     (QueryRecorded.run_support program before result hr)
-
 theorem recorded_world_hash_count (input : HashInput) (before : QueryRecorded.State)
     (result : HashOutput × QueryRecorded.State)
     (hr : result ∈ support (QueryRecorded.run (forwardWorld (.inr input)) before)) :
@@ -8896,7 +7486,6 @@ theorem recorded_world_hash_count (input : HashInput) (before : QueryRecorded.St
   rw [QueryRecorded.run_query_explicit, support_map] at hr
   obtain ⟨middle, _, rfl⟩ := hr
   rfl
-
 theorem class_creation_query_cost (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (cls : HashInput → Prop)
     (input : LazyPrivate.Interaction.Domain)
@@ -8920,7 +7509,6 @@ theorem class_creation_query_cost (published : T3.Cache) (budget : Nat)
     rw [hc]
     exact Nat.add_le_add hcost (classWeight_le_one cls budget (.inl (.inr input)) before.2)
   · simpa only [classWeight, Nat.add_zero] using hcost.trans hmon
-
 theorem class_creation_program_cost {α : Type} (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (cls : HashInput → Prop)
     (program : OracleComp LazyPrivate.Interaction α)
@@ -8942,7 +7530,6 @@ theorem class_creation_program_cost {α : Type} (published : T3.Cache) (budget :
       obtain ⟨middle, hm, hr⟩ := hr
       exact ih middle.1 middle.2
         (class_creation_query_cost published budget hbudget cls input before hcost middle hm) hr
-
 theorem class_experiment_cost (cls : HashInput → Prop)
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127)
@@ -8953,9 +7540,6 @@ theorem class_experiment_cost (cls : HashInput → Prop)
   obtain ⟨generated, _, hr⟩ := hr
   exact class_creation_program_cost generated.1.2 budget hbudget cls _
     (0, [], generated.2) (Nat.zero_le _) result hr
-
-/-- Clipping is entirely inactive on reachable source-budgeted births, so the
-ghost counter counts exactly the intended fresh class queries in expectation. -/
 theorem class_program_mass_eq {α : Type} (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (cls : HashInput → Prop)
     (program : OracleComp LazyPrivate.Interaction α)
@@ -8985,9 +7569,6 @@ theorem class_program_mass_eq {α : Type} (published : T3.Cache) (budget : Nat)
         exact le_of_eq (congrArg (fun value : Nat => (value : ENNReal))
           (class_creationStep_eq cls budget input state hcost)).symm
       _ = _ := (model.creation_program_mass (classWeight cls budget) budget program before).symm
-
-/-- A source-only count: fresh public queries of the chosen class, issued
-outside signing macros while the actual compression counter is below budget. -/
 noncomputable def expectedBirths (cls : HashInput → Prop)
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127) : ENNReal :=
@@ -8996,7 +7577,6 @@ noncomputable def expectedBirths (cls : HashInput → Prop)
       Creation.expectedCharges (QueryRecorded.proposalModel generated.1.2 budget hbudget).traced
         (fun input state => (classWeight cls budget input state : ENNReal))
         (rest adversary generated.1.1 generated.1.2) ([], generated.2))
-
 theorem expectedBirths_eq_mass (cls : HashInput → Prop)
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127) :
@@ -9007,7 +7587,6 @@ theorem expectedBirths_eq_mass (cls : HashInput → Prop)
   congr 1
   funext generated
   exact (class_program_mass_eq generated.1.2 budget hbudget cls _ ([], generated.2)).symm
-
 theorem full_charge_le_births_excess (cls : HashInput → Prop)
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127) :
@@ -9016,12 +7595,8 @@ theorem full_charge_le_births_excess (cls : HashInput → Prop)
       expectedBirths cls adversary budget hbudget + (budget : ENNReal) * (11324/100000000) := by
   rw [expectedBirths_eq_mass]
   exact full_charge_le_mass_excess (fun _ => classWeight cls budget) budget adversary budget hbudget
-
 end SigGolfCandidate.T3.Security.CreationGame
 end
-
-
-/-! Authored module: CreationClassCount. -/
 section
 namespace SigGolfCandidate.T3.Security.CreationGame
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -9030,13 +7605,9 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 def publicClass (cls : HashInput → Prop) : T3.Spec.Domain → Prop
   | .inl (.inr input) => cls input
   | _ => False
-
-/-- Same longest-budget-prefix counter as the SECC/BP-B contract; the class
-can be any source-query predicate, so disjoint classes share the same prefix. -/
 noncomputable def prefixCount (cls : T3.Spec.Domain → Prop) :
     Nat → List FirstHit.QueryEvent → Nat
   | _, [] => 0
@@ -9045,7 +7616,6 @@ noncomputable def prefixCount (cls : T3.Spec.Domain → Prop) :
         (if cls event.input then FullGame.queryCharge event.input else 0) +
           prefixCount cls (budget - FullGame.queryCharge event.input) rest
       else 0
-
 theorem prefixCount_le (cls : T3.Spec.Domain → Prop) (budget : Nat)
     (events : List FirstHit.QueryEvent) : prefixCount cls budget events ≤ budget := by
   induction events generalizing budget with
@@ -9058,7 +7628,6 @@ theorem prefixCount_le (cls : T3.Spec.Domain → Prop) (budget : Nat)
       · have h := ih (budget - FullGame.queryCharge event.input)
         omega
       · exact Nat.zero_le _
-
 theorem prefixCount_append_mono (cls : T3.Spec.Domain → Prop) (budget : Nat)
     (first last : List FirstHit.QueryEvent) :
     prefixCount cls budget first ≤ prefixCount cls budget (first ++ last) := by
@@ -9070,13 +7639,11 @@ theorem prefixCount_append_mono (cls : T3.Spec.Domain → Prop) (budget : Nat)
       · exact Nat.add_le_add_left (ih _) _
       · exact Nat.add_le_add_left (ih _) _
       · exact le_rfl
-
 theorem prefixCount_prefix_mono (cls : T3.Spec.Domain → Prop) (budget : Nat)
     {first last : List FirstHit.QueryEvent} (hprefix : first.IsPrefix last) :
     prefixCount cls budget first ≤ prefixCount cls budget last := by
   obtain ⟨suffix, rfl⟩ := hprefix
   exact prefixCount_append_mono cls budget first suffix
-
 theorem prefixCount_append_singleton (cls : T3.Spec.Domain → Prop)
     (budget : Nat) (events : List FirstHit.QueryEvent) (event : FirstHit.QueryEvent)
     (hfits : (events.map (fun item => FullGame.queryCharge item.input)).sum +
@@ -9094,7 +7661,6 @@ theorem prefixCount_append_singleton (cls : T3.Spec.Domain → Prop)
           FullGame.queryCharge event.input ≤ budget - FullGame.queryCharge first.input := by omega
       simp only [List.cons_append, prefixCount, if_pos hf]
       rw [ih _ ht, Nat.add_assoc]
-
 theorem prefixCount_disjoint (first second : T3.Spec.Domain → Prop)
     (hdisjoint : ∀ input, ¬ (first input ∧ second input)) (budget : Nat)
     (events : List FirstHit.QueryEvent) :
@@ -9114,9 +7680,6 @@ theorem prefixCount_disjoint (first second : T3.Spec.Domain → Prop)
           omega
         · simp [hf, hs]
       · simp [hfit]
-
-/-- Each fresh public-class birth consumes a new event in the source budget
-prefix. Other oracle steps can only increase that prefix count. -/
 theorem class_source_count_step (published : T3.Cache) (budget : Nat)
     (cls : HashInput → Prop) (input : LazyPrivate.Interaction.Domain)
     (before : MonitoredPrivate.History × QueryRecorded.State)
@@ -9153,12 +7716,10 @@ theorem class_source_count_step (published : T3.Cache) (budget : Nat)
         exact if_neg hb
       simpa only [hweight, Nat.add_zero] using hmono
   · simpa only [classWeight, Nat.add_zero] using hmono
-
 def CountInvariant (cls : HashInput → Prop) (budget : Nat)
     (state : Nat × (MonitoredPrivate.History × QueryRecorded.State)) : Prop :=
   QueryRecorded.CostCoherent state.2.2 ∧
     state.1 ≤ prefixCount (publicClass cls) budget state.2.2.events
-
 theorem class_creation_query_count (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (cls : HashInput → Prop)
     (input : LazyPrivate.Interaction.Domain)
@@ -9176,7 +7737,6 @@ theorem class_creation_query_count (published : T3.Cache) (budget : Nat)
   refine ⟨QueryRecorded.run_cost_coherent _ before.2.2 hinv.1 (middle.1, middle.2.2) hs, ?_⟩
   exact (Nat.add_le_add hinv.2 (Nat.min_le_left _ _)).trans
     (class_source_count_step published budget cls input before.2 hinv.1 (middle.1, middle.2.2) hs)
-
 theorem class_creation_program_count {α : Type} (published : T3.Cache) (budget : Nat)
     (hbudget : budget ≤ 2^127) (cls : HashInput → Prop)
     (program : OracleComp LazyPrivate.Interaction α)
@@ -9198,7 +7758,6 @@ theorem class_creation_program_count {α : Type} (published : T3.Cache) (budget 
       obtain ⟨middle, hm, hr⟩ := hr
       exact ih middle.1 middle.2
         (class_creation_query_count published budget hbudget cls input before hinv middle hm) hr
-
 theorem class_experiment_count (cls : HashInput → Prop)
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127)
@@ -9212,16 +7771,11 @@ theorem class_experiment_count (cls : HashInput → Prop)
     QueryRecorded.initial_cost generated hg
   exact (class_creation_program_count generated.1.2 budget hbudget cls _
     (0, [], generated.2) ⟨hc, Nat.zero_le _⟩ result hr).2
-
 noncomputable def expectedClassCount (cls : T3.Spec.Domain → Prop)
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127) : ENNReal :=
   expectedValue (PaddedGame.tracedExperiment adversary budget hbudget)
     (fun result => (prefixCount cls budget result.2.2.events : ENNReal))
-
-/-- The baseline birth mass is paid by the expected class count in the exact
-padded trace, not by an additional global q term. Signer-internal class queries
-remain in that count, making this comparison conservative. -/
 theorem expectedBirths_le_classCount (cls : HashInput → Prop)
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127) :
@@ -9242,7 +7796,6 @@ theorem expectedBirths_le_classCount (cls : HashInput → Prop)
       rw [PMF.probOutput_eq_apply, PMF.apply_eq_zero_iff]
       exact hr
     rw [hp, zero_mul, zero_mul]
-
 theorem full_charge_le_class_excess (cls : HashInput → Prop)
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127) :
@@ -9252,7 +7805,6 @@ theorem full_charge_le_class_excess (cls : HashInput → Prop)
         (budget : ENNReal) * (11324/100000000) :=
   (full_charge_le_births_excess cls adversary budget hbudget).trans
     (add_le_add (expectedBirths_le_classCount cls adversary budget hbudget) le_rfl)
-
 theorem expectedClassCount_le (cls : T3.Spec.Domain → Prop)
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127) :
@@ -9265,7 +7817,6 @@ theorem expectedClassCount_le (cls : T3.Spec.Domain → Prop)
       intro result
       exact_mod_cast prefixCount_le cls budget result.2.2.events
     _ = _ := expectedValue_const (by simp) _
-
 theorem expectedClassCount_disjoint (first second : T3.Spec.Domain → Prop)
     (hdisjoint : ∀ input, ¬ (first input ∧ second input))
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
@@ -9276,6 +7827,5 @@ theorem expectedClassCount_disjoint (first second : T3.Spec.Domain → Prop)
   unfold expectedClassCount
   simp_rw [prefixCount_disjoint first second hdisjoint, Nat.cast_add]
   exact expectedValue_add _ _ _
-
 end SigGolfCandidate.T3.Security.CreationGame
 end

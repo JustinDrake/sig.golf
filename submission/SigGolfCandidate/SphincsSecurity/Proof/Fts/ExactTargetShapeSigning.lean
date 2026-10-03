@@ -2,18 +2,13 @@ import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.DigestCompletionCacheGrowth
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ConcreteTargetShapeQuery
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.InterleavedCoverStep
+
 set_option autoImplicit true
-
-/-! ## WorldTargetShapeEnvelope -/
-
 namespace SphincsSecurity.Concrete
-
 open _root_.OracleComp OracleSpec ENNReal
 set_option backward.isDefEq.respectTransparency false
-
 noncomputable def observedTargetShapeVector (key : SecretKey) (payload : HashInput) (target : FewTimeView) (state : CoverLogState) : TargetShapeVector :=
   targetShapeMoments key state.1 state.2 payload target
-
 theorem expected_fresh_targetShape_le (key : SecretKey) (payload : HashInput) (target : FewTimeView)
     (before : QueryCache HashSpec) (log : QueryLog SigningSpec) (input : HashInput) (hfresh : before input = none)
     (hsigned : SigningDigestsCached key.parameter before key.root log)
@@ -25,14 +20,10 @@ theorem expected_fresh_targetShape_le (key : SecretKey) (payload : HashInput) (t
   have h := expected_randomOracle_targetShapeMoments_le key before log payload target groups remaining hvalid input hsigned
   rw [randomOracle, QueryImpl.withCaching_run_none _ hfresh, tsum_probOutput_map_mul] at h
   exact h
-
 end SphincsSecurity.Concrete
-
 namespace SphincsSecurity.Concrete
-
 open _root_.OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
-
 noncomputable def reuseTargetMixedSigningEnvelope (key : SecretKey) (cache : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView)
     (groups : Fin m → Finset IndexGroup) (required : Finset IndexGroup) (reuse : ENNReal) : ENNReal :=
@@ -49,7 +40,6 @@ noncomputable def reuseTargetMixedSigningEnvelope (key : SecretKey) (cache : Que
             ((∏ slot ∈ (Finset.univ : Finset (Fin m)) \ selected,
               normalizedCachedTargetSubsetMatch key.parameter cache (tweakableHashInput key.parameter .message payload) target (groups slot)) *
                 normalizedTargetLogProduct key cache log payload target (required \ trees))
-
 theorem digestCompletion_normalizedTargetMixedMoment_eq_frozen_add_growth (key : SecretKey) (message : Message)
     (before : QueryCache HashSpec) (loop : DigestLoopRecord)
     (hloop : loop ∈ support ((simulateQ romImpl (signDigestLoop digestAttemptLimit key message)).run before))
@@ -70,7 +60,6 @@ theorem digestCompletion_normalizedTargetMixedMoment_eq_frozen_add_growth (key :
     exact le_self_add
   unfold normalizedTargetMixedMoment targetMixedSigningGrowth
   rw [← add_mul, add_tsub_cancel_of_le hmono]
-
 theorem expected_digestCompletion_normalizedTargetMixedMoment_le_of_exactReuse {α : Type} (key : SecretKey) (message : Message) (before : QueryCache HashSpec)
     (finish : DigestLoopRecord → ProbComp α)
     (record : α → (Option Signature × Option FewTimeView) × QueryCache HashSpec)
@@ -110,7 +99,6 @@ theorem expected_digestCompletion_normalizedTargetMixedMoment_le_of_exactReuse {
       log payload target groups required hsigned).trans
         (mul_le_of_le_one_left' (freshDigestSelectionProbability_le_one key message before))).trans_eq
     exact expected_targetMixedGrowthPolynomial _ _ groups required target hgroups hdisjoint hremaining
-
 theorem targetShapeSigning_eq_reuseIndexedEnvelope (key : SecretKey) (cache : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView)
     (groups : Finset (Finset IndexGroup)) (remaining : Finset IndexGroup) (hvalid : TargetShapeValid groups remaining) (reuse : ENNReal) :
@@ -159,7 +147,6 @@ theorem targetShapeSigning_eq_reuseIndexedEnvelope (key : SecretKey) (cache : Qu
   unfold reuseTargetMixedSigningEnvelope
   simp only [normalizedTargetCacheProduct, prod_targetGroupAt, hmoments]
   ring
-
 theorem expected_digestCompletion_targetShapeMoments_le_of_exactReuse {α : Type} (key : SecretKey) (message : Message) (before : QueryCache HashSpec)
     (finish : DigestLoopRecord → ProbComp α)
     (record : α → (Option Signature × Option FewTimeView) × QueryCache HashSpec)
@@ -180,7 +167,6 @@ theorem expected_digestCompletion_targetShapeMoments_le_of_exactReuse {α : Type
     (fun i j hij => hvalid.disjoint _ (targetGroupAt_mem groups i) _ (targetGroupAt_mem groups j)
       (fun heq => hij (targetGroupAt_injective groups heq)))
     (fun slot => hvalid.remaining _ (targetGroupAt_mem groups slot)) hsigned reuse hreuse
-
 theorem expected_signWithView_targetShapeMoments_le_of_exactReuse (key : SecretKey) (message : Message) (before : QueryCache HashSpec)
     (log : QueryLog SigningSpec) (payload : HashInput) (target : FewTimeView)
     (groups : Finset (Finset IndexGroup)) (remaining : Finset IndexGroup) (hvalid : TargetShapeValid groups remaining)
@@ -194,7 +180,6 @@ theorem expected_signWithView_targetShapeMoments_le_of_exactReuse (key : SecretK
   exact expected_digestCompletion_targetShapeMoments_le_of_exactReuse key message before
     (originalDigestCompletion key) id (fun loop _ result hr => originalDigestCompletion_preservesMessages key loop result hr)
     log payload target groups remaining hvalid hsigned reuse hreuse
-
 theorem expected_logTraced_sign_targetShape_le_of_exactReuse (key : SecretKey) (reuse : ENNReal)
     (payload : HashInput) (target : FewTimeView) (state : CoverLogState)
     (hsigned : SigningDigestsCached key.parameter state.1 key.root state.2)
@@ -214,5 +199,4 @@ theorem expected_logTraced_sign_targetShape_le_of_exactReuse (key : SecretKey) (
   rw [tsum_probOutput_map_mul] at heq
   exact heq.le.trans (expected_signWithView_targetShapeMoments_le_of_exactReuse key message state.1 state.2
     payload target groups remaining hvalid hsigned reuse hreuse)
-
 end SphincsSecurity.Concrete

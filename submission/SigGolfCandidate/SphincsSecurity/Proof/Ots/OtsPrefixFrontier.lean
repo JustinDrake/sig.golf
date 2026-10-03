@@ -1,21 +1,17 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Ots.OtsPrefixOracle
 import SigGolfCandidate.SphincsSecurity.Proof.Ots.CanonicalEncodingSampling
 import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.FrontierOracleCongruence
-namespace SphincsSecurity.Concrete.OtsPrefix
 
+namespace SphincsSecurity.Concrete.OtsPrefix
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
 attribute [local irreducible] canonicalFrontierValues frontierLayerMessage
-
 def SameChain (segment : OtsPrefix) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (chainIdx : ChainIndex) : Prop :=
   lay = segment.lay ∧ tree = segment.tree ∧ leaf = segment.leaf ∧ chainIdx = segment.chainIdx
-
 instance (segment : OtsPrefix) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (chainIdx : ChainIndex) :
     Decidable (segment.SameChain lay tree leaf chainIdx) := inferInstanceAs (Decidable (_ ∧ _ ∧ _ ∧ _))
-
 def replaceChain (segment : OtsPrefix) (values : OtsFrontierValues) (value : Digest) : OtsFrontierValues :=
   fun lay tree leaf chainIdx => if segment.SameChain lay tree leaf chainIdx then value else values lay tree leaf chainIdx
-
 theorem parse_other_chain (segment : OtsPrefix) (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (chainIdx : ChainIndex)
     (hother : ¬segment.SameChain lay tree leaf chainIdx) (step : ChainStep) (value : Digest) :
     segment.parse (tweakableHashInput segment.parameter (.chain lay tree leaf chainIdx step) (digestBytes value)) = none := by
@@ -28,7 +24,6 @@ theorem parse_other_chain (segment : OtsPrefix) (lay : Layer) (tree : TreeIndex)
           step = segment.step query.1 := by
         simpa only [input, HashDomain.chain.injEq] using hparts.1
       exact False.elim (hother ⟨hchains.1, hchains.2.1, hchains.2.2.1, hchains.2.2.2.1⟩)
-
 theorem answer_other_chain (segment : OtsPrefix) (tables : Fin segment.digit.val → Digest → Digest)
     (high : segment.Query → High) (outside : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (chainIdx : ChainIndex)
@@ -36,19 +31,16 @@ theorem answer_other_chain (segment : OtsPrefix) (tables : Fin segment.digit.val
     segment.answer tables high outside (tweakableHashInput segment.parameter (.chain lay tree leaf chainIdx step) (digestBytes value)) =
       outside (tweakableHashInput segment.parameter (.chain lay tree leaf chainIdx step) (digestBytes value)) := by
   simp only [answer, segment.parse_other_chain lay tree leaf chainIdx hother step value]
-
 theorem lows_answer (segment : OtsPrefix) (tables : Fin segment.digit.val → Digest → Digest)
     (high : segment.Query → High) (outside : QueryImpl HashSpec Id) :
     segment.lows (segment.answer tables high outside) = tables := by
   funext level value
   rw [lows, answer_input, truncate_combine]
-
 noncomputable def frontierFromEndpoint (segment : OtsPrefix) (outside : QueryImpl HashSpec Id)
     (secrets : OtsFrontierValues) (words : OtsReferenceWords) (endpoint : Digest) : OtsFrontierValues :=
   segment.replaceChain (fun lay tree leaf chainIdx => evalWithAnswerFn outside
     (chainWalk segment.parameter lay tree leaf chainIdx 0 (words lay tree leaf chainIdx).val
       (secrets lay tree leaf chainIdx))) endpoint
-
 theorem frontierFromEndpoint_replaceSecret (segment : OtsPrefix) (outside : QueryImpl HashSpec Id)
     (secrets : OtsFrontierValues) (words : OtsReferenceWords) (endpoint replacement : Digest) :
     segment.frontierFromEndpoint outside (segment.replaceChain secrets replacement) words endpoint =
@@ -56,7 +48,6 @@ theorem frontierFromEndpoint_replaceSecret (segment : OtsPrefix) (outside : Quer
   funext lay tree leaf chainIdx
   by_cases h : segment.SameChain lay tree leaf chainIdx <;>
     simp only [frontierFromEndpoint, replaceChain, h, ↓reduceIte]
-
 theorem canonicalFrontierValues_answer (segment : OtsPrefix) (tables : Fin segment.digit.val → Digest → Digest)
     (high : segment.Query → High) (outside : QueryImpl HashSpec Id) (root : Digest) (top : Nat → Nat → Digest)
     (secrets : OtsFrontierValues) (ftsSecret : Index → FtsTree → FtsLeaf → Digest)
@@ -77,7 +68,6 @@ theorem canonicalFrontierValues_answer (segment : OtsPrefix) (tables : Fin segme
       omega
     · intro step _ value
       exact congrArg truncateHash (segment.answer_other_chain tables high outside lay tree leaf chainIdx h step value)
-
 theorem graphMessage_answer (segment : OtsPrefix) (tables : Fin segment.digit.val → Digest → Digest)
     (high : segment.Query → High) (outside : QueryImpl HashSpec Id) (root : Digest) (top : Nat → Nat → Digest)
     (secrets : OtsFrontierValues) (ftsSecret : Index → FtsTree → FtsLeaf → Digest)
@@ -97,5 +87,4 @@ theorem graphMessage_answer (segment : OtsPrefix) (tables : Fin segment.digit.va
   rw [canonicalGraphMessage_eq key, ← eval_frontierLayerMessage key _ words _ hfrontier]
   exact eval_frontierLayerMessage_eq_of_agree segment.parameter words _ outside
     (segment.answer_agrees_outside words (by rw [hword]) tables high outside) ftsSecret _ _ _
-
 end SphincsSecurity.Concrete.OtsPrefix

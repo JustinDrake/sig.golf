@@ -1,26 +1,7 @@
 import SigGolfCandidate.Rv.Micro
 
-/-!
-# The symbolic executor
-
-`symRun cfg code pc fuel : Option Result` symbolically executes the straight-line code
-`code` (a list of raw instruction words, the first of which sits at address `pc`) for at most
-`fuel` instructions. It stops
-
-* before an `ECALL` (`Stop.ecall`), so the caller can apply the HASH/HALT law;
-* after a branch (`Stop.branch`, the final pc is an `E.ite`), `JAL`/`JALR` (`Stop.jump`);
-* when `fuel` or `code` is exhausted (`Stop.fuel` / `Stop.endOfCode`).
-
-It returns `none` on an undecodable/unsupported instruction, on a constant address that fails
-`accessValid`, or when a memory read cannot be resolved (possible aliasing and `cfg.noAlias = false`).
-
-All values are symbolic expressions over the initial state (see `E`).
--/
-
 namespace SigGolfCandidate.Rv
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64
-
-/-- Symbolic register file (`x0` is hard-wired to `0`). -/
 structure RegFile where
   r1 : E
   r2 : E
@@ -54,12 +35,8 @@ structure RegFile where
   r30 : E
   r31 : E
   deriving Repr, Lean.ToExpr
-
-/-- The 31 fields `x1 … x31`, in order. -/
 def RegFile.fields (rf : RegFile) : List E := [rf.r1, rf.r2, rf.r3, rf.r4, rf.r5, rf.r6, rf.r7, rf.r8, rf.r9, rf.r10, rf.r11, rf.r12, rf.r13, rf.r14, rf.r15, rf.r16, rf.r17, rf.r18, rf.r19, rf.r20, rf.r21, rf.r22, rf.r23, rf.r24, rf.r25, rf.r26, rf.r27, rf.r28, rf.r29, rf.r30, rf.r31]
-
 def RegFile.init : RegFile := ⟨.reg .x1, .reg .x2, .reg .x3, .reg .x4, .reg .x5, .reg .x6, .reg .x7, .reg .x8, .reg .x9, .reg .x10, .reg .x11, .reg .x12, .reg .x13, .reg .x14, .reg .x15, .reg .x16, .reg .x17, .reg .x18, .reg .x19, .reg .x20, .reg .x21, .reg .x22, .reg .x23, .reg .x24, .reg .x25, .reg .x26, .reg .x27, .reg .x28, .reg .x29, .reg .x30, .reg .x31⟩
-
 def RegFile.get (rf : RegFile) : Reg → E
   | .x0 => .c 0
   | .x1 => rf.r1
@@ -93,7 +70,6 @@ def RegFile.get (rf : RegFile) : Reg → E
   | .x29 => rf.r29
   | .x30 => rf.r30
   | .x31 => rf.r31
-
 def RegFile.set (rf : RegFile) (r : Reg) (e : E) : RegFile :=
   match r with
   | .x0 => rf
@@ -128,23 +104,13 @@ def RegFile.set (rf : RegFile) (r : Reg) (e : E) : RegFile :=
   | .x29 => { rf with r29 := e }
   | .x30 => { rf with r30 := e }
   | .x31 => { rf with r31 := e }
-
-/-- Symbolic memory: list of doubleword writes, newest first. -/
 abbrev SymMem := List (Addr × E)
-
-/-- Meaning of a symbolic memory relative to the initial state `s`. -/
 def memEval (s : MachineState) : SymMem → Word → Word
   | [], a => s.getMem a
   | (k, v) :: ws, a => if a = k.eval s then v.eval s else memEval s ws a
-
-/-- Executor configuration. -/
 structure Config where
-  /-- If `true`, reads that cannot be resolved syntactically emit `Oblig.ne` side conditions
-  (the user must prove the addresses differ) instead of failing. -/
   noAlias : Bool := false
   deriving Repr
-
-/-- Resolve a doubleword read at key `k`. Returns the value and extra side conditions. -/
 def readMem (cfg : Config) (k : Addr) : SymMem → Option (E × List Oblig)
   | [] => some (.ld k.toE, [])
   | (k', v) :: ws =>
@@ -157,63 +123,43 @@ def readMem (cfg : Config) (k : Addr) : SymMem → Option (E × List Oblig)
         | none => none
         | some (e, os) => some (e, .ne k k' :: os)
       else none
-
 def isSame (k k' : Addr) : Bool :=
   match k.alias k' with
   | .same => true
   | _ => false
-
 def writeMem (k : Addr) (v : E) (ws : SymMem) : SymMem :=
   (k, v) :: ws.filter (fun p => !isSame k p.1)
-
 structure SymState where
   regs : RegFile
   mem : SymMem
-  /-- side conditions, newest first -/
   obl : List Oblig
   deriving Repr, Lean.ToExpr
-
 def SymState.init : SymState := ⟨RegFile.init, [], []⟩
-
-/-- Is it worth looking for a duplicate of `o`? (`ne` obligations are not deduplicated: they are
-numerous and the quadratic search dominates the kernel cost; see `Oblig.dedup`.) -/
 def Oblig.dedupable : Oblig → Bool
   | .ne .. => false
   | _ => true
-
 def SymState.addObl (σ : SymState) (o : Oblig) : SymState :=
   if o.dedupable && σ.obl.any (Oblig.beq o) then σ else { σ with obl := o :: σ.obl }
-
 def SymState.addObls (σ : SymState) (os : List Oblig) : SymState :=
   os.foldl SymState.addObl σ
-
 def Src.sym (rf : RegFile) (pc : Word) : Src → E
   | .reg r => rf.get r
   | .imm v => .c v
   | .pc => .c pc
-
-/-- Validity of an access at `a` of width `w`: checked for constants, emitted otherwise. -/
 def checkValid (σ : SymState) (a : Addr) (w : Nat) : Option SymState :=
   match a.base with
   | none => if accessValid a.off w then some σ else none
   | some _ => some (σ.addObl (.valid a w))
-
-/-- Doubleword key and byte offset of a sub-doubleword access. -/
 def subKey (σ : SymState) (a : Addr) : SymState × Addr × Nat :=
   match a.base with
   | none => (σ, ⟨none, alignToDword a.off⟩, byteOffset a.off)
   | some b => (σ.addObl (.align8 b), ⟨some b, alignToDword a.off⟩, byteOffset a.off)
-
 def LoadKind.isD : LoadKind → Bool
   | .d => true
   | _ => false
-
 def StoreKind.isD : StoreKind → Bool
   | .d => true
   | _ => false
-
-/-- Symbolic execution of one micro-op at constant pc `pc`.
-Returns the new state and `none` (continue at `pc + 4`) or `some target` (stop). -/
 def symMicro (cfg : Config) (pc : Word) (σ : SymState) : Micro → Option (SymState × Option E)
   | .alu rd op a b =>
     some ({ σ with regs := σ.regs.set rd (mkBin op (a.sym σ.regs pc) (b.sym σ.regs pc)) }, none)
@@ -259,31 +205,22 @@ def symMicro (cfg : Config) (pc : Word) (σ : SymState) : Micro → Option (SymS
   | .jalr rd rs off =>
     some ({ σ with regs := σ.regs.set rd (.c (pc + 4)) },
       some (mkBin .and (mkAdd (σ.regs.get rs) (.c off)) (.c (~~~1#64))))
-
 inductive Stop where
   | fuel | endOfCode | branch | jump | ecall
   deriving DecidableEq, Repr, Lean.ToExpr
-
-/-- Result of symbolic execution of a block. -/
 structure Result where
   st : SymState
-  /-- final pc -/
   pc : E
   stop : Stop
-  /-- number of ordinary steps executed -/
   steps : Nat
-  /-- their total cycle count -/
   cycles : Nat
   deriving Repr, Lean.ToExpr
-
 def Micro.stopKind : Micro → Stop
   | .branch .. => .branch
   | _ => .jump
-
 def isEcall : Instruction → Bool
   | .base .ECALL => true
   | _ => false
-
 def symRunAux (cfg : Config) : List (BitVec 32) → Word → Nat → SymState → Option Result
   | _, pc, 0, σ => some ⟨σ, .c pc, .fuel, 0, 0⟩
   | [], pc, _ + 1, σ => some ⟨σ, .c pc, .endOfCode, 0, 0⟩
@@ -302,31 +239,17 @@ def symRunAux (cfg : Config) : List (BitVec 32) → Word → Nat → SymState �
           | none => none
           | some r => some { r with steps := r.steps + 1, cycles := instructionCycles i + r.cycles }
         | some (σ', some t) => some ⟨σ', t, m.stopKind, 1, instructionCycles i⟩
-
-/-- Symbolically execute `code` (located at `pc`) for at most `fuel` instructions,
-starting from the identity symbolic state. -/
 def symRun (cfg : Config) (code : List (BitVec 32)) (pc : Word) (fuel : Nat) : Option Result :=
   symRunAux cfg code pc fuel SymState.init
-
-/-! ## Reading results back -/
-
-/-- The concrete state described by a symbolic state (relative to the initial state `s`). -/
 def SymState.toState (σ : SymState) (s : MachineState) (pc : Word) : MachineState :=
   { s with
     regs := fun r => if r = .x0 then s.regs .x0 else (σ.regs.get r).eval s
     mem := memEval s σ.mem
     pc := pc }
-
-/-- The concrete final state of a block result. -/
 def Result.toState (r : Result) (s : MachineState) : MachineState :=
   r.st.toState s (r.pc.eval s)
-
-/-- The side conditions of a block result, as a proposition about the initial state. -/
 def Result.obligs (r : Result) (s : MachineState) : Prop := Oblig.all s r.st.obl
-
-/-- Code placement: `code` sits in `image.code` at address `pc`. -/
 def CodeAt (image : Image) (pc : Word) (code : List (BitVec 32)) : Prop :=
   0x1000 ≤ pc.toNat ∧ pc.toNat % 4 = 0 ∧ pc.toNat + 4 * code.length < 2 ^ 64 ∧
     code <+: image.code.drop ((pc.toNat - 0x1000) / 4)
-
 end SigGolfCandidate.Rv

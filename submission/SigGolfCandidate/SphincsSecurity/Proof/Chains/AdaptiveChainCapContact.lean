@@ -1,14 +1,70 @@
+import SigGolfCandidate.SphincsSecurity.Proof.Base.QueryCapAccounting
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainContact
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainCapCost
-import SigGolfCandidate.SphincsSecurity.Proof.Base.QueryCapBalance
-namespace SphincsSecurity.Concrete.PartialChainEndpoint
 
+section
+
+namespace SphincsSecurity.QueryCap
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
+variable {Index : Type} {spec : OracleSpec Index} {Result : Type}
+  (selected : Index → Prop) [DecidablePred selected]
+theorem counted_run_balance (computation : OracleComp spec Result) (budget : Nat)
+    (result : Option (Result × Nat) × Nat) (hresult : result ∈ support (counted selected (run selected computation budget))) :
+    result.2 + result.1.elim 0 Prod.snd = budget := by
+  induction computation using OracleComp.inductionOn generalizing budget result with
+  | pure value =>
+      simp only [run_pure, counted_pure, mem_support_pure_iff] at hresult
+      subst result
+      simp only [Option.elim_some, Nat.zero_add]
+  | query_bind input next ih =>
+      rw [run_query_bind] at hresult
+      by_cases hs : selected input
+      · rw [if_pos hs] at hresult
+        cases budget with
+        | zero =>
+            rw [counted_pure, mem_support_pure_iff] at hresult
+            subst result
+            rfl
+        | succ budget =>
+            rw [counted_query_bind, mem_support_bind_iff] at hresult
+            obtain ⟨answer, _, hresult⟩ := hresult
+            rw [mem_support_bind_iff] at hresult
+            obtain ⟨tail, htail, hresult⟩ := hresult
+            rw [mem_support_pure_iff] at hresult
+            subst result
+            have h := ih answer budget tail htail
+            simp only [if_pos hs]
+            omega
+      · rw [if_neg hs, counted_query_bind, mem_support_bind_iff] at hresult
+        obtain ⟨answer, _, hresult⟩ := hresult
+        rw [mem_support_bind_iff] at hresult
+        obtain ⟨tail, htail, hresult⟩ := hresult
+        rw [mem_support_pure_iff] at hresult
+        subst result
+        simpa only [if_neg hs, Nat.zero_add] using ih answer budget tail htail
+theorem counted_next_bound (impl : QueryImpl spec PMF) (input : spec.Domain)
+    (next : spec.Range input → OracleComp spec Result) (budget : Nat)
+    (hbound : ∀ result ∈ (simulateQ impl (counted selected (liftM (spec.query input) >>= next))).support, result.2 ≤ budget)
+    (answer : spec.Range input) (hanswer : answer ∈ (impl input).support)
+    (tail : Result × Nat) (htail : tail ∈ (simulateQ impl (counted selected (next answer))).support) :
+    (if selected input then 1 else 0) + tail.2 ≤ budget := by
+  apply hbound (tail.1, (if selected input then 1 else 0) + tail.2)
+  simp only [counted_query_bind, simulateQ_bind, simulateQ_spec_query, simulateQ_pure,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff]
+  exact ⟨answer, hanswer, tail, htail, rfl⟩
+end SphincsSecurity.QueryCap
+end
 
+section
+
+
+
+namespace SphincsSecurity.Concrete.PartialChainEndpoint
+open _root_.OracleComp OracleSpec
+set_option backward.isDefEq.respectTransparency false
 variable {State : Type} [Fintype State] [DecidableEq State] [Nonempty State]
   {AuxIndex : Type} {auxSpec : OracleSpec AuxIndex} {n : Nat} {Result Next : Type}
-
 theorem lazyRun_result_mem (auxiliary : QueryImpl auxSpec PMF)
     (computation : OracleComp (auxSpec + PrefixSpec n State) Result) (observed : Fin n → State → Option State)
     (result : Result × (Fin n → State → Option State)) (hresult : result ∈ (lazyRun auxiliary computation observed).support) :
@@ -23,7 +79,6 @@ theorem lazyRun_result_mem (auxiliary : QueryImpl auxSpec PMF)
       obtain ⟨middle, _, hresult⟩ := hresult
       rw [mem_support_bind_iff]
       exact ⟨middle.1, by simp only [support_query, Set.mem_univ], ih middle.1 middle.2 hresult⟩
-
 theorem idealRun_result_mem (auxiliary : State → QueryImpl auxSpec PMF)
     (computation : State → OracleComp (auxSpec + PrefixSpec n State) Result) (observed : Fin n → State → Option State)
     (result : State × (Result × (Fin n → State → Option State))) (hresult : result ∈ (idealRun auxiliary computation observed).support) :
@@ -33,21 +88,18 @@ theorem idealRun_result_mem (auxiliary : State → QueryImpl auxSpec PMF)
   rw [PMF.mem_support_map_iff] at hresult
   obtain ⟨output, houtput, rfl⟩ := hresult
   exact lazyRun_result_mem (auxiliary endpoint) (computation endpoint) observed output houtput
-
 theorem idealRun_map (auxiliary : State → QueryImpl auxSpec PMF)
     (computation : State → OracleComp (auxSpec + PrefixSpec n State) Result) (f : State → Result → Next)
     (observed : Fin n → State → Option State) :
     idealRun auxiliary (fun endpoint => f endpoint <$> computation endpoint) observed =
       (idealRun auxiliary computation observed).map (fun result => (result.1, f result.1 result.2.1, result.2.2)) := by
   simp only [idealRun, lazyRun_map, PMF.map_bind, PMF.map_comp, Function.comp_def]
-
 theorem idealRun_counted_forget (auxiliary : State → QueryImpl auxSpec PMF)
     (computation : State → OracleComp (auxSpec + PrefixSpec n State) Result) (observed : Fin n → State → Option State) :
     (idealRun auxiliary (fun endpoint => QueryCap.counted IsPrefixQuery (computation endpoint)) observed).map
       (fun result => (result.1, result.2.1.1, result.2.2)) = idealRun auxiliary computation observed := by
   simpa only [QueryCap.counted_forget] using
     (idealRun_map auxiliary (fun endpoint => QueryCap.counted IsPrefixQuery (computation endpoint)) (fun _ => Prod.fst) observed).symm
-
 variable (auxiliary : State → QueryImpl auxSpec PMF)
   (computation : State → OracleComp (auxSpec + PrefixSpec n State) Result)
   (cost : Result → Nat) (budget : Nat)
@@ -55,9 +107,7 @@ variable (auxiliary : State → QueryImpl auxSpec PMF)
     result.2 ≤ cost result.1)
   (hreal : ∀ result ∈ (realRun auxiliary computation (fun _ _ => none)).support, cost result.2.1 ≤ budget)
   (hsmall : budget < Fintype.card State)
-
 include hcharge hreal hsmall
-
 theorem idealRun_counted_cap_spent
     (result : State × ((Option (Result × Nat) × Nat) × (Fin n → State → Option State)))
     (hresult : result ∈ (idealRun auxiliary
@@ -75,7 +125,6 @@ theorem idealRun_counted_cap_spent
   simp only [hfinished, Option.elim_some] at hbalance
   simp only [QueryCap.spent, hfinished, Option.elim_some]
   omega
-
 theorem idealRun_cap_count_expectation :
     (∑' result, idealRun auxiliary
         (fun endpoint => QueryCap.counted IsPrefixQuery (QueryCap.run IsPrefixQuery (computation endpoint) budget)) (fun _ _ => none) result *
@@ -92,7 +141,6 @@ theorem idealRun_cap_count_expectation :
         (fun endpoint => QueryCap.counted IsPrefixQuery (QueryCap.run IsPrefixQuery (computation endpoint) budget)) (fun _ _ => none) result = 0 :=
       not_not.mp hresult
     simp only [hzero, zero_mul]
-
 theorem realRun_cap_contact_le :
     Pr[fun result => Contact result.2.2 result.1 |
       realRun auxiliary (fun endpoint => QueryCap.run IsPrefixQuery (computation endpoint) budget) (fun _ _ => none)] ≤
@@ -101,5 +149,5 @@ theorem realRun_cap_contact_le :
             (QueryCap.spent budget result.2.1 : ENNReal) := by
   have h := realRun_contact_le auxiliary (fun endpoint => QueryCap.run IsPrefixQuery (computation endpoint) budget)
   rwa [idealRun_cap_count_expectation auxiliary computation cost budget hcharge hreal hsmall] at h
-
 end SphincsSecurity.Concrete.PartialChainEndpoint
+end

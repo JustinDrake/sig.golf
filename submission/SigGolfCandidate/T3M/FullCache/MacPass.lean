@@ -1,69 +1,40 @@
 import SigGolfCandidate.Rv
 import SigGolfCandidate.T3.FullCache.Primitives
 
-/-!
-# The arithmetic cache MAC on the machine
-
-One pass of the polynomial MAC is the same 40 instructions in `keygen` and in `sign` (`macPassCode`):
-load the key (masked to 61 bits) and the pad from the answer buffer, fold the region's doublewords two
-32-bit chunks at a time with lazy reduction modulo `2^61 - 1`, reduce to the canonical residue, add the
-pad. `mac_pass` proves it at any code address of any image.
--/
-
 namespace SigGolfCandidate.T3M.FullCache.MacPass
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv SphincsSecurity
-
 set_option linter.unusedSimpArgs false
 set_option linter.unusedVariables false
 set_option linter.unnecessarySeqFocus false
-
-/-! ## Lazy reduction modulo `2^61 - 1` -/
-
-/-- Fold at bit 61: congruent modulo `2^61 - 1`. -/
 def fold61 (x : Nat) : Nat := x / 2 ^ 61 + x % 2 ^ 61
-
 theorem fold61_mod (x : Nat) : fold61 x % macPrime = x % macPrime := by
   unfold fold61 macPrime
   have := Nat.div_add_mod x (2 ^ 61)
   simp only [Nat.reducePow, Nat.reduceSub] at *
   omega
-
-/-- One chunk step as the machine computes it. -/
 def macStep (acc c k : Nat) : Nat := fold61 (fold61 ((acc + c) * k))
-
 theorem macStep_mod (acc c k : Nat) : macStep acc c k % macPrime = (acc + c) * k % macPrime := by
   unfold macStep; rw [fold61_mod, fold61_mod]
-
 theorem mul_lt_123 (acc c k : Nat) (hacc : acc < 2 ^ 61 + 7) (hc : c < 2 ^ 32) (hk : k < 2 ^ 61) :
     (acc + c) * k < 2 ^ 123 :=
   calc (acc + c) * k < 2 ^ 62 * 2 ^ 61 := Nat.mul_lt_mul'' (by omega) hk
     _ = 2 ^ 123 := by norm_num
-
 theorem fold61_lt_64 (m : Nat) (hm : m < 2 ^ 123) : fold61 m < 2 ^ 64 := by
   unfold fold61
   have h1 : m / 2 ^ 61 < 2 ^ 62 := by
     rw [Nat.div_lt_iff_lt_mul (by norm_num)]; exact lt_of_lt_of_eq hm (by norm_num)
   have h2 := Nat.mod_lt m (show 0 < 2 ^ 61 by norm_num)
   omega
-
 theorem fold61_small (s : Nat) (hs : s < 2 ^ 64) : fold61 s < 2 ^ 61 + 7 := by
   unfold fold61
   have h2 := Nat.mod_lt s (show 0 < 2 ^ 61 by norm_num)
   omega
-
 theorem macStep_lt (acc c k : Nat) (hacc : acc < 2 ^ 61 + 7) (hc : c < 2 ^ 32) (hk : k < 2 ^ 61) :
     macStep acc c k < 2 ^ 61 + 7 :=
   fold61_small _ (fold61_lt_64 _ (mul_lt_123 acc c k hacc hc hk))
-
-/-- Both chunk steps of one doubleword `w` (low half first). -/
 def macStep2 (k acc w : Nat) : Nat := macStep (macStep acc (w % 2 ^ 32) k) (w / 2 ^ 32) k
-
-/-- The machine's accumulator after a pass over the doublewords `ws` (not yet canonical). -/
 def passAcc (k : Nat) (ws : List Nat) : Nat := ws.foldl (macStep2 k) 0
-
-/-- The 32-bit chunks of a doubleword list, low half first. -/
 def chunksOf (ws : List Nat) : List Nat := ws.flatMap fun w => [w % 2 ^ 32, w / 2 ^ 32]
-
 theorem foldl_macStep2 (k : Nat) (hk : k < 2 ^ 61) (ws : List Nat) (hws : ∀ w ∈ ws, w < 2 ^ 64)
     (a b : Nat) (ha : a < 2 ^ 61 + 7) (hab : a % macPrime = b % macPrime) :
     ws.foldl (macStep2 k) a < 2 ^ 61 + 7 ∧
@@ -86,21 +57,16 @@ theorem foldl_macStep2 (k : Nat) (hk : k < 2 ^ 61) (ws : List Nat) (hws : ∀ w 
     show macStep a (w % 2 ^ 32) k % macPrime = (b + w % 2 ^ 32) * k % macPrime % macPrime
     rw [macStep_mod, Nat.mod_mod]
     exact Nat.ModEq.mul_right k (Nat.ModEq.add_right _ hab)
-
-/-- A pass computes the polynomial MAC of the chunks, up to the final reduction. -/
 theorem passAcc_spec (k : Nat) (hk : k < 2 ^ 61) (ws : List Nat) (hws : ∀ w ∈ ws, w < 2 ^ 64) :
     passAcc k ws < 2 ^ 61 + 7 ∧ passAcc k ws % macPrime = polyMac k (chunksOf ws) := by
   obtain ⟨h1, h2⟩ := foldl_macStep2 k hk ws hws 0 0 (by norm_num) rfl
   refine ⟨h1, h2.trans ?_⟩
   unfold polyMac
   generalize chunksOf ws = cs
-  -- a fold of canonical residues is canonical
   rcases List.eq_nil_or_concat cs with rfl | ⟨cs', c, rfl⟩
   · rfl
   · rw [List.concat_eq_append, List.foldl_append]
     simp only [List.foldl_cons, List.foldl_nil, Nat.mod_mod]
-
-/-- The canonical residue of a lazily reduced accumulator, as the machine computes it. -/
 theorem canon_eq (acc : Nat) (hacc : acc < 2 ^ 61 + 7) :
     (if fold61 acc = macPrime then 0 else fold61 acc) = acc % macPrime := by
   have hm := fold61_mod acc
@@ -112,9 +78,6 @@ theorem canon_eq (acc : Nat) (hacc : acc < 2 ^ 61 + 7) :
   split_ifs with h
   · rw [← hm, h, Nat.mod_self]
   · rw [← hm, Nat.mod_eq_of_lt (lt_of_le_of_ne hlt h)]
-
-/-! ## The same steps on machine words -/
-
 theorem mulhu_toNat (a b : Word) : (rv64_mulhu a b).toNat = a.toNat * b.toNat / 2 ^ 64 := by
   have ha := a.isLt
   have hb := b.isLt
@@ -127,19 +90,14 @@ theorem mulhu_toNat (a b : Word) : (rv64_mulhu a b).toNat = a.toNat * b.toNat / 
   apply Nat.mod_eq_of_lt
   rw [Nat.div_lt_iff_lt_mul (by norm_num)]
   exact hab
-
 theorem and_p_toNat (x : Word) : (x &&& BitVec.ofNat 64 (2 ^ 61 - 1)).toNat = x.toNat % 2 ^ 61 := by
   rw [BitVec.toNat_and, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by norm_num), Nat.and_two_pow_sub_one_eq_mod]
-
-/-- One chunk step on words: the twelve instructions `lwu / add / mulhu / mul / slli / srli / add / and /
-add / srli / and / add` (the load gives `c`). -/
 def stepW (acc c k p : Word) : Word :=
   let t := c + acc
   let hi := rv64_mulhu t k
   let lo := t * k
   let s := (hi <<< 3) + (lo >>> 61) + (lo &&& p)
   (s >>> 61) + (s &&& p)
-
 theorem stepW_ofNat (acc c k : Nat) (hacc : acc < 2 ^ 61 + 7) (hc : c < 2 ^ 32) (hk : k < 2 ^ 61) :
     stepW (BitVec.ofNat 64 acc) (BitVec.ofNat 64 c) (BitVec.ofNat 64 k) (BitVec.ofNat 64 (2 ^ 61 - 1)) =
       BitVec.ofNat 64 (macStep acc c k) := by
@@ -153,7 +111,6 @@ theorem stepW_ofNat (acc c k : Nat) (hacc : acc < 2 ^ 61 + 7) (hc : c < 2 ^ 32) 
     Nat.mod_eq_of_lt (show k < 2 ^ 64 by omega), Nat.mod_eq_of_lt (show c + acc < 2 ^ 64 by omega),
     Nat.add_comm c acc]
   generalize (acc + c) * k = m at hm hs ⊢
-  -- hi * 8 + lo / 2^61 = m / 2^61 and lo % 2^61 = m % 2^61
   have hhi : m / 2 ^ 64 < 2 ^ 59 := by
     rw [Nat.div_lt_iff_lt_mul (by norm_num)]; exact lt_of_lt_of_eq hm (by norm_num)
   have e1 : m / 2 ^ 64 * 2 ^ 3 % 2 ^ 64 = m / 2 ^ 64 * 8 := by
@@ -168,13 +125,10 @@ theorem stepW_ofNat (acc c k : Nat) (hacc : acc < 2 ^ 61 + 7) (hc : c < 2 ^ 32) 
   rw [e1, e3, Nat.mod_eq_of_lt (show m / 2 ^ 64 * 8 + m % 2 ^ 64 / 2 ^ 61 < 2 ^ 64 by omega), e2,
     Nat.mod_eq_of_lt (show m / 2 ^ 61 + m % 2 ^ 61 < 2 ^ 64 by omega)]
   rfl
-
-/-- The end of a pass on words: fold once more, map `p` to `0`, add the pad. -/
 def tailW (acc p pad : Word) : Word :=
   let a := (acc &&& p) + (acc >>> 61)
   let b : Word := if BitVec.ult (a ^^^ p) 1 then 1 else 0
   (a &&& (b + 18446744073709551615#64)) + pad
-
 theorem tailW_ofNat (acc : Nat) (hacc : acc < 2 ^ 61 + 7) (pad : Word) :
     tailW (BitVec.ofNat 64 acc) (BitVec.ofNat 64 (2 ^ 61 - 1)) pad =
       BitVec.ofNat 64 (acc % macPrime) + pad := by
@@ -217,32 +171,22 @@ theorem tailW_ofNat (acc : Nat) (hacc : acc < 2 ^ 61 + 7) (pad : Word) :
     have e : ((0 : Word) + 18446744073709551615#64) = BitVec.allOnes 64 := by decide
     simp only [Bool.false_eq_true, if_false]
     rw [e, BitVec.and_allOnes]
-
-/-! ## The pass on the machine -/
-
 theorem ofNat_toNat_lt {a : Nat} (h : a < 2 ^ 64) : (BitVec.ofNat 64 a).toNat = a := by
   rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt h]
-
 theorem byteOffset_ofNat {x : Nat} (hx : x < 2 ^ 64) : byteOffset (BitVec.ofNat 64 x) = x % 8 := by
   rw [byteOffset_eq, ofNat_toNat_lt hx]
-
 theorem alignToDword_ofNat_aligned {x : Nat} (hx : x < 2 ^ 64) (h8 : x % 8 = 0) :
     alignToDword (BitVec.ofNat 64 x) = BitVec.ofNat 64 x := by
   apply BitVec.eq_of_toNat_eq
   rw [alignToDword_toNat, ofNat_toNat_lt hx]; omega
-
 theorem exec_load {s : MachineState} {k : LoadKind} {rd rs : Reg} {off : Word}
     (h : accessValid (s.getReg rs + off) k.width = true) :
     (Micro.load k rd rs off).exec s = some ((s.setReg rd (k.read s (s.getReg rs + off))).setPC (s.pc + 4)) := by
   simp [Micro.exec, h]
-
 theorem getReg_setReg' (s : MachineState) (r r' : Reg) (v : Word) :
     (s.setReg r v).getReg r' = if r' = r ∧ r ≠ .x0 then v else s.getReg r' := by
   cases r <;> cases r' <;> rfl
-
 @[simp] theorem pc_setPC (s : MachineState) (v : Word) : (s.setPC v).pc = v := rfl
-
-/-- `Steps.micro` for an instruction of any cycle cost. -/
 theorem microN {image : Image} {pc : Word} {w : BitVec 32} {ws : List (BitVec 32)}
     {s t u : MachineState} (m : Micro) {k c n : Nat}
     (hc : CodeAt image pc (w :: ws)) (hpc : s.pc = pc)
@@ -251,7 +195,6 @@ theorem microN {image : Image} {pc : Word} {w : BitVec 32} {ws : List (BitVec 32
   obtain ⟨i, h1, h2, h3⟩ := hd
   have := Steps.step (hc.fetch s hpc ▸ h1) ((classify_sound h2 s).trans hex) tail
   rwa [h3] at this
-
 theorem codeAt_drop {image : Image} : ∀ (n : Nat) {pc : Word} {code : List (BitVec 32)},
     CodeAt image pc code → n ≤ code.length → CodeAt image (pc + BitVec.ofNat 64 (4 * n)) (code.drop n)
   | 0, pc, code, h, _ => by simpa using h
@@ -265,16 +208,8 @@ theorem codeAt_drop {image : Image} : ∀ (n : Nat) {pc : Word} {code : List (Bi
         omega
       rw [List.drop_succ_cons, ← e]
       exact h'
-
-/-- The 40 instructions of one pass. -/
 def macPassCode : List (BitVec 32) :=
-  [0x000b3b83, 0x012bfbb3, 0x008b3c03, 0x000806b7, 0x02068693, 0x00000713,
-   0x0006e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733,
-   0x0046e783, 0x00e787b3, 0x0377b833, 0x037787b3, 0x00381813, 0x03d7d893, 0x01180833, 0x0127f7b3, 0x00f80833, 0x03d85713, 0x01287833, 0x01070733,
-   0x00868693, 0xf9369ee3,
-   0x03d75793, 0x01277733, 0x00f70733, 0x012747b3, 0x0017b793, 0xfff78793, 0x00f77733, 0x01870733]
-
-/-- `lwu` at an aligned doubleword address `A` plus `0` or `4`: the low or the high half. -/
+  [736131,19659699,9124867,526007,33982099,1811,452483,0xe787b3,58177587,58165171,3676179,64477331,18352179,19396531,0xf80833,64509715,19429427,17237811,4646787,0xe787b3,58177587,58165171,3676179,64477331,18352179,19396531,0xf80833,64509715,19429427,17237811,8816275,0xf9369ee3,64444307,19363635,0xf70733,19351475,1554323,0xfff78793,0xf77733,25626419]
 theorem read_wu0 (s : MachineState) (A : Nat) (hA : A % 8 = 0) (hA' : A + 8 ≤ 2 ^ 24) :
     LoadKind.wu.read s (BitVec.ofNat 64 A + 0) =
       BitVec.ofNat 64 ((s.getMem (BitVec.ofNat 64 A)).toNat % 2 ^ 32) := by
@@ -283,7 +218,6 @@ theorem read_wu0 (s : MachineState) (A : Nat) (hA : A % 8 = 0) (hA' : A + 8 ≤ 
     alignToDword_ofNat_aligned (by omega) hA]
   apply BitVec.eq_of_toNat_eq
   simp [LoadKind.fromWord, extractWord32, hA, Nat.shiftRight_eq_div_pow]
-
 theorem read_wu4 (s : MachineState) (A : Nat) (hA : A % 8 = 0) (hA' : A + 8 ≤ 2 ^ 24) :
     LoadKind.wu.read s (BitVec.ofNat 64 A + 4) =
       BitVec.ofNat 64 ((s.getMem (BitVec.ofNat 64 A)).toNat / 2 ^ 32) := by
@@ -297,8 +231,6 @@ theorem read_wu4 (s : MachineState) (A : Nat) (hA : A % 8 = 0) (hA' : A + 8 ≤ 
   have hw := (s.getMem (BitVec.ofNat 64 A)).isLt
   simp [LoadKind.fromWord, extractWord32, show (A + 4) % 8 = 4 by omega, Nat.shiftRight_eq_div_pow]
   omega
-
-/-- One chunk step: `lwu a5, 0(a3)` and the eleven instructions that fold it into `a4`. -/
 theorem chunk0_steps {image : Image} {pc : Word} {rest : List (BitVec 32)}
     (hc : CodeAt image pc (0x0006e783 :: 0x00e787b3 :: 0x0377b833 :: 0x037787b3 :: 0x00381813 :: 0x03d7d893 :: 0x01180833 :: 0x0127f7b3 :: 0x00f80833 :: 0x03d85713 :: 0x01287833 :: 0x01070733 :: rest))
     (s : MachineState) (hpc : s.pc = pc)
@@ -339,8 +271,6 @@ theorem chunk0_steps {image : Image} {pc : Word} {rest : List (BitVec 32)}
   · intro r h1 h2 h3 h4
     simp [getReg_setReg', h1, h2, h3, h4]
   · intro a; simp
-
-/-- One chunk step: `lwu a5, 4(a3)` and the eleven instructions that fold it into `a4`. -/
 theorem chunk4_steps {image : Image} {pc : Word} {rest : List (BitVec 32)}
     (hc : CodeAt image pc (0x0046e783 :: 0x00e787b3 :: 0x0377b833 :: 0x037787b3 :: 0x00381813 :: 0x03d7d893 :: 0x01180833 :: 0x0127f7b3 :: 0x00f80833 :: 0x03d85713 :: 0x01287833 :: 0x01070733 :: rest))
     (s : MachineState) (hpc : s.pc = pc)
@@ -381,8 +311,6 @@ theorem chunk4_steps {image : Image} {pc : Word} {rest : List (BitVec 32)}
   · intro r h1 h2 h3 h4
     simp [getReg_setReg', h1, h2, h3, h4]
   · intro a; simp
-
-/-- One loop iteration: both chunks of the doubleword at `a3`, advance, branch back unless at the end. -/
 theorem body_steps {image : Image} {pc : Word} (hc : CodeAt image pc (macPassCode.drop 6))
     (s : MachineState) (hpc : s.pc = pc) (A acc k E : Nat)
     (h13 : s.getReg .x13 = BitVec.ofNat 64 A) (hA : A % 8 = 0) (hA' : A + 8 ≤ 2 ^ 24)
@@ -408,13 +336,11 @@ theorem body_steps {image : Image} {pc : Word} (hc : CodeAt image pc (macPassCod
   have hlo : w % 2 ^ 32 < 2 ^ 32 := Nat.mod_lt _ (by norm_num)
   have hhi : w / 2 ^ 32 < 2 ^ 32 := by
     rw [Nat.div_lt_iff_lt_mul (by norm_num)]; exact lt_of_lt_of_eq hw (by norm_num)
-  -- chunk 0
   obtain ⟨u0, st0, pc0, a0, r0, m0⟩ := chunk0_steps (rest := macPassCode.drop 18) hc s hpc
     (by rw [h13]; exact hv 0 (Or.inl rfl))
   rw [h13, h14, h23, h18, read_wu0 s A hA hA', hwdef,
     stepW_ofNat acc (w % 2 ^ 32) k hacc hlo hk] at a0
   have hlt1 := macStep_lt acc (w % 2 ^ 32) k hacc hlo hk
-  -- chunk 4
   have hc4 : CodeAt image (pc + 48) (macPassCode.drop 18) := codeAt_drop 12 hc (by decide)
   have e13 : u0.getReg .x13 = BitVec.ofNat 64 A := by
     rw [r0 .x13 (by decide) (by decide) (by decide) (by decide), h13]
@@ -426,7 +352,6 @@ theorem body_steps {image : Image} {pc : Word} (hc : CodeAt image pc (macPassCod
     (by rw [e13]; exact hv 4 (Or.inr rfl))
   rw [e13, a0, e23, e18, read_wu4 u0 A hA hA', m0, hwdef,
     stepW_ofNat _ (w / 2 ^ 32) k hlt1 hhi hk] at a1
-  -- advance and branch
   have hc5 : CodeAt image (pc + 48 + 48) (macPassCode.drop 30) := codeAt_drop 12 hc4 (by decide)
   have hc6 := hc5.tail
   have x13 : u1.getReg .x13 = BitVec.ofNat 64 A := by
@@ -459,8 +384,6 @@ theorem body_steps {image : Image} {pc : Word} (hc : CodeAt image pc (macPassCod
     rw [r1 r h2 h3 h4 h5, r0 r h2 h3 h4 h5]
   · intro a
     simp [m1, m0]
-
-/-- The loop: `n` doublewords from `B0`, accumulator from `0`. -/
 theorem loop_steps {image : Image} {pc : Word} (hc : CodeAt image pc (macPassCode.drop 6))
     (s : MachineState) (hpc : s.pc = pc) (B0 n k : Nat) (ws : List Nat) (hn : 0 < n)
     (h13 : s.getReg .x13 = BitVec.ofNat 64 B0) (hB : B0 % 8 = 0) (hB' : B0 + 8 * n ≤ 2 ^ 24)
@@ -520,7 +443,6 @@ theorem loop_steps {image : Image} {pc : Word} (hc : CodeAt image pc (macPassCod
   refine ⟨u, st, by simpa using upc, ?_, ureg, umem⟩
   rw [u14, Nat.sub_zero, ← hlen, List.take_length]
   rfl
-
 theorem valid_d (B : Nat) (hB : B % 8 = 0) (hB' : B + 16 ≤ 2 ^ 24) (off : Word) (hoff : off = 0 ∨ off = 8) :
     accessValid (BitVec.ofNat 64 B + off) 8 = true := by
   have z : BitVec.ofNat 64 B + (0 : Word) = BitVec.ofNat 64 B := by simp
@@ -534,9 +456,6 @@ theorem valid_d (B : Nat) (hB : B % 8 = 0) (hB' : B + 16 ≤ 2 ^ 24) (off : Word
   rcases hoff with rfl | rfl
   · rw [e0]; exact ⟨by simp [MEMORY_BYTES]; omega, by omega⟩
   · rw [e8]; exact ⟨by simp [MEMORY_BYTES]; omega, by omega⟩
-
-/-- The head of a pass: key (masked to 61 bits) into `s7`, pad into `s8`, `a3` at the first doubleword of
-the region, `a4 = 0`. -/
 theorem head_steps {image : Image} {pc : Word} (hc : CodeAt image pc macPassCode)
     (s : MachineState) (hpc : s.pc = pc) (B : Nat)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 B) (hB : B % 8 = 0) (hB' : B + 16 ≤ 2 ^ 24)
@@ -584,8 +503,6 @@ theorem head_steps {image : Image} {pc : Word} (hc : CodeAt image pc macPassCode
   · intro r h1 h2 h3 h4
     simp [getReg_setReg', h1, h2, h3, h4]
   · intro a; simp
-
-/-- The end of a pass: the canonical residue plus the pad, in `a4`. -/
 theorem tail_steps {image : Image} {pc : Word} (hc : CodeAt image pc (macPassCode.drop 32))
     (s : MachineState) (hpc : s.pc = pc) :
     ∃ u, Steps image s 8 8 u ∧ u.pc = pc + 32 ∧
@@ -615,9 +532,6 @@ theorem tail_steps {image : Image} {pc : Word} (hc : CodeAt image pc (macPassCod
   · intro r h1 h2
     simp [getReg_setReg', h1, h2]
   · intro a; simp
-
-/-- **One pass**: key and pad from the doublewords at `B`, `B + 8` (the answer buffer); the tag word
-`polyMac k chunks + pad` in `a4`. Memory is not written. -/
 theorem mac_pass {image : Image} {pc : Word} (hc : CodeAt image pc macPassCode)
     (s : MachineState) (hpc : s.pc = pc) (B : Nat) (ws : List Nat)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 B) (hB : B % 8 = 0) (hB' : B + 16 ≤ 2 ^ 24)
@@ -658,6 +572,4 @@ theorem mac_pass {image : Image} {pc : Word} (hc : CodeAt image pc macPassCode)
   · intro r h13 h14 h15 h16 h17 h23 h24
     rw [r2 r h14 h15, r1 r h13 h14 h15 h16 h17, r0 r h13 h14 h23 h24]
   · intro a; rw [m2, m1, m0]
-
-
 end SigGolfCandidate.T3M.FullCache.MacPass

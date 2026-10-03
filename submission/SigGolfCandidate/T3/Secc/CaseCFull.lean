@@ -1,15 +1,5 @@
 import SigGolfCandidate.T3.Secc.CaseCLinkSplit
 
-/-!
-# Stream CC: the full certificate (all 21 opened secrets disclosed) costs one bank unit
-
-`PinnedC adversary Q z`: F2's pinned fresh case (C) (`Wots.CaseCFreshPinned`), carrying a further property `Q` of
-the same decomposition (answers, actual log, message, witness, verifier events).
-`FullQ`: every opened position of the forgery's digest is disclosed by a returned signature of the actual log.
-
-`full_potential`: on a bank sample whose projection is a clean win in the full case, the bank potential is ≥ 1.
--/
-
 namespace SigGolfCandidate.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -18,8 +8,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance instDecidableEqCache_caseCFull : DecidableEq T3.Cache := Classical.decEq _
-
-/-- Pinned fresh case (C) with an extra property `Q` of the same decomposition. -/
 def PinnedC (adversary : AdversaryP)
     (Q : Correctness.Answers → QueryLog Requests → Message → WBytes → List FirstHit.QueryEvent → Prop)
     (z : PaddedGame.TraceResult × Correctness.Answers) : Prop :=
@@ -30,23 +18,17 @@ def PinnedC (adversary : AdversaryP)
       ¬BPB.SignedDigest interaction.value.2 message witness ∧
       BPB.CaseCAt z.2 message witness (QueryRecorded.recordedTrace z.1).events ∧
       Q z.2 interaction.value.2 message witness checked.events
-
-/-- Every opened position of the forgery's digest is disclosed by the actual log. -/
 def FullQ (answers : Correctness.Answers) (log : QueryLog Requests) (message : Message) (witness : WBytes)
     (_events : List FirstHit.QueryEvent) : Prop :=
   ∀ f ∈ BPair.openedPositions (evalWithAnswerFn answers (digest (wrho witness) message (wdc witness))),
     BPair.Disclosed answers log f
-
 theorem pinned_of_caseC {adversary : AdversaryP} {z : PaddedGame.TraceResult × Correctness.Answers}
     (h : Wots.CaseCFreshPinned adversary z) : PinnedC adversary (fun _ _ _ _ _ => True) z := by
   obtain ⟨g, i, c, hs, hpk, hlen, f, hf, hfr, m, w, hof, hsd, hC⟩ := h
   exact ⟨g, i, c, hs, hpk, hlen, f, hf, hfr, m, w, hof, hsd, hC, trivial⟩
-
 theorem queried_notDigest_keygen (A : Correctness.Answers) (input : T3.Spec.Domain)
     (h : input ∈ SourceReplay.queried A keygen) : BPB.NotDigestQ input :=
   BPB.allQ_queried A BPB.NotDigestQ keygen keygen_notDigest input h
-
-/-- **The full case costs at least one bank unit.** -/
 theorem full_potential (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (b : Bool × BankState)
     (hb : b ∈ (bankExperiment adversary q).support) (hist : MonitoredPrivate.History) (A : Correctness.Answers)
     (hA : Agrees A (lazyOf b.2.2)) (hcount : countOf b.2.2 ≤ q)
@@ -58,7 +40,6 @@ theorem full_potential (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (
   obtain ⟨hgen, hint⟩ := split_unique adversary _ (genRecord generated) (genRecord_support generated hg) int0
     hint0 rest hrest gen' int' chk' hsplit
   subst hgen hint
-  -- the bank is alive
   have halive : b.2.1.dead = false := by
     cases hd : b.2.1.dead
     · rfl
@@ -67,7 +48,6 @@ theorem full_potential (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (
       rw [hlog] at h1
       have : horizon = 4303355904 := rfl
       omega
-  -- the forgery's digest is a target
   obtain ⟨N, hdc, hN, ⟨prior, hev⟩, hS, hgate, hgood, -⟩ := hCat
   have hRsupp : (⟨b.1, b.2.2.events, lazyOf b.2.2⟩ : FirstHit.Recorded Bool) ∈
       support (FirstHit.record (GameWith.idealGame PaddedGame.checker adversary) (∅, ∅)) := by
@@ -113,7 +93,6 @@ theorem full_potential (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (
           hnsd
         rw [hlog] at hentry
         exact hnot entry hentry (hq' A hA)
-  -- the forgery's digest is covered by the exposures
   have hcov : ∀ c, CoordCovered b.2.1.exposures N c := by
     intro c
     apply coordCovered_of_opened
@@ -137,7 +116,6 @@ theorem full_potential (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (
         subst hout
         exact ⟨out', hinv.exposed halive entry.1.message hcached A hA c' out' hs, hf⟩
   have hscore : 1 ≤ score b.2.1.exposures N := one_le_score _ N (outLeaves_injective N hS.2.1) hgate hcov
-  -- the potential
   have hnot : ¬q < countOf b.2.2 := by omega
   unfold potential
   by_cases hr : b.2.1.reused = true
@@ -150,5 +128,4 @@ theorem full_potential (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (
       _ ≤ forecast (horizon - b.2.1.exposures.length) b.2.1.exposures N := score_le_forecast _ _ _
       _ ≤ bankValue b.2.1 := List.le_sum_of_mem (List.mem_map_of_mem htarget)
       _ ≤ _ := le_self_add.trans le_self_add
-
 end SigGolfCandidate.T3.Security.CaseC

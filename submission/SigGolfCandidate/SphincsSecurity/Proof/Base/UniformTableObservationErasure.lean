@@ -1,17 +1,14 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.UniformTableObservation
-namespace SphincsSecurity.Concrete.UniformTableObservation
 
+namespace SphincsSecurity.Concrete.UniformTableObservation
 open _root_.OracleComp OracleSpec UniformTableCompletion RetainedObservation
 set_option backward.isDefEq.respectTransparency false
-
 variable {Coordinate Value AuxIndex : Type} [Fintype Coordinate] [DecidableEq Coordinate] [DecidableEq Value]
   {auxSpec : OracleSpec AuxIndex}
-
 noncomputable def fixedImpl (auxiliary : QueryImpl auxSpec SPMF) (table : Coordinate → Value) :
     QueryImpl (auxSpec + TableSpec Coordinate Value) SPMF
   | .inl input => auxiliary input
   | .inr coordinate => pure (table coordinate)
-
 omit [Fintype Coordinate] [DecidableEq Value] in
 theorem observedRun_forget {Result : Type} (auxiliary : QueryImpl auxSpec SPMF) (table : Coordinate → Value)
     (computation : OracleComp (auxSpec + TableSpec Coordinate Value) Result) (allowed : Coordinate → Finset Value) :
@@ -21,7 +18,6 @@ theorem observedRun_forget {Result : Type} (auxiliary : QueryImpl auxSpec SPMF) 
   | query_bind input next ih =>
       cases input <;> simp only [observedRun_query_bind, observedImpl, fixedImpl, StateT.run_mk,
         bind_map_left, pure_bind, map_bind, ih, simulateQ_bind, simulateQ_spec_query]
-
 omit [Fintype Coordinate] [DecidableEq Value] in
 theorem lazyRun_nonempty {Result : Type} (auxiliary : QueryImpl auxSpec SPMF)
     (computation : OracleComp (auxSpec + TableSpec Coordinate Value) Result) (allowed : Coordinate → Finset Value)
@@ -43,7 +39,6 @@ theorem lazyRun_nonempty {Result : Type} (auxiliary : QueryImpl auxSpec SPMF)
           simp only [lazyRun_query_bind, lazyImpl, StateT.run_mk, bind_map_left] at hr
           obtain ⟨answer, _, hnext⟩ := (bind_nonzero _ _ _).mp hr
           exact ih answer _ (discloseTableValue_nonempty allowed ha coordinate answer) result hnext
-
 theorem run_erasure {Result : Type} (auxiliary : QueryImpl auxSpec SPMF)
     (computation : OracleComp (auxSpec + TableSpec Coordinate Value) Result) (allowed : Coordinate → Finset Value)
     (ha : ∀ coordinate, (allowed coordinate).Nonempty) :
@@ -60,7 +55,6 @@ theorem run_erasure {Result : Type} (auxiliary : QueryImpl auxSpec SPMF)
     rw [complete_of_nonempty _ (lazyRun_nonempty auxiliary computation allowed ha result hr), ← bind_pure_comp]
     exact lift_bind_const _ _
   simpa only [← bind_pure_comp, bind_pure] using hfinish
-
 theorem run_marginal {Result : Type} (auxiliary : QueryImpl auxSpec SPMF)
     (computation : OracleComp (auxSpec + TableSpec Coordinate Value) Result) (allowed : Coordinate → Finset Value)
     (ha : ∀ coordinate, (allowed coordinate).Nonempty) :
@@ -68,5 +62,4 @@ theorem run_marginal {Result : Type} (auxiliary : QueryImpl auxSpec SPMF)
       Prod.fst <$> lazyRun auxiliary computation allowed := by
   rw [← run_erasure auxiliary computation allowed ha, map_bind]
   simp only [observedRun_forget]
-
 end SphincsSecurity.Concrete.UniformTableObservation

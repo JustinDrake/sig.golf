@@ -1,14 +1,10 @@
 import SigGolfCandidate.T3.SearchCost
 
-/-! A successful signature necessarily constructs the forest. This supplies
-the lower bound needed to couple expansion to signing after the cache MAC is
-reduced from 513 hash compressions to two. -/
 namespace SigGolfCandidate.T3.FullCacheExpansionCost
 open OracleComp OracleSpec Cost Correctness SearchCost
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
 theorem foldlM_cost_ge {α β : Type} (answers : Answers)
     (f : β → α → M β) (k : Nat)
     (h : ∀ state value, k ≤ cost answers (f state value))
@@ -20,12 +16,10 @@ theorem foldlM_cost_ge {α β : Type} (answers : Answers)
       rw [List.foldlM_cons, cost_bind, List.length_cons, Nat.add_mul, Nat.one_mul]
       simpa only [Nat.add_comm] using Nat.add_le_add (h init value)
         (ih (evalWithAnswerFn answers (f init value)))
-
 theorem privatePair_cost (answers : Answers) (tag lay tree position index : Nat) :
     cost answers (privatePair tag lay tree position index) = 1 := by
   simp only [privatePair, privateHash, cost_bind, cost_query, cost_pure, Nat.add_zero]
   rfl
-
 theorem buildFts_cost_ge (answers : Answers) (index coord : Nat) :
     1024 ≤ cost answers (buildFts index coord) := by
   unfold buildFts
@@ -41,16 +35,23 @@ theorem buildFts_cost_ge (answers : Answers) (index coord : Nat) :
       simp only [cost_bind, privatePair_cost, cost_pure]
       omega) (List.range 1024) ([], [])
   simpa only [List.length_range, Nat.mul_one] using h
-
 theorem forestRows_cost_ge (answers : Answers) (index : Nat) (chosen : List Selection) :
     7168 ≤ cost answers (forestRows index chosen) := by
-  unfold forestRows
-  apply (show 7168 = (List.range 7).length*1024 by decide).le.trans
-  apply foldlM_cost_ge
-  intro state coord
-  simp only [cost_bind, cost_pure, Nat.add_zero]
-  exact buildFts_cost_ge answers index coord
-
+  have h := foldlM_cost_ge answers
+    (fun (state : List Digest × List Digest × List Digest) coord => do
+      let sel := chosen.getD coord ⟨0,[]⟩
+      let (levels,secrets) ← buildFts index coord
+      let selected := sel.leaves.map fun s => sel.bucket*128+s
+      let opened := selected.map fun s => secrets.getD s 0
+      let inner := (frontier selected 7 sel.bucket).map fun p => (levels.getD p.1 []).getD p.2 0
+      let outer := (List.range 4).map fun j => (levels.getD (7+j) []).getD (sel.bucket/2^j ^^^ 1) 0
+      pure (state.1++opened,state.2.1++inner++outer,state.2.2++[(levels.getD 11 []).getD 0 0]))
+    1024
+    (fun state coord => by
+      rw [cost_bind]
+      exact Nat.le_trans (buildFts_cost_ge answers index coord) (Nat.le_add_right _ _))
+    (List.range 7) ([],[],[])
+  exact h
 theorem signPayload_cost_ge (answers : Answers) (cache : Cache) (message : Message)
     (sig : Signature) (hs : evalWithAnswerFn answers (signPayload cache message) = some sig) :
     90 ≤ cost answers (signPayload cache message) := by
@@ -65,5 +66,4 @@ theorem signPayload_cost_ge (answers : Answers) (cache : Cache) (message : Messa
       simp only [cost_bind, hd]
       have h := forestRows_cost_ge answers (output.toNat%2^31) (selections output)
       omega
-
 end SigGolfCandidate.T3.FullCacheExpansionCost

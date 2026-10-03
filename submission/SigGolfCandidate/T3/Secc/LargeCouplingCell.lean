@@ -1,16 +1,5 @@
 import SigGolfCandidate.T3.Secc.LargeResidualRouter
 
-/-!
-# LR-34 (coupling, cells): honest cells are functions of their children's values
-
-* `cellValues N v` — the honest input of node `N` written with the values `v` of its children (`childSlots`);
-* `cell_eq_cellValues` — G's `cell s N L` is `cellValues N (coordVal s L)` (cells read only the low halves of their
-  children's labels and the secrets);
-* `cellFrom_eq` — the router's `cellFrom N v` is `cellValues N v`;
-* `cellValues_congr` — two value functions agreeing on the children give the same cell;
-* `slot_cellValues` — each child's slot of the cell holds the child's value.
--/
-
 namespace SigGolfCandidate.T3.Security.LargeResidual
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -21,13 +10,9 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- Coordinate values of a secrets/labels pair. -/
 def coordVal (s : Secrets) (L : Labels) : Coord → Digest
   | .inl M => (L M).extractLsb' 0 128
   | .inr x => s x
-
-/-- The honest cell of a node written with its children's values. -/
 def cellValues : CanonGraph.Node → (Coord → Digest) → HashInput
   | .chain p, v => ChainGraph.row p (v (chainChild p))
   | .leaf L, v => pad64 (Extract.leafInput L.lay L.tree.val L.leaf.val
@@ -43,7 +28,6 @@ def cellValues : CanonGraph.Node → (Coord → Digest) → HashInput
       (((ftsChild n.1.index n.1.coord n.1.level.val (2 * n.1.idx.val + 1)).map v).getD 0))
   | .forest index, v => pad64 (Extract.forestInput index.val
       ((List.range 7).map fun c => v (.inl (.ftsNode (ftsRootNode index (fin7 c))))))
-
 theorem treeLabel_eq (s : Secrets) (L : Labels) (lay : Layer) (tree : Fin (2^31)) (level c : Nat) :
     treeLabel L lay tree level c = ((treeChild lay tree level c).map (coordVal s L)).getD 0 := by
   unfold treeLabel treeChild
@@ -54,7 +38,6 @@ theorem treeLabel_eq (s : Secrets) (L : Labels) (lay : Layer) (tree : Fin (2^31)
     · rw [dif_neg hc, dif_neg hc]; rfl
   · rw [if_neg h0, if_neg h0]
     cases treeNodeAt lay tree (level - 1) c <;> rfl
-
 theorem ftsLabel_eq (s : Secrets) (L : Labels) (index : Fin (2^31)) (coord : Fin 7) (level c : Nat) :
     ftsLabel L index coord level c = ((ftsChild index coord level c).map (coordVal s L)).getD 0 := by
   unfold ftsLabel ftsChild
@@ -65,11 +48,8 @@ theorem ftsLabel_eq (s : Secrets) (L : Labels) (index : Fin (2^31)) (coord : Fin
     · rw [dif_neg hc, dif_neg hc]; rfl
   · rw [if_neg h0, if_neg h0]
     cases ftsNodeAt index coord (level - 1) c <;> rfl
-
 theorem width_ge (lay : Layer) (i : Nat) : 2 ≤ width lay i := by
   unfold width; split_ifs <;> norm_num
-
-/-- **Cells read only the values of their children.** -/
 theorem cell_eq_cellValues (s : Secrets) (L : Labels) (N : CanonGraph.Node) :
     cell s N L = cellValues N (coordVal s L) := by
   cases N with
@@ -103,19 +83,15 @@ theorem cell_eq_cellValues (s : Secrets) (L : Labels) (N : CanonGraph.Node) :
   | forest index =>
       change pad64 (Extract.forestInput _ ((List.range 7).map fun c => ftsLabel L index (fin7 c) 11 0)) = _
       congr 3
-
 theorem coordVal_from (v : Coord → Digest) :
     coordVal (fun x => v (.inr x)) (joinLabels (fun M => v (.inl M)) fun _ => 0) = v := by
   funext c
   cases c with
   | inl M => exact joinLabels_low _ _ M
   | inr x => rfl
-
 theorem cellFrom_eq (N : CanonGraph.Node) (v : Coord → Digest) : cellFrom N v = cellValues N v := by
   unfold cellFrom
   rw [cell_eq_cellValues, coordVal_from]
-
-/-- **Two value functions agreeing on the children give the same cell.** -/
 theorem cellValues_congr (N : CanonGraph.Node) (v v' : Coord → Digest)
     (h : ∀ cs ∈ childSlots N, v cs.1 = v' cs.1) : cellValues N v = cellValues N v' := by
   cases N with
@@ -167,26 +143,20 @@ theorem cellValues_congr (N : CanonGraph.Node) (v v' : Coord → Digest)
       simp only [cellValues]
       congr 2
       exact List.map_congr_left (fun c hc => h _ (by simp only [childSlots, List.mem_map]; exact ⟨c, hc, rfl⟩))
-
-/-! ## Slots -/
-
 theorem slotValue_append_left (X Y : HashInput) (k : Nat) (hk : 16 * (k + 1) ≤ X.length) :
     slotValue (X ++ Y) k = slotValue X k := by
   unfold slotValue
   congr 1
   rw [List.drop_append_of_le_length (by omega)]
   rw [List.take_append_of_le_length (by simp; omega)]
-
 theorem slotValue_pad64 (X : HashInput) (k : Nat) (hk : 16 * (k + 1) ≤ X.length) :
     slotValue (pad64 X) k = slotValue X k := slotValue_append_left _ _ k hk
-
 theorem slotValue_bytes_cons (x : Digest) (rest : HashInput) : slotValue (bytesLE 16 x ++ rest) 0 = x := by
   unfold slotValue
   simp only [Nat.mul_zero, List.drop_zero]
   rw [List.take_append_of_le_length (by rw [bytesLE_length])]
   rw [List.take_of_length_le (by rw [bytesLE_length])]
   exact Correctness.readDigest_bytesLE x
-
 theorem slotValue_shift (X Y : HashInput) (k : Nat) (hX : X.length = 16) :
     slotValue (X ++ Y) (k + 1) = slotValue Y k := by
   unfold slotValue
@@ -194,7 +164,6 @@ theorem slotValue_shift (X Y : HashInput) (k : Nat) (hX : X.length = 16) :
   rw [show 16 * (k + 1) = X.length + 16 * k by omega, List.drop_append,
     List.drop_eq_nil_of_le (by omega), List.nil_append]
   simp
-
 theorem slotValue_flatMap (values : List Digest) (rest : HashInput) (j : Nat) (hj : j < values.length) :
     slotValue (values.flatMap (bytesLE 16) ++ rest) j = values.getD j 0 := by
   induction values generalizing j with
@@ -207,7 +176,6 @@ theorem slotValue_flatMap (values : List Digest) (rest : HashInput) (j : Nat) (h
           rw [slotValue_shift _ _ j (bytesLE_length _ _)]
           simp only [List.getD_cons_succ]
           exact ih j (by simpa using hj)
-
 theorem slotValue_block4 (a b c d : Digest) :
     slotValue (block4 a b c d) 0 = a ∧ slotValue (block4 a b c d) 2 = c ∧ slotValue (block4 a b c d) 3 = d := by
   have hl : ∀ x : Digest, (bytesLE 16 x).length = 16 := fun x => bytesLE_length 16 x
@@ -220,7 +188,6 @@ theorem slotValue_block4 (a b c d : Digest) :
       slotValue_shift _ _ 0 (hl c)]
     have := slotValue_bytes_cons d []
     simpa using this
-
 theorem slotValue_listInput (first : Digest) (hdr : BitVec 128) (rest : List Digest) (i : Nat)
     (hi : i ≤ rest.length) : slotValue (pad64 (Extract.listInput first hdr rest)) (listBlock i) =
       (first :: rest).getD i 0 := by
@@ -240,14 +207,11 @@ theorem slotValue_listInput (first : Digest) (hdr : BitVec 128) (rest : List Dig
     simp only [List.getD_cons_succ]
     have := slotValue_flatMap rest [] j (by omega)
     simpa using this
-
 theorem chainRow_block4 (p : ChainGraph.Point) (x : Digest) :
-    ChainGraph.row p x = block4 0 (chainHeader p.1.layer p.1.tree.val p.1.leaf.val p.1.chain.val p.2.val) 0 x := by
-  simp only [ChainGraph.row, chainInput, block4, show zero16 = bytesLE 16 (0 : Digest) by decide]
-
+    ChainGraph.row p x = block4 0 (header 1 p.1.layer.val p.1.tree.val (p.2.val + 256 * p.1.chain.val) p.1.leaf.val) 0 x := by
+  unfold ChainGraph.row
+  rw [chainInput_eq_zero, chainInputP_eq_block4]
 theorem chainCount_pos (lay : Layer) : 0 < chainCount lay := by fin_cases lay <;> decide
-
-/-- **Each child's slot of the cell holds the child's value.** -/
 theorem slot_cellValues (N : CanonGraph.Node) (v : Coord → Digest) :
     ∀ cs ∈ childSlots N, slotValue (cellValues N v) cs.2 = v cs.1 := by
   intro cs hcs
@@ -316,5 +280,4 @@ theorem slot_cellValues (N : CanonGraph.Node) (v : Coord → Digest) :
           List.map (fun c => v (.inl (.ftsNode (ftsRootNode index (fin7 c))))) (List.range 7) := rfl
       rw [hcons]
       simp [List.getD_eq_getElem, hc]
-
 end SigGolfCandidate.T3.Security.LargeResidual

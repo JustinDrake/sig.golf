@@ -1,20 +1,11 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeUniform
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.NoMessage
-/-!
-# Signer digest views
-
-This proof-only signer exposes the few-time view selected by the digest loop alongside the ordinary
-signature result. Forgetting the extra component recovers the concrete signer exactly.
--/
 
 namespace SphincsSecurity.Concrete
-
 open OracleComp OracleSpec
-
 def selectedFewTimeView (index : Index) (leaves : IndexGroup → FtsLeaf) : FewTimeView :=
   (index, leaves)
-
 noncomputable def signWithView (secretKey : SecretKey) (message : Message) :
     OracleComp OracleWorld (Option Signature × Option FewTimeView) := do
   match ← signDigestLoop digestAttemptLimit secretKey message with
@@ -22,7 +13,6 @@ noncomputable def signWithView (secretKey : SecretKey) (message : Message) :
   | some (randomness, index, leaves) => do
       let signature ← liftM (signAfterDigest secretKey randomness index leaves)
       pure (signature, some (selectedFewTimeView index leaves))
-
 theorem signWithView_fst (secretKey : SecretKey) (message : Message) :
     Prod.fst <$> signWithView secretKey message = sign secretKey message := by
   rw [sign_eq_digestLoop_afterDigest]
@@ -34,7 +24,6 @@ theorem signWithView_fst (secretKey : SecretKey) (message : Message) :
   | some selected =>
       rcases selected with ⟨randomness, index, leaves⟩
       simp
-
 theorem simulateQ_signWithView_fst_run (secretKey : SecretKey) (message : Message)
     (cache : QueryCache HashSpec) :
     (fun result => (result.1.1, result.2)) <$>
@@ -44,7 +33,6 @@ theorem simulateQ_signWithView_fst_run (secretKey : SecretKey) (message : Messag
     _ = (simulateQ romImpl (Prod.fst <$> signWithView secretKey message)).run cache := by
       rw [simulateQ_map, StateT.run_map]
     _ = _ := by rw [signWithView_fst]
-
 set_option linter.constructorNameAsVariable false in
 theorem signWithView_support_some
     (secretKey : SecretKey) (message : Message)
@@ -84,5 +72,4 @@ theorem signWithView_support_some
       rw [← hresult, ← hcache] at hsignature
       refine ⟨randomness, index, leaves, loopCache, hloop, ?_, hview⟩
       simpa only [simulateQ_romImpl_liftM] using hsignature
-
 end SphincsSecurity.Concrete

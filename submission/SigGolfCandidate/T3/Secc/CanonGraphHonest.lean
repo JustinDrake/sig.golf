@@ -1,18 +1,5 @@
 import SigGolfCandidate.T3.Secc.CanonGraph
 
-/-!
-# Stream G: honest objects evaluate to the canonical labels
-
-For any answers table that `Agrees` with labels (e.g. the eager programmed table of `CanonGraph.tables_bind`,
-or any table with `CanonGraph.agrees_of_programmed`), every honest object PEX and the shared vocabulary use is a
-function of the labels: chain values, chain ends, leaf pks, Merkle levels and roots, FTS secrets, FTS levels and
-roots, forest pks, and `Extract.honestInput` / its answer at every source position.
-
-All proofs go through the existing closed forms (`Correctness.builtTree_correct`, `eval_buildFts_correct`,
-`ChainGraph.source_prefix`); `buildFts` / `buildTree` bodies are never unfolded (only the rfl-lemma
-`buildFts_eq` exposes the `ftsRows` loop, handled by the fold invariant `eval_foldlM_range_inv`).
--/
-
 namespace SigGolfCandidate.T3.Security.CanonGraph
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
@@ -23,17 +10,11 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
--- Never let the unifier evaluate the honest builders (SEC's memory blow-up): only closed forms are used.
 attribute [local irreducible] SigGolfCandidate.T3.buildFts SigGolfCandidate.T3.buildTree SigGolfCandidate.T3.buildLeaf
   SigGolfCandidate.T3.buildLevels Correctness.builtTree Correctness.ftsRows
-
-/-! ## FTS secrets (private part only) -/
-
-/-- The FTS secret of global leaf `leaf` of an FTS tree, read off the private answers. -/
 def ftsSecretNat (answers : Answers) (index coord leaf : Nat) : Digest :=
   let pair := evalWithAnswerFn answers (privatePair 8 coord index 0 (leaf / 2))
   if leaf % 2 = 0 then pair.1 else pair.2
-
 theorem eval_ftsRows_secrets (answers : Answers) (index coord : Nat) :
     (evalWithAnswerFn answers (Correctness.ftsRows index coord)).2.length = 2048 ∧
       ∀ leaf, leaf < 2048 →
@@ -59,31 +40,23 @@ theorem eval_ftsRows_secrets (answers : Answers) (index coord : Nat) :
     · simp only [show 2 * pair + 1 - 2 * pair = 1 by omega, ftsSecretNat]
       rw [show (2 * pair + 1) / 2 = pair by omega, if_neg (by omega)]
       rfl
-
 theorem ftsSecret_nat (answers : Answers) (index coord leaf : Nat) (hleaf : leaf < 2048) :
     Extract.ftsSecret answers index coord leaf = ftsSecretNat answers index coord leaf := by
   unfold Extract.ftsSecret
   rw [Correctness.buildFts_eq]
   simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure]
   exact (eval_ftsRows_secrets answers index coord).2 leaf hleaf
-
 theorem ftsSecret_eq (answers : Answers) (f : FtsLeafPos) :
     Extract.ftsSecret answers f.index.val f.coord.val f.leaf.val = ftsOf (secretsOf answers) f :=
   ftsSecret_nat answers _ _ _ f.leaf.isLt
-
 section Honest
 variable {answers : Answers} {labels : Labels}
-
-/-! ## Chains -/
-
 theorem seedsOf_secretsOf (answers : Answers) : seedsOf (secretsOf answers) = ChainGraph.sourceSeeds answers := rfl
-
 theorem chainValue_eq (h : Agrees answers labels) (a : Address) (step : Nat) (hstep : step ≤ 7) :
     honestChainValue answers a.layer a.tree.val a.leaf.val a.chain.val
       (leafSeed answers a.layer a.tree.val a.leaf.val a.chain.val) step =
       ChainGraph.value (seedsOf (secretsOf answers)) (chainLabels labels) a step :=
   ChainGraph.source_prefix answers (chainLabels labels) (agrees_chain h) a step hstep
-
 theorem leafValue_eq (h : Agrees answers labels) (L : LeafPos) (digits : List Nat) (i : Nat) (hi : i < 58)
     (hdigit : digits.getD i 0 ≤ 7) :
     leafValue answers L.lay L.tree.val L.leaf.val digits i =
@@ -93,29 +66,23 @@ theorem leafValue_eq (h : Agrees answers labels) (L : LeafPos) (digits : List Na
   have hx := chainValue_eq h ⟨L.lay, L.tree, L.leaf, fin58 i⟩ (digits.getD i 0) hdigit
   simp only [hval] at hx
   exact hx
-
 theorem leafEnd_eq (h : Agrees answers labels) (L : LeafPos) (i : Nat) (hi : i < 58) :
     leafEnd answers L.lay L.tree.val L.leaf.val i = endLabel (secretsOf answers) labels L i := by
   have hval : (fin58 i).val = i := Nat.mod_eq_of_lt hi
   have hx := ChainGraph.source_endpoint answers (chainLabels labels) (agrees_chain h) ⟨L.lay, L.tree, L.leaf, fin58 i⟩
   simp only [hval] at hx
   exact hx
-
 theorem leafEnds_eq (h : Agrees answers labels) (L : LeafPos) :
     (List.range (chainCount L.lay)).map (leafEnd answers L.lay L.tree.val L.leaf.val) =
       (List.range (chainCount L.lay)).map (endLabel (secretsOf answers) labels L) := by
   apply List.map_congr_left
   intro i hi
   exact leafEnd_eq h L i (lt_of_lt_of_le (List.mem_range.mp hi) (chainCount_bound L.lay))
-
 theorem leafRoot_eq (h : Agrees answers labels) (L : LeafPos) :
     leafRoot answers L.lay L.tree.val L.leaf.val = (labels (.leaf L)).extractLsb' 0 128 := by
   unfold leafRoot
   rw [Extract.leafHash_eq_shortHash, eval_shortHash, leafEnds_eq h L]
   exact congrArg (fun output : HashOutput => output.extractLsb' 0 128) (h (.leaf L))
-
-/-! ## Merkle trees -/
-
 theorem treeNodeAt_some (lay : Layer) (tree : Fin (2^31)) (level c : Nat) (hlevel : level < height lay)
     (hc : c < 2 ^ (height lay - level - 1)) :
     ∃ n : TreeNode, treeNodeAt lay tree level c = some n ∧ n.1.lay = lay ∧ n.1.tree = tree ∧
@@ -123,7 +90,6 @@ theorem treeNodeAt_some (lay : Layer) (tree : Fin (2^31)) (level c : Nat) (hleve
   unfold treeNodeAt
   rw [dif_pos ⟨hlevel, hc⟩]
   exact ⟨_, rfl, rfl, rfl, rfl, rfl⟩
-
 theorem builtTree_eq (h : Agrees answers labels) (lay : Layer) (tree : Fin (2^31)) (level c : Nat)
     (hlevel : level ≤ height lay) (hc : c < 2 ^ (height lay - level)) :
     treeValue (builtTree answers lay tree.val) level c = treeLabel labels lay tree level c := by
@@ -175,17 +141,12 @@ theorem builtTree_eq (h : Agrees answers labels) (lay : Layer) (tree : Fin (2^31
         rw [hlev, hidx, show height nlay - level - 1 = height nlay - (level + 1) by omega]
       rw [← hinput]
       exact congrArg (fun output : HashOutput => output.extractLsb' 0 128) (h (.node n))
-
 theorem honestRoot_eq (h : Agrees answers labels) (lay : Layer) (tree : Fin (2^31)) :
     Extract.honestRoot answers lay tree.val = treeLabel labels lay tree (height lay) 0 :=
   builtTree_eq h lay tree (height lay) 0 le_rfl (by simp)
-
 theorem honestRoot_label (h : Agrees answers labels) (lay : Layer) (tree : Fin (2^31)) :
     Extract.honestRoot answers lay tree.val = (labels (.node (rootNode lay tree))).extractLsb' 0 128 := by
   rw [honestRoot_eq h, treeLabel_root]
-
-/-! ## FTS trees and forest -/
-
 theorem ftsNodeAt_some (index : Fin (2^31)) (coord : Fin 7) (level c : Nat) (hlevel : level < 11)
     (hc : c < 2 ^ (11 - level - 1)) :
     ∃ n : FtsNodePos, ftsNodeAt index coord level c = some n ∧ n.1.index = index ∧ n.1.coord = coord ∧
@@ -193,8 +154,6 @@ theorem ftsNodeAt_some (index : Fin (2^31)) (coord : Fin 7) (level c : Nat) (hle
   unfold ftsNodeAt
   rw [dif_pos ⟨hlevel, hc⟩]
   exact ⟨_, rfl, rfl, rfl, rfl, rfl⟩
-
-/-- Core's FTS tree (the `buildFts` levels) read off the labels. -/
 theorem ftsTree_eq (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin 7) (level c : Nat)
     (hlevel : level ≤ 11) (hc : c < 2 ^ (11 - level)) :
     treeValue (evalWithAnswerFn answers (buildFts index.val coord.val)).1 level c =
@@ -208,7 +167,6 @@ theorem ftsTree_eq (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin
     have hx := ftsSecret_nat answers index.val coord.val leaf hleaf
     unfold Extract.ftsSecret at hx
     exact hx
-  -- From here on the honest FTS tree is an opaque value (keeps the kernel from evaluating `buildFts`).
   generalize evalWithAnswerFn answers (buildFts index.val coord.val) = X at hleaves hnodes hsecrets ⊢
   revert c
   induction level with
@@ -246,11 +204,6 @@ theorem ftsTree_eq (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin
         rw [hlev, hidx, show 11 - level - 1 = 11 - (level + 1) by omega]
       rw [← hinput]
       exact congrArg (fun output : HashOutput => output.extractLsb' 0 128) (h (.ftsNode n))
-
-/-! `Extract.ftsLevels` is `(evalWithAnswerFn … (buildFts …)).1`; the kernel reduces that projection eagerly
-(it would evaluate `buildFts`), so it is never unfolded here. It is bridged to Core's tree through PEX's
-kernel-checked `FtsExtract.honestInput_ftsNode` / `honestInput_forest` and input injectivity. -/
-
 theorem ftsLevels_built (answers : Answers) (index coord level j : Nat) (hl : level < 11)
     (hj : j < 2 ^ (11 - level)) :
     treeValue (Extract.ftsLevels answers index coord) level j =
@@ -275,7 +228,6 @@ theorem ftsLevels_built (answers : Answers) (index coord level j : Nat) (hl : le
   · have hj2 : 2 * (j / 2) + 1 = j := by omega
     rw [hj2] at hright
     exact hright
-
 theorem ftsRoots_built (answers : Answers) (index : Nat) :
     Extract.ftsRootsHonest answers index =
       (List.range 7).map fun c => treeValue (evalWithAnswerFn answers (buildFts index c)).1 11 0 := by
@@ -284,13 +236,11 @@ theorem ftsRoots_built (answers : Answers) (index : Nat) :
       pad64 (Extract.forestInput index (Extract.ftsRootsHonest answers index)) := rfl
   rw [hdef] at hpex
   exact FtsExtract.forestInput_injective (by simp [Extract.ftsRootsHonest]) (by simp) hpex
-
 theorem ftsRoot_built (answers : Answers) (index coord : Nat) (hcoord : coord < 7) :
     Extract.ftsRoot answers index coord = treeValue (evalWithAnswerFn answers (buildFts index coord)).1 11 0 := by
   have h := ftsRoots_built answers index
   unfold Extract.ftsRootsHonest at h
   exact (List.map_inj_left.mp h) coord (List.mem_range.mpr hcoord)
-
 theorem ftsLevels_eq (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin 7) (level c : Nat)
     (hlevel : level ≤ 11) (hc : c < 2 ^ (11 - level)) :
     treeValue (Extract.ftsLevels answers index.val coord.val) level c = ftsLabel labels index coord level c := by
@@ -302,16 +252,13 @@ theorem ftsLevels_eq (h : Agrees answers labels) (index : Fin (2^31)) (coord : F
     subst hc0
     change Extract.ftsRoot answers index.val coord.val = _
     rw [ftsRoot_built answers _ _ coord.isLt, ftsTree_eq h index coord 11 0 le_rfl (by decide)]
-
 theorem ftsRoot_eq (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin 7) :
     Extract.ftsRoot answers index.val coord.val = ftsLabel labels index coord 11 0 := by
   rw [ftsRoot_built answers _ _ coord.isLt, ftsTree_eq h index coord 11 0 le_rfl (by decide)]
-
 theorem ftsRoot_label (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin 7) :
     Extract.ftsRoot answers index.val coord.val =
       (labels (.ftsNode (ftsRootNode index coord))).extractLsb' 0 128 := by
   rw [ftsRoot_eq h, ftsLabel_root]
-
 theorem ftsRoots_eq (h : Agrees answers labels) (index : Fin (2^31)) :
     Extract.ftsRootsHonest answers index.val =
       (List.range 7).map fun coord => ftsLabel labels index (fin7 coord) 11 0 := by
@@ -323,16 +270,11 @@ theorem ftsRoots_eq (h : Agrees answers labels) (index : Fin (2^31)) :
   have hx := ftsTree_eq h index (fin7 coord) 11 0 le_rfl (by decide)
   rw [hval] at hx
   exact hx
-
 theorem honestForest_eq (h : Agrees answers labels) (index : Fin (2^31)) :
     Extract.honestForest answers index.val = (labels (.forest index)).extractLsb' 0 128 := by
   unfold Extract.honestForest
   rw [Extract.forestPk_eq_shortHash, eval_shortHash, ftsRoots_eq h index]
   exact congrArg (fun output : HashOutput => output.extractLsb' 0 128) (h (.forest index))
-
-/-! ## Honest inputs and outputs at every source position -/
-
-/-- **Honest inputs are the cells.** -/
 theorem honestInput_eq (h : Agrees answers labels) (node : Node) :
     Extract.honestInput answers node.toPos = cell (secretsOf answers) node labels := by
   cases node with
@@ -368,21 +310,15 @@ theorem honestInput_eq (h : Agrees answers labels) (node : Node) :
   | forest index =>
       simp only [Node.toPos, Extract.honestInput, cell]
       rw [ftsRoots_eq h index]
-
-/-- **Honest outputs are the labels**, at every source position. -/
 theorem honest_answer (h : Agrees answers labels) (node : Node) :
     answers (.inl (.inr (Extract.honestInput answers node.toPos))) = labels node := by
   rw [honestInput_eq h node]
   exact h node
-
-/-- The frontier value of the shared vocabulary at a source chain (depth ≤ 7). -/
 theorem frontierValue_eq (h : Agrees answers labels) (a : Address)
     (hdepth : Wots.depth answers ⟨⟨a.layer, a.tree.val, a.leaf.val⟩, a.chain.val⟩ ≤ 7) :
     Wots.frontierValue answers ⟨⟨a.layer, a.tree.val, a.leaf.val⟩, a.chain.val⟩ =
       ChainGraph.value (seedsOf (secretsOf answers)) (chainLabels labels) a
         (Wots.depth answers ⟨⟨a.layer, a.tree.val, a.leaf.val⟩, a.chain.val⟩) :=
   chainValue_eq h a _ hdepth
-
 end Honest
-
 end SigGolfCandidate.T3.Security.CanonGraph

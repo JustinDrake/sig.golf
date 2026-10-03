@@ -1,27 +1,23 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainObservation
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.PartialChainLikelihoodLower
-namespace SphincsSecurity.Concrete.PartialChainEndpoint
 
+namespace SphincsSecurity.Concrete.PartialChainEndpoint
 open _root_.OracleComp OracleSpec ENNReal
 set_option backward.isDefEq.respectTransparency false
-
 variable {State : Type} [Fintype State] [DecidableEq State] [Nonempty State]
   {AuxIndex : Type} {auxSpec : OracleSpec AuxIndex} {n : Nat}
-
 omit [Nonempty State] in
 theorem unqueried_update_some (observed : State → Option State) (input answer : State) :
     unqueried (Function.update observed input (some answer)) = (unqueried observed).erase input := by
   ext row
   by_cases hrow : row = input <;> simp [unqueried, Function.update_apply, hrow]
-
 omit [Nonempty State] in
 theorem queriedCount_update_le (observed : State → Option State) (input answer : State) :
     queriedCount (Function.update observed input (some answer)) ≤ queriedCount observed + 1 := by
   rw [queriedCount, unqueried_update_some, queriedCount]
   have h := Finset.pred_card_le_card_erase (s := unqueried observed) (a := input)
   omega
-
 omit [Nonempty State] in
 theorem queryCount_record_le (observed : Fin n → State → Option State) (query : Fin n × State) (answer : State) :
     queryCount (record observed query answer) ≤ queryCount observed + 1 := by
@@ -34,18 +30,14 @@ theorem queryCount_record_le (observed : Fin n → State → Option State) (quer
     queryCount, ← Finset.add_sum_erase Finset.univ (fun step => queriedCount (observed step)) (Finset.mem_univ query.1)]
   have h := queriedCount_update_le (observed query.1) query.2 answer
   omega
-
 omit [DecidableEq State] [Nonempty State] in
 theorem queryCount_empty : queryCount (fun (_ : Fin n) (_ : State) => none) = 0 := by
   simp [queryCount, queriedCount, unqueried]
-
 def IsPrefixQuery : AuxIndex ⊕ (Fin n × State) → Prop
   | .inl _ => False
   | .inr _ => True
-
 instance instDecidableIsPrefixQuery (input : AuxIndex ⊕ (Fin n × State)) : Decidable (IsPrefixQuery input) := by
   cases input <;> unfold IsPrefixQuery <;> infer_instance
-
 theorem lazyRun_queryCount_le {Result : Type} (auxiliary : QueryImpl auxSpec PMF)
     (computation : OracleComp (auxSpec + PrefixSpec n State) Result) (observed : Fin n → State → Option State)
     (budget : Nat) (hbound : computation.IsQueryBoundP IsPrefixQuery budget)
@@ -71,5 +63,4 @@ theorem lazyRun_queryCount_le {Result : Type} (auxiliary : QueryImpl auxSpec PMF
           have hnext := ih answer (record observed query answer) (budget - 1) (hbound.2 answer) result hresult
           have hrecord := queryCount_record_le observed query answer
           omega
-
 end SphincsSecurity.Concrete.PartialChainEndpoint

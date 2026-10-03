@@ -2,16 +2,6 @@ import SigGolfCandidate.T3.Secc.CaseCFull
 import SigGolfCandidate.T3.Secc.LargeContactWalk
 import SigGolfCandidate.T3.Secc.PairGuessFinal
 
-/-!
-# Stream CC: in case (C) the final verifier queries the honest leaf input of every opened position
-
-* `recoverChildP_leaf_queried` / `recoverFtsP_leaf_queried`: a padded FTS run that returns a value issued the leaf
-  query of every selected leaf (with the witness's secret and leaf pads);
-* `verifyP_fts_run`: an accepting byte verification ran its FTS part to a value, inside its own queries;
-* `verdict_leaf_entries`: in case (C) (shaped stream, FTS honest-shaped), for every opened position `f` of the
-  forgery's digest the verdict record has a public event at B-PAIR's probe `probeInput f (secretAt answers f)`.
--/
-
 namespace SigGolfCandidate.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -20,16 +10,12 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- The leaf query of `recoverChildP` at a selected leaf `g`. -/
 def leafQuery (index coord : Nat) (leaves : List Nat) (values : List Digest) (pads : Pads) (g : Nat) :
     T3.Spec.Domain :=
   .inl (.inr (ftsLeafInputP index coord g
     (pads.leaf ⟨(3 * coord + leaves.idxOf g) % 22, Nat.mod_lt _ (by decide)⟩)
     (values.getD (leaves.idxOf g) 0)
     (pads.leaf ⟨(3 * coord + leaves.idxOf g + 1) % 22, Nat.mod_lt _ (by decide)⟩)))
-
-/-- **A returning subtree run queried every selected leaf below it.** -/
 theorem recoverChildP_leaf_queried (answers : Correctness.Answers) (index coord : Nat) (leaves : List Nat)
     (values : List Digest) (proof : Fin 115 → Digest) (pads : Pads) :
     ∀ level node used (v : Digest) (next : Nat),
@@ -82,8 +68,6 @@ theorem recoverChildP_leaf_queried (answers : Correctness.Answers) (index coord 
             (ih (2 * node + 1) n1 right n2 hr2 g hg (by omega) (by omega)))
       · have hh : hasLeaf leaves (level + 1) node = false := by simpa using hh
         exact (FtsExtract.hasLeaf_false hh hg h0 h1).elim
-
-/-- Position facts of the `j`-th selected leaf of a machine-accepted selection. -/
 theorem selLeaf_facts (sel : Selection) (hs : SelOk sel) (j : Nat) (hj : j < 3) :
     (selectedLeaves sel).idxOf (selLeaf sel j) = j ∧ selLeaf sel j ∈ selectedLeaves sel ∧
       sel.bucket * 2 ^ 7 ≤ selLeaf sel j ∧ selLeaf sel j < (sel.bucket + 1) * 2 ^ 7 := by
@@ -108,8 +92,6 @@ theorem selLeaf_facts (sel : Selection) (hs : SelOk sel) (j : Nat) (hj : j < 3) 
     rcases hj3 with rfl | rfl | rfl <;> simp
   · rcases hj3 with rfl | rfl | rfl <;> simp only [e0, e1, e2] <;> omega
   · rcases hj3 with rfl | rfl | rfl <;> simp only [e0, e1, e2] <;> omega
-
-/-- **A returning padded FTS run queried the leaf of every selected position.** -/
 theorem recoverFtsP_leaf_queried (answers : Correctness.Answers) (sig : Signature) (pads : Pads) (index : Nat)
     (chosen : List Selection) (v : Digest) (hc : ChosenOk chosen)
     (hrun : evalWithAnswerFn answers (recoverFtsP sig pads index chosen) = some v) :
@@ -147,8 +129,6 @@ theorem recoverFtsP_leaf_queried (answers : Correctness.Answers) (sig : Signatur
     simp [FtsExtract.coordValues, hj]
   rw [hval] at hq1
   exact hq1
-
-/-- **An accepting byte verification ran its FTS part to a value**, within its own queries. -/
 theorem verifyP_fts_run (answers : Correctness.Answers) (m : Message) (pk : Digest) (w : WBytes)
     (hv : evalWithAnswerFn answers (verifyP m pk w) = true) :
     ∃ root, evalWithAnswerFn answers (ftsP w ((evalWithAnswerFn answers (digest (wrho w) m (wdc w))).toNat % 2 ^ 31)
@@ -184,7 +164,6 @@ theorem verifyP_fts_run (answers : Correctness.Answers) (m : Message) (pk : Dige
   rcases rr with _ | root
   · simp at hv
   exact ⟨root, rfl, fun q hq => by simp only [List.mem_append]; tauto⟩
-
 theorem witnessOf_unique {answers : Correctness.Answers} {pk : Digest} {forgery : ForgeryP} {m m' : Message}
     {w w' : WBytes} (h : PaddedExtraction.WitnessOf answers pk forgery m w)
     (h' : PaddedExtraction.WitnessOf answers pk forgery m' w') : m = m' ∧ w = w' := by
@@ -198,9 +177,6 @@ theorem witnessOf_unique {answers : Correctness.Answers} {pk : Digest} {forgery 
       obtain ⟨rfl, h2⟩ := h'
       rw [h1] at h2
       exact ⟨rfl, Option.some.inj h2⟩
-
-/-- The checked forgery's acceptance, recorded: the verdict record of a winning verdict decomposes into the record
-of `checkForgeryP` (same events and state), which accepts with the (unique) witness. -/
 theorem verdict_accepting (pk : Digest) (interaction : Option ForgeryP × QueryLog Requests)
     (before : LazyPrivate.State) (checked : FirstHit.Recorded Bool)
     (hr : checked ∈ support (FirstHit.record (GameWith.verdict PaddedGame.checker pk interaction) before))
@@ -226,15 +202,12 @@ theorem verdict_accepting (pk : Digest) (interaction : Option ForgeryP × QueryL
   rw [hand.2] at hw
   obtain ⟨-, message, witness, hof, hv, hsub⟩ := PaddedExtraction.check_accepting answers pk interaction.2 forgery hw
   exact ⟨check, hcheck, hevents.symm, hstate.symm, message, witness, hof, hv, hsub⟩
-
 theorem mem_publicEntries {events : List FirstHit.QueryEvent} {prior : LazyPrivate.State} {input : HashInput}
     {answer : HashOutput} (h : (⟨prior, .inl (.inr input), answer⟩ : FirstHit.QueryEvent) ∈ events) :
     (input, answer) ∈ BPair.publicEntries events := by
   unfold BPair.publicEntries
   rw [List.mem_filterMap]
   exact ⟨_, h, rfl⟩
-
-/-- **Case (C): the verifier probed every opened position.** -/
 theorem verdict_leaf_entries (pk : Digest) (interaction : Option ForgeryP × QueryLog Requests)
     (before : LazyPrivate.State) (checked : FirstHit.Recorded Bool)
     (hr : checked ∈ support (FirstHit.record (GameWith.verdict PaddedGame.checker pk interaction) before))
@@ -291,7 +264,6 @@ theorem verdict_leaf_entries (pk : Digest) (interaction : Option ForgeryP × Que
       rw [hm21]; exact hsec
     rw [e1, e2, e3] at hq
     exact hq
-  -- the opened position's probe is this query
   have hb := hsok.b
   have hl128 : leaf < 128 := by
     have := hsok.l2; have := hsok.s01; have := hsok.s12
@@ -313,5 +285,4 @@ theorem verdict_leaf_entries (pk : Digest) (interaction : Option ForgeryP × Que
     before check hcheck answers (by rw [hst]; exact ha) _ (hsub _ hq')
   rw [hev] at hevent
   exact ⟨_, mem_publicEntries hevent⟩
-
 end SigGolfCandidate.T3.Security.CaseC

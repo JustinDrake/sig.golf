@@ -1,14 +1,5 @@
 import SigGolfCandidate.T3.Secc.LargeCouplingBankStep
 
-/-!
-# LR-34 (bank, signer search): the lazy router's digest search is SEC's `roRun` search
-
-**`bank_search`**: if the lazy world's rows agree with a random-oracle cache on the trial rows of `(rho, m)`, the
-router's digest search (`simulateQ (readImpl U a) (digestSearch …)`, uncharged residual reads) and SEC's
-`Sampling.roRun secret (digestSearch …) cache` (CC's `core_sign` search) have the same law of the selected output,
-and the lazy search changes only the trial rows it read (`SearchFrame`: counters `c ≤ k ≤` the selected counter).
--/
-
 namespace SigGolfCandidate.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -18,19 +9,15 @@ open SphincsSecurity.Concrete UniformTableCompletion ResidualTableCompletion Ret
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
 section Search
 variable {U : Finset HashInput} (aux : (input : AuxSpec.Domain) → PMF (AuxSpec.Range input)) (q : Nat)
   (a : AuxData) (rho : Digest) (m : Message)
-
-/-- What the lazy search from counter `c` with fuel `fuel` and result `found` keeps. -/
 def SearchFrame (c fuel : Nat) (found : Option (BitVec 32 × LargeResidual.HashOutput))
     (s s' : LargeResidual.State WCoord (Cell U)) : Prop :=
   s'.candidates = s.candidates ∧ s'.counters = s.counters ∧
     (∀ k' out, found = some (k', out) → c ≤ k'.toNat ∧ k'.toNat < c + fuel) ∧
     ∀ row : Cell U, s'.rows row ≠ s.rows row → ∃ k, c ≤ k ∧ k < c + fuel ∧
       row.1 = pad64 (digestInput rho m (BitVec.ofNat 32 k)) ∧ ∀ k' out, found = some (k', out) → k ≤ k'.toNat
-
 theorem trial_ne {k c : Nat} (hk : k < 2 ^ 32) (hc : c < 2 ^ 32) (hne : k ≠ c) :
     pad64 (digestInput rho m (BitVec.ofNat 32 k)) ≠ pad64 (digestInput rho m (BitVec.ofNat 32 c)) := by
   intro h
@@ -38,14 +25,12 @@ theorem trial_ne {k c : Nat} (hk : k < 2 ^ 32) (hc : c < 2 ^ 32) (hne : k ≠ c)
   have := congrArg BitVec.toNat h2
   simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hk, Nat.mod_eq_of_lt hc] at this
   exact hne this
-
 theorem readImpl_digest (hU : ∀ c : BitVec 32, pad64 (digestInput rho m c) ∈ U) (c : Nat) :
     simulateQ (readImpl U a) (digest rho m (BitVec.ofNat 32 c)) =
       readReq U ⟨_, hU (BitVec.ofNat 32 c)⟩ .none := by
   change simulateQ (readImpl U a) (liftM (Spec.query (.inl (.inr (pad64 (digestInput rho m (BitVec.ofNat 32 c))))))) = _
   rw [simulateQ_spec_query]
   simp only [readImpl, dif_pos (hU (BitVec.ofNat 32 c))]
-
 theorem lazy_readImpl_digest (hU : ∀ c : BitVec 32, pad64 (digestInput rho m c) ∈ U) (c : Nat) {β : Type}
     (k : HashOutput → OracleComp (RWorld U) β) (s : LargeResidual.State WCoord (Cell U)) :
     lazyRun aux q (simulateQ (readImpl U a) (digest rho m (BitVec.ofNat 32 c)) >>= k) s =
@@ -53,15 +38,12 @@ theorem lazy_readImpl_digest (hU : ∀ c : BitVec 32, pad64 (digestInput rho m c
         lazyRun aux q (k y) (readState q s ⟨_, hU (BitVec.ofNat 32 c)⟩ y .none)) := by
   rw [readImpl_digest]
   exact lazy_readReq U aux q _ _ k s
-
 theorem reply_of_some {rows : ResidualTableCompletion.Cache (Cell U)} {row : Cell U} {u : LargeResidual.HashOutput}
     (h : rows row = some u) : reply rows row = pure u := by
   unfold reply; rw [h]
-
 theorem reply_of_none {rows : ResidualTableCompletion.Cache (Cell U)} {row : Cell U} (h : rows row = none) :
     reply rows row = liftM (PMF.uniformOfFintype LargeResidual.HashOutput) := by
   unfold reply; rw [h]
-
 theorem expectedValue_uniform_ro (f : LargeResidual.HashOutput → ENNReal) :
     expectedValue (liftM (PMF.uniformOfFintype LargeResidual.HashOutput) : SPMF LargeResidual.HashOutput) f =
       expectedValue ($ᵗ (SphincsSecurity.HashSpec.Range (default : HashInput)) : ProbComp _) (fun y => f y) := by
@@ -74,8 +56,6 @@ theorem expectedValue_uniform_ro (f : LargeResidual.HashOutput → ENNReal) :
       (Fintype.card LargeResidual.HashOutput : ENNReal)⁻¹ := by
     rw [SPMF.probOutput_eq_apply, SPMF.liftM_apply, PMF.uniformOfFintype_apply]
   rw [h1, h2]
-
-/-- **The lazy search is the random-oracle search** (in expectation, with the search frame). -/
 theorem bank_search (hU : ∀ c : BitVec 32, pad64 (digestInput rho m c) ∈ U) (secret : BitVec 256) :
     ∀ (fuel c : Nat), c + fuel ≤ 2 ^ 32 → ∀ (s : LargeResidual.State WCoord (Cell U)) (cache : Sampling.RCache),
       (∀ k, c ≤ k → k < 2 ^ 32 →
@@ -97,16 +77,13 @@ theorem bank_search (hU : ∀ c : BitVec 32, pad64 (digestInput rho m c) ∈ U) 
       intro c hc s cache hagree G H hG
       have hc32 : c < 2 ^ 32 := by omega
       set X : Cell U := ⟨_, hU (BitVec.ofNat 32 c)⟩ with hXdef
-      -- the router side
       simp only [BPB.digestSearch_succ, simulateQ_bind, Sampling.roRun_bind]
       rw [lazy_readImpl_digest aux q a rho m hU c]
-      -- the random-oracle side
       have hro : Sampling.roRun secret (digest rho m (BitVec.ofNat 32 c)) cache =
           (randomOracle (spec := SphincsSecurity.HashSpec) (pad64 (digestInput rho m (BitVec.ofNat 32 c)))).run cache :=
         Sampling.roRun_publicQuery secret _ cache
       simp only [hro, randomOracle.run_eq]
       have hXc := hagree c le_rfl hc32
-      -- after reading the trial row at `c` with answer `y`
       have hstep : ∀ (y : LargeResidual.HashOutput) (cache' : Sampling.RCache),
           (∀ k, c + 1 ≤ k → k < 2 ^ 32 →
             cache' (pad64 (digestInput rho m (BitVec.ofNat 32 k))) =
@@ -176,7 +153,5 @@ theorem bank_search (hU : ∀ c : BitVec 32, pad64 (digestInput rho m c) ∈ U) 
             intro k hk hk32
             exact QueryCache.cacheQuery_of_ne _ _ (trial_ne rho m hk32 hc32 (by omega))
           exact hstep y _ hc'
-
 end Search
-
 end SigGolfCandidate.T3.Security.LargeCoupling

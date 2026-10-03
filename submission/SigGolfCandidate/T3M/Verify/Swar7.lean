@@ -1,21 +1,13 @@
 import Mathlib
 
-/-! Seven-instruction lane sum, adapted from accepted i34-9 PR283.
-The T3 top two-bit variant and relaxed first-word bound are proved here. -/
 namespace SigGolfCandidate.T3M.Verify
-
-/-- Splitting a word by a mask and its complement: the parts have disjoint bits, so they add up to the word. -/
 theorem swar7_split (x m : BitVec 64) : (x &&& m) + (x &&& ~~~m) = x := by
   rw [BitVec.add_eq_or_of_and_eq_zero]
   · ext i hi; simp only [BitVec.getElem_or, BitVec.getElem_and, BitVec.getElem_not]; cases x[i] <;> cases m[i] <;> rfl
   · ext i hi; simp only [BitVec.getElem_and, BitVec.getElem_not, BitVec.getElem_zero]; cases x[i] <;> cases m[i] <;> rfl
-
-/-- `M1` has period 6 with three set bits: bit `i` is set exactly when bit `i + 3` is clear. -/
 theorem swar7_period : ∀ i : Fin 61,
     (0x71c71c71c71c71c7#64).getLsbD i.val = !(0x71c71c71c71c71c7#64).getLsbD (i.val + 3) := by
   decide
-
-/-- `(x >>> 3) & M1` is the odd-digit part `x & ~M1` shifted down by three. -/
 theorem swar7_shift (x : BitVec 64) :
     (x >>> 3) &&& 0x71c71c71c71c71c7#64 = (x &&& ~~~0x71c71c71c71c71c7#64) >>> 3 := by
   apply BitVec.eq_of_getLsbD_eq
@@ -28,8 +20,6 @@ theorem swar7_shift (x : BitVec 64) :
     simp [show i + 3 < 64 by omega]
   · have hx : x.getLsbD (3 + i) = false := BitVec.getLsbD_of_ge x _ (by omega)
     simp [hx]
-
-/-- The odd-digit part `x & ~M1` is a multiple of 8 (bits 0..2 belong to `M1`). -/
 theorem swar7_low (x : BitVec 64) : (x &&& ~~~0x71c71c71c71c71c7#64).toNat % 8 = 0 := by
   have h7 : (x &&& ~~~0x71c71c71c71c71c7#64) &&& 7#64 = 0#64 := by
     apply BitVec.eq_of_getLsbD_eq; intro i hi
@@ -49,9 +39,6 @@ theorem swar7_low (x : BitVec 64) : (x &&& ~~~0x71c71c71c71c71c7#64).toNat % 8 =
   have e : (7#64).toNat = 2 ^ 3 - 1 := rfl
   rw [e, Nat.and_two_pow_sub_one_eq_mod] at this
   simpa using this
-
-/-- The 7-step lane word equals the reference one when only the second word is below `2^63`: the odd-digit parts
-`A - (A & M1)`, `B - (B & M1)` are multiples of 8 and their sum does not wrap. -/
 theorem swar7_eq (a b : BitVec 64) (hb : b.toNat < 2 ^ 63) :
     ((a &&& 0x71c71c71c71c71c7#64) + (b &&& 0x71c71c71c71c71c7#64)) +
       (((a + b) - ((a &&& 0x71c71c71c71c71c7#64) + (b &&& 0x71c71c71c71c71c7#64))) >>> 3) =
@@ -84,14 +71,9 @@ theorem swar7_eq (a b : BitVec 64) (hb : b.toNat < 2 ^ 63) :
     omega
   rw [h1, h2]
   ac_rfl
-
-
-/-- `M4` has period 4 with two set bits: bit `i` is set exactly when bit `i + 2` is clear. -/
 theorem swar2_period : ∀ i : Fin 62,
     (0x3333333333333333#64).getLsbD i.val = !(0x3333333333333333#64).getLsbD (i.val + 2) := by
   decide
-
-/-- `(x >>> 2) & M4` is the odd-digit part `x & ~M4` shifted down by two. -/
 theorem swar2_shift (x : BitVec 64) :
     (x >>> 2) &&& 0x3333333333333333#64 = (x &&& ~~~0x3333333333333333#64) >>> 2 := by
   apply BitVec.eq_of_getLsbD_eq
@@ -104,8 +86,6 @@ theorem swar2_shift (x : BitVec 64) :
     simp [show i + 2 < 64 by omega]
   · have hx : x.getLsbD (2 + i) = false := BitVec.getLsbD_of_ge x _ (by omega)
     simp [hx]
-
-/-- The odd-digit part `x & ~M4` is a multiple of 4 (bits 0..1 belong to `M4`). -/
 theorem swar2_low (x : BitVec 64) : (x &&& ~~~0x3333333333333333#64).toNat % 4 = 0 := by
   have h7 : (x &&& ~~~0x3333333333333333#64) &&& 3#64 = 0#64 := by
     apply BitVec.eq_of_getLsbD_eq; intro i hi
@@ -125,9 +105,6 @@ theorem swar2_low (x : BitVec 64) : (x &&& ~~~0x3333333333333333#64).toNat % 4 =
   have e : (3#64).toNat = 2 ^ 2 - 1 := rfl
   rw [e, Nat.and_two_pow_sub_one_eq_mod] at this
   simpa using this
-
-/-- The 7-step lane word equals the reference one when only the second word is below `2^34`: the odd-digit parts
-`A - (A & M4)`, `B - (B & M4)` are multiples of 4 and their sum does not wrap. -/
 theorem swar2_eq (a b : BitVec 64) (hb : b.toNat < 2 ^ 34) :
     ((a &&& 0x3333333333333333#64) + (b &&& 0x3333333333333333#64)) +
       (((a + b) - ((a &&& 0x3333333333333333#64) + (b &&& 0x3333333333333333#64))) >>> 2) =
@@ -156,6 +133,4 @@ theorem swar2_eq (a b : BitVec 64) (hb : b.toNat < 2 ^ 34) :
     omega
   rw [h1, h2]
   ac_rfl
-
-
 end SigGolfCandidate.T3M.Verify

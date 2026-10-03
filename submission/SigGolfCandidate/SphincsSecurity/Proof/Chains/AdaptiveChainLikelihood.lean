@@ -1,27 +1,23 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainObservation
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.PartialChainLikelihoodLower
-namespace SphincsSecurity.Concrete.PartialChainEndpoint
 
+namespace SphincsSecurity.Concrete.PartialChainEndpoint
 open _root_.OracleComp OracleSpec ENNReal
 set_option backward.isDefEq.respectTransparency false
-
 theorem expectation_bind {First Second : Type} (prior : PMF First) (next : First → PMF Second)
     (payoff : Second → ENNReal) :
     (∑' result, prior.bind next result * payoff result) =
       ∑' first, prior first * ∑' result, next first result * payoff result := by
   simpa only [PMF.probOutput_eq_apply, PMF.monad_bind_eq_bind] using
     tsum_probOutput_bind_mul prior next payoff
-
 theorem expectation_map {First Second : Type} (prior : PMF First) (next : First → Second)
     (payoff : Second → ENNReal) :
     (∑' result, prior.map next result * payoff result) = ∑' first, prior first * payoff (next first) := by
   simpa only [PMF.probOutput_eq_apply, PMF.monad_map_eq_map] using
     tsum_probOutput_map_mul prior next payoff
-
 variable {State : Type} [Fintype State] [DecidableEq State] [Nonempty State]
   {AuxIndex : Type} {auxSpec : OracleSpec AuxIndex} {n : Nat}
-
 theorem run_weighted_payoff {Result : Type} (auxiliary : QueryImpl auxSpec PMF)
     (computation : OracleComp (auxSpec + PrefixSpec n State) Result) (observed : Fin n → State → Option State)
     (endpoint : State) (payoff : Result × (Fin n → State → Option State) → ENNReal) :
@@ -37,7 +33,6 @@ theorem run_weighted_payoff {Result : Type} (auxiliary : QueryImpl auxSpec PMF)
   intro result
   congr 1
   simp only [meanPreimages, ← mul_assoc, ENNReal.tsum_mul_right]
-
 theorem run_allocated_cost_lower {Result : Type} (auxiliary : QueryImpl auxSpec PMF)
     (computation : OracleComp (auxSpec + PrefixSpec n State) Result) (observed : Fin n → State → Option State)
     (endpoint : State) (payoff : Result × (Fin n → State → Option State) → ENNReal) (budget : Nat)
@@ -57,5 +52,4 @@ theorem run_allocated_cost_lower {Result : Type} (auxiliary : QueryImpl auxSpec 
       _ = lazyRun auxiliary computation observed result *
           ((1 - (budget : ENNReal) / Fintype.card State) * payoff result) := by ring
       _ ≤ _ := mul_le_mul_right (mul_le_mul_left hlower (payoff result)) _
-
 end SphincsSecurity.Concrete.PartialChainEndpoint

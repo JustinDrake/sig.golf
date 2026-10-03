@@ -1,32 +1,27 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.UniformProposalMoments
+
 namespace SphincsSecurity.Concrete
-
 open _root_.OracleComp ENNReal
-
 noncomputable def uniformWordAverage {α : Type} [SampleableType α]
     (steps : Nat) (payoff : List α → ENNReal) : ENNReal :=
   ∑' word, Pr[= word | sampleUniformProposalWord α steps] * payoff word
-
 theorem uniformWordAverage_add {α : Type} [SampleableType α]
     (steps : Nat) (first second : List α → ENNReal) :
     uniformWordAverage steps (fun word => first word + second word) =
       uniformWordAverage steps first + uniformWordAverage steps second := by
   simp only [uniformWordAverage, mul_add, ENNReal.tsum_add]
-
 theorem uniformWordAverage_mul_left {α : Type} [SampleableType α]
     (steps : Nat) (factor : ENNReal) (payoff : List α → ENNReal) :
     uniformWordAverage steps (fun word => factor * payoff word) =
       factor * uniformWordAverage steps payoff := by
   simp only [uniformWordAverage, mul_left_comm _ factor, ENNReal.tsum_mul_left]
-
 theorem uniformWordAverage_sum {α β : Type} [SampleableType α]
     (steps : Nat) (set : Finset β) (payoff : β → List α → ENNReal) :
     uniformWordAverage steps (fun word => ∑ index ∈ set, payoff index word) =
       ∑ index ∈ set, uniformWordAverage steps (payoff index) := by
   simp only [uniformWordAverage, Finset.mul_sum]
   exact Summable.tsum_finsetSum (fun _ _ => ENNReal.summable)
-
 theorem uniformWordAverage_count_descFactorial {α : Type} [SampleableType α]
     [Fintype α] [DecidableEq α] (index : α) (steps degree : Nat) :
     uniformWordAverage steps (fun word : List α => (word.count index).descFactorial degree) =
@@ -35,7 +30,6 @@ theorem uniformWordAverage_count_descFactorial {α : Type} [SampleableType α]
   rw [uniformWordAverage, expected_uniformProposalWord_count index steps
     (fun count => (count.descFactorial degree : ENNReal))]
   exact binomialAverage_descFactorial (ENNReal.inv_le_one.mpr (by exact_mod_cast Fintype.card_pos)) steps degree
-
 theorem descFactorial_succ_add (count degree : Nat) :
     (count + 1).descFactorial (degree + 1) =
       count.descFactorial (degree + 1) + (degree + 1) * count.descFactorial degree := by
@@ -43,7 +37,6 @@ theorem descFactorial_succ_add (count degree : Nat) :
   calc
     _ = count * count.descFactorial degree + count.descFactorial degree := by ring
     _ = _ := by rw [mul_descFactorial_eq]; ring
-
 private theorem expected_uniformSample_two_increments {α : Type} [SampleableType α]
     [Fintype α] [DecidableEq α] (first second : α) (base left right : ENNReal) :
     (∑' next : α, Pr[= next | ($ᵗ α : ProbComp α)] *
@@ -52,7 +45,6 @@ private theorem expected_uniformSample_two_increments {α : Type} [SampleableTyp
   simp only [mul_add, ENNReal.tsum_add, mul_ite, mul_zero]
   rw [ENNReal.tsum_mul_right, tsum_probOutput_eq_sub, probFailure_uniformSample, tsub_zero, one_mul]
   simp only [tsum_ite_eq, probOutput_uniformSample]
-
 theorem uniformWordAverage_mixed_descFactorial {α : Type} [SampleableType α]
     [Fintype α] [DecidableEq α] (first second : α) (hdistinct : first ≠ second)
     (steps left right : Nat) :
@@ -137,7 +129,6 @@ theorem uniformWordAverage_mixed_descFactorial {α : Type} [SampleableType α]
               have hexp : left + (right + 1) = left + right + 1 := by omega
               simp only [hexp, Nat.add_right_comm left 1 right, pow_succ]
               ring
-
 theorem descFactorial_add_le_mul (steps left right : Nat) :
     steps.descFactorial (left + right) ≤ steps.descFactorial left * steps.descFactorial right := by
   have h := Nat.descFactorial_mul_descFactorial (n := steps) (k := left) (m := left + right)
@@ -145,7 +136,6 @@ theorem descFactorial_add_le_mul (steps left right : Nat) :
   rw [Nat.add_sub_cancel_left] at h
   rw [← h, Nat.mul_comm]
   exact Nat.mul_le_mul_left _ (Nat.descFactorial_le right (Nat.sub_le steps left))
-
 theorem uniformWordAverage_mixed_descFactorial_le_product {α : Type} [SampleableType α]
     [Fintype α] [DecidableEq α] (first second : α) (hdistinct : first ≠ second)
     (steps left right : Nat) :
@@ -161,12 +151,10 @@ theorem uniformWordAverage_mixed_descFactorial_le_product {α : Type} [Sampleabl
       apply mul_le_mul' _ le_rfl
       exact_mod_cast descFactorial_add_le_mul steps left right
     _ = _ := by rw [pow_add]; ring
-
 theorem uniformWordAverage_mono {α : Type} [SampleableType α]
     (steps : Nat) {first second : List α → ENNReal} (hle : ∀ word, first word ≤ second word) :
     uniformWordAverage steps first ≤ uniformWordAverage steps second :=
   ENNReal.tsum_le_tsum fun word => mul_le_mul' le_rfl (hle word)
-
 theorem uniformWordAverage_mixed_power_le_product {α : Type} [SampleableType α]
     [Fintype α] [DecidableEq α] (first second : α) (hdistinct : first ≠ second)
     (steps left right : Nat) :
@@ -197,10 +185,8 @@ theorem uniformWordAverage_mixed_power_le_product {α : Type} [SampleableType α
   rw [hfactor, uniformWordAverage_mul_left, uniformWordAverage_mul_left, uniformWordAverage_mul_left]
   exact (mul_le_mul' le_rfl
     (uniformWordAverage_mixed_descFactorial_le_product first second hdistinct steps a b)).trans_eq (by ring)
-
 noncomputable def stirlingPowerMoment (rate : ENNReal) (degree : Nat) : ENNReal :=
   ∑ order ∈ Finset.range (degree + 1), (Nat.stirlingSecond degree order : ENNReal) * rate ^ order
-
 theorem uniformWordAverage_power_le_stirling {α : Type} [SampleableType α]
     [Fintype α] [DecidableEq α] (index : α) (steps degree : Nat) (rate : ENNReal)
     (hrate : (steps : ENNReal) * (Fintype.card α : ENNReal)⁻¹ ≤ rate) :
@@ -219,5 +205,4 @@ theorem uniformWordAverage_power_le_stirling {α : Type} [SampleableType α]
     _ = (Nat.stirlingSecond degree order : ENNReal) *
         ((steps : ENNReal) * (Fintype.card α : ENNReal)⁻¹) ^ order := by rw [mul_pow]; ring
     _ ≤ _ := mul_le_mul' le_rfl (pow_le_pow_left' hrate order)
-
 end SphincsSecurity.Concrete

@@ -1,17 +1,8 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeFresh
-/-!
-# Completing an optional fresh signer target
-
-A signer may produce no fresh selected digest. Completing that absent selection with an independent
-sample of the signer's view law keeps the result below that law. This is the optional-candidate form needed by the target
-monitor.
--/
 
 namespace SphincsSecurity.Concrete
-
 open OracleComp OracleSpec ENNReal
-
 def freshSelectedLoopView?
     (referenceCache : QueryCache HashSpec) (secretKey : SecretKey) (message : Message)
     (result : Option (Randomness × Index × (IndexGroup → FtsLeaf)) ×
@@ -23,7 +14,6 @@ def freshSelectedLoopView?
           (messageDigestPayload secretKey.root message randomness)) = none then
         some (selectedFewTimeView index leaves)
       else none
-
 noncomputable def completeFreshSelectedLoopView
     (referenceCache : QueryCache HashSpec) (secretKey : SecretKey) (message : Message)
     (result : Option (Randomness × Index × (IndexGroup → FtsLeaf)) ×
@@ -31,7 +21,6 @@ noncomputable def completeFreshSelectedLoopView
   match freshSelectedLoopView? referenceCache secretKey message result with
   | some view => pure view
   | none => signerViewSample
-
 set_option maxRecDepth 100000 in
 set_option maxHeartbeats 1000000 in
 set_option linter.constructorNameAsVariable false in
@@ -178,5 +167,4 @@ theorem probEvent_completeFreshSelectedLoopView_le_uniform
             simp only [signDigestLoopContinuation, hattemptResult, pure_bind, completeFreshSelectedLoopView,
               freshSelectedLoopView?, if_neg hreference']
             exact le_rfl
-
 end SphincsSecurity.Concrete

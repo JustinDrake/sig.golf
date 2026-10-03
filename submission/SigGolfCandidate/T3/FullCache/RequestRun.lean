@@ -5,12 +5,9 @@ open OracleComp OracleSpec ENNReal
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
 variable {State : Type}
 abbrev Public (State : Type) := QueryImpl SphincsSecurity.OracleWorld (StateT State ProbComp)
 abbrev Signer (State : Type) := Request → StateT State ProbComp (Option Signature)
-
-/-- Full adaptive request log, with arbitrary world/private/cost state in the handlers. -/
 noncomputable def run {α : Type} (world : Public State) (signer : Signer State)
     (program : OracleComp LazyPrivate.Interaction α) (state : State) :
     ProbComp ((α × QueryLog Requests) × State) :=
@@ -22,17 +19,14 @@ noncomputable def run {α : Type} (world : Public State) (signer : Signer State)
       | .inr request => do
           let result ← (signer request).run state
           (fun tail => ((tail.1.1,⟨request,result.1⟩::tail.1.2),tail.2)) <$> ih result.1 result.2) state
-
 theorem run_pure {α : Type} (world : Public State) (signer : Signer State)
     (value : α) (state : State) : run world signer (pure value) state=pure ((value,[]),state) := rfl
-
 theorem run_public {α : Type} (world : Public State) (signer : Signer State)
     (input : SphincsSecurity.OracleWorld.Domain)
     (next : SphincsSecurity.OracleWorld.Range input → OracleComp LazyPrivate.Interaction α)
     (state : State) :
     run world signer (liftM (LazyPrivate.Interaction.query (.inl input)) >>= next) state=
       (do let result ← (world input).run state; run world signer (next result.1) result.2) := rfl
-
 theorem run_request {α : Type} (world : Public State) (signer : Signer State)
     (request : Request) (next : Option Signature → OracleComp LazyPrivate.Interaction α)
     (state : State) :
@@ -41,7 +35,6 @@ theorem run_request {α : Type} (world : Public State) (signer : Signer State)
         let result ← (signer request).run state
         (fun tail => ((tail.1.1,⟨request,result.1⟩::tail.1.2),tail.2)) <$>
           run world signer (next result.1) result.2) := rfl
-
 theorem erasure {α : Type} (world : Public State) (signer : Signer State)
     (program : OracleComp LazyPrivate.Interaction α) (state : State) :
     (fun result => (result.1.1,result.2)) <$> run world signer program state=
@@ -58,7 +51,6 @@ theorem erasure {α : Type} (world : Public State) (signer : Signer State)
           apply bind_congr
           intro result
           simpa only [Functor.map_map,Function.comp_def] using ih result.1 result.2
-
 theorem probEvent_bind_le_add_bind {α β γ : Type} (mx : ProbComp α)
     (left right : α → ProbComp β) (badRun : α → ProbComp γ)
     (event : β → Prop) (bad : γ → Prop)
@@ -73,12 +65,8 @@ theorem probEvent_bind_le_add_bind {α β γ : Type} (mx : ProbComp α)
   · rw [← mul_add]
     exact mul_le_mul' le_rfl (hle value hv)
   · simp [probOutput_eq_zero_of_not_mem_support hv]
-
 def BadIn (bad : Request → Prop) (limit : Nat) (log : QueryLog Requests) : Prop :=
   ∃ entry ∈ log.take limit,bad entry.1
-
-/-- Identical until a bad request. No syntactic lifetime restriction is assumed:
-only the scored continuation must reject transcripts longer than the remaining limit. -/
 theorem identical_until_bad {α β : Type} (world : Public State) (bad : Request → Prop)
     (left right : Signer State) (hagree : ∀ request,¬bad request → left request=right request)
     (program : OracleComp LazyPrivate.Interaction α) :
@@ -138,5 +126,4 @@ theorem identical_until_bad {α β : Type} (world : Public State) (bad : Request
             | succ limit =>
                 simp only [Nat.add_sub_cancel] at he
                 exact ⟨entry,by simp [he],hbadEntry⟩
-
 end SigGolfCandidate.T3.Security.RequestHop

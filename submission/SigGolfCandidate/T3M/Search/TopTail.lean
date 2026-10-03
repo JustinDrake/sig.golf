@@ -6,7 +6,6 @@ open SigGolfCandidate.T3 (Digest)
 set_option maxRecDepth 8192
 set_option maxHeartbeats 600000
 set_option linter.unusedSimpArgs false
-
 theorem topWindow_tail (v : Digest) (hv : v.toNat < 2 ^ 125) :
     topWindow v 17 = BitVec.ofNat 64 (v.toNat / 2 ^ 119) := by
   apply BitVec.eq_of_toNat_eq
@@ -16,9 +15,7 @@ theorem topWindow_tail (v : Digest) (hv : v.toNat < 2 ^ 125) :
   have h2 : v.toNat / 2 ^ 119 < 2 ^ 64 := by omega
   rw [Nat.mod_eq_of_lt h1, Nat.mod_eq_of_lt h2, Nat.div_div_eq_div_mul]
   rfl
-
 theorem tailWeight_le (v : Digest) : tailWeight v ≤ 9 := by unfold tailWeight; omega
-
 theorem topTail_sum (v : Digest) (hv : v.toNat < 2 ^ 125) (sum : Nat) :
     BitVec.ofNat 64 sum + (topWindow v 17 &&& 3#64) +
       (topWindow v 17 >>> 2 &&& 3#64) + (topWindow v 17 >>> 4) =
@@ -31,8 +28,6 @@ theorem topTail_sum (v : Digest) (hv : v.toNat < 2 ^ 125) (sum : Nat) :
   simp only [tailWeight, Nat.div_div_eq_div_mul]
   norm_num
   omega
-
-/-- The last three radix-four digits and the exact sum check cost nine instructions. -/
 theorem topTail_spec {image : Image} {b : Nat} (hK : KernAt image b)
     (s : MachineState) (v : Digest) (sum : Nat) (hsum : sum ≤ 4335)
     (hv : v.toNat < 2 ^ 125) (hpc : s.pc = pcOf (b + 353))
@@ -54,5 +49,4 @@ theorem topTail_spec {image : Image} {b : Nat} (hK : KernAt image b)
       h28, h25, BitVec.toNat_ofNat, Nat.reduceMod] using topTail_sum v hv sum
   · intro r hr; cases r <;> simp at hr <;> simp [topState353, tb354_353.res, rv_simp] <;> rfl
   · intro A _ _; simp [topState353, tb354_353.res, rv_simp]
-
 end SigGolfCandidate.T3M.Search

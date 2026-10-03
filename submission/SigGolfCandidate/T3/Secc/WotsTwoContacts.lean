@@ -1,19 +1,5 @@
 import SigGolfCandidate.T3.Secc.WotsRestart
 
-/-!
-# Stream C: two contacts on R3 (record D-chain)
-
-* `reference_trace_length_le`: every R3 trace has at most `q` entries (R3's cap counts every hash query).
-* `twoContacts_cases`: two contacted source chains give a contact of one of them after the first contact of the
-  other (`ContactAfterStop (OtherContact a) · a`), by the order of their first contacts (simultaneous first contacts
-  would be one canonical row of two distinct source chains).
-* `contactAt_maskAt_source`: contacts of source chains read the table only through `maskAt · a`.
-* **`reference_twoContacts_le`**: the restart charge form of G4 at every source chain, summed with the allocation
-  `∑_a prefixCount a ≤ P ≤ q`, and `Pr[some contact] ≤ E[contactCount] ≤ (2/2^128) E[P]/(1−x)`:
-  `Pr[∃ a b, a ≠ b ∧ ContactAt a ∧ ContactAt b] ≤ 2q · ((2/2^128) · E[P] / (1 − x)) / ((1 − x) · 2^128)`
-  (= `4x/(1−x)² · E[P]/2^128`).
--/
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -24,10 +10,6 @@ set_option backward.isDefEq.respectTransparency false
 set_option linter.constructorNameAsVariable false
 attribute [local instance low] Classical.propDecidable
 attribute [local irreducible] referenceGame offlineGame
-
-/-! ## R3's trace length -/
-
-/-- Every R3 trace has at most `q` entries. -/
 theorem reference_trace_length_le (adversary : AdversaryP) (q : Nat) (s : RefSample)
     (hs : s ∈ (referenceExperiment adversary q).support) : s.trace.length ≤ q := by
   rw [reference_eq_bind, PMF.mem_support_bind_iff] at hs
@@ -56,12 +38,8 @@ theorem reference_trace_length_le (adversary : AdversaryP) (q : Nat) (s : RefSam
   simp only [decide_eq_true_eq] at hq ⊢
   obtain ⟨x, rfl, -⟩ := hq
   trivial
-
 theorem prefixClassCount_le_length (s : RefSample) : prefixClassCount s ≤ s.trace.length :=
   List.length_filter_le _ _
-
-/-! ## Contacts of source chains under the mask -/
-
 theorem contactAt_maskAt_source (T : Answers) (trace : List Entry) (a b : ChainAddr) (ha : WotsExtract.SourceChain a)
     (hb : WotsExtract.SourceChain b) : ContactAt (maskAt T a) trace b ↔ ContactAt T trace b := by
   have hsize : ∀ c : ChainAddr, WotsExtract.SourceChain c → c.key.tree < 2 ^ 40 ∧ c.key.leaf < 2 ^ 32 := by
@@ -73,11 +51,8 @@ theorem contactAt_maskAt_source (T : Answers) (trace : List Entry) (a b : ChainA
     omega
   unfold ContactAt
   rw [depth_maskAt_all, frontierValue_maskAt_bounded T a b (hsize a ha) (hsize b hb) hb.2]
-
-/-- A contact at another source chain. -/
 def OtherContact (a : ChainAddr) (T : Answers) (trace : List Entry) : Prop :=
   ∃ b, WotsExtract.SourceChain b ∧ b ≠ a ∧ ContactAt T trace b
-
 theorem otherContact_maskAt (a : ChainAddr) (ha : WotsExtract.SourceChain a) (T : Answers) (trace : List Entry) :
     OtherContact a (maskAt T a) trace ↔ OtherContact a T trace := by
   unfold OtherContact
@@ -86,13 +61,8 @@ theorem otherContact_maskAt (a : ChainAddr) (ha : WotsExtract.SourceChain a) (T 
     exact ⟨b, hb, hne, (contactAt_maskAt_source T trace a b ha hb).mp h⟩
   · rintro ⟨b, hb, hne, h⟩
     exact ⟨b, hb, hne, (contactAt_maskAt_source T trace a b ha hb).mpr h⟩
-
-/-! ## Two contacts: the later first contact -/
-
 theorem contactAt_take_length (T : Answers) (trace : List Entry) (a : ChainAddr) (h : ContactAt T trace a) :
     ∃ k, ContactAt T (trace.take k) a := ⟨trace.length, by rw [List.take_length]; exact h⟩
-
-/-- The entry completing the first contact of `a` is the trace's entry at that index. -/
 theorem first_contact_entry (T : Answers) (tr : List Entry) (a : ChainAddr) (k : Nat)
     (hk : ContactAt T (tr.take (k + 1)) a) (hn : ¬ContactAt T (tr.take k) a) :
     ∃ value answer, tr[k]? = some (chainRow a (depth T a - 1) value, answer) := by
@@ -104,8 +74,6 @@ theorem first_contact_entry (T : Answers) (tr : List Entry) (a : ChainAddr) (k :
   · cases h : tr[k]? with
     | none => rw [h] at hm; simp at hm
     | some e => rw [h] at hm; simp only [Option.toList_some, List.mem_singleton] at hm; rw [hm]
-
-/-- **Two contacted source chains**: one of them is contacted after the first contact of the other. -/
 theorem twoContacts_cases (T : Answers) (trace : List Entry) (a b : ChainAddr) (ha : WotsExtract.SourceChain a)
     (hb : WotsExtract.SourceChain b) (hab : a ≠ b) (hca : ContactAt T trace a) (hcb : ContactAt T trace b) :
     ContactAfterStop (OtherContact a) T trace a ∨ ContactAfterStop (OtherContact b) T trace b := by
@@ -139,9 +107,6 @@ theorem twoContacts_cases (T : Answers) (trace : List Entry) (a b : ChainAddr) (
     have hdb : 1 ≤ depth T b := hcb.1
     exact hab (prefixRowAt_unique (answers := T) ha hb ⟨_, va, by omega, rfl⟩ ⟨_, vb, by omega, hrow⟩)
   · exact Or.inl ⟨kb, ⟨b, hb, hab.symm, hkb⟩, hma kb hgt, hca⟩
-
-/-! ## The two-contacts bound -/
-
 theorem otherContact_take_count (s : RefSample) (a : ChainAddr)
     (h : ∃ k, OtherContact a s.answers (s.trace.take k)) : 1 ≤ contactCount s := by
   obtain ⟨k, b, hb, -, hc⟩ := h
@@ -150,9 +115,6 @@ theorem otherContact_take_count (s : RefSample) (a : ChainAddr)
   refine ⟨b, Finset.mem_filter.mpr ⟨(mem_sourceChains b).mpr hb, ?_⟩⟩
   obtain ⟨hd, value, answer, hm, hl⟩ := hc
   exact ⟨hd, value, answer, List.mem_of_mem_take hm, hl⟩
-
-/-- **Two contacts, raw form** (record D-chain): `Pr_R3[two distinct contacted source chains] ≤
-2q · ((2/2^128) E[P]/(1 − x)) / ((1 − x) · 2^128)`. -/
 theorem reference_twoContacts_le_raw (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 128) :
     Pr[fun s => ∃ a b, WotsExtract.SourceChain a ∧ WotsExtract.SourceChain b ∧ a ≠ b ∧
         ContactAt s.answers s.trace a ∧ ContactAt s.answers s.trace b | referenceExperiment adversary q] ≤
@@ -167,7 +129,6 @@ theorem reference_twoContacts_le_raw (adversary : AdversaryP) (q : Nat) (hq : q 
     exact_mod_cast hq
   have hne : (1 - (q : ENNReal) / 2 ^ 128) * 2 ^ 128 ≠ 0 := mul_ne_zero hpos (by simp)
   apply (ENNReal.le_div_iff_mul_le (Or.inl hne) (Or.inl (by finiteness))).mpr
-  -- union bound over the later first contact
   have hunion : Pr[fun s => ∃ a b, WotsExtract.SourceChain a ∧ WotsExtract.SourceChain b ∧ a ≠ b ∧
         ContactAt s.answers s.trace a ∧ ContactAt s.answers s.trace b | referenceExperiment adversary q] ≤
       ∑ a ∈ sourceChains, Pr[fun s => ContactAfterStop (OtherContact a) s.answers s.trace a |
@@ -179,11 +140,9 @@ theorem reference_twoContacts_le_raw (adversary : AdversaryP) (q : Nat) (hq : q 
     rcases twoContacts_cases s.answers s.trace a b ha hb hab hca hcb with h | h
     · exact ⟨a, (mem_sourceChains a).mpr ha, h⟩
     · exact ⟨b, (mem_sourceChains b).mpr hb, h⟩
-  -- per address: the charge form of the restart
   have hcharge := fun a (ha : a ∈ sourceChains) =>
     reference_contactAfterStop_charge adversary q hq a ((mem_sourceChains a).mp ha) (OtherContact a)
       (otherContact_maskAt a ((mem_sourceChains a).mp ha))
-  -- allocation of the charges
   have halloc : ∑ a ∈ sourceChains, ∑' s, referenceExperiment adversary q s *
         (((2 * prefixCount a s : ℕ) : ENNReal) * (if ∃ k, OtherContact a s.answers (s.trace.take k) then 1 else 0)) ≤
       ((2 * q : ℕ) : ENNReal) * ∑' s, referenceExperiment adversary q s * (contactCount s : ENNReal) := by
@@ -239,9 +198,6 @@ theorem reference_twoContacts_le_raw (adversary : AdversaryP) (q : Nat) (hq : q 
     _ ≤ ((2 * q : ℕ) : ENNReal) *
           ((2 / 2 ^ 128) * (∑' s, referenceExperiment adversary q s * (prefixClassCount s : ENNReal)) /
             (1 - (q : ENNReal) / 2 ^ 128)) := mul_le_mul' le_rfl (reference_contacts_cost_le adversary q hq)
-
-/-- **Two contacts** (C-INTERFACE §4 form, = stream A's `TwoContactsBound`):
-`Pr_R3[two distinct contacted source chains] ≤ (4x/2^128) · E[P] / (1 − x)²`. -/
 theorem reference_twoContacts_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 128) :
     Pr[fun s => ∃ a b, WotsExtract.SourceChain a ∧ WotsExtract.SourceChain b ∧ a ≠ b ∧
         ContactAt s.answers s.trace a ∧ ContactAt s.answers s.trace b | referenceExperiment adversary q] ≤
@@ -263,5 +219,4 @@ theorem reference_twoContacts_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 
   rw [ENNReal.mul_inv (Or.inl hy0) (Or.inl hyt), pow_two, ENNReal.mul_inv (Or.inl hy0) (Or.inl hyt)]
   push_cast
   ring
-
 end SigGolfCandidate.T3.Security.Wots

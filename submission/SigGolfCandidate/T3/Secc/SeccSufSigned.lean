@@ -1,25 +1,6 @@
 import SigGolfCandidate.T3.Secc.SeccSufPayload
 import SigGolfCandidate.T3.Secc.SeccLaw
 
-/-! # B-SUF (3/4): signature reuse is impossible in case (C) (strong unforgeability)
-
-BP-B §2.1. On the shared law `SeccLaw.completedExperiment`, case (C) of the extraction on a message whose forgery
-randomizer was used by a successful logged signature (`SignedDigest`) contradicts the game's own freshness
-predicate, deterministically:
-
-* witness form: `Fresh` excludes every successful signature on the message;
-* signature form: the forgery's expansion is the honest payload for its randomizer (`caseC_expansion_is_payload`,
-  with the honest key-generation cache), and so is the logged signature (it resolves in the interaction's final
-  tables, which the completion agrees with), so the forgery *is* the logged signature.
-
-**Adjustment of the BP-B contract (documented).** The prototype `GameCaseC` quantified the key-generation and
-interaction records existentially with no tie to the sampled trace; then the completion `z.2` need not agree with
-the interaction's lazy tables, the logged signature need not be the payload under `z.2`, and
-`caseC_signed_impossible` is unprovable (a foreign supported interaction can satisfy every clause). Here
-`GameCaseC` carries the link `SourceReplay.Extends interaction.state result.state` (the interaction is a prefix of
-the recorded trace), which the extraction provides: `traced_game_linked` is `PaddedExtraction.traced_game` with
-that link, and `linked_split` routes its conclusion to cases (A)/(B), `CaseCFresh` or `CaseCSigned`. -/
-
 namespace SigGolfCandidate.T3.Security.BPB
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Final Correctness
@@ -29,10 +10,6 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance instDecidableEqCache_seccSufSigned : DecidableEq T3.Cache := Classical.decEq _
 attribute [local irreducible] buildFts buildTree
-
-/-! ## Case-(C) vocabulary (BP-B contract, with the trace link) -/
-
-/-- All four layers `Good` and the FTS bytes honest-shaped, for the witness's own recorded digest query. -/
 def CaseCAt (answers : Correctness.Answers) (message : Message) (witness : WBytes)
     (events : List FirstHit.QueryEvent) : Prop :=
   ∃ digestAnswer : HashOutput, (wdc witness).toNat < attemptLimit ∧
@@ -41,14 +18,9 @@ def CaseCAt (answers : Correctness.Answers) (message : Message) (witness : WByte
       FirstHit.QueryEvent) ∈ events) ∧ Shaped digestAnswer witness ∧ digestGate digestAnswer = true ∧
     (∀ lay : Layer, Extract.Good answers witness (digestAnswer.toNat % 2 ^ 31) lay) ∧
     FtsExtract.FtsShaped answers digestAnswer witness
-
-/-- The forgery's message carries a successful logged signature with the forgery's randomizer. -/
 def SignedDigest (log : QueryLog Requests) (message : Message) (witness : WBytes) : Prop :=
   ∃ entry ∈ log, entry.1.message = message ∧ ∃ signature, entry.2 = some signature ∧
     signature.rho = wrho witness
-
-/-- `PaddedExtraction.GameConclusion` restricted to branch (C), with the reuse flag exposed and the interaction
-tied to the recorded trace (`Extends`). -/
 def GameCaseC (adversary : AdversaryP) (answers : Correctness.Answers) (signed : Prop → Prop)
     (result : FirstHit.Recorded Bool) : Prop :=
   ∃ generated ∈ support (FirstHit.record keygen (∅, ∅)),
@@ -62,18 +34,10 @@ def GameCaseC (adversary : AdversaryP) (answers : Correctness.Answers) (signed :
       ∃ message witness, PaddedExtraction.WitnessOf answers generated.value.1 forgery message witness ∧
         signed (SignedDigest interaction.value.2 message witness) ∧
         CaseCAt answers message witness result.events
-
-/-- Case (C) with a digest never signer-accepted under the forgery's randomizer (SEC's charged part). -/
 abbrev CaseCFresh (adversary : AdversaryP) (z : PaddedGame.TraceResult × Correctness.Answers) : Prop :=
   GameCaseC adversary z.2 Not (QueryRecorded.recordedTrace z.1)
-
-/-- Case (C) on a signer-accepted digest: the strong-unforgeability subcase. -/
 abbrev CaseCSigned (adversary : AdversaryP) (z : PaddedGame.TraceResult × Correctness.Answers) : Prop :=
   GameCaseC adversary z.2 id (QueryRecorded.recordedTrace z.1)
-
-/-! ## The linked game conclusion -/
-
-/-- `PaddedExtraction.GameConclusion` with the interaction tied to the trace. -/
 def GameConclusionLinked (adversary : AdversaryP) (answers : Correctness.Answers)
     (result : FirstHit.Recorded Bool) : Prop :=
   ∃ generated ∈ support (FirstHit.record keygen (∅, ∅)),
@@ -86,11 +50,8 @@ def GameConclusionLinked (adversary : AdversaryP) (answers : Correctness.Answers
       ∃ forgery, interaction.value.1 = some forgery ∧ PaddedExtraction.Fresh interaction.value.2 forgery ∧
       ∃ message witness, PaddedExtraction.WitnessOf answers generated.value.1 forgery message witness ∧
         PaddedExtraction.Conclusion answers message witness result.events
-
 section linked
 attribute [local irreducible] keygen verifyP expandB
-
-/-- `PaddedExtraction.game_recorded`, keeping the trace link of the interaction record. -/
 theorem game_recorded_linked (adversary : AdversaryP) (result : FirstHit.Recorded Bool)
     (hr : result ∈ support (FirstHit.record (GameWith.idealGame PaddedGame.checker adversary) (∅, ∅)))
     (answers : Correctness.Answers)
@@ -128,8 +89,6 @@ theorem game_recorded_linked (adversary : AdversaryP) (result : FirstHit.Recorde
   intro event he
   rw [hevents, hrestEvents]
   exact List.mem_append_right _ (List.mem_append_right _ he)
-
-/-- **`PaddedExtraction.traced_game` with the trace link.** -/
 theorem traced_game_linked (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2 ^ 127)
     (result : PaddedGame.TraceResult)
     (hr : result ∈ (PaddedGame.tracedExperiment adversary budget hbudget).support)
@@ -139,10 +98,7 @@ theorem traced_game_linked (adversary : AdversaryP) (budget : Nat) (hbudget : bu
     (hwin : result.1 = true) : GameConclusionLinked adversary answers (QueryRecorded.recordedTrace result) :=
   game_recorded_linked adversary _ (PaddedExtraction.traced_record_support adversary budget hbudget result hr)
     answers ha hwin
-
 end linked
-
-/-- Cases (A) and (B) of the extraction (an actual structural hit, or a divergence below `Good` layers). -/
 def ConclusionAB (answers : Correctness.Answers) (message : Message) (witness : WBytes)
     (events : List FirstHit.QueryEvent) : Prop :=
   ∃ digestAnswer : HashOutput, (wdc witness).toNat < attemptLimit ∧
@@ -153,8 +109,6 @@ def ConclusionAB (answers : Correctness.Answers) (message : Message) (witness : 
         (∃ lay : Layer, Extract.Diverge answers witness (digestAnswer.toNat % 2 ^ 31) lay
           (events.map FirstHit.QueryEvent.input) ∧
           ∀ above : Layer, above.val < lay.val → Extract.Good answers witness (digestAnswer.toNat % 2 ^ 31) above))
-
-/-- `GameConclusionLinked` restricted to cases (A)/(B). -/
 def GameCaseAB (adversary : AdversaryP) (answers : Correctness.Answers) (result : FirstHit.Recorded Bool) : Prop :=
   ∃ generated ∈ support (FirstHit.record keygen (∅, ∅)),
     ∃ interaction ∈ support (FirstHit.record
@@ -166,8 +120,6 @@ def GameCaseAB (adversary : AdversaryP) (answers : Correctness.Answers) (result 
       ∃ forgery, interaction.value.1 = some forgery ∧ PaddedExtraction.Fresh interaction.value.2 forgery ∧
       ∃ message witness, PaddedExtraction.WitnessOf answers generated.value.1 forgery message witness ∧
         ConclusionAB answers message witness result.events
-
-/-- **Routing of the linked conclusion**: cases (A)/(B), or case (C) with a fresh or a signed digest. -/
 theorem linked_split (adversary : AdversaryP) (answers : Correctness.Answers) (result : FirstHit.Recorded Bool)
     (h : GameConclusionLinked adversary answers result) :
     GameCaseAB adversary answers result ∨ GameCaseC adversary answers Not result ∨
@@ -184,11 +136,6 @@ theorem linked_split (adversary : AdversaryP) (answers : Correctness.Answers) (r
         hof, hsd, N, hdc, hN, hq, hS, hgate, hgood, hfts⟩)
     · exact Or.inr (Or.inl ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness,
         hof, hsd, N, hdc, hN, hq, hS, hgate, hgood, hfts⟩)
-
-/-! ## Logged signatures resolve in the interaction's final tables -/
-
-/-- Every entry of a logged lazy-table run of the authenticated signer is the signer's deterministic answer in
-the run's final tables. -/
 theorem logged_resolves {α : Type} (published : T3.Cache) (program : OracleComp LazyPrivate.Interaction α)
     (before : LazyPrivate.State) (result : (α × QueryLog Requests) × LazyPrivate.State)
     (hr : result ∈ support (LazyPrivate.run (FullGame.loggedWith (FullGame.authenticatedSign published) program)
@@ -216,8 +163,6 @@ theorem logged_resolves {α : Type} (published : T3.Cache) (program : OracleComp
             exact (SourceReplay.resolves_of_run _ (CountedPrivate.authenticatedSign_hashOnly published request)
               before middle hm).mono (SourceReplay.run_extends _ middle.2 last hl)
           · exact ih middle.1 middle.2 last hl entry he
-
-/-- A successful signer answer is the payload record for the signer's nonce. -/
 theorem authenticatedSign_payload (answers : Correctness.Answers) (published : T3.Cache) (request : Request)
     (sig : Signature) (h : evalWithAnswerFn answers (FullGame.authenticatedSign published request) = some sig) :
     request.cache = published ∧ sig.rho = evalWithAnswerFn answers (privateNonce request.message) ∧
@@ -244,11 +189,6 @@ theorem authenticatedSign_payload (answers : Correctness.Answers) (published : T
     exact hp
   · rw [if_neg hc] at h
     simp at h
-
-/-! ## Strong unforgeability in case (C) -/
-
-/-- **Deterministic core.** If the answers agree with the trace's final tables, case (C) with a signed digest is
-impossible. -/
 theorem gameCaseC_signed_false (adversary : AdversaryP) (answers : Correctness.Answers)
     (result : FirstHit.Recorded Bool)
     (ha : ∀ input answer, SourceReplay.known result.state input = some answer → answers input = answer) :
@@ -297,12 +237,8 @@ theorem gameCaseC_signed_false (adversary : AdversaryP) (answers : Correctness.A
           rw [hmsg, hrhoσ, hpayσ, Option.some.injEq] at hpay
           subst hpay
           exact hfresh ⟨entry, hentry, by rw [hmsg]; exact hm, hσm⟩
-
-/-- **`caseC_signed_impossible`** (BP-B §2.1, on the shared law): the strong-unforgeability subcase never happens.
-The clean-win hypothesis is not needed (kept for interface parity). -/
 theorem caseC_signed_impossible (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     (z : PaddedGame.TraceResult × Correctness.Answers) (hz : z ∈ (SeccLaw.completedExperiment adversary q hq).support)
     (_hclean : QueryRecorded.CleanWin q z.1) : ¬CaseCSigned adversary z :=
   gameCaseC_signed_false adversary z.2 _ (SeccLaw.completed_agrees adversary q hq z hz).2
-
 end SigGolfCandidate.T3.Security.BPB

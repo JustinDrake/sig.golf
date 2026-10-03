@@ -1,16 +1,14 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.RawProposalMomentBound
+
 namespace SphincsSecurity.Concrete
-
 open _root_.OracleComp ENNReal
-
 noncomputable def sampleUniformProposalWord (α : Type) [SampleableType α] : Nat → ProbComp (List α)
   | 0 => pure []
   | steps + 1 => do
       let next ← $ᵗ α
       let rest ← sampleUniformProposalWord α steps
       pure (next :: rest)
-
 theorem expected_uniformSample_choice {α : Type} [SampleableType α] [Fintype α] [DecidableEq α]
     (index : α) (hit miss : ENNReal) :
     (∑' next : α, Pr[= next | ($ᵗ α : ProbComp α)] * (if next = index then hit else miss)) =
@@ -32,7 +30,6 @@ theorem expected_uniformSample_choice {α : Type} [SampleableType α] [Fintype �
     _ = _ := by
       rw [← probEvent_eq_tsum_ite, ← probEvent_eq_tsum_ite, probEvent_eq_eq_probOutput,
         probOutput_uniformSample, hmiss, add_comm]
-
 theorem expected_uniformProposalWord_count {α : Type} [SampleableType α] [Fintype α] [DecidableEq α]
     (index : α) (steps : Nat) (f : Nat → ENNReal) :
     (∑' word : List α, Pr[= word | sampleUniformProposalWord α steps] * f (word.count index)) =
@@ -52,7 +49,6 @@ theorem expected_uniformProposalWord_count {α : Type} [SampleableType α] [Fint
         · simpa only [List.count_cons_of_ne h, if_neg h] using ih f
       simp_rw [hinner]
       exact expected_uniformSample_choice index _ _
-
 theorem expected_uniformProposalWord_power_sum {α : Type} [SampleableType α] [Fintype α] [DecidableEq α]
     (steps degree : Nat) (consumed : α → Nat) :
     (∑' word : List α, Pr[= word | sampleUniformProposalWord α steps] *
@@ -64,7 +60,6 @@ theorem expected_uniformProposalWord_power_sum {α : Type} [SampleableType α] [
   apply Finset.sum_congr rfl
   intro index _
   exact expected_uniformProposalWord_count index steps (fun count => ((consumed index : ENNReal) + count) ^ degree)
-
 theorem reuseRawEnvelope_le_expected_uniformProposalWord (key : SecretKey)
     (spent queries signatures bound proposals : Nat) (state : CoverLogState) (remaining : Finset IndexGroup)
     (consumed : Index → Nat) (hqueries : spent + queries ≤ 2 ^ 127) (hsignatures : signatures ≤ signatureLimit)
@@ -81,7 +76,6 @@ theorem reuseRawEnvelope_le_expected_uniformProposalWord (key : SecretKey)
   rw [expected_uniformProposalWord_power_sum]
   exact reuseRawEnvelope_le_uniformProposalAverage key spent queries signatures bound proposals state remaining
     consumed hqueries hsignatures hdegree hbound hcache hcounts hroom
-
 theorem targetProposalRoom_of_prefix (completed signatures total used degree slack : Nat)
     (hsignatures : completed + signatures ≤ signatureLimit) (hdegree : degree ≤ 15)
     (htotal : targetProposalOverhead * signatureLimit + slack + 14 ≤ (total : ENNReal))
@@ -112,7 +106,6 @@ theorem targetProposalRoom_of_prefix (completed signatures total used degree sla
     _ = (used : ENNReal) + (targetProposalOverhead * signatures + degree) := add_comm _ _
     _ ≤ (total : ENNReal) + 1 := hcapacity
     _ = _ := hsum.symm
-
 theorem targetProposalPoolMinimum_eq :
     targetProposalOverhead * signatureLimit + (proposalPrefixSlack : ENNReal) + 14 = (fixedProposalLength : ENNReal) := by
   unfold targetProposalOverhead
@@ -120,7 +113,6 @@ theorem targetProposalPoolMinimum_eq :
   apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
   simp (disch := finiteness) only [ENNReal.toReal_add, ENNReal.toReal_mul, ENNReal.toReal_div, ENNReal.toReal_natCast]
   norm_num [signatureLimit]
-
 theorem reuseRawEnvelope_le_expected_terminalProposalWord (key : SecretKey)
     (spent queries completed total : Nat) (state : CoverLogState) (remaining : Finset IndexGroup)
     (consumedWord : List Index) (hqueries : spent + queries ≤ 2 ^ 127) (hcompleted : completed ≤ signatureLimit)
@@ -145,5 +137,4 @@ theorem reuseRawEnvelope_le_expected_terminalProposalWord (key : SecretKey)
     (total - consumedWord.length) state remaining (fun index => consumedWord.count index) hqueries (Nat.sub_le _ _)
     hdegree le_rfl hcache hcounts hroom
   simpa only [List.count_append, Nat.cast_add] using h
-
 end SphincsSecurity.Concrete

@@ -1,21 +1,11 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.RomQueryCharge
 import SigGolfCandidate.SphincsSecurity.Proof.Reference.QueryBound
-/-!
-# Potentials truncated at a hash-call budget
 
-If every hash call raises a cache potential by at most `rate` in expectation, then the potential
-counted only on paths that stay within `r` hash calls, plus `rate` for every call still left, is a
-supermartingale. So its expectation is at most the initial potential plus `rate * r`, whatever the
-computation does after the budget runs out.
--/
 namespace SphincsSecurity
-
 open OracleComp OracleSpec ENNReal
-
 noncomputable def truncatedPotential (potential : QueryCache HashSpec → ℝ≥0∞) (rate : ℝ≥0∞) (budget count : Nat)
     (cache : QueryCache HashSpec) : ℝ≥0∞ :=
   if count ≤ budget then potential cache + rate * ((budget - count : Nat) : ℝ≥0∞) else 0
-
 theorem expected_truncatedPotential_le {α : Type}
     (potential : QueryCache HashSpec → ℝ≥0∞) (rate : ℝ≥0∞)
     (hstep : ∀ (query : OracleWorld.Domain) (cache : QueryCache HashSpec), Finite cache →
@@ -82,5 +72,4 @@ theorem expected_truncatedPotential_le {α : Type}
                   simp only [mul_add, ENNReal.tsum_add, ENNReal.tsum_mul_right, hmass, one_mul]
                 _ ≤ (potential cache + rate) + rate * remaining := add_le_add (by simpa using hstep (.inr input) cache hfinite) le_rfl
                 _ = _ := by push_cast; ring
-
 end SphincsSecurity

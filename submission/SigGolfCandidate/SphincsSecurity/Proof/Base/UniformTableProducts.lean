@@ -1,11 +1,10 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.FirstSuccessFamily
 import SigGolfCandidate.SphincsSecurity.Proof.Base.UniformTableCompletion
-namespace SphincsSecurity.Concrete
 
+namespace SphincsSecurity.Concrete
 open _root_.OracleComp ENNReal
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
 theorem uniformTable_eq_product {Coordinate Value : Type} [Fintype Coordinate] [DecidableEq Coordinate]
     [Fintype Value] [DecidableEq Value] (allowed : Coordinate → Finset Value)
     (ha : ∀ coordinate, (allowed coordinate).Nonempty) :
@@ -21,7 +20,6 @@ theorem uniformTable_eq_product {Coordinate Value : Type} [Fintype Coordinate] [
     obtain ⟨coordinate, hc⟩ := not_forall.mp ht
     symm
     exact Finset.prod_eq_zero (Finset.mem_univ coordinate) (if_neg hc)
-
 theorem FinitePmfProduct.uncurry {Index Coordinate Value : Type} [Fintype Index] [DecidableEq Index]
     [Fintype Coordinate] [DecidableEq Coordinate] [Fintype Value]
     (family : Index → Coordinate → PMF Value) :
@@ -39,7 +37,6 @@ theorem FinitePmfProduct.uncurry {Index Coordinate Value : Type} [Fintype Index]
     intro heq
     apply hne
     exact (congrArg Function.curry heq).symm
-
 theorem uniformTable_univ {Coordinate Value : Type} [Fintype Coordinate] [DecidableEq Coordinate]
     [Fintype Value] [DecidableEq Value] [Nonempty Value] :
     uniformTable (fun _ : Coordinate => (Finset.univ : Finset Value)) (fun _ => Finset.univ_nonempty) =
@@ -48,5 +45,4 @@ theorem uniformTable_univ {Coordinate Value : Type} [Fintype Coordinate] [Decida
   intro table
   simp only [uniformTable_apply, Finset.mem_univ, implies_true, if_true, Finset.card_univ,
     Finset.prod_const, Nat.cast_pow, PMF.uniformOfFintype_apply, Fintype.card_fun]
-
 end SphincsSecurity.Concrete

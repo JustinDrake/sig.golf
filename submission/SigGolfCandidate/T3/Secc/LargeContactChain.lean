@@ -1,18 +1,6 @@
 import SigGolfCandidate.T3.Secc.LargeContactMonitor
 import SigGolfCandidate.T3.Secc.WotsExtractVerify
 
-/-!
-# LR-34 (LR-5, 2/3): chain rows below the frontier are never known; W's events are contacts
-
-* `known_secret`, `known_chain` — the knowledge of a secret is a disclosure; the knowledge of a chain step comes from a
-  disclosure at or below it.
-* `signDisclosed_chain`, `signDisclosed_seed` — a signature discloses chain `a` only at its reference digit (the
-  frontier `Wots.depth`).
-* `frontier_child_unknown` — the child of the step just below the frontier is never known.
-* `contactAt_not_clear` — W's `ContactAt` at a source chain makes the verifier's row not clear (a guess of the hidden
-  child, or a hit of the frontier label).
--/
-
 namespace SigGolfCandidate.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final SigGolfCandidate.T3M.SecurityExtraction
@@ -24,13 +12,9 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance instDecidableEqCache_largeContactChain : DecidableEq T3.Cache := Classical.decEq _
-
-/-! ## Knowledge of secrets and chain steps -/
-
 theorem known_secret {D : Coord → Prop} {s : CanonGraph.SecretIndex} (h : Known D (.inr s)) : D (.inr s) := by
   cases h with
   | base h => exact h
-
 theorem known_chain_aux {D : Coord → Prop} {c : Coord} (h : Known D c) :
     ∀ p : ChainGraph.Point, c = .inl (.chain p) →
       (∃ s : Fin 7, s.val ≤ p.2.val ∧ D (.inl (.chain (p.1, s)))) ∨ D (.inr (.inl p.1)) := by
@@ -56,16 +40,10 @@ theorem known_chain_aux {D : Coord → Prop} {c : Coord} (h : Known D c) :
           simp only [ChainGraph.predecessor] at hs
           omega
         · exact Or.inr hd
-
 theorem known_chain {D : Coord → Prop} {p : ChainGraph.Point} (h : Known D (.inl (.chain p))) :
     (∃ s : Fin 7, s.val ≤ p.2.val ∧ D (.inl (.chain (p.1, s)))) ∨ D (.inr (.inl p.1)) :=
   known_chain_aux h p rfl
-
-/-! ## What signatures disclose of a chain -/
-
-/-- The W chain address of a G chain address. -/
 def wotsAddr (a : ChainGraph.Address) : Wots.ChainAddr := ⟨⟨a.layer, a.tree.val, a.leaf.val⟩, a.chain.val⟩
-
 theorem chainItem_chain {L : CanonGraph.LeafPos} {i d : Nat} {p : ChainGraph.Point}
     (h : chainItem L i d = .inl (.chain p)) :
     p.1 = ⟨L.lay, L.tree, L.leaf, CanonGraph.fin58 i⟩ ∧ d ≠ 0 ∧ p.2.val = (d - 1) % 7 := by
@@ -77,7 +55,6 @@ theorem chainItem_chain {L : CanonGraph.LeafPos} {i d : Nat} {p : ChainGraph.Poi
     simp only [Sum.inl.injEq, CanonGraph.Node.chain.injEq] at h
     subst h
     exact ⟨rfl, hd, rfl⟩
-
 theorem chainItem_seed {L : CanonGraph.LeafPos} {i d : Nat} {a : ChainGraph.Address}
     (h : chainItem L i d = .inr (.inl a)) : a = ⟨L.lay, L.tree, L.leaf, CanonGraph.fin58 i⟩ ∧ d = 0 := by
   unfold chainItem at h
@@ -87,10 +64,7 @@ theorem chainItem_seed {L : CanonGraph.LeafPos} {i d : Nat} {a : ChainGraph.Addr
     exact ⟨h.symm, hd⟩
   · rw [if_neg hd] at h
     cases h
-
-/-- Neither a chain step nor a chain seed. -/
 def NotChain (c : Coord) : Prop := (∀ p, c ≠ .inl (.chain p)) ∧ (∀ a, c ≠ .inr (.inl a))
-
 theorem treeChild_not_chain {lay : Layer} {tree : Fin (2^31)} {level n : Nat} {d : Coord}
     (hd : treeChild lay tree level n = some d) : NotChain d := by
   unfold treeChild at hd
@@ -102,7 +76,6 @@ theorem treeChild_not_chain {lay : Layer} {tree : Fin (2^31)} {level n : Nat} {d
   · rw [if_neg h0, Option.map_eq_some_iff] at hd
     obtain ⟨m, _, rfl⟩ := hd
     exact ⟨fun p => by simp, fun a => by simp⟩
-
 theorem ftsChild_not_chain {index : Fin (2^31)} {coord : Fin 7} {level n : Nat} {d : Coord}
     (hd : ftsChild index coord level n = some d) : NotChain d := by
   unfold ftsChild at hd
@@ -114,7 +87,6 @@ theorem ftsChild_not_chain {index : Fin (2^31)} {coord : Fin 7} {level n : Nat} 
   · rw [if_neg h0, Option.map_eq_some_iff] at hd
     obtain ⟨m, _, rfl⟩ := hd
     exact ⟨fun p => by simp, fun a => by simp⟩
-
 theorem ftsItems_not_chain (index : Fin (2^31)) (chosen : List Selection) (c : Coord)
     (hc : c ∈ ftsItems index chosen) : NotChain c := by
   unfold ftsItems ftsOpened ftsProof at hc
@@ -127,14 +99,11 @@ theorem ftsItems_not_chain (index : Fin (2^31)) (chosen : List Selection) (c : C
     exact ⟨fun p => by simp, fun a => by simp⟩
   · exact ftsChild_not_chain hp
   · exact ftsChild_not_chain hj
-
 theorem keygen_not_chain (c : Coord) (hc : c ∈ keygenDisclosed) : NotChain c := by
   unfold keygenDisclosed at hc
   simp only [List.mem_flatMap, List.mem_filterMap] at hc
   obtain ⟨_, _, _, _, h⟩ := hc
   exact treeChild_not_chain h
-
-/-- The chain items of a signature are at the reference digit of their chain. -/
 theorem layerItems_chain (A : Answers) (index : Fin (2^31)) (c : Coord)
     (hc : c ∈ layerItems (Wots.referenceDigits A) index) :
     (∀ p, c = .inl (.chain p) → p.2.val + 1 = Wots.depth A (wotsAddr p.1)) ∧
@@ -174,7 +143,6 @@ theorem layerItems_chain (A : Answers) (index : Fin (2^31)) (c : Coord)
       have := treeChild_not_chain hj
       exact ⟨fun p hp => absurd hp (this.1 p), fun a ha => absurd ha (this.2 a)⟩
     · cases hc
-
 theorem signDisclosed_chain (A : Answers) (published : T3.Cache) (request : Security.Request) (c : Coord)
     (hc : c ∈ signDisclosed A published request) :
     (∀ p, c = .inl (.chain p) → p.2.val + 1 = Wots.depth A (wotsAddr p.1)) ∧
@@ -191,12 +159,8 @@ theorem signDisclosed_chain (A : Answers) (published : T3.Cache) (request : Secu
       · cases hc
     · cases hc
   · cases hc
-
-/-- The disclosure set of the large route: key generation and every signature. -/
 def Disclosed (A : Answers) (published : T3.Cache) (c : Coord) : Prop :=
   c ∈ keygenDisclosed ∨ ∃ request, c ∈ signDisclosed A published request
-
-/-- **The child of the step below the frontier is never known.** -/
 theorem frontier_child_unknown (A : Answers) (published : T3.Cache) (a : ChainGraph.Address) (s : Fin 7)
     (hs : s.val + 1 = Wots.depth A (wotsAddr a)) :
     ¬Known (Disclosed A published) (chainChild (a, s)) := by
@@ -220,5 +184,4 @@ theorem frontier_child_unknown (A : Answers) (published : T3.Cache) (a : ChainGr
       · have := (signDisclosed_chain A published request _ hd).2 _ rfl
         simp only [ChainGraph.predecessor] at this
         omega
-
 end SigGolfCandidate.T3.Security.LargeCoupling

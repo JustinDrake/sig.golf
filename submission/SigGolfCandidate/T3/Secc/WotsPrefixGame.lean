@@ -1,30 +1,392 @@
-import SigGolfCandidate.T3.Secc.WotsPrefixGameSim
+import SigGolfCandidate.SphincsSecurity.Proof.Ots.OtsContactTrace
+import SigGolfCandidate.SphincsSecurity.Proof.Base.QueryPauseInvariant
+import SigGolfCandidate.SphincsSecurity.Proof.Base.QueryPauseTrace
+import SigGolfCandidate.SphincsSecurity.Proof.Chains.PartialChainLastRow
+import SigGolfCandidate.SphincsSecurity.Proof.Base.QueryTraceInvariant
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainCapTwoEdge
+import SigGolfCandidate.T3.Secc.WotsPrefixGameSim
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainCapObservation
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainCapCost
-import SigGolfCandidate.SphincsSecurity.Proof.Ots.OtsTwoEdgeTrace
 
-/-!
-# Stream C: the per-address mixture identity of R3 (record `prefixInstrumentedObservedGame_original`)
+section
 
-For a source chain `a`, R3's law, projected to what the chain events of `a` read, is a mixture over the rest
-`R ∼ restLaw` of the generic real run `realRun (fun _ => uniformImpl) (seedGame adversary q a R) (fun _ _ => none)`:
 
-* `reference_map_eq_mixture` (general form): any projection `f` of R3 equals the mixture of any projection `g` of the
-  generic run, provided `f` and `g` agree on the coupled samples (`hfg`);
-* `reference_eq_mixture` (view form): `(referenceExperiment adversary q).map (sampleView a) =
-  (restLaw adversary).bind fun R => (realRun … (seedGame adversary q a R) …).map (runView a R)`, where the view
-  holds `a`'s depth, frontier value, the low answers of `a`'s prefix rows seen in the trace, and their number
-  (= `seedCost`). On the run side the view is `(restDepth a R, endpoint, observed, seedCost)`, i.e. the observed
-  table is exactly `a`'s prefix rows of R3's trace (record `instrumentedContact_rows`).
-* `twoEdgeAt_iff_view`, `contactAt_iff_view` (R3 side, on the support) and `twoEdge_runView`, `contact_runView`
-  (generic side): `TwoEdgeAt ↔ TwoEdgeEvent observed endpoint`, `ContactAt ↔ Contact observed endpoint`.
+namespace SphincsSecurity.Concrete.OtsContactTrace
+open _root_.OracleComp OracleSpec
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+attribute [local irreducible] contacts
+variable (parameter : PublicParameter) (words : OtsReferenceWords) (frontier : OtsFrontierValues)
+def Stopped (trace : Trace) : Prop := (contacts parameter words frontier trace).Nonempty
+noncomputable def pause {Result : Type} (computation : OracleComp OracleWorld Result) :=
+  QueryPause.run (Stopped parameter words frontier)
+    (fun input answer history => history * hashObservationTrace input answer) computation 1
+theorem pause_card_le_one {Result : Type} (computation : OracleComp OracleWorld Result)
+    (result : Trace × OracleComp OracleWorld Result) (hresult : result ∈ support (pause parameter words frontier computation)) :
+    (contacts parameter words frontier result.1).card ≤ 1 := by
+  apply QueryPause.run_invariant (Stopped parameter words frontier) _
+    (fun trace => (contacts parameter words frontier trace).card ≤ 1) _ computation 1 _ result hresult
+  · intro trace _ hstop input answer
+    have hempty : contacts parameter words frontier trace = ∅ := Finset.not_nonempty_iff_eq_empty.mp hstop
+    have h := contacts_step_card_le parameter words frontier trace input answer
+    simpa only [hempty, Finset.card_empty, Nat.zero_add] using h
+  · simp only [contacts_one, Finset.card_empty, Nat.zero_le]
+theorem pause_stopped_or_finished {Result : Type} (computation : OracleComp OracleWorld Result)
+    (result : Trace × OracleComp OracleWorld Result) (hresult : result ∈ support (pause parameter words frontier computation)) :
+    Stopped parameter words frontier result.1 ∨ ∃ value, result.2 = pure value :=
+  QueryPause.run_stopped_or_finished (Stopped parameter words frontier) _ computation 1 result hresult
+theorem pause_new_contact {Result : Type} (computation : OracleComp OracleWorld Result)
+    (result : Trace × OracleComp OracleWorld Result) (hresult : result ∈ support (pause parameter words frontier computation))
+    (after : Trace) (htwo : 2 ≤ (contacts parameter words frontier (result.1 * after)).card) :
+    ∃ address, address ∉ contacts parameter words frontier result.1 ∧ address ∈ contacts parameter words frontier after :=
+  new_contact_of_two parameter words frontier result.1 after
+    (pause_card_le_one parameter words frontier computation result hresult) htwo
+end SphincsSecurity.Concrete.OtsContactTrace
+end
 
-The proof: R3 is a bind over its tables (`reference_eq_bind`); the tables' law is invariant under resampling `a`'s
-hidden part (`restLaw_resample`, from `PrefixGame.uniform_resample`); on an overwritten table R3's offline run is the
-generic `fixedImpl` run of `seedGame` (`PrefixGame.fixed_seedGame`), i.e. the forgetful image of the generic
-`observedRun`; the generic `realRun` from the empty observation is exactly this bind.
--/
+section
+
+
+namespace SphincsSecurity.Concrete.OtsContactTrace
+open _root_.OracleComp OracleSpec
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+attribute [local irreducible] contacts
+noncomputable def prefixCalls (segment : OtsPrefix) (trace : Trace) : Nat :=
+  QueryCap.calls segment.Selects (trace.toList.map fun entry => (.inr entry.1 : OracleWorld.Domain))
+theorem prefixCalls_one (segment : OtsPrefix) : prefixCalls segment 1 = 0 := rfl
+theorem prefixCalls_mul (segment : OtsPrefix) (first second : Trace) :
+    prefixCalls segment (first * second) = prefixCalls segment first + prefixCalls segment second := by
+  simp only [prefixCalls, FreeMonoid.toList_mul, List.map_append, QueryCap.calls, List.countP_append]
+theorem prefixCalls_step (segment : OtsPrefix) (input : OracleWorld.Domain) (answer : OracleWorld.Range input) (trace : Trace) :
+    prefixCalls segment (hashObservationTrace input answer * trace) = (if segment.Selects input then 1 else 0) + prefixCalls segment trace := by
+  cases input with
+  | inl input => simp only [hashObservationTrace, one_mul, OtsPrefix.Selects, if_false, Nat.zero_add]
+  | inr bytes =>
+      simp only [prefixCalls, hashObservationTrace, FreeMonoid.toList_mul, FreeMonoid.toList_of, List.singleton_append,
+        List.map_cons, QueryCap.calls_cons]
+theorem traced_hash_counted {Result : Type} (computation : OracleComp OracleWorld Result) :
+    (fun result => (result.1, result.2.toList.length)) <$> QueryPause.traced hashObservationTrace computation =
+      QueryCap.counted CausalFrontierProgram.IsHash computation := by
+  apply QueryPause.traced_counted hashObservationTrace CausalFrontierProgram.IsHash (fun trace => trace.toList.length) rfl
+  intro input answer trace
+  cases input <;> simp only [hashObservationTrace, one_mul, CausalFrontierProgram.IsHash, reduceCtorEq, ↓reduceIte,
+    Nat.zero_add, FreeMonoid.toList_mul, FreeMonoid.toList_of, List.length_append, List.length_singleton]
+private theorem hash_calls_map (entries : List (HashInput × HashOutput)) :
+    QueryCap.calls CausalFrontierProgram.IsHash (entries.map fun entry => (.inr entry.1 : OracleWorld.Domain)) = entries.length := by
+  induction entries with
+  | nil => rfl
+  | cons entry entries ih =>
+      simp only [List.map_cons, QueryCap.calls_cons, CausalFrontierProgram.IsHash, ↓reduceIte, ih, List.length_cons, Nat.add_comm]
+theorem prefixCalls_allocation (parameter : PublicParameter) (words : OtsReferenceWords)
+    (addresses : Finset OtsPrefix.ChainAddress) (trace : Trace) :
+    (∑ address ∈ addresses, prefixCalls (OtsPrefix.atAddress parameter words address) trace) ≤ trace.toList.length := by
+  simpa only [prefixCalls, hash_calls_map] using
+    OtsPrefix.allocation_le parameter words addresses (trace.toList.map fun entry => (.inr entry.1 : OracleWorld.Domain))
+theorem restartCharge_allocation (parameter : PublicParameter) (words : OtsReferenceWords)
+    (addresses : Finset OtsPrefix.ChainAddress) (before after : Trace) :
+    (∑ address ∈ addresses, (prefixCalls (OtsPrefix.atAddress parameter words address) before +
+      2 * prefixCalls (OtsPrefix.atAddress parameter words address) after)) ≤ before.toList.length + 2 * after.toList.length := by
+  rw [Finset.sum_add_distrib, ← Finset.mul_sum]
+  exact Nat.add_le_add (prefixCalls_allocation parameter words addresses before)
+    (Nat.mul_le_mul_left 2 (prefixCalls_allocation parameter words addresses after))
+theorem restartCharge_le_budget (parameter : PublicParameter) (words : OtsReferenceWords)
+    (addresses : Finset OtsPrefix.ChainAddress) (before after : Trace) (budget : Nat)
+    (hbudget : (before * after).toList.length ≤ budget) :
+    (∑ address ∈ addresses, (prefixCalls (OtsPrefix.atAddress parameter words address) before +
+      2 * prefixCalls (OtsPrefix.atAddress parameter words address) after)) ≤ 2 * budget := by
+  apply (restartCharge_allocation parameter words addresses before after).trans
+  simp only [FreeMonoid.toList_mul, List.length_append] at hbudget
+  omega
+theorem traced_game_cost (parameter : PublicParameter) (external : QueryImpl HashSpec Id)
+    (ftsSecret : Index → FtsTree → FtsLeaf → Digest) (words : OtsReferenceWords) (frontier : OtsFrontierValues)
+    (adversary : Adversary) (result : (Bool × SigningBoundaryTrace) × Trace)
+    (hresult : result ∈ support (QueryPause.traced hashObservationTrace
+      (CausalFrontierProgram.game parameter external ftsSecret words frontier adversary))) : result.2.toList.length ≤ result.1.2.hashCalls := by
+  apply CausalFrontierProgram.game_counted_le parameter external ftsSecret words frontier adversary
+    (result.1, result.2.toList.length)
+  rw [← traced_hash_counted, support_map]
+  exact ⟨result, hresult, rfl⟩
+end SphincsSecurity.Concrete.OtsContactTrace
+end
+
+section
+
+
+namespace SphincsSecurity.Concrete.OtsPrefix
+open _root_.OracleComp OracleSpec PartialChainEndpoint
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+private theorem contact_record_consistent {State : Type} [DecidableEq State] {n : Nat}
+    (observed : Fin n → State → Option State) (query : Fin n × State) (answer endpoint : State)
+    (hconsistent : observed query.1 query.2 = none ∨ observed query.1 query.2 = some answer) :
+    Contact (record observed query answer) endpoint ↔ Contact observed endpoint ∨ query.1.val + 1 = n ∧ answer = endpoint := by
+  by_cases hc : Contact observed endpoint
+  · exact iff_of_true (contact_mono (record_extends observed query answer hconsistent) endpoint hc) (Or.inl hc)
+  · simpa only [hc, false_or] using contact_record_iff observed query answer endpoint hc
+noncomputable def visibleLazyImpl (segment : OtsPrefix) (high : segment.Query → High) (auxiliary : QueryImpl OracleWorld PMF) :
+    QueryImpl OracleWorld (StateT (Fin segment.digit.val → Digest → Option Digest) PMF) :=
+  (lazyImpl auxiliary).compose (segment.visibleWorldImpl high)
+theorem visible_step_contact (segment : OtsPrefix) (high : segment.Query → High) (auxiliary : QueryImpl OracleWorld PMF)
+    (endpoint : Digest) (trace : OtsContactTrace.Trace) (observed : Fin segment.digit.val → Digest → Option Digest)
+    (hseen : OtsContactTrace.Seen segment endpoint trace ↔ Contact observed endpoint)
+    (input : OracleWorld.Domain) (result : OracleWorld.Range input × (Fin segment.digit.val → Digest → Option Digest))
+    (hresult : result ∈ ((segment.visibleLazyImpl high auxiliary input).run observed).support) :
+    OtsContactTrace.Seen segment endpoint (trace * hashObservationTrace input result.1) ↔ Contact result.2 endpoint := by
+  cases input with
+  | inl input =>
+      simp only [visibleLazyImpl, QueryImpl.apply_compose, visibleWorldImpl, simulateQ_spec_query,
+        lazyImpl, StateT.run_mk, PMF.mem_support_map_iff] at hresult
+      obtain ⟨answer, _, rfl⟩ := hresult
+      simpa only [hashObservationTrace, mul_one] using hseen
+  | inr bytes =>
+      cases hparse : segment.parse bytes with
+      | none =>
+          simp only [visibleLazyImpl, QueryImpl.apply_compose, visibleWorldImpl, visibleHashImpl, hparse,
+            simulateQ_spec_query, lazyImpl, StateT.run_mk, PMF.mem_support_map_iff] at hresult
+          obtain ⟨answer, _, rfl⟩ := hresult
+          simpa only [hashObservationTrace, OtsContactTrace.seen_mul, OtsContactTrace.seen_of,
+            OtsContactTrace.EntryContact, hparse, reduceCtorEq, false_and, exists_false, or_false] using hseen
+      | some query =>
+          have hbytes := (segment.parse_some_iff bytes query).mp hparse
+          subst bytes
+          simp only [visibleLazyImpl, QueryImpl.apply_compose, visibleWorldImpl, visibleHashImpl, parse_input,
+            simulateQ_map, simulateQ_spec_query, lazyImpl, StateT.run_map, StateT.run_mk,
+            PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def, PMF.mem_support_map_iff] at hresult
+          obtain ⟨answer, hanswer, rfl⟩ := hresult
+          have hconsistent : observed query.1 query.2 = none ∨ observed query.1 query.2 = some answer := by
+            cases hrow : observed query.1 query.2 with
+            | none => exact Or.inl rfl
+            | some old =>
+                rw [hrow, rowLaw, PMF.mem_support_pure_iff] at hanswer
+                exact Or.inr (congrArg some hanswer.symm)
+          rw [hashObservationTrace, OtsContactTrace.seen_mul, OtsContactTrace.seen_of, hseen,
+            contact_record_consistent observed query answer endpoint hconsistent]
+          simp only [OtsContactTrace.EntryContact, parse_input, Option.some.injEq, truncate_combine]
+          apply or_congr Iff.rfl
+          constructor
+          · rintro ⟨other, rfl, h⟩; exact h
+          · intro h; exact ⟨query, rfl, h⟩
+theorem visible_pause_contact (segment : OtsPrefix) (high : segment.Query → High) (auxiliary : QueryImpl OracleWorld PMF)
+    (endpoint : Digest) (stop : OtsContactTrace.Trace → Prop) [DecidablePred stop]
+    {Result : Type} (computation : OracleComp OracleWorld Result) (trace : OtsContactTrace.Trace)
+    (observed : Fin segment.digit.val → Digest → Option Digest)
+    (hseen : OtsContactTrace.Seen segment endpoint trace ↔ Contact observed endpoint)
+    (result : (OtsContactTrace.Trace × OracleComp OracleWorld Result) × (Fin segment.digit.val → Digest → Option Digest))
+    (hresult : result ∈ ((simulateQ (segment.visibleLazyImpl high auxiliary)
+      (QueryPause.run stop (fun input answer history => history * hashObservationTrace input answer) computation trace)).run observed).support) :
+    OtsContactTrace.Seen segment endpoint result.1.1 ↔ Contact result.2 endpoint := by
+  apply QueryPause.run_simulation_invariant stop _ (segment.visibleLazyImpl high auxiliary)
+    (fun history rows => OtsContactTrace.Seen segment endpoint history ↔ Contact rows endpoint) _
+    computation trace observed hseen result hresult
+  intro history rows hrows _ input answer hanswer
+  exact segment.visible_step_contact high auxiliary endpoint history rows hrows input answer hanswer
+theorem visible_step_queryCount (segment : OtsPrefix) (high : segment.Query → High) (auxiliary : QueryImpl OracleWorld PMF)
+    (trace : OtsContactTrace.Trace) (observed : Fin segment.digit.val → Digest → Option Digest)
+    (hcount : queryCount observed ≤ OtsContactTrace.prefixCalls segment trace)
+    (input : OracleWorld.Domain) (result : OracleWorld.Range input × (Fin segment.digit.val → Digest → Option Digest))
+    (hresult : result ∈ ((segment.visibleLazyImpl high auxiliary input).run observed).support) :
+    queryCount result.2 ≤ OtsContactTrace.prefixCalls segment (trace * hashObservationTrace input result.1) := by
+  cases input with
+  | inl input =>
+      simp only [visibleLazyImpl, QueryImpl.apply_compose, visibleWorldImpl, simulateQ_spec_query,
+        lazyImpl, StateT.run_mk, PMF.mem_support_map_iff] at hresult
+      obtain ⟨answer, _, rfl⟩ := hresult
+      simpa only [hashObservationTrace, mul_one] using hcount
+  | inr bytes =>
+      cases hparse : segment.parse bytes with
+      | none =>
+          simp only [visibleLazyImpl, QueryImpl.apply_compose, visibleWorldImpl, visibleHashImpl, hparse,
+            simulateQ_spec_query, lazyImpl, StateT.run_mk, PMF.mem_support_map_iff] at hresult
+          obtain ⟨answer, _, rfl⟩ := hresult
+          rw [OtsContactTrace.prefixCalls_mul]
+          exact hcount.trans (Nat.le_add_right _ _)
+      | some query =>
+          have hbytes := (segment.parse_some_iff bytes query).mp hparse
+          subst bytes
+          simp only [visibleLazyImpl, QueryImpl.apply_compose, visibleWorldImpl, visibleHashImpl, parse_input,
+            simulateQ_map, simulateQ_spec_query, lazyImpl, StateT.run_map, StateT.run_mk,
+            PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def, PMF.mem_support_map_iff] at hresult
+          obtain ⟨answer, _, rfl⟩ := hresult
+          have hselected : segment.Selects (.inr (segment.input query)) := by
+            change segment.parse (segment.input query) ≠ none
+            rw [parse_input]
+            exact Option.some_ne_none query
+          have hsingle := OtsContactTrace.prefixCalls_step segment (.inr (segment.input query)) (combine answer (high query)) 1
+          simp only [mul_one, if_pos hselected, OtsContactTrace.prefixCalls_one, Nat.add_zero] at hsingle
+          rw [OtsContactTrace.prefixCalls_mul, hsingle]
+          exact (queryCount_record_le observed query answer).trans (Nat.add_le_add_right hcount 1)
+theorem visible_pause_queryCount (segment : OtsPrefix) (high : segment.Query → High) (auxiliary : QueryImpl OracleWorld PMF)
+    (stop : OtsContactTrace.Trace → Prop) [DecidablePred stop]
+    {Result : Type} (computation : OracleComp OracleWorld Result) (trace : OtsContactTrace.Trace)
+    (observed : Fin segment.digit.val → Digest → Option Digest)
+    (hcount : queryCount observed ≤ OtsContactTrace.prefixCalls segment trace)
+    (result : (OtsContactTrace.Trace × OracleComp OracleWorld Result) × (Fin segment.digit.val → Digest → Option Digest))
+    (hresult : result ∈ ((simulateQ (segment.visibleLazyImpl high auxiliary)
+      (QueryPause.run stop (fun input answer history => history * hashObservationTrace input answer) computation trace)).run observed).support) :
+    queryCount result.2 ≤ OtsContactTrace.prefixCalls segment result.1.1 := by
+  apply QueryPause.run_simulation_invariant stop _ (segment.visibleLazyImpl high auxiliary)
+    (fun history rows => queryCount rows ≤ OtsContactTrace.prefixCalls segment history) _
+    computation trace observed hcount result hresult
+  intro history rows hrows _ input answer hanswer
+  exact segment.visible_step_queryCount high auxiliary history rows hrows input answer hanswer
+end SphincsSecurity.Concrete.OtsPrefix
+end
+
+section
+
+
+namespace SphincsSecurity.Concrete.OtsContactTrace
+open _root_.OracleComp OracleSpec PartialChainEndpoint
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+def SeenRow (segment : OtsPrefix) (query : segment.Query) (answer : Digest) (trace : Trace) : Prop :=
+  ∃ entry ∈ trace.toList, segment.parse entry.1 = some query ∧ truncateHash entry.2 = answer
+theorem seenRow_one (segment : OtsPrefix) (query : segment.Query) (answer : Digest) : ¬SeenRow segment query answer 1 := by
+  simp [SeenRow]
+theorem seenRow_of (segment : OtsPrefix) (query : segment.Query) (answer : Digest) (entry : HashInput × HashOutput) :
+    SeenRow segment query answer (FreeMonoid.of entry) ↔ segment.parse entry.1 = some query ∧ truncateHash entry.2 = answer := by
+  simp [SeenRow]
+theorem seenRow_mul (segment : OtsPrefix) (query : segment.Query) (answer : Digest) (before after : Trace) :
+    SeenRow segment query answer (before * after) ↔ SeenRow segment query answer before ∨ SeenRow segment query answer after := by
+  simp only [SeenRow, FreeMonoid.toList_mul, List.mem_append, or_and_right, exists_or]
+def RowsObserved (segment : OtsPrefix) (trace : Trace) (observed : Fin segment.digit.val → Digest → Option Digest) : Prop :=
+  ∀ query : segment.Query, ∀ answer, SeenRow segment query answer trace ↔ observed query.1 query.2 = some answer
+theorem rowsObserved_empty (segment : OtsPrefix) : RowsObserved segment 1 (fun _ _ => none) := by
+  intro query answer
+  simp only [seenRow_one, reduceCtorEq]
+end SphincsSecurity.Concrete.OtsContactTrace
+namespace SphincsSecurity.Concrete.OtsPrefix
+open _root_.OracleComp OracleSpec PartialChainEndpoint OtsContactTrace
+set_option backward.isDefEq.respectTransparency false
+attribute [local instance] Classical.propDecidable
+private theorem record_some_iff {State : Type} [DecidableEq State] {n : Nat}
+    (observed : Fin n → State → Option State) (query target : Fin n × State) (answer value : State)
+    (hc : observed query.1 query.2 = none ∨ observed query.1 query.2 = some answer) :
+    record observed query answer target.1 target.2 = some value ↔
+      observed target.1 target.2 = some value ∨ query = target ∧ answer = value := by
+  by_cases he : target = query
+  · subst target
+    simp only [record, Function.update_self, Option.some.injEq, true_and]
+    constructor
+    · exact Or.inr
+    · rintro (h | h)
+      · rcases hc with hc | hc
+        · simp only [hc, reduceCtorEq] at h
+        · exact Option.some.inj (hc.symm.trans h)
+      · exact h
+  · have hrow : record observed query answer target.1 target.2 = observed target.1 target.2 := by
+      by_cases hl : target.1 = query.1
+      · have hi : target.2 ≠ query.2 := fun hi => he (Prod.ext hl hi)
+        simp only [record, hl, Function.update_self, Function.update_of_ne hi]
+      · simp only [record, Function.update_of_ne hl]
+    simp only [hrow, Ne.symm he, false_and, or_false]
+theorem visible_step_rows (segment : OtsPrefix) (high : segment.Query → High) (auxiliary : QueryImpl OracleWorld PMF)
+    (trace : Trace) (observed : Fin segment.digit.val → Digest → Option Digest) (hrows : RowsObserved segment trace observed)
+    (input : OracleWorld.Domain) (result : OracleWorld.Range input × (Fin segment.digit.val → Digest → Option Digest))
+    (hr : result ∈ ((segment.visibleLazyImpl high auxiliary input).run observed).support) :
+    RowsObserved segment (trace * hashObservationTrace input result.1) result.2 := by
+  cases input with
+  | inl input =>
+      simp only [visibleLazyImpl, QueryImpl.apply_compose, visibleWorldImpl, simulateQ_spec_query,
+        lazyImpl, StateT.run_mk, PMF.mem_support_map_iff] at hr
+      obtain ⟨answer, _, rfl⟩ := hr
+      simpa only [hashObservationTrace, mul_one] using hrows
+  | inr bytes =>
+      cases hp : segment.parse bytes with
+      | none =>
+          simp only [visibleLazyImpl, QueryImpl.apply_compose, visibleWorldImpl, visibleHashImpl, hp,
+            simulateQ_spec_query, lazyImpl, StateT.run_mk, PMF.mem_support_map_iff] at hr
+          obtain ⟨answer, _, rfl⟩ := hr
+          intro query value
+          simpa only [hashObservationTrace, seenRow_mul, seenRow_of, hp, reduceCtorEq, false_and, or_false] using hrows query value
+      | some query =>
+          have hb := (segment.parse_some_iff bytes query).mp hp
+          subst bytes
+          simp only [visibleLazyImpl, QueryImpl.apply_compose, visibleWorldImpl, visibleHashImpl, parse_input,
+            simulateQ_map, simulateQ_spec_query, lazyImpl, StateT.run_map, StateT.run_mk,
+            PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def, PMF.mem_support_map_iff] at hr
+          obtain ⟨answer, ha, rfl⟩ := hr
+          have hc : observed query.1 query.2 = none ∨ observed query.1 query.2 = some answer := by
+            cases hrow : observed query.1 query.2 with
+            | none => exact Or.inl rfl
+            | some old =>
+                rw [hrow, rowLaw, PMF.mem_support_pure_iff] at ha
+                exact Or.inr (congrArg some ha.symm)
+          intro target value
+          rw [hashObservationTrace, seenRow_mul, seenRow_of, hrows target value, record_some_iff observed query target answer value hc]
+          simp only [parse_input, Option.some.injEq, truncate_combine]
+theorem visible_traced_rows (segment : OtsPrefix) (high : segment.Query → High) (auxiliary : QueryImpl OracleWorld PMF)
+    {Result : Type} (computation : OracleComp OracleWorld Result) (history : Trace)
+    (observed : Fin segment.digit.val → Digest → Option Digest) (hrows : RowsObserved segment history observed)
+    (result : (Result × Trace) × (Fin segment.digit.val → Digest → Option Digest))
+    (hr : result ∈ (lazyRun auxiliary (QueryPause.traced (segment.visibleObservationTrace high)
+      (simulateQ (segment.visibleWorldImpl high) computation)) observed).support) :
+    RowsObserved segment (history * result.1.2) result.2 := by
+  have ht : QueryPause.traced (segment.visibleObservationTrace high) (simulateQ (segment.visibleWorldImpl high) computation) =
+      simulateQ (segment.visibleWorldImpl high) (QueryPause.traced hashObservationTrace computation) :=
+    segment.visible_observation_program high computation
+  rw [ht, lazyRun, ← QueryImpl.simulateQ_compose] at hr
+  exact QueryPause.traced_simulation_invariant hashObservationTrace (segment.visibleLazyImpl high auxiliary)
+    (RowsObserved segment) (fun trace rows h input answer ha => segment.visible_step_rows high auxiliary trace rows h input answer ha)
+    computation history observed hrows result hr
+end SphincsSecurity.Concrete.OtsPrefix
+end
+
+section
+
+
+namespace SphincsSecurity.Concrete.PartialChainEndpoint
+set_option backward.isDefEq.respectTransparency false
+theorem twoEdgeEvent_iff_rows {State : Type} {depth : Nat} (observed : Fin depth → State → Option State) (endpoint : State) :
+    TwoEdgeEvent observed endpoint ↔ ∃ first last : Fin depth × State,
+      first.1.val + 2 = depth ∧ last.1.val + 1 = depth ∧
+        observed first.1 first.2 = some last.2 ∧ observed last.1 last.2 = some endpoint := by
+  cases depth with
+  | zero => simp only [TwoEdgeEvent, Prod.exists, Fin.exists_fin_zero]
+  | succ depth =>
+      cases depth with
+      | zero =>
+          constructor
+          · exact False.elim
+          · rintro ⟨first, _, hf, _⟩
+            omega
+      | succ depth =>
+          constructor
+          · rintro ⟨start, middle, hf, hl⟩
+            exact ⟨⟨(Fin.last depth).castSucc, start⟩, ⟨Fin.last (depth + 1), middle⟩, rfl, rfl, hf, hl⟩
+          · rintro ⟨⟨first, start⟩, ⟨last, middle⟩, hf, hl, hfirst, hlast⟩
+            change first.val + 2 = depth + 2 at hf
+            change last.val + 1 = depth + 2 at hl
+            have hfi : first = (Fin.last depth).castSucc := by
+              apply Fin.ext
+              simp only [Fin.val_castSucc, Fin.val_last]
+              omega
+            have hla : last = Fin.last (depth + 1) := by
+              apply Fin.ext
+              simp only [Fin.val_last]
+              omega
+            subst first last
+            exact ⟨start, middle, hfirst, hlast⟩
+end SphincsSecurity.Concrete.PartialChainEndpoint
+namespace SphincsSecurity.Concrete.OtsContactTrace
+set_option backward.isDefEq.respectTransparency false
+def SeenTwoEdge (segment : OtsPrefix) (endpoint : Digest) (trace : Trace) : Prop :=
+  ∃ first last : segment.Query, first.1.val + 2 = segment.digit.val ∧ last.1.val + 1 = segment.digit.val ∧
+    SeenRow segment first last.2 trace ∧ SeenRow segment last endpoint trace
+theorem RowsObserved.twoEdge_iff {segment : OtsPrefix} {trace : Trace} {observed : Fin segment.digit.val → Digest → Option Digest}
+    (h : RowsObserved segment trace observed) (endpoint : Digest) :
+    SeenTwoEdge segment endpoint trace ↔ PartialChainEndpoint.TwoEdgeEvent observed endpoint := by
+  dsimp only [RowsObserved] at h
+  simp only [SeenTwoEdge, h, PartialChainEndpoint.twoEdgeEvent_iff_rows]
+end SphincsSecurity.Concrete.OtsContactTrace
+end
+
+section
+
+
+
+
 
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
@@ -38,28 +400,21 @@ set_option backward.isDefEq.respectTransparency false
 set_option linter.constructorNameAsVariable false
 attribute [local instance low] Classical.propDecidable
 attribute [local irreducible] referenceGame offlineGame
-
 noncomputable local instance instFintypeCoordinate_wotsPrefixGame : Fintype Coordinate := coordinateFintype
 noncomputable local instance instSampleableTypeFullTable_wotsPrefixGame : SampleableType FullGame.FullTable := Derivation.outputSampler Coordinate
 noncomputable local instance instSampleableTypeForallSubtypeHashInputMemFinsetHashOutput_wotsPrefixGame (inputs : Finset HashInput) : SampleableType (inputs → HashOutput) :=
   SampleableType.ofFintype _
-
 namespace PrefixGame
-
-/-! ## Probabilistic computations as PMFs -/
-
 theorem liftM_bind {α β : Type} (c : ProbComp α) (f : α → ProbComp β) :
     (liftM (c >>= f) : PMF β) = (liftM c : PMF α).bind (fun x => (liftM (f x) : PMF β)) := by
   show simulateQ _ (c >>= f) = _
   rw [simulateQ_bind]
   rfl
-
 theorem liftM_map {α β : Type} (c : ProbComp α) (f : α → β) :
     (liftM (f <$> c) : PMF β) = (liftM c : PMF α).map f := by
   show simulateQ _ (f <$> c) = _
   rw [simulateQ_map]
   rfl
-
 theorem liftM_apply {α : Type} (c : ProbComp α) (x : α) : (liftM c : PMF α) x = Pr[= x | c] := by
   rw [← PMF.probOutput_eq_apply]
   have h1 : 𝒮[(liftM c : PMF α)] = 𝒮[c] := by
@@ -67,14 +422,11 @@ theorem liftM_apply {α : Type} (c : ProbComp α) (x : α) : (liftM c : PMF α) 
     rfl
   unfold probOutput
   rw [h1]
-
 theorem liftM_uniform (α : Type) [Fintype α] [Nonempty α] [SampleableType α] :
     (liftM ($ᵗ α : ProbComp α) : PMF α) = PMF.uniformOfFintype α := by
   apply PMF.ext
   intro x
   rw [liftM_apply, probOutput_uniformSample, PMF.uniformOfFintype_apply]
-
-/-- Maps agreeing on the support are equal. -/
 theorem map_congr_support {α β : Type} (p : PMF α) (f g : α → β) (h : ∀ x ∈ p.support, f x = g x) :
     p.map f = p.map g := by
   apply PMF.ext
@@ -86,28 +438,19 @@ theorem map_congr_support {α β : Type} (p : PMF α) (f g : α → β) (h : ∀
   · rw [h x hx]
   · rw [PMF.apply_eq_zero_iff p x |>.mpr hx]
     simp only [ite_self]
-
 theorem uniform_prod (α β : Type) [Fintype α] [Fintype β] [Nonempty α] [Nonempty β] :
     PMF.uniformOfFintype (α × β) =
       (PMF.uniformOfFintype α).bind (fun x => (PMF.uniformOfFintype β).map (fun y => (x, y))) :=
   SphincsSecurity.Concrete.UniformTableSplit.uniform_product
-
 end PrefixGame
-
-/-! ## R3 as a bind over its tables -/
-
-/-- The R3 sample of a table and a recorded run. -/
 noncomputable def mkSample (T : Answers) (run : SeedResult) : RefSample :=
   ⟨T, (evalWithAnswerFn T keygen).1, traceOf T run.2⟩
-
 theorem restLaw_eq_prod (adversary : AdversaryP) :
     restLaw adversary = (PMF.uniformOfFintype FullGame.FullTable).bind
       (fun priv => (PMF.uniformOfFintype (referenceInputs adversary → HashOutput)).map (fun pub => (priv, pub))) := by
   unfold restLaw
   rw [← PrefixGame.uniform_prod]
-
 open PrefixGame in
-/-- **R3 is a bind over its tables.** -/
 theorem reference_eq_bind (adversary : AdversaryP) (q : Nat) :
     referenceExperiment adversary q = (restLaw adversary).bind
       (fun R => (liftM (offlineRun (restTable R) adversary q) : PMF SeedResult).map (mkSample (restTable R))) := by
@@ -119,11 +462,7 @@ theorem reference_eq_bind (adversary : AdversaryP) (q : Nat) :
   funext priv
   rw [PMF.bind_map]
   rfl
-
-/-! ## Resampling `a`'s hidden part of the rest -/
-
 open PrefixGame in
-/-- The law of the rest is invariant under resampling `a`'s hidden part. -/
 theorem restLaw_resample (adversary : AdversaryP) (a : ChainAddr) {β : Type} (F : RefTables adversary → PMF β) :
     (restLaw adversary).bind F = (restLaw adversary).bind (fun R =>
       (PMF.uniformOfFintype (Hidden (restDepth a R))).bind (fun x => F (ov a (restDepth a R) R x))) := by
@@ -139,13 +478,7 @@ theorem restLaw_resample (adversary : AdversaryP) (a : ChainAddr) {β : Type} (F
   funext R
   rw [PMF.bind_map]
   rfl
-
-/-! ## The general mixture identity -/
-
 open PrefixGame in
-/-- **Per-address mixture identity (general form).** Any projection `f` of R3 equals the mixture over the rest of
-the projection `g` of the generic real run of `seedGame`, provided they agree on every coupled sample: an overwrite
-`x` of `a`'s hidden part of the rest and an observed run of `seedGame` with the tables `x.1`. -/
 theorem reference_map_eq_mixture (adversary : AdversaryP) (q : Nat) (a : ChainAddr)
     (ha : WotsExtract.SourceChain a) {β : Type} (f : RefSample → β)
     (g : (R : RefTables adversary) → Digest × (SeedResult × (Fin (restDepth a R) → Digest → Option Digest)) → β)
@@ -169,7 +502,6 @@ theorem reference_map_eq_mixture (adversary : AdversaryP) (q : Nat) (a : ChainAd
   funext R
   rw [uniform_prod, PMF.bind_bind]
   simp only [PMF.bind_map]
-  -- the generic real run from the empty observation
   simp only [realRun, SphincsSecurity.Concrete.PartialChainEndpoint.completeTables_empty,
     SphincsSecurity.Concrete.EndpointPreimageDensity.real, PMF.map_bind, PMF.bind_bind, PMF.bind_map,
     PMF.map_comp, Function.comp_def]
@@ -182,9 +514,6 @@ theorem reference_map_eq_mixture (adversary : AdversaryP) (q : Nat) (a : ChainAd
   rw [← hfix, ← SphincsSecurity.Concrete.PartialChainEndpoint.observedRun_forget _ _ _ (fun _ _ => none),
     PMF.map_comp]
   exact map_congr_support _ _ _ fun res hres => hfg R (t, s) res hres
-
-/-! ## Traces of recorded query lists -/
-
 theorem mem_traceOf (T : Answers) (qs : List RefWorld.Domain) (input : HashInput) (answer : HashOutput) :
     (input, answer) ∈ traceOf T qs ↔
       (.inl (.inr input) : RefWorld.Domain) ∈ qs ∧ answer = T (.inl (.inr input)) := by
@@ -200,7 +529,6 @@ theorem mem_traceOf (T : Answers) (qs : List RefWorld.Domain) (input : HashInput
     · cases he
   · rintro ⟨hq, rfl⟩
     exact ⟨_, hq, rfl⟩
-
 theorem traceOf_find (T : Answers) (x : HashInput) :
     ∀ qs : List RefWorld.Domain, (traceOf T qs).find? (fun e => decide (e.1 = x)) =
       if (.inl (.inr x) : RefWorld.Domain) ∈ qs then some (x, T (.inl (.inr x))) else none
@@ -223,7 +551,6 @@ theorem traceOf_find (T : Answers) (x : HashInput) :
       · have h : traceOf T (.inr u :: qs) = traceOf T qs := rfl
         rw [h, traceOf_find T x qs]
         simp
-
 theorem traceOf_filter_length (T : Answers) (P : HashInput → Prop) :
     ∀ qs : List RefWorld.Domain, ((traceOf T qs).filter fun e => decide (P e.1)).length =
       SphincsSecurity.QueryCap.calls (fun query : RefWorld.Domain => ∃ x, query = .inl (.inr x) ∧ P x) qs
@@ -251,43 +578,26 @@ theorem traceOf_filter_length (T : Answers) (P : HashInput → Prop) :
         · simp only [Nat.zero_add]
         · rintro ⟨x, hx, -⟩
           cases hx
-
-/-! ## The per-address view -/
-
-/-- `input` is a canonical prefix row of `a` (step below the frontier). -/
 def PrefixRowAt (answers : Answers) (a : ChainAddr) (input : HashInput) : Prop :=
   ∃ step value, step < depth answers a ∧ input = chainRow a step value
-
-/-- What the chain events of one address read: its depth, its frontier value, the low answers of its prefix rows
-(`none`: not seen, or not a prefix step) and the number of its prefix rows. -/
 structure PrefixView where
   depth : Nat
   frontier : Digest
   rows : Nat → Digest → Option Digest
   count : Nat
-
-/-- The low answer of `a`'s prefix row `(step, value)` in the trace, if seen. -/
 noncomputable def sampleRows (a : ChainAddr) (s : RefSample) (step : Nat) (value : Digest) : Option Digest :=
   if step < depth s.answers a then
     (s.trace.find? fun e => decide (e.1 = chainRow a step value)).map fun e => low e.2
   else none
-
-/-- The number of `a`'s prefix-row entries in the trace. -/
 noncomputable def prefixCount (a : ChainAddr) (s : RefSample) : Nat :=
   (s.trace.filter fun e => decide (PrefixRowAt s.answers a e.1)).length
-
-/-- The view of an R3 sample at address `a`. -/
 noncomputable def sampleView (a : ChainAddr) (s : RefSample) : PrefixView :=
   ⟨depth s.answers a, frontierValue s.answers a, sampleRows a s, prefixCount a s⟩
-
-/-- The view of a generic real-run result: `(restDepth, endpoint, observed, seedCost)`. -/
 noncomputable def runView {adversary : AdversaryP} (a : ChainAddr) (R : RefTables adversary)
     (r : Digest × (SeedResult × (Fin (restDepth a R) → Digest → Option Digest))) : PrefixView :=
   ⟨restDepth a R, r.1, fun step value => if h : step < restDepth a R then r.2.2 ⟨step, h⟩ value else none,
     seedCost a R r.2.1⟩
-
 open PrefixGame in
-/-- **On a coupled sample, the two views agree** (the observed table is `a`'s prefix rows of R3's trace). -/
 theorem sampleView_coupled (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (R : RefTables adversary)
     (x : Hidden (restDepth a R)) (res : SeedResult × (Fin (restDepth a R) → Digest → Option Digest))
     (hres : res ∈ (observedRun SphincsSecurity.Concrete.OtsPrefix.uniformImpl x.1
@@ -331,8 +641,6 @@ theorem sampleView_coupled (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (R
       exact ⟨⟨step, hs⟩, value, rfl⟩
     · rintro ⟨i, v, rfl⟩
       exact ⟨_, rfl, i, v, by rw [hdepth]; exact i.isLt, rfl⟩
-
-/-- **Per-address mixture identity (view form).** -/
 theorem reference_eq_mixture (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (ha : WotsExtract.SourceChain a) :
     (referenceExperiment adversary q).map (sampleView a) =
       (restLaw adversary).bind (fun R =>
@@ -340,18 +648,10 @@ theorem reference_eq_mixture (adversary : AdversaryP) (q : Nat) (a : ChainAddr) 
           (fun _ _ => none)).map (runView a R)) :=
   reference_map_eq_mixture adversary q a ha (sampleView a) (runView a)
     (sampleView_coupled adversary q a)
-
-/-! ## Events through the view -/
-
-/-- Two-edge event read off a view. -/
 def PrefixView.TwoEdge (v : PrefixView) : Prop :=
   2 ≤ v.depth ∧ ∃ start middle, v.rows (v.depth - 2) start = some middle ∧ v.rows (v.depth - 1) middle = some v.frontier
-
-/-- Contact event read off a view. -/
 def PrefixView.Contact (v : PrefixView) : Prop :=
   1 ≤ v.depth ∧ ∃ value, v.rows (v.depth - 1) value = some v.frontier
-
-/-- Every R3 sample's trace is the trace of a recorded query list under the sample's table. -/
 theorem reference_support_trace (adversary : AdversaryP) (q : Nat) (s : RefSample)
     (hs : s ∈ (referenceExperiment adversary q).support) : ∃ qs, s.trace = traceOf s.answers qs := by
   rw [reference_eq_bind, PMF.mem_support_bind_iff] at hs
@@ -359,7 +659,6 @@ theorem reference_support_trace (adversary : AdversaryP) (q : Nat) (s : RefSampl
   rw [PMF.mem_support_map_iff] at hs
   obtain ⟨run, -, rfl⟩ := hs
   exact ⟨run.2, rfl⟩
-
 theorem sampleRows_eq_some (a : ChainAddr) (s : RefSample) (qs : List RefWorld.Domain)
     (hs : s.trace = traceOf s.answers qs) (step : Nat) (value out : Digest) :
     sampleRows a s step value = some out ↔ step < depth s.answers a ∧ SeenRow s.trace a step value out := by
@@ -382,8 +681,6 @@ theorem sampleRows_eq_some (a : ChainAddr) (s : RefSample) (qs : List RefWorld.D
   · rw [if_neg hstep]
     simp only [reduceCtorEq, false_iff, not_and]
     exact fun h => absurd h hstep
-
-/-- On R3's support, `TwoEdgeAt` is the view's two-edge event. -/
 theorem twoEdgeAt_iff_view (a : ChainAddr) (s : RefSample) (qs : List RefWorld.Domain)
     (hs : s.trace = traceOf s.answers qs) :
     TwoEdgeAt s.answers s.trace a ↔ (sampleView a s).TwoEdge := by
@@ -394,8 +691,6 @@ theorem twoEdgeAt_iff_view (a : ChainAddr) (s : RefSample) (qs : List RefWorld.D
     exact ⟨hd, start, middle, ⟨by omega, h1⟩, ⟨by omega, h2⟩⟩
   · rintro ⟨hd, start, middle, ⟨-, h1⟩, ⟨-, h2⟩⟩
     exact ⟨hd, start, middle, h1, h2⟩
-
-/-- On R3's support, `ContactAt` is the view's contact event. -/
 theorem contactAt_iff_view (a : ChainAddr) (s : RefSample) (qs : List RefWorld.Domain)
     (hs : s.trace = traceOf s.answers qs) :
     ContactAt s.answers s.trace a ↔ (sampleView a s).Contact := by
@@ -406,8 +701,6 @@ theorem contactAt_iff_view (a : ChainAddr) (s : RefSample) (qs : List RefWorld.D
     exact ⟨hd, value, ⟨by omega, h⟩⟩
   · rintro ⟨hd, value, ⟨-, h⟩⟩
     exact ⟨hd, value, h⟩
-
-/-- On the generic side, the view's two-edge event is the generic `TwoEdgeEvent`. -/
 theorem runView_twoEdge {adversary : AdversaryP} (a : ChainAddr) (R : RefTables adversary)
     (r : Digest × (SeedResult × (Fin (restDepth a R) → Digest → Option Digest))) :
     (runView a R r).TwoEdge ↔ TwoEdgeEvent r.2.2 r.1 := by
@@ -428,8 +721,6 @@ theorem runView_twoEdge {adversary : AdversaryP} (a : ChainAddr) (R : RefTables 
     · rw [dif_pos (by omega)]
       have : (⟨restDepth a R - 1, by omega⟩ : Fin (restDepth a R)) = j := Fin.ext (by simp only; omega)
       rw [this]; exact h2
-
-/-- On the generic side, the view's contact event is the generic `Contact`. -/
 theorem runView_contact {adversary : AdversaryP} (a : ChainAddr) (R : RefTables adversary)
     (r : Digest × (SeedResult × (Fin (restDepth a R) → Digest → Option Digest))) :
     (runView a R r).Contact ↔ Contact r.2.2 r.1 := by
@@ -444,10 +735,6 @@ theorem runView_contact {adversary : AdversaryP} (a : ChainAddr) (R : RefTables 
     rw [dif_pos (by omega)]
     have : (⟨restDepth a R - 1, by omega⟩ : Fin (restDepth a R)) = i := Fin.ext (by simp only; omega)
     rw [this]; exact h
-
-/-! ## Probabilities and expectations through the mixture -/
-
-/-- Events equivalent on the support of a PMF have equal probability. -/
 theorem pmf_probEvent_congr {α : Type} (p : PMF α) (E F : α → Prop) (h : ∀ x ∈ p.support, E x ↔ F x) :
     Pr[E | p] = Pr[F | p] := by
   rw [probEvent_eq_tsum_ite, probEvent_eq_tsum_ite]
@@ -459,8 +746,6 @@ theorem pmf_probEvent_congr {α : Type} (p : PMF α) (E F : α → Prop) (h : �
     · rw [if_neg he, if_neg (fun hf => he ((h x hx).mpr hf))]
   · rw [PMF.probOutput_eq_apply, (PMF.apply_eq_zero_iff p x).mpr hx]
     simp only [ite_self]
-
-/-- Monotonicity of event probabilities on the support of a PMF. -/
 theorem pmf_probEvent_mono {α : Type} (p : PMF α) (E F : α → Prop) (h : ∀ x ∈ p.support, E x → F x) :
     Pr[E | p] ≤ Pr[F | p] := by
   rw [probEvent_eq_tsum_ite, probEvent_eq_tsum_ite]
@@ -473,8 +758,6 @@ theorem pmf_probEvent_mono {α : Type} (p : PMF α) (E F : α → Prop) (h : ∀
       exact bot_le
   · rw [if_neg he]
     exact bot_le
-
-/-- Event probabilities of the view transfer through the mixture identity. -/
 theorem reference_view_prob (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (ha : WotsExtract.SourceChain a)
     (E : PrefixView → Prop) :
     Pr[fun s => E (sampleView a s) | referenceExperiment adversary q] =
@@ -485,8 +768,6 @@ theorem reference_view_prob (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (
   simp only [← PMF.monad_map_eq_map, probEvent_map, ← PMF.monad_bind_eq_bind, probEvent_bind_eq_tsum,
     PMF.probOutput_eq_apply] at h
   exact h
-
-/-- Expectations of view functions transfer through the mixture identity. -/
 theorem reference_view_expectation (adversary : AdversaryP) (q : Nat) (a : ChainAddr)
     (ha : WotsExtract.SourceChain a) (f : PrefixView → ENNReal) :
     ∑' s, referenceExperiment adversary q s * f (sampleView a s) =
@@ -497,8 +778,6 @@ theorem reference_view_expectation (adversary : AdversaryP) (q : Nat) (a : Chain
   simp only [SphincsSecurity.Concrete.PartialChainEndpoint.expectation_map,
     SphincsSecurity.Concrete.PartialChainEndpoint.expectation_bind] at h
   exact h
-
-/-- **Two-edge at `a` in R3 = mixture of the generic two-edge event.** -/
 theorem reference_twoEdgeAt_eq (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (ha : WotsExtract.SourceChain a) :
     Pr[fun s => TwoEdgeAt s.answers s.trace a | referenceExperiment adversary q] =
       ∑' R, restLaw adversary R * Pr[fun r => TwoEdgeEvent r.2.2 r.1 |
@@ -512,8 +791,6 @@ theorem reference_twoEdgeAt_eq (adversary : AdversaryP) (q : Nat) (a : ChainAddr
     exact twoEdgeAt_iff_view a s qs hqs
   rw [h1, reference_view_prob adversary q a ha PrefixView.TwoEdge]
   simp only [runView_twoEdge]
-
-/-- **Contact at `a` in R3 = mixture of the generic contact event.** -/
 theorem reference_contactAt_eq (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (ha : WotsExtract.SourceChain a) :
     Pr[fun s => ContactAt s.answers s.trace a | referenceExperiment adversary q] =
       ∑' R, restLaw adversary R * Pr[fun r => Contact r.2.2 r.1 |
@@ -527,8 +804,6 @@ theorem reference_contactAt_eq (adversary : AdversaryP) (q : Nat) (a : ChainAddr
     exact contactAt_iff_view a s qs hqs
   rw [h1, reference_view_prob adversary q a ha PrefixView.Contact]
   simp only [runView_contact]
-
-/-- **The expected number of `a`'s prefix entries in R3 = mixture of the expected generic cost.** -/
 theorem reference_prefixCount_eq (adversary : AdversaryP) (q : Nat) (a : ChainAddr)
     (ha : WotsExtract.SourceChain a) :
     ∑' s, referenceExperiment adversary q s * (prefixCount a s : ENNReal) =
@@ -536,5 +811,5 @@ theorem reference_prefixCount_eq (adversary : AdversaryP) (q : Nat) (a : ChainAd
         realRun (fun _ => SphincsSecurity.Concrete.OtsPrefix.uniformImpl) (seedGame adversary q a R)
           (fun _ _ => none) r * (seedCost a R r.2.1 : ENNReal) :=
   reference_view_expectation adversary q a ha (fun v => (v.count : ENNReal))
-
 end SigGolfCandidate.T3.Security.Wots
+end

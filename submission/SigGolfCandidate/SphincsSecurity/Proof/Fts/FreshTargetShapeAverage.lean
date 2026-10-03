@@ -3,33 +3,19 @@ import SigGolfCandidate.SphincsSecurity.Proof.Fts.CacheIndexMultiplicity
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.CachedTargetIncrement
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ConcreteTargetShapeSigning
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.TargetShapeCardinality
-/-!
-# The moments of a fresh target, averaged over its leaves
-
-For a fresh target on a fixed index, every factor of its moment vector depends only on the coordinates it
-covers: a cached-source group factor on the group, a logged-signing factor on its slot. Since the valid
-shapes use disjoint coordinates, the average over the target's (uniform, independent) leaves factorizes,
-and each factor averages to at most the number of cached admissible inputs, respectively logged signings,
-on the index: a source opens at most fifteen leaves, and the normalization is `2^14/15` per slot.
--/
 
 namespace SphincsSecurity.Concrete
-
 open _root_.OracleComp OracleSpec ENNReal
 open FtsProbeSimulation (messageAnswers)
 attribute [local instance] Classical.propDecidable
 set_option backward.isDefEq.respectTransparency false
-
 noncomputable def targetIndexMoments (key : SecretKey) (cache : QueryCache HashSpec) (log : QueryLog SigningSpec) (power degree : Nat) : ENNReal :=
   ∑ index : Index, cachedIndexMultiplicity key.parameter cache index ^ power *
     ((signingSlotsAtIndex (observedOptionalSigningViews (FtsProbeSimulation.messageAnswers key.parameter cache) key.root log) index).card : ENNReal) ^ degree
-
-/-- The index-level moments of one index. -/
 noncomputable def indexPowerMoments (key : SecretKey) (cache : QueryCache HashSpec) (log : QueryLog SigningSpec)
     (index : Index) : TargetIndexVector := fun power degree =>
   cachedIndexMultiplicity key.parameter cache index ^ power *
     ((signingSlotsAtIndex (observedOptionalSigningViews (FtsProbeSimulation.messageAnswers key.parameter cache) key.root log) index).card : ENNReal) ^ degree
-
 theorem normalizedCachedTargetSubsetMatch_local (parameter : PublicParameter) (cache : QueryCache HashSpec)
     (targetInput : HashInput) (index : Index) (group : Finset IndexGroup) :
     LocalTo group (fun leaves => normalizedCachedTargetSubsetMatch parameter cache targetInput (index, leaves) group) := by
@@ -43,7 +29,6 @@ theorem normalizedCachedTargetSubsetMatch_local (parameter : PublicParameter) (c
   · have h := normalizedSourceSubsetMatch_local index source group first second hagree
     dsimp only at h
     exact h
-
 theorem leafAverage_normalizedCachedTargetSubsetMatch_le (parameter : PublicParameter) (cache : QueryCache HashSpec)
     (targetInput : HashInput) (index : Index) (group : Finset IndexGroup) (hgroup : group.Nonempty) :
     leafAverage (fun leaves => normalizedCachedTargetSubsetMatch parameter cache targetInput (index, leaves) group) ≤
@@ -67,8 +52,6 @@ theorem leafAverage_normalizedCachedTargetSubsetMatch_le (parameter : PublicPara
           exact leafAverage_normalizedSourceSubsetMatch_le index _ group hgroup
       · simp only [if_neg hmessage]
         rw [leafAverage_const]
-
-/-- A logged-signing coverage count as a sum of single-slot normalized matches. -/
 theorem normalizedTargetLogMatch_eq_sum (key : SecretKey) (cache : QueryCache HashSpec) (log : QueryLog SigningSpec)
     (payload : HashInput) (target : FewTimeView) (tree : IndexGroup) :
     normalizedTargetLogMatch key cache log payload target tree =
@@ -84,7 +67,6 @@ theorem normalizedTargetLogMatch_eq_sum (key : SecretKey) (cache : QueryCache Ha
       simp only [Option.elim_some, normalizedSourceSubsetMatch_singleton, sourceTreeMatch, Option.some.injEq,
         exists_eq_left']
       try (split_ifs <;> simp)
-
 theorem normalizedTargetLogMatch_local (key : SecretKey) (cache : QueryCache HashSpec) (log : QueryLog SigningSpec)
     (payload : HashInput) (index : Index) (tree : IndexGroup) :
     LocalTo {tree} (fun leaves => normalizedTargetLogMatch key cache log payload (index, leaves) tree) := by
@@ -99,7 +81,6 @@ theorem normalizedTargetLogMatch_local (key : SecretKey) (cache : QueryCache Has
       have h := normalizedSourceSubsetMatch_local index source {tree} first second hagree
       dsimp only at h
       exact h
-
 theorem leafAverage_normalizedTargetLogMatch_le (key : SecretKey) (cache : QueryCache HashSpec) (log : QueryLog SigningSpec)
     (payload : HashInput) (index : Index) (tree : IndexGroup) :
     leafAverage (fun leaves => normalizedTargetLogMatch key cache log payload (index, leaves) tree) ≤
@@ -117,7 +98,6 @@ theorem leafAverage_normalizedTargetLogMatch_le (key : SecretKey) (cache : Query
       simp only [Option.elim_some]
       refine (leafAverage_normalizedSourceSubsetMatch_le index source {tree} (Finset.singleton_nonempty tree)).trans ?_
       by_cases hindex : source.1 = index <;> simp [hindex]
-
 theorem targetShapeMoments_shapeLocal (key : SecretKey) (cache : QueryCache HashSpec) (log : QueryLog SigningSpec)
     (payload : HashInput) (index : Index) :
     ShapeLocal (fun leaves => targetShapeMoments key cache log payload (index, leaves)) := by
@@ -133,7 +113,6 @@ theorem targetShapeMoments_shapeLocal (key : SecretKey) (cache : QueryCache Hash
       (g := fun tree leaves => normalizedTargetLogMatch key cache log payload (index, leaves) tree)
       (fun tree _ => normalizedTargetLogMatch_local key cache log payload index tree)
     simpa using h
-
 theorem averagedShape_targetShapeMoments_le (key : SecretKey) (cache : QueryCache HashSpec) (log : QueryLog SigningSpec)
     (payload : HashInput) (hfresh : cache (tweakableHashInput key.parameter .message payload) = none)
     (hsigned : SigningDigestsCached key.parameter cache key.root log) (index : Index) :
@@ -168,5 +147,4 @@ theorem averagedShape_targetShapeMoments_le (key : SecretKey) (cache : QueryCach
   · exact Finset.prod_le_pow_card _ _ _ (fun group hgroup =>
       leafAverage_normalizedCachedTargetSubsetMatch_le key.parameter cache _ index group (hvalid.nonempty group hgroup))
   · exact Finset.prod_le_pow_card _ _ _ (fun tree _ => leafAverage_normalizedTargetLogMatch_le key cache log payload index tree)
-
 end SphincsSecurity.Concrete

@@ -1,16 +1,5 @@
 import SigGolfCandidate.T3.Secc.LargeCouplingInteraction
 
-/-!
-# LR-34 (coupling, key generation): the router's public key and published cache are the honest ones
-
-The router discloses `keygenDisclosed` (the top-tree values of levels `0 … 12` of the layer-0 tree) and rebuilds the
-public key and the published cache from them and the presampled masks and MAC. For a coherent table:
-
-* `routerPk_eq`: the disclosed root value is `(evalWithAnswerFn T keygen).1`;
-* `routerPublished_eq`: the rebuilt cache is `(evalWithAnswerFn T keygen).2`;
-* `rel_initial`: the empty monitor and router states are related to the world state after the key disclosures.
--/
-
 namespace SigGolfCandidate.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final SigGolfCandidate.T3M.SecurityInputs
@@ -23,11 +12,8 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] buildFts buildTree keygen
 noncomputable local instance instDecidableEqCache_largeCouplingKeygen : DecidableEq T3.Cache := Classical.decEq _
-
-/-- The values the router uses after disclosing the key coordinates. -/
 noncomputable def keyValues (vals : Coord → Digest) : Coord → Digest :=
   lookupVal (keygenDisclosed.map fun c => (c, vals c))
-
 theorem treeChild_top_some (level node : Nat) (hl : 0 ≤ level) (hl' : level ≤ 12) (hn : node < 2 ^ (12 - level)) :
     ∃ c, treeChild 0 0 level node = some c := by
   by_cases hz : level=0
@@ -43,13 +29,11 @@ theorem treeChild_top_some (level node : Nat) (hl : 0 ≤ level) (hl' : level �
     rw [this]; exact hn
   rw [dif_pos ⟨h1, h2⟩]
   exact ⟨_, rfl⟩
-
 theorem treeChild_mem_keygen (level node : Nat) (hl : 0 ≤ level) (hl' : level ≤ 12) (hn : node < 2 ^ (12 - level))
     (c : Coord) (hc : treeChild 0 0 level node = some c) : c ∈ keygenDisclosed := by
   unfold keygenDisclosed
   simp only [List.mem_flatMap, List.mem_range'_1, List.mem_filterMap, List.mem_range]
   exact ⟨level, ⟨by omega, by omega⟩, node, hn, hc⟩
-
 theorem cacheRegion_congr (f g : Nat → Nat → Digest)
     (h : ∀ level node, 0 ≤ level → level < 12 → node < 2 ^ (12 - level) → f level node = g level node) :
     Correctness.cacheRegion f = Correctness.cacheRegion g := by
@@ -63,11 +47,9 @@ theorem cacheRegion_congr (f g : Nat → Nat → Digest)
     exact h level node (by omega) (by omega) (List.mem_range.mp hnode)
   unfold Correctness.cacheRegion
   rw [hw]
-
 section Keygen
 variable {U : Finset HashInput} {T : Answers} {vals : Coord → Digest} {nv : Message → Digest}
   {τ : Cell U → HashOutput} {a : AuxData}
-
 theorem Coherent.topValue_eq (hcoh : Coherent U T vals nv τ a) (level node : Nat) (hl : 0 ≤ level) (hl' : level < 12)
     (hn : node < 2 ^ (12 - level)) : topValue (keyValues vals) level node = treeValue (builtTree T 0 0) level node := by
   obtain ⟨c, hc⟩ := treeChild_top_some level node (by omega) (by omega) hn
@@ -81,7 +63,6 @@ theorem Coherent.topValue_eq (hcoh : Coherent U T vals nv τ a) (level node : Na
   rw [hc, hc']
   simp only [Option.map_some, Option.getD_some]
   exact lookupVal_map vals keygenDisclosed c hmem
-
 theorem Coherent.private_header (hcoh : Coherent U T vals nv τ a)
     (tag level node : Nat) (h0 : tag%256 ≠ 0) (h8 : tag%256 ≠ 8) :
     T (.inr (.inl (header tag 0 0 level node))) = a.priv (.inl (header tag 0 0 level node)) := by
@@ -98,7 +79,6 @@ theorem Coherent.private_header (hcoh : Coherent U T vals nv τ a)
         exact QuerySpace.header_ne_of_tag (Ne.symm h8) (Sum.inl.inj hp)
   · intro m h
     cases h
-
 theorem Coherent.mask_eq (hcoh : Coherent U T vals nv τ a) (level node : Nat) :
     maskOf a level node = evalWithAnswerFn T (T3.mask level node) := by
   have hp := hcoh.private_header 13 level (node/2) (by decide) (by decide)
@@ -106,7 +86,6 @@ theorem Coherent.mask_eq (hcoh : Coherent U T vals nv τ a) (level node : Nat) :
   simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure]
   rw [← hp]
   rfl
-
 theorem Coherent.mac_eq (hcoh : Coherent U T vals nv τ a) (region : Region) :
     macOf a region = evalWithAnswerFn T (T3.privateMac region) := by
   have hk : (fun i : Fin 2 => a.priv (.inl (header 14 0 0 0 i.val))) =
@@ -119,8 +98,6 @@ theorem Coherent.mac_eq (hcoh : Coherent U T vals nv τ a) (region : Region) :
   simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure]
   rw [hk]
   rfl
-
-/-- The router's published cache region is the honest one. -/
 theorem Coherent.region (hcoh : Coherent U T vals nv τ a) :
     Correctness.cacheRegion (fun level node => topValue (keyValues vals) level node ^^^ maskOf a level node) =
       Correctness.cacheRegion (Correctness.maskedTop T) := by
@@ -128,13 +105,10 @@ theorem Coherent.region (hcoh : Coherent U T vals nv τ a) :
   intro level node hl hl' hn
   rw [hcoh.topValue_eq level node hl hl' hn, hcoh.mask_eq]
   rfl
-
 theorem rootNode_coord : treeChild 0 0 12 0 = some (.inl (.node (rootNode 0 0))) := by
   unfold treeChild treeNodeAt
   rw [if_neg (by decide), dif_pos (by simp [height])]
   rfl
-
-/-- The router's public key is the honest one. -/
 theorem Coherent.pk (hcoh : Coherent U T vals nv τ a) :
     keyValues vals (.inl (.node (rootNode 0 0))) = (evalWithAnswerFn T keygen).1 := by
   rw [Extract.keygen_pk, honestRoot_label hcoh.agrees 0 ⟨0, by decide⟩]
@@ -142,8 +116,6 @@ theorem Coherent.pk (hcoh : Coherent U T vals nv τ a) :
   unfold keyValues
   rw [lookupVal_map vals keygenDisclosed _ hmem]
   exact (joinLabels_low (fun N => vals (.inl N)) a.high _).symm
-
-/-- The router's published cache is the honest one. -/
 theorem Coherent.published (hcoh : Coherent U T vals nv τ a) :
     (⟨macOf a (Correctness.cacheRegion fun level node =>
         topValue (keyValues vals) level node ^^^ maskOf a level node),
@@ -158,7 +130,5 @@ theorem Coherent.published (hcoh : Coherent U T vals nv τ a) :
       simp only at hreg htag
       subst hreg
       rw [htag]
-
 end Keygen
-
 end SigGolfCandidate.T3.Security.LargeCoupling

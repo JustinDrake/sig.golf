@@ -1,26 +1,22 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainLikelihood
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainQueryBound
-namespace SphincsSecurity.Concrete.PartialChainEndpoint
 
+namespace SphincsSecurity.Concrete.PartialChainEndpoint
 open _root_.OracleComp OracleSpec ENNReal
 set_option backward.isDefEq.respectTransparency false
-
 variable {State : Type} [Fintype State] [DecidableEq State] [Nonempty State]
   {AuxIndex : Type} {auxSpec : OracleSpec AuxIndex} {n : Nat} {Result : Type}
-
 noncomputable def realRun (auxiliary : State → QueryImpl auxSpec PMF)
     (computation : State → OracleComp (auxSpec + PrefixSpec n State) Result)
     (observed : Fin n → State → Option State) : PMF (State × (Result × (Fin n → State → Option State))) :=
   (EndpointPreimageDensity.real (completeTables observed) evaluate).bind (fun pair =>
     (observedRun (auxiliary pair.2) pair.1 (computation pair.2) observed).map (fun result => (pair.2, result)))
-
 noncomputable def idealRun (auxiliary : State → QueryImpl auxSpec PMF)
     (computation : State → OracleComp (auxSpec + PrefixSpec n State) Result)
     (observed : Fin n → State → Option State) : PMF (State × (Result × (Fin n → State → Option State))) :=
   (PMF.uniformOfFintype State).bind (fun endpoint =>
     (lazyRun (auxiliary endpoint) (computation endpoint) observed).map (fun result => (endpoint, result)))
-
 theorem realRun_expectation (auxiliary : State → QueryImpl auxSpec PMF)
     (computation : State → OracleComp (auxSpec + PrefixSpec n State) Result)
     (observed : Fin n → State → Option State)
@@ -51,7 +47,6 @@ theorem realRun_expectation (auxiliary : State → QueryImpl auxSpec PMF)
     ring
   rw [hfactor]
   ring
-
 theorem idealRun_queryCount_le (auxiliary : State → QueryImpl auxSpec PMF)
     (computation : State → OracleComp (auxSpec + PrefixSpec n State) Result)
     (observed : Fin n → State → Option State) (budget : Nat)
@@ -64,7 +59,6 @@ theorem idealRun_queryCount_le (auxiliary : State → QueryImpl auxSpec PMF)
   rw [PMF.mem_support_map_iff] at hresult
   obtain ⟨output, houtput, rfl⟩ := hresult
   exact lazyRun_queryCount_le (auxiliary endpoint) (computation endpoint) observed budget (hbound endpoint) output houtput
-
 theorem realRun_cost_lower (auxiliary : State → QueryImpl auxSpec PMF)
     (computation : State → OracleComp (auxSpec + PrefixSpec n State) Result)
     (observed : Fin n → State → Option State) (budget : Nat)
@@ -84,7 +78,6 @@ theorem realRun_cost_lower (auxiliary : State → QueryImpl auxSpec PMF)
       _ = idealRun auxiliary computation observed result *
           ((1 - ((queryCount observed + budget : Nat) : ENNReal) / Fintype.card State) * payoff result) := by ring
       _ ≤ _ := mul_le_mul_right (mul_le_mul_left hlower (payoff result)) _
-
 theorem realRun_empty_cost_lower (auxiliary : State → QueryImpl auxSpec PMF)
     (computation : State → OracleComp (auxSpec + PrefixSpec n State) Result) (budget : Nat)
     (hbound : ∀ endpoint, (computation endpoint).IsQueryBoundP IsPrefixQuery budget)
@@ -94,5 +87,4 @@ theorem realRun_empty_cost_lower (auxiliary : State → QueryImpl auxSpec PMF)
       ∑' result, realRun auxiliary computation (fun _ _ => none) result * payoff result := by
   simpa only [queryCount_empty, zero_add] using
     realRun_cost_lower auxiliary computation (fun _ _ => none) budget hbound payoff
-
 end SphincsSecurity.Concrete.PartialChainEndpoint

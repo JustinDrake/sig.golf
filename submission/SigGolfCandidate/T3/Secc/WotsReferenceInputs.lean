@@ -1,18 +1,6 @@
 import SigGolfCandidate.T3.Secc.WotsTransportR3
 import SigGolfCandidate.T3.Secc.WotsTransportCompletion
 
-/-!
-# F2 (S-1): R3's queries lie in its eager universe
-
-`reference_trace_mem`: every entry of an R3 trace has its input in `referenceInputs adversary`.
-
-Every hash query R3 makes on a table `T` (private part `t`) is a hash query of SEC's recorded ideal game run with the
-private table `t` along some path (`hashInputs (tableRun t (sourceRecord idealGame (∅, ∅))) ⊆ recordedInputs`): the
-adversary's queries are the same, the offline signer's answers are the real signer's answers on the path where the
-public answers are `T`'s (`eval_mem_support_tableRun`), and the verifier forwards the same public queries.
-`allQueries` (every query on every path) is the R3-side bookkeeping.
--/
-
 namespace SigGolfCandidate.T3.Security.Wots.Ref
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -24,21 +12,14 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] SphincsSecurity.Concrete.hashInputs keygen verifyP expandB buildFts buildTree signPayload
-
-/-! ## Every query on every path -/
-
-/-- All queries of a computation, on every path. -/
 def allQueries {ι α : Type} {spec : OracleSpec ι} (computation : OracleComp spec α) : Set ι :=
   OracleComp.construct (fun _ => (∅ : Set ι)) (fun input _ next => {input} ∪ ⋃ u, next u) computation
-
 theorem allQueries_pure {ι α : Type} {spec : OracleSpec ι} (value : α) :
     allQueries (pure value : OracleComp spec α) = ∅ := rfl
-
 theorem allQueries_query_bind {ι α : Type} {spec : OracleSpec ι} (input : ι)
     (next : spec.Range input → OracleComp spec α) :
     allQueries (liftM (spec.query input) >>= next) = {input} ∪ ⋃ u, allQueries (next u) := by
   simp only [allQueries, OracleComp.construct_query_bind]
-
 theorem mem_allQueries_query_bind {ι α : Type} {spec : OracleSpec ι} {input : ι}
     {next : spec.Range input → OracleComp spec α} {query : ι}
     (h : query ∈ allQueries (liftM (spec.query input) >>= next)) :
@@ -47,7 +28,6 @@ theorem mem_allQueries_query_bind {ι α : Type} {spec : OracleSpec ι} {input :
   rcases h with h | h
   · exact Or.inl h
   · exact Or.inr (Set.mem_iUnion.mp h)
-
 theorem recorded_mem_allQueries {ι α : Type} {spec : OracleSpec ι} (impl : QueryImpl spec ProbComp)
     (computation : OracleComp spec α) (result : α × List ι)
     (hr : result ∈ support (simulateQ impl (SphincsSecurity.QueryCap.recorded computation))) :
@@ -67,7 +47,6 @@ theorem recorded_mem_allQueries {ι α : Type} {spec : OracleSpec ι} (impl : Qu
       rcases List.mem_cons.mp hq with rfl | hq
       · exact Or.inl rfl
       · exact Or.inr (Set.mem_iUnion.mpr ⟨answer, ih answer tail htail query hq⟩)
-
 theorem allQueries_run_subset {ι α : Type} {spec : OracleSpec ι} (selected : ι → Prop) [DecidablePred selected]
     (computation : OracleComp spec α) (budget : Nat) :
     allQueries (SphincsSecurity.QueryCap.run selected computation budget) ⊆ allQueries computation := by
@@ -90,7 +69,6 @@ theorem allQueries_run_subset {ι α : Type} {spec : OracleSpec ι} (selected : 
         rcases mem_allQueries_query_bind hq with rfl | ⟨u, hu⟩
         · exact Or.inl rfl
         · exact Or.inr (Set.mem_iUnion.mpr ⟨u, ih u budget hu⟩)
-
 theorem allQueries_bind {ι α β : Type} {spec : OracleSpec ι} (first : OracleComp spec α)
     (next : α → OracleComp spec β) (query : ι) (h : query ∈ allQueries (first >>= next)) :
     query ∈ allQueries first ∨ ∃ value ∈ support first, query ∈ allQueries (next value) := by
@@ -107,14 +85,12 @@ theorem allQueries_bind {ι α β : Type} {spec : OracleSpec ι} (first : Oracle
         · refine Or.inr ⟨value, ?_, hq⟩
           rw [mem_support_bind_iff]
           exact ⟨u, by simp, hv⟩
-
 theorem allQueries_map {ι α β : Type} {spec : OracleSpec ι} (f : α → β) (computation : OracleComp spec α)
     (query : ι) (h : query ∈ allQueries (f <$> computation)) : query ∈ allQueries computation := by
   rw [map_eq_bind_pure_comp] at h
   rcases allQueries_bind _ _ query h with h | ⟨_, _, h⟩
   · exact h
   · exact absurd h (by simp [Function.comp_def, allQueries_pure])
-
 theorem ticks_allQueries (n : Nat) (query : RefWorld.Domain) (h : query ∈ allQueries (ticks n)) :
     query = .inr () := by
   induction n with
@@ -124,7 +100,6 @@ theorem ticks_allQueries (n : Nat) (query : RefWorld.Domain) (h : query ∈ allQ
       rcases mem_allQueries_query_bind h with rfl | ⟨_, hu⟩
       · rfl
       · exact ih hu
-
 theorem ticks_support (n : Nat) (value : Unit) : value ∈ support (ticks n) := by
   cases value
   induction n with
@@ -132,7 +107,6 @@ theorem ticks_support (n : Nat) (value : Unit) : value ∈ support (ticks n) := 
   | succ n ih =>
       rw [ticks_succ, mem_support_bind_iff]
       exact ⟨(), by simp, ih⟩
-
 theorem offlineSign_support (T : Answers) (published : T3.Cache) (request : Request) (answer : Option Signature)
     (h : answer ∈ support (offlineSign T published request)) :
     answer = evalWithAnswerFn T (FullGame.authenticatedSign published request) := by
@@ -140,16 +114,12 @@ theorem offlineSign_support (T : Answers) (published : T3.Cache) (request : Requ
   rw [mem_support_bind_iff] at h
   obtain ⟨_, -, h⟩ := h
   rwa [mem_support_pure_iff] at h
-
 theorem offlineSign_allQueries (T : Answers) (published : T3.Cache) (request : Request) (query : RefWorld.Domain)
     (h : query ∈ allQueries (offlineSign T published request)) : query = .inr () := by
   unfold offlineSign at h
   rcases allQueries_bind _ _ query h with h | ⟨_, _, h⟩
   · exact ticks_allQueries _ query h
   · exact absurd h (by simp [allQueries_pure])
-
-/-! ## The recorded ideal game's hash inputs -/
-
 theorem hashInputs_bind_left {α β : Type} (first : OracleComp OracleWorld α) (next : α → OracleComp OracleWorld β) :
     hashInputs first ⊆ hashInputs (first >>= next) := by
   induction first using OracleComp.inductionOn with
@@ -165,7 +135,6 @@ theorem hashInputs_bind_left {α β : Type} (first : OracleComp OracleWorld α) 
         rw [Finset.mem_biUnion] at hx ⊢
         obtain ⟨u, -, hu⟩ := hx
         exact ⟨u, Finset.mem_univ _, ih u hu⟩
-
 theorem hashInputs_bind_of_mem {α β : Type} (first : OracleComp OracleWorld α)
     (next : α → OracleComp OracleWorld β) (value : α) (hv : value ∈ support first) :
     hashInputs (next value) ⊆ hashInputs (first >>= next) := by
@@ -179,7 +148,6 @@ theorem hashInputs_bind_of_mem {α β : Type} (first : OracleComp OracleWorld α
       obtain ⟨u, -, hu⟩ := hv
       rw [bind_assoc]
       exact (ih u hu).trans (SphincsSecurity.Concrete.hashInputs_next_subset input (fun x => rest x >>= next) u)
-
 theorem tableRun_query_bind {α : Type} (t : FullGame.FullTable) (input : T3.Spec.Domain)
     (next : T3.Spec.Range input → M α) :
     Derivation.tableRun t ((liftM (T3.Spec.query input) >>= next : M α)) =
@@ -187,13 +155,11 @@ theorem tableRun_query_bind {α : Type} (t : FullGame.FullTable) (input : T3.Spe
   unfold Derivation.tableRun
   rw [simulateQ_bind, simulateQ_spec_query]
   rfl
-
 theorem tableRun_bind {α β : Type} (t : FullGame.FullTable) (first : M α) (next : α → M β) :
     Derivation.tableRun t (first >>= next) =
       (Derivation.tableRun t first >>= fun value => Derivation.tableRun t (next value)) := by
   unfold Derivation.tableRun
   rw [simulateQ_bind]
-
 theorem hashInputs_tableRun_sourceRecord {α : Type} (t : FullGame.FullTable) (program : M α)
     (state : LazyPrivate.State) :
     hashInputs (Derivation.tableRun t (FirstHit.sourceRecord program state)) =
@@ -215,8 +181,6 @@ theorem hashInputs_tableRun_sourceRecord {α : Type} (t : FullGame.FullTable) (p
         simp only [h]
         cases input <;> rfl
       · rw [tableHandler_private, pure_bind, pure_bind, hashInputs_map, ih]
-
-/-- Honest evaluation under `T` follows a path of the table run whose private table is `T`'s private part. -/
 theorem eval_mem_support_tableRun {α : Type} (T : Answers) (t : FullGame.FullTable) (ht : ∀ c, T (.inr c) = t c)
     (program : M α) (hp : SourceReplay.HashOnly program) :
     evalWithAnswerFn T program ∈ support (Derivation.tableRun t program) := by
@@ -231,9 +195,6 @@ theorem eval_mem_support_tableRun {α : Type} (T : Answers) (t : FullGame.FullTa
         exact ⟨T (.inl (.inr x)), by simp, ih _ (hn _)⟩
       · rw [tableHandler_private, pure_bind, ht c]
         exact ht c ▸ ih _ (hn _)
-
-/-! ## R3's interaction and verdict against the recorded game -/
-
 theorem interaction_queries (T : Answers) (t : FullGame.FullTable) (ht : ∀ c, T (.inr c) = t c)
     (published : T3.Cache) {α : Type} (program : OracleComp LazyPrivate.Interaction α) :
     (∀ x, (.inl (.inr x) : RefWorld.Domain) ∈ allQueries (offlineInteraction T published program) →
@@ -288,7 +249,6 @@ theorem interaction_queries (T : Answers) (t : FullGame.FullTable) (ht : ∀ c, 
           unfold Derivation.tableRun
           rw [simulateQ_map, support_map]
           exact ⟨w, (ih _).2 w hw, rfl⟩
-
 theorem verdict_queries (t : FullGame.FullTable) {β : Type} (program : M β) (hp : PublicVerdict.Only program) :
     ∀ x, (.inl (.inr x) : RefWorld.Domain) ∈ allQueries (simulateQ verdictImpl program) →
       x ∈ hashInputs (Derivation.tableRun t program) := by
@@ -308,8 +268,6 @@ theorem verdict_queries (t : FullGame.FullTable) {β : Type} (program : M β) (h
           exact SphincsSecurity.Concrete.mem_hashInputs_hash_bind _ _
         · exact SphincsSecurity.Concrete.hashInputs_next_subset (.inr y) _ u (ih u (hn u) x hu)
       · exact False.elim hi
-
-/-- Every hash query of R3 on the table of private part `t` is a hash input of the recorded ideal game. -/
 theorem offlineGame_queries (T : Answers) (t : FullGame.FullTable) (ht : ∀ c, T (.inr c) = t c)
     (adversary : AdversaryP) (x : HashInput)
     (hx : (.inl (.inr x) : RefWorld.Domain) ∈ allQueries (offlineGame T adversary)) :
@@ -326,8 +284,6 @@ theorem offlineGame_queries (T : Answers) (t : FullGame.FullTable) (ht : ∀ c, 
   · exact hashInputs_bind_left _ _ ((interaction_queries T t ht _ _).1 x h)
   · exact hashInputs_bind_of_mem _ _ _ ((interaction_queries T t ht _ _).2 result hres)
       (verdict_queries t _ (PaddedGame.verdict_public _ _) x h)
-
-/-- **S-1**: every hash query recorded by R3 lies in R3's eager universe. -/
 theorem offlineRun_query_mem (adversary : AdversaryP) (q : Nat) (T : Answers) (privateTable : FullGame.FullTable)
     (ht : ∀ c, T (.inr c) = privateTable c) (run : Option (Bool × Nat) × List RefWorld.Domain)
     (hrun : run ∈ support (offlineRun T adversary q))
@@ -337,9 +293,7 @@ theorem offlineRun_query_mem (adversary : AdversaryP) (q : Nat) (T : Answers) (p
   have h3 := offlineGame_queries T privateTable ht adversary x h2
   rw [← hashInputs_tableRun_sourceRecord privateTable _ (∅, ∅)] at h3
   exact Finset.mem_union_right _ (ChainGraph.program_subset_recordedInputs _ privateTable h3)
-
 end SigGolfCandidate.T3.Security.Wots.Ref
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -349,7 +303,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] keygen verifyP expandB buildFts buildTree signPayload
-
 theorem traceOf_mem {T : Answers} {queries : List RefWorld.Domain} {entry : Entry}
     (h : entry ∈ traceOf T queries) : (.inl (.inr entry.1) : RefWorld.Domain) ∈ queries := by
   unfold traceOf at h
@@ -360,8 +313,6 @@ theorem traceOf_mem {T : Answers} {queries : List RefWorld.Domain} {entry : Entr
     rw [← he]
     exact hq
   · cases he
-
-/-- **S-1 (`reference_trace_mem`)**: R3's trace entries have their inputs in `referenceInputs adversary`. -/
 theorem reference_trace_mem (adversary : AdversaryP) (q : Nat) (sample : RefSample)
     (hs : sample ∈ (referenceExperiment adversary q).support) (entry : Entry) (he : entry ∈ sample.trace) :
     entry.1 ∈ referenceInputs adversary := by
@@ -378,5 +329,4 @@ theorem reference_trace_mem (adversary : AdversaryP) (q : Nat) (sample : RefSamp
     rw [← hsample]
   rw [htrace] at he
   exact Ref.offlineRun_query_mem adversary q _ privateTable (fun _ => rfl) run hrun entry.1 (traceOf_mem he)
-
 end SigGolfCandidate.T3.Security.Wots

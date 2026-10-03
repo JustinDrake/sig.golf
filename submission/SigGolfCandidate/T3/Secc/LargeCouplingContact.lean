@@ -1,15 +1,5 @@
 import SigGolfCandidate.T3.Secc.LargeCouplingChain
 
-/-!
-# LR-34 (coupling, contact side): the shared law's contacts are lazy-router stops
-
-**`contact_le_lazy`**: `Pr[Contact adversary q | completedExperiment] ≤ Pr[stop ∧ calls ≤ q | lazy router]`.
-
-Route: F2's `completed_eager_cut` (shared law → eager fixed world, the completion read under `cut`), the short
-congruence of the monitor (`contactR_short`), the law of the eager tables in the router's coordinates (`law_target`),
-the per-table coupling (`table_contact_le` with `coherent_psi`), the lazy init and `observed_avg` (`run_posterior`).
--/
-
 namespace SigGolfCandidate.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -18,39 +8,27 @@ open LargeResidual CanonGraph CanonEncoding
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-
 section Contact
 attribute [local instance] Classical.propDecidable
 open SigGolfCandidate.T3.Security.LargeCoupling.Samplers
-
-/-- Termwise domination of two binds with equal first-sample weights. -/
 theorem probEvent_bind_le_of {α β γ : Type} (mx : ProbComp α) (my : SPMF α) (f : α → ProbComp β) (g : α → SPMF γ)
     (E : β → Prop) (F : γ → Prop) (hw : ∀ x, Pr[= x | mx] = Pr[= x | my]) (h : ∀ x, Pr[E | f x] ≤ Pr[F | g x]) :
     Pr[E | mx >>= f] ≤ Pr[F | my >>= g] := by
   rw [probEvent_bind_eq_tsum, probEvent_bind_eq_tsum]
   exact ENNReal.tsum_le_tsum fun x => by rw [hw x]; gcongr; exact h x
-
 theorem uniform_weight {α : Type} [Fintype α] [Nonempty α] (s1 s2 : SampleableType α) (x : α) :
     Pr[= x | (@uniformSample α s1 : ProbComp α)] = Pr[= x | 𝒮[(@uniformSample α s2 : ProbComp α)]] := by
   rw [show Pr[= x | 𝒮[(@uniformSample α s2 : ProbComp α)]] = Pr[= x | (@uniformSample α s2 : ProbComp α)] from rfl,
     probOutput_uniformSample, probOutput_uniformSample]
-
-
 theorem evalSPMF_uniform_inst {α : Type} [Fintype α] [Nonempty α] (s1 s2 : SampleableType α) :
     𝒮[(@uniformSample α s1 : ProbComp α)] = 𝒮[(@uniformSample α s2 : ProbComp α)] := by
   apply evalSPMF_ext
   intro x
   rw [probOutput_uniformSample, probOutput_uniformSample]
-
-/-- The real event of the contact side: the monitor contacts on the recorded run, under the table. -/
 def RealContact (adversary : AdversaryP) (q : Nat) (x : FirstHit.Recorded Bool × Answers) : Prop :=
   ContactR adversary q x.1 x.2
-
-/-- The fixed-world recorded game paired with its table. -/
 noncomputable def fixedNext (adversary : AdversaryP) (T : Answers) : ProbComp (FirstHit.Recorded Bool × Answers) :=
   (fun r => (r, T)) <$> Wots.Ref.fixedRecord T (GameWith.idealGame PaddedGame.checker adversary) (∅, ∅)
-
-/-- **The contact side, real part**: the shared law's contact probability in the router's coordinates. -/
 theorem contact_real_side (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) :
     Pr[Contact adversary q | SeccLaw.completedExperiment adversary q hq] =
       Pr[RealContact adversary q |
@@ -69,8 +47,6 @@ theorem contact_real_side (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127
   apply probEvent_congr' (fun _ _ => Iff.rfl)
   rw [evalSPMF_bind, evalSPMF_bind, evalSPMF_uniform_inst _ samplerFull]
   congr 1
-
-/-- The hidden values of the world from their three parts. -/
 def worldEquiv : Secrets × ((Message → Digest) × LowLabels) ≃ (WCoord → LargeResidual.Digest) where
   toFun p := Sum.elim (Sum.elim p.2.2 p.1) p.2.1
   invFun lab := (fun s => lab (.inl (.inr s)), fun m => lab (.inr m), fun N => lab (.inl (.inl N)))
@@ -78,8 +54,6 @@ def worldEquiv : Secrets × ((Message → Digest) × LowLabels) ≃ (WCoord → 
   right_inv lab := by
     funext c
     rcases c with (N | s) | m <;> rfl
-
-/-- The three parts of the world's hidden values are independent and uniform. -/
 theorem world_split {R : Type} (K : Secrets → (Message → Digest) → LowLabels → ProbComp R) :
     𝒮[($ᵗ Secrets : ProbComp _) >>= fun sec => ($ᵗ (Message → Digest) : ProbComp _) >>= fun nv =>
         ($ᵗ LowLabels : ProbComp _) >>= fun low => K sec nv low] =
@@ -91,10 +65,7 @@ theorem world_split {R : Type} (K : Secrets → (Message → Digest) → LowLabe
   refine evalSPMF_bind_congr' _ fun sec => ?_
   rw [uniform_prod_bind]
   rfl
-
 theorem weight_self {α : Type} (mx : ProbComp α) (x : α) : Pr[= x | mx] = Pr[= x | 𝒮[mx]] := rfl
-
-/-- **The contact side**: the shared law's contacts are lazy-router stops within the budget. -/
 theorem contact_le_lazy (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) :
     Pr[Contact adversary q | SeccLaw.completedExperiment adversary q hq] ≤
       Pr[fun r => r.1 = none ∧ r.2.counters.calls ≤ q |
@@ -138,7 +109,5 @@ theorem contact_le_lazy (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) 
       rcases c with c | m <;> rfl
     rw [hlab] at h
     exact h
-
 end Contact
-
 end SigGolfCandidate.T3.Security.LargeCoupling

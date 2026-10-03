@@ -1,77 +1,45 @@
 import SigGolfCandidate.Rv.Exec
 
-/-!
-# Soundness of the symbolic executor
-
-Main theorem (`symRun_sound`): if `symRun cfg code pc fuel = some r`, `code` sits at `pc` in
-`image` (`CodeAt`), the concrete state `s` has `s.pc = pc` and satisfies the side conditions
-`r.obligs s`, then
-
-  `Steps image s r.steps r.cycles (r.toState s)`
-
-where `r.toState s` is the explicit final state: registers `(r.st.regs.get x).eval s`,
-memory `memEval s r.st.mem` (every address not written is unchanged — `memEval_frame`),
-pc `r.pc.eval s`, all other fields as in `s`.
--/
-
 namespace SigGolfCandidate.Rv
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64
-
-/-! ## Register file -/
-
 @[simp] theorem RegFile.get_x0 (rf : RegFile) : rf.get .x0 = .c 0 := rfl
 @[simp] theorem RegFile.set_x0 (rf : RegFile) (e : E) : rf.set .x0 e = rf := rfl
-
 theorem RegFile.get_set_self (rf : RegFile) {r : Reg} (e : E) (h : r ≠ .x0) :
     (rf.set r e).get r = e := by
   cases r <;> first | exact absurd rfl h | rfl
-
 set_option maxHeartbeats 4000000 in
 theorem RegFile.get_set_ne (rf : RegFile) {r r' : Reg} (e : E) (h : r' ≠ r) :
     (rf.set r e).get r' = rf.get r' := by
   cases r <;> cases r' <;> first | exact absurd rfl h | rfl
-
 theorem RegFile.init_get_eval (s : MachineState) (r : Reg) :
     (RegFile.init.get r).eval s = s.getReg r := by
   cases r <;> rfl
-
-/-! ## `toState` -/
-
 theorem MachineState.ext' {a b : MachineState} (hr : a.regs = b.regs) (hm : a.mem = b.mem)
     (hc : a.code = b.code) (hp : a.pc = b.pc) (h1 : a.committed = b.committed)
     (h2 : a.publicValues = b.publicValues) (h3 : a.privateInput = b.privateInput)
     (h4 : a.inputBufBase = b.inputBufBase) : a = b := by
   cases a; cases b; simp_all
-
 @[simp] theorem SymState.toState_getReg (σ : SymState) (s : MachineState) (pc : Word) (r : Reg) :
     (σ.toState s pc).getReg r = (σ.regs.get r).eval s := by
   cases r <;> rfl
-
 @[simp] theorem SymState.toState_getMem (σ : SymState) (s : MachineState) (pc a : Word) :
     (σ.toState s pc).getMem a = memEval s σ.mem a := rfl
-
 @[simp] theorem SymState.toState_pc (σ : SymState) (s : MachineState) (pc : Word) :
     (σ.toState s pc).pc = pc := rfl
-
 @[simp] theorem SymState.toState_code (σ : SymState) (s : MachineState) (pc : Word) :
     (σ.toState s pc).code = s.code := rfl
-
 theorem SymState.toState_setPC (σ : SymState) (s : MachineState) (pc pc' : Word) :
     (σ.toState s pc).setPC pc' = σ.toState s pc' := rfl
-
 theorem SymState.toState_congr {σ σ' : SymState} {s : MachineState} (hr : σ.regs = σ'.regs)
     (hm : memEval s σ.mem = memEval s σ'.mem) (pc : Word) : σ.toState s pc = σ'.toState s pc := by
   unfold SymState.toState; rw [hr, hm]
-
 theorem SymState.init_toState (s : MachineState) : SymState.init.toState s s.pc = s := by
   apply MachineState.ext' <;> try rfl
   funext r
   cases r <;> rfl
-
 theorem setReg_of_ne (t : MachineState) {r : Reg} (v : Word) (h : r ≠ .x0) :
     t.setReg r v = { t with regs := fun r' => if r' = r then v else t.regs r' } := by
   cases r <;> first | exact absurd rfl h | (simp only [MachineState.setReg, beq_iff_eq])
-
 theorem SymState.toState_setReg (σ : SymState) (s : MachineState) (pc : Word) (rd : Reg) (e : E) :
     (σ.toState s pc).setReg rd (e.eval s) = ({ σ with regs := σ.regs.set rd e }).toState s pc := by
   by_cases hrd : rd = .x0
@@ -83,22 +51,15 @@ theorem SymState.toState_setReg (σ : SymState) (s : MachineState) (pc : Word) (
     by_cases h : r' = rd
     · subst h; simp [hrd, RegFile.get_set_self _ _ hrd]
     · simp [h, RegFile.get_set_ne _ _ h]
-
 theorem SymState.toState_setMem (σ : SymState) (s : MachineState) (pc : Word) (k : Addr) (e : E) :
     (σ.toState s pc).setMem (k.eval s) (e.eval s) =
       ({ σ with mem := (k, e) :: σ.mem }).toState s pc := by
   apply MachineState.ext' <;> try rfl
   funext a
   simp [MachineState.setMem, SymState.toState, memEval]
-
-/-! ## Memory -/
-
 theorem memEval_nil (s : MachineState) (a : Word) : memEval s [] a = s.getMem a := rfl
-
 theorem memEval_cons (s : MachineState) (k : Addr) (v : E) (ws : SymMem) (a : Word) :
     memEval s ((k, v) :: ws) a = if a = k.eval s then v.eval s else memEval s ws a := rfl
-
-/-- Frame property: an address different from every written key reads the initial memory. -/
 theorem memEval_frame (s : MachineState) (ws : SymMem) (a : Word)
     (h : ∀ p ∈ ws, a ≠ p.1.eval s) : memEval s ws a = s.getMem a := by
   induction ws with
@@ -107,14 +68,12 @@ theorem memEval_frame (s : MachineState) (ws : SymMem) (a : Word)
     obtain ⟨k, v⟩ := p
     rw [memEval_cons, if_neg (h _ (List.mem_cons_self ..))]
     exact ih (fun q hq => h q (List.mem_cons_of_mem _ hq))
-
 theorem isSame_eval {k k' : Addr} (h : isSame k k' = true) (s : MachineState) :
     k.eval s = k'.eval s := by
   unfold isSame at h
   split at h
   · rename_i hs; exact Addr.alias_same hs s
   · cases h
-
 theorem memEval_writeMem (s : MachineState) (k : Addr) (v : E) (ws : SymMem) :
     memEval s (writeMem k v ws) = memEval s ((k, v) :: ws) := by
   funext a
@@ -133,7 +92,6 @@ theorem memEval_writeMem (s : MachineState) (k : Addr) (v : E) (ws : SymMem) :
         have hs' : isSame k k' = true := by simpa using hs
         rw [memEval_cons, if_neg, ih]
         rw [← isSame_eval hs' s]; exact hne
-
 theorem readMem_sound {cfg : Config} {k : Addr} {ws : SymMem} {e : E} {os : List Oblig}
     (h : readMem cfg k ws = some (e, os)) (s : MachineState) (hos : ∀ o ∈ os, o.holds s) :
     memEval s ws (k.eval s) = e.eval s := by
@@ -165,44 +123,34 @@ theorem readMem_sound {cfg : Config} {k : Addr} {ws : SymMem} {e : E} {os : List
           rw [if_neg hne]
           exact ih hr (fun o ho => hos o (List.mem_cons_of_mem _ ho))
       · cases h
-
-/-! ## Side conditions -/
-
 theorem SymState.addObl_regs (σ : SymState) (o : Oblig) : (σ.addObl o).regs = σ.regs := by
   unfold SymState.addObl; split <;> rfl
-
 theorem SymState.addObl_mem (σ : SymState) (o : Oblig) : (σ.addObl o).mem = σ.mem := by
   unfold SymState.addObl; split <;> rfl
-
 theorem SymState.addObl_sub (σ : SymState) (o : Oblig) : σ.obl ⊆ (σ.addObl o).obl := by
   unfold SymState.addObl; split
   · exact List.Subset.refl _
   · exact List.subset_cons_self _ _
-
 theorem SymState.addObl_mem_obl (σ : SymState) (o : Oblig) : o ∈ (σ.addObl o).obl := by
   unfold SymState.addObl; split
   · rename_i h
     obtain ⟨o', ho', hb⟩ := List.any_eq_true.mp (Bool.and_eq_true_iff.mp h).2
     rw [Oblig.beq_eq hb]; exact ho'
   · exact List.mem_cons_self ..
-
 theorem SymState.addObls_regs (σ : SymState) (os : List Oblig) : (σ.addObls os).regs = σ.regs := by
   induction os generalizing σ with
   | nil => rfl
   | cons o os ih => simp only [SymState.addObls, List.foldl_cons] at ih ⊢; rw [ih, addObl_regs]
-
 theorem SymState.addObls_mem (σ : SymState) (os : List Oblig) : (σ.addObls os).mem = σ.mem := by
   induction os generalizing σ with
   | nil => rfl
   | cons o os ih => simp only [SymState.addObls, List.foldl_cons] at ih ⊢; rw [ih, addObl_mem]
-
 theorem SymState.addObls_sub (σ : SymState) (os : List Oblig) : σ.obl ⊆ (σ.addObls os).obl := by
   induction os generalizing σ with
   | nil => exact List.Subset.refl _
   | cons o os ih =>
     simp only [SymState.addObls, List.foldl_cons] at ih ⊢
     exact List.Subset.trans (addObl_sub σ o) (ih _)
-
 theorem SymState.addObls_mem_obl (σ : SymState) (os : List Oblig) :
     ∀ o ∈ os, o ∈ (σ.addObls os).obl := by
   induction os generalizing σ with
@@ -213,14 +161,10 @@ theorem SymState.addObls_mem_obl (σ : SymState) (os : List Oblig) :
     rcases List.mem_cons.mp h with rfl | h
     · exact addObls_sub _ os (addObl_mem_obl σ o')
     · exact ih _ o' h
-
-/-! ## Address arithmetic -/
-
 theorem byteOffset_eq (x : Word) : byteOffset x = x.toNat % 8 := by
   unfold byteOffset
   rw [BitVec.toNat_and, show (7#64).toNat = 7 from rfl]
   simpa using Nat.and_two_pow_sub_one_eq_mod x.toNat 3
-
 theorem alignToDword_toNat (x : Word) : (alignToDword x).toNat = x.toNat - x.toNat % 8 := by
   unfold alignToDword
   simp only [BitVec.toNat_and, BitVec.toNat_not, BitVec.toNat_ofNat,
@@ -236,7 +180,6 @@ theorem alignToDword_toNat (x : Word) : (alignToDword x).toNat = x.toNat - x.toN
   have heucl := Nat.div_add_mod (x.toNat &&& (2 ^ 64 - 1 - 7)) 8
   have heucl2 := Nat.div_add_mod x.toNat 8
   omega
-
 theorem aligned_add (b k : Word) (hb : b.toNat % 8 = 0) :
     alignToDword (b + k) = b + alignToDword k ∧ byteOffset (b + k) = byteOffset k := by
   have hbl := b.isLt
@@ -247,7 +190,6 @@ theorem aligned_add (b k : Word) (hb : b.toNat % 8 = 0) :
     omega
   · rw [byteOffset_eq, byteOffset_eq, BitVec.toNat_add]
     omega
-
 theorem checkValid_sound {σ σ₁ : SymState} {a : Addr} {w : Nat} (h : checkValid σ a w = some σ₁)
     (s : MachineState) (hobl : ∀ o ∈ σ₁.obl, o.holds s) :
     accessValid (a.eval s) w = true ∧ σ₁.regs = σ.regs ∧ σ₁.mem = σ.mem ∧ σ.obl ⊆ σ₁.obl := by
@@ -264,7 +206,6 @@ theorem checkValid_sound {σ σ₁ : SymState} {a : Addr} {w : Nat} (h : checkVa
     simp only [Option.some.injEq] at h; subst h
     refine ⟨?_, SymState.addObl_regs _ _, SymState.addObl_mem _ _, SymState.addObl_sub _ _⟩
     exact hobl _ (SymState.addObl_mem_obl _ _)
-
 theorem subKey_sound {σ σ₂ : SymState} {a key : Addr} {bo : Nat} (h : subKey σ a = (σ₂, key, bo))
     (s : MachineState) (hobl : ∀ o ∈ σ₂.obl, o.holds s) :
     key.eval s = alignToDword (a.eval s) ∧ bo = byteOffset (a.eval s) ∧
@@ -283,22 +224,15 @@ theorem subKey_sound {σ σ₂ : SymState} {a key : Addr} {bo : Nat} (h : subKey
     refine ⟨?_, ?_, SymState.addObl_regs _ _, SymState.addObl_mem _ _, SymState.addObl_sub _ _⟩
     · simp [Addr.eval, hb, this.1]
     · simp [Addr.eval, hb, this.2]
-
-/-! ## One micro-op -/
-
 theorem Src.sym_eval (σ : SymState) (s : MachineState) (pc : Word) (a : Src) :
     (a.sym σ.regs pc).eval s = a.eval (σ.toState s pc) := by
   cases a <;> simp [Src.sym, Src.eval, E.eval]
-
 theorem LoadKind.isD_iff (k : LoadKind) : k.isD = true ↔ k = .d := by cases k <;> simp [LoadKind.isD]
 theorem StoreKind.isD_iff (k : StoreKind) : k.isD = true ↔ k = .d := by
   cases k <;> simp [StoreKind.isD]
-
-/-- The next pc after a micro-op. -/
 def nextPc (s : MachineState) (pc : Word) : Option E → Word
   | none => pc + 4
   | some t => t.eval s
-
 set_option maxHeartbeats 1000000 in
 theorem symMicro_sound {cfg : Config} {pc : Word} {σ σ' : SymState} {m : Micro} {ctl : Option E}
     (h : symMicro cfg pc σ m = some (σ', ctl)) (s : MachineState)
@@ -320,7 +254,7 @@ theorem symMicro_sound {cfg : Config} {pc : Word} {σ σ' : SymState} {m : Micro
           (σ.toState s pc).getReg rs + off := by
         rw [norm_eval, mkAdd_eval]; simp [E.eval]
       split at h
-      · -- doubleword
+      ·
         rename_i hk
         have hk' : k = .d := (LoadKind.isD_iff k).mp hk
         subst hk'
@@ -345,7 +279,7 @@ theorem symMicro_sound {cfg : Config} {pc : Word} {σ σ' : SymState} {m : Micro
           apply SymState.toState_congr
           · simp [SymState.addObls_regs, hr1]
           · simp [SymState.addObls_mem, hm1]
-      · -- sub-doubleword
+      ·
         rename_i hk
         have hk' : k ≠ .d := fun h' => hk ((LoadKind.isD_iff k).mpr h')
         generalize hsk : subKey σ₁ (norm (mkAdd (σ.regs.get rs) (E.c off))) = p at h
@@ -452,16 +386,12 @@ theorem symMicro_sound {cfg : Config} {pc : Word} {σ σ' : SymState} {m : Micro
     rw [show pc + 4 = (E.c (pc + 4)).eval s from rfl, SymState.toState_setReg,
       SymState.toState_setPC]
     rfl
-
-/-! ## Code placement -/
-
 theorem getElem?_of_prefix_drop {l : List (BitVec 32)} {i : Nat} {w : BitVec 32}
     {ws : List (BitVec 32)} (h4 : w :: ws <+: List.drop i l) : l[i]? = some w := by
   obtain ⟨t, ht⟩ := h4
   have := congrArg (·[0]?) ht
   simp only [List.getElem?_drop, List.cons_append, List.getElem?_cons_zero, Nat.add_zero] at this
   exact this.symm
-
 theorem CodeAt.fetch {image : Image} {pc : Word} {w : BitVec 32} {ws : List (BitVec 32)}
     (h : CodeAt image pc (w :: ws)) (t : MachineState) (ht : t.pc = pc) :
     fetch image t = decodeInstruction w := by
@@ -474,7 +404,6 @@ theorem CodeAt.fetch {image : Image} {pc : Word} {w : BitVec 32} {ws : List (Bit
     exact ⟨by omega, h2⟩
   simp only [hc, Bool.false_eq_true, if_false, hget]
   rfl
-
 theorem CodeAt.tail {image : Image} {pc : Word} {w : BitVec 32} {ws : List (BitVec 32)}
     (h : CodeAt image pc (w :: ws)) : CodeAt image (pc + 4) ws := by
   obtain ⟨h1, h2, h3, h4⟩ := h
@@ -487,8 +416,6 @@ theorem CodeAt.tail {image : Image} {pc : Word} {w : BitVec 32} {ws : List (BitV
   obtain ⟨t, ht⟩ := h4
   rw [← ht]
   exact ⟨t, by simp⟩
-
-/-- Placement from a decomposition `image.code = pre ++ code ++ post`. -/
 theorem CodeAt.of_append {image : Image} {pre code post : List (BitVec 32)}
     (h : image.code = pre ++ code ++ post) (pc : Word)
     (hpc : pc.toNat = 0x1000 + 4 * pre.length)
@@ -497,12 +424,8 @@ theorem CodeAt.of_append {image : Image} {pre code post : List (BitVec 32)}
   rw [hpc, show (0x1000 + 4 * pre.length - 0x1000) / 4 = pre.length by omega, h,
     List.append_assoc, List.drop_left]
   exact List.prefix_append _ _
-
-/-! ## The block theorem -/
-
 theorem isEcall_eq {i : Instruction} (h : isEcall i = true) : i = .base .ECALL := by
   unfold isEcall at h; split at h <;> first | rfl | cases h
-
 theorem symRunAux_sound (cfg : Config) (image : Image) (s : MachineState) :
     ∀ (code : List (BitVec 32)) (pc : Word) (fuel : Nat) (σ : SymState) (r : Result),
       symRunAux cfg code pc fuel σ = some r → CodeAt image pc code →
@@ -553,8 +476,6 @@ theorem symRunAux_sound (cfg : Config) (image : Image) (s : MachineState) :
               · refine Steps.step (i := i) ((hcode.fetch (σ.toState s pc) rfl).trans hdec) ?_ (Steps.refl _)
                 rw [classify_sound hcl, hexec]; rfl
               · intro hst; cases m <;> cases hst
-
-/-- **Soundness of the symbolic executor.** -/
 theorem symRun_sound {cfg : Config} {image : Image} {code : List (BitVec 32)} {pc : Word}
     {fuel : Nat} {r : Result} (hrun : symRun cfg code pc fuel = some r)
     (hcode : CodeAt image pc code) (s : MachineState) (hpc : s.pc = pc) (hobl : r.obligs s) :
@@ -562,38 +483,25 @@ theorem symRun_sound {cfg : Config} {image : Image} {code : List (BitVec 32)} {p
   have := (symRunAux_sound cfg image s code pc fuel _ r hrun hcode
     ((Oblig.all_iff s _).mp hobl)).1
   rwa [← hpc, SymState.init_toState] at this
-
-/-- When the block stopped at an `ECALL`, the final state fetches that `ECALL`. -/
 theorem symRun_ecall {cfg : Config} {image : Image} {code : List (BitVec 32)} {pc : Word}
     {fuel : Nat} {r : Result} (hrun : symRun cfg code pc fuel = some r)
     (hcode : CodeAt image pc code) (s : MachineState) (hobl : r.obligs s)
     (hstop : r.stop = .ecall) : fetch image (r.toState s) = some (.base .ECALL) :=
   (symRunAux_sound cfg image s code pc fuel _ r hrun hcode ((Oblig.all_iff s _).mp hobl)).2.2 hstop
-
-/-! ## Reading final states -/
-
 @[simp] theorem Result.toState_getReg (r : Result) (s : MachineState) (x : Reg) :
     (r.toState s).getReg x = (r.st.regs.get x).eval s := by
   simp [Result.toState]
-
 @[simp] theorem Result.toState_getMem (r : Result) (s : MachineState) (a : Word) :
     (r.toState s).getMem a = memEval s r.st.mem a := rfl
-
 @[simp] theorem Result.toState_pc (r : Result) (s : MachineState) :
     (r.toState s).pc = r.pc.eval s := rfl
-
 @[simp] theorem Result.toState_code (r : Result) (s : MachineState) :
     (r.toState s).code = s.code := rfl
-
-/-- Reflective read of the final memory: resolve a symbolic address against the block's writes. -/
 theorem Result.toState_getMem_of_read (r : Result) (s : MachineState) {cfg : Config} {k : Addr}
     {e : E} {os : List Oblig} (h : readMem cfg k r.st.mem = some (e, os))
     (hos : Oblig.all s os) : (r.toState s).getMem (k.eval s) = e.eval s :=
   readMem_sound h s ((Oblig.all_iff s _).mp hos)
-
-/-- Frame: untouched memory is unchanged. -/
 theorem Result.toState_getMem_frame (r : Result) (s : MachineState) (a : Word)
     (h : ∀ p ∈ r.st.mem, a ≠ p.1.eval s) : (r.toState s).getMem a = s.getMem a :=
   memEval_frame s _ a h
-
 end SigGolfCandidate.Rv

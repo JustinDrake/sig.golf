@@ -1,12 +1,10 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainCapContact
-namespace SphincsSecurity.Concrete.PartialChainEndpoint
 
+namespace SphincsSecurity.Concrete.PartialChainEndpoint
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
-
 variable {State : Type} [Fintype State] [DecidableEq State] [Nonempty State]
   {AuxIndex : Type} {auxSpec : OracleSpec AuxIndex} {n : Nat} {Result : Type}
-
 theorem lazyRun_counted_queryCount_le (auxiliary : QueryImpl auxSpec PMF)
     (computation : OracleComp (auxSpec + PrefixSpec n State) Result) (observed : Fin n → State → Option State)
     (result : (Result × Nat) × (Fin n → State → Option State))
@@ -32,7 +30,6 @@ theorem lazyRun_counted_queryCount_le (auxiliary : QueryImpl auxSpec PMF)
           have hr := queryCount_record_le observed query answer
           simp only [IsPrefixQuery, if_true]
           omega
-
 theorem lazyRun_counted_budget_le (auxiliary : QueryImpl auxSpec PMF)
     (computation : OracleComp (auxSpec + PrefixSpec n State) Result) (observed : Fin n → State → Option State)
     (budget : Nat) (hbound : computation.IsQueryBoundP IsPrefixQuery budget)
@@ -41,5 +38,4 @@ theorem lazyRun_counted_budget_le (auxiliary : QueryImpl auxSpec PMF)
     result.1.2 ≤ budget :=
   QueryCap.counted_le_of_queryBound IsPrefixQuery computation budget hbound result.1
     (lazyRun_result_mem auxiliary (QueryCap.counted IsPrefixQuery computation) observed result hresult)
-
 end SphincsSecurity.Concrete.PartialChainEndpoint

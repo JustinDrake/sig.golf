@@ -1,20 +1,5 @@
 import SigGolfCandidate.T3.Secc.WotsRestartBase
 
-/-!
-# Stream C (restart): a contact of `a` after the first stop of the trace (G4 on R3)
-
-For a source chain `a` and a stop predicate on trace prefixes that depends on the table only through `maskAt · a`
-(i.e. not on `a`'s hidden part beyond its frontier value; every honest object qualifies):
-```
-ContactAfterStop Stop T trace a := ∃ k, Stop T (trace.take k) ∧ ¬ContactAt T (trace.take k) a ∧ ContactAt T trace a
-reference_contactAfterStop_le :
-  (1 − x) · (2^128 · Pr_R3[ContactAfterStop Stop · a]) ≤ (2q) · Pr_R3[∃ k, Stop (trace.take k)]
-```
-(flat G4 `realCheckpointRun_contact_le_mark`; the checkpoint is R3 paused at the first stop, `PrefixGame.seedBefore`,
-the restart its remainder, `PrefixGame.seedAfter`). Stream E instantiates `Stop := MarkerAt · · a` (marker-first);
-stream C instantiates "a contact at another source chain" (two contacts).
--/
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -27,14 +12,8 @@ set_option backward.isDefEq.respectTransparency false
 set_option linter.constructorNameAsVariable false
 attribute [local instance low] Classical.propDecidable
 attribute [local irreducible] referenceGame offlineGame
-
 namespace PrefixGame
-
 variable {adversary : AdversaryP}
-
-/-! ## The general mixture identity for a game refining `seedGame` -/
-
-/-- **Mixture identity for any per-address game whose output projects to `seedGame`.** -/
 theorem reference_map_eq_mixture_of (q : Nat) (a : ChainAddr) (ha : WotsExtract.SourceChain a) {Res β : Type}
     (game : (R : RefTables adversary) → Digest → OracleComp (SeedSpec (restDepth a R)) Res)
     (out : Res → SeedResult) (hgame : ∀ R endpoint, out <$> game R endpoint = seedGame adversary q a R endpoint)
@@ -72,8 +51,6 @@ theorem reference_map_eq_mixture_of (q : Nat) (a : ChainAddr) (ha : WotsExtract.
   rw [← hfix, ← SphincsSecurity.Concrete.PartialChainEndpoint.observedRun_forget _ _ _ (fun _ _ => none),
     PMF.map_comp, PMF.map_comp]
   exact map_congr_support _ _ _ fun res hres => hfg R (t, s) res hres
-
-/-- Probability form of `reference_map_eq_mixture_of`. -/
 theorem reference_prob_eq_of (q : Nat) (a : ChainAddr) (ha : WotsExtract.SourceChain a) {Res : Type}
     (game : (R : RefTables adversary) → Digest → OracleComp (SeedSpec (restDepth a R)) Res)
     (out : Res → SeedResult) (hgame : ∀ R endpoint, out <$> game R endpoint = seedGame adversary q a R endpoint)
@@ -92,8 +69,6 @@ theorem reference_prob_eq_of (q : Nat) (a : ChainAddr) (ha : WotsExtract.SourceC
   simp only [← PMF.monad_map_eq_map, probEvent_map, ← PMF.monad_bind_eq_bind, probEvent_bind_eq_tsum,
     PMF.probOutput_eq_apply, Function.comp_def] at h
   exact h
-
-/-- Expectation form of `reference_map_eq_mixture_of`. -/
 theorem reference_expectation_eq_of (q : Nat) (a : ChainAddr) (ha : WotsExtract.SourceChain a) {Res : Type}
     (game : (R : RefTables adversary) → Digest → OracleComp (SeedSpec (restDepth a R)) Res)
     (out : Res → SeedResult) (hgame : ∀ R endpoint, out <$> game R endpoint = seedGame adversary q a R endpoint)
@@ -112,11 +87,6 @@ theorem reference_expectation_eq_of (q : Nat) (a : ChainAddr) (ha : WotsExtract.
   simp only [SphincsSecurity.Concrete.PartialChainEndpoint.expectation_map,
     SphincsSecurity.Concrete.PartialChainEndpoint.expectation_bind] at h
   exact h
-
-/-! ## Coupled samples of the paused game -/
-
-/-- Answering the paused game's prefix queries by the tables of an overwrite is the paused R3 run on the overwritten
-table. -/
 theorem fixed_pausedSeed (q : Nat) (a : ChainAddr) (htree : a.key.tree < 2 ^ 40) (hleaf : a.key.leaf < 2 ^ 32)
     (R : RefTables adversary) (x : Hidden (restDepth a R)) (stop : List Entry → Prop) :
     simulateQ (fixedImpl SphincsSecurity.Concrete.OtsPrefix.uniformImpl x.1)
@@ -129,8 +99,6 @@ theorem fixed_pausedSeed (q : Nat) (a : ChainAddr) (htree : a.key.tree < 2 ^ 40)
   rw [← QueryImpl.simulateQ_compose, fixed_route a hd R x, ← referenceGame_fill a htree hleaf R x q,
     QueryImpl.simulateQ_compose]
   rfl
-
-/-- On a coupled sample, the pause memory has the structure of `paused_structure` w.r.t. the full trace. -/
 theorem coupled_paused (q : Nat) (a : ChainAddr) (ha : WotsExtract.SourceChain a) (R : RefTables adversary)
     (x : Hidden (restDepth a R)) (stop : List Entry → Prop)
     (res : (List Entry × SeedResult) × (Fin (restDepth a R) → Digest → Option Digest))
@@ -155,8 +123,6 @@ theorem coupled_paused (q : Nat) (a : ChainAddr) (ha : WotsExtract.SourceChain a
   obtain ⟨-, h2, h3, h4⟩ := paused_structure _ stop _ [] res.1 hmem
   simp only [List.nil_append, List.length_nil, Nat.zero_le, true_implies] at h2 h3 h4
   exact ⟨h2, h3, h4⟩
-
-/-- On a coupled sample of the paused game, the final observed table is `a`'s prefix rows of the full trace. -/
 theorem coupled_paused_rows (q : Nat) (a : ChainAddr) (R : RefTables adversary) (x : Hidden (restDepth a R))
     (stop : List Entry → Prop) (res : (List Entry × SeedResult) × (Fin (restDepth a R) → Digest → Option Digest))
     (hres : res ∈ (observedRun SphincsSecurity.Concrete.OtsPrefix.uniformImpl x.1
@@ -166,26 +132,18 @@ theorem coupled_paused_rows (q : Nat) (a : ChainAddr) (R : RefTables adversary) 
   rw [← pausedSeed_snd q a R stop, SphincsSecurity.Concrete.PartialChainEndpoint.observedRun_map,
     PMF.mem_support_map_iff]
   exact ⟨res, hres, rfl⟩
-
-
-/-! ## Events -/
-
 theorem contactAt_take_mono (T : Answers) (trace : List Entry) (a : ChainAddr) {j k : Nat} (hjk : j ≤ k)
     (h : ContactAt T (trace.take j) a) : ContactAt T (trace.take k) a := by
   obtain ⟨hd, value, answer, hm, hl⟩ := h
   exact ⟨hd, value, answer, (List.take_prefix_take_left hjk).subset hm, hl⟩
-
 theorem contactAt_take_full (T : Answers) (trace : List Entry) (a : ChainAddr) {k : Nat}
     (h : ContactAt T (trace.take k) a) : ContactAt T trace a := by
   obtain ⟨hd, value, answer, hm, hl⟩ := h
   exact ⟨hd, value, answer, List.mem_of_mem_take hm, hl⟩
-
 theorem contactAt_congr {T T' : Answers} (trace : List Entry) (a : ChainAddr) (hd : depth T a = depth T' a)
     (hf : frontierValue T a = frontierValue T' a) : ContactAt T trace a ↔ ContactAt T' trace a := by
   unfold ContactAt
   rw [hd, hf]
-
-/-- The first stop of a trace decides "a stop with no contact yet, then a contact". -/
 theorem first_stop_iff {trace memory : List Entry} (S C : List Entry → Prop)
     (hm : memory = trace.take memory.length) (hb : ∀ j, j < memory.length → ¬S (trace.take j))
     (hc : S memory ∨ memory = trace) (hC : ∀ j k, j ≤ k → C (trace.take j) → C (trace.take k)) :
@@ -202,8 +160,6 @@ theorem first_stop_iff {trace memory : List Entry} (S C : List Entry → Prop)
     · exact absurd (hc ▸ hct) hnm
   · rintro ⟨hs, hnc, hct⟩
     exact ⟨memory.length, hm ▸ hs, hm ▸ hnc, hct⟩
-
-/-- The first stop of a trace decides "some prefix stops". -/
 theorem first_stop_exists_iff {trace memory : List Entry} (S : List Entry → Prop)
     (hm : memory = trace.take memory.length) (hb : ∀ j, j < memory.length → ¬S (trace.take j))
     (hc : S memory ∨ memory = trace) : (∃ k, S (trace.take k)) ↔ S memory := by
@@ -219,18 +175,14 @@ theorem first_stop_exists_iff {trace memory : List Entry} (S : List Entry → Pr
       exact this ▸ hs
   · intro hs
     exact ⟨memory.length, hm ▸ hs⟩
-
 theorem fillTable_depth (a : ChainAddr) (R : RefTables adversary) (endpoint : Digest) :
     depth (fillTable a R endpoint) a = restDepth a R :=
   (restDepth_eq a (ov a (restDepth a R) R _)).symm.trans (restDepth_ov a R _)
-
 theorem fillTable_frontier (a : ChainAddr) (R : RefTables adversary) (endpoint : Digest) :
     frontierValue (fillTable a R endpoint) a = endpoint := by
   unfold fillTable
   rw [frontierValue_ov]
   exact evaluate_const _ endpoint
-
-/-- With `RowsInv`, the generic contact on the observed table is `ContactAt` on the memory. -/
 theorem contact_iff_rowsInv (a : ChainAddr) (R : RefTables adversary) (endpoint : Digest) (memory : List Entry)
     (observed : Fin (restDepth a R) → Digest → Option Digest) (hinv : RowsInv a memory observed) :
     Contact observed endpoint ↔ ContactAt (fillTable a R endpoint) memory a := by
@@ -244,19 +196,12 @@ theorem contact_iff_rowsInv (a : ChainAddr) (R : RefTables adversary) (endpoint 
     exact hm
   · rintro ⟨hd, value, answer, hm, hl⟩
     refine ⟨⟨restDepth a R - 1, by omega⟩, by simp only; omega, value, (hinv _ value endpoint).mpr ⟨answer, hm, hl⟩⟩
-
 end PrefixGame
-
 open PrefixGame in
-/-- A contact of `a` after the first stop of the trace (with no contact of `a` at the stop). -/
 def ContactAfterStop (Stop : Answers → List Entry → Prop) (T : Answers) (trace : List Entry) (a : ChainAddr) : Prop :=
   ∃ k, Stop T (trace.take k) ∧ ¬ContactAt T (trace.take k) a ∧ ContactAt T trace a
-
 namespace PrefixGame
-
 variable {adversary : AdversaryP}
-
-/-- On a coupled sample, the final generic contact is R3's `ContactAt` on the full trace. -/
 theorem coupled_contact (q : Nat) (a : ChainAddr) (R : RefTables adversary) (x : Hidden (restDepth a R))
     (stop : List Entry → Prop) (res : (List Entry × SeedResult) × (Fin (restDepth a R) → Digest → Option Digest))
     (hres : res ∈ (observedRun SphincsSecurity.Concrete.OtsPrefix.uniformImpl x.1
@@ -267,20 +212,14 @@ theorem coupled_contact (q : Nat) (a : ChainAddr) (R : RefTables adversary) (x :
   have h1 := contactAt_iff_view a (mkSample (restTable (ov a (restDepth a R) R x)) res.1.2) res.1.2.2 rfl
   rw [hview, runView_contact] at h1
   exact h1
-
 end PrefixGame
-
 open PrefixGame in
-/-- **Contact after the first stop (G4, flat form).** For a source chain `a` and a stop predicate reading the table
-only through `maskAt · a`:
-`(1 − x) · (2^128 · Pr_R3[ContactAfterStop Stop · a]) ≤ 2q · Pr_R3[some prefix of the trace stops]`. -/
 theorem reference_contactAfterStop_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 128) (a : ChainAddr)
     (ha : WotsExtract.SourceChain a) (Stop : Answers → List Entry → Prop)
     (hmask : ∀ T trace, Stop (maskAt T a) trace ↔ Stop T trace) :
     (1 - (q : ENNReal) / 2 ^ 128) *
         ((2 ^ 128 : ENNReal) * Pr[fun s => ContactAfterStop Stop s.answers s.trace a | referenceExperiment adversary q]) ≤
       ((2 * q : ℕ) : ENNReal) * Pr[fun s => ∃ k, Stop s.answers (s.trace.take k) | referenceExperiment adversary q] := by
-  -- the per-address paused game with the endpoint-dependent stop
   let stopAt : (R : RefTables adversary) → Digest → List Entry → Prop := fun R e trace => Stop (fillTable a R e) trace
   let game : (R : RefTables adversary) → Digest → OracleComp (SeedSpec (restDepth a R)) (List Entry × SeedResult) :=
     fun R e => pausedSeed adversary q a R (stopAt R e) e
@@ -290,7 +229,6 @@ theorem reference_contactAfterStop_le (adversary : AdversaryP) (q : Nat) (hq : q
     intro R x trace
     show _ ↔ Stop (fillTable a R (evaluate x.1 x.2)) trace
     rw [← hmask, maskAt_ov_fill, hmask]
-  -- the two R3 events through the mixture
   let genCAS : (R : RefTables adversary) → Digest × ((List Entry × SeedResult) × (Fin (restDepth a R) → Digest →
       Option Digest)) → Prop := fun R r =>
     stopAt R r.1 r.2.1.1 ∧ ¬ContactAt (fillTable a R r.1) r.2.1.1 a ∧ Contact r.2.2 r.1
@@ -325,7 +263,6 @@ theorem reference_contactAfterStop_le (adversary : AdversaryP) (q : Nat) (hq : q
         ((traceOf (restTable (ov a (restDepth a R) R x)) res.1.2.2).take k)) ↔ _
       simp only [hblind R x]
       exact first_stop_exists_iff _ h1 h2 h3)
-  -- the per-rest bound (G4 on the checkpoint run)
   have hR : ∀ R : RefTables adversary,
       (1 - (q : ENNReal) / 2 ^ 128) * ((2 ^ 128 : ENNReal) * Pr[genCAS R |
         realRun (fun _ => SphincsSecurity.Concrete.OtsPrefix.uniformImpl) (game R) (fun _ _ => none)]) ≤
@@ -349,7 +286,6 @@ theorem reference_contactAfterStop_le (adversary : AdversaryP) (q : Nat) (hq : q
       exact seedBefore_after q a R (stopAt R e) e
     have hsupp := fun r hr => SphincsSecurity.Concrete.PartialChainEndpoint.realCheckpointRun_support aux before
       after (fun _ _ => none) r hr
-    -- the contact event on the checkpoint run
     have hc : Pr[genCAS R | realRun aux (game R) (fun _ _ => none)] =
         Pr[fun r => marked r.1 r.2.1 ∧ Contact r.2.2.2 r.1 | realCheckpointRun aux before after (fun _ _ => none)] := by
       rw [← hproj, ← PMF.monad_map_eq_map, probEvent_map]
@@ -360,7 +296,6 @@ theorem reference_contactAfterStop_le (adversary : AdversaryP) (q : Nat) (hq : q
         ((stopAt R r.1 r.2.1.1.1.1 ∧ ¬Contact r.2.1.2 r.1) ∧ Contact r.2.2.2 r.1)
       rw [contact_iff_rowsInv a R r.1 _ _ hinv]
       exact ⟨fun h => ⟨⟨h.1, h.2.1⟩, h.2.2⟩, fun h => ⟨h.1.1, h.1.2, h.2⟩⟩
-    -- the stop event
     have hs : Pr[fun r => marked r.1 r.2 | realRun aux before (fun _ _ => none)] ≤
         Pr[genStop R | realRun aux (game R) (fun _ _ => none)] := by
       rw [← SphincsSecurity.Concrete.PartialChainEndpoint.realCheckpointRun_mark_probability aux before after
@@ -389,13 +324,10 @@ theorem reference_contactAfterStop_le (adversary : AdversaryP) (q : Nat) (hq : q
         mul_le_mul' le_rfl (hR R)
     _ = ((2 * q : ℕ) : ENNReal) * (restLaw adversary R * Pr[genStop R |
         realRun (fun _ => SphincsSecurity.Concrete.OtsPrefix.uniformImpl) (game R) (fun _ _ => none)]) := by ring
-
-/-- `MarkerAt · τ a` reads the table only through `maskAt · a` (F1: reference word and input of `a`'s leaf). -/
 theorem markerAt_maskAt (T : Answers) (trace : List Entry) (a : ChainAddr) :
     MarkerAt (maskAt T a) trace a ↔ MarkerAt T trace a := by
   unfold MarkerAt
   rw [referenceInput_maskAt, referenceDigits_maskAt]
-
 theorem markerAt_take_exists (T : Answers) (trace : List Entry) (a : ChainAddr) :
     (∃ k, MarkerAt T (trace.take k) a) ↔ MarkerAt T trace a := by
   constructor
@@ -403,9 +335,6 @@ theorem markerAt_take_exists (T : Answers) (trace : List Entry) (a : ChainAddr) 
     exact ⟨message, counter, answer, digits, List.mem_of_mem_take hm, h⟩
   · intro h
     exact ⟨trace.length, by rw [List.take_length]; exact h⟩
-
-/-- **Marker first, then a contact (stream E's MarkerFirst at `a`), chain side** (G4 flat):
-`(1 − x) · (2^128 · Pr_R3[marker of a with no contact yet, then a contact of a]) ≤ 2q · Pr_R3[MarkerAt a]`. -/
 theorem reference_markerFirst_at_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 128) (a : ChainAddr)
     (ha : WotsExtract.SourceChain a) :
     (1 - (q : ENNReal) / 2 ^ 128) *
@@ -415,11 +344,7 @@ theorem reference_markerFirst_at_le (adversary : AdversaryP) (q : Nat) (hq : q <
   have h := reference_contactAfterStop_le adversary q hq a ha (fun T trace => MarkerAt T trace a)
     (fun T trace => markerAt_maskAt T trace a)
   simpa only [markerAt_take_exists] using h
-
 open PrefixGame in
-/-- **Contact after the first stop (G4, charge form).** The restart is charged at twice `a`'s prefix count, on the
-samples where the trace stops: `(1 − x) · (2^128 · Pr_R3[ContactAfterStop Stop · a]) ≤
-E_R3[2 · prefixCount a · 1[some prefix stops]]`. -/
 theorem reference_contactAfterStop_charge (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 128) (a : ChainAddr)
     (ha : WotsExtract.SourceChain a) (Stop : Answers → List Entry → Prop)
     (hmask : ∀ T trace, Stop (maskAt T a) trace ↔ Stop T trace) :
@@ -555,5 +480,4 @@ theorem reference_contactAfterStop_charge (adversary : AdversaryP) (q : Nat) (hq
         realRun (fun _ => SphincsSecurity.Concrete.OtsPrefix.uniformImpl) (game R) (fun _ _ => none)])) := by ring
     _ ≤ restLaw adversary R * ∑' r, realRun (fun _ => SphincsSecurity.Concrete.OtsPrefix.uniformImpl) (game R)
         (fun _ _ => none) r * genCharge R r := mul_le_mul' le_rfl (hR R)
-
 end SigGolfCandidate.T3.Security.Wots

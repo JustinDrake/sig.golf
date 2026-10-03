@@ -1,14 +1,107 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.CacheMessageSignerWeight
+import SigGolfCandidate.SphincsSecurity.Proof.Fts.CacheMessageWeight
+import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeRace
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.CachedDigestRate
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.DigestLoopRecord
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeFixedPrehit
-namespace SphincsSecurity.Concrete
 
+section
+
+
+namespace SphincsSecurity.Concrete
+open _root_.OracleComp OracleSpec ENNReal
+attribute [local instance] Classical.propDecidable
+set_option backward.isDefEq.respectTransparency false
+def successfulSignerInputWeight (key : SecretKey) (message : Message)
+    (weight : HashInput → FewTimeView → ENNReal)
+    (result : (Option Signature × Option FewTimeView) × QueryCache HashSpec) : ENNReal :=
+  match result.1.1, result.1.2 with
+  | some signature, some view => weight
+      (tweakableHashInput key.parameter .message (messageDigestPayload key.root message signature.randomness)) view
+  | _, _ => 0
+noncomputable def cachedSignerInputWeight (key : SecretKey) (message : Message) (before : QueryCache HashSpec)
+    (weight : HashInput → FewTimeView → ENNReal) (input : HashInput) : ENNReal :=
+  match before input with
+  | none => 0
+  | some output =>
+      if (∃ randomness, input = tweakableHashInput key.parameter .message (messageDigestPayload key.root message randomness)) ∧
+          Admissible (truncateMessageDigest output) then weight input (hashOutputFewTimeView output) else 0
+end SphincsSecurity.Concrete
+namespace SphincsSecurity.Concrete
+open _root_.OracleComp OracleSpec ENNReal
+attribute [local instance] Classical.propDecidable
+set_option backward.isDefEq.respectTransparency false
+theorem cachedSignerInputWeight_le_cacheMessageEntryWeight (key : SecretKey) (message : Message)
+    (before : QueryCache HashSpec) (weight : HashInput → FewTimeView → ENNReal) (input : HashInput) :
+    cachedSignerInputWeight key message before weight input ≤ cacheMessageEntryWeight key.parameter weight before input := by
+  unfold cachedSignerInputWeight cacheMessageEntryWeight
+  cases before input with
+  | none => exact le_rfl
+  | some output =>
+      simp only
+      split_ifs with hsource htarget
+      · exact le_rfl
+      · obtain ⟨randomness, heq⟩ := hsource.1
+        exact (htarget ⟨⟨messageDigestPayload key.root message randomness, heq.symm⟩, hsource.2⟩).elim
+      · exact bot_le
+      · exact le_rfl
+end SphincsSecurity.Concrete
+end
+
+section
+
+
+namespace SphincsSecurity
+open OracleComp OracleSpec ENNReal
+def onlyInputCache (cache : QueryCache HashSpec) (target : HashInput) :
+    QueryCache HashSpec :=
+  fun input => if input = target then cache input else none
+theorem onlyInputCache_le (cache : QueryCache HashSpec) (target : HashInput) :
+    onlyInputCache cache target ≤ cache := by
+  intro input output hcached
+  by_cases hinput : input = target
+  · simpa [onlyInputCache, hinput] using hcached
+  · simp [onlyInputCache, hinput] at hcached
+theorem cachedMessageEntryCountWhere_onlyInput_le_one
+    (cache : QueryCache HashSpec) (target : HashInput)
+    (parameter : PublicParameter) (root : Digest) (message : Message)
+    (P : Concrete.FewTimeView → Prop) :
+    cachedMessageEntryCountWhere (onlyInputCache cache target) parameter root message P ≤ 1 := by
+  have hsubsingleton :
+      (cachedMessageInputSetWhere (onlyInputCache cache target) parameter root message P).Subsingleton := by
+    rintro ⟨leftInput, leftOutput⟩ hleft ⟨rightInput, rightOutput⟩ hright
+    have hleftInput : leftInput = target := by
+      by_contra hne
+      simp [cachedMessageInputSetWhere, cachedMessageInputSet, onlyInputCache, hne]
+        at hleft
+    have hrightInput : rightInput = target := by
+      by_contra hne
+      simp [cachedMessageInputSetWhere, cachedMessageInputSet, onlyInputCache, hne]
+        at hright
+    subst leftInput
+    subst rightInput
+    have houtputs : leftOutput = rightOutput := by
+      apply Option.some.inj
+      exact hleft.1.1.symm.trans hright.1.1
+    subst rightOutput
+    rfl
+  have hencard :
+      (cachedMessageInputSetWhere (onlyInputCache cache target) parameter root message P).encard ≤ 1 :=
+    Set.encard_le_one_iff_subsingleton.2 hsubsingleton
+  simpa only [cachedMessageEntryCountWhere, ENat.toENNReal_one] using
+    ENat.toENNReal_mono hencard
+end SphincsSecurity
+end
+
+section
+
+
+
+
+
+namespace SphincsSecurity.Concrete
 open _root_.OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] signDigestLoop
-
 def selectedLoopInputWeight (key : SecretKey) (message : Message)
     (weight : HashInput → FewTimeView → ENNReal) (result : DigestLoopRecord) : ENNReal :=
   match result.1 with
@@ -16,7 +109,6 @@ def selectedLoopInputWeight (key : SecretKey) (message : Message)
   | some (randomness, index, leaves) => weight
       (tweakableHashInput key.parameter .message (messageDigestPayload key.root message randomness))
       (selectedFewTimeView index leaves)
-
 theorem probEvent_signDigestLoop_fixedPrehit_le_exactWeight
     (key : SecretKey) (message : Message) (cache : QueryCache HashSpec)
     (input : HashInput) (P : FewTimeView → Prop) :
@@ -31,7 +123,6 @@ theorem probEvent_signDigestLoop_fixedPrehit_le_exactWeight
     _ ≤ 1 * exactDigestReuseWeight key message cache := mul_le_mul'
       (cachedMessageEntryCountWhere_onlyInput_le_one cache input key.parameter key.root message P) le_rfl
     _ = _ := one_mul _
-
 theorem selectedLoopInputWeight_le_fresh_add_prehit
     (key : SecretKey) (message : Message) (before : QueryCache HashSpec)
     (weight : HashInput → FewTimeView → ENNReal) (uniformWeight : FewTimeView → ENNReal)
@@ -73,7 +164,6 @@ theorem selectedLoopInputWeight_le_fresh_add_prehit
           apply le_trans ?_ (le_add_left le_rfl)
           rw [← hsource]
           exact (le_of_eq (if_pos hprehit).symm).trans (ENNReal.le_tsum input)
-
 theorem expected_selectedLoopInputWeight_le_exactReuse
     (key : SecretKey) (message : Message) (before : QueryCache HashSpec)
     (weight : HashInput → FewTimeView → ENNReal) (uniformWeight : FewTimeView → ENNReal)
@@ -125,7 +215,6 @@ theorem expected_selectedLoopInputWeight_le_exactReuse
       · exact ENNReal.tsum_le_tsum (fun input => mul_le_mul'
           (probEvent_signDigestLoop_fixedPrehit_le_exactWeight key message before input (fun _ => True)) le_rfl)
     _ = _ := by simp only [mul_assoc, ENNReal.tsum_mul_left]; rw [mul_comm (exactDigestReuseWeight key message before)]
-
 theorem expected_freshSelectedLoopInputWeight_le (key : SecretKey) (message : Message) (before : QueryCache HashSpec)
     (weight : FewTimeView → ENNReal) :
     (∑' loop, Pr[= loop | (simulateQ romImpl (signDigestLoop digestAttemptLimit key message)).run before] *
@@ -143,13 +232,11 @@ theorem expected_freshSelectedLoopInputWeight_le (key : SecretKey) (message : Me
       intro input source
       split_ifs; exact le_rfl; exact bot_le)
   simpa only [hzero, tsum_zero, zero_mul, add_zero] using hbound
-
 def DigestCompletionConsistent (loop : DigestLoopRecord)
     (result : (Option Signature × Option FewTimeView) × QueryCache HashSpec) : Prop :=
   result.1.2 = selectedLoopView? loop ∧
     ∀ signature, result.1.1 = some signature →
       ∃ index leaves, loop.1 = some (signature.randomness, index, leaves)
-
 theorem successfulSignerInputWeight_le_selectedLoopInputWeight
     (key : SecretKey) (message : Message) (weight : HashInput → FewTimeView → ENNReal)
     (loop : DigestLoopRecord) (result : (Option Signature × Option FewTimeView) × QueryCache HashSpec)
@@ -161,7 +248,6 @@ theorem successfulSignerInputWeight_le_selectedLoopInputWeight
       obtain ⟨index, leaves, hloop⟩ := hconsistent.2 signature hs
       simp only [successfulSignerInputWeight, hs, hconsistent.1, selectedLoopView?, hloop,
         Option.map_some, selectedLoopInputWeight, le_refl]
-
 theorem expected_digestCompletion_cost_le_selected {α : Type}
     (key : SecretKey) (message : Message) (before : QueryCache HashSpec)
     (finish : DigestLoopRecord → ProbComp α) (cost : α → ENNReal)
@@ -185,7 +271,6 @@ theorem expected_digestCompletion_cost_le_selected {α : Type}
         · rw [probOutput_eq_zero_of_not_mem_support hr, zero_mul, zero_mul]
       _ ≤ _ := by rw [ENNReal.tsum_mul_right]; exact mul_le_of_le_one_left' tsum_probOutput_le_one
   · rw [probOutput_eq_zero_of_not_mem_support hl, zero_mul, zero_mul]
-
 theorem expected_digestCompletion_successfulInputWeight_le_selected {α : Type}
     (key : SecretKey) (message : Message) (before : QueryCache HashSpec)
     (finish : DigestLoopRecord → ProbComp α)
@@ -201,7 +286,6 @@ theorem expected_digestCompletion_successfulInputWeight_le_selected {α : Type}
     (fun result => successfulSignerInputWeight key message weight (record result)) weight
     (fun loop hl result hr => successfulSignerInputWeight_le_selectedLoopInputWeight
       key message weight loop (record result) (hconsistent loop hl result hr))
-
 theorem expected_digestCompletion_freshCost_le {α : Type}
     (key : SecretKey) (message : Message) (before : QueryCache HashSpec)
     (finish : DigestLoopRecord → ProbComp α) (cost : α → ENNReal) (weight : FewTimeView → ENNReal)
@@ -213,7 +297,6 @@ theorem expected_digestCompletion_freshCost_le {α : Type}
         ∑' source, Pr[= source | signerViewSample] * weight source :=
   (expected_digestCompletion_cost_le_selected key message before finish cost _ hcost).trans
     (expected_freshSelectedLoopInputWeight_le key message before weight)
-
 theorem expected_digestCompletion_successfulInputWeight_le_exactReuse {α : Type}
     (key : SecretKey) (message : Message) (before : QueryCache HashSpec)
     (finish : DigestLoopRecord → ProbComp α)
@@ -229,7 +312,6 @@ theorem expected_digestCompletion_successfulInputWeight_le_exactReuse {α : Type
       (∑' input, cachedSignerInputWeight key message before weight input) * exactDigestReuseWeight key message before :=
   (expected_digestCompletion_successfulInputWeight_le_selected key message before finish record hconsistent weight).trans
     (expected_selectedLoopInputWeight_le_exactReuse key message before weight uniformWeight hweight)
-
 theorem expected_digestCompletion_successfulInputWeight_le_allMessage {α : Type}
     (key : SecretKey) (message : Message) (before : QueryCache HashSpec)
     (finish : DigestLoopRecord → ProbComp α)
@@ -247,5 +329,5 @@ theorem expected_digestCompletion_successfulInputWeight_le_allMessage {α : Type
   (expected_digestCompletion_successfulInputWeight_le_exactReuse key message before finish record hconsistent
     weight uniformWeight hweight).trans (add_le_add le_rfl (mul_le_mul'
       (ENNReal.tsum_le_tsum (cachedSignerInputWeight_le_cacheMessageEntryWeight key message before weight)) hreuse))
-
 end SphincsSecurity.Concrete
+end

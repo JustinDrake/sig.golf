@@ -1,18 +1,15 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalBridgeKernel
+
 namespace SphincsSecurity.Concrete
-
 open ENNReal
-
 noncomputable def completeProposalWord {α : Type*} (base : PMF α) : Nat → List α → PMF (List α)
   | 0, _ => PMF.pure []
   | total + 1, [] => independentProposalWord base (total + 1)
   | total + 1, head :: rest => (completeProposalWord base total rest).map (head :: ·)
-
 theorem completeProposalWord_nil {α : Type*} (base : PMF α) (total : Nat) :
     completeProposalWord base total [] = independentProposalWord base total := by
   cases total <;> rfl
-
 theorem completeProposalWord_eq_padding {α : Type*} (base : PMF α) (total : Nat) (consumed : List α) :
     completeProposalWord base total consumed =
       (independentProposalWord base (total - consumed.length)).map (fun word => consumed.take total ++ word) := by
@@ -28,7 +25,6 @@ theorem completeProposalWord_eq_padding {α : Type*} (base : PMF α) (total : Na
           rw [completeProposalWord, ih, PMF.map_comp]
           simp only [List.length_cons, Nat.succ_sub_succ_eq_sub, List.take_succ_cons]
           rfl
-
 theorem complete_cappedRecordProposalBridge {α Ω : Type*} (base : PMF α) (record : PMF Ω) (label : Ω → α)
     (accept : ENNReal) (hpos : accept ≠ 0) (hlt : accept < 1)
     (hcap : ∀ index, accept * (record.map label) index ≤ base index) (total : Nat) :
@@ -58,7 +54,6 @@ theorem complete_cappedRecordProposalBridge {α Ω : Type*} (base : PMF α) (rec
           ((fun index => (independentProposalWord base total).map (index :: ·)) ∘ Sum.elim id label) = _
       rw [← PMF.bind_map, proposalRecordStep_label]
       rfl
-
 theorem complete_cappedRecordProposalBridge_prefix {α Ω : Type*} (base : PMF α) (record : PMF Ω) (label : Ω → α)
     (accept : ENNReal) (hpos : accept ≠ 0) (hlt : accept < 1)
     (hcap : ∀ index, accept * (record.map label) index ≤ base index) (total : Nat) (consumed : List α) :
@@ -75,5 +70,4 @@ theorem complete_cappedRecordProposalBridge_prefix {α Ω : Type*} (base : PMF �
       | succ total =>
           simp only [List.cons_append, completeProposalWord]
           rw [← PMF.map_bind, ih]
-
 end SphincsSecurity.Concrete

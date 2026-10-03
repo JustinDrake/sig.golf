@@ -2,11 +2,8 @@ import SigGolfCandidate.SphincsSecurity.Proof.Seeded.StoppedRun
 import SigGolfCandidate.SphincsSecurity.Proof.Seeded.QueryBoundExtras
 
 open OracleComp OracleSpec
-
 namespace SphincsSecurity.Seeded
-
 set_option backward.isDefEq.respectTransparency false
-
 theorem cacheQuery_comm (cache : QueryCache HashSpec) (left right : HashInput)
     (h : left ≠ right) (a b : HashOutput) :
     (cache.cacheQuery left a).cacheQuery right b = (cache.cacheQuery right b).cacheQuery left a := by
@@ -18,8 +15,6 @@ theorem cacheQuery_comm (cache : QueryCache HashSpec) (left right : HashInput)
     · subst input
       simp [QueryCache.cacheQuery_of_ne, hl]
     · simp [QueryCache.cacheQuery_of_ne, hl, hr]
-
-/-- An unobserved query may be sampled early, whether or not the computation later uses it. -/
 theorem evalDist_presample_fresh {α : Type} (computation : OracleComp OracleWorld α)
     (cache : QueryCache HashSpec) (target : HashInput) (hfresh : cache target = none) :
     𝒮[(simulateQ romImpl computation).run' cache] = 𝒮[do
@@ -89,7 +84,6 @@ theorem evalDist_presample_fresh {α : Type} (computation : OracleComp OracleWor
                   apply evalSPMF_bind_congr'
                   intro answer
                   rw [cacheQuery_comm cache input target heq]
-
 theorem evalDist_presample_query {α : Type} (computation : OracleComp OracleWorld α)
     (cache : QueryCache HashSpec) (target : HashInput) :
     𝒮[(simulateQ romImpl computation).run' cache] =
@@ -101,7 +95,6 @@ theorem evalDist_presample_query {α : Type} (computation : OracleComp OracleWor
       exact evalDist_presample_fresh computation cache target hc
   | some output =>
       rw [QueryImpl.withCaching_run_some _ hc, pure_bind]
-
 theorem evalDist_presample_computation {α β : Type} (computation : OracleComp OracleWorld α)
     (preparation : OracleComp OracleWorld β) (cache : QueryCache HashSpec) :
     𝒮[(simulateQ romImpl computation).run' cache] =
@@ -120,7 +113,6 @@ theorem evalDist_presample_computation {α β : Type} (computation : OracleComp 
             simp [romImpl, unifFwdImpl]
         | inr input => exact evalDist_presample_query computation cache input
       · exact evalSPMF_bind_congr' _ (fun result => ih result.1 result.2)
-
 theorem hashQueryBound_after_preparation {α β : Type} (computation : OracleComp OracleWorld α)
     (preparation : OracleComp OracleWorld β) (cache : QueryCache HashSpec) (q : Nat)
     (hbound : HashQueryBound computation cache q) (prepared : β × QueryCache HashSpec)
@@ -131,5 +123,4 @@ theorem hashQueryBound_after_preparation {α β : Type} (computation : OracleCom
   rw [mem_support_iff_of_evalSPMF_eq
     (evalDist_presample_computation (countHashQueries computation) preparation cache), mem_support_bind_iff]
   exact ⟨prepared, hprepared, hresult⟩
-
 end SphincsSecurity.Seeded

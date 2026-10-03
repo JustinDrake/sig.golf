@@ -1,21 +1,53 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.CachedTargetSubsetMatch
+import SigGolfCandidate.SphincsSecurity.Proof.Fts.CacheMessageWeight
+import SigGolfCandidate.SphincsSecurity.Proof.Fts.SubsetTargetAssignment
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.NormalizedTargetMatches
-set_option autoImplicit true
-namespace SphincsSecurity.Concrete
 
+section
+
+
+
+namespace SphincsSecurity.Concrete
 open _root_.OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
 set_option backward.isDefEq.respectTransparency false
+noncomputable def cachedTargetSubsetMatch (parameter : PublicParameter) (cache : QueryCache HashSpec)
+    (targetInput : HashInput) (target : FewTimeView) (required : Finset IndexGroup) : ENNReal :=
+  cacheMessageWeight parameter (fun input source =>
+    if input = targetInput then 0 else (sourceSubsetMatch target source required : ENNReal)) cache
+theorem cachedTargetSubsetMatch_cacheQuery (parameter : PublicParameter) (before : QueryCache HashSpec)
+    (targetInput : HashInput) (target : FewTimeView) (required : Finset IndexGroup) (input : HashInput) (output : HashOutput)
+    (hfresh : before input = none) :
+    cachedTargetSubsetMatch parameter (before.cacheQuery input output) targetInput target required =
+      cachedTargetSubsetMatch parameter before targetInput target required +
+        if FtsProbeSimulation.MessageHashInput parameter input ∧ Admissible (truncateMessageDigest output) then
+          if input = targetInput then 0 else (sourceSubsetMatch target (hashOutputFewTimeView output) required : ENNReal) else 0 := by
+  exact cacheMessageWeight_cacheQuery parameter _ before input output hfresh
+theorem cachedTargetSubsetMatch_cacheQuery_self (parameter : PublicParameter) (before : QueryCache HashSpec)
+    (targetInput : HashInput) (target : FewTimeView) (required : Finset IndexGroup) (output : HashOutput)
+    (hfresh : before targetInput = none) :
+    cachedTargetSubsetMatch parameter (before.cacheQuery targetInput output) targetInput target required =
+      cachedTargetSubsetMatch parameter before targetInput target required := by
+  rw [cachedTargetSubsetMatch_cacheQuery parameter before targetInput target required targetInput output hfresh]
+  simp only [if_true, ite_self, add_zero]
+end SphincsSecurity.Concrete
+end
 
+section
+
+
+
+set_option autoImplicit true
+namespace SphincsSecurity.Concrete
+open _root_.OracleComp OracleSpec ENNReal
+attribute [local instance] Classical.propDecidable
+set_option backward.isDefEq.respectTransparency false
 noncomputable def normalizedCachedTargetSubsetMatch (parameter : PublicParameter) (cache : QueryCache HashSpec)
     (targetInput : HashInput) (target : FewTimeView) (required : Finset IndexGroup) : ENNReal :=
   coverNormalization ^ required.card * cachedTargetSubsetMatch parameter cache targetInput target required
-
 noncomputable def normalizedTargetCacheProduct (parameter : PublicParameter) (cache : QueryCache HashSpec)
     (targetInput : HashInput) (target : FewTimeView) (groups : Fin m → Finset IndexGroup) : ENNReal :=
   ∏ slot : Fin m, normalizedCachedTargetSubsetMatch parameter cache targetInput target (groups slot)
-
 theorem normalizedCachedTargetSubsetMatch_eq_weight (parameter : PublicParameter) (cache : QueryCache HashSpec)
     (targetInput : HashInput) (target : FewTimeView) (required : Finset IndexGroup) :
     normalizedCachedTargetSubsetMatch parameter cache targetInput target required =
@@ -28,7 +60,6 @@ theorem normalizedCachedTargetSubsetMatch_eq_weight (parameter : PublicParameter
   · rw [zero_mul]
   · simp only [normalizedSourceSubsetMatch]
     ring
-
 theorem normalizedCachedTargetSubsetMatch_cacheQuery (parameter : PublicParameter) (before : QueryCache HashSpec)
     (targetInput : HashInput) (target : FewTimeView) (required : Finset IndexGroup) (input : HashInput) (output : HashOutput)
     (hfresh : before input = none) (hmessage : FtsProbeSimulation.MessageHashInput parameter input) (hne : input ≠ targetInput) :
@@ -37,7 +68,6 @@ theorem normalizedCachedTargetSubsetMatch_cacheQuery (parameter : PublicParamete
         if Admissible (truncateMessageDigest output) then normalizedSourceSubsetMatch target (hashOutputFewTimeView output) required else 0 := by
   simp only [normalizedCachedTargetSubsetMatch, cachedTargetSubsetMatch_cacheQuery parameter before targetInput target required input output hfresh,
     hmessage, true_and, if_neg hne, mul_add, mul_ite, mul_zero, normalizedSourceSubsetMatch]
-
 theorem normalizedTargetCacheProduct_cacheQuery (parameter : PublicParameter) (before : QueryCache HashSpec)
     (targetInput : HashInput) (target : FewTimeView) (groups : Fin m → Finset IndexGroup)
     (input : HashInput) (output : HashOutput)
@@ -65,7 +95,6 @@ theorem normalizedTargetCacheProduct_cacheQuery (parameter : PublicParameter) (b
   · simp only [hadmissible, if_false]
     obtain ⟨slot, hslot⟩ := Finset.nonempty_iff_ne_empty.mpr (Finset.mem_erase.mp hselected).1
     exact Finset.prod_eq_zero hslot rfl
-
 theorem expected_normalizedTargetCacheProduct_cacheQuery (parameter : PublicParameter) (before : QueryCache HashSpec)
     (targetInput : HashInput) (target : FewTimeView) (groups : Fin m → Finset IndexGroup)
     (hgroups : ∀ slot, (groups slot).Nonempty) (hdisjoint : Pairwise (fun i j => Disjoint (groups i) (groups j)))
@@ -88,5 +117,5 @@ theorem expected_normalizedTargetCacheProduct_cacheQuery (parameter : PublicPara
   congr 1
   exact expected_hash_normalizedSourceSubsetMatch_prod target groups selected
     (fun i _ j _ hij => hdisjoint hij)
-
 end SphincsSecurity.Concrete
+end

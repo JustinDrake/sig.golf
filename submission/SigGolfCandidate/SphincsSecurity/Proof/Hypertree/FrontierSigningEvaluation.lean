@@ -1,12 +1,11 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Reference.BoundaryHashEvaluation
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.BuildEval
-namespace SphincsSecurity.Concrete
 
+namespace SphincsSecurity.Concrete
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
 attribute [local irreducible] boundaryEval sequenceFin chainWalk
-
 def referenceEncodingSearch (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : Digest) :
     Nat → Nat → Option (Counter × Encoding) × Nat
@@ -17,7 +16,6 @@ def referenceEncodingSearch (parameter : PublicParameter) (f : QueryImpl HashSpe
       | none =>
           let rest := referenceEncodingSearch parameter f lay tree leaf message attempts (counter + 1)
           (rest.1, 1 + rest.2)
-
 theorem boundaryEval_encode (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : Digest) (counter : Counter) :
     boundaryEval parameter f (encodeAttempt parameter lay tree leaf message counter) =
@@ -25,7 +23,6 @@ theorem boundaryEval_encode (parameter : PublicParameter) (f : QueryImpl HashSpe
   apply boundaryEval_eq_of_snd
   rw [encodeAttempt, boundaryEval_bind,
     boundaryEval_tweakableHash _ _ _ _ (by simp [hashDomainFields, tweakFields]), boundaryEval_pure, mul_one]
-
 theorem boundaryEval_otsValues (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (secret : ChainIndex → Digest) (word : Encoding) :
     boundaryEval parameter f (sequenceFin fun chainIdx =>
@@ -40,7 +37,6 @@ theorem boundaryEval_otsValues (parameter : PublicParameter) (f : QueryImpl Hash
       have hdigit := (word chainIdx).isLt
       omega)
   simpa only [OtsCode.signingSteps] using h
-
 theorem boundaryEval_otsSignFrom_frontier (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (secret frontier : ChainIndex → Digest)
     (message : Digest) (attempts counter : Nat)
@@ -79,9 +75,6 @@ theorem boundaryEval_otsSignFrom_frontier (parameter : PublicParameter) (f : Que
           rw [boundaryEval_bind, boundaryEval_otsValues]
           simp only [boundaryEval_pure, evalWithAnswerFn_sequenceFin, hv, mul_one,
             referenceEncodingSearch, hencode, Option.map_some, Option.elim_some, pow_add, pow_one]
-
-/-! ### The signer's layers and their cost -/
-
 theorem boundaryEval_encodingSearch (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : Digest) (attempts counter : Nat) :
     boundaryEval parameter f (encodingSearch parameter lay tree leaf message attempts counter) =
@@ -98,25 +91,17 @@ theorem boundaryEval_encodingSearch (parameter : PublicParameter) (f : QueryImpl
           simp only [referenceEncodingSearch, hencode, pow_add, pow_one]
       | some word =>
           simp only [boundaryEval_pure, referenceEncodingSearch, hencode, mul_one, pow_one]
-
 theorem eval_encodingSearch (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (lay : Layer) (tree : TreeIndex) (leaf : LeafIndex) (message : Digest) (attempts counter : Nat) :
     evalWithAnswerFn f (encodingSearch parameter lay tree leaf message attempts counter) =
       (referenceEncodingSearch parameter f lay tree leaf message attempts counter).1 := by
   rw [← boundaryEval_fst parameter f, boundaryEval_encodingSearch]
-
-/-- One layer of the signer, from the specification's message: the counter search and, when it
-succeeds, the tree built once, or for the top layer (whose tree key generation built) the chain steps
-walked to the found word. -/
 noncomputable def specLayerCost (key : SecretKey) (f : QueryImpl HashSpec Id) (index : Index)
     (lay : Layer) : Option (Counter × Encoding) × Nat :=
   let search := referenceEncodingSearch key.parameter f lay (treeIndexAt index lay) (leafIndexAt index lay)
     (evalWithAnswerFn f (layerMessage key index lay)) encodingAttemptLimit 0
   (search.1, search.2 + search.1.elim 0 (fun result =>
     if lay = topLayer then OtsCode.signingSteps result.2 else treeNodeHashCost (layerHeight lay)))
-
-/-- The top layer read from the key's table: the counter search, then the chain steps to the word; the
-secrets and the path are table reads. -/
 theorem boundaryEval_signTopLayer (key : SecretKey) (f : QueryImpl HashSpec Id) (index : Index)
     (message : Digest) :
     (boundaryEval key.parameter f (signTopLayer key.parameter index
@@ -141,7 +126,6 @@ theorem boundaryEval_signTopLayer (key : SecretKey) (f : QueryImpl HashSpec Id) 
         boundaryEval_bind, boundaryEval_sequenceFin key.parameter f _ (fun _ => 0) (fun _ => by
           rw [boundaryEval_pure, pow_zero])]
       simp only [boundaryEval_pure, mul_one, Finset.sum_const_zero, pow_zero, pow_add]
-
 theorem boundaryEval_signLayers (key : SecretKey) (f : QueryImpl HashSpec Id) (index : Index)
     (remaining : Nat) (hremaining : remaining ≤ numLayers) (message : Digest)
     (hmessage : ∀ h : 0 < remaining,
@@ -211,8 +195,6 @@ theorem boundaryEval_signLayers (key : SecretKey) (f : QueryImpl HashSpec Id) (i
               (fun lay tree leaf chainIdx => pure (key.otsSecret lay tree leaf chainIdx))
               (fun level nodeIdx => pure (key.top level nodeIdx)) remaining root) <;>
             simp only [boundaryEval_pure, mul_one, pow_add, mul_assoc]
-
-/-- **The table signer's cost after the digest loop**: the PORS tree and the layers it walks. -/
 theorem boundaryEval_signAfterDigest (key : SecretKey) (f : QueryImpl HashSpec Id)
     (randomness : Randomness) (index : Index) (leaves : IndexGroup → FtsLeaf) :
     (boundaryEval key.parameter f (signAfterDigest key randomness index leaves)).2 =
@@ -240,9 +222,6 @@ theorem boundaryEval_signAfterDigest (key : SecretKey) (f : QueryImpl HashSpec I
       (fun lay tree leaf chainIdx => pure (key.otsSecret lay tree leaf chainIdx))
       (fun level nodeIdx => pure (key.top level nodeIdx)) numLayers (table ftsTreeHeight 0)) <;>
     simp only [boundaryEval_pure, mul_one, pow_add, sequenceLayersHashCost]
-
-/-- **The table signer after the digest loop**, for a key whose table is the specification's top tree:
-the specification's signature, at the cost of the forest and of the layers it walks. -/
 theorem boundaryEval_signAfterDigest_eq (key : SecretKey) (f : QueryImpl HashSpec Id)
     (htop : KeyTopHonest f key)
     (randomness : Randomness) (index : Index) (leaves : IndexGroup → FtsLeaf) :
@@ -251,19 +230,14 @@ theorem boundaryEval_signAfterDigest_eq (key : SecretKey) (f : QueryImpl HashSpe
         (FreeMonoid.of none) ^ (ftsOpenHashCost + sequenceLayersHashCost (specLayerCost key f index))) := by
   rw [← eval_signAfterDigest f key htop randomness index leaves]
   exact boundaryEval_eq_of_snd _ _ _ _ (boundaryEval_signAfterDigest key f randomness index leaves)
-
-/-- Key generation: the specification's top tree, at the cost of one top tree. -/
 theorem boundaryEval_keygen (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (secret : LeafIndex → ChainIndex → Digest) :
     boundaryEval parameter f (keygenTable parameter secret) =
       (evalWithAnswerFn f (keygenTable parameter secret), (FreeMonoid.of none) ^ keygenHashCost) :=
   boundaryEval_keygenTable parameter f secret
-
-/-- The old key generation (the root alone): the specification's root, at the cost of one top tree. -/
 theorem boundaryEval_keygenRoot_eq (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (secret : LeafIndex → ChainIndex → Digest) :
     boundaryEval parameter f (keygenRoot parameter secret) =
       (evalWithAnswerFn f (treeRoot parameter topLayer rootTree secret), (FreeMonoid.of none) ^ keygenHashCost) := by
   rw [boundaryEval_keygenRoot, eval_keygenRoot]
-
 end SphincsSecurity.Concrete

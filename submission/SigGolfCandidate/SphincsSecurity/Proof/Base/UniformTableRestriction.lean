@@ -1,13 +1,11 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Base.UniformTableConditioning
-namespace SphincsSecurity.Concrete
 
+namespace SphincsSecurity.Concrete
 open _root_.OracleComp ENNReal
 attribute [local instance] Classical.propDecidable
 set_option backward.isDefEq.respectTransparency false
-
 variable {ι α : Type} [Fintype ι] [DecidableEq ι] [DecidableEq α]
-
 omit [DecidableEq α] in
 theorem piFinset_update_card (allowed : ι → Finset α) (coordinate : ι) (values : Finset α) :
     (Fintype.piFinset (Function.update allowed coordinate values)).card =
@@ -18,7 +16,6 @@ theorem piFinset_update_card (allowed : ι → Finset α) (coordinate : ι) (val
     funext other
     by_cases heq : other = coordinate <;> simp only [Function.update_apply, heq, if_true, if_false]
   rw [h, Finset.prod_update_of_mem (Finset.mem_univ coordinate), Finset.sdiff_singleton_eq_erase]
-
 omit [DecidableEq α] in
 theorem piFinset_update_card_ratio (allowed : ι → Finset α)
     (ha : ∀ coordinate, (allowed coordinate).Nonempty) (coordinate : ι) (values : Finset α) :
@@ -30,7 +27,6 @@ theorem piFinset_update_card_ratio (allowed : ι → Finset α)
     exact_mod_cast Finset.prod_ne_zero_iff.mpr (fun other _ => Nat.ne_of_gt (ha other).card_pos)
   rw [Nat.cast_mul, Nat.cast_mul]
   rw [ENNReal.mul_div_mul_right _ _ hrest (by finiteness)]
-
 theorem uniformTable_update_restrict (allowed : ι → Finset α)
     (ha : ∀ coordinate, (allowed coordinate).Nonempty) (coordinate : ι) (values : Finset α)
     (hv : values.Nonempty) (hsub : values ⊆ allowed coordinate) (table : ι → α) :
@@ -70,7 +66,6 @@ theorem uniformTable_update_restrict (allowed : ι → Finset α)
     simp only [heq]
   · have hz : uniformTable allowed ha table = 0 := by rw [uniformTable_apply, if_neg ht]
     simp only [hz, ite_self]
-
 theorem probEvent_uniformTable_member (allowed : ι → Finset α)
     (ha : ∀ coordinate, (allowed coordinate).Nonempty) (coordinate : ι) (values : Finset α)
     (hv : values.Nonempty) (hsub : values ⊆ allowed coordinate) :
@@ -78,7 +73,6 @@ theorem probEvent_uniformTable_member (allowed : ι → Finset α)
       (values.card : ENNReal) / (allowed coordinate).card := by
   simp only [probEvent_eq_tsum_ite, PMF.probOutput_eq_apply,
     uniformTable_update_restrict allowed ha coordinate values hv hsub, ENNReal.tsum_mul_left, PMF.tsum_coe, mul_one]
-
 theorem probEvent_uniformTable_eq (allowed : ι → Finset α)
     (ha : ∀ coordinate, (allowed coordinate).Nonempty) (coordinate : ι) (candidate : α) :
     Pr[fun table => table coordinate = candidate | uniformTable allowed ha] =
@@ -94,5 +88,4 @@ theorem probEvent_uniformTable_eq (allowed : ι → Finset α)
     · have hn : ¬ ∀ other, table other ∈ allowed other := fun h => hc (heq ▸ h coordinate)
       simp only [heq, if_true, uniformTable_apply, hn, if_false]
     · simp only [heq, if_false]
-
 end SphincsSecurity.Concrete

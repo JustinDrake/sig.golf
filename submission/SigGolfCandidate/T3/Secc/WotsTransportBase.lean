@@ -1,19 +1,5 @@
 import SigGolfCandidate.T3.Secc.WotsReference
 
-/-!
-# F2 (base): SEC's query recorder in a fixed world
-
-`Ref.fixedRecord F program state` is `FirstHit.record` with every hash and private query answered by the total
-table `F` (coins still uniform). Facts:
-
-* `fixedRecord_bind`, `fixedRecord_map`: the record of a bind is the concatenation (as `FirstHit.record_bind`).
-* `fixedRecord_hashOnly`: a hash-only program is deterministic in the fixed world (`pureRecord`), with value
-  `evalWithAnswerFn F program`, inputs `SourceReplay.queried F program` and charge `(queried F program).length`.
-* `fixedRecord_mem_record`: if `F` agrees with the starting caches, every fixed-world record is a lazy record
-  (`FirstHit.record`) and `F` agrees with its final caches.
-* `fixedRecord_counted`: value and charge of the fixed-world record are `QueryCap.counted Derivation.charged`.
--/
-
 namespace SigGolfCandidate.T3.Security.Wots.Ref
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -23,16 +9,10 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-! ## The fixed world and its recorder -/
-
-/-- The fixed world of a total table `F`: coins uniform, every hash and private query answered by `F`. -/
 noncomputable def fixedWorld (F : Answers) : QueryImpl T3.Spec ProbComp
   | .inl (.inl n) => liftM (unifSpec.query n)
   | .inl (.inr input) => pure (F (.inl (.inr input)))
   | .inr coordinate => pure (F (.inr coordinate))
-
-/-- SEC's recorder `FirstHit.record` in the fixed world of `F`. -/
 noncomputable def fixedRecord {α : Type} (F : Answers) (program : M α) :
     LazyPrivate.State → ProbComp (FirstHit.Recorded α) :=
   OracleComp.construct
@@ -41,17 +21,14 @@ noncomputable def fixedRecord {α : Type} (F : Answers) (program : M α) :
       let answer ← fixedWorld F input
       (fun last => ⟨last.value, ⟨state, input, answer⟩ :: last.events, last.state⟩) <$>
         next answer (FirstHit.advance state input answer)) program
-
 theorem fixedRecord_pure {α : Type} (F : Answers) (value : α) (state : LazyPrivate.State) :
     fixedRecord F (pure value : M α) state = pure ⟨value, [], state⟩ := rfl
-
 theorem fixedRecord_query_bind {α : Type} (F : Answers) (input : T3.Spec.Domain)
     (next : T3.Spec.Range input → M α) (state : LazyPrivate.State) :
     fixedRecord F (liftM (T3.Spec.query input) >>= next) state = (do
       let answer ← fixedWorld F input
       (fun last => ⟨last.value, ⟨state, input, answer⟩ :: last.events, last.state⟩) <$>
         fixedRecord F (next answer) (FirstHit.advance state input answer)) := rfl
-
 theorem fixedRecord_bind {α β : Type} (F : Answers) (program : M α) (next : α → M β)
     (state : LazyPrivate.State) :
     fixedRecord F (program >>= next) state = (do
@@ -72,17 +49,12 @@ theorem fixedRecord_bind {α β : Type} (F : Answers) (program : M α) (next : �
       apply bind_congr
       intro last
       rfl
-
 theorem fixedRecord_map {α β : Type} (F : Answers) (f : α → β) (program : M α) (state : LazyPrivate.State) :
     fixedRecord F (f <$> program) state =
       (fun result : FirstHit.Recorded α => (⟨f result.value, result.events, result.state⟩ : FirstHit.Recorded β)) <$>
         fixedRecord F program state := by
   rw [map_eq_bind_pure_comp, fixedRecord_bind]
   simp only [Function.comp_def, fixedRecord_pure, pure_bind, map_pure, List.append_nil, bind_pure_comp]
-
-/-! ## Hash-only programs are deterministic in the fixed world -/
-
-/-- The deterministic record of a program answered entirely by `F` (coins answered by `F` too). -/
 noncomputable def pureRecord {α : Type} (F : Answers) (program : M α) :
     LazyPrivate.State → FirstHit.Recorded α :=
   OracleComp.construct
@@ -91,28 +63,23 @@ noncomputable def pureRecord {α : Type} (F : Answers) (program : M α) :
       ⟨(next (F input) (FirstHit.advance state input (F input))).value,
         ⟨state, input, F input⟩ :: (next (F input) (FirstHit.advance state input (F input))).events,
         (next (F input) (FirstHit.advance state input (F input))).state⟩) program
-
 theorem pureRecord_pure {α : Type} (F : Answers) (value : α) (state : LazyPrivate.State) :
     pureRecord F (pure value : M α) state = ⟨value, [], state⟩ := rfl
-
 theorem pureRecord_query_bind {α : Type} (F : Answers) (input : T3.Spec.Domain)
     (next : T3.Spec.Range input → M α) (state : LazyPrivate.State) :
     pureRecord F (liftM (T3.Spec.query input) >>= next) state =
       ⟨(pureRecord F (next (F input)) (FirstHit.advance state input (F input))).value,
         ⟨state, input, F input⟩ :: (pureRecord F (next (F input)) (FirstHit.advance state input (F input))).events,
         (pureRecord F (next (F input)) (FirstHit.advance state input (F input))).state⟩ := rfl
-
 theorem eval_query (F : Answers) (input : T3.Spec.Domain) :
     evalWithAnswerFn F (liftM (T3.Spec.query input)) = F input :=
   simulateQ_spec_query F input
-
 theorem fixedWorld_hash (F : Answers) (input : T3.Spec.Domain) (hi : SourceReplay.IsHash input) :
     fixedWorld F input = pure (F input) := by
   rcases input with (n | x) | c
   · exact False.elim hi
   · rfl
   · rfl
-
 theorem fixedRecord_hashOnly {α : Type} (F : Answers) (program : M α) (hp : SourceReplay.HashOnly program)
     (state : LazyPrivate.State) : fixedRecord F program state = pure (pureRecord F program state) := by
   induction program using OracleComp.inductionOn generalizing state with
@@ -121,7 +88,6 @@ theorem fixedRecord_hashOnly {α : Type} (F : Answers) (program : M α) (hp : So
       obtain ⟨hi, hn⟩ := (allQueriesSatisfy_query_bind_iff _ _ _).mp hp
       rw [fixedRecord_query_bind, pureRecord_query_bind, fixedWorld_hash F input hi, pure_bind,
         ih (F input) (hn _), map_pure]
-
 theorem pureRecord_value {α : Type} (F : Answers) (program : M α) (state : LazyPrivate.State) :
     (pureRecord F program state).value = evalWithAnswerFn F program := by
   induction program using OracleComp.inductionOn generalizing state with
@@ -129,7 +95,6 @@ theorem pureRecord_value {α : Type} (F : Answers) (program : M α) (state : Laz
   | query_bind input next ih =>
       rw [pureRecord_query_bind, evalWithAnswerFn_bind, eval_query]
       exact ih (F input) _
-
 theorem pureRecord_inputs {α : Type} (F : Answers) (program : M α) (state : LazyPrivate.State) :
     (pureRecord F program state).events.map FirstHit.QueryEvent.input = SourceReplay.queried F program := by
   induction program using OracleComp.inductionOn generalizing state with
@@ -137,25 +102,18 @@ theorem pureRecord_inputs {α : Type} (F : Answers) (program : M α) (state : La
   | query_bind input next ih =>
       rw [pureRecord_query_bind, SourceReplay.queried_query_bind, List.map_cons]
       exact congrArg (List.cons input) (ih (F input) _)
-
-/-- Total charge of a list of query events. -/
 def chargeSum (events : List FirstHit.QueryEvent) : Nat :=
   (events.map fun event => FullGame.queryCharge event.input).sum
-
 @[simp] theorem chargeSum_nil : chargeSum [] = 0 := rfl
-
 @[simp] theorem chargeSum_cons (event : FirstHit.QueryEvent) (events : List FirstHit.QueryEvent) :
     chargeSum (event :: events) = FullGame.queryCharge event.input + chargeSum events := by
   simp [chargeSum]
-
 @[simp] theorem chargeSum_append (left right : List FirstHit.QueryEvent) :
     chargeSum (left ++ right) = chargeSum left + chargeSum right := by
   simp [chargeSum]
-
 theorem queryCharge_hash (input : T3.Spec.Domain) (hi : SourceReplay.IsHash input) :
     FullGame.queryCharge input = 1 := by
   simp only [FullGame.queryCharge, if_pos (SourceReplay.hash_charged input hi)]
-
 theorem pureRecord_charge {α : Type} (F : Answers) (program : M α) (hp : SourceReplay.HashOnly program)
     (state : LazyPrivate.State) :
     chargeSum (pureRecord F program state).events = (SourceReplay.queried F program).length := by
@@ -167,9 +125,6 @@ theorem pureRecord_charge {α : Type} (F : Answers) (program : M α) (hp : Sourc
       simp only [chargeSum_cons, queryCharge_hash input hi]
       rw [ih (F input) (hn _)]
       omega
-
-/-! ## Value and charge: the fixed-world record is `QueryCap.counted` -/
-
 theorem fixedRecord_counted {α : Type} (F : Answers) (program : M α) (state : LazyPrivate.State) :
     (fun result : FirstHit.Recorded α => (result.value, chargeSum result.events)) <$> fixedRecord F program state =
       simulateQ (fixedWorld F) (SphincsSecurity.QueryCap.counted Derivation.charged program) := by
@@ -183,24 +138,16 @@ theorem fixedRecord_counted {α : Type} (F : Answers) (program : M α) (state : 
       rw [← ih answer (FirstHit.advance state input answer)]
       simp only [chargeSum_cons, map_eq_bind_pure_comp, Function.comp_def, FullGame.queryCharge, bind_assoc,
         pure_bind]
-
-/-- A hash-only program in the fixed world: its counted run is the Dirac at (value, query count). -/
 theorem fixedWorld_counted_hashOnly {α : Type} (F : Answers) (program : M α) (hp : SourceReplay.HashOnly program) :
     simulateQ (fixedWorld F) (SphincsSecurity.QueryCap.counted Derivation.charged program) =
       pure (evalWithAnswerFn F program, (SourceReplay.queried F program).length) := by
   rw [← fixedRecord_counted F program (∅, ∅), fixedRecord_hashOnly F program hp, map_pure,
     pureRecord_value, pureRecord_charge F program hp]
-
-/-! ## Agreement with the caches; fixed-world records are lazy records -/
-
-/-- `F` agrees with every cached answer of `state`. -/
 def Agrees (F : Answers) (state : LazyPrivate.State) : Prop :=
   ∀ input answer, SourceReplay.known state input = some answer → F input = answer
-
 theorem agrees_empty (F : Answers) : Agrees F (∅, ∅) := by
   intro input answer h
   rcases input with (n | x) | c <;> cases h
-
 theorem agrees_advance {F : Answers} {state : LazyPrivate.State} (hF : Agrees F state) (input : T3.Spec.Domain) :
     Agrees F (FirstHit.advance state input (F input)) := by
   intro query answer h
@@ -226,11 +173,8 @@ theorem agrees_advance {F : Answers} {state : LazyPrivate.State} (hF : Agrees F 
         exact Option.some.inj h
       · rw [QueryCache.cacheQuery_of_ne _ _ hd] at h
         exact hF _ _ h
-
 theorem advance_coin (state : LazyPrivate.State) (n : Nat) (answer : Fin (n + 1)) :
     FirstHit.advance state (.inl (.inl n)) answer = state := rfl
-
-/-- Every answer consistent with the caches, together with its advanced state, is a lazy one-query outcome. -/
 theorem lazy_query_mem (state : LazyPrivate.State) (input : T3.Spec.Domain) (answer : T3.Spec.Range input)
     (h : ∀ cached, SourceReplay.known state input = some cached → cached = answer) :
     (answer, FirstHit.advance state input answer) ∈ support (LazyPrivate.run (liftM (T3.Spec.query input)) state) := by
@@ -274,14 +218,11 @@ theorem lazy_query_mem (state : LazyPrivate.State) (input : T3.Spec.Domain) (ans
           support ((randomOracle (spec := Coordinate →ₒ HashOutput) c).run state.1)
         rw [QueryImpl.withCaching_run_none _ hc, support_map]
         exact ⟨answer, mem_support_uniformSample _, rfl⟩
-
 theorem fixedWorld_mem (F : Answers) (input : T3.Spec.Domain) (answer : T3.Spec.Range input)
     (h : answer ∈ support (fixedWorld F input)) : SourceReplay.IsHash input → answer = F input := by
   intro hi
   rw [fixedWorld_hash F input hi, mem_support_pure_iff] at h
   exact h
-
-/-- A fixed-world record from caches `F` agrees with is a lazy record, and `F` agrees with its final caches. -/
 theorem fixedRecord_mem_record {α : Type} (F : Answers) (program : M α) (state : LazyPrivate.State)
     (hF : Agrees F state) (result : FirstHit.Recorded α) (hr : result ∈ support (fixedRecord F program state)) :
     result ∈ support (FirstHit.record program state) ∧ Agrees F result.state := by
@@ -311,5 +252,4 @@ theorem fixedRecord_mem_record {α : Type} (F : Answers) (program : M α) (state
         · rw [fixedWorld_mem F _ answer hanswer trivial]; exact (hF _ _ hc).symm
       · rw [support_map]
         exact ⟨last, hrec, rfl⟩
-
 end SigGolfCandidate.T3.Security.Wots.Ref

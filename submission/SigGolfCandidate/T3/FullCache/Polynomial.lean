@@ -5,21 +5,14 @@ import Mathlib.Algebra.Polynomial.Roots
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Tactic.LinearCombination
 
-/-! Generic polynomial MAC bounds. Rebased from the arithmetic MAC development;
-no predecessor cache geometry or lane-count assumptions are used here. -/
 open OracleComp OracleSpec ENNReal
 namespace SphincsSecurity
 set_option backward.isDefEq.respectTransparency false
-
 theorem macPrime_eq_mersenne : macPrime = mersenne 61 := rfl
-
-
 theorem macPrime_prime : macPrime.Prime := by
   rw [macPrime_eq_mersenne]
   exact lucas_lehmer_sufficiency _ (by norm_num) (by norm_num)
-
 instance : Fact macPrime.Prime := ⟨macPrime_prime⟩
-
 theorem polyMac_lt (k : Nat) (cs : List Nat) : polyMac k cs < macPrime ∨ cs = [] := by
   rcases List.eq_nil_or_concat cs with h | ⟨cs', c, rfl⟩
   · exact Or.inr h
@@ -27,23 +20,17 @@ theorem polyMac_lt (k : Nat) (cs : List Nat) : polyMac k cs < macPrime ∨ cs = 
     unfold polyMac
     rw [List.concat_eq_append, List.foldl_append]
     exact Nat.mod_lt _ (by decide)
-
 theorem polyMac_lt' (k : Nat) (cs : List Nat) : polyMac k cs < 2 ^ 61 := by
   rcases polyMac_lt k cs with h | h
   · have : macPrime < 2 ^ 61 := by decide
     omega
   · subst h; simp [polyMac]
-
 open Polynomial
-
-/-- The polynomial whose value at `k` is `polyMac k cs`. -/
 noncomputable def macPoly (cs : List Nat) : (ZMod macPrime)[X] :=
   cs.foldl (fun q c => (q + C (c : ZMod macPrime)) * X) 0
-
 theorem macPoly_concat (cs : List Nat) (c : Nat) :
     macPoly (cs ++ [c]) = (macPoly cs + C (c : ZMod macPrime)) * X := by
   simp [macPoly, List.foldl_append]
-
 theorem polyMac_cast_aux (k : Nat) (cs : List Nat) (acc : Nat) (q : (ZMod macPrime)[X])
     (h : (acc : ZMod macPrime) = q.eval (k : ZMod macPrime)) :
     ((cs.foldl (fun acc c => (acc + c) * k % macPrime) acc : Nat) : ZMod macPrime) =
@@ -55,11 +42,9 @@ theorem polyMac_cast_aux (k : Nat) (cs : List Nat) (acc : Nat) (q : (ZMod macPri
       apply ih
       rw [ZMod.natCast_mod]
       simp [h]
-
 theorem polyMac_cast (k : Nat) (cs : List Nat) :
     ((polyMac k cs : Nat) : ZMod macPrime) = (macPoly cs).eval (k : ZMod macPrime) :=
   polyMac_cast_aux k cs 0 0 (by simp)
-
 theorem natDegree_macPoly_le (cs : List Nat) : (macPoly cs).natDegree ≤ cs.length := by
   induction cs using List.reverseRecOn with
   | nil => simp [macPoly]
@@ -70,8 +55,6 @@ theorem natDegree_macPoly_le (cs : List Nat) : (macPoly cs).natDegree ≤ cs.len
       refine Nat.add_le_add_right ((natDegree_add_le _ _).trans ?_) 1
       rw [natDegree_C]
       omega
-
-/-- Two chunk lists of the same length with chunks below `p` whose polynomials differ by a constant are equal. -/
 theorem eq_of_macPoly_sub_eq_C : ∀ (xs ys : List Nat), xs.length = ys.length →
     (∀ x ∈ xs, x < macPrime) → (∀ y ∈ ys, y < macPrime) → ∀ d : ZMod macPrime, macPoly xs - macPoly ys = C d → xs = ys := by
   intro xs
@@ -86,7 +69,6 @@ theorem eq_of_macPoly_sub_eq_C : ∀ (xs ys : List Nat), xs.length = ys.length �
       rw [List.concat_eq_append] at hlen hy h ⊢
       have hlen' : xs.length = ys'.length := by simpa using hlen
       rw [macPoly_concat, macPoly_concat, ← sub_mul] at h
-      -- the left side vanishes at `0`
       have hd : d = 0 := by
         have := congrArg (Polynomial.eval 0) h
         simpa using this.symm
@@ -111,9 +93,6 @@ theorem eq_of_macPoly_sub_eq_C : ∀ (xs ys : List Nat), xs.length = ys.length �
         have := (ZMod.natCast_eq_natCast_iff' x y macPrime).mp hxy
         rwa [Nat.mod_eq_of_lt hx', Nat.mod_eq_of_lt hy'] at this
       rw [this]
-
-/-- **The differential bound.** For different chunk lists of one length, at most `length + 1` keys below
-`2^61` make the two hashes differ by the residue `d`. -/
 theorem card_polyMac_diff_le (xs ys : List Nat) (hlen : xs.length = ys.length) (hne : xs ≠ ys)
     (hx : ∀ x ∈ xs, x < macPrime) (hy : ∀ y ∈ ys, y < macPrime) (d : ZMod macPrime) :
     ((Finset.range (2 ^ 61)).filter fun k => ((polyMac k ys : Nat) : ZMod macPrime) - ((polyMac k xs : Nat) : ZMod macPrime) = d).card
@@ -151,7 +130,6 @@ theorem card_polyMac_diff_le (xs ys : List Nat) (hlen : xs.length = ys.length) (
   refine Finset.card_image_le.trans ?_
   refine (Multiset.toFinset_card_le _).trans ?_
   exact (card_roots' D).trans hdeg
-
 theorem answerOfWords_toNat (w0 w1 w2 w3 : BitVec 64) :
     (answerOfWords w0 w1 w2 w3).toNat =
       w0.toNat + 2 ^ 64 * w1.toNat + 2 ^ 128 * w2.toNat + 2 ^ 192 * w3.toNat := by
@@ -161,7 +139,6 @@ theorem answerOfWords_toNat (w0 w1 w2 w3 : BitVec 64) :
   apply Nat.mod_eq_of_lt
   show _ < 2 ^ 256
   omega
-
 theorem extract_answerOfWords (w0 w1 w2 w3 : BitVec 64) :
     (answerOfWords w0 w1 w2 w3).extractLsb' 0 64 = w0 ∧
     (answerOfWords w0 w1 w2 w3).extractLsb' 64 64 = w1 ∧
@@ -172,7 +149,6 @@ theorem extract_answerOfWords (w0 w1 w2 w3 : BitVec 64) :
   · apply BitVec.eq_of_toNat_eq
     rw [BitVec.extractLsb'_toNat, answerOfWords_toNat, Nat.shiftRight_eq_div_pow]
     omega
-
 theorem answerOfWords_extract (a : HashOutput) :
     answerOfWords (a.extractLsb' 0 64) (a.extractLsb' 64 64) (a.extractLsb' 128 64) (a.extractLsb' 192 64) = a := by
   apply BitVec.eq_of_toNat_eq
@@ -180,11 +156,9 @@ theorem answerOfWords_extract (a : HashOutput) :
   simp only [BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]
   have : a.toNat < 2 ^ 256 := a.isLt
   omega
-
 noncomputable def tagResidue (delta : BitVec 64) : ZMod macPrime :=
   if delta.toNat < 2 ^ 63 then (delta.toNat : ZMod macPrime)
   else (delta.toNat : ZMod macPrime) - ((2 ^ 64 : Nat) : ZMod macPrime)
-
 theorem residue_of_tag_eq (ux uy : Nat) (hx : ux < 2 ^ 61) (hy : uy < 2 ^ 61) (t t' : BitVec 64)
     (h : BitVec.ofNat 64 uy + (t - BitVec.ofNat 64 ux) = t') :
     ((uy : Nat) : ZMod macPrime) - ((ux : Nat) : ZMod macPrime) = tagResidue (t' - t) := by
@@ -202,10 +176,7 @@ theorem residue_of_tag_eq (ux uy : Nat) (hx : ux < 2 ^ 61) (hy : uy < 2 ^ 61) (t
     have h2 : ((uy + 2 ^ 64 : Nat) : ZMod macPrime) = ((ux + dn : Nat) : ZMod macPrime) := by rw [hu]
     push_cast at h2 ⊢
     linear_combination h2
-
 theorem polyMac_lt_pow (k : Nat) (cs : List Nat) : polyMac k cs < 2 ^ 61 := polyMac_lt' k cs
-
-/-- The low words whose key (their low 61 bits) lies in a set of at most `n` keys: at most `8 n` words. -/
 theorem card_lowWords_le (B : Finset Nat) :
     (Finset.univ.filter fun w : BitVec 64 => w.toNat % 2 ^ 61 ∈ B).card ≤ 8 * B.card := by
   classical
@@ -225,22 +196,16 @@ theorem card_lowWords_le (B : Finset Nat) :
         Finset.card_le_card hsub
     _ ≤ (B ×ˢ Finset.range 8).card := Finset.card_image_le
     _ = 8 * B.card := by rw [Finset.card_product, Finset.card_range, Nat.mul_comm]
-
-/-- The keys below `2^61` at which the hashes of `xs` and `ys` differ by the residue `d`. -/
 noncomputable def badKeys (xs ys : List Nat) (d : ZMod macPrime) : Finset Nat :=
   (Finset.range (2 ^ 61)).filter fun k =>
     ((polyMac k ys : Nat) : ZMod macPrime) - ((polyMac k xs : Nat) : ZMod macPrime) = d
-
-/-- The low words whose key lies in `badKeys`. -/
 noncomputable def badWords (xs ys : List Nat) (d : ZMod macPrime) : Finset (BitVec 64) :=
   Finset.univ.filter fun w : BitVec 64 => w.toNat % 2 ^ 61 ∈ badKeys xs ys d
-
 theorem card_badWords_le (xs ys : List Nat) (hlen : xs.length = ys.length) (hne : xs ≠ ys)
     (hx : ∀ x ∈ xs, x < macPrime) (hy : ∀ y ∈ ys, y < macPrime) (d : ZMod macPrime) :
     (badWords xs ys d).card ≤ 8 * (xs.length + 1) :=
   (card_lowWords_le (badKeys xs ys d)).trans
     (Nat.mul_le_mul_left 8 (card_polyMac_diff_le xs ys hlen hne hx hy d))
-
 theorem chunks32_lt (data : HashInput) : ∀ c ∈ chunks32 data, c < 2 ^ 32 := by
   induction data using chunks32.induct with
   | case1 b0 b1 b2 b3 rest ih =>
@@ -254,7 +219,6 @@ theorem chunks32_lt (data : HashInput) : ∀ c ∈ chunks32 data, c < 2 ^ 32 := 
       intro c hc
       rw [chunks32.eq_2 _ hne] at hc
       simp at hc
-
 theorem chunks32_length (data : HashInput) : (chunks32 data).length = data.length / 4 := by
   induction data using chunks32.induct with
   | case1 b0 b1 b2 b3 rest ih =>
@@ -269,8 +233,6 @@ theorem chunks32_length (data : HashInput) : (chunks32 data).length = data.lengt
       | [_, _], _ => simp
       | [_, _, _], _ => simp
       | a :: b :: c :: d :: r, hne => exact (hne a b c d r rfl).elim
-
-/-- Byte strings of one length divisible by four with the same chunks are equal. -/
 theorem chunks32_injective : ∀ (a b : HashInput), a.length = b.length → 4 ∣ a.length →
     chunks32 a = chunks32 b → a = b := by
   intro a
@@ -307,9 +269,6 @@ theorem chunks32_injective : ∀ (a b : HashInput), a.length = b.length → 4 �
         | x :: y :: z :: w :: r, hne, _ => exact (hne x y z w r rfl).elim
       subst ha
       exact (List.length_eq_zero_iff.mp hlen.symm).symm
-
 theorem chunks32_lt_macPrime (data : HashInput) : ∀ c ∈ chunks32 data, c < macPrime := fun c hc =>
   (chunks32_lt data c hc).trans (by decide)
-
-
 end SphincsSecurity

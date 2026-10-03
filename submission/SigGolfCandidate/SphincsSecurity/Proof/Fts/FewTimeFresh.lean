@@ -1,32 +1,65 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
+import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeProbability
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeLoop
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimePadding
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeSignerView
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.AdmissibleCount
-/-!
-# Fresh signer views
 
-During a digest retry loop, every message input added after the loop's reference cache contains an
-inadmissible answer. Thus a successful input absent from the reference cache is answered freshly,
-and its retained few-time view has the law `signerViewSample` (uniform over the admissible views) even
-after all failed retries. A fresh answer is admissible with probability `admissibleProbability`, and its
-view is uniform over all views.
--/
+section
+
+
+set_option autoImplicit true
+namespace SphincsSecurity.Concrete
+open OracleComp OracleSpec ENNReal
+noncomputable local instance instSampleableTypeOfFintypeOfNonempty_sphincsSecurity_1 {α : Type} [Fintype α] [Nonempty α] : SampleableType α :=
+  SampleableType.ofFintype α
+theorem evalDist_independent_uniform_pair
+    {α β : Type} [Fintype α] [Fintype β]
+    [SampleableType α] [SampleableType β] :
+    𝒮[(do
+      let left ← $ᵗ α
+      let right ← $ᵗ β
+      pure (left, right))] =
+      𝒮[($ᵗ (α × β) : ProbComp (α × β))] := by
+  apply SPMF.ext
+  intro target
+  rw [show (do
+      let left ← $ᵗ α
+      let right ← $ᵗ β
+      pure (left, right)) = Prod.mk <$> ($ᵗ α) <*> ($ᵗ β) by
+    simp [monad_norm]]
+  change Pr[= target | Prod.mk <$> ($ᵗ α) <*> ($ᵗ β)] =
+    Pr[= target | $ᵗ (α × β)]
+  rw [probOutput_seq_map_prod_mk_eq_mul, probOutput_uniformSample,
+    probOutput_uniformSample, probOutput_uniformSample, Fintype.card_prod,
+    Nat.cast_mul,
+    ENNReal.mul_inv (Or.inr (ENNReal.natCast_ne_top _))
+      (Or.inl (ENNReal.natCast_ne_top _))]
+def listToFunction (count : Nat) (values : List FewTimeView) : Fin count → FewTimeView :=
+  fun position => values.getD position.val default
+@[simp]
+theorem listToFunction_ofFn (values : Fin count → FewTimeView) :
+    listToFunction count (List.ofFn values) = values := by
+  funext position
+  simp [listToFunction, List.getD]
+end SphincsSecurity.Concrete
+end
+
+section
+
+
+
+
 
 namespace SphincsSecurity.Concrete
-
 open OracleComp OracleSpec ENNReal
-
 abbrev HashOutputRest :=
   DigestUnusedBits × BitVec (hashOutputBits - messageDigestBits)
-
 def reorderHashOutputCoordinates :
     (HashOutputRest × FewTimeView) ≃ HashOutputCoordinates where
   toFun value := ((value.2, value.1.1), value.1.2)
   invFun value := ((value.1.2, value.2), value.1.1)
   left_inv _ := rfl
   right_inv _ := rfl
-
 set_option maxRecDepth 100000 in
 theorem evalDist_uniformHashOutputCoordinates_bind_reordered {Result : Type}
     (continuation : HashOutputCoordinates → ProbComp Result) :
@@ -68,37 +101,26 @@ theorem evalDist_uniformHashOutputCoordinates_bind_reordered {Result : Type}
       simp only [paired, map_eq_bind_pure_comp, bind_assoc, pure_bind,
         reorderHashOutputCoordinates, Function.comp_apply]
       rfl
-
-/-! ### The law of an accepted fresh view -/
-
-/-- The views whose leaves are admissible. -/
 abbrev AdmissibleView := {view : FewTimeView // AdmissibleLeaves view.2}
-
 def admissibleViewEquiv : AdmissibleView ≃ Index × {leaves : IndexGroup → FtsLeaf // AdmissibleLeaves leaves} where
   toFun view := (view.1.1, ⟨view.1.2, view.2⟩)
   invFun value := ⟨(value.1, value.2.1), value.2.2⟩
   left_inv _ := rfl
   right_inv _ := rfl
-
 theorem card_admissibleView :
     (Fintype.card AdmissibleView : ENNReal) = admissibleProbability * Fintype.card FewTimeView := by
   rw [Fintype.card_congr admissibleViewEquiv, Fintype.card_prod, Fintype.card_subtype, Nat.cast_mul,
     card_admissibleLeaves_eq_mul, Fintype.card_prod, Nat.cast_mul]
   ring
-
 instance : Nonempty AdmissibleView := by
   apply Fintype.card_pos_iff.mp
   have h : (Fintype.card AdmissibleView : ENNReal) ≠ 0 := by
     rw [card_admissibleView]
     exact mul_ne_zero admissibleProbability_pos (by simp)
   exact Nat.pos_of_ne_zero (by exact_mod_cast h)
-
 noncomputable instance : SampleableType AdmissibleView := SampleableType.ofFintype AdmissibleView
-
-/-- The law of the view of a fresh accepted digest: uniform over the admissible views. -/
 noncomputable irreducible_def signerViewSample : ProbComp FewTimeView :=
   Subtype.val <$> ($ᵗ AdmissibleView : ProbComp AdmissibleView)
-
 theorem probOutput_signerViewSample (view : FewTimeView) :
     Pr[= view | signerViewSample] =
       if AdmissibleLeaves view.2 then (admissibleProbability * Fintype.card FewTimeView)⁻¹ else 0 := by
@@ -112,11 +134,9 @@ theorem probOutput_signerViewSample (view : FewTimeView) :
     rw [if_neg]
     rintro rfl
     exact hview other.2
-
 theorem probFailure_signerViewSample : Pr[⊥ | signerViewSample] = 0 := by
   rw [signerViewSample_def, probFailure_map]
   exact probFailure_uniformSample AdmissibleView
-
 theorem probEvent_signerView_index (index : Index) :
     Pr[fun view : FewTimeView => view.1 = index | signerViewSample] = (Fintype.card Index : ENNReal)⁻¹ := by
   classical
@@ -137,12 +157,9 @@ theorem probEvent_signerView_index (index : Index) :
     _ = _ := by
       rw [ENNReal.mul_inv_cancel admissibleProbability_pos admissibleProbability_ne_top,
         ENNReal.mul_inv_cancel (by simp) (by simp), one_mul, one_mul]
-
 theorem probOutput_uniformFewTimeView (view : FewTimeView) :
     Pr[= view | ($ᵗ FewTimeView : ProbComp FewTimeView)] = (Fintype.card FewTimeView : ENNReal)⁻¹ :=
   probOutput_uniformSample FewTimeView view
-
-/-- A uniform view is admissible with probability `p`, and then has the signer's law. -/
 theorem probOutput_uniformFewTimeView_admissible (view : FewTimeView) :
     (if AdmissibleLeaves view.2 then Pr[= view | ($ᵗ FewTimeView : ProbComp FewTimeView)] else 0) =
       admissibleProbability * Pr[= view | signerViewSample] := by
@@ -151,7 +168,6 @@ theorem probOutput_uniformFewTimeView_admissible (view : FewTimeView) :
   · rw [ENNReal.mul_inv (Or.inl admissibleProbability_pos) (Or.inl admissibleProbability_ne_top), ← mul_assoc,
       ENNReal.mul_inv_cancel admissibleProbability_pos admissibleProbability_ne_top, one_mul]
   · rw [mul_zero]
-
 theorem probEvent_uniformFewTimeView_admissible (P : FewTimeView → Prop) :
     Pr[fun view => AdmissibleLeaves view.2 ∧ P view | ($ᵗ FewTimeView : ProbComp FewTimeView)] =
       admissibleProbability * Pr[P | signerViewSample] := by
@@ -170,14 +186,12 @@ theorem probEvent_uniformFewTimeView_admissible (P : FewTimeView → Prop) :
       simp only [hP, hadm, and_true, if_false, if_true]
       exact h
   · simp [hP]
-
 theorem probEvent_uniformFewTimeView_admissible_eq :
     Pr[fun view => AdmissibleLeaves view.2 | ($ᵗ FewTimeView : ProbComp FewTimeView)] = admissibleProbability := by
   have h := probEvent_uniformFewTimeView_admissible (fun _ => True)
   simp only [and_true] at h
   rw [h]
   simp
-
 theorem probEvent_uniformFewTimeView_not_admissible :
     Pr[fun view => ¬ AdmissibleLeaves view.2 | ($ᵗ FewTimeView : ProbComp FewTimeView)] =
       1 - admissibleProbability := by
@@ -185,9 +199,6 @@ theorem probEvent_uniformFewTimeView_not_admissible :
   rw [probEvent_uniformFewTimeView_admissible_eq] at hc
   simp only [probFailure_uniformSample, tsub_zero] at hc
   exact ENNReal.eq_sub_of_add_eq admissibleProbability_ne_top ((add_comm _ _).trans hc)
-
-/-- One fresh attempt of a retry loop: an admissible uniform view is selected (and has the signer's law),
-a rejected one continues with a continuation bounded by the same bound. -/
 theorem probEvent_uniformFewTimeView_bind_le {α : Type} (g : FewTimeView → ProbComp α) (Q : α → Prop)
     (P : FewTimeView → Prop) [DecidablePred P] (bound : ENNReal) (hbound : Pr[P | signerViewSample] ≤ bound)
     (hadmissible : ∀ view, AdmissibleLeaves view.2 → Pr[Q | g view] ≤ if P view then 1 else 0)
@@ -221,7 +232,6 @@ theorem probEvent_uniformFewTimeView_bind_le {α : Type} (g : FewTimeView → Pr
       gcongr
     _ = bound := by
       rw [← add_mul, add_tsub_cancel_of_le admissibleProbability_le_one, one_mul]
-
 set_option maxRecDepth 100000 in
 theorem probEvent_uniformHashOutput_view (P : FewTimeView → Prop) :
     Pr[fun output : HashOutput => P (hashOutputFewTimeView output) | ($ᵗ HashOutput : ProbComp HashOutput)] =
@@ -241,7 +251,6 @@ theorem probEvent_uniformHashOutput_view (P : FewTimeView → Prop) :
       rw [probEvent_map]
       rfl
     _ = _ := probEvent_congr' (fun _ _ => Iff.rfl) evalSPMF_map_fst_uniformSample_prod
-
 theorem probEvent_uniformHashOutput_admissible_view
     (P : FewTimeView → Prop) :
     Pr[fun output : HashOutput =>
@@ -252,7 +261,6 @@ theorem probEvent_uniformHashOutput_admissible_view
   congr 1
   funext output
   rw [signAttemptResultOfOutput_ne_none_iff, admissible_iff_view]
-
 def OnlyRejectedNewMessageEntries (referenceCache workingCache : QueryCache HashSpec)
     (secretKey : SecretKey) (message : Message) : Prop :=
   ∀ randomness output,
@@ -261,14 +269,12 @@ def OnlyRejectedNewMessageEntries (referenceCache workingCache : QueryCache Hash
     workingCache (tweakableHashInput secretKey.parameter .message
       (messageDigestPayload secretKey.root message randomness)) = some output →
     signAttemptResultOfOutput output = none
-
 theorem onlyRejectedNewMessageEntries_self (cache : QueryCache HashSpec)
     (secretKey : SecretKey) (message : Message) :
     OnlyRejectedNewMessageEntries cache cache secretKey message := by
   intro randomness output hmiss hhit
   rw [hmiss] at hhit
   simp at hhit
-
 theorem onlyRejectedNewMessageEntries_cacheRejected
     (referenceCache workingCache : QueryCache HashSpec)
     (secretKey : SecretKey) (message : Message) (sampled : Randomness)
@@ -299,7 +305,6 @@ theorem onlyRejectedNewMessageEntries_cacheRejected
       rw [QueryCache.cacheQuery_of_ne workingCache output hsame] at hfound
       simpa only [foundInput, sampledInput] using hfound
     exact hinvariant randomness found hreferenceFound hworking
-
 set_option maxRecDepth 100000 in
 theorem onlyRejectedNewMessageEntries_of_failed_attempt
     (referenceCache beforeCache afterCache : QueryCache HashSpec)
@@ -355,7 +360,6 @@ theorem onlyRejectedNewMessageEntries_of_failed_attempt
       have heq : prior = output := Option.some.inj ((hle hprior).symm.trans hafter)
       rw [← heq]
       exact hinvariant randomness prior hreference hprior
-
 def FreshSelectedView (referenceCache : QueryCache HashSpec)
     (secretKey : SecretKey) (message : Message) (P : FewTimeView → Prop)
     (result : Option (Randomness × Index × (IndexGroup → FtsLeaf)) ×
@@ -365,5 +369,5 @@ def FreshSelectedView (referenceCache : QueryCache HashSpec)
       ∧ referenceCache (tweakableHashInput secretKey.parameter .message
         (messageDigestPayload secretKey.root message randomness)) = none
       ∧ P (selectedFewTimeView index leaves)
-
 end SphincsSecurity.Concrete
+end

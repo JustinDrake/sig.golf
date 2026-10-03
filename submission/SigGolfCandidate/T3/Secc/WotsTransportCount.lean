@@ -1,24 +1,6 @@
 import SigGolfCandidate.T3.Secc.WotsTransport
 import SigGolfCandidate.T3.Secc.WotsReferenceInputs
 
-/-!
-# F2-3: R3's class counts against the shared law's class charges
-
-* `refCount cls s`: the number of R3 trace entries of a sample whose hash input is in class `cls s.answers`.
-* `reference_trace_length`: every R3 trace has at most `q` entries (the cap counts honest ticks too).
-* `refCount_or`, `reference_joint_budget`: disjoint classes add; four pairwise disjoint classes sum to `≤ q` on every
-  R3 sample.
-* **`reference_count_le`**: for a class that reads the table only on short queries (`ShortCongruent`),
-  `E_R3[refCount cls] ≤ SeccLaw.expectedCharge adversary q hq (fun z input => cls z.2 input)`.
-  Route: the shared law through the recorded trace is the eager world (`completed_eager_cut`, as a law identity
-  `completed_eager_map`); per table, R3's capped count is its uncapped count truncated at `q` charged calls
-  (`cap_cappedCount`); key generation and signing are ticks in R3 (charged, never counted) and real queries in the
-  shared run (charged, counted when in the class); world and verdict queries are the same queries
-  (`interaction_count_le`, by induction over the adversary program).
-* `reference_shared_budget`: three R3 counts and one shared class charge, pairwise disjoint, sum to `≤ q` in
-  expectation (the closing's joint budget `E_R3[P] + E_R3[E] + E_R3[O] + E_shared[M] ≤ q`).
--/
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -29,27 +11,14 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] keygen verifyP expandB buildFts buildTree signPayload GameWith.idealGame
-
 noncomputable local instance instFintypeCoordinate_wotsTransportCount : Fintype Coordinate := coordinateFintype
 noncomputable local instance instSampleableTypeFullTable_wotsTransportCount : SampleableType FullGame.FullTable := Derivation.outputSampler Coordinate
 attribute [local instance] FiniteRowSplit.instSampleableTypeForallSubtypeHashInputMemFinsetHashOutput
-
-/-- R3 count of a class: the trace entries of a sample whose hash input is in class `cls sample.answers` (the class
-may read the table). -/
 noncomputable def refCount (cls : Answers → T3.Spec.Domain → Prop) (sample : RefSample) : Nat :=
   (sample.trace.filter fun e => decide (cls sample.answers (.inl (.inr e.1)))).length
-
-/-- A class that reads the table only on short queries (coins, private coordinates, public inputs of length
-`≤ 4096`): the classes P, E, O, M read it only through honest closed forms. -/
 def ShortCongruent (cls : Answers → T3.Spec.Domain → Prop) : Prop :=
   ∀ A T, Ref.ShortAgree A T → ∀ input, cls A input ↔ cls T input
-
 namespace Ref
-
-/-! ## Counting inside a budget of charged calls -/
-
-/-- The number of `cls` calls among the first `budget` charged (`selected`) calls of a query list: the walk stops at
-the first charged call beyond the budget; uncharged calls never count (as `SeccLaw.classCharge`). -/
 noncomputable def cappedCount {ι : Type} (selected : ι → Prop) [DecidablePred selected] (cls : ι → Prop) :
     Nat → List ι → Nat
   | _, [] => 0
@@ -59,10 +28,8 @@ noncomputable def cappedCount {ι : Type} (selected : ι → Prop) [DecidablePre
         | 0 => 0
         | remaining + 1 => (if cls input then 1 else 0) + cappedCount selected cls remaining rest
       else cappedCount selected cls budget rest
-
 section Capped
 variable {ι : Type} (selected : ι → Prop) [DecidablePred selected] (cls : ι → Prop)
-
 theorem cappedCount_cons_def (budget : Nat) (input : ι) (rest : List ι) :
     cappedCount selected cls budget (input :: rest) =
       if selected input then
@@ -70,7 +37,6 @@ theorem cappedCount_cons_def (budget : Nat) (input : ι) (rest : List ι) :
         | 0 => 0
         | remaining + 1 => (if cls input then 1 else 0) + cappedCount selected cls remaining rest)
       else cappedCount selected cls budget rest := rfl
-
 theorem cappedCount_zero (inputs : List ι) : cappedCount selected cls 0 inputs = 0 := by
   induction inputs with
   | nil => rfl
@@ -80,7 +46,6 @@ theorem cappedCount_zero (inputs : List ι) : cappedCount selected cls 0 inputs 
       · rw [if_pos hs]
       · rw [if_neg hs]
         exact ih
-
 theorem cappedCount_cons (budget : Nat) (input : ι) (rest : List ι) :
     cappedCount selected cls budget (input :: rest) =
       (if selected input ∧ 0 < budget ∧ cls input then 1 else 0) +
@@ -100,7 +65,6 @@ theorem cappedCount_cons (budget : Nat) (input : ι) (rest : List ι) :
         · rw [if_neg hc, if_neg (show ¬(selected input ∧ 0 < remaining + 1 ∧ cls input) from fun h => hc h.2.2)]
   · rw [if_neg hs, if_neg hs, if_neg (show ¬(selected input ∧ 0 < budget ∧ cls input) from fun h => hs h.1),
       Nat.sub_zero, Nat.zero_add]
-
 theorem cappedCount_append (budget : Nat) (left right : List ι) :
     cappedCount selected cls budget (left ++ right) =
       cappedCount selected cls budget left +
@@ -110,7 +74,6 @@ theorem cappedCount_append (budget : Nat) (left right : List ι) :
   | cons input rest ih =>
       rw [List.cons_append, cappedCount_cons, cappedCount_cons, ih, SphincsSecurity.QueryCap.calls_cons,
         Nat.sub_sub, Nat.add_assoc]
-
 theorem cappedCount_le_calls (budget : Nat) (inputs : List ι) :
     cappedCount selected cls budget inputs ≤ SphincsSecurity.QueryCap.calls selected inputs := by
   induction inputs generalizing budget with
@@ -124,18 +87,12 @@ theorem cappedCount_le_calls (budget : Nat) (inputs : List ι) :
       · rw [if_neg hs] at h ⊢
         rw [if_neg (show ¬(selected input ∧ 0 < budget ∧ cls input) from fun h' => hs h'.1)]
         omega
-
 end Capped
-
 theorem expectedValue_const_add {α : Type} (mx : ProbComp α) (c : ℝ≥0∞) (g : α → ℝ≥0∞) :
     expectedValue mx (fun x => c + g x) = c + expectedValue mx g := by
   rw [expectedValue_add, expectedValue_const probFailure_eq_zero]
-
 theorem expectedValue_zero {α : Type} (mx : ProbComp α) : expectedValue mx (fun _ => (0 : ℝ≥0∞)) = 0 := by
   simp [expectedValue_def]
-
-/-- **The cap is a truncation**: counting inside the budget, the capped run (`QueryCap.run`) and the uncapped run have
-the same expected count. -/
 theorem cap_cappedCount {ι β : Type} {spec : OracleSpec ι} (selected : ι → Prop) [DecidablePred selected]
     (cls : ι → Prop) (impl : QueryImpl spec ProbComp) (computation : OracleComp spec β) (budget : Nat) :
     expectedValue (simulateQ impl (SphincsSecurity.QueryCap.recorded
@@ -167,25 +124,16 @@ theorem cap_cappedCount {ι β : Type} {spec : OracleSpec ι} (selected : ι →
         funext answer
         simp only [cappedCount_cons_def, if_neg hs]
         exact ih answer budget
-
-/-! ## R3's counts and the shared law's class charges, one query at a time -/
-
-/-- R3's class membership of a query: a hash query whose input is in class `C` (coins and ticks never count). -/
 def RefClass (C : T3.Spec.Domain → Prop) : RefWorld.Domain → Prop
   | .inl (.inr input) => C (.inl (.inr input))
   | _ => False
-
-/-- R3's count of class `C` inside a budget of charged calls (honest ticks consume budget and never count). -/
 noncomputable abbrev refCharge (C : T3.Spec.Domain → Prop) (budget : Nat) (queries : List RefWorld.Domain) : Nat :=
   cappedCount RefCharged (RefClass C) budget queries
-
 section Steps
 variable (C : T3.Spec.Domain → Prop)
-
 theorem refCharge_coin (budget n : Nat) (rest : List RefWorld.Domain) :
     refCharge C budget (.inl (.inl n) :: rest) = refCharge C budget rest := by
   rw [refCharge, cappedCount_cons_def, if_neg (show ¬RefCharged (.inl (.inl n)) from id)]
-
 theorem refCharge_hash (budget : Nat) (input : HashInput) (rest : List RefWorld.Domain) :
     refCharge C budget (.inl (.inr input) :: rest) =
       (if 0 < budget ∧ C (.inl (.inr input)) then 1 else 0) + refCharge C (budget - 1) rest := by
@@ -196,46 +144,36 @@ theorem refCharge_hash (budget : Nat) (input : HashInput) (rest : List RefWorld.
       ⟨trivial, h⟩)]
   · rw [if_neg h, if_neg (show ¬(RefCharged (.inl (.inr input)) ∧ 0 < budget ∧ RefClass C (.inl (.inr input))) from
       fun h' => h h'.2)]
-
 theorem refCharge_tick (budget : Nat) (rest : List RefWorld.Domain) :
     refCharge C budget (.inr () :: rest) = refCharge C (budget - 1) rest := by
   rw [refCharge, cappedCount_cons, if_pos (show RefCharged (.inr ()) from trivial),
     if_neg (show ¬(RefCharged (.inr ()) ∧ 0 < budget ∧ RefClass C (.inr ())) from fun h => h.2.2), Nat.zero_add]
-
 theorem refCharge_replicate_tick (budget n : Nat) :
     refCharge C budget (List.replicate n (.inr () : RefWorld.Domain)) = 0 := by
   induction n generalizing budget with
   | zero => rfl
   | succ n ih => rw [List.replicate_succ, refCharge_tick, ih]
-
 theorem refCharge_append (budget : Nat) (left right : List RefWorld.Domain) :
     refCharge C budget (left ++ right) =
       refCharge C budget left + refCharge C (budget - SphincsSecurity.QueryCap.calls RefCharged left) right :=
   cappedCount_append _ _ budget left right
-
 theorem calls_coin (n : Nat) (rest : List RefWorld.Domain) :
     SphincsSecurity.QueryCap.calls RefCharged (.inl (.inl n) :: rest) =
       SphincsSecurity.QueryCap.calls RefCharged rest := by
   rw [SphincsSecurity.QueryCap.calls_cons, if_neg (show ¬RefCharged (.inl (.inl n)) from id), Nat.zero_add]
-
 theorem calls_hash (input : HashInput) (rest : List RefWorld.Domain) :
     SphincsSecurity.QueryCap.calls RefCharged (.inl (.inr input) :: rest) =
       1 + SphincsSecurity.QueryCap.calls RefCharged rest := by
   rw [SphincsSecurity.QueryCap.calls_cons, if_pos (show RefCharged (.inl (.inr input)) from trivial)]
-
 theorem calls_tick (rest : List RefWorld.Domain) :
     SphincsSecurity.QueryCap.calls RefCharged (.inr () :: rest) = 1 + SphincsSecurity.QueryCap.calls RefCharged rest := by
   rw [SphincsSecurity.QueryCap.calls_cons, if_pos (show RefCharged (.inr ()) from trivial)]
-
 theorem queryCharge_coin (n : Nat) : FullGame.queryCharge (.inl (.inl n)) = 0 := by
   simp [FullGame.queryCharge, Derivation.charged]
-
 theorem queryCharge_public (input : HashInput) : FullGame.queryCharge (.inl (.inr input)) = 1 := by
   simp [FullGame.queryCharge, Derivation.charged]
-
 theorem queryCharge_private (coordinate : Coordinate) : FullGame.queryCharge (.inr coordinate) = 1 := by
   simp [FullGame.queryCharge, Derivation.charged]
-
 theorem classCharge_zero (events : List FirstHit.QueryEvent) : SeccLaw.classCharge C 0 events = 0 := by
   induction events with
   | nil => rfl
@@ -246,7 +184,6 @@ theorem classCharge_zero (events : List FirstHit.QueryEvent) : SeccLaw.classChar
         rw [h0, Nat.zero_sub, ih]
       · rw [Nat.zero_sub, ih]
       · rfl
-
 theorem classCharge_cons (budget : Nat) (event : FirstHit.QueryEvent) (rest : List FirstHit.QueryEvent) :
     SeccLaw.classCharge C budget (event :: rest) =
       (if FullGame.queryCharge event.input ≤ budget ∧ C event.input then FullGame.queryCharge event.input else 0) +
@@ -258,31 +195,26 @@ theorem classCharge_cons (budget : Nat) (event : FirstHit.QueryEvent) (rest : Li
     · rw [if_pos h2, if_pos ⟨h1, h2⟩]
     · rw [if_neg h2, if_neg (fun h => h2 h.2)]
   · rw [if_neg h1, if_neg (fun h => h1 h.1), Nat.sub_eq_zero_of_le (by omega), classCharge_zero]
-
 theorem classCharge_coin (budget n : Nat) (event : FirstHit.QueryEvent) (he : event.input = .inl (.inl n))
     (rest : List FirstHit.QueryEvent) :
     SeccLaw.classCharge C budget (event :: rest) = SeccLaw.classCharge C budget rest := by
   rw [classCharge_cons, he, queryCharge_coin, Nat.sub_zero]
   split_ifs <;> exact Nat.zero_add _
-
 theorem classCharge_public (budget : Nat) (input : HashInput) (event : FirstHit.QueryEvent)
     (he : event.input = .inl (.inr input)) (rest : List FirstHit.QueryEvent) :
     SeccLaw.classCharge C budget (event :: rest) =
       (if 0 < budget ∧ C (.inl (.inr input)) then 1 else 0) + SeccLaw.classCharge C (budget - 1) rest := by
   rw [classCharge_cons, he, queryCharge_public]
   rfl
-
 theorem classCharge_coin_mk (budget n : Nat) (before : LazyPrivate.State) (answer : T3.Spec.Range (.inl (.inl n)))
     (rest : List FirstHit.QueryEvent) :
     SeccLaw.classCharge C budget (⟨before, .inl (.inl n), answer⟩ :: rest) = SeccLaw.classCharge C budget rest :=
   classCharge_coin C budget n _ rfl rest
-
 theorem classCharge_public_mk (budget : Nat) (input : HashInput) (before : LazyPrivate.State)
     (answer : T3.Spec.Range (.inl (.inr input))) (rest : List FirstHit.QueryEvent) :
     SeccLaw.classCharge C budget (⟨before, .inl (.inr input), answer⟩ :: rest) =
       (if 0 < budget ∧ C (.inl (.inr input)) then 1 else 0) + SeccLaw.classCharge C (budget - 1) rest :=
   classCharge_public C budget input _ rfl rest
-
 theorem classCharge_append (budget : Nat) (left right : List FirstHit.QueryEvent) :
     SeccLaw.classCharge C budget (left ++ right) =
       SeccLaw.classCharge C budget left + SeccLaw.classCharge C (budget - chargeSum left) right := by
@@ -290,8 +222,6 @@ theorem classCharge_append (budget : Nat) (left right : List FirstHit.QueryEvent
   | nil => simp [SeccLaw.classCharge]
   | cons event rest ih =>
       rw [List.cons_append, classCharge_cons, classCharge_cons, ih, chargeSum_cons, Nat.sub_sub, Nat.add_assoc]
-
-/-- R3's image of a query list (private queries become ticks) counts at most the shared charge. -/
 theorem refCharge_embed_le (budget : Nat) (events : List FirstHit.QueryEvent) :
     refCharge C budget (events.map fun event => embed event.input) ≤ SeccLaw.classCharge C budget events := by
   induction events generalizing budget with
@@ -305,7 +235,6 @@ theorem refCharge_embed_le (budget : Nat) (events : List FirstHit.QueryEvent) :
         exact Nat.add_le_add_left (ih _) _
       · rw [embed, refCharge_tick, classCharge_cons, hinput, queryCharge_private]
         exact le_add_left (ih _)
-
 theorem calls_embed (events : List FirstHit.QueryEvent) :
     SphincsSecurity.QueryCap.calls RefCharged (events.map fun event => embed event.input) = chargeSum events := by
   induction events with
@@ -316,14 +245,7 @@ theorem calls_embed (events : List FirstHit.QueryEvent) :
       · rw [embed, calls_coin, queryCharge_coin, Nat.zero_add]
       · rw [embed, calls_hash, queryCharge_public]
       · rw [embed, calls_tick, queryCharge_private]
-
 end Steps
-
-/-! ## The interaction: R3 counts at most the shared charge, for every continuation weight -/
-
-/-- **Per-table interaction count**: R3's offline interaction (honest signing as ticks) and SEC's logged interaction
-in the fixed world of `T`: for every budget and every weight of the residual budget, R3's class count plus the weight
-is dominated in expectation by the shared class charge plus the weight. -/
 theorem interaction_count_le (T : Answers) (published : T3.Cache) (C : T3.Spec.Domain → Prop) {α : Type}
     (program : OracleComp LazyPrivate.Interaction α) (state : LazyPrivate.State) (budget : Nat)
     (weight : α × QueryLog Requests → Nat → ℝ≥0∞) :
@@ -389,18 +311,11 @@ theorem interaction_count_le (T : Answers) (published : T3.Cache) (C : T3.Spec.D
           rw [classCharge_append, chargeSum_append, hcharge, Nat.sub_sub]
           gcongr
           exact le_add_left le_rfl
-
-/-! ## R3 on one table: capped trace count vs the recorded game's class charge -/
-
 theorem traceOf_coin (T : Answers) (n : Nat) (rest : List RefWorld.Domain) :
     traceOf T (.inl (.inl n) :: rest) = traceOf T rest := rfl
-
 theorem traceOf_hash (T : Answers) (input : HashInput) (rest : List RefWorld.Domain) :
     traceOf T (.inl (.inr input) :: rest) = (input, T (.inl (.inr input))) :: traceOf T rest := rfl
-
 theorem traceOf_tick (T : Answers) (rest : List RefWorld.Domain) : traceOf T (.inr () :: rest) = traceOf T rest := rfl
-
-/-- R3's trace entries are charged calls. -/
 theorem traceOf_length_le (T : Answers) (queries : List RefWorld.Domain) :
     (traceOf T queries).length ≤ SphincsSecurity.QueryCap.calls RefCharged queries := by
   induction queries with
@@ -410,8 +325,6 @@ theorem traceOf_length_le (T : Answers) (queries : List RefWorld.Domain) :
       · rw [traceOf_coin, calls_coin]; exact ih
       · rw [traceOf_hash, calls_hash, List.length_cons]; omega
       · rw [traceOf_tick, calls_tick]; omega
-
-/-- Within the budget, R3's capped count is the number of class entries of the trace. -/
 theorem refCharge_eq_filter (T : Answers) (C : T3.Spec.Domain → Prop) (queries : List RefWorld.Domain)
     (budget : Nat) (h : SphincsSecurity.QueryCap.calls RefCharged queries ≤ budget) :
     refCharge C budget queries = ((traceOf T queries).filter fun e => decide (C (.inl (.inr e.1)))).length := by
@@ -431,8 +344,6 @@ theorem refCharge_eq_filter (T : Answers) (C : T3.Spec.Domain → Prop) (queries
       · rw [calls_tick] at h
         rw [refCharge_tick, traceOf_tick]
         exact ih (budget - 1) (by omega)
-
-/-- Every R3 run on a table makes at most `q` charged calls (honest ticks included). -/
 theorem offlineRun_calls_le (T : Answers) (adversary : AdversaryP) (q : Nat)
     (run : Option (Bool × Nat) × List RefWorld.Domain) (hrun : run ∈ support (offlineRun T adversary q)) :
     SphincsSecurity.QueryCap.calls RefCharged run.2 ≤ q := by
@@ -440,9 +351,6 @@ theorem offlineRun_calls_le (T : Answers) (adversary : AdversaryP) (q : Nat)
   exact SphincsSecurity.QueryCap.recorded_calls_le RefCharged _ (fun _ => q)
     (fun result hresult => SphincsSecurity.QueryCap.counted_le_of_queryBound RefCharged _ q
       (SphincsSecurity.QueryCap.run_queryBound RefCharged _ q) result hresult) run hmem
-
-/-- **Per-table count (F2-3)**: on every table `T`, R3's capped count of class `C` is dominated in expectation by the
-shared class charge of SEC's recorded padded game in the fixed world of `T`. -/
 theorem table_count_le (adversary : AdversaryP) (q : Nat) (T : Answers) (C : T3.Spec.Domain → Prop) :
     expectedValue (offlineRun T adversary q) (fun run => (refCharge C q run.2 : ℝ≥0∞)) ≤
       expectedValue (fixedRecord T (GameWith.idealGame PaddedGame.checker adversary) (∅, ∅))
@@ -490,12 +398,7 @@ theorem table_count_le (adversary : AdversaryP) (q : Nat) (T : Answers) (C : T3.
         (interaction.events ++ (verdictRecord T interaction).events)) : ℝ≥0∞)
     rw [classCharge_append, classCharge_append, hk]
     exact_mod_cast (show _ ≤ _ by omega)
-
 end Ref
-
-/-! ## The counts on R3 and their transport to the shared law -/
-
-/-- **Every R3 trace has at most `q` entries** (the cap counts honest ticks too). -/
 theorem reference_trace_length (adversary : AdversaryP) (q : Nat) (sample : RefSample)
     (hs : sample ∈ (referenceExperiment adversary q).support) : sample.trace.length ≤ q := by
   unfold referenceExperiment at hs
@@ -511,11 +414,9 @@ theorem reference_trace_length (adversary : AdversaryP) (q : Nat) (sample : RefS
     rw [← hsample]
   rw [htrace]
   exact (Ref.traceOf_length_le _ run.2).trans (Ref.offlineRun_calls_le _ adversary q run hrun)
-
 theorem refCount_le_length (cls : Answers → T3.Spec.Domain → Prop) (sample : RefSample) :
     refCount cls sample ≤ sample.trace.length :=
   List.length_filter_le _ _
-
 theorem filter_or_length {β : Type} (p r s : β → Prop) (hs : ∀ x, s x ↔ p x ∨ r x) (hdisj : ∀ x, ¬(p x ∧ r x))
     (l : List β) :
     (l.filter fun x => decide (s x)).length =
@@ -531,8 +432,6 @@ theorem filter_or_length {β : Type} (p r s : β → Prop) (hs : ∀ x, s x ↔ 
       · rw [if_pos ((hs x).mpr (Or.inr hr)), if_neg hp, if_pos hr, List.length_cons, List.length_cons, ih]
         omega
       · rw [if_neg (fun h => ((hs x).mp h).elim hp hr), if_neg hp, if_neg hr, ih]
-
-/-- Disjoint classes add. -/
 theorem refCount_or (P Q : Answers → T3.Spec.Domain → Prop) (hdisj : ∀ A input, ¬(P A input ∧ Q A input))
     (sample : RefSample) :
     refCount (fun A input => P A input ∨ Q A input) sample = refCount P sample + refCount Q sample := by
@@ -541,8 +440,6 @@ theorem refCount_or (P Q : Answers → T3.Spec.Domain → Prop) (hdisj : ∀ A i
     (fun e : Entry => Q sample.answers (.inl (.inr e.1)))
     (fun e : Entry => (fun A input => P A input ∨ Q A input) sample.answers (.inl (.inr e.1))) (fun _ => Iff.rfl)
     (fun e => hdisj _ _) sample.trace
-
-/-- **Joint budget on R3**: four pairwise disjoint classes count at most `q` entries on every R3 sample. -/
 theorem reference_joint_budget (adversary : AdversaryP) (q : Nat) (A B C D : Answers → T3.Spec.Domain → Prop)
     (hAB : ∀ T input, ¬(A T input ∧ B T input)) (hAC : ∀ T input, ¬(A T input ∧ C T input))
     (hAD : ∀ T input, ¬(A T input ∧ D T input)) (hBC : ∀ T input, ¬(B T input ∧ C T input))
@@ -558,21 +455,16 @@ theorem reference_joint_budget (adversary : AdversaryP) (q : Nat) (A B C D : Ans
   have hle := (refCount_le_length (fun T input => ((A T input ∨ B T input) ∨ C T input) ∨ D T input) sample).trans
     (reference_trace_length adversary q sample hs)
   omega
-
 theorem pmf_tsum_eq_expectedValue {α : Type} (p : PMF α) (g : α → ℝ≥0∞) :
     ∑' x, p x * g x = expectedValue p g := by
   rw [expectedValue_def]
   congr 1
   funext x
   rw [PMF.probOutput_eq_apply]
-
 theorem expectedValue_liftM {α : Type} (mx : ProbComp α) (g : α → ℝ≥0∞) :
     expectedValue (liftM mx : PMF α) g = expectedValue mx g := by
   rw [expectedValue_def, expectedValue_def]
   congr 1
-
-/-- The shared law seen through the recorded trace **is** the eager world with the completion read under `cut` (the
-law form of `completed_eager_cut`). -/
 theorem completed_eager_map (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) :
     (fun z => (QueryRecorded.recordedTrace z.1, z.2)) <$> SeccLaw.completedExperiment adversary q hq =
       (fun x => (x.1, Ref.cut x.1.state x.2)) <$> eagerRecorded adversary := by
@@ -581,11 +473,6 @@ theorem completed_eager_map (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 1
   rw [← PMF.probOutput_eq_apply, ← PMF.probOutput_eq_apply, ← probEvent_eq_eq_probOutput,
     ← probEvent_eq_eq_probOutput, probEvent_map, probEvent_map]
   exact completed_eager_cut adversary q hq (fun rec A => (rec, A) = y)
-
-/-- **F2-3: R3's class counts are dominated by the shared law's class charges.** For a class that reads the table
-only on short queries, the expected number of R3 trace entries in the class is at most the shared law's expected
-charge of the same class (honest key generation and signing are extra charges of the shared law; R3 counts the
-adversary's and the verdict's hash queries only). -/
 theorem reference_count_le (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     (cls : Answers → T3.Spec.Domain → Prop) (hcls : ShortCongruent cls) :
     ∑' s, referenceExperiment adversary q s * (refCount cls s : ENNReal) ≤
@@ -617,9 +504,6 @@ theorem reference_count_le (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 12
   intro run hrun
   rw [Ref.refCharge_eq_filter _ _ _ _ (Ref.offlineRun_calls_le _ _ _ run hrun)]
   rfl
-
-/-- **Joint budget for the closing**: three pairwise disjoint short-congruent R3 counts and one shared class charge
-disjoint from them sum to at most `q` in expectation (`E_R3[P] + E_R3[E] + E_R3[O] + E_shared[M] ≤ q`). -/
 theorem reference_shared_budget (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     (A B C : Answers → T3.Spec.Domain → Prop) (D : SeccLaw.SampleClass)
     (hA : ShortCongruent A) (hB : ShortCongruent B) (hC : ShortCongruent C)
@@ -635,5 +519,4 @@ theorem reference_shared_budget (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2
       (reference_count_le adversary q hq B hB)) (reference_count_le adversary q hq C hC)) le_rfl)
     (SeccLaw.expectedCharge_four_le adversary q hq _ _ _ D (fun z input => hAB z.2 input)
       (fun z input => hAC z.2 input) hAD (fun z input => hBC z.2 input) hBD hCD)
-
 end SigGolfCandidate.T3.Security.Wots

@@ -1,29 +1,18 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Hypertree.Position
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.Support
-/-!
-# The key-generation cache contains no message query
-
-Key generation evaluates only structural hashes. Consequently its cache, which starts empty, cannot
-already contain a message-digest input when the adversary begins.
--/
 
 namespace SphincsSecurity
-
 open OracleComp OracleSpec
-
-/-- Every query on the selected execution path is the honest query at a structural position. -/
 def QueriesAtPositions {alpha : Type} (parameter : PublicParameter)
     (f : QueryImpl HashSpec Id) (oa : OracleComp HashSpec alpha) : Prop :=
   ∀ input, input ∈ queriedInputs f oa →
     ∃ p : Position, ∃ payload : HashInput,
       input = tweakableHashInput parameter p.domain payload
-
 theorem QueriesAtPositions.pure {alpha : Type} (parameter : PublicParameter)
     (f : QueryImpl HashSpec Id) (value : alpha) :
     QueriesAtPositions parameter f (pure value) := by
   simp [QueriesAtPositions]
-
 theorem QueriesAtPositions.bind {alpha beta : Type} {parameter : PublicParameter}
     {f : QueryImpl HashSpec Id} {oa : OracleComp HashSpec alpha}
     {next : alpha → OracleComp HashSpec beta}
@@ -35,7 +24,6 @@ theorem QueriesAtPositions.bind {alpha beta : Type} {parameter : PublicParameter
   rcases List.mem_append.mp hinput with hinput | hinput
   · exact hleft input hinput
   · exact hright input hinput
-
 theorem QueriesAtPositions.tweakableHash (parameter : PublicParameter)
     (f : QueryImpl HashSpec Id) (p : Position) (payload : HashInput) :
     QueriesAtPositions parameter f
@@ -44,9 +32,7 @@ theorem QueriesAtPositions.tweakableHash (parameter : PublicParameter)
   simp only [queriedInputs_tweakableHash, List.mem_singleton] at hinput
   subst input
   exact ⟨p, payload, rfl⟩
-
 namespace Concrete
-
 theorem queriesAtPositions_sequenceFin {alpha : Type} {n : Nat}
     (parameter : PublicParameter) (f : QueryImpl HashSpec Id)
     (computation : Fin n → OracleComp HashSpec alpha)
@@ -61,7 +47,6 @@ theorem queriesAtPositions_sequenceFin {alpha : Type} {n : Nat}
       · exact ih (fun index : Fin n => computation index.succ)
           (fun index => hcomputation index.succ)
       · exact QueriesAtPositions.pure parameter f _
-
 theorem queriesAtPositions_chainWalk (parameter : PublicParameter)
     (f : QueryImpl HashSpec Id) (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
     (chainIdx : ChainIndex) (start steps : Nat) (value : Digest) :
@@ -76,7 +61,6 @@ theorem queriesAtPositions_chainWalk (parameter : PublicParameter)
       · exact QueriesAtPositions.tweakableHash parameter f
           (.chain lay tree leafIdx chainIdx ⟨start + steps, hstep⟩) _
       · exact QueriesAtPositions.pure parameter f _
-
 theorem queriesAtPositions_oneTimePublicKey (parameter : PublicParameter)
     (f : QueryImpl HashSpec Id) (lay : Layer) (tree : TreeIndex) (leafIdx : LeafIndex)
     (secret : ChainIndex → Digest) :
@@ -86,26 +70,21 @@ theorem queriesAtPositions_oneTimePublicKey (parameter : PublicParameter)
   intro chainIdx
   exact queriesAtPositions_chainWalk parameter f lay tree leafIdx chainIdx 0
     (chainLength - 1) (secret chainIdx)
-
 def RootTreeRange (level nodeIdx : Nat) : Prop :=
   2 ^ level * (nodeIdx + 1) ≤ 2 ^ maxLayerHeight
-
 private theorem RootTreeRange.index_lt {level nodeIdx : Nat}
     (h : RootTreeRange level nodeIdx) : nodeIdx < 2 ^ maxLayerHeight := by
   have hpow : 1 ≤ 2 ^ level := one_le_pow₀ (by omega)
   simp only [RootTreeRange] at h
   nlinarith
-
 private theorem RootTreeRange.left {level nodeIdx : Nat}
     (h : RootTreeRange (level + 1) nodeIdx) : RootTreeRange level (2 * nodeIdx) := by
   simp only [RootTreeRange, pow_succ] at h ⊢
   nlinarith [Nat.zero_le (2 ^ level), Nat.zero_le nodeIdx]
-
 private theorem RootTreeRange.right {level nodeIdx : Nat}
     (h : RootTreeRange (level + 1) nodeIdx) : RootTreeRange level (2 * nodeIdx + 1) := by
   simp only [RootTreeRange, pow_succ] at h ⊢
   nlinarith [Nat.zero_le (2 ^ level), Nat.zero_le nodeIdx]
-
 theorem queriesAtPositions_treeNode (parameter : PublicParameter)
     (f : QueryImpl HashSpec Id) (lay : Layer) (tree : TreeIndex)
     (secret : LeafIndex → ChainIndex → Digest) (level nodeIdx : Nat)
@@ -127,7 +106,6 @@ theorem queriesAtPositions_treeNode (parameter : PublicParameter)
       · exact ih (2 * nodeIdx + 1) (by omega) (RootTreeRange.right hrange)
       · exact QueriesAtPositions.tweakableHash parameter f
           (.node lay tree ⟨level, by omega⟩ ⟨nodeIdx, hrange.index_lt⟩) _
-
 theorem queriesAtPositions_treeRoot (parameter : PublicParameter)
     (f : QueryImpl HashSpec Id) (lay : Layer) (tree : TreeIndex)
     (secret : LeafIndex → ChainIndex → Digest) :
@@ -136,7 +114,6 @@ theorem queriesAtPositions_treeRoot (parameter : PublicParameter)
   · exact layerHeight_le lay
   · simp only [RootTreeRange, zero_add, mul_one]
     exact pow_le_pow_right' (by omega) (layerHeight_le lay)
-
 theorem messageInput_not_mem_queriedInputs_treeRoot (parameter : PublicParameter)
     (f : QueryImpl HashSpec Id) (lay : Layer) (tree : TreeIndex)
     (secret : LeafIndex → ChainIndex → Digest) (payload : HashInput) :
@@ -148,7 +125,6 @@ theorem messageInput_not_mem_queriedInputs_treeRoot (parameter : PublicParameter
   have hdomain := (tweakableHashInput_injective parameter
     (show HashDomain.message.InRange from trivial) p.domain_inRange heq).1
   cases p <;> simp [Position.domain] at hdomain
-
 theorem treeRoot_cache_message_none (parameter : PublicParameter)
     (lay : Layer) (tree : TreeIndex) (secret : LeafIndex → ChainIndex → Digest)
     (root : Digest) (rootCache : QueryCache HashSpec)
@@ -162,7 +138,5 @@ theorem treeRoot_cache_message_none (parameter : PublicParameter)
     (treeRoot parameter lay tree secret) ∅ root rootCache hroot f hf
   · simp
   · exact messageInput_not_mem_queriedInputs_treeRoot parameter f lay tree secret payload
-
 end Concrete
-
 end SphincsSecurity

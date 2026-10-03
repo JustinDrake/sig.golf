@@ -1,35 +1,110 @@
-import SigGolfCandidate.SphincsSecurity.Completeness.Octopus.Count
+import SigGolfCandidate.SphincsSecurity.Completeness.Octopus.Split
+import Mathlib.Algebra.BigOperators.ModEq
+import Mathlib.Data.Nat.Choose.Bounds
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.Fintype.Perm
 
-/-!
-# PORS+FP admissibility: tuples and digests
+section
 
-* `card_admissibleTuples`: the number of `v : Fin 15 → Fin (2^14)` that are injective with
-  `Concrete.octopusSize (sortLeaves [v_0, ..., v_14]) ≤ 118` is `15! * Nadm` (every admissible set has
-  exactly `15!` orderings, `card_fiber`).
-* `card_admissibleDigests`: among the `N < 2^256`, exactly `2^46 * (15! * Nadm)` are
-  `admissible` (the leaf indices are bits `34 .. 243` of `N`; bits `0..33` and `244..255` are
-  free).
--/
+
+
+namespace SphincsSecurity.Completeness.Octopus
+open Finset Polynomial
+theorem list_sum_map_range' (f : ℕ → ℕ) (n : ℕ) :
+    ((List.range n).map f).sum = ∑ i ∈ range n, f i := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    rw [List.range_succ, List.map_append, List.sum_append, ih, sum_range_succ]; simp
+theorem getD_pstep (K y M : ℕ) (T : List ℕ) {j : ℕ} (hj : j ≤ K) :
+    (pstep K y M T).getD j 0 =
+      (2 * y * T.getD j 0 + ∑ i ∈ range (j + 1), T.getD i 0 * T.getD (j - i) 0) % M := by
+  unfold pstep
+  rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range (by omega)]
+  simp [list_sum_map_range']
+def Rep (K y M H : ℕ) (T : List ℕ) : Prop := ∀ j ≤ K, T.getD j 0 = (Q y H).coeff j % M
+theorem rep_pstep {K y M H : ℕ} {T : List ℕ} (h : Rep K y M H T) :
+    Rep K y M (H + 1) (pstep K y M T) := by
+  intro j hj
+  rw [getD_pstep K y M T hj, coeff_Q_succ]
+  show Nat.ModEq M _ _
+  apply Nat.ModEq.add
+  · exact Nat.ModEq.mul_left _ (by rw [h j hj]; exact Nat.mod_modEq _ _)
+  · refine Nat.ModEq.sum fun i hi => ?_
+    have hi' : i ≤ K := by rw [mem_range] at hi; omega
+    rw [h i hi', h (j - i) (by omega)]
+    exact (Nat.mod_modEq _ _).mul (Nat.mod_modEq _ _)
+theorem rep_piter {K y M : ℕ} : ∀ (k H : ℕ) (T : List ℕ), Rep K y M H T →
+    Rep K y M (H + k) (piter K y M k T)
+  | 0, _, _, h => h
+  | k + 1, H, T, h => by
+    have := rep_piter k (H + 1) _ (rep_pstep h)
+    rwa [show H + 1 + k = H + (k + 1) by omega] at this
+theorem rep_zero (K y M : ℕ) (hM : 1 < M) : Rep K y M 0 [0, 1] := by
+  intro j _
+  rw [Q_zero, coeff_X]
+  rcases j with _ | _ | j
+  · simp
+  · simp [Nat.mod_eq_of_lt hM]
+  · simp
+theorem mod_pow_sum {y n : ℕ} (hn : 0 < n) (P : Finset (Finset ℕ)) (g : Finset ℕ → ℕ)
+    (hP : P.card < y) :
+    (∑ S ∈ P, y ^ g S) % y ^ n = ∑ S ∈ P.filter (g · < n), y ^ g S := by
+  rw [← sum_filter_add_sum_filter_not P (g · < n)]
+  obtain ⟨c, hc⟩ : y ^ n ∣ ∑ S ∈ P.filter (fun S => ¬ g S < n), y ^ g S :=
+    dvd_sum fun S hS => pow_dvd_pow y (not_lt.mp (mem_filter.mp hS).2)
+  rw [hc, Nat.add_mul_mod_self_left]
+  apply Nat.mod_eq_of_lt
+  have hy : 1 ≤ y := by omega
+  calc ∑ S ∈ P.filter (g · < n), y ^ g S
+      ≤ ∑ _S ∈ P.filter (g · < n), y ^ (n - 1) :=
+        sum_le_sum fun S hS => Nat.pow_le_pow_right hy (by have := (mem_filter.mp hS).2; omega)
+    _ = (P.filter (g · < n)).card * y ^ (n - 1) := by rw [sum_const, smul_eq_mul]
+    _ ≤ P.card * y ^ (n - 1) := Nat.mul_le_mul_right _ (card_filter_le _ _)
+    _ < y * y ^ (n - 1) := Nat.mul_lt_mul_of_pos_right hP (by positivity)
+    _ = y ^ n := by rw [← pow_succ']; congr 1; omega
+theorem sum_pow_mod_pred {y : ℕ} (hy : 3 ≤ y) (F : Finset (Finset ℕ)) (g : Finset ℕ → ℕ) :
+    (∑ S ∈ F, y ^ g S) % (y - 1) = F.card % (y - 1) := by
+  have hmod : y % (y - 1) = 1 := by
+    calc y % (y - 1) = (y - 1 + 1) % (y - 1) := by rw [Nat.sub_add_cancel (by omega)]
+      _ = 1 % (y - 1) := Nat.add_mod_left _ _
+      _ = 1 := Nat.mod_eq_of_lt (by omega)
+  rw [sum_nat_mod]
+  rw [sum_congr rfl fun S _ => by rw [Nat.pow_mod, hmod, one_pow]]
+  simp
+theorem card_admissibleSets :
+    ((powersetCard 15 (range (2 ^ 14))).filter fun S => octH 14 S.sort ≤ 118).card = Nadm := by
+  rw [← packedCount_eq]
+  unfold packedCount
+  have hM : (2 : ℕ) ^ (pB * 119) = (2 ^ pB) ^ 119 := pow_mul 2 pB 119
+  have hy3 : 3 ≤ (2 : ℕ) ^ pB := by unfold pB; norm_num
+  have hcard : (powersetCard 15 (range (2 ^ 14))).card < 2 ^ pB - 1 := by
+    rw [card_powersetCard, card_range]
+    exact lt_of_le_of_lt (Nat.choose_le_pow _ _) (by rw [← pow_mul]; unfold pB; norm_num)
+  have h15 := rep_piter (K := 15) (y := 2 ^ pB) (M := 2 ^ (pB * 119)) 14 0 [0, 1]
+    (rep_zero 15 _ _ (Nat.one_lt_two_pow (by unfold pB; norm_num))) 15 le_rfl
+  rw [Nat.zero_add] at h15
+  rw [h15, coeff_Q _ _ _ (by norm_num), hM, mod_pow_sum (by norm_num) _ _ (by omega),
+    sum_pow_mod_pred hy3, Nat.mod_eq_of_lt (lt_of_le_of_lt (card_filter_le _ _) hcard)]
+  exact congrArg card (filter_congr fun S _ => by simp only [oc]; omega)
+end SphincsSecurity.Completeness.Octopus
+end
+
+section
+
+
 
 namespace SphincsSecurity.Completeness.Octopus
 open Finset
-
-/-- The leaf values of a tuple, as a list. -/
 def valList {k n : ℕ} (v : Fin k → Fin n) : List ℕ := List.ofFn fun i => (v i : ℕ)
-
 theorem valList_nodup {k n : ℕ} (v : Fin k → Fin n) :
     (valList v).Nodup ↔ Function.Injective v := by
   unfold valList
   rw [List.nodup_ofFn]
   exact ⟨fun h a b hab => h (by simp [hab]), fun h a b hab => h (Fin.ext hab)⟩
-
 theorem mem_valList {k n : ℕ} (v : Fin k → Fin n) (x : ℕ) :
     x ∈ valList v ↔ ∃ i, (v i : ℕ) = x := by
   simp [valList, List.mem_ofFn]
-
-/-- On distinct values, `sortLeaves` is `Finset.sort` of the underlying set. -/
 theorem sortLeaves_eq {l : List ℕ} (hl : l.Nodup) : sortLeaves l = l.toFinset.sort := by
   unfold sortLeaves
   apply List.Perm.eq_of_pairwise' (r := (· ≤ ·)) (List.pairwise_insertionSort _ _)
@@ -37,8 +112,6 @@ theorem sortLeaves_eq {l : List ℕ} (hl : l.Nodup) : sortLeaves l = l.toFinset.
   refine (List.perm_insertionSort _ _).trans ?_
   rw [List.perm_ext_iff_of_nodup hl (sort_nodup _ _)]
   intro a; simp
-
-/-- A `k`-subset of `[0, n)` has exactly `k!` injective enumerations. -/
 theorem card_fiber (k n : ℕ) (S : Finset ℕ) (hS : S ∈ powersetCard k (range n)) :
     (univ.filter fun v : Fin k → Fin n =>
       Function.Injective v ∧ (valList v).toFinset = S).card = k.factorial := by
@@ -67,8 +140,6 @@ theorem card_fiber (k n : ℕ) (S : Finset ℕ) (hS : S ∈ powersetCard k (rang
   rw [Fintype.card_congr E]
   have e0 : Fin k ≃ S := (S.equivFinOfCardEq hSk).symm
   rw [Fintype.card_equiv e0, Fintype.card_fin]
-
-/-- Injective tuples with a property of their value set: `k!` per `k`-subset. -/
 theorem card_inj_filter (k n : ℕ) (P : Finset ℕ → Prop) [DecidablePred P] :
     (univ.filter fun v : Fin k → Fin n =>
       Function.Injective v ∧ P (valList v).toFinset).card =
@@ -92,9 +163,6 @@ theorem card_inj_filter (k n : ℕ) (P : Finset ℕ → Prop) [DecidablePred P] 
       exact mem_range.mpr (v i).2
     · rw [List.toFinset_card_of_nodup ((valList_nodup v).mpr hv.1)]
       simp [valList]
-
-/-- **Admissible tuples**: `15! * Nadm` injective `v : Fin 15 → Fin (2^14)` with octopus size of
-the sorted values `≤ 118`. -/
 theorem card_admissibleTuples :
     (univ.filter fun v : Fin 15 → Fin (2 ^ 14) =>
       Function.Injective v ∧ Concrete.octopusSize (sortLeaves (valList v)) ≤ 118).card =
@@ -110,24 +178,15 @@ theorem card_admissibleTuples :
   · rintro ⟨h1, h2⟩
     refine ⟨h1, ?_⟩
     rwa [octopusSize_eq, sortLeaves_eq ((valList_nodup v).mpr h1)]
-
-/-! ## Digests -/
-
-/-- The 15 base-`2^14` digits of `b`. -/
 def fieldsOf (b : ℕ) : List ℕ := (List.range 15).map fun r => b / 2 ^ (14 * r) % 2 ^ 14
-
-/-- Admissibility of the leaf-index field `b = N / 2^34`. -/
 def admB (b : ℕ) : Bool :=
   decide (fieldsOf b).Nodup && decide (Concrete.octopusSize (sortLeaves (fieldsOf b)) ≤ 118)
-
 theorem leavesOf_eq (N : ℕ) : leavesOf N = fieldsOf (N / 2 ^ 34) := by
   unfold leavesOf fieldsOf leafOf
   refine List.map_congr_left fun r _ => ?_
   rw [Nat.div_div_eq_div_mul, ← pow_add]
-
 theorem admissible_eq (N : ℕ) : admissible N = admB (N / 2 ^ 34) := by
   unfold admissible admB; rw [leavesOf_eq]
-
 theorem fieldsOf_add (c d : ℕ) : fieldsOf (c + 2 ^ 210 * d) = fieldsOf c := by
   unfold fieldsOf
   refine List.map_congr_left fun r hr => ?_
@@ -135,7 +194,6 @@ theorem fieldsOf_add (c d : ℕ) : fieldsOf (c + 2 ^ 210 * d) = fieldsOf c := by
   have e : (2 : ℕ) ^ 210 * d = 2 ^ (14 * r) * (2 ^ 14 * (2 ^ (196 - 14 * r) * d)) := by
     rw [← mul_assoc, ← mul_assoc, ← pow_add, ← pow_add]; congr 2; omega
   rw [e, Nat.add_mul_div_left _ _ (by positivity), Nat.add_mul_mod_self_left]
-
 theorem sum_range_mul' {M : Type*} [AddCommMonoid M] (f : ℕ → M) (A B : ℕ) :
     ∑ k ∈ range (A * B), f k = ∑ b ∈ range B, ∑ a ∈ range A, f (a + A * b) := by
   induction B with
@@ -145,7 +203,6 @@ theorem sum_range_mul' {M : Type*} [AddCommMonoid M] (f : ℕ → M) (A B : ℕ)
     congr 1
     refine sum_congr rfl fun a _ => ?_
     rw [Nat.add_comm]
-
 theorem count_low (A B : ℕ) (hA : 0 < A) (p : ℕ → Bool) :
     (∑ k ∈ range (A * B), if p (k / A) then 1 else 0) =
       A * ∑ b ∈ range B, if p b then 1 else 0 := by
@@ -154,12 +211,10 @@ theorem count_low (A B : ℕ) (hA : 0 < A) (p : ℕ → Bool) :
   rw [sum_congr rfl fun a ha => by
     rw [Nat.add_mul_div_left _ _ hA, Nat.div_eq_of_lt (mem_range.mp ha), Nat.zero_add]]
   simp
-
 theorem count_high (A B : ℕ) (p : ℕ → Bool) (hp : ∀ a b, p (a + A * b) = p a) :
     (∑ k ∈ range (A * B), if p k then 1 else 0) = B * ∑ a ∈ range A, if p a then 1 else 0 := by
   rw [sum_range_mul']
   simp [hp]
-
 theorem fieldsOf_equiv (v : Fin 15 → Fin (2 ^ 14)) :
     fieldsOf (finFunctionFinEquiv v : ℕ) = valList v := by
   unfold fieldsOf valList
@@ -169,7 +224,6 @@ theorem fieldsOf_equiv (v : Fin 15 → Fin (2 ^ 14)) :
   have := finFunctionFinEquiv_symm_apply_val (finFunctionFinEquiv v) ⟨r, by simpa using h1⟩
   rw [Equiv.symm_apply_apply] at this
   rw [this, pow_mul]
-
 theorem count_fields :
     (∑ c ∈ range (2 ^ 210), if admB c then 1 else 0) =
       (univ.filter fun v : Fin 15 → Fin (2 ^ 14) =>
@@ -180,8 +234,6 @@ theorem count_fields :
   refine sum_congr rfl fun v _ => ?_
   unfold admB
   simp only [fieldsOf_equiv, valList_nodup, Bool.and_eq_true, decide_eq_true_eq]
-
-/-- **Admissible digests**: exactly `2^46 * (15! * Nadm)` of the `N < 2^256`. -/
 theorem card_admissibleDigests :
     ((range (2 ^ 256)).filter fun N => admissible N = true).card =
       2 ^ 46 * (Nat.factorial 15 * Nadm) := by
@@ -190,5 +242,5 @@ theorem card_admissibleDigests :
   rw [e, sum_congr rfl fun N _ => by rw [admissible_eq], count_low _ _ (by positivity),
     count_high _ _ _ (fun a b => by unfold admB; rw [fieldsOf_add]), count_fields,
     card_admissibleTuples, ← mul_assoc, ← pow_add]
-
 end SphincsSecurity.Completeness.Octopus
+end

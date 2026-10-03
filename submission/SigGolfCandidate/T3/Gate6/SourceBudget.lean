@@ -3,7 +3,6 @@ import SigGolfCandidate.T3.Gate6.Budget
 namespace SigGolfCandidate.T3.BaseAudit
 set_option maxRecDepth 10000
 set_option maxHeartbeats 1000000
-
 def zU : ℚ := 1/(1-6931471808/(10000000000*131072))
 def p0 : ℚ := (6963897326262647489342145 / 19807040628566084398385987584)
 def b0 : ℚ := (507635451307 / 500000000000)
@@ -20,7 +19,6 @@ theorem step_3 : zU*((1-p3)*b3+p3) ≤ b3 := by norm_num [zU,p3,b3]
 def p4 : ℚ := (33210373316701753609053794695642145 / 42535295865117307932921825928971026432)
 def b4 : ℚ := (503409673483 / 500000000000)
 theorem step_4 : zU*((1-p4)*b4+p4) ≤ b4 := by norm_num [zU,p4,b4]
-
 theorem signing_envelope :
     (2 : ℝ)^((121762 : ℝ)/131072) * ((507635451307 / 500000000000) * (1009892452433 / 1000000000000) * (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (503409673483 / 500000000000)) ≤ 2 := by
   have hsplit : (2 : ℝ)^((121762 : ℝ)/131072) = 2/(2 : ℝ)^((9310 : ℝ)/131072) := by
@@ -31,13 +29,9 @@ theorem signing_envelope :
       1+0.6931471803*(9310/131072)+(0.6931471803*(9310/131072))^2/2 := by norm_num
   rw [hsplit, div_mul_eq_mul_div, div_le_iff₀ (by positivity)]
   nlinarith
-
-
-/-- The actual source charges one fewer fixed compression than the search model. -/
 theorem source_signing_envelope :
     (2 : ℝ)^((121761 : ℝ)/131072) * ((507635451307 / 500000000000) * (1009892452433 / 1000000000000) * (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (503409673483 / 500000000000)) ≤ 2 := by
   calc
     _ ≤ (2 : ℝ)^((121762 : ℝ)/131072) * ((507635451307 / 500000000000) * (1009892452433 / 1000000000000) * (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (503409673483 / 500000000000)) := by gcongr <;> norm_num
     _ ≤ 2 := signing_envelope
-
 end SigGolfCandidate.T3.BaseAudit

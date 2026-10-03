@@ -1,27 +1,7 @@
 import SigGolfCandidate.T3.Core
 
-/-! # The verify image's decode of the encoding answer (stream V1, pure)
-
-The transition of layer `lay` hashes the encoding block and decodes the 128-bit answer `value` held in the
-doublewords `v0 = value % 2^64` (`a6`) and `v1 = value / 2^64` (`a7`) by straight-line SWAR code
-(`t3m/ver/gen_t3.py`, `decode_lower`, `decode_top`):
-
-* **lower layers** (radix 8, 42 data digits + the checksum digit): reject unless `v1 >>> 62 = 0`
-  (`value < 2^126`); `a = v0`, `b = v1 <<< 1`; `s9 = ((a >>> 3) &&& M1) + (a &&& M1) + ((b >>> 3) &&& M1) +
-  (b &&& M1)`, `s9 += s9 >>> 6`, `s9 &&& M2`, `remu 4095` = the sum of the 42 digits (`lowSwar_digits`;
-  digit 21 straddles bit 63: its low bit is lane 10 of `a >>> 3`); the checksum digit `c = target - sum`
-  (64-bit wrap), reject unless `c < 8` (`sltiu`);
-* **top layer** (49 radix-4 digits + 9 radix-8 digits): reject unless `v1 >>> 61 = 0` (`value < 2^125`);
-  3-bit SWAR on `g = v1 >>> 34` (`remu 4095`), 2-bit SWAR on `v0` and `v1 % 2^34` with the masks `M4`, `M8`
-  (`remu 255`); reject unless the total is 125 (`topSwar_digits`).
-
-`decode_lower_iff` / `decode_top_iff` state that the machine's decision and digits are Core's `decode`. -/
-
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.T3
-
-/-! ## Lane splitting of `&&&` (Nat level) -/
-
 theorem land_split (n M w s : Nat) (hws : w ≤ s) :
     n &&& (2 ^ s * M + (2 ^ w - 1)) = 2 ^ s * ((n / 2 ^ s) &&& M) + n % 2 ^ w := by
   have hw : 2 ^ w - 1 < 2 ^ s := by
@@ -37,7 +17,6 @@ theorem land_split (n M w s : Nat) (hws : w ≤ s) :
   · rw [Nat.testBit_two_pow_sub_one, Nat.testBit_mod_two_pow]
     cases n.testBit j <;> simp
   · rw [Nat.testBit_land, Nat.testBit_div_two_pow, Nat.sub_add_cancel (by omega)]
-
 theorem split3 (n M : Nat) : n &&& (64 * M + 7) = 64 * ((n / 64) &&& M) + n % 8 :=
   land_split n M 3 6 (by decide)
 theorem split6 (n M : Nat) : n &&& (4096 * M + 63) = 4096 * ((n / 4096) &&& M) + n % 64 :=
@@ -49,16 +28,10 @@ theorem split4 (n M : Nat) : n &&& (256 * M + 15) = 256 * ((n / 256) &&& M) + n 
 theorem and7 (n : Nat) : n &&& 7 = n % 8 := Nat.and_two_pow_sub_one_eq_mod n 3
 theorem and15 (n : Nat) : n &&& 15 = n % 16 := Nat.and_two_pow_sub_one_eq_mod n 4
 theorem and3 (n : Nat) : n &&& 3 = n % 4 := Nat.and_two_pow_sub_one_eq_mod n 2
-
-/-- `0x71C71C71C71C71C7`: the 3-bit fields at bits `6k`, `k ≤ 10` (`s4` of the lower decode). -/
 def mask3 : Nat := 8198552921648689607
-/-- `0xF03F03F03F03F03F`: the 6-bit fields at bits `12k`, `k ≤ 4`, and bits `60..63` (`s5`). -/
 def mask6 : Nat := 17311559823019733055
-/-- `0x3333333333333333`: the 2-bit fields at bits `4k` (`s4` of the top decode). -/
 def mask2 : Nat := 3689348814741910323
-/-- `0x0F0F0F0F0F0F0F0F`: the 4-bit fields at bits `8k` (`s5` of the top decode). -/
 def mask4 : Nat := 1085102592571150095
-
 theorem landM1 (n : Nat) : n &&& mask3 =
     64 * (64 * (64 * (64 * (64 * (64 * (64 * (64 * (64 * (64 * (n / 64 / 64 / 64 / 64 / 64 / 64 / 64 / 64 / 64 / 64 % 8)
     + n / 64 / 64 / 64 / 64 / 64 / 64 / 64 / 64 / 64 % 8) + n / 64 / 64 / 64 / 64 / 64 / 64 / 64 / 64 % 8)
@@ -67,40 +40,27 @@ theorem landM1 (n : Nat) : n &&& mask3 =
   rw [show mask3 = 64 * (64 * (64 * (64 * (64 * (64 * (64 * (64 * (64 * (64 * 7 + 7) + 7) + 7) + 7) + 7) + 7) + 7) + 7) + 7) + 7 by
     norm_num [mask3]]
   simp only [split3, and7]
-
 theorem landM2 (n : Nat) : n &&& mask6 =
     4096 * (4096 * (4096 * (4096 * (4096 * (n / 4096 / 4096 / 4096 / 4096 / 4096 % 16)
     + n / 4096 / 4096 / 4096 / 4096 % 64) + n / 4096 / 4096 / 4096 % 64) + n / 4096 / 4096 % 64)
     + n / 4096 % 64) + n % 64 := by
   rw [show mask6 = 4096 * (4096 * (4096 * (4096 * (4096 * 15 + 63) + 63) + 63) + 63) + 63 by norm_num [mask6]]
   simp only [split6, and15]
-
-/-! ## The 3-bit SWAR digit sum (Nat level) -/
-
-/-- The four masked partial sums of the lower decode (64-bit wrapping adds, as the machine adds). -/
 def sw1 (a b : Nat) : Nat :=
   ((((a / 8 &&& mask3) + (a &&& mask3)) % 18446744073709551616 + (b / 8 &&& mask3)) % 18446744073709551616 +
     (b &&& mask3)) % 18446744073709551616
-
-/-- The lower decode's digit sum: `x + (x >>> 6)`, `&&& mask6`, `remu 4095`. -/
 def lowSwar (a b : Nat) : Nat := ((sw1 a b + sw1 a b / 64) % 18446744073709551616 &&& mask6) % 4095
-
 theorem hdiv64 (c R : Nat) (h : c < 64) : (c + 64 * R) / 64 = R := by omega
 theorem hmod64 (c R : Nat) (h : c < 64) : (c + 64 * R) % 64 = c := by omega
-
 theorem landM2' (n : Nat) : n &&& mask6 =
     4096 * (4096 * (4096 * (4096 * (4096 * (n / 64 / 64 / 64 / 64 / 64 / 64 / 64 / 64 / 64 / 64 % 16)
     + n / 64 / 64 / 64 / 64 / 64 / 64 / 64 / 64 % 64) + n / 64 / 64 / 64 / 64 / 64 / 64 % 64)
     + n / 64 / 64 / 64 / 64 % 64) + n / 64 / 64 % 64) + n % 64 := by
   rw [landM2]; simp only [Nat.div_div_eq_div_mul]
-
 theorem fold_mod4095 (a b c d e f : Nat) :
     (a + 4096 * (b + 4096 * (c + 4096 * (d + 4096 * (e + 4096 * f))))) % 4095 =
       (a + b + c + d + e + f) % 4095 := by
   omega
-
-/-- The lane sums: eleven 6-bit lanes `L_k` (the 4 partial sums' fields), folded pairwise by `x + x / 64`,
-masked to the even lanes and the top 4 bits, reduced mod 4095. -/
 theorem swarLanes (L0 L1 L2 L3 L4 L5 L6 L7 L8 L9 L10 : Nat) (h0 : L0 ≤ 28) (h1 : L1 ≤ 28) (h2 : L2 ≤ 28)
     (h3 : L3 ≤ 28) (h4 : L4 ≤ 28) (h5 : L5 ≤ 28) (h6 : L6 ≤ 28) (h7 : L7 ≤ 28) (h8 : L8 ≤ 28) (h9 : L9 ≤ 28)
     (h10 : L10 ≤ 15) (X : Nat)
@@ -126,21 +86,15 @@ theorem swarLanes (L0 L1 L2 L3 L4 L5 L6 L7 L8 L9 L10 : Nat) (h0 : L0 ≤ 28) (h1
   have hlt : L0 + L1 + (L2 + L3) + (L4 + L5) + (L6 + L7) + (L8 + L9) + L10 < 4095 := by omega
   rw [fold_mod4095, Nat.mod_eq_of_lt hlt]
   ac_rfl
-
-/-- The 21 radix-8 digits of a doubleword, as explicit terms. -/
 def dsum21 (a : Nat) : Nat :=
   a % 8 + a / 8 % 8 + a / 64 % 8 + a / 512 % 8 + a / 4096 % 8 + a / 32768 % 8 + a / 262144 % 8 +
     a / 2097152 % 8 + a / 16777216 % 8 + a / 134217728 % 8 + a / 1073741824 % 8 +
     a / 8589934592 % 8 + a / 68719476736 % 8 + a / 549755813888 % 8 + a / 4398046511104 % 8 +
     a / 35184372088832 % 8 + a / 281474976710656 % 8 + a / 2251799813685248 % 8 +
     a / 18014398509481984 % 8 + a / 144115188075855872 % 8 + a / 1152921504606846976 % 8
-
 theorem dsum21_eq (a : Nat) : dsum21 a = ((List.range 21).map fun i => a / 8 ^ i % 8).sum := by
   simp only [dsum21, List.range, List.range.loop, List.map, List.sum_cons, List.sum_nil]
   norm_num [Nat.add_assoc]
-
-/-- **The lower decode's SWAR sum**: for `a < 2^64` (`v0`) and `b < 2^63` (`v1 <<< 1`), the 21 digits of
-`a`, the bit `a / 2^63`, and the 21 digits of `b`. -/
 theorem lowSwar_eq (a b : Nat) (ha : a < 2 ^ 64) (hb : b < 2 ^ 63) :
     lowSwar a b = dsum21 a + a / 2 ^ 63 + dsum21 b := by
   have hat : a / 9223372036854775808 ≤ 1 := by omega
@@ -252,58 +206,42 @@ theorem lowSwar_eq (a b : Nat) (ha : a < 2 ^ 64) (hb : b < 2 ^ 63) :
     omega)]
   clear hX
   ac_rfl
-
-
-/-! ## The 42 digits of a 126-bit value across the doubleword boundary -/
-
 theorem div_mod_add_pow (x y k m w : Nat) (h : k + w ≤ m) :
     (x + 2 ^ m * y) / 2 ^ k % 2 ^ w = x / 2 ^ k % 2 ^ w := by
   have e : 2 ^ m * y = 2 ^ k * (2 ^ w * (2 ^ (m - k - w) * y)) := by
     rw [← Nat.mul_assoc, ← Nat.mul_assoc, ← Nat.pow_add, ← Nat.pow_add]; congr 2; omega
   rw [e, Nat.add_mul_div_left _ _ (Nat.two_pow_pos k), Nat.add_mul_mod_self_left]
-
 theorem div_add_pow (x y k m : Nat) (h : k ≤ m) :
     (x + 2 ^ m * y) / 2 ^ k = x / 2 ^ k + 2 ^ (m - k) * y := by
   have e : 2 ^ m * y = 2 ^ k * (2 ^ (m - k) * y) := by
     rw [← Nat.mul_assoc, ← Nat.pow_add]; congr 2; omega
   rw [e, Nat.add_mul_div_left _ _ (Nat.two_pow_pos k)]
-
-/-- An even number plus a bit: the radix-8 digits `j ≥ 1` are those of the even number. -/
 theorem dig_carry (b c j : Nat) (hb : b % 2 = 0) (hc : c ≤ 1) (hj : 0 < j) :
     (b + c) / 2 ^ (3 * j) % 8 = b / 2 ^ (3 * j) % 8 := by
   have e : (b + c) / 2 = b / 2 := by omega
   have p : 2 ^ (3 * j) = 2 * 2 ^ (3 * j - 1) := by
     rw [← Nat.pow_succ']; congr 1; omega
   rw [p, ← Nat.div_div_eq_div_mul, ← Nat.div_div_eq_div_mul, e]
-
 theorem dig_carry0 (b c : Nat) (hb : b % 2 = 0) (hc : c ≤ 1) : (b + c) % 8 = b % 8 + c := by omega
-
 theorem sum_range_add (f : Nat → Nat) (m n : Nat) :
     ((List.range (m + n)).map f).sum = ((List.range m).map f).sum + ((List.range n).map fun j => f (m + j)).sum := by
   rw [List.range_add, List.map_append, List.sum_append, List.map_map]
   rfl
-
 theorem sum_range_succ' (f : Nat → Nat) (n : Nat) :
     ((List.range (n + 1)).map f).sum = f 0 + ((List.range n).map fun j => f (j + 1)).sum := by
   rw [List.range_succ_eq_map, List.map_cons, List.sum_cons, List.map_map]
   rfl
-
 theorem sum_congr_range (f g : Nat → Nat) (n : Nat) (h : ∀ i < n, f i = g i) :
     ((List.range n).map f).sum = ((List.range n).map g).sum := by
   congr 1
   apply List.map_congr_left
   intro i hi
   exact h i (List.mem_range.mp hi)
-
-/-- The radix-8 digits `0 .. 20` of a doubleword (`dsum21`), as Core writes them. -/
 theorem dsum21_pow (a : Nat) : dsum21 a = ((List.range 21).map fun i => a / 2 ^ (3 * i) % 2 ^ 3).sum := by
   rw [dsum21_eq]
   apply sum_congr_range
   intro i _
   rw [Nat.pow_mul]; rfl
-
-/-- **The 42 radix-8 digits of `v0 + 2^64 v1`** (`v0 < 2^64`): the 21 digits of `v0`, the bit `v0 / 2^63`, and the
-21 digits of `2 v1` (digit 21 straddles bit 63). -/
 theorem lowDigits_sum (v0 v1 : Nat) (h0 : v0 < 2 ^ 64) :
     ((List.range 42).map fun i => (v0 + 2 ^ 64 * v1) / 2 ^ (3 * i) % 2 ^ 3).sum =
       dsum21 v0 + v0 / 2 ^ 63 + dsum21 (2 * v1) := by
@@ -339,32 +277,23 @@ theorem lowDigits_sum (v0 v1 : Nat) (h0 : v0 < 2 ^ 64) :
     omega
   rw [e1]
   omega
-
-
-/-! ## The top decode's SWAR sums (2-bit and 3-bit lanes; generated by checks/gen/topswar.py) -/
-
 theorem landM4 (n : Nat) : n &&& mask2 =
     16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (n / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 4) + n / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 4) + n / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 4) + n / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 4) + n / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 4) + n / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 4) + n / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 4) + n / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 4) + n / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 4) + n / 16 / 16 / 16 / 16 / 16 / 16 % 4) + n / 16 / 16 / 16 / 16 / 16 % 4) + n / 16 / 16 / 16 / 16 % 4) + n / 16 / 16 / 16 % 4) + n / 16 / 16 % 4) + n / 16 % 4) + n % 4 := by
   rw [show mask2 = 16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (16 * (3) + 3) + 3) + 3) + 3) + 3) + 3) + 3) + 3) + 3) + 3) + 3) + 3) + 3) + 3) + 3 by norm_num [mask2]]
   simp only [split2, and3]
-
 theorem landM8' (n : Nat) : n &&& mask4 =
     256 * (256 * (256 * (256 * (256 * (256 * (256 * (n / 256 / 256 / 256 / 256 / 256 / 256 / 256 % 16) + n / 256 / 256 / 256 / 256 / 256 / 256 % 16) + n / 256 / 256 / 256 / 256 / 256 % 16) + n / 256 / 256 / 256 / 256 % 16) + n / 256 / 256 / 256 % 16) + n / 256 / 256 % 16) + n / 256 % 16) + n % 16 := by
   rw [show mask4 = 256 * (256 * (256 * (256 * (256 * (256 * (256 * (15) + 15) + 15) + 15) + 15) + 15) + 15) + 15 by norm_num [mask4]]
   simp only [split4, and15]
-
 theorem landM8 (n : Nat) : n &&& mask4 =
     256 * (256 * (256 * (256 * (256 * (256 * (256 * (n / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 16) + n / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 16) + n / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 16) + n / 16 / 16 / 16 / 16 / 16 / 16 / 16 / 16 % 16) + n / 16 / 16 / 16 / 16 / 16 / 16 % 16) + n / 16 / 16 / 16 / 16 % 16) + n / 16 / 16 % 16) + n % 16 := by
   rw [landM8']; simp only [Nat.div_div_eq_div_mul]
-
 theorem hdiv16 (c R : Nat) (h : c < 16) : (c + 16 * R) / 16 = R := by omega
 theorem hmod16 (c R : Nat) (h : c < 16) : (c + 16 * R) % 16 = c := by omega
-
 theorem fold_mod255 (x0 x1 x2 x3 x4 x5 x6 x7 : Nat) :
     (x0 + 256 * (x1 + 256 * (x2 + 256 * (x3 + 256 * (x4 + 256 * (x5 + 256 * (x6 + 256 * (x7)))))))) % 255 =
       (x0 + x1 + x2 + x3 + x4 + x5 + x6 + x7) % 255 := by
   omega
-
 theorem lanes4 (q0 q1 q2 q3 q4 q5 q6 q7 q8 q9 q10 q11 q12 q13 q14 q15 : Nat) (h0 : q0 ≤ 12) (h1 : q1 ≤ 12) (h2 : q2 ≤ 12) (h3 : q3 ≤ 12) (h4 : q4 ≤ 12) (h5 : q5 ≤ 12) (h6 : q6 ≤ 12) (h7 : q7 ≤ 12) (h8 : q8 ≤ 12) (h9 : q9 ≤ 12) (h10 : q10 ≤ 12) (h11 : q11 ≤ 12) (h12 : q12 ≤ 12) (h13 : q13 ≤ 12) (h14 : q14 ≤ 12) (h15 : q15 ≤ 12) (L : Nat)
     (hL : L = q0 + 16 * (q1 + 16 * (q2 + 16 * (q3 + 16 * (q4 + 16 * (q5 + 16 * (q6 + 16 * (q7 + 16 * (q8 + 16 * (q9 + 16 * (q10 + 16 * (q11 + 16 * (q12 + 16 * (q13 + 16 * (q14 + 16 * (q15)))))))))))))))) :
     ((L / 16 &&& mask4) + (L &&& mask4)) % 18446744073709551616 % 255 = q0 + q1 + q2 + q3 + q4 + q5 + q6 + q7 + q8 + q9 + q10 + q11 + q12 + q13 + q14 + q15 := by
@@ -379,28 +308,17 @@ theorem lanes4 (q0 q1 q2 q3 q4 q5 q6 q7 q8 q9 q10 q11 q12 q13 q14 q15 : Nat) (h0
   have hlt2 : (q1 + q0) + (q3 + q2) + (q5 + q4) + (q7 + q6) + (q9 + q8) + (q11 + q10) + (q13 + q12) + (q15 + q14) < 255 := by omega
   rw [Nat.mod_eq_of_lt hlt2]
   ring
-
-/-- The 32 radix-4 digits of a doubleword. -/
 def qsum32 (a : Nat) : Nat :=
   a % 4 + a / 4 % 4 + a / 16 % 4 + a / 64 % 4 + a / 256 % 4 + a / 1024 % 4 + a / 4096 % 4 + a / 16384 % 4 + a / 65536 % 4 + a / 262144 % 4 + a / 1048576 % 4 + a / 4194304 % 4 + a / 16777216 % 4 + a / 67108864 % 4 + a / 268435456 % 4 + a / 1073741824 % 4 + a / 4294967296 % 4 + a / 17179869184 % 4 + a / 68719476736 % 4 + a / 274877906944 % 4 + a / 1099511627776 % 4 + a / 4398046511104 % 4 + a / 17592186044416 % 4 + a / 70368744177664 % 4 + a / 281474976710656 % 4 + a / 1125899906842624 % 4 + a / 4503599627370496 % 4 + a / 18014398509481984 % 4 + a / 72057594037927936 % 4 + a / 288230376151711744 % 4 + a / 1152921504606846976 % 4 + a / 4611686018427387904 % 4
-
-/-- The 17 radix-4 digits of a 34-bit number. -/
 def qsum17 (c : Nat) : Nat :=
   c % 4 + c / 4 % 4 + c / 16 % 4 + c / 64 % 4 + c / 256 % 4 + c / 1024 % 4 + c / 4096 % 4 + c / 16384 % 4 + c / 65536 % 4 + c / 262144 % 4 + c / 1048576 % 4 + c / 4194304 % 4 + c / 16777216 % 4 + c / 67108864 % 4 + c / 268435456 % 4 + c / 1073741824 % 4 + c / 4294967296 % 4
-
-/-- The 9 radix-8 digits of a 27-bit number. -/
 def dsum9 (g : Nat) : Nat :=
   g % 8 + g / 8 % 8 + g / 64 % 8 + g / 512 % 8 + g / 4096 % 8 + g / 32768 % 8 + g / 262144 % 8 + g / 2097152 % 8 + g / 16777216 % 8
-
-/-- The lane sums of the 2-bit SWAR (`L = (a >>> 2 &&& M4) + (a &&& M4) + (c >>> 2 &&& M4) + (c &&& M4)`). -/
 def topL (a c : Nat) : Nat :=
   (((a / 4 &&& mask2) + (a &&& mask2)) % 18446744073709551616 +
     ((c / 4 &&& mask2) + (c &&& mask2)) % 18446744073709551616) % 18446744073709551616
-
-/-- The 2-bit digit sum of the top decode: `(L >>> 4 &&& M8) + (L &&& M8)`, `remu 255`. -/
 def topSwar2 (a c : Nat) : Nat :=
   ((topL a c / 16 &&& mask4) + (topL a c &&& mask4)) % 18446744073709551616 % 255
-
 theorem topSwar2_eq (a c : Nat) (hc : c < 2 ^ 34) :
     topSwar2 a c = qsum32 a + qsum17 c := by
   have hc17 : c / 17179869184 % 4 = 0 := by rw [Nat.div_eq_of_lt (by omega)]
@@ -545,13 +463,9 @@ theorem topSwar2_eq (a c : Nat) (hc : c < 2 ^ 34) :
     ring)]
   clear hL
   ring
-
-/-- The 3-bit digit sum of the top decode (`g = v1 >>> 34`): `y = (g >>> 3 &&& M1) + (g &&& M1)`, `y + (y >>> 6)`,
-`&&& M2`, `remu 4095`. -/
 def topSwar3 (g : Nat) : Nat :=
   ((((g / 8 &&& mask3) + (g &&& mask3)) % 18446744073709551616 +
     ((g / 8 &&& mask3) + (g &&& mask3)) % 18446744073709551616 / 64) % 18446744073709551616 &&& mask6) % 4095
-
 theorem topSwar3_eq (g : Nat) (hg : g < 2 ^ 27) : topSwar3 g = dsum9 g := by
   have e : topSwar3 g = lowSwar g 0 := by
     unfold topSwar3 lowSwar sw1
@@ -573,23 +487,15 @@ theorem topSwar3_eq (g : Nat) (hg : g < 2 ^ 27) : topSwar3 g = dsum9 g := by
   have hg19 : g / 144115188075855872 % 8 = 0 := by rw [Nat.div_eq_of_lt (by omega)]
   have hg20 : g / 1152921504606846976 % 8 = 0 := by rw [Nat.div_eq_of_lt (by omega)]
   simp only [hg9, hg10, hg11, hg12, hg13, hg14, hg15, hg16, hg17, hg18, hg19, hg20, Nat.zero_div, Nat.zero_mod, Nat.add_zero]
-
-/-! ## Digit sums as Core writes them -/
-
 theorem qsum32_eq (a : Nat) : qsum32 a = ((List.range 32).map fun i => a / 2 ^ (2 * i) % 2 ^ 2).sum := by
   simp only [qsum32, List.range, List.range.loop, List.map, List.sum_cons, List.sum_nil]
   norm_num [Nat.add_assoc]
-
 theorem qsum17_eq (c : Nat) : qsum17 c = ((List.range 17).map fun i => c / 2 ^ (2 * i) % 2 ^ 2).sum := by
   simp only [qsum17, List.range, List.range.loop, List.map, List.sum_cons, List.sum_nil]
   norm_num [Nat.add_assoc]
-
 theorem dsum9_eq (g : Nat) : dsum9 g = ((List.range 9).map fun j => g / 2 ^ (3 * j) % 2 ^ 3).sum := by
   simp only [dsum9, List.range, List.range.loop, List.map, List.sum_cons, List.sum_nil]
   norm_num [Nat.add_assoc]
-
-/-! ## Core's `decode` in the machine's terms -/
-
 theorem dataDigits_lower (lay : Layer) (hlay : lay ≠ 0) (value : Digest) :
     dataDigits lay value = (List.range 42).map fun i => value.toNat / 2 ^ (3 * i) % 2 ^ 3 := by
   have h42 : dataCount lay = 42 := by simp [dataCount, hlay]
@@ -598,11 +504,8 @@ theorem dataDigits_lower (lay : Layer) (hlay : lay ≠ 0) (value : Digest) :
   apply List.map_congr_left
   intro i _
   simp [hlay, coreDigit]
-
 def lowSum (V : Nat) : Nat := lowSwar (V % 2 ^ 64) (2 * (V / 2 ^ 64))
-
 theorem lowSum_lt (V : Nat) : lowSum V < 4095 := Nat.mod_lt _ (by norm_num)
-
 theorem lowSum_eq (V : Nat) (h : V / 2 ^ 64 < 2 ^ 62) :
     lowSum V = ((List.range 42).map fun i => V / 2 ^ (3 * i) % 2 ^ 3).sum := by
   unfold lowSum
@@ -611,13 +514,8 @@ theorem lowSum_eq (V : Nat) (h : V / 2 ^ 64 < 2 ^ 62) :
   have := lowDigits_sum (V % 2 ^ 64) (V / 2 ^ 64) (Nat.mod_lt _ (by norm_num))
   rw [← hV] at this
   exact this.symm
-
 theorem target_le (lay : Layer) : target lay ≤ 195 := by
   fin_cases lay <;> decide
-
-/-- **Core's lower decode, as the machine computes it** (`lay ≠ 0`): reject when `v1 >>> 62 ≠ 0`; otherwise the
-checksum digit is `c = (target + 2^64 - S) mod 2^64` (`sub t4, gp, s9`, `S` = the SWAR sum), reject unless
-`c < 8` (`sltiu`); the digits are the 42 radix-8 digits followed by `c`. -/
 theorem decode_lower (lay : Layer) (hlay : lay ≠ 0) (value : Digest) :
     decode lay value =
       if value.toNat / 2 ^ 64 / 2 ^ 62 ≠ 0 then none
@@ -639,11 +537,7 @@ theorem decode_lower (lay : Layer) (hlay : lay ≠ 0) (value : Digest) :
       congr 3
       omega
     · rw [if_neg hc, if_neg (by omega)]
-
-/-- The machine's digit sum of the top decode: the 2-bit SWAR on `v0`, `v1 % 2^34` plus the 3-bit SWAR on
-`v1 >>> 34`. -/
 def topSum (V : Nat) : Nat := topSwar2 (V % 2 ^ 64) (V / 2 ^ 64 % 2 ^ 34) + topSwar3 (V / 2 ^ 64 / 2 ^ 34)
-
 theorem topSum_eq (V : Nat) (h : V / 2 ^ 64 < 2 ^ 61) :
     topSum V = ((List.range 49).map fun i => V / 2 ^ (2 * i) % 2 ^ 2).sum +
       ((List.range 9).map fun j => V / 2 ^ (98 + 3 * j) % 2 ^ 3).sum := by
@@ -667,5 +561,4 @@ theorem topSum_eq (V : Nat) (h : V / 2 ^ 64 < 2 ^ 61) :
     rw [Nat.div_div_eq_div_mul, Nat.div_div_eq_div_mul, ← Nat.pow_add, ← Nat.pow_add,
       show 64 + (34 + 3 * j) = 98 + 3 * j by omega]
   rw [sum_congr_range _ _ 32 hV, sum_congr_range _ _ 17 hW, sum_congr_range _ _ 9 hG]
-
 end SigGolfCandidate.T3M

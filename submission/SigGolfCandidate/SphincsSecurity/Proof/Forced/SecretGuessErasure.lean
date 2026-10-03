@@ -1,23 +1,19 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Forced.SecretGuessObservation
-namespace SphincsSecurity.Concrete.SecretGuessObservation
 
+namespace SphincsSecurity.Concrete.SecretGuessObservation
 open _root_.OracleComp OracleSpec UniformTableCompletion
 set_option backward.isDefEq.respectTransparency false
-
 variable {Coordinate Value AuxIndex : Type} {auxSpec : OracleSpec AuxIndex}
   [Fintype Coordinate] [DecidableEq Coordinate] [DecidableEq Value]
-
 noncomputable def fixedAnswers (auxiliary : QueryImpl auxSpec ProbComp) (labels : Coordinate → Value) :
     QueryImpl (World auxSpec Coordinate Value) ProbComp
   | .inl input => auxiliary input
   | .inr (.inl (coordinate, candidate)) => pure (decide (labels coordinate = candidate))
   | .inr (.inr coordinate) => pure (labels coordinate)
-
 noncomputable def environment (auxiliary : QueryImpl auxSpec ProbComp) : Environment auxSpec Coordinate Value PUnit where
   auxiliary _ input := (fun answer => (answer, PUnit.unit)) <$> (liftM (auxiliary input) : PMF _)
   trial _ _ _ _ := PUnit.unit
   disclosure _ _ _ := PUnit.unit
-
 omit [Fintype Coordinate] [DecidableEq Coordinate] in
 theorem fixedAnswers_disclosureSequence (auxiliary : QueryImpl auxSpec ProbComp) (labels : Coordinate → Value)
     {n : Nat} (coordinates : Fin n → Coordinate) :
@@ -37,7 +33,6 @@ theorem fixedAnswers_disclosureSequence (auxiliary : QueryImpl auxSpec ProbComp)
       congr 1
       funext position
       exact Fin.cases rfl (fun _ => rfl) position
-
 omit [Fintype Coordinate] in
 theorem fixedImpl_projection (auxiliary : QueryImpl auxSpec ProbComp) (labels : Coordinate → Value)
     (input : (World auxSpec Coordinate Value).Domain) (state : State Coordinate Value PUnit) :
@@ -50,7 +45,6 @@ theorem fixedImpl_projection (auxiliary : QueryImpl auxSpec ProbComp) (labels : 
       rfl
   | inr input =>
       cases input <;> simp only [fixedImpl, fixedAnswers, StateT.run_mk, map_pure, evalSPMF_pure]
-
 omit [Fintype Coordinate] in
 theorem fixedRun_projection {Result : Type} (auxiliary : QueryImpl auxSpec ProbComp) (labels : Coordinate → Value)
     (computation : OracleComp (World auxSpec Coordinate Value) Result) (state : State Coordinate Value PUnit) :
@@ -67,5 +61,4 @@ theorem fixedRun_projection {Result : Type} (auxiliary : QueryImpl auxSpec ProbC
         (fixedImpl_projection auxiliary labels input state)
       rw [bind_map_left] at h
       exact h
-
 end SphincsSecurity.Concrete.SecretGuessObservation

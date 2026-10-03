@@ -2,22 +2,6 @@ import SigGolfCandidate.T3.Secc.WotsTransportR3
 import SigGolfCandidate.T3.Secc.WotsTransportShort
 import SigGolfCandidate.T3.Secc.WotsTransportCompletion
 
-/-!
-# F2 (per table): the recorded padded game and R3 on one eager table
-
-* `GameSplit`, `CaseAB`: the case (A)+(B) event of a shared-law sample, tied to the actual run (every
-  decomposition of the recorded events into key generation, logged interaction and verdict records).
-* `cut state F`: the table `F` with uncached public inputs longer than 4096 bytes answering `0` (SeccLaw's
-  completion has this shape); it agrees with `F` on short queries and on cached inputs.
-* `fixed_game_le`: **for every table `T`**, a won, within-budget, case-(A)+(B) recorded run of the padded game in the
-  fixed world of `T` (completion `cut state T`) has probability at most R3's `Pr[WotsPrimitive T trace]` on `T`.
-  Route: the recorded game is keygen (deterministic) ; logged interaction ; verdict (deterministic); a winning
-  case-(A)+(B) run gives `Ψ T pk (forgery, log)` (the verdict accepts under `T` and its own queries carry a WOTS
-  primitive event, `good_imp`) and a charge bound; value and charge of the interaction are R3's
-  (`interaction_counted`); on R3's side the cap does not bind and the verdict's queries are in the trace
-  (`offline_le`).
--/
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final SigGolfCandidate.T3M.SecurityExtraction
@@ -28,12 +12,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] keygen verifyP expandB buildFts buildTree signPayload
-
-/-! ## The case event, tied to the actual run -/
-
-/-- A decomposition of a recorded padded-game run into its key-generation, logged-interaction and verdict records
-(lazy supports, as SEC's `FirstHit.record_bind_support`), whose events concatenate to the run's events. Coin answers
-are events, so this pins the actual run. -/
 def GameSplit (adversary : AdversaryP) (result : FirstHit.Recorded Bool)
     (generated : FirstHit.Recorded (Digest × T3.Cache))
     (interaction : FirstHit.Recorded (Option ForgeryP × QueryLog Requests)) (checked : FirstHit.Recorded Bool) : Prop :=
@@ -43,30 +21,19 @@ def GameSplit (adversary : AdversaryP) (result : FirstHit.Recorded Bool)
   checked ∈ support (FirstHit.record (GameWith.verdict PaddedGame.checker generated.value.1 interaction.value)
       interaction.state) ∧
   result = ⟨checked.value, generated.events ++ (interaction.events ++ checked.events), checked.state⟩
-
-/-- Case (A)+(B) of a recorded run under the completion `answers`: for every decomposition of the run, the logged
-forgery's byte verification has a WOTS primitive event among its own queries. -/
 def CaseABAt (adversary : AdversaryP) (result : FirstHit.Recorded Bool) (answers : Answers) : Prop :=
   ∀ generated interaction checked, GameSplit adversary result generated interaction checked →
     ∀ forgery, interaction.value.1 = some forgery → VerifierWots answers generated.value.1 forgery
-
-/-- **Case (A)+(B) of a shared-law sample** (`SeccLaw.completedExperiment`), on the actual run. -/
 def CaseAB (adversary : AdversaryP) (z : PaddedGame.TraceResult × Answers) : Prop :=
   CaseABAt adversary (QueryRecorded.recordedTrace z.1) z.2
-
 namespace Ref
-
-/-- The recorded-side event R3 bounds: a won run of total charge at most `q` in case (A)+(B). -/
 def Good (adversary : AdversaryP) (q : Nat) (result : FirstHit.Recorded Bool) (answers : Answers) : Prop :=
   result.value = true ∧ chargeSum result.events ≤ q ∧ CaseABAt adversary result answers
-
-/-- `F` with every uncached public input longer than 4096 bytes answering `0`. -/
 noncomputable def cut (state : LazyPrivate.State) (F : Answers) : Answers
   | .inl (.inl n) => F (.inl (.inl n))
   | .inl (.inr input) =>
       if input ∈ SeccLaw.publicUniverse ∨ (state.2 input).isSome then F (.inl (.inr input)) else (0 : HashOutput)
   | .inr coordinate => F (.inr coordinate)
-
 theorem cut_shortAgree (state : LazyPrivate.State) (F : Answers) : ShortAgree (cut state F) F := by
   intro query hq
   rcases query with (n | x) | c
@@ -74,7 +41,6 @@ theorem cut_shortAgree (state : LazyPrivate.State) (F : Answers) : ShortAgree (c
   · change (if x ∈ SeccLaw.publicUniverse ∨ (state.2 x).isSome then F (.inl (.inr x)) else (0 : HashOutput)) = _
     rw [if_pos (Or.inl (SeccLaw.mem_publicUniverse x hq))]
   · rfl
-
 theorem cut_cached (state : LazyPrivate.State) (F : Answers) (query : T3.Spec.Domain)
     (h : ∀ x, query = .inl (.inr x) → (state.2 x).isSome) : cut state F query = F query := by
   rcases query with (n | x) | c
@@ -82,10 +48,6 @@ theorem cut_cached (state : LazyPrivate.State) (F : Answers) (query : T3.Spec.Do
   · change (if x ∈ SeccLaw.publicUniverse ∨ (state.2 x).isSome then F (.inl (.inr x)) else (0 : HashOutput)) = _
     rw [if_pos (Or.inr (h x rfl))]
   · rfl
-
-/-! ## Deterministic programs under agreeing tables -/
-
-/-- Tables agreeing on every query a program makes under `T` evaluate it identically, with the same queries. -/
 theorem eval_congr_queried {α : Type} (program : M α) (A T : Answers)
     (h : ∀ query ∈ SourceReplay.queried T program, A query = T query) :
     evalWithAnswerFn A program = evalWithAnswerFn T program ∧
@@ -99,7 +61,6 @@ theorem eval_congr_queried {α : Type} (program : M α) (A T : Answers)
       rw [evalWithAnswerFn_bind, evalWithAnswerFn_bind, eval_query, eval_query, hi, hn.1,
         SourceReplay.queried_query_bind, SourceReplay.queried_query_bind, hi, hn.2]
       exact ⟨rfl, rfl⟩
-
 theorem entriesOf_congr (A T : Answers) (queries : List T3.Spec.Domain)
     (h : ∀ query ∈ queries, A query = T query) : entriesOf A queries = entriesOf T queries := by
   induction queries with
@@ -111,7 +72,6 @@ theorem entriesOf_congr (A T : Answers) (queries : List T3.Spec.Domain)
       · simp only [entriesOf, List.filterMap_cons] at hr ⊢
         rw [h _ List.mem_cons_self, hr]
       · simpa [entriesOf] using hr
-
 theorem verdict_hashOnly (publicKey : Digest) (result : Option ForgeryP × QueryLog Requests) :
     SourceReplay.HashOnly (GameWith.verdict PaddedGame.checker publicKey result) := by
   unfold GameWith.verdict
@@ -120,17 +80,11 @@ theorem verdict_hashOnly (publicKey : Digest) (result : Option ForgeryP × Query
   | some forgery =>
       exact SourceQueries.bind_allowed _ (PaddedExtraction.check_hashOnly publicKey result.2 forgery)
         fun _ => SourceQueries.pure_allowed _ _
-
-/-- The verdict accepts under `T` and its own queries carry a WOTS primitive event. -/
 def Psi (T : Answers) (publicKey : Digest) (result : Option ForgeryP × QueryLog Requests) : Prop :=
   evalWithAnswerFn T (GameWith.verdict PaddedGame.checker publicKey result) = true ∧
     WotsPrimitive T (entriesOf T (SourceReplay.queried T (GameWith.verdict PaddedGame.checker publicKey result)))
-
-/-- The verdict's charge under `T` (all its queries are public). -/
 noncomputable def verdictCharge (T : Answers) (publicKey : Digest) (result : Option ForgeryP × QueryLog Requests) : Nat :=
   (SourceReplay.queried T (GameWith.verdict PaddedGame.checker publicKey result)).length
-
-/-- An accepting verdict: the forgery, its accepting check, and the check's queries inside the verdict's. -/
 theorem verdict_accepts (T : Answers) (publicKey : Digest) (result : Option ForgeryP × QueryLog Requests)
     (h : evalWithAnswerFn T (GameWith.verdict PaddedGame.checker publicKey result) = true) :
     ∃ forgery, result.1 = some forgery ∧
@@ -150,7 +104,6 @@ theorem verdict_accepts (T : Answers) (publicKey : Digest) (result : Option Forg
         simp only [GameWith.verdict, hf, PaddedGame.checker, SourceReplay.queried_bind, SourceReplay.queried_pure,
           List.append_nil]
         exact hq
-
 theorem witnessOf_unique {answers : Answers} {publicKey : Digest} {forgery : ForgeryP} {m m' : Message}
     {w w' : WBytes} (h : PaddedExtraction.WitnessOf answers publicKey forgery m w)
     (h' : PaddedExtraction.WitnessOf answers publicKey forgery m' w') : m = m' ∧ w = w' := by
@@ -163,9 +116,6 @@ theorem witnessOf_unique {answers : Answers} {publicKey : Digest} {forgery : For
       obtain ⟨rfl, hw⟩ := h
       obtain ⟨rfl, hw'⟩ := h'
       exact ⟨rfl, Option.some.inj (hw.symm.trans hw')⟩
-
-/-- **The deterministic core of the per-table coupling**: a case-(A)+(B) forgery under a completion `A` that agrees
-with `T` on short queries and on every query of the verdict gives `Psi T`. -/
 theorem psi_of_verifierWots (A T : Answers) (publicKey : Digest) (result : Option ForgeryP × QueryLog Requests)
     (hshort : ShortAgree A T)
     (hverdict : ∀ query ∈ SourceReplay.queried T (GameWith.verdict PaddedGame.checker publicKey result),
@@ -177,7 +127,6 @@ theorem psi_of_verifierWots (A T : Answers) (publicKey : Digest) (result : Optio
   obtain ⟨forgery, hf, hcheck, hsub⟩ := verdict_accepts T publicKey result haccept
   obtain ⟨-, m', w', hof', -, hqsub⟩ := PaddedExtraction.check_accepting T publicKey result.2 forgery hcheck
   obtain ⟨m, w, hof, -, hprim⟩ := hab forgery hf
-  -- the witness under `T`
   have hofT : PaddedExtraction.WitnessOf T publicKey forgery m w := by
     cases forgery with
     | witness message witness => exact hof
@@ -203,27 +152,18 @@ theorem psi_of_verifierWots (A T : Answers) (publicKey : Digest) (result : Optio
   · exact hprimT.mono (WotsExtract.entriesOf_mono fun query hq' => hsub query (hqsub query hq'))
   · obtain ⟨hmem, -⟩ := WotsExtract.mem_entriesOf_iff.mp (show (e.1, e.2) ∈ _ from he')
     exact hagree _ hmem
-
-/-! ## The recorded padded game in a fixed world -/
-
-/-- The verdict record of an interaction record in the fixed world of `T`. -/
 noncomputable def verdictRecord (T : Answers) (interaction : FirstHit.Recorded (Option ForgeryP × QueryLog Requests)) :
     FirstHit.Recorded Bool :=
   pureRecord T (GameWith.verdict PaddedGame.checker (evalWithAnswerFn T keygen).1 interaction.value) interaction.state
-
-/-- The whole recorded run from its interaction record (key generation and verdict are deterministic). -/
 noncomputable def combine (T : Answers) (interaction : FirstHit.Recorded (Option ForgeryP × QueryLog Requests)) :
     FirstHit.Recorded Bool :=
   ⟨(verdictRecord T interaction).value,
     (pureRecord T keygen (∅, ∅)).events ++ (interaction.events ++ (verdictRecord T interaction).events),
     (verdictRecord T interaction).state⟩
-
-/-- The logged interaction of the recorded padded game in the fixed world of `T`. -/
 noncomputable def fixedInteraction (adversary : AdversaryP) (T : Answers) :
     ProbComp (FirstHit.Recorded (Option ForgeryP × QueryLog Requests)) :=
   fixedRecord T (FullGame.loggedWith (FullGame.authenticatedSign (evalWithAnswerFn T keygen).2)
     (adversary (evalWithAnswerFn T keygen).1 (evalWithAnswerFn T keygen).2)) (pureRecord T keygen (∅, ∅)).state
-
 theorem fixed_game_eq (adversary : AdversaryP) (T : Answers) :
     fixedRecord T (GameWith.idealGame PaddedGame.checker adversary) (∅, ∅) =
       combine T <$> fixedInteraction adversary T := by
@@ -235,9 +175,6 @@ theorem fixed_game_eq (adversary : AdversaryP) (T : Answers) :
   unfold fixedInteraction combine verdictRecord
   rw [map_eq_bind_pure_comp]
   rfl
-
-/-- **The deterministic step**: a won, within-budget, case-(A)+(B) recorded run (completion `cut state T`) gives
-`Psi` for the logged interaction and the charge bound `keygen + interaction + verdict ≤ q`. -/
 theorem good_imp (adversary : AdversaryP) (q : Nat) (T : Answers)
     (interaction : FirstHit.Recorded (Option ForgeryP × QueryLog Requests))
     (hi : interaction ∈ support (fixedInteraction adversary T))
@@ -265,7 +202,6 @@ theorem good_imp (adversary : AdversaryP) (q : Nat) (T : Answers)
     rw [← pureRecord_value]
     exact hwin
   rw [hg0val] at hcirec
-  -- the completion agrees with `T` on the verdict's queries (all cached at the end)
   have hknown := FirstHit.recorded_query_known _ (verdict_hashOnly _ _) interaction.state _ hcirec
   have hinputs : (verdictRecord T interaction).events.map FirstHit.QueryEvent.input =
       SourceReplay.queried T (GameWith.verdict PaddedGame.checker (evalWithAnswerFn T keygen).1 interaction.value) :=
@@ -300,16 +236,10 @@ theorem good_imp (adversary : AdversaryP) (q : Nat) (T : Answers)
         (chargeSum interaction.events + chargeSum (verdictRecord T interaction).events) := by
       simp only [combine, chargeSum_append]
     omega
-
-/-! ## R3's side -/
-
 theorem calls_append {ι : Type} (selected : ι → Prop) [DecidablePred selected] (left right : List ι) :
     SphincsSecurity.QueryCap.calls selected (left ++ right) =
       SphincsSecurity.QueryCap.calls selected left + SphincsSecurity.QueryCap.calls selected right := by
   simp [SphincsSecurity.QueryCap.calls, List.countP_append]
-
-/-- **R3's side**: when the verdict accepts with a WOTS primitive event on its own queries and the total charge is
-within `q`, R3's capped run on `T` records the verdict's queries, so its trace carries the event. -/
 theorem offline_le (adversary : AdversaryP) (q : Nat) (T : Answers) :
     Pr[fun x => Psi T (evalWithAnswerFn T keygen).1 x.1 ∧
         keygenCharge T + x.2 + verdictCharge T (evalWithAnswerFn T keygen).1 x.1 ≤ q |
@@ -338,12 +268,6 @@ theorem offline_le (adversary : AdversaryP) (q : Nat) (T : Answers) :
     unfold verdictCharge at hcharge
     simp only at hcharge
     omega
-
-/-! ## The per-table coupling -/
-
-/-- **Per-table coupling (F2-1)**: for every table `T`, a won, within-budget, case-(A)+(B) run of SEC's recorded
-padded game in the fixed world of `T` (case event under the completion `cut state T`) is at most as likely as R3's
-WOTS primitive event on `T`. -/
 theorem fixed_game_le (adversary : AdversaryP) (q : Nat) (T : Answers) :
     Pr[fun result => Good adversary q result (cut result.state T) |
         fixedRecord T (GameWith.idealGame PaddedGame.checker adversary) (∅, ∅)] ≤
@@ -357,7 +281,5 @@ theorem fixed_game_le (adversary : AdversaryP) (q : Nat) (T : Answers) :
   refine le_trans (le_of_eq ?_) (offline_le adversary q T)
   rw [← hcount, probEvent_map]
   rfl
-
 end Ref
-
 end SigGolfCandidate.T3.Security.Wots

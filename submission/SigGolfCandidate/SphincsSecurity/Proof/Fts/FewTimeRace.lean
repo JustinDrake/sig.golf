@@ -1,21 +1,11 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeFresh
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimePrehit
-/-!
-# A weighted prefix split for the digest race
-
-The cached branch of a digest retry loop wins immediately, a rejected answer continues, and an
-ordinary successful answer ends the event. The weighted split below keeps the continuation
-probability instead of paying one full copy of its bound at every retry.
--/
 
 namespace SphincsSecurity
-
 open OracleComp OracleSpec ENNReal
-
 noncomputable local instance instSampleableTypeRandomness_2 : SampleableType Randomness :=
   Concrete.randomnessSampleableType
-
 theorem cachedMessageEntryCount_le_enncard
     (cache : QueryCache HashSpec) (parameter : PublicParameter)
     (root : Digest) (message : Message) :
@@ -25,7 +15,6 @@ theorem cachedMessageEntryCount_le_enncard
     exact hentry.1
   simpa only [cachedMessageEntryCount, QueryCache.enncard] using
     ENat.toENNReal_mono (Set.encard_le_encard hsubset)
-
 set_option maxRecDepth 100000 in
 theorem Concrete.probEvent_signAttempt_fresh_success_eq
     (secretKey : SecretKey) (message : Message) (randomness : Randomness)
@@ -72,7 +61,6 @@ theorem Concrete.probEvent_signAttempt_fresh_success_eq
       rw [probEvent_uniformHashOutput_admissible_view (fun _ => True)]
       simp only [probEvent_True_eq_sub, probFailure_of_liftM_PMF, tsub_zero]
       rw [mul_one]
-
 noncomputable def Concrete.signDigestAttemptPrefix
     (secretKey : SecretKey) (message : Message) (cache : QueryCache HashSpec) :
     ProbComp (Randomness ×
@@ -81,7 +69,6 @@ noncomputable def Concrete.signDigestAttemptPrefix
     (simulateQ (randomOracle : QueryImpl HashSpec _)
       (signAttempt secretKey message randomness)).run cache >>= fun result =>
         pure (randomness, result)
-
 theorem Concrete.signDigestLoop_run_succ_eq_attemptPrefix
     (attempts : Nat) (secretKey : SecretKey) (message : Message)
     (cache : QueryCache HashSpec) :
@@ -91,7 +78,6 @@ theorem Concrete.signDigestLoop_run_succ_eq_attemptPrefix
         signDigestLoopContinuation attempts secretKey message attempt.1 attempt.2 := by
   rw [signDigestLoop_run_succ_eq, signDigestAttemptPrefix]
   simp only [bind_assoc, pure_bind]
-
 def Concrete.FavorablePrehitAttempt (referenceCache : QueryCache HashSpec)
     (secretKey : SecretKey) (message : Message) (P : FewTimeView → Prop)
     (attempt : Randomness ×
@@ -101,5 +87,4 @@ def Concrete.FavorablePrehitAttempt (referenceCache : QueryCache HashSpec)
       (messageDigestPayload secretKey.root message attempt.1)) = some output
     ∧ signAttemptResultOfOutput output ≠ none
     ∧ P (hashOutputFewTimeView output)
-
 end SphincsSecurity

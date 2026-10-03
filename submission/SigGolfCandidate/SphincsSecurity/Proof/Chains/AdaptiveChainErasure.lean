@@ -1,16 +1,13 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainEndpoint
-namespace SphincsSecurity.Concrete.PartialChainEndpoint
 
+namespace SphincsSecurity.Concrete.PartialChainEndpoint
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
-
 variable {State : Type} [Fintype State] [DecidableEq State] [Nonempty State]
   {AuxIndex : Type} {auxSpec : OracleSpec AuxIndex} {n : Nat}
-
 noncomputable def fixedImpl (auxiliary : QueryImpl auxSpec PMF) (tables : Fin n → State → State) :
     QueryImpl (auxSpec + PrefixSpec n State) PMF :=
   auxiliary + (fun (query : Fin n × State) => PMF.pure (tables query.1 query.2) : QueryImpl (PrefixSpec n State) PMF)
-
 omit [Fintype State] [Nonempty State] in
 theorem observedRun_forget {Result : Type} (auxiliary : QueryImpl auxSpec PMF) (tables : Fin n → State → State)
     (computation : OracleComp (auxSpec + PrefixSpec n State) Result) (observed : Fin n → State → Option State) :
@@ -28,7 +25,6 @@ theorem observedRun_forget {Result : Type} (auxiliary : QueryImpl auxSpec PMF) (
           simp only [observedImpl, StateT.run_mk, PMF.pure_bind, fixedImpl, QueryImpl.add_apply_inr,
             PMF.monad_bind_eq_bind, PMF.pure_bind]
           exact ih (tables query.1 query.2) (record observed query (tables query.1 query.2))
-
 theorem realRun_empty_forget {Result : Type} (auxiliary : State → QueryImpl auxSpec PMF)
     (computation : State → OracleComp (auxSpec + PrefixSpec n State) Result) :
     (realRun auxiliary computation (fun _ _ => none)).map (fun result => result.2.1) =
@@ -37,7 +33,6 @@ theorem realRun_empty_forget {Result : Type} (auxiliary : State → QueryImpl au
           simulateQ (fixedImpl (auxiliary (evaluate tables secret)) tables) (computation (evaluate tables secret)))) := by
   simp only [realRun, completeTables_empty, EndpointPreimageDensity.real, PMF.map_bind, PMF.bind_bind, PMF.bind_map,
     PMF.map_comp, Function.comp_def, observedRun_forget]
-
 theorem realRun_empty_result_mem {Result : Type} (auxiliary : State → QueryImpl auxSpec PMF)
     (computation : State → OracleComp (auxSpec + PrefixSpec n State) Result)
     (tables : Fin n → State → State) (secret : State) (result : Result)
@@ -48,5 +43,4 @@ theorem realRun_empty_result_mem {Result : Type} (auxiliary : State → QueryImp
   refine ⟨tables, PMF.mem_support_uniformOfFintype tables, ?_⟩
   rw [PMF.mem_support_bind_iff]
   exact ⟨secret, PMF.mem_support_uniformOfFintype secret, hresult⟩
-
 end SphincsSecurity.Concrete.PartialChainEndpoint

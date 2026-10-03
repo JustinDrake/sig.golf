@@ -1,11 +1,9 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.QueryCap
-namespace SphincsSecurity.QueryCap
 
+namespace SphincsSecurity.QueryCap
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
-
 variable {Index : Type} {spec : OracleSpec Index} {Result : Type}
-
 theorem simulate_mem_support (impl : QueryImpl spec PMF) (computation : OracleComp spec Result)
     (result : Result) (hresult : result ∈ (simulateQ impl computation).support) : result ∈ support computation := by
   induction computation using OracleComp.inductionOn with
@@ -17,9 +15,7 @@ theorem simulate_mem_support (impl : QueryImpl spec PMF) (computation : OracleCo
       obtain ⟨answer, _, hresult⟩ := hresult
       refine (mem_support_bind_iff _ _ _).mpr ⟨answer, ?_, ih answer hresult⟩
       simp only [support_query, Set.mem_univ]
-
 variable (selected : Index → Prop) [DecidablePred selected]
-
 theorem counted_le_of_queryBound (computation : OracleComp spec Result) (budget : Nat)
     (hbound : computation.IsQueryBoundP selected budget) (result : Result × Nat)
     (hresult : result ∈ support (counted selected computation)) : result.2 ≤ budget := by
@@ -42,7 +38,6 @@ theorem counted_le_of_queryBound (computation : OracleComp spec Result) (budget 
         simp only [if_pos hselected] at htail ⊢
         omega
       · simpa only [if_neg hselected, Nat.zero_add] using htail
-
 theorem counted_writer_bind_le {Trace Next : Type} [Monoid Trace] (cost : Trace → Nat)
     (hcost : ∀ first second, cost (first * second) = cost first + cost second)
     (first : WriterT Trace (OracleComp spec) Result) (next : Result → WriterT Trace (OracleComp spec) Next)
@@ -60,7 +55,6 @@ theorem counted_writer_bind_le {Trace Next : Type} [Monoid Trace] (cost : Trace 
   subst result
   rw [hcost]
   exact Nat.add_le_add (hfirst middle hmiddle) (hnext middle.1.1 tail htail)
-
 theorem counted_writer_simulate_le {SourceIndex Trace : Type} {source : OracleSpec SourceIndex} [Monoid Trace]
     (cost : Trace → Nat) (hcost : ∀ first second, cost (first * second) = cost first + cost second)
     (impl : QueryImpl source (WriterT Trace (OracleComp spec)))
@@ -76,5 +70,4 @@ theorem counted_writer_simulate_le {SourceIndex Trace : Type} {source : OracleSp
       rw [simulateQ_bind, simulateQ_spec_query] at hresult
       exact counted_writer_bind_le selected cost hcost (impl input) (fun answer => simulateQ impl (next answer))
         (hstep input) ih result hresult
-
 end SphincsSecurity.QueryCap

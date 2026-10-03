@@ -1,34 +1,201 @@
+import SigGolfCandidate.T3M.Witness.Dfs
 import SigGolfCandidate.T3M.Sign.FtsBlocks
-import SigGolfCandidate.T3M.Sign.FrontierPure
 
-/-!
-# Sign: the multiproof collection of one coordinate (words 278..330)
+section
 
-The heap arena holds node `(ℓ, i)` of the coordinate tree at heap index `hp (ℓ, i) = 2^(11-ℓ) + i`.
-`memDig t A` is the digest stored at `A` (two doublewords).
+namespace SigGolfCandidate.T3M.Sign
+open SigGolfCandidate.T3 (hasLeaf)
+open SigGolfCandidate.T3M (lcaLevel hasLeaf_iff hasLeaf_false_iff lca_of_div_sib xor_one_eq)
+def topD (g s : Nat) : List (Nat × Nat) := if g / 2 ^ s % 2 = 1 then [(s, g / 2 ^ s ^^^ 1)] else []
+def topA (g e : Nat) : List (Nat × Nat) := if g / 2 ^ e % 2 = 0 then [(e, g / 2 ^ e ^^^ 1)] else []
+def descL (g : Nat) : Nat → List (Nat × Nat)
+  | 0 => []
+  | s + 1 => topD g s ++ descL g s
+def ascR (g : Nat) : Nat → List (Nat × Nat)
+  | 0 => []
+  | e + 1 => ascR g e ++ topA g e
+def mf (s e : Nat) : List Nat → List (Nat × Nat)
+  | [] => []
+  | [g] => descL g s ++ ascR g e
+  | g :: g' :: rest => descL g s ++ ascR g (lcaLevel g g' - 1) ++ mf (lcaLevel g g' - 1) e (g' :: rest)
+theorem mf_s_succ (s e g : Nat) (rest : List Nat) :
+    mf (s + 1) e (g :: rest) = topD g s ++ mf s e (g :: rest) := by
+  cases rest with
+  | nil => simp [mf, descL]
+  | cons g' r => simp [mf, descL]
+theorem mf_e_succ (e : Nat) : ∀ (S : List Nat) (s : Nat) (hS : S ≠ []),
+    mf s (e + 1) S = mf s e S ++ topA (S.getLast hS) e
+  | [], _, h => absurd rfl h
+  | [g], s, _ => by simp only [mf, ascR, List.getLast_singleton, List.append_assoc]
+  | g :: g' :: rest, s, _ => by
+    simp only [mf]
+    rw [mf_e_succ e (g' :: rest) _ (List.cons_ne_nil _ _)]
+    simp
+theorem mf_append (e : Nat) : ∀ (A B : List Nat) (s : Nat) (hA : A ≠ []) (hB : B ≠ []),
+    mf s e (A ++ B) = mf s (lcaLevel (A.getLast hA) (B.head hB) - 1) A ++
+      mf (lcaLevel (A.getLast hA) (B.head hB) - 1) e B
+  | [], _, _, h, _ => absurd rfl h
+  | [a], b :: B', s, _, _ => by simp [mf]
+  | a :: a' :: A', B, s, _, hB => by
+    have := mf_append e (a' :: A') B (lcaLevel a a' - 1) (List.cons_ne_nil _ _) hB
+    simp only [List.cons_append] at this ⊢
+    simp only [mf]
+    rw [this]
+    simp
+theorem frontier_empty {leaves : List Nat} {L N : Nat} (h : hasLeaf leaves L N = false) :
+    T3.frontier leaves L N = [(L, N)] := by
+  cases L with
+  | zero => simp [T3.frontier, h]
+  | succ L => simp [T3.frontier, h]
+theorem split_sorted (p : Nat → Bool) :
+    ∀ (S : List Nat), S.Pairwise (· < ·) →
+      (∀ x ∈ S, ∀ y ∈ S, x < y → p x = false → p y = false) → S = S.filter p ++ S.filter (fun x => !p x)
+  | [], _, _ => rfl
+  | x :: xs, h, hp => by
+    have hxs := split_sorted p xs (List.pairwise_cons.mp h).2
+      (fun a ha b hb hab hpa => hp a (by simp [ha]) b (by simp [hb]) hab hpa)
+    by_cases hx : p x = true
+    · simp only [List.filter_cons, hx, if_true, Bool.not_true, Bool.false_eq_true, if_false, List.cons_append]
+      exact congrArg _ hxs
+    · have hall : ∀ y ∈ xs, p y = false := fun y hy =>
+        hp x (by simp) y (by simp [hy]) ((List.pairwise_cons.mp h).1 y hy) (by simpa using hx)
+      have h1 : xs.filter p = [] := List.filter_eq_nil_iff.mpr (fun y hy => by simp [hall y hy])
+      have h2 : xs.filter (fun x => !p x) = xs := List.filter_eq_self.mpr (fun y hy => by simp [hall y hy])
+      simp only [List.filter_cons, hx, Bool.false_eq_true, if_false, Bool.not_false, if_true, h1, h2,
+        List.nil_append]
+theorem xor_one_even (N : Nat) : 2 * N ^^^ 1 = 2 * N + 1 := by
+  rw [xor_one_eq]; omega
+theorem xor_one_odd (N : Nat) : (2 * N + 1) ^^^ 1 = 2 * N := by
+  rw [xor_one_eq]; omega
+theorem frontier_eq_mf (leaves : List Nat) : ∀ (L N : Nat) (S : List Nat),
+    S.Pairwise (· < ·) → S ≠ [] → (∀ g, g ∈ S ↔ g ∈ leaves ∧ g / 2 ^ L = N) →
+    T3.frontier leaves L N = mf L L S
+  | 0, N, S, hs, hne, hm => by
+    obtain ⟨g, rest, rfl⟩ := List.exists_cons_of_ne_nil hne
+    have hg : g = N := by have := ((hm g).mp (by simp)).2; simpa using this
+    have hrest : rest = [] := by
+      cases rest with
+      | nil => rfl
+      | cons g' r =>
+        have h1 : g' = N := by have := ((hm g').mp (by simp)).2; simpa using this
+        have : g < g' := (List.pairwise_cons.mp hs).1 g' (by simp)
+        omega
+    subst hrest
+    have hl : hasLeaf leaves 0 N = true :=
+      (hasLeaf_iff _ _ _).mpr ⟨g, ((hm g).mp (by simp)).1, by simpa using hg⟩
+    simp [T3.frontier, hl, mf, descL, ascR]
+  | k + 1, N, S, hs, hne, hm => by
+    have hl : hasLeaf leaves (k + 1) N = true := by
+      obtain ⟨g, hg⟩ := List.exists_mem_of_ne_nil S hne
+      exact (hasLeaf_iff _ _ _).mpr ⟨g, ((hm g).mp hg).1, ((hm g).mp hg).2⟩
+    have hf : T3.frontier leaves (k + 1) N =
+        T3.frontier leaves k (2 * N) ++ T3.frontier leaves k (2 * N + 1) := by
+      simp [T3.frontier, hl]
+    have hup : ∀ g, g / 2 ^ (k + 1) = g / 2 ^ k / 2 := fun g => by
+      rw [pow_succ, Nat.div_div_eq_div_mul]
+    have hdiv : ∀ g ∈ S, g / 2 ^ k = 2 * N ∨ g / 2 ^ k = 2 * N + 1 := by
+      intro g hg
+      have := ((hm g).mp hg).2
+      rw [hup] at this
+      omega
+    let p : Nat → Bool := fun g => decide (g / 2 ^ k = 2 * N)
+    have hsplit : S = S.filter p ++ S.filter (fun x => !p x) := by
+      refine split_sorted p S hs (fun x hx y hy hxy hpx => ?_)
+      have h1 := hdiv x hx
+      have h2 := hdiv y hy
+      have : x / 2 ^ k ≤ y / 2 ^ k := Nat.div_le_div_right hxy.le
+      simp only [p, decide_eq_false_iff_not] at hpx ⊢
+      omega
+    set A := S.filter p with hA
+    set B := S.filter (fun x => !p x) with hB
+    have hmA : ∀ g, g ∈ A ↔ g ∈ leaves ∧ g / 2 ^ k = 2 * N := by
+      intro g
+      rw [hA, List.mem_filter]
+      constructor
+      · rintro ⟨h1, h2⟩
+        exact ⟨((hm g).mp h1).1, by simpa [p] using h2⟩
+      · rintro ⟨h1, h2⟩
+        exact ⟨(hm g).mpr ⟨h1, by rw [hup, h2]; omega⟩, by simpa [p] using h2⟩
+    have hmB : ∀ g, g ∈ B ↔ g ∈ leaves ∧ g / 2 ^ k = 2 * N + 1 := by
+      intro g
+      rw [hB, List.mem_filter]
+      constructor
+      · rintro ⟨h1, h2⟩
+        refine ⟨((hm g).mp h1).1, ?_⟩
+        have := hdiv g h1
+        simp only [p, Bool.not_eq_true', decide_eq_false_iff_not] at h2
+        omega
+      · rintro ⟨h1, h2⟩
+        exact ⟨(hm g).mpr ⟨h1, by rw [hup, h2]; omega⟩, by simp [p, h2]⟩
+    have hsA : A.Pairwise (· < ·) := hs.filter _
+    have hsB : B.Pairwise (· < ·) := hs.filter _
+    have hA2 : ∀ g ∈ A, g / 2 ^ k = 2 * N := fun g hg => ((hmA g).mp hg).2
+    have hB2 : ∀ g ∈ B, g / 2 ^ k = 2 * N + 1 := fun g hg => ((hmB g).mp hg).2
+    have emptyA : A = [] → hasLeaf leaves k (2 * N) = false := by
+      intro h
+      rw [hasLeaf_false_iff]
+      intro g hg he
+      have := (hmA g).mpr ⟨hg, he⟩
+      rw [h] at this; simp at this
+    have emptyB : B = [] → hasLeaf leaves k (2 * N + 1) = false := by
+      intro h
+      rw [hasLeaf_false_iff]
+      intro g hg he
+      have := (hmB g).mpr ⟨hg, he⟩
+      rw [h] at this; simp at this
+    rw [hf]
+    by_cases ha : A = []
+    ·
+      have hb : B ≠ [] := by
+        intro hb; rw [hsplit, ha, hb] at hne; exact hne rfl
+      have hSB : S = B := by rw [hsplit, ha, List.nil_append]
+      rw [frontier_empty (emptyA ha), frontier_eq_mf leaves k (2 * N + 1) B hsB hb hmB, hSB]
+      obtain ⟨b0, rest, hb0⟩ := List.exists_cons_of_ne_nil hb
+      rw [hb0, mf_s_succ, mf_e_succ k (b0 :: rest) k (List.cons_ne_nil _ _)]
+      have h0 := hB2 b0 (by rw [hb0]; simp)
+      have hlast := hB2 ((b0 :: rest).getLast (List.cons_ne_nil _ _)) (by rw [hb0]; exact List.getLast_mem _)
+      simp only [topD, topA, h0, hlast]
+      simp [xor_one_odd]
+    · by_cases hb : B = []
+      ·
+        have hSA : S = A := by rw [hsplit, hb, List.append_nil]
+        rw [frontier_empty (emptyB hb), frontier_eq_mf leaves k (2 * N) A hsA ha hmA, hSA]
+        obtain ⟨a0, rest, ha0⟩ := List.exists_cons_of_ne_nil ha
+        rw [ha0, mf_s_succ, mf_e_succ k (a0 :: rest) k (List.cons_ne_nil _ _)]
+        have h0 := hA2 a0 (by rw [ha0]; simp)
+        have hlast := hA2 ((a0 :: rest).getLast (List.cons_ne_nil _ _)) (by rw [ha0]; exact List.getLast_mem _)
+        simp only [topD, topA, h0, hlast]
+        simp [xor_one_even]
+      ·
+        rw [frontier_eq_mf leaves k (2 * N) A hsA ha hmA, frontier_eq_mf leaves k (2 * N + 1) B hsB hb hmB]
+        have hlca : lcaLevel (A.getLast ha) (B.head hb) = k + 1 := by
+          apply lca_of_div_sib
+          rw [hB2 _ (List.head_mem hb), hA2 _ (List.getLast_mem ha), xor_one_even]
+        conv_rhs => rw [hsplit]
+        obtain ⟨a0, rest, ha0⟩ := List.exists_cons_of_ne_nil ha
+        have h0 := hA2 a0 (by rw [ha0]; simp)
+        have hAB : A ++ B = a0 :: (rest ++ B) := by rw [ha0]; rfl
+        rw [hAB, mf_s_succ, ← hAB, mf_append (k + 1) A B k ha hb, hlca, Nat.add_sub_cancel,
+          mf_e_succ k B k hb]
+        have hlast := hB2 (B.getLast hb) (List.getLast_mem hb)
+        simp only [topD, topA, h0, hlast]
+        simp
+end SigGolfCandidate.T3M.Sign
+end
 
-* `desc_loop` : the descent (`fr_desc`, 296..309) from `LEV = l` emits `descL g l` at `PP`;
-* `asc_loop` : the ascent (`fr_asc`, 311..327) from `LEV = 0` emits `ascR g e` and stops at the level `e`
-  where the next leaf's ancestor is the right sibling (or at 8 for the last leaf);
-* `fr_leaves` : the three leaves (`fr_leaf`, 280..330) emit `mf 7 7 [g0, g1, g2]` — Core's `frontier`.
--/
+section
+
 
 namespace SigGolfCandidate.T3M.Sign
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 open SigGolfCandidate.T3 (Digest)
 open SigGolfCandidate.T3M (lcaLevel heap_eq heap_mod_two two_pow_add_xor_one xor_one_eq div_sib_of_lca
   lca_of_div_sib)
-
-/-! ## Stored digests and heap indices -/
-
-/-- The digest stored at `A` (low doubleword at `A`, high at `A + 8`). -/
 def memDig (t : MachineState) (A : Nat) : Digest := t.getMem (BitVec.ofNat 64 (A + 8)) ++ t.getMem (BitVec.ofNat 64 A)
-
 theorem memDig_toNat (t : MachineState) (A : Nat) :
     (memDig t A).toNat = (t.getMem (BitVec.ofNat 64 (A + 8))).toNat * 2 ^ 64 + (t.getMem (BitVec.ofNat 64 A)).toNat := by
   rw [memDig, BitVec.toNat_append, ← Nat.shiftLeft_add_eq_or_of_lt (t.getMem (BitVec.ofNat 64 A)).isLt,
     Nat.shiftLeft_eq]
-
 theorem memDig_digAt (t : MachineState) (A : Nat) : DigAt t A (memDig t A) := by
   have h1 := (t.getMem (BitVec.ofNat 64 A)).isLt
   have h2 := (t.getMem (BitVec.ofNat 64 (A + 8))).isLt
@@ -39,35 +206,23 @@ theorem memDig_digAt (t : MachineState) (A : Nat) : DigAt t A (memDig t A) := by
   · apply BitVec.eq_of_toNat_eq
     rw [BitVec.extractLsb'_toNat, memDig_toNat, Nat.shiftRight_eq_div_pow]
     omega
-
 theorem memDig_eq {t : MachineState} {A : Nat} {d : Digest} (h : DigAt t A d) : memDig t A = d := by
   apply BitVec.eq_of_toNat_eq
   rw [memDig_toNat, h.1, h.2, BitVec.extractLsb'_toNat, BitVec.extractLsb'_toNat, Nat.shiftRight_zero,
     Nat.shiftRight_eq_div_pow]
   have := d.isLt
   omega
-
 theorem memDig_frame {t u : MachineState} {W : Nat → Prop} (hf : Frame t u W) {A : Nat} (hA : A + 8 < 2 ^ 64)
     (h0 : ¬ W A) (h8 : ¬ W (A + 8)) : memDig u A = memDig t A :=
   memDig_eq ((memDig_digAt t A).frame hf hA h0 h8)
-
-/-- Heap index of node `(ℓ, i)` of a coordinate tree. -/
 def hp (p : Nat × Nat) : Nat := 2 ^ (11 - p.1) + p.2
-
-/-- The digest of node `p` in the heap arena of `t`. -/
 def nodeVal (t : MachineState) (p : Nat × Nat) : Digest := memDig t (FTS + 16 * hp p)
-
-/-- The sibling of the level-`l` ancestor of leaf `g` as a heap index. -/
 theorem hp_sib {g l : Nat} (hl : l ≤ 10) : hp (l, g / 2 ^ l ^^^ 1) = (2048 + g) / 2 ^ l ^^^ 1 := by
   unfold hp
   rw [heap_eq (by omega), two_pow_add_xor_one (by omega)]
-
-/-- `PP` holds the values of `L` (nodes of the arena of `t0`). -/
 def Emitted (t0 u : MachineState) (pp : Nat) (L : List (Nat × Nat)) : Prop :=
   ∀ i < L.length, DigAt u (pp + 16 * i) (nodeVal t0 (L.getD i (0, 0)))
-
 theorem Emitted.nil (t0 u : MachineState) (pp : Nat) : Emitted t0 u pp [] := fun i hi => by simp at hi
-
 theorem Emitted.append {t0 u : MachineState} {pp : Nat} {L M : List (Nat × Nat)}
     (h1 : Emitted t0 u pp L) (h2 : Emitted t0 u (pp + 16 * L.length) M) : Emitted t0 u pp (L ++ M) := by
   intro i hi
@@ -79,21 +234,16 @@ theorem Emitted.append {t0 u : MachineState} {pp : Nat} {L M : List (Nat × Nat)
     rw [List.getD_eq_getElem?_getD, List.getElem?_append_right (by omega), ← List.getD_eq_getElem?_getD]
     rw [show pp + 16 * L.length + 16 * (i - L.length) = pp + 16 * i by omega] at this
     exact this
-
 theorem Emitted.frame {t0 u v : MachineState} {pp : Nat} {L : List (Nat × Nat)} {W : Nat → Prop}
     (h : Emitted t0 u pp L) (hf : Frame u v W) (hA : pp + 16 * L.length < 2 ^ 64)
     (hW : ∀ A, pp ≤ A → A < pp + 16 * L.length → ¬ W A) : Emitted t0 v pp L := fun i hi =>
   (h i hi).frame hf (by omega) (hW _ (by omega) (by omega)) (hW _ (by omega) (by omega))
-
 theorem descL_length_le (g : Nat) : ∀ l, (descL g l).length ≤ l
   | 0 => le_rfl
   | l + 1 => by
     simp only [descL, topD, List.length_append]
     have := descL_length_le g l
     split_ifs <;> simp <;> omega
-
-/-- **The descent** (`fr_desc`, 296..309) from `LEV = l ≤ 10` emits `descL g l` at `PP` and ends at
-`fr_asc_init` (310). -/
 theorem desc_loop (t0 : MachineState) (g : Nat) (hg : g < 2048) :
     ∀ (l : Nat), l ≤ 10 → ∀ (t : MachineState) (pp : Nat),
     t.pc = pcOf 296 → t.getReg .x22 = BitVec.ofNat 64 l → t.getReg .x20 = BitVec.ofNat 64 (2048 + g) →
@@ -120,7 +270,7 @@ theorem desc_loop (t0 : MachineState) (g : Nat) (hg : g < 2048) :
     have h2heap : ∀ A, FTS ≤ A → A < FTS + 65536 → t2.getMem (BitVec.ofNat 64 A) = t0.getMem (BitVec.ofNat 64 A) :=
       fun A h1 h2 => (f02.get (by sgo) (fun h => h)).trans (hheap A h1 h2)
     by_cases hb : (2048 + g) / 2 ^ l % 2 = 0
-    · -- a left child: nothing to emit at this level
+    ·
       rw [if_pos hb] at t2pc
       obtain ⟨u, k, st, hk, upc, u16, uem, ur, uf⟩ := desc_loop t0 g hg l (by omega) t2 pp t2pc t2x22
         (by rw [r02.get (by simp)]; exact h20) (by rw [r02.get (by simp)]; exact h2)
@@ -130,7 +280,7 @@ theorem desc_loop (t0 : MachineState) (g : Nat) (hg : g < 2048) :
       rw [hd]
       exact ⟨u, 1 + (4 + k), st1.trans (st2.trans st), by omega, upc, u16, uem,
         (r02.trans ur).mono (by simp), (f02.trans uf).mono (fun _ _ h => by rcases h with h | h; exact h.elim; exact h)⟩
-    · -- a right child: emit the left sibling
+    ·
       rw [if_neg hb] at t2pc
       have hv : (2048 + g) / 2 ^ l < 4096 := by
         have := Nat.div_le_self (2048 + g) (2 ^ l); omega
@@ -169,30 +319,22 @@ theorem desc_loop (t0 : MachineState) (g : Nat) (hg : g < 2048) :
         · exact h.elim
         · omega
         · omega
-
-/-- Right siblings of the path of `g` at the levels `l .. l + n - 1` (the ascent from level `l`). -/
 def ascFrom (g l : Nat) : Nat → List (Nat × Nat)
   | 0 => []
   | n + 1 => topA g l ++ ascFrom g (l + 1) n
-
 theorem ascFrom_succ_right (g : Nat) : ∀ n l, ascFrom g l (n + 1) = ascFrom g l n ++ topA g (l + n)
   | 0, l => by simp [ascFrom]
   | n + 1, l => by
     rw [ascFrom, ascFrom_succ_right g n (l + 1), ascFrom, List.append_assoc, show l + 1 + n = l + (n + 1) by ring]
-
 theorem ascR_eq_ascFrom (g : Nat) : ∀ e, ascR g e = ascFrom g 0 e
   | 0 => rfl
   | e + 1 => by rw [ascR, ascR_eq_ascFrom g e, ascFrom_succ_right, Nat.zero_add]
-
 theorem ascFrom_length_le (g : Nat) : ∀ n l, (ascFrom g l n).length ≤ n
   | 0, _ => le_rfl
   | n + 1, l => by
     simp only [ascFrom, topA, List.length_append]
     have := ascFrom_length_le g n (l + 1)
     split_ifs <;> simp <;> omega
-
-/-- **The ascent** (`fr_asc`, 311..327) from `LEV = l` to the stop level `e = l + n ≤ 7` (the next leaf's
-ancestor is the right sibling at `e`, or `e = 7`): emits `ascFrom g l n` and ends at `fr_asc_done` (328). -/
 theorem asc_loop (t0 : MachineState) (g nxt e : Nat) (hg : g < 2048) (he : e ≤ 7) (hnxt : nxt < 2 ^ 64)
     (hne : ∀ l' < e, (2048 + g) / 2 ^ l' % 2 = 0 → nxt / 2 ^ l' ≠ (2048 + g) / 2 ^ l' ^^^ 1)
     (hend : e = 7 ∨ ((2048 + g) / 2 ^ e % 2 = 0 ∧ nxt / 2 ^ e = (2048 + g) / 2 ^ e ^^^ 1)) :
@@ -243,7 +385,7 @@ theorem asc_loop (t0 : MachineState) (g nxt e : Nat) (hg : g < 2048) (he : e ≤
     have r02 : RegsExcept t t2 [.x6, .x7] := (t1r.trans t2r).mono (by simp)
     have f02 : Frame t t2 (fun _ => False) := (t1f.trans t2f).mono (fun _ _ h => by simp_all)
     by_cases hb : (2048 + g) / 2 ^ l % 2 = 1
-    · -- a right child: nothing to emit, LEV += 1
+    ·
       rw [if_pos hb] at t2pc
       obtain ⟨t3, st3, t3pc, t3x22, t3r, t3f⟩ := blk326_spec t2 t2pc l
         (by rw [r02.get (by simp)]; exact h22)
@@ -259,7 +401,7 @@ theorem asc_loop (t0 : MachineState) (g nxt e : Nat) (hg : g < 2048) (he : e ≤
       exact ⟨u, 2 + (3 + (2 + k)), st1.trans (st2.trans (st3.trans st)), by omega, upc, u22, u16, uem,
         ((r02.trans t3r).trans ur).mono (by simp),
         ((f02.trans t3f).trans uf).mono (fun _ _ h => by rcases h with (h | h) | h <;> simp_all)⟩
-    · -- a left child below the stop level: emit the right sibling
+    ·
       rw [if_neg hb] at t2pc
       have hb0 : (2048 + g) / 2 ^ l % 2 = 0 := by omega
       have hv : (2048 + g) / 2 ^ l < 4096 := by have := Nat.div_le_self (2048 + g) (2 ^ l); omega
@@ -315,10 +457,6 @@ theorem asc_loop (t0 : MachineState) (g nxt e : Nat) (hg : g < 2048) (he : e ≤
         · exact h.elim
         · omega
         · omega
-
-/-- **One leaf of the walk** (`fr_leaf`, 280..330): leaf `g` (row entry `j`), next leaf ancestor test value
-`nxt`, descent from `DSTART = s`, ascent stopping at `e`; emits `descL g s ++ ascR g e`, sets `DSTART = e`,
-`J = j + 1`. -/
 theorem fr_leaf_step (t0 : MachineState) (j g nxt s e rowp pp : Nat) (hj : j < 3) (hg : g < 2048)
     (hs : s ≤ 7) (he : e ≤ 7) (hnxt : nxt < 2 ^ 64)
     (hne : ∀ l' < e, (2048 + g) / 2 ^ l' % 2 = 0 → nxt / 2 ^ l' ≠ (2048 + g) / 2 ^ l' ^^^ 1)
@@ -345,7 +483,6 @@ theorem fr_leaf_step (t0 : MachineState) (j g nxt s e rowp pp : Nat) (hj : j < 3
     (by rw [t1f.get (by omega) (fun h => h)]; exact hg0)
   have f02 : Frame t t2 (fun _ => False) := (t1f.trans t2f).mono (fun _ _ h => by simp_all)
   have r02 : RegsExcept t t2 [.x6, .x7, .x20, .x21] := (t1r.trans t2r).mono (by simp)
-  -- the next-leaf value: at `fr_nonext` (295) with `NXT = nxt`
   obtain ⟨t3, k3, st3, hk3, t3pc, t3x21, t3r, t3f⟩ : ∃ t3 k3, Steps image t2 k3 k3 t3 ∧ k3 ≤ 4 ∧
       t3.pc = pcOf 295 ∧ t3.getReg .x21 = BitVec.ofNat 64 nxt ∧ RegsExcept t2 t3 [.x7, .x21] ∧
       Frame t2 t3 (fun _ => False) := by
@@ -364,7 +501,6 @@ theorem fr_leaf_step (t0 : MachineState) (j g nxt s e rowp pp : Nat) (hj : j < 3
     fun A h1 h2 => (f04.get (by sgo) (fun h => h)).trans (hheap A h1 h2)
   have h4x20 : t4.getReg .x20 = BitVec.ofNat 64 (2048 + g) := by
     rw [t4r.get (by simp), t3r.get (by simp)]; exact t2x20
-  -- the descent
   obtain ⟨t5, k5, st5, hk5, t5pc, t5x16, t5em, t5r, t5f⟩ := desc_loop t0 g hg s (by omega) t4 pp t4pc
     (by rw [t4x22, t3r.get (by simp), r02.get (by simp)]; exact h23) h4x20
     (by rw [r04.get (by simp)]; exact h2) (by rw [r04.get (by simp)]; exact h16) hpp8 (by omega) h4heap
@@ -373,7 +509,6 @@ theorem fr_leaf_step (t0 : MachineState) (j g nxt s e rowp pp : Nat) (hj : j < 3
   have h6heap : ∀ A, FTS ≤ A → A < FTS + 65536 → t6.getMem (BitVec.ofNat 64 A) = t0.getMem (BitVec.ofNat 64 A) :=
     fun A h1 h2 => ((t5f.trans t6f).get (by sgo) (fun h => by rcases h with h | h; sgo; exact h.elim)).trans
       (h4heap A h1 h2)
-  -- the ascent
   obtain ⟨t7, k7, st7, hk7, t7pc, t7x22, t7x16, t7em, t7r, t7f⟩ := asc_loop t0 g nxt e hg he hnxt hne hend e 0
     (by omega) t6 (pp + 16 * (descL g s).length) t6pc t6x22
     (by rw [t6r.get (by simp), t5r.get (by simp)]; exact h4x20)
@@ -402,10 +537,7 @@ theorem fr_leaf_step (t0 : MachineState) (j g nxt s e rowp pp : Nat) (hj : j < 3
     · exact h.elim
     · omega
     · exact h.elim
-
 open SigGolfCandidate.T3M (heap_sib_inv heap_sib lcaLevel_pos div_eq_iff_lca) in
-/-- The stop test of the ascent of `g` with next leaf `g' > g` (LCA level `d ≤ 7`): the walk stops exactly at
-level `d - 1`. -/
 theorem stop_facts {g g' : Nat} (hg : g < 2048) (hg' : g' < 2048) (hlt : g < g') (hd : lcaLevel g g' ≤ 7) :
     (∀ l' < lcaLevel g g' - 1, (2048 + g) / 2 ^ l' % 2 = 0 →
       (2048 + g') / 2 ^ l' ≠ (2048 + g) / 2 ^ l' ^^^ 1) ∧
@@ -430,8 +562,6 @@ theorem stop_facts {g g' : Nat} (hg : g < 2048) (hg' : g' < 2048) (hlt : g < g')
     rw [hs] at hmono
     omega
   · exact (heap_sib (show g ≠ g' by omega) (by omega) hle).symm
-
-/-- The last leaf's ascent never stops before level 8 (`NXT = 0`). -/
 theorem stop_last {g : Nat} (hg : g < 2048) :
     ∀ l' < 7, (2048 + g) / 2 ^ l' % 2 = 0 → 0 / 2 ^ l' ≠ (2048 + g) / 2 ^ l' ^^^ 1 := by
   intro l' hl' _ h
@@ -444,9 +574,6 @@ theorem stop_last {g : Nat} (hg : g < 2048) :
   have hx := xor_one_eq ((2048 + g) / 2 ^ l')
   rw [Nat.zero_div] at h
   omega
-
-/-- **The multiproof walk of one coordinate** (`fts_sec_done` .. `fr_done`, words 278..330): for the sorted
-row `g0 < g1 < g2` (LCA levels ≤ 7) the machine emits `mf 7 7 [g0, g1, g2]` at `PP`. -/
 theorem fr_three (t0 t : MachineState) (g0 g1 g2 rowp pp : Nat) (hg2 : g2 < 2048) (h01 : g0 < g1) (h12 : g1 < g2)
     (hl01 : lcaLevel g0 g1 ≤ 7) (hl12 : lcaLevel g1 g2 ≤ 7)
     (hrow : rowp + 32 ≤ 2 ^ 24) (hrow8 : rowp % 8 = 0)
@@ -472,7 +599,6 @@ theorem fr_three (t0 t : MachineState) (g0 g1 g2 rowp pp : Nat) (hg2 : g2 < 2048
     fun A h1 h2' => (t1f.get (by sgo) (fun h => h)).trans (hheap A h1 h2')
   obtain ⟨s01, s01e⟩ := stop_facts (by omega) (by omega) h01 hl01
   obtain ⟨s12, s12e⟩ := stop_facts (by omega) (by omega) h12 hl12
-  -- leaf 0
   obtain ⟨u0, k0, st0, hk0, u0pc, u0x19, u0x23, u0x20, u0x16, u0em, u0len, u0r, u0f⟩ :=
     fr_leaf_step t0 0 g0 (2048 + g1) 7 e0 rowp pp (by norm_num) (by omega) le_rfl (by omega) (by omega)
       s01 (Or.inr s01e) (by omega) hrow8 t1 t1pc t1x19 t1x23 (by rw [t1r.get (by simp)]; exact h25)
@@ -485,7 +611,6 @@ theorem fr_three (t0 t : MachineState) (g0 g1 g2 rowp pp : Nat) (hg2 : g2 < 2048
     fun A h1 h2' => (u0f.get (by omega) (by omega)).trans (t1f.get (by omega) (fun h => h))
   have hu0heap : ∀ A, FTS ≤ A → A < FTS + 65536 → u0.getMem (BitVec.ofNat 64 A) = t0.getMem (BitVec.ofNat 64 A) :=
     fun A h1 h2' => (u0f.get (by sgo) (by sgo)).trans (hheap0 A h1 h2')
-  -- leaf 1
   obtain ⟨u1, k1, st1', hk1, u1pc, u1x19, u1x23, u1x20, u1x16, u1em, u1len, u1r, u1f⟩ :=
     fr_leaf_step t0 1 g1 (2048 + g2) e0 e1 rowp (pp + 16 * L0.length) (by norm_num) (by omega) (by omega)
       (by omega) (by omega) s12 (Or.inr s12e) (by omega) hrow8 u0 u0pc u0x19 u0x23
@@ -499,7 +624,6 @@ theorem fr_three (t0 t : MachineState) (g0 g1 g2 rowp pp : Nat) (hg2 : g2 < 2048
     fun A h1 h2' => (u1f.get (by omega) (by omega)).trans (hu0row A h1 h2')
   have hu1heap : ∀ A, FTS ≤ A → A < FTS + 65536 → u1.getMem (BitVec.ofNat 64 A) = t0.getMem (BitVec.ofNat 64 A) :=
     fun A h1 h2' => (u1f.get (by sgo) (by sgo)).trans (hu0heap A h1 h2')
-  -- leaf 2
   obtain ⟨u2, k2, st2', hk2, u2pc, u2x19, u2x23, u2x20, u2x16, u2em, u2len, u2r, u2f⟩ :=
     fr_leaf_step t0 2 g2 0 e1 7 rowp (pp + 16 * L0.length + 16 * L1.length) (by norm_num) hg2 (by omega)
       le_rfl (by norm_num) (stop_last hg2) (Or.inl rfl) (by omega) hrow8 u1 u1pc u1x19 u1x23
@@ -533,5 +657,5 @@ theorem fr_three (t0 t : MachineState) (g0 g1 g2 rowp pp : Nat) (hg2 : g2 < 2048
     · omega
     · omega
     · exact h.elim
-
 end SigGolfCandidate.T3M.Sign
+end

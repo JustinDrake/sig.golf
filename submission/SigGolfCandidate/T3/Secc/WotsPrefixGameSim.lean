@@ -3,29 +3,6 @@ import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainErasure
 import SigGolfCandidate.SphincsSecurity.Proof.Ots.OtsPrefixObservedRun
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainCheckpoint
 
-/-!
-# Stream C (simulation): R3 as a per-address generic chain computation
-
-For a source chain `a` and a rest `R` (R3's tables), `seedGame adversary q a R endpoint` is R3's recorded capped
-game with
-* `a`'s canonical prefix rows (steps `< restDepth a R`) routed to the generic `PrefixSpec` (the low half; the high
-  half is read from `R`), coins forwarded to `unifSpec`, every other hash query answered from `R`, ticks trivial
-  (`PrefixGame.routeImpl`);
-* honest key generation and signing evaluated offline on `PrefixGame.fillTable a R endpoint` (the rest with `a`'s
-  hidden part replaced by a constant chain with frontier value `endpoint`).
-
-Main facts:
-* `PrefixGame.referenceGame_fill`: for every overwrite `x` of `a`'s hidden part, R3's source program on the
-  overwritten table equals the one on `fillTable a R (evaluate x.1 x.2)` (F1: `referenceGame_maskAt`,
-  `maskAt_congr`);
-* `PrefixGame.fixed_seedGame`: answering `seedGame`'s prefix queries by the tables `x.1` is R3's `offlineRun` on the
-  overwritten table;
-* `PrefixGame.observed_rows`: the generic observed table of a run is exactly `a`'s prefix rows among the recorded
-  queries (with the tables' values);
-* `seedGame_charge` / `seedGame_real_cost`: the generic `hcharge` / `hreal` hypotheses with `cost := seedCost`
-  (number of `a`'s prefix-row queries recorded) and `budget := q`.
--/
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -37,24 +14,13 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 set_option linter.constructorNameAsVariable false
 attribute [local instance low] Classical.propDecidable
--- `referenceGame T` must never be unfolded by `whnf` (it evaluates honest key generation symbolically)
 attribute [local irreducible] referenceGame offlineGame
-
 noncomputable local instance instFintypeCoordinate_wotsPrefixGameSim : Fintype Coordinate := coordinateFintype
 open Mask
-
-/-- The recorded result of R3's capped game (`offlineRun`'s result type). -/
 abbrev SeedResult := Option (Bool × Nat) × List RefWorld.Domain
-
 namespace PrefixGame
-
 variable {adversary : AdversaryP}
-
-/-- The per-address oracle world: coins and `a`'s prefix rows. -/
 abbrev SeedSpec (d : Nat) := unifSpec + PrefixSpec d Digest
-
-/-- Route R3's queries: coins to `unifSpec`, `a`'s prefix rows (steps `< d`) to `PrefixSpec` (high half from `R`),
-other hash queries answered from `R`, ticks trivial. -/
 noncomputable def routeImpl (a : ChainAddr) (d : Nat) (R : RefTables adversary) :
     QueryImpl RefWorld (OracleComp (SeedSpec d))
   | .inl (.inl n) => liftM ((SeedSpec d).query (.inl n))
@@ -64,29 +30,20 @@ noncomputable def routeImpl (a : ChainAddr) (d : Nat) (R : RefTables adversary) 
           liftM ((SeedSpec d).query (.inr p))
       | none => pure (restTable R (.inl (.inr input)))
   | .inr _ => pure ()
-
-/-- The table on which `seedGame` evaluates the honest programs: the rest with `a`'s hidden part replaced by the
-constant tables `endpoint` (frontier value `endpoint`). -/
 noncomputable def fillTable (a : ChainAddr) (R : RefTables adversary) (endpoint : Digest) : Answers :=
   restTable (ov a (restDepth a R) R (fun _ _ => endpoint, endpoint))
-
-/-- The constant chain evaluates to its constant. -/
 theorem evaluate_const : ∀ (n : Nat) (value : Digest),
     evaluate (fun (_ : Fin n) (_ : Digest) => value) value = value
   | 0, _ => rfl
   | n + 1, value => by
       simp only [evaluate]
       exact evaluate_const n value
-
 theorem prefixStep_none {T : Answers} {a : ChainAddr} {input : HashInput} (h : prefixStep T a input = none) :
     ¬∃ step value, step < depth T a ∧ input = chainRow a step value := by
   unfold prefixStep at h
   split at h
   · cases h
   · assumption
-
-/-- **The mask of an overwrite is the mask of `fillTable`** with the same frontier value: every honest object
-(except `a`'s own hidden part) is a function of the rest and the frontier value. -/
 theorem maskAt_ov_fill (a : ChainAddr) (R : RefTables adversary) (x : Hidden (restDepth a R)) :
     maskAt (restTable (ov a (restDepth a R) R x)) a = maskAt (fillTable a R (evaluate x.1 x.2)) a := by
   have hd : restDepth a R ≤ 256 := by have := restDepth_le a R; omega
@@ -116,31 +73,19 @@ theorem maskAt_ov_fill (a : ChainAddr) (R : RefTables adversary) (x : Hidden (re
     unfold fillTable
     rw [frontierValue_ov]
     exact (evaluate_const _ e).symm
-
-/-- **Honest invariance.** On an overwrite of `a`'s hidden part, R3's source program equals the one on
-`fillTable` with the same frontier value (source-sized `a`). -/
 theorem referenceGame_fill (a : ChainAddr) (htree : a.key.tree < 2 ^ 40) (hleaf : a.key.leaf < 2 ^ 32)
     (R : RefTables adversary) (x : Hidden (restDepth a R)) (q : Nat) :
     referenceGame (restTable (ov a (restDepth a R) R x)) adversary q =
       referenceGame (fillTable a R (evaluate x.1 x.2)) adversary q := by
   rw [← referenceGame_maskAt _ a htree hleaf, maskAt_ov_fill a R x, referenceGame_maskAt _ a htree hleaf]
-
 end PrefixGame
-
 open PrefixGame in
-/-- **The per-address computation of R3** (BP-A Appendix B): R3's recorded capped game with `a`'s prefix rows
-routed to `PrefixSpec` and honest outputs evaluated on `fillTable a R endpoint`. -/
 noncomputable def seedGame (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (R : RefTables adversary)
     (endpoint : Digest) : OracleComp (SeedSpec (restDepth a R)) SeedResult :=
   simulateQ (routeImpl a (restDepth a R) R)
     (SphincsSecurity.QueryCap.recorded (referenceGame (fillTable a R endpoint) adversary q))
-
 namespace PrefixGame
-
 variable {adversary : AdversaryP}
-
-/-- The two ways of answering an R3 query on an overwritten table agree: route then answer the prefix queries by the
-overwritten tables, or answer directly from the overwritten table. -/
 theorem fixed_route (a : ChainAddr) {d : Nat} (hd : d ≤ 256) (R : RefTables adversary) (x : Hidden d) :
     ((fixedImpl SphincsSecurity.Concrete.OtsPrefix.uniformImpl x.1) ∘ₛ routeImpl a d R) =
       (SphincsSecurity.Concrete.OtsPrefix.uniformImpl ∘ₛ refImpl (restTable (ov a d R x))) := by
@@ -159,10 +104,6 @@ theorem fixed_route (a : ChainAddr) {d : Nat} (hd : d ≤ 256) (R : RefTables ad
         simp only [fixedImpl, QueryImpl.add_apply_inr]
         rw [hin, restTable_ov_prefix a hd R x p.1 p.2, ← PMF.monad_pure_eq_pure, map_pure]
   · simp only [QueryImpl.apply_compose, routeImpl, refImpl, simulateQ_pure]
-
-
-/-- **Answering `seedGame`'s prefix queries by the tables of an overwrite is R3's offline run on the overwritten
-table** (source-sized `a`). -/
 theorem fixed_seedGame (q : Nat) (a : ChainAddr) (htree : a.key.tree < 2 ^ 40) (hleaf : a.key.leaf < 2 ^ 32)
     (R : RefTables adversary) (x : Hidden (restDepth a R)) :
     simulateQ (fixedImpl SphincsSecurity.Concrete.OtsPrefix.uniformImpl x.1) (seedGame adversary q a R (evaluate x.1 x.2)) =
@@ -172,13 +113,8 @@ theorem fixed_seedGame (q : Nat) (a : ChainAddr) (htree : a.key.tree < 2 ^ 40) (
   rw [← QueryImpl.simulateQ_compose, fixed_route a hd R x, ← referenceGame_fill a htree hleaf R x q,
     QueryImpl.simulateQ_compose]
   rfl
-
-/-! ## The observed table and the counted cost of a routed recorded run -/
-
-/-- `a`'s prefix rows (steps `< d`) as R3 queries. -/
 def PrefixQuery (a : ChainAddr) (d : Nat) (query : RefWorld.Domain) : Prop :=
   ∃ (i : Fin d) (v : Digest), query = .inl (.inr (chainRow a i v))
-
 theorem observedRun_bind {d : Nat} {α β : Type} (tables : Fin d → Digest → Digest)
     (first : OracleComp (SeedSpec d) α) (next : α → OracleComp (SeedSpec d) β)
     (observed : Fin d → Digest → Option Digest) :
@@ -186,8 +122,6 @@ theorem observedRun_bind {d : Nat} {α β : Type} (tables : Fin d → Digest →
       (observedRun SphincsSecurity.Concrete.OtsPrefix.uniformImpl tables first observed).bind fun r =>
         observedRun SphincsSecurity.Concrete.OtsPrefix.uniformImpl tables (next r.1) r.2 := by
   simp only [observedRun, simulateQ_bind, StateT.run_bind, PMF.monad_bind_eq_bind]
-
-/-- One routed query records at most its own prefix row. -/
 theorem route_step_observed (a : ChainAddr) {d : Nat} (hd : d ≤ 256) (R : RefTables adversary)
     (tables : Fin d → Digest → Digest) (input : RefWorld.Domain) (observed : Fin d → Digest → Option Digest)
     (result : RefWorld.Range input × (Fin d → Digest → Option Digest))
@@ -238,8 +172,6 @@ theorem route_step_observed (a : ChainAddr) {d : Nat} (hd : d ≤ 256) (R : RefT
       PMF.mem_support_pure_iff] at hr
     subst hr
     simp
-
-/-- **The observed table of a routed recorded run is `a`'s prefix rows among the recorded queries.** -/
 theorem observed_rows (a : ChainAddr) {d : Nat} (hd : d ≤ 256) (R : RefTables adversary)
     (tables : Fin d → Digest → Digest) {β : Type} (computation : OracleComp RefWorld β) :
     ∀ (observed : Fin d → Digest → Option Digest) (result : (β × List RefWorld.Domain) × (Fin d → Digest → Option Digest)),
@@ -275,9 +207,6 @@ theorem observed_rows (a : ChainAddr) {d : Nat} (hd : d ≤ 256) (R : RefTables 
         · simp only [h2, if_true]
         · simp only [h2, if_false]
           rw [if_neg (fun he => h2 he.symm)]
-
-
-/-- One routed query counts one prefix query exactly when it is a prefix row of `a`. -/
 theorem route_step_count (a : ChainAddr) {d : Nat} (R : RefTables adversary) (input : RefWorld.Domain)
     (first : RefWorld.Range input × Nat)
     (hfirst : first ∈ support (SphincsSecurity.QueryCap.counted IsPrefixQuery (routeImpl a d R input))) :
@@ -310,8 +239,6 @@ theorem route_step_count (a : ChainAddr) {d : Nat} (R : RefTables adversary) (in
     rw [if_neg]
     rintro ⟨i, v, he⟩
     cases he
-
-/-- **The counted prefix queries of a routed recorded run are `a`'s prefix rows in its recorded list.** -/
 theorem counted_rows (a : ChainAddr) {d : Nat} (R : RefTables adversary) {β : Type}
     (computation : OracleComp RefWorld β) :
     ∀ result ∈ support (SphincsSecurity.QueryCap.counted IsPrefixQuery
@@ -340,11 +267,8 @@ theorem counted_rows (a : ChainAddr) {d : Nat} (R : RefTables adversary) {β : T
       have hstep := route_step_count a R input first hfirst
       have htl := ih first.1 tail htail
       simp only [SphincsSecurity.QueryCap.calls_cons, hstep, htl, Nat.add_zero]
-
 end PrefixGame
-
 namespace PrefixGame
-
 theorem lazyRun_mem_support {d : Nat} {β : Type} (computation : OracleComp (SeedSpec d) β) :
     ∀ (observed : Fin d → Digest → Option Digest) (result : β × (Fin d → Digest → Option Digest)),
       result ∈ (lazyRun SphincsSecurity.Concrete.OtsPrefix.uniformImpl computation observed).support →
@@ -370,17 +294,12 @@ theorem lazyRun_mem_support {d : Nat} {β : Type} (computation : OracleComp (See
             PMF.mem_support_bind_iff] at hr
           obtain ⟨answer, _, hr⟩ := hr
           exact ⟨answer, by simp only [support_query, Set.mem_univ], ih answer _ result hr⟩
-
 end PrefixGame
-
 open PrefixGame in
-/-- **The generic cost**: the number of `a`'s prefix-row queries in the recorded list. -/
 noncomputable def seedCost {adversary : AdversaryP} (a : ChainAddr) (R : RefTables adversary) (result : SeedResult) :
     Nat :=
   SphincsSecurity.QueryCap.calls (PrefixQuery a (restDepth a R)) result.2
-
 open PrefixGame in
-/-- **`hcharge`** (with equality): the counted prefix queries of `seedGame` are `seedCost` of its result. -/
 theorem seedGame_charge (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (R : RefTables adversary)
     (endpoint : Digest) (result : SeedResult × Nat)
     (h : result ∈ support (SphincsSecurity.QueryCap.counted IsPrefixQuery (seedGame adversary q a R endpoint))) :
@@ -388,15 +307,11 @@ theorem seedGame_charge (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (R : 
   unfold seedGame at h
   revert h
   exact counted_rows (d := restDepth a R) a R (referenceGame (fillTable a R endpoint) adversary q) result
-
-/-- R3's capped game makes at most `q` charged queries. -/
 theorem referenceGame_queryBound (T : Answers) (adversary : AdversaryP) (q : Nat) :
     (referenceGame T adversary q).IsQueryBoundP RefCharged q := by
   unfold referenceGame
   exact SphincsSecurity.QueryCap.run_queryBound RefCharged (offlineGame T adversary) q
-
 open PrefixGame in
-/-- **`hreal`**: on the generic real run, `seedCost ≤ q` (R3's cap counts every hash query). -/
 theorem seedGame_real_cost (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (R : RefTables adversary)
     (result : Digest × (SeedResult × (Fin (restDepth a R) → Digest → Option Digest)))
     (h : result ∈ (realRun (fun _ => SphincsSecurity.Concrete.OtsPrefix.uniformImpl) (seedGame adversary q a R)
@@ -427,5 +342,4 @@ theorem seedGame_real_cost (adversary : AdversaryP) (q : Nat) (a : ChainAddr) (R
   simp only [decide_eq_true_eq] at hq ⊢
   obtain ⟨i, v, rfl⟩ := hq
   trivial
-
 end SigGolfCandidate.T3.Security.Wots

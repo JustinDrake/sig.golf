@@ -1,15 +1,5 @@
 import SigGolfCandidate.T3.Secc.WotsTwoEdge
 
-/-!
-# Stream C: contacts on R3 (rate `2/(1−x)` per prefix query)
-
-* `contactAt_cost_le` (per address, G2 + G3 through the mixture identity):
-  `(1 − x) · Pr_R3[ContactAt a] ≤ (2/2^128) · E_R3[prefixCount a]`.
-* `contactCount s` = number of source chains with a contact in the trace; `expected_contactCount`:
-  `E[contactCount] = ∑_{a ∈ sourceChains} Pr[ContactAt a]`.
-* **`reference_contacts_cost_le`**: `E_R3[contactCount] ≤ (2/2^128) · E_R3[P] / (1 − x)`.
--/
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -22,8 +12,6 @@ set_option backward.isDefEq.respectTransparency false
 set_option linter.constructorNameAsVariable false
 attribute [local instance low] Classical.propDecidable
 attribute [local irreducible] referenceGame offlineGame
-
-/-- **Per-address contact bound** (G2 + G3): `(1 − x) · Pr_R3[ContactAt a] ≤ (2/2^128) · E_R3[prefixCount a]`. -/
 theorem contactAt_cost_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 128) (a : ChainAddr)
     (ha : WotsExtract.SourceChain a) :
     (1 - (q : ENNReal) / 2 ^ 128) *
@@ -60,12 +48,8 @@ theorem contactAt_cost_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 128) 
     _ ≤ (2 / 2 ^ 128) * ∑' r, realRun (fun _ => SphincsSecurity.Concrete.OtsPrefix.uniformImpl)
           (seedGame adversary q a R) (fun _ _ => none) r * (seedCost a R r.2.1 : ENNReal) :=
         mul_le_mul' le_rfl (h3.trans (counted_le_cost adversary q a R))
-
-/-- The number of source chains with a contact in the trace. -/
 noncomputable def contactCount (s : RefSample) : Nat :=
   (sourceChains.filter fun a => ContactAt s.answers s.trace a).card
-
-/-- The expected number of contacted source chains is the sum of the per-address contact probabilities. -/
 theorem expected_contactCount (adversary : AdversaryP) (q : Nat) :
     ∑' s, referenceExperiment adversary q s * (contactCount s : ENNReal) =
       ∑ a ∈ sourceChains, Pr[fun s => ContactAt s.answers s.trace a | referenceExperiment adversary q] := by
@@ -80,8 +64,6 @@ theorem expected_contactCount (adversary : AdversaryP) (q : Nat) :
   by_cases h : ContactAt s.answers s.trace a
   · rw [if_pos h, if_pos h, Nat.cast_one, mul_one]
   · rw [if_neg h, if_neg h, Nat.cast_zero, mul_zero]
-
-/-- **Expected contacts** (G2 + G3 + allocation): `E[contactCount] ≤ (2/2^128) · E[P] / (1 − x)`. -/
 theorem reference_contacts_cost_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 128) :
     ∑' s, referenceExperiment adversary q s * (contactCount s : ENNReal) ≤
       (2 / 2 ^ 128) * (∑' s, referenceExperiment adversary q s * (prefixClassCount s : ENNReal)) /
@@ -117,5 +99,4 @@ theorem reference_contacts_cost_le (adversary : AdversaryP) (q : Nat) (hq : q < 
         intro s
         apply mul_le_mul' le_rfl
         exact_mod_cast prefixCount_sum_le s
-
 end SigGolfCandidate.T3.Security.Wots

@@ -1,28 +1,16 @@
 import SigGolfCandidate.Rv.Expr
 
-/-!
-# Micro-operations
-
-Every supported organizer `Instruction` is classified into one of six micro-operation shapes
-(`Micro`). `classify_sound` proves that `ordinaryStep` agrees with the (much smaller) concrete
-micro-semantics `Micro.exec`. The symbolic executor only has to be proven sound for `Micro`.
--/
-
 namespace SigGolfCandidate.Rv
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64
-
-/-- ALU operand. -/
 inductive Src where
   | reg (r : Reg)
   | imm (v : Word)
   | pc
   deriving Repr
-
 def Src.eval (s : MachineState) : Src → Word
   | .reg r => s.getReg r
   | .imm v => v
   | .pc => s.pc
-
 inductive Micro where
   | alu (rd : Reg) (op : BinOp) (a b : Src)
   | load (k : LoadKind) (rd rs : Reg) (off : Word)
@@ -31,7 +19,6 @@ inductive Micro where
   | jal (rd : Reg) (off : Word)
   | jalr (rd rs : Reg) (off : Word)
   deriving Repr
-
 def LoadKind.read (s : MachineState) (addr : Word) : LoadKind → Word
   | .d => s.getMem addr
   | .w => (s.getWord32 addr).signExtend 64
@@ -40,23 +27,18 @@ def LoadKind.read (s : MachineState) (addr : Word) : LoadKind → Word
   | .hu => (s.getHalfword addr).zeroExtend 64
   | .b => (s.getByte addr).signExtend 64
   | .bu => (s.getByte addr).zeroExtend 64
-
 def StoreKind.write (s : MachineState) (addr v : Word) : StoreKind → MachineState
   | .d => s.setMem addr v
   | .w => s.setWord32 addr (v.truncate 32)
   | .h => s.setHalfword addr (v.truncate 16)
   | .b => s.setByte addr (v.truncate 8)
-
 theorem LoadKind.read_sub (s : MachineState) (addr : Word) (k : LoadKind) (hk : k ≠ .d) :
     k.read s addr = k.fromWord (s.getMem (alignToDword addr)) (byteOffset addr) := by
   cases k <;> first | exact absurd rfl hk | rfl
-
 theorem StoreKind.write_sub (s : MachineState) (addr v : Word) (k : StoreKind) (hk : k ≠ .d) :
     k.write s addr v =
       s.setMem (alignToDword addr) (k.merge (s.getMem (alignToDword addr)) (byteOffset addr) v) := by
   cases k <;> first | exact absurd rfl hk | rfl
-
-/-- Concrete semantics of micro-operations. -/
 def Micro.exec (s : MachineState) : Micro → Option MachineState
   | .alu rd op a b => some ((s.setReg rd (op.eval (a.eval s) (b.eval s))).setPC (s.pc + 4))
   | .load k rd rs off =>
@@ -71,10 +53,7 @@ def Micro.exec (s : MachineState) : Micro → Option MachineState
     some (s.setPC (if op.eval (s.getReg rs1) (s.getReg rs2) then s.pc + off else s.pc + 4))
   | .jal rd off => some ((s.setReg rd (s.pc + 4)).setPC (s.pc + off))
   | .jalr rd rs off => some ((s.setReg rd (s.pc + 4)).setPC ((s.getReg rs + off) &&& ~~~1#64))
-
 def luiVal (imm : BitVec 20) : Word := ((imm.zeroExtend 32 : BitVec 32) <<< 12).signExtend 64
-
-/-- Classify an organizer instruction. `none` = unsupported (or `ECALL`/`EBREAK`/...). -/
 def classify : Instruction → Option Micro
   | .base i =>
     match i with
@@ -135,31 +114,24 @@ def classify : Instruction → Option Micro
     | _ => none
   | .word op rd a b => some (.alu rd (.w op) (.reg a) (.reg b))
   | .sraiw rd a sh => some (.alu rd (.w .sra) (.reg a) (.imm (sh.zeroExtend 64)))
-
 private theorem toNat_zext6 (sh : BitVec 6) : (sh.zeroExtend 64).toNat % 64 = sh.toNat := by
   simp only [BitVec.truncate_eq_setWidth, BitVec.toNat_setWidth]
   have := sh.isLt
   omega
-
 private theorem toNat_trunc_zext5 (sh : BitVec 5) :
     ((sh.zeroExtend 64).truncate 32).toNat % 32 = sh.toNat := by
   simp only [BitVec.truncate_eq_setWidth, BitVec.toNat_setWidth]
   have := sh.isLt
   omega
-
 private theorem toNat_trunc32 (x : Word) : (x.truncate 32).toNat % 32 = x.toNat % 32 := by
   simp only [BitVec.truncate_eq_setWidth, BitVec.toNat_setWidth]
   omega
-
 private theorem toNat_mod32 (sh : BitVec 5) : sh.toNat % 32 = sh.toNat := by
   have := sh.isLt; omega
-
 private theorem setPC_ite (s : MachineState) (c : Prop) [Decidable c] (a b : Word) :
     (if c then s.setPC a else s.setPC b) = s.setPC (if c then a else b) := by
   split <;> rfl
-
 set_option maxHeartbeats 1000000 in
-/-- `ordinaryStep` agrees with the micro-semantics on every classified instruction. -/
 theorem classify_sound {i : Instruction} {m : Micro} (h : classify i = some m) (s : MachineState) :
     ordinaryStep s i = m.exec s := by
   cases i with
@@ -179,5 +151,4 @@ theorem classify_sound {i : Instruction} {m : Micro} (h : classify i = some m) (
   | sraiw rd a sh =>
     simp only [classify, Option.some.injEq] at h; subst h
     simp only [ordinaryStep, Micro.exec, Src.eval, BinOp.eval, wordResult, toNat_trunc_zext5]
-
 end SigGolfCandidate.Rv

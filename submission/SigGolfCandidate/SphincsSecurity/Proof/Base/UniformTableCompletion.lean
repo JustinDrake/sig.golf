@@ -1,30 +1,123 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
-import SigGolfCandidate.SphincsSecurity.Proof.Fts.PairedHiddenMiss
-import SigGolfCandidate.SphincsSecurity.Proof.Base.UniformTableDisclosure
-namespace SphincsSecurity.Concrete.UniformTableCompletion
+import SigGolfCandidate.SphincsSecurity.Proof.Base.UniformTableRestriction
 
+section
+
+namespace SphincsSecurity.Concrete
 open _root_.OracleComp ENNReal
 attribute [local instance] Classical.propDecidable
 set_option backward.isDefEq.respectTransparency false
+variable {ι α : Type} [Fintype ι] [DecidableEq ι] [DecidableEq α]
+def eraseTableValue (allowed : ι → Finset α) (coordinate : ι) (candidate : α) : ι → Finset α :=
+  Function.update allowed coordinate ((allowed coordinate).erase candidate)
+def pairedMissAllowed (allowed : ι → Finset α) (child : ι) (candidate : α) (parent : ι) (answer : α) :
+    ι → Finset α := eraseTableValue (eraseTableValue allowed child candidate) parent answer
+omit [Fintype ι] in
+theorem pairedMissAllowed_membership (allowed : ι → Finset α) (child parent : ι) (hne : child ≠ parent)
+    (candidate answer : α) (table : ι → α) :
+    (∀ coordinate, table coordinate ∈ pairedMissAllowed allowed child candidate parent answer coordinate) ↔
+      (∀ coordinate, table coordinate ∈ allowed coordinate) ∧ table child ≠ candidate ∧ table parent ≠ answer := by
+  constructor
+  · intro h
+    have hchild := h child
+    have hparent := h parent
+    simp only [pairedMissAllowed, eraseTableValue, Function.update_of_ne hne, Function.update_self,
+      Function.update_of_ne hne.symm, Finset.mem_erase] at hchild hparent
+    refine ⟨?_, hchild.1, hparent.1⟩
+    intro coordinate
+    by_cases hp : coordinate = parent
+    · simpa only [hp] using hparent.2
+    by_cases hc : coordinate = child
+    · simpa only [hc] using hchild.2
+    simpa only [pairedMissAllowed, eraseTableValue, Function.update_of_ne hp, Function.update_of_ne hc] using h coordinate
+  · rintro ⟨h, hc, hp⟩ coordinate
+    by_cases heqp : coordinate = parent
+    · subst coordinate
+      simp only [pairedMissAllowed, eraseTableValue, Function.update_self, Function.update_of_ne hne.symm,
+        Finset.mem_erase]
+      exact ⟨hp, h parent⟩
+    by_cases heqc : coordinate = child
+    · subst coordinate
+      simp only [pairedMissAllowed, eraseTableValue, Function.update_of_ne hne, Function.update_self, Finset.mem_erase]
+      exact ⟨hc, h child⟩
+    simpa only [pairedMissAllowed, eraseTableValue, Function.update_of_ne heqp, Function.update_of_ne heqc] using h coordinate
+omit [Fintype ι] in
+theorem pairedMissAllowed_card_lower (allowed : ι → Finset α) (child parent : ι) (hne : child ≠ parent)
+    (candidate answer : α) (coordinate : ι) :
+    (allowed coordinate).card - 1 ≤ (pairedMissAllowed allowed child candidate parent answer coordinate).card := by
+  by_cases hp : coordinate = parent
+  · subst coordinate
+    simpa only [pairedMissAllowed, eraseTableValue, Function.update_self, Function.update_of_ne hne.symm] using
+      (Finset.pred_card_le_card_erase (s := allowed parent) (a := answer))
+  by_cases hc : coordinate = child
+  · subst coordinate
+    simpa only [pairedMissAllowed, eraseTableValue, Function.update_of_ne hne, Function.update_self] using
+      (Finset.pred_card_le_card_erase (s := allowed child) (a := candidate))
+  simpa only [pairedMissAllowed, eraseTableValue, Function.update_of_ne hp, Function.update_of_ne hc] using
+    Nat.sub_le (allowed coordinate).card 1
+end SphincsSecurity.Concrete
+end
 
+section
+
+
+namespace SphincsSecurity.Concrete
+open _root_.OracleComp ENNReal
+attribute [local instance] Classical.propDecidable
+set_option backward.isDefEq.respectTransparency false
+variable {ι α : Type} [Fintype ι] [DecidableEq ι] [DecidableEq α]
+def discloseTableValue (allowed : ι → Finset α) (coordinate : ι) (value : α) : ι → Finset α :=
+  Function.update allowed coordinate {value}
+omit [Fintype ι] [DecidableEq α] in
+theorem discloseTableValue_nonempty (allowed : ι → Finset α)
+    (ha : ∀ coordinate, (allowed coordinate).Nonempty) (coordinate : ι) (value : α) :
+    ∀ other, (discloseTableValue allowed coordinate value other).Nonempty := by
+  intro other
+  by_cases heq : other = coordinate
+  · subst other
+    simp only [discloseTableValue, Function.update_self, Finset.singleton_nonempty]
+  · simpa only [discloseTableValue, Function.update_of_ne heq] using ha other
+theorem uniformTable_disclose_mass (allowed : ι → Finset α)
+    (ha : ∀ coordinate, (allowed coordinate).Nonempty) (coordinate : ι) (value : α) (labels : ι → α) :
+    PMF.uniformOfFinset (allowed coordinate) (ha coordinate) value *
+        uniformTable (discloseTableValue allowed coordinate value)
+          (discloseTableValue_nonempty allowed ha coordinate value) labels =
+      if labels coordinate = value then uniformTable allowed ha labels else 0 := by
+  rw [PMF.uniformOfFinset_apply]
+  by_cases hvalue : value ∈ allowed coordinate
+  · rw [if_pos hvalue]
+    have h := uniformTable_update_restrict allowed ha coordinate {value} (Finset.singleton_nonempty _)
+      (Finset.singleton_subset_iff.mpr hvalue) labels
+    simpa only [Finset.mem_singleton, Finset.card_singleton, Nat.cast_one, one_div, discloseTableValue] using h.symm
+  · rw [if_neg hvalue, zero_mul]
+    by_cases hlabels : labels coordinate = value
+    · rw [if_pos hlabels, uniformTable_apply,
+        if_neg (fun h => hvalue (hlabels ▸ h coordinate))]
+    · rw [if_neg hlabels]
+end SphincsSecurity.Concrete
+end
+
+section
+
+
+
+namespace SphincsSecurity.Concrete.UniformTableCompletion
+open _root_.OracleComp ENNReal
+attribute [local instance] Classical.propDecidable
+set_option backward.isDefEq.respectTransparency false
 variable {Coordinate Value : Type} [Fintype Coordinate] [DecidableEq Coordinate] [DecidableEq Value]
-
 noncomputable def complete (allowed : Coordinate → Finset Value) : SPMF (Coordinate → Value) :=
   if h : ∀ coordinate, (allowed coordinate).Nonempty then liftM (uniformTable allowed h) else failure
-
 noncomputable def cell (allowed : Finset Value) : SPMF Value :=
   if h : allowed.Nonempty then liftM (PMF.uniformOfFinset allowed h) else failure
-
 omit [DecidableEq Value] in
 theorem complete_of_nonempty (allowed : Coordinate → Finset Value)
     (ha : ∀ coordinate, (allowed coordinate).Nonempty) :
     complete allowed = liftM (uniformTable allowed ha) := by rw [complete, dif_pos ha]
-
 omit [DecidableEq Value] in
 theorem complete_of_empty (allowed : Coordinate → Finset Value)
     (ha : ¬∀ coordinate, (allowed coordinate).Nonempty) : complete allowed = failure := by
   rw [complete, dif_neg ha]
-
 theorem complete_apply (allowed : Coordinate → Finset Value) (labels : Coordinate → Value) :
     complete allowed labels = if ∀ coordinate, labels coordinate ∈ allowed coordinate then
       ((∏ coordinate, (allowed coordinate).card : Nat) : ENNReal)⁻¹ else 0 := by
@@ -32,7 +125,6 @@ theorem complete_apply (allowed : Coordinate → Finset Value) (labels : Coordin
   · rw [complete_of_nonempty allowed ha, SPMF.liftM_apply, uniformTable_apply]
   · rw [complete_of_empty allowed ha, SPMF.failure_apply,
       if_neg (fun h => ha (fun coordinate => ⟨labels coordinate, h coordinate⟩))]
-
 omit [Fintype Coordinate] [DecidableEq Coordinate] in
 theorem cell_apply (allowed : Finset Value) (value : Value) :
     cell allowed value = if value ∈ allowed then (allowed.card : ENNReal)⁻¹ else 0 := by
@@ -40,11 +132,9 @@ theorem cell_apply (allowed : Finset Value) (value : Value) :
   · rw [cell, dif_pos ha, SPMF.liftM_apply, PMF.uniformOfFinset_apply]
     split <;> simp_all
   · rw [cell, dif_neg ha, SPMF.failure_apply, if_neg (fun h => ha ⟨value, h⟩)]
-
 noncomputable def restrictionWeight (allowed reduced : Coordinate → Finset Value) : ENNReal :=
   ((∏ coordinate, (reduced coordinate).card : Nat) : ENNReal) /
     ((∏ coordinate, (allowed coordinate).card : Nat) : ENNReal)
-
 omit [DecidableEq Coordinate] [DecidableEq Value] in
 theorem weight_of_empty (allowed reduced : Coordinate → Finset Value)
     (hr : ¬∀ coordinate, (reduced coordinate).Nonempty) : restrictionWeight allowed reduced = 0 := by
@@ -54,14 +144,12 @@ theorem weight_of_empty (allowed reduced : Coordinate → Finset Value)
   have hprod : (∏ coordinate, (reduced coordinate).card : Nat) = 0 :=
     Finset.prod_eq_zero (Finset.mem_univ coordinate) hcard
   simp only [restrictionWeight, hprod, Nat.cast_zero, ENNReal.zero_div]
-
 omit [DecidableEq Value] in
 theorem weight_tsum_complete (allowed reduced : Coordinate → Finset Value) :
     restrictionWeight allowed reduced * (∑' labels, complete reduced labels) = restrictionWeight allowed reduced := by
   by_cases hr : ∀ coordinate, (reduced coordinate).Nonempty
   · simp only [complete_of_nonempty reduced hr, SPMF.liftM_apply, PMF.tsum_coe, mul_one]
   · simp only [weight_of_empty allowed reduced hr, zero_mul]
-
 theorem restrict_mass (allowed reduced : Coordinate → Finset Value)
     (hsub : ∀ coordinate, reduced coordinate ⊆ allowed coordinate) (labels : Coordinate → Value) :
     (if ∀ coordinate, labels coordinate ∈ reduced coordinate then complete allowed labels else 0) =
@@ -72,7 +160,6 @@ theorem restrict_mass (allowed reduced : Coordinate → Finset Value)
     simpa only [SPMF.liftM_apply, restrictionWeight] using uniformTable_restrict allowed reduced ha hr hsub labels
   · rw [complete_of_empty reduced hr, SPMF.failure_apply, mul_zero,
       if_neg (fun h => hr (fun coordinate => ⟨labels coordinate, h coordinate⟩))]
-
 theorem restrict_guard (allowed reduced : Coordinate → Finset Value)
     (hsub : ∀ coordinate, reduced coordinate ⊆ allowed coordinate) (event : (Coordinate → Value) → Prop)
     (hguard : ∀ labels, (∀ coordinate, labels coordinate ∈ reduced coordinate) ↔
@@ -83,7 +170,6 @@ theorem restrict_guard (allowed reduced : Coordinate → Finset Value)
   by_cases ha : ∀ coordinate, labels coordinate ∈ allowed coordinate
   · simp only [hguard, ha, implies_true, true_and]
   · simp only [complete_apply, ha, if_false, ite_self]
-
 omit [Fintype Coordinate] in
 theorem paired_subset (allowed : Coordinate → Finset Value) (child parent : Coordinate)
     (candidate answer : Value) :
@@ -105,7 +191,6 @@ theorem paired_subset (allowed : Coordinate → Finset Value) (child parent : Co
       rw [Function.update_self]
       exact Finset.erase_subset _ _
     · rw [Function.update_of_ne hc]
-
 theorem paired_mass (allowed : Coordinate → Finset Value) (child parent : Coordinate) (hne : child ≠ parent)
     (candidate answer : Value) (labels : Coordinate → Value) :
     (if labels child ≠ candidate ∧ labels parent ≠ answer then complete allowed labels else 0) =
@@ -116,7 +201,6 @@ theorem paired_mass (allowed : Coordinate → Finset Value) (child parent : Coor
   by_cases hevent : labels child ≠ candidate ∧ labels parent ≠ answer
   · simpa only [if_pos hevent] using h
   · simpa only [if_neg hevent] using h
-
 theorem single_mass (allowed : Coordinate → Finset Value) (coordinate : Coordinate) (value : Value)
     (labels : Coordinate → Value) :
     (if labels coordinate ≠ value then complete allowed labels else 0) =
@@ -147,7 +231,6 @@ theorem single_mass (allowed : Coordinate → Finset Value) (coordinate : Coordi
   by_cases hevent : labels coordinate ≠ value
   · simpa only [if_pos hevent] using h
   · simpa only [if_neg hevent] using h
-
 theorem disclose_mass (allowed : Coordinate → Finset Value) (coordinate : Coordinate) (value : Value)
     (labels : Coordinate → Value) :
     cell (allowed coordinate) value * complete (discloseTableValue allowed coordinate value) labels =
@@ -168,7 +251,6 @@ theorem disclose_mass (allowed : Coordinate → Finset Value) (coordinate : Coor
         · simpa only [discloseTableValue, Function.update_of_ne heq] using hr other
       rw [complete_of_empty _ hr, SPMF.failure_apply, mul_zero]
     · rw [cell_apply, if_neg hv, zero_mul]
-
 theorem bind_disclose {Result : Type} (allowed : Coordinate → Finset Value) (coordinate : Coordinate)
     (next : Value → (Coordinate → Value) → SPMF Result) :
     (complete allowed >>= fun labels => next (labels coordinate) labels) =
@@ -180,5 +262,5 @@ theorem bind_disclose {Result : Type} (allowed : Coordinate → Finset Value) (c
   simp only [SPMF.bind_apply_eq_tsum, ← ENNReal.tsum_mul_left, ← mul_assoc, disclose_mass, ite_mul, zero_mul]
   rw [ENNReal.tsum_comm]
   simp
-
 end SphincsSecurity.Concrete.UniformTableCompletion
+end

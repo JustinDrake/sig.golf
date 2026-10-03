@@ -2,17 +2,6 @@ import SigGolfCandidate.T3.Secc.CaseCLinkInv
 import SigGolfCandidate.T3.Secc.CaseCCover
 import SigGolfCandidate.T3.Secc.WotsTransportSplit
 
-/-!
-# Stream CC: the bank run is the actual run of the pinned case-(C) event
-
-* `logged_ghost_log` / `public_ghost_log`: the ghost log is the logged program's log, and the final verifier adds
-  nothing to it;
-* `record_prefix_unique` (prefix determinism of the recorder), `split_unique`: every `GameSplit` of the recorded
-  trace has the actual key generation and interaction records;
-* `bank_actual`: a bank sample carries the actual key generation and interaction records, the invariant, and its
-  ghost log is the actual signing log.
--/
-
 namespace SigGolfCandidate.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M.Final
@@ -21,9 +10,6 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance instDecidableEqCache_caseCLinkSplit : DecidableEq T3.Cache := Classical.decEq _
-
-/-! ## The ghost log -/
-
 theorem bank_step_log (published : T3.Cache) (budget : Nat) (input : LazyPrivate.Interaction.Domain)
     (st : BankState) (r : LazyPrivate.Interaction.Range input × BankState)
     (hr : r ∈ ((bankImpl published budget input).run st).support) :
@@ -37,7 +23,6 @@ theorem bank_step_log (published : T3.Cache) (budget : Nat) (input : LazyPrivate
       obtain ⟨q, _, rfl⟩ := bank_support_sign published budget request st r hr
       rw [ghostSign_log]
       rfl
-
 theorem logged_ghost_log {α : Type} (published : T3.Cache) (budget : Nat)
     (program : OracleComp LazyPrivate.Interaction α) (st : BankState)
     (i : (α × QueryLog Requests) × BankState)
@@ -67,7 +52,6 @@ theorem logged_ghost_log {α : Type} (published : T3.Cache) (budget : Nat)
       have h2 := bank_step_log published budget input st middle hm
       simp only
       rw [h1, h2, List.append_assoc]
-
 theorem public_ghost_log {β : Type} (published : T3.Cache) (budget : Nat) (program : M β) (st : BankState)
     (v : β × BankState)
     (hv : v ∈ ((simulateQ (bankImpl published budget) (CreationGame.publicProgram program)).run st).support) :
@@ -102,15 +86,10 @@ theorem public_ghost_log {β : Type} (published : T3.Cache) (budget : Nat) (prog
         simp [ProposalOverflow.logFragment]
       · simp only [CreationGame.publicHandler, simulateQ_pure, pure_bind] at hv
         exact ih _ st hv
-
-/-! ## Prefix determinism -/
-
 theorem queryEvent_answer_eq {state : LazyPrivate.State} {input : T3.Spec.Domain} {a b : T3.Spec.Range input}
     (h : (⟨state, input, a⟩ : FirstHit.QueryEvent) = ⟨state, input, b⟩) : a = b := by
   simp only [FirstHit.QueryEvent.mk.injEq, heq_eq_eq, true_and] at h
   exact h
-
-/-- **Prefix determinism of the recorder** (as LR-34's). -/
 theorem record_prefix_unique {α : Type} (program : M α) (state : LazyPrivate.State)
     (r1 r2 : FirstHit.Recorded α) (h1 : r1 ∈ support (FirstHit.record program state))
     (h2 : r2 ∈ support (FirstHit.record program state)) (rest1 rest2 : List FirstHit.QueryEvent)
@@ -134,9 +113,6 @@ theorem record_prefix_unique {α : Type} (program : M α) (state : LazyPrivate.S
       subst hm
       have hl := ih m1.1 m1.2 l1 l2 hl1 hl2 rest1 rest2 heq.2
       rw [hl]
-
-/-- Any decomposition of a recorded trace whose events begin with an actual key generation and interaction
-record has exactly those records. -/
 theorem split_unique (adversary : AdversaryP) (result : FirstHit.Recorded Bool)
     (gen0 : FirstHit.Recorded (Digest × T3.Cache)) (hg0 : gen0 ∈ support (FirstHit.record keygen (∅, ∅)))
     (int0 : FirstHit.Recorded (Option ForgeryP × QueryLog Requests))
@@ -155,13 +131,8 @@ theorem split_unique (adversary : AdversaryP) (result : FirstHit.Recorded Bool)
   have hcut : interaction.events ++ checked.events = int0.events ++ rest :=
     List.append_cancel_left (hev'.symm.trans hev)
   exact ⟨rfl, record_prefix_unique _ _ interaction int0 hi hi0 _ _ hcut⟩
-
-/-! ## The actual records of a bank sample -/
-
-/-- The key generation record of the recorded key generation. -/
 def genRecord (generated : (Digest × T3.Cache) × QueryRecorded.State) : FirstHit.Recorded (Digest × T3.Cache) :=
   ⟨generated.1, generated.2.events, lazyOf generated.2⟩
-
 theorem genRecord_support (generated : (Digest × T3.Cache) × QueryRecorded.State)
     (hg : generated ∈ support (QueryRecorded.run keygen QueryRecorded.initial)) :
     genRecord generated ∈ support (FirstHit.record keygen (∅, ∅)) := by
@@ -173,8 +144,6 @@ theorem genRecord_support (generated : (Digest × T3.Cache) × QueryRecorded.Sta
     rfl
   rw [this]
   exact hrec
-
-/-- **A bank sample carries the actual records.** -/
 theorem bank_actual (adversary : AdversaryP) (budget : Nat) (b : Bool × BankState)
     (hb : b ∈ (bankExperiment adversary budget).support) :
     ∃ generated ∈ support (QueryRecorded.run keygen QueryRecorded.initial),
@@ -196,7 +165,6 @@ theorem bank_actual (adversary : AdversaryP) (budget : Nat) (b : Bool × BankSta
   change b ∈ (PMF.bind _ _).support at hb
   rw [PMF.mem_support_bind_iff] at hb
   obtain ⟨i, hi, hb⟩ := hb
-  -- the interaction record
   have hproj := bank_project generated.1.2 budget (ProposalOverflow.logged (adversary generated.1.1 generated.1.2))
     (Ghost.empty, generated.2)
   have hi' : (i.1, i.2.2) ∈ support (QueryRecorded.run (FullGame.loggedWith (FullGame.authenticatedSign generated.1.2)
@@ -209,7 +177,6 @@ theorem bank_actual (adversary : AdversaryP) (budget : Nat) (b : Bool × BankSta
     rw [hproj, MonitoredPrivate.pmf_support, MonitoredPrivate.logged_source] at hm
     exact hm
   obtain ⟨int0, hint0, hev0, hstate0, hvalue0⟩ := recorded_new_events _ generated.2 _ hi'
-  -- the verdict part extends the events and leaves the log
   have hprojv := bank_project generated.1.2 budget
     (CreationGame.publicProgram (GameWith.verdict PaddedGame.checker generated.1.1 i.1)) i.2
   have hb' : (b.1, b.2.2) ∈ support (QueryRecorded.run (simulateQ (MonitoredPrivate.interactionSource generated.1.2)
@@ -227,5 +194,4 @@ theorem bank_actual (adversary : AdversaryP) (budget : Nat) (b : Bool × BankSta
   · rw [public_ghost_log generated.1.2 budget _ i.2 b hb,
       logged_ghost_log generated.1.2 budget _ (Ghost.empty, generated.2) i hi, hvalue0]
     simp [Ghost.empty]
-
 end SigGolfCandidate.T3.Security.CaseC

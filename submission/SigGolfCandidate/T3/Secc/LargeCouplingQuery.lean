@@ -4,25 +4,6 @@ import SigGolfCandidate.T3.Secc.LargeCouplingTrace
 import SigGolfCandidate.T3.Secc.WotsStructuralHonest
 import SigGolfCandidate.T3.Secc.WotsClasses
 
-/-!
-# LR-34 (coupling, one query): the router answers a query exactly as the monitor tests it
-
-Fix an eager answers table `T` and the router's data: hidden values `vals : Coord → Digest`, residual table
-`τ : Cell U → HashOutput`, presampled `a : AuxData`, related by **`Coherent`** (the canonical labels are
-`joinLabels (vals ∘ inl) a.high`, the secrets are `vals ∘ inr`, every non-honest row of `U` outside the presampled
-honest-message prefixes is `τ`, those prefixes are `a.rows`, the honest searches are the presampled selections, the
-non-secret, non-nonce private coordinates are `a.priv`, the nonces' low halves are `nv`, and inputs outside `U`
-answer `0`).
-
-**`Rel`** relates a monitor state, a router state and an eager world state (same disclosures, inputs, calls, digest
-count = mass, no contact yet; every hidden coordinate still has `2^128 − probes` candidates containing its value;
-cached rows are `τ` rows of seen inputs or digest rows; seen honest cells have all children known; seen honest-message
-encoding rows have their message known).
-
-**`routeQuery_observed`**: one adversary/verifier query within the budget — the router's eager observed run is a single
-outcome: it stops exactly when the monitor contacts, otherwise it answers `T X` and `Rel` is preserved.
--/
-
 namespace SigGolfCandidate.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final SigGolfCandidate.T3M.SecurityInputs
@@ -35,18 +16,10 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance instDecidableEqCache_largeCouplingQuery : DecidableEq T3.Cache := Classical.decEq _
-
-/-! ## Coherence of an eager table with the router's data -/
-
-/-- The canonical labels of the router's data. -/
 noncomputable def routerLabels (vals : Coord → Digest) (a : AuxData) : Labels :=
   joinLabels (fun N => vals (.inl N)) a.high
-
-/-- An honest-message encoding row of a route leaf inside the presampled first-success prefix. -/
 def HonestPrefix (vals : Coord → Digest) (a : AuxData) (X : HashInput) : Prop :=
   ∃ (L : EncLeaf) (ctr : BitVec 32), X = Wots.encodingRow L.toWots (vals (msgCoord L)) ctr ∧ PrefixRow a L ctr
-
-/-- **Coherence** of an eager answers table with the router's hidden values, residual table and presampled data. -/
 structure Coherent (U : Finset HashInput) (T : Answers) (vals : Coord → Digest) (nv : Message → Digest)
     (τ : Cell U → HashOutput) (a : AuxData) : Prop where
   agrees : Agrees T (routerLabels vals a)
@@ -61,18 +34,14 @@ structure Coherent (U : Finset HashInput) (T : Answers) (vals : Coord → Digest
     T (.inr c) = a.priv c
   outside : ∀ X, X ∉ U → T (.inl (.inr X)) = (0 : HashOutput)
   nonce : ∀ m : Message, (T (.inr (.inr (.inl m)))).extractLsb' 0 128 = nv m
-
 section Coherent
 variable {U : Finset HashInput} {T : Answers} {vals : Coord → Digest} {nv : Message → Digest} {τ : Cell U → HashOutput} {a : AuxData}
-
 theorem Coherent.honestValue (h : Coherent U T vals nv τ a) : LargeResidual.honestValue T = vals := by
   rw [honestValue_eq h.agrees, h.secrets]
   funext c
   cases c with
   | inl N => exact joinLabels_low _ _ N
   | inr s => rfl
-
-/-- The honest input of a node is the cell of its children's values. -/
 theorem Coherent.honestInput (h : Coherent U T vals nv τ a) (N : CanonGraph.Node) :
     Extract.honestInput T N.toPos = cellValues N vals := by
   rw [honestInput_eq h.agrees N, cell_eq_cellValues]
@@ -82,17 +51,13 @@ theorem Coherent.honestInput (h : Coherent U T vals nv τ a) (N : CanonGraph.Nod
   cases c with
   | inl M => exact joinLabels_low _ _ M
   | inr s => rfl
-
 theorem Coherent.cell (h : Coherent U T vals nv τ a) (N : CanonGraph.Node) :
     cell (secretsOf T) N (routerLabels vals a) = cellValues N vals := by
   rw [← honestInput_eq h.agrees N, h.honestInput N]
-
 theorem Coherent.honest_answer (h : Coherent U T vals nv τ a) (N : CanonGraph.Node) :
     T (.inl (.inr (cellValues N vals))) = routerLabels vals a N := by
   rw [← h.honestInput N]
   exact CanonGraph.honest_answer h.agrees N
-
-/-- The honest message of a route leaf is its message coordinate's value. -/
 theorem Coherent.leafMsg (h : Coherent U T vals nv τ a) (L : EncLeaf) :
     Wots.leafMsg T L.toWots = vals (msgCoord L) := by
   rw [leafMsg_eq h.agrees L]
@@ -102,36 +67,26 @@ theorem Coherent.leafMsg (h : Coherent U T vals nv τ a) (L : EncLeaf) :
     exact joinLabels_low _ _ _
   · rw [dif_neg hl, dif_neg hl]
     exact joinLabels_low _ _ _
-
 end Coherent
-
-/-! ## Structural facts -/
-
 theorem encodingRow_parsed_none (L : Wots.LeafAddr) (m : Digest) (c : BitVec 32) :
     Extract.posOf (Wots.encodingRow L m c) = none :=
   Wots.Structural.posOf_encoding _ _ _ _ _
-
 theorem digestRow_parsed_none {X : HashInput} (h : IsDigestRow X) : Extract.posOf X = none := by
   obtain ⟨rho, m, c, rfl⟩ := h
   exact Wots.Structural.posOf_digest _ _ _
-
 theorem not_parsed_of_digest {X : HashInput} (h : IsDigestRow X) : ¬Parsed X := by
   rintro ⟨N, hN⟩
   rw [digestRow_parsed_none h] at hN
   cases hN
-
 theorem not_parsed_of_encRow {X : HashInput} (h : EncRow X) : ¬Parsed X := by
   rintro ⟨N, hN⟩
   obtain ⟨L, m, c, rfl⟩ := h
   rw [encodingRow_parsed_none] at hN
   cases hN
-
 theorem cellValues_parsed (N : CanonGraph.Node) (v : Coord → Digest) (s : Secrets) (labels : Labels)
     (hv : cellValues N v = cell s N labels) : Extract.posOf (cellValues N v) = some N.toPos := by
   rw [hv]
   exact posOf_cell s N labels
-
-/-- Encoding rows of route leaves determine the leaf, the message and the counter. -/
 theorem encodingRow_encLeaf_injective {L L' : EncLeaf} {m m' : Digest} {c c' : BitVec 32}
     (h : Wots.encodingRow L.toWots m c = Wots.encodingRow L'.toWots m' c') : L = L' ∧ m = m' ∧ c = c' := by
   have hb := congrArg Extract.hdrBlock h
@@ -157,8 +112,6 @@ theorem encodingRow_encLeaf_injective {L L' : EncLeaf} {m m' : Digest} {c c' : B
     rfl
   subst hL
   exact ⟨rfl, WotsExtract.encodingRow_injective h⟩
-
-/-- A child's coordinate is never its parent node. -/
 theorem childSlots_ne (N : CanonGraph.Node) : ∀ cs ∈ childSlots N, cs.1 ≠ .inl N := by
   intro cs hcs
   cases N with
@@ -216,7 +169,6 @@ theorem childSlots_ne (N : CanonGraph.Node) : ∀ cs ∈ childSlots N, cs.1 ≠ 
       simp only [childSlots, List.mem_map] at hcs
       obtain ⟨i, -, rfl⟩ := hcs
       simp
-
 theorem firstUnknown_some {K : Coord → Prop} {N : CanonGraph.Node} {cs : Coord × Nat}
     (h : firstUnknown K N = some cs) : cs ∈ childSlots N ∧ ¬K cs.1 := by
   unfold firstUnknown at h
@@ -224,16 +176,12 @@ theorem firstUnknown_some {K : Coord → Prop} {N : CanonGraph.Node} {cs : Coord
   have hp := List.find?_some h
   simp only [decide_eq_true_eq] at hp
   exact ⟨hm, hp⟩
-
 theorem firstUnknown_none {K : Coord → Prop} {N : CanonGraph.Node} (h : firstUnknown K N = none) :
     ∀ cs ∈ childSlots N, K cs.1 := by
   unfold firstUnknown at h
   intro cs hcs
   have := List.find?_eq_none.mp h cs hcs
   simpa using this
-
-/-! ## The contact test by input kind -/
-
 theorem contactTest_parsed {A : Answers} {K : Coord → Prop} {X : HashInput} {y : HashOutput} {N : CanonGraph.Node}
     (hN : Extract.posOf X = some N.toPos) :
     ContactTest A K X y ↔
@@ -249,7 +197,6 @@ theorem contactTest_parsed {A : Answers} {K : Coord → Prop} {X : HashInput} {y
       cases hN
   · intro h
     exact Or.inl ⟨N, hN, h⟩
-
 theorem contactTest_enc {A : Answers} {K : Coord → Prop} {y : HashOutput} {L : EncLeaf} {m : Digest}
     {c : BitVec 32} :
     ContactTest A K (Wots.encodingRow L.toWots m c) y ↔
@@ -264,29 +211,21 @@ theorem contactTest_enc {A : Answers} {K : Coord → Prop} {y : HashOutput} {L :
       exact h
   · intro h
     exact Or.inr ⟨L, m, c, rfl, h⟩
-
 theorem contactTest_other {A : Answers} {K : Coord → Prop} {X : HashInput} {y : HashOutput}
     (hp : ¬Parsed X) (he : ¬EncRow X) : ¬ContactTest A K X y := by
   rintro (⟨N, hN, -⟩ | ⟨L, m, c, hX, -⟩)
   · exact hp ⟨N, hN⟩
   · exact he ⟨L, m, c, hX⟩
-
-/-! ## Encoding references under coherence -/
-
 theorem low_eq (y : HashOutput) : low y = y.extractLsb' 0 128 := rfl
-
 theorem sel_valid (a : AuxData) (L : EncLeaf) (r : Fin (2 ^ 22) × Digest) (hr : a.sel L = some r) :
     ∃ w, decode L.1.lay r.2 = some w := by
   have h := (SphincsSecurity.Concrete.FirstSuccessTable.select_some_iff _ _ r.1 r.2).mp hr
   obtain ⟨-, hs⟩ := (decodeAt_eq_some L _ r.2).mp h.1
   exact Option.isSome_iff_exists.mp hs
-
 theorem dummyDigest_decode' (lay : Layer) : decode lay (dummyDigest lay) = some (Wots.dummyDigits lay) :=
   Classical.choose_spec (Wots.dummyDigits_valid lay)
-
 section Reference
 variable {U : Finset HashInput} {T : Answers} {vals : Coord → Digest} {nv : Message → Digest} {τ : Cell U → HashOutput} {a : AuxData}
-
 theorem Coherent.referenceDigits (h : Coherent U T vals nv τ a) (L : EncLeaf) :
     Wots.referenceDigits T L.toWots = ((a.sel L).bind fun r => decode L.1.lay r.2).getD (Wots.dummyDigits L.1.lay) := by
   unfold Wots.referenceDigits
@@ -296,7 +235,6 @@ theorem Coherent.referenceDigits (h : Coherent U T vals nv τ a) (L : EncLeaf) :
   | some r =>
       simp only [Option.bind_some]
       cases decode L.1.lay r.2 <;> rfl
-
 theorem Coherent.referenceInput (h : Coherent U T vals nv τ a) (L : EncLeaf) (X : HashInput)
     (hX : Wots.referenceInput T L.toWots = some X) :
     ∃ r, a.sel L = some r ∧ X = Wots.encodingRow L.toWots (vals (msgCoord L)) (BitVec.ofNat 32 r.1.val) := by
@@ -312,8 +250,6 @@ theorem Coherent.referenceInput (h : Coherent U T vals nv τ a) (L : EncLeaf) (X
       | some w =>
           rw [hd] at hX
           exact ⟨r, rfl, (Option.some.inj hX).symm⟩
-
-/-- **The reference-digest hit is a single digest** (decoder injectivity). -/
 theorem Coherent.decode_ref (h : Coherent U T vals nv τ a) (L : EncLeaf) (d : Digest) :
     decode L.1.lay d = some (Wots.referenceDigits T L.toWots) ↔ d = refDigest a L := by
   rw [h.referenceDigits L]
@@ -334,8 +270,6 @@ theorem Coherent.decode_ref (h : Coherent U T vals nv τ a) (L : EncLeaf) (d : D
         exact decode_some_injective hd hw
       · rintro rfl
         exact hw
-
-/-- A presampled prefix row decoding to the reference word is the reference row itself. -/
 theorem Coherent.prefix_ref (h : Coherent U T vals nv τ a) (L : EncLeaf) (ctr : BitVec 32) (hp : PrefixRow a L ctr)
     (hd : decode L.1.lay ((prefixValue a L ctr).extractLsb' 0 128) = some (Wots.referenceDigits T L.toWots)) :
     Wots.referenceInput T L.toWots = some (Wots.encodingRow L.toWots (vals (msgCoord L)) ctr) := by
@@ -365,12 +299,7 @@ theorem Coherent.prefix_ref (h : Coherent U T vals nv τ a) (L : EncLeaf) (ctr :
         apply BitVec.eq_of_toNat_eq
         rw [BitVec.toNat_ofNat, ← heq]
         exact Nat.mod_eq_of_lt (by omega)
-
 end Reference
-
-/-! ## The relation between monitor, router and world states -/
-
-/-- **The simulation relation** (no contact yet). -/
 structure Rel (U : Finset HashInput) (T : Answers) (vals : Coord → Digest) (nv : Message → Digest)
     (τ : Cell U → HashOutput) (a : AuxData) (q : Nat) (mon : Monitor) (st : RouterState) (ws : LargeResidual.State WCoord (Cell U)) : Prop where
   disclosed : mon.disclosed = st.disclosed
@@ -388,16 +317,12 @@ structure Rel (U : Finset HashInput) (T : Answers) (vals : Coord → Digest) (nv
   seenCells : ∀ X ∈ st.seen, X ∈ U → ∀ N : CanonGraph.Node, X = cellValues N vals → ∀ cs ∈ childSlots N, st.known cs.1
   seenEnc : ∀ X ∈ st.seen, X ∈ U → ∀ (L : EncLeaf) (ctr : BitVec 32),
     X = Wots.encodingRow L.toWots (vals (msgCoord L)) ctr → st.known (msgCoord L)
-
 section Relation
 variable {U : Finset HashInput} {T : Answers} {vals : Coord → Digest} {nv : Message → Digest} {τ : Cell U → HashOutput} {a : AuxData}
   {q : Nat} {mon : Monitor} {st : RouterState} {ws : LargeResidual.State WCoord (Cell U)}
-
 theorem Rel.known (h : Rel U T vals nv τ a q mon st ws) : mon.known = st.known := by
   unfold Monitor.known RouterState.known
   rw [h.disclosed]
-
-/-- The monitor on one query within the budget. -/
 theorem Rel.query (h : Rel U T vals nv τ a q mon st ws) (hlt : st.calls < q) (X : HashInput) (y : HashOutput) :
     mon.query U T q X y =
       if X ∉ st.seen ∧ X ∈ U ∧ ContactTest T st.known X y then
@@ -413,16 +338,12 @@ theorem Rel.query (h : Rel U T vals nv τ a q mon st ws) (hlt : st.calls < q) (X
     by_cases hd : X ∈ U ∧ IsDigestRow X
     · rw [if_pos ⟨hd.1, hd.2, hc⟩, if_pos hd]
     · rw [if_neg (fun h' => hd ⟨h'.1, h'.2.1⟩), if_neg hd]
-
-/-- Hidden coordinates have at least two candidates. -/
 theorem Rel.two_le (h : Rel U T vals nv τ a q mon st ws) (hlt : st.calls < q) (hq : q ≤ 2 ^ 127) (c : Coord)
     (hc : ¬st.known c) : 2 ≤ (ws.candidates (.inl c)).card := by
   have h1 := h.hidden c hc
   have h2 := h.probes
   have h3 := h.wcalls
   omega
-
-/-- **One step of the relation** (a non-contact query). -/
 theorem Rel.next (h : Rel U T vals nv τ a q mon st ws) (hlt : st.calls < q) (X : HashInput)
     (ws' : LargeResidual.State WCoord (Cell U)) (δ : Nat)
     (hcalls : ws'.counters.calls = st.calls + 1) (hmass : ws'.counters.mass = ws.counters.mass + δ)
@@ -460,18 +381,11 @@ theorem Rel.next (h : Rel U T vals nv τ a q mon st ws) (hlt : st.calls < q) (X 
     rcases List.mem_cons.mp hY with rfl | hY
     · exact henc hYU L ctr hL
     · exact h.seenEnc Y hY hYU L ctr hL
-
 end Relation
-
-/-! ## One query: the outcome -/
-
 theorem _root_.SigGolfCandidate.T3.Security.LargeResidual.RouterState.next_of_not (U : Finset HashInput) (st : RouterState) (X : HashInput) (y : HashOutput)
     (h : ¬(X ∈ U ∧ IsDigestRow X)) : st.next U X y = st.after X := by
   unfold RouterState.next
   rw [if_neg (fun h' => h ⟨h'.1, h'.2.1⟩)]
-
-/-- The outcome of one routed query: a stop exactly when the monitor contacts (mass = the monitor's digests), or the
-answer `T X` with the relation preserved. -/
 def QueryOutcome (U : Finset HashInput) (T : Answers) (vals : Coord → Digest) (nv : Message → Digest)
     (τ : Cell U → HashOutput) (a : AuxData) (q : Nat) (mon : Monitor) (st : RouterState) (ws : LargeResidual.State WCoord (Cell U))
     (X : HashInput) (out : SPMF (Option (HashOutput × RouterState) × LargeResidual.State WCoord (Cell U))) : Prop :=
@@ -481,16 +395,13 @@ def QueryOutcome (U : Finset HashInput) (T : Answers) (vals : Coord → Digest) 
       ((mon.query U T q X (T (.inl (.inr X)))).contact = false ∧
         out = pure (some (T (.inl (.inr X)), st.next U X (T (.inl (.inr X)))), ws') ∧
         Rel U T vals nv τ a q (mon.query U T q X (T (.inl (.inr X)))) (st.next U X (T (.inl (.inr X)))) ws')
-
 section Query
 variable {U : Finset HashInput} {T : Answers} {vals : Coord → Digest} {nv : Message → Digest} {τ : Cell U → HashOutput} {a : AuxData}
   {q : Nat} {mon : Monitor} {st : RouterState} {ws : LargeResidual.State WCoord (Cell U)}
   (aux : (input : AuxSpec.Domain) → PMF (AuxSpec.Range input))
-
 theorem observed_map {β γ : Type} (f : β → γ) (c : OracleComp (RWorld U) β) (s : LargeResidual.State WCoord (Cell U)) :
     observedRun aux q (Sum.elim vals nv) τ (f <$> c) s = (fun r => (r.1.map f, r.2)) <$> observedRun aux q (Sum.elim vals nv) τ c s :=
   runWith_map _ f c s
-
 theorem observed_testReq (st' : RouterState) (X : HashInput) (hX : X ∈ U) (test : Probe WCoord)
     (hfresh : X ∉ st.seen → ws.rows ⟨X, hX⟩ = none) :
     observedRun aux q (Sum.elim vals nv) τ ((fun y => (y, st')) <$> testReq U (decide (X ∉ st.seen)) ⟨X, hX⟩ test) ws =
@@ -513,8 +424,6 @@ theorem observed_testReq (st' : RouterState) (X : HashInput) (hX : X ∈ U) (tes
     split_ifs
     · rw [observed_pure, map_pure]; rfl
     · rw [map_pure]; rfl
-
-/-- An admissible probe is its own effective probe. -/
 theorem effective_self {C : Type} [DecidableEq C] (cand : C → Finset Digest) (test : Probe C)
     (h : ∀ g ∈ test.guess, 2 ≤ (cand g.1).card ∧ ∀ parent, test.hit = Hit.label parent → g.1 ≠ parent) :
     test.effective cand = test := by
@@ -526,32 +435,23 @@ theorem effective_self {C : Type} [DecidableEq C] (cand : C → Finset Digest) (
       have hg' := h g rfl
       simp only [Option.filter_some, Probe.Admissible, decide_eq_true_eq]
       rw [if_pos hg']
-
 theorem keep_guess_label {C : Type} (vals : C → Digest) (c p : C) (m : Digest) (y : HashOutput) :
     (⟨some (c, m), .label p⟩ : Probe C).keep vals y ↔ vals c ≠ m ∧ vals p ≠ low y := by
   simp [Probe.keep, Probe.guessMiss, Hit.miss]
-
 theorem keep_label {C : Type} (vals : C → Digest) (p : C) (y : HashOutput) :
     (⟨none, .label p⟩ : Probe C).keep vals y ↔ vals p ≠ low y := by
   simp [Probe.keep, Probe.guessMiss, Hit.miss]
-
 theorem keep_target {C : Type} (vals : C → Digest) (t : Digest) (y : HashOutput) :
     (⟨none, .target t⟩ : Probe C).keep vals y ↔ t ≠ low y := by
   simp [Probe.keep, Probe.guessMiss, Hit.miss]
-
 theorem keep_guess_target {C : Type} (vals : C → Digest) (c : C) (m t : Digest) (y : HashOutput) :
     (⟨some (c, m), .target t⟩ : Probe C).keep vals y ↔ vals c ≠ m ∧ t ≠ low y := by
   simp [Probe.keep, Probe.guessMiss, Hit.miss]
-
 end Query
-
-/-! ## One query: the cases -/
-
 section Cases
 variable {U : Finset HashInput} {T : Answers} {vals : Coord → Digest} {nv : Message → Digest} {τ : Cell U → HashOutput} {a : AuxData}
   {q : Nat} {mon : Monitor} {st : RouterState} {ws : LargeResidual.State WCoord (Cell U)}
   (aux : (input : AuxSpec.Domain) → PMF (AuxSpec.Range input))
-
 theorem outcome_stop (hrel : Rel U T vals nv τ a q mon st ws) (hlt : st.calls < q) (X : HashInput)
     (out : SPMF (Option (HashOutput × RouterState) × LargeResidual.State WCoord (Cell U)))
     (hc : X ∉ st.seen ∧ X ∈ U ∧ ContactTest T st.known X (T (.inl (.inr X))))
@@ -563,7 +463,6 @@ theorem outcome_stop (hrel : Rel U T vals nv τ a q mon st ws) (hlt : st.calls <
   · show ws.counters.calls + 1 ≤ q
     rw [hrel.wcalls]
     omega
-
 theorem outcome_continue (hrel : Rel U T vals nv τ a q mon st ws) (hlt : st.calls < q) (X : HashInput)
     (out : SPMF (Option (HashOutput × RouterState) × LargeResidual.State WCoord (Cell U)))
     (hc : ¬(X ∉ st.seen ∧ X ∈ U ∧ ContactTest T st.known X (T (.inl (.inr X)))))
@@ -586,8 +485,6 @@ theorem outcome_continue (hrel : Rel U T vals nv τ a q mon st ws) (hlt : st.cal
     refine hrel.next hlt X ws' _ hcalls hmass hprobes hmem hhidden hrowsEq hrowsSeen hcell henc _ ?_ ?_ ?_ <;>
     · unfold RouterState.next
       split_ifs <;> rfl
-
-/-- Rows of inputs never seen and not digest rows are fresh. -/
 theorem Rel.fresh (hrel : Rel U T vals nv τ a q mon st ws) (X : HashInput) (hX : X ∈ U) (hd : ¬IsDigestRow X)
     (hs : X ∉ st.seen) : ws.rows ⟨X, hX⟩ = none := by
   cases hr : ws.rows ⟨X, hX⟩ with
@@ -596,8 +493,6 @@ theorem Rel.fresh (hrel : Rel U T vals nv τ a q mon st ws) (X : HashInput) (hX 
       rcases hrel.rowsSeen _ v hr with h | h
       · exact absurd h hs
       · exact absurd h hd
-
-/-- A parsed input other than the honest cell of its node is no honest cell. -/
 theorem Coherent.not_cell_parsed (hcoh : Coherent U T vals nv τ a) {X : HashInput} {N : CanonGraph.Node}
     (hN : Extract.posOf X = some N.toPos) (hne : X ≠ cellValues N vals) :
     ∀ N' : CanonGraph.Node, X ≠ cellValues N' vals := by
@@ -609,7 +504,6 @@ theorem Coherent.not_cell_parsed (hcoh : Coherent U T vals nv τ a) {X : HashInp
   have := toPos_injective (Option.some.inj hp)
   subst this
   exact hne heq
-
 theorem not_cell_unparsed (hcoh : Coherent U T vals nv τ a) {X : HashInput} (hp : ¬Parsed X) :
     ∀ N' : CanonGraph.Node, X ≠ cellValues N' vals := by
   intro N' heq
@@ -617,21 +511,16 @@ theorem not_cell_unparsed (hcoh : Coherent U T vals nv τ a) {X : HashInput} (hp
   refine ⟨N', ?_⟩
   rw [heq, ← hcoh.cell N']
   exact posOf_cell _ _ _
-
 theorem not_prefix_parsed {X : HashInput} (hp : Parsed X) : ¬HonestPrefix vals a X := by
   rintro ⟨L, ctr, rfl, -⟩
   exact not_parsed_of_encRow ⟨L, _, ctr, rfl⟩ hp
-
 theorem not_prefix_enc {X : HashInput} (he : ¬EncRow X) : ¬HonestPrefix vals a X := by
   rintro ⟨L, ctr, rfl, -⟩
   exact he ⟨L, _, ctr, rfl⟩
-
 theorem not_enc_parsed {X : HashInput} (hp : Parsed X) (L : EncLeaf) (m : Digest) (ctr : BitVec 32) :
     X ≠ Wots.encodingRow L.toWots m ctr := by
   rintro rfl
   exact not_parsed_of_encRow ⟨L, m, ctr, rfl⟩ hp
-
-/-- **Case A**: an input outside the universe (a tick, answer `0`). -/
 theorem case_outside (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals nv τ a q mon st ws) (hlt : st.calls < q)
     (X : HashInput) (hX : X ∉ U) :
     QueryOutcome U T vals nv τ a q mon st ws X (observedRun aux q (Sum.elim vals nv) τ (tickReq U .call >>= fun _ =>
@@ -651,7 +540,6 @@ theorem case_outside (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals nv 
   · intro row v hv; exact Or.inr (hrel.rowsSeen row v hv)
   · intro h; exact absurd h hX
   · intro h; exact absurd h hX
-
 theorem rows_update_eq (hrel : Rel U T vals nv τ a q mon st ws) (row0 : Cell U) :
     ∀ row v, Function.update ws.rows row0 (some (τ row0)) row = some v → v = τ row := by
   intro row v hv
@@ -661,7 +549,6 @@ theorem rows_update_eq (hrel : Rel U T vals nv τ a q mon st ws) (row0 : Cell U)
     exact (Option.some.inj hv).symm
   · rw [Function.update_of_ne hr] at hv
     exact hrel.rowsEq row v hv
-
 theorem rows_update_seen (hrel : Rel U T vals nv τ a q mon st ws) (X : HashInput) (hX : X ∈ U) :
     ∀ row v, Function.update ws.rows ⟨X, hX⟩ (some (τ ⟨X, hX⟩)) row = some v →
       row.val = X ∨ row.val ∈ st.seen ∨ IsDigestRow row.val := by
@@ -670,8 +557,6 @@ theorem rows_update_seen (hrel : Rel U T vals nv τ a q mon st ws) (X : HashInpu
   · exact Or.inl (by rw [hr])
   · rw [Function.update_of_ne hr] at hv
     exact Or.inr (hrel.rowsSeen row v hv)
-
-/-- A read of a residual row (`.call`, or `.mass` for a digest row) that is not a contact. -/
 theorem continue_read (hrel : Rel U T vals nv τ a q mon st ws) (hlt : st.calls < q) (X : HashInput) (hX : X ∈ U)
     (ch : Charge) (hch : (ch = .call ∧ ¬IsDigestRow X) ∨ (ch = .mass ∧ IsDigestRow X))
     (hTX : T (.inl (.inr X)) = τ ⟨X, hX⟩)
@@ -707,7 +592,6 @@ theorem continue_read (hrel : Rel U T vals nv τ a q mon st ws) (hlt : st.calls 
   · exact rows_update_seen hrel X hX
   · exact fun _ => hcell
   · exact fun _ => henc
-
 theorem continue_read_call (hrel : Rel U T vals nv τ a q mon st ws) (hlt : st.calls < q) (X : HashInput)
     (hX : X ∈ U) (hnd : ¬IsDigestRow X) (hTX : T (.inl (.inr X)) = τ ⟨X, hX⟩)
     (hnc : ¬(X ∉ st.seen ∧ X ∈ U ∧ ContactTest T st.known X (T (.inl (.inr X)))))
@@ -718,8 +602,6 @@ theorem continue_read_call (hrel : Rel U T vals nv τ a q mon st ws) (hlt : st.c
       (pure (some (τ ⟨X, hX⟩, st.after X), readState q ws ⟨X, hX⟩ (τ ⟨X, hX⟩) .call)) := by
   have h := continue_read hrel hlt X hX .call (Or.inl ⟨rfl, hnd⟩) hTX hnc hcell henc
   rwa [RouterState.next_of_not U st X _ (fun h' => hnd h'.2)] at h
-
-/-- A fresh probe that survives (no contact). -/
 theorem continue_probe (hrel : Rel U T vals nv τ a q mon st ws) (hlt : st.calls < q) (X : HashInput) (hX : X ∈ U)
     (test : Probe WCoord) (hk : test.keep (Sum.elim vals nv) (τ ⟨X, hX⟩))
     (hadm : ∀ g ∈ test.guess, ∀ parent, test.hit = Hit.label parent → g.1 ≠ parent)
@@ -753,8 +635,6 @@ theorem continue_probe (hrel : Rel U T vals nv τ a q mon st ws) (hlt : st.calls
   · exact rows_update_seen hrel X hX
   · exact fun _ => hcell
   · exact fun _ => henc
-
-/-- **Case B**: a parsed input with an unknown child (guess of the first unknown child, label hit). -/
 theorem case_unknownChild (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals nv τ a q mon st ws)
     (hlt : st.calls < q) (hq : q ≤ 2 ^ 127) (X : HashInput) (hX : X ∈ U) (N : CanonGraph.Node)
     (hN : Extract.posOf X = some N.toPos) (cs : Coord × Nat) (hfu : firstUnknown st.known N = some cs) :
@@ -836,11 +716,9 @@ theorem case_unknownChild (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T val
         rcases hk with h | h
         · exact Or.inl h.symm
         · exact Or.inr ⟨hXc, by rw [hTX]; exact h.symm⟩
-
 theorem queryOutcome_congr {X : HashInput}
     {out out' : SPMF (Option (HashOutput × RouterState) × LargeResidual.State WCoord (Cell U))} (h : out = out')
     (h' : QueryOutcome U T vals nv τ a q mon st ws X out') : QueryOutcome U T vals nv τ a q mon st ws X out := h ▸ h'
-
 theorem lookupVal_map (f : Coord → Digest) (cs : List Coord) (c : Coord) (hc : c ∈ cs) :
     lookupVal (cs.map fun c => (c, f c)) c = f c := by
   induction cs with
@@ -853,19 +731,16 @@ theorem lookupVal_map (f : Coord → Digest) (cs : List Coord) (c : Coord) (hc :
         simp
       · simp only [hd, decide_false]
         exact ih ((List.mem_cons.mp hc).resolve_left (Ne.symm hd))
-
 theorem discloseStates_counters (cs : List Coord) (s : LargeResidual.State WCoord (Cell U)) :
     (discloseStates U q (Sum.elim vals nv) s cs).counters = s.counters := by
   induction cs generalizing s with
   | nil => rfl
   | cons c rest ih => exact (ih _).trans rfl
-
 theorem discloseStates_rows (cs : List Coord) (s : LargeResidual.State WCoord (Cell U)) :
     (discloseStates U q (Sum.elim vals nv) s cs).rows = s.rows := by
   induction cs generalizing s with
   | nil => rfl
   | cons c rest ih => exact (ih _).trans rfl
-
 theorem discloseStates_candidates (cs : List Coord) (s : LargeResidual.State WCoord (Cell U)) (c : WCoord) :
     (discloseStates U q (Sum.elim vals nv) s cs).candidates c =
       if c ∈ cs.map Sum.inl then {Sum.elim vals nv c} else s.candidates c := by
@@ -884,8 +759,6 @@ theorem discloseStates_candidates (cs : List Coord) (s : LargeResidual.State WCo
         · subst hd
           rw [Function.update_self, if_pos (by rw [List.map_cons]; exact List.mem_cons_self)]
         · rw [Function.update_of_ne hd, if_neg (by simp only [List.map_cons, List.mem_cons]; tauto)]
-
-/-- Uncharged disclosures of known coordinates keep the relation. -/
 theorem Rel.discloseStates (hrel : Rel U T vals nv τ a q mon st ws) (cs : List Coord) (hk : ∀ c ∈ cs, st.known c) :
     Rel U T vals nv τ a q mon st (discloseStates U q (Sum.elim vals nv) ws cs) := by
   have hc := discloseStates_counters (U := U) (q := q) (vals := vals) (nv := nv) cs ws
@@ -906,9 +779,6 @@ theorem Rel.discloseStates (hrel : Rel U T vals nv τ a q mon st ws) (cs : List 
       subst hdc'
       exact hk _ hd))]
     exact hrel.hidden c hck
-
-/-- **Cases C, D**: a parsed input whose children are all known — disclose them; the honest cell is answered by the
-node's label, any other input is a label-hit probe. -/
 theorem case_knownChildren (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals nv τ a q mon st ws)
     (hlt : st.calls < q) (X : HashInput) (hX : X ∈ U) (N : CanonGraph.Node)
     (hN : Extract.posOf X = some N.toPos) (hfu : firstUnknown st.known N = none) :
@@ -1016,9 +886,6 @@ theorem case_knownChildren (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T va
         rw [keep_label, not_not] at hk
         rw [hTX]
         exact hk.symm
-
-/-! ### Encoding rows, digest rows, other rows -/
-
 theorem honestPrefix_iff {L : EncLeaf} {m : Digest} {ctr : BitVec 32} :
     HonestPrefix vals a (Wots.encodingRow L.toWots m ctr) ↔ m = vals (msgCoord L) ∧ PrefixRow a L ctr := by
   constructor
@@ -1027,7 +894,6 @@ theorem honestPrefix_iff {L : EncLeaf} {m : Digest} {ctr : BitVec 32} :
     exact ⟨hm, hp⟩
   · rintro ⟨rfl, hp⟩
     exact ⟨L, ctr, rfl, hp⟩
-
 theorem Coherent.referenceInput_eq (hcoh : Coherent U T vals nv τ a) {L : EncLeaf} {m : Digest} {ctr : BitVec 32}
     (h : Wots.referenceInput T L.toWots = some (Wots.encodingRow L.toWots m ctr)) :
     m = vals (msgCoord L) ∧ PrefixRow a L ctr := by
@@ -1043,13 +909,10 @@ theorem Coherent.referenceInput_eq (hcoh : Coherent U T vals nv τ a) {L : EncLe
     rw [hc, BitVec.toNat_ofNat]
     have := r.1.isLt
     omega
-
 theorem encRow_not_digest (L : EncLeaf) (m : Digest) (ctr : BitVec 32) :
     ¬IsDigestRow (Wots.encodingRow L.toWots m ctr) := by
   rintro ⟨rho, m', c, h⟩
   exact Wots.SmallA.encodingRow_ne_digest _ _ _ _ _ _ h
-
-/-- **Case E1**: an encoding row of a route leaf whose honest message is known. -/
 theorem case_enc_known (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals nv τ a q mon st ws)
     (hlt : st.calls < q) (X : HashInput) (hX : X ∈ U) (L : EncLeaf) (m : Digest) (ctr : BitVec 32)
     (hXe : X = Wots.encodingRow L.toWots m ctr) (hkm : st.known (msgCoord L)) :
@@ -1144,9 +1007,6 @@ theorem case_enc_known (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals n
         rw [keep_target, not_not] at hk
         rw [hTX]
         exact hk.symm
-
-/-- **Case E2**: an encoding row of a route leaf whose honest message is hidden (guess of the message, reference-digest
-hit). -/
 theorem case_enc_unknown (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals nv τ a q mon st ws)
     (hlt : st.calls < q) (hq : q ≤ 2 ^ 127) (X : HashInput) (hX : X ∈ U) (L : EncLeaf) (m : Digest)
     (ctr : BitVec 32) (hXe : X = Wots.encodingRow L.toWots m ctr) (hkm : ¬st.known (msgCoord L)) :
@@ -1180,7 +1040,6 @@ theorem case_enc_unknown (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals
     (st.after X) X hX ⟨some (.inl (msgCoord L), m), .target (refDigest a L)⟩ (hrel.fresh X hX hnd)
   refine queryOutcome_congr hcomp ?_
   rw [heff]
-  -- a non-honest-message row is a residual row and not the reference row
   have hres : m ≠ vals (msgCoord L) → T (.inl (.inr X)) = τ ⟨X, hX⟩ := fun hm =>
     hcoh.residual X hX (fun N' => by rw [hcoh.cell]; exact not_cell_unparsed hcoh hnp N')
       (by rw [hXe, honestPrefix_iff]; exact fun h => hm h.1)
@@ -1226,8 +1085,6 @@ theorem case_enc_unknown (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals
         · exact absurd h.symm hm
         · rw [hTX]
           exact h.symm
-
-/-- **Case F**: a digest row (one unit of mass; a fresh one is a birth). -/
 theorem case_digest (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals nv τ a q mon st ws)
     (hlt : st.calls < q) (X : HashInput) (hX : X ∈ U) (hd : IsDigestRow X) :
     QueryOutcome U T vals nv τ a q mon st ws X (observedRun aux q (Sum.elim vals nv) τ
@@ -1252,8 +1109,6 @@ theorem case_digest (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals nv �
     · rw [if_neg hf, if_neg (fun h' => hf h'.2.2)]
   rw [← heq] at h
   exact h
-
-/-- **Case G**: any other row of `U` (a read; never a contact). -/
 theorem case_other (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals nv τ a q mon st ws)
     (hlt : st.calls < q) (X : HashInput) (hX : X ∈ U) (hnp : ¬Parsed X) (hne : ¬EncRow X) (hnd : ¬IsDigestRow X) :
     QueryOutcome U T vals nv τ a q mon st ws X (observedRun aux q (Sum.elim vals nv) τ
@@ -1264,9 +1119,6 @@ theorem case_other (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals nv τ
   exact continue_read_call hrel hlt X hX hnd hTX (fun h => contactTest_other hnp hne h.2.2)
     (fun N' hN' => absurd hN' (not_cell_unparsed hcoh hnp N'))
     (fun L' ctr' hL' => absurd ⟨L', _, ctr', hL'⟩ hne)
-
-/-- **One routed query** (within the budget): the router's eager observed run stops exactly when the monitor
-contacts, otherwise it answers `T X` with the relation preserved. -/
 theorem routeQuery_observed (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T vals nv τ a q mon st ws)
     (hlt : st.calls < q) (hq : q ≤ 2 ^ 127) (X : HashInput) :
     QueryOutcome U T vals nv τ a q mon st ws X
@@ -1300,7 +1152,5 @@ theorem routeQuery_observed (hcoh : Coherent U T vals nv τ a) (hrel : Rel U T v
           exact case_other aux hcoh hrel hlt X hX hp he hd
   · rw [dif_neg hX]
     exact case_outside aux hcoh hrel hlt X hX
-
 end Cases
-
 end SigGolfCandidate.T3.Security.LargeCoupling

@@ -1,11 +1,10 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.TargetShapeOperators
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.TargetShapeReindex
-namespace SphincsSecurity.Concrete
 
+namespace SphincsSecurity.Concrete
 open ENNReal
 attribute [local instance] Classical.propDecidable
-
 theorem sum_proper_subsets_card {α : Type} [DecidableEq α] (s : Finset α) (f : Nat → ENNReal) :
     (∑ kept ∈ s.powerset.erase s, f kept.card) = ∑ degree ∈ Finset.range s.card, (s.card.choose degree : ENNReal) * f degree := by
   have hindicator : (∑ kept ∈ s.powerset.erase s, f kept.card) =
@@ -24,32 +23,24 @@ theorem sum_proper_subsets_card {α : Type} [DecidableEq α] (s : Finset α) (f 
   apply Finset.sum_congr rfl
   intro degree hdegree
   rw [if_neg (Nat.ne_of_lt (Finset.mem_range.mp hdegree))]
-
 abbrev TargetIndexVector := Nat → Nat → ENNReal
-
 def liftTargetIndexVector (moments : TargetIndexVector) : TargetShapeVector := fun groups remaining => moments groups.card remaining.card
-
 noncomputable def targetIndexCacheLower (moments : TargetIndexVector) (power degree : Nat) : ENNReal :=
   ∑ lower ∈ Finset.range power, (power.choose lower : ENNReal) * moments lower degree
-
 noncomputable def targetIndexTreeLower (moments : TargetIndexVector) (power degree : Nat) : ENNReal :=
   ∑ lower ∈ Finset.range degree, (degree.choose lower : ENNReal) * moments power lower
-
 noncomputable def targetIndexReuseStep (moments : TargetIndexVector) (power degree : Nat) : ENNReal :=
   targetIndexTreeLower moments (power + 1) degree
-
 theorem targetCacheLower_lift (moments : TargetIndexVector) :
     targetCacheLower (liftTargetIndexVector moments) = liftTargetIndexVector (targetIndexCacheLower moments) := by
   funext groups remaining
   exact sum_proper_subsets_card groups (fun power => moments power remaining.card)
-
 theorem targetTreeLower_lift (moments : TargetIndexVector) :
     targetTreeLower (liftTargetIndexVector moments) = liftTargetIndexVector (targetIndexTreeLower moments) := by
   funext groups remaining
   unfold targetTreeLower liftTargetIndexVector targetIndexTreeLower
   rw [sum_nonempty_sdiff_eq_proper remaining (fun kept => moments groups.card kept.card)]
   exact sum_proper_subsets_card remaining (moments groups.card)
-
 theorem targetReuseStep_lift (moments : TargetIndexVector) (groups : Finset (Finset IndexGroup)) (remaining : Finset IndexGroup)
     (hvalid : TargetShapeValid groups remaining) :
     targetReuseStep (liftTargetIndexVector moments) groups remaining = liftTargetIndexVector (targetIndexReuseStep moments) groups remaining := by
@@ -60,5 +51,4 @@ theorem targetReuseStep_lift (moments : TargetIndexVector) (groups : Finset (Fin
   rw [Finset.sum_congr rfl (fun selected hselected => congrArg (fun power => moments power (remaining \ selected).card) (hcard selected hselected))]
   rw [sum_nonempty_sdiff_eq_proper remaining (fun kept => moments (groups.card + 1) kept.card)]
   exact sum_proper_subsets_card remaining (moments (groups.card + 1))
-
 end SphincsSecurity.Concrete

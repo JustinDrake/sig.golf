@@ -1,46 +1,25 @@
 import SigGolfCandidate.T3M.Sign.BaseInv
 import SigGolfCandidate.T3M.RevNet
 
-/-!
-# Sign: block specifications of the FTS phase (words 172..356)
-
-`ds_done` (172): the index `N mod 2^31` to `TREE` and `IDXV`, the FTS arena, the proof and secret
-pointers; `fts_coord` (186), `fts_leaf` (189..249: the PRF pair at even leaves into `SEC`, the FTS leaf
-hash into heap node `2048 + leaf`, its header word 1 via the stub 2045..2073), `fts_leaves_done` (250: `build_levels`, height 11, tag 10), the
-secrets (256..277), the frontier (278..330), the outer siblings (331..344) and the root to the forest
-block (345..356).
--/
-
 namespace SigGolfCandidate.T3M.Sign
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 open SigGolfCandidate.T3M.Keygen (PRIV SEEDS CHAIN NODE NOUT LOUT LEAFPK MOUT ZDIG DUMMY TOP MACBLK REGION)
-
-/-- Close a memory read of a block result: resolve the `if`s of the symbolic memory, then compare
-addresses. -/
 macro "ite_close" : tactic =>
   `(tactic| ((repeat (first | rw [if_neg (by sg_omega)] | rw [if_pos (by sg_omega)])); first | (congr 2; sg_omega) | rfl))
-
-/-- `omega` for block obligations (after `t3n`): drop `True` conjuncts first. -/
 macro "obl_omega" : tactic =>
   `(tactic| ((try simp only [PRIV, SEEDS, CHAIN, NODE, NOUT, LOUT, LEAFPK, MOUT, ZDIG, DUMMY, TOP, MACBLK,
     REGION, MSG, SK, SIG, CACHE, NONCE, RHOOUT, DIG, NBUF, ENC, EOUT, FLEAF, LFOUT, FOREST, FOUT, MACOUT, TAG,
     DIGITS, SEL, IDXV, LOW, FTS, SEC, and_true, true_and] at *); omega))
-
-/-- `sg_omega` that tolerates the address `simp` closing the goal. -/
 macro "sgo" : tactic =>
   `(tactic| ((try simp only [PRIV, SEEDS, CHAIN, NODE, NOUT, LOUT, LEAFPK, MOUT, ZDIG, DUMMY, TOP, MACBLK,
     REGION, MSG, SK, SIG, CACHE, NONCE, RHOOUT, DIG, NBUF, ENC, EOUT, FLEAF, LFOUT, FOREST, FOUT, MACOUT, TAG,
     DIGITS, SEL, IDXV, LOW, FTS, SEC, false_or, or_false] at *) <;> omega))
-
-/-- `(w << 33) >> 33` is `w mod 2^31`. -/
 theorem shl33_shr33 (w : Word) : (w <<< 33) >>> 33 = BitVec.ofNat 64 (w.toNat % 2 ^ 31) := by
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq,
     Nat.shiftRight_eq_div_pow]
   have := w.isLt
   omega
-
-/-- `ds_done` (172..185): `TREE = IDXV = N mod 2^31`, `sp = FTS`, proof / secret pointers, `coord = 0`. -/
 theorem blk172_spec (s : MachineState) (hpc : s.pc = pcOf 172) :
     ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf 186 ∧
       t.getReg .x9 = BitVec.ofNat 64 ((s.getMem (BitVec.ofNat 64 NBUF)).toNat % 2 ^ 31) ∧
@@ -63,8 +42,6 @@ theorem blk172_spec (s : MachineState) (hpc : s.pc = pcOf 172) :
     simp only [Result.toState_getMem, blk_172.res]
     t3n []
     rw [if_neg (by omega)]
-
-/-- `fts_coord` (186): `coord ≥ 7` ends the FTS phase. -/
 theorem blk186_spec (s : MachineState) (hpc : s.pc = pcOf 186) (c : Nat) (hc : c < 2 ^ 63)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = (if c < 7 then pcOf 188 else pcOf 357) ∧
@@ -74,8 +51,6 @@ theorem blk186_spec (s : MachineState) (hpc : s.pc = pcOf 186) (c : Nat) (hc : c
     by_cases h : c < 7 <;> simp [h]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_186.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_186.res, rv_simp]
-
-/-- `LEAF := 0`. -/
 theorem blk188_spec (s : MachineState) (hpc : s.pc = pcOf 188) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 189 ∧ t.getReg .x18 = BitVec.ofNat 64 0 ∧
       RegsExcept s t [.x18] ∧ Frame s t (fun _ => False) := by
@@ -84,8 +59,6 @@ theorem blk188_spec (s : MachineState) (hpc : s.pc = pcOf 188) :
   · simp [blk_188.res, rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_188.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_188.res, rv_simp]
-
-/-- `fts_leaf` (189): `LEAF ≥ 2048` ends the leaves. -/
 theorem blk189_spec (s : MachineState) (hpc : s.pc = pcOf 189) (leaf : Nat) (hl : leaf < 2 ^ 63)
     (h18 : s.getReg .x18 = BitVec.ofNat 64 leaf) :
     ∃ t, Steps image s 3 3 t ∧ t.pc = (if leaf < 2048 then pcOf 192 else pcOf 250) ∧
@@ -95,8 +68,6 @@ theorem blk189_spec (s : MachineState) (hpc : s.pc = pcOf 189) (leaf : Nat) (hl 
     by_cases h : leaf < 2048 <;> simp [h]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_189.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_189.res, rv_simp]
-
-/-- Odd leaves skip the PRF. -/
 theorem blk192_spec (s : MachineState) (hpc : s.pc = pcOf 192) (leaf : Nat) (hl : leaf < 2 ^ 64)
     (h18 : s.getReg .x18 = BitVec.ofNat 64 leaf) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = (if leaf % 2 = 0 then pcOf 194 else pcOf 211) ∧
@@ -109,8 +80,6 @@ theorem blk192_spec (s : MachineState) (hpc : s.pc = pcOf 192) (leaf : Nat) (hl 
       simp [h1]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_192.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_192.res, rv_simp]
-
-/-- The FTS PRF header `T8(coord, index, pair)` at `PRIV+16`, the HASH arguments `(PRIV, 64, SEC + 16 leaf)`. -/
 theorem blk194_spec (s : MachineState) (hpc : s.pc = pcOf 194) (c idx leaf : Nat) (hc : c < 256)
     (hidx : idx < 2 ^ 32) (hleaf : leaf < 2048)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h9 : s.getReg .x9 = BitVec.ofNat 64 idx)
@@ -142,12 +111,9 @@ theorem blk194_spec (s : MachineState) (hpc : s.pc = pcOf 194) (c idx leaf : Nat
     simp only [Result.toState_getMem, blk_194.res]
     t3n []
     rw [if_neg (by omega), if_neg (by omega)]
-
 theorem fetch_210 (s : MachineState) (hpc : s.pc = pcOf 210) : fetch image s = some (.base .ECALL) :=
   (codeAt_210.fetch s hpc).trans rfl
-
 set_option maxRecDepth 100000 in
-/-- `fts_noprf` (211..224): the secret of `leaf` to `FLEAF+32`, `x6 := 2305 | c << 16`, jump to the header stub. -/
 theorem blk211_spec (s : MachineState) (hpc : s.pc = pcOf 211) (c leaf : Nat) (hc : c < 256)
     (hleaf : leaf < 2048) (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h18 : s.getReg .x18 = BitVec.ofNat 64 leaf) :
     ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf 2045 ∧
@@ -178,9 +144,7 @@ theorem blk211_spec (s : MachineState) (hpc : s.pc = pcOf 211) (c leaf : Nat) (h
     simp only [Result.toState_getMem, blk_211.res]
     t3n []
     rw [if_neg (by omega), if_neg (by omega)]
-
 set_option maxRecDepth 100000 in
-/-- The FTS leaf header stub (2045..2073): `x7 := revBits 64 (2048 + leaf)`, back to 225. -/
 theorem blk2045_spec (s : MachineState) (hpc : s.pc = pcOf 2045) (leaf : Nat) (hleaf : leaf < 2048)
     (h18 : s.getReg .x18 = BitVec.ofNat 64 leaf) :
     ∃ t, Steps image s 29 29 t ∧ t.pc = pcOf 225 ∧
@@ -194,10 +158,7 @@ theorem blk2045_spec (s : MachineState) (hpc : s.pc = pcOf 2045) (leaf : Nat) (h
     rfl
   · intro r hr; simp at hr; cases r <;> simp_all [blk_2045.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_2045.res, rv_simp]
-
 set_option maxRecDepth 100000 in
-/-- 225..235: the header `T9(coord, index, ·)` (word 1 from `x7`) at `FLEAF+16`, the HASH arguments
-`(FLEAF, 64, LFOUT)`. -/
 theorem blk225_spec (s : MachineState) (hpc : s.pc = pcOf 225) (c idx : Nat) (hc : c < 256)
     (hidx : idx < 2 ^ 32) (h6 : s.getReg .x6 = BitVec.ofNat 64 (2305 + 65536 * c))
     (h9 : s.getReg .x9 = BitVec.ofNat 64 idx) :
@@ -226,10 +187,7 @@ theorem blk225_spec (s : MachineState) (hpc : s.pc = pcOf 225) (c idx : Nat) (hc
     simp only [Result.toState_getMem, blk_225.res]
     t3n []
     rw [if_neg (by omega), if_neg (by omega)]
-
 set_option maxRecDepth 100000 in
-/-- `fts_noprf` (211..235 via the stub 2045..2073): the secret of `leaf` to `FLEAF+32`, the header
-`T9(coord, index, leaf)` (word 1 = `revBits 64 (2048 + leaf)`), the HASH arguments `(FLEAF, 64, LFOUT)`. -/
 theorem blk211_full (s : MachineState) (hpc : s.pc = pcOf 211) (c idx leaf : Nat) (hc : c < 256)
     (hidx : idx < 2 ^ 32) (hleaf : leaf < 2048)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h9 : s.getReg .x9 = BitVec.ofNat 64 idx)
@@ -261,11 +219,8 @@ theorem blk211_full (s : MachineState) (hpc : s.pc = pcOf 211) (c idx leaf : Nat
     · rcases h with h | h <;> simp [h]
     · exact h.elim
     · rcases h with h | h <;> simp [h]
-
 theorem fetch_236 (s : MachineState) (hpc : s.pc = pcOf 236) : fetch image s = some (.base .ECALL) :=
   (codeAt_236.fetch s hpc).trans rfl
-
-/-- 237..249: the leaf hash to heap node `2048 + leaf`, `LEAF += 1`, back to `fts_leaf`. -/
 theorem blk237_spec (s : MachineState) (hpc : s.pc = pcOf 237) (leaf : Nat) (hleaf : leaf < 2048)
     (h18 : s.getReg .x18 = BitVec.ofNat 64 leaf) (h2 : s.getReg .x2 = BitVec.ofNat 64 FTS) :
     ∃ t, Steps image s 13 13 t ∧ t.pc = pcOf 189 ∧ t.getReg .x18 = BitVec.ofNat 64 (leaf + 1) ∧
@@ -292,8 +247,6 @@ theorem blk237_spec (s : MachineState) (hpc : s.pc = pcOf 237) (leaf : Nat) (hle
     simp only [Result.toState_getMem, blk_237.res]
     t3n [h18, h2, FTS]
     rw [if_neg (by omega), if_neg (by omega)]
-
-/-- `fts_leaves_done` (250..255): `H = 11`, `E = hdr0 10 coord`, `jal build_levels` (return to 256). -/
 theorem blk250_spec (s : MachineState) (hpc : s.pc = pcOf 250) (c : Nat) (hc : c < 256)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 6 6 t ∧ t.pc = pcOf (1013 + 113) ∧ t.getReg .x1 = pcOf 256 ∧
@@ -309,8 +262,6 @@ theorem blk250_spec (s : MachineState) (hpc : s.pc = pcOf 250) (c : Nat) (hc : c
     congr 1; omega
   · intro r hr; simp at hr; cases r <;> simp_all [blk_250.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_250.res, rv_simp]
-
-/-- 256..262: `ROWP = SEL + 24 coord`, `J = 0`. -/
 theorem blk256_spec (s : MachineState) (hpc : s.pc = pcOf 256) (c : Nat) (hc : c < 7)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 7 7 t ∧ t.pc = pcOf 263 ∧ t.getReg .x25 = BitVec.ofNat 64 (SEL + 24 * c) ∧
@@ -322,8 +273,6 @@ theorem blk256_spec (s : MachineState) (hpc : s.pc = pcOf 256) (c : Nat) (hc : c
   · simp [blk_256.res, rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_256.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_256.res, rv_simp]
-
-/-- `fts_sec` (263): `J ≥ 3` ends the secrets. -/
 theorem blk263_spec (s : MachineState) (hpc : s.pc = pcOf 263) (j : Nat) (hj : j < 2 ^ 63)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 j) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = (if j < 3 then pcOf 265 else pcOf 278) ∧
@@ -333,8 +282,6 @@ theorem blk263_spec (s : MachineState) (hpc : s.pc = pcOf 263) (j : Nat) (hj : j
     by_cases h : j < 3 <;> simp [h]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_263.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_263.res, rv_simp]
-
-/-- 265..277: secret `SEC + 16 [ROWP + 8 J]` to `[SDST]`, `SDST += 16`, `J += 1`. -/
 theorem blk265_spec (s : MachineState) (hpc : s.pc = pcOf 265) (j rowp sdst g : Nat)
     (hrow : rowp + 8 * j + 8 ≤ 2 ^ 24) (hrow8 : rowp % 8 = 0) (hsd : sdst + 16 ≤ 2 ^ 24) (hsd8 : sdst % 8 = 0)
     (hg : g < 2048) (hj : j < 3)
@@ -370,8 +317,6 @@ theorem blk265_spec (s : MachineState) (hpc : s.pc = pcOf 265) (j rowp sdst g : 
     simp only [Result.toState_getMem, blk_265.res]
     t3n [h26]
     rw [if_neg (by omega), if_neg (by omega)]
-
-/-- `fts_sec_done` (278..279): `DSTART = 8`, `J = 0`. -/
 theorem blk278_spec (s : MachineState) (hpc : s.pc = pcOf 278) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = pcOf 280 ∧ t.getReg .x23 = BitVec.ofNat 64 7 ∧
       t.getReg .x19 = BitVec.ofNat 64 0 ∧ RegsExcept s t [.x19, .x23] ∧ Frame s t (fun _ => False) := by
@@ -381,8 +326,6 @@ theorem blk278_spec (s : MachineState) (hpc : s.pc = pcOf 278) :
   · simp [blk_278.res, rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_278.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_278.res, rv_simp]
-
-/-- `fr_leaf` (280): `J ≥ 3` ends the frontier. -/
 theorem blk280_spec (s : MachineState) (hpc : s.pc = pcOf 280) (j : Nat) (hj : j < 2 ^ 63)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 j) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = (if j < 3 then pcOf 282 else pcOf 331) ∧
@@ -392,8 +335,6 @@ theorem blk280_spec (s : MachineState) (hpc : s.pc = pcOf 280) (j : Nat) (hj : j
     by_cases h : j < 3 <;> simp [h]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_280.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_280.res, rv_simp]
-
-/-- 282..290: `HS = 2048 + [ROWP + 8 J]`, `NXT = 0`; `J = 2` skips the next leaf. -/
 theorem blk282_spec (s : MachineState) (hpc : s.pc = pcOf 282) (j rowp g : Nat)
     (hrow : rowp + 8 * j + 16 ≤ 2 ^ 24) (hrow8 : rowp % 8 = 0) (hg : g < 2048) (hj : j < 3)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 j) (h25 : s.getReg .x25 = BitVec.ofNat 64 rowp)
@@ -421,8 +362,6 @@ theorem blk282_spec (s : MachineState) (hpc : s.pc = pcOf 282) (j rowp g : Nat)
   · simp only [Result.toState_getReg, blk_282.res]; t3n [h19, h25]; omega
   · intro r hr; simp at hr; cases r <;> simp_all [blk_282.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_282.res, rv_simp]
-
-/-- 291..294: `NXT = 2048 + [t1 + 8]` (the next leaf). -/
 theorem blk291_spec (s : MachineState) (hpc : s.pc = pcOf 291) (a g : Nat) (ha : a + 16 ≤ 2 ^ 24)
     (ha8 : a % 8 = 0) (hg : g < 2048) (h6 : s.getReg .x6 = BitVec.ofNat 64 a)
     (hgm : s.getMem (BitVec.ofNat 64 (a + 8)) = BitVec.ofNat 64 g) :
@@ -437,8 +376,6 @@ theorem blk291_spec (s : MachineState) (hpc : s.pc = pcOf 291) (a g : Nat) (ha :
   · simp only [Result.toState_getReg, blk_291.res]; t3n [h6, hgm]; omega
   · intro r hr; simp at hr; cases r <;> simp_all [blk_291.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_291.res, rv_simp]
-
-/-- `fr_nonext` (295): `LEV = DSTART`. -/
 theorem blk295_spec (s : MachineState) (hpc : s.pc = pcOf 295) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 296 ∧ t.getReg .x22 = s.getReg .x23 ∧
       RegsExcept s t [.x22] ∧ Frame s t (fun _ => False) := by
@@ -447,8 +384,6 @@ theorem blk295_spec (s : MachineState) (hpc : s.pc = pcOf 295) :
   · simp [blk_295.res, rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_295.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_295.res, rv_simp]
-
-/-- `fr_desc` (296): `LEV = 0` ends the descent. -/
 theorem blk296_spec (s : MachineState) (hpc : s.pc = pcOf 296) (l : Nat) (hl : l < 2 ^ 64)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 l) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = (if l = 0 then pcOf 310 else pcOf 297) ∧
@@ -463,30 +398,23 @@ theorem blk296_spec (s : MachineState) (hpc : s.pc = pcOf 296) (l : Nat) (hl : l
       simp [this]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_296.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_296.res, rv_simp]
-
 theorem shift_dec (l : Nat) (hl : l < 64) :
     (BitVec.ofNat 64 (l + 1) + 18446744073709551615#64).toNat % 64 = l := by
   rw [show (18446744073709551615#64 : Word) = BitVec.ofNat 64 18446744073709551615 from rfl, ofNat_add_ofNat,
     BitVec.toNat_ofNat]
   omega
-
 theorem bit_beq (x : Nat) : ((BitVec.ofNat 64 x &&& 1#64) == 0#64) = decide (x % 2 = 0) := by
   rw [ofNat_and1]
   rcases Nat.mod_two_eq_zero_or_one x with h | h <;> rw [h] <;> decide
-
 theorem bit_bne (x : Nat) : ((BitVec.ofNat 64 x &&& 1#64) != 0#64) = decide (x % 2 = 1) := by
   rw [ofNat_and1]
   rcases Nat.mod_two_eq_zero_or_one x with h | h <;> rw [h] <;> decide
-
 theorem ofNat_xor1 (v : Nat) (hv : v < 2 ^ 64) : BitVec.ofNat 64 v ^^^ 1#64 = BitVec.ofNat 64 (v ^^^ 1) := by
   apply BitVec.eq_of_toNat_eq
   rw [BitVec.toNat_xor, toNat_ofNat_lt hv, toNat_ofNat_lt (Nat.xor_lt_two_pow hv (by norm_num))]
   rfl
-
 theorem toNat_mod64 (l : Nat) (hl : l < 64) : (BitVec.ofNat 64 l).toNat % 64 = l := by
   rw [toNat_ofNat_lt (by omega)]; omega
-
-/-- 297..300: `LEV -= 1`, `t1 = HS >> LEV`; a left child (bit 0) continues the descent. -/
 theorem blk297_spec (s : MachineState) (hpc : s.pc = pcOf 297) (l hs : Nat) (hl : l < 64)
     (hhs : hs < 2 ^ 64) (h22 : s.getReg .x22 = BitVec.ofNat 64 (l + 1))
     (h20 : s.getReg .x20 = BitVec.ofNat 64 hs) :
@@ -505,8 +433,6 @@ theorem blk297_spec (s : MachineState) (hpc : s.pc = pcOf 297) (l hs : Nat) (hl 
     rw [show (l + 1 + 18446744073709551615) % 18446744073709551616 % 64 = l by omega, ofNat_shr hs l hhs]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_297.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_297.res, rv_simp]
-
-/-- Emit node `v ^^^ 1` of the arena (`[PP] := node`, `PP += 16`): 301..309 (back to `fr_desc`). -/
 theorem blk301_spec (s : MachineState) (hpc : s.pc = pcOf 301) (v pp : Nat) (hv : v < 4096)
     (hpp : pp + 16 ≤ 2 ^ 24) (hpp8 : pp % 8 = 0)
     (h6 : s.getReg .x6 = BitVec.ofNat 64 v) (h2 : s.getReg .x2 = BitVec.ofNat 64 FTS)
@@ -536,8 +462,6 @@ theorem blk301_spec (s : MachineState) (hpc : s.pc = pcOf 301) (v pp : Nat) (hv 
     simp only [Result.toState_getMem, blk_301.res]
     t3n [h16]
     rw [if_neg (by omega), if_neg (by omega)]
-
-/-- `fr_asc_init` (310): `LEV = 0`. -/
 theorem blk310_spec (s : MachineState) (hpc : s.pc = pcOf 310) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 311 ∧ t.getReg .x22 = BitVec.ofNat 64 0 ∧
       RegsExcept s t [.x22] ∧ Frame s t (fun _ => False) := by
@@ -546,8 +470,6 @@ theorem blk310_spec (s : MachineState) (hpc : s.pc = pcOf 310) :
   · simp [blk_310.res, rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_310.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_310.res, rv_simp]
-
-/-- `fr_asc` (311): `LEV ≥ 8` ends the ascent. -/
 theorem blk311_spec (s : MachineState) (hpc : s.pc = pcOf 311) (l : Nat) (hl : l < 2 ^ 63)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 l) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = (if l < 7 then pcOf 313 else pcOf 328) ∧
@@ -557,8 +479,6 @@ theorem blk311_spec (s : MachineState) (hpc : s.pc = pcOf 311) (l : Nat) (hl : l
     by_cases h : l < 7 <;> simp [h]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_311.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_311.res, rv_simp]
-
-/-- 313..315: `t1 = HS >> LEV`; a right child (bit 1) skips to `fr_asc_next`. -/
 theorem blk313_spec (s : MachineState) (hpc : s.pc = pcOf 313) (l hs : Nat) (hl : l < 64)
     (hhs : hs < 2 ^ 64) (h22 : s.getReg .x22 = BitVec.ofNat 64 l)
     (h20 : s.getReg .x20 = BitVec.ofNat 64 hs) :
@@ -574,8 +494,6 @@ theorem blk313_spec (s : MachineState) (hpc : s.pc = pcOf 313) (l hs : Nat) (hl 
     rw [show l % 18446744073709551616 % 64 = l by omega, ofNat_shr hs l hhs]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_313.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_313.res, rv_simp]
-
-/-- 316..318: `t1 ^= 1`; the next leaf's ancestor equal to the sibling ends the ascent. -/
 theorem blk316_spec (s : MachineState) (hpc : s.pc = pcOf 316) (l v nxt : Nat) (hl : l < 64)
     (hv : v < 2 ^ 64) (hnxt : nxt < 2 ^ 64) (h22 : s.getReg .x22 = BitVec.ofNat 64 l)
     (h6 : s.getReg .x6 = BitVec.ofNat 64 v) (h21 : s.getReg .x21 = BitVec.ofNat 64 nxt) :
@@ -597,8 +515,6 @@ theorem blk316_spec (s : MachineState) (hpc : s.pc = pcOf 316) (l v nxt : Nat) (
     exact ofNat_xor1 v hv
   · intro r hr; simp at hr; cases r <;> simp_all [blk_316.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_316.res, rv_simp]
-
-/-- 319..325: emit node `v` (`[PP] := node v`, `PP += 16`), on to `fr_asc_next`. -/
 theorem blk319_spec (s : MachineState) (hpc : s.pc = pcOf 319) (v pp : Nat) (hv : v < 4096)
     (hpp : pp + 16 ≤ 2 ^ 24) (hpp8 : pp % 8 = 0)
     (h6 : s.getReg .x6 = BitVec.ofNat 64 v) (h2 : s.getReg .x2 = BitVec.ofNat 64 FTS)
@@ -627,8 +543,6 @@ theorem blk319_spec (s : MachineState) (hpc : s.pc = pcOf 319) (v pp : Nat) (hv 
     simp only [Result.toState_getMem, blk_319.res]
     t3n [h16]
     rw [if_neg (by omega), if_neg (by omega)]
-
-/-- `fr_asc_next` (326..327): `LEV += 1`, back to `fr_asc`. -/
 theorem blk326_spec (s : MachineState) (hpc : s.pc = pcOf 326) (l : Nat)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 l) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = pcOf 311 ∧ t.getReg .x22 = BitVec.ofNat 64 (l + 1) ∧
@@ -638,8 +552,6 @@ theorem blk326_spec (s : MachineState) (hpc : s.pc = pcOf 326) (l : Nat)
   · simp only [Result.toState_getReg, blk_326.res]; t3n [h22]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_326.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_326.res, rv_simp]
-
-/-- `fr_asc_done` (328..330): `DSTART = LEV`, `J += 1`, back to `fr_leaf`. -/
 theorem blk328_spec (s : MachineState) (hpc : s.pc = pcOf 328) (j : Nat)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 j) :
     ∃ t, Steps image s 3 3 t ∧ t.pc = pcOf 280 ∧ t.getReg .x23 = s.getReg .x22 ∧
@@ -650,8 +562,6 @@ theorem blk328_spec (s : MachineState) (hpc : s.pc = pcOf 328) (j : Nat)
   · simp only [Result.toState_getReg, blk_328.res]; t3n [h19]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_328.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_328.res, rv_simp]
-
-/-- `fr_done` (331): `LEV = 8`. -/
 theorem blk331_spec (s : MachineState) (hpc : s.pc = pcOf 331) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 332 ∧ t.getReg .x22 = BitVec.ofNat 64 7 ∧
       RegsExcept s t [.x22] ∧ Frame s t (fun _ => False) := by
@@ -660,8 +570,6 @@ theorem blk331_spec (s : MachineState) (hpc : s.pc = pcOf 331) :
   · simp [blk_331.res, rv_simp]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_331.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_331.res, rv_simp]
-
-/-- `fr_outer` (332): `LEV ≥ 11` ends the outer siblings. -/
 theorem blk332_spec (s : MachineState) (hpc : s.pc = pcOf 332) (l : Nat) (hl : l < 2 ^ 63)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 l) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = (if l < 11 then pcOf 334 else pcOf 345) ∧
@@ -671,8 +579,6 @@ theorem blk332_spec (s : MachineState) (hpc : s.pc = pcOf 332) (l : Nat) (hl : l
     by_cases h : l < 11 <;> simp [h]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_332.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_332.res, rv_simp]
-
-/-- 334..344: emit the outer sibling `(HS >> LEV) ^ 1`, `LEV += 1`, back to `fr_outer`. -/
 theorem blk334_spec (s : MachineState) (hpc : s.pc = pcOf 334) (l hs pp : Nat) (hl : l < 64)
     (hhs : hs < 4096) (hpp : pp + 16 ≤ 2 ^ 24) (hpp8 : pp % 8 = 0)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 l) (h20 : s.getReg .x20 = BitVec.ofNat 64 hs)
@@ -709,8 +615,6 @@ theorem blk334_spec (s : MachineState) (hpc : s.pc = pcOf 334) (l hs pp : Nat) (
     simp only [Result.toState_getMem, blk_334.res]
     t3n [h16]
     rw [if_neg (by omega), if_neg (by omega)]
-
-/-- `fr_outer_done` (345..346): `t3 = 16 coord`; coordinate 0 skips the header slot. -/
 theorem blk345_spec (s : MachineState) (hpc : s.pc = pcOf 345) (c : Nat) (hc : c < 7)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 2 2 t ∧ t.pc = (if c = 0 then pcOf 348 else pcOf 347) ∧
@@ -726,8 +630,6 @@ theorem blk345_spec (s : MachineState) (hpc : s.pc = pcOf 345) (c : Nat) (hc : c
   · simp only [Result.toState_getReg, blk_345.res]; t3n [h8]; omega
   · intro r hr; simp at hr; cases r <;> simp_all [blk_345.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_345.res, rv_simp]
-
-/-- 347: `t3 += 16`. -/
 theorem blk347_spec (s : MachineState) (hpc : s.pc = pcOf 347) (o : Nat)
     (h28 : s.getReg .x28 = BitVec.ofNat 64 o) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 348 ∧ t.getReg .x28 = BitVec.ofNat 64 (o + 16) ∧
@@ -737,8 +639,6 @@ theorem blk347_spec (s : MachineState) (hpc : s.pc = pcOf 347) (o : Nat)
   · simp only [Result.toState_getReg, blk_347.res]; t3n [h28]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_347.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_347.res, rv_simp]
-
-/-- `fr_root0` (348..356): the root (heap node 1) to `FOREST + o`, `coord += 1`, back to `fts_coord`. -/
 theorem blk348_spec (s : MachineState) (hpc : s.pc = pcOf 348) (o c : Nat) (ho : o ≤ 112) (ho8 : o % 8 = 0)
     (h28 : s.getReg .x28 = BitVec.ofNat 64 o) (h2 : s.getReg .x2 = BitVec.ofNat 64 FTS)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 c) :
@@ -766,5 +666,4 @@ theorem blk348_spec (s : MachineState) (hpc : s.pc = pcOf 348) (o c : Nat) (ho :
     simp only [Result.toState_getMem, blk_348.res]
     t3n [h28, h2]
     rw [if_neg (by sg_omega), if_neg (by sg_omega)]
-
 end SigGolfCandidate.T3M.Sign

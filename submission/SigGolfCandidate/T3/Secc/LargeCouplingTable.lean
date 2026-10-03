@@ -1,19 +1,5 @@
 import SigGolfCandidate.T3.Secc.LargeCouplingShort
 
-/-!
-# LR-34 (coupling, one table): the router's stops dominate the contacts
-
-**`table_contact_le`**: for a coherent eager table `T` (universe `U = Wots.referenceInputs adversary`), the probability
-that the fixed-world recorded padded game (F2's `Ref.fixedRecord T (idealGame …)`) contacts (`ContactR … T`) is at
-most the probability that the router (after the presampled data `a`) stops within the budget in the eager observed
-world of `(vals, nv, τ)`.
-
-Route: F2's `fixed_game_eq` (key generation ; logged interaction ; verdict, all deterministic but the coins),
-`taggedFixed_untag` (the interaction is a fixed-world tagged record), the canonical split of the combined record
-(`ContactR` quantifies over splits), the key disclosures (`Coherent.pk`, `Coherent.published`, `rel_initial`), then
-`interaction_le` with the verdict as continuation (`routeVerdict_observed`).
--/
-
 namespace SigGolfCandidate.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final SigGolfCandidate.T3M.SecurityInputs
@@ -26,17 +12,12 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] keygen
 noncomputable local instance instDecidableEqCache_largeCouplingTable : DecidableEq T3.Cache := Classical.decEq _
-
 section Table
 variable {U : Finset HashInput} {T : Answers} {vals : Coord → Digest} {nv : Message → Digest}
   {τ : Cell U → HashOutput} {a : AuxData} {q : Nat}
-
-/-- The world state after the key disclosures. -/
 noncomputable def keyState (U : Finset HashInput) (q : Nat) (vals : Coord → Digest) (nv : Message → Digest) :
     LargeResidual.State WCoord (Cell U) :=
   discloseStates U q (Sum.elim vals nv) LargeResidual.initial keygenDisclosed
-
-/-- **The initial relation** after the key disclosures. -/
 theorem rel_initial :
     Rel U T vals nv τ a q Monitor.initial RouterState.initial (keyState U q vals nv) := by
   have hc := discloseStates_counters (U := U) (q := q) (vals := vals) (nv := nv) keygenDisclosed
@@ -69,14 +50,11 @@ theorem rel_initial :
     cases hX
   · intro X hX
     cases hX
-
 theorem keygen_record (T : Answers) :
     Wots.Ref.pureRecord T keygen (∅, ∅) ∈ support (FirstHit.record keygen (∅, ∅)) ∧
       Wots.Ref.Agrees T (Wots.Ref.pureRecord T keygen (∅, ∅)).state := by
   apply Wots.Ref.fixedRecord_mem_record T keygen (∅, ∅) (Wots.Ref.agrees_empty T)
   rw [Wots.Ref.fixedRecord_hashOnly T keygen SourceReplay.keygen_hashOnly, mem_support_pure_iff]
-
-/-- The canonical split of the combined fixed-world record of a fixed-world tagged interaction. -/
 theorem canonical_split (adversary : AdversaryP) (T : Answers)
     (t : Tagged (Option ForgeryP))
     (ht : t ∈ support (taggedFixed T (evalWithAnswerFn T keygen).2
@@ -95,22 +73,16 @@ theorem canonical_split (adversary : AdversaryP) (T : Answers)
     (by rw [Wots.Ref.fixedRecord_hashOnly T _ (Wots.Ref.verdict_hashOnly _ _), mem_support_pure_iff]; rfl)
   rw [hval]
   exact hv.1
-
-/-- The contact event of a deterministic verdict continuation (`Final` of `interaction_le`). -/
 noncomputable def verdictContact (U : Finset HashInput) (T : Answers) (q : Nat) (pk : Digest) (mon : Monitor)
     (value : Option ForgeryP × QueryLog Requests) (state : LazyPrivate.State) : Prop :=
   ((Wots.Ref.pureRecord T (GameWith.verdict PaddedGame.checker pk value) state).events.foldl
     (Monitor.event U T q) mon).contact = true
-
-/-- The router's continuation after the interaction. -/
 noncomputable def verdictCont (U : Finset HashInput) (a : AuxData) (q : Nat) (pk : Digest)
     (r : Option ((Option ForgeryP × QueryLog Requests) × RouterState)) :
     OracleComp (RWorld U) (Option (Bool × RouterState)) :=
   match r with
   | none => pure none
   | some (result, st) => routeVerdict U a q (GameWith.verdict PaddedGame.checker pk result) st
-
-/-- The router after the presampled data, with the honest key. -/
 theorem Coherent.routerWith (hcoh : Coherent U T vals nv τ a) (aux : (input : AuxSpec.Domain) → PMF (AuxSpec.Range input))
     (adversary : AdversaryP) :
     observedRun aux q (Sum.elim vals nv) τ (routerWith U adversary q a) LargeResidual.initial =
@@ -125,11 +97,7 @@ theorem Coherent.routerWith (hcoh : Coherent U T vals nv τ a) (aux : (input : A
   simp only [hkv]
   rw [hcoh.published, hcoh.pk]
   rfl
-
-
 end Table
-
-/-- **One table: contacts are router stops.** -/
 theorem table_contact_le (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (initLaw : PMF AuxData)
     {T : Answers} {vals : Coord → Digest} {nv : Message → Digest}
     {τ : Cell (Wots.referenceInputs adversary) → HashOutput} {a : AuxData}
@@ -179,6 +147,4 @@ theorem table_contact_le (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     cases hf
   · intro ws' hws
     exact ⟨rfl, hws⟩
-
-
 end SigGolfCandidate.T3.Security.LargeCoupling

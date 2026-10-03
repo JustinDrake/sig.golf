@@ -2,38 +2,20 @@ import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.FewTimeProbability
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.Guess
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.HashOutputSplit
-/-!
-# Uniform few-time views
-
-The low 244 bits of a fresh oracle answer are exactly the 34-bit index and the fifteen 14-bit
-leaf slots of the digest. Splitting an answer into these and its unused high bits is bijective, so the
-induced view is uniform.
--/
 
 namespace SphincsSecurity
-
 open OracleComp OracleSpec ENNReal
-
 namespace Concrete
-
 abbrev FullDigestView := Index × (IndexGroup → FtsLeaf)
-
 def fullDigestView (digest : MessageDigest) : FullDigestView :=
   (digestIndex digest, digestLeaves digest)
-
-/-- The index and the fifteen leaf slots of an answer's digest. -/
 def hashOutputFewTimeView (output : HashOutput) : FewTimeView :=
   fullDigestView (truncateMessageDigest output)
-
-/-- The digest bits `244 .. 255`, which the scheme does not read. -/
 abbrev DigestUnusedBits := BitVec (messageDigestBits - (totalHeight + ftsTreeHeight * ftsOpenings))
-
 def digestUnusedBits (digest : MessageDigest) : DigestUnusedBits :=
   digest.extractLsb' (totalHeight + ftsTreeHeight * ftsOpenings) (messageDigestBits - (totalHeight + ftsTreeHeight * ftsOpenings))
-
 def digestCoordinates (digest : MessageDigest) : FewTimeView × DigestUnusedBits :=
   (fullDigestView digest, digestUnusedBits digest)
-
 theorem digestCoordinates_injective : Function.Injective digestCoordinates := by
   intro left right heq
   apply BitVec.eq_of_getLsbD_eq
@@ -85,16 +67,13 @@ theorem digestCoordinates_injective : Function.Injective digestCoordinates := by
       simp only [digestUnusedBits, BitVec.getLsbD_extractLsb', hwithin, decide_true, Bool.true_and,
         Nat.add_sub_of_le hlow] at hbit
       exact hbit
-
 theorem digestCoordinates_bijective : Function.Bijective digestCoordinates := by
   apply (Fintype.bijective_iff_injective_and_card _).2
   refine ⟨digestCoordinates_injective, ?_⟩
   simp only [Fintype.card_bitVec, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin]
   rfl
-
 noncomputable def digestCoordinatesEquiv : MessageDigest ≃ FewTimeView × DigestUnusedBits :=
   Equiv.ofBijective digestCoordinates digestCoordinates_bijective
-
 set_option maxRecDepth 100000 in
 theorem evalDist_hashOutput_digestCoordinates_uniform :
     𝒮[(fun output : HashOutput => digestCoordinates (truncateMessageDigest output)) <$>
@@ -120,22 +99,18 @@ theorem evalDist_hashOutput_digestCoordinates_uniform :
       evalSPMF_map_bijective_uniform_cross
         (α := MessageDigest) (β := FewTimeView × DigestUnusedBits)
         digestCoordinates digestCoordinates_bijective
-
 abbrev HashOutputCoordinates :=
   (FewTimeView × DigestUnusedBits) × BitVec (hashOutputBits - messageDigestBits)
-
 noncomputable def hashOutputCoordinatesEquiv : HashOutput ≃ HashOutputCoordinates :=
   (splitHashOutputEquiv messageDigestBits
       (show messageDigestBits ≤ hashOutputBits by decide)).trans
     (Equiv.prodCongr digestCoordinatesEquiv
       (Equiv.refl (BitVec (hashOutputBits - messageDigestBits))))
-
 theorem hashOutputCoordinatesEquiv_apply (output : HashOutput) :
     hashOutputCoordinatesEquiv output =
       ((hashOutputFewTimeView output,
           digestUnusedBits (truncateMessageDigest output)),
         output.extractLsb' messageDigestBits (hashOutputBits - messageDigestBits)) := rfl
-
 set_option maxRecDepth 100000 in
 theorem evalDist_uniformHashOutput_bind_coordinates {Result : Type}
     (continuation : HashOutput → ProbComp Result) :
@@ -155,7 +130,6 @@ theorem evalDist_uniformHashOutput_bind_coordinates {Result : Type}
         ($ᵗ HashOutput : ProbComp HashOutput) >>= continuation := by
     simp [map_eq_bind_pure_comp, bind_assoc]
   rw [← hcomputation, evalSPMF_bind, hmap, ← evalSPMF_bind]
-
 set_option maxRecDepth 100000 in
 theorem evalDist_randomOracle_fresh_bind_coordinates {Result : Type}
     (input : HashInput) (cache : QueryCache HashSpec) (hcache : cache input = none)
@@ -177,12 +151,10 @@ theorem evalDist_randomOracle_fresh_bind_coordinates {Result : Type}
   rw [hcomputation]
   exact evalDist_uniformHashOutput_bind_coordinates fun output =>
     continuation (output, cache.cacheQuery input output)
-
 def signAttemptResultOfOutput (output : HashOutput) :
     Option (Index × (IndexGroup → FtsLeaf)) :=
   let digest := truncateMessageDigest output
   if Admissible digest then some (digestIndex digest, digestLeaves digest) else none
-
 theorem hashOutputCoordinatesEquiv_symm_digestCoordinates
     (coordinates : HashOutputCoordinates) :
     digestCoordinates (truncateMessageDigest (hashOutputCoordinatesEquiv.symm coordinates)) =
@@ -190,28 +162,23 @@ theorem hashOutputCoordinatesEquiv_symm_digestCoordinates
   have heq := hashOutputCoordinatesEquiv.apply_symm_apply coordinates
   rw [hashOutputCoordinatesEquiv_apply] at heq
   exact congrArg Prod.fst heq
-
 theorem hashOutputCoordinatesEquiv_symm_view (coordinates : HashOutputCoordinates) :
     hashOutputFewTimeView (hashOutputCoordinatesEquiv.symm coordinates) = coordinates.1.1 := by
   change (digestCoordinates
     (truncateMessageDigest (hashOutputCoordinatesEquiv.symm coordinates))).1 = coordinates.1.1
   exact congrArg Prod.fst (hashOutputCoordinatesEquiv_symm_digestCoordinates coordinates)
-
 theorem signAttemptResultOfOutput_ne_none_iff (output : HashOutput) :
     signAttemptResultOfOutput output ≠ none ↔
       Admissible (truncateMessageDigest output) := by
   simp only [signAttemptResultOfOutput]
   split <;> simp_all
-
 theorem admissible_iff_view (output : HashOutput) :
     Admissible (truncateMessageDigest output) ↔ AdmissibleLeaves (hashOutputFewTimeView output).2 := Iff.rfl
-
 theorem signAttemptResultOfOutput_coordinates_ne_none_iff
     (coordinates : HashOutputCoordinates) :
     signAttemptResultOfOutput (hashOutputCoordinatesEquiv.symm coordinates) ≠ none ↔
       AdmissibleLeaves coordinates.1.1.2 := by
   rw [signAttemptResultOfOutput_ne_none_iff, admissible_iff_view, hashOutputCoordinatesEquiv_symm_view]
-
 theorem signAttemptResultOfOutput_coordinates_view
     (coordinates : HashOutputCoordinates) (index : Index)
     (leaves : IndexGroup → FtsLeaf)
@@ -225,7 +192,6 @@ theorem signAttemptResultOfOutput_coordinates_view
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj hpair
     exact hashOutputCoordinatesEquiv_symm_view coordinates
   · simp at hresult
-
 theorem signAttemptResultOfOutput_view (output : HashOutput) (index : Index)
     (leaves : IndexGroup → FtsLeaf)
     (hresult : signAttemptResultOfOutput output = some (index, leaves)) :
@@ -238,7 +204,6 @@ theorem signAttemptResultOfOutput_view (output : HashOutput) (index : Index)
     _ = hashOutputFewTimeView output := by
       dsimp only [coordinates]
       rw [hashOutputCoordinatesEquiv_apply]
-
 theorem simulateQ_signAttempt_run_eq (secretKey : SecretKey) (message : Message)
     (randomness : Randomness) (cache : QueryCache HashSpec) :
     (simulateQ (randomOracle : QueryImpl HashSpec _)
@@ -268,7 +233,6 @@ theorem simulateQ_signAttempt_run_eq (secretKey : SecretKey) (message : Message)
   apply bind_congr
   intro result
   split <;> rfl
-
 set_option maxRecDepth 100000 in
 theorem evalDist_signAttempt_fresh_bind_coordinates {Result : Type}
     (secretKey : SecretKey) (message : Message) (randomness : Randomness)
@@ -293,7 +257,5 @@ theorem evalDist_signAttempt_fresh_bind_coordinates {Result : Type}
     (tweakableHashInput secretKey.parameter .message
       (messageDigestPayload secretKey.root message randomness)) cache hcache
     (fun result => continuation (signAttemptResultOfOutput result.1, result.2))
-
 end Concrete
-
 end SphincsSecurity

@@ -2,14 +2,10 @@ import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.DigestLoopRecord
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.RawProposalMomentBound
 
-/-! ## WeightedBinomialOccupancy -/
-
 namespace SphincsSecurity.Concrete
-
 open _root_.OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
 set_option backward.isDefEq.respectTransparency false
-
 theorem uniform_view_index_weight_expectation (weight : Index → ENNReal) :
     (∑' source, Pr[= source | ($ᵗ FewTimeView : ProbComp FewTimeView)] * weight source.1) =
       (∑ index : Index, weight index) / (Fintype.card Index : ENNReal) := by
@@ -24,18 +20,13 @@ theorem uniform_view_index_weight_expectation (weight : Index → ENNReal) :
   apply Finset.sum_congr rfl
   intro index _
   exact mul_comm _ _
-
 end SphincsSecurity.Concrete
-
 namespace SphincsSecurity.Concrete
-
 open _root_.OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] signDigestLoop
-
 noncomputable def completeSelectedIndex (view : Option FewTimeView) : ProbComp Index :=
   view.elim ($ᵗ Index) (fun selected => pure selected.1)
-
 theorem probEvent_uniform_view_index (index : Index) :
     Pr[fun view : FewTimeView => view.1 = index | ($ᵗ FewTimeView : ProbComp FewTimeView)] =
       (Fintype.card Index : ENNReal)⁻¹ := by
@@ -44,7 +35,6 @@ theorem probEvent_uniform_view_index (index : Index) :
     (fun source => if source = index then (1 : ENNReal) else 0)
   simpa only [mul_ite, mul_one, mul_zero, Finset.sum_ite_eq', Finset.mem_univ,
     if_true, one_div] using h
-
 theorem cachedMessageEntryCountWhere_index_le (key : SecretKey) (message : Message)
     (cache : QueryCache HashSpec) (index : Index) :
     cachedMessageEntryCountWhere cache key.parameter key.root message (fun view => view.1 = index) ≤
@@ -73,7 +63,6 @@ theorem cachedMessageEntryCountWhere_index_le (key : SecretKey) (message : Messa
         (fun _ view => if view.1 = index then 1 else 0) cache (inputOf entry) :=
       tsum_congr (fun entry => (hweight entry).symm)
     _ ≤ _ := ENNReal.tsum_comp_le_tsum_of_injective hinjective _
-
 private theorem selectedLoopView_partition (attempts : Nat) (key : SecretKey) (message : Message)
     (cache : QueryCache HashSpec) (P : FewTimeView → Prop) (result : DigestLoopRecord)
     (hr : result ∈ support ((simulateQ romImpl (signDigestLoop attempts key message)).run cache)) :
@@ -92,7 +81,6 @@ private theorem selectedLoopView_partition (attempts : Nat) (key : SecretKey) (m
           have hview : selectedFewTimeView index leaves = hashOutputFewTimeView output :=
             signAttemptResultOfOutput_view output index leaves hattempt
           simp [selectedLoopView?, FreshSelectedView, PrehitSelectedView, hc, hattempt, hview]
-
 theorem probEvent_selectedLoopView_eq_fresh_add_cached (key : SecretKey) (message : Message)
     (cache : QueryCache HashSpec) (P : FewTimeView → Prop) :
     Pr[fun result => ∃ view, selectedLoopView? result = some view ∧ P view |
@@ -112,7 +100,6 @@ theorem probEvent_selectedLoopView_eq_fresh_add_cached (key : SecretKey) (messag
       (selectedLoopView_partition digestAttemptLimit key message cache P result hr)
     simpa only [mul_add, mul_ite, mul_one, mul_zero] using h
   · simp only [probOutput_eq_zero_of_not_mem_support hr, ite_self, zero_add]
-
 theorem probOutput_completeSelectedLoopIndex (key : SecretKey) (message : Message)
     (cache : QueryCache HashSpec) (index : Index) :
     Pr[= index | (simulateQ romImpl (signDigestLoop digestAttemptLimit key message)).run cache >>=
@@ -137,7 +124,6 @@ theorem probOutput_completeSelectedLoopIndex (key : SecretKey) (message : Messag
   rw [probEvent_selectedLoopView_eq_fresh_add_cached, probEvent_signerView_index] at h
   simpa only [probEvent_eq_eq_probOutput, probOutput_uniformSample, digestExhaustionProbability,
     add_mul, add_assoc, add_comm, add_left_comm] using h
-
 theorem probOutput_completeSelectedLoopIndex_le (key : SecretKey) (message : Message)
     (cache : QueryCache HashSpec) (index : Index) :
     Pr[= index | (simulateQ romImpl (signDigestLoop digestAttemptLimit key message)).run cache >>=
@@ -154,7 +140,6 @@ theorem probOutput_completeSelectedLoopIndex_le (key : SecretKey) (message : Mes
       _ = 1 := freshSelection_add_count_exactWeight_add_exhaustion key message cache
   exact add_le_add (mul_le_of_le_one_left' hmass)
     ((mul_le_mul' (cachedMessageEntryCountWhere_index_le key message cache index) le_rfl).trans_eq (mul_comm _ _))
-
 theorem probOutput_completeSelectedLoopIndex_le_proposalRate (key : SecretKey) (message : Message)
     (cache : QueryCache HashSpec) (spent : Nat) (hspent : spent ≤ 2 ^ 127)
     (hcache : QueryCache.enncard cache ≤ spent) (hclean : ¬ MessageDeficitExceptional key cache)
@@ -168,5 +153,4 @@ theorem probOutput_completeSelectedLoopIndex_le_proposalRate (key : SecretKey) (
   simpa only [Nat.add_zero, Nat.cast_zero, zero_mul, add_zero] using
     targetProposalRate_of_cache_bound (cachedIndexMultiplicity key.parameter cache index)
       spent 0 0 0 hspent (Nat.zero_le _) (Nat.zero_le _) (hindex index)
-
 end SphincsSecurity.Concrete

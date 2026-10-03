@@ -1,18 +1,14 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.PartialChainLastRow
 import SigGolfCandidate.SphincsSecurity.Proof.Chains.AdaptiveChainPotential
-namespace SphincsSecurity.Concrete.PartialChainEndpoint
 
+namespace SphincsSecurity.Concrete.PartialChainEndpoint
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
-
 variable {State : Type} [Fintype State] [DecidableEq State]
-
 noncomputable def contactCount {n : Nat} (observed : Fin n → State → Option State) (endpoint : State) : Nat :=
   ∑ query : Fin n × State, if query.1.val + 1 = n ∧ observed query.1 query.2 = some endpoint then 1 else 0
-
 theorem contactCount_empty {n : Nat} (endpoint : State) : contactCount (n := n) (fun _ _ => none) endpoint = 0 := by
   simp [contactCount]
-
 theorem contactCount_succ {n : Nat} (observed : Fin (n + 1) → State → Option State) (endpoint : State) :
     contactCount observed endpoint = ∑ input : State, if observed (Fin.last n) input = some endpoint then 1 else 0 := by
   rw [contactCount, Fintype.sum_prod_type]
@@ -27,18 +23,15 @@ theorem contactCount_succ {n : Nat} (observed : Fin (n + 1) → State → Option
       omega
     simp only [hn, false_and, if_false, Finset.sum_const_zero]
   · simp
-
 theorem contactCount_tail {n : Nat} (observed : Fin (n + 2) → State → Option State) (endpoint : State) :
     contactCount (Fin.tail observed) endpoint = contactCount observed endpoint := by
   simp only [contactCount_succ, Fin.tail, Fin.succ_last]
-
 theorem contactCount_single (observed : Fin 1 → State → Option State) (endpoint : State) :
     contactCount observed endpoint = knownCount observed endpoint := by
   rw [contactCount_succ, knownCount]
   apply Finset.sum_congr rfl
   intro input _
   cases hrow : observed 0 input <;> simp [knownRun, hrow]
-
 omit [Fintype State] in
 theorem record_at_other {n : Nat} (observed : Fin n → State → Option State) (query other : Fin n × State)
     (answer : State) (h : other ≠ query) : record observed query answer other.1 other.2 = observed other.1 other.2 := by
@@ -46,7 +39,6 @@ theorem record_at_other {n : Nat} (observed : Fin n → State → Option State) 
   · have hi : other.2 ≠ query.2 := fun heq => h (Prod.ext hs heq)
     simp only [record, hs, Function.update_self, Function.update_of_ne hi]
   · simp only [record, Function.update_of_ne hs]
-
 theorem contactCount_record_fresh {n : Nat} (observed : Fin n → State → Option State) (query : Fin n × State)
     (answer endpoint : State) (hfresh : observed query.1 query.2 = none) :
     contactCount (record observed query answer) endpoint =
@@ -65,7 +57,6 @@ theorem contactCount_record_fresh {n : Nat} (observed : Fin n → State → Opti
       (fun other : Fin n × State => if other.1.val + 1 = n ∧ observed other.1 other.2 = some endpoint then 1 else 0)
       (Finset.mem_univ query)]
   simp only [hfresh, reduceCtorEq, and_false, if_false, Nat.zero_add, Nat.add_comm]
-
 theorem contactCount_observe_increment_le [Nonempty State] {n : Nat}
     (value increment : Nat → ENNReal) (hincrement : ∀ k, value (k + 1) = value k + increment k)
     (observed : Fin n → State → Option State) (query : Fin n × State) (endpoint : State) :
@@ -87,25 +78,20 @@ theorem contactCount_observe_increment_le [Nonempty State] {n : Nat}
         exact le_of_eq (by rw [div_eq_mul_inv, mul_comm])
       · simp only [hlast, false_and, if_false, Nat.add_zero, expectation_const]
         exact _root_.le_add_of_nonneg_right bot_le
-
 theorem contactCount_observe_le [Nonempty State] {n : Nat} (observed : Fin n → State → Option State)
     (query : Fin n × State) (endpoint : State) :
     (∑' answer, rowLaw (observed query.1 query.2) answer * (contactCount (record observed query answer) endpoint : ENNReal)) ≤
       (contactCount observed endpoint : ENNReal) + 1 / Fintype.card State :=
   contactCount_observe_increment_le (fun k => k) (fun _ => 1) (fun k => by simp only [Nat.cast_add, Nat.cast_one]) observed query endpoint
-
 def contactFactorial (k : Nat) : Nat := k * (k - 1)
-
 theorem contactFactorial_succ (k : Nat) : contactFactorial (k + 1) = contactFactorial k + 2 * k := by
   cases k with
   | zero => rfl
   | succ k => simp only [contactFactorial, Nat.add_sub_cancel]; ring
-
 theorem contactFactorial_observe_le [Nonempty State] {n : Nat} (observed : Fin n → State → Option State)
     (query : Fin n × State) (endpoint : State) :
     (∑' answer, rowLaw (observed query.1 query.2) answer * (contactFactorial (contactCount (record observed query answer) endpoint) : ENNReal)) ≤
       (contactFactorial (contactCount observed endpoint) : ENNReal) + (2 * contactCount observed endpoint : Nat) / (Fintype.card State : ENNReal) :=
   contactCount_observe_increment_le (fun k => contactFactorial k) (fun k => (2 * k : Nat))
     (fun k => by rw [contactFactorial_succ, Nat.cast_add]) observed query endpoint
-
 end SphincsSecurity.Concrete.PartialChainEndpoint

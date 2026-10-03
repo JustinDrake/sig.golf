@@ -7,16 +7,12 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-- The local birth-accounting counter is exactly the shared budget counter. -/
 theorem prefixCount_eq_classCharge (cls : T3.Spec.Domain → Prop) (budget : Nat)
     (events : List FirstHit.QueryEvent) :
     prefixCount cls budget events = SeccLaw.classCharge cls budget events := by
   induction events generalizing budget with
   | nil => rfl
   | cons event rest ih => simp only [prefixCount, SeccLaw.classCharge, ih]
-
-/-- Adding SECC's uniform completion preserves every trace-only expectation. -/
 theorem completed_trace_expectation (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127) (payoff : PaddedGame.TraceResult → ENNReal) :
     expectedValue (SeccLaw.completedExperiment adversary budget hbudget) (fun z => payoff z.1) =
@@ -28,9 +24,6 @@ theorem completed_trace_expectation (adversary : SigGolfCandidate.T3M.Final.Adve
   rw [← PMF.monad_map_eq_map, expectedValue_map]
   exact expectedValue_const (mx := PMF.uniformOfFintype SeccLaw.CompletionTables)
     (by simp) (payoff result)
-
-/-- The digest-class baseline is measured on the common completed experiment,
-so it shares the same budget with SECC's structural and chain classes. -/
 theorem expectedClassCount_eq_shared (cls : T3.Spec.Domain → Prop)
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127) :
@@ -45,7 +38,6 @@ theorem expectedClassCount_eq_shared (cls : T3.Spec.Domain → Prop)
   change (prefixCount cls budget z.1.2.2.events : ENNReal) =
     (SeccLaw.classCharge cls budget z.1.2.2.events : ENNReal)
   exact_mod_cast prefixCount_eq_classCharge cls budget z.1.2.2.events
-
 theorem expectedBirths_le_shared (cls : HashInput → Prop)
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127) :
@@ -53,10 +45,6 @@ theorem expectedBirths_le_shared (cls : HashInput → Prop)
       SeccLaw.expectedCharge adversary budget hbudget (fun _ => publicClass cls) := by
   rw [← expectedClassCount_eq_shared]
   exact expectedBirths_le_classCount cls adversary budget hbudget
-
-/-- The completed-proposal full-price charge has SECC's exact class-count
-shape, with only the excess charged against the entire compression budget.
-This is the charge bound; the future-exposure event bridge is separate. -/
 theorem full_charge_le_shared_excess (cls : HashInput → Prop)
     (adversary : SigGolfCandidate.T3M.Final.AdversaryP)
     (budget : Nat) (hbudget : budget ≤ 2^127) :
@@ -66,5 +54,4 @@ theorem full_charge_le_shared_excess (cls : HashInput → Prop)
         (budget : ENNReal) * (11324/100000000) := by
   rw [← expectedClassCount_eq_shared]
   exact full_charge_le_class_excess cls adversary budget hbudget
-
 end SigGolfCandidate.T3.Security.CreationGame

@@ -1,29 +1,24 @@
 import VCVio.OracleComp.QueryTracking.WriterCost
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
-namespace SphincsSecurity.QueryCap
 
+namespace SphincsSecurity.QueryCap
 open _root_.OracleComp OracleSpec
 set_option backward.isDefEq.respectTransparency false
 set_option autoImplicit true
-
 variable {Index : Type} {spec : OracleSpec Index} {Result Next : Type}
   (selected : Index → Prop) [DecidablePred selected]
-
 noncomputable def counted (computation : OracleComp spec Result) : OracleComp spec (Result × Nat) :=
   OracleComp.construct (fun result => pure (result, 0))
     (fun input _ next => do
       let answer ← liftM (spec.query input)
       let result ← next answer
       pure (result.1, (if selected input then 1 else 0) + result.2)) computation
-
 theorem counted_pure (result : Result) : counted selected (pure result : OracleComp spec Result) = pure (result, 0) := rfl
-
 theorem counted_query_bind (input : spec.Domain) (next : spec.Range input → OracleComp spec Result) :
     counted selected (liftM (spec.query input) >>= next) = (do
       let answer ← liftM (spec.query input)
       let result ← counted selected (next answer)
       pure (result.1, (if selected input then 1 else 0) + result.2)) := rfl
-
 theorem simulate_withCost {m : Type → Type} [Monad m] [LawfulMonad m]
     (impl : QueryImpl spec m) (computation : OracleComp spec α) :
     simulateQ impl (counted selected computation) =
@@ -36,14 +31,12 @@ theorem simulate_withCost {m : Type → Type} [Monad m] [LawfulMonad m]
       simp [QueryImpl.withAddCost, QueryImpl.withCost, QueryImpl.withTraceBefore_apply,
         WriterT.run_bind, WriterT.run_liftM, WriterT.run_tell, map_eq_bind_pure_comp, bind_assoc]
       rfl
-
 theorem counted_forget (computation : OracleComp spec Result) :
     Prod.fst <$> counted selected computation = computation := by
   induction computation using OracleComp.inductionOn with
   | pure result => simp only [counted_pure, map_pure]
   | query_bind input next ih =>
       simp only [counted_query_bind, map_bind, bind_pure_comp, Functor.map_map, ih]
-
 theorem counted_bind (computation : OracleComp spec Result) (next : Result → OracleComp spec Next) :
     counted selected (computation >>= next) = (do
       let first ← counted selected computation
@@ -53,13 +46,11 @@ theorem counted_bind (computation : OracleComp spec Result) (next : Result → O
   | pure result => simp only [pure_bind, counted_pure, zero_add, Prod.mk.eta, bind_pure]
   | query_bind input continuation ih =>
       simp only [bind_assoc, counted_query_bind, ih, pure_bind, Nat.add_assoc]
-
 theorem counted_map (computation : OracleComp spec Result) (f : Result → Next) :
     counted selected (f <$> computation) = (fun result => (f result.1, result.2)) <$> counted selected computation := by
   rw [show f <$> computation = computation >>= fun result => pure (f result) from (bind_pure_comp f computation).symm,
     counted_bind]
   simp only [counted_pure, Nat.add_zero, bind_pure_comp, map_pure]
-
 noncomputable def run (computation : OracleComp spec Result) : Nat → OracleComp spec (Option (Result × Nat)) :=
   OracleComp.construct (fun result budget => pure (some (result, budget)))
     (fun input _ next budget =>
@@ -68,10 +59,8 @@ noncomputable def run (computation : OracleComp spec Result) : Nat → OracleCom
         | 0 => pure none
         | remaining + 1 => liftM (spec.query input) >>= fun answer => next answer remaining
       else liftM (spec.query input) >>= fun answer => next answer budget) computation
-
 theorem run_pure (result : Result) (budget : Nat) :
     run selected (pure result : OracleComp spec Result) budget = pure (some (result, budget)) := rfl
-
 theorem run_query_bind (input : spec.Domain) (next : spec.Range input → OracleComp spec Result) (budget : Nat) :
     run selected (liftM (spec.query input) >>= next) budget =
       if selected input then
@@ -79,7 +68,6 @@ theorem run_query_bind (input : spec.Domain) (next : spec.Range input → Oracle
         | 0 => pure none
         | remaining + 1 => liftM (spec.query input) >>= fun answer => run selected (next answer) remaining
       else liftM (spec.query input) >>= fun answer => run selected (next answer) budget := rfl
-
 theorem run_queryBound (computation : OracleComp spec Result) (budget : Nat) :
     (run selected computation budget).IsQueryBoundP selected budget := by
   induction computation using OracleComp.inductionOn generalizing budget with
@@ -97,7 +85,6 @@ theorem run_queryBound (computation : OracleComp spec Result) (budget : Nat) :
       · simp only [isQueryBoundP_query_bind_iff, hselected, not_false_eq_true, true_or,
           ↓reduceIte, true_and]
         exact fun answer => ih answer budget
-
 theorem run_bind (computation : OracleComp spec Result) (next : Result → OracleComp spec Next) (budget : Nat) :
     run selected (computation >>= next) budget = (do
       match ← run selected computation budget with
@@ -113,10 +100,8 @@ theorem run_bind (computation : OracleComp spec Result) (next : Result → Oracl
         | zero => simp only [pure_bind]
         | succ budget => simp only [bind_assoc, ih]
       · simp only [if_neg hselected, bind_assoc, ih]
-
 def finish (budget : Nat) (result : Result × Nat) : Option (Result × Nat) :=
   if result.2 ≤ budget then some (result.1, budget - result.2) else none
-
 theorem run_eq_counted (impl : QueryImpl spec PMF) (computation : OracleComp spec Result) (budget : Nat) :
     simulateQ impl (run selected computation budget) =
       (simulateQ impl (counted selected computation)).map (finish budget) := by
@@ -140,5 +125,4 @@ theorem run_eq_counted (impl : QueryImpl spec PMF) (computation : OracleComp spe
       · simp only [if_neg hselected, simulateQ_bind, simulateQ_spec_query, ih, simulateQ_pure,
           PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def,
           Nat.zero_add, Prod.mk.eta]
-
 end SphincsSecurity.QueryCap

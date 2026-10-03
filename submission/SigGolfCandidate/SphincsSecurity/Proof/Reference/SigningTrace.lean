@@ -1,24 +1,14 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.SignSupport
-/-!
-# Signing cache intervals
-
-The ordinary signing log records only requests and responses. This trace additionally records the
-random-oracle cache immediately before and after each signer invocation. Its projections recover
-the ordinary logged adversary run exactly.
--/
 
 namespace SphincsSecurity
-
 open OracleComp OracleSpec
-
 def signingLogFragment
     (input : (OracleWorld + SigningSpec).Domain)
     (output : (OracleWorld + SigningSpec).Range input) : QueryLog SigningSpec :=
   match input with
   | .inl _ => []
   | .inr request => [⟨request, output⟩]
-
 def signingLogUpdate
     (input : (OracleWorld + SigningSpec).Domain)
     (_initialCache : QueryCache HashSpec)
@@ -26,14 +16,12 @@ def signingLogUpdate
     (_finalCache : QueryCache HashSpec)
     (log : QueryLog SigningSpec) : QueryLog SigningSpec :=
   log ++ signingLogFragment input output
-
 noncomputable def unloggedMappedAdversaryImpl (secretKey : SecretKey) :
     QueryImpl (OracleWorld + SigningSpec) (StateT (QueryCache HashSpec) ProbComp) := by
   intro input
   cases input with
   | inl worldInput => exact romImpl worldInput
   | inr request => exact simulateQ romImpl (Concrete.scheme.sign secretKey request)
-
 theorem unloggedMappedAdversaryImpl_cache_le
     (secretKey : SecretKey) (input : (OracleWorld + SigningSpec).Domain)
     (initialCache : QueryCache HashSpec)
@@ -67,10 +55,8 @@ theorem unloggedMappedAdversaryImpl_cache_le
         ((simulateQ romImpl (Concrete.scheme.sign secretKey request)).run initialCache) at hmem
       exact simulateQ_romImpl_cache_le (Concrete.scheme.sign secretKey request)
         initialCache result hmem
-
 noncomputable def logTracedMappedAdversaryImpl (secretKey : SecretKey) :
     QueryImpl (OracleWorld + SigningSpec)
       (StateT (QueryCache HashSpec × QueryLog SigningSpec) ProbComp) :=
   QueryImpl.extendState (unloggedMappedAdversaryImpl secretKey) signingLogUpdate
-
 end SphincsSecurity

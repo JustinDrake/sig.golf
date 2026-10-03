@@ -1,25 +1,10 @@
 import SigGolfCandidate.Bridge.Basic
 import VCVio.OracleComp.QueryTracking.RandomOracle.EagerTable
 
-/-!
-# Random-oracle tools for the distribution transfers
-
-* `run'_relabel_on` : the lazy random oracle is invariant under a relabeling that is injective on the queried set
-  (MACH-PLAN §1.3; the probe `checks/MachPlanRelabel.lean`).
-* `randomOracle_congr` : two computations that agree under **every** fixed answer function have the same output law
-  under the lazy random oracle, even on an infinite query domain: every computation over a finite answer type has a
-  finite query set (`finite_query_domain`), the relabeling onto that finite set is lazy = eager
-  (`evalSPMF_simulateQ_randomOracle_run'_empty_eq_uniformTable`), and eager evaluation is pointwise.
-* `foldAll` (five-layer `Final/RO`): run programs in sequence against one oracle and conjoin their outputs.
--/
-
 open OracleSpec OracleComp SigGolfCandidate.Bridge
-
 namespace SigGolfCandidate.T3M.Final
-
 section relabel
 variable {ι ι' R : Type} [DecidableEq ι] [DecidableEq ι'] [SampleableType R]
-
 theorem run'_relabel_on (enc : ι' → ι) (S : Set ι') (henc : Set.InjOn enc S) {α : Type}
     (P : OracleComp (ι' →ₒ R) α) (hP : AllQ (· ∈ S) P)
     (cO : QueryCache (ι' →ₒ R)) (cA : QueryCache (ι →ₒ R)) (hc : ∀ x ∈ S, cO x = cA (enc x)) :
@@ -51,11 +36,8 @@ theorem run'_relabel_on (enc : ι' → ι) (S : Set ι') (henc : Set.InjOn enc S
       rename_i u
       have := ih u (hk u) cO cA hc
       simpa [StateT.run'_eq] using this
-
 end relabel
-
 section congr
-
 theorem allQ_mono {ι R α : Type} {P Q : ι → Prop} (h : ∀ x, P x → Q x) :
     ∀ {p : OracleComp (ι →ₒ R) α}, AllQ P p → AllQ Q p := by
   intro p hp
@@ -64,8 +46,6 @@ theorem allQ_mono {ι R α : Type} {P Q : ι → Prop} (h : ∀ x, P x → Q x) 
   | query_bind t k ih =>
     rw [allQ_query_bind] at hp ⊢
     exact ⟨h t hp.1, fun u => ih u (hp.2 u)⟩
-
-/-- Every computation over a finite answer type has a finite query set. -/
 theorem finite_query_domain {D R α : Type} [DecidableEq D] [Fintype R] (p : OracleComp (D →ₒ R) α) :
     ∃ s : Finset D, AllQ (· ∈ s) p := by
   classical
@@ -78,8 +58,6 @@ theorem finite_query_domain {D R α : Type} [DecidableEq D] [Fintype R] (p : Ora
     refine ⟨Finset.mem_insert_self _ _, fun u => ?_⟩
     exact allQ_mono (fun y hy => Finset.mem_insert_of_mem (Finset.mem_biUnion.mpr ⟨u, Finset.mem_univ _, hy⟩))
       (hsets u)
-
-/-- Evaluating a relabeled computation is evaluating it with the relabeled answer function. -/
 theorem evalWithAnswerFn_relabel {ι ι' R : Type} (e : ι → ι') (h : QueryImpl (ι' →ₒ R) Id) {α : Type}
     (P : OracleComp (ι →ₒ R) α) :
     evalWithAnswerFn h (relabel e P) = evalWithAnswerFn (fun x => h (e x) : QueryImpl (ι →ₒ R) Id) P := by
@@ -93,8 +71,6 @@ theorem evalWithAnswerFn_relabel {ι ι' R : Type} (e : ι → ι') (h : QueryIm
         (((ι →ₒ R).query x : OracleComp (ι →ₒ R) R)) = h (e x) :=
       evalWithAnswerFn_query _ x
     rw [e1, e2, ih]
-
-/-- **Fixed-oracle extensionality determines the lazy random oracle's output law.** -/
 theorem randomOracle_congr {D R α : Type} [DecidableEq D] [Fintype R] [Nonempty R] [SampleableType R]
     (p q : OracleComp (D →ₒ R) α)
     (h : ∀ hash : QueryImpl (D →ₒ R) Id, evalWithAnswerFn hash p = evalWithAnswerFn hash q) :
@@ -120,36 +96,26 @@ theorem randomOracle_congr {D R α : Type} [DecidableEq D] [Fintype R] [Nonempty
   congr 1
   refine bind_congr fun g => ?_
   rw [evalWithAnswerFn_relabel, evalWithAnswerFn_relabel, h]
-
 theorem probEvent_congr_evalSPMF {α : Type} {X Y : ProbComp α} (h : 𝒮[X] = 𝒮[Y]) (E : α → Prop) :
     Pr[E | X] = Pr[E | Y] := by
   unfold probEvent; rw [h]
-
 theorem probOutput_congr_evalSPMF {α : Type} {X Y : ProbComp α} (h : 𝒮[X] = 𝒮[Y]) (a : α) :
     Pr[= a | X] = Pr[= a | Y] := by
   unfold probOutput; rw [h]
-
 theorem expectedValue_congr_evalSPMF {α : Type} {X Y : ProbComp α} (h : 𝒮[X] = 𝒮[Y])
     (g : α → ENNReal) : OracleComp.EvalDist.expectedValue X g = OracleComp.EvalDist.expectedValue Y g := by
   unfold OracleComp.EvalDist.expectedValue
   simp only [probOutput_congr_evalSPMF h]
-
 end congr
-
 section fold
 variable {ι κ : Type} {spec : OracleSpec ι}
-
-/-- Run the programs `P k` for `k ∈ L` in order (against one oracle) and conjoin their outputs. -/
 def foldAll (L : List κ) (P : κ → OracleComp spec Bool) (b : Bool) : OracleComp spec Bool :=
   L.foldlM (fun b k => (b && ·) <$> P k) b
-
 @[simp] theorem foldAll_nil (P : κ → OracleComp spec Bool) (b : Bool) :
     foldAll [] P b = pure b := rfl
-
 theorem foldAll_cons (k : κ) (L : List κ) (P : κ → OracleComp spec Bool) (b : Bool) :
     foldAll (k :: L) P b = P k >>= fun c => foldAll L P (b && c) := by
   simp [foldAll, List.foldlM_cons]
-
 theorem evalWithAnswerFn_foldAll (h : QueryImpl spec Id) (L : List κ)
     (P : κ → OracleComp spec Bool) (b : Bool) :
     evalWithAnswerFn h (foldAll L P b) = (b && L.all fun k => evalWithAnswerFn h (P k)) := by
@@ -158,7 +124,5 @@ theorem evalWithAnswerFn_foldAll (h : QueryImpl spec Id) (L : List κ)
   | cons k L ih =>
     rw [foldAll_cons, evalWithAnswerFn_bind, ih]
     simp [Bool.and_assoc]
-
 end fold
-
 end SigGolfCandidate.T3M.Final

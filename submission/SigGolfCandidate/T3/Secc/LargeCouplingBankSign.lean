@@ -1,20 +1,5 @@
 import SigGolfCandidate.T3.Secc.LargeCouplingBankSearch
 
-/-!
-# LR-34 (bank, one signing): a signing request is a supermartingale step of the bank
-
-**`bank_routeSign`**: for a lazy world state and a router state in the bank invariant, the routed signing's expected
-continuation value is at most `psi q st + slackT q ws` whenever every continuation `(sig, st', ws')` in the invariant
-(same calls) pays at most `psi q st' + slackT q ws'`.
-
-* unpublished cache: nothing happens;
-* repeated message: the memoized search result, disclosures only (the bank unchanged);
-* fresh message: the nonce is a fresh uniform disclosure (`BankInv.nonce`), the lazy search is SEC's `roRun` search
-  from the ghost cache (`bank_search`; the trial rows of an unsigned message agree with the births), and the ghost
-  update is CC's `core_sign` step (`psi_signed`: the reuse flag on `Reuse`, else the selection exposed; the message's
-  reuse mass removed, `reuseC_signed`).
--/
-
 namespace SigGolfCandidate.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -26,12 +11,8 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 noncomputable local instance instDecidableEqCache_largeCouplingBankSign : DecidableEq T3.Cache := Classical.decEq _
-
 section Sign
 variable {U : Finset HashInput}
-
-/-! ## The bank state after a fresh signing -/
-
 theorem reuseC_signed_eq (st : RouterState) (rho rho' : Digest) (m : Message)
     (found found' : Option (BitVec 32 × LargeResidual.HashOutput)) :
     reuseC (st.signed rho m found) = reuseC (st.signed rho' m found') := by
@@ -47,8 +28,6 @@ theorem reuseC_signed_eq (st : RouterState) (rho rho' : Digest) (m : Message)
   · subst h; simp
   · have hb2 : (m' == m) = false := by simpa using h
     simp only [List.lookup_cons, hb2]
-
-/-- **The potential after a fresh signing** (CC's `core_sign` integrand). -/
 theorem psi_signed (q : Nat) (st : RouterState) (rho : Digest) (m : Message)
     (found : Option (BitVec 32 × LargeResidual.HashOutput)) :
     psi q (st.signed rho m found) =
@@ -67,16 +46,12 @@ theorem psi_signed (q : Nat) (st : RouterState) (rho : Digest) (m : Message)
     unfold bankOf CaseC.BankCore.expose RouterState.signed
     rw [if_neg hr]
     rfl
-
-/-! ## The invariant through a signing -/
-
 theorem BankInv.disc {ws ws' : LargeResidual.State WCoord (Cell U)} {st : RouterState} (h : BankInv U ws st)
     (hd : DiscFrame U ws ws') (d : List Coord) : BankInv U ws' { st with disclosed := d } := by
   obtain ⟨hr, hc, hn⟩ := hd
   refine ⟨by rw [hc]; exact h.calls, by rw [hc]; exact h.mass, h.births, fun m hm => by rw [hn m]; exact h.nonce m hm,
     fun X hX hd hs ht => by rw [hr]; exact h.fresh X hX hd hs ht,
     fun X hX hd hs ht => by rw [hr]; exact h.seenRows X hX hd hs ht, h.bornSeen, h.trials⟩
-
 theorem BankInv.discloseSigned {ws : LargeResidual.State WCoord (Cell U)} {st : RouterState} (h : BankInv U ws st)
     (q : Nat) (m : Message) (hm : (st.memo.lookup m).isSome) (rho : Digest) :
     BankInv U (disclosedState q ws (.inr m) rho .none) st := by
@@ -86,7 +61,6 @@ theorem BankInv.discloseSigned {ws : LargeResidual.State WCoord (Cell U)} {st : 
   simp only [disclosedState, discloseTableValue]
   rw [Function.update_of_ne (by simpa using hne)]
   exact h.nonce m' hm'
-
 theorem mem_trialRows (rho : Digest) (m : Message) (found : Option (BitVec 32 × LargeResidual.HashOutput)) (k : Nat)
     (hk : k < attemptLimit) (hf : ∀ k' out, found = some (k', out) → k ≤ k'.toNat) :
     pad64 (digestInput rho m (BitVec.ofNat 32 k)) ∈ trialRows rho m found := by
@@ -100,7 +74,6 @@ theorem mem_trialRows (rho : Digest) (m : Message) (found : Option (BitVec 32 ×
       have := hf k' out rfl
       dsimp only
       omega
-
 theorem BankInv.signed {ws s' : LargeResidual.State WCoord (Cell U)} {st : RouterState} (h : BankInv U ws st)
     (q : Nat) (m : Message) (hm : st.memo.lookup m = none) (rho : Digest)
     (found : Option (BitVec 32 × LargeResidual.HashOutput))
@@ -110,7 +83,6 @@ theorem BankInv.signed {ws s' : LargeResidual.State WCoord (Cell U)} {st : Route
   obtain ⟨hcand, hcount, -, hrows⟩ := hf
   have hcache : (st.signed rho m found).cache = st.cache := by
     funext X; simp only [RouterState.cache, hbirths]
-  -- rows off the new trial rows are unchanged
   have hkeep : ∀ (X : HashInput) (hX : X ∈ U), X ∉ trialRows rho m found → s'.rows ⟨X, hX⟩ = ws.rows ⟨X, hX⟩ := by
     intro X hX hnt
     by_contra hne
@@ -158,8 +130,6 @@ theorem BankInv.signed {ws s' : LargeResidual.State WCoord (Cell U)} {st : Route
       refine ⟨rho, m, BitVec.ofNat 32 k, hk.symm, ?_⟩
       rw [hmemo, List.lookup_cons]
       simp
-
-/-- The trial rows of an unsigned message agree with the ghost cache. -/
 theorem BankInv.agree {ws : LargeResidual.State WCoord (Cell U)} {st : RouterState} (h : BankInv U ws st)
     (hUpub : SeccLaw.publicUniverse ⊆ U) (m : Message) (hm : st.memo.lookup m = none) (rho : Digest) (k : Nat) :
     ws.rows ⟨_, digestRow_mem hUpub rho m (BitVec.ofNat 32 k)⟩ =
@@ -176,11 +146,7 @@ theorem BankInv.agree {ws : LargeResidual.State WCoord (Cell U)} {st : RouterSta
   · obtain ⟨y, h1, h2⟩ := h.seenRows _ _ hd hs ht
     rw [h1, h2]
   · rw [h.fresh _ _ hd hs ht, h.cache_none hs]
-
-/-! ## The signing step -/
-
 variable (aux : (input : AuxSpec.Domain) → PMF (AuxSpec.Range input)) (q : Nat)
-
 theorem ev_signFinish_le (a : AuxData) (st : RouterState) (rho : Digest)
     (found : Option (BitVec 32 × LargeResidual.HashOutput)) (s : LargeResidual.State WCoord (Cell U))
     (g : Option (Option Signature × RouterState) × LargeResidual.State WCoord (Cell U) → ENNReal) (B : ENNReal)
@@ -198,7 +164,6 @@ theorem ev_signFinish_le (a : AuxData) (st : RouterState) (rho : Digest)
       exact h _ _ s' hd
     · rw [lazy_pure, expectedValue_pure]
       exact h none st.disclosed s (DiscFrame.refl U s)
-
 theorem expectedValue_cell_univ (f : LargeResidual.Digest → ENNReal) :
     expectedValue (cell (Finset.univ : Finset LargeResidual.Digest)) f =
       expectedValue ($ᵗ Digest : ProbComp Digest) (fun rho => f rho) := by
@@ -212,8 +177,6 @@ theorem expectedValue_cell_univ (f : LargeResidual.Digest → ENNReal) :
     rw [cell, dif_pos Finset.univ_nonempty, SPMF.probOutput_eq_apply, SPMF.liftM_apply,
       PMF.uniformOfFinset_apply, if_pos (Finset.mem_univ _), Finset.card_univ]
   rw [h1, h2]
-
-/-- **One routed signing is a supermartingale step of the bank** (CC's `core_sign`). -/
 theorem bank_routeSign (hUpub : SeccLaw.publicUniverse ⊆ U) (a : AuxData) (published : T3.Cache) (st : RouterState)
     (ws : LargeResidual.State WCoord (Cell U)) (request : Security.Request) (hinv : BankInv U ws st)
     (g : Option (Option Signature × RouterState) × LargeResidual.State WCoord (Cell U) → ENNReal)
@@ -242,7 +205,6 @@ theorem bank_routeSign (hUpub : SeccLaw.publicUniverse ⊆ U) (a : AuxData) (pub
       have hC : C0 + CaseC.reuseMass st.cache m ≤ (bankOf q st).reuse := by
         rw [hC0, reuseC_signed st 0 m none hm]; exact le_rfl
       have hcore := CaseC.core_sign (bankOf q st) st.cache m C0 hC 0 attemptLimit (by decide)
-      -- per nonce: the lazy search and finish are dominated by CC's integrand plus the slack
       have hrho : ∀ rho : Digest,
           expectedValue (lazyRun aux q (simulateQ (readImpl U a) (digestSearch rho m 0 attemptLimit) >>= fun found =>
               signFinish U a (st.signed rho m found) rho found) (disclosedState q ws (.inr m) rho .none)) g ≤
@@ -292,7 +254,5 @@ theorem bank_routeSign (hUpub : SeccLaw.publicUniverse ⊆ U) (a : AuxData) (pub
           rw [expectedValue_add]
           exact add_le_add hcore (expectedValue_le_of_le _ fun _ => le_rfl)
         _ = _ := rfl
-
 end Sign
-
 end SigGolfCandidate.T3.Security.LargeCoupling

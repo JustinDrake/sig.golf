@@ -3,50 +3,37 @@ import SigGolfCandidate.SphincsSecurity.Proof.Base.FirstSuccessTable
 import SigGolfCandidate.SphincsSecurity.Proof.IdealStatement
 
 namespace SphincsSecurity.Concrete
-
 open _root_.OracleComp ENNReal
 attribute [local instance] Classical.propDecidable
 set_option backward.isDefEq.respectTransparency false
-
 namespace FinitePmfProduct
-
 variable {Index Value : Type} [Fintype Index] [DecidableEq Index] [Fintype Value]
-
 noncomputable def law (family : Index → PMF Value) : PMF (Index → Value) :=
   PMF.ofFintype (fun values => ∏ index, family index (values index)) (by
     rw [← Fintype.prod_sum]
     apply Finset.prod_eq_one
     intro index _
     simpa only [tsum_fintype] using PMF.tsum_coe (family index))
-
 theorem apply (family : Index → PMF Value) (values : Index → Value) :
     law family values = ∏ index, family index (values index) := rfl
-
 theorem uniform [Nonempty Value] :
     law (fun _ : Index => PMF.uniformOfFintype Value) = PMF.uniformOfFintype (Index → Value) := by
   apply PMF.ext
   intro values
   simp only [apply, PMF.uniformOfFintype_apply, Finset.prod_const, Finset.card_univ,
     Fintype.card_fun, Nat.cast_pow, ENNReal.inv_pow]
-
 end FinitePmfProduct
-
 namespace FirstSuccessFamily
-
 variable {Index Answer Value : Type} [Fintype Index] [DecidableEq Index]
   [Fintype Answer] [DecidableEq Answer] [Nonempty Answer] [Fintype Value]
-
 def select (decode : Answer → Option Value) (n : Nat) (tables : Index → Fin n → Answer) :
     Index → Option (Fin n × Value) := fun index => FirstSuccessTable.select decode (tables index)
-
 noncomputable def selected (decode : Answer → Option Value) (n : Nat) :
     PMF (Index → Option (Fin n × Value)) :=
   FinitePmfProduct.law (fun _ => FirstSuccessTable.selected decode n)
-
 noncomputable def afterSelect (decode : Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value)) :
     PMF (Index → Fin n → Answer) :=
   FinitePmfProduct.law (fun index => FirstSuccessTable.afterSelect decode n (results index))
-
 theorem selected_mul_afterSelect (decode : Answer → Option Value) (n : Nat) (results : Index → Option (Fin n × Value))
     (tables : Index → Fin n → Answer) :
     selected decode n results * afterSelect decode n results tables =
@@ -64,7 +51,6 @@ theorem selected_mul_afterSelect (decode : Answer → Option Value) (n : Nat) (r
       exact h (funext hall)
     obtain ⟨index, hindex⟩ := hex
     exact Finset.prod_eq_zero (Finset.mem_univ index) (if_neg hindex)
-
 theorem uniform_bind_eq_selected {Result : Type} (decode : Answer → Option Value) (n : Nat)
     (next : (Index → Option (Fin n × Value)) → (Index → Fin n → Answer) → PMF Result) :
     (PMF.uniformOfFintype (Index → Fin n → Answer)).bind (fun tables => next (select decode n tables) tables) =
@@ -75,7 +61,5 @@ theorem uniform_bind_eq_selected {Result : Type} (decode : Answer → Option Val
     ite_mul, zero_mul]
   rw [ENNReal.tsum_comm]
   simp
-
 end FirstSuccessFamily
-
 end SphincsSecurity.Concrete

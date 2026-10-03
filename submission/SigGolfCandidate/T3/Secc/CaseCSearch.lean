@@ -1,20 +1,5 @@
 import SigGolfCandidate.T3.Secc.CaseCForecast
 
-/-!
-# Stream CC: the fresh signing kernel (selection law of an actual signing request)
-
-For a fresh-nonce published signing request, the selected digest is the first admissible fresh trial of the
-digest search from the actual nonce. For any weight `w` of the selection whose fresh accepted price
-(`freshPrice w = E_{accepted}[w]`) is at most `P`, and any exhaustion payoff `≤ P`:
-
-* `search_le_price` / `digestSearch_le_price`: the search alone (previously cached *rejected* trials are skipped);
-* `payloadForNonce_le_price`: the payload after the selection does not change the selected digest;
-* `Reuse` / `reuseMass`: the cache-reuse exception (an admissible cached trial of the request's message under the
-  sampled nonce) has probability at most `reuseMass`, the cached admissible digest rows of the message / 2^128;
-* `fresh_signing_kernel`: the whole authenticated signing record (MAC query, fresh nonce, search, payload) obeys
-  `E[F] ≤ P + reuseMass` for every payoff `F` dominated by `1` on reuse and by `sel.elim P w` otherwise.
--/
-
 namespace SigGolfCandidate.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3.DigestSampling
@@ -23,9 +8,6 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-! ## The rejection search with an exhaustion payoff -/
-
 theorem search_le_price {β γ : Type} (secret : BitVec 256) (inputs : Nat → HashInput)
     (decoder : HashOutput → Option β) (result : Nat → β → γ) (payoff : γ → ENNReal) (weight : β → ENNReal)
     (hweight : ∀ counter value, payoff (result counter value) = weight value)
@@ -74,8 +56,6 @@ theorem search_le_price {β γ : Type} (secret : BitVec 256) (inputs : Nat → H
             _ = Sampling.acceptedWeight decoder weight + failMass decoder * price :=
               Sampling.uniform_decoder_weight decoder weight price
             _ ≤ price := hstep
-
-/-- The fresh-price fixed point of the digest decoder. -/
 theorem digest_step_le (w : HashOutput → ENNReal) (P : ENNReal)
     (hP : Sampling.WeightedSelection.freshPrice w ≤ P) :
     Sampling.acceptedWeight Sampling.digestDecode w + failMass Sampling.digestDecode * P ≤ P := by
@@ -95,7 +75,6 @@ theorem digest_step_le (w : HashOutput → ENNReal) (P : ENNReal)
       add_le_add (mul_le_mul' le_rfl hP) le_rfl
     _ = P := by
       rw [← add_mul, add_tsub_cancel_of_le Sampling.digest_acceptanceProbability_le_one, one_mul]
-
 theorem digestSearch_le_price (secret : BitVec 256) (rho : Digest) (message : Message)
     (fuel : Nat) (hlimit : fuel ≤ 2 ^ 32) (cache : Sampling.RCache)
     (hreject : Sampling.CachedTrialsReject (Sampling.digestTrial rho message) Sampling.digestDecode 0 (2 ^ 32) cache)
@@ -108,8 +87,6 @@ theorem digestSearch_le_price (secret : BitVec 256) (rho : Digest) (message : Me
     (fun c output => (BitVec.ofNat 32 c, output)) (fun found => w found.2) w (fun _ _ => rfl) base P hbase
     (digest_step_le w P hP) (2 ^ 32)
     (fun _ _ hl hr he => Sampling.digestTrial_injective rho message hl hr he) fuel 0 (by omega) cache hreject
-
-/-- The payload after the digest selection leaves the selected digest unchanged. -/
 theorem payloadForNonce_le_search (cache : T3.Cache) (rho : Digest) (message : Message)
     (state : LazyPrivate.State) (w : HashOutput → ENNReal) (base : ENNReal) :
     expectedValue (LazyPrivate.run (payloadRecordForNonce cache rho message) state)
@@ -129,21 +106,12 @@ theorem payloadForNonce_le_search (cache : T3.Cache) (rho : Digest) (message : M
       apply expectedValue_le_of_le
       intro signature
       exact le_rfl
-
-/-! ## The cache-reuse exception -/
-
-/-- Some cached trial of `(rho, m)` below `2^32` is admissible: the signer would reuse a cached row. -/
 def Reuse (cache : Sampling.RCache) (rho : Digest) (m : Message) : Prop :=
   ¬Sampling.CachedTrialsReject (Sampling.digestTrial rho m) Sampling.digestDecode 0 (2 ^ 32) cache
-
-/-- An admissible cached answer at an input (0/1). -/
 noncomputable def admissibleEntry (cache : Sampling.RCache) (input : HashInput) : ENNReal :=
   (cache input).elim 0 (fun answer => if digestAdmissible answer = true then 1 else 0)
-
-/-- Cached admissible digest rows of message `m` (all nonces, counters below `2^32`), over `2^128`. -/
 noncomputable def reuseMass (cache : Sampling.RCache) (m : Message) : ENNReal :=
   (∑' p : Digest × Fin (2 ^ 32), admissibleEntry cache (Sampling.digestTrial p.1 m p.2.val)) / 2 ^ 128
-
 theorem reuse_indicator_le (cache : Sampling.RCache) (rho : Digest) (m : Message) :
     (if Reuse cache rho m then (1 : ENNReal) else 0) ≤
       ∑ c : Fin (2 ^ 32), admissibleEntry cache (Sampling.digestTrial rho m c.val) := by
@@ -161,8 +129,6 @@ theorem reuse_indicator_le (cache : Sampling.RCache) (rho : Digest) (m : Message
       _ ≤ _ := Finset.single_le_sum (f := fun c : Fin (2 ^ 32) =>
           admissibleEntry cache (Sampling.digestTrial rho m c.val)) (fun _ _ => bot_le) (Finset.mem_univ _)
   · exact bot_le
-
-/-- **The reuse exception is rare**: a uniform nonce hits a cached admissible row with probability ≤ `reuseMass`. -/
 theorem reuse_probability_le (cache : Sampling.RCache) (m : Message) :
     expectedValue ($ᵗ Digest : ProbComp Digest) (fun rho => if Reuse cache rho m then 1 else 0) ≤
       reuseMass cache m := by
@@ -175,22 +141,14 @@ theorem reuse_probability_le (cache : Sampling.RCache) (m : Message) :
       Finset.sum_le_sum fun rho _ => reuse_indicator_le cache rho m
     _ = ∑' p : Digest × Fin (2 ^ 32), admissibleEntry cache (Sampling.digestTrial p.1 m p.2.val) := by
       rw [tsum_fintype, Fintype.sum_prod_type]
-
-/-! ## The fresh signing kernel -/
-
-/-- The nonce of `m` recorded in a private cache (low 128 bits of its answer; `0` if absent). -/
 def nonceOf (state : LazyPrivate.State) (m : Message) : Digest :=
   ((state.1 (.inr (.inl m))).getD 0).extractLsb' 0 128
-
 theorem nonceOf_cacheQuery (state : LazyPrivate.State) (m : Message) (output : HashOutput)
     (after : LazyPrivate.State)
     (hext : SourceReplay.Extends (state.1.cacheQuery (.inr (.inl m)) output, state.2) after) :
     nonceOf after m = output.extractLsb' 0 128 := by
   have h : after.1 (.inr (.inl m)) = some output := hext.1 (QueryCache.cacheQuery_self _ _ _)
   simp only [nonceOf, h, Option.getD_some]
-
-/-- **The fresh signing kernel.** A published, fresh-nonce authenticated signing record pays at most the fresh
-accepted price `P` of its selection plus the reuse mass of its message. -/
 theorem fresh_signing_kernel (published : T3.Cache) (m : Message) (state : LazyPrivate.State)
     (hfresh : state.1 (.inr (.inl m)) = none)
     (F : (Option Signature × Option HashOutput) × LazyPrivate.State → ENNReal)
@@ -263,5 +221,4 @@ theorem fresh_signing_kernel (published : T3.Cache) (m : Message) (state : LazyP
       _ ≤ reuseMass state.2 m + P := add_le_add (reuse_probability_le state.2 m) le_rfl
       _ = P + reuseMass state.2 m := add_comm _ _
   exact expectedValue_le_of_support hmac
-
 end SigGolfCandidate.T3.Security.CaseC

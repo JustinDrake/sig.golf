@@ -1,16 +1,5 @@
 import SigGolfCandidate.T3.Secc.PairGuessLazyGhost
 
-/-!
-# B-PAIR (CC-2, 6/7): eager → lazy
-
-* `eager_lazy`: averaging the eager environment `envE D Nn` over uniform tables `D`, `Nn` gives the lazy
-  environment `envL`, for any lazy-world program, slot and start state (a fresh row/nonce is a fresh uniform draw:
-  `uniform_update`; the run ignores the table at cached rows: `forced_congr`);
-* `forced_avg_law` / `forced_avg_eq_lazy`: under `omegaLaw`, `ω`'s own digest rows and nonce halves are such
-  uniform tables independent of the rest of `ω` (`omegaLaw_patch`), and `worldGameL ω` reads only the rest
-  (`worldGameL_congr`), so the `ω`-averaged eager forced world is the `ω`-averaged lazy forced world.
--/
-
 namespace SigGolfCandidate.T3.Security.BPair
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final SigGolfCandidate.T3M.SecurityInputs
@@ -21,20 +10,13 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
-
-/-! ## Uniform tables -/
-
 section Uniform
-
 theorem evalSPMF_uniform {X : Type} [Fintype X] [Nonempty X] (I : SampleableType X) :
     𝒮[(@uniformSample X I : ProbComp X)] = (liftM (PMF.uniformOfFintype X) : SPMF X) := by
   apply SPMF.ext
   intro x
   rw [SPMF.liftM_apply, PMF.uniformOfFintype_apply, ← SPMF.probOutput_eq_apply, probOutput_evalSPMF]
   exact @probOutput_uniformSample X I _ x
-
-/-- **Re-sampling one coordinate** of a uniform table: if `g a` ignores the table at `i`, reading `T i` is a fresh
-uniform draw. -/
 theorem uniform_update {ι β γ : Type} [Fintype ι] [DecidableEq ι] [Fintype β] [Nonempty β] (i : ι)
     (g : β → (ι → β) → SPMF γ) (hg : ∀ a T c, g a (Function.update T i c) = g a T) :
     ((liftM (PMF.uniformOfFintype (ι → β)) : SPMF (ι → β)) >>= fun T => g (T i) T) =
@@ -70,23 +52,16 @@ theorem uniform_update {ι β γ : Type} [Fintype ι] [DecidableEq ι] [Fintype 
           𝒮[(@uniformSample _ Ia : ProbComp β)] >>= fun a => g a T) := by
         simp only [evalSPMF_bind, evalSPMF_pure, bind_assoc, pure_bind]
     _ = _ := RetainedObservation.bind_comm _ _ _
-
-/-- `T` with the coordinates `e s` overwritten by `D s`. -/
 noncomputable def patch {α σ β : Type} (e : σ → α) (T : α → β) (D : σ → β) (a : α) : β :=
   @dite _ (∃ s, e s = a) (Classical.propDecidable _) (fun h => D (Classical.choose h)) (fun _ => T a)
-
 theorem patch_e {α σ β : Type} {e : σ → α} (he : Function.Injective e) (T : α → β) (D : σ → β) (s : σ) :
     patch e T D (e s) = D s := by
   have h : ∃ s', e s' = e s := ⟨s, rfl⟩
   rw [patch, dif_pos h]
   exact congrArg D (he (Classical.choose_spec h))
-
 theorem patch_of {α σ β : Type} (e : σ → α) (T : α → β) (D : σ → β) (a : α) (ha : ∀ s, e s ≠ a) :
     patch e T D a = T a := by
   rw [patch, dif_neg (fun h => ha _ (Classical.choose_spec h))]
-
-/-- **Patching a uniform table** at an injective family of coordinates with an independent uniform table leaves it
-uniform. -/
 theorem patch_uniform {α σ β γ : Type} [Fintype α] [Fintype σ] [Fintype β] [Nonempty β] [DecidableEq α]
     [DecidableEq σ] {e : σ → α} (he : Function.Injective e) (IT : SampleableType (α → β))
     (ID : SampleableType (σ → β)) (k : (α → β) → SPMF γ) :
@@ -122,48 +97,31 @@ theorem patch_uniform {α σ β γ : Type} [Fintype α] [Fintype σ] [Fintype β
           𝒮[(@uniformSample _ ID : ProbComp (σ → β))] >>= fun _ => k T) := by
         simp only [evalSPMF_bind, evalSPMF_pure, bind_assoc, pure_bind]
     _ = _ := by simp only [evalSPMF_uniform ID, RetainedObservation.lift_bind_const]
-
 end Uniform
-
-/-! ## The digest rows and nonce halves of `ω` are independent uniform tables -/
-
-/-- The sampler of digest-row tables. -/
 noncomputable instance instSampleableDigestRows : SampleableType (digestInputs → HashOutput) :=
   SampleableType.ofFintype _
-
-/-- The sampler of nonce tables. -/
 noncomputable instance instSampleableNonceTables : SampleableType (Message → Digest) := SampleableType.ofFintype _
-
 section OmegaPatch
 variable {U : Finset HashInput} (hsub : digestInputs ⊆ U)
-
-/-- The digest rows inside `U`. -/
 def digestEmb : digestInputs → U := fun x => ⟨x.1, hsub x.2⟩
-
 theorem digestEmb_injective : Function.Injective (digestEmb hsub) :=
   fun x y h => Subtype.ext (by have h' := congrArg Subtype.val h; exact h')
-
 theorem nonceOther_injective : Function.Injective nonceOther := by
   intro m m' h
   have h1 := congrArg (fun o : CanonGraph.OtherHalf => o.1.1) h
   change (Sum.inr (Sum.inl m) : Coordinate) = Sum.inr (Sum.inl m') at h1
   exact Sum.inl.inj (Sum.inr.inj h1)
-
-/-- `ω` with its digest rows replaced by `D` and its nonce halves by `Nn`. -/
 noncomputable def patchOmega (ω : Omega U) (D : digestInputs → HashOutput) (Nn : Message → Digest) : Omega U :=
   ⟨ω.seeds, patch nonceOther ω.other Nn, ω.labels, patch (digestEmb hsub) ω.residual D⟩
-
 theorem digestOf_patch (ω : Omega U) (D : digestInputs → HashOutput) (Nn : Message → Digest) :
     digestOf (patchOmega hsub ω D Nn) = D := by
   funext x
   change finiteHashAnswer ∅ U (patch (digestEmb hsub) ω.residual D) x.1 = D x
   rw [finiteHashAnswer_none ∅ U _ _ (hsub x.2) rfl]
   exact patch_e (digestEmb_injective hsub) _ _ x
-
 theorem nonceOf_patch (ω : Omega U) (D : digestInputs → HashOutput) (Nn : Message → Digest) :
     nonceOf (patchOmega hsub ω D Nn) = Nn :=
   funext fun m => patch_e nonceOther_injective ω.other Nn m
-
 theorem sameRest_patch (ω : Omega U) (D : digestInputs → HashOutput) (Nn : Message → Digest) :
     SameRest ω (patchOmega hsub ω D Nn) := by
   refine ⟨rfl, rfl, fun x hx => (patch_of (digestEmb hsub) ω.residual D x ?_).symm,
@@ -174,17 +132,12 @@ theorem sameRest_patch (ω : Omega U) (D : digestInputs → HashOutput) (Nn : Me
     exact y.2
   · intro m hm
     exact hh m hm.symm
-
 end OmegaPatch
-
 section OmegaLaw
 attribute [local instance] instSampleableTypeSeeds_pairGuessFinal instSampleableTypeForallFtsCoordDigest_pairGuessFinal
   CanonGraph.instSampleableTypeSecrets CanonGraph.instSampleableTypeOtherHalves CanonGraph.instSampleableTypeLabels_1
-
 theorem digest_subset (adversary : AdversaryP) : digestInputs ⊆ Wots.referenceInputs adversary :=
   digestInputs_subset_publicUniverse.trans (referenceInputs_universe' adversary)
-
-/-- **`omegaLaw` is invariant under re-drawing the digest rows and nonce halves.** -/
 theorem omegaLaw_patch (adversary : AdversaryP) {γ : Type} (k : Omega (Wots.referenceInputs adversary) → SPMF γ) :
     (𝒮[omegaLaw adversary] >>= fun ω => 𝒮[($ᵗ (digestInputs → HashOutput) : ProbComp _)] >>= fun D =>
       𝒮[($ᵗ (Message → Digest) : ProbComp _)] >>= fun Nn => k (patchOmega (digest_subset adversary) ω D Nn)) =
@@ -230,47 +183,35 @@ theorem omegaLaw_patch (adversary : AdversaryP) {γ : Type} (k : Omega (Wots.ref
     𝒮[(@uniformSample (Wots.referenceInputs adversary → HashOutput)
       (CanonGraph.instSampleableTypeForallSubtypeHashInputMemFinsetHashOutput_canonGraph_1 _) : ProbComp _)] >>=
     fun residual => k ⟨seeds, other, labels, residual⟩)
-
 end OmegaLaw
-
-/-! ## One step of the forced run in an environment of value sources -/
-
 section Steps
 open SecretGuessObservation (forcedRun forcedImpl lazyImpl runWith afterTrial afterDisclosure forcedTrial)
 variable (slot : Nat)
-
 theorem rowStep_some (mem : LazyMem) (x : HashInput) (b : Bool) (src : PMF HashOutput) (a : HashOutput)
     (h : mem.rows x = some a) : rowStep mem x b src = pure (a, mem.replayRow x b) := by
   unfold rowStep
   rw [h]
-
 theorem rowStep_out (mem : LazyMem) (x : HashInput) (b : Bool) (src : PMF HashOutput) (h : mem.rows x = none)
     (hx : x ∉ digestInputs) : rowStep mem x b src = pure (0, mem.replayRow x b) := by
   unfold rowStep
   rw [h, if_neg hx]
-
 theorem rowStep_in (mem : LazyMem) (x : HashInput) (b : Bool) (src : PMF HashOutput) (h : mem.rows x = none)
     (hx : x ∈ digestInputs) : rowStep mem x b src = (fun a => (a, mem.readRow x a b)) <$> src := by
   unfold rowStep
   rw [h, if_pos hx]
-
 theorem nonceStep_some (mem : LazyMem) (m : Message) (src : PMF Digest) (v : Digest) (h : mem.nonces m = some v) :
     nonceStep mem m src = pure (v, mem) := by
   unfold nonceStep
   rw [h]
-
 theorem nonceStep_none (mem : LazyMem) (m : Message) (src : PMF Digest) (h : mem.nonces m = none) :
     nonceStep mem m src = (fun v => (v, mem.drawNonce m v)) <$> src := by
   unfold nonceStep
   rw [h]
-
 variable (rs : HashInput → PMF HashOutput) (ns : Message → PMF Digest)
-
 theorem step_aux (s : WStateL) (input : AuxL) :
     (forcedImpl (envWith rs ns) slot (.inl input)).run s =
       (fun result => (result.1, { s with memory := result.2 })) <$>
         (liftM (auxWith rs ns s input) : SPMF (AuxSpecL.Range input × LazyMem)) := rfl
-
 theorem step_coin (s : WStateL) (n : Nat) :
     (forcedImpl (envWith rs ns) slot (.inl (.coin n))).run s =
       (fun c => (c, s)) <$> (liftM (PMF.uniformOfFintype (Fin (n + 1))) : SPMF _) := by
@@ -278,58 +219,42 @@ theorem step_coin (s : WStateL) (n : Nat) :
   change (fun result => (result.1, { s with memory := result.2 })) <$>
     (liftM ((fun c => (c, s.memory)) <$> PMF.uniformOfFintype (Fin (n + 1))) : SPMF _) = _
   rw [liftM_map, Functor.map_map]
-
 theorem step_expose (s : WStateL) (o : Option HashOutput) :
     (forcedImpl (envWith rs ns) slot (.inl (.expose o))).run s = pure ((), { s with memory := s.memory.expose o }) := by
   rw [step_aux]
   change (fun result => (result.1, { s with memory := result.2 })) <$>
     (liftM (pure ((), s.memory.expose o) : PMF _) : SPMF _) = _
   rw [liftM_pure, map_pure]
-
 theorem step_birth (s : WStateL) (x : HashInput) :
     (forcedImpl (envWith rs ns) slot (.inl (.birth x))).run s =
       (fun result => (result.1, { s with memory := result.2 })) <$>
         (liftM (rowStep s.memory x true (rs x)) : SPMF (HashOutput × LazyMem)) := rfl
-
 theorem step_trial (s : WStateL) (x : HashInput) :
     (forcedImpl (envWith rs ns) slot (.inl (.trial x))).run s =
       (fun result => (result.1, { s with memory := result.2 })) <$>
         (liftM (rowStep s.memory x false (rs x)) : SPMF (HashOutput × LazyMem)) := rfl
-
 theorem step_nonce (s : WStateL) (m : Message) :
     (forcedImpl (envWith rs ns) slot (.inl (.nonce m))).run s =
       (fun result => (result.1, { s with memory := result.2 })) <$>
         (liftM (nonceStep s.memory m (ns m)) : SPMF (Digest × LazyMem)) := rfl
-
 theorem step_guess (s : WStateL) (f : FtsCoord) (c : Digest) :
     (forcedImpl (envWith rs ns) slot (.inr (.inl (f, c)))).run s =
       (fun hit => (hit, { afterTrial (envWith rs ns) s f c hit with memory := s.memory })) <$> forcedTrial slot s f c := rfl
-
 theorem step_disclose (s : WStateL) (f : FtsCoord) :
     (forcedImpl (envWith rs ns) slot (.inr (.inr f))).run s =
       (fun v => (v, { afterDisclosure (envWith rs ns) s f v with memory := s.memory })) <$>
         UniformTableCompletion.cell (s.allowed f) := rfl
-
-/-- The secret steps do not depend on the value sources. -/
 theorem afterTrial_sources (rs' : HashInput → PMF HashOutput) (ns' : Message → PMF Digest) (s : WStateL)
     (f : FtsCoord) (c : Digest) (hit : Bool) :
     afterTrial (envWith rs ns) s f c hit = afterTrial (envWith rs' ns') s f c hit := rfl
-
 theorem afterDisclosure_sources (rs' : HashInput → PMF HashOutput) (ns' : Message → PMF Digest) (s : WStateL)
     (f : FtsCoord) (v : Digest) :
     afterDisclosure (envWith rs ns) s f v = afterDisclosure (envWith rs' ns') s f v := rfl
-
 end Steps
-
-/-! ## The eager run ignores its tables at cached rows -/
-
 section Congr
 open SecretGuessObservation (forcedRun forcedImpl runWith)
-
-/-- Two eager table pairs agree off the cache of `mem`. -/
 def Agree (D D' : digestInputs → HashOutput) (Nn Nn' : Message → Digest) (mem : LazyMem) : Prop :=
   (∀ y : digestInputs, mem.rows y.1 = none → D y = D' y) ∧ ∀ m, mem.nonces m = none → Nn m = Nn' m
-
 theorem rowVal_agree {D D' : digestInputs → HashOutput} {Nn Nn' : Message → Digest} {mem : LazyMem}
     (h : Agree D D' Nn Nn' mem) (x : HashInput) (hx : mem.rows x = none) : rowVal D x = rowVal D' x := by
   unfold rowVal
@@ -337,7 +262,6 @@ theorem rowVal_agree {D D' : digestInputs → HashOutput} {Nn Nn' : Message → 
   · rw [dif_pos hd, dif_pos hd]
     exact h.1 ⟨x, hd⟩ hx
   · rw [dif_neg hd, dif_neg hd]
-
 theorem agree_replay {D D' : digestInputs → HashOutput} {Nn Nn' : Message → Digest} {mem : LazyMem}
     (h : Agree D D' Nn Nn' mem) (x : HashInput) (b : Bool) : Agree D D' Nn Nn' (mem.replayRow x b) := by
   cases b
@@ -345,7 +269,6 @@ theorem agree_replay {D D' : digestInputs → HashOutput} {Nn Nn' : Message → 
     exact h
   · rw [replayRow_true]
     exact h
-
 theorem agree_read {D D' : digestInputs → HashOutput} {Nn Nn' : Message → Digest} {mem : LazyMem}
     (h : Agree D D' Nn Nn' mem) (x : HashInput) (a : HashOutput) (b : Bool) :
     Agree D D' Nn Nn' (mem.readRow x a b) := by
@@ -361,7 +284,6 @@ theorem agree_read {D D' : digestInputs → HashOutput} {Nn Nn' : Message → Di
     exact ⟨hrows, h.2⟩
   · rw [readRow_true]
     exact ⟨hrows, h.2⟩
-
 theorem agree_draw {D D' : digestInputs → HashOutput} {Nn Nn' : Message → Digest} {mem : LazyMem}
     (h : Agree D D' Nn Nn' mem) (m : Message) (v : Digest) : Agree D D' Nn Nn' (mem.drawNonce m v) := by
   refine ⟨h.1, fun m' hm' => ?_⟩
@@ -371,8 +293,6 @@ theorem agree_draw {D D' : digestInputs → HashOutput} {Nn Nn' : Message → Di
     cases hm'
   · rw [Function.update_of_ne hmm] at hm'
     exact h.2 m' hm'
-
-/-- **Congruence**: the eager forced run depends on its tables only off the cache. -/
 theorem forced_congr {α : Type} (D D' : digestInputs → HashOutput) (Nn Nn' : Message → Digest) (slot : Nat)
     (W : OracleComp WSpecL α) (s : WStateL) (h : Agree D D' Nn Nn' s.memory) :
     forcedRun (envE D Nn) slot W s = forcedRun (envE D' Nn') slot W s := by
@@ -434,20 +354,11 @@ theorem forced_congr {α : Type} (D D' : digestInputs → HashOutput) (Nn Nn' : 
         refine bind_congr fun v => ?_
         rw [afterDisclosure_sources _ _ (fun x => pure (rowVal D' x)) (fun m => pure (Nn' m))]
         exact ih v _ h
-
 end Congr
-
-/-! ## Eager → lazy -/
-
 section EagerLazy
 open SecretGuessObservation (forcedRun forcedImpl runWith)
-
-/-- Uniform digest-row tables. -/
 noncomputable def rowsLaw : SPMF (digestInputs → HashOutput) := liftM (PMF.uniformOfFintype (digestInputs → HashOutput))
-
-/-- Uniform nonce tables. -/
 noncomputable def noncesLaw : SPMF (Message → Digest) := liftM (PMF.uniformOfFintype (Message → Digest))
-
 theorem avg_indep {α : Type} (slot : Nat) (input : WSpecL.Domain) (next : WSpecL.Range input → OracleComp WSpecL α)
     (s : WStateL)
     (ih : ∀ u s', (rowsLaw >>= fun D => noncesLaw >>= fun Nn => forcedRun (envE D Nn) slot (next u) s') =
@@ -464,8 +375,6 @@ theorem avg_indep {α : Type} (slot : Nat) (input : WSpecL.Domain) (next : WSpec
     _ = (X >>= fun mid => rowsLaw >>= fun D => noncesLaw >>= fun Nn =>
         runWith (forcedImpl (envE D Nn) slot) (next mid.1) mid.2) := RetainedObservation.bind_comm _ _ _
     _ = _ := bind_congr fun mid => ih mid.1 mid.2
-
-/-- A fresh digest-row read (`birth` or `trial`) averages to a fresh uniform draw. -/
 theorem avg_fresh_row {α : Type} (slot : Nat) (x : HashInput) (hx : x ∈ digestInputs) (s : WStateL) (b : Bool) (next : HashOutput → OracleComp WSpecL α)
     (ih : ∀ u s', (rowsLaw >>= fun D => noncesLaw >>= fun Nn => forcedRun (envE D Nn) slot (next u) s') =
       forcedRun envL slot (next u) s') :
@@ -494,8 +403,6 @@ theorem avg_fresh_row {α : Type} (slot : Nat) (x : HashInput) (hx : x ∈ diges
       rw [hcached] at hy
       cases hy
     exact Function.update_of_ne hyx _ _
-
-/-- A fresh nonce averages to a fresh uniform draw. -/
 theorem avg_fresh_nonce {α : Type} (slot : Nat) (m : Message) (s : WStateL)
     (next : Digest → OracleComp WSpecL α)
     (ih : ∀ u s', (rowsLaw >>= fun D => noncesLaw >>= fun Nn => forcedRun (envE D Nn) slot (next u) s') =
@@ -521,8 +428,6 @@ theorem avg_fresh_nonce {α : Type} (slot : Nat) (m : Message) (s : WStateL)
   simp only [step]
   rw [RetainedObservation.bind_comm]
   exact bind_congr fun v => ih v _
-
-/-- **Eager → lazy (core)**: averaging the eager environment over uniform tables is the lazy environment. -/
 theorem eager_lazy_core {α : Type} (slot : Nat) (W : OracleComp WSpecL α) (s : WStateL) :
     (rowsLaw >>= fun D => noncesLaw >>= fun Nn => forcedRun (envE D Nn) slot W s) = forcedRun envL slot W s := by
   induction W using OracleComp.inductionOn generalizing s with
@@ -614,25 +519,16 @@ theorem eager_lazy_core {α : Type} (slot : Nat) (W : OracleComp WSpecL α) (s :
           rw [afterDisclosure_sources (fun x => pure (rowVal D x)) (fun m => pure (Nn m))
             (fun _ => PMF.uniformOfFintype HashOutput) (fun _ => PMF.uniformOfFintype Digest)]
         rw [hfun]
-
-/-- **Eager → lazy**: averaging the eager environment `envE D Nn` over uniform `D`, `Nn` gives the lazy
-environment, for any lazy-world program and start state. -/
 theorem eager_lazy {α : Type} (W : OracleComp WSpecL α) (slot : Nat) (s : WStateL) :
     (𝒮[($ᵗ (digestInputs → HashOutput) : ProbComp _)] >>= fun D => 𝒮[($ᵗ (Message → Digest) : ProbComp _)] >>= fun Nn =>
       forcedRun (envE D Nn) slot W s) = forcedRun envL slot W s := by
   rw [evalSPMF_uniform, evalSPMF_uniform]
   exact eager_lazy_core slot W s
-
 end EagerLazy
-
-/-! ## The ω-averaged forced worlds -/
-
 section Avg
 open SecretGuessObservation (forcedRun)
 attribute [local instance] instSampleableTypeSeeds_pairGuessFinal instSampleableTypeForallFtsCoordDigest_pairGuessFinal
   CanonGraph.instSampleableTypeSecrets CanonGraph.instSampleableTypeOtherHalves CanonGraph.instSampleableTypeLabels_1
-
-/-- **The ω-averaged eager forced world is the ω-averaged lazy forced world** (in law). -/
 theorem forced_avg_law (adversary : AdversaryP) (slot : Nat) :
     (𝒮[omegaLaw adversary] >>= fun ω => forcedRun (envE (digestOf ω) (nonceOf ω)) slot
         (worldGameL (canon_subset adversary) ω adversary) initL) =
@@ -657,8 +553,6 @@ theorem forced_avg_law (adversary : AdversaryP) (slot : Nat) :
           (worldGameL_congr (canon_subset adversary) (sameRest_patch (digest_subset adversary) ω D Nn) adversary)
     _ = _ := omegaLaw_patch adversary (fun ω' => forcedRun (envE (digestOf ω') (nonceOf ω')) slot
           (worldGameL (canon_subset adversary) ω' adversary) initL)
-
-/-- **The averaged forced world is the lazy forced world** (any payoff on the final world state). -/
 theorem forced_avg_eq_lazy (adversary : AdversaryP) (slot : Nat)
     (payoff : (Bool × QueryLog Requests × List Wots.Entry) × WStateL → ENNReal) :
     ∑' ω, Pr[= ω | omegaLaw adversary] * ∑' r, Pr[= r | forcedRun (envE (digestOf ω) (nonceOf ω)) slot
@@ -669,7 +563,5 @@ theorem forced_avg_eq_lazy (adversary : AdversaryP) (slot : Nat)
   rw [expectedValue_bind, expectedValue_bind] at h
   simp only [expectedValue_def, probOutput_evalSPMF] at h
   exact h
-
 end Avg
-
 end SigGolfCandidate.T3.Security.BPair

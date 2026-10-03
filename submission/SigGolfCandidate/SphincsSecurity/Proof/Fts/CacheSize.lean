@@ -1,21 +1,11 @@
 import SigGolfCandidate.SphincsSecurity.Proof.Base.Prelude
 import SigGolfCandidate.SphincsSecurity.Proof.IdealStatement
 
-/-!
-# Random-oracle cache size
-
-A run starting from a cache can add at most one entry per hash query. Uniform-sampling queries leave
-the cache unchanged.
--/
-
 namespace SphincsSecurity
-
 open OracleComp OracleSpec ENNReal
-
 theorem QueryCache.enncard_mono {first second : QueryCache HashSpec}
     (hle : first ≤ second) : QueryCache.enncard first ≤ QueryCache.enncard second := by
   exact ENat.toENNReal_mono (Set.encard_le_encard (QueryCache.toSet_mono hle))
-
 theorem romImpl_uniform_query_enncard_eq
     (input : unifSpec.Domain) (cache : QueryCache HashSpec)
     (result : unifSpec.Range input × QueryCache HashSpec)
@@ -32,7 +22,6 @@ theorem romImpl_uniform_query_enncard_eq
   rw [hrun, support_map] at hmem
   obtain ⟨sample, _hsample, rfl⟩ := hmem
   rfl
-
 theorem romImpl_hash_query_enncard_le
     (input : HashInput) (cache : QueryCache HashSpec)
     (result : HashOutput × QueryCache HashSpec)
@@ -49,5 +38,4 @@ theorem romImpl_hash_query_enncard_le
       support_pure, Set.mem_singleton_iff] at hmem
     subst result
     exact le_add_right le_rfl
-
 end SphincsSecurity
