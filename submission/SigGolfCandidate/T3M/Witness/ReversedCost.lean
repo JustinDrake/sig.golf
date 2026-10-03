@@ -63,7 +63,7 @@ theorem bound_all (banks : List (List Nat)) (budget : Nat)
 theorem projected_seven_exact (banks : List (List Nat)) (hn : banks.length=7)
     (hf : (banks.map List.sum).sum≤115)
     (hc : ∀ xs∈banks, 10≤xs.sum ∧ xs.sum<21 ∧ bankCost xs≤cap xs.sum) :
-    361+(banks.map bankCost).sum≤2461 := by
+    360+(banks.map bankCost).sum≤2460 := by
   have hh:=bound_all banks 115 (by omega) (by decide) hf hc
   rw [hn] at hh
   have hb : bound 7 115=2100 := by decide +kernel
@@ -93,7 +93,7 @@ theorem coord_cap (c : Nat) (sel : Selection) (hs : SelOk sel) :
 theorem source_seven (chosen : List Selection)
     (hc : ∀ c, c<7 → SelOk (chosen.getD c ⟨0,[]⟩))
     (hf : ((SideCost.sourceBanks chosen).map List.sum).sum≤115) :
-    361+((SideCost.sourceBanks chosen).map bankCost).sum≤2461 := by
+    360+((SideCost.sourceBanks chosen).map bankCost).sum≤2460 := by
   apply projected_seven_exact
   · simp [SideCost.sourceBanks]
   · exact hf

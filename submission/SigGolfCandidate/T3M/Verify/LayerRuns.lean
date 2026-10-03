@@ -10,7 +10,7 @@ forest hash (with the layer constants `hyper`), layers 2, 1 one per shape block 
   `tp = tree | leaf << 32`), the encoding header `T(4, lay, tree, 0, leaf)` at `0x110`, the counter (`lwu` from the
   witness header) checked `< 2^22` and stored at `0x120`, `a0 = 0x100`, `a2 = 0x140`;
 * **B** (`specBl` lower / `specBt` top, after the `ecall`, up to the `jalr ra` into the chain code): the decode
-  (range `srli 62` / `srli 61`, the SWAR sums of `Decode`, the checksum test `sltiu 8` / the total `126`), the chain
+  (range `srli 62` / `srli 61`, the SWAR sums of `Decode`, the unsigned checksum test against carried `7` / the total `126`), the chain
   prologue (`s6`, `s3`, `s8` (top), the table window `a5`, the extraction of triple / quad 0);
 * the three rejections (counter, range, checksum / total), each `j reject` to the HALT(1) at word 743;
 * the leaf-pk block (`specLf`, at the return pc `trPc + retOff`): the leaf header `T(2)`, the node word `tp = T(3)` for
@@ -41,7 +41,7 @@ def xtrTab : List (List Nat) :=
     7137, 7238, 7339, 7440, 7541, 7642, 7743, 7844, 7945, 8046, 8147, 8248, 8349, 8450, 8551, 8652,
     8753, 8854, 8955, 9056, 9157, 9258, 9359, 9460, 9561, 9662, 9763, 9864, 9965, 10066, 10167, 10268,
     10369, 10470, 10571, 10672, 10773, 10874, 10975, 11076, 11177, 11278, 11379, 11480, 11581, 11682, 11783, 11884],
-   [661]]
+   [635]]
 
 /-- The number of transition copies of layer `lay`. -/
 def nCopy (lay : Nat) : Nat := (xtrTab.getD lay []).length
@@ -58,7 +58,7 @@ def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
 /-- Steps of A; layer 3 reuses four constants from the forest. -/
 def stepsA (lay : Nat) : Nat := if lay = 0 then 16 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 0 then 18 else 46
+def retOff (lay : Nat) : Nat := if lay = 0 then 18 else 45
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
@@ -111,13 +111,13 @@ def lowerLayK (lay : Nat) : List (Reg × Word) :=
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x19, BitVec.ofNat 64 (2^62))]
 
 /-- Five loads after the forest HASH use the carried `sp = 2^24`, retaining
-four other constants. Layer 3 starts at word 661. -/
+four other constants. Layer 3 starts at word 635. -/
 def ld3Spec : Spec :=
   ⟨[(.x19, kw (2^62)), (.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
       (.x27, .ld (kw (DATA + 24))), (.x2, .ld (kw (DATA + 32)))],
-    [], 661, false, 5, [], none, 5⟩
+    [], 635, false, 5, [], none, 5⟩
 
-def ld3Check : Bool := specB [] [] afterLoadK (runAt carryK [661] 656 []) ld3Spec [] afterLoadK [.x22]
+def ld3Check : Bool := specB [] [] afterLoadK (runAt carryK [635] 630 []) ld3Spec [] afterLoadK [.x22]
 
 /-- ... and the encoding `ecall`'s arguments. -/
 def bK (lay : Nat) : List (Reg × Word) := layK lay ++ [(.x10, 256), (.x12, 320)]
@@ -161,7 +161,7 @@ def sumE : E := .bin .remu (.bin .and (.bin .add sw1E (.bin .srl sw1E (kw 6))) (
 def t4E (lay : Nat) : E := .bin .add sumE (kw (2 ^ 64 - (tgtL lay - 7)))
 def rngBr (k : Nat) (d : Bool) : Br :=
   if k = 62 then ⟨.geu, a7E, kw (2^62), d⟩ else ⟨.ne, .bin .srl a7E (kw k), kw 0, d⟩
-def ckBr (lay : Nat) (d : Bool) : Br := ⟨.eq, .bin .sltu (t4E lay) (kw 8), kw 0, d⟩
+def ckBr (lay : Nat) (d : Bool) : Br := ⟨.ltu, kw 7, t4E lay, d⟩
 /-- `a7 = (v1 << 1) | v0 >> 63`. -/
 def a7lE : E := .bin .or b1E (.bin .srl a6E (kw 63))
 /-- The dispatch into `ttab` slot 0 (lower) / `qtab` slot 0 (top). -/
@@ -170,14 +170,14 @@ def tgtl : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe
 
 def specBl (lay p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, a7lE), (.x25, sumE), (.x29, t4E lay), (.x3, .bin .srl a6E (kw 63)), (.x14, x14l)],
-   [], 0, false, 29, [ckBr lay false, rngBr 62 false], some tgtl, 32⟩
+   [], 0, false, 28, [ckBr lay false, rngBr 62 false], some tgtl, 31⟩
 
 def postBl (lay p : Nat) : List (Reg × Word) :=
   lowerLayK lay ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x15, 0x6e000), (.x1, pcOf (p + retOff lay - 1))]
 
 def rejRng (k : Nat) : Spec := ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, (if k = 62 then 6 else 7), [rngBr k true], none, (if k = 62 then 6 else 7)⟩
 def rejCk (lay : Nat) : Spec :=
-  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 21, [ckBr lay true, rngBr 62 false], none, 24⟩
+  ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 20, [ckBr lay true, rngBr 62 false], none, 23⟩
 
 /-- The top decode's sums: the 3-bit SWAR of `g = v1 >>> 34` (`remu 4095` into `t4`), the 2-bit SWAR of `v0` and
 `c = v1 mod 2^34` (`remu 255`), the total. -/

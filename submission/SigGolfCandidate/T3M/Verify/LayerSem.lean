@@ -446,31 +446,30 @@ theorem rngBr_iff {u : MachineState} {a : BitVec 256} (h : AnsAt u a) (k : Nat) 
         rw [decide_eq_true h0]; exact bne_iff_ne.mpr this
     rw [e]; exact eq_comm
 
-theorem ckBr_iff {u : MachineState} {a : BitVec 256} (h : AnsAt u a) (hr : ansV a / 2 ^ 64 < 2 ^ 62) (lay : Layer)
-    (d : Bool) :
-    Br.holds u (ckBr lay.val d) ↔ d = decide (¬ (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64 < 8) := by
+theorem ckBr_iff {u : MachineState} {a : BitVec 256} (h : AnsAt u a)
+    (hr : ansV a / 2 ^ 64 < 2 ^ 62) (lay : Layer) (d : Bool) :
+    Br.holds u (ckBr lay.val d) ↔
+      d = decide (¬ (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64 < 8) := by
   have hS := lowSum_lt (ansV a)
   have hT : tgtL lay.val ≤ 195 := by fin_cases lay <;> decide
   have hT7 : 7 ≤ tgtL lay.val := by fin_cases lay <;> decide
-  have ht4 : ((t4E lay.val).eval u).toNat = (lowSum (ansV a) + 2 ^ 64 - (tgtL lay.val - 7)) % 2 ^ 64 := by
+  have ht4 : ((t4E lay.val).eval u).toNat =
+      (lowSum (ansV a) + 2 ^ 64 - (tgtL lay.val - 7)) % 2 ^ 64 := by
     simp only [t4E, E.eval, BinOp.eval, kw]
     rw [BitVec.toNat_add, sumE_eval h hr, BitVec.toNat_ofNat]
     omega
   have hiff : (lowSum (ansV a) + 2 ^ 64 - (tgtL lay.val - 7)) % 2 ^ 64 < 8 ↔
       (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64 < 8 := by omega
-  have key : (BinOp.sltu.eval ((t4E lay.val).eval u) (BitVec.ofNat 64 8) == BitVec.ofNat 64 0) =
+  have key : (BitVec.ofNat 64 7).ult ((t4E lay.val).eval u) =
       decide (¬ (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64 < 8) := by
-    simp only [BinOp.eval, BitVec.ult, ht4, BitVec.toNat_ofNat]
-    by_cases hc : (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64 < 8
-    · have h1 : decide ((lowSum (ansV a) + 2 ^ 64 - (tgtL lay.val - 7)) % 2 ^ 64 < 8 % 2 ^ 64) = true := by
-        rw [decide_eq_true_eq, show (8 : Nat) % 2 ^ 64 = 8 by norm_num]; exact hiff.mpr hc
-      rw [h1, decide_eq_false (fun h => h hc)]; decide
-    · have h1 : decide ((lowSum (ansV a) + 2 ^ 64 - (tgtL lay.val - 7)) % 2 ^ 64 < 8 % 2 ^ 64) = false := by
-        rw [decide_eq_false_iff_not, show (8 : Nat) % 2 ^ 64 = 8 by norm_num]; exact fun h' => hc (hiff.mp h')
-      rw [h1, decide_eq_true hc]; decide
-  simp only [ckBr, Br.holds, CmpOp.eval]
-  show (BinOp.sltu.eval ((t4E lay.val).eval u) (BitVec.ofNat 64 8) == BitVec.ofNat 64 0) = d ↔ _
-  rw [key]; exact eq_comm
+    simp only [BitVec.ult, BitVec.toNat_ofNat, ht4]
+    rw [show (7 : Nat) % 2 ^ 64 = 7 by norm_num]
+    have hp : ∀ n : Nat, (7 < n) ↔ ¬ n < 8 := by intro n; omega
+    simp only [hp, hiff]
+  change (BitVec.ofNat 64 7).ult ((t4E lay.val).eval u) = d ↔ _
+  rw [key]
+  exact eq_comm
+
 
 /-- The checksum digit of the lower decode. -/
 def ckOf (lay : Layer) (a : BitVec 256) : Nat := (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64
@@ -583,7 +582,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
     (hidx : index < 2 ^ 31) (t : MachineState) (ht : EncPre w pk index lay.val c t) (a : BitVec 256) :
     (decode lay (a.extractLsb' 0 128) = none → ∃ v k cy, Steps image (writeHash t a) k cy v ∧
         fetch image v = some (.base .ECALL) ∧ v.getReg .x5 = 1 ∧ v.getReg .x10 = 1 ∧ k ≤ 23 ∧ cy ≤ 26) ∧
-    (decode lay (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 29 32 s0 ∧
+    (decode lay (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 28 31 s0 ∧
         (lctxOf w index lay a (trPc lay.val c)).ok ∧
         (∀ p ∈ (lctxOf w index lay a (trPc lay.val c)).known, s0.getReg p.1 = p.2) ∧
         (lctxOf w index lay a (trPc lay.val c)).Orig0 s0 ∧
@@ -622,7 +621,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
         rcases hb with rfl | rfl
         · exact (ckBr_iff hans hr' lay true).mpr (by rw [decide_eq_true hck])
         · exact (rngBr_iff hans 62 (by norm_num) false).mpr (by rw [decide_eq_false hr])) (by simp)
-      exact ⟨v, 21, 24, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejCk]),
+      exact ⟨v, 20, 23, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejCk]),
         hv.regs (.x10, kw 1) (by simp [rejCk]), by norm_num, by norm_num⟩
   · intro hsome
     have hr0 : (a.extractLsb' 64 64).toNat / 2 ^ 62 = 0 := by

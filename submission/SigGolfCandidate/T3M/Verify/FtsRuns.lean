@@ -6,13 +6,13 @@ import SigGolfCandidate.T3M.Verify.FtsRev
 
 Code (instruction indices of the frozen image, `t3m/images/verify.labels`): `fts_setup` 362; leaf `s = 3 c + j` at
 `leafPc s` (10 / 9 / 10 instructions for `j = 0, 1, 2`: table switch, `ld s7, ETAB + 8 s`, the leaf block's `T`, the
-dispatch `lbu gp, 880(a4); slli 7; add s4; jalr s8`); `coord_end_c` at `coordEndPc c`; `forest` 648; the segment tables
+dispatch `lbu gp, 880(a4); slli 7; add s4; jalr s8`); `coord_end_c` at `coordEndPc c`; `forest` 622; the segment tables
 `ptab_n` 222208 / `ptab_l` 230400 (256 slots of 32 words); `entry0_{M,P,F}` 4841 / 4856 / 4862; the ladders `lad_X_t_r` at
 `ladBase X t + 7 r` (`X` = 0 M (merge), 1 P (push), 2 F (final)); `tailPc X c` selects the shared or inline
 tail after the destination hash.
 
 Families (each a path run checked by `specB` in `FtsCheck`):
-* `setupCheck'` (362 → 413), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
+* `setupCheck'` (362 → 387), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
   slot address), `slotCheck tb b` (to the pending hash / HALT(1)), `entCheck tb b` (`j lad`), `rungCheck X t r t'`
   (fold `r` to its hash, switching to ladder `t'`), `lastCheck X t` (rung 10 to the destination hash),
   `tailMCheck c d`, `tailPCheck c d`, `tailFCheck c`, `coordCheck c`, `forestCheck`.
@@ -54,15 +54,15 @@ def packedCK (c index : Nat) : List (Reg × Word) :=
 /-- Both coordinate words are dynamic packed headers; no per-coordinate compile-time registers remain. -/
 def leafCK (_c : Nat) : List (Reg × Word) := []
 
-def leafPc (s : Nat) : Nat := 413 + 34 * (s / 3) + (if s % 3 = 0 then 0 else if s % 3 = 1 then 10 else 19)
+def leafPc (s : Nat) : Nat := 387 + 34 * (s / 3) + (if s % 3 = 0 then 0 else if s % 3 = 1 then 10 else 19)
 /-- The dispatch (`lbu`) of leaf `s`. -/
 def leafDisp (s : Nat) : Nat := leafPc s + (if s % 3 = 1 then 5 else 6)
 /-- The link of leaf `s`'s dispatch: the next leaf, or `coord_end` after leaf 2. -/
 def leafRet (s : Nat) : Nat := leafPc s + (if s % 3 = 1 then 9 else 10)
-def coordEndPc (c : Nat) : Nat := 413 + 34 * c + 29
-def forestPc : Nat := 648
+def coordEndPc (c : Nat) : Nat := 387 + 34 * c + 29
+def forestPc : Nat := 622
 /-- The layer-3 transition (`xtr3_1`), right after the forest HASH. -/
-def layerPc : Nat := 656
+def layerPc : Nat := 630
 
 /-- The table of leaf position `j` (`0` = `ptab_n`: push variant; `1` = `ptab_l`: final variant). -/
 def tselJ (j : Nat) : Nat := if j = 2 then 1 else 0
@@ -128,7 +128,7 @@ def setupPost : List (Reg × Word) :=
   gkF ++ leafCK 0 ++ [(.x14, BitVec.ofNat 64 A4_0), (.x15, BitVec.ofNat 64 (frameA 0)), (.x25, BitVec.ofNat 64 FOREST)]
 
 /-- Setup words 362..368 load `sp`, four embedded data constants (words 5..8), and the two code-table
-bases via LUI. The remaining setup is words 369..379 and `j 413` at 380. -/
+bases via LUI. The remaining setup is words 369..386 and falls through into the main loop at 387. -/
 def setupLdK : List (Reg × Word) :=
   baseK ++ [(.x2,0x1000000),(.x14, BitVec.ofNat 64 A4_0), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x27, BitVec.ofNat 64 0xa01),
     (.x28, BitVec.ofNat 64 0x901), (.x16, BitVec.ofNat 64 tbN), (.x21, BitVec.ofNat 64 tbL)]
@@ -143,9 +143,9 @@ def setupLdCheckF : Bool := specB [] [] baseK (runAt baseK [369] 362 []) setupLd
 def setupSpecF : Spec :=
   ⟨[(.x27, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0xa01)),
     (.x28, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0x901))],
-    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 413, false, 19, [], none, 19⟩
+    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 387, false, 18, [], none, 18⟩
 
-def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [413] 369 []) setupSpecF [] setupPost [.x22]
+def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [387] 369 []) setupSpecF [] setupPost [.x22]
 
 /-- The ten gate bits are N[246..255] = word3[54..63]; accepted iff below 135 (`srli 54; sltiu 135; beqz`). -/
 def gateEF : E := .bin .sltu (.bin .srl (.reg .x28) (cw 54)) (cw 135)
@@ -386,7 +386,7 @@ def capBr (d : Bool) : Br := ⟨.ltu, .c (BitVec.ofNat 64 A4_LIMIT), .reg .x14, 
 def forestSpecF : Spec :=
   ⟨[(.x10, cw FOREST), (.x11, cw 128), (.x12, cw 0x100)],
     [(⟨none, BitVec.ofNat 64 (FOREST + 24)⟩, .reg .x22), (⟨none, BitVec.ofNat 64 (FOREST + 16)⟩, cw 0xb01)],
-    655, true, 7, [capBr false], none, 7⟩
+    629, true, 7, [capBr false], none, 7⟩
 def forestCheckF : Bool :=
   specB [] [] carryK (runAt gkF [] forestPc [.br false]) forestSpecF [] carryK [.x22] &&
   specB [] [] [] (runAt gkF [] forestPc [.br true]) (rejSpec 4 [capBr true]) [] [] []

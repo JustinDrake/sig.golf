@@ -11,11 +11,11 @@ folds zero and one cost 13 cycles; later nonfinal folds cost 14, and the final
 fold costs 13. A complete segment costs at most `15 + 14*a - min(a-1,2) + (if 2 ≤ a then 1 else 0)
 - (if a ≤ 2 then 1 else 0)`. The extra inline a=3 saving is conservatively ignored.
 
-The exact stream simulation pays `361 + streamCost w 1088 35`, including setup,
+The exact stream simulation pays `360 + streamCost w 1088 35`, including setup,
 leaves, merges, coordinate ends and the forest hash. The source-support bridge
 proves that every accepting machine execution has an admissible canonical
 schedule, even for adversarial witness bytes and arbitrary hash answers. The
-canonical schedule bound then gives 2461 cycles instead of the conservative 2613.
+canonical schedule bound then gives 2460 cycles instead of the conservative 2613.
 All-input termination remains 7227 cycles from `FtsReady`.
 -/
 
@@ -500,7 +500,7 @@ theorem fin_good (F : FCtx) (R : Option Digest → OracleComp HashSpec Obs) (hR 
 theorem fts_good_exact (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : FtsReady pk w a t)
     (R : Option Digest → OracleComp HashSpec Obs) (hR : R none = pure (false, 0)) (Bf Af : Nat) (Q : Prop)
     (hout : ∀ root u, FtsOut ⟨pk, w, a⟩ root u → GoodQ u Bf Bf Q Af (R (some root))) :
-    GoodQ t (Bf + 7227) (Bf + 7227) Q (Af + 361 + ReversedCost.streamCost w 1088 35) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
+    GoodQ t (Bf + 7227) (Bf + 7227) Q (Af + 360 + ReversedCost.streamCost w 1088 35) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
   obtain ⟨u, hu, hl⟩ := fts_setup_step pk w a t ht
   have e : ftsP w (a.toNat % 2 ^ 31) (selections a) =
       List.foldlM (ftsStep ⟨pk, w, a⟩) (some ([], 1088)) (List.range 7) >>= ftsFin ⟨pk, w, a⟩ :=
@@ -520,10 +520,10 @@ The exact stream potential therefore admits the tighter bound for arbitrary witn
 theorem fts_good (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : FtsReady pk w a t)
     (R : Option Digest → OracleComp HashSpec Obs) (hR : R none = pure (false, 0)) (Bf Af : Nat) (Q : Prop)
     (hout : ∀ root u, FtsOut ⟨pk, w, a⟩ root u → GoodQ u Bf Bf Q Af (R (some root))) :
-    GoodQ t (Bf + 7227) (Bf + 7227) Q (Af + 2461) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
+    GoodQ t (Bf + 7227) (Bf + 7227) Q (Af + 2460) (ccM (ftsP w (a.toNat % 2 ^ 31) (selections a)) R) := by
   have h := fts_good_exact pk w a t ht R hR Bf Af Q hout
   have hsel : selectionsOk (selections a) = true := (selectionsOk_iff a).mpr ht.1.ok
-  have hh := h.withSourceProperty (P := 361 + ReversedCost.streamCost w 1088 35 ≤ 2461) (by
+  have hh := h.withSourceProperty (P := 360 + ReversedCost.streamCost w 1088 35 ≤ 2460) (by
     intro o ho htrue
     obtain ⟨root,hr⟩ := ccM_some_support _ R hR o ho htrue
     have hshape : T3.admissible (selections a) = true ∧ StreamMatches (selections a) w := by
@@ -540,7 +540,7 @@ theorem fts_good (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) 
 theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    ∀ a t, SelIn pk w a 7 t → GoodQ t (Bf + 7230) (Bf + 7230) Q (Af + 2464) (ccM (afterSel pk w a) Kb) := by
+    ∀ a t, SelIn pk w a 7 t → GoodQ t (Bf + 7230) (Bf + 7230) Q (Af + 2463) (ccM (afterSel pk w a) Kb) := by
   intro a t ht
   cases hg : T3.digestGate a with
   | false =>
@@ -555,12 +555,12 @@ theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
 
 /-- **`verifyP` from the initial state up to the layers phase**: given the layers phase (V1/V3: layers 3..0 and the
 comparison, `afterFts`) from `FtsOut`, the whole verify run. Accepting cycles through the forest HASH:
-`184 + 3 + 2461 = 2648`, including the exact canonical stream-cost bound. -/
+`184 + 3 + 2460 = 2647`, including the exact canonical stream-cost bound. -/
 theorem verifyP_good_fts (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    GoodQ s (Bf + 7416) (Bf + 7423) Q (Af + 2648) (ccM (verifyP m pk w) Kb) :=
+    GoodQ s (Bf + 7416) (Bf + 7423) Q (Af + 2647) (ccM (verifyP m pk w) Kb) :=
   (verifyP_good_sel m pk w s hs (afterSel_good pk w Bf Af Q hout)).mono (by omega) (by omega)
     (fun q => ⟨q, by omega⟩)
 

@@ -8,7 +8,7 @@ import SigGolfCandidate.T3.PackedHeap
 
 The signature has 5616 bytes; the expanded witness has 25240 bytes and the
 fully authenticated cache has 131072 bytes. The claimed verification charge is
-8693 =8594 accepting machine cycles +99 witness cycles.
+8689 =8590 accepting machine cycles +99 witness cycles.
 
 The source uses a height 12/7/6/6 hypertree and seven BPORS banks. Each bank
 selects three leaves from one of 16 buckets of 128 leaves; the authentication cap
@@ -23,7 +23,7 @@ The source proof includes the concrete address injectivity and domain separation
 Each segment header carries its fold count, merge flag and three direction bits;
 only live bits are checked. The first two nonfinal folds and the final fold cost
 13 cycles, with 14 cycles for later nonfinal folds. The actual canonical stream
-bound is 361 +2100 =2461, including seven initial constant loads.
+bound is 360 +2100 =2460, including seven initial constant loads.
 The source-support proof applies it to every accepting witness and oracle.
 
 The 64KiB verifier data combines the bit-reversal table, erickeigen's lower-layer
@@ -56,7 +56,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8693 :=
+theorem certificate : SigGolf.Certificate submission 8689 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge

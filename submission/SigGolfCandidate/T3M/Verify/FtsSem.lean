@@ -132,10 +132,10 @@ theorem FB.leafCK {F : FCtx} {c : Nat} {m : MachineState} (_h : FB F c m) : Know
   intro p hp
   simp [SigGolfCandidate.T3M.Verify.leafCK] at hp
 
-/-! ## The FTS setup (words 359 .. 377) -/
+/-! ## The FTS setup (words 362 .. 386) -/
 
 theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineState) (ht : FtsReady pk w a t) :
-    ∃ u, Steps image t 26 26 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
+    ∃ u, Steps image t 25 25 u ∧ LeafIn ⟨pk, w, a⟩ 0 0 [] [] 1088 0 u := by
   obtain ⟨ht, hpc⟩ := ht
   have hk0 : KnownOK baseK t := ht.known
   have htidx : t.getReg .x22 = BitVec.ofNat 64 (a.toNat % 2 ^ 31) := ht.idx
@@ -170,7 +170,7 @@ theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
     · exact e28
     · exact e26
     · exact e21
-  -- words 366 .. 377: both packed headers, persistent comparands and `j 413`
+  -- words 369 .. 386: packed headers, persistent comparands and fallthrough into the main loop
   obtain ⟨u, hu⟩ := spec_run setupCheckF_ok t1 (h1.pc rfl) hk (by simp [setupSpecF]) (by simp)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
       if A = SENTINEL then -1#64 else t.getMem (BitVec.ofNat 64 A) := by
