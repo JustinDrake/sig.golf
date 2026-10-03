@@ -30,7 +30,7 @@ theorem digestSearchSpec (sk : BitVec 256) : DigestSearchSpec sk := fun s rho m 
 theorem counterSearchSpec (sk : BitVec 256) : CounterSearchSpec sk := fun s lay tree leaf msg ret h =>
   (Search.counterSearch_spec Search.kernAt_sign s lay tree leaf msg ret
     ⟨h.pc, h.x1, h.x5, h.x8, h.x9, h.x18, h.x17, h.x26, h.x27, h.htree, h.hleaf, h.msg, h.c32, h.z40, h.z48,
-      h.z56⟩).mono le_rfl (fun r t ht => by rcases r with _ | _; exacts [⟨ht.pc, ht.x5, ht.x10⟩, ht])
+      h.z56, h.table⟩).mono le_rfl (fun r t ht => by rcases r with _ | _; exacts [⟨ht.pc, ht.x5, ht.x10⟩, ht])
 
 theorem kernels (sk : BitVec 256) : Kernels sk := ⟨digestSearchSpec sk, counterSearchSpec sk⟩
 
@@ -54,19 +54,19 @@ theorem sign_tbsim_of (hL0 : L0Spec sk cache) (m : Message) :
 
 /-- The signature buffer at `HALT(0)`. -/
 theorem payPost_output {sig : Signature} {u : MachineState}
-    (h : ∀ k < 355, DigAt u (SIG + 16 * k) ((sigDigests sig).getD k 0)) :
+    (h : ∀ k < 351, DigAt u (SIG + 16 * k) ((sigDigests sig).getD k 0)) :
     readOutput submission.sizes submission.layout .sign u = sigB sig := by
   have hd : DigsAt u SIG (sigDigests sig) := fun k hk => h k (by rw [length_sigDigests] at hk; exact hk)
   have hw := hd.words
   rw [length_sigDigests] at hw
-  have hl : ((sigDigests sig).flatMap (bytesLE 16)).length = 8 * 710 := by
+  have hl : ((sigDigests sig).flatMap (bytesLE 16)).length = 8 * 702 := by
     have : ∀ ds : List Digest, (ds.flatMap (bytesLE 16)).length = 16 * ds.length := fun ds => by
       induction ds with
       | nil => rfl
       | cons d ds ih => rw [List.flatMap_cons, List.length_append, bytesLE_length, ih, List.length_cons]; ring
     rw [this, length_sigDigests]
-  have e := readBuffer_of_words u SIG 710 ((sigDigests sig).flatMap (bytesLE 16)) (by decide) (by decide) hl hw
-  show readBuffer u SIG (8 * 710) = sigB sig
+  have e := readBuffer_of_words u SIG 702 ((sigDigests sig).flatMap (bytesLE 16)) (by decide) (by decide) hl hw
+  show readBuffer u SIG (8 * 702) = sigB sig
   rw [e, sigB, serialize_eq]
 
 /-- **Sign refinement** (given layer 0): value, calls and compressions of the phase are Core's

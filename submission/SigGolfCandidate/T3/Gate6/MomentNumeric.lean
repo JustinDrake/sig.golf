@@ -94,7 +94,7 @@ theorem binomial_envelope_le_poisson (p : ENNReal) (hp : p≤1) (trials : Nat) (
 
 open OracleComp.EvalDist SphincsSecurity.Concrete
 
-/-- Probability envelope after the 21 independent seven-bit leaves and four-bit gate. -/
+/-- Probability envelope after the 21 independent seven-bit leaves and five-bit gate. -/
 noncomputable def forestEnvelope {steps : Nat} (table : Fin 7 → Fin steps → Fin 16) : ENNReal :=
   (∏ c, coordinateEnvelope (List.ofFn (table c)))/2^150
 
@@ -140,7 +140,7 @@ def proposalLength : Nat := 4303355904
 
 /-- Concrete arithmetic for the mean polynomial, after leaf normalization. -/
 theorem poisson_mean_bound :
-    (2 : ENNReal)^128*poissonEnvelope meanCoeffs (proposalLength/2^31)/2^234 ≤ 37 / 64 := by
+    (2 : ENNReal)^128*poissonEnvelope meanCoeffs (proposalLength/2^31)/2^234 ≤ 37/64 := by
   unfold poissonEnvelope
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
   simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
@@ -149,7 +149,7 @@ theorem poisson_mean_bound :
 
 /-- Concrete arithmetic for the normalized second-moment excess term. -/
 theorem poisson_excess_bound :
-    (2 : ENNReal)^225*poissonEnvelope varianceCoeffs (proposalLength/2^31)/(1*2^496) ≤ 18400/100000000 := by
+    (2 : ENNReal)^225*poissonEnvelope varianceCoeffs (proposalLength/2^31)/2^496 ≤ 18400/100000000 := by
   unfold poissonEnvelope
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
   simp (disch := finiteness) only [ENNReal.toReal_add,ENNReal.toReal_mul,ENNReal.toReal_div,
@@ -263,7 +263,7 @@ theorem near_forest_binomial_bound (p : ENNReal) (hp : p≤1) (trials : Nat) (mi
 The separate adaptive-history domination obligation is not assumed here. -/
 theorem uniform_history_mean_bound :
     (2 : ENNReal)^128*binomialAverage (1/2^31) proposalLength (fun steps =>
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) forestEnvelope) ≤ 37 / 64 := by
+      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) forestEnvelope) ≤ 37/64 := by
   calc
     _ ≤ (2 : ENNReal)^128*(poissonEnvelope meanCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^234) :=
       mul_le_mul' le_rfl (forest_binomial_first_bound (1/2^31) (by norm_num) proposalLength)
@@ -273,16 +273,15 @@ theorem uniform_history_mean_bound :
 
 theorem uniform_history_excess_bound :
     (2 : ENNReal)^225*binomialAverage (1/2^31) proposalLength (fun steps =>
-      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) (fun table => forestEnvelope table^2))/1 ≤
+      expectedValue ($ᵗ (Fin 7 → Fin steps → Fin 16) : ProbComp _) (fun table => forestEnvelope table^2)) ≤
         18400/100000000 := by
   calc
-    _ ≤ (2 : ENNReal)^225*(poissonEnvelope varianceCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^496)/1 := by
-      exact ENNReal.div_le_div_right (mul_le_mul' le_rfl
-        (forest_binomial_second_bound (1/2^31) (by norm_num) proposalLength)) _
-    _ = (2 : ENNReal)^225*poissonEnvelope varianceCoeffs (proposalLength/2^31)/(1*2^496) := by
-      simp only [div_eq_mul_inv, mul_one, one_mul, inv_one]
-      ring
+    _ ≤ (2 : ENNReal)^225*(poissonEnvelope varianceCoeffs ((proposalLength : ENNReal)*(1/2^31))/2^496) :=
+      mul_le_mul' le_rfl (forest_binomial_second_bound (1/2^31) (by norm_num) proposalLength)
+    _ = (2 : ENNReal)^225*poissonEnvelope varianceCoeffs (proposalLength/2^31)/2^496 := by
+      simp only [div_eq_mul_inv,mul_one,one_mul,mul_assoc]
     _ ≤ _ := poisson_excess_bound
+
 
 theorem uniform_history_near_bound (missing : Fin 7) :
     21*(2 : ENNReal)^128*binomialAverage (1/2^31) proposalLength (fun steps =>

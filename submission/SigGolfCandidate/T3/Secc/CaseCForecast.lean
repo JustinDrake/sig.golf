@@ -11,7 +11,7 @@ appended to the exposure list `X`. It absorbs every adaptive choice of later sig
 * `score_le_forecast`: the forecast dominates the current score;
 * `average_forecast`: averaged over a uniform target it is the completed-word price `E[fullPrice (labels X ++ W)]/2^128`
   with `W` uniform (the labels of accepted selections are uniform: admissibility reads only leaf bits);
-* `excessForecast` (the price above `theta = 63 / 64`) has the same martingale step, and `average_forecast_le` splits the
+* `excessForecast` (the price above `theta = 63/64`) has the same martingale step, and `average_forecast_le` splits the
   average into `theta` plus that excess.
 -/
 

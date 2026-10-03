@@ -9,7 +9,7 @@ import SigGolfCandidate.T3.Secc.CaseCExcess
     Σ_{N ∈ targets} forecast (horizon − |X|) X N  +  reusePotential  +  (budget − count) · excessForecast(…)/2^128.
 
 `potential_step`: for every interaction query, `E[potential after] ≤ potential before + birthCharge`, where a
-birth (fresh in-budget digest query) costs `(theta + 1/64)/2^128` and everything else costs nothing.
+birth (fresh in-budget digest query) costs `(theta + 1/16)/2^128` and everything else costs nothing.
 -/
 
 namespace SigGolfCandidate.T3.Security.CaseC

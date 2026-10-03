@@ -19,7 +19,7 @@ or the actual selection to `X` at a fresh signing, inherits the supermartingale 
 * `ledger_search`: the digest rejection search (cached rejected trials skipped, exhaustion = no exposure) is a
   supermartingale step;
 * `ledger_win`: an admissible target covered by the exposures holds a full unit;
-* `ledger_initial`: the initial ledger is at most `budget · 11400/10^8 / 2^128`.
+* `ledger_initial`: the initial ledger is at most `budget · 11324/10^8 / 2^128`.
 
 The cache-reuse exception (`CaseCSearch.Reuse`, `reuseMass`, `reuse_probability_le`,
 `CaseCBankReuse.reuseMass_cacheQuery_le`) is stated over `Sampling.RCache` and is world-independent as well.
@@ -137,7 +137,7 @@ theorem ledger_win_opened (R : Nat) (targets X : List HashOutput) (slack : Nat) 
 
 /-- **Initial ledger**: no targets, no exposures, `budget` prepaid births over the full horizon. -/
 theorem ledger_initial (budget : Nat) :
-    ledger BPORS.Numeric.proposalLength [] [] budget ≤ (budget : ENNReal) * (11400 / 100000000) / 2 ^ 128 := by
+    ledger BPORS.Numeric.proposalLength [] [] budget ≤ (budget : ENNReal) * (11324 / 100000000) / 2 ^ 128 := by
   unfold ledger
   simp only [List.map_nil, List.sum_nil, zero_add]
   apply ENNReal.div_le_div_right
@@ -149,8 +149,7 @@ theorem ledger_initial (budget : Nat) :
 theorem theta_add_sixteenth_le_one : theta + 1 / 64 ≤ 1 := by
   unfold theta
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-  simp (disch := finiteness) only [ENNReal.toReal_add, ENNReal.toReal_div,
-    ENNReal.toReal_ofNat, ENNReal.toReal_one]
+  simp (disch := finiteness) only [ENNReal.toReal_add, ENNReal.toReal_div, ENNReal.toReal_ofNat, ENNReal.toReal_one]
   norm_num
 
 /-! ## The admissibility indicator of a fresh answer -/
@@ -158,32 +157,32 @@ theorem theta_add_sixteenth_le_one : theta + 1 / 64 ≤ 1 := by
 /-- Admissibility indicator of an answer. -/
 noncomputable def admInd (a : HashOutput) : ENNReal := if digestAdmissible a = true then 1 else 0
 
-theorem acceptance_le_sixteenth : DigestSampling.acceptanceProbability ≤ 1 / 64 :=
-by
-  apply (ENNReal.toReal_le_toReal
-    (by unfold DigestSampling.acceptanceProbability SigGolfResearch.Gate6.acceptance; finiteness)
-    (by finiteness)).mp
-  norm_num [DigestSampling.acceptanceProbability, SigGolfResearch.Gate6.acceptance, ENNReal.toReal_div]
+theorem acceptance_le_sixteenth : DigestSampling.acceptanceProbability ≤ 1 / 16 :=
+  Acceptance.acceptanceProbability_le_one_sixteenth
 
-/-- A fresh uniform answer is admissible with probability `≤ 1/64`. -/
-theorem expected_admInd_tight : expectedValue ($ᵗ HashOutput : ProbComp HashOutput) admInd ≤ 1 / 64 := by
+/-- A fresh uniform answer is admissible with probability `≤ 1/16`. -/
+theorem expected_admInd : expectedValue ($ᵗ HashOutput : ProbComp HashOutput) admInd ≤ 1 / 16 := by
   have h : expectedValue ($ᵗ HashOutput : ProbComp HashOutput) admInd = DigestSampling.acceptanceProbability := by
     rw [← Sampling.digest_acceptanceProbability, ← expectedValue_ite_one]
     rfl
   rw [h]
   exact acceptance_le_sixteenth
 
-/-- The original near-bank allowance follows from the tighter full-bank estimate. -/
-theorem expected_admInd : expectedValue ($ᵗ HashOutput : ProbComp HashOutput) admInd ≤ 1 / 16 := by
-  refine expected_admInd_tight.trans ?_
-  apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-  norm_num [ENNReal.toReal_div]
-
 /-! ## The macro-step bank (abstract state; LR34-2) -/
 
 /-- The certificate shape: every opened position of `N` is opened by some exposure (at the same index). -/
 def CoveredBy (X : List HashOutput) (N : HashOutput) : Prop :=
   ∀ f ∈ BPair.openedPositions N, ∃ out ∈ X, f ∈ BPair.openedPositions out
+
+theorem expected_admInd_tight : expectedValue ($ᵗ HashOutput : ProbComp HashOutput) admInd ≤ 1/64 := by
+  have he : expectedValue ($ᵗ HashOutput : ProbComp HashOutput) admInd=DigestSampling.acceptanceProbability := by
+    rw [←Sampling.digest_acceptanceProbability,←expectedValue_ite_one]
+    rfl
+  rw [he]
+  unfold DigestSampling.acceptanceProbability SigGolfResearch.Gate6.acceptance
+  apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
+  simp (disch := finiteness) only [ENNReal.toReal_div, ENNReal.toReal_ofNat, ENNReal.toReal_one]
+  norm_num
 
 /-- The abstract bank state: targets, exposures, the reuse flag, the reuse mass `C` (cached admissible digest rows
 of unsigned messages, over `2^128`, as maintained by the instantiation) and the remaining birth budget. -/
@@ -378,7 +377,7 @@ theorem core_win (b : BankCore) (halive : ¬BPORS.Numeric.proposalLength < b.exp
 
 /-- **Initial potential.** -/
 theorem core_initial (budget : Nat) :
-    corePotential ⟨[], [], false, 0, budget⟩ ≤ (budget : ENNReal) * (11400 / 100000000) / 2 ^ 128 := by
+    corePotential ⟨[], [], false, 0, budget⟩ ≤ (budget : ENNReal) * (11324 / 100000000) / 2 ^ 128 := by
   unfold corePotential
   simp only [List.length_nil, Nat.not_lt_zero, if_false, Bool.false_eq_true, Nat.sub_zero, add_zero]
   exact ledger_initial budget

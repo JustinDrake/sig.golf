@@ -1,3 +1,4 @@
+import SigGolfCandidate.T3M.Search.CounterSearch
 import SigGolfCandidate.T3M.Expand.RcModel
 
 /-!
@@ -218,7 +219,7 @@ theorem StreamAt.frame {s t : MachineState} {e : Em} {W : Nat → Prop} (h : Str
 theorem RcCtx.frame {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 115 → Digest} {s t : MachineState}
     {W : Nat → Prop} (h : RcCtx c index g0 g1 g2 values proof s) (hc : c < 7) {L : List Reg}
     (hr : RegsExcept s t L) (h5 : Reg.x5 ∉ L) (h8 : Reg.x8 ∉ L) (h9 : Reg.x9 ∉ L) (hf : Frame s t W)
-    (hW : ∀ A, ((SEL ≤ A ∧ A < SEL + 168) ∨ (0x7000 ≤ A ∧ A < 0x7000 + 5680) ∨ A = FLEAF ∨ A = FLEAF + 8 ∨
+    (hW : ∀ A, ((SEL ≤ A ∧ A < SEL + 168) ∨ (0x7000 ≤ A ∧ A < 0x7000 + 5616) ∨ A = FLEAF ∨ A = FLEAF + 8 ∨
       A = FLEAF + 48 ∨ A = FLEAF + 56 ∨ A = NODE + 32 ∨ A = NODE + 40) → ¬ W A) :
     RcCtx c index g0 g1 g2 values proof t := by
   refine ⟨by rw [hr.get h5]; exact h.x5, by rw [hr.get h8]; exact h.x8, by rw [hr.get h9]; exact h.x9, ?_, ?_, ?_,
@@ -237,7 +238,7 @@ theorem RcCtx.frame {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin
 
 /-- `RcW` misses the static regions. -/
 theorem not_RcW_static {sp level A : Nat} (hsp : 0x22000 - 512 + 48 * (level + 1) ≤ sp) (hsp' : sp ≤ 0x22000)
-    (hA : (SEL ≤ A ∧ A < SEL + 168) ∨ (0x7000 ≤ A ∧ A < 0x7000 + 5680) ∨ A = FLEAF ∨ A = FLEAF + 8 ∨
+    (hA : (SEL ≤ A ∧ A < SEL + 168) ∨ (0x7000 ≤ A ∧ A < 0x7000 + 5616) ∨ A = FLEAF ∨ A = FLEAF + 8 ∨
       A = FLEAF + 48 ∨ A = FLEAF + 56 ∨ A = NODE + 32 ∨ A = NODE + 40) : ¬ RcW sp level A := by
   unfold RcW
   simp only [SEL, FLEAF, NODE, NOUT] at hA ⊢

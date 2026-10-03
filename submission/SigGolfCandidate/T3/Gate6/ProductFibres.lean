@@ -58,7 +58,7 @@ theorem fresh_mark_joint (mark : MarkedLabel) :
     ENNReal.mul_inv (Or.inr (by finiteness)) (Or.inl (by finiteness)),mul_assoc]
 
 /-- The fresh full mark is exactly uniform conditional on the actual
-three-zero-bit, distinct-triple and summed-authentication-cap predicate. -/
+six-zero-bit, distinct-triple and summed-authentication-cap predicate. -/
 theorem fresh_mark_conditional (mark : MarkedLabel) :
     Pr[fun r => Accepted r ∧ r.1=mark | ($ᵗ RawRecord : ProbComp RawRecord)] /
       Pr[Accepted | ($ᵗ RawRecord : ProbComp RawRecord)] = (2^59 : ENNReal)⁻¹ := by

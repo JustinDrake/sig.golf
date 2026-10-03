@@ -149,7 +149,7 @@ structure Stat (sig : Signature) (N : HashOutput) (u : MachineState) : Prop wher
 
 /-- The addresses of the static facts. -/
 def StatA (A : Nat) : Prop :=
-  (SEL ≤ A ∧ A < SEL + 168) ∨ (0x7000 ≤ A ∧ A < 0x7000 + 5680) ∨ A = FLEAF ∨ A = FLEAF + 8 ∨
+  (SEL ≤ A ∧ A < SEL + 168) ∨ (0x7000 ≤ A ∧ A < 0x7000 + 5616) ∨ A = FLEAF ∨ A = FLEAF + 8 ∨
     A = FLEAF + 48 ∨ A = FLEAF + 56 ∨ A = NODE + 32 ∨ A = NODE + 40
 
 theorem stat_of_pre {sig : Signature} {N : HashOutput} {s : MachineState} (h : FtsPre sig N s) : Stat sig N s :=

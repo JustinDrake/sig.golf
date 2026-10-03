@@ -12,7 +12,7 @@ import SigGolfCandidate.T3.Secc.SeccSufRoute
   rows belong to signed messages.
 
 Macro steps of the potential: `psi_after` (any adversary/verifier query that is not a birth), `psi_birth_le`
-(CC's `core_birth`: a uniform fresh birth costs at most `(θ + 1/64)/2^128`), `reuseC_signed` (a fresh signing
+(CC's `core_birth`: a uniform fresh birth costs at most `(θ + 1/16)/2^128`), `reuseC_signed` (a fresh signing
 removes its message's reuse mass), `psi_cert` (CC's `core_win`: a certificate holds a full unit).
 -/
 
@@ -227,7 +227,7 @@ theorem psi_cert (q : Nat) (st : RouterState) (h : CertGhost st) : 1 ≤ psi q s
       exact List.mem_map_of_mem hp
 
 /-- **The initial potential** (CC's `core_initial`). -/
-theorem psi_initial (q : Nat) : psi q RouterState.initial ≤ (q : ENNReal) * (11400 / 100000000) / 2 ^ 128 := by
+theorem psi_initial (q : Nat) : psi q RouterState.initial ≤ (q : ENNReal) * (11324 / 100000000) / 2 ^ 128 := by
   have h0 : reuseC RouterState.initial = 0 := by
     unfold reuseC
     apply ENNReal.tsum_eq_zero.mpr

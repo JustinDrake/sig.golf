@@ -1952,7 +1952,7 @@ theorem full_game_excess_price (adversary : Adversary) (budget : Nat)
     (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment adversary budget hbudget)
       (fun result => if result.2.1.length≤BPORS.Numeric.proposalLength
-        then BPORS.History.fullPrice result.2.1-1 else 0) ≤ 18400/100000000 := by
+        then BPORS.History.fullPrice result.2.1-1 else 0) ≤ 11324/100000000 := by
   simp only [tracedExperiment,expectedValue_bind,expectedValue_pure]
   apply expectedValue_le_of_le
   intro generated
@@ -1987,7 +1987,7 @@ theorem full_game_selected_excess (adversary : Adversary) (budget : Nat)
     (hselected : ∀ result,(selected result).Sublist result.2.1) :
     expectedValue (tracedExperiment adversary budget hbudget)
       (fun result => if result.2.1.length≤BPORS.Numeric.proposalLength
-        then BPORS.History.fullPrice (selected result)-1 else 0) ≤ 18400/100000000 := by
+        then BPORS.History.fullPrice (selected result)-1 else 0) ≤ 11324/100000000 := by
   apply le_trans ?_ (full_game_excess_price adversary budget hbudget)
   apply expectedValue_mono
   intro result
@@ -4971,7 +4971,7 @@ theorem real_to_clean_trace (adversary : Adversary) (q : Nat) (hq : q ≤ 2^127)
 theorem full_game_excess_price (adversary : Adversary) (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment adversary budget hbudget)
       (fun result => if result.2.1.length≤BPORS.Numeric.proposalLength
-        then BPORS.History.fullPrice result.2.1-1 else 0) ≤ 18400/100000000 := by
+        then BPORS.History.fullPrice result.2.1-1 else 0) ≤ 11324/100000000 := by
   have h := MonitoredPrivate.full_game_excess_price adversary budget hbudget
   rw [← traced_base_erasure adversary budget hbudget,expectedValue_map] at h
   exact h
@@ -5735,7 +5735,7 @@ theorem full_game_excess_price (checker : Checker Forgery) (adversary : Adversar
     (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment checker adversary budget hbudget)
       (fun result => if result.2.1.length≤BPORS.Numeric.proposalLength
-        then BPORS.History.fullPrice result.2.1-1 else 0) ≤ 18400/100000000 := by
+        then BPORS.History.fullPrice result.2.1-1 else 0) ≤ 11324/100000000 := by
   simp only [tracedExperiment,expectedValue_bind,expectedValue_pure]
   apply expectedValue_le_of_le
   intro generated
@@ -5770,7 +5770,7 @@ theorem full_game_selected_excess (checker : Checker Forgery) (adversary : Adver
     (hselected : ∀ result,(selected result).Sublist result.2.1) :
     expectedValue (tracedExperiment checker adversary budget hbudget)
       (fun result => if result.2.1.length≤BPORS.Numeric.proposalLength
-        then BPORS.History.fullPrice (selected result)-1 else 0) ≤ 18400/100000000 := by
+        then BPORS.History.fullPrice (selected result)-1 else 0) ≤ 11324/100000000 := by
   apply le_trans ?_ (full_game_excess_price checker adversary budget hbudget)
   apply expectedValue_mono
   intro result
@@ -5920,7 +5920,7 @@ theorem real_to_clean_trace (checker : Checker Forgery) (adversary : AdversaryFo
 theorem full_game_excess_price (checker : Checker Forgery) (adversary : AdversaryFor Forgery) (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment checker adversary budget hbudget)
       (fun result => if result.2.1.length≤BPORS.Numeric.proposalLength
-        then BPORS.History.fullPrice result.2.1-1 else 0) ≤ 18400/100000000 := by
+        then BPORS.History.fullPrice result.2.1-1 else 0) ≤ 11324/100000000 := by
   have h := Monitored.full_game_excess_price checker adversary budget hbudget
   rw [← traced_base_erasure checker adversary budget hbudget,expectedValue_map] at h
   exact h
@@ -6072,7 +6072,7 @@ theorem real_to_clean_without_known (reference : FirstHit.Reference) (adversary 
 theorem full_game_excess_price (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedValue (tracedExperiment adversary budget hbudget)
       (fun result => if result.2.1.length ≤ BPORS.Numeric.proposalLength
-        then BPORS.History.fullPrice result.2.1-1 else 0) ≤ 18400/100000000 :=
+        then BPORS.History.fullPrice result.2.1-1 else 0) ≤ 11324/100000000 :=
   GameWith.Recorded.full_game_excess_price checker adversary budget hbudget
 
 theorem full_game_near_price (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
@@ -6550,9 +6550,9 @@ theorem source_prefix (answers : Answers) (labels : Labels) (h : Agrees answers 
 theorem source_endpoint (answers : Answers) (labels : Labels) (h : Agrees answers (sourceSeeds answers) labels)
     (address : Address) :
     leafEnd answers address.layer address.tree.val address.leaf.val address.chain.val=
-      value (sourceSeeds answers) labels address (2^width address.layer address.chain.val-1) := by
+      value (sourceSeeds answers) labels address (maxDigit address.layer address.chain.val) := by
   apply source_prefix answers labels h address
-  unfold width
+  unfold maxDigit
   split_ifs <;> decide
 
 end SigGolfCandidate.T3.Security.ChainGraph
@@ -8501,7 +8501,7 @@ theorem adaptive_creation_full_charge {α : Type} (published : T3.Cache)
           BPORS.History.fullPrice before.2.1) program (0, [], state) ≤
       Creation.expectedCharges ((proposalModel published budget hbudget).creationImpl weight cap)
         (fun input before => (ProposalModel.creationStep weight cap input before : ENNReal))
-        program (0, [], state) + (cap : ENNReal) * (18400/100000000) := by
+        program (0, [], state) + (cap : ENNReal) * (11324/100000000) := by
   apply le_trans ((proposalModel published budget hbudget).creation_charge_split
     weight cap BPORS.Numeric.proposalLength BPORS.History.fullPrice program state)
   apply add_le_add le_rfl
@@ -8704,7 +8704,7 @@ theorem full_charge_le_mass_excess (weight : Weight) (cap : Nat)
     (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedCharge weight cap BPORS.History.fullPrice adversary budget hbudget ≤
       expectedValue (experiment weight cap adversary budget hbudget)
-        (fun result => (result.2.1 : ENNReal)) + (cap : ENNReal) * (18400/100000000) := by
+        (fun result => (result.2.1 : ENNReal)) + (cap : ENNReal) * (11324/100000000) := by
   unfold expectedCharge
   calc
     _ ≤ expectedValue (liftM (QueryRecorded.run keygen QueryRecorded.initial) : PMF _)
@@ -8715,7 +8715,7 @@ theorem full_charge_le_mass_excess (weight : Weight) (cap : Nat)
             (fun input before =>
               (ProposalModel.creationStep (weight generated.1.2) cap input before : ENNReal))
             (rest adversary generated.1.1 generated.1.2) (0, [], generated.2) +
-          (cap : ENNReal) * (18400/100000000)) := by
+          (cap : ENNReal) * (11324/100000000)) := by
       apply expectedValue_mono
       intro generated
       exact QueryRecorded.adaptive_creation_full_charge generated.1.2 budget hbudget
@@ -9017,7 +9017,7 @@ theorem full_charge_le_births_excess (cls : HashInput → Prop)
     (budget : Nat) (hbudget : budget ≤ 2^127) :
     expectedCharge (fun _ => classWeight cls budget) budget BPORS.History.fullPrice
       adversary budget hbudget ≤
-      expectedBirths cls adversary budget hbudget + (budget : ENNReal) * (18400/100000000) := by
+      expectedBirths cls adversary budget hbudget + (budget : ENNReal) * (11324/100000000) := by
   rw [expectedBirths_eq_mass]
   exact full_charge_le_mass_excess (fun _ => classWeight cls budget) budget adversary budget hbudget
 
@@ -9253,7 +9253,7 @@ theorem full_charge_le_class_excess (cls : HashInput → Prop)
     expectedCharge (fun _ => classWeight cls budget) budget BPORS.History.fullPrice
       adversary budget hbudget ≤
       expectedClassCount (publicClass cls) adversary budget hbudget +
-        (budget : ENNReal) * (18400/100000000) :=
+        (budget : ENNReal) * (11324/100000000) :=
   (full_charge_le_births_excess cls adversary budget hbudget).trans
     (add_le_add (expectedBirths_le_classCount cls adversary budget hbudget) le_rfl)
 

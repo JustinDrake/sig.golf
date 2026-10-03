@@ -105,10 +105,10 @@ theorem nearTermK_le (K : ENNReal) (hK : K ≤ 500) (q : Nat) (hs : q ≤ SeccCl
   generalize (q : ENNReal) / 2 ^ 128 = x at hg ⊢
   generalize (q : ENNReal) / ((2 ^ 128 - q : ℕ) : ENNReal) = g at hg ⊢
   calc g * ((K + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹) * x + 21 * (2 : ENNReal)⁻¹ ^ 700)
-      ≤ (4096 / 4095 * x) * ((500 + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹) * x + 21 * (2 : ENNReal)⁻¹ ^ 700) := by
+      ≤ (8192 / 8191 * x) * ((500 + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹) * x + 21 * (2 : ENNReal)⁻¹ ^ 700) := by
         gcongr
-    _ = (4096 / 4095 * (500 + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹)) * x ^ 2 +
-          (4096 / 4095 * (21 * (2 : ENNReal)⁻¹ ^ 700)) * x := by ring
+    _ = (8192 / 8191 * (500 + 21 * 201 * ((2 : ENNReal) ^ 25)⁻¹)) * x ^ 2 +
+          (8192 / 8191 * (21 * (2 : ENNReal)⁻¹ ^ 700)) * x := by ring
     _ ≤ 502 * x ^ 2 + (1 / 1000) * x := by
         gcongr
         · apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp

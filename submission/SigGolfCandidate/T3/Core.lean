@@ -24,12 +24,16 @@ abbrev Spec := SphincsSecurity.OracleWorld + (Coordinate →ₒ HashOutput)
 abbrev M := OracleComp Spec
 
 def height (lay : Layer) : Nat := ![12, 7, 6, 6] lay
-def chainCount (lay : Layer) : Nat := ![58, 43, 43, 43] lay
-def dataCount (lay : Layer) : Nat := if lay = 0 then 58 else 42
-def width (lay : Layer) (i : Nat) : Nat := if lay = 0 ∧ i < 49 then 2 else 3
-def target (lay : Layer) : Nat := ![126, 195, 195, 195] lay
+def chainCount (lay : Layer) : Nat := ![54, 43, 43, 43] lay
+def dataCount (lay : Layer) : Nat := if lay = 0 then 54 else 42
+/-- A loose binary bound for encoding coordinates. Actual endpoints are maxDigit. -/
+def width (lay : Layer) (i : Nat) : Nat := if lay = 0 ∧ 51 ≤ i then 2 else 3
+/-- Top chains use51 radix-five positions followed by3 radix-four positions. -/
+def maxDigit (lay : Layer) (i : Nat) : Nat :=
+  if lay = 0 then (if i < 51 then 4 else 3) else 7
+def target (lay : Layer) : Nat := ![126, 195, 195, 194] lay
 def encodedBits (lay : Layer) : Nat := if lay = 0 then 125 else 126
-def capacity (lay : Layer) : Nat := if lay = 0 then 210 else 301
+def capacity (lay : Layer) : Nat := if lay = 0 then 213 else 301
 def attemptLimit : Nat := 2 ^ 20
 def counterLimit : Nat := 2 ^ 22
 def coordinates : Nat := 7
@@ -119,7 +123,7 @@ def buildLeaf (lay : Layer) (tree leaf : Nat) (digits : List Nat)
         let digit := digits.getD i 0
         let value ← chain lay tree leaf i 0 digit seed
         if signatureOnly then return (state.1, state.2 ++ [value])
-        let last ← chain lay tree leaf i digit (2 ^ width lay i - 1 - digit) value
+        let last ← chain lay tree leaf i digit (maxDigit lay i - digit) value
         pure (state.1 ++ [last], state.2 ++ [value])) state) ([], [])
   if signatureOnly then return (0, state.2)
   let root ← leafHash lay tree leaf state.1
@@ -170,17 +174,25 @@ def keygen : M (Digest × Cache) := do
   let tag ← privateMac region
   pure (publicKey, ⟨tag, region⟩)
 
+/-- Little-endian7-bit ranks encode triples d0+5*d1+25*d2. -/
+def coreDigit (lay : Layer) (value : Digest) (i : Nat) : Nat :=
+  if lay = 0 then
+    if i < 51 then (value.toNat / 2^(7*(i/3)) % 128) / 5^(i%3) % 5
+    else value.toNat / 2^(119+2*(i-51)) % 4
+  else value.toNat / 2^(3*i) % 8
+
+def topRanksValid (value : Digest) : Bool :=
+  (List.range 17).all fun j => decide (value.toNat / 2^(7*j) % 128 < 125)
+
 def dataDigits (lay : Layer) (value : Digest) : List Nat :=
-  (List.range (dataCount lay)).map fun i =>
-    let offset := if lay = 0 then (if i < 49 then 2*i else 98+3*(i-49)) else 3*i
-    value.toNat / 2 ^ offset % 2 ^ width lay i
+  (List.range (dataCount lay)).map (coreDigit lay value)
 
 def decode (lay : Layer) (value : Digest) : Option (List Nat) :=
   if value.toNat ≥ 2 ^ encodedBits lay then none else
   let digits := dataDigits lay value
   let total := digits.sum
   if lay = 0 then
-    if total = target lay then some digits else none
+    if topRanksValid value && decide (total = target lay) then some digits else none
   else if total ≤ target lay ∧ target lay - total < 8 then
     some (digits ++ [target lay - total])
   else none
@@ -394,7 +406,7 @@ def recoverLayer (sig : Signature) (index : Nat) (lay : Layer) (digits : List Na
   let (leaf,tree) := route index lay
   let ends ← (List.finRange (chainCount lay)).mapM fun i =>
     chain lay tree leaf i.val (digits.getD i.val 0)
-      (2^width lay i.val-1-digits.getD i.val 0) ((sig.layers lay).values i)
+      (maxDigit lay i.val-digits.getD i.val 0) ((sig.layers lay).values i)
   let value ← leafHash lay tree leaf ends
   (List.finRange (height lay)).foldlM (fun value j => do
     let other := (sig.layers lay).path j

@@ -64,7 +64,7 @@ def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
 def s3v : Nat := 15768
 /-- Core's targets. -/
-def tgtL (lay : Nat) : Nat := [126, 195, 195, 195].getD lay 0
+def tgtL (lay : Nat) : Nat := [126, 195, 195, 194].getD lay 0
 /-- Header word 0 of tag `t` and layer `lay` (`1 | t << 8 | lay << 16`). -/
 def hw (t lay : Nat) : Nat := 1 + 256 * t + 65536 * lay
 /-- The HALT(1) `ecall` of `reject`. -/
@@ -208,7 +208,7 @@ def tgtLf (lay : Nat) : E :=
 def specLf (lay : Nat) : Spec :=
   if lay = 0 then
     ⟨[(.x14, x14lf lay)],
-     [(⟨none, BitVec.ofNat 64 1464⟩, kw 0), (⟨none, BitVec.ofNat 64 1456⟩, kw 0), (⟨none, BitVec.ofNat 64 536⟩, .reg .x4),
+     [(⟨none, BitVec.ofNat 64 1400⟩, kw 0), (⟨none, BitVec.ofNat 64 1392⟩, kw 0), (⟨none, BitVec.ofNat 64 536⟩, .reg .x4),
       (⟨none, BitVec.ofNat 64 528⟩, kw (hw 2 0))], 0, false, 13, [], some (tgtLf lay), 13⟩
   else
     ⟨[(.x14, x14lf lay)],
@@ -217,7 +217,7 @@ def specLf (lay : Nat) : Spec :=
 
 def postLf (lay : Nat) : List (Reg × Word) :=
   leafK lay ++ [(.x3, BitVec.ofNat 64 (hw 2 lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)),
-    (.x10, BitVec.ofNat 64 (if lay = 0 then 512 else 768)), (.x11, BitVec.ofNat 64 (if lay = 0 then 960 else 704)),
+    (.x10, BitVec.ofNat 64 (if lay = 0 then 512 else 768)), (.x11, BitVec.ofNat 64 (if lay = 0 then 896 else 704)),
     (.x15, 0xce000)]
 
 /-! ## The checks of a copy -/
@@ -226,14 +226,18 @@ def keepA : List Reg := []
 def keepB : List Reg := [.x4, .x23, .x30]
 def keepLf : List Reg := [.x23, .x30, .x22]
 
+def keepTopCall : List Reg := [.x2, .x3, .x4, .x5, .x6, .x7, .x8, .x9, .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17, .x18, .x19, .x20, .x21, .x22, .x23, .x24, .x25, .x26, .x27, .x28, .x29, .x30, .x31]
+
+/-- The two direct jumps preserve the top leaf return address and enter the shared packed decoder. -/
+def specTopCall (p : Nat) : Spec :=
+  ⟨[(.x1, kw (0x1000 + 4 * (p + 69)))], [], 96160, false, 2, [], none, 2⟩
+
 /-- All runs of the transition copy at `p` of layer `lay` and of its leaf-pk block. -/
 def copyCheck (lay p : Nat) : Bool :=
   specB [] [] baseK (runAt (preK lay) [] p [.br false]) (specA lay p) [] (bK lay) keepA &&
   specB [] [] [] (runAt (preK lay) [] p [.br true]) (rejA lay p) [] [] [] &&
   (if lay = 0 then
-    specB [] [] baseK (runAt (bK lay) [] (p + stepsA lay + 1) [.br false, .br false, .jmp]) (specBt p) [] (postBt p) keepB &&
-    specB [] [] [] (runAt (bK lay) [] (p + stepsA lay + 1) [.br false, .br true]) rejTot [] [] [] &&
-    specB [] [] [] (runAt (bK lay) [] (p + stepsA lay + 1) [.br true]) (rejRng 61) [] [] []
+    specB [] [] [] (runAt [] [96160] (p + stepsA lay + 1) []) (specTopCall p) [] [] keepTopCall
   else
     specB [] [] baseK (runAt (bK lay) [] (p + stepsA lay + 1) [.br false, .br false, .jmp]) (specBl lay p) []
       (postBl lay p) keepB &&

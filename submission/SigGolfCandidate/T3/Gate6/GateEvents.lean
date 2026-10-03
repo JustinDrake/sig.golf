@@ -15,7 +15,7 @@ noncomputable def gatedEventEquiv (event : CoordinateDraw → Prop) :
   right_inv _ := rfl
 
 /-- Every coordinate-only event, including a near-cover or a fixed-target
-condition, receives the exact independent three-bit gate factor. -/
+condition, receives the exact independent five-bit gate factor. -/
 theorem gated_event_probability (event : CoordinateDraw → Prop) :
     Pr[fun draw : GatedDraw => draw.2=0 ∧ event draw.1 | ($ᵗ GatedDraw : ProbComp GatedDraw)] =
       (Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/8 := by

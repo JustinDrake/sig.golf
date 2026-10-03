@@ -3,18 +3,18 @@ import SigGolfCandidate.T3M.Bytes
 /-!
 # The signature codec (stream E)
 
-Core's signature `T3.Signature` is 355 digests (`rho`, 21 secrets, 115 proof slots, then for each layer
-its chain values and Merkle path); `serialize` writes them as 5,680 little-endian bytes. The organizer's
-signature object is `Legacy.Bytes 5680`. This module is the bijection between the two:
+Core's signature `T3.Signature` is 351 digests (`rho`, 21 secrets, 115 proof slots, then for each layer
+its chain values and Merkle path); `serialize` writes them as 5,664 little-endian bytes. The organizer's
+signature object is `Legacy.Bytes 5616`. This module is the bijection between the two:
 
-* `sigDigests s` : the 355 digests in `serialize` order, `serialize_eq : serialize s = (sigDigests s).flatMap (bytesLE 16)`;
-* `sigB s : Bytes 5680` (the little-endian value of `serialize s`) and `sigDec b : Signature` (digest `k`
+* `sigDigests s` : the 351 digests in `serialize` order, `serialize_eq : serialize s = (sigDigests s).flatMap (bytesLE 16)`;
+* `sigB s : Bytes 5616` (the little-endian value of `serialize s`) and `sigDec b : Signature` (digest `k`
   of the signature is `sigDig b k = b.extractLsb' (128 k) 128`);
-* `sigDec_sigB : sigDec (sigB s) = s` and `sigB_sigDec : sigB (sigDec b) = b` (every 5,680-byte string
+* `sigDec_sigB : sigDec (sigB s) = s` and `sigB_sigDec : sigB (sigDec b) = b` (every 5,664-byte string
   decodes); `sigB_injective`, `sigDec_injective`;
 * the digest index of each field: `rho` 0, secret `i` at `1 + i`, proof slot `j` at `22 + j`, layer `lay`'s
   chain value `i` at `layIdx lay + i` and Merkle sibling `j` at `layIdx lay + chainCount lay + j`
-  (`layIdx` = 137, 207, 257, 306, i.e. byte offsets 2192, 3312, 4112, 4896);
+  (`layIdx` = 137, 203, 253, 302, i.e. byte offsets 2240, 3296, 4096, 4880);
 * the doubleword view `sigDig_lo/hi` used by the machine proofs (the signature buffer at `0x7000`
   holds `b.extractLsb' (64 j) 64` at `0x7000 + 8 j`).
 -/
@@ -80,7 +80,7 @@ theorem digNat_eq_of_digits : ∀ (ds : List Digest) (B : Nat), B < 2 ^ (128 * d
 
 /-! ## The digests of a signature -/
 
-/-- The 355 digests of a signature in `serialize` order. -/
+/-- The 351 digests of a signature in `serialize` order. -/
 def sigDigests (s : Signature) : List Digest :=
   [s.rho] ++ List.ofFn s.secrets ++ List.ofFn s.proof ++
     (List.ofFn fun lay : Layer => List.ofFn (s.layers lay).values ++ List.ofFn (s.layers lay).path).flatten
@@ -106,13 +106,13 @@ theorem serialize_eq (s : Signature) : serialize s = (sigDigests s).flatMap (byt
   simp only [List.flatten_cons, List.flatten_nil, List.append_nil, List.flatMap_append, List.flatMap_cons,
     List.flatMap_nil]
 
-theorem length_sigDigests (s : Signature) : (sigDigests s).length = 355 := by
+theorem length_sigDigests (s : Signature) : (sigDigests s).length = 351 := by
   rw [sigDigests_eq]
   simp only [List.length_append, List.length_singleton, List.length_ofFn]
   rfl
 
-/-- First digest index of layer `lay`'s piece (`16 * layIdx lay` = 2192, 3312, 4112, 4896). -/
-def layIdx (lay : Layer) : Nat := (![137, 207, 257, 306] : Layer → Nat) lay
+/-- First digest index of layer `lay`'s piece (`16 * layIdx lay` = 2240, 3296, 4096, 4880). -/
+def layIdx (lay : Layer) : Nat := (![137, 203, 253, 302] : Layer → Nat) lay
 
 section getD
 
@@ -128,7 +128,7 @@ theorem getD_ofFn' {n : Nat} (f : Fin n → Digest) (i : Nat) (hi : i < n) :
     (List.ofFn f).getD i 0 = f ⟨i, hi⟩ := by
   simp [List.getD_eq_getElem?_getD, hi]
 
-theorem chainCount_0 : chainCount 0 = 58 := rfl
+theorem chainCount_0 : chainCount 0 = 54 := rfl
 theorem chainCount_1 : chainCount 1 = 43 := rfl
 theorem chainCount_2 : chainCount 2 = 43 := rfl
 theorem chainCount_3 : chainCount 3 = 43 := rfl
@@ -187,19 +187,19 @@ theorem sigDigests_layer (lay : Layer) (i : Nat) (hi : i < chainCount lay + heig
   rw [chainCount_2, height_2] at l2
   fin_cases lay
   · show (sigDigests s).getD (137 + i) 0 = (layerList s 0).getD i 0
-    have hi' : i < 70 := hi
+    have hi' : i < 66 := hi
     rw [sigDigests_tail s _ (by omega), show 137 + i - 137 = i by omega, getD_append_left' (by omega)]
-  · show (sigDigests s).getD (207 + i) 0 = (layerList s 1).getD i 0
+  · show (sigDigests s).getD (203 + i) 0 = (layerList s 1).getD i 0
     have hi' : i < 50 := hi
     rw [sigDigests_tail s _ (by omega), getD_append_right' (by omega), l0, getD_append_left' (by omega),
-      show 207 + i - 137 - 70 = i by omega]
-  · show (sigDigests s).getD (257 + i) 0 = (layerList s 2).getD i 0
+      show 203 + i - 137 - 66 = i by omega]
+  · show (sigDigests s).getD (253 + i) 0 = (layerList s 2).getD i 0
     have hi' : i < 49 := hi
     rw [sigDigests_tail s _ (by omega), getD_append_right' (by omega), l0, getD_append_right' (by omega), l1,
-      getD_append_left' (by omega), show 257 + i - 137 - 70 - 50 = i by omega]
-  · show (sigDigests s).getD (306 + i) 0 = (layerList s 3).getD i 0
+      getD_append_left' (by omega), show 253 + i - 137 - 66 - 50 = i by omega]
+  · show (sigDigests s).getD (302 + i) 0 = (layerList s 3).getD i 0
     rw [sigDigests_tail s _ (by omega), getD_append_right' (by omega), l0, getD_append_right' (by omega), l1,
-      getD_append_right' (by omega), l2, show 306 + i - 137 - 70 - 50 - 49 = i by omega]
+      getD_append_right' (by omega), l2, show 302 + i - 137 - 66 - 50 - 49 = i by omega]
 
 theorem sigDigests_value (lay : Layer) (i : Nat) (hi : i < chainCount lay) :
     (sigDigests s).getD (layIdx lay + i) 0 = (s.layers lay).values ⟨i, hi⟩ := by
@@ -214,20 +214,20 @@ end getD
 
 /-! ## The codec -/
 
-/-- Digest `k` (bytes `16 k .. 16 k + 16`) of a 5,680-byte signature string. -/
-def sigDig (b : Bytes 5680) (k : Nat) : Digest := b.extractLsb' (128 * k) 128
+/-- Digest `k` (bytes `16 k .. 16 k + 16`) of a 5,664-byte signature string. -/
+def sigDig (b : Bytes 5616) (k : Nat) : Digest := b.extractLsb' (128 * k) 128
 
-/-- Decode a 5,680-byte string as a signature (every string decodes). -/
-def sigDec (b : Bytes 5680) : Signature where
+/-- Decode a 5,664-byte string as a signature (every string decodes). -/
+def sigDec (b : Bytes 5616) : Signature where
   rho := sigDig b 0
   secrets := fun i => sigDig b (1 + i.val)
   proof := fun j => sigDig b (22 + j.val)
   layers := fun lay => ⟨fun i => sigDig b (layIdx lay + i.val), fun j => sigDig b (layIdx lay + (chainCount lay + j.val))⟩
 
-theorem pow_5728 : (2 : Nat) ^ (8 * 5680) = 2 ^ (128 * 355) := congrArg (fun n => 2 ^ n) rfl
+theorem pow_5728 : (2 : Nat) ^ (8 * 5616) = 2 ^ (128 * 351) := congrArg (fun n => 2 ^ n) rfl
 
-/-- A signature as the organizer's 5,680-byte object (`serialize`, little endian). -/
-def sigB (s : Signature) : Bytes 5680 := BitVec.ofNat _ (readLE (serialize s))
+/-- A signature as the organizer's 5,664-byte object (`serialize`, little endian). -/
+def sigB (s : Signature) : Bytes 5616 := BitVec.ofNat _ (readLE (serialize s))
 
 set_option exponentiation.threshold 50000 in
 theorem sigB_toNat (s : Signature) : (sigB s).toNat = digNat (sigDigests s) := by
@@ -235,7 +235,7 @@ theorem sigB_toNat (s : Signature) : (sigB s).toNat = digNat (sigDigests s) := b
   rw [length_sigDigests] at hlt
   rw [sigB, BitVec.toNat_ofNat, serialize_eq, ← digNat, Nat.mod_eq_of_lt (lt_of_lt_of_eq hlt pow_5728.symm)]
 
-theorem sigDig_toNat (b : Bytes 5680) (k : Nat) : (sigDig b k).toNat = b.toNat / 2 ^ (128 * k) % 2 ^ 128 := by
+theorem sigDig_toNat (b : Bytes 5616) (k : Nat) : (sigDig b k).toNat = b.toNat / 2 ^ (128 * k) % 2 ^ 128 := by
   rw [sigDig, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]
 
 theorem sigDig_sigB (s : Signature) (k : Nat) : sigDig (sigB s) k = (sigDigests s).getD k 0 := by
@@ -267,7 +267,7 @@ theorem sigDec_sigB (s : Signature) : sigDec (sigB s) = s := by
     · funext j; rw [hd]; exact hpa' j.val j.isLt
 
 /-- Entry `i` of layer `lay`'s piece of a decoded signature. -/
-theorem layerList_sigDec (b : Bytes 5680) (lay : Layer) (i : Nat) (hi : i < chainCount lay + height lay) :
+theorem layerList_sigDec (b : Bytes 5616) (lay : Layer) (i : Nat) (hi : i < chainCount lay + height lay) :
     (layerList (sigDec b) lay).getD i 0 = sigDig b (layIdx lay + i) := by
   unfold layerList
   by_cases hc : i < chainCount lay
@@ -276,7 +276,7 @@ theorem layerList_sigDec (b : Bytes 5680) (lay : Layer) (i : Nat) (hi : i < chai
     show sigDig b (layIdx lay + (chainCount lay + (i - chainCount lay))) = _
     rw [show chainCount lay + (i - chainCount lay) = i by omega]
 
-theorem sigDigests_sigDec (b : Bytes 5680) (k : Nat) (hk : k < 355) :
+theorem sigDigests_sigDec (b : Bytes 5616) (k : Nat) (hk : k < 351) :
     (sigDigests (sigDec b)).getD k 0 = sigDig b k := by
   by_cases h0 : k = 0
   · subst h0; exact sigDigests_rho _
@@ -293,16 +293,16 @@ theorem sigDigests_sigDec (b : Bytes 5680) (k : Nat) (hk : k < 355) :
     intro lay i hi he
     subst he
     rw [sigDigests_layer _ lay i hi, layerList_sigDec b lay i hi]
-  by_cases h3 : k < 207
+  by_cases h3 : k < 203
   · exact key 0 (k - 137) (by rw [chainCount_0, height_0]; omega) (by simp [layIdx]; omega)
-  by_cases h4 : k < 257
-  · exact key 1 (k - 207) (by rw [chainCount_1, height_1]; omega) (by simp [layIdx]; omega)
-  by_cases h5 : k < 306
-  · exact key 2 (k - 257) (by rw [chainCount_2, height_2]; omega) (by simp [layIdx]; omega)
-  · exact key 3 (k - 306) (by rw [chainCount_3, height_3]; omega) (by simp [layIdx]; omega)
+  by_cases h4 : k < 253
+  · exact key 1 (k - 203) (by rw [chainCount_1, height_1]; omega) (by simp [layIdx]; omega)
+  by_cases h5 : k < 302
+  · exact key 2 (k - 253) (by rw [chainCount_2, height_2]; omega) (by simp [layIdx]; omega)
+  · exact key 3 (k - 302) (by rw [chainCount_3, height_3]; omega) (by simp [layIdx]; omega)
 
 set_option exponentiation.threshold 50000 in
-theorem sigB_sigDec (b : Bytes 5680) : sigB (sigDec b) = b := by
+theorem sigB_sigDec (b : Bytes 5616) : sigB (sigDec b) = b := by
   apply BitVec.eq_of_toNat_eq
   rw [sigB_toNat]
   apply digNat_eq_of_digits
@@ -320,13 +320,13 @@ theorem sigDec_injective : Function.Injective sigDec := fun a b h => by
 /-! ## Doublewords -/
 
 /-- The low doubleword of digest `k` is doubleword `2 k` of the string. -/
-theorem sigDig_lo (b : Bytes 5680) (k : Nat) : (sigDig b k).extractLsb' 0 64 = b.extractLsb' (64 * (2 * k)) 64 := by
+theorem sigDig_lo (b : Bytes 5616) (k : Nat) : (sigDig b k).extractLsb' 0 64 = b.extractLsb' (64 * (2 * k)) 64 := by
   apply BitVec.eq_of_toNat_eq
   simp only [sigDig, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow, pow_zero, Nat.div_one]
   rw [show 64 * (2 * k) = 128 * k by ring, Nat.mod_mod_of_dvd _ (by norm_num)]
 
 /-- The high doubleword of digest `k` is doubleword `2 k + 1` of the string. -/
-theorem sigDig_hi (b : Bytes 5680) (k : Nat) :
+theorem sigDig_hi (b : Bytes 5616) (k : Nat) :
     (sigDig b k).extractLsb' 64 64 = b.extractLsb' (64 * (2 * k + 1)) 64 := by
   apply BitVec.eq_of_toNat_eq
   simp only [sigDig, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]

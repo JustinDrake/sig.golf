@@ -123,7 +123,7 @@ def fin7 (i : Nat) : Fin 7 := ⟨i % 7, Nat.mod_lt _ (by decide)⟩
 
 /-- The end value (step `2^w − 1`) of chain `i` of a leaf, read off the chain labels. -/
 def endLabel (secrets : Secrets) (labels : Labels) (L : LeafPos) (i : Nat) : Digest :=
-  ChainGraph.value (seedsOf secrets) (chainLabels labels) ⟨L.lay, L.tree, L.leaf, fin58 i⟩ (2 ^ width L.lay i - 1)
+  ChainGraph.value (seedsOf secrets) (chainLabels labels) ⟨L.lay, L.tree, L.leaf, fin58 i⟩ (maxDigit L.lay i)
 
 /-- The valid Merkle node `(lay, tree, level, c)`, if any. -/
 def treeNodeAt (lay : Layer) (tree : Fin (2^31)) (level c : Nat) : Option TreeNode :=

@@ -4,7 +4,7 @@ import SigGolfCandidate.T3.Secc.CaseCBankStep
 # Stream CC: the bank inequality on the actual padded experiment
 
 `bank_potential_le`: the final potential of the bank experiment is at most
-`(theta + 1/64)/2^128 · E[digest births] + budget · 11400/10^8 / 2^128`, where the births are SEC's
+`(theta + 1/16)/2^128 · E[digest births] + budget · 11324/10^8 / 2^128`, where the births are SEC's
 `CreationGame.expectedBirths IsDigestInput` (fresh adversary/verifier digest queries within budget), bounded by the
 shared-law digest-class charge (`expectedBirths_le_shared`).
 -/
@@ -168,7 +168,7 @@ theorem keygen_noDigest (generated : (Digest × T3.Cache) × QueryRecorded.State
 
 theorem potential_initial_le (budget : Nat) (generated : (Digest × T3.Cache) × QueryRecorded.State)
     (hg : generated ∈ support (QueryRecorded.run keygen QueryRecorded.initial)) :
-    potential budget (Ghost.empty, generated.2) ≤ (budget : ENNReal) * (11400 / 100000000) / 2 ^ 128 := by
+    potential budget (Ghost.empty, generated.2) ≤ (budget : ENNReal) * (11324 / 100000000) / 2 ^ 128 := by
   have hreuse : reusePotential (lazyOf generated.2) = 0 := by
     unfold reusePotential
     apply ENNReal.tsum_eq_zero.mpr
@@ -194,12 +194,12 @@ theorem potential_initial_le (budget : Nat) (generated : (Digest × T3.Cache) ×
 theorem bank_potential_le (adversary : AdversaryP) (budget : Nat) (hbudget : budget ≤ 2 ^ 127) :
     expectedValue (bankExperiment adversary budget) (fun r => potential budget r.2) ≤
       (theta + 1 / 64) / 2 ^ 128 * CreationGame.expectedBirths IsDigestInput adversary budget hbudget +
-        (budget : ENNReal) * (11400 / 100000000) / 2 ^ 128 := by
+        (budget : ENNReal) * (11324 / 100000000) / 2 ^ 128 := by
   unfold bankExperiment
   rw [expectedValue_bind]
   calc
     _ ≤ expectedValue (liftM (QueryRecorded.run keygen QueryRecorded.initial) : PMF _) (fun generated =>
-        (budget : ENNReal) * (11400 / 100000000) / 2 ^ 128 +
+        (budget : ENNReal) * (11324 / 100000000) / 2 ^ 128 +
           (theta + 1 / 64) / 2 ^ 128 * BPORS.Adaptive.Creation.expectedCharges
             (QueryRecorded.proposalModel generated.1.2 budget hbudget).traced
             (fun input state => (CreationGame.classWeight IsDigestInput budget input state : ENNReal))

@@ -90,7 +90,7 @@ theorem rl1010_spec (hpc : s.pc = pcOf 1010) (i n : Nat) (hi : i < 2 ^ 63) (hn :
 
 /-- The chain value `values[i]` (at `P + 16 i`) to `CHAIN+48` and to the witness chain block `W` (`+48`);
 `W -= 64`; the digit address `DIGITS + i`. -/
-theorem rl1011_spec (hpc : s.pc = pcOf 1011) (i P W : Nat) (hP : 0x7000 ≤ P) (hPi : P + 16 * i + 16 ≤ 0x7000 + 5680)
+theorem rl1011_spec (hpc : s.pc = pcOf 1011) (i P W : Nat) (hP : 0x7000 ≤ P) (hPi : P + 16 * i + 16 ≤ 0x7000 + 5616)
     (hP8 : P % 8 = 0) (hW8 : W % 8 = 0) (hW : 64 ≤ W) (hW' : W + 64 ≤ 0x7000)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 i) (h16 : s.getReg .x16 = BitVec.ofNat 64 P)
     (h23 : s.getReg .x23 = BitVec.ofNat 64 W) :
@@ -161,29 +161,51 @@ theorem rl1027_spec (hpc : s.pc = pcOf 1027) (i d : Nat) (hi : i < 64) (hd : d <
     cases r <;> simp_all [MachineState.getReg, MachineState.setReg, MachineState.setPC]
   · intro A _ _; rfl
 
-/-- The end step `E = 7` (radix 8) or `3` (radix 4, `i < n4`). -/
-theorem rl1028_spec (hpc : s.pc = pcOf 1028) (i n4 : Nat) (hi : i < 2 ^ 63) (hn : n4 < 2 ^ 63)
-    (h19 : s.getReg .x19 = BitVec.ofNat 64 i) (h27 : s.getReg .x27 = BitVec.ofNat 64 n4) :
-    ∃ t, Steps image s 2 2 t ∧ t.pc = (if n4 ≤ i then pcOf 1031 else pcOf 1030) ∧
+/-- Lower layers use endpoint seven; top layers use the mixed-radix helper. -/
+theorem rl1028_spec (hpc : s.pc = pcOf 1028) (lay : Nat) (hlay : lay < 2 ^ 64)
+    (h8 : s.getReg .x8 = BitVec.ofNat 64 lay) :
+    ∃ t, Steps image s 2 2 t ∧ t.pc = (if lay = 0 then pcOf 1030 else pcOf 1031) ∧
       t.getReg .x21 = BitVec.ofNat 64 7 ∧ RegsExcept s t [.x21] ∧ Frame s t (fun _ => False) := by
+  have hz : (BitVec.ofNat 64 lay = 0#64) ↔ lay = 0 := by
+    constructor
+    · intro e
+      have q := congrArg BitVec.toNat e
+      simpa [toNat_ofNat_lt hlay] using q
+    · intro e; subst lay; rfl
   refine ⟨_, symRun_sound eblk_1028 codeAt_1028 s hpc (by simp [eblk_1028.res, rv_simp]), ?_, ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, eblk_1028.res, E.eval, CmpOp.eval, h19, h27]
-    rw [ex_slt i n4 hi hn]
-    by_cases hc : n4 ≤ i
-    · simp [hc, show ¬ i < n4 by omega]
-    · simp [hc, show i < n4 by omega]
+  · simp [Result.toState_pc, eblk_1028.res, E.eval, CmpOp.eval, h8, hz]
   · simp [eblk_1028.res, rv_simp]
   · ex_regs eblk_1028.res
   · intro A _ _; simp [eblk_1028.res, rv_simp]
 
 theorem rl1030_spec (hpc : s.pc = pcOf 1030) :
-    ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 1031 ∧ t.getReg .x21 = BitVec.ofNat 64 3 ∧
-      RegsExcept s t [.x21] ∧ Frame s t (fun _ => False) := by
-  refine ⟨_, symRun_sound eblk_1030 codeAt_1030 s hpc (by simp [eblk_1030.res, rv_simp]), ?_, ?_, ?_, ?_⟩
+    ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 1158 ∧
+      RegsExcept s t [] ∧ Frame s t (fun _ => False) := by
+  refine ⟨_, symRun_sound eblk_1030 codeAt_1030 s hpc (by simp [eblk_1030.res, rv_simp]), ?_, ?_, ?_⟩
   · simp [Result.toState_pc, eblk_1030.res, E.eval]
-  · simp [eblk_1030.res, rv_simp]
   · ex_regs eblk_1030.res
   · intro A _ _; simp [eblk_1030.res, rv_simp]
+
+theorem rl1158_spec (hpc : s.pc = pcOf 1158) (i n4 : Nat) (hi : i < 2 ^ 63) (hn : n4 < 2 ^ 63)
+    (h19 : s.getReg .x19 = BitVec.ofNat 64 i) (h27 : s.getReg .x27 = BitVec.ofNat 64 n4) :
+    ∃ t, Steps image s 2 2 t ∧ t.pc = (if i < n4 then pcOf 1160 else pcOf 1031) ∧
+      t.getReg .x21 = BitVec.ofNat 64 3 ∧ RegsExcept s t [.x21] ∧ Frame s t (fun _ => False) := by
+  refine ⟨_, symRun_sound eblk_1158 codeAt_1158 s hpc (by simp [eblk_1158.res, rv_simp]), ?_, ?_, ?_, ?_⟩
+  · simp only [Result.toState_pc, eblk_1158.res, E.eval, CmpOp.eval, h19, h27]
+    rw [ex_slt i n4 hi hn]
+    by_cases hi' : i < n4 <;> simp [hi']
+  · simp [eblk_1158.res, rv_simp]
+  · ex_regs eblk_1158.res
+  · intro A _ _; simp [eblk_1158.res, rv_simp]
+
+theorem rl1160_spec (hpc : s.pc = pcOf 1160) :
+    ∃ t, Steps image s 2 2 t ∧ t.pc = pcOf 1031 ∧ t.getReg .x21 = BitVec.ofNat 64 4 ∧
+      RegsExcept s t [.x21] ∧ Frame s t (fun _ => False) := by
+  refine ⟨_, symRun_sound eblk_1160 codeAt_1160 s hpc (by simp [eblk_1160.res, rv_simp]), ?_, ?_, ?_, ?_⟩
+  · simp [Result.toState_pc, eblk_1160.res, E.eval]
+  · simp [eblk_1160.res, rv_simp]
+  · ex_regs eblk_1160.res
+  · intro A _ _; simp [eblk_1160.res, rv_simp]
 
 /-- `rl_step`: the chain is done at step `E`. -/
 theorem rl1031_spec (hpc : s.pc = pcOf 1031) (st e : Nat) (hs : st < 2 ^ 63) (he : e < 2 ^ 63)
@@ -388,7 +410,7 @@ theorem ex_valid (x : Nat) (h1 : x % 8 = 0) (h2 : x + 8 ≤ 2 ^ 24) : accessVali
 
 /-- Merkle level with leaf bit 1: the sibling (at `P`) to the witness `[M, M+16)` and to `NODE`, the node `NOUT`
 to `NODE + 48`. -/
-theorem rl1080_spec (hpc : s.pc = pcOf 1080) (P M : Nat) (hP8 : P % 8 = 0) (hP : 0x7000 ≤ P) (hP' : P + 16 ≤ 0x7000 + 5680)
+theorem rl1080_spec (hpc : s.pc = pcOf 1080) (P M : Nat) (hP8 : P % 8 = 0) (hP : 0x7000 ≤ P) (hP' : P + 16 ≤ 0x7000 + 5616)
     (hM8 : M % 8 = 0) (hM : 0x800 ≤ M) (hM' : M + 64 ≤ 0x7000)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 P) (h24 : s.getReg .x24 = BitVec.ofNat 64 M) :
     ∃ t, Steps image s 19 19 t ∧ t.pc = pcOf 1117 ∧
@@ -424,7 +446,7 @@ theorem rl1080_spec (hpc : s.pc = pcOf 1080) (P M : Nat) (hP8 : P % 8 = 0) (hP :
 
 /-- Merkle level with leaf bit 0: the sibling to the witness `[M+48, M+64)` and to `NODE + 48`, the node `NOUT`
 to `NODE`. -/
-theorem rl1099_spec (hpc : s.pc = pcOf 1099) (P M : Nat) (hP8 : P % 8 = 0) (hP : 0x7000 ≤ P) (hP' : P + 16 ≤ 0x7000 + 5680)
+theorem rl1099_spec (hpc : s.pc = pcOf 1099) (P M : Nat) (hP8 : P % 8 = 0) (hP : 0x7000 ≤ P) (hP' : P + 16 ≤ 0x7000 + 5616)
     (hM8 : M % 8 = 0) (hM : 0x800 ≤ M) (hM' : M + 64 ≤ 0x7000)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 P) (h24 : s.getReg .x24 = BitVec.ofNat 64 M) :
     ∃ t, Steps image s 18 18 t ∧ t.pc = pcOf 1117 ∧

@@ -27,12 +27,12 @@ abbrev vimage : Image := Images.verifyImage
 theorem piece_steps {p f : Nat} {r : Result} (h : vrun p f = some r) (hp : p < 209920) (s : MachineState)
     (hpc : s.pc = pcOf p) (ho : ∀ o ∈ r.st.obl, o.holds s) :
     Steps vimage s r.steps r.cycles (r.toState s) :=
-  symRun_sound h (lcodeAt p hp) s hpc ((Oblig.all_iff _ _).mpr ho)
+  symRun_sound h (lcodeAt p (by omega)) s hpc ((Oblig.all_iff _ _).mpr ho)
 
 theorem piece_ecall {p f : Nat} {r : Result} (h : vrun p f = some r) (hp : p < 209920) (s : MachineState)
     (ho : ∀ o ∈ r.st.obl, o.holds s) (hst : r.stop = .ecall) :
     fetch vimage (r.toState s) = some (.base .ECALL) :=
-  symRun_ecall h (lcodeAt p hp) s ((Oblig.all_iff _ _).mpr ho) hst
+  symRun_ecall h (lcodeAt p (by omega)) s ((Oblig.all_iff _ _).mpr ho) hst
 
 /-! ## Word arithmetic -/
 

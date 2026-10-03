@@ -1,6 +1,7 @@
 import SigGolfCandidate.SphincsSecurity.Completeness.Search
 import SigGolfCandidate.SphincsSecurity.Completeness.Octopus.Split
 import SigGolfCandidate.T3.Core
+import SigGolfCandidate.T3.Nonbinary.SourceDigits
 import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.CacheDerivation
 import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.SeedHitProbability
 import VCVio.OracleComp.Constructions.SampleableType
@@ -34,7 +35,7 @@ theorem serializeLayer_length {lay : Layer} (sig : LayerSignature lay) :
   simp only [serializeLayer,List.length_append,digest_list_bytes_length,List.length_ofFn]
   omega
 
-theorem serialize_length (sig : Signature) : (serialize sig).length = 5680 := by
+theorem serialize_length (sig : Signature) : (serialize sig).length = 5616 := by
   simp only [serialize,List.length_append,bytesLE_length,digest_list_bytes_length,
     List.length_ofFn,List.length_flatten,List.map_ofFn,Function.comp_def]
   simp_rw [serializeLayer_length]
@@ -88,7 +89,7 @@ theorem decode_length_sum {lay : Layer} {value : Digest} {digits : List Nat}
         have he := Option.some.inj h
         subst digits
         subst lay
-        simpa [dataDigits_length,dataCount,chainCount] using And.intro (dataDigits_length 0 value) hs
+        simpa [dataDigits_length,dataCount,chainCount] using And.intro (dataDigits_length 0 value) (of_decide_eq_true (Bool.and_eq_true_iff.mp hs).2)
       · simp at h
     · rename_i hl
       dsimp only at h
@@ -852,12 +853,10 @@ theorem all_neighbors_bound (lay : Layer) (word : Encoding lay) :
   refine (MixedCode.allUnitNeighbors_card_le word).trans ?_
   exact Nat.mul_le_mul (chainCount_bound lay) (Nat.sub_le_sub_right (chainCount_bound lay) 1)
 
-def digitOffset (lay : Layer) (i : Nat) : Nat :=
-  if lay=0 then (if i<49 then 2*i else 98+3*(i-49)) else 3*i
-
 theorem dataDigits_getD (lay : Layer) (value : Digest) (i : Nat) (hi : i<dataCount lay) :
-    (dataDigits lay value).getD i 0 = value.toNat / 2^digitOffset lay i % 2^width lay i := by
-  simp [dataDigits,digitOffset,List.getD_eq_getElem,hi]
+    (dataDigits lay value).getD i 0=coreDigit lay value i :=
+  Nonbinary.dataDigits_getD lay value i hi
+
 
 theorem decode_data {lay : Layer} {value : Digest} {digits : List Nat}
     (h : decode lay value=some digits) :
@@ -878,9 +877,9 @@ theorem decode_data {lay : Layer} {value : Digest} {digits : List Nat}
         rw [← dataDigits_length lay value,List.take_left]
       · simp at h
 
-theorem decode_digit_bound {lay : Layer} {value : Digest} {digits : List Nat}
+theorem decode_digit_max {lay : Layer} {value : Digest} {digits : List Nat}
     (h : decode lay value=some digits) (i : Nat) (hi : i<chainCount lay) :
-    digits.getD i 0 < 2^width lay i := by
+    digits.getD i 0 ≤ maxDigit lay i := by
   unfold decode at h
   split at h
   · simp at h
@@ -890,20 +889,37 @@ theorem decode_digit_bound {lay : Layer} {value : Digest} {digits : List Nat}
       subst digits
       have hdata : i<dataCount lay := by subst lay; exact hi
       rw [dataDigits_getD lay value i hdata]
-      exact Nat.mod_lt _ (by positivity)
+      exact Nonbinary.coreDigit_le lay value i
     · simp at h
     · rename_i hbits hl hs
       have he := Option.some.inj h
       subst digits
       by_cases hid : i<dataCount lay
       · rw [List.getD_append _ _ _ _ (by simpa only [dataDigits_length] using hid),dataDigits_getD lay value i hid]
-        exact Nat.mod_lt _ (by positivity)
+        exact Nonbinary.coreDigit_le lay value i
       · have hieq : i=dataCount lay := by
           fin_cases lay <;> simp_all [dataCount,chainCount] <;> omega
         subst i
         rw [← dataDigits_length lay value,List.getD_append_right _ _ _ _ (by omega)]
-        simpa only [Nat.sub_self,List.getD_cons_zero,width,hl,false_and,ite_false,show (2:Nat)^3=8 by decide] using hs.2
+        simp only [Nat.sub_self,List.getD_cons_zero,maxDigit,hl,ite_false]
+        omega
     · simp at h
+
+theorem decode_digit_bound {lay : Layer} {value : Digest} {digits : List Nat}
+    (h : decode lay value=some digits) (i : Nat) (hi : i<chainCount lay) :
+    digits.getD i 0 < 2^width lay i :=
+  lt_of_le_of_lt (decode_digit_max h i hi) (Nonbinary.maxDigit_lt_pow_width lay i)
+
+theorem decode_top_ranks {value : Digest} {digits : List Nat}
+    (h : decode 0 value=some digits) : topRanksValid value=true := by
+  unfold decode at h
+  split at h
+  · simp at h
+  · simp only [ite_true] at h
+    split at h
+    · rename_i hs
+      exact (Bool.and_eq_true_iff.mp hs).1
+    · contradiction
 
 
 def decodedWord {lay : Layer} {value : Digest} {digits : List Nat}
@@ -936,53 +952,37 @@ theorem encodedBits_lt (lay : Layer) : encodedBits lay<128 := by fin_cases lay <
 
 theorem digest_eq_of_dataDigits_eq {lay : Layer} {left right : Digest}
     (h : dataDigits lay left=dataDigits lay right)
-    (hl : left.toNat<2^encodedBits lay) (hr : right.toNat<2^encodedBits lay) : left=right := by
-  have hextract (i : Nat) (hi : i<dataCount lay) :
-      left.extractLsb' (digitOffset lay i) (width lay i)=
-        right.extractLsb' (digitOffset lay i) (width lay i) := by
-    apply BitVec.eq_of_toNat_eq
-    simpa only [dataDigits_getD lay left i hi,dataDigits_getD lay right i hi,
-      BitVec.extractLsb'_toNat,Nat.shiftRight_eq_div_pow] using
-      congrArg (fun xs : List Nat => xs.getD i 0) h
-  apply BitVec.eq_of_getLsbD_eq
-  intro bit _
-  by_cases hb : bit<encodedBits lay
-  · by_cases ht : lay=0
-    · subst lay
-      by_cases hsmall : bit<98
-      · have hd := hextract (bit/2) (by simp [dataCount]; omega)
-        have hw : width 0 (bit/2)=2 := by simp [width];omega
-        have ho : digitOffset 0 (bit/2)=2*(bit/2) := by simp [digitOffset];omega
-        rw [hw] at hd
-        have he := congrArg (fun d : BitVec 2 => d.getLsbD (bit%2)) hd
-        simpa only [ho,BitVec.getLsbD_extractLsb',show bit%2<2 by omega,decide_true,
-          Bool.true_and,show 2*(bit/2)+bit%2=bit by omega] using he
-      · have hi : 49+(bit-98)/3<58 := by simp [encodedBits] at hb;omega
-        have hd := hextract (49+(bit-98)/3) (by simpa [dataCount] using hi)
-        have hw : width 0 (49+(bit-98)/3)=3 := by simp [width]
-        have ho : digitOffset 0 (49+(bit-98)/3)=98+3*((bit-98)/3) := by simp [digitOffset]
-        rw [hw] at hd
-        have he := congrArg (fun d : BitVec 3 => d.getLsbD ((bit-98)%3)) hd
-        simpa only [ho,BitVec.getLsbD_extractLsb',show (bit-98)%3<3 by omega,decide_true,
-          Bool.true_and,show 98+3*((bit-98)/3)+(bit-98)%3=bit by omega] using he
+    (hl : left.toNat<2^encodedBits lay) (hr : right.toNat<2^encodedBits lay)
+    (hgl : lay=0 → topRanksValid left=true) (hgr : lay=0 → topRanksValid right=true) : left=right := by
+  by_cases ht : lay=0
+  · subst lay
+    exact Nonbinary.top_digest_injective h (hgl rfl) (hgr rfl) hl hr
+  · have hextract (i : Nat) (hi : i<dataCount lay) :
+        left.extractLsb' (3*i) 3=right.extractLsb' (3*i) 3 := by
+      apply BitVec.eq_of_toNat_eq
+      have he := congrArg (fun xs : List Nat => xs.getD i 0) h
+      rw [dataDigits_getD lay left i hi,dataDigits_getD lay right i hi] at he
+      simpa [coreDigit,ht,BitVec.extractLsb'_toNat,Nat.shiftRight_eq_div_pow] using he
+    apply BitVec.eq_of_getLsbD_eq
+    intro bit _
+    by_cases hb : bit<encodedBits lay
     · have hi : bit/3<dataCount lay := by simp [encodedBits,ht] at hb;simp [dataCount,ht];omega
       have hd := hextract (bit/3) hi
-      have hw : width lay (bit/3)=3 := by simp [width,ht]
-      have ho : digitOffset lay (bit/3)=3*(bit/3) := by simp [digitOffset,ht]
-      rw [hw] at hd
       have he := congrArg (fun d : BitVec 3 => d.getLsbD (bit%3)) hd
-      simpa only [ho,BitVec.getLsbD_extractLsb',show bit%3<3 by omega,decide_true,
+      simpa only [BitVec.getLsbD_extractLsb',show bit%3<3 by omega,decide_true,
         Bool.true_and,show 3*(bit/3)+bit%3=bit by omega] using he
-  · have hleft := (BitVec.toNat_lt_iff_getLsbD_eq_false (encodedBits lay) (encodedBits_lt lay)).mp hl
-    have hright := (BitVec.toNat_lt_iff_getLsbD_eq_false (encodedBits lay) (encodedBits_lt lay)).mp hr
-    have hbit : encodedBits lay+(bit-encodedBits lay)=bit := by omega
-    simpa only [hbit] using (hleft (bit-encodedBits lay)).trans (hright (bit-encodedBits lay)).symm
+    · have hleft := (BitVec.toNat_lt_iff_getLsbD_eq_false (encodedBits lay) (encodedBits_lt lay)).mp hl
+      have hright := (BitVec.toNat_lt_iff_getLsbD_eq_false (encodedBits lay) (encodedBits_lt lay)).mp hr
+      have hbit : encodedBits lay+(bit-encodedBits lay)=bit := by omega
+      simpa only [hbit] using (hleft (bit-encodedBits lay)).trans (hright (bit-encodedBits lay)).symm
 
 theorem decode_some_injective {lay : Layer} {left right : Digest} {word : List Nat}
     (hl : decode lay left=some word) (hr : decode lay right=some word) : left=right := by
   have hdleft := decode_data hl
   have hdright := decode_data hr
-  exact digest_eq_of_dataDigits_eq (hdleft.2.symm.trans hdright.2) hdleft.1 hdright.1
+  refine digest_eq_of_dataDigits_eq (hdleft.2.symm.trans hdright.2) hdleft.1 hdright.1 ?_ ?_
+  · intro he; subst lay; exact decode_top_ranks hl
+  · intro he; subst lay; exact decode_top_ranks hr
 
 /-- A particular valid mixed/checksum word has at most one digest preimage. -/
 theorem decode_probability_le (lay : Layer) (word : List Nat) :
@@ -1415,40 +1415,40 @@ theorem bound_nodeHash (tag lay tree heap : Nat) (left right : Digest) :
 
 
 
-theorem bound_top_leafHash (tree leaf : Nat) (ends : List Digest) (hlen : ends.length=58) :
-    CBound (fun _ => True) 15 (leafHash 0 tree leaf ends) := by
+theorem bound_top_leafHash (tree leaf : Nat) (ends : List Digest) (hlen : ends.length=54) :
+    CBound (fun _ => True) 14 (leafHash 0 tree leaf ends) := by
   apply bound_shortHash <;> simp only [leafHash,pad64_length,List.length_append,SphincsSecurity.bytesLE_length,
     digest_list_bytes_length,List.length_drop,hlen] <;> norm_num
 
 def topPairCost (pair : Nat) : Nat :=
-  1+∑ half ∈ range 2, (2^width 0 (2*pair+half)-1)
+  1+∑ half ∈ range 2, (maxDigit 0 (2*pair+half))
 
-theorem topPairCost_sum : (∑ pair ∈ range 29,topPairCost pair)=239 := by decide +kernel
+theorem topPairCost_sum : (∑ pair ∈ range 27,topPairCost pair)=240 := by decide +kernel
 
-/-- The top leaf has 58 mixed-radix chains: 49 of radix four, nine of radix
- eight, and 29 paired seed queries. Its leaf hash takes 15 blocks. -/
+/-- The top leaf has 54 mixed-radix chains:51 of radix five,3 of radix
+ four, and27 paired seed queries. Its leaf hash takes14 blocks. -/
 theorem bound_buildTopLeaf (tree leaf : Nat) :
-    CBound (fun result => result.2.length=58) 254 (buildLeaf 0 tree leaf []) := by
+    CBound (fun result => result.2.length=54) 254 (buildLeaf 0 tree leaf []) := by
   unfold buildLeaf
-  refine Bound.bind' (l := 15) (Bound.foldlM_range 29 _
+  refine Bound.bind' (l := 14) (Bound.foldlM_range 27 _
     (fun pair (state : List Digest × List Digest) => state.1.length=2*pair ∧ state.2.length=2*pair)
     topPairCost ([],[]) ⟨rfl,rfl⟩ (fun pair hpair state hstate => ?_))
     (fun state hstate => ?_) ?_
   · unfold topPairCost
     refine (bound_privatePair 0 0 tree pair leaf).bind (fun seeds _ => ?_)
-    change CBound _ (∑ half ∈ range 2,(2^width 0 (2*pair+half)-1)) _
+    change CBound _ (∑ half ∈ range 2,(maxDigit 0 (2*pair+half))) _
     refine (Bound.foldlM_range 2 _
       (fun half (acc : List Digest × List Digest) => acc.1.length=2*pair+half ∧ acc.2.length=2*pair+half)
-      (fun half => 2^width 0 (2*pair+half)-1) state
+      (fun half => maxDigit 0 (2*pair+half)) state
       ⟨by simpa using hstate.1,by simpa using hstate.2⟩ (fun half hhalf acc hacc => ?_)).mono
       (fun _ h => h) (fun acc h => ⟨by omega,by omega⟩)
     have hi : ¬chainCount (0 : Layer) ≤ 2*pair+half := by
-      change ¬58 ≤ 2*pair+half
+      change ¬54 ≤ 2*pair+half
       omega
     simp only [hi,ite_false,List.getD_nil,Bool.false_eq_true,Nat.sub_zero]
-    refine (bound_chain 0 tree leaf (2*pair+half) 0 0 _).bind' (l := 2^width 0 (2*pair+half)-1)
+    refine (bound_chain 0 tree leaf (2*pair+half) 0 0 _).bind' (l := maxDigit 0 (2*pair+half))
       (fun value _ => ?_) (by omega)
-    refine (bound_chain 0 tree leaf (2*pair+half) 0 (2^width 0 (2*pair+half)-1) value).bind'
+    refine (bound_chain 0 tree leaf (2*pair+half) 0 (maxDigit 0 (2*pair+half)) value).bind'
       (l := 0) (fun last _ => ?_) (by omega)
     exact .pure _ 0 ⟨by simp [hacc.1];omega,by simp [hacc.2];omega⟩
   · simp only [Bool.false_eq_true,ite_false]
@@ -1718,7 +1718,7 @@ set_option backward.isDefEq.respectTransparency false
 set_option linter.unusedSimpArgs false
 
 def ValidDigits (lay : Layer) (digits : List Nat) : Prop :=
-  ∀ i, i < chainCount lay → digits.getD i 0 ≤ 2^width lay i-1
+  ∀ i, i < chainCount lay → digits.getD i 0 ≤ maxDigit lay i
 
 theorem validDigits_nil (lay : Layer) : ValidDigits lay [] := by
   intro i _
@@ -1727,10 +1727,9 @@ theorem validDigits_nil (lay : Layer) : ValidDigits lay [] := by
 theorem validDigits_decode {lay : Layer} {value : Digest} {digits : List Nat}
     (h : decode lay value=some digits) : ValidDigits lay digits := by
   intro i hi
-  have := decode_digit_bound h i hi
-  omega
+  exact decode_digit_max h i hi
 
-def leafHashCost (lay : Layer) : Nat := if lay=0 then 15 else 11
+def leafHashCost (lay : Layer) : Nat := if lay=0 then 14 else 11
 def fullLeafCost (lay : Layer) : Nat := if lay=0 then 254 else 334
 
 theorem bound_leafHash (lay : Layer) (tree leaf : Nat) (ends : List Digest)
@@ -1742,7 +1741,7 @@ theorem bound_leafHash (lay : Layer) (tree leaf : Nat) (ends : List Digest)
   · fin_cases lay <;> decide
 
 def fullPairCost (lay : Layer) (pair : Nat) : Nat :=
-  1+∑ half ∈ range 2, if chainCount lay ≤ 2*pair+half then 0 else 2^width lay (2*pair+half)-1
+  1+∑ half ∈ range 2, if chainCount lay ≤ 2*pair+half then 0 else maxDigit lay (2*pair+half)
 
 theorem fullPairCost_sum (lay : Layer) :
     (∑ pair ∈ range ((chainCount lay+1)/2),fullPairCost lay pair)+leafHashCost lay=fullLeafCost lay := by
@@ -1767,7 +1766,7 @@ theorem bound_buildLeaf (lay : Layer) (tree leaf : Nat) (digits : List Nat)
       (fun half (acc : List Digest × List Digest) =>
         acc.1.length=min (2*pair+half) (chainCount lay) ∧
         acc.2.length=min (2*pair+half) (chainCount lay))
-      (fun half => if chainCount lay ≤ 2*pair+half then 0 else 2^width lay (2*pair+half)-1)
+      (fun half => if chainCount lay ≤ 2*pair+half then 0 else maxDigit lay (2*pair+half))
       state ⟨by simpa using hstate.1,by simpa using hstate.2⟩
       (fun half hhalf acc hacc => ?_)).mono (fun _ h => h) (fun acc h => ⟨by omega,by omega⟩)
     by_cases hi : chainCount lay ≤ 2*pair+half
@@ -1776,10 +1775,10 @@ theorem bound_buildLeaf (lay : Layer) (tree leaf : Nat) (digits : List Nat)
     · simp only [hi,ite_false,Bool.false_eq_true]
       have hc := hd (2*pair+half) (by omega)
       refine (bound_chain lay tree leaf (2*pair+half) 0 (digits.getD (2*pair+half) 0) _).bind'
-        (l := 2^width lay (2*pair+half)-1-digits.getD (2*pair+half) 0)
+        (l := maxDigit lay (2*pair+half)-digits.getD (2*pair+half) 0)
         (fun value _ => ?_) (by omega)
       refine (bound_chain lay tree leaf (2*pair+half) (digits.getD (2*pair+half) 0)
-        (2^width lay (2*pair+half)-1-digits.getD (2*pair+half) 0) value).bind'
+        (maxDigit lay (2*pair+half)-digits.getD (2*pair+half) 0) value).bind'
         (l := 0) (fun last _ => ?_) (by omega)
       exact .pure _ 0 ⟨by simp only [List.length_append,List.length_singleton];omega,
         by simp only [List.length_append,List.length_singleton];omega⟩
@@ -1866,21 +1865,21 @@ theorem sum_pairs (f : Nat → Nat) (n : Nat) :
 def signaturePairCost (digits : List Nat) (pair : Nat) : Nat :=
   1+∑ half ∈ range 2,digits.getD (2*pair+half) 0
 
-theorem signaturePairCost_sum (digits : List Nat) (hlen : digits.length=58) :
-    ∑ pair ∈ range 29,signaturePairCost digits pair=29+digits.sum := by
+theorem signaturePairCost_sum (digits : List Nat) (hlen : digits.length=54) :
+    ∑ pair ∈ range 27,signaturePairCost digits pair=27+digits.sum := by
   unfold signaturePairCost
   rw [Finset.sum_add_distrib,sum_const_range]
   simp only [Nat.mul_one]
-  apply congrArg (fun n : Nat => 29+n)
+  apply congrArg (fun n : Nat => 27+n)
   have htwo (pair : Nat) : (∑ half ∈ range 2,digits.getD (2*pair+half) 0)=
       digits.getD (2*pair) 0+digits.getD (2*pair+1) 0 := by simp [Finset.sum_range_succ]
   simp_rw [htwo]
-  rw [sum_pairs (fun i => digits.getD i 0) 29,show 2*29=digits.length by omega,sum_getD]
+  rw [sum_pairs (fun i => digits.getD i 0) 27,show 2*27=digits.length by omega,sum_getD]
 
-theorem bound_topSignatureLeaf (tree leaf : Nat) (digits : List Nat) (hlen : digits.length=58) :
-    CBound (fun result => result.2.length=58) (29+digits.sum) (buildLeaf 0 tree leaf digits true) := by
+theorem bound_topSignatureLeaf (tree leaf : Nat) (digits : List Nat) (hlen : digits.length=54) :
+    CBound (fun result => result.2.length=54) (27+digits.sum) (buildLeaf 0 tree leaf digits true) := by
   unfold buildLeaf
-  refine Bound.bind' (l := 0) (Bound.foldlM_range 29 _
+  refine Bound.bind' (l := 0) (Bound.foldlM_range 27 _
     (fun pair (state : List Digest × List Digest) => state.2.length=2*pair)
     (signaturePairCost digits) ([],[]) rfl (fun pair hpair state hstate => ?_))
     (fun state hstate => ?_) (by rw [signaturePairCost_sum digits hlen];omega)
@@ -1890,7 +1889,7 @@ theorem bound_topSignatureLeaf (tree leaf : Nat) (digits : List Nat) (hlen : dig
       (fun half (acc : List Digest × List Digest) => acc.2.length=2*pair+half)
       (fun half => digits.getD (2*pair+half) 0) state (by simpa using hstate)
       (fun half hhalf acc hacc => ?_)).mono (fun _ h => h) (fun acc h => by omega)
-    have hi : ¬chainCount (0 : Layer) ≤ 2*pair+half := by change ¬58 ≤ 2*pair+half;omega
+    have hi : ¬chainCount (0 : Layer) ≤ 2*pair+half := by change ¬54 ≤ 2*pair+half;omega
     simp only [hi,ite_false,ite_true]
     refine (bound_chain 0 tree leaf (2*pair+half) 0 (digits.getD (2*pair+half) 0) _).bind'
       (l := 0) (fun value _ => ?_) (by omega)
@@ -1899,8 +1898,8 @@ theorem bound_topSignatureLeaf (tree leaf : Nat) (digits : List Nat) (hlen : dig
     exact .pure (0,state.2) 0 hstate
 
 theorem bound_signTop (cache : Cache) (leaf : Nat) (digits : List Nat)
-    (hlen : digits.length=58) (hsum : digits.sum=126) :
-    CBound (fun result => result.1.length=58 ∧ result.2.length=12) 167 (signTop cache leaf digits) := by
+    (hlen : digits.length=54) (hsum : digits.sum=126) :
+    CBound (fun result => result.1.length=54 ∧ result.2.length=12) 165 (signTop cache leaf digits) := by
   unfold signTop
   refine (bound_topSignatureLeaf 0 leaf digits hlen).bind' (l := 12) (fun result hr => ?_)
     (by rw [hsum])
@@ -1967,9 +1966,9 @@ theorem bound_digestSearch (rho : Digest) (message : Message) :
 
 def layerFixedCost : Nat → Nat
   | 0 => 0
-  | n+1 => if n=0 then 167 else treeCost (Fin.ofNat 4 n)+layerFixedCost n
+  | n+1 => if n=0 then 165 else treeCost (Fin.ofNat 4 n)+layerFixedCost n
 
-theorem layerFixedCost_four : layerFixedCost 4=85924 := by decide +kernel
+theorem layerFixedCost_four : layerFixedCost 4=85922 := by decide +kernel
 
 theorem bound_signLayers (cache : Cache) (index : Nat) :
     ∀ n message,CBound (fun _ => True) (n*counterLimit+layerFixedCost n)
@@ -2014,33 +2013,33 @@ theorem bound_privateNonce (message : Message) :
 /-- A deterministic ceiling on all source signing traces, including failures.
 The probabilistic budget separately charges the two bounded searches. -/
 theorem bound_signPayload (cache : Cache) (message : Message) :
-    CBound (fun _ => True) (121761+attemptLimit+4*counterLimit) (signPayload cache message) := by
+    CBound (fun _ => True) (121759+attemptLimit+4*counterLimit) (signPayload cache message) := by
   unfold signPayload
-  refine (bound_privateNonce message).bind' (l := 121759+attemptLimit+4*counterLimit)
+  refine (bound_privateNonce message).bind' (l := 121757+attemptLimit+4*counterLimit)
     (fun rho _ => ?_) (by omega)
-  refine (bound_digestSearch rho message attemptLimit 0).bind' (l := 121759+4*counterLimit)
+  refine (bound_digestSearch rho message attemptLimit 0).bind' (l := 121757+4*counterLimit)
     (fun found _ => ?_) (by omega)
   cases found with
   | none => exact .pure _ _ trivial
   | some pair =>
       obtain ⟨counter,output⟩ := pair
       dsimp only
-      refine Bound.bind' (l := 85926+4*counterLimit) (Bound.foldlM_range 7 _
+      refine Bound.bind' (l := 85924+4*counterLimit) (Bound.foldlM_range 7 _
         (fun coord (state : List Digest × List Digest × List Digest) => state.2.2.length=coord)
         (fun _ => 5119) ([],[],[]) rfl (fun coord _ state hstate => ?_))
         (fun state hstate => ?_) (by rw [sum_const_range];omega)
       · refine (bound_buildFts _ coord).bind' (l := 0) (fun result _ => ?_) (by decide)
         exact .pure _ 0 (by simp [hstate])
-      · refine (bound_forestPk _ state.2.2 hstate).bind' (l := 85924+4*counterLimit)
+      · refine (bound_forestPk _ state.2.2 hstate).bind' (l := 85922+4*counterLimit)
           (fun root _ => ?_) (by omega)
         refine (bound_signLayers cache _ 4 root).bind' (l := 0) (fun layers _ => ?_)
           (by rw [layerFixedCost_four];omega)
         cases layers <;> exact .pure _ 0 trivial
 
 theorem bound_sign (cache : Cache) (message : Message) :
-    CBound (fun _ => True) (121763+attemptLimit+4*counterLimit) (sign cache message) := by
+    CBound (fun _ => True) (121761+attemptLimit+4*counterLimit) (sign cache message) := by
   unfold sign
-  refine (bound_privateMac cache.region).bind' (l := 121761+attemptLimit+4*counterLimit)
+  refine (bound_privateMac cache.region).bind' (l := 121759+attemptLimit+4*counterLimit)
     (fun tag _ => ?_) (by omega)
   split
   · exact .pure _ _ trivial
@@ -2051,8 +2050,9 @@ theorem sign_compression_ceiling (secret : BitVec 256) (cache : Cache) (message 
       result.2 ≤ 17947555 := by
   intro result hr
   rw [World.countBlocks,← realize_count] at hr
-  exact (bound_sign cache message).count_support result
+  have hc := (bound_sign cache message).count_support result
     (realize_support_subset secret _ hr) |>.2
+  exact hc.trans (by norm_num [attemptLimit,counterLimit])
 
 end SigGolfCandidate.T3.Cost
 
@@ -2872,7 +2872,7 @@ theorem bucket_childCost (leaves : List Nat) (bucket : Nat)
   omega
 
 theorem capacity_sum (lay : Layer) :
-    (∑ i ∈ range (chainCount lay),(2^width lay i-1))=capacity lay := by
+    (∑ i ∈ range (chainCount lay),(maxDigit lay i))=capacity lay := by
   fin_cases lay <;> decide +kernel
 
 theorem sum_finRange (n : Nat) (f : Nat → Nat) :
@@ -2882,7 +2882,7 @@ theorem sum_finRange (n : Nat) (f : Nat → Nat) :
 
 theorem remaining_steps (lay : Layer) (digits : List Nat)
     (hd : ValidDigits lay digits) (hlen : digits.length=chainCount lay) (hsum : digits.sum=target lay) :
-    (∑ i ∈ range (chainCount lay),(2^width lay i-1-digits.getD i 0))=capacity lay-target lay := by
+    (∑ i ∈ range (chainCount lay),(maxDigit lay i-digits.getD i 0))=capacity lay-target lay := by
   rw [Finset.sum_tsub_distrib _ (fun i hi => hd i (Finset.mem_range.mp hi)),capacity_sum]
   rw [← hlen,sum_getD,hsum]
 
@@ -2894,13 +2894,13 @@ theorem bound_recoverLayer (sig : Signature) (index : Nat) (lay : Layer) (digits
   unfold recoverLayer
   dsimp only
   refine (Bound.mapM_list (P := GoodQuery) (List.finRange (chainCount lay)) _
-    (fun i => 2^width lay i.val-1-digits.getD i.val 0) (fun i _ => bound_chain _ _ _ _ _ _ _)).bind'
+    (fun i => maxDigit lay i.val-digits.getD i.val 0) (fun i _ => bound_chain _ _ _ _ _ _ _)).bind'
     (l := leafHashCost lay+height lay) (fun ends hends => ?_) ?_
   · refine (bound_leafHash lay _ _ ends (by simpa using hends)).bind (fun root _ => ?_)
     refine (Bound.foldlM_list (P := GoodQuery) (List.finRange (height lay)) _
       (fun _ _ => True) (fun _ => 1) root trivial (fun i hi value _ => ?_)).mono_k (by simp)
     exact bound_nodeHash _ _ _ _ _ _
-  · rw [sum_finRange (chainCount lay) (fun i => 2^width lay i-1-digits.getD i 0),
+  · rw [sum_finRange (chainCount lay) (fun i => maxDigit lay i-digits.getD i 0),
       remaining_steps lay digits hd hlen hsum]
     simp only [recoverLayerCost]
     omega
@@ -2909,7 +2909,7 @@ def recoveryLayersCost : Nat → Nat
   | 0 => 0
   | n+1 => recoverLayerCost (Fin.ofNat 4 n)+recoveryLayersCost n
 
-theorem recoveryLayersCost_four : recoveryLayersCost 4=481 := by decide +kernel
+theorem recoveryLayersCost_four : recoveryLayersCost 4=484 := by decide +kernel
 
 theorem bound_verifyLayers (w : Witness) (index : Nat) :
     ∀ n root,CBound (fun _ => True) (n+recoveryLayersCost n) (verifyLayers w index n root) := by
@@ -3060,7 +3060,7 @@ theorem sum_getD_apply {α : Type} (items : List α) (fallback : α) (f : α →
       omega
 
 theorem forestRecoveryCost_le (output : HashOutput) (hadm : admissible (selections output)=true) :
-    forestRecoveryCost (selections output) ≤ 158 := by
+    forestRecoveryCost (selections output) ≤ 156 := by
   have hs : (∀ selected ∈ selections output,selected.leaves.Nodup) ∧
       28+((selections output).map fun selected => authCount selected.leaves).sum ≤ 115 := by
     simpa only [admissible,Bool.and_eq_true,List.all_eq_true,decide_eq_true_eq] using hadm
@@ -3124,7 +3124,7 @@ theorem bound_expand (message : Message) (pk : Digest) (sig : Signature) :
       have hadm := hf counter output rfl
       dsimp only
       refine ((bound_recoverFts sig (output.toNat%2^31) (selections output)).mono_k
-        (forestRecoveryCost_le output hadm)).bind' (l := 4*counterLimit+481)
+        (forestRecoveryCost_le output hadm)).bind' (l := 4*counterLimit+484)
         (fun forest _ => ?_) (by omega)
       cases forest with
       | none => exact .pure _ _ trivial
@@ -3609,7 +3609,7 @@ def leafValue (answers : Answers) (lay : Layer) (tree leaf : Nat) (digits : List
   evalWithAnswerFn answers (chain lay tree leaf i 0 (digits.getD i 0) (leafSeed answers lay tree leaf i))
 
 def leafEnd (answers : Answers) (lay : Layer) (tree leaf i : Nat) : Digest :=
-  evalWithAnswerFn answers (chain lay tree leaf i 0 (2^width lay i-1) (leafSeed answers lay tree leaf i))
+  evalWithAnswerFn answers (chain lay tree leaf i 0 (maxDigit lay i) (leafSeed answers lay tree leaf i))
 
 theorem leafSeed_pair (answers : Answers) (lay : Layer) (tree leaf pair half : Nat) (hh : half < 2) :
     leafSeed answers lay tree leaf (2*pair+half)=
@@ -3623,12 +3623,12 @@ theorem leafSeed_pair (answers : Answers) (lay : Layer) (tree leaf pair half : N
 theorem leafValue_completes (answers : Answers) (lay : Layer) (tree leaf : Nat)
     (digits : List Nat) (hvalid : ValidDigits lay digits) (i : Nat) (hi : i < chainCount lay) :
     evalWithAnswerFn answers (chain lay tree leaf i (digits.getD i 0)
-      (2^width lay i-1-digits.getD i 0) (leafValue answers lay tree leaf digits i))=
+      (maxDigit lay i-digits.getD i 0) (leafValue answers lay tree leaf digits i))=
       leafEnd answers lay tree leaf i := by
   unfold leafValue leafEnd
   have hd := hvalid i hi
   have hc := eval_chain_add answers lay tree leaf i 0 (digits.getD i 0)
-    (2^width lay i-1-digits.getD i 0) (leafSeed answers lay tree leaf i)
+    (maxDigit lay i-digits.getD i 0) (leafSeed answers lay tree leaf i)
   rw [Nat.zero_add,Nat.add_sub_of_le hd] at hc
   exact hc.symm
 
@@ -3691,7 +3691,7 @@ def leafHalf (lay : Layer) (tree leaf : Nat) (digits : List Nat) (signatureOnly 
   let digit := digits.getD i 0
   let value ← chain lay tree leaf i 0 digit seed
   if signatureOnly then return (rows.1,rows.2++[value])
-  let last ← chain lay tree leaf i digit (2^width lay i-1-digit) value
+  let last ← chain lay tree leaf i digit (maxDigit lay i-digit) value
   pure (rows.1++[last],rows.2++[value])
 
 theorem LeafRows.half (answers : Answers) (lay : Layer) (tree leaf : Nat) (digits : List Nat)
@@ -3711,7 +3711,7 @@ theorem LeafRows.half (answers : Answers) (lay : Layer) (tree leaf : Nat) (digit
       (evalWithAnswerFn answers (if signatureOnly then pure (rows.1,rows.2++[leafValue answers lay tree leaf digits (2*pair+half)])
       else do
         let last ← chain lay tree leaf (2*pair+half) (digits.getD (2*pair+half) 0)
-          (2^width lay (2*pair+half)-1-digits.getD (2*pair+half) 0)
+          (maxDigit lay (2*pair+half)-digits.getD (2*pair+half) 0)
           (leafValue answers lay tree leaf digits (2*pair+half))
         pure (rows.1++[last],rows.2++[leafValue answers lay tree leaf digits (2*pair+half)])))
     have ha := LeafRows.append answers lay tree leaf digits signatureOnly (2*pair+half) rows hrows (by omega)
@@ -3788,7 +3788,7 @@ by the leaf builder, for all four radix/checksum layouts. -/
 theorem recover_buildLeaf_values (answers : Answers) (lay : Layer) (tree leaf : Nat)
     (digits : List Nat) (hvalid : ValidDigits lay digits) (signatureOnly : Bool) :
     evalWithAnswerFn answers ((List.finRange (chainCount lay)).mapM fun i =>
-      chain lay tree leaf i.val (digits.getD i.val 0) (2^width lay i.val-1-digits.getD i.val 0)
+      chain lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val-digits.getD i.val 0)
         ((evalWithAnswerFn answers (buildLeaf lay tree leaf digits signatureOnly)).2.getD i.val 0))=
       (List.range (chainCount lay)).map (leafEnd answers lay tree leaf) := by
   rw [eval_mapM,eval_buildLeaf_values answers lay tree leaf digits hvalid signatureOnly]
@@ -3947,7 +3947,7 @@ theorem eval_chains_honest (answers : Answers) (lay : Layer) (tree leaf : Nat) (
     (hvalid : ValidDigits lay digits) (values : Fin (chainCount lay) → Digest)
     (hvalues : ∀ i,values i=leafValue answers lay tree leaf digits i.val) :
     evalWithAnswerFn answers ((List.finRange (chainCount lay)).mapM fun i =>
-      chain lay tree leaf i.val (digits.getD i.val 0) (2^width lay i.val-1-digits.getD i.val 0) (values i))=
+      chain lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val-digits.getD i.val 0) (values i))=
       (List.range (chainCount lay)).map (leafEnd answers lay tree leaf) := by
   rw [eval_mapM]
   apply List.ext_getElem (by simp)

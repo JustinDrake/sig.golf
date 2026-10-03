@@ -12,7 +12,7 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 
-/-- Exact decoder equality, including the actual source's four-bit gate. -/
+/-- Exact decoder equality, including the actual source's five-bit gate. -/
 theorem actual_decoder_eq (output : HashOutput) :
     NativeSearch.decode output=SigGolfCandidate.T3.Sampling.digestDecode output := by
   unfold NativeSearch.decode SigGolfCandidate.T3.Sampling.digestDecode

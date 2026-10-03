@@ -7,7 +7,7 @@ set_option maxRecDepth 10000
 
 /-- The actual interleaved proposed T3 layout: address bits0..30;
 seven25-bit fields of bucket4 and three7-bit children; gate206..208;
-unused209..255. The gate is checked without conditioning the mark. -/
+unused211..255. The gate is checked without conditioning the mark. -/
 def digestRecord (output : BitVec 256) : RawRecord :=
   (((output.extractLsb' 0 31).toFin,
       fun c => (output.extractLsb' (31+25*c.val) 4).toFin),
