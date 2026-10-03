@@ -46,14 +46,14 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : T3.LayerMes
     GoodQ s (N + layerFuel 0) (C + layerCost 0 0) Q (A + layerCost 0 0) (ccM (layerHead w index 0 M R) K) := by
   have hidx := hs.idx
   have hA := encA_step w pk index 0 M s hs
-  have hfuel : layerFuel 0 = 14 + 1 + 118 + 2321 + 12 := by decide
-  have hcost : layerCost 0 0 = 14 + 8 + 67 + 12 + 1129 := by decide
-  have hsA : stepsA (0 : Layer).val = 14 := rfl
+  have hfuel : layerFuel 0 = 13 + 1 + 118 + 2321 + 12 := by decide
+  have hcost : layerCost 0 0 = 13 + 8 + 67 + 12 + 1129 := by decide
+  have hsA : stepsA (0 : Layer).val = 13 := rfl
   unfold layerHead
   by_cases hctr : (wctr w 0).toNat ≥ counterLimit
   · rw [if_pos hctr, ccM_pure, hK0]
     obtain ⟨u, hst, hf, h5, h10⟩ := hA.1 hctr
-    rw [show rejSt (0 : Layer).val = 16 from rfl] at hst
+    rw [show rejSt (0 : Layer).val = 15 from rfl] at hst
     exact GoodQ.steps' hst (GoodQ.reject (Q := Q) (A := 0) hf h5 h10) (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)
   · rw [if_neg hctr]
     obtain ⟨t, hst, hf, h5, hv, hin, c, hc, hpre⟩ := hA.2 (by omega)

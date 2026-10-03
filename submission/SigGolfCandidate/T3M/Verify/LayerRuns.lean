@@ -56,11 +56,10 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 /-- Merkle height. -/
 def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
 /-- Steps of A; layer 3 reuses four constants from the forest. The top computes its route as
-`slli tp, t5, 32; lui gp, 1; or s7, t5, gp; srli t5, t5, 12; or tp, tp, t5` (one instruction less than the copy
-through `s7`). -/
-def stepsA (lay : Nat) : Nat := if lay = 3 then 15 else if lay = 0 then 14 else 14
+`slli tp, t5, 32; lui gp, 1; or s7, t5, gp; srli t5, t5, 12` (the copied leaf and the zero-tree OR are omitted). -/
+def stepsA (lay : Nat) : Nat := if lay = 3 then 15 else if lay = 0 then 13 else 14
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 0 then 18 else if lay = 3 then 45 else 43
+def retOff (lay : Nat) : Nat := if lay = 0 then 17 else if lay = 3 then 45 else 43
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
@@ -139,7 +138,9 @@ def dstSet (lay : Nat) : List Nat := if lay = 3 then [320] else [encB lay, encB 
 def rReg (lay : Nat) : Reg := if lay = 3 then .x22 else .x30
 def leafE (lay : Nat) : E := if lay = 0 then .reg .x30 else .bin .and (.reg (rReg lay)) (kw (2 ^ hL lay - 1))
 def treeE (lay : Nat) : E := .bin .srl (.reg (rReg lay)) (kw (hL lay))
-def tpE (lay : Nat) : E := .bin .or (.bin .sll (leafE lay) (kw 32)) (treeE lay)
+def tpE (lay : Nat) : E :=
+  if lay = 0 then .bin .sll (leafE lay) (kw 32)
+  else .bin .or (.bin .sll (leafE lay) (kw 32)) (treeE lay)
 def s7E (lay : Nat) : E := .bin .or (leafE lay) (kw (2 ^ hL lay))
 /-- The counter (`lwu` of the witness header word). -/
 def ctrE (lay : Nat) : E := .un (.ld .wu (4 * ((lay + 1) % 2))) (.ld (kw (0x810 + 8 * ((lay + 1) / 2))))
@@ -278,7 +279,7 @@ def keepTopCall : List Reg := [.x2, .x3, .x4, .x5, .x6, .x7, .x8, .x9, .x10, .x1
 
 /-- Full E8: the two answer loads through `a2` and `jal ra` into the shared packed decoder after its loads. -/
 def specTopCall (p : Nat) : Spec :=
-  ⟨[(.x16, a6E), (.x17, a7E), (.x1, kw (0x1000 + 4 * (p + 18)))], [], 96162, false, 3, [], none, 3⟩
+  ⟨[(.x16, a6E), (.x17, a7E), (.x1, kw (0x1000 + 4 * (p + 17)))], [], 96162, false, 3, [], none, 3⟩
 
 /-- All runs of the transition copy at `p` of layer `lay` and of its leaf-pk block. -/
 def copyCheck (lay p : Nat) : Bool :=
