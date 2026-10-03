@@ -16,7 +16,7 @@ def topEntryRegs : List Reg := [.x1,.x3,.x16,.x17,.x14,.x25,.x29,.x19,.x22,.x24,
 /-- Exact transition interface. `u` is the state immediately after the encoding HASH. -/
 structure TopEntry (u : MachineState) (v : Digest) (p : Nat) (s : MachineState) : Prop where
   pc : s.pc = pcOf (176744 + 256 * (v.toNat % 128))
-  ra : s.getReg .x1 = pcOf (p + 19)
+  ra : s.getReg .x1 = pcOf (p + 18)
   lo : s.getReg .x16 = v.extractLsb' 0 64
   hi : s.getReg .x17 = (v.extractLsb' 64 64 <<< (1 : Word)) ||| (v.extractLsb' 0 64 >>> (63 : Word))
   tail : s.getReg .x29 = Search.topWindow v 17
@@ -29,15 +29,15 @@ structure TopEntry (u : MachineState) (v : Digest) (p : Nat) (s : MachineState) 
 
 /-- Full E8: the two answer loads through `a2` and `jal ra` into the shared decoder after its loads. -/
 theorem topCall_step (c : Nat) (hc : c < nCopy 0) (u : MachineState)
-    (hpc : u.pc = pcOf (trPc 0 c + 16)) (hob : ∀ o ∈ ansObl, o.holds u) :
-    ∃ s, Steps image u 3 3 s ∧ s.pc = pcOf 96162 ∧ s.getReg .x1 = pcOf (trPc 0 c + 19) ∧
+    (hpc : u.pc = pcOf (trPc 0 c + 15)) (hob : ∀ o ∈ ansObl, o.holds u) :
+    ∃ s, Steps image u 3 3 s ∧ s.pc = pcOf 96162 ∧ s.getReg .x1 = pcOf (trPc 0 c + 18) ∧
       s.getReg .x16 = a6E.eval u ∧ s.getReg .x17 = a7E.eval u ∧
       RegsExcept u s [.x1, .x16, .x17] ∧ Frame u s (fun _ => False) := by
   have hcc := (copy_parts 0 (trPc 0 c) (copyCheck_at 0 c (by decide) hc)).2.2.1 rfl
   obtain ⟨s, hs⟩ := spec_run hcc u hpc (by simp [KnownOK]) (by simp [specTopCall]) hob
   refine ⟨s, hs.steps, hs.pc rfl, ?_, hs.regs (.x16, a6E) (by simp [specTopCall]),
     hs.regs (.x17, a7E) (by simp [specTopCall]), ?_, ?_⟩
-  · exact hs.regs (.x1, kw (0x1000 + 4 * (trPc 0 c + 19))) (by simp [specTopCall])
+  · exact hs.regs (.x1, kw (0x1000 + 4 * (trPc 0 c + 18))) (by simp [specTopCall])
   · intro r hr
     cases r
     case x0 => simp [MachineState.getReg]
@@ -52,17 +52,17 @@ theorem topCall_step (c : Nat) (hc : c < nCopy 0) (u : MachineState)
 /-- The common prefix of both top transitions: the call, the answer in `a6`/`a7`, the frame facts. -/
 theorem topCall_of (w : WBytes) (pk : Digest) (index c : Nat) (hc : c < nCopy 0)
     (t : MachineState) (ht : EncPre w pk index 0 c t) (a : BitVec 256) :
-    ∃ s, Steps image (writeHash t a) 3 3 s ∧ s.pc = pcOf 96162 ∧ s.getReg .x1 = pcOf (trPc 0 c + 19) ∧
+    ∃ s, Steps image (writeHash t a) 3 3 s ∧ s.pc = pcOf 96162 ∧ s.getReg .x1 = pcOf (trPc 0 c + 18) ∧
       s.getReg .x16 = (a.extractLsb' 0 128).extractLsb' 0 64 ∧
       s.getReg .x17 = (a.extractLsb' 0 128).extractLsb' 64 64 ∧
       RegsExcept (writeHash t a) s [.x1, .x16, .x17] ∧ Frame (writeHash t a) s (fun _ => False) ∧
       Glob (bK 0) w pk (writeHash t a) := by
   obtain ⟨D, hD, h12⟩ := ht.dst
   have hDf := dst_facts 0 (by decide) D hD
-  have hpc : (writeHash t a).pc = pcOf (trPc 0 c + 16) := by
+  have hpc : (writeHash t a).pc = pcOf (trPc 0 c + 15) := by
     rw [writeHash_pc, ht.pc]
-    change pcOf (trPc 0 c + 15) + 4 = pcOf (trPc 0 c + 16)
-    simpa only [Nat.add_assoc] using pcOf_add4 (trPc 0 c + 15)
+    change pcOf (trPc 0 c + 14) + 4 = pcOf (trPc 0 c + 15)
+    simpa only [Nat.add_assoc] using pcOf_add4 (trPc 0 c + 14)
   have hob : ∀ o ∈ ansObl, o.holds (writeHash t a) :=
     ansObl_holds _ D (by rw [writeHash_getReg]; exact h12) hDf.2.2.2.2.2.1 hDf.2.2.2.2.2.2
   obtain ⟨s, e, ps, ra, h16, h17, rs, fs⟩ := topCall_step c hc _ hpc hob

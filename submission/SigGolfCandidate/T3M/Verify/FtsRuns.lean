@@ -39,7 +39,7 @@ def forestSlot (c : Nat) : Nat := if c = 0 then 0x700 else 0x710 + 16 * c
 /-- Constant registers of the FTS phase: `t0`, `s2`, `a1 = 64`, `t4 = A4_LIMIT`, `t6 = 1 << 16`, the two tables, `t1 = 1`, and `s3 = frameA 0`. -/
 def gkF : List (Reg × Word) :=
   carryK ++ [(.x11,64),(.x29,BitVec.ofNat 64 A4_LIMIT),(.x24,0x10000),(.x16,BitVec.ofNat 64 tbN),
-    (.x21,BitVec.ofNat 64 tbL),(.x30,0x8000000000000000),(.x1,BitVec.ofNat 64 (frameA 0)),
+    (.x21,BitVec.ofNat 64 tbL),(.x30,0x8000000000000000),(.x19,BitVec.ofNat 64 (frameA 0)),
     (.x6,1),(.x26,6),(.x31,7)]
 
 /-- The coordinate words: `s11 = w0` of a node header, `t3 = w0` of a leaf header (coordinate `c`). -/
@@ -143,7 +143,7 @@ def setupLdCheckF : Bool := specB [] [] baseK (runAt baseK [369] 362 []) setupLd
 def setupSpecF : Spec :=
   ⟨[(.x27, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0xa01)),
     (.x28, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0x901))],
-    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, cw 1)], 387, false, 18, [], none, 18⟩
+    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 387, false, 18, [], none, 18⟩
 
 def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [387] 369 []) setupSpecF [] setupPost [.x22]
 

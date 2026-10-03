@@ -8,7 +8,7 @@ import SigGolfCandidate.T3.PackedHeap
 
 The signature has 5616 bytes; the expanded witness has 25240 bytes and the
 fully authenticated cache has 131072 bytes. The claimed verification charge is
-8646 =8547 accepting machine cycles +99 witness cycles.
+8641 =8542 accepting machine cycles +99 witness cycles.
 
 The source uses a height 12/7/6/6 hypertree and seven BPORS banks. Each bank
 selects three leaves from one of 16 buckets of 128 leaves; the authentication cap
@@ -34,6 +34,15 @@ the lower verifier, extending the register-carry approach of cryptogakusei and
 znan2. The full-cache, mixed-radix top and earlier suffix optimizations retain
 contributions from pratikgx, Frodan, i34-9, jungjipdo and newjordan.
 
+On layers 2 and 1 the transition computes the next chain base as `addi s6, a0, -1728` from the encoding block
+address in `a0` instead of `lui s6; addi s6` (gopikannappan's S6, f4e60959), one cycle per layer.
+The top leaf-pk block drops its `lui a5, 0xce`: the final top chain-tail dispatch already leaves `a5 = 0xce000`
+(gopikannappan's TOP-lui, acbe45ca), one cycle.
+The top transition copies compute the route from `t5` directly (`slli tp, t5, 32; lui gp, 1; or s7, t5, gp;
+srli t5, t5, 12; or tp, tp, t5`) without the `mv s7, t5` copy, one cycle.
+The top Merkle chunk-0 shape blocks drop the header packing pair `slli gp, t5, 32; or tp, tp, gp`: on the top the tree
+is 0, so `tp = T(3)` is already the packed word (two cycles; the same place as acbe45ca's top Merkle level-0 trim).
+
 The certificate transfers the four exact RV64 images from the preserved legacy
 contract to the pinned organizer contract. It combines all-input termination,
 source refinement, accepting cycle accounting, per-key completeness, signing
@@ -56,7 +65,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8646 :=
+theorem certificate : SigGolf.Certificate submission 8641 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge

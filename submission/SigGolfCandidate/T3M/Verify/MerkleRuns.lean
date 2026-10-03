@@ -84,8 +84,9 @@ def mkKeep : List Reg := [.x1, .x2, .x16, .x17, .x19, .x20, .x21, .x23, .x24, .x
 /-! ## The entry of a shape block -/
 
 /- From the table word: `j shp_lay_ci_sh; addi a2, s6, cur(lo)`, stopping at the first `ecall` (the packing pair changes `gp` and `tp` only in chunk 0). -/
-/-- Pack the header once in chunk 0; chunk 1 retains the packed register. -/
-def mkPack (ci : Nat) : Nat := if ci = 0 then 2 else 0
+/-- Pack the header once in chunk 0; chunk 1 retains the packed register. TOP-pack: on the top the tree is 0, so
+`tp = T(3)` is already the packed word and chunk 0 has no packing pair. -/
+def mkPack (lay ci : Nat) : Nat := if ci = 0 then (if lay = 0 then 0 else 2) else 0
 
 def mkPackE (lay : Nat) : E :=
   .bin .or (kw (hw 3 lay)) (.bin .sll (.reg .x30) (kw 32))
@@ -94,16 +95,20 @@ def mkEntK (lay ci : Nat) : List (Reg × Word) :=
   mkK lay ++ (if ci = 0 then [(.x4, BitVec.ofNat 64 (hw 3 lay))] else [])
 
 def mkEntSpec (lay ci sh : Nat) : Spec :=
-  ⟨if ci = 0 then [(.x3, .bin .sll (.reg .x30) (kw 32)), (.x4, mkPackE lay)] else [],
-    [], mkShp lay ci sh + mkPack ci + 1, true, 2 + mkPack ci, [], none, 2 + mkPack ci⟩
+  ⟨if ci = 0 then (if lay = 0 then [] else [(.x3, .bin .sll (.reg .x30) (kw 32)), (.x4, mkPackE lay)]) else [],
+    [], mkShp lay ci sh + mkPack lay ci + 1, true, 2 + mkPack lay ci, [], none, 2 + mkPack lay ci⟩
 
 def mkEntPost (lay ci sh : Nat) : List (Reg × Word) :=
-  mkK lay ++ [(.x12, BitVec.ofNat 64 (mkCur lay (mkLo lay ci) (sh % 2)))]
+  mkK lay ++ ((.x12, BitVec.ofNat 64 (mkCur lay (mkLo lay ci) (sh % 2))) ::
+    (if ci = 0 then (if lay = 0 then [(.x4, BitVec.ofNat 64 (hw 3 lay))] else []) else []))
 
-def mkEntKeep (ci : Nat) : List Reg := (mkKeep ++ [.x10, .x11, .x14]) ++ (if ci = 0 then [] else [.x4])
+/-- TOP-pack: on the top's chunk 0 `tp` is a known constant at the entry, so it is stated in `mkEntPost`
+(a kept register must stay symbolic). -/
+def mkEntKeep (lay ci : Nat) : List Reg :=
+  (mkKeep ++ [.x10, .x11, .x14]) ++ (if ci = 0 then (if lay = 0 then [] else []) else [.x4])
 
 def mkEntCheck (lay ci sh : Nat) : Bool :=
-  specB [] [] baseK (runAt (mkEntK lay ci) [] (mkTab lay ci + sh) []) (mkEntSpec lay ci sh) [] (mkEntPost lay ci sh) (mkEntKeep ci)
+  specB [] [] baseK (runAt (mkEntK lay ci) [] (mkTab lay ci + sh) []) (mkEntSpec lay ci sh) [] (mkEntPost lay ci sh) (mkEntKeep lay ci)
 
 /-! ## A level -/
 
@@ -135,7 +140,7 @@ def mkNextA2 (lay ci sh kk : Nat) : Nat :=
 
 /-- A level ending at the next `ecall` (the next level's HASH or the root HASH). -/
 def mkLvlSpecN (lay ci sh kk : Nat) : Spec :=
-  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), mkShp lay ci sh + mkPack ci + mkOff lay ci (kk + 1) + mkMove lay (mkLo lay ci + kk), true,
+  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), mkShp lay ci sh + mkPack lay ci + mkOff lay ci (kk + 1) + mkMove lay (mkLo lay ci + kk), true,
     mkBody lay (mkLo lay ci + kk) + mkMove lay (mkLo lay ci + kk), [], none,
     mkBody lay (mkLo lay ci + kk) + mkMove lay (mkLo lay ci + kk)⟩
 
@@ -161,12 +166,12 @@ def mkLvlKN (lay ci sh kk : Nat) : List (Reg × Word) :=
 
 def mkLvlCheckN (lay ci sh kk : Nat) : Bool :=
   specB (mkLvlAllow lay (mkLo lay ci + kk)) [] baseK
-    (runAt (mkLvlKN lay ci sh kk) [] (mkShp lay ci sh + mkPack ci + mkOff lay ci kk + 2) [])
+    (runAt (mkLvlKN lay ci sh kk) [] (mkShp lay ci sh + mkPack lay ci + mkOff lay ci kk + 2) [])
     (mkLvlSpecN lay ci sh kk) [] (mkLvlPostN lay ci sh kk) (mkKeep ++ [.x14, .x4])
 
 def mkLvlCheckD (lay ci sh kk : Nat) : Bool :=
   specB (mkLvlAllow lay (mkLo lay ci + kk)) [] baseK
-    (runAt (mkLvlK lay (mkLo lay ci + kk)) [] (mkShp lay ci sh + mkPack ci + mkOff lay ci kk + 2) [.jmp])
+    (runAt (mkLvlK lay (mkLo lay ci + kk)) [] (mkShp lay ci sh + mkPack lay ci + mkOff lay ci kk + 2) [.jmp])
     (mkLvlSpecD lay ci sh kk) [] (mkLvlPostD lay ci kk) (mkKeep ++ [.x4])
 
 def mkLvlCheck (lay ci sh kk : Nat) : Bool :=

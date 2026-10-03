@@ -197,7 +197,7 @@ def baseK : List (Reg × Word) := [(.x5, 0), (.x18, 0xFFF)]
 
 /-- Constants carried from the forest into the lower-layer initializer. -/
 def carryK : List (Reg × Word) := baseK ++ [(.x2,0x1000000),(.x7,2),(.x8,3),(.x9,4),(.x13,5),
-  (.x6,1),(.x26,6),(.x31,7),(.x24,0x10000),(.x30,0x8000000000000000),(.x19,BitVec.ofNat 64 (2^62))]
+  (.x6,1),(.x26,6),(.x31,7),(.x24,0x10000),(.x30,0x8000000000000000)]
 
 /-- The zero words of the encoding block `[M | T | LE32 c | 0^28]` at `0x100` that no instruction writes. -/
 def pSlots : List Nat := [0x128, 0x130, 0x138]
