@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 128 KiB authenticated
-paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8954` cycles
-(accepting-verify bound `8855` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
+paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8953` cycles
+(accepting-verify bound `8854` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 524288, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,7 +19,7 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 8855); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 8854); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
@@ -39,7 +39,7 @@ masks and a two-key four-lane polynomial MAC. The reduced signing hash work supp
 126/195/195/194. The new packed decoder and 54-chain top verifier include a proved eleven-cycle minimum
 terminal-store credit on every accepted top encoding. The forest verifier carries the complete leaf
 header and persistent coordinate comparands, reducing its accepting prefix by 32 cycles to 2791; the relabelled FTS header (word 1 bit-reversed, a
-2048-word header table) saves one cycle per fold, to 2676.
+2048-word header table) saves one cycle per fold, to 2676; digest-header-from-s2 then drops the prologue by one, to 2675.
 The paired radix-five table decoder and all table memory-preservation proofs are retained.
 
 
@@ -60,7 +60,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8954 :=
+theorem certificate : SigGolf.Certificate submission 8953 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge
