@@ -579,7 +579,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
         (lctxOf w index lay a (trPc lay.val c)).ok ∧
         (∀ p ∈ (lctxOf w index lay a (trPc lay.val c)).known, s0.getReg p.1 = p.2) ∧
         (lctxOf w index lay a (trPc lay.val c)).Orig0 s0 ∧
-        (lctxOf w index lay a (trPc lay.val c)).ChainIn s0 0 [] s0 ∧ Glob (chainK lay.val) w pk s0 ∧
+        (lctxOf w index lay a (trPc lay.val c)).ChainIn s0 0 [] s0 ∧ Glob (lowerLayK lay.val) w pk s0 ∧
         Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd lay.val) s0 ∧
         s0.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay.val + (route index lay).1) ∧
         s0.getReg .x30 = BitVec.ofNat 64 (route index lay).2) := by
@@ -687,7 +687,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
         rw [ofNat_add_ofNat]; congr 1; unfold entW ttabIdx; omega
       rw [e2, even_andNot1' _ (by omega)]
       unfold LCtx.startPc; simp
-    have hkL : ∀ q ∈ chainK lay.val, s0.getReg q.1 = q.2 := fun q hq => hko q (by simp [postBl, hq])
+    have hkL : ∀ q ∈ lowerLayK lay.val, s0.getReg q.1 = q.2 := fun q hq => hko q (by simp [postBl, hq])
     refine ⟨s0, hs0.steps, hLok, ?_, ?_, ⟨⟨fun _ _ => rfl, Frame.refl _ _, fun j hj => by simp at hj⟩, rfl,
       hGs0.2.2.2.2.2, hpc0⟩, ⟨hkL, hGs0.2.1, hGs0.2.2.1, hGs0.2.2.2.1, hGs0.2.2.2.2⟩, hOs0, ?_, ?_⟩
     · -- the chain code's known registers
@@ -695,20 +695,20 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
       simp only [LCtx.known, hL, lctxOf, List.mem_cons, List.not_mem_nil, or_false] at hp
       rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       all_goals dsimp only
-      · exact hkL (.x5, 0) (by simp [chainK, baseK])
-      · exact hkL (.x11, 64) (by simp [chainK])
-      · exact hkL (.x6, 1) (by simp [chainK])
-      · exact hkL (.x7, 2) (by simp [chainK])
-      · exact hkL (.x8, 3) (by simp [chainK])
-      · exact hkL (.x9, 4) (by simp [chainK])
-      · exact hkL (.x13, 5) (by simp [chainK])
-      · exact hkL (.x26, 6) (by simp [chainK])
-      · exact hkL (.x28, BitVec.ofNat 64 (headerBank lay.val 0)) (by simp [chainK])
-      · exact hkL (.x2, 0x3fe00) (by simp [chainK])
+      · exact hkL (.x5, 0) (by simp [lowerLayK, baseK])
+      · exact hkL (.x11, 64) (by simp [lowerLayK])
+      · exact hkL (.x6, 1) (by simp [lowerLayK])
+      · exact hkL (.x7, 2) (by simp [lowerLayK])
+      · exact hkL (.x8, 3) (by simp [lowerLayK])
+      · exact hkL (.x9, 4) (by simp [lowerLayK])
+      · exact hkL (.x13, 5) (by simp [lowerLayK])
+      · exact hkL (.x26, 6) (by simp [lowerLayK])
+      · exact hkL (.x28, BitVec.ofNat 64 (headerBank lay.val 0)) (by simp [lowerLayK])
+      · exact hkL (.x2, 0x3fe00) (by simp [lowerLayK])
       · exact hko (.x15, 0x6e000) (by simp [postBl])
       · exact hko (.x22, BitVec.ofNat 64 (s6v lay.val)) (by simp [postBl])
       · rw [hkeep .x4 (by simp [keepB]), hu, writeHash_getReg, ht.tp lay rfl]; rfl
-      · rw [hkL (.x27, BitVec.ofNat 64 (hw 1 lay.val)) (by simp [chainK])]; unfold hw; congr 1
+      · rw [hkL (.x27, BitVec.ofNat 64 (hw 1 lay.val)) (by simp [lowerLayK])]; unfold hw; congr 1
       · rw [hs0.regs (.x16, a6E) (by simp [specBl]), a6E_eval hans]
       · rw [hs0.regs (.x17, a7lE) (by simp [specBl]), e17]
       · rw [hs0.regs (.x29, t4E lay.val) (by simp [specBl]), e29]

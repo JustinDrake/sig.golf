@@ -519,18 +519,19 @@ theorem schedule_a_le (chosen : List Selection) (hc : ChosenOk chosen) {n : Nat}
     ((schedule chosen).getD n default).lo + ((schedule chosen).getD n default).a ≤ 11 := by
   rw [schedule_getD chosen hn]; exact (foldFacts _ _ (hc _ (by omega))).top _ (by omega)
 
-theorem byte0_lt (seg : Segment) (h : seg.a ≤ 11) : seg.byte0 < 64 := by
-  unfold Segment.byte0 Segment.t
-  have := Nat.mod_lt (seg.heap 0) (show 0 < 2 by decide)
+theorem byte0_lt (seg : Segment) (h : seg.a ≤ 11) : seg.byte0 < 256 := by
+  unfold Segment.byte0 Segment.sideCode
+  have := Nat.mod_lt (seg.g / 2 ^ seg.lo) (show 0 < 8 by decide)
   split <;> omega
 
-theorem Segment.matches_byte0 (seg : Segment) (h : seg.a ≤ 11) : seg.Matches seg.byte0 := by
-  unfold Segment.Matches Segment.byte0
-  have ht : seg.t < 2 := Nat.mod_lt _ (by decide)
-  refine ⟨?_, ?_, ?_⟩
-  · split <;> omega
-  · cases seg.merge <;> simp <;> omega
-  · intro _; split <;> omega
+theorem Segment.matches_byte0 (seg : Segment) (h : seg.lo + seg.a ≤ 11) : seg.Matches seg.byte0 := by
+  have hm : (if seg.merge then 1 else 0) < 2 := by split <;> omega
+  have hf := SideCode.sideHeader_fields seg.a (if seg.merge then 1 else 0) (seg.g / 2 ^ seg.lo) (by omega) hm
+  change seg.Matches (SideCode.sideHeader seg.a (if seg.merge then 1 else 0) (seg.g / 2 ^ seg.lo))
+  refine ⟨hf.2.1, ?_, ?_⟩
+  · rw [hf.2.2.1]; cases seg.merge <;> simp
+  · intro _
+    simpa only [Segment.heap, Nat.add_zero] using SideCode.honest_sideHeader_check seg.g seg.lo seg.a (if seg.merge then 1 else 0) h hm
 
 theorem wbyte_seg_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N))
     (hle : slotBase (selections N) 7 ≤ 115) {n : Nat} (hn : n < 35) :

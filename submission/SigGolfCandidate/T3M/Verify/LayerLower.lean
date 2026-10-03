@@ -63,11 +63,10 @@ theorem layersP_succ (w : WBytes) (index n : Nat) (M : Digest) :
 
 /-! ## Costs -/
 
-/-- Steps / cycles of decode and entry dispatch (lower 30 / 33 with the 2-step header-bank stub of T3X/T3Y,
-top118-step conservative fuel /72 cycles). -/
+/-- Steps / cycles of decode and entry dispatch (lower 30 / 33, top 118-step conservative fuel /70 cycles). -/
 def stB (lay : Nat) : Nat := if lay = 0 then 118 else 30
-def cyB (lay : Nat) : Nat := if lay = 0 then 72 else 33
-/-- The chain phase's accepting cycles without maximal digits: lower `3008 − 9 target` (T3X header table), top `1183` after the mandatory eleven-cycle terminal-store credit. -/
+def cyB (lay : Nat) : Nat := if lay = 0 then 70 else 33
+/-- The chain phase's accepting cycles without maximal digits: lower `3008 − 9 target`, top `1183` after the mandatory eleven-cycle terminal-store credit. -/
 def chainCost0 (lay : Nat) : Nat := if lay = 0 then 1183 else 3008 - 9 * tgtL lay
 /-- The chain phase's steps on every path. -/
 def chainFuel (lay : Nat) : Nat := if lay = 0 then 2321 else 1720
@@ -80,10 +79,10 @@ def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + ch
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 
 theorem layerCost_vals :
-    layerCost 3 0 = 1338 ∧ layerCost 2 0 = 1321 ∧ layerCost 1 0 = 1321 ∧ layerCost 0 0 = 1292 := by decide
+    layerCost 3 0 = 1334 ∧ layerCost 2 0 = 1321 ∧ layerCost 1 0 = 1321 ∧ layerCost 0 0 = 1290 := by decide
 
 theorem layerFuel_vals :
-    layerFuel 3 = 1786 ∧ layerFuel 2 = 1778 ∧ layerFuel 1 = 1778 ∧ layerFuel 0 = 2469 := by decide
+    layerFuel 3 = 1782 ∧ layerFuel 2 = 1778 ∧ layerFuel 1 = 1778 ∧ layerFuel 0 = 2469 := by decide
 
 /-! ## Decode facts -/
 
@@ -190,13 +189,13 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
 /-! ## Interfaces: V2's `FtsOut` → layer 3's `LayerIn`; V3's Merkle end → the next `LayerIn` -/
 
 /-- **V2's `FtsOut` reaches layer 3's `LayerIn`** (stated on `FtsOut`'s fields `glob`, `idx`, `pc` (`layerPc = 656`),
-`root`, `wit`, with `F.idx = a.toNat % 2^31 < 2^31`): T3K's load block (words 656 .. 661, `ld3Spec`, 6 cycles) reads
-five layer constants from the embedded data (`DataOK`, part of `Glob`); the copy `xtr3_1` starts at 662. -/
+`root`, `wit`, with `F.idx = a.toNat % 2^31 < 2^31`): the load block (words 656 .. 660, `ld3Spec`, 5 cycles) reads
+five layer constants from the embedded data (`DataOK`, part of `Glob`); the copy `xtr3_1` starts at 661. The four carried constants remain known. -/
 theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u : MachineState)
-    (hidx : idx < 2 ^ 31) (hglob : Glob baseK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
+    (hidx : idx < 2 ^ 31) (hglob : Glob carryK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
     (hpc : u.pc = pcOf 656) (hroot : DigAt u 0x100 root)
     (hwit : Verify.Orig w (fun o => o < 64 ∨ 11288 ≤ o) u) :
-    ∃ t, Steps image u 6 6 t ∧ LayerIn w pk idx 3 root t := by
+    ∃ t, Steps image u 5 5 t ∧ LayerIn w pk idx 3 root t := by
   obtain ⟨t, ht⟩ := spec_run ld3Check_ok u hpc hglob.1 (by simp [ld3Spec]) (by simp)
   have hm : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
   have hD : DataOK u := hglob.2.2.2.2.2
@@ -217,8 +216,8 @@ theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u
     r27.trans (hD.word 3 (by omega) (hw 1 3) (by decide) (DATA + 24) (by omega))
   have e2 : t.getReg .x2 = BitVec.ofNat 64 0x3fe00 :=
     r2.trans (hD.word 4 (by omega) 0x3fe00 (by decide) (DATA + 32) (by omega))
-  have hG0 : Glob baseK w pk t := ht.glob _ _ _ hglob (RelOK.nil u)
-  have hpk : preK 3 = baseK ++ [(.x28, BitVec.ofNat 64 (2 ^ 40)), (.x21, BitVec.ofNat 64 M2c),
+  have hG0 : Glob afterLoadK w pk t := ht.glob _ _ _ hglob (RelOK.nil u)
+  have hpk : preK 3 = afterLoadK ++ [(.x28, BitVec.ofNat 64 (2 ^ 40)), (.x21, BitVec.ofNat 64 M2c),
       (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 1 3)), (.x2, BitVec.ofNat 64 0x3fe00)] := rfl
   have hk : ∀ p ∈ preK 3, t.getReg p.1 = p.2 := by
     intro p hp

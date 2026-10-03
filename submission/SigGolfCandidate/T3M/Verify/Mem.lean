@@ -1,8 +1,8 @@
 import SigGolfCandidate.T3M.Verify.Words
 import Mathlib.Data.Nat.Bitwise
+import SigGolfCandidate.T3.Rev
 import SigGolfCandidate.T3M.Search.TopTables
 import SigGolfCandidate.T3M.Verify.Nonbinary.PairTables
-import SigGolfCandidate.T3.Rev
 
 /-!
 # Verify memory: global invariant, witness predicates, checked writes (T3M)
@@ -195,6 +195,9 @@ theorem merge_w0_high (w v : BitVec 64) :
 of the short-offset accesses, `WIT + off - 2047`; also the SWAR modulus of the layers). -/
 def baseK : List (Reg × Word) := [(.x5, 0), (.x18, 0xFFF)]
 
+/-- Constants carried from the forest into the lower-layer initializer. -/
+def carryK : List (Reg × Word) := baseK ++ [(.x2,0x1000000),(.x7,2),(.x8,3),(.x9,4),(.x13,5)]
+
 /-- The zero words of the encoding block `[M | T | LE32 c | 0^28]` at `0x100` that no instruction writes. -/
 def pSlots : List Nat := [0x128, 0x130, 0x138]
 
@@ -222,30 +225,23 @@ def dataWords : List Nat :=
 /-- The data section's base: `dataBase` of the verify image (`16 ⌊(2^24 - 96) / 16⌋`). -/
 def DATA : Nat := 16777120
 
-/-- n3-99: the FTS header table's base = `dataBase` of the verify image (BIG1: `2^24 - 67584`); the table (2048
-doublewords) is followed by the WOTS header table at `HDATA = TAB + 16384`, 2048 zero bytes, then the base data at
-`Nonbinary.PAIR_DATA = TAB + 34816`. -/
-def TAB : Nat := 16709632
-
-/-- T3X: the WOTS header table (16384 bytes, 4 banks of 64 chains x 8 digits) right after the FTS table; the 2048
-zero bytes after it make the bank midpoints 4096-aligned (T3Y). -/
+/-- Public WOTS header table precedes the existing immutable lookup data. -/
 def HDATA : Nat := 16726016
+/-- Reversed FTS heap-label table, preceding both lower header and packed tables. -/
+def TAB : Nat := 16709616
 
-/-- T3X: the midpoint of layer `lay`'s 4096-byte header bank, shifted by the chain-index offset `koff`. -/
+def headerWord (k : Nat) : Nat :=
+  0x101 + 65536 * (k / 512) + 2 ^ 40 * (k % 512 / 8) + 2 ^ 32 * (k % 8)
+
 def headerBank (lay koff : Nat) : Nat := HDATA + 4096 * lay + 2048 + 64 * koff
 
-/-- Both the embedded constants and the checksum lookup bytes are in place, (n3-99) the FTS header table:
-doubleword `j < 2048` at `TAB` is `revBits 64 (2048 + j)`, word 1 of the tag-9 header of leaf `j`, and (T3X) the
-WOTS header table. -/
+/-- Both the embedded constants and the checksum lookup bytes are in place. -/
 structure DataOK (s : MachineState) : Prop where
   constants : ∀ k, k < 12 → s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)
   sum : Search.SumTableOK s
   packed : Nonbinary.PackedTables s
-  tab : ∀ j, j < 2048 → s.getMem (BitVec.ofNat 64 (TAB + 8 * j)) = BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + j))
-  /-- T3X: the header doubleword of layer `lay`, chain `i`, initial digit `d`. -/
-  header : ∀ lay i d, lay < 4 → i < 64 → d < 8 →
-    s.getMem (BitVec.ofNat 64 (HDATA + 4096 * lay + 64 * i + 8 * d)) =
-      BitVec.ofNat 64 (0x101 + 65536 * lay + 2 ^ 40 * i + 2 ^ 32 * d)
+  headers : ∀ k, k < 2048 → s.getMem (BitVec.ofNat 64 (HDATA + 8 * k)) = BitVec.ofNat 64 (headerWord k)
+  tab : ∀ j, j < 2048 → s.getMem (BitVec.ofNat 64 (TAB + 16 + 8 * j)) = BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + j))
 
 instance {s : MachineState} : CoeFun (DataOK s) (fun _ => ∀ k, k < 12 →
     s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)) := ⟨DataOK.constants⟩
@@ -263,13 +259,27 @@ theorem DataOK.congr {s t : MachineState} (h : DataOK s)
       hm _ (by unfold Search.TOP_DATA TAB; omega) (by unfold Search.TOP_DATA; omega),
       ← T3M.getByte_eq_word _ _ (by unfold Search.TOP_DATA; omega)]
     exact h.sum i hi
-  · exact h.packed.congr (fun A hA hB => hm A (by unfold Nonbinary.PAIR_DATA at hA; unfold TAB; omega) hB)
-  · intro j hj
-    rw [hm _ (by unfold TAB; omega) (by unfold TAB; omega)]
-    exact h.tab j hj
-  · intro lay i d hl hi hd
+  · exact h.packed.congr (fun A hA hA' => hm A (by unfold Nonbinary.PAIR_DATA TAB at *; omega) hA')
+  · intro k hk
     rw [hm _ (by unfold HDATA TAB; omega) (by unfold HDATA; omega)]
-    exact h.header lay i d hl hi hd
+    exact h.headers k hk
+
+  · intro j hj
+    rw [hm _ (by omega) (by unfold TAB; omega)]
+    exact h.tab j hj
+
+/-- Exact public header loaded by the lower WOTS chains. -/
+theorem DataOK.header {s : MachineState} (h : DataOK s) (lay i d : Nat)
+    (hl : lay < 4) (hi : i < 64) (hd : d < 8) :
+    s.getMem (BitVec.ofNat 64 (HDATA + 4096 * lay + 64 * i + 8 * d)) =
+      BitVec.ofNat 64 (0x101 + 65536 * lay + 2 ^ 40 * i + 2 ^ 32 * d) := by
+  have H := h.headers (512 * lay + 8 * i + d) (by omega)
+  simp only [headerWord] at H
+  have e1 : (512 * lay + 8 * i + d) / 512 = lay := by omega
+  have e2 : (512 * lay + 8 * i + d) % 512 / 8 = i := by omega
+  have e3 : (512 * lay + 8 * i + d) % 8 = d := by omega
+  rw [e1,e2,e3,show HDATA + 8 * (512 * lay + 8 * i + d) = HDATA + 4096 * lay + 64 * i + 8 * d by ring] at H
+  exact H
 
 def Glob (gk : List (Reg × Word)) (w : WBytes) (pk : Digest) (s : MachineState) : Prop :=
   (∀ p ∈ gk, s.getReg p.1 = p.2) ∧ WitHdr w s ∧ PkOK pk s ∧ PZero s ∧ PHalf s ∧ DataOK s
