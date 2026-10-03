@@ -11,7 +11,7 @@ set_option linter.unusedSimpArgs false
 
 /-- The actual mixed-radix top chain context after an encoding answer. -/
 def nctxOf (w : WBytes) (index : Nat) (v : Digest) (p : Nat) : NCtx :=
-  ⟨w, (route index 0).2, (route index 0).1, 15768, coreDigit 0 v, p + 18⟩
+  ⟨w, (route index 0).2, (route index 0).1, 15768, coreDigit 0 v, p + 19⟩
 
 theorem nctx_ok (w : WBytes) (index : Nat) (v : Digest) (c : Nat) (hidx : index < 2 ^ 31) :
     (nctxOf w index v (trPc 0 c)).ok := by
@@ -30,17 +30,20 @@ theorem nctx_known (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineStat
   all_goals rw [he.regs.get (by simp [topEntryRegs]), writeHash_getReg]
   all_goals try exact ht.tp 0 rfl
   all_goals first
-    | exact ht.glob.1 (.x28, BitVec.ofNat 64 (entry28 0)) (by simp [bK, layK])
-    | exact ht.glob.1 _ (by simp [bK, layK, entry28, baseK, nctxOf, NCtx.w1, hw])
+    | exact ht.glob.1 (.x28, BitVec.ofNat 64 (entry28 0)) (by simp [bK, bKB, layK])
+    | exact ht.glob.1 _ (by simp [bK, bKB, layK, entry28, baseK, nctxOf, NCtx.w1, hw])
 
 theorem topEntry_orig (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineState) (a : BitVec 256)
     (ht : EncPre w pk index 0 c t)
     (he : TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s) :
     Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) s := by
-  have h12 : t.getReg .x12 = 320#64 := ht.glob.1 (_, _) (by simp [bK])
-  have ho := Orig_writeHash ht.orig a 320 h12 (by norm_num)
-  have hu : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) (writeHash t a) :=
-    ho.mono (fun o h => ⟨h, Or.inr (by unfold WIT; omega)⟩)
+  obtain ⟨D, hD, h12⟩ := ht.dst
+  have hDf := dst_facts 0 (by decide) D hD
+  have hu : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) (writeHash t a) := by
+    intro j hj hP
+    have h8 := hDf.2.2.2.2.1
+    exact Orig_writeHash ht.orig a D h12 (by omega) j hj
+      ⟨hP, by unfold WIT; rcases hDf.2.2.2.1 with h | h <;> omega⟩
   exact hu.frame (fun j hj hp => he.frame.get (by unfold WIT WX at *; omega) (by simp))
 
 theorem nctx_orig (w : WBytes) (index : Nat) (v : Digest) (p : Nat) (s : MachineState)

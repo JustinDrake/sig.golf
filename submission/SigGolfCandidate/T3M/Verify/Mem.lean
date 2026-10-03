@@ -218,9 +218,8 @@ def WitHdr (w : WBytes) (s : MachineState) : Prop :=
   ∀ j, j < 8 → s.getMem (BitVec.ofNat 64 (WIT + 8 * j)) = wword w j
 
 /-- The verify image's embedded doublewords (`Images.verifyData`, little endian): the layer-3 constants `2^40`,
-`M2c`, `M1c`, `0x30101`, `0x3fe00`, the FTS setup constants `A4_0`, `A4_LIMIT`, `0xa01`, `0x901`, the unused old
-dispatch bases, and a zero pad. The new dispatch bases are loaded by `lui`; their rows belong to `image.code`,
-not to this data-memory invariant. -/
+`M2c`, `M1c`, `0x30101`, `0x3fe00`, the FTS setup constants `A4_0`, `A4_LIMIT`, `0xa01`, `0x901`, `tbN`, `tbL`, a zero
+pad. -/
 def dataWords : List Nat :=
   [2 ^ 40, 17311559823019733055, 8198552921648689607, 0x30101, 0x3fe00, 2256, 11736, 0xa01, 0x901, 7072, 15264, 0]
 

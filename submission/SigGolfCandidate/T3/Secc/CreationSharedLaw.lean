@@ -63,11 +63,8 @@ theorem full_charge_le_shared_excess (cls : HashInput → Prop)
     expectedCharge (fun _ => classWeight cls budget) budget BPORS.History.fullPrice
       adversary budget hbudget ≤
       SeccLaw.expectedCharge adversary budget hbudget (fun _ => publicClass cls) +
-        (budget : ENNReal) * (13145/100000000) := by
+        (budget : ENNReal) * (11324/100000000) := by
   rw [← expectedClassCount_eq_shared]
-  refine (full_charge_le_class_excess cls adversary budget hbudget).trans (add_le_add le_rfl (mul_le_mul' le_rfl ?_))
-  apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-  simp (disch := finiteness) only [ENNReal.toReal_div, ENNReal.toReal_ofNat]
-  norm_num
+  exact full_charge_le_class_excess cls adversary budget hbudget
 
 end SigGolfCandidate.T3.Security.CreationGame

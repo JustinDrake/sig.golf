@@ -4,9 +4,9 @@ namespace SigGolfResearch.Gate6.Budget
 set_option maxRecDepth 10000
 set_option maxHeartbeats 1000000
 
-def p0 : ℚ := 940126139045457411061189575/2535301200456458802993406410752
+def p0 : ℚ := 6963897326262647489342145/19807040628566084398385987584
 def zU : ℚ := 1/(1-6931471808/(10000000000*131072))
-def b0 : ℚ := 202893524443/200000000000
+def b0 : ℚ := 507635451307/500000000000
 
 theorem digest_geometric_step : zU*((1-p0)*b0+p0)≤b0 := by norm_num [zU,p0,b0]
 theorem probability_floor : 1/3300≤p0 ∧ p0≤1/16 := by norm_num [p0]
@@ -14,7 +14,7 @@ theorem probability_matches : (SigGolfResearch.Gate6.acceptance).toReal=(p0 : �
   norm_num [SigGolfResearch.Gate6.acceptance,p0,ENNReal.toReal_div]
 
 /-- Retuned four WOTS geometric bounds, linked to actual decoder counts in EncodingCounting. -/
-noncomputable def wotsProduct : ℝ := (1009892452433/1000000000000)*(1008345227909/1000000000000)^3
+noncomputable def wotsProduct : ℝ := (1009892452433/1000000000000)*(1008345227909/1000000000000)^2*(503409673483/500000000000)
 noncomputable def bProduct : ℝ := (b0 : ℝ)*wotsProduct
 
 /-- Conservative T3 fixed signing allowance satisfies the full exponential envelope

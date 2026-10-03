@@ -46,7 +46,7 @@ def seg_226 : List (BitVec 32) := [0x00168693, 0xfd5ff06f]
 def seg_228 : List (BitVec 32) := [0x00001337, 0xb0130313, 0x00048393, 0x00020e37, 0x320e0e13, 0x006e3823, 0x007e3c23, 0x00020537, 0x32050513, 0x08000593, 0x00020637, 0x3a060613]
 def seg_240 : List (BitVec 32) := [0x00000073]
 def seg_241 : List (BitVec 32) := [0x00020eb7, 0x3a0e8e93, 0x00020f37, 0x260f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423]
-def seg_249 : List (BitVec 32) := [0x00300413, 0x00600793, 0x02b00d13, 0x00000d93, 0x0c300893, 0x00020e37, 0x550e0e13, 0x000e3303, 0x00035393, 0x03f00e13, 0x01c3f933, 0x00635493, 0x310000ef]
+def seg_249 : List (BitVec 32) := [0x00300413, 0x00600793, 0x02b00d13, 0x00000d93, 0x0c200893, 0x00020e37, 0x550e0e13, 0x000e3303, 0x00035393, 0x03f00e13, 0x01c3f933, 0x00635493, 0x310000ef]
 def seg_262 : List (BitVec 32) := [0x00001e37, 0x820e0e13, 0x013e2023, 0x00008837, 0x2e080813, 0x00007bb7, 0xa58b8b93, 0x00006c37, 0xf98c0c13, 0x359000ef]
 def seg_272 : List (BitVec 32) := [0x00200413, 0x00600793, 0x02b00d13, 0x00000d93, 0x0c300893, 0x00020e37, 0x550e0e13, 0x000e3303, 0x00635393, 0x03f00e13, 0x01c3f933, 0x00c35493, 0x2b4000ef]
 def seg_285 : List (BitVec 32) := [0x00001e37, 0x81ce0e13, 0x013e2023, 0x00008837, 0xfd080813, 0x00006bb7, 0xe18b8b93, 0x00005c37, 0x358c0c13, 0x2fd000ef]
@@ -54,7 +54,7 @@ def seg_295 : List (BitVec 32) := [0x00100413, 0x00700793, 0x02b00d13, 0x00000d9
 def seg_308 : List (BitVec 32) := [0x00001e37, 0x818e0e13, 0x013e2023, 0x00008837, 0xcb080813, 0x00005bb7, 0x1d8b8b93, 0x00004c37, 0x718c0c13, 0x2a1000ef]
 def seg_318 : List (BitVec 32) := [0x00000413, 0x00c00793, 0x03600d13, 0x03300d93, 0x07e00893, 0x00020e37, 0x550e0e13, 0x000e3303, 0x01335393, 0x00001e37, 0xfffe0e13, 0x01c3f933, 0x01f35493, 0x1f8000ef]
 def seg_332 : List (BitVec 32) := [0x00001e37, 0x814e0e13, 0x013e2023, 0x00008837, 0x89080813, 0x00004bb7, 0x458b8b93, 0x00003c37, 0x6d8c0c13, 0x241000ef]
-def seg_342 : List (BitVec 32) := [0x00020e37, 0x260e0e13, 0x0a000e93, 0x000e3303, 0x000eb383, 0x00731e63]
+def seg_342 : List (BitVec 32) := [0x00020e37, 0x240e0e13, 0x0a000e93, 0x000e3303, 0x000eb383, 0x00731e63]
 def seg_348 : List (BitVec 32) := [0x008e3303, 0x008eb383, 0x00731863]
 def seg_351 : List (BitVec 32) := [0x00100293, 0x00000513]
 def seg_353 : List (BitVec 32) := [0x00000073]
@@ -105,9 +105,9 @@ def seg_1099 : List (BitVec 32) := [0x000b3303, 0x008b3383, 0x026c3823, 0x027c3c
 def seg_1117 : List (BitVec 32) := [0x41478e33, 0xfffe0e13, 0x00100693, 0x01c696b3, 0x001a0e13, 0x01c95e33, 0x01c686b3, 0x01041313, 0x30136313, 0x00068393, 0x02049f13, 0x01e36333, 0x00020e37, 0x200e0e13, 0x006e3823, 0x007e3c23, 0x00020537, 0x20050513, 0x04000593, 0x00020637, 0x24060613]
 def seg_1138 : List (BitVec 32) := [0x00000073]
 def seg_1139 : List (BitVec 32) := [0x010b0b13, 0xfc0c0c13, 0x001a0a13, 0xef9ff06f]
-def seg_1143 : List (BitVec 32) := [0x00020eb7, 0x240e8e93, 0x00020f37, 0x260f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x00008067]
+def seg_1143 : List (BitVec 32) := [0x00020eb7, 0x200e8e93, 0x00020f37, 0x260f0f13, 0x000eb303, 0x008eb383, 0x006f3023, 0x007f3423, 0x1800006f]
 
-def seg_1152 : List (BitVec 32) := [0x00020337, 0x17833303, 0x03635313, 0x08733313, 0xd0030663, 0xb80ff06f]
+def seg_1152 : List (BitVec 32) := [0x00020337, 0x17833303, 0x00e35313, 0x00737313, 0xd0031663, 0xb80ff06f]
 
 def seg_1158 : List (BitVec 32) := [0x00300a93, 0xe1b9d0e3]
 def seg_1160 : List (BitVec 32) := [0x00400a93, 0xdf9ff06f]
@@ -115,8 +115,10 @@ def seg_1162 : List (BitVec 32) := [0x00068393, 0x0ff3ff13, 0x008f1f13, 0x0083d3
 def seg_1190 : List (BitVec 32) := [0x00068393, 0x0ff3ff13, 0x008f1f13, 0x0083d393, 0x01e3e3b3, 0x00001e37, 0xf0fe0e13, 0x01c3ff33, 0x004f1f13, 0x0043d393, 0x01c3f3b3, 0x01e3e3b3, 0x00003e37, 0x333e0e13, 0x01c3ff33, 0x002f1f13, 0x0023d393, 0x01c3f3b3, 0x01e3e3b3, 0x00005e37, 0x555e0e13, 0x01c3ff33, 0x001f1f13, 0x0013d393, 0x01c3f3b3, 0x01e3e3b3, 0x03039393, 0xbbdff06f]
 def seg_1218 : List (BitVec 32) := [0x400e8393, 0x40038393, 0x0ff3ff13, 0x008f1f13, 0x0083d393, 0x01e3e3b3, 0x00001e37, 0xf0fe0e13, 0x01c3ff33, 0x004f1f13, 0x0043d393, 0x01c3f3b3, 0x01e3e3b3, 0x00003e37, 0x333e0e13, 0x01c3ff33, 0x002f1f13, 0x0023d393, 0x01c3f3b3, 0x01e3e3b3, 0x00005e37, 0x555e0e13, 0x01c3ff33, 0x001f1f13, 0x0013d393, 0x01c3f3b3, 0x01e3e3b3, 0x03039393, 0xa69ff06f]
 
+def seg_1247 : List (BitVec 32) := [0x030eb303, 0x038eb383, 0x026f3823, 0x027f3c23, 0x00008067]
+
 /-- The expand image as a layout. -/
-def expL : Rv.Layout := [(0, seg_0), (30, layoutCode (Search.dsL 30)), (49, seg_49), (65, seg_65), (67, seg_67), (68, seg_68), (70, seg_70), (89, seg_89), (99, seg_99), (100, seg_100), (102, seg_102), (104, seg_104), (120, seg_120), (144, seg_144), (167, seg_167), (179, seg_179), (190, seg_190), (191, seg_191), (193, seg_193), (203, seg_203), (204, seg_204), (215, seg_215), (216, seg_216), (218, seg_218), (224, seg_224), (226, seg_226), (228, seg_228), (240, seg_240), (241, seg_241), (249, seg_249), (262, seg_262), (272, seg_272), (285, seg_285), (295, seg_295), (308, seg_308), (318, seg_318), (332, seg_332), (342, seg_342), (348, seg_348), (351, seg_351), (353, seg_353), (354, Search.kernCode), (824, seg_824), (835, seg_835), (840, seg_840), (843, seg_843), (845, seg_845), (858, seg_858), (859, seg_859), (860, seg_860), (868, seg_868), (888, seg_888), (899, seg_899), (900, seg_900), (902, seg_902), (905, seg_905), (918, seg_918), (944, seg_944), (952, seg_952), (962, seg_962), (963, seg_963), (975, seg_975), (987, seg_987), (992, seg_992), (993, seg_993), (994, seg_994), (997, seg_997), (1010, seg_1010), (1011, seg_1011), (1027, seg_1027), (1028, seg_1028), (1030, seg_1030), (1031, seg_1031), (1032, seg_1032), (1046, seg_1046), (1047, seg_1047), (1049, seg_1049), (1051, seg_1051), (1052, seg_1052), (1063, seg_1063), (1072, seg_1072), (1073, seg_1073), (1076, seg_1076), (1077, seg_1077), (1080, seg_1080), (1099, seg_1099), (1117, seg_1117), (1138, seg_1138), (1139, seg_1139), (1143, seg_1143), (1152, seg_1152), (1158, seg_1158), (1160, seg_1160), (1162, seg_1162), (1190, seg_1190), (1218, seg_1218)]
+def expL : Rv.Layout := [(0, seg_0), (30, layoutCode (Search.dsL 30)), (49, seg_49), (65, seg_65), (67, seg_67), (68, seg_68), (70, seg_70), (89, seg_89), (99, seg_99), (100, seg_100), (102, seg_102), (104, seg_104), (120, seg_120), (144, seg_144), (167, seg_167), (179, seg_179), (190, seg_190), (191, seg_191), (193, seg_193), (203, seg_203), (204, seg_204), (215, seg_215), (216, seg_216), (218, seg_218), (224, seg_224), (226, seg_226), (228, seg_228), (240, seg_240), (241, seg_241), (249, seg_249), (262, seg_262), (272, seg_272), (285, seg_285), (295, seg_295), (308, seg_308), (318, seg_318), (332, seg_332), (342, seg_342), (348, seg_348), (351, seg_351), (353, seg_353), (354, Search.kernCode), (824, seg_824), (835, seg_835), (840, seg_840), (843, seg_843), (845, seg_845), (858, seg_858), (859, seg_859), (860, seg_860), (868, seg_868), (888, seg_888), (899, seg_899), (900, seg_900), (902, seg_902), (905, seg_905), (918, seg_918), (944, seg_944), (952, seg_952), (962, seg_962), (963, seg_963), (975, seg_975), (987, seg_987), (992, seg_992), (993, seg_993), (994, seg_994), (997, seg_997), (1010, seg_1010), (1011, seg_1011), (1027, seg_1027), (1028, seg_1028), (1030, seg_1030), (1031, seg_1031), (1032, seg_1032), (1046, seg_1046), (1047, seg_1047), (1049, seg_1049), (1051, seg_1051), (1052, seg_1052), (1063, seg_1063), (1072, seg_1072), (1073, seg_1073), (1076, seg_1076), (1077, seg_1077), (1080, seg_1080), (1099, seg_1099), (1117, seg_1117), (1138, seg_1138), (1139, seg_1139), (1143, seg_1143), (1152, seg_1152), (1158, seg_1158), (1160, seg_1160), (1162, seg_1162), (1190, seg_1190), (1218, seg_1218), (1247, seg_1247)]
 
 theorem expL_ok : layoutOk 0 expL = true := by decide +kernel
 
@@ -299,6 +301,8 @@ theorem codeAt_1138 : CodeAt image (pcOf 1138) seg_1138 :=
   codeAt_layout code_eq expL_ok (i := 87) (by kernel_rfl) (by decide)
 theorem codeAt_1139 : CodeAt image (pcOf 1139) seg_1139 :=
   codeAt_layout code_eq expL_ok (i := 88) (by kernel_rfl) (by decide)
+theorem codeAt_1247 : CodeAt image (pcOf 1247) seg_1247 :=
+  codeAt_layout code_eq expL_ok (i := 96) (by kernel_rfl) (by decide)
 theorem codeAt_1143 : CodeAt image (pcOf 1143) seg_1143 :=
   codeAt_layout code_eq expL_ok (i := 89) (by kernel_rfl) (by decide)
 theorem codeAt_1158 : CodeAt image (pcOf 1158) seg_1158 :=
@@ -394,6 +398,7 @@ sym_block eblk_1099 := symRun { noAlias := true } seg_1099 (pcOf 1099) 200
 sym_block eblk_1117 := symRun { noAlias := true } seg_1117 (pcOf 1117) 200
 sym_block eblk_1139 := symRun { noAlias := true } seg_1139 (pcOf 1139) 200
 sym_block eblk_1143 := symRun { noAlias := true } seg_1143 (pcOf 1143) 200
+sym_block eblk_1247 := symRun { noAlias := true } seg_1247 (pcOf 1247) 200
 sym_block eblk_1158 := symRun { noAlias := true } seg_1158 (pcOf 1158) 200
 sym_block eblk_1160 := symRun { noAlias := true } seg_1160 (pcOf 1160) 200
 sym_block eblk_1162 := symRun { noAlias := true } seg_1162 (pcOf 1162) 200

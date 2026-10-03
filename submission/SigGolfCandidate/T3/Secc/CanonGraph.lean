@@ -474,6 +474,29 @@ def rootNode (lay : Layer) (tree : Fin (2^31)) : TreeNode :=
 def ftsRootNode (index : Fin (2^31)) (coord : Fin 7) : FtsNodePos :=
   ⟨⟨index, coord, ⟨10, by decide⟩, ⟨0, by decide⟩⟩, show 0 < 2 ^ (11 - 10 - 1) by decide⟩
 
+theorem height_ge_two (lay : Layer) : 2 ≤ height lay := by fin_cases lay <;> decide
+
+/-- The children of a tree's root (E8: what the layer above signs): the nodes `(h-1, c)`, `c < 2`. -/
+def childNode (lay : Layer) (tree : Fin (2^31)) (c : Fin 2) : TreeNode :=
+  ⟨⟨lay, tree, ⟨height lay - 1 - 1, by have := Extract.height_le lay; omega⟩,
+      ⟨c.val, by have := c.isLt; omega⟩⟩,
+    ⟨by have := height_ge_two lay; show height lay - 1 - 1 < height lay; omega,
+      by have := height_ge_two lay; have := c.isLt
+         show c.val < 2 ^ (height lay - (height lay - 1 - 1) - 1)
+         rw [show height lay - (height lay - 1 - 1) - 1 = 1 by omega]; omega⟩⟩
+
+theorem treeLabel_child (labels : Labels) (lay : Layer) (tree : Fin (2^31)) (c : Fin 2) :
+    treeLabel labels lay tree (height lay - 1) c.val = (labels (.node (childNode lay tree c))).extractLsb' 0 128 := by
+  have h2 := height_ge_two lay
+  unfold treeLabel
+  rw [if_neg (by omega)]
+  have hv : height lay - 1 - 1 < height lay ∧ c.val < 2 ^ (height lay - (height lay - 1 - 1) - 1) := by
+    refine ⟨by omega, ?_⟩
+    rw [show height lay - (height lay - 1 - 1) - 1 = 1 by omega]; have := c.isLt; omega
+  unfold treeNodeAt
+  rw [dif_pos hv]
+  rfl
+
 theorem treeLabel_root (labels : Labels) (lay : Layer) (tree : Fin (2^31)) :
     treeLabel labels lay tree (height lay) 0 = (labels (.node (rootNode lay tree))).extractLsb' 0 128 := by
   have hpos := height_pos lay

@@ -29,8 +29,8 @@ theorem honestMsg_short {A T : Correctness.Answers} (h : Wots.Ref.ShortAgree A T
     Extract.honestMsg A index lay = Extract.honestMsg T index lay := by
   unfold Extract.honestMsg
   split_ifs
-  · exact Wots.Ref.honestRoot_short h _ _
-  · exact Wots.Ref.honestForest_short h _
+  · exact Wots.Ref.honestPair_short h _ _
+  · rw [Wots.Ref.honestForest_short h _]
 
 theorem good_short {A T : Correctness.Answers} (h : Wots.Ref.ShortAgree A T) (w : WBytes) (index : Nat) (lay : Layer)
     (hg : Extract.Good A w index lay) : Extract.Good T w index lay := by

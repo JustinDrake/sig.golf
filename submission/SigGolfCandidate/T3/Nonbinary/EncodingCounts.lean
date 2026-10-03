@@ -100,13 +100,13 @@ def rawAcceptedCount (lay : Layer) : Nat :=
   ![215015893163124468571511796493705040,
     217433284086354415880083123326127992,
     217433284086354415880083123326127992,
-    217433284086354415880083123326127992] lay
+    265682986533614028872430357565137160] lay
 
 def AcceptSum (lay : Layer) (total : Nat) : Prop :=
-  if lay=0 then total=126 else 188≤total ∧ total<196
+  if lay=0 then total=126 else if lay=3 then 187≤total ∧ total<195 else 188≤total ∧ total<196
 
 instance (lay : Layer) (total : Nat) : Decidable (AcceptSum lay total) :=
-  inferInstanceAs (Decidable (if lay=0 then total=126 else 188≤total ∧ total<196))
+  inferInstanceAs (Decidable (if lay=0 then total=126 else if lay=3 then 187≤total ∧ total<195 else 188≤total ∧ total<196))
 
 theorem usedBits_fields (lay : Layer) : usedBits (fields lay)=encodedBits lay := by
   fin_cases lay <;> decide
@@ -190,7 +190,7 @@ def intervalCount (packed lo hi : Nat) : Nat :=
 
 theorem top_exact : intervalCount topPacked 126 127=rawAcceptedCount 0 := by decide +kernel
 theorem lower_first_exact : intervalCount lowerPacked 188 196=rawAcceptedCount 1 := by decide +kernel
-theorem lower_last_exact : intervalCount lowerPacked 188 196=rawAcceptedCount 3 := by decide +kernel
+theorem lower_last_exact : intervalCount lowerPacked 187 195=rawAcceptedCount 3 := by decide +kernel
 
 theorem interval_words_count (lay : Layer) (lo hi : Nat) (hl : 0<lo) (hh : lo≤hi) :
     Fintype.card {n : Fin (2^usedBits (fields lay)) //
@@ -218,7 +218,7 @@ theorem accepted_words_count (lay : Layer) :
   · have h := interval_words_count 2 188 196 (by decide) (by decide)
     rw [lower_weighted 2 (by decide),lower_first_exact] at h
     simpa [AcceptSum,rawAcceptedCount] using h
-  · have h := interval_words_count 3 188 196 (by decide) (by decide)
+  · have h := interval_words_count 3 187 195 (by decide) (by decide)
     rw [lower_weighted 3 (by decide),lower_last_exact] at h
     simpa [AcceptSum] using h
 
@@ -258,7 +258,7 @@ def acceptedCount (lay : Layer) : Nat :=
   ![183707182173445436457863622839156476,
     217433284086354415880083123326127992,
     217433284086354415880083123326127992,
-    217433284086354415880083123326127992] lay
+    265682986533614028872430357565137160] lay
 
 /-- Exact accepted digest count, including the unused high-bit rejection and
 checksum interval in the unchanged base decoder. -/

@@ -174,9 +174,13 @@ def mkLvlCheck (lay ci sh kk : Nat) : Bool :=
 
 /-! ## Blocks -/
 
+/-- The levels of a chunk with code: all for the top layer; below it (E8) the last level's header and the root HASH
+are gone, the next transition's copy follows HASH `h - 1`. -/
+def mkLvls (lay ci : Nat) : Nat := if lay = 0 then mkBits lay ci else mkBits lay ci - 1
+
 /-- The entry and every level of block `sh` of chunk `ci` of layer `lay`. -/
 def mkBlockCheck (lay ci sh : Nat) : Bool :=
-  mkEntCheck lay ci sh && (List.range (mkBits lay ci)).all (mkLvlCheck lay ci sh)
+  mkEntCheck lay ci sh && (List.range (mkLvls lay ci)).all (mkLvlCheck lay ci sh)
 
 /-- Blocks `lo .. lo + n - 1` of chunk `ci` of layer `lay`. -/
 def mkChunkCheck (lay ci lo n : Nat) : Bool := (List.range' lo n).all (mkBlockCheck lay ci)

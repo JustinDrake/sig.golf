@@ -15,11 +15,11 @@ theorem markedLabel_card : Fintype.card MarkedLabel = 2^59 := by
 
 abbrev Triple := Fin 3 → Fin 128
 abbrev Slots := Bank → Triple
-abbrev Padding := Fin 1024
-abbrev Unused := Fin (2^40)
+abbrev Padding := Fin 8
+abbrev Unused := Fin (2^47)
 abbrev Payload := Slots × (Padding × Unused)
 /-- 31 address bits, seven 4-bit buckets, twenty-one 7-bit slots,
-a ten-bit gate field accepted below 135 and 40 unused bits. -/
+three forced-zero gate bits and 47 unused bits. -/
 abbrev RawRecord := MarkedLabel × Payload
 
 def slotSet (v : Triple) : Finset Nat := (valList v).toFinset
@@ -30,7 +30,7 @@ def SlotsAccepted (slots : Slots) : Prop :=
   (∀ bank, Function.Injective (slots bank)) ∧ (∑ bank, childAuth (slots bank)) ≤ 87
 
 def PayloadAccepted (payload : Payload) : Prop :=
-  payload.2.1.val < 135 ∧ SlotsAccepted payload.1
+  payload.2.1 = 0 ∧ SlotsAccepted payload.1
 
 def Accepted (raw : RawRecord) : Prop := PayloadAccepted raw.2
 
@@ -57,7 +57,7 @@ theorem witness_auth : childAuth witnessTriple = 6 := by
   decide
 
 theorem accepted_witness : Accepted ((0,fun _ => 0),((fun _ => witnessTriple),(0,0))) := by
-  refine ⟨by decide,fun _ => witness_injective,?_⟩
+  refine ⟨rfl,fun _ => witness_injective,?_⟩
   simp only [witness_auth,sum_const,Fintype.card_fin,Bank,smul_eq_mul]
   norm_num
 

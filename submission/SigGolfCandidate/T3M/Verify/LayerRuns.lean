@@ -25,22 +25,22 @@ open SigGolfCandidate.T3M.Verify
 
 /-- The transition copies of layer `lay` (word index of `xtr{lay}_*`, in pc order). -/
 def xtrTab : List (List Nat) :=
-  [[18455, 18589, 18723, 18857, 18991, 19125, 19259, 19393, 19527, 19661, 19795, 19929, 20063, 20197, 20331, 20465,
-    20599, 20733, 20867, 21001, 21135, 21269, 21403, 21537, 21671, 21805, 21939, 22073, 22207, 22341, 22475, 22609,
-    22743, 22877, 23011, 23145, 23279, 23413, 23547, 23681, 23815, 23949, 24083, 24217, 24351, 24485, 24619, 24753,
-    24887, 25021, 25155, 25289, 25423, 25557, 25691, 25825, 25959, 26093, 26227, 26361, 26495, 26629, 26763, 26897,
-    27031, 27165, 27299, 27433, 27567, 27701, 27835, 27969, 28103, 28237, 28371, 28505, 28639, 28773, 28907, 29041,
-    29175, 29309, 29443, 29577, 29711, 29845, 29979, 30113, 30247, 30381, 30515, 30649, 30783, 30917, 31051, 31185,
-    31319, 31453, 31587, 31721, 31855, 31989, 32123, 32257, 32391, 32525, 32659, 32793, 32927, 33061, 33195, 33329,
-    33463, 33597, 33731, 33865, 33999, 34133, 34267, 34401, 34535, 34669, 34803, 34937, 35071, 35205, 35339, 35473],
-   [11985, 12086, 12187, 12288, 12389, 12490, 12591, 12692, 12793, 12894, 12995, 13096, 13197, 13298, 13399, 13500,
-    13601, 13702, 13803, 13904, 14005, 14106, 14207, 14308, 14409, 14510, 14611, 14712, 14813, 14914, 15015, 15116,
-    15217, 15318, 15419, 15520, 15621, 15722, 15823, 15924, 16025, 16126, 16227, 16328, 16429, 16530, 16631, 16732,
-    16833, 16934, 17035, 17136, 17237, 17338, 17439, 17540, 17641, 17742, 17843, 17944, 18045, 18146, 18247, 18348],
-   [5521, 5622, 5723, 5824, 5925, 6026, 6127, 6228, 6329, 6430, 6531, 6632, 6733, 6834, 6935, 7036,
-    7137, 7238, 7339, 7440, 7541, 7642, 7743, 7844, 7945, 8046, 8147, 8248, 8349, 8450, 8551, 8652,
-    8753, 8854, 8955, 9056, 9157, 9258, 9359, 9460, 9561, 9662, 9763, 9864, 9965, 10066, 10167, 10268,
-    10369, 10470, 10571, 10672, 10773, 10874, 10975, 11076, 11177, 11278, 11379, 11480, 11581, 11682, 11783, 11884],
+  [[18450, 18584, 18718, 18852, 18986, 19120, 19254, 19388, 19522, 19656, 19790, 19924, 20058, 20192, 20326, 20460,
+    20594, 20728, 20862, 20996, 21130, 21264, 21398, 21532, 21666, 21800, 21934, 22068, 22202, 22336, 22470, 22604,
+    22738, 22872, 23006, 23140, 23274, 23408, 23542, 23676, 23810, 23944, 24078, 24212, 24346, 24480, 24614, 24748,
+    24882, 25016, 25150, 25284, 25418, 25552, 25686, 25820, 25954, 26088, 26222, 26356, 26490, 26624, 26758, 26892,
+    27026, 27160, 27294, 27428, 27562, 27696, 27830, 27964, 28098, 28232, 28366, 28500, 28634, 28768, 28902, 29036,
+    29170, 29304, 29438, 29572, 29706, 29840, 29974, 30108, 30242, 30376, 30510, 30644, 30778, 30912, 31046, 31180,
+    31314, 31448, 31582, 31716, 31850, 31984, 32118, 32252, 32386, 32520, 32654, 32788, 32922, 33056, 33190, 33324,
+    33458, 33592, 33726, 33860, 33994, 34128, 34262, 34396, 34530, 34664, 34798, 34932, 35066, 35200, 35334, 35468],
+   [11980, 12081, 12182, 12283, 12384, 12485, 12586, 12687, 12788, 12889, 12990, 13091, 13192, 13293, 13394, 13495,
+    13596, 13697, 13798, 13899, 14000, 14101, 14202, 14303, 14404, 14505, 14606, 14707, 14808, 14909, 15010, 15111,
+    15212, 15313, 15414, 15515, 15616, 15717, 15818, 15919, 16020, 16121, 16222, 16323, 16424, 16525, 16626, 16727,
+    16828, 16929, 17030, 17131, 17232, 17333, 17434, 17535, 17636, 17737, 17838, 17939, 18040, 18141, 18242, 18343],
+   [5516, 5617, 5718, 5819, 5920, 6021, 6122, 6223, 6324, 6425, 6526, 6627, 6728, 6829, 6930, 7031,
+    7132, 7233, 7334, 7435, 7536, 7637, 7738, 7839, 7940, 8041, 8142, 8243, 8344, 8445, 8546, 8647,
+    8748, 8849, 8950, 9051, 9152, 9253, 9354, 9455, 9556, 9657, 9758, 9859, 9960, 10061, 10162, 10263,
+    10364, 10465, 10566, 10667, 10768, 10869, 10970, 11071, 11172, 11273, 11374, 11475, 11576, 11677, 11778, 11879],
    [661]]
 
 /-- The number of transition copies of layer `lay`. -/
@@ -56,17 +56,22 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 /-- Merkle height. -/
 def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
 /-- Steps of A; layer 3 reuses four constants from the forest. -/
-def stepsA (lay : Nat) : Nat := if lay = 0 then 16 else 15
+def stepsA (lay : Nat) : Nat := if lay = 3 then 15 else if lay = 0 then 15 else 14
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 0 then 18 else 46
+def retOff (lay : Nat) : Nat := if lay = 0 then 19 else if lay = 3 then 44 else 43
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
 def s3v : Nat := 15768
 /-- Core's targets. -/
-def tgtL (lay : Nat) : Nat := [126, 195, 195, 195].getD lay 0
+def tgtL (lay : Nat) : Nat := [126, 195, 195, 194].getD lay 0
 /-- Header word 0 of tag `t` and layer `lay` (`1 | t << 8 | lay << 16`). -/
 def hw (t lay : Nat) : Nat := 1 + 256 * t + 65536 * lay
+/-- The encoding block of layer `lay`'s transition: `0x100` for layer 3; below (E8) the last Merkle block (level
+`h - 1`) of layer `lay + 1`, hashed in place (`WIT + layerBase (lay + 1)`). -/
+def encB (lay : Nat) : Nat := [17816, 21016, 24152, 256].getD lay 0
+/-- The witness words a copy writes (E8, below layer 3: `T(4)` and the counter into the encoding block). -/
+def copyAllow (lay : Nat) : List Nat := [encB lay + 16, encB lay + 24, encB lay + 32]
 /-- The HALT(1) `ecall` of `reject`. -/
 def rejEcall : Nat := 743
 /-- The jump table `stab_lay_0` of the Merkle shape dispatch. -/
@@ -96,7 +101,7 @@ def preK (lay : Nat) : List (Reg × Word) :=
     (.x27, BitVec.ofNat 64 (hw 1 3)), (.x2, BitVec.ofNat 64 0x3fe00)]
   else baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 (lay + 1))), (.x24, 0x10000), (.x2, 0x3fe00),
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (entry28 lay)),
-    (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x19, BitVec.ofNat 64 (2^62))]
+    (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x19, BitVec.ofNat 64 (2^62)), (.x22, BitVec.ofNat 64 (s6v (lay + 1)))]
 
 /-- The constant registers through a layer (after A): `s11 = 0x101 | lay << 16`, the masks, the step registers. -/
 def layK (lay : Nat) : List (Reg × Word) :=
@@ -119,8 +124,12 @@ def ld3Spec : Spec :=
 
 def ld3Check : Bool := specB [] [] afterLoadK (runAt carryK [661] 656 []) ld3Spec [] afterLoadK [.x22]
 
+/-- The known registers of B (full E8: the decode reads the answer through `a2`, so `x12` stays symbolic). -/
+def bKB (lay : Nat) : List (Reg × Word) := layK lay ++ [(.x10, BitVec.ofNat 64 (encB lay))]
 /-- ... and the encoding `ecall`'s arguments. -/
-def bK (lay : Nat) : List (Reg × Word) := layK lay ++ [(.x10, 256), (.x12, 320)]
+def bK (lay : Nat) : List (Reg × Word) := bKB lay ++ (if lay = 3 then [(.x12, 320)] else [])
+/-- The encoding output (`a2`): `0x140` for layer 3; below (full E8) the node slot of the block, `L` or `R`. -/
+def dstSet (lay : Nat) : List Nat := if lay = 3 then [320] else [encB lay, encB lay + 48]
 
 /-! ## A: route, header, counter -/
 
@@ -136,19 +145,25 @@ def ctrBr (lay : Nat) (d : Bool) : Br := ⟨.ne, .bin .srl (ctrE lay) (kw 22), k
 
 def specA (lay p : Nat) : Spec :=
   ⟨[(.x4, tpE lay), (.x23, s7E lay), (.x30, treeE lay), (.x3, ctrE lay)],
-   [(⟨none, BitVec.ofNat 64 288⟩, .bin (.st .w 0) (.ld (kw 288)) (ctrE lay)), (⟨none, BitVec.ofNat 64 280⟩, tpE lay),
-    (⟨none, BitVec.ofNat 64 272⟩, kw (hw 4 lay))],
+   [(⟨none, BitVec.ofNat 64 (encB lay + 32)⟩, .bin (.st .w 0) (.ld (kw (encB lay + 32))) (ctrE lay)),
+    (⟨none, BitVec.ofNat 64 (encB lay + 24)⟩, tpE lay), (⟨none, BitVec.ofNat 64 (encB lay + 16)⟩, kw (hw 4 lay))],
    p + stepsA lay, true, stepsA lay, [ctrBr lay false], none, stepsA lay⟩
+
+/-- Steps of the counter rejection: A's, plus (E8, below layer 3) the `a0` set before the branch. -/
+def rejSt (lay : Nat) : Nat := stepsA lay + (if lay = 3 then 0 else 2)
 
 def rejA (lay p : Nat) : Spec :=
   ⟨[(.x5, kw 1), (.x10, kw 1)],
-   [(⟨none, BitVec.ofNat 64 280⟩, tpE lay), (⟨none, BitVec.ofNat 64 272⟩, kw (hw 4 lay))],
-   rejEcall, true, stepsA lay, [ctrBr lay true], none, stepsA lay⟩
+   [(⟨none, BitVec.ofNat 64 (encB lay + 24)⟩, tpE lay), (⟨none, BitVec.ofNat 64 (encB lay + 16)⟩, kw (hw 4 lay))],
+   rejEcall, true, rejSt lay, [ctrBr lay true], none, rejSt lay⟩
 
 /-! ## B: decode and the chain prologue -/
 
-def a6E : E := .ld (kw 320)
-def a7E : E := .ld (kw 328)
+/-- Full E8: the decode loads the answer through the encoding output pointer (`ld a6, 0(a2)`, `ld a7, 8(a2)`). -/
+def a6E : E := .ld (.reg .x12)
+def a7E : E := .ld (.bin .add (.reg .x12) (kw 8))
+/-- The two loads' validity side conditions (symbolic base `a2`). -/
+def ansObl : List Oblig := [.valid ⟨some (.reg .x12), BitVec.ofNat 64 8⟩ 8, .valid ⟨some (.reg .x12), BitVec.ofNat 64 0⟩ 8]
 def b1E : E := .bin .sll a7E (kw 1)
 /-- The lower decode's partial sums (`sw1`) and the digit sum (`remu 4095`). -/
 def sw1RefE : E :=
@@ -170,7 +185,7 @@ def tgtl : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe
 
 def specBl (lay p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, a7lE), (.x25, sumE), (.x29, t4E lay), (.x3, .bin .srl a6E (kw 63)), (.x14, x14l)],
-   [], 0, false, 29, [ckBr lay false, rngBr 62 false], some tgtl, 32⟩
+   [], 0, false, 30, [ckBr lay false, rngBr 62 false], some tgtl, 33⟩
 
 def postBl (lay p : Nat) : List (Reg × Word) :=
   lowerLayK lay ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x15, 0x6e000), (.x1, pcOf (p + retOff lay - 1))]
@@ -237,8 +252,8 @@ def specLf (lay : Nat) : Spec :=
       (⟨none, BitVec.ofNat 64 528⟩, kw (hw 2 0))], 0, false, 13, [], some (tgtLf lay), 13⟩
   else
     ⟨[(.x14, x14lf lay)],
-     [(⟨none, BitVec.ofNat 64 792⟩, .reg .x4), (⟨none, BitVec.ofNat 64 784⟩, kw (hw 2 lay))], 0, false, (if lay = 3 ∨ lay = 2 then 10 else 11), [],
-     some (tgtLf lay), (if lay = 3 ∨ lay = 2 then 10 else 11)⟩
+     [(⟨none, BitVec.ofNat 64 792⟩, .reg .x4), (⟨none, BitVec.ofNat 64 784⟩, kw (hw 2 lay))], 0, false, (if lay = 3 ∨ lay = 2 then 11 else 12), [],
+     some (tgtLf lay), (if lay = 3 ∨ lay = 2 then 11 else 12)⟩
 
 def postLf (lay : Nat) : List (Reg × Word) :=
   (baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 lay))] ++ (if lay = 0 then [] else [(.x6, 1)])) ++ [(.x3, BitVec.ofNat 64 (hw 2 lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)),
@@ -247,27 +262,27 @@ def postLf (lay : Nat) : List (Reg × Word) :=
 
 /-! ## The checks of a copy -/
 
-def keepA : List Reg := []
+def keepA (lay : Nat) : List Reg := if lay = 3 then [] else [.x12]
 def keepB : List Reg := [.x4, .x23, .x30]
 def keepLf : List Reg := [.x23, .x30, .x22]
 
-def keepTopCall : List Reg := [.x2, .x3, .x4, .x5, .x6, .x7, .x8, .x9, .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17, .x18, .x19, .x20, .x21, .x22, .x23, .x24, .x25, .x26, .x27, .x28, .x29, .x30, .x31]
+def keepTopCall : List Reg := [.x2, .x3, .x4, .x5, .x6, .x7, .x8, .x9, .x10, .x11, .x12, .x13, .x14, .x15, .x18, .x19, .x20, .x21, .x22, .x23, .x24, .x25, .x26, .x27, .x28, .x29, .x30, .x31]
 
-/-- The direct linked call preserves the top leaf return address and enters the shared packed decoder. -/
+/-- Full E8: the two answer loads through `a2` and `jal ra` into the shared packed decoder after its loads. -/
 def specTopCall (p : Nat) : Spec :=
-  ⟨[(.x1, kw (0x1000 + 4 * (p + 18)))], [], 96160, false, 1, [], none, 1⟩
+  ⟨[(.x16, a6E), (.x17, a7E), (.x1, kw (0x1000 + 4 * (p + 19)))], [], 96162, false, 3, [], none, 3⟩
 
 /-- All runs of the transition copy at `p` of layer `lay` and of its leaf-pk block. -/
 def copyCheck (lay p : Nat) : Bool :=
-  specB [] [] baseK (runAt (preK lay) [] p [.br false]) (specA lay p) [] (bK lay) keepA &&
-  specB [] [] [] (runAt (preK lay) [] p [.br true]) (rejA lay p) [] [] [] &&
+  specB (copyAllow lay) [] baseK (runAt (preK lay) [] p [.br false]) (specA lay p) [] (bK lay) (keepA lay) &&
+  specB (copyAllow lay) [] [] (runAt (preK lay) [] p [.br true]) (rejA lay p) [] [] [] &&
   (if lay = 0 then
-    specB [] [] [] (runAt [] [96160] (p + stepsA lay + 1) []) (specTopCall p) [] [] keepTopCall
+    specB [] [] [] (runAt [] [96162] (p + stepsA lay + 1) []) (specTopCall p) ansObl [] keepTopCall
   else
-    specB [] [] baseK (runAt (bK lay) [] (p + stepsA lay + 1) [.br false, .br false, .jmp]) (specBl lay p) []
+    specB [] [] baseK (runAt (bKB lay) [] (p + stepsA lay + 1) [.br false, .br false, .jmp]) (specBl lay p) ansObl
       (postBl lay p) keepB &&
-    specB [] [] [] (runAt (bK lay) [] (p + stepsA lay + 1) [.br false, .br true]) (rejCk lay) [] [] [] &&
-    specB [] [] [] (runAt (bK lay) [] (p + stepsA lay + 1) [.br true]) (rejRng 62) [] [] []) &&
+    specB [] [] [] (runAt (bKB lay) [] (p + stepsA lay + 1) [.br false, .br true]) (rejCk lay) ansObl [] [] &&
+    specB [] [] [] (runAt (bKB lay) [] (p + stepsA lay + 1) [.br true]) (rejRng 62) ansObl [] []) &&
   specB [] [] baseK (runAt (leafK lay) [] (p + retOff lay) [.jmp]) (specLf lay) [] (postLf lay) keepLf
 
 /-- All copies of layer `lay` from index `lo`, `n` of them. -/

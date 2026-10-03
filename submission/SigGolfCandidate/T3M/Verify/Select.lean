@@ -542,7 +542,7 @@ theorem select_phase (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineSta
 def afterFts (pk : Digest) (w : WBytes) (index : Nat) (r : Option Digest) : T3.M Bool :=
   match r with
   | some root => do
-      let __x ← layersP w index 4 root
+      let __x ← layersP w index 4 (root, 0, 0)
       match __x with
       | some root => pure (root == pk)
       | _ => pure false

@@ -180,6 +180,16 @@ theorem honestRoot_eq (h : Agrees answers labels) (lay : Layer) (tree : Fin (2^3
     Extract.honestRoot answers lay tree.val = treeLabel labels lay tree (height lay) 0 :=
   builtTree_eq h lay tree (height lay) 0 le_rfl (by simp)
 
+theorem honestPair_eq (h : Agrees answers labels) (lay : Layer) (tree : Fin (2^31)) :
+    Extract.honestPair answers lay tree.val =
+      (treeLabel labels lay tree (height lay - 1) 0, 0, treeLabel labels lay tree (height lay - 1) 1) := by
+  have hp := height_pos lay
+  have h2 : 1 < 2 ^ (height lay - (height lay - 1)) := by
+    rw [show height lay - (height lay - 1) = 1 by omega]; decide
+  unfold Extract.honestPair
+  rw [builtTree_eq h lay tree (height lay - 1) 0 (by omega) (by omega),
+    builtTree_eq h lay tree (height lay - 1) 1 (by omega) h2]
+
 theorem honestRoot_label (h : Agrees answers labels) (lay : Layer) (tree : Fin (2^31)) :
     Extract.honestRoot answers lay tree.val = (labels (.node (rootNode lay tree))).extractLsb' 0 128 := by
   rw [honestRoot_eq h, treeLabel_root]

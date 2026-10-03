@@ -521,7 +521,7 @@ theorem respects_signForest (index : Nat) (chosen : List Selection) :
   rintro ⟨levels, secrets⟩
   exact Respects.pure' _
 
-theorem respects_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest) :
+theorem respects_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
     ∀ fuel counter, Respects (Untouched a) (counterSearch lay tree leaf message counter fuel) := by
   intro fuel
   induction fuel with

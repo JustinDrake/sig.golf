@@ -7,34 +7,33 @@ set_option maxHeartbeats 500000
 set_option maxRecDepth 10000
 
 noncomputable def gatedEventEquiv (event : CoordinateDraw → Prop) :
-    {draw : GatedDraw // draw.2.val<135 ∧ event draw.1} ≃
-      {draw : CoordinateDraw // event draw} × Fin 135 where
-  toFun d := (⟨d.1.1,d.2.2⟩,⟨d.1.2.val,d.2.1⟩)
-  invFun d := ⟨(d.1.1,⟨d.2.val,by have h := d.2.isLt; omega⟩),d.2.isLt,d.1.2⟩
-  left_inv d := rfl
+    {draw : GatedDraw // draw.2=0 ∧ event draw.1} ≃
+      {draw : CoordinateDraw // event draw} where
+  toFun d := ⟨d.1.1,d.2.2⟩
+  invFun d := ⟨(d.1,0),rfl,d.2⟩
+  left_inv d := by apply Subtype.ext;exact Prod.ext rfl d.2.1.symm
   right_inv _ := rfl
 
 /-- Every coordinate-only event, including a near-cover or a fixed-target
-condition, receives the exact independent gate factor 135/1024. -/
+condition, receives the exact independent five-bit gate factor. -/
 theorem gated_event_probability (event : CoordinateDraw → Prop) :
-    Pr[fun draw : GatedDraw => draw.2.val<135 ∧ event draw.1 | ($ᵗ GatedDraw : ProbComp GatedDraw)] =
-      (Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/(1024/135) := by
+    Pr[fun draw : GatedDraw => draw.2=0 ∧ event draw.1 | ($ᵗ GatedDraw : ProbComp GatedDraw)] =
+      (Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/8 := by
   rw [probEvent_uniformSample,←Fintype.card_subtype,Fintype.card_congr (gatedEventEquiv event),
     probEvent_uniformSample,←Fintype.card_subtype]
   simp only [GatedDraw,Fintype.card_prod,Padding,Fintype.card_fin,Nat.cast_mul,Nat.cast_ofNat]
-  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness)
-    (ENNReal.div_ne_top (by finiteness) (ENNReal.div_ne_zero.mpr ⟨by norm_num,by norm_num⟩))).mp
-  simp only [ENNReal.toReal_div,ENNReal.toReal_mul,ENNReal.toReal_ofNat,ENNReal.toReal_natCast]
-  ring
+  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
+  simp only [ENNReal.toReal_div,ENNReal.toReal_mul,ENNReal.toReal_ofNat]
+  rw [div_div]
 
 theorem digest_gated_event_probability (event : CoordinateDraw → Prop) :
-    Pr[fun output => (digestRecord output).2.2.1.val<135 ∧
+    Pr[fun output => (digestRecord output).2.2.1=0 ∧
       event (rawDraw (digestRecord output)).1 |
       ($ᵗ BitVec 256 : ProbComp (BitVec 256))] =
-      (Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/(1024/135) := by
-  rw [digest_event (fun raw => raw.2.2.1.val<135 ∧ event (rawDraw raw).1)]
-  change Pr[fun raw => (rawDraw raw).2.val<135 ∧ event (rawDraw raw).1 | _]=_
-  rw [raw_draw_event (fun draw => draw.2.val<135 ∧ event draw.1),gated_event_probability]
+      (Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/8 := by
+  rw [digest_event (fun raw => raw.2.2.1=0 ∧ event (rawDraw raw).1)]
+  change Pr[fun raw => (rawDraw raw).2=0 ∧ event (rawDraw raw).1 | _]=_
+  rw [raw_draw_event (fun draw => draw.2=0 ∧ event draw.1),gated_event_probability]
 
 noncomputable def rawAtEventEquiv (index : Address) (event : GatedDraw → Prop) :
     {raw : RawRecord // raw.1.1=index ∧ event (rawDraw raw)} ≃
@@ -59,11 +58,11 @@ theorem raw_at_draw_event (index : Address) (event : GatedDraw → Prop) :
 
 theorem digest_at_gated_event_probability (index : Address) (event : CoordinateDraw → Prop) :
     Pr[fun output => (digestRecord output).1.1=index ∧
-      (digestRecord output).2.2.1.val<135 ∧ event (rawDraw (digestRecord output)).1 |
+      (digestRecord output).2.2.1=0 ∧ event (rawDraw (digestRecord output)).1 |
       ($ᵗ BitVec 256 : ProbComp (BitVec 256))] =
-      ((Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/(1024/135))/2^31 := by
-  rw [digest_event (fun raw => raw.1.1=index ∧ raw.2.2.1.val<135 ∧ event (rawDraw raw).1)]
-  change Pr[fun raw => raw.1.1=index ∧ (rawDraw raw).2.val<135 ∧ event (rawDraw raw).1 | _]=_
-  rw [raw_at_draw_event index (fun draw => draw.2.val<135 ∧ event draw.1),gated_event_probability]
+      ((Pr[event | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/8)/2^31 := by
+  rw [digest_event (fun raw => raw.1.1=index ∧ raw.2.2.1=0 ∧ event (rawDraw raw).1)]
+  change Pr[fun raw => raw.1.1=index ∧ (rawDraw raw).2=0 ∧ event (rawDraw raw).1 | _]=_
+  rw [raw_at_draw_event index (fun draw => draw.2=0 ∧ event draw.1),gated_event_probability]
 
 end SigGolfResearch.Gate6

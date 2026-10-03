@@ -1913,7 +1913,7 @@ def CounterResult (lay : Layer) (out : Option (BitVec 32 × List Nat)) : Prop :=
   ∀ counter digits,out=some (counter,digits) →
     digits.length=chainCount lay ∧ digits.sum=target lay ∧ ValidDigits lay digits
 
-theorem bound_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest) :
+theorem bound_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
     ∀ fuel counter,CBound (CounterResult lay) fuel (counterSearch lay tree leaf message counter fuel) := by
   intro fuel
   induction fuel with
@@ -2004,7 +2004,7 @@ theorem bound_signLayers (cache : Cache) (index : Nat) :
             refine (bound_buildTree (Fin.ofNat 4 n) _ _ digits hd.2.2).bind'
               (l := n*counterLimit+layerFixedCost n) (fun result _ => ?_)
               (by simp only [layerFixedCost,hn,ite_false];omega)
-            refine (ih ((result.1.getD (height (Fin.ofNat 4 n)) []).getD 0 0)).bind'
+            refine (ih _).bind'
               (l := 0) (fun previous _ => ?_) (by omega)
             cases previous <;> exact .pure _ 0 trivial
 
@@ -2035,7 +2035,7 @@ theorem bound_signPayload (cache : Cache) (message : Message) :
         exact .pure _ 0 (by simp [hstate])
       · refine (bound_forestPk _ state.2.2 hstate).bind' (l := 85922+4*counterLimit)
           (fun root _ => ?_) (by omega)
-        refine (bound_signLayers cache _ 4 root).bind' (l := 0) (fun layers _ => ?_)
+        refine (bound_signLayers cache _ 4 (root,0,0)).bind' (l := 0) (fun layers _ => ?_)
           (by rw [layerFixedCost_four];omega)
         cases layers <;> exact .pure _ 0 trivial
 
@@ -2069,7 +2069,7 @@ set_option linter.unusedSimpArgs false
 
 abbrev Answers := QueryImpl T3.Spec Id
 
-theorem counterSearch_some (answers : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest) :
+theorem counterSearch_some (answers : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
     ∀ fuel counter found digits,counter+fuel ≤ 2^32 →
       evalWithAnswerFn answers (counterSearch lay tree leaf message counter fuel)=some (found,digits) →
       counter ≤ found.toNat ∧ found.toNat < counter+fuel ∧
@@ -2127,6 +2127,50 @@ theorem digestSearch_some (answers : Answers) (rho : Digest) (message : Message)
   obtain ⟨hlo,hhi,houtput,hgood⟩ := digestSearch_some_good answers rho message fuel counter found output hlimit he
   exact ⟨hlo,hhi,houtput,(show admissible (selections _) = true ∧ digestGate _ = true by simpa only [digestAdmissible, Bool.and_eq_true] using hgood).1⟩
 
+theorem finRange_split {n : Nat} (hn : 0 < n) :
+    List.finRange n = (List.finRange (n-1)).map (Fin.castLE (Nat.sub_le n 1)) ++
+      [⟨n-1,Nat.sub_lt hn Nat.one_pos⟩] := by
+  apply List.ext_getElem
+  · simp only [List.length_finRange,List.length_append,List.length_map,List.length_singleton]
+    omega
+  · intro i h1 h2
+    simp only [List.length_finRange] at h1
+    rw [List.getElem_finRange]
+    by_cases hi : i < n-1
+    · rw [List.getElem_append_left (by simpa using hi)]
+      simp [Fin.ext_iff]
+    · rw [List.getElem_append_right (by simp; omega)]
+      simp [Fin.ext_iff]
+      omega
+
+/-- `recoverLayer` is `recoverPair` followed by the root fold it leaves out. -/
+theorem recoverLayer_eq_pair (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
+    recoverLayer sig index lay digits = recoverPair sig index lay digits >>= rootHash index lay := by
+  unfold recoverLayer recoverPair rootHash
+  simp only [bind_assoc]
+  refine bind_congr fun ends => bind_congr fun value => ?_
+  conv_lhs => rw [finRange_split (height_pos lay),List.foldlM_append,List.foldlM_map]
+  simp only [bind_assoc,List.foldlM_cons,List.foldlM_nil,bind_pure]
+  refine bind_congr fun node => ?_
+  unfold pairOf
+  split <;> rfl
+
+theorem eval_recoverNext (answers : Answers) (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
+    evalWithAnswerFn answers (recoverNext sig index n lay digits) =
+      if n=0 then (evalWithAnswerFn answers (rootHash index lay
+        (evalWithAnswerFn answers (recoverPair sig index lay digits))),0,0)
+      else evalWithAnswerFn answers (recoverPair sig index lay digits) := by
+  by_cases h : n=0
+  · simp only [recoverNext,h,if_true,evalWithAnswerFn_map,recoverLayer_eq_pair,evalWithAnswerFn_bind]
+  · simp only [recoverNext,h,if_false]
+
+theorem eval_expandNext (answers : Answers) (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
+    evalWithAnswerFn answers (expandNext sig index n lay digits) =
+      evalWithAnswerFn answers (recoverNext sig index n lay digits) := by
+  rw [eval_recoverNext]
+  unfold expandNext
+  simp only [evalWithAnswerFn_bind,evalWithAnswerFn_pure]
+
 theorem expandLayers_verified (answers : Answers) (sig : Signature) (index : Nat) :
     ∀ n,n ≤ 4 → ∀ value root counters,
       evalWithAnswerFn answers (expandLayers sig index n value)=some (root,counters) →
@@ -2150,7 +2194,7 @@ theorem expandLayers_verified (answers : Answers) (sig : Signature) (index : Nat
           obtain ⟨counter,digits⟩ := found
           simp only [hs,evalWithAnswerFn_bind] at he
           cases hr : evalWithAnswerFn answers (expandLayers sig index n
-            (evalWithAnswerFn answers (recoverLayer sig index (Fin.ofNat 4 n) digits))) with
+            (evalWithAnswerFn answers (expandNext sig index n (Fin.ofNat 4 n) digits))) with
           | none => simp only [hr,evalWithAnswerFn_pure,reduceCtorEq] at he
           | some previous =>
               obtain ⟨previousRoot,previousCounters⟩ := previous
@@ -2171,9 +2215,10 @@ theorem expandLayers_verified (answers : Answers) (sig : Signature) (index : Nat
                 counterLimit 0 counter digits (by decide) hs
               have hnot : ¬counter.toNat ≥ counterLimit := by omega
               simp only [verifyLayers,hcounter,hnot,ite_false,evalWithAnswerFn_bind,hdecode,hw]
-              apply hverify w hw
-              intro lay hsmall
-              rw [hc lay (by omega),List.getD_append previousCounters [counter] 0 lay.val (by omega)]
+              have hv := hverify w hw (fun lay hsmall => by
+                rw [hc lay (by omega),List.getD_append previousCounters [counter] 0 lay.val (by omega)])
+              rw [← eval_expandNext]
+              exact hv
 
 /-- The counter-recovering source expander is sound for every fixed oracle.
 This includes arbitrary compact signatures, not only signer outputs. -/
@@ -2191,7 +2236,7 @@ theorem expand_implies_verify (answers : Answers) (message : Message) (pk : Dige
       | none => simp only [hf,evalWithAnswerFn_pure,reduceCtorEq] at he
       | some forest =>
           simp only [hf,evalWithAnswerFn_bind] at he
-          cases hl : evalWithAnswerFn answers (expandLayers sig (output.toNat%2^31) 4 forest) with
+          cases hl : evalWithAnswerFn answers (expandLayers sig (output.toNat%2^31) 4 (forest,0,0)) with
           | none => simp only [hl,evalWithAnswerFn_pure,reduceCtorEq] at he
           | some layers =>
               obtain ⟨root,counters⟩ := layers
@@ -2206,7 +2251,7 @@ theorem expand_implies_verify (answers : Answers) (message : Message) (pk : Dige
                   attemptLimit 0 counter output (by decide) hd
                 have hnot : ¬counter.toNat ≥ attemptLimit := by omega
                 have hverified := (expandLayers_verified answers sig (output.toNat%2^31) 4
-                  (by decide) forest root counters hl).2
+                  (by decide) (forest,0,0) root counters hl).2
                   ⟨sig,counter,fun lay => counters.getD lay.val 0⟩ rfl (fun _ _ => rfl)
                 simp only [verify,hnot,ite_false,evalWithAnswerFn_bind,houtput,hadm,
                   Bool.not_true,Bool.false_eq_true,hf,hverified,evalWithAnswerFn_pure,hroot,beq_self_eq_true]
@@ -2226,7 +2271,7 @@ theorem realized_expand_implies_verify (answers : QueryImpl SphincsSecurity.Orac
 
 /-- Exhaustion means every counter in the searched interval failed the exact
 source decoder. There is no probabilistic or independence assumption here. -/
-theorem counterSearch_none_iff (answers : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest) :
+theorem counterSearch_none_iff (answers : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
     ∀ fuel counter,
       evalWithAnswerFn answers (counterSearch lay tree leaf message counter fuel)=none ↔
       ∀ offset,offset < fuel → decode lay (evalWithAnswerFn answers
@@ -2908,11 +2953,60 @@ theorem bound_recoverLayer (sig : Signature) (index : Nat) (lay : Layer) (digits
     simp only [recoverLayerCost]
     omega
 
+def recoverPairCost (lay : Layer) : Nat := capacity lay-target lay+leafHashCost lay+(height lay-1)
+
+theorem recoverPairCost_succ (lay : Layer) : recoverPairCost lay+1=recoverLayerCost lay := by
+  have := height_pos lay
+  simp only [recoverPairCost,recoverLayerCost]
+  omega
+
+theorem bound_recoverPair (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat)
+    (hd : ValidDigits lay digits) (hlen : digits.length=chainCount lay) (hsum : digits.sum=target lay) :
+    CBound (fun _ => True) (recoverPairCost lay) (recoverPair sig index lay digits) := by
+  unfold recoverPair
+  dsimp only
+  refine (Bound.mapM_list (P := GoodQuery) (List.finRange (chainCount lay)) _
+    (fun i => maxDigit lay i.val-digits.getD i.val 0) (fun i _ => bound_chain _ _ _ _ _ _ _)).bind'
+    (l := leafHashCost lay+(height lay-1)) (fun ends hends => ?_) ?_
+  · refine (bound_leafHash lay _ _ ends (by simpa using hends)).bind (fun root _ => ?_)
+    refine (Bound.foldlM_list (P := GoodQuery) (List.finRange (height lay-1)) _
+      (fun _ _ => True) (fun _ => 1) root trivial (fun i hi value _ => ?_)).bind'
+      (l := 0) (fun _ _ => .pure _ 0 trivial) (by simp)
+    exact bound_nodeHash _ _ _ _ _ _
+  · rw [sum_finRange (chainCount lay) (fun i => maxDigit lay i-digits.getD i 0),
+      remaining_steps lay digits hd hlen hsum]
+    simp only [recoverPairCost]
+    omega
+
+theorem bound_rootHash (index : Nat) (lay : Layer) (pair : Digest × BitVec 96 × Digest) :
+    CBound (fun _ => True) 1 (rootHash index lay pair) := by
+  unfold rootHash
+  exact bound_nodeHash _ _ _ _ _ _
+
+theorem bound_expandNext (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat)
+    (hd : ValidDigits lay digits) (hlen : digits.length=chainCount lay) (hsum : digits.sum=target lay) :
+    CBound (fun _ => True) (recoverLayerCost lay) (expandNext sig index n lay digits) := by
+  unfold expandNext
+  refine (bound_recoverPair sig index lay digits hd hlen hsum).bind' (l := 1) (fun pair _ => ?_)
+    (by have := recoverPairCost_succ lay; omega)
+  exact (bound_rootHash index lay pair).bind' (l := 0) (fun _ _ => .pure _ 0 trivial) (by omega)
+
+theorem bound_recoverNext (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat)
+    (hd : ValidDigits lay digits) (hlen : digits.length=chainCount lay) (hsum : digits.sum=target lay) :
+    CBound (fun _ => True) (recoverLayerCost lay) (recoverNext sig index n lay digits) := by
+  unfold recoverNext
+  split
+  · rw [map_eq_bind_pure_comp]
+    exact (bound_recoverLayer sig index lay digits hd hlen hsum).bind' (l := 0)
+      (fun _ _ => .pure _ 0 trivial) (by omega)
+  · exact (bound_recoverPair sig index lay digits hd hlen hsum).mono_k
+      (by have := recoverPairCost_succ lay; omega)
+
 def recoveryLayersCost : Nat → Nat
   | 0 => 0
   | n+1 => recoverLayerCost (Fin.ofNat 4 n)+recoveryLayersCost n
 
-theorem recoveryLayersCost_four : recoveryLayersCost 4=483 := by decide +kernel
+theorem recoveryLayersCost_four : recoveryLayersCost 4=484 := by decide +kernel
 
 theorem bound_verifyLayers (w : Witness) (index : Nat) :
     ∀ n root,CBound (fun _ => True) (n+recoveryLayersCost n) (verifyLayers w index n root) := by
@@ -2933,9 +3027,9 @@ theorem bound_verifyLayers (w : Witness) (index : Nat) :
         cases hd : decode (Fin.ofNat 4 n) answer with
         | none => exact .pure _ _ trivial
         | some digits =>
-            exact (bound_recoverLayer w.signature index (Fin.ofNat 4 n) digits
+            exact (bound_recoverNext w.signature index n (Fin.ofNat 4 n) digits
               (validDigits_decode hd) (decode_length_sum hd).1 (decode_length_sum hd).2).bind'
-              (l := n+recoveryLayersCost n) (fun value _ => ih value) (by omega)
+              (l := n+recoveryLayersCost n) (fun next _ => ih next) (by omega)
 
 theorem bound_expandLayers (sig : Signature) (index : Nat) :
     ∀ n root,CBound (fun _ => True) (n*counterLimit+recoveryLayersCost n) (expandLayers sig index n root) := by
@@ -2954,9 +3048,9 @@ theorem bound_expandLayers (sig : Signature) (index : Nat) :
       | some pair =>
           obtain ⟨counter,digits⟩ := pair
           have hd := hf counter digits rfl
-          refine (bound_recoverLayer sig index (Fin.ofNat 4 n) digits hd.2.2 hd.1 hd.2.1).bind'
-            (l := n*counterLimit+recoveryLayersCost n) (fun value _ => ?_) (by omega)
-          refine (ih value).bind' (l := 0) (fun result _ => ?_) (by omega)
+          refine (bound_expandNext sig index n (Fin.ofNat 4 n) digits hd.2.2 hd.1 hd.2.1).bind'
+            (l := n*counterLimit+recoveryLayersCost n) (fun next _ => ?_) (by omega)
+          refine (ih _).bind' (l := 0) (fun result _ => ?_) (by omega)
           cases result <;> exact .pure _ 0 trivial
 
 def recoverOuter (sig : Signature) (index coord bucket : Nat) (initial : Option (Digest × Nat)) :
@@ -3105,7 +3199,7 @@ theorem bound_verify (message : Message) (pk : Digest) (w : Witness) :
       cases forest with
       | none => exact .pure _ _ trivial
       | some forest =>
-          refine (bound_verifyLayers w (output.toNat%2^31) 4 forest).bind'
+          refine (bound_verifyLayers w (output.toNat%2^31) 4 (forest,0,0)).bind'
             (l := 0) (fun root _ => ?_) (by rw [recoveryLayersCost_four]; decide)
           cases root <;> exact .pure _ 0 trivial
 
@@ -3127,12 +3221,12 @@ theorem bound_expand (message : Message) (pk : Digest) (sig : Signature) :
       have hadm := hf counter output rfl
       dsimp only
       refine ((bound_recoverFts sig (output.toNat%2^31) (selections output)).mono_k
-        (forestRecoveryCost_le output hadm)).bind' (l := 4*counterLimit+483)
+        (forestRecoveryCost_le output hadm)).bind' (l := 4*counterLimit+484)
         (fun forest _ => ?_) (by omega)
       cases forest with
       | none => exact .pure _ _ trivial
       | some forest =>
-          refine (bound_expandLayers sig (output.toNat%2^31) 4 forest).bind' (l := 0)
+          refine (bound_expandLayers sig (output.toNat%2^31) 4 (forest,0,0)).bind' (l := 0)
             (fun layers _ => ?_) (by rw [recoveryLayersCost_four])
           cases layers with
           | none => exact .pure _ 0 trivial
@@ -3177,7 +3271,7 @@ theorem public_randomOracle {α : Type} (secret : BitVec 256) (program : RawM α
   simp only [QueryImpl.compose,publicHandler,simulateQ_spec_query,realHandler,SphincsSecurity.romImpl]
   rfl
 
-def encodingTrial (lay : Layer) (tree leaf : Nat) (message : Digest) (counter : Nat) : HashInput :=
+def encodingTrial (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter : Nat) : HashInput :=
   pad64 (encodingInput lay tree leaf message (BitVec.ofNat 32 counter))
 
 def digestTrial (rho : Digest) (message : Message) (counter : Nat) : HashInput :=
@@ -3189,7 +3283,7 @@ def encodingDecode (lay : Layer) (answer : HashOutput) : Option (List Nat) :=
 def digestDecode (answer : HashOutput) : Option HashOutput :=
   if digestAdmissible answer then some answer else none
 
-theorem counterSearch_public (lay : Layer) (tree leaf : Nat) (message : Digest) :
+theorem counterSearch_public (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
     ∀ fuel counter,counterSearch lay tree leaf message counter fuel=
       publicProgram (SphincsSecurity.Completeness.searchLoop
         (encodingTrial lay tree leaf message) (encodingDecode lay)
@@ -3230,11 +3324,11 @@ theorem pad64_inj_of_length {left right : HashInput} (hlen : left.length=right.l
     (he : pad64 left=pad64 right) : left=right :=
   (List.append_inj he hlen).1
 
-theorem encodingTrial_injective (lay : Layer) (tree leaf : Nat) (message : Digest)
+theorem encodingTrial_injective (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest)
     {left right : Nat} (hl : left < 2^32) (hr : right < 2^32)
     (he : encodingTrial lay tree leaf message left=encodingTrial lay tree leaf message right) : left=right := by
   have he := pad64_inj_of_length (by simp [encodingInput,SphincsSecurity.bytesLE_length]) he
-  simp only [encodingInput,List.append_cancel_left_eq] at he
+  simp only [encodingInput,List.append_assoc,List.append_cancel_left_eq,List.append_cancel_right_eq] at he
   have hc := congrArg BitVec.toNat (SphincsSecurity.bytesLE_injective he)
   simpa only [BitVec.toNat_ofNat,Nat.mod_eq_of_lt hl,Nat.mod_eq_of_lt hr] using hc
 
@@ -3247,7 +3341,7 @@ theorem digestTrial_injective (rho : Digest) (message : Message)
 
 /-- Exact source counter search exhaustion is bounded by the fresh-answer
 rejection mass to the number of trials. Freshness is an explicit obligation. -/
-theorem counterSearch_failure (secret : BitVec 256) (lay : Layer) (tree leaf : Nat) (message : Digest)
+theorem counterSearch_failure (secret : BitVec 256) (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest)
     (fuel counter : Nat) (hlimit : counter+fuel ≤ 2^32)
     (cache : QueryCache SphincsSecurity.HashSpec)
     (hfresh : ∀ c,counter ≤ c → c < 2^32 → cache (encodingTrial lay tree leaf message c)=none) :
@@ -3490,7 +3584,7 @@ theorem V_publicSearch {β γ : Type} (secret : BitVec 256) (z b : ENNReal) (hb 
         rw [← hrho]
         exact hstep
 
-theorem encodingTrial_length (lay : Layer) (tree leaf : Nat) (message : Digest) (counter : Nat) :
+theorem encodingTrial_length (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter : Nat) :
     (encodingTrial lay tree leaf message counter).length=64 := by
   simp [encodingTrial,encodingInput,Cost.pad64_length,SphincsSecurity.bytesLE_length]
 
@@ -3499,7 +3593,7 @@ theorem digestTrial_length (rho : Digest) (message : Message) (counter : Nat) :
   simp [digestTrial,digestInput,Cost.pad64_length,SphincsSecurity.bytesLE_length]
 
 theorem V_counterSearch (secret : BitVec 256) (z b : ENNReal) (hb : 1 ≤ b)
-    (lay : Layer) (tree leaf : Nat) (message : Digest)
+    (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest)
     (hstep : z*(failMass (encodingDecode lay)*b+(1-failMass (encodingDecode lay))) ≤ b)
     (fuel counter : Nat) (hlimit : counter+fuel ≤ 2^32) (cache : RCache)
     (hfresh : ∀ c,counter ≤ c → c < 2^32 → cache (encodingTrial lay tree leaf message c)=none) :
@@ -3991,6 +4085,38 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 set_option linter.unusedSimpArgs false
 
+theorem eval_recoverPair_honest (answers : Answers) (sig : Signature) (index : Nat)
+    (lay : Layer) (digits : List Nat) (hvalid : Cost.ValidDigits lay digits)
+    (hvalues : ∀ i,(sig.layers lay).values i=
+      leafValue answers lay (route index lay).2 (route index lay).1 digits i.val)
+    (hpath : ∀ j,(sig.layers lay).path j=treeValue (builtTree answers lay (route index lay).2)
+      j.val ((route index lay).1/2^j.val ^^^ 1)) :
+    evalWithAnswerFn answers (recoverPair sig index lay digits)=
+      (treeValue (builtTree answers lay (route index lay).2) (height lay-1) 0,0,
+        treeValue (builtTree answers lay (route index lay).2) (height lay-1) 1) := by
+  have hh := height_pos lay
+  have hleaf := route_leaf_bound index lay
+  unfold recoverPair
+  simp only [evalWithAnswerFn_bind,evalWithAnswerFn_pure]
+  rw [eval_chains_honest answers lay _ _ digits hvalid _ hvalues]
+  have hp := eval_merklePath answers 3 lay.val (route index lay).2 (height lay) 0 (height lay-1)
+    (route index lay).1 (builtTree answers lay (route index lay).2)
+    ((List.range (2^height lay)).map (leafRoot answers lay (route index lay).2))
+    (builtTree_correct answers lay (route index lay).2) (by omega)
+    (by simpa using hleaf) (fun j => (sig.layers lay).path (Fin.castLE (Nat.sub_le _ _) j))
+    (fun j => by simpa using hpath (Fin.castLE (Nat.sub_le _ _) j))
+  rw [builtTree_leaf answers lay _ _ hleaf] at hp
+  simp only [Nat.zero_add,Nat.sub_sub,leafRoot] at hp
+  simp only [Nat.sub_sub]
+  rw [hp, hpath]
+  have hb : (route index lay).1/2^(height lay-1) < 2 := by
+    rw [Nat.div_lt_iff_lt_mul (by positivity)]
+    calc (route index lay).1 < 2^height lay := hleaf
+      _ = 2*2^(height lay-1) := by rw [← pow_succ']; congr 1; omega
+  unfold pairOf
+  generalize (route index lay).1/2^(height lay-1) = q at hb ⊢
+  interval_cases q <;> rfl
+
 theorem readLE_nat_bytes (value start n : Nat) :
     readLE ((List.range' start n).map (fun i => UInt8.ofNat (value/256^i%256)))=
       value/256^start%256^n := by
@@ -4286,6 +4412,21 @@ theorem eval_signTop_honest (answers : Answers) (cache : Cache) (leaf : Nat) (di
     eval_buildLeaf_values answers 0 0 leaf digits hvalid true,eval_topPath_honest answers cache leaf hcache hleaf]
   rfl
 
+theorem recoverPair_honestPieces (answers : Answers) (sig : Signature) (index : Nat) (lay : Layer)
+    (digits : List Nat) (hvalid : ValidDigits lay digits)
+    (hlayer : sig.layers lay=piecesSignature lay
+      (honestPieces answers lay (route index lay).2 (route index lay).1 digits)) :
+    evalWithAnswerFn answers (recoverPair sig index lay digits)=
+      (treeValue (builtTree answers lay (route index lay).2) (height lay-1) 0,0,
+        treeValue (builtTree answers lay (route index lay).2) (height lay-1) 1) := by
+  apply eval_recoverPair_honest answers sig index lay digits hvalid
+  · intro i
+    rw [hlayer]
+    simp [piecesSignature,honestPieces,List.getD_eq_getElem,i.isLt]
+  · intro j
+    rw [hlayer]
+    simp [piecesSignature,honestPieces,List.getD_eq_getElem,j.isLt]
+
 theorem recoverLayer_honestPieces (answers : Answers) (sig : Signature) (index : Nat) (lay : Layer)
     (digits : List Nat) (hvalid : ValidDigits lay digits)
     (hlayer : sig.layers lay=piecesSignature lay
@@ -4332,8 +4473,8 @@ theorem PiecesAgree.last {sig : Signature} {previous : List Pieces} {part : Piec
   rw [h _ (by rw [hv];omega),hv,List.getD_append_right previous [part] ([],[]) n (by omega),hlen]
   simp
 
-def layerResultRoot (answers : Answers) (n : Nat) (value : Digest) : Digest :=
-  if n=0 then value else treeValue (builtTree answers 0 0) 12 0
+def layerResultRoot (answers : Answers) (n : Nat) (value : Digest × BitVec 96 × Digest) : Digest :=
+  if n=0 then value.1 else treeValue (builtTree answers 0 0) 12 0
 
 /-- Every successful source layer-signing run can be replayed by the actual
 counter-recovering expander using the emitted layer pieces. -/
@@ -4376,18 +4517,22 @@ theorem signLayers_expandLayers (answers : Answers) (cache : Cache) (index : Nat
             rw [eval_signTop_honest answers cache _ digits hcache (route_leaf_bound index 0) hvalid] at hp
             have ht : (route index 0).2=0 := route_top_tree index hindex
             have hr := recoverLayer_honestPieces answers sig index 0 digits hvalid (by simpa only [ht] using hp)
+            rw [recoverLayer_eq_pair, evalWithAnswerFn_bind] at hr
             refine ⟨[counter],rfl,?_⟩
-            simp only [expandLayers,evalWithAnswerFn_bind,hs,hr,evalWithAnswerFn_pure,ht,layerResultRoot,
-              Nat.one_ne_zero,if_false,List.nil_append]
-            change some (evalWithAnswerFn answers (recoverLayer sig index 0 digits),[counter])=
-              some (treeValue (builtTree answers 0 0) 12 0,[counter])
-            rw [hr,ht]
+            simp only [expandLayers,expandNext,evalWithAnswerFn_bind,hs,evalWithAnswerFn_pure,layerResultRoot,
+              Nat.one_ne_zero,if_false,if_true,↓reduceIte,List.nil_append]
+            have hr' : evalWithAnswerFn answers (rootHash index (Fin.ofNat 4 0)
+                (evalWithAnswerFn answers (recoverPair sig index (Fin.ofNat 4 0) digits))) =
+                treeValue (builtTree answers 0 (route index 0).2) (height 0) 0 := hr
+            rw [hr',ht]
             rfl
           · simp only [hn0,ite_false,evalWithAnswerFn_bind,
               eval_buildTree_result answers (Fin.ofNat 4 n) _ _ digits hvalid (route_leaf_bound index _)] at he
             cases hp : evalWithAnswerFn answers (signLayers cache index n
-              (((builtTree answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
-                (height (Fin.ofNat 4 n)) []).getD 0 0)) with
+              ((((builtTree answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
+                (height (Fin.ofNat 4 n)-1) []).getD 0 0),0,
+               (((builtTree answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
+                (height (Fin.ofNat 4 n)-1) []).getD 1 0))) with
             | none => simp only [hp,evalWithAnswerFn_pure,reduceCtorEq] at he
             | some previous =>
                 simp only [hp,evalWithAnswerFn_pure,Option.some.injEq] at he
@@ -4398,12 +4543,15 @@ theorem signLayers_expandLayers (answers : Answers) (cache : Cache) (index : Nat
                 change PiecesAgree sig (previous++[honestPieces answers (Fin.ofNat 4 n)
                   (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 digits]) (n+1) at hagree
                 have hlayer := PiecesAgree.last hlen (by omega) hagree
-                have hrecover := recoverLayer_honestPieces answers sig index (Fin.ofNat 4 n) digits hvalid hlayer
+                have hrecover := recoverPair_honestPieces answers sig index (Fin.ofNat 4 n) digits hvalid hlayer
                 obtain ⟨counters,hc,hreplay⟩ := hprevious sig (PiecesAgree.prefix hlen hagree)
                 simp only [treeValue] at hrecover
                 refine ⟨counters++[counter],by simp [hc],?_⟩
-                simp only [expandLayers,evalWithAnswerFn_bind,hs,hrecover,hreplay,evalWithAnswerFn_pure,
-                  layerResultRoot,hn0,ite_false,Nat.add_eq_zero_iff,one_ne_zero,and_false]
+                simp only [expandLayers,expandNext,evalWithAnswerFn_bind,hs,hrecover,evalWithAnswerFn_pure,hn0,
+                  ite_false]
+                simp only [hreplay,layerResultRoot,hn0,ite_false,Nat.add_eq_zero_iff,one_ne_zero,and_false,
+                  evalWithAnswerFn_pure]
+                all_goals rfl
 
 end SigGolfCandidate.T3.Correctness
 
@@ -4602,7 +4750,7 @@ theorem signPayload_forestRows (cache : Cache) (message : Message) : signPayload
     let index := output.toNat%2^31
     let state ← forestRows index (selections output)
     let root ← forestPk index state.2.2
-    let some layers ← signLayers cache index 4 root | pure none
+    let some layers ← signLayers cache index 4 (root,0,0) | pure none
     pure (some ⟨rho,fun i => state.1.getD i.val 0,fun i => state.2.1.getD i.val 0,
       fun lay => piecesSignature lay (layers.getD lay.val ([],[]))⟩)) := rfl
 
@@ -4786,7 +4934,7 @@ theorem signPayload_expands (answers : Answers) (cache : Cache) (message : Messa
       simp only [hd,evalWithAnswerFn_bind,eval_forestRows] at he
       cases hl : evalWithAnswerFn answers (signLayers cache (output.toNat%2^31) 4
         (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
-          (forestRoots answers (output.toNat%2^31) 7)))) with
+          (forestRoots answers (output.toNat%2^31) 7)),0,0)) with
       | none => simp only [hl,evalWithAnswerFn_pure,reduceCtorEq] at he
       | some pieces =>
           simp only [hl,evalWithAnswerFn_pure,Option.some.injEq] at he

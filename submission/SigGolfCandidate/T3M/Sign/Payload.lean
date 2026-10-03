@@ -23,7 +23,7 @@ theorem payloadRest_eq (cache : Cache) (rho : Digest) (N : HashOutput) :
     payloadRest cache rho N = (do
       let state ← (List.range 7).foldlM (ftsBody (selections N) (N.toNat % 2 ^ 31)) ([], [], [])
       let root ← forestPk (N.toNat % 2 ^ 31) state.2.2
-      let some layers ← signLayers cache (N.toNat % 2 ^ 31) 4 root | pure none
+      let some layers ← signLayers cache (N.toNat % 2 ^ 31) 4 (root, 0, 0) | pure none
       pure (some ⟨rho, fun i => state.1.getD i.val 0, fun i => state.2.1.getD i.val 0,
         fun lay => piecesSignature lay (layers.getD lay.val ([], []))⟩)) := rfl
 
@@ -192,7 +192,7 @@ theorem payloadRest_tbsim (hK : CounterSearchSpec sk) (hL0 : L0Spec sk cache) {m
   have hr3 : RegsExcept u t3 ([.x6] ++ [.x6, .x7, .x10, .x11, .x12, .x28] ++ [] ++
       [.x1, .x2, .x6, .x7, .x8, .x9, .x14, .x15, .x16, .x17, .x18, .x26, .x27, .x28, .x29, .x30, .x31]) :=
     ((u1r.trans u2r).trans (fun r _ => getReg_writeHash u2 a r)).trans t3r
-  have hentry : LayEntry sk cache 3 (N.toNat % 2 ^ 31) (a.extractLsb' 0 128) t3 :=
+  have hentry : LayEntry sk cache 3 (N.toNat % 2 ^ 31) (a.extractLsb' 0 128, 0, 0) t3 :=
     { pc := t3pc
       x1 := t3x1
       x2 := t3x2
@@ -206,13 +206,22 @@ theorem payloadRest_tbsim (hK : CounterSearchSpec sk) (hL0 : L0Spec sk cache) {m
       x26 := t3x26
       x27 := t3x27
       x31 := t3x31
-      base := hu.base.frame fu3 hr3 (by decide) (fun A _ hb hw => by
+      base := (hu.base.frame fu3 hr3 (by decide) (fun A _ hb hw => by
         unfold BaseA NeverW Search.TOP_DATA at hb
-        sgo)
+        sgo)).toBaseL
       hlay := by decide
       hidx := hidx
       idx := by rw [fu3.get (by sgo) (by sgo)]; exact hidxu
       enc := ⟨by rw [t3m0]; exact hfo.1, by rw [t3m8]; exact hfo.2⟩
+      encR := by
+        have hb3 := hu.base.frame fu3 hr3 (by decide) (fun A _ hb hw => by
+          unfold BaseA NeverW Search.TOP_DATA at hb
+          sgo)
+        exact ⟨by rw [hb3.zero _ (by sgo) (by unfold NeverW; simp)]
+                  show (0 : BitVec 64) = BitVec.extractLsb' 0 64 (0 : BitVec 128); decide,
+          by rw [hb3.zero _ (by sgo) (by unfold NeverW; simp)]
+             show (0 : BitVec 64) = BitVec.extractLsb' 64 64 (0 : BitVec 128); decide⟩
+      pad0 := rfl
       c32 := by
         rw [fu3.get (by sgo) (by sgo), hu.frame.get (by sgo) (by unfold CoordW FtsScr FlW; sgo),
           f0.get (by sgo) (by sgo), h.frame.get (by sgo) (by unfold FrontW; sgo),

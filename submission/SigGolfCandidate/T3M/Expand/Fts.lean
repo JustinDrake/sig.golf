@@ -123,7 +123,7 @@ theorem expandN_eq (m : T3.Message) (pk : Digest) (sig : Signature) : expandN m 
       | some (roots, used) =>
         if !tailZero sig used then pure none else
         forestPk (output.toNat % 2 ^ 31) roots >>= fun root =>
-        T3.expandLayers sig (output.toNat % 2 ^ 31) 4 root >>= fun r' => match r' with
+        T3.expandLayers sig (output.toNat % 2 ^ 31) 4 (root, 0, 0) >>= fun r' => match r' with
         | none => pure none
         | some (root', counters) => if root' ≠ pk then pure none else
             pure (some (output, ⟨sig, counter, fun lay => counters.getD lay.val 0⟩)) := by

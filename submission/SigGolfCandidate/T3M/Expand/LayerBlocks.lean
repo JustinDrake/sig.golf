@@ -543,18 +543,21 @@ theorem rl1139_spec (hpc : s.pc = pcOf 1139) (P M j : Nat) (hM : 64 ≤ M) (hM' 
   · ex_regs eblk_1139.res
   · intro A _ _; simp [eblk_1139.res, rv_simp]
 
-/-- `rl_mk_done`: the root (`NOUT`) to `ENC`, return. -/
-theorem rl1143_spec (hpc : s.pc = pcOf 1143) (ret : Nat) (h1 : s.getReg .x1 = pcOf ret) :
-    ∃ t, Steps image s 9 9 t ∧ t.pc = pcOf ret ∧
-      t.getMem (BitVec.ofNat 64 ENC) = s.getMem (BitVec.ofNat 64 NOUT) ∧
-      t.getMem (BitVec.ofNat 64 (ENC + 8)) = s.getMem (BitVec.ofNat 64 (NOUT + 8)) ∧
+/-- `rl_mk_done`: the left child of the top node block (`NODE`) to `ENC`, on to the detour. -/
+theorem rl1143_spec (hpc : s.pc = pcOf 1143) :
+    ∃ t, Steps image s 9 9 t ∧ t.pc = pcOf 1247 ∧
+      t.getReg .x29 = BitVec.ofNat 64 NODE ∧ t.getReg .x30 = BitVec.ofNat 64 ENC ∧
+      t.getMem (BitVec.ofNat 64 ENC) = s.getMem (BitVec.ofNat 64 NODE) ∧
+      t.getMem (BitVec.ofNat 64 (ENC + 8)) = s.getMem (BitVec.ofNat 64 (NODE + 8)) ∧
       RegsExcept s t [.x6, .x7, .x29, .x30] ∧ Frame s t (fun A => A = ENC ∨ A = ENC + 8) := by
   refine ⟨_, symRun_sound eblk_1143 codeAt_1143 s hpc (by simp [eblk_1143.res, rv_simp]),
-    ?_, ?_, ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, eblk_1143.res, rv_simp, h1, pcOf_and_max]
-  · simp only [Result.toState_getMem, eblk_1143.res, ENC, NOUT]
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp [Result.toState_pc, eblk_1143.res, E.eval]
+  · simp [eblk_1143.res, rv_simp]
+  · simp [eblk_1143.res, rv_simp]
+  · simp only [Result.toState_getMem, eblk_1143.res, ENC, NODE]
     t3n []
-  · simp only [Result.toState_getMem, eblk_1143.res, ENC, NOUT]
+  · simp only [Result.toState_getMem, eblk_1143.res, ENC, NODE]
     t3n []
   · ex_regs eblk_1143.res
   · intro A hA hn
@@ -562,6 +565,54 @@ theorem rl1143_spec (hpc : s.pc = pcOf 1143) (ret : Nat) (h1 : s.getReg .x1 = pc
     simp only [Result.toState_getMem, eblk_1143.res]
     t3n []
     rw [if_neg (by omega), if_neg (by omega)]
+
+/-- The detour (word 1247): the right child (`NODE + 48`) to `ENC + 48`, return. -/
+theorem rl1247_spec (hpc : s.pc = pcOf 1247) (ret : Nat) (h1 : s.getReg .x1 = pcOf ret)
+    (h29 : s.getReg .x29 = BitVec.ofNat 64 NODE) (h30 : s.getReg .x30 = BitVec.ofNat 64 ENC) :
+    ∃ t, Steps image s 5 5 t ∧ t.pc = pcOf ret ∧
+      t.getMem (BitVec.ofNat 64 (ENC + 48)) = s.getMem (BitVec.ofNat 64 (NODE + 48)) ∧
+      t.getMem (BitVec.ofNat 64 (ENC + 56)) = s.getMem (BitVec.ofNat 64 (NODE + 56)) ∧
+      RegsExcept s t [.x6, .x7] ∧ Frame s t (fun A => A = ENC + 48 ∨ A = ENC + 56) := by
+  have hobl : Oblig.all s eblk_1247.res.st.obl := by
+    simp only [eblk_1247.res]
+    t3n [h29, h30, NODE, ENC, h1]
+    all_goals first | decide | (refine ⟨?_, ?_⟩ <;> first | decide | trivial | omega) | trivial | omega | skip
+  refine ⟨_, symRun_sound eblk_1247 codeAt_1247 s hpc hobl, ?_, ?_, ?_, ?_, ?_⟩
+  · simp only [Result.toState_pc, eblk_1247.res, rv_simp, h1, pcOf_and_max]
+  · simp only [Result.toState_getMem, eblk_1247.res, ENC, NODE]; t3n [h29, h30, NODE, ENC]
+    repeat (first | rw [if_neg (by omega)] | rw [if_pos (by omega)])
+  · simp only [Result.toState_getMem, eblk_1247.res, ENC, NODE]; t3n [h29, h30, NODE, ENC]
+    repeat (first | rw [if_neg (by omega)] | rw [if_pos (by omega)])
+  · ex_regs eblk_1247.res
+  · intro A hA hn
+    simp only [ENC] at hn
+    simp only [Result.toState_getMem, eblk_1247.res]
+    t3n [h29, h30, NODE, ENC]
+    rw [if_neg (by omega), if_neg (by omega)]
+
+/-- `rl_mk_done` with the detour: the top node block's two children (`NODE`, `NODE + 48`) to `ENC`, `ENC + 48`,
+return; 14 cycles. -/
+theorem rl1143_full (hpc : s.pc = pcOf 1143) (ret : Nat) (h1 : s.getReg .x1 = pcOf ret) :
+    ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf ret ∧
+      t.getMem (BitVec.ofNat 64 ENC) = s.getMem (BitVec.ofNat 64 NODE) ∧
+      t.getMem (BitVec.ofNat 64 (ENC + 8)) = s.getMem (BitVec.ofNat 64 (NODE + 8)) ∧
+      t.getMem (BitVec.ofNat 64 (ENC + 48)) = s.getMem (BitVec.ofNat 64 (NODE + 48)) ∧
+      t.getMem (BitVec.ofNat 64 (ENC + 56)) = s.getMem (BitVec.ofNat 64 (NODE + 56)) ∧
+      RegsExcept s t [.x6, .x7, .x29, .x30] ∧
+      Frame s t (fun A => A = ENC ∨ A = ENC + 8 ∨ A = ENC + 48 ∨ A = ENC + 56) := by
+  obtain ⟨t1, st1, p1, x29, x30, m0, m8, r1, f1⟩ := rl1143_spec s hpc
+  obtain ⟨t2, st2, p2, m48, m56, r2, f2⟩ := rl1247_spec t1 p1 ret (by rw [r1.get (by decide), h1]) x29 x30
+  refine ⟨t2, st1.trans st2, p2, ?_, ?_, ?_, ?_, (r1.trans r2).mono (by decide), ?_⟩
+  · rw [f2.get (by decide) (by simp only [ENC]; omega), m0]
+  · rw [f2.get (by decide) (by simp only [ENC]; omega), m8]
+  · rw [m48, f1.get (by decide) (by simp only [ENC, NODE]; omega)]
+  · rw [m56, f1.get (by decide) (by simp only [ENC, NODE]; omega)]
+  · refine (f1.trans f2).mono (fun A _ h => ?_)
+    rcases h with (h | h) | (h | h)
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+    · exact Or.inr (Or.inr (Or.inl h))
+    · exact Or.inr (Or.inr (Or.inr h))
 
 end blocks
 

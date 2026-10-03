@@ -25,22 +25,27 @@ set_option linter.unusedSimpArgs false
 
 /-! ## The encoding block -/
 
-theorem pad64_encodingInput (lay : Layer) (tree leaf : Nat) (msg : Digest) (c : BitVec 32) :
-    T3.pad64 (T3.encodingInput lay tree leaf msg c) =
-      T3.encodingInput lay tree leaf msg c ++ List.replicate 28 0 := by
-  unfold T3.pad64
-  simp only [T3.encodingInput, List.length_append, SphincsSecurity.bytesLE_length]
+theorem pad64_encodingInput (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) (c : BitVec 32) :
+    T3.pad64 (T3.encodingInput lay tree leaf msg c) = T3.encodingInput lay tree leaf msg c :=
+  pad64_of_aligned _ (by simp [T3.encodingInput, SphincsSecurity.bytesLE_length])
 
-theorem wordsOf_encodingInput (lay : Layer) (tree leaf : Nat) (msg : Digest) (c : BitVec 32) :
+theorem bytesLE12_zero : SphincsSecurity.bytesLE 12 (0 : BitVec 96) = List.replicate 12 0 := by decide
+
+/-- The encoding block with a zero pad: `[L lo, L hi, T4, T4', ctr, 0, R lo, R hi]`. -/
+theorem wordsOf_encodingInput (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) (hp : msg.2.1 = 0)
+    (c : BitVec 32) :
     wordsOf (T3.pad64 (T3.encodingInput lay tree leaf msg c)) =
-      [msg.extractLsb' 0 64, msg.extractLsb' 64 64, BitVec.ofNat 64 (hdr0 4 lay.val tree 0),
-        BitVec.ofNat 64 (hdr1 tree leaf), BitVec.ofNat 64 c.toNat, 0, 0, 0] := by
+      [msg.1.extractLsb' 0 64, msg.1.extractLsb' 64 64, BitVec.ofNat 64 (hdr0 4 lay.val tree 0),
+        BitVec.ofNat 64 (hdr1 tree leaf), BitVec.ofNat 64 c.toNat, 0, msg.2.2.extractLsb' 0 64,
+        msg.2.2.extractLsb' 64 64] := by
   rw [pad64_encodingInput]
   unfold T3.encodingInput
-  have e : SphincsSecurity.bytesLE 16 msg ++ SphincsSecurity.bytesLE 16 (T3.header 4 lay.val tree 0 leaf) ++
-      SphincsSecurity.bytesLE 4 c ++ List.replicate 28 0 =
-      SphincsSecurity.bytesLE 16 msg ++ SphincsSecurity.bytesLE 16 (T3.header 4 lay.val tree 0 leaf) ++
-        ((SphincsSecurity.bytesLE 4 c ++ List.replicate 4 0) ++ List.replicate 24 0) := by
+  rw [hp, bytesLE12_zero]
+  have e : SphincsSecurity.bytesLE 16 msg.1 ++ SphincsSecurity.bytesLE 16 (T3.header 4 lay.val tree 0 leaf) ++
+      SphincsSecurity.bytesLE 4 c ++ List.replicate 12 0 ++ SphincsSecurity.bytesLE 16 msg.2.2 =
+      SphincsSecurity.bytesLE 16 msg.1 ++ SphincsSecurity.bytesLE 16 (T3.header 4 lay.val tree 0 leaf) ++
+        ((SphincsSecurity.bytesLE 4 c ++ List.replicate 4 0) ++ (List.replicate 8 0 ++
+          SphincsSecurity.bytesLE 16 msg.2.2)) := by
     simp only [List.append_assoc]
     rfl
   have hc : T3.readLE (SphincsSecurity.bytesLE 4 c ++ List.replicate 4 0) = c.toNat := by
@@ -49,15 +54,15 @@ theorem wordsOf_encodingInput (lay : Layer) (tree leaf : Nat) (msg : Digest) (c 
   rw [e, wordsOf_append _ _ (by simp only [List.length_append, SphincsSecurity.bytesLE_length]),
     wordsOf_append _ _ (by simp only [SphincsSecurity.bytesLE_length]), wordsOf_bytesLE16, wordsOf_header,
     wordsOf_append8 _ _ (by simp only [List.length_append, SphincsSecurity.bytesLE_length, List.length_replicate]),
-    hc, show (24 : Nat) = 8 * 3 by rfl, wordsOf_replicate_zero]
+    hc, wordsOf_append8 _ _ (by simp only [List.length_replicate]), readLE_replicate_zero, wordsOf_bytesLE16]
   rfl
 
-theorem encodingInput_length (lay : Layer) (tree leaf : Nat) (msg : Digest) (c : BitVec 32) :
+theorem encodingInput_length (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) (c : BitVec 32) :
     (T3.pad64 (T3.encodingInput lay tree leaf msg c)).length = 64 := by
   rw [pad64_encodingInput]
-  simp only [T3.encodingInput, List.length_append, SphincsSecurity.bytesLE_length, List.length_replicate]
+  simp only [T3.encodingInput, List.length_append, SphincsSecurity.bytesLE_length]
 
-theorem blocks_encodingInput (lay : Layer) (tree leaf : Nat) (msg : Digest) (c : BitVec 32) :
+theorem blocks_encodingInput (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) (c : BitVec 32) :
     (toQ (T3.pad64 (T3.encodingInput lay tree leaf msg c))).blocks = 1 := by
   have hl := encodingInput_length lay tree leaf msg c
   rw [blocks_toQ (by rw [Aligned, hl]; omega), hl]
@@ -83,7 +88,7 @@ structure CsArgs where
   lay : Layer
   tree : Nat
   leaf : Nat
-  msg : Digest
+  msg : (Digest × BitVec 96 × Digest)
   ret : Nat
 
 /-- Cycles of a failing trial: 201 (top), 158 (lower layers). -/
@@ -113,12 +118,13 @@ structure CsPre (b : Nat) (A : CsArgs) (s : MachineState) : Prop where
   x27 : s.getReg .x27 = BitVec.ofNat 64 (csN4 A.lay)
   htree : A.tree < 2 ^ 32
   hleaf : A.leaf < 2 ^ 32
-  m0 : s.getMem (BitVec.ofNat 64 ENC) = A.msg.extractLsb' 0 64
-  m8 : s.getMem (BitVec.ofNat 64 (ENC + 8)) = A.msg.extractLsb' 64 64
+  m0 : s.getMem (BitVec.ofNat 64 ENC) = A.msg.1.extractLsb' 0 64
+  m8 : s.getMem (BitVec.ofNat 64 (ENC + 8)) = A.msg.1.extractLsb' 64 64
   c32 : ∃ x < 2 ^ 32, s.getMem (BitVec.ofNat 64 (ENC + 32)) = BitVec.ofNat 64 x
   z40 : s.getMem (BitVec.ofNat 64 (ENC + 40)) = 0
-  z48 : s.getMem (BitVec.ofNat 64 (ENC + 48)) = 0
-  z56 : s.getMem (BitVec.ofNat 64 (ENC + 56)) = 0
+  r48 : s.getMem (BitVec.ofNat 64 (ENC + 48)) = A.msg.2.2.extractLsb' 0 64
+  r56 : s.getMem (BitVec.ofNat 64 (ENC + 56)) = A.msg.2.2.extractLsb' 64 64
+  hpad : A.msg.2.1 = 0
   table : TableOK s
 
 /-- The invariant at `cs_loop` (`b + 113`) before trial `i`. -/
@@ -301,13 +307,13 @@ theorem cs_answer {A : CsArgs} {s0 t : MachineState} {i : Nat} (hK : KernAt imag
     ?_, h12, hT⟩
   have hc : (BitVec.ofNat 32 i).toNat = i := by rw [BitVec.toNat_ofNat]; omega
   refine hashInput_toQ t2 _ 0 ENC (encodingInput_length _ _ _ _ _) h10 (by decide) (by decide) h11 (by decide) ?_
-  rw [readWords_eight, wordsOf_encodingInput, hc]
+  rw [readWords_eight, wordsOf_encodingInput _ _ _ _ hpre.hpad, hc]
   have nw : ∀ A, A = ENC ∨ A = ENC + 8 ∨ A = ENC + 40 ∨ A = ENC + 48 ∨ A = ENC + 56 → ¬ CsW A := by
     intro A hA; simp only [CsW, DigW, ENC, EOUT, DIGITS] at hA ⊢; omega
   rw [mem _ (by simp only [ENC]; omega) (nw _ (by omega)), mem _ (by simp only [ENC]; omega) (nw _ (by omega)),
     hT.h16, hT.h24, c32, mem _ (by simp only [ENC]; omega) (nw _ (by omega)),
     mem _ (by simp only [ENC]; omega) (nw _ (by omega)), mem _ (by simp only [ENC]; omega) (nw _ (by omega)),
-    hpre.m0, hpre.m8, hpre.z40, hpre.z48, hpre.z56]
+    hpre.m0, hpre.m8, hpre.z40, hpre.r48, hpre.r56]
 
 theorem TrialSt.hash {A : CsArgs} {s0 t2 : MachineState} {i : Nat} (hT : TrialSt b A s0 i t2)
     (h12 : t2.getReg .x12 = BitVec.ofNat 64 EOUT) (a : BitVec 256) : TrialSt b A s0 i (writeHash t2 a) := by
@@ -464,7 +470,7 @@ structure FailedAt (b : Nat) (t : MachineState) : Prop where
   x10 : t.getReg .x10 = 1
 
 /-- Entry of `counter_search` (`b + 103`), called with `ra = ret` (S's `CsPre`). -/
-structure CsPreS (b : Nat) (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : Digest) (ret : Nat) :
+structure CsPreS (b : Nat) (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) (ret : Nat) :
     Prop where
   pc : s.pc = pcOf (b + 103)
   x1 : s.getReg .x1 = pcOf ret
@@ -477,11 +483,11 @@ structure CsPreS (b : Nat) (s : MachineState) (lay : Layer) (tree leaf : Nat) (m
   x27 : s.getReg .x27 = BitVec.ofNat 64 (csN4 lay)
   htree : tree < 2 ^ 32
   hleaf : leaf < 2 ^ 32
-  msg : DigAt s ENC msg
+  rR : DigAt s (ENC + 48) msg.2.2
+  hpad : msg.2.1 = 0
+  msg : DigAt s ENC msg.1
   c32 : (s.getMem (BitVec.ofNat 64 (ENC + 32))).toNat < 2 ^ 32
   z40 : s.getMem (BitVec.ofNat 64 (ENC + 40)) = 0
-  z48 : s.getMem (BitVec.ofNat 64 (ENC + 48)) = 0
-  z56 : s.getMem (BitVec.ofNat 64 (ENC + 56)) = 0
   table : TableOK s
 
 /-- Exit of `counter_search` (S's `CsPost`): `fail` on exhaustion, else back at `ret` with the digits
@@ -497,14 +503,14 @@ def CsPostS (b : Nat) (s : MachineState) (lay : Layer) (ret : Nat) :
 /-- S's all-oracle cycle bound of `counter_search` (≤ 160 / 205 cycles per lower / top trial). -/
 def csCostS (lay : Layer) : Nat := T3.counterLimit * (if lay = 0 then 205 else 160) + 2000
 
-theorem CsPreS.toCsPre {b : Nat} {s : MachineState} {lay : Layer} {tree leaf : Nat} {msg : Digest} {ret : Nat}
+theorem CsPreS.toCsPre {b : Nat} {s : MachineState} {lay : Layer} {tree leaf : Nat} {msg : (Digest × BitVec 96 × Digest)} {ret : Nat}
     (h : CsPreS b s lay tree leaf msg ret) : CsPre b ⟨lay, tree, leaf, msg, ret⟩ s :=
   ⟨h.pc, h.x1, h.x5, h.x8, h.x9, h.x18, h.x17, h.x26, h.x27, h.htree, h.hleaf, h.msg.1, h.msg.2,
-    ⟨_, h.c32, (BitVec.ofNat_toNat _ _).trans (BitVec.setWidth_eq _)|>.symm⟩, h.z40, h.z48, h.z56, h.table⟩
+    ⟨_, h.c32, (BitVec.ofNat_toNat _ _).trans (BitVec.setWidth_eq _)|>.symm⟩, h.z40, h.rR.1, h.rR.2, h.hpad, h.table⟩
 
 /-- **`counter_search` at any base, in S's shape** (`CounterSearchSpec` at `b = 543`). -/
 theorem counterSearch_spec {image : Image} {b : Nat} {sk : BitVec 256} (hK : KernAt image b)
-    (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : Digest) (ret : Nat)
+    (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) (ret : Nat)
     (h : CsPreS b s lay tree leaf msg ret) :
     TBSim image sk s (csCostS lay) (T3.counterSearch lay tree leaf msg 0 T3.counterLimit) (CsPostS b s lay ret) := by
   refine (counterSearch_tbsim (sk := sk) hK h.toCsPre).mono ?_ (fun r t ht => ?_)

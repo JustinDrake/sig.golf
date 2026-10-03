@@ -14,6 +14,9 @@ open OracleComp OracleSpec
 open SphincsSecurity (bytesLE)
 
 abbrev Digest := BitVec 128
+/-- What an upper layer's encoding signs: the two children `(L, R)` of the root of the tree below with the 12
+pad bytes between them, `(L, P, R)` (honest: `P = 0`; layer 3: `(forestPk, 0, 0)`). -/
+abbrev LayerMessage := Digest × BitVec 96 × Digest
 abbrev Message := BitVec 256
 abbrev HashOutput := BitVec 256
 abbrev HashInput := List UInt8
@@ -32,7 +35,7 @@ def width (lay : Layer) (i : Nat) : Nat := if lay = 0 ∧ 51 ≤ i then 2 else 3
 /-- Top chains use51 radix-five positions followed by3 radix-four positions. -/
 def maxDigit (lay : Layer) (i : Nat) : Nat :=
   if lay = 0 then (if i < 51 then 4 else 3) else 7
-def target (lay : Layer) : Nat := ![126, 195, 195, 195] lay
+def target (lay : Layer) : Nat := ![126, 195, 195, 194] lay
 def encodedBits (lay : Layer) : Nat := if lay = 0 then 125 else 126
 def capacity (lay : Layer) : Nat := if lay = 0 then 213 else 301
 def attemptLimit : Nat := 2 ^ 20
@@ -249,10 +252,13 @@ def decode (lay : Layer) (value : Digest) : Option (List Nat) :=
     some (digits ++ [target lay - total])
   else none
 
-def encodingInput (lay : Layer) (tree leaf : Nat) (message : Digest) (counter : BitVec 32) : HashInput :=
-  bytesLE 16 message ++ bytesLE 16 (header 4 lay.val tree 0 leaf) ++ bytesLE 4 counter
+/-- One block `[L | T(4, lay, tree, 0, leaf) | counter | P | R]`: the node format `[L | T | pad | R]` with the
+counter and `P` in the pad. With `P = 0`, `R = 0` it is the old `pad64 (L | T4 | counter)`. -/
+def encodingInput (lay : Layer) (tree leaf : Nat) (message : LayerMessage) (counter : BitVec 32) : HashInput :=
+  bytesLE 16 message.1 ++ bytesLE 16 (header 4 lay.val tree 0 leaf) ++ bytesLE 4 counter ++
+    bytesLE 12 message.2.1 ++ bytesLE 16 message.2.2
 
-def counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest) (counter : Nat) :
+def counterSearch (lay : Layer) (tree leaf : Nat) (message : LayerMessage) (counter : Nat) :
     Nat → M (Option (BitVec 32 × List Nat))
   | 0 => pure none
   | fuel+1 => do
@@ -278,9 +284,8 @@ def admissible (chosen : List Selection) : Bool :=
   chosen.all (fun s => decide (s.leaves.Nodup)) &&
     decide (28 + (chosen.map fun s => authCount s.leaves).sum ≤ 115)
 
-/-- The ten top bits (246..255) screen the digest: accepted iff that field is below 135 (of 1024).
-The selector occupies bits 31..205; bits 206..245 are unused. -/
-def digestGate (output : HashOutput) : Bool := decide (output.toNat / 2^246 < 135)
+/-- Five independent high bits screen the digest; the selector occupies bits31..205. -/
+def digestGate (output : HashOutput) : Bool := decide (output.toNat / 2^206 % 8 = 0)
 
 def digestAdmissible (output : HashOutput) : Bool :=
   admissible (selections output) && digestGate output
@@ -350,7 +355,7 @@ def signTop (cache : Cache) (leaf : Nat) (digits : List Nat) : M (List Digest ×
 
 abbrev Pieces := List Digest × List Digest
 
-def signLayers (cache : Cache) (index : Nat) : Nat → Digest → M (Option (List Pieces))
+def signLayers (cache : Cache) (index : Nat) : Nat → LayerMessage → M (Option (List Pieces))
   | 0, _ => pure (some [])
   | n+1, message => do
       let lay : Layer := Fin.ofNat 4 n
@@ -362,7 +367,8 @@ def signLayers (cache : Cache) (index : Nat) : Nat → Digest → M (Option (Lis
       else
         let (levels,values) ← buildTree lay tree leaf digits
         let path := (List.range (height lay)).map fun j => (levels.getD j []).getD (leaf/2^j ^^^ 1) 0
-        let some previous ← signLayers cache index n ((levels.getD (height lay) []).getD 0 0) | pure none
+        let top := levels.getD (height lay - 1) []
+        let some previous ← signLayers cache index n (top.getD 0 0, 0, top.getD 1 0) | pure none
         pure (some (previous ++ [(values,path)]))
 
 structure LayerSignature (lay : Layer) where
@@ -399,7 +405,7 @@ def signPayload (cache : Cache) (message : Message) : M (Option Signature) := do
       pure (state.1 ++ opened,state.2.1 ++ inner ++ outer,
         state.2.2 ++ [(levels.getD 11 []).getD 0 0])) ([],[],[])
   let root ← forestPk index state.2.2
-  let some layers ← signLayers cache index 4 root | pure none
+  let some layers ← signLayers cache index 4 (root, 0, 0) | pure none
   pure (some ⟨rho,fun i => state.1.getD i.val 0,fun i => state.2.1.getD i.val 0,
     fun lay => piecesSignature lay (layers.getD lay.val ([],[]))⟩)
 
@@ -466,26 +472,69 @@ def recoverLayer (sig : Signature) (index : Nat) (lay : Layer) (digits : List Na
     let pair := if leaf/2^j.val%2=0 then (value,other) else (other,value)
     nodeHash 3 lay.val tree (2^(height lay-j.val-1)+leaf/2^(j.val+1)) pair.1 pair.2) value
 
-def expandLayers (sig : Signature) (index : Nat) : Nat → Digest → M (Option (Digest × List (BitVec 32)))
-  | 0,value => pure (some (value,[]))
+theorem height_pos (lay : Layer) : 0 < height lay := by
+  fin_cases lay <;> decide
+
+/-- The children of a root in message order: the node at level `h - 1` on the leaf's side, the sibling on the
+other, the 12 pad bytes between them. -/
+def pairOf (leaf h : Nat) (other : Digest) (pad : BitVec 96) (node : Digest) : LayerMessage :=
+  if leaf / 2 ^ (h - 1) % 2 = 0 then (node, pad, other) else (other, pad, node)
+
+/-- `recoverLayer` without its last fold: the root's two children, ordered by bit `h - 1` of the leaf index. -/
+def recoverPair (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) : M LayerMessage := do
+  let (leaf,tree) := route index lay
+  let ends ← (List.finRange (chainCount lay)).mapM fun i =>
+    chain lay tree leaf i.val (digits.getD i.val 0)
+      (maxDigit lay i.val-digits.getD i.val 0) ((sig.layers lay).values i)
+  let value ← leafHash lay tree leaf ends
+  let node ← (List.finRange (height lay-1)).foldlM (fun value j => do
+    let other := (sig.layers lay).path (Fin.castLE (Nat.sub_le _ _) j)
+    let pair := if leaf/2^j.val%2=0 then (value,other) else (other,value)
+    nodeHash 3 lay.val tree (2^(height lay-j.val-1)+leaf/2^(j.val+1)) pair.1 pair.2) value
+  let top : Fin (height lay) := ⟨height lay-1, Nat.sub_lt (height_pos lay) Nat.one_pos⟩
+  let other := (sig.layers lay).path top
+  pure (pairOf leaf (height lay) ((sig.layers lay).path top) 0 node)
+
+/-- The fold `recoverPair` leaves out: the root of layer `lay`'s tree from its two children. -/
+def rootHash (index : Nat) (lay : Layer) (pair : LayerMessage) : M Digest :=
+  nodeHash 3 lay.val (route index lay).2 (2^(height lay-(height lay-1)-1)+(route index lay).1/2^(height lay-1+1))
+    pair.1 pair.2.2
+
+/-- What a verified layer hands to the layer above: the pair below the top, `(root, 0, 0)` at the top (the
+whole of `recoverLayer`; same queries as `recoverPair >>= rootHash`). -/
+def recoverNext (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) : M LayerMessage :=
+  if n=0 then (fun value => (value,0,0)) <$> recoverLayer sig index lay digits else recoverPair sig index lay digits
+
+/-- What the expander hands to the next layer: it still hashes the root (the machine does; unused below the top,
+so the expander's hash calls are unchanged) and passes on the pair, or `(root, 0, 0)` at the top. -/
+def expandNext (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) : M LayerMessage := do
+  let pair ← recoverPair sig index lay digits
+  let root ← rootHash index lay pair
+  pure (if n=0 then (root,0,0) else pair)
+
+/-- The expander still hashes every root (the machine does; it is unused below the top), so its hash calls are
+unchanged; the top root ends the recursion as `(root, 0, 0)`. -/
+def expandLayers (sig : Signature) (index : Nat) : Nat → LayerMessage → M (Option (Digest × List (BitVec 32)))
+  | 0,value => pure (some (value.1,[]))
   | n+1,value => do
       let lay : Layer := Fin.ofNat 4 n
       let (leaf,tree) := route index lay
       let some (counter,digits) ← counterSearch lay tree leaf value 0 counterLimit | pure none
-      let root ← recoverLayer sig index lay digits
-      let some (root,counters) ← expandLayers sig index n root | pure none
+      let next ← expandNext sig index n lay digits
+      let some (root,counters) ← expandLayers sig index n next | pure none
       pure (some (root,counters ++ [counter]))
 
 def expand (message : Message) (pk : Digest) (sig : Signature) : M (Option Witness) := do
   let some (counter,output) ← digestSearch sig.rho message 0 attemptLimit | pure none
   let index := output.toNat%2^31
   let some root ← recoverFts sig index (selections output) | pure none
-  let some (root,counters) ← expandLayers sig index 4 root | pure none
+  let some (root,counters) ← expandLayers sig index 4 (root,0,0) | pure none
   if root ≠ pk then return none
   pure (some ⟨sig,counter,fun lay => counters.getD lay.val 0⟩)
 
-def verifyLayers (w : Witness) (index : Nat) : Nat → Digest → M (Option Digest)
-  | 0,root => pure (some root)
+/-- Layers 3..1 recover only the pair (no root hash); layer 0 also hashes its root, which is compared with `pk`. -/
+def verifyLayers (w : Witness) (index : Nat) : Nat → LayerMessage → M (Option Digest)
+  | 0,root => pure (some root.1)
   | n+1,root => do
       let lay : Layer := Fin.ofNat 4 n
       let counter := w.counters lay
@@ -493,8 +542,8 @@ def verifyLayers (w : Witness) (index : Nat) : Nat → Digest → M (Option Dige
       let (leaf,tree) := route index lay
       let answer ← shortHash (encodingInput lay tree leaf root counter)
       let some digits := decode lay answer | pure none
-      let value ← recoverLayer w.signature index lay digits
-      verifyLayers w index n value
+      let next ← recoverNext w.signature index n lay digits
+      verifyLayers w index n next
 
 def verify (message : Message) (pk : Digest) (w : Witness) : M Bool := do
   if w.digestCounter.toNat ≥ attemptLimit then return false
@@ -503,7 +552,7 @@ def verify (message : Message) (pk : Digest) (w : Witness) : M Bool := do
   if !digestAdmissible output then return false
   let index := output.toNat%2^31
   let some root ← recoverFts w.signature index chosen | pure false
-  let some root ← verifyLayers w index 4 root | pure false
+  let some root ← verifyLayers w index 4 (root,0,0) | pure false
   pure (root==pk)
 
 end SigGolfCandidate.T3

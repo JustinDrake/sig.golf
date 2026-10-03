@@ -489,6 +489,10 @@ theorem layerP_dec (N : HashOutput) (w : WBytes) (lay : Layer) (digits : List Na
     layerP w (N.toNat % 2 ^ 31) lay digits =
       recoverLayerP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) lay digits := rfl
 
+theorem layerNextP_dec (N : HashOutput) (w : WBytes) (n : Nat) (lay : Layer) (digits : List Nat) :
+    layerNextP w (N.toNat % 2 ^ 31) n lay digits =
+      recoverNextP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) n lay digits := rfl
+
 theorem layersP_dec (N : HashOutput) (w : WBytes) : ∀ n root,
     layersP w (N.toNat % 2 ^ 31) n root = verifyLayersP (witDecP N w) (padDecP N w) (N.toNat % 2 ^ 31) n root := by
   intro n
@@ -496,7 +500,7 @@ theorem layersP_dec (N : HashOutput) (w : WBytes) : ∀ n root,
   | zero => intro root; rfl
   | succ n ih =>
       intro root
-      simp only [layersP, verifyLayersP, layerP_dec, ih]
+      simp only [layersP, verifyLayersP, layerNextP_dec, ih]
       rfl
 
 /-- `verifyP` after the digest query (a copy of its tail, so that statements can name it). -/
@@ -506,7 +510,7 @@ def verifyTailP (pk : Digest) (w : WBytes) (N : HashOutput) : M Bool := do
   if !digestGate N then return false
   let index := N.toNat % 2 ^ 31
   let some root ← ftsP w index chosen | pure false
-  let some root ← layersP w index 4 root | pure false
+  let some root ← layersP w index 4 (root, 0, 0) | pure false
   pure (root == pk)
 
 theorem verifyP_eq_tail (m : Message) (pk : Digest) (w : WBytes) :

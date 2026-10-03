@@ -36,7 +36,7 @@ def Clear (A : Answers) (K : Coord → Prop) (X : HashInput) (y : HashOutput) : 
       ¬(X ≠ Extract.honestInput A N.toPos ∧ y.extractLsb' 0 128 = honestValue A (.inl N))) ∧
   (∀ N : CanonGraph.Node, Extract.posOf X = some N.toPos → ∀ c b, childSlots N = [(c, b)] →
       slotValue X b = honestValue A c → K c) ∧
-  (∀ (L : CanonEncoding.EncLeaf) (m : Digest) (ctr : BitVec 32), X = Wots.encodingRow L.toWots m ctr →
+  (∀ (L : CanonEncoding.EncLeaf) (m : (Digest × BitVec 96 × Digest)) (ctr : BitVec 32), X = Wots.encodingRow L.toWots m ctr →
       ¬(Wots.referenceInput A L.toWots ≠ some X ∧
         decode L.1.lay (y.extractLsb' 0 128) = some (Wots.referenceDigits A L.toWots)))
 

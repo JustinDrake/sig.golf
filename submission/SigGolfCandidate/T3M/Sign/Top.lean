@@ -26,7 +26,7 @@ private theorem extractByte_zero_top (k : Nat) : extractByte (0 : Word) k = 0 :=
 
 /-! ## Core -/
 
-theorem signLayers_one (cache : Cache) (index : Nat) (root : Digest) :
+theorem signLayers_one (cache : Cache) (index : Nat) (root : T3.LayerMessage) :
     signLayers cache index 1 root = (do
       let some (_, digits) ← counterSearch 0 (route index 0).2 (route index 0).1 root 0 counterLimit | pure none
       let part ← signTop cache (route index 0).1 digits
@@ -92,7 +92,7 @@ section top
 variable {sk : SecretKey} {cache : Bytes 131072}
 
 /-- `build_leaf`'s entry conditions for a layer-0 leaf from `Base` and the registers. -/
-theorem leafPreS_of {s : MachineState} {A : LeafArgs} (hb : Base sk cache s) (hlay : A.lay = 0)
+theorem leafPreS_of {s : MachineState} {A : LeafArgs} (hb : BaseL sk cache s) (hlay : A.lay = 0)
     (h1 : s.getReg .x1 = pcOf A.ret) (h8 : s.getReg .x8 = BitVec.ofNat 64 0)
     (h9 : s.getReg .x9 = BitVec.ofNat 64 A.tree) (h18 : s.getReg .x18 = BitVec.ofNat 64 A.leaf)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 A.digp) (h23 : s.getReg .x23 = BitVec.ofNat 64 A.valp)
@@ -128,11 +128,11 @@ theorem leafPreS_of {s : MachineState} {A : LeafArgs} (hb : Base sk cache s) (hl
       p40 := hb.p40
       p48 := hb.p48
       p56 := hb.p56
-      z0 := hb.zero _ (by sgo) (by unfold NeverW; simp)
-      z8 := hb.zero _ (by sgo) (by unfold NeverW; simp)
-      z32 := hb.zero _ (by sgo) (by unfold NeverW; simp)
-      z40 := hb.zero _ (by sgo) (by unfold NeverW; simp)
-      ztail := fun _ => ⟨hb.zero _ (by sgo) (by unfold NeverW; simp), hb.zero _ (by sgo) (by unfold NeverW; simp)⟩
+      z0 := hb.zero _ (by sgo) (by unfold NeverWL; simp)
+      z8 := hb.zero _ (by sgo) (by unfold NeverWL; simp)
+      z32 := hb.zero _ (by sgo) (by unfold NeverWL; simp)
+      z40 := hb.zero _ (by sgo) (by unfold NeverWL; simp)
+      ztail := fun _ => ⟨hb.zero _ (by sgo) (by unfold NeverWL; simp), hb.zero _ (by sgo) (by unfold NeverWL; simp)⟩
       hdig := fun i hi => hdig i (by rw [hn] at hi; exact hi)
       hdigb := fun i hi => by rw [hlay]; exact hdigb i (by rw [hn] at hi; exact hi)
       hdigp := by rw [hn]; exact hdigp
@@ -146,15 +146,15 @@ theorem leafPreS_of {s : MachineState} {A : LeafArgs} (hb : Base sk cache s) (hl
       hdv := by rw [hn]; exact hdv }
 
 /-- `Base` survives a layer-0 leaf. -/
-theorem base_leaf {s t : MachineState} {A : LeafArgs} (hb : Base sk cache s) (hlay : A.lay = 0)
+theorem base_leaf {s t : MachineState} {A : LeafArgs} (hb : BaseL sk cache s) (hlay : A.lay = 0)
     (hf : Frame s t (LeafW A)) (hr : RegsExcept s t leafRegs)
     (hvB : A.valp + 16 * 54 ≤ PRIV ∨ LEAFPK + 960 ≤ A.valp) (hvR : A.valp + 16 * 54 ≤ REGION ∨ REGION + 131040 ≤ A.valp)
     (hdB : A.dest + 16 ≤ PRIV) (hdZ : A.dest + 16 ≤ ZDIG ∨ ZDIG + 64 ≤ A.dest)
     (hvZ : A.valp + 16 * 54 ≤ ZDIG ∨ ZDIG + 64 ≤ A.valp)
-    (hvT : A.valp + 16 * 54 ≤ Search.TOP_DATA) : Base sk cache t := by
+    (hvT : A.valp + 16 * 54 ≤ Search.TOP_DATA) : BaseL sk cache t := by
   have hn : A.n = 54 := by show chainCount A.lay = 54; rw [hlay]; rfl
   refine hb.frame hf hr (by decide) (fun X _ hB hW => ?_)
-  unfold BaseA NeverW Search.TOP_DATA at hB
+  unfold BaseAL NeverWL Search.TOP_DATA at hB
   unfold Search.TOP_DATA at hvT
   unfold LeafW at hW
   rw [hn] at hW
@@ -174,9 +174,9 @@ theorem TopRegs.of {leaf : Nat} {s t : MachineState} {l : List Reg} (h : TopRegs
     by rw [hr.get hl.2.2.2.1, h.x26], by rw [hr.get hl.2.2.2.2, h.x27]⟩
 
 /-- The zero digit row `ZDIG`. -/
-theorem zdig_byte {s : MachineState} (hb : Base sk cache s) {i : Nat} (hi : i < 54) :
+theorem zdig_byte {s : MachineState} (hb : BaseL sk cache s) {i : Nat} (hi : i < 54) :
     s.getByte (BitVec.ofNat 64 (ZDIG + i)) = BitVec.ofNat 8 0 := by
-  rw [getByte_eq_word s _ (by sgo), hb.zero _ (by sgo) (by unfold NeverW; sgo), extractByte_zero_top]
+  rw [getByte_eq_word s _ (by sgo), hb.zero _ (by sgo) (by unfold NeverWL; sgo), extractByte_zero_top]
   rfl
 
 /-- Writes allowed to layer 0, closed under composition. -/
@@ -235,11 +235,11 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
       x27 := t1x27
       htree := by norm_num
       hleaf := by omega
+      rR := h.encR.frame t1f (by sgo) (fun h => h) (fun h => h)
+      hpad := h.pad0
       msg := h.enc.frame t1f (by sgo) (fun h => h) (fun h => h)
       c32 := by rw [t1f.get (by sgo) (fun h => h)]; exact h.c32
-      z40 := by rw [t1f.get (by sgo) (fun h => h)]; exact h.base.zero _ (by sgo) (by unfold NeverW; simp)
-      z48 := by rw [t1f.get (by sgo) (fun h => h)]; exact h.base.zero _ (by sgo) (by unfold NeverW; simp)
-      z56 := by rw [t1f.get (by sgo) (fun h => h)]; exact h.base.zero _ (by sgo) (by unfold NeverW; simp)
+      z40 := by rw [t1f.get (by sgo) (fun h => h)]; exact h.base.zero _ (by sgo) (by unfold NeverWL; simp)
       table := h.base.table.frame t1f (fun _ _ h => h) }
   have hc0 : csCost 0 = counterLimit * 205 + 2000 := by unfold csCost; rw [if_pos rfl]
   refine TBSim.mono (TBSim.steps st1 (TBSim.bind (W₂ := 50000) (hK t1 0 0 _ root 441 hcs) (fun r u hu => ?_)))
@@ -262,12 +262,12 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
     rcases h with h | h
     · exact h.elim
     · exact h)
-  have hbu : Base sk cache u := h.base.frame ftu (t1r.trans ur) (by decide) (fun A _ hb hw => by
-    unfold BaseA NeverW Search.TOP_DATA at hb; unfold CsW at hw; sgo)
+  have hbu : BaseL sk cache u := h.base.frame ftu (t1r.trans ur) (by decide) (fun A _ hb hw => by
+    unfold BaseAL NeverWL Search.TOP_DATA at hb; unfold CsW at hw; sgo)
   have u14 : u.getReg .x14 = BitVec.ofNat 64 leaf := by rw [ur.get (by decide)]; exact t1x14
   obtain ⟨u1, su1, u1pc, u1x1, u1x31, u1x22, u1x23, u1r, u1f⟩ := blk441_spec u upc
   have g1 : ∀ r, r ∉ [.x1, .x22, .x23, .x31] → u1.getReg r = u.getReg r := fun r hr => u1r.get hr
-  have hbu1 : Base sk cache u1 := hbu.frame u1f u1r (by decide) (fun _ _ _ h => h)
+  have hbu1 : BaseL sk cache u1 := hbu.frame u1f u1r (by decide) (fun _ _ _ h => h)
   have tr1 : TopRegs leaf u1 :=
     ⟨by rw [g1 _ (by decide), ur.get (by decide)]; exact t1x8, by rw [g1 _ (by decide), ur.get (by decide)]; exact t1x9,
       by rw [g1 _ (by decide)]; exact u14, by rw [g1 _ (by decide), ur.get (by decide)]; exact t1x26,
@@ -294,7 +294,7 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
     (by omega) (fun _ _ h => h)
   obtain ⟨root0, values⟩ := r0
   obtain ⟨v0pc, -, v0vals, v0len, -, v0r, v0f⟩ := hv0
-  have hbv0 : Base sk cache v0 := base_leaf hbu1 rfl v0f v0r (Or.inl (by show SIG + 2192 + 16 * 54 ≤ PRIV; sgo))
+  have hbv0 : BaseL sk cache v0 := base_leaf hbu1 rfl v0f v0r (Or.inl (by show SIG + 2192 + 16 * 54 ≤ PRIV; sgo))
     (Or.inl (by show SIG + 2192 + 16 * 54 ≤ REGION; sgo)) (by show dest0 + 16 ≤ PRIV; sgo)
     (Or.inl (by show dest0 + 16 ≤ ZDIG; sgo)) (Or.inl (by show SIG + 2192 + 16 * 54 ≤ ZDIG; sgo))
     (by show SIG + 2192 + 16 * 54 ≤ Search.TOP_DATA; unfold Search.TOP_DATA; sgo)
@@ -308,7 +308,7 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
   simp only [topPath, bind_assoc, pure_bind]
   obtain ⟨v1,s447,v1pc,v1r,v1f⟩ := blk447_spec v0 v0pc
   obtain ⟨w,s1433,wpc,wx22,wx24,wx20,wr,wf⟩ := blk1433_spec v1 v1pc
-  have hbw : Base sk cache w := (hbv0.frame v1f v1r (by decide) (fun _ _ _ h => h)).frame wf wr
+  have hbw : BaseL sk cache w := (hbv0.frame v1f v1r (by decide) (fun _ _ _ h => h)).frame wf wr
     (by decide) (fun _ _ _ h => h)
   have w14 : w.getReg .x14=BitVec.ofNat 64 leaf := by
     rw [wr.get (by decide),v1r.get (by decide),trv0.x14]

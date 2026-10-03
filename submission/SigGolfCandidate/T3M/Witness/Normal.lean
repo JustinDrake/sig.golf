@@ -109,12 +109,24 @@ theorem recoverLayerP_zero (sig : Signature) (index : Nat) (lay : Layer) (digits
     recoverLayerP sig 0 index lay digits = recoverLayer sig index lay digits := by
   simp only [recoverLayerP, recoverLayer, Pads.zero_chain, chainP_zero, Pads.zero_merkle, nodeHashP_zero]
 
+theorem recoverPairP_zero (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
+    recoverPairP sig 0 index lay digits = recoverPair sig index lay digits := by
+  simp only [recoverPairP, recoverPair, Pads.zero_chain, chainP_zero, Pads.zero_merkle, nodeHashP_zero]
+  rfl
+
+theorem recoverNextP_zero (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
+    recoverNextP sig 0 index n lay digits = recoverNext sig index n lay digits := by
+  unfold recoverNextP recoverNext
+  split
+  · rw [recoverLayerP_zero]
+  · rw [recoverPairP_zero]
+
 theorem verifyLayersP_zero (w : Witness) (index : Nat) : ∀ n root,
     verifyLayersP w 0 index n root = verifyLayers w index n root := by
   intro n
   induction n with
   | zero => intro root; rfl
-  | succ n ih => intro root; simp only [verifyLayersP, verifyLayers, recoverLayerP_zero, ih]; rfl
+  | succ n ih => intro root; simp only [verifyLayersP, verifyLayers, recoverNextP_zero, ih]; rfl
 
 /-- **`verifyPads_zero`**: Core's verification with zero pads is `T3.verify`. -/
 theorem verifyPads_zero (m : Message) (pk : Digest) (w : Witness) : verifyPads m pk w 0 = verify m pk w := by

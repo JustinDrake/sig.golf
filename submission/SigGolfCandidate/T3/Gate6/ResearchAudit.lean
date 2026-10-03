@@ -42,7 +42,7 @@ import SigGolfCandidate.T3.Gate6.DigestSampling
 #print axioms SigGolfResearch.Gate6.digestRecord_bucket
 #print axioms SigGolfResearch.Gate6.digestRecord_leaf
 #print axioms SigGolfResearch.Gate6.digestRecord_gate
-#print axioms SigGolfResearch.Gate6.digestRecord_gate_accept
+#print axioms SigGolfResearch.Gate6.digestRecord_gate_zero
 #print axioms SigGolfResearch.Gate6.digest_acceptance_iff
 #print axioms SigGolfResearch.Gate6.Budget.digest_geometric_step
 #print axioms SigGolfResearch.Gate6.Budget.probability_floor

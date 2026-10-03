@@ -160,7 +160,7 @@ theorem uniform_resample_tsum {Ω K : Type} [Fintype Ω] [Nonempty Ω] {X : K �
 /-! ## Encoding rows of non-aliased leaves -/
 
 /-- Index of the encoding rows of non-aliased leaves. -/
-abbrev EncIndex := CanonGraph.LeafPos × Digest × BitVec 32
+abbrev EncIndex := CanonGraph.LeafPos × (Digest × BitVec 96 × Digest) × BitVec 32
 
 /-- The encoding row of an index. -/
 def encInput (e : EncIndex) : HashInput := encodingRow (leafOf e.1) e.2.1 e.2.2
