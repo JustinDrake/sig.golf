@@ -24,13 +24,13 @@ def emV (leaves : List Nat) (val : Nat × Nat → Digest) : Nat → Nat → Em �
   | level, node, e =>
     if hasLeaf leaves level node = false then e
     else match level with
-    | 0 => if leaves.idxOf node = 0 then ⟨e.segs, e.cur, node % 8⟩ else e.close false (node % 8)
+    | 0 => if leaves.idxOf node = 0 then ⟨e.segs, e.cur, node % 2⟩ else e.close false (node % 2)
     | l + 1 =>
       let e2 := emV leaves val l (2 * node + 1) (emV leaves val l (2 * node) e)
       if hasLeaf leaves l (2 * node) = false then ⟨e2.segs, e2.cur ++ [(true, val (l, 2 * node))], e2.par⟩
       else if hasLeaf leaves l (2 * node + 1) = false then
         ⟨e2.segs, e2.cur ++ [(false, val (l, 2 * node + 1))], e2.par⟩
-      else e2.close true (node % 8)
+      else e2.close true (node % 2)
 
 section emv
 variable (leaves : List Nat) (val : Nat × Nat → Digest)
@@ -45,7 +45,7 @@ theorem emV_inner {l node : Nat} (e : Em) (h : hasLeaf leaves (l + 1) node = tru
        if hasLeaf leaves l (2 * node) = false then ⟨e2.segs, e2.cur ++ [(true, val (l, 2 * node))], e2.par⟩
        else if hasLeaf leaves l (2 * node + 1) = false then
          ⟨e2.segs, e2.cur ++ [(false, val (l, 2 * node + 1))], e2.par⟩
-       else e2.close true (node % 8)) := by
+       else e2.close true (node % 2)) := by
   rw [emV]; simp [h]
 
 /-- **Slots to positions.** -/
@@ -146,13 +146,13 @@ theorem emV_climb {g : Nat} (hg : g ∈ leaves) (lo : Nat) : ∀ d (e : Em),
 /-- A node with two non-empty children closes the open segment with the merge flag. -/
 theorem emV_merge {l n : Nat} (e : Em) (hl : hasLeaf leaves l (2 * n) = true)
     (hr : hasLeaf leaves l (2 * n + 1) = true) :
-    emV leaves val (l + 1) n e = (emV leaves val l (2 * n + 1) (emV leaves val l (2 * n) e)).close true (n % 8) := by
+    emV leaves val (l + 1) n e = (emV leaves val l (2 * n + 1) (emV leaves val l (2 * n) e)).close true (n % 2) := by
   have hp : hasLeaf leaves (l + 1) n = true := by
     have := hasLeaf_parent (leaves := leaves) hl; rwa [show 2 * n / 2 = n by omega] at this
   rw [emV_inner _ _ _ hp]; simp [hl, hr]
 
 theorem emV_leaf {g : Nat} (hg : g ∈ leaves) (e : Em) :
-    emV leaves val 0 g e = if leaves.idxOf g = 0 then ⟨e.segs, e.cur, g % 8⟩ else e.close false (g % 8) := by
+    emV leaves val 0 g e = if leaves.idxOf g = 0 then ⟨e.segs, e.cur, g % 2⟩ else e.close false (g % 2) := by
   have h := hasLeaf_self hg 0
   simp only [pow_zero, Nat.div_one] at h
   rw [emV]; simp [h]
@@ -163,7 +163,7 @@ end climb
 
 /-- The emitted form of a schedule segment: its header byte (parity of `g`'s ancestor at `lo`) and folds. -/
 def toMSeg (val : Nat × Nat → Digest) (seg : Segment) : MSeg :=
-  ⟨seg.a + (if seg.merge then 16 else 0) + 32 * (seg.g / 2 ^ seg.lo % 8), (List.range seg.a).map (climbF val seg.g seg.lo)⟩
+  ⟨seg.a + (if seg.merge then 16 else 0) + 32 * (seg.g / 2 ^ seg.lo % 2), (List.range seg.a).map (climbF val seg.g seg.lo)⟩
 
 theorem climbF_range_add (val : Nat × Nat → Digest) (g lo a b : Nat) :
     (List.range (a + b)).map (climbF val g lo) =
@@ -229,11 +229,11 @@ theorem emV_bucket_aux (val : Nat × Nat → Digest) (c g0 g1 g2 b : Nat) (h01 :
   have i0 : [g0, g1, g2].idxOf g0 = 0 := by simp
   have i1 : [g0, g1, g2].idxOf g1 = 1 := by simp [show g0 ≠ g1 by omega]
   have i2 : [g0, g1, g2].idxOf g2 = 2 := by simp [show g0 ≠ g2 by omega, show g1 ≠ g2 by omega]
-  have leaf0 : ∀ e, emV [g0, g1, g2] val 0 g0 e = ⟨e.segs, e.cur, g0 % 8⟩ := fun e => by
+  have leaf0 : ∀ e, emV [g0, g1, g2] val 0 g0 e = ⟨e.segs, e.cur, g0 % 2⟩ := fun e => by
     rw [emV_leaf m0, if_pos i0]
-  have leaf1 : ∀ e, emV [g0, g1, g2] val 0 g1 e = e.close false (g1 % 8) := fun e => by
+  have leaf1 : ∀ e, emV [g0, g1, g2] val 0 g1 e = e.close false (g1 % 2) := fun e => by
     rw [emV_leaf m1, if_neg (by rw [i1]; decide)]
-  have leaf2 : ∀ e, emV [g0, g1, g2] val 0 g2 e = e.close false (g2 % 8) := fun e => by
+  have leaf2 : ∀ e, emV [g0, g1, g2] val 0 g2 e = e.close false (g2 % 2) := fun e => by
     rw [emV_leaf m2, if_neg (by rw [i2]; decide)]
   generalize hd01 : lcaLevel g0 g1 = d01 at *
   generalize hd12 : lcaLevel g1 g2 = d12 at *
@@ -248,7 +248,7 @@ theorem emV_bucket_aux (val : Nat × Nat → Digest) (c g0 g1 g2 b : Nat) (h01 :
     obtain ⟨c12a, c12b⟩ := merge_children h12 (show lcaLevel g1 g2 = l + 1 from hd12)
     have mid : ∀ e, emV [g0, g1, g2] val (l + 1) (g2 / 2 ^ (l + 1)) e =
         (emV [g0, g1, g2] val l (g2 / 2 ^ l) (emV [g0, g1, g2] val l (g1 / 2 ^ l) e)).close true
-          (g2 / 2 ^ (l + 1) % 8) := fun e => by
+          (g2 / 2 ^ (l + 1) % 2) := fun e => by
       have := emV_merge (val := val) (l := l) (n := g2 / 2 ^ (l + 1)) e (by rw [c12a]; exact hasLeaf_self m1 l)
         (by rw [c12b]; exact hasLeaf_self m2 l)
       rwa [c12b, c12a] at this
@@ -259,7 +259,7 @@ theorem emV_bucket_aux (val : Nat × Nat → Digest) (c g0 g1 g2 b : Nat) (h01 :
     obtain ⟨c01a, c01b⟩ := merge_children h01 (show lcaLevel g0 g1 = m + 1 from hd01)
     have low : ∀ e, emV [g0, g1, g2] val (m + 1) (g1 / 2 ^ (m + 1)) e =
         (emV [g0, g1, g2] val m (g1 / 2 ^ m) (emV [g0, g1, g2] val m (g0 / 2 ^ m) e)).close true
-          (g1 / 2 ^ (m + 1) % 8) := fun e => by
+          (g1 / 2 ^ (m + 1) % 2) := fun e => by
       have := emV_merge (val := val) (l := m) (n := g1 / 2 ^ (m + 1)) e (by rw [c01a]; exact hasLeaf_self m0 m)
         (by rw [c01b]; exact hasLeaf_self m1 m)
       rwa [c01b, c01a] at this
@@ -295,7 +295,7 @@ theorem emV_bucket_aux (val : Nat × Nat → Digest) (c g0 g1 g2 b : Nat) (h01 :
     have e21' : g2 / 2 ^ l = g1 / 2 ^ l := div_eq_of_lca_le (by omega) (by rw [c21]; omega)
     have mid : ∀ e, emV [g0, g1, g2] val (l + 1) (g2 / 2 ^ (l + 1)) e =
         (emV [g0, g1, g2] val l (g2 / 2 ^ l) (emV [g0, g1, g2] val l (g0 / 2 ^ l) e)).close true
-          (g2 / 2 ^ (l + 1) % 8) := fun e => by
+          (g2 / 2 ^ (l + 1) % 2) := fun e => by
       have := emV_merge (val := val) (l := l) (n := g2 / 2 ^ (l + 1)) e
         (by rw [e21, c01a]; exact hasLeaf_self m0 l) (by rw [e21, c01b, ← e21']; exact hasLeaf_self m2 l)
       rwa [e21, c01b, c01a, ← e21', ← e21] at this
@@ -310,7 +310,7 @@ theorem emV_bucket_aux (val : Nat × Nat → Digest) (c g0 g1 g2 b : Nat) (h01 :
     obtain ⟨c12a, c12b⟩ := merge_children h12 (show lcaLevel g1 g2 = m + 1 from hd12)
     have low : ∀ e, emV [g0, g1, g2] val (m + 1) (g2 / 2 ^ (m + 1)) e =
         (emV [g0, g1, g2] val m (g2 / 2 ^ m) (emV [g0, g1, g2] val m (g1 / 2 ^ m) e)).close true
-          (g2 / 2 ^ (m + 1) % 8) := fun e => by
+          (g2 / 2 ^ (m + 1) % 2) := fun e => by
       have := emV_merge (val := val) (l := m) (n := g2 / 2 ^ (m + 1)) e (by rw [c12a]; exact hasLeaf_self m1 m)
         (by rw [c12b]; exact hasLeaf_self m2 m)
       rwa [c12b, c12a] at this
@@ -377,11 +377,12 @@ theorem wordsOf_segBytes (chosen : List Selection) (proof : Fin 115 → Digest) 
   unfold segBytes segWords toMSeg
   rw [wordsOf_append8 _ _ (by rfl)]
   congr 1
-  · have ht : seg.sideCode = seg.g / 2 ^ seg.lo % 8 := rfl
-    have hb : seg.byte0 = seg.a + (if seg.merge then 16 else 0) + 32 * (seg.g / 2 ^ seg.lo % 8) := by
+  · have ht : seg.t = seg.g / 2 ^ seg.lo % 2 := by
+      unfold Segment.t Segment.heap; rw [Nat.add_zero]; exact heap_mod_two hlo
+    have hb : seg.byte0 = seg.a + (if seg.merge then 16 else 0) + 32 * (seg.g / 2 ^ seg.lo % 2) := by
       unfold Segment.byte0; rw [ht]; split_ifs <;> rfl
     have hlt : seg.byte0 < 256 := by
-      rw [hb]; have := Nat.mod_lt (seg.g / 2 ^ seg.lo) (show 0 < 8 by decide); split_ifs <;> omega
+      rw [hb]; have := Nat.mod_lt (seg.g / 2 ^ seg.lo) (show 0 < 2 by decide); split_ifs <;> omega
     rw [List.singleton_append, readLE_cons, show T3M.zeros 7 = List.replicate 7 0 from rfl, readLE_replicate_zero,
       Nat.mul_zero, Nat.add_zero]
     simp only [UInt8.toNat_ofNat', Nat.reducePow]

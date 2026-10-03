@@ -23,7 +23,9 @@ theorem expandData_table (i : Nat) (hi : i < 628) : expandData.getD i 0 = tableB
 
 theorem signData_length : signData.length = 4096 := by decide +kernel
 theorem expandData_length : expandData.length = 4096 := by decide +kernel
-theorem verifyData_length : verifyData.length = 65536 := by decide +kernel
+/-- n3-99: the 2048-word FTS header table (16384 bytes) comes first; BIG1 (T3X / T3Y): then the 16384-byte WOTS
+header table and 2048 zero bytes, then the base data at offset 34816. -/
+theorem verifyData_length : verifyData.length = 67584 := by decide +kernel
 
 private theorem checked_slice_get (bs : List (BitVec 8)) (base n i : Nat) (f : Nat → BitVec 8)
     (hi : i < n) (hlen : ((bs.drop base).take n).length = n)
@@ -38,28 +40,28 @@ private theorem checked_slice_get (bs : List (BitVec 8)) (base n i : Nat) (f : N
       List.getD_eq_getElem?_getD,List.getElem?_eq_getElem hbound,Option.getD_some] using hh
   simpa only [List.getD_eq_getElem?_getD,List.getElem?_take,List.getElem?_drop,if_pos hi] using hh'
 
-private theorem verify_sum_check : ((verifyData.drop 61440).take 128).zipIdx.all (fun p =>
+private theorem verify_sum_check : ((verifyData.drop 63488).take 128).zipIdx.all (fun p =>
     decide (p.1 = BitVec.ofNat 8 (rankLookup p.2))) = true := by decide +kernel
 
-private theorem verify_pair_check : ((verifyData.drop 32768).take 16384).zipIdx.all (fun p =>
+private theorem verify_pair_check : ((verifyData.drop 34816).take 16384).zipIdx.all (fun p =>
     decide (p.1 = BitVec.ofNat 8 (Verify.Nonbinary.pairLookup p.2))) = true := by decide +kernel
 
-private theorem verify_tail_check : ((verifyData.drop 49152).take 64).zipIdx.all (fun p =>
-    decide (p.1 = BitVec.ofNat 8 (Verify.Nonbinary.tailSum p.2))) = true := by decide +kernel
+private theorem verify_tail_check : ((verifyData.drop 51200).take 64).zipIdx.all (fun p =>
+    decide (p.1 = BitVec.ofNat 8 (126 - Verify.Nonbinary.tailSum p.2))) = true := by decide +kernel
 
 theorem verifyData_sum (i : Nat) (hi : i < 128) :
-    verifyData.getD (61440+i) 0 = BitVec.ofNat 8 (rankLookup i) := by
-  exact checked_slice_get verifyData 61440 128 i (fun r => BitVec.ofNat 8 (rankLookup r)) hi
+    verifyData.getD (63488+i) 0 = BitVec.ofNat 8 (rankLookup i) := by
+  exact checked_slice_get verifyData 63488 128 i (fun r => BitVec.ofNat 8 (rankLookup r)) hi
     (by simp only [List.length_take,List.length_drop,verifyData_length]; decide) verify_sum_check
 
 theorem verifyData_pair (i : Nat) (hi : i < 16384) :
-    verifyData.getD (32768+i) 0 = BitVec.ofNat 8 (Verify.Nonbinary.pairLookup i) := by
-  simpa only [Nat.zero_add] using checked_slice_get verifyData 32768 16384 i (fun r => BitVec.ofNat 8 (Verify.Nonbinary.pairLookup r)) hi
+    verifyData.getD (34816+i) 0 = BitVec.ofNat 8 (Verify.Nonbinary.pairLookup i) := by
+  exact checked_slice_get verifyData 34816 16384 i (fun r => BitVec.ofNat 8 (Verify.Nonbinary.pairLookup r)) hi
     (by simp only [List.length_take,List.length_drop,verifyData_length]; decide) verify_pair_check
 
 theorem verifyData_tail (i : Nat) (hi : i < 64) :
-    verifyData.getD (49152+i) 0 = BitVec.ofNat 8 (Verify.Nonbinary.tailSum i) := by
-  exact checked_slice_get verifyData 49152 64 i (fun r => BitVec.ofNat 8 (Verify.Nonbinary.tailSum r)) hi
+    verifyData.getD (51200+i) 0 = BitVec.ofNat 8 (126 - Verify.Nonbinary.tailSum i) := by
+  exact checked_slice_get verifyData 51200 64 i (fun r => BitVec.ofNat 8 (126 - Verify.Nonbinary.tailSum r)) hi
     (by simp only [List.length_take,List.length_drop,verifyData_length]; decide) verify_tail_check
 
 end SigGolfCandidate.T3M.Search

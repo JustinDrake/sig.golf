@@ -16,8 +16,9 @@ destination `0x100` / the retained top-node slot (`k + 1 = h`). This is exactly 
   `mkDst lay leaf`, the witness below the layer's Merkle blocks original;
 * `lvl_step`: one level (with layer 0's chunk dispatch at level 5); `merkle_rest`: the levels by induction;
 * **`merkle_good`**: from `LeafOut`, `GoodQ u (N + mkFuel lay) (C + mkCyc lay) Q (A + mkCyc lay)
-  (ccM (leafHash … ends >>= merkleP w index lay) K)` given `K`'s judgment at every `MkEnd`; `mkCyc` = 283 / 186 /
-  172 / 172 cycles (layers 0..3), `mkFuel` = 88 / 50 / 43 / 43 steps. -/
+  (ccM (leafHash … ends >>= merkleP w index lay) K)` given `K`'s judgment at every `MkEnd`; `mkCyc` = 273 / 181 /
+  168 / 168 cycles (layers 0..3), `mkFuel` = 78 / 45 / 39 / 39 steps (BIG2: one header word-0 store per level after
+  level 0, whose `ld tp` merges the word; `MAfter.x4`). -/
 
 set_option linter.unusedSimpArgs false
 
@@ -199,13 +200,15 @@ structure MAfter (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState) 
   node : DigAt s (mkCur lay k (leaf / 2 ^ k % 2)) v
   orig : Orig w (mkP lay k (leaf / 2 ^ k % 2)) s
   dstReg : s.getReg .x12 = BitVec.ofNat 64 (mkCur lay k (leaf / 2 ^ k % 2))
+  /-- BIG2: after level 0, `tp` is the merged header word 0. -/
+  x4 : k ≠ 0 → s.getReg .x4 = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (u.getReg .x30)
 
 /-- After the root HASH: at the next transition copy (layers 3, 2, 1) or compare copy (layer 0). -/
 structure MkEnd (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState) (root : Digest) (t : MachineState) :
     Prop where
   pc : t.pc = pcOf (mkFin lay leaf + 1)
   glob : Glob baseK w pk t
-  known : KnownOK (mkK lay ++ [(.x11, 64)]) t
+  known : KnownOK (mkKc lay ++ [(.x11, 64)]) t
   keep : ∀ r ∈ mkKeep, t.getReg r = u.getReg r
   root : DigAt t (mkDst lay leaf) root
   orig : Orig w (fun o => 11288 ≤ o ∧ o < mkBase lay) t
@@ -230,15 +233,34 @@ theorem mkK_sub (lay : Nat) (l : List (Reg × Word)) : ∀ p ∈ mkK lay, p ∈ 
 
 theorem mkKeep_sub (l : List Reg) : ∀ r ∈ mkKeep, r ∈ mkKeep ++ l := fun r hr => List.mem_append_left _ hr
 
-/-- The level's two header writes, read back at constant addresses. -/
-theorem lvlMem_read (lay ci sh l : Nat) (s : MachineState) (A : Nat) (hA : A < 2 ^ 64) (hB : mkBlk lay l + 24 < 2 ^ 64) :
+theorem mkKc_mkK (lay : Nat) : ∀ p ∈ mkKc lay, p ∈ mkK lay := by
+  intro p hp
+  simp only [mkKc, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
+  rcases hp with hp | hp | hp | hp | hp | hp | hp | hp | hp | hp <;> simp [mkK, hp]
+
+theorem mkK_cases (lay : Nat) (p : Reg × Word) (hp : p ∈ mkK lay) :
+    p ∈ mkKc lay ∨ p = (.x4, BitVec.ofNat 64 (hw 3 lay)) := by
+  simp only [mkK, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
+  rcases hp with hp | hp | hp | hp | hp | hp | hp | hp | hp | hp | hp <;> simp [mkKc, hp]
+
+/-- The merged header word 0 (`mkX4`) evaluated. -/
+theorem mkX4_eval (lay : Nat) (s : MachineState) :
+    (mkX4 lay).eval s = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (s.getReg .x30) := rfl
+
+/-- The level's two header writes, read back at constant addresses (after level 0, given the merged `tp`). -/
+theorem lvlMem_read (lay ci sh l : Nat) (s : MachineState) (A : Nat) (hA : A < 2 ^ 64) (hB : mkBlk lay l + 24 < 2 ^ 64)
+    (h4 : l ≠ 0 → s.getReg .x4 = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (s.getReg .x30)) :
     memEval s (mkLvlMem lay ci sh l) (BitVec.ofNat 64 A) =
       if A = mkBlk lay l + 24 then
         (mkHeapE lay ci sh l).eval s
       else if A = mkBlk lay l + 16 then StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (s.getReg .x30) else s.getMem (BitVec.ofNat 64 A) := by
+  have hH : (mkHdrE lay l).eval s = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (s.getReg .x30) := by
+    unfold mkHdrE
+    split_ifs with hl
+    · exact mkX4_eval lay s
+    · exact h4 hl
   unfold mkLvlMem
-  rw [memEval_cons_ofNat _ _ _ _ _ hA hB, memEval_cons_ofNat _ _ _ _ _ hA (by omega), memEval_nil]
-  rfl
+  rw [memEval_cons_ofNat _ _ _ _ _ hA hB, memEval_cons_ofNat _ _ _ _ _ hA (by omega), memEval_nil, hH]
 
 /-! ## The HASH after a level -/
 
@@ -257,11 +279,13 @@ theorem lvl_input (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Ma
   have hleaf : (route index lay).1 < 2 ^ hL lay.val := leaf_lt index lay
   have htree : (route index lay).2 < 2 ^ 32 := tree_lt index lay hidx
   obtain ⟨hB8, hBlo, hBhi, -, -, -, -⟩ := mkBo_facts lay.val k hlay hk
+  have h4s : k ≠ 0 → s.getReg .x4 = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay.val)) 4 (s.getReg .x30) :=
+    fun hk0 => (hs.x4 hk0).trans (by rw [hs.keep .x30 (by simp [mkKeep])])
   have hrd : ∀ A, A < 2 ^ 64 → t.getMem (BitVec.ofNat 64 A) =
       if A = mkBlk lay.val k + 24 then
         (mkHeapE lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) k).eval s
       else if A = mkBlk lay.val k + 16 then StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay.val)) 4 (s.getReg .x30) else s.getMem (BitVec.ofNat 64 A) :=
-    fun A hA => (hmem _).trans (lvlMem_read _ _ _ _ s A hA (by unfold mkBlk; omega))
+    fun A hA => (hmem _).trans (lvlMem_read _ _ _ _ s A hA (by unfold mkBlk; omega) h4s)
   have hfr : ∀ A, A < 2 ^ 64 → A ≠ mkBlk lay.val k + 24 → A ≠ mkBlk lay.val k + 16 →
       t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA h1 h2; rw [hrd A hA, if_neg h1, if_neg h2]
@@ -377,8 +401,9 @@ theorem mkMove_last (lay k : Nat) (hk : k+1 = hL lay) :
 /-- After the HASH that follows level `k`: the next `MAfter` (`k + 1 < h`) or `MkEnd` (`k + 1 = h`). -/
 theorem lvl_after (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState) (hlay : lay < 4)
     (k : Nat) (hk : k < hL lay) (t : MachineState)
-    (hglob : Glob baseK w pk t) (hknown : KnownOK (mkK lay ++ [(.x11, 64)]) t)
+    (hglob : Glob baseK w pk t) (hknown : KnownOK (mkKc lay ++ [(.x11, 64)]) t)
     (hkeep : ∀ r ∈ mkKeep, t.getReg r = u.getReg r)
+    (h4 : t.getReg .x4 = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (u.getReg .x30))
     (horig : Orig w (fun o => 11288 ≤ o ∧ o < mkBo lay k) t) (a : BitVec 256) :
     (k + 1 < hL lay → t.pc = pcOf (mkEc lay leaf (k + 1)) →
       t.getReg .x12 = BitVec.ofNat 64 (mkCur lay (k + 1) (leaf / 2 ^ (k + 1) % 2)) →
@@ -391,7 +416,7 @@ theorem lvl_after (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState)
     have hnx := hBnext hk1
     have hb := mkBit_lt leaf (k + 1)
     have hd : mkCur lay (k + 1) (leaf / 2 ^ (k + 1) % 2) + 32 < 2 ^ 64 := by unfold mkCur mkBlk; omega
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [writeHash_pc, hpc, pcOf_add4]
     · exact Glob_writeHash hglob a _ h12 (safeDest_hi _ (by unfold mkCur mkBlk WLO WIT; omega)
         (by unfold mkCur mkBlk; omega) (by unfold mkCur mkBlk; omega))
@@ -403,6 +428,7 @@ theorem lvl_after (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState)
     · have hw2 := Orig_writeHash horig a _ h12 hd
       exact hw2.mono (fun o ⟨h1, h2, h3⟩ => ⟨⟨h1, by omega⟩, by unfold WIT; omega⟩)
     · rw [writeHash_getReg]; exact h12
+    · intro _; rw [writeHash_getReg]; exact h4
   · have hbl := hBlast hk1
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [writeHash_pc, hpc, pcOf_add4]
@@ -491,7 +517,7 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
     have hleaf0 : (route index lay).1 < 4096 := by rw [hl0] at hleaf; simpa [hL] using hleaf
     have hpc1 : t1.pc = pcOf (mkTab 0 1 + mkSh 0 1 (route index lay).1) := by
       rw [ht1.spc mkDispTgt rfl, dispTgt_eval _ hleaf0 s (by rw [h23, hl0])]
-    have hkn1 : KnownOK (mkK 0) t1 := fun p hp => ht1.known p (List.mem_append_left _ (by rw [hl0]; exact hp))
+    have hkn1 : KnownOK (mkKc 0) t1 := fun p hp => ht1.known p (List.mem_append_left _ (by rw [hl0]; exact hp))
     have hent := mkEnt_of (mkBlockCheck_at 0 1 (mkSh 0 1 (route index lay).1) (by decide) (by decide) (mkSh_lt _ _ _))
     obtain ⟨t, ht⟩ := spec_run hent t1 hpc1 hkn1 (by simp [mkEntSpec]) (by simp)
     have hst : Steps image s (mkLvlSt lay.val k) (mkLvlSt lay.val k) t := by
@@ -527,22 +553,27 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
       rfl
     obtain ⟨hinp, horig⟩ := lvl_input w pk index lay u hidx hs7 ht5 k hk v s t hs hmem h10 h11
     have hglob : Glob baseK w pk t := ht.glob _ _ _ (ht1.glob _ _ _ hs.glob (RelOK.nil s)) (RelOK.nil t1)
-    have hknown : KnownOK (mkK lay.val ++ [(.x11, 64)]) t := by
+    have hknown : KnownOK (mkKc lay.val ++ [(.x11, 64)]) t := by
       intro p hp
       rcases List.mem_append.mp hp with hp | hp
       · exact hkt p (by rw [← hl0]; simp [mkEntPost, hp])
       · simp only [List.mem_singleton] at hp; subst hp; exact h11
     have hkeep : ∀ r ∈ mkKeep, t.getReg r = u.getReg r := by
       intro r hr
-      rw [ht.keep r (mkKeep_sub _ r hr), ht1.keep r hr]; exact hs.keep r hr
+      rw [ht.keep r (mkKeep_sub _ r hr), ht1.keep r (mkKeep_sub _ r hr)]; exact hs.keep r hr
+    have hkp4 : Reg.x4 ∈ mkLvlKeep (mkLo lay.val (mkCi lay.val k) + (k - mkLo lay.val (mkCi lay.val k))) := by
+      rw [hlk]; simp [mkLvlKeep, hk5]
+    have h4 : t.getReg .x4 = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay.val)) 4 (u.getReg .x30) := by
+      rw [ht.keep .x4 (by simp [mkEntKeep]), ht1.keep .x4 (List.mem_append_right _ hkp4)]
+      exact hs.x4 (by omega)
     have hk6 : k + 1 < hL lay.val := by rw [hl0, hk5]; decide
-    refine ⟨t, hst, ht.ecall rfl, hknown (.x5, 0) (by simp [mkK, baseK]),
+    refine ⟨t, hst, ht.ecall rfl, hknown (.x5, 0) (by simp [mkKc, baseK]),
       hashArgs_of t _ 64 _ h10 h11 h12 (by unfold mkBlk; omega) (by decide) (by unfold mkBlk; omega)
         (by have := mkBit_lt (route index lay).1 (k + 1); have := (mkBo_facts lay.val (k + 1) hlay hk6).1
             unfold mkCur mkBlk; omega)
         (by have := mkBit_lt (route index lay).1 (k + 1); have := (mkBo_facts lay.val (k + 1) hlay hk6).2.2.1
             unfold mkCur mkBlk; omega), hinp, fun a => ?_⟩
-    obtain ⟨hA1, -⟩ := lvl_after w pk lay.val (route index lay).1 u hlay k hk t hglob hknown hkeep horig a
+    obtain ⟨hA1, -⟩ := lvl_after w pk lay.val (route index lay).1 u hlay k hk t hglob hknown hkeep h4 horig a
     refine ⟨fun _ => hA1 hk6 ?_ h12, fun h => absurd h (by omega)⟩
     rw [ht.pc rfl]
     simp only [mkEntSpec, mkEc, hl0, hk5, show mkCi 0 6 = 1 from rfl, show mkLo 0 1 = 6 from rfl]
@@ -589,13 +620,26 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
         (mkSh lay.val (mkCi lay.val k) (route index lay).1) (k - mkLo lay.val (mkCi lay.val k)))) (by simp [mkLvlPostN])
     obtain ⟨hinp, horig⟩ := lvl_input w pk index lay u hidx hs7 ht5 k hk v s t hs hmem h10 h11
     have hglob : Glob baseK w pk t := ht.glob _ _ _ hs.glob (RelOK.nil s)
-    have hknown : KnownOK (mkK lay.val ++ [(.x11, 64)]) t := by
+    have hknown : KnownOK (mkKc lay.val ++ [(.x11, 64)]) t := by
       intro p hp
       rcases List.mem_append.mp hp with hp | hp
       · exact hkt p (by simp [mkLvlPostN, hp])
       · simp only [List.mem_singleton] at hp; subst hp; exact h11
     have hkeep : ∀ r ∈ mkKeep, t.getReg r = u.getReg r := by
       intro r hr; rw [ht.keep r (mkKeep_sub _ r hr)]; exact hs.keep r hr
+    -- BIG2: level 0's `ld tp` merges the header word 0; later levels keep `tp`
+    have h4 : t.getReg .x4 = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay.val)) 4 (u.getReg .x30) := by
+      by_cases hk0 : k = 0
+      · have hreg : mkLvlRegs lay.val (mkLo lay.val (mkCi lay.val k) + (k - mkLo lay.val (mkCi lay.val k))) =
+            [(.x4, mkX4 lay.val)] := by
+          rw [hlk, hk0]; simp [mkLvlRegs]
+        have hr : t.getReg .x4 = (mkX4 lay.val).eval s :=
+          ht.regs (.x4, mkX4 lay.val) (by simp only [mkLvlSpecN]; rw [hreg]; exact List.mem_singleton.mpr rfl)
+        rw [hr, mkX4_eval, hs.keep .x30 (by simp [mkKeep])]
+      · have hkp4 : Reg.x4 ∈ mkLvlKeep (mkLo lay.val (mkCi lay.val k) + (k - mkLo lay.val (mkCi lay.val k))) := by
+          rw [hlk]; simp [mkLvlKeep, hk0]
+        rw [ht.keep .x4 (List.mem_append_right _ (List.mem_cons_of_mem _ hkp4))]
+        exact hs.x4 hk0
     have hpcT : t.pc = pcOf (mkShp lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) +
         mkOff lay.val (mkCi lay.val k) (k - mkLo lay.val (mkCi lay.val k) + 1) + mkMove lay.val k) := by
       have h := ht.pc rfl
@@ -617,10 +661,10 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
         have hm : mkSh lay.val (mkCi lay.val k) (route index lay).1 / 32 % 2 < 2 := Nat.mod_lt _ (by decide)
         split <;> omega
     obtain ⟨d, hd12, hd8, hd32⟩ := hdst
-    refine ⟨t, hst, ht.ecall rfl, hknown (.x5, 0) (by simp [mkK, baseK]),
+    refine ⟨t, hst, ht.ecall rfl, hknown (.x5, 0) (by simp [mkKc, baseK]),
       hashArgs_of t _ 64 _ h10 h11 hd12 (by unfold mkBlk; omega) (by decide) (by unfold mkBlk; omega) hd8 hd32,
       hinp, fun a => ?_⟩
-    obtain ⟨hA1, hA2⟩ := lvl_after w pk lay.val (route index lay).1 u hlay k hk t hglob hknown hkeep horig a
+    obtain ⟨hA1, hA2⟩ := lvl_after w pk lay.val (route index lay).1 u hlay k hk t hglob hknown hkeep h4 horig a
     refine ⟨fun hk1 => hA1 hk1 ?_ ?_, fun hk1 => hA2 hk1 ?_ ?_⟩
     · obtain ⟨hn1, hn2, hn3⟩ := hnext hk1 hd
       rw [hpcT,mkMove_next _ _ hk1]; unfold mkEc; rw [hn1, hn2]
@@ -688,15 +732,15 @@ def mkFuel (lay : Nat) : Nat := 3 + mkFuelR lay 0 (hL lay)
 /-- Cycles of a layer's Merkle phase: the entry (2), the leaf-pk HASH (`8 · lfBlocks`), the levels. -/
 def mkCyc (lay : Nat) : Nat := 2 + 8 * lfBlocks lay + mkCycR lay 0 (hL lay)
 
-theorem mkCyc_vals : mkCyc 0 = 283 ∧ mkCyc 1 = 186 ∧ mkCyc 2 = 172 ∧ mkCyc 3 = 172 := by decide
-theorem mkFuel_vals : mkFuel 0 = 88 ∧ mkFuel 1 = 50 ∧ mkFuel 2 = 43 ∧ mkFuel 3 = 43 := by decide
+theorem mkCyc_vals : mkCyc 0 = 273 ∧ mkCyc 1 = 181 ∧ mkCyc 2 = 168 ∧ mkCyc 3 = 168 := by decide
+theorem mkFuel_vals : mkFuel 0 = 78 ∧ mkFuel 1 = 45 ∧ mkFuel 2 = 39 ∧ mkFuel 3 = 39 := by decide
 
 theorem mkBits_stabBits (lay : Nat) (hlay : lay < 4) : mkBits lay 0 = stabBits lay := by
   interval_cases lay <;> decide
 
 /-- **The Merkle phase of a layer** (V3): from V1's `LeafOut`, the shape block(s) of the leaf refine
 `leafHash lay tree leaf ends >>= merkleP w index lay` with fuel `mkFuel lay` and exactly `mkCyc lay` cycles on every
-path (283 / 186 / 172 / 172 for layers 0..3), continued by `K` at `MkEnd`. -/
+path (273 / 181 / 168 / 168 for layers 0..3), continued by `K` at `MkEnd`. -/
 theorem merkle_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends : List Digest) (u : MachineState)
     (hidx : index < 2 ^ 31) (hu : LeafOut w pk index lay ends u)
     (K : Digest → OracleComp HashSpec Obs) (N C A : Nat) (Q : Prop)
@@ -706,7 +750,7 @@ theorem merkle_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends
   have hlay := lay.isLt
   have hleaf : (route index lay).1 < 2 ^ hL lay.val := leaf_lt index lay
   have hkU : KnownOK (lfK lay.val) u := hu.glob.1
-  have hknown : KnownOK (mkK lay.val) u := fun p hp => hkU p (lfK_mkK _ p hp)
+  have hknown : KnownOK (mkKc lay.val) u := fun p hp => hkU p (lfK_mkK _ p (mkKc_mkK _ p hp))
   have hhL : 0 < hL lay.val := by interval_cases lay.val <;> decide
   -- the table word and the first `addi a2`
   have hent := mkEnt_of (mkBlockCheck_at lay.val 0 (mkSh lay.val 0 (route index lay).1) hlay
@@ -748,13 +792,20 @@ theorem merkle_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends
       (ccM (merkleP w index lay (a.extractLsb' 0 128)) K) := by
     intro a
     have hA : MAfter w pk lay.val (route index lay).1 u 0 (a.extractLsb' 0 128) (writeHash t a) := by
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, fun h => absurd rfl h⟩
       · rw [writeHash_pc, ht.pc rfl, pcOf_add4]
         simp only [mkEntSpec, mkEc, show mkCi lay.val 0 = 0 by simp [mkCi], show mkLo lay.val 0 = 0 by simp [mkLo]]
         rfl
       · exact Glob_writeHash hG a _ h12 (safeDest_hi _ (by unfold mkCur mkBlk WLO WIT; omega)
           (by unfold mkCur mkBlk; omega) (by unfold mkCur mkBlk; omega))
-      · intro p hp; rw [writeHash_getReg]; exact hkt p (List.mem_append_left _ (by simpa [mkLvlK] using hp))
+      · intro p hp
+        rw [writeHash_getReg]
+        have hp' : p ∈ mkK lay.val := by simpa [mkLvlK] using hp
+        rcases mkK_cases _ p hp' with hp'' | hp''
+        · exact hkt p (List.mem_append_left _ hp'')
+        · -- `tp = T(3)`'s word 0, kept from the leaf-pk block (BIG2)
+          rw [ht.keep p.1 (by rw [hp'']; simp [mkEntKeep])]
+          exact hkU p (lfK_mkK _ p hp')
       · intro r hr; rw [writeHash_getReg]; exact ht.keep r (mkKeep_sub _ r hr)
       · exact DigAt.writeHash_lo t a _ h12 hd
       · have hO : Orig w (fun o => 11288 ≤ o ∧ o < layerBase lay + 64 * height lay) t :=
@@ -764,7 +815,7 @@ theorem merkle_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends
       · rw [writeHash_getReg]; exact h12
     rw [merkleP_eq, List.range_eq_range', ← hL_eq]
     exact merkle_rest w pk index lay u hidx hu.s7 hu.t5 K N C A Q hK (hL lay.val) 0 _ _ (by omega) hhL hA
-  have h5 : t.getReg .x5 = 0 := hkt (.x5, 0) (by simp [mkEntPost, mkK, baseK])
+  have h5 : t.getReg .x5 = 0 := hkt (.x5, 0) (by simp [mkEntPost, mkKc, baseK])
   have hg := GoodQ.shortHash_bind (f := merkleP w index lay) (K := K) (ht.ecall rfl) h5 hv hin H
   rw [hu.hashInput.2] at hg
   rw [leafHash_eq]

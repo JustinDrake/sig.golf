@@ -8,9 +8,10 @@ From `ChainIn c s0 i` (code chain `i`'s code start: its `ttab` slot for `A = 3t`
 `ctab[t4]` for the checksum chain 42) the machine performs Core's `chainP` with the block's pads and witness value
 (`GoodQ` of V2's `Judg`), then the dispatch of the next triple (`ChainNext`).
 
-Cycle cost of code chain `i` at digit `d` (`chainCost`): the table heads retain the conservative
-`70 - 9*d` bound (max-digit copy 6, checksum copy 5); inline heads use `68 - 9*d` (max-digit copy 4).
-The dispatch after `C` costs 4, after triple 13 it costs 3, and the checksum return costs 1. -/
+Cycle cost of code chain `i` at digit `d` (`chainCost`): the table heads keep the conservative `70 - 9 d` bound
+(max-digit copy 6, checksum copy 5); T3X inline heads (`B`, `C`) load their header from the image table and cost
+`68 - 9 d` (max-digit copy 4); then the dispatch after `C` (`xCost`: 4, after triple 13: 3) and after chain 42 the
+return (1). (Cost split of erickeigen 59cbf8ec.) -/
 
 set_option linter.unusedSimpArgs false
 
@@ -38,7 +39,7 @@ theorem blk_at (c : LCtx) (i : Nat) (hi : i < 42) :
   blkCheck_at _ _ _ (by omega) (c.dig_lt8 _ (by omega)) (c.dig_lt8 _ (by omega))
 
 theorem chk_headJ (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 = 0) (hd : c.dig i < 7) :
-    vrun (c.startPc i) 7 = some (lowerHeadJ .x22 (offL i) (i / 3 == 0) (c.rungPc i (c.dig i)) i) := by
+    vrun (c.startPc i) 7 = some (headJH .x22 (offL i) (c.rungPc i (c.dig i)) i) := by
   obtain ⟨t, rfl⟩ : ∃ t, i = 3 * t := ⟨i / 3, by omega⟩
   have et : 3 * t / 3 = t := by omega
   have he := entCheck_at t (c.kOf t) (by omega) (c.kOf_lt t (by omega))
@@ -49,11 +50,11 @@ theorem chk_headJ (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 = 0) (hd : c.di
     unfold startPc; rw [if_neg (by omega), if_pos h0, et]
   have hr : c.rungPc (3 * t) (c.dig (3 * t)) = triBase t (c.dig (3 * t + 1)) (c.dig (3 * t + 2)) + 2 * c.dig (3 * t) := by
     unfold rungPc tb; rw [if_neg (by omega), if_pos h0, et]
-  rw [hs, hr, et]
+  rw [hs, hr]
   exact rOK_eq he
 
 theorem chk_copyJ (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 = 0) (hd : c.dig i = 7) :
-    vrun (c.startPc i) 7 = some (lowerCopyJ .x22 (offL i) (slotL i) (i / 3 == 0) (c.endPc i)) := by
+    vrun (c.startPc i) 7 = some (copyN .x22 (offL i) (slotL i) (c.endPc i)) := by
   obtain ⟨t, rfl⟩ : ∃ t, i = 3 * t := ⟨i / 3, by omega⟩
   have et : 3 * t / 3 = t := by omega
   have he := entCheck_at t (c.kOf t) (by omega) (c.kOf_lt t (by omega))
@@ -64,7 +65,7 @@ theorem chk_copyJ (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 = 0) (hd : c.di
     unfold startPc; rw [if_neg (by omega), if_pos h0, et]
   have hq : c.endPc (3 * t) = pcB t (c.dig (3 * t + 1)) (c.dig (3 * t + 2)) := by
     unfold endPc tB; rw [if_neg (by omega), if_pos h0, et]
-  rw [hs, hq, et]
+  rw [hs, hq]
   exact rOK_eq he
 
 /-- The inline part (`B`, `C`) check of chain `i` at its digit. -/
@@ -85,14 +86,14 @@ theorem part_at (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 ≠ 0) :
 
 theorem chk_headR (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 ≠ 0) (hd : c.dig i < 7) :
     vrun (c.startPc i) 8 =
-      some (lowerHeadR .x22 (offL i) (c.dig i) (if c.dig i = 6 then some (slotL i) else none) (c.startPc i) i) := by
+      some (headRH .x22 (offL i) (c.dig i) (if c.dig i = 6 then some (slotL i) else none) (c.startPc i) i) := by
   have hp := c.part_at i hi h0
   unfold partOK at hp
   rw [if_neg (by omega), Bool.and_eq_true] at hp
   exact rOK_eq hp.1
 
 theorem chk_copyF (c : LCtx) (i : Nat) (hi : i < 42) (h0 : i % 3 ≠ 0) (hd : c.dig i = 7) :
-    vrun (c.startPc i) 4 = some (lowerCopyF .x22 (offL i) (slotL i) (c.startPc i)) := by
+    vrun (c.startPc i) 4 = some (copyFH .x22 (offL i) (slotL i) (c.startPc i)) := by
   have hp := c.part_at i hi h0
   unfold partOK at hp
   rw [if_pos hd] at hp
@@ -141,7 +142,7 @@ namespace LCtx
 
 /-! ## The checksum chain's checks -/
 
-theorem ck_parts : (∀ c, c < 7 → vrun (ctabIdx + 8 * c) 7 = some (lowerHeadJ .x22 (offL 42) false (ckR0 + 2 * c) 42)) ∧
+theorem ck_parts : (∀ c, c < 7 → vrun (ctabIdx + 8 * c) 7 = some (headJH .x22 (offL 42) (ckR0 + 2 * c) 42)) ∧
     vrun (ctabIdx + 56) 6 = some (copyN .x22 (offL 42) (slotL 42) ckDone) ∧
     vrun (ctabIdx + 64) 2 = some retR ∧
     (∀ m, m < 7 → vrun (ckR0 + 2 * m) 3 = some (rungR m (if m = 6 then some (slotL 42) else none) (ckR0 + 2 * m))) ∧
@@ -422,7 +423,7 @@ theorem chain_good (c : LCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
     have hsteps := c.steps_good hc hk h0 i hi hck acc K N C A Q hK (6 - c.dig i) (c.dig i) (by omega) (le_refl _)
     have hrp := c.rungPc_lt i (c.dig i) (by omega)
     by_cases h0' : i % 3 = 0
-    · have hrun1 : vrun (c.startPc i) 7 = some (lowerHeadJ .x22 (offL i) (i / 3 == 0) (c.rungPc i (c.dig i)) i) := by
+    · have hrun1 : vrun (c.startPc i) 7 = some (headJH .x22 (offL i) (c.rungPc i (c.dig i)) i) := by
         by_cases h42 : i = 42
         · subst h42
           have := ck_parts.1 c.ck (by rw [dig42] at hd; exact hd)

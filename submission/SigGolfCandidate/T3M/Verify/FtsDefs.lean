@@ -126,7 +126,7 @@ structure DispIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Diges
     (E ptr folds : Nat) (node : Digest) (m : MachineState) : Prop where
   fb : FB F c m
   pc : (isLeafP pend = true ∧ m.pc = pcOf (leafDisp (3 * c + j))) ∨
-    (isLeafP pend = false ∧ ∃ k, k < 77 ∧ m.pc = pcOf (mDispPc k) ∧ m.getReg .x24 = BitVec.ofNat 64 (lnk c j))
+    (isLeafP pend = false ∧ ∃ k, k < 3 ∧ m.pc = pcOf (mDispPc k) ∧ m.getReg .x24 = BitVec.ofNat 64 (lnk c j))
   a4 : m.getReg .x14 = BitVec.ofNat 64 (WIT + ptr - 880)
   a5 : m.getReg .x15 = BitVec.ofNat 64 (frameA stk.length)
   s4 : m.getReg .x20 = BitVec.ofNat 64 (tabPc (tselJ j))
@@ -149,7 +149,7 @@ def fblk (ptr i : Nat) : Nat := ptr + 8 + 80 * i
 structure RungIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Digest × Nat)) (X a i E ptr folds : Nat)
     (node : Digest) (m : MachineState) : Prop where
   fb : FB F c m
-  pc : m.pc = pcOf (foldPc X a ((segSides (wbyte F.w ptr).toNat)) (E % 2) i)
+  pc : m.pc = pcOf (ladPc X (E % 2) (11 - a + i))
   a4 : m.getReg .x14 = BitVec.ofNat 64 (WIT + ptr - 880 + 8 + 80 * a)
   a5 : m.getReg .x15 = BitVec.ofNat 64 (frameA stk.length)
   s4 : m.getReg .x20 = BitVec.ofNat 64 (tabPc (tselJ j))
@@ -166,7 +166,6 @@ structure RungIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Diges
   hX : X = segX (tselJ j) (wbyte F.w ptr).toNat ∧ a = segA (wbyte F.w ptr).toNat
   hi : i < a ∧ a ≤ 11
   hE : E < 4096
-  sides : ∀ k, i+k < min a 3 → E/2^k%2 = (segSides (wbyte F.w ptr).toNat)/2^(i+k)%2
 
 /-- The destination of the last hash of variant `X` at stack depth `d`. -/
 def destA (c X d : Nat) : Nat := if X = 0 then frameA d + 48 else if X = 1 then frameA (d + 1) else forestSlot c
@@ -175,7 +174,7 @@ def destA (c X d : Nat) : Nat := if X = 0 then frameA d + 48 else if X = 1 then 
 structure TailIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Digest × Nat)) (X E ptr folds : Nat)
     (node : Digest) (m : MachineState) : Prop where
   fb : FB F c m
-  pc : ∃ k, k < 77 ∧ m.pc = pcOf (tailPc X k)
+  pc : ∃ k, k < 3 ∧ m.pc = pcOf (tailPc X k)
   a4 : m.getReg .x14 = BitVec.ofNat 64 (WIT + ptr - 880)
   a5 : m.getReg .x15 = BitVec.ofNat 64 (frameA stk.length)
   s4 : m.getReg .x20 = BitVec.ofNat 64 (tabPc (tselJ j))
@@ -214,13 +213,13 @@ structure CoordIn (F : FCtx) (c : Nat) (roots : List Digest) (stk : List (Digest
 def segRem (c j d : Nat) : Nat := 5 - 2 * j + d + 5 * (6 - c)
 def tailsRem (c j d : Nat) : Nat := 4 * ((2 - j) + 2 * (6 - c)) + 7 * (d + 2 - j + 2 * (6 - c)) + (1 + (6 - c))
 def leafRem (c j : Nat) : Nat := (if j = 0 then 13 else if j = 1 then 7 else 0) + 20 * (6 - c)
-def coordRem (c : Nat) : Nat := 7 * (6 - c) + 4
+def coordRem (c : Nat) : Nat := 5 * (6 - c) + 2
 
-/-- Accepting runs from a dispatch: 15 per segment, 16 per fold (at most 124 in total), tails, leaf codes,
+/-- Accepting runs from a dispatch: 15 per segment, 14 per fold (n3-99 relabel; at most 115 in total), tails, leaf codes,
 coordinate ends, the forest (24). -/
 def Afts (c j d folds A' : Nat) : Nat :=
-  15 * segRem c j d + 15 * (119 - folds) + tailsRem c j d + leafRem c j + coordRem c + 24 + A'
+  15 * segRem c j d + 14 * (115 - folds) + tailsRem c j d + leafRem c j + coordRem c + 23 + A'
 /-- Every run from a dispatch: at most 191 per segment. -/
-def Cfts (c j d C' : Nat) : Nat := 191 * segRem c j d + tailsRem c j d + leafRem c j + coordRem c + 24 + C'
+def Cfts (c j d C' : Nat) : Nat := 191 * segRem c j d + tailsRem c j d + leafRem c j + coordRem c + 23 + C'
 
 end SigGolfCandidate.T3M.Verify

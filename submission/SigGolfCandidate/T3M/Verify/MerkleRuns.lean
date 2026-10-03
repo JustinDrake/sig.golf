@@ -25,9 +25,14 @@ Families (each a path run checked by `specB`, kernel-checked in `MerkleCheck*`):
 * `cmpCheck c`: the compare copy `c` (`ld/ld/bne` twice, HALT(0) / HALT(1)).
 
 Layout facts (word indices, `t3m/images/verify.labels`): `stab_3_0` 209512, `stab_2_0` 209576, `stab_1_0` 209640,
-`stab_0_0` 209768, `stab_0_1` 209832; `shp_3_0_sh` = 5483 + 101 sh, `shp_2_0_sh` = 11947 + 101 sh, `shp_1_0_sh` =
-18411 + 134 sh, `shp_0_0_sh` = 35563 + 48 sh, `shp_0_1_sh` = 38635 + 53 sh, `xcmp` copy `c` = 38676 + 53 c (checked
-against the disassembly by `checks/gen/merkle_check.py`, and by the kernel through the runs below). -/
+`stab_0_0` 209768, `stab_0_1` 209832; `shp_3_0_sh` = 5487 + 101 sh, `shp_2_0_sh` = 11951 + 101 sh, `shp_1_0_sh` =
+18416 + 134 sh, `shp_0_0_sh` = 35567 + 48 sh, `shp_0_1_sh` = 38641 + 53 sh, `xcmp` copy `c` = 38676 + 53 c (checked
+against the disassembly by `checks/gen/merkle_check.py`, and by the kernel through the runs below).
+
+BIG2 (Merkle word 0): level 0 keeps `sd tp, 16(a0); sw t5, 20(a0)` and adds `ld tp, 16(a0)`, so `tp` holds the merged
+header word 0 (`mkX4`); every later level (including layer 0's chunk 1) stores it with `sd tp, 16(a0)` alone. Each
+block's Merkle part is shorter by 4 / 4 / 5 / 4 / 6 words (layers 3, 2, 1, layer 0 chunks 0, 1) and ends where it
+did, so its start (the table target) is that many words later (the words before it are unreached `nop`s). -/
 
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
@@ -45,12 +50,13 @@ def mkBits (lay ci : Nat) : Nat := if lay = 0 then 6 else hL lay
 def mkTab (lay ci : Nat) : Nat := if lay = 0 ∧ ci = 1 then 209832 else stabIdx lay
 /-- The shape block `shp_lay_ci_sh` (word index of its first instruction). -/
 def mkShp (lay ci sh : Nat) : Nat :=
-  if lay = 3 then 5483 + 101 * sh else if lay = 2 then 11947 + 101 * sh
-  else if lay = 1 then 18411 + 134 * sh else if ci = 0 then 35563 + 48 * sh else 38635 + 53 * sh
+  if lay = 3 then 5487 + 101 * sh else if lay = 2 then 11951 + 101 * sh
+  else if lay = 1 then 18416 + 134 * sh else if ci = 0 then 35567 + 48 * sh else 38641 + 53 * sh
 /-- The parent's heap index is a constant register at the top three levels. -/
 def mkReg (lay l : Nat) : Bool := decide (hL lay ≤ l + 3)
-/-- Instruction words of level `l` (`addi a2; ecall; [li a1]; addi a0; sd; sw; [li gp / srli gp]; sw`). -/
-def mkWords (lay l : Nat) : Nat := 6 + (if l = 0 then 1 else 0) + (if mkReg lay l then 0 else 1)
+/-- Instruction words of level `l`: level 0 `addi a2; ecall; li a1; addi a0; sd tp; sw t5; ld tp; [li gp]; sd`
+(BIG2: the `ld` makes `tp` the merged header word 0), later levels `addi a2; ecall; addi a0; sd tp; [li gp]; sd`. -/
+def mkWords (lay l : Nat) : Nat := (if l = 0 then 8 else 5) + (if mkReg lay l then 0 else 1)
 /-- Offset of level `kk` of chunk `ci` from the start of its block. -/
 def mkOff (lay ci : Nat) : Nat → Nat
   | 0 => 0
@@ -77,6 +83,14 @@ def mkK (lay : Nat) : List (Reg × Word) :=
   baseK ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)), (.x6, 1), (.x7, 2), (.x8, 3),
     (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x15, 0xce000)]
 
+/-- BIG2: the same without `tp` (after level 0 `tp` holds the merged header word 0, `mkX4`). -/
+def mkKc (lay : Nat) : List (Reg × Word) :=
+  baseK ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x6, 1), (.x7, 2), (.x8, 3),
+    (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x15, 0xce000)]
+
+/-- BIG2: the merged header word 0 (`T(3)`'s word 0 in the low half, `t5` = the tree in the high half). -/
+def mkX4 (lay : Nat) : E := .bin (.st .w 4) (kw (hw 3 lay)) (.reg .x30)
+
 /-- Registers that no Merkle run writes or knows (kept for the next transition: `sp`, `s4`, `s5`, `s7`, `s8`, `s11`,
 `t3`, `t5`, ...). -/
 def mkKeep : List Reg := [.x1, .x2, .x16, .x17, .x19, .x20, .x21, .x23, .x24, .x25, .x27, .x28, .x29, .x30]
@@ -87,12 +101,12 @@ def mkKeep : List Reg := [.x1, .x2, .x16, .x17, .x19, .x20, .x21, .x23, .x24, .x
 def mkEntSpec (lay ci sh : Nat) : Spec := ⟨[], [], mkShp lay ci sh + 1, true, 2, [], none, 2⟩
 
 def mkEntPost (lay ci sh : Nat) : List (Reg × Word) :=
-  mkK lay ++ [(.x12, BitVec.ofNat 64 (mkCur lay (mkLo lay ci) (sh % 2)))]
+  mkKc lay ++ [(.x12, BitVec.ofNat 64 (mkCur lay (mkLo lay ci) (sh % 2)))]
 
-def mkEntKeep : List Reg := mkKeep ++ [.x10, .x11, .x14]
+def mkEntKeep : List Reg := mkKeep ++ [.x10, .x11, .x14, .x4]
 
 def mkEntCheck (lay ci sh : Nat) : Bool :=
-  specB [] [] baseK (runAt (mkK lay) [] (mkTab lay ci + sh) []) (mkEntSpec lay ci sh) [] (mkEntPost lay ci sh) mkEntKeep
+  specB [] [] baseK (runAt (mkKc lay) [] (mkTab lay ci + sh) []) (mkEntSpec lay ci sh) [] (mkEntPost lay ci sh) mkEntKeep
 
 /-! ## A level -/
 
@@ -100,11 +114,20 @@ def mkEntCheck (lay ci sh : Nat) : Bool :=
 def mkHeapE (lay ci sh l : Nat) : E :=
   if lay = 0 ∧ ci = 0 then .bin .srl (.reg .x23) (kw (l + 1)) else kw (mkHeap lay ci sh l)
 
+/-- The header word 0 store of level `l`: level 0 stores `T(3)`'s word 0 and the tree (`sd tp; sw t5`), later
+levels store the merged `tp` (BIG2). -/
+def mkHdrE (lay l : Nat) : E := if l = 0 then mkX4 lay else .reg .x4
+
 /-- The two header writes of level `l`: word 1 `tree | heap << 32` (two `sw`), word 0 `T(3)`. -/
 def mkLvlMem (lay ci sh l : Nat) : List (Addr × E) :=
   [(⟨none, BitVec.ofNat 64 (mkBlk lay l + 24)⟩, mkHeapE lay ci sh l),
-   (⟨none, BitVec.ofNat 64 (mkBlk lay l + 16)⟩,
-      .bin (.st .w 4) (kw (hw 3 lay)) (.reg .x30))]
+   (⟨none, BitVec.ofNat 64 (mkBlk lay l + 16)⟩, mkHdrE lay l)]
+
+/-- Level 0's `ld tp` leaves the merged word in `tp` (BIG2); later levels keep `tp`. -/
+def mkLvlRegs (lay l : Nat) : List (Reg × E) := if l = 0 then [(.x4, mkX4 lay)] else []
+
+/-- The registers a level keeps: `tp` after level 0. -/
+def mkLvlKeep (l : Nat) : List Reg := if l = 0 then [] else [.x4]
 
 def mkLvlAllow (lay l : Nat) : List Nat := [mkBlk lay l + 16, mkBlk lay l + 24]
 
@@ -113,7 +136,7 @@ def mkDispTgt : E :=
   .bin .and (.bin .add (.bin .sll (.bin .srl (.reg .x23) (kw 6)) (kw 2)) (kw 843168)) (.c (~~~1#64))
 
 /-- Steps of the level body (after its `ecall`, before the next `addi a2` / `li a2` / dispatch). -/
-def mkBody (lay l : Nat) : Nat := (if l = 0 then 1 else 0) + 3 + (if mkReg lay l then 1 else 2)
+def mkBody (lay l : Nat) : Nat := (if l = 0 then 5 else 2) + (if mkReg lay l then 1 else 2)
 
 /-- Is level `kk` of chunk `ci` the last of a chunk followed by the chunk-1 dispatch? -/
 def mkIsDisp (lay ci kk : Nat) : Bool := decide (lay = 0 ∧ ci = 0 ∧ kk + 1 = mkBits lay ci)
@@ -124,24 +147,27 @@ def mkNextA2 (lay ci sh kk : Nat) : Nat :=
 
 /-- A level ending at the next `ecall` (the next level's HASH or the root HASH). -/
 def mkLvlSpecN (lay ci sh kk : Nat) : Spec :=
-  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), mkShp lay ci sh + mkOff lay ci (kk + 1) + mkMove lay (mkLo lay ci + kk), true,
+  ⟨mkLvlRegs lay (mkLo lay ci + kk), mkLvlMem lay ci sh (mkLo lay ci + kk),
+    mkShp lay ci sh + mkOff lay ci (kk + 1) + mkMove lay (mkLo lay ci + kk), true,
     mkBody lay (mkLo lay ci + kk) + mkMove lay (mkLo lay ci + kk), [], none,
     mkBody lay (mkLo lay ci + kk) + mkMove lay (mkLo lay ci + kk)⟩
 
 /-- Level 5 of layer 0's chunk 0, ending with the chunk-1 dispatch (a jump to `stab_0_1`). -/
 def mkLvlSpecD (lay ci sh kk : Nat) : Spec :=
-  ⟨[], mkLvlMem lay ci sh (mkLo lay ci + kk), 0, false, mkBody lay (mkLo lay ci + kk) + 3, [], some mkDispTgt,
+  ⟨mkLvlRegs lay (mkLo lay ci + kk), mkLvlMem lay ci sh (mkLo lay ci + kk), 0, false,
+    mkBody lay (mkLo lay ci + kk) + 3, [], some mkDispTgt,
     mkBody lay (mkLo lay ci + kk) + 3⟩
 
-/-- Known at the level body's start: the constants, and `a1 = 64` after the leaf-pk HASH. -/
-def mkLvlK (lay l : Nat) : List (Reg × Word) := mkK lay ++ (if l = 0 then [] else [(.x11, 64)])
+/-- Known at the level body's start: the constants (with `tp = T(3)`'s word 0 at level 0 only), and `a1 = 64` after
+the leaf-pk HASH. -/
+def mkLvlK (lay l : Nat) : List (Reg × Word) := if l = 0 then mkK lay else mkKc lay ++ [(.x11, 64)]
 
 def mkLvlPostN (lay ci sh kk : Nat) : List (Reg × Word) :=
-  mkK lay ++ [(.x11, 64), (.x10, BitVec.ofNat 64 (mkBlk lay (mkLo lay ci + kk))),
+  mkKc lay ++ [(.x11, 64), (.x10, BitVec.ofNat 64 (mkBlk lay (mkLo lay ci + kk))),
     (.x12, BitVec.ofNat 64 (mkNextA2 lay ci sh kk))]
 
 def mkLvlPostD (lay ci kk : Nat) : List (Reg × Word) :=
-  mkK lay ++ [(.x11, 64), (.x10, BitVec.ofNat 64 (mkBlk lay (mkLo lay ci + kk))), (.x15, 0xce000)]
+  mkKc lay ++ [(.x11, 64), (.x10, BitVec.ofNat 64 (mkBlk lay (mkLo lay ci + kk))), (.x15, 0xce000)]
 
 def mkLvlKN (lay ci sh kk : Nat) : List (Reg × Word) :=
   mkLvlK lay (mkLo lay ci + kk) ++
@@ -151,12 +177,12 @@ def mkLvlKN (lay ci sh kk : Nat) : List (Reg × Word) :=
 def mkLvlCheckN (lay ci sh kk : Nat) : Bool :=
   specB (mkLvlAllow lay (mkLo lay ci + kk)) [] baseK
     (runAt (mkLvlKN lay ci sh kk) [] (mkShp lay ci sh + mkOff lay ci kk + 2) [])
-    (mkLvlSpecN lay ci sh kk) [] (mkLvlPostN lay ci sh kk) (mkKeep ++ [.x14])
+    (mkLvlSpecN lay ci sh kk) [] (mkLvlPostN lay ci sh kk) (mkKeep ++ (.x14 :: mkLvlKeep (mkLo lay ci + kk)))
 
 def mkLvlCheckD (lay ci sh kk : Nat) : Bool :=
   specB (mkLvlAllow lay (mkLo lay ci + kk)) [] baseK
     (runAt (mkLvlK lay (mkLo lay ci + kk)) [] (mkShp lay ci sh + mkOff lay ci kk + 2) [.jmp])
-    (mkLvlSpecD lay ci sh kk) [] (mkLvlPostD lay ci kk) mkKeep
+    (mkLvlSpecD lay ci sh kk) [] (mkLvlPostD lay ci kk) (mkKeep ++ mkLvlKeep (mkLo lay ci + kk))
 
 def mkLvlCheck (lay ci sh kk : Nat) : Bool :=
   if mkIsDisp lay ci kk then mkLvlCheckD lay ci sh kk else mkLvlCheckN lay ci sh kk

@@ -51,14 +51,14 @@ def rcEm (leaves : List Nat) (pf : Nat → Digest) : Nat → Nat → Nat → Em 
   | level, node, used, e =>
     if hasLeaf leaves level node = false then e
     else match level with
-    | 0 => if leaves.idxOf node = 0 then ⟨e.segs, e.cur, node % 8⟩ else e.close false (node % 8)
+    | 0 => if leaves.idxOf node = 0 then ⟨e.segs, e.cur, node % 2⟩ else e.close false (node % 2)
     | l + 1 =>
       let e1 := rcEm leaves pf l (2 * node) used e
       let u1 := used + (T3.frontier leaves l (2 * node)).length
       let e2 := rcEm leaves pf l (2 * node + 1) u1 e1
       if hasLeaf leaves l (2 * node) = false then ⟨e2.segs, e2.cur ++ [(true, pf used)], e2.par⟩
       else if hasLeaf leaves l (2 * node + 1) = false then ⟨e2.segs, e2.cur ++ [(false, pf u1)], e2.par⟩
-      else e2.close true (node % 8)
+      else e2.close true (node % 2)
 
 /-- Cycles of `recover_child` at `(level, node)` (all oracles). -/
 def rcCost (leaves : List Nat) : Nat → Nat → Nat

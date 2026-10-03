@@ -57,8 +57,8 @@ def selectionsOk (chosen : List Selection) : Bool :=
 
 /-! ## The fold stream machine (W2 format)
 
-Header byte `b` of a segment: `a = b % 16` folds, `merge = b / 16 % 2`, `t = b / 32 % 8`; up to three low direction bits are checked against the
-current heap index when `a > 0`. Header bytes 1..7 are never read. -/
+Header byte `b` of a segment: `a = b % 16` folds, `merge = b / 16 % 2`, `t = b / 32 % 2` (checked against the
+current heap index's parity when `a > 0`); bits 6..7 and header bytes 1..7 are never read. -/
 
 /-- What a segment hashes before its folds: the FTS leaf of slot `slot` (global leaf `g`) or a merge of the
 stacked node `left` with the current node (parent heap index `heap`). -/
@@ -95,7 +95,7 @@ def segLoop (w : WBytes) (index coord : Nat) :
   | stack, pending, E, ptr, node => do
       let b := (wbyte w ptr).toNat
       if 11 < b % 16 then return none
-      if 0 < b % 16 ∧ b / 32 % segSideMod (b % 16) ≠ E % segSideMod (b % 16) then return none
+      if 0 < b % 16 ∧ b / 32 % 2 ≠ E % 2 then return none
       let node ← pendingHash w index coord node pending
       let (node, E) ← foldsP w index coord ptr (b % 16) node E
       let ptr := segNext ptr (b % 16)
