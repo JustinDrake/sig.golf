@@ -77,8 +77,10 @@ unknown files, symlinks, hardlinks, path traversal, and unsupported versions rej
 
 The original source limit remains 16 MiB and the total entry limit remains 1000. A bundle adds
 at most 21 MiB: a compressed proof at most 16 MiB, a manifest at most 8 KiB, and four images
-each strictly below 1 MiB. Expanded proof data is capped at 512 MiB and checked while streaming.
-Code lengths must be multiples of four. The outer benchmark limit is 37 MiB. External Yukon
+each strictly below 1 MiB. Expanded proof length and digest are checked while streaming.
+Code lengths must be multiples of four. Expanded proof data is capped at 4 GiB; process-tree
+memory and overall runtime limits still apply to parsing and checking it. The outer benchmark
+limit is 37 MiB. External Yukon
 compressed-upload limits still apply; increasing the repository limit does not change those.
 Yukon's current separate archive limit is 25 MiB compressed.
 

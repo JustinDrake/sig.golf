@@ -14,7 +14,7 @@ from pathlib import Path
 PROGRAMS = ('keygen', 'sign', 'expand', 'verify')
 MAX_IMAGE_BYTES = 1 << 20
 MAX_PROOF_BYTES = 16 * 1024**2
-MAX_EXPORT_BYTES = 512 * 1024**2
+MAX_EXPORT_BYTES = 4 * 1024**3
 MAX_MANIFEST_BYTES = 8192
 BINDING_MODULE = 'CertificateBinding'
 BINDING_THEOREM = 'SigGolf.Challenge.image_binding'

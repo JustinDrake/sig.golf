@@ -27,7 +27,7 @@ else:
 WALL_SECONDS = 4 * 3600
 REQUEST_LIMIT = 16 * 1024
 REPORT_LIMIT = 1024 * 1024
-INPUT_LIMIT = 512 * 1024**2
+INPUT_LIMIT = 4 * 1024**3
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 REQUEST_ID = re.compile(r"[0-9a-f]{32}\Z")
 

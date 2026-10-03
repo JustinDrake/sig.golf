@@ -21,6 +21,7 @@ import tempfile
 import time
 import uuid
 import resource
+import zlib
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -232,6 +233,17 @@ def tail_text(path: Path, limit: int = 1200) -> str:
         return stream.read(limit).decode(errors='replace')
 
 
+def export_measurements(path: Path) -> dict:
+    """Measure actual transport size without storing or promoting candidate build outputs."""
+    compressor = zlib.compressobj(level=9, wbits=31)
+    compressed = 0
+    with path.open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024**2), b''):
+            compressed += len(compressor.compress(chunk))
+    compressed += len(compressor.flush())
+    return {'expanded_bytes': path.stat().st_size, 'gzip_bytes': compressed, 'gzip_level': 9}
+
+
 def verify(args: argparse.Namespace) -> dict:
     work = args.work.resolve()
     if work.exists():
@@ -428,6 +440,9 @@ def verify(args: argparse.Namespace) -> dict:
             if report['status'] == 'rejected':
                 result['status'] = 'rejected'
             raise VerifyError(f'checker rejected certificate: {report}')
+        result['proof_export'] = export_measurements(work / 'candidate.export')
+        if time.monotonic() - started >= WALL_SECONDS:
+            raise TimeoutError('overall verification deadline exceeded during transport measurement')
         if context_digest(args.trusted, env) != context_hash:
             raise VerifyError('trusted inputs changed during verification; refusing to publish acceptance')
         result.update(status='kernel_checked' if preview else 'verified', checker=report)
