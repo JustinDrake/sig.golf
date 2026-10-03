@@ -67,7 +67,7 @@ theorem rcEm_inner (L : List Nat) (pf : Nat → Digest) (l node used : Nat) (e :
        let e2 := rcEm L pf l (2 * node + 1) u1 e1
        if hasLeaf L l (2 * node) = false then ⟨e2.segs, e2.cur ++ [(true, pf used)], e2.par⟩
        else if hasLeaf L l (2 * node + 1) = false then ⟨e2.segs, e2.cur ++ [(false, pf u1)], e2.par⟩
-       else e2.close true (node % 2)) := by
+       else e2.close true (node % 8)) := by
   rw [rcEm]; simp [h]
 
 theorem node_bound (node l : Nat) (hl : l + 1 ≤ 11) (h : node * 2 ^ (l + 1) < 2 ^ 11) :
@@ -231,7 +231,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   set e2 := rcEm [g0, g1, g2] (pfN proof) l (2 * node + 1) next e1 with he2
   set e' : Em := if ll = false then ⟨e2.segs, e2.cur ++ [(true, pfN proof used)], e2.par⟩
     else if rl = false then ⟨e2.segs, e2.cur ++ [(false, pfN proof next)], e2.par⟩
-    else e2.close true (node % 2) with he'
+    else e2.close true (node % 8) with he'
   have hlr : ll = true ∨ rl = true := (hasLeaf_succ_iff _ _ _).mp h1
   have hfr7 : (freshR && !rl) = false := by
     rcases hlr with h | h
@@ -334,7 +334,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
                 by ring, w64, hvr8', hvr']; simp [foldWords])
             | (rw [f10.get (by omega) (by omega), ← hpos, streamAt_zero str9 _ (by omega) (by omega)]; simp [foldWords])
       · have hRt : rl = true := by simpa using hR
-        have he'M : e' = e2.close true (node % 2) := by
+        have he'M : e' = e2.close true (node % 8) := by
           rw [he', if_neg (by rw [hLt]; decide), if_neg (by rw [hRt]; decide)]
         rw [hRt] at p9
         simp only [↓reduceIte] at p9
@@ -434,7 +434,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
         have he21 : e2 = e1 := by rw [he2]; exact rcEm_empty _ _ _ _ _ _ hR
         rw [he21]; have := cntl5 hLt; omega
       · rw [if_neg hR]; simp [Em.close]
-  have hparE : e'.par < 2 := by
+  have hparE : e'.par < 8 := by
     rw [he']
     split_ifs
     · exact par7
