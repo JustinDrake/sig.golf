@@ -140,7 +140,7 @@ leaf pk (Core's `leafHash`), and the Merkle path (sibling at `L` iff bit `j` of 
 def layerP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) : M Digest := do
   let (leaf, tree) := route index lay
   let ends ← (List.finRange (chainCount lay)).mapM fun i =>
-    chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
+    chainP lay tree leaf i.val (digits.getD i.val 0) (2 ^ width lay i.val - 1 - digits.getD i.val 0)
       (wchainPads w lay i.val).1 (wchainPads w lay i.val).2 (wvalue w lay i.val)
   let value ← leafHash lay tree leaf ends
   (List.finRange (height lay)).foldlM (fun value j => do
@@ -255,7 +255,7 @@ def recoverLayerP (sig : Signature) (pads : Pads) (index : Nat) (lay : Layer) (d
     M Digest := do
   let (leaf, tree) := route index lay
   let ends ← (List.finRange (chainCount lay)).mapM fun i =>
-    chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
+    chainP lay tree leaf i.val (digits.getD i.val 0) (2 ^ width lay i.val - 1 - digits.getD i.val 0)
       (pads.chain lay i).1 (pads.chain lay i).2 ((sig.layers lay).values i)
   let value ← leafHash lay tree leaf ends
   (List.finRange (height lay)).foldlM (fun value j => do

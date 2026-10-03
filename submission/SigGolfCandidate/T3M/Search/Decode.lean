@@ -5,8 +5,8 @@ import SigGolfCandidate.T3M.Search.Arith
 
 The answer value `v` (low 16 bytes of the HASH output) sits in two doublewords `lo = v[0,64)`,
 `hi = v[64,128)` (`t1`, `t2`). `counter_search` reads the digits with unrolled shift/mask code
-(lower layers: 42 radix-8 digits, one crossing the doubleword boundary; top layer: 51 radix-5 and
-three radix-4 digits) and sums them. Here: the shift/mask terms as `ofNat` digit values, Core's
+(lower layers: 42 radix-8 digits, one crossing the doubleword boundary; top layer: 49 radix-4 and
+9 radix-8 digits) and sums them. Here: the shift/mask terms as `ofNat` digit values, Core's
 `dataDigits` as explicit lists (`lowDigits`, `topDigits`) and their sums term by term, and Core's
 `decode` restated with them.
 -/
@@ -71,19 +71,24 @@ theorem cross_low (v : BitVec 128) :
 /-- The 42 radix-8 data digits of a lower layer. -/
 def lowDigits (v : Digest) : List Nat := (List.range 42).map fun i => v.toNat / 2 ^ (3 * i) % 8
 
-/-- The 51 radix-5 and three radix-4 data digits of the top layer. -/
-def topDigits (v : Digest) : List Nat := (List.range 54).map (T3.coreDigit 0 v)
+/-- The 49 radix-4 and 9 radix-8 data digits of the top layer. -/
+def topDigits (v : Digest) : List Nat := (List.range 58).map fun i =>
+  if i < 49 then v.toNat / 2 ^ (2 * i) % 4 else v.toNat / 2 ^ (98 + 3 * (i - 49)) % 8
 
 theorem dataDigits_low (lay : Layer) (h : lay ≠ 0) (v : Digest) : T3.dataDigits lay v = lowDigits v := by
-  simp only [T3.dataDigits, T3.dataCount, h, if_false, lowDigits]
-  congr 1
-  funext i
-  simp [T3.coreDigit, h]
+  unfold T3.dataDigits lowDigits
+  simp only [T3.dataCount, T3.width, h, if_false, false_and]
+  rfl
 
-theorem dataDigits_top (v : Digest) : T3.dataDigits 0 v = topDigits v := rfl
+theorem dataDigits_top (v : Digest) : T3.dataDigits 0 v = topDigits v := by
+  unfold T3.dataDigits topDigits
+  simp only [T3.dataCount, T3.width, if_true, true_and]
+  apply List.map_congr_left
+  intro i _
+  by_cases hi : i < 49 <;> simp [hi]
 
 theorem lowDigits_length (v : Digest) : (lowDigits v).length = 42 := by simp [lowDigits]
-theorem topDigits_length (v : Digest) : (topDigits v).length = 54 := by simp [topDigits]
+theorem topDigits_length (v : Digest) : (topDigits v).length = 58 := by simp [topDigits]
 
 /-- The lower-layer digit sum, term by term (`s9` of `counter_search`). -/
 theorem lowDigits_sum (v : Digest) : (lowDigits v).sum =
@@ -133,65 +138,69 @@ theorem lowDigits_sum (v : Digest) : (lowDigits v).sum =
     List.map_nil, List.sum_append, List.sum_cons, List.sum_nil]
   norm_num
 
-/-- The actual grouped digit sum, term by term. -/
+/-- The top-layer digit sum, term by term. -/
 theorem topDigits_sum (v : Digest) : (topDigits v).sum =
-      (v.toNat / 1 % 128) / 1 % 5 +
-      (v.toNat / 1 % 128) / 5 % 5 +
-      (v.toNat / 1 % 128) / 25 % 5 +
-      (v.toNat / 128 % 128) / 1 % 5 +
-      (v.toNat / 128 % 128) / 5 % 5 +
-      (v.toNat / 128 % 128) / 25 % 5 +
-      (v.toNat / 16384 % 128) / 1 % 5 +
-      (v.toNat / 16384 % 128) / 5 % 5 +
-      (v.toNat / 16384 % 128) / 25 % 5 +
-      (v.toNat / 2097152 % 128) / 1 % 5 +
-      (v.toNat / 2097152 % 128) / 5 % 5 +
-      (v.toNat / 2097152 % 128) / 25 % 5 +
-      (v.toNat / 268435456 % 128) / 1 % 5 +
-      (v.toNat / 268435456 % 128) / 5 % 5 +
-      (v.toNat / 268435456 % 128) / 25 % 5 +
-      (v.toNat / 34359738368 % 128) / 1 % 5 +
-      (v.toNat / 34359738368 % 128) / 5 % 5 +
-      (v.toNat / 34359738368 % 128) / 25 % 5 +
-      (v.toNat / 4398046511104 % 128) / 1 % 5 +
-      (v.toNat / 4398046511104 % 128) / 5 % 5 +
-      (v.toNat / 4398046511104 % 128) / 25 % 5 +
-      (v.toNat / 562949953421312 % 128) / 1 % 5 +
-      (v.toNat / 562949953421312 % 128) / 5 % 5 +
-      (v.toNat / 562949953421312 % 128) / 25 % 5 +
-      (v.toNat / 72057594037927936 % 128) / 1 % 5 +
-      (v.toNat / 72057594037927936 % 128) / 5 % 5 +
-      (v.toNat / 72057594037927936 % 128) / 25 % 5 +
-      (v.toNat / 9223372036854775808 % 128) / 1 % 5 +
-      (v.toNat / 9223372036854775808 % 128) / 5 % 5 +
-      (v.toNat / 9223372036854775808 % 128) / 25 % 5 +
-      (v.toNat / 1180591620717411303424 % 128) / 1 % 5 +
-      (v.toNat / 1180591620717411303424 % 128) / 5 % 5 +
-      (v.toNat / 1180591620717411303424 % 128) / 25 % 5 +
-      (v.toNat / 151115727451828646838272 % 128) / 1 % 5 +
-      (v.toNat / 151115727451828646838272 % 128) / 5 % 5 +
-      (v.toNat / 151115727451828646838272 % 128) / 25 % 5 +
-      (v.toNat / 19342813113834066795298816 % 128) / 1 % 5 +
-      (v.toNat / 19342813113834066795298816 % 128) / 5 % 5 +
-      (v.toNat / 19342813113834066795298816 % 128) / 25 % 5 +
-      (v.toNat / 2475880078570760549798248448 % 128) / 1 % 5 +
-      (v.toNat / 2475880078570760549798248448 % 128) / 5 % 5 +
-      (v.toNat / 2475880078570760549798248448 % 128) / 25 % 5 +
-      (v.toNat / 316912650057057350374175801344 % 128) / 1 % 5 +
-      (v.toNat / 316912650057057350374175801344 % 128) / 5 % 5 +
-      (v.toNat / 316912650057057350374175801344 % 128) / 25 % 5 +
-      (v.toNat / 40564819207303340847894502572032 % 128) / 1 % 5 +
-      (v.toNat / 40564819207303340847894502572032 % 128) / 5 % 5 +
-      (v.toNat / 40564819207303340847894502572032 % 128) / 25 % 5 +
-      (v.toNat / 5192296858534827628530496329220096 % 128) / 1 % 5 +
-      (v.toNat / 5192296858534827628530496329220096 % 128) / 5 % 5 +
-      (v.toNat / 5192296858534827628530496329220096 % 128) / 25 % 5 +
-      v.toNat / 664613997892457936451903530140172288 % 4 +
-      v.toNat / 2658455991569831745807614120560689152 % 4 +
-      v.toNat / 10633823966279326983230456482242756608 % 4 := by
+      v.toNat / 1 % 4 +
+      v.toNat / 4 % 4 +
+      v.toNat / 16 % 4 +
+      v.toNat / 64 % 4 +
+      v.toNat / 256 % 4 +
+      v.toNat / 1024 % 4 +
+      v.toNat / 4096 % 4 +
+      v.toNat / 16384 % 4 +
+      v.toNat / 65536 % 4 +
+      v.toNat / 262144 % 4 +
+      v.toNat / 1048576 % 4 +
+      v.toNat / 4194304 % 4 +
+      v.toNat / 16777216 % 4 +
+      v.toNat / 67108864 % 4 +
+      v.toNat / 268435456 % 4 +
+      v.toNat / 1073741824 % 4 +
+      v.toNat / 4294967296 % 4 +
+      v.toNat / 17179869184 % 4 +
+      v.toNat / 68719476736 % 4 +
+      v.toNat / 274877906944 % 4 +
+      v.toNat / 1099511627776 % 4 +
+      v.toNat / 4398046511104 % 4 +
+      v.toNat / 17592186044416 % 4 +
+      v.toNat / 70368744177664 % 4 +
+      v.toNat / 281474976710656 % 4 +
+      v.toNat / 1125899906842624 % 4 +
+      v.toNat / 4503599627370496 % 4 +
+      v.toNat / 18014398509481984 % 4 +
+      v.toNat / 72057594037927936 % 4 +
+      v.toNat / 288230376151711744 % 4 +
+      v.toNat / 1152921504606846976 % 4 +
+      v.toNat / 4611686018427387904 % 4 +
+      v.toNat / 18446744073709551616 % 4 +
+      v.toNat / 73786976294838206464 % 4 +
+      v.toNat / 295147905179352825856 % 4 +
+      v.toNat / 1180591620717411303424 % 4 +
+      v.toNat / 4722366482869645213696 % 4 +
+      v.toNat / 18889465931478580854784 % 4 +
+      v.toNat / 75557863725914323419136 % 4 +
+      v.toNat / 302231454903657293676544 % 4 +
+      v.toNat / 1208925819614629174706176 % 4 +
+      v.toNat / 4835703278458516698824704 % 4 +
+      v.toNat / 19342813113834066795298816 % 4 +
+      v.toNat / 77371252455336267181195264 % 4 +
+      v.toNat / 309485009821345068724781056 % 4 +
+      v.toNat / 1237940039285380274899124224 % 4 +
+      v.toNat / 4951760157141521099596496896 % 4 +
+      v.toNat / 19807040628566084398385987584 % 4 +
+      v.toNat / 79228162514264337593543950336 % 4 +
+      v.toNat / 316912650057057350374175801344 % 8 +
+      v.toNat / 2535301200456458802993406410752 % 8 +
+      v.toNat / 20282409603651670423947251286016 % 8 +
+      v.toNat / 162259276829213363391578010288128 % 8 +
+      v.toNat / 1298074214633706907132624082305024 % 8 +
+      v.toNat / 10384593717069655257060992658440192 % 8 +
+      v.toNat / 83076749736557242056487941267521536 % 8 +
+      v.toNat / 664613997892457936451903530140172288 % 8 +
+      v.toNat / 5316911983139663491615228241121378304 % 8 := by
   simp only [topDigits, List.range_succ, List.range_zero, List.nil_append, List.map_append, List.map_cons,
     List.map_nil, List.sum_append, List.sum_cons, List.sum_nil]
-  norm_num [T3.coreDigit]
+  norm_num
 
 /-! ## `decode` -/
 
@@ -207,12 +216,14 @@ theorem decode_low (lay : Layer) (h : lay ≠ 0) (v : Digest) :
   · simp only [show ¬ (v.toNat ≥ 2 ^ 126) from by omega, if_false, h1, true_and]
   · simp only [show v.toNat ≥ 2 ^ 126 from by omega, if_true, h1, false_and, if_false]
 
-/-- The top decode checks high bits, every packed rank, and the constant sum. -/
+/-- `decode` of the top layer: range `v < 2^125`, digit sum exactly 126. -/
 theorem decode_top (v : Digest) :
-    T3.decode 0 v = if v.toNat < 2 ^ 125 ∧ T3.topRanksValid v = true ∧ (topDigits v).sum = 126
-      then some (topDigits v) else none := by
+    T3.decode 0 v = if v.toNat < 2 ^ 125 ∧ (topDigits v).sum = 126 then some (topDigits v) else none := by
   unfold T3.decode
-  simp only [T3.encodedBits, if_true, dataDigits_top, T3.target, Bool.and_eq_true, decide_eq_true_eq]
-  split_ifs <;> simp_all <;> omega
+  simp only [T3.encodedBits, if_true, dataDigits_top, T3.target]
+  by_cases h1 : v.toNat < 2 ^ 125
+  · simp only [show ¬ (v.toNat ≥ 2 ^ 125) from by omega, if_false, h1, true_and]
+    rfl
+  · simp only [show v.toNat ≥ 2 ^ 125 from by omega, if_true, h1, false_and, if_false]
 
 end SigGolfCandidate.T3M.Search

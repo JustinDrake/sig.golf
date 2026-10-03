@@ -90,34 +90,34 @@ theorem lowLeaf_hashInput (t : MachineState) (lay : Layer) (tree leaf : Nat) (en
       rwa [show slotL (j + 1) = 0x320 + 16 * j by unfold slotL; simp; omega] at this)]
   rfl
 
-/-- **The top leaf-pk HASH input** (`a0 = 0x200`, `a1 = 896`): the 54 ends in `slotT`, `T` at `0x210`, the zero
-words at `0x570`, `0x578`. -/
+/-- **The top leaf-pk HASH input** (`a0 = 0x200`, `a1 = 960`): the 58 ends in `slotT`, `T` at `0x210`, the zero
+words at `0x5B0`, `0x5B8`. -/
 theorem topLeaf_hashInput (t : MachineState) (tree leaf : Nat) (ends : List Digest)
-    (hn : ends.length = 54) (h10 : t.getReg .x10 = BitVec.ofNat 64 0x200)
-    (h11 : t.getReg .x11 = BitVec.ofNat 64 896) (hS : ∀ j < 54, DigAt t (slotT j) (ends.getD j 0))
+    (hn : ends.length = 58) (h10 : t.getReg .x10 = BitVec.ofNat 64 0x200)
+    (h11 : t.getReg .x11 = BitVec.ofNat 64 960) (hS : ∀ j < 58, DigAt t (slotT j) (ends.getD j 0))
     (hT0 : t.getMem (BitVec.ofNat 64 0x210) = BitVec.ofNat 64 (hdr0 2 (0 : Layer).val tree 0))
     (hT1 : t.getMem (BitVec.ofNat 64 0x218) = BitVec.ofNat 64 (hdr1 tree leaf))
-    (hZ0 : t.getMem (BitVec.ofNat 64 0x570) = 0) (hZ1 : t.getMem (BitVec.ofNat 64 0x578) = 0) :
-    hashInput t = toQ (pad64 (leafInput 0 tree leaf ends)) ∧ (toQ (pad64 (leafInput 0 tree leaf ends))).blocks = 14 := by
-  have hl0 : (leafInput 0 tree leaf ends).length = 880 := by
+    (hZ0 : t.getMem (BitVec.ofNat 64 0x5B0) = 0) (hZ1 : t.getMem (BitVec.ofNat 64 0x5B8) = 0) :
+    hashInput t = toQ (pad64 (leafInput 0 tree leaf ends)) ∧ (toQ (pad64 (leafInput 0 tree leaf ends))).blocks = 15 := by
+  have hl0 : (leafInput 0 tree leaf ends).length = 944 := by
     rw [leafInput_length _ _ _ _ (by omega), hn]
-  have hl : (pad64 (leafInput 0 tree leaf ends)).length = 64 * (13 + 1) := by
+  have hl : (pad64 (leafInput 0 tree leaf ends)).length = 64 * (14 + 1) := by
     unfold pad64; rw [List.length_append, List.length_replicate, hl0]
   refine ⟨?_, by rw [blocks_toQ ⟨by simp [hl], by simp [hl]⟩, hl]⟩
-  apply hashInput_toQ t _ 13 0x200 hl h10 (by norm_num) (by norm_num) (by simpa using h11) (by norm_num)
+  apply hashInput_toQ t _ 14 0x200 hl h10 (by norm_num) (by norm_num) (by simpa using h11) (by norm_num)
   rw [Verify.wordsOf_pad64 _ (by rw [hl0]), hl0, wordsOf_leafInput,
-    show 8 * (13 + 1) = 2 + (2 + (2 * (ends.drop 1).length + 2)) by simp [hn],
+    show 8 * (14 + 1) = 2 + (2 + (2 * (ends.drop 1).length + 2)) by simp [hn],
     readWords_add, readWords_add, readWords_add, readWords_two, readWords_two, readWords_two]
   have e0 := hS 0 (by omega)
   rw [show slotT 0 = 0x200 from rfl] at e0
-  have hd : (ends.drop 1).length = 53 := by simp [hn]
+  have hd : (ends.drop 1).length = 57 := by simp [hn]
   rw [show 0x200 + 8 * 2 = 0x210 by rfl, show 0x210 + 8 = 0x218 by rfl, show 0x210 + 8 * 2 = 0x220 by rfl,
     e0.1, e0.2, hT0, hT1,
     readWords_digs t (ends.drop 1) 0x220 (fun j hj => by
       rw [getD_drop1]
       have := hS (j + 1) (by simp at hj; omega)
       rwa [show slotT (j + 1) = 0x220 + 16 * j by unfold slotT; simp; omega] at this),
-    hd, show 0x220 + 8 * (2 * 53) = 0x570 by rfl, show 0x570 + 8 = 0x578 by rfl, hZ0, hZ1]
+    hd, show 0x220 + 8 * (2 * 57) = 0x5B0 by rfl, show 0x5B0 + 8 = 0x5B8 by rfl, hZ0, hZ1]
   simp [List.append_assoc, dw]
 
 end SigGolfCandidate.T3M

@@ -1,6 +1,5 @@
 import SigGolfCandidate.T3M.Verify.Common
 import SigGolfCandidate.T3M.Submission
-import SigGolfCandidate.T3M.Search.TopData
 
 /-!
 # The initial state of the verify phase (T3M)
@@ -19,7 +18,6 @@ set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3 (Digest)
-open SigGolfCandidate.T3M.Search (TOP_DATA)
 
 /-! ## Bytes to doublewords -/
 
@@ -114,22 +112,6 @@ theorem bytes_word {n : Nat} (x : Bytes n) (j : Nat) (h : 8 * j + 8 ≤ n) :
   rw [BitVec.toNat_ofNat, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow,
     show 8 * (8 * j) = 64 * j by ring, show 8 * 8 = 64 by rfl, Nat.mod_mod]
 
-theorem extractByte_or8 (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) (j : Nat) (hj : j < 8) :
-    extractByte (b0.zeroExtend 64 ||| (b1.zeroExtend 64 <<< (8 : Word)) |||
-      (b2.zeroExtend 64 <<< (16 : Word)) ||| (b3.zeroExtend 64 <<< (24 : Word)) |||
-      (b4.zeroExtend 64 <<< (32 : Word)) ||| (b5.zeroExtend 64 <<< (40 : Word)) |||
-      (b6.zeroExtend 64 <<< (48 : Word)) ||| (b7.zeroExtend 64 <<< (56 : Word))) j =
-      [b0, b1, b2, b3, b4, b5, b6, b7].getD j 0 := by
-  interval_cases j <;> (simp only [extractByte]; ext i hi; interval_cases i <;> simp)
-
-theorem extractByte_bytesToWordLE (bs : List (BitVec 8)) (j : Nat) (hj : j < 8) :
-    extractByte (bytesToWordLE bs) j = bs.getD j 0 := by
-  simp only [bytesToWordLE]
-  rw [extractByte_or8 _ _ _ _ _ _ _ _ j hj]
-  simp only [List.getD_eq_getElem?_getD]
-  interval_cases j <;> rfl
-
-
 /-! ## The initial state -/
 
 /-- All registers except `x2` are zero in the initial state. -/
@@ -150,14 +132,14 @@ structure InitOK (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) 
   /-- The embedded data words at `DATA` (T3K). -/
   data : DataOK s
 
-theorem verifyData_length : (submission.image .verify).data.length = 4096 := Search.verifyData_length
+theorem verifyData_length : (submission.image .verify).data.length = 96 := rfl
 
-theorem dataBase_verify : dataBase (submission.image .verify) = TOP_DATA := by
+theorem dataBase_verify : dataBase (submission.image .verify) = DATA := by
   unfold dataBase; rw [verifyData_length]; decide
 
 /-- The embedded doublewords read back as `dataWords`. -/
 theorem verifyData_word (k : Nat) (hk : k < 12) :
-    bytesToWordLE ((((submission.image .verify).data).drop (4000 + 8 * k)).take 8) =
+    bytesToWordLE ((((submission.image .verify).data).drop (8 * k)).take 8) =
       BitVec.ofNat 64 (dataWords.getD k 0) := by
   interval_cases k <;> decide +kernel
 
@@ -184,14 +166,14 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
   have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 (dataBase (submission.image .verify)))).getMem A =
       s3.getMem A := fun A => by simp [MachineState.setReg, MachineState.getMem]
   have g0 : ∀ A, A < 2 ^ 64 → s0.getMem (BitVec.ofNat 64 A) =
-      if TOP_DATA ≤ A ∧ A < TOP_DATA + 8 * ((4096 + 7) / 8) ∧ (A - TOP_DATA) % 8 = 0 then
-        bytesToWordLE ((((submission.image .verify).data).drop (A - TOP_DATA)).take 8) else 0 := by
+      if DATA ≤ A ∧ A < DATA + 8 * ((96 + 7) / 8) ∧ (A - DATA) % 8 = 0 then
+        bytesToWordLE ((((submission.image .verify).data).drop (A - DATA)).take 8) else 0 := by
     intro A hA
     rw [getMem_writeBytesAsWords (submission.image .verify).data blank (dataBase (submission.image .verify)) A
-      (by rw [lD, eD]; unfold TOP_DATA; omega) hA, lD, eD]; rfl
-  have g0z : ∀ A, A < TOP_DATA → s0.getMem (BitVec.ofNat 64 A) = 0 := by
+      (by rw [lD, eD]; unfold DATA; omega) hA, lD, eD]; rfl
+  have g0z : ∀ A, A < DATA → s0.getMem (BitVec.ofNat 64 A) = 0 := by
     intro A hA
-    rw [g0 A (by unfold TOP_DATA at hA; omega), if_neg (by omega)]
+    rw [g0 A (by unfold DATA at hA; omega), if_neg (by omega)]
   have g1 : ∀ A, A < 2 ^ 64 → s1.getMem (BitVec.ofNat 64 A) =
       if 0x40 ≤ A ∧ A < 0x40 + 8 * ((32 + 7) / 8) ∧ (A - 0x40) % 8 = 0 then
         bytesToWordLE (((bytes m).drop (A - 0x40)).take 8) else s0.getMem (BitVec.ofNat 64 A) := by
@@ -260,30 +242,16 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
         bytes_word w j (by omega)]
       rfl
     · rw [if_neg (by unfold WIT; omega), g2 _ (by unfold WIT; omega), if_neg (by unfold WIT; omega),
-        g1 _ (by unfold WIT; omega), if_neg (by unfold WIT; omega), g0z _ (by unfold WIT TOP_DATA; omega),
+        g1 _ (by unfold WIT; omega), if_neg (by unfold WIT; omega), g0z _ (by unfold WIT DATA; omega),
         wword_zero w j (by omega)]
   · intro A hA hz
     unfold WIT at hA
     rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
-      if_neg (by omega), g0z A (by unfold TOP_DATA; omega)]
-  · constructor
-    · intro k hk
-      obtain ⟨hk1, hk2⟩ := DATA_ge k hk
-      rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
-        if_neg (by omega), g0 _ (by omega), if_pos (by unfold DATA TOP_DATA; omega),
-        show DATA + 8 * k - TOP_DATA = 4000 + 8 * k by unfold DATA TOP_DATA; omega,
-        verifyData_word k hk]
-    · intro i hi
-      rw [T3M.getByte_eq_word _ _ (by unfold TOP_DATA; omega), gm,
-        g3 _ (by unfold TOP_DATA; omega), if_neg (by unfold TOP_DATA; omega),
-        g2 _ (by unfold TOP_DATA; omega), if_neg (by unfold TOP_DATA; omega),
-        g1 _ (by unfold TOP_DATA; omega), if_neg (by unfold TOP_DATA; omega),
-        g0 _ (by unfold TOP_DATA; omega), if_pos (by unfold TOP_DATA; omega),
-        extractByte_bytesToWordLE _ _ (Nat.mod_lt _ (by decide))]
-      simp only [List.getD_eq_getElem?_getD, List.getElem?_take, List.getElem?_drop,
-        if_pos (Nat.mod_lt (TOP_DATA + i) (show 0 < 8 by decide))]
-      have hidx : (TOP_DATA + i) / 8 * 8 - TOP_DATA + (TOP_DATA + i) % 8 = i := by unfold TOP_DATA; omega
-      rw [hidx]
-      exact Search.verifyData_sum i hi
+      if_neg (by omega), g0z A (by unfold DATA; omega)]
+  · intro k hk
+    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
+    rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
+      if_neg (by omega), g0 _ (by omega), if_pos (by omega), show DATA + 8 * k - DATA = 8 * k by omega,
+      verifyData_word k hk]
 
 end SigGolfCandidate.T3M.Verify

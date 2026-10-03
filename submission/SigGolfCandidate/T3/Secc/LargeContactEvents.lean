@@ -111,7 +111,7 @@ theorem contactAt_false (A : Answers) (published : T3.Cache) (qs : List Spec.Dom
   obtain ⟨hq, hans⟩ := WotsExtract.mem_entriesOf_iff.mp hmem
   have hd7 : Wots.depth A a ≤ 7 := by
     have := WotsExtract.depth_le A a ha.2
-    have hw : maxDigit a.key.lay a.chain ≤ 7 := by unfold maxDigit; split_ifs <;> norm_num
+    have hw : 2 ^ width a.key.lay a.chain - 1 ≤ 7 := by unfold width; split_ifs <;> norm_num
     omega
   set s := Wots.depth A a - 1 with hsdef
   have hs7 : s < 7 := by omega

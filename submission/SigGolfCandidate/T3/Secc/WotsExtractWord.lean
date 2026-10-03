@@ -26,8 +26,8 @@ set_option backward.isDefEq.respectTransparency false
 
 /-! ## The dummy word -/
 
-/-- The digest whose decode is the top-layer dummy word (51 radix-five digits then3 radix-four digits). -/
-def dummyDigest0 : Digest := BitVec.ofNat 128 17680986319720600780412
+/-- The digest whose decode is the top-layer dummy word (49 radix-4 digits then 9 radix-8 digits). -/
+def dummyDigest0 : Digest := BitVec.ofNat 128 18229412668305258784815917842668628650
 
 /-- The digest whose 42 radix-8 data digits are the lower-layer dummy data digits. -/
 def dummyDigestLow : Digest := BitVec.ofNat 128 48611766702991209076737369103800916845
@@ -113,9 +113,9 @@ theorem referenceDigits_decode (answers : Answers) (L : LeafAddr) :
 
 /-- Reference digits are in range: `depth ≤ 2^width − 1` on every chain of the leaf. -/
 theorem depth_le (answers : Answers) (a : ChainAddr) (ha : a.chain < chainCount a.key.lay) :
-    depth answers a ≤ maxDigit a.key.lay a.chain := by
+    depth answers a ≤ 2 ^ width a.key.lay a.chain - 1 := by
   obtain ⟨value, hv⟩ := referenceDigits_decode answers a.key
-  have := decode_digit_max hv a.chain ha
+  have := decode_digit_bound hv a.chain ha
   unfold depth
   omega
 
