@@ -2912,7 +2912,7 @@ def recoveryLayersCost : Nat → Nat
   | 0 => 0
   | n+1 => recoverLayerCost (Fin.ofNat 4 n)+recoveryLayersCost n
 
-theorem recoveryLayersCost_four : recoveryLayersCost 4=484 := by decide +kernel
+theorem recoveryLayersCost_four : recoveryLayersCost 4=483 := by decide +kernel
 
 theorem bound_verifyLayers (w : Witness) (index : Nat) :
     ∀ n root,CBound (fun _ => True) (n+recoveryLayersCost n) (verifyLayers w index n root) := by
@@ -3127,7 +3127,7 @@ theorem bound_expand (message : Message) (pk : Digest) (sig : Signature) :
       have hadm := hf counter output rfl
       dsimp only
       refine ((bound_recoverFts sig (output.toNat%2^31) (selections output)).mono_k
-        (forestRecoveryCost_le output hadm)).bind' (l := 4*counterLimit+484)
+        (forestRecoveryCost_le output hadm)).bind' (l := 4*counterLimit+483)
         (fun forest _ => ?_) (by omega)
       cases forest with
       | none => exact .pure _ _ trivial

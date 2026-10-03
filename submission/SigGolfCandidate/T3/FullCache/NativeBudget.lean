@@ -1931,8 +1931,8 @@ theorem signingMoment_le_two : signingMoment ≤ 2 := by
   rw [ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^((121761 : ℝ)/131072) by positivity)] at hcast
   norm_num only [ENNReal.ofReal_ofNat] at hcast
   have he : digestEnvelope*encodingEnvelope 0*encodingEnvelope 1*encodingEnvelope 2*encodingEnvelope 3 =
-      ENNReal.ofReal ((507635451307 / 500000000000) * (1009892452433 / 1000000000000) *
-        (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (503409673483 / 500000000000) : ℝ) := by
+      ENNReal.ofReal ((202893524443 / 200000000000) * (1009892452433 / 1000000000000) *
+        (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) : ℝ) := by
     change ENNReal.ofReal (BaseAudit.b0 : ℝ)*ENNReal.ofReal (BaseAudit.b1 : ℝ)*
       ENNReal.ofReal (BaseAudit.b2 : ℝ)*ENNReal.ofReal (BaseAudit.b3 : ℝ)*ENNReal.ofReal (BaseAudit.b4 : ℝ) = _
     rw [← ENNReal.ofReal_mul (show 0 ≤ (BaseAudit.b0 : ℝ) by norm_num [BaseAudit.b0]),

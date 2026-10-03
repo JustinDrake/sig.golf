@@ -147,9 +147,9 @@ def setupSpecF : Spec :=
 
 def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [413] 369 []) setupSpecF [] setupPost [.x22]
 
-/-- The three gate bits are N[206..208] = word3[14..16]. -/
-def gateEF : E := .bin .and (.bin .srl (.reg .x28) (cw 14)) (cw 7)
-def gateBrF (reject : Bool) : Br := ⟨.ne, gateEF, cw 0, reject⟩
+/-- The ten gate bits are N[246..255] = word3[54..63]; accepted iff below 135 (`srli 54; sltiu 135; beqz`). -/
+def gateEF : E := .bin .sltu (.bin .srl (.reg .x28) (cw 54)) (cw 135)
+def gateBrF (reject : Bool) : Br := ⟨.eq, gateEF, cw 0, reject⟩
 def gateCheckF : Bool :=
   specB [] [] baseK (runAt baseK [362] 359 [.br false])
     ⟨[], [], 362, false, 3, [gateBrF false], none, 3⟩ [] baseK selKeep

@@ -58,13 +58,13 @@ def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
 /-- Steps of A; layer 3 reuses four constants from the forest. -/
 def stepsA (lay : Nat) : Nat := if lay = 0 then 16 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 0 then 69 else 44
+def retOff (lay : Nat) : Nat := if lay = 0 then 18 else 46
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
 def s3v : Nat := 15768
 /-- Core's targets. -/
-def tgtL (lay : Nat) : Nat := [126, 195, 195, 194].getD lay 0
+def tgtL (lay : Nat) : Nat := [126, 195, 195, 195].getD lay 0
 /-- Header word 0 of tag `t` and layer `lay` (`1 | t << 8 | lay << 16`). -/
 def hw (t lay : Nat) : Nat := 1 + 256 * t + 65536 * lay
 /-- The HALT(1) `ecall` of `reject`. -/
@@ -170,7 +170,7 @@ def tgtl : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe
 
 def specBl (lay p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, a7lE), (.x25, sumE), (.x29, t4E lay), (.x3, .bin .srl a6E (kw 63)), (.x14, x14l)],
-   [], 0, false, 30, [ckBr lay false, rngBr 62 false], some tgtl, 33⟩
+   [], 0, false, 29, [ckBr lay false, rngBr 62 false], some tgtl, 32⟩
 
 def postBl (lay p : Nat) : List (Reg × Word) :=
   lowerLayK lay ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x15, 0x6e000), (.x1, pcOf (p + retOff lay - 1))]
@@ -237,8 +237,8 @@ def specLf (lay : Nat) : Spec :=
       (⟨none, BitVec.ofNat 64 528⟩, kw (hw 2 0))], 0, false, 13, [], some (tgtLf lay), 13⟩
   else
     ⟨[(.x14, x14lf lay)],
-     [(⟨none, BitVec.ofNat 64 792⟩, .reg .x4), (⟨none, BitVec.ofNat 64 784⟩, kw (hw 2 lay))], 0, false, (if lay = 3 ∨ lay = 2 then 11 else 12), [],
-     some (tgtLf lay), (if lay = 3 ∨ lay = 2 then 11 else 12)⟩
+     [(⟨none, BitVec.ofNat 64 792⟩, .reg .x4), (⟨none, BitVec.ofNat 64 784⟩, kw (hw 2 lay))], 0, false, (if lay = 3 ∨ lay = 2 then 10 else 11), [],
+     some (tgtLf lay), (if lay = 3 ∨ lay = 2 then 10 else 11)⟩
 
 def postLf (lay : Nat) : List (Reg × Word) :=
   (baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 lay))] ++ (if lay = 0 then [] else [(.x6, 1)])) ++ [(.x3, BitVec.ofNat 64 (hw 2 lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)),
@@ -253,9 +253,9 @@ def keepLf : List Reg := [.x23, .x30, .x22]
 
 def keepTopCall : List Reg := [.x2, .x3, .x4, .x5, .x6, .x7, .x8, .x9, .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17, .x18, .x19, .x20, .x21, .x22, .x23, .x24, .x25, .x26, .x27, .x28, .x29, .x30, .x31]
 
-/-- The two direct jumps preserve the top leaf return address and enter the shared packed decoder. -/
+/-- The direct linked call preserves the top leaf return address and enters the shared packed decoder. -/
 def specTopCall (p : Nat) : Spec :=
-  ⟨[(.x1, kw (0x1000 + 4 * (p + 69)))], [], 96160, false, 2, [], none, 2⟩
+  ⟨[(.x1, kw (0x1000 + 4 * (p + 18)))], [], 96160, false, 1, [], none, 1⟩
 
 /-- All runs of the transition copy at `p` of layer `lay` and of its leaf-pk block. -/
 def copyCheck (lay p : Nat) : Bool :=

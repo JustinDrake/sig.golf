@@ -20,12 +20,12 @@ noncomputable def markFibreEquiv (mark : MarkedLabel) :
   right_inv _ := rfl
 
 noncomputable def payloadEquiv : {p : Payload // PayloadAccepted p} ≃
-    {s : Slots // SlotsAccepted s} × Unused where
-  toFun p := (⟨p.1.1,p.2.2⟩,p.1.2.2)
-  invFun x := ⟨(x.1.1,(0,x.2)),rfl,x.1.2⟩
+    {s : Slots // SlotsAccepted s} × (Fin 135 × Unused) where
+  toFun p := (⟨p.1.1,p.2.2⟩,(⟨p.1.2.1.val,p.2.1⟩,p.1.2.2))
+  invFun x := ⟨(x.1.1,(⟨x.2.1.val,by have h := x.2.1.isLt; omega⟩,x.2.2)),x.2.1.isLt,x.1.2⟩
   left_inv p := by
     apply Subtype.ext
-    exact Prod.ext rfl (Prod.ext p.2.1.symm rfl)
+    rfl
   right_inv _ := rfl
 
 theorem accepted_card : Fintype.card {r : RawRecord // Accepted r} =
@@ -37,8 +37,8 @@ theorem fibre_card (mark : MarkedLabel) :
       Fintype.card {p : Payload // PayloadAccepted p} := Fintype.card_congr (markFibreEquiv mark)
 
 theorem payload_accepted_card : Fintype.card {p : Payload // PayloadAccepted p} =
-    Fintype.card {s : Slots // SlotsAccepted s} * 2^47 := by
-  rw [Fintype.card_congr payloadEquiv,Fintype.card_prod]
+    Fintype.card {s : Slots // SlotsAccepted s} * (135 * 2^40) := by
+  rw [Fintype.card_congr payloadEquiv,Fintype.card_prod,Fintype.card_prod]
   simp only [Unused,Fintype.card_fin]
 
 theorem fresh_acceptance : Pr[Accepted | ($ᵗ RawRecord : ProbComp RawRecord)] =
