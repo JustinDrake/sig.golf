@@ -64,7 +64,7 @@ theorem schedule_sums (chosen : List Selection) (f : Nat → Nat) :
 theorem streamCost_canonical (w : WBytes) (N : HashOutput)
     (hsel : selectionsOk (selections N) = true)
     (hadm : admissible (selections N) = true) (hm : StreamMatches (selections N) w) :
-    361 + streamCost w 1088 35 ≤ 2480 := by
+    361 + streamCost w 1088 35 ≤ 2461 := by
   have hc := chosenOk_of N hsel
   have hf : ((SideCost.sourceBanks (selections N)).map List.sum).sum ≤ 115 := by
     rw [source_fold_count _ hc]

@@ -63,9 +63,9 @@ theorem layersP_succ (w : WBytes) (index n : Nat) (M : Digest) :
 
 /-! ## Costs -/
 
-/-- Steps / cycles of decode and entry dispatch (lower30 /33, top118-step conservative fuel /68 cycles). -/
+/-- Conservative decode fuel: lower30/top118 steps; accepting decode cycles: lower32/top67. -/
 def stB (lay : Nat) : Nat := if lay = 0 then 118 else 30
-def cyB (lay : Nat) : Nat := if lay = 0 then 68 else 33
+def cyB (lay : Nat) : Nat := if lay = 0 then 67 else 32
 /-- The chain phase's accepting cycles without maximal digits: lower `2993 − 9 target`, top `1129` after the mandatory eleven-cycle terminal-store credit. -/
 def chainCost0 (lay : Nat) : Nat := if lay = 0 then 1129 else 2993 - 9 * tgtL lay
 /-- The chain phase's steps on every path. -/
@@ -79,10 +79,10 @@ def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + ch
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 
 theorem layerCost_vals :
-    layerCost 3 0 = 1314 ∧ layerCost 2 0 = 1305 ∧ layerCost 1 0 = 1306 ∧ layerCost 0 0 = 1234 := by decide
+    layerCost 3 0 = 1312 ∧ layerCost 2 0 = 1303 ∧ layerCost 1 0 = 1304 ∧ layerCost 0 0 = 1233 := by decide
 
 theorem layerFuel_vals :
-    layerFuel 3 = 1777 ∧ layerFuel 2 = 1777 ∧ layerFuel 1 = 1778 ∧ layerFuel 0 = 2469 := by decide
+    layerFuel 3 = 1776 ∧ layerFuel 2 = 1776 ∧ layerFuel 1 = 1777 ∧ layerFuel 0 = 2469 := by decide
 
 /-! ## Decode facts -/
 
@@ -108,11 +108,11 @@ theorem chainCount_top : chainCount (0 : Layer) = 54 := by decide
 /-! ## The exact accepting cost -/
 
 /-- **The accepting cost of a lower layer is `layerCost lay Z`**: on an accepted encoding (`decode = some ds`) the
-run from `LayerIn` to `LeafOut` — A (`stepsA`), the encoding HASH (8), B (33), the chain phase (`lowCost`), the
+run from `LayerIn` to `LeafOut` — A (`stepsA`), the encoding HASH (8), B (32), the chain phase (`lowCost`), the
 leaf-pk block (12) — costs `layerCost lay Z` cycles with `Z = zSum 0 43` (the max-digit savings). -/
 theorem layerCost_low (w : WBytes) (index : Nat) (lay : Layer) (hlay : lay ≠ 0) (a : BitVec 256) (p : Nat)
     (ds : List Nat) (hds : decode lay (a.extractLsb' 0 128) = some ds) :
-    stepsA lay.val + 8 + 33 + (lctxOf w index lay a p).lowCost + (lfSteps lay.val) =
+    stepsA lay.val + 8 + 32 + (lctxOf w index lay a p).lowCost + (lfSteps lay.val) =
       layerCost lay.val ((lctxOf w index lay a p).zSum 0 43) := by
   have h0 : lay.val ≠ 0 := fun h => hlay (Fin.ext h)
   have hD := lctx_digits w index lay a p hlay ds hds
@@ -137,7 +137,7 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
   have hA := encA_step w pk index lay M s hs
   have hT : 9 * tgtL lay.val ≤ 2993 := by fin_cases lay <;> decide
   have hfuel : layerFuel lay.val = stepsA lay.val + 1 + 30 + 1720 + (lfSteps lay.val) := by simp [layerFuel, stB, chainFuel, lfSteps, h0]
-  have hcost : layerCost lay.val 0 = stepsA lay.val + 8 + 33 + (lfSteps lay.val) + (2993 - 9 * tgtL lay.val) := by
+  have hcost : layerCost lay.val 0 = stepsA lay.val + 8 + 32 + (lfSteps lay.val) + (2993 - 9 * tgtL lay.val) := by
     simp only [layerCost, cyB, lfSteps, chainCost0, if_neg h0]; omega
   unfold layerHead
   by_cases hctr : (wctr w lay).toNat ≥ counterLimit
@@ -147,8 +147,8 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
   · rw [if_neg hctr]
     obtain ⟨t, hst, hf, h5, hv, hin, c, hc, hpre⟩ := hA.2 (by omega)
     have hblk := blocks_encodingInput lay (route index lay).2 (route index lay).1 M (wctr w lay)
-    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + (lfSteps lay.val) + 1720 + 30) (C + (lfSteps lay.val) + (2993 - 9 * tgtL lay.val) + 33)
-        Q (A + (lfSteps lay.val) + (2993 - 9 * tgtL lay.val) + 33)
+    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + (lfSteps lay.val) + 1720 + 30) (C + (lfSteps lay.val) + (2993 - 9 * tgtL lay.val) + 32)
+        Q (A + (lfSteps lay.val) + (2993 - 9 * tgtL lay.val) + 32)
         (ccM (match decode lay (a.extractLsb' 0 128) with
           | none => pure none
           | some digits => chainsP w lay (route index lay).2 (route index lay).1 digits >>= R) K) := by

@@ -16,7 +16,7 @@ theorem setupLdCheckF_ok : setupLdCheckF = true := by decide +kernel
 theorem setupCheckF_ok : setupCheckF = true := by decide +kernel
 theorem leafCheck_all : (List.range 21).all leafCheck = true := by decide +kernel
 theorem leafDispCheck_all : (List.range 21).all leafDispCheck = true := by decide +kernel
-theorem mDispCheck_all : (List.range 77).all mDispCheck = true := by decide +kernel
+theorem mDispCheck_all : (List.range 141).all mDispCheck = true := by decide +kernel
 theorem slotCheck_N0 : slotCheck 0 0 128 = true := by decide +kernel
 theorem slotCheck_N1 : slotCheck 0 128 128 = true := by decide +kernel
 theorem slotCheck_L0 : slotCheck 1 0 128 = true := by decide +kernel
@@ -24,10 +24,10 @@ theorem slotCheck_L1 : slotCheck 1 128 128 = true := by decide +kernel
 theorem entCheck_N : entCheck 0 0 256 = true := by decide +kernel
 theorem entCheck_L : entCheck 1 0 256 = true := by decide +kernel
 private def rungCases (X a : Nat) : Bool :=
-  (List.range 8).all fun bits =>(List.range 2).all fun t =>
-      ((lastCheck1 X a bits t) &&
+  (List.range 2).all fun tb => (List.range 8).all fun bits =>(List.range 2).all fun t =>
+      ((lastCheck1 tb X a bits t) &&
        (List.range (a-1)).all fun i => (List.range 2).all fun t' =>
-          (!decide (rungSides bits i t t') || rungCheck1 X a bits t i t'))
+          (!decide (rungSides bits i t t') || rungCheck1 tb X a bits t i t'))
 
 private theorem rungCases_0_1 : rungCases 0 1 = true := by decide +kernel
 private theorem rungCases_0_2 : rungCases 0 2 = true := by decide +kernel
