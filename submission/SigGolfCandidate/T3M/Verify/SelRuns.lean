@@ -1,7 +1,7 @@
 import SigGolfCandidate.T3M.Verify.Digest
 
 /-!
-# Selections: expected symbolic results of the sort-tree paths (T3M verify words 18 .. 358)
+# Selections: expected symbolic results of the sort-tree paths (T3M verify words 17 .. 358)
 
 After the digest, `ld a6/a7/s11/t3` load the four words of `N` and `s6 = N mod 2^31` (`selSetup`). For each
 coordinate `c` (code from `selStart c` to the join `selJoin c`): the 25-bit number `gp = N >> (31 + 25 c)` (one
@@ -47,7 +47,7 @@ def xE (c j : Nat) : E :=
   .bin .add (.bin .add (.bin .and (.bin .srl (gpE c) (cw (1 + 7 * j))) (cw 1016)) (bbE c)) (.c (BitVec.ofNat 64 TAB))
 
 /-- Start of coordinate `c`'s selection code (`selStart 7 = 359 = fts_setup`). -/
-def selStart (c : Nat) : Nat := [24, 71, 120, 167, 216, 263, 310, 359].getD c 0
+def selStart (c : Nat) : Nat := [22, 71, 120, 167, 216, 263, 310, 359].getD c 0
 def selJoin (c : Nat) : Nat := selStart (c + 1)
 
 /-- Extraction length (1 or 3 instructions). -/
@@ -128,14 +128,14 @@ def selRSteps (c r : Nat) : Nat := selExt c + 12 + (if r = 4 then 6 else 7)
 def selRCheck1 (c r : Nat) : Bool :=
   specB [] [] [] (runAt selK [] (selStart c) (selRDirs r)) (rejSpec (selRSteps c r) (selRBrs c r)) [] [] []
 
-/-! ## The setup block (words 18 .. 23) -/
+/-! ## The setup block (words 16 .. 21) -/
 
 def nE (k : Nat) : E := .ld (cw (0x60 + 8 * k))
 def idxE : E := .bin .srl (.bin .sll (nE 0) (cw 33)) (cw 33)
 
 def setupSpec : Spec :=
-  ⟨[(.x16, nE 0), (.x17, nE 1), (.x27, nE 2), (.x28, nE 3), (.x22, idxE)], [], 24, false, 6, [], none, 6⟩
+  ⟨[(.x16, nE 0), (.x17, nE 1), (.x27, nE 2), (.x28, nE 3), (.x22, idxE)], [], 22, false, 6, [], none, 6⟩
 
-def setupCheck : Bool := specB [] [] baseK (runAt selK [24] 18 []) setupSpec [] selK []
+def setupCheck : Bool := specB [] [] baseK (runAt selK [22] 16 []) setupSpec [] selK []
 
 end SigGolfCandidate.T3M.Verify

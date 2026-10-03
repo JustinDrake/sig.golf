@@ -8,7 +8,7 @@ import SigGolfCandidate.T3.PackedHeap
 
 The signature has 5616 bytes; the expanded witness has 25240 bytes and the
 fully authenticated cache has 131072 bytes. The claimed verification charge is
-8728 =8629 accepting machine cycles +99 witness cycles.
+8726 =8627 accepting machine cycles +99 witness cycles.
 
 The source uses a height 12/7/6/6 hypertree and seven BPORS banks. Each bank
 selects three leaves from one of 16 buckets of 128 leaves; the authentication cap
@@ -56,7 +56,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8728 :=
+theorem certificate : SigGolf.Certificate submission 8726 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge
