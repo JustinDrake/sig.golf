@@ -390,13 +390,23 @@ def hOff (i d : Nat) : Word := BitVec.ofNat 64 (64 * i + 8 * d) - 2048
 def hKey (i d : Nat) : Addr := ⟨some (.reg .x28), hOff i d⟩
 def hLoad (i d : Nat) : E := .ld (addC (.reg .x28) (hOff i d))
 
-/-- A table-slot head: `addi a0, base, off; addi a2, a0, 48; ld s9, hOff i 0(t3); sd s9, 16(a0); sd tp, 24(a0)`,
-then `j tgt` (6 steps). -/
-def headJH (rb : Reg) (off : Word) (tgt i : Nat) : Result :=
-  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) off)).set .x12 (addC (addC (.reg rb) off) 48)).set .x25 (hLoad i 0),
-    [(kAt rb off 24, .reg .x4), (kAt rb off 16, hLoad i 0)],
-    [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8, .valid (hKey i 0) 8]⟩,
+/-- A table-slot head (V1): `addi a0, base, off; addi a2, a0, 48` (or, at digit 6, `addi a2, zero, slot`);
+`ld s9, hOff i d(t3); sd s9, 16(a0); sd tp, 24(a0)`, then `j tgt` (6 steps) straight onto the `ecall` of the first
+rung (the header already carries the step `d`, so the rung's byte store is skipped). -/
+def headJH (rb : Reg) (off : Word) (tgt i d : Nat) (slot : Option Nat) : Result :=
+  ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) off)).set .x12
+      (match slot with
+       | some a => .c (BitVec.ofNat 64 a)
+       | none => addC (addC (.reg rb) off) 48)).set .x25 (hLoad i d),
+    [(kAt rb off 24, .reg .x4), (kAt rb off 16, hLoad i d)],
+    [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8, .valid (hKey i d) 8]⟩,
     .c (pcOf tgt), .jump, 6, 6⟩
+
+/-- A lone `ecall` at `p` (the landing word of a table-slot head). -/
+def ecallR (p : Nat) : Result := ⟨SymState.init, .c (pcOf p), .ecall, 0, 0⟩
+
+/-- The landing offset of a table-slot head at digit `d` inside rung `d`: past the byte store (and the `li a2`). -/
+def landOff (d : Nat) : Nat := if d = 6 then 2 else 1
 
 /-- An inline head loading the header with its first digit `d` already set (no byte store), up to the first
 `ecall` (5 or 6 steps from `p`). -/
@@ -456,6 +466,10 @@ def offL (i : Nat) : Word := BitVec.ofNat 64 (64 * (42 - i)) - BitVec.ofNat 64 1
 /-- The lower leaf-pk slot of chain `i` (`0x300` for chain 0, `0x310 + 16 i` else). -/
 def slotL (i : Nat) : Nat := if i = 0 then 768 else 784 + 16 * i
 
+/-- The slot argument of a head at digit `d` of chain `i`. -/
+def hSlot (i d : Nat) : Option Nat := if d = 6 then some (slotL i) else none
+
+
 def triBase (t dB dC : Nat) : Nat := triBaseTab.getD (64 * t + 8 * dB + dC) 0
 /-- Words of an inline chain at digit `d` (width 3): the copy 4, else the head 4 + rungs `2 (7 - d) + 1` (T3X:
 the header `ld` replaces the bump and the first byte store). -/
@@ -481,7 +495,10 @@ def partOK (i d p : Nat) : Bool :=
 def entCheck (t k : Nat) : Bool :=
   if k % 8 = 7 then
     rOK (vrun (entW t k) 7) (copyN .x22 (offL (3 * t)) (slotL (3 * t)) (pcB t (k / 8 % 8) (k / 64)))
-  else rOK (vrun (entW t k) 7) (headJH .x22 (offL (3 * t)) (triBase t (k / 8 % 8) (k / 64) + 2 * (k % 8)) (3 * t))
+  else rOK (vrun (entW t k) 7) (headJH .x22 (offL (3 * t))
+      (triBase t (k / 8 % 8) (k / 64) + 2 * (k % 8) + landOff (k % 8)) (3 * t) (k % 8) (hSlot (3 * t) (k % 8))) &&
+    rOK (vrun (triBase t (k / 8 % 8) (k / 64) + 2 * (k % 8) + landOff (k % 8)) 1)
+      (ecallR (triBase t (k / 8 % 8) (k / 64) + 2 * (k % 8) + landOff (k % 8)))
 
 /-- After chain `C` of triple `t`: the dispatch of triple `t + 1` or (`t = 13`) of the checksum chain. -/
 def xOK (t dB dC : Nat) : Bool :=
@@ -502,7 +519,9 @@ def triCheck (t lo n : Nat) : Bool :=
 
 /-- The checksum chain: `ctab` (digit `c < 7` head, `c = 7` copy, slot 8 `jr ra`), its rungs, `ck_done`. -/
 def ckCheck : Bool :=
-  ((List.range 7).all fun c => rOK (vrun (ctabIdx + 8 * c) 7) (headJH .x22 (offL 42) (ckR0 + 2 * c) 42)) &&
+  ((List.range 7).all fun c => rOK (vrun (ctabIdx + 8 * c) 7)
+      (headJH .x22 (offL 42) (ckR0 + 2 * c + landOff c) 42 c (hSlot 42 c)) &&
+    rOK (vrun (ckR0 + 2 * c + landOff c) 1) (ecallR (ckR0 + 2 * c + landOff c))) &&
     rOK (vrun (ctabIdx + 56) 6) (copyN .x22 (offL 42) (slotL 42) ckDone) &&
     rOK (vrun (ctabIdx + 64) 2) retR && rungsOK 0 (slotL 42) ckR0 && rOK (vrun ckDone 2) retR
 

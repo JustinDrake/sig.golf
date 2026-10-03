@@ -766,7 +766,7 @@ def topZ (c : QCtx) : Nat := ((List.range' 0 49).map fun j => zc (c.dig j)).sum 
 /-- The digit sum of the top layer as the machine sees it. -/
 def topS (c : QCtx) : Nat := ((List.range' 0 49).map c.dig).sum + ((List.range' 33 9).map c.lctx.dig).sum
 
-theorem topCost_add (c : QCtx) : c.topCost + 9 * c.topS + c.topZ = 2319 := by
+theorem topCost_add (c : QCtx) : c.topCost + 9 * c.topS + c.topZ = 2316 := by
   have h1 := c.chainsCost_add 49 0
   have h2 := c.lchainsCost_add 9 33 (by omega)
   rw [cbase_sum] at h1
@@ -812,7 +812,7 @@ theorem topS_eq (c : QCtx) {value : Digest} (h : c.TopFit value) : c.topS = (dat
 
 /-- **The cost of an accepting top chain phase**: `1185 - Z` (the 58 digits sum to `126`). -/
 theorem topCost_accept (c : QCtx) {value : Digest} (h : c.TopFit value) (hsum : (dataDigits 0 value).sum = 126) :
-    c.topCost + c.topZ = 1185 := by
+    c.topCost + c.topZ = 1182 := by
   have := c.topCost_add
   rw [c.topS_eq h, hsum] at this
   omega
