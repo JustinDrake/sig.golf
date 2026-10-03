@@ -60,9 +60,7 @@ theorem fts_gate_accept (pk : Digest) (w : WBytes) (a : HashOutput) (s : Machine
   · intro A hA h1 h2
     change u.getMem _ = _
     rw [hm]; exact hs.zero A hA h1 h2
-  · intro k hk
-    change u.getMem _ = _
-    rw [hm]; exact hs.data k hk
+  · exact hs.data.congr (fun A _ _ => hm _)
 
 theorem fts_gate_reject (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineState)
     (hs : SelIn pk w a 7 s) (hg : T3.digestGate a = false) :

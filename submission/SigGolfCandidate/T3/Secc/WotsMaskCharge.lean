@@ -80,7 +80,7 @@ theorem queried_length_chain (T : Answers) (lay : Layer) (tree leaf i start coun
 /-- Queries of one chain of `buildLeaf`. -/
 def halfCount (lay : Layer) (digits : List Nat) (signatureOnly : Bool) (i : Nat) : Nat :=
   if chainCount lay ≤ i then 0
-  else digits.getD i 0 + (if signatureOnly then 0 else 2 ^ width lay i - 1 - digits.getD i 0)
+  else digits.getD i 0 + (if signatureOnly then 0 else maxDigit lay i - digits.getD i 0)
 
 /-- Queries of `buildLeaf lay _ _ digits signatureOnly`. -/
 def leafCount (lay : Layer) (digits : List Nat) (signatureOnly : Bool) : Nat :=

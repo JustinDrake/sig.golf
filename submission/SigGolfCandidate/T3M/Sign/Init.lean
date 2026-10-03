@@ -1,10 +1,11 @@
 import SigGolfCandidate.T3M.Sign.Basic
+import SigGolfCandidate.T3M.Search.TopData
 
 /-!
 # The sign initial state
 
 `sinit sk cache m` is the loaded state (zero registers and memory, the secret key at `SK = 0x80`,
-the cache at `CACHE = 0x80000`, the message at `MSG = 0x40`, `sp = 2^24`; `initialState_sign` is in `Sign/InitState`).
+the cache at `CACHE = 0x80000`, the message at `MSG = 0x40`, `sp = TOP_DATA`; `initialState_sign` is in `Sign/InitState`).
 Doubleword views: `sinit_sk`, `sinit_msg`, `sinit_cache`, `sinit_zero`; the cache as Core's
 `cacheBytes (cacheDec cache)`: `sinit_tag` (the tag doublewords) and `sinit_region` (the region
 doublewords at `REGION`).
@@ -15,6 +16,7 @@ open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGol
 open SigGolfCandidate.T3 (Cache Region cacheBytes readLE)
 open SigGolfCandidate.T3M.Keygen (PRIV SEEDS CHAIN NODE NOUT LOUT LEAFPK MOUT ZDIG DUMMY TOP MACBLK REGION)
 open SphincsSecurity (bytesLE bytesLE_length)
+open SigGolfCandidate.T3M.Search (TOP_DATA TableOK signData_length signData_table)
 
 /-! ## Reading doublewords -/
 
@@ -45,18 +47,34 @@ theorem extractLsb'_ofNat_readLE (m : Nat) (l : List UInt8) (hl : l.length = 8 *
 
 /-! ## The loaded state -/
 
+/-- Immutable decoder bytes loaded before input buffers. -/
+def sdata : MachineState :=
+  ({ regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 } : MachineState).writeBytesAsWords
+    (BitVec.ofNat 64 TOP_DATA) Images.signData
+
+theorem sdata_getMem (A : Nat) (hA : A < 2 ^ 64) :
+    sdata.getMem (BitVec.ofNat 64 A) =
+      if TOP_DATA ≤ A ∧ A < TOP_DATA + 4096 ∧ (A - TOP_DATA) % 8 = 0 then
+        bytesToWordLE ((Images.signData.drop (A - TOP_DATA)).take 8) else 0 := by
+  unfold sdata
+  rw [getMem_writeBytesAsWords _ _ TOP_DATA A (by rw [signData_length]; decide) hA, signData_length]
+  rfl
+
+theorem sdata_zero (A : Nat) (hA : A < TOP_DATA) : sdata.getMem (BitVec.ofNat 64 A) = 0 := by
+  rw [sdata_getMem A (by unfold TOP_DATA at hA; omega), if_neg (by omega)]
+
 /-- The sign initial state: zero registers and memory, the secret key at `SK`, the cache at `CACHE`,
-the message at `MSG`, `sp = 2^24`. -/
+the message at `MSG`, `sp = TOP_DATA`. -/
 def sinit (sk : SecretKey) (cache : Bytes 131072) (m : Message) : MachineState :=
-  (((({ regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 } : MachineState).writeBytesAsWords
+  (((sdata.writeBytesAsWords
     (BitVec.ofNat 64 0x80) (bytes sk)).writeBytesAsWords (BitVec.ofNat 64 0x80000) (bytes cache)).writeBytesAsWords
-    (BitVec.ofNat 64 0x40) (bytes m)).setReg .x2 (BitVec.ofNat 64 (2 ^ 24))
+    (BitVec.ofNat 64 0x40) (bytes m)).setReg .x2 (BitVec.ofNat 64 TOP_DATA)
 
 theorem sinit_pc (sk : SecretKey) (cache : Bytes 131072) (m : Message) : (sinit sk cache m).pc = pcOf 0 := by
   unfold sinit
   rw [MachineState.pc_setReg, MachineState.pc_writeBytesAsWords, MachineState.pc_writeBytesAsWords,
     MachineState.pc_writeBytesAsWords]
-  rfl
+  simp [sdata, MachineState.pc_writeBytesAsWords]
 
 theorem bytes_length' {n : Nat} (x : Bytes n) : (bytes x).length = n := by simp [bytes]
 
@@ -66,13 +84,12 @@ theorem sinit_getMem (sk : SecretKey) (cache : Bytes 131072) (m : Message) (A : 
       else if 0x80000 ≤ A ∧ A < 0xA0000 ∧ (A - 0x80000) % 8 = 0 then
         bytesToWordLE (((bytes cache).drop (A - 0x80000)).take 8)
       else if 0x80 ≤ A ∧ A < 0xA0 ∧ (A - 0x80) % 8 = 0 then bytesToWordLE (((bytes sk).drop (A - 0x80)).take 8)
-      else 0 := by
+      else sdata.getMem (BitVec.ofNat 64 A) := by
   unfold sinit
   rw [MachineState.getMem_setReg, getMem_writeBytesAsWords _ _ 0x40 A (by rw [bytes_length']; decide) hA,
     getMem_writeBytesAsWords _ _ 0x80000 A (by rw [bytes_length']; decide) hA,
     getMem_writeBytesAsWords _ _ 0x80 A (by rw [bytes_length']; decide) hA, bytes_length', bytes_length',
     bytes_length']
-  rfl
 
 theorem sinit_sk (sk : SecretKey) (cache : Bytes 131072) (m : Message) (j : Nat) (hj : j < 4) :
     (sinit sk cache m).getMem (BitVec.ofNat 64 (SK + 8 * j)) = sk.extractLsb' (64 * j) 64 := by
@@ -89,10 +106,10 @@ theorem sinit_cache (sk : SecretKey) (cache : Bytes 131072) (m : Message) (j : N
   rw [sinit_getMem _ _ _ _ (by sg_omega), if_neg (by sg_omega), if_pos (by sg_omega),
     show CACHE + 8 * j - 0x80000 = 8 * j by sg_omega, bytesToWordLE_bytes cache j (by omega)]
 
-theorem sinit_zero (sk : SecretKey) (cache : Bytes 131072) (m : Message) (A : Nat) (hA : A < 2 ^ 64)
+theorem sinit_zero (sk : SecretKey) (cache : Bytes 131072) (m : Message) (A : Nat) (hA : A < TOP_DATA)
     (h : A < 0x40 ∨ (0x60 ≤ A ∧ A < 0x80) ∨ (0xA0 ≤ A ∧ A < 0x80000) ∨ 0xA0000 ≤ A) :
     (sinit sk cache m).getMem (BitVec.ofNat 64 A) = 0 := by
-  rw [sinit_getMem _ _ _ _ hA, if_neg (by omega), if_neg (by omega), if_neg (by omega)]
+  rw [sinit_getMem _ _ _ _ (by unfold TOP_DATA at hA; omega), if_neg (by omega), if_neg (by omega), if_neg (by omega), sdata_zero A hA]
 
 /-! ## The cache as Core's `cacheBytes (cacheDec cache)` -/
 
@@ -128,5 +145,18 @@ theorem sinit_region (sk : SecretKey) (cache : Bytes 131072) (m : Message) :
       (cacheDec cache).tag.extractLsb' 128 64, (cacheDec cache).tag.extractLsb' 192 64].length ≤ 4 + j by
       rw [List.length_cons, List.length_cons, List.length_cons, List.length_singleton]; omega)]
   rw [List.length_cons, List.length_cons, List.length_cons, List.length_singleton, Nat.add_sub_cancel_left]
+
+theorem sinit_table (sk : SecretKey) (cache : Bytes 131072) (m : Message) : TableOK (sinit sk cache m) := by
+  intro i hi
+  rw [getByte_eq_word _ _ (by unfold TOP_DATA; omega),
+    sinit_getMem _ _ _ _ (by unfold TOP_DATA; omega),
+    if_neg (by unfold TOP_DATA; omega), if_neg (by unfold TOP_DATA; omega), if_neg (by unfold TOP_DATA; omega),
+    sdata_getMem _ (by unfold TOP_DATA; omega), if_pos (by unfold TOP_DATA; omega),
+    Keygen.extractByte_bytesToWordLE _ _ (Nat.mod_lt _ (by decide))]
+  simp only [List.getD_eq_getElem?_getD, List.getElem?_take, List.getElem?_drop,
+    if_pos (Nat.mod_lt (TOP_DATA + i) (show 0 < 8 by decide))]
+  have hidx : (TOP_DATA + i) / 8 * 8 - TOP_DATA + (TOP_DATA + i) % 8 = i := by unfold TOP_DATA; omega
+  rw [hidx]
+  exact signData_table i hi
 
 end SigGolfCandidate.T3M.Sign

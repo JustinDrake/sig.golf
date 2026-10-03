@@ -37,17 +37,6 @@ theorem lowDigits_eq (v : Digest) : lowDigits v = (List.range 42).map (digVal v 
     subst this; simp
   · simp [h]
 
-theorem topDigits_eq (v : Digest) : topDigits v = (List.range 58).map (digVal v 49) := by
-  unfold topDigits digVal digOff digW
-  apply List.map_congr_left
-  intro j _
-  by_cases h : j < 49
-  · simp [h, show j ≤ 49 by omega]
-  · by_cases h' : j ≤ 49
-    · have : j = 49 := by omega
-      subst this; simp
-    · simp [h, h']
-
 /-! ## Word lemmas -/
 
 theorem ofNat_truncate8 (a : Nat) : (BitVec.ofNat 64 a).truncate 8 = BitVec.ofNat 8 a := by

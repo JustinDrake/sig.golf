@@ -158,10 +158,10 @@ theorem layerItems_chain (A : Answers) (index : Fin (2^31)) (c : Coord)
       · intro p hp
         obtain ⟨h1, hd, h2⟩ := chainItem_chain hp
         rw [hdepth p.1 h1, h2]
-        have hle : (Wots.referenceDigits A (routeAddr index.val lay)).getD i 0 ≤ 2 ^ width lay i - 1 :=
+        have hle : (Wots.referenceDigits A (routeAddr index.val lay)).getD i 0 ≤ maxDigit lay i :=
           WotsExtract.depth_le A ⟨routeAddr index.val lay, i⟩ hi
-        have hw : 2 ^ width lay i - 1 ≤ 7 := by
-          unfold width; split_ifs <;> norm_num
+        have hw : maxDigit lay i ≤ 7 := by
+          unfold maxDigit; split_ifs <;> norm_num
         omega
       · intro a ha
         obtain ⟨h1, hd⟩ := chainItem_seed ha

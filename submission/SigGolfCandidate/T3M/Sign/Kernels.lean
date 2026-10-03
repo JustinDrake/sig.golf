@@ -1,4 +1,5 @@
 import SigGolfCandidate.T3M.Sign.Basic
+import SigGolfCandidate.T3M.Search.TopTables
 import SigGolfCandidate.T3M.Keygen.Leaf
 
 /-!
@@ -100,6 +101,7 @@ structure CsPre (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : Digest
   z40 : s.getMem (BitVec.ofNat 64 (ENC + 40)) = 0
   z48 : s.getMem (BitVec.ofNat 64 (ENC + 48)) = 0
   z56 : s.getMem (BitVec.ofNat 64 (ENC + 56)) = 0
+  table : Search.TableOK s
 
 /-- Exit of `counter_search`: `fail` on exhaustion, else back at `ret` with the digits at `DIGITS`
 (and `s9` = the data-digit total, at most the target: layer 0 passes it on as `build_leaf`'s unused

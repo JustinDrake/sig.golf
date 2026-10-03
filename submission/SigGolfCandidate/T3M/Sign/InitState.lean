@@ -17,8 +17,9 @@ theorem initialState_sign (sk : SecretKey) (cache : Bytes 131072) (m : Message) 
   have hv := submission_sign_valid
   unfold initialState
   rw [if_pos hv]
-  simp only [submission_sign, Images.signImage, Images.signData, MachineState.writeBytesAsWords_nil,
+  simp only [submission_sign, Images.signImage,
     inputBuffers, List.foldl_cons, List.foldl_nil]
-  rfl
+  change some _ = some _
+  congr 1
 
 end SigGolfCandidate.T3M.Sign
