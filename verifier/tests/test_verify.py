@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from certificate import pack
-from verify import verify, landrun_command, run_checked
+from verify import verify, landrun_command, run_checked, linux_command
 
 
 class PipelineTests(unittest.TestCase):
@@ -157,6 +157,15 @@ class PipelineTests(unittest.TestCase):
         self.assertTrue(second['cache_hit'], second)
         self.assertEqual(self.calls, [])
 
+    def test_changed_trusted_context_during_check_is_not_accepted(self):
+        self.make_certificate()
+        with patch('verify.context_digest', side_effect=['a' * 64, 'c' * 64]):
+            result = verify(self.args())
+        self.assertEqual(result['status'], 'failed', result)
+        self.assertIn('trusted inputs changed', result['reason'])
+        self.assertNotIn('score', result)
+        self.assertEqual(list((self.root / 'cache').glob('*.json')), [])
+
     def test_rejection_emits_no_score_and_is_not_cached(self):
         self.make_certificate()
         self.failure = 'checker.log'
@@ -198,6 +207,12 @@ class PipelineTests(unittest.TestCase):
                                       self.trusted, self.env, build=False)
         self.assertIn(['--rox', self.env['COMPARATOR_LEAN4EXPORT']],
                       [command[i:i + 2] for i in range(len(command) - 1)])
+
+    def test_sandbox_path_selects_the_pinned_lean_before_elan_shims(self):
+        with patch('pathlib.Path.stat', return_value=SimpleNamespace(st_dev=1, st_ino=1)):
+            command, _environment = linux_command(['true'], self.trusted, self.env, [])
+        selected = next(argument for argument in command if argument.startswith('PATH='))
+        self.assertTrue(selected.startswith('PATH=' + str(Path(self.env['COMPARATOR_LEAN']).parent) + ':'))
 
     def test_wrapper_help_does_not_remove_previous_score(self):
         import subprocess

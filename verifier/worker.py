@@ -37,8 +37,8 @@ class WorkerError(ValueError):
 
 
 def _require_linux() -> None:
-    if sys.platform != "linux":
-        raise WorkerError("persistent certificate workers require Linux with enforced memory limits")
+    if sys.platform != "linux" or os.geteuid() == 0:
+        raise WorkerError("persistent certificate workers require unprivileged Linux with enforced memory limits")
 
 
 def _peer_uid(connection: socket.socket) -> int:

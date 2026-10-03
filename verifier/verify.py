@@ -101,7 +101,7 @@ def linux_command(cmd: list[str], project: Path, env: dict[str, str], hidden: li
                   'SystemCallErrorNumber=EPERM',
                   'SystemCallFilter=~@network-io @debug ptrace process_vm_readv process_vm_writev '
                   'pidfd_getfd kill tkill tgkill pidfd_send_signal']
-    clean = {'PATH': f'{Path.home() / ".elan/bin"}:{os.environ.get("PATH", "/usr/bin:/bin")}',
+    clean = {'PATH': f'{Path(env["COMPARATOR_LEAN"]).parent}:{Path.home() / ".elan/bin"}:{os.environ.get("PATH", "/usr/bin:/bin")}',
              'HOME': str(Path.home()), 'LANG': 'C.UTF-8',
               'COMPARATOR_LANDRUN': env['COMPARATOR_LANDRUN'],
               'COMPARATOR_LEAN4EXPORT': env['COMPARATOR_LEAN4EXPORT'],
@@ -350,7 +350,7 @@ def verify(args: argparse.Namespace) -> dict:
             remaining = int(WALL_SECONDS - (time.monotonic() - started))
             if remaining < 1:
                 raise TimeoutError('overall verification deadline exceeded')
-            environment = {'PATH': f'{Path.home() / ".elan/bin"}:{os.environ.get("PATH", "/usr/bin:/bin")}',
+            environment = {'PATH': f'{Path(env["COMPARATOR_LEAN"]).parent}:{Path.home() / ".elan/bin"}:{os.environ.get("PATH", "/usr/bin:/bin")}',
                            'HOME': str(Path.home()), 'LANG': 'C.UTF-8', 'LEAN_ABORT_ON_PANIC': '1'}
             if profile is not None:
                 environment['LEAN_NUM_THREADS'] = str(profile.build_jobs)
@@ -428,6 +428,8 @@ def verify(args: argparse.Namespace) -> dict:
             if report['status'] == 'rejected':
                 result['status'] = 'rejected'
             raise VerifyError(f'checker rejected certificate: {report}')
+        if context_digest(args.trusted, env) != context_hash:
+            raise VerifyError('trusted inputs changed during verification; refusing to publish acceptance')
         result.update(status='kernel_checked' if preview else 'verified', checker=report)
         if not preview:
             result['score'] = policy['score']

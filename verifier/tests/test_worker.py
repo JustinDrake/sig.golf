@@ -207,7 +207,7 @@ class WorkerTests(unittest.TestCase):
     def test_production_refuses_unsupported_host(self):
         with patch("verifier.worker.sys.platform", "darwin"):
             from verifier.worker import _require_linux
-            with self.assertRaisesRegex(WorkerError, "require Linux"):
+        with self.assertRaisesRegex(WorkerError, "require unprivileged Linux"):
                 _require_linux()
 
     def test_live_socket_is_not_replaced(self):
