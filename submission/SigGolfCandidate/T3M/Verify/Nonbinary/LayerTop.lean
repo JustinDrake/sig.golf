@@ -53,9 +53,9 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     GoodQ s (N + layerFuel 0) (C + layerCost 0 0) Q (A + layerCost 0 0) (ccM (layerHead w index 0 M R) K) := by
   have hidx := hs.idx
   have hA := encA_step w pk index 0 M s hs
-  have hfuel : layerFuel 0 = 11 + 1 + 123 + 2321 + 12 := by decide
-  have hcost : layerCost 0 0 = 11 + 8 + 75 + 12 + 1086 := by decide
-  have hsA : stepsA (0 : Layer).val = 11 := rfl
+  have hfuel : layerFuel 0 = 10 + 1 + 123 + 2321 + 12 := by decide
+  have hcost : layerCost 0 0 = 10 + 8 + 75 + 12 + 1086 := by decide
+  have hsA : stepsA (0 : Layer).val = 10 := rfl
   unfold layerHead
   by_cases hctr : (wctr w 0).toNat ≥ counterLimit
   · rw [if_pos hctr, ccM_pure, hK0]
@@ -87,8 +87,8 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
         let L := nctxOf w index (a.extractLsb' 0 128) (trPc 0 c)
         have hLok : L.ok := nctx_ok w index _ c hidx
         have hkn : KnownOK L.known s0 := nctx_known w pk index c t s0 a hidx hpre he
-        have h12 : t.getReg .x12 = 320#64 := hpre.glob.1 (_, _) (by simp [bK])
-        have hDs0 : DataOK s0 := (Glob_writeHash hpre.glob a 320 h12 (by decide)).2.2.2.2.2.congr
+        have h12 : t.getReg .x12 = 256#64 := hpre.glob.1 (_, _) (by simp [bK])
+        have hDs0 : DataOK s0 := (Glob_writeHash hpre.glob a 256 h12 (by decide)).2.2.2.2.2.congr
           (fun A _ hA => he.frame.get (by omega) (by simp))
         have hO := nctx_orig w index (a.extractLsb' 0 128) (trPc 0 c) s0
           (topEntry_orig w pk index c t s0 a hpre he) hDs0

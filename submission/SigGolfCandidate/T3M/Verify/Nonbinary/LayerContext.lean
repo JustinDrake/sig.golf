@@ -11,7 +11,7 @@ set_option linter.unusedSimpArgs false
 
 /-- The actual mixed-radix top chain context after an encoding answer. -/
 def nctxOf (w : WBytes) (index : Nat) (v : Digest) (p : Nat) : NCtx :=
-  ⟨w, (route index 0).2, (route index 0).1, 15048, coreDigit 0 v, p + 13⟩
+  ⟨w, (route index 0).2, (route index 0).1, 15048, coreDigit 0 v, p + 12⟩
 
 theorem nctx_ok (w : WBytes) (index : Nat) (v : Digest) (c : Nat) (hidx : index < 2 ^ 31) :
     (nctxOf w index v (trPc 0 c)).ok := by
@@ -48,8 +48,8 @@ theorem topEntry_orig (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineS
     (ht : EncPre w pk index 0 c t)
     (he : TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s) :
     Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd 0) s := by
-  have h12 : t.getReg .x12 = 320#64 := ht.glob.1 (_, _) (by simp [bK])
-  have ho := Orig_writeHash ht.orig a 320 h12 (by norm_num)
+  have h12 : t.getReg .x12 = 256#64 := ht.glob.1 (_, _) (by simp [bK])
+  have ho := Orig_writeHash ht.orig a 256 h12 (by norm_num)
   have hu : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd 0) (writeHash t a) :=
     ho.mono (fun o h => ⟨h, Or.inr (by unfold WIT; omega)⟩)
   exact hu.frame (fun j hj hp => he.frame.get (by unfold WIT WX at *; omega) (by simp))

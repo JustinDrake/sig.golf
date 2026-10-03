@@ -80,10 +80,10 @@ def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + ch
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 
 theorem layerCost_vals :
-    layerCost 3 0 = 1281 ∧ layerCost 2 0 = 1262 ∧ layerCost 1 0 = 1263 ∧ layerCost 0 0 = 1192 := by decide
+    layerCost 3 0 = 1280 ∧ layerCost 2 0 = 1261 ∧ layerCost 1 0 = 1262 ∧ layerCost 0 0 = 1191 := by decide
 
 theorem layerFuel_vals :
-    layerFuel 3 = 1787 ∧ layerFuel 2 = 1777 ∧ layerFuel 1 = 1778 ∧ layerFuel 0 = 2468 := by decide
+    layerFuel 3 = 1786 ∧ layerFuel 2 = 1776 ∧ layerFuel 1 = 1777 ∧ layerFuel 0 = 2467 := by decide
 
 /-! ## Decode facts -/
 
@@ -199,7 +199,7 @@ five layer constants from the embedded data (`DataOK`, part of `Glob`); the copy
 theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u : MachineState)
     (hidx : idx < 2 ^ 31) (hglob : Glob baseK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
     (hpc : u.pc = pcOf 588) (hroot : DigAt u 0x100 root)
-    (hwit : Verify.Orig w (fun o => o < 64 ∨ 10568 ≤ o) u) :
+    (hwit : Verify.Orig w (fun o => o < 64 ∨ 10568 ≤ o) u) (ha2 : u.getReg .x12 = BitVec.ofNat 64 0x100) :
     ∃ t, Steps image u 6 6 t ∧ LayerIn w pk idx 3 root t := by
   obtain ⟨t, ht⟩ := spec_run ld3Check_ok u hpc hglob.1 (by simp [ld3Spec]) (by simp)
   have hm : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
@@ -222,18 +222,21 @@ theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u
     r2.trans (hD.word 4 (by omega) 0x3fe00 (by decide) (DATA + 32) (by omega))
   have hG0 : Glob baseK w pk t := ht.glob _ _ _ hglob (RelOK.nil u)
   have hpk : preK 3 = baseK ++ [(.x19, BitVec.ofNat 64 0x400000), (.x21, BitVec.ofNat 64 M2c),
-      (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00)] := rfl
+      (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00),
+      (.x12, BitVec.ofNat 64 256)] := rfl
+  have e12 : t.getReg .x12 = BitVec.ofNat 64 256 := (ht.keep .x12 (by simp)).trans ha2
   have hk : ∀ p ∈ preK 3, t.getReg p.1 = p.2 := by
     intro p hp
     rw [hpk] at hp
     simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with hp | rfl | rfl | rfl | rfl | rfl
+    rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl
     · exact ht.known p hp
     · exact e19
     · exact e21
     · exact e20
     · exact e27
     · exact e2
+    · exact e12
   refine ⟨t, ht.steps, ⟨by norm_num, hidx, ⟨0, by rw [nCopy_eq.1]; norm_num, by rw [ht.pc rfl]; rfl⟩, ⟨hk, hG0.2⟩,
     ?_, ?_, ?_⟩⟩
   · rw [show rReg 3 = .x22 from rfl, ht.keep .x22 (by simp), hreg, show below 3 = 0 from rfl, pow_zero, Nat.div_one]

@@ -9,7 +9,7 @@ set_option linter.unusedSimpArgs false
 
 /-- Every rejected source encoding takes the actual verifier to its rejection jump. -/
 theorem decode_reject (s : MachineState) (v : Digest)
-    (hpc : s.pc = pcOf 96160) (hv : DigAt s 320 v) (ht : PackedTables s)
+    (hpc : s.pc = pcOf 96160) (hv : DigAt s 256 v) (ht : PackedTables s)
     (hbad : T3.decode 0 v = none) :
     ∃ k t, Steps Verify.image s k k t ∧ k ≤ 60 ∧ t.pc = pcOf 96230 ∧
       RegsExcept s t [.x16,.x17,.x14,.x25,.x29,.x19,.x24] ∧ Frame s t (fun _ => False) := by

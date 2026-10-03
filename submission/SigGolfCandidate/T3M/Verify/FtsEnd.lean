@@ -298,6 +298,8 @@ structure FtsOut (F : FCtx) (root : Digest) (u : MachineState) : Prop where
   pc : u.pc = pcOf layerPc
   root : DigAt u 0x100 root
   wit : Orig F.w (fun o => o < 64 ∨ 10568 ≤ o) u
+  /-- J1: the forest HASH's destination register, kept as layer 3's encoding destination. -/
+  a2 : u.getReg .x12 = BitVec.ofNat 64 0x100
 
 theorem hdr0_forest (idx : Nat) (hi : idx < 2 ^ 32) : hdr0 11 0 idx 0 = 0xb01 := by
   rw [hdr0_eq 11 0 idx 0 (by decide) (by decide) hi (by decide)]; norm_num
@@ -404,7 +406,7 @@ theorem forest_step (F : FCtx) (roots : List Digest) (ptr folds : Nat) (m : Mach
       · rw [hmem _ (by norm_num), if_pos (by unfold FOREST; omega), hdr1_forest F.idx hi32]
     refine ⟨u, hu.steps, hu.ecall rfl, hu.known (.x5, 0) (by simp [baseK]),
       hashArgs_of u _ 128 _ h10 h11 h12 (by unfold FOREST; omega) (by decide) (by unfold FOREST; norm_num)
-        (by decide) (by norm_num), hin, fun ans => ⟨?_, ?_, ?_, ?_, ?_⟩⟩
+        (by decide) (by norm_num), hin, fun ans => ⟨?_, ?_, ?_, ?_, ?_, ?_⟩⟩
     · exact Glob_writeHash (hu.glob _ _ _ h.glob (RelOK.nil m)) ans 0x100 h12 (by decide)
     · rw [writeHash_getReg, hu.keep .x22 (by simp)]; exact h.idx
     · rw [writeHash_pc, hu.pc rfl]; exact pcOf_add4 587
@@ -416,5 +418,6 @@ theorem forest_step (F : FCtx) (roots : List Digest) (ptr folds : Nat) (m : Mach
       have hp := h.hptr
       exact hw2.mono (fun o ho => ⟨by rcases ho with ho | ho; exact Or.inl ho; exact Or.inr (Or.inr (by omega)),
         Or.inr (by unfold WIT; omega)⟩)
+    · rw [writeHash_getReg]; exact h12
 
 end SigGolfCandidate.T3M.Verify
