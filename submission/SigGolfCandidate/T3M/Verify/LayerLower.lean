@@ -216,14 +216,12 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
 
 /-! ## Interfaces: V2's `FtsOut` → layer 3's `LayerIn`; V3's Merkle end → the next `LayerIn` -/
 
-/-- **V2's `FtsOut` reaches layer 3's `LayerIn`** (stated on `FtsOut`'s fields `glob`, `idx`, `pc` (`layerPc = 630`),
-`root`, `wit`, with `F.idx = a.toNat % 2^31 < 2^31`): the load block (words 630 .. 634, `ld3Spec`, 5 cycles) reads
-five layer constants from the embedded data (`DataOK`, part of `Glob`); the copy `xtr3_1` starts at 635. The four carried constants remain known. -/
+/-- The four-load interface after the forest HASH preserves the E8 layer-message invariant. -/
 theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u : MachineState)
     (hidx : idx < 2 ^ 31) (hglob : Glob carryK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
     (hpc : u.pc = pcOf 630) (hroot : DigAt u 0x100 root)
     (hwit : Verify.Orig w (fun o => o < 64 ∨ 11288 ≤ o) u) :
-    ∃ t, Steps image u 5 5 t ∧ LayerIn w pk idx 3 (root, 0, 0) t := by
+    ∃ t, Steps image u 4 4 t ∧ LayerIn w pk idx 3 (root, 0, 0) t := by
   obtain ⟨t, ht⟩ := spec_run ld3Check_ok u hpc hglob.1 (by simp [ld3Spec]) (by simp)
   have hm : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
   have hD : DataOK u := hglob.2.2.2.2.2
