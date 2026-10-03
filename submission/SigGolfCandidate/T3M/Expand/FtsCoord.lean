@@ -40,9 +40,9 @@ theorem cnt3_pos (g0 g1 g2 level node : Nat) (h : hasLeaf [g0, g1, g2] level nod
 theorem cnt3_le (g0 g1 g2 level node : Nat) : cnt3 g0 g1 g2 level node ≤ 3 := by
   unfold cnt3; split_ifs <;> omega
 
-/-- `recover_child` costs at most `53 + 169 level + 89` per leaf below. -/
+/-- `recover_child` costs at most `53 + 176 level + 96` per leaf below. -/
 theorem rcCost_le (g0 g1 g2 : Nat) : ∀ level node,
-    rcCost [g0, g1, g2] level node ≤ 53 + cnt3 g0 g1 g2 level node * (169 * level + 89) := by
+    rcCost [g0, g1, g2] level node ≤ 53 + cnt3 g0 g1 g2 level node * (176 * level + 96) := by
   intro level
   induction level with
   | zero =>
@@ -647,7 +647,7 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
     · rw [hE1]; omega
   have hrc := rc_tbsim (sk := sk) hc hi hgl 7 sel.bucket used e0 true 99 0x22000 t3 hpreR
   have hcost := rcCost_eight (selLeaf sel 0) (selLeaf sel 1) (selLeaf sel 2) sel.bucket
-  refine (TBSim.steps (s1.trans (s2.trans s3)) (TBSim.bind (W₂ := 333) hrc (fun r t4 h4 => ?_))).mono
+  refine (TBSim.steps (s1.trans (s2.trans s3)) (TBSim.bind (W₂ := 340) hrc (fun r t4 h4 => ?_))).mono
     (by unfold coordCost; omega) (fun _ _ h => h)
   rcases r with _ | ⟨v, next⟩
   · exact (TBSim.pure (Q := fun st u => match st with
@@ -690,7 +690,7 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
       exact (TBSim.pure (a := none) hu).mono (by omega) (fun _ _ h => h)
     · rw [Nat.zero_add]
       exact outer_step hc hb hb0 (by omega) hst4 x8_4 x22_4 hroom hnext124 hj hu
-  refine (TBSim.steps s5 (TBSim.bind (W₂ := 24) (TBSim.foldlM_range' 0 4 _ _ _ 77 hbody hO0)
+  refine (TBSim.steps s5 (TBSim.bind (W₂ := 31) (TBSim.foldlM_range' 0 4 _ _ _ 77 hbody hO0)
     (fun res t6 h6 => ?_))).mono (by omega) (fun _ _ h => h)
   rcases res with _ | ⟨root, next'⟩
   · exact (TBSim.pure (Q := fun st u => match st with
@@ -742,9 +742,8 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
   have str8 : StreamAt t8 ((climbE (valC chosen sig.proof c) (selLeaf sel 2) 7 4 e1).close false 0) := by
     refine streamAt_close false 0 str7 ?_ (fun k hk hne => f8.get (by omega) (by
       rw [wl_climbE] at hne; omega))
-    rw [wl_climbE, w8, hz7, replaceByte_zero _ (by omega), cur_climbE]
-    simp only [Bool.false_eq_true, ↓reduceIte]
-    congr 1; simp [climbE]; ring
+    rw [wl_climbE, w8, hz7, cur_climbE]
+    exact replaceByte_zero8 _ (emitHeader_lt _ _ _)
   rw [hclose] at str8
   -- frames
   have Fpost : Frame t2 t10 (fun A => RcW 0x22000 7 A ∨ OW A ∨ A = 0xC40 + 8 * wl e1 ∨ A = FOREST + slotOff c ∨

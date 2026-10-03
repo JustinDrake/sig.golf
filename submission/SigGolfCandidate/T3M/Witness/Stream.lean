@@ -62,10 +62,10 @@ theorem foldsP_climb (w : WBytes) (index coord ptr : Nat) (val pad : Nat × Nat 
 
 /-- A header byte claiming `A ≤ 11` folds with the right parity. -/
 structure HdrOk (b A merge E : Nat) : Prop where
-  a : b % 16 = A
-  le : A ≤ 11
-  m : b / 16 % 2 = merge
-  t : 0 < A → b / 32 % 2 = E % 2
+  a : segFoldCount b = A
+  le : A ≤ 10
+  m : segMerge b = merge
+  t : 0 < A → segSides b % segSideMod A = E % segSideMod A
 
 /-- A segment without merge (or on an empty stack, which must not merge). -/
 theorem segLoop_stop (w : WBytes) (index coord : Nat) (stack : List (Digest × Nat)) (pending : Pending)
@@ -75,8 +75,8 @@ theorem segLoop_stop (w : WBytes) (index coord : Nat) (stack : List (Digest × N
       let r ← foldsP w index coord ptr A n E
       pure (some (r.1, r.2, segNext ptr A, stack))) := by
   rw [segLoop.eq_1]
-  have h1 : ¬ 11 < A := Nat.not_lt.mpr h.le
-  have h2 : ¬ (0 < A ∧ (wbyte w ptr).toNat / 32 % 2 ≠ E % 2) := by
+  have h1 : ¬ 10 < A := Nat.not_lt.mpr h.le
+  have h2 : ¬ (0 < A ∧ segSides (wbyte w ptr).toNat % segSideMod A ≠ E % segSideMod A) := by
     rintro ⟨hp, hne⟩; exact hne (h.t hp)
   simp only [h.a, h.m]
   rw [if_neg h1, if_neg h2]
@@ -92,8 +92,8 @@ theorem segLoop_merge (w : WBytes) (index coord : Nat) (pnode : Digest) (Q : Nat
       if Q ≠ r.2 then pure none
       else segLoop w index coord rest (.merge (r.2 / 2) pnode) (r.2 / 2) (segNext ptr A) r.1) := by
   rw [segLoop.eq_1]
-  have h1 : ¬ 11 < A := Nat.not_lt.mpr h.le
-  have h2 : ¬ (0 < A ∧ (wbyte w ptr).toNat / 32 % 2 ≠ E % 2) := by
+  have h1 : ¬ 10 < A := Nat.not_lt.mpr h.le
+  have h2 : ¬ (0 < A ∧ segSides (wbyte w ptr).toNat % segSideMod A ≠ E % segSideMod A) := by
     rintro ⟨hp, hne⟩; exact hne (h.t hp)
   simp only [h.a, h.m]
   rw [if_neg h1, if_neg h2]
@@ -133,11 +133,12 @@ theorem seg_merge (pnode : Digest) (Q : Nat) (rest : List (Digest × Nat)) (pend
 end seg
 
 /-- `Segment.Matches` gives the machine's header conditions at the segment's start heap. -/
-theorem hdrOk_of_matches {seg : Segment} {b : Nat} (h : seg.Matches b) (hle : seg.a ≤ 11) :
+theorem hdrOk_of_matches {seg : Segment} {b : Nat} (h : seg.Matches b) (hle : seg.a ≤ 10) :
     HdrOk b seg.a (if seg.merge then 1 else 0) ((2048 + seg.g) / 2 ^ seg.lo) where
   a := h.1
   le := hle
   m := by
+    have hmBound : segMerge b < 2 := Nat.mod_lt _ (by decide)
     have := h.2.1
     cases hm : seg.merge <;> simp [hm] at this ⊢ <;> omega
   t := fun hp => by have := h.2.2 hp; simpa [Segment.t, Segment.heap] using this

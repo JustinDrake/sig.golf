@@ -1,4 +1,4 @@
-import SigGolfCandidate.T3M.Expand.FrontBlocks
+import SigGolfCandidate.T3M.Expand.HeaderPack
 
 /-!
 # `expand`: block specifications of `recover_child` (stream E)
@@ -197,32 +197,53 @@ theorem rc859_spec (hpc : s.pc = pcOf 859) (j : Nat) (hj : j < 3) (h20 : s.getRe
   · intro A _ _; simp [eblk_859.res, rv_simp]
 
 /-- Close the open segment (no merge): header byte `s7 | s8 << 5` at `s6`, `s6 += 8 + 80 s7`. -/
-theorem rc860_spec (hpc : s.pc = pcOf 860) (ptr cnt par : Nat) (hp8 : ptr % 8 = 0) (hp : ptr + 8 ≤ 2 ^ 24)
-    (hcnt : cnt < 16) (hpar : par < 2) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24)
+theorem rc862_tail_spec (hpc : s.pc = pcOf 862) (ptr cnt par : Nat) (hp8 : ptr % 8 = 0) (hp : ptr + 8 ≤ 2 ^ 24)
+    (hcnt : cnt < 16) (hpar : par < 16) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 ptr) (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt)
-    (h24 : s.getReg .x24 = BitVec.ofNat 64 par) :
-    ∃ t, Steps image s 8 8 t ∧ t.pc = pcOf 868 ∧
+    (h24 : s.getReg .x24 = BitVec.ofNat 64 par)
+    (h28 : (s.getReg .x28).truncate 8 = BitVec.ofNat 8 (emitHeader cnt false par)) :
+    ∃ t, Steps image s 6 6 t ∧ t.pc = pcOf 868 ∧
       t.getMem (BitVec.ofNat 64 ptr) =
-        replaceByte (s.getMem (BitVec.ofNat 64 ptr)) 0 ((BitVec.ofNat 64 (32 * par + cnt)).truncate 8) ∧
+        replaceByte (s.getMem (BitVec.ofNat 64 ptr)) 0 (BitVec.ofNat 8 (emitHeader cnt false par)) ∧
       t.getReg .x22 = BitVec.ofNat 64 (ptr + 80 * cnt + 8) ∧
       RegsExcept s t [.x22, .x28, .x30] ∧ Frame s t (fun A => A = ptr) := by
-  refine ⟨_, symRun_sound eblk_860 codeAt_860 s hpc ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simp only [eblk_860.res, Result.obligs, Oblig.all, Oblig.holds, Addr.eval, E.eval, BinOp.eval, RegFile.get,
+  refine ⟨_, symRun_sound eblk_862 codeAt_862 s hpc ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp only [eblk_862.res, Result.obligs, Oblig.all, Oblig.holds, Addr.eval, E.eval, BinOp.eval, RegFile.get,
       h22, BitVec.ofNat_eq_ofNat]
     rw [show (0#64 : BitVec 64) = 0 from rfl]; simp only [add_zero]
     rw [accessValid_iff, toNat_ofNat_lt (by omega)]; simp only [MEMORY_BYTES]; omega
-  · simp [Result.toState_pc, eblk_860.res, E.eval]
-  · simp only [Result.toState_getMem, eblk_860.res, rv_simp, h22, h23, h24]
+  · simp [Result.toState_pc, eblk_862.res, E.eval]
+  · simp only [Result.toState_getMem,eblk_862.res,rv_simp,h22,h28]
     t3n []
-    rw [ofNat_or_disjoint cnt (par * 32) 5 (by omega) (by omega), show par * 32 + cnt = 32 * par + cnt by ring]
-  · simp only [Result.toState_getReg, eblk_860.res, rv_simp, h22, h23]
+
+  · simp only [Result.toState_getReg, eblk_862.res, rv_simp, h22, h23]
     t3n []
     congr 1; omega
-  · ex_regs eblk_860.res
+  · ex_regs eblk_862.res
   · intro A hA hn
-    simp only [Result.toState_getMem, eblk_860.res, rv_simp, h22]
+    simp only [Result.toState_getMem, eblk_862.res, rv_simp, h22]
     t3n []
     rw [if_neg (by omega)]
+
+theorem rc860_spec (hpc : s.pc = pcOf 860) (ptr cnt par : Nat) (hp8 : ptr % 8 = 0) (hp : ptr + 8 ≤ 2 ^ 24)
+    (hcnt : cnt < 16) (hpar : par < 16) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24)
+    (h22 : s.getReg .x22 = BitVec.ofNat 64 ptr) (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt)
+    (h24 : s.getReg .x24 = BitVec.ofNat 64 par) :
+    ∃ t, Steps image s 15 15 t ∧ t.pc = pcOf 868 ∧
+      t.getMem (BitVec.ofNat 64 ptr) =
+        replaceByte (s.getMem (BitVec.ofNat 64 ptr)) 0 (BitVec.ofNat 8 (emitHeader cnt false par)) ∧
+      t.getReg .x22 = BitVec.ofNat 64 (ptr + 80 * cnt + 8) ∧
+      RegsExcept s t [.x22, .x28, .x30] ∧ Frame s t (fun A => A = ptr) := by
+  obtain ⟨u,ku,pu,vu,ru,fu⟩:=header_pack_860 s hpc cnt par hcnt hpar h23 h24
+  have u22 : u.getReg .x22=BitVec.ofNat 64 ptr := by rw [ru.get (by simp),h22]
+  have u23 : u.getReg .x23=BitVec.ofNat 64 cnt := by rw [ru.get (by simp),h23]
+  have u24 : u.getReg .x24=BitVec.ofNat 64 par := by rw [ru.get (by simp),h24]
+  obtain ⟨t,kt,pt,mt,v22,rt,ft⟩:=rc862_tail_spec u pu ptr cnt par hp8 hp hcnt hpar hfit u22 u23 u24 vu
+  refine ⟨t,by simpa using ku.trans kt,pt,?_,v22,?_,?_⟩
+  · rw [mt,fu.get (by omega) (by simp)]
+  · exact (ru.trans rt).mono (by intro r hr; simp only [List.mem_append,List.mem_cons,List.mem_nil_iff,or_false] at *;tauto)
+  · intro A hA hn
+    rw [ft A hA hn,fu A hA (by simp)]
 
 /-- Open a segment at leaf `g` (`s7 = 0`, `s8 = g mod 2`) and set up the FTS leaf block: the secret `3 s0 + s4`,
 the header `T9(coord)`, `index | g << 32`; the HASH arguments `FLEAF`, 64, `NOUT`. -/
@@ -230,7 +251,7 @@ theorem rc868_spec (hpc : s.pc = pcOf 868) (c j g index : Nat) (hc : c < 7) (hj 
     (hi : index < 2 ^ 32) (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h20 : s.getReg .x20 = BitVec.ofNat 64 j)
     (h29 : s.getReg .x29 = BitVec.ofNat 64 g) (h9 : s.getReg .x9 = BitVec.ofNat 64 index) :
     ∃ t, Steps image s 31 31 t ∧ t.pc = pcOf 899 ∧ t.getReg .x23 = BitVec.ofNat 64 0 ∧
-      t.getReg .x24 = BitVec.ofNat 64 (g % 2) ∧
+      t.getReg .x24 = BitVec.ofNat 64 (g % 16) ∧
       t.getMem (BitVec.ofNat 64 (FLEAF + 32)) = s.getMem (BitVec.ofNat 64 (0x7010 + 16 * (3 * c + j))) ∧
       t.getMem (BitVec.ofNat 64 (FLEAF + 40)) = s.getMem (BitVec.ofNat 64 (0x7010 + 16 * (3 * c + j) + 8)) ∧
       t.getMem (BitVec.ofNat 64 (FLEAF + 16)) = BitVec.ofNat 64 (2305 + 65536 * c + 2^32 * index) ∧
@@ -245,7 +266,7 @@ theorem rc868_spec (hpc : s.pc = pcOf 868) (c j g index : Nat) (hc : c < 7) (hj 
     exact ⟨ex_valid _ (by omega) (by omega), ex_valid _ (by omega) (by omega)⟩
   · simp [Result.toState_pc, eblk_868.res, E.eval]
   · simp [eblk_868.res, rv_simp]
-  · simp only [Result.toState_getReg, eblk_868.res, rv_simp, h29, ofNat_and1]
+  · simp only [Result.toState_getReg, eblk_868.res, rv_simp, h29, Search.ofNat_and15]
   · simp only [Result.toState_getMem, eblk_868.res, rv_simp, h8, h20, h9, h29, secA, FLEAF]
     t3n []
     congr 2; ring
@@ -479,20 +500,21 @@ theorem rc963_spec (hpc : s.pc = pcOf 963) (ptr cnt : Nat) (hp8 : ptr % 8 = 0) (
     rw [if_neg (by omega), if_neg (by omega)]
 
 /-- `rc_merge`: close the open segment with the merge flag, open a new one at the node (`s8 = node mod 2`). -/
-theorem rc975_spec (hpc : s.pc = pcOf 975) (fp : Nat) (hfp8 : fp % 8 = 0) (hfp : fp + 48 ≤ 2 ^ 24)
+theorem rc978_tail_spec (hpc : s.pc = pcOf 978) (fp : Nat) (hfp8 : fp % 8 = 0) (hfp : fp + 48 ≤ 2 ^ 24)
     (h2 : s.getReg .x2 = BitVec.ofNat 64 fp) (ptr cnt par node : Nat) (hp8 : ptr % 8 = 0)
-    (hcnt : cnt < 16) (hpar : par < 2) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24) (hpf : ptr + 8 ≤ fp)
+    (hcnt : cnt < 16) (hpar : par < 16) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24) (hpf : ptr + 8 ≤ fp)
     (hnd : s.getMem (BitVec.ofNat 64 (fp + 16)) = BitVec.ofNat 64 node)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 ptr) (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt)
-    (h24 : s.getReg .x24 = BitVec.ofNat 64 par) :
-    ∃ t, Steps image s 12 12 t ∧ t.pc = pcOf 987 ∧
+    (h24 : s.getReg .x24 = BitVec.ofNat 64 par)
+    (h28 : (s.getReg .x28).truncate 8 = BitVec.ofNat 8 (emitHeader cnt true par)) :
+    ∃ t, Steps image s 9 9 t ∧ t.pc = pcOf 987 ∧
       t.getMem (BitVec.ofNat 64 ptr) =
-        replaceByte (s.getMem (BitVec.ofNat 64 ptr)) 0 ((BitVec.ofNat 64 (32 * par + cnt + 16)).truncate 8) ∧
+        replaceByte (s.getMem (BitVec.ofNat 64 ptr)) 0 (BitVec.ofNat 8 (emitHeader cnt true par)) ∧
       t.getReg .x22 = BitVec.ofNat 64 (ptr + 80 * cnt + 8) ∧ t.getReg .x23 = BitVec.ofNat 64 0 ∧
-      t.getReg .x24 = BitVec.ofNat 64 (node % 2) ∧
+      t.getReg .x24 = BitVec.ofNat 64 (node % 16) ∧
       RegsExcept s t [.x22, .x23, .x24, .x28, .x30] ∧ Frame s t (fun A => A = ptr) := by
-  refine ⟨_, symRun_sound eblk_975 codeAt_975 s hpc ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simp only [eblk_975.res, Result.obligs, Oblig.all, Oblig.holds, Addr.eval, E.eval, BinOp.eval, RegFile.get,
+  refine ⟨_, symRun_sound eblk_978 codeAt_978 s hpc ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp only [eblk_978.res, Result.obligs, Oblig.all, Oblig.holds, Addr.eval, E.eval, BinOp.eval, RegFile.get,
       h2, h22, BitVec.ofNat_eq_ofNat, ofNat_add_ofNat]
     and_intros
     all_goals first
@@ -500,23 +522,45 @@ theorem rc975_spec (hpc : s.pc = pcOf 975) (fp : Nat) (hfp8 : fp % 8 = 0) (hfp :
         | (rw [toNat_ofNat_lt (by omega)]; exact hp8)
         | (simp only [Nat.add_zero]; rw [accessValid_iff, toNat_ofNat_lt (by omega)]; simp only [MEMORY_BYTES]; omega)
         | (intro he; have := congrArg BitVec.toNat he; simp at this; omega)
-  · simp [Result.toState_pc, eblk_975.res, E.eval]
-  · simp only [Result.toState_getMem, eblk_975.res, rv_simp, h2, h22, h23, h24, ofNat_add_ofNat]
+  · simp [Result.toState_pc, eblk_978.res, E.eval]
+  · simp only [Result.toState_getMem,eblk_978.res,rv_simp,h22,h28]
     t3n []
-    rw [BitVec.or_assoc, show (16#64 : BitVec 64) = BitVec.ofNat 64 16 from rfl,
-      ofNat_or_disjoint' cnt 16 4 (by omega) (by omega), ofNat_or_disjoint (cnt + 16) (par * 32) 5 (by omega) (by omega)]
-    rw [if_pos (by simp)]
-    congr 3; ring
-  · simp only [Result.toState_getReg, eblk_975.res, rv_simp, h22, h23]
+
+  · simp only [Result.toState_getReg, eblk_978.res, rv_simp, h22, h23]
     t3n []
     congr 1; omega
-  · simp [eblk_975.res, rv_simp]
-  · simp only [Result.toState_getReg, eblk_975.res, rv_simp, h2, ofNat_add_ofNat, hnd, ofNat_and1]
-  · ex_regs eblk_975.res
+  · simp [eblk_978.res, rv_simp]
+  · simp only [Result.toState_getReg, eblk_978.res, rv_simp, h2, ofNat_add_ofNat, hnd, Search.ofNat_and15]
+  · ex_regs eblk_978.res
   · intro A hA hn
-    simp only [Result.toState_getMem, eblk_975.res, rv_simp, h22]
+    simp only [Result.toState_getMem, eblk_978.res, rv_simp, h22]
     t3n []
     rw [if_neg (by omega)]
+
+theorem rc975_spec (hpc : s.pc = pcOf 975) (fp : Nat) (hfp8 : fp % 8 = 0) (hfp : fp + 48 ≤ 2 ^ 24)
+    (h2 : s.getReg .x2 = BitVec.ofNat 64 fp) (ptr cnt par node : Nat) (hp8 : ptr % 8 = 0)
+    (hcnt : cnt < 16) (hpar : par < 16) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24) (hpf : ptr + 8 ≤ fp)
+    (hnd : s.getMem (BitVec.ofNat 64 (fp + 16)) = BitVec.ofNat 64 node)
+    (h22 : s.getReg .x22 = BitVec.ofNat 64 ptr) (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt)
+    (h24 : s.getReg .x24 = BitVec.ofNat 64 par) :
+    ∃ t, Steps image s 19 19 t ∧ t.pc = pcOf 987 ∧
+      t.getMem (BitVec.ofNat 64 ptr) =
+        replaceByte (s.getMem (BitVec.ofNat 64 ptr)) 0 (BitVec.ofNat 8 (emitHeader cnt true par)) ∧
+      t.getReg .x22 = BitVec.ofNat 64 (ptr + 80 * cnt + 8) ∧ t.getReg .x23 = BitVec.ofNat 64 0 ∧
+      t.getReg .x24 = BitVec.ofNat 64 (node % 16) ∧
+      RegsExcept s t [.x22, .x23, .x24, .x28, .x30] ∧ Frame s t (fun A => A = ptr) := by
+  obtain ⟨u,ku,pu,vu,ru,fu⟩:=header_pack_975 s hpc cnt par hcnt hpar h23 h24
+  have u2 : u.getReg .x2=BitVec.ofNat 64 fp := by rw [ru.get (by simp),h2]
+  have u22 : u.getReg .x22=BitVec.ofNat 64 ptr := by rw [ru.get (by simp),h22]
+  have u23 : u.getReg .x23=BitVec.ofNat 64 cnt := by rw [ru.get (by simp),h23]
+  have u24 : u.getReg .x24=BitVec.ofNat 64 par := by rw [ru.get (by simp),h24]
+  have un : u.getMem (BitVec.ofNat 64 (fp+16))=BitVec.ofNat 64 node := by rw [fu.get (by omega) (by simp),hnd]
+  obtain ⟨t,kt,pt,mt,v22,v23,v24,rt,ft⟩:=rc978_tail_spec u pu fp hfp8 hfp u2 ptr cnt par node hp8 hcnt hpar hfit hpf un u22 u23 u24 vu
+  refine ⟨t,by simpa using ku.trans kt,pt,?_,v22,v23,v24,?_,?_⟩
+  · rw [mt,fu.get (by omega) (by simp)]
+  · exact (ru.trans rt).mono (by intro r hr; simp only [List.mem_append,List.mem_cons,List.mem_nil_iff,or_false] at *;tauto)
+  · intro A hA hn
+    rw [ft A hA hn,fu A hA (by simp)]
 
 /-- The node HASH arguments `NODE`, 64, `NOUT`. -/
 theorem rc987_spec (hpc : s.pc = pcOf 987) :

@@ -330,40 +330,62 @@ theorem f191_spec (hpc : s.pc = pcOf 191) (j : Nat) (h19 : s.getReg .x19 = BitVe
 
 /-- `fts_outer_done`: close the open segment (header byte `s7 | s8 << 5` at `s6`, `s6 += 8 + 80 s7`), the forest
 slot offset `16 s0`, then by `s0 = 0`. -/
-theorem f193_spec (hpc : s.pc = pcOf 193) (c ptr cnt par : Nat) (hc : c < 7) (hp8 : ptr % 8 = 0)
-    (hp : ptr + 8 ≤ 2 ^ 24) (hcnt : cnt < 16) (hpar : par < 2) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24)
+theorem f195_tail_spec (hpc : s.pc = pcOf 195) (c ptr cnt par : Nat) (hc : c < 7) (hp8 : ptr % 8 = 0)
+    (hp : ptr + 8 ≤ 2 ^ 24) (hcnt : cnt < 16) (hpar : par < 16) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h22 : s.getReg .x22 = BitVec.ofNat 64 ptr)
-    (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt) (h24 : s.getReg .x24 = BitVec.ofNat 64 par) :
-    ∃ t, Steps image s 10 10 t ∧ t.pc = (if c = 0 then pcOf 204 else pcOf 203) ∧
+    (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt) (h24 : s.getReg .x24 = BitVec.ofNat 64 par)
+    (h28 : (s.getReg .x28).truncate 8 = BitVec.ofNat 8 (emitHeader cnt false par)) :
+    ∃ t, Steps image s 8 8 t ∧ t.pc = (if c = 0 then pcOf 204 else pcOf 203) ∧
       t.getMem (BitVec.ofNat 64 ptr) =
-        replaceByte (s.getMem (BitVec.ofNat 64 ptr)) 0 ((BitVec.ofNat 64 (32 * par + cnt)).truncate 8) ∧
+        replaceByte (s.getMem (BitVec.ofNat 64 ptr)) 0 (BitVec.ofNat 8 (emitHeader cnt false par)) ∧
       t.getReg .x22 = BitVec.ofNat 64 (ptr + 80 * cnt + 8) ∧ t.getReg .x28 = BitVec.ofNat 64 (16 * c) ∧
       RegsExcept s t [.x22, .x28, .x30] ∧ Frame s t (fun A => A = ptr) := by
-  refine ⟨_, symRun_sound eblk_193 codeAt_193 s hpc ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simp only [eblk_193.res, Result.obligs, Oblig.all, Oblig.holds, Addr.eval, E.eval, BinOp.eval, RegFile.get,
+  refine ⟨_, symRun_sound eblk_195 codeAt_195 s hpc ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp only [eblk_195.res, Result.obligs, Oblig.all, Oblig.holds, Addr.eval, E.eval, BinOp.eval, RegFile.get,
       h22, BitVec.ofNat_eq_ofNat]
     rw [show (0#64 : BitVec 64) = 0 from rfl]; simp only [add_zero]
     rw [accessValid_iff, toNat_ofNat_lt (by omega)]; simp only [MEMORY_BYTES]; omega
-  · simp only [Result.toState_pc, eblk_193.res, E.eval, CmpOp.eval, BinOp.eval, rebase, RegFile.get, h8,
+  · simp only [Result.toState_pc, eblk_195.res, E.eval, CmpOp.eval, BinOp.eval, rebase, RegFile.get, h8,
       BitVec.ofNat_eq_ofNat]
     by_cases h : c = 0
     · subst h; simp
     · have : (BitVec.ofNat 64 c == 0#64) = false := by
         rw [beq_eq_false_iff_ne, ne_eq]; intro he; exact h ((ofNat_inj (by omega) (by omega)).mp he)
       rw [this, if_neg h]; rfl
-  · simp only [Result.toState_getMem, eblk_193.res, rv_simp, h22, h23, h24]
+  · simp only [Result.toState_getMem,eblk_195.res,rv_simp,h22,h28]
     t3n []
-    rw [ofNat_or_disjoint cnt (par * 32) 5 (by omega) (by omega), show par * 32 + cnt = 32 * par + cnt by ring]
-  · simp only [Result.toState_getReg, eblk_193.res, rv_simp, h22, h23]
+
+  · simp only [Result.toState_getReg, eblk_195.res, rv_simp, h22, h23]
     t3n []
     congr 1; omega
-  · simp only [Result.toState_getReg, eblk_193.res, rv_simp, h8]
+  · simp only [Result.toState_getReg, eblk_195.res, rv_simp, h8]
     rw [show ((4#64 : BitVec 64).toNat % 64) = 4 from rfl, ofNat_shl]; congr 1; ring
-  · ex_regs eblk_193.res
+  · ex_regs eblk_195.res
   · intro A hA hn
-    simp only [Result.toState_getMem, eblk_193.res, rv_simp, h22]
+    simp only [Result.toState_getMem, eblk_195.res, rv_simp, h22]
     t3n []
     rw [if_neg (by omega)]
+
+theorem f193_spec (hpc : s.pc = pcOf 193) (c ptr cnt par : Nat) (hc : c < 7) (hp8 : ptr % 8 = 0)
+    (hp : ptr + 8 ≤ 2 ^ 24) (hcnt : cnt < 16) (hpar : par < 16) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24)
+    (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h22 : s.getReg .x22 = BitVec.ofNat 64 ptr)
+    (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt) (h24 : s.getReg .x24 = BitVec.ofNat 64 par) :
+    ∃ t, Steps image s 17 17 t ∧ t.pc = (if c = 0 then pcOf 204 else pcOf 203) ∧
+      t.getMem (BitVec.ofNat 64 ptr) =
+        replaceByte (s.getMem (BitVec.ofNat 64 ptr)) 0 (BitVec.ofNat 8 (emitHeader cnt false par)) ∧
+      t.getReg .x22 = BitVec.ofNat 64 (ptr + 80 * cnt + 8) ∧ t.getReg .x28 = BitVec.ofNat 64 (16 * c) ∧
+      RegsExcept s t [.x22, .x28, .x30] ∧ Frame s t (fun A => A = ptr) := by
+  obtain ⟨u,ku,pu,vu,ru,fu⟩:=header_pack_193 s hpc cnt par hcnt hpar h23 h24
+  have u8 : u.getReg .x8=BitVec.ofNat 64 c := by rw [ru.get (by simp),h8]
+  have u22 : u.getReg .x22=BitVec.ofNat 64 ptr := by rw [ru.get (by simp),h22]
+  have u23 : u.getReg .x23=BitVec.ofNat 64 cnt := by rw [ru.get (by simp),h23]
+  have u24 : u.getReg .x24=BitVec.ofNat 64 par := by rw [ru.get (by simp),h24]
+  obtain ⟨t,kt,pt,mt,v22,v28,rt,ft⟩:=f195_tail_spec u pu c ptr cnt par hc hp8 hp hcnt hpar hfit u8 u22 u23 u24 vu
+  refine ⟨t,by simpa using ku.trans kt,pt,?_,v22,v28,?_,?_⟩
+  · rw [mt,fu.get (by omega) (by simp)]
+  · exact (ru.trans rt).mono (by intro r hr; simp only [List.mem_append,List.mem_cons,List.mem_nil_iff,or_false] at *;tauto)
+  · intro A hA hn
+    rw [ft A hA hn,fu A hA (by simp)]
 
 /-- Forest slot offset `+ 16` for coordinates `≠ 0`. -/
 theorem f203_spec (hpc : s.pc = pcOf 203) (k : Nat) (h28 : s.getReg .x28 = BitVec.ofNat 64 k) :

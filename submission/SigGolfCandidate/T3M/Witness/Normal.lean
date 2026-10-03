@@ -28,15 +28,15 @@ def rejectTail (w : WBytes) (N : HashOutput) : M Bool :=
 def segShape (w : WBytes) : List Nat → Nat → Nat → Option (Nat × Nat × List Nat)
   | stack, E, ptr =>
       let b := (wbyte w ptr).toNat
-      if 11 < b % 16 then none
-      else if 0 < b % 16 ∧ b / 32 % 2 ≠ E % 2 then none
+      if 10 < segFoldCount b then none
+      else if 0 < segFoldCount b ∧ segSides b % segSideMod (segFoldCount b) ≠ E % segSideMod (segFoldCount b) then none
       else
-        let E := E / 2 ^ (b % 16)
-        let ptr := segNext ptr (b % 16)
+        let E := E / 2 ^ (segFoldCount b)
+        let ptr := segNext ptr (segFoldCount b)
         match stack with
-        | [] => if b / 16 % 2 = 1 then none else some (E, ptr, [])
+        | [] => if segMerge b = 1 then none else some (E, ptr, [])
         | Q :: rest =>
-            if b / 16 % 2 = 0 then some (E, ptr, Q :: rest)
+            if segMerge b = 0 then some (E, ptr, Q :: rest)
             else if Q ≠ E then none
             else segShape w rest (E / 2) ptr
 

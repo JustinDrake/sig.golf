@@ -56,7 +56,7 @@ theorem fresh_right (L : List Nat) (l node : Nat) (fresh : Bool)
       omega
 
 theorem rcCost_inner (L : List Nat) (l node : Nat) (h : hasLeaf L (l + 1) node = true) :
-    rcCost L (l + 1) node = 116 + rcCost L l (2 * node) + rcCost L l (2 * node + 1) := by
+    rcCost L (l + 1) node = 123 + rcCost L l (2 * node) + rcCost L l (2 * node + 1) := by
   rw [rcCost]; simp [h]
 
 theorem rcEm_inner (L : List Nat) (pf : Nat → Digest) (l node used : Nat) (e : Em)
@@ -67,7 +67,7 @@ theorem rcEm_inner (L : List Nat) (pf : Nat → Digest) (l node used : Nat) (e :
        let e2 := rcEm L pf l (2 * node + 1) u1 e1
        if hasLeaf L l (2 * node) = false then ⟨e2.segs, e2.cur ++ [(true, pf used)], e2.par⟩
        else if hasLeaf L l (2 * node + 1) = false then ⟨e2.segs, e2.cur ++ [(false, pf u1)], e2.par⟩
-       else e2.close true (node % 2)) := by
+       else e2.close true (node % 16)) := by
   rw [rcEm]; simp [h]
 
 theorem node_bound (node l : Nat) (hl : l + 1 ≤ 11) (h : node * 2 ^ (l + 1) < 2 ^ 11) :
@@ -167,7 +167,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
         rcases h with ((h | h | h) | h) | h <;> first | exact h.elim |
           (simp only [SEL, FLEAF, NODE] at hA; omega))
   rw [rc_eq_inner index c _ values proof l node used h1, rcCost_inner _ _ _ h1]
-  refine (TBSim.steps ((s2.trans s3).trans s4) (TBSim.bind (W₂ := 116 - 35 - 1 - 3 + rcCost [g0, g1, g2] l (2 * node + 1))
+  refine (TBSim.steps ((s2.trans s3).trans s4) (TBSim.bind (W₂ := 123 - 35 - 1 - 3 + rcCost [g0, g1, g2] l (2 * node + 1))
     (ih (2 * node) used e fresh 905 (sp - 48) t4 hpreL) (fun r t5 h5 => ?_))).mono (by omega) (fun _ _ h => h)
   rcases r with _ | ⟨vl, next⟩
   · exact (TBSim.pure (Q := RcPost c index g0 g1 g2 values proof s (l + 1) node used e fresh ret sp) (a := none)
@@ -208,7 +208,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
     · exact node_bound node l (by omega) hnode
     · exact ctx5.frame hc r6 (by decide) (by decide) (by decide) f6 (fun A hA h => by
         rcases h with h | h | h <;> simp only [SEL, FLEAF, NODE] at hA <;> omega)
-  refine (TBSim.steps s6 (TBSim.bind (W₂ := 64) (ih (2 * node + 1) next e1 freshR 918 (sp - 48) t6 hpreR)
+  refine (TBSim.steps s6 (TBSim.bind (W₂ := 71) (ih (2 * node + 1) next e1 freshR 918 (sp - 48) t6 hpreR)
     (fun r' t7 h7 => ?_))).mono (by omega) (fun _ _ h => h)
   rcases r' with _ | ⟨vr, next'⟩
   · exact (TBSim.pure (Q := RcPost c index g0 g1 g2 values proof s (l + 1) node used e fresh ret sp) (a := none)
@@ -231,7 +231,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   set e2 := rcEm [g0, g1, g2] (pfN proof) l (2 * node + 1) next e1 with he2
   set e' : Em := if ll = false then ⟨e2.segs, e2.cur ++ [(true, pfN proof used)], e2.par⟩
     else if rl = false then ⟨e2.segs, e2.cur ++ [(false, pfN proof next)], e2.par⟩
-    else e2.close true (node % 2) with he'
+    else e2.close true (node % 16) with he'
   have hlr : ll = true ∨ rl = true := (hasLeaf_succ_iff _ _ _).mp h1
   have hfr7 : (freshR && !rl) = false := by
     rcases hlr with h | h
@@ -264,7 +264,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   have hnd8 : t8.getMem (BitVec.ofNat 64 (sp - 48 + 16)) = BitVec.ofNat 64 node := by
     rw [f8.get (by omega) (by simp only [NODE]; omega), g7 _ (by omega) (by omega), f6.get (by omega) (by omega)]
     exact m32'
-  have hbr : ∃ k9 t9, Steps image t8 k9 k9 t9 ∧ k9 ≤ 13 ∧ t9.pc = pcOf 987 ∧
+  have hbr : ∃ k9 t9, Steps image t8 k9 k9 t9 ∧ k9 ≤ 20 ∧ t9.pc = pcOf 987 ∧
       t9.getReg .x22 = BitVec.ofNat 64 (0xC40 + 8 * wl e') ∧ t9.getReg .x23 = BitVec.ofNat 64 e'.cur.length ∧
       t9.getReg .x24 = BitVec.ofNat 64 e'.par ∧ StreamAt t9 e' ∧
       RegsExcept t8 t9 [.x6, .x7, .x22, .x23, .x24, .x28, .x29, .x30] ∧
@@ -334,7 +334,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
                 by ring, w64, hvr8', hvr']; simp [foldWords])
             | (rw [f10.get (by omega) (by omega), ← hpos, streamAt_zero str9 _ (by omega) (by omega)]; simp [foldWords])
       · have hRt : rl = true := by simpa using hR
-        have he'M : e' = e2.close true (node % 2) := by
+        have he'M : e' = e2.close true (node % 16) := by
           rw [he', if_neg (by rw [hLt]; decide), if_neg (by rw [hRt]; decide)]
         rw [hRt] at p9
         simp only [↓reduceIte] at p9
@@ -349,15 +349,14 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
           rw [str9 (wl e2) (by omega)]
           simp only [img, wl]
           rw [List.append_assoc, List.getD_append_right _ _ _ _ (le_refl _), Nat.sub_self]; rfl
-        refine ⟨1 + 12, t10, s9.trans s10, by omega, p10, ?_, ?_, ?_, ?_, (r9.trans r10).mono (by decide),
+        refine ⟨1 + 19, t10, s9.trans s10, by omega, p10, ?_, ?_, ?_, ?_, (r9.trans r10).mono (by decide),
           (f9.trans f10).mono (fun A _ h => by rcases h with h | h; exact h.elim; omega)⟩
         · rw [x22_10, he'M, wl_close]; congr 1; ring
         · rw [x23_10, he'M]; rfl
         · rw [x24_10, he'M]; rfl
         · rw [he'M]
           refine streamAt_close true _ str9 ?_ (fun k hk hne => f10.get (by omega) (by omega))
-          rw [wh, hz, replaceByte_zero _ (by omega)]
-          congr 1; simp; ring
+          rw [wh, hz]; exact replaceByte_zero8 _ (emitHeader_lt _ _ _)
   obtain ⟨k9, t9, s9, hk9, p9, x22_9, x23_9, x24_9, str9, r9, f9⟩ := hbr
   obtain ⟨t10, s10, p10, x10_10, x11_10, x12_10, r10, f10⟩ := rc987_spec t9 p9
   have F810 : Frame t8 t10 (fun A => (0xC40 ≤ A ∧ A < 0xC40 + 8 * 1275) ∨ False) := f9.trans f10
@@ -434,7 +433,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
         have he21 : e2 = e1 := by rw [he2]; exact rcEm_empty _ _ _ _ _ _ hR
         rw [he21]; have := cntl5 hLt; omega
       · rw [if_neg hR]; simp [Em.close]
-  have hparE : e'.par < 2 := by
+  have hparE : e'.par < 16 := by
     rw [he']
     split_ifs
     · exact par7
