@@ -197,7 +197,7 @@ def baseK : List (Reg × Word) := [(.x5, 0), (.x18, 0xFFF)]
 
 /-- Constants carried from the forest into the lower-layer initializer. -/
 def carryK : List (Reg × Word) := baseK ++ [(.x2,0x1000000),(.x7,2),(.x8,3),(.x9,4),(.x13,5),
-  (.x6,1),(.x26,6),(.x31,7),(.x24,0x10000),(.x30,0x8000000000000000)]
+  (.x6,1),(.x26,6),(.x31,7),(.x24,0x10000),(.x30,0x8000000000000000),(.x19,BitVec.ofNat 64 (2^62))]
 
 /-- The zero words of the encoding block `[M | T | LE32 c | 0^28]` at `0x100` that no instruction writes. -/
 def pSlots : List Nat := [0x128, 0x130, 0x138]
@@ -218,8 +218,9 @@ def WitHdr (w : WBytes) (s : MachineState) : Prop :=
   ∀ j, j < 8 → s.getMem (BitVec.ofNat 64 (WIT + 8 * j)) = wword w j
 
 /-- The verify image's embedded doublewords (`Images.verifyData`, little endian): the layer-3 constants `2^40`,
-`M2c`, `M1c`, `0x30101`, `0x3fe00`, the FTS setup constants `A4_0`, `A4_LIMIT`, `0xa01`, `0x901`, `tbN`, `tbL`, a zero
-pad. -/
+`M2c`, `M1c`, `0x30101`, `0x3fe00`, the FTS setup constants `A4_0`, `A4_LIMIT`, `0xa01`, `0x901`, the unused old
+dispatch bases, and a zero pad. The new dispatch bases are loaded by `lui`; their rows belong to `image.code`,
+not to this data-memory invariant. -/
 def dataWords : List Nat :=
   [2 ^ 40, 17311559823019733055, 8198552921648689607, 0x30101, 0x3fe00, 2256, 11736, 0xa01, 0x901, 7072, 15264, 0]
 

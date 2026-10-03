@@ -41,7 +41,7 @@ def xtrTab : List (List Nat) :=
     7137, 7238, 7339, 7440, 7541, 7642, 7743, 7844, 7945, 8046, 8147, 8248, 8349, 8450, 8551, 8652,
     8753, 8854, 8955, 9056, 9157, 9258, 9359, 9460, 9561, 9662, 9763, 9864, 9965, 10066, 10167, 10268,
     10369, 10470, 10571, 10672, 10773, 10874, 10975, 11076, 11177, 11278, 11379, 11480, 11581, 11682, 11783, 11884],
-   [661]]
+   [660]]
 
 /-- The number of transition copies of layer `lay`. -/
 def nCopy (lay : Nat) : Nat := (xtrTab.getD lay []).length
@@ -58,7 +58,7 @@ def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
 /-- Steps of A; layer 3 reuses four constants from the forest. -/
 def stepsA (lay : Nat) : Nat := if lay = 0 then 16 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 0 then 69 else 44
+def retOff (lay : Nat) : Nat := if lay = 0 then 18 else 46
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
@@ -110,14 +110,14 @@ def lowerLayK (lay : Nat) : List (Reg × Word) :=
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (headerBank lay 0)),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x19, BitVec.ofNat 64 (2^62))]
 
-/-- Five loads after the forest HASH use the carried `sp = 2^24`, retaining
-four other constants. Layer 3 starts at word 661. -/
+/-- Four loads after the forest HASH use the carried stack pointer and range bound.
+Layer 3 starts at word 660. -/
 def ld3Spec : Spec :=
-  ⟨[(.x19, kw (2^62)), (.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
+  ⟨[(.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
       (.x27, .ld (kw (DATA + 24))), (.x2, .ld (kw (DATA + 32)))],
-    [], 661, false, 5, [], none, 5⟩
+    [], 660, false, 4, [], none, 4⟩
 
-def ld3Check : Bool := specB [] [] afterLoadK (runAt carryK [661] 656 []) ld3Spec [] afterLoadK [.x22]
+def ld3Check : Bool := specB [] [] afterLoadK (runAt carryK [660] 656 []) ld3Spec [] afterLoadK [.x22]
 
 /-- ... and the encoding `ecall`'s arguments. -/
 def bK (lay : Nat) : List (Reg × Word) := layK lay ++ [(.x10, 256), (.x12, 320)]
@@ -170,7 +170,7 @@ def tgtl : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe
 
 def specBl (lay p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, a7lE), (.x25, sumE), (.x29, t4E lay), (.x3, .bin .srl a6E (kw 63)), (.x14, x14l)],
-   [], 0, false, 30, [ckBr lay false, rngBr 62 false], some tgtl, 33⟩
+   [], 0, false, 29, [ckBr lay false, rngBr 62 false], some tgtl, 32⟩
 
 def postBl (lay p : Nat) : List (Reg × Word) :=
   lowerLayK lay ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x15, 0x6e000), (.x1, pcOf (p + retOff lay - 1))]
@@ -237,8 +237,8 @@ def specLf (lay : Nat) : Spec :=
       (⟨none, BitVec.ofNat 64 528⟩, kw (hw 2 0))], 0, false, 13, [], some (tgtLf lay), 13⟩
   else
     ⟨[(.x14, x14lf lay)],
-     [(⟨none, BitVec.ofNat 64 792⟩, .reg .x4), (⟨none, BitVec.ofNat 64 784⟩, kw (hw 2 lay))], 0, false, (if lay = 3 ∨ lay = 2 then 11 else 12), [],
-     some (tgtLf lay), (if lay = 3 ∨ lay = 2 then 11 else 12)⟩
+     [(⟨none, BitVec.ofNat 64 792⟩, .reg .x4), (⟨none, BitVec.ofNat 64 784⟩, kw (hw 2 lay))], 0, false, (if lay = 3 ∨ lay = 2 then 10 else 11), [],
+     some (tgtLf lay), (if lay = 3 ∨ lay = 2 then 10 else 11)⟩
 
 def postLf (lay : Nat) : List (Reg × Word) :=
   (baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 lay))] ++ (if lay = 0 then [] else [(.x6, 1)])) ++ [(.x3, BitVec.ofNat 64 (hw 2 lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)),
@@ -253,9 +253,9 @@ def keepLf : List Reg := [.x23, .x30, .x22]
 
 def keepTopCall : List Reg := [.x2, .x3, .x4, .x5, .x6, .x7, .x8, .x9, .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17, .x18, .x19, .x20, .x21, .x22, .x23, .x24, .x25, .x26, .x27, .x28, .x29, .x30, .x31]
 
-/-- The two direct jumps preserve the top leaf return address and enter the shared packed decoder. -/
+/-- The direct linked call preserves the top leaf return address and enters the shared packed decoder. -/
 def specTopCall (p : Nat) : Spec :=
-  ⟨[(.x1, kw (0x1000 + 4 * (p + 69)))], [], 96160, false, 2, [], none, 2⟩
+  ⟨[(.x1, kw (0x1000 + 4 * (p + 18)))], [], 96160, false, 1, [], none, 1⟩
 
 /-- All runs of the transition copy at `p` of layer `lay` and of its leaf-pk block. -/
 def copyCheck (lay p : Nat) : Bool :=

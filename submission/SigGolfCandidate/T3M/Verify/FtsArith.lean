@@ -59,22 +59,40 @@ theorem sides_next (E bits a i : Nat)
   have hh := h (k+1) (by omega)
   simpa only [Nat.div_div_eq_div_mul, Nat.pow_succ, Nat.mul_comm, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using hh
 
-theorem foldPc_pos (X a bits t i : Nat) (hX : X<3) (ha : 0<a ∧ a≤11) (hb : bits<8) :
-    0 < foldPc X a bits t i := by
+theorem foldPc_pos (tb X a bits t i : Nat) (hX : X<3) (ha : 0<a ∧ a≤11) (hb : bits<8) :
+    0 < foldPc tb X a bits t i := by
+  by_cases hin : inlineRow X a
+  · simp only [foldPc, if_pos hin]
+    unfold rowPc slotPc tabBase; split <;> omega
+  simp only [foldPc, if_neg hin]
   have hp : ∀ x:Fin 3, ∀ n:Fin 10, ∀ b:Fin 8, 0<threeStart x (n+2) b := by decide +kernel
   by_cases h1 : a=1
-  · simp only [foldPc,h1,if_pos]
+  · simp only [h1,if_pos]
     unfold ladPc ladBase;split_ifs <;> omega
   · have he := hp ⟨X,hX⟩ ⟨a-2,by omega⟩ ⟨bits,hb⟩
     have he' : 0 < threeStart X a bits := by simpa only [Nat.sub_add_cancel (by omega : 2≤a)] using he
-    simp only [foldPc,if_neg h1,threeFoldPc];split_ifs <;> omega
+    simp only [if_neg h1,threeFoldPc];split_ifs <;> omega
 
-theorem foldTailId_lt (a bits t : Nat) (ha : 0<a ∧ a≤11) (hb : bits<8) (ht : t<2) :
-    foldTailId a bits t < 77 := by unfold foldTailId threeTailId;split_ifs <;> omega
+theorem inlineTailId_lt (tb a bits : Nat) (htb : tb<2) (ha : a≤3) (hb : bits<8) :
+    inlineTailId tb a bits < 141 := by unfold inlineTailId; omega
 
-theorem tailPc_pos (X k : Nat) (hX : X<3) (hk : k<77) : 0 < tailPc X k := by
-  have h : ∀ x:Fin 3, ∀ k:Fin 77, 0<tailPc x k := by decide +kernel
+theorem foldTailId_lt (tb X a bits t : Nat) (htb : tb<2) (ha : 0<a ∧ a≤11) (hb : bits<8) (ht : t<2) :
+    foldTailId tb X a bits t < 141 := by
+  by_cases hin : inlineRow X a
+  · simp only [foldTailId, if_pos hin]
+    exact inlineTailId_lt tb a bits htb (by unfold inlineRow at hin; omega) hb
+  · simp only [foldTailId, if_neg hin]
+    unfold threeTailId; split_ifs <;> omega
+
+theorem tailPc_pos (X k : Nat) (hX : X<3) (hk : k<141) : 0 < tailPc X k := by
+  have h : ∀ x:Fin 3, ∀ k:Fin 141, 0<tailPc x k := by decide +kernel
   exact h ⟨X,hX⟩ ⟨k,hk⟩
+
+theorem zeroTailPc (tb b : Nat) (htb : tb<2) (hb : b<256) (ha : segA b=0) :
+    tailPc (segX tb b) (inlineTailId tb 0 (segSides b)) = slotPc tb b + 3 := by
+  have h : ∀ tb:Fin 2, ∀ b:Fin 256, segA b=0 →
+      tailPc (segX tb b) (inlineTailId tb 0 (segSides b)) = slotPc tb b + 3 := by decide +kernel
+  exact h ⟨tb,htb⟩ ⟨b,hb⟩ ha
 
 
 theorem segSides_lt (b : Nat) (hb : b<256) : segSides b<8 := by
