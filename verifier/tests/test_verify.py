@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from certificate import pack
-from verify import verify, landrun_command
+from verify import verify, landrun_command, run_checked
 
 
 class PipelineTests(unittest.TestCase):
@@ -71,7 +71,9 @@ class PipelineTests(unittest.TestCase):
         if output.name == 'challenge-build.log':
             self.assertFalse((project / 'Solution.lean').exists())
             self.assertFalse((project / 'SigGolfCandidate').exists())
-        if output.name == 'checker.log':
+        if output.name == 'environment.log':
+            output.write_text('.lake/build/lib/lean\n')
+        elif output.name == 'checker.log':
             output.write_text(json.dumps({'status': 'verified', 'error': None,
                 'phases_seconds': {'parse': 0.1, 'compare': 0.1, 'axioms': 0.1, 'kernel': 0.1}}))
         else:
@@ -94,7 +96,7 @@ class PipelineTests(unittest.TestCase):
     def test_source_pipeline_order_and_no_result_reuse(self):
         first = verify(self.args())
         self.assertEqual(first['status'], 'verified', first)
-        self.assertEqual(self.calls, ['challenge-build.log', 'challenge.export', 'solution-build.log',
+        self.assertEqual(self.calls, ['environment.log', 'challenge-build.log', 'challenge.export', 'solution-build.log',
                                      'candidate.export', 'checker.log'])
         self.calls.clear()
         second = verify(self.args(2))
@@ -119,7 +121,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(result['status'], 'verified', result)
         self.assertEqual(result['mode'], 'certificate')
         self.assertFalse(result['source_compiled'])
-        self.assertEqual(self.calls, ['challenge-build.log', 'challenge.export', 'checker.log'])
+        self.assertEqual(self.calls, ['environment.log', 'challenge-build.log', 'challenge.export', 'checker.log'])
         config = json.loads((self.root / 'work-1' / 'checker.json').read_bytes())
         self.assertIn('SigGolf.Challenge.image_binding', config['theorem_names'])
         self.assertNotIn('SigGolf.CertifiedImages.submission', config['definition_names'])
@@ -214,6 +216,31 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn('--fresh-kernel', completed.stdout)
         self.assertEqual(score.read_text(), 'previous score')
+
+
+class CaptureTests(unittest.TestCase):
+    def test_export_stderr_cannot_corrupt_declarative_stdout(self):
+        import os
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / 'proof.export'
+            diagnostic = root / 'proof.stderr'
+            code, timeout = run_checked([sys.executable, '-c',
+                'import sys; print("metadata"); print("{} "); print("diagnostic", file=sys.stderr)'],
+                root, dict(os.environ), output, seconds=10, limit=1024, stderr_log=diagnostic)
+            self.assertEqual(code, 0)
+            self.assertFalse(timeout)
+            self.assertEqual(output.read_text(), 'metadata\n{} \n')
+            self.assertEqual(diagnostic.read_text(), 'diagnostic\n')
+
+    def test_oversized_export_is_never_successfully_truncated(self):
+        import os
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            code, timeout = run_checked([sys.executable, '-c', 'print("x" * 2048)'],
+                root, dict(os.environ), root / 'proof.export', seconds=10, limit=64,
+                stderr_log=root / 'proof.stderr')
+            self.assertTrue(timeout)
 
 
 if __name__ == '__main__':

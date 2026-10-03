@@ -21,6 +21,7 @@ import tempfile
 import time
 import uuid
 import resource
+from contextlib import ExitStack
 from pathlib import Path
 
 from cache import ResultCache, acceptance_key, context_digest, tree_digest
@@ -86,7 +87,7 @@ def linux_preflight(env: dict[str, str]) -> None:
 
 
 def linux_command(cmd: list[str], project: Path, env: dict[str, str], hidden: list[Path],
-                  seconds: int = WALL_SECONDS) -> tuple[list[str], dict[str, str]]:
+                  seconds: int = WALL_SECONDS, lean_path: str | None = None) -> tuple[list[str], dict[str, str]]:
     unit = 'sig-verify-' + uuid.uuid4().hex[:12]
     profile = resource_profile()
     properties = [f'MemoryMax={profile.memory_bytes}', 'MemorySwapMax=0', f'RuntimeMaxSec={seconds}',
@@ -105,9 +106,12 @@ def linux_command(cmd: list[str], project: Path, env: dict[str, str], hidden: li
               'COMPARATOR_LANDRUN': env['COMPARATOR_LANDRUN'],
               'COMPARATOR_LEAN4EXPORT': env['COMPARATOR_LEAN4EXPORT'],
               'LEAN_NUM_THREADS': str(profile.build_jobs),
+              'LEAN_ABORT_ON_PANIC': '1',
              'SIG_VERIFIER_HOST_DEV': str(Path('/dev').stat().st_dev),
              'SIG_VERIFIER_HOST_PIDNS': str(Path('/proc/self/ns/pid').stat().st_ino),
-             'SIG_VERIFIER_HOST_SHM_DEV': str(Path('/dev/shm').stat().st_dev)}
+              'SIG_VERIFIER_HOST_SHM_DEV': str(Path('/dev/shm').stat().st_dev)}
+    if lean_path is not None:
+        clean['LEAN_PATH'] = lean_path
     command = ['/usr/bin/env', '-i', *[f'{k}={v}' for k, v in clean.items()],
                sys.executable, str(HERE / 'linux_exec.py'), *cmd]
     runtime = os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')
@@ -119,49 +123,64 @@ def linux_command(cmd: list[str], project: Path, env: dict[str, str], hidden: li
 
 
 def run_checked(cmd: list[str], cwd: Path, env: dict[str, str], log: Path,
-                *, limit: int = LOG_CAP, seconds: int = WALL_SECONDS) -> tuple[int, bool]:
+                *, limit: int = LOG_CAP, seconds: int = WALL_SECONDS,
+                stderr_log: Path | None = None) -> tuple[int, bool]:
     """Bound output and time; oversized proof exports fail rather than being truncated."""
     def limits():
         resource.setrlimit(resource.RLIMIT_CPU, (seconds + 1, seconds + 1))
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE if stderr_log is not None else subprocess.STDOUT,
                             start_new_session=True, bufsize=0, preexec_fn=limits)
     deadline = time.monotonic() + seconds
     truncated = False
     timed_out = False
     try:
-        os.set_blocking(proc.stdout.fileno(), False)
-        with selectors.DefaultSelector() as selector, log.open('wb') as output:
-            selector.register(proc.stdout, selectors.EVENT_READ)
-            kept = 0
-            while True:
+        with ExitStack() as stack:
+            selector = stack.enter_context(selectors.DefaultSelector())
+            outputs = {'stdout': stack.enter_context(log.open('wb'))}
+            caps = {'stdout': limit, 'stderr': LOG_CAP}
+            kept = {'stdout': 0, 'stderr': 0}
+            streams = [(proc.stdout, 'stdout')]
+            if stderr_log is not None:
+                outputs['stderr'] = stack.enter_context(stderr_log.open('wb'))
+                streams.append((proc.stderr, 'stderr'))
+            for stream, channel in streams:
+                os.set_blocking(stream.fileno(), False)
+                selector.register(stream, selectors.EVENT_READ, channel)
+            while selector.get_map() and not timed_out:
                 remain = deadline - time.monotonic()
                 if remain <= 0:
                     timed_out = True
                     break
-                if not selector.select(remain):
-                    continue
-                try:
-                    chunk = os.read(proc.stdout.fileno(), 65536)
-                except BlockingIOError:
-                    continue
-                if not chunk:
-                    break
-                before = kept
-                if kept < limit:
-                    output.write(chunk[:limit - kept])
-                    kept += min(len(chunk), limit - kept)
-                if before + len(chunk) > limit:
-                    truncated = True
-                    if limit != LOG_CAP:
-                        timed_out = True
-                        break
+                for selected, _events in selector.select(remain):
+                    channel = selected.data
+                    try:
+                        chunk = os.read(selected.fd, 65536)
+                    except BlockingIOError:
+                        continue
+                    if not chunk:
+                        selector.unregister(selected.fileobj)
+                        continue
+                    before = kept[channel]
+                    if before < caps[channel]:
+                        outputs[channel].write(chunk[:caps[channel] - before])
+                        kept[channel] += min(len(chunk), caps[channel] - before)
+                    if before + len(chunk) > caps[channel] and channel == 'stdout':
+                        truncated = True
+                        if limit != LOG_CAP:
+                            timed_out = True
+                            break
             if truncated:
-                output.write(b'\n[output truncated]\n')
+                outputs['stdout'].write(b'\n[output truncated]\n')
         if not timed_out:
             proc.wait(timeout=max(.1, deadline - time.monotonic()))
     except subprocess.TimeoutExpired:
         timed_out = True
+    except BaseException:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+        raise
     finally:
         if timed_out:
             try:
@@ -177,6 +196,8 @@ def run_checked(cmd: list[str], cwd: Path, env: dict[str, str], log: Path,
                     pass
                 proc.wait()
         proc.stdout.close()
+        if proc.stderr is not None:
+            proc.stderr.close()
     return proc.returncode, timed_out
 
 
@@ -197,8 +218,10 @@ def landrun_command(cmd: list[str], project: Path, env: dict[str, str], *, build
     command += ['--ro', str(project), '--rox', prefix]
     if build:
         command += ['--rwx', str(project / '.lake'), '--rox', shutil.which('git') or '/usr/bin/git']
+        if cmd[1:3] == ['env', '/usr/bin/printenv']:
+            command += ['--rox', '/usr/bin/printenv']
     else:
-        # `lake env` launches this second executable; -add-exec only grants Lake.
+            # Explicitly allow only the pinned exporter, never arbitrary candidate binaries.
         command += ['--rox', env['COMPARATOR_LEAN4EXPORT']]
     return [*command, '--', *cmd]
 
@@ -321,6 +344,7 @@ def verify(args: argparse.Namespace) -> dict:
         config_path.write_text(json.dumps(config))
         targets = export_targets(config)
         hidden = [source, cache.path if cache is not None else args.cache_dir.absolute(), *args.hide]
+        lean_path = None
 
         def phase(name: str, command: list[str], output: Path, *, build=False, export=False) -> None:
             remaining = int(WALL_SECONDS - (time.monotonic() - started))
@@ -330,28 +354,51 @@ def verify(args: argparse.Namespace) -> dict:
                            'HOME': str(Path.home()), 'LANG': 'C.UTF-8', 'LEAN_ABORT_ON_PANIC': '1'}
             if profile is not None:
                 environment['LEAN_NUM_THREADS'] = str(profile.build_jobs)
+            if lean_path is not None:
+                environment['LEAN_PATH'] = lean_path
             if build or export:
                 command = landrun_command(command, project, env, build=build)
             if platform.system() == 'Linux':
-                command, environment = linux_command(command, project, env, hidden, seconds=remaining)
+                command, environment = linux_command(command, project, env, hidden, seconds=remaining, lean_path=lean_path)
                 environment['LEAN_ABORT_ON_PANIC'] = '1'
             began = time.monotonic()
-            code, timeout = run_checked(command, project, environment, output,
-                                        limit=MAX_EXPORT_BYTES if export else LOG_CAP, seconds=remaining)
+            error_output = output.with_suffix(output.suffix + '.stderr') if export else None
+            try:
+                code, timeout = run_checked(command, project, environment, output,
+                    limit=MAX_EXPORT_BYTES if export else LOG_CAP, seconds=remaining, stderr_log=error_output)
+            except BaseException:
+                if platform.system() == 'Linux':
+                    unit = next(arg.split('=', 1)[1] for arg in command if arg.startswith('--unit='))
+                    subprocess.run(['/usr/bin/systemctl', '--user', 'stop', unit], env=environment,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+                raise
             result['timings_seconds'][name] = time.monotonic() - began
             if not export:
                 with log.open('ab') as aggregate:
                     aggregate.write(f'\n[{name}]\n'.encode())
                     aggregate.write(output.read_bytes())
             if timeout:
+                if platform.system() == 'Linux':
+                    unit = next(arg.split('=', 1)[1] for arg in command if arg.startswith('--unit='))
+                    subprocess.run(['/usr/bin/systemctl', '--user', 'stop', unit], env=environment,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
                 raise TimeoutError(f'{name}: deadline or output limit exceeded')
             if code:
                 if name in ('solution_build', 'solution_export', 'checker'):
                     result['status'] = 'rejected'
-                raise VerifyError(f'{name}: child exited with {code}: {tail_text(output)}')
+                diagnostic = tail_text(error_output) if error_output is not None and error_output.exists() else tail_text(output)
+                raise VerifyError(f'{name}: child exited with {code}: {diagnostic}')
 
+        # Resolve Lake's environment only while the project contains trusted inputs.
+        # Re-running `lake env` after candidate compilation would consult writable config.
+        phase('environment', [env['COMPARATOR_LAKE'], 'env', '/usr/bin/printenv', 'LEAN_PATH'],
+              work / 'environment.log', build=True)
+        path_lines = (work / 'environment.log').read_text().strip().splitlines()
+        lean_path = path_lines[-1] if path_lines else ''
+        if not lean_path or '\x00' in lean_path:
+            raise VerifyError('Lake did not provide a valid Lean search path')
         phase('challenge_build', [env['COMPARATOR_LAKE'], 'build', 'SigGolf.Challenge'], work / 'challenge-build.log', build=True)
-        phase('challenge_export', [env['COMPARATOR_LAKE'], 'env', env['COMPARATOR_LEAN4EXPORT'], 'SigGolf.Challenge', '--', *targets],
+        phase('challenge_export', [env['COMPARATOR_LEAN4EXPORT'], 'SigGolf.Challenge', '--', *targets],
               work / 'challenge.export', export=True)
         # Only after freezing the trusted challenge may candidate sources enter the project.
         if mode == 'source':
@@ -359,7 +406,7 @@ def verify(args: argparse.Namespace) -> dict:
                 shutil.copytree(source / 'SigGolfCandidate', project / 'SigGolfCandidate')
             shutil.copy2(source / 'Solution.lean', project / 'Solution.lean')
             phase('solution_build', [env['COMPARATOR_LAKE'], 'build', 'Solution'], work / 'solution-build.log', build=True)
-            phase('solution_export', [env['COMPARATOR_LAKE'], 'env', env['COMPARATOR_LEAN4EXPORT'], 'Solution', '--', *targets],
+            phase('solution_export', [env['COMPARATOR_LEAN4EXPORT'], 'Solution', '--', *targets],
                   work / 'candidate.export', export=True)
         checker_command = [env['COMPARATOR_CERTIFICATE_CHECK'], str(config_path),
                            str(work / 'challenge.export'), str(work / 'candidate.export')]
@@ -395,7 +442,7 @@ def verify(args: argparse.Namespace) -> dict:
     except TimeoutError as exc:
         result.update(status='timeout', reason=str(exc))
         return result
-    except (FetchError, VerifyError, OSError, subprocess.SubprocessError, ValueError) as exc:
+    except (FetchError, VerifyError, OSError, subprocess.SubprocessError, ValueError, RecursionError) as exc:
         result.update(status='rejected' if result['status'] == 'rejected' else 'failed', reason=str(exc)[:1200])
         return result
     finally:

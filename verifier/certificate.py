@@ -75,7 +75,7 @@ def inspect_bundle(root: Path, claim: dict, source_digest: str, toolchain: str) 
         raise CertificateError('invalid certificate manifest fields')
     if type(manifest['version']) is not int or manifest['version'] != 1:
         raise CertificateError('unsupported certificate version')
-    if manifest['source_digest'] != source_digest or manifest['claim'] != claim:
+    if manifest['source_digest'] != source_digest or json.dumps(manifest['claim'], sort_keys=True) != json.dumps(claim, sort_keys=True):
         raise CertificateError('certificate does not identify this source tree and claim')
     if manifest['lean_toolchain'] != toolchain:
         raise CertificateError('certificate toolchain does not match the organizer toolchain')
@@ -132,8 +132,7 @@ def literal_module(images: Path, claim: dict) -> str:
     layout = claim['layout']
     lines += ['def submission : SigGolf.Submission :=',
               f'  {{ sizes := {{ signature := {claim["S"]}, witness := {claim["W"]}, cache := {claim["K"]} }},',
-              f'    layout := {{ message := {layout["message"]}, secretKey := {layout["secret_key"]}, publicKey := {layout["public_key"]},',
-              f'      cache := {layout["cache"]}, signature := {layout["signature"]}, witness := {layout["witness"]} }},',
+              f'    layout := {{ message := {layout["message"]}, secretKey := {layout["secret_key"]}, publicKey := {layout["public_key"]}, cache := {layout["cache"]}, signature := {layout["signature"]}, witness := {layout["witness"]} }},',
               '    image := fun program => match program with',
               *[f'      | .{program} => {program}' for program in PROGRAMS],
               '  }', '', 'end SigGolf.CertifiedImages', '']
@@ -248,12 +247,13 @@ def main() -> int:
                                         'SigGolf', '--', *targets], trusted,
                                        {'PATH': os.environ.get('PATH', '/usr/bin:/bin'),
                                         'HOME': str(Path.home()), 'LANG': 'C.UTF-8'},
-                                       args.output, limit=MAX_EXPORT_BYTES, seconds=600)
+                                       args.output, limit=MAX_EXPORT_BYTES, seconds=600,
+                                       stderr_log=args.output.with_suffix(args.output.suffix + '.stderr'))
             if code or timeout:
                 args.output.unlink(missing_ok=True)
                 raise CertificateError('organizer base export failed')
         return 0
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, RecursionError, json.JSONDecodeError) as exc:
         parser.exit(1, f'certificate: {exc}\n')
 
 

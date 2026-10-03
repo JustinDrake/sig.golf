@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export PATH="$HOME/.elan/bin:$PATH"
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 if [[ ! -f "$ROOT/verifier/CertificateCheck.lean" || ! -f "$ROOT/verifier/tests/CertificateTests.lean" ]]; then

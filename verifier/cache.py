@@ -269,6 +269,19 @@ metadata and build artifacts are not. The trusted tree must remain frozen.
             _file(h, b"", fd)
         finally:
             os.close(fd)
+    if 'COMPARATOR_LEAN' in toolpaths:
+        # Linux builds can link the kernel/runtime dynamically. A patched shared
+        # runtime must invalidate acceptance even when launcher bytes are unchanged.
+        prefix = Path(toolpaths['COMPARATOR_LEAN']).resolve(strict=True).parent.parent
+        libraries = sorted((prefix / 'lib' / 'lean').glob('libleanshared*'))
+        for library in libraries:
+            if library.suffix not in {'.so', '.dylib'}:
+                continue
+            fd = os.open(library, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            try:
+                _file(h, ('runtime/' + library.name).encode('ascii'), fd)
+            finally:
+                os.close(fd)
     return h.hexdigest()
 
 

@@ -150,7 +150,7 @@ def check(root: Path, *, scan_imports: bool = True) -> dict:
         errors.append("Solution.lean is required")
     try:
         values = claim(root / "claim.json")
-    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError, RecursionError) as exc:
         values = None
         errors.append(f"invalid claim.json: {exc}")
     modules = {".".join(path.relative_to(root).with_suffix("").parts)
@@ -165,7 +165,7 @@ def check(root: Path, *, scan_imports: bool = True) -> dict:
                     module == library or module.startswith(library + ".") for library in ALLOWED_LIBRARIES):
                     continue
                 errors.append(f"{path.relative_to(root)}: import {module} is outside the allowed modules")
-        except (OSError, UnicodeError, ValueError) as exc:
+        except (OSError, UnicodeError, ValueError, RecursionError) as exc:
             errors.append(f"{path.relative_to(root)}: invalid Lean source: {exc}")
     if (root / 'certificate').exists() and values is not None and not errors:
         try:
@@ -180,7 +180,7 @@ def check(root: Path, *, scan_imports: bool = True) -> dict:
             inspect_bundle(root / 'certificate', values,
                            tree_digest(root, excluded_top_level={'certificate'}, include_directories=False),
                            manifest.get('lean_toolchain'))
-        except (OSError, UnicodeError, ValueError) as exc:
+        except (OSError, UnicodeError, ValueError, RecursionError) as exc:
             errors.append(f'invalid certificate: {exc}')
     return {"ok": not errors, "claim": values, "score": values["S"] * values["C"] if values else None,
             "files": len(files), "bytes": total, "certificate_bytes": certificate_total, "errors": errors}
