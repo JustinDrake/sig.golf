@@ -72,7 +72,7 @@ def lfSlot (lay j : Nat) : Nat := if lay = 0 then slotT j else slotL j
 /-- The leaf bits of the first `stab` dispatch (the Merkle levels' chunk 0: 7 on layer 1, else 6). -/
 def stabBits (lay : Nat) : Nat := if lay = 1 then 7 else 6
 /-- Steps (= cycles) of the leaf-pk block. -/
-def lfSteps (lay : Nat) : Nat := if lay = 0 then 13 else if lay = 3 ∨ lay = 2 then 11 else 12
+def lfSteps (lay : Nat) : Nat := if lay = 0 then 13 else if lay = 3 ∨ lay = 2 then 10 else 11
 
 /-- The registers the block keeps that the Merkle code and the next transition read: `sp`, `t3`, the step
 registers `1 .. 7`, `s6`; below the top also the 3-bit masks `s4`, `s5` and `s8 = 0x10000`. -/
