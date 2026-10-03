@@ -17,7 +17,7 @@ def topEntryRegs : List Reg := [.x1,.x3,.x16,.x17,.x14,.x25,.x29,.x19,.x22,.x24,
 /-- Exact transition interface. `u` is the state immediately after the encoding HASH. -/
 structure TopEntry (u : MachineState) (v : Digest) (p : Nat) (s : MachineState) : Prop where
   pc : s.pc = pcOf (176744 + 256 * (v.toNat % 128))
-  ra : s.getReg .x1 = pcOf (p + 69)
+  ra : s.getReg .x1 = pcOf (p + 13)
   lo : s.getReg .x16 = v.extractLsb' 0 64
   hi : s.getReg .x17 = (v.extractLsb' 64 64 <<< (1 : Word)) ||| (v.extractLsb' 0 64 >>> (63 : Word))
   tail : s.getReg .x29 = Search.topWindow v 17
@@ -29,15 +29,15 @@ structure TopEntry (u : MachineState) (v : Digest) (p : Nat) (s : MachineState) 
   regs : RegsExcept u s topEntryRegs
   frame : Frame u s (fun _ => False)
 
-/-- Both direct jumps from a top transition copy to the shared decoder. -/
+/-- The direct `jal` from a top transition copy to the packed-prefix helper (TOP-jal). -/
 theorem topCall_jumps (c : Nat) (hc : c < nCopy 0) (u : MachineState)
-    (hpc : u.pc = pcOf (trPc 0 c + 13)) (hk : KnownOK (bK 0) u) :
-    ∃ s, Steps image u 2 2 s ∧ s.pc = pcOf 724 ∧ s.getReg .x1 = pcOf (trPc 0 c + 69) ∧
+    (hpc : u.pc = pcOf (trPc 0 c + 12)) (hk : KnownOK (bK 0) u) :
+    ∃ s, Steps image u 1 1 s ∧ s.pc = pcOf 724 ∧ s.getReg .x1 = pcOf (trPc 0 c + 13) ∧
       RegsExcept u s [.x1] ∧ Frame u s (fun _ => False) := by
   have hcc := (copy_parts 0 (trPc 0 c) (copyCheck_at 0 c (by decide) hc)).2.2.1 rfl
   obtain ⟨s, hs⟩ := spec_run hcc u hpc (by simp [KnownOK]) (by simp [specTopCall]) (by simp)
   refine ⟨s, hs.steps, hs.pc rfl, ?_, ?_, ?_⟩
-  · exact hs.regs (.x1, kw (0x1000 + 4 * (trPc 0 c + 69))) (by simp [specTopCall])
+  · exact hs.regs (.x1, kw (0x1000 + 4 * (trPc 0 c + 13))) (by simp [specTopCall])
   · intro r hr
     cases r
     case x0 => simp [MachineState.getReg]
@@ -47,11 +47,11 @@ theorem topCall_jumps (c : Nat) (hc : c < nCopy 0) (u : MachineState)
     rw [hs.mem]
     rfl
 
-/-- The two direct jumps plus the packed-prefix helper. -/
+/-- The direct `jal` plus the packed-prefix helper. -/
 theorem topCall_step (c : Nat) (hc : c < nCopy 0) (u : MachineState)
-    (hpc : u.pc = pcOf (trPc 0 c + 13)) (hk : KnownOK (bK 0) u)
+    (hpc : u.pc = pcOf (trPc 0 c + 12)) (hk : KnownOK (bK 0) u)
     (hmem : u.getMem (BitVec.ofNat 64 0xff3800) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56)) :
-    ∃ s, Steps image u 8 8 s ∧ s.pc = pcOf 96160 ∧ s.getReg .x1 = pcOf (trPc 0 c + 69) ∧
+    ∃ s, Steps image u 7 7 s ∧ s.pc = pcOf 96160 ∧ s.getReg .x1 = pcOf (trPc 0 c + 13) ∧
       s.getReg .x28 = Nonbinary.topPrefixWord (u.getReg .x4) ∧
       RegsExcept u s [.x1,.x3,.x28] ∧ Frame u s (fun _ => False) := by
   obtain ⟨r, er, pr, ra, rr, fr⟩ := topCall_jumps c hc u hpc hk
@@ -63,18 +63,18 @@ theorem topCall_step (c : Nat) (hc : c < nCopy 0) (u : MachineState)
   · rw [hp, rr.get (by decide)]
   · exact (fr.trans fs).mono (by simp)
 
-/-- Every failed mixed-radix decode reaches HALT(1), with at most 71 instructions. -/
+/-- Every failed mixed-radix decode reaches HALT(1), with at most 70 instructions. -/
 theorem topTransition_reject (w : WBytes) (pk : Digest) (index c : Nat) (hc : c < nCopy 0)
     (t : MachineState) (ht : EncPre w pk index 0 c t) (a : BitVec 256)
     (hbad : T3.decode 0 (a.extractLsb' 0 128) = none) :
-    ∃ k s, Steps image (writeHash t a) k k s ∧ k ≤ 71 ∧
+    ∃ k s, Steps image (writeHash t a) k k s ∧ k ≤ 70 ∧
       fetch image s = some (.base .ECALL) ∧ s.getReg .x5 = 1 ∧ s.getReg .x10 = 1 := by
   have h12 : t.getReg .x12 = 320#64 := ht.glob.1 (_, _) (by simp [bK])
   have hk : KnownOK (bK 0) (writeHash t a) := fun p hp => by rw [writeHash_getReg]; exact ht.glob.1 p hp
-  have hpc : (writeHash t a).pc = pcOf (trPc 0 c + 13) := by
+  have hpc : (writeHash t a).pc = pcOf (trPc 0 c + 12) := by
     rw [writeHash_pc, ht.pc]
-    change pcOf (trPc 0 c + 12) + 4 = pcOf (trPc 0 c + 13)
-    simpa only [Nat.add_assoc] using pcOf_add4 (trPc 0 c + 12)
+    change pcOf (trPc 0 c + 11) + 4 = pcOf (trPc 0 c + 12)
+    simpa only [Nat.add_assoc] using pcOf_add4 (trPc 0 c + 11)
   have hglob := Glob_writeHash ht.glob a 320 h12 (by decide)
   obtain ⟨s, e, ps, ra, hp, rs, fs⟩ := topCall_step c hc _ hpc hk
     (hglob.2.2.2.2.2.prefix 0 (by decide))
@@ -82,20 +82,20 @@ theorem topTransition_reject (w : WBytes) (pk : Digest) (index c : Nat) (hc : c 
   have hd := hglob.2.2.2.2.2.packed.frame fs
   obtain ⟨k, r, er, hk, pr, rr, fr⟩ := Verify.Nonbinary.decode_reject s _ ps hv hd hbad
   obtain ⟨z, ez, hz, h5, h10⟩ := Verify.Nonbinary.reject_halt r pr
-  refine ⟨8 + k + 3, z, (e.trans er).trans ez, by omega, hz, h5, h10⟩
+  refine ⟨7 + k + 3, z, (e.trans er).trans ez, by omega, hz, h5, h10⟩
 
-/-- Exact 76-instruction top transition including the packed-prefix setup. -/
+/-- Exact 75-instruction top transition including the packed-prefix setup (TOP-jal). -/
 theorem topTransition_ok (w : WBytes) (pk : Digest) (index c : Nat) (hc : c < nCopy 0)
     (t : MachineState) (ht : EncPre w pk index 0 c t) (a : BitVec 256)
     (hgood : T3.decode 0 (a.extractLsb' 0 128) = some (Search.topDigits (a.extractLsb' 0 128))) :
-    ∃ s, Steps image (writeHash t a) 76 76 s ∧
+    ∃ s, Steps image (writeHash t a) 75 75 s ∧
       TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s := by
   have h12 : t.getReg .x12 = 320#64 := ht.glob.1 (_, _) (by simp [bK])
   have hk : KnownOK (bK 0) (writeHash t a) := fun p hp => by rw [writeHash_getReg]; exact ht.glob.1 p hp
-  have hpc : (writeHash t a).pc = pcOf (trPc 0 c + 13) := by
+  have hpc : (writeHash t a).pc = pcOf (trPc 0 c + 12) := by
     rw [writeHash_pc, ht.pc]
-    change pcOf (trPc 0 c + 12) + 4 = pcOf (trPc 0 c + 13)
-    simpa only [Nat.add_assoc] using pcOf_add4 (trPc 0 c + 12)
+    change pcOf (trPc 0 c + 11) + 4 = pcOf (trPc 0 c + 12)
+    simpa only [Nat.add_assoc] using pcOf_add4 (trPc 0 c + 11)
   have hglob := Glob_writeHash ht.glob a 320 h12 (by decide)
   obtain ⟨s, e, ps, ra, hp, rs, fs⟩ := topCall_step c hc _ hpc hk
     (hglob.2.2.2.2.2.prefix 0 (by decide))
