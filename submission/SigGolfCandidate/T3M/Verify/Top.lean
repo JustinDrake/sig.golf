@@ -1,16 +1,16 @@
 import SigGolfCandidate.T3M.Verify.Compose
 
 /-! The complete verifier bound from the organizer's initial state.
-Accepting runs cost at most 2791 + 6 + 6173 = 8970 cycles. The conservative all-input cycle
+Accepting runs cost at most 2790 + 6 + 6173 = 8969 cycles. The conservative all-input cycle
 bound 15421 and fuel 15414 are retained. -/
 
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3M.Verify
 
-/-- The cycle bound of accepting runs: V2's 2791 through the forest HASH, the layer-3 load block (6) and `lCyc 4` for
+/-- The cycle bound of accepting runs: V2's 2790 through the forest HASH, the layer-3 load block (6) and `lCyc 4` for
 the layers and the compare. -/
-def cycleBound : Nat := 2791 + 6 + lCyc 4
+def cycleBound : Nat := 2790 + 6 + lCyc 4
 
 /-- A cycle bound of every run under every oracle. -/
 def cycleBoundAll : Nat := 7375 + 8046
@@ -18,7 +18,7 @@ def cycleBoundAll : Nat := 7375 + 8046
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 7368 + 8046
 
-theorem cycleBound_eq : cycleBound = 8970 := by unfold cycleBound; rw [lCyc_4]
+theorem cycleBound_eq : cycleBound = 8969 := by unfold cycleBound; rw [lCyc_4]
 theorem cycleBoundAll_eq : cycleBoundAll = 15421 := rfl
 theorem fuelBound_eq : fuelBound = 15414 := rfl
 
