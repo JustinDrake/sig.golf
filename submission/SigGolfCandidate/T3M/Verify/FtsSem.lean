@@ -173,7 +173,7 @@ theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
   -- words 369 .. 386: packed headers, persistent comparands and fallthrough into the main loop
   obtain ⟨u, hu⟩ := spec_run setupCheckF_ok t1 (h1.pc rfl) hk (by simp [setupSpecF]) (by simp)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
-      if A = SENTINEL then -1#64 else t.getMem (BitVec.ofNat 64 A) := by
+      if A = SENTINEL then 1#64 else t.getMem (BitVec.ofNat 64 A) := by
     intro A hA
     rw [hu.mem]; simp only [setupSpecF]
     rw [memEval_cons_ofNat _ _ _ _ _ hA (by unfold SENTINEL; omega), memEval_nil, hm1]; rfl
@@ -1483,7 +1483,7 @@ theorem tailM_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dig
   refine ⟨fun hnil => qrej ?_, fun pn Q rest he hQ => qrej ?_, fun pn rest he => ?_⟩
   · rw [hnil, show frameA ([] : List (Digest × Nat)).length - 16 = SENTINEL by rfl, h.fb.sent]
     intro heq
-    exact FtsRev.rv_ne_neg1 E hE heq.symm
+    exact FtsRev.rv_ne_sentinel E hE heq.symm
   · obtain ⟨-, hq, hQ4⟩ := stack_top h.stack he
     rw [hq]; exact fun heq => hQ ((FtsRev.rv_inj (by omega) (by omega)).mp heq)
   · obtain ⟨hpn, hq, -⟩ := stack_top h.stack he

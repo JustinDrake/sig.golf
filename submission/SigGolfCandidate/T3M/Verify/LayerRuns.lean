@@ -41,7 +41,7 @@ def xtrTab : List (List Nat) :=
     7137, 7238, 7339, 7440, 7541, 7642, 7743, 7844, 7945, 8046, 8147, 8248, 8349, 8450, 8551, 8652,
     8753, 8854, 8955, 9056, 9157, 9258, 9359, 9460, 9561, 9662, 9763, 9864, 9965, 10066, 10167, 10268,
     10369, 10470, 10571, 10672, 10773, 10874, 10975, 11076, 11177, 11278, 11379, 11480, 11581, 11682, 11783, 11884],
-   [635]]
+   [634]]
 
 /-- The number of transition copies of layer `lay`. -/
 def nCopy (lay : Nat) : Nat := (xtrTab.getD lay []).length
@@ -110,14 +110,14 @@ def lowerLayK (lay : Nat) : List (Reg × Word) :=
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (headerBank lay 0)),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x19, BitVec.ofNat 64 (2^62))]
 
-/-- Five loads after the forest HASH use the carried `sp = 2^24`, retaining
-four other constants. Layer 3 starts at word 635. -/
+/-- Four loads after the forest HASH use the carried stack pointer and range bound.
+Layer 3 starts at word 634. -/
 def ld3Spec : Spec :=
-  ⟨[(.x19, kw (2^62)), (.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
+  ⟨[(.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
       (.x27, .ld (kw (DATA + 24))), (.x2, .ld (kw (DATA + 32)))],
-    [], 635, false, 5, [], none, 5⟩
+    [], 634, false, 4, [], none, 4⟩
 
-def ld3Check : Bool := specB [] [] afterLoadK (runAt carryK [635] 630 []) ld3Spec [] afterLoadK [.x22]
+def ld3Check : Bool := specB [] [] afterLoadK (runAt carryK [634] 630 []) ld3Spec [] afterLoadK [.x22]
 
 /-- ... and the encoding `ecall`'s arguments. -/
 def bK (lay : Nat) : List (Reg × Word) := layK lay ++ [(.x10, 256), (.x12, 320)]
