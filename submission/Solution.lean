@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 128 KiB authenticated
-paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8842` cycles
-(accepting-verify bound `8743` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
+paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8794` cycles
+(accepting-verify bound `8695` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 524288, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,7 +19,7 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 8743); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 8695); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
@@ -48,6 +48,9 @@ The three lower layers read each WOTS chain's header word from a read-only heade
 Each Merkle path stores the node header's word 0 with a single doubleword store per level from a register merged
 once at level 0 (23 cycles). The top decoder's tail table is complemented so the digit-sum check is one
 comparison (cryptogakusei's 15e2fb43, 2 cycles).
+The top layer's chain heads read their header words (with the first digit) from bank 0 of the same header
+table, set up by the lower layers' leaf return, and skip the first step's byte store (erickeigen's 59cbf8ec table
+design on the top layer, znan2's BIG3; 54 cycles).
 The paired radix-five table decoder and all table memory-preservation proofs are retained.
 
 
@@ -68,7 +71,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8842 :=
+theorem certificate : SigGolf.Certificate submission 8794 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge

@@ -575,7 +575,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
     (hidx : index < 2 ^ 31) (t : MachineState) (ht : EncPre w pk index lay.val c t) (a : BitVec 256) :
     (decode lay (a.extractLsb' 0 128) = none → ∃ v k cy, Steps image (writeHash t a) k cy v ∧
         fetch image v = some (.base .ECALL) ∧ v.getReg .x5 = 1 ∧ v.getReg .x10 = 1 ∧ k ≤ 23 ∧ cy ≤ 26) ∧
-    (decode lay (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 29 32 s0 ∧
+    (decode lay (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 30 33 s0 ∧
         (lctxOf w index lay a (trPc lay.val c)).ok ∧
         (∀ p ∈ (lctxOf w index lay a (trPc lay.val c)).known, s0.getReg p.1 = p.2) ∧
         (lctxOf w index lay a (trPc lay.val c)).Orig0 s0 ∧

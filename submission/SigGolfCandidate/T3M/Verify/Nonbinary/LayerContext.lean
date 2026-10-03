@@ -42,9 +42,10 @@ theorem topEntry_orig (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineS
   exact hu.frame (fun j hj hp => he.frame.get (by unfold WIT WX at *; omega) (by simp))
 
 theorem nctx_orig (w : WBytes) (index : Nat) (v : Digest) (p : Nat) (s : MachineState)
-    (ho : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) s) :
+    (ho : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) s) (hD : DataOK s) :
     (nctxOf w index v p).Orig0 s := by
-  intro i hi k hk
+  refine ⟨fun i hi k hk => ?_, hD⟩
+  clear hD
   apply origW_of ho _
   all_goals simp only [NCtx.blk, nctxOf]
   all_goals norm_num [WIT, WX, layerEnd] at *
