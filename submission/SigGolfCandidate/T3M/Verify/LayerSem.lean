@@ -128,8 +128,22 @@ theorem route_evals (index : Nat) (lay : Layer) (hidx : index < 2 ^ 31) (s : Mac
       Nat.mod_eq_of_lt (show hL lay.val < 64 by have := (hL_le lay).2; omega), Nat.shiftRight_eq_div_pow,
       Nat.div_div_eq_div_mul, ← Nat.pow_add, BitVec.toNat_ofNat]
     rw [Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.div_le_self _ _) (by omega))]
+  have htp : (tpE lay.val).eval s =
+      (.bin .or (.bin .sll (leafE lay.val) (kw 32)) (treeE lay.val)).eval s := by
+    unfold tpE
+    split
+    · rename_i h0
+      have hl0 : lay = 0 := Fin.ext h0
+      subst hl0
+      have ht0 : (route index (0 : Layer)).2 = 0 := by
+        rw [route_snd]
+        norm_num [below, hL]
+        omega
+      simp only [E.eval, BinOp.eval, kw, htE, ht0]
+      simp
+    · rfl
   refine ⟨hlE, htE, ?_, ?_⟩
-  · simp only [tpE, E.eval, BinOp.eval, hlE, htE, kw]
+  · simp only [htp, E.eval, BinOp.eval, hlE, htE, kw]
     rw [hdr1_eq _ _ ht hl32]
     apply BitVec.eq_of_toNat_eq
     rw [BitVec.toNat_or, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
