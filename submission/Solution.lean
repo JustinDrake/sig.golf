@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 128 KiB authenticated
-paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8988` cycles
-(accepting-verify bound `8889` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
+paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8980` cycles
+(accepting-verify bound `8881` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 524288, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,7 +19,7 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 8889); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 8881); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
@@ -48,7 +48,12 @@ newjordan's lower leaf dispatch, layer-3 index copy, and top Merkle chunk dispat
 additional cycles. The lower checksum constant is adjusted to target194 on layer3; the mixed-radix
 top code is preserved. Our complete packed leaf header and persistent coordinate comparands
 remove another 32 cycles after accounting for the combined 28-cycle FTS setup. The accepting
-forest prefix is 2718 and the complete charged bound is 8988.
+forest prefix is 2718 and the complete charged bound is 8988. Subflatus3's digest header built from
+`s2` (e1344b79) saves one more cycle: the prefix is 2717. Layer 3 reuses the FTS exit's `sp` and the
+five step constants `x6 .. x9`, `x13` loaded by the FTS setup (generalizing cryptogakusei's 7212afef carry
+of `sp` and `t1`), removing six instructions on the accepting path. The setup's jump into the constant trampoline skips its
+`addi x6, x0, 1`, which the FTS setup sets again, so the setup takes 27 cycles and the accepting forest
+prefix is 2716; the complete charged bound is 8980.
 
 
 
@@ -68,7 +73,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8988 :=
+theorem certificate : SigGolf.Certificate submission 8980 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge
