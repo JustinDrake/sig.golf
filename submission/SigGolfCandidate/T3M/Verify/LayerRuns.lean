@@ -25,23 +25,23 @@ open SigGolfCandidate.T3M.Verify
 
 /-- The transition copies of layer `lay` (word index of `xtr{lay}_*`, in pc order). -/
 def xtrTab : List (List Nat) :=
-  [[18460, 18594, 18728, 18862, 18996, 19130, 19264, 19398, 19532, 19666, 19800, 19934, 20068, 20202, 20336, 20470,
-    20604, 20738, 20872, 21006, 21140, 21274, 21408, 21542, 21676, 21810, 21944, 22078, 22212, 22346, 22480, 22614,
-    22748, 22882, 23016, 23150, 23284, 23418, 23552, 23686, 23820, 23954, 24088, 24222, 24356, 24490, 24624, 24758,
-    24892, 25026, 25160, 25294, 25428, 25562, 25696, 25830, 25964, 26098, 26232, 26366, 26500, 26634, 26768, 26902,
-    27036, 27170, 27304, 27438, 27572, 27706, 27840, 27974, 28108, 28242, 28376, 28510, 28644, 28778, 28912, 29046,
-    29180, 29314, 29448, 29582, 29716, 29850, 29984, 30118, 30252, 30386, 30520, 30654, 30788, 30922, 31056, 31190,
-    31324, 31458, 31592, 31726, 31860, 31994, 32128, 32262, 32396, 32530, 32664, 32798, 32932, 33066, 33200, 33334,
-    33468, 33602, 33736, 33870, 34004, 34138, 34272, 34406, 34540, 34674, 34808, 34942, 35076, 35210, 35344, 35478],
-   [11989, 12090, 12191, 12292, 12393, 12494, 12595, 12696, 12797, 12898, 12999, 13100, 13201, 13302, 13403, 13504,
-    13605, 13706, 13807, 13908, 14009, 14110, 14211, 14312, 14413, 14514, 14615, 14716, 14817, 14918, 15019, 15120,
-    15221, 15322, 15423, 15524, 15625, 15726, 15827, 15928, 16029, 16130, 16231, 16332, 16433, 16534, 16635, 16736,
-    16837, 16938, 17039, 17140, 17241, 17342, 17443, 17544, 17645, 17746, 17847, 17948, 18049, 18150, 18251, 18352],
-   [5525, 5626, 5727, 5828, 5929, 6030, 6131, 6232, 6333, 6434, 6535, 6636, 6737, 6838, 6939, 7040,
-    7141, 7242, 7343, 7444, 7545, 7646, 7747, 7848, 7949, 8050, 8151, 8252, 8353, 8454, 8555, 8656,
-    8757, 8858, 8959, 9060, 9161, 9262, 9363, 9464, 9565, 9666, 9767, 9868, 9969, 10070, 10171, 10272,
-    10373, 10474, 10575, 10676, 10777, 10878, 10979, 11080, 11181, 11282, 11383, 11484, 11585, 11686, 11787, 11888],
-   [662]]
+  [[18455, 18589, 18723, 18857, 18991, 19125, 19259, 19393, 19527, 19661, 19795, 19929, 20063, 20197, 20331, 20465,
+    20599, 20733, 20867, 21001, 21135, 21269, 21403, 21537, 21671, 21805, 21939, 22073, 22207, 22341, 22475, 22609,
+    22743, 22877, 23011, 23145, 23279, 23413, 23547, 23681, 23815, 23949, 24083, 24217, 24351, 24485, 24619, 24753,
+    24887, 25021, 25155, 25289, 25423, 25557, 25691, 25825, 25959, 26093, 26227, 26361, 26495, 26629, 26763, 26897,
+    27031, 27165, 27299, 27433, 27567, 27701, 27835, 27969, 28103, 28237, 28371, 28505, 28639, 28773, 28907, 29041,
+    29175, 29309, 29443, 29577, 29711, 29845, 29979, 30113, 30247, 30381, 30515, 30649, 30783, 30917, 31051, 31185,
+    31319, 31453, 31587, 31721, 31855, 31989, 32123, 32257, 32391, 32525, 32659, 32793, 32927, 33061, 33195, 33329,
+    33463, 33597, 33731, 33865, 33999, 34133, 34267, 34401, 34535, 34669, 34803, 34937, 35071, 35205, 35339, 35473],
+   [11985, 12086, 12187, 12288, 12389, 12490, 12591, 12692, 12793, 12894, 12995, 13096, 13197, 13298, 13399, 13500,
+    13601, 13702, 13803, 13904, 14005, 14106, 14207, 14308, 14409, 14510, 14611, 14712, 14813, 14914, 15015, 15116,
+    15217, 15318, 15419, 15520, 15621, 15722, 15823, 15924, 16025, 16126, 16227, 16328, 16429, 16530, 16631, 16732,
+    16833, 16934, 17035, 17136, 17237, 17338, 17439, 17540, 17641, 17742, 17843, 17944, 18045, 18146, 18247, 18348],
+   [5521, 5622, 5723, 5824, 5925, 6026, 6127, 6228, 6329, 6430, 6531, 6632, 6733, 6834, 6935, 7036,
+    7137, 7238, 7339, 7440, 7541, 7642, 7743, 7844, 7945, 8046, 8147, 8248, 8349, 8450, 8551, 8652,
+    8753, 8854, 8955, 9056, 9157, 9258, 9359, 9460, 9561, 9662, 9763, 9864, 9965, 10066, 10167, 10268,
+    10369, 10470, 10571, 10672, 10773, 10874, 10975, 11076, 11177, 11278, 11379, 11480, 11581, 11682, 11783, 11884],
+   [661]]
 
 /-- The number of transition copies of layer `lay`. -/
 def nCopy (lay : Nat) : Nat := (xtrTab.getD lay []).length
@@ -55,10 +55,10 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 
 /-- Merkle height. -/
 def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
-/-- Steps of A (layer 3 includes the `hyper` constants and splits `s6` directly; layer 0 has `mv` and `lui; or`). -/
-def stepsA (lay : Nat) : Nat := if lay = 3 then 23 else if lay = 0 then 16 else 15
+/-- Steps of A; layer 3 reuses four constants from the forest. -/
+def stepsA (lay : Nat) : Nat := if lay = 3 then 19 else if lay = 0 then 16 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 0 then 69 else if lay = 3 then 52 else 44
+def retOff (lay : Nat) : Nat := if lay = 0 then 69 else if lay = 3 then 48 else 44
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
@@ -80,10 +80,13 @@ def M2c : Nat := 17311559823019733055
 def M4c : Nat := 3689348814741910323
 def M8c : Nat := 1085102592571150095
 
+/-- Constants carried from the forest after the loader changes `sp`. -/
+def afterLoadK : List (Reg × Word) := baseK ++ [(.x7,2),(.x8,3),(.x9,4),(.x13,5)]
+
 /-- The known registers at a transition start (layer 3: `t0`, `s2` and the five constants of the load block
 `ld3Spec`; `hyper` sets the rest). -/
 def preK (lay : Nat) : List (Reg × Word) :=
-  if lay = 3 then baseK ++ [(.x28, BitVec.ofNat 64 (2 ^ 40)), (.x21, BitVec.ofNat 64 M2c), (.x20, BitVec.ofNat 64 M1c),
+  if lay = 3 then afterLoadK ++ [(.x28, BitVec.ofNat 64 (2 ^ 40)), (.x21, BitVec.ofNat 64 M2c), (.x20, BitVec.ofNat 64 M1c),
     (.x27, BitVec.ofNat 64 (hw 1 3)), (.x2, BitVec.ofNat 64 0x3fe00)]
   else baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 (lay + 1))), (.x24, 0x10000), (.x2, 0x3fe00),
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (2 ^ 40)),
@@ -95,23 +98,20 @@ def layK (lay : Nat) : List (Reg × Word) :=
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (2 ^ 40)),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
 
-/-- T3X: the layer constants during a lower layer's chain phase: `x28` is the midpoint of the layer's WOTS header
-bank (the entry stub `lui t3; jalr` replaces `2^40`; the leaf-pk return restores it). -/
-def chainK (lay : Nat) : List (Reg × Word) :=
+/-- Lower-chain constants after the header-table entry stub. -/
+def lowerLayK (lay : Nat) : List (Reg × Word) :=
   baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 lay)), (.x24, 0x10000), (.x2, 0x3fe00),
-    (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64),
-    (.x28, BitVec.ofNat 64 (headerBank lay 0)),
+    (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (headerBank lay 0)),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
 
-/-- T3K: after the forest HASH (word 656) a load block (656 .. 661: `lui sp, 0x1000` and five `ld` of the embedded
-data words 0 .. 4) sets five of layer 3's constants (`2^40`, the SWAR masks, `s11`, `sp`); the transition copy
-proper starts at 662 (`trPc 3 0`). -/
+/-- Five loads after the forest HASH use the carried `sp = 2^24`, retaining
+four other constants. Layer 3 starts at word 661. -/
 def ld3Spec : Spec :=
   ⟨[(.x28, .ld (kw DATA)), (.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
       (.x27, .ld (kw (DATA + 24))), (.x2, .ld (kw (DATA + 32)))],
-    [], 662, false, 6, [], none, 6⟩
+    [], 661, false, 5, [], none, 5⟩
 
-def ld3Check : Bool := specB [] [] baseK (runAt baseK [662] 656 []) ld3Spec [] baseK [.x22]
+def ld3Check : Bool := specB [] [] afterLoadK (runAt carryK [661] 656 []) ld3Spec [] afterLoadK [.x22]
 
 /-- ... and the encoding `ecall`'s arguments. -/
 def bK (lay : Nat) : List (Reg × Word) := layK lay ++ [(.x10, 256), (.x12, 320)]
@@ -161,14 +161,12 @@ def a7lE : E := .bin .or b1E (.bin .srl a6E (kw 63))
 def x14l : E := .bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe00)) (kw 0x6e000)
 def tgtl : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe00)) (kw 448800)) (.c (~~~1#64))
 
-/-- T3X: B ends with `jal ra, stub_lay` and the stub `lui t3; jalr zero, -1760(a4)` (2 more steps; T3Y: the bank
-midpoints are 4096-aligned, so one `lui` sets `t3`). -/
 def specBl (lay p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, a7lE), (.x25, sumE), (.x29, t4E lay), (.x3, .bin .srl a6E (kw 63)), (.x14, x14l)],
-   [], 0, false, 30, [ckBr lay false, rngBr 62 false], some tgtl, 33⟩
+   [], 0, false, 31, [ckBr lay false, rngBr 62 false], some tgtl, 34⟩
 
 def postBl (lay p : Nat) : List (Reg × Word) :=
-  chainK lay ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x15, 0x6e000), (.x1, pcOf (p + retOff lay))]
+  lowerLayK lay ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x15, 0x6e000), (.x1, pcOf (p + retOff lay))]
 
 def rejRng (k : Nat) : Spec := ⟨[(.x5, kw 1), (.x10, kw 1)], [], rejEcall, true, 7, [rngBr k true], none, 7⟩
 def rejCk (lay : Nat) : Spec :=
@@ -207,8 +205,7 @@ def rejTot : Spec :=
 
 /-! ## The leaf-pk block -/
 
-/-- At the leaf-pk block: the layer constants and the chain code's leftovers (T3X lower layers: `t1 = 1`, read by
-the restore `slli t3, t1, 40`). -/
+/-- At the leaf-pk block: the layer constants and the chain code's leftovers. -/
 def leafK (lay : Nat) : List (Reg × Word) :=
   baseK ++ [(.x27, BitVec.ofNat 64 (hw 1 lay))] ++ (if lay = 0 then [] else [(.x6, 1)])
 
@@ -236,12 +233,10 @@ def specLf (lay : Nat) : Spec :=
      [(⟨none, BitVec.ofNat 64 792⟩, .reg .x4), (⟨none, BitVec.ofNat 64 784⟩, kw (hw 2 lay))], 0, false, 12, [],
      some (tgtLf lay), 12⟩
 
-/-- T3X lower layers: the return `jal zero, restore` and `slli t3, t1, 40` set `t3 = 2^40` again. -/
 def postLf (lay : Nat) : List (Reg × Word) :=
-  leafK lay ++ (if lay = 0 then [] else [(.x28, BitVec.ofNat 64 (2 ^ 40))]) ++
-   [(.x3, BitVec.ofNat 64 (hw 2 lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)),
+  leafK lay ++ [(.x3, BitVec.ofNat 64 (hw 2 lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)),
     (.x10, BitVec.ofNat 64 (if lay = 0 then 512 else 768)), (.x11, BitVec.ofNat 64 (if lay = 0 then 896 else 704)),
-    (.x15, 0xce000)]
+    (.x15, 0xce000)] ++ (if lay = 0 then [] else [(.x28, BitVec.ofNat 64 (2 ^ 40))])
 
 /-! ## The checks of a copy -/
 

@@ -14,6 +14,26 @@ set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 
+/-- Shifting by a word half discards all bits above the low half. -/
+theorem packed_shift32 (v : Word) :
+    v <<< 32 = (v.truncate 32).zeroExtend 64 <<< 32 := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro i
+  by_cases h64 : i < 64
+  · by_cases h32 : i < 32
+    · simp [BitVec.getLsbD_shiftLeft, h64, h32]
+    · have hi : i - 32 < 32 := by omega
+      have hi64 : i - 32 < 64 := by omega
+      simp [BitVec.getLsbD_shiftLeft, BitVec.truncate_eq_setWidth, h64, h32, hi, hi64]
+  · simp [BitVec.getLsbD_shiftLeft, h64]
+
+/-- Packing an arbitrary tree word gives exactly the former SD followed by high-half SW. -/
+theorem packed_word_merge (w v : Word) (h : w &&& 0xffffffff#64 = w) :
+    w ||| (v <<< 32) = StoreKind.merge .w w 4 v := by
+  change w ||| (v <<< 32) =
+    (w &&& 0xffffffff#64) ||| ((v.truncate 32).zeroExtend 64 <<< 32)
+  rw [h, packed_shift32]
+
 theorem replaceWord32_1_toNat (w : BitVec 64) (p : Nat) (hp : p < 2 ^ 32) :
     (replaceWord32 w 1 ((BitVec.ofNat 64 p).truncate 32)).toNat = w.toNat % 2 ^ 32 + 2 ^ 32 * p := by
   unfold replaceWord32
