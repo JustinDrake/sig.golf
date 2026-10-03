@@ -18,7 +18,7 @@ for every copy by the kernel (`leafCheck_at`).
 `1 .. 7`, `tp = T(3, lay)`, `a0`, `a1`, `a5`, `s6`); `s7 = 2^h + leaf`, `t5 = tree`; the chain ends in the leaf-pk
 slots, the leaf header words (and the top's zero words); the witness of the layers below and of this layer's Merkle
 blocks original. `leafL_step` (from the lower chain phase's `ChainOut 43`) and `leafT_step` (from the top's `TopOut`)
-reach it in 12 resp. 13 steps (= cycles; T3X lower layers include the return jump and the `t3 = 2^40` restore). -/
+reach it in 11 resp. 13 steps (= cycles; T3X lower layers include the inline `t3` restore, 0c30a009). -/
 
 set_option linter.unusedSimpArgs false
 
@@ -76,7 +76,7 @@ def lfSlot (lay j : Nat) : Nat := if lay = 0 then slotT j else slotL j
 /-- The leaf bits of the first `stab` dispatch (the Merkle levels' chunk 0: 7 on layer 1, else 6). -/
 def stabBits (lay : Nat) : Nat := if lay = 1 then 7 else 6
 /-- Steps (= cycles) of the leaf-pk block. -/
-def lfSteps (lay : Nat) : Nat := if lay = 0 then 13 else 12
+def lfSteps (lay : Nat) : Nat := if lay = 0 then 13 else 11
 
 /-- The registers the block keeps that the Merkle code and the next transition read: `sp`, `t3`, the step
 registers `1 .. 7`, `s6`; below the top also the 3-bit masks `s4`, `s5` and `s8 = 0x10000`. -/
@@ -237,7 +237,7 @@ theorem geomT : s6v 0 = 15064 ∧ layerBase 0 = 11288 ∧ height 0 = 12 ∧ laye
 /-! ## The leaf-pk block -/
 
 /-- **The lower leaf-pk block**: from the lower chain phase's `ChainOut 43` (base `s0` = `encB_step`'s state) to
-`LeafOut` in 12 steps (T3X: the return jump to the restore slot and `slli t3, t1, 40`). -/
+`LeafOut` in 11 steps (T3X: the inline restore, 0c30a009; T3Z: `lui t3, 0xff4`). -/
 theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay : lay ≠ 0) (c : Nat)
     (hc : c < nCopy lay.val) (hidx : index < 2 ^ 31) (a : BitVec 256) (s0 : MachineState)
     (hk : ∀ p ∈ (lctxOf w index lay a (trPc lay.val c)).known, s0.getReg p.1 = p.2)
@@ -246,7 +246,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
     (h30 : s0.getReg .x30 = BitVec.ofNat 64 (route index lay).2)
     (ends : List Digest) (t : MachineState)
     (ht : (lctxOf w index lay a (trPc lay.val c)).ChainOut s0 43 ends t) :
-    ∃ u, Steps image t 12 12 u ∧ LeafOut w pk index lay ends u := by
+    ∃ u, Steps image t 11 11 u ∧ LeafOut w pk index lay ends u := by
   set L := lctxOf w index lay a (trPc lay.val c) with hLd
   have h0 : lay.val ≠ 0 := fun h => hlay (Fin.ext h)
   obtain ⟨⟨hR, hF, hS⟩, hlen, hpc⟩ := ht
@@ -262,7 +262,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
   obtain ⟨u, hu⟩ := spec_run (leafCheck_at lay.val c lay.isLt hc) t (by rw [hpc]; rfl) hknown
     (by intro b hb; simp [specLf, h0] at hb) (by simp)
   have hst := hu.steps
-  rw [show (specLf lay.val).steps = 12 by simp [specLf, h0], show (specLf lay.val).cycles = 12 by simp [specLf, h0]]
+  rw [show (specLf lay.val).steps = 11 by simp [specLf, h0], show (specLf lay.val).cycles = 11 by simp [specLf, h0]]
     at hst
   refine ⟨u, hst, ?_⟩
   have hku : KnownOK (postLf lay.val) u := hu.known

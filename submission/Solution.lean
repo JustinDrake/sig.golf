@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 128 KiB authenticated
-paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8749` cycles
-(accepting-verify bound `8650` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
+paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8743` cycles
+(accepting-verify bound `8644` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 524288, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,7 +19,7 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 8650); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 8644); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
@@ -51,15 +51,11 @@ comparison (cryptogakusei's 15e2fb43, 2 cycles).
 The top layer's chain heads read their header words (with the first digit) from bank 0 of the same header
 table, set up by the lower layers' leaf return, and skip the first step's byte store (erickeigen's 59cbf8ec table
 design on the top layer, znan2's BIG3; 54 cycles).
-That tree (znan2's 0e4be4ce) has the complete charged bound 8794.
-Lower table-slot chain heads (this submission). In the lower layers the first chain of each digit triple (its head
-sits in a `ttab` slot) and the checksum chain (a `ctab` slot) still loaded the digit-zero header word and then jumped
-into the shared ladder at the first rung's byte store. The slot is static per table row, so its digit `d` is a
-constant: each head now loads the header word of digit `d` from the same header table and jumps straight onto that
-rung's `ecall`; at digit 6 the head's `addi a2, a0, 48` becomes the rung's `addi a2, zero, slot`, so it lands on the
-last `ecall`. The shared ladder code is unchanged. One cycle per table-slot chain (fifteen per lower layer; two at
-digit 6): `chainCost` of those chains drops from `70 - 9 d` to `69 - 9 d`, the lower chain phase from
-`3008 - 9 target` to `2993 - 9 target`, the accepting bound to 8650 and the complete charged bound to 8749.
+In the lower layers the table-slot chain heads (first chain of each digit triple, and the checksum chain) load the
+header word of their slot's digit and jump straight onto that rung's `ecall`, skipping its byte store
+(gopikannappan's 745a58d5; 15 cycles per lower layer). Each lower transition enters its chain code with an inline
+`lui t3; jalr ra` and the chain code returns straight into an inline copy of the leaf-pk block (may93182's 0c30a009;
+2 cycles per lower layer).
 The paired radix-five table decoder and all table memory-preservation proofs are retained.
 
 
@@ -80,7 +76,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8749 :=
+theorem certificate : SigGolf.Certificate submission 8743 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge

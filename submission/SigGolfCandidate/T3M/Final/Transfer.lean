@@ -21,8 +21,8 @@ theorem legacyOf_submissionNew : legacyOf submissionNew = submission :=
   legacyOf_currentOf submission
 
 /-- **The T3 certificate under the current contract**, from the machine and source statements. -/
-theorem certificateNew_of (P : Pending) (S : SourceFacts) : SigGolf.Certificate submissionNew 8749 := by
-  have hL : Legacy.Certificate (legacyOf submissionNew) 8749 := by
+theorem certificateNew_of (P : Pending) (S : SourceFacts) : SigGolf.Certificate submissionNew 8743 := by
+  have hL : Legacy.Certificate (legacyOf submissionNew) 8743 := by
     rw [legacyOf_submissionNew]
     exact certificate_of P S
   have hrun : RunAgrees submissionNew := runAgrees_of_admissible submissionNew hL.admissible
