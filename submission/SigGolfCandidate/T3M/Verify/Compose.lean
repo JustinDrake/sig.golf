@@ -5,9 +5,9 @@ import SigGolfCandidate.T3M.Verify.FtsGood
 
 /-! # The complete verifier: forest, signature layers, Merkle paths and root comparison
 
-The accepting forest bound is 2823 cycles at the 115-fold cap. The four layers and final
+The accepting forest bound is 2822 cycles at the 115-fold cap. The four layers and final
 comparison cost 6173 cycles; the six-cycle load block gives 6179 after the forest. Thus the
-accepting bound is 9002 cycles. The previous conservative fuel 15446 and every-path cycle
+accepting bound is 9001 cycles. The previous conservative fuel 15446 and every-path cycle
 bound 15453 remain valid. The paired decoder lowers the top accepting transition by 46 cycles;
 the last lower layer target 194 adds 9 cycles. -/
 
@@ -193,9 +193,9 @@ theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutpu
   exact GoodQ.steps' hst hg (by omega) (by omega) (fun q => ⟨q, by omega⟩)
 
 /-- **The whole verify run**: from the initial state, every run finishes within 15453 cycles with fuel 15446, and
-accepting runs take at most `9002 = 2823 + 6179` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
+accepting runs take at most `9001 = 2822 + 6179` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
 theorem verifyP_good (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
-    GoodQ s 15446 15453 True 9002 (ccM (verifyP m pk w) Kb) :=
+    GoodQ s 15446 15453 True 9001 (ccM (verifyP m pk w) Kb) :=
   verifyP_good_fts m pk w s hs 8046 6179 True (fun a root u h => after_good pk w True trivial a root u h)
 
 end SigGolfCandidate.T3M
