@@ -374,7 +374,7 @@ theorem f191_spec (hpc : s.pc = pcOf 191) (j : Nat) (h19 : s.getReg .x19 = BitVe
 /-- `fts_outer_done`: close the open segment (header byte `s7 | s8 << 5` at `s6`, `s6 += 8 + 80 s7`), the forest
 slot offset `16 s0`, then by `s0 = 0`. -/
 theorem f193_spec (hpc : s.pc = pcOf 193) (c ptr cnt par : Nat) (hc : c < 7) (hp8 : ptr % 8 = 0)
-    (hp : ptr + 8 ≤ 2 ^ 24) (hcnt : cnt < 16) (hpar : par < 2) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24)
+    (hp : ptr + 8 ≤ 2 ^ 24) (hcnt : cnt < 16) (hpar : par < 8) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h22 : s.getReg .x22 = BitVec.ofNat 64 ptr)
     (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt) (h24 : s.getReg .x24 = BitVec.ofNat 64 par) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = (if c = 0 then pcOf 204 else pcOf 203) ∧

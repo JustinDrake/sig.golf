@@ -5,9 +5,9 @@ import SigGolfCandidate.T3M.Verify.FtsGood
 
 /-! # The complete verifier: forest, signature layers, Merkle paths and root comparison
 
-The accepting forest bound is 2675 cycles (n3-99 relabel 2676, digest header cut −1) at the 115-fold cap. The four
-layers and final comparison cost 5969 cycles; the six-cycle load block gives 5975 after the forest. Thus the
-accepting bound is 8650 cycles. Fuel 15418 and every-path cycle bound 15425 (`6 + lFuel 4 = 8050` after the
+The accepting forest bound is 2666 cycles with the exact canonical FTS schedule bound at the 115-fold cap. The four
+layers and final comparison cost 5965 cycles; the four-cycle load block gives 5969 after the forest. Thus the
+accepting bound is 8635 cycles. Fuel 15460 and every-path cycle bound 15467 (`5 + lFuel 4 = 8045` after the
 forest). The paired decoder lowers the top accepting transition by 46 cycles;
 the last lower layer target 194 adds 9 cycles. The lower checksum register, leaf dispatch and
 layer-3 index copy cuts and the top Merkle chunk-0 dispatch cut save 8 cycles. T3X: the lower layers read their WOTS
@@ -152,8 +152,8 @@ def lFuel : Nat → Nat
   | 0 => 9
   | n + 1 => layerFuel n + mkFuel n + lFuel n
 
-theorem lCyc_4 : lCyc 4 = 5969 := by decide
-theorem lFuel_4 : lFuel 4 = 8021 := by decide
+theorem lCyc_4 : lCyc 4 = 5965 := by decide
+theorem lFuel_4 : lFuel 4 = 8017 := by decide
 
 /-- **The layers and the compare**: from `RestIn … n M s`, `layersP w index n M` continued by `kFin pk`. -/
 theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^ 31) (Q : Prop) (hQ : Q) :
@@ -184,11 +184,11 @@ theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^
 /-! ## From V2's `FtsOut` and from the initial state -/
 
 /-- **After the FTS** (V2's `verifyP_good_fts` interface): from `FtsOut`, `afterFts` — the four layers and the
-compare — with fuel and every-path bound 8050 (`6 + lFuel 4 = 8050`) and accepting cycles 5975 (`6 + lCyc 4`; T3K: the
-6-cycle load block at 656 before layer 3's copy at 662). -/
+compare — with fuel and every-path bound 8045 (`5 + lFuel 4 = 8045`) and accepting cycles 5969 (`4 + lCyc 4`; T3K: the
+4-cycle load block at 656 before layer 3's copy at 660). -/
 theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutput) (root : Digest) (u : MachineState)
     (h : FtsOut ⟨pk, w, a⟩ root u) :
-    GoodQ u 8050 8050 Q 5975 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
+    GoodQ u 8045 8045 Q 5969 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
   have hidx : a.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by decide)
   obtain ⟨t, hst, hL3⟩ := layerIn_of_fts w pk _ root u hidx h.glob h.idx h.pc h.root h.wit
   have hg := layers_good w pk _ hidx Q hQ 4 le_rfl root t (by simpa [RestIn] using hL3)
@@ -199,10 +199,10 @@ theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutpu
   rw [lFuel_4, lCyc_4] at hg
   exact GoodQ.steps' hst hg (by omega) (by omega) (fun q => ⟨q, by omega⟩)
 
-/-- **The whole verify run**: from the initial state, every run finishes within 15425 cycles with fuel 15418, and
-accepting runs take at most `8650 = 2675 + 5975` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
+/-- **The whole verify run**: from the initial state, every run finishes within 15467 cycles with fuel 15460, and
+accepting runs take at most `8635 = 2666 + 5969` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
 theorem verifyP_good (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
-    GoodQ s 15418 15425 True 8650 (ccM (verifyP m pk w) Kb) :=
-  verifyP_good_fts m pk w s hs 8050 5975 True (fun a root u h => after_good pk w True trivial a root u h)
+    GoodQ s 15460 15467 True 8635 (ccM (verifyP m pk w) Kb) :=
+  verifyP_good_fts m pk w s hs 8045 5969 True (fun a root u h => after_good pk w True trivial a root u h)
 
 end SigGolfCandidate.T3M

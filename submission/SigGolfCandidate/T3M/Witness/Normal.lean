@@ -29,7 +29,7 @@ def segShape (w : WBytes) : List Nat → Nat → Nat → Option (Nat × Nat × L
   | stack, E, ptr =>
       let b := (wbyte w ptr).toNat
       if 11 < b % 16 then none
-      else if 0 < b % 16 ∧ b / 32 % 2 ≠ E % 2 then none
+      else if 0 < b % 16 ∧ b / 32 % segSideMod (b % 16) ≠ E % segSideMod (b % 16) then none
       else
         let E := E / 2 ^ (b % 16)
         let ptr := segNext ptr (b % 16)

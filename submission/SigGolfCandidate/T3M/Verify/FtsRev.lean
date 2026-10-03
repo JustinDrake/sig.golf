@@ -23,6 +23,33 @@ def rv (E : Nat) : BitVec 64 := BitVec.ofNat 64 (revBits 64 E)
 theorem rv_toNat (E : Nat) : (rv E).toNat = revBits 64 E := by
   unfold rv; rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (revBits_lt 64 E)]
 
+/-- Split reversal into the high image of the low bits and the remaining low image. -/
+theorem revBits_split (n k v : Nat) :
+    revBits (n+k) v = revBits k v * 2^n + revBits n (v / 2^k) := by
+  induction k generalizing v with
+  | zero => simp [revBits]
+  | succ k ih =>
+    rw [show n+(k+1)=(n+k)+1 by omega, revBits, ih, revBits]
+    rw [Nat.div_div_eq_div_mul, show 2*2^k=2^(k+1) by rw [Nat.pow_succ]; omega]
+    rw [Nat.pow_add]
+    ring
+
+theorem revBits_prefix (n k v : Nat) : revBits (n+k) v / 2^n = revBits k v := by
+  rw [revBits_split, Nat.add_comm, Nat.add_mul_div_right _ _ (Nat.two_pow_pos n),
+    Nat.div_eq_of_lt (revBits_lt n _), Nat.zero_add]
+
+theorem rv_srl_prefix (E k : Nat) (hk : 0<k ∧ k≤64) :
+    BinOp.eval .srl (rv E) (BitVec.ofNat 64 (64-k)) = BitVec.ofNat 64 (revBits k E) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BinOp.eval, BitVec.toNat_ushiftRight, rv_toNat, BitVec.toNat_ofNat]
+  rw [Nat.mod_eq_of_lt (by omega : 64-k<2^64), Nat.mod_eq_of_lt (by omega : 64-k<64)]
+  rw [Nat.shiftRight_eq_div_pow]
+  have hp := revBits_prefix (64-k) k E
+  simp only [Nat.sub_add_cancel hk.2] at hp
+  rw [hp]
+  exact (Nat.mod_eq_of_lt (lt_of_lt_of_le (revBits_lt k E)
+    (Nat.pow_le_pow_right (by decide) hk.2))).symm
+
 theorem rv_sll1 (E : Nat) (hE : E < 2 ^ 64) : BinOp.eval .sll (rv E) (BitVec.ofNat 64 1) = rv (E / 2) := by
   apply BitVec.eq_of_toNat_eq
   simp only [BinOp.eval, BitVec.toNat_shiftLeft, rv_toNat, Nat.shiftLeft_eq]

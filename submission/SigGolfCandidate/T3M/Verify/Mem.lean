@@ -195,6 +195,8 @@ theorem merge_w0_high (w v : BitVec 64) :
 of the short-offset accesses, `WIT + off - 2047`; also the SWAR modulus of the layers). -/
 def baseK : List (Reg × Word) := [(.x5, 0), (.x18, 0xFFF)]
 
+def carryK : List (Reg × Word) := baseK ++ [(.x2,0x1000000),(.x7,2),(.x8,3),(.x9,4),(.x13,5)]
+
 /-- The zero words of the encoding block `[M | T | LE32 c | 0^28]` at `0x100` that no instruction writes. -/
 def pSlots : List Nat := [0x128, 0x130, 0x138]
 
