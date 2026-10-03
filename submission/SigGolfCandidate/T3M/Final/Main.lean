@@ -4,7 +4,7 @@ import SigGolfCandidate.T3M.Final.BridgeMain
 /-!
 # The T3 certificate (legacy contract)
 
-`certificate_of : Pending → SourceFacts → Legacy.Certificate T3M.submission 8541` — every organizer requirement from the
+`certificate_of : Pending → SourceFacts → Legacy.Certificate T3M.submission 8532` — every organizer requirement from the
 named machine statements (`Pending`) and source statements (`SourceFacts`), nothing else:
 
 | field | proof |
@@ -14,7 +14,7 @@ named machine statements (`Pending`) and source statements (`SourceFacts`), noth
 | `completeness` | `submission_complete` (`Final/Completeness`) |
 | `compressionBounds` | `submission_compressionBounds` (`Final/Budgets`) |
 | `security` | `submission_secure` (`Final/BridgeMain`) with `qfacts` |
-| `verificationBound` | `honest_success_verify` + `VerifyAcceptCycles` (8446) + `witnessCycles 24264 = 95` |
+| `verificationBound` | `honest_success_verify` + `VerifyAcceptCycles` (8438) + `witnessCycles 24264 = 95` |
 -/
 
 open OracleComp OracleSpec
@@ -61,8 +61,8 @@ theorem witnessCycles_eq : witnessCycles submission.sizes.witness = 95 := rfl
 
 theorem claimedC_eq : claimedC = verifyCycleBound + witnessCycles submission.sizes.witness := rfl
 
-/-- **Verification bound** `8541 = 8446 + ⌈24264 / 256⌉`. -/
-theorem submission_verificationBound (P : Pending) : submission.VerificationBound 8541 := by
+/-- **Verification bound** `8533 = 8438 + ⌈24264 / 256⌉`. -/
+theorem submission_verificationBound (P : Pending) : submission.VerificationBound 8532 := by
   intro hash sk m
   dsimp only
   intro h
@@ -73,7 +73,7 @@ theorem submission_verificationBound (P : Pending) : submission.VerificationBoun
   omega
 
 /-- **The T3 certificate** (legacy contract), from the machine and source statements. -/
-theorem certificate_of (P : Pending) (S : SourceFacts) : Certificate submission 8541 where
+theorem certificate_of (P : Pending) (S : SourceFacts) : Certificate submission 8532 where
   admissible := submission_admissible
   termination := submission_terminates P
   completeness := submission_complete P S

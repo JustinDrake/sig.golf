@@ -38,8 +38,8 @@ def proBr (d : Bool) : Br := ⟨.ne, .bin .srl lwuDc (cw 20), .c 0, d⟩
 def proSpec : Spec :=
   ⟨[(.x4, cw 3073)],
     [(⟨none, BitVec.ofNat 64 0x28⟩, .ld (cw 0x808)), (⟨none, BitVec.ofNat 64 0x20⟩, .ld (cw 0x800)),
-      (⟨none, BitVec.ofNat 64 0x30⟩, cw 0xc01), (⟨none, BitVec.ofNat 64 0x38⟩, .bin .sll lwuDc (cw 32))],
-    16, true, 16, [proBr false], none, 16⟩
+      (⟨none, BitVec.ofNat 64 0x30⟩, cw 0xc01), (⟨none, BitVec.ofNat 64 0x38⟩, .bin (.st .w 4) (.ld (cw 0x38)) lwuDc)],
+    15, true, 15, [proBr false], none, 15⟩
 
 def proPost : List (Reg × Word) := baseK ++ [(.x10, 32), (.x11, 64), (.x12, 96)]
 
@@ -94,7 +94,7 @@ theorem proBr_iff (w : WBytes) (s : MachineState) (hW : WitAll w s) (d : Bool) :
 
 /-- After the prologue, before the digest `ECALL`: `s2`, `t0`, the HASH arguments, the digest block. -/
 structure DgPre (m : T3.Message) (pk : Digest) (w : WBytes) (t : MachineState) : Prop where
-  pc : t.pc = pcOf 16
+  pc : t.pc = pcOf 15
   known : KnownOK proPost t
   wit : WitAll w t
   pk : PkOK pk t
@@ -104,7 +104,7 @@ structure DgPre (m : T3.Message) (pk : Digest) (w : WBytes) (t : MachineState) :
 
 /-- After the digest `HASH` (answer `a`, the output `N` at `0x60`). -/
 structure DgOut (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState) : Prop where
-  pc : u.pc = pcOf 17
+  pc : u.pc = pcOf 16
   known : KnownOK proPost u
   wit : WitAll w u
   pk : PkOK pk u
@@ -116,7 +116,7 @@ structure DgOut (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u 
 theorem digest_step (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
     ((wdc w).toNat ≥ attemptLimit → ∃ u, Steps image s 8 8 u ∧ fetch image u = some (.base .ECALL) ∧
         u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
-    ((wdc w).toNat < attemptLimit → ∃ t, Steps image s 16 16 t ∧ fetch image t = some (.base .ECALL) ∧
+    ((wdc w).toNat < attemptLimit → ∃ t, Steps image s 15 15 t ∧ fetch image t = some (.base .ECALL) ∧
         hashArgumentsValid t = true ∧ hashInput t = toQ (pad64 (digestInput (wrho w) m (wdc w))) ∧
         DgPre m pk w t) := by
   have hk : KnownOK k0 s := hs.known
@@ -175,12 +175,9 @@ theorem digest_step (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineStat
           show (BitVec.ofNat 64 (32 + 24) = BitVec.ofNat 64 0x20) = False by decide,
           show (BitVec.ofNat 64 (32 + 24) = BitVec.ofNat 64 0x30) = False by decide,
           show (BitVec.ofNat 64 (32 + 24) = BitVec.ofNat 64 0x38) = True by decide, if_true, if_false]
-        show BinOp.eval .sll (lwuDc.eval s) (BitVec.ofNat 64 32) = _
-        rw [lwuDc_eval w s hs.wit]
-        simp only [BinOp.eval]
-        rw [ofNat_shl' _ 32, hdr1_eq 0 _ (by norm_num) (dc_lt w)]
-        congr 1
-        rw [show 32 % 2 ^ 64 % 64 = 32 by norm_num]; ring
+        change StoreKind.merge .w (s.getMem (BitVec.ofNat 64 0x38)) 4 (lwuDc.eval s) = _
+        rw [hs.zero 0x38 (by unfold WIT; omega) (by omega), lwuDc_eval w s hs.wit]
+        exact merge_hi 0 (wdc w).toNat
       have em : ∀ k, k < 4 → t.getMem (BitVec.ofNat 64 (32 + 32 + 8 * k)) = m.extractLsb' (64 * k) 64 := by
         intro k hk
         rw [frame _ (by omega) (by omega) (by omega) (by omega) (by omega), ← hs.msg k hk]
@@ -237,7 +234,7 @@ theorem digestP_good (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineSta
     {N C A : Nat} {Q : Prop} (K : Option HashOutput → OracleComp HashSpec Obs)
     (hK : K none = pure (false, 0))
     (hcont : ∀ a u, DgOut m pk w a u → GoodQ u N C Q A (K (some a))) :
-    GoodQ s (N + 17) (C + 24) Q (A + 24) (ccM (digestP m w) K) := by
+    GoodQ s (N + 17) (C + 24) Q (A + 23) (ccM (digestP m w) K) := by
   obtain ⟨hrej, hacc⟩ := digest_step m pk w s hs
   unfold digestP
   by_cases hdc : (wdc w).toNat ≥ attemptLimit

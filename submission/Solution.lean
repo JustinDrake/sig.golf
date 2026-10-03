@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 128 KiB authenticated
-paired-mask full cache. `S = 5616` bytes, `W = 24264` bytes, `K = 131072` bytes (cache), `C = 8541` cycles
-(accepting-verify bound `8446` plus the witness charge `⌈24264 / 256⌉ = 95`). Layout (bytes): message 64,
+paired-mask full cache. `S = 5616` bytes, `W = 24264` bytes, `K = 131072` bytes (cache), `C = 8533` cycles
+(accepting-verify bound `8438` plus the witness charge `⌈24264 / 256⌉ = 95`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 524288, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,7 +19,7 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 8446); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 8438); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
@@ -131,7 +131,17 @@ actual routes. High-word metadata outside that graph preserves the original gene
 it is zero throughout the graph. Low-word bit 55 marks nonzero off-graph metadata, keeping those
 source-only helpers distinct after high-word normalization. The verifier writes only the low word and hashes the remaining high
 word as arbitrary witness padding. All four images use the packed input format. Packed-head and terminal credits
-combine in the accepting bound of 8446 cycles, with the unchanged witness charge giving 8541.
+combine in the accepting bound of 8437 cycles, with the unchanged witness charge giving 8532.
+TOP-jal (gopikannappan's f4e60959 cut, re-applied here): each top transition copy enters the packed-prefix
+helper with one `jal ra, 724` whose link is the top leaf-pk block, moved up to the copy's word 14, instead of
+`j` plus `jal` (one cycle).
+S6 (gopikannappan's f4e60959 cut, re-applied here): below layer 3 each transition copy computes the next layer's
+`s6` as `addi s6, a0, -1728` from the last Merkle block address left in `a0`, instead of `lui s6; addi s6`
+(one cycle on each of layers 2 and 1).
+S11 (gopikannappan's f4e60959 cut, re-applied here): `s11` carries the encoding header word 0 directly (the layer-3
+data word is `0x30401`, pre-biased by `0x300`), so every layer's encoding header is one `sd s11, 0x110` instead of
+`addi gp, s11, 0x300; sd gp` (the leaf and Merkle header words use `-0x200` / `-0x100`; one cycle on each of the
+four layers). The cuts above are included in the 8437 / 8532 bounds.
 -/
 
 namespace SigGolf.Challenge
@@ -148,7 +158,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8541 :=
+theorem certificate : SigGolf.Certificate submission 8532 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge

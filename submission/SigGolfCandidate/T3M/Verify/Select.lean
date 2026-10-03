@@ -500,7 +500,7 @@ theorem idxE_eval (a : HashOutput) (s : MachineState)
 theorem sel_setup (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState)
     (hu : DgOut m pk w a u) : ∃ t, Steps image u 6 6 t ∧ SelIn pk w a 0 t := by
   have hk : KnownOK selK u := selK_of (hu.known.mono (fun p hp => by simp [proPost]; exact Or.inl hp)) hu.sp
-  obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt selK [23] 17 []) setupSpec [] selK [] = true
+  obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt selK [22] 16 []) setupSpec [] selK [] = true
     from setupCheck_ok) u hu.pc hk (by simp [setupSpec]) (by simp)
   have hmem : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
   refine ⟨t, ht.steps, ⟨by rw [ht.pc rfl]; rfl, selK_base ht.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, selK_sp ht.known⟩⟩
@@ -651,7 +651,7 @@ theorem select_good (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput)
 theorem verifyP_good_sel (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     {N C A : Nat} {Q : Prop}
     (hfts : ∀ a t, SelIn pk w a 7 t → GoodQ t N C Q A (ccM (afterSel pk w a) Kb)) :
-    GoodQ s (N + 206) (C + 213) Q (A + 204) (ccM (verifyP m pk w) Kb) := by
+    GoodQ s (N + 206) (C + 213) Q (A + 203) (ccM (verifyP m pk w) Kb) := by
   rw [verifyP_eq, ccM_bind]
   have := digestP_good m pk w s hs (N := N + 189) (C := C + 189) (A := A + 180) (Q := Q)
     (fun o => ccM (match o with
