@@ -28,8 +28,8 @@ def selOk1 (s : Selection) : Bool :=
 
 theorem selectionsOk_eq (chosen : List Selection) : selectionsOk chosen = chosen.all selOk1 := rfl
 
-/-- The heap index of unsorted leaf `j` of coordinate `c`. -/
-def eVal (a : HashOutput) (c j : Nat) : Nat := 2048 + 128 * (selNum a.toNat c % 16) + selX a.toNat c j
+/-- t3-rl2: the header-table address of unsorted leaf `j` of coordinate `c`. -/
+def eVal (a : HashOutput) (c j : Nat) : Nat := TAB + 8 * (128 * (selNum a.toNat c % 16) + selX a.toNat c j)
 
 /-- The accepting path of a distinct triple. -/
 def selPath (x0 x1 x2 : Nat) : Nat :=
@@ -73,12 +73,13 @@ theorem gpE_eval (a : HashOutput) (s : MachineState) (h : NRegs a s) (c : Nat) (
 
 theorem xE_eval (a : HashOutput) (s : MachineState) (h : NRegs a s) (c j : Nat) (hc : c < 7) (hj : j < 3) :
     (xE c j).eval s = BitVec.ofNat 64 (eVal a c j) := by
-  have := xval_eq ((gpE c).eval s) (selNum a.toNat c) j hj (gpE_eval a s h c hc)
+  have := xaddr_eq ((gpE c).eval s) (BitVec.ofNat 64 TAB) (selNum a.toNat c) TAB j hj (gpE_eval a s h c hc) rfl
+    (by unfold TAB; omega)
   unfold eVal selX
   rw [← this]; rfl
 
-theorem eVal_lt (a : HashOutput) (c j : Nat) : eVal a c j < 4096 := by
-  unfold eVal selX
+theorem eVal_lt (a : HashOutput) (c j : Nat) : eVal a c j < 33554432 := by
+  unfold eVal selX TAB
   have := Nat.mod_lt (selNum a.toNat c) (show 0 < 16 by decide)
   have := Nat.mod_lt (selNum a.toNat c / 2 ^ (4 + 7 * j)) (show 0 < 128 by decide)
   omega
@@ -89,8 +90,11 @@ theorem geuB_holds (a : HashOutput) (s : MachineState) (h : NRegs a s) (c i j : 
   simp only [geuB, Br.holds, CmpOp.eval, xE_eval a s h c i hc hi, xE_eval a s h c j hc hj, BitVec.ult,
     toNat_ofNat_lt (lt_trans (eVal_lt a c i) (by norm_num)),
     toNat_ofNat_lt (lt_trans (eVal_lt a c j) (by norm_num))]
-  unfold eVal
-  cases d <;> simp
+  have e : decide (eVal a c i < eVal a c j) = decide (selX a.toNat c i < selX a.toNat c j) := by
+    unfold eVal; apply decide_eq_decide.mpr; omega
+  first
+  | (rw [e]; cases d <;> simp)
+  | (unfold eVal; cases d <;> simp <;> omega)
 
 theorem eqB_holds (a : HashOutput) (s : MachineState) (h : NRegs a s) (c i j : Nat) (hc : c < 7)
     (hi : i < 3) (hj : j < 3) (d : Bool) :
@@ -126,13 +130,29 @@ structure SelIn (pk : Digest) (w : WBytes) (a : HashOutput) (c : Nat) (s : Machi
   nregs : NRegs a s
   idx : s.getReg .x22 = BitVec.ofNat 64 (a.toNat % 2 ^ 31)
   etab : ∀ c' k, c' < c → k < 3 →
-    s.getMem (BitVec.ofNat 64 (ETAB + 24 * c' + 8 * k)) = BitVec.ofNat 64 (2048 + T3M.selLeaf (selC a c') k)
+    s.getMem (BitVec.ofNat 64 (ETAB + 24 * c' + 8 * k)) = BitVec.ofNat 64 (TAB + 8 * T3M.selLeaf (selC a c') k)
   ok : ∀ c', c' < c → selOk1 (selC a c') = true
   wit : WitAll w s
   pk : PkOK pk s
   zero : ∀ A, A < WIT → (A < 0x20 ∨ (0x80 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → (A < ETAB ∨ ETAB + 24 * c ≤ A) →
     s.getMem (BitVec.ofNat 64 A) = 0
   data : DataOK s
+  /-- t3-rl2: `sp = TAB`. -/
+  sp : s.getReg .x2 = BitVec.ofNat 64 TAB
+
+theorem selK_of {s : MachineState} (h1 : KnownOK baseK s) (h2 : s.getReg .x2 = BitVec.ofNat 64 TAB) :
+    KnownOK selK s := by
+  intro p hp
+  simp only [selK, List.mem_append, List.mem_singleton] at hp
+  rcases hp with hp | rfl
+  · exact h1 p hp
+  · exact h2
+
+theorem selK_base {s : MachineState} (h : KnownOK selK s) : KnownOK baseK s :=
+  fun p hp => h p (List.mem_append_left _ hp)
+
+theorem selK_sp {s : MachineState} (h : KnownOK selK s) : s.getReg .x2 = BitVec.ofNat 64 TAB :=
+  h (.x2, BitVec.ofNat 64 TAB) (List.mem_append_right _ (List.mem_singleton_self _))
 
 /-- HALT(1) reached. -/
 def Halt1 (u : MachineState) : Prop :=
@@ -149,7 +169,7 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
       (selPerm p).map (selX a.toNat c))
     (hok : selOk1 (selC a c) = true) :
     ∃ u, Steps image s (selExt c + 12 + selTree p) (selExt c + 12 + selTree p) u ∧ SelIn pk w a (c + 1) u := by
-  obtain ⟨u, hu⟩ := spec_run (selCheck_at c p hc hp) s hs.pc hs.known hbr (by simp)
+  obtain ⟨u, hu⟩ := spec_run (selCheck_at c p hc hp) s hs.pc (selK_of hs.known hs.sp) hbr (by simp)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
       if A = ETAB + 24 * c + 16 then (xE c ((selPerm p).getD 2 0)).eval s
       else if A = ETAB + 24 * c + 8 then (xE c ((selPerm p).getD 1 0)).eval s
@@ -167,11 +187,11 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
       rfl | rfl | rfl | rfl | rfl | rfl <;>
     rcases (show k = 0 ∨ k = 1 ∨ k = 2 by omega) with rfl | rfl | rfl <;> decide
   have hstore : ∀ k, k < 3 → u.getMem (BitVec.ofNat 64 (ETAB + 24 * c + 8 * k)) =
-      BitVec.ofNat 64 (2048 + T3M.selLeaf (selC a c) k) := by
+      BitVec.ofNat 64 (TAB + 8 * T3M.selLeaf (selC a c) k) := by
     intro k hk
     rw [hmem _ (by unfold ETAB; omega)]
     have hv : ∀ k', k' < 3 → (xE c ((selPerm p).getD k' 0)).eval s =
-        BitVec.ofNat 64 (2048 + T3M.selLeaf (selC a c) k') := by
+        BitVec.ofNat 64 (TAB + 8 * T3M.selLeaf (selC a c) k') := by
       intro k' hk'
       rw [xE_eval a s hs.nregs c _ hc (hperm k' hk'), selC_eq a c hc]
       unfold T3M.selLeaf eVal
@@ -189,7 +209,7 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
       u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA hA'
     rw [hmem A hA, if_neg (by omega), if_neg (by omega), if_neg (by omega)]
-  refine ⟨u, hu.steps, ⟨?_, hu.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+  refine ⟨u, hu.steps, ⟨?_, selK_base hu.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, selK_sp hu.known⟩⟩
   · rw [hu.pc rfl]; rfl
   · intro k hk; rw [hu.keep (nReg k) (by
       rcases (show k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 by omega) with rfl | rfl | rfl | rfl <;> simp [selKeep, nReg])]
@@ -214,7 +234,7 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
     exact hs.zero A hA hz (by omega)
   · apply hs.data.congr
     intro A hA hEnd
-    exact hframe A (by omega) (Or.inr (by unfold ETAB HDATA at *; omega))
+    exact hframe A (by omega) (Or.inr (by unfold ETAB TAB at *; omega))
 
 end SigGolfCandidate.T3M.Verify
 
@@ -287,7 +307,7 @@ theorem sel_rej_path (pk : Digest) (w : WBytes) (a : HashOutput) (c r : Nat) (hc
     ∃ u, Steps image s (selRSteps c r) (selRSteps c r) u ∧ Halt1 u := by
   have hbr : ∀ b ∈ selRBrs c r, b.holds s := by
     rw [selRBrs_eq c r hr]; exact holds_of_condQ a s hs.nregs c hc _ (selRBrsQ_idx r hr) hq
-  obtain ⟨u, hu⟩ := spec_run (selRCheck_at c r hc hr) s hs.pc hs.known hbr (by simp)
+  obtain ⟨u, hu⟩ := spec_run (selRCheck_at c r hc hr) s hs.pc (selK_of hs.known hs.sp) hbr (by simp)
   exact ⟨u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
     hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
 
@@ -412,11 +432,11 @@ theorem idxE_eval (a : HashOutput) (s : MachineState)
 
 theorem sel_setup (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState)
     (hu : DgOut m pk w a u) : ∃ t, Steps image u 6 6 t ∧ SelIn pk w a 0 t := by
-  have hk : KnownOK baseK u := hu.known.mono (fun p hp => by simp [proPost]; exact Or.inl hp)
-  obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt baseK [23] 17 []) setupSpec [] baseK [] = true
+  have hk : KnownOK selK u := selK_of (hu.known.mono (fun p hp => by simp [proPost]; exact Or.inl hp)) hu.sp
+  obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt selK [23] 17 []) setupSpec [] selK [] = true
     from setupCheck_ok) u hu.pc hk (by simp [setupSpec]) (by simp)
   have hmem : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
-  refine ⟨t, ht.steps, ⟨by rw [ht.pc rfl]; rfl, ht.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+  refine ⟨t, ht.steps, ⟨by rw [ht.pc rfl]; rfl, selK_base ht.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, selK_sp ht.known⟩⟩
   · intro k hk'
     have r16 : t.getReg .x16 = (nE 0).eval u := ht.regs (.x16, nE 0) (by simp [setupSpec])
     have r17 : t.getReg .x17 = (nE 1).eval u := ht.regs (.x17, nE 1) (by simp [setupSpec])

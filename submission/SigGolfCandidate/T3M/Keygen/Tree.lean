@@ -30,9 +30,9 @@ namespace LevArgs
 variable (B : LevArgs)
 
 /-- Steps of `build_levels`. -/
-def levK : Nat := 3 + sumTo (fun j => 6 + 39 * 2 ^ (B.h - 1 - j)) B.h + 2
-/-- Cycles of `build_levels`. -/
-def levC : Nat := 3 + sumTo (fun j => 6 + 46 * 2 ^ (B.h - 1 - j)) B.h + 2
+def levK : Nat := 3 + sumTo (fun j => 6 + (39 + revX B.tag) * 2 ^ (B.h - 1 - j)) B.h + 2
+/-- Cycles of `build_levels` (tag 10 nodes run the 28-instruction reversal stub). -/
+def levC : Nat := 3 + sumTo (fun j => 6 + (46 + revX B.tag) * 2 ^ (B.h - 1 - j)) B.h + 2
 /-- Calls (= compressions) of `build_levels`. -/
 def levN : Nat := sumTo (fun j => 2 ^ (B.h - 1 - j)) B.h
 
@@ -54,7 +54,7 @@ structure LevPre (s : MachineState) (B : LevArgs) (leaves : List Digest) : Prop 
   x9 : s.getReg .x9 = BitVec.ofNat 64 B.tree
   x15 : s.getReg .x15 = BitVec.ofNat 64 B.h
   x21 : s.getReg .x21 = BitVec.ofNat 64 (hdr0 B.tag B.lay B.tree 0)
-  packed : T3.packedNodeTag B.tag
+  tag3 : B.tag = 3 ∨ B.tag = 10
   htree : B.tree < 2 ^ 32
   hh1 : 1 ≤ B.h
   hh : B.h ≤ 12
@@ -97,11 +97,18 @@ theorem wordsOf_nodeInput (tag lay tree heap : Nat) (l r : Digest)
     (hn : T3.packedNodeTag tag := by decide) :
     wordsOf (bytesLE 16 l ++ bytesLE 16 (header tag lay tree 0 heap) ++ zero16 ++ bytesLE 16 r) =
       [l.extractLsb' 0 64, l.extractLsb' 64 64, BitVec.ofNat 64 (hdr0 tag lay tree tree),
-        BitVec.ofNat 64 (hdr1 heap 0), 0, 0, r.extractLsb' 0 64, r.extractLsb' 64 64] := by
+        BitVec.ofNat 64 (T3.nodeWord tag 0 heap), 0, 0, r.extractLsb' 0 64, r.extractLsb' 64 64] := by
   rw [wordsOf_append _ _ (by simp [bytesLE_length, zero16]), wordsOf_append _ _ (by simp [bytesLE_length]),
     wordsOf_append _ _ (by simp [bytesLE_length]), wordsOf_bytesLE16, wordsOf_packed_header _ _ _ _ _ hn, wordsOf_zero16,
     wordsOf_bytesLE16]
   rfl
+
+/-- Tag 3: word 1 of the node header is the plain `hdr1 heap 0`. -/
+theorem wordsOf_nodeInput_3 (lay tree heap : Nat) (l r : Digest) :
+    wordsOf (bytesLE 16 l ++ bytesLE 16 (header 3 lay tree 0 heap) ++ zero16 ++ bytesLE 16 r) =
+      [l.extractLsb' 0 64, l.extractLsb' 64 64, BitVec.ofNat 64 (hdr0 3 lay tree tree),
+        BitVec.ofNat 64 (hdr1 heap 0), 0, 0, r.extractLsb' 0 64, r.extractLsb' 64 64] := by
+  rw [wordsOf_nodeInput 3 lay tree heap l r (by decide), nodeWord_3]
 
 theorem two_pow_split {h l : Nat} (hl : l < h) : 2 ^ (h - l) = 2 * 2 ^ (h - l - 1) := by
   rw [← Nat.pow_succ']; congr 1; omega
@@ -115,7 +122,7 @@ include hsub hpre
 theorem lev_node {ℓ : Nat} (hl : ℓ < B.h) {levels : List (List Digest)} {pre : List Digest}
     (hi : pre.length < 2 ^ (B.h - ℓ - 1)) {t : MachineState} (ht : NodeInv s0 B ℓ levels pre t)
     (hpc : t.pc = pcOf (b + 118)) :
-    TSim image sk t 39 46 1 1
+    TSim image sk t (39 + revX B.tag) (46 + revX B.tag) 1 1
       (nodeHash B.tag B.lay B.tree (2 ^ (B.h - (ℓ + 1)) + pre.length)
         ((levels.getD ℓ []).getD (2 * pre.length) 0) ((levels.getD ℓ []).getD (2 * pre.length + 1) 0))
       (fun v u => u.pc = pcOf (b + 118) ∧ NodeInv s0 B ℓ levels (pre ++ [v]) u) := by
@@ -142,9 +149,10 @@ theorem lev_node {ℓ : Nat} (hl : ℓ < B.h) {levels : List (List Digest)} {pre
   obtain ⟨t1, st1, t1pc, t1r, t1f⟩ := sub118_spec hsub t hpc lo (lo + i) (by omega) (by omega) ht.x20 ht.x24
   rw [if_pos (by omega)] at t1pc
   obtain ⟨t2, st2, t2pc, t2x10, t2x11, t2x12, t2n0, t2n8, t2n16, t2n24, t2n48, t2n56, t2r, t2f⟩ :=
-    sub120_spec hsub t1 t1pc B.arena (lo + i) B.tree ha8 (by omega) (by omega) hpre.htree
+    sub120_full hsub t1 t1pc B.tag B.lay B.arena (lo + i) B.tree hpre.tag3 ha8 (by omega) (by omega) hpre.htree
       (by simp only [NODE, NOUT] at has ⊢; omega) (by rw [t1r.get (by simp)]; exact r2)
       (by rw [t1r.get (by simp)]; exact ht.x24) (by rw [t1r.get (by simp)]; exact r9)
+      (by rw [t1r.get (by simp)]; exact r21)
   -- the children in the heap (level ℓ, nodes 2i and 2i+1)
   obtain ⟨hlen, hlev⟩ := ht.heap
   obtain ⟨hll, hlv⟩ := hlev ℓ le_rfl
@@ -167,10 +175,9 @@ theorem lev_node {ℓ : Nat} (hl : ℓ < B.h) {levels : List (List Digest)} {pre
     rw [pad64_of_aligned _ (by rw [nodeInput_length])]
     refine hashInput_toQ t2 _ 0 NODE (nodeInput_length _ _ _ _ _ _) t2x10 (by decide) (by decide) t2x11
       (by decide) ?_
-    rw [wordsOf_nodeInput _ _ _ _ _ _ hpre.packed, readWords_eight, t2n0, t2n8, t2n16, t2n24, fr (NODE + 32) (by simp),
+    rw [wordsOf_nodeInput _ _ _ _ _ _ (by rcases hpre.tag3 with h | h <;> rw [h] <;> decide), readWords_eight, t2n0, t2n8, t2n16, t2n24, fr (NODE + 32) (by simp),
       fr (NODE + 40) (by simp), t2n48, t2n56, hpre.z32, hpre.z40, hL1.1, hL1.2, hR1.1, hR1.2,
       t1r.get (by simp), r21, hdr0_or_tree B.tag B.lay B.tree hpre.htree]
-    simp only [hdr1, Nat.zero_mod, Nat.zero_mul, Nat.add_zero, Nat.mod_eq_of_lt (show lo + i < 2^32 by omega)]
   have hv : hashArgumentsValid t2 = true :=
     hashArgs_const t2 NODE 64 NOUT t2x10 t2x11 t2x12 (by decide) (by decide) (by decide) (by decide)
       (by decide)
@@ -229,12 +236,13 @@ theorem lev_node {ℓ : Nat} (hl : ℓ < B.h) {levels : List (List Digest)} {pre
         omega
       · rw [show B.arena + 16 * lo + 16 * i = B.arena + 16 * (lo + i) by ring]; exact hnew
   all_goals (try rw [hblk])
-  all_goals rfl
+  all_goals (first | rfl | omega)
 
 /-- One level `ℓ + 1` (`lo = 2^(h-ℓ-1)` nodes) from `lv_level`. -/
 theorem lev_level {ℓ : Nat} (hl : ℓ < B.h) {levels : List (List Digest)} {t : MachineState}
     (ht : LevInv s0 B ℓ levels t) (hpc : t.pc = pcOf (b + 116)) :
-    TSim image sk t (6 + 39 * 2 ^ (B.h - 1 - ℓ)) (6 + 46 * 2 ^ (B.h - 1 - ℓ)) (2 ^ (B.h - 1 - ℓ))
+    TSim image sk t (6 + (39 + revX B.tag) * 2 ^ (B.h - 1 - ℓ)) (6 + (46 + revX B.tag) * 2 ^ (B.h - 1 - ℓ))
+      (2 ^ (B.h - 1 - ℓ))
       (2 ^ (B.h - 1 - ℓ))
       (do let nodes ← buildLevel B.tag B.lay B.tree B.h (1 + ℓ) (levels.getD (1 + ℓ - 1) [])
           pure (levels ++ [nodes]))
@@ -274,7 +282,7 @@ theorem lev_level {ℓ : Nat} (hl : ℓ < B.h) {levels : List (List Digest)} {t 
   unfold buildLevel
   rw [hnodes]
   refine (TSim.steps (st1.trans st2) (TSim.bind (k₂ := 4) (c₂ := 4) (n₂ := 0) (b₂ := 0)
-    (TSim.mapM_range lo _ (fun _ => 39) (fun _ => 46) (fun _ => 1) (fun _ => 1)
+    (TSim.mapM_range lo _ (fun _ => 39 + revX B.tag) (fun _ => 46 + revX B.tag) (fun _ => 1) (fun _ => 1)
       (fun pre w => w.pc = pcOf (b + 118) ∧ NodeInv s0 B ℓ levels pre w)
       (fun pre w hpre' hw => ?_) ⟨t2pc, h0⟩) (fun nodes w hw => ?_))).of_eq rfl ?_ ?_ ?_ ?_
   · rw [show 1 + ℓ - 1 = ℓ by omega, show 1 + ℓ = ℓ + 1 by omega]
@@ -311,7 +319,7 @@ theorem lev_level {ℓ : Nat} (hl : ℓ < B.h) {levels : List (List Digest)} {t 
           omega
         exact ⟨hlen, hw.cur.frame f12 (by rw [hlen]; omega) (fun X _ _ h => h.elim)⟩
   all_goals simp only [sumTo_const, hl1]
-  all_goals omega
+  all_goals (first | omega | ring)
 
 /-- **`build_levels`** (any image holding the shared code at base `b`): from the entry (offset 113)
 with the `2^h` leaves at heap indices `2^h ..`, the machine refines Core's
@@ -338,7 +346,7 @@ theorem buildLevels_tsim (hpc : s0.pc = pcOf (b + 113)) :
   refine (TSim.steps st1 (TSim.bind (k₂ := 2) (c₂ := 2) (n₂ := 0) (b₂ := 0) (f := Pure.pure)
     (TSim.foldlM_range' 1 B.h _ [leaves]
       (fun j levels t => t.pc = pcOf (b + 116) ∧ LevInv s0 B j levels t)
-      (fun j => 6 + 39 * 2 ^ (B.h - 1 - j)) (fun j => 6 + 46 * 2 ^ (B.h - 1 - j))
+      (fun j => 6 + (39 + revX B.tag) * 2 ^ (B.h - 1 - j)) (fun j => 6 + (46 + revX B.tag) * 2 ^ (B.h - 1 - j))
       (fun j => 2 ^ (B.h - 1 - j)) (fun j => 2 ^ (B.h - 1 - j))
       (fun j hj levels t ht => lev_level hsub sk hpre hj ht.2 ht.1) ⟨t1pc, h0⟩)
     (fun levels t ht => ?_))).of_eq (bind_pure _) ?_ ?_ ?_ ?_

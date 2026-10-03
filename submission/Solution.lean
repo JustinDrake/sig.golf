@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 128 KiB authenticated
-paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8908` cycles
-(accepting-verify bound `8809` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
+paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8873` cycles
+(accepting-verify bound `8774` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 524288, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,7 +19,7 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 8809); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 8774); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
@@ -37,29 +37,15 @@ patternrecognition9-del's live-root technique and terminal-store saving, and Fro
 lower-chain dispatch saving. The full cache stores all 8190 top-tree nodes below the root, using paired
 masks and a two-key four-lane polynomial MAC. The reduced signing hash work supports WOTS targets
 126/195/195/194. The new packed decoder and 54-chain top verifier include a proved eleven-cycle minimum
-terminal-store credit on every accepted top encoding. A 32 KiB read-only lookup table combines pairs
-of top rank sums. The forest segment header now carries the first three branch sides; masked checks
-validate only the bits used by short segments. Specialized first folds save instructions. Exact canonical-shape accounting proves a
-73-cycle reduction in the accepting forest bound relative to the paired-decoder parent, including
-the nine-cycle constant setup. The source-support bridge applies this bound to every accepting
-execution without assuming arbitrary witnesses were honestly generated.
-The four suffix cuts from znan2's accepted 094402f4 carry jungjipdo's checksum-register saving and
-newjordan's lower leaf dispatch, layer-3 index copy, and top Merkle chunk dispatch, saving eight
-additional cycles. The lower checksum constant is adjusted to target194 on layer3; the mixed-radix
-top code is preserved. Our complete packed leaf header and persistent coordinate comparands
-remove another 32 cycles after accounting for the combined 28-cycle FTS setup. The accepting
-forest prefix is 2718 and the complete charged bound is 8988. Subflatus3's digest header built from
-`s2` (e1344b79) saves one more cycle: the prefix is 2717. Layer 3 reuses the FTS exit's `sp` and the
-five step constants `x6 .. x9`, `x13` loaded by the FTS setup (generalizing cryptogakusei's 7212afef carry
-of `sp` and `t1`), removing six instructions on the accepting path. The setup's jump into the constant trampoline skips its
-`addi x6, x0, 1`, which the FTS setup sets again, so the setup takes 27 cycles and the accepting forest
-prefix is 2716; the complete charged bound was 8980. erickeigen's read-only WOTS header table (59cbf8ec) is
-applied to the three lower layers: each lower chain head loads its chain/digit header from a 16 KiB image table
-placed below the existing data (the pair and tail tables keep their addresses), replacing the header bump and
-the first byte store; a three-instruction entry stub selects the layer's bank and the leaf-pk return restores
-`t3 = 2^40`, so each lower layer saves 23 cycles and the complete charged bound was 8911. Placing the table at
-`0xFF3800` (2 KiB of zero padding before the pair table) makes every bank midpoint 4096-aligned, so each entry stub
-is `lui; jalr` and the complete charged bound is 8908.
+terminal-store credit on every accepted top encoding. The forest verifier carries the complete leaf
+header and persistent coordinate comparands, reducing its accepting prefix by 32 cycles to 2791; the relabelled FTS header (word 1 bit-reversed, a
+2048-word header table) saves one cycle per fold, to 2676. The digest header word is formed by one instruction
+from the constant 4095 (subflatus3's e1344b79 cut, idea jungjipdo), giving 2675. The lower layers carry znan2's
+T3T cuts (lower checksum register, leaf dispatch, layer-3 index copy, top Merkle chunk-0 dispatch; 8 cycles).
+The three lower layers read each WOTS chain's header word from a read-only header table in the image (erickeigen's
+59cbf8ec table design, ported by znan2's T3X; 23 cycles per layer); the table's 4096-byte banks are centred on
+4096-aligned addresses so each layer's entry stub is a single `lui` (T3Y, one more cycle per layer).
+The paired radix-five table decoder and all table memory-preservation proofs are retained.
 
 
 
@@ -79,7 +65,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8908 :=
+theorem certificate : SigGolf.Certificate submission 8873 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge

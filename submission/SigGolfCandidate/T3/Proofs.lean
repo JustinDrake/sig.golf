@@ -1003,7 +1003,7 @@ theorem decode_probability_le (lay : Layer) (word : List Nat) :
 theorem header_toNat (tag lay tree position index : Nat) :
     (header tag lay tree position index).toNat =
       1+tag%256*2^8+lay%256*2^16+(tree/2^32%256)*2^24+
-        (if packedNodeTag tag then tree%2^32*2^32+index%2^32*2^64+position%2^32*2^96
+        (if packedNodeTag tag then tree%2^32*2^32+nodeWord tag position index*2^64
          else position%2^32*2^32+tree%2^32*2^64+index%2^32*2^96) := by
   unfold header
   rw [BitVec.toNat_ofNat]
@@ -1014,6 +1014,7 @@ theorem header_toNat (tag lay tree position index : Nat) :
   have hp := Nat.mod_lt position (by decide : 0<2^32)
   have htl := Nat.mod_lt tree (by decide : 0<2^32)
   have hi := Nat.mod_lt index (by decide : 0<2^32)
+  have hw := nodeWord_lt tag position index
   split <;> norm_num only [Nat.reducePow] at * <;> omega
 
 theorem pack_nat_injective {a a' b b' base : Nat} (ha : a<base) (ha' : a'<base)
@@ -1040,15 +1041,17 @@ theorem header_injective {tag lay tree position index tag' lay' tree' position' 
   subst tag'
   by_cases hpack : packedNodeTag tag
   · simp only [if_pos hpack] at he
-    have hpacked : lay+256*(tree/2^32+256*(tree%2^32+2^32*(index+2^32*position))) =
-        lay'+256*(tree'/2^32+256*(tree'%2^32+2^32*(index'+2^32*position'))) := by
-      norm_num only [Nat.reducePow] at he ⊢
+    have hw := nodeWord_lt tag position index
+    have hw' := nodeWord_lt tag position' index'
+    have hpacked : lay+256*(tree/2^32+256*(tree%2^32+2^32*nodeWord tag position index)) =
+        lay'+256*(tree'/2^32+256*(tree'%2^32+2^32*nodeWord tag position' index')) := by
+      norm_num only [Nat.reducePow] at he hw hw' ⊢
       omega
     obtain ⟨hlay,hpacked⟩ := pack_nat_injective hl hl' hpacked
     obtain ⟨hhigh,hpacked⟩ := pack_nat_injective hh hh' hpacked
     obtain ⟨hlow,hpacked⟩ := pack_nat_injective (Nat.mod_lt tree (by positivity))
       (Nat.mod_lt tree' (by positivity)) hpacked
-    obtain ⟨hindex,hposition⟩ := pack_nat_injective hi hi' hpacked
+    obtain ⟨hposition,hindex⟩ := nodeWord_inj hp hi hp' hi' hpacked
     exact ⟨rfl,hlay,by omega,hposition,hindex⟩
   · simp only [if_neg hpack] at he
     have hpacked : lay+256*(tree/2^32+256*(position+2^32*(tree%2^32+2^32*index))) =

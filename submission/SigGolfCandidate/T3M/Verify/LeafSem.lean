@@ -147,7 +147,7 @@ theorem glob_frame {gk gk' : List (Reg × Word)} {w : WBytes} {pk : Digest} {s t
   · unfold PHalf CTRW at *; rw [hf.get (by norm_num) (hn _ (by norm_num))]; exact hh
   · exact hD.congr (fun A hA hB => hf.get (by omega) (fun hw => by
       have := hW A hw
-      unfold Verify.HDATA at hA
+      unfold Verify.TAB at hA
       omega))
 
 theorem land4 (n k : Nat) : n &&& (4 * (2 ^ k - 1)) = 4 * (n / 4 % 2 ^ k) := by
