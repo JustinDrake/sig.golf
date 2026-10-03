@@ -230,15 +230,34 @@ theorem mkK_sub (lay : Nat) (l : List (Reg × Word)) : ∀ p ∈ mkK lay, p ∈ 
 
 theorem mkKeep_sub (l : List Reg) : ∀ r ∈ mkKeep, r ∈ mkKeep ++ l := fun r hr => List.mem_append_left _ hr
 
+/-- Word 0 of a level's node header as written: `tp` (V2: the top writes no tree word, its tree is zero), else `tp`
+merged with the tree `t5`. -/
+def mkT0 (lay : Nat) (s : MachineState) : Word :=
+  if lay = 0 then BitVec.ofNat 64 (hw 3 lay) else StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (s.getReg .x30)
+
 /-- The level's two header writes, read back at constant addresses. -/
 theorem lvlMem_read (lay ci sh l : Nat) (s : MachineState) (A : Nat) (hA : A < 2 ^ 64) (hB : mkBlk lay l + 24 < 2 ^ 64) :
     memEval s (mkLvlMem lay ci sh l) (BitVec.ofNat 64 A) =
       if A = mkBlk lay l + 24 then
         (mkHeapE lay ci sh l).eval s
-      else if A = mkBlk lay l + 16 then StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (s.getReg .x30) else s.getMem (BitVec.ofNat 64 A) := by
+      else if A = mkBlk lay l + 16 then mkT0 lay s else s.getMem (BitVec.ofNat 64 A) := by
   unfold mkLvlMem
   rw [memEval_cons_ofNat _ _ _ _ _ hA hB, memEval_cons_ofNat _ _ _ _ _ hA (by omega), memEval_nil]
-  rfl
+  by_cases h0 : lay = 0
+  · subst h0; rfl
+  · simp only [mkT0, h0, if_false]; rfl
+
+/-- `mkT0` is word 0 of Core's packed tag-3 header of the layer's tree. -/
+theorem mkT0_eq (lay tree : Nat) (hlay : lay < 4) (s : MachineState) (h30 : s.getReg .x30 = BitVec.ofNat 64 tree)
+    (htree : tree < 2 ^ 32) (h0 : lay = 0 → tree = 0) :
+    mkT0 lay s = BitVec.ofNat 64 (hdr0 3 lay tree tree) := by
+  unfold mkT0
+  by_cases hl : lay = 0
+  · subst hl; rw [h0 rfl, if_pos rfl]; rfl
+  · rw [if_neg hl, h30, merge_hi, hdr0_eq 3 lay _ _ (by decide) (by omega) htree htree]
+    congr 1
+    unfold hdr1 hw
+    omega
 
 /-! ## The HASH after a level -/
 
@@ -260,7 +279,7 @@ theorem lvl_input (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Ma
   have hrd : ∀ A, A < 2 ^ 64 → t.getMem (BitVec.ofNat 64 A) =
       if A = mkBlk lay.val k + 24 then
         (mkHeapE lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) k).eval s
-      else if A = mkBlk lay.val k + 16 then StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay.val)) 4 (s.getReg .x30) else s.getMem (BitVec.ofNat 64 A) :=
+      else if A = mkBlk lay.val k + 16 then mkT0 lay.val s else s.getMem (BitVec.ofNat 64 A) :=
     fun A hA => (hmem _).trans (lvlMem_read _ _ _ _ s A hA (by unfold mkBlk; omega))
   have hfr : ∀ A, A < 2 ^ 64 → A ≠ mkBlk lay.val k + 24 → A ≠ mkBlk lay.val k + 16 →
       t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
@@ -286,11 +305,12 @@ theorem lvl_input (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Ma
     simp only [Nat.mod_eq_of_lt hheap, Nat.div_eq_of_lt hheap, Nat.zero_mod, Nat.zero_add, Nat.add_zero, Nat.zero_mul]
   have hT0 : t.getMem (BitVec.ofNat 64 (mkBlk lay.val k + 16)) =
       BitVec.ofNat 64 (hdr0 3 lay.val (route index lay).2 (route index lay).2) := by
-    rw [hrd _ (by unfold mkBlk; omega), if_neg (by omega), if_pos rfl, h30, merge_hi,
-      hdr0_eq 3 lay.val _ _ (by decide) (by omega) htree htree]
-    congr 1
-    unfold hdr1 hw
-    omega
+    rw [hrd _ (by unfold mkBlk; omega), if_neg (by omega), if_pos rfl]
+    exact mkT0_eq lay.val _ hlay s h30 htree (fun h => by
+      have : lay = 0 := Fin.ext h
+      subst this
+      rw [route_snd]
+      exact Nat.div_eq_of_lt (by simpa [below, hL] using hidx))
   have hO := hs.orig
   have hlen := mkIn_length w index lay v k
   refine ⟨?_, ?_⟩

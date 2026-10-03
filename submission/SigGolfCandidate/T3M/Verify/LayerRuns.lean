@@ -55,7 +55,7 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 
 /-- Merkle height. -/
 def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
-/-- Steps of A: stage99's independent 23-step layer-3 setup is retained; no donor FTS carry is assumed. -/
+/-- Steps of A (layer 3 includes the `hyper` constants and splits `s6` directly; layer 0 has `mv` and `lui; or`). -/
 def stepsA (lay : Nat) : Nat := if lay = 3 then 23 else if lay = 0 then 16 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
 def retOff (lay : Nat) : Nat := if lay = 0 then 69 else if lay = 3 then 52 else 44
@@ -80,8 +80,8 @@ def M2c : Nat := 17311559823019733055
 def M4c : Nat := 3689348814741910323
 def M8c : Nat := 1085102592571150095
 
-/-- The known registers at a transition start (layer 3: `t0`, `s2`, the five constants of the load block
-`ld3Spec` and the stage99 independent step setup; `hyper` sets the rest). -/
+/-- The known registers at a transition start (layer 3: `t0`, `s2` and the five constants of the load block
+`ld3Spec`; `hyper` sets the rest). -/
 def preK (lay : Nat) : List (Reg × Word) :=
   if lay = 3 then baseK ++ [(.x28, BitVec.ofNat 64 (2 ^ 40)), (.x21, BitVec.ofNat 64 M2c), (.x20, BitVec.ofNat 64 M1c),
     (.x27, BitVec.ofNat 64 (hw 1 3)), (.x2, BitVec.ofNat 64 0x3fe00)]
@@ -103,8 +103,9 @@ def chainK (lay : Nat) : List (Reg × Word) :=
     (.x28, BitVec.ofNat 64 (headerBank lay 0)),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
 
-/-- Stage100 retains stage99's load block: `lui sp` followed by five loads at words 656 .. 661.
-Layer 3 starts at 662 and independently initializes its step registers. -/
+/-- T3K: after the forest HASH (word 656) a load block (656 .. 661: `lui sp, 0x1000` and five `ld` of the embedded
+data words 0 .. 4) sets five of layer 3's constants (`2^40`, the SWAR masks, `s11`, `sp`); the transition copy
+proper starts at 662 (`trPc 3 0`). -/
 def ld3Spec : Spec :=
   ⟨[(.x28, .ld (kw DATA)), (.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
       (.x27, .ld (kw (DATA + 24))), (.x2, .ld (kw (DATA + 32)))],

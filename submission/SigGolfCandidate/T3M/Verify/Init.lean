@@ -222,7 +222,7 @@ theorem verifyData_word (k : Nat) (hk : k < 12) :
       BitVec.ofNat 64 (dataWords.getD k 0) := by
   interval_cases k <;> decide +kernel
 
-/-! ### T3X: the WOTS header table (the first 16384 bytes of the verify data) -/
+/-! ### T3X: the WOTS header table (BIG1: verify data bytes 16384 .. 32767, right after the FTS table) -/
 
 /-- The header doubleword at table index `k = 512 lay + 8 chain + digit`. -/
 def headerWord (k : Nat) : Nat :=
@@ -270,7 +270,7 @@ theorem headerWordsCheck_word (j : Nat) : ∀ (l : List (BitVec 8)) (k : Nat),
       simp_all
     | [_,_,_,_] => simp_all
 
-/-- Header doubleword `k < 2048` of the verify data. -/
+/-- Header doubleword `k < 2048` of the verify data (at byte `16384 + 8 k`). -/
 theorem verifyData_header (k : Nat) (hk : k < 2048) :
     bytesToWordLE ((((submission.image .verify).data).drop (16384 + 8 * k)).take 8) =
       BitVec.ofNat 64 (headerWord k) := by
@@ -434,7 +434,7 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
         if_neg (by unfold TAB; omega), g1 _ (by unfold TAB; omega), if_neg (by unfold TAB; omega),
         g0 _ (by unfold TAB; omega), if_pos (by unfold TAB; omega),
         show TAB + 8 * j - TAB = 8 * j by omega, verifyData_tab j hj]
-    · -- T3X: the WOTS header table
+    · -- T3X: the WOTS header table (at `HDATA = TAB + 16384`)
       intro lay i d hl hi hd
       have hb : 2 ^ 23 + 4096 ≤ HDATA + 4096 * lay + 64 * i + 8 * d ∧
           HDATA + 4096 * lay + 64 * i + 8 * d + 8 ≤ 2 ^ 24 := by unfold HDATA; omega
@@ -448,9 +448,9 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
         rw [e1, e2, e3]
       rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
         if_neg (by omega), g0 _ (by omega), if_pos (by unfold TAB HDATA; omega),
-        show HDATA + 4096 * lay + 64 * i + 8 * d - TAB = 16384 + 8 * (512 * lay + 8 * i + d) by unfold TAB HDATA; omega,
+        show HDATA + 4096 * lay + 64 * i + 8 * d - TAB = 16384 + 8 * (512 * lay + 8 * i + d) by
+          unfold TAB HDATA; omega,
         verifyData_header _ (by omega), ew]
-
   · simp [MachineState.setReg, MachineState.getReg]
     exact congrArg (BitVec.ofNat 64) eD
 

@@ -26,7 +26,7 @@ def PairTableOK (s : MachineState) : Prop :=
   ∀ r : Nat, r < 16384 → s.getByte (BitVec.ofNat 64 (PAIR_DATA + r)) = BitVec.ofNat 8 (pairLookup r)
 
 def TailTableOK (s : MachineState) : Prop :=
-  ∀ r : Nat, r < 64 → s.getByte (BitVec.ofNat 64 (TAIL_DATA + r)) = BitVec.ofNat 8 (126 - tailSum r)
+  ∀ r : Nat, r < 64 → s.getByte (BitVec.ofNat 64 (TAIL_DATA + r)) = BitVec.ofNat 8 (tailSum r)
 
 structure PackedTables (s : MachineState) : Prop where
   pair : PairTableOK s
@@ -65,7 +65,7 @@ theorem PairTableOK.rank (s : MachineState) (ht : PairTableOK s) (r : Nat) (hr :
   omega
 
 theorem TailTableOK.rank (s : MachineState) (ht : TailTableOK s) (r : Nat) (hr : r < 64) :
-    (s.getByte (BitVec.ofNat 64 (TAIL_DATA + r))).zeroExtend 64 = BitVec.ofNat 64 (126 - tailSum r) := by
+    (s.getByte (BitVec.ofNat 64 (TAIL_DATA + r))).zeroExtend 64 = BitVec.ofNat 64 (tailSum r) := by
   rw [ht r hr]
   have h := tailSum_le r hr
   apply BitVec.eq_of_toNat_eq

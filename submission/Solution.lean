@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 128 KiB authenticated
-paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8871` cycles
-(accepting-verify bound `8772` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
+paired-mask full cache. `S = 5616` bytes, `W = 25240` bytes, `K = 131072` bytes (cache), `C = 8828` cycles
+(accepting-verify bound `8729` plus the witness charge `⌈25240 / 256⌉ = 99`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 524288, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,7 +19,7 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 8772); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 8729); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
@@ -39,8 +39,24 @@ masks and a two-key four-lane polynomial MAC. The reduced signing hash work supp
 126/195/195/194. The new packed decoder and 54-chain top verifier include a proved eleven-cycle minimum
 terminal-store credit on every accepted top encoding. The forest verifier carries the complete leaf
 header and persistent coordinate comparands, reducing its accepting prefix by 32 cycles to 2791; the relabelled FTS header (word 1 bit-reversed, a
-2048-word header table) saves one cycle per fold, to 2675.
+2048-word header table) saves one cycle per fold, to 2676. The digest header word is formed by one instruction
+from the constant 4095 (subflatus3's e1344b79 cut, idea jungjipdo), giving 2675. The lower layers carry znan2's
+T3T cuts (lower checksum register, leaf dispatch, layer-3 index copy, top Merkle chunk-0 dispatch; 8 cycles).
+The three lower layers read each WOTS chain's header word from a read-only header table in the image (erickeigen's
+59cbf8ec table design, ported by znan2's T3X; 23 cycles per layer); the table's 4096-byte banks are centred on
+4096-aligned addresses so each layer's entry stub is a single `lui` (T3Y, one more cycle per layer).
 The paired radix-five table decoder and all table memory-preservation proofs are retained.
+That tree (znan2's accepted f25917e1, 3d21b36) has the complete charged bound 8873.
+
+Table-slot chain heads (this submission, built on f25917e1). In the lower layers the first chain of each digit
+triple (its head sits in a `ttab` slot) and the checksum chain (a `ctab` slot) still loaded the digit-zero
+header word and then jumped into the shared ladder at the first rung's byte store. The slot is static per table
+row, so its digit `d` is a constant: each head now loads the header word of digit `d` from the same header table
+and jumps straight onto that rung's `ecall`. At digit 6 the head's `addi a2, a0, 48` becomes the rung's
+`addi a2, zero, slot`, so it lands on the last `ecall`. The shared ladder code is unchanged. That saves one cycle
+per table-slot chain (fifteen per lower layer; two at digit 6): `chainCost` of those chains drops from `70 - 9 d`
+to `69 - 9 d`, the lower chain phase from `3008 - 9 target` to `2993 - 9 target`, the accepting bound to 8729,
+and the complete charged bound to 8828.
 
 
 
@@ -60,7 +76,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8871 :=
+theorem certificate : SigGolf.Certificate submission 8828 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge
