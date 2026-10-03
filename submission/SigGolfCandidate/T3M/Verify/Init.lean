@@ -152,24 +152,18 @@ structure InitOK (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) 
   /-- The embedded data words at `DATA` (T3K). -/
   data : DataOK s
 
-theorem verifyData_length : (submission.image .verify).data.length = 51200 := Search.verifyData_length
+theorem verifyData_length : (submission.image .verify).data.length = 49152 := Search.verifyData_length
 
 theorem dataBase_verify : dataBase (submission.image .verify) = HDATA := by
   unfold dataBase; rw [verifyData_length]; decide
 
 /-- The embedded doublewords read back as `dataWords`. -/
 theorem verifyData_word (k : Nat) (hk : k < 12) :
-    bytesToWordLE ((((submission.image .verify).data).drop (51104 + 8 * k)).take 8) =
+    bytesToWordLE ((((submission.image .verify).data).drop (49056 + 8 * k)).take 8) =
       BitVec.ofNat 64 (dataWords.getD k 0) := by
   interval_cases k <;> decide +kernel
 
-/-! ### T3X: the WOTS header table (the first 16384 bytes of the verify data) -/
-
-/-- The header doubleword at table index `k = 512 lay + 8 chain + digit`. -/
-def headerWord (k : Nat) : Nat :=
-  0x101 + 65536 * (k / 512) + 2 ^ 40 * (k % 512 / 8) + 2 ^ 32 * (k % 8)
-
-/-- A linear-time, kernel-reduced check of consecutive doublewords against `headerWord`. -/
+/-- A linear-time, kernel-reduced check of all image doublewords. -/
 def headerWordsCheck : List (BitVec 8) → Nat → Bool
   | [], _ => true
   | a :: b :: c :: d :: e :: f :: g :: h :: tail, k =>
@@ -178,8 +172,7 @@ def headerWordsCheck : List (BitVec 8) → Nat → Bool
 
 set_option maxRecDepth 200000 in
 set_option maxHeartbeats 0 in
-theorem verifyHeader_checked :
-    headerWordsCheck (((submission.image .verify).data).take 16384) 0 = true := by decide +kernel
+theorem verifyHeaders_checked : headerWordsCheck ((submission.image .verify).data.take 16384) 0 = true := by decide +kernel
 
 /-- A successful word check certifies every aligned eight-byte slice. -/
 theorem headerWordsCheck_word (j : Nat) : ∀ (l : List (BitVec 8)) (k : Nat),
@@ -211,19 +204,17 @@ theorem headerWordsCheck_word (j : Nat) : ∀ (l : List (BitVec 8)) (k : Nat),
       simp_all
     | [_,_,_,_] => simp_all
 
-/-- Header doubleword `k < 2048` of the verify data. -/
-theorem verifyData_header (k : Nat) (hk : k < 2048) :
-    bytesToWordLE ((((submission.image .verify).data).drop (8 * k)).take 8) =
+theorem verifyHeader_word (k : Nat) (hk : k < 2048) :
+    bytesToWordLE ((((submission.image .verify).data).drop (8*k)).take 8) =
       BitVec.ofNat 64 (headerWord k) := by
-  have hl : (((submission.image .verify).data).take 16384).length = 16384 := by
-    rw [List.length_take, verifyData_length]; decide
-  have H := headerWordsCheck_word k _ 0 verifyHeader_checked (by rw [hl]; omega)
-  rw [Nat.zero_add, List.drop_take, List.take_take] at H
-  rw [← H]
-  congr 2
-  omega
+  have hlen : ((submission.image .verify).data.take 16384).length = 16384 := by
+    rw [List.length_take,verifyData_length]; decide
+  have H := headerWordsCheck_word k ((submission.image .verify).data.take 16384) 0
+    verifyHeaders_checked (by rw [hlen]; omega)
+  simp only [Nat.zero_add,List.drop_take,List.take_take] at H
+  rw [Nat.min_eq_left (by omega : 8 ≤ 16384 - 8*k)] at H
+  exact H
 
-set_option maxRecDepth 200000 in
 theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) : InitOK m pk w s := by
   unfold initialState at h
@@ -247,7 +238,7 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
   have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 (dataBase (submission.image .verify)))).getMem A =
       s3.getMem A := fun A => by simp [MachineState.setReg, MachineState.getMem]
   have g0 : ∀ A, A < 2 ^ 64 → s0.getMem (BitVec.ofNat 64 A) =
-      if HDATA ≤ A ∧ A < HDATA + 8 * ((51200 + 7) / 8) ∧ (A - HDATA) % 8 = 0 then
+      if HDATA ≤ A ∧ A < HDATA + 8 * ((49152 + 7) / 8) ∧ (A - HDATA) % 8 = 0 then
         bytesToWordLE ((((submission.image .verify).data).drop (A - HDATA)).take 8) else 0 := by
     intro A hA
     rw [getMem_writeBytesAsWords (submission.image .verify).data blank (dataBase (submission.image .verify)) A
@@ -350,41 +341,30 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
       obtain ⟨hk1, hk2⟩ := DATA_ge k hk
       rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
         if_neg (by omega), g0 _ (by omega), if_pos (by unfold DATA HDATA; omega),
-        show DATA + 8 * k - HDATA = 51104 + 8 * k by unfold DATA HDATA; omega,
+        show DATA + 8 * k - HDATA = 49056 + 8 * k by unfold DATA HDATA; omega,
         verifyData_word k hk]
     · intro i hi
       rw [gb _ (by unfold Search.TOP_DATA HDATA; omega) (by unfold Search.TOP_DATA; omega)]
-      have hidx : Search.TOP_DATA + i - HDATA = 47104 + i := by
+      have hidx : Search.TOP_DATA + i - HDATA = 45056 + i := by
         unfold Search.TOP_DATA HDATA; omega
       rw [hidx]
       exact Search.verifyData_sum i hi
     · intro i hi
       rw [gb _ (by unfold PAIR_DATA HDATA; omega) (by unfold PAIR_DATA; omega)]
-      have hidx : PAIR_DATA + i - HDATA = 18432 + i := by
-        unfold PAIR_DATA HDATA; omega
+      have hidx : PAIR_DATA + i - HDATA = 16384 + i := by unfold PAIR_DATA HDATA; omega
       rw [hidx]
       exact Search.verifyData_pair i hi
     · intro i hi
       rw [gb _ (by unfold TAIL_DATA HDATA; omega) (by unfold TAIL_DATA; omega)]
-      have hidx : TAIL_DATA + i - HDATA = 34816 + i := by
+      have hidx : TAIL_DATA + i - HDATA = 32768 + i := by
         unfold TAIL_DATA HDATA; omega
       rw [hidx]
       exact Search.verifyData_tail i hi
-    · -- T3X: the WOTS header table
-      intro lay i d hl hi hd
-      have hb : 2 ^ 23 + 4096 ≤ HDATA + 4096 * lay + 64 * i + 8 * d ∧
-          HDATA + 4096 * lay + 64 * i + 8 * d + 8 ≤ 2 ^ 24 := by unfold HDATA; omega
-      obtain ⟨hb1, hb2⟩ := hb
-      have e1 : (512 * lay + 8 * i + d) / 512 = lay := by omega
-      have e2 : (512 * lay + 8 * i + d) % 512 / 8 = i := by omega
-      have e3 : (512 * lay + 8 * i + d) % 8 = d := by omega
-      -- the header value as a `Nat` equation first (no `congr`/`rfl` on 64-bit literals)
-      have ew : headerWord (512 * lay + 8 * i + d) = 0x101 + 65536 * lay + 2 ^ 40 * i + 2 ^ 32 * d := by
-        unfold headerWord
-        rw [e1, e2, e3]
-      rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
-        if_neg (by omega), g0 _ (by omega), if_pos (by omega),
-        show HDATA + 4096 * lay + 64 * i + 8 * d - HDATA = 8 * (512 * lay + 8 * i + d) by omega,
-        verifyData_header _ (by omega), ew]
+    · intro k hk
+      rw [gm,g3 _ (by unfold HDATA; omega),if_neg (by unfold HDATA; omega),
+        g2 _ (by unfold HDATA; omega),if_neg (by unfold HDATA; omega),
+        g1 _ (by unfold HDATA; omega),if_neg (by unfold HDATA; omega),
+        g0 _ (by unfold HDATA; omega),if_pos (by unfold HDATA; omega),
+        Nat.add_sub_cancel_left,verifyHeader_word k hk]
 
 end SigGolfCandidate.T3M.Verify

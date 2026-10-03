@@ -42,6 +42,10 @@ theorem replaceByte_zero (b : Nat) (hb : b < 256) :
         _ ≤ 2 ^ i := Nat.pow_le_pow_right (by decide) (by omega)))
     simp [h, this]
 
+theorem replaceByte_zero8 (b : Nat) (hb : b < 256) :
+    replaceByte (0 : BitVec 64) 0 (BitVec.ofNat 8 b) = BitVec.ofNat 64 b := by
+  simpa only [BitVec.truncate_eq_setWidth, BitVec.setWidth_ofNat_of_le (show 8 ≤ 64 by decide)] using replaceByte_zero b hb
+
 theorem idxOf_three (g0 g1 g2 node j : Nat) (hj : j < 3) (he : [g0, g1, g2].getD j 0 = node)
     (hlt : ∀ i < j, [g0, g1, g2].getD i 0 ≠ node) : [g0, g1, g2].idxOf node = j := by
   interval_cases j
@@ -51,11 +55,11 @@ theorem idxOf_three (g0 g1 g2 node j : Nat) (hj : j < 3) (he : [g0, g1, g2].getD
   · have h0 := hlt 0 (by decide); have h1 := hlt 1 (by decide); simp at he h0 h1; subst he
     simp [List.idxOf_cons, h0, h1]
 
-theorem rcCost_leaf (L : List Nat) (node : Nat) (h : hasLeaf L 0 node = true) : rcCost L 0 node = 89 := by
+theorem rcCost_leaf (L : List Nat) (node : Nat) (h : hasLeaf L 0 node = true) : rcCost L 0 node = 96 := by
   unfold rcCost; simp [h]
 
 theorem rcEm_leaf (L : List Nat) (pf : Nat → Digest) (node used : Nat) (e : Em) (h : hasLeaf L 0 node = true) :
-    rcEm L pf 0 node used e = if L.idxOf node = 0 then ⟨e.segs, e.cur, node % 8⟩ else e.close false (node % 8) := by
+    rcEm L pf 0 node used e = if L.idxOf node = 0 then ⟨e.segs, e.cur, node % 16⟩ else e.close false (node % 16) := by
   unfold rcEm; simp [h]
 
 section leaf
@@ -68,7 +72,7 @@ theorem rc_leaf_close {s t2 : MachineState} {node used : Nat} {e : Em} {fresh : 
     (x20 : t2.getReg .x20 = BitVec.ofNat 64 j)
     (hreg : ∀ r, r ∉ [Reg.x2, .x14, .x20, .x28, .x29, .x30] → t2.getReg r = s.getReg r)
     (hstr : StreamAt t2 e) (hroom : (img e).length + (if j = 0 then 0 else 1) ≤ 1275) :
-    ∃ k t3, Steps image t2 k k t3 ∧ k ≤ 9 ∧ t3.pc = pcOf 868 ∧
+    ∃ k t3, Steps image t2 k k t3 ∧ k ≤ 16 ∧ t3.pc = pcOf 868 ∧
       t3.getReg .x22 = BitVec.ofNat 64 (0xC40 + 8 * wl (if j = 0 then e else e.close false 0)) ∧
       StreamAt t3 (if j = 0 then e else e.close false 0) ∧
       RegsExcept t2 t3 [.x22, .x28, .x30] ∧ Frame t2 t3 (fun A => 0xC40 ≤ A ∧ A < 0xC40 + 8 * 1275) := by
@@ -96,11 +100,11 @@ theorem rc_leaf_close {s t2 : MachineState} {node used : Nat} {e : Em} {fresh : 
       rw [hstr (wl e) (by rw [if_neg h0] at hroom; omega)]
       simp only [img, wl]
       rw [List.append_assoc, List.getD_append_right _ _ _ _ (le_refl _), Nat.sub_self]; rfl
-    refine ⟨1 + 8, t4, s3.trans s4, le_refl _, p4, ?_, ?_, (r3.trans r4).mono (by decide), ?_⟩
+    refine ⟨1 + 15, t4, s3.trans s4, le_refl _, p4, ?_, ?_, (r3.trans r4).mono (by decide), ?_⟩
     · rw [if_neg h0, x22_4, wl_close]; congr 1; ring
     · rw [if_neg h0]
       refine streamAt_close false 0 (hstr.frame f3 (fun _ _ h => h)) ?_ (fun k hk hne => ?_)
-      · rw [m4, hz, replaceByte_zero _ (by omega)]; congr 1; simp; ring
+      · rw [m4, hz]; exact replaceByte_zero8 _ (emitHeader_lt _ _ _)
       · rw [f4.get (by omega) (by omega)]
     · exact (f3.trans f4).mono (fun A _ h => by rcases h with h | h; exact h.elim; omega)
 
@@ -246,7 +250,7 @@ theorem rc_leaf (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧
     · rw [if_pos h0] at x22_4; simp only [h0, ↓reduceIte]; exact x22_4
     · rw [if_neg h0] at x22_4; simp only [h0, ↓reduceIte]; exact x22_4
   · intro _
-    have hcur0 : (if j = 0 then (⟨e.segs, e.cur, node % 8⟩ : Em) else e.close false (node % 8)).cur.length = 0 := by
+    have hcur0 : (if j = 0 then (⟨e.segs, e.cur, node % 16⟩ : Em) else e.close false (node % 16)).cur.length = 0 := by
       by_cases h0 : j = 0
       · simp only [h0, ↓reduceIte]; rw [hpre.hcur (hfj.mp h0)]; rfl
       · simp only [h0, ↓reduceIte]; rfl

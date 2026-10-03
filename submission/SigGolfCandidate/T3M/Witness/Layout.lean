@@ -92,6 +92,14 @@ def wmerklePad (w : WBytes) (lay : Layer) (j : Nat) : Digest := wdig w (merkleBl
 def selLeaf (sel : Selection) (j : Nat) : Nat := sel.bucket * 128 + sel.leaves.getD j 0
 
 /-- Number of side-code residues checked for a segment with `a` folds. -/
-def segSideMod (a : Nat) : Nat := 2 ^ min a 3
+def segSideMod (a : Nat) : Nat := 2 ^ min a 4
+
+/-- Dense four-side segment encoding: code127 is invalid. -/
+def segOffset (a : Nat) : Nat := if a < 4 then 2^a-1 else 15+16*(a-4)
+def segFoldCount (b : Nat) : Nat :=
+  let u := b%128
+  if u=127 then 11 else if u=0 then 0 else if u<3 then 1 else if u<7 then 2 else if u<15 then 3 else 4+(u-15)/16
+def segMerge (b : Nat) : Nat := b/128%2
+def segSides (b : Nat) : Nat := b%128-segOffset (segFoldCount b)
 
 end SigGolfCandidate.T3M

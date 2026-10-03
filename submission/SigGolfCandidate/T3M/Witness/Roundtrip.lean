@@ -519,19 +519,37 @@ theorem schedule_a_le (chosen : List Selection) (hc : ChosenOk chosen) {n : Nat}
     ((schedule chosen).getD n default).lo + ((schedule chosen).getD n default).a ≤ 11 := by
   rw [schedule_getD chosen hn]; exact (foldFacts _ _ (hc _ (by omega))).top _ (by omega)
 
-theorem byte0_lt (seg : Segment) (h : seg.a ≤ 11) : seg.byte0 < 256 := by
-  unfold Segment.byte0 Segment.sideCode
-  have := Nat.mod_lt (seg.g / 2 ^ seg.lo) (show 0 < 8 by decide)
-  split <;> omega
+theorem coordSchedule_a_le_ten (coord : Nat) (sel : Selection) (hs : SelOk sel) (i : Nat) (hi : i<5) :
+    ((coordSchedule coord sel).getD i default).a ≤ 10 := by
+  have g01 : selLeaf sel 0 < selLeaf sel 1 := by unfold selLeaf; have := hs.s01; omega
+  have g12 : selLeaf sel 1 < selLeaf sel 2 := by unfold selLeaf; have := hs.s12; omega
+  have bk0 := hs.bucket_div (by rw [hs.selected]; simp : selLeaf sel 0 ∈ selectedLeaves sel)
+  have bk1 := hs.bucket_div (by rw [hs.selected]; simp : selLeaf sel 1 ∈ selectedLeaves sel)
+  have bk2 := hs.bucket_div (by rw [hs.selected]; simp : selLeaf sel 2 ∈ selectedLeaves sel)
+  have p01 := lcaLevel_pos (selLeaf sel 0) (selLeaf sel 1)
+  have p12 := lcaLevel_pos (selLeaf sel 1) (selLeaf sel 2)
+  have l01 : lcaLevel (selLeaf sel 0) (selLeaf sel 1) ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [bk0,bk1])
+  have l12 : lcaLevel (selLeaf sel 1) (selLeaf sel 2) ≤ 7 := (div_eq_iff_lca (by omega) 7).mp (by rw [bk1,bk2])
+  unfold coordSchedule
+  simp only []
+  split <;> interval_cases i <;> simp only [List.getD_cons_zero,List.getD_cons_succ] <;> omega
 
-theorem Segment.matches_byte0 (seg : Segment) (h : seg.lo + seg.a ≤ 11) : seg.Matches seg.byte0 := by
+theorem schedule_a_le_ten (chosen : List Selection) (hc : ChosenOk chosen) {n : Nat} (hn : n<35) :
+    ((schedule chosen).getD n default).a ≤ 10 := by
+  rw [schedule_getD chosen hn]
+  exact coordSchedule_a_le_ten _ _ (hc _ (by omega)) _ (by omega)
+
+theorem byte0_lt (seg : Segment) (h : seg.a ≤ 10) : seg.byte0 < 256 := by
+  exact (SideCode.sideHeader_fields seg.a (if seg.merge then 1 else 0) (seg.g / 2^seg.lo) (by omega) (by split <;> omega)).1
+
+theorem Segment.matches_byte0 (seg : Segment) (h : seg.lo + seg.a ≤ 11) (ha : seg.a ≤ 10) : seg.Matches seg.byte0 := by
   have hm : (if seg.merge then 1 else 0) < 2 := by split <;> omega
   have hf := SideCode.sideHeader_fields seg.a (if seg.merge then 1 else 0) (seg.g / 2 ^ seg.lo) (by omega) hm
   change seg.Matches (SideCode.sideHeader seg.a (if seg.merge then 1 else 0) (seg.g / 2 ^ seg.lo))
   refine ⟨hf.2.1, ?_, ?_⟩
   · rw [hf.2.2.1]; cases seg.merge <;> simp
   · intro _
-    simpa only [Segment.heap, Nat.add_zero] using SideCode.honest_sideHeader_check seg.g seg.lo seg.a (if seg.merge then 1 else 0) h hm
+    simpa only [Segment.heap, Nat.add_zero] using SideCode.honest_sideHeader_check seg.g seg.lo seg.a (if seg.merge then 1 else 0) (by omega) h hm
 
 theorem wbyte_seg_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N))
     (hle : slotBase (selections N) 7 ≤ 115) {n : Nat} (hn : n < 35) :
@@ -540,15 +558,15 @@ theorem wbyte_seg_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selectio
   have hw := win_seg N w hc hle hn 0 1 (by omega)
   rw [Nat.add_zero, segBytes_header] at hw
   rw [getD_of_window _ _ _ hw, UInt8.toNat_ofNat', Nat.mod_eq_of_lt
-    (by have := byte0_lt _ (show ((schedule (selections N)).getD n default).a ≤ 11 by
-      have := schedule_a_le _ hc hn; omega); omega)]
+    (by have := byte0_lt _ (show ((schedule (selections N)).getD n default).a ≤ 10 by
+      exact schedule_a_le_ten _ hc hn); omega)]
 
 theorem streamMatches_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N))
     (hle : slotBase (selections N) 7 ≤ 115) : StreamMatches (selections N) (witEnc N w) := by
   intro n hn
   rw [schedule_length] at hn
   rw [wbyte_seg_witEnc N w hc hle hn]
-  exact Segment.matches_byte0 _ (by have := schedule_a_le _ hc hn; omega)
+  exact Segment.matches_byte0 _ (by have := schedule_a_le _ hc hn; omega) (schedule_a_le_ten _ hc hn)
 
 theorem wfold_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N))
     (hle : slotBase (selections N) 7 ≤ 115) {n r : Nat} (hn : n < 35)

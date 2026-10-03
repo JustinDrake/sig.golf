@@ -126,7 +126,7 @@ structure DispIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Diges
     (E ptr folds : Nat) (node : Digest) (m : MachineState) : Prop where
   fb : FB F c m
   pc : (isLeafP pend = true ∧ m.pc = pcOf (leafDisp (3 * c + j))) ∨
-    (isLeafP pend = false ∧ ∃ k, k < 155 ∧ m.pc = pcOf (mDispPc k) ∧ m.getReg .x24 = BitVec.ofNat 64 (lnk c j))
+    (isLeafP pend = false ∧ ∃ k, k < 121 ∧ m.pc = pcOf (mDispPc k) ∧ m.getReg .x24 = BitVec.ofNat 64 (lnk c j))
   a4 : m.getReg .x14 = BitVec.ofNat 64 (WIT + ptr - 880)
   a5 : m.getReg .x15 = BitVec.ofNat 64 (frameA stk.length)
   s4 : m.getReg .x20 = BitVec.ofNat 64 (tabPc (tselJ j))
@@ -149,7 +149,7 @@ def fblk (ptr i : Nat) : Nat := ptr + 8 + 80 * i
 structure RungIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Digest × Nat)) (X a i E ptr folds : Nat)
     (node : Digest) (m : MachineState) : Prop where
   fb : FB F c m
-  pc : m.pc = pcOf (foldPc X a ((wbyte F.w ptr).toNat/32) (E % 2) i)
+  pc : m.pc = pcOf (foldPc X a ((segSides (wbyte F.w ptr).toNat)) (E % 2) i)
   a4 : m.getReg .x14 = BitVec.ofNat 64 (WIT + ptr - 880 + 8 + 80 * a)
   a5 : m.getReg .x15 = BitVec.ofNat 64 (frameA stk.length)
   s4 : m.getReg .x20 = BitVec.ofNat 64 (tabPc (tselJ j))
@@ -164,9 +164,9 @@ structure RungIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Diges
     (E % 2 = 1 ∧ (o = fblk ptr i ∨ o = fblk ptr i + 8)) ∨ (E % 2 = 0 ∧ (o = fblk ptr i + 48 ∨ o = fblk ptr i + 56))) m
   bnd : SegBnd c j stk.length ptr folds
   hX : X = segX (tselJ j) (wbyte F.w ptr).toNat ∧ a = segA (wbyte F.w ptr).toNat
-  hi : i < a ∧ a ≤ 11
+  hi : i < a ∧ a ≤ 10
   hE : E < 4096
-  sides : ∀ k, i+k < min a 3 → E/2^k%2 = (wbyte F.w ptr).toNat/32/2^(i+k)%2
+  sides : ∀ k, i+k < min a 4 → E/2^k%2 = (segSides (wbyte F.w ptr).toNat)/2^(i+k)%2
 
 /-- The destination of the last hash of variant `X` at stack depth `d`. -/
 def destA (c X d : Nat) : Nat := if X = 0 then frameA d + 48 else if X = 1 then frameA (d + 1) else forestSlot c
@@ -175,7 +175,7 @@ def destA (c X d : Nat) : Nat := if X = 0 then frameA d + 48 else if X = 1 then 
 structure TailIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Digest × Nat)) (X E ptr folds : Nat)
     (node : Digest) (m : MachineState) : Prop where
   fb : FB F c m
-  pc : ∃ k, k < 155 ∧ m.pc = pcOf (tailPc X k)
+  pc : ∃ k, k < 121 ∧ m.pc = pcOf (tailPc X k)
   a4 : m.getReg .x14 = BitVec.ofNat 64 (WIT + ptr - 880)
   a5 : m.getReg .x15 = BitVec.ofNat 64 (frameA stk.length)
   s4 : m.getReg .x20 = BitVec.ofNat 64 (tabPc (tselJ j))
@@ -188,7 +188,7 @@ structure TailIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Diges
   nd : DigAt m (destA c X stk.length) node
   wit : WitF F.w ptr m
   bnd : c < 7 ∧ j < 3 ∧ stk.length ≤ j ∧ stk.length ≤ 2 ∧
-    ∃ folds0 a, SegBnd c j stk.length (ptr - 8 - 80 * a) folds0 ∧ a ≤ 11 ∧ folds = folds0 + a
+    ∃ folds0 a, SegBnd c j stk.length (ptr - 8 - 80 * a) folds0 ∧ a ≤ 10 ∧ folds = folds0 + a
   hX : X < 3 ∧ (X = 1 → j < 2) ∧ (X = 2 → j = 2)
   hE : E < 4096
 
@@ -206,7 +206,7 @@ structure CoordIn (F : FCtx) (c : Nat) (roots : List Digest) (stk : List (Digest
   hroots : roots.length = c
   nd : DigAt m (forestSlot c) node
   wit : WitF F.w ptr m
-  bnd : stk.length ≤ 2 ∧ ∃ folds0 a, SegBnd c 2 stk.length (ptr - 8 - 80 * a) folds0 ∧ a ≤ 11 ∧ folds = folds0 + a
+  bnd : stk.length ≤ 2 ∧ ∃ folds0 a, SegBnd c 2 stk.length (ptr - 8 - 80 * a) folds0 ∧ a ≤ 10 ∧ folds = folds0 + a
   hE : E < 4096
 
 /-! ## Budgets -/

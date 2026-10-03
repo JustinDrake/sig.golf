@@ -16,7 +16,7 @@ theorem setupLdCheckF_ok : setupLdCheckF = true := by decide +kernel
 theorem setupCheckF_ok : setupCheckF = true := by decide +kernel
 theorem leafCheck_all : (List.range 21).all leafCheck = true := by decide +kernel
 theorem leafDispCheck_all : (List.range 21).all leafDispCheck = true := by decide +kernel
-theorem mDispCheck_all : (List.range 155).all mDispCheck = true := by decide +kernel
+theorem mDispCheck_all : (List.range 121).all mDispCheck = true := by decide +kernel
 theorem slotCheck_N0 : slotCheck 0 0 128 = true := by decide +kernel
 theorem slotCheck_N1 : slotCheck 0 128 128 = true := by decide +kernel
 theorem slotCheck_L0 : slotCheck 1 0 128 = true := by decide +kernel
@@ -24,8 +24,8 @@ theorem slotCheck_L1 : slotCheck 1 128 128 = true := by decide +kernel
 theorem entCheck_N : entCheck 0 0 256 = true := by decide +kernel
 theorem entCheck_L : entCheck 1 0 256 = true := by decide +kernel
 private def rungCases (X a : Nat) : Bool :=
-  (List.range 8).all fun bits =>(List.range 2).all fun t =>
-      ((decide (a=2 ∧ t≠bits/2%2) || lastCheck1 X a bits t) &&
+  (List.range 16).all fun bits =>(List.range 2).all fun t =>
+      ((lastCheck1 X a bits t) &&
        (List.range (a-1)).all fun i => (List.range 2).all fun t' =>
           (!decide (rungSides bits i t t') || rungCheck1 X a bits t i t'))
 
@@ -39,7 +39,6 @@ private theorem rungCases_0_7 : rungCases 0 7 = true := by decide +kernel
 private theorem rungCases_0_8 : rungCases 0 8 = true := by decide +kernel
 private theorem rungCases_0_9 : rungCases 0 9 = true := by decide +kernel
 private theorem rungCases_0_10 : rungCases 0 10 = true := by decide +kernel
-private theorem rungCases_0_11 : rungCases 0 11 = true := by decide +kernel
 private theorem rungCases_1_1 : rungCases 1 1 = true := by decide +kernel
 private theorem rungCases_1_2 : rungCases 1 2 = true := by decide +kernel
 private theorem rungCases_1_3 : rungCases 1 3 = true := by decide +kernel
@@ -50,7 +49,6 @@ private theorem rungCases_1_7 : rungCases 1 7 = true := by decide +kernel
 private theorem rungCases_1_8 : rungCases 1 8 = true := by decide +kernel
 private theorem rungCases_1_9 : rungCases 1 9 = true := by decide +kernel
 private theorem rungCases_1_10 : rungCases 1 10 = true := by decide +kernel
-private theorem rungCases_1_11 : rungCases 1 11 = true := by decide +kernel
 private theorem rungCases_2_1 : rungCases 2 1 = true := by decide +kernel
 private theorem rungCases_2_2 : rungCases 2 2 = true := by decide +kernel
 private theorem rungCases_2_3 : rungCases 2 3 = true := by decide +kernel
@@ -61,16 +59,15 @@ private theorem rungCases_2_7 : rungCases 2 7 = true := by decide +kernel
 private theorem rungCases_2_8 : rungCases 2 8 = true := by decide +kernel
 private theorem rungCases_2_9 : rungCases 2 9 = true := by decide +kernel
 private theorem rungCases_2_10 : rungCases 2 10 = true := by decide +kernel
-private theorem rungCases_2_11 : rungCases 2 11 = true := by decide +kernel
 
 theorem rungCheck_ok : rungCheck = true := by
-  change (List.range 3).all (fun X => (List.range' 1 11).all (rungCases X)) = true
+  change (List.range 3).all (fun X => (List.range' 1 10).all (rungCases X)) = true
   apply List.all_eq_true.mpr
   intro X hX
   have hX3 : X < 3 := by simpa using hX
   apply List.all_eq_true.mpr
   intro a ha
-  have ha1 : 1 ≤ a ∧ a < 12 := by simpa using ha
+  have ha1 : 1 ≤ a ∧ a < 11 := by simpa using ha
   obtain ⟨hal,hau⟩ := ha1
   interval_cases X <;> interval_cases a
   · exact rungCases_0_1
@@ -83,7 +80,6 @@ theorem rungCheck_ok : rungCheck = true := by
   · exact rungCases_0_8
   · exact rungCases_0_9
   · exact rungCases_0_10
-  · exact rungCases_0_11
   · exact rungCases_1_1
   · exact rungCases_1_2
   · exact rungCases_1_3
@@ -94,7 +90,6 @@ theorem rungCheck_ok : rungCheck = true := by
   · exact rungCases_1_8
   · exact rungCases_1_9
   · exact rungCases_1_10
-  · exact rungCases_1_11
   · exact rungCases_2_1
   · exact rungCases_2_2
   · exact rungCases_2_3
@@ -105,7 +100,6 @@ theorem rungCheck_ok : rungCheck = true := by
   · exact rungCases_2_8
   · exact rungCases_2_9
   · exact rungCases_2_10
-  · exact rungCases_2_11
 
 theorem tailCheck_ok : tailCheck = true := by decide +kernel
 theorem coordCheck_all : (List.range 7).all coordCheck1 = true := by decide +kernel

@@ -179,7 +179,7 @@ structure RcPre (s : MachineState) (level node used : Nat) (e : Em) (fresh : Boo
   hfresh : fresh = true ↔ ∀ g ∈ [g0, g1, g2], node * 2 ^ level ≤ g
   hcur : fresh = true → e.cur = []
   hcnt : e.cur.length ≤ 11
-  hpar : e.par < 8
+  hpar : e.par < 16
   stream : StreamAt s e
   room : (img (rcEm [g0, g1, g2] (pfN proof) level node used e)).length ≤ 1275
   hsp : 0x22000 - 512 + 48 * (level + 1) ≤ sp
@@ -205,7 +205,7 @@ def RcPost (s : MachineState) (level node used : Nat) (e : Em) (fresh : Bool) (r
         t.getReg .x22 = BitVec.ofNat 64 (0xC40 + 8 * wl e') ∧
         (fresh' = false → t.getReg .x23 = BitVec.ofNat 64 e'.cur.length ∧ t.getReg .x24 = BitVec.ofNat 64 e'.par) ∧
         (fresh' = true → e'.cur = []) ∧
-        (hasLeaf [g0, g1, g2] level node = true → e'.cur.length ≤ level) ∧ e'.cur.length ≤ 11 ∧ e'.par < 8 ∧
+        (hasLeaf [g0, g1, g2] level node = true → e'.cur.length ≤ level) ∧ e'.cur.length ≤ 11 ∧ e'.par < 16 ∧
         StreamAt t e' ∧ RegsExcept s t rcRegs ∧ Frame s t (RcW sp level) ∧ RcCtx c index g0 g1 g2 values proof t
 
 end rec

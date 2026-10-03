@@ -7,6 +7,7 @@ import SigGolfCandidate.T3M.Witness.Normal
 honest coordinate runs through the five scheduled segments (`coordShape_sched`), and conversely an accepting run
 forces the headers to be the scheduled ones (`coordShape_inv`: the `Q` checks determine the LCA levels through
 `Bits.heap_sib_inv`). Together: **`stream_shaped_iff`**. -/
+set_option maxHeartbeats 2000000
 namespace SigGolfCandidate.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 set_option linter.unusedSimpArgs false
@@ -32,14 +33,15 @@ theorem segShape_merge (w : WBytes) (Q : Nat) (rest : List Nat) (E ptr A : Nat) 
 
 /-- What an accepting segment tells about its header byte. -/
 structure SegInv (b A E : Nat) : Prop where
-  a : b % 16 = A
-  le : A ≤ 11
-  t : 0 < A → b / 32 % segSideMod A = E % segSideMod A
+  a : segFoldCount b = A
+  le : A ≤ 10
+  t : 0 < A → segSides b % segSideMod A = E % segSideMod A
 
 theorem segShape_inv_nil (w : WBytes) (E ptr E' p' : Nat) (s' : List Nat)
     (h : segShape w [] E ptr = some (E', p', s')) :
-    SegInv (wbyte w ptr).toNat ((wbyte w ptr).toNat % 16) E ∧ (wbyte w ptr).toNat / 16 % 2 = 0 ∧
-      E' = E / 2 ^ ((wbyte w ptr).toNat % 16) ∧ p' = segNext ptr ((wbyte w ptr).toNat % 16) ∧ s' = [] := by
+    SegInv (wbyte w ptr).toNat (segFoldCount (wbyte w ptr).toNat) E ∧ segMerge (wbyte w ptr).toNat = 0 ∧
+      E' = E / 2 ^ (segFoldCount (wbyte w ptr).toNat) ∧ p' = segNext ptr (segFoldCount (wbyte w ptr).toNat) ∧ s' = [] := by
+  have hmBound : segMerge (wbyte w ptr).toNat < 2 := Nat.mod_lt _ (by decide)
   rw [segShape.eq_1] at h
   split at h
   · simp at h
@@ -56,19 +58,20 @@ theorem segShape_inv_nil (w : WBytes) (E ptr E' p' : Nat) (s' : List Nat)
 
 theorem segShape_inv_cons (w : WBytes) (Q : Nat) (rest : List Nat) (E ptr E' p' : Nat) (s' : List Nat)
     (h : segShape w (Q :: rest) E ptr = some (E', p', s')) :
-    SegInv (wbyte w ptr).toNat ((wbyte w ptr).toNat % 16) E ∧
-      (((wbyte w ptr).toNat / 16 % 2 = 0 ∧ E' = E / 2 ^ ((wbyte w ptr).toNat % 16) ∧
-          p' = segNext ptr ((wbyte w ptr).toNat % 16) ∧ s' = Q :: rest) ∨
-        ((wbyte w ptr).toNat / 16 % 2 = 1 ∧ Q = E / 2 ^ ((wbyte w ptr).toNat % 16) ∧
-          segShape w rest (E / 2 ^ ((wbyte w ptr).toNat % 16) / 2) (segNext ptr ((wbyte w ptr).toNat % 16)) =
+    SegInv (wbyte w ptr).toNat (segFoldCount (wbyte w ptr).toNat) E ∧
+      ((segMerge (wbyte w ptr).toNat = 0 ∧ E' = E / 2 ^ (segFoldCount (wbyte w ptr).toNat) ∧
+          p' = segNext ptr (segFoldCount (wbyte w ptr).toNat) ∧ s' = Q :: rest) ∨
+        (segMerge (wbyte w ptr).toNat = 1 ∧ Q = E / 2 ^ (segFoldCount (wbyte w ptr).toNat) ∧
+          segShape w rest (E / 2 ^ (segFoldCount (wbyte w ptr).toNat) / 2) (segNext ptr (segFoldCount (wbyte w ptr).toNat)) =
             some (E', p', s'))) := by
+  have hmBound : segMerge (wbyte w ptr).toNat < 2 := Nat.mod_lt _ (by decide)
   rw [segShape.eq_1] at h
   split at h
   · simp at h
   · split at h
     · simp at h
     · rename_i h1 h2
-      have hI : SegInv (wbyte w ptr).toNat ((wbyte w ptr).toNat % 16) E :=
+      have hI : SegInv (wbyte w ptr).toNat (segFoldCount (wbyte w ptr).toNat) E :=
         ⟨rfl, by omega, fun hp => by by_contra hc; exact h2 ⟨hp, hc⟩⟩
       simp only [] at h
       split at h
@@ -84,7 +87,7 @@ theorem segShape_inv_cons (w : WBytes) (Q : Nat) (rest : List Nat) (E ptr E' p' 
 
 /-! ## The honest run -/
 
-theorem hdrOk_of_matches' {seg : Segment} {b : Nat} (h : seg.Matches b) (hle : seg.a ≤ 11) {E : Nat}
+theorem hdrOk_of_matches' {seg : Segment} {b : Nat} (h : seg.Matches b) (hle : seg.a ≤ 10) {E : Nat}
     (hE : E = (2048 + seg.g) / 2 ^ seg.lo) :
     HdrOk b seg.a (if seg.merge then 1 else 0) E := hE ▸ hdrOk_of_matches h hle
 
@@ -205,7 +208,7 @@ theorem heap_two_le {g K : Nat} (hK : K ≤ 10) : 2 ≤ (2048 + g) / 2 ^ K := by
   omega
 
 theorem matches_of_inv {seg : Segment} {b E : Nat} (hi : SegInv b seg.a E)
-    (hm : b / 16 % 2 = (if seg.merge then 1 else 0)) (hE : E = (2048 + seg.g) / 2 ^ seg.lo) : seg.Matches b := by
+    (hm : segMerge b = (if seg.merge then 1 else 0)) (hE : E = (2048 + seg.g) / 2 ^ seg.lo) : seg.Matches b := by
   refine ⟨hi.a, ?_, fun hp => ?_⟩
   · cases h : seg.merge <;> simp [h] at hm ⊢ <;> omega
   · rw [hi.t hp, hE]; simp [Segment.t, Segment.heap]
@@ -247,25 +250,25 @@ theorem coordShape_inv (w : WBytes) (coord : Nat) (sel : Selection) (ptr p : Nat
   obtain ⟨hE2, rfl⟩ := hfin
   obtain ⟨I0, m0, rfl, rfl, rfl⟩ := segShape_inv_nil w _ _ _ _ _ h0
   generalize hb0 : (wbyte w ptr).toNat = b0 at *
-  generalize hA0 : b0 % 16 = A0 at *
+  generalize hA0 : segFoldCount b0 = A0 at *
   obtain ⟨I1, hc1⟩ := segShape_inv_cons w _ _ _ _ _ _ _ h1
   generalize hb1 : (wbyte w (segNext ptr A0)).toNat = b1 at *
-  generalize hA1 : b1 % 16 = A1 at *
+  generalize hA1 : segFoldCount b1 = A1 at *
   rcases hc1 with ⟨m1, rfl, rfl, rfl⟩ | ⟨m1, hq0, h1'⟩
   · -- leaf 1 stopped: the coordinate is case `d12 < d01`
     obtain ⟨I2, hc2⟩ := segShape_inv_cons w _ _ _ _ _ _ _ h2
     generalize hb2 : (wbyte w (segNext (segNext ptr A0) A1)).toNat = b2 at *
-    generalize hA2 : b2 % 16 = A2 at *
+    generalize hA2 : segFoldCount b2 = A2 at *
     rcases hc2 with ⟨_, _, _, hs2⟩ | ⟨m2, hq1, h2'⟩
     · simp at hs2
     obtain ⟨I3, hc3⟩ := segShape_inv_cons w _ _ _ _ _ _ _ h2'
     generalize hb3 : (wbyte w (segNext (segNext (segNext ptr A0) A1) A2)).toNat = b3 at *
-    generalize hA3 : b3 % 16 = A3 at *
+    generalize hA3 : segFoldCount b3 = A3 at *
     rcases hc3 with ⟨_, _, _, hs3⟩ | ⟨m3, hq2, h3'⟩
     · simp at hs3
     obtain ⟨I4, m4, rfl, rfl, -⟩ := segShape_inv_nil w _ _ _ _ _ h3'
     generalize hb4 : (wbyte w (segNext (segNext (segNext (segNext ptr A0) A1) A2) A3)).toNat = b4 at *
-    generalize hA4 : b4 % 16 = A4 at *
+    generalize hA4 : segFoldCount b4 = A4 at *
     rw [d2, dd, d2, dd] at hE2
     have hK := heap_one g2l hE2
     rw [d2, dd] at hq2
@@ -295,15 +298,15 @@ theorem coordShape_inv (w : WBytes) (coord : Nat) (sel : Selection) (ptr p : Nat
   · -- leaf 1 merged: the coordinate is case `d01 < d12`
     obtain ⟨I2, m2, rfl, rfl, rfl⟩ := segShape_inv_nil w _ _ _ _ _ h1'
     generalize hb2 : (wbyte w (segNext (segNext ptr A0) A1)).toNat = b2 at *
-    generalize hA2 : b2 % 16 = A2 at *
+    generalize hA2 : segFoldCount b2 = A2 at *
     obtain ⟨I3, hc3⟩ := segShape_inv_cons w _ _ _ _ _ _ _ h2
     generalize hb3 : (wbyte w (segNext (segNext (segNext ptr A0) A1) A2)).toNat = b3 at *
-    generalize hA3 : b3 % 16 = A3 at *
+    generalize hA3 : segFoldCount b3 = A3 at *
     rcases hc3 with ⟨_, _, _, hs3⟩ | ⟨m3, hq1, h3'⟩
     · simp at hs3
     obtain ⟨I4, m4, rfl, rfl, -⟩ := segShape_inv_nil w _ _ _ _ _ h3'
     generalize hb4 : (wbyte w (segNext (segNext (segNext (segNext ptr A0) A1) A2) A3)).toNat = b4 at *
-    generalize hA4 : b4 % 16 = A4 at *
+    generalize hA4 : segFoldCount b4 = A4 at *
     rw [d2, dd] at hE2
     have hK := heap_one g2l hE2
     rw [d2, dd] at hq1

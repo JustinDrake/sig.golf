@@ -44,29 +44,29 @@ def img (e : Em) : List Word := e.segs.flatMap segWords ++ [0] ++ e.cur.flatMap 
 
 /-- Close the open segment (header byte `|cur| + 16 merge + 32 par`) and open one with parity `p`. -/
 def Em.close (e : Em) (merge : Bool) (p : Nat) : Em :=
-  ⟨e.segs ++ [⟨e.cur.length + (if merge then 16 else 0) + 32 * e.par, e.cur⟩], [], p⟩
+  ⟨e.segs ++ [⟨emitHeader e.cur.length merge e.par, e.cur⟩], [], p⟩
 
 /-- **The emission of the DFS of `(level, node)`** (`used` = the next proof slot). -/
 def rcEm (leaves : List Nat) (pf : Nat → Digest) : Nat → Nat → Nat → Em → Em
   | level, node, used, e =>
     if hasLeaf leaves level node = false then e
     else match level with
-    | 0 => if leaves.idxOf node = 0 then ⟨e.segs, e.cur, node % 8⟩ else e.close false (node % 8)
+    | 0 => if leaves.idxOf node = 0 then ⟨e.segs, e.cur, node % 16⟩ else e.close false (node % 16)
     | l + 1 =>
       let e1 := rcEm leaves pf l (2 * node) used e
       let u1 := used + (T3.frontier leaves l (2 * node)).length
       let e2 := rcEm leaves pf l (2 * node + 1) u1 e1
       if hasLeaf leaves l (2 * node) = false then ⟨e2.segs, e2.cur ++ [(true, pf used)], e2.par⟩
       else if hasLeaf leaves l (2 * node + 1) = false then ⟨e2.segs, e2.cur ++ [(false, pf u1)], e2.par⟩
-      else e2.close true (node % 8)
+      else e2.close true (node % 16)
 
 /-- Cycles of `recover_child` at `(level, node)` (all oracles). -/
 def rcCost (leaves : List Nat) : Nat → Nat → Nat
   | level, node =>
     if hasLeaf leaves level node = false then 53
     else match level with
-    | 0 => 89
-    | l + 1 => 116 + rcCost leaves l (2 * node) + rcCost leaves l (2 * node + 1)
+    | 0 => 96
+    | l + 1 => 123 + rcCost leaves l (2 * node) + rcCost leaves l (2 * node + 1)
 
 theorem frontier_succ (leaves : List Nat) (l node : Nat) (h : hasLeaf leaves (l + 1) node = true) :
     T3.frontier leaves (l + 1) node = T3.frontier leaves l (2 * node) ++ T3.frontier leaves l (2 * node + 1) := by
@@ -148,7 +148,7 @@ theorem img_fold (e : Em) (f : Fold) : img ⟨e.segs, e.cur ++ [f], e.par⟩ = i
 
 theorem img_close (e : Em) (m : Bool) (p : Nat) :
     img (e.close m p) = (e.segs.flatMap segWords ++
-      [BitVec.ofNat 64 (e.cur.length + (if m then 16 else 0) + 32 * e.par)] ++ e.cur.flatMap foldWords) ++ [0] := by
+      [BitVec.ofNat 64 (emitHeader e.cur.length m e.par)] ++ e.cur.flatMap foldWords) ++ [0] := by
   simp [img, Em.close, List.flatMap_append, segWords]
 
 theorem getD_append_of_lt {α : Type} (l₁ l₂ : List α) (d : α) (k : Nat) (h : k < l₁.length) :
@@ -205,7 +205,7 @@ theorem getD_mid_self (A B : List Word) (y : Word) : (A ++ [y] ++ B).getD A.leng
 /-- The header byte written at the open segment's (zero) header word: the segment is closed. -/
 theorem streamAt_close {s t : MachineState} {e : Em} (m : Bool) (p : Nat) (hS : StreamAt s e)
     (hw : t.getMem (BitVec.ofNat 64 (0xC40 + 8 * wl e)) =
-      BitVec.ofNat 64 (e.cur.length + (if m then 16 else 0) + 32 * e.par))
+      BitVec.ofNat 64 (emitHeader e.cur.length m e.par))
     (hrest : ∀ k < 1275, k ≠ wl e →
       t.getMem (BitVec.ofNat 64 (0xC40 + 8 * k)) = s.getMem (BitVec.ofNat 64 (0xC40 + 8 * k))) :
     StreamAt t (e.close m p) := by
