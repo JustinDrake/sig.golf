@@ -87,20 +87,14 @@ def sub_113 : List (BitVec 32) := [0x00100a13, 0xfff78313, 0x006a1a33]
 def sub_116 : List (BitVec 32) := [0x0a0a0663]
 def sub_117 : List (BitVec 32) := [0x000a0c13]
 def sub_118 : List (BitVec 32) := [0x001a1313, 0x086c5c63]
-def sub_120 : List (BitVec 32) := [0x005c1e13, 0x002e0e33, 0x00020f37, 0x200f0f13, 0x000e3303, 0x008e3383, 0x006f3023, 0x007f3423, 0x00020f37, 0x230f0f13, 0x010e3303, 0x018e3383, 0x006f3023, 0x007f3423, 0x02049e13, 0x01cae333, 0xfe6f3023, 0x034a9e13, 0x000c0393, 0x580e42e3]
-def sub_140 : List (BitVec 32) := [0xfe7f3423, 0x00020537, 0x20050513, 0x04000593, 0x00020637, 0x24060613]
+def sub_120 : List (BitVec 32) := [0x005c1e13, 0x002e0e33, 0x00020f37, 0x200f0f13, 0x000e3303, 0x008e3383, 0x006f3023, 0x007f3423, 0x00020f37, 0x230f0f13, 0x010e3303, 0x018e3383, 0x006f3023, 0x007f3423, 0x000c0393, 0x02049f13, 0x01eae333, 0x00020e37, 0x200e0e13, 0x006e3823, 0x007e3c23, 0x00020537, 0x20050513, 0x04000593, 0x00020637, 0x24060613]
 def sub_146 : List (BitVec 32) := [0x00000073]
 def sub_147 : List (BitVec 32) := [0x004c1e13, 0x002e0e33, 0x00020eb7, 0x240e8e93, 0x000eb303, 0x008eb383, 0x006e3023, 0x007e3423, 0x001c0c13, 0xf69ff06f]
 def sub_157 : List (BitVec 32) := [0x001a5a13, 0xf59ff06f]
 def sub_159 : List (BitVec 32) := [0x00008067]
 
-/-- The out-of-line reversal stub of `build_levels` (tag 10): at offset 1004 from the base (keygen 1121,
-sign 2017, right after `maxDigitCode`), `x7 := revBits 64 x24`, then back to offset 140. Not part of
-`subCode`. -/
-def revCode : List (BitVec 32) := [0x000c0393, 0x0ff3f313, 0x00831313, 0x0083d393, 0x0063e3b3, 0x00001e37, 0xf0fe0e13, 0x01c3f333, 0x00431313, 0x0043d393, 0x01c3f3b3, 0x0063e3b3, 0x00003e37, 0x333e0e13, 0x01c3f333, 0x00231313, 0x0023d393, 0x01c3f3b3, 0x0063e3b3, 0x00005e37, 0x555e0e13, 0x01c3f333, 0x00131313, 0x0013d393, 0x01c3f3b3, 0x0063e3b3, 0x03039393, 0xa14ff06f]
-
 /-- The shared subroutines as a layout (offsets from the base). -/
-def subL : Rv.Layout := [(0, sub_0), (1, sub_1), (2, sub_2), (8, sub_8), (9, sub_9), (23, sub_23), (24, sub_24), (26, sub_26), (27, sub_27), (41, sub_41), (42, sub_42), (44, sub_44), (59, sub_59), (60, sub_60), (72, sub_72), (73, sub_73), (75, sub_75), (76, sub_76), (77, sub_77), (78, sub_78), (79, sub_79), (80, sub_80), (82, sub_82), (83, sub_83), (92, sub_92), (95, sub_95), (96, sub_96), (105, sub_105), (106, sub_106), (112, sub_112), (113, sub_113), (116, sub_116), (117, sub_117), (118, sub_118), (120, sub_120), (140, sub_140), (146, sub_146), (147, sub_147), (157, sub_157), (159, sub_159)]
+def subL : Rv.Layout := [(0, sub_0), (1, sub_1), (2, sub_2), (8, sub_8), (9, sub_9), (23, sub_23), (24, sub_24), (26, sub_26), (27, sub_27), (41, sub_41), (42, sub_42), (44, sub_44), (59, sub_59), (60, sub_60), (72, sub_72), (73, sub_73), (75, sub_75), (76, sub_76), (77, sub_77), (78, sub_78), (79, sub_79), (80, sub_80), (82, sub_82), (83, sub_83), (92, sub_92), (95, sub_95), (96, sub_96), (105, sub_105), (106, sub_106), (112, sub_112), (113, sub_113), (116, sub_116), (117, sub_117), (118, sub_118), (120, sub_120), (146, sub_146), (147, sub_147), (157, sub_157), (159, sub_159)]
 
 /-- The shared subroutine code (160 words). -/
 def subCode : List (BitVec 32) := layoutCode subL
@@ -117,7 +111,7 @@ theorem maxLayout_ok : layoutOk 0 maxLayout = true := by decide +kernel
 def seg_542 : List (BitVec 32) := List.replicate 575 0x00000013
 
 /-- The keygen image as a layout: the main segments, then the shared code at 117. -/
-def mainL : Rv.Layout := [(0, seg_0), (26, seg_26), (28, seg_28), (34, seg_34), (36, seg_36), (39, seg_39), (48, seg_48), (50, seg_50), (51, seg_51), (52, seg_52), (64, seg_64), (65, seg_65), (81, seg_81), (84, seg_84), (113, seg_113), (114, seg_114), (116, seg_116), (117, subCode), (277, seg_277), (289, seg_289), (295, seg_295), (309, seg_309), (310, seg_310), (330, seg_330), (334, seg_334), (542, seg_542), (1117, maxDigitCode), (1121, revCode)]
+def mainL : Rv.Layout := [(0, seg_0), (26, seg_26), (28, seg_28), (34, seg_34), (36, seg_36), (39, seg_39), (48, seg_48), (50, seg_50), (51, seg_51), (52, seg_52), (64, seg_64), (65, seg_65), (81, seg_81), (84, seg_84), (113, seg_113), (114, seg_114), (116, seg_116), (117, subCode), (277, seg_277), (289, seg_289), (295, seg_295), (309, seg_309), (310, seg_310), (330, seg_330), (334, seg_334), (542, seg_542), (1117, maxDigitCode)]
 
 theorem mainL_ok : layoutOk 0 mainL = true := by decide +kernel
 
@@ -179,27 +173,20 @@ theorem codeAt_334 : CodeAt image (pcOf 334) seg_334 :=
   codeAt_layout code_eq mainL_ok (i := 24) (by kernel_rfl) (by decide)
 
 /-- The shared subroutine code sits at base `b` of `image` (`b` = 117 in keygen, 1013 in sign). -/
-def SubAt (image : Image) (b : Nat) : Prop := CodeAt image (pcOf b) subCode ∧ (b = 117 ∨ b = 1013) ∧
-  (CodeAt image (pcOf (b + 1000)) maxDigitCode ∧ CodeAt image (pcOf (b + 1004)) revCode)
+def SubAt (image : Image) (b : Nat) : Prop := CodeAt image (pcOf b) subCode ∧ (b = 117 ∨ b = 1013) ∧ CodeAt image (pcOf (b + 1000)) maxDigitCode
 
 theorem codeAt_max : CodeAt image (pcOf 1117) maxDigitCode :=
   codeAt_layout code_eq mainL_ok (i := 26) (by kernel_rfl) (by decide)
-theorem codeAt_1121 : CodeAt image (pcOf 1121) revCode :=
-  codeAt_layout code_eq mainL_ok (i := 27) (by kernel_rfl) (by decide)
-theorem subAt_keygen : SubAt image 117 := ⟨codeAt_subCode, Or.inl rfl, codeAt_max, codeAt_1121⟩
-
-/-- The reversal stub sits at `b + 1004`. -/
-theorem codeAt_rev {image : Image} {b : Nat} (h : SubAt image b) : CodeAt image (pcOf (b + 1004)) revCode :=
-  h.2.2.2
+theorem subAt_keygen : SubAt image 117 := ⟨codeAt_subCode, Or.inl rfl, codeAt_max⟩
 
 theorem codeAt_maxLow {image : Image} {b : Nat} (h : SubAt image b) :
     CodeAt image (pcOf (b + 1000)) maxLow := by
-  have q := codeAt_sublayout (L := maxLayout) (b := b + 1000) h.2.2.1 maxLayout_ok
+  have q := codeAt_sublayout (L := maxLayout) (b := b + 1000) h.2.2 maxLayout_ok
     (i := 0) (o := 0) (seg := maxLow) (by kernel_rfl)
   simpa only [Nat.add_zero] using q
 theorem codeAt_maxHigh {image : Image} {b : Nat} (h : SubAt image b) :
     CodeAt image (pcOf (b + 1002)) maxHigh := by
-  have q := codeAt_sublayout (L := maxLayout) (b := b + 1000) h.2.2.1 maxLayout_ok
+  have q := codeAt_sublayout (L := maxLayout) (b := b + 1000) h.2.2 maxLayout_ok
     (i := 1) (o := 2) (seg := maxHigh) (by kernel_rfl)
   simpa [Nat.add_assoc] using q
 
@@ -309,21 +296,18 @@ theorem codeAt_sub_118 {image : Image} {b : Nat} (h : SubAt image b) :
 theorem codeAt_sub_120 {image : Image} {b : Nat} (h : SubAt image b) :
     CodeAt image (pcOf (b + 120)) sub_120 :=
   codeAt_sublayout h.1 subL_ok (i := 34) (by kernel_rfl)
-theorem codeAt_sub_140 {image : Image} {b : Nat} (h : SubAt image b) :
-    CodeAt image (pcOf (b + 140)) sub_140 :=
-  codeAt_sublayout h.1 subL_ok (i := 35) (by kernel_rfl)
 theorem codeAt_sub_146 {image : Image} {b : Nat} (h : SubAt image b) :
     CodeAt image (pcOf (b + 146)) sub_146 :=
-  codeAt_sublayout h.1 subL_ok (i := 36) (by kernel_rfl)
+  codeAt_sublayout h.1 subL_ok (i := 35) (by kernel_rfl)
 theorem codeAt_sub_147 {image : Image} {b : Nat} (h : SubAt image b) :
     CodeAt image (pcOf (b + 147)) sub_147 :=
-  codeAt_sublayout h.1 subL_ok (i := 37) (by kernel_rfl)
+  codeAt_sublayout h.1 subL_ok (i := 36) (by kernel_rfl)
 theorem codeAt_sub_157 {image : Image} {b : Nat} (h : SubAt image b) :
     CodeAt image (pcOf (b + 157)) sub_157 :=
-  codeAt_sublayout h.1 subL_ok (i := 38) (by kernel_rfl)
+  codeAt_sublayout h.1 subL_ok (i := 37) (by kernel_rfl)
 theorem codeAt_sub_159 {image : Image} {b : Nat} (h : SubAt image b) :
     CodeAt image (pcOf (b + 159)) sub_159 :=
-  codeAt_sublayout h.1 subL_ok (i := 39) (by kernel_rfl)
+  codeAt_sublayout h.1 subL_ok (i := 38) (by kernel_rfl)
 
 /-! ## Symbolic blocks -/
 
@@ -410,10 +394,6 @@ sym_block blk117_118 := symRun { noAlias := true } sub_118 (pcOf (117 + 118)) 10
 sym_block blk1013_118 := symRun { noAlias := true } sub_118 (pcOf (1013 + 118)) 100
 sym_block blk117_120 := symRun { noAlias := true } sub_120 (pcOf (117 + 120)) 100
 sym_block blk1013_120 := symRun { noAlias := true } sub_120 (pcOf (1013 + 120)) 100
-sym_block blk117_140 := symRun { noAlias := true } sub_140 (pcOf (117 + 140)) 100
-sym_block blk1013_140 := symRun { noAlias := true } sub_140 (pcOf (1013 + 140)) 100
-sym_block blk117_rev := symRun { noAlias := true } revCode (pcOf (117 + 1004)) 100
-sym_block blk1013_rev := symRun { noAlias := true } revCode (pcOf (1013 + 1004)) 100
 sym_block blk117_147 := symRun { noAlias := true } sub_147 (pcOf (117 + 147)) 100
 sym_block blk1013_147 := symRun { noAlias := true } sub_147 (pcOf (1013 + 147)) 100
 sym_block blk117_157 := symRun { noAlias := true } sub_157 (pcOf (117 + 157)) 100
@@ -756,35 +736,13 @@ theorem run_118 {b : Nat} (hb : b = 117 ∨ b = 1013) :
 /-- The base-independent symbolic state of `sub_120`. -/
 def st_120 : SymState := blk117_120.res.st
 /-- The final pc of `sub_120` at base `b`. -/
-def pcE_120 (b : Nat) : E := rebase blk117_120.res.pc (pcOf (b + 1004)) (pcOf (b + 140))
+def pcE_120 (b : Nat) : E := .c (pcOf (b + 146))
 theorem run_120 {b : Nat} (hb : b = 117 ∨ b = 1013) :
     symRun { noAlias := true } sub_120 (pcOf (b + 120)) 100 =
       some ⟨st_120, pcE_120 b, blk117_120.res.stop, blk117_120.res.steps, blk117_120.res.cycles⟩ := by
   rcases hb with rfl | rfl
   · exact blk117_120.trans (congrArg some (by kernel_rfl))
   · exact blk1013_120.trans (congrArg some (by kernel_rfl))
-
-/-- The base-independent symbolic state of `sub_140`. -/
-def st_140 : SymState := blk117_140.res.st
-/-- The final pc of `sub_140` at base `b`. -/
-def pcE_140 (b : Nat) : E := .c (pcOf (b + 146))
-theorem run_140 {b : Nat} (hb : b = 117 ∨ b = 1013) :
-    symRun { noAlias := true } sub_140 (pcOf (b + 140)) 100 =
-      some ⟨st_140, pcE_140 b, blk117_140.res.stop, blk117_140.res.steps, blk117_140.res.cycles⟩ := by
-  rcases hb with rfl | rfl
-  · exact blk117_140.trans (congrArg some (by kernel_rfl))
-  · exact blk1013_140.trans (congrArg some (by kernel_rfl))
-
-/-- The base-independent symbolic state of the reversal stub `revCode`. -/
-def st_rev : SymState := blk117_rev.res.st
-/-- The final pc of `revCode` at base `b` (back to offset 140). -/
-def pcE_rev (b : Nat) : E := .c (pcOf (b + 140))
-theorem run_rev {b : Nat} (hb : b = 117 ∨ b = 1013) :
-    symRun { noAlias := true } revCode (pcOf (b + 1004)) 100 =
-      some ⟨st_rev, pcE_rev b, blk117_rev.res.stop, blk117_rev.res.steps, blk117_rev.res.cycles⟩ := by
-  rcases hb with rfl | rfl
-  · exact blk117_rev.trans (congrArg some (by kernel_rfl))
-  · exact blk1013_rev.trans (congrArg some (by kernel_rfl))
 
 /-- The base-independent symbolic state of `sub_147`. -/
 def st_147 : SymState := blk117_147.res.st

@@ -2,7 +2,6 @@ import SigGolfCandidate.T3M.Verify.Words
 import Mathlib.Data.Nat.Bitwise
 import SigGolfCandidate.T3M.Search.TopTables
 import SigGolfCandidate.T3M.Verify.Nonbinary.PairTables
-import SigGolfCandidate.T3.Rev
 
 /-!
 # Verify memory: global invariant, witness predicates, checked writes (T3M)
@@ -222,38 +221,43 @@ def dataWords : List Nat :=
 /-- The data section's base: `dataBase` of the verify image (`16 ⌊(2^24 - 96) / 16⌋`). -/
 def DATA : Nat := 16777120
 
-/-- n3-99: the FTS header table's base = `dataBase` of the verify image (`2^24 - 49152`); the table (2048
-doublewords) ends exactly at `Nonbinary.PAIR_DATA`. -/
-def TAB : Nat := 16728064
+/-- T3X: the image data's base (`dataBase`, `2^24 - 49152`): the read-only WOTS header table (16384 bytes, 4 banks
+of 64 chains x 8 digits), then T3W's data at `PAIR_DATA = HDATA + 16384`. -/
+def HDATA : Nat := 16728064
 
-/-- Both the embedded constants and the checksum lookup bytes are in place, and (n3-99) the FTS header table:
-doubleword `j < 2048` at `TAB` is `revBits 64 (2048 + j)`, word 1 of the tag-9 header of leaf `j`. -/
+/-- T3X: the midpoint of layer `lay`'s 4096-byte header bank, shifted by the chain-index offset `koff`. -/
+def headerBank (lay koff : Nat) : Nat := HDATA + 4096 * lay + 2048 + 64 * koff
+
+/-- The embedded constants, the checksum lookup bytes and the WOTS header table are in place. -/
 structure DataOK (s : MachineState) : Prop where
   constants : ∀ k, k < 12 → s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)
   sum : Search.SumTableOK s
   packed : Nonbinary.PackedTables s
-  tab : ∀ j, j < 2048 → s.getMem (BitVec.ofNat 64 (TAB + 8 * j)) = BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + j))
+  /-- T3X: the header doubleword of layer `lay`, chain `i`, initial digit `d`. -/
+  header : ∀ lay i d, lay < 4 → i < 64 → d < 8 →
+    s.getMem (BitVec.ofNat 64 (HDATA + 4096 * lay + 64 * i + 8 * d)) =
+      BitVec.ofNat 64 (0x101 + 65536 * lay + 2 ^ 40 * i + 2 ^ 32 * d)
 
 instance {s : MachineState} : CoeFun (DataOK s) (fun _ => ∀ k, k < 12 →
     s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)) := ⟨DataOK.constants⟩
 
 /-- The complete data invariant is preserved when all image-data doublewords stay unchanged. -/
 theorem DataOK.congr {s t : MachineState} (h : DataOK s)
-    (hm : ∀ A, Nonbinary.PAIR_DATA - 16384 ≤ A → A + 8 ≤ 2 ^ 24 →
+    (hm : ∀ A, HDATA ≤ A → A + 8 ≤ 2 ^ 24 →
       t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A)) : DataOK t := by
   constructor
   · intro k hk
-    rw [hm _ (by unfold DATA Nonbinary.PAIR_DATA; omega) (by unfold DATA; omega)]
+    rw [hm _ (by unfold DATA HDATA; omega) (by unfold DATA; omega)]
     exact h.constants k hk
   · intro i hi
     rw [T3M.getByte_eq_word _ _ (by unfold Search.TOP_DATA; omega),
-      hm _ (by unfold Search.TOP_DATA Nonbinary.PAIR_DATA; omega) (by unfold Search.TOP_DATA; omega),
+      hm _ (by unfold Search.TOP_DATA HDATA; omega) (by unfold Search.TOP_DATA; omega),
       ← T3M.getByte_eq_word _ _ (by unfold Search.TOP_DATA; omega)]
     exact h.sum i hi
-  · exact h.packed.congr (fun A hA hB => hm A (by omega) hB)
-  · intro j hj
-    rw [hm _ (by unfold TAB Nonbinary.PAIR_DATA; omega) (by unfold TAB; omega)]
-    exact h.tab j hj
+  · exact h.packed.congr (fun A hA hB => hm A (by unfold Nonbinary.PAIR_DATA at hA; unfold HDATA; omega) hB)
+  · intro lay i d hl hi hd
+    rw [hm _ (by unfold HDATA; omega) (by unfold HDATA; omega)]
+    exact h.header lay i d hl hi hd
 
 def Glob (gk : List (Reg × Word)) (w : WBytes) (pk : Digest) (s : MachineState) : Prop :=
   (∀ p ∈ gk, s.getReg p.1 = p.2) ∧ WitHdr w s ∧ PkOK pk s ∧ PZero s ∧ PHalf s ∧ DataOK s
@@ -529,7 +533,7 @@ theorem Glob_toState_allow {gk0 gk : List (Reg × Word)} {w : WBytes} {pk : Dige
   · apply h5.congr
     intro A hA hAend
     rw [SymState.toState_getMem, memEval_frame s _ _
-      (memOKA_data hm s hrel _ (by unfold Nonbinary.PAIR_DATA at hA; omega) (by omega))]
+      (memOKA_data hm s hrel _ (by unfold HDATA at hA; omega) (by omega))]
 
 theorem Glob_toState {gk0 gk : List (Reg × Word)} {w : WBytes} {pk : Digest} {s : MachineState}
     (hG : Glob gk0 w pk s) (σ : SymState) (pc : Word) (hm : memOK σ.mem = true)
@@ -637,7 +641,7 @@ theorem Glob_writeHash {gk : List (Reg × Word)} {w : WBytes} {pk : Digest} {s :
     rw [fr CTRW (by unfold CTRW; omega) (hd2 _ mc)]; exact h4
   · apply h5.congr
     intro A hA hAend
-    exact fr A (by omega) (Or.inr (by unfold Nonbinary.PAIR_DATA at hA; omega))
+    exact fr A (by omega) (Or.inr (by unfold HDATA at hA; omega))
 
 theorem Known_writeHash {known : List (Reg × Word)} {s : MachineState}
     (h : ∀ p ∈ known, s.getReg p.1 = p.2) (a : BitVec 256) : ∀ p ∈ known, (writeHash s a).getReg p.1 = p.2 := by

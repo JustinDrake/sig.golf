@@ -219,11 +219,7 @@ theorem decodeProbe_of_hdr {x : HashInput} {t l tr p ix : Nat} (hx : Extract.hdr
   have hh := bytesLE_injective hx
   apply ht
   have h1 := congrArg (fun v : BitVec 128 => v.toNat % 2 ^ 16 / 2 ^ 8) hh
-  have hw := nodeWord_lt t p ix
-  have hw9 := nodeWord_lt 9 0 f.2.2.val
   simp only [header, BitVec.toNat_ofNat] at h1
-  generalize nodeWord t p ix = g at *
-  generalize nodeWord 9 0 f.2.2.val = g9 at *
   split_ifs at h1 <;> omega
 
 /-! ## Secrets, openings, disclosures, guesses -/

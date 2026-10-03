@@ -39,7 +39,7 @@ theorem kernels (sk : BitVec 256) : Kernels sk := ⟨digestSearchSpec sk, counte
 /-- Cycle bound of the sign phase (before the final `ECALL`). -/
 def signC : Nat := frontC + dsCost + midC
 
-theorem signC_eq : signC = 3616257542 := by rfl
+theorem signC_eq : signC = 3615440586 := by rfl
 
 theorem signC_lt : signC + 1 < CYCLE_LIMIT := by
   rw [signC_eq]; norm_num [CYCLE_LIMIT]
@@ -104,7 +104,7 @@ theorem sign_refines (sk : SecretKey) (cache : Bytes 131072) (m : Message) :
   sign_refines_of (l0Spec_of (counterSearchSpec sk)) m
 
 /-- **Sign termination.** Under every fixed oracle and for every input: finished, within
-`signC + 1 = 3,616,257,543 < 2^32` cycles. -/
+`signC + 1 = 3,615,440,587 < 2^32` cycles. -/
 theorem sign_terminates (hash : Hash) (sk : SecretKey) (cache : Bytes 131072) (m : Message) :
     (submission.runWith hash .sign (sk, cache, m)).finished = true ∧
       (submission.runWith hash .sign (sk, cache, m)).cycles < CYCLE_LIMIT :=

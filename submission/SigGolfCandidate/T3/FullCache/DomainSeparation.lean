@@ -18,7 +18,6 @@ theorem header_tag_nat (tag lay tree position index : Nat) :
   have hp := Nat.mod_lt position (by decide : 0 < 2^32)
   have htl := Nat.mod_lt tree (by decide : 0 < 2^32)
   have hi := Nat.mod_lt index (by decide : 0 < 2^32)
-  have hw := SigGolfCandidate.T3.nodeWord_lt tag position index
   split_ifs <;> norm_num only [Nat.reducePow] at * <;> omega
 
 theorem non_mac_tweak (tag lay tree position index : Nat) (htag : tag % 256 ≠ 14)

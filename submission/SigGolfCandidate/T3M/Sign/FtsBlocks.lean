@@ -1,12 +1,11 @@
 import SigGolfCandidate.T3M.Sign.BaseInv
-import SigGolfCandidate.T3M.RevNet
 
 /-!
 # Sign: block specifications of the FTS phase (words 172..356)
 
 `ds_done` (172): the index `N mod 2^31` to `TREE` and `IDXV`, the FTS arena, the proof and secret
 pointers; `fts_coord` (186), `fts_leaf` (189..249: the PRF pair at even leaves into `SEC`, the FTS leaf
-hash into heap node `2048 + leaf`, its header word 1 via the stub 2045..2073), `fts_leaves_done` (250: `build_levels`, height 11, tag 10), the
+hash into heap node `2048 + leaf`), `fts_leaves_done` (250: `build_levels`, height 11, tag 10), the
 secrets (256..277), the frontier (278..330), the outer siblings (331..344) and the root to the forest
 block (345..356).
 -/
@@ -147,120 +146,49 @@ theorem fetch_210 (s : MachineState) (hpc : s.pc = pcOf 210) : fetch image s = s
   (codeAt_210.fetch s hpc).trans rfl
 
 set_option maxRecDepth 100000 in
-/-- `fts_noprf` (211..224): the secret of `leaf` to `FLEAF+32`, `x6 := 2305 | c << 16`, jump to the header stub. -/
-theorem blk211_spec (s : MachineState) (hpc : s.pc = pcOf 211) (c leaf : Nat) (hc : c < 256)
-    (hleaf : leaf < 2048) (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h18 : s.getReg .x18 = BitVec.ofNat 64 leaf) :
-    ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf 2045 ∧
-      t.getReg .x6 = BitVec.ofNat 64 (2305 + 65536 * c) ∧
+/-- `fts_noprf` (211..235): the secret of `leaf` to `FLEAF+32`, the header `T9(coord, index, leaf)`, the
+HASH arguments `(FLEAF, 64, LFOUT)`. -/
+theorem blk211_spec (s : MachineState) (hpc : s.pc = pcOf 211) (c idx leaf : Nat) (hc : c < 256)
+    (hidx : idx < 2 ^ 32) (hleaf : leaf < 2048)
+    (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h9 : s.getReg .x9 = BitVec.ofNat 64 idx)
+    (h18 : s.getReg .x18 = BitVec.ofNat 64 leaf) :
+    ∃ t, Steps image s 25 25 t ∧ t.pc = pcOf 236 ∧
+      t.getReg .x10 = BitVec.ofNat 64 FLEAF ∧ t.getReg .x11 = BitVec.ofNat 64 64 ∧
+      t.getReg .x12 = BitVec.ofNat 64 LFOUT ∧
       t.getMem (BitVec.ofNat 64 (FLEAF + 32)) = s.getMem (BitVec.ofNat 64 (SEC + 16 * leaf)) ∧
       t.getMem (BitVec.ofNat 64 (FLEAF + 40)) = s.getMem (BitVec.ofNat 64 (SEC + 16 * leaf + 8)) ∧
-      RegsExcept s t [.x6, .x7, .x28, .x29, .x30] ∧
-      Frame s t (fun A => A = FLEAF + 32 ∨ A = FLEAF + 40) := by
+      t.getMem (BitVec.ofNat 64 (FLEAF + 16)) = BitVec.ofNat 64 (2305 + 65536 * c + 2^32 * idx) ∧
+      t.getMem (BitVec.ofNat 64 (FLEAF + 24)) = BitVec.ofNat 64 leaf ∧
+      RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x28, .x29, .x30] ∧
+      Frame s t (fun A => A = FLEAF + 16 ∨ A = FLEAF + 24 ∨ A = FLEAF + 32 ∨ A = FLEAF + 40) := by
   have hobl : Oblig.all s blk_211.res.st.obl := by
     simp only [blk_211.res]
     t3n [h18]
     sg_omega
-  refine ⟨_, symRun_sound blk_211 codeAt_211 s hpc hobl, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨_, symRun_sound blk_211 codeAt_211 s hpc hobl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [blk_211.res, E.eval]
-  · simp only [Result.toState_getReg, blk_211.res]
-    t3n [h8]
-    rw [ofNat_or_disjoint' 2305 (c * 65536) 16 (by norm_num) (by omega)]
+  · simp [blk_211.res, rv_simp]
+  · simp [blk_211.res, rv_simp]
+  · simp [blk_211.res, rv_simp]
+  · simp only [Result.toState_getMem, blk_211.res, FLEAF, SEC]
+    t3n [h18]
+    congr 2; omega
+  · simp only [Result.toState_getMem, blk_211.res, FLEAF, SEC]
+    t3n [h18]
+    congr 2; omega
+  · simp only [Result.toState_getMem, blk_211.res, FLEAF]
+    t3n [h8, h9]
+    rw [ofNat_or_disjoint' 2305 (c * 65536) 16 (by norm_num) (by omega),
+      ofNat_or_disjoint' (2305 + c * 65536) (idx * 4294967296) 32 (by omega) (by omega)]
     congr 1; omega
-  · simp only [Result.toState_getMem, blk_211.res, FLEAF, SEC]
+  · simp only [Result.toState_getMem, blk_211.res, FLEAF]
     t3n [h18]
-    congr 2; omega
-  · simp only [Result.toState_getMem, blk_211.res, FLEAF, SEC]
-    t3n [h18]
-    congr 2; omega
   · intro r hr; simp at hr; cases r <;> simp_all [blk_211.res, rv_simp] <;> rfl
   · intro A hA hn
     simp only [FLEAF] at hn
     simp only [Result.toState_getMem, blk_211.res]
     t3n []
-    rw [if_neg (by omega), if_neg (by omega)]
-
-set_option maxRecDepth 100000 in
-/-- The FTS leaf header stub (2045..2073): `x7 := revBits 64 (2048 + leaf)`, back to 225. -/
-theorem blk2045_spec (s : MachineState) (hpc : s.pc = pcOf 2045) (leaf : Nat) (hleaf : leaf < 2048)
-    (h18 : s.getReg .x18 = BitVec.ofNat 64 leaf) :
-    ∃ t, Steps image s 29 29 t ∧ t.pc = pcOf 225 ∧
-      t.getReg .x7 = BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + leaf)) ∧
-      RegsExcept s t [.x7, .x28, .x30] ∧ Frame s t (fun _ => False) := by
-  refine ⟨_, symRun_sound blk_2045 codeAt_2045 s hpc (by simp [blk_2045.res, rv_simp]), ?_, ?_, ?_, ?_⟩
-  · simp [blk_2045.res, E.eval]
-  · have e : s.getReg .x18 + BitVec.ofNat 64 2048 = BitVec.ofNat 64 (2048 + leaf) := by
-      rw [h18, ofNat_add_ofNat, Nat.add_comm]
-    rw [← RevNet.revNetBV_eq (2048 + leaf) (by omega), ← e]
-    rfl
-  · intro r hr; simp at hr; cases r <;> simp_all [blk_2045.res, rv_simp] <;> rfl
-  · intro A _ _; simp [blk_2045.res, rv_simp]
-
-set_option maxRecDepth 100000 in
-/-- 225..235: the header `T9(coord, index, ·)` (word 1 from `x7`) at `FLEAF+16`, the HASH arguments
-`(FLEAF, 64, LFOUT)`. -/
-theorem blk225_spec (s : MachineState) (hpc : s.pc = pcOf 225) (c idx : Nat) (hc : c < 256)
-    (hidx : idx < 2 ^ 32) (h6 : s.getReg .x6 = BitVec.ofNat 64 (2305 + 65536 * c))
-    (h9 : s.getReg .x9 = BitVec.ofNat 64 idx) :
-    ∃ t, Steps image s 11 11 t ∧ t.pc = pcOf 236 ∧
-      t.getReg .x10 = BitVec.ofNat 64 FLEAF ∧ t.getReg .x11 = BitVec.ofNat 64 64 ∧
-      t.getReg .x12 = BitVec.ofNat 64 LFOUT ∧
-      t.getMem (BitVec.ofNat 64 (FLEAF + 16)) = BitVec.ofNat 64 (2305 + 65536 * c + 2^32 * idx) ∧
-      t.getMem (BitVec.ofNat 64 (FLEAF + 24)) = s.getReg .x7 ∧
-      RegsExcept s t [.x6, .x10, .x11, .x12, .x28, .x30] ∧
-      Frame s t (fun A => A = FLEAF + 16 ∨ A = FLEAF + 24) := by
-  refine ⟨_, symRun_sound blk_225 codeAt_225 s hpc (by simp [blk_225.res, rv_simp]),
-    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simp [blk_225.res, E.eval]
-  · simp [blk_225.res, rv_simp]
-  · simp [blk_225.res, rv_simp]
-  · simp [blk_225.res, rv_simp]
-  · simp only [Result.toState_getMem, blk_225.res, FLEAF]
-    t3n [h6, h9]
-    rw [ofNat_or_disjoint' (2305 + 65536 * c) (idx * 4294967296) 32 (by omega) (by omega)]
-    congr 1; omega
-  · simp only [Result.toState_getMem, blk_225.res, FLEAF]
-    t3n []
-  · intro r hr; simp at hr; cases r <;> simp_all [blk_225.res, rv_simp] <;> rfl
-  · intro A hA hn
-    simp only [FLEAF] at hn
-    simp only [Result.toState_getMem, blk_225.res]
-    t3n []
-    rw [if_neg (by omega), if_neg (by omega)]
-
-set_option maxRecDepth 100000 in
-/-- `fts_noprf` (211..235 via the stub 2045..2073): the secret of `leaf` to `FLEAF+32`, the header
-`T9(coord, index, leaf)` (word 1 = `revBits 64 (2048 + leaf)`), the HASH arguments `(FLEAF, 64, LFOUT)`. -/
-theorem blk211_full (s : MachineState) (hpc : s.pc = pcOf 211) (c idx leaf : Nat) (hc : c < 256)
-    (hidx : idx < 2 ^ 32) (hleaf : leaf < 2048)
-    (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h9 : s.getReg .x9 = BitVec.ofNat 64 idx)
-    (h18 : s.getReg .x18 = BitVec.ofNat 64 leaf) :
-    ∃ t, Steps image s 54 54 t ∧ t.pc = pcOf 236 ∧
-      t.getReg .x10 = BitVec.ofNat 64 FLEAF ∧ t.getReg .x11 = BitVec.ofNat 64 64 ∧
-      t.getReg .x12 = BitVec.ofNat 64 LFOUT ∧
-      t.getMem (BitVec.ofNat 64 (FLEAF + 32)) = s.getMem (BitVec.ofNat 64 (SEC + 16 * leaf)) ∧
-      t.getMem (BitVec.ofNat 64 (FLEAF + 40)) = s.getMem (BitVec.ofNat 64 (SEC + 16 * leaf + 8)) ∧
-      t.getMem (BitVec.ofNat 64 (FLEAF + 16)) = BitVec.ofNat 64 (2305 + 65536 * c + 2^32 * idx) ∧
-      t.getMem (BitVec.ofNat 64 (FLEAF + 24)) = BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + leaf)) ∧
-      RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x28, .x29, .x30] ∧
-      Frame s t (fun A => A = FLEAF + 16 ∨ A = FLEAF + 24 ∨ A = FLEAF + 32 ∨ A = FLEAF + 40) := by
-  obtain ⟨t1, st1, t1pc, t1x6, m32, m40, t1r, t1f⟩ := blk211_spec s hpc c leaf hc hleaf h8 h18
-  obtain ⟨t2, st2, t2pc, t2x7, t2r, t2f⟩ := blk2045_spec t1 t1pc leaf hleaf
-    (by rw [t1r.get (by simp)]; exact h18)
-  obtain ⟨t3, st3, t3pc, t3x10, t3x11, t3x12, m16, m24, t3r, t3f⟩ := blk225_spec t2 t2pc c idx hc hidx
-    (by rw [t2r.get (by simp)]; exact t1x6) (by rw [t2r.get (by simp), t1r.get (by simp)]; exact h9)
-  have g : ∀ A, A < 2 ^ 64 → A ≠ FLEAF + 16 → A ≠ FLEAF + 24 →
-      t3.getMem (BitVec.ofNat 64 A) = t1.getMem (BitVec.ofNat 64 A) := fun A hA h1 h2 =>
-    (t3f.get hA (by rintro (h | h) <;> contradiction)).trans (t2f.get hA (fun h => h))
-  refine ⟨t3, st1.trans (st2.trans st3), t3pc, t3x10, t3x11, t3x12, ?_, ?_, m16, ?_, ?_, ?_⟩
-  · rw [g _ (by decide) (by decide) (by decide), m32]
-  · rw [g _ (by decide) (by decide) (by decide), m40]
-  · rw [m24, t2x7]
-  · exact ((t1r.trans t2r).trans t3r).mono (by decide)
-  · refine ((t1f.trans t2f).trans t3f).mono (fun A _ h => ?_)
-    rcases h with (h | h) | h
-    · rcases h with h | h <;> simp [h]
-    · exact h.elim
-    · rcases h with h | h <;> simp [h]
+    rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega)]
 
 theorem fetch_236 (s : MachineState) (hpc : s.pc = pcOf 236) : fetch image s = some (.base .ECALL) :=
   (codeAt_236.fetch s hpc).trans rfl

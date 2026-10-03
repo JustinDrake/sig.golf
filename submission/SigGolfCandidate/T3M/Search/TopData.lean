@@ -23,7 +23,6 @@ theorem expandData_table (i : Nat) (hi : i < 628) : expandData.getD i 0 = tableB
 
 theorem signData_length : signData.length = 4096 := by decide +kernel
 theorem expandData_length : expandData.length = 4096 := by decide +kernel
-/-- n3-99: the 2048-word FTS header table (16384 bytes) precedes the base data. -/
 theorem verifyData_length : verifyData.length = 49152 := by decide +kernel
 
 private theorem checked_slice_get (bs : List (BitVec 8)) (base n i : Nat) (f : Nat → BitVec 8)
@@ -38,6 +37,8 @@ private theorem checked_slice_get (bs : List (BitVec 8)) (base n i : Nat) (f : N
     simpa only [List.getElem_zipIdx,Nat.zero_add,decide_eq_true_eq,
       List.getD_eq_getElem?_getD,List.getElem?_eq_getElem hbound,Option.getD_some] using hh
   simpa only [List.getD_eq_getElem?_getD,List.getElem?_take,List.getElem?_drop,if_pos hi] using hh'
+
+/-! T3X: the verify data starts with the 16384-byte WOTS header table; T3W's tables follow at offset 16384. -/
 
 private theorem verify_sum_check : ((verifyData.drop 45056).take 128).zipIdx.all (fun p =>
     decide (p.1 = BitVec.ofNat 8 (rankLookup p.2))) = true := by decide +kernel

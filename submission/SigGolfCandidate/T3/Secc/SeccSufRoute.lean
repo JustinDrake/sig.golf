@@ -227,8 +227,6 @@ theorem header_byte1 (tag lay tree position index : Nat) :
   have h4 := Nat.mod_lt position (show 0 < 2 ^ 32 by decide)
   have h5 := Nat.mod_lt tree (show 0 < 2 ^ 32 by decide)
   have h6 := Nat.mod_lt index (show 0 < 2 ^ 32 by decide)
-  have h7 := nodeWord_lt tag position index
-  generalize nodeWord tag position index = g at *
   generalize tag % 256 = a at *
   generalize lay % 256 = b at *
   generalize tree / 2 ^ 32 % 256 = c at *

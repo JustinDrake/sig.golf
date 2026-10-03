@@ -21,7 +21,7 @@ theorem ftsLeafInput_length (c index node : Nat) (sec : Digest) :
 
 theorem wordsOf_ftsLeafInput (c index node : Nat) (sec : Digest) :
     wordsOf (pad64 (zero16 ++ bytesLE 16 (header 9 c index 0 node) ++ bytesLE 16 sec ++ zero16)) =
-      [0, 0, BitVec.ofNat 64 (hdr0 9 c index index), BitVec.ofNat 64 (T3.nodeWord 9 0 node), sec.extractLsb' 0 64,
+      [0, 0, BitVec.ofNat 64 (hdr0 9 c index index), BitVec.ofNat 64 (hdr1 node 0), sec.extractLsb' 0 64,
         sec.extractLsb' 64 64, 0, 0] := by
   rw [pad64_of_aligned _ (by rw [ftsLeafInput_length])]
   rw [wordsOf_append _ _ (by simp [bytesLE_length, zero16]), wordsOf_append _ _ (by simp [bytesLE_length, zero16]),
@@ -51,11 +51,11 @@ theorem idxOf_three (g0 g1 g2 node j : Nat) (hj : j < 3) (he : [g0, g1, g2].getD
   · have h0 := hlt 0 (by decide); have h1 := hlt 1 (by decide); simp at he h0 h1; subst he
     simp [List.idxOf_cons, h0, h1]
 
-theorem rcCost_leaf (L : List Nat) (node : Nat) (h : hasLeaf L 0 node = true) : rcCost L 0 node = 118 := by
+theorem rcCost_leaf (L : List Nat) (node : Nat) (h : hasLeaf L 0 node = true) : rcCost L 0 node = 89 := by
   unfold rcCost; simp [h]
 
 theorem rcEm_leaf (L : List Nat) (pf : Nat → Digest) (node used : Nat) (e : Em) (h : hasLeaf L 0 node = true) :
-    rcEm L pf 0 node used e = if L.idxOf node = 0 then ⟨e.segs, e.cur, node % 2⟩ else e.close false (node % 2) := by
+    rcEm L pf 0 node used e = if L.idxOf node = 0 then ⟨e.segs, e.cur, node % 8⟩ else e.close false (node % 8) := by
   unfold rcEm; simp [h]
 
 section leaf
@@ -146,9 +146,9 @@ theorem rc_leaf (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧
     (by rw [r3.get (by simp)]; exact x20_2) hreg3 hstr3 hroom
   have hreg4 : ∀ r, r ∉ [Reg.x2, .x14, .x20, .x28, .x29, .x30, .x22] → t4.getReg r = s.getReg r :=
     fun r hr => by rw [r4.get (fun h => hr (by simp at h ⊢; tauto)), hreg3 r (fun h => hr (by simp at h ⊢; tauto))]
-  have hnode11 : node < 2048 := by have := hpre.hnode; simp at this; omega
+  have hnode32 : node < 2 ^ 32 := by have := hpre.hnode; simp at this; omega
   obtain ⟨t5, s5, p5, x23_5, x24_5, m32, m40, m16, m24, x10_5, x11_5, x12_5, r5, f5⟩ :=
-    rc868_spec t4 p4 c j node index hc hj hnode11 hi (by rw [hreg4 _ (by decide)]; exact hpre.ctx.x8)
+    rc868_spec t4 p4 c j node index hc hj hnode32 hi (by rw [hreg4 _ (by decide)]; exact hpre.ctx.x8)
       (by rw [r4.get (by decide), r3.get (by simp)]; exact x20_2)
       (by rw [r4.get (by decide), r3.get (by simp), x29_2, hjn])
       (by rw [hreg4 _ (by decide)]; exact hpre.ctx.x9)
@@ -178,8 +178,8 @@ theorem rc_leaf (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧
     rw [readWords_eight, wordsOf_ftsLeafInput, hfl _ (Or.inl rfl), hfl _ (Or.inr (Or.inl rfl)), m16, m24, m32, m40,
       hfl _ (Or.inr (Or.inr (Or.inl rfl))), hfl _ (Or.inr (Or.inr (Or.inr rfl))), hsec4.1,
       show 0x7010 + 16 * (3 * c + j) + 8 = 0x7010 + 16 * (3 * c + j) + 8 from rfl, hsec4.2,
-      hdr0_eq 9 c index index (by decide) (by omega) hi hi, nodeWord_9_leaf node hnode11]
-    all_goals (try simp only [Nat.mul_zero, Nat.add_zero])
+      hdr0_eq 9 c index index (by decide) (by omega) hi hi, hdr1_eq node 0 hnode32 (by decide)]
+    simp only [Nat.mul_zero, Nat.add_zero]
   have hv : hashArgumentsValid t5 = true :=
     hashArgs_const t5 FLEAF 64 NOUT x10_5 x11_5 x12_5 (by decide) (by decide) (by decide) (by decide) (by decide)
   have h5 : t5.getReg .x5 = 0 := by rw [r5.get (by decide), hreg4 _ (by decide)]; exact hpre.ctx.x5
@@ -246,7 +246,7 @@ theorem rc_leaf (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧
     · rw [if_pos h0] at x22_4; simp only [h0, ↓reduceIte]; exact x22_4
     · rw [if_neg h0] at x22_4; simp only [h0, ↓reduceIte]; exact x22_4
   · intro _
-    have hcur0 : (if j = 0 then (⟨e.segs, e.cur, node % 2⟩ : Em) else e.close false (node % 2)).cur.length = 0 := by
+    have hcur0 : (if j = 0 then (⟨e.segs, e.cur, node % 8⟩ : Em) else e.close false (node % 8)).cur.length = 0 := by
       by_cases h0 : j = 0
       · simp only [h0, ↓reduceIte]; rw [hpre.hcur (hfj.mp h0)]; rfl
       · simp only [h0, ↓reduceIte]; rfl
@@ -261,7 +261,7 @@ theorem rc_leaf (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧
   · by_cases h0 : j = 0
     · simp only [h0, ↓reduceIte]; exact hpre.hcnt
     · simp only [h0, ↓reduceIte]; simp [Em.close]
-  · by_cases h0 : j = 0 <;> simp only [h0, ↓reduceIte] <;> simp [Em.close] <;> omega
+  · by_cases h0 : j = 0 <;> simp [h0, Em.close] <;> omega
   · have hS : StreamAt t8 (if j = 0 then e else e.close false 0) := str4.frame F48 (fun k hk h => by
       rcases h with (((h | h | h | h) | h) | h) | h <;> first | exact h.elim | (simp only [FLEAF, NOUT] at h; omega))
     by_cases h0 : j = 0

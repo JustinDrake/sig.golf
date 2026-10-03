@@ -1,7 +1,6 @@
 import SigGolfCandidate.SphincsSecurity.Scheme
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.Bytes
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.HashOutputSplit
-import SigGolfCandidate.T3.Rev
 import Mathlib
 import SigGolfCandidate.T3.FullCache.MacDefs
 
@@ -51,61 +50,10 @@ def packedNodeTag (tag : Nat) : Prop := tag % 256 = 3 ∨ tag % 256 = 9 ∨ tag 
 instance (tag : Nat) : Decidable (packedNodeTag tag) := inferInstanceAs
   (Decidable (tag % 256 = 3 ∨ tag % 256 = 9 ∨ tag % 256 = 10))
 
-/-- The FTS leaf and node tags (9, 10): their word 1 is bit-reversed. -/
-def revNodeTag (tag : Nat) : Prop := tag % 256 = 9 ∨ tag % 256 = 10
-
-instance (tag : Nat) : Decidable (revNodeTag tag) := inferInstanceAs
-  (Decidable (tag % 256 = 9 ∨ tag % 256 = 10))
-
-/-- Word 1 of a packed header: `index | position << 32` (32 bits each); for the FTS tags, bit 11 of the index is first
-flipped (leaves, tag 9: `leaf ^^^ 2048 = 2048 + leaf`, the leaf's heap index) and the whole word is bit-reversed
-(`Rev.revBits 64`). Both are fixed public permutations of the word. -/
-def nodeWord (tag position index : Nat) : Nat :=
-  if revNodeTag tag then
-    Rev.revBits 64 ((if tag % 256 = 9 then index % 2^32 ^^^ 2048 else index % 2^32) + position % 2^32 * 2^32)
-  else index % 2^32 + position % 2^32 * 2^32
-
-theorem nodeWord_lt (tag position index : Nat) : nodeWord tag position index < 2^64 := by
-  unfold nodeWord
-  have hp := Nat.mod_lt position (show 0 < 2^32 by decide)
-  have hi := Nat.mod_lt index (show 0 < 2^32 by decide)
-  split_ifs
-  · exact Rev.revBits_lt 64 _
-  · exact Rev.revBits_lt 64 _
-  · norm_num only at hp hi ⊢; omega
-
-theorem nodeWord_normal (tag position index : Nat) :
-    nodeWord (tag % 256) (position % 2^32) (index % 2^32) = nodeWord tag position index := by
-  simp only [nodeWord, revNodeTag, Nat.mod_mod]
-  rfl
-
-theorem nodeWord_normal' (tag position index : Nat) :
-    nodeWord (tag % 256) (position % 4294967296) (index % 4294967296) = nodeWord tag position index :=
-  nodeWord_normal tag position index
-
-theorem nodeWord_inj {tag position index position' index' : Nat} (hp : position < 2^32) (hi : index < 2^32)
-    (hp' : position' < 2^32) (hi' : index' < 2^32)
-    (h : nodeWord tag position index = nodeWord tag position' index') : position = position' ∧ index = index' := by
-  unfold nodeWord at h
-  rw [Nat.mod_eq_of_lt hp, Nat.mod_eq_of_lt hi, Nat.mod_eq_of_lt hp', Nat.mod_eq_of_lt hi'] at h
-  have hx : ∀ v, v < 2^32 → v ^^^ 2048 < 2^32 := fun v hv => Nat.xor_lt_two_pow hv (by decide)
-  have hxi := hx index hi
-  have hxi' := hx index' hi'
-  split_ifs at h with hr h9
-  · have h2 := Rev.revBits_inj (by omega) (by omega) h
-    have hpp : position = position' := by omega
-    refine ⟨hpp, ?_⟩
-    have hxx : index ^^^ 2048 = index' ^^^ 2048 := by omega
-    have := congrArg (· ^^^ 2048) hxx
-    simpa only [Nat.xor_assoc, Nat.xor_self, Nat.xor_zero] using this
-  · have h2 := Rev.revBits_inj (by omega) (by omega) h
-    omega
-  · omega
-
 def header (tag lay tree position index : Nat) : BitVec 128 :=
   BitVec.ofNat 128 (1 + tag % 256 * 2^8 + lay % 256 * 2^16 +
     (tree / 2^32 % 256) * 2^24 +
-    if packedNodeTag tag then tree % 2^32 * 2^32 + nodeWord tag position index * 2^64
+    if packedNodeTag tag then tree % 2^32 * 2^32 + index % 2^32 * 2^64 + position % 2^32 * 2^96
     else position % 2^32 * 2^32 + tree % 2^32 * 2^64 + index % 2^32 * 2^96)
 
 def pad64 (input : HashInput) : HashInput :=

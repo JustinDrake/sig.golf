@@ -529,7 +529,6 @@ theorem header_tag (tag lay tree position index : Nat) :
     ((header tag lay tree position index).toNat/256)%256=tag%256 := by
   rw [header_toNat]
   have ht := Nat.mod_lt tag (by decide : 0<256)
-  have hw := nodeWord_lt tag position index
   norm_num only [Nat.reducePow] at *
   split_ifs <;> omega
 
@@ -545,7 +544,6 @@ theorem header_layer (tag lay tree position index : Nat) :
   rw [header_toNat]
   have ht := Nat.mod_lt tag (by decide : 0<256)
   have hl := Nat.mod_lt lay (by decide : 0<256)
-  have hw := nodeWord_lt tag position index
   norm_num only [Nat.reducePow] at *
   split_ifs <;> omega
 

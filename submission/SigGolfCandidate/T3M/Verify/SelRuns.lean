@@ -1,12 +1,12 @@
 import SigGolfCandidate.T3M.Verify.Digest
 
 /-!
-# Selections: expected symbolic results of the sort-tree paths (T3M verify words 18 .. 358)
+# Selections: expected symbolic results of the sort-tree paths (T3M verify words 17 .. 358)
 
 After the digest, `ld a6/a7/s11/t3` load the four words of `N` and `s6 = N mod 2^31` (`selSetup`). For each
 coordinate `c` (code from `selStart c` to the join `selJoin c`): the 25-bit number `gp = N >> (31 + 25 c)` (one
-`srli`, or `srli; slli; or` when it straddles a word), `tp = ((gp & 15) << 10) + sp`, the three table
-addresses `x_j = (gp >> (1 + 7 j)) & 1016 + tp = TAB + 8 (128 bucket + leaf_j)` (`xE c j`, t3-rl2), then a decision tree: at most three `bgeu`, the stores of
+`srli`, or `srli; slli; or` when it straddles a word), `tp = (gp & 7 | 8) << 8 = 2048 + 256 bucket`, the three heap
+indices `x_j = (gp >> (3 + 8 j)) & 255 | tp` (`xE c j`), then a decision tree: at most three `bgeu`, the stores of
 the sorted triple at `ETAB + 24 c + 8 k`, and `beq` rejects on the non-strict edges of the path.
 
 Paths `p < 6` (`selDirs`, `selBrs`, `selPerm`) accept with the sorted order `selPerm p`; reject paths `r < 6`
@@ -38,16 +38,14 @@ def gpE (c : Nat) : E :=
   if selDbl c then .bin .or (.bin .srl (.reg (nReg w)) (cw o)) (.bin .sll (.reg (nReg (w + 1))) (cw (64 - o)))
   else .bin .srl (.reg (nReg w)) (cw o)
 
-/-- t3-rl2: `(gp & 15) << 10` (`tp = this + sp`, `sp = TAB` the header table). -/
-def bbE (c : Nat) : E := .bin .sll (.bin .and (gpE c) (cw 15)) (cw 10)
+/-- `tp = (gp & 7 | 8) << 8`. -/
+def bbE (c : Nat) : E := .bin .sll (.bin .or (.bin .and (gpE c) (cw 15)) (cw 16)) (cw 7)
 
-/-- t3-rl2: the table address `TAB + 8 (128 bucket + x_j)` of the `j`-th unsorted leaf, as the executor folds
-`x_j + (bb + sp)` (`mkAdd` reassociates the constant `sp`). -/
-def xE (c j : Nat) : E :=
-  .bin .add (.bin .add (.bin .and (.bin .srl (gpE c) (cw (1 + 7 * j))) (cw 1016)) (bbE c)) (.c (BitVec.ofNat 64 TAB))
+/-- The heap index `2048 + 256 bucket + x_j` of the `j`-th unsorted leaf. -/
+def xE (c j : Nat) : E := .bin .or (.bin .and (.bin .srl (gpE c) (cw (4 + 7 * j))) (cw 127)) (bbE c)
 
 /-- Start of coordinate `c`'s selection code (`selStart 7 = 359 = fts_setup`). -/
-def selStart (c : Nat) : Nat := [24, 71, 120, 167, 216, 263, 310, 359].getD c 0
+def selStart (c : Nat) : Nat := [23, 71, 120, 167, 216, 263, 310, 359].getD c 0
 def selJoin (c : Nat) : Nat := selStart (c + 1)
 
 /-- Extraction length (1 or 3 instructions). -/
@@ -96,14 +94,11 @@ def selMem (c p : Nat) : List (Addr × E) :=
 def selSpec (c p : Nat) : Spec :=
   ⟨[], selMem c p, selJoin c, false, selExt c + 12 + selTree p, selBrs c p, none, selExt c + 12 + selTree p⟩
 
-/-- The constant registers of the selection code: `baseK` and `sp = TAB`. -/
-def selK : List (Reg × Word) := baseK ++ [(.x2, BitVec.ofNat 64 TAB)]
-
 /-- Registers kept through a coordinate: the four words of `N`, `s6 = index`. -/
 def selKeep : List Reg := [.x16, .x17, .x27, .x28, .x22]
 
 def selCheck1 (c p : Nat) : Bool :=
-  specB [] [] baseK (runAt selK [selJoin c] (selStart c) (selDirs p)) (selSpec c p) [] selK selKeep
+  specB [] [] baseK (runAt baseK [selJoin c] (selStart c) (selDirs p)) (selSpec c p) [] baseK selKeep
 
 /-! ## Reject paths -/
 
@@ -126,16 +121,16 @@ def selRBrs (c : Nat) : Nat → List Br
 def selRSteps (c r : Nat) : Nat := selExt c + 12 + (if r = 4 then 6 else 7)
 
 def selRCheck1 (c r : Nat) : Bool :=
-  specB [] [] [] (runAt selK [] (selStart c) (selRDirs r)) (rejSpec (selRSteps c r) (selRBrs c r)) [] [] []
+  specB [] [] [] (runAt baseK [] (selStart c) (selRDirs r)) (rejSpec (selRSteps c r) (selRBrs c r)) [] [] []
 
-/-! ## The setup block (words 18 .. 23) -/
+/-! ## The setup block (words 17 .. 22) -/
 
 def nE (k : Nat) : E := .ld (cw (0x60 + 8 * k))
 def idxE : E := .bin .srl (.bin .sll (nE 0) (cw 33)) (cw 33)
 
 def setupSpec : Spec :=
-  ⟨[(.x16, nE 0), (.x17, nE 1), (.x27, nE 2), (.x28, nE 3), (.x22, idxE)], [], 24, false, 6, [], none, 6⟩
+  ⟨[(.x16, nE 0), (.x17, nE 1), (.x27, nE 2), (.x28, nE 3), (.x22, idxE)], [], 23, false, 6, [], none, 6⟩
 
-def setupCheck : Bool := specB [] [] baseK (runAt selK [24] 18 []) setupSpec [] selK []
+def setupCheck : Bool := specB [] [] baseK (runAt baseK [23] 17 []) setupSpec [] baseK []
 
 end SigGolfCandidate.T3M.Verify
