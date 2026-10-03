@@ -178,7 +178,7 @@ theorem ltable_disj (lay lay' : Layer) (h : lay ≠ lay') :
 theorem lhalf_inj (lay lay' : Layer) (h1 : lD lay = lD lay') (h2 : lk lay = lk lay') : lay = lay' := by
   fin_cases lay <;> fin_cases lay' <;> simp_all [lD, lk]
 
-theorem ltable_lo (lay : Layer) : 0x3148 ≤ lWM lay - 64 * (height lay - 1) := by
+theorem ltable_lo (lay : Layer) : 0x3418 ≤ lWM lay - 64 * (height lay - 1) := by
   fin_cases lay <;> decide
 
 section step
@@ -262,13 +262,13 @@ theorem layer_step {sig : Signature} {index n : Nat} {value : Digest} {s : Machi
     obtain ⟨p4, e4, cv4, pv4, r4, f4⟩ := h4
     -- memory far from the layer's writes
     have hrlw : ∀ A, (A < CHAIN ∨ CHAIN + 80 ≤ A) → (A < NODE ∨ NOUT + 32 ≤ A) → (A < LEAFPK ∨ LEAFPK + 880 ≤ A) →
-        A ≠ ENC → A ≠ ENC + 8 → (A < 0x3148 ∨ 0x7000 ≤ A) →
+        A ≠ ENC → A ≠ ENC + 8 → (A < 0x3418 ∨ 0x7000 ≤ A) →
         ¬ (RlScratch A ∨ RlWit lay (route index lay).1 (lWC lay) (lWM lay) A) := by
       intro A h1 h2 h3 h4 h5 h6 h
       rcases h with h | h
       · unfold RlScratch at h; simp only [CHAIN, NODE, NOUT, LEAFPK, ENC] at h h1 h2 h3 h4 h5; omega
       · have := rlWit_range h; have := ltable_lo lay; omega
-    have hfar4 : ∀ A, A < 2 ^ 64 → ¬ CsW A → A ≠ lD lay → (A < 0x3148 ∨ 0x7000 ≤ A) → ¬ RlScratch A →
+    have hfar4 : ∀ A, A < 2 ^ 64 → ¬ CsW A → A ≠ lD lay → (A < 0x3418 ∨ 0x7000 ≤ A) → ¬ RlScratch A →
         t4.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
       intro A hA h1 h2 h3 h4
       have hw : ¬ (RlScratch A ∨ RlWit lay (route index lay).1 (lWC lay) (lWM lay) A) := by

@@ -55,7 +55,7 @@ theorem rcCost_leaf (L : List Nat) (node : Nat) (h : hasLeaf L 0 node = true) : 
   unfold rcCost; simp [h]
 
 theorem rcEm_leaf (L : List Nat) (pf : Nat → Digest) (node used : Nat) (e : Em) (h : hasLeaf L 0 node = true) :
-    rcEm L pf 0 node used e = if L.idxOf node = 0 then ⟨e.segs, e.cur, node % 2⟩ else e.close false (node % 2) := by
+    rcEm L pf 0 node used e = if L.idxOf node = 0 then ⟨e.segs, e.cur, node % 8⟩ else e.close false (node % 8) := by
   unfold rcEm; simp [h]
 
 section leaf
@@ -67,11 +67,11 @@ theorem rc_leaf_close {s t2 : MachineState} {node used : Nat} {e : Em} {fresh : 
     (hj : j < 3) (hfj : j = 0 ↔ fresh = true) (hp2 : t2.pc = pcOf 859)
     (x20 : t2.getReg .x20 = BitVec.ofNat 64 j)
     (hreg : ∀ r, r ∉ [Reg.x2, .x14, .x20, .x28, .x29, .x30] → t2.getReg r = s.getReg r)
-    (hstr : StreamAt t2 e) (hroom : (img e).length + (if j = 0 then 0 else 1) ≤ 1185) :
+    (hstr : StreamAt t2 e) (hroom : (img e).length + (if j = 0 then 0 else 1) ≤ 1275) :
     ∃ k t3, Steps image t2 k k t3 ∧ k ≤ 9 ∧ t3.pc = pcOf 868 ∧
       t3.getReg .x22 = BitVec.ofNat 64 (0xC40 + 8 * wl (if j = 0 then e else e.close false 0)) ∧
       StreamAt t3 (if j = 0 then e else e.close false 0) ∧
-      RegsExcept t2 t3 [.x22, .x28, .x30] ∧ Frame t2 t3 (fun A => 0xC40 ≤ A ∧ A < 0xC40 + 8 * 1185) := by
+      RegsExcept t2 t3 [.x22, .x28, .x30] ∧ Frame t2 t3 (fun A => 0xC40 ≤ A ∧ A < 0xC40 + 8 * 1275) := by
   obtain ⟨t3, s3, p3, r3, f3⟩ := rc859_spec t2 hp2 j hj x20
   by_cases h0 : j = 0
   · rw [if_pos h0] at p3
@@ -134,7 +134,7 @@ theorem rc_leaf (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧
   rw [if_pos rfl] at p3
   have hroomf := hpre.room
   rw [rcEm_leaf _ _ _ _ _ h1, hidx] at hroomf
-  have hroom : (img e).length + (if j = 0 then 0 else 1) ≤ 1185 := by
+  have hroom : (img e).length + (if j = 0 then 0 else 1) ≤ 1275 := by
     split_ifs at hroomf ⊢ with h0
     · rw [img_len_par] at hroomf; omega
     · rw [img_len_close] at hroomf; omega
@@ -154,8 +154,8 @@ theorem rc_leaf (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧
       (by rw [hreg4 _ (by decide)]; exact hpre.ctx.x9)
   -- memory of `t4` = memory of `s` outside the stack frame and the stream
   have F04 : Frame s t4 (fun A => (((A = sp - 48 ∨ A = sp - 40 ∨ A = sp - 32) ∨ False) ∨
-      (0xC40 ≤ A ∧ A < 0xC40 + 8 * 1185))) := (f2.trans f3).trans f4
-  have g4 : ∀ A, A < 2 ^ 64 → (A < sp - 48 ∨ sp ≤ A) → (A < 0xC40 ∨ 0xC40 + 8 * 1185 ≤ A) →
+      (0xC40 ≤ A ∧ A < 0xC40 + 8 * 1275))) := (f2.trans f3).trans f4
+  have g4 : ∀ A, A < 2 ^ 64 → (A < sp - 48 ∨ sp ≤ A) → (A < 0xC40 ∨ 0xC40 + 8 * 1275 ≤ A) →
       t4.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := fun A hA h1 h2 =>
     F04.get hA (by rintro (((h | h | h) | h) | h) <;> first | omega | exact h.elim)
   have hsec := hpre.ctx.sec j hj
@@ -246,7 +246,7 @@ theorem rc_leaf (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧
     · rw [if_pos h0] at x22_4; simp only [h0, ↓reduceIte]; exact x22_4
     · rw [if_neg h0] at x22_4; simp only [h0, ↓reduceIte]; exact x22_4
   · intro _
-    have hcur0 : (if j = 0 then (⟨e.segs, e.cur, node % 2⟩ : Em) else e.close false (node % 2)).cur.length = 0 := by
+    have hcur0 : (if j = 0 then (⟨e.segs, e.cur, node % 8⟩ : Em) else e.close false (node % 8)).cur.length = 0 := by
       by_cases h0 : j = 0
       · simp only [h0, ↓reduceIte]; rw [hpre.hcur (hfj.mp h0)]; rfl
       · simp only [h0, ↓reduceIte]; rfl
@@ -261,7 +261,8 @@ theorem rc_leaf (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧
   · by_cases h0 : j = 0
     · simp only [h0, ↓reduceIte]; exact hpre.hcnt
     · simp only [h0, ↓reduceIte]; simp [Em.close]
-  · by_cases h0 : j = 0 <;> simp only [h0, ↓reduceIte] <;> simp [Em.close] <;> omega
+  · by_cases h0 : j = 0 <;> simp only [h0, ↓reduceIte] <;>
+      change node % 8 < 8 <;> omega
   · have hS : StreamAt t8 (if j = 0 then e else e.close false 0) := str4.frame F48 (fun k hk h => by
       rcases h with (((h | h | h | h) | h) | h) | h <;> first | exact h.elim | (simp only [FLEAF, NOUT] at h; omega))
     by_cases h0 : j = 0

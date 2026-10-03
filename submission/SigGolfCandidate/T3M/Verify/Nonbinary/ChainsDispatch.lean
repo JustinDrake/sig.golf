@@ -55,8 +55,8 @@ theorem tail_dispatch_step {p : Nat} (hp : p<210432)
     (hrun : vrun p 5=some tailDispatchR) (s : MachineState) (k : Nat) (hk : k<64)
     (hpc : s.pc=pcOf p) (h29 : s.getReg .x29=BitVec.ofNat 64 k) :
     ∃t, Steps Images.verifyImage s 4 4 t ∧ t.pc=pcOf (entW 17 k) ∧
-      RegsExcept s t [.x14,.x15] ∧ Frame s t (fun _ => False) ∧ t.getReg .x15 = 843776#64 := by
-  refine ⟨tailDispatchR.toState s,piece_steps45 hrun hp s hpc (by simp [tailDispatchR]),?_,?_,?_,?_⟩
+      RegsExcept s t [.x14,.x15] ∧ Frame s t (fun _ => False) := by
+  refine ⟨tailDispatchR.toState s,piece_steps45 hrun hp s hpc (by simp [tailDispatchR]),?_,?_,?_⟩
   · simp only [Result.toState_pc,tailDispatchR,E.eval,BinOp.eval,h29]
     change ((BitVec.ofNat 64 k <<< 5)+BitVec.ofNat 64 843776) &&& ~~~1#64=pcOf (entW 17 k)
     rw [ofNat_shl,ofNat_add_ofNat,even_andNot1' _ (by omega)]
@@ -70,10 +70,6 @@ theorem tail_dispatch_step {p : Nat} (hp : p<210432)
       RegFile.get_set_ne _ _ (ne_of_not_mem hr (by simp)),RegFile.init_get_eval]
   · intro A _ _
     simp [tailDispatchR,rv_simp]
-  · rw [Result.toState_getReg]
-    simp only [tailDispatchR]
-    rw [RegFile.get_set_self _ _ (by decide)]
-    rfl
 
 #print axioms dispatch_step
 #print axioms tail_dispatch_step

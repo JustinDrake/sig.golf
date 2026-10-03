@@ -2,17 +2,17 @@ import SigGolfCandidate.T3.Core
 
 /-! # T3M witness layout (stream W)
 
-The byte layout of the machine witness, transcribed from `t3m/ref3/layout.py` (layout v3; W-gap: the stream ends at the pointer cap and the
-layers are packed, `W = 24,264`, charge 95), and the byte readers of the padded verifier `verifyP`. Every offset is relative to the witness base (`0x800`
+The byte layout of the machine witness, transcribed from `t3m/ref3/layout.py` (layout v3, `W = 25,240`, charge
+99), and the byte readers of the padded verifier `verifyP`. Every offset is relative to the witness base (`0x800`
 on the machine).
 
 | offset | content |
 |---|---|
 | `[0,16)` rho, `[16,20)` dc (LE32), `[20,36)` `c_0..c_3` (LE32), `[36,64)` zero | payload / dead |
 | `[64,1088)` | 21 FTS leaf blocks `[pad | T | secret | pad']` at stride 48 (`pad'` of block `s` = `pad` of `s+1`) |
-| `[1088,10568)` | fold stream: 35 segments (8-byte header, `a` × (64-byte fold block + 16-byte gap)), at most 115 folds |
-| `[10568,14792)` | layer 0: 12 Merkle blocks (level `j` at `+64 (11-j)`), then 54 chain blocks (chain `i` at `+64 (53-i)`) |
-| `[14792,17992)`, `[17992,21128)`, `[21128,24264)` | layers 1, 2, 3 (`h` Merkle + 43 chain blocks each) |
+| `[1088,11288)` | fold stream: 35 segments (8-byte header, `a` × (64-byte fold block + 16-byte gap)) |
+| `[11288,15768)` | layer 0: 12 Merkle blocks (level `j` at `+64 (11-j)`), then 54 chain blocks (chain `i` at `+64 (53-i)`), with a 256-byte unused tail |
+| `[15768,18968)`, `[18968,22104)`, `[22104,25240)` | layers 1, 2, 3 (`h` Merkle + 43 chain blocks each) |
 
 Reads at or beyond `wsize` return zero (`BitVec.extractLsb'` past the width is zero): during verify the machine's
 memory after the witness is zero, as `absverify_t3.wb` assumes. -/
@@ -20,10 +20,10 @@ namespace SigGolfCandidate.T3M
 open SigGolfCandidate.T3
 
 /-- Witness size in bytes. -/
-def wsize : Nat := 24264
+def wsize : Nat := 25240
 
-/-- The witness as the organizer's `Legacy.Bytes 24264` (= `BitVec (8 * 24264)`, byte `i` = bits `8i..8i+8`). -/
-abbrev WBytes := BitVec (8 * 24264)
+/-- The witness as the organizer's `Legacy.Bytes 25240` (= `BitVec (8 * 25240)`, byte `i` = bits `8i..8i+8`). -/
+abbrev WBytes := BitVec (8 * 25240)
 
 /-- Witness byte `i` (zero for `i ≥ wsize`). -/
 def wbyte (w : WBytes) (i : Nat) : UInt8 := UInt8.ofBitVec (w.extractLsb' (8 * i) 8)
@@ -59,7 +59,7 @@ def segNext (ptr a : Nat) : Nat := ptr + 8 + 80 * a
 def sibOff (side : Nat) : Nat := if side = 1 then 0 else 48
 
 /-- Start of layer `lay`'s region (memory order 0, 1, 2, 3). -/
-def layerBase (lay : Layer) : Nat := (![10568, 14792, 17992, 21128] : Layer → Nat) lay
+def layerBase (lay : Layer) : Nat := (![11288, 15768, 18968, 22104] : Layer → Nat) lay
 /-- Merkle block of level `j` (0 = the fold with the leaf pk) of layer `lay`: `[L | T | pad | R]`. -/
 def merkleBlock (lay : Layer) (j : Nat) : Nat := layerBase lay + 64 * (height lay - 1 - j)
 /-- Chain block of chain `i` of layer `lay`: `[pad0 | T | pad1 | value]`. -/
@@ -90,5 +90,8 @@ def wmerklePad (w : WBytes) (lay : Layer) (j : Nat) : Digest := wdig w (merkleBl
 
 /-- Global leaf `g = 128 bucket + x_j` of position `j` of a selection (its heap index is `2048 + g`). -/
 def selLeaf (sel : Selection) (j : Nat) : Nat := sel.bucket * 128 + sel.leaves.getD j 0
+
+/-- Number of side-code residues checked for a segment with `a` folds. -/
+def segSideMod (a : Nat) : Nat := 2 ^ min a 3
 
 end SigGolfCandidate.T3M

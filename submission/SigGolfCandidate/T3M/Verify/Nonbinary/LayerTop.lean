@@ -46,9 +46,9 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     GoodQ s (N + layerFuel 0) (C + layerCost 0 0) Q (A + layerCost 0 0) (ccM (layerHead w index 0 M R) K) := by
   have hidx := hs.idx
   have hA := encA_step w pk index 0 M s hs
-  have hfuel : layerFuel 0 = 11 + 1 + 117 + 2321 + 12 := by decide
-  have hcost : layerCost 0 0 = 11 + 8 + 69 + 12 + 1129 := by decide
-  have hsA : stepsA (0 : Layer).val = 11 := rfl
+  have hfuel : layerFuel 0 = 13 + 1 + 118 + 2321 + 13 := by decide
+  have hcost : layerCost 0 0 = 13 + 8 + 67 + 13 + 1129 := by decide
+  have hsA : stepsA (0 : Layer).val = 13 := rfl
   unfold layerHead
   by_cases hctr : (wctr w 0).toNat ≥ counterLimit
   · rw [if_pos hctr, ccM_pure, hK0]
@@ -59,7 +59,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     obtain ⟨t, hst, hf, h5, hv, hin, c, hc, hpre⟩ := hA.2 (by omega)
     rw [hsA] at hst
     have hblk := blocks_encodingInput 0 (route index 0).2 (route index 0).1 M (wctr w 0)
-    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 12 + 2321 + 117) (C + 12 + 1129 + 69) Q (A + 12 + 1129 + 69)
+    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 13 + 2321 + 118) (C + 13 + 1129 + 67) Q (A + 13 + 1129 + 67)
         (ccM (match decode 0 (a.extractLsb' 0 128) with
           | none => pure none
           | some digits => chainsP w 0 (route index 0).2 (route index 0).1 digits >>= R) K) := by
@@ -80,8 +80,8 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
         let L := nctxOf w index (a.extractLsb' 0 128) (trPc 0 c)
         have hLok : L.ok := nctx_ok w index _ c hidx
         have hkn : KnownOK L.known s0 := nctx_known w pk index c t s0 a hpre he
-        have h12 : t.getReg .x12 = 320#64 := hpre.glob.1 (_, _) (by simp [bK])
-        have hDs0 : DataOK s0 := (Glob_writeHash hpre.glob a 320 h12 (by decide)).2.2.2.2.2.congr
+        have h12 : t.getReg .x12 = 256#64 := hpre.glob.1 (_, _) (by simp [bK])
+        have hDs0 : DataOK s0 := (Glob_writeHash hpre.glob a 256 h12 (by decide)).2.2.2.2.2.congr
           (fun A _ hA => he.frame.get (by omega) (by simp))
         have hO := nctx_orig w index (a.extractLsb' 0 128) (trPc 0 c) s0
           (topEntry_orig w pk index c t s0 a hpre he) hDs0
@@ -90,8 +90,8 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
         have hIn := nctx_initial w index _ (trPc 0 c) _ s0 he hdec.2.1
         have hEnc := nctx_encoded _ s0 _ (trPc 0 c) he hdec.1
         have hG := L.top_good hLok hkn hO hEnc hfit hds (fun ends => ccM (R ends) K)
-          (N+12) (C+12) (A+12) Q (fun ends z hz => by
-            obtain ⟨hr,hf,hlen,hend,hpc,h15⟩ := hz
+          (N+13) (C+13) (A+13) Q (fun ends z hz => by
+            obtain ⟨hr,hf,hlen,hend,hpc⟩ := hz
             have hregs : RegsExcept s0 z topChainRegs := by
               intro r hrn
               apply hr r
@@ -99,7 +99,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
               · intro hh;subst r;exact hrn (by decide)
             have hframe : Frame s0 z topChainWrites := by
               exact hf
-            have hready := topLeafReady_of w pk index c t s0 z a ends hpre he hpc hregs hframe h15 hlen
+            have hready := topLeafReady_of w pk index c t s0 z a ends hpre he hpc hregs hframe hlen
               (fun j hj => by have h := hend j (by omega);exact h)
             obtain ⟨u,st,hu⟩ := leafT_step w pk index c hc hidx ends z hready
             exact GoodQ.steps' st (hR ends u hu) (by omega) (by omega) (fun hq => ⟨hq,by omega⟩)) s0 hIn

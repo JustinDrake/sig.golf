@@ -32,7 +32,7 @@ def width (lay : Layer) (i : Nat) : Nat := if lay = 0 ∧ 51 ≤ i then 2 else 3
 /-- Top chains use51 radix-five positions followed by3 radix-four positions. -/
 def maxDigit (lay : Layer) (i : Nat) : Nat :=
   if lay = 0 then (if i < 51 then 4 else 3) else 7
-def target (lay : Layer) : Nat := ![126, 195, 195, 194] lay
+def target (lay : Layer) : Nat := ![126, 195, 195, 195] lay
 def encodedBits (lay : Layer) : Nat := if lay = 0 then 125 else 126
 def capacity (lay : Layer) : Nat := if lay = 0 then 213 else 301
 def attemptLimit : Nat := 2 ^ 20
@@ -278,8 +278,9 @@ def admissible (chosen : List Selection) : Bool :=
   chosen.all (fun s => decide (s.leaves.Nodup)) &&
     decide (28 + (chosen.map fun s => authCount s.leaves).sum ≤ 115)
 
-/-- Five independent high bits screen the digest; the selector occupies bits31..205. -/
-def digestGate (output : HashOutput) : Bool := decide (output.toNat / 2^206 % 8 = 0)
+/-- The ten top bits (246..255) screen the digest: accepted iff that field is below 135 (of 1024).
+The selector occupies bits 31..205; bits 206..245 are unused. -/
+def digestGate (output : HashOutput) : Bool := decide (output.toNat / 2^246 < 135)
 
 def digestAdmissible (output : HashOutput) : Bool :=
   admissible (selections output) && digestGate output

@@ -47,10 +47,9 @@ def segBytes (chosen : List Selection) (proof : Fin 115 → Digest) (seg : Segme
   [UInt8.ofNat seg.byte0] ++ zeros 7 ++ (List.range seg.a).flatMap fun r =>
     foldBytes (seg.heap r) (proof ⟨foldSlot chosen seg r % 115, Nat.mod_lt _ (by decide)⟩)
 
-/-- `[1088,10568)`: the honest stream, zero-filled (cut at 9,480 bytes = the pointer cap, which only over-cap selections
-reach). -/
+/-- `[1088,11288)`: the honest stream, zero-filled (cut at 10,200 bytes, which only over-cap selections reach). -/
 def streamBytes (chosen : List Selection) (proof : Fin 115 → Digest) : List UInt8 :=
-  (((schedule chosen).flatMap (segBytes chosen proof)) ++ zeros 9480).take 9480
+  (((schedule chosen).flatMap (segBytes chosen proof)) ++ zeros 10200).take 10200
 
 /-- Layer `lay`'s region: Merkle blocks of levels `h-1 .. 0` (sibling at `L` iff bit `j` of `leaf` is 1, else
 `R`), then chain blocks of chains `n-1 .. 0` (value at `+48`). -/
@@ -60,11 +59,11 @@ def layerBytes (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8
       else zeros 48 ++ bytesLE 16 (ls.path j)) ++
     (List.finRange (chainCount lay)).reverse.flatMap (fun i => zeros 48 ++ bytesLE 16 (ls.values i))
 
-/-- Physical storage: the layers are packed back to back (W-gap: no top-layer tail). -/
+/-- Physical storage keeps the old layer bases; the shorter top layer has a zero tail. -/
 def layerStorage (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8 :=
-  layerBytes lay leaf ls
+  layerBytes lay leaf ls ++ zeros (if lay = 0 then 256 else 0)
 
-/-- The 24,264 witness bytes of `witEnc N w`. -/
+/-- The 25,240 witness bytes of `witEnc N w`. -/
 def witList (N : HashOutput) (w : Witness) : List UInt8 :=
   headerBytes w ++ leafBytes w.signature ++ streamBytes (selections N) w.signature.proof ++
     (List.finRange 4).flatMap fun lay =>

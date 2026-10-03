@@ -9,7 +9,7 @@ set_option linter.unusedSimpArgs false
 
 /-- Every rejected source encoding takes the actual verifier to its rejection jump. -/
 theorem decode_reject (s : MachineState) (v : Digest)
-    (hpc : s.pc = pcOf 96160) (hv : DigAt s 320 v) (ht : PackedTables s)
+    (hpc : s.pc = pcOf 96160) (hv : DigAt s 256 v) (ht : PackedTables s)
     (hbad : T3.decode 0 v = none) :
     ∃ k t, Steps Verify.image s k k t ∧ k ≤ 60 ∧ t.pc = pcOf 96230 ∧
       RegsExcept s t [.x16,.x17,.x14,.x25,.x29,.x19,.x24] ∧ Frame s t (fun _ => False) := by
@@ -24,7 +24,7 @@ theorem decode_reject (s : MachineState) (v : Digest)
     have hb : compressedSum (topRank v) + tailWeight v ≠ 126 := hn
     obtain ⟨t3,e3,p3,r3,f3⟩ := tail_spec t2 v _ (compressedSum_le v) hr p2 w2 a2 ((ht.frame f1).frame f2)
     rw [if_neg hb] at p3 e3
-    exact ⟨59,t3,(e1.trans e2).trans e3,by decide,p3,
+    exact ⟨58,t3,(e1.trans e2).trans e3,by decide,p3,
       ((r1.trans r2).trans r3).mono (by decide),((f1.trans f2).trans f3).mono (by simp)⟩
   · rw [if_neg hr] at p1
     exact ⟨4, t1, e1, by decide, p1, r1.mono (by decide), f1⟩

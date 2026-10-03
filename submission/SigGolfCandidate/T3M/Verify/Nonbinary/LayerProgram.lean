@@ -12,7 +12,7 @@ set_option linter.unusedSimpArgs false
 
 theorem nctx_block (w : WBytes) (index : Nat) (v : Digest) (p i : Nat) :
     (nctxOf w index v p).blk i - 0x800 = chainBlock 0 i := by
-  change 15048 - 1664 + 64 * (53 - i) - 2048 = 10568 + 64 * 12 + 64 * (54 - 1 - i)
+  change 15768 - 1664 + 64 * (53 - i) - 2048 = 11288 + 64 * 12 + 64 * (54 - 1 - i)
   omega
 
 theorem nctx_chain_eq (w : WBytes) (index : Nat) (v : Digest) (p i : Nat) (hi : i < 54) :

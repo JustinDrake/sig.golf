@@ -59,7 +59,7 @@ theorem expand_value (P : Pending) (m : Message) (pk : PublicKey) (s : Bytes 561
     (P.expand_refines m pk s), expandB, mrealize_map]
 
 set_option maxRecDepth 100000 in
-theorem verify_value (P : Pending) (m : Message) (pk : PublicKey) (w : Bytes 24264) :
+theorem verify_value (P : Pending) (m : Message) (pk : PublicKey) (w : Bytes 25240) :
     (fun r => r.value.isSome) <$> submission.run .verify (m, pk, w) = mrealize 0 (verifyP m pk w) := by
   have h := congrArg (fun x => (fun p : Option Unit × Nat => p.1.isSome) <$> x) (P.verify_refines m pk w)
   simp only [Functor.map_map] at h

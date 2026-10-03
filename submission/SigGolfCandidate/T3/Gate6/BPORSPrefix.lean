@@ -82,7 +82,7 @@ theorem uniform_marked_word_atIndex {α β : Type} [Fintype α] [SampleableType 
 abbrev Buckets := Fin 7 → Fin 16
 
 noncomputable def wordEnvelope (word : List Buckets) : ENNReal :=
-  (∏ c, coordinateEnvelope (word.map fun row => row c))/2^150
+  (∏ c, coordinateEnvelope (word.map fun row => row c))/2^147/(1024/135)
 
 /-- Transposing the finite uniform proposal table gives exactly the seven
 coordinate histories used by the moment proof. -/
@@ -107,7 +107,7 @@ theorem uniform_proposal_forest_moment (index : Fin (2^31)) (steps power : Nat) 
 
 theorem uniform_proposal_mean_bound (index : Fin (2^31)) :
     (2 : ENNReal)^128*uniformWordAverage Numeric.proposalLength
-      (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex index word)) ≤ 37/64 := by
+      (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex index word)) ≤ 4995/8192 := by
   have h := uniform_proposal_forest_moment index Numeric.proposalLength 1
   simp only [pow_one] at h
   rw [h]
@@ -115,7 +115,7 @@ theorem uniform_proposal_mean_bound (index : Fin (2^31)) :
 
 theorem uniform_proposal_excess_bound (index : Fin (2^31)) :
     (2 : ENNReal)^225*uniformWordAverage Numeric.proposalLength
-      (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex index word)^2) ≤ 18400/100000000 := by
+      (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex index word)^2) ≤ 16767/81920000 := by
   rw [uniform_proposal_forest_moment]
   exact Numeric.uniform_history_excess_bound
 
@@ -123,7 +123,7 @@ theorem uniform_proposal_excess_bound (index : Fin (2^31)) :
 
 noncomputable def nearWordEnvelope (missing : Fin 7) (word : List Buckets) : ENNReal :=
   (∏ c, if c=missing then Numeric.nearCoordinateEnvelope (word.map fun row => row c)
-    else coordinateEnvelope (word.map fun row => row c))/2^143
+    else coordinateEnvelope (word.map fun row => row c))/2^140/(1024/135)
 
 theorem word_near_forest_moment (steps : Nat) (missing : Fin 7) :
     uniformWordAverage steps (nearWordEnvelope missing)=
@@ -136,7 +136,8 @@ theorem word_near_forest_moment (steps : Nat) (missing : Fin 7) :
 
 theorem uniform_proposal_near_bound (index : Fin (2^31)) (missing : Fin 7) :
     21*(2 : ENNReal)^128*uniformWordAverage Numeric.proposalLength
-      (fun word : List (Fin (2^31) × Buckets) => nearWordEnvelope missing (atIndex index word)) ≤ 404 := by
+      (fun word : List (Fin (2^31) × Buckets) => nearWordEnvelope missing (atIndex index word)) ≤
+        872505/2048 := by
   rw [uniform_marked_word_atIndex index Numeric.proposalLength (nearWordEnvelope missing)]
   simp only [Fintype.card_fin,Nat.cast_pow,Nat.cast_ofNat]
   simp_rw [word_near_forest_moment]
@@ -364,7 +365,7 @@ theorem marked_envelope_negative_correlation {α β : Type} [Fintype α] [Sample
     _ = _ := by ring
 
 theorem word_first_moment (steps : Nat) :
-    uniformWordAverage steps wordEnvelope=envelope Numeric.meanCoeffs steps/2^234 := by
+    uniformWordAverage steps wordEnvelope=envelope Numeric.meanCoeffs steps/2^234*(135/128) := by
   have h := word_forest_moment steps 1
   simpa only [pow_one,Numeric.forest_first_moment] using h
 
@@ -376,9 +377,9 @@ theorem forest_negative_correlation (first second : Fin (2^31)) (hne : first≠s
       uniformWordAverage steps (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex first word))*
         uniformWordAverage steps (fun word : List (Fin (2^31) × Buckets) => wordEnvelope (atIndex second word)) := by
   apply marked_envelope_negative_correlation first second hne steps wordEnvelope wordEnvelope
-    Numeric.meanCoeffs Numeric.meanCoeffs ((2^234 : ENNReal)⁻¹) ((2^234 : ENNReal)⁻¹)
-  · intro n;simpa only [div_eq_mul_inv] using word_first_moment n
-  · intro n;simpa only [div_eq_mul_inv] using word_first_moment n
+    Numeric.meanCoeffs Numeric.meanCoeffs ((2^234 : ENNReal)⁻¹*(135/128)) ((2^234 : ENNReal)⁻¹*(135/128))
+  · intro n;simpa only [div_eq_mul_inv,mul_assoc] using word_first_moment n
+  · intro n;simpa only [div_eq_mul_inv,mul_assoc] using word_first_moment n
 
 end SigGolfCandidate.T3.BPORS.History
 
@@ -404,6 +405,7 @@ theorem fullPrice_ne_top (word : List Proposal) : fullPrice word≠⊤ := by
   apply ENNReal.sum_ne_top.mpr
   intro index _
   unfold wordEnvelope coordinateEnvelope bucketMass
+  apply ENNReal.div_ne_top ?_ (ENNReal.div_ne_zero.mpr ⟨by norm_num,by norm_num⟩)
   apply ENNReal.div_ne_top ?_ (by norm_num)
   apply ENNReal.prod_ne_top
   intro c _
@@ -425,20 +427,20 @@ theorem fullPrice_mean (steps : Nat) :
   rw [← mul_assoc,← pow_add]
 
 theorem fullPrice_mean_bound :
-    uniformWordAverage Numeric.proposalLength fullPrice ≤ 37/64 := by
+    uniformWordAverage Numeric.proposalLength fullPrice ≤ 4995/8192 := by
   rw [fullPrice_mean]
   exact Numeric.uniform_history_mean_bound
 
 theorem fullPrice_secondMoment_bound :
     uniformWordAverage Numeric.proposalLength (fun word => fullPrice word^2) ≤
-      uniformWordAverage Numeric.proposalLength fullPrice^2+(18400/100000000) := by
+      uniformWordAverage Numeric.proposalLength fullPrice^2+(16767/81920000) := by
   have hs := uniformWordAverage_sum_square_le Numeric.proposalLength
     (fun index (word : List Proposal) => wordEnvelope (atIndex index word))
     (fun first second hne => forest_negative_correlation first second hne Numeric.proposalLength)
   have hscaled := mul_le_mul' (a := ((2 : ENNReal)^97)^2) le_rfl hs
   have hdiag :
       ((2 : ENNReal)^97)^2*(∑ index : Fin (2^31), uniformWordAverage Numeric.proposalLength
-        (fun word : List Proposal => wordEnvelope (atIndex index word)^2)) ≤ (18400/100000000) := by
+        (fun word : List Proposal => wordEnvelope (atIndex index word)^2)) ≤ (16767/81920000) := by
     simp_rw [uniform_proposal_forest_moment]
     simp only [Finset.sum_const,Finset.card_univ,Fintype.card_fin,nsmul_eq_mul,Nat.cast_pow,Nat.cast_ofNat]
     rw [← pow_mul,← mul_assoc,← pow_add]
@@ -460,9 +462,9 @@ theorem fullPrice_secondMoment_bound :
 
 /-- Positive-part inequality at any finite value whose chosen mean is at
 most one half. Keeping the mean term permits exact cancellation. -/
-theorem unit_excess_le_square (value mean : ENNReal) (hvalue : value≠⊤) (hmean : mean≤37/64) :
-    (13/8)*(value-1)+2*mean*value ≤ value^2+mean^2 := by
-  have hx : value-1≤value-63/64 := tsub_le_tsub_left (by
+theorem unit_excess_le_square (value mean : ENNReal) (hvalue : value≠⊤) (hmean : mean≤4995/8192) :
+    (3189/2048)*(value-1)+2*mean*value ≤ value^2+mean^2 := by
+  have hx : value-1≤value-1023/1024 := tsub_le_tsub_left (by
     apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
     norm_num [ENNReal.toReal_div]) value
   exact (add_le_add (mul_le_mul' le_rfl hx) le_rfl).trans
@@ -477,40 +479,40 @@ theorem uniformWordAverage_constant {α : Type} [Fintype α] [SampleableType α]
 /-- The full aggregate BPORS excess bound for the entire uniform proposal
 history, including cross-index dependence. -/
 theorem fullPrice_excess_of_pointwise (threshold : ENNReal)
-    (hpointwise : ∀ value mean : ENNReal,value≠⊤ → mean≤37/64 →
-      (13/8)*(value-threshold)+2*mean*value≤value^2+mean^2) :
-    uniformWordAverage Numeric.proposalLength (fun word => fullPrice word-threshold) ≤ 11324/100000000 := by
+    (hpointwise : ∀ value mean : ENNReal,value≠⊤ → mean≤4995/8192 →
+      (3189/2048)*(value-threshold)+2*mean*value≤value^2+mean^2) :
+    uniformWordAverage Numeric.proposalLength (fun word => fullPrice word-threshold) ≤ 13145/100000000 := by
   let mean := uniformWordAverage Numeric.proposalLength fullPrice
   have hm : mean≠⊤ := ne_top_of_le_ne_top (by finiteness) fullPrice_mean_bound
   have h := uniformWordAverage_mono Numeric.proposalLength (fun word =>
     hpointwise (fullPrice word) mean (fullPrice_ne_top word) fullPrice_mean_bound)
   rw [uniformWordAverage_add,uniformWordAverage_add,uniformWordAverage_mul_left,
     uniformWordAverage_mul_left,uniformWordAverage_constant] at h
-  have hcancel : (13/8:ENNReal)*uniformWordAverage Numeric.proposalLength
-      (fun word => fullPrice word-threshold)≤18400/100000000 := by
+  have hcancel : (3189/2048:ENNReal)*uniformWordAverage Numeric.proposalLength
+      (fun word => fullPrice word-threshold)≤16767/81920000 := by
     apply ENNReal.le_of_add_le_add_right (a := 2*mean^2) (by finiteness)
     calc
-      _ = (13/8:ENNReal)*uniformWordAverage Numeric.proposalLength (fun word => fullPrice word-threshold)+
+      _ = (3189/2048:ENNReal)*uniformWordAverage Numeric.proposalLength (fun word => fullPrice word-threshold)+
           2*mean*uniformWordAverage Numeric.proposalLength fullPrice := by
         change _=_+2*mean*mean
         ring
       _ ≤ uniformWordAverage Numeric.proposalLength (fun word => fullPrice word^2)+mean^2 := h
-      _ ≤ (mean^2+18400/100000000)+mean^2 := add_le_add fullPrice_secondMoment_bound le_rfl
+      _ ≤ (mean^2+16767/81920000)+mean^2 := add_le_add fullPrice_secondMoment_bound le_rfl
       _ = _ := by ring
-  have hi : (8/13:ENNReal)*(13/8)=1 := by
+  have hi : (2048/3189:ENNReal)*(3189/2048)=1 := by
     apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
     norm_num [ENNReal.toReal_mul,ENNReal.toReal_div]
   calc
-    _ = (8/13:ENNReal)*((13/8)*uniformWordAverage Numeric.proposalLength
+    _ = (2048/3189:ENNReal)*((3189/2048)*uniformWordAverage Numeric.proposalLength
         (fun word => fullPrice word-threshold)) := by rw [←mul_assoc,hi,one_mul]
-    _ ≤ (8/13:ENNReal)*(18400/100000000) := mul_le_mul' le_rfl hcancel
+    _ ≤ (2048/3189:ENNReal)*(16767/81920000) := mul_le_mul' le_rfl hcancel
     _ ≤ _ := by
       apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
       norm_num [ENNReal.toReal_mul,ENNReal.toReal_div]
 
 /-- Complete uniform-history excess, with the sharper moment coefficient. -/
 theorem fullPrice_excess_bound :
-    uniformWordAverage Numeric.proposalLength (fun word => fullPrice word-1) ≤ 11324/100000000 :=
+    uniformWordAverage Numeric.proposalLength (fun word => fullPrice word-1) ≤ 13145/100000000 :=
   fullPrice_excess_of_pointwise 1 unit_excess_le_square
 
 
@@ -521,19 +523,19 @@ noncomputable def fullNearPrice (word : List Proposal) : ENNReal :=
 
 theorem near_mean_at_index (index : Fin (2^31)) (missing : Fin 7) (steps : Nat) :
     uniformWordAverage steps (fun word : List Proposal => nearWordEnvelope missing (atIndex index word))=
-      binomialAverage (1/2^31) steps (fun count => envelope Numeric.nearCoeffs count/2^223) := by
+      binomialAverage (1/2^31) steps (fun count => envelope Numeric.nearCoeffs count/2^223*(135/128)) := by
   rw [uniform_marked_word_atIndex index steps (nearWordEnvelope missing)]
   simp_rw [word_near_forest_moment,Numeric.near_forest_first_moment]
   simp only [Fintype.card_fin,Nat.cast_pow,Nat.cast_ofNat,one_div]
 
 /-- Concrete near-cover bound after summing all 21 missing-opening positions
 and all indices of the complete uniform proposal history. -/
-theorem fullNearPrice_bound : uniformWordAverage Numeric.proposalLength fullNearPrice ≤ 404 := by
+theorem fullNearPrice_bound : uniformWordAverage Numeric.proposalLength fullNearPrice ≤ 872505/2048 := by
   have h := Numeric.uniform_history_near_bound (0 : Fin 7)
   simp_rw [Numeric.near_forest_first_moment] at h
   have he : uniformWordAverage Numeric.proposalLength fullNearPrice=
       21*(2 : ENNReal)^128*binomialAverage (1/2^31) Numeric.proposalLength
-        (fun count => envelope Numeric.nearCoeffs count/2^223) := by
+        (fun count => envelope Numeric.nearCoeffs count/2^223*(135/128)) := by
     unfold fullNearPrice
     rw [uniformWordAverage_mul_left]
     simp_rw [uniformWordAverage_sum,near_mean_at_index]
