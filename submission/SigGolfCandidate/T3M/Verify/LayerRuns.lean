@@ -58,7 +58,7 @@ def hL (lay : Nat) : Nat := [12, 7, 6, 6].getD lay 0
 /-- Steps of A (layer 3 includes the `hyper` constants and splits `s6` directly; layer 0 has `mv` and `lui; or`). -/
 def stepsA (lay : Nat) : Nat := if lay = 3 then 23 else if lay = 0 then 16 else 15
 /-- The return pc of the chain code (the leaf-pk block) relative to the copy. -/
-def retOff (lay : Nat) : Nat := if lay = 0 then 69 else if lay = 3 then 52 else 44
+def retOff (lay : Nat) : Nat := if lay = 0 then 69 else if lay = 3 then 53 else 45
 /-- The chain base register value: lower layers `WIT + chainBase + 1024`; the top `WIT + chainBase + 960`. -/
 def s6v (lay : Nat) : Nat := [15064, 19288, 22424, 25560].getD lay 0
 /-- The top's base for its chains 0 .. 48 (`s3`). -/
@@ -161,11 +161,10 @@ def a7lE : E := .bin .or b1E (.bin .srl a6E (kw 63))
 def x14l : E := .bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe00)) (kw 0x6e000)
 def tgtl : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe00)) (kw 448800)) (.c (~~~1#64))
 
-/-- T3X: B ends with `jal ra, stub_lay` and the stub `lui t3; jalr zero, -1760(a4)` (2 more steps; T3Y: the bank
-midpoints are 4096-aligned, so one `lui` sets `t3`). -/
+/-- T3X: B ends with the inline `lui t3; jalr ra, -1760(a4)`. The return PC moves one word into the existing padding; all other code addresses are preserved. -/
 def specBl (lay p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, a7lE), (.x25, sumE), (.x29, t4E lay), (.x3, .bin .srl a6E (kw 63)), (.x14, x14l)],
-   [], 0, false, 30, [ckBr lay false, rngBr 62 false], some tgtl, 33⟩
+   [], 0, false, 29, [ckBr lay false, rngBr 62 false], some tgtl, 32⟩
 
 def postBl (lay p : Nat) : List (Reg × Word) :=
   chainK lay ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x15, 0x6e000), (.x1, pcOf (p + retOff lay))]
@@ -233,10 +232,10 @@ def specLf (lay : Nat) : Spec :=
       (⟨none, BitVec.ofNat 64 528⟩, kw (hw 2 0))], 0, false, 13, [], some (tgtLf lay), 13⟩
   else
     ⟨[(.x14, x14lf lay)],
-     [(⟨none, BitVec.ofNat 64 792⟩, .reg .x4), (⟨none, BitVec.ofNat 64 784⟩, kw (hw 2 lay))], 0, false, 12, [],
-     some (tgtLf lay), 12⟩
+     [(⟨none, BitVec.ofNat 64 792⟩, .reg .x4), (⟨none, BitVec.ofNat 64 784⟩, kw (hw 2 lay))], 0, false, 11, [],
+     some (tgtLf lay), 11⟩
 
-/-- T3X lower layers: the return `jal zero, restore` and `slli t3, t1, 40` set `t3 = 2^40` again. -/
+/-- T3X lower layers: the inline `slli t3, t1, 40` set `t3 = 2^40` again. -/
 def postLf (lay : Nat) : List (Reg × Word) :=
   leafK lay ++ (if lay = 0 then [] else [(.x28, BitVec.ofNat 64 (2 ^ 40))]) ++
    [(.x3, BitVec.ofNat 64 (hw 2 lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)),
