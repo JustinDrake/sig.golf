@@ -197,7 +197,7 @@ def baseK : List (Reg × Word) := [(.x5, 0), (.x18, 0xFFF)]
 
 /-- Constants carried from the forest into the lower-layer initializer. -/
 def carryK : List (Reg × Word) := baseK ++ [(.x2,0x1000000),(.x7,2),(.x8,3),(.x9,4),(.x13,5),
-  (.x6,1),(.x26,6),(.x31,7),(.x24,0x10000),(.x30,0x8000000000000000)]
+  (.x6,1),(.x26,6),(.x31,7),(.x24,0x10000),(.x30,0x8000000000000000),(.x19,BitVec.ofNat 64 (2^62))]
 
 /-- The zero words of the encoding block `[M | T | LE32 c | 0^28]` at `0x100` that no instruction writes. -/
 def pSlots : List Nat := [0x128, 0x130, 0x138]
@@ -230,7 +230,7 @@ def DATA : Nat := 16777120
 /-- Public WOTS header table precedes the existing immutable lookup data. -/
 def HDATA : Nat := 16728064
 /-- Reversed FTS heap-label table, preceding both lower header and packed tables. -/
-def TAB : Nat := 16711680
+def TAB : Nat := 16711664
 
 def headerWord (k : Nat) : Nat :=
   0x101 + 65536 * (k / 512) + 2 ^ 40 * (k % 512 / 8) + 2 ^ 32 * (k % 8)
@@ -243,7 +243,7 @@ structure DataOK (s : MachineState) : Prop where
   sum : Search.SumTableOK s
   packed : Nonbinary.PackedTables s
   headers : ∀ k, k < 2048 → s.getMem (BitVec.ofNat 64 (HDATA + 8 * k)) = BitVec.ofNat 64 (headerWord k)
-  tab : ∀ j, j < 2048 → s.getMem (BitVec.ofNat 64 (TAB + 8 * j)) = BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + j))
+  tab : ∀ j, j < 2048 → s.getMem (BitVec.ofNat 64 (TAB + 16 + 8 * j)) = BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + j))
 
 instance {s : MachineState} : CoeFun (DataOK s) (fun _ => ∀ k, k < 12 →
     s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)) := ⟨DataOK.constants⟩

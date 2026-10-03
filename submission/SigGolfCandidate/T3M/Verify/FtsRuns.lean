@@ -39,7 +39,7 @@ def forestSlot (c : Nat) : Nat := if c = 0 then 0x700 else 0x710 + 16 * c
 /-- Constant registers of the FTS phase: `t0`, `s2`, `a1 = 64`, `t4 = A4_LIMIT`, `t6 = 1 << 16`, the two tables, `t1 = 1`, and `s3 = frameA 0`. -/
 def gkF : List (Reg × Word) :=
   carryK ++ [(.x11,64),(.x29,BitVec.ofNat 64 A4_LIMIT),(.x24,0x10000),(.x16,BitVec.ofNat 64 tbN),
-    (.x21,BitVec.ofNat 64 tbL),(.x30,0x8000000000000000),(.x19,BitVec.ofNat 64 (frameA 0)),
+    (.x21,BitVec.ofNat 64 tbL),(.x30,0x8000000000000000),(.x1,BitVec.ofNat 64 (frameA 0)),
     (.x6,1),(.x26,6),(.x31,7)]
 
 /-- The coordinate words: `s11 = w0` of a node header, `t3 = w0` of a leaf header (coordinate `c`). -/
@@ -143,7 +143,7 @@ def setupLdCheckF : Bool := specB [] [] baseK (runAt baseK [369] 362 []) setupLd
 def setupSpecF : Spec :=
   ⟨[(.x27, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0xa01)),
     (.x28, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0x901))],
-    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 413, false, 19, [], none, 19⟩
+    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, cw 1)], 413, false, 19, [], none, 19⟩
 
 def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [413] 369 []) setupSpecF [] setupPost [.x22]
 
@@ -164,11 +164,11 @@ def leafT (s : Nat) : Nat := WIT + 64 + 48 * s + 16
 def leafKnown (s : Nat) : List (Reg × Word) :=
   gkF ++ leafCK (s / 3) ++ (if s % 3 = 1 then [(.x20, BitVec.ofNat 64 tbN)] else [])
 
-def etabA (s : Nat) : Addr := ⟨some (.ld (cw (ETABs s))), 0⟩
+def etabA (s : Nat) : Addr := ⟨some (.ld (cw (ETABs s))), 16⟩
 
 def leafSpec (s : Nat) : Spec :=
-  ⟨[(.x23, .ld (.ld (cw (ETABs s)))), (.x10, cw (WIT + 64 + 48 * s))],
-    [(⟨none, BitVec.ofNat 64 (leafT s + 8)⟩, .ld (.ld (cw (ETABs s)))),
+  ⟨[(.x23, .ld (addC (.ld (cw (ETABs s))) 16#64)), (.x10, cw (WIT + 64 + 48 * s))],
+    [(⟨none, BitVec.ofNat 64 (leafT s + 8)⟩, .ld (addC (.ld (cw (ETABs s))) 16#64)),
       (⟨none, BitVec.ofNat 64 (leafT s)⟩, .reg .x28)],
     leafDisp s, false, (if s % 3 = 1 then 5 else 6), [], none, (if s % 3 = 1 then 5 else 6)⟩
 
