@@ -10,7 +10,7 @@ set_option maxRecDepth 100000
 set_option maxHeartbeats 0
 def fPrepWords : List (BitVec 32) :=
   [4535,0xf0118193,0x70303823,0x71603c23,0x7a003023,0x7a003423,0x7a003823,0x7a003c23,0x70000513,0xc000593,268437011,115]
-def fTailWords : List (BitVec 32) := [6455,0xfff90913,659,0x6980006f]
+def fTailWords : List (BitVec 32) := [6455,0xfff90913,659,0x5880006f]
 def fPrep : Result :=
   ⟨⟨(((RegFile.init.set .x3 (.c (BitVec.ofNat 64 3841))).set .x10 (.c (BitVec.ofNat 64 1792))).set
       .x11 (.c (BitVec.ofNat 64 192))).set .x12 (.c (BitVec.ofNat 64 256)),
@@ -20,7 +20,7 @@ def fPrep : Result :=
     []⟩, .c (pcOf 230), .ecall, 11, 11⟩
 def fTail : Result :=
   ⟨⟨(RegFile.init.set .x5 (.c 0)).set .x18 (.c (BitVec.ofNat 64 4095)), [], []⟩,
-    .c (pcOf 656), .jump, 4, 4⟩
+    .c (pcOf 588), .jump, 4, 4⟩
 theorem fPrep_checked : rOK (symRun {} fPrepWords (pcOf 219) 12) fPrep = true := by decide +kernel
 theorem fPrep_linked : sliceChecked 219 fPrepWords = true := by decide +kernel
 theorem fTail_checked : rOK (symRun {} fTailWords (pcOf 231) 4) fTail = true := by decide +kernel
