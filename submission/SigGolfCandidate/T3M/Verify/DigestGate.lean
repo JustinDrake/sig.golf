@@ -7,7 +7,7 @@ open SigGolfCandidate.T3 (Digest HashOutput)
 set_option linter.unusedSimpArgs false
 
 def FtsReady (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineState) : Prop :=
-  SelIn pk w a 7 (s.setPC (pcOf 380)) ∧ s.pc = pcOf 383
+  SelIn pk w a 7 (s.setPC (pcOf 359)) ∧ s.pc = pcOf 362
 
 theorem digest_gate_word (N : BitVec 256) :
     N.extractLsb' 192 64 >>> 14 &&& 7#64 = BitVec.ofNat 64 (N.toNat / 2 ^ 206 % 8) := by
@@ -35,11 +35,17 @@ theorem gateBrF_holds (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineSt
   · exact not_congr he
 
 
+/-- The gate preserves the reverse-table base until FTS setup replaces it. -/
+private theorem gateCheck_keep_sp :
+    specB [] [] baseK (runAt baseK [362] 359 [.br false])
+      ⟨[], [], 362, false, 3, [gateBrF false], none, 3⟩ [] baseK (.x2 :: selKeep) = true := by
+  decide +kernel
+
 theorem fts_gate_accept (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineState)
     (hs : SelIn pk w a 7 s) (hg : T3.digestGate a = true) :
     ∃ u, Steps image s 3 3 u ∧ FtsReady pk w a u := by
   have hb : (gateBrF false).holds s := (gateBrF_holds pk w a s hs false).2 (by rw [hg]; rfl)
-  obtain ⟨u, hu⟩ := spec_run gateCheckF_ok s hs.pc hs.known (by simpa using hb) (by simp)
+  obtain ⟨u, hu⟩ := spec_run gateCheck_keep_sp s hs.pc hs.known (by simpa using hb) (by simp)
   have hm : ∀ A, u.getMem A = s.getMem A := fun A => by rw [hu.mem]; rfl
   refine ⟨u, hu.steps, ⟨?_, hu.pc rfl⟩⟩
   refine ⟨rfl, hu.known, ?_, ?_, ?_, hs.ok, ?_, ?_, ?_, ?_, ?_⟩
@@ -51,10 +57,10 @@ theorem fts_gate_accept (pk : Digest) (w : WBytes) (a : HashOutput) (s : Machine
     rw [hu.keep .x22 (by decide)]; exact hs.idx
   · intro c k hc hk
     change u.getMem _ = _
-    rw [hm]; exact hs.thdr c k hc hk
-  · intro j hj hT
+    rw [hm]; exact hs.etab c k hc hk
+  · intro j hj
     change u.getMem _ = _
-    rw [hm]; exact hs.wit j hj hT
+    rw [hm]; exact hs.wit j hj
   · change PkOK pk u
     exact ⟨(hm _).trans hs.pk.1, (hm _).trans hs.pk.2⟩
   · intro A hA h1 h2

@@ -23,7 +23,7 @@ open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.SecurityInput
 open SigGolfCandidate.T3.Correctness (Answers treeValue builtTree leafSeed leafEnd leafValue leafRoot)
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
 set_option maxHeartbeats 1000000
-
+set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] SigGolfCandidate.T3.buildFts SigGolfCandidate.T3.buildTree SigGolfCandidate.T3.buildLeaf
@@ -166,8 +166,7 @@ theorem sat_privateNonce (T : Answers) (message : Message) :
 /-! ### Unparsed inputs: encoding rows (tag 4) and digest rows (tag 12) -/
 
 theorem posOf_eq_none {x : HashInput}
-    (h : ∀ p : Extract.Pos, p.Bounded →
-      Extract.canonicalHeader (Extract.hdrBlock x) ≠ bytesLE 16 p.hdr) : Extract.posOf x = none := by
+    (h : ∀ p : Extract.Pos, p.Bounded → Extract.hdrBlock x ≠ bytesLE 16 p.hdr) : Extract.posOf x = none := by
   unfold Extract.posOf
   rw [dif_neg]
   rintro ⟨p, hb, he⟩
@@ -177,9 +176,7 @@ theorem posOf_eq_none {x : HashInput}
 theorem header_ne_hdr {t : Nat} (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 2 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 9 ∧ t % 256 ≠ 10 ∧
     t % 256 ≠ 11) (l tr pos ix : Nat) (p : Extract.Pos) : header t l tr pos ix ≠ p.hdr := by
   obtain ⟨h1, h2, h3, h9, h10, h11⟩ := ht
-  cases p with
-  | chain lay tree leaf i step => exact (chainHeader_ne_header lay tree leaf i step t l tr pos ix).symm
-  | _ => simp only [Extract.Pos.hdr]; exact Mask.header_ne_of_tag (by omega)
+  cases p <;> simp only [Extract.Pos.hdr] <;> exact Mask.header_ne_of_tag (by omega)
 
 theorem posOf_prefixed_none {t : Nat} (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 2 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 9 ∧
     t % 256 ≠ 10 ∧ t % 256 ≠ 11) (x : Digest) (rest : HashInput) (l tr pos ix : Nat) :
@@ -187,8 +184,7 @@ theorem posOf_prefixed_none {t : Nat} (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 2 ∧ 
   apply posOf_eq_none
   intro p _ he
   rw [Extract.hdrBlock_pad64 _ (by simp only [List.length_append, bytesLE_length]; omega),
-    Extract.hdrBlock_prefix,
-    Extract.canonicalHeader_marker_ne _ (by rw [header_firstByte]; decide)] at he
+    Extract.hdrBlock_prefix] at he
   exact header_ne_hdr ht l tr pos ix p (bytesLE_injective he)
 
 theorem posOf_encoding (lay : Layer) (tree leaf : Nat) (message : Digest) (counter : BitVec 32) :
@@ -233,47 +229,6 @@ theorem sat_digestSearch (T : Answers) (rho : Digest) (message : Message) :
 
 /-! ### Chains -/
 
-private theorem canonicalHeader_low (hdr : Digest) :
-    (Extract.canonicalHeader (bytesLE 16 hdr)).take 8 = bytesLE 8 (hdr.extractLsb' 0 64) := by
-  have he : hdr = hdr.extractLsb' 64 64 ++ hdr.extractLsb' 0 64 :=
-    (BitVec.extractLsb'_append_extractLsb' (w := 64) (len := 64) (x := hdr)).symm
-  conv_lhs => rw [he, Extract.bytesLE_header_words]
-  unfold Extract.canonicalHeader
-  split_ifs <;> simp [List.take_append, bytesLE_length]
-
-private theorem low_ne_of_firstByte (x y : BitVec 128)
-    (hc : 128 ≤ x.toNat % 256) (hr : y.toNat % 256 = 1) :
-    x.extractLsb' 0 64 ≠ y.extractLsb' 0 64 := by
-  intro he
-  have hv := congrArg BitVec.toNat he
-  simp only [BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow, pow_zero, Nat.div_one] at hv
-  omega
-
-private theorem chain_low_ne_header (lay : Layer) (tree leaf i step tag roleLay roleTree pos ix : Nat) :
-    (chainHeader lay tree leaf i step).extractLsb' 0 64 ≠
-      (header tag roleLay roleTree pos ix).extractLsb' 0 64 :=
-  low_ne_of_firstByte _ _ (chainHeader_firstByte lay tree leaf i step)
-    (header_firstByte tag roleLay roleTree pos ix)
-
-/-- Source-only spill coordinates are not graph positions, even after witness-pad normalization. -/
-theorem posOf_chain_offgraph (lay : Layer) (tree leaf i step : Nat) (value : Digest)
-    (hoff : chainHeaderSpill tree leaf i step ≠ 0) :
-    Extract.posOf (pad64 (chainInput lay tree leaf i step value)) = none := by
-  apply posOf_eq_none
-  intro p hb he
-  rw [chainInput_padded, Extract.hdrBlock, chainInput_header] at he
-  have hn := congrArg (List.take 8) he
-  rw [canonicalHeader_low] at hn
-  have hp : (bytesLE 16 p.hdr).take 8 = bytesLE 8 (p.hdr.extractLsb' 0 64) := by
-    rw [← Extract.Pos.canonicalHeader_eq hb]
-    exact canonicalHeader_low _
-  rw [hp] at hn
-  have hlo := bytesLE_injective hn
-  cases p with
-  | chain lay' tree' leaf' i' step' =>
-      exact chainHeader_offgraph_low_ne hoff hb.1 hb.2.1 hb.2.2.1 hb.2.2.2 hlo
-  | _ => exact chain_low_ne_header _ _ _ _ _ _ _ _ _ _ hlo
-
 theorem chain_zero (lay : Layer) (tree leaf i start : Nat) (v : Digest) :
     chain lay tree leaf i start 0 v = pure v := rfl
 
@@ -304,12 +259,7 @@ theorem sat_chain (T : Answers) (lay : Layer) (tree leaf i start count : Nat)
       intro q hq
       rw [queried_chain_one, List.mem_singleton] at hq
       rw [hq]
-      by_cases hoff : chainHeaderSpill tree leaf i (start + count) = 0
-      · have hg : tree < 2^31 ∧ leaf < 4096 ∧ i < 64 ∧ start + count < 8 := by
-          unfold chainHeaderSpill at hoff
-          omega
-        exact honestQuery_honest T (.chain lay tree leaf i (start + count)) hg
-      · exact Or.inl (posOf_chain_offgraph lay tree leaf i (start + count) _ hoff)
+      exact honestQuery_honest T (.chain lay tree leaf i (start + count)) ⟨htree, hleaf, hi, by omega⟩
 
 /-! ### Leaves -/
 

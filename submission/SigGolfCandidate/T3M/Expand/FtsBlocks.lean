@@ -203,7 +203,7 @@ theorem foldA (ptr cnt : Nat) : BitVec.ofNat 64 cnt <<< ((6#64 : BitVec 64).toNa
 `NODE + 48`, `s7 += 1`. -/
 theorem f120_spec (hpc : s.pc = pcOf 120) (P ptr cnt : Nat) (hP8 : P % 8 = 0) (hP : 0x7000 ≤ P)
     (hP' : P + 16 ≤ 0x7000 + 5616) (hp8 : ptr % 8 = 0) (hptr : 0xC40 ≤ ptr) (hcnt : cnt < 2 ^ 20)
-    (hfit : ptr + 80 * cnt + 24 ≤ 0x3148) (h13 : s.getReg .x13 = BitVec.ofNat 64 P)
+    (hfit : ptr + 80 * cnt + 24 ≤ 0x3418) (h13 : s.getReg .x13 = BitVec.ofNat 64 P)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 ptr) (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt) :
     ∃ t, Steps image s 24 24 t ∧ t.pc = pcOf 167 ∧
       t.getMem (BitVec.ofNat 64 NODE) = s.getMem (BitVec.ofNat 64 P) ∧
@@ -243,7 +243,7 @@ theorem f120_spec (hpc : s.pc = pcOf 120) (P ptr cnt : Nat) (hP8 : P % 8 = 0) (h
 `s7` at `R`, `s7 += 1`. -/
 theorem f144_spec (hpc : s.pc = pcOf 144) (P ptr cnt : Nat) (hP8 : P % 8 = 0) (hP : 0x7000 ≤ P)
     (hP' : P + 16 ≤ 0x7000 + 5616) (hp8 : ptr % 8 = 0) (hptr : 0xC40 ≤ ptr) (hcnt : cnt < 2 ^ 20)
-    (hfit : ptr + 80 * cnt + 72 ≤ 0x3148) (h13 : s.getReg .x13 = BitVec.ofNat 64 P)
+    (hfit : ptr + 80 * cnt + 72 ≤ 0x3418) (h13 : s.getReg .x13 = BitVec.ofNat 64 P)
     (h22 : s.getReg .x22 = BitVec.ofNat 64 ptr) (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt) :
     ∃ t, Steps image s 23 23 t ∧ t.pc = pcOf 167 ∧
       t.getMem (BitVec.ofNat 64 NODE) = s.getMem (BitVec.ofNat 64 NOUT) ∧
@@ -374,7 +374,7 @@ theorem f191_spec (hpc : s.pc = pcOf 191) (j : Nat) (h19 : s.getReg .x19 = BitVe
 /-- `fts_outer_done`: close the open segment (header byte `s7 | s8 << 5` at `s6`, `s6 += 8 + 80 s7`), the forest
 slot offset `16 s0`, then by `s0 = 0`. -/
 theorem f193_spec (hpc : s.pc = pcOf 193) (c ptr cnt par : Nat) (hc : c < 7) (hp8 : ptr % 8 = 0)
-    (hp : ptr + 8 ≤ 2 ^ 24) (hcnt : cnt < 16) (hpar : par < 2) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24)
+    (hp : ptr + 8 ≤ 2 ^ 24) (hcnt : cnt < 16) (hpar : par < 8) (hfit : ptr + 8 + 80 * cnt < 2 ^ 24)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 c) (h22 : s.getReg .x22 = BitVec.ofNat 64 ptr)
     (h23 : s.getReg .x23 = BitVec.ofNat 64 cnt) (h24 : s.getReg .x24 = BitVec.ofNat 64 par) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = (if c = 0 then pcOf 204 else pcOf 203) ∧

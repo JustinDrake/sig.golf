@@ -174,7 +174,7 @@ theorem rl_chains {s0 t1 : MachineState} {sig : Signature} {index : Nat} {lay : 
     (f1 : Frame s0 t1 (fun A => A = CHAIN + 24 ∨ A = LEAFPK + 16 ∨ A = LEAFPK + 24))
     (hI0 : ChainsInv t1 lay (route index lay).2 (route index lay).1 P WC (chainCount lay) (csN4 lay)
       (lval sig lay) [] t1) :
-    TBSim image sk t1 (chainCount lay * 351)
+    TBSim image sk t1 (chainCount lay * 211)
       ((List.finRange (chainCount lay)).mapM fun i => chain lay (route index lay).2 (route index lay).1 i.val
         (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0) ((sig.layers lay).values i))
       (fun ends u => ends.length = chainCount lay ∧ ChainsInv t1 lay (route index lay).2 (route index lay).1 P WC
@@ -189,7 +189,7 @@ theorem rl_chains {s0 t1 : MachineState} {sig : Signature} {index : Nat} {lay : 
   have hWMC := hpre.hWMC
   have hWM := hpre.hWM
   have hP0 := hpre.hP
-  refine tb_mapM_finRange (chainCount lay) _ 351 _ (fun i pre t hlen hI => ?_) hI0
+  refine tb_mapM_finRange (chainCount lay) _ 211 _ (fun i pre t hlen hI => ?_) hI0
   have hi := i.isLt
   have hfr : Frame s0 t (fun A => (A = CHAIN + 24 ∨ A = LEAFPK + 16 ∨ A = LEAFPK + 24) ∨ ChW WC pre.length A) :=
     f1.trans hI.frame
@@ -216,11 +216,7 @@ theorem rl_chains {s0 t1 : MachineState} {sig : Signature} {index : Nat} {lay : 
     have := hpre.hdig i.val hi; rwa [endpoint_eq] at this
   have hc : ChainCtx lay.val tree leaf i.val t := hlen ▸ hI.ctx
   have hone := rl_one (sk := sk) lay tree leaf i.val (digits.getD i.val 0) P (WC - 64 * i.val) (chainCount lay)
-    (csN4 lay) (by
-      have hidx := hpre.hidx
-      dsimp [tree, leaf]
-      fin_cases lay <;> norm_num [route, height] at * <;> omega)
-    (route_lt index lay) hi (by omega) (csN4_le lay) hpre.hP (by omega) hpre.hP8
+    (csN4 lay) htree hi (by omega) (csN4_le lay) hpre.hP (by omega) hpre.hP8
     (by have := hpre.hWC8; omega) (by omega) (by omega) hd ((sig.layers lay).values i) t hI.pc hc h26 h27 h16 h23 hv
     hdig
   rw [endpoint_eq]
@@ -483,7 +479,7 @@ theorem rl_mk_step {tc : MachineState} {sig : Signature} {lay : Layer} {tree lea
       · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))))
 
 /-- Cycles of `recover_layer` (all oracles). -/
-def rlCost (lay : Layer) : Nat := 13 + chainCount lay * 351 + 10 + 8 * leafBlocks' lay + 13 + height lay * 56
+def rlCost (lay : Layer) : Nat := 13 + chainCount lay * 211 + 10 + 8 * leafBlocks' lay + 13 + height lay * 56
 
 /-- Exit of `recover_layer`: back at `ret`, the root at `ENC`, the chain values and path siblings in the witness. -/
 def RlPost (s0 : MachineState) (sig : Signature) (index : Nat) (lay : Layer) (WC WM ret : Nat) (root : Digest)
@@ -527,17 +523,15 @@ theorem recoverLayer_tbsim {s0 : MachineState} {sig : Signature} {index : Nat} {
       t1.getMem (BitVec.ofNat 64 A) = s0.getMem (BitVec.ofNat 64 A) :=
     fun A hA h1 h2 h3 => f1.get hA (by rintro (h | h | h) <;> contradiction)
   have hI0 : ChainsInv t1 lay tree leaf P WC (chainCount lay) (csN4 lay) (lval sig lay) [] t1 := by
-    refine ⟨p1, ⟨?_, ?_, ?_, ?_, x19, ?_, ?_, ?_, ?_⟩, ?_, fun j hj => absurd hj (by simp), fun j hj => absurd hj (by simp),
+    refine ⟨p1, ⟨?_, ?_, x19, ?_, ?_, ?_, ?_, ?_⟩, ?_, fun j hj => absurd hj (by simp), fun j hj => absurd hj (by simp),
       RegsExcept.refl _ _, Frame.refl _ _⟩
     · rw [r1.get (by decide), hpre.x5]
     · rw [r1.get (by decide), hpre.x8]
-    · rw [r1.get (by decide), hpre.x9]
-    · rw [r1.get (by decide), hpre.x18]
     · rw [f1g _ (by decide) (by decide) (by decide) (by decide), hpre.c0]
     · rw [f1g _ (by decide) (by decide) (by decide) (by decide), hpre.c8]
     · rw [f1g _ (by decide) (by decide) (by decide) (by decide), hpre.c32]
     · rw [f1g _ (by decide) (by decide) (by decide) (by decide), hpre.c40]
-
+    · rw [c24, hdr1_eq tree leaf htree hleaf32]
     · rw [r1.get (by decide), hpre.x23]; simp
   rw [recoverLayer_eq]
   refine (TBSim.steps st1 (TBSim.bind (W₂ := 10 + 8 * leafBlocks' lay + 13 + height lay * 56)
@@ -719,7 +713,7 @@ theorem recoverLayer_tbsim {s0 : MachineState} {sig : Signature} {index : Nat} {
       · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inl (by simp only [LEAFPK] at h ⊢; omega)))))
     · unfold ChW StepW at hC
       rcases hC with (h | h) | ⟨c, hc, h⟩ | ⟨c, hc, h⟩
-      · exact Or.inl (by rcases h with h | h; exact Or.inl h; exact Or.inr (Or.inl h))
+      · exact Or.inl (Or.inl h)
       · exact Or.inl (Or.inr (Or.inr (Or.inl h)))
       · have hlt := slotOff_lt (show c < chainCount lay by omega)
         exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inl (by simp only [LEAFPK] at h ⊢; omega)))))

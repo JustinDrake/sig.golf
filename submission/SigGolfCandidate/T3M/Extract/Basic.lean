@@ -1,5 +1,4 @@
 import SigGolfCandidate.T3M.Witness.Queries
-import SigGolfCandidate.T3M.Extract.Normalize
 
 /-! # Shared vocabulary of the padded structural extraction (streams PEX-L / PEX-F)
 
@@ -89,7 +88,7 @@ noncomputable def honestInput (answers : Answers) : Pos → HashInput
 
 /-- The header of a position's honest input (independent of the answers table: `hdrBlock_honestInput`). -/
 def Pos.hdr : Pos → BitVec 128
-  | .chain lay tree lf i step => chainHeader lay tree lf i step
+  | .chain lay tree lf i step => header 1 lay.val tree (step + 256 * i) lf
   | .leaf lay tree lf => header 2 lay.val tree 0 lf
   | .node lay tree level nd => header 3 lay.val tree 0 (2 ^ (height lay - level - 1) + nd)
   | .forest index => header 11 0 index 0 0
@@ -99,7 +98,7 @@ def Pos.hdr : Pos → BitVec 128
 /-- Field bounds under which `Pos.hdr` is injective (`Pos.hdr_injective`): every position the extraction names
 satisfies them. -/
 def Pos.Bounded : Pos → Prop
-  | .chain _ tree lf i step => tree < 2 ^ 31 ∧ lf < 4096 ∧ i < 64 ∧ step < 8
+  | .chain _ tree lf i step => tree < 2 ^ 40 ∧ lf < 2 ^ 32 ∧ i < 2 ^ 24 ∧ step < 256
   | .leaf _ tree lf => tree < 2 ^ 40 ∧ lf < 2 ^ 32
   | .node lay tree level nd => tree < 2 ^ 40 ∧ level < height lay ∧ nd < 2 ^ (height lay - level - 1)
   | .forest index => index < 2 ^ 40
@@ -109,10 +108,8 @@ def Pos.Bounded : Pos → Prop
 /-- The header block (bytes `[16,32)`) of an input. -/
 def hdrBlock (input : HashInput) : HashInput := (input.drop 16).take 16
 
-/-- Actual and honest inputs carry the same role-specific reference key.
-The actual HASH input, including its arbitrary chain high pad, is unchanged. -/
-def SameHeader (actual honest : HashInput) : Prop :=
-  canonicalHeader (hdrBlock actual) = canonicalHeader (hdrBlock honest)
+/-- Actual and honest inputs carry the same header block (same tag and position). -/
+def SameHeader (actual honest : HashInput) : Prop := hdrBlock actual = hdrBlock honest
 
 /-- A header-preserving distinct-input hit on an honest reference at a bounded position, at an actual public
 query of `qs`. (With `Pos.hdr_injective` the position is a function of the actual input: `posOf_hit`.) -/

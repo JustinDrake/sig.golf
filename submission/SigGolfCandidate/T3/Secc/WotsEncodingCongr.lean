@@ -62,12 +62,8 @@ theorem nonEnc_prefixed (x : Digest) (rest : HashInput) {t : Nat} (ht : t % 256 
 
 theorem nonEnc_chainInput (lay : Layer) (tree leaf i s : Nat) (v : Digest) :
     NonEnc (.inl (.inr (pad64 (chainInput lay tree leaf i s v)))) := by
-  rintro ⟨l, tr, p, ix, he⟩
-  rw [chainInput_padded] at he
-  change ((chainInput lay tree leaf i s v).drop 16).take 16 = _ at he
-  rw [chainInput_header] at he
-  exact chainHeader_ne_header lay tree leaf i s 4 l tr p ix
-    (bytesLE_injective he)
+  apply nonEnc_of_hdr _ (header 1 lay.val tree (s + 256 * i) leaf) _ (tag_ne_four (by decide) _ _ _ _)
+  rw [chainInput_eq_zero, Extract.hdrBlock_chainInputP]
 
 theorem nonEnc_private (c : Coordinate) : NonEnc (.inr c) := trivial
 

@@ -34,7 +34,7 @@ theorem segShape_merge (w : WBytes) (Q : Nat) (rest : List Nat) (E ptr A : Nat) 
 structure SegInv (b A E : Nat) : Prop where
   a : b % 16 = A
   le : A ≤ 11
-  t : 0 < A → b / 32 % 2 = E % 2
+  t : 0 < A → b / 32 % segSideMod A = E % segSideMod A
 
 theorem segShape_inv_nil (w : WBytes) (E ptr E' p' : Nat) (s' : List Nat)
     (h : segShape w [] E ptr = some (E', p', s')) :

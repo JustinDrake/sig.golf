@@ -1,6 +1,4 @@
 import SigGolfCandidate.T3M.Expand.Blocks
-import SigGolfCandidate.T3M.Expand.PackedHeader
-import SigGolfCandidate.T3M.Keygen.PackedShared
 
 /-!
 # `expand`: block specifications of `recover_layer` (stream E, instance E-S)
@@ -17,7 +15,7 @@ namespace SigGolfCandidate.T3M.Expand
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 open SigGolfCandidate.T3M.Search (DIGITS NODE NOUT ENC)
 
-
+set_option maxRecDepth 8192
 
 /-- `CHAIN`: `0^16 | T1 | 0^16 | value` (the value hashed in place at `+48`). -/
 abbrev CHAIN : Nat := 0x201A0
@@ -223,33 +221,34 @@ theorem rl1031_spec (hpc : s.pc = pcOf 1031) (st e : Nat) (hs : st < 2 ^ 63) (he
   · ex_regs eblk_1031.res
   · intro A _ _; simp [eblk_1031.res, rv_simp]
 
-/-- Actual packed chain header, including both header stores and the helper path. -/
-theorem rl1032_spec (hpc : s.pc = pcOf 1032) (lay : T3.Layer) (tree leaf i st : Nat)
-    (hr : tree * 2 ^ T3.height lay + leaf < 2 ^ 31) (hf : leaf < 2 ^ T3.height lay)
-    (hi : i < 64) (hs : st < 8)
-    (h8 : s.getReg .x8 = BitVec.ofNat 64 lay.val) (h19 : s.getReg .x19 = BitVec.ofNat 64 i)
-    (h9 : s.getReg .x9 = BitVec.ofNat 64 tree) (h18 : s.getReg .x18 = BitVec.ofNat 64 leaf)
+/-- One chain step: the header word 0 `257 | lay << 16 | (256 i + step) << 32` at `CHAIN + 16`, the HASH arguments
+`CHAIN`, 64, `CHAIN + 48`. -/
+theorem rl1032_spec (hpc : s.pc = pcOf 1032) (lay i st : Nat) (hlay : lay < 256) (hpos : 256 * i + st < 2 ^ 32)
+    (h8 : s.getReg .x8 = BitVec.ofNat 64 lay) (h19 : s.getReg .x19 = BitVec.ofNat 64 i)
     (h20 : s.getReg .x20 = BitVec.ofNat 64 st) :
-    ∃ t, Steps image s (Keygen.headerK lay) (Keygen.headerK lay) t ∧ t.pc = pcOf 1046 ∧
+    ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf 1046 ∧
+      t.getMem (BitVec.ofNat 64 (CHAIN + 16)) = BitVec.ofNat 64 (257 + 65536 * lay + 2 ^ 32 * (st + 256 * i)) ∧
       t.getReg .x10 = BitVec.ofNat 64 CHAIN ∧ t.getReg .x11 = BitVec.ofNat 64 64 ∧
       t.getReg .x12 = BitVec.ofNat 64 (CHAIN + 48) ∧
-      t.getMem (BitVec.ofNat 64 (CHAIN + 16)) = (T3.chainHeader lay tree leaf i st).extractLsb' 0 64 ∧
-      t.getMem (BitVec.ofNat 64 (CHAIN + 24)) = (T3.chainHeader lay tree leaf i st).extractLsb' 64 64 ∧
-      RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x28, .x30] ∧
-      Frame s t (fun A => A = CHAIN + 16 ∨ A = CHAIN + 24) := by
-  have run : ∃ t, Steps image s (Keygen.headerK lay) (Keygen.headerK lay) t ∧
-      t.pc = pcOf 1046 ∧ Keygen.PackedBlocks.HeaderPost s t (T3.height lay) := by
-    fin_cases lay
-    · exact Keygen.PackedBlocks.expand_header_0 s hpc h8
-    · exact Keygen.PackedBlocks.expand_header_1 s hpc h8
-    · exact Keygen.PackedBlocks.expand_header_2 s hpc h8
-    · exact Keygen.PackedBlocks.expand_header_3 s hpc h8
-  obtain ⟨t, steps, pc, post⟩ := run
-  refine ⟨t, steps, pc, post.arg0, post.arg1, post.arg2,
-    post.low.trans (Keygen.PackedBlocks.packedAt_source s lay tree leaf i st hr hf hi hs h8 h9 h18 h19 h20),
-    ?_, post.regs, post.frame⟩
-  exact (post.high.trans (Keygen.PackedBlocks.routedAt_high_zero s lay tree leaf hr h9 h18)).trans
-    (Keygen.PackedBlocks.source_high_actual lay tree leaf i st hr hf hi hs).symm
+      RegsExcept s t [.x6, .x7, .x10, .x11, .x12, .x28, .x30] ∧ Frame s t (fun A => A = CHAIN + 16) := by
+  refine ⟨_, symRun_sound eblk_1032 codeAt_1032 s hpc (by simp [eblk_1032.res, rv_simp]),
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp [Result.toState_pc, eblk_1032.res, E.eval]
+  · simp only [Result.toState_getMem, eblk_1032.res]
+    t3n [h8, h19, h20]
+    rw [ofNat_or_disjoint (lay * 65536) ((i * 256 + st) * 4294967296) 32 (by omega) (by omega),
+      ofNat_or_disjoint 257 _ 16 (by omega) (by omega)]
+    congr 1
+    ring
+  · simp [eblk_1032.res, rv_simp]
+  · simp [eblk_1032.res, rv_simp]
+  · simp [eblk_1032.res, rv_simp]
+  · ex_regs eblk_1032.res
+  · intro A hA hn
+    simp only [CHAIN] at hn
+    simp only [Result.toState_getMem, eblk_1032.res]
+    t3n []
+    rw [if_neg (by omega)]
 
 theorem fetch_1046 (hpc : s.pc = pcOf 1046) : fetch image s = some (.base .ECALL) :=
   (codeAt_1046.fetch s hpc).trans rfl

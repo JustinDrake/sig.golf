@@ -27,13 +27,13 @@ abbrev dlo (d : BitVec 128) : Word := d.extractLsb' 0 64
 /-- High doubleword of a digest. -/
 abbrev dhi (d : BitVec 128) : Word := d.extractLsb' 64 64
 
-/-- Witness doubleword `j` (zero for `8 j ≥ 24264`). -/
+/-- Witness doubleword `j` (zero for `8 j ≥ 25240`). -/
 def wword (w : WBytes) (j : Nat) : Word := w.extractLsb' (64 * j) 64
 
 theorem wword_toNat (w : WBytes) (j : Nat) : (wword w j).toNat = w.toNat / 2 ^ (64 * j) % 2 ^ 64 := by
   simp only [wword, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]
 
-theorem wword_zero (w : WBytes) (j : Nat) (h : 3033 ≤ j) : wword w j = 0 := by
+theorem wword_zero (w : WBytes) (j : Nat) (h : 3155 ≤ j) : wword w j = 0 := by
   apply BitVec.eq_of_toNat_eq
   rw [wword_toNat]
   have hw : w.toNat < 2 ^ (64 * j) :=
@@ -106,10 +106,9 @@ theorem ftsLeaf_eq (index coord leaf : Nat) (secret : Digest) :
   unfold T3.ftsLeaf blk4
   rw [bytesLE16_zero]
 
-theorem chainInputP_eq (lay : Layer) (tree leaf i step : Nat) (pad0 pad1 : Digest)
-    (headerPad : Word) (value : Digest) :
-    T3M.chainInputP lay tree leaf i step pad0 pad1 headerPad value =
-      blk4 pad0 (T3M.chainHeaderP lay tree leaf i step headerPad) pad1 value := rfl
+theorem chainInputP_eq (lay : Layer) (tree leaf i step : Nat) (pad0 pad1 value : Digest) :
+    T3M.chainInputP lay tree leaf i step pad0 pad1 value =
+      blk4 pad0 (header 1 lay.val tree (step + 256 * i) leaf) pad1 value := rfl
 
 /-! ## Other inputs -/
 

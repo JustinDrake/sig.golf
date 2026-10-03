@@ -1,5 +1,4 @@
 import SigGolfCandidate.T3.Nonbinary.EncodingCounts
-import SigGolfCandidate.T3.PackedChain
 import SigGolfCandidate.T3.FullCache.NativeMac
 import SigGolfCandidate.T3.FullCache.RequestRun
 import SigGolfCandidate.T3.SearchCost
@@ -2066,7 +2065,6 @@ theorem preserves {α : Type} (secret : BitVec 256) (target : HashInput) (progra
 def HasTag (tag : Nat) (input : HashInput) : Prop :=
  ∃ lay tree position index, queryHeader input = bytesLE 16 (header tag lay tree position index)
 
-
 theorem tagged_ne {tag tag' : Nat} {input input' : HashInput}
  (h : HasTag tag input) (h' : HasTag tag' input') (hne : tag%256 ≠ tag'%256) : input ≠ input' := by
  rcases h with ⟨l,t,p,i,h⟩
@@ -2156,18 +2154,10 @@ include ht
  apply avoids_foldlM
  intro value step
  apply avoids_shortHash_of_ne
- intro he
- have hh : queryHeader (pad64 (chainInput lay tree leaf i step value)) =
-     bytesLE 16 (chainHeader lay tree leaf i step) := by
-   simpa only [chainInput, List.append_assoc] using
-     queryHeader_padded zero16 (zero16 ++ bytesLE 16 value) (by simp [zero16])
-       (chainHeader lay tree leaf i step)
- rw [he] at hh
- rcases ht with ⟨l,tr,p,ix,ht⟩ | ⟨l,tr,p,ix,ht⟩
- · exact chainHeader_ne_header lay tree leaf i step 4 l tr p ix
-     (bytesLE_injective (hh.symm.trans ht))
- · exact chainHeader_ne_header lay tree leaf i step 12 l tr p ix
-     (bytesLE_injective (hh.symm.trans ht))
+ apply tagged_ne_search (tag := 1) _ ht (by decide) (by decide)
+ unfold chainInput
+ simpa only [List.append_assoc] using
+   (hasTag_padded zero16 (zero16 ++ bytesLE 16 value) (by simp [zero16]) 1 lay.val tree (step+256*i) leaf)
 
 @[aesop safe apply] theorem avoids_leafHash (lay : Layer) (tree leaf : Nat) (ends : List Digest) :
  Avoids secret target (leafHash lay tree leaf ends) := by
