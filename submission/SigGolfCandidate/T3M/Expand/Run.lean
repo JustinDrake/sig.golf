@@ -194,19 +194,13 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
         have e2 : A ≠ 0x810 := by rcases h1 with h | h <;> omega
         have e3 : A < 0x840 ∨ 0x3418 ≤ A := by rcases h1 with h | h <;> [exact Or.inl (by omega); exact Or.inr h]
         exact hm7 A hA e1 h2 h3 h4 h5 e2 (nFts A h6 h7 h8 h9 e3) h9 h10 h11 h12
-    have hL : LInv sig index 4 (root, 0, 0) t7 := by
-      refine ⟨by rw [p7]; rfl, le_refl _, by rw [r7.get (by decide)]; exact h5_6, hi, ?_,
-        by rw [if_neg (by decide)]; exact e7, fun _ => ⟨?_, ?_⟩, rfl, ⟨0, by norm_num, ?_⟩, ?_, ?_, ?_⟩
+    have hL : LInv sig index 4 root t7 := by
+      refine ⟨by rw [p7]; rfl, le_refl _, by rw [r7.get (by decide)]; exact h5_6, hi, ?_, e7, ⟨0, by norm_num, ?_⟩,
+        ?_, ?_, ?_⟩
       · rw [f7.get (by decide) (by simp only [IDXV, FOREST, FOUT, ENC]; omega), f6.get (by decide) (by simp),
           f5.get (by decide) (by simp), f4.get (by decide) (nFts _ (by simp only [IDXV]; omega)
             (by simp only [IDXV, NODE, NOUT]; omega) (by simp only [IDXV, FLEAF]; omega)
             (by simp only [IDXV, FOREST]; omega) (by simp only [IDXV]; omega)), idx3, hidx]
-      · rw [hm7' _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
-          (by decide) (by decide) (by decide) (by decide) (by decide), hz0 _ (by decide) (by decide) (by decide) (by decide)]
-        show (0 : BitVec 64) = BitVec.extractLsb' 0 64 (0 : BitVec 128); decide
-      · rw [hm7' _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
-          (by decide) (by decide) (by decide) (by decide) (by decide), hz0 _ (by decide) (by decide) (by decide) (by decide)]
-        show (0 : BitVec 64) = BitVec.extractLsb' 64 64 (0 : BitVec 128); decide
       · rw [hm7' (ENC + 32) (by decide) (by simp only [ENC]; omega) (by simp only [ENC, DIG]; omega)
           (by simp only [ENC, NBUF]; omega) (by simp only [ENC, Search.SEL]; omega) (by simp only [ENC, IDXV]; omega)
           (by simp only [ENC]; omega) (by simp only [ENC, NODE, NOUT]; omega) (by simp only [ENC, FLEAF]; omega)
@@ -240,7 +234,7 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
             (by simp only [Search.SEL]; omega) (by simp only [IDXV]; omega) (by omega)
             (by simp only [NODE]; omega) (by simp only [FLEAF]; omega) (by simp only [FOREST]; omega)
             (by simp only [FOUT]; omega) (by simp only [ENC]; omega) (by simp only [ENC]; omega)).trans hd.2⟩
-      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
         · rw [hm7' _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
             (by decide) (by decide) (by decide) (by decide) (by decide),
             hz0 _ (by decide) (by decide) (by decide) (by decide)]
@@ -256,7 +250,7 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
         · exact h
         · exact h
         · simp only [Search.TOP_DATA, FOREST, FOUT, ENC] at h; omega
-    refine (TBSim.bind (W₂ := 11) (layers_tbsim (sk := sk) 4 (root, 0, 0) t7 hL) (fun r8 t8 h8 => ?_)).mono (by omega)
+    refine (TBSim.bind (W₂ := 11) (layers_tbsim (sk := sk) 4 root t7 hL) (fun r8 t8 h8 => ?_)).mono (by omega)
       (fun _ _ h => h)
     rcases r8 with _ | ⟨root', counters⟩
     · exact (TBSim.pure (Q := ExpQ) (a := none) h8).mono (by omega) (fun _ _ h => h)
@@ -276,10 +270,10 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
         (by simp only [ENC]; omega) (by simp only [ENC]; omega)]
       exact einit_pk m pk σ j hj
     obtain ⟨t9, st9, p9, x28, x29, r9, f9⟩ := c342_spec t8 p8
-    have hlo : (t8.getMem (BitVec.ofNat 64 NOUT) = t8.getMem (BitVec.ofNat 64 0xA0)) ↔
+    have hlo : (t8.getMem (BitVec.ofNat 64 ENC) = t8.getMem (BitVec.ofNat 64 0xA0)) ↔
         root'.extractLsb' 0 64 = pk.extractLsb' 0 64 := by
       rw [e8.1, show (0xA0 : Nat) = 0xA0 + 8 * 0 from rfl, hpk 0 (by decide)]
-    have hhi : (t9.getMem (BitVec.ofNat 64 (NOUT + 8)) = t9.getMem (BitVec.ofNat 64 0xA8)) ↔
+    have hhi : (t9.getMem (BitVec.ofNat 64 (ENC + 8)) = t9.getMem (BitVec.ofNat 64 0xA8)) ↔
         root'.extractLsb' 64 64 = pk.extractLsb' 64 64 := by
       rw [f9.get (by decide) (by simp), f9.get (by decide) (by simp), e8.2,
         show (0xA8 : Nat) = 0xA0 + 8 * 1 from rfl, hpk 1 (by decide)]

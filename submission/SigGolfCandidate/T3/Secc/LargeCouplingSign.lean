@@ -313,10 +313,9 @@ theorem signLayers_eq (T : Answers) (cache : T3.Cache) (hcache : cache.region = 
           · simp only [hn0, if_false, evalWithAnswerFn_bind]
             rw [Correctness.eval_buildTree_result T _ _ _ digits hvalid (route_leaf_bound index _)]
             simp only
-            have hroot : (((builtTree T (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
-                (height (Fin.ofNat 4 n) - 1) []).getD 0 0, 0, ((builtTree T (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
-                (height (Fin.ofNat 4 n) - 1) []).getD 1 0) = Extract.walkTarget T index n := by
-              rw [Extract.walkTarget_pair T index n (by omega) hn0]
+            have hroot : ((builtTree T (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
+                (height (Fin.ofNat 4 n)) []).getD 0 0 = Extract.walkTarget T index n := by
+              rw [Extract.walkTarget_root T index n (by omega)]
               rfl
             rw [hroot, ih (by omega)]
             by_cases hall : ∀ l, l < n → (Wots.referenceSearch T (routeAddr index (Fin.ofNat 4 l))).isSome
@@ -379,8 +378,8 @@ theorem forestProofPrefix_eq {T : Answers} {labels : Labels} (h : Agrees T label
   exact forestProof_eq h _ c hc7 _ (selection_bounds N c hc7).1
 
 theorem walkTarget_four (T : Answers) (index : Nat) :
-    Extract.walkTarget T index 4 = (evalWithAnswerFn T (forestPk index (forestRoots T index 7)), 0, 0) := by
-  have h4 : Extract.walkTarget T index 4 = (Extract.honestForest T index, 0, 0) := by
+    Extract.walkTarget T index 4 = evalWithAnswerFn T (forestPk index (forestRoots T index 7)) := by
+  have h4 : Extract.walkTarget T index 4 = Extract.honestForest T index := by
     simp only [Extract.walkTarget, dif_pos (show 3 < 4 by decide), Extract.honestMsg]
     rfl
   rw [h4, WotsExtract.honestForest_eq_built]

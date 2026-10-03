@@ -103,7 +103,7 @@ theorem pubGood_digest (rho : Digest) (m : Message) (c : BitVec 32) :
     AllQueriesSatisfy (digest rho m c) PubGood :=
   pubGood_publicHash _ (by simp [digestInput, bytesLE_length])
 
-theorem pubGood_encoding (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) (c : BitVec 32) :
+theorem pubGood_encoding (lay : Layer) (tree leaf : Nat) (msg : Digest) (c : BitVec 32) :
     AllQueriesSatisfy (shortHash (encodingInput lay tree leaf msg c)) PubGood :=
   pubGood_shortHash _ (by simp [encodingInput, bytesLE_length])
 
@@ -175,20 +175,6 @@ theorem pubGood_layerP (w : WBytes) (index : Nat) (lay : Layer) (digits : List N
     allQ_bind (pubGood_leafHash _ _ _ _) fun _ =>
       allQ_foldlM _ _ (fun _ _ => pubGood_nodeHashP _ _ _ _ _ _ _) _
 
-theorem pubGood_layerPairP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) :
-    AllQueriesSatisfy (layerPairP w index lay digits) PubGood := by
-  unfold layerPairP
-  exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_chainP _ _ _ _ _ _ _ _ _) fun _ =>
-    allQ_bind (pubGood_leafHash _ _ _ _) fun _ =>
-      allQ_bind (allQ_foldlM _ _ (fun _ _ => pubGood_nodeHashP _ _ _ _ _ _ _) _) fun _ => allQ_pure _
-
-theorem pubGood_layerNextP (w : WBytes) (index n : Nat) (lay : Layer) (digits : List Nat) :
-    AllQueriesSatisfy (layerNextP w index n lay digits) PubGood := by
-  unfold layerNextP
-  split
-  · exact allQ_map _ (pubGood_layerP _ _ _ _)
-  · exact pubGood_layerPairP _ _ _ _
-
 theorem pubGood_layersP (w : WBytes) (index : Nat) : ∀ n root,
     AllQueriesSatisfy (layersP w index n root) PubGood := by
   intro n
@@ -199,7 +185,7 @@ theorem pubGood_layersP (w : WBytes) (index : Nat) : ∀ n root,
       unfold layersP
       refine allQ_ite _ (allQ_pure _) (allQ_bind (pubGood_encoding _ _ _ _ _) fun d => ?_)
       split
-      · exact allQ_bind (pubGood_layerNextP _ _ _ _ _) fun _ => ih _
+      · exact allQ_bind (pubGood_layerP _ _ _ _) fun _ => ih _
       · exact allQ_pure _
 
 /-- **Every query of `verifyP` is a public hash of a nonempty aligned input.** -/
@@ -228,7 +214,7 @@ theorem pubGood_digestSearch (rho : Digest) (m : Message) : ∀ fuel counter,
       unfold digestSearch
       exact allQ_bind (pubGood_digest _ _ _) fun _ => allQ_ite _ (allQ_pure _) (ih _)
 
-theorem pubGood_counterSearch (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) : ∀ fuel counter,
+theorem pubGood_counterSearch (lay : Layer) (tree leaf : Nat) (msg : Digest) : ∀ fuel counter,
     AllQueriesSatisfy (counterSearch lay tree leaf msg counter fuel) PubGood := by
   intro fuel
   induction fuel with
@@ -291,23 +277,6 @@ theorem pubGood_recoverLayer (sig : Signature) (index : Nat) (lay : Layer) (digi
   exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_chain _ _ _ _ _ _ _) fun _ =>
     allQ_bind (pubGood_leafHash _ _ _ _) fun _ => allQ_foldlM _ _ (fun _ _ => pubGood_nodeHash _ _ _ _ _ _) _
 
-theorem pubGood_recoverPair (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
-    AllQueriesSatisfy (recoverPair sig index lay digits) PubGood := by
-  unfold recoverPair
-  exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_chain _ _ _ _ _ _ _) fun _ =>
-    allQ_bind (pubGood_leafHash _ _ _ _) fun _ =>
-      allQ_bind (allQ_foldlM _ _ (fun _ _ => pubGood_nodeHash _ _ _ _ _ _) _) fun _ => allQ_pure _
-
-theorem pubGood_rootHash (index : Nat) (lay : Layer) (pair : Digest × BitVec 96 × Digest) :
-    AllQueriesSatisfy (rootHash index lay pair) PubGood := by
-  unfold rootHash
-  exact pubGood_nodeHash _ _ _ _ _ _
-
-theorem pubGood_expandNext (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
-    AllQueriesSatisfy (expandNext sig index n lay digits) PubGood := by
-  unfold expandNext
-  exact allQ_bind (pubGood_recoverPair _ _ _ _) fun _ => allQ_bind (pubGood_rootHash _ _ _) fun _ => allQ_pure _
-
 theorem pubGood_expandLayers (sig : Signature) (index : Nat) : ∀ n root,
     AllQueriesSatisfy (expandLayers sig index n root) PubGood := by
   intro n
@@ -319,7 +288,7 @@ theorem pubGood_expandLayers (sig : Signature) (index : Nat) : ∀ n root,
       refine allQ_bind (pubGood_counterSearch _ _ _ _ _ _) fun r => ?_
       rcases r with _ | ⟨c, digits⟩
       · exact allQ_pure _
-      refine allQ_bind (pubGood_expandNext _ _ _ _ _) fun _ => allQ_bind (ih _) fun r => ?_
+      refine allQ_bind (pubGood_recoverLayer _ _ _ _) fun _ => allQ_bind (ih _) fun r => ?_
       rcases r with _ | ⟨root', cs⟩ <;> exact allQ_pure _
 
 /-- **Every query of `expandN` is a public hash of a nonempty aligned input.** -/
@@ -980,24 +949,6 @@ theorem layerP_merkle_extract (answers : Answers) (w : WBytes) (index : Nat)
     refine ⟨step, hstep, _, ?_, hhit⟩
     rw [layerP_eq_hashPath, queried_bind]
     exact List.mem_append_right _ hquery
-
-/-- Exact program equality for the pair handover (no last fold). -/
-theorem layerPairP_eq_hashPath (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) :
-    layerPairP w index lay digits = (layerLeafP w index lay digits >>= fun value =>
-      hashPath (merkleInput 3 lay.val (route index lay).2 (height lay) (route index lay).1
-        (wpath w lay (route index lay).1) (wmerklePad w lay)) (height lay - 1) value >>= fun node =>
-      pure (pairOf (route index lay).1 (height lay) (wpath w lay (route index lay).1 (height lay - 1))
-        ((wmerklePad w lay (height lay - 1)).extractLsb' 32 96) node)) := by
-  unfold layerPairP layerLeafP
-  rcases route index lay with ⟨leaf, tree⟩
-  dsimp only
-  rw [bind_assoc]
-  congr 1
-  funext ends
-  congr 1
-  funext value
-  rw [← foldlM_finRange_eq_hashPath]
-  rfl
 
 /-- The honest reference recurrence required by `merklePath_extract`, now proved
 from the stored tree's actual node-hash recurrence. Siblings use xor 1; the heap

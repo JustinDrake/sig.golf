@@ -38,19 +38,17 @@ theorem hdrBlock_chainRow (a : ChainAddr) (s : Nat) (v : Digest) :
       bytesLE 16 (header 1 a.key.lay.val a.key.tree (s + 256 * a.chain) a.key.leaf) := by
   rw [Mask.chainRow_eq, ← Mask.pad64_chainInput, chainInput_eq_zero, Extract.hdrBlock_chainInputP]
 
-theorem hdrBlock_encodingRow (L : LeafAddr) (m : (Digest × BitVec 96 × Digest)) (c : BitVec 32) :
+theorem hdrBlock_encodingRow (L : LeafAddr) (m : Digest) (c : BitVec 32) :
     Extract.hdrBlock (encodingRow L m c) = bytesLE 16 (header 4 L.lay.val L.tree 0 L.leaf) := by
   unfold encodingRow encodingInput
-  rw [Extract.hdrBlock_pad64 _ (by simp only [List.length_append, bytesLE_length]; omega)]
-  simp only [List.append_assoc]
-  rw [← List.append_assoc, Extract.hdrBlock_prefix]
+  rw [Extract.hdrBlock_pad64 _ (by simp only [List.length_append, bytesLE_length]; omega), Extract.hdrBlock_prefix]
 
 theorem hdrBlock_digest (rho : Digest) (m : Message) (c : BitVec 32) :
     Extract.hdrBlock (pad64 (digestInput rho m c)) = bytesLE 16 (header 12 0 0 0 c.toNat) := by
   unfold digestInput
   rw [Extract.hdrBlock_pad64 _ (by simp only [List.length_append, bytesLE_length]; omega), Extract.hdrBlock_prefix]
 
-theorem chainRow_ne_encodingRow (a : ChainAddr) (s : Nat) (v : Digest) (L : LeafAddr) (m : (Digest × BitVec 96 × Digest)) (c : BitVec 32) :
+theorem chainRow_ne_encodingRow (a : ChainAddr) (s : Nat) (v : Digest) (L : LeafAddr) (m : Digest) (c : BitVec 32) :
     chainRow a s v ≠ encodingRow L m c := by
   intro h
   have hb := congrArg Extract.hdrBlock h
@@ -64,7 +62,7 @@ theorem chainRow_ne_digest (a : ChainAddr) (s : Nat) (v : Digest) (rho : Digest)
   rw [hdrBlock_chainRow, hdrBlock_digest] at hb
   exact Mask.header_ne_of_tag (by decide) (bytesLE_injective hb)
 
-theorem encodingRow_ne_digest (L : LeafAddr) (m : (Digest × BitVec 96 × Digest)) (c : BitVec 32) (rho : Digest) (m' : Message)
+theorem encodingRow_ne_digest (L : LeafAddr) (m : Digest) (c : BitVec 32) (rho : Digest) (m' : Message)
     (c' : BitVec 32) : encodingRow L m c ≠ pad64 (digestInput rho m' c') := by
   intro h
   have hb := congrArg Extract.hdrBlock h

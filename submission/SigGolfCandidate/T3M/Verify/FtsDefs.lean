@@ -126,7 +126,7 @@ structure DispIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Diges
     (E ptr folds : Nat) (node : Digest) (m : MachineState) : Prop where
   fb : FB F c m
   pc : (isLeafP pend = true ∧ m.pc = pcOf (leafDisp (3 * c + j))) ∨
-    (isLeafP pend = false ∧ ∃ k, k < 141 ∧ m.pc = pcOf (mDispPc k) ∧ m.getReg .x17 = BitVec.ofNat 64 (lnk c j))
+    (isLeafP pend = false ∧ ∃ k, k < 77 ∧ m.pc = pcOf (mDispPc k) ∧ m.getReg .x24 = BitVec.ofNat 64 (lnk c j))
   a4 : m.getReg .x14 = BitVec.ofNat 64 (WIT + ptr - 880)
   a5 : m.getReg .x15 = BitVec.ofNat 64 (frameA stk.length)
   s4 : m.getReg .x20 = BitVec.ofNat 64 (tabPc (tselJ j))
@@ -149,12 +149,12 @@ def fblk (ptr i : Nat) : Nat := ptr + 8 + 80 * i
 structure RungIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Digest × Nat)) (X a i E ptr folds : Nat)
     (node : Digest) (m : MachineState) : Prop where
   fb : FB F c m
-  pc : m.pc = pcOf (foldPc (tselJ j) X a ((segSides (wbyte F.w ptr).toNat)) (E % 2) i)
+  pc : m.pc = pcOf (foldPc X a ((segSides (wbyte F.w ptr).toNat)) (E % 2) i)
   a4 : m.getReg .x14 = BitVec.ofNat 64 (WIT + ptr - 880 + 8 + 80 * a)
   a5 : m.getReg .x15 = BitVec.ofNat 64 (frameA stk.length)
   s4 : m.getReg .x20 = BitVec.ofNat 64 (tabPc (tselJ j))
   s7 : m.getReg .x23 = FtsRev.rv E
-  s8 : m.getReg .x17 = BitVec.ofNat 64 (lnk c j)
+  s8 : m.getReg .x24 = BitVec.ofNat 64 (lnk c j)
   s9 : m.getReg .x25 = BitVec.ofNat 64 (forestSlot c)
   stack : StackOK stk m
   rts : RootsOK roots m
@@ -175,12 +175,12 @@ def destA (c X d : Nat) : Nat := if X = 0 then frameA d + 48 else if X = 1 then 
 structure TailIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Digest × Nat)) (X E ptr folds : Nat)
     (node : Digest) (m : MachineState) : Prop where
   fb : FB F c m
-  pc : ∃ k, k < 141 ∧ m.pc = pcOf (tailPc X k)
+  pc : ∃ k, k < 77 ∧ m.pc = pcOf (tailPc X k)
   a4 : m.getReg .x14 = BitVec.ofNat 64 (WIT + ptr - 880)
   a5 : m.getReg .x15 = BitVec.ofNat 64 (frameA stk.length)
   s4 : m.getReg .x20 = BitVec.ofNat 64 (tabPc (tselJ j))
   s7 : m.getReg .x23 = FtsRev.rv E
-  s8 : m.getReg .x17 = BitVec.ofNat 64 (lnk c j)
+  s8 : m.getReg .x24 = BitVec.ofNat 64 (lnk c j)
   s9 : m.getReg .x25 = BitVec.ofNat 64 (forestSlot c)
   stack : StackOK stk m
   rts : RootsOK roots m

@@ -13,7 +13,7 @@ signature piece `a6`, the witness chain / Merkle blocks `s7` / `s8`, `jal recove
 namespace SigGolfCandidate.T3M.Expand
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 open SigGolfCandidate.T3 (Layer route height chainCount target)
-open SigGolfCandidate.T3M.Search (ENC NOUT csN4 ofNat_and_mask)
+open SigGolfCandidate.T3M.Search (ENC csN4 ofNat_and_mask)
 
 set_option autoImplicit false
 set_option maxRecDepth 8192
@@ -69,7 +69,7 @@ theorem l249_spec (hpc : s.pc = pcOf 249) (index : Nat) (hi : index < 2 ^ 31)
     ∃ t, Steps image s 13 13 t ∧ t.pc = pcOf 457 ∧ t.getReg .x1 = pcOf 262 ∧
       t.getReg .x8 = BitVec.ofNat 64 3 ∧ t.getReg .x15 = BitVec.ofNat 64 6 ∧
       t.getReg .x26 = BitVec.ofNat 64 43 ∧ t.getReg .x27 = BitVec.ofNat 64 0 ∧
-      t.getReg .x17 = BitVec.ofNat 64 195 ∧
+      t.getReg .x17 = BitVec.ofNat 64 194 ∧
       t.getReg .x18 = BitVec.ofNat 64 (index / 2 ^ 0 % 2 ^ 6) ∧ t.getReg .x9 = BitVec.ofNat 64 (index / 2 ^ 6) ∧
       RegsExcept s t [.x1, .x6, .x7, .x8, .x9, .x15, .x17, .x18, .x26, .x27, .x28] ∧
       Frame s t (fun _ => False) := by
@@ -284,15 +284,15 @@ theorem l332_spec (hpc : s.pc = pcOf 332) (c : Nat) (h19 : s.getReg .x19 = BitVe
     rw [if_neg (by omega)]
 
 
-/-- `compare`, first doubleword: the root (`NOUT`) against the public key (`0xA0`). -/
+/-- `compare`, first doubleword: the root (`ENC`) against the public key (`0xA0`). -/
 theorem c342_spec (hpc : s.pc = pcOf 342) :
     ∃ t, Steps image s 6 6 t ∧
-      t.pc = (if s.getMem (BitVec.ofNat 64 NOUT) = s.getMem (BitVec.ofNat 64 0xA0) then pcOf 348 else pcOf 354) ∧
-      t.getReg .x28 = BitVec.ofNat 64 NOUT ∧ t.getReg .x29 = BitVec.ofNat 64 0xA0 ∧
+      t.pc = (if s.getMem (BitVec.ofNat 64 ENC) = s.getMem (BitVec.ofNat 64 0xA0) then pcOf 348 else pcOf 354) ∧
+      t.getReg .x28 = BitVec.ofNat 64 ENC ∧ t.getReg .x29 = BitVec.ofNat 64 0xA0 ∧
       RegsExcept s t [.x6, .x7, .x28, .x29] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound eblk_342 codeAt_342 s hpc (by simp [eblk_342.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
     ?_, ?_, ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, eblk_342.res, E.eval, CmpOp.eval, rebase, rv_simp, NOUT]
+  · simp only [Result.toState_pc, eblk_342.res, E.eval, CmpOp.eval, rebase, rv_simp, ENC]
     split_ifs with h1 h2 h2 <;> simp_all
   · simp [eblk_342.res, rv_simp]
   · simp [eblk_342.res, rv_simp]
@@ -300,14 +300,14 @@ theorem c342_spec (hpc : s.pc = pcOf 342) :
   · intro A _ _; simp [eblk_342.res, rv_simp]
 
 /-- `compare`, second doubleword. -/
-theorem c348_spec (hpc : s.pc = pcOf 348) (h28 : s.getReg .x28 = BitVec.ofNat 64 NOUT)
+theorem c348_spec (hpc : s.pc = pcOf 348) (h28 : s.getReg .x28 = BitVec.ofNat 64 ENC)
     (h29 : s.getReg .x29 = BitVec.ofNat 64 0xA0) :
     ∃ t, Steps image s 3 3 t ∧
-      t.pc = (if s.getMem (BitVec.ofNat 64 (NOUT + 8)) = s.getMem (BitVec.ofNat 64 0xA8) then pcOf 351 else pcOf 354) ∧
+      t.pc = (if s.getMem (BitVec.ofNat 64 (ENC + 8)) = s.getMem (BitVec.ofNat 64 0xA8) then pcOf 351 else pcOf 354) ∧
       RegsExcept s t [.x6, .x7] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound eblk_348 codeAt_348 s hpc
-    (by simp [eblk_348.res, rv_simp, accessValid_iff, MEMORY_BYTES, h28, h29, NOUT]), ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, eblk_348.res, E.eval, CmpOp.eval, rebase, rv_simp, NOUT, h28, h29]
+    (by simp [eblk_348.res, rv_simp, accessValid_iff, MEMORY_BYTES, h28, h29, ENC]), ?_, ?_, ?_⟩
+  · simp only [Result.toState_pc, eblk_348.res, E.eval, CmpOp.eval, rebase, rv_simp, ENC, h28, h29]
     split_ifs with h1 h2 h2 <;> simp_all
   · ex_regs eblk_348.res
   · intro A _ _; simp [eblk_348.res, rv_simp]

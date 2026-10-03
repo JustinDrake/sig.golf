@@ -85,12 +85,12 @@ theorem leafMsg_congr : leafMsg T a.key = leafMsg T' a.key := by
   unfold leafMsg
   split
   · rename_i h
-    unfold Extract.honestPair
+    unfold Extract.honestRoot
     rw [builtTree_congr_of_lay a hT (fun he => by
       have := congrArg Fin.val he
       simp only at this
       omega)]
-  · rw [honestForest_congr a hT _]
+  · exact honestForest_congr a hT _
 
 theorem referenceSearch_congr : referenceSearch T a.key = referenceSearch T' a.key := by
   unfold referenceSearch

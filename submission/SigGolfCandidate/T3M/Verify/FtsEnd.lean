@@ -9,7 +9,7 @@ import SigGolfCandidate.T3M.Verify.FtsSem
   coordinate words, the forest slot and the root list advanced) or, after coordinate 6, the forest (`ForestIn`);
 * `forest_step`: the pointer cap (reject after more than 115 folds: `streamEnd < ptr`), the forest frame
   `[root_0 | T(11) | root_1 .. root_6]` and its two-block HASH into the encoding block;
-* **`FtsOut F root u`**: the state after the forest HASH at `xtr3_1` (pc 630), the layers phase's entry.
+* **`FtsOut F root u`**: the state after the forest HASH at `xtr3_1` (pc 656), the layers phase's entry.
 -/
 
 set_option linter.unusedSimpArgs false
@@ -26,9 +26,9 @@ theorem xor1_eval (m : MachineState) (E : Nat) (h : m.getReg .x23 = FtsRev.rv E)
   show BinOp.eval .xor (m.getReg .x23) (BitVec.ofNat 64 (2 ^ 63)) = _
   rw [h]; exact FtsRev.rv_xor E
 
-theorem jmp24_eval (m : MachineState) (c j : Nat) (h : m.getReg .x17 = BitVec.ofNat 64 (lnk c j)) :
-    (Rv.E.bin .and (.reg .x17) notOne).eval m = BitVec.ofNat 64 (lnk c j) := by
-  show BinOp.eval .and (m.getReg .x17) (~~~1#64) = _
+theorem jmp24_eval (m : MachineState) (c j : Nat) (h : m.getReg .x24 = BitVec.ofNat 64 (lnk c j)) :
+    (Rv.E.bin .and (.reg .x24) notOne).eval m = BitVec.ofNat 64 (lnk c j) := by
+  show BinOp.eval .and (m.getReg .x24) (~~~1#64) = _
   rw [h]; exact even_andNot1 _ (by unfold lnk; omega)
 
 theorem lnk_next (c j : Nat) (hj : j < 2) : lnk c j = 0x1000 + 4 * leafPc (3 * c + (j + 1)) := by
@@ -135,7 +135,7 @@ theorem tailF_step (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Dig
 
 /-! ## The coordinate end -/
 
-/-- At `forest` (pc 622) after coordinate 6: the seven roots in the forest frame, `a4` at the next header. -/
+/-- At `forest` (pc 648) after coordinate 6: the seven roots in the forest frame, `a4` at the next header. -/
 structure ForestIn (F : FCtx) (roots : List Digest) (ptr folds : Nat) (m : MachineState) : Prop where
   glob : Glob gkF F.w F.pk m
   idx : m.getReg .x22 = BitVec.ofNat 64 F.idx
@@ -289,7 +289,7 @@ theorem coord_step (F : FCtx) (c : Nat) (roots : List Digest) (stk : List (Diges
 
 /-! ## The forest -/
 
-/-- The state after the forest HASH, at `xtr3_1` (pc 630): the layers phase (V1) starts here. The forest pk `root` is
+/-- The state after the forest HASH, at `xtr3_1` (pc 656): the layers phase (V1) starts here. The forest pk `root` is
 the encoding block's message field (`0x100`), `s6 = idx`, `Glob baseK` (`t0 = 0`, `s2 = 0xFFF`; the witness header with
 the four counters; pk; the zero words and the counter's high half of the encoding block), and every witness word of
 the header and of the layer region (offsets ≥ `streamEnd` = 11288, with the zero memory past W up to `WX`) is
@@ -409,7 +409,7 @@ theorem forest_step (F : FCtx) (roots : List Digest) (ptr folds : Nat) (m : Mach
         (by decide) (by norm_num), hin, fun ans => ⟨?_, ?_, ?_, ?_, ?_⟩⟩
     · exact Glob_writeHash (hu.glob _ _ _ h.glob (RelOK.nil m)) ans 0x100 h12 (by decide)
     · rw [writeHash_getReg, hu.keep .x22 (by simp)]; exact h.idx
-    · rw [writeHash_pc, hu.pc rfl]; exact pcOf_add4 629
+    · rw [writeHash_pc, hu.pc rfl]; exact pcOf_add4 655
     · exact writeHash_lo u ans 0x100 h12 (by norm_num)
     · have hw : Orig F.w (fun o => o < 64 ∨ leafNT o ∨ ptr ≤ o) u :=
         h.wit.frame (fun jj h1 h2 => hfr _ (by unfold WIT WX at *; omega) (by unfold WIT FOREST; omega)

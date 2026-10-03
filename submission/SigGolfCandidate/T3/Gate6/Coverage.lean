@@ -22,7 +22,7 @@ noncomputable def rawEventEquiv (event : GatedDraw → Prop) :
   left_inv _ := rfl
   right_inv _ := rfl
 
-theorem gatedDraw_card : Fintype.card GatedDraw=2^185 := by
+theorem gatedDraw_card : Fintype.card GatedDraw=2^178 := by
   norm_num [GatedDraw,CoordinateDraw,Bank,Bucket,Triple,Padding,
     Fintype.card_prod,Fintype.card_fun,Fintype.card_fin]
 
@@ -42,36 +42,35 @@ def CoordinateCovered (exposed : Bank → Bucket → Finset (Fin 128))
     (draw : CoordinateDraw) : Prop := ∀ c, Covered (exposed c (draw c).1) (draw c).2
 
 def GatedCovered (exposed : Bank → Bucket → Finset (Fin 128)) (draw : GatedDraw) : Prop :=
-  draw.2.val<135 ∧ CoordinateCovered exposed draw.1
+  draw.2=0 ∧ CoordinateCovered exposed draw.1
 
 noncomputable def gatedCoveredEquiv (exposed : Bank → Bucket → Finset (Fin 128)) :
     {draw : GatedDraw // GatedCovered exposed draw} ≃
-      {draw : CoordinateDraw // CoordinateCovered exposed draw} × Fin 135 where
-  toFun d := (⟨d.1.1,d.2.2⟩,⟨d.1.2.val,d.2.1⟩)
-  invFun d := ⟨(d.1.1,⟨d.2.val,by have h := d.2.isLt; omega⟩),d.2.isLt,d.1.2⟩
-  left_inv d := rfl
+      {draw : CoordinateDraw // CoordinateCovered exposed draw} where
+  toFun d := ⟨d.1.1,d.2.2⟩
+  invFun d := ⟨(d.1,0),rfl,d.2⟩
+  left_inv d := by apply Subtype.ext;exact Prod.ext rfl d.2.1.symm
   right_inv _ := rfl
 
 theorem gated_covered_probability (exposed : Bank → Bucket → Finset (Fin 128)) :
     Pr[GatedCovered exposed | ($ᵗ GatedDraw : ProbComp GatedDraw)] =
-      (Pr[CoordinateCovered exposed | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/(1024/135) := by
+      (Pr[CoordinateCovered exposed | ($ᵗ CoordinateDraw : ProbComp CoordinateDraw)])/8 := by
   rw [probEvent_uniformSample,←Fintype.card_subtype,Fintype.card_congr (gatedCoveredEquiv exposed),
     probEvent_uniformSample,←Fintype.card_subtype]
   simp only [GatedDraw,Fintype.card_prod,Padding,Fintype.card_fin,Nat.cast_mul,Nat.cast_ofNat]
-  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness)
-    (ENNReal.div_ne_top (by finiteness) (ENNReal.div_ne_zero.mpr ⟨by norm_num,by norm_num⟩))).mp
-  simp only [ENNReal.toReal_div,ENNReal.toReal_mul,ENNReal.toReal_ofNat,ENNReal.toReal_natCast]
-  ring
+  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
+  simp only [ENNReal.toReal_div,ENNReal.toReal_mul,ENNReal.toReal_ofNat]
+  rw [div_div]
 
-/-- The ten-bit gate (accepted below 135) gives exactly its full factor 135/1024 in the fixed-exposure
+/-- The three-bit gate gives exactly its full factor in the fixed-exposure
 coverage probability; no independence premise about chosen histories is used. -/
 theorem digest_gate_covered_probability (exposed : Bank → Bucket → Finset (Fin 128)) :
     Pr[fun output => GatedCovered exposed (rawDraw (digestRecord output)) |
       ($ᵗ BitVec 256 : ProbComp (BitVec 256))] =
-      (∏ c : Bank, ((∑ b : Bucket, ((exposed c b).card.descFactorial 3 : ENNReal))/(16*128^3)))/(1024/135) := by
+      (∏ c : Bank, ((∑ b : Bucket, ((exposed c b).card.descFactorial 3 : ENNReal))/(16*128^3)))/8 := by
   rw [digest_event (fun raw => GatedCovered exposed (rawDraw raw)),raw_draw_event,
     gated_covered_probability]
-  exact congrArg (fun p : ENNReal => p/(1024/135)) (bpors_covered_probability exposed)
+  exact congrArg (fun p : ENNReal => p/8) (bpors_covered_probability exposed)
 
 /-- The actual acceptance predicate implies the independent gate condition.
 Keeping the authentication cap can only reduce this fixed-exposure event. -/
@@ -97,13 +96,11 @@ theorem accepted_covered_le_forestEnvelope {steps : Nat}
   refine (accepted_covered_le_gate exposed).trans ?_
   rw [digest_gate_covered_probability]
   have he : (∏ c : Bank,
-      ((∑ bucket : Bucket, ((3*(List.ofFn (table c)).count bucket).descFactorial 3 : ENNReal))/(16*128^3)))/(1024/135) =
+      ((∑ bucket : Bucket, ((3*(List.ofFn (table c)).count bucket).descFactorial 3 : ENNReal))/(16*128^3)))/8 =
       Moments.Numeric.forestEnvelope table := by
-    unfold Moments.Numeric.forestEnvelope
-    congr 1
-    simp only [coordinateEnvelope,bucketMass,div_eq_mul_inv,
+    simp only [Moments.Numeric.forestEnvelope,coordinateEnvelope,bucketMass,div_eq_mul_inv,
       Finset.prod_mul_distrib,Finset.prod_const,Finset.card_univ,Bank,Fintype.card_fin]
-    simp only [mul_assoc]
+    rw [mul_assoc,mul_assoc]
     congr 1
     apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
     norm_num [ENNReal.toReal_pow,ENNReal.toReal_inv,ENNReal.toReal_mul]

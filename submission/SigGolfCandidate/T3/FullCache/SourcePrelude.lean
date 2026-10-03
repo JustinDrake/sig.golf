@@ -228,7 +228,6 @@ theorem wordEnvelope_sublist {left right : List Buckets} (h : left.Sublist right
     wordEnvelope left ≤ wordEnvelope right := by
   unfold wordEnvelope
   apply ENNReal.div_le_div_right
-  apply ENNReal.div_le_div_right
   exact Finset.prod_le_prod' fun c _ => coordinateEnvelope_sublist (h.map (fun row => row c))
 
 theorem nearCoordinateEnvelope_sublist {left right : List (Fin 16)} (h : left.Sublist right) :
@@ -242,7 +241,6 @@ theorem nearCoordinateEnvelope_sublist {left right : List (Fin 16)} (h : left.Su
 theorem nearWordEnvelope_sublist (missing : Fin 7) {left right : List Buckets}
     (h : left.Sublist right) : nearWordEnvelope missing left ≤ nearWordEnvelope missing right := by
   unfold nearWordEnvelope
-  apply ENNReal.div_le_div_right
   apply ENNReal.div_le_div_right
   apply Finset.prod_le_prod'
   intro c _
@@ -275,7 +273,7 @@ theorem adaptive_selected_full_excess {ι State Result : Type} {spec : OracleSpe
     (hselected : ∀ result,(selected result).Sublist result.2.1) :
     expectedValue ((simulateQ model.traced computation).run ([],state))
       (fun result => if result.2.1.length ≤ Numeric.proposalLength
-        then fullPrice (selected result)-1 else 0) ≤ 13145/100000000 := by
+        then fullPrice (selected result)-1 else 0) ≤ 11324/100000000 := by
   apply le_trans (model.capped_selected_expectation Numeric.proposalLength computation state selected
     hselected (fun word => fullPrice word-1)
     (fun _ _ h => tsub_le_tsub_right (fullPrice_sublist h) 1))
@@ -290,7 +288,7 @@ theorem adaptive_selected_near_price {ι State Result : Type} {spec : OracleSpec
     (hselected : ∀ result,(selected result).Sublist result.2.1) :
     expectedValue ((simulateQ model.traced computation).run ([],state))
       (fun result => if result.2.1.length ≤ Numeric.proposalLength
-        then fullNearPrice (selected result) else 0) ≤ 872505/2048 := by
+        then fullNearPrice (selected result) else 0) ≤ 404 := by
   apply le_trans (model.capped_selected_expectation Numeric.proposalLength computation state selected
     hselected fullNearPrice (fun _ _ h => fullNearPrice_sublist h))
   rw [hbase,Adaptive.ProposalModel.uniform_word_expectation]
@@ -323,7 +321,7 @@ def payloadAfterDigest (cache : Cache) (rho : Digest) (output : HashOutput) : M 
       pure (state.1 ++ opened,state.2.1 ++ inner ++ outer,
         state.2.2 ++ [(levels.getD 11 []).getD 0 0])) ([],[],[])
   let root ← forestPk index state.2.2
-  let some layers ← signLayers cache index 4 (root, 0, 0) | pure none
+  let some layers ← signLayers cache index 4 root | pure none
   pure (some ⟨rho,fun i => state.1.getD i.val 0,fun i => state.2.1.getD i.val 0,
     fun lay => piecesSignature lay (layers.getD lay.val ([],[]))⟩)
 
@@ -1357,7 +1355,7 @@ attribute [local aesop safe apply] avoids_keygenPayload
 theorem avoids_keygen : Avoids protectedMessage keygen := by
   unfold keygen; nonce_safe
 
-theorem avoids_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) :
+theorem avoids_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
     Avoids protectedMessage (counterSearch lay tree leaf message counter fuel) := by
   induction fuel generalizing counter with
   | zero => unfold counterSearch; nonce_safe
@@ -1391,7 +1389,7 @@ theorem avoids_signTop (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
     Avoids protectedMessage (signTop cache leaf digits) := by
   unfold signTop; nonce_safe
 attribute [local aesop safe apply] avoids_signTop
-theorem avoids_signLayers (cache : T3.Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
+theorem avoids_signLayers (cache : T3.Cache) (index n : Nat) (message : Digest) :
     Avoids protectedMessage (signLayers cache index n message) := by
   induction n generalizing message with
   | zero => unfold signLayers; nonce_safe
@@ -1625,7 +1623,7 @@ attribute [local aesop safe apply] buildTree_allowed
 theorem keygenPayload_allowed : AllQueriesSatisfy keygenPayload P := by
   unfold keygenPayload maskedLevel pairedMask; source_queries
 
-theorem counterSearch_allowed (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) :
+theorem counterSearch_allowed (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
     AllQueriesSatisfy (counterSearch lay tree leaf message counter fuel) P := by
   induction fuel generalizing counter with
   | zero => unfold counterSearch; source_queries
@@ -1660,7 +1658,7 @@ theorem signTop_allowed (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
     AllQueriesSatisfy (signTop cache leaf digits) P := by
   unfold signTop; source_queries
 attribute [local aesop safe apply] signTop_allowed
-theorem signLayers_allowed (cache : T3.Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
+theorem signLayers_allowed (cache : T3.Cache) (index n : Nat) (message : Digest) :
     AllQueriesSatisfy (signLayers cache index n message) P := by
   induction n generalizing message with
   | zero => unfold signLayers; source_queries

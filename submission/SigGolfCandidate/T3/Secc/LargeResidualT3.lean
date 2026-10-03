@@ -166,64 +166,10 @@ noncomputable def signDisclosed (A : Answers) (published : T3.Cache) (request : 
 
 /-! ## The contact test -/
 
-/-- The coordinates of the honest message of a source leaf, each with the component of a message that carries its
-value (E8): the two children of the child tree's root (`L`, `R`), or the forest pk at layer 3. -/
-def msgSlots (L : EncLeaf) : List (Coord × (LayerMessage → Digest)) :=
-  if h : L.1.lay.val < 3 then
-    [(.inl (.node (childNode ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) 0)), fun m => m.1),
-     (.inl (.node (childNode ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) 1)), fun m => m.2.2)]
-  else [(.inl (.forest (childIndex L)), fun m => m.1)]
-
-/-- The message coordinates. -/
-def msgCoords (L : EncLeaf) : List Coord := (msgSlots L).map Prod.fst
-
-/-- The honest message of a source leaf from coordinate values (zero pad). -/
-def msgOf (L : EncLeaf) (f : Coord → Digest) : LayerMessage :=
-  if h : L.1.lay.val < 3 then
-    (f (.inl (.node (childNode ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) 0))), 0,
-      f (.inl (.node (childNode ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) 1))))
-  else (f (.inl (.forest (childIndex L))), 0, 0)
-
-/-- The first hidden message coordinate (with the message component that carries it), if any. -/
-noncomputable def firstUnknownMsg (K : Coord → Prop) (L : EncLeaf) : Option (Coord × (LayerMessage → Digest)) :=
-  (msgSlots L).find? fun p => decide (¬K p.1)
-
-theorem msgSlots_proj (L : EncLeaf) (f : Coord → Digest) : ∀ p ∈ msgSlots L, p.2 (msgOf L f) = f p.1 := by
-  intro p hp
-  unfold msgSlots at hp
-  unfold msgOf
-  split_ifs at hp ⊢ with h
-  · simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with rfl | rfl <;> rfl
-  · simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
-    subst hp; rfl
-
-theorem msgOf_congr (L : EncLeaf) (f g : Coord → Digest) (h : ∀ c ∈ msgCoords L, f c = g c) :
-    msgOf L f = msgOf L g := by
-  unfold msgCoords msgSlots at h
-  unfold msgOf
-  split_ifs at h ⊢ with hl
-  · simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp,
-      forall_eq] at h
-    rw [h.1, h.2]
-  · simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false, forall_eq] at h
-    rw [h]
-
-theorem firstUnknownMsg_some {K : Coord → Prop} {L : EncLeaf} {p : Coord × (LayerMessage → Digest)}
-    (h : firstUnknownMsg K L = some p) : p ∈ msgSlots L ∧ ¬K p.1 := by
-  unfold firstUnknownMsg at h
-  have hm := List.mem_of_find?_eq_some h
-  have hp := List.find?_some h
-  simp only [decide_eq_true_eq] at hp
-  exact ⟨hm, hp⟩
-
-theorem firstUnknownMsg_none {K : Coord → Prop} {L : EncLeaf} (h : firstUnknownMsg K L = none) :
-    ∀ c ∈ msgCoords L, K c := by
-  unfold firstUnknownMsg at h
-  intro c hc
-  obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hc
-  have := List.find?_eq_none.mp h p hp
-  simpa using this
+/-- The coordinate of the honest message of a source leaf (child-tree root, forest pk at layer 3). -/
+def msgCoord (L : EncLeaf) : Coord :=
+  if h : L.1.lay.val < 3 then .inl (.node (rootNode ⟨L.1.lay.val + 1, by omega⟩ (childIndex L)))
+  else .inl (.forest (childIndex L))
 
 /-- Contact of a query at a parsed source position: the first unknown child's slot holds its honest value (guess),
 or a non-honest input answers the honest label (hit). -/
@@ -235,8 +181,8 @@ def StructuralContact (A : Answers) (K : Coord → Prop) (input : HashInput) (an
 /-- Contact of an encoding row of a source leaf: its message is the hidden honest message (guess), or it is not the
 reference row and decodes to the reference word (hit). -/
 def EncodingContact (A : Answers) (K : Coord → Prop) (input : HashInput) (answer : HashOutput) : Prop :=
-  ∃ (L : EncLeaf) (m : (Digest × BitVec 96 × Digest)) (ctr : BitVec 32), input = Wots.encodingRow L.toWots m ctr ∧
-    ((∃ p, firstUnknownMsg K L = some p ∧ p.2 m = honestValue A p.1) ∨
+  ∃ (L : EncLeaf) (m : Digest) (ctr : BitVec 32), input = Wots.encodingRow L.toWots m ctr ∧
+    ((¬K (msgCoord L) ∧ m = honestValue A (msgCoord L)) ∨
       (Wots.referenceInput A L.toWots ≠ some input ∧
         decode L.1.lay (answer.extractLsb' 0 128) = some (Wots.referenceDigits A L.toWots)))
 

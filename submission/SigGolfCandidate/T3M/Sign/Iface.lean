@@ -25,15 +25,13 @@ structure Halted0 (u : MachineState) : Prop where
   x10 : u.getReg .x10 = 0
 
 /-- The `layer_0` entry (word 427). -/
-structure L0Pre (sk : SecretKey) (cache : Bytes 131072) (index : Nat) (root : T3.LayerMessage) (t : MachineState) :
+structure L0Pre (sk : SecretKey) (cache : Bytes 131072) (index : Nat) (root : Digest) (t : MachineState) :
     Prop where
   pc : t.pc = pcOf 427
-  base : BaseL sk cache t
+  base : Base sk cache t
   hidx : index < 2 ^ 31
   idx : t.getMem (BitVec.ofNat 64 IDXV) = BitVec.ofNat 64 index
-  enc : DigAt t ENC root.1
-  encR : DigAt t (ENC + 48) root.2.2
-  pad0 : root.2.1 = 0
+  enc : DigAt t ENC root
   c32 : (t.getMem (BitVec.ofNat 64 (ENC + 32))).toNat < 2 ^ 32
 
 /-- Layer 0 may write anything but the signature outside its own piece. -/
@@ -51,7 +49,7 @@ def L0Cost : Nat := counterLimit * 205 + 200000
 
 /-- **Interface (M)**: layer 0 refines `signLayers cache index 1 root`. -/
 def L0Spec (sk : SecretKey) (cache : Bytes 131072) : Prop :=
-  ∀ (index : Nat) (root : T3.LayerMessage) (t : MachineState), L0Pre sk cache index root t →
+  ∀ (index : Nat) (root : Digest) (t : MachineState), L0Pre sk cache index root t →
     TBSim image sk t L0Cost (signLayers (cacheDec cache) index 1 root) (L0Post t)
 
 /-- **Interface (F)**: the exit of `payloadRest`: `fail`, or `HALT(0)` with the whole signature at `SIG`. -/

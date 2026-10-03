@@ -465,7 +465,7 @@ theorem Rel.afterSign (hrel : Rel U T vals nv τ a q mon st ws) (published : T3.
     exact known_signed published request _ (hrel.seenCells X hX hXU N hN cs hcs)
   · intro X hX hXU L ctr hL
     rw [hseen] at hX
-    exact fun c hc => known_signed published request _ (hrel.seenEnc X hX hXU L ctr hL c hc)
+    exact known_signed published request _ (hrel.seenEnc X hX hXU L ctr hL)
 
 theorem disclosedState_props (s : LargeResidual.State WCoord (Cell U)) (c : WCoord) (v : Digest) :
     (disclosedState q s c v .none).candidates = Function.update s.candidates c {v} ∧

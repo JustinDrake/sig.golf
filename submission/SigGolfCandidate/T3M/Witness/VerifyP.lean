@@ -149,30 +149,9 @@ def layerP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) : M Dige
     nodeHashP 3 lay.val tree (2 ^ (height lay - j.val - 1) + leaf / 2 ^ (j.val + 1)) pair.1
       (wmerklePad w lay j.val) pair.2) value
 
-/-- `layerP` without its last fold: the root's two children (sibling `path[h-1]` ordered by leaf bit `h-1`) and,
-between them, the 12 free bytes of the last Merkle block (`+36..+48`, hashed by the layer above's encoding). -/
-def layerPairP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) : M LayerMessage := do
-  let (leaf, tree) := route index lay
-  let ends ← (List.finRange (chainCount lay)).mapM fun i =>
-    chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
-      (wchainPads w lay i.val).1 (wchainPads w lay i.val).2 (wvalue w lay i.val)
-  let value ← leafHash lay tree leaf ends
-  let node ← (List.finRange (height lay - 1)).foldlM (fun value j => do
-    let other := wpath w lay leaf j.val
-    let pair := if leaf / 2 ^ j.val % 2 = 0 then (value, other) else (other, value)
-    nodeHashP 3 lay.val tree (2 ^ (height lay - j.val - 1) + leaf / 2 ^ (j.val + 1)) pair.1
-      (wmerklePad w lay j.val) pair.2) value
-  let other := wpath w lay leaf (height lay - 1)
-  pure (pairOf leaf (height lay) other ((wmerklePad w lay (height lay - 1)).extractLsb' 32 96) node)
-
-/-- What a layer hands to the layer above: the pair (with its pad) below the top, `(root, 0, 0)` at the top. -/
-def layerNextP (w : WBytes) (index n : Nat) (lay : Layer) (digits : List Nat) : M LayerMessage :=
-  if n = 0 then (fun value => (value, 0, 0)) <$> layerP w index lay digits else layerPairP w index lay digits
-
-/-- Layers `n-1, .., 0` (Core's `verifyLayers` with the witness counters, `layerPairP` below the top and
-`layerP` at the top). -/
-def layersP (w : WBytes) (index : Nat) : Nat → LayerMessage → M (Option Digest)
-  | 0, root => pure (some root.1)
+/-- Layers `n-1, .., 0` (Core's `verifyLayers` with the witness counters and `layerP`). -/
+def layersP (w : WBytes) (index : Nat) : Nat → Digest → M (Option Digest)
+  | 0, root => pure (some root)
   | n + 1, root => do
       let lay : Layer := Fin.ofNat 4 n
       let counter := wctr w lay
@@ -180,8 +159,8 @@ def layersP (w : WBytes) (index : Nat) : Nat → LayerMessage → M (Option Dige
       let (leaf, tree) := route index lay
       let answer ← shortHash (encodingInput lay tree leaf root counter)
       let some digits := decode lay answer | pure none
-      let next ← layerNextP w index n lay digits
-      layersP w index n next
+      let value ← layerP w index lay digits
+      layersP w index n value
 
 /-! ## The verifier -/
 
@@ -194,7 +173,7 @@ def verifyP (m : Message) (pk : Digest) (w : WBytes) : M Bool := do
   if !digestGate N then return false
   let index := N.toNat % 2 ^ 31
   let some root ← ftsP w index chosen | pure false
-  let some root ← layersP w index 4 (root, 0, 0) | pure false
+  let some root ← layersP w index 4 root | pure false
   pure (root == pk)
 
 /-! ## Core's verifier with pads
@@ -285,33 +264,9 @@ def recoverLayerP (sig : Signature) (pads : Pads) (index : Nat) (lay : Layer) (d
     nodeHashP 3 lay.val tree (2 ^ (height lay - j.val - 1) + leaf / 2 ^ (j.val + 1)) pair.1
       (pads.merkle lay j) pair.2) value
 
-/-- Core's `recoverPair` with the chain and Merkle pads (no last fold; the last Merkle pad goes into the
-message). -/
-def recoverPairP (sig : Signature) (pads : Pads) (index : Nat) (lay : Layer) (digits : List Nat) :
-    M LayerMessage := do
-  let (leaf, tree) := route index lay
-  let ends ← (List.finRange (chainCount lay)).mapM fun i =>
-    chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
-      (pads.chain lay i).1 (pads.chain lay i).2 ((sig.layers lay).values i)
-  let value ← leafHash lay tree leaf ends
-  let node ← (List.finRange (height lay - 1)).foldlM (fun value j => do
-    let other := (sig.layers lay).path (Fin.castLE (Nat.sub_le _ _) j)
-    let pair := if leaf / 2 ^ j.val % 2 = 0 then (value, other) else (other, value)
-    nodeHashP 3 lay.val tree (2 ^ (height lay - j.val - 1) + leaf / 2 ^ (j.val + 1)) pair.1
-      (pads.merkle lay (Fin.castLE (Nat.sub_le _ _) j)) pair.2) value
-  let top : Fin (height lay) := ⟨height lay - 1, Nat.sub_lt (height_pos lay) Nat.one_pos⟩
-  let other := (sig.layers lay).path top
-  pure (pairOf leaf (height lay) other ((pads.merkle lay top).extractLsb' 32 96) node)
-
-/-- What a verified layer hands to the layer above (Core's `recoverNext` with pads). -/
-def recoverNextP (sig : Signature) (pads : Pads) (index n : Nat) (lay : Layer) (digits : List Nat) :
-    M LayerMessage :=
-  if n = 0 then (fun value => (value, 0, 0)) <$> recoverLayerP sig pads index lay digits
-  else recoverPairP sig pads index lay digits
-
 /-- Core's `verifyLayers` with pads. -/
-def verifyLayersP (w : Witness) (pads : Pads) (index : Nat) : Nat → LayerMessage → M (Option Digest)
-  | 0, root => pure (some root.1)
+def verifyLayersP (w : Witness) (pads : Pads) (index : Nat) : Nat → Digest → M (Option Digest)
+  | 0, root => pure (some root)
   | n + 1, root => do
       let lay : Layer := Fin.ofNat 4 n
       let counter := w.counters lay
@@ -319,8 +274,8 @@ def verifyLayersP (w : Witness) (pads : Pads) (index : Nat) : Nat → LayerMessa
       let (leaf, tree) := route index lay
       let answer ← shortHash (encodingInput lay tree leaf root counter)
       let some digits := decode lay answer | pure none
-      let next ← recoverNextP w.signature pads index n lay digits
-      verifyLayersP w pads index n next
+      let value ← recoverLayerP w.signature pads index lay digits
+      verifyLayersP w pads index n value
 
 /-- Core's verification after the digest query, with pads: admissibility, FTS, layers, comparison. -/
 def verifyPadsTail (pk : Digest) (output : HashOutput) (w : Witness) (pads : Pads) : M Bool := do
@@ -328,7 +283,7 @@ def verifyPadsTail (pk : Digest) (output : HashOutput) (w : Witness) (pads : Pad
   if !digestAdmissible output then return false
   let index := output.toNat % 2 ^ 31
   let some root ← recoverFtsP w.signature pads index chosen | pure false
-  let some root ← verifyLayersP w pads index 4 (root, 0, 0) | pure false
+  let some root ← verifyLayersP w pads index 4 root | pure false
   pure (root == pk)
 
 /-- Core's `verify` with pads. -/

@@ -20,7 +20,7 @@ def expandN (message : Message) (pk : Digest) (sig : Signature) : M (Option (Has
   let some (counter, output) ← digestSearch sig.rho message 0 attemptLimit | pure none
   let index := output.toNat % 2 ^ 31
   let some root ← recoverFts sig index (selections output) | pure none
-  let some (root, counters) ← expandLayers sig index 4 (root, 0, 0) | pure none
+  let some (root, counters) ← expandLayers sig index 4 root | pure none
   if root ≠ pk then return none
   pure (some (output, ⟨sig, counter, fun lay => counters.getD lay.val 0⟩))
 

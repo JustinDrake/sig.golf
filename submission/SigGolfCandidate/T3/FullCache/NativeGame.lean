@@ -39,27 +39,7 @@ theorem recoverLayer_nonMac (sig : Signature) (index : Nat) (lay : Layer) (digit
   unfold recoverLayer;verdict_queries
 attribute [local aesop safe apply] recoverLayer_nonMac
 
-theorem recoverPair_nonMac (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
-    NonMac (recoverPair sig index lay digits) := by
-  unfold recoverPair;verdict_queries
-attribute [local aesop safe apply] recoverPair_nonMac
-
-theorem rootHash_nonMac (index : Nat) (lay : Layer) (pair : (Digest × BitVec 96 × Digest)) :
-    NonMac (rootHash index lay pair) := by
-  unfold rootHash;verdict_queries
-attribute [local aesop safe apply] rootHash_nonMac
-
-theorem recoverNext_nonMac (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
-    NonMac (recoverNext sig index n lay digits) := by
-  unfold recoverNext;split <;> verdict_queries
-attribute [local aesop safe apply] recoverNext_nonMac
-
-theorem expandNext_nonMac (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
-    NonMac (expandNext sig index n lay digits) := by
-  unfold expandNext;verdict_queries
-attribute [local aesop safe apply] expandNext_nonMac
-
-theorem expandLayers_nonMac (sig : Signature) (index n : Nat) (value : Digest × BitVec 96 × Digest) :
+theorem expandLayers_nonMac (sig : Signature) (index n : Nat) (value : Digest) :
     NonMac (expandLayers sig index n value) := by
   induction n generalizing value with
   | zero => unfold expandLayers;verdict_queries
@@ -71,7 +51,7 @@ theorem expand_nonMac (message : Message) (pk : Digest) (sig : Signature) :
   unfold expand;verdict_queries
 attribute [local aesop safe apply] expand_nonMac
 
-theorem verifyLayers_nonMac (witness : Witness) (index n : Nat) (root : Digest × BitVec 96 × Digest) :
+theorem verifyLayers_nonMac (witness : Witness) (index n : Nat) (root : Digest) :
     NonMac (verifyLayers witness index n root) := by
   induction n generalizing root with
   | zero => unfold verifyLayers;verdict_queries

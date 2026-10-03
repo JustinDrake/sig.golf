@@ -84,7 +84,7 @@ def CsW (X : Nat) : Prop :=
   X = ENC + 16 ∨ X = ENC + 24 ∨ X = ENC + 32 ∨ (EOUT ≤ X ∧ X < EOUT + 32) ∨ (DIGITS ≤ X ∧ X < DIGITS + 64)
 
 /-- Entry of `counter_search` (word 646), called with `ra = ret`. -/
-structure CsPre (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) (ret : Nat) : Prop where
+structure CsPre (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : Digest) (ret : Nat) : Prop where
   pc : s.pc = pcOf 646
   x1 : s.getReg .x1 = pcOf ret
   x5 : s.getReg .x5 = 0
@@ -96,11 +96,11 @@ structure CsPre (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : (Diges
   x27 : s.getReg .x27 = BitVec.ofNat 64 (Keygen.n4 lay)
   htree : tree < 2 ^ 32
   hleaf : leaf < 2 ^ 32
-  rR : DigAt s (ENC + 48) msg.2.2
-  hpad : msg.2.1 = 0
-  msg : DigAt s ENC msg.1
+  msg : DigAt s ENC msg
   c32 : (s.getMem (BitVec.ofNat 64 (ENC + 32))).toNat < 2 ^ 32
   z40 : s.getMem (BitVec.ofNat 64 (ENC + 40)) = 0
+  z48 : s.getMem (BitVec.ofNat 64 (ENC + 48)) = 0
+  z56 : s.getMem (BitVec.ofNat 64 (ENC + 56)) = 0
   table : Search.TableOK s
 
 /-- Exit of `counter_search`: `fail` on exhaustion, else back at `ret` with the digits at `DIGITS`
@@ -118,7 +118,7 @@ def csCost (lay : Layer) : Nat := counterLimit * (if lay = 0 then 205 else 160) 
 
 /-- **Interface (E)**: `counter_search` refines `counterSearch lay tree leaf msg 0 counterLimit`. -/
 def CounterSearchSpec (sk : BitVec 256) : Prop :=
-  ∀ (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) (ret : Nat),
+  ∀ (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : Digest) (ret : Nat),
     CsPre s lay tree leaf msg ret →
       TBSim image sk s (csCost lay) (counterSearch lay tree leaf msg 0 counterLimit) (CsPost s lay ret)
 

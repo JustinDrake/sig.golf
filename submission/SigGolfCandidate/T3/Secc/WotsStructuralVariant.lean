@@ -183,10 +183,6 @@ theorem honestRoot_alias : Extract.honestRoot T lay tree = Extract.honestRoot T 
   unfold Extract.honestRoot
   rw [builtTree_alias T lay h]
 
-theorem honestPair_alias : Extract.honestPair T lay tree = Extract.honestPair T lay tree' := by
-  unfold Extract.honestPair
-  rw [builtTree_alias T lay h]
-
 end Alias
 
 /-! ## Reference words and depths -/
@@ -211,11 +207,6 @@ theorem honestRoot_variant (hv : Variant labels T T') (lay : Layer) (tree : Nat)
   unfold Extract.honestRoot
   rw [builtTree_variant hv]
 
-theorem honestPair_variant (hv : Variant labels T T') (lay : Layer) (tree : Nat) :
-    Extract.honestPair T lay tree = Extract.honestPair T' lay tree := by
-  unfold Extract.honestPair
-  rw [builtTree_variant hv]
-
 theorem honestForest_variant (hv : Variant labels T T') (index : Nat) (hindex : index < 2 ^ 40) :
     Extract.honestForest T index = Extract.honestForest T' index := by
   rw [Mask.honestForest_eq T, Mask.honestForest_eq T']
@@ -232,7 +223,7 @@ theorem leafMsg_variant (hv : Variant labels T T') (L : LeafAddr) (htree : L.tre
     (hleaf : L.leaf < 2 ^ height L.lay) : leafMsg T L = leafMsg T' L := by
   unfold leafMsg
   split
-  · exact honestPair_variant hv _ _
+  · exact honestRoot_variant hv _ _
   · rename_i hl
     have h3 : L.lay = 3 := by
       apply Fin.ext
@@ -241,10 +232,10 @@ theorem leafMsg_variant (hv : Variant labels T T') (L : LeafAddr) (htree : L.tre
       omega
     have hh : height L.lay = 6 := by rw [h3]; rfl
     rw [hh] at hleaf ⊢
-    rw [honestForest_variant hv _ (by
+    exact honestForest_variant hv _ (by
       have : L.tree * 2 ^ 6 < 2 ^ 31 * 2 ^ 6 := Nat.mul_lt_mul_of_pos_right htree (by decide)
       have : (2 : Nat) ^ 31 * 2 ^ 6 + 2 ^ 6 ≤ 2 ^ 40 := by norm_num
-      omega)]
+      omega)
 
 theorem referenceSearch_variant (hv : Variant labels T T') (L : LeafAddr) (htree : L.tree < 2 ^ 31)
     (hleaf : L.leaf < 2 ^ height L.lay) : referenceSearch T L = referenceSearch T' L := by

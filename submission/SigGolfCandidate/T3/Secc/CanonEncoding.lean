@@ -67,21 +67,19 @@ theorem childIndex_lt (L : EncLeaf) : L.1.tree.val * 2 ^ height L.1.lay + L.1.le
 def childIndex (L : EncLeaf) : Fin (2^31) :=
   ⟨L.1.tree.val * 2 ^ height L.1.lay + L.1.leaf.val, childIndex_lt L⟩
 
-/-- The honest message of a source leaf read off labels (the child tree's root children, or `(forest pk, 0, 0)`
-at layer 3). -/
-def msgLabel (labels : Labels) (L : EncLeaf) : (Digest × BitVec 96 × Digest) :=
+/-- The honest message of a source leaf read off labels (child-tree root, or forest pk at layer 3). -/
+def msgLabel (labels : Labels) (L : EncLeaf) : Digest :=
   if h : L.1.lay.val < 3 then
-    (treeLabel labels ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) (height ⟨L.1.lay.val + 1, by omega⟩ - 1) 0, 0,
-      treeLabel labels ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) (height ⟨L.1.lay.val + 1, by omega⟩ - 1) 1)
-  else ((labels (.forest (childIndex L))).extractLsb' 0 128, 0, 0)
+    treeLabel labels ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) (height ⟨L.1.lay.val + 1, by omega⟩) 0
+  else (labels (.forest (childIndex L))).extractLsb' 0 128
 
 theorem leafMsg_eq {answers : Answers} {labels : Labels} (h : Agrees answers labels) (L : EncLeaf) :
     Wots.leafMsg answers L.toWots = msgLabel labels L := by
   unfold Wots.leafMsg msgLabel EncLeaf.toWots
   dsimp only
   split_ifs with hlay
-  · exact honestPair_eq h ⟨L.1.lay.val + 1, by omega⟩ (childIndex L)
-  · exact congrArg (fun x : Digest => ((x, 0, 0) : Digest × BitVec 96 × Digest)) (honestForest_eq h (childIndex L))
+  · exact honestRoot_eq h ⟨L.1.lay.val + 1, by omega⟩ (childIndex L)
+  · exact honestForest_eq h (childIndex L)
 
 /-! ## The reference rows -/
 
@@ -340,7 +338,7 @@ theorem selection_valid (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : 
   exact Option.isSome_iff_exists.mp hs
 
 /-- The counter search is the first-success selection of its rows (no probability). -/
-theorem counterSearch_select (answers : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest)
+theorem counterSearch_select (answers : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest)
     (decodeLay : HashOutput → Option Digest)
     (hdecode : ∀ answer, decodeLay answer =
       if (decode lay (answer.extractLsb' 0 128)).isSome then some (answer.extractLsb' 0 128) else none) :

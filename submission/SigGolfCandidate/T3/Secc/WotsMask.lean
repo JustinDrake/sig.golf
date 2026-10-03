@@ -141,9 +141,8 @@ theorem route_leaf_lt (index : Nat) (lay : Layer) : (route index lay).1 < 2 ^ 32
 
 /-- The signer's message one layer down is the honest message of that layer's route leaf. -/
 theorem signedMsg_succ (T : Answers) (index m : Nat) (hm : m < 3) :
-    (((builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2).getD
-      (height (Fin.ofNat 4 (m + 1)) - 1) []).getD 0 0, 0, ((builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2).getD
-      (height (Fin.ofNat 4 (m + 1)) - 1) []).getD 1 0) = leafMsg T (routeLeaf index (Fin.ofNat 4 m)) := by
+    ((builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2).getD
+      (height (Fin.ofNat 4 (m + 1))) []).getD 0 0 = leafMsg T (routeLeaf index (Fin.ofNat 4 m)) := by
   have hl : (Fin.ofNat 4 m : Layer).val < 3 := by
     change m % 4 < 3
     omega
@@ -158,8 +157,7 @@ theorem signedMsg_succ (T : Answers) (index m : Nat) (hm : m < 3) :
 
 /-- The signer's top message (the forest pk) is the honest message of the layer-3 route leaf. -/
 theorem signedMsg_top (T : Answers) (index : Nat) :
-    ((evalWithAnswerFn T (forestPk index (Correctness.forestRoots T index 7)), 0, 0) : Digest × BitVec 96 × Digest) =
-      leafMsg T (routeLeaf index 3) := by
+    evalWithAnswerFn T (forestPk index (Correctness.forestRoots T index 7)) = leafMsg T (routeLeaf index 3) := by
   unfold leafMsg routeLeaf
   simp only [show ¬((3 : Layer).val < 3) by decide, dite_false]
   rw [route_top_index, honestForest_eq]

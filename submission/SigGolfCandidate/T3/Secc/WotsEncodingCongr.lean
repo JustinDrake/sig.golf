@@ -283,7 +283,7 @@ end RespAt
 /-- The counter search from `start` with `fuel` reads, under `T`, the rows `start + c` (`c < fuel`) such that every
 earlier row fails to decode; tables agreeing with `T` on those rows evaluate it identically. -/
 theorem respAt_counterSearch (T : Answers) (S : Spec.Domain → Prop) (lay : Layer) (tree leaf : Nat)
-    (message : Digest × BitVec 96 × Digest) : ∀ fuel start,
+    (message : Digest) : ∀ fuel start,
       (∀ c < fuel, (∀ c' < c, decode lay (low (T (.inl (.inr (pad64 (encodingInput lay tree leaf message
           (BitVec.ofNat 32 (start + c')))))))) = none) →
         S (.inl (.inr (pad64 (encodingInput lay tree leaf message (BitVec.ofNat 32 (start + c))))))) →
@@ -515,9 +515,9 @@ theorem leafMsg_congr_nonEnc {T T' : Answers} (h : ∀ q, NonEnc q → T' q = T 
     leafMsg T' L = leafMsg T L := by
   unfold leafMsg
   split
-  · unfold Extract.honestPair
+  · unfold Extract.honestRoot
     rw [builtTree_congr_nonEnc h]
-  · rw [honestForest_congr_nonEnc h _]
+  · exact honestForest_congr_nonEnc h _
 
 theorem nonEnc_of_honest {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) : ∀ q, NonEnc q → T' q = T q :=
   fun q hq => h q (honestQ_of_nonEnc hq)

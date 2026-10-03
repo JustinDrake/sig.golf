@@ -10,11 +10,11 @@ The exact remaining endpoint is `PaddedGame.securityP_of_clean_bound`: for every
 
 where `secTerms q = q/2^146 + 2^-700 + 2^-152 + q/2^256` are SEC's fixed reduction errors.
 
-The proof splits at `budgetSplit = 143·2^108` (x = q/2^128 ≤ 143/2^20):
+The proof splits at `budgetSplit = 2^115` (x = q/2^128 ≤ 2^-13):
 
 * **small route** (`1 ≤ q ≤ budgetSplit`): the per-class streams must deliver `Pr[CleanWin q] ≤ smallBound q`,
   `smallBound q = smallCoefficient·x + smallQuadratic·x² + smallAbsolute` with the allowances
-  `1931/1000`, `430` and `2^-132` (`small_closing`).
+  `37/20`, `2^9` and `2^-132` (`small_closing`).
 * **large route** (`budgetSplit ≤ q ≤ 2^127`): the product-form ("every query at most two units") stream must deliver
   `Pr[CleanWin q] ≤ largeBound q`, `largeBound q = ofReal (2x − x²) + q·excessRate/2^128 + q·cacheRate/2^128 +
   q·largeReserveRate/2^128 + largeReserveAbsolute` (`large_closing`).
@@ -31,23 +31,23 @@ open SigGolfCandidate.T3M.Final
 set_option exponentiation.threshold 1024
 
 /-- The budget at which the proof switches from the per-class (small) route to the product-form (large) route:
-`x_s = 143·2^108 / 2^128 = 143/2^20`. -/
-irreducible_def budgetSplit : Nat := 143 * 2 ^ 108
+`x_s = 2^115 / 2^128 = 2^-13`. -/
+irreducible_def budgetSplit : Nat := 2 ^ 115
 
 /-- First-order small-route allowance: the largest per-query class rate plus every first-order extra term
-(e.g. the crude-budget BPORS excess `signRatio·e`). At the split the class, excess and near-linear allowances total `1.931`. -/
-noncomputable irreducible_def smallCoefficient : ENNReal := 1931 / 1000
+(e.g. the crude-budget BPORS excess `signRatio·e`). At the split the class, excess and near-linear allowances total `1.836`. -/
+noncomputable irreducible_def smallCoefficient : ENNReal := 37 / 20
 
 /-- Second-order small-route allowance (coefficient of `x²`): pair guesses, near certificate plus one guess,
 cache-exception terms of the near certificate, and any `x`-dependent part of a class rate moved here. -/
-noncomputable irreducible_def smallQuadratic : ENNReal := 430
+noncomputable irreducible_def smallQuadratic : ENNReal := 2 ^ 9
 
 /-- Absolute small-route allowance (paid at `q = 1`): proposal-prefix tails and other `q`-independent terms.
 An absolute term of size `2^-127` does not fit. -/
 noncomputable irreducible_def smallAbsolute : ENNReal := ((2 : ENNReal) ^ 132)⁻¹
 
 /-- BPORS full-certificate excess per unit of budget, relative to `2^-128` (SEC's `full_game_excess_price`). -/
-noncomputable irreducible_def excessRate : ENNReal := 13145 / 100000000
+noncomputable irreducible_def excessRate : ENNReal := 11324 / 100000000
 
 /-- Cache-exception allowance per unit of budget, relative to `2^-128` (`2^-25`). -/
 noncomputable irreducible_def cacheRate : ENNReal := ((2 : ENNReal) ^ 25)⁻¹
@@ -81,38 +81,15 @@ theorem one_le_budgetSplit : 1 ≤ budgetSplit := by
 
 /-! ## Real cores -/
 
-private theorem small_real (y : ℝ) (hlow : 1/2^128≤y) (hhigh : y≤143/2^20) :
-    1931/1000*y+430*y^2+1/2^132+(y/2^18+1/2^700+1/2^152+y/2^128)≤2*y := by
-  have hprod : 0 ≤ (y - 1/2^128) * (143/2^20 - y) := mul_nonneg (sub_nonneg.2 hlow) (sub_nonneg.2 hhigh)
-  have hsq : y^2 ≤ (1/2^128 + 143/2^20) * y - 1/2^128 * (143/2^20) := by nlinarith
-  linarith
+private theorem small_real (y : ℝ) (hlow : 1/2^128≤y) (hhigh : y≤1/2^13) :
+    37/20*y+2^9*y^2+1/2^132+(y/2^18+1/2^700+1/2^152+y/2^128)≤2*y := by
+  simpa only [show (2:ℝ)^9=512 by norm_num] using
+    SigGolfResearch.Gate3Closing115.small_closing_real y hlow hhigh
 
-private theorem large_real (y : ℝ) (hlow : 143/2^20≤y) :
-    (2*y-y^2)+y*(13145/100000000)+y*(1/2^25)+y*(1/2^20)+1/2^132+
-      (y/2^18+1/2^700+1/2^152+y/2^128)≤2*y := by
-  have hn : 0 ≤ y := le_trans (by positivity) hlow
-  have h13 : (1 : ℝ) / 2 ^ 13 ≤ y := le_trans (by norm_num) hlow
-  have hsq : y * (143 / 2 ^ 20) ≤ y ^ 2 := by
-    have h := mul_le_mul_of_nonneg_left hlow hn
-    nlinarith
-  have habs : (1 : ℝ) / 2 ^ 132 ≤ y / 2 ^ 119 := by
-    have : (1 : ℝ) / 2 ^ 132 = (1 / 2 ^ 13) / 2 ^ 119 := by ring
-    rw [this]
-    exact div_le_div_of_nonneg_right h13 (by positivity)
-  have h700 : (1 : ℝ) / 2 ^ 700 ≤ y / 2 ^ 687 := by
-    have : (1 : ℝ) / 2 ^ 700 = (1 / 2 ^ 13) / 2 ^ 687 := by ring
-    rw [this]
-    exact div_le_div_of_nonneg_right h13 (by positivity)
-  have h152 : (1 : ℝ) / 2 ^ 152 ≤ y / 2 ^ 139 := by
-    have : (1 : ℝ) / 2 ^ 152 = (1 / 2 ^ 13) / 2 ^ 139 := by ring
-    rw [this]
-    exact div_le_div_of_nonneg_right h13 (by positivity)
-  have hy118 : y / 2 ^ 119 ≤ y / 2 ^ 100 := div_le_div_of_nonneg_left hn (by positivity) (by norm_num)
-  have hy686 : y / 2 ^ 687 ≤ y / 2 ^ 100 := div_le_div_of_nonneg_left hn (by positivity) (by norm_num)
-  have hy138 : y / 2 ^ 139 ≤ y / 2 ^ 100 := div_le_div_of_nonneg_left hn (by positivity) (by norm_num)
-  have hy128 : y / 2 ^ 128 ≤ y / 2 ^ 100 := div_le_div_of_nonneg_left hn (by positivity) (by norm_num)
-  norm_num at hsq hy118 hy686 hy138 hy128 ⊢
-  nlinarith
+private theorem large_real (y : ℝ) (hlow : 1/2^13≤y) :
+    (2*y-y^2)+y*(11324/100000000)+y*(1/2^25)+y*(1/2^20)+1/2^132+
+      (y/2^18+1/2^700+1/2^152+y/2^128)≤2*y :=
+  SigGolfResearch.Gate3Closing115.large_closing_real y hlow
 
 /-! ## Small route -/
 
@@ -126,8 +103,8 @@ theorem small_closing (q : Nat) (hq : 1 ≤ q) (hsplit : q ≤ budgetSplit) :
   have hlow : (1 : ℝ) / 2 ^ 128 ≤ (q : ℝ) / 2 ^ 128 := by
     apply div_le_div_of_nonneg_right _ (by positivity)
     exact_mod_cast hq
-  have hhigh : (q : ℝ) / 2 ^ 128 ≤ 143 / 2 ^ 20 := by
-    have hq' : (q : ℝ) ≤ 143 * 2 ^ 108 := by exact_mod_cast hsplit
+  have hhigh : (q : ℝ) / 2 ^ 128 ≤ 1 / 2 ^ 13 := by
+    have hq' : (q : ℝ) ≤ 2 ^ 115 := by exact_mod_cast hsplit
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith
   have h := small_real ((q : ℝ) / 2 ^ 128) hlow hhigh
@@ -145,8 +122,8 @@ theorem large_closing (q : Nat) (hsplit : budgetSplit ≤ q) (hq : q ≤ 2 ^ 127
   rw [budgetSplit_def] at hsplit
   unfold largeBound secTerms
   rw [excessRate_def, cacheRate_def, largeReserveRate_def, largeReserveAbsolute_def]
-  have hlow : (143 : ℝ) / 2 ^ 20 ≤ (q : ℝ) / 2 ^ 128 := by
-    have hq' : (143 : ℝ) * 2 ^ 108 ≤ q := by exact_mod_cast hsplit
+  have hlow : (1 : ℝ) / 2 ^ 13 ≤ (q : ℝ) / 2 ^ 128 := by
+    have hq' : (2 : ℝ) ^ 115 ≤ q := by exact_mod_cast hsplit
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith
   have hhigh : (q : ℝ) / 2 ^ 128 ≤ 1 / 2 := by
@@ -250,38 +227,37 @@ theorem large_route_of_contact (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 
 
 /-! ## Helpers for the small-route streams -/
 
-/-- Below the split, `x ≤ 143/2^20`. -/
+/-- Below the split, `x ≤ 2^-13`. -/
 theorem x_le_of_small (q : Nat) (hsplit : q ≤ budgetSplit) :
-    (q : ENNReal) / 2 ^ 128 ≤ (143 : ENNReal) / 2 ^ 20 := by
+    (q : ENNReal) / 2 ^ 128 ≤ ((2 : ENNReal) ^ 13)⁻¹ := by
   rw [budgetSplit_def] at hsplit
   rw [ENNReal.div_le_iff (by positivity) (by finiteness)]
   calc
-    (q : ENNReal) ≤ (143 * 2 ^ 108 : Nat) := by exact_mod_cast hsplit
-    _ = (143 : ENNReal) / 2 ^ 20 * 2 ^ 128 := by
+    (q : ENNReal) ≤ (2 ^ 115 : Nat) := by exact_mod_cast hsplit
+    _ = ((2 : ENNReal) ^ 13)⁻¹ * 2 ^ 128 := by
       apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-      norm_num [ENNReal.toReal_mul, ENNReal.toReal_div, ENNReal.toReal_pow]
+      norm_num [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_pow]
 
-/-- Below the split a quadratic term is at most `143/2^20` times the linear one. -/
+/-- Below the split a quadratic term is at most `2^-13` times the linear one. -/
 theorem sq_le_of_small (q : Nat) (hsplit : q ≤ budgetSplit) :
-    ((q : ENNReal) / 2 ^ 128) ^ 2 ≤ (143 : ENNReal) / 2 ^ 20 * ((q : ENNReal) / 2 ^ 128) := by
+    ((q : ENNReal) / 2 ^ 128) ^ 2 ≤ ((2 : ENNReal) ^ 13)⁻¹ * ((q : ENNReal) / 2 ^ 128) := by
   rw [pow_two]
   exact mul_le_mul' (x_le_of_small q hsplit) le_rfl
 
-/-- Below the split, `1 − x ≥ 1048433/1048576`, so a factor `1/(1 − x)` may be replaced by `1048576/1048433`. -/
+/-- Below the split, `1 − x ≥ 8191/8192`, so a factor `1/(1 − x)` may be replaced by `8192/8191`. -/
 theorem one_sub_x_ge_of_small (q : Nat) (hsplit : q ≤ budgetSplit) :
-    (1048433 / 1048576 : ENNReal) ≤ 1 - (q : ENNReal) / 2 ^ 128 := by
+    (8191 / 8192 : ENNReal) ≤ 1 - (q : ENNReal) / 2 ^ 128 := by
   have hx := x_le_of_small q hsplit
   refine le_trans ?_ (tsub_le_tsub_left hx 1)
   apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
   rw [ENNReal.toReal_sub_of_le (by
     apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-    norm_num [ENNReal.toReal_div, ENNReal.toReal_pow]) (by finiteness)]
-  norm_num [ENNReal.toReal_div, ENNReal.toReal_pow]
+    norm_num [ENNReal.toReal_inv, ENNReal.toReal_pow]) (by finiteness)]
+  norm_num [ENNReal.toReal_div, ENNReal.toReal_inv, ENNReal.toReal_pow]
 
-/-- Below the split, `q/(2^128 − q) ≤ (1048576/1048433)·x` (for the designer's near and pair terms). -/
+/-- Below the split, `q/(2^128 − q) ≤ (8192/8191)·x` (for the designer's near and pair terms). -/
 theorem div_sub_le_of_small (q : Nat) (hsplit : q ≤ budgetSplit) :
-    (q : ENNReal) / ((2 ^ 128 - q : Nat) : ENNReal) ≤
-      (1048576 / 1048433 : ENNReal) * ((q : ENNReal) / 2 ^ 128) := by
+    (q : ENNReal) / ((2 ^ 128 - q : Nat) : ENNReal) ≤ (8192 / 8191 : ENNReal) * ((q : ENNReal) / 2 ^ 128) := by
   rw [budgetSplit_def] at hsplit
   have hlt : q < 2 ^ 128 := lt_of_le_of_lt hsplit (by norm_num)
   have hden : (0 : ℝ) < ((2 ^ 128 - q : Nat) : ℝ) := by exact_mod_cast Nat.sub_pos_of_lt hlt
@@ -293,16 +269,16 @@ theorem div_sub_le_of_small (q : Nat) (hsplit : q ≤ budgetSplit) :
     rw [Nat.cast_sub hlt.le]
     norm_num
   rw [hcast] at hden ⊢
-  have hq' : (q : ℝ) ≤ 143 * 2 ^ 108 := by exact_mod_cast hsplit
+  have hq' : (q : ℝ) ≤ 2 ^ 115 := by exact_mod_cast hsplit
   have hq0 : (0 : ℝ) ≤ q := Nat.cast_nonneg q
   rw [div_le_iff₀ hden]
-  have : 1048576 / 1048433 * ((q : ℝ) / 2 ^ 128) * (2 ^ 128 - (q : ℝ)) =
-      (q : ℝ) * (1048576 / 1048433 * (1 - (q : ℝ) / 2 ^ 128)) := by ring
+  have : 8192 / 8191 * ((q : ℝ) / 2 ^ 128) * (2 ^ 128 - (q : ℝ)) =
+      (q : ℝ) * (8192 / 8191 * (1 - (q : ℝ) / 2 ^ 128)) := by ring
   rw [this]
-  have hx : (q : ℝ) / 2 ^ 128 ≤ 143 / 1048576 := by
+  have hx : (q : ℝ) / 2 ^ 128 ≤ 1 / 8192 := by
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith
-  have hfac : 1 ≤ 1048576 / 1048433 * (1 - (q : ℝ) / 2 ^ 128) := by linarith
+  have hfac : 1 ≤ 8192 / 8191 * (1 - (q : ℝ) / 2 ^ 128) := by linarith
   nlinarith
 
 /-- Monotone plug-in for the small route: any bound with smaller coefficients is a `smallBound`. -/

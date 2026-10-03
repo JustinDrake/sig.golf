@@ -166,20 +166,17 @@ theorem average_coordinate (X : List HashOutput) (i : Fin (2 ^ 31)) (c : Fin 7) 
 /-- The average of the score at a fixed index over uniform buckets and leaves is the index envelope. -/
 theorem average_at_index (X : List HashOutput) (i : Fin (2 ^ 31)) :
     BPORS.finiteAverage (fun v : Fin 7 → Fin 16 × (Fin 3 → Fin 128) =>
-        ∏ c : Fin 7, coordScore X i c (v c).1 (v c).2)/(1024/135) =
+        ∏ c : Fin 7, coordScore X i c (v c).1 (v c).2)/8 =
       BPORS.History.wordEnvelope (BPORS.History.atIndex i (labels X)) := by
-  have h : BPORS.finiteAverage (fun v : Fin 7 → Fin 16 × (Fin 3 → Fin 128) =>
-      ∏ c : Fin 7, coordScore X i c (v c).1 (v c).2) =
-      (∏ c, BPORS.coordinateEnvelope ((BPORS.History.atIndex i (labels X)).map fun row => row c))/2^147 := by
-    rw [BPORS.finiteAverage_product 7
-      (fun c (d : Fin 16 × (Fin 3 → Fin 128)) => coordScore X i c d.1 d.2)]
-    simp_rw [average_coordinate]
-    simp only [div_eq_mul_inv, Finset.prod_mul_distrib, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
-    congr 1
-    apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-    norm_num [ENNReal.toReal_mul,ENNReal.toReal_pow,ENNReal.toReal_inv]
+  rw [BPORS.finiteAverage_product 7
+    (fun c (d : Fin 16 × (Fin 3 → Fin 128)) => coordScore X i c d.1 d.2)]
+  simp_rw [average_coordinate]
   unfold BPORS.History.wordEnvelope
-  rw [h]
+  simp only [div_eq_mul_inv, Finset.prod_mul_distrib, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+  rw [mul_assoc]
+  congr 1
+  apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
+  norm_num [ENNReal.toReal_mul,ENNReal.toReal_pow,ENNReal.toReal_inv]
 
 /-- **Exact average** of the gated score over a uniform target output. -/
 theorem average_score (X : List HashOutput) :
