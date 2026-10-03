@@ -2,7 +2,7 @@ import SigGolfCandidate.T3M.Verify.SelCheck
 import SigGolfCandidate.T3M.Verify.SelArith
 
 /-!
-# Selections: semantics (T3M verify words 17 .. 358)
+# Selections: semantics (T3M verify words 15 .. 358)
 
 From the post-digest state (`DgOut`, answer `a`): the setup loads the four words of `a` and `s6 = a mod 2^31`; for
 each coordinate `c` the machine either rejects (HALT(1), no query) when the triple of coordinate `c` has a repeated
@@ -77,6 +77,13 @@ theorem xE_eval (a : HashOutput) (s : MachineState) (h : NRegs a s) (c j : Nat) 
     (by unfold TAB; omega)
   unfold eVal selX
   rw [← this]; rfl
+
+/-- F2: the table address `x_j + 16` read by the selection loads. -/
+theorem xT_eval (a : HashOutput) (s : MachineState) (h : NRegs a s) (c j : Nat) (hc : c < 7) (hj : j < 3) :
+    (xT c j).eval s = BitVec.ofNat 64 (eVal a c j + 16) := by
+  unfold xT
+  rw [addC_eval, xE_eval a s h c j hc hj]
+  exact ofNat_add_ofNat _ 16
 
 theorem eVal_lt (a : HashOutput) (c j : Nat) : eVal a c j < 33554432 := by
   unfold eVal selX TAB
@@ -199,17 +206,17 @@ theorem selObl_holds (a : HashOutput) (s : MachineState) (h : NRegs a s) (c : Na
   have hv : ∀ j, j < 3 → (Oblig.valid (xA c j) 8).holds s := by
     intro j hj
     show accessValid ((xA c j).eval s) 8 = true
-    rw [show (xA c j).eval s = (xE c j).eval s from norm_eval s _, xE_eval a s h c j hc hj]
+    rw [show (xA c j).eval s = (xT c j).eval s from norm_eval s _, xT_eval a s h c j hc hj]
     have hl := eVal_lt a c j
-    have hm : eVal a c j % 8 = 0 := by unfold eVal TAB; omega
-    have hb : eVal a c j + 8 ≤ 2 ^ 24 := by
+    have hm : (eVal a c j + 16) % 8 = 0 := by unfold eVal TAB; omega
+    have hb : eVal a c j + 16 + 8 ≤ 2 ^ 24 := by
       unfold eVal selX TAB
       have := Nat.mod_lt (selNum a.toNat c) (show 0 < 16 by decide)
       have := Nat.mod_lt (selNum a.toNat c / 2 ^ (4 + 7 * j)) (show 0 < 128 by decide)
       omega
     simp only [accessValid, rangeValid, MEMORY_BYTES, Bool.and_eq_true, decide_eq_true_eq,
-      toNat_ofNat_lt (show eVal a c j < 2 ^ 64 by omega)]
-    exact ⟨hb, hm⟩
+      toNat_ofNat_lt (show eVal a c j + 16 < 2 ^ 64 by omega)]
+    all_goals first | exact ⟨by omega, by omega⟩ | omega
   intro o ho
   simp only [selObl, List.mem_cons, List.not_mem_nil, or_false] at ho
   rcases ho with rfl | rfl | rfl
@@ -227,9 +234,9 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
   obtain ⟨u, hu⟩ := spec_run (selCheck_at c p hc hp) s hs.pc (selK_of hs.known hs.sp) hbr
     (selObl_holds a s hs.nregs c hc)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
-      if A = selT8 c 2 then (E.ld (xE c ((selPerm p).getD 2 0))).eval s
-      else if A = selT8 c 1 then (E.ld (xE c ((selPerm p).getD 1 0))).eval s
-      else if A = selT8 c 0 then (E.ld (xE c ((selPerm p).getD 0 0))).eval s
+      if A = selT8 c 2 then (E.ld (xT c ((selPerm p).getD 2 0))).eval s
+      else if A = selT8 c 1 then (E.ld (xT c ((selPerm p).getD 1 0))).eval s
+      else if A = selT8 c 0 then (E.ld (xT c ((selPerm p).getD 0 0))).eval s
       else s.getMem (BitVec.ofNat 64 A) := by
     intro A hA
     rw [hu.mem]
@@ -242,7 +249,7 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
     rcases (show p = 0 ∨ p = 1 ∨ p = 2 ∨ p = 3 ∨ p = 4 ∨ p = 5 by omega) with
       rfl | rfl | rfl | rfl | rfl | rfl <;>
     rcases (show k = 0 ∨ k = 1 ∨ k = 2 by omega) with rfl | rfl | rfl <;> decide
-  have hv : ∀ k', k' < 3 → (E.ld (xE c ((selPerm p).getD k' 0))).eval s =
+  have hv : ∀ k', k' < 3 → (E.ld (xT c ((selPerm p).getD k' 0))).eval s =
       BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + T3M.selLeaf (selC a c) k')) := by
     intro k' hk'
     have ha : (xE c ((selPerm p).getD k' 0)).eval s = BitVec.ofNat 64 (TAB + 8 * T3M.selLeaf (selC a c) k') := by
@@ -254,8 +261,10 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
         rfl | rfl | rfl | rfl | rfl | rfl <;>
       rcases (show k' = 0 ∨ k' = 1 ∨ k' = 2 by omega) with rfl | rfl | rfl <;>
       simp only [selPerm, List.map_cons, List.map_nil, List.getD_cons_zero, List.getD_cons_succ] <;> ring
-    show s.getMem ((xE c ((selPerm p).getD k' 0)).eval s) = _
-    rw [ha]
+    show s.getMem ((xT c ((selPerm p).getD k' 0)).eval s) = _
+    unfold xT
+    rw [addC_eval, ha, ofNat_add_ofNat,
+      show TAB + 8 * T3M.selLeaf (selC a c) k' + 16 = TAB + 16 + 8 * T3M.selLeaf (selC a c) k' by omega]
     exact hs.data.tab _ (selLeaf_lt a c k' hc)
   have hstore : ∀ k, k < 3 → u.getMem (BitVec.ofNat 64 (selT8 c k)) =
       BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + T3M.selLeaf (selC a c) k)) := by
@@ -500,7 +509,7 @@ theorem idxE_eval (a : HashOutput) (s : MachineState)
 theorem sel_setup (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState)
     (hu : DgOut m pk w a u) : ∃ t, Steps image u 6 6 t ∧ SelIn pk w a 0 t := by
   have hk : KnownOK selK u := selK_of (hu.known.mono (fun p hp => by simp [proPost]; exact Or.inl hp)) hu.sp
-  obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt selK [23] 17 []) setupSpec [] selK [] = true
+  obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt selK [21] 15 []) setupSpec [] selK [] = true
     from setupCheck_ok) u hu.pc hk (by simp [setupSpec]) (by simp)
   have hmem : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
   refine ⟨t, ht.steps, ⟨by rw [ht.pc rfl]; rfl, selK_base ht.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, selK_sp ht.known⟩⟩
@@ -651,7 +660,7 @@ theorem select_good (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput)
 theorem verifyP_good_sel (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     {N C A : Nat} {Q : Prop}
     (hfts : ∀ a t, SelIn pk w a 7 t → GoodQ t N C Q A (ccM (afterSel pk w a) Kb)) :
-    GoodQ s (N + 206) (C + 213) Q (A + 204) (ccM (verifyP m pk w) Kb) := by
+    GoodQ s (N + 206) (C + 213) Q (A + 202) (ccM (verifyP m pk w) Kb) := by
   rw [verifyP_eq, ccM_bind]
   have := digestP_good m pk w s hs (N := N + 189) (C := C + 189) (A := A + 180) (Q := Q)
     (fun o => ccM (match o with

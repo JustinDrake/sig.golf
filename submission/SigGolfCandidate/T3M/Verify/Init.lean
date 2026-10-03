@@ -153,8 +153,10 @@ structure InitOK (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) 
   data : DataOK s
   /-- n3-99: `sp = dataBase = TAB` (the selection code composes table addresses with it). -/
   sp : s.getReg .x2 = BitVec.ofNat 64 TAB
+  /-- The initial low-word mask is loaded from the first image doubleword. -/
+  mask : s.getMem (BitVec.ofNat 64 TAB) = 4095
 
-theorem verifyData_length : (submission.image .verify).data.length = 67584 := Search.verifyData_length
+theorem verifyData_length : (submission.image .verify).data.length = 67600 := Search.verifyData_length
 
 theorem dataBase_verify : dataBase (submission.image .verify) = TAB := by
   unfold dataBase; rw [verifyData_length]; decide
@@ -169,7 +171,7 @@ theorem le8_length (v : Nat) : (le8 v).length = 8 := by simp [le8]
 /-- The table bytes. -/
 def tabData : List (BitVec 8) := (List.range 2048).flatMap fun j => le8 (Images.verifyTabWord j)
 
-theorem verifyData_split : ∃ rest, Images.verifyData = tabData ++ rest := ⟨_, rfl⟩
+theorem verifyData_split : ∃ rest, Images.verifyData = Images.verifyInit ++ (tabData ++ rest) := ⟨_, rfl⟩
 
 theorem flatMap8_length (f : Nat → List (BitVec 8)) (hf : ∀ x, (f x).length = 8) :
     ∀ l : List Nat, (l.flatMap f).length = 8 * l.length
@@ -203,11 +205,12 @@ theorem tabRev_eq' : ∀ n v, Images.tabRev n v = T3.Rev.revBits n v
 
 /-- Table doubleword `j` of the verify data. -/
 theorem verifyData_tab (j : Nat) (hj : j < 2048) :
-    bytesToWordLE ((((submission.image .verify).data).drop (8 * j)).take 8) =
+    bytesToWordLE ((((submission.image .verify).data).drop (16 + 8 * j)).take 8) =
       BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + j)) := by
-  show bytesToWordLE ((Images.verifyData.drop (8 * j)).take 8) = _
+  show bytesToWordLE ((Images.verifyData.drop (16 + 8 * j)).take 8) = _
   obtain ⟨rest, hr⟩ := verifyData_split
-  rw [hr, List.drop_append_of_le_length (by rw [tabData_length]; omega),
+  rw [hr, show 16 + 8 * j = Images.verifyInit.length + 8 * j from rfl,
+    List.drop_length_add_append, List.drop_append_of_le_length (by rw [tabData_length]; omega),
     List.take_append_of_le_length (by rw [List.length_drop, tabData_length]; omega)]
   unfold tabData
   rw [flatMap8_slice (fun j => le8 (Images.verifyTabWord j)) (fun x => le8_length _) (List.range 2048) j
@@ -218,11 +221,11 @@ theorem verifyData_tab (j : Nat) (hj : j < 2048) :
 
 /-- The embedded doublewords read back as `dataWords`. -/
 theorem verifyData_word (k : Nat) (hk : k < 12) :
-    bytesToWordLE ((((submission.image .verify).data).drop (67488 + 8 * k)).take 8) =
+    bytesToWordLE ((((submission.image .verify).data).drop (67504 + 8 * k)).take 8) =
       BitVec.ofNat 64 (dataWords.getD k 0) := by
   interval_cases k <;> decide +kernel
 
-/-! ### T3X: the WOTS header table (BIG1: verify data bytes 16384 .. 32767, right after the FTS table) -/
+/-! ### T3X: the WOTS header table (F2: verify data bytes 16400 .. 32783, right after the FTS table) -/
 
 /-- The header doubleword at table index `k = 512 lay + 8 chain + digit`. -/
 def headerWord (k : Nat) : Nat :=
@@ -238,7 +241,7 @@ def headerWordsCheck : List (BitVec 8) → Nat → Bool
 set_option maxRecDepth 200000 in
 set_option maxHeartbeats 0 in
 theorem verifyHeader_checked :
-    headerWordsCheck ((((submission.image .verify).data).drop 16384).take 16384) 0 = true := by decide +kernel
+    headerWordsCheck ((((submission.image .verify).data).drop 16400).take 16384) 0 = true := by decide +kernel
 
 /-- A successful word check certifies every aligned eight-byte slice. -/
 theorem headerWordsCheck_word (j : Nat) : ∀ (l : List (BitVec 8)) (k : Nat),
@@ -270,11 +273,11 @@ theorem headerWordsCheck_word (j : Nat) : ∀ (l : List (BitVec 8)) (k : Nat),
       simp_all
     | [_,_,_,_] => simp_all
 
-/-- Header doubleword `k < 2048` of the verify data (at byte `16384 + 8 k`). -/
+/-- Header doubleword `k < 2048` of the verify data (at byte `16400 + 8 k`). -/
 theorem verifyData_header (k : Nat) (hk : k < 2048) :
-    bytesToWordLE ((((submission.image .verify).data).drop (16384 + 8 * k)).take 8) =
+    bytesToWordLE ((((submission.image .verify).data).drop (16400 + 8 * k)).take 8) =
       BitVec.ofNat 64 (headerWord k) := by
-  have hl : ((((submission.image .verify).data).drop 16384).take 16384).length = 16384 := by
+  have hl : ((((submission.image .verify).data).drop 16400).take 16384).length = 16384 := by
     rw [List.length_take, List.length_drop, verifyData_length]; decide
   have H := headerWordsCheck_word k _ 0 verifyHeader_checked (by rw [hl]; omega)
   rw [Nat.zero_add, List.drop_take, List.take_take, List.drop_drop] at H
@@ -306,7 +309,7 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : Mac
   have gm : ∀ A, (s3.setReg .x2 (BitVec.ofNat 64 (dataBase (submission.image .verify)))).getMem A =
       s3.getMem A := fun A => by simp [MachineState.setReg, MachineState.getMem]
   have g0 : ∀ A, A < 2 ^ 64 → s0.getMem (BitVec.ofNat 64 A) =
-      if TAB ≤ A ∧ A < TAB + 8 * ((67584 + 7) / 8) ∧ (A - TAB) % 8 = 0 then
+      if TAB ≤ A ∧ A < TAB + 8 * ((67600 + 7) / 8) ∧ (A - TAB) % 8 = 0 then
         bytesToWordLE ((((submission.image .verify).data).drop (A - TAB)).take 8) else 0 := by
     intro A hA
     rw [getMem_writeBytesAsWords (submission.image .verify).data blank (dataBase (submission.image .verify)) A
@@ -345,7 +348,7 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : Mac
       unfold TAB at hA ⊢
       omega
     rw [hidx]
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro p hp
     have hr1 : ∀ (st : MachineState) (base : Word) (l : List (BitVec 8)),
         (st.writeBytesAsWords base l).regs = st.regs := by
@@ -409,23 +412,23 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : Mac
       obtain ⟨hk1, hk2⟩ := DATA_ge k hk
       rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
         if_neg (by omega), g0 _ (by omega), if_pos (by unfold DATA TAB; omega),
-        show DATA + 8 * k - TAB = 67488 + 8 * k by unfold DATA TAB; omega,
+        show DATA + 8 * k - TAB = 67504 + 8 * k by unfold DATA TAB; omega,
         verifyData_word k hk]
     · intro i hi
       rw [gb _ (by unfold Search.TOP_DATA TAB; omega) (by unfold Search.TOP_DATA; omega)]
-      have hidx : Search.TOP_DATA + i - TAB = 63488 + i := by
+      have hidx : Search.TOP_DATA + i - TAB = 63504 + i := by
         unfold Search.TOP_DATA TAB; omega
       rw [hidx]
       exact Search.verifyData_sum i hi
     · intro i hi
       rw [gb _ (by unfold PAIR_DATA TAB; omega) (by unfold PAIR_DATA; omega)]
-      have hidx : PAIR_DATA + i - TAB = 34816 + i := by
+      have hidx : PAIR_DATA + i - TAB = 34832 + i := by
         unfold PAIR_DATA TAB; omega
       rw [hidx]
       exact Search.verifyData_pair i hi
     · intro i hi
       rw [gb _ (by unfold TAIL_DATA TAB; omega) (by unfold TAIL_DATA; omega)]
-      have hidx : TAIL_DATA + i - TAB = 51200 + i := by
+      have hidx : TAIL_DATA + i - TAB = 51216 + i := by
         unfold TAIL_DATA TAB; omega
       rw [hidx]
       exact Search.verifyData_tail i hi
@@ -433,8 +436,8 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : Mac
       rw [gm, g3 _ (by unfold TAB; omega), if_neg (by unfold TAB; omega), g2 _ (by unfold TAB; omega),
         if_neg (by unfold TAB; omega), g1 _ (by unfold TAB; omega), if_neg (by unfold TAB; omega),
         g0 _ (by unfold TAB; omega), if_pos (by unfold TAB; omega),
-        show TAB + 8 * j - TAB = 8 * j by omega, verifyData_tab j hj]
-    · -- T3X: the WOTS header table (at `HDATA = TAB + 16384`)
+        show TAB + 16 + 8 * j - TAB = 16 + 8 * j by omega, verifyData_tab j hj]
+    · -- T3X: the WOTS header table (at `HDATA = TAB + 16400`)
       intro lay i d hl hi hd
       have hb : 2 ^ 23 + 4096 ≤ HDATA + 4096 * lay + 64 * i + 8 * d ∧
           HDATA + 4096 * lay + 64 * i + 8 * d + 8 ≤ 2 ^ 24 := by unfold HDATA; omega
@@ -448,10 +451,16 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : Mac
         rw [e1, e2, e3]
       rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
         if_neg (by omega), g0 _ (by omega), if_pos (by unfold TAB HDATA; omega),
-        show HDATA + 4096 * lay + 64 * i + 8 * d - TAB = 16384 + 8 * (512 * lay + 8 * i + d) by
+        show HDATA + 4096 * lay + 64 * i + 8 * d - TAB = 16400 + 8 * (512 * lay + 8 * i + d) by
           unfold TAB HDATA; omega,
         verifyData_header _ (by omega), ew]
   · simp [MachineState.setReg, MachineState.getReg]
     exact congrArg (BitVec.ofNat 64) eD
+  · rw [gm, g3 _ (by unfold TAB; omega), if_neg (by unfold TAB; omega),
+      g2 _ (by unfold TAB; omega), if_neg (by unfold TAB; omega),
+      g1 _ (by unfold TAB; omega), if_neg (by unfold TAB; omega),
+      g0 _ (by unfold TAB; omega), if_pos (by unfold TAB; omega)]
+    norm_num only [Nat.sub_self, List.drop_zero]
+    decide +kernel
 
 end SigGolfCandidate.T3M.Verify

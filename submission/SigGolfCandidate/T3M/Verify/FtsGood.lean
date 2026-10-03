@@ -498,13 +498,13 @@ theorem afterSel_good (pk : Digest) (w : WBytes) (Bf Af : Nat) (Q : Prop)
 
 /-- **`verifyP` from the initial state up to the layers phase**: given the layers phase (V1/V3: layers 3..0 and the
 comparison, `afterFts`) from `FtsOut`, the whole verify run. Accepting cycles through the forest HASH:
-`204 + 3 + 2433 = 2640` (`148 + P` with `P ≤ 56` for the words 0..379, F5: 21 table reads; `837 + 14 F` with `F ≤ 115`
+`202 + 3 + 2433 = 2638` (`146 + P` with `P ≤ 56` for the words 0..379, F5: 21 table reads; `837 + 14 F` with `F ≤ 115`
 for the FTS; F4: the leaf codes 3 / 3 / 3, `823 + 14 F`). -/
 theorem verifyP_good_fts (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     (Bf Af : Nat) (Q : Prop)
     (hout : ∀ a root u, FtsOut ⟨pk, w, a⟩ root u →
       GoodQ u Bf Bf Q Af (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb)) :
-    GoodQ s (Bf + 7368) (Bf + 7375) Q (Af + 2640) (ccM (verifyP m pk w) Kb) :=
+    GoodQ s (Bf + 7368) (Bf + 7375) Q (Af + 2638) (ccM (verifyP m pk w) Kb) :=
   (verifyP_good_sel m pk w s hs (afterSel_good pk w Bf Af Q hout)).mono (by omega) (by omega)
     (fun q => ⟨q, by omega⟩)
 

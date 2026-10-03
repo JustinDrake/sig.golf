@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 128 KiB authenticated
-paired-mask full cache. `S = 5616` bytes, `W = 24264` bytes, `K = 131072` bytes (cache), `C = 8684` cycles
-(accepting-verify bound `8589` plus the witness charge `⌈24264 / 256⌉ = 95`). Layout (bytes): message 64,
+paired-mask full cache. `S = 5616` bytes, `W = 24264` bytes, `K = 131072` bytes (cache), `C = 8682` cycles
+(accepting-verify bound `8587` plus the witness charge `⌈24264 / 256⌉ = 95`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 524288, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,7 +19,7 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 8589); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 8587); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
@@ -117,6 +117,13 @@ re-dispatches through `s10 = ptab_n`, the copy through `s5 = ptab_l`. The 14 tab
 leaf codes are gone (each leaf dispatch adds its table register; the leaf code block is compacted to end at the
 forest, starting at 469), so the FTS accepting prefix becomes 2640 (fourteen cycles): the accepting bound is 8589 and
 the complete charged bound is 8684.
+F1 counter store: the digest header's counter word `w1 = dc << 32` is written by one `sw dc, 0x3c(zero)` over the
+initially zero scratch word at `0x38` instead of `slli; sd` (one cycle): the FTS accepting prefix becomes 2639, the
+accepting bound 8588 and the complete charged bound 8683.
+F2 initial constant load: `s2 = 0xfff` is loaded by one `ld s2, 0(sp)` from a 16-byte prefix of the verify data
+(`verifyInit`) instead of `lui; addi` (one cycle); the FTS header table moves to `sp + 16` and the selection's table
+loads use offset 16 (`ld ra/s7/s9, 16(x_j)`); the rest of the data stays at the same absolute addresses. The FTS
+accepting prefix becomes 2638, the accepting bound 8587 and the complete charged bound 8682.
 
 
 
@@ -136,7 +143,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8684 :=
+theorem certificate : SigGolf.Certificate submission 8682 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge

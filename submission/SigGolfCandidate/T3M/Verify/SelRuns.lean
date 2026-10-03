@@ -1,7 +1,7 @@
 import SigGolfCandidate.T3M.Verify.Digest
 
 /-!
-# Selections: expected symbolic results of the sort-tree paths (T3M verify words 17 .. 358)
+# Selections: expected symbolic results of the sort-tree paths (T3M verify words 15 .. 358)
 
 After the digest, `ld a6/a7/s11/t3` load the four words of `N` and `s6 = N mod 2^31` (`selSetup`). For each
 coordinate `c` (code from `selStart c` to the join `selJoin c`): the 25-bit number `gp = N >> (31 + 25 c)` (one
@@ -47,7 +47,7 @@ def xE (c j : Nat) : E :=
   .bin .add (.bin .add (.bin .and (.bin .srl (gpE c) (cw (1 + 7 * j))) (cw 1016)) (bbE c)) (.c (BitVec.ofNat 64 TAB))
 
 /-- Start of coordinate `c`'s selection code (`selStart 7 = 380 = fts_setup`; F5: three header loads per coordinate). -/
-def selStart (c : Nat) : Nat := [23, 74, 126, 176, 228, 278, 328, 380].getD c 0
+def selStart (c : Nat) : Nat := [21, 74, 126, 176, 228, 278, 328, 380].getD c 0
 def selJoin (c : Nat) : Nat := selStart (c + 1)
 
 /-- Extraction length (1 or 3 instructions). -/
@@ -82,13 +82,17 @@ def selBrs (c : Nat) : Nat → List Br
   | 4 => [eqB c 2 0 false, geuB c 0 2 true, geuB c 1 2 false, geuB c 0 1 true]
   | _ => [eqB c 1 0 false, eqB c 2 1 false, geuB c 1 2 true, geuB c 0 1 true]
 
-/-- F5: the header-table address of unsorted leaf `j`, as the executor normalizes the load `ld r, 0(x_j)`. -/
-def xA (c j : Nat) : Addr := norm (xE c j)
+/-- F2: the table address `x_j + 16` of unsorted leaf `j` (the table follows the 16-byte initial-constant prefix at
+`sp = TAB`), as the executor folds the offset of the load `ld r, 16(x_j)` into `xE`'s constant. -/
+def xT (c j : Nat) : E := addC (xE c j) 16#64
+
+/-- F5: the header-table address of unsorted leaf `j`, as the executor normalizes the load `ld r, 16(x_j)`. -/
+def xA (c j : Nat) : Addr := norm (xT c j)
 
 /-- F5: the header word 1 of leaf slot `3 c + k`, at word `+24` of its leaf block (`leafT + 8`). -/
 def selT8 (c k : Nat) : Nat := WIT + 64 + 48 * (3 * c + k) + 24
 
-/-- F5: the three table reads (`ld ra/s7/s9, 0(x_j)`), newest first. -/
+/-- F5: the three table reads (`ld ra/s7/s9, 16(x_j)`), newest first. -/
 def selObl (c : Nat) : List Oblig := [.valid (xA c 2) 8, .valid (xA c 1) 8, .valid (xA c 0) 8]
 
 /-- F5: the slots coordinate `c` writes. -/
@@ -101,9 +105,9 @@ def selTree : Nat → Nat
   | _ => 8
 
 def selMem (c p : Nat) : List (Addr × E) :=
-  [(⟨none, BitVec.ofNat 64 (selT8 c 2)⟩, .ld (xE c ((selPerm p).getD 2 0))),
-    (⟨none, BitVec.ofNat 64 (selT8 c 1)⟩, .ld (xE c ((selPerm p).getD 1 0))),
-    (⟨none, BitVec.ofNat 64 (selT8 c 0)⟩, .ld (xE c ((selPerm p).getD 0 0)))]
+  [(⟨none, BitVec.ofNat 64 (selT8 c 2)⟩, .ld (xT c ((selPerm p).getD 2 0))),
+    (⟨none, BitVec.ofNat 64 (selT8 c 1)⟩, .ld (xT c ((selPerm p).getD 1 0))),
+    (⟨none, BitVec.ofNat 64 (selT8 c 0)⟩, .ld (xT c ((selPerm p).getD 0 0)))]
 
 def selSpec (c p : Nat) : Spec :=
   ⟨[], selMem c p, selJoin c, false, selExt c + 15 + selTree p, selBrs c p, none, selExt c + 15 + selTree p⟩
@@ -140,14 +144,14 @@ def selRSteps (c r : Nat) : Nat := selExt c + 15 + (if r = 4 then 6 else 7)
 def selRCheck1 (c r : Nat) : Bool :=
   specB [] [] [] (runAt selK [] (selStart c) (selRDirs r)) (rejSpec (selRSteps c r) (selRBrs c r)) (selObl c) [] []
 
-/-! ## The setup block (words 17 .. 22) -/
+/-! ## The setup block (words 15 .. 20) -/
 
 def nE (k : Nat) : E := .ld (cw (0x60 + 8 * k))
 def idxE : E := .bin .srl (.bin .sll (nE 0) (cw 33)) (cw 33)
 
 def setupSpec : Spec :=
-  ⟨[(.x16, nE 0), (.x17, nE 1), (.x27, nE 2), (.x28, nE 3), (.x22, idxE)], [], 23, false, 6, [], none, 6⟩
+  ⟨[(.x16, nE 0), (.x17, nE 1), (.x27, nE 2), (.x28, nE 3), (.x22, idxE)], [], 21, false, 6, [], none, 6⟩
 
-def setupCheck : Bool := specB [] [] baseK (runAt selK [23] 17 []) setupSpec [] selK []
+def setupCheck : Bool := specB [] [] baseK (runAt selK [21] 15 []) setupSpec [] selK []
 
 end SigGolfCandidate.T3M.Verify
