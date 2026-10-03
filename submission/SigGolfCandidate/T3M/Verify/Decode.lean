@@ -597,30 +597,8 @@ theorem dataDigits_lower (lay : Layer) (hlay : lay ≠ 0) (value : Digest) :
   rw [h42]
   apply List.map_congr_left
   intro i _
-  simp [hlay, width]
+  simp [hlay, coreDigit]
 
-theorem dataDigits_top (value : Digest) :
-    dataDigits 0 value = ((List.range 49).map fun i => value.toNat / 2 ^ (2 * i) % 2 ^ 2) ++
-      ((List.range 9).map fun j => value.toNat / 2 ^ (98 + 3 * j) % 2 ^ 3) := by
-  unfold dataDigits
-  rw [show dataCount 0 = 49 + 9 from rfl, List.range_add, List.map_append, List.map_map]
-  have e1 : ((List.range 49).map fun i => value.toNat / 2 ^ (if (0 : Layer) = 0 then
-      (if i < 49 then 2 * i else 98 + 3 * (i - 49)) else 3 * i) % 2 ^ width 0 i) =
-      (List.range 49).map fun i => value.toNat / 2 ^ (2 * i) % 2 ^ 2 := by
-    apply List.map_congr_left
-    intro i hi
-    have : i < 49 := List.mem_range.mp hi
-    simp [width, this]
-  have e2 : ((List.range 9).map ((fun i => value.toNat / 2 ^ (if (0 : Layer) = 0 then
-      (if i < 49 then 2 * i else 98 + 3 * (i - 49)) else 3 * i) % 2 ^ width 0 i) ∘ (49 + ·))) =
-      (List.range 9).map fun j => value.toNat / 2 ^ (98 + 3 * j) % 2 ^ 3 := by
-    apply List.map_congr_left
-    intro j _
-    simp [width]
-  rw [e1, e2]
-
-/-- The machine's digit sum of the lower decode, from the value's doublewords `v0 = V % 2^64`, `v1 = V / 2^64`
-(`a = v0`, `b = v1 <<< 1`). -/
 def lowSum (V : Nat) : Nat := lowSwar (V % 2 ^ 64) (2 * (V / 2 ^ 64))
 
 theorem lowSum_lt (V : Nat) : lowSum V < 4095 := Nat.mod_lt _ (by norm_num)
@@ -689,21 +667,5 @@ theorem topSum_eq (V : Nat) (h : V / 2 ^ 64 < 2 ^ 61) :
     rw [Nat.div_div_eq_div_mul, Nat.div_div_eq_div_mul, ← Nat.pow_add, ← Nat.pow_add,
       show 64 + (34 + 3 * j) = 98 + 3 * j by omega]
   rw [sum_congr_range _ _ 32 hV, sum_congr_range _ _ 17 hW, sum_congr_range _ _ 9 hG]
-
-/-- **Core's top decode, as the machine computes it**: reject when `v1 >>> 61 ≠ 0`, otherwise accept iff the SWAR
-total is 125; the digits are Core's 58 data digits. -/
-theorem decode_top (value : Digest) :
-    decode 0 value =
-      if value.toNat / 2 ^ 64 / 2 ^ 61 ≠ 0 then none
-      else if topSum value.toNat = 126 then some (dataDigits 0 value) else none := by
-  have hb : encodedBits 0 = 125 := rfl
-  unfold decode
-  rw [hb]
-  simp only [if_true]
-  by_cases h : value.toNat / 2 ^ 64 / 2 ^ 61 ≠ 0
-  · rw [if_pos h, if_pos (by omega)]
-  · rw [if_neg h, if_neg (by omega), topSum_eq _ (by omega)]
-    simp only [dataDigits_top, List.sum_append]
-    rfl
 
 end SigGolfCandidate.T3M

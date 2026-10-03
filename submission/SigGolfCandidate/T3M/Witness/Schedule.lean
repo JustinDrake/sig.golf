@@ -1,4 +1,4 @@
-import SigGolfCandidate.T3M.Witness.Layout
+import SigGolfCandidate.T3M.Witness.SideCode
 
 /-! # The honest fold-stream schedule (stream W)
 
@@ -43,8 +43,11 @@ def Segment.heap (seg : Segment) (r : Nat) : Nat := (2048 + seg.g) / 2 ^ (seg.lo
 /-- Parity bit `t` of a segment (heap index at its start, checked by the machine when `a > 0`). -/
 def Segment.t (seg : Segment) : Nat := seg.heap 0 % 2
 
+/-- Three low bits of the path node, packed into the segment header. -/
+def Segment.sideCode (seg : Segment) : Nat := seg.g / 2 ^ seg.lo % 8
+
 /-- Header byte 0 of a segment: `a | merge << 4 | t << 5` (header bytes 1..7 are zero). -/
-def Segment.byte0 (seg : Segment) : Nat := seg.a + 16 * (if seg.merge then 1 else 0) + 32 * seg.t
+def Segment.byte0 (seg : Segment) : Nat := seg.a + 16 * (if seg.merge then 1 else 0) + 32 * seg.sideCode
 
 /-- Core position `(level, node)` of the sibling of fold `r` (the empty subtree whose proof slot it carries). -/
 def Segment.sib (seg : Segment) (r : Nat) : Nat × Nat :=
@@ -96,17 +99,17 @@ def foldPositions (segs : List Segment) : List (Nat × Nat) :=
 
 /-- `streamPlan chosen k`: the `(segment, fold)` position of the honest stream that carries proof slot `k`
 (`none` for slots beyond the used ones). -/
-def streamPlan (chosen : List Selection) (k : Fin 118) : Option (Nat × Nat) :=
+def streamPlan (chosen : List Selection) (k : Fin 115) : Option (Nat × Nat) :=
   (foldPositions (schedule chosen)).find? fun p =>
     foldSlot chosen ((schedule chosen).getD p.1 default) p.2 = k.val
 
 /-- Witness offset of the fold block carrying proof slot `k` (`none` if unused). -/
-def slotBlock (chosen : List Selection) (k : Fin 118) : Option Nat :=
+def slotBlock (chosen : List Selection) (k : Fin 115) : Option Nat :=
   (streamPlan chosen k).map fun p => foldBlock (segPtr (schedule chosen) p.1) p.2
 
 /-- Offset of proof slot `k`'s value in the witness (`L` or `R` of its fold block by the parity of the folded
 node), `none` if unused. -/
-def slotOffset (chosen : List Selection) (k : Fin 118) : Option Nat :=
+def slotOffset (chosen : List Selection) (k : Fin 115) : Option Nat :=
   (streamPlan chosen k).map fun p =>
     let seg := (schedule chosen).getD p.1 default
     foldBlock (segPtr (schedule chosen) p.1) p.2 + sibOff (seg.heap p.2 % 2)
@@ -116,7 +119,7 @@ def slotOffset (chosen : List Selection) (k : Fin 118) : Option Nat :=
 /-- A header byte agrees with a segment on its live bits: `a`, `merge`, and `t` when `a > 0` (bits 6..7 and
 bytes 1..7 are never read). -/
 def Segment.Matches (seg : Segment) (b : Nat) : Prop :=
-  b % 16 = seg.a ∧ (b / 16 % 2 = 1 ↔ seg.merge = true) ∧ (0 < seg.a → b / 32 % 2 = seg.t)
+  b % 16 = seg.a ∧ (b / 16 % 2 = 1 ↔ seg.merge = true) ∧ (0 < seg.a → b / 32 % segSideMod seg.a = seg.heap 0 % segSideMod seg.a)
 
 instance (seg : Segment) (b : Nat) : Decidable (seg.Matches b) := by
   unfold Segment.Matches; infer_instance

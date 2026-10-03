@@ -13,7 +13,7 @@ import SigGolfCandidate.T3.Secc.CaseCCore
   contacts and stays within the budget, and the router fold carries a certificate.
 
 The certificate side of the large route is `Pr[CleanWin ∧ ¬Contact | completed] ≤ Pr[CertOut | lazy router]`
-(coupling) and `Pr[CertOut | lazy router] ≤ q·987/10^8/2^128 + E[mass]/2^128` (the bank in the lazy router).
+(coupling) and `Pr[CertOut | lazy router] ≤ q·11324/10^8/2^128 + E[mass]/2^128` (the bank in the lazy router).
 -/
 
 namespace SigGolfCandidate.T3.Security.LargeCoupling

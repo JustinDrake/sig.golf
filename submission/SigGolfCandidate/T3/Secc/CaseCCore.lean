@@ -19,7 +19,7 @@ or the actual selection to `X` at a fresh signing, inherits the supermartingale 
 * `ledger_search`: the digest rejection search (cached rejected trials skipped, exhaustion = no exposure) is a
   supermartingale step;
 * `ledger_win`: an admissible target covered by the exposures holds a full unit;
-* `ledger_initial`: the initial ledger is at most `budget · 987/10^8 / 2^128`.
+* `ledger_initial`: the initial ledger is at most `budget · 11324/10^8 / 2^128`.
 
 The cache-reuse exception (`CaseCSearch.Reuse`, `reuseMass`, `reuse_probability_le`,
 `CaseCBankReuse.reuseMass_cacheQuery_le`) is stated over `Sampling.RCache` and is world-independent as well.
@@ -137,7 +137,7 @@ theorem ledger_win_opened (R : Nat) (targets X : List HashOutput) (slack : Nat) 
 
 /-- **Initial ledger**: no targets, no exposures, `budget` prepaid births over the full horizon. -/
 theorem ledger_initial (budget : Nat) :
-    ledger BPORS.Numeric.proposalLength [] [] budget ≤ (budget : ENNReal) * (987 / 100000000) / 2 ^ 128 := by
+    ledger BPORS.Numeric.proposalLength [] [] budget ≤ (budget : ENNReal) * (11324 / 100000000) / 2 ^ 128 := by
   unfold ledger
   simp only [List.map_nil, List.sum_nil, zero_add]
   apply ENNReal.div_le_div_right
@@ -145,12 +145,12 @@ theorem ledger_initial (budget : Nat) :
   unfold excessForecast
   simpa [labels] using excess_three_quarters
 
-/-- The unit charge per birth: `theta + 1/16 ≤ 1` (the `1/16` pays the reuse mass of the new row). -/
-theorem theta_add_sixteenth_le_one : theta + 1 / 16 ≤ 1 := by
+/-- The unit charge per birth: `theta + 1/64 ≤ 1` (the `1/64` pays the reuse mass of the new row). -/
+theorem theta_add_sixteenth_le_one : theta + 1 / 64 ≤ 1 := by
   unfold theta
-  have h1 : (3 : ENNReal) / 4 = 12 / 16 := by
-    rw [ENNReal.div_eq_div_iff] <;> norm_num
-  rw [h1, ENNReal.div_add_div_same, ENNReal.div_le_iff] <;> norm_num
+  apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
+  simp (disch := finiteness) only [ENNReal.toReal_add, ENNReal.toReal_div, ENNReal.toReal_ofNat, ENNReal.toReal_one]
+  norm_num
 
 /-! ## The admissibility indicator of a fresh answer -/
 
@@ -173,6 +173,16 @@ theorem expected_admInd : expectedValue ($ᵗ HashOutput : ProbComp HashOutput) 
 /-- The certificate shape: every opened position of `N` is opened by some exposure (at the same index). -/
 def CoveredBy (X : List HashOutput) (N : HashOutput) : Prop :=
   ∀ f ∈ BPair.openedPositions N, ∃ out ∈ X, f ∈ BPair.openedPositions out
+
+theorem expected_admInd_tight : expectedValue ($ᵗ HashOutput : ProbComp HashOutput) admInd ≤ 1/64 := by
+  have he : expectedValue ($ᵗ HashOutput : ProbComp HashOutput) admInd=DigestSampling.acceptanceProbability := by
+    rw [←Sampling.digest_acceptanceProbability,←expectedValue_ite_one]
+    rfl
+  rw [he]
+  unfold DigestSampling.acceptanceProbability SigGolfResearch.Gate6.acceptance
+  apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
+  simp (disch := finiteness) only [ENNReal.toReal_div, ENNReal.toReal_ofNat, ENNReal.toReal_one]
+  norm_num
 
 /-- The abstract bank state: targets, exposures, the reuse flag, the reuse mass `C` (cached admissible digest rows
 of unsigned messages, over `2^128`, as maintained by the instantiation) and the remaining birth budget. -/
@@ -210,11 +220,11 @@ theorem core_birth (b : BankCore) (s : Nat) (hs : b.slack = s + 1) (C' : HashOut
     (hC : ∀ N, C' N ≤ b.reuse + admInd N / 2 ^ 128) :
     expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
         (fun N => corePotential { b with targets := b.targets ++ [N], slack := s, reuse := C' N }) ≤
-      corePotential b + (theta + 1 / 16) / 2 ^ 128 := by
-  have hadm : expectedValue ($ᵗ HashOutput : ProbComp HashOutput) (fun N => admInd N / 2 ^ 128) ≤ (1 / 16) / 2 ^ 128 := by
+      corePotential b + (theta + 1 / 64) / 2 ^ 128 := by
+  have hadm : expectedValue ($ᵗ HashOutput : ProbComp HashOutput) (fun N => admInd N / 2 ^ 128) ≤ (1 / 64) / 2 ^ 128 := by
     simp only [div_eq_mul_inv]
     rw [expectedValue_mul_const]
-    exact mul_le_mul' (by simpa [div_eq_mul_inv] using expected_admInd) le_rfl
+    exact mul_le_mul' (by simpa [div_eq_mul_inv] using expected_admInd_tight) le_rfl
   unfold corePotential
   simp only
   by_cases hd : BPORS.Numeric.proposalLength < b.exposures.length
@@ -226,7 +236,7 @@ theorem core_birth (b : BankCore) (s : Nat) (hs : b.slack = s + 1) (C' : HashOut
     calc
       _ ≤ expectedValue ($ᵗ HashOutput : ProbComp HashOutput) (fun N => admInd N / 2 ^ 128 + (1 + b.reuse)) :=
         expectedValue_mono _ fun N => (add_le_add le_rfl (hC N)).trans (le_of_eq (by ring))
-      _ ≤ (1 / 16) / 2 ^ 128 + (1 + b.reuse) := (expectedValue_add_const_le _ _ _).trans (add_le_add hadm le_rfl)
+      _ ≤ (1 / 64) / 2 ^ 128 + (1 + b.reuse) := (expectedValue_add_const_le _ _ _).trans (add_le_add hadm le_rfl)
       _ ≤ _ := by
         rw [add_comm]
         apply add_le_add le_rfl
@@ -241,7 +251,7 @@ theorem core_birth (b : BankCore) (s : Nat) (hs : b.slack = s + 1) (C' : HashOut
       _ ≤ expectedValue ($ᵗ HashOutput : ProbComp HashOutput)
           (fun N => ledger R (b.targets ++ [N]) b.exposures s + admInd N / 2 ^ 128) + b.reuse :=
         expectedValue_add_const_le _ _ _
-      _ ≤ (ledger R b.targets b.exposures (s + 1) + theta / 2 ^ 128 + (1 / 16) / 2 ^ 128) + b.reuse := by
+      _ ≤ (ledger R b.targets b.exposures (s + 1) + theta / 2 ^ 128 + (1 / 64) / 2 ^ 128) + b.reuse := by
         rw [expectedValue_add]
         exact add_le_add (add_le_add (ledger_birth R b.targets b.exposures s) hadm) le_rfl
       _ = _ := by
@@ -367,7 +377,7 @@ theorem core_win (b : BankCore) (halive : ¬BPORS.Numeric.proposalLength < b.exp
 
 /-- **Initial potential.** -/
 theorem core_initial (budget : Nat) :
-    corePotential ⟨[], [], false, 0, budget⟩ ≤ (budget : ENNReal) * (987 / 100000000) / 2 ^ 128 := by
+    corePotential ⟨[], [], false, 0, budget⟩ ≤ (budget : ENNReal) * (11324 / 100000000) / 2 ^ 128 := by
   unfold corePotential
   simp only [List.length_nil, Nat.not_lt_zero, if_false, Bool.false_eq_true, Nat.sub_zero, add_zero]
   exact ledger_initial budget

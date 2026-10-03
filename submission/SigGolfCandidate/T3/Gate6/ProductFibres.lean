@@ -37,7 +37,7 @@ theorem fibre_card (mark : MarkedLabel) :
       Fintype.card {p : Payload // PayloadAccepted p} := Fintype.card_congr (markFibreEquiv mark)
 
 theorem payload_accepted_card : Fintype.card {p : Payload // PayloadAccepted p} =
-    Fintype.card {s : Slots // SlotsAccepted s} * 2^45 := by
+    Fintype.card {s : Slots // SlotsAccepted s} * 2^47 := by
   rw [Fintype.card_congr payloadEquiv,Fintype.card_prod]
   simp only [Unused,Fintype.card_fin]
 

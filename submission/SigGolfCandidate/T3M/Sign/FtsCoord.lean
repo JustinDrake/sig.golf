@@ -213,10 +213,10 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 131072} {N : HashOutput} {
     rfl
   set pp := SIG + 352 + 16 * st.2.1.length with hpp
   set sd := SIG + 16 + 16 * st.1.length with hsd
-  have hsb7 : slotBase (selections N) 7 ≤ 118 := slotBase_seven_le N hchosen hadm
-  have hsbc : slotBase (selections N) (c + 1) ≤ 118 :=
+  have hsb7 : slotBase (selections N) 7 ≤ 115 := slotBase_seven_le N hchosen hadm
+  have hsbc : slotBase (selections N) (c + 1) ≤ 115 :=
     le_trans (slotBase_mono _ (by omega)) hsb7
-  have hsb0 : slotBase (selections N) c ≤ 118 := le_trans (slotBase_mono _ (by omega)) hsb7
+  have hsb0 : slotBase (selections N) c ≤ 115 := le_trans (slotBase_mono _ (by omega)) hsb7
   have hl2 := ht.len2
   have hl1 := ht.len1
   obtain ⟨v, k, stv, hk, vpc, vx8, vx16, vx26, vsec, vem, vroot, vlen, vr, vf⟩ :=
@@ -287,7 +287,7 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 131072} {N : HashOutput} {
       · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))))
       · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h)))))))
       · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨h.1, by sgo⟩))))))))
-  have hnS : ∀ A, A < 2 ^ 64 → SIG ≤ A → A < SIG + 5728 → ¬ FtsScr A := by
+  have hnS : ∀ A, A < 2 ^ 64 → SIG ≤ A → A < SIG + 5616 → ¬ FtsScr A := by
     intro A _ h1 h2 h; unfold FtsScr FlW at h; sgo
   have hnF : ∀ A, A < 2 ^ 64 → FOREST ≤ A → A < FOREST + 128 → ¬ FtsScr A := by
     intro A _ h1 h2 h; unfold FtsScr FlW at h; sgo
@@ -309,8 +309,8 @@ theorem ftsBody_tbsim {sk : SecretKey} {cache : Bytes 131072} {N : HashOutput} {
   · rw [vx26]; congr 1
     simp only [List.length_append, List.length_map, hselected, List.length_cons, List.length_nil, hsd]; ring
   · refine (ht.base.frame hFu ur (by decide) (fun A hA hb h => ?_)).frame vf vr (by decide) (fun A hA hb h => ?_)
-    · unfold BaseA NeverW at hb; unfold FtsScr FlW at h; sgo
-    · unfold BaseA NeverW at hb; rcases h with h | h | h | h <;> sgo
+    · unfold BaseA NeverW Search.TOP_DATA at hb; unfold FtsScr FlW at h; sgo
+    · unfold BaseA NeverW Search.TOP_DATA at hb; rcases h with h | h | h | h <;> sgo
   · omega
   · simp only [List.length_append, List.length_map, hselected, List.length_cons, List.length_nil, ht.len1]; ring
   · rw [slotBase_succ]
@@ -411,7 +411,7 @@ theorem fts_entry {sk : SecretKey} {cache : Bytes 131072} {m : Message} {rho : D
     rw [this, lo64_mod31]
   rw [hn] at x9 idxv
   refine ⟨s0, st, ⟨pc0, x2, x8, x9, by simpa using x16, by simpa using x26,
-    h.base.frame f0 r0 (by decide) (fun A _ hb h => by unfold BaseA NeverW at hb; rw [h] at hb; sgo),
+    h.base.frame f0 r0 (by decide) (fun A _ hb h => by unfold BaseA NeverW Search.TOP_DATA at hb; rw [h] at hb; sgo),
     by norm_num, rfl, rfl, rfl, DigsAt.nil _ _, DigsAt.nil _ _, fun j hj => absurd hj (by omega),
     fun c hc j hj => by rw [f0.get (by sgo) (by sgo)]; exact h.sel c hc j hj, Frame.refl _ _⟩,
     idxv, r0, f0⟩

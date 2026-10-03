@@ -34,7 +34,7 @@ theorem segShape_merge (w : WBytes) (Q : Nat) (rest : List Nat) (E ptr A : Nat) 
 structure SegInv (b A E : Nat) : Prop where
   a : b % 16 = A
   le : A ≤ 11
-  t : 0 < A → b / 32 % 2 = E % 2
+  t : 0 < A → b / 32 % segSideMod A = E % segSideMod A
 
 theorem segShape_inv_nil (w : WBytes) (E ptr E' p' : Nat) (s' : List Nat)
     (h : segShape w [] E ptr = some (E', p', s')) :
@@ -410,7 +410,7 @@ theorem fold_shape_inv (w : WBytes) (chosen : List Selection) (hc : ChosenOk cho
         rwa [schedule_getD _ (by omega), show m / 5 = n by omega, show m % 5 = m - 5 * n by omega]
 
 theorem admissible_of_slotBase (N : HashOutput) (hc : ChosenOk (selections N))
-    (h : slotBase (selections N) 7 ≤ 118) : admissible (selections N) = true := by
+    (h : slotBase (selections N) 7 ≤ 115) : admissible (selections N) = true := by
   rw [slotBase_seven_eq N hc] at h
   simp only [admissible, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
   refine ⟨fun sel hm => ?_, h⟩

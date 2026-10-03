@@ -67,7 +67,7 @@ theorem rcEm_inner (L : List Nat) (pf : Nat → Digest) (l node used : Nat) (e :
        let e2 := rcEm L pf l (2 * node + 1) u1 e1
        if hasLeaf L l (2 * node) = false then ⟨e2.segs, e2.cur ++ [(true, pf used)], e2.par⟩
        else if hasLeaf L l (2 * node + 1) = false then ⟨e2.segs, e2.cur ++ [(false, pf u1)], e2.par⟩
-       else e2.close true (node % 2)) := by
+       else e2.close true (node % 8)) := by
   rw [rcEm]; simp [h]
 
 theorem node_bound (node l : Nat) (hl : l + 1 ≤ 11) (h : node * 2 ^ (l + 1) < 2 ^ 11) :
@@ -109,7 +109,7 @@ theorem RcW_succ {sp l A : Nat} (h : RcW (sp - 48) l A) : RcW sp (l + 1) A := by
   · right; exact h
 
 section inner
-variable {sk : BitVec 256} {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 118 → Digest}
+variable {sk : BitVec 256} {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 115 → Digest}
 
 /-- **The inner node** (`hasLeaf` at level `l + 1`), given the recursion at level `l`. -/
 theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧ g2 < 2 ^ 11) {l : Nat}
@@ -213,7 +213,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   rcases r' with _ | ⟨vr, next'⟩
   · exact (TBSim.pure (Q := RcPost c index g0 g1 g2 values proof s (l + 1) node used e fresh ret sp) (a := none)
       h7).mono (by omega) (fun _ _ h => h)
-  obtain ⟨p7, x1_7, x2_7, x10_7, nout7, hnext', hnext'118, hvr, x18_7, x22_7, regs7, cur7, cntl7, cnt7, par7, str7,
+  obtain ⟨p7, x1_7, x2_7, x10_7, nout7, hnext', hnext'115, hvr, x18_7, x22_7, regs7, cur7, cntl7, cnt7, par7, str7,
     R67, F67, ctx7⟩ := h7
   have nF67 : ∀ A, sp - 48 ≤ A → A < 0x22000 → ¬ RcW (sp - 48) l A := nF45
   have g7 : ∀ A, sp - 48 ≤ A → A < sp → t7.getMem (BitVec.ofNat 64 A) = t6.getMem (BitVec.ofNat 64 A) :=
@@ -231,7 +231,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   set e2 := rcEm [g0, g1, g2] (pfN proof) l (2 * node + 1) next e1 with he2
   set e' : Em := if ll = false then ⟨e2.segs, e2.cur ++ [(true, pfN proof used)], e2.par⟩
     else if rl = false then ⟨e2.segs, e2.cur ++ [(false, pfN proof next)], e2.par⟩
-    else e2.close true (node % 2) with he'
+    else e2.close true (node % 8) with he'
   have hlr : ll = true ∨ rl = true := (hasLeaf_succ_iff _ _ _).mp h1
   have hfr7 : (freshR && !rl) = false := by
     rcases hlr with h | h
@@ -334,7 +334,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
                 by ring, w64, hvr8', hvr']; simp [foldWords])
             | (rw [f10.get (by omega) (by omega), ← hpos, streamAt_zero str9 _ (by omega) (by omega)]; simp [foldWords])
       · have hRt : rl = true := by simpa using hR
-        have he'M : e' = e2.close true (node % 2) := by
+        have he'M : e' = e2.close true (node % 8) := by
           rw [he', if_neg (by rw [hLt]; decide), if_neg (by rw [hRt]; decide)]
         rw [hRt] at p9
         simp only [↓reduceIte] at p9
@@ -434,7 +434,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
         have he21 : e2 = e1 := by rw [he2]; exact rcEm_empty _ _ _ _ _ _ hR
         rw [he21]; have := cntl5 hLt; omega
       · rw [if_neg hR]; simp [Em.close]
-  have hparE : e'.par < 2 := by
+  have hparE : e'.par < 8 := by
     rw [he']
     split_ifs
     · exact par7
@@ -472,7 +472,7 @@ theorem rc_inner (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 �
   refine ⟨p13, x1_13, by rw [x2_13]; congr 1; omega, by rw [r13.get (by decide)]; exact x10_12,
     ⟨by rw [f13.get (by decide) (by simp), f12.get (by decide) (by simp)]; exact hd.1,
       by rw [f13.get (by decide) (by simp), f12.get (by decide) (by simp)]; exact hd.2⟩, by omega,
-    hnext'118, fun h => absurd h (by simp),
+    hnext'115, fun h => absurd h (by simp),
     by rw [R1013.get (by decide), R710.get (by decide)]; exact x18_7,
     by rw [R1013.get (by decide), r10.get (by decide)]; exact x22_9,
     fun _ => ⟨by rw [R1013.get (by decide), r10.get (by decide)]; exact x23_9,

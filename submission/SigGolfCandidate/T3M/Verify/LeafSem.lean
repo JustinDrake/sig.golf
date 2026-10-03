@@ -5,7 +5,7 @@ import SigGolfCandidate.T3M.Verify.ChainLeaf
 
 At the chain code's return pc `trPc lay c + retOff lay` the leaf-pk block writes the leaf header word
 `T(2) = s11 + 0x100` and the route word `tp` at `base + 16`, `base + 24` (`base = 0x300` lower, `0x200` top; the
-top also zeroes `0x5B0`, `0x5B8`, the padding of its 944-byte input), sets `tp = s11 + 0x200` (word 0 of the node
+top also zeroes `0x570`, `0x578`, the padding of its 944-byte input), sets `tp = s11 + 0x200` (word 0 of the node
 headers of the Merkle levels), `a0 = base`, `a1 = 704` / `960` (the leaf-pk HASH arguments), `a5` = the window of
 `stab_lay_0`, and jumps (`jalr`) to the table word of the leaf's chunk-0 bits. The leaf-pk HASH itself is the first
 `ecall` of the Merkle shape block (V3); `LeafOut.hashInput` states its input.
@@ -18,7 +18,7 @@ for every copy by the kernel (`leafCheck_at`).
 `1 .. 7`, `tp = T(3, lay)`, `a0`, `a1`, `a5`, `s6`); `s7 = 2^h + leaf`, `t5 = tree`; the chain ends in the leaf-pk
 slots, the leaf header words (and the top's zero words); the witness of the layers below and of this layer's Merkle
 blocks original. `leafL_step` (from the lower chain phase's `ChainOut 43`) and `leafT_step` (from the top's `TopOut`)
-reach it in 10 resp. 13 steps (= cycles). -/
+reach it in 11 resp. 13 steps (= cycles). -/
 
 set_option linter.unusedSimpArgs false
 
@@ -64,15 +64,15 @@ theorem leafCheck_at (lay c : Nat) (hlay : lay < 4) (hc : c < nCopy lay) : leafC
 
 /-- The leaf-pk input block: `0x200` (top, 58 ends, 960 bytes) or `0x300` (lower, 43 ends, 704 bytes). -/
 def lfBase (lay : Nat) : Nat := if lay = 0 then 512 else 768
-def lfBytes (lay : Nat) : Nat := if lay = 0 then 960 else 704
+def lfBytes (lay : Nat) : Nat := if lay = 0 then 896 else 704
 /-- Its 64-byte blocks. -/
-def lfBlocks (lay : Nat) : Nat := if lay = 0 then 15 else 11
+def lfBlocks (lay : Nat) : Nat := if lay = 0 then 14 else 11
 /-- The leaf-pk slot of chain `j`. -/
 def lfSlot (lay j : Nat) : Nat := if lay = 0 then slotT j else slotL j
 /-- The leaf bits of the first `stab` dispatch (the Merkle levels' chunk 0: 7 on layer 1, else 6). -/
 def stabBits (lay : Nat) : Nat := if lay = 1 then 7 else 6
 /-- Steps (= cycles) of the leaf-pk block. -/
-def lfSteps (lay : Nat) : Nat := if lay = 0 then 13 else 10
+def lfSteps (lay : Nat) : Nat := if lay = 0 then 13 else 11
 
 /-- The registers the block keeps that the Merkle code and the next transition read: `sp`, `t3`, the step
 registers `1 .. 7`, `s6`; below the top also the 3-bit masks `s4`, `s5` and `s8 = 0x10000`. -/
@@ -87,7 +87,7 @@ def lfK (lay : Nat) : List (Reg × Word) := postLf lay ++ lfKeepK lay
 
 /-- **The state at the Merkle dispatch** (V3's input): the `stab_lay_0` word of the leaf's chunk-0 bits, the
 registers `lfK`, `s7 = 2^h + leaf`, `t5 = tree`, the `chainCount lay` ends in the leaf-pk slots, the leaf header
-words `T(2, lay, tree, 0, leaf)` at `base + 16`, `base + 24` (and on the top the zero words at `0x5B0`, `0x5B8`), and
+words `T(2, lay, tree, 0, leaf)` at `base + 16`, `base + 24` (and on the top the zero words at `0x570`, `0x578`), and
 the witness offsets `[11288, layerBase lay + 64 h)` (the layers below and this layer's Merkle blocks) original. -/
 structure LeafOut (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends : List Digest) (u : MachineState) :
     Prop where
@@ -100,7 +100,7 @@ structure LeafOut (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends :
   T0 : u.getMem (BitVec.ofNat 64 (lfBase lay.val + 16)) = BitVec.ofNat 64 (hdr0 2 lay.val (route index lay).2 0)
   T1 : u.getMem (BitVec.ofNat 64 (lfBase lay.val + 24)) =
     BitVec.ofNat 64 (hdr1 (route index lay).2 (route index lay).1)
-  zero : lay = 0 → u.getMem (BitVec.ofNat 64 0x5B0) = 0 ∧ u.getMem (BitVec.ofNat 64 0x5B8) = 0
+  zero : lay = 0 → u.getMem (BitVec.ofNat 64 0x570) = 0 ∧ u.getMem (BitVec.ofNat 64 0x578) = 0
   orig : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerBase lay + 64 * height lay) u
 
 /-- **The leaf-pk HASH input at `LeafOut`** (`a0`, `a1` and the block as left by the leaf-pk block): Core's
@@ -134,15 +134,17 @@ theorem glob_frame {gk gk' : List (Reg × Word)} {w : WBytes} {pk : Digest} {s t
     Glob gk' w pk t := by
   obtain ⟨-, hH, hP, hZ, hh, hD⟩ := hG
   have hn : ∀ A, A < 0x140 → ¬ W A := fun A hA h => by have := hW A h; omega
-  refine ⟨hk, fun j hj => ?_, ⟨?_, ?_⟩, fun a ha => ?_, ?_, fun k hk' => ?_⟩
+  refine ⟨hk, fun j hj => ?_, ⟨?_, ?_⟩, fun a ha => ?_, ?_, ?_⟩
   · rw [hf.get (by unfold WIT; omega) (fun h => by have := hW _ h; unfold WIT at this; omega)]; exact hH j hj
   · exact (hf.get (A := 0xA0) (by norm_num) (hn _ (by norm_num))).trans hP.1
   · exact (hf.get (A := 0xA8) (by norm_num) (hn _ (by norm_num))).trans hP.2
   · have ha' : a < 0x140 := by simp only [pSlots, List.mem_cons, List.not_mem_nil, or_false] at ha; omega
     rw [hf.get (by omega) (hn _ ha')]; exact hZ a ha
   · unfold PHalf CTRW at *; rw [hf.get (by norm_num) (hn _ (by norm_num))]; exact hh
-  · obtain ⟨hk1, hk2⟩ := DATA_ge k hk'
-    rw [hf.get (by omega) (fun h => by have := hW _ h; omega)]; exact hD k hk'
+  · exact hD.congr (fun A hA hB => hf.get (by omega) (fun hw => by
+      have := hW A hw
+      unfold Verify.Nonbinary.PAIR_DATA at hA
+      omega))
 
 theorem land4 (n k : Nat) : n &&& (4 * (2 ^ k - 1)) = 4 * (n / 4 % 2 ^ k) := by
   apply Nat.eq_of_testBit_eq; intro j
@@ -159,10 +161,10 @@ theorem stabMask_eq (lay : Nat) : stabMask lay = 4 * (2 ^ stabBits lay - 1) := b
   unfold stabMask stabBits; split <;> rfl
 
 /-- The dispatch target: the `stab_lay_0` word of the low `stabBits` bits of the leaf (`s7 = 2^h + leaf`). -/
-theorem tgtLfOld_eval (lay : Nat) (t : MachineState) (h leaf : Nat) (hn : stabBits lay ≤ h) (hh : h ≤ 12)
+theorem tgtLf_eval (lay : Nat) (t : MachineState) (h leaf : Nat) (hn : stabBits lay ≤ h) (hh : h ≤ 12)
     (hl : leaf < 2 ^ h) (hs : stabIdx lay < 2 ^ 32)
     (h23 : t.getReg .x23 = BitVec.ofNat 64 (2 ^ h + leaf)) :
-    (tgtLfOld lay).eval t = pcOf (stabIdx lay + leaf % 2 ^ stabBits lay) := by
+    (tgtLf lay).eval t = pcOf (stabIdx lay + leaf % 2 ^ stabBits lay) := by
   have hpow : 2 ^ h ≤ 2 ^ 12 := Nat.pow_le_pow_right (by norm_num) hh
   have hb : stabBits lay ≤ 7 := by unfold stabBits; split <;> omega
   have hpb : 2 ^ stabBits lay ≤ 2 ^ 7 := Nat.pow_le_pow_right (by norm_num) hb
@@ -179,7 +181,7 @@ theorem tgtLfOld_eval (lay : Nat) (t : MachineState) (h leaf : Nat) (hn : stabBi
       show (2 ^ h + leaf) * 2 ^ 2 % 2 ^ 64 / 4 = 2 ^ h + leaf by omega, hmod, BitVec.toNat_ofNat]
     have := Nat.mod_lt leaf (show 0 < 2 ^ stabBits lay by positivity)
     omega
-  simp only [tgtLfOld, E.eval, BinOp.eval, kw]
+  simp only [tgtLf, E.eval, BinOp.eval, kw]
   rw [hm, ofNat_add_ofNat, even_andNot1' _ (by omega)]
   congr 1
   omega
@@ -189,28 +191,6 @@ theorem stabBits_le (lay : Layer) : stabBits lay.val ≤ hL lay.val := by fin_ca
 theorem stabIdx_lt (lay : Nat) : stabIdx lay < 2 ^ 32 := by
   unfold stabIdx
   rcases lay with _ | _ | _ | _ | n <;> simp
-
-/-- A lower route has exactly the sentinel absorbed by the relocated dispatch. -/
-theorem tgtLf_lower_eval (lay : Layer) (hlay : lay ≠ 0) (t : MachineState) (leaf : Nat)
-    (hl : leaf < 2 ^ hL lay.val)
-    (h23 : t.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay.val + leaf)) :
-    (tgtLf lay.val).eval t = pcOf (stabIdx lay.val + leaf % 2 ^ stabBits lay.val) := by
-  have h0 : lay.val ≠ 0 := fun h => hlay (Fin.ext h)
-  have he : stabBits lay.val = hL lay.val := by fin_cases lay <;> simp_all [stabBits, hL]
-  have hb : 2 ^ hL lay.val ≤ 128 := by fin_cases lay <;> simp_all [hL]
-  have hi := stabIdx_lt lay.val
-  have hbase : 4 * 2 ^ hL lay.val ≤ 0x1000 + 4 * stabIdx lay.val := by omega
-  have hshift : t.getReg .x23 <<< ((BitVec.ofNat 64 2).toNat % 64) =
-      BitVec.ofNat 64 (4 * (2 ^ hL lay.val + leaf)) := by
-    apply BitVec.eq_of_toNat_eq
-    rw [toNat_sll _ 2 (by norm_num), h23]
-    simp only [BitVec.toNat_ofNat]
-    omega
-  simp only [tgtLf, if_neg h0, E.eval, BinOp.eval, kw]
-  rw [hshift, ofNat_add_ofNat]
-  have hn : 4 * (2 ^ hL lay.val + leaf) + (0x1000 + 4 * stabIdx lay.val - 4 * 2 ^ hL lay.val) =
-      0x1000 + 4 * (stabIdx lay.val + leaf) := by omega
-  rw [hn, even_andNot1' _ (by omega), he, Nat.mod_eq_of_lt hl]
 
 theorem hw2_hdr0 (lay : Layer) (tree : Nat) (ht : tree < 2 ^ 32) : hw 2 lay.val = hdr0 2 lay.val tree 0 := by
   rw [hdr0_eq _ _ _ _ (by norm_num) (by have := lay.isLt; omega) ht (by norm_num)]
@@ -231,7 +211,7 @@ theorem geomT : s6v 0 = 15064 ∧ layerBase 0 = 11288 ∧ height 0 = 12 ∧ laye
 /-! ## The leaf-pk block -/
 
 /-- **The lower leaf-pk block**: from the lower chain phase's `ChainOut 43` (base `s0` = `encB_step`'s state) to
-`LeafOut` in 10 steps. -/
+`LeafOut` in 11 steps. -/
 theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay : lay ≠ 0) (c : Nat)
     (hc : c < nCopy lay.val) (hidx : index < 2 ^ 31) (a : BitVec 256) (s0 : MachineState)
     (hk : ∀ p ∈ (lctxOf w index lay a (trPc lay.val c)).known, s0.getReg p.1 = p.2)
@@ -240,7 +220,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
     (h30 : s0.getReg .x30 = BitVec.ofNat 64 (route index lay).2)
     (ends : List Digest) (t : MachineState)
     (ht : (lctxOf w index lay a (trPc lay.val c)).ChainOut s0 43 ends t) :
-    ∃ u, Steps image t 10 10 u ∧ LeafOut w pk index lay ends u := by
+    ∃ u, Steps image t 11 11 u ∧ LeafOut w pk index lay ends u := by
   set L := lctxOf w index lay a (trPc lay.val c) with hLd
   have h0 : lay.val ≠ 0 := fun h => hlay (Fin.ext h)
   obtain ⟨⟨hR, hF, hS⟩, hlen, hpc⟩ := ht
@@ -255,7 +235,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
   obtain ⟨u, hu⟩ := spec_run (leafCheck_at lay.val c lay.isLt hc) t (by rw [hpc]; rfl) hknown
     (by intro b hb; simp [specLf, h0] at hb) (by simp)
   have hst := hu.steps
-  rw [show (specLf lay.val).steps = 10 by simp [specLf, h0], show (specLf lay.val).cycles = 10 by simp [specLf, h0]]
+  rw [show (specLf lay.val).steps = 11 by simp [specLf, h0], show (specLf lay.val).cycles = 11 by simp [specLf, h0]]
     at hst
   refine ⟨u, hst, ?_⟩
   have hku : KnownOK (postLf lay.val) u := hu.known
@@ -278,7 +258,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
   · -- the dispatch
     rw [hu.spc (tgtLf lay.val) (by simp [specLf, h0])]
     have := hL_le lay
-    exact tgtLf_lower_eval lay hlay t _ hlf
+    exact tgtLf_eval lay.val t (hL lay.val) _ (stabBits_le lay) (by omega) hlf (stabIdx_lt _)
       (by rw [hR .x23 (by simp [chainRegs]), h23])
   · -- the registers and the protected memory
     have hGt : Glob baseK w pk t := glob_frame hG hF (fun A hA => by
@@ -331,38 +311,34 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
           rcases hw with hw | hw <;> omega))
     exact (hu.orig_const hOt).mono (fun o ho => ⟨ho, by simp⟩)
 
-/-- **The top leaf-pk block**: from the top chain phase's `TopOut` (base `s0` = `encBt_step`'s state) to `LeafOut`
-in 13 steps. -/
-theorem leafT_step (w : WBytes) (pk : Digest) (index : Nat) (c : Nat) (hc : c < nCopy 0) (hidx : index < 2 ^ 31)
-    (a : BitVec 256) (s0 : MachineState)
-    (hk : ∀ p ∈ (qctxOf w index a (trPc 0 c)).known, s0.getReg p.1 = p.2)
-    (hkB : ∀ p ∈ postBt (trPc 0 c), s0.getReg p.1 = p.2)
-    (hG : Glob baseK w pk s0) (hO : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) s0)
-    (h23 : s0.getReg .x23 = BitVec.ofNat 64 (2 ^ hL 0 + (route index 0).1))
-    (h30 : s0.getReg .x30 = BitVec.ofNat 64 (route index 0).2)
-    (ends : List Digest) (t : MachineState) (ht : (qctxOf w index a (trPc 0 c)).TopOut s0 ends t) :
+/-- Exact chain-end interface before the shared top leaf aggregation block. -/
+structure TopLeafReady (w : WBytes) (pk : Digest) (index c : Nat) (ends : List Digest)
+    (t : MachineState) : Prop where
+  pc : t.pc = pcOf (trPc 0 c + 69)
+  glob : Glob (leafK 0) w pk t
+  keep : KnownOK (lfKeepK 0) t
+  s7 : t.getReg .x23 = BitVec.ofNat 64 (2 ^ hL 0 + (route index 0).1)
+  t5 : t.getReg .x30 = BitVec.ofNat 64 (route index 0).2
+  tp : t.getReg .x4 = BitVec.ofNat 64 (hdr1 (route index 0).2 (route index 0).1)
+  len : ends.length = 54
+  ends : ∀ j < 54, DigAt t (slotT j) (ends.getD j 0)
+  orig : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerBase 0 + 64 * height 0) t
+
+/-- The exact 13-instruction top leaf block, independent of the chain decoder representation. -/
+theorem leafT_step (w : WBytes) (pk : Digest) (index c : Nat) (hc : c < nCopy 0) (hidx : index < 2 ^ 31)
+    (ends : List Digest) (t : MachineState) (ht : TopLeafReady w pk index c ends t) :
     ∃ u, Steps image t 13 13 u ∧ LeafOut w pk index 0 ends u := by
-  set Q := qctxOf w index a (trPc 0 c) with hQ
-  obtain ⟨hR, h15, hF, hlen, hS, hpc⟩ := ht
-  have hR' : ∀ x, x ∉ chainRegs → x ≠ .x15 → t.getReg x = s0.getReg x := hR
-  have hknown : KnownOK (leafK 0) t := by
-    intro p hp
-    simp only [leafK, baseK, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with (rfl | rfl) | rfl
-    · rw [hR' .x5 (by simp [chainRegs]) (by decide)]; exact hG.1 (_, _) (by simp [baseK])
-    · rw [hR' .x18 (by simp [chainRegs]) (by decide)]; exact hG.1 (_, _) (by simp [baseK])
-    · rw [hR' .x27 (by simp [chainRegs]) (by decide)]; exact hkB (_, _) (by simp [postBt])
-  obtain ⟨u, hu⟩ := spec_run (leafCheck_at 0 c (by norm_num) hc) t (by rw [hpc]; rfl) hknown
+  obtain ⟨u, hu⟩ := spec_run (leafCheck_at 0 c (by norm_num) hc) t ht.pc ht.glob.1
     (by intro b hb; simp [specLf] at hb) (by simp)
   have hst := hu.steps
   rw [show (specLf 0).steps = 13 by simp [specLf], show (specLf 0).cycles = 13 by simp [specLf]] at hst
   refine ⟨u, hst, ?_⟩
   have hku : KnownOK (postLf 0) u := hu.known
   have hkeep := hu.keep
-  have hmem : ∀ A, u.getMem A = memEval t [(⟨none, BitVec.ofNat 64 1464⟩, kw 0), (⟨none, BitVec.ofNat 64 1456⟩, kw 0),
+  have hmem : ∀ A, u.getMem A = memEval t [(⟨none, BitVec.ofNat 64 1400⟩, kw 0), (⟨none, BitVec.ofNat 64 1392⟩, kw 0),
       (⟨none, BitVec.ofNat 64 536⟩, .reg .x4), (⟨none, BitVec.ofNat 64 528⟩, kw (hw 2 0))] A := by
     intro A; rw [hu.mem]; simp [specLf]
-  have hfr : ∀ A, A < 2 ^ 64 → A ≠ 1464 → A ≠ 1456 → A ≠ 536 → A ≠ 528 →
+  have hfr : ∀ A, A < 2 ^ 64 → A ≠ 1400 → A ≠ 1392 → A ≠ 536 → A ≠ 528 →
       u.getMem (BitVec.ofNat 64 A) = t.getMem (BitVec.ofNat 64 A) := by
     intro A hA h1 h2 h3 h4
     rw [hmem]
@@ -372,33 +348,27 @@ theorem leafT_step (w : WBytes) (pk : Digest) (index : Nat) (c : Nat) (hc : c < 
     rcases hp with rfl | rfl | rfl | rfl <;> simp <;> omega
   have htr := tree_lt index 0 hidx
   have hlf := leaf_lt index 0
-  obtain ⟨hg1, hg2, hg3, hg4⟩ := geomT
-  have hS6 : Q.S6 = s6v 0 := rfl
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun _ => ⟨?_, ?_⟩, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ht.len, ?_, ?_, ?_, fun _ => ⟨?_, ?_⟩, ?_⟩
   · rw [hu.spc (tgtLf 0) (by simp [specLf])]
-    change (tgtLfOld 0).eval t = _
-    exact tgtLfOld_eval 0 t (hL 0) _ (stabBits_le 0) (by decide) hlf (stabIdx_lt _)
-      (by rw [hR' .x23 (by simp [chainRegs]) (by decide), h23])
-  · have hGt : Glob baseK w pk t := glob_frame hG hF (fun A hA => by
-        unfold QCtx.TopW QCtx.blk at hA; rw [hS6, show Q.S3 = 15768 from rfl] at hA
-        rcases hA with hA | hA <;> omega)
-      (fun p hp => hknown p (by simp [leafK, hp]))
-    have hGu := hu.glob _ w pk hGt (RelOK.nil t)
+    exact tgtLf_eval 0 t (hL 0) _ (stabBits_le 0) (by decide) hlf (stabIdx_lt _) ht.s7
+  · have hGu := hu.glob _ w pk ht.glob (RelOK.nil t)
     refine ⟨fun p hp => ?_, hGu.2.1, hGu.2.2.1, hGu.2.2.2.1, hGu.2.2.2.2⟩
     rcases List.mem_append.mp hp with hp | hp
     · exact hku p hp
-    · simp only [lfKeepK, Fin.val_zero, ↓reduceIte, List.append_nil, List.mem_cons, List.not_mem_nil, or_false] at hp
-      rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-      all_goals rw [hkeep _ (by simp [keepLfAll]), hR' _ (by simp [chainRegs]) (by decide)]
-      all_goals exact hkB (_, _) (by simp [postBt])
-  · rw [hkeep .x23 (by simp [keepLfAll]), hR' .x23 (by simp [chainRegs]) (by decide), h23]; rfl
-  · rw [hkeep .x30 (by simp [keepLfAll]), hR' .x30 (by simp [chainRegs]) (by decide), h30]
-  · rw [hlen]; rfl
+    · have hkp : p.1 ∈ keepLfAll := by
+        change p ∈ lfKeepK 0 at hp
+        simp [lfKeepK] at hp
+        rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [keepLfAll]
+      rw [hkeep _ hkp]
+      exact ht.keep p hp
+  · rw [hkeep .x23 (by simp [keepLfAll]), ht.s7]
+    rfl
+  · rw [hkeep .x30 (by simp [keepLfAll]), ht.t5]
   · intro j hj
-    have hj' : j < 58 := hj
-    have e := hS j hj'
+    have hj' : j < 54 := hj
+    have e := ht.ends j hj'
     simp only [lfSlot, if_pos rfl]
-    have hsl : slotT j = 512 ∨ (544 ≤ slotT j ∧ slotT j ≤ 1440) := by unfold slotT; split <;> omega
+    have hsl : slotT j = 512 ∨ (544 ≤ slotT j ∧ slotT j ≤ 1376) := by unfold slotT; split <;> omega
     exact ⟨(hfr (slotT j) (by omega) (by omega) (by omega) (by omega) (by omega)).trans e.1,
       (hfr (slotT j + 8) (by omega) (by omega) (by omega) (by omega) (by omega)).trans e.2⟩
   · rw [show lfBase (0 : Layer).val + 16 = 528 from rfl, hmem,
@@ -407,27 +377,19 @@ theorem leafT_step (w : WBytes) (pk : Digest) (index : Nat) (c : Nat) (hc : c < 
       memEval_cons_ofNat _ _ _ _ _ (by norm_num) (by norm_num), if_neg (by norm_num),
       memEval_cons_ofNat _ _ _ _ _ (by norm_num) (by norm_num), if_pos rfl]
     simp only [E.eval, kw]
-    rw [show hw 2 0 = hdr0 2 (0 : Layer).val (route index 0).2 0 from hw2_hdr0 0 _ htr]
+    exact hw2_hdr0 0 _ htr |>.symm ▸ rfl
   · rw [show lfBase (0 : Layer).val + 24 = 536 from rfl, hmem,
       memEval_cons_ofNat _ _ _ _ _ (by norm_num) (by norm_num), if_neg (by norm_num),
       memEval_cons_ofNat _ _ _ _ _ (by norm_num) (by norm_num), if_neg (by norm_num),
       memEval_cons_ofNat _ _ _ _ _ (by norm_num) (by norm_num), if_pos rfl]
-    simp only [E.eval]
-    rw [hR' .x4 (by simp [chainRegs]) (by decide), hk (.x4, BitVec.ofNat 64 Q.w1) (by simp [QCtx.known])]
-    rfl
-  · rw [show (0x5B0 : Nat) = 1456 by norm_num, hmem,
+    exact ht.tp
+  · rw [show (0x570 : Nat) = 1392 by norm_num, hmem,
       memEval_cons_ofNat _ _ _ _ _ (by norm_num) (by norm_num), if_neg (by norm_num),
       memEval_cons_ofNat _ _ _ _ _ (by norm_num) (by norm_num), if_pos rfl]
     rfl
-  · rw [show (0x5B8 : Nat) = 1464 by norm_num, hmem,
+  · rw [show (0x578 : Nat) = 1400 by norm_num, hmem,
       memEval_cons_ofNat _ _ _ _ _ (by norm_num) (by norm_num), if_pos rfl]
     rfl
-  · have hOt : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerBase 0 + 64 * height 0) t :=
-      (hO.mono (fun o ho => ⟨ho.1, by omega⟩)).frame (fun j hj hp => hF.get (by unfold WIT WX at *; omega)
-        (fun hw => by
-          unfold QCtx.TopW at hw; rw [hS6] at hw
-          unfold WIT at hw
-          rcases hw with hw | hw <;> omega))
-    exact (hu.orig_const hOt).mono (fun o ho => ⟨ho, by simp⟩)
+  · exact (hu.orig_const ht.orig).mono (fun o ho => ⟨ho, by simp⟩)
 
 end SigGolfCandidate.T3M

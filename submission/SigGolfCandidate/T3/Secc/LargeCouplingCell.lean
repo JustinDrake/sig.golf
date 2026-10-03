@@ -86,11 +86,9 @@ theorem cell_eq_cellValues (s : Secrets) (L : Labels) (N : CanonGraph.Node) :
       funext i
       unfold endLabel ChainGraph.value
       have hw := width_ge Lf.lay i
-      have h1 : 1 ≤ 2 ^ width Lf.lay i - 1 := by
-        have : 4 ≤ 2 ^ width Lf.lay i := by
-          calc 4 = 2 ^ 2 := by norm_num
-            _ ≤ 2 ^ width Lf.lay i := Nat.pow_le_pow_right (by decide) hw
-        omega
+      have h1 : 1 ≤ maxDigit Lf.lay i := by
+        unfold maxDigit
+        split_ifs <;> decide
       rw [if_neg (by omega)]
       simp only [coordVal, endPoint, chainLabels, Nat.sub_sub]
   | node n =>

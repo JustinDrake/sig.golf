@@ -67,7 +67,7 @@ structure BtPre (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (tree sel 
   hsel : sel < 2 ^ height lay
   hdb : ∀ i < 43, ds.getD i 0 ≤ 7
   digits : ∀ i < 43, s.getByte (BitVec.ofNat 64 (DIGITS + i)) = BitVec.ofNat 8 (ds.getD i 0)
-  hsb : SIG ≤ sb ∧ sb + 16 * (43 + height lay) ≤ SIG + 5728
+  hsb : SIG ≤ sb ∧ sb + 16 * (43 + height lay) ≤ SIG + 5616
   hsb8 : sb % 8 = 0
 
 /-- Doublewords the leaf loop of `build_tree` may change. -/
@@ -170,8 +170,8 @@ theorem bt_leafPre {l : Nat} (hl : l < 2 ^ height lay) {t : MachineState}
       hdigb := fun i hi => by
         rw [hn] at hi
         show (if l = sel then ds else []).getD i 0 < 256 ∧
-          (false = false → (if l = sel then ds else []).getD i 0 ≤ 2 ^ width lay i - 1)
-        have hw : 2 ^ width lay i - 1 = 7 := by simp [width, hlay]
+          (false = false → (if l = sel then ds else []).getD i 0 ≤ T3.maxDigit lay i)
+        have hw : T3.maxDigit lay i = 7 := by simp [T3.maxDigit, hlay]
         rw [hw]
         by_cases hls : l = sel
         · simp only [hls, if_true]; have := hs.hdb i hi; omega
@@ -526,7 +526,7 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
     · exact Or.inr (Or.inr (Or.inr h)))
   have hW : ∀ A, A < 2 ^ 64 → BaseA A → ¬ BtAllW lay tree sb A := by
     intro A _ hb hw
-    unfold BaseA NeverW at hb
+    unfold BaseA NeverW Search.TOP_DATA at hb
     unfold BtAllW BtW LevW at hw
     simp only [btLev] at hw
     rcases hH with h | h <;> rw [h] at hw <;> sgo

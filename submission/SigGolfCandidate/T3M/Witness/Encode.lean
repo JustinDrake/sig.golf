@@ -43,12 +43,12 @@ def foldBytes (E : Nat) (sib : Digest) : List UInt8 :=
   if E % 2 = 1 then bytesLE 16 sib ++ zeros 64 else zeros 48 ++ bytesLE 16 sib ++ zeros 16
 
 /-- A segment: header byte, 7 zero bytes, its fold blocks with the proof slots `foldSlot` places there. -/
-def segBytes (chosen : List Selection) (proof : Fin 118 → Digest) (seg : Segment) : List UInt8 :=
+def segBytes (chosen : List Selection) (proof : Fin 115 → Digest) (seg : Segment) : List UInt8 :=
   [UInt8.ofNat seg.byte0] ++ zeros 7 ++ (List.range seg.a).flatMap fun r =>
-    foldBytes (seg.heap r) (proof ⟨foldSlot chosen seg r % 118, Nat.mod_lt _ (by decide)⟩)
+    foldBytes (seg.heap r) (proof ⟨foldSlot chosen seg r % 115, Nat.mod_lt _ (by decide)⟩)
 
 /-- `[1088,11288)`: the honest stream, zero-filled (cut at 10,200 bytes, which only over-cap selections reach). -/
-def streamBytes (chosen : List Selection) (proof : Fin 118 → Digest) : List UInt8 :=
+def streamBytes (chosen : List Selection) (proof : Fin 115 → Digest) : List UInt8 :=
   (((schedule chosen).flatMap (segBytes chosen proof)) ++ zeros 10200).take 10200
 
 /-- Layer `lay`'s region: Merkle blocks of levels `h-1 .. 0` (sibling at `L` iff bit `j` of `leaf` is 1, else
@@ -59,11 +59,15 @@ def layerBytes (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8
       else zeros 48 ++ bytesLE 16 (ls.path j)) ++
     (List.finRange (chainCount lay)).reverse.flatMap (fun i => zeros 48 ++ bytesLE 16 (ls.values i))
 
+/-- Physical storage keeps the old layer bases; the shorter top layer has a zero tail. -/
+def layerStorage (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8 :=
+  layerBytes lay leaf ls ++ zeros (if lay = 0 then 256 else 0)
+
 /-- The 25,240 witness bytes of `witEnc N w`. -/
 def witList (N : HashOutput) (w : Witness) : List UInt8 :=
   headerBytes w ++ leafBytes w.signature ++ streamBytes (selections N) w.signature.proof ++
     (List.finRange 4).flatMap fun lay =>
-      layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)
+      layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)
 
 /-- The machine witness of an expansion with digest answer `N` (byte `i` = `witList N w` at `i`). -/
 def witEnc (N : HashOutput) (w : Witness) : WBytes := BitVec.ofNat _ (readLE (witList N w))

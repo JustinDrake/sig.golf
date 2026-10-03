@@ -88,12 +88,15 @@ structure AfterDs (sk : SecretKey) (cache : Bytes 131072) (m : Message) (rho : D
 /-- `Base` at `ds_done`: the private prefix, the loaded region, and the never-written zeros. -/
 theorem AfterDs.base {sk : SecretKey} {cache : Bytes 131072} {m : Message} {rho : Digest} {N : HashOutput}
     {t : MachineState} (h : AfterDs sk cache m rho N t) : Base sk cache t := by
-  refine ⟨h.x5, h.p0, h.p8, h.p32, h.p40, h.p48, h.p56, fun k hk => ?_, fun A hA hn => ?_⟩
+  refine ⟨h.x5, h.p0, h.p8, h.p32, h.p40, h.p48, h.p56, fun k hk => ?_, fun A hA hn => ?_, ?_⟩
   · rw [h.frame.get (by sg_omega) (by unfold FrontW; sg_omega), show REGION + 8 * k = CACHE + 8 * (k + 4) by sg_omega,
       sinit_cache sk cache m (k + 4) (by omega)]
   · unfold NeverW at hn
     rw [h.frame.get hA (by unfold FrontW; sg_omega)]
-    exact sinit_zero sk cache m A hA (by sg_omega)
+    exact sinit_zero sk cache m A (by unfold Search.TOP_DATA; sg_omega) (by sg_omega)
+
+  · exact (sinit_table sk cache m).frame h.frame (by
+      intro i hi; unfold FrontW Search.TOP_DATA; sg_omega)
 
 /-! ## Doubleword helpers (as in `Keygen.Main`, which sign does not import) -/
 
@@ -306,7 +309,7 @@ theorem sign_front (hK : DigestSearchSpec sk) {W : Nat} {Q : Option Signature �
       y11 (by decide) ?_
     rw [wordsOf_nonce, show 8 * (1 + 1) = 8 + 8 from rfl, readWords_add, readWords_eight, readWords_eight]
     have z : ∀ X, NONCE + 96 ≤ X → X < NONCE + 128 → t4.getMem (BitVec.ofNat 64 X) = 0 := fun X h1 h2 => by
-      rw [f04.get (by sg_omega) (by sg_omega)]; exact sinit_zero sk cache m X (by sg_omega) (by sg_omega)
+      rw [f04.get (by sg_omega) (by sg_omega)]; exact sinit_zero sk cache m X (by unfold Search.TOP_DATA; sg_omega) (by sg_omega)
     rw [n0, n8, n16, n24, n32, n40, n48, n56, n64, n72, n80, n88, z _ (by sg_omega) (by sg_omega),
       z _ (by sg_omega) (by sg_omega), z _ (by sg_omega) (by sg_omega), z _ (by sg_omega) (by sg_omega),
       show SK = SK + 8 * 0 from rfl, k 0 (by decide), k 1 (by decide), k 2 (by decide), k 3 (by decide),
