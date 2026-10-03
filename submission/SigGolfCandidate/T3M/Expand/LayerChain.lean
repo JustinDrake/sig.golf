@@ -1,12 +1,15 @@
 import SigGolfCandidate.T3M.Expand.LayerBlocks
 import SigGolfCandidate.T3M.Expand.Basic
+import SigGolfCandidate.T3M.Expand.PackedHeader
+import SigGolfCandidate.T3M.Keygen.PackedShared
+import SigGolfCandidate.T3M.Keygen.PackedInput
 
 /-!
 # `expand`: one chain of `recover_layer` (stream E, instance E-S)
 
 `chain_steps` : from `rl_step` (word 1031) with the value `v` at `CHAIN + 48`, the step register at `d`, the end
 register at `e`, the machine refines Core's `chain lay tree leaf i d (e - d) v` (one 1-block HASH per step,
-25 cycles per step) and stops at `rl_end` (word 1049) with the chain's last value at `CHAIN + 48`.
+at most 45 cycles per step) and stops at `rl_end` (word 1049) with the chain's last value at `CHAIN + 48`.
 -/
 
 namespace SigGolfCandidate.T3M.Expand
@@ -23,13 +26,11 @@ theorem chainInput_length' (lay : Layer) (tree leaf i step : Nat) (v : Digest) :
 
 theorem wordsOf_chainInput' (lay : Layer) (tree leaf i step : Nat) (v : Digest) :
     wordsOf (pad64 (chainInput lay tree leaf i step v)) =
-      [0, 0, BitVec.ofNat 64 (hdr0 1 lay.val tree (step + 256 * i)), BitVec.ofNat 64 (hdr1 tree leaf),
+      [0, 0, (T3.chainHeader lay tree leaf i step).extractLsb' 0 64,
+        (T3.chainHeader lay tree leaf i step).extractLsb' 64 64,
         0, 0, v.extractLsb' 0 64, v.extractLsb' 64 64] := by
   rw [pad64_of_aligned _ (by rw [chainInput_length'])]
-  unfold chainInput
-  rw [wordsOf_append _ _ (by simp [bytesLE_length, T3.zero16]), wordsOf_append _ _ (by simp [bytesLE_length, T3.zero16]),
-    wordsOf_append _ _ (by simp [T3.zero16]), wordsOf_zero16, wordsOf_header, wordsOf_bytesLE16]
-  rfl
+  exact Keygen.Packed.wordsOf_chainInput lay tree leaf i step v
 
 theorem blocks_chainInput' (lay : Layer) (tree leaf i step : Nat) (v : Digest) :
     (toQ (pad64 (chainInput lay tree leaf i step v))).blocks = 1 := by
@@ -40,30 +41,34 @@ theorem blocks_chainInput' (lay : Layer) (tree leaf i step : Nat) (v : Digest) :
 structure ChainCtx (lay tree leaf i : Nat) (t : MachineState) : Prop where
   x5 : t.getReg .x5 = 0
   x8 : t.getReg .x8 = BitVec.ofNat 64 lay
+  x9 : t.getReg .x9 = BitVec.ofNat 64 tree
+  x18 : t.getReg .x18 = BitVec.ofNat 64 leaf
   x19 : t.getReg .x19 = BitVec.ofNat 64 i
   z0 : t.getMem (BitVec.ofNat 64 CHAIN) = 0
   z8 : t.getMem (BitVec.ofNat 64 (CHAIN + 8)) = 0
   z32 : t.getMem (BitVec.ofNat 64 (CHAIN + 32)) = 0
   z40 : t.getMem (BitVec.ofNat 64 (CHAIN + 40)) = 0
-  w24 : t.getMem (BitVec.ofNat 64 (CHAIN + 24)) = BitVec.ofNat 64 (hdr1 tree leaf)
+
 
 /-- The registers one chain step changes. -/
 def stepRegs : List Reg := [.x6, .x7, .x10, .x11, .x12, .x20, .x28, .x30]
 
-/-- The doublewords one chain step changes: the header word 0 and the in-place HASH output. -/
-def StepW (A : Nat) : Prop := A = CHAIN + 16 ∨ (CHAIN + 48 ≤ A ∧ A < CHAIN + 80)
+/-- The doublewords one chain step changes: both header words and the in-place HASH output. -/
+def StepW (A : Nat) : Prop := (A = CHAIN + 16 ∨ A = CHAIN + 24) ∨ (CHAIN + 48 ≤ A ∧ A < CHAIN + 80)
 
 theorem ChainCtx.frame {lay tree leaf i : Nat} {t u : MachineState} (h : ChainCtx lay tree leaf i t)
-    {l : List Reg} (hl : Reg.x5 ∉ l ∧ Reg.x8 ∉ l ∧ Reg.x19 ∉ l) (hr : RegsExcept t u l) (hf : Frame t u StepW) :
+    {l : List Reg} (hl : Reg.x5 ∉ l ∧ Reg.x8 ∉ l ∧ Reg.x9 ∉ l ∧ Reg.x18 ∉ l ∧ Reg.x19 ∉ l) (hr : RegsExcept t u l) (hf : Frame t u StepW) :
     ChainCtx lay tree leaf i u where
   x5 := by rw [hr.get hl.1]; exact h.x5
   x8 := by rw [hr.get hl.2.1]; exact h.x8
-  x19 := by rw [hr.get hl.2.2]; exact h.x19
+  x9 := by rw [hr.get hl.2.2.1]; exact h.x9
+  x18 := by rw [hr.get hl.2.2.2.1]; exact h.x18
+  x19 := by rw [hr.get hl.2.2.2.2]; exact h.x19
   z0 := by rw [hf.get (by simp only [CHAIN]; omega) (by unfold StepW; simp only [CHAIN]; omega)]; exact h.z0
   z8 := by rw [hf.get (by simp only [CHAIN]; omega) (by unfold StepW; simp only [CHAIN]; omega)]; exact h.z8
   z32 := by rw [hf.get (by simp only [CHAIN]; omega) (by unfold StepW; simp only [CHAIN]; omega)]; exact h.z32
   z40 := by rw [hf.get (by simp only [CHAIN]; omega) (by unfold StepW; simp only [CHAIN]; omega)]; exact h.z40
-  w24 := by rw [hf.get (by simp only [CHAIN]; omega) (by unfold StepW; simp only [CHAIN]; omega)]; exact h.w24
+
 
 theorem not_mem_of_sub {r : Reg} {l l' : List Reg} (hl : ∀ x ∈ l, x ∈ l') (hr : r ∉ l') : r ∉ l :=
   fun hm => hr (hl r hm)
@@ -72,42 +77,42 @@ section chain
 variable {sk : BitVec 256}
 
 /-- One chain step from `rl_step` (word 1031), `st < e`: the header, the HASH, `step += 1`. -/
-theorem chain_step (lay : Layer) (tree leaf i st e : Nat) (htree : tree < 2 ^ 32) (hst : st < e) (he : e ≤ 7)
-    (hi : 256 * i + 256 ≤ 2 ^ 32) (v : Digest) (t : MachineState) (hpc : t.pc = pcOf 1031)
+theorem chain_step (lay : Layer) (tree leaf i st e : Nat)
+    (hr : tree * 2 ^ T3.height lay + leaf < 2 ^ 31) (hf : leaf < 2 ^ T3.height lay) (hst : st < e) (he : e ≤ 7)
+    (hi : i < 64) (v : Digest) (t : MachineState) (hpc : t.pc = pcOf 1031)
     (hc : ChainCtx lay.val tree leaf i t) (h20 : t.getReg .x20 = BitVec.ofNat 64 st)
     (h21 : t.getReg .x21 = BitVec.ofNat 64 e) (hv : DigAt t (CHAIN + 48) v) :
-    TBSim image sk t 25 (shortHash (chainInput lay tree leaf i st v))
+    TBSim image sk t 45 (shortHash (chainInput lay tree leaf i st v))
       (fun v' u => u.pc = pcOf 1031 ∧ u.getReg .x20 = BitVec.ofNat 64 (st + 1) ∧ u.getReg .x21 = BitVec.ofNat 64 e ∧
         ChainCtx lay.val tree leaf i u ∧ DigAt u (CHAIN + 48) v' ∧ RegsExcept t u stepRegs ∧ Frame t u StepW) := by
   have hlay := lay.isLt
   obtain ⟨t1, s1, p1, r1, f1⟩ := rl1031_spec t hpc st e (by omega) (by omega) h20 h21
   rw [if_neg (by omega)] at p1
-  obtain ⟨t2, s2, p2, m16, a10, a11, a12, r2, f2⟩ := rl1032_spec t1 p1 lay.val i st (by omega) (by omega)
+  obtain ⟨t2, s2, p2, a10, a11, a12, m16, m24, r2, f2⟩ := rl1032_spec t1 p1 lay tree leaf i st hr hf hi (by omega)
     (by rw [r1.get (by simp)]; exact hc.x8) (by rw [r1.get (by simp)]; exact hc.x19)
+    (by rw [r1.get (by simp)]; exact hc.x9) (by rw [r1.get (by simp)]; exact hc.x18)
     (by rw [r1.get (by simp)]; exact h20)
-  have f12 : Frame t t2 (fun A => A = CHAIN + 16) := (f1.trans f2).mono (fun A _ h => by
+  have f12 : Frame t t2 (fun A => A = CHAIN + 16 ∨ A = CHAIN + 24) := (f1.trans f2).mono (fun A _ h => by
     rcases h with h | h; exact h.elim; exact h)
-  have fr : ∀ A, A < 2 ^ 64 → A ≠ CHAIN + 16 → t2.getMem (BitVec.ofNat 64 A) = t.getMem (BitVec.ofNat 64 A) :=
+  have fr : ∀ A, A < 2 ^ 64 → ¬ (A = CHAIN + 16 ∨ A = CHAIN + 24) → t2.getMem (BitVec.ofNat 64 A) = t.getMem (BitVec.ofNat 64 A) :=
     fun A hA hn => f12.get hA hn
   have hq : hashInput t2 = toQ (pad64 (chainInput lay tree leaf i st v)) := by
     refine hashInput_toQ t2 _ 0 CHAIN (by rw [pad64_of_aligned _ (by rw [chainInput_length']), chainInput_length'])
       a10 (by simp only [CHAIN]) (by simp only [CHAIN]; omega) a11 (by norm_num) ?_
     rw [readWords_eight, wordsOf_chainInput', fr _ (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega),
-      fr _ (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega), m16,
+      fr _ (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega), m16, m24,
       fr _ (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega),
       fr _ (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega),
       fr _ (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega),
       fr _ (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega),
-      fr _ (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega),
-      hc.z0, hc.z8, hc.w24, hc.z32, hc.z40, hv.1,
-      show CHAIN + 48 + 8 = CHAIN + 56 from rfl, hv.2, hdr0_eq 1 lay.val tree (st + 256 * i) (by norm_num) (by omega)
-        htree (by omega)]
+      hc.z0, hc.z8, hc.z32, hc.z40, hv.1,
+      show CHAIN + 48 + 8 = CHAIN + 56 from rfl, hv.2]
   have hv2 : hashArgumentsValid t2 = true :=
     hashArgs_const t2 CHAIN 64 (CHAIN + 48) a10 a11 a12 (by simp only [CHAIN]) (by norm_num) (by simp only [CHAIN]; omega)
       (by simp only [CHAIN]) (by simp only [CHAIN]; omega)
   refine (TBSim.steps (s1.trans s2) (tb_shortHash_bind' (W := 2) (fetch_1046 t2 p2)
     (by rw [r2.get (by simp), r1.get (by simp)]; exact hc.x5) hv2 hq (fun a => ?_))).mono
-    (by rw [blocks_chainInput']) (fun _ _ h => h)
+    (by rw [blocks_chainInput']; fin_cases lay <;> norm_num [Keygen.headerK]) (fun _ _ h => h)
   have p3 : (writeHash t2 a).pc = pcOf 1047 := by rw [pc_writeHash, p2, pcOf_add4]
   obtain ⟨u, s4, p4, u20, r4, f4⟩ := rl1047_spec (writeHash t2 a) p3 st
     (by rw [getReg_writeHash, r2.get (by simp), r1.get (by simp)]; exact h20)
@@ -137,22 +142,23 @@ theorem chain_step (lay : Layer) (tree leaf i st e : Nat) (htree : tree < 2 ^ 32
       · exact h.elim)
 
 /-- **The chain loop** (Core's `chain lay tree leaf i d (e - d) v`): from `rl_step` with the step register at `d`, to
-`rl_end` (word 1049) with the last value at `CHAIN + 48`; `25 (e - d) + 1` cycles. -/
-theorem chain_loop (lay : Layer) (tree leaf i d e : Nat) (htree : tree < 2 ^ 32) (hd : d ≤ e) (he : e ≤ 7)
-    (hi : 256 * i + 256 ≤ 2 ^ 32) (v : Digest) (t : MachineState) (hpc : t.pc = pcOf 1031)
+`rl_end` (word 1049) with the last value at `CHAIN + 48`; at most `45 * (e - d) + 1` cycles. -/
+theorem chain_loop (lay : Layer) (tree leaf i d e : Nat)
+    (hr : tree * 2 ^ T3.height lay + leaf < 2 ^ 31) (hf : leaf < 2 ^ T3.height lay) (hd : d ≤ e) (he : e ≤ 7)
+    (hi : i < 64) (v : Digest) (t : MachineState) (hpc : t.pc = pcOf 1031)
     (hc : ChainCtx lay.val tree leaf i t) (h20 : t.getReg .x20 = BitVec.ofNat 64 d)
     (h21 : t.getReg .x21 = BitVec.ofNat 64 e) (hv : DigAt t (CHAIN + 48) v) :
-    TBSim image sk t ((e - d) * 25 + 1) (chain lay tree leaf i d (e - d) v)
+    TBSim image sk t ((e - d) * 45 + 1) (chain lay tree leaf i d (e - d) v)
       (fun v' u => u.pc = pcOf 1049 ∧ u.getReg .x21 = BitVec.ofNat 64 e ∧
         ChainCtx lay.val tree leaf i u ∧ DigAt u (CHAIN + 48) v' ∧ RegsExcept t u stepRegs ∧ Frame t u StepW) := by
   let Inv : Nat → Digest → MachineState → Prop := fun j w u =>
     u.pc = pcOf 1031 ∧ u.getReg .x20 = BitVec.ofNat 64 (d + j) ∧ u.getReg .x21 = BitVec.ofNat 64 e ∧
       ChainCtx lay.val tree leaf i u ∧ DigAt u (CHAIN + 48) w ∧ RegsExcept t u stepRegs ∧ Frame t u StepW
   have hloop := TBSim.foldlM_range' (image := image) (sk := sk) d (e - d)
-    (fun value step => shortHash (chainInput lay tree leaf i step value)) v Inv 25
+    (fun value step => shortHash (chainInput lay tree leaf i step value)) v Inv 45
     (fun j hj w u hu => by
       obtain ⟨p, x20, x21, cc, dv, rr, ff⟩ := hu
-      refine (chain_step lay tree leaf i (d + j) e htree (by omega) he hi w u p cc x20 x21 dv).mono le_rfl ?_
+      refine (chain_step lay tree leaf i (d + j) e hr hf (by omega) he hi w u p cc x20 x21 dv).mono le_rfl ?_
       rintro w' u' ⟨p', y20, y21, cc', dv', rr', ff'⟩
       refine ⟨p', by rw [y20]; congr 1, y21, cc', dv', ?_, ?_⟩
       · exact (rr.trans rr').mono (fun r hr => by
@@ -191,7 +197,8 @@ def endpointExtra (lay : Layer) (i n4 : Nat) : Nat :=
 
 /-- **One chain of `recover_layer`** (`rl_chain` .. back to it): the value `values[i]` (at `P + 16 i`) to the
 chain block and the witness block `W`, Core's `chain` from the digit to `2^w - 1`, the end into its leaf-pk slot. -/
-theorem rl_one (lay : Layer) (tree leaf i d P W n n4 : Nat) (htree : tree < 2 ^ 32) (hi : i < n) (hn : n ≤ 58)
+theorem rl_one (lay : Layer) (tree leaf i d P W n n4 : Nat)
+    (hr : tree * 2 ^ T3.height lay + leaf < 2 ^ 31) (hf : leaf < 2 ^ T3.height lay) (hi : i < n) (hn : n ≤ 58)
     (hn4 : n4 ≤ n) (hP : 0x7000 ≤ P) (hPi : P + 16 * i + 16 ≤ 0x7000 + 5616) (hP8 : P % 8 = 0)
     (hW8 : W % 8 = 0) (hW : 64 ≤ W) (hW' : W + 64 ≤ 0x7000) (hd : d ≤ (endpoint lay i n4))
     (v : Digest) (t : MachineState) (hpc : t.pc = pcOf 1010)
@@ -199,7 +206,7 @@ theorem rl_one (lay : Layer) (tree leaf i d P W n n4 : Nat) (htree : tree < 2 ^ 
     (h27 : t.getReg .x27 = BitVec.ofNat 64 n4) (h16 : t.getReg .x16 = BitVec.ofNat 64 P)
     (h23 : t.getReg .x23 = BitVec.ofNat 64 W) (hv : DigAt t (P + 16 * i) v)
     (hdig : t.getByte (BitVec.ofNat 64 (DIGITS + i)) = BitVec.ofNat 8 d) :
-    TBSim image sk t 211 (chain lay tree leaf i d ((endpoint lay i n4) - d) v)
+    TBSim image sk t 351 (chain lay tree leaf i d ((endpoint lay i n4) - d) v)
       (fun v' u => u.pc = pcOf 1010 ∧ u.getReg .x19 = BitVec.ofNat 64 (i + 1) ∧
         u.getReg .x23 = BitVec.ofNat 64 (W - 64) ∧ ChainCtx lay.val tree leaf (i + 1) u ∧
         DigAt u (LEAFPK + slotOff i) v' ∧ DigAt u (W + 48) v ∧ RegsExcept t u oneRegs ∧ Frame t u (OneW i W)) := by
@@ -259,12 +266,13 @@ theorem rl_one (lay : Layer) (tree leaf i d P W n n4 : Nat) (htree : tree < 2 ^ 
   have hc5 : ChainCtx lay.val tree leaf i t5 :=
     { x5 := by rw [g5 _ (by simp)]; exact hc.x5
       x8 := by rw [g5 _ (by simp)]; exact hc.x8
+      x9 := by rw [g5 _ (by simp)]; exact hc.x9
+      x18 := by rw [g5 _ (by simp)]; exact hc.x18
       x19 := by rw [g5 _ (by simp)]; exact hc.x19
       z0 := by rw [f15.get (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega)]; exact hc.z0
       z8 := by rw [f15.get (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega)]; exact hc.z8
       z32 := by rw [f15.get (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega)]; exact hc.z32
-      z40 := by rw [f15.get (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega)]; exact hc.z40
-      w24 := by rw [f15.get (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega)]; exact hc.w24 }
+      z40 := by rw [f15.get (by simp only [CHAIN]; omega) (by simp only [CHAIN]; omega)]; exact hc.z40 }
   have hv5 : DigAt t5 (CHAIN + 48) v := by
     constructor
     · rw [f5.get (by simp only [CHAIN]; omega) (by simp), f4.get (by simp only [CHAIN]; omega) (by simp),
@@ -272,10 +280,10 @@ theorem rl_one (lay : Layer) (tree leaf i d P W n n4 : Nat) (htree : tree < 2 ^ 
     · rw [f5.get (by simp only [CHAIN]; omega) (by simp), f4.get (by simp only [CHAIN]; omega) (by simp),
         f3.get (by simp only [CHAIN]; omega) (by simp), c56, f1.get (by omega) (by simp)]; exact hv.2
   have x20' : t5.getReg .x20 = BitVec.ofNat 64 d := by rw [r5.get (by simp), r4.get (by simp)]; exact x20
-  have hloop := chain_loop (sk := sk) lay tree leaf i d e htree hd he7 (by omega) v t5 p5 hc5 x20' x21' hv5
+  have hloop := chain_loop (sk := sk) lay tree leaf i d e hr hf hd he7 (by omega) v t5 p5 hc5 x20' x21' hv5
   have hprog : chain lay tree leaf i d (e - d) v = (chain lay tree leaf i d (e - d) v >>= pure) := by rw [bind_pure]
   rw [hprog]
-  have total_cost : (1 + 16 + 1 + 2 + endpointExtra lay i n4) + ((e - d) * 25 + 1 + 14) ≤ 211 := by
+  have total_cost : (1 + 16 + 1 + 2 + endpointExtra lay i n4) + ((e - d) * 45 + 1 + 14) ≤ 351 := by
     rw [he]; unfold endpointExtra endpoint
     split_ifs <;> omega
   refine (TBSim.steps (((((s1.trans s2).trans s3).trans s4).trans s5)) (TBSim.bind (W₂ := 14) hloop
@@ -307,11 +315,13 @@ theorem rl_one (lay : Layer) (tree leaf i d P W n n4 : Nat) (htree : tree < 2 ^ 
   · refine
       { x5 := by rw [ry3.get (by simp), ry2.get (by simp), ry1.get (by simp)]; exact cu.x5
         x8 := by rw [ry3.get (by simp), ry2.get (by simp), ry1.get (by simp)]; exact cu.x8
+        x9 := by rw [ry3.get (by simp), ry2.get (by simp), ry1.get (by simp)]; exact cu.x9
+        x18 := by rw [ry3.get (by simp), ry2.get (by simp), ry1.get (by simp)]; exact cu.x18
         x19 := w19
-        z0 := ?_, z8 := ?_, z32 := ?_, z40 := ?_, w24 := ?_ } <;>
+        z0 := ?_, z8 := ?_, z32 := ?_, z40 := ?_ } <;>
     · rw [fy3.get (by simp only [CHAIN]; omega) (by unfold slotOff; simp only [LEAFPK, CHAIN]; split_ifs <;> omega),
         fy12.get (by simp only [CHAIN]; omega) (by simp)]
-      first | exact cu.z0 | exact cu.z8 | exact cu.z32 | exact cu.z40 | exact cu.w24
+      first | exact cu.z0 | exact cu.z8 | exact cu.z32 | exact cu.z40
   · constructor
     · rw [m0, fy12.get (by simp only [CHAIN]; omega) (by simp)]; exact du.1
     · rw [m8, fy12.get (by simp only [CHAIN]; omega) (by simp)]; exact du.2

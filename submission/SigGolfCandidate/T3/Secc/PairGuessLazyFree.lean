@@ -71,9 +71,19 @@ theorem privateMac_dn (region : Region) : AllQueriesSatisfy (privateMac region) 
 
 theorem chainStep_dn (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
     AllQueriesSatisfy (shortHash (chainInput lay tree leaf i step value)) NotDN := by
-  unfold chainInput
-  rw [zero16_eq]
-  exact shortHash_dn 0 _ _ _ _ _ (by decide)
+  unfold shortHash publicHash
+  apply bind_allowed NotDN
+  · apply (allQueriesSatisfy_query_iff _ _).mpr
+    intro hm
+    obtain ⟨rho, m, ctr, he⟩ := mem_digestInputs.mp hm
+    have hh := congrArg Extract.hdrBlock he
+    rw [chainInput_padded, Extract.hdrBlock_pad64 _ (by rw [digestInput_length]; omega)] at hh
+    change ((chainInput lay tree leaf i step value).drop 16).take 16 = _ at hh
+    rw [chainInput_header] at hh
+    unfold digestInput at hh
+    rw [Extract.hdrBlock_prefix] at hh
+    exact chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ (bytesLE_injective hh)
+  · intro _; exact pure_allowed _ _
 
 theorem chain_dn (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
     AllQueriesSatisfy (chain lay tree leaf i start count value) NotDN := by

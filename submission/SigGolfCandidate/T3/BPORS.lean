@@ -20,6 +20,7 @@ import SigGolfCandidate.SphincsSecurity.Proof.Fts.CachedIndexHashMoments
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalQueryProjection
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.TerminalProposalWord
 import SigGolfCandidate.T3.Proofs
+import SigGolfCandidate.T3.PackedChain
 import Mathlib.RingTheory.Polynomial.Pochhammer
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.HashOutputSplit
 import SigGolfCandidate.SphincsSecurity.Proof.Base.BinomialMoments
@@ -6252,10 +6253,7 @@ theorem row_length (point : Point) (value : Digest) : (row point value).length=6
 
 theorem row_position {left right : Point} {value value' : Digest}
     (heq : row left value=row right value') : left=right := by
-  unfold row chainInput at heq
-  obtain ⟨hprefix,_⟩ := List.append_inj heq (by simp [List.length_append,zero16,bytesLE_length])
-  obtain ⟨hprefix,_⟩ := List.append_inj hprefix (by simp [List.length_append,zero16,bytesLE_length])
-  obtain ⟨_,hheader⟩ := List.append_inj hprefix rfl
+  obtain ⟨hheader,_⟩ := chainInput_fields heq
   have hl := left.1.layer.isLt
   have hr := right.1.layer.isLt
   have hlt := left.1.tree.isLt
@@ -6266,17 +6264,15 @@ theorem row_position {left right : Point} {value value' : Digest}
   have hrc := right.1.chain.isLt
   have hls := left.2.isLt
   have hrs := right.2.isLt
-  have hh := header_injective (by decide : 1<256) (by omega) (by omega) (by omega) (by omega)
-    (by decide : 1<256) (by omega) (by omega) (by omega) (by omega) (bytesLE_injective hheader)
-  obtain ⟨hstep,hchain⟩ := pack_nat_injective (by omega : left.2.val<256)
-    (by omega : right.2.val<256) hh.2.2.2.1
+  have hh := chainHeader_injective (by omega) (by omega) (by omega) (by omega)
+    (by omega) (by omega) (by omega) (by omega) hheader
   apply Prod.ext
-  · apply Address.ext <;> apply Fin.ext
-    · exact hh.2.1
-    · exact hh.2.2.1
-    · exact hh.2.2.2.2
-    · exact hchain
-  · exact Fin.ext hstep
+  · apply Address.ext
+    · exact hh.1
+    · exact Fin.ext hh.2.1
+    · exact Fin.ext hh.2.2.1
+    · exact Fin.ext hh.2.2.2.1
+  · exact Fin.ext hh.2.2.2.2
 
 /-- Honest chain steps at distinct addresses cannot alias, even when their
 secret inputs or oracle outputs happen to coincide. -/

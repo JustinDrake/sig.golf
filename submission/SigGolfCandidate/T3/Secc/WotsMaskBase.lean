@@ -1,4 +1,5 @@
 import SigGolfCandidate.T3.Secc.WotsEvents
+import SigGolfCandidate.T3.PackedChain
 
 /-!
 # F1 (base): the per-address mask `maskAt` and the generic congruence `Mask.Respects`
@@ -195,7 +196,7 @@ theorem chainInput_alias {lay : Layer} {tree leaf : Nat} {L : LeafAddr} (h : Lea
     chainInput lay tree leaf i = chainInput L.lay L.tree L.leaf i := by
   funext step value
   unfold chainInput
-  rw [h.header_eq]
+  rw [chainHeader_congr_old h.1 h.2.1 h.2.2 rfl rfl]
 
 theorem chain_alias {lay : Layer} {tree leaf : Nat} {L : LeafAddr} (h : LeafAlias lay tree leaf L) (i : Nat) :
     chain lay tree leaf i = chain L.lay L.tree L.leaf i := by
@@ -216,7 +217,7 @@ theorem leafSeed_alias (T : Answers) {lay : Layer} {tree leaf : Nat} {L : LeafAd
 
 theorem pad64_chainInput (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
     pad64 (chainInput lay tree leaf i step value) = chainInput lay tree leaf i step value := by
-  rw [chainInput_eq_zero, pad64_chainInputP]
+  simp [chainInput, pad64, bytesLE_length, zero16]
 
 theorem chainRow_eq (a : ChainAddr) (step : Nat) (value : Digest) :
     chainRow a step value = chainInput a.key.lay a.key.tree a.key.leaf a.chain step value := rfl
@@ -224,10 +225,8 @@ theorem chainRow_eq (a : ChainAddr) (step : Nat) (value : Digest) :
 /-- Two canonical rows of one address with steps below 256 are equal only for equal step and value. -/
 theorem chainRow_inj {a : ChainAddr} {s s' : Nat} {v v' : Digest} (hs : s < 256) (hs' : s' < 256)
     (h : chainRow a s v = chainRow a s' v') : s = s' ∧ v = v' := by
-  rw [chainRow_eq, chainRow_eq, chainInput_eq_zero, chainInput_eq_zero] at h
-  obtain ⟨-, hh, -, hv⟩ := chainInputP_fields h
-  have hp := (header_fields hh).2.2.2.1
-  simp only [Nat.reducePow] at hp
+  obtain ⟨hh, hv⟩ := chainInput_fields h
+  have hp := (chainHeader_fields hh).2.2.2.2
   exact ⟨by omega, hv⟩
 
 /-- A Core chain query equal to a canonical row of `a` is a row of an alias of `a` at the same step. -/
@@ -235,19 +234,9 @@ theorem chainInput_eq_chainRow {lay : Layer} {tree leaf i s s' : Nat} {v v' : Di
     (hi : i < 2 ^ 24) (hc : a.chain < 2 ^ 24) (hs : s < 256) (hs' : s' < 256)
     (h : chainInput lay tree leaf i s v = chainRow a s' v') :
     LeafAlias lay tree leaf a.key ∧ i = a.chain ∧ s = s' ∧ v = v' := by
-  rw [chainRow_eq, chainInput_eq_zero, chainInput_eq_zero] at h
-  obtain ⟨-, hh, -, hv⟩ := chainInputP_fields h
-  obtain ⟨-, hl, ht, hp, hx⟩ := header_fields hh
-  have hl' : lay = a.key.lay := by
-    apply Fin.ext
-    rw [Nat.mod_eq_of_lt (lt_trans lay.isLt (by decide)),
-      Nat.mod_eq_of_lt (lt_trans a.key.lay.isLt (by decide))] at hl
-    exact hl
-  simp only [Nat.reducePow] at hp hi hc
-  have hp1 : s + 256 * i < 4294967296 := by omega
-  have hp2 : s' + 256 * a.chain < 4294967296 := by omega
-  rw [Nat.mod_eq_of_lt hp1, Nat.mod_eq_of_lt hp2] at hp
-  exact ⟨⟨hl', ht, hx⟩, by omega, by omega, hv⟩
+  obtain ⟨hh, hv⟩ := chainInput_fields h
+  obtain ⟨hl, ht, hf, hi', hs''⟩ := chainHeader_fields hh
+  exact ⟨⟨hl, ht, hf⟩, by omega, by omega, hv⟩
 
 /-- A seed coordinate equal to `a`'s belongs to an alias of `a`'s leaf, at `a`'s chain pair. -/
 theorem seedTweak_alias {lay : Layer} {tree leaf i : Nat} {a : ChainAddr} (hi : i < 2 ^ 24) (hc : a.chain < 2 ^ 24)
@@ -419,14 +408,15 @@ theorem queried_maskAt_of_respects (answers : Answers) (a : ChainAddr) {α : Typ
 /-! ## Untouched honest queries (tags other than 1 / 0) -/
 
 theorem untouched_of_hdr (a : ChainAddr) (input : HashInput) (h : BitVec 128)
-    (hblock : Extract.hdrBlock input = bytesLE 16 h) (htag : ∀ l tr p ix, h ≠ header 1 l tr p ix) :
+    (hblock : Extract.hdrBlock input = bytesLE 16 h)
+    (htag : ∀ (l : Layer) tr leaf i step, h ≠ chainHeader l tr leaf i step) :
     Untouched a (.inl (.inr input)) := by
   intro step value _ heq
   have hb : Extract.hdrBlock (chainRow a step value) =
-      bytesLE 16 (header 1 a.key.lay.val a.key.tree (step + 256 * a.chain) a.key.leaf) := by
-    rw [chainRow_eq, ← pad64_chainInput, chainInput_eq_zero, Extract.hdrBlock_chainInputP]
+      bytesLE 16 (chainHeader a.key.lay a.key.tree a.key.leaf a.chain step) :=
+    chainInput_header _ _ _ _ _ _
   rw [heq, hb] at hblock
-  exact htag _ _ _ _ (bytesLE_injective hblock).symm
+  exact htag _ _ _ _ _ (bytesLE_injective hblock).symm
 
 theorem tag_ne_one {t : Nat} (ht : t % 256 ≠ 1) (l tr p ix : Nat) :
     ∀ l' tr' p' ix', header t l tr p ix ≠ header 1 l' tr' p' ix' := fun _ _ _ _ =>
@@ -434,12 +424,14 @@ theorem tag_ne_one {t : Nat} (ht : t % 256 ≠ 1) (l tr p ix : Nat) :
 
 theorem untouched_block4 (a : ChainAddr) (x y z : Digest) {t : Nat} (ht : t % 256 ≠ 1) (l tr p ix : Nat) :
     Untouched a (.inl (.inr (block4 x (header t l tr p ix) y z))) :=
-  untouched_of_hdr a _ _ (Extract.hdrBlock_block4 x _ y z) (tag_ne_one ht l tr p ix)
+  untouched_of_hdr a _ _ (Extract.hdrBlock_block4 x _ y z)
+    (fun _ _ _ _ _ => Ne.symm (chainHeader_ne_header _ _ _ _ _ _ _ _ _ _))
 
 theorem untouched_prefixed (a : ChainAddr) (x : Digest) (rest : HashInput) {t : Nat} (ht : t % 256 ≠ 1)
     (l tr p ix : Nat) :
     Untouched a (.inl (.inr (pad64 (bytesLE 16 x ++ bytesLE 16 (header t l tr p ix) ++ rest)))) := by
-  apply untouched_of_hdr a _ _ _ (tag_ne_one ht l tr p ix)
+  apply untouched_of_hdr a _ (header t l tr p ix) _
+    (fun _ _ _ _ _ => Ne.symm (chainHeader_ne_header _ _ _ _ _ _ _ _ _ _))
   rw [Extract.hdrBlock_pad64 _ (by simp only [List.length_append, bytesLE_length]; omega), Extract.hdrBlock_prefix]
 
 theorem untouched_privatePair (a : ChainAddr) {t : Nat} (ht : t % 256 ≠ 0) (l tr p ix : Nat) :

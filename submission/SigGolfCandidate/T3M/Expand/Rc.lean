@@ -118,7 +118,7 @@ structure RcCtx (c index g0 g1 g2 : Nat) (values : List Digest) (proof : Fin 115
 def RcW (sp level : Nat) (A : Nat) : Prop :=
   (sp - 48 * (level + 1) ≤ A ∧ A < sp) ∨ A = NODE ∨ A = NODE + 8 ∨ A = NODE + 16 ∨ A = NODE + 24 ∨
     A = NODE + 48 ∨ A = NODE + 56 ∨ (NOUT ≤ A ∧ A < NOUT + 32) ∨ A = FLEAF + 16 ∨ A = FLEAF + 24 ∨
-    A = FLEAF + 32 ∨ A = FLEAF + 40 ∨ (0xC40 ≤ A ∧ A < 0xC40 + 8 * 1275)
+    A = FLEAF + 32 ∨ A = FLEAF + 40 ∨ (0xC40 ≤ A ∧ A < 0xC40 + 8 * 1185)
 
 /-- The registers `recover_child` changes. -/
 def rcRegs : List Reg :=
@@ -179,9 +179,9 @@ structure RcPre (s : MachineState) (level node used : Nat) (e : Em) (fresh : Boo
   hfresh : fresh = true ↔ ∀ g ∈ [g0, g1, g2], node * 2 ^ level ≤ g
   hcur : fresh = true → e.cur = []
   hcnt : e.cur.length ≤ 11
-  hpar : e.par < 8
+  hpar : e.par < 2
   stream : StreamAt s e
-  room : (img (rcEm [g0, g1, g2] (pfN proof) level node used e)).length ≤ 1275
+  room : (img (rcEm [g0, g1, g2] (pfN proof) level node used e)).length ≤ 1185
   hsp : 0x22000 - 512 + 48 * (level + 1) ≤ sp
   hsp' : sp ≤ 0x22000
   hsp8 : sp % 8 = 0
@@ -205,7 +205,7 @@ def RcPost (s : MachineState) (level node used : Nat) (e : Em) (fresh : Bool) (r
         t.getReg .x22 = BitVec.ofNat 64 (0xC40 + 8 * wl e') ∧
         (fresh' = false → t.getReg .x23 = BitVec.ofNat 64 e'.cur.length ∧ t.getReg .x24 = BitVec.ofNat 64 e'.par) ∧
         (fresh' = true → e'.cur = []) ∧
-        (hasLeaf [g0, g1, g2] level node = true → e'.cur.length ≤ level) ∧ e'.cur.length ≤ 11 ∧ e'.par < 8 ∧
+        (hasLeaf [g0, g1, g2] level node = true → e'.cur.length ≤ level) ∧ e'.cur.length ≤ 11 ∧ e'.par < 2 ∧
         StreamAt t e' ∧ RegsExcept s t rcRegs ∧ Frame s t (RcW sp level) ∧ RcCtx c index g0 g1 g2 values proof t
 
 end rec
@@ -213,7 +213,7 @@ end rec
 /-! ## Frames -/
 
 theorem StreamAt.frame {s t : MachineState} {e : Em} {W : Nat → Prop} (h : StreamAt s e) (hf : Frame s t W)
-    (hW : ∀ k < 1275, ¬ W (0xC40 + 8 * k)) : StreamAt t e := fun k hk => by
+    (hW : ∀ k < 1185, ¬ W (0xC40 + 8 * k)) : StreamAt t e := fun k hk => by
   rw [hf.get (by omega) (hW k hk)]; exact h k hk
 
 theorem RcCtx.frame {c index g0 g1 g2 : Nat} {values : List Digest} {proof : Fin 115 → Digest} {s t : MachineState}
@@ -245,7 +245,7 @@ theorem not_RcW_static {sp level A : Nat} (hsp : 0x22000 - 512 + 48 * (level + 1
   omega
 
 theorem not_RcW_stream {sp level k : Nat} (hsp : 0x22000 - 512 + 48 * (level + 1) ≤ sp) (hsp' : sp ≤ 0x22000)
-    (hk : k < 1275) (W : Nat → Prop) (hW : W = fun A => (sp - 48 * (level + 1) ≤ A ∧ A < sp) ∨ (NOUT ≤ A ∧ A < NOUT + 32)) :
+    (hk : k < 1185) (W : Nat → Prop) (hW : W = fun A => (sp - 48 * (level + 1) ≤ A ∧ A < sp) ∨ (NOUT ≤ A ∧ A < NOUT + 32)) :
     ¬ W (0xC40 + 8 * k) := by
   subst hW; simp only [NOUT]; omega
 

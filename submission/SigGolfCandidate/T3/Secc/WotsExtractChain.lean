@@ -26,7 +26,7 @@ open SigGolfCandidate.T3.Security.Wots
 open SigGolfCandidate.T3.Correctness (Answers leafSeed)
 open SphincsSecurity (bytesLE)
 set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
+
 set_option backward.isDefEq.respectTransparency false
 
 /-! ## Traces of query lists -/
@@ -164,94 +164,102 @@ hit is the **joining step**: every later step is the honest canonical row (zero 
 after the hit is honest. In particular a padded path (nonzero pads, hashed unchanged at every step) can only join at
 its last step: `step + 1 < count → pads = 0`. -/
 theorem chainP_join (answers : Answers) (lay : Layer) (tree leaf i start count : Nat)
-    (pad0 pad1 value seed : Digest)
-    (reaches : evalWithAnswerFn answers (chainP lay tree leaf i start count pad0 pad1 value) =
+    (pad0 pad1 : Digest) (headerPad : BitVec 64) (value seed : Digest)
+    (ht : tree < 2^31) (hl : leaf < 4096) (hi : i < 64)
+    (hsteps : count = 0 ∨ start + count ≤ 8)
+    (reaches : evalWithAnswerFn answers (chainP lay tree leaf i start count pad0 pad1 headerPad value) =
       honestChainValue answers lay tree leaf i seed (start + count)) :
-    (value = honestChainValue answers lay tree leaf i seed start ∧ (0 < count → pad0 = 0 ∧ pad1 = 0) ∧
-      ∀ s, s ≤ count → pathValue answers (chainPathInput lay tree leaf i start pad0 pad1) value s =
+    (value = honestChainValue answers lay tree leaf i seed start ∧ (0 < count → pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0) ∧
+      ∀ s, s ≤ count → pathValue answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value s =
         honestChainValue answers lay tree leaf i seed (start + s)) ∨
     ∃ step, step < count ∧
-      .inl (.inr (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1) value step))) ∈
-        queried answers (chainP lay tree leaf i start count pad0 pad1 value) ∧
+      .inl (.inr (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value step))) ∈
+        queried answers (chainP lay tree leaf i start count pad0 pad1 headerPad value) ∧
       HashHit answers
         (pad64 (chainInput lay tree leaf i (start + step)
           (honestChainValue answers lay tree leaf i seed (start + step))))
-        (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1) value step)) ∧
-      (step + 1 < count → pad0 = 0 ∧ pad1 = 0) ∧
+        (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value step)) ∧
+      (step + 1 < count → pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0) ∧
       (∀ later, step < later → later < count →
-        pathInput answers (chainPathInput lay tree leaf i start pad0 pad1) value later =
+        pathInput answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value later =
           chainInput lay tree leaf i (start + later)
             (honestChainValue answers lay tree leaf i seed (start + later))) ∧
-      ∀ s, step < s → s ≤ count → pathValue answers (chainPathInput lay tree leaf i start pad0 pad1) value s =
+      ∀ s, step < s → s ≤ count → pathValue answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value s =
         honestChainValue answers lay tree leaf i seed (start + s) := by
   rw [chainP_eq_hashPath] at reaches ⊢
-  have h := hashPath_join answers (chainPathInput lay tree leaf i start pad0 pad1)
+  have h := hashPath_join answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad)
     (fun step => chainInput lay tree leaf i (start + step)
       (honestChainValue answers lay tree leaf i seed (start + step)))
     (fun step => honestChainValue answers lay tree leaf i seed (start + step))
-    (fun _ => pad0 = 0 ∧ pad1 = 0) value count
+    (fun _ => pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0) value count
     (fun step _ => by simpa only [Nat.add_assoc] using
       honestChainValue_succ answers lay tree leaf i seed (start + step))
-    (fun step _ current heq => by
-      simp only [chainPathInput, chainInput_eq_zero, pad64_chainInputP] at heq
+    (fun step hstep current heq => by
+      have hs : start + step < 8 := by rcases hsteps with hz | hb <;> omega
+      simp only [chainPathInput, chainInput_eq_zero _ _ _ _ _ _ ht hl hi hs, pad64_chainInputP] at heq
+      have hhp := chainInputP_headerPad_eq heq
       obtain ⟨hp0, _, hp1, hv⟩ := chainInputP_fields heq
-      exact ⟨hv, hp0, hp1⟩) reaches
+      exact ⟨hv, hp0, hp1, hhp⟩) reaches
   rcases h with ⟨hvalue, hpads, hvals⟩ | ⟨step, hstep, hq, hhit, hlater, hvals⟩
   · exact Or.inl ⟨by simpa using hvalue, fun hcount => (hpads 0 hcount).1, hvals⟩
   · refine Or.inr ⟨step, hstep, hq, hhit, fun h => (hlater (step + 1) (by omega) h).1, ?_, hvals⟩
     intro later h1 h2
     have he := (hlater later h1 h2).2
-    simp only [pathInput, chainPathInput, chainInput_eq_zero, pad64_chainInputP] at he ⊢
+    simp only [pathInput, chainPathInput, chainInput_padded, pad64_chainInputP] at he ⊢
     exact he
 
 /-- **Per-chain classification against a frontier `W`** (`start < W ≤ start + count`): an "other"-class hit
 (a padded row, or a hit at an absolute step `≥ W`), or zero pads and the honest value at `W`. -/
 theorem chainP_frontier (answers : Answers) (lay : Layer) (tree leaf i start count : Nat)
-    (pad0 pad1 value seed : Digest)
-    (reaches : evalWithAnswerFn answers (chainP lay tree leaf i start count pad0 pad1 value) =
+    (pad0 pad1 : Digest) (headerPad : BitVec 64) (value seed : Digest)
+    (ht : tree < 2^31) (hl : leaf < 4096) (hi : i < 64)
+    (hsteps : count = 0 ∨ start + count ≤ 8)
+    (reaches : evalWithAnswerFn answers (chainP lay tree leaf i start count pad0 pad1 headerPad value) =
       honestChainValue answers lay tree leaf i seed (start + count))
     (W : Nat) (hW : start < W) (hWc : W ≤ start + count) :
     (∃ step, step < count ∧
-      .inl (.inr (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1) value step))) ∈
-        queried answers (chainP lay tree leaf i start count pad0 pad1 value) ∧
+      .inl (.inr (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value step))) ∈
+        queried answers (chainP lay tree leaf i start count pad0 pad1 headerPad value) ∧
       HashHit answers
         (pad64 (chainInput lay tree leaf i (start + step)
           (honestChainValue answers lay tree leaf i seed (start + step))))
-        (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1) value step)) ∧
-      (¬(pad0 = 0 ∧ pad1 = 0) ∨ W ≤ start + step)) ∨
-    (pad0 = 0 ∧ pad1 = 0 ∧
-      pathValue answers (chainPathInput lay tree leaf i start pad0 pad1) value (W - start) =
+        (pad64 (pathInput answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value step)) ∧
+      (¬(pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0) ∨ W ≤ start + step)) ∨
+    (pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0 ∧
+      pathValue answers (chainPathInput lay tree leaf i start pad0 pad1 headerPad) value (W - start) =
         honestChainValue answers lay tree leaf i seed W) := by
-  rcases chainP_join answers lay tree leaf i start count pad0 pad1 value seed reaches with
+  rcases chainP_join answers lay tree leaf i start count pad0 pad1 headerPad value seed ht hl hi hsteps reaches with
     ⟨_, hpads, hvals⟩ | ⟨step, hstep, hq, hhit, _, _, hvals⟩
-  · obtain ⟨h0, h1⟩ := hpads (by omega)
-    refine Or.inr ⟨h0, h1, ?_⟩
+  · obtain ⟨h0, h1, hh⟩ := hpads (by omega)
+    refine Or.inr ⟨h0, h1, hh, ?_⟩
     rw [hvals (W - start) (by omega), Nat.add_sub_cancel' (le_of_lt hW)]
-  · by_cases hp : pad0 = 0 ∧ pad1 = 0
+  · by_cases hp : pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0
     · by_cases hs : W ≤ start + step
       · exact Or.inl ⟨step, hstep, hq, hhit, Or.inr hs⟩
-      · refine Or.inr ⟨hp.1, hp.2, ?_⟩
+      · refine Or.inr ⟨hp.1, hp.2.1, hp.2.2, ?_⟩
         rw [hvals (W - start) (by omega) (by omega), Nat.add_sub_cancel' (le_of_lt hW)]
     · exact Or.inl ⟨step, hstep, hq, hhit, Or.inl hp⟩
 
 /-- With zero pads, step `s` of the chain path queries the canonical row at absolute step `start + s` on the current
 value; its low answer is the next value. -/
 theorem chainP_row (answers : Answers) (a : ChainAddr) (start count : Nat) (value : Digest) (s : Nat)
-    (hs : s < count) :
+    (ht : a.key.tree < 2^31) (hl : a.key.leaf < 4096) (hi : a.chain < 64)
+    (hsteps : start + count ≤ 8) (hs : s < count) :
     (.inl (.inr (chainRow a (start + s)
-        (pathValue answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0) value s))) :
+        (pathValue answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0 0) value s))) :
         Spec.Domain) ∈
-      queried answers (chainP a.key.lay a.key.tree a.key.leaf a.chain start count 0 0 value) ∧
+      queried answers (chainP a.key.lay a.key.tree a.key.leaf a.chain start count 0 0 0 value) ∧
     low (answers (.inl (.inr (chainRow a (start + s)
-        (pathValue answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0) value s))))) =
-      pathValue answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0) value (s + 1) := by
-  have hrow : pad64 (pathInput answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0) value s) =
+        (pathValue answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0 0) value s))))) =
+      pathValue answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0 0) value (s + 1) := by
+  have hrow : pad64 (pathInput answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0 0) value s) =
       chainRow a (start + s)
-        (pathValue answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0) value s) := by
-    simp only [pathInput, chainPathInput, pad64_chainInputP, chainRow, chainInput_eq_zero]
+        (pathValue answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0 0) value s) := by
+    simp only [pathInput, chainPathInput, pad64_chainInputP, chainRow]
+    exact (chainInput_eq_zero a.key.lay a.key.tree a.key.leaf a.chain (start + s) _ ht hl hi (by omega)).symm
   constructor
   · rw [chainP_eq_hashPath, ← hrow]
-    exact pathInput_queried answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0) value count s hs
+    exact pathInput_queried answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0 0) value count s hs
   · rw [pathValue_succ, eval_shortHash, hrow]
     rfl
 
@@ -259,19 +267,21 @@ theorem chainP_row (answers : Answers) (a : ChainAddr) (start count : Nat) (valu
 zero-pad chain whose value at `W` is `out`. -/
 theorem chain_seen (answers : Answers) (a : ChainAddr) (start count : Nat) (value out : Digest)
     (qs : List Spec.Domain)
-    (hsub : ∀ q ∈ queried answers (chainP a.key.lay a.key.tree a.key.leaf a.chain start count 0 0 value), q ∈ qs)
+    (ht : a.key.tree < 2^31) (hl : a.key.leaf < 4096) (hi : a.chain < 64)
+    (hsteps : start + count ≤ 8)
+    (hsub : ∀ q ∈ queried answers (chainP a.key.lay a.key.tree a.key.leaf a.chain start count 0 0 0 value), q ∈ qs)
     (W : Nat) (hW : start < W) (hWc : W ≤ start + count)
-    (hval : pathValue answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0) value (W - start) = out) :
+    (hval : pathValue answers (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start 0 0 0) value (W - start) = out) :
     (∃ x, SeenRow (entriesOf answers qs) a (W - 1) x out) ∧
       (start + 2 ≤ W → ∃ y x, SeenRow (entriesOf answers qs) a (W - 2) y x ∧
         SeenRow (entriesOf answers qs) a (W - 1) x out) := by
-  have hlast := chainP_row answers a start count value (W - 1 - start) (by omega)
+  have hlast := chainP_row answers a start count value (W - 1 - start) ht hl hi hsteps (by omega)
   have hstep1 : start + (W - 1 - start) = W - 1 := by omega
   have hsucc1 : W - 1 - start + 1 = W - start := by omega
   rw [hstep1, hsucc1, hval] at hlast
   have hcontact := seenRow_of_mem (hsub _ hlast.1) hlast.2
   refine ⟨⟨_, hcontact⟩, fun h2 => ?_⟩
-  have hprev := chainP_row answers a start count value (W - 2 - start) (by omega)
+  have hprev := chainP_row answers a start count value (W - 2 - start) ht hl hi hsteps (by omega)
   have hstep2 : start + (W - 2 - start) = W - 2 := by omega
   have hsucc2 : W - 2 - start + 1 = W - 1 - start := by omega
   rw [hstep2, hsucc2] at hprev
@@ -327,7 +337,8 @@ theorem structuralHit_intro {answers : Answers} {qs : List Spec.Domain} (pos : E
     (hsame : Extract.SameHeader actual (Extract.honestInput answers pos))
     (hclass : StructuralClass answers actual pos) : StructuralHitSrc answers (entriesOf answers qs) :=
   ⟨pos, actual, _, mem_entriesOf hq,
-    Extract.posOf_eq hb (by rw [hsame, Extract.hdrBlock_honestInput]), hb, hsrc, hclass, hhit⟩
+    Extract.posOf_key_eq hb (by rw [hsame, Extract.hdrBlock_honestInput, Extract.Pos.canonicalHeader_eq hb]),
+    hb, hsrc, hclass, hhit⟩
 
 theorem height_le' (lay : Layer) : height lay ≤ 12 := by fin_cases lay <;> decide
 theorem chainCount_le' (lay : Layer) : chainCount lay ≤ 58 := by fin_cases lay <;> decide
@@ -346,25 +357,28 @@ theorem chain_bounded {a : ChainAddr} {step : Nat} (hsrc : SourceChain a)
 /-- A chain hit on a padded row, or on a canonical row at or above the frontier, is a (source-sized)
 `StructuralHit`. -/
 theorem structuralHit_chain {answers : Answers} {qs : List Spec.Domain} (a : ChainAddr) (step : Nat)
-    (pad0 pad1 v : Digest)
-    (hq : (.inl (.inr (chainInputP a.key.lay a.key.tree a.key.leaf a.chain step pad0 pad1 v)) : Spec.Domain) ∈ qs)
+    (pad0 pad1 : Digest) (headerPad : BitVec 64) (v : Digest)
+    (hq : (.inl (.inr (chainInputP a.key.lay a.key.tree a.key.leaf a.chain step pad0 pad1 headerPad v)) : Spec.Domain) ∈ qs)
     (hsrc : SourceChain a) (hstep : step + 1 < 2 ^ width a.key.lay a.chain)
     (hhit : HashHit answers (Extract.honestInput answers (.chain a.key.lay a.key.tree a.key.leaf a.chain step))
-      (chainInputP a.key.lay a.key.tree a.key.leaf a.chain step pad0 pad1 v))
-    (hclass : ¬(pad0 = 0 ∧ pad1 = 0) ∨ depth answers a ≤ step) : StructuralHitSrc answers (entriesOf answers qs) := by
+      (chainInputP a.key.lay a.key.tree a.key.leaf a.chain step pad0 pad1 headerPad v))
+    (hclass : ¬(pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0) ∨ depth answers a ≤ step) : StructuralHitSrc answers (entriesOf answers qs) := by
   have hb := chain_bounded hsrc hstep
-  have hhdr : Extract.hdrBlock (chainInputP a.key.lay a.key.tree a.key.leaf a.chain step pad0 pad1 v) =
+  have hhdr : Extract.canonicalHeader (Extract.hdrBlock
+      (chainInputP a.key.lay a.key.tree a.key.leaf a.chain step pad0 pad1 headerPad v)) =
       bytesLE 16 (Extract.Pos.chain a.key.lay a.key.tree a.key.leaf a.chain step).hdr := by
-    rw [← pad64_chainInputP, Extract.hdrBlock_chainInputP]
-    rfl
-  have hpos := Extract.posOf_eq (p := .chain a.key.lay a.key.tree a.key.leaf a.chain step) hb hhdr
+    rw [← pad64_chainInputP, Extract.hdrBlock_chainInputP, Extract.canonicalHeader_chainHeaderP]
+    exact Extract.Pos.canonicalHeader_eq
+      (p := .chain a.key.lay a.key.tree a.key.leaf a.chain step) hb
+  have hpos := Extract.posOf_key_eq (p := .chain a.key.lay a.key.tree a.key.leaf a.chain step) hb hhdr
   refine ⟨_, _, _, mem_entriesOf hq, hpos, hb, ⟨hsrc.1.1, hsrc.1.2, hsrc.2, hstep⟩, ?_, hhit⟩
   refine otherChainRow_intro hpos ?_
   rcases hclass with hpad | hdepth
   · refine Or.inl fun value he => hpad ?_
-    rw [chainRow, chainInput_eq_zero] at he
+    rw [chainRow, chainInput_eq_zero _ _ _ _ _ _ hb.1 hb.2.1 hb.2.2.1 hb.2.2.2] at he
+    have hh := chainInputP_headerPad_eq he
     obtain ⟨h0, _, h1, _⟩ := chainInputP_fields he
-    exact ⟨h0, h1⟩
+    exact ⟨h0, h1, hh⟩
   · exact Or.inr hdepth
 
 /-! ## One chain against its frontier -/
@@ -373,20 +387,21 @@ theorem structuralHit_chain {answers : Answers} {qs : List Spec.Domain} (a : Cha
 from `start` (`start + count < 2^width`), reaching the honest chain end, among the queries `qs`: a source-sized
 `StructuralHit` of `qs`, or (frontier at or below `start` ⇒ honest value at `start`, zero pads if it hashes a step)
 and (frontier above `start` ⇒ `ContactAt a` ∧ (`start + 2 ≤ depth` ⇒ `TwoEdgeAt a`)). -/
-theorem chain_cases (answers : Answers) (a : ChainAddr) (start count : Nat) (pad0 pad1 value : Digest)
+theorem chain_cases (answers : Answers) (a : ChainAddr) (start count : Nat)
+    (pad0 pad1 : Digest) (headerPad : BitVec 64) (value : Digest)
     (qs : List Spec.Domain)
-    (hsub : ∀ q ∈ queried answers (chainP a.key.lay a.key.tree a.key.leaf a.chain start count pad0 pad1 value),
+    (hsub : ∀ q ∈ queried answers (chainP a.key.lay a.key.tree a.key.leaf a.chain start count pad0 pad1 headerPad value),
       q ∈ qs)
     (hsrc : SourceChain a) (hcount : start + count < 2 ^ width a.key.lay a.chain)
     (hdepth : depth answers a ≤ start + count)
-    (reaches : evalWithAnswerFn answers (chainP a.key.lay a.key.tree a.key.leaf a.chain start count pad0 pad1 value) =
+    (reaches : evalWithAnswerFn answers (chainP a.key.lay a.key.tree a.key.leaf a.chain start count pad0 pad1 headerPad value) =
       honestChainValue answers a.key.lay a.key.tree a.key.leaf a.chain
         (leafSeed answers a.key.lay a.key.tree a.key.leaf a.chain) (start + count)) :
     StructuralHitSrc answers (entriesOf answers qs) ∨
       ((depth answers a ≤ start →
           value = honestChainValue answers a.key.lay a.key.tree a.key.leaf a.chain
             (leafSeed answers a.key.lay a.key.tree a.key.leaf a.chain) start ∧
-          (0 < count → pad0 = 0 ∧ pad1 = 0)) ∧
+          (0 < count → pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0)) ∧
         (start < depth answers a →
           ContactAt answers (entriesOf answers qs) a ∧
             (start + 2 ≤ depth answers a → TwoEdgeAt answers (entriesOf answers qs) a))) := by
@@ -394,35 +409,43 @@ theorem chain_cases (answers : Answers) (a : ChainAddr) (start count : Nat) (pad
   by_cases hS : StructuralHitSrc answers (entriesOf answers qs)
   · exact Or.inl hS
   right
+  have ht := hsrc.1.1
+  have hh : 2 ^ height a.key.lay ≤ 2 ^ 12 := Nat.pow_le_pow_right (by decide) (height_le' a.key.lay)
+  have hl : a.key.leaf < 4096 := lt_of_lt_of_le hsrc.1.2 hh
+  have hi : a.chain < 64 := lt_of_lt_of_le hsrc.2 (by have := chainCount_le' a.key.lay; omega)
+  have hc8 : start + count ≤ 8 := by
+    have hw : 2 ^ width a.key.lay a.chain ≤ 2 ^ 3 :=
+      Nat.pow_le_pow_right (by decide) (width_le' a.key.lay a.chain)
+    omega
   have hit : ∀ step, step < count →
       .inl (.inr (pad64 (pathInput answers
-        (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start pad0 pad1) value step))) ∈
-        queried answers (chainP a.key.lay a.key.tree a.key.leaf a.chain start count pad0 pad1 value) →
+        (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start pad0 pad1 headerPad) value step))) ∈
+        queried answers (chainP a.key.lay a.key.tree a.key.leaf a.chain start count pad0 pad1 headerPad value) →
       HashHit answers
         (pad64 (chainInput a.key.lay a.key.tree a.key.leaf a.chain (start + step)
           (honestChainValue answers a.key.lay a.key.tree a.key.leaf a.chain
             (leafSeed answers a.key.lay a.key.tree a.key.leaf a.chain) (start + step))))
         (pad64 (pathInput answers
-          (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start pad0 pad1) value step)) →
-      (¬(pad0 = 0 ∧ pad1 = 0) ∨ depth answers a ≤ start + step) → False := by
+          (chainPathInput a.key.lay a.key.tree a.key.leaf a.chain start pad0 pad1 headerPad) value step)) →
+      (¬(pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0) ∨ depth answers a ≤ start + step) → False := by
     intro step hstep hq hhit hclass
     apply hS
     simp only [pathInput, chainPathInput, pad64_chainInputP] at hq hhit
-    exact structuralHit_chain a (start + step) pad0 pad1 _ (hsub _ hq) hsrc (by omega) hhit hclass
+    exact structuralHit_chain a (start + step) pad0 pad1 headerPad _ (hsub _ hq) hsrc (by omega) hhit hclass
   constructor
   · intro hle
-    rcases chainP_extract answers a.key.lay a.key.tree a.key.leaf a.chain start count pad0 pad1 value
-        (leafSeed answers a.key.lay a.key.tree a.key.leaf a.chain) reaches with
+    rcases chainP_extract answers a.key.lay a.key.tree a.key.leaf a.chain start count pad0 pad1 headerPad value
+        (leafSeed answers a.key.lay a.key.tree a.key.leaf a.chain) ht hl hi (Or.inr hc8) reaches with
       ⟨hval, hpads⟩ | ⟨step, hstep, hq, hhit⟩
     · exact ⟨hval, hpads⟩
     · exact (hit step hstep hq hhit (Or.inr (by omega))).elim
   · intro hlt
-    rcases chainP_frontier answers a.key.lay a.key.tree a.key.leaf a.chain start count pad0 pad1 value
-        (leafSeed answers a.key.lay a.key.tree a.key.leaf a.chain) reaches (depth answers a) hlt hdepth with
-      ⟨step, hstep, hq, hhit, hclass⟩ | ⟨h0, h1, hval⟩
+    rcases chainP_frontier answers a.key.lay a.key.tree a.key.leaf a.chain start count pad0 pad1 headerPad value
+        (leafSeed answers a.key.lay a.key.tree a.key.leaf a.chain) ht hl hi (Or.inr hc8) reaches (depth answers a) hlt hdepth with
+      ⟨step, hstep, hq, hhit, hclass⟩ | ⟨h0, h1, hh, hval⟩
     · exact (hit step hstep hq hhit hclass).elim
-    · subst h0 h1
-      obtain ⟨⟨x, hx⟩, htwo⟩ := chain_seen answers a start count value _ qs hsub (depth answers a) hlt hdepth hval
+    · subst h0 h1 hh
+      obtain ⟨⟨x, hx⟩, htwo⟩ := chain_seen answers a start count value _ qs ht hl hi hc8 hsub (depth answers a) hlt hdepth hval
       exact ⟨⟨by omega, x, hx⟩, fun h2 => ⟨by omega, htwo h2⟩⟩
 
 end SigGolfCandidate.T3.Security.WotsExtract

@@ -31,15 +31,23 @@ def ftsLeafP (index coord leaf : Nat) (pad0 secret pad1 : Digest) : M Digest :=
 def nodeHashP (tag lay tree heap : Nat) (left pad right : Digest) : M Digest :=
   shortHash (bytesLE 16 left ++ bytesLE 16 (header tag lay tree 0 heap) ++ bytesLE 16 pad ++ bytesLE 16 right)
 
-/-- Chain step input `[pad0 | header 1 | pad1 | value]` (Core's `chainInput` has zero pads). -/
-def chainInputP (lay : Layer) (tree leaf i step : Nat) (pad0 pad1 value : Digest) : HashInput :=
-  bytesLE 16 pad0 ++ bytesLE 16 (header 1 lay.val tree (step + 256 * i) leaf) ++ bytesLE 16 pad1 ++
+/-- The machine overwrites the low packed word, retaining the witness's high word. -/
+def chainHeaderP (lay : Layer) (tree leaf i step : Nat) (headerPad : BitVec 64) : Digest :=
+  headerPad ++ (chainHeader lay tree leaf i step).extractLsb' 0 64
+
+/-- Chain input `[pad0 | packed low64 | headerPad | pad1 | value]`.
+The step remains part of the packed low word; the arbitrary header pad replaces
+the source high word (zero on the original graph, alias metadata off graph). -/
+def chainInputP (lay : Layer) (tree leaf i step : Nat) (pad0 pad1 : Digest)
+    (headerPad : BitVec 64) (value : Digest) : HashInput :=
+  bytesLE 16 pad0 ++ bytesLE 16 (chainHeaderP lay tree leaf i step headerPad) ++ bytesLE 16 pad1 ++
     bytesLE 16 value
 
-/-- Core's `chain` with the two pads of the chain block, hashed unchanged at every step. -/
-def chainP (lay : Layer) (tree leaf i start count : Nat) (pad0 pad1 value : Digest) : M Digest :=
+/-- Core's `chain` with the two 16-byte pads and the free 8-byte high header word. -/
+def chainP (lay : Layer) (tree leaf i start count : Nat) (pad0 pad1 : Digest)
+    (headerPad : BitVec 64) (value : Digest) : M Digest :=
   (List.range' start count).foldlM
-    (fun value step => shortHash (chainInputP lay tree leaf i step pad0 pad1 value)) value
+    (fun value step => shortHash (chainInputP lay tree leaf i step pad0 pad1 headerPad value)) value
 
 /-! ## Digest and selections -/
 
@@ -57,8 +65,8 @@ def selectionsOk (chosen : List Selection) : Bool :=
 
 /-! ## The fold stream machine (W2 format)
 
-Header byte `b` of a segment: `a = b % 16` folds, `merge = b / 16 % 2`, `t = b / 32 % 8`; up to three low direction bits are checked against the
-current heap index when `a > 0`. Header bytes 1..7 are never read. -/
+Header byte `b` of a segment: `a = b % 16` folds, `merge = b / 16 % 2`, `t = b / 32 % 2` (checked against the
+current heap index's parity when `a > 0`); bits 6..7 and header bytes 1..7 are never read. -/
 
 /-- What a segment hashes before its folds: the FTS leaf of slot `slot` (global leaf `g`) or a merge of the
 stacked node `left` with the current node (parent heap index `heap`). -/
@@ -95,7 +103,7 @@ def segLoop (w : WBytes) (index coord : Nat) :
   | stack, pending, E, ptr, node => do
       let b := (wbyte w ptr).toNat
       if 11 < b % 16 then return none
-      if 0 < b % 16 ∧ b / 32 % segSideMod (b % 16) ≠ E % segSideMod (b % 16) then return none
+      if 0 < b % 16 ∧ b / 32 % 2 ≠ E % 2 then return none
       let node ← pendingHash w index coord node pending
       let (node, E) ← foldsP w index coord ptr (b % 16) node E
       let ptr := segNext ptr (b % 16)
@@ -141,7 +149,7 @@ def layerP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) : M Dige
   let (leaf, tree) := route index lay
   let ends ← (List.finRange (chainCount lay)).mapM fun i =>
     chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
-      (wchainPads w lay i.val).1 (wchainPads w lay i.val).2 (wvalue w lay i.val)
+      (wchainPads w lay i.val).1 (wchainPads w lay i.val).2 (wchainHeaderPad w lay i.val) (wvalue w lay i.val)
   let value ← leafHash lay tree leaf ends
   (List.finRange (height lay)).foldlM (fun value j => do
     let other := wpath w lay leaf j.val
@@ -189,9 +197,10 @@ structure Pads where
   fold : Fin 115 → Digest
   chain : (lay : Layer) → Fin (chainCount lay) → Digest × Digest
   merkle : (lay : Layer) → Fin (height lay) → Digest
+  chainHeader : (lay : Layer) → Fin (chainCount lay) → BitVec 64
 
 /-- All pads zero (the honest witness). -/
-instance : Zero Pads := ⟨⟨fun _ => 0, fun _ => 0, fun _ _ => (0, 0), fun _ _ => 0⟩⟩
+instance : Zero Pads := ⟨⟨fun _ => 0, fun _ => 0, fun _ _ => (0, 0), fun _ _ => 0, fun _ _ => 0⟩⟩
 
 /-- Fold pad of the node `(level + 1, node)` of Core's DFS: the slot consumed by its empty child (`used` when
 the left child is empty, `next` when the right one is), zero for a merge (both children non-empty). -/
@@ -256,7 +265,7 @@ def recoverLayerP (sig : Signature) (pads : Pads) (index : Nat) (lay : Layer) (d
   let (leaf, tree) := route index lay
   let ends ← (List.finRange (chainCount lay)).mapM fun i =>
     chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
-      (pads.chain lay i).1 (pads.chain lay i).2 ((sig.layers lay).values i)
+      (pads.chain lay i).1 (pads.chain lay i).2 (pads.chainHeader lay i) ((sig.layers lay).values i)
   let value ← leafHash lay tree leaf ends
   (List.finRange (height lay)).foldlM (fun value j => do
     let other := (sig.layers lay).path j

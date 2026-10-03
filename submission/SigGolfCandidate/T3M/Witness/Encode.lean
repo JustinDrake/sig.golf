@@ -47,9 +47,10 @@ def segBytes (chosen : List Selection) (proof : Fin 115 → Digest) (seg : Segme
   [UInt8.ofNat seg.byte0] ++ zeros 7 ++ (List.range seg.a).flatMap fun r =>
     foldBytes (seg.heap r) (proof ⟨foldSlot chosen seg r % 115, Nat.mod_lt _ (by decide)⟩)
 
-/-- `[1088,11288)`: the honest stream, zero-filled (cut at 10,200 bytes, which only over-cap selections reach). -/
+/-- `[1088,10568)`: the honest stream, zero-filled (cut at 9,480 bytes = the pointer cap, which only over-cap selections
+reach). -/
 def streamBytes (chosen : List Selection) (proof : Fin 115 → Digest) : List UInt8 :=
-  (((schedule chosen).flatMap (segBytes chosen proof)) ++ zeros 10200).take 10200
+  (((schedule chosen).flatMap (segBytes chosen proof)) ++ zeros 9480).take 9480
 
 /-- Layer `lay`'s region: Merkle blocks of levels `h-1 .. 0` (sibling at `L` iff bit `j` of `leaf` is 1, else
 `R`), then chain blocks of chains `n-1 .. 0` (value at `+48`). -/
@@ -59,11 +60,11 @@ def layerBytes (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8
       else zeros 48 ++ bytesLE 16 (ls.path j)) ++
     (List.finRange (chainCount lay)).reverse.flatMap (fun i => zeros 48 ++ bytesLE 16 (ls.values i))
 
-/-- Physical storage keeps the old layer bases; the shorter top layer has a zero tail. -/
+/-- Physical storage: the layers are packed back to back (W-gap: no top-layer tail). -/
 def layerStorage (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8 :=
-  layerBytes lay leaf ls ++ zeros (if lay = 0 then 256 else 0)
+  layerBytes lay leaf ls
 
-/-- The 25,240 witness bytes of `witEnc N w`. -/
+/-- The 24,264 witness bytes of `witEnc N w`. -/
 def witList (N : HashOutput) (w : Witness) : List UInt8 :=
   headerBytes w ++ leafBytes w.signature ++ streamBytes (selections N) w.signature.proof ++
     (List.finRange 4).flatMap fun lay =>
@@ -101,6 +102,7 @@ def padDecP (N : HashOutput) (w : WBytes) : Pads where
     | none => 0
   chain lay i := wchainPads w lay i.val
   merkle lay j := wmerklePad w lay j.val
+  chainHeader lay i := wchainHeaderPad w lay i.val
 
 /-- The stream of `w` has the honest shape for the digest answer `N`: the selections pass the machine's check
 and Core's admissibility, and every header byte matches the schedule on its live bits. -/

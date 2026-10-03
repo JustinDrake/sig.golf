@@ -1,4 +1,5 @@
 import SigGolfCandidate.T3.Secc.SeccSufSigned
+import SigGolfCandidate.T3.PackedChain
 
 /-! # B-SUF (4/4): routing lemmas R3, R4, R6 of BP-B §2.1
 
@@ -209,8 +210,11 @@ Every public query of the signer's payload work (`payloadAfterDigest`: FTS trees
 pks, Merkle nodes, encodings) is `pad64` of an input whose header block (bytes `[16,32)`) is a `header` with tag in
 `{1,2,3,4,9,10,11}`; a digest input's header tag is 12. The tag is byte 1 of the header block (`hdrTag`). -/
 
-/-- Byte 1 of the header block of an input (the header's tag byte). -/
-def hdrTag (input : HashInput) : Nat := ((Extract.hdrBlock input).getD 1 0).toNat
+/-- Logical role: packed chains have the discriminator bit; all other roles
+retain the original byte-1 tag. -/
+def hdrTag (input : HashInput) : Nat :=
+  if 128 ≤ ((Extract.hdrBlock input).getD 0 0).toNat then 1
+  else ((Extract.hdrBlock input).getD 1 0).toNat
 
 theorem header_byte1 (tag lay tree position index : Nat) :
     ((SphincsSecurity.bytesLE 16 (header tag lay tree position index)).getD 1 0).toNat = tag % 256 := by
@@ -241,7 +245,15 @@ theorem header_byte1 (tag lay tree position index : Nat) :
 theorem hdrTag_eq {input : HashInput} {tag lay tree position index : Nat}
     (h : Extract.hdrBlock input = SphincsSecurity.bytesLE 16 (header tag lay tree position index)) :
     hdrTag input = tag % 256 := by
-  unfold hdrTag; rw [h]; exact header_byte1 _ _ _ _ _
+  unfold hdrTag
+  rw [h, bytesLE16_first_toNat, header_firstByte, if_neg (by decide)]
+  exact header_byte1 _ _ _ _ _
+
+theorem hdrTag_chainInput (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
+    hdrTag (pad64 (chainInput lay tree leaf i step value)) = 1 := by
+  rw [chainInput_padded]
+  unfold hdrTag Extract.hdrBlock
+  rw [chainInput_header, bytesLE16_first_toNat, if_pos (chainHeader_firstByte _ _ _ _ _)]
 
 theorem hdrBlock_digestInput (rho : Digest) (m : Message) (c : BitVec 32) :
     Extract.hdrBlock (pad64 (digestInput rho m c)) = SphincsSecurity.bytesLE 16 (header 12 0 0 0 c.toNat) := by
@@ -274,9 +286,15 @@ theorem mask_ok (level index : Nat) : AllQueriesSatisfy (mask level index) NotDi
 theorem chain_ok (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
     AllQueriesSatisfy (chain lay tree leaf i start count value) NotDigestQ := by
   unfold chain
-  exact SourceQueries.foldlM_allowed NotDigestQ _ _ (fun v step =>
-    shortHash_ok (tag := 1) (by rw [chainInput_eq_zero]; exact Extract.hdrBlock_chainInputP _ _ _ _ _ _ _ _)
-      (by decide)) _
+  apply SourceQueries.foldlM_allowed NotDigestQ
+  intro v step
+  unfold shortHash publicHash
+  apply SourceQueries.bind_allowed
+  · apply (allQueriesSatisfy_query_iff _ _).mpr
+    change hdrTag (pad64 (chainInput lay tree leaf i step v)) ≠ 12
+    rw [hdrTag_chainInput]
+    decide
+  · intro _; exact SourceQueries.pure_allowed _ _
 
 theorem leafHash_ok (lay : Layer) (tree leaf : Nat) (ends : List Digest) :
     AllQueriesSatisfy (leafHash lay tree leaf ends) NotDigestQ := by

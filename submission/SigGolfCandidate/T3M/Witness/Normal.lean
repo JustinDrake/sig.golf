@@ -6,7 +6,7 @@ import SigGolfCandidate.T3M.Witness.Basic
 On a stream with the honest shape for the digest answer `N` (`Shaped N w`), `verifyP` is Core's verification
 with pads, `verifyPadsTail pk N (witDecP N w) (padDecP N w)`; otherwise its tail after the digest query is
 `rejectTail w N`, which issues the stream machine's queries up to its rejection point and returns `false` on every
-path. The tag at block byte 17 keeps every padded query single-parse, so SEC needs only the padded extraction.
+path. Packed chains retain the rung and use marker byte 23; their high header word is a free witness pad.
 
 `ftsShape` is the control skeleton of the stream machine (heap indices, stack of `Q`s, pointer; no hashing):
 the machine's accept/reject decisions do not depend on hash answers. `StreamShapedIff` (both halves):
@@ -29,7 +29,7 @@ def segShape (w : WBytes) : List Nat → Nat → Nat → Option (Nat × Nat × L
   | stack, E, ptr =>
       let b := (wbyte w ptr).toNat
       if 11 < b % 16 then none
-      else if 0 < b % 16 ∧ b / 32 % segSideMod (b % 16) ≠ E % segSideMod (b % 16) then none
+      else if 0 < b % 16 ∧ b / 32 % 2 ≠ E % 2 then none
       else
         let E := E / 2 ^ (b % 16)
         let ptr := segNext ptr (b % 16)
@@ -105,20 +105,26 @@ theorem recoverFtsP_zero (sig : Signature) (index : Nat) (chosen : List Selectio
   simp only [recoverFtsP, recoverFts, recoverChildP_zero, Pads.zero_fold, nodeHashP_zero]
   rfl
 
-theorem recoverLayerP_zero (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
+theorem recoverLayerP_zero (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat)
+    (hindex : index < 2^31) :
     recoverLayerP sig 0 index lay digits = recoverLayer sig index lay digits := by
-  simp only [recoverLayerP, recoverLayer, Pads.zero_chain, chainP_zero, Pads.zero_merkle, nodeHashP_zero]
+  simp only [recoverLayerP, recoverLayer, Pads.zero_chain, Pads.zero_chainHeader,
+    chainP_zero_route _ _ _ _ _ hindex, Pads.zero_merkle, nodeHashP_zero]
 
-theorem verifyLayersP_zero (w : Witness) (index : Nat) : ∀ n root,
+theorem verifyLayersP_zero (w : Witness) (index : Nat) (hindex : index < 2^31) : ∀ n root,
     verifyLayersP w 0 index n root = verifyLayers w index n root := by
   intro n
   induction n with
   | zero => intro root; rfl
-  | succ n ih => intro root; simp only [verifyLayersP, verifyLayers, recoverLayerP_zero, ih]; rfl
+  | succ n ih =>
+      intro root
+      simp only [verifyLayersP, verifyLayers, recoverLayerP_zero _ _ _ _ hindex, ih]
+      rfl
 
 /-- **`verifyPads_zero`**: Core's verification with zero pads is `T3.verify`. -/
 theorem verifyPads_zero (m : Message) (pk : Digest) (w : Witness) : verifyPads m pk w 0 = verify m pk w := by
-  simp only [verifyPads, verifyPadsTail, verify, recoverFtsP_zero, verifyLayersP_zero]
+  simp only [verifyPads, verifyPadsTail, verify, recoverFtsP_zero,
+    verifyLayersP_zero _ _ (Nat.mod_lt _ (by decide))]
   rfl
 
 theorem verifyPadsZero_holds : VerifyPadsZero := verifyPads_zero

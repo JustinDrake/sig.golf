@@ -243,6 +243,10 @@ theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg
         sgo)
       hlay := hlay
       htree := htree
+      hroute := by
+        intro l hl
+        have hidx := h.hidx
+        fin_cases lay <;> norm_num [route, height] at * <;> omega
       hsel := hleaf
       hdb := fun i hi => by
         have := hdb i (by rw [chainCount_low hlay]; exact hi)

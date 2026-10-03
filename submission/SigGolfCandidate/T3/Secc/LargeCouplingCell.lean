@@ -242,9 +242,8 @@ theorem slotValue_listInput (first : Digest) (hdr : BitVec 128) (rest : List Dig
     simpa using this
 
 theorem chainRow_block4 (p : ChainGraph.Point) (x : Digest) :
-    ChainGraph.row p x = block4 0 (header 1 p.1.layer.val p.1.tree.val (p.2.val + 256 * p.1.chain.val) p.1.leaf.val) 0 x := by
-  unfold ChainGraph.row
-  rw [chainInput_eq_zero, chainInputP_eq_block4]
+    ChainGraph.row p x = block4 0 (chainHeader p.1.layer p.1.tree.val p.1.leaf.val p.1.chain.val p.2.val) 0 x := by
+  simp only [ChainGraph.row, chainInput, block4, show zero16 = bytesLE 16 (0 : Digest) by decide]
 
 theorem chainCount_pos (lay : Layer) : 0 < chainCount lay := by fin_cases lay <;> decide
 

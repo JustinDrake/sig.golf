@@ -22,7 +22,7 @@ open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.SecurityInput
 open SigGolfCandidate.T3.Security.Wots
 open SigGolfCandidate.T3.Correctness (Answers treeValue builtTree leafSeed leafEnd leafValue)
 set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
+
 set_option backward.isDefEq.respectTransparency false
 
 /-! ## The source-sized primitive event -/
@@ -107,7 +107,8 @@ theorem layerP_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer)
       ∀ i, i < chainCount lay →
         (depth answers ⟨routeLeaf index lay, i⟩ ≤ digits.getD i 0 →
           wvalue w lay i = leafValue answers lay (route index lay).2 (route index lay).1 digits i ∧
-            (digits.getD i 0 < maxDigit lay i → wchainPads w lay i = (0, 0))) ∧
+            (digits.getD i 0 < maxDigit lay i →
+              wchainPads w lay i = (0, 0) ∧ wchainHeaderPad w lay i = 0)) ∧
         (digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
           ContactAt answers (entriesOf answers (queried answers (layerP w index lay digits)))
               ⟨routeLeaf index lay, i⟩ ∧
@@ -173,12 +174,12 @@ theorem layerP_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer)
       (List.range (chainCount lay)).map (fun i => evalWithAnswerFn answers
         (chainP lay (route index lay).2 (route index lay).1 i (digits.getD i 0)
           (maxDigit lay i - digits.getD i 0) (wchainPads w lay i).1 (wchainPads w lay i).2
-          (wvalue w lay i))) := by
+          (wchainHeaderPad w lay i) (wvalue w lay i))) := by
     rw [Extract.layerChains, Correctness.eval_mapM]
     exact Extract.map_finRange_val _ (fun i => evalWithAnswerFn answers
         (chainP lay (route index lay).2 (route index lay).1 i (digits.getD i 0)
           (maxDigit lay i - digits.getD i 0) (wchainPads w lay i).1 (wchainPads w lay i).2
-          (wvalue w lay i)))
+          (wchainHeaderPad w lay i) (wvalue w lay i)))
   rcases Extract.leafHash_extract answers lay (route index lay).2 (route index lay).1
       (evalWithAnswerFn answers (Extract.layerChains w index lay digits))
       ((List.range (chainCount lay)).map (leafEnd answers lay (route index lay).2 (route index lay).1))
@@ -201,7 +202,7 @@ theorem layerP_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer)
   have hc := Extract.chainCount_le lay
   have hreach : evalWithAnswerFn answers
       (chainP lay (route index lay).2 (route index lay).1 i (digits.getD i 0) (maxDigit lay i - digits.getD i 0)
-        (wchainPads w lay i).1 (wchainPads w lay i).2 (wvalue w lay i)) =
+        (wchainPads w lay i).1 (wchainPads w lay i).2 (wchainHeaderPad w lay i) (wvalue w lay i)) =
       honestChainValue answers lay (route index lay).2 (route index lay).1 i
         (leafSeed answers lay (route index lay).2 (route index lay).1 i)
         (digits.getD i 0 + (maxDigit lay i - digits.getD i 0)) := by
@@ -212,7 +213,8 @@ theorem layerP_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer)
     have hm := Nonbinary.maxDigit_lt_pow_width lay i
     omega
   rcases chain_cases answers ⟨routeLeaf index lay, i⟩ (digits.getD i 0) (maxDigit lay i - digits.getD i 0)
-      (wchainPads w lay i).1 (wchainPads w lay i).2 (wvalue w lay i) (queried answers (layerP w index lay digits))
+      (wchainPads w lay i).1 (wchainPads w lay i).2 (wchainHeaderPad w lay i) (wvalue w lay i)
+      (queried answers (layerP w index lay digits))
       (fun q hq => hqC q (Extract.layerChains_queried answers w index lay digits (route index lay).1
         (route index lay).2 rfl rfl i hi q hq))
       hsrcC hcount (by omega) hreach with
@@ -221,8 +223,8 @@ theorem layerP_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer)
   refine ⟨fun hle => ?_, hlow⟩
   obtain ⟨hval, hpads⟩ := hhon hle
   refine ⟨hval, fun hlt => ?_⟩
-  obtain ⟨h0, h1⟩ := hpads (by omega)
-  exact Prod.ext h0 h1
+  obtain ⟨h0, h1, hh⟩ := hpads (by omega)
+  exact ⟨Prod.ext h0 h1, hh⟩
 
 /-- **One layer of the walk** (BP-A §1.4, every layer reaching its honest root): with the layer's frame (message
 `msg`, the witness counter, decoded digits) and its encoding query among `qs`, a source-sized WOTS primitive event

@@ -151,8 +151,32 @@ def realHandler (secret : BitVec 256) : QueryImpl Spec (OracleComp SphincsSecuri
 def realize {α : Type} (secret : BitVec 256) (program : M α) :
     OracleComp SphincsSecurity.OracleWorld α := simulateQ (realHandler secret) program
 
+/-- Low-word encoding is injective on the entire original source graph. -/
+def chainHeaderLow (lay : Layer) (tree leaf i step : Nat) : BitVec 64 :=
+  let tr := tree % 2^31
+  let lf := leaf % 4096
+  let routed := (tr * 2 ^ height lay + lf) % 2^32
+  let extra := tr / 2^(32-height lay) + (lf / 2^height lay) * 2^(height lay-1)
+  BitVec.ofNat 64 (128 + i % 64 + step % 8 * 2^8 + routed * 2^16 +
+    lay.val * 2^48 + 193 * 2^56 +
+    extra % 2 * 2^6 + extra / 2 % 32 * 2^11 + extra / 64 * 2^50)
+
+/-- Off-graph alias bits preserve the original generic source-helper domains.
+This word vanishes at every original graph coordinate, not only actual routes. -/
+def chainHeaderSpill (tree leaf i step : Nat) : Nat :=
+  tree % 2^40 / 2^31 + (leaf % 2^32 / 4096) * 2^9 +
+    (i % 2^24 / 64) * 2^29 + (step % 256 / 8) * 2^47
+
+/-- Bit55 keeps off-graph source helpers outside the normalized graph parser. -/
+def chainHeaderFlaggedLow (lay : Layer) (tree leaf i step : Nat) : BitVec 64 :=
+  BitVec.ofNat 64 ((chainHeaderLow lay tree leaf i step).toNat +
+    (if chainHeaderSpill tree leaf i step = 0 then 0 else 1) * 2^55)
+
+def chainHeader (lay : Layer) (tree leaf i step : Nat) : BitVec 128 :=
+  BitVec.ofNat 64 (chainHeaderSpill tree leaf i step) ++ chainHeaderFlaggedLow lay tree leaf i step
+
 def chainInput (lay : Layer) (tree leaf i step : Nat) (value : Digest) : HashInput :=
-  zero16 ++ bytesLE 16 (header 1 lay.val tree (step + 256*i) leaf) ++ zero16 ++ bytesLE 16 value
+  zero16 ++ bytesLE 16 (chainHeader lay tree leaf i step) ++ zero16 ++ bytesLE 16 value
 
 def chain (lay : Layer) (tree leaf i start count : Nat) (value : Digest) : M Digest :=
   (List.range' start count).foldlM
