@@ -290,12 +290,12 @@ theorem referenceDigits_of_search {answers : Answers} {L : LeafAddr} {counter : 
   rfl
 
 theorem depth_le_width (answers : Answers) (a : ChainAddr) (hc : a.chain < chainCount a.key.lay) :
-    depth answers a ≤ 2 ^ width a.key.lay a.chain - 1 :=
+    depth answers a ≤ maxDigit a.key.lay a.chain :=
   (referenceDigits_spec answers a.key).2 a.chain hc
 
-theorem width_le (lay : Layer) (i : Nat) : 2 ^ width lay i - 1 ≤ 7 := by
-  unfold width
-  split <;> decide
+theorem width_le (lay : Layer) (i : Nat) : maxDigit lay i ≤ 7 := by
+  unfold maxDigit
+  split_ifs <;> decide
 
 theorem chain_lt_of_depth (answers : Answers) (a : ChainAddr) (hd : 1 ≤ depth answers a) :
     a.chain < chainCount a.key.lay := by

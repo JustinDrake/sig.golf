@@ -158,10 +158,9 @@ theorem fts_setup_step (pk : Digest) (w : WBytes) (a : HashOutput) (t : MachineS
     rw [hz CTRW (by unfold CTRW WIT; omega) (by unfold CTRW; omega) (Or.inl (by unfold CTRW ETAB; omega))
       (by unfold CTRW SENTINEL; omega)]
     rfl
-  · intro k hk
-    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
-    rw [hfr _ (by omega) (by unfold SENTINEL; omega)]
-    exact ht.data k hk
+  · apply ht.data.congr
+    intro A hA hEnd
+    exact hfr A (by omega) (by unfold SENTINEL Search.TOP_DATA at *; omega)
   · intro p hp
     simp only [packedCK, List.mem_cons, List.not_mem_nil, or_false] at hp
     rcases hp with rfl | rfl

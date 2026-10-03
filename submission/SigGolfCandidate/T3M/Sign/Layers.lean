@@ -29,10 +29,10 @@ open SigGolfCandidate.T3M.Keygen (LevW n4)
 /-- First digest index of the piece of layer `n` (`n = 4`: the end of the signature). -/
 def lstart : Nat → Nat
   | 0 => 140
-  | 1 => 210
-  | 2 => 260
-  | 3 => 309
-  | _ => 358
+  | 1 => 206
+  | 2 => 256
+  | 3 => 305
+  | _ => 354
 
 theorem lstart_mono (n : Nat) : lstart n ≤ lstart (n + 1) := by
   rcases n with _ | _ | _ | _ | n <;> simp [lstart]
@@ -40,7 +40,7 @@ theorem lstart_mono (n : Nat) : lstart n ≤ lstart (n + 1) := by
 /-- The layers below `n` may write anything but the FTS part of the signature and the pieces of the layers
 `≥ n`. -/
 def LayW (n : Nat) (A : Nat) : Prop :=
-  ¬ (SIG ≤ A ∧ A < SIG + 2240) ∧ ¬ (SIG + 16 * lstart n ≤ A ∧ A < SIG + 5728)
+  ¬ (SIG ≤ A ∧ A < SIG + 2240) ∧ ¬ (SIG + 16 * lstart n ≤ A ∧ A < SIG + 5664)
 
 /-- The piece `p = (values, path)` of layer `lay` in the signature. -/
 def PieceAt (u : MachineState) (lay : Layer) (p : Pieces) : Prop :=
@@ -64,8 +64,8 @@ theorem SLPost.pre {s t : MachineState} {n : Nat} (hf : Frame s t (fun _ => Fals
 
 /-- The three lower layers. -/
 theorem lay_cases {lay : Layer} (hlay : lay ≠ 0) :
-    (lay.val = 1 ∧ layIdx lay = 210 ∧ height lay = 7) ∨ (lay.val = 2 ∧ layIdx lay = 260 ∧ height lay = 6) ∨
-      (lay.val = 3 ∧ layIdx lay = 309 ∧ height lay = 6) := by
+    (lay.val = 1 ∧ layIdx lay = 206 ∧ height lay = 7) ∨ (lay.val = 2 ∧ layIdx lay = 256 ∧ height lay = 6) ∨
+      (lay.val = 3 ∧ layIdx lay = 305 ∧ height lay = 6) := by
   fin_cases lay
   · exact absurd rfl hlay
   · left; exact ⟨rfl, rfl, rfl⟩
@@ -73,8 +73,8 @@ theorem lay_cases {lay : Layer} (hlay : lay ≠ 0) :
   · right; right; exact ⟨rfl, rfl, rfl⟩
 
 theorem lay_facts {lay : Layer} (hlay : lay ≠ 0) :
-    lstart lay.val = layIdx lay ∧ lstart (lay.val + 1) = layIdx lay + 43 + height lay ∧ 210 ≤ layIdx lay ∧
-      layIdx lay + 43 + height lay ≤ 358 := by
+    lstart lay.val = layIdx lay ∧ lstart (lay.val + 1) = layIdx lay + 43 + height lay ∧ 206 ≤ layIdx lay ∧
+      layIdx lay + 43 + height lay ≤ 354 := by
   rcases lay_cases hlay with ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ <;> rw [h1, h2, h3] <;> simp [lstart]
 
 theorem csW_layW {n A : Nat} (h : CsW A) : LayW n A := by
@@ -213,7 +213,8 @@ theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg
       c32 := h.c32
       z40 := h.base.zero _ (by sgo) (by unfold NeverW; simp)
       z48 := h.base.zero _ (by sgo) (by unfold NeverW; simp)
-      z56 := h.base.zero _ (by sgo) (by unfold NeverW; simp) }
+      z56 := h.base.zero _ (by sgo) (by unfold NeverW; simp)
+      table := h.base.table }
   rw [signLayers_low _ _ hlay]
   refine TBSim.bind (hK t lay _ _ msg (jalBT lay) hcs) (fun r u hu => ?_)
   rcases r with _ | ⟨c, ds⟩
@@ -237,7 +238,7 @@ theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg
       x27 := by rw [g1 _ (by decide), h.x27]
       x31 := by rw [g1 _ (by decide), h.x31]
       base := h.base.frame fu1 (ur.trans u1r) (by decide) (fun A _ hb hw => by
-        unfold BaseA NeverW at hb
+        unfold BaseA NeverW Search.TOP_DATA at hb
         unfold CsW at hw
         sgo)
       hlay := hlay
@@ -245,7 +246,7 @@ theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg
       hsel := hleaf
       hdb := fun i hi => by
         have := hdb i (by rw [chainCount_low hlay]; exact hi)
-        simpa [width, hlay] using this
+        simpa [T3.maxDigit, hlay] using this
       digits := fun i hi => by
         rw [u1f.getByte (by sgo) (fun h => h)]
         exact udig i (by rw [chainCount_low hlay]; exact hi)
@@ -389,7 +390,7 @@ theorem layer0_link (hL0 : L0Spec sk cache) {index : Nat} {root : Digest} {v : M
     rw [show SIG + 2240 + 16 * i = SIG + 16 * (layIdx 0 + i) by simp [layIdx]; ring] at this
     exact this
   · have := up j hj
-    rw [show SIG + 3168 + 16 * j = SIG + 16 * (layIdx 0 + chainCount 0 + j) by simp [layIdx, chainCount]; ring]
+    rw [show SIG + 3104 + 16 * j = SIG + 16 * (layIdx 0 + chainCount 0 + j) by simp [layIdx, chainCount]; ring]
       at this
     exact this
 

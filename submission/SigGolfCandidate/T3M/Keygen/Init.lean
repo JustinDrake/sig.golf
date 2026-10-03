@@ -103,8 +103,8 @@ structure KStart (sk : SecretKey) (s : MachineState) : Prop where
   x9 : s.getReg .x9 = BitVec.ofNat 64 0
   x18 : s.getReg .x18 = BitVec.ofNat 64 0
   x22 : s.getReg .x22 = BitVec.ofNat 64 ZDIG
-  x26 : s.getReg .x26 = BitVec.ofNat 64 58
-  x27 : s.getReg .x27 = BitVec.ofNat 64 49
+  x26 : s.getReg .x26 = BitVec.ofNat 64 54
+  x27 : s.getReg .x27 = BitVec.ofNat 64 51
   x31 : s.getReg .x31 = BitVec.ofNat 64 0
   p0 : s.getMem (BitVec.ofNat 64 PRIV) = sk.extractLsb' 0 64
   p8 : s.getMem (BitVec.ofNat 64 (PRIV + 8)) = sk.extractLsb' 64 64

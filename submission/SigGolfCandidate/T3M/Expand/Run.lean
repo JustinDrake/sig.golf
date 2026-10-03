@@ -52,13 +52,14 @@ def expCost : Nat := 30 + (2 ^ 20 * 672 + 670) + 16 + ftsCost + 1 + (12 * 118 + 
 section run
 variable {sk : BitVec 256}
 
-theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Bytes 5728) :
+theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Bytes 5664) :
     TBSim image sk (einit m pk σ) expCost (expandN m pk (sigDec σ)) ExpQ := by
   set sig := sigDec σ with hsig
   set s0 := einit m pk σ with hs0
-  have hsigd : ∀ k < 358, DigAt s0 (0x7000 + 16 * k) (sigDig σ k) := fun k hk => einit_sig m pk σ k hk
-  have hz0 : ∀ A, A < 2 ^ 64 → (A < 0x7000 ∨ 0x7000 + 5728 ≤ A) → (A < 0xA0 ∨ 0xB0 ≤ A) → (A < 0x40 ∨ 0x60 ≤ A) →
+  have hsigd : ∀ k < 354, DigAt s0 (0x7000 + 16 * k) (sigDig σ k) := fun k hk => einit_sig m pk σ k hk
+  have hz0 : ∀ A, A < Search.TOP_DATA → (A < 0x7000 ∨ 0x7000 + 5664 ≤ A) → (A < 0xA0 ∨ 0xB0 ≤ A) → (A < 0x40 ∨ 0x60 ≤ A) →
       s0.getMem (BitVec.ofNat 64 A) = 0 := fun A hA h1 h2 h3 => einit_zero m pk σ A hA ⟨h1, h2, h3⟩
+  unfold Search.TOP_DATA at hz0
   -- `start`
   obtain ⟨t1, st1, p1, x5_1, x19_1, w800, w808, d0, d8, d32, d40, d48, d56, r1, f1⟩ := s0_spec s0 (einit_pc m pk σ)
   have hrho : DigAt s0 0x7000 sig.rho := hsigd 0 (by decide)
@@ -138,7 +139,7 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
     have hd := hfp.proof k hk2
     have e : (⟨k % 118, Nat.mod_lt _ (by decide)⟩ : Fin 118) = ⟨k, hk2⟩ := Fin.ext (Nat.mod_eq_of_lt hk2)
     rw [e]
-    have nF : ∀ A, 0x7000 ≤ A → A < 0x7000 + 5728 → ¬ FtsW A := by
+    have nF : ∀ A, 0x7000 ≤ A → A < 0x7000 + 5664 → ¬ FtsW A := by
       intro A h1 h2 h; unfold FtsW at h; simp only [NODE, NOUT, FLEAF, FOREST] at h; omega
     exact (hd.frame f4 (by omega) (nF _ (by omega) (by omega)) (nF _ (by omega) (by omega))).frame f5 (by omega)
       (by simp) (by simp)
@@ -195,7 +196,7 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
         exact hm7 A hA e1 h2 h3 h4 h5 e2 (nFts A h6 h7 h8 h9 e3) h9 h10 h11 h12
     have hL : LInv sig index 4 root t7 := by
       refine ⟨by rw [p7]; rfl, le_refl _, by rw [r7.get (by decide)]; exact h5_6, hi, ?_, e7, ⟨0, by norm_num, ?_⟩,
-        ?_, ?_⟩
+        ?_, ?_, ?_⟩
       · rw [f7.get (by decide) (by simp only [IDXV, FOREST, FOUT, ENC]; omega), f6.get (by decide) (by simp),
           f5.get (by decide) (by simp), f4.get (by decide) (nFts _ (by simp only [IDXV]; omega)
             (by simp only [IDXV, NODE, NOUT]; omega) (by simp only [IDXV, FLEAF]; omega)
@@ -210,7 +211,7 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
       · intro lay
         have htab := ltable lay
         have hP : lP lay = 0x7000 + 16 * layIdx lay := by fin_cases lay <;> rfl
-        have hIdx : layIdx lay + chainCount lay + height lay ≤ 358 := by fin_cases lay <;> decide
+        have hIdx : layIdx lay + chainCount lay + height lay ≤ 354 := by fin_cases lay <;> decide
         refine ⟨fun i hi' => ?_, fun j hj => ?_⟩
         · have hd := hsigd (layIdx lay + i) (by omega)
           rw [show 0x7000 + 16 * (layIdx lay + i) = lP lay + 16 * i by rw [hP]; ring] at hd
@@ -237,6 +238,18 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
         · rw [hm7' _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
             (by decide) (by decide) (by decide) (by decide) (by decide),
             hz0 _ (by decide) (by decide) (by decide) (by decide)]
+      · apply (einit_table m pk σ).frame F7
+        intro i hi h
+        rcases h with ((((((h | h) | h) | h) | h) | h) | h)
+        · simp only [Search.TOP_DATA, DIG] at h; omega
+        · unfold DsW at h
+          simp only [Search.TOP_DATA, DIG, NBUF, Search.SEL] at h; omega
+        · simp only [Search.TOP_DATA, IDXV] at h; omega
+        · unfold FtsW at h
+          simp only [Search.TOP_DATA, NODE, NOUT, FLEAF, FOREST] at h; omega
+        · exact h
+        · exact h
+        · simp only [Search.TOP_DATA, FOREST, FOUT, ENC] at h; omega
     refine (TBSim.bind (W₂ := 11) (layers_tbsim (sk := sk) 4 root t7 hL) (fun r8 t8 h8 => ?_)).mono (by omega)
       (fun _ _ h => h)
     rcases r8 with _ | ⟨root', counters⟩
@@ -415,7 +428,27 @@ theorem expand_tbsim (hF : FtsSpec sk) (m : Message) (pk : PublicKey) (σ : Byte
             (by simp only [Search.SEL]; omega) (by simp only [IDXV]; omega) (by omega) (by simp only [NODE]; omega)
             (by simp only [FLEAF]; omega) (by simp only [FOREST]; omega) (by simp only [FOUT]; omega)
             (by simp only [ENC]; omega) (by simp only [ENC]; omega), hz0 A (by omega) (by omega) (by omega) (by omega)]
-      exact witList_words t8 N ⟨sig, counter, fun lay => counters.getD lay.val 0⟩ hh hleaf8 hstream8 hlay
+      have hpad : t8.readWords (BitVec.ofNat 64 0x4498) 32 = List.replicate 32 0 := by
+        apply readWords_zero t8 0x4498 32 (by decide)
+        intro j hj
+        have nLWgap : ¬ LW index 4 (0x4498 + 8 * j) := by
+          rintro (h | h | ⟨lay, _, h | h⟩)
+          · unfold Search.CsW Search.DigW at h
+            simp only [ENC, Search.EOUT, Search.DIGITS] at h; omega
+          · unfold RlScratch at h
+            simp only [CHAIN, NODE, NOUT, LEAFPK, ENC] at h; omega
+          · fin_cases lay <;> simp [lD] at h <;> omega
+          · unfold RlWit sideOff at h
+            fin_cases lay <;> norm_num [lWC, lWM, height, chainCount] at h
+            all_goals rcases h with ⟨i, hi, h | h⟩ | ⟨i, hi, h | h⟩
+            all_goals first | (split_ifs at h <;> omega) | omega
+        rw [g87 _ (by omega) nLWgap,
+          hm7' _ (by omega) (by omega) (by simp only [DIG]; omega) (by simp only [NBUF]; omega)
+            (by simp only [Search.SEL]; omega) (by simp only [IDXV]; omega) (by omega)
+            (by simp only [NODE, NOUT]; omega) (by simp only [FLEAF]; omega) (by simp only [FOREST]; omega)
+            (by simp only [FOUT]; omega) (by simp only [ENC]; omega) (by simp only [ENC]; omega)]
+        exact hz0 _ (by omega) (by omega) (by omega) (by omega)
+      exact witList_words t8 N ⟨sig, counter, fun lay => counters.getD lay.val 0⟩ hh hleaf8 hstream8 hpad hlay
     · simp only [ne_eq, heq, not_false_eq_true, ↓reduceIte]
       by_cases h0 : root'.extractLsb' 0 64 = pk.extractLsb' 0 64
       · rw [if_pos (hlo.mpr h0)] at p9

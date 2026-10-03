@@ -901,7 +901,7 @@ theorem merklePath_extract (answers : Answers) (tag lay tree height leaf count :
 def layerLeafP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) : M Digest := do
   let (leaf, tree) := route index lay
   let ends ← (List.finRange (chainCount lay)).mapM fun i =>
-    chainP lay tree leaf i.val (digits.getD i.val 0) (2^width lay i.val - 1 - digits.getD i.val 0)
+    chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
       (wchainPads w lay i.val).1 (wchainPads w lay i.val).2 (wvalue w lay i.val)
   leafHash lay tree leaf ends
 

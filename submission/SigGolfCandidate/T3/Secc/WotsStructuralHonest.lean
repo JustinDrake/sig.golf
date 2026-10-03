@@ -282,7 +282,7 @@ theorem sat_leafHalf (T : Answers) (lay : Layer) (tree leaf : Nat) (digits : Lis
       exact sat_chain T lay tree leaf _ 0 _ htree hleaf (by omega) (by omega)
     · change QueriesSat T (HonestQuery T) (if signatureOnly = true then _ else
         (T3.chain lay tree leaf (2 * pair + half) (digits.getD (2 * pair + half) 0)
-          (2 ^ width lay (2 * pair + half) - 1 - digits.getD (2 * pair + half) 0)
+          (maxDigit lay (2 * pair + half) - digits.getD (2 * pair + half) 0)
           (honestChainValue T lay tree leaf (2 * pair + half) (leafSeed T lay tree leaf (2 * pair + half))
             (digits.getD (2 * pair + half) 0)) >>= _))
       split

@@ -1,5 +1,6 @@
 import SigGolfCandidate.T3M.Verify.Words
 import Mathlib.Data.Nat.Bitwise
+import SigGolfCandidate.T3M.Search.TopTables
 
 /-!
 # Verify memory: global invariant, witness predicates, checked writes (T3M)
@@ -219,9 +220,27 @@ def dataWords : List Nat :=
 /-- The data section's base: `dataBase` of the verify image (`16 ⌊(2^24 - 96) / 16⌋`). -/
 def DATA : Nat := 16777120
 
-/-- The embedded doublewords are in place. -/
-def DataOK (s : MachineState) : Prop :=
-  ∀ k, k < 12 → s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)
+/-- Both the embedded constants and the checksum lookup bytes are in place. -/
+structure DataOK (s : MachineState) : Prop where
+  constants : ∀ k, k < 12 → s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)
+  sum : Search.SumTableOK s
+
+instance {s : MachineState} : CoeFun (DataOK s) (fun _ => ∀ k, k < 12 →
+    s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)) := ⟨DataOK.constants⟩
+
+/-- The complete data invariant is preserved when all image-data doublewords stay unchanged. -/
+theorem DataOK.congr {s t : MachineState} (h : DataOK s)
+    (hm : ∀ A, Search.TOP_DATA ≤ A → A + 8 ≤ 2 ^ 24 →
+      t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A)) : DataOK t := by
+  constructor
+  · intro k hk
+    rw [hm _ (by unfold DATA Search.TOP_DATA; omega) (by unfold DATA; omega)]
+    exact h.constants k hk
+  · intro i hi
+    rw [T3M.getByte_eq_word _ _ (by unfold Search.TOP_DATA; omega),
+      hm _ (by unfold Search.TOP_DATA; omega) (by unfold Search.TOP_DATA; omega),
+      ← T3M.getByte_eq_word _ _ (by unfold Search.TOP_DATA; omega)]
+    exact h.sum i hi
 
 def Glob (gk : List (Reg × Word)) (w : WBytes) (pk : Digest) (s : MachineState) : Prop :=
   (∀ p ∈ gk, s.getReg p.1 = p.2) ∧ WitHdr w s ∧ PkOK pk s ∧ PZero s ∧ PHalf s ∧ DataOK s
@@ -494,10 +513,10 @@ theorem Glob_toState_allow {gk0 gk : List (Reg × Word)} {w : WBytes} {pk : Dige
     rw [fr a this (Or.inl ha)]; exact h3 a ha
   · show (memEval s σ.mem (BitVec.ofNat 64 CTRW)).toNat / 2 ^ 32 = 0
     rw [memOKA_ctr hm s hrel]; exact h4
-  · intro k hk
-    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
-    rw [SymState.toState_getMem, memEval_frame s _ _ (memOKA_data hm s hrel _ hk1 (by omega))]
-    exact h5 k hk
+  · apply h5.congr
+    intro A hA hAend
+    rw [SymState.toState_getMem, memEval_frame s _ _
+      (memOKA_data hm s hrel _ (by unfold Search.TOP_DATA at hA; omega) (by omega))]
 
 theorem Glob_toState {gk0 gk : List (Reg × Word)} {w : WBytes} {pk : Digest} {s : MachineState}
     (hG : Glob gk0 w pk s) (σ : SymState) (pc : Word) (hm : memOK σ.mem = true)
@@ -603,9 +622,9 @@ theorem Glob_writeHash {gk : List (Reg × Word)} {w : WBytes} {pk : Digest} {s :
   · have mc : CTRW ∈ pSlots ++ [0xA0, 0xA8, CTRW] ++ (List.range 8).map (fun j => WIT + 8 * j) := by simp
     show ((writeHash s ans).getMem (BitVec.ofNat 64 CTRW)).toNat / 2 ^ 32 = 0
     rw [fr CTRW (by unfold CTRW; omega) (hd2 _ mc)]; exact h4
-  · intro k hk
-    obtain ⟨hk1, hk2⟩ := DATA_ge k hk
-    rw [fr _ (by omega) (Or.inr (by omega))]; exact h5 k hk
+  · apply h5.congr
+    intro A hA hAend
+    exact fr A (by omega) (Or.inr (by unfold Search.TOP_DATA at hA; omega))
 
 theorem Known_writeHash {known : List (Reg × Word)} {s : MachineState}
     (h : ∀ p ∈ known, s.getReg p.1 = p.2) (a : BitVec 256) : ∀ p ∈ known, (writeHash s a).getReg p.1 = p.2 := by
