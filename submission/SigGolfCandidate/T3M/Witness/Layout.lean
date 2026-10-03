@@ -91,7 +91,4 @@ def wmerklePad (w : WBytes) (lay : Layer) (j : Nat) : Digest := wdig w (merkleBl
 /-- Global leaf `g = 128 bucket + x_j` of position `j` of a selection (its heap index is `2048 + g`). -/
 def selLeaf (sel : Selection) (j : Nat) : Nat := sel.bucket * 128 + sel.leaves.getD j 0
 
-/-- Number of side-code residues checked for a segment with `a` folds. -/
-def segSideMod (a : Nat) : Nat := 2 ^ min a 3
-
 end SigGolfCandidate.T3M

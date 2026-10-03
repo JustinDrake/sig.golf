@@ -42,7 +42,7 @@ theorem fts_gate_accept (pk : Digest) (w : WBytes) (a : HashOutput) (s : Machine
   obtain ⟨u, hu⟩ := spec_run gateCheckF_ok s hs.pc hs.known (by simpa using hb) (by simp)
   have hm : ∀ A, u.getMem A = s.getMem A := fun A => by rw [hu.mem]; rfl
   refine ⟨u, hu.steps, ⟨?_, hu.pc rfl⟩⟩
-  refine ⟨rfl, hu.known, ?_, ?_, ?_, hs.ok, ?_, ?_, ?_, ?_⟩
+  refine ⟨rfl, hu.known, ?_, ?_, ?_, hs.ok, ?_, ?_, ?_, ?_, ?_⟩
   · intro k hk
     change u.getReg (nReg k) = _
     rw [hu.keep (nReg k) (by rcases (show k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 by omega) with rfl | rfl | rfl | rfl <;> decide)]
@@ -61,6 +61,8 @@ theorem fts_gate_accept (pk : Digest) (w : WBytes) (a : HashOutput) (s : Machine
     change u.getMem _ = _
     rw [hm]; exact hs.zero A hA h1 h2
   · exact hs.data.congr (fun A _ _ => hm _)
+  · change u.getReg .x2 = _
+    rw [hu.keep .x2 (by decide)]; exact hs.sp
 
 theorem fts_gate_reject (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineState)
     (hs : SelIn pk w a 7 s) (hg : T3.digestGate a = false) :

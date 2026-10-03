@@ -148,7 +148,7 @@ theorem header_normal (t l tr p ix : Nat) :
   have hthi : tr % 1099511627776 / 4294967296 % 256 = tr / 4294967296 % 256 := by omega
   by_cases h : packedNodeTag t
   · have h' := htag.mpr h
-    simp only [header, if_pos h, if_pos h', Nat.mod_mod, Nat.reducePow, htlo, hthi]
+    simp only [header, if_pos h, if_pos h', Nat.mod_mod, Nat.reducePow, htlo, hthi, nodeWord_normal, nodeWord_normal']
   · have h' : ¬packedNodeTag (t % 256) := fun e => h (htag.mp e)
     simp only [header, if_neg h, if_neg h', Nat.mod_mod, Nat.reducePow, htlo, hthi]
 

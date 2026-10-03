@@ -270,7 +270,7 @@ theorem nodeInput_length' (tag lay tree heap : Nat) (l r : Digest) :
 theorem wordsOf_nodeInput' (tag lay tree heap : Nat) (l r : Digest) (hn : T3.packedNodeTag tag := by decide) :
     wordsOf (bytesLE 16 l ++ bytesLE 16 (header tag lay tree 0 heap) ++ zero16 ++ bytesLE 16 r) =
       [l.extractLsb' 0 64, l.extractLsb' 64 64, BitVec.ofNat 64 (hdr0 tag lay tree tree),
-        BitVec.ofNat 64 (hdr1 heap 0), 0, 0, r.extractLsb' 0 64, r.extractLsb' 64 64] := by
+        BitVec.ofNat 64 (T3.nodeWord tag 0 heap), 0, 0, r.extractLsb' 0 64, r.extractLsb' 64 64] := by
   rw [wordsOf_append _ _ (by simp [bytesLE_length, zero16]), wordsOf_append _ _ (by simp [bytesLE_length]),
     wordsOf_append _ _ (by simp [bytesLE_length]), wordsOf_bytesLE16, wordsOf_packed_header _ _ _ _ _ hn, wordsOf_zero16,
     wordsOf_bytesLE16]
@@ -405,7 +405,7 @@ theorem rl_mk_step {tc : MachineState} {sig : Signature} {lay : Layer} {tree lea
       show NODE + 48 + 8 = NODE + 56 from rfl, nr.1, nr.2,
       f3.get (by decide) (by simp only [NODE]; have := sideOff_le leaf j; omega), hn32,
       f3.get (by decide) (by simp only [NODE]; have := sideOff_le leaf j; omega), hn40,
-      hdr0_eq 3 lay.val tree tree (by decide) (by omega) htree htree, hdr1_eq heap 0 hheap' (by decide)]
+      nodeWord_3, hdr0_eq 3 lay.val tree tree (by decide) (by omega) htree htree, hdr1_eq heap 0 hheap' (by decide)]
     congr 3
   have hv : hashArgumentsValid t4 = true :=
     hashArgs_const t4 NODE 64 NOUT h10 h11 h12 (by decide) (by decide) (by decide) (by decide) (by decide)

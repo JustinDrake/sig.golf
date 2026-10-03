@@ -121,6 +121,50 @@ theorem xval_eq (g : Word) (G j : Nat) (hj : j < 3) (hg : g.toNat % 2 ^ 25 = G %
 
 /-! ## Sorting three numbers -/
 
+/-- t3-rl2: `n &&& 1016 = 8 (n / 8 % 128)`. -/
+theorem land8 (n : Nat) : n &&& 1016 = 8 * (n / 8 % 2 ^ 7) := by
+  rw [show (1016 : Nat) = 8 * (2 ^ 7 - 1) by norm_num]
+  apply Nat.eq_of_testBit_eq; intro j
+  rw [Nat.testBit_and, show (8 : Nat) = 2 ^ 3 by norm_num, Nat.testBit_two_pow_mul, Nat.testBit_two_pow_mul,
+    Nat.testBit_two_pow_sub_one, Nat.testBit_mod_two_pow, Nat.testBit_div_two_pow]
+  by_cases h : 3 ≤ j
+  · simp only [h, decide_true, Bool.true_and, Nat.sub_add_cancel h, Bool.and_comm]
+  · simp [h]
+
+/-- t3-rl2: the table address `(g >> (1 + 7 j)) & 1016 + ((g & 15) << 10) + X` of leaf `x_j` of bucket `g & 15`, for
+a `g` agreeing with `G` on its low 25 bits and `X = TAB`. -/
+theorem xaddr_eq (g X : Word) (G T j : Nat) (hj : j < 3) (hg : g.toNat % 2 ^ 25 = G % 2 ^ 25)
+    (hX : X = BitVec.ofNat 64 T) (hT : T < 2 ^ 32) :
+    BinOp.eval .add (BinOp.eval .add (BinOp.eval .and (BinOp.eval .srl g (BitVec.ofNat 64 (1 + 7 * j)))
+        (BitVec.ofNat 64 1016)) (BinOp.eval .sll (BinOp.eval .and g (BitVec.ofNat 64 15)) (BitVec.ofNat 64 10))) X =
+      BitVec.ofNat 64 (T + 8 * (128 * (G % 16) + G / 2 ^ (4 + 7 * j) % 128)) := by
+  subst hX
+  have e1 : g.toNat % 2 ^ 4 = G % 16 := by
+    rw [← Nat.mod_mod_of_dvd g.toNat (show 2 ^ 4 ∣ 2 ^ 25 by norm_num), hg,
+      Nat.mod_mod_of_dvd _ (show 2 ^ 4 ∣ 2 ^ 25 by norm_num)]; rfl
+  have e2 : g.toNat / 2 ^ (1 + 7 * j) / 8 % 2 ^ 7 = G / 2 ^ (4 + 7 * j) % 128 := by
+    rw [Nat.div_div_eq_div_mul, show 2 ^ (1 + 7 * j) * 8 = 2 ^ (4 + 7 * j) by
+        rw [show 4 + 7 * j = (1 + 7 * j) + 3 by ring, Nat.pow_add (m := 1 + 7 * j)],
+      ← mod_div_mod g.toNat 25 (4 + 7 * j) 7 (by omega), hg, mod_div_mod G 25 (4 + 7 * j) 7 (by omega)]; rfl
+  have hA : (BinOp.eval .and (BinOp.eval .srl g (BitVec.ofNat 64 (1 + 7 * j))) (BitVec.ofNat 64 1016)).toNat =
+      8 * (G / 2 ^ (4 + 7 * j) % 128) := by
+    have hs := srl_toNat g (1 + 7 * j) (by omega)
+    show ((BinOp.eval .srl g (BitVec.ofNat 64 (1 + 7 * j))) &&& BitVec.ofNat 64 1016).toNat = _
+    rw [BitVec.toNat_and, hs, show (BitVec.ofNat 64 1016).toNat = 1016 from rfl, land8, e2]
+  have hB : (BinOp.eval .sll (BinOp.eval .and g (BitVec.ofNat 64 15)) (BitVec.ofNat 64 10)).toNat =
+      1024 * (G % 16) := by
+    rw [sll_toNat _ 10 (by decide), andMask_toNat' g 15 4 rfl (by decide), e1]
+    have := Nat.mod_lt G (show 0 < 16 by decide)
+    rw [Nat.mod_eq_of_lt (by omega)]; ring
+  apply BitVec.eq_of_toNat_eq
+  show (BinOp.eval .and (BinOp.eval .srl g (BitVec.ofNat 64 (1 + 7 * j))) (BitVec.ofNat 64 1016) +
+    BinOp.eval .sll (BinOp.eval .and g (BitVec.ofNat 64 15)) (BitVec.ofNat 64 10) + BitVec.ofNat 64 T).toNat = _
+  rw [BitVec.toNat_add, BitVec.toNat_add, hA, hB, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+  have := Nat.mod_lt G (show 0 < 16 by decide)
+  have := Nat.mod_lt (G / 2 ^ (4 + 7 * j)) (show 0 < 128 by decide)
+  rw [Nat.mod_eq_of_lt (show T < 2 ^ 64 by omega)]
+  omega
+
 theorem mergeSort3 (x0 x1 x2 a b c : Nat) (hp : [a, b, c].Perm [x0, x1, x2]) (hab : a ≤ b) (hbc : b ≤ c) :
     [x0, x1, x2].mergeSort (fun x y => decide (x ≤ y)) = [a, b, c] := by
   apply List.Perm.eq_of_sortedLE

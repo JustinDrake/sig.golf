@@ -180,7 +180,7 @@ theorem sel_facts {sel : Selection} (hs : SelOk sel) :
     omega
 
 /-- Cycle bound of one coordinate (exact tree, bounded collection). -/
-def ftsCoordC : Nat := (3 + 1024 * 126 + 9 + 94233) + 1200
+def ftsCoordC : Nat := (3 + 1024 * 184 + 9 + 151549) + 1200
 
 open SigGolfCandidate.T3M (chosenOk_of selectionsOk_of_admissible slotBase_succ slotBase_seven_le slotBase_mono
   bucket_div_outer) in

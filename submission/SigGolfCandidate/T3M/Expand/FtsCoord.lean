@@ -40,9 +40,9 @@ theorem cnt3_pos (g0 g1 g2 level node : Nat) (h : hasLeaf [g0, g1, g2] level nod
 theorem cnt3_le (g0 g1 g2 level node : Nat) : cnt3 g0 g1 g2 level node ≤ 3 := by
   unfold cnt3; split_ifs <;> omega
 
-/-- `recover_child` costs at most `53 + 169 level + 89` per leaf below. -/
+/-- `recover_child` costs at most `53 + 197 level + 118` per leaf below. -/
 theorem rcCost_le (g0 g1 g2 : Nat) : ∀ level node,
-    rcCost [g0, g1, g2] level node ≤ 53 + cnt3 g0 g1 g2 level node * (169 * level + 89) := by
+    rcCost [g0, g1, g2] level node ≤ 53 + cnt3 g0 g1 g2 level node * (197 * level + 118) := by
   intro level
   induction level with
   | zero =>
@@ -65,7 +65,7 @@ theorem rcCost_le (g0 g1 g2 : Nat) : ∀ level node,
       rw [cnt3_succ] at hp
       nlinarith
 
-theorem rcCost_eight (g0 g1 g2 b : Nat) : rcCost [g0, g1, g2] 7 b ≤ 4376 := by
+theorem rcCost_eight (g0 g1 g2 b : Nat) : rcCost [g0, g1, g2] 7 b ≤ 4544 := by
   have h1 := rcCost_le g0 g1 g2 7 b
   have h2 := cnt3_le g0 g1 g2 7 b
   nlinarith
@@ -236,7 +236,7 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
     (hroom : wl e1 + 1 + 10 * (e1.cur.length + 4) ≤ 1275) (hnext : next ≤ 115)
     {j : Nat} (hj : j < 4) {value : Digest} {u' : Nat} {u : MachineState}
     (hinv : OInv sig.proof b e1 next t4 j value u' u) :
-    TBSim image sk u 77 (outerStep sig (N.toNat % 2 ^ 31) c b (some (value, u')) j)
+    TBSim image sk u 105 (outerStep sig (N.toNat % 2 ^ 31) c b (some (value, u')) j)
       (fun st w => match st with
         | none => FailedAt 354 w
         | some (v', u'') => OInv sig.proof b e1 next t4 (j + 1) v' u'' w) := by
@@ -398,8 +398,8 @@ theorem outer_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {c b : N
       f5.get (A := NODE + 56) (by decide) (by simp only [NODE]; omega),
       n0.1, n0.2, n48.1, n48.2,
       hdr0_eq 10 c (N.toNat % 2 ^ 31) (N.toNat % 2 ^ 31) (by decide) (by omega) hi hi,
-      hdr1_eq heap 0 hheap' (by decide)]
-    simp only [Nat.mul_zero, Nat.add_zero]
+      nodeWord_10_heap heap hheap']
+    all_goals (try simp only [Nat.mul_zero, Nat.add_zero])
   have hv : hashArgumentsValid u5 = true :=
     hashArgs_const u5 NODE 64 NOUT x10_5 x11_5 x12_5 (by decide) (by decide) (by decide) (by decide) (by decide)
   have h5 : u5.getReg .x5 = 0 := by rw [R05.get (by decide)]; exact hstu.x5
@@ -562,7 +562,7 @@ theorem outerFold_eq (chosen : List Selection) (proof : Fin 115 → Digest) (hC 
   rw [hdiv, idxOf_slot_outer _ j hj, Nat.add_assoc]
 
 /-- The cycles of one coordinate (all oracles). -/
-def coordCost : Nat := 5000
+def coordCost : Nat := 5200
 
 /-- **One coordinate** (`fts_coord` .. `fts_root0`, words 65 .. 214, with `recover_child`). -/
 theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 : MachineState}
@@ -647,7 +647,7 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
     · rw [hE1]; omega
   have hrc := rc_tbsim (sk := sk) hc hi hgl 7 sel.bucket used e0 true 99 0x22000 t3 hpreR
   have hcost := rcCost_eight (selLeaf sel 0) (selLeaf sel 1) (selLeaf sel 2) sel.bucket
-  refine (TBSim.steps (s1.trans (s2.trans s3)) (TBSim.bind (W₂ := 333) hrc (fun r t4 h4 => ?_))).mono
+  refine (TBSim.steps (s1.trans (s2.trans s3)) (TBSim.bind (W₂ := 445) hrc (fun r t4 h4 => ?_))).mono
     (by unfold coordCost; omega) (fun _ _ h => h)
   rcases r with _ | ⟨v, next⟩
   · exact (TBSim.pure (Q := fun st u => match st with
@@ -680,7 +680,7 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
       (match acc with
         | none => FailedAt 354 u
         | some (value, u') => OInv sig.proof sel.bucket e1 next t4 j value u' u) →
-      TBSim image sk u 77 (outerStep sig (N.toNat % 2 ^ 31) c sel.bucket acc (0 + j))
+      TBSim image sk u 105 (outerStep sig (N.toNat % 2 ^ 31) c sel.bucket acc (0 + j))
         (fun acc' u' => match acc' with
           | none => FailedAt 354 u'
           | some (value, u'') => OInv sig.proof sel.bucket e1 next t4 (j + 1) value u'' u') := by
@@ -690,7 +690,7 @@ theorem fts_coord_step {sk : BitVec 256} {sig : Signature} {N : HashOutput} {s0 
       exact (TBSim.pure (a := none) hu).mono (by omega) (fun _ _ h => h)
     · rw [Nat.zero_add]
       exact outer_step hc hb hb0 (by omega) hst4 x8_4 x22_4 hroom hnext124 hj hu
-  refine (TBSim.steps s5 (TBSim.bind (W₂ := 24) (TBSim.foldlM_range' 0 4 _ _ _ 77 hbody hO0)
+  refine (TBSim.steps s5 (TBSim.bind (W₂ := 24) (TBSim.foldlM_range' 0 4 _ _ _ 105 hbody hO0)
     (fun res t6 h6 => ?_))).mono (by omega) (fun _ _ h => h)
   rcases res with _ | ⟨root, next'⟩
   · exact (TBSim.pure (Q := fun st u => match st with
