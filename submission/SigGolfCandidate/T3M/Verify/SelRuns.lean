@@ -46,8 +46,9 @@ def bbE (c : Nat) : E := .bin .sll (.bin .and (gpE c) (cw 15)) (cw 10)
 def xE (c j : Nat) : E :=
   .bin .add (.bin .add (.bin .and (.bin .srl (gpE c) (cw (1 + 7 * j))) (cw 1016)) (bbE c)) (.c (BitVec.ofNat 64 TAB))
 
-/-- Start of coordinate `c`'s selection code (`selStart 7 = 380 = fts_setup`; F5: three header loads per coordinate). -/
-def selStart (c : Nat) : Nat := [23, 74, 126, 176, 228, 278, 328, 380].getD c 0
+/-- Start of coordinate `c`'s selection code (`selStart 7 = 448 = fts_setup`; F5: three header loads per coordinate;
+SJ: the gate and setup moved to 448 .. 468, falling into the leaf code at 469; word 380 is `j 448`). -/
+def selStart (c : Nat) : Nat := [23, 74, 126, 176, 228, 278, 328, 448].getD c 0
 def selJoin (c : Nat) : Nat := selStart (c + 1)
 
 /-- Extraction length (1 or 3 instructions). -/
@@ -94,11 +95,9 @@ def selObl (c : Nat) : List Oblig := [.valid (xA c 2) 8, .valid (xA c 1) 8, .val
 /-- F5: the slots coordinate `c` writes. -/
 def selAllow (c : Nat) : List Nat := [selT8 c 0, selT8 c 1, selT8 c 2]
 
-/-- Sort-tree cost of path `p` (bgeu, beq, three `sd`, the jump to the join). -/
-def selTree : Nat → Nat
-  | 0 => 6
-  | 5 => 7
-  | _ => 8
+/-- Sort-tree cost of path `p` (bgeu, beq, three `sd`, the jump to the join; SJ: coordinate 6's fall-through path 5
+also takes the `j 448` at word 380). -/
+def selTree (c p : Nat) : Nat := if p = 0 then 6 else if p = 5 ∧ c ≠ 6 then 7 else 8
 
 def selMem (c p : Nat) : List (Addr × E) :=
   [(⟨none, BitVec.ofNat 64 (selT8 c 2)⟩, .ld (xE c ((selPerm p).getD 2 0))),
@@ -106,7 +105,7 @@ def selMem (c p : Nat) : List (Addr × E) :=
     (⟨none, BitVec.ofNat 64 (selT8 c 0)⟩, .ld (xE c ((selPerm p).getD 0 0)))]
 
 def selSpec (c p : Nat) : Spec :=
-  ⟨[], selMem c p, selJoin c, false, selExt c + 15 + selTree p, selBrs c p, none, selExt c + 15 + selTree p⟩
+  ⟨[], selMem c p, selJoin c, false, selExt c + 15 + selTree c p, selBrs c p, none, selExt c + 15 + selTree c p⟩
 
 /-- The constant registers of the selection code: `baseK` and `sp = TAB`. -/
 def selK : List (Reg × Word) := baseK ++ [(.x2, BitVec.ofNat 64 TAB)]

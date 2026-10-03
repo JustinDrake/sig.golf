@@ -43,7 +43,7 @@ def selRPath (x0 x1 x2 : Nat) : Nat :=
 
 /-- Cycles of coordinate `c`'s accepting path. -/
 def selCost (a : HashOutput) (c : Nat) : Nat :=
-  selExt c + 15 + selTree (selPath (selX a.toNat c 0) (selX a.toNat c 1) (selX a.toNat c 2))
+  selExt c + 15 + selTree c (selPath (selX a.toNat c 0) (selX a.toNat c 1) (selX a.toNat c 2))
 
 /-! ## Evaluation -/
 
@@ -223,7 +223,7 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
     (hsort : [selX a.toNat c 0, selX a.toNat c 1, selX a.toNat c 2].mergeSort (fun x y => decide (x ≤ y)) =
       (selPerm p).map (selX a.toNat c))
     (hok : selOk1 (selC a c) = true) :
-    ∃ u, Steps image s (selExt c + 15 + selTree p) (selExt c + 15 + selTree p) u ∧ SelIn pk w a (c + 1) u := by
+    ∃ u, Steps image s (selExt c + 15 + selTree c p) (selExt c + 15 + selTree c p) u ∧ SelIn pk w a (c + 1) u := by
   obtain ⟨u, hu⟩ := spec_run (selCheck_at c p hc hp) s hs.pc (selK_of hs.known hs.sp) hbr
     (selObl_holds a s hs.nregs c hc)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
@@ -403,7 +403,7 @@ theorem sel_step (pk : Digest) (w : WBytes) (a : HashOutput) (c : Nat) (hc : c <
     intro p hp hq hsort hpath hokc
     have hbr : ∀ b ∈ selBrs c p, b.holds s := by
       rw [selBrs_eq c p hp]; exact holds_of_condQ a s hs.nregs c hc _ (selBrsQ_idx p hp) hq
-    have hcost : selCost a c = selExt c + 15 + selTree p := by
+    have hcost : selCost a c = selExt c + 15 + selTree c p := by
       unfold selCost; rw [← hx0, ← hx1, ← hx2, hpath]
     rw [hcost]
     exact sel_acc_path pk w a c p hc hp s hs hbr hsort hokc
@@ -527,7 +527,7 @@ theorem sel_setup (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (
 /-! ## All seven coordinates -/
 
 theorem selCost_le (a : HashOutput) (c : Nat) : selCost a c ≤ 26 := by
-  unfold selCost selExt selTree; split <;> split <;> omega
+  unfold selCost selExt selTree; split_ifs <;> omega
 
 theorem sumTo_selCost_le (a : HashOutput) : ∀ n, sumTo (selCost a) n ≤ 26 * n
   | 0 => by simp [sumTo]
@@ -575,7 +575,7 @@ def selCostAll (a : HashOutput) : Nat := sumTo (selCost a) 7
 
 theorem selCostAll_le (a : HashOutput) : selCostAll a ≤ 174 := by
   have h : ∀ c, selCost a c ≤ selExt c + 23 := fun c => by
-    unfold selCost selTree; split <;> omega
+    unfold selCost selTree; split_ifs <;> omega
   have e0 : selExt 0 = 1 := rfl
   have e1 : selExt 1 = 3 := rfl
   have e2 : selExt 2 = 1 := rfl
@@ -647,7 +647,7 @@ theorem select_good (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput)
     exact GoodQ.steps' (hst0.trans hst) (hrest v hv) (by omega) (by omega) (fun q => ⟨q, by omega⟩)
 
 /-- **`verifyP` up to the FTS**: from the initial state, given the judgment of `afterSel` on every state at
-`fts_setup` (word 380). -/
+`fts_setup` (word 448). -/
 theorem verifyP_good_sel (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     {N C A : Nat} {Q : Prop}
     (hfts : ∀ a t, SelIn pk w a 7 t → GoodQ t N C Q A (ccM (afterSel pk w a) Kb)) :

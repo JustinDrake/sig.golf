@@ -1,8 +1,8 @@
 import SigGolfCandidate.T3M.Verify.Compose
 
 /-! The complete verifier bound from the organizer's initial state.
-Accepting runs cost at most 2639 + 6 + 5943 = 8588 cycles (n3-99 relabelled FTS: 2791 → 2676; digest header cut
-2676 → 2675; F5 leaf header words stored by the selection 2675 → 2654; F4 second merge-code copy, no leaf table switch 2654 → 2639; lower-layer cuts and the T3X WOTS header table with T3Y one-`lui` entry stubs: layers
+Accepting runs cost at most 2639 + 6 + 5936 = 8581 cycles (n3-99 relabelled FTS: 2791 → 2676; digest header cut
+2676 → 2675; F5 leaf header words stored by the selection 2675 → 2654; F4 second merge-code copy, no leaf table switch 2654 → 2640; SJ setup falls into the leaf code 2640 → 2639; lower-layer cuts and the T3X WOTS header table with T3Y one-`lui` entry stubs: layers
 1338 / 1321 / 1321 / 1236 for layers 3..0 (top: cryptogakusei's complemented decoder tail, −2; BIG3 T3Z header-table
 heads, −54), Merkle 168 / 168 / 181 / 273 for layers 3..0 after the BIG2 header
 word-0 merge, compare 8). The all-input
@@ -22,7 +22,7 @@ def cycleBoundAll : Nat := 7375 + 8050
 /-- A step bound (fuel) sufficient for every run. -/
 def fuelBound : Nat := 7368 + 8050
 
-theorem cycleBound_eq : cycleBound = 8588 := by unfold cycleBound; rw [lCyc_4]
+theorem cycleBound_eq : cycleBound = 8581 := by unfold cycleBound; rw [lCyc_4]
 theorem cycleBoundAll_eq : cycleBoundAll = 15425 := rfl
 theorem fuelBound_eq : fuelBound = 15418 := rfl
 

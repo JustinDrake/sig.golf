@@ -8,8 +8,8 @@ import SigGolfCandidate.T3.PackedHeap
 
 A four-layer hypertree (heights 12/7/6/6) with BPORS(7,4,7,3) few-time signatures at the bottom, a mixed-radix
 top layer, radix-8 + checksum lower layers, a one-block counter-in-tweak digest and a 128 KiB authenticated
-paired-mask full cache. `S = 5616` bytes, `W = 24264` bytes, `K = 131072` bytes (cache), `C = 8683` cycles
-(accepting-verify bound `8588` plus the witness charge `⌈24264 / 256⌉ = 95`). Layout (bytes): message 64,
+paired-mask full cache. `S = 5616` bytes, `W = 24264` bytes, `K = 131072` bytes (cache), `C = 8676` cycles
+(accepting-verify bound `8581` plus the witness charge `⌈24264 / 256⌉ = 95`). Layout (bytes): message 64,
 secret key 128, public key 160, cache 524288, signature 28672, witness 2048.
 
 The certificate is `SigGolfCandidate.T3M.Final.certificate_of_security` applied to the security proof of the
@@ -19,7 +19,7 @@ images under the previous organizer contract (kept verbatim as `SigGolfCandidate
 transfers each statement. In the legacy certificate the four frozen RISC-V images (`T3M/Images/*`) are proved to
 refine the source programs of `SigGolfCandidate.T3.Core` under one injective relabeling of oracle inputs
 (`Final.pending_holds`: exact values, hash calls and compressions for every input, termination, and the
-accepting-verify bound 8588); the source closure supplies per-key completeness, the signing and expansion
+accepting-verify bound 8581); the source closure supplies per-key completeness, the signing and expansion
 compression moments and the hash-only facts (`Final.sourceFacts_of_securityP`), and the padded game's
 127-bit security is bridged to the organizer's game (`Final/Bridge*`).
 
@@ -109,20 +109,29 @@ The top leaf-pk block drops its `lui a5, 0xce` (TOP-lui): the top chains' final 
 complete charged bound is 8704.
 The layer-2 and layer-1 decode blocks drop their `lui a5, 0x6e` (A5): the Merkle check of the layer above already
 leaves `a5 = 0x6e000`, carried through the transition's known registers (two cycles): the accepting bound is 8603
-and the complete charged bound is 8702 with `W = 25240`; with the packed witness (`W = 24264`, charge 95) the
-complete charged bound is 8698.
+and the complete charged bound is 8702.
+The top transition copies call the shared decoder with a single `jal` whose link is the top leaf-pk block, moved
+up to the copy's word 14 (TOP-jal, one cycle): the accepting bound is 8602 and the complete charged bound is 8697 (with the packed witness, charge 95).
+S6: below layer 3 the transition computes the next layer's `s6` as `addi s6, a0, -1728` from the last Merkle block
+address left in `a0` instead of `lui s6; addi s6` (one cycle on each of layers 2 and 1): the accepting bound is 8600
+and the complete charged bound is 8695.
+S11: `s11` carries the encoding header word 0 directly (the layer-3 data word is `0x30401`, pre-biased by `0x300`), so
+every layer's encoding header is one `sd s11, 0x110` instead of `addi gp, s11, 0x300; sd gp` (the leaf and Merkle
+header words use `-0x200` / `-0x100`): the accepting bound is 8596 and the complete charged bound is 8691.
 F4: the merge code (`entry0_M` and both merge ladders with their tails, words 4841 .. 5084) has a second copy at the
 end of the verify image (words 210432 .. 210675, chunk 822) that table `ptab_l`'s merge slots enter; the original
 re-dispatches through `s10 = ptab_n`, the copy through `s5 = ptab_l`. The 14 table switches `mv s4, s10 / s5` of the
 leaf codes are gone (each leaf dispatch adds its table register; the leaf code block is compacted to end at the
 forest, starting at 469), so the FTS accepting prefix becomes 2640 (fourteen cycles): the accepting bound is 8589 and
 the complete charged bound is 8684.
+SJ: the gate and the FTS setup (words 380 .. 400) move to 448 .. 468 and fall straight into the leaf code at 469, so
+the setup's `j` is gone (the selection's jumps go to 448; coordinate 6's fall-through sort path takes a `j 448` at
+380, within the sort-tree maximum): the FTS accepting prefix becomes 2639, the accepting bound 8588 and the complete
+charged bound 8683.
+With F4 and SJ on top of TOP-jal, S6 and S11 the accepting bound is 8581 and the complete charged bound is 8676.
 
 
-FTS setup fallthrough: the reachable words 469..721 move to 401..653. The setup no longer jumps at word 401.
-External rejection branches retain their destinations, and indirect dispatch links follow the relocated code.
-The forest prefix drops from 2640 to 2639, so accepting verification is 8588 and the charged bound is 8683.
-The unsigned lower checksum branch is already present in the base; no additional checksum saving is claimed.
+
 -/
 
 namespace SigGolf.Challenge
@@ -139,7 +148,7 @@ theorem layout_offsets : submission.layout =
   { message := 64, secretKey := 128, publicKey := 160,
     cache := 524288, signature := 28672, witness := 2048 } := rfl
 
-theorem certificate : SigGolf.Certificate submission 8683 :=
+theorem certificate : SigGolf.Certificate submission 8676 :=
   SigGolfCandidate.T3M.Final.certificate_of_security SigGolfCandidate.T3.Secc.t3_securityP
 
 end SigGolf.Challenge

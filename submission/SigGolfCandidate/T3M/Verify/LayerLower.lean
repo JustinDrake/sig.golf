@@ -64,9 +64,9 @@ theorem layersP_succ (w : WBytes) (index n : Nat) (M : Digest) :
 /-! ## Costs -/
 
 /-- Steps / cycles of decode and entry dispatch (lower 30 / 33 with the 2-step header-bank stub of T3X/T3Y,
-top118-step conservative fuel /70 cycles). -/
-def stB (lay : Nat) : Nat := if lay = 0 then 118 else bSt lay
-def cyB (lay : Nat) : Nat := if lay = 0 then 70 else bCy lay
+top 117-step conservative fuel / 69 cycles after TOP-jal). -/
+def stB (lay : Nat) : Nat := if lay = 0 then 117 else bSt lay
+def cyB (lay : Nat) : Nat := if lay = 0 then 69 else bCy lay
 /-- The chain phase's accepting cycles without maximal digits: lower `2993 − 9 target` (T3X header table), top `1129` after the mandatory eleven-cycle terminal-store credit (T3Z, BIG3: the top's heads read the header table, −54). -/
 def chainCost0 (lay : Nat) : Nat := if lay = 0 then 1129 else 2993 - 9 * tgtL lay
 /-- The chain phase's steps on every path. -/
@@ -80,10 +80,10 @@ def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + ch
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 
 theorem layerCost_vals :
-    layerCost 3 0 = 1317 ∧ layerCost 2 0 = 1299 ∧ layerCost 1 0 = 1300 ∧ layerCost 0 0 = 1231 := by decide
+    layerCost 3 0 = 1316 ∧ layerCost 2 0 = 1297 ∧ layerCost 1 0 = 1298 ∧ layerCost 0 0 = 1229 := by decide
 
 theorem layerFuel_vals :
-    layerFuel 3 = 1780 ∧ layerFuel 2 = 1771 ∧ layerFuel 1 = 1772 ∧ layerFuel 0 = 2464 := by decide
+    layerFuel 3 = 1779 ∧ layerFuel 2 = 1769 ∧ layerFuel 1 = 1770 ∧ layerFuel 0 = 2462 := by decide
 
 /-! ## Decode facts -/
 
@@ -141,8 +141,8 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
     simp [layerFuel, stB, chainFuel, h0]
   have hcost : layerCost lay.val 0 = stepsA lay.val + 8 + bCy lay.val + lfSteps lay.val + (2993 - 9 * tgtL lay.val) := by
     simp only [layerCost, cyB, chainCost0, if_neg h0]; omega
-  have hbS : 27 ≤ bSt lay.val := by unfold bSt; split <;> omega
-  have hbC : 30 ≤ bCy lay.val := by unfold bCy; split <;> omega
+  have hbS : 25 ≤ bSt lay.val := by unfold bSt; split <;> omega
+  have hbC : 28 ≤ bCy lay.val := by unfold bCy; split <;> omega
   unfold layerHead
   by_cases hctr : (wctr w lay).toNat ≥ counterLimit
   · rw [if_pos hctr, ccM_pure, hK0]
@@ -193,12 +193,12 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
 
 /-! ## Interfaces: V2's `FtsOut` → layer 3's `LayerIn`; V3's Merkle end → the next `LayerIn` -/
 
-/-- **V2's `FtsOut` reaches layer 3's `LayerIn`** (stated on `FtsOut`'s fields `glob`, `idx`, `pc` (`layerPc = 588`),
-`root`, `wit`, with `F.idx = a.toNat % 2^31 < 2^31`): T3K's load block (words 588 .. 593, `ld3Spec`, 6 cycles) reads
-five layer constants from the embedded data (`DataOK`, part of `Glob`); the copy `xtr3_1` starts at 594. -/
+/-- **V2's `FtsOut` reaches layer 3's `LayerIn`** (stated on `FtsOut`'s fields `glob`, `idx`, `pc` (`layerPc = 656`),
+`root`, `wit`, with `F.idx = a.toNat % 2^31 < 2^31`): T3K's load block (words 656 .. 661, `ld3Spec`, 6 cycles) reads
+five layer constants from the embedded data (`DataOK`, part of `Glob`); the copy `xtr3_1` starts at 662. -/
 theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u : MachineState)
     (hidx : idx < 2 ^ 31) (hglob : Glob baseK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
-    (hpc : u.pc = pcOf 588) (hroot : DigAt u 0x100 root)
+    (hpc : u.pc = pcOf 656) (hroot : DigAt u 0x100 root)
     (hwit : Verify.Orig w (fun o => o < 64 ∨ 10568 ≤ o) u) :
     ∃ t, Steps image u 6 6 t ∧ LayerIn w pk idx 3 root t := by
   obtain ⟨t, ht⟩ := spec_run ld3Check_ok u hpc hglob.1 (by simp [ld3Spec]) (by simp)
@@ -216,13 +216,13 @@ theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u
     r21.trans (hD.word 1 (by omega) M2c (by decide) (DATA + 8) (by omega))
   have e20 : t.getReg .x20 = BitVec.ofNat 64 M1c :=
     r20.trans (hD.word 2 (by omega) M1c (by decide) (DATA + 16) (by omega))
-  have e27 : t.getReg .x27 = BitVec.ofNat 64 (hw 1 3) :=
-    r27.trans (hD.word 3 (by omega) (hw 1 3) (by decide) (DATA + 24) (by omega))
+  have e27 : t.getReg .x27 = BitVec.ofNat 64 (hw 4 3) :=
+    r27.trans (hD.word 3 (by omega) (hw 4 3) (by decide) (DATA + 24) (by omega))
   have e2 : t.getReg .x2 = BitVec.ofNat 64 0x3fe00 :=
     r2.trans (hD.word 4 (by omega) 0x3fe00 (by decide) (DATA + 32) (by omega))
   have hG0 : Glob baseK w pk t := ht.glob _ _ _ hglob (RelOK.nil u)
   have hpk : preK 3 = baseK ++ [(.x19, BitVec.ofNat 64 0x400000), (.x21, BitVec.ofNat 64 M2c),
-      (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 1 3)), (.x2, BitVec.ofNat 64 0x3fe00)] := rfl
+      (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00)] := rfl
   have hk : ∀ p ∈ preK 3, t.getReg p.1 = p.2 := by
     intro p hp
     rw [hpk] at hp

@@ -46,9 +46,9 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     GoodQ s (N + layerFuel 0) (C + layerCost 0 0) Q (A + layerCost 0 0) (ccM (layerHead w index 0 M R) K) := by
   have hidx := hs.idx
   have hA := encA_step w pk index 0 M s hs
-  have hfuel : layerFuel 0 = 12 + 1 + 118 + 2321 + 12 := by decide
-  have hcost : layerCost 0 0 = 12 + 8 + 70 + 12 + 1129 := by decide
-  have hsA : stepsA (0 : Layer).val = 12 := rfl
+  have hfuel : layerFuel 0 = 11 + 1 + 117 + 2321 + 12 := by decide
+  have hcost : layerCost 0 0 = 11 + 8 + 69 + 12 + 1129 := by decide
+  have hsA : stepsA (0 : Layer).val = 11 := rfl
   unfold layerHead
   by_cases hctr : (wctr w 0).toNat ≥ counterLimit
   · rw [if_pos hctr, ccM_pure, hK0]
@@ -59,7 +59,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     obtain ⟨t, hst, hf, h5, hv, hin, c, hc, hpre⟩ := hA.2 (by omega)
     rw [hsA] at hst
     have hblk := blocks_encodingInput 0 (route index 0).2 (route index 0).1 M (wctr w 0)
-    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 12 + 2321 + 118) (C + 12 + 1129 + 70) Q (A + 12 + 1129 + 70)
+    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 12 + 2321 + 117) (C + 12 + 1129 + 69) Q (A + 12 + 1129 + 69)
         (ccM (match decode 0 (a.extractLsb' 0 128) with
           | none => pure none
           | some digits => chainsP w 0 (route index 0).2 (route index 0).1 digits >>= R) K) := by

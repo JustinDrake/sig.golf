@@ -7,7 +7,7 @@ open SigGolfCandidate.T3 (Digest HashOutput)
 set_option linter.unusedSimpArgs false
 
 def FtsReady (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineState) : Prop :=
-  SelIn pk w a 7 (s.setPC (pcOf 380)) ∧ s.pc = pcOf 383
+  SelIn pk w a 7 (s.setPC (pcOf 448)) ∧ s.pc = pcOf 451
 
 theorem digest_gate_word (N : BitVec 256) :
     N.extractLsb' 192 64 >>> 14 &&& 7#64 = BitVec.ofNat 64 (N.toNat / 2 ^ 206 % 8) := by
