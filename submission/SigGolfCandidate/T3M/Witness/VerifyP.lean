@@ -95,7 +95,7 @@ def segLoop (w : WBytes) (index coord : Nat) :
   | stack, pending, E, ptr, node => do
       let b := (wbyte w ptr).toNat
       if 11 < b % 16 then return none
-      if 0 < b % 16 ∧ b / 32 % 2 ≠ E % 2 then return none
+      if 0 < b % 16 ∧ b / 32 % segSideMod (b % 16) ≠ E % segSideMod (b % 16) then return none
       let node ← pendingHash w index coord node pending
       let (node, E) ← foldsP w index coord ptr (b % 16) node E
       let ptr := segNext ptr (b % 16)

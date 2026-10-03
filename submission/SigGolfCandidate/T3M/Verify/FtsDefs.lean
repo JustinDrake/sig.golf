@@ -126,7 +126,7 @@ structure DispIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Diges
     (E ptr folds : Nat) (node : Digest) (m : MachineState) : Prop where
   fb : FB F c m
   pc : (isLeafP pend = true ∧ m.pc = pcOf (leafDisp (3 * c + j))) ∨
-    (isLeafP pend = false ∧ ∃ k, k < 3 ∧ m.pc = pcOf (mDispPc k) ∧ m.getReg .x24 = BitVec.ofNat 64 (lnk c j))
+    (isLeafP pend = false ∧ ∃ k, k < 155 ∧ m.pc = pcOf (mDispPc k) ∧ m.getReg .x24 = BitVec.ofNat 64 (lnk c j))
   a4 : m.getReg .x14 = BitVec.ofNat 64 (WIT + ptr - 880)
   a5 : m.getReg .x15 = BitVec.ofNat 64 (frameA stk.length)
   s4 : m.getReg .x20 = BitVec.ofNat 64 (tabPc (tselJ j))
@@ -149,7 +149,7 @@ def fblk (ptr i : Nat) : Nat := ptr + 8 + 80 * i
 structure RungIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Digest × Nat)) (X a i E ptr folds : Nat)
     (node : Digest) (m : MachineState) : Prop where
   fb : FB F c m
-  pc : m.pc = pcOf (ladPc X (E % 2) (11 - a + i))
+  pc : m.pc = pcOf (foldPc X a ((wbyte F.w ptr).toNat/32) (E % 2) i)
   a4 : m.getReg .x14 = BitVec.ofNat 64 (WIT + ptr - 880 + 8 + 80 * a)
   a5 : m.getReg .x15 = BitVec.ofNat 64 (frameA stk.length)
   s4 : m.getReg .x20 = BitVec.ofNat 64 (tabPc (tselJ j))
@@ -166,6 +166,7 @@ structure RungIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Diges
   hX : X = segX (tselJ j) (wbyte F.w ptr).toNat ∧ a = segA (wbyte F.w ptr).toNat
   hi : i < a ∧ a ≤ 11
   hE : E < 4096
+  sides : ∀ k, i+k < min a 3 → E/2^k%2 = (wbyte F.w ptr).toNat/32/2^(i+k)%2
 
 /-- The destination of the last hash of variant `X` at stack depth `d`. -/
 def destA (c X d : Nat) : Nat := if X = 0 then frameA d + 48 else if X = 1 then frameA (d + 1) else forestSlot c
@@ -174,7 +175,7 @@ def destA (c X d : Nat) : Nat := if X = 0 then frameA d + 48 else if X = 1 then 
 structure TailIn (F : FCtx) (c j : Nat) (roots : List Digest) (stk : List (Digest × Nat)) (X E ptr folds : Nat)
     (node : Digest) (m : MachineState) : Prop where
   fb : FB F c m
-  pc : ∃ k, k < 3 ∧ m.pc = pcOf (tailPc X k)
+  pc : ∃ k, k < 155 ∧ m.pc = pcOf (tailPc X k)
   a4 : m.getReg .x14 = BitVec.ofNat 64 (WIT + ptr - 880)
   a5 : m.getReg .x15 = BitVec.ofNat 64 (frameA stk.length)
   s4 : m.getReg .x20 = BitVec.ofNat 64 (tabPc (tselJ j))
