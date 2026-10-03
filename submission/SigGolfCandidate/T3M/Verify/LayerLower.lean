@@ -64,9 +64,9 @@ theorem layersP_succ (w : WBytes) (index n : Nat) (M : Digest) :
 /-! ## Costs -/
 
 /-- Steps / cycles of decode and entry dispatch, including the packed-prefix helper;
-top uses conservative fuel 124 and 76 cycles. -/
-def stB (lay : Nat) : Nat := if lay = 0 then 124 else bSt lay
-def cyB (lay : Nat) : Nat := if lay = 0 then 76 else bCy lay
+top uses conservative fuel 123 and 75 cycles (TOP-jal: one `jal` instead of two jumps). -/
+def stB (lay : Nat) : Nat := if lay = 0 then 123 else bSt lay
+def cyB (lay : Nat) : Nat := if lay = 0 then 75 else bCy lay
 /-- Packed-chain accepting envelope: lower `2950 − 9 target`, top `1086`. -/
 def chainCost0 (lay : Nat) : Nat := if lay = 0 then 1086 else 2950 - 9 * tgtL lay
 /-- The chain phase's steps on every path. -/
@@ -80,10 +80,10 @@ def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + ch
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 
 theorem layerCost_vals :
-    layerCost 3 0 = 1282 ∧ layerCost 2 0 = 1264 ∧ layerCost 1 0 = 1265 ∧ layerCost 0 0 = 1194 := by decide
+    layerCost 3 0 = 1281 ∧ layerCost 2 0 = 1262 ∧ layerCost 1 0 = 1263 ∧ layerCost 0 0 = 1192 := by decide
 
 theorem layerFuel_vals :
-    layerFuel 3 = 1788 ∧ layerFuel 2 = 1779 ∧ layerFuel 1 = 1780 ∧ layerFuel 0 = 2470 := by decide
+    layerFuel 3 = 1787 ∧ layerFuel 2 = 1777 ∧ layerFuel 1 = 1778 ∧ layerFuel 0 = 2468 := by decide
 
 /-! ## Decode facts -/
 
@@ -216,13 +216,13 @@ theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u
     r21.trans (hD.word 1 (by omega) M2c (by decide) (DATA + 8) (by omega))
   have e20 : t.getReg .x20 = BitVec.ofNat 64 M1c :=
     r20.trans (hD.word 2 (by omega) M1c (by decide) (DATA + 16) (by omega))
-  have e27 : t.getReg .x27 = BitVec.ofNat 64 (hw 1 3) :=
-    r27.trans (hD.word 3 (by omega) (hw 1 3) (by decide) (DATA + 24) (by omega))
+  have e27 : t.getReg .x27 = BitVec.ofNat 64 (hw 4 3) :=
+    r27.trans (hD.word 3 (by omega) (hw 4 3) (by decide) (DATA + 24) (by omega))
   have e2 : t.getReg .x2 = BitVec.ofNat 64 0x3fe00 :=
     r2.trans (hD.word 4 (by omega) 0x3fe00 (by decide) (DATA + 32) (by omega))
   have hG0 : Glob baseK w pk t := ht.glob _ _ _ hglob (RelOK.nil u)
   have hpk : preK 3 = baseK ++ [(.x19, BitVec.ofNat 64 0x400000), (.x21, BitVec.ofNat 64 M2c),
-      (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 1 3)), (.x2, BitVec.ofNat 64 0x3fe00)] := rfl
+      (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00)] := rfl
   have hk : ∀ p ∈ preK 3, t.getReg p.1 = p.2 := by
     intro p hp
     rw [hpk] at hp

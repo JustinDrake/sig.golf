@@ -693,7 +693,7 @@ theorem lctxOf_known (w : WBytes) (index : Nat) (lay : Layer) (a : BitVec 256) (
   · exact knownOK_at _ s 16 (.x15, 0x6e000) hk rfl
   · exact knownOK_at _ s 17 (.x22, BitVec.ofNat 64 (s6v lay.val)) hk rfl
   · exact h4
-  · exact knownOK_at _ s 2 (.x27, BitVec.ofNat 64 (0x101 + 65536 * lay.val)) hk rfl
+  · exact knownOK_at _ s 2 (.x27, BitVec.ofNat 64 (0x401 + 65536 * lay.val)) hk rfl
   · exact h16
   · exact h17
   · exact h29
