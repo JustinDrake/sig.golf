@@ -222,26 +222,22 @@ def dataWords : List Nat :=
 /-- The data section's base: `dataBase` of the verify image (`16 ⌊(2^24 - 96) / 16⌋`). -/
 def DATA : Nat := 16777120
 
-/-- n3-99: the FTS header table's base = `dataBase` of the verify image (BIG1: `2^24 - 67584`); the table (2048
-doublewords) is followed by the WOTS header table at `HDATA = TAB + 16384`, 2048 zero bytes, then the base data at
-`Nonbinary.PAIR_DATA = TAB + 34816`. -/
+/-- Stage100: the FTS header table starts at `dataBase = 2^24 - 67584` and ends at `HDATA`.
+The disjoint WOTS header table and alignment padding precede the unchanged pair table. -/
 def TAB : Nat := 16709632
 
-/-- T3X: the WOTS header table (16384 bytes, 4 banks of 64 chains x 8 digits) right after the FTS table; the 2048
-zero bytes after it make the bank midpoints 4096-aligned (T3Y). -/
+/-- The aligned donor's WOTS header table base, above the relabelled FTS table. -/
 def HDATA : Nat := 16726016
 
 /-- T3X: the midpoint of layer `lay`'s 4096-byte header bank, shifted by the chain-index offset `koff`. -/
 def headerBank (lay koff : Nat) : Nat := HDATA + 4096 * lay + 2048 + 64 * koff
 
-/-- Both the embedded constants and the checksum lookup bytes are in place, (n3-99) the FTS header table:
-doubleword `j < 2048` at `TAB` is `revBits 64 (2048 + j)`, word 1 of the tag-9 header of leaf `j`, and (T3X) the
-WOTS header table. -/
 structure DataOK (s : MachineState) : Prop where
   constants : ∀ k, k < 12 → s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)
   sum : Search.SumTableOK s
   packed : Nonbinary.PackedTables s
   tab : ∀ j, j < 2048 → s.getMem (BitVec.ofNat 64 (TAB + 8 * j)) = BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + j))
+
   /-- T3X: the header doubleword of layer `lay`, chain `i`, initial digit `d`. -/
   header : ∀ lay i d, lay < 4 → i < 64 → d < 8 →
     s.getMem (BitVec.ofNat 64 (HDATA + 4096 * lay + 64 * i + 8 * d)) =

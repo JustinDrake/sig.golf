@@ -64,9 +64,9 @@ theorem layersP_succ (w : WBytes) (index n : Nat) (M : Digest) :
 /-! ## Costs -/
 
 /-- Steps / cycles of decode and entry dispatch (lower 30 / 33 with the 2-step header-bank stub of T3X/T3Y,
-top118-step conservative fuel /72 cycles). -/
+top118-step conservative fuel /70 cycles). -/
 def stB (lay : Nat) : Nat := if lay = 0 then 118 else 30
-def cyB (lay : Nat) : Nat := if lay = 0 then 72 else 33
+def cyB (lay : Nat) : Nat := if lay = 0 then 70 else 33
 /-- The chain phase's accepting cycles without maximal digits: lower `3008 − 9 target` (T3X header table), top `1183` after the mandatory eleven-cycle terminal-store credit. -/
 def chainCost0 (lay : Nat) : Nat := if lay = 0 then 1183 else 3008 - 9 * tgtL lay
 /-- The chain phase's steps on every path. -/
@@ -80,7 +80,7 @@ def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + ch
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 
 theorem layerCost_vals :
-    layerCost 3 0 = 1338 ∧ layerCost 2 0 = 1321 ∧ layerCost 1 0 = 1321 ∧ layerCost 0 0 = 1292 := by decide
+    layerCost 3 0 = 1338 ∧ layerCost 2 0 = 1321 ∧ layerCost 1 0 = 1321 ∧ layerCost 0 0 = 1290 := by decide
 
 theorem layerFuel_vals :
     layerFuel 3 = 1786 ∧ layerFuel 2 = 1778 ∧ layerFuel 1 = 1778 ∧ layerFuel 0 = 2469 := by decide

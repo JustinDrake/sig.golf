@@ -23,8 +23,7 @@ theorem expandData_table (i : Nat) (hi : i < 628) : expandData.getD i 0 = tableB
 
 theorem signData_length : signData.length = 4096 := by decide +kernel
 theorem expandData_length : expandData.length = 4096 := by decide +kernel
-/-- n3-99: the 2048-word FTS header table (16384 bytes) comes first; BIG1 (T3X / T3Y): then the 16384-byte WOTS
-header table and 2048 zero bytes, then the base data at offset 34816. -/
+/-- n3-99: the 2048-word FTS header table (16384 bytes) precedes the base data. -/
 theorem verifyData_length : verifyData.length = 67584 := by decide +kernel
 
 private theorem checked_slice_get (bs : List (BitVec 8)) (base n i : Nat) (f : Nat → BitVec 8)
@@ -47,7 +46,7 @@ private theorem verify_pair_check : ((verifyData.drop 34816).take 16384).zipIdx.
     decide (p.1 = BitVec.ofNat 8 (Verify.Nonbinary.pairLookup p.2))) = true := by decide +kernel
 
 private theorem verify_tail_check : ((verifyData.drop 51200).take 64).zipIdx.all (fun p =>
-    decide (p.1 = BitVec.ofNat 8 (Verify.Nonbinary.tailSum p.2))) = true := by decide +kernel
+    decide (p.1 = BitVec.ofNat 8 (126 - Verify.Nonbinary.tailSum p.2))) = true := by decide +kernel
 
 theorem verifyData_sum (i : Nat) (hi : i < 128) :
     verifyData.getD (63488+i) 0 = BitVec.ofNat 8 (rankLookup i) := by
@@ -60,8 +59,8 @@ theorem verifyData_pair (i : Nat) (hi : i < 16384) :
     (by simp only [List.length_take,List.length_drop,verifyData_length]; decide) verify_pair_check
 
 theorem verifyData_tail (i : Nat) (hi : i < 64) :
-    verifyData.getD (51200+i) 0 = BitVec.ofNat 8 (Verify.Nonbinary.tailSum i) := by
-  exact checked_slice_get verifyData 51200 64 i (fun r => BitVec.ofNat 8 (Verify.Nonbinary.tailSum r)) hi
+    verifyData.getD (51200+i) 0 = BitVec.ofNat 8 (126 - Verify.Nonbinary.tailSum i) := by
+  exact checked_slice_get verifyData 51200 64 i (fun r => BitVec.ofNat 8 (126 - Verify.Nonbinary.tailSum r)) hi
     (by simp only [List.length_take,List.length_drop,verifyData_length]; decide) verify_tail_check
 
 end SigGolfCandidate.T3M.Search
