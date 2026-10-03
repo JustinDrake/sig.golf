@@ -2,7 +2,7 @@ import SigGolfCandidate.T3M.Verify.SelCheck
 import SigGolfCandidate.T3M.Verify.SelArith
 
 /-!
-# Selections: semantics (T3M verify words 18 .. 358)
+# Selections: semantics (T3M verify words 17 .. 358)
 
 From the post-digest state (`DgOut`, answer `a`): the setup loads the four words of `a` and `s6 = a mod 2^31`; for
 each coordinate `c` the machine either rejects (HALT(1), no query) when the triple of coordinate `c` has a repeated
@@ -413,7 +413,7 @@ theorem idxE_eval (a : HashOutput) (s : MachineState)
 theorem sel_setup (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState)
     (hu : DgOut m pk w a u) : ∃ t, Steps image u 6 6 t ∧ SelIn pk w a 0 t := by
   have hk : KnownOK baseK u := hu.known.mono (fun p hp => by simp [proPost]; exact Or.inl hp)
-  obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt baseK [24] 18 []) setupSpec [] baseK [] = true
+  obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt baseK [23] 17 []) setupSpec [] baseK [] = true
     from setupCheck_ok) u hu.pc hk (by simp [setupSpec]) (by simp)
   have hmem : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
   refine ⟨t, ht.steps, ⟨by rw [ht.pc rfl]; rfl, ht.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
@@ -564,7 +564,7 @@ theorem select_good (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput)
 theorem verifyP_good_sel (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     {N C A : Nat} {Q : Prop}
     (hfts : ∀ a t, SelIn pk w a 7 t → GoodQ t N C Q A (ccM (afterSel pk w a) Kb)) :
-    GoodQ s (N + 186) (C + 193) Q (A + 184) (ccM (verifyP m pk w) Kb) := by
+    GoodQ s (N + 186) (C + 193) Q (A + 183) (ccM (verifyP m pk w) Kb) := by
   rw [verifyP_eq, ccM_bind]
   have := digestP_good m pk w s hs (N := N + 168) (C := C + 168) (A := A + 159) (Q := Q)
     (fun o => ccM (match o with
