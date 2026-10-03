@@ -45,13 +45,13 @@ theorem compressedSum_le (v : Digest) : compressedSum (topRank v) ≤ 4335 := by
   have h8 := pairWeight_le (topRank v 15) (topRank v 16)
   unfold compressedSum; omega
 
-/-- The actual verifier validates exactly the original decoder in fifty-eight steps. -/
+/-- The actual verifier validates exactly the original decoder in sixty steps. -/
 theorem decode_ok (s : MachineState) (v : Digest)
     (hpc : s.pc = pcOf 96160) (hv : DigAt s 320 v) (ht : PackedTables s)
     (hvalid : T3.decode 0 v = some (topDigits v)) :
-    ∃ t, Steps Verify.image s 58 58 t ∧ t.pc = pcOf 96220 ∧
+    ∃ t, Steps Verify.image s 60 60 t ∧ t.pc = pcOf 96220 ∧
       t.getReg .x16 = v.extractLsb' 0 64 ∧ t.getReg .x17 = v.extractLsb' 63 64 ∧
-      t.getReg .x29 = topWindow v 17 ∧
+      t.getReg .x29 = topWindow v 17 ∧ t.getReg .x25 = 126#64 ∧
       RegsExcept s t [.x16,.x17,.x14,.x25,.x29,.x19,.x24] ∧ Frame s t (fun _ => False) := by
   have hh : v.toNat < 2 ^ 125 ∧ pairedLookupSum v = 126 := by
     rw [decode_top_paired] at hvalid
@@ -61,12 +61,13 @@ theorem decode_ok (s : MachineState) (v : Digest)
   rw [if_pos hh.1] at p1
   obtain ⟨t2,e2,p2,w2,a2,h172,b192,b242,r2,f2⟩ := pairedFold_spec t1 v p1 a1 b1 (ht.frame f1)
   have hb : compressedSum (topRank v) + tailWeight v = 126 := hh.2
-  obtain ⟨t3,e3,p3,r3,f3⟩ := tail_spec t2 v _ (compressedSum_le v) hh.1 p2 w2 a2 ((ht.frame f1).frame f2)
-  rw [if_pos hb] at p3 e3
-  refine ⟨t3,(e1.trans e2).trans e3,p3,?_,?_,?_,
+  obtain ⟨t3,e3,p3,a3,r3,f3⟩ := tail_spec t2 v _ (compressedSum_le v) hh.1 p2 w2 a2 ((ht.frame f1).frame f2)
+  rw [if_pos hb] at p3
+  refine ⟨t3,(e1.trans e2).trans e3,p3,?_,?_,?_,?_,
     ((r1.trans r2).trans r3).mono (by decide),((f1.trans f2).trans f3).mono (by simp)⟩
   · rw [r3.get (by decide),r2.get (by decide),a1]
   · rw [r3.get (by decide),h172]
   · rw [r3.get (by decide),w2]
+  · rw [a3,hb]
 
 end SigGolfCandidate.T3M.Verify.Nonbinary

@@ -65,7 +65,7 @@ structure HdrOk (b A merge E : Nat) : Prop where
   a : b % 16 = A
   le : A ≤ 11
   m : b / 16 % 2 = merge
-  t : 0 < A → b / 32 % 2 = E % 2
+  t : 0 < A → b / 32 % segSideMod A = E % segSideMod A
 
 /-- A segment without merge (or on an empty stack, which must not merge). -/
 theorem segLoop_stop (w : WBytes) (index coord : Nat) (stack : List (Digest × Nat)) (pending : Pending)
@@ -76,7 +76,7 @@ theorem segLoop_stop (w : WBytes) (index coord : Nat) (stack : List (Digest × N
       pure (some (r.1, r.2, segNext ptr A, stack))) := by
   rw [segLoop.eq_1]
   have h1 : ¬ 11 < A := Nat.not_lt.mpr h.le
-  have h2 : ¬ (0 < A ∧ (wbyte w ptr).toNat / 32 % 2 ≠ E % 2) := by
+  have h2 : ¬ (0 < A ∧ (wbyte w ptr).toNat / 32 % segSideMod A ≠ E % segSideMod A) := by
     rintro ⟨hp, hne⟩; exact hne (h.t hp)
   simp only [h.a, h.m]
   rw [if_neg h1, if_neg h2]
@@ -93,7 +93,7 @@ theorem segLoop_merge (w : WBytes) (index coord : Nat) (pnode : Digest) (Q : Nat
       else segLoop w index coord rest (.merge (r.2 / 2) pnode) (r.2 / 2) (segNext ptr A) r.1) := by
   rw [segLoop.eq_1]
   have h1 : ¬ 11 < A := Nat.not_lt.mpr h.le
-  have h2 : ¬ (0 < A ∧ (wbyte w ptr).toNat / 32 % 2 ≠ E % 2) := by
+  have h2 : ¬ (0 < A ∧ (wbyte w ptr).toNat / 32 % segSideMod A ≠ E % segSideMod A) := by
     rintro ⟨hp, hne⟩; exact hne (h.t hp)
   simp only [h.a, h.m]
   rw [if_neg h1, if_neg h2]

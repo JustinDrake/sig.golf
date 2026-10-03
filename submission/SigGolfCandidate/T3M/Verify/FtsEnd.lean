@@ -295,7 +295,7 @@ the four counters; pk; the zero words and the counter's high half of the encodin
 the header and of the layer region (offsets ≥ `streamEnd` = 11288, with the zero memory past W up to `WX`) is
 original. -/
 structure FtsOut (F : FCtx) (root : Digest) (u : MachineState) : Prop where
-  glob : Glob baseK F.w F.pk u
+  glob : Glob carryK F.w F.pk u
   idx : u.getReg .x22 = BitVec.ofNat 64 F.idx
   pc : u.pc = pcOf layerPc
   root : DigAt u 0x100 root
@@ -404,7 +404,7 @@ theorem forest_step (F : FCtx) (roots : List Digest) (ptr folds : Nat) (m : Mach
       · rw [hmem _ (by norm_num), if_neg (by unfold FOREST; omega), if_pos (by unfold FOREST; omega),
           hdr0_forest F.idx hi32]
       · rw [hmem _ (by norm_num), if_pos (by unfold FOREST; omega), hdr1_forest F.idx hi32]
-    refine ⟨u, hu.steps, hu.ecall rfl, hu.known (.x5, 0) (by simp [baseK]),
+    refine ⟨u, hu.steps, hu.ecall rfl, hu.known (.x5, 0) (by simp [carryK, baseK]),
       hashArgs_of u _ 128 _ h10 h11 h12 (by unfold FOREST; omega) (by decide) (by unfold FOREST; norm_num)
         (by decide) (by norm_num), hin, fun ans => ⟨?_, ?_, ?_, ?_, ?_⟩⟩
     · exact Glob_writeHash (hu.glob _ _ _ h.glob (RelOK.nil m)) ans 0x100 h12 (by decide)
