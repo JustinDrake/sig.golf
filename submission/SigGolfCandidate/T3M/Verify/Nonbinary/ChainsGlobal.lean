@@ -11,10 +11,10 @@ set_option linter.unusedSimpArgs false
 def TopOut (c : NCtx) (s0 : MachineState) (acc : List Digest) (s : MachineState) : Prop :=
   (∀ x, x ∉ chainRegs → x ≠ .x15 → s.getReg x=s0.getReg x) ∧
   Frame s0 s (c.Wr 54) ∧ acc.length=54 ∧
-  (∀ j < acc.length, DigAt s (slot j) (acc.getD j 0)) ∧ s.pc=pcOf c.ret ∧ s.getReg .x15 = 843776#64
+  (∀ j < acc.length, DigAt s (slot j) (acc.getD j 0)) ∧ s.pc=pcOf c.ret
 
 theorem end_return (c : NCtx) (hc : c.ok) (hds : c.DigitsOk) {s0 b : MachineState}
-    (hk : ∀ p ∈ c.known, s0.getReg p.1=p.2) (hb : b.getReg .x15 = 843776#64)
+    (hk : ∀ p ∈ c.known, s0.getReg p.1=p.2)
     (acc : List Digest) (s : MachineState) (hs : c.EndInv (tailInitial s0 b) 53 acc s) :
     ∃ t, Steps vimage s 1 1 t ∧ c.TopOut s0 acc t := by
   obtain ⟨⟨hR,hF,hS⟩,hlen,hpc⟩ := hs
@@ -26,7 +26,7 @@ theorem end_return (c : NCtx) (hc : c.ok) (hds : c.DigitsOk) {s0 b : MachineStat
   have st := piece_steps45 hr hp s hpc (by simp [retR])
   have h1 : s.getReg .x1=pcOf c.ret :=
     (hR .x1 (by decide)).trans ((tailInitial_regs _ _ _ (by decide)).trans (hk (.x1,pcOf c.ret) (by simp [known])))
-  refine ⟨retR.toState s,st,⟨fun x hx hx15 => ?_,?_,hlen,?_,?_,?_⟩⟩
+  refine ⟨retR.toState s,st,⟨fun x hx hx15 => ?_,?_,hlen,?_,?_⟩⟩
   · exact (retR_keeps.reg s (by simp)).trans ((hR x hx).trans (tailInitial_regs _ _ _ hx15))
   · intro A hA hn
     exact hF A hA hn
@@ -34,7 +34,6 @@ theorem end_return (c : NCtx) (hc : c.ok) (hds : c.DigitsOk) {s0 b : MachineStat
   · rw [Result.toState_pc]
     simp only [retR,E.eval,BinOp.eval,h1]
     exact even_andNot1' _ (by have := hc.2.2.2.2.2;omega)
-  · exact (retR_keeps.reg s (by simp)).trans ((hR .x15 (by decide)).trans ((tailInitial_15 _ _).trans hb))
 
 theorem chainsCost_add (c : NCtx) (i n k : Nat) :
     c.chainsCost i (n+k)=c.chainsCost i n+c.chainsCost (i+n) k := by
@@ -96,11 +95,11 @@ theorem top_good_exact (c : NCtx) (hc : c.ok) {s0 : MachineState} {v : Digest}
     (fun ends => Verify.ccM ((List.range' 51 3).foldlM c.chainF ends) K)
     (N+125) (C+c.chainsCost 51 3+5) (A+c.chainsCost 51 3+5) Q
     (fun ends t ht => by
-      obtain ⟨u,st,hu,hu15⟩ := c.end_tail hc hd he hf hv ends t ht
+      obtain ⟨u,st,hu⟩ := c.end_tail hc hd he hf hv ends t ht
       have H := c.group_good hc hd (c.tailInitial_known hk) (c.tailInitial_orig h0) 17 (by decide)
         K (N+1) (C+1) (A+1) Q
         (fun acc t ht => by
-          obtain ⟨u,st,hu⟩ := c.end_return hc hd hk hu15 acc t ht
+          obtain ⟨u,st,hu⟩ := c.end_return hc hd hk acc t ht
           exact Verify.GoodQ.steps st (hK acc u hu))
         3 51 (by decide) (by decide) (by decide) ends u hu
       have H := Verify.GoodQ.steps st H

@@ -6,7 +6,7 @@ import SigGolfCandidate.T3M.Sign.Digits
 /-!
 # Sign: the hypertree layers 3, 2, 1 and the link to layer 0
 
-Core's `signLayers cache index 4 root` signs layer 3 (message: the forest pk), then layer 2 (message: layer 3's
+Core's `signLayers cache index 4 (root, 0, 0)` signs layer 3 (message: the forest pk), then layer 2 (message: layer 3's
 root), layer 1, layer 0. The machine (words 370..427) does the same: per lower layer `lay` the setup block, the
 `counter_search` call (E's kernel, `CounterSearchSpec`), the `build_tree` call (`buildTree_tbsim`), then the next
 layer's setup block; layer 0 is entered at 427 (`L0Spec`).
@@ -15,7 +15,7 @@ layer's setup block; layer 0 is entered at 427 (`L0Spec`).
 * `SLPost t n` : the exit of `signLayers cache index n`: `fail`, or `HALT(0)` with the pieces of layers `0 .. n-1`,
   everything outside them and the FTS part of the signature possibly changed (`LayW n`);
 * `lower_layer` : one lower layer, given the refinement of the layers below it;
-* `layers_tbsim` : from the layer-3 entry, `signLayers cache index 4 root` within `layersC` cycles.
+* `layers_tbsim` : from the layer-3 entry, `signLayers cache index 4 (root, 0, 0)` within `layersC` cycles.
 -/
 
 namespace SigGolfCandidate.T3M.Sign
@@ -131,7 +131,7 @@ theorem blkJal_spec {lay : Layer} (hlay : lay ≠ 0) (s : MachineState) (hpc : s
 /-! ## One lower layer -/
 
 /-- The `counter_search` entry (646) of lower layer `lay` with the message `msg` at `ENC`. -/
-structure LayEntry (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (index : Nat) (msg : Digest)
+structure LayEntry (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (index : Nat) (msg : T3.LayerMessage)
     (t : MachineState) : Prop where
   pc : t.pc = pcOf 646
   x1 : t.getReg .x1 = pcOf (jalBT lay)
@@ -146,34 +146,39 @@ structure LayEntry (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (index 
   x26 : t.getReg .x26 = BitVec.ofNat 64 43
   x27 : t.getReg .x27 = BitVec.ofNat 64 0
   x31 : t.getReg .x31 = BitVec.ofNat 64 0
-  base : Base sk cache t
+  base : BaseL sk cache t
   hlay : lay ≠ 0
   hidx : index < 2 ^ 31
   idx : t.getMem (BitVec.ofNat 64 IDXV) = BitVec.ofNat 64 index
-  enc : DigAt t ENC msg
+  enc : DigAt t ENC msg.1
+  encR : DigAt t (ENC + 48) msg.2.2
+  pad0 : msg.2.1 = 0
   c32 : (t.getMem (BitVec.ofNat 64 (ENC + 32))).toNat < 2 ^ 32
 
-/-- Back from `build_tree` at `ret` with the layer's root (the next message) at `ENC`. -/
-structure LayNext (sk : SecretKey) (cache : Bytes 131072) (ret index : Nat) (root : Digest) (t : MachineState) :
+/-- Back from `build_tree` at `ret` with the layer's root children (the next message) at `ENC`, `ENC + 48`. -/
+structure LayNext (sk : SecretKey) (cache : Bytes 131072) (ret index : Nat) (root : T3.LayerMessage) (t : MachineState) :
     Prop where
   pc : t.pc = pcOf ret
   x2 : t.getReg .x2 = BitVec.ofNat 64 LOW
   x26 : t.getReg .x26 = BitVec.ofNat 64 43
   x27 : t.getReg .x27 = BitVec.ofNat 64 0
   x31 : t.getReg .x31 = BitVec.ofNat 64 0
-  base : Base sk cache t
+  base : BaseL sk cache t
   hidx : index < 2 ^ 31
   idx : t.getMem (BitVec.ofNat 64 IDXV) = BitVec.ofNat 64 index
-  enc : DigAt t ENC root
+  enc : DigAt t ENC root.1
+  encR : DigAt t (ENC + 48) root.2.2
+  pad0 : root.2.1 = 0
   c32 : (t.getMem (BitVec.ofNat 64 (ENC + 32))).toNat < 2 ^ 32
 
 /-- Core's `signLayers` at a lower layer. -/
-theorem signLayers_low (cache : Cache) (index : Nat) {lay : Layer} (hlay : lay ≠ 0) (msg : Digest) :
+theorem signLayers_low (cache : Cache) (index : Nat) {lay : Layer} (hlay : lay ≠ 0) (msg : T3.LayerMessage) :
     signLayers cache index (lay.val + 1) msg = (do
       let some (_, digits) ← counterSearch lay (route index lay).2 (route index lay).1 msg 0 counterLimit
         | pure none
       let (levels, values) ← buildTree lay (route index lay).2 (route index lay).1 digits
-      let some previous ← signLayers cache index lay.val ((levels.getD (height lay) []).getD 0 0) | pure none
+      let some previous ← signLayers cache index lay.val ((levels.getD (height lay - 1) []).getD 0 0, 0,
+        (levels.getD (height lay - 1) []).getD 1 0) | pure none
       pure (some (previous ++ [(values, (List.range (height lay)).map fun j =>
         (levels.getD j []).getD ((route index lay).1 / 2 ^ j ^^^ 1) 0)]))) := by
   fin_cases lay
@@ -186,9 +191,9 @@ variable {sk : SecretKey} {cache : Bytes 131072}
 /-- **One lower layer**: from the `counter_search` entry of layer `lay ≠ 0`, the machine refines
 `signLayers cache index (lay + 1) msg`, given the refinement of `signLayers cache index lay` from the return of
 `build_tree`. -/
-theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg : Digest} {t : MachineState}
+theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg : T3.LayerMessage} {t : MachineState}
     (h : LayEntry sk cache lay index msg t) {W : Nat}
-    (hnext : ∀ root v, LayNext sk cache (jalBT lay + 1) index root v →
+    (hnext : ∀ (root : T3.LayerMessage) v, LayNext sk cache (jalBT lay + 1) index root v →
       TBSim image sk v W (signLayers (cacheDec cache) index lay.val root) (SLPost v lay.val)) :
     TBSim image sk t (csCost lay + (1 + (btCost + W))) (signLayers (cacheDec cache) index (lay.val + 1) msg)
       (SLPost t (lay.val + 1)) := by
@@ -209,11 +214,11 @@ theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg
       x27 := by rw [h.x27, n4_low hlay]
       htree := htree
       hleaf := by have : 2 ^ height lay ≤ 2 ^ 32 := Nat.pow_le_pow_right (by norm_num) (by omega); omega
+      rR := h.encR
+      hpad := h.pad0
       msg := h.enc
       c32 := h.c32
-      z40 := h.base.zero _ (by sgo) (by unfold NeverW; simp)
-      z48 := h.base.zero _ (by sgo) (by unfold NeverW; simp)
-      z56 := h.base.zero _ (by sgo) (by unfold NeverW; simp)
+      z40 := h.base.zero _ (by sgo) (by unfold NeverWL; simp)
       table := h.base.table }
   rw [signLayers_low _ _ hlay]
   refine TBSim.bind (hK t lay _ _ msg (jalBT lay) hcs) (fun r u hu => ?_)
@@ -238,7 +243,7 @@ theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg
       x27 := by rw [g1 _ (by decide), h.x27]
       x31 := by rw [g1 _ (by decide), h.x31]
       base := h.base.frame fu1 (ur.trans u1r) (by decide) (fun A _ hb hw => by
-        unfold BaseA NeverW Search.TOP_DATA at hb
+        unfold BaseAL NeverWL Search.TOP_DATA at hb
         unfold CsW at hw
         sgo)
       hlay := hlay
@@ -254,7 +259,7 @@ theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg
       hsb8 := by omega }
   refine TBSim.steps st1 (TBSim.bind (buildTree_tbsim hbt u1pc u1x1) (fun lv v hv => ?_))
   obtain ⟨levels, values⟩ := lv
-  obtain ⟨vpc, vlen, vvals, vpath, vroot, vbase, vr, vf⟩ := hv
+  obtain ⟨vpc, vlen, vvals, vpath, vroot, vrootR, vbase, vr, vf⟩ := hv
   have gv : ∀ r, r ∉ csRegs ++ [.x1] ++ btAllRegs → v.getReg r = t.getReg r := fun r hr =>
     ((ur.trans u1r).trans vr).get hr
   have fuv : Frame u v (fun A => BtAllW lay (route index lay).2 (SIG + 16 * layIdx lay) A) :=
@@ -271,7 +276,8 @@ theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg
     simp only [btLev] at hw
     rcases hH with h6 | h6 <;> rw [h6] at hw <;> simp only [Nat.reduceAdd, Nat.reducePow, Nat.reduceMul] at hw <;>
       sgo
-  have hnx : LayNext sk cache (jalBT lay + 1) index ((levels.getD (height lay) []).getD 0 0) v :=
+  have hnx : LayNext sk cache (jalBT lay + 1) index ((levels.getD (height lay - 1) []).getD 0 0, 0,
+      (levels.getD (height lay - 1) []).getD 1 0) v :=
     { pc := vpc
       x2 := by rw [gv _ (by decide), h.x2]
       x26 := by rw [gv _ (by decide), h.x26]
@@ -286,6 +292,8 @@ theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg
           · exact nB _ (Or.inl rfl) hw)]
         exact h.idx
       enc := vroot
+      encR := vrootR
+      pad0 := rfl
       c32 := by rw [fuv.get (by sgo) (nB _ (Or.inr rfl))]; exact uc32 }
   refine TBSim.bind (W₂ := 0) (hnext _ v hnx) (fun r w hw => ?_)
   rcases r with _ | previous
@@ -319,7 +327,7 @@ theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg
 /-! ## The setup blocks of layers 2 and 1, the link to layer 0 -/
 
 /-- Layer 2's setup (397..410) from layer 3's `build_tree` return. -/
-theorem entry2 {index : Nat} {root : Digest} {v : MachineState} (h : LayNext sk cache 397 index root v) :
+theorem entry2 {index : Nat} {root : T3.LayerMessage} {v : MachineState} (h : LayNext sk cache 397 index root v) :
     ∃ t, Steps image v 14 14 t ∧ LayEntry sk cache 2 index root t ∧ Frame v t (fun _ => False) := by
   obtain ⟨t, st, tpc, tx1, tx8, tx15, tx16, tx17, tx18, tx14, tx9, tr, tf⟩ := blk397_spec v h.pc index h.hidx h.idx
   have g : ∀ r, r ∉ [.x1, .x6, .x7, .x8, .x9, .x14, .x15, .x16, .x17, .x18, .x28] → t.getReg r = v.getReg r :=
@@ -344,10 +352,12 @@ theorem entry2 {index : Nat} {root : Digest} {v : MachineState} (h : LayNext sk 
       hidx := h.hidx
       idx := by rw [tf.get (by sgo) (fun h => h)]; exact h.idx
       enc := h.enc.frame tf (by sgo) (fun h => h) (fun h => h)
+      encR := h.encR.frame tf (by sgo) (fun h => h) (fun h => h)
+      pad0 := h.pad0
       c32 := by rw [tf.get (by sgo) (fun h => h)]; exact h.c32 }
 
 /-- Layer 1's setup (412..425) from layer 2's `build_tree` return. -/
-theorem entry1 {index : Nat} {root : Digest} {v : MachineState} (h : LayNext sk cache 412 index root v) :
+theorem entry1 {index : Nat} {root : T3.LayerMessage} {v : MachineState} (h : LayNext sk cache 412 index root v) :
     ∃ t, Steps image v 14 14 t ∧ LayEntry sk cache 1 index root t ∧ Frame v t (fun _ => False) := by
   obtain ⟨t, st, tpc, tx1, tx8, tx15, tx16, tx17, tx18, tx14, tx9, tr, tf⟩ := blk412_spec v h.pc index h.hidx h.idx
   have g : ∀ r, r ∉ [.x1, .x6, .x7, .x8, .x9, .x14, .x15, .x16, .x17, .x18, .x28] → t.getReg r = v.getReg r :=
@@ -372,13 +382,15 @@ theorem entry1 {index : Nat} {root : Digest} {v : MachineState} (h : LayNext sk 
       hidx := h.hidx
       idx := by rw [tf.get (by sgo) (fun h => h)]; exact h.idx
       enc := h.enc.frame tf (by sgo) (fun h => h) (fun h => h)
+      encR := h.encR.frame tf (by sgo) (fun h => h) (fun h => h)
+      pad0 := h.pad0
       c32 := by rw [tf.get (by sgo) (fun h => h)]; exact h.c32 }
 
 /-- Layer 0 from layer 1's `build_tree` return (427): `L0Spec`, as `SLPost`. -/
-theorem layer0_link (hL0 : L0Spec sk cache) {index : Nat} {root : Digest} {v : MachineState}
+theorem layer0_link (hL0 : L0Spec sk cache) {index : Nat} {root : T3.LayerMessage} {v : MachineState}
     (h : LayNext sk cache 427 index root v) :
     TBSim image sk v L0Cost (signLayers (cacheDec cache) index 1 root) (SLPost v 1) := by
-  refine TBSim.mono (hL0 index root v ⟨h.pc, h.base, h.hidx, h.idx, h.enc, h.c32⟩) le_rfl (fun r u hu => ?_)
+  refine TBSim.mono (hL0 index root v ⟨h.pc, h.base, h.hidx, h.idx, h.enc, h.encR, h.pad0, h.c32⟩) le_rfl (fun r u hu => ?_)
   rcases r with _ | ps
   · exact hu
   obtain ⟨vals, path, rfl, uh, uv, up, uf⟩ := hu
@@ -406,19 +418,19 @@ def layW3 : Nat := 14 + (csCost 2 + (1 + (btCost + layW2)))
 def layersC : Nat := csCost 3 + (1 + (btCost + layW3))
 
 /-- **The layers**: from layer 3's `counter_search` entry with the forest pk at `ENC`, the machine refines
-`signLayers cache index 4 root`. -/
-theorem layers_tbsim (hK : CounterSearchSpec sk) (hL0 : L0Spec sk cache) {index : Nat} {root : Digest}
+`signLayers cache index 4 (root, 0, 0)`. -/
+theorem layers_tbsim (hK : CounterSearchSpec sk) (hL0 : L0Spec sk cache) {index : Nat} {root : T3.LayerMessage}
     {t : MachineState} (h : LayEntry sk cache 3 index root t) :
     TBSim image sk t layersC (signLayers (cacheDec cache) index 4 root) (SLPost t 4) := by
-  have L1 : ∀ root v, LayNext sk cache (jalBT 1 + 1) index root v →
+  have L1 : ∀ (root : T3.LayerMessage) v, LayNext sk cache (jalBT 1 + 1) index root v →
       TBSim image sk v layW1 (signLayers (cacheDec cache) index (1 : Layer).val root) (SLPost v (1 : Layer).val) :=
     fun root v hv => layer0_link hL0 hv
-  have L2 : ∀ root v, LayNext sk cache (jalBT 2 + 1) index root v →
+  have L2 : ∀ (root : T3.LayerMessage) v, LayNext sk cache (jalBT 2 + 1) index root v →
       TBSim image sk v layW2 (signLayers (cacheDec cache) index (2 : Layer).val root) (SLPost v (2 : Layer).val) :=
     fun root v hv => by
       obtain ⟨t1, st, ht1, hf⟩ := entry1 hv
       exact TBSim.steps st (TBSim.mono (lower_layer hK ht1 L1) le_rfl (SLPost.pre hf))
-  have L3 : ∀ root v, LayNext sk cache (jalBT 3 + 1) index root v →
+  have L3 : ∀ (root : T3.LayerMessage) v, LayNext sk cache (jalBT 3 + 1) index root v →
       TBSim image sk v layW3 (signLayers (cacheDec cache) index (3 : Layer).val root) (SLPost v (3 : Layer).val) :=
     fun root v hv => by
       obtain ⟨t1, st, ht1, hf⟩ := entry2 hv

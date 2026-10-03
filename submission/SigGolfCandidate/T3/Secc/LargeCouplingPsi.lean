@@ -159,13 +159,15 @@ theorem encCell_val (labels : Labels) (L : EncLeaf) (c : Fin (2 ^ 22)) :
     (encCell U hE labels (L, c)).val = Wots.encodingRow L.toWots (msgLabel labels L) (BitVec.ofNat 32 c.val) := rfl
 
 theorem msgLabel_router (vals : Coord → Digest) (a : AuxData) (L : EncLeaf) :
-    msgLabel (routerLabels vals a) L = vals (msgCoord L) := by
-  unfold msgLabel msgCoord
+    msgLabel (routerLabels vals a) L = msgOf L vals := by
+  unfold msgLabel msgOf
   by_cases hl : L.1.lay.val < 3
-  · rw [dif_pos hl, dif_pos hl, treeLabel_root]
-    exact joinLabels_low _ _ _
+  · rw [dif_pos hl, dif_pos hl]
+    refine Prod.ext ?_ (Prod.ext rfl ?_)
+    · exact (treeLabel_child _ _ _ 0).trans (joinLabels_low _ _ _)
+    · exact (treeLabel_child _ _ _ 1).trans (joinLabels_low _ _ _)
   · rw [dif_neg hl, dif_neg hl]
-    exact joinLabels_low _ _ _
+    exact Prod.ext (joinLabels_low _ _ _) rfl
 
 theorem sel_psi (a : AuxData) (labels : Labels) (τ : U → HashOutput) (L : EncLeaf) :
     selectionsOf U hE labels (residualPsi U hE labels a.rows τ) L = a.sel L := by
@@ -242,7 +244,7 @@ theorem coherent_psi (vals : Coord → Digest) (nv : Message → Digest) (τ : U
       apply BitVec.eq_of_toNat_eq
       rw [BitVec.toNat_ofNat]
       exact Nat.mod_eq_of_lt (by have := hp.1; omega)
-    have hX : Wots.encodingRow L.toWots (vals (msgCoord L)) ctr = (encCell U hE labels (L, ⟨ctr.toNat, hp.1⟩)).val := by
+    have hX : Wots.encodingRow L.toWots (msgOf L vals) ctr = (encCell U hE labels (L, ⟨ctr.toNat, hp.1⟩)).val := by
       rw [encCell_val, msgLabel_router, hc]
     rw [hX, hpubX _ (encCell U hE labels (L, ⟨ctr.toNat, hp.1⟩)).property]
     rw [programmed_other U hU s labels res _ (fun N => encodingQuery_ne_cell _ s N labels)]

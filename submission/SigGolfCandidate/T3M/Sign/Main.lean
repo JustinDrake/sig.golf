@@ -29,8 +29,8 @@ theorem digestSearchSpec (sk : BitVec 256) : DigestSearchSpec sk := fun s rho m 
 
 theorem counterSearchSpec (sk : BitVec 256) : CounterSearchSpec sk := fun s lay tree leaf msg ret h =>
   (Search.counterSearch_spec Search.kernAt_sign s lay tree leaf msg ret
-    ⟨h.pc, h.x1, h.x5, h.x8, h.x9, h.x18, h.x17, h.x26, h.x27, h.htree, h.hleaf, h.msg, h.c32, h.z40, h.z48,
-      h.z56, h.table⟩).mono le_rfl (fun r t ht => by rcases r with _ | _; exacts [⟨ht.pc, ht.x5, ht.x10⟩, ht])
+    ⟨h.pc, h.x1, h.x5, h.x8, h.x9, h.x18, h.x17, h.x26, h.x27, h.htree, h.hleaf, h.rR, h.hpad, h.msg, h.c32,
+      h.z40, h.table⟩).mono le_rfl (fun r t ht => by rcases r with _ | _; exacts [⟨ht.pc, ht.x5, ht.x10⟩, ht])
 
 theorem kernels (sk : BitVec 256) : Kernels sk := ⟨digestSearchSpec sk, counterSearchSpec sk⟩
 

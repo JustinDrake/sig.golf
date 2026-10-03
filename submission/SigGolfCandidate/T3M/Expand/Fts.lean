@@ -79,7 +79,7 @@ structure FtsPre (sig : Signature) (N : HashOutput) (s : MachineState) : Prop wh
   f56 : s.getMem (BitVec.ofNat 64 (FLEAF + 56)) = 0
   n32 : s.getMem (BitVec.ofNat 64 (NODE + 32)) = 0
   n40 : s.getMem (BitVec.ofNat 64 (NODE + 40)) = 0
-  wz : ∀ A, 0x840 ≤ A → A < 0x3148 → s.getMem (BitVec.ofNat 64 A) = 0
+  wz : ∀ A, 0x840 ≤ A → A < 0x3418 → s.getMem (BitVec.ofNat 64 A) = 0
 
 /-- The registers the FTS phase changes. -/
 def ftsRegs : List Reg :=
@@ -90,7 +90,7 @@ block, the forest roots, the witness secrets and stream. -/
 def FtsW (A : Nat) : Prop :=
   (0x22000 - 512 ≤ A ∧ A < 0x22000) ∨ A = NODE ∨ A = NODE + 8 ∨ A = NODE + 16 ∨ A = NODE + 24 ∨ A = NODE + 48 ∨
     A = NODE + 56 ∨ (NOUT ≤ A ∧ A < NOUT + 32) ∨ (FLEAF ≤ A ∧ A < FLEAF + 64) ∨
-    (FOREST ≤ A ∧ A < FOREST + 128 ∧ A ≠ FOREST + 16 ∧ A ≠ FOREST + 24) ∨ (0x840 ≤ A ∧ A < 0x3148)
+    (FOREST ≤ A ∧ A < FOREST + 128 ∧ A ≠ FOREST + 16 ∧ A ≠ FOREST + 24) ∨ (0x840 ≤ A ∧ A < 0x3418)
 
 /-- Exit of the FTS phase: `fail`, or `fts_done` (word 215) with the roots in the forest block, `s2 = used`, the
 secrets and the honest stream in the witness. -/
@@ -101,7 +101,7 @@ def FtsPost (s : MachineState) (sig : Signature) (N : HashOutput) :
       t.getReg .x9 = BitVec.ofNat 64 (N.toNat % 2 ^ 31) ∧ t.getReg .x18 = BitVec.ofNat 64 used ∧ used ≤ 115 ∧
       roots.length = 7 ∧ (∀ c < 7, DigAt t (FOREST + slotOff c) (roots.getD c 0)) ∧
       t.readWords (BitVec.ofNat 64 0x840) 128 = wordsOf (leafBytes sig) ∧
-      t.readWords (BitVec.ofNat 64 0xC40) 1185 = wordsOf (streamBytes (T3.selections N) sig.proof) ∧
+      t.readWords (BitVec.ofNat 64 0xC40) 1275 = wordsOf (streamBytes (T3.selections N) sig.proof) ∧
       RegsExcept s t ftsRegs ∧ Frame s t FtsW
 
 /-- An all-oracle cycle bound of the FTS phase. -/
@@ -123,7 +123,7 @@ theorem expandN_eq (m : T3.Message) (pk : Digest) (sig : Signature) : expandN m 
       | some (roots, used) =>
         if !tailZero sig used then pure none else
         forestPk (output.toNat % 2 ^ 31) roots >>= fun root =>
-        T3.expandLayers sig (output.toNat % 2 ^ 31) 4 root >>= fun r' => match r' with
+        T3.expandLayers sig (output.toNat % 2 ^ 31) 4 (root, 0, 0) >>= fun r' => match r' with
         | none => pure none
         | some (root', counters) => if root' ≠ pk then pure none else
             pure (some (output, ⟨sig, counter, fun lay => counters.getD lay.val 0⟩)) := by

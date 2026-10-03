@@ -30,7 +30,7 @@ theorem mkBlockCheck_at (lay ci sh : Nat) (hlay : lay < 4) (hci : ci < mkNch lay
 theorem mkEnt_of {lay ci sh : Nat} (h : mkBlockCheck lay ci sh = true) : mkEntCheck lay ci sh = true := by
   simp only [mkBlockCheck, Bool.and_eq_true] at h; exact h.1
 
-theorem mkLvl_of {lay ci sh : Nat} (h : mkBlockCheck lay ci sh = true) (kk : Nat) (hkk : kk < mkBits lay ci) :
+theorem mkLvl_of {lay ci sh : Nat} (h : mkBlockCheck lay ci sh = true) (kk : Nat) (hkk : kk < mkLvls lay ci) :
     mkLvlCheck lay ci sh kk = true := by
   simp only [mkBlockCheck, Bool.and_eq_true] at h
   exact List.all_eq_true.mp h.2 kk (List.mem_range.mpr hkk)

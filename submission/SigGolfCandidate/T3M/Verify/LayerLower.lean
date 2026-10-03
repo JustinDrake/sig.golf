@@ -35,8 +35,26 @@ theorem layerP_eq (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) :
   obtain ⟨leaf, tree⟩ := p
   rfl
 
+/-- `layerPairP`'s Merkle part (E8, below the top): `h - 1` folds, then the root's children with the pad bytes. -/
+def merklePairP (w : WBytes) (index : Nat) (lay : Layer) (value : Digest) : T3.M T3.LayerMessage :=
+  (List.finRange (height lay - 1)).foldlM (fun value j => do
+    let other := wpath w lay (route index lay).1 j.val
+    let pair := if (route index lay).1 / 2 ^ j.val % 2 = 0 then (value, other) else (other, value)
+    nodeHashP 3 lay.val (route index lay).2 (2 ^ (height lay - j.val - 1) + (route index lay).1 / 2 ^ (j.val + 1))
+      pair.1 (wmerklePad w lay j.val) pair.2) value >>= fun node =>
+  pure (T3.pairOf (route index lay).1 (height lay) (wpath w lay (route index lay).1 (height lay - 1))
+    ((wmerklePad w lay (height lay - 1)).extractLsb' 32 96) node)
+
+theorem layerPairP_eq (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) :
+    layerPairP w index lay digits = chainsP w lay (route index lay).2 (route index lay).1 digits >>= fun ends =>
+      leafHash lay (route index lay).2 (route index lay).1 ends >>= merklePairP w index lay := by
+  unfold layerPairP chainsP merklePairP
+  generalize route index lay = p
+  obtain ⟨leaf, tree⟩ := p
+  rfl
+
 /-- **One layer of `layersP` up to the chain ends**, continued by `R`. -/
-def layerHead {β : Type} (w : WBytes) (index : Nat) (lay : Layer) (M : Digest)
+def layerHead {β : Type} (w : WBytes) (index : Nat) (lay : Layer) (M : T3.LayerMessage)
     (R : List Digest → T3.M (Option β)) : T3.M (Option β) :=
   if (wctr w lay).toNat ≥ counterLimit then pure none else
   shortHash (encodingInput lay (route index lay).2 (route index lay).1 M (wctr w lay)) >>= fun answer =>
@@ -46,15 +64,30 @@ def layerHead {β : Type} (w : WBytes) (index : Nat) (lay : Layer) (M : Digest)
 
 /-- **W's layer loop, one step**: layer `n` is `layerHead` continued by the leaf pk, the Merkle path and the
 layers below. -/
-theorem layersP_succ (w : WBytes) (index n : Nat) (M : Digest) :
-    layersP w index (n + 1) M = layerHead w index (Fin.ofNat 4 n) M (fun ends =>
-      leafHash (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 ends >>=
-        merkleP w index (Fin.ofNat 4 n) >>= layersP w index n) := by
+theorem layersP_succ_top (w : WBytes) (index : Nat) (M : T3.LayerMessage) :
+    layersP w index (0 + 1) M = layerHead w index (Fin.ofNat 4 0) M (fun ends =>
+      leafHash (Fin.ofNat 4 0) (route index (Fin.ofNat 4 0)).2 (route index (Fin.ofNat 4 0)).1 ends >>=
+        merkleP w index (Fin.ofNat 4 0) >>= fun v => layersP w index 0 (v, 0, 0)) := by
   rw [layersP]
   unfold layerHead
   split_ifs with h
   · rfl
-  · simp only [layerP_eq, bind_assoc]
+  · simp only [layerNextP, ↓reduceIte, layerP_eq, map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp]
+    generalize hr : route index (Fin.ofNat 4 0) = p
+    obtain ⟨leaf, tree⟩ := p
+    simp only
+    congr 1; funext answer
+    cases decode (Fin.ofNat 4 0) answer <;> rfl
+
+theorem layersP_succ_low (w : WBytes) (index n : Nat) (hn : n ≠ 0) (M : T3.LayerMessage) :
+    layersP w index (n + 1) M = layerHead w index (Fin.ofNat 4 n) M (fun ends =>
+      leafHash (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 ends >>=
+        merklePairP w index (Fin.ofNat 4 n) >>= layersP w index n) := by
+  rw [layersP]
+  unfold layerHead
+  split_ifs with h
+  · rfl
+  · simp only [layerNextP, if_neg hn, layerPairP_eq, bind_assoc]
     generalize hr : route index (Fin.ofNat 4 n) = p
     obtain ⟨leaf, tree⟩ := p
     simp only
@@ -63,11 +96,10 @@ theorem layersP_succ (w : WBytes) (index n : Nat) (M : Digest) :
 
 /-! ## Costs -/
 
-/-- Steps / cycles of decode and entry dispatch (lower 30 / 33 with the 2-step header-bank stub of T3X/T3Y,
-top 117-step conservative fuel / 69 cycles after TOP-jal). -/
-def stB (lay : Nat) : Nat := if lay = 0 then 117 else bSt lay
-def cyB (lay : Nat) : Nat := if lay = 0 then 69 else bCy lay
-/-- The chain phase's accepting cycles without maximal digits: lower `2993 − 9 target` (T3X header table), top `1129` after the mandatory eleven-cycle terminal-store credit (T3Z, BIG3: the top's heads read the header table, −54). -/
+/-- Conservative decode fuel: lower30/top118 steps; accepting decode cycles: lower31/top67. -/
+def stB (lay : Nat) : Nat := if lay = 0 then 118 else 30
+def cyB (lay : Nat) : Nat := if lay = 0 then 67 else 31
+/-- The chain phase's accepting cycles without maximal digits: lower `2993 − 9 target`, top `1129` after the mandatory eleven-cycle terminal-store credit. -/
 def chainCost0 (lay : Nat) : Nat := if lay = 0 then 1129 else 2993 - 9 * tgtL lay
 /-- The chain phase's steps on every path. -/
 def chainFuel (lay : Nat) : Nat := if lay = 0 then 2321 else 1720
@@ -78,12 +110,6 @@ def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + ch
 
 /-- The steps of one layer on every path. -/
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
-
-theorem layerCost_vals :
-    layerCost 3 0 = 1316 ∧ layerCost 2 0 = 1297 ∧ layerCost 1 0 = 1298 ∧ layerCost 0 0 = 1229 := by decide
-
-theorem layerFuel_vals :
-    layerFuel 3 = 1779 ∧ layerFuel 2 = 1769 ∧ layerFuel 1 = 1770 ∧ layerFuel 0 = 2462 := by decide
 
 /-! ## Decode facts -/
 
@@ -109,11 +135,11 @@ theorem chainCount_top : chainCount (0 : Layer) = 54 := by decide
 /-! ## The exact accepting cost -/
 
 /-- **The accepting cost of a lower layer is `layerCost lay Z`**: on an accepted encoding (`decode = some ds`) the
-run from `LayerIn` to `LeafOut` — A (`stepsA`), the encoding HASH (8), B (33), the chain phase (`lowCost`), the
+run from `LayerIn` to `LeafOut` — A (`stepsA`), the encoding HASH (8), B (31), the chain phase (`lowCost`), the
 leaf-pk block (12) — costs `layerCost lay Z` cycles with `Z = zSum 0 43` (the max-digit savings). -/
 theorem layerCost_low (w : WBytes) (index : Nat) (lay : Layer) (hlay : lay ≠ 0) (a : BitVec 256) (p : Nat)
     (ds : List Nat) (hds : decode lay (a.extractLsb' 0 128) = some ds) :
-    stepsA lay.val + 8 + bCy lay.val + (lctxOf w index lay a p).lowCost + lfSteps lay.val =
+    stepsA lay.val + 8 + 31 + (lctxOf w index lay a p).lowCost + (lfSteps lay.val) =
       layerCost lay.val ((lctxOf w index lay a p).zSum 0 43) := by
   have h0 : lay.val ≠ 0 := fun h => hlay (Fin.ext h)
   have hD := lctx_digits w index lay a p hlay ds hds
@@ -127,7 +153,7 @@ theorem layerCost_low (w : WBytes) (index : Nat) (lay : Layer) (hlay : lay ≠ 0
 /-! ## One layer -/
 
 /-- **A lower layer** (`lay ≠ 0`): `layerHead` from `LayerIn` to `LeafOut`. -/
-theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay : lay ≠ 0) (M : Digest)
+theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay : lay ≠ 0) (M : T3.LayerMessage)
     (s : MachineState) (hs : LayerIn w pk index lay.val M s) {β : Type} (R : List Digest → T3.M (Option β))
     (K : Option β → OracleComp HashSpec Obs) (hK0 : K none = pure (false, 0)) (N C A : Nat) (Q : Prop)
     (hR : ∀ ends u, LeafOut w pk index lay ends u → GoodQ u N C Q A (ccM (R ends) K)) :
@@ -137,23 +163,20 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
   have hidx := hs.idx
   have hA := encA_step w pk index lay M s hs
   have hT : 9 * tgtL lay.val ≤ 2993 := by fin_cases lay <;> decide
-  have hfuel : layerFuel lay.val = stepsA lay.val + 1 + bSt lay.val + 1720 + lfSteps lay.val := by
-    simp [layerFuel, stB, chainFuel, h0]
-  have hcost : layerCost lay.val 0 = stepsA lay.val + 8 + bCy lay.val + lfSteps lay.val + (2993 - 9 * tgtL lay.val) := by
-    simp only [layerCost, cyB, chainCost0, if_neg h0]; omega
-  have hbS : 25 ≤ bSt lay.val := by unfold bSt; split <;> omega
-  have hbC : 28 ≤ bCy lay.val := by unfold bCy; split <;> omega
+  have hfuel : layerFuel lay.val = stepsA lay.val + 1 + 30 + 1720 + (lfSteps lay.val) := by simp [layerFuel, stB, chainFuel, lfSteps, h0]
+  have hcost : layerCost lay.val 0 = stepsA lay.val + 8 + 31 + (lfSteps lay.val) + (2993 - 9 * tgtL lay.val) := by
+    simp only [layerCost, cyB, lfSteps, chainCost0, if_neg h0]; omega
   unfold layerHead
   by_cases hctr : (wctr w lay).toNat ≥ counterLimit
   · rw [if_pos hctr, ccM_pure, hK0]
     obtain ⟨u, hst, hf, h5, h10⟩ := hA.1 hctr
+    have hrj : rejSt lay.val ≤ stepsA lay.val + 2 := by unfold rejSt; split <;> omega
     exact GoodQ.steps' hst (GoodQ.reject (Q := Q) (A := 0) hf h5 h10) (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)
   · rw [if_neg hctr]
     obtain ⟨t, hst, hf, h5, hv, hin, c, hc, hpre⟩ := hA.2 (by omega)
     have hblk := blocks_encodingInput lay (route index lay).2 (route index lay).1 M (wctr w lay)
-    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + lfSteps lay.val + 1720 + bSt lay.val)
-        (C + lfSteps lay.val + (2993 - 9 * tgtL lay.val) + bCy lay.val)
-        Q (A + lfSteps lay.val + (2993 - 9 * tgtL lay.val) + bCy lay.val)
+    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + (lfSteps lay.val) + 1720 + 30) (C + (lfSteps lay.val) + (2993 - 9 * tgtL lay.val) + 31)
+        Q (A + (lfSteps lay.val) + (2993 - 9 * tgtL lay.val) + 31)
         (ccM (match decode lay (a.extractLsb' 0 128) with
           | none => pure none
           | some digits => chainsP w lay (route index lay).2 (route index lay).1 digits >>= R) K) := by
@@ -176,7 +199,7 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
         have hacc := L.lowCost_accept hck ds hD hsum.1 (target lay) hsum.2
         rw [← tgtL_eq] at hacc
         have hP := L.lowP_eq hlay rfl ds hD (s6v_chainBlock lay hlay)
-        have hG := L.lower_good hLok rfl rfl hck hkn hO0 (fun ends => ccM (R ends) K) (N + lfSteps lay.val) (C + lfSteps lay.val) (A + lfSteps lay.val) Q
+        have hG := L.lower_good hLok rfl rfl hck hkn hO0 (fun ends => ccM (R ends) K) (N + (lfSteps lay.val)) (C + (lfSteps lay.val)) (A + (lfSteps lay.val)) Q
           (fun ends t ht => by
             obtain ⟨u, hstu, hu⟩ := leafL_step w pk index lay hlay c hc hidx a s0 hkn hG0 hOr0 h23 h30 ends t ht
             exact GoodQ.steps' hstu (hR ends u hu) (by omega) (by omega) (fun hq => ⟨hq, by omega⟩))
@@ -193,51 +216,59 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
 
 /-! ## Interfaces: V2's `FtsOut` → layer 3's `LayerIn`; V3's Merkle end → the next `LayerIn` -/
 
-/-- **V2's `FtsOut` reaches layer 3's `LayerIn`** (stated on `FtsOut`'s fields `glob`, `idx`, `pc` (`layerPc = 656`),
-`root`, `wit`, with `F.idx = a.toNat % 2^31 < 2^31`): T3K's load block (words 656 .. 661, `ld3Spec`, 6 cycles) reads
-five layer constants from the embedded data (`DataOK`, part of `Glob`); the copy `xtr3_1` starts at 662. -/
+/-- **V2's `FtsOut` reaches layer 3's `LayerIn`** (stated on `FtsOut`'s fields `glob`, `idx`, `pc` (`layerPc = 630`),
+`root`, `wit`, with `F.idx = a.toNat % 2^31 < 2^31`): the load block (words 630 .. 634, `ld3Spec`, 5 cycles) reads
+five layer constants from the embedded data (`DataOK`, part of `Glob`); the copy `xtr3_1` starts at 635. The four carried constants remain known. -/
 theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u : MachineState)
-    (hidx : idx < 2 ^ 31) (hglob : Glob baseK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
-    (hpc : u.pc = pcOf 656) (hroot : DigAt u 0x100 root)
-    (hwit : Verify.Orig w (fun o => o < 64 ∨ 10568 ≤ o) u) :
-    ∃ t, Steps image u 6 6 t ∧ LayerIn w pk idx 3 root t := by
+    (hidx : idx < 2 ^ 31) (hglob : Glob carryK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
+    (hpc : u.pc = pcOf 630) (hroot : DigAt u 0x100 root)
+    (hwit : Verify.Orig w (fun o => o < 64 ∨ 11288 ≤ o) u) :
+    ∃ t, Steps image u 5 5 t ∧ LayerIn w pk idx 3 (root, 0, 0) t := by
   obtain ⟨t, ht⟩ := spec_run ld3Check_ok u hpc hglob.1 (by simp [ld3Spec]) (by simp)
   have hm : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
   have hD : DataOK u := hglob.2.2.2.2.2
-  have r19 : t.getReg .x19 = (kw 0x400000).eval u := ht.regs (.x19, kw 0x400000) (by simp [ld3Spec])
   have r21 : t.getReg .x21 = (E.ld (kw (DATA + 8))).eval u := ht.regs (.x21, .ld (kw (DATA + 8))) (by simp [ld3Spec])
   have r20 : t.getReg .x20 = (E.ld (kw (DATA + 16))).eval u :=
     ht.regs (.x20, .ld (kw (DATA + 16))) (by simp [ld3Spec])
   have r27 : t.getReg .x27 = (E.ld (kw (DATA + 24))).eval u :=
     ht.regs (.x27, .ld (kw (DATA + 24))) (by simp [ld3Spec])
   have r2 : t.getReg .x2 = (E.ld (kw (DATA + 32))).eval u := ht.regs (.x2, .ld (kw (DATA + 32))) (by simp [ld3Spec])
-  have e19 : t.getReg .x19 = BitVec.ofNat 64 0x400000 := r19
   have e21 : t.getReg .x21 = BitVec.ofNat 64 M2c :=
     r21.trans (hD.word 1 (by omega) M2c (by decide) (DATA + 8) (by omega))
   have e20 : t.getReg .x20 = BitVec.ofNat 64 M1c :=
     r20.trans (hD.word 2 (by omega) M1c (by decide) (DATA + 16) (by omega))
-  have e27 : t.getReg .x27 = BitVec.ofNat 64 (hw 4 3) :=
-    r27.trans (hD.word 3 (by omega) (hw 4 3) (by decide) (DATA + 24) (by omega))
+  have e27 : t.getReg .x27 = BitVec.ofNat 64 (hw 1 3) :=
+    r27.trans (hD.word 3 (by omega) (hw 1 3) (by decide) (DATA + 24) (by omega))
   have e2 : t.getReg .x2 = BitVec.ofNat 64 0x3fe00 :=
     r2.trans (hD.word 4 (by omega) 0x3fe00 (by decide) (DATA + 32) (by omega))
-  have hG0 : Glob baseK w pk t := ht.glob _ _ _ hglob (RelOK.nil u)
-  have hpk : preK 3 = baseK ++ [(.x19, BitVec.ofNat 64 0x400000), (.x21, BitVec.ofNat 64 M2c),
-      (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00)] := rfl
+  have hG0 : Glob afterLoadK w pk t := ht.glob _ _ _ hglob (RelOK.nil u)
+  have hpk : preK 3 = afterLoadK ++ [(.x21, BitVec.ofNat 64 M2c),
+      (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 1 3)), (.x2, BitVec.ofNat 64 0x3fe00)] := rfl
   have hk : ∀ p ∈ preK 3, t.getReg p.1 = p.2 := by
     intro p hp
     rw [hpk] at hp
     simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with hp | rfl | rfl | rfl | rfl | rfl
+    rcases hp with hp | rfl | rfl | rfl | rfl
     · exact ht.known p hp
-    · exact e19
     · exact e21
     · exact e20
     · exact e27
     · exact e2
   refine ⟨t, ht.steps, ⟨by norm_num, hidx, ⟨0, by rw [nCopy_eq.1]; norm_num, by rw [ht.pc rfl]; rfl⟩, ⟨hk, hG0.2⟩,
-    ?_, ?_, ?_⟩⟩
+    ?_, ?_, ?_, Or.inl rfl⟩⟩
   · rw [show rReg 3 = .x22 from rfl, ht.keep .x22 (by simp), hreg, show below 3 = 0 from rfl, pow_zero, Nat.div_one]
-  · exact ⟨(hm _).trans hroot.1, (hm _).trans hroot.2⟩
+  · have hPZ : PZero u := hglob.2.2.2.1
+    have hPH : PHalf u := hglob.2.2.2.2.1
+    refine ⟨⟨(hm _).trans hroot.1, (hm _).trans hroot.2⟩, ⟨?_, ?_⟩, ?_, ?_⟩
+    · rw [show encB 3 + 48 = 0x130 from rfl, hm, hPZ 0x130 (by simp [pSlots])]
+      show (0 : BitVec 64) = BitVec.extractLsb' 0 64 (0 : BitVec 128); decide
+    · rw [show encB 3 + 48 + 8 = 0x138 from rfl, hm, hPZ 0x138 (by simp [pSlots])]
+      show (0 : BitVec 64) = BitVec.extractLsb' 64 64 (0 : BitVec 128); decide
+    · rw [show encB 3 + 32 = 288 from rfl, hm]
+      have hph : (u.getMem (BitVec.ofNat 64 288)).toNat / 2 ^ 32 = 0 := hPH
+      rw [hph]; rfl
+    · rw [show encB 3 + 40 = 0x128 from rfl, hm, hPZ 0x128 (by simp [pSlots])]
+      show (0 : BitVec 64) = BitVec.ofNat 64 ((0 : BitVec 96).toNat / 2 ^ 32); decide
   · exact (hwit.mono (fun o ho => Or.inr ho.1)).frame (fun j _ _ => hm _)
 
 /-- The tree index of layer `L > 0` is the next layer's remaining index (`t5` at the next transition). -/

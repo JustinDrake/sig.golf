@@ -53,11 +53,16 @@ def forestInput (index : Nat) (roots : List Digest) : HashInput :=
 def honestForest (answers : Answers) (index : Nat) : Digest :=
   evalWithAnswerFn answers (forestPk index (ftsRootsHonest answers index))
 
-/-- The honest message signed at layer `lay`: the honest root of the layer below (`lay + 1`) for `lay < 3`, the
-honest forest pk for `lay = 3`. -/
-noncomputable def honestMsg (answers : Answers) (index : Nat) (lay : Layer) : Digest :=
-  if h : lay.val < 3 then honestRoot answers ⟨lay.val + 1, by omega⟩ (route index ⟨lay.val + 1, by omega⟩).2
-  else honestForest answers index
+/-- The honest children of the root of the layer-`lay` tree `tree`, as signed (zero pad between them). -/
+noncomputable def honestPair (answers : Answers) (lay : Layer) (tree : Nat) : LayerMessage :=
+  (treeValue (builtTree answers lay tree) (height lay - 1) 0, 0,
+    treeValue (builtTree answers lay tree) (height lay - 1) 1)
+
+/-- The honest message signed at layer `lay`: the honest root children of the layer below (`lay + 1`) for
+`lay < 3`, `(forest pk, 0, 0)` for `lay = 3`. -/
+noncomputable def honestMsg (answers : Answers) (index : Nat) (lay : Layer) : LayerMessage :=
+  if h : lay.val < 3 then honestPair answers ⟨lay.val + 1, by omega⟩ (route index ⟨lay.val + 1, by omega⟩).2
+  else (honestForest answers index, 0, 0)
 
 /-! ## Reference positions -/
 

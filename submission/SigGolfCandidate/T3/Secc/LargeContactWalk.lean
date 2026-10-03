@@ -37,15 +37,17 @@ theorem WotsPrimitiveRoute.mono {index : Nat} {answers : Answers} {trace trace' 
   · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨a, ha, markerAt_mono hm hsub, contactAt_mono hc hsub⟩)))
 
 /-- W's `layer_wots` with the encoding event at the route leaf. -/
-theorem layer_wots_route (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (msg : Digest)
-    (digits : List Nat) (hidx : index < 2 ^ 31) (hframe : Extract.Frame answers w index lay msg digits)
-    (qs : List Spec.Domain) (henc : Extract.encodingQuery w index lay msg ∈ qs)
-    (hsub : ∀ q ∈ queried answers (layerP w index lay digits), q ∈ qs)
-    (reaches : evalWithAnswerFn answers (layerP w index lay digits) =
-      Extract.honestRoot answers lay (route index lay).2) :
+theorem layer_wots_route (answers : Answers) (w : WBytes) (index n : Nat) (hn : n < 4) (msg : Digest × BitVec 96 × Digest)
+    (digits : List Nat) (hidx : index < 2 ^ 31) (hframe : Extract.Frame answers w index (Fin.ofNat 4 n) msg digits)
+    (qs : List Spec.Domain) (henc : Extract.encodingQuery w index (Fin.ofNat 4 n) msg ∈ qs)
+    (hsub : ∀ q ∈ queried answers (layerNextP w index n (Fin.ofNat 4 n) digits), q ∈ qs)
+    (reaches : evalWithAnswerFn answers (layerNextP w index n (Fin.ofNat 4 n) digits) =
+      Extract.walkTarget answers index n) :
     WotsPrimitiveRoute index answers (entriesOf answers qs) ∨
-      (msg = Extract.honestMsg answers index lay ∧ Extract.Good answers w index lay) := by
+      (msg = Extract.honestMsg answers index (Fin.ofNat 4 n) ∧ Extract.Good answers w index (Fin.ofNat 4 n)) := by
   classical
+  have hW := layerNextP_wots answers w index n hn digits hidx (Cost.validDigits_decode hframe.2) qs hsub reaches
+  set lay : Layer := Fin.ofNat 4 n with hlay
   have hdec : decode (routeLeaf index lay).lay
       (low (answers (.inl (.inr (encodingRow (routeLeaf index lay) msg (wctr w lay)))))) = some digits := hframe.2
   have hvalid := Cost.validDigits_decode hframe.2
@@ -55,11 +57,11 @@ theorem layer_wots_route (answers : Answers) (w : WBytes) (index : Nat) (lay : L
     mem_entriesOf henc
   have hsrc : SourceLeaf (routeLeaf index lay) := routeLeaf_source index lay hidx
   have hsrcC : ∀ i, i < chainCount lay → SourceChain ⟨routeLeaf index lay, i⟩ := fun i hi => ⟨hsrc, hi⟩
-  rcases layerP_wots answers w index lay digits hidx hvalid reaches with hS | ⟨hmerkle, hchains⟩
-  · exact Or.inl (Or.inr (Or.inl (structuralHitSrc_mono hS hmono)))
+  rcases hW with hS | ⟨hmerkle, hchains⟩
+  · exact Or.inl (Or.inr (Or.inl hS))
   have hcontact : ∀ i, i < chainCount lay → digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
       ContactAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩ := fun i hi hlt =>
-    contactAt_mono ((hchains i hi).2 hlt).1 hmono
+    ((hchains i hi).2 hlt).1
   obtain ⟨refDigest, hr⟩ := referenceDigits_decode answers (routeLeaf index lay)
   rcases word_cases hr hdec with heq | ⟨i, hu⟩ | ⟨i, h2⟩ | ⟨i, j, hij, hi, hj⟩
   · have hshape : Extract.LayerShaped answers w index lay digits := by
@@ -89,7 +91,7 @@ theorem layer_wots_route (answers : Answers) (w : WBytes) (index : Nat) (lay : L
       have e1 : (decodedWord hdec i).val = digits.getD i.val 0 := rfl
       have e2 : (decodedWord hr i).val = depth answers ⟨routeLeaf index lay, i.val⟩ := rfl
       omega
-    exact twoEdgeAt_mono (((hchains i.val i.isLt).2 hlt).2 h2) hmono
+    exact ((hchains i.val i.isLt).2 hlt).2 h2
   · refine Or.inl (Or.inr (Or.inr (Or.inr (Or.inl ⟨⟨routeLeaf index lay, i.val⟩, ⟨routeLeaf index lay, j.val⟩,
       hsrcC i.val i.isLt, hsrcC j.val j.isLt, ?_, hcontact i.val i.isLt hi, hcontact j.val j.isLt hj⟩))))
     intro he
@@ -97,10 +99,11 @@ theorem layer_wots_route (answers : Answers) (w : WBytes) (index : Nat) (lay : L
 
 /-- W's `layersP_wots_walk` with route-leaf encoding events. -/
 theorem layersP_wots_walk_route (answers : Answers) (w : WBytes) (index : Nat) (hidx : index < 2 ^ 31) :
-    ∀ n, n ≤ 4 → ∀ root : Digest,
-    evalWithAnswerFn answers (layersP w index n root) = some (Extract.walkTarget answers index 0) →
+    ∀ n, n ≤ 4 → ∀ root : Digest × BitVec 96 × Digest,
+    evalWithAnswerFn answers (layersP w index n root) = some (Extract.walkTarget answers index 0).1 →
     WotsPrimitiveRoute index answers (entriesOf answers (queried answers (layersP w index n root))) ∨
-    ((∀ l : Layer, l.val < n → Extract.Good answers w index l) ∧ root = Extract.walkTarget answers index n)
+    ((∀ l : Layer, l.val < n → Extract.Good answers w index l) ∧
+      (if n = 0 then root.1 = (Extract.walkTarget answers index 0).1 else root = Extract.walkTarget answers index n))
   | 0, _, root, h => by
       right
       refine ⟨fun l hl => absurd hl (Nat.not_lt_zero _), ?_⟩
@@ -111,15 +114,15 @@ theorem layersP_wots_walk_route (answers : Answers) (w : WBytes) (index : Nat) (
       have hval : (Fin.ofNat 4 n : Layer).val = n := by simp; omega
       rcases layersP_wots_walk_route answers w index hidx n (by omega) _ hrest with hprim | ⟨hgood, hv⟩
       · exact Or.inl (hprim.mono (entriesOf_mono hqR))
-      · rw [Extract.walkTarget_root answers index n (by omega)] at hv
-        rcases layer_wots_route answers w index (Fin.ofNat 4 n) root digits hidx hframe
-            (queried answers (layersP w index (n + 1) root)) henc hqL hv with hprim | ⟨hmsg, hgoodn⟩
+      · have hv' := Extract.next_target answers w index n digits hv
+        rcases layer_wots_route answers w index n (by omega) root digits hidx hframe
+            (queried answers (layersP w index (n + 1) root)) henc hqL hv' with hprim | ⟨hmsg, hgoodn⟩
         · exact Or.inl hprim
         · right
           have hmsg' : Extract.honestMsg answers index (Fin.ofNat 4 n) = Extract.walkTarget answers index (n + 1) := by
             have hl : (Fin.ofNat 4 n : Layer) = ⟨n, by omega⟩ := Fin.ext hval
             simp only [Extract.walkTarget, dif_pos (show n < 4 by omega), hl]
-          refine ⟨fun l hl => ?_, hmsg.trans hmsg'⟩
+          refine ⟨fun l hl => ?_, by simpa only [Nat.succ_ne_zero, if_false] using hmsg.trans hmsg'⟩
           by_cases hle : l.val < n
           · exact hgood l hle
           · have hl : l = Fin.ofNat 4 n := Fin.ext (by rw [hval]; omega)
@@ -181,17 +184,19 @@ theorem verifyP_walk_wots_route (answers : Answers) (m : Message) (pk : Digest) 
   simp only at hv ⊢
   rw [evalWithAnswerFn_bind] at hv
   rw [queried_bind]
-  generalize hL : evalWithAnswerFn answers (layersP w index 4 root) = ll at hv ⊢
+  generalize hL : evalWithAnswerFn answers (layersP w index 4 (root, 0, 0)) = ll at hv ⊢
   rcases ll with _ | root'
   · simp at hv
   simp only [evalWithAnswerFn_pure, beq_iff_eq] at hv
   subst hv
-  have htop : Extract.walkTarget answers index 0 = root' := by
+  have htop : (Extract.walkTarget answers index 0).1 = root' := by
     rw [hpk]; simp only [Extract.walkTarget, route_top_tree index hidx]
-  rcases layersP_wots_walk_route answers w index hidx 4 le_rfl root (by rw [hL, htop]) with hprim | ⟨hgood, hroot⟩
+  rcases layersP_wots_walk_route answers w index hidx 4 le_rfl (root, 0, 0) (by rw [hL, htop]) with hprim | ⟨hgood, hroot⟩
   · exact Or.inl (hprim.mono (entriesOf_mono fun q hq => by simp only [List.mem_append]; tauto))
   have hroot' : root = Extract.honestForest answers index := by
-    rw [hroot]; simp [Extract.walkTarget, Extract.honestMsg]
+    have h4 : ((root, 0, 0) : Digest × BitVec 96 × Digest) = Extract.walkTarget answers index 4 := by simpa using hroot
+    simp [Extract.walkTarget, Extract.honestMsg] at h4
+    exact h4
   exact Or.inr ⟨fun l => hgood l l.isLt, by rw [hroot'],
     fun q hq => by simp only [List.mem_append]; tauto⟩
 

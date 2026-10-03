@@ -59,7 +59,7 @@ theorem slackT_le_of_mass {s s' : LargeResidual.State WCoord (Cell U)} (q : Nat)
 
 /-- One unit of mass pays a birth. -/
 theorem birth_pay (m q : Nat) (hm : m < q) (p : ENNReal) :
-    p + (CaseC.theta + 1 / 64) / 2 ^ 128 + ((q - (m + 1) : Nat) : ENNReal) / 2 ^ 128 ≤
+    p + (CaseC.theta + 1 / 1024) / 2 ^ 128 + ((q - (m + 1) : Nat) : ENNReal) / 2 ^ 128 ≤
       p + ((q - m : Nat) : ENNReal) / 2 ^ 128 := by
   rw [add_assoc]
   apply add_le_add le_rfl
@@ -137,10 +137,10 @@ theorem bank_routeQuery (a : AuxData) (st : RouterState) (ws : LargeResidual.Sta
           rw [hXe] at h
           exact encRow_not_digest L m ctr h.2
         split
-        · rw [lazy_discloseReq]
-          apply ev_bind_le
-          intro msg
-          have hd := discFrame_disclose U q ws (msgCoord (Classical.choose he)) msg
+        · rw [ev_lazy_map]
+          exact ev_testReq_le U aux q _ ⟨X, hX⟩ _ (inlTest_guess _ _ _ (hit_target _)) ws _ _ ((hnd hndX).map U _)
+        · apply ev_discloseAll_le
+          intro pairs s1 hd
           split
           · rw [lazy_tickReq, lazy_pure, expectedValue_pure]
             apply ((hnd hndX).of_disc U hd).1
@@ -148,8 +148,6 @@ theorem bank_routeQuery (a : AuxData) (st : RouterState) (ws : LargeResidual.Sta
           · rw [ev_lazy_map]
             exact ev_testReq_le U aux q _ ⟨X, hX⟩ _ (inlTest_none _ (hit_target _))
               _ _ _ (((hnd hndX).of_disc U hd).map U _)
-        · rw [ev_lazy_map]
-          exact ev_testReq_le U aux q _ ⟨X, hX⟩ _ (inlTest_guess _ _ _ (hit_target _)) ws _ _ ((hnd hndX).map U _)
       · rw [dif_neg he]
         by_cases hd : IsDigestRow X
         · rw [if_pos hd, ev_lazy_map, ← bind_pure (readReq U ⟨X, hX⟩ .mass), lazy_readReq]
@@ -177,7 +175,7 @@ theorem bank_routeQuery (a : AuxData) (st : RouterState) (ws : LargeResidual.Sta
               _ ≤ expectedValue (liftM (PMF.uniformOfFintype LargeResidual.HashOutput) : SPMF LargeResidual.HashOutput)
                   (fun y => psi q (st.born X y) + ((q - (ws.counters.mass + 1) : Nat) : ENNReal) / 2 ^ 128) :=
                 expectedValue_mono _ hpt
-              _ ≤ psi q st + (CaseC.theta + 1 / 64) / 2 ^ 128 + ((q - (ws.counters.mass + 1) : Nat) : ENNReal) / 2 ^ 128 := by
+              _ ≤ psi q st + (CaseC.theta + 1 / 1024) / 2 ^ 128 + ((q - (ws.counters.mass + 1) : Nat) : ENNReal) / 2 ^ 128 := by
                 rw [expectedValue_add]
                 exact add_le_add (psi_birth_le q st X hc0 hlen) (expectedValue_le_of_le _ fun _ => le_rfl)
               _ ≤ _ := birth_pay _ q hmass_lt _

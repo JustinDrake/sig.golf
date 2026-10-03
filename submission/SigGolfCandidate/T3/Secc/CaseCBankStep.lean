@@ -9,7 +9,7 @@ import SigGolfCandidate.T3.Secc.CaseCExcess
     Σ_{N ∈ targets} forecast (horizon − |X|) X N  +  reusePotential  +  (budget − count) · excessForecast(…)/2^128.
 
 `potential_step`: for every interaction query, `E[potential after] ≤ potential before + birthCharge`, where a
-birth (fresh in-budget digest query) costs `(theta + 1/16)/2^128` and everything else costs nothing.
+birth (fresh in-budget digest query) costs `(theta + 1/1024)/2^128` and everything else costs nothing.
 -/
 
 namespace SigGolfCandidate.T3.Security.CaseC
@@ -74,7 +74,7 @@ noncomputable def potential (budget : Nat) (st : BankState) : ENNReal :=
 
 /-- The birth charge of a query. -/
 noncomputable def birthCharge (budget : Nat) : LazyPrivate.Interaction.Domain → BankState → ENNReal
-  | .inl (.inr x), st => if Birth budget x st.2 then (theta + 1 / 64) / 2 ^ 128 else 0
+  | .inl (.inr x), st => if Birth budget x st.2 then (theta + 1 / 1024) / 2 ^ 128 else 0
   | _, _ => 0
 
 theorem livePotential_count_anti (budget : Nat) {count count' : Nat} (h : count ≤ count') (g : Ghost)
@@ -238,7 +238,7 @@ theorem world_step (published : T3.Cache) (budget : Nat) (input : SphincsSecurit
       | none =>
           rw [lazy_world_fresh x lz hx]
           by_cases hbirth : Birth budget x st.2
-          · have hcb : birthCharge budget (.inl (.inr x)) st = (theta + 1 / 64) / 2 ^ 128 := by
+          · have hcb : birthCharge budget (.inl (.inr x)) st = (theta + 1 / 1024) / 2 ^ 128 := by
               simp [birthCharge, hbirth]
             rw [hcb]
             have hlt : c < budget := hbirth.2.2
@@ -266,7 +266,7 @@ theorem world_step (published : T3.Cache) (budget : Nat) (input : SphincsSecurit
                   congr 1
                   simp only [div_eq_mul_inv]
                   rw [expectedValue_mul_const]
-                _ ≤ 1 + reusePotential lz + (1 / 64) / 2 ^ 128 :=
+                _ ≤ 1 + reusePotential lz + (1 / 1024) / 2 ^ 128 :=
                   add_le_add le_rfl (ENNReal.div_le_div_right expected_admInd_tight _)
                 _ ≤ _ := by
                   apply add_le_add le_rfl
@@ -296,12 +296,12 @@ theorem world_step (published : T3.Cache) (budget : Nat) (input : SphincsSecurit
                   simp only [expectedValue_add, expectedValue_const (by simp : Pr[⊥ |
                     ($ᵗ HashOutput : ProbComp HashOutput)] = 0), div_eq_mul_inv, expectedValue_mul_const]
                 _ ≤ bankValue g + (theta + excessForecast R g.exposures) / 2 ^ 128 +
-                    (reusePotential lz + (1 / 64) / 2 ^ 128) + excessTerm budget (c + 1) g := by
+                    (reusePotential lz + (1 / 1024) / 2 ^ 128) + excessTerm budget (c + 1) g := by
                   gcongr
                   exact expected_admInd_tight
                 _ = bankValue g + reusePotential lz +
                     (excessTerm budget (c + 1) g + excessForecast R g.exposures / 2 ^ 128) +
-                    (theta + 1 / 64) / 2 ^ 128 := by
+                    (theta + 1 / 1024) / 2 ^ 128 := by
                   rw [ENNReal.add_div, ENNReal.add_div]
                   ring
                 _ = _ := by rw [← excessTerm_succ budget c g hlt]

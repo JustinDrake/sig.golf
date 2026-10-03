@@ -49,7 +49,7 @@ theorem eRate_le_one : eRate ≤ 1 := by
   exact probEvent_le_one
 
 theorem rate_value : rate =
-    (6963897326262647489342145 : ℝ)/(19807040628566084398385987584*2^59) := by
+    (940126139045457411061189575 : ℝ)/(2535301200456458802993406410752*2^59) := by
   norm_num [rate,eRate,acceptance,ENNReal.toReal_div,ENNReal.toReal_pow,
     ENNReal.toReal_ofNat,ENNReal.toReal_ofReal]
 

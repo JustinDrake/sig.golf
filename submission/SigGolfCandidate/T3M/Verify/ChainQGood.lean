@@ -632,8 +632,8 @@ structure TopFit (c : QCtx) (value : Digest) : Prop where
   d0 : c.d0.toNat = value.toNat % 2 ^ 64
   d1 : c.d1.toNat = 4 * (value.toNat / 2 ^ 64)
   range : value.toNat / 2 ^ 64 < 2 ^ 61
-  s3 : c.S3 = 15048
-  s6 : c.S6 = 14344
+  s3 : c.S3 = 15768
+  s6 : c.S6 = 15064
 
 theorem fit_dig (c : QCtx) {value : Digest} (h : c.TopFit value) (i : Nat) (hi : i < 49) :
     c.dig i = (dataDigits 0 value).getD i 0 := by

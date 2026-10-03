@@ -53,7 +53,7 @@ theorem wordsOf_zeros48_dig (d : Digest) :
 /-! ## A layer region -/
 
 /-- The witness base of layer `lay`'s region. -/
-def lBase (lay : Layer) : Nat := ![0x3148, 0x41C8, 0x4E48, 0x5A88] lay
+def lBase (lay : Layer) : Nat := ![0x3418, 0x4598, 0x5218, 0x5E58] lay
 
 theorem lBase_eq (lay : Layer) : lWM lay = lBase lay + 64 * (height lay - 1) ∧
     lWC lay = lBase lay + 64 * height lay + 64 * (chainCount lay - 1) := by
@@ -228,14 +228,14 @@ theorem headerBytes_words (w : Witness) :
 
 theorem witList_length_parts (N : HashOutput) (w : Witness) :
     (headerBytes w).length = 64 ∧ (leafBytes w.signature).length = 1024 ∧
-      (streamBytes (T3.selections N) w.signature.proof).length = 9480 := by
+      (streamBytes (T3.selections N) w.signature.proof).length = 10200 := by
   refine ⟨?_, ?_, ?_⟩
   · simp [headerBytes, bytesLE_length, T3M.zeros]
   · unfold leafBytes
     rw [List.length_append, length_flatMap_const _ 48 (fun s => by simp [bytesLE_length, T3M.zeros])]
     simp [T3M.zeros]
   · unfold streamBytes
-    rw [List.length_take, List.length_append, show (T3M.zeros 9480).length = 9480 from List.length_replicate]
+    rw [List.length_take, List.length_append, show (T3M.zeros 10200).length = 10200 from List.length_replicate]
     omega
 
 theorem layerBytes_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
@@ -246,8 +246,8 @@ theorem layerBytes_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
   simp; ring
 
 theorem layerStorage_length' (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
-    (layerStorage lay leaf ls).length = 64 * (height lay + chainCount lay) := by
-  simp [layerStorage, layerBytes_length]
+    (layerStorage lay leaf ls).length = 64 * (height lay + chainCount lay) + (if lay = 0 then 256 else 0) := by
+  simp [layerStorage, layerBytes_length, T3M.zeros]
 
 theorem readWords_zero (t : MachineState) (B n : Nat) (hB : B + 8 * n < 2 ^ 64)
     (hz : ∀ j < n, t.getMem (BitVec.ofNat 64 (B + 8 * j)) = 0) :
@@ -263,17 +263,26 @@ theorem readWords_zero (t : MachineState) (B n : Nat) (hB : B + 8 * n < 2 ^ 64)
 theorem witList_words (t : MachineState) (N : HashOutput) (w : Witness)
     (hh : t.readWords (BitVec.ofNat 64 0x800) 8 = wordsOf (headerBytes w))
     (hleaf : t.readWords (BitVec.ofNat 64 0x840) 128 = wordsOf (leafBytes w.signature))
-    (hstream : t.readWords (BitVec.ofNat 64 0xC40) 1185 =
+    (hstream : t.readWords (BitVec.ofNat 64 0xC40) 1275 =
       wordsOf (streamBytes (T3.selections N) w.signature.proof))
+    (hpad : t.readWords (BitVec.ofNat 64 0x4498) 32 = List.replicate 32 0)
     (hlay : ∀ lay : Layer, t.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay)) =
       wordsOf (layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay))) :
-    t.readWords (BitVec.ofNat 64 0x800) 3033 = wordsOf (witList N w) := by
+    t.readWords (BitVec.ofNat 64 0x800) 3155 = wordsOf (witList N w) := by
   have hstorage : ∀ lay : Layer,
-      t.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay)) =
+      t.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay) + (if lay = 0 then 32 else 0)) =
         wordsOf (layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) := by
     intro lay
     unfold layerStorage
-    exact hlay lay
+    by_cases hl : lay = 0
+    · subst lay
+      simp only [if_true]
+      rw [wordsOf_append _ _ (by rw [layerBytes_length]; decide),
+        show T3M.zeros 256 = List.replicate (8 * 32) 0 from rfl, wordsOf_replicate_zero, ← hlay 0, ← hpad]
+      rw [readWords_add]
+      rfl
+    · simp only [if_neg hl, T3M.zeros, List.replicate_zero, List.append_nil, Nat.add_zero]
+      exact hlay lay
   obtain ⟨l1, l2, l3⟩ := witList_length_parts N w
   have l4 := fun lay : Layer => layerStorage_length' lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)
   have hf : (List.finRange 4).flatMap (fun lay : Layer =>
@@ -293,8 +302,9 @@ theorem witList_words (t : MachineState) (N : HashOutput) (w : Witness)
     wordsOf_append _ _ (by rw [layerStorage_length']; decide), ← hh, ← hleaf, ← hstream]
   have h0 := hstorage 0; have h1 := hstorage 1; have h2 := hstorage 2; have h3 := hstorage 3
   rw [← h0, ← h1, ← h2, ← h3]
-  simp only [lBase, height, chainCount]
-  rw [show (3033 : Nat) = 8 + (128 + (1185 + (528 + (400 + (392 + 392))))) from rfl, readWords_add, readWords_add,
+  simp only [lBase, height, chainCount, show (0 : Layer) = 0 from rfl, if_true,
+    show (1 : Layer) ≠ 0 by decide, show (2 : Layer) ≠ 0 by decide, show (3 : Layer) ≠ 0 by decide, if_false, Nat.add_zero]
+  rw [show (3155 : Nat) = 8 + (128 + (1275 + (560 + (400 + (392 + 392))))) from rfl, readWords_add, readWords_add,
     readWords_add, readWords_add, readWords_add, readWords_add]
   rfl
 

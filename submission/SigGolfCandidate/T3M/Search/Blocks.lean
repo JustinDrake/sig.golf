@@ -710,9 +710,9 @@ theorem run_468 {b : Nat} (hb : b = 354 ∨ b = 543) :
 /-! ## Three-bit digest gate before the shared selector -/
 
 def gatePc (b : Nat) : Nat := if b = 354 then 1152 else 1221
-def gateEHead : List (BitVec 32) := [0x00020337, 0x17833303, 0x00e35313, 0x00737313, 0xd0031663]
+def gateEHead : List (BitVec 32) := [0x00020337, 0x17833303, 0x03635313, 0x08733313, 0xd0030663]
 def gateEJump : List (BitVec 32) := [0xb80ff06f]
-def gateSHead : List (BitVec 32) := [0x00020337, 0x17833303, 0x00e35313, 0x00737313, 0xee031663]
+def gateSHead : List (BitVec 32) := [0x00020337, 0x17833303, 0x03635313, 0x08733313, 0xee030663]
 def gateSJump : List (BitVec 32) := [0xd60ff06f]
 def gateHead (b : Nat) : List (BitVec 32) := if b = 354 then gateEHead else gateSHead
 def gateJump (b : Nat) : List (BitVec 32) := if b = 354 then gateEJump else gateSJump

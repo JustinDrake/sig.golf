@@ -2,7 +2,7 @@ import SigGolfCandidate.T3M.Verify.SelCheck
 import SigGolfCandidate.T3M.Verify.SelArith
 
 /-!
-# Selections: semantics (T3M verify words 17 .. 358)
+# Selections: semantics (T3M verify words 18 .. 358)
 
 From the post-digest state (`DgOut`, answer `a`): the setup loads the four words of `a` and `s6 = a mod 2^31`; for
 each coordinate `c` the machine either rejects (HALT(1), no query) when the triple of coordinate `c` has a repeated
@@ -43,7 +43,7 @@ def selRPath (x0 x1 x2 : Nat) : Nat :=
 
 /-- Cycles of coordinate `c`'s accepting path. -/
 def selCost (a : HashOutput) (c : Nat) : Nat :=
-  selExt c + 15 + selTree c (selPath (selX a.toNat c 0) (selX a.toNat c 1) (selX a.toNat c 2))
+  selExt c + 12 + selTree (selPath (selX a.toNat c 0) (selX a.toNat c 1) (selX a.toNat c 2))
 
 /-! ## Evaluation -/
 
@@ -124,20 +124,15 @@ open SigGolfCandidate.T3 (Digest HashOutput Selection selections)
 /-- Selection `c` of the digest answer. -/
 abbrev selC (a : HashOutput) (c : Nat) : Selection := (selections a).getD c ⟨0, []⟩
 
-/-- F5: a word offset of the witness that is a leaf block's header word 1 (`leafT + 8`, written by the selection). -/
-def T8 (o : Nat) : Prop := 64 ≤ o ∧ o < 1088 ∧ (o - 64) % 48 = 24
-
 structure SelIn (pk : Digest) (w : WBytes) (a : HashOutput) (c : Nat) (s : MachineState) : Prop where
   pc : s.pc = pcOf (selStart c)
   known : KnownOK baseK s
   nregs : NRegs a s
   idx : s.getReg .x22 = BitVec.ofNat 64 (a.toNat % 2 ^ 31)
-  /-- F5: the header word 1 (`revBits (2048 + leaf)`, the table word) of every leaf of the finished coordinates. -/
-  thdr : ∀ c' k, c' < c → k < 3 →
-    s.getMem (BitVec.ofNat 64 (selT8 c' k)) = BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + T3M.selLeaf (selC a c') k))
+  etab : ∀ c' k, c' < c → k < 3 →
+    s.getMem (BitVec.ofNat 64 (ETAB + 24 * c' + 8 * k)) = BitVec.ofNat 64 (TAB + 8 * T3M.selLeaf (selC a c') k)
   ok : ∀ c', c' < c → selOk1 (selC a c') = true
-  /-- F5: the witness (and the zero memory after it) is original outside the leaves' header words 1. -/
-  wit : Orig w (fun o => ¬ T8 o) s
+  wit : WitAll w s
   pk : PkOK pk s
   zero : ∀ A, A < WIT → (A < 0x20 ∨ (0x80 ≤ A ∧ A < 0xA0) ∨ 0xB0 ≤ A) → (A < ETAB ∨ ETAB + 24 * c ≤ A) →
     s.getMem (BitVec.ofNat 64 A) = 0
@@ -167,74 +162,23 @@ theorem selC_eq (a : HashOutput) (c : Nat) (hc : c < 7) :
     selC a c = ⟨selNum a.toNat c % 16, [selX a.toNat c 0, selX a.toNat c 1, selX a.toNat c 2].mergeSort
       (fun x y => decide (x ≤ y))⟩ := selections_getD a c hc
 
-theorem selC_bucket_lt (a : HashOutput) (c : Nat) (hc : c < 7) : (selC a c).bucket < 16 := by
-  rw [selC_eq a c hc]; exact Nat.mod_lt _ (by decide)
-
-theorem selC_leaf_lt (a : HashOutput) (c j : Nat) (hc : c < 7) : (selC a c).leaves.getD j 0 < 128 := by
-  rw [selC_eq a c hc]
-  simp only []
-  rw [List.getD_eq_getElem?_getD]
-  cases h : ([selX a.toNat c 0, selX a.toNat c 1, selX a.toNat c 2].mergeSort (fun x y => decide (x ≤ y)))[j]? with
-  | none => simp
-  | some x =>
-    simp only [Option.getD_some]
-    have hm : x ∈ [selX a.toNat c 0, selX a.toNat c 1, selX a.toNat c 2] :=
-      (List.mergeSort_perm _ _).mem_iff.mp (List.mem_of_getElem? h)
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
-    unfold selX at hm
-    rcases hm with rfl | rfl | rfl <;> exact Nat.mod_lt _ (by decide)
-
-theorem selLeaf_lt (a : HashOutput) (c k : Nat) (hc : c < 7) : T3M.selLeaf (selC a c) k < 2048 := by
-  unfold T3M.selLeaf
-  have := selC_bucket_lt a c hc
-  have := selC_leaf_lt a c k hc
-  omega
-
-theorem selT8_lt (c k : Nat) (hc : c < 7) (hk : k < 3) : selT8 c k + 8 ≤ WIT + 1088 := by
-  unfold selT8; omega
-
-/-- F5: the table reads are valid. -/
-theorem selObl_holds (a : HashOutput) (s : MachineState) (h : NRegs a s) (c : Nat) (hc : c < 7) :
-    ∀ o ∈ selObl c, o.holds s := by
-  have hv : ∀ j, j < 3 → (Oblig.valid (xA c j) 8).holds s := by
-    intro j hj
-    show accessValid ((xA c j).eval s) 8 = true
-    rw [show (xA c j).eval s = (xE c j).eval s from norm_eval s _, xE_eval a s h c j hc hj]
-    have hl := eVal_lt a c j
-    have hm : eVal a c j % 8 = 0 := by unfold eVal TAB; omega
-    have hb : eVal a c j + 8 ≤ 2 ^ 24 := by
-      unfold eVal selX TAB
-      have := Nat.mod_lt (selNum a.toNat c) (show 0 < 16 by decide)
-      have := Nat.mod_lt (selNum a.toNat c / 2 ^ (4 + 7 * j)) (show 0 < 128 by decide)
-      omega
-    simp only [accessValid, rangeValid, MEMORY_BYTES, Bool.and_eq_true, decide_eq_true_eq,
-      toNat_ofNat_lt (show eVal a c j < 2 ^ 64 by omega)]
-    exact ⟨hb, hm⟩
-  intro o ho
-  simp only [selObl, List.mem_cons, List.not_mem_nil, or_false] at ho
-  rcases ho with rfl | rfl | rfl
-  · exact hv 2 (by decide)
-  · exact hv 1 (by decide)
-  · exact hv 0 (by decide)
-
-/-- An accepting path: F5: the sorted triple's header words land in the leaves' header slots. -/
+/-- An accepting path: the stores are the sorted triple. -/
 theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc : c < 7) (hp : p < 6)
     (s : MachineState) (hs : SelIn pk w a c s) (hbr : ∀ b ∈ selBrs c p, b.holds s)
     (hsort : [selX a.toNat c 0, selX a.toNat c 1, selX a.toNat c 2].mergeSort (fun x y => decide (x ≤ y)) =
       (selPerm p).map (selX a.toNat c))
     (hok : selOk1 (selC a c) = true) :
-    ∃ u, Steps image s (selExt c + 15 + selTree c p) (selExt c + 15 + selTree c p) u ∧ SelIn pk w a (c + 1) u := by
-  obtain ⟨u, hu⟩ := spec_run (selCheck_at c p hc hp) s hs.pc (selK_of hs.known hs.sp) hbr
-    (selObl_holds a s hs.nregs c hc)
+    ∃ u, Steps image s (selExt c + 12 + selTree p) (selExt c + 12 + selTree p) u ∧ SelIn pk w a (c + 1) u := by
+  obtain ⟨u, hu⟩ := spec_run (selCheck_at c p hc hp) s hs.pc (selK_of hs.known hs.sp) hbr (by simp)
   have hmem : ∀ A, A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) =
-      if A = selT8 c 2 then (E.ld (xE c ((selPerm p).getD 2 0))).eval s
-      else if A = selT8 c 1 then (E.ld (xE c ((selPerm p).getD 1 0))).eval s
-      else if A = selT8 c 0 then (E.ld (xE c ((selPerm p).getD 0 0))).eval s
+      if A = ETAB + 24 * c + 16 then (xE c ((selPerm p).getD 2 0)).eval s
+      else if A = ETAB + 24 * c + 8 then (xE c ((selPerm p).getD 1 0)).eval s
+      else if A = ETAB + 24 * c then (xE c ((selPerm p).getD 0 0)).eval s
       else s.getMem (BitVec.ofNat 64 A) := by
     intro A hA
     rw [hu.mem]
     simp only [selSpec, selMem]
-    unfold selT8 WIT at *
+    unfold ETAB at *
     rw [memEval_cons_ofNat _ _ _ _ _ hA (by omega), memEval_cons_ofNat _ _ _ _ _ hA (by omega),
       memEval_cons_ofNat _ _ _ _ _ hA (by omega), memEval_nil]
   have hperm : ∀ k, k < 3 → (selPerm p).getD k 0 < 3 := by
@@ -242,10 +186,13 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
     rcases (show p = 0 ∨ p = 1 ∨ p = 2 ∨ p = 3 ∨ p = 4 ∨ p = 5 by omega) with
       rfl | rfl | rfl | rfl | rfl | rfl <;>
     rcases (show k = 0 ∨ k = 1 ∨ k = 2 by omega) with rfl | rfl | rfl <;> decide
-  have hv : ∀ k', k' < 3 → (E.ld (xE c ((selPerm p).getD k' 0))).eval s =
-      BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + T3M.selLeaf (selC a c) k')) := by
-    intro k' hk'
-    have ha : (xE c ((selPerm p).getD k' 0)).eval s = BitVec.ofNat 64 (TAB + 8 * T3M.selLeaf (selC a c) k') := by
+  have hstore : ∀ k, k < 3 → u.getMem (BitVec.ofNat 64 (ETAB + 24 * c + 8 * k)) =
+      BitVec.ofNat 64 (TAB + 8 * T3M.selLeaf (selC a c) k) := by
+    intro k hk
+    rw [hmem _ (by unfold ETAB; omega)]
+    have hv : ∀ k', k' < 3 → (xE c ((selPerm p).getD k' 0)).eval s =
+        BitVec.ofNat 64 (TAB + 8 * T3M.selLeaf (selC a c) k') := by
+      intro k' hk'
       rw [xE_eval a s hs.nregs c _ hc (hperm k' hk'), selC_eq a c hc]
       unfold T3M.selLeaf eVal
       simp only []
@@ -254,25 +201,14 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
         rfl | rfl | rfl | rfl | rfl | rfl <;>
       rcases (show k' = 0 ∨ k' = 1 ∨ k' = 2 by omega) with rfl | rfl | rfl <;>
       simp only [selPerm, List.map_cons, List.map_nil, List.getD_cons_zero, List.getD_cons_succ] <;> ring
-    show s.getMem ((xE c ((selPerm p).getD k' 0)).eval s) = _
-    rw [ha]
-    exact hs.data.tab _ (selLeaf_lt a c k' hc)
-  have hstore : ∀ k, k < 3 → u.getMem (BitVec.ofNat 64 (selT8 c k)) =
-      BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + T3M.selLeaf (selC a c) k)) := by
-    intro k hk
-    rw [hmem _ (by unfold selT8 WIT; omega)]
     rcases (show k = 0 ∨ k = 1 ∨ k = 2 by omega) with rfl | rfl | rfl
-    · rw [if_neg (by unfold selT8; omega), if_neg (by unfold selT8; omega), if_pos rfl]; exact hv 0 (by decide)
-    · rw [if_neg (by unfold selT8; omega), if_pos rfl]; exact hv 1 (by decide)
-    · rw [if_pos rfl]; exact hv 2 (by decide)
-  have hframe : ∀ A, A < 2 ^ 64 → A ≠ selT8 c 0 → A ≠ selT8 c 1 → A ≠ selT8 c 2 →
+    · rw [if_neg (by omega), if_neg (by omega), if_pos (by omega)]; exact hv 0 (by decide)
+    · rw [if_neg (by omega), if_pos (by omega)]; exact hv 1 (by decide)
+    · rw [if_pos (by omega)]; exact hv 2 (by decide)
+  have hframe : ∀ A, A < 2 ^ 64 → (A < ETAB + 24 * c ∨ ETAB + 24 * c + 24 ≤ A) →
       u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
-    intro A hA h0 h1 h2
-    rw [hmem A hA, if_neg h2, if_neg h1, if_neg h0]
-  have hlow : ∀ A, A < WIT + 64 → u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := fun A hA =>
-    hframe A (by unfold WIT at hA; omega) (by unfold selT8; omega) (by unfold selT8; omega) (by unfold selT8; omega)
-  have hhigh : ∀ A, WIT + 1088 ≤ A → A < 2 ^ 64 → u.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) :=
-    fun A h1 hA => hframe A hA (by unfold selT8; omega) (by unfold selT8; omega) (by unfold selT8; omega)
+    intro A hA hA'
+    rw [hmem A hA, if_neg (by omega), if_neg (by omega), if_neg (by omega)]
   refine ⟨u, hu.steps, ⟨?_, selK_base hu.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, selK_sp hu.known⟩⟩
   · rw [hu.pc rfl]; rfl
   · intro k hk; rw [hu.keep (nReg k) (by
@@ -282,25 +218,23 @@ theorem sel_acc_path (pk : Digest) (w : WBytes) (a : HashOutput) (c p : Nat) (hc
   · intro c' k hc' hk
     by_cases hcc : c' = c
     · subst hcc; exact hstore k hk
-    · rw [hframe _ (by unfold selT8 WIT; omega) (by unfold selT8; omega) (by unfold selT8; omega)
-        (by unfold selT8; omega)]
-      exact hs.thdr c' k (by omega) hk
+    · rw [hframe _ (by unfold ETAB; omega) (by unfold ETAB; omega)]
+      exact hs.etab c' k (by omega) hk
   · intro c' hc'
     by_cases hcc : c' = c
     · subst hcc; exact hok
     · exact hs.ok c' (by omega)
-  · intro j hj hT
-    have hne : ∀ k, k < 3 → WIT + 8 * j ≠ selT8 c k := by
-      intro k hk heq; apply hT; unfold selT8 at heq; unfold T8; omega
-    rw [hframe _ (by unfold WIT WX at *; omega) (hne 0 (by decide)) (hne 1 (by decide)) (hne 2 (by decide))]
-    exact hs.wit j hj hT
-  · exact ⟨(hlow 0xA0 (by unfold WIT; omega)).trans hs.pk.1, (hlow 0xA8 (by unfold WIT; omega)).trans hs.pk.2⟩
+  · intro j hj
+    rw [hframe _ (by unfold WIT WX at *; omega) (Or.inr (by unfold ETAB WIT; omega))]
+    exact hs.wit j hj
+  · exact ⟨(hframe 0xA0 (by omega) (Or.inl (by unfold ETAB; omega))).trans hs.pk.1,
+      (hframe 0xA8 (by omega) (Or.inl (by unfold ETAB; omega))).trans hs.pk.2⟩
   · intro A hA hz hE
-    rw [hlow A (by omega)]
+    rw [hframe A (by unfold WIT at hA; omega) (by omega)]
     exact hs.zero A hA hz (by omega)
   · apply hs.data.congr
     intro A hA hEnd
-    exact hhigh A (by unfold TAB WIT at *; omega) (by omega)
+    exact hframe A (by omega) (Or.inr (by unfold ETAB TAB at *; omega))
 
 end SigGolfCandidate.T3M.Verify
 
@@ -373,12 +307,11 @@ theorem sel_rej_path (pk : Digest) (w : WBytes) (a : HashOutput) (c r : Nat) (hc
     ∃ u, Steps image s (selRSteps c r) (selRSteps c r) u ∧ Halt1 u := by
   have hbr : ∀ b ∈ selRBrs c r, b.holds s := by
     rw [selRBrs_eq c r hr]; exact holds_of_condQ a s hs.nregs c hc _ (selRBrsQ_idx r hr) hq
-  obtain ⟨u, hu⟩ := spec_run (selRCheck_at c r hc hr) s hs.pc (selK_of hs.known hs.sp) hbr
-    (selObl_holds a s hs.nregs c hc)
+  obtain ⟨u, hu⟩ := spec_run (selRCheck_at c r hc hr) s hs.pc (selK_of hs.known hs.sp) hbr (by simp)
   exact ⟨u, hu.steps, hu.ecall rfl, hu.regs (.x5, cw 1) (by simp [rejSpec]),
     hu.regs (.x10, cw 1) (by simp [rejSpec])⟩
 
-theorem selRSteps_le (c r : Nat) (hc : c < 7) : selRSteps c r ≤ 26 := by
+theorem selRSteps_le (c r : Nat) (hc : c < 7) : selRSteps c r ≤ 23 := by
   unfold selRSteps selExt; split <;> split <;> omega
 
 /-! ## One coordinate -/
@@ -386,7 +319,7 @@ theorem selRSteps_le (c r : Nat) (hc : c < 7) : selRSteps c r ≤ 26 := by
 theorem sel_step (pk : Digest) (w : WBytes) (a : HashOutput) (c : Nat) (hc : c < 7) (s : MachineState)
     (hs : SelIn pk w a c s) :
     (selOk1 (selC a c) = true → ∃ u, Steps image s (selCost a c) (selCost a c) u ∧ SelIn pk w a (c + 1) u) ∧
-    (selOk1 (selC a c) = false → ∃ u k, Steps image s k k u ∧ k ≤ 26 ∧ Halt1 u) := by
+    (selOk1 (selC a c) = false → ∃ u k, Steps image s k k u ∧ k ≤ 23 ∧ Halt1 u) := by
   have hsel := selC_eq a c hc
   set x0 := selX a.toNat c 0 with hx0
   set x1 := selX a.toNat c 1 with hx1
@@ -403,12 +336,12 @@ theorem sel_step (pk : Digest) (w : WBytes) (a : HashOutput) (c : Nat) (hc : c <
     intro p hp hq hsort hpath hokc
     have hbr : ∀ b ∈ selBrs c p, b.holds s := by
       rw [selBrs_eq c p hp]; exact holds_of_condQ a s hs.nregs c hc _ (selBrsQ_idx p hp) hq
-    have hcost : selCost a c = selExt c + 15 + selTree c p := by
+    have hcost : selCost a c = selExt c + 12 + selTree p := by
       unfold selCost; rw [← hx0, ← hx1, ← hx2, hpath]
     rw [hcost]
     exact sel_acc_path pk w a c p hc hp s hs hbr hsort hokc
   have rej : ∀ r, r < 6 → (∀ q ∈ selRBrsQ r, condQ (selX a.toNat c) q) →
-      ∃ u k, Steps image s k k u ∧ k ≤ 26 ∧ Halt1 u := by
+      ∃ u k, Steps image s k k u ∧ k ≤ 23 ∧ Halt1 u := by
     intro r hr hq
     obtain ⟨u, hu1, hu2⟩ := sel_rej_path pk w a c r hc hr s hs hq
     exact ⟨u, _, hu1, selRSteps_le c r hc, hu2⟩
@@ -500,7 +433,7 @@ theorem idxE_eval (a : HashOutput) (s : MachineState)
 theorem sel_setup (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState)
     (hu : DgOut m pk w a u) : ∃ t, Steps image u 6 6 t ∧ SelIn pk w a 0 t := by
   have hk : KnownOK selK u := selK_of (hu.known.mono (fun p hp => by simp [proPost]; exact Or.inl hp)) hu.sp
-  obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt selK [23] 17 []) setupSpec [] selK [] = true
+  obtain ⟨t, ht⟩ := spec_run (show specB [] [] baseK (runAt selK [24] 18 []) setupSpec [] selK [] = true
     from setupCheck_ok) u hu.pc hk (by simp [setupSpec]) (by simp)
   have hmem : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
   refine ⟨t, ht.steps, ⟨by rw [ht.pc rfl]; rfl, selK_base ht.known, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, selK_sp ht.known⟩⟩
@@ -519,24 +452,24 @@ theorem sel_setup (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (
     exact idxE_eval a u (hu.nwords 0 (by decide))
   · intro c' k hc' _; omega
   · intro c' hc'; omega
-  · intro j hj _; rw [hmem]; exact hu.wit j hj
+  · intro j hj; rw [hmem]; exact hu.wit j hj
   · exact ⟨(hmem _).trans hu.pk.1, (hmem _).trans hu.pk.2⟩
   · intro A hA hz _; rw [hmem]; exact hu.zero A hA hz
   · exact hu.data.congr (fun A _ _ => hmem _)
 
 /-! ## All seven coordinates -/
 
-theorem selCost_le (a : HashOutput) (c : Nat) : selCost a c ≤ 26 := by
-  unfold selCost selExt selTree; split_ifs <;> omega
+theorem selCost_le (a : HashOutput) (c : Nat) : selCost a c ≤ 23 := by
+  unfold selCost selExt selTree; split <;> split <;> omega
 
-theorem sumTo_selCost_le (a : HashOutput) : ∀ n, sumTo (selCost a) n ≤ 26 * n
+theorem sumTo_selCost_le (a : HashOutput) : ∀ n, sumTo (selCost a) n ≤ 23 * n
   | 0 => by simp [sumTo]
   | n + 1 => by simp only [sumTo]; have := selCost_le a n; have := sumTo_selCost_le a n; omega
 
 theorem sel_prefix (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineState) (hs : SelIn pk w a 0 s) :
     ∀ n, n ≤ 7 →
       (∃ u, Steps image s (sumTo (selCost a) n) (sumTo (selCost a) n) u ∧ SelIn pk w a n u) ∨
-      (∃ u k, Steps image s k k u ∧ k ≤ 26 * n ∧ Halt1 u ∧ ∃ c, c < n ∧ selOk1 (selC a c) = false) := by
+      (∃ u k, Steps image s k k u ∧ k ≤ 23 * n ∧ Halt1 u ∧ ∃ c, c < n ∧ selOk1 (selC a c) = false) := by
   intro n
   induction n with
   | zero => intro _; exact Or.inl ⟨s, Steps.refl s, hs⟩
@@ -570,12 +503,12 @@ theorem selectionsOk_iff (a : HashOutput) :
     simp only [selC, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hc, Option.getD_some] at this
     exact this
 
-/-- The cycles of the seven accepting coordinates (`≤ 174`; `P = Σ selTree ≤ 56`; F5: 21 table reads). -/
+/-- The cycles of the seven accepting coordinates (`≤ 153`; `P = Σ selTree ≤ 56`). -/
 def selCostAll (a : HashOutput) : Nat := sumTo (selCost a) 7
 
-theorem selCostAll_le (a : HashOutput) : selCostAll a ≤ 174 := by
-  have h : ∀ c, selCost a c ≤ selExt c + 23 := fun c => by
-    unfold selCost selTree; split_ifs <;> omega
+theorem selCostAll_le (a : HashOutput) : selCostAll a ≤ 153 := by
+  have h : ∀ c, selCost a c ≤ selExt c + 20 := fun c => by
+    unfold selCost selTree; split <;> omega
   have e0 : selExt 0 = 1 := rfl
   have e1 : selExt 1 = 3 := rfl
   have e2 : selExt 2 = 1 := rfl
@@ -591,7 +524,7 @@ theorem selCostAll_le (a : HashOutput) : selCostAll a ≤ 174 := by
 theorem select_phase (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineState) (hs : SelIn pk w a 0 s) :
     (selectionsOk (selections a) = true →
       ∃ u, Steps image s (selCostAll a) (selCostAll a) u ∧ SelIn pk w a 7 u) ∧
-    (selectionsOk (selections a) = false → ∃ u k, Steps image s k k u ∧ k ≤ 182 ∧ Halt1 u) := by
+    (selectionsOk (selections a) = false → ∃ u k, Steps image s k k u ∧ k ≤ 161 ∧ Halt1 u) := by
   constructor
   · intro h
     rcases sel_prefix pk w a s hs 7 (le_refl _) with hu | ⟨u, k, _, _, _, c, hc, hc'⟩
@@ -609,7 +542,7 @@ theorem select_phase (pk : Digest) (w : WBytes) (a : HashOutput) (s : MachineSta
 def afterFts (pk : Digest) (w : WBytes) (index : Nat) (r : Option Digest) : T3.M Bool :=
   match r with
   | some root => do
-      let __x ← layersP w index 4 root
+      let __x ← layersP w index 4 (root, 0, 0)
       match __x with
       | some root => pure (root == pk)
       | _ => pure false
@@ -632,7 +565,7 @@ theorem select_good (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput)
     (hu : DgOut m pk w a u) {N C A : Nat} {Q : Prop} (REST : T3.M Bool) (K : Bool → OracleComp HashSpec Obs)
     (hK : K false = pure (false, 0))
     (hrest : ∀ t, SelIn pk w a 7 t → GoodQ t N C Q A (ccM REST K)) :
-    GoodQ u (N + 189) (C + 189) Q (A + 180)
+    GoodQ u (N + 168) (C + 168) Q (A + 159)
       (ccM (if (!selectionsOk (selections a)) = true then pure false else REST) K) := by
   obtain ⟨t0, hst0, ht0⟩ := sel_setup m pk w a u hu
   obtain ⟨hacc, hrej⟩ := select_phase pk w a t0 ht0
@@ -647,13 +580,13 @@ theorem select_good (m : T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput)
     exact GoodQ.steps' (hst0.trans hst) (hrest v hv) (by omega) (by omega) (fun q => ⟨q, by omega⟩)
 
 /-- **`verifyP` up to the FTS**: from the initial state, given the judgment of `afterSel` on every state at
-`fts_setup` (word 448). -/
+`fts_setup` (word 359). -/
 theorem verifyP_good_sel (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s)
     {N C A : Nat} {Q : Prop}
     (hfts : ∀ a t, SelIn pk w a 7 t → GoodQ t N C Q A (ccM (afterSel pk w a) Kb)) :
-    GoodQ s (N + 206) (C + 213) Q (A + 204) (ccM (verifyP m pk w) Kb) := by
+    GoodQ s (N + 186) (C + 193) Q (A + 184) (ccM (verifyP m pk w) Kb) := by
   rw [verifyP_eq, ccM_bind]
-  have := digestP_good m pk w s hs (N := N + 189) (C := C + 189) (A := A + 180) (Q := Q)
+  have := digestP_good m pk w s hs (N := N + 168) (C := C + 168) (A := A + 159) (Q := Q)
     (fun o => ccM (match o with
       | some N => if (!selectionsOk (selections N)) = true then pure false else afterSel pk w N
       | none => pure false) Kb) (by simp [Kb])
