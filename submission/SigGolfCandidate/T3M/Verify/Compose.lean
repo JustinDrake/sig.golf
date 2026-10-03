@@ -5,20 +5,11 @@ import SigGolfCandidate.T3M.Verify.FtsGood
 
 /-! # The complete verifier: forest, signature layers, Merkle paths and root comparison
 
-The accepting forest bound is 2675 cycles (n3-99 relabel 2676, digest header cut −1) at the 115-fold cap. The four
-layers and final comparison cost 5963 cycles; the six-cycle load block gives 5969 after the forest. Thus the
-accepting bound is 8644 cycles. Fuel 15418 and every-path cycle bound 15425 (`6 + lFuel 4 = 8050` after the
-forest). The paired decoder lowers the top accepting transition by 46 cycles;
-the last lower layer target 194 adds 9 cycles. The lower checksum register, leaf dispatch and
-layer-3 index copy cuts and the top Merkle chunk-0 dispatch cut save 8 cycles. T3X: the lower layers read their WOTS
-chain headers from a read-only image table (23 cycles per layer); T3Y: the 4096-aligned bank midpoints make each
-lower layer's entry stub one `lui` (one more cycle per layer); BIG2: the Merkle levels store the header word 0 once
-each from a register merged at level 0 (23 cycles); cryptogakusei's complemented top decoder tail (15e2fb43, 2 cycles);
-BIG3 (T3Z): the top layer's chain heads read their header words from the same table (54 cycles); gopikannappan's
-lower table-slot heads land on their digit's `ecall` (745a58d5, 15 cycles per lower layer); may93182's inline
-lower entry stub and leaf-pk return (0c30a009, 2 cycles per lower layer) (layers
-1321 + 1304 + 1304 + 1236, Merkle
-168 + 168 + 181 + 273, compare 8). -/
+The reversed-label forest with three checked side bits costs at most2667 cycles
+from the initial state. The four layers and final comparison cost6014 cycles;
+the five-cycle loader gives6019 after the forest. The accepting bound is8686.
+Fuel15477 and the all-input cycle bound15484 retain conservative rejection margins.
+-/
 
 set_option linter.unusedSimpArgs false
 
@@ -41,20 +32,20 @@ theorem kFin_some (pk r : Digest) : kFin pk (some r) = pure (r == pk, 0) := by s
 
 /-! ## Layout facts -/
 
-theorem trPc_vals : (∀ c, c < 64 → trPc 2 c = 5525 + 101 * c) ∧ (∀ c, c < 64 → trPc 1 c = 11989 + 101 * c) ∧
-    (∀ c, c < 128 → trPc 0 c = 18460 + 134 * c) := by decide
+theorem trPc_vals : (∀ c, c < 64 → trPc 2 c = 5521 + 101 * c) ∧ (∀ c, c < 64 → trPc 1 c = 11985 + 101 * c) ∧
+    (∀ c, c < 128 → trPc 0 c = 18455 + 134 * c) := by decide
 
-theorem mkOff_vals : mkOff 3 0 6 = 36 ∧ mkOff 2 0 6 = 36 ∧ mkOff 1 0 7 = 42 ∧ mkOff 0 1 6 = 33 := by decide
+theorem mkOff_vals : mkOff 3 0 6 = 34 ∧ mkOff 2 0 6 = 34 ∧ mkOff 1 0 7 = 40 ∧ mkOff 0 1 6 = 33 := by decide
 
 theorem mkFin_succ (lay leaf : Nat) (hlay : lay < 4) :
-    mkFin lay leaf + 1 = (if lay = 3 then 5525 + 101 * mkSh 3 0 leaf else if lay = 2 then 11989 + 101 * mkSh 2 0 leaf
-      else if lay = 1 then 18460 + 134 * mkSh 1 0 leaf else 38675 + 53 * mkSh 0 1 leaf) := by
+    mkFin lay leaf + 1 = (if lay = 3 then 5521 + 101 * mkSh 3 0 leaf else if lay = 2 then 11985 + 101 * mkSh 2 0 leaf
+      else if lay = 1 then 18455 + 134 * mkSh 1 0 leaf else 38669 + 53 * mkSh 0 1 leaf) := by
   obtain ⟨o3, o2, o1, o0⟩ := mkOff_vals
   interval_cases lay
-  · simp only [mkFin, show mkNch 0 - 1 = 1 from rfl, show mkBits 0 1 = 6 from rfl, o0, mkShp]; norm_num; omega
-  · simp only [mkFin, show mkNch 1 - 1 = 0 from rfl, show mkBits 1 0 = 7 from rfl, o1, mkShp]; norm_num; omega
-  · simp only [mkFin, show mkNch 2 - 1 = 0 from rfl, show mkBits 2 0 = 6 from rfl, o2, mkShp]; norm_num; omega
-  · simp only [mkFin, show mkNch 3 - 1 = 0 from rfl, show mkBits 3 0 = 6 from rfl, o3, mkShp]; norm_num; omega
+  · simp only [mkFin, mkPack, show mkNch 0 - 1 = 1 from rfl, show mkBits 0 1 = 6 from rfl, o0, mkShp]; norm_num; omega
+  · simp only [mkFin, mkPack, show mkNch 1 - 1 = 0 from rfl, show mkBits 1 0 = 7 from rfl, o1, mkShp]; norm_num; omega
+  · simp only [mkFin, mkPack, show mkNch 2 - 1 = 0 from rfl, show mkBits 2 0 = 6 from rfl, o2, mkShp]; norm_num; omega
+  · simp only [mkFin, mkPack, show mkNch 3 - 1 = 0 from rfl, show mkBits 3 0 = 6 from rfl, o3, mkShp]; norm_num; omega
 
 theorem ofNat4_val (n : Nat) (hn : n < 4) : (Fin.ofNat 4 n : Layer).val = n := by
   simp [Fin.val_ofNat, Nat.mod_eq_of_lt hn]
@@ -121,7 +112,7 @@ theorem mkEnd_next (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^ 
       simp only [preK, if_neg hn3, List.mem_append, List.mem_cons, List.not_mem_nil, or_false, baseK] at hp
       have hkt := ht.known
       have hkp := ht.keep
-      rcases hp with (rfl | rfl) | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      rcases hp with (rfl | rfl) | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact ht.glob.1 _ (by simp [baseK])
       · exact ht.glob.1 _ (by simp [baseK])
       · rw [hkp .x27 (by simp [mkKeep]), hkU (.x27, BitVec.ofNat 64 (hw 1 n)) (by simp [lfK, postLf, leafK]),
@@ -131,8 +122,12 @@ theorem mkEnd_next (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^ 
       · rw [hkp .x20 (by simp [mkKeep]), hkU (.x20, BitVec.ofNat 64 M1c) (by simp [lfK, lfKeepK, h0])]
       · rw [hkp .x21 (by simp [mkKeep]), hkU (.x21, BitVec.ofNat 64 M2c) (by simp [lfK, lfKeepK, h0])]
       · exact hkt _ (by simp)
-      · rw [hkp .x28 (by simp [mkKeep]), hkU (.x28, BitVec.ofNat 64 (headerBank 0 0)) (by simp [lfK, lfKeepK])]
-      all_goals exact hkt _ (by simp [mkKc])
+      · rw [hkp .x28 (by simp [mkKeep]), hkU (.x28, BitVec.ofNat 64 (leaf28 n)) (by simp [lfK, lfKeepK])]
+        have hn' : n = 1 ∨ n = 2 ∨ n = 3 := by omega
+        rcases hn' with rfl | rfl | rfl <;> rfl
+      all_goals first
+        | solve | refine hkt _ ?_; simp [mkK]
+        | rw [hkp .x19 (by simp [mkKeep]), hkU (.x19, BitVec.ofNat 64 (2^62)) (by simp [lfK, lfKeepK, h0])]
     · -- the remaining index bits
       rw [show rReg (n - 1) = .x30 by simp [rReg, hn3], ht.keep .x30 (by simp [mkKeep]), hu.t5,
         tree_next index _ hL0, hv]
@@ -154,8 +149,8 @@ def lFuel : Nat → Nat
   | 0 => 9
   | n + 1 => layerFuel n + mkFuel n + lFuel n
 
-theorem lCyc_4 : lCyc 4 = 5963 := by decide
-theorem lFuel_4 : lFuel 4 = 8015 := by decide
+theorem lCyc_4 : lCyc 4 = 5957 := by decide
+theorem lFuel_4 : lFuel 4 = 8011 := by decide
 
 /-- **The layers and the compare**: from `RestIn … n M s`, `layersP w index n M` continued by `kFin pk`. -/
 theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^ 31) (Q : Prop) (hQ : Q) :
@@ -186,11 +181,11 @@ theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^
 /-! ## From V2's `FtsOut` and from the initial state -/
 
 /-- **After the FTS** (V2's `verifyP_good_fts` interface): from `FtsOut`, `afterFts` — the four layers and the
-compare — with fuel and every-path bound 8050 (`6 + lFuel 4 = 8050`) and accepting cycles 5969 (`6 + lCyc 4`; T3K: the
-6-cycle load block at 656 before layer 3's copy at 662). -/
+compare — with fuel and every-path bound 8061 (`5 + lFuel 4 = 8016`) and accepting cycles 5962 (`5 + lCyc 4`; the
+five-cycle load block starts at656 and preserves the carried constants). -/
 theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutput) (root : Digest) (u : MachineState)
     (h : FtsOut ⟨pk, w, a⟩ root u) :
-    GoodQ u 8050 8050 Q 5969 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
+    GoodQ u 8061 8061 Q 5962 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
   have hidx : a.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by decide)
   obtain ⟨t, hst, hL3⟩ := layerIn_of_fts w pk _ root u hidx h.glob h.idx h.pc h.root h.wit
   have hg := layers_good w pk _ hidx Q hQ 4 le_rfl root t (by simpa [RestIn] using hL3)
@@ -201,10 +196,10 @@ theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutpu
   rw [lFuel_4, lCyc_4] at hg
   exact GoodQ.steps' hst hg (by omega) (by omega) (fun q => ⟨q, by omega⟩)
 
-/-- **The whole verify run**: from the initial state, every run finishes within 15425 cycles with fuel 15418, and
-accepting runs take at most `8644 = 2675 + 5969` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
+/-- **The whole verify run**: from the initial state, every run finishes within 15484 cycles with fuel 15477, and
+accepting runs take at most `8629 = 2667 + 5962` cycles; the observation is `countCalls (mrealize 0 (verifyP m pk w))`. -/
 theorem verifyP_good (m : T3.Message) (pk : Digest) (w : WBytes) (s : MachineState) (hs : InitOK m pk w s) :
-    GoodQ s 15418 15425 True 8644 (ccM (verifyP m pk w) Kb) :=
-  verifyP_good_fts m pk w s hs 8050 5969 True (fun a root u h => after_good pk w True trivial a root u h)
+    GoodQ s 15477 15484 True 8629 (ccM (verifyP m pk w) Kb) :=
+  verifyP_good_fts m pk w s hs 8061 5962 True (fun a root u h => after_good pk w True trivial a root u h)
 
 end SigGolfCandidate.T3M

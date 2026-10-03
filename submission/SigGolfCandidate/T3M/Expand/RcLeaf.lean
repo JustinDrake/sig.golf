@@ -55,7 +55,7 @@ theorem rcCost_leaf (L : List Nat) (node : Nat) (h : hasLeaf L 0 node = true) : 
   unfold rcCost; simp [h]
 
 theorem rcEm_leaf (L : List Nat) (pf : Nat → Digest) (node used : Nat) (e : Em) (h : hasLeaf L 0 node = true) :
-    rcEm L pf 0 node used e = if L.idxOf node = 0 then ⟨e.segs, e.cur, node % 2⟩ else e.close false (node % 2) := by
+    rcEm L pf 0 node used e = if L.idxOf node = 0 then ⟨e.segs, e.cur, node % 8⟩ else e.close false (node % 8) := by
   unfold rcEm; simp [h]
 
 section leaf
@@ -246,7 +246,7 @@ theorem rc_leaf (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧
     · rw [if_pos h0] at x22_4; simp only [h0, ↓reduceIte]; exact x22_4
     · rw [if_neg h0] at x22_4; simp only [h0, ↓reduceIte]; exact x22_4
   · intro _
-    have hcur0 : (if j = 0 then (⟨e.segs, e.cur, node % 2⟩ : Em) else e.close false (node % 2)).cur.length = 0 := by
+    have hcur0 : (if j = 0 then (⟨e.segs, e.cur, node % 8⟩ : Em) else e.close false (node % 8)).cur.length = 0 := by
       by_cases h0 : j = 0
       · simp only [h0, ↓reduceIte]; rw [hpre.hcur (hfj.mp h0)]; rfl
       · simp only [h0, ↓reduceIte]; rfl
@@ -261,7 +261,8 @@ theorem rc_leaf (hc : c < 7) (hi : index < 2 ^ 32) (hg : g0 < g1 ∧ g1 < g2 ∧
   · by_cases h0 : j = 0
     · simp only [h0, ↓reduceIte]; exact hpre.hcnt
     · simp only [h0, ↓reduceIte]; simp [Em.close]
-  · by_cases h0 : j = 0 <;> simp only [h0, ↓reduceIte] <;> simp [Em.close] <;> omega
+  · by_cases h0 : j = 0 <;> simp only [h0, ↓reduceIte] <;>
+      change node % 8 < 8 <;> omega
   · have hS : StreamAt t8 (if j = 0 then e else e.close false 0) := str4.frame F48 (fun k hk h => by
       rcases h with (((h | h | h | h) | h) | h) | h <;> first | exact h.elim | (simp only [FLEAF, NOUT] at h; omega))
     by_cases h0 : j = 0

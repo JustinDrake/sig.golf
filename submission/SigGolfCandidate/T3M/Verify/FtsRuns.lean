@@ -1,10 +1,10 @@
-import SigGolfCandidate.T3M.Verify.Select
+import SigGolfCandidate.T3M.Verify.FtsLayout
 import SigGolfCandidate.T3M.Verify.FtsRev
 
 /-!
 # The FTS stream machine: layout and expected symbolic results of its code blocks (T3M verify)
 
-Code (instruction indices of the frozen image, `t3m/images/verify.labels`): `fts_setup` 359; leaf `s = 3 c + j` at
+Code (instruction indices of the frozen image, `t3m/images/verify.labels`): `fts_setup` 362; leaf `s = 3 c + j` at
 `leafPc s` (10 / 9 / 10 instructions for `j = 0, 1, 2`: table switch, `ld s7, ETAB + 8 s`, the leaf block's `T`, the
 dispatch `lbu gp, 880(a4); slli 5; add s4; jalr s8`); `coord_end_c` at `coordEndPc c`; `forest` 648; the segment tables
 `ptab_n` 744 / `ptab_l` 2792 (256 slots of 8 words); `entry0_{M,P,F}` 4841 / 4856 / 4862; the ladders `lad_X_t_r` at
@@ -12,7 +12,7 @@ dispatch `lbu gp, 880(a4); slli 5; add s4; jalr s8`); `coord_end_c` at `coordEnd
 (`tailPc X c`, copy `c` = ladder `t` or `2` = `entry0_X`).
 
 Families (each a path run checked by `specB` in `FtsCheck`):
-* `setupCheck'` (359 → 413), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
+* `setupCheck'` (362 → 413), `leafCheck s` (to the dispatch), `dispCheck pc` (a dispatch, stopping at the symbolic
   slot address), `slotCheck tb b` (to the pending hash / HALT(1)), `entCheck tb b` (`j lad`), `rungCheck X t r t'`
   (fold `r` to its hash, switching to ladder `t'`), `lastCheck X t` (rung 10 to the destination hash),
   `tailMCheck c d`, `tailPCheck c d`, `tailFCheck c`, `coordCheck c`, `forestCheck`.
@@ -36,11 +36,11 @@ def FOREST : Nat := 0x700
 /-- The forest-frame slot of coordinate `c`'s root (`[root_0 | T | root_1 .. root_6]`). -/
 def forestSlot (c : Nat) : Nat := if c = 0 then 0x700 else 0x710 + 16 * c
 
-/-- Constant registers of the FTS phase: `t0`, `s2`, `a1 = 64`, `t4 = A4_LIMIT`, `t6 = 1 << 16`, the two tables,
-`t1 = 2^63` (n3-99: the bit-reversed root `FtsRev.rv 1` and the sibling mask), `s3 = frameA 0`. -/
+/-- Constant registers of the FTS phase: `t0`, `s2`, `a1 = 64`, `t4 = A4_LIMIT`, `t6 = 1 << 16`, the two tables, `t1 = 1`, and `s3 = frameA 0`. -/
 def gkF : List (Reg × Word) :=
-  baseK ++ [(.x11, 64), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x31, 0x10000), (.x26, BitVec.ofNat 64 tbN),
-    (.x21, BitVec.ofNat 64 tbL), (.x6, BitVec.ofNat 64 (2 ^ 63)), (.x19, BitVec.ofNat 64 (frameA 0))]
+  carryK ++ [(.x11,64),(.x29,BitVec.ofNat 64 A4_LIMIT),(.x24,0x10000),(.x16,BitVec.ofNat 64 tbN),
+    (.x21,BitVec.ofNat 64 tbL),(.x30,0x8000000000000000),(.x19,BitVec.ofNat 64 (frameA 0)),
+    (.x6,1),(.x26,6),(.x31,7)]
 
 /-- The coordinate words: `s11 = w0` of a node header, `t3 = w0` of a leaf header (coordinate `c`). -/
 def ckF (c : Nat) : List (Reg × Word) :=
@@ -70,7 +70,8 @@ def tabPc (tb : Nat) : Nat := if tb = 0 then tbN else tbL
 def tabBase (tb : Nat) : Nat := if tb = 0 then 744 else 2792
 def slotPc (tb b : Nat) : Nat := tabBase tb + 8 * b
 
-/-- Segment header byte `b`: `a = b % 16` folds, merge bit, parity bit `t`. -/
+/-- Dense segment header byte `b`: `b % 16` folds, `b / 16 % 2` merge flag, and `b / 32` containing three branch sides. Fold counts12..15 reject. -/
+def segSides (b : Nat) : Nat := b / 32
 def segA (b : Nat) : Nat := b % 16
 def segM (b : Nat) : Nat := b / 16 % 2
 def segT (b : Nat) : Nat := b / 32 % 2
@@ -86,7 +87,7 @@ def ladPc (X t r : Nat) : Nat := ladBase X t + 7 * r
 def lbrPc (X t r : Nat) : Nat := ladBase X t + 7 * r - 2
 def entry0Pc (X : Nat) : Nat := if X = 0 then 4841 else if X = 1 then 4856 else 4862
 /-- The tail after the destination hash, copy `c` (`0, 1` = last rung of ladder `t = c`; `2` = `entry0_X`). -/
-def tailPc (X c : Nat) : Nat := if c = 2 then entry0Pc X + 2 else ladPc X c 10 + 6
+def tailPc (X c : Nat) : Nat := if c < 3 then (if c = 2 then entry0Pc X + 2 else ladPc X c 10 + 6) else (threeTails.getD X []).getD (c-3) 0
 /-- The dispatch inside the merge tail copy `c`. -/
 def mDispPc (c : Nat) : Nat := tailPc 0 c + 7
 
@@ -97,7 +98,6 @@ def rE (r : Reg) : E := .reg r
 def a4E (k : Nat) : E := addC (.reg .x14) (BitVec.ofNat 64 k)
 def a4A (k : Nat) : Addr := ⟨some (.reg .x14), BitVec.ofNat 64 k⟩
 def notOne : E := .c (~~~1#64)
-/-- t3-rl2: the parent `FtsRev.rv (E / 2)` of `x23 = FtsRev.rv E` (`slli x23, x23, 1`). -/
 def eHalf : E := .bin .sll (.reg .x23) (cw 1)
 /-- Both halves of a header word 1 written by `sw s6, 24; sw v, 28` over the old word `old`. -/
 def sw2E (old v : E) : E := .bin (.st .w 4) (.bin (.st .w 0) old (.reg .x22)) v
@@ -111,15 +111,14 @@ def setupPost : List (Reg × Word) :=
   gkF ++ leafCK 0 ++ [(.x14, BitVec.ofNat 64 A4_0), (.x15, BitVec.ofNat 64 (frameA 0)), (.x25, BitVec.ofNat 64 FOREST)]
 
 /-- T3K: the setup's six constants are loaded from the embedded data (words 362 .. 368: `lui sp, 0x1000` and six
-`ld`, data words 5 .. 10); the rest of the setup is words 369 .. 379 and `j 413` at 380 (n3-99: `slli t1, gp, 63` at 371:
-`t1 = 2^63`, the relabelled root `FtsRev.rv 1` and the sibling mask). -/
+`ld`, data words 5 .. 10); the rest of the setup is words 369 .. 379 and `j 413` at 380. -/
 def setupLdK : List (Reg × Word) :=
-  baseK ++ [(.x14, BitVec.ofNat 64 A4_0), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x27, BitVec.ofNat 64 0xa01),
-    (.x28, BitVec.ofNat 64 0x901), (.x26, BitVec.ofNat 64 tbN), (.x21, BitVec.ofNat 64 tbL)]
+  baseK ++ [(.x2,0x1000000),(.x14, BitVec.ofNat 64 A4_0), (.x29, BitVec.ofNat 64 A4_LIMIT), (.x27, BitVec.ofNat 64 0xa01),
+    (.x28, BitVec.ofNat 64 0x901), (.x16, BitVec.ofNat 64 tbN), (.x21, BitVec.ofNat 64 tbL)]
 
 def setupLdSpec : Spec :=
-  ⟨[(.x14, .ld (cw (DATA + 40))), (.x29, .ld (cw (DATA + 48))), (.x27, .ld (cw (DATA + 56))),
-      (.x28, .ld (cw (DATA + 64))), (.x26, .ld (cw (DATA + 72))), (.x21, .ld (cw (DATA + 80)))],
+  ⟨[(.x2,cw 0x1000000),(.x14, .ld (cw (DATA + 40))), (.x29, .ld (cw (DATA + 48))), (.x27, .ld (cw (DATA + 56))),
+      (.x28, .ld (cw (DATA + 64))), (.x16, .ld (cw (DATA + 72))), (.x21, .ld (cw (DATA + 80)))],
     [], 369, false, 7, [], none, 7⟩
 
 def setupLdCheckF : Bool := specB [] [] baseK (runAt baseK [369] 362 []) setupLdSpec [] baseK [.x22]
@@ -127,7 +126,7 @@ def setupLdCheckF : Bool := specB [] [] baseK (runAt baseK [369] 362 []) setupLd
 def setupSpecF : Spec :=
   ⟨[(.x27, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0xa01)),
     (.x28, .bin .add (.bin .sll (.reg .x22) (cw 32)) (cw 0x901))],
-    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 413, false, 12, [], none, 12⟩
+    [(⟨none, BitVec.ofNat 64 SENTINEL⟩, .c (-1#64))], 413, false, 19, [], none, 19⟩
 
 def setupCheckF : Bool := specB [] [] gkF (runAt setupLdK [413] 369 []) setupSpecF [] setupPost [.x22]
 
@@ -136,7 +135,7 @@ def gateEF : E := .bin .and (.bin .srl (.reg .x28) (cw 14)) (cw 7)
 def gateBrF (reject : Bool) : Br := ⟨.ne, gateEF, cw 0, reject⟩
 def gateCheckF : Bool :=
   specB [] [] baseK (runAt baseK [362] 359 [.br false])
-    ⟨[], [], 362, false, 3, [gateBrF false], none, 3⟩ [] baseK (.x2 :: selKeep)
+    ⟨[], [], 362, false, 3, [gateBrF false], none, 3⟩ [] baseK selKeep
 def gateRejectCheckF : Bool :=
   specB [] [] [] (runAt baseK [] 359 [.br true]) (rejSpec 6 [gateBrF true]) [] [] []
 
@@ -148,7 +147,6 @@ def leafT (s : Nat) : Nat := WIT + 64 + 48 * s + 16
 def leafKnown (s : Nat) : List (Reg × Word) :=
   gkF ++ leafCK (s / 3) ++ (if s % 3 = 1 then [(.x20, BitVec.ofNat 64 tbN)] else [])
 
-/-- t3-rl2: `ld gp, ETAB + 8 s` (the table address of leaf `s`), then `ld s7, 0(gp)` = the leaf's header word 1. -/
 def etabA (s : Nat) : Addr := ⟨some (.ld (cw (ETABs s))), 0⟩
 
 def leafSpec (s : Nat) : Spec :=
@@ -184,14 +182,14 @@ def dispObl : List Oblig := [.align8 (.reg .x14), .valid (a4A 880) 1]
 
 /-- A dispatch at `pc` (`link`: the link register is set to `pc + 4 + 3 = ret`). -/
 def dispSpec (link : Option Nat) : Spec :=
-  ⟨[(.x3, dispT)] ++ (match link with | some r => [(.x24, cw (0x1000 + 4 * r))] | none => []), [],
+  ⟨[(.x3, dispT)] ++ (match link with | some r => [(.x17, cw (0x1000 + 4 * r))] | none => []), [],
     0, false, 4, [], some (.bin .and dispT notOne), 4⟩
 
 def dispKeep : List Reg := [.x10, .x14, .x15, .x20, .x22, .x23, .x25, .x27, .x28]
 
 def dispCheck (pc : Nat) (link : Option Nat) : Bool :=
   specB [] [] gkF (runAt gkF [] pc [.jmp]) (dispSpec link) dispObl gkF
-    (dispKeep ++ (match link with | some _ => [] | none => [.x24]))
+    (dispKeep ++ (match link with | some _ => [] | none => [.x17]))
 
 def leafDispCheck (s : Nat) : Bool := dispCheck (leafDisp s) (some (leafRet s))
 def mDispCheck (c : Nat) : Bool := dispCheck (mDispPc c) none
@@ -202,36 +200,38 @@ def mDispCheck (c : Nat) : Bool := dispCheck (mDispPc c) none
 def destE (X : Nat) : E :=
   if X = 0 then .bin .add (.reg .x15) (cw 48) else if X = 1 then .bin .add (.reg .x15) (cw 80) else .reg .x25
 
-/-- t3-rl2: the slot's side test on the sign of `x23 = FtsRev.rv E` (`t = 1`: `bge`, `t = 0`: `blt` to the bad slot),
-`d` = taken (reject). -/
-def parBr (t : Nat) (d : Bool) : Br := ⟨if t = 1 then .ge else .lt, .reg .x23, .c 0, d⟩
+def parE (a : Nat) : E := .bin .srl (.reg .x23) (cw (64-min a 3))
+/-- The slot checks the low `min a 4` bits against the dense header's side code; `d` means the mismatch branch is taken. -/
+def parBr (a bits : Nat) (d : Bool) : Br :=
+  if a=1 then ⟨if bits%2=1 then .ge else .lt, .reg .x23, cw 0, d⟩
+  else ⟨.ne, parE a, cw (T3.Rev.revBits (min a 3) (bits % segSideMod a)), d⟩
 
 def slotSpec (tb b : Nat) : Spec :=
   let a := segA b
   if 11 < a then rejSpec 4 []
   else if a = 0 then
-    ⟨[(.x14, a4E 8), (.x12, destE (segX tb b))], [], entry0Pc (segX tb b) + 1, true, 3, [], none, 3⟩
+    ⟨[(.x14,a4E 8),(.x12,destE (segX tb b))],[],entry0Pc (segX tb b)+1,true,3,[],none,3⟩
   else
-    ⟨[(.x14, a4E (8 + 80 * a)), (.x12, a4E (888 + 48 * segT b))], [], slotPc tb b + 3, true, 3,
-      [parBr (segT b) false], none, 3⟩
+    ⟨[(.x14,a4E (8+80*a)),(.x12,a4E (888+48*segT b))],[],slotPc tb b+3+(if a=1 then 0 else 1),true,
+      3+(if a=1 then 0 else 1),[parBr a (b/32) false],none,3+(if a=1 then 0 else 1)⟩
 
-def slotKeep : List Reg := [.x10, .x15, .x20, .x22, .x23, .x24, .x25, .x27, .x28]
+def slotKeep : List Reg := [.x10, .x15, .x20, .x22, .x23, .x17, .x25, .x27, .x28]
 
 def slotCheck1 (tb b : Nat) : Bool :=
   if 11 < segA b then specB [] [] [] (runAt gkF [] (slotPc tb b) []) (slotSpec tb b) [] [] []
   else if segA b = 0 then specB [] [] gkF (runAt gkF [] (slotPc tb b) []) (slotSpec tb b) [] gkF slotKeep
   else
     specB [] [] gkF (runAt gkF [] (slotPc tb b) [.br false]) (slotSpec tb b) [] gkF slotKeep &&
-    specB [] [] [] (runAt gkF [] (slotPc tb b) [.br true]) (rejSpec 6 [parBr (segT b) true]) [] [] []
+    specB [] [] [] (runAt gkF [] (slotPc tb b) [.br true]) (rejSpec (6+(if segA b=1 then 0 else 1)) [parBr (segA b) (b / 32) true]) [] [] []
 
 def slotCheck (tb lo n : Nat) : Bool := (List.range' lo n).all fun b => slotCheck1 tb b
 
 /-- After the pending hash of a slot with `a ≥ 1`: `j lad_X_t_(11 - a)`. -/
 def entCheck1 (tb b : Nat) : Bool :=
   segA b = 0 || 11 < segA b ||
-    specB [] [] gkF (runAt gkF [ladPc (segX tb b) (segT b) (11 - segA b)] (slotPc tb b + 4) [])
-      ⟨[], [], ladPc (segX tb b) (segT b) (11 - segA b), false, 1, [], none, 1⟩ [] gkF
-      [.x10, .x12, .x14, .x15, .x20, .x22, .x23, .x24, .x25, .x27, .x28]
+    specB [] [] gkF (runAt gkF [(if segA b = 1 then ladPc (segX tb b) (segT b) 10 else threeStart (segX tb b) (segA b) (b / 32))] (slotPc tb b + 4 + (if segA b=1 then 0 else 1)) [])
+      ⟨[], [], (if segA b = 1 then ladPc (segX tb b) (segT b) 10 else threeStart (segX tb b) (segA b) (b / 32)), false, 1, [], none, 1⟩ [] gkF
+      [.x10, .x12, .x14, .x15, .x20, .x22, .x23, .x17, .x25, .x27, .x28]
 
 def entCheck (tb lo n : Nat) : Bool := (List.range' lo n).all fun b => entCheck1 tb b
 
@@ -243,31 +243,54 @@ def rungMem (r : Nat) : List (Addr × E) :=
 def rungObl (r : Nat) : List Oblig :=
   [.valid (a4A (80 * r + 24)) 8, .valid (a4A (80 * r + 16)) 8]
 
-/-- t3-rl2: the next fold's side `t' = (E / 2) % 2` as the sign of `FtsRev.rv (E / 2)`. -/
+/-- The next fold's side `t' = (E >> 1) & 1` as the sign of `(E >> 1) << 63`. -/
 def sideE : E := eHalf
 def crossD (t t' : Nat) : Bool := decide (t ≠ t')
 def rungBr (t t' : Nat) : Br := ⟨if t = 1 then .ge else .lt, sideE, .c 0, crossD t t'⟩
 
-def rungSpec (X t r t' : Nat) : Spec :=
-  ⟨[(.x10, a4E (80 * r)), (.x23, eHalf), (.x12, a4E (80 * (r + 1) + 48 * t'))], rungMem r,
-    lbrPc X t' (r + 1) + 1, true, 6, [rungBr t t'], none, 6⟩
+/-- Actual fold start; a one-fold segment retains its original final rung. -/
+def foldPc (X a bits t i : Nat) : Nat :=
+  if a=1 then ladPc X t 10 else threeFoldPc X a bits t i
 
-def rungKeep : List Reg := [.x14, .x15, .x20, .x22, .x24, .x25, .x27, .x28]
+def foldTailId (a bits t : Nat) : Nat := if a=1 then t else threeTailId a bits t
 
-def rungCheck1 (X t r t' : Nat) : Bool :=
-  specB [] [.x14] gkF (runAt gkF [] (ladPc X t r) [.br (crossD t t')]) (rungSpec X t r t') (rungObl r) gkF rungKeep
+def rungSteps (i a : Nat) : Nat := if i+1<a then (if i<2 then 5 else 6) else 5
 
-def lastSpec (X : Nat) (t : Nat) : Spec :=
-  ⟨[(.x10, a4E 800), (.x23, eHalf), (.x12, destE X)], rungMem 10, ladPc X t 10 + 5, true, 5, [], none, 5⟩
+def rungSpec (X a bits t i t' : Nat) : Spec :=
+  let r := 11-a+i
+  ⟨[(.x10, a4E (80*r)), (.x23, eHalf), (.x12, a4E (80*(r+1)+48*t'))], rungMem r,
+    foldPc X a bits t' (i+1)-1, true, rungSteps i a,
+    (if i<2 then [] else [rungBr t t']), none, rungSteps i a⟩
 
-def lastCheck1 (X t : Nat) : Bool :=
-  specB [] [.x14] gkF (runAt gkF [] (ladPc X t 10) []) (lastSpec X t) (rungObl 10) gkF rungKeep
+def rungKeep : List Reg := [.x14, .x15, .x20, .x22, .x17, .x25, .x27, .x28]
+
+def rungCheck1 (X a bits t i t' : Nat) : Bool :=
+  specB [] [.x14] gkF
+    (runAt gkF [] (foldPc X a bits t i) (if i<2 then [] else [.br (crossD t t')]))
+    (rungSpec X a bits t i t') (rungObl (11-a+i)) gkF rungKeep
+
+def lastSpec (X a bits t : Nat) : Spec :=
+  ⟨[(.x10, a4E 800), (.x23, eHalf), (.x12, destE X)], rungMem 10,
+    tailPc X (foldTailId a bits t)-1, true, 5, [], none, 5⟩
+
+def lastCheck1 (X a bits t : Nat) : Bool :=
+  specB [] [.x14] gkF (runAt gkF [] (foldPc X a bits t (a-1)) [])
+    (lastSpec X a bits t) (rungObl 10) gkF rungKeep
+
+/-- First three nonfinal sides are fixed by the checked header; later sides are read dynamically. -/
+def rungSides (bits i t t' : Nat) : Prop :=
+  i<2 → t=bits/2^i%2 ∧ t'=bits/2^(i+1)%2
+instance (bits i t t' : Nat) : Decidable (rungSides bits i t t') := inferInstanceAs (Decidable (_ → _))
 
 def rungCheck : Bool :=
-  (List.range 3).all fun X => (List.range 2).all fun t =>
-    lastCheck1 X t && (List.range 10).all fun r => (List.range 2).all fun t' => rungCheck1 X t r t'
+  (List.range 3).all fun X => (List.range' 1 11).all fun a => (List.range 8).all fun bits =>
+    (List.range 2).all fun t =>
+      ((lastCheck1 X a bits t) &&
+       (List.range (a-1)).all fun i => (List.range 2).all fun t' =>
+          (!decide (rungSides bits i t t') || rungCheck1 X a bits t i t'))
 
 /-! ## Tails -/
+
 
 def ka5 (d : Nat) : List (Reg × Word) := gkF ++ [(.x15, BitVec.ofNat 64 (frameA d))]
 
@@ -281,31 +304,30 @@ def tailMSpec (c d : Nat) : Spec :=
 
 def tailMCheck1 (c d : Nat) : Bool :=
   (d = 0 || specB [] [] gkF (runAt (ka5 d) [mDispPc c] (tailPc 0 c) [.br false]) (tailMSpec c d) []
-      (ka5 (d - 1)) [.x14, .x20, .x22, .x24, .x25, .x27, .x28]) &&
+      (ka5 (d - 1)) [.x14, .x20, .x22, .x17, .x25, .x27, .x28]) &&
   specB [] [] [] (runAt (ka5 d) [] (tailPc 0 c) [.br true]) (rejSpec 5 [qBr d true]) [] [] []
 
 def tailPSpec (d : Nat) : Spec :=
   ⟨[(.x3, .bin .xor (.reg .x23) (cw (2 ^ 63)))],
     [(⟨none, BitVec.ofNat 64 (frameA (d + 1) - 16)⟩, .bin .xor (.reg .x23) (cw (2 ^ 63)))],
-    0, false, 4, [], some (.bin .and (.reg .x24) notOne), 4⟩
+    0, false, 4, [], some (.bin .and (.reg .x17) notOne), 4⟩
 
 def tailPCheck1 (c d : Nat) : Bool :=
   specB [] [] gkF (runAt (ka5 d) [] (tailPc 1 c) [.jmp]) (tailPSpec d) [] (ka5 (d + 1))
-    [.x14, .x20, .x22, .x23, .x24, .x25, .x27, .x28]
+    [.x14, .x20, .x22, .x23, .x17, .x25, .x27, .x28]
 
-def tailFSpec : Spec := ⟨[], [], 0, false, 1, [], some (.bin .and (.reg .x24) notOne), 1⟩
+def tailFSpec : Spec := ⟨[], [], 0, false, 1, [], some (.bin .and (.reg .x17) notOne), 1⟩
 
 def tailFCheck1 (c : Nat) : Bool :=
   specB [] [] gkF (runAt gkF [] (tailPc 2 c) [.jmp]) tailFSpec [] gkF
-    [.x14, .x15, .x20, .x22, .x23, .x24, .x25, .x27, .x28]
+    [.x14, .x15, .x20, .x22, .x23, .x17, .x25, .x27, .x28]
 
 def tailCheck : Bool :=
-  (List.range 3).all fun c =>
+  (List.range 77).all fun c =>
     tailFCheck1 c && tailPCheck1 c 0 && tailPCheck1 c 1 && tailMCheck1 c 0 && tailMCheck1 c 1 && tailMCheck1 c 2
 
 /-! ## Coordinate end and forest -/
 
-/-- n3-99: the root test `x23 ≠ t1 = 2^63 = FtsRev.rv 1` (`bne s7, t1`). -/
 def eBr (d : Bool) : Br := ⟨.ne, .reg .x23, cw (2 ^ 63), d⟩
 def sBr (d : Bool) : Br := ⟨.ne, .reg .x15, .c (BitVec.ofNat 64 (frameA 0)), d⟩
 
@@ -331,9 +353,8 @@ def forestSpecF : Spec :=
   ⟨[(.x10, cw FOREST), (.x11, cw 128), (.x12, cw 0x100)],
     [(⟨none, BitVec.ofNat 64 (FOREST + 24)⟩, .reg .x22), (⟨none, BitVec.ofNat 64 (FOREST + 16)⟩, cw 0xb01)],
     655, true, 7, [capBr false], none, 7⟩
-
 def forestCheckF : Bool :=
-  specB [] [] baseK (runAt gkF [] forestPc [.br false]) forestSpecF [] baseK [.x22] &&
+  specB [] [] carryK (runAt gkF [] forestPc [.br false]) forestSpecF [] carryK [.x22] &&
   specB [] [] [] (runAt gkF [] forestPc [.br true]) (rejSpec 4 [capBr true]) [] [] []
 
 end SigGolfCandidate.T3M.Verify

@@ -26,9 +26,9 @@ theorem xor1_eval (m : MachineState) (E : Nat) (h : m.getReg .x23 = FtsRev.rv E)
   show BinOp.eval .xor (m.getReg .x23) (BitVec.ofNat 64 (2 ^ 63)) = _
   rw [h]; exact FtsRev.rv_xor E
 
-theorem jmp24_eval (m : MachineState) (c j : Nat) (h : m.getReg .x24 = BitVec.ofNat 64 (lnk c j)) :
-    (Rv.E.bin .and (.reg .x24) notOne).eval m = BitVec.ofNat 64 (lnk c j) := by
-  show BinOp.eval .and (m.getReg .x24) (~~~1#64) = _
+theorem jmp24_eval (m : MachineState) (c j : Nat) (h : m.getReg .x17 = BitVec.ofNat 64 (lnk c j)) :
+    (Rv.E.bin .and (.reg .x17) notOne).eval m = BitVec.ofNat 64 (lnk c j) := by
+  show BinOp.eval .and (m.getReg .x17) (~~~1#64) = _
   rw [h]; exact even_andNot1 _ (by unfold lnk; omega)
 
 theorem lnk_next (c j : Nat) (hj : j < 2) : lnk c j = 0x1000 + 4 * leafPc (3 * c + (j + 1)) := by
@@ -295,7 +295,7 @@ the four counters; pk; the zero words and the counter's high half of the encodin
 the header and of the layer region (offsets ≥ `streamEnd` = 11288, with the zero memory past W up to `WX`) is
 original. -/
 structure FtsOut (F : FCtx) (root : Digest) (u : MachineState) : Prop where
-  glob : Glob baseK F.w F.pk u
+  glob : Glob carryK F.w F.pk u
   idx : u.getReg .x22 = BitVec.ofNat 64 F.idx
   pc : u.pc = pcOf layerPc
   root : DigAt u 0x100 root
@@ -404,7 +404,7 @@ theorem forest_step (F : FCtx) (roots : List Digest) (ptr folds : Nat) (m : Mach
       · rw [hmem _ (by norm_num), if_neg (by unfold FOREST; omega), if_pos (by unfold FOREST; omega),
           hdr0_forest F.idx hi32]
       · rw [hmem _ (by norm_num), if_pos (by unfold FOREST; omega), hdr1_forest F.idx hi32]
-    refine ⟨u, hu.steps, hu.ecall rfl, hu.known (.x5, 0) (by simp [baseK]),
+    refine ⟨u, hu.steps, hu.ecall rfl, hu.known (.x5, 0) (by simp [carryK, baseK]),
       hashArgs_of u _ 128 _ h10 h11 h12 (by unfold FOREST; omega) (by decide) (by unfold FOREST; norm_num)
         (by decide) (by norm_num), hin, fun ans => ⟨?_, ?_, ?_, ?_, ?_⟩⟩
     · exact Glob_writeHash (hu.glob _ _ _ h.glob (RelOK.nil m)) ans 0x100 h12 (by decide)

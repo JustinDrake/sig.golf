@@ -35,7 +35,7 @@ def ok (c : NCtx) : Prop :=
 `lui t3, 0xff4`); every head reads its header word from the table. -/
 def known (c : NCtx) : List (Reg × Word) :=
   [(.x5, 0), (.x11, 64), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6),
-   (.x28, BitVec.ofNat 64 (Verify.headerBank 0 0)), (.x19, BitVec.ofNat 64 c.S3),
+   (.x28, BitVec.ofNat 64 tBank), (.x19, BitVec.ofNat 64 c.S3),
    (.x4, BitVec.ofNat 64 c.w1), (.x27, BitVec.ofNat 64 0x101), (.x1, pcOf c.ret)]
 
 def kOf (c : NCtx) (q : Nat) : Nat :=

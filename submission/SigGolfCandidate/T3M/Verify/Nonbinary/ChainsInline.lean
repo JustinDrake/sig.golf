@@ -28,15 +28,16 @@ theorem headR_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
   have h19 : s.getReg .x19 = BitVec.ofNat 64 c.S3 := kr _ _ (by simp [known]) (by decide)
   have keyE := c.kAt_eval hc h19 i hi
   have htable := c.header_load hc h0 i (c.dig i) hi (by omega) hF (kr _ _ (by simp [known]) (by decide))
+    (kr _ _ (by simp [known]) (by decide))
   set r := headRH .x19 (off i) (c.dig i) none (c.startPc i) i with hr
   have hobl : ∀ o ∈ r.st.obl, o.holds s := by
-    simp only [hr, headRH, List.mem_cons, List.not_mem_nil, or_false]
-    rintro o (rfl | rfl | rfl)
+    simp only [hr, headRH, List.mem_append, List.mem_cons, List.not_mem_nil, or_false]
+    rintro o ((rfl | rfl) | ho)
     · show accessValid ((kAt .x19 (off i) 24).eval s) 8 = true
       rw [keyE 24 (by omega)]; exact valid_ofNat _ _ (by omega) (by omega)
     · show accessValid ((kAt .x19 (off i) 16).eval s) 8 = true
       rw [keyE 16 (by omega)]; exact valid_ofNat _ _ (by omega) (by omega)
-    · exact htable.1
+    · exact htable.1 o ho
   have hst := piece_steps45 hrun hp0 s hpc hobl
   have hec := piece_ecall45 hrun hp0 s hobl (by simp [hr, headRH])
   have hn : r.steps = 5 ∧ r.cycles = 5 := ⟨rfl, rfl⟩
@@ -52,7 +53,7 @@ theorem headR_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p ∈ c.
     simp only [hr, headRH]
     rw [memEval_two s _ _ _ _ (c.blk i + 24) (c.blk i + 16) A (keyE 24 (by omega)) (keyE 16 (by omega))
       (by omega) (by omega) hA]
-    change (if A = c.blk i + 24 then s.getReg .x4 else if A = c.blk i + 16 then (hLoad i (c.dig i)).eval s
+    change (if A = c.blk i + 24 then s.getReg .x4 else if A = c.blk i + 16 then (tLd i (c.dig i)).eval s
       else s.getMem (BitVec.ofNat 64 A)) = _
     rw [kr .x4 (BitVec.ofNat 64 c.w1) (by simp [known]) (by decide), htable.2]
     split_ifs <;> simp_all
@@ -104,15 +105,16 @@ theorem headRTerm_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p �
   have h19 : s.getReg .x19 = BitVec.ofNat 64 c.S3 := kr _ _ (by simp [known]) (by decide)
   have keyE := c.kAt_eval hc h19 i hi
   have htable := c.header_load hc h0 i (c.dig i) hi (by omega) hF (kr _ _ (by simp [known]) (by decide))
+    (kr _ _ (by simp [known]) (by decide))
   set r := headRHT .x19 (off i) (c.dig i) (slot i) (c.startPc i) i with hr
   have hobl : ∀ o ∈ r.st.obl, o.holds s := by
-    simp only [hr, headRHT, headRH, List.mem_cons, List.not_mem_nil, or_false]
-    rintro o (rfl | rfl | rfl)
+    simp only [hr, headRHT, headRH, List.mem_append, List.mem_cons, List.not_mem_nil, or_false]
+    rintro o ((rfl | rfl) | ho)
     · show accessValid ((kAt .x19 (off i) 24).eval s) 8 = true
       rw [keyE 24 (by omega)]; exact valid_ofNat _ _ (by omega) (by omega)
     · show accessValid ((kAt .x19 (off i) 16).eval s) 8 = true
       rw [keyE 16 (by omega)]; exact valid_ofNat _ _ (by omega) (by omega)
-    · exact htable.1
+    · exact htable.1 o ho
   have hst := piece_steps45 hrun hp0 s hpc hobl
   have hec := piece_ecall45 hrun hp0 s hobl (by simp [hr, headRHT, headRH])
   have hn : r.steps = 5 ∧ r.cycles = 5 := ⟨rfl, rfl⟩
@@ -128,7 +130,7 @@ theorem headRTerm_step (c : NCtx) (hc : c.ok) {s0 : MachineState} (hk : ∀ p �
     simp only [hr, headRHT, headRH]
     rw [memEval_two s _ _ _ _ (c.blk i + 24) (c.blk i + 16) A (keyE 24 (by omega)) (keyE 16 (by omega))
       (by omega) (by omega) hA]
-    change (if A = c.blk i + 24 then s.getReg .x4 else if A = c.blk i + 16 then (hLoad i (c.dig i)).eval s
+    change (if A = c.blk i + 24 then s.getReg .x4 else if A = c.blk i + 16 then (tLd i (c.dig i)).eval s
       else s.getMem (BitVec.ofNat 64 A)) = _
     rw [kr .x4 (BitVec.ofNat 64 c.w1) (by simp [known]) (by decide), htable.2]
     split_ifs <;> simp_all

@@ -23,7 +23,7 @@ whole certificate from the named statements below; nothing else is assumed.
 | `expand_terminates` | `ExpandTerminates` | E |
 | `verify_refines` | `VerifyRefines` (`countCalls (mrealize 0 (verifyP m pk w))`) | V3 |
 | `verify_terminates` | `VerifyTerminates` | V3 |
-| `verify_accept_cycles` | `VerifyAcceptCycles` (accepting runs take at most `verifyCycleBound = 8644` cycles) | V3 |
+| `verify_accept_cycles` | `VerifyAcceptCycles` (accepting runs take at most `verifyCycleBound = 8629` cycles) | V3 |
 
 **`SourceFacts`** — source-level theorems: CLOSURE's completeness and two compression moments
 (stated on the verbatim copies in `Source`), the hash-only facts of Core's four programs (CLOSURE's
@@ -31,7 +31,7 @@ whole certificate from the named statements below; nothing else is assumed.
 
 The witness layer (stream W: `verifyP_witEnc_eval`, `honestB_eval`, `expand_eq_expandN`, query shapes) is
 already proved and is used directly. The signature codec is stream E's `T3M/SigCodec` (`T3M.sigB`, `T3M.sigDec`,
-`sigDec_sigB`, `sigB_sigDec`). `C = verifyCycleBound + witnessCycles 25240 = 8644 + 99 = 8743`.
+`sigDec_sigB`, `sigB_sigDec`). `C = verifyCycleBound + witnessCycles 25240 = 8629 + 99 = 8728`.
 -/
 
 namespace SigGolfCandidate.T3M.Final
@@ -39,10 +39,10 @@ open SigGolfCandidate.Legacy OracleComp OracleSpec ENNReal OracleComp.EvalDist
 open SigGolfCandidate.T3 (keygen sign expand verify Signature Cache Digest Witness realize)
 
 /-- The accepting-verify cycle bound (worst accepting path of the frozen verify image). -/
-def verifyCycleBound : Nat := 8644
+def verifyCycleBound : Nat := 8629
 
 /-- The claimed `C`: `verifyCycleBound + ⌈25240 / 256⌉`. -/
-def claimedC : Nat := 8743
+def claimedC : Nat := 8728
 
 /-! ## Machine statements -/
 
@@ -92,7 +92,7 @@ def VerifyTerminates : Prop := ∀ (hash : Hash) (m : Message) (pk : PublicKey) 
     (submission.runWith hash .verify (m, pk, w)).cycles < CYCLE_LIMIT
 
 /-- **Accepting verify cycles** (V): under every fixed oracle, an accepting run takes at most
-`verifyCycleBound = 8644` cycles. -/
+`verifyCycleBound = 8629` cycles. -/
 def VerifyAcceptCycles : Prop := ∀ (hash : Hash) (m : Message) (pk : PublicKey) (w : Bytes 25240),
   (submission.runWith hash .verify (m, pk, w)).value.isSome = true →
     (submission.runWith hash .verify (m, pk, w)).cycles ≤ verifyCycleBound
