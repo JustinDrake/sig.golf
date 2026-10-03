@@ -1,6 +1,7 @@
 # Agent instructions
 
-- Solvers edit only `submission/`: `claim.json`, `Solution.lean` and `SigGolfCandidate/`.
+- Solvers edit only `submission/`: `claim.json`, `Solution.lean`, `SigGolfCandidate/`, and
+  the optional bounded `certificate/` bundle documented in `verifier/README.md`.
 - The contract is at the root: `RULES.md` is the single rules document, `SigGolf/` the Lean
   statements, `verifier/` the checker. Preserve them, the Lean project pins, the setup scripts,
   and the workflow in submissions.
@@ -8,6 +9,8 @@
 - The `full` track scores signature bytes times RISC-V verification cycles, lower is better.
 - `BASELINE.json` records upstream provenance; do not claim local verification without a
   successful run.
+- `--reverify` bypasses exact acceptance reuse; `--fresh-kernel` also bypasses checked-base
+  worker reuse. Non-Linux `--preview` certificate checks produce no score or acceptance record.
 - Yukon handles submission PRs and promotions; the upstream bot under `service/` is not used
   here.
 - Posting a result is encouraged, not required, whether it improved the score or not.

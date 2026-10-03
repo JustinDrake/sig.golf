@@ -57,6 +57,21 @@ lean4export_bin="${tools}/comparator/.lake/packages/lean4export/.lake/build/bin/
 comparator_bin="${tools}/comparator/.lake/build/bin/comparator"
 [[ -x "${lean4export_bin}" && -x "${comparator_bin}" ]]
 
+# This executable consumes declarative exports; it never imports candidate oleans or plugins.
+certificate_bin="${tools}/comparator/.lake/build/bin/certificate-check"
+( cd "${tools}/comparator" && \
+  lake env lean --root="${root}/verifier" \
+    -o .lake/build/lib/lean/CertificateCheck.olean \
+    -c .lake/build/ir/CertificateCheck.c "${root}/verifier/CertificateCheck.lean" && \
+  lake env leanc .lake/build/ir/CertificateCheck.c \
+    .lake/build/ir/Comparator/Util.c.o.export \
+    .lake/packages/lean4export/.lake/build/ir/Export/Parse.c.o.export \
+    .lake/build/ir/Comparator/Axioms.c.o.export \
+    .lake/build/ir/Comparator/Compare.c.o.export \
+    .lake/build/ir/Comparator.c.o.export -o "${certificate_bin}" )
+[[ -x "${certificate_bin}" ]]
+lean_prefix="$(cd "${root}" && lean --print-prefix)"
+
 if [[ "$(uname -s)" == Linux ]]; then
   command -v go >/dev/null 2>&1 || { echo "Go 1.24+ is required to build landrun" >&2; exit 1; }
   clone_at https://github.com/Zouuup/landrun.git "${landrun_rev}" "${tools}/landrun"
@@ -76,6 +91,9 @@ cat > "${tools}/env.sh" <<ENV
 export COMPARATOR_BIN="${comparator_bin}"
 export COMPARATOR_LEAN4EXPORT="${lean4export_bin}"
 export COMPARATOR_LANDRUN="${landrun_bin}"
+export COMPARATOR_CERTIFICATE_CHECK="${certificate_bin}"
+export COMPARATOR_LEAN="${lean_prefix}/bin/lean"
+export COMPARATOR_LAKE="${lean_prefix}/bin/lake"
 ENV
 echo "tools ready; source ${tools}/env.sh"
 echo "  lean4export rev: $(python3 -c "import json;print([p['rev'] for p in json.load(open('${tools}/comparator/lake-manifest.json'))['packages'] if p['name']=='lean4export'][0])")"

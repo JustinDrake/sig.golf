@@ -4,6 +4,7 @@ scripts/score.json
 scripts/score.tmp
 .cache/
 .work-vm-console.log
+.work-blacksmith-timing.jsonl
 .DS_Store
 .lake/
 .venv/

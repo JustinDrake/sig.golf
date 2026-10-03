@@ -1,16 +1,24 @@
 """Adapt the pinned beta verifier's accepted certificate to a Yukon score."""
+import argparse
 import json
 from pathlib import Path
 import subprocess
 import sys
 import uuid
 
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--reverify', action='store_true')
+parser.add_argument('--fresh-kernel', action='store_true')
+parser.add_argument('--no-cache', action='store_true')
+parser.add_argument('--worker', type=Path)
+parser.add_argument('--cache-dir', type=Path)
+parser.add_argument('--preview', action='store_true')
+parser.parse_args()
+
 score_path = Path("scripts/score.json")
 score_path.unlink(missing_ok=True)
-if sys.platform != "linux":
-    raise SystemExit("Official verification requires Linux; the upstream macOS mode is unsandboxed")
 command = [sys.executable, "verifier/verify.py", "--local", "submission",
-           "--trusted", ".", "--work", f".work/{uuid.uuid4().hex}"]
+           "--trusted", ".", "--work", f".work/{uuid.uuid4().hex}", *sys.argv[1:]]
 result = subprocess.run(command, stdout=subprocess.PIPE, text=True)
 print(result.stdout, end="")
 if result.returncode:
@@ -29,7 +37,10 @@ contract = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).stri
 if report["contract_commit"] != contract:
     raise SystemExit("Verifier used a different contract from the repository commit")
 metrics = {"signatureBytes": size, "verificationCycles": cycles, "witnessBytes": claim["W"],
-           "contractCommit": contract, "verified": True}
+            "contractCommit": contract, "verified": True, "verificationMode": report["mode"],
+            "sourceDigest": report["source_digest"], "contextDigest": report["context_digest"],
+            "certificateDigest": report["certificate_digest"], "cacheHit": report["cache_hit"],
+            "verificationSeconds": report["timings_seconds"]["total"]}
 temporary = score_path.with_suffix(".tmp")
 temporary.write_text(json.dumps({"score": score, "metrics": metrics}) + "\n")
 temporary.replace(score_path)

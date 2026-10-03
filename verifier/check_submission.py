@@ -10,6 +10,7 @@ from pathlib import Path
 MAX_FILES = 1000
 MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024
+MAX_CERTIFICATE_BYTES = 21 * 1024 * 1024
 MODULE = re.compile(r"[A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*")
 INTEGER = re.compile(r"0|[1-9][0-9]*")
 MEMORY_BYTES = 1 << 24
@@ -70,7 +71,8 @@ def claim(path: Path) -> dict[str, int | dict[str, int]]:
     raw = path.read_bytes()
     if len(raw) > 512:
         raise ValueError("claim.json exceeds 512 bytes")
-    value = json.loads(raw)
+    from certificate import strict_json
+    value = strict_json(raw)
     if not isinstance(value, dict) or set(value) != CLAIM_KEYS:
         raise ValueError("claim.json must contain exactly S, W, K, C, and layout")
     if any(type(value[key]) is not int or not INTEGER.fullmatch(str(value[key]))
@@ -102,7 +104,7 @@ def claim(path: Path) -> dict[str, int | dict[str, int]]:
     return value
 
 
-def check(root: Path) -> dict:
+def check(root: Path, *, scan_imports: bool = True) -> dict:
     errors = []
     if root.is_symlink() or not root.is_dir():
         return {"ok": False, "errors": ["submission root is not a directory"]}
@@ -110,14 +112,26 @@ def check(root: Path) -> dict:
     if len(files) > MAX_FILES:
         errors.append(f"more than {MAX_FILES} entries")
     total = 0
+    certificate_total = 0
+    certificate_files = {'manifest.json', 'proof.export.gz',
+                         *(f'{program}.{part}' for program in ('keygen', 'sign', 'expand', 'verify')
+                           for part in ('code', 'data'))}
     for path in files:
         rel = path.relative_to(root)
         if path.is_symlink() or not (path.is_file() or path.is_dir()):
             errors.append(f"{rel}: symlinks and special files are forbidden")
             continue
         if path.is_dir():
+            if rel.as_posix() == 'certificate':
+                continue
             if rel.parts[0] != "SigGolfCandidate":
                 errors.append(f"{rel}: only SigGolfCandidate/ may contain modules")
+            continue
+        if rel.parts[0] == 'certificate':
+            if len(rel.parts) != 2 or rel.name not in certificate_files or path.stat().st_nlink != 1:
+                errors.append(f'{rel}: invalid certificate file')
+                continue
+            certificate_total += path.stat().st_size
             continue
         if rel.as_posix() not in {"Solution.lean", "claim.json"} and not (
             rel.parts[0] == "SigGolfCandidate" and path.suffix == ".lean" and
@@ -130,6 +144,8 @@ def check(root: Path) -> dict:
             errors.append(f"{rel}: file exceeds 8 MiB")
     if total > MAX_TOTAL_BYTES:
         errors.append("submission exceeds 16 MiB")
+    if certificate_total > MAX_CERTIFICATE_BYTES:
+        errors.append('certificate exceeds 21 MiB')
     if not (root / "Solution.lean").is_file():
         errors.append("Solution.lean is required")
     try:
@@ -139,7 +155,7 @@ def check(root: Path) -> dict:
         errors.append(f"invalid claim.json: {exc}")
     modules = {".".join(path.relative_to(root).with_suffix("").parts)
                for path in files if path.is_file() and path.suffix == ".lean"}
-    for path in files:
+    for path in files if scan_imports else ():
         if not path.is_file() or path.suffix != ".lean":
             continue
         try:
@@ -151,8 +167,23 @@ def check(root: Path) -> dict:
                 errors.append(f"{path.relative_to(root)}: import {module} is outside the allowed modules")
         except (OSError, UnicodeError, ValueError) as exc:
             errors.append(f"{path.relative_to(root)}: invalid Lean source: {exc}")
+    if (root / 'certificate').exists() and values is not None and not errors:
+        try:
+            from cache import tree_digest
+            from certificate import inspect_bundle
+            # Toolchain identity is checked against the organizer by verify.py.
+            manifest_path = root / 'certificate' / 'manifest.json'
+            from certificate import MAX_MANIFEST_BYTES, strict_json
+            if manifest_path.stat().st_size > MAX_MANIFEST_BYTES:
+                raise ValueError('certificate manifest exceeds limit')
+            manifest = strict_json(manifest_path.read_bytes())
+            inspect_bundle(root / 'certificate', values,
+                           tree_digest(root, excluded_top_level={'certificate'}, include_directories=False),
+                           manifest.get('lean_toolchain'))
+        except (OSError, UnicodeError, ValueError) as exc:
+            errors.append(f'invalid certificate: {exc}')
     return {"ok": not errors, "claim": values, "score": values["S"] * values["C"] if values else None,
-            "files": len(files), "bytes": total, "errors": errors}
+            "files": len(files), "bytes": total, "certificate_bytes": certificate_total, "errors": errors}
 
 
 if __name__ == "__main__":

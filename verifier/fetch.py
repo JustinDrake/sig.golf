@@ -10,7 +10,8 @@ import tempfile
 import time
 from pathlib import Path
 
-from check_submission import MAX_FILES, MAX_FILE_BYTES, MAX_TOTAL_BYTES
+from check_submission import MAX_FILES, MAX_FILE_BYTES, MAX_TOTAL_BYTES, MAX_CERTIFICATE_BYTES
+from certificate import MAX_PROOF_BYTES, MAX_IMAGE_BYTES, MAX_MANIFEST_BYTES, PROGRAMS
 
 SHA = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 MAX_TREE_OUTPUT = 4 * 1024 * 1024
@@ -92,8 +93,11 @@ def fetch_pr(repository: str, number: int, commit: str, destination: Path) -> st
             path = Path(name)
             if kind != b"blob" or mode not in (b"100644", b"100755") or not SHA.fullmatch(oid.decode()) or (
                 path.is_absolute() or ".." in path.parts or not path.parts or path.parts[0] not in
-                {"SigGolfCandidate", "Solution.lean", "claim.json"}):
+                 {"SigGolfCandidate", "Solution.lean", "claim.json", "certificate"}):
                 raise FetchError(f"invalid submission entry: {name!r}")
+            if path.parts[0] == 'certificate' and (len(path.parts) != 2 or path.name not in {
+                    'manifest.json', 'proof.export.gz', *(f'{p}.{s}' for p in PROGRAMS for s in ('code', 'data'))}):
+                raise FetchError(f'invalid certificate entry: {name!r}')
             selected.append((path, oid.decode()))
             if len(selected) > MAX_FILES:
                 raise FetchError("submission has too many files")
@@ -110,11 +114,17 @@ def fetch_pr(repository: str, number: int, commit: str, destination: Path) -> st
             if not raw.isdigit():
                 raise FetchError("Git reported an invalid blob size")
             size = int(raw)
-            if size > MAX_FILE_BYTES:
-                raise FetchError(f"{path}: file exceeds 8 MiB")
+            limit = MAX_FILE_BYTES
+            if path.parts[0] == 'certificate':
+                limit = MAX_PROOF_BYTES if path.name == 'proof.export.gz' else (
+                    MAX_MANIFEST_BYTES if path.name == 'manifest.json' else MAX_IMAGE_BYTES - 1)
+            if size > limit:
+                raise FetchError(f"{path}: file exceeds its size limit")
             sizes.append(size)
-        if sum(sizes) > MAX_TOTAL_BYTES:
+        if sum(size for (path, _), size in zip(selected, sizes) if path.parts[0] != 'certificate') > MAX_TOTAL_BYTES:
             raise FetchError("submission exceeds 16 MiB")
+        if sum(size for (path, _), size in zip(selected, sizes) if path.parts[0] == 'certificate') > MAX_CERTIFICATE_BYTES:
+            raise FetchError('certificate exceeds 21 MiB')
         destination.mkdir(parents=True)
         for (path, oid), size in zip(selected, sizes):
             output = destination / path

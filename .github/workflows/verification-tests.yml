@@ -1,0 +1,30 @@
+name: Verification Tests
+on:
+  push:
+    paths:
+      - 'verifier/**'
+      - 'scripts/**'
+      - '.github/workflows/verification-tests.yml'
+  pull_request:
+    paths:
+      - 'verifier/**'
+      - 'scripts/**'
+      - '.github/workflows/verification-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verifier-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.24.0'
+      - name: Build pinned checker and run upstream self-tests
+        run: bash scripts/setup.sh --tools-only
+      - name: Test policy, cache, transport, and kernel reuse
+        run: bash scripts/test-verifier.sh

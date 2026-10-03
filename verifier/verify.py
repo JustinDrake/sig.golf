@@ -20,10 +20,15 @@ import sys
 import tempfile
 import time
 import uuid
+import resource
 from pathlib import Path
 
+from cache import ResultCache, acceptance_key, context_digest, tree_digest
+from certificate import (BINDING_THEOREM, MAX_EXPORT_BYTES, challenge_source,
+                         expand_proof, inspect_bundle, literal_module, strict_json)
 from check_submission import check
 from fetch import FetchError, fetch_pr
+from resources import resource_profile
 
 HERE = Path(__file__).resolve().parent
 TRUSTED = HERE.parent
@@ -45,7 +50,8 @@ def tools_env(root: Path) -> dict[str, str]:
         if line.startswith('export ') and '=' in line:
             name, value = line[7:].split('=', 1)
             values[name] = value.strip().strip('"')
-    for name in ('COMPARATOR_BIN', 'COMPARATOR_LEAN4EXPORT', 'COMPARATOR_LANDRUN'):
+    for name in ('COMPARATOR_BIN', 'COMPARATOR_LEAN4EXPORT', 'COMPARATOR_LANDRUN',
+                 'COMPARATOR_CERTIFICATE_CHECK', 'COMPARATOR_LEAN', 'COMPARATOR_LAKE'):
         file = Path(values.get(name, ''))
         if not file.is_absolute() or not file.is_file() or not os.access(file, os.X_OK):
             raise VerifyError(f'{name} must point to an installed executable')
@@ -79,14 +85,12 @@ def linux_preflight(env: dict[str, str]) -> None:
         raise VerifyError('Landlock ABI 3 or newer is required')
 
 
-def linux_command(cmd: list[str], project: Path, env: dict[str, str], hidden: list[Path]) -> tuple[list[str], dict[str, str]]:
+def linux_command(cmd: list[str], project: Path, env: dict[str, str], hidden: list[Path],
+                  seconds: int = WALL_SECONDS) -> tuple[list[str], dict[str, str]]:
     unit = 'sig-verify-' + uuid.uuid4().hex[:12]
-    # Lake scales its parallel builds to visible CPUs; the host has eight CPUs but the
-    # verification cgroup has only 24 GiB. Keep large independent Lean modules from
-    # collectively exhausting that memory limit.
-    cpus = sorted(os.sched_getaffinity(0))[:2]
-    properties = [f'MemoryMax={MEMORY_BYTES}', 'MemorySwapMax=0', f'RuntimeMaxSec={WALL_SECONDS}',
-                  f'CPUAffinity={" ".join(map(str, cpus))}',
+    profile = resource_profile()
+    properties = [f'MemoryMax={profile.memory_bytes}', 'MemorySwapMax=0', f'RuntimeMaxSec={seconds}',
+                  f'CPUAffinity={" ".join(map(str, profile.cpu_affinity))}',
                   'KillMode=control-group', 'TimeoutStopSec=5', 'SendSIGKILL=yes', 'TasksMax=512',
                   'RestrictAddressFamilies=~AF_UNIX', 'NoNewPrivileges=yes', 'ProtectSystem=strict',
                   f'ReadWritePaths={project / ".lake"}', 'PrivateTmp=yes', 'PrivatePIDs=yes', 'ProcSubset=pid',
@@ -98,8 +102,9 @@ def linux_command(cmd: list[str], project: Path, env: dict[str, str], hidden: li
                   'pidfd_getfd kill tkill tgkill pidfd_send_signal']
     clean = {'PATH': f'{Path.home() / ".elan/bin"}:{os.environ.get("PATH", "/usr/bin:/bin")}',
              'HOME': str(Path.home()), 'LANG': 'C.UTF-8',
-             'COMPARATOR_LANDRUN': env['COMPARATOR_LANDRUN'],
-             'COMPARATOR_LEAN4EXPORT': env['COMPARATOR_LEAN4EXPORT'],
+              'COMPARATOR_LANDRUN': env['COMPARATOR_LANDRUN'],
+              'COMPARATOR_LEAN4EXPORT': env['COMPARATOR_LEAN4EXPORT'],
+              'LEAN_NUM_THREADS': str(profile.build_jobs),
              'SIG_VERIFIER_HOST_DEV': str(Path('/dev').stat().st_dev),
              'SIG_VERIFIER_HOST_PIDNS': str(Path('/proc/self/ns/pid').stat().st_ino),
              'SIG_VERIFIER_HOST_SHM_DEV': str(Path('/dev/shm').stat().st_dev)}
@@ -113,11 +118,15 @@ def linux_command(cmd: list[str], project: Path, env: dict[str, str], hidden: li
              *[arg for prop in properties for arg in ('-p', prop)], '--', *command], bus_env)
 
 
-def run_checked(cmd: list[str], cwd: Path, env: dict[str, str], log: Path) -> tuple[int, bool]:
-    """Capture at most 4 MiB; keep draining; kill the process group at the outer deadline."""
+def run_checked(cmd: list[str], cwd: Path, env: dict[str, str], log: Path,
+                *, limit: int = LOG_CAP, seconds: int = WALL_SECONDS) -> tuple[int, bool]:
+    """Bound output and time; oversized proof exports fail rather than being truncated."""
+    def limits():
+        resource.setrlimit(resource.RLIMIT_CPU, (seconds + 1, seconds + 1))
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            start_new_session=True, bufsize=0)
-    deadline = time.monotonic() + WALL_SECONDS + 120
+                            start_new_session=True, bufsize=0, preexec_fn=limits)
+    deadline = time.monotonic() + seconds
     truncated = False
     timed_out = False
     try:
@@ -138,11 +147,15 @@ def run_checked(cmd: list[str], cwd: Path, env: dict[str, str], log: Path) -> tu
                     continue
                 if not chunk:
                     break
-                if kept < LOG_CAP:
-                    output.write(chunk[:LOG_CAP - kept])
-                    kept += min(len(chunk), LOG_CAP - kept)
-                if kept >= LOG_CAP:
+                before = kept
+                if kept < limit:
+                    output.write(chunk[:limit - kept])
+                    kept += min(len(chunk), limit - kept)
+                if before + len(chunk) > limit:
                     truncated = True
+                    if limit != LOG_CAP:
+                        timed_out = True
+                        break
             if truncated:
                 output.write(b'\n[output truncated]\n')
         if not timed_out:
@@ -167,18 +180,47 @@ def run_checked(cmd: list[str], cwd: Path, env: dict[str, str], log: Path) -> tu
     return proc.returncode, timed_out
 
 
+def export_targets(config: dict) -> list[str]:
+    primitives = ['Nat.add', 'Nat.sub', 'Nat.mul', 'Nat.pow', 'Nat.gcd', 'Nat.div', 'Nat.mod',
+                  'Nat.beq', 'Nat.ble', 'Nat.land', 'Nat.lor', 'Nat.xor', 'Nat.shiftLeft',
+                  'Nat.shiftRight', 'String.ofList', 'Char.ofNat', 'List', 'eagerReduce']
+    return config['theorem_names'] + config['permitted_axioms'] + primitives + config.get('definition_names', [])
+
+
+def landrun_command(cmd: list[str], project: Path, env: dict[str, str], *, build: bool) -> list[str]:
+    # Same inner build/export permissions as the pinned comparator. Candidate output is
+    # collected by the supervisor outside the writable build tree before kernel checking.
+    prefix = subprocess.check_output([env['COMPARATOR_LEAN'], '--print-prefix'], cwd=project, text=True, timeout=30).strip()
+    command = [env['COMPARATOR_LANDRUN'], '--best-effort', '--ro', '/', '--rw', '/dev', '-ldd', '-add-exec']
+    for name in ('PATH', 'HOME', 'LEAN_PATH', 'LEAN_ABORT_ON_PANIC', 'LEAN_NUM_THREADS'):
+        command += ['--env', name]
+    command += ['--ro', str(project), '--rox', prefix]
+    if build:
+        command += ['--rwx', str(project / '.lake'), '--rox', shutil.which('git') or '/usr/bin/git']
+    else:
+        # `lake env` launches this second executable; -add-exec only grants Lake.
+        command += ['--rox', env['COMPARATOR_LEAN4EXPORT']]
+    return [*command, '--', *cmd]
+
+
+def tail_text(path: Path, limit: int = 1200) -> str:
+    with path.open('rb') as stream:
+        stream.seek(max(0, path.stat().st_size - limit))
+        return stream.read(limit).decode(errors='replace')
+
+
 def verify(args: argparse.Namespace) -> dict:
     work = args.work.resolve()
     if work.exists():
         raise VerifyError('work directory must not exist')
     work.mkdir(parents=True)
     log = work / 'verify.log'
+    started = time.monotonic()
     result = {'status': 'failed', 'commit': args.commit, 'contract_commit': None,
-              'log': str(log), 'claim': None}
+              'log': str(log), 'claim': None, 'timings_seconds': {}, 'cache_hit': False}
+    log.touch()
     try:
         env = tools_env(args.trusted)
-        if platform.system() == 'Linux':
-            linux_preflight(env)
         contract = subprocess.run(['git', '-C', str(args.trusted), 'rev-parse', 'HEAD'],
                                   check=True, text=True, capture_output=True, timeout=10).stdout.strip()
         result['contract_commit'] = contract
@@ -189,8 +231,52 @@ def verify(args: argparse.Namespace) -> dict:
             shutil.copytree(args.local, source, symlinks=True)
         else:
             fetch_pr(args.repository, args.pr, args.commit, source)
-        policy = check(source)
+        # Structural bounds are always checked. An exact accepted key already binds
+        # the prior full import-policy decision; only a miss repeats that source scan.
+        policy = check(source, scan_imports=False)
         result['claim'] = policy['claim']
+        if not policy['ok']:
+            result.update(status='policy_rejected', errors=policy['errors'])
+            log.write_text('\n'.join(policy['errors']) + '\n')
+            return result
+        mode = 'certificate' if (source / 'certificate').exists() else 'source'
+        result.update(mode=mode, source_compiled=mode == 'source')
+        preview = args.preview
+        if preview and mode != 'certificate':
+            raise VerifyError('preview is only available for declarative certificates, never candidate source execution')
+        if platform.system() != 'Linux' and not preview:
+            raise VerifyError('official verification requires supported Linux; use --preview for a non-scoring certificate check')
+        if preview:
+            result['preview'] = True
+        if platform.system() == 'Linux':
+            linux_preflight(env)
+        source_hash = tree_digest(source, excluded_top_level={'certificate'}, include_directories=False)
+        context_hash = context_digest(args.trusted, env)
+        bundle_hash = None
+        manifest = None
+        if mode == 'certificate':
+            manifest = inspect_bundle(source / 'certificate', policy['claim'], source_hash,
+                                      (args.trusted / 'lean-toolchain').read_text().strip())
+            bundle_hash = tree_digest(source / 'certificate')
+        result.update(source_digest=source_hash, context_digest=context_hash, certificate_digest=bundle_hash)
+        cache = None
+        cache_error = None
+        # Source elaborators can inspect arbitrary inputs such as time or process state.
+        # Only a frozen declarative certificate has an exact reusable checked object.
+        if not args.no_cache and not preview and mode == 'certificate':
+            try:
+                cache = ResultCache(args.cache_dir)
+            except (OSError, ValueError) as exc:
+                cache_error = str(exc)
+        key = acceptance_key(context_hash, source_hash, policy['claim'], bundle_hash, mode)
+        result['acceptance_key'] = key
+        if cache is not None and not args.reverify and not args.fresh_kernel:
+            accepted = cache.get(key)
+            if accepted is not None:
+                result.update(accepted, cache_hit=True)
+                log.write_text('Exact organizer-owned acceptance record reused; no changed proof accepted.\n')
+                return result
+        policy = check(source)
         if not policy['ok']:
             result.update(status='policy_rejected', errors=policy['errors'])
             log.write_text('\n'.join(policy['errors']) + '\n')
@@ -200,16 +286,20 @@ def verify(args: argparse.Namespace) -> dict:
         for name in ('lean-toolchain', 'lakefile.lean', 'lake-manifest.json', 'SigGolf.lean'):
             shutil.copy2(args.trusted / name, project / name)
         shutil.copytree(args.trusted / 'SigGolf', project / 'SigGolf')
-        with (project / 'lakefile.lean').open('a') as out:
-            out.write('\nlean_lib Solution\n')
-        if (source / 'SigGolfCandidate').is_dir():  # optional: Solution.lean may stand alone
-            shutil.copytree(source / 'SigGolfCandidate', project / 'SigGolfCandidate')
-        shutil.copy2(source / 'Solution.lean', project / 'Solution.lean')
-        challenge = (args.trusted / 'verifier' / 'Challenge.lean.in').read_text()
-        placeholders = {key: policy['claim'][key] for key in ('S', 'W', 'K', 'C')}
-        placeholders.update({key.upper(): value for key, value in policy['claim']['layout'].items()})
-        for key, value in placeholders.items():
-            challenge = challenge.replace('{{' + key + '}}', str(value))
+        profile = resource_profile() if platform.system() == 'Linux' else None
+        lakefile = (project / 'lakefile.lean').read_text()
+        if profile is not None:
+            lakefile = lakefile.replace('package SigGolf where\n',
+                f'package SigGolf where\n  moreLeanArgs := #["-j{profile.lean_threads}"]\n', 1)
+            result['resources'] = {'profile': profile.name, 'cpus': profile.cpus,
+                                  'memory_bytes': profile.memory_bytes, 'build_jobs': profile.build_jobs,
+                                  'lean_threads': profile.lean_threads}
+        (project / 'lakefile.lean').write_text(lakefile + '\nlean_lib Solution\n')
+        challenge = challenge_source((args.trusted / 'verifier' / 'Challenge.lean.in').read_text(),
+                                     policy['claim'], bind_images=mode == 'certificate')
+        if manifest is not None:
+            (project / 'SigGolf' / 'CertifiedImages.lean').write_text(literal_module(source / 'certificate', policy['claim']))
+            expand_proof(source / 'certificate', manifest, work / 'candidate.export')
         (project / 'SigGolf' / 'Challenge.lean').write_text(challenge)
         clone_tree(args.trusted / '.lake', project / '.lake')
         # Drop every cached artifact of candidate, solution, and challenge modules: the module
@@ -222,24 +312,95 @@ def verify(args: argparse.Namespace) -> dict:
                     stale.unlink()
             for stale in (folder / 'SigGolf').glob('Challenge.*'):
                 stale.unlink()
-        command = ['lake', 'env', env['COMPARATOR_BIN'], str(args.trusted / 'verifier' / 'comparator.json')]
-        clean_env = {'PATH': f'{Path.home() / ".elan/bin"}:{os.environ.get("PATH", "/usr/bin:/bin")}',
-                     'HOME': str(Path.home()), 'LANG': 'C.UTF-8',
-                     'COMPARATOR_LANDRUN': env['COMPARATOR_LANDRUN'],
-                     'COMPARATOR_LEAN4EXPORT': env['COMPARATOR_LEAN4EXPORT']}
-        if platform.system() == 'Linux':
-            command, clean_env = linux_command(command, project, env, [work / 'source', *args.hide])
-        exit_code, timeout = run_checked(command, project, clean_env, log)
-        if timeout:
-            result['status'] = 'timeout'
-        elif exit_code == 0 and 'Your solution is okay!' in log.read_text(errors='replace'):
-            result.update(status='verified', score=policy['score'])
+            for stale in (folder / 'SigGolf').glob('CertifiedImages.*'):
+                stale.unlink()
+        config = strict_json((args.trusted / 'verifier' / 'comparator.json').read_bytes())
+        if manifest is not None:
+            config['theorem_names'].append(BINDING_THEOREM)
+        config_path = work / 'checker.json'
+        config_path.write_text(json.dumps(config))
+        targets = export_targets(config)
+        hidden = [source, cache.path if cache is not None else args.cache_dir.absolute(), *args.hide]
+
+        def phase(name: str, command: list[str], output: Path, *, build=False, export=False) -> None:
+            remaining = int(WALL_SECONDS - (time.monotonic() - started))
+            if remaining < 1:
+                raise TimeoutError('overall verification deadline exceeded')
+            environment = {'PATH': f'{Path.home() / ".elan/bin"}:{os.environ.get("PATH", "/usr/bin:/bin")}',
+                           'HOME': str(Path.home()), 'LANG': 'C.UTF-8', 'LEAN_ABORT_ON_PANIC': '1'}
+            if profile is not None:
+                environment['LEAN_NUM_THREADS'] = str(profile.build_jobs)
+            if build or export:
+                command = landrun_command(command, project, env, build=build)
+            if platform.system() == 'Linux':
+                command, environment = linux_command(command, project, env, hidden, seconds=remaining)
+                environment['LEAN_ABORT_ON_PANIC'] = '1'
+            began = time.monotonic()
+            code, timeout = run_checked(command, project, environment, output,
+                                        limit=MAX_EXPORT_BYTES if export else LOG_CAP, seconds=remaining)
+            result['timings_seconds'][name] = time.monotonic() - began
+            if not export:
+                with log.open('ab') as aggregate:
+                    aggregate.write(f'\n[{name}]\n'.encode())
+                    aggregate.write(output.read_bytes())
+            if timeout:
+                raise TimeoutError(f'{name}: deadline or output limit exceeded')
+            if code:
+                if name in ('solution_build', 'solution_export', 'checker'):
+                    result['status'] = 'rejected'
+                raise VerifyError(f'{name}: child exited with {code}: {tail_text(output)}')
+
+        phase('challenge_build', [env['COMPARATOR_LAKE'], 'build', 'SigGolf.Challenge'], work / 'challenge-build.log', build=True)
+        phase('challenge_export', [env['COMPARATOR_LAKE'], 'env', env['COMPARATOR_LEAN4EXPORT'], 'SigGolf.Challenge', '--', *targets],
+              work / 'challenge.export', export=True)
+        # Only after freezing the trusted challenge may candidate sources enter the project.
+        if mode == 'source':
+            if (source / 'SigGolfCandidate').is_dir():
+                shutil.copytree(source / 'SigGolfCandidate', project / 'SigGolfCandidate')
+            shutil.copy2(source / 'Solution.lean', project / 'Solution.lean')
+            phase('solution_build', [env['COMPARATOR_LAKE'], 'build', 'Solution'], work / 'solution-build.log', build=True)
+            phase('solution_export', [env['COMPARATOR_LAKE'], 'env', env['COMPARATOR_LEAN4EXPORT'], 'Solution', '--', *targets],
+                  work / 'candidate.export', export=True)
+        checker_command = [env['COMPARATOR_CERTIFICATE_CHECK'], str(config_path),
+                           str(work / 'challenge.export'), str(work / 'candidate.export')]
+        if args.worker and not args.fresh_kernel and not preview:
+            from worker import check as worker_check
+            import hashlib
+            with Path(env['COMPARATOR_CERTIFICATE_CHECK']).open('rb') as checker_file:
+                checker_digest = hashlib.file_digest(checker_file, 'sha256').hexdigest()
+            began = time.monotonic()
+            report = worker_check(args.worker, {'id': uuid.uuid4().hex, 'config': str(config_path),
+                'trusted': str(work / 'challenge.export'), 'candidate': str(work / 'candidate.export'), 'fresh_kernel': False},
+                checker_digest, expected_context_digest=context_hash,
+                timeout=max(1, WALL_SECONDS - (time.monotonic() - started)))
+            result['timings_seconds']['checker'] = time.monotonic() - began
         else:
-            result.update(status='rejected', reason=log.read_text(errors='replace')[-1200:])
+            phase('checker', checker_command, work / 'checker.log')
+            report = strict_json((work / 'checker.log').read_bytes())
+        if report['status'] != 'verified':
+            if report['status'] == 'rejected':
+                result['status'] = 'rejected'
+            raise VerifyError(f'checker rejected certificate: {report}')
+        result.update(status='kernel_checked' if preview else 'verified', checker=report)
+        if not preview:
+            result['score'] = policy['score']
+        if cache is not None:
+            try:
+                cache.put(key, result)
+            except (OSError, ValueError) as exc:
+                cache_error = str(exc)
+        if cache_error:
+            result['cache_warning'] = cache_error
         return result
-    except (FetchError, VerifyError, OSError, subprocess.SubprocessError) as exc:
-        result.update(status='failed', reason=str(exc)[:1200])
+    except TimeoutError as exc:
+        result.update(status='timeout', reason=str(exc))
         return result
+    except (FetchError, VerifyError, OSError, subprocess.SubprocessError, ValueError) as exc:
+        result.update(status='rejected' if result['status'] == 'rejected' else 'failed', reason=str(exc)[:1200])
+        return result
+    finally:
+        result['timings_seconds']['total'] = time.monotonic() - started
+        (work / 'telemetry-verification.json').write_text(json.dumps(result, sort_keys=True) + '\n')
 
 
 def main() -> int:
@@ -252,6 +413,12 @@ def main() -> int:
     parser.add_argument('--work', type=Path)
     parser.add_argument('--hide', type=Path, action='append', default=[])
     parser.add_argument('--cleanup', action='store_true')
+    parser.add_argument('--cache-dir', type=Path, default=Path.home() / '.cache' / 'sig-golf' / 'accepted')
+    parser.add_argument('--no-cache', action='store_true', help='do not read or publish exact acceptance records')
+    parser.add_argument('--reverify', action='store_true', help='bypass exact-result reuse and check the proof again')
+    parser.add_argument('--fresh-kernel', action='store_true', help='bypass result and worker reuse; replay from empty')
+    parser.add_argument('--worker', type=Path, help='optional organizer-owned local checked-base worker socket')
+    parser.add_argument('--preview', action='store_true', help='non-scoring certificate check; no production cache or hard memory isolation')
     args = parser.parse_args()
     if bool(args.local) == bool(args.pr and args.commit):
         parser.error('provide either --local or both --pr and --commit')
@@ -273,7 +440,7 @@ def main() -> int:
         except OSError as exc:
             result.update(status='failed', reason=f'workspace cleanup failed: {exc}')
     print(json.dumps(result, sort_keys=True))
-    return 0 if result['status'] == 'verified' else 1
+    return 0 if result['status'] in ('verified', 'kernel_checked') else 1
 
 
 if __name__ == '__main__':

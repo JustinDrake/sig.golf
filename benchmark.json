@@ -19,7 +19,7 @@
         "scripts/run.py"
       ],
       "scorePath": "scripts/score.json",
-      "maxSubmissionBytes": 16777216,
+      "maxSubmissionBytes": 38797312,
       "runner": {
         "provider": "github-actions",
         "workflow": "benchmark.yml"

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ $# -gt 1 || ( $# -eq 1 && "$1" != --tools-only ) ]]; then
+  echo 'Usage: bash scripts/setup.sh [--tools-only]' >&2
+  exit 2
+fi
 unset BENCHMARK_INSECURE_LOCAL
 export PATH="$HOME/.elan/bin:$PATH"
 if ! command -v elan >/dev/null 2>&1; then
@@ -10,5 +14,6 @@ fi
 toolchain="$(tr -d '[:space:]' < lean-toolchain)"
 elan toolchain install "$toolchain"
 bash verifier/setup_tools.sh
+if [[ "${1:-}" == --tools-only ]]; then exit 0; fi
 lake exe cache get && lake build SigGolf
 python3 -c 'import sys; from pathlib import Path; sys.path.insert(0, "verifier"); from verify import linux_preflight, tools_env; linux_preflight(tools_env(Path(".").resolve()))'

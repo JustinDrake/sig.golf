@@ -5,9 +5,15 @@ permissions:
   contents: read
 jobs:
   benchmark:
-    # 64 GB host: 32 GB for the isolated verifier VM, with host headroom.
+    # 64 GiB host: 48 GiB guest, 40 GiB candidate cgroup, with headroom at each level.
     runs-on: blacksmith-16vcpu-ubuntu-2404
     timeout-minutes: 300
+    env:
+      SIG_VERIFY_PROFILE: balanced
+      SIG_VERIFY_VM_CPUS: '12'
+      SIG_VERIFY_VM_MEMORY_GIB: '48'
+      SIG_VERIFY_BUILD_JOBS: '4'
+      SIG_VERIFY_LEAN_THREADS: '1'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -50,6 +56,9 @@ jobs:
           name: verifier-logs
           path: |
             .work/*/verify.log
+            .work/*/telemetry*.json
+            scripts/telemetry*.json
+            .work-blacksmith-timing.jsonl
             .work-vm-console.log
           include-hidden-files: true
           if-no-files-found: ignore

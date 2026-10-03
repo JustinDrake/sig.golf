@@ -183,6 +183,15 @@ HASH writes H's 32-byte answer at the output address. Any other `t0` fails.
 
 ## Lean project
 
+**Organizer verification protocol:** source-only submissions retain sandboxed source build,
+statement comparison, axiom checking, and kernel replay. An optional `submission/certificate/`
+bundle supplies declarative proof data and four raw images. In that mode the checked claim,
+images, and certificate are authoritative; accompanying Lean sources are review/reproduction
+material, not a claim of source-to-certificate correspondence. A kernel-checked equality binds
+the certificate to the complete literal images, sizes, and layout. All mathematical obligations
+above are unchanged. Invalid bundles reject without a source fallback. See
+[`verifier/README.md`](verifier/README.md) for the bounded format and reverification controls.
+
 [`SigGolf.Certificate submission C`](SigGolf/Statements.lean#L53-L60) in [SigGolf/Statements.lean](SigGolf/Statements.lean) is the competition claim for the exact four program images and declared sizes. Besides the five statements above, it contains [`Admission`](SigGolf/Statements.lean#L12-L16): the size maxima, the program size limit, and the buffer layout rules. [SigGolf/Security.lean](SigGolf/Security.lean) defines the attacker and both forgery experiments; [SigGolf/Riscv.lean](SigGolf/Riscv.lean) defines execution and costs. In Lean, the adversary is an `OracleComp` over coins, H, and the signing oracle: a computation that makes finitely many queries and then submits a forgery or gives up. A strategy that could run for ever is represented by its truncations, which give up where they are cut. Giving up never wins, and such a strategy's win probability is the limit of its truncations', so the bound over all adversaries bounds every adaptive strategy.
 
 Build the statements and regression checks with `lake build SigGolf SigGolfTests`. Dependencies are pinned in `lake-manifest.json`. These files define the requirements; they do not certify a particular signature scheme. Submissions are verified from the [sig.golf-submissions](https://github.com/leanEthereum/sig.golf-submissions) repository.
