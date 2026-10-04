@@ -55,7 +55,7 @@ theorem PendingInputs.machine {I : Images} (h : PendingInputs I) : ClaudeWCT.W9.
   verify_accept_cycles := h.verify_accept_cycles
 theorem PendingInputs.securityP {I : Images} (h : PendingInputs I) : ClaudeWCT.W9.T3M.Final.SecurityP :=
   ClaudeWCT.W9.T3.Secc.t3_securityP h.near_bound h.pair_bound h.large_route
-theorem certificate_of_pending {I : Images} (h : PendingInputs I) : SigGolf.Certificate (submission I) 7893 :=
+theorem certificate_of_pending {I : Images} (h : PendingInputs I) : SigGolf.Certificate (submission I) 7855 :=
   ClaudeWCT.W9.T3M.Final.certificate_of_security h.securityP h.machine
 end ClaudeWCT.W9.Final
 end
@@ -103,7 +103,7 @@ theorem certificate_of_machine_inputs
     (er : ClaudeWCT.W9.T3M.Final.ExpandRefines finalImages)
     (et : ClaudeWCT.W9.T3M.Final.ExpandTerminates finalImages) :
     SigGolf.Certificate
-      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7893 := by
+      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7855 := by
   exact ClaudeWCT.W9.Final.certificate_of_pending (I := finalImages)
     { large_route := ClaudeWCT.W9.T3.Security.LargeCoupling.large_route_hlarge
       pair_bound := ClaudeWCT.W9.T3.Security.WPair.pair_guess_bound
@@ -126,7 +126,7 @@ theorem certificate_of_verify_inputs
     (vt : ClaudeWCT.W9.T3M.Final.VerifyTerminates verifyImages)
     (vc : ClaudeWCT.W9.T3M.Final.VerifyAcceptCycles verifyImages) :
     SigGolf.Certificate
-      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7893 := by
+      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7855 := by
   rw [verifyImages_eq] at vr vt vc
   exact certificate_of_machine_inputs vr vt vc
     ClaudeWCT.W9.Machine.ExpandLink.expand_pending_v1.1
@@ -148,7 +148,7 @@ def finishFts (a : HashOutput) (state : Option (List Digest)) : M (Option Digest
   | none => pure none
   | some roots => some <$> ClaudeWCT.WCT9.forestPk (idxOf a) roots
 def coordsCost (ks : List (Fin 9)) : Nat :=
-  (ks.map (fun k => if k.val = 0 then 214 else 216)).sum
+  (ks.map (fun k => dispatchLen k + 201)).sum
 theorem fold_none (w : WBytes) (a : HashOutput) (ks : List (Fin 9)) :
     ks.foldlM (ClaudeWCT.W9.T3M.wctStep w a) none = pure none := by
   induction ks with
@@ -161,8 +161,8 @@ theorem coordinates_good (chains : Chain.AllGood) (pk : Digest) (w : WBytes) (a 
     (hu : CoordPre pk w a n roots u) (hnone : K none = pure (false, 0))
     (hnext : ∀ root t, FtsOut ⟨pk,w,a⟩ root t →
       GoodQFor Frozen.image t N C Q A (K (some root))) :
-    GoodQFor Frozen.image u (N + (coordsCost ks + 39)) (C + (coordsCost ks + 39)) Q
-      (A + (coordsCost ks + 39))
+    GoodQFor Frozen.image u (N + (coordsCost ks + 33)) (C + (coordsCost ks + 33)) Q
+      (A + (coordsCost ks + 33))
       (ccM (ks.foldlM (ClaudeWCT.W9.T3M.wctStep w a) (some roots) >>= finishFts a) K) := by
   induction ks generalizing n roots u with
   | nil =>
@@ -172,7 +172,7 @@ theorem coordinates_good (chains : Chain.AllGood) (pk : Digest) (w : WBytes) (a 
     have hf := forest_good pk w a roots u N C A Q (fun root => K (some root)) hu hnext
     rw [map_eq_bind_pure_comp, ccM_bind]
     simp only [Function.comp_apply, ccM_pure]
-    exact hf.mono (by change N + 16 ≤ N + 39; omega) (by rfl) (fun hq => ⟨hq, by rfl⟩)
+    exact hf.mono (by change N + 10 ≤ N + 33; omega) (by rfl) (fun hq => ⟨hq, by rfl⟩)
   | cons k ks ih =>
     simp only [List.map_cons, List.length_cons, List.range'_succ, List.cons.injEq] at horder
     obtain ⟨hn, ht⟩ := horder
@@ -181,23 +181,23 @@ theorem coordinates_good (chains : Chain.AllGood) (pk : Digest) (w : WBytes) (a 
       ccM (ks.foldlM (ClaudeWCT.W9.T3M.wctStep w a) state >>= finishFts a) K
     have hkNone : K' none = pure (false, 0) := by
       simp only [K', fold_none, pure_bind, finishFts, ccM_pure, hnone]
-    have hstep := coord_good chains pk w a k roots u (N + (coordsCost ks + 39))
-      (C + (coordsCost ks + 39)) (A + (coordsCost ks + 39)) Q K' hu hkNone
+    have hstep := coord_good chains pk w a k roots u (N + (coordsCost ks + 33))
+      (C + (coordsCost ks + 33)) (A + (coordsCost ks + 33)) Q K' hu hkNone
       (fun root t hh => ih (k.val + 1) (roots ++ [root]) t ht (by simpa [Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using hend) hh)
     simp only [List.foldlM_cons, bind_assoc, ccM_bind]
-    convert hstep using 1 <;> simp [coordsCost, Nat.add_left_comm, Nat.add_comm,
+    convert hstep using 1 <;> simp [coordsCost, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm,
       K', ccM_bind]
 theorem fts_good (chains : Chain.AllGood) : FtsGood := by
   intro pk w a u N C A Q K hu hnone hnext
   let KG : Bool → OracleComp HashSpec Obs := fun b =>
     if b then ccM (ClaudeWCT.W9.T3M.wctP w a) K else K none
-  have hg := gate_good pk w a u (N + 1981) (C + 1981) (A + 1981) Q KG hu
+  have hg := gate_good pk w a u (N + 1957) (C + 1957) (A + 1957) Q KG hu
     (by simpa only [KG, Bool.false_eq_true, ↓reduceIte] using hnone)
     (fun t ht => by
       have hc := coordinates_good chains pk w a (List.finRange 9) 0 [] t N C A Q K
         (by decide)
         (by simp) ht hnone hnext
-      rw [show coordsCost (List.finRange 9) + 39 = 1981 by decide] at hc
+      rw [show coordsCost (List.finRange 9) + 33 = 1957 by decide] at hc
       apply hc.congr
       change ccM (_ >>= finishFts a) K = ccM (ClaudeWCT.W9.T3M.wctP w a) K
       apply congrArg (fun p : M (Option Digest) => ccM p K)
@@ -206,7 +206,7 @@ theorem fts_good (chains : Chain.AllGood) : FtsGood := by
         (List.finRange 9).foldlM (ClaudeWCT.W9.T3M.wctStep w a) (some []) >>= f)
       funext state
       cases state <;> rfl)
-  change GoodQFor Frozen.image u (N + 2023) (C + 2023) Q (A + 2023)
+  change GoodQFor Frozen.image u (N + 1977) (C + 1977) Q (A + 1977)
     (KG (ClaudeWCT.W9.T3M.gateOk a)) at hg
   apply hg.congr
   cases ClaudeWCT.W9.T3M.gateOk a <;> simp [KG, ccM_pure]
@@ -314,7 +314,7 @@ section
 namespace SigGolfCandidate.Packaging
 theorem certificate_ready :
     SigGolf.Certificate
-      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7893 := by
+      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7855 := by
   obtain ⟨vr, vt, vc⟩ := W9Fin.verify_final verify_image_eq
   exact certificate_of_machine_inputs vr vt vc
     ClaudeWCT.W9.Machine.ExpandLink.expand_pending_v1.1
