@@ -171,7 +171,7 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
       h11 (by norm_num) (forest_words u (idxOf a) roots hu.length hi hu.index hu.roots)
   have g1 : Glob [] w pk s1 :=
     Glob_toState hu.glob fPrep.st (fPrep.pc.eval u) (by decide) rfl
-  have o1 : Orig w (fun o => o < 64 ∨ 11288 ≤ o) s1 :=
+  have o1 : Orig w (fun o => o < 64 ∨ 10568 ≤ o) s1 :=
     hu.layer.frame (fun j hj _ => fPrep_frame u _ (by unfold WIT WX at *; omega)
       (by unfold WIT; omega))
   have hpost : ∀ ans : BitVec 256, GoodQFor Frozen.image (writeHash s1 ans) (N + 4) (C + 4) Q (A + 4)
@@ -197,7 +197,7 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
       · obtain ⟨e0, e1⟩ := writeHash_lo s1 ans 0x100 h12 (by norm_num)
         exact ⟨(et _).trans e0, (et _).trans e1⟩
       · have o2 := Orig_writeHash o1 ans 0x100 h12 (by norm_num)
-        have o3 : Orig w (fun o => o < 64 ∨ 11288 ≤ o) (writeHash s1 ans) :=
+        have o3 : Orig w (fun o => o < 64 ∨ 10568 ≤ o) (writeHash s1 ans) :=
           o2.mono (fun o ho => ⟨ho, Or.inr (by unfold WIT; omega)⟩)
         exact o3.frame (fun j _ _ => et _)
     exact (hnext _ t hout).steps st2'

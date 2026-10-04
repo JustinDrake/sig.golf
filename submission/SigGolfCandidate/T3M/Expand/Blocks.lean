@@ -2,11 +2,7 @@ import SigGolfCandidate.T3M.Keygen.PackedBlocks
 import SigGolfCandidate.T3M.ImageSlice
 import SigGolfCandidate.T3M.Images.Expand
 import SigGolfCandidate.T3M.Search.Blocks
-
-
 section
-
-
 namespace SigGolfCandidate.T3M.Expand
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 set_option maxRecDepth 16384
@@ -39,15 +35,15 @@ def seg_226 : List (BitVec 32) := [1476243,0xfd5ff06f]
 def seg_228 : List (BitVec 32) := [4919,0xb0130313,295827,134711,839781907,7223331,8272931,132407,839189779,0x8000593,132663,973473299]
 def seg_240 : List (BitVec 32) := [115]
 def seg_241 : List (BitVec 32) := [134839,974032531,134967,638521107,963331,9352067,7286819,8336419]
-def seg_249 : List (BitVec 32) := [3146771,6293395,45092115,3475,0xc200893,134711,0x550e0e13,930563,218003,66063891,29620531,6509715,822083823]
+def seg_249 : List (BitVec 32) := [3146771,6293395,45092115,3475,0xc400893,134711,0x550e0e13,930563,218003,66063891,29620531,6509715,822083823]
 def seg_262 : List (BitVec 32) := [7735,0x820e0e13,20848675,34871,772278291,31671,0xa58b8b93,27703,0xf98c0c13,898629871]
-def seg_272 : List (BitVec 32) := [2098195,6293395,45092115,3475,0xc300893,134711,0x550e0e13,930563,6509459,66063891,29620531,0xc35493,725614831]
+def seg_272 : List (BitVec 32) := [2098195,6293395,45092115,3475,0xc400893,134711,0x550e0e13,930563,6509459,66063891,29620531,0xc35493,725614831]
 def seg_285 : List (BitVec 32) := [7735,0x81ce0e13,20848675,34871,0xfd080813,27575,0xe18b8b93,23607,898370579,802160879]
-def seg_295 : List (BitVec 32) := [1049619,7341971,45092115,3475,0xc300893,134711,0x550e0e13,930563,0xc35393,0x7f00e13,29620531,20141203,629145839]
+def seg_295 : List (BitVec 32) := [1049619,7341971,45092115,3475,0xc400893,134711,0x550e0e13,930563,0xc35393,0x7f00e13,29620531,20141203,629145839]
 def seg_308 : List (BitVec 32) := [7735,0x818e0e13,20848675,34871,0xcb080813,23479,495684499,19511,0x718c0c13,705691887]
 def seg_318 : List (BitVec 32) := [1043,0xc00793,56626451,53480851,0x7e00893,134711,0x550e0e13,930563,20140947,7735,0xfffe0e13,29620531,32724115,528482543]
 def seg_332 : List (BitVec 32) := [7735,0x814e0e13,20848675,34871,0x89080813,19383,0x458b8b93,15415,0x6d8c0c13,605028591]
-def seg_342 : List (BitVec 32) := [134711,638455315,0xa000e93,930563,963459,7544419]
+def seg_342 : List (BitVec 32) := [134711,604900883,167775891,930563,963459,7544419]
 def seg_348 : List (BitVec 32) := [9319171,9352067,7542883]
 def seg_351 : List (BitVec 32) := [1049235,1299]
 def seg_353 : List (BitVec 32) := [115]
@@ -98,13 +94,14 @@ def seg_1099 : List (BitVec 32) := [733955,9122691,40646691,41696291,134839,6049
 def seg_1117 : List (BitVec 32) := [0x41478e33,0xfffe0e13,1050259,29791923,1707539,29974067,29787827,17044243,806576915,426899,33857299,31679283,134711,537792019,7223331,8272931,132407,537199891,67110291,132663,604374547]
 def seg_1138 : List (BitVec 32) := [115]
 def seg_1139 : List (BitVec 32) := [17500947,0xfc0c0c13,1706515,0xef9ff06f]
-def seg_1143 : List (BitVec 32) := [134839,604933779,134967,638521107,963331,9352067,7286819,8336419,32871]
+def seg_1143 : List (BitVec 32) := [134839,537824915,134967,638521107,963331,9352067,7286819,8336419,466776175]
 def seg_1152 : List (BitVec 32) := [131895,394474243,0xe35313,7566099,0xd0031663,0xb80ff06f]
 def seg_1158 : List (BitVec 32) := [3148435,0xe1b9d0e3]
 def seg_1160 : List (BitVec 32) := [4197011,0xdf9ff06f]
 def seg_1162 : List (BitVec 32) := [426899,0xff3ff13,9379603,8639379,31712179,7735,0xf0fe0e13,29622067,5185299,4445075,29619123,31712179,15927,859704851,29622067,3088147,2347923,29619123,31712179,24119,0x555e0e13,29622067,2039571,1299347,29619123,31712179,50566035,0x838ff06f]
 def seg_1190 : List (BitVec 32) := [426899,0xff3ff13,9379603,8639379,31712179,7735,0xf0fe0e13,29622067,5185299,4445075,29619123,31712179,15927,859704851,29622067,3088147,2347923,29619123,31712179,24119,0x555e0e13,29622067,2039571,1299347,29619123,31712179,50566035,0xbbdff06f]
 def seg_1218 : List (BitVec 32) := [0x400e8393,0x40038393,0xff3ff13,9379603,8639379,31712179,7735,0xf0fe0e13,29622067,5185299,4445075,29619123,31712179,15927,859704851,29622067,3088147,2347923,29619123,31712179,24119,0x555e0e13,29622067,2039571,1299347,29619123,31712179,50566035,0xa69ff06f]
+def seg_1247 : List (BitVec 32) := [0x030eb303, 0x038eb383, 0x026f3823, 0x027f3c23, 0x00008067]
 def expL : Rv.Layout := [(0, seg_0), (30, layoutCode (Search.dsL 30)), (49, seg_49), (65, seg_65), (67, seg_67), (68, seg_68), (70, seg_70), (89, seg_89), (99, seg_99), (100, seg_100), (102, seg_102), (104, seg_104), (120, seg_120), (144, seg_144), (167, seg_167), (179, seg_179), (190, seg_190), (191, seg_191), (193, seg_193), (203, seg_203), (204, seg_204), (215, seg_215), (216, seg_216), (218, seg_218), (224, seg_224), (226, seg_226), (228, seg_228), (240, seg_240), (241, seg_241), (249, seg_249), (262, seg_262), (272, seg_272), (285, seg_285), (295, seg_295), (308, seg_308), (318, seg_318), (332, seg_332), (342, seg_342), (348, seg_348), (351, seg_351), (353, seg_353), (354, Search.kernCode), (824, seg_824), (835, seg_835), (840, seg_840), (843, seg_843), (845, seg_845), (858, seg_858), (859, seg_859), (860, seg_860), (868, seg_868), (888, seg_888), (899, seg_899), (900, seg_900), (902, seg_902), (905, seg_905), (918, seg_918), (944, seg_944), (952, seg_952), (962, seg_962), (963, seg_963), (975, seg_975), (987, seg_987), (992, seg_992), (993, seg_993), (994, seg_994), (997, seg_997), (1010, seg_1010), (1011, seg_1011), (1027, seg_1027), (1028, seg_1028), (1030, seg_1030), (1031, seg_1031), (1032, seg_1032), (1046, seg_1046), (1047, seg_1047), (1049, seg_1049), (1051, seg_1051), (1052, seg_1052), (1063, seg_1063), (1072, seg_1072), (1073, seg_1073), (1076, seg_1076), (1077, seg_1077), (1080, seg_1080), (1099, seg_1099), (1117, seg_1117), (1138, seg_1138), (1139, seg_1139), (1143, seg_1143), (1152, seg_1152), (1158, seg_1158), (1160, seg_1160), (1162, seg_1162), (1190, seg_1190), (1218, seg_1218)]
 theorem expL_ok : layoutOk 0 expL = true := by decide +kernel
 abbrev image : Image := Images.expandImage
@@ -282,6 +279,8 @@ theorem codeAt_1138 : CodeAt image (pcOf 1138) seg_1138 :=
   codeAt_expand_slice (by decide +kernel) (by decide +kernel)
 theorem codeAt_1139 : CodeAt image (pcOf 1139) seg_1139 :=
   codeAt_expand_slice (by decide +kernel) (by decide +kernel)
+theorem codeAt_1247 : CodeAt image (pcOf 41710) seg_1247 :=
+  codeAt_expand_slice (by decide +kernel) (by decide +kernel)
 theorem codeAt_1143 : CodeAt image (pcOf 1143) seg_1143 :=
   codeAt_expand_slice (by decide +kernel) (by decide +kernel)
 theorem codeAt_1158 : CodeAt image (pcOf 1158) seg_1158 :=
@@ -374,6 +373,7 @@ sym_block eblk_1099 := symRun { noAlias := true } seg_1099 (pcOf 1099) 200
 sym_block eblk_1117 := symRun { noAlias := true } seg_1117 (pcOf 1117) 200
 sym_block eblk_1139 := symRun { noAlias := true } seg_1139 (pcOf 1139) 200
 sym_block eblk_1143 := symRun { noAlias := true } seg_1143 (pcOf 1143) 200
+sym_block eblk_1247 := symRun { noAlias := true } seg_1247 (pcOf 41710) 200
 sym_block eblk_1158 := symRun { noAlias := true } seg_1158 (pcOf 1158) 200
 sym_block eblk_1160 := symRun { noAlias := true } seg_1160 (pcOf 1160) 200
 sym_block eblk_1162 := symRun { noAlias := true } seg_1162 (pcOf 1162) 200

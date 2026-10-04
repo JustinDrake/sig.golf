@@ -1,7 +1,5 @@
 import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Sign.Common
-
 section
-
 namespace ClaudeWCT.W9.Machine.Sign.SearchM
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
@@ -80,9 +78,7 @@ theorem run_next : run headLook [2074] 2210 [] = some resNext := optBeq_eq chk_n
 theorem run_fail : run headLook [] 2212 [] = some resFail := optBeq_eq chk_fail
 end ClaudeWCT.W9.Machine.Sign.SearchM
 end
-
 section
-
 namespace ClaudeWCT.W9.Machine.Sign.SearchM
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify

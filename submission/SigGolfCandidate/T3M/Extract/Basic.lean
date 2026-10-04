@@ -1,6 +1,5 @@
 import SigGolfCandidate.T3M.Witness.Queries
 import SigGolfCandidate.T3M.Bytes
-
 namespace SigGolfCandidate.T3M.Extract
 open SigGolfCandidate.T3
 def canonicalHeader (hdr : HashInput) : HashInput :=
@@ -30,7 +29,6 @@ theorem canonicalHeader_zero_pad (low : HashInput) (hlen : low.length = 8) :
     simpa only [List.getD_eq_getElem?_getD,
       List.getElem?_append_left (show 0 < low.length by omega)] using hm
 end SigGolfCandidate.T3M.Extract
-
 namespace SigGolfCandidate.T3M.Extract
 open SigGolfCandidate.T3
 open SphincsSecurity (bytesLE bytesLE_length)
@@ -75,7 +73,6 @@ theorem canonicalHeader_marker_ne (hdr : BitVec 128)
   rw [bytesLE16_marker]
   omega
 end SigGolfCandidate.T3M.Extract
-
 namespace SigGolfCandidate.T3M.Extract
 open OracleComp OracleSpec SigGolfCandidate.T3 SecurityInputs SecurityExtraction
 open Correctness (Answers treeValue builtTree leafSeed leafEnd)
@@ -96,9 +93,12 @@ def forestInput (index : Nat) (roots : List Digest) : HashInput :=
   listInput (roots.getD 0 0) (header 11 0 index 0 0) (roots.drop 1)
 def honestForest (answers : Answers) (index : Nat) : Digest :=
   evalWithAnswerFn answers (forestPk index (ftsRootsHonest answers index))
-noncomputable def honestMsg (answers : Answers) (index : Nat) (lay : Layer) : Digest :=
-  if h : lay.val < 3 then honestRoot answers ⟨lay.val + 1, by omega⟩ (route index ⟨lay.val + 1, by omega⟩).2
-  else honestForest answers index
+noncomputable def honestPair (answers : Answers) (lay : Layer) (tree : Nat) : LayerMessage :=
+  (treeValue (builtTree answers lay tree) (height lay - 1) 0, 0,
+    treeValue (builtTree answers lay tree) (height lay - 1) 1)
+noncomputable def honestMsg (answers : Answers) (index : Nat) (lay : Layer) : LayerMessage :=
+  if h : lay.val < 3 then honestPair answers ⟨lay.val + 1, by omega⟩ (route index ⟨lay.val + 1, by omega⟩).2
+  else (honestForest answers index, 0, 0)
 inductive Pos where
   | chain (lay : Layer) (tree leaf i step : Nat)
   | leaf (lay : Layer) (tree leaf : Nat)

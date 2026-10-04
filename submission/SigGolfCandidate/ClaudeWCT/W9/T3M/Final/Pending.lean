@@ -11,9 +11,7 @@ import SigGolfCandidate.T3M.Sim
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Witness.Queries
 import SigGolfCandidate.ClaudeWCT.W9.T3M.SigCodec
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Final.SecurityP
-
 section
-
 namespace ClaudeWCT.W9.T3.NonceSampling
 open OracleComp OracleSpec ENNReal
 open SphincsSecurity.Seeded
@@ -125,10 +123,7 @@ theorem presample_source {α : Type} (secret : BitVec 256) (program : M α) :
   rfl
 end ClaudeWCT.W9.T3.NonceSampling
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Completeness
 open OracleComp OracleSpec ENNReal
 open ClaudeWCT.WCT9 (Signature Witness)
@@ -315,10 +310,7 @@ theorem source_completeness (secret : BitVec 256) :
   exact tsub_le_tsub_left (hf.trans hsmall) 1
 end ClaudeWCT.W9.T3.Completeness
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.FullCacheExpansionCost
 open OracleComp OracleSpec
 open ClaudeWCT.WCT9 (Signature Witness digestAttemptLimit)
@@ -399,11 +391,7 @@ theorem signPayload_cost_ge (answers : SigGolfCandidate.T3.Correctness.Answers) 
       omega
 end ClaudeWCT.W9.T3.FullCacheExpansionCost
 end
-
 section
-
-
-
 namespace ClaudeWCT.W9.T3.ExpansionBudget
 open OracleComp OracleSpec
 open ClaudeWCT.WCT9 (Signature Witness digestAttemptLimit assembledSignature honestForest
@@ -425,7 +413,7 @@ theorem expand_cost_step (answers : Answers) (message : Message) (pk : Digest) (
       cost answers (ClaudeWCT.WCT9.digestSearch sig.rho message 0 digestAttemptLimit) +
       cost answers (ClaudeWCT.WCT9.recoverFts sig (output.toNat % 2 ^ 31) output) +
       cost answers (expandLayers (toT3Signature sig) (output.toNat % 2 ^ 31) 4
-        (evalWithAnswerFn answers (ClaudeWCT.WCT9.recoverFts sig (output.toNat % 2 ^ 31) output))) := by
+        (evalWithAnswerFn answers (ClaudeWCT.WCT9.recoverFts sig (output.toNat % 2 ^ 31) output), 0, 0)) := by
   simp only [ClaudeWCT.WCT9.Rev3.expand, ClaudeWCT.WCT9.expandWith, cost_bind, hd]
   split
   · split <;> simp only [cost_pure, Nat.add_zero, Nat.add_assoc]
@@ -441,7 +429,7 @@ theorem signPayload_cost_step (answers : Answers) (cache : Cache) (message : Mes
         digestAttemptLimit) +
       cost answers (ClaudeWCT.WCT9.signForest (output.toNat % 2 ^ 31) output) +
       cost answers (signLayers cache (output.toNat % 2 ^ 31) 4
-        (evalWithAnswerFn answers (ClaudeWCT.WCT9.signForest (output.toNat % 2 ^ 31) output)).2) := by
+        ((evalWithAnswerFn answers (ClaudeWCT.WCT9.signForest (output.toNat % 2 ^ 31) output)).2, 0, 0)) := by
   rw [ClaudeWCT.WCT9.Rev3.signPayload_eq]
   simp only [cost_bind, hd]
   split <;> simp only [cost_pure, Nat.add_zero, Nat.add_assoc]
@@ -460,7 +448,7 @@ theorem expand_cost_le_payload_add (answers : Answers) (cache : Cache) (message 
       simp only [hd, evalWithAnswerFn_bind] at he
       cases hl : evalWithAnswerFn answers
         (signLayers cache (output.toNat % 2 ^ 31) 4
-          (evalWithAnswerFn answers (ClaudeWCT.WCT9.signForest (output.toNat % 2 ^ 31) output)).2) with
+          ((evalWithAnswerFn answers (ClaudeWCT.WCT9.signForest (output.toNat % 2 ^ 31) output)).2, 0, 0)) with
       | none => simp only [hl, evalWithAnswerFn_pure, reduceCtorEq] at he
       | some pieces =>
           simp only [hl, evalWithAnswerFn_pure, Option.some.injEq] at he
@@ -525,9 +513,7 @@ theorem expand_cost_le_eight_sign (answers : Answers) (message : Message) (sig :
   omega
 end ClaudeWCT.W9.T3.ExpansionBudget
 end
-
 section
-
 namespace ClaudeWCT.W9.T3.Budgets
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity.Completeness (failMass)
@@ -536,9 +522,9 @@ open ClaudeWCT.WCT9.Rev3 (sign expand verify signPayload)
 open SigGolfCandidate.T3 hiding Signature Witness sign expand verify signPayload digestSearch admissible
 open SigGolfCandidate.T3.Sampling (RCache roRun V V_pure V_of_bound)
 open SigGolfCandidate.T3.Budgets (signingZ EncodingFreshBelow AllSearchesFresh allSearchesFresh_empty
-  layerMomentBound layerMomentBound_ge_one layerMomentBound_four encodingEnvelope encodingEnvelope_ge_one
-  signing_z_le V_bind_bounded post_of_roRun V_signLayers_of_freshness signingZ_pow)
-open SigGolfCandidate.T3.BaseAudit (zU b1 b2 b3 b4)
+  signing_z_le V_bind_bounded post_of_roRun signingZ_pow)
+open SigGolfCandidate.T3.BaseAudit (zU)
+open ClaudeWCT.W9.T3.BaseAudit (b1 b2 b3 b4)
 open SigGolfCandidate.T3.Cost (bound_privateNonce bound_privateMac)
 open ClaudeWCT.W9.T3.Sampling (digestDecode)
 set_option maxHeartbeats 1000000
@@ -651,7 +637,7 @@ theorem V_signPayload_of_freshness (secret : BitVec 256) (hf : SourceFreshness s
       have hforestFresh := hf.forest _ _ found.2 hdFresh forest hforest
       refine V_bind_bounded secret signingZ _ _ forest.2 _ 1
         (V_signLayers_of_freshness secret hf.layers cache (output.toNat % 2 ^ 31) 4 (by decide)
-          forest.1.2 forest.2 hforestFresh) ?_ |>.trans_eq (mul_one _)
+          (forest.1.2, 0, 0) forest.2 hforestFresh) ?_ |>.trans_eq (mul_one _)
       intro pieces _
       cases pieces.1 <;> rw [V_pure]
 theorem V_sign_of_freshness (secret : BitVec 256) (hf : SourceFreshness secret)
@@ -708,10 +694,7 @@ theorem realized_sign_exponential_budget_of_freshness (secret : BitVec 256)
   exact h
 end ClaudeWCT.W9.T3.Budgets
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Freshness
 open OracleComp OracleSpec
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
@@ -767,9 +750,7 @@ theorem sourceFreshness (secret : BitVec 256) : Budgets.SourceFreshness secret w
       4 cache hc result hr
 end ClaudeWCT.W9.T3.Freshness
 end
-
 section
-
 namespace ClaudeWCT.W9.T3.BudgetClosure
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open ClaudeWCT.WCT9 (Signature Witness digestAttemptLimit)
@@ -831,11 +812,7 @@ theorem uniform_message_sign_exponential_budget (secret : BitVec 256) :
   exact honest_sign_exponential_budget secret message
 end ClaudeWCT.W9.T3.BudgetClosure
 end
-
 section
-
-
-
 namespace ClaudeWCT.W9.T3.ExpansionClosure
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open ClaudeWCT.WCT9 (Signature Witness)
@@ -918,9 +895,7 @@ theorem uniform_message_expand_exponential_budget (secret : BitVec 256) :
   exact honest_expand_exponential_budget secret message
 end ClaudeWCT.W9.T3.ExpansionClosure
 end
-
 section
-
 namespace ClaudeWCT.W9.T3M
 open SigGolfCandidate.Legacy
 structure Images where
@@ -928,7 +903,7 @@ structure Images where
   expand : Riscv.Image
   verify : Riscv.Image
 def submission (I : Images) : Submission where
-  sizes := ⟨5456, 25240, 131072⟩
+  sizes := ⟨5456, 24264, 131072⟩
   layout := ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩
   image
     | .keygen => SigGolfCandidate.T3M.Images.keygenImage
@@ -936,7 +911,7 @@ def submission (I : Images) : Submission where
     | .expand => I.expand
     | .verify => I.verify
 variable (I : Images)
-@[simp] theorem submission_sizes : (submission I).sizes = ⟨5456, 25240, 131072⟩ := rfl
+@[simp] theorem submission_sizes : (submission I).sizes = ⟨5456, 24264, 131072⟩ := rfl
 @[simp] theorem submission_layout : (submission I).layout = ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩ := rfl
 @[simp] theorem submission_keygen : (submission I).image .keygen = SigGolfCandidate.T3M.Images.keygenImage := rfl
 @[simp] theorem submission_sign : (submission I).image .sign = I.sign := rfl
@@ -944,15 +919,7 @@ variable (I : Images)
 @[simp] theorem submission_verify : (submission I).image .verify = I.verify := rfl
 end ClaudeWCT.W9.T3M
 end
-
 section
-
-
-
-
-
-
-
 namespace ClaudeWCT.W9.T3M.Final
 open SigGolfCandidate.Legacy OracleComp OracleSpec ENNReal OracleComp.EvalDist
 open SigGolfCandidate.T3 (keygen Cache Digest realize)
@@ -960,8 +927,8 @@ open ClaudeWCT.WCT9 (Signature Witness)
 open ClaudeWCT.WCT9.Rev3 (sign expand verify)
 open SigGolfCandidate.T3M (mrealize countBoth countCalls cacheB cacheDec isHash)
 open ClaudeWCT.W9.T3M (Images submission)
-def verifyCycleBound : Nat := 7882
-def claimedC : Nat := 7981
+def verifyCycleBound : Nat := 7806
+def claimedC : Nat := 7901
 variable (I : Images)
 def KeygenRunCounts : Prop := ∀ sk : SecretKey,
   (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$> (submission I).run .keygen sk =
@@ -983,13 +950,13 @@ def ExpandRefines : Prop := ∀ (m : Message) (pk : PublicKey) (s : Bytes 5456),
 def ExpandTerminates : Prop := ∀ (hash : Hash) (m : Message) (pk : PublicKey) (s : Bytes 5456),
   ((submission I).runWith hash .expand (m, pk, s)).finished = true ∧
     ((submission I).runWith hash .expand (m, pk, s)).cycles < CYCLE_LIMIT
-def VerifyRefines : Prop := ∀ (m : Message) (pk : PublicKey) (w : Bytes 25240),
+def VerifyRefines : Prop := ∀ (m : Message) (pk : PublicKey) (w : Bytes 24264),
   (fun r => (r.value, r.hashCalls)) <$> (submission I).run .verify (m, pk, w) =
     (fun p => (if p.1 then some () else none, p.2)) <$> countCalls (mrealize 0 (verifyP m pk w))
-def VerifyTerminates : Prop := ∀ (hash : Hash) (m : Message) (pk : PublicKey) (w : Bytes 25240),
+def VerifyTerminates : Prop := ∀ (hash : Hash) (m : Message) (pk : PublicKey) (w : Bytes 24264),
   ((submission I).runWith hash .verify (m, pk, w)).finished = true ∧
     ((submission I).runWith hash .verify (m, pk, w)).cycles < CYCLE_LIMIT
-def VerifyAcceptCycles : Prop := ∀ (hash : Hash) (m : Message) (pk : PublicKey) (w : Bytes 25240),
+def VerifyAcceptCycles : Prop := ∀ (hash : Hash) (m : Message) (pk : PublicKey) (w : Bytes 24264),
   ((submission I).runWith hash .verify (m, pk, w)).value.isSome = true →
     ((submission I).runWith hash .verify (m, pk, w)).cycles ≤ verifyCycleBound
 structure Pending : Prop where

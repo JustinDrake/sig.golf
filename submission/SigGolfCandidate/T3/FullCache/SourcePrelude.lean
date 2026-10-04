@@ -25,7 +25,6 @@ import VCVio.OracleComp.QueryTracking.QueryBound.Basic
 import VCVio.EvalDist.Bool
 import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.Replay
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalPrefixExponential
-
 section
 namespace SigGolfCandidate.T3.BPORS.Adaptive
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -268,7 +267,7 @@ def payloadAfterDigest (cache : Cache) (rho : Digest) (output : HashOutput) : M 
       pure (state.1 ++ opened,state.2.1 ++ inner ++ outer,
         state.2.2 ++ [(levels.getD 11 []).getD 0 0])) ([],[],[])
   let root ← forestPk index state.2.2
-  let some layers ← signLayers cache index 4 root | pure none
+  let some layers ← signLayers cache index 4 (root, 0, 0) | pure none
   pure (some ⟨rho,fun i => state.1.getD i.val 0,fun i => state.2.1.getD i.val 0,
     fun lay => piecesSignature lay (layers.getD lay.val ([],[]))⟩)
 def payloadRecordForNonce (cache : Cache) (rho : Digest) (message : Message) :
@@ -1139,7 +1138,7 @@ theorem avoids_keygenPayload : Avoids protectedMessage keygenPayload := by
 attribute [local aesop safe apply] avoids_keygenPayload
 theorem avoids_keygen : Avoids protectedMessage keygen := by
   unfold keygen; nonce_safe
-theorem avoids_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
+theorem avoids_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) :
     Avoids protectedMessage (counterSearch lay tree leaf message counter fuel) := by
   induction fuel generalizing counter with
   | zero => unfold counterSearch; nonce_safe
@@ -1173,7 +1172,7 @@ theorem avoids_signTop (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
     Avoids protectedMessage (signTop cache leaf digits) := by
   unfold signTop; nonce_safe
 attribute [local aesop safe apply] avoids_signTop
-theorem avoids_signLayers (cache : T3.Cache) (index n : Nat) (message : Digest) :
+theorem avoids_signLayers (cache : T3.Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
     Avoids protectedMessage (signLayers cache index n message) := by
   induction n generalizing message with
   | zero => unfold signLayers; nonce_safe
@@ -1374,7 +1373,7 @@ theorem buildTree_allowed (lay : Layer) (tree selected : Nat) (digits : List Nat
 attribute [local aesop safe apply] buildTree_allowed
 theorem keygenPayload_allowed : AllQueriesSatisfy keygenPayload P := by
   unfold keygenPayload maskedLevel pairedMask; source_queries
-theorem counterSearch_allowed (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
+theorem counterSearch_allowed (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) :
     AllQueriesSatisfy (counterSearch lay tree leaf message counter fuel) P := by
   induction fuel generalizing counter with
   | zero => unfold counterSearch; source_queries
@@ -1409,7 +1408,7 @@ theorem signTop_allowed (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
     AllQueriesSatisfy (signTop cache leaf digits) P := by
   unfold signTop; source_queries
 attribute [local aesop safe apply] signTop_allowed
-theorem signLayers_allowed (cache : T3.Cache) (index n : Nat) (message : Digest) :
+theorem signLayers_allowed (cache : T3.Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
     AllQueriesSatisfy (signLayers cache index n message) P := by
   induction n generalizing message with
   | zero => unfold signLayers; source_queries

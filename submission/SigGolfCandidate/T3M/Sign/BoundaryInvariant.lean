@@ -3,9 +3,7 @@ import SigGolfCandidate.T3M.FullCache.MacRun
 import SigGolfCandidate.T3M.Sign.Kernels
 import SigGolfCandidate.T3M.Sign.Init
 import SigGolfCandidate.T3M.Sign.BaseInv
-
 section
-
 namespace SigGolfCandidate.T3M.Sign
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 open SigGolfCandidate.T3M.Keygen (PRIV SEEDS CHAIN NODE NOUT LOUT LEAFPK MOUT ZDIG DUMMY TOP MACBLK REGION)
@@ -167,13 +165,7 @@ theorem blk123_spec (s : MachineState) (hpc : s.pc = pcOf 123) :
     repeat rw [if_neg (by omega)]
 end SigGolfCandidate.T3M.Sign
 end
-
 section
-
-
-
-
-
 namespace SigGolfCandidate.T3M.Sign
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3 (M Digest HashOutput Cache Region Signature Selection sign signPayload signLayers
@@ -195,7 +187,7 @@ def payloadRest (cache : Cache) (rho : Digest) (output : HashOutput) : M (Option
       pure (state.1 ++ opened,state.2.1 ++ inner ++ outer,
         state.2.2 ++ [(levels.getD 11 []).getD 0 0])) ([],[],[])
   let root ← forestPk index state.2.2
-  let some layers ← signLayers cache index 4 root | pure none
+  let some layers ← signLayers cache index 4 (root, 0, 0) | pure none
   pure (some ⟨rho,fun i => state.1.getD i.val 0,fun i => state.2.1.getD i.val 0,
     fun lay => piecesSignature lay (layers.getD lay.val ([],[]))⟩)
 theorem signPayload_eq (cache : Cache) (m : T3.Message) :
@@ -496,9 +488,7 @@ theorem sign_front (hK : DigestSearchSpec sk) {W : Nat} {Q : Option Signature �
 end front
 end SigGolfCandidate.T3M.Sign
 end
-
 section
-
 namespace SigGolfCandidate.T3M.Sign.Boundary
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3 (M Digest HashOutput Cache Region Signature Selection sign signPayload signLayers
@@ -662,9 +652,7 @@ theorem NoncePost.base {sk : SecretKey} {cache : Bytes 131072} {m : Message} {rh
       intro i hi; unfold FrontW Search.TOP_DATA; sg_omega)
 end SigGolfCandidate.T3M.Sign.Boundary
 end
-
 section
-
 namespace SigGolfCandidate.T3M.Sign.Boundary
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 def Inv (sk : SecretKey) (cache : Bytes 131072) (t : MachineState) : Prop :=

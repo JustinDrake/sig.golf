@@ -1,9 +1,7 @@
 import SigGolfCandidate.T3.FullCache.NativeMac
 import SigGolfCandidate.T3.FullCache.NativeBudget
 import SigGolfCandidate.T3.FullCache.NativeTables
-
 section
-
 namespace SigGolfCandidate.T3.Security.FullGame
 open OracleComp OracleSpec
 set_option autoImplicit false
@@ -35,7 +33,7 @@ attribute [local aesop safe apply] SourceQueries.pure_allowed SourceQueries.bind
   shortHash_nonMac chain_nonMac leafHash_nonMac nodeHash_nonMac ftsLeaf_nonMac
   forestPk_nonMac digest_nonMac
 macro "public_queries" : tactic => `(tactic| aesop (config := { maxRuleApplications := 1000 }))
-theorem counterSearch_nonMac (lay : Layer) (tree leaf : Nat) (message : Digest)
+theorem counterSearch_nonMac (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest)
     (counter fuel : Nat) : NonMac (counterSearch lay tree leaf message counter fuel) := by
   induction fuel generalizing counter with
   | zero => unfold counterSearch; public_queries
@@ -47,11 +45,7 @@ theorem digestSearch_nonMac (rho : Digest) (message : Message) (counter fuel : N
   | succ fuel ih => unfold digestSearch; public_queries
 end SigGolfCandidate.T3.Security.FullGame
 end
-
 section
-
-
-
 set_option allowUnsafeReducibility true in
 attribute [local reducible] SphincsSecurity.hashOutputBits
 section
@@ -81,7 +75,23 @@ theorem recoverLayer_nonMac (sig : Signature) (index : Nat) (lay : Layer) (digit
     NonMac (recoverLayer sig index lay digits) := by
   unfold recoverLayer;verdict_queries
 attribute [local aesop safe apply] recoverLayer_nonMac
-theorem expandLayers_nonMac (sig : Signature) (index n : Nat) (value : Digest) :
+theorem recoverPair_nonMac (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
+    NonMac (recoverPair sig index lay digits) := by
+  unfold recoverPair;verdict_queries
+attribute [local aesop safe apply] recoverPair_nonMac
+theorem rootHash_nonMac (index : Nat) (lay : Layer) (pair : (Digest × BitVec 96 × Digest)) :
+    NonMac (rootHash index lay pair) := by
+  unfold rootHash;verdict_queries
+attribute [local aesop safe apply] rootHash_nonMac
+theorem recoverNext_nonMac (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
+    NonMac (recoverNext sig index n lay digits) := by
+  unfold recoverNext;split <;> verdict_queries
+attribute [local aesop safe apply] recoverNext_nonMac
+theorem expandNext_nonMac (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
+    NonMac (expandNext sig index n lay digits) := by
+  unfold expandNext;verdict_queries
+attribute [local aesop safe apply] expandNext_nonMac
+theorem expandLayers_nonMac (sig : Signature) (index n : Nat) (value : Digest × BitVec 96 × Digest) :
     NonMac (expandLayers sig index n value) := by
   induction n generalizing value with
   | zero => unfold expandLayers;verdict_queries
@@ -91,7 +101,7 @@ theorem expand_nonMac (message : Message) (pk : Digest) (sig : Signature) :
     NonMac (expand message pk sig) := by
   unfold expand;verdict_queries
 attribute [local aesop safe apply] expand_nonMac
-theorem verifyLayers_nonMac (witness : Witness) (index n : Nat) (root : Digest) :
+theorem verifyLayers_nonMac (witness : Witness) (index n : Nat) (root : Digest × BitVec 96 × Digest) :
     NonMac (verifyLayers witness index n root) := by
   induction n generalizing root with
   | zero => unfold verifyLayers;verdict_queries

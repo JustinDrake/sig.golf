@@ -4,10 +4,7 @@ import SigGolfCandidate.T3.Gate6.SourceBudget
 import SigGolfCandidate.Budget.Numeric
 import SigGolfCandidate.ClaudeWCT.W9.T3.FullCache.NativeBudgetB1.Presampling
 import SigGolfCandidate.ClaudeWCT.Bank.WCTAccept
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Correctness
 open OracleComp OracleSpec
 open ClaudeWCT.WCT9 (Signature Witness digestAttemptLimit honestForest eval_signForest)
@@ -32,7 +29,7 @@ theorem signPayload_succeeds (answers : Answers) (cache : Cache) (message : Mess
   simp only [evalWithAnswerFn_bind, hd, eval_signForest]
   obtain ⟨pieces, hp⟩ := signLayers_succeeds answers cache (output.toNat % 2 ^ 31)
     (Nat.mod_lt _ (by positivity)) hgood.2 4
-    (honestForest answers (output.toNat % 2 ^ 31))
+    (honestForest answers (output.toNat % 2 ^ 31), 0, 0)
   simp only [hp, evalWithAnswerFn_pure]
   exact ⟨_, rfl⟩
 def SigningComplete (answers : Answers) (keys : Digest × Cache) : Prop :=
@@ -88,7 +85,7 @@ theorem signPayload_succeedsFor (answers : Answers) (cache : Cache) (message : M
   simp only [evalWithAnswerFn_bind, hd, eval_signForest]
   obtain ⟨pieces, hp⟩ := signLayers_succeeds answers cache (output.toNat % 2 ^ 31)
     (Nat.mod_lt _ (by positivity)) hgood.2 4
-    (honestForest answers (output.toNat % 2 ^ 31))
+    (honestForest answers (output.toNat % 2 ^ 31), 0, 0)
   simp only [hp, evalWithAnswerFn_pure]
   exact ⟨_, rfl⟩
 theorem signing_complete_for_of_searches (answers : Answers) (keys : Digest × Cache)
@@ -112,7 +109,7 @@ theorem signPayload_succeedsSelected (answers : Answers) (cache : Cache) (messag
   simp only [evalWithAnswerFn_bind, hd, eval_signForest]
   obtain ⟨pieces, hp⟩ := signLayers_succeeds answers cache (output.toNat % 2 ^ 31)
     (Nat.mod_lt _ (by positivity)) hgood.2 4
-    (honestForest answers (output.toNat % 2 ^ 31))
+    (honestForest answers (output.toNat % 2 ^ 31), 0, 0)
   simp only [hp, evalWithAnswerFn_pure]
   exact ⟨_, rfl⟩
 theorem signing_complete_of_selected_searches (answers : Answers) (keys : Digest × Cache)
@@ -122,16 +119,42 @@ theorem signing_complete_of_selected_searches (answers : Answers) (keys : Digest
     (signPayload_succeedsSelected answers keys.2 message hgood)
 end ClaudeWCT.W9.T3.Correctness
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.BaseAudit
-open SigGolfCandidate.T3.BaseAudit (zU b1 b2 b3 b4 step_1 step_2 step_3 step_4)
+open SigGolfCandidate.T3.BaseAudit (zU)
 set_option maxRecDepth 10000
 set_option maxHeartbeats 1000000
 def p0 : ℚ := 16016 ^ 9 / 2 ^ 138
 def b0 : ℚ := 10273002 / 10000000
+def b1 : ℚ := 1009892452433 / 1000000000000
+def b2 : ℚ := 986589319 / 976562500
+def b3 : ℚ := b2
+def b4 : ℚ := b2
+def encodingTargets : SigGolfCandidate.T3.Layer → Nat := ![126,196,196,196]
+noncomputable def encodingB : SigGolfCandidate.T3.Layer → ℝ :=
+  ![(b1 : ℝ),(b2 : ℝ),(b3 : ℝ),(b4 : ℝ)]
+noncomputable def encodingP : SigGolfCandidate.T3.Layer → ℝ :=
+  fun lay => (![183707182173445436457863622839156476,
+    177063161351702039889196043868193572,
+    177063161351702039889196043868193572,
+    177063161351702039889196043868193572] lay : ℝ) / 2^128
+theorem encodingB_ge_one (lay : SigGolfCandidate.T3.Layer) : 1 ≤ encodingB lay := by
+  fin_cases lay <;> norm_num [encodingB,b1,b2,b3,b4]
+theorem encoding_step_real (lay : SigGolfCandidate.T3.Layer) :
+    (zU : ℝ)*((1-encodingP lay)*encodingB lay+encodingP lay) ≤ encodingB lay := by
+  fin_cases lay <;> norm_num [encodingP,encodingB,zU,b1,b2,b3,b4]
+theorem encoding_spec : SigGolfCandidate.T3.Budgets.EncodingEnvelopeSpec encodingTargets encodingB := by
+  apply SigGolfCandidate.T3.Budgets.EncodingEnvelopeSpec.of_rates encodingTargets encodingB encodingP
+    encodingB_ge_one
+  · intro lay
+    fin_cases lay <;> norm_num [encodingP]
+  · intro lay
+    change SphincsSecurity.Completeness.failMass (SigGolfCandidate.T3.Sampling.encodingDecode lay) = _
+    rw [SigGolfCandidate.T3.Budgets.encoding_failMass]
+    congr 2
+    fin_cases lay <;> norm_num [encodingP,SigGolfCandidate.T3.Budgets.encodingRate,
+      SigGolfCandidate.T3.EncodingCounting.acceptedCount]
+  · exact encoding_step_real
 theorem step_0 : zU * ((1 - p0) * b0 + p0) ≤ b0 := by
   norm_num [zU, p0, b0]
 theorem probability_floor : 1 / 5026 ≤ p0 ∧ p0 ≤ 1 / 5025 := by
@@ -146,18 +169,12 @@ theorem signing_envelope :
   have hlo := SigGolfCandidate.Budget.rpow_two_ge (12896 / 131072) (by norm_num)
   have hn : (b0 : ℝ) * (b1 : ℝ) * (b2 : ℝ) * (b3 : ℝ) * (b4 : ℝ) ≤
       1 + 0.6931471803 * (12896 / 131072) + (0.6931471803 * (12896 / 131072)) ^ 2 / 2 := by
-    norm_num [b0, SigGolfCandidate.T3.BaseAudit.b1, SigGolfCandidate.T3.BaseAudit.b2,
-      SigGolfCandidate.T3.BaseAudit.b3, SigGolfCandidate.T3.BaseAudit.b4]
+    norm_num [b0,b1,b2,b3,b4]
   rw [hsplit, div_mul_eq_mul_div, div_le_iff₀ (by positivity)]
   nlinarith
 end ClaudeWCT.W9.T3.BaseAudit
 end
-
 section
-
-
-
-
 namespace ClaudeWCT.W9.T3.Budgets
 open OracleComp OracleSpec ENNReal
 open SphincsSecurity.Completeness (failMass failMass_eq_probEvent)
@@ -177,6 +194,24 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 set_option linter.unusedSimpArgs false
+noncomputable abbrev encodingEnvelope := SigGolfCandidate.T3.Budgets.encodingEnvelope BaseAudit.encodingB
+noncomputable abbrev layerMomentBound := SigGolfCandidate.T3.Budgets.layerMomentBound BaseAudit.encodingB
+theorem encodingEnvelope_ge_one (lay : Layer) : 1 ≤ encodingEnvelope lay :=
+  SigGolfCandidate.T3.Budgets.encodingEnvelope_ge_one _ BaseAudit.encodingB_ge_one lay
+theorem layerMomentBound_ge_one (n : Nat) : 1 ≤ layerMomentBound n :=
+  SigGolfCandidate.T3.Budgets.layerMomentBound_ge_one _ BaseAudit.encodingB_ge_one n
+theorem layerMomentBound_four :
+    layerMomentBound 4 = SigGolfCandidate.T3.Budgets.signingZ^85922 *
+      encodingEnvelope 0 * encodingEnvelope 1 * encodingEnvelope 2 * encodingEnvelope 3 :=
+  SigGolfCandidate.T3.Budgets.layerMomentBound_four _
+theorem V_signLayers_of_freshness (secret : BitVec 256)
+    (hf : SigGolfCandidate.T3.Budgets.SourceFreshness secret) (cache : Cache) (index : Nat)
+    (n : Nat) (hn : n ≤ 4) (message : LayerMessage) (rcache : SigGolfCandidate.T3.Sampling.RCache)
+    (hc : SigGolfCandidate.T3.Budgets.EncodingFreshBelow n rcache) :
+    SigGolfCandidate.T3.Sampling.V secret SigGolfCandidate.T3.Budgets.signingZ
+      (signLayers cache index n message) rcache ≤ layerMomentBound n :=
+  SigGolfCandidate.T3.Budgets.V_signLayers_of_freshness BaseAudit.encodingB BaseAudit.encoding_spec
+    secret hf cache index n hn message rcache hc
 theorem digest_probability_eq_p0 :
     Pr[fun answer => (digestDecode answer).isSome |
       ($ᵗ HashOutput : ProbComp HashOutput)] = ENNReal.ofReal (BaseAudit.p0 : ℝ) := by
@@ -259,7 +294,7 @@ theorem signing_incomplete_probability_le (law : ProbComp Answers) (digestFail e
     (hd : ∀ family, Pr[DigestFailed family | law] ≤ digestFail)
     (he : ∀ family, Pr[EncodingFailed family | law] ≤ encodingFail) :
     Pr[fun answers => ¬SigningComplete answers (evalWithAnswerFn answers keygen) | law] ≤
-      (2 : ENNReal) ^ 384 * digestFail + (2 : ENNReal) ^ 173 * encodingFail := by
+      (2 : ENNReal) ^ 384 * digestFail + (2 : ENNReal) ^ 397 * encodingFail := by
   have hm := probEvent_mono (mx := law) (fun answers _ => incomplete_implies_failed_search answers)
   have hd' := finite_family_failure_le law DigestFailed digestFail hd
   have he' := finite_family_failure_le law EncodingFailed encodingFail he
@@ -272,13 +307,13 @@ theorem signing_incomplete_probability_small (law : ProbComp Answers)
     Pr[fun answers => ¬SigningComplete answers (evalWithAnswerFn answers keygen) | law] ≤
       1 / (2 : ENNReal) ^ 65 := by
   refine (signing_incomplete_probability_le law _ _ hd he).trans ?_
-  have hreal : (2 : ℝ) ^ 384 * (1 / 2 ^ 450) + 2 ^ 173 * (1 / 2 ^ 1024) ≤ 1 / 2 ^ 65 := by
+  have hreal : (2 : ℝ) ^ 384 * (1 / 2 ^ 450) + 2 ^ 397 * (1 / 2 ^ 1024) ≤ 1 / 2 ^ 65 := by
     set_option exponentiation.threshold 2048 in norm_num
   have hcast := ENNReal.ofReal_le_ofReal hreal
   rw [ENNReal.ofReal_add (show 0 ≤ (2 : ℝ) ^ 384 * (1 / 2 ^ 450) by positivity)
-    (show 0 ≤ (2 : ℝ) ^ 173 * (1 / 2 ^ 1024) by positivity),
+    (show 0 ≤ (2 : ℝ) ^ 397 * (1 / 2 ^ 1024) by positivity),
     ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ) ^ 384 by positivity),
-    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ) ^ 173 by positivity)] at hcast
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ) ^ 397 by positivity)] at hcast
   simpa only [ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),
     ENNReal.ofReal_ofNat, ofReal_inv_two_pow] using hcast
 noncomputable local instance : SampleableType (SearchKey → HashOutput) := Presampling.tableSampler
@@ -362,7 +397,7 @@ theorem tableGood_failure_le (digestFail encodingFail : ENNReal)
     (he : ∀ lay, failMass (SigGolfCandidate.T3.Sampling.encodingDecode lay) ^ counterLimit ≤ encodingFail) :
     Pr[fun outputs => ¬tableGood outputs |
       ($ᵗ (SearchKey → HashOutput) : ProbComp _)] ≤
-      (2 : ENNReal) ^ 384 * digestFail + (2 : ENNReal) ^ 173 * encodingFail := by
+      (2 : ENNReal) ^ 384 * digestFail + (2 : ENNReal) ^ 397 * encodingFail := by
   let law := ($ᵗ (SearchKey → HashOutput) : ProbComp _)
   have hd' := finite_family_failure_le law
     (fun family outputs => DigestFailed family (Presampling.tableAnswers outputs zeroAnswers)) digestFail
@@ -381,13 +416,13 @@ theorem tableGood_failure_small_of_acceptance (p : ℝ) (hp : 1 / 5026 ≤ p) (h
       ($ᵗ (SearchKey → HashOutput) : ProbComp _)] ≤ 1 / (2 : ENNReal) ^ 65 := by
   refine (tableGood_failure_le _ _
     (digest_failure_power_of_acceptance p hp hp1 haccept) encoding_failure_power).trans ?_
-  have hreal : (2 : ℝ) ^ 384 * (1 / 2 ^ 450) + 2 ^ 173 * (1 / 2 ^ 1024) ≤ 1 / 2 ^ 65 := by
+  have hreal : (2 : ℝ) ^ 384 * (1 / 2 ^ 450) + 2 ^ 397 * (1 / 2 ^ 1024) ≤ 1 / 2 ^ 65 := by
     set_option exponentiation.threshold 2048 in norm_num
   have hcast := ENNReal.ofReal_le_ofReal hreal
   rw [ENNReal.ofReal_add (show 0 ≤ (2 : ℝ) ^ 384 * (1 / 2 ^ 450) by positivity)
-    (show 0 ≤ (2 : ℝ) ^ 173 * (1 / 2 ^ 1024) by positivity),
+    (show 0 ≤ (2 : ℝ) ^ 397 * (1 / 2 ^ 1024) by positivity),
     ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ) ^ 384 by positivity),
-    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ) ^ 173 by positivity)] at hcast
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ) ^ 397 by positivity)] at hcast
   simpa only [ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),
     ENNReal.ofReal_ofNat, ofReal_inv_two_pow] using hcast
 def tableGoodFor (message : Message) (outputs : SearchKey → HashOutput) : Prop :=
@@ -419,7 +454,7 @@ theorem tableGoodFor_failure_le (message : Message) (digestFail encodingFail : E
     (he : ∀ lay, failMass (SigGolfCandidate.T3.Sampling.encodingDecode lay) ^ counterLimit ≤ encodingFail) :
     Pr[fun outputs => ¬tableGoodFor message outputs |
       ($ᵗ (SearchKey → HashOutput) : ProbComp _)] ≤
-      (2 : ENNReal) ^ 128 * digestFail + (2 : ENNReal) ^ 173 * encodingFail := by
+      (2 : ENNReal) ^ 128 * digestFail + (2 : ENNReal) ^ 397 * encodingFail := by
   let law := ($ᵗ (SearchKey → HashOutput) : ProbComp _)
   have hd' := finite_family_failure_le law
     (fun (rho : Digest) outputs => DigestFailed (rho, message) (Presampling.tableAnswers outputs zeroAnswers))
@@ -439,13 +474,13 @@ theorem tableGoodFor_failure_small_of_acceptance (message : Message) (p : ℝ) (
       ($ᵗ (SearchKey → HashOutput) : ProbComp _)] ≤ 1 / (2 : ENNReal) ^ 321 := by
   refine (tableGoodFor_failure_le message _ _
     (digest_failure_power_of_acceptance p hp hp1 haccept) encoding_failure_power).trans ?_
-  have hreal : (2 : ℝ) ^ 128 * (1 / 2 ^ 450) + 2 ^ 173 * (1 / 2 ^ 1024) ≤ 1 / 2 ^ 321 := by
+  have hreal : (2 : ℝ) ^ 128 * (1 / 2 ^ 450) + 2 ^ 397 * (1 / 2 ^ 1024) ≤ 1 / 2 ^ 321 := by
     set_option exponentiation.threshold 2048 in norm_num
   have hcast := ENNReal.ofReal_le_ofReal hreal
   rw [ENNReal.ofReal_add (show 0 ≤ (2 : ℝ) ^ 128 * (1 / 2 ^ 450) by positivity)
-    (show 0 ≤ (2 : ℝ) ^ 173 * (1 / 2 ^ 1024) by positivity),
+    (show 0 ≤ (2 : ℝ) ^ 397 * (1 / 2 ^ 1024) by positivity),
     ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ) ^ 128 by positivity),
-    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ) ^ 173 by positivity)] at hcast
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ) ^ 397 by positivity)] at hcast
   simpa only [ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),
     ENNReal.ofReal_ofNat, ofReal_inv_two_pow] using hcast
 theorem tableGood_failure_small :
@@ -515,7 +550,7 @@ theorem not_tableGoodForNonces_iff (nonces : Message → HashOutput)
 theorem tableGoodForNonces_failure_le (nonces : Message → HashOutput) :
     Pr[fun outputs => ¬tableGoodForNonces nonces outputs |
       ($ᵗ (SearchKey → HashOutput) : ProbComp _)] ≤
-      (2 : ENNReal) ^ 256 * (1 / 2 ^ 450) + (2 : ENNReal) ^ 173 * (1 / 2 ^ 1024) := by
+      (2 : ENNReal) ^ 256 * (1 / 2 ^ 450) + (2 : ENNReal) ^ 397 * (1 / 2 ^ 1024) := by
   let law := ($ᵗ (SearchKey → HashOutput) : ProbComp _)
   have hd' := finite_family_failure_le law
     (fun (message : Message) outputs => DigestFailed ((nonces message).extractLsb' 0 128, message)
@@ -535,13 +570,13 @@ theorem tableGoodForNonces_failure_small (nonces : Message → HashOutput) :
     Pr[fun outputs => ¬tableGoodForNonces nonces outputs |
       ($ᵗ (SearchKey → HashOutput) : ProbComp _)] ≤ 1 / (2 : ENNReal) ^ 193 := by
   refine (tableGoodForNonces_failure_le nonces).trans ?_
-  have hreal : (2 : ℝ) ^ 256 * (1 / 2 ^ 450) + 2 ^ 173 * (1 / 2 ^ 1024) ≤ 1 / 2 ^ 193 := by
+  have hreal : (2 : ℝ) ^ 256 * (1 / 2 ^ 450) + 2 ^ 397 * (1 / 2 ^ 1024) ≤ 1 / 2 ^ 193 := by
     set_option exponentiation.threshold 2048 in norm_num
   have hcast := ENNReal.ofReal_le_ofReal hreal
   rw [ENNReal.ofReal_add (show 0 ≤ (2 : ℝ) ^ 256 * (1 / 2 ^ 450) by positivity)
-    (show 0 ≤ (2 : ℝ) ^ 173 * (1 / 2 ^ 1024) by positivity),
+    (show 0 ≤ (2 : ℝ) ^ 397 * (1 / 2 ^ 1024) by positivity),
     ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ) ^ 256 by positivity),
-    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ) ^ 173 by positivity)] at hcast
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ) ^ 397 by positivity)] at hcast
   simpa only [ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),
     ENNReal.ofReal_ofNat, ofReal_inv_two_pow] using hcast
 end ClaudeWCT.W9.T3.Budgets

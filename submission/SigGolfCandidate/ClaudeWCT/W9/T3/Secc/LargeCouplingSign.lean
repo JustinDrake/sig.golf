@@ -4,10 +4,7 @@ import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Layers
 import SigGolfCandidate.ClaudeWCT.W9.New.G3b.Shared
 import SigGolfCandidate.ClaudeWCT.WCT9.Forest
 import SigGolfCandidate.T3.Secc.LargeCouplingSign
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeResidual
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -239,13 +236,7 @@ theorem slot_cellValues (N : CanonGraph.Node) (v : Coord → Digest) :
       simp [hc]
 end ClaudeWCT.W9.T3.Security.LargeResidual
 end
-
 section
-
-
-
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeResidual
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -476,9 +467,10 @@ theorem signLayers_eq (T : Answers) (cache : SigGolfCandidate.T3.Cache)
           · simp only [hn0, if_false, evalWithAnswerFn_bind]
             rw [Correctness.eval_buildTree_result T _ _ _ digits hvalid (route_leaf_bound index _)]
             simp only
-            have hroot : ((builtTree T (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
-                (height (Fin.ofNat 4 n)) []).getD 0 0 = Extract.walkTarget T index n := by
-              rw [Extract.walkTarget_root T index n (by omega)]
+            have hroot : (((builtTree T (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
+                (height (Fin.ofNat 4 n) - 1) []).getD 0 0, 0, ((builtTree T (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
+                (height (Fin.ofNat 4 n) - 1) []).getD 1 0) = Extract.walkTarget T index n := by
+              rw [Extract.walkTarget_pair T index n (by omega) hn0]
               rfl
             rw [hroot, ih (by omega)]
             by_cases hall : ∀ l, l < n → (Wots.referenceSearch T (routeAddr index (Fin.ofNat 4 l))).isSome
@@ -497,8 +489,8 @@ theorem signLayers_eq (T : Answers) (cache : SigGolfCandidate.T3.Cache)
 end Layers
 section Payload
 theorem walkTarget_four (T : Answers) (index : Nat) :
-    Extract.walkTarget T index 4 = WCT9.honestForest T index := by
-  have h4 : Extract.walkTarget T index 4 = Extract.honestForest T index := by
+    Extract.walkTarget T index 4 = (WCT9.honestForest T index, 0, 0) := by
+  have h4 : Extract.walkTarget T index 4 = (Extract.honestForest T index, 0, 0) := by
     simp only [Extract.walkTarget, dif_pos (show 3 < 4 by decide), Extract.honestMsg]
     rfl
   rw [h4, Extract.honestForest_eq_recover]

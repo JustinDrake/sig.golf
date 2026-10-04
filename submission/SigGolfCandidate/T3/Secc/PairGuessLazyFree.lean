@@ -1,5 +1,4 @@
 import SigGolfCandidate.T3.Secc.PairGuessLazyDefs
-
 namespace SigGolfCandidate.T3.Security.BPair
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final SigGolfCandidate.T3M.SecurityInputs
@@ -132,7 +131,7 @@ theorem keygen_dn : AllQueriesSatisfy keygen NotDN := by
   apply bind_allowed NotDN keygenPayload_dn
   intro generated
   exact bind_allowed NotDN (privateMac_dn _) fun _ => pure_allowed _ _
-theorem counterSearch_dn (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
+theorem counterSearch_dn (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) :
     AllQueriesSatisfy (counterSearch lay tree leaf message counter fuel) NotDN := by
   induction fuel generalizing counter with
   | zero => exact pure_allowed _ _
@@ -157,7 +156,7 @@ theorem signTop_dn (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
   unfold signTop
   exact bind_allowed NotDN (buildLeaf_dn _ _ _ _ _) fun _ =>
     bind_allowed NotDN (topPath_dn _ _) fun _ => pure_allowed _ _
-theorem signLayers_dn (cache : T3.Cache) (index n : Nat) (message : Digest) :
+theorem signLayers_dn (cache : T3.Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
     AllQueriesSatisfy (signLayers cache index n message) NotDN := by
   induction n generalizing message with
   | zero => exact pure_allowed _ _

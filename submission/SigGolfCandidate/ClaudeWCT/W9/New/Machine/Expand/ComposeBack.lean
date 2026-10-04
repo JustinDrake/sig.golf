@@ -148,7 +148,7 @@ namespace ClaudeWCT.W9.Machine.Expand
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M
 open SigGolfCandidate.T3 (Digest HashOutput M)
-open SigGolfCandidate.T3M.Search (DIG NBUF ENC OutAt FailedAt TOP_DATA TableOK)
+open SigGolfCandidate.T3M.Search (DIG NBUF ENC NOUT OutAt FailedAt TOP_DATA TableOK)
 open SigGolfCandidate.T3M.Expand (IDXV bytesToWordLE_bytes_e bytes_length_e extractByte_bytesToWordLE_e)
 open ClaudeWCT.W9.T3M (sigDig sigDec sigDigests sigDigests_sigDec)
 set_option linter.unusedSimpArgs false
@@ -634,7 +634,7 @@ namespace ClaudeWCT.W9.Machine.Expand
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M
 open SigGolfCandidate.T3 (Digest HashOutput M Layer height chainCount route)
-open SigGolfCandidate.T3M.Search (DIG NBUF ENC OutAt FailedAt TOP_DATA TableOK)
+open SigGolfCandidate.T3M.Search (DIG NBUF ENC NOUT OutAt FailedAt TOP_DATA TableOK)
 open SigGolfCandidate.T3M.Expand (IDXV lBase layer_words layerStorage_length' readWords_zero
   headerBytes_words)
 open SigGolfCandidate.T3M (window window_flatMap_const zeros)
@@ -657,27 +657,27 @@ theorem codeAt_353W : CodeAt im (pcOf 353) SigGolfCandidate.T3M.Expand.seg_353 :
 variable (s : MachineState)
 theorem c342W (hpc : s.pc = pcOf 342) :
     ∃ t, Steps im s 6 6 t ∧
-      t.pc = (if s.getMem (BitVec.ofNat 64 ENC) = s.getMem (BitVec.ofNat 64 0xA0) then pcOf 348 else pcOf 354) ∧
-      t.getReg .x28 = BitVec.ofNat 64 ENC ∧ t.getReg .x29 = BitVec.ofNat 64 0xA0 ∧
+      t.pc = (if s.getMem (BitVec.ofNat 64 NOUT) = s.getMem (BitVec.ofNat 64 0xA0) then pcOf 348 else pcOf 354) ∧
+      t.getReg .x28 = BitVec.ofNat 64 NOUT ∧ t.getReg .x29 = BitVec.ofNat 64 0xA0 ∧
       RegsExcept s t [.x6, .x7, .x28, .x29] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound SigGolfCandidate.T3M.Expand.eblk_342 (codeAt_342W hC) s hpc
     (by simp [SigGolfCandidate.T3M.Expand.eblk_342.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
     ?_, ?_, ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, SigGolfCandidate.T3M.Expand.eblk_342.res, E.eval, CmpOp.eval, rebase, rv_simp, ENC]
+  · simp only [Result.toState_pc, SigGolfCandidate.T3M.Expand.eblk_342.res, E.eval, CmpOp.eval, rebase, rv_simp, NOUT]
     split_ifs with h1 h2 h2 <;> simp_all
   · simp [SigGolfCandidate.T3M.Expand.eblk_342.res, rv_simp]
   · simp [SigGolfCandidate.T3M.Expand.eblk_342.res, rv_simp]
   · ex_regs SigGolfCandidate.T3M.Expand.eblk_342.res
   · intro A _ _; simp [SigGolfCandidate.T3M.Expand.eblk_342.res, rv_simp]
-theorem c348W (hpc : s.pc = pcOf 348) (h28 : s.getReg .x28 = BitVec.ofNat 64 ENC)
+theorem c348W (hpc : s.pc = pcOf 348) (h28 : s.getReg .x28 = BitVec.ofNat 64 NOUT)
     (h29 : s.getReg .x29 = BitVec.ofNat 64 0xA0) :
     ∃ t, Steps im s 3 3 t ∧
-      t.pc = (if s.getMem (BitVec.ofNat 64 (ENC + 8)) = s.getMem (BitVec.ofNat 64 0xA8) then pcOf 351 else pcOf 354) ∧
+      t.pc = (if s.getMem (BitVec.ofNat 64 (NOUT + 8)) = s.getMem (BitVec.ofNat 64 0xA8) then pcOf 351 else pcOf 354) ∧
       RegsExcept s t [.x6, .x7] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound SigGolfCandidate.T3M.Expand.eblk_348 (codeAt_348W hC) s hpc
-    (by simp [SigGolfCandidate.T3M.Expand.eblk_348.res, rv_simp, accessValid_iff, MEMORY_BYTES, h28, h29, ENC]),
+    (by simp [SigGolfCandidate.T3M.Expand.eblk_348.res, rv_simp, accessValid_iff, MEMORY_BYTES, h28, h29, NOUT]),
     ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, SigGolfCandidate.T3M.Expand.eblk_348.res, E.eval, CmpOp.eval, rebase, rv_simp, ENC,
+  · simp only [Result.toState_pc, SigGolfCandidate.T3M.Expand.eblk_348.res, E.eval, CmpOp.eval, rebase, rv_simp, NOUT,
       h28, h29]
     split_ifs with h1 h2 h2 <;> simp_all
   · ex_regs SigGolfCandidate.T3M.Expand.eblk_348.res
@@ -787,7 +787,7 @@ def tailProg (pk : PublicKey) (sig : WCT9.Signature) :
     Option (BitVec 32 × HashOutput × Digest) → M (Option (HashOutput × WCT9.Witness))
   | none => pure none
   | some (counter, N, root) => do
-    let some (root, counters) ← SigGolfCandidate.T3.expandLayers (WCT9.toT3Signature sig) (N.toNat % 2 ^ 31) 4 root
+    let some (root, counters) ← SigGolfCandidate.T3.expandLayers (WCT9.toT3Signature sig) (N.toNat % 2 ^ 31) 4 (root, 0, 0)
       | pure none
     if root ≠ pk then return none
     pure (some (N, ⟨sig, counter, fun lay => counters.getD lay.val 0⟩))

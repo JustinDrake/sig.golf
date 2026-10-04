@@ -1,7 +1,6 @@
 import SigGolfCandidate.T3M.Sign.Basic
 import SigGolfCandidate.T3M.Search.TopTables
 import SigGolfCandidate.T3M.Keygen.Leaf
-
 namespace SigGolfCandidate.T3M.Sign
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 open SigGolfCandidate.T3 (Digest HashOutput Layer selections admissible digestSearch counterSearch decode
@@ -33,7 +32,7 @@ def DigestSearchSpec (sk : BitVec 256) : Prop :=
 def csRegs : List Reg := [.x6, .x7, .x10, .x11, .x12, .x19, .x20, .x21, .x25, .x28, .x29, .x30]
 def CsW (X : Nat) : Prop :=
   X = ENC + 16 ∨ X = ENC + 24 ∨ X = ENC + 32 ∨ (EOUT ≤ X ∧ X < EOUT + 32) ∨ (DIGITS ≤ X ∧ X < DIGITS + 64)
-structure CsPre (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : Digest) (ret : Nat) : Prop where
+structure CsPre (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) (ret : Nat) : Prop where
   pc : s.pc = pcOf 646
   x1 : s.getReg .x1 = pcOf ret
   x5 : s.getReg .x5 = 0
@@ -45,11 +44,11 @@ structure CsPre (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : Digest
   x27 : s.getReg .x27 = BitVec.ofNat 64 (Keygen.n4 lay)
   htree : tree < 2 ^ 32
   hleaf : leaf < 2 ^ 32
-  msg : DigAt s ENC msg
+  rR : DigAt s (ENC + 48) msg.2.2
+  hpad : msg.2.1 = 0
+  msg : DigAt s ENC msg.1
   c32 : (s.getMem (BitVec.ofNat 64 (ENC + 32))).toNat < 2 ^ 32
   z40 : s.getMem (BitVec.ofNat 64 (ENC + 40)) = 0
-  z48 : s.getMem (BitVec.ofNat 64 (ENC + 48)) = 0
-  z56 : s.getMem (BitVec.ofNat 64 (ENC + 56)) = 0
   table : Search.TableOK s
 def CsPost (s : MachineState) (lay : Layer) (ret : Nat) : Option (BitVec 32 × List Nat) → MachineState → Prop
   | none, t => Failed t
@@ -59,7 +58,7 @@ def CsPost (s : MachineState) (lay : Layer) (ret : Nat) : Option (BitVec 32 × L
       (t.getReg .x25).toNat ≤ target lay
 def csCost (lay : Layer) : Nat := counterLimit * (if lay = 0 then 205 else 160) + 2000
 def CounterSearchSpec (sk : BitVec 256) : Prop :=
-  ∀ (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : Digest) (ret : Nat),
+  ∀ (s : MachineState) (lay : Layer) (tree leaf : Nat) (msg : (Digest × BitVec 96 × Digest)) (ret : Nat),
     CsPre s lay tree leaf msg ret →
       TBSim image sk s (csCost lay) (counterSearch lay tree leaf msg 0 counterLimit) (CsPost s lay ret)
 structure Kernels (sk : BitVec 256) : Prop where

@@ -6,10 +6,7 @@ import SigGolfCandidate.T3M.Verify.Nonbinary.LayerContext
 import SigGolfCandidate.T3M.Verify.LeafSem
 import SigGolfCandidate.T3M.Verify.LayerLower
 import SigGolfCandidate.T3.Proofs
-
 section
-
-
 namespace SigGolfCandidate.T3.Nonbinary
 open SigGolfResearch.NonbinaryTop
 theorem decode_top_credit {value : Digest} {digits : List Nat}
@@ -26,10 +23,7 @@ theorem decode_top_credit {value : Digest} {digits : List Nat}
 end SigGolfCandidate.T3.Nonbinary
 #print axioms SigGolfCandidate.T3.Nonbinary.decode_top_credit
 end
-
 section
-
-
 namespace SigGolfCandidate.T3M.Nonbinary.NCtx
 open SigGolfCandidate.Legacy SigGolfCandidate.T3
 open SigGolfResearch.NonbinaryTop
@@ -154,10 +148,7 @@ theorem source_accepted_total {v : Digest} {digits : List Nat}
 #print axioms source_accepted_total
 end SigGolfCandidate.T3M.Nonbinary.NCtx
 end
-
 section
-
-
 namespace SigGolfCandidate.T3M.Nonbinary.NCtx
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Nonbinary SigGolfCandidate.T3
@@ -278,10 +269,7 @@ theorem top_good (c : NCtx) (hc : c.ok) {s0 : MachineState} {v : Digest} {ds : L
 #print axioms top_good
 end SigGolfCandidate.T3M.Nonbinary.NCtx
 end
-
 section
-
-
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M.Verify
@@ -293,7 +281,7 @@ def topChainWrites (A : Nat) : Prop := (512 ≤ A ∧ A < 1488) ∨ (14104 ≤ A
 theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : MachineState)
     (a : BitVec 256) (ends : List Digest) (ht : EncPre w pk index 0 c t)
     (he : TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s0)
-    (hp : s.pc = pcOf (trPc 0 c + 69))
+    (hp : s.pc = pcOf (trPc 0 c + 19))
     (hr : RegsExcept s0 s topChainRegs) (hf : Frame s0 s topChainWrites)
     (hlen : ends.length = 54) (hend : ∀j<54, DigAt s (slotT j) (ends.getD j 0)) :
     TopLeafReady w pk index c ends s := by
@@ -302,9 +290,9 @@ theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : Mac
     simp [leafK,baseK] at hp
     rcases hp with rfl | rfl | rfl
     all_goals rw [hr.get (by simp [topChainRegs]), he.regs.get (by simp [topEntryRegs]),writeHash_getReg]
-    all_goals exact ht.glob.1 _ (by simp [bK,layK,baseK,hw])
-  have h12 : t.getReg .x12 = 320#64 := ht.glob.1 (_,_) (by simp [bK])
-  have hg := Glob_writeHash ht.glob a 320 h12 (by decide)
+    all_goals exact ht.glob.1 _ (by simp [bK,bKB,layK,baseK,hw])
+  obtain ⟨D, hD, h12⟩ := ht.dst
+  have hg := Glob_writeHash ht.glob a D h12 (dst_facts 0 (by decide) D hD).1
   have hfr : Frame (writeHash t a) s topChainWrites :=
     (he.frame.trans hf).mono (by intro A h; simpa using h)
   have hglob : Glob (leafK 0) w pk s := glob_frame hg hfr (by
@@ -318,7 +306,7 @@ theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : Mac
     all_goals rw [hr.get (by simp [topChainRegs])]
     all_goals try exact he.s6
     all_goals rw [he.regs.get (by simp [topEntryRegs]),writeHash_getReg]
-    all_goals exact ht.glob.1 _ (by simp [bK,layK,baseK])
+    all_goals exact ht.glob.1 _ (by simp [bK,bKB,layK,baseK])
   · rw [hr.get (by simp [topChainRegs]),he.regs.get (by simp [topEntryRegs]),writeHash_getReg]
     exact ht.s7 0 rfl
   · rw [hr.get (by simp [topChainRegs]),he.regs.get (by simp [topEntryRegs]),writeHash_getReg]
@@ -334,11 +322,7 @@ theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : Mac
       omega)
 end SigGolfCandidate.T3M
 end
-
 section
-
-
-
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3M.Verify
@@ -348,7 +332,7 @@ set_option maxHeartbeats 800000
 set_option linter.unusedSimpArgs false
 theorem nctx_block (w : WBytes) (index : Nat) (v : Digest) (p i : Nat) :
     (nctxOf w index v p).blk i - 0x800 = chainBlock 0 i := by
-  change 15768 - 1664 + 64 * (53 - i) - 2048 = 11288 + 64 * 12 + 64 * (54 - 1 - i)
+  change 15048 - 1664 + 64 * (53 - i) - 2048 = 10568 + 64 * 12 + 64 * (54 - 1 - i)
   omega
 theorem nctx_chain_eq (w : WBytes) (index : Nat) (v : Digest) (p i : Nat) (hi : i < 54) :
     let c := nctxOf w index v p
@@ -373,11 +357,7 @@ theorem nctx_mapM_eq (w : WBytes) (index : Nat) (v : Digest) (p : Nat) :
   exact nctx_chain_eq w index v p i.val i.isLt
 end SigGolfCandidate.T3M
 end
-
 section
-
-
-
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3M.Verify
@@ -409,32 +389,32 @@ theorem nctx_encoded (u s : MachineState) (v : Digest) (p : Nat) (he : TopEntry 
   · rw [he.hi]
     exact Search.topWindow_cross v
   · rw [he.tail,Search.topWindow_tail v hv]
-theorem top_chain_frame (c : NCtx) (hc : c.S3 = 15768) {s t : MachineState}
+theorem top_chain_frame (c : NCtx) (hc : c.S3 = 15048) {s t : MachineState}
     (hf : Frame s t (c.Wr 54)) : Frame s t topChainWrites := by
   apply hf.mono
   intro A _ hA
   simpa only [NCtx.Wr, NCtx.blk, hc, topChainWrites] using hA
-theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
+theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : T3.LayerMessage)
     (s : MachineState) (hs : LayerIn w pk index 0 M s) {β : Type} (R : List Digest → T3.M (Option β))
     (K : Option β → OracleComp HashSpec Obs) (hK0 : K none = pure (false, 0)) (N C A : Nat) (Q : Prop)
     (hR : ∀ ends u, LeafOut w pk index 0 ends u → GoodQ u N C Q A (ccM (R ends) K)) :
     GoodQ s (N + layerFuel 0) (C + layerCost 0 0) Q (A + layerCost 0 0) (ccM (layerHead w index 0 M R) K) := by
   have hidx := hs.idx
   have hA := encA_step w pk index 0 M s hs
-  have hfuel : layerFuel 0 = 16 + 1 + 124 + 2321 + 13 := by decide
-  have hcost : layerCost 0 0 = 16 + 8 + 76 + 13 + 1086 := by decide
-  have hsA : stepsA (0 : Layer).val = 16 := rfl
+  have hfuel : layerFuel 0 = 15 + 1 + 124 + 2321 + 13 := by decide
+  have hcost : layerCost 0 0 = 15 + 8 + 75 + 13 + 1086 := by decide
+  have hsA : stepsA (0 : Layer).val = 15 := rfl
   unfold layerHead
   by_cases hctr : (wctr w 0).toNat ≥ counterLimit
   · rw [if_pos hctr, ccM_pure, hK0]
     obtain ⟨u, hst, hf, h5, h10⟩ := hA.1 hctr
-    rw [hsA] at hst
+    rw [show rejSt (0 : Layer).val = 17 from rfl] at hst
     exact GoodQ.steps' hst (GoodQ.reject (Q := Q) (A := 0) hf h5 h10) (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)
   · rw [if_neg hctr]
     obtain ⟨t, hst, hf, h5, hv, hin, c, hc, hpre⟩ := hA.2 (by omega)
     rw [hsA] at hst
     have hblk := blocks_encodingInput 0 (route index 0).2 (route index 0).1 M (wctr w 0)
-    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 13 + 2321 + 124) (C + 13 + 1086 + 76) Q (A + 13 + 1086 + 76)
+    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 13 + 2321 + 124) (C + 13 + 1086 + 75) Q (A + 13 + 1086 + 75)
         (ccM (match decode 0 (a.extractLsb' 0 128) with
           | none => pure none
           | some digits => chainsP w 0 (route index 0).2 (route index 0).1 digits >>= R) K) := by
@@ -455,8 +435,8 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
         let L := nctxOf w index (a.extractLsb' 0 128) (trPc 0 c)
         have hLok : L.ok := nctx_ok w index _ c hidx
         have hkn : KnownOK L.known s0 := nctx_known w pk index c t s0 a hidx hpre he
-        have h12 : t.getReg .x12 = 320#64 := hpre.glob.1 (_, _) (by simp [bK])
-        have hDs0 : DataOK s0 := (Glob_writeHash hpre.glob a 320 h12 (by decide)).2.2.2.2.2.congr
+        obtain ⟨D, hD, h12⟩ := hpre.dst
+        have hDs0 : DataOK s0 := (Glob_writeHash hpre.glob a D h12 (dst_facts 0 (by decide) D hD).1).2.2.2.2.2.congr
           (fun A _ hA => he.frame.get (by omega) (by simp))
         have hO := nctx_orig w index (a.extractLsb' 0 128) (trPc 0 c) s0
           (topEntry_orig w pk index c t s0 a hpre he) hDs0
@@ -490,15 +470,13 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     exact GoodQ.steps' hst this (by omega) (by omega) (fun hq => ⟨hq,by omega⟩)
 end SigGolfCandidate.T3M
 end
-
 section
-
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.T3 (Digest HashOutput Layer route height chainCount counterLimit decode encodingInput target
   dataDigits pad64 shortHash leafHash)
-theorem layer_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (M : Digest)
+theorem layer_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (M : T3.LayerMessage)
     (s : MachineState) (hs : LayerIn w pk index lay.val M s) {β : Type} (R : List Digest → T3.M (Option β))
     (K : Option β → OracleComp HashSpec Obs) (hK0 : K none = pure (false, 0)) (N C A : Nat) (Q : Prop)
     (hR : ∀ ends u, LeafOut w pk index lay ends u → GoodQ u N C Q A (ccM (R ends) K)) :
@@ -508,15 +486,24 @@ theorem layer_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (M : D
   · subst h0
     exact layer_good_top w pk index M s hs R K hK0 N C A Q hR
   · exact layer_good_low w pk index lay h0 M s hs R K hK0 N C A Q hR
-theorem layersP_good (w : WBytes) (pk : Digest) (index n : Nat) (hn : n < 4) (M : Digest) (s : MachineState)
-    (hs : LayerIn w pk index n M s) (K : Option Digest → OracleComp HashSpec Obs) (hK0 : K none = pure (false, 0))
+theorem layersP_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : T3.LayerMessage) (s : MachineState)
+    (hs : LayerIn w pk index 0 M s) (K : Option Digest → OracleComp HashSpec Obs) (hK0 : K none = pure (false, 0))
     (N C A : Nat) (Q : Prop)
+    (hR : ∀ ends u, LeafOut w pk index (Fin.ofNat 4 0) ends u →
+      GoodQ u N C Q A (ccM (leafHash (Fin.ofNat 4 0) (route index (Fin.ofNat 4 0)).2 (route index (Fin.ofNat 4 0)).1
+        ends >>= merkleP w index (Fin.ofNat 4 0) >>= fun v => layersP w index 0 (v, 0, 0)) K)) :
+    GoodQ s (N + layerFuel 0) (C + layerCost 0 0) Q (A + layerCost 0 0) (ccM (layersP w index (0 + 1) M) K) := by
+  rw [layersP_succ_top]
+  exact layer_good w pk index (Fin.ofNat 4 0) M s hs _ K hK0 N C A Q hR
+theorem layersP_good_low (w : WBytes) (pk : Digest) (index n : Nat) (hn : n < 4) (hn0 : n ≠ 0) (M : T3.LayerMessage)
+    (s : MachineState) (hs : LayerIn w pk index n M s) (K : Option Digest → OracleComp HashSpec Obs)
+    (hK0 : K none = pure (false, 0)) (N C A : Nat) (Q : Prop)
     (hR : ∀ ends u, LeafOut w pk index (Fin.ofNat 4 n) ends u →
       GoodQ u N C Q A (ccM (leafHash (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1
-        ends >>= merkleP w index (Fin.ofNat 4 n) >>= layersP w index n) K)) :
+        ends >>= merklePairP w index (Fin.ofNat 4 n) >>= layersP w index n) K)) :
     GoodQ s (N + layerFuel n) (C + layerCost n 0) Q (A + layerCost n 0) (ccM (layersP w index (n + 1) M) K) := by
   have hv : (Fin.ofNat 4 n : Layer).val = n := by simp [Fin.val_ofNat, Nat.mod_eq_of_lt hn]
-  rw [layersP_succ]
+  rw [layersP_succ_low w index n hn0]
   have := layer_good w pk index (Fin.ofNat 4 n) M s (by rw [hv]; exact hs) _ K hK0 N C A Q hR
   rwa [hv] at this
 end SigGolfCandidate.T3M
