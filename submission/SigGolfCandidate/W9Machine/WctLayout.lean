@@ -749,7 +749,7 @@ end FCtx
 end SigGolfCandidate.T3M.Verify
 namespace SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
-def layerPc : Nat := 656
+def layerPc : Nat := 657
 end SigGolfCandidate.T3M.Verify
 namespace SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
@@ -762,6 +762,10 @@ structure FtsOut (F : FCtx) (root : Digest) (u : MachineState) : Prop where
   wit : Orig F.w (fun o => o < 64 ∨ 11288 ≤ o) u
   one : u.getReg .x6 = 1
   two : u.getReg .x7 = 2
+  a2 : u.getReg .x12 = BitVec.ofNat 64 0x100
+  topBase : u.getReg .x28 = BitVec.ofNat 64 TOPBASE
+  top : ∀ k, k < 5 → u.getMem (BitVec.ofNat 64 (TOPLOAD + 8 * k)) =
+    BitVec.ofNat 64 (dataWords.getD k 0)
 end SigGolfCandidate.T3M.Verify
 namespace SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
@@ -864,7 +868,7 @@ theorem mkAfter_next (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 
   have hkt : KnownOK (mkKc n ++ [(.x11, 64)]) t := by
     have := ht.known
     simpa [mkLvlK, show hL n - 1 ≠ 0 by omega] using this
-  refine ⟨by omega, hidx, ?_, ⟨?_, ht.glob.2⟩, ?_, ?_, ?_, Or.inr ⟨mkCur n (hL n - 1)
+  refine ⟨by omega, hidx, ?_, ⟨?_, ht.glob.2⟩, ?_, ?_, ?_, ⟨mkCur n (hL n - 1)
     ((route index (Fin.ofNat 4 n)).1 / 2 ^ (hL n - 1) % 2), ?_, ht.dstReg⟩⟩
   ·
     refine ⟨(route index (Fin.ofNat 4 n)).1, ?_, ?_⟩
@@ -943,7 +947,7 @@ def lCyc : Nat → Nat
 def lFuel : Nat → Nat
   | 0 => 9
   | n + 1 => layerFuel n + (if n = 0 then mkFuel n else mkFuelP n) + lFuel n
-theorem lCyc_4 : lCyc 4 = 5712 := by decide
+theorem lCyc_4 : lCyc 4 = 5711 := by decide
 theorem lFuel_4 : lFuel 4 ≤ 8051 := by decide
 theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^ 31) (Q : Prop) (hQ : Q) :
     ∀ n, n ≤ 4 → ∀ M s, RestIn w pk index n M s →
@@ -1002,9 +1006,9 @@ theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^
         (fun q => ⟨q, by simp only [lCyc, if_neg h0]; omega⟩)
 theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutput) (root : Digest) (u : MachineState)
     (h : FtsOut ⟨pk, w, a⟩ root u) :
-    GoodQ u 8057 8057 Q 5718 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
+    GoodQ u 8056 8056 Q 5716 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
   have hidx : a.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by decide)
-  obtain ⟨t, hst, hL3⟩ := layerIn_of_fts w pk _ root u hidx h.glob h.idx h.pc h.root h.wit h.one h.two
+  obtain ⟨t, hst, hL3⟩ := layerIn_of_fts w pk _ root u hidx h.glob h.idx h.pc h.root h.wit h.one h.two h.a2 h.topBase h.top
   have hg := layers_good w pk _ hidx Q hQ 4 le_rfl (root, 0, 0) t (by simpa [RestIn] using hL3)
   have e : ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb =
       ccM (layersP w (a.toNat % 2 ^ 31) 4 (root, 0, 0)) (kFin pk) := by
@@ -1045,7 +1049,7 @@ structure Budget where
   fuel : Nat
   allCycles : Nat
   acceptCycles : Nat
-def layerEntryWord : Nat := 656
+def layerEntryWord : Nat := 657
 def layerWitnessOffset : Nat := 11288
 def forestRootAddress : Nat := 0x100
 def digestAttemptLimit : Nat := 2 ^ 21

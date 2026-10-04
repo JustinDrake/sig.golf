@@ -10,7 +10,7 @@ set_option maxRecDepth 100000
 set_option maxHeartbeats 0
 def fPrepWords : List (BitVec 32) :=
   [0xf0290193,0x70303823,0x71603c23,0x7a003023,0x7a003423,0x70000513,0xc000593,268437011,115]
-def fTailWords : List (BitVec 32) := [0x6f80006f]
+def fTailWords : List (BitVec 32) := [0x6fc0006f]
 def fHeader : E := addC (.reg .x18) (-254)
 def fPrep : Result :=
   ⟨⟨(((RegFile.init.set .x3 fHeader).set .x10 (.c (BitVec.ofNat 64 1792))).set
@@ -19,7 +19,7 @@ def fPrep : Result :=
       (⟨none, BitVec.ofNat 64 1816⟩, .reg .x22), (⟨none, BitVec.ofNat 64 1808⟩, fHeader)],
     []⟩, .c (pcOf 209), .ecall, 8, 8⟩
 def fTail : Result :=
-  ⟨SymState.init, .c (pcOf 656), .jump, 1, 1⟩
+  ⟨SymState.init, .c (pcOf 657), .jump, 1, 1⟩
 theorem fPrep_checked : rOK (symRun {} fPrepWords (pcOf 201) 9) fPrep = true := by decide +kernel
 theorem fPrep_linked : sliceChecked 201 fPrepWords = true := by decide +kernel
 theorem fTail_checked : rOK (symRun {} fTailWords (pcOf 210) 1) fTail = true := by decide +kernel
@@ -202,7 +202,7 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
     have mt : t.mem = (writeHash s1 ans).mem := toState_mem_nil _ _ rfl
     have et : ∀ A, t.getMem A = (writeHash s1 ans).getMem A := fun A => congrFun mt A
     have hout : FtsOut ⟨pk, w, a⟩ (ans.extractLsb' 0 128) t := by
-      refine ⟨?_, ?_, rfl, ?_, ?_, ?_, ?_⟩
+      refine ⟨?_, ?_, rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
       · have g2 := Glob_writeHash g1 ans 0x100 h12 (by decide)
         have g : Glob [] w pk t := Glob_toState g2 fTail.st
           (fTail.pc.eval (writeHash s1 ans)) (by decide) (by decide)
@@ -229,6 +229,20 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
         show (writeHash s1 ans).getReg .x7 = _
         rw [writeHash_getReg, r1 .x7 (by decide) (by decide) (by decide) (by decide)]
         exact hu.stepTwo
+      · rw [ht, Result.toState_getReg]
+        show (writeHash s1 ans).getReg .x12 = _
+        rw [writeHash_getReg]; exact h12
+      · rw [ht, Result.toState_getReg]
+        show (writeHash s1 ans).getReg .x28 = _
+        rw [writeHash_getReg]
+        have hb : u.getReg .x28 = BitVec.ofNat 64 TOPBASE := by
+          simpa [TOPBASE] using hu.headerReg
+        exact (r1 .x28 (by decide) (by decide) (by decide) (by decide)).trans hb
+      · intro k hk
+        rw [et, writeHash_frame s1 ans 256 (TOPLOAD + 8 * k) h12
+          (by unfold TOPLOAD; omega) (by norm_num) (Or.inr (by unfold TOPLOAD; omega)), hs1]
+        exact (fPrep_frame u _ (by unfold TOPLOAD; omega) (by unfold TOPLOAD; omega)).trans
+          (hu.bank.top k hk)
     exact (hnext _ t hout).steps st2'
   have hq := GoodQFor.shortHash_bind (f := fun d : Digest => (pure d : M Digest)) (K := K)
     hf h5 hv hin hpost
