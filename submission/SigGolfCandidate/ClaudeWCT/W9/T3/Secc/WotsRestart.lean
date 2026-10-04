@@ -319,8 +319,8 @@ theorem markerAt_maskAt (T : Answers) (trace : List Entry) (a : ChainAddr) :
 theorem markerAt_take_exists (T : Answers) (trace : List Entry) (a : ChainAddr) :
     (∃ k, MarkerAt T (trace.take k) a) ↔ MarkerAt T trace a := by
   constructor
-  · rintro ⟨k, message, counter, pad, answer, digits, hfit, hm, h⟩
-    exact ⟨message, counter, pad, answer, digits, hfit, List.mem_of_mem_take hm, h⟩
+  · rintro ⟨k, message, counter, answer, digits, hm, h⟩
+    exact ⟨message, counter, answer, digits, List.mem_of_mem_take hm, h⟩
   · intro h
     exact ⟨trace.length, by rw [List.take_length]; exact h⟩
 theorem reference_markerFirst_at_le (adversary : AdversaryP) (q : Nat) (hq : q < 2 ^ 128) (a : ChainAddr)

@@ -236,22 +236,11 @@ theorem field_toNat0 (a : BitVec 256) (w : Nat) :
   have := field_toNat a w 0 (by omega)
   simpa using this
 theorem gate_toNat (a : BitVec 256) :
-    ((a.extractLsb' 192 64 <<< 8) >>> 50).toNat = a.toNat / 2 ^ 234 % 2 ^ 14 := by
-  rw [BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow,
-    BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]
-  have h1 : a.toNat / 2 ^ 192 % 2 ^ 64 * 2 ^ 8 % 2 ^ 64 / 2 ^ 50 = a.toNat / 2 ^ 192 % 2 ^ 64 / 2 ^ 42 % 2 ^ 14 := by
-    have := Nat.mod_lt (a.toNat / 2 ^ 192) (show 0 < 2 ^ 64 by positivity)
-    omega
-  rw [h1, show (2 : Nat) ^ 64 = 2 ^ 42 * 2 ^ 22 by norm_num, Nat.mod_mul_right_div_self,
-    Nat.mod_mod_of_dvd _ (pow_dvd_pow 2 (by norm_num : 14 ≤ 22)), Nat.div_div_eq_div_mul, ← pow_add]
-theorem beq_sltu5 {α : Type} (g : Word) (n : Nat) (hg : g.toNat = n) (A B : α) :
-    (if ((if BitVec.ult g 5#64 = true then (1 : Word) else 0) == 0#64) = true then A else B) =
-      (if n < 5 then B else A) := by
-  by_cases hn : n < 5
-  · have : BitVec.ult g 5#64 = true := by simp [BitVec.ult, hg, hn]
-    simp [this, hn]
-  · have : BitVec.ult g 5#64 = false := by simp [BitVec.ult, hg]; omega
-    simp [this, hn]
+    ((a.extractLsb' 0 64 >>> 31) &&& 4095#64).toNat = a.toNat / 2 ^ 31 % 2 ^ 12 := by
+  rw [BitVec.toNat_and, BitVec.toNat_ushiftRight, show (0 : Nat) = 64 * 0 from rfl, extractLsb'_256_toNat,
+    show (4095#64).toNat = 2 ^ 12 - 1 from rfl, Nat.and_two_pow_sub_one_eq_mod, Nat.shiftRight_eq_div_pow,
+    mod_div_mod _ _ _ (by omega)]
+  simp
 theorem index_eq (a : BitVec 256) :
     a.extractLsb' 0 64 <<< 33 >>> 33 = BitVec.ofNat 64 (a.toNat % 2 ^ 31) := by
   rw [SigGolfCandidate.T3M.Expand.shl_shr_33]
@@ -260,7 +249,7 @@ theorem index_eq (a : BitVec 256) :
   rw [show 64 * 0 = 0 from rfl, pow_zero, Nat.div_one, Nat.mod_mod_of_dvd _ (by norm_num)]
 def fieldN (a : BitVec 256) (c : Nat) : Nat := a.toNat / 2 ^ (WCT9.coordBase c + 7) % 2 ^ 14
 theorem admissible_eq (a : BitVec 256) :
-    WCT9.admissible a = (decide (a.toNat / 2 ^ 234 % 2 ^ 14 < 5) &&
+    WCT9.admissible a = (decide (a.toNat / 2 ^ 31 % 2 ^ 12 = 0) &&
       (List.range 9).all fun c => decide (fieldN a c < 16016)) := rfl
 def SearchAt (im : Image) (b : Nat) : Prop := CodeAt im (pcOf b) SearchCode.code
 theorem ult_ofNat (x y : Nat) (hx : x < 2 ^ 64) (hy : y < 2 ^ 64) :
@@ -461,16 +450,16 @@ theorem bne_zero {α : Type} (v : Word) (n : Nat) (hv : v.toNat = n) (A B : α) 
     simp [this, hn]
 theorem sr17_spec (h : SearchAt im b) (s : MachineState) (hpc : s.pc = pcOf (b + 17)) (a : BitVec 256)
     (hN : OutAt s NBUF a) :
-    ∃ t, Steps im s 8 8 t ∧ t.pc = (if a.toNat / 2 ^ 234 % 2 ^ 14 < 5 then pcOf (b + 25) else pcOf (b + 136)) ∧
+    ∃ t, Steps im s 8 8 t ∧ t.pc = (if a.toNat / 2 ^ 31 % 2 ^ 12 = 0 then pcOf (b + 25) else pcOf (b + 136)) ∧
       t.getReg .x22 = a.extractLsb' 0 64 ∧ RegsExcept s t [.x6, .x7, .x22, .x28] ∧ Frame s t (fun _ => False) := by
   have hw := hN 0 (by decide)
-  have hw3 := hN 3 (by decide)
-  simp only [NBUF, Nat.reduceMul, Nat.reduceAdd] at hw hw3
+  simp only [NBUF, Nat.reduceMul, Nat.reduceAdd] at hw
   refine ⟨_, symRun_sound (run'_17 b) (codeAt_17 h) s hpc (by simp [blk_17.res, rv_simp]), ?_, ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, rebase, blk_17.res, E.eval, CmpOp.eval, BinOp.eval, hw, hw3]
+  · simp only [Result.toState_pc, rebase, blk_17.res, E.eval, CmpOp.eval, BinOp.eval, hw]
     have hv := gate_toNat a
-    simp only [BitVec.toNat_ofNat, Nat.reduceMod, Nat.reducePow] at hv ⊢
-    rw [beq_sltu5 _ _ hv]
+    simp only [BitVec.toNat_ofNat, Nat.reduceMod, Nat.reducePow]
+    rw [bne_zero _ _ hv]
+    norm_num
   · simp [blk_17.res, rv_simp, hw]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_17.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_17.res, rv_simp]
@@ -564,7 +553,7 @@ theorem fields_spec (h : SearchAt im b) (a : BitVec 256) :
       refine ⟨t1, _, s1, by omega, ?_, r1, f1⟩
       rw [p1, if_neg (fun hh => hf (hh c (le_refl _) hc9))]
 theorem admissible_iff (a : BitVec 256) :
-    WCT9.admissible a = true ↔ a.toNat / 2 ^ 234 % 2 ^ 14 < 5 ∧ ∀ c', 0 ≤ c' → c' < 9 → fieldN a c' < 16016 := by
+    WCT9.admissible a = true ↔ a.toNat / 2 ^ 31 % 2 ^ 12 = 0 ∧ ∀ c', 0 ≤ c' → c' < 9 → fieldN a c' < 16016 := by
   rw [admissible_eq]
   simp only [Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, List.mem_range]
   constructor
@@ -669,7 +658,7 @@ theorem search_loop (h : SearchAt im b) {s0 : MachineState} {rho : Digest} {m : 
       · exact Or.inr (Or.inr (Or.inl h)))
     have rA : RegsExcept s0 (writeHash u a) srchRegs := (ru.trans rw').mono (by decide)
     have g19 : (writeHash u a).getReg .x19 = BitVec.ofNat 64 i := by rw [getReg_writeHash, u19]
-    by_cases hg : a.toNat / 2 ^ 234 % 2 ^ 14 < 5
+    by_cases hg : a.toNat / 2 ^ 31 % 2 ^ 12 = 0
     · rw [if_pos hg] at p3
       obtain ⟨t4, k4, s4, hk4, p4, r4, f4⟩ := fields_spec h a 9 0 rfl t2 p3 hN2
       have hN4 : OutAt t4 NBUF a := fun j hj => by
@@ -732,25 +721,43 @@ namespace ClaudeWCT.W9.Machine.Expand.Driver
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M ClaudeWCT.W9.Machine.Expand
 set_option maxRecDepth 16384
-def base : Nat := 3164
+def base : Nat := 3131
 def seg_0 : List (BitVec 32) := [16777327]
 def seg_1 : List (BitVec 32) := [1049235,1049875,115]
-def seg_4 : List (BitVec 32) := [0x6003b03,0x7803183,8491411,52547987,5353875]
-def seg_9 : List (BitVec 32) := [0xfe0180e3]
-def seg_10 : List (BitVec 32) := [35330835,35347219,1049491,29038483,66359,197395,2098835,3148179,4196883,5245587,6294803,7343891,34281619,5175,0x84040413,0xffee37,0x600e0e13,65847,0xffc10113,20151,0x4a4e8e93,52279,0x4a4c0c13,67110291]
-def seg_34 : List (BitVec 32) := [0x6003803,45633939,0x7f1f193,33657363,23224883,21077907,0xffefb3,8493971,31165363,0x9c0e3d83,18738611,50878227,2586419,25626419,0x42000493,458983]
-def seg_50 : List (BitVec 32) := [0x6803803,0x7f87193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,5789459,2586419,25626419,0x44000493,458983]
-def seg_68 : List (BitVec 32) := [22565267,0x7f1f193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,27809555,2586419,25626419,0x46000493,458983]
-def seg_86 : List (BitVec 32) := [44585363,0x7f1f193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,49829651,2586419,25626419,0x48000493,458983]
-def seg_104 : List (BitVec 32) := [0x7003803,0x7f87193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,5789459,2586419,25626419,0x4a000493,458983]
-def seg_122 : List (BitVec 32) := [22565267,0x7f1f193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,27809555,2586419,25626419,0x4c000493,458983]
-def seg_140 : List (BitVec 32) := [44585363,0x7f1f193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,49829651,2586419,25626419,0x4e000493,458983]
-def seg_158 : List (BitVec 32) := [0x7803803,0x7f87193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,5789459,2586419,25626419,0x50000493,458983]
-def seg_176 : List (BitVec 32) := [22565267,0x7f1f193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,27809555,2586419,25626419,0x52000493,458983]
-def seg_194 : List (BitVec 32) := [4535,0xf0118193,0x40303823,0x41603c23,0x40003023,0x40003423,0x40000513,335545747,268437011]
-def seg_203 : List (BitVec 32) := [115]
-def seg_204 : List (BitVec 32) := [0x6f92206f]
-def layout : SigGolfCandidate.Rv.Layout := [(0, seg_0), (1, seg_1), (4, seg_4), (9, seg_9), (10, seg_10), (34, seg_34), (50, seg_50), (68, seg_68), (86, seg_86), (104, seg_104), (122, seg_122), (140, seg_140), (158, seg_158), (176, seg_176), (194, seg_194), (203, seg_203), (204, seg_204)]
+def seg_4 : List (BitVec 32) := [0x6003b03,33247635,6455,0xfff90913,19001779]
+def seg_9 : List (BitVec 32) := [0xfe0190e3]
+def seg_10 : List (BitVec 32) := [35330835,35347219,1049363,2098067,1049747,33854611,23389363,2098835,33986195,23520947,3148179,34183571,23718323,4196883,34216467,23751219,5245587,34249363,23784115,6294803,34413843,23948595,7343891,34545427,24080179,5175,0x84040413,0xffee37,0x600e0e13,65847,0xffc10113,20151,0x43ce8e93,52279,0x43cc0c13]
+def seg_45 : List (BitVec 32) := [0x6003803,45633939,0x7f1f193,33657363,23224883,8493971,31165363,0x9c0e3d83,67110291,50878227,2586419,25626419,458983]
+def seg_58 : List (BitVec 32) := [0x70000613]
+def seg_59 : List (BitVec 32) := [115]
+def seg_60 : List (BitVec 32) := [0x6803803,545171,0x7f1f193,33657363,23224883,8493971,31165363,0x40040413,537792019,0x9c0e3d83,67110291,5789459,2586419,25626419,458983]
+def seg_75 : List (BitVec 32) := [0x72000613]
+def seg_76 : List (BitVec 32) := [115]
+def seg_77 : List (BitVec 32) := [0x6803803,22565267,0x7f1f193,33657363,23224883,8493971,31165363,0x40040413,537792019,0x9c0e3d83,67110291,27809555,2586419,25626419,458983]
+def seg_92 : List (BitVec 32) := [0x73000613]
+def seg_93 : List (BitVec 32) := [115]
+def seg_94 : List (BitVec 32) := [0x6803803,44585363,0x7f1f193,33657363,23224883,8493971,31165363,0x40040413,537792019,0x9c0e3d83,67110291,49829651,2586419,25626419,458983]
+def seg_109 : List (BitVec 32) := [0x74000613]
+def seg_110 : List (BitVec 32) := [115]
+def seg_111 : List (BitVec 32) := [0x7003803,545171,0x7f1f193,33657363,23224883,8493971,31165363,0x40040413,537792019,0x9c0e3d83,67110291,5789459,2586419,25626419,458983]
+def seg_126 : List (BitVec 32) := [0x75000613]
+def seg_127 : List (BitVec 32) := [115]
+def seg_128 : List (BitVec 32) := [0x7003803,22565267,0x7f1f193,33657363,23224883,8493971,31165363,0x40040413,537792019,0x9c0e3d83,67110291,27809555,2586419,25626419,458983]
+def seg_143 : List (BitVec 32) := [0x76000613]
+def seg_144 : List (BitVec 32) := [115]
+def seg_145 : List (BitVec 32) := [0x7003803,44585363,0x7f1f193,33657363,23224883,8493971,31165363,0x40040413,537792019,0x9c0e3d83,67110291,49829651,2586419,25626419,458983]
+def seg_160 : List (BitVec 32) := [0x77000613]
+def seg_161 : List (BitVec 32) := [115]
+def seg_162 : List (BitVec 32) := [0x7803803,545171,0x7f1f193,33657363,23224883,8493971,31165363,0x40040413,537792019,0x9c0e3d83,67110291,5789459,2586419,25626419,458983]
+def seg_177 : List (BitVec 32) := [0x78000613]
+def seg_178 : List (BitVec 32) := [115]
+def seg_179 : List (BitVec 32) := [0x7803803,22565267,0x7f1f193,33657363,23224883,8493971,31165363,0x40040413,537792019,0x9c0e3d83,67110291,27809555,2586419,25626419,458983]
+def seg_194 : List (BitVec 32) := [0x79000613]
+def seg_195 : List (BitVec 32) := [115]
+def seg_196 : List (BitVec 32) := [4535,0xf0118193,0x70303823,0x71603c23,0x7a003023,0x7a003423,0x7a003823,0x7a003c23,0x70000513,0xc000593,268437011]
+def seg_207 : List (BitVec 32) := [115]
+def seg_208 : List (BitVec 32) := [6455,0xfff90913,659,0x4092306f]
+def layout : SigGolfCandidate.Rv.Layout := [(0, seg_0), (1, seg_1), (4, seg_4), (9, seg_9), (10, seg_10), (45, seg_45), (58, seg_58), (59, seg_59), (60, seg_60), (75, seg_75), (76, seg_76), (77, seg_77), (92, seg_92), (93, seg_93), (94, seg_94), (109, seg_109), (110, seg_110), (111, seg_111), (126, seg_126), (127, seg_127), (128, seg_128), (143, seg_143), (144, seg_144), (145, seg_145), (160, seg_160), (161, seg_161), (162, seg_162), (177, seg_177), (178, seg_178), (179, seg_179), (194, seg_194), (195, seg_195), (196, seg_196), (207, seg_207), (208, seg_208)]
 def code : List (BitVec 32) := layoutCode layout
 theorem layout_ok : layoutOk 0 layout = true := by decide +kernel
 theorem window : windowOK base code = true := by decide +kernel
@@ -766,46 +773,91 @@ theorem codeAt_9 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 9)) 
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 3) (by kernel_rfl)
 theorem codeAt_10 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 10)) seg_10 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 4) (by kernel_rfl)
-theorem codeAt_34 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 34)) seg_34 :=
+theorem codeAt_45 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 45)) seg_45 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 5) (by kernel_rfl)
-theorem codeAt_50 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 50)) seg_50 :=
+theorem codeAt_58 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 58)) seg_58 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 6) (by kernel_rfl)
-theorem codeAt_68 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 68)) seg_68 :=
+theorem codeAt_59 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 59)) seg_59 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 7) (by kernel_rfl)
-theorem codeAt_86 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 86)) seg_86 :=
+theorem codeAt_60 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 60)) seg_60 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 8) (by kernel_rfl)
-theorem codeAt_104 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 104)) seg_104 :=
+theorem codeAt_75 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 75)) seg_75 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 9) (by kernel_rfl)
-theorem codeAt_122 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 122)) seg_122 :=
+theorem codeAt_76 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 76)) seg_76 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 10) (by kernel_rfl)
-theorem codeAt_140 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 140)) seg_140 :=
+theorem codeAt_77 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 77)) seg_77 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 11) (by kernel_rfl)
-theorem codeAt_158 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 158)) seg_158 :=
+theorem codeAt_92 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 92)) seg_92 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 12) (by kernel_rfl)
-theorem codeAt_176 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 176)) seg_176 :=
+theorem codeAt_93 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 93)) seg_93 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 13) (by kernel_rfl)
-theorem codeAt_194 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 194)) seg_194 :=
+theorem codeAt_94 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 94)) seg_94 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 14) (by kernel_rfl)
-theorem codeAt_203 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 203)) seg_203 :=
+theorem codeAt_109 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 109)) seg_109 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 15) (by kernel_rfl)
-theorem codeAt_204 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 204)) seg_204 :=
+theorem codeAt_110 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 110)) seg_110 :=
   codeAt_sublayout (codeAt_region hc) layout_ok (i := 16) (by kernel_rfl)
+theorem codeAt_111 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 111)) seg_111 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 17) (by kernel_rfl)
+theorem codeAt_126 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 126)) seg_126 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 18) (by kernel_rfl)
+theorem codeAt_127 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 127)) seg_127 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 19) (by kernel_rfl)
+theorem codeAt_128 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 128)) seg_128 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 20) (by kernel_rfl)
+theorem codeAt_143 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 143)) seg_143 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 21) (by kernel_rfl)
+theorem codeAt_144 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 144)) seg_144 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 22) (by kernel_rfl)
+theorem codeAt_145 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 145)) seg_145 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 23) (by kernel_rfl)
+theorem codeAt_160 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 160)) seg_160 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 24) (by kernel_rfl)
+theorem codeAt_161 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 161)) seg_161 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 25) (by kernel_rfl)
+theorem codeAt_162 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 162)) seg_162 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 26) (by kernel_rfl)
+theorem codeAt_177 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 177)) seg_177 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 27) (by kernel_rfl)
+theorem codeAt_178 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 178)) seg_178 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 28) (by kernel_rfl)
+theorem codeAt_179 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 179)) seg_179 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 29) (by kernel_rfl)
+theorem codeAt_194 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 194)) seg_194 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 30) (by kernel_rfl)
+theorem codeAt_195 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 195)) seg_195 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 31) (by kernel_rfl)
+theorem codeAt_196 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 196)) seg_196 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 32) (by kernel_rfl)
+theorem codeAt_207 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 207)) seg_207 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 33) (by kernel_rfl)
+theorem codeAt_208 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf (base + 208)) seg_208 :=
+  codeAt_sublayout (codeAt_region hc) layout_ok (i := 34) (by kernel_rfl)
 sym_block blk_0 := symRun { noAlias := true } seg_0 (pcOf (base + 0)) 200
 sym_block blk_1 := symRun { noAlias := true } seg_1 (pcOf (base + 1)) 200
 sym_block blk_4 := symRun { noAlias := true } seg_4 (pcOf (base + 4)) 200
 sym_block blk_9 := symRun { noAlias := true } seg_9 (pcOf (base + 9)) 200
 sym_block blk_10 := symRun { noAlias := true } seg_10 (pcOf (base + 10)) 200
-sym_block blk_34 := symRun { noAlias := true } seg_34 (pcOf (base + 34)) 200
-sym_block blk_50 := symRun { noAlias := true } seg_50 (pcOf (base + 50)) 200
-sym_block blk_68 := symRun { noAlias := true } seg_68 (pcOf (base + 68)) 200
-sym_block blk_86 := symRun { noAlias := true } seg_86 (pcOf (base + 86)) 200
-sym_block blk_104 := symRun { noAlias := true } seg_104 (pcOf (base + 104)) 200
-sym_block blk_122 := symRun { noAlias := true } seg_122 (pcOf (base + 122)) 200
-sym_block blk_140 := symRun { noAlias := true } seg_140 (pcOf (base + 140)) 200
-sym_block blk_158 := symRun { noAlias := true } seg_158 (pcOf (base + 158)) 200
-sym_block blk_176 := symRun { noAlias := true } seg_176 (pcOf (base + 176)) 200
+sym_block blk_45 := symRun { noAlias := true } seg_45 (pcOf (base + 45)) 200
+sym_block blk_58 := symRun { noAlias := true } seg_58 (pcOf (base + 58)) 200
+sym_block blk_60 := symRun { noAlias := true } seg_60 (pcOf (base + 60)) 200
+sym_block blk_75 := symRun { noAlias := true } seg_75 (pcOf (base + 75)) 200
+sym_block blk_77 := symRun { noAlias := true } seg_77 (pcOf (base + 77)) 200
+sym_block blk_92 := symRun { noAlias := true } seg_92 (pcOf (base + 92)) 200
+sym_block blk_94 := symRun { noAlias := true } seg_94 (pcOf (base + 94)) 200
+sym_block blk_109 := symRun { noAlias := true } seg_109 (pcOf (base + 109)) 200
+sym_block blk_111 := symRun { noAlias := true } seg_111 (pcOf (base + 111)) 200
+sym_block blk_126 := symRun { noAlias := true } seg_126 (pcOf (base + 126)) 200
+sym_block blk_128 := symRun { noAlias := true } seg_128 (pcOf (base + 128)) 200
+sym_block blk_143 := symRun { noAlias := true } seg_143 (pcOf (base + 143)) 200
+sym_block blk_145 := symRun { noAlias := true } seg_145 (pcOf (base + 145)) 200
+sym_block blk_160 := symRun { noAlias := true } seg_160 (pcOf (base + 160)) 200
+sym_block blk_162 := symRun { noAlias := true } seg_162 (pcOf (base + 162)) 200
+sym_block blk_177 := symRun { noAlias := true } seg_177 (pcOf (base + 177)) 200
+sym_block blk_179 := symRun { noAlias := true } seg_179 (pcOf (base + 179)) 200
 sym_block blk_194 := symRun { noAlias := true } seg_194 (pcOf (base + 194)) 200
-sym_block blk_204 := symRun { noAlias := true } seg_204 (pcOf (base + 204)) 200
+sym_block blk_196 := symRun { noAlias := true } seg_196 (pcOf (base + 196)) 200
+sym_block blk_208 := symRun { noAlias := true } seg_208 (pcOf (base + 208)) 200
 end ClaudeWCT.W9.Machine.Expand.Driver
 end
 
@@ -817,8 +869,6 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 open SigGolfCandidate.T3M
 open SigGolfCandidate.T3 (Digest HashOutput)
 set_option linter.unusedSimpArgs false
-def jt0 : Nat := 11561
-def cb0 : Nat := 3369
 theorem child_bits (a : BitVec 256) (w sh : Nat) (h : sh + 7 ≤ 64) :
     ((a.extractLsb' (64 * w) 64 >>> sh) &&& 127#64).toNat = a.toNat / 2 ^ (64 * w + sh) % 128 := by
   rw [BitVec.toNat_and, BitVec.toNat_ushiftRight, extractLsb'_256_toNat,
@@ -849,8 +899,8 @@ theorem field4_bits (a : BitVec 256) (w sh : Nat) (h : sh + 21 ≤ 64) :
     · simp [show ¬ i < 16 by omega, show ¬ i - 2 < 14 by omega]
 theorem not1_eq : (18446744073709551614#64 : Word) = ~~~1#64 := by decide
 theorem disp_pc (v : Word) (f : Nat) (hv : v.toNat = 4 * f) (hf : f < 2 ^ 14) :
-    v + 50340#64 &&& 18446744073709551614#64 = pcOf (11561 + f) := by
-  have : v + 50340#64 = pcOf (11561 + f) := by
+    v + 50236#64 &&& 18446744073709551614#64 = pcOf (11535 + f) := by
+  have : v + 50236#64 = pcOf (11535 + f) := by
     apply BitVec.eq_of_toNat_eq
     simp only [BitVec.toNat_add, hv, pcOf, BitVec.toNat_ofNat]
     omega
@@ -863,41 +913,9 @@ theorem disp_x4 (c : Word) (n index : Nat) (hc : c.toNat = n) (_hn : n < 128) (h
   rw [e, ofNat_or_add index n 32 (by omega)]
   congr 1; ring
 theorem disp_x23 (c : Word) (n : Nat) (hc : c.toNat = n) (hn : n < 128) :
-    c <<< 8 + 17572#64 = BitVec.ofNat 64 (17572 + 256 * n) := by
+    c <<< 8 + 17468#64 = BitVec.ofNat 64 (17468 + 256 * n) := by
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, hc, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
   omega
-theorem disp_x15 (index k : Nat) :
-    BitVec.ofNat 64 (index * 2 ^ 27 + 65536 * k) + BitVec.ofNat 64 65536 =
-      BitVec.ofNat 64 (index * 2 ^ 27 + 65536 * (k + 1)) := by
-  rw [ofNat_add_ofNat, show index * 2 ^ 27 + 65536 * k + 65536 = index * 2 ^ 27 + 65536 * (k + 1) by ring]
-theorem disp_x31 (c : Word) (n index k : Nat) (hc : c.toNat = n) (hn : n < 128) (hk : k < 16) :
-    c <<< 20 ||| BitVec.ofNat 64 (index * 2 ^ 27 + 65536 * k) =
-      BitVec.ofNat 64 (n * 2 ^ 20 + index * 2 ^ 27 + 65536 * k) := by
-  have e : c <<< 20 = BitVec.ofNat 64 (n * 2 ^ 20) := by
-    apply BitVec.eq_of_toNat_eq
-    simp only [BitVec.toNat_shiftLeft, hc, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
-  have e1 : BitVec.ofNat 64 (index * 2 ^ 27 + 65536 * k) =
-      BitVec.ofNat 64 (index * 2 ^ 27) ||| BitVec.ofNat 64 (65536 * k) :=
-    (ofNat_or_add (65536 * k) index 27 (by omega)).symm
-  rw [e, e1, ← BitVec.or_assoc, BitVec.or_comm (BitVec.ofNat 64 (n * 2 ^ 20)), BitVec.or_assoc,
-    ofNat_or_add (65536 * k) n 20 (by omega), ofNat_or_add (n * 2 ^ 20 + 65536 * k) index 27 (by omega),
-    show index * 2 ^ 27 + (n * 2 ^ 20 + 65536 * k) = n * 2 ^ 20 + index * 2 ^ 27 + 65536 * k by ring]
-theorem disp_x31n (c : Word) (n index K K' : Nat) (hc : c.toNat = n) (hn : n < 128) (hK : K < 16) (hK' : K' = K) :
-    c <<< 20 ||| BitVec.ofNat 64 (index * 134217728 + 65536 * K) =
-      BitVec.ofNat 64 (n * 1048576 + index * 134217728 + 65536 * K') := by
-  rw [hK']; exact disp_x31 c n index K hc hn hK
-theorem disp_x31s (c : Word) (n index K K' : Nat) (hc : c.toNat = n) (hn : n < 128) (hK : K + 1 < 16)
-    (hK' : K' = K + 1) :
-    c <<< 20 ||| (BitVec.ofNat 64 (index * 134217728 + 65536 * K) + 65536#64) =
-      BitVec.ofNat 64 (n * 1048576 + index * 134217728 + 65536 * K') := by
-  subst hK'
-  have := disp_x15 index K
-  simp only [show (2 : Nat) ^ 27 = 134217728 by norm_num] at this
-  rw [show (65536#64 : Word) = BitVec.ofNat 64 65536 from rfl, this]
-  exact disp_x31 c n index (K + 1) hc hn hK
-theorem disp_x27 (b index : Nat) (hb : b < 2 ^ 32) :
-    BitVec.ofNat 64 b ||| BitVec.ofNat 64 index <<< 32 = BitVec.ofNat 64 (b + 2 ^ 32 * index) := by
-  rw [ofNat_shl, BitVec.or_comm, ofNat_or_add b index 32 hb, show index * 2 ^ 32 + b = b + 2 ^ 32 * index by ring]
 end ClaudeWCT.W9.Machine.Expand
 end

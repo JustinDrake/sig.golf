@@ -19,7 +19,6 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsPrefixGameSim
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsPrefixGameBase
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMaskRest
 import SigGolfCandidate.ClaudeWCT.W9.New.G3b.Shared
-
 namespace ClaudeWCT.W9.T3.Security.Wots
 open SigGolfCandidate SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -36,19 +35,19 @@ namespace Enc
 open SigGolfCandidate.T3.Security.Wots.Enc
 def chainAt (p : CanonGraph.LeafPos × Fin 58) : ChainAddr := ⟨leafOf p.1, p.2.val⟩
 def MarkEntry (T : Answers) (a : ChainAddr) (entry : Entry) : Prop :=
-  ∃ (message : WCT9.LayerMsg) (counter : BitVec 32) (pad : BitVec 96) (digits : List Nat),
-    Extract.msgFits a.key.lay message ∧ entry.1 = encRow a.key message counter pad ∧
-      referenceInput T a.key ≠ some (encRow a.key message counter pad) ∧
+  ∃ (message : Digest × BitVec 96 × Digest) (counter : BitVec 32) (digits : List Nat),
+    entry.1 = encodingRow a.key message counter ∧
+      referenceInput T a.key ≠ some (encodingRow a.key message counter) ∧
       decode a.key.lay (low entry.2) = some digits ∧
       digits.getD a.chain 0 + 1 = (referenceDigits T a.key).getD a.chain 0 ∧
       ∀ i, i ≠ a.chain → (referenceDigits T a.key).getD i 0 ≤ digits.getD i 0
 theorem markerAt_iff (T : Answers) (trace : List Entry) (a : ChainAddr) :
     MarkerAt T trace a ↔ ∃ entry ∈ trace, MarkEntry T a entry := by
   constructor
-  · rintro ⟨message, counter, pad, answer, digits, hfit, hmem, hne, hd, hlow, hrest⟩
-    exact ⟨_, hmem, message, counter, pad, digits, hfit, rfl, hne, hd, hlow, hrest⟩
-  · rintro ⟨⟨input, answer⟩, hmem, message, counter, pad, digits, hfit, rfl, hne, hd, hlow, hrest⟩
-    exact ⟨message, counter, pad, answer, digits, hfit, hmem, hne, hd, hlow, hrest⟩
+  · rintro ⟨message, counter, answer, digits, hmem, hne, hd, hlow, hrest⟩
+    exact ⟨_, hmem, message, counter, digits, rfl, hne, hd, hlow, hrest⟩
+  · rintro ⟨⟨input, answer⟩, hmem, message, counter, digits, rfl, hne, hd, hlow, hrest⟩
+    exact ⟨message, counter, answer, digits, hmem, hne, hd, hlow, hrest⟩
 theorem markerAt_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (trace : List Entry)
     (p : CanonGraph.LeafPos × Fin 58) : MarkerAt T' trace (chainAt p) ↔ MarkerAt T trace (chainAt p) := by
   unfold MarkerAt chainAt
@@ -64,7 +63,7 @@ theorem markEntry_cell_le (T : Answers) (x : HashInput) (a : ChainAddr) :
     let targets := EncodingTargets.targets a.key.lay (MixedCode.unitNeighbors W i)
     calc _ ≤ Pr[fun output => output.extractLsb' 0 128 ∈ targets | ($ᵗ HashOutput : ProbComp HashOutput)] := by
           apply probEvent_mono
-          rintro ans - ⟨message, counter, pad, digits, -, -, -, hd, hlow, hrest⟩
+          rintro ans - ⟨message, counter, digits, -, -, hd, hlow, hrest⟩
           refine (EncodingTargets.source_decoded_target hd _).mpr ?_
           rw [MixedCode.mem_unitNeighbors]
           refine ⟨decodedWord_valid hv, decodedWord_valid hd, ?_, ?_⟩
@@ -77,7 +76,7 @@ theorem markEntry_cell_le (T : Answers) (x : HashInput) (a : ChainAddr) :
           exact_mod_cast (EncodingTargets.targets_card _ _).trans (unit_neighbors_bound _ W i)
   · have hz : Pr[fun ans => MarkEntry T a (x, ans) | ($ᵗ HashOutput : ProbComp HashOutput)] = 0 := by
       apply probEvent_eq_zero
-      rintro ans - ⟨message, counter, pad, digits, -, -, -, -, hlow, -⟩
+      rintro ans - ⟨message, counter, digits, -, -, -, hlow, -⟩
       have hlen := WotsExtract.referenceDigits_length T a.key
       rw [List.getD_eq_default (referenceDigits T a.key) 0 (by omega)] at hlow
       omega
@@ -90,16 +89,17 @@ theorem markEntry_sum_cell_le (T : Answers) (e : EncIndex) :
   classical
   have hb : ∀ p : CanonGraph.LeafPos × Fin 58,
       Pr[fun ans => WotsExtract.SourceChain (chainAt p) ∧ MarkEntry T (chainAt p) (encInput e, ans) |
-        ($ᵗ HashOutput : ProbComp HashOutput)] ≤ if p.1 = e.1.1 then 57 / (2 : ENNReal) ^ 128 else 0 := by
+        ($ᵗ HashOutput : ProbComp HashOutput)] ≤ if p.1 = e.1 then 57 / (2 : ENNReal) ^ 128 else 0 := by
     intro p
     split_ifs with hp
     · exact (probEvent_mono fun ans _ h => h.2).trans (markEntry_cell_le T _ _)
     · apply le_of_eq
       apply probEvent_eq_zero
-      rintro ans - ⟨-, message, counter, pad, digits, -, he, -⟩
-      exact hp (encInput_leaf (he.trans rfl : encInput e = encRow (leafOf p.1) message counter pad)).symm
+      rintro ans - ⟨-, message, counter, digits, he, -⟩
+      have := encInput_injective (he.trans rfl : encInput e = encInput (p.1, message, counter))
+      exact hp (congrArg Prod.fst this).symm
   refine (Finset.sum_le_sum fun p _ => hb p).trans (le_of_eq ?_)
-  rw [Fintype.sum_prod_type, Finset.sum_eq_single e.1.1 (fun L _ hL => by simp [hL]) (by simp)]
+  rw [Fintype.sum_prod_type, Finset.sum_eq_single e.1 (fun L _ hL => by simp [hL]) (by simp)]
   simp only [if_true, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
   rw [← mul_div_assoc]
   norm_num
@@ -108,15 +108,13 @@ theorem markEntry_other (U : Finset HashInput) (privateTable : FullGame.FullTabl
     (p : CanonGraph.LeafPos × Fin 58) :
     ¬ (WotsExtract.SourceChain (chainAt p) ∧
       MarkEntry (eagerAnswers U privateTable pub) (chainAt p) (x, eagerAnswers U privateTable pub (.inl (.inr x)))) := by
-  rintro ⟨-, message, counter, pad, digits, hfit, he, hne, hdec, -⟩
+  rintro ⟨-, message, counter, digits, he, hne, hdec, -⟩
   have hreached : Reached (eagerAnswers U privateTable pub) (leafOf p.1) x := by
     by_contra hfree
-    have hx' : encInput (encIdx p.1 message counter pad hfit) = x :=
-      (encInput_encIdx p.1 message counter pad hfit).trans he.symm
-    exact hx ⟨encIdx p.1 message counter pad hfit, by
-      change ¬ Reached _ _ (encInput (encIdx p.1 message counter pad hfit))
-      rw [hx']
-      exact hfree, hx'⟩
+    exact hx ⟨(p.1, message, counter), by
+      change ¬ Reached _ _ (encInput (p.1, message, counter))
+      rw [show encInput (p.1, message, counter) = x from he.symm]
+      exact hfree, he.symm⟩
   have href := reached_valid_reference hreached hdec
   exact hne (he ▸ href)
 noncomputable def markerCount (s : RefSample) : Nat :=

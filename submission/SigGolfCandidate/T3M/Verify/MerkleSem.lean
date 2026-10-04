@@ -1,57 +1,10 @@
-import SigGolfCandidate.T3M.Verify.MerkleRuns
+import SigGolfCandidate.T3M.Verify.MerkleCheckA
+import SigGolfCandidate.T3M.Verify.MerkleCheckB
+import SigGolfCandidate.T3M.Verify.MerkleCheckC
 import SigGolfCandidate.T3M.Verify.LayerLower
 import SigGolfCandidate.T3M.Verify.Arith
-
 section
-
-namespace SigGolfCandidate.T3M.BC
-open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
-open SigGolfCandidate.T3M.Verify
-def mkShp (lay ci sh : Nat) : Nat :=
-  T3M.mkShp lay ci sh + if lay = 0 then 0 else 5
-def mkEntSpec (lay ci sh : Nat) : Spec :=
-  ⟨[], [], mkShp lay ci sh + 1, true, 2, [], none, 2⟩
-def mkEntCheck (lay ci sh : Nat) : Bool :=
-  specB [] [] baseK (runAt (mkKc lay) [] (mkTabW lay ci sh) [])
-    (mkEntSpec lay ci sh) [] (mkEntPost lay ci sh) mkEntKeep
-def mkLvlSpecN (lay ci sh kk : Nat) : Spec :=
-  { T3M.mkLvlSpecN lay ci sh kk with
-    pc := mkShp lay ci sh + mkOff lay ci (kk + 1) + mkMove lay (mkLo lay ci + kk) }
-def mkLvlCheckN (lay ci sh kk : Nat) : Bool :=
-  specB (mkLvlAllow lay (mkLo lay ci + kk)) [] baseK
-    (runAt (mkLvlKN lay ci sh kk) [] (mkShp lay ci sh + mkOff lay ci kk + 2) [])
-    (mkLvlSpecN lay ci sh kk) [] (mkLvlPostN lay ci sh kk)
-    (mkKeep ++ (.x14 :: mkLvlKeep lay (mkLo lay ci + kk)))
-def mkLvlCheck (lay ci sh kk : Nat) : Bool :=
-  if mkIsDisp lay ci kk then T3M.mkLvlCheckD lay ci sh kk
-  else mkLvlCheckN lay ci sh kk
-def childReturn (lay sh : Nat) : Nat :=
-  mkShp lay 0 sh + mkOff lay 0 (hL lay - 1) + 2
-def mkBlockCheck (lay ci sh : Nat) : Bool :=
-  mkEntCheck lay ci sh &&
-  (List.range (mkBits lay ci - if lay = 0 then 0 else 1)).all (mkLvlCheck lay ci sh) &&
-  (lay == 0 || childReturn lay sh == trPc (lay - 1) sh)
-def mkChunkCheck (lay ci lo n : Nat) : Bool :=
-  (List.range' lo n).all (mkBlockCheck lay ci)
-end SigGolfCandidate.T3M.BC
-end
-
-section
-
-namespace SigGolfCandidate.T3M.BC
-set_option maxRecDepth 100000
-theorem mkCheck_3 : mkChunkCheck 3 0 0 64 = true := by decide +kernel
-theorem mkCheck_2 : mkChunkCheck 2 0 0 64 = true := by decide +kernel
-theorem mkCheck_1a : mkChunkCheck 1 0 0 64 = true := by decide +kernel
-theorem mkCheck_1b : mkChunkCheck 1 0 64 64 = true := by decide +kernel
-theorem mkCheck_00 : mkChunkCheck 0 0 0 64 = true := by decide +kernel
-theorem mkCheck_01 : mkChunkCheck 0 1 0 64 = true := by decide +kernel
-end SigGolfCandidate.T3M.BC
-end
-
-section
-
-namespace SigGolfCandidate.T3M.BC
+namespace SigGolfCandidate.T3M
 theorem mkBlockCheck_at (lay ci sh : Nat) (hlay : lay < 4) (hci : ci < mkNch lay) (hsh : sh < 2 ^ mkBits lay ci) :
     mkBlockCheck lay ci sh = true := by
   have hall : ∀ lo n, mkChunkCheck lay ci lo n = true → lo ≤ sh → sh < lo + n → mkBlockCheck lay ci sh = true :=
@@ -59,28 +12,24 @@ theorem mkBlockCheck_at (lay ci sh : Nat) (hlay : lay < 4) (hci : ci < mkNch lay
   interval_cases lay
   · have hci' : ci < 2 := by simpa [mkNch] using hci
     interval_cases ci
-    · exact hall 0 64 mkCheck_00 (by omega) (by simpa [mkBits] using hsh)
-    · exact hall 0 64 mkCheck_01 (by omega) (by simpa [mkBits] using hsh)
+    · exact hall 0 64 mkChunk_00 (by omega) (by simpa [mkBits] using hsh)
+    · exact hall 0 64 mkChunk_01 (by omega) (by simpa [mkBits] using hsh)
   all_goals (have hci0 : ci = 0 := by simp [mkNch] at hci; omega); subst hci0
   · have : sh < 128 := by simpa [mkBits, hL] using hsh
     by_cases h64 : sh < 64
-    · exact hall 0 64 mkCheck_1a (by omega) (by omega)
-    · exact hall 64 64 mkCheck_1b (by omega) (by omega)
-  · exact hall 0 64 mkCheck_2 (by omega) (by simpa [mkBits, hL] using hsh)
-  · exact hall 0 64 mkCheck_3 (by omega) (by simpa [mkBits, hL] using hsh)
+    · exact hall 0 64 mkChunk_1a (by omega) (by omega)
+    · exact hall 64 64 mkChunk_1b (by omega) (by omega)
+  · exact hall 0 64 mkChunk_2 (by omega) (by simpa [mkBits, hL] using hsh)
+  · exact hall 0 64 mkChunk_3 (by omega) (by simpa [mkBits, hL] using hsh)
 theorem mkEnt_of {lay ci sh : Nat} (h : mkBlockCheck lay ci sh = true) : mkEntCheck lay ci sh = true := by
-  simp only [mkBlockCheck, Bool.and_eq_true] at h; exact h.1.1
-theorem mkLvl_of {lay ci sh : Nat} (h : mkBlockCheck lay ci sh = true) (kk : Nat) (hkk : kk < mkBits lay ci - (if lay = 0 then 0 else 1)) :
+  simp only [mkBlockCheck, Bool.and_eq_true] at h; exact h.1
+theorem mkLvl_of {lay ci sh : Nat} (h : mkBlockCheck lay ci sh = true) (kk : Nat) (hkk : kk < mkLvls lay ci) :
     mkLvlCheck lay ci sh kk = true := by
   simp only [mkBlockCheck, Bool.and_eq_true] at h
-  exact List.all_eq_true.mp h.1.2 kk (List.mem_range.mpr hkk)
-end SigGolfCandidate.T3M.BC
+  exact List.all_eq_true.mp h.2 kk (List.mem_range.mpr hkk)
+end SigGolfCandidate.T3M
 end
-
 section
-
-
-
 set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
@@ -113,9 +62,9 @@ theorem mkIn_blocks (w : WBytes) (index : Nat) (lay : Layer) (value : Digest) (j
 def mkCi (lay k : Nat) : Nat := if lay = 0 ∧ 6 ≤ k then 1 else 0
 def mkSh (lay ci leaf : Nat) : Nat := leaf / 2 ^ mkLo lay ci % 2 ^ mkBits lay ci
 def mkEc (lay leaf k : Nat) : Nat :=
-  BC.mkShp lay (mkCi lay k) (mkSh lay (mkCi lay k) leaf) + mkOff lay (mkCi lay k) (k - mkLo lay (mkCi lay k)) + 1
+  mkShp lay (mkCi lay k) (mkSh lay (mkCi lay k) leaf) + mkOff lay (mkCi lay k) (k - mkLo lay (mkCi lay k)) + 1
 def mkFin (lay leaf : Nat) : Nat :=
-  BC.mkShp lay (mkNch lay - 1) (mkSh lay (mkNch lay - 1) leaf) + mkOff lay (mkNch lay - 1) (mkBits lay (mkNch lay - 1)) + (if lay = 0 then 0 else 1)
+  mkShp lay (mkNch lay - 1) (mkSh lay (mkNch lay - 1) leaf) + mkOff lay (mkNch lay - 1) (mkBits lay (mkNch lay - 1)) + (if lay = 0 then 0 else 1)
 def mkLvlSt (lay k : Nat) : Nat := mkBody lay k + mkMove lay k + (if lay = 0 ∧ k = 5 then 4 else 0)
 theorem mk_facts (lay k : Nat) (hlay : lay < 4) (hk : k < hL lay) :
     mkCi lay k < mkNch lay ∧ mkLo lay (mkCi lay k) ≤ k ∧ k - mkLo lay (mkCi lay k) < mkBits lay (mkCi lay k) ∧
@@ -146,12 +95,12 @@ theorem mkBase_eq (lay : Layer) : mkBase lay.val = layerBase lay := by fin_cases
 theorem mkBo_eq (lay : Layer) (k : Nat) : mkBo lay.val k = merkleBlock lay k := by
   unfold mkBo merkleBlock; rw [mkBase_eq, hL_eq]
 theorem mkBo_facts (lay k : Nat) (hlay : lay < 4) (hk : k < hL lay) :
-    mkBo lay k % 8 = 0 ∧ 10568 ≤ mkBo lay k ∧ mkBo lay k + 80 ≤ 24280 ∧ mkBase lay ≤ mkBo lay k ∧
+    mkBo lay k % 8 = 0 ∧ 11288 ≤ mkBo lay k ∧ mkBo lay k + 80 ≤ 25256 ∧ mkBase lay ≤ mkBo lay k ∧
     (k + 1 < hL lay → mkBo lay (k + 1) + 64 = mkBo lay k) ∧ (k + 1 = hL lay → mkBo lay k = mkBase lay) ∧
     mkBo lay k + 64 ≤ mkBase lay + 64 * hL lay := by
   interval_cases lay <;> simp only [hL, List.getD_cons_succ, List.getD_cons_zero] at hk ⊢ <;>
     simp only [mkBo, mkBase, hL, List.getD_cons_succ, List.getD_cons_zero] <;> omega
-theorem mkBase_ge (lay : Nat) (hlay : lay < 4) : 10568 ≤ mkBase lay ∧ mkBase lay % 8 = 0 := by
+theorem mkBase_ge (lay : Nat) (hlay : lay < 4) : 11288 ≤ mkBase lay ∧ mkBase lay % 8 = 0 := by
   interval_cases lay <;> decide
 theorem layerBase_add (lay : Layer) : layerBase lay + 64 * height lay = mkBase lay.val + 64 * hL lay.val := by
   rw [mkBase_eq, hL_eq]
@@ -186,14 +135,16 @@ theorem mkHeap_eq (lay leaf k : Nat) (hlay : lay < 4) (hleaf : leaf < 2 ^ hL lay
       exact Nat.mod_eq_of_lt hleaf
     rw [hsh, show mkLo lay 0 = 0 by simp [mkLo], Nat.pow_zero, Nat.mul_one, mkPow_add_div _ k _ hk]
 theorem mkHeapE_eval (lay leaf k : Nat) (hlay : lay < 4) (hleaf : leaf < 2 ^ hL lay) (hk : k < hL lay)
-    (s : MachineState) (h23 : s.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay + leaf)) :
+    (s : MachineState) (h23' : s.getReg .x23 = BitVec.ofNat 64 (s7v lay leaf)) :
     (mkHeapE lay (mkCi lay k) (mkSh lay (mkCi lay k) leaf) k).eval s =
       BitVec.ofNat 64 (2 ^ (hL lay - k - 1) + leaf / 2 ^ (k + 1)) := by
   have hh : hL lay ≤ 12 := by interval_cases lay <;> decide
   have hpow : 2 ^ hL lay ≤ 2 ^ 12 := Nat.pow_le_pow_right (by decide) hh
   unfold mkHeapE
   split_ifs with hc
-  · apply BitVec.eq_of_toNat_eq
+  · have h23 : s.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay + leaf) := by
+      rw [h23', s7v, if_pos hc.1]
+    apply BitVec.eq_of_toNat_eq
     simp only [E.eval, BinOp.eval, kw, h23]
     have h1 : 2 ^ (hL lay - k - 1) ≤ 2 ^ 12 := Nat.pow_le_pow_right (by decide) (by omega)
     have h2 : leaf / 2 ^ (k + 1) ≤ leaf := Nat.div_le_self _ _
@@ -203,9 +154,7 @@ theorem mkHeapE_eval (lay leaf k : Nat) (hlay : lay < 4) (hleaf : leaf < 2 ^ hL 
   · simp only [E.eval, kw]
     rw [mkHeap_eq lay leaf k hlay hleaf hk hc]
 def mkP (lay k b : Nat) (o : Nat) : Prop :=
-  10568 ≤ o ∧ o < mkBo lay k + 64 ∧ (0x800 + o + 8 ≤ mkCur lay k b ∨ mkCur lay k b + 32 ≤ 0x800 + o)
-def mkW0 (lay : Nat) (u : MachineState) : Word :=
-  if lay = 0 then BitVec.ofNat 64 (hw 3 0) else StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (u.getReg .x30)
+  11288 ≤ o ∧ o < mkBo lay k + 64 ∧ (0x800 + o + 8 ≤ mkCur lay k b ∨ mkCur lay k b + 32 ≤ 0x800 + o)
 structure MAfter (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState) (k : Nat) (v : Digest)
     (s : MachineState) : Prop where
   pc : s.pc = pcOf (mkEc lay leaf k + 1)
@@ -215,7 +164,7 @@ structure MAfter (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState) 
   node : DigAt s (mkCur lay k (leaf / 2 ^ k % 2)) v
   orig : Orig w (mkP lay k (leaf / 2 ^ k % 2)) s
   dstReg : s.getReg .x12 = BitVec.ofNat 64 (mkCur lay k (leaf / 2 ^ k % 2))
-  x4 : k ≠ 0 → s.getReg .x4 = mkW0 lay u
+  x4 : k ≠ 0 → s.getReg .x4 = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (u.getReg .x30)
 structure MkEnd (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState) (root : Digest) (t : MachineState) :
     Prop where
   pc : t.pc = pcOf (mkFin lay leaf + 1)
@@ -223,9 +172,8 @@ structure MkEnd (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState) (
   known : KnownOK (mkKc lay ++ [(.x11, 64)]) t
   keep : ∀ r ∈ mkKeep, t.getReg r = u.getReg r
   root : DigAt t (mkDst lay leaf) root
-  orig : Orig w (fun o => 10568 ≤ o ∧ o < mkBase lay) t
+  orig : Orig w (fun o => 11288 ≤ o ∧ o < mkBase lay) t
   dstReg : t.getReg .x12 = BitVec.ofNat 64 (mkDst lay leaf)
-  x10 : t.getReg .x10 = BitVec.ofNat 64 (mkBlk lay (hL lay - 1))
 def mkHashInputOf (a b : Word) (f : Word → BitVec 8) : Query :=
   ⟨b.toNat / 64 - 1, BitVec.ofNat (8 * (64 * (b.toNat / 64 - 1 + 1))) ((List.range (64 * (b.toNat / 64 - 1 + 1))).foldl
     (fun acc i => acc + (f (a + BitVec.ofNat 64 i)).toNat * 2 ^ (8 * i)) 0)⟩
@@ -245,50 +193,57 @@ theorem mkK_cases (lay : Nat) (p : Reg × Word) (hp : p ∈ mkK lay) :
     p ∈ mkKc lay ∨ p = (.x4, BitVec.ofNat 64 (hw 3 lay)) := by
   simp only [mkK, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
   rcases hp with hp | hp | hp | hp | hp | hp | hp | hp | hp | hp | hp <;> simp [mkKc, hp]
-theorem mkX4_eval (lay : Nat) (s : MachineState) :
-    (mkX4 lay).eval s = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (s.getReg .x30) := rfl
-theorem merge_hw3_top : StoreKind.merge .w (BitVec.ofNat 64 (hw 3 0)) 4 (BitVec.ofNat 64 0) = BitVec.ofNat 64 (hw 3 0) := by
-  rw [merge_hi]; unfold hdr1 hw; norm_num
+theorem mkX4_eval (lay : Nat) (s : MachineState) (h30 : lay = 0 → s.getReg .x30 = 0) :
+    (mkX4 lay).eval s = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (s.getReg .x30) := by
+  unfold mkX4
+  split_ifs with h
+  · subst h
+    rw [h30 rfl]
+    show BitVec.ofNat 64 (hw 3 0) = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 0)) 4 0
+    decide
+  · rfl
 theorem lvlMem_read (lay ci sh l : Nat) (s : MachineState) (A : Nat) (hA : A < 2 ^ 64) (hB : mkBlk lay l + 24 < 2 ^ 64)
-    (h4 : l ≠ 0 → s.getReg .x4 = mkW0 lay s) :
+    (h30 : lay = 0 → s.getReg .x30 = 0) (h4 : l ≠ 0 → s.getReg .x4 = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (s.getReg .x30)) :
     memEval s (mkLvlMem lay ci sh l) (BitVec.ofNat 64 A) =
       if A = mkBlk lay l + 24 then
         (mkHeapE lay ci sh l).eval s
-      else if A = mkBlk lay l + 16 then mkW0 lay s else s.getMem (BitVec.ofNat 64 A) := by
-  have hH : (mkHdrE lay l).eval s = mkW0 lay s := by
+      else if A = mkBlk lay l + 16 then StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (s.getReg .x30) else s.getMem (BitVec.ofNat 64 A) := by
+  have hH : (mkHdrE lay l).eval s = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (s.getReg .x30) := by
     unfold mkHdrE
-    split_ifs with hl hl0
-    · subst hl0; simp [mkW0, kw, E.eval]
-    · simp only [mkW0, if_neg hl0]; exact mkX4_eval lay s
+    split_ifs with hl
+    · exact mkX4_eval lay s h30
     · exact h4 hl
   unfold mkLvlMem
   rw [memEval_cons_ofNat _ _ _ _ _ hA hB, memEval_cons_ofNat _ _ _ _ _ hA (by omega), memEval_nil, hH]
 theorem lvl_input (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : MachineState) (hidx : index < 2 ^ 31)
-    (hs7 : u.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay.val + (route index lay).1))
-    (ht5 : lay.val ≠ 0 → u.getReg .x30 = BitVec.ofNat 64 (route index lay).2)
+    (hs7 : u.getReg .x23 = BitVec.ofNat 64 (s7v lay.val (route index lay).1))
+    (ht5 : u.getReg .x30 = BitVec.ofNat 64 (route index lay).2)
     (k : Nat) (hk : k < hL lay.val) (v : Digest) (s t : MachineState)
     (hs : MAfter w pk lay.val (route index lay).1 u k v s)
     (hmem : ∀ A, t.getMem A =
       memEval s (mkLvlMem lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) k) A)
     (h10 : t.getReg .x10 = BitVec.ofNat 64 (mkBlk lay.val k)) (h11 : t.getReg .x11 = BitVec.ofNat 64 64) :
-    hashInput t = toQ (pad64 (mkIn w index lay v k)) ∧ Orig w (fun o => 10568 ≤ o ∧ o < mkBo lay.val k) t := by
+    hashInput t = toQ (pad64 (mkIn w index lay v k)) ∧ Orig w (fun o => 11288 ≤ o ∧ o < mkBo lay.val k) t := by
   have hlay := lay.isLt
   have hleaf : (route index lay).1 < 2 ^ hL lay.val := leaf_lt index lay
   have htree : (route index lay).2 < 2 ^ 32 := tree_lt index lay hidx
   obtain ⟨hB8, hBlo, hBhi, -, -, -, -⟩ := mkBo_facts lay.val k hlay hk
-  have h4s : k ≠ 0 → s.getReg .x4 = mkW0 lay.val s :=
-    fun hk0 => (hs.x4 hk0).trans (by unfold mkW0; rw [hs.keep .x30 (by simp [mkKeep])])
-  have h30 : lay.val ≠ 0 → s.getReg .x30 = BitVec.ofNat 64 (route index lay).2 :=
-    fun h => (hs.keep .x30 (by simp [mkKeep])).trans (ht5 h)
+  have h4s : k ≠ 0 → s.getReg .x4 = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay.val)) 4 (s.getReg .x30) :=
+    fun hk0 => (hs.x4 hk0).trans (by rw [hs.keep .x30 (by simp [mkKeep])])
+  have h30s : lay.val = 0 → s.getReg .x30 = 0 := fun hl0 => by
+    rw [hs.keep .x30 (by simp [mkKeep]), ht5, show lay = 0 from Fin.ext hl0,
+      show (route index 0).2 = 0 by rw [route_snd]; exact Nat.div_eq_of_lt hidx]
+    rfl
   have hrd : ∀ A, A < 2 ^ 64 → t.getMem (BitVec.ofNat 64 A) =
       if A = mkBlk lay.val k + 24 then
         (mkHeapE lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) k).eval s
-      else if A = mkBlk lay.val k + 16 then mkW0 lay.val s else s.getMem (BitVec.ofNat 64 A) :=
-    fun A hA => (hmem _).trans (lvlMem_read _ _ _ _ s A hA (by unfold mkBlk; omega) h4s)
+      else if A = mkBlk lay.val k + 16 then StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay.val)) 4 (s.getReg .x30) else s.getMem (BitVec.ofNat 64 A) :=
+    fun A hA => (hmem _).trans (lvlMem_read _ _ _ _ s A hA (by unfold mkBlk; omega) h30s h4s)
   have hfr : ∀ A, A < 2 ^ 64 → A ≠ mkBlk lay.val k + 24 → A ≠ mkBlk lay.val k + 16 →
       t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA h1 h2; rw [hrd A hA, if_neg h1, if_neg h2]
-  have h23 : s.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay.val + (route index lay).1) :=
+  have h30 : s.getReg .x30 = BitVec.ofNat 64 (route index lay).2 := (hs.keep .x30 (by simp [mkKeep])).trans ht5
+  have h23 : s.getReg .x23 = BitVec.ofNat 64 (s7v lay.val (route index lay).1) :=
     (hs.keep .x23 (by simp [mkKeep])).trans hs7
   have hheap : 2 ^ (height lay - k - 1) + (route index lay).1 / 2 ^ (k + 1) < 2^32 := by
     have hp : (2 : Nat) ^ (height lay - k - 1) ≤ 2^12 :=
@@ -308,19 +263,11 @@ theorem lvl_input (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Ma
     simp only [Nat.mod_eq_of_lt hheap, Nat.div_eq_of_lt hheap, Nat.zero_mod, Nat.zero_add, Nat.add_zero, Nat.zero_mul]
   have hT0 : t.getMem (BitVec.ofNat 64 (mkBlk lay.val k + 16)) =
       BitVec.ofNat 64 (hdr0 3 lay.val (route index lay).2 (route index lay).2) := by
-    rw [hrd _ (by unfold mkBlk; omega), if_neg (by omega), if_pos rfl]
-    by_cases h0 : lay.val = 0
-    · have hz : (route index lay).2 = 0 := by
-        have : lay = 0 := Fin.ext h0
-        subst this
-        rw [route_snd]; exact Nat.div_eq_of_lt (by simpa [below, hL] using hidx)
-      simp only [mkW0, if_pos h0]
-      rw [hz, h0]; rfl
-    · simp only [mkW0, if_neg h0]
-      rw [h30 h0, merge_hi, hdr0_eq 3 lay.val _ _ (by decide) (by omega) htree htree]
-      congr 1
-      unfold hdr1 hw
-      omega
+    rw [hrd _ (by unfold mkBlk; omega), if_neg (by omega), if_pos rfl, h30, merge_hi,
+      hdr0_eq 3 lay.val _ _ (by decide) (by omega) htree htree]
+    congr 1
+    unfold hdr1 hw
+    omega
   have hO := hs.orig
   have hlen := mkIn_length w index lay v k
   refine ⟨?_, ?_⟩
@@ -380,11 +327,11 @@ theorem safeDest_dst (lay leaf : Nat) (hlay : lay < 4) : safeDest (mkDst lay lea
   · simp [mkDst,h,safeDest,pSlots,CTRW,WIT,MEMORY_BYTES]
     intro x hx; right; omega
 theorem mkDst_chunk (leaf : Nat) :
-    12616 + 48 * (mkSh 0 1 leaf / 32 % 2) = mkDst 0 leaf := by
+    13336 + 48 * (mkSh 0 1 leaf / 32 % 2) = mkDst 0 leaf := by
   have h := mkSh_bit 0 1 leaf 5 (by decide)
-  change 12616 + 48 * (mkSh 0 1 leaf / 2^5 % 2) =
-    12616 + 48 * (leaf / 2^(mkLo 0 1+5) % 2)
-  exact congrArg (fun x => 12616 + 48*x) h
+  change 13336 + 48 * (mkSh 0 1 leaf / 2^5 % 2) =
+    13336 + 48 * (leaf / 2^(mkLo 0 1+5) % 2)
+  exact congrArg (fun x => 13336 + 48*x) h
 theorem mkMove_next (lay k : Nat) (hk : k+1 < hL lay) : mkMove lay k = 1 := by
   by_cases h : lay = 0
   · subst lay
@@ -402,9 +349,8 @@ theorem lvl_after (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState)
     (k : Nat) (hk : k < hL lay) (t : MachineState)
     (hglob : Glob baseK w pk t) (hknown : KnownOK (mkKc lay ++ [(.x11, 64)]) t)
     (hkeep : ∀ r ∈ mkKeep, t.getReg r = u.getReg r)
-    (h4 : t.getReg .x4 = mkW0 lay u)
-    (horig : Orig w (fun o => 10568 ≤ o ∧ o < mkBo lay k) t) (h10 : t.getReg .x10 = BitVec.ofNat 64 (mkBlk lay k))
-    (a : BitVec 256) :
+    (h4 : t.getReg .x4 = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay)) 4 (u.getReg .x30))
+    (horig : Orig w (fun o => 11288 ≤ o ∧ o < mkBo lay k) t) (a : BitVec 256) :
     (k + 1 < hL lay → t.pc = pcOf (mkEc lay leaf (k + 1)) →
       t.getReg .x12 = BitVec.ofNat 64 (mkCur lay (k + 1) (leaf / 2 ^ (k + 1) % 2)) →
       MAfter w pk lay leaf u (k + 1) (a.extractLsb' 0 128) (writeHash t a)) ∧
@@ -430,7 +376,7 @@ theorem lvl_after (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState)
     · rw [writeHash_getReg]; exact h12
     · intro _; rw [writeHash_getReg]; exact h4
   · have hbl := hBlast hk1
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [writeHash_pc, hpc, pcOf_add4]
     · exact Glob_writeHash hglob a _ h12 (safeDest_dst lay leaf hlay)
     · intro p hp; rw [writeHash_getReg]; exact hknown p hp
@@ -444,7 +390,6 @@ theorem lvl_after (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState)
       · simp [hl,mkBase] at ho; omega
       · right; simp [mkDst,hl,WIT]; omega
     · rw [writeHash_getReg]; exact h12
-    · rw [writeHash_getReg, h10, show k = hL lay - 1 by omega]
 theorem dispTgt_eval (leaf : Nat) (hleaf : leaf < 4096) (s : MachineState)
     (h23 : s.getReg .x23 = BitVec.ofNat 64 (2 ^ hL 0 + leaf)) :
     mkDispTgt.eval s = pcOf (mkTab 0 1 + mkSh 0 1 leaf) := by
@@ -472,11 +417,11 @@ theorem lfK_mkK (lay : Nat) : ∀ p ∈ mkK lay, p ∈ lfK lay := by
   intro p hp
   simp only [mkK, baseK, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
   rcases hp with (rfl | rfl) | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
-    simp [lfK, postLf, leafK, lfKeepK, baseK]
+    by_cases h0 : lay = 0 <;> simp [lfK, postLf, leafK, lfKeepK, baseK, h0]
 theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : MachineState) (hidx : index < 2 ^ 31)
-    (hs7 : u.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay.val + (route index lay).1))
-    (ht5 : lay.val ≠ 0 → u.getReg .x30 = BitVec.ofNat 64 (route index lay).2)
-    (k : Nat) (hk : k < hL lay.val) (hlive : k < hL lay.val - (if lay.val = 0 then 0 else 1)) (v : Digest) (s : MachineState)
+    (hs7 : u.getReg .x23 = BitVec.ofNat 64 (s7v lay.val (route index lay).1))
+    (ht5 : u.getReg .x30 = BitVec.ofNat 64 (route index lay).2)
+    (k : Nat) (hk : k < hL lay.val) (hk1 : lay.val = 0 ∨ k + 1 < hL lay.val) (v : Digest) (s : MachineState)
     (hs : MAfter w pk lay.val (route index lay).1 u k v s) :
     ∃ t, Steps image s (mkLvlSt lay.val k) (mkLvlSt lay.val k) t ∧ fetch image t = some (.base .ECALL) ∧
       t.getReg .x5 = 0 ∧ hashArgumentsValid t = true ∧ hashInput t = toQ (pad64 (mkIn w index lay v k)) ∧
@@ -489,19 +434,25 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
   obtain ⟨hci, hlo, hkk, hdisp, hnext, hlast⟩ := mk_facts lay.val k hlay hk
   obtain ⟨hB8, hBlo, hBhi, hBase, -, -, -⟩ := mkBo_facts lay.val k hlay hk
   have hlk : mkLo lay.val (mkCi lay.val k) + (k - mkLo lay.val (mkCi lay.val k)) = k := by omega
-  have hblk := BC.mkBlockCheck_at lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) hlay hci
+  have hblk := mkBlockCheck_at lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) hlay hci
     (mkSh_lt _ _ _)
-  have hliveChunk : k - mkLo lay.val (mkCi lay.val k) <
-      mkBits lay.val (mkCi lay.val k) - (if lay.val = 0 then 0 else 1) := by
+  have hkk' : k - mkLo lay.val (mkCi lay.val k) < mkLvls lay.val (mkCi lay.val k) := by
+    unfold mkLvls
     by_cases h0 : lay.val = 0
-    · simpa [h0] using hkk
-    · simpa [mkCi, mkLo, mkBits, h0] using hlive
-  have hlvl := BC.mkLvl_of hblk _ hliveChunk
-  have hpc0 : s.pc = pcOf (BC.mkShp lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) +
+    · rw [if_pos h0]; exact hkk
+    · rw [if_neg h0]
+      have hc : mkCi lay.val k = 0 := by simp [mkCi, h0]
+      rw [hc]
+      simp only [mkLo, mkBits, h0, false_and, if_false]
+      rcases hk1 with h | h
+      · exact absurd h h0
+      · omega
+  have hlvl := mkLvl_of hblk _ hkk'
+  have hpc0 : s.pc = pcOf (mkShp lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) +
       mkOff lay.val (mkCi lay.val k) (k - mkLo lay.val (mkCi lay.val k)) + 2) := by rw [hs.pc]; rfl
   have hkn0 : KnownOK (mkLvlK lay.val (mkLo lay.val (mkCi lay.val k) + (k - mkLo lay.val (mkCi lay.val k)))) s := by
     rw [hlk]; exact hs.known
-  have h23 : s.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay.val + (route index lay).1) :=
+  have h23 : s.getReg .x23 = BitVec.ofNat 64 (s7v lay.val (route index lay).1) :=
     (hs.keep .x23 (by simp [mkKeep])).trans hs7
   by_cases hd : lay.val = 0 ∧ k = 5
   ·
@@ -510,17 +461,17 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
       rw [hdisp]; simp [hl0, hk5]
     have hD : mkLvlCheckD lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1)
         (k - mkLo lay.val (mkCi lay.val k)) = true := by
-      simp only [BC.mkLvlCheck, hdt, if_true] at hlvl; exact hlvl
-    obtain ⟨t1, ht1⟩ := spec_run hD s (by simpa [BC.mkShp, hl0] using hpc0) hkn0 (by simp [mkLvlSpecD]) (by simp)
+      simp only [mkLvlCheck, hdt, if_true] at hlvl; exact hlvl
+    obtain ⟨t1, ht1⟩ := spec_run hD s hpc0 hkn0 (by simp [mkLvlSpecD]) (by simp)
     have hleaf0 : (route index lay).1 < 4096 := by rw [hl0] at hleaf; simpa [hL] using hleaf
     have hpc1 : t1.pc = pcOf (mkTab 0 1 + mkSh 0 1 (route index lay).1) := by
-      rw [ht1.spc mkDispTgt rfl, dispTgt_eval _ hleaf0 s (by rw [h23, hl0])]
+      rw [ht1.spc mkDispTgt rfl, dispTgt_eval _ hleaf0 s (by rw [h23, hl0, s7v, if_pos rfl])]
     have hkn1 : KnownOK (mkKc 0) t1 := fun p hp => ht1.known p (List.mem_append_left _ (by rw [hl0]; exact hp))
-    have hent := BC.mkEnt_of (BC.mkBlockCheck_at 0 1 (mkSh 0 1 (route index lay).1) (by decide) (by decide) (mkSh_lt _ _ _))
-    obtain ⟨t, ht⟩ := spec_run hent t1 hpc1 hkn1 (by simp [BC.mkEntSpec]) (by simp)
+    have hent := mkEnt_of (mkBlockCheck_at 0 1 (mkSh 0 1 (route index lay).1) (by decide) (by decide) (mkSh_lt _ _ _))
+    obtain ⟨t, ht⟩ := spec_run hent t1 hpc1 hkn1 (by simp [mkEntSpec]) (by simp)
     have hst : Steps image s (mkLvlSt lay.val k) (mkLvlSt lay.val k) t := by
       have := ht1.steps.trans ht.steps
-      simp only [mkLvlSpecD, BC.mkEntSpec, hlk] at this
+      simp only [mkLvlSpecD, mkEntSpec, hlk] at this
       rw [show mkLvlSt lay.val k = mkBody lay.val k + 3 + 2 by simp [mkLvlSt,hl0,hk5,mkMove]]
       exact this
     have hmem : ∀ A, t.getMem A =
@@ -559,9 +510,9 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
     have hkeep : ∀ r ∈ mkKeep, t.getReg r = u.getReg r := by
       intro r hr
       rw [ht.keep r (mkKeep_sub _ r hr), ht1.keep r (mkKeep_sub _ r hr)]; exact hs.keep r hr
-    have hkp4 : Reg.x4 ∈ mkLvlKeep lay.val (mkLo lay.val (mkCi lay.val k) + (k - mkLo lay.val (mkCi lay.val k))) := by
+    have hkp4 : Reg.x4 ∈ mkLvlKeep (mkLo lay.val (mkCi lay.val k) + (k - mkLo lay.val (mkCi lay.val k))) := by
       rw [hlk]; simp [mkLvlKeep, hk5]
-    have h4 : t.getReg .x4 = mkW0 lay.val u := by
+    have h4 : t.getReg .x4 = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay.val)) 4 (u.getReg .x30) := by
       rw [ht.keep .x4 (by simp [mkEntKeep]), ht1.keep .x4 (List.mem_append_right _ hkp4)]
       exact hs.x4 (by omega)
     have hk6 : k + 1 < hL lay.val := by rw [hl0, hk5]; decide
@@ -571,17 +522,17 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
             unfold mkCur mkBlk; omega)
         (by have := mkBit_lt (route index lay).1 (k + 1); have := (mkBo_facts lay.val (k + 1) hlay hk6).2.2.1
             unfold mkCur mkBlk; omega), hinp, fun a => ?_⟩
-    obtain ⟨hA1, -⟩ := lvl_after w pk lay.val (route index lay).1 u hlay k hk t hglob hknown hkeep h4 horig h10 a
+    obtain ⟨hA1, -⟩ := lvl_after w pk lay.val (route index lay).1 u hlay k hk t hglob hknown hkeep h4 horig a
     refine ⟨fun _ => hA1 hk6 ?_ h12, fun h => absurd h (by omega)⟩
     rw [ht.pc rfl]
-    simp only [BC.mkEntSpec, mkEc, hl0, hk5, show mkCi 0 6 = 1 from rfl, show mkLo 0 1 = 6 from rfl]
+    simp only [mkEntSpec, mkEc, hl0, hk5, show mkCi 0 6 = 1 from rfl, show mkLo 0 1 = 6 from rfl]
     rfl
   ·
     have hdf : mkIsDisp lay.val (mkCi lay.val k) (k - mkLo lay.val (mkCi lay.val k)) = false := by
       rw [hdisp]; exact decide_eq_false hd
-    have hN : BC.mkLvlCheckN lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1)
+    have hN : mkLvlCheckN lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1)
         (k - mkLo lay.val (mkCi lay.val k)) = true := by
-      simp only [BC.mkLvlCheck, hdf, Bool.false_eq_true, if_false] at hlvl; exact hlvl
+      simp only [mkLvlCheck, hdf, Bool.false_eq_true, if_false] at hlvl; exact hlvl
     have hknN : KnownOK (mkLvlKN lay.val (mkCi lay.val k)
         (mkSh lay.val (mkCi lay.val k) (route index lay).1) (k-mkLo lay.val (mkCi lay.val k))) s := by
       intro p hp
@@ -597,14 +548,14 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
           rw [show mkCi 0 11=1 from rfl,mkDst_chunk]
           rfl
         · simp at hp
-    obtain ⟨t, ht⟩ := spec_run hN s hpc0 hknN (by simp [BC.mkLvlSpecN, mkLvlSpecN]) (by simp)
+    obtain ⟨t, ht⟩ := spec_run hN s hpc0 hknN (by simp [mkLvlSpecN]) (by simp)
     have hst : Steps image s (mkLvlSt lay.val k) (mkLvlSt lay.val k) t := by
       have := ht.steps
-      simp only [BC.mkLvlSpecN, mkLvlSpecN, hlk] at this
+      simp only [mkLvlSpecN, hlk] at this
       rw [mkLvlSt_ne _ _ hd]; exact this
     have hmem : ∀ A, t.getMem A =
         memEval s (mkLvlMem lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) k) A := by
-      intro A; rw [ht.mem]; simp only [BC.mkLvlSpecN, mkLvlSpecN, hlk]
+      intro A; rw [ht.mem]; simp only [mkLvlSpecN, hlk]
     have hkt : KnownOK (mkLvlPostN lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1)
         (k - mkLo lay.val (mkCi lay.val k))) t := ht.known
     have h10 : t.getReg .x10 = BitVec.ofNat 64 (mkBlk lay.val k) := by
@@ -625,31 +576,26 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
       · simp only [List.mem_singleton] at hp; subst hp; exact h11
     have hkeep : ∀ r ∈ mkKeep, t.getReg r = u.getReg r := by
       intro r hr; rw [ht.keep r (mkKeep_sub _ r hr)]; exact hs.keep r hr
-    have h4 : t.getReg .x4 = mkW0 lay.val u := by
+    have h4 : t.getReg .x4 = StoreKind.merge .w (BitVec.ofNat 64 (hw 3 lay.val)) 4 (u.getReg .x30) := by
       by_cases hk0 : k = 0
-      · by_cases hl0 : lay.val = 0
-        ·
-          have hreg : mkLvlRegs lay.val (mkLo lay.val (mkCi lay.val k) + (k - mkLo lay.val (mkCi lay.val k))) =
-              [(.x4, kw (hw 3 lay.val))] := by
-            rw [hlk, hk0]; simp [mkLvlRegs, hl0]
-          have hk4 : t.getReg .x4 = BitVec.ofNat 64 (hw 3 lay.val) :=
-            ht.regs (.x4, kw (hw 3 lay.val)) (by simp only [BC.mkLvlSpecN, mkLvlSpecN]; rw [hreg]; exact List.mem_singleton.mpr rfl)
-          rw [hk4]; simp only [mkW0, if_pos hl0]; rw [hl0]
-        have hreg : mkLvlRegs lay.val (mkLo lay.val (mkCi lay.val k) + (k - mkLo lay.val (mkCi lay.val k))) =
+      · have hreg : mkLvlRegs lay.val (mkLo lay.val (mkCi lay.val k) + (k - mkLo lay.val (mkCi lay.val k))) =
             [(.x4, mkX4 lay.val)] := by
-          rw [hlk, hk0]; simp [mkLvlRegs, hl0]
+          rw [hlk, hk0]; simp [mkLvlRegs]
         have hr : t.getReg .x4 = (mkX4 lay.val).eval s :=
-          ht.regs (.x4, mkX4 lay.val) (by simp only [BC.mkLvlSpecN, mkLvlSpecN]; rw [hreg]; exact List.mem_singleton.mpr rfl)
-        rw [hr, mkX4_eval, hs.keep .x30 (by simp [mkKeep])]
-        simp only [mkW0, if_neg hl0]
-      · have hkp4 : Reg.x4 ∈ mkLvlKeep lay.val (mkLo lay.val (mkCi lay.val k) + (k - mkLo lay.val (mkCi lay.val k))) := by
+          ht.regs (.x4, mkX4 lay.val) (by simp only [mkLvlSpecN]; rw [hreg]; exact List.mem_singleton.mpr rfl)
+        have h30s : lay.val = 0 → s.getReg .x30 = 0 := fun hl0 => by
+          rw [hs.keep .x30 (by simp [mkKeep]), ht5, show lay = 0 from Fin.ext hl0,
+            show (route index 0).2 = 0 by rw [route_snd]; exact Nat.div_eq_of_lt hidx]
+          rfl
+        rw [hr, mkX4_eval _ _ h30s, hs.keep .x30 (by simp [mkKeep])]
+      · have hkp4 : Reg.x4 ∈ mkLvlKeep (mkLo lay.val (mkCi lay.val k) + (k - mkLo lay.val (mkCi lay.val k))) := by
           rw [hlk]; simp [mkLvlKeep, hk0]
         rw [ht.keep .x4 (List.mem_append_right _ (List.mem_cons_of_mem _ hkp4))]
         exact hs.x4 hk0
-    have hpcT : t.pc = pcOf (BC.mkShp lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) +
+    have hpcT : t.pc = pcOf (mkShp lay.val (mkCi lay.val k) (mkSh lay.val (mkCi lay.val k) (route index lay).1) +
         mkOff lay.val (mkCi lay.val k) (k - mkLo lay.val (mkCi lay.val k) + 1) + mkMove lay.val k) := by
       have h := ht.pc rfl
-      simpa only [BC.mkLvlSpecN, mkLvlSpecN,hlk] using h
+      simpa only [mkLvlSpecN,hlk] using h
     have hdst : ∃ d, t.getReg .x12 = BitVec.ofNat 64 d ∧ d % 8 = 0 ∧ d + 32 ≤ 2 ^ 24 := by
       by_cases hk1 : k + 1 < hL lay.val
       · obtain ⟨hn1, hn2, hn3⟩ := hnext hk1 hd
@@ -669,7 +615,7 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
     refine ⟨t, hst, ht.ecall rfl, hknown (.x5, 0) (by simp [mkKc, baseK]),
       hashArgs_of t _ 64 _ h10 h11 hd12 (by unfold mkBlk; omega) (by decide) (by unfold mkBlk; omega) hd8 hd32,
       hinp, fun a => ?_⟩
-    obtain ⟨hA1, hA2⟩ := lvl_after w pk lay.val (route index lay).1 u hlay k hk t hglob hknown hkeep h4 horig h10 a
+    obtain ⟨hA1, hA2⟩ := lvl_after w pk lay.val (route index lay).1 u hlay k hk t hglob hknown hkeep h4 horig a
     refine ⟨fun hk1 => hA1 hk1 ?_ ?_, fun hk1 => hA2 hk1 ?_ ?_⟩
     · obtain ⟨hn1, hn2, hn3⟩ := hnext hk1 hd
       rw [hpcT,mkMove_next _ _ hk1]; unfold mkEc; rw [hn1, hn2]
@@ -686,10 +632,6 @@ theorem lvl_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : Mac
         simp only [h0,hk11,if_true]
         rw [show mkCi 0 11=1 from rfl,mkDst_chunk]
       · simp [h0,mkDst]
-def mkStop (lay : Nat) : Nat := hL lay - (if lay = 0 then 0 else 1)
-def MkStop (w : WBytes) (pk : Digest) (lay leaf : Nat) (u : MachineState)
-    (v : Digest) (s : MachineState) : Prop :=
-  if lay = 0 then MkEnd w pk lay leaf u v s else MAfter w pk lay leaf u (mkStop lay) v s
 def mkCycR (lay : Nat) : Nat → Nat → Nat
   | _, 0 => 0
   | k, n + 1 => mkLvlSt lay k + 8 + mkCycR lay (k + 1) n
@@ -697,69 +639,62 @@ def mkFuelR (lay : Nat) : Nat → Nat → Nat
   | _, 0 => 0
   | k, n + 1 => mkLvlSt lay k + 1 + mkFuelR lay (k + 1) n
 theorem merkle_rest (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : MachineState) (hidx : index < 2 ^ 31)
-    (hs7 : u.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay.val + (route index lay).1))
-    (ht5 : lay.val ≠ 0 → u.getReg .x30 = BitVec.ofNat 64 (route index lay).2)
+    (hs7 : u.getReg .x23 = BitVec.ofNat 64 (s7v lay.val (route index lay).1))
+    (ht5 : u.getReg .x30 = BitVec.ofNat 64 (route index lay).2)
     (K : Digest → OracleComp HashSpec Obs) (N C A : Nat) (Q : Prop)
-    (hK : ∀ root t, MkStop w pk lay.val (route index lay).1 u root t → GoodQ t N C Q A (K root)) :
-    ∀ n k v s, k + n = mkStop lay.val → k < hL lay.val → MAfter w pk lay.val (route index lay).1 u k v s →
+    (hK : ∀ root t, MkEnd w pk lay.val (route index lay).1 u root t → GoodQ t N C Q A (K root))
+    (h0 : lay.val = 0) :
+    ∀ n k v s, k + n = hL lay.val → 0 < n → MAfter w pk lay.val (route index lay).1 u k v s →
       GoodQ s (N + mkFuelR lay.val k n) (C + mkCycR lay.val k n) Q (A + mkCycR lay.val k n)
         (ccM ((List.range' k n).foldlM (mkStep w index lay) v) K) := by
   intro n
   induction n with
-  | zero =>
-    intro k v s hkn hk hs
-    have h0 : lay.val ≠ 0 := by intro h; simp [mkStop, h] at hkn; rw [h] at hk; omega
-    simp only [List.range'_zero, List.foldlM_nil, ccM_pure, mkFuelR, mkCycR, Nat.add_zero]
-    apply hK v s
-    simpa [MkStop, h0, ← hkn] using hs
+  | zero => intro k v s _ h; omega
   | succ m ih =>
-    intro k v s hkn hk hs
-    have hlive : k < hL lay.val - (if lay.val = 0 then 0 else 1) := by change k < mkStop lay.val; omega
-    obtain ⟨t, hst, hf, h5, hv, hin, hpost⟩ := lvl_step w pk index lay u hidx hs7 ht5 k hk hlive v s hs
+    intro k v s hkn _ hs
+    have hk : k < hL lay.val := by omega
+    obtain ⟨t, hst, hf, h5, hv, hin, hpost⟩ := lvl_step w pk index lay u hidx hs7 ht5 k hk (Or.inl h0) v s hs
     rw [List.range'_succ, List.foldlM_cons, mkStep_eq]
     have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + mkFuelR lay.val (k + 1) m) (C + mkCycR lay.val (k + 1) m) Q
         (A + mkCycR lay.val (k + 1) m)
         (ccM ((fun v' => (List.range' (k + 1) m).foldlM (mkStep w index lay) v') (a.extractLsb' 0 128)) K) := by
       intro a
-      by_cases he : k + 1 = hL lay.val
-      · have hm : m = 0 := by unfold mkStop at hkn; split_ifs at hkn <;> omega
-        subst m
-        have h0 : lay.val = 0 := by unfold mkStop at hkn; split_ifs at hkn <;> omega
+      by_cases hm : m = 0
+      · subst hm
         simp only [List.range'_zero, List.foldlM_nil, ccM_pure, mkFuelR, mkCycR, Nat.add_zero]
-        apply hK
-        simpa [MkStop, h0] using (hpost a).2 he
+        exact hK _ _ ((hpost a).2 (by omega))
       · exact ih (k + 1) _ _ (by omega) (by omega) ((hpost a).1 (by omega))
     have hg := GoodQ.shortHash_bind (f := fun v' => (List.range' (k + 1) m).foldlM (mkStep w index lay) v') hf h5 hv hin H
     rw [mkIn_blocks] at hg
     simp only [mkFuelR, mkCycR]
     exact GoodQ.steps' hst hg (by omega) (by omega) (fun q => ⟨q, by omega⟩)
-def merklePrefix (w : WBytes) (index : Nat) (lay : Layer) (value : Digest) : T3.M Digest :=
-  (List.range (mkStop lay.val)).foldlM (mkStep w index lay) value
-def mkFuel (lay : Nat) : Nat := 3 + mkFuelR lay 0 (mkStop lay)
-def mkCyc (lay : Nat) : Nat := 2 + 8 * lfBlocks lay + mkCycR lay 0 (mkStop lay)
-theorem mkCyc_vals : mkCyc 0 = 271 ∧ mkCyc 1 = 169 ∧ mkCyc 2 = 156 ∧ mkCyc 3 = 156 := by decide
-theorem mkFuel_vals : mkFuel 0 = 76 ∧ mkFuel 1 = 40 ∧ mkFuel 2 = 34 ∧ mkFuel 3 = 34 := by decide
+def mkFuel (lay : Nat) : Nat := 3 + mkFuelR lay 0 (hL lay)
+def mkCyc (lay : Nat) : Nat := 2 + 8 * lfBlocks lay + mkCycR lay 0 (hL lay)
+theorem mkCyc_vals : mkCyc 0 = 271 ∧ mkCyc 1 = 181 ∧ mkCyc 2 = 168 ∧ mkCyc 3 = 168 := by decide
+theorem mkFuel_vals : mkFuel 0 = 76 ∧ mkFuel 1 = 45 ∧ mkFuel 2 = 39 ∧ mkFuel 3 = 39 := by decide
 theorem mkBits_stabBits (lay : Nat) (hlay : lay < 4) : mkBits lay 0 = stabBits lay := by
   interval_cases lay <;> decide
 theorem merkle_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends : List Digest) (u : MachineState)
     (hidx : index < 2 ^ 31) (hu : LeafOut w pk index lay ends u)
     (K : Digest → OracleComp HashSpec Obs) (N C A : Nat) (Q : Prop)
-    (hK : ∀ root t, MkStop w pk lay.val (route index lay).1 u root t → GoodQ t N C Q A (K root)) :
+    (hK : ∀ root t, MkEnd w pk lay.val (route index lay).1 u root t → GoodQ t N C Q A (K root))
+    (h0 : lay.val = 0) :
     GoodQ u (N + mkFuel lay.val) (C + mkCyc lay.val) Q (A + mkCyc lay.val)
-      (ccM (leafHash lay (route index lay).2 (route index lay).1 ends >>= merklePrefix w index lay) K) := by
+      (ccM (leafHash lay (route index lay).2 (route index lay).1 ends >>= merkleP w index lay) K) := by
   have hlay := lay.isLt
   have hleaf : (route index lay).1 < 2 ^ hL lay.val := leaf_lt index lay
   have hkU : KnownOK (lfK lay.val) u := hu.glob.1
   have hknown : KnownOK (mkKc lay.val) u := fun p hp => hkU p (lfK_mkK _ p (mkKc_mkK _ p hp))
   have hhL : 0 < hL lay.val := by interval_cases lay.val <;> decide
-  have hent := BC.mkEnt_of (BC.mkBlockCheck_at lay.val 0 (mkSh lay.val 0 (route index lay).1) hlay
+  have hent := mkEnt_of (mkBlockCheck_at lay.val 0 (mkSh lay.val 0 (route index lay).1) hlay
     (by unfold mkNch; split <;> omega) (mkSh_lt _ _ _))
-  have hpc : u.pc = pcOf (mkTabW lay.val 0 (mkSh lay.val 0 (route index lay).1)) := by
+  have hpc : u.pc = pcOf (mkTab lay.val 0 + mkSh lay.val 0 (route index lay).1) := by
     rw [hu.pc]
+    have e1 : mkTab lay.val 0 = stabIdx lay.val := by simp [mkTab]
     have e2 : mkSh lay.val 0 (route index lay).1 = (route index lay).1 % 2 ^ stabBits lay.val := by
       simp only [mkSh, show mkLo lay.val 0 = 0 by simp [mkLo], Nat.pow_zero, Nat.div_one, mkBits_stabBits _ hlay]
-    rw [e2]; simp [mkTabW]
-  obtain ⟨t, ht⟩ := spec_run hent u hpc hknown (by simp [BC.mkEntSpec]) (by simp)
+    rw [e1, e2]
+  obtain ⟨t, ht⟩ := spec_run hent u hpc hknown (by simp [mkEntSpec]) (by simp)
   have hmem : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
   have h10u : u.getReg .x10 = BitVec.ofNat 64 (lfBase lay.val) :=
     hkU (.x10, BitVec.ofNat 64 (if lay.val = 0 then 512 else 768)) (by simp [lfK, postLf])
@@ -784,14 +719,14 @@ theorem merkle_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends
       (by unfold lfBase; split <;> decide) (by unfold lfBytes; split <;> decide) (by unfold lfBase lfBytes; split <;> decide)
       (by unfold mkCur mkBlk; omega) (by unfold mkCur mkBlk; omega)
   have hG : Glob baseK w pk t := ht.glob _ _ _ hu.glob (RelOK.nil u)
-  have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + mkFuelR lay.val 0 (mkStop lay.val))
-      (C + mkCycR lay.val 0 (mkStop lay.val)) Q (A + mkCycR lay.val 0 (mkStop lay.val))
-      (ccM (merklePrefix w index lay (a.extractLsb' 0 128)) K) := by
+  have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + mkFuelR lay.val 0 (hL lay.val))
+      (C + mkCycR lay.val 0 (hL lay.val)) Q (A + mkCycR lay.val 0 (hL lay.val))
+      (ccM (merkleP w index lay (a.extractLsb' 0 128)) K) := by
     intro a
     have hA : MAfter w pk lay.val (route index lay).1 u 0 (a.extractLsb' 0 128) (writeHash t a) := by
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, fun h => absurd rfl h⟩
       · rw [writeHash_pc, ht.pc rfl, pcOf_add4]
-        simp only [BC.mkEntSpec, mkEc, show mkCi lay.val 0 = 0 by simp [mkCi], show mkLo lay.val 0 = 0 by simp [mkLo]]
+        simp only [mkEntSpec, mkEc, show mkCi lay.val 0 = 0 by simp [mkCi], show mkLo lay.val 0 = 0 by simp [mkLo]]
         rfl
       · exact Glob_writeHash hG a _ h12 (safeDest_hi _ (by unfold mkCur mkBlk WLO WIT; omega)
           (by unfold mkCur mkBlk; omega) (by unfold mkCur mkBlk; omega))
@@ -805,193 +740,136 @@ theorem merkle_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends
           exact hkU p (lfK_mkK _ p hp')
       · intro r hr; rw [writeHash_getReg]; exact ht.keep r (mkKeep_sub _ r hr)
       · exact DigAt.writeHash_lo t a _ h12 hd
-      · have hO : Orig w (fun o => 10568 ≤ o ∧ o < layerBase lay + 64 * height lay) t :=
+      · have hO : Orig w (fun o => 11288 ≤ o ∧ o < layerBase lay + 64 * height lay) t :=
           hu.orig.frame (fun j _ _ => hmem _)
         have hw2 := Orig_writeHash hO a _ h12 hd
         exact hw2.mono (fun o ⟨h1, h2, h3⟩ => ⟨⟨h1, by rw [layerBase_add]; omega⟩, by unfold WIT; omega⟩)
       · rw [writeHash_getReg]; exact h12
-    rw [merklePrefix, List.range_eq_range']
-    exact merkle_rest w pk index lay u hidx hu.s7 hu.t5 K N C A Q hK (mkStop lay.val) 0 _ _ (by omega) hhL hA
+    rw [merkleP_eq, List.range_eq_range', ← hL_eq]
+    exact merkle_rest w pk index lay u hidx hu.s7 hu.t5 K N C A Q hK h0 (hL lay.val) 0 _ _ (by omega) hhL hA
   have h5 : t.getReg .x5 = 0 := hkt (.x5, 0) (by simp [mkEntPost, mkKc, baseK])
-  have hg := GoodQ.shortHash_bind (f := merklePrefix w index lay) (K := K) (ht.ecall rfl) h5 hv hin H
+  have hg := GoodQ.shortHash_bind (f := merkleP w index lay) (K := K) (ht.ecall rfl) h5 hv hin H
   rw [hu.hashInput.2] at hg
   rw [leafHash_eq]
   have hst := ht.steps
-  simp only [BC.mkEntSpec] at hst
+  simp only [mkEntSpec] at hst
   exact GoodQ.steps' hst hg (by unfold mkFuel; omega) (by unfold mkCyc; omega) (fun q => ⟨q, by unfold mkCyc; omega⟩)
-open ClaudeWCT.WCT9 (LayerMsg)
-def mkMessage (w : WBytes) (index : Nat) (lay : Layer) (v : Digest) : LayerMsg :=
-  if lay.val = 0 then .forest v else
-  let other := wpath w lay (route index lay).1 (height lay - 1)
-  if (route index lay).1 / 2 ^ (height lay - 1) % 2 = 0 then .pair v other else .pair other v
-def merkleMsg (w : WBytes) (index : Nat) (lay : Layer) (v : Digest) : T3.M LayerMsg :=
-  merklePrefix w index lay v >>= fun root => pure (mkMessage w index lay root)
-theorem layerPairP_eq (w : WBytes) (index : Nat) (lay : Layer) (h0 : lay.val ≠ 0) (digits : List Nat) :
-    (ClaudeWCT.W9.T3M.layerPairP w index lay digits >>= fun p => pure (LayerMsg.pair p.1 p.2)) =
-      (chainsP w lay (route index lay).2 (route index lay).1 digits >>= fun ends =>
-        T3.leafHash lay (route index lay).2 (route index lay).1 ends >>= merkleMsg w index lay) := by
-  unfold ClaudeWCT.W9.T3M.layerPairP chainsP merkleMsg merklePrefix
-  rw [mkStop, if_neg h0, hL_eq, ← mkFinRange_map_val]
-  simp only [List.foldlM_map]
-  unfold mkStep mkMessage
-  generalize route index lay = pair
-  rcases pair with ⟨leaf, tree⟩
-  simp only [bind_assoc, pure_bind]
-  congr 1
-  funext ends
-  congr 1
-  funext v
-  congr 1
-  funext root
-  simp only [h0, if_false]
-  split_ifs <;> rfl
-theorem merkleMsg_top (w : WBytes) (index : Nat) (v : Digest) :
-    merkleMsg w index 0 v = merkleP w index 0 v >>= fun root => pure (LayerMsg.forest root) := by
-  rw [merkleP_eq]
+theorem merklePairP_eq (w : WBytes) (index : Nat) (lay : Layer) (value : Digest) :
+    merklePairP w index lay value = (List.range (height lay - 1)).foldlM (mkStep w index lay) value >>= fun node =>
+      pure (T3.pairOf (route index lay).1 (height lay) (wpath w lay (route index lay).1 (height lay - 1))
+        ((wmerklePad w lay (height lay - 1)).extractLsb' 32 96) node) := by
+  unfold merklePairP
+  rw [← mkFinRange_map_val, List.foldlM_map]
   rfl
-theorem layerLoop_succ (w : WBytes) (index n : Nat) (hn : n < 4) (msg : LayerMsg) :
-    BC.layerLoop w index (n + 1) msg =
-      layerHead w index (Fin.ofNat 4 n) msg (fun ends =>
-        leafHash (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 ends >>=
-          fun v => merkleMsg w index (Fin.ofNat 4 n) v >>= BC.layerLoop w index n) := by
-  change ClaudeWCT.W9.T3M.layersBC w index (n + 1) msg = _
-  rw [ClaudeWCT.W9.T3M.layersBC, layerHead]
-  dsimp only
-  split_ifs with hc hn0
-  · rfl
-  · subst n
-    congr 1
-    funext answer
-    cases T3.decode (Fin.ofNat 4 0) answer with
-    | none => rfl
-    | some digits =>
-      change (some <$> layerP w index 0 digits) = _
-      simp only [show (Fin.ofNat 4 0 : Layer) = 0 from rfl, layerP_eq, map_eq_pure_bind, bind_assoc, merkleMsg_top, pure_bind, BC.layerLoop]
-  · congr 1
-    funext answer
-    cases T3.decode (Fin.ofNat 4 n) answer with
-    | none => rfl
-    | some digits =>
-      have hv : (Fin.ofNat 4 n : Layer).val ≠ 0 := by simpa [Fin.val_ofNat, Nat.mod_eq_of_lt hn] using hn0
-      have h := congrArg (fun p => p >>= BC.layerLoop w index n) (layerPairP_eq w index (Fin.ofNat 4 n) hv digits)
-      cases n with
-      | zero => contradiction
-      | succ m => simpa only [bind_assoc, pure_bind, BC.layerLoop] using h
-set_option maxRecDepth 10000
-theorem mAfter_pair (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : MachineState)
-    (k : Nat) (hk : k < hL lay.val) (v : Digest) (s : MachineState)
-    (hs : MAfter w pk lay.val (route index lay).1 u k v s) :
-    let other := wpath w lay (route index lay).1 k
-    let pair := if (route index lay).1 / 2 ^ k % 2 = 0 then (v, other) else (other, v)
-    DigAt s (mkBlk lay.val k) pair.1 ∧ DigAt s (mkBlk lay.val k + 48) pair.2 := by
-  dsimp only
-  obtain ⟨hB8, hBlo, hBhi, -, -, -, -⟩ := mkBo_facts lay.val k lay.isLt hk
-  have hb := mkBit_lt (route index lay).1 k
-  have hO := hs.orig
-  have hnode := hs.node
-  unfold wpath
-  rw [← mkBo_eq lay k]
-  rcases (show (route index lay).1 / 2 ^ k % 2 = 0 ∨ (route index lay).1 / 2 ^ k % 2 = 1 by omega) with hb | hb
-  · rw [hb] at hnode hO
-    simp only [hb, if_true, sibOff, show (0 : Nat) ≠ 1 by decide, if_false]
-    have hsib := hO.dig (mkBo lay.val k + 48) (by omega) (by unfold WX; omega)
-      ⟨by omega, by omega, Or.inr (by unfold mkCur mkBlk; omega)⟩
-      ⟨by omega, by omega, Or.inr (by unfold mkCur mkBlk; omega)⟩
-    exact ⟨by simpa [mkCur] using hnode, by simpa [DigAt, dlo, dhi, WIT, mkBlk, Nat.add_assoc] using hsib⟩
-  · rw [hb] at hnode hO
-    simp only [hb, show (1 : Nat) ≠ 0 by decide, if_false, sibOff, if_true, Nat.add_zero]
-    have hsib := hO.dig (mkBo lay.val k) (by omega) (by unfold WX; omega)
-      ⟨by omega, by omega, Or.inl (by unfold mkCur mkBlk; omega)⟩
-      ⟨by omega, by omega, Or.inl (by unfold mkCur mkBlk; omega)⟩
-    exact ⟨by simpa [DigAt, dlo, dhi, WIT, mkBlk] using hsib, by simpa [mkCur] using hnode⟩
-theorem mAfter_pad (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : MachineState)
-    (k : Nat) (hk : k < hL lay.val) (v : Digest) (s : MachineState)
-    (hs : MAfter w pk lay.val (route index lay).1 u k v s) (j : Nat) (hj : j = 4 ∨ j = 5) :
-    s.getMem (BitVec.ofNat 64 (mkBlk lay.val k + 8 * j)) =
-      wword w ((mkBlk lay.val k - WIT) / 8 + j) := by
-  obtain ⟨hB8, hBlo, hBhi, -, -, -, -⟩ := mkBo_facts lay.val k lay.isLt hk
-  have hb := mkBit_lt (route index lay).1 k
-  have hm : 8 * (mkBo lay.val k / 8 + j) = mkBo lay.val k + 8 * j := by omega
-  have h := hs.orig (mkBo lay.val k / 8 + j) (by unfold WX; omega) (by
-    simp only [mkP, hm]
-    rcases hj with rfl | rfl <;>
-      rcases (show (route index lay).1 / 2 ^ k % 2 = 0 ∨ (route index lay).1 / 2 ^ k % 2 = 1 by omega) with hb | hb <;>
-      simp only [mkCur, hb, mkBlk] <;> omega)
-  simpa only [mkBlk, WIT, Nat.add_sub_cancel_left, hm, Nat.add_assoc] using h
-theorem mkStop_msg (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h0 : lay.val ≠ 0)
-    (u : MachineState) (v : Digest) (s : MachineState)
-    (hs : MkStop w pk lay.val (route index lay).1 u v s) :
-    BC.MsgAt w (lay.val - 1) (mkMessage w index lay v) s := by
-  have hS : mkStop lay.val = height lay - 1 := by rw [mkStop, if_neg h0, hL_eq]
-  have hk : mkStop lay.val < hL lay.val := by fin_cases lay <;> first | contradiction | decide
-  have hrow : mkBlk lay.val (mkStop lay.val) = x10In (lay.val - 1) := by
-    fin_cases lay <;> first | contradiction | rfl
-  have ha : MAfter w pk lay.val (route index lay).1 u (mkStop lay.val) v s := by
-    simpa [MkStop, h0] using hs
-  have hp := mAfter_pair w pk index lay u _ hk v s ha
-  have hpad := mAfter_pad w pk index lay u _ hk v s ha
-  rw [hrow] at hp hpad
-  rw [hS] at hp
-  have hlt : lay.val - 1 < 3 := by omega
-  unfold mkMessage
-  rw [if_neg h0]
-  split_ifs with hb
-  · simp only [hb, if_true] at hp
-    exact ⟨hlt, hp.1, hp.2, hpad⟩
-  · simp only [hb, if_false] at hp
-    exact ⟨hlt, hp.1, hp.2, hpad⟩
-theorem mkStop_known_next (n : Nat) (hn : n < 4) (hn0 : n ≠ 0) (u t : MachineState)
-    (hu : KnownOK (lfK n) u) (ht : KnownOK (mkLvlK n (mkStop n)) t)
-    (keep : ∀ r ∈ mkKeep, t.getReg r = u.getReg r) : KnownOK (BC.preK (n - 1)) t := by
-  intro p hp
-  interval_cases n
-  · contradiction
-  all_goals
-    simp only [BC.preK, preK, baseK] at hp
-    dsimp at hp
-    simp only [List.mem_append, List.mem_filter, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with ⟨hp, hf⟩ | hp
-    all_goals
-      repeat' first | subst p | rcases hp with hp | hp
-      all_goals first
-      | exact ht _ (by decide)
-      | (rw [keep _ (by decide)]; exact hu _ (by decide))
-      | contradiction
-theorem mkStop_pc (n leaf : Nat) (hn : n < 4) (h0 : n ≠ 0) (hleaf : leaf < 2 ^ hL n) :
-    mkEc n leaf (mkStop n) + 1 = trPc (n - 1) leaf := by
-  have hbits : mkBits n 0 = hL n := by simp [mkBits, h0]
-  have hc := BC.mkBlockCheck_at n 0 leaf hn (by simp [mkNch, h0]) (by rwa [hbits])
-  simp only [BC.mkBlockCheck, Bool.and_eq_true] at hc
-  have hr : BC.childReturn n leaf = trPc (n - 1) leaf := by simpa [h0] using hc.2
-  rw [← hr]
-  simp only [mkEc, mkCi, h0, false_and, if_false, mkSh, mkLo, Nat.pow_zero, Nat.div_one,
-    hbits, Nat.mod_eq_of_lt hleaf, mkStop, BC.childReturn, Nat.sub_zero]
-theorem mkStop_next_lower (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^ 31)
-    (lay : Layer) (h0 : lay.val ≠ 0) (ends : List Digest) (u : MachineState)
-    (hu : LeafOut w pk index lay ends u) (v : Digest) (t : MachineState)
-    (ht : MkStop w pk lay.val (route index lay).1 u v t) :
-    LayerIn w pk index (lay.val - 1) (mkMessage w index lay v) t := by
-  have ha : MAfter w pk lay.val (route index lay).1 u (mkStop lay.val) v t := by
-    simpa [MkStop, h0] using ht
-  have hleaf := leaf_lt index lay
-  have hc : 2 ^ hL lay.val ≤ nCopy (lay.val - 1) := by
-    fin_cases lay <;> first | contradiction | decide
-  have hL0 : lay ≠ 0 := by intro h; apply h0; rw [h]; rfl
-  refine ⟨by omega, hidx, ⟨(route index lay).1, by omega, ?_⟩,
-    ⟨mkStop_known_next _ lay.isLt h0 u t hu.glob.1 ha.known ha.keep, ha.glob.2⟩, ?_,
-    mkStop_msg w pk index lay h0 u v t ht, ?_⟩
-  · rw [ha.pc, mkStop_pc _ _ lay.isLt h0 hleaf]
-  · have he : BC.below (lay.val - 1) = below (lay.val - 1) := by
-      fin_cases lay <;> rfl
-    rw [show rReg (lay.val - 1) = .x30 by simp [rReg]; omega,
-      ha.keep .x30 (by simp [mkKeep]), hu.t5 h0, tree_next index lay hL0, he]
-  · have he : BC.layerEnd (lay.val - 1) = mkBo lay.val (mkStop lay.val) := by
-      fin_cases lay <;> first | contradiction | rfl
-    intro j hj ho
-    rw [he] at ho
-    have hb := mkBit_lt (route index lay).1 (mkStop lay.val)
-    have h8 : mkBo lay.val (mkStop lay.val) % 8 = 0 := by
-      fin_cases lay <;> decide
-    exact ha.orig j hj ⟨ho.1, by omega, Or.inl (by unfold mkCur mkBlk; omega)⟩
+theorem merkle_rest_pair (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (u : MachineState)
+    (hidx : index < 2 ^ 31)
+    (hs7 : u.getReg .x23 = BitVec.ofNat 64 (s7v lay.val (route index lay).1))
+    (ht5 : u.getReg .x30 = BitVec.ofNat 64 (route index lay).2)
+    (K : Digest → OracleComp HashSpec Obs) (N C A : Nat) (Q : Prop)
+    (hK : ∀ v t, MAfter w pk lay.val (route index lay).1 u (hL lay.val - 1) v t → GoodQ t N C Q A (K v)) :
+    ∀ n k v s, k + n + 1 = hL lay.val → MAfter w pk lay.val (route index lay).1 u k v s →
+      GoodQ s (N + mkFuelR lay.val k n) (C + mkCycR lay.val k n) Q (A + mkCycR lay.val k n)
+        (ccM ((List.range' k n).foldlM (mkStep w index lay) v) K) := by
+  intro n
+  induction n with
+  | zero =>
+    intro k v s hkn hs
+    simp only [List.range'_zero, List.foldlM_nil, ccM_pure, mkFuelR, mkCycR, Nat.add_zero]
+    exact hK v s (by rw [show hL lay.val - 1 = k by omega]; exact hs)
+  | succ m ih =>
+    intro k v s hkn hs
+    have hk : k < hL lay.val := by omega
+    obtain ⟨t, hst, hf, h5, hv, hin, hpost⟩ := lvl_step w pk index lay u hidx hs7 ht5 k hk (Or.inr (by omega)) v s hs
+    rw [List.range'_succ, List.foldlM_cons, mkStep_eq]
+    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + mkFuelR lay.val (k + 1) m) (C + mkCycR lay.val (k + 1) m) Q
+        (A + mkCycR lay.val (k + 1) m)
+        (ccM ((fun v' => (List.range' (k + 1) m).foldlM (mkStep w index lay) v') (a.extractLsb' 0 128)) K) :=
+      fun a => ih (k + 1) _ _ (by omega) ((hpost a).1 (by omega))
+    have hg := GoodQ.shortHash_bind (f := fun v' => (List.range' (k + 1) m).foldlM (mkStep w index lay) v') hf h5 hv hin H
+    rw [mkIn_blocks] at hg
+    simp only [mkFuelR, mkCycR]
+    exact GoodQ.steps' hst hg (by omega) (by omega) (fun q => ⟨q, by omega⟩)
+def mkFuelP (lay : Nat) : Nat := 3 + mkFuelR lay 0 (hL lay - 1)
+def mkCycP (lay : Nat) : Nat := 2 + 8 * lfBlocks lay + mkCycR lay 0 (hL lay - 1)
+theorem merkle_pair_good (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends : List Digest)
+    (u : MachineState) (hidx : index < 2 ^ 31) (hu : LeafOut w pk index lay ends u)
+    (K : Digest → OracleComp HashSpec Obs) (N C A : Nat) (Q : Prop)
+    (hK : ∀ v t, MAfter w pk lay.val (route index lay).1 u (hL lay.val - 1) v t → GoodQ t N C Q A (K v)) :
+    GoodQ u (N + mkFuelP lay.val) (C + mkCycP lay.val) Q (A + mkCycP lay.val)
+      (ccM (leafHash lay (route index lay).2 (route index lay).1 ends >>= fun v =>
+        (List.range (hL lay.val - 1)).foldlM (mkStep w index lay) v) K) := by
+  have hlay := lay.isLt
+  have hleaf : (route index lay).1 < 2 ^ hL lay.val := leaf_lt index lay
+  have hkU : KnownOK (lfK lay.val) u := hu.glob.1
+  have hknown : KnownOK (mkKc lay.val) u := fun p hp => hkU p (lfK_mkK _ p (mkKc_mkK _ p hp))
+  have hhL : 0 < hL lay.val := by interval_cases lay.val <;> decide
+  have hent := mkEnt_of (mkBlockCheck_at lay.val 0 (mkSh lay.val 0 (route index lay).1) hlay
+    (by unfold mkNch; split <;> omega) (mkSh_lt _ _ _))
+  have hpc : u.pc = pcOf (mkTab lay.val 0 + mkSh lay.val 0 (route index lay).1) := by
+    rw [hu.pc]
+    have e1 : mkTab lay.val 0 = stabIdx lay.val := by simp [mkTab]
+    have e2 : mkSh lay.val 0 (route index lay).1 = (route index lay).1 % 2 ^ stabBits lay.val := by
+      simp only [mkSh, show mkLo lay.val 0 = 0 by simp [mkLo], Nat.pow_zero, Nat.div_one, mkBits_stabBits _ hlay]
+    rw [e1, e2]
+  obtain ⟨t, ht⟩ := spec_run hent u hpc hknown (by simp [mkEntSpec]) (by simp)
+  have hmem : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
+  have h10u : u.getReg .x10 = BitVec.ofNat 64 (lfBase lay.val) :=
+    hkU (.x10, BitVec.ofNat 64 (if lay.val = 0 then 512 else 768)) (by simp [lfK, postLf])
+  have h11u : u.getReg .x11 = BitVec.ofNat 64 (lfBytes lay.val) :=
+    hkU (.x11, BitVec.ofNat 64 (if lay.val = 0 then 896 else 704)) (by simp [lfK, postLf])
+  have h10 : t.getReg .x10 = u.getReg .x10 := ht.keep .x10 (by simp [mkEntKeep])
+  have h11 : t.getReg .x11 = u.getReg .x11 := ht.keep .x11 (by simp [mkEntKeep])
+  have hkt : KnownOK (mkEntPost lay.val 0 (mkSh lay.val 0 (route index lay).1)) t := ht.known
+  have hb0 : mkSh lay.val 0 (route index lay).1 % 2 = (route index lay).1 / 2 ^ 0 % 2 := by
+    have := mkSh_bit lay.val 0 (route index lay).1 0 (by unfold mkBits; split <;> [decide; (interval_cases lay.val <;> decide)])
+    simpa [mkLo] using this
+  have h12 : t.getReg .x12 = BitVec.ofNat 64 (mkCur lay.val 0 ((route index lay).1 / 2 ^ 0 % 2)) := by
+    rw [hkt (.x12, BitVec.ofNat 64 (mkCur lay.val (mkLo lay.val 0) (mkSh lay.val 0 (route index lay).1 % 2)))
+      (by simp [mkEntPost]), hb0, show mkLo lay.val 0 = 0 by simp [mkLo]]
+  obtain ⟨hB8, hBlo, hBhi, hBase, -, -, hBtop⟩ := mkBo_facts lay.val 0 hlay hhL
+  have hb := mkBit_lt (route index lay).1 0
+  have hd : mkCur lay.val 0 ((route index lay).1 / 2 ^ 0 % 2) + 32 < 2 ^ 64 := by unfold mkCur mkBlk; omega
+  have hin : hashInput t = toQ (pad64 (leafInput lay (route index lay).2 (route index lay).1 ends)) := by
+    rw [mkHashInput_congr h10 h11 hmem]; exact hu.hashInput.1
+  have hv : hashArgumentsValid t = true := by
+    refine hashArgs_of t (lfBase lay.val) (lfBytes lay.val) _ (h10.trans h10u) (h11.trans h11u) h12
+      (by unfold lfBase; split <;> decide) (by unfold lfBytes; split <;> decide) (by unfold lfBase lfBytes; split <;> decide)
+      (by unfold mkCur mkBlk; omega) (by unfold mkCur mkBlk; omega)
+  have hG : Glob baseK w pk t := ht.glob _ _ _ hu.glob (RelOK.nil u)
+  have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + mkFuelR lay.val 0 (hL lay.val - 1))
+      (C + mkCycR lay.val 0 (hL lay.val - 1)) Q (A + mkCycR lay.val 0 (hL lay.val - 1))
+      (ccM ((List.range (hL lay.val - 1)).foldlM (mkStep w index lay) (a.extractLsb' 0 128)) K) := by
+    intro a
+    have hA : MAfter w pk lay.val (route index lay).1 u 0 (a.extractLsb' 0 128) (writeHash t a) := by
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, fun h => absurd rfl h⟩
+      · rw [writeHash_pc, ht.pc rfl, pcOf_add4]
+        simp only [mkEntSpec, mkEc, show mkCi lay.val 0 = 0 by simp [mkCi], show mkLo lay.val 0 = 0 by simp [mkLo]]
+        rfl
+      · exact Glob_writeHash hG a _ h12 (safeDest_hi _ (by unfold mkCur mkBlk WLO WIT; omega)
+          (by unfold mkCur mkBlk; omega) (by unfold mkCur mkBlk; omega))
+      · intro p hp
+        rw [writeHash_getReg]
+        have hp' : p ∈ mkK lay.val := by simpa [mkLvlK] using hp
+        rcases mkK_cases _ p hp' with hp'' | hp''
+        · exact hkt p (List.mem_append_left _ hp'')
+        ·
+          rw [ht.keep p.1 (by rw [hp'']; simp [mkEntKeep])]
+          exact hkU p (lfK_mkK _ p hp')
+      · intro r hr; rw [writeHash_getReg]; exact ht.keep r (mkKeep_sub _ r hr)
+      · exact DigAt.writeHash_lo t a _ h12 hd
+      · have hO : Orig w (fun o => 11288 ≤ o ∧ o < layerBase lay + 64 * height lay) t :=
+          hu.orig.frame (fun j _ _ => hmem _)
+        have hw2 := Orig_writeHash hO a _ h12 hd
+        exact hw2.mono (fun o ⟨h1, h2, h3⟩ => ⟨⟨h1, by rw [layerBase_add]; omega⟩, by unfold WIT; omega⟩)
+      · rw [writeHash_getReg]; exact h12
+    rw [List.range_eq_range']
+    exact merkle_rest_pair w pk index lay u hidx hu.s7 hu.t5 K N C A Q hK (hL lay.val - 1) 0 _ _ (by omega) hA
+  have h5 : t.getReg .x5 = 0 := hkt (.x5, 0) (by simp [mkEntPost, mkKc, baseK])
+  have hg := GoodQ.shortHash_bind (f := fun v => (List.range (hL lay.val - 1)).foldlM (mkStep w index lay) v) (K := K) (ht.ecall rfl) h5 hv hin H
+  rw [hu.hashInput.2] at hg
+  rw [leafHash_eq]
+  have hst := ht.steps
+  simp only [mkEntSpec] at hst
+  exact GoodQ.steps' hst hg (by unfold mkFuelP; omega) (by unfold mkCycP; omega) (fun q => ⟨q, by unfold mkCycP; omega⟩)
 end SigGolfCandidate.T3M
 end

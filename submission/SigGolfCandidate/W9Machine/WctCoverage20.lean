@@ -1,53 +1,9 @@
-import SigGolfCandidate.W9Machine.WctRoutineModel
-import SigGolfCandidate.W9Machine.WctChainCheck12
+import SigGolfCandidate.W9Machine.WctRoutineCheck20
 import SigGolfCandidate.W9Machine.WctPlanGuard
 import SigGolfCandidate.W9Machine.WctRoutineReady
 import SigGolfCandidate.Packaging.ReadySyntax
 import SigGolfCandidate.W9Machine.WctRoutineEvidence
 import SigGolfCandidate.W9Machine.WctAllPieceEvidence
-
-section
-
-
-namespace W9Machine
-set_option maxRecDepth 100000
-set_option maxHeartbeats 0
-def routine640 : ChainRoutine := ⟨640, [2, 1, 1, 0, 1, 0, 1], [piece240766, piece240771, piece240773, piece240778, piece240783, piece240787, piece240792, piece240796, piece862, piece867]⟩
-def routine641 : ChainRoutine := ⟨641, [2, 1, 1, 0, 1, 1, 0], [piece240797, piece240802, piece240804, piece240809, piece240814, piece240818, piece240823, piece240828, piece240832, piece945]⟩
-def routine642 : ChainRoutine := ⟨642, [2, 1, 1, 0, 2, 0, 0], [piece240833, piece240838, piece240840, piece240845, piece240850, piece240854, piece4203, piece2037, piece2042, piece2044, piece2048, piece1502, piece945]⟩
-def routine643 : ChainRoutine := ⟨643, [2, 1, 1, 1, 0, 0, 1], [piece240855, piece240860, piece240862, piece240867, piece236068, piece236073, piece4219, piece4224, piece4228, piece2481, piece1301, piece862, piece867]⟩
-def routine644 : ChainRoutine := ⟨644, [2, 1, 1, 1, 0, 1, 0], [piece240868, piece240873, piece240875, piece240880, piece240885, piece240890, piece240894, piece240899, piece240903, piece945]⟩
-def routine645 : ChainRoutine := ⟨645, [2, 1, 1, 1, 1, 0, 0], [piece240904, piece240909, piece240911, piece240916, piece236109, piece236114, piece4269, piece4274, piece2522, piece2527, piece2531, piece1502, piece945]⟩
-def routine646 : ChainRoutine := ⟨646, [2, 1, 1, 2, 0, 0, 0], [piece240917, piece240922, piece240924, piece240929, piece236125, piece236130, piece4290, piece4295, piece4297, piece4301, piece2866, piece1502, piece945]⟩
-def routine647 : ChainRoutine := ⟨647, [2, 1, 2, 0, 0, 0, 1], [piece240930, piece240935, piece240937, piece240942, piece236141, piece236146, piece236148, piece236152, piece235565, piece2481, piece1301, piece862, piece867]⟩
-def routine648 : ChainRoutine := ⟨648, [2, 1, 2, 0, 0, 1, 0], [piece240943, piece240948, piece240950, piece240955, piece240960, piece240962, piece240966, piece235587, piece2503, piece1320, piece1325, piece1329, piece945]⟩
-def routine649 : ChainRoutine := ⟨649, [2, 1, 2, 0, 1, 0, 0], [piece240967, piece240972, piece240974, piece240979, piece240984, piece240986, piece240990, piece235609, piece2522, piece2527, piece2531, piece1502, piece945]⟩
-def routine650 : ChainRoutine := ⟨650, [2, 1, 2, 1, 0, 0, 0], [piece240991, piece240996, piece240998, piece241003, piece236207, piece236212, piece236215, piece235628, piece235633, piece235637, piece2866, piece1502, piece945]⟩
-def routine651 : ChainRoutine := ⟨651, [2, 1, 3, 0, 0, 0, 0], [piece241004, piece241009, piece241011, piece241016, piece236226, piece236231, piece236233, piece236235, piece236239, piece2866, piece1502, piece945]⟩
-def routine652 : ChainRoutine := ⟨652, [2, 2, 0, 0, 0, 0, 2], [piece241017, piece241022, piece241024, piece241029, piece241031, piece241035, piece239426, piece4108, piece1937, piece1081, piece799, piece804, piece807]⟩
-def routine653 : ChainRoutine := ⟨653, [2, 2, 0, 0, 0, 1, 1], [piece241036, piece241041, piece241043, piece241048, piece241050, piece241054, piece239445, piece4127, piece1956, piece1097, piece1102, piece862, piece867]⟩
-def routine654 : ChainRoutine := ⟨654, [2, 2, 0, 0, 0, 2, 0], [piece241055, piece241060, piece241062, piece241067, piece241069, piece241073, piece239464, piece4146, piece1975, piece1118, piece1123, piece1125, piece1129, piece945]⟩
-def routine655 : ChainRoutine := ⟨655, [2, 2, 0, 0, 1, 0, 1], [piece241074, piece241079, piece241081, piece241086, piece241088, piece241092, piece4165, piece1991, piece1996, piece2000, piece1301, piece862, piece867]⟩
-def routine656 : ChainRoutine := ⟨656, [2, 2, 0, 0, 1, 1, 0], [piece241093, piece241098, piece241100, piece241105, piece241107, piece241111, piece4184, piece2016, piece2021, piece1320, piece1325, piece1329, piece945]⟩
-def routine657 : ChainRoutine := ⟨657, [2, 2, 0, 0, 2, 0, 0], [piece241112, piece241117, piece241119, piece241124, piece241126, piece241130, piece239521, piece4203, piece2037, piece2042, piece2044, piece2048, piece1502, piece945]⟩
-def routine658 : ChainRoutine := ⟨658, [2, 2, 0, 1, 0, 0, 1], [piece241131, piece241136, piece241138, piece241143, piece241145, piece241149, piece4219, piece4224, piece4228, piece2481, piece1301, piece862, piece867]⟩
-def routine659 : ChainRoutine := ⟨659, [2, 2, 0, 1, 0, 1, 0], [piece241150, piece241155, piece241157, piece241162, piece241164, piece241168, piece241173, piece241177, piece241182, piece241186]⟩
-def routine660 : ChainRoutine := ⟨660, [2, 2, 0, 1, 1, 0, 0], [piece241192, piece241197, piece241199, piece241204, piece241206, piece241210, piece4269, piece4274, piece2522, piece2527, piece2531, piece1502, piece945]⟩
-def routine661 : ChainRoutine := ⟨661, [2, 2, 0, 2, 0, 0, 0], [piece241211, piece241216, piece241218, piece241223, piece241225, piece241229, piece239620, piece4290, piece4295, piece4297, piece4301, piece2866, piece1502, piece945]⟩
-def routine662 : ChainRoutine := ⟨662, [2, 2, 1, 0, 0, 0, 1], [piece241230, piece241235, piece241237, piece241242, piece241245, piece239636, piece239641, piece239645, piece235565, piece2481, piece1301, piece862, piece867]⟩
-def routine663 : ChainRoutine := ⟨663, [2, 2, 1, 0, 0, 1, 0], [piece241246, piece241251, piece241253, piece241258, piece241261, piece241266, piece241270, piece2503, piece1320, piece1325, piece1329, piece945]⟩
-def routine664 : ChainRoutine := ⟨664, [2, 2, 1, 0, 1, 0, 0], [piece241271, piece241276, piece241278, piece241283, piece241286, piece241291, piece241295, piece2522, piece2527, piece2531, piece1502, piece945]⟩
-def routine665 : ChainRoutine := ⟨665, [2, 2, 1, 1, 0, 0, 0], [piece241296, piece241301, piece241303, piece241308, piece241311, piece239711, piece239716, piece235628, piece235633, piece235637, piece2866, piece1502, piece945]⟩
-def routine666 : ChainRoutine := ⟨666, [2, 2, 2, 0, 0, 0, 0], [piece241312, piece241317, piece241319, piece241324, piece241327, piece239732, piece239737, piece239739, piece239743, piece236239, piece2866, piece1502, piece945]⟩
-def routine667 : ChainRoutine := ⟨667, [2, 3, 0, 0, 0, 0, 1], [piece241328, piece241333, piece241335, piece241340, piece241342, piece241344, piece241348, piece235565, piece2481, piece1301, piece862, piece867]⟩
-def routine668 : ChainRoutine := ⟨668, [2, 3, 0, 0, 0, 1, 0], [piece241349, piece241354, piece241356, piece241361, piece241363, piece241365, piece241369, piece235587, piece2503, piece1320, piece1325, piece1329, piece945]⟩
-def routine669 : ChainRoutine := ⟨669, [2, 3, 0, 0, 1, 0, 0], [piece241370, piece241375, piece241377, piece241382, piece241384, piece241386, piece241390, piece235609, piece2522, piece2527, piece2531, piece1502, piece945]⟩
-def routine670 : ChainRoutine := ⟨670, [2, 3, 0, 1, 0, 0, 0], [piece241391, piece241396, piece241398, piece241403, piece241405, piece241407, piece241411, piece235628, piece235633, piece235637, piece2866, piece1502, piece945]⟩
-def routine671 : ChainRoutine := ⟨671, [2, 3, 1, 0, 0, 0, 0], [piece241412, piece241417, piece241419, piece241424, piece241426, piece241429, piece241434, piece241438, piece236239, piece2866, piece1502, piece945]⟩
-def routineBatch20 : List ChainRoutine := [routine640, routine641, routine642, routine643, routine644, routine645, routine646, routine647, routine648, routine649, routine650, routine651, routine652, routine653, routine654, routine655, routine656, routine657, routine658, routine659, routine660, routine661, routine662, routine663, routine664, routine665, routine666, routine667, routine668, routine669, routine670, routine671]
-theorem routineBatch20_checked : (routineBatch20.all ChainRoutine.checked) = true := by decide +kernel
-end W9Machine
-end
 
 section
 
@@ -84,502 +40,512 @@ set_option maxRecDepth 100000
 set_option maxHeartbeats 0
 theorem routine640_ready : RoutineReady ⟨640, by decide⟩ routine640 := by
   wct_ready_start 640 20 0
-  wct_cases [240766,240771,240773,240778,240783,240787,240792,240796,862,867]
-  · wct_piece 44 240766 34
-  · wct_piece 44 240771 35
-  · wct_piece 44 240773 36
-  · wct_piece 44 240778 37
-  · wct_piece 44 240783 38
-  · wct_piece 44 240787 39
-  · wct_piece 44 240792 40
-  · wct_piece 44 240796 41
-  · wct_piece 0 862 32
-  · wct_piece 0 867 33
+  wct_cases [240842,240848,240850,240856,240862,240866,240872,240876,875,881]
+  · wct_piece 43 240842 4
+  · wct_piece 43 240848 5
+  · wct_piece 43 240850 6
+  · wct_piece 43 240856 7
+  · wct_piece 43 240862 8
+  · wct_piece 43 240866 9
+  · wct_piece 43 240872 10
+  · wct_piece 43 240876 11
+  · wct_piece 0 875 32
+  · wct_piece 0 881 33
 theorem routine641_ready : RoutineReady ⟨641, by decide⟩ routine641 := by
   wct_ready_start 641 20 1
-  wct_cases [240797,240802,240804,240809,240814,240818,240823,240828,240832,945]
-  · wct_piece 44 240797 42
-  · wct_piece 44 240802 43
-  · wct_piece 44 240804 44
-  · wct_piece 44 240809 45
-  · wct_piece 44 240814 46
-  · wct_piece 44 240818 47
-  · wct_piece 44 240823 48
-  · wct_piece 44 240828 49
-  · wct_piece 44 240832 50
-  · wct_piece 0 945 57
+  wct_cases [240877,240883,240885,240891,240897,240901,240907,240913,240917,966]
+  · wct_piece 43 240877 12
+  · wct_piece 43 240883 13
+  · wct_piece 43 240885 14
+  · wct_piece 43 240891 15
+  · wct_piece 43 240897 16
+  · wct_piece 43 240901 17
+  · wct_piece 43 240907 18
+  · wct_piece 43 240913 19
+  · wct_piece 43 240917 20
+  · wct_piece 0 966 57
 theorem routine642_ready : RoutineReady ⟨642, by decide⟩ routine642 := by
   wct_ready_start 642 20 2
-  wct_cases [240833,240838,240840,240845,240850,240854,4203,2037,2042,2044,2048,1502,945]
-  · wct_piece 44 240833 51
-  · wct_piece 44 240838 52
-  · wct_piece 44 240840 53
-  · wct_piece 44 240845 54
-  · wct_piece 44 240850 55
-  · wct_piece 44 240854 56
-  · wct_piece 15 4203 63
-  · wct_piece 5 2037 61
-  · wct_piece 5 2042 62
-  · wct_piece 5 2044 63
-  · wct_piece 6 2048 0
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [240918,240924,240926,240932,235728,235734,235738,4496,2190,2196,2198,2202,1585,966]
+  · wct_piece 43 240918 21
+  · wct_piece 43 240924 22
+  · wct_piece 43 240926 23
+  · wct_piece 43 240932 24
+  · wct_piece 22 235728 54
+  · wct_piece 22 235734 55
+  · wct_piece 22 235738 56
+  · wct_piece 15 4496 39
+  · wct_piece 5 2190 61
+  · wct_piece 5 2196 62
+  · wct_piece 5 2198 63
+  · wct_piece 6 2202 0
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine643_ready : RoutineReady ⟨643, by decide⟩ routine643 := by
   wct_ready_start 643 20 3
-  wct_cases [240855,240860,240862,240867,236068,236073,4219,4224,4228,2481,1301,862,867]
-  · wct_piece 44 240855 57
-  · wct_piece 44 240860 58
-  · wct_piece 44 240862 59
-  · wct_piece 44 240867 60
-  · wct_piece 23 236068 47
-  · wct_piece 23 236073 48
-  · wct_piece 16 4219 4
-  · wct_piece 16 4224 5
-  · wct_piece 16 4228 6
-  · wct_piece 8 2481 4
-  · wct_piece 2 1301 33
-  · wct_piece 0 862 32
-  · wct_piece 0 867 33
+  wct_cases [240933,240939,240941,240947,235750,235756,4514,4520,4524,2681,1365,875,881]
+  · wct_piece 43 240933 25
+  · wct_piece 43 240939 26
+  · wct_piece 43 240941 27
+  · wct_piece 43 240947 28
+  · wct_piece 22 235750 60
+  · wct_piece 22 235756 61
+  · wct_piece 15 4514 44
+  · wct_piece 15 4520 45
+  · wct_piece 15 4524 46
+  · wct_piece 8 2681 4
+  · wct_piece 2 1365 33
+  · wct_piece 0 875 32
+  · wct_piece 0 881 33
 theorem routine644_ready : RoutineReady ⟨644, by decide⟩ routine644 := by
   wct_ready_start 644 20 4
-  wct_cases [240868,240873,240875,240880,240885,240890,240894,240899,240903,945]
-  · wct_piece 44 240868 61
-  · wct_piece 44 240873 62
-  · wct_piece 44 240875 63
-  · wct_piece 45 240880 0
-  · wct_piece 45 240885 1
-  · wct_piece 45 240890 2
-  · wct_piece 45 240894 3
-  · wct_piece 45 240899 4
-  · wct_piece 45 240903 5
-  · wct_piece 0 945 57
+  wct_cases [240948,240954,240956,240962,240968,240974,240978,240984,240988,966]
+  · wct_piece 43 240948 29
+  · wct_piece 43 240954 30
+  · wct_piece 43 240956 31
+  · wct_piece 43 240962 32
+  · wct_piece 43 240968 33
+  · wct_piece 43 240974 34
+  · wct_piece 43 240978 35
+  · wct_piece 43 240984 36
+  · wct_piece 43 240988 37
+  · wct_piece 0 966 57
 theorem routine645_ready : RoutineReady ⟨645, by decide⟩ routine645 := by
   wct_ready_start 645 20 5
-  wct_cases [240904,240909,240911,240916,236109,236114,4269,4274,2522,2527,2531,1502,945]
-  · wct_piece 45 240904 6
-  · wct_piece 45 240909 7
-  · wct_piece 45 240911 8
-  · wct_piece 45 240916 9
-  · wct_piece 23 236109 59
-  · wct_piece 23 236114 60
-  · wct_piece 16 4269 18
-  · wct_piece 16 4274 19
-  · wct_piece 8 2522 17
-  · wct_piece 8 2527 18
-  · wct_piece 8 2531 19
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [240989,240995,240997,241003,235786,235792,4570,4576,2726,2732,2736,1585,966]
+  · wct_piece 43 240989 38
+  · wct_piece 43 240995 39
+  · wct_piece 43 240997 40
+  · wct_piece 43 241003 41
+  · wct_piece 23 235786 6
+  · wct_piece 23 235792 7
+  · wct_piece 15 4570 58
+  · wct_piece 15 4576 59
+  · wct_piece 8 2726 17
+  · wct_piece 8 2732 18
+  · wct_piece 8 2736 19
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine646_ready : RoutineReady ⟨646, by decide⟩ routine646 := by
   wct_ready_start 646 20 6
-  wct_cases [240917,240922,240924,240929,236125,236130,4290,4295,4297,4301,2866,1502,945]
-  · wct_piece 45 240917 10
-  · wct_piece 45 240922 11
-  · wct_piece 45 240924 12
-  · wct_piece 45 240929 13
-  · wct_piece 24 236125 0
-  · wct_piece 24 236130 1
-  · wct_piece 16 4290 24
-  · wct_piece 16 4295 25
-  · wct_piece 16 4297 26
-  · wct_piece 16 4301 27
-  · wct_piece 10 2866 2
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241004,241010,241012,241018,235804,235810,4594,4600,4602,4606,3101,1585,966]
+  · wct_piece 43 241004 42
+  · wct_piece 43 241010 43
+  · wct_piece 43 241012 44
+  · wct_piece 43 241018 45
+  · wct_piece 23 235804 11
+  · wct_piece 23 235810 12
+  · wct_piece 16 4594 0
+  · wct_piece 16 4600 1
+  · wct_piece 16 4602 2
+  · wct_piece 16 4606 3
+  · wct_piece 10 3101 2
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine647_ready : RoutineReady ⟨647, by decide⟩ routine647 := by
   wct_ready_start 647 20 7
-  wct_cases [240930,240935,240937,240942,236141,236146,236148,236152,235565,2481,1301,862,867]
-  · wct_piece 45 240930 14
-  · wct_piece 45 240935 15
-  · wct_piece 45 240937 16
-  · wct_piece 45 240942 17
-  · wct_piece 24 236141 5
-  · wct_piece 24 236146 6
-  · wct_piece 24 236148 7
-  · wct_piece 24 236152 8
-  · wct_piece 21 235565 8
-  · wct_piece 8 2481 4
-  · wct_piece 2 1301 33
-  · wct_piece 0 862 32
-  · wct_piece 0 867 33
+  wct_cases [241019,241025,241027,241033,235822,235828,235830,235834,235227,2681,1365,875,881]
+  · wct_piece 43 241019 46
+  · wct_piece 43 241025 47
+  · wct_piece 43 241027 48
+  · wct_piece 43 241033 49
+  · wct_piece 23 235822 16
+  · wct_piece 23 235828 17
+  · wct_piece 23 235830 18
+  · wct_piece 23 235834 19
+  · wct_piece 20 235227 26
+  · wct_piece 8 2681 4
+  · wct_piece 2 1365 33
+  · wct_piece 0 875 32
+  · wct_piece 0 881 33
 theorem routine648_ready : RoutineReady ⟨648, by decide⟩ routine648 := by
   wct_ready_start 648 20 8
-  wct_cases [240943,240948,240950,240955,240960,240962,240966,235587,2503,1320,1325,1329,945]
-  · wct_piece 45 240943 18
-  · wct_piece 45 240948 19
-  · wct_piece 45 240950 20
-  · wct_piece 45 240955 21
-  · wct_piece 45 240960 22
-  · wct_piece 45 240962 23
-  · wct_piece 45 240966 24
-  · wct_piece 21 235587 15
-  · wct_piece 8 2503 11
-  · wct_piece 2 1320 39
-  · wct_piece 2 1325 40
-  · wct_piece 2 1329 41
-  · wct_piece 0 945 57
+  wct_cases [241034,241040,241042,241048,235846,235852,235854,235858,235251,2705,1386,1392,1396,966]
+  · wct_piece 43 241034 50
+  · wct_piece 43 241040 51
+  · wct_piece 43 241042 52
+  · wct_piece 43 241048 53
+  · wct_piece 23 235846 23
+  · wct_piece 23 235852 24
+  · wct_piece 23 235854 25
+  · wct_piece 23 235858 26
+  · wct_piece 20 235251 33
+  · wct_piece 8 2705 11
+  · wct_piece 2 1386 39
+  · wct_piece 2 1392 40
+  · wct_piece 2 1396 41
+  · wct_piece 0 966 57
 theorem routine649_ready : RoutineReady ⟨649, by decide⟩ routine649 := by
   wct_ready_start 649 20 9
-  wct_cases [240967,240972,240974,240979,240984,240986,240990,235609,2522,2527,2531,1502,945]
-  · wct_piece 45 240967 25
-  · wct_piece 45 240972 26
-  · wct_piece 45 240974 27
-  · wct_piece 45 240979 28
-  · wct_piece 45 240984 29
-  · wct_piece 45 240986 30
-  · wct_piece 45 240990 31
-  · wct_piece 21 235609 22
-  · wct_piece 8 2522 17
-  · wct_piece 8 2527 18
-  · wct_piece 8 2531 19
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241049,241055,241057,241063,235870,235876,235878,235882,235275,2726,2732,2736,1585,966]
+  · wct_piece 43 241049 54
+  · wct_piece 43 241055 55
+  · wct_piece 43 241057 56
+  · wct_piece 43 241063 57
+  · wct_piece 23 235870 30
+  · wct_piece 23 235876 31
+  · wct_piece 23 235878 32
+  · wct_piece 23 235882 33
+  · wct_piece 20 235275 40
+  · wct_piece 8 2726 17
+  · wct_piece 8 2732 18
+  · wct_piece 8 2736 19
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine650_ready : RoutineReady ⟨650, by decide⟩ routine650 := by
   wct_ready_start 650 20 10
-  wct_cases [240991,240996,240998,241003,236207,236212,236215,235628,235633,235637,2866,1502,945]
-  · wct_piece 45 240991 32
-  · wct_piece 45 240996 33
-  · wct_piece 45 240998 34
-  · wct_piece 45 241003 35
-  · wct_piece 24 236207 26
-  · wct_piece 24 236212 27
-  · wct_piece 24 236215 28
-  · wct_piece 21 235628 28
-  · wct_piece 21 235633 29
-  · wct_piece 21 235637 30
-  · wct_piece 10 2866 2
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241064,241070,241072,241078,235894,235900,235903,235296,235302,235306,3101,1585,966]
+  · wct_piece 43 241064 58
+  · wct_piece 43 241070 59
+  · wct_piece 43 241072 60
+  · wct_piece 43 241078 61
+  · wct_piece 23 235894 37
+  · wct_piece 23 235900 38
+  · wct_piece 23 235903 39
+  · wct_piece 20 235296 46
+  · wct_piece 20 235302 47
+  · wct_piece 20 235306 48
+  · wct_piece 10 3101 2
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine651_ready : RoutineReady ⟨651, by decide⟩ routine651 := by
   wct_ready_start 651 20 11
-  wct_cases [241004,241009,241011,241016,236226,236231,236233,236235,236239,2866,1502,945]
-  · wct_piece 45 241004 36
-  · wct_piece 45 241009 37
-  · wct_piece 45 241011 38
-  · wct_piece 45 241016 39
-  · wct_piece 24 236226 32
-  · wct_piece 24 236231 33
-  · wct_piece 24 236233 34
-  · wct_piece 24 236235 35
-  · wct_piece 24 236239 36
-  · wct_piece 10 2866 2
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241079,241085,241087,241093,235915,235921,235923,235925,235929,3101,1585,966]
+  · wct_piece 43 241079 62
+  · wct_piece 43 241085 63
+  · wct_piece 44 241087 0
+  · wct_piece 44 241093 1
+  · wct_piece 23 235915 43
+  · wct_piece 23 235921 44
+  · wct_piece 23 235923 45
+  · wct_piece 23 235925 46
+  · wct_piece 23 235929 47
+  · wct_piece 10 3101 2
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine652_ready : RoutineReady ⟨652, by decide⟩ routine652 := by
   wct_ready_start 652 20 12
-  wct_cases [241017,241022,241024,241029,241031,241035,239426,4108,1937,1081,799,804,807]
-  · wct_piece 45 241017 40
-  · wct_piece 45 241022 41
-  · wct_piece 45 241024 42
-  · wct_piece 45 241029 43
-  · wct_piece 45 241031 44
-  · wct_piece 45 241035 45
-  · wct_piece 37 239426 55
-  · wct_piece 15 4108 33
-  · wct_piece 5 1937 31
-  · wct_piece 1 1081 31
-  · wct_piece 0 799 15
-  · wct_piece 0 804 16
-  · wct_piece 0 807 17
+  wct_cases [241094,241100,241102,241108,241110,241114,239386,4391,2078,1120,805,811,814]
+  · wct_piece 44 241094 2
+  · wct_piece 44 241100 3
+  · wct_piece 44 241102 4
+  · wct_piece 44 241108 5
+  · wct_piece 44 241110 6
+  · wct_piece 44 241114 7
+  · wct_piece 36 239386 31
+  · wct_piece 15 4391 9
+  · wct_piece 5 2078 31
+  · wct_piece 1 1120 31
+  · wct_piece 0 805 15
+  · wct_piece 0 811 16
+  · wct_piece 0 814 17
 theorem routine653_ready : RoutineReady ⟨653, by decide⟩ routine653 := by
   wct_ready_start 653 20 13
-  wct_cases [241036,241041,241043,241048,241050,241054,239445,4127,1956,1097,1102,862,867]
-  · wct_piece 45 241036 46
-  · wct_piece 45 241041 47
-  · wct_piece 45 241043 48
-  · wct_piece 45 241048 49
-  · wct_piece 45 241050 50
-  · wct_piece 45 241054 51
-  · wct_piece 37 239445 61
-  · wct_piece 15 4127 39
-  · wct_piece 5 1956 37
-  · wct_piece 1 1097 36
-  · wct_piece 1 1102 37
-  · wct_piece 0 862 32
-  · wct_piece 0 867 33
+  wct_cases [241115,241121,241123,241129,241131,241135,239407,4412,2099,1138,1144,875,881]
+  · wct_piece 44 241115 8
+  · wct_piece 44 241121 9
+  · wct_piece 44 241123 10
+  · wct_piece 44 241129 11
+  · wct_piece 44 241131 12
+  · wct_piece 44 241135 13
+  · wct_piece 36 239407 37
+  · wct_piece 15 4412 15
+  · wct_piece 5 2099 37
+  · wct_piece 1 1138 36
+  · wct_piece 1 1144 37
+  · wct_piece 0 875 32
+  · wct_piece 0 881 33
 theorem routine654_ready : RoutineReady ⟨654, by decide⟩ routine654 := by
   wct_ready_start 654 20 14
-  wct_cases [241055,241060,241062,241067,241069,241073,239464,4146,1975,1118,1123,1125,1129,945]
-  · wct_piece 45 241055 52
-  · wct_piece 45 241060 53
-  · wct_piece 45 241062 54
-  · wct_piece 45 241067 55
-  · wct_piece 45 241069 56
-  · wct_piece 45 241073 57
-  · wct_piece 38 239464 3
-  · wct_piece 15 4146 45
-  · wct_piece 5 1975 43
-  · wct_piece 1 1118 42
-  · wct_piece 1 1123 43
-  · wct_piece 1 1125 44
-  · wct_piece 1 1129 45
-  · wct_piece 0 945 57
+  wct_cases [241136,241142,241144,241150,241152,241156,239428,4433,2120,1162,1168,1170,1174,966]
+  · wct_piece 44 241136 14
+  · wct_piece 44 241142 15
+  · wct_piece 44 241144 16
+  · wct_piece 44 241150 17
+  · wct_piece 44 241152 18
+  · wct_piece 44 241156 19
+  · wct_piece 36 239428 43
+  · wct_piece 15 4433 21
+  · wct_piece 5 2120 43
+  · wct_piece 1 1162 42
+  · wct_piece 1 1168 43
+  · wct_piece 1 1170 44
+  · wct_piece 1 1174 45
+  · wct_piece 0 966 57
 theorem routine655_ready : RoutineReady ⟨655, by decide⟩ routine655 := by
   wct_ready_start 655 20 15
-  wct_cases [241074,241079,241081,241086,241088,241092,4165,1991,1996,2000,1301,862,867]
-  · wct_piece 45 241074 58
-  · wct_piece 45 241079 59
-  · wct_piece 45 241081 60
-  · wct_piece 45 241086 61
-  · wct_piece 45 241088 62
-  · wct_piece 45 241092 63
-  · wct_piece 15 4165 51
-  · wct_piece 5 1991 48
-  · wct_piece 5 1996 49
-  · wct_piece 5 2000 50
-  · wct_piece 2 1301 33
-  · wct_piece 0 862 32
-  · wct_piece 0 867 33
+  wct_cases [241157,241163,241165,241171,241173,241177,239449,4454,2138,2144,2148,1365,875,881]
+  · wct_piece 44 241157 20
+  · wct_piece 44 241163 21
+  · wct_piece 44 241165 22
+  · wct_piece 44 241171 23
+  · wct_piece 44 241173 24
+  · wct_piece 44 241177 25
+  · wct_piece 36 239449 49
+  · wct_piece 15 4454 27
+  · wct_piece 5 2138 48
+  · wct_piece 5 2144 49
+  · wct_piece 5 2148 50
+  · wct_piece 2 1365 33
+  · wct_piece 0 875 32
+  · wct_piece 0 881 33
 theorem routine656_ready : RoutineReady ⟨656, by decide⟩ routine656 := by
   wct_ready_start 656 20 16
-  wct_cases [241093,241098,241100,241105,241107,241111,4184,2016,2021,1320,1325,1329,945]
-  · wct_piece 46 241093 0
-  · wct_piece 46 241098 1
-  · wct_piece 46 241100 2
-  · wct_piece 46 241105 3
-  · wct_piece 46 241107 4
-  · wct_piece 46 241111 5
-  · wct_piece 15 4184 57
-  · wct_piece 5 2016 55
-  · wct_piece 5 2021 56
-  · wct_piece 2 1320 39
-  · wct_piece 2 1325 40
-  · wct_piece 2 1329 41
-  · wct_piece 0 945 57
+  wct_cases [241178,241184,241186,241192,241194,241198,239470,4475,2166,2172,1386,1392,1396,966]
+  · wct_piece 44 241178 26
+  · wct_piece 44 241184 27
+  · wct_piece 44 241186 28
+  · wct_piece 44 241192 29
+  · wct_piece 44 241194 30
+  · wct_piece 44 241198 31
+  · wct_piece 36 239470 55
+  · wct_piece 15 4475 33
+  · wct_piece 5 2166 55
+  · wct_piece 5 2172 56
+  · wct_piece 2 1386 39
+  · wct_piece 2 1392 40
+  · wct_piece 2 1396 41
+  · wct_piece 0 966 57
 theorem routine657_ready : RoutineReady ⟨657, by decide⟩ routine657 := by
   wct_ready_start 657 20 17
-  wct_cases [241112,241117,241119,241124,241126,241130,239521,4203,2037,2042,2044,2048,1502,945]
-  · wct_piece 46 241112 6
-  · wct_piece 46 241117 7
-  · wct_piece 46 241119 8
-  · wct_piece 46 241124 9
-  · wct_piece 46 241126 10
-  · wct_piece 46 241130 11
-  · wct_piece 38 239521 21
-  · wct_piece 15 4203 63
-  · wct_piece 5 2037 61
-  · wct_piece 5 2042 62
-  · wct_piece 5 2044 63
-  · wct_piece 6 2048 0
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241199,241205,241207,241213,241215,241219,239491,4496,2190,2196,2198,2202,1585,966]
+  · wct_piece 44 241199 32
+  · wct_piece 44 241205 33
+  · wct_piece 44 241207 34
+  · wct_piece 44 241213 35
+  · wct_piece 44 241215 36
+  · wct_piece 44 241219 37
+  · wct_piece 36 239491 61
+  · wct_piece 15 4496 39
+  · wct_piece 5 2190 61
+  · wct_piece 5 2196 62
+  · wct_piece 5 2198 63
+  · wct_piece 6 2202 0
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine658_ready : RoutineReady ⟨658, by decide⟩ routine658 := by
   wct_ready_start 658 20 18
-  wct_cases [241131,241136,241138,241143,241145,241149,4219,4224,4228,2481,1301,862,867]
-  · wct_piece 46 241131 12
-  · wct_piece 46 241136 13
-  · wct_piece 46 241138 14
-  · wct_piece 46 241143 15
-  · wct_piece 46 241145 16
-  · wct_piece 46 241149 17
-  · wct_piece 16 4219 4
-  · wct_piece 16 4224 5
-  · wct_piece 16 4228 6
-  · wct_piece 8 2481 4
-  · wct_piece 2 1301 33
-  · wct_piece 0 862 32
-  · wct_piece 0 867 33
+  wct_cases [241220,241226,241228,241234,241236,241240,239512,4514,4520,4524,2681,1365,875,881]
+  · wct_piece 44 241220 38
+  · wct_piece 44 241226 39
+  · wct_piece 44 241228 40
+  · wct_piece 44 241234 41
+  · wct_piece 44 241236 42
+  · wct_piece 44 241240 43
+  · wct_piece 37 239512 3
+  · wct_piece 15 4514 44
+  · wct_piece 15 4520 45
+  · wct_piece 15 4524 46
+  · wct_piece 8 2681 4
+  · wct_piece 2 1365 33
+  · wct_piece 0 875 32
+  · wct_piece 0 881 33
 theorem routine659_ready : RoutineReady ⟨659, by decide⟩ routine659 := by
   wct_ready_start 659 20 19
-  wct_cases [241150,241155,241157,241162,241164,241168,241173,241177,241182,241186]
-  · wct_piece 46 241150 18
-  · wct_piece 46 241155 19
-  · wct_piece 46 241157 20
-  · wct_piece 46 241162 21
-  · wct_piece 46 241164 22
-  · wct_piece 46 241168 23
-  · wct_piece 46 241173 24
-  · wct_piece 46 241177 25
-  · wct_piece 46 241182 26
-  · wct_piece 46 241186 27
+  wct_cases [241241,241247,241249,241255,241257,241261,241267,241271,241277,241281,966]
+  · wct_piece 44 241241 44
+  · wct_piece 44 241247 45
+  · wct_piece 44 241249 46
+  · wct_piece 44 241255 47
+  · wct_piece 44 241257 48
+  · wct_piece 44 241261 49
+  · wct_piece 44 241267 50
+  · wct_piece 44 241271 51
+  · wct_piece 44 241277 52
+  · wct_piece 44 241281 53
+  · wct_piece 0 966 57
 theorem routine660_ready : RoutineReady ⟨660, by decide⟩ routine660 := by
   wct_ready_start 660 20 20
-  wct_cases [241192,241197,241199,241204,241206,241210,4269,4274,2522,2527,2531,1502,945]
-  · wct_piece 46 241192 28
-  · wct_piece 46 241197 29
-  · wct_piece 46 241199 30
-  · wct_piece 46 241204 31
-  · wct_piece 46 241206 32
-  · wct_piece 46 241210 33
-  · wct_piece 16 4269 18
-  · wct_piece 16 4274 19
-  · wct_piece 8 2522 17
-  · wct_piece 8 2527 18
-  · wct_piece 8 2531 19
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241282,241288,241290,241296,241298,241302,239574,4570,4576,2726,2732,2736,1585,966]
+  · wct_piece 44 241282 54
+  · wct_piece 44 241288 55
+  · wct_piece 44 241290 56
+  · wct_piece 44 241296 57
+  · wct_piece 44 241298 58
+  · wct_piece 44 241302 59
+  · wct_piece 37 239574 19
+  · wct_piece 15 4570 58
+  · wct_piece 15 4576 59
+  · wct_piece 8 2726 17
+  · wct_piece 8 2732 18
+  · wct_piece 8 2736 19
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine661_ready : RoutineReady ⟨661, by decide⟩ routine661 := by
   wct_ready_start 661 20 21
-  wct_cases [241211,241216,241218,241223,241225,241229,239620,4290,4295,4297,4301,2866,1502,945]
-  · wct_piece 46 241211 34
-  · wct_piece 46 241216 35
-  · wct_piece 46 241218 36
-  · wct_piece 46 241223 37
-  · wct_piece 46 241225 38
-  · wct_piece 46 241229 39
-  · wct_piece 38 239620 49
-  · wct_piece 16 4290 24
-  · wct_piece 16 4295 25
-  · wct_piece 16 4297 26
-  · wct_piece 16 4301 27
-  · wct_piece 10 2866 2
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241303,241309,241311,241317,241319,241323,239595,4594,4600,4602,4606,3101,1585,966]
+  · wct_piece 44 241303 60
+  · wct_piece 44 241309 61
+  · wct_piece 44 241311 62
+  · wct_piece 44 241317 63
+  · wct_piece 45 241319 0
+  · wct_piece 45 241323 1
+  · wct_piece 37 239595 25
+  · wct_piece 16 4594 0
+  · wct_piece 16 4600 1
+  · wct_piece 16 4602 2
+  · wct_piece 16 4606 3
+  · wct_piece 10 3101 2
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine662_ready : RoutineReady ⟨662, by decide⟩ routine662 := by
   wct_ready_start 662 20 22
-  wct_cases [241230,241235,241237,241242,241245,239636,239641,239645,235565,2481,1301,862,867]
-  · wct_piece 46 241230 40
-  · wct_piece 46 241235 41
-  · wct_piece 46 241237 42
-  · wct_piece 46 241242 43
-  · wct_piece 46 241245 44
-  · wct_piece 38 239636 54
-  · wct_piece 38 239641 55
-  · wct_piece 38 239645 56
-  · wct_piece 21 235565 8
-  · wct_piece 8 2481 4
-  · wct_piece 2 1301 33
-  · wct_piece 0 862 32
-  · wct_piece 0 867 33
+  wct_cases [241324,241330,241332,241338,241341,239613,239619,239623,235227,2681,1365,875,881]
+  · wct_piece 45 241324 2
+  · wct_piece 45 241330 3
+  · wct_piece 45 241332 4
+  · wct_piece 45 241338 5
+  · wct_piece 45 241341 6
+  · wct_piece 37 239613 30
+  · wct_piece 37 239619 31
+  · wct_piece 37 239623 32
+  · wct_piece 20 235227 26
+  · wct_piece 8 2681 4
+  · wct_piece 2 1365 33
+  · wct_piece 0 875 32
+  · wct_piece 0 881 33
 theorem routine663_ready : RoutineReady ⟨663, by decide⟩ routine663 := by
   wct_ready_start 663 20 23
-  wct_cases [241246,241251,241253,241258,241261,241266,241270,2503,1320,1325,1329,945]
-  · wct_piece 46 241246 45
-  · wct_piece 46 241251 46
-  · wct_piece 46 241253 47
-  · wct_piece 46 241258 48
-  · wct_piece 46 241261 49
-  · wct_piece 46 241266 50
-  · wct_piece 46 241270 51
-  · wct_piece 8 2503 11
-  · wct_piece 2 1320 39
-  · wct_piece 2 1325 40
-  · wct_piece 2 1329 41
-  · wct_piece 0 945 57
+  wct_cases [241342,241348,241350,241356,241359,241365,241369,235251,2705,1386,1392,1396,966]
+  · wct_piece 45 241342 7
+  · wct_piece 45 241348 8
+  · wct_piece 45 241350 9
+  · wct_piece 45 241356 10
+  · wct_piece 45 241359 11
+  · wct_piece 45 241365 12
+  · wct_piece 45 241369 13
+  · wct_piece 20 235251 33
+  · wct_piece 8 2705 11
+  · wct_piece 2 1386 39
+  · wct_piece 2 1392 40
+  · wct_piece 2 1396 41
+  · wct_piece 0 966 57
 theorem routine664_ready : RoutineReady ⟨664, by decide⟩ routine664 := by
   wct_ready_start 664 20 24
-  wct_cases [241271,241276,241278,241283,241286,241291,241295,2522,2527,2531,1502,945]
-  · wct_piece 46 241271 52
-  · wct_piece 46 241276 53
-  · wct_piece 46 241278 54
-  · wct_piece 46 241283 55
-  · wct_piece 46 241286 56
-  · wct_piece 46 241291 57
-  · wct_piece 46 241295 58
-  · wct_piece 8 2522 17
-  · wct_piece 8 2527 18
-  · wct_piece 8 2531 19
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241370,241376,241378,241384,241387,241393,241397,235275,2726,2732,2736,1585,966]
+  · wct_piece 45 241370 14
+  · wct_piece 45 241376 15
+  · wct_piece 45 241378 16
+  · wct_piece 45 241384 17
+  · wct_piece 45 241387 18
+  · wct_piece 45 241393 19
+  · wct_piece 45 241397 20
+  · wct_piece 20 235275 40
+  · wct_piece 8 2726 17
+  · wct_piece 8 2732 18
+  · wct_piece 8 2736 19
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine665_ready : RoutineReady ⟨665, by decide⟩ routine665 := by
   wct_ready_start 665 20 25
-  wct_cases [241296,241301,241303,241308,241311,239711,239716,235628,235633,235637,2866,1502,945]
-  · wct_piece 46 241296 59
-  · wct_piece 46 241301 60
-  · wct_piece 46 241303 61
-  · wct_piece 46 241308 62
-  · wct_piece 46 241311 63
-  · wct_piece 39 239711 11
-  · wct_piece 39 239716 12
-  · wct_piece 21 235628 28
-  · wct_piece 21 235633 29
-  · wct_piece 21 235637 30
-  · wct_piece 10 2866 2
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241398,241404,241406,241412,241415,239697,239703,235296,235302,235306,3101,1585,966]
+  · wct_piece 45 241398 21
+  · wct_piece 45 241404 22
+  · wct_piece 45 241406 23
+  · wct_piece 45 241412 24
+  · wct_piece 45 241415 25
+  · wct_piece 37 239697 51
+  · wct_piece 37 239703 52
+  · wct_piece 20 235296 46
+  · wct_piece 20 235302 47
+  · wct_piece 20 235306 48
+  · wct_piece 10 3101 2
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine666_ready : RoutineReady ⟨666, by decide⟩ routine666 := by
   wct_ready_start 666 20 26
-  wct_cases [241312,241317,241319,241324,241327,239732,239737,239739,239743,236239,2866,1502,945]
-  · wct_piece 47 241312 0
-  · wct_piece 47 241317 1
-  · wct_piece 47 241319 2
-  · wct_piece 47 241324 3
-  · wct_piece 47 241327 4
-  · wct_piece 39 239732 17
-  · wct_piece 39 239737 18
-  · wct_piece 39 239739 19
-  · wct_piece 39 239743 20
-  · wct_piece 24 236239 36
-  · wct_piece 10 2866 2
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241416,241422,241424,241430,241433,239721,239727,239729,239733,235929,3101,1585,966]
+  · wct_piece 45 241416 26
+  · wct_piece 45 241422 27
+  · wct_piece 45 241424 28
+  · wct_piece 45 241430 29
+  · wct_piece 45 241433 30
+  · wct_piece 37 239721 57
+  · wct_piece 37 239727 58
+  · wct_piece 37 239729 59
+  · wct_piece 37 239733 60
+  · wct_piece 23 235929 47
+  · wct_piece 10 3101 2
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine667_ready : RoutineReady ⟨667, by decide⟩ routine667 := by
   wct_ready_start 667 20 27
-  wct_cases [241328,241333,241335,241340,241342,241344,241348,235565,2481,1301,862,867]
-  · wct_piece 47 241328 5
-  · wct_piece 47 241333 6
-  · wct_piece 47 241335 7
-  · wct_piece 47 241340 8
-  · wct_piece 47 241342 9
-  · wct_piece 47 241344 10
-  · wct_piece 47 241348 11
-  · wct_piece 21 235565 8
-  · wct_piece 8 2481 4
-  · wct_piece 2 1301 33
-  · wct_piece 0 862 32
-  · wct_piece 0 867 33
+  wct_cases [241434,241440,241442,241448,241450,241452,241456,235227,2681,1365,875,881]
+  · wct_piece 45 241434 31
+  · wct_piece 45 241440 32
+  · wct_piece 45 241442 33
+  · wct_piece 45 241448 34
+  · wct_piece 45 241450 35
+  · wct_piece 45 241452 36
+  · wct_piece 45 241456 37
+  · wct_piece 20 235227 26
+  · wct_piece 8 2681 4
+  · wct_piece 2 1365 33
+  · wct_piece 0 875 32
+  · wct_piece 0 881 33
 theorem routine668_ready : RoutineReady ⟨668, by decide⟩ routine668 := by
   wct_ready_start 668 20 28
-  wct_cases [241349,241354,241356,241361,241363,241365,241369,235587,2503,1320,1325,1329,945]
-  · wct_piece 47 241349 12
-  · wct_piece 47 241354 13
-  · wct_piece 47 241356 14
-  · wct_piece 47 241361 15
-  · wct_piece 47 241363 16
-  · wct_piece 47 241365 17
-  · wct_piece 47 241369 18
-  · wct_piece 21 235587 15
-  · wct_piece 8 2503 11
-  · wct_piece 2 1320 39
-  · wct_piece 2 1325 40
-  · wct_piece 2 1329 41
-  · wct_piece 0 945 57
+  wct_cases [241457,241463,241465,241471,241473,241475,241479,235251,2705,1386,1392,1396,966]
+  · wct_piece 45 241457 38
+  · wct_piece 45 241463 39
+  · wct_piece 45 241465 40
+  · wct_piece 45 241471 41
+  · wct_piece 45 241473 42
+  · wct_piece 45 241475 43
+  · wct_piece 45 241479 44
+  · wct_piece 20 235251 33
+  · wct_piece 8 2705 11
+  · wct_piece 2 1386 39
+  · wct_piece 2 1392 40
+  · wct_piece 2 1396 41
+  · wct_piece 0 966 57
 theorem routine669_ready : RoutineReady ⟨669, by decide⟩ routine669 := by
   wct_ready_start 669 20 29
-  wct_cases [241370,241375,241377,241382,241384,241386,241390,235609,2522,2527,2531,1502,945]
-  · wct_piece 47 241370 19
-  · wct_piece 47 241375 20
-  · wct_piece 47 241377 21
-  · wct_piece 47 241382 22
-  · wct_piece 47 241384 23
-  · wct_piece 47 241386 24
-  · wct_piece 47 241390 25
-  · wct_piece 21 235609 22
-  · wct_piece 8 2522 17
-  · wct_piece 8 2527 18
-  · wct_piece 8 2531 19
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241480,241486,241488,241494,241496,241498,241502,235275,2726,2732,2736,1585,966]
+  · wct_piece 45 241480 45
+  · wct_piece 45 241486 46
+  · wct_piece 45 241488 47
+  · wct_piece 45 241494 48
+  · wct_piece 45 241496 49
+  · wct_piece 45 241498 50
+  · wct_piece 45 241502 51
+  · wct_piece 20 235275 40
+  · wct_piece 8 2726 17
+  · wct_piece 8 2732 18
+  · wct_piece 8 2736 19
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine670_ready : RoutineReady ⟨670, by decide⟩ routine670 := by
   wct_ready_start 670 20 30
-  wct_cases [241391,241396,241398,241403,241405,241407,241411,235628,235633,235637,2866,1502,945]
-  · wct_piece 47 241391 26
-  · wct_piece 47 241396 27
-  · wct_piece 47 241398 28
-  · wct_piece 47 241403 29
-  · wct_piece 47 241405 30
-  · wct_piece 47 241407 31
-  · wct_piece 47 241411 32
-  · wct_piece 21 235628 28
-  · wct_piece 21 235633 29
-  · wct_piece 21 235637 30
-  · wct_piece 10 2866 2
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241503,241509,241511,241517,241519,241521,241525,235296,235302,235306,3101,1585,966]
+  · wct_piece 45 241503 52
+  · wct_piece 45 241509 53
+  · wct_piece 45 241511 54
+  · wct_piece 45 241517 55
+  · wct_piece 45 241519 56
+  · wct_piece 45 241521 57
+  · wct_piece 45 241525 58
+  · wct_piece 20 235296 46
+  · wct_piece 20 235302 47
+  · wct_piece 20 235306 48
+  · wct_piece 10 3101 2
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 theorem routine671_ready : RoutineReady ⟨671, by decide⟩ routine671 := by
   wct_ready_start 671 20 31
-  wct_cases [241412,241417,241419,241424,241426,241429,241434,241438,236239,2866,1502,945]
-  · wct_piece 47 241412 33
-  · wct_piece 47 241417 34
-  · wct_piece 47 241419 35
-  · wct_piece 47 241424 36
-  · wct_piece 47 241426 37
-  · wct_piece 47 241429 38
-  · wct_piece 47 241434 39
-  · wct_piece 47 241438 40
-  · wct_piece 24 236239 36
-  · wct_piece 10 2866 2
-  · wct_piece 3 1502 34
-  · wct_piece 0 945 57
+  wct_cases [241526,241532,241534,241540,241542,241545,241551,241555,235929,3101,1585,966]
+  · wct_piece 45 241526 59
+  · wct_piece 45 241532 60
+  · wct_piece 45 241534 61
+  · wct_piece 45 241540 62
+  · wct_piece 45 241542 63
+  · wct_piece 46 241545 0
+  · wct_piece 46 241551 1
+  · wct_piece 46 241555 2
+  · wct_piece 23 235929 47
+  · wct_piece 10 3101 2
+  · wct_piece 3 1585 34
+  · wct_piece 0 966 57
 end W9Machine.Chain
 end
 

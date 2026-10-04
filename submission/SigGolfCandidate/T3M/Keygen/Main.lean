@@ -86,4 +86,5 @@ theorem keygen_runWith (hash : Hash) (sk : SecretKey) :
         cacheB (evalWithAnswerFn hash (mrealize sk keygen)).2), true, 53919407, 995328, 1048576⟩ := by
   unfold Submission.runWith
   rw [keygen_run, evalWithAnswerFn_map]
+#print axioms keygen_runWith
 end SigGolfCandidate.T3M.Keygen

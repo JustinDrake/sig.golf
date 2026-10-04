@@ -16,16 +16,15 @@ def signPayloadWith (limit : Nat) (cache : Cache) (message : Message) : M (Optio
   let some (_, output) ← digestSearch rho message 0 limit | pure none
   let index := output.toNat % 2 ^ 31
   let state ← (List.finRange 9).foldlM
-    (fun (state : List Opening × List (Digest × Digest)) coord => do
+    (fun (state : List Opening × List Digest) coord => do
       let selected := child output coord
       let (levels, values) ← buildCoordinate index coord selected (rank output coord)
       let path := (List.range 7).map fun level =>
         (levels.getD level []).getD (selected.val / 2 ^ level ^^^ 1) 0
       let opening : Opening := ⟨fun i => values.getD i.val 0, fun i => path.getD i.val 0⟩
-      pure (state.1 ++ [opening],
-        state.2 ++ [((levels.getD 6 []).getD 0 0, (levels.getD 6 []).getD 1 0)])) ([], [])
+      pure (state.1 ++ [opening], state.2 ++ [(levels.getD 7 []).getD 0 0])) ([], [])
   let root ← forestPk index state.2
-  let some layers ← signLayersBC cache index 4 (.forest root) | pure none
+  let some layers ← signLayers cache index 4 (root, 0, 0) | pure none
   pure (some ⟨rho, fun coord => state.1.getD coord.val ⟨fun _ => 0, fun _ => 0⟩,
     fun lay => piecesSignature lay (layers.getD lay.val ([], []))⟩)
 def signWith (limit : Nat) (cache : Cache) (message : Message) : M (Option Signature) := do
@@ -37,7 +36,7 @@ def expandWith (limit : Nat) (message : Message) (pk : Digest) (sig : Signature)
   let some (counter, output) ← digestSearch sig.rho message 0 limit | pure none
   let index := output.toNat % 2 ^ 31
   let root ← recoverFts sig index output
-  let some (root, counters) ← expandLayersBC sig index 4 (.forest root) | pure none
+  let some (root, counters) ← expandLayers (toT3Signature sig) index 4 (root, 0, 0) | pure none
   if root ≠ pk then return none
   pure (some ⟨sig, counter, fun lay => counters.getD lay.val 0⟩)
 def verifyWith (limit : Nat) (message : Message) (pk : Digest) (w : Witness) : M Bool := do
@@ -46,7 +45,7 @@ def verifyWith (limit : Nat) (message : Message) (pk : Digest) (w : Witness) : M
   if !admissible output then return false
   let index := output.toNat % 2 ^ 31
   let root ← recoverFts w.signature index output
-  let some root ← verifyLayersBC w index 4 (.forest root) | pure false
+  let some root ← verifyLayers (toT3Witness w) index 4 (root, 0, 0) | pure false
   pure (root == pk)
 theorem signPayloadWith_attemptLimit :
     signPayloadWith SigGolfCandidate.T3.attemptLimit = signPayload := rfl

@@ -1,7 +1,6 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsEvents
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Layers
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Wct
-import SigGolfCandidate.ClaudeWCT.W9.New.BC.Rows
 
 namespace ClaudeWCT.W9.T3.Security.Wots
 open OracleComp OracleSpec
@@ -13,5 +12,5 @@ open SigGolfCandidate.T3.Correctness (Answers)
 def VerifierAllGood (answers : Answers) (publicKey : Digest) (forgery : ForgeryP) : Prop :=
   ∃ message witness N, PaddedExtraction.WitnessOf answers publicKey forgery message witness ∧
     evalWithAnswerFn answers (digest (wrho witness) message (wdc witness)) = N ∧
-    (∀ l : Layer, BC.GoodZ answers witness (N.toNat % 2 ^ 31) l) ∧ WctExtract.WctHonest answers N witness
+    (∀ l : Layer, Extract.Good answers witness (N.toNat % 2 ^ 31) l) ∧ WctExtract.WctHonest answers N witness
 end ClaudeWCT.W9.T3.Security.Wots

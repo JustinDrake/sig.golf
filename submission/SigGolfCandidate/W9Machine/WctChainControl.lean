@@ -1,4 +1,3 @@
-import SigGolfCandidate.T3M.Verify.Mem
 import SigGolfCandidate.W9Machine.WctPlanGuard
 import SigGolfCandidate.W9Machine.WctPlanGood
 
@@ -22,7 +21,7 @@ theorem chain_next_pc (p : ChainPiece) (s : MachineState) (ans : BitVec 256)
       simp only [ChainPiece.result, ChainPiece.isHash, headRHRel, if_true] at hw
       change (writeHash ((headRHRel .x8 _ _ pc chain digit).toState s) ans).pc = pcOf (pc + words.length)
       rw [writeHash_pc]
-      change pcOf (pc + 4) + 4 = _
+      change pcOf (pc + 5) + 4 = _
       rw [SigGolfCandidate.T3M.pcOf_add4]
       congr 1
       omega

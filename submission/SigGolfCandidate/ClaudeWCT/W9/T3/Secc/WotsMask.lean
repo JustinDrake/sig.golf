@@ -1,8 +1,6 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMaskChain
-import SigGolfCandidate.ClaudeWCT.W9.New.BC.Respects
 import SigGolfCandidate.ClaudeWCT.WCT9.Forest
 import SigGolfCandidate.T3.Secc.WotsMask
-
 namespace ClaudeWCT.W9.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -75,10 +73,9 @@ theorem eval_buildTree_maskAt (lay : Layer) (tree selected : Nat) (digits : List
     Correctness.eval_buildTree_result _ lay tree selected digits hvalid hsel, builtTree_maskAt,
     leafValues_maskAt answers a lay tree selected digits hvalid halias]
 theorem signedMsg_succ (T : Answers) (index m : Nat) (hm : m < 3) :
-    WCT9.LayerMsg.pair
-      (WCT9.topPair (Fin.ofNat 4 (m + 1)) (builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2)).1
-      (WCT9.topPair (Fin.ofNat 4 (m + 1)) (builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2)).2 =
-      leafMsg T (routeLeaf index (Fin.ofNat 4 m)) := by
+    (((builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2).getD
+      (height (Fin.ofNat 4 (m + 1)) - 1) []).getD 0 0, 0, ((builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2).getD
+      (height (Fin.ofNat 4 (m + 1)) - 1) []).getD 1 0) = leafMsg T (routeLeaf index (Fin.ofNat 4 m)) := by
   have hl : (Fin.ofNat 4 m : Layer).val < 3 := by
     change m % 4 < 3
     omega
@@ -90,11 +87,11 @@ theorem signedMsg_succ (T : Answers) (index m : Nat) (hm : m < 3) :
   simp only [dif_pos hl]
   rw [hlay, ← route_tree_succ index m hm]
   rfl
-theorem signedMsg_top (T : Answers) (index : Nat) (hindex : index < 2 ^ 31) :
-    WCT9.LayerMsg.forest (Extract.honestForest T index) = leafMsg T (routeLeaf index 3) := by
+theorem signedMsg_top (T : Answers) (index : Nat) :
+    ((Extract.honestForest T index, 0, 0) : Digest × BitVec 96 × Digest) = leafMsg T (routeLeaf index 3) := by
   unfold leafMsg routeLeaf
   simp only [show ¬((3 : Layer).val < 3) by decide, dite_false]
-  rw [route_top_index, Nat.mod_eq_of_lt hindex]
+  rw [route_top_index]
 theorem routeLeaf_alias {index : Nat} (hindex : index < 2 ^ 31) {lay : Layer} {T : Answers} {counter : BitVec 32}
     {digits : List Nat} (hsearch : referenceSearch T (routeLeaf index lay) = some (counter, digits))
     (htree : a.key.tree < 2 ^ 40) (hleaf : a.key.leaf < 2 ^ 32)
@@ -107,21 +104,21 @@ theorem routeLeaf_alias {index : Nat} (hindex : index < 2 ^ 31) {lay : Layer} {T
 theorem eval_signLayers_maskAt (htree : a.key.tree < 2 ^ 40) (hleaf : a.key.leaf < 2 ^ 32) (cache : Cache)
     (index : Nat) (hindex : index < 2 ^ 31) :
     ∀ n, n ≤ 4 → ∀ msg, (∀ m, n = m + 1 → msg = leafMsg answers (routeLeaf index (Fin.ofNat 4 m))) →
-      evalWithAnswerFn (maskAt answers a) (WCT9.signLayersBC cache index n msg) =
-        evalWithAnswerFn answers (WCT9.signLayersBC cache index n msg) := by
+      evalWithAnswerFn (maskAt answers a) (signLayers cache index n msg) =
+        evalWithAnswerFn answers (signLayers cache index n msg) := by
   intro n
   induction n with
   | zero => intro _ _ _; rfl
   | succ n ih =>
       intro hn msg hmsg
-      simp only [WCT9.signLayersBC, evalWithAnswerFn_bind]
-      rw [eval_maskAt_of_respects answers a (respects_layerCounterSearch a _ _ _ _ _ _)]
-      cases hs : evalWithAnswerFn answers (WCT9.layerCounterSearch (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
+      simp only [signLayers, evalWithAnswerFn_bind]
+      rw [eval_maskAt_of_respects answers a (respects_counterSearch a _ _ _ _ _ _)]
+      cases hs : evalWithAnswerFn answers (counterSearch (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
         (route index (Fin.ofNat 4 n)).1 msg 0 counterLimit) with
       | none => rfl
       | some found =>
           obtain ⟨counter, digits⟩ := found
-          have hd := (WCT9.layerCounterSearch_some answers _ _ _ msg counterLimit 0 counter digits
+          have hd := (Correctness.counterSearch_some answers _ _ _ msg counterLimit 0 counter digits
             (by decide) hs).2.2
           have hvalid := Cost.validDigits_decode hd
           have hsearch : referenceSearch answers (routeLeaf index (Fin.ofNat 4 n)) = some (counter, digits) := by
@@ -147,7 +144,7 @@ theorem eval_signLayers_maskAt (htree : a.key.tree < 2 ^ 40) (hleaf : a.key.leaf
             rw [ih (by omega) _ (fun m' hm' => by
               obtain rfl : m = m' := by omega
               exact signedMsg_succ answers index m (by omega))]
-            cases evalWithAnswerFn answers (WCT9.signLayersBC cache index (m + 1) _) <;> rfl
+            cases evalWithAnswerFn answers (signLayers cache index (m + 1) _) <;> rfl
 end Mask
 theorem eval_maskAt_signPayload (answers : Answers) (a : ChainAddr) (htree : a.key.tree < 2 ^ 40)
     (hleaf : a.key.leaf < 2 ^ 32) (cache : Cache) (message : Message) :
@@ -169,9 +166,9 @@ theorem eval_maskAt_signPayload (answers : Answers) (a : ChainAddr) (htree : a.k
     refine Mask.eval_bind_of (Mask.eval_signLayers_maskAt answers a htree hleaf cache _ (Nat.mod_lt _ (by decide)) 4
       le_rfl _ (fun m hm => ?_)) ?_
     · obtain rfl : m = 3 := by omega
-      rw [← Extract.honestForest_eq_wct9]
-      exact Mask.signedMsg_top answers _ (Nat.mod_lt _ (by decide))
-    · generalize evalWithAnswerFn answers (WCT9.signLayersBC cache (output.toNat % 2 ^ 31) 4 _) = pieces
+      exact (congrArg (fun x => ((x, 0, 0) : Digest × BitVec 96 × Digest))
+        (Extract.honestForest_eq_wct9 answers _).symm).trans (Mask.signedMsg_top answers _)
+    · generalize evalWithAnswerFn answers (signLayers cache (output.toNat % 2 ^ 31) 4 _) = pieces
       rcases pieces with _ | pieces <;> rfl
 theorem eval_maskAt_coreSign (answers : Answers) (a : ChainAddr) (htree : a.key.tree < 2 ^ 40)
     (hleaf : a.key.leaf < 2 ^ 32) (cache : Cache) (message : Message) :

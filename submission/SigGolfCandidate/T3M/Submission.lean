@@ -32,14 +32,14 @@ set_option maxRecDepth 10000
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy
 def submission : Submission where
-  sizes := ⟨5456, 24264, 131072⟩
+  sizes := ⟨5456, 25240, 131072⟩
   layout := ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩
   image
     | .keygen => Images.keygenImage
     | .sign => Images.signImage
     | .expand => Images.expandImage
     | .verify => Images.verifyImage
-@[simp] theorem submission_sizes : submission.sizes = ⟨5456, 24264, 131072⟩ := rfl
+@[simp] theorem submission_sizes : submission.sizes = ⟨5456, 25240, 131072⟩ := rfl
 @[simp] theorem submission_layout : submission.layout = ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩ := rfl
 @[simp] theorem submission_keygen : submission.image .keygen = Images.keygenImage := rfl
 @[simp] theorem submission_sign : submission.image .sign = Images.signImage := rfl
@@ -59,7 +59,7 @@ theorem submission_sign_valid :
   rw [submission_sign, submission_sizes, submission_layout]
   rw [Riscv.Image.Valid]
   rw [Riscv.Image.byteSize,
-    show Images.signImage.code.length = 11003 from Images.signCode_length,
+    show Images.signImage.code.length = 10952 from Images.signCode_length,
     show Images.signImage.data.length = 69632 from Images.signData_length]
   rw [layoutValid_of_data_length _ _ _ 69632 Images.signData_length]
   decide +kernel
@@ -68,7 +68,7 @@ theorem submission_expand_valid :
   rw [submission_expand, submission_sizes, submission_layout]
   rw [Riscv.Image.Valid]
   rw [Riscv.Image.byteSize,
-    show Images.expandImage.code.length = 40893 from Images.expandCode_length,
+    show Images.expandImage.code.length = 41715 from Images.expandCode_length,
     show Images.expandImage.data.length = 8704 from Images.expandData_length]
   rw [layoutValid_of_data_length _ _ _ 8704 Images.expandData_length]
   decide +kernel
@@ -78,7 +78,7 @@ theorem submission_verify_valid :
   rw [submission_verify, submission_sizes, submission_layout]
   rw [Riscv.Image.Valid]
   rw [Riscv.Image.byteSize,
-    show Images.verifyImage.code.length = 242202 from Images.verifyCode_length,
+    show Images.verifyImage.code.length = 242393 from Images.verifyCode_length,
     show Images.verifyImage.data.length = 72192 from Images.verifyData_length]
   rw [layoutValid_of_data_length _ _ _ 72192 Images.verifyData_length]
   decide +kernel

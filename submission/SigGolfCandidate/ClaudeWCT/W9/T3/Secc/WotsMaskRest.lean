@@ -1,8 +1,6 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMaskChain
 import SigGolfCandidate.ClaudeWCT.W9.New.Positions.FtsBridge
-import SigGolfCandidate.ClaudeWCT.W9.New.BC.Respects
 import SigGolfCandidate.T3.Secc.WotsMaskRest
-
 namespace ClaudeWCT.W9.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -35,7 +33,7 @@ theorem leafMsg_congr : leafMsg T a.key = leafMsg T' a.key := by
 theorem referenceSearch_congr : referenceSearch T a.key = referenceSearch T' a.key := by
   unfold referenceSearch
   rw [leafMsg_congr a hT]
-  exact (respects_layerCounterSearch a _ _ _ _ _ _).eval_eq hT
+  exact (respects_counterSearch a _ _ _ _ _ _).eval_eq hT
 end Mask
 theorem depth_congr (a : ChainAddr) (T T' : Answers) (hT : ∀ q, Mask.Untouched a q → T q = T' q) :
     depth T a = depth T' a := by

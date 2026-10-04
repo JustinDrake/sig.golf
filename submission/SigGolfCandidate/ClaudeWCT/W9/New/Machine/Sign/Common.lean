@@ -10,22 +10,22 @@ def cbase (c : Nat) : Nat := fieldIdx.getD c 0
 def headLook (n : Nat) : Option (BitVec 32) := if 2074 ≤ n then headCode[n - 2074]? else none
 def coordLook (c n : Nat) : Option (BitVec 32) :=
   if cbase c ≤ n then (coordCodes.getD c [])[n - cbase c]? else none
-def tailLook (n : Nat) : Option (BitVec 32) := if 10963 ≤ n then tailCode[n - 10963]? else none
+def tailLook (n : Nat) : Option (BitVec 32) := if 10918 ≤ n then tailCode[n - 10918]? else none
 def hookLook (n : Nat) : Option (BitVec 32) :=
   if n = 153 then some hook153 else if n = 540 then some hook540 else if n = 545 then some 0x00000073 else none
 def run (look : Nat → Option (BitVec 32)) (stops : List Nat) (n : Nat) (dirs : List Dir) : Option PRes :=
   pathAux scfg look (stops.map pcOf) 200 (pcOf n) dirs (σK []) []
 theorem headCode_length : headCode.length = 152 := by decide +kernel
-theorem coordCode0_length : coordCode0.length = 964 := by decide +kernel
-theorem coordCode1_length : coordCode1.length = 971 := by decide +kernel
-theorem coordCode2_length : coordCode2.length = 972 := by decide +kernel
-theorem coordCode3_length : coordCode3.length = 972 := by decide +kernel
-theorem coordCode4_length : coordCode4.length = 971 := by decide +kernel
-theorem coordCode5_length : coordCode5.length = 972 := by decide +kernel
-theorem coordCode6_length : coordCode6.length = 972 := by decide +kernel
-theorem coordCode7_length : coordCode7.length = 971 := by decide +kernel
-theorem coordCode8_length : coordCode8.length = 972 := by decide +kernel
-theorem tailCode_length : tailCode.length = 40 := by decide +kernel
+theorem coordCode0_length : coordCode0.length = 959 := by decide +kernel
+theorem coordCode1_length : coordCode1.length = 966 := by decide +kernel
+theorem coordCode2_length : coordCode2.length = 967 := by decide +kernel
+theorem coordCode3_length : coordCode3.length = 967 := by decide +kernel
+theorem coordCode4_length : coordCode4.length = 966 := by decide +kernel
+theorem coordCode5_length : coordCode5.length = 967 := by decide +kernel
+theorem coordCode6_length : coordCode6.length = 967 := by decide +kernel
+theorem coordCode7_length : coordCode7.length = 966 := by decide +kernel
+theorem coordCode8_length : coordCode8.length = 967 := by decide +kernel
+theorem tailCode_length : tailCode.length = 29 := by decide +kernel
 theorem getElem?_append_off {α : Type} {a l : List α} {n k : Nat} {w : α} (ha : a.length = n)
     (h : l[k]? = some w) : (a ++ l)[n + k]? = some w := by
   rw [List.getElem?_append_right (by omega), ha, Nat.add_sub_cancel_left]; exact h
@@ -34,9 +34,9 @@ theorem getElem?_append_pre {α : Type} {a l : List α} {k : Nat} {w : α}
   rw [List.getElem?_append_left (List.getElem?_eq_some_iff.mp h).1]; exact h
 theorem signNew_head {k : Nat} {w : BitVec 32} (h : headCode[k]? = some w) : signNew[k]? = some w := by
   unfold signNew; exact getElem?_append_pre h
-theorem signNew_tail {k : Nat} {w : BitVec 32} (h : tailCode[k]? = some w) : signNew[8889 + k]? = some w := by
+theorem signNew_tail {k : Nat} {w : BitVec 32} (h : tailCode[k]? = some w) : signNew[8844 + k]? = some w := by
   unfold signNew
-  rw [show 8889 + k = 152 + (964 + (971 + (972 + (972 + (971 + (972 + (972 + (971 + (972 + k))))))))) by omega]
+  rw [show 8844 + k = 152 + (959 + (966 + (967 + (967 + (966 + (967 + (967 + (966 + (967 + k))))))))) by omega]
   exact getElem?_append_off headCode_length (getElem?_append_off coordCode0_length
     (getElem?_append_off coordCode1_length (getElem?_append_off coordCode2_length
     (getElem?_append_off coordCode3_length (getElem?_append_off coordCode4_length
@@ -48,35 +48,35 @@ theorem signNew_coord {c k : Nat} (hc : c < 9) {w : BitVec 32} (h : (coordCodes.
   interval_cases c
   · rw [show cbase 0 - 2074 + k = 152 + k by simp [cbase, fieldIdx]]
     exact getElem?_append_off headCode_length (getElem?_append_pre h)
-  · rw [show cbase 1 - 2074 + k = 152 + (964 + k) by simp [cbase, fieldIdx]; omega]
+  · rw [show cbase 1 - 2074 + k = 152 + (959 + k) by simp [cbase, fieldIdx]; omega]
     exact getElem?_append_off headCode_length (getElem?_append_off coordCode0_length (getElem?_append_pre h))
-  · rw [show cbase 2 - 2074 + k = 152 + (964 + (971 + k)) by simp [cbase, fieldIdx]; omega]
+  · rw [show cbase 2 - 2074 + k = 152 + (959 + (966 + k)) by simp [cbase, fieldIdx]; omega]
     exact getElem?_append_off headCode_length (getElem?_append_off coordCode0_length
       (getElem?_append_off coordCode1_length (getElem?_append_pre h)))
-  · rw [show cbase 3 - 2074 + k = 152 + (964 + (971 + (972 + k))) by simp [cbase, fieldIdx]; omega]
+  · rw [show cbase 3 - 2074 + k = 152 + (959 + (966 + (967 + k))) by simp [cbase, fieldIdx]; omega]
     exact getElem?_append_off headCode_length (getElem?_append_off coordCode0_length
       (getElem?_append_off coordCode1_length (getElem?_append_off coordCode2_length (getElem?_append_pre h))))
-  · rw [show cbase 4 - 2074 + k = 152 + (964 + (971 + (972 + (972 + k)))) by simp [cbase, fieldIdx]; omega]
+  · rw [show cbase 4 - 2074 + k = 152 + (959 + (966 + (967 + (967 + k)))) by simp [cbase, fieldIdx]; omega]
     exact getElem?_append_off headCode_length (getElem?_append_off coordCode0_length
       (getElem?_append_off coordCode1_length (getElem?_append_off coordCode2_length
       (getElem?_append_off coordCode3_length (getElem?_append_pre h)))))
-  · rw [show cbase 5 - 2074 + k = 152 + (964 + (971 + (972 + (972 + (971 + k))))) by simp [cbase, fieldIdx]; omega]
+  · rw [show cbase 5 - 2074 + k = 152 + (959 + (966 + (967 + (967 + (966 + k))))) by simp [cbase, fieldIdx]; omega]
     exact getElem?_append_off headCode_length (getElem?_append_off coordCode0_length
       (getElem?_append_off coordCode1_length (getElem?_append_off coordCode2_length
       (getElem?_append_off coordCode3_length (getElem?_append_off coordCode4_length (getElem?_append_pre h))))))
-  · rw [show cbase 6 - 2074 + k = 152 + (964 + (971 + (972 + (972 + (971 + (972 + k)))))) by
+  · rw [show cbase 6 - 2074 + k = 152 + (959 + (966 + (967 + (967 + (966 + (967 + k)))))) by
       simp [cbase, fieldIdx]; omega]
     exact getElem?_append_off headCode_length (getElem?_append_off coordCode0_length
       (getElem?_append_off coordCode1_length (getElem?_append_off coordCode2_length
       (getElem?_append_off coordCode3_length (getElem?_append_off coordCode4_length
       (getElem?_append_off coordCode5_length (getElem?_append_pre h)))))))
-  · rw [show cbase 7 - 2074 + k = 152 + (964 + (971 + (972 + (972 + (971 + (972 + (972 + k))))))) by
+  · rw [show cbase 7 - 2074 + k = 152 + (959 + (966 + (967 + (967 + (966 + (967 + (967 + k))))))) by
       simp [cbase, fieldIdx]; omega]
     exact getElem?_append_off headCode_length (getElem?_append_off coordCode0_length
       (getElem?_append_off coordCode1_length (getElem?_append_off coordCode2_length
       (getElem?_append_off coordCode3_length (getElem?_append_off coordCode4_length
       (getElem?_append_off coordCode5_length (getElem?_append_off coordCode6_length (getElem?_append_pre h))))))))
-  · rw [show cbase 8 - 2074 + k = 152 + (964 + (971 + (972 + (972 + (971 + (972 + (972 + (971 + k)))))))) by
+  · rw [show cbase 8 - 2074 + k = 152 + (959 + (966 + (967 + (967 + (966 + (967 + (967 + (966 + k)))))))) by
       simp [cbase, fieldIdx]; omega]
     exact getElem?_append_off headCode_length (getElem?_append_off coordCode0_length
       (getElem?_append_off coordCode1_length (getElem?_append_off coordCode2_length
@@ -115,7 +115,7 @@ theorem tailLook_ok {im : Image} (h : NewCodeAt im) : LookOK im tailLook := by
   split at hw
   · rename_i hle
     have := newCode_word h (signNew_tail hw)
-    rwa [show 2074 + (8889 + (n - 10963)) = n by omega] at this
+    rwa [show 2074 + (8844 + (n - 10918)) = n by omega] at this
   · cases hw
 theorem hookLook_ok {im : Image} (h : HooksAt im) : LookOK im hookLook := by
   intro n w hw

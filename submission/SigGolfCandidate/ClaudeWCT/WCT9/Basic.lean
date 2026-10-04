@@ -11,98 +11,25 @@ theorem wctHeader_eq_header (tag lay tree position index : Nat) (h : ¬ packedNo
   unfold wctHeader header
   rw [if_neg h]
   simp only [Nat.add_assoc]
+theorem node_header_plain (coord index heap : Nat) :
+    header 11 coord index 0 heap = wctHeader 11 coord index 0 heap :=
+  (wctHeader_eq_header 11 coord index 0 heap (by decide)).symm
 theorem forest_header_plain (index : Nat) :
     header 15 0 index 0 0 = wctHeader 15 0 index 0 0 :=
   (wctHeader_eq_header 15 0 index 0 0 (by decide)).symm
-theorem wct_tags_plain : ¬ packedNodeTag 6 ∧ ¬ packedNodeTag 15 ∧ packedNodeTag 3 := by decide
+theorem wct_tags_plain : ¬ packedNodeTag 5 ∧ ¬ packedNodeTag 6 ∧
+    ¬ packedNodeTag 11 ∧ ¬ packedNodeTag 15 := by decide
+theorem chain_header_eq (coord index position selected : Nat) :
+    wctHeader 5 coord index position selected = header 5 coord index position selected :=
+  wctHeader_eq_header 5 coord index position selected (by decide)
 theorem leaf_header_eq (coord index selected : Nat) :
     wctHeader 6 coord index 0 selected = header 6 coord index 0 selected :=
   wctHeader_eq_header 6 coord index 0 selected (by decide)
-theorem ftsChainLow_lt (index coord selected chain step : Nat) :
-    ftsChainLow index coord selected chain step < 2 ^ 58 := by
-  unfold ftsChainLow
-  have := Nat.mod_lt chain (show 0 < 8 by decide)
-  have := Nat.mod_lt step (show 0 < 4 by decide)
-  have := Nat.mod_lt coord (show 0 < 16 by decide)
-  have := Nat.mod_lt selected (show 0 < 128 by decide)
-  have := Nat.mod_lt index (show 0 < 2 ^ 31 by decide)
-  norm_num only at *
-  omega
-theorem ftsChainLow_byte0 (index coord selected chain step : Nat) :
-    ftsChainLow index coord selected chain step % 256 = 128 + 4 * (chain % 8) := by
-  unfold ftsChainLow
-  have := Nat.mod_lt chain (show 0 < 8 by decide)
-  omega
-theorem ftsChainLow_injective {i k j t s i' k' j' t' s' : Nat}
-    (hi : i < 2 ^ 31) (hk : k < 16) (hj : j < 128) (ht : t < 8) (hs : s < 4)
-    (hi' : i' < 2 ^ 31) (hk' : k' < 16) (hj' : j' < 128) (ht' : t' < 8) (hs' : s' < 4)
-    (h : ftsChainLow i k j t s = ftsChainLow i' k' j' t' s') :
-    i = i' ∧ k = k' ∧ j = j' ∧ t = t' ∧ s = s' := by
-  unfold ftsChainLow at h
-  rw [Nat.mod_eq_of_lt hi, Nat.mod_eq_of_lt hk, Nat.mod_eq_of_lt hj, Nat.mod_eq_of_lt ht,
-    Nat.mod_eq_of_lt hs, Nat.mod_eq_of_lt hi', Nat.mod_eq_of_lt hk', Nat.mod_eq_of_lt hj',
-    Nat.mod_eq_of_lt ht', Nat.mod_eq_of_lt hs'] at h
-  norm_num only at h hi hi'
-  omega
-theorem ftsChainHeaderP_toNat (index coord selected chain step : Nat) (high : BitVec 64) :
-    (ftsChainHeaderP index coord selected chain step high).toNat =
-      high.toNat * 2 ^ 64 + ftsChainLow index coord selected chain step := by
-  have hq := ftsChainLow_lt index coord selected chain step
-  unfold ftsChainHeaderP
-  rw [BitVec.toNat_append, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
-  have hlt : ftsChainLow index coord selected chain step < 2 ^ 64 := by omega
-  rw [← Nat.shiftLeft_add_eq_or_of_lt hlt, Nat.shiftLeft_eq]
-theorem ftsChainHeader_toNat (index coord selected chain step : Nat) :
-    (ftsChainHeader index coord selected chain step).toNat = ftsChainLow index coord selected chain step := by
-  unfold ftsChainHeader
-  rw [ftsChainHeaderP_toNat]
-  simp
-theorem ftsChainHeaderP_low (index coord selected chain step : Nat) (high : BitVec 64) :
-    (ftsChainHeaderP index coord selected chain step high).extractLsb' 0 64 =
-      BitVec.ofNat 64 (ftsChainLow index coord selected chain step) :=
-  BitVec.extractLsb'_append_eq_right
-theorem ftsChainHeaderP_high (index coord selected chain step : Nat) (high : BitVec 64) :
-    (ftsChainHeaderP index coord selected chain step high).extractLsb' 64 64 = high :=
-  BitVec.extractLsb'_append_eq_left
-theorem ftsChainHeaderP_injective {i k j t s i' k' j' t' s' : Nat} {high high' : BitVec 64}
-    (hi : i < 2 ^ 31) (hk : k < 16) (hj : j < 128) (ht : t < 8) (hs : s < 4)
-    (hi' : i' < 2 ^ 31) (hk' : k' < 16) (hj' : j' < 128) (ht' : t' < 8) (hs' : s' < 4)
-    (h : ftsChainHeaderP i k j t s high = ftsChainHeaderP i' k' j' t' s' high') :
-    i = i' ∧ k = k' ∧ j = j' ∧ t = t' ∧ s = s' ∧ high = high' := by
-  have hlo := congrArg (fun x : BitVec 128 => x.extractLsb' 0 64) h
-  have hhi := congrArg (fun x : BitVec 128 => x.extractLsb' 64 64) h
-  simp only [ftsChainHeaderP_low, ftsChainHeaderP_high] at hlo hhi
-  have hq := congrArg BitVec.toNat hlo
-  rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (lt_trans (ftsChainLow_lt ..) (by decide)),
-    Nat.mod_eq_of_lt (lt_trans (ftsChainLow_lt ..) (by decide))] at hq
-  obtain ⟨e1, e2, e3, e4, e5⟩ := ftsChainLow_injective hi hk hj ht hs hi' hk' hj' ht' hs' hq
-  exact ⟨e1, e2, e3, e4, e5, hhi⟩
-theorem chainInput_eq (index coord selected chain step : Nat) (value : Digest) :
+theorem chainInput_eq_header (index coord selected chain step : Nat) (value : Digest) :
     chainInput index coord selected chain step value =
-      zero16 ++ bytesLE 16 (ftsChainHeader index coord selected chain step) ++
-        zero16 ++ bytesLE 16 value := rfl
-theorem wctNodeHeader_eq (coord index heap : Nat) (hk : coord < 252) (hi : index < 2 ^ 32) (hh : heap < 2 ^ 32) :
-    wctNodeHeader coord index heap =
-      BitVec.ofNat 128 (1 + 3 * 2 ^ 8 + (4 + coord) * 2 ^ 16 + index * 2 ^ 32 + heap * 2 ^ 64) := by
-  apply BitVec.eq_of_toNat_eq
-  unfold wctNodeHeader nodeLayer
-  rw [header_toNat, if_pos (by decide), BitVec.toNat_ofNat]
-  have hnw : nodeWord 3 0 heap = heap := by
-    unfold nodeWord
-    rw [if_neg (by decide)]
-    omega
-  rw [hnw]
-  have h1 : index / 2 ^ 32 = 0 := Nat.div_eq_of_lt hi
-  rw [h1, Nat.mod_eq_of_lt hi, Nat.mod_eq_of_lt (show 4 + coord < 256 by omega)]
-  norm_num only at hi hh ⊢
-  omega
-theorem wctNodeHeader_injective {k i h k' i' h' : Nat}
-    (hk : k < 252) (hi : i < 2 ^ 40) (hh : h < 2 ^ 32) (hk' : k' < 252) (hi' : i' < 2 ^ 40) (hh' : h' < 2 ^ 32)
-    (he : wctNodeHeader k i h = wctNodeHeader k' i' h') : k = k' ∧ i = i' ∧ h = h' := by
-  unfold wctNodeHeader nodeLayer at he
-  obtain ⟨-, e2, e3, -, e5⟩ := header_injective (by decide) (by omega) hi (by norm_num) hh
-    (by decide) (by omega) hi' (by norm_num) hh' he
-  exact ⟨by omega, e3, e5⟩
+      zero16 ++ bytesLE 16 (header 5 coord index (step + 256 * chain) selected) ++
+        zero16 ++ bytesLE 16 value := by
+  rw [chainInput, chain_header_eq]
 theorem radix_inj {B a a' m m' : Nat} (h : a + B * m = a' + B * m') (ha : a < B) (ha' : a' < B) :
     a = a' ∧ m = m' := by
   have hB : 0 < B := by omega
@@ -178,6 +105,18 @@ theorem wctHeader_inj {tag lay tree position index tag' lay' tree' position' ind
   rw [Nat.mod_eq_of_lt hp, Nat.mod_eq_of_lt hp'] at e4
   rw [Nat.mod_eq_of_lt hi, Nat.mod_eq_of_lt hi'] at e6
   exact ⟨e1, e2, tree_of_split htr htr' e3 e5, e4, e6⟩
+theorem chainHeader_inj {coord index chain step selected coord' index' chain' step' selected' : Nat}
+    (hc : coord < 256) (hi : index < 2 ^ 31) (hch : chain < 7) (hs : step < 3) (hj : selected < 128)
+    (hc' : coord' < 256) (hi' : index' < 2 ^ 31) (hch' : chain' < 7) (hs' : step' < 3)
+    (hj' : selected' < 128)
+    (h : wctHeader 5 coord index (step + 256 * chain) selected =
+      wctHeader 5 coord' index' (step' + 256 * chain') selected') :
+    coord = coord' ∧ index = index' ∧ chain = chain' ∧ step = step' ∧ selected = selected' := by
+  have hpow : (2 : Nat) ^ 31 < 2 ^ 40 := by decide
+  obtain ⟨_, e2, e3, e4, e5⟩ := wctHeader_inj (by decide) hc (by omega)
+    (by norm_num; omega) (by norm_num; omega) (by decide) hc' (by omega)
+    (by norm_num; omega) (by norm_num; omega) h
+  exact ⟨e2, e3, by omega, by omega, e5⟩
 theorem serializeOpening_length (opened : Opening) : (serializeOpening opened).length = 224 := by
   simp only [serializeOpening, List.length_append, digest_list_bytes_length, List.length_ofFn]
 theorem serialize_length (sig : Signature) : (serialize sig).length = 5456 := by
@@ -222,7 +161,7 @@ theorem rank_val (output : HashOutput) (coord : Coord) :
     (rank output coord).val = field output coord % 728 := rfl
 theorem admissible_iff (output : HashOutput) :
     admissible output = true ↔
-      output.toNat / 2 ^ 234 % 2 ^ 14 < 5 ∧ ∀ coord : Coord, field output coord < 16016 := by
+      output.toNat / 2 ^ 31 % 2 ^ 12 = 0 ∧ ∀ coord : Coord, field output coord < 16016 := by
   unfold admissible field
   simp only [Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, List.mem_range]
   constructor
@@ -264,7 +203,7 @@ def digestLayout : List (Nat × Nat) :=
   [(0, 31), (31, 12),
    (43, 7), (50, 14), (64, 7), (71, 14), (85, 7), (92, 14), (106, 7), (113, 14), (127, 1),
    (128, 7), (135, 14), (149, 7), (156, 14), (170, 7), (177, 14), (191, 1),
-   (192, 7), (199, 14), (213, 7), (220, 14), (234, 14), (248, 8)]
+   (192, 7), (199, 14), (213, 7), (220, 14), (234, 22)]
 theorem coordBase_values :
     List.ofFn (fun k : Coord => coordBase k.val) = [43, 64, 85, 106, 128, 149, 170, 192, 213] := by
   decide

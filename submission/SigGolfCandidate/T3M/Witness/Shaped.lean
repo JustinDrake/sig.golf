@@ -1,9 +1,7 @@
 import SigGolfCandidate.T3M.Witness.Dfs
 import SigGolfCandidate.T3.Proofs
 import SigGolfCandidate.T3M.Witness.Encode
-
 section
-
 namespace SigGolfCandidate.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 set_option linter.unusedSimpArgs false
@@ -251,10 +249,7 @@ theorem ftsCoordP_canon (w : WBytes) (index coord : Nat) (sel : Selection) (ptr 
     simp only [hroot, and_self, if_true, map_eq_bind_pure_comp, Function.comp_def]
 end SigGolfCandidate.T3M
 end
-
 section
-
-
 namespace SigGolfCandidate.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 set_option linter.unusedSimpArgs false
@@ -604,10 +599,7 @@ theorem streamPlan_foldSlot (chosen : List Selection) (hc : ChosenOk chosen) {n 
     exact Prod.ext h1 h2
 end SigGolfCandidate.T3M
 end
-
 section
-
-
 set_option maxRecDepth 10000
 namespace SigGolfCandidate.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
@@ -1030,6 +1022,9 @@ theorem ftsP_shaped (N : HashOutput) (w : WBytes) (h : Shaped N w) :
 theorem layerP_dec (N : HashOutput) (w : WBytes) (lay : Layer) (digits : List Nat) :
     layerP w (N.toNat % 2 ^ 31) lay digits =
       recoverLayerP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) lay digits := rfl
+theorem layerNextP_dec (N : HashOutput) (w : WBytes) (n : Nat) (lay : Layer) (digits : List Nat) :
+    layerNextP w (N.toNat % 2 ^ 31) n lay digits =
+      recoverNextP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) n lay digits := rfl
 theorem layersP_dec (N : HashOutput) (w : WBytes) : ∀ n root,
     layersP w (N.toNat % 2 ^ 31) n root = verifyLayersP (witDecP N w) (padDecP N w) (N.toNat % 2 ^ 31) n root := by
   intro n
@@ -1037,7 +1032,7 @@ theorem layersP_dec (N : HashOutput) (w : WBytes) : ∀ n root,
   | zero => intro root; rfl
   | succ n ih =>
       intro root
-      simp only [layersP, verifyLayersP, layerP_dec, ih]
+      simp only [layersP, verifyLayersP, layerNextP_dec, ih]
       rfl
 def verifyTailP (pk : Digest) (w : WBytes) (N : HashOutput) : M Bool := do
   let chosen := selections N
@@ -1045,7 +1040,7 @@ def verifyTailP (pk : Digest) (w : WBytes) (N : HashOutput) : M Bool := do
   if !digestGate N then return false
   let index := N.toNat % 2 ^ 31
   let some root ← ftsP w index chosen | pure false
-  let some root ← layersP w index 4 root | pure false
+  let some root ← layersP w index 4 (root, 0, 0) | pure false
   pure (root == pk)
 theorem verifyP_eq_tail (m : Message) (pk : Digest) (w : WBytes) :
     verifyP m pk w = ((do

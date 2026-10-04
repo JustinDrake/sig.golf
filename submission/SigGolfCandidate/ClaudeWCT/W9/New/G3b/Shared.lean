@@ -1,6 +1,5 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsEvents
 import SigGolfCandidate.ClaudeWCT.W9.New.G3a.PaddedWitness
-import SigGolfCandidate.ClaudeWCT.W9.New.BC.Rows
 import SigGolfCandidate.T3.Secc.WotsExtractWord
 import SigGolfCandidate.T3.Secc.WotsExtractLayer
 import SigGolfCandidate.T3.Secc.WotsExtractVerify
@@ -8,7 +7,7 @@ import SigGolfCandidate.T3.Secc.WotsExtractVerify
 namespace ClaudeWCT.W9.T3.Security.WotsExtract
 open OracleComp OracleSpec
 open SigGolfCandidate SigGolfCandidate.T3 SigGolfCandidate.T3.Security
-open SigGolfCandidate.T3.Security.Wots (LeafAddr ChainAddr Entry low dummyDigits_valid)
+open SigGolfCandidate.T3.Security.Wots (LeafAddr ChainAddr Entry low encodingRow dummyDigits_valid)
 open ClaudeWCT.W9.T3M ClaudeWCT.W9.T3.Security.Wots
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
 open SigGolfCandidate.T3.Correctness (Answers)
@@ -17,12 +16,9 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 theorem referenceSearch_decode (answers : Answers) (L : LeafAddr) {c : BitVec 32} {digits : List Nat}
     (h : referenceSearch answers L = some (c, digits)) :
-    decode L.lay (low (answers (.inl (.inr (encRow L (leafMsg answers L) c 0))))) = some digits := by
-  have hs := (WCT9.layerCounterSearch_some answers L.lay L.tree L.leaf (leafMsg answers L) counterLimit 0 c digits
+    decode L.lay (low (answers (.inl (.inr (encodingRow L (leafMsg answers L) c))))) = some digits :=
+  (Correctness.counterSearch_some answers L.lay L.tree L.leaf (leafMsg answers L) counterLimit 0 c digits
     (by norm_num [counterLimit]) h).2.2
-  unfold encRow
-  rw [BC.layerEncodingInputP_zero]
-  exact hs
 theorem referenceDigits_decode (answers : Answers) (L : LeafAddr) :
     ∃ value : Digest, decode L.lay value = some (referenceDigits answers L) := by
   unfold referenceDigits
@@ -54,12 +50,12 @@ theorem twoEdgeAt_mono {a : ChainAddr} (h : TwoEdgeAt answers trace a) (hsub : �
     SigGolfCandidate.T3.Security.WotsExtract.seenRow_mono h2 hsub⟩
 theorem encodingMatchAt_mono {L : LeafAddr} (h : EncodingMatchAt answers trace L) (hsub : ∀ e ∈ trace, e ∈ trace') :
     EncodingMatchAt answers trace' L := by
-  obtain ⟨message, counter, pad, answer, hfit, hm, hne, hd⟩ := h
-  exact ⟨message, counter, pad, answer, hfit, hsub _ hm, hne, hd⟩
+  obtain ⟨message, counter, answer, hm, hne, hd⟩ := h
+  exact ⟨message, counter, answer, hsub _ hm, hne, hd⟩
 theorem markerAt_mono {a : ChainAddr} (h : MarkerAt answers trace a) (hsub : ∀ e ∈ trace, e ∈ trace') :
     MarkerAt answers trace' a := by
-  obtain ⟨message, counter, pad, answer, digits, hfit, hm, hne, hd, hl, hu⟩ := h
-  exact ⟨message, counter, pad, answer, digits, hfit, hsub _ hm, hne, hd, hl, hu⟩
+  obtain ⟨message, counter, answer, digits, hm, hne, hd, hl, hu⟩ := h
+  exact ⟨message, counter, answer, digits, hsub _ hm, hne, hd, hl, hu⟩
 theorem structuralHit_mono (h : StructuralHit answers trace) (hsub : ∀ e ∈ trace, e ∈ trace') :
     StructuralHit answers trace' := by
   obtain ⟨position, input, answer, hm, hpos, hb, hc, hh⟩ := h

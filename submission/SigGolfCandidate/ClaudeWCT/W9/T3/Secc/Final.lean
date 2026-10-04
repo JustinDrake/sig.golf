@@ -747,20 +747,20 @@ theorem markerContact_split (T : Answers) (trace : List Entry) (a : ChainAddr)
     subst heq
     cases km with
     | zero =>
-        obtain ⟨message, counter, pad, answer, digits, -, hmem, -⟩ := hPkm
+        obtain ⟨message, counter, answer, digits, hmem, -⟩ := hPkm
         simp at hmem
     | succ j =>
         have hPj := hPmin j (by omega)
         have hQj := hQmin j (by omega)
-        obtain ⟨message, counter, pad, answer, digits, hfit, hmem, hrest⟩ := hPkm
+        obtain ⟨message, counter, answer, digits, hmem, hrest⟩ := hPkm
         obtain ⟨hd, value, answer', hmem', hlow⟩ := hQkc
         rcases mem_take_succ hmem with h1 | h1
-        · exact hPj ⟨message, counter, pad, answer, digits, hfit, h1, hrest⟩
+        · exact hPj ⟨message, counter, answer, digits, h1, hrest⟩
         rcases mem_take_succ hmem' with h2 | h2
         · exact hQj ⟨hd, value, answer', h2, hlow⟩
         rw [h1] at h2
         have he := congrArg Prod.fst (Option.some.inj h2)
-        exact ClaudeWCT.W9.T3.Security.Wots.SmallA.chainRow_ne_encRow _ _ _ _ _ _ _ he.symm
+        exact SmallA.chainRow_ne_encodingRow _ _ _ _ _ _ he.symm
   · exact Or.inr ⟨kc, hQkc, hPmin kc hgt, hm⟩
 theorem primitive_cases (T : Answers) (trace : List Entry) (h : WotsExtract.WotsPrimitiveSrc T trace) :
     (∃ L, WotsExtract.SourceLeaf L ∧ EncodingMatchAt T trace L) ∨ WotsExtract.StructuralHitSrc T trace ∨

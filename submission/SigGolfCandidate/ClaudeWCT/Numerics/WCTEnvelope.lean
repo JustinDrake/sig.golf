@@ -10,7 +10,7 @@ open SphincsSecurity.Concrete (uniformWordAverage binomialAverage uniformWordAve
   uniformWordAverage_mul_left uniformWordAverage_sum)
 open SigGolfResearch.Gate6.Moments (finiteAverage)
 open SigGolfCandidate.T3.BPORS.History (atIndex uniformWordAverage_constant uniform_marked_word_atIndex)
-open ClaudeWCT.Bank.WCT (WProposal proposal outIdx CoveredP scoreP price)
+open ClaudeWCT.Bank.WCT (WProposal proposal outIdx CoveredP scoreP price sum_admissible)
 open ClaudeWCT.WCT9 (digit)
 noncomputable def rankEquiv : Fin 728 ≃ ClaudeWCT.Numerics.WCT9.Word := ClaudeWCT.WCT9.equivalence
 theorem wv_rankEquiv (r : Fin 728) (t : Fin 7) :
@@ -98,23 +98,13 @@ theorem coveredP_iff (W : List WProposal) (N : SigGolfCandidate.T3.HashOutput) :
     exact hp
   · rintro ⟨e, he, h2, h3⟩
     exact ⟨(outIdx N, e), (mem_atIndex _ _ _).mp he, rfl, h2, h3⟩
-def AdmissibleFibre : Prop :=
-  ∀ g : WProposal → ENNReal,
-    (∑ x : SigGolfCandidate.T3.HashOutput, if ClaudeWCT.WCT9.admissible x = true then g (proposal x) else 0) =
-      ((22 ^ 9 * 5 * 2 ^ 22 : ℕ) : ENNReal) * ∑ p, g p
-theorem admissibleFibre : AdmissibleFibre := ClaudeWCT.Bank.WCT.sum_admissible
-theorem fibre_mul_card_proposals : 22 ^ 9 * 5 * 2 ^ 22 * (2 ^ 31 * (128 * 728) ^ 9) = 5 * 16016 ^ 9 * 2 ^ 116 := by
-  norm_num
-theorem fibre_ratio : 4 * (22 ^ 9 * 5 * 2 ^ 22) = 5 * (22 ^ 9 * 2 ^ 24) := by norm_num
 theorem price_scale :
-    (2 : ENNReal) ^ 128 * ((22 ^ 9 * 5 * 2 ^ 22 : ℕ) : ENNReal) * ((Q ^ 9 : ℕ) : ENNReal) *
-        ((2 ^ 256 : ℕ) : ENNReal)⁻¹ =
-      ((5 * 1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 7 := by
+    (2 : ENNReal) ^ 128 * ((22 ^ 9 * 2 ^ 24 : ℕ) : ENNReal) * ((Q ^ 9 : ℕ) : ENNReal) * ((2 ^ 256 : ℕ) : ENNReal)⁻¹ =
+      ((1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 5 := by
   rw [← div_eq_mul_inv, ENNReal.div_eq_div_iff (by positivity) (by finiteness) (by positivity) (by finiteness)]
   norm_num [Q]
-section Fibre
 theorem price_eq (W : List WProposal) :
-    price W = ((5 * 1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 7 * ∑ index : Fin (2 ^ 31), wctEnv (atIndex index W) := by
+    price W = ((1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 5 * ∑ index : Fin (2 ^ 31), wctEnv (atIndex index W) := by
   classical
   set g : WProposal → ENNReal := fun p => if ListCov digit (atIndex p.1 W) p.2 then 1 else 0 with hg
   have hs : ∀ N, scoreP W N = if ClaudeWCT.WCT9.admissible N = true then g (proposal N) else 0 := by
@@ -132,35 +122,35 @@ theorem price_eq (W : List WProposal) :
     rw [hT, ENNReal.mul_div_cancel (by simp [Q]) (by simp)]
   unfold price finiteAverage
   simp_rw [hs]
-  rw [admissibleFibre g, hsum, Fintype.card_bitVec, ← price_scale]
+  rw [sum_admissible g, hsum, Fintype.card_bitVec, ← price_scale]
   simp only [div_eq_mul_inv]
   ring
 theorem price_mean (steps : ℕ) :
     uniformWordAverage steps price =
-      5 / 4 * ((A : ENNReal) * binomialAverage (2 ^ 31 : ENNReal)⁻¹ steps
-        (fun r => ((xNum r ^ 9 : ℕ) : ENNReal) / ((Nn ^ 9 * Q ^ (9 * r) : ℕ) : ENNReal))) := by
-  rw [show price = fun W => ((5 * 1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 7 *
-      ∑ index : Fin (2 ^ 31), wctEnv (atIndex index W) from funext (price_eq)]
+      (A : ENNReal) * binomialAverage (2 ^ 31 : ENNReal)⁻¹ steps
+        (fun r => ((xNum r ^ 9 : ℕ) : ENNReal) / ((Nn ^ 9 * Q ^ (9 * r) : ℕ) : ENNReal)) := by
+  rw [show price = fun W => ((1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 5 *
+      ∑ index : Fin (2 ^ 31), wctEnv (atIndex index W) from funext price_eq]
   rw [uniformWordAverage_mul_left, uniformWordAverage_sum]
   simp_rw [wct_index_mean]
-  rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, ← mul_assoc, ← mul_assoc]
+  rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, ← mul_assoc]
   congr 1
+  rw [ENNReal.div_eq_inv_mul, mul_comm _ ((2 ^ 31 : ℕ) : ENNReal), ← mul_assoc]
   apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-  norm_num [A, ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_div]
-theorem diag_scale :
-    (((5 * 1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 7) ^ 2 * ((2 ^ 31 : ℕ) : ENNReal) = 25 / 16 * ((A : ENNReal) ^ 2 / 2 ^ 31) := by
+  norm_num [A, ENNReal.toReal_mul, ENNReal.toReal_inv]
+theorem diag_scale : (((1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 5) ^ 2 * ((2 ^ 31 : ℕ) : ENNReal) = (A : ENNReal) ^ 2 / 2 ^ 31 := by
   apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
   norm_num [A, ENNReal.toReal_mul, ENNReal.toReal_div]
 theorem price_secondMoment_le (steps : ℕ) :
     uniformWordAverage steps (fun W => price W ^ 2) ≤
       uniformWordAverage steps price ^ 2 +
-        25 / 16 * ((A : ENNReal) ^ 2 / 2 ^ 31 * binomialAverage (2 ^ 31 : ENNReal)⁻¹ steps
-          (fun r => ((yNum r ^ 9 : ℕ) : ENNReal) / (((Kc * Nn ^ 2) ^ 9 * Q ^ (9 * r) : ℕ) : ENNReal))) := by
-  set c : ENNReal := ((5 * 1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 7
+        (A : ENNReal) ^ 2 / 2 ^ 31 * binomialAverage (2 ^ 31 : ENNReal)⁻¹ steps
+          (fun r => ((yNum r ^ 9 : ℕ) : ENNReal) / (((Kc * Nn ^ 2) ^ 9 * Q ^ (9 * r) : ℕ) : ENNReal)) := by
+  set c : ENNReal := ((1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 5
   have hmean : uniformWordAverage steps price =
       c * ∑ index : Fin (2 ^ 31), uniformWordAverage steps
         (fun word : List WProposal => wctEnv (atIndex index word)) := by
-    rw [show price = fun W => c * ∑ index : Fin (2 ^ 31), wctEnv (atIndex index W) from funext (price_eq)]
+    rw [show price = fun W => c * ∑ index : Fin (2 ^ 31), wctEnv (atIndex index W) from funext price_eq]
     rw [uniformWordAverage_mul_left, uniformWordAverage_sum]
   have hs := env_sum_square_le (n := 9) (C := ClaudeWCT.WCT9.Child) (α := Fin (2 ^ 31)) digit steps
   calc uniformWordAverage steps (fun W => price W ^ 2)
@@ -179,8 +169,7 @@ theorem price_secondMoment_le (steps : ℕ) :
         simp_rw [wct_index_second]
         rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
         ring
-    _ = _ := by rw [diag_scale, mul_assoc]
-end Fibre
+    _ = _ := by rw [diag_scale]
 theorem wfTable_digit (i : Fin 7) : WFTable digit i := by
   intro p
   have h : #{x : Fin 728 × (Fin p → Fin 728) | CoversExcept digit i (digit x.1) x.2} =

@@ -1,5 +1,4 @@
 import SigGolfCandidate.T3.BPORS
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -14,14 +13,14 @@ structure ChainAddr where
   key : LeafAddr
   chain : Nat
   deriving DecidableEq
-noncomputable def leafMsg (answers : Answers) (L : LeafAddr) : Digest :=
-  if h : L.lay.val < 3 then Extract.honestRoot answers ⟨L.lay.val + 1, by omega⟩ (L.tree * 2 ^ height L.lay + L.leaf)
-  else Extract.honestForest answers (L.tree * 2 ^ height L.lay + L.leaf)
+noncomputable def leafMsg (answers : Answers) (L : LeafAddr) : (Digest × BitVec 96 × Digest) :=
+  if h : L.lay.val < 3 then Extract.honestPair answers ⟨L.lay.val + 1, by omega⟩ (L.tree * 2 ^ height L.lay + L.leaf)
+  else (Extract.honestForest answers (L.tree * 2 ^ height L.lay + L.leaf), 0, 0)
 noncomputable def referenceSearch (answers : Answers) (L : LeafAddr) : Option (BitVec 32 × List Nat) :=
   evalWithAnswerFn answers (counterSearch L.lay L.tree L.leaf (leafMsg answers L) 0 counterLimit)
 def dummyDigits (lay : Layer) : List Nat :=
   if lay.val = 0 then List.replicate 31 4 ++ [2] ++ List.replicate 22 0
-  else List.replicate 22 5 ++ List.replicate 20 4 ++ [target lay - 190]
+  else List.replicate 22 5 ++ List.replicate 20 4 ++ [6]
 noncomputable def referenceDigits (answers : Answers) (L : LeafAddr) : List Nat :=
   ((referenceSearch answers L).map Prod.snd).getD (dummyDigits L.lay)
 noncomputable def depth (answers : Answers) (a : ChainAddr) : Nat :=
@@ -40,7 +39,7 @@ def ContactAt (answers : Answers) (trace : List Entry) (a : ChainAddr) : Prop :=
 def TwoEdgeAt (answers : Answers) (trace : List Entry) (a : ChainAddr) : Prop :=
   2 ≤ depth answers a ∧ ∃ start middle, SeenRow trace a (depth answers a - 2) start middle ∧
     SeenRow trace a (depth answers a - 1) middle (frontierValue answers a)
-def encodingRow (L : LeafAddr) (message : Digest) (counter : BitVec 32) : HashInput :=
+def encodingRow (L : LeafAddr) (message : Digest × BitVec 96 × Digest) (counter : BitVec 32) : HashInput :=
   pad64 (encodingInput L.lay L.tree L.leaf message counter)
 noncomputable def referenceInput (answers : Answers) (L : LeafAddr) : Option HashInput :=
   (referenceSearch answers L).map fun selected => encodingRow L (leafMsg answers L) selected.1

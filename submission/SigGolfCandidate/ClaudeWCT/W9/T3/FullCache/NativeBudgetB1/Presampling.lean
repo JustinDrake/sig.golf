@@ -1,12 +1,118 @@
-import SigGolfCandidate.ClaudeWCT.W9.T3.FullCache.NativeBudgetB1.QuerySpace
+import SigGolfCandidate.ClaudeWCT.WCT9.Cost
+import SigGolfCandidate.T3.FullCache.NativeBudget
+
+section
+
+
+namespace ClaudeWCT.W9.T3.Sampling
+open OracleComp OracleSpec OracleComp.EvalDist ENNReal
+open SigGolfCandidate.T3 hiding digestSearch admissible
+open SigGolfCandidate.T3.Sampling (RCache roRun V publicProgram digestTrial digestTrial_injective
+  digestTrial_length V_publicSearch public_randomOracle)
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
+set_option backward.isDefEq.respectTransparency false
+set_option linter.unusedSimpArgs false
+def digestDecode (answer : HashOutput) : Option HashOutput :=
+  if ClaudeWCT.WCT9.admissible answer then some answer else none
+theorem digestDecode_eq_none_iff (value : HashOutput) :
+    digestDecode value = none ↔ ClaudeWCT.WCT9.admissible value = false := by
+  simp [digestDecode]
+theorem digestSearch_public (rho : Digest) (message : Message) :
+    ∀ fuel counter, ClaudeWCT.WCT9.digestSearch rho message counter fuel =
+      publicProgram (SphincsSecurity.Completeness.searchLoop
+        (digestTrial rho message) digestDecode
+        (fun c output => pure (BitVec.ofNat 32 c, output)) fuel counter) := by
+  intro fuel
+  induction fuel with
+  | zero => intro counter; rfl
+  | succ fuel ih =>
+      intro counter
+      rw [ClaudeWCT.WCT9.digestSearch, SphincsSecurity.Completeness.searchLoop]
+      simp only [publicProgram, simulateQ_bind, simulateQ_spec_query,
+        SphincsSecurity.Concrete.oracleHash, HasQuery.query, SigGolfCandidate.T3.Sampling.publicHandler,
+        digest, publicHash, bind_assoc, pure_bind, digestTrial, digestDecode]
+      apply bind_congr
+      intro answer
+      split <;> simp only [simulateQ_map, simulateQ_pure, map_pure, ih, publicProgram]
+theorem digestSearch_failure (secret : BitVec 256) (rho : Digest) (message : Message)
+    (fuel counter : Nat) (hlimit : counter + fuel ≤ 2 ^ 32)
+    (cache : QueryCache SphincsSecurity.HashSpec)
+    (hfresh : ∀ c, counter ≤ c → c < 2 ^ 32 → cache (digestTrial rho message c) = none) :
+    Pr[fun result => result.1 = none |
+      (simulateQ SphincsSecurity.romImpl
+        (realize secret (ClaudeWCT.WCT9.digestSearch rho message counter fuel))).run cache] ≤
+      SphincsSecurity.Completeness.failMass digestDecode ^ fuel := by
+  rw [digestSearch_public, public_randomOracle]
+  exact SphincsSecurity.Completeness.probEvent_searchLoop _ _ _ (2 ^ 32)
+    (fun _ _ hl hr he => digestTrial_injective rho message hl hr he)
+    fuel counter hlimit cache hfresh
+theorem V_digestSearch (secret : BitVec 256) (z b : ENNReal) (hb : 1 ≤ b)
+    (rho : Digest) (message : Message)
+    (hstep : z * (SphincsSecurity.Completeness.failMass digestDecode * b +
+      (1 - SphincsSecurity.Completeness.failMass digestDecode)) ≤ b)
+    (fuel counter : Nat) (hlimit : counter + fuel ≤ 2 ^ 32) (cache : RCache)
+    (hfresh : ∀ c, counter ≤ c → c < 2 ^ 32 → cache (digestTrial rho message c) = none) :
+    V secret z (ClaudeWCT.WCT9.digestSearch rho message counter fuel) cache ≤ b := by
+  rw [digestSearch_public]
+  exact V_publicSearch secret z b hb _ _ _ (2 ^ 32)
+    (fun c _ => digestTrial_length rho message c)
+    (fun _ _ hl hr he => digestTrial_injective rho message hl hr he)
+    hstep fuel counter hlimit cache hfresh
+end ClaudeWCT.W9.T3.Sampling
+end
+
+section
+
+namespace ClaudeWCT.W9.T3.QuerySpace
+open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
+open SigGolfCandidate.T3
+open SigGolfCandidate.T3.Sampling (digestTrial encodingTrial)
+open SigGolfCandidate.T3.QuerySpace (EncodingFamily DigestFamily EncodingKey encodingQuery
+  encodingQuery_injective encodingTrial_ne_digestTrial digestTrial_coordinates)
+set_option maxRecDepth 10000
+set_option maxHeartbeats 1000000
+set_option backward.isDefEq.respectTransparency false
+abbrev DigestKey := DigestFamily × Fin (2 ^ 21)
+abbrev SearchKey := EncodingKey ⊕ DigestKey
+def digestQuery (key : DigestKey) : HashInput := digestTrial key.1.1 key.1.2 key.2
+def searchQuery : SearchKey → HashInput := Sum.elim encodingQuery digestQuery
+theorem digestQuery_injective : Function.Injective digestQuery := by
+  rintro ⟨⟨rho, msg⟩, counter⟩ ⟨⟨rho', msg'⟩, counter'⟩ he
+  obtain ⟨a, b, c⟩ := digestTrial_coordinates
+    (by have := counter.isLt; omega) (by have := counter'.isLt; omega) he
+  have c := Fin.ext c
+  cases a; cases b; cases c; rfl
+theorem searchQuery_injective : Function.Injective searchQuery := by
+  intro left right he
+  cases left with
+  | inl l =>
+    cases right with
+    | inl r => exact congrArg Sum.inl (encodingQuery_injective he)
+    | inr r => exact False.elim (encodingTrial_ne_digestTrial l.1.1 l.1.2.1 l.1.2.2.1
+        l.1.2.2.2 l.2 r.1.1 r.1.2 r.2 (by have := l.1.2.1.isLt; omega)
+        (by have := l.1.2.2.1.isLt; omega) he)
+  | inr l =>
+    cases right with
+    | inl r => exact False.elim (encodingTrial_ne_digestTrial r.1.1 r.1.2.1 r.1.2.2.1
+        r.1.2.2.2 r.2 l.1.1 l.1.2 l.2 (by have := r.1.2.1.isLt; omega)
+        (by have := r.1.2.2.1.isLt; omega) he.symm)
+    | inr r => exact congrArg Sum.inr (digestQuery_injective he)
+theorem searchQuery_length (key : SearchKey) : (searchQuery key).length = 64 := by
+  cases key with
+  | inl key => exact SigGolfCandidate.T3.Sampling.encodingTrial_length _ _ _ _ _
+  | inr key => exact SigGolfCandidate.T3.Sampling.digestTrial_length _ _ _
+end ClaudeWCT.W9.T3.QuerySpace
+end
+
+section
 
 namespace ClaudeWCT.W9.T3.Presampling
 open OracleComp OracleSpec ENNReal
 open SphincsSecurity.Seeded
 open SigGolfCandidate.T3 hiding digestSearch admissible
 open ClaudeWCT.W9.T3.QuerySpace
-open SigGolfCandidate.T3.QuerySpace (DigestFamily)
-open ClaudeWCT.W9.T3.PairRows (msgLeft msgRight layerCounterSearch_none_iff eval_shortHash_layer)
+open SigGolfCandidate.T3.QuerySpace (EncodingFamily DigestFamily)
 open SigGolfCandidate.T3.Presampling (eval_shortHash eval_digest uniform_table_forall)
 open ClaudeWCT.WCT9 (digestAttemptLimit)
 abbrev HashInput := SphincsSecurity.HashInput
@@ -58,21 +164,21 @@ theorem uniform_table_restriction_failure {J : Type} [Fintype J]
   have hp := congrArg (fun law => probEvent law (fun outputs : J → HashOutput => ∀ j, p (outputs j))) h
   simpa only [probEvent_evalSPMF, bind_pure_comp, probEvent_map, Function.comp_def,
     uniform_table_forall] using hp
-theorem layerCounterSearch_none_table (outputs : SearchKey → HashOutput)
-    (fallback : Correctness.Answers) (lay : Layer) (tree : Fin (2 ^ 31)) (leaf : Fin 4096)
-    (msg : ClaudeWCT.WCT9.LayerMsg) :
+theorem counterSearch_none_table (outputs : SearchKey → HashOutput)
+    (fallback : Correctness.Answers) (family : EncodingFamily) :
     evalWithAnswerFn (tableAnswers outputs fallback)
-      (ClaudeWCT.WCT9.layerCounterSearch lay tree leaf msg 0 counterLimit) = none ↔
-    ∀ c : Fin (2 ^ 22), SigGolfCandidate.T3.Sampling.encodingDecode lay
-      (outputs (.inl ((lay, tree, leaf, msgLeft msg, msgRight msg), c))) = none := by
-  rw [layerCounterSearch_none_iff]
+      (counterSearch family.1 family.2.1 family.2.2.1 family.2.2.2 0 counterLimit) = none ↔
+    ∀ c : Fin (2 ^ 22), SigGolfCandidate.T3.Sampling.encodingDecode family.1 (outputs (.inl (family, c))) = none := by
+  rw [Correctness.counterSearch_none_iff]
   have hv (c : Nat) (hc : c < counterLimit) :
       evalWithAnswerFn (tableAnswers outputs fallback)
-        (shortHash (ClaudeWCT.WCT9.layerEncodingInput lay tree leaf msg (BitVec.ofNat 32 (0 + c)))) =
-        (outputs (.inl ((lay, tree, leaf, msgLeft msg, msgRight msg), ⟨c, hc⟩))).extractLsb' 0 128 := by
-    rw [Nat.zero_add, eval_shortHash_layer]
-    have hinput : PairRows.pairTrial lay tree leaf (msgLeft msg) (msgRight msg) c =
-        searchQuery (.inl ((lay, tree, leaf, msgLeft msg, msgRight msg), ⟨c, hc⟩)) := rfl
+        (shortHash (encodingInput family.1 family.2.1 family.2.2.1 family.2.2.2
+          (BitVec.ofNat 32 (0 + c)))) = (outputs (.inl (family, ⟨c, hc⟩))).extractLsb' 0 128 := by
+    rw [eval_shortHash]
+    have hinput : pad64 (encodingInput family.1 family.2.1 family.2.2.1 family.2.2.2
+        (BitVec.ofNat 32 (0 + c))) = searchQuery (.inl (family, ⟨c, hc⟩)) := by
+      simp only [searchQuery, Sum.elim_inl, SigGolfCandidate.T3.QuerySpace.encodingQuery,
+        SigGolfCandidate.T3.Sampling.encodingTrial, Nat.zero_add]
     rw [hinput, tableAnswers_apply]
   constructor
   · intro h c
@@ -105,16 +211,15 @@ theorem digestSearch_none_table (outputs : SearchKey → HashOutput)
   · intro h c hc
     rw [hv c hc]
     exact (ClaudeWCT.W9.T3.Sampling.digestDecode_eq_none_iff _).mp (h ⟨c, hc⟩)
-theorem layerCounterSearch_table_failure (fallback : Correctness.Answers) (lay : Layer) (tree : Fin (2 ^ 31))
-    (leaf : Fin 4096) (left right : Digest) :
+theorem counterSearch_table_failure (fallback : Correctness.Answers) (family : EncodingFamily) :
     Pr[fun outputs => evalWithAnswerFn (tableAnswers outputs fallback)
-      (ClaudeWCT.WCT9.layerCounterSearch lay tree leaf (.pair left right) 0 counterLimit) = none |
+      (counterSearch family.1 family.2.1 family.2.2.1 family.2.2.2 0 counterLimit) = none |
       ($ᵗ (SearchKey → HashOutput) : ProbComp _)] =
-    SphincsSecurity.Completeness.failMass (SigGolfCandidate.T3.Sampling.encodingDecode lay) ^ counterLimit := by
-  simp_rw [layerCounterSearch_none_table, msgLeft, msgRight]
-  have h := uniform_table_restriction_failure (fun c : Fin (2 ^ 22) => .inl ((lay, tree, leaf, left, right), c))
+    SphincsSecurity.Completeness.failMass (SigGolfCandidate.T3.Sampling.encodingDecode family.1) ^ counterLimit := by
+  simp_rw [counterSearch_none_table]
+  have h := uniform_table_restriction_failure (fun c : Fin (2 ^ 22) => .inl (family, c))
     (fun _ _ h => congrArg Prod.snd (Sum.inl.inj h))
-    (fun x => SigGolfCandidate.T3.Sampling.encodingDecode lay x = none)
+    (fun x => SigGolfCandidate.T3.Sampling.encodingDecode family.1 x = none)
   simpa only [SphincsSecurity.Completeness.failMass_eq_probEvent, Fintype.card_fin, counterLimit,
     HashOutput, SphincsSecurity.HashOutput, SphincsSecurity.hashOutputBits] using h
 theorem digestSearch_table_failure (fallback : Correctness.Answers) (family : DigestFamily) :
@@ -130,3 +235,4 @@ theorem digestSearch_table_failure (fallback : Correctness.Answers) (family : Di
     ClaudeWCT.WCT9.digestAttemptLimit, HashOutput, SphincsSecurity.HashOutput,
     SphincsSecurity.hashOutputBits] using h
 end ClaudeWCT.W9.T3.Presampling
+end

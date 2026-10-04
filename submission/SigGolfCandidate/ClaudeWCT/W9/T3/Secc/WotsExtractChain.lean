@@ -48,8 +48,7 @@ theorem structuralHit_chain {answers : Answers} {qs : List Spec.Domain} (a : Cha
     (hsrc : SourceChain a) (hstep : step + 1 < 2 ^ width a.key.lay a.chain)
     (hhit : HashHit answers (Extract.honestInput answers (.chain a.key.lay a.key.tree a.key.leaf a.chain step))
       (chainInputP a.key.lay a.key.tree a.key.leaf a.chain step pad0 pad1 headerPad v))
-    (hclass : ¬(pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0) ∨ depth answers a ≤ step) :
-    StructuralHitSrc answers (entriesOf answers qs) := by
+    (hclass : ¬(pad0 = 0 ∧ pad1 = 0 ∧ headerPad = 0) ∨ depth answers a ≤ step) : StructuralHitSrc answers (entriesOf answers qs) := by
   have hb := chain_bounded hsrc hstep
   have hhdr : Extract.canonicalHeader (Extract.hdrBlock
       (chainInputP a.key.lay a.key.tree a.key.leaf a.chain step pad0 pad1 headerPad v)) =
@@ -121,12 +120,10 @@ theorem chain_cases (answers : Answers) (a : ChainAddr) (start count : Nat)
     · exact (hit step hstep hq hhit (Or.inr (by omega))).elim
   · intro hlt
     rcases chainP_frontier answers a.key.lay a.key.tree a.key.leaf a.chain start count pad0 pad1 headerPad value
-        (leafSeed answers a.key.lay a.key.tree a.key.leaf a.chain) ht hl hi (Or.inr hc8) reaches (depth answers a)
-        hlt hdepth with
+        (leafSeed answers a.key.lay a.key.tree a.key.leaf a.chain) ht hl hi (Or.inr hc8) reaches (depth answers a) hlt hdepth with
       ⟨step, hstep, hq, hhit, hclass⟩ | ⟨h0, h1, hh, hval⟩
     · exact (hit step hstep hq hhit hclass).elim
     · subst h0 h1 hh
-      obtain ⟨⟨x, hx⟩, htwo⟩ := chain_seen answers a start count value _ qs ht hl hi hc8 hsub (depth answers a)
-        hlt hdepth hval
+      obtain ⟨⟨x, hx⟩, htwo⟩ := chain_seen answers a start count value _ qs ht hl hi hc8 hsub (depth answers a) hlt hdepth hval
       exact ⟨⟨by omega, x, hx⟩, fun h2 => ⟨by omega, htwo h2⟩⟩
 end ClaudeWCT.W9.T3.Security.WotsExtract

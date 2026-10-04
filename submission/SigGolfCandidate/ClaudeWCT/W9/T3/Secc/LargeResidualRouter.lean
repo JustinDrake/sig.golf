@@ -3,7 +3,6 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CaseCLinkInv
 import SigGolfCandidate.ClaudeWCT.W9.T3.BPORS
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Final.SecurityP
 import SigGolfCandidate.T3.Secc.LargeResidualRouter
-
 namespace ClaudeWCT.W9.T3.Security.LargeResidual
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -97,8 +96,7 @@ def macOf (a : AuxData) (region : Region) : HashOutput :=
 def topValue (v : Coord → Digest) (level node : Nat) : Digest :=
   ((treeChild 0 0 level node).map v).getD 0
 def EncRow (X : HashInput) : Prop :=
-  ∃ (L : EncLeaf) (m : WCT9.LayerMsg) (ctr : BitVec 32) (pad : BitVec 96), Extract.msgFits L.1.lay m ∧
-    X = Wots.encRow L.toWots m ctr pad
+  ∃ (L : EncLeaf) (m : (Digest × BitVec 96 × Digest)) (ctr : BitVec 32), X = Wots.encodingRow L.toWots m ctr
 def Parsed (X : HashInput) : Prop := ∃ N : CanonGraph.Node, Extract.posOf X = some N.toPos
 section Route
 variable (U : Finset HashInput)
@@ -122,13 +120,14 @@ noncomputable def routeQuery (a : AuxData) (st : RouterState) (X : HashInput) :
           else (fun y => (y, st')) <$> testReq U first ⟨X, h⟩ ⟨none, .label (.inl (.inl N))⟩
     else if he : EncRow X then
       let L := Classical.choose he
+      let m := Classical.choose (Classical.choose_spec he)
       let ctr := Classical.choose (Classical.choose_spec (Classical.choose_spec he))
       match firstUnknownMsg st.known L with
-      | some cs => (fun y => (y, st')) <$>
-          testReq U first ⟨X, h⟩ ⟨some (.inl cs.1, slotValue X cs.2), .target (refDigest a L)⟩
+      | some p => (fun y => (y, st')) <$>
+          testReq U first ⟨X, h⟩ ⟨some (.inl p.1, p.2 m), .target (refDigest a L)⟩
       | none => do
-          let pairs ← discloseAll U ((msgSlots L).map Prod.fst)
-          if X = Wots.encRow L.toWots (msgVals (lookupVal pairs) L) ctr 0 ∧ PrefixRow a L ctr then do
+          let pairs ← discloseAll U (msgCoords L)
+          if m = msgOf L (lookupVal pairs) ∧ PrefixRow a L ctr then do
             tickReq U .call
             pure (prefixValue a L ctr, st')
           else (fun y => (y, st')) <$> testReq U first ⟨X, h⟩ ⟨none, .target (refDigest a L)⟩

@@ -7,10 +7,7 @@ import SigGolfCandidate.T3.Secc.LargeCouplingBankState
 import SigGolfCandidate.T3.Secc.LargeCouplingBankStep
 import SigGolfCandidate.T3.Secc.LargeCouplingBankSearch
 import SigGolfCandidate.T3.Secc.LargeCouplingBankSign
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -88,9 +85,7 @@ theorem ev_discloseAll_le {β : Type} (cs : List Coord) (k : List (Coord × Dige
 end Router
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
-
 section
-
 namespace ClaudeWCT.Bank.WCT
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -130,13 +125,7 @@ theorem wct_core_initial (budget : Nat) :
   (wctSpecL horizon rate hexc).core_initial budget
 end ClaudeWCT.Bank.WCT
 end
-
 section
-
-
-
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -293,9 +282,7 @@ theorem psi_initial (q : Nat) : psi q RouterState.initial ≤ (q : ENNReal) * (1
   exact hinit
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
-
 section
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -475,10 +462,7 @@ theorem BankInv.born {ws : LargeResidual.State WCoord (Cell U)} {st : RouterStat
 end Invariant
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -585,15 +569,13 @@ theorem bank_routeQuery (a : AuxData) (st : RouterState) (ws : LargeResidual.Sta
       · rw [dif_pos he]
         have hndX : ¬(X ∈ U ∧ IsDigestRow X) := by
           intro h
-          obtain ⟨L, m, ctr, pad, -, hXe⟩ := he
+          obtain ⟨L, m, ctr, hXe⟩ := he
           rw [hXe] at h
-          exact encRow_not_digest L m ctr pad h.2
+          exact encRow_not_digest L m ctr h.2
         split
-        · rename_i cs hfu
-          rw [ev_lazy_map]
+        · rw [ev_lazy_map]
           exact ev_testReq_le U aux q _ ⟨X, hX⟩ _ (inlTest_guess _ _ _ (hit_target _)) ws _ _ ((hnd hndX).map U _)
-        · rename_i hfu
-          apply ev_discloseAll_le
+        · apply ev_discloseAll_le
           intro pairs s1 hd
           split
           · rw [lazy_tickReq, lazy_pure, expectedValue_pure]
@@ -601,7 +583,7 @@ theorem bank_routeQuery (a : AuxData) (st : RouterState) (ws : LargeResidual.Sta
             exact ⟨fun row hr => rfl, rfl, rfl, fun m => rfl⟩
           · rw [ev_lazy_map]
             exact ev_testReq_le U aux q _ ⟨X, hX⟩ _ (inlTest_none _ (hit_target _))
-              s1 _ _ (((hnd hndX).of_disc U hd).map U _)
+              _ _ _ (((hnd hndX).of_disc U hd).map U _)
       · rw [dif_neg he]
         by_cases hd : IsDigestRow X
         · rw [if_pos hd, ev_lazy_map, ← bind_pure (readReq U ⟨X, hX⟩ .mass), lazy_readReq]
@@ -676,10 +658,7 @@ theorem bank_routeQuery (a : AuxData) (st : RouterState) (ws : LargeResidual.Sta
 end Step
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -816,10 +795,7 @@ theorem bank_search (hU : ∀ c : BitVec 32, pad64 (digestInput rho m c) ∈ U) 
 end Search
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security

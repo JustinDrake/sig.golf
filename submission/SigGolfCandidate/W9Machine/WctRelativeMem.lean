@@ -1,10 +1,8 @@
-import SigGolfCandidate.W9Machine.WctPackedRuns
-import SigGolfCandidate.T3M.Verify.ChainSem
+import SigGolfCandidate.W9Machine.WctRelative
+import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Merkle.ChildMain
 
 section
 
-
-set_option autoImplicit false
 namespace W9Machine
 open SigGolfCandidate.T3M SigGolfCandidate.Rv RiscvZkvm.Rv64
 theorem headRHRel_keeps (rb : Reg) (off dst : Word) (p chain digit : Nat) :
@@ -33,23 +31,6 @@ end
 
 section
 
-namespace W9Machine
-open SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
-open SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
-open SigGolfCandidate.T3 (Digest pad64)
-theorem hashInput_blk4 (t : MachineState) (A : Nat) (a b c d : Digest)
-    (h10 : t.getReg .x10 = BitVec.ofNat 64 A) (h11 : t.getReg .x11 = BitVec.ofNat 64 64) (hA : A % 8 = 0)
-    (hA' : A + 64 < 2 ^ 64) (ha : DigAt t A a) (hb : DigAt t (A + 16) b) (hc : DigAt t (A + 32) c)
-    (hd : DigAt t (A + 48) d) : hashInput t = toQ (pad64 (blk4 a b c d)) := by
-  rw [pad64_blk4]
-  apply hashInput_words8 t _ A (blk4_length _ _ _ _) h10 hA hA' h11
-  rw [wordsOf_blk4, ha.1, ha.2, hb.1, hc.1, hd.1, show A + 24 = A + 16 + 8 by omega, hb.2,
-    show A + 40 = A + 32 + 8 by omega, hc.2, show A + 56 = A + 48 + 8 by omega, hd.2]
-end W9Machine
-end
-
-section
-
 
 namespace W9Machine
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify SigGolfCandidate.Rv RiscvZkvm.Rv64
@@ -63,29 +44,31 @@ theorem headRHRel_mem (s : MachineState) (rb : Reg) (B off dst p chain digit A :
     (hA : A < 2 ^ 64) :
     ((headRHRel rb (BitVec.ofNat 64 off) (BitVec.ofNat 64 dst) p chain digit).toState s).getMem
       (BitVec.ofNat 64 A) =
-      if A = B + off + 16 then (packedHeader chain digit).eval s else s.getMem (BitVec.ofNat 64 A) := by
-  exact memEval_one s _ _ (B + off + 16) A
-    (relative_key s rb B off 16 hbase) (by omega) hA
+      if A = B + off + 24 then s.getReg .x4 else
+      if A = B + off + 16 then (hLoad chain digit).eval s else s.getMem (BitVec.ofNat 64 A) := by
+  exact memEval_two s _ _ _ _ (B + off + 24) (B + off + 16) A
+    (relative_key s rb B off 24 hbase) (relative_key s rb B off 16 hbase)
+    (by omega) (by omega) hA
 theorem headRHRel_frame (s : MachineState) (rb : Reg) (B off dst p chain digit : Nat)
     (hbase : s.getReg rb = BitVec.ofNat 64 B) (hhi : B + off + 64 < 2 ^ 64) :
     Frame s ((headRHRel rb (BitVec.ofNat 64 off) (BitVec.ofNat 64 dst) p chain digit).toState s)
-      (fun A => A = B + off + 16) := by
+      (fun A => A = B + off + 16 ∨ A = B + off + 24) := by
   intro A hA hn
   rw [headRHRel_mem s rb B off dst p chain digit A hbase hhi hA,
-    if_neg hn]
+    if_neg (fun h => hn (Or.inr h)), if_neg (fun h => hn (Or.inl h))]
 theorem headRHRel_hashInput (s : MachineState) (rb : Reg) (B off dst p chain digit : Nat)
     (pad0 hdr pad1 value : Digest) (hbase : s.getReg rb = BitVec.ofNat 64 B)
     (halign : (B + off) % 8 = 0) (hhi : B + off + 64 < 2 ^ 64)
     (h11 : s.getReg .x11 = BitVec.ofNat 64 64)
-    (hlo : (packedHeader chain digit).eval s = hdr.extractLsb' 0 64)
-    (hhigh : s.getMem (BitVec.ofNat 64 (B + off + 24)) = hdr.extractLsb' 64 64)
+    (hlo : (hLoad chain digit).eval s = hdr.extractLsb' 0 64)
+    (hhigh : s.getReg .x4 = hdr.extractLsb' 64 64)
     (hp0 : DigAt s (B + off) pad0) (hp1 : DigAt s (B + off + 32) pad1)
     (hv : DigAt s (B + off + 48) value) :
     SigGolfCandidate.Legacy.Riscv.hashInput
       ((headRHRel rb (BitVec.ofNat 64 off) (BitVec.ofNat 64 dst) p chain digit).toState s) =
       toQ (pad64 (blk4 pad0 hdr pad1 value)) := by
   have hf := headRHRel_frame s rb B off dst p chain digit hbase hhi
-  refine W9Machine.hashInput_blk4 _ (B + off) pad0 hdr pad1 value
+  refine ClaudeWCT.W9.Machine.Merkle.hashInput_blk4 _ (B + off) pad0 hdr pad1 value
     ?_ ?_ halign hhi (hp0.frame hf (by omega) (by omega) (by omega)) ?_
     (hp1.frame hf (by omega) (by omega) (by omega))
     (hv.frame hf (by omega) (by omega) (by omega))
@@ -95,10 +78,10 @@ theorem headRHRel_hashInput (s : MachineState) (rb : Reg) (B off dst p chain dig
       p chain digit).reg s (by decide)).trans h11
   · constructor
     · rw [headRHRel_mem s rb B off dst p chain digit (B + off + 16) hbase hhi (by omega),
-        if_pos rfl]
+        if_neg (by omega), if_pos rfl]
       exact hlo
     · rw [headRHRel_mem s rb B off dst p chain digit (B + off + 16 + 8) hbase hhi (by omega),
-        if_neg (by omega)]
-      simpa only [Nat.add_assoc] using hhigh
+        if_pos (by omega)]
+      exact hhigh
 end W9Machine
 end

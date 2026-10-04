@@ -69,14 +69,6 @@ theorem nodeHash_allowed (tag lay tree heap : Nat) (left right : Digest) :
     AllQueriesSatisfy (nodeHash tag lay tree heap left right) P := by
   unfold nodeHash
   exact shortHash_allowed P hpublic _
-include hpublic in
-theorem heapBuild_allowed (index coord : Nat) (leaves : List Digest) :
-    AllQueriesSatisfy (WCT9.heapBuild index coord leaves) P := by
-  unfold WCT9.heapBuild
-  apply SourceQueries.foldlM_allowed P
-  intro nodes heap
-  exact SourceQueries.bind_allowed P (by unfold WCT9.wctNodeHash; exact nodeHash_allowed P hpublic _ _ _ _ _ _)
-    fun _ => SourceQueries.pure_allowed P _
 include hpublic hseed in
 theorem buildCoordinate_allowed (index : Nat) (coord : Coord) (selected : Child) (word : Rank) :
     AllQueriesSatisfy (buildCoordinate index coord selected word) P := by
@@ -87,60 +79,18 @@ theorem buildCoordinate_allowed (index : Nat) (coord : Coord) (selected : Child)
     exact SourceQueries.bind_allowed P (buildChild_allowed P hpublic hseed _ _ _ _)
       fun _ => SourceQueries.pure_allowed P _
   · intro state
-    exact SourceQueries.bind_allowed P (heapBuild_allowed P hpublic _ _ _)
-      fun _ => SourceQueries.pure_allowed P _
+    apply SourceQueries.bind_allowed P
+    · apply SourceQueries.foldlM_allowed P
+      intro nodes heap
+      exact SourceQueries.bind_allowed P (nodeHash_allowed P hpublic _ _ _ _ _ _)
+        fun _ => SourceQueries.pure_allowed P _
+    · intro _
+      exact SourceQueries.pure_allowed P _
 include hpublic in
-theorem forestPk_allowed (index : Nat) (pairs : List (Digest × Digest)) :
-    AllQueriesSatisfy (WCT9.forestPk index pairs) P := by
+theorem forestPk_allowed (index : Nat) (roots : List Digest) :
+    AllQueriesSatisfy (WCT9.forestPk index roots) P := by
   unfold WCT9.forestPk
   exact shortHash_allowed P hpublic _
-omit hseed in
-theorem layerCounterSearch_allowed'
-    (henc : ∀ lay tree leaf msg counter, AllQueriesSatisfy (shortHash (WCT9.layerEncodingInput lay tree leaf msg counter)) P)
-    (lay : Layer) (tree leaf : Nat) (msg : WCT9.LayerMsg) (counter fuel : Nat) :
-    AllQueriesSatisfy (WCT9.layerCounterSearch lay tree leaf msg counter fuel) P := by
-  induction fuel generalizing counter with
-  | zero => exact SourceQueries.pure_allowed P _
-  | succ fuel ih =>
-      unfold WCT9.layerCounterSearch
-      apply SourceQueries.bind_allowed P (henc _ _ _ _ _)
-      intro answer
-      split
-      · exact ih _
-      · exact SourceQueries.pure_allowed P _
-include hpublic in
-theorem layerCounterSearch_allowed (lay : Layer) (tree leaf : Nat) (msg : WCT9.LayerMsg) (counter fuel : Nat) :
-    AllQueriesSatisfy (WCT9.layerCounterSearch lay tree leaf msg counter fuel) P :=
-  layerCounterSearch_allowed' P (fun _ _ _ _ _ => shortHash_allowed P hpublic _) lay tree leaf msg counter fuel
-omit hseed in
-theorem signLayersBC_allowed' (cache : SigGolfCandidate.T3.Cache)
-    (henc : ∀ lay tree leaf msg counter, AllQueriesSatisfy (shortHash (WCT9.layerEncodingInput lay tree leaf msg counter)) P)
-    (hbuild : ∀ lay tree leaf digits, AllQueriesSatisfy (buildTree lay tree leaf digits) P)
-    (htop : ∀ leaf digits, AllQueriesSatisfy (signTop cache leaf digits) P) (index n : Nat) (msg : WCT9.LayerMsg) :
-    AllQueriesSatisfy (WCT9.signLayersBC cache index n msg) P := by
-  induction n generalizing msg with
-  | zero => exact SourceQueries.pure_allowed P _
-  | succ n ih =>
-      unfold WCT9.signLayersBC
-      apply SourceQueries.bind_allowed P (layerCounterSearch_allowed' P henc _ _ _ _ _ _)
-      intro found
-      split
-      · split
-        · exact SourceQueries.bind_allowed P (htop _ _) fun _ => SourceQueries.pure_allowed P _
-        · apply SourceQueries.bind_allowed P (hbuild _ _ _ _)
-          intro built
-          apply SourceQueries.bind_allowed P (ih _)
-          intro previous
-          split
-          · exact SourceQueries.pure_allowed P _
-          · exact SourceQueries.pure_allowed P _
-      · exact SourceQueries.pure_allowed P _
-include hpublic in
-theorem signLayersBC_allowed (cache : SigGolfCandidate.T3.Cache)
-    (hbuild : ∀ lay tree leaf digits, AllQueriesSatisfy (buildTree lay tree leaf digits) P)
-    (htop : ∀ leaf digits, AllQueriesSatisfy (signTop cache leaf digits) P) (index n : Nat) (msg : WCT9.LayerMsg) :
-    AllQueriesSatisfy (WCT9.signLayersBC cache index n msg) P :=
-  signLayersBC_allowed' P cache (fun _ _ _ _ _ => shortHash_allowed P hpublic _) hbuild htop index n msg
 include hpublic in
 theorem digestSearch_allowed (rho : Digest) (message : Message) (counter fuel : Nat) :
     AllQueriesSatisfy (WCT9.digestSearch rho message counter fuel) P := by
@@ -156,7 +106,7 @@ theorem digestSearch_allowed (rho : Digest) (message : Message) (counter fuel : 
 include hpublic hseed in
 theorem signPayloadWith_allowed (limit : Nat) (cache : SigGolfCandidate.T3.Cache) (message : Message)
     (hnonce : P (.inr (.inr (.inl message))))
-    (hlayers : ∀ index n msg, AllQueriesSatisfy (WCT9.signLayersBC cache index n msg) P) :
+    (hlayers : ∀ index n root, AllQueriesSatisfy (signLayers cache index n root) P) :
     AllQueriesSatisfy (WCT9.signPayloadWith limit cache message) P := by
   unfold WCT9.signPayloadWith privateNonce privateHash
   apply SourceQueries.bind_allowed P
@@ -187,18 +137,15 @@ theorem signPayloadWith_nonMac (limit : Nat) (cache : SigGolfCandidate.T3.Cache)
     (fun lay tree position index => ⟨SiggolfT3Mac4.Source.non_mac_tweak 8 lay tree position index (by decide) 0,
       SiggolfT3Mac4.Source.non_mac_tweak 8 lay tree position index (by decide) 1⟩)
     limit cache message (SiggolfT3Mac4.Source.nonce_coordinate_other message)
-    (fun index n msg => signLayersBC_allowed _ (fun _ => trivial) cache
-      SiggolfT3Mac4.Source.Payload.buildTree_allowed (SiggolfT3Mac4.Source.Payload.signTop_allowed cache) index n msg)
+    (fun index n root => SiggolfT3Mac4.Source.Payload.signLayers_allowed cache index n root)
 theorem signPayload_nonMac (cache : SigGolfCandidate.T3.Cache) (message : Message) :
     AllQueriesSatisfy (signPayload cache message) SiggolfT3Mac4.Source.NonMac :=
   signPayloadWith_nonMac _ cache message
 theorem signPayloadWith_hashOnly (limit : Nat) (cache : SigGolfCandidate.T3.Cache) (message : Message) :
     SourceReplay.HashOnly (WCT9.signPayloadWith limit cache message) :=
   signPayloadWith_allowed _ (fun _ => trivial) (fun _ _ _ _ => trivial) limit cache message trivial
-    (fun index n msg => signLayersBC_allowed _ (fun _ => trivial) cache
-      (SourceQueries.buildTree_allowed SourceReplay.IsHash (fun _ => trivial) (fun _ => trivial) (fun _ => trivial))
-      (SourceQueries.signTop_allowed SourceReplay.IsHash (fun _ => trivial) (fun _ => trivial) (fun _ => trivial) cache)
-      index n msg)
+    (fun index n root => SourceQueries.signLayers_allowed SourceReplay.IsHash (fun _ => trivial)
+      (fun _ => trivial) (fun _ => trivial) cache index n root)
 theorem signPayload_hashOnly (cache : SigGolfCandidate.T3.Cache) (message : Message) :
     SourceReplay.HashOnly (signPayload cache message) :=
   signPayloadWith_hashOnly _ cache message
@@ -208,9 +155,7 @@ theorem signPayloadWith_avoids (protectedMessage : Message) (limit : Nat) (cache
   signPayloadWith_allowed _ (fun _ => by simp [NonceFreshness.nonceQuery])
     (fun _ _ _ _ => by simp [NonceFreshness.nonceQuery]) limit cache message
     (by simpa [NonceFreshness.nonceQuery] using hne)
-    (fun index n msg => signLayersBC_allowed _ (fun _ => by simp [NonceFreshness.nonceQuery]) cache
-      (NonceFreshness.avoids_buildTree protectedMessage) (NonceFreshness.avoids_signTop protectedMessage cache)
-      index n msg)
+    (fun index n root => NonceFreshness.avoids_signLayers protectedMessage cache index n root)
 theorem signPayload_avoids (protectedMessage : Message) (cache : SigGolfCandidate.T3.Cache) (message : Message)
     (hne : message ≠ protectedMessage) : NonceFreshness.Avoids protectedMessage (signPayload cache message) :=
   signPayloadWith_avoids protectedMessage _ cache message hne

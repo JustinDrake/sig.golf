@@ -10,11 +10,10 @@ def eS (f3 rs2 off rs1 : Nat) : BitVec 32 :=
   BitVec.ofNat 32 (off / 32 * 2 ^ 25 + rs2 * 2 ^ 20 + rs1 * 2 ^ 15 + f3 * 2 ^ 12 + off % 32 * 2 ^ 7 + 0x23)
 def offC (t : Nat) : Nat := 832 - 64 * t
 def slotC (t : Nat) : Nat := if t = 0 then 880 else 896 + 16 * t
-def qK (t st : Nat) : Nat := 0x80 + 4 * t + 256 * st
 def headW (t st a2 : Nat) : List (BitVec 32) :=
-  [eI 10 8 (offC t), eI 12 8 a2, eI 25 31 (qK t st), eS 3 25 16 10, 0x00000073]
+  [eI 10 8 (offC t), eI 12 8 a2, eL 25 28 (64 * t + 8 * st + 2048), eS 3 25 16 10, eS 3 4 24 10, 0x00000073]
 def rungW (step : Nat) (dst : Option Nat) : List (BitVec 32) :=
-  [eS 0 (if step = 1 then 7 else 13) 17 10] ++ (match dst with | some d => [eI 12 8 d] | none => []) ++ [0x00000073]
+  [eS 0 (if step = 1 then 6 else 7) 20 10] ++ (match dst with | some d => [eI 12 8 d] | none => []) ++ [0x00000073]
 def copyW (t : Nat) : List (BitVec 32) :=
   [eL 3 8 (offC t + 48), eL 14 8 (offC t + 56), eS 3 3 (slotC t) 8, eS 3 14 (slotC t + 8) 8]
 def leafW : List (BitVec 32) :=
@@ -31,16 +30,17 @@ def aX (r : Reg) (o : Nat) : Addr := ⟨some (.reg r), BitVec.ofNat 64 o⟩
 def eX (r : Reg) (o : Nat) : E := .bin .add (.reg r) (.c (BitVec.ofNat 64 o))
 def hbO (w : Nat) : Nat := 2 ^ 64 - 2048 + w
 def headSt (t st a2 : Nat) : SymState :=
-  ⟨((RegFile.init.set .x10 (eX .x8 (offC t))).set .x12 (eX .x8 a2)).set .x25 (eX .x31 (qK t st)),
-    [(aX .x8 (offC t + 16), eX .x31 (qK t st))],
-    [.valid (aX .x8 (offC t + 16)) 8]⟩
-def headR (t st a2 : Nat) (p : Word) : Result := ⟨headSt t st a2, .c (p + 4 + 4 + 4 + 4), .ecall, 4, 4⟩
+  ⟨((RegFile.init.set .x10 (eX .x8 (offC t))).set .x12 (eX .x8 a2)).set .x25
+      (.ld (eX .x28 (hbO (64 * t + 8 * st)))),
+    [(aX .x8 (offC t + 24), .reg .x4), (aX .x8 (offC t + 16), .ld (eX .x28 (hbO (64 * t + 8 * st))))],
+    [.valid (aX .x8 (offC t + 24)) 8, .valid (aX .x8 (offC t + 16)) 8, .valid (aX .x28 (hbO (64 * t + 8 * st))) 8]⟩
+def headR (t st a2 : Nat) (p : Word) : Result := ⟨headSt t st a2, .c (p + 4 + 4 + 4 + 4 + 4), .ecall, 5, 5⟩
 def rungSt (step : Nat) (dst : Option Nat) : SymState :=
   ⟨match dst with
     | some d => RegFile.init.set .x12 (eX .x8 d)
     | none => RegFile.init,
-    [(aX .x10 16, .bin (.st .b 1) (.ld (eX .x10 16)) (.reg (if step = 1 then .x7 else .x13)))],
-    [.align8 (.reg .x10), .valid (aX .x10 17) 1]⟩
+    [(aX .x10 16, .bin (.st .b 4) (.ld (eX .x10 16)) (.reg (if step = 1 then .x6 else .x7)))],
+    [.align8 (.reg .x10), .valid (aX .x10 20) 1]⟩
 def rungR (step : Nat) (dst : Option Nat) (p : Word) : Result :=
   match dst with
   | some _ => ⟨rungSt step dst, .c (p + 4 + 4), .ecall, 2, 2⟩

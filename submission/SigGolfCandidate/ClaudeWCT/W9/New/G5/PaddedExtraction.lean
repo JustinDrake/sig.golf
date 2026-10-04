@@ -1,7 +1,6 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.VerifyP
 import SigGolfCandidate.ClaudeWCT.W9.New.G3b.Shared
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.SeccLaw
-import SigGolfCandidate.ClaudeWCT.W9.New.BC.Rows
 
 namespace ClaudeWCT.W9.T3.Security.PaddedExtraction
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -38,9 +37,6 @@ theorem hit_recorded {α : Type} (program : M α) (hp : Security.SourceReplay.Ha
   obtain ⟨prior, hevent⟩ := SigGolfCandidate.T3.Security.PaddedExtraction.public_occurrence program hp before
     result hr answers ha actual hquery
   exact ⟨position, actual, prior, hbounded, hpos, hevent, hhit⟩
-def PadAt (answers : Answers) (witness : WBytes) (index : Nat) : Prop :=
-  ∃ lay : Layer, lay.val < 3 ∧ ClaudeWCT.W9.T3M.Extract.Good answers witness index lay ∧
-    ClaudeWCT.W9.T3M.wbcPad witness lay ≠ 0
 def Conclusion (answers : Answers) (message : Message) (witness : WBytes)
     (events : List FirstHit.QueryEvent) : Prop :=
   ∃ digestAnswer : HashOutput, (wdc witness).toNat < WCT9.digestAttemptLimit ∧
@@ -52,8 +48,7 @@ def Conclusion (answers : Answers) (message : Message) (witness : WBytes)
           (events.map FirstHit.QueryEvent.input) ∧
           ∀ above : Layer, above.val < lay.val →
             ClaudeWCT.W9.T3M.Extract.Good answers witness (digestAnswer.toNat % 2 ^ 31) above) ∨
-        PadAt answers witness (digestAnswer.toNat % 2 ^ 31) ∨
-        ((∀ lay : Layer, ClaudeWCT.W9.T3M.BC.GoodZ answers witness (digestAnswer.toNat % 2 ^ 31) lay) ∧
+        ((∀ lay : Layer, ClaudeWCT.W9.T3M.Extract.Good answers witness (digestAnswer.toNat % 2 ^ 31) lay) ∧
           ClaudeWCT.W9.T3M.WctExtract.WctHonest answers digestAnswer witness))
 theorem verifyP_extracted_in {α : Type} (program : M α) (hp : Security.SourceReplay.HashOnly program)
     (before : LazyPrivate.State) (result : FirstHit.Recorded α)
@@ -71,18 +66,14 @@ theorem verifyP_extracted_in {α : Type} (program : M α) (hp : Security.SourceR
     result hr answers ha _ (hsub _ hquery)
   have hans : answers (.inl (.inr (pad64 (digestInput (wrho witness) message (wdc witness))))) = N := hdigest
   refine ⟨N, hcounter, hdigest, ⟨prior, by simpa only [hans] using hevent⟩, hshape, ?_⟩
-  rcases halt with hhit | ⟨lay, hdiv, hgood⟩ | ⟨hgood, hfts⟩
+  rcases halt with hhit | ⟨lay, hdiv, hgood⟩ | hgood
   · exact Or.inl (hit_recorded program hp before result hr answers ha (hhit.mono hsub))
   · refine Or.inr (Or.inl ⟨lay, hdiv.mono ?_, hgood⟩)
     intro input hin
     rw [FirstHit.recorded_inputs program hp before result hr answers ha,
       SigGolfCandidate.T3.Security.PaddedExtraction.queried_eq]
     exact hsub _ hin
-  · by_cases hz : ∀ lay : Layer, lay.val < 3 → ClaudeWCT.W9.T3M.wbcPad witness lay = 0
-    · exact Or.inr (Or.inr (Or.inr ⟨fun lay => ⟨hgood lay, hz lay⟩, hfts⟩))
-    · push_neg at hz
-      obtain ⟨lay, hlay, hpad⟩ := hz
-      exact Or.inr (Or.inr (Or.inl ⟨lay, hlay, hgood lay, hpad⟩))
+  · exact Or.inr (Or.inr hgood)
 theorem verifyP_recorded (message : Message) (publicKey : Digest) (witness : WBytes)
     (before : LazyPrivate.State) (result : FirstHit.Recorded Bool)
     (hr : result ∈ support (FirstHit.record (verifyP message publicKey witness) before))
@@ -120,14 +111,13 @@ theorem Conclusion.mono {answers : Answers} {message : Message} {witness : WByte
     (hsub : ∀ event ∈ events, event ∈ events') : Conclusion answers message witness events' := by
   obtain ⟨N, hcounter, hdigest, ⟨prior, hevent⟩, hshape, halt⟩ := h
   refine ⟨N, hcounter, hdigest, ⟨prior, hsub _ hevent⟩, hshape, ?_⟩
-  rcases halt with hhit | ⟨lay, hdiv, hgood⟩ | hpad | hgood
+  rcases halt with hhit | ⟨lay, hdiv, hgood⟩ | hgood
   · exact Or.inl (hhit.mono hsub)
   · refine Or.inr (Or.inl ⟨lay, hdiv.mono ?_, hgood⟩)
     intro input hin
     obtain ⟨event, hevent, rfl⟩ := List.mem_map.mp hin
     exact List.mem_map.mpr ⟨event, hsub _ hevent, rfl⟩
-  · exact Or.inr (Or.inr (Or.inl hpad))
-  · exact Or.inr (Or.inr (Or.inr hgood))
+  · exact Or.inr (Or.inr hgood)
 theorem actualHit_known_or_unresolved {α : Type} (program : M α) (result : FirstHit.Recorded α)
     (hr : result ∈ support (FirstHit.record program (∅, ∅))) (answers : Answers)
     (ha : ∀ input answer, SourceReplay.known result.state input = some answer → answers input = answer)

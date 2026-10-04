@@ -4,531 +4,531 @@ namespace W9Machine
 set_option maxRecDepth 100000
 set_option maxHeartbeats 0
 def piece744 : ChainPiece :=
-  ⟨744, [0x20040513, 0x23040613, 0x094f8c93, 0x01953823, 0x00000073], .head 512 560 5 0⟩
-def piece749 : ChainPiece :=
-  ⟨749, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece751 : ChainPiece :=
-  ⟨751, [0x00d508a3, 0x3d040613, 0x00000073], .rung 2 (some 976)⟩
-def piece754 : ChainPiece :=
-  ⟨754, [0x1c040513, 0x1f040613, 0x098f8c93, 0x01953823, 0x00000073], .head 448 496 6 0⟩
-def piece759 : ChainPiece :=
-  ⟨759, [0x007508a3, 0x00000073], .rung 1 none⟩
+  ⟨744, [0x20040513, 0x23040613, 0x940e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 512 560 5 0⟩
+def piece750 : ChainPiece :=
+  ⟨750, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece752 : ChainPiece :=
+  ⟨752, [0x00750a23, 0x3d040613, 0x00000073], .rung 2 (some 976)⟩
+def piece755 : ChainPiece :=
+  ⟨755, [0x1c040513, 0x1f040613, 0x980e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 448 496 6 0⟩
 def piece761 : ChainPiece :=
-  ⟨761, [0x00d508a3, 0x3e040613, 0x00000073], .rung 2 (some 992)⟩
-def piece764 : ChainPiece :=
-  ⟨764, [0x9c8e3c83, 0x39943023, 0x38443423, 0x37040513, 0x08000593, 0x000b8067], .leaf⟩
-def piece770 : ChainPiece :=
-  ⟨770, [0x24040513, 0x3c040613, 0x290f8c93, 0x01953823, 0x00000073], .head 576 960 4 2⟩
-def piece775 : ChainPiece :=
-  ⟨775, [0x20040513, 0x23040613, 0x194f8c93, 0x01953823, 0x00000073], .head 512 560 5 1⟩
-def piece780 : ChainPiece :=
-  ⟨780, [0x00d508a3, 0x3d040613, 0x00000073], .rung 2 (some 976)⟩
-def piece783 : ChainPiece :=
-  ⟨783, [0xf8dff06f], .jump 754⟩
+  ⟨761, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece763 : ChainPiece :=
+  ⟨763, [0x00750a23, 0x3e040613, 0x00000073], .rung 2 (some 992)⟩
+def piece766 : ChainPiece :=
+  ⟨766, [0x9c8e3c83, 0x39943023, 0x38443423, 0x37040513, 0x08000593, 0x000b8067], .leaf⟩
+def piece772 : ChainPiece :=
+  ⟨772, [0x24040513, 0x3c040613, 0x910e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 960 4 2⟩
+def piece778 : ChainPiece :=
+  ⟨778, [0x20040513, 0x23040613, 0x948e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 512 560 5 1⟩
 def piece784 : ChainPiece :=
-  ⟨784, [0x24040513, 0x3c040613, 0x290f8c93, 0x01953823, 0x00000073], .head 576 960 4 2⟩
-def piece789 : ChainPiece :=
-  ⟨789, [0x20040513, 0x23040613, 0x094f8c93, 0x01953823, 0x00000073], .head 512 560 5 0⟩
+  ⟨784, [0x00750a23, 0x3d040613, 0x00000073], .rung 2 (some 976)⟩
+def piece787 : ChainPiece :=
+  ⟨787, [0xf81ff06f], .jump 755⟩
+def piece788 : ChainPiece :=
+  ⟨788, [0x24040513, 0x3c040613, 0x910e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 960 4 2⟩
 def piece794 : ChainPiece :=
-  ⟨794, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece796 : ChainPiece :=
-  ⟨796, [0x00d508a3, 0x3d040613, 0x00000073], .rung 2 (some 976)⟩
-def piece799 : ChainPiece :=
-  ⟨799, [0x1c040513, 0x1f040613, 0x198f8c93, 0x01953823, 0x00000073], .head 448 496 6 1⟩
-def piece804 : ChainPiece :=
-  ⟨804, [0x00d508a3, 0x3e040613, 0x00000073], .rung 2 (some 992)⟩
-def piece807 : ChainPiece :=
-  ⟨807, [0x9c8e3c83, 0x39943023, 0x38443423, 0x37040513, 0x08000593, 0x000b8067], .leaf⟩
-def piece813 : ChainPiece :=
-  ⟨813, [0x24040513, 0x27040613, 0x190f8c93, 0x01953823, 0x00000073], .head 576 624 4 1⟩
-def piece818 : ChainPiece :=
-  ⟨818, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
-def piece821 : ChainPiece :=
-  ⟨821, [0x20040513, 0x3d040613, 0x294f8c93, 0x01953823, 0x00000073], .head 512 976 5 2⟩
+  ⟨794, [0x20040513, 0x23040613, 0x940e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 512 560 5 0⟩
+def piece800 : ChainPiece :=
+  ⟨800, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece802 : ChainPiece :=
+  ⟨802, [0x00750a23, 0x3d040613, 0x00000073], .rung 2 (some 976)⟩
+def piece805 : ChainPiece :=
+  ⟨805, [0x1c040513, 0x1f040613, 0x988e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 448 496 6 1⟩
+def piece811 : ChainPiece :=
+  ⟨811, [0x00750a23, 0x3e040613, 0x00000073], .rung 2 (some 992)⟩
+def piece814 : ChainPiece :=
+  ⟨814, [0x9c8e3c83, 0x39943023, 0x38443423, 0x37040513, 0x08000593, 0x000b8067], .leaf⟩
+def piece820 : ChainPiece :=
+  ⟨820, [0x24040513, 0x27040613, 0x908e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 1⟩
 def piece826 : ChainPiece :=
-  ⟨826, [0xee1ff06f], .jump 754⟩
-def piece827 : ChainPiece :=
-  ⟨827, [0x24040513, 0x27040613, 0x190f8c93, 0x01953823, 0x00000073], .head 576 624 4 1⟩
-def piece832 : ChainPiece :=
-  ⟨832, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+  ⟨826, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece829 : ChainPiece :=
+  ⟨829, [0x20040513, 0x3d040613, 0x950e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 512 976 5 2⟩
 def piece835 : ChainPiece :=
-  ⟨835, [0x20040513, 0x23040613, 0x194f8c93, 0x01953823, 0x00000073], .head 512 560 5 1⟩
-def piece840 : ChainPiece :=
-  ⟨840, [0x00d508a3, 0x3d040613, 0x00000073], .rung 2 (some 976)⟩
-def piece843 : ChainPiece :=
-  ⟨843, [0xf51ff06f], .jump 799⟩
-def piece844 : ChainPiece :=
-  ⟨844, [0x24040513, 0x27040613, 0x190f8c93, 0x01953823, 0x00000073], .head 576 624 4 1⟩
-def piece849 : ChainPiece :=
-  ⟨849, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
-def piece852 : ChainPiece :=
-  ⟨852, [0x20040513, 0x23040613, 0x094f8c93, 0x01953823, 0x00000073], .head 512 560 5 0⟩
-def piece857 : ChainPiece :=
-  ⟨857, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece859 : ChainPiece :=
-  ⟨859, [0x00d508a3, 0x3d040613, 0x00000073], .rung 2 (some 976)⟩
-def piece862 : ChainPiece :=
-  ⟨862, [0x1c040513, 0x3e040613, 0x298f8c93, 0x01953823, 0x00000073], .head 448 992 6 2⟩
-def piece867 : ChainPiece :=
-  ⟨867, [0x9c8e3c83, 0x39943023, 0x38443423, 0x37040513, 0x08000593, 0x000b8067], .leaf⟩
-def piece873 : ChainPiece :=
-  ⟨873, [0x24040513, 0x27040613, 0x090f8c93, 0x01953823, 0x00000073], .head 576 624 4 0⟩
-def piece878 : ChainPiece :=
-  ⟨878, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece880 : ChainPiece :=
-  ⟨880, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece882 : ChainPiece :=
-  ⟨882, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
-def piece886 : ChainPiece :=
-  ⟨886, [0xdf1ff06f], .jump 754⟩
+  ⟨835, [0xec1ff06f], .jump 755⟩
+def piece836 : ChainPiece :=
+  ⟨836, [0x24040513, 0x27040613, 0x908e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 1⟩
+def piece842 : ChainPiece :=
+  ⟨842, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece845 : ChainPiece :=
+  ⟨845, [0x20040513, 0x23040613, 0x948e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 512 560 5 1⟩
+def piece851 : ChainPiece :=
+  ⟨851, [0x00750a23, 0x3d040613, 0x00000073], .rung 2 (some 976)⟩
+def piece854 : ChainPiece :=
+  ⟨854, [0xf3dff06f], .jump 805⟩
+def piece855 : ChainPiece :=
+  ⟨855, [0x24040513, 0x27040613, 0x908e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 1⟩
+def piece861 : ChainPiece :=
+  ⟨861, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece864 : ChainPiece :=
+  ⟨864, [0x20040513, 0x23040613, 0x940e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 512 560 5 0⟩
+def piece870 : ChainPiece :=
+  ⟨870, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece872 : ChainPiece :=
+  ⟨872, [0x00750a23, 0x3d040613, 0x00000073], .rung 2 (some 976)⟩
+def piece875 : ChainPiece :=
+  ⟨875, [0x1c040513, 0x3e040613, 0x990e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 448 992 6 2⟩
+def piece881 : ChainPiece :=
+  ⟨881, [0x9c8e3c83, 0x39943023, 0x38443423, 0x37040513, 0x08000593, 0x000b8067], .leaf⟩
 def piece887 : ChainPiece :=
-  ⟨887, [0x24040513, 0x27040613, 0x090f8c93, 0x01953823, 0x00000073], .head 576 624 4 0⟩
-def piece892 : ChainPiece :=
-  ⟨892, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece894 : ChainPiece :=
-  ⟨894, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+  ⟨887, [0x24040513, 0x27040613, 0x900e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 0⟩
+def piece893 : ChainPiece :=
+  ⟨893, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece895 : ChainPiece :=
+  ⟨895, [0x00750a23, 0x00000073], .rung 2 none⟩
 def piece897 : ChainPiece :=
-  ⟨897, [0x20040513, 0x3d040613, 0x294f8c93, 0x01953823, 0x00000073], .head 512 976 5 2⟩
+  ⟨897, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
+def piece901 : ChainPiece :=
+  ⟨901, [0xdb9ff06f], .jump 755⟩
 def piece902 : ChainPiece :=
-  ⟨902, [0xe65ff06f], .jump 799⟩
-def piece903 : ChainPiece :=
-  ⟨903, [0x24040513, 0x27040613, 0x090f8c93, 0x01953823, 0x00000073], .head 576 624 4 0⟩
+  ⟨902, [0x24040513, 0x27040613, 0x900e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 0⟩
 def piece908 : ChainPiece :=
-  ⟨908, [0x007508a3, 0x00000073], .rung 1 none⟩
+  ⟨908, [0x00650a23, 0x00000073], .rung 1 none⟩
 def piece910 : ChainPiece :=
-  ⟨910, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+  ⟨910, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
 def piece913 : ChainPiece :=
-  ⟨913, [0x20040513, 0x23040613, 0x194f8c93, 0x01953823, 0x00000073], .head 512 560 5 1⟩
-def piece918 : ChainPiece :=
-  ⟨918, [0x00d508a3, 0x3d040613, 0x00000073], .rung 2 (some 976)⟩
-def piece921 : ChainPiece :=
-  ⟨921, [0xf15ff06f], .jump 862⟩
-def piece922 : ChainPiece :=
-  ⟨922, [0x24040513, 0x27040613, 0x090f8c93, 0x01953823, 0x00000073], .head 576 624 4 0⟩
-def piece927 : ChainPiece :=
-  ⟨927, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece929 : ChainPiece :=
-  ⟨929, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
-def piece932 : ChainPiece :=
-  ⟨932, [0x20040513, 0x23040613, 0x094f8c93, 0x01953823, 0x00000073], .head 512 560 5 0⟩
+  ⟨913, [0x20040513, 0x3d040613, 0x950e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 512 976 5 2⟩
+def piece919 : ChainPiece :=
+  ⟨919, [0xe39ff06f], .jump 805⟩
+def piece920 : ChainPiece :=
+  ⟨920, [0x24040513, 0x27040613, 0x900e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 0⟩
+def piece926 : ChainPiece :=
+  ⟨926, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece928 : ChainPiece :=
+  ⟨928, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece931 : ChainPiece :=
+  ⟨931, [0x20040513, 0x23040613, 0x948e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 512 560 5 1⟩
 def piece937 : ChainPiece :=
-  ⟨937, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece939 : ChainPiece :=
-  ⟨939, [0x00d508a3, 0x00000073], .rung 2 none⟩
+  ⟨937, [0x00750a23, 0x3d040613, 0x00000073], .rung 2 (some 976)⟩
+def piece940 : ChainPiece :=
+  ⟨940, [0xefdff06f], .jump 875⟩
 def piece941 : ChainPiece :=
-  ⟨941, [0x23043183, 0x23843703, 0x3c343823, 0x3ce43c23], .copy 512 976⟩
-def piece945 : ChainPiece :=
-  ⟨945, [0x9c8e3c83, 0x39943023, 0x38443423, 0x37040513, 0x08000593, 0x000b8067], .leaf⟩
-def piece951 : ChainPiece :=
-  ⟨951, [0x28040513, 0x2b040613, 0x28cf8c93, 0x01953823, 0x00000073], .head 640 688 3 2⟩
-def piece956 : ChainPiece :=
-  ⟨956, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
+  ⟨941, [0x24040513, 0x27040613, 0x900e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 0⟩
+def piece947 : ChainPiece :=
+  ⟨947, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece949 : ChainPiece :=
+  ⟨949, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece952 : ChainPiece :=
+  ⟨952, [0x20040513, 0x23040613, 0x940e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 512 560 5 0⟩
+def piece958 : ChainPiece :=
+  ⟨958, [0x00650a23, 0x00000073], .rung 1 none⟩
 def piece960 : ChainPiece :=
-  ⟨960, [0xd1dff06f], .jump 775⟩
-def piece961 : ChainPiece :=
-  ⟨961, [0x28040513, 0x2b040613, 0x28cf8c93, 0x01953823, 0x00000073], .head 640 688 3 2⟩
+  ⟨960, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece962 : ChainPiece :=
+  ⟨962, [0x23043183, 0x23843703, 0x3c343823, 0x3ce43c23], .copy 512 976⟩
 def piece966 : ChainPiece :=
-  ⟨966, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
-def piece970 : ChainPiece :=
-  ⟨970, [0xd2dff06f], .jump 789⟩
+  ⟨966, [0x9c8e3c83, 0x39943023, 0x38443423, 0x37040513, 0x08000593, 0x000b8067], .leaf⟩
+def piece972 : ChainPiece :=
+  ⟨972, [0x28040513, 0x2b040613, 0x8d0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 2⟩
+def piece978 : ChainPiece :=
+  ⟨978, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
+def piece982 : ChainPiece :=
+  ⟨982, [0xcd1ff06f], .jump 778⟩
+def piece983 : ChainPiece :=
+  ⟨983, [0x28040513, 0x2b040613, 0x8d0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 2⟩
+def piece989 : ChainPiece :=
+  ⟨989, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
+def piece993 : ChainPiece :=
+  ⟨993, [0xce5ff06f], .jump 794⟩
 def chainBatch00 : List ChainPiece :=
-  [piece744, piece749, piece751, piece754, piece759, piece761, piece764, piece770, piece775, piece780, piece783, piece784, piece789, piece794, piece796, piece799, piece804, piece807, piece813, piece818, piece821, piece826, piece827, piece832, piece835, piece840, piece843, piece844, piece849, piece852, piece857, piece859, piece862, piece867, piece873, piece878, piece880, piece882, piece886, piece887, piece892, piece894, piece897, piece902, piece903, piece908, piece910, piece913, piece918, piece921, piece922, piece927, piece929, piece932, piece937, piece939, piece941, piece945, piece951, piece956, piece960, piece961, piece966, piece970]
+  [piece744, piece750, piece752, piece755, piece761, piece763, piece766, piece772, piece778, piece784, piece787, piece788, piece794, piece800, piece802, piece805, piece811, piece814, piece820, piece826, piece829, piece835, piece836, piece842, piece845, piece851, piece854, piece855, piece861, piece864, piece870, piece872, piece875, piece881, piece887, piece893, piece895, piece897, piece901, piece902, piece908, piece910, piece913, piece919, piece920, piece926, piece928, piece931, piece937, piece940, piece941, piece947, piece949, piece952, piece958, piece960, piece962, piece966, piece972, piece978, piece982, piece983, piece989, piece993]
 theorem chainBatch00_checked : (chainBatch00.all ChainPiece.checked) = true := by
   decide +kernel
-def piece971 : ChainPiece :=
-  ⟨971, [0x28040513, 0x3b040613, 0x28cf8c93, 0x01953823, 0x00000073], .head 640 944 3 2⟩
-def piece976 : ChainPiece :=
-  ⟨976, [0x24040513, 0x3c040613, 0x290f8c93, 0x01953823, 0x00000073], .head 576 960 4 2⟩
-def piece981 : ChainPiece :=
-  ⟨981, [0xd81ff06f], .jump 821⟩
-def piece982 : ChainPiece :=
-  ⟨982, [0x28040513, 0x3b040613, 0x28cf8c93, 0x01953823, 0x00000073], .head 640 944 3 2⟩
-def piece987 : ChainPiece :=
-  ⟨987, [0x24040513, 0x3c040613, 0x290f8c93, 0x01953823, 0x00000073], .head 576 960 4 2⟩
-def piece992 : ChainPiece :=
-  ⟨992, [0xd8dff06f], .jump 835⟩
-def piece993 : ChainPiece :=
-  ⟨993, [0x28040513, 0x3b040613, 0x28cf8c93, 0x01953823, 0x00000073], .head 640 944 3 2⟩
-def piece998 : ChainPiece :=
-  ⟨998, [0x24040513, 0x3c040613, 0x290f8c93, 0x01953823, 0x00000073], .head 576 960 4 2⟩
-def piece1003 : ChainPiece :=
-  ⟨1003, [0xda5ff06f], .jump 852⟩
-def piece1004 : ChainPiece :=
-  ⟨1004, [0x28040513, 0x3b040613, 0x28cf8c93, 0x01953823, 0x00000073], .head 640 944 3 2⟩
-def piece1009 : ChainPiece :=
-  ⟨1009, [0x24040513, 0x27040613, 0x190f8c93, 0x01953823, 0x00000073], .head 576 624 4 1⟩
-def piece1014 : ChainPiece :=
-  ⟨1014, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece1016 : ChainPiece :=
-  ⟨1016, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
+def piece994 : ChainPiece :=
+  ⟨994, [0x28040513, 0x3b040613, 0x8d0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 944 3 2⟩
+def piece1000 : ChainPiece :=
+  ⟨1000, [0x24040513, 0x3c040613, 0x910e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 960 4 2⟩
+def piece1006 : ChainPiece :=
+  ⟨1006, [0xd3dff06f], .jump 829⟩
+def piece1007 : ChainPiece :=
+  ⟨1007, [0x28040513, 0x3b040613, 0x8d0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 944 3 2⟩
+def piece1013 : ChainPiece :=
+  ⟨1013, [0x24040513, 0x3c040613, 0x910e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 960 4 2⟩
+def piece1019 : ChainPiece :=
+  ⟨1019, [0xd49ff06f], .jump 845⟩
 def piece1020 : ChainPiece :=
-  ⟨1020, [0xde9ff06f], .jump 886⟩
-def piece1021 : ChainPiece :=
-  ⟨1021, [0x28040513, 0x3b040613, 0x28cf8c93, 0x01953823, 0x00000073], .head 640 944 3 2⟩
+  ⟨1020, [0x28040513, 0x3b040613, 0x8d0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 944 3 2⟩
 def piece1026 : ChainPiece :=
-  ⟨1026, [0x24040513, 0x27040613, 0x190f8c93, 0x01953823, 0x00000073], .head 576 624 4 1⟩
-def piece1031 : ChainPiece :=
-  ⟨1031, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
-def piece1034 : ChainPiece :=
-  ⟨1034, [0xdddff06f], .jump 897⟩
-def piece1035 : ChainPiece :=
-  ⟨1035, [0x28040513, 0x3b040613, 0x28cf8c93, 0x01953823, 0x00000073], .head 640 944 3 2⟩
-def piece1040 : ChainPiece :=
-  ⟨1040, [0x24040513, 0x27040613, 0x190f8c93, 0x01953823, 0x00000073], .head 576 624 4 1⟩
+  ⟨1026, [0x24040513, 0x3c040613, 0x910e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 960 4 2⟩
+def piece1032 : ChainPiece :=
+  ⟨1032, [0xd61ff06f], .jump 864⟩
+def piece1033 : ChainPiece :=
+  ⟨1033, [0x28040513, 0x3b040613, 0x8d0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 944 3 2⟩
+def piece1039 : ChainPiece :=
+  ⟨1039, [0x24040513, 0x27040613, 0x908e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 1⟩
 def piece1045 : ChainPiece :=
-  ⟨1045, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
-def piece1048 : ChainPiece :=
-  ⟨1048, [0xde5ff06f], .jump 913⟩
-def piece1049 : ChainPiece :=
-  ⟨1049, [0x28040513, 0x3b040613, 0x28cf8c93, 0x01953823, 0x00000073], .head 640 944 3 2⟩
-def piece1054 : ChainPiece :=
-  ⟨1054, [0x24040513, 0x27040613, 0x190f8c93, 0x01953823, 0x00000073], .head 576 624 4 1⟩
-def piece1059 : ChainPiece :=
-  ⟨1059, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
-def piece1062 : ChainPiece :=
-  ⟨1062, [0xdf9ff06f], .jump 932⟩
-def piece1063 : ChainPiece :=
-  ⟨1063, [0x28040513, 0x3b040613, 0x28cf8c93, 0x01953823, 0x00000073], .head 640 944 3 2⟩
+  ⟨1045, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1047 : ChainPiece :=
+  ⟨1047, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
+def piece1051 : ChainPiece :=
+  ⟨1051, [0xda9ff06f], .jump 901⟩
+def piece1052 : ChainPiece :=
+  ⟨1052, [0x28040513, 0x3b040613, 0x8d0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 944 3 2⟩
+def piece1058 : ChainPiece :=
+  ⟨1058, [0x24040513, 0x27040613, 0x908e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 1⟩
+def piece1064 : ChainPiece :=
+  ⟨1064, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece1067 : ChainPiece :=
+  ⟨1067, [0xd99ff06f], .jump 913⟩
 def piece1068 : ChainPiece :=
-  ⟨1068, [0x24040513, 0x27040613, 0x090f8c93, 0x01953823, 0x00000073], .head 576 624 4 0⟩
-def piece1073 : ChainPiece :=
-  ⟨1073, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece1075 : ChainPiece :=
-  ⟨1075, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece1077 : ChainPiece :=
-  ⟨1077, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
-def piece1081 : ChainPiece :=
-  ⟨1081, [0xb99ff06f], .jump 799⟩
-def piece1082 : ChainPiece :=
-  ⟨1082, [0x28040513, 0x3b040613, 0x28cf8c93, 0x01953823, 0x00000073], .head 640 944 3 2⟩
-def piece1087 : ChainPiece :=
-  ⟨1087, [0x24040513, 0x27040613, 0x090f8c93, 0x01953823, 0x00000073], .head 576 624 4 0⟩
-def piece1092 : ChainPiece :=
-  ⟨1092, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece1094 : ChainPiece :=
-  ⟨1094, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
-def piece1097 : ChainPiece :=
-  ⟨1097, [0x20040513, 0x3d040613, 0x294f8c93, 0x01953823, 0x00000073], .head 512 976 5 2⟩
-def piece1102 : ChainPiece :=
-  ⟨1102, [0xc41ff06f], .jump 862⟩
-def piece1103 : ChainPiece :=
-  ⟨1103, [0x28040513, 0x3b040613, 0x28cf8c93, 0x01953823, 0x00000073], .head 640 944 3 2⟩
-def piece1108 : ChainPiece :=
-  ⟨1108, [0x24040513, 0x27040613, 0x090f8c93, 0x01953823, 0x00000073], .head 576 624 4 0⟩
-def piece1113 : ChainPiece :=
-  ⟨1113, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece1115 : ChainPiece :=
-  ⟨1115, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
-def piece1118 : ChainPiece :=
-  ⟨1118, [0x20040513, 0x23040613, 0x194f8c93, 0x01953823, 0x00000073], .head 512 560 5 1⟩
-def piece1123 : ChainPiece :=
-  ⟨1123, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece1125 : ChainPiece :=
-  ⟨1125, [0x23043183, 0x23843703, 0x3c343823, 0x3ce43c23], .copy 512 976⟩
-def piece1129 : ChainPiece :=
-  ⟨1129, [0xd21ff06f], .jump 945⟩
-def piece1130 : ChainPiece :=
-  ⟨1130, [0x28040513, 0x2b040613, 0x18cf8c93, 0x01953823, 0x00000073], .head 640 688 3 1⟩
+  ⟨1068, [0x28040513, 0x3b040613, 0x8d0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 944 3 2⟩
+def piece1074 : ChainPiece :=
+  ⟨1074, [0x24040513, 0x27040613, 0x908e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 1⟩
+def piece1080 : ChainPiece :=
+  ⟨1080, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece1083 : ChainPiece :=
+  ⟨1083, [0xda1ff06f], .jump 931⟩
+def piece1084 : ChainPiece :=
+  ⟨1084, [0x28040513, 0x3b040613, 0x8d0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 944 3 2⟩
+def piece1090 : ChainPiece :=
+  ⟨1090, [0x24040513, 0x27040613, 0x908e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 1⟩
+def piece1096 : ChainPiece :=
+  ⟨1096, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece1099 : ChainPiece :=
+  ⟨1099, [0xdb5ff06f], .jump 952⟩
+def piece1100 : ChainPiece :=
+  ⟨1100, [0x28040513, 0x3b040613, 0x8d0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 944 3 2⟩
+def piece1106 : ChainPiece :=
+  ⟨1106, [0x24040513, 0x27040613, 0x900e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 0⟩
+def piece1112 : ChainPiece :=
+  ⟨1112, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece1114 : ChainPiece :=
+  ⟨1114, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1116 : ChainPiece :=
+  ⟨1116, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
+def piece1120 : ChainPiece :=
+  ⟨1120, [0xb15ff06f], .jump 805⟩
+def piece1121 : ChainPiece :=
+  ⟨1121, [0x28040513, 0x3b040613, 0x8d0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 944 3 2⟩
+def piece1127 : ChainPiece :=
+  ⟨1127, [0x24040513, 0x27040613, 0x900e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 0⟩
+def piece1133 : ChainPiece :=
+  ⟨1133, [0x00650a23, 0x00000073], .rung 1 none⟩
 def piece1135 : ChainPiece :=
-  ⟨1135, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece1137 : ChainPiece :=
-  ⟨1137, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
-def piece1141 : ChainPiece :=
-  ⟨1141, [0xb01ff06f], .jump 821⟩
-def piece1142 : ChainPiece :=
-  ⟨1142, [0x28040513, 0x2b040613, 0x18cf8c93, 0x01953823, 0x00000073], .head 640 688 3 1⟩
-def piece1147 : ChainPiece :=
-  ⟨1147, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece1149 : ChainPiece :=
-  ⟨1149, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
-def piece1153 : ChainPiece :=
-  ⟨1153, [0xb09ff06f], .jump 835⟩
-def piece1154 : ChainPiece :=
-  ⟨1154, [0x28040513, 0x2b040613, 0x18cf8c93, 0x01953823, 0x00000073], .head 640 688 3 1⟩
+  ⟨1135, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece1138 : ChainPiece :=
+  ⟨1138, [0x20040513, 0x3d040613, 0x950e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 512 976 5 2⟩
+def piece1144 : ChainPiece :=
+  ⟨1144, [0xbcdff06f], .jump 875⟩
+def piece1145 : ChainPiece :=
+  ⟨1145, [0x28040513, 0x3b040613, 0x8d0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 944 3 2⟩
+def piece1151 : ChainPiece :=
+  ⟨1151, [0x24040513, 0x27040613, 0x900e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 0⟩
+def piece1157 : ChainPiece :=
+  ⟨1157, [0x00650a23, 0x00000073], .rung 1 none⟩
 def piece1159 : ChainPiece :=
-  ⟨1159, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece1161 : ChainPiece :=
-  ⟨1161, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
-def piece1165 : ChainPiece :=
-  ⟨1165, [0xb1dff06f], .jump 852⟩
-def piece1166 : ChainPiece :=
-  ⟨1166, [0x28040513, 0x2b040613, 0x18cf8c93, 0x01953823, 0x00000073], .head 640 688 3 1⟩
-def piece1171 : ChainPiece :=
-  ⟨1171, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+  ⟨1159, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece1162 : ChainPiece :=
+  ⟨1162, [0x20040513, 0x23040613, 0x948e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 512 560 5 1⟩
+def piece1168 : ChainPiece :=
+  ⟨1168, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1170 : ChainPiece :=
+  ⟨1170, [0x23043183, 0x23843703, 0x3c343823, 0x3ce43c23], .copy 512 976⟩
 def piece1174 : ChainPiece :=
-  ⟨1174, [0x24040513, 0x27040613, 0x290f8c93, 0x01953823, 0x00000073], .head 576 624 4 2⟩
-def piece1179 : ChainPiece :=
-  ⟨1179, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
+  ⟨1174, [0xcc1ff06f], .jump 966⟩
+def piece1175 : ChainPiece :=
+  ⟨1175, [0x28040513, 0x2b040613, 0x8c8e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 1⟩
+def piece1181 : ChainPiece :=
+  ⟨1181, [0x00750a23, 0x00000073], .rung 2 none⟩
 def piece1183 : ChainPiece :=
-  ⟨1183, [0xb5dff06f], .jump 886⟩
-def piece1184 : ChainPiece :=
-  ⟨1184, [0x28040513, 0x2b040613, 0x18cf8c93, 0x01953823, 0x00000073], .head 640 688 3 1⟩
+  ⟨1183, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
+def piece1187 : ChainPiece :=
+  ⟨1187, [0xa69ff06f], .jump 829⟩
+def piece1188 : ChainPiece :=
+  ⟨1188, [0x28040513, 0x2b040613, 0x8c8e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 1⟩
+def piece1194 : ChainPiece :=
+  ⟨1194, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1196 : ChainPiece :=
+  ⟨1196, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
+def piece1200 : ChainPiece :=
+  ⟨1200, [0xa75ff06f], .jump 845⟩
+def piece1201 : ChainPiece :=
+  ⟨1201, [0x28040513, 0x2b040613, 0x8c8e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 1⟩
+def piece1207 : ChainPiece :=
+  ⟨1207, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1209 : ChainPiece :=
+  ⟨1209, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
+def piece1213 : ChainPiece :=
+  ⟨1213, [0xa8dff06f], .jump 864⟩
+def piece1214 : ChainPiece :=
+  ⟨1214, [0x28040513, 0x2b040613, 0x8c8e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 1⟩
+def piece1220 : ChainPiece :=
+  ⟨1220, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+def piece1223 : ChainPiece :=
+  ⟨1223, [0x24040513, 0x27040613, 0x910e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 2⟩
+def piece1229 : ChainPiece :=
+  ⟨1229, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
+def piece1233 : ChainPiece :=
+  ⟨1233, [0xad1ff06f], .jump 901⟩
+def piece1234 : ChainPiece :=
+  ⟨1234, [0x28040513, 0x2b040613, 0x8c8e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 1⟩
 def chainBatch01 : List ChainPiece :=
-  [piece971, piece976, piece981, piece982, piece987, piece992, piece993, piece998, piece1003, piece1004, piece1009, piece1014, piece1016, piece1020, piece1021, piece1026, piece1031, piece1034, piece1035, piece1040, piece1045, piece1048, piece1049, piece1054, piece1059, piece1062, piece1063, piece1068, piece1073, piece1075, piece1077, piece1081, piece1082, piece1087, piece1092, piece1094, piece1097, piece1102, piece1103, piece1108, piece1113, piece1115, piece1118, piece1123, piece1125, piece1129, piece1130, piece1135, piece1137, piece1141, piece1142, piece1147, piece1149, piece1153, piece1154, piece1159, piece1161, piece1165, piece1166, piece1171, piece1174, piece1179, piece1183, piece1184]
+  [piece994, piece1000, piece1006, piece1007, piece1013, piece1019, piece1020, piece1026, piece1032, piece1033, piece1039, piece1045, piece1047, piece1051, piece1052, piece1058, piece1064, piece1067, piece1068, piece1074, piece1080, piece1083, piece1084, piece1090, piece1096, piece1099, piece1100, piece1106, piece1112, piece1114, piece1116, piece1120, piece1121, piece1127, piece1133, piece1135, piece1138, piece1144, piece1145, piece1151, piece1157, piece1159, piece1162, piece1168, piece1170, piece1174, piece1175, piece1181, piece1183, piece1187, piece1188, piece1194, piece1196, piece1200, piece1201, piece1207, piece1209, piece1213, piece1214, piece1220, piece1223, piece1229, piece1233, piece1234]
 theorem chainBatch01_checked : (chainBatch01.all ChainPiece.checked) = true := by
   decide +kernel
-def piece1189 : ChainPiece :=
-  ⟨1189, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
-def piece1192 : ChainPiece :=
-  ⟨1192, [0x24040513, 0x3c040613, 0x290f8c93, 0x01953823, 0x00000073], .head 576 960 4 2⟩
-def piece1197 : ChainPiece :=
-  ⟨1197, [0xb51ff06f], .jump 897⟩
-def piece1198 : ChainPiece :=
-  ⟨1198, [0x28040513, 0x2b040613, 0x18cf8c93, 0x01953823, 0x00000073], .head 640 688 3 1⟩
-def piece1203 : ChainPiece :=
-  ⟨1203, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
-def piece1206 : ChainPiece :=
-  ⟨1206, [0x24040513, 0x3c040613, 0x290f8c93, 0x01953823, 0x00000073], .head 576 960 4 2⟩
-def piece1211 : ChainPiece :=
-  ⟨1211, [0xb59ff06f], .jump 913⟩
-def piece1212 : ChainPiece :=
-  ⟨1212, [0x28040513, 0x2b040613, 0x18cf8c93, 0x01953823, 0x00000073], .head 640 688 3 1⟩
-def piece1217 : ChainPiece :=
-  ⟨1217, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
-def piece1220 : ChainPiece :=
-  ⟨1220, [0x24040513, 0x3c040613, 0x290f8c93, 0x01953823, 0x00000073], .head 576 960 4 2⟩
-def piece1225 : ChainPiece :=
-  ⟨1225, [0xb6dff06f], .jump 932⟩
-def piece1226 : ChainPiece :=
-  ⟨1226, [0x28040513, 0x2b040613, 0x18cf8c93, 0x01953823, 0x00000073], .head 640 688 3 1⟩
-def piece1231 : ChainPiece :=
-  ⟨1231, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
-def piece1234 : ChainPiece :=
-  ⟨1234, [0x24040513, 0x27040613, 0x190f8c93, 0x01953823, 0x00000073], .head 576 624 4 1⟩
-def piece1239 : ChainPiece :=
-  ⟨1239, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece1241 : ChainPiece :=
-  ⟨1241, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
-def piece1245 : ChainPiece :=
-  ⟨1245, [0xd71ff06f], .jump 1081⟩
-def piece1246 : ChainPiece :=
-  ⟨1246, [0x28040513, 0x2b040613, 0x18cf8c93, 0x01953823, 0x00000073], .head 640 688 3 1⟩
-def piece1251 : ChainPiece :=
-  ⟨1251, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
-def piece1254 : ChainPiece :=
-  ⟨1254, [0x24040513, 0x27040613, 0x190f8c93, 0x01953823, 0x00000073], .head 576 624 4 1⟩
+def piece1240 : ChainPiece :=
+  ⟨1240, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+def piece1243 : ChainPiece :=
+  ⟨1243, [0x24040513, 0x3c040613, 0x910e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 960 4 2⟩
+def piece1249 : ChainPiece :=
+  ⟨1249, [0xac1ff06f], .jump 913⟩
+def piece1250 : ChainPiece :=
+  ⟨1250, [0x28040513, 0x2b040613, 0x8c8e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 1⟩
+def piece1256 : ChainPiece :=
+  ⟨1256, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
 def piece1259 : ChainPiece :=
-  ⟨1259, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
-def piece1262 : ChainPiece :=
-  ⟨1262, [0xd6dff06f], .jump 1097⟩
-def piece1263 : ChainPiece :=
-  ⟨1263, [0x28040513, 0x2b040613, 0x18cf8c93, 0x01953823, 0x00000073], .head 640 688 3 1⟩
-def piece1268 : ChainPiece :=
-  ⟨1268, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
-def piece1271 : ChainPiece :=
-  ⟨1271, [0x24040513, 0x27040613, 0x190f8c93, 0x01953823, 0x00000073], .head 576 624 4 1⟩
-def piece1276 : ChainPiece :=
-  ⟨1276, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
-def piece1279 : ChainPiece :=
-  ⟨1279, [0xd7dff06f], .jump 1118⟩
-def piece1280 : ChainPiece :=
-  ⟨1280, [0x28040513, 0x2b040613, 0x18cf8c93, 0x01953823, 0x00000073], .head 640 688 3 1⟩
-def piece1285 : ChainPiece :=
-  ⟨1285, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+  ⟨1259, [0x24040513, 0x3c040613, 0x910e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 960 4 2⟩
+def piece1265 : ChainPiece :=
+  ⟨1265, [0xac9ff06f], .jump 931⟩
+def piece1266 : ChainPiece :=
+  ⟨1266, [0x28040513, 0x2b040613, 0x8c8e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 1⟩
+def piece1272 : ChainPiece :=
+  ⟨1272, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+def piece1275 : ChainPiece :=
+  ⟨1275, [0x24040513, 0x3c040613, 0x910e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 960 4 2⟩
+def piece1281 : ChainPiece :=
+  ⟨1281, [0xaddff06f], .jump 952⟩
+def piece1282 : ChainPiece :=
+  ⟨1282, [0x28040513, 0x2b040613, 0x8c8e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 1⟩
 def piece1288 : ChainPiece :=
-  ⟨1288, [0x24040513, 0x27040613, 0x090f8c93, 0x01953823, 0x00000073], .head 576 624 4 0⟩
-def piece1293 : ChainPiece :=
-  ⟨1293, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece1295 : ChainPiece :=
-  ⟨1295, [0x00d508a3, 0x00000073], .rung 2 none⟩
+  ⟨1288, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+def piece1291 : ChainPiece :=
+  ⟨1291, [0x24040513, 0x27040613, 0x908e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 1⟩
 def piece1297 : ChainPiece :=
-  ⟨1297, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
-def piece1301 : ChainPiece :=
-  ⟨1301, [0x925ff06f], .jump 862⟩
-def piece1302 : ChainPiece :=
-  ⟨1302, [0x28040513, 0x2b040613, 0x18cf8c93, 0x01953823, 0x00000073], .head 640 688 3 1⟩
-def piece1307 : ChainPiece :=
-  ⟨1307, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+  ⟨1297, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1299 : ChainPiece :=
+  ⟨1299, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
+def piece1303 : ChainPiece :=
+  ⟨1303, [0xd25ff06f], .jump 1120⟩
+def piece1304 : ChainPiece :=
+  ⟨1304, [0x28040513, 0x2b040613, 0x8c8e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 1⟩
 def piece1310 : ChainPiece :=
-  ⟨1310, [0x24040513, 0x27040613, 0x090f8c93, 0x01953823, 0x00000073], .head 576 624 4 0⟩
-def piece1315 : ChainPiece :=
-  ⟨1315, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece1317 : ChainPiece :=
-  ⟨1317, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
-def piece1320 : ChainPiece :=
-  ⟨1320, [0x20040513, 0x23040613, 0x294f8c93, 0x01953823, 0x00000073], .head 512 560 5 2⟩
-def piece1325 : ChainPiece :=
-  ⟨1325, [0x23043183, 0x23843703, 0x3c343823, 0x3ce43c23], .copy 512 976⟩
+  ⟨1310, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+def piece1313 : ChainPiece :=
+  ⟨1313, [0x24040513, 0x27040613, 0x908e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 1⟩
+def piece1319 : ChainPiece :=
+  ⟨1319, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece1322 : ChainPiece :=
+  ⟨1322, [0xd21ff06f], .jump 1138⟩
+def piece1323 : ChainPiece :=
+  ⟨1323, [0x28040513, 0x2b040613, 0x8c8e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 1⟩
 def piece1329 : ChainPiece :=
-  ⟨1329, [0xa01ff06f], .jump 945⟩
-def piece1330 : ChainPiece :=
-  ⟨1330, [0x28040513, 0x2b040613, 0x08cf8c93, 0x01953823, 0x00000073], .head 640 688 3 0⟩
-def piece1335 : ChainPiece :=
-  ⟨1335, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece1337 : ChainPiece :=
-  ⟨1337, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece1339 : ChainPiece :=
-  ⟨1339, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
-def piece1343 : ChainPiece :=
-  ⟨1343, [0x8ddff06f], .jump 886⟩
-def piece1344 : ChainPiece :=
-  ⟨1344, [0x28040513, 0x2b040613, 0x08cf8c93, 0x01953823, 0x00000073], .head 640 688 3 0⟩
-def piece1349 : ChainPiece :=
-  ⟨1349, [0x007508a3, 0x00000073], .rung 1 none⟩
+  ⟨1329, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+def piece1332 : ChainPiece :=
+  ⟨1332, [0x24040513, 0x27040613, 0x908e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 1⟩
+def piece1338 : ChainPiece :=
+  ⟨1338, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece1341 : ChainPiece :=
+  ⟨1341, [0xd35ff06f], .jump 1162⟩
+def piece1342 : ChainPiece :=
+  ⟨1342, [0x28040513, 0x2b040613, 0x8c8e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 1⟩
+def piece1348 : ChainPiece :=
+  ⟨1348, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
 def piece1351 : ChainPiece :=
-  ⟨1351, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece1353 : ChainPiece :=
-  ⟨1353, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
+  ⟨1351, [0x24040513, 0x27040613, 0x900e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 0⟩
 def piece1357 : ChainPiece :=
-  ⟨1357, [0x8d1ff06f], .jump 897⟩
-def piece1358 : ChainPiece :=
-  ⟨1358, [0x28040513, 0x2b040613, 0x08cf8c93, 0x01953823, 0x00000073], .head 640 688 3 0⟩
-def piece1363 : ChainPiece :=
-  ⟨1363, [0x007508a3, 0x00000073], .rung 1 none⟩
+  ⟨1357, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece1359 : ChainPiece :=
+  ⟨1359, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1361 : ChainPiece :=
+  ⟨1361, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
 def piece1365 : ChainPiece :=
-  ⟨1365, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece1367 : ChainPiece :=
-  ⟨1367, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
-def piece1371 : ChainPiece :=
-  ⟨1371, [0x8d9ff06f], .jump 913⟩
+  ⟨1365, [0x859ff06f], .jump 875⟩
+def piece1366 : ChainPiece :=
+  ⟨1366, [0x28040513, 0x2b040613, 0x8c8e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 1⟩
 def piece1372 : ChainPiece :=
-  ⟨1372, [0x28040513, 0x2b040613, 0x08cf8c93, 0x01953823, 0x00000073], .head 640 688 3 0⟩
-def piece1377 : ChainPiece :=
-  ⟨1377, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece1379 : ChainPiece :=
-  ⟨1379, [0x00d508a3, 0x00000073], .rung 2 none⟩
+  ⟨1372, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+def piece1375 : ChainPiece :=
+  ⟨1375, [0x24040513, 0x27040613, 0x900e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 0⟩
 def piece1381 : ChainPiece :=
-  ⟨1381, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
-def piece1385 : ChainPiece :=
-  ⟨1385, [0x8edff06f], .jump 932⟩
+  ⟨1381, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece1383 : ChainPiece :=
+  ⟨1383, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
 def piece1386 : ChainPiece :=
-  ⟨1386, [0x28040513, 0x2b040613, 0x08cf8c93, 0x01953823, 0x00000073], .head 640 688 3 0⟩
-def piece1391 : ChainPiece :=
-  ⟨1391, [0x007508a3, 0x00000073], .rung 1 none⟩
+  ⟨1386, [0x20040513, 0x23040613, 0x950e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 512 560 5 2⟩
+def piece1392 : ChainPiece :=
+  ⟨1392, [0x23043183, 0x23843703, 0x3c343823, 0x3ce43c23], .copy 512 976⟩
+def piece1396 : ChainPiece :=
+  ⟨1396, [0x949ff06f], .jump 966⟩
+def piece1397 : ChainPiece :=
+  ⟨1397, [0x28040513, 0x2b040613, 0x8c0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 0⟩
+def piece1403 : ChainPiece :=
+  ⟨1403, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece1405 : ChainPiece :=
+  ⟨1405, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1407 : ChainPiece :=
+  ⟨1407, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
+def piece1411 : ChainPiece :=
+  ⟨1411, [0x809ff06f], .jump 901⟩
+def piece1412 : ChainPiece :=
+  ⟨1412, [0x28040513, 0x2b040613, 0x8c0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 0⟩
+def piece1418 : ChainPiece :=
+  ⟨1418, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece1420 : ChainPiece :=
+  ⟨1420, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1422 : ChainPiece :=
+  ⟨1422, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
+def piece1426 : ChainPiece :=
+  ⟨1426, [0xffcff06f], .jump 913⟩
+def piece1427 : ChainPiece :=
+  ⟨1427, [0x28040513, 0x2b040613, 0x8c0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 0⟩
+def piece1433 : ChainPiece :=
+  ⟨1433, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece1435 : ChainPiece :=
+  ⟨1435, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1437 : ChainPiece :=
+  ⟨1437, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
+def piece1441 : ChainPiece :=
+  ⟨1441, [0x809ff06f], .jump 931⟩
+def piece1442 : ChainPiece :=
+  ⟨1442, [0x28040513, 0x2b040613, 0x8c0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 0⟩
+def piece1448 : ChainPiece :=
+  ⟨1448, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece1450 : ChainPiece :=
+  ⟨1450, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1452 : ChainPiece :=
+  ⟨1452, [0x2b043183, 0x2b843703, 0x3a343823, 0x3ae43c23], .copy 640 944⟩
+def piece1456 : ChainPiece :=
+  ⟨1456, [0x821ff06f], .jump 952⟩
+def piece1457 : ChainPiece :=
+  ⟨1457, [0x28040513, 0x2b040613, 0x8c0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 0⟩
+def piece1463 : ChainPiece :=
+  ⟨1463, [0x00650a23, 0x00000073], .rung 1 none⟩
 def chainBatch02 : List ChainPiece :=
-  [piece1189, piece1192, piece1197, piece1198, piece1203, piece1206, piece1211, piece1212, piece1217, piece1220, piece1225, piece1226, piece1231, piece1234, piece1239, piece1241, piece1245, piece1246, piece1251, piece1254, piece1259, piece1262, piece1263, piece1268, piece1271, piece1276, piece1279, piece1280, piece1285, piece1288, piece1293, piece1295, piece1297, piece1301, piece1302, piece1307, piece1310, piece1315, piece1317, piece1320, piece1325, piece1329, piece1330, piece1335, piece1337, piece1339, piece1343, piece1344, piece1349, piece1351, piece1353, piece1357, piece1358, piece1363, piece1365, piece1367, piece1371, piece1372, piece1377, piece1379, piece1381, piece1385, piece1386, piece1391]
+  [piece1240, piece1243, piece1249, piece1250, piece1256, piece1259, piece1265, piece1266, piece1272, piece1275, piece1281, piece1282, piece1288, piece1291, piece1297, piece1299, piece1303, piece1304, piece1310, piece1313, piece1319, piece1322, piece1323, piece1329, piece1332, piece1338, piece1341, piece1342, piece1348, piece1351, piece1357, piece1359, piece1361, piece1365, piece1366, piece1372, piece1375, piece1381, piece1383, piece1386, piece1392, piece1396, piece1397, piece1403, piece1405, piece1407, piece1411, piece1412, piece1418, piece1420, piece1422, piece1426, piece1427, piece1433, piece1435, piece1437, piece1441, piece1442, piece1448, piece1450, piece1452, piece1456, piece1457, piece1463]
 theorem chainBatch02_checked : (chainBatch02.all ChainPiece.checked) = true := by
   decide +kernel
-def piece1393 : ChainPiece :=
-  ⟨1393, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
-def piece1396 : ChainPiece :=
-  ⟨1396, [0x24040513, 0x27040613, 0x290f8c93, 0x01953823, 0x00000073], .head 576 624 4 2⟩
-def piece1401 : ChainPiece :=
-  ⟨1401, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
-def piece1405 : ChainPiece :=
-  ⟨1405, [0xaf1ff06f], .jump 1081⟩
-def piece1406 : ChainPiece :=
-  ⟨1406, [0x28040513, 0x2b040613, 0x08cf8c93, 0x01953823, 0x00000073], .head 640 688 3 0⟩
-def piece1411 : ChainPiece :=
-  ⟨1411, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece1413 : ChainPiece :=
-  ⟨1413, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
-def piece1416 : ChainPiece :=
-  ⟨1416, [0x24040513, 0x3c040613, 0x290f8c93, 0x01953823, 0x00000073], .head 576 960 4 2⟩
-def piece1421 : ChainPiece :=
-  ⟨1421, [0xaf1ff06f], .jump 1097⟩
-def piece1422 : ChainPiece :=
-  ⟨1422, [0x28040513, 0x2b040613, 0x08cf8c93, 0x01953823, 0x00000073], .head 640 688 3 0⟩
-def piece1427 : ChainPiece :=
-  ⟨1427, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece1429 : ChainPiece :=
-  ⟨1429, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
-def piece1432 : ChainPiece :=
-  ⟨1432, [0x24040513, 0x3c040613, 0x290f8c93, 0x01953823, 0x00000073], .head 576 960 4 2⟩
-def piece1437 : ChainPiece :=
-  ⟨1437, [0xb05ff06f], .jump 1118⟩
-def piece1438 : ChainPiece :=
-  ⟨1438, [0x28040513, 0x2b040613, 0x08cf8c93, 0x01953823, 0x00000073], .head 640 688 3 0⟩
-def piece1443 : ChainPiece :=
-  ⟨1443, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece1445 : ChainPiece :=
-  ⟨1445, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
-def piece1448 : ChainPiece :=
-  ⟨1448, [0x24040513, 0x27040613, 0x190f8c93, 0x01953823, 0x00000073], .head 576 624 4 1⟩
-def piece1453 : ChainPiece :=
-  ⟨1453, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece1455 : ChainPiece :=
-  ⟨1455, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
-def piece1459 : ChainPiece :=
-  ⟨1459, [0xd89ff06f], .jump 1301⟩
-def piece1460 : ChainPiece :=
-  ⟨1460, [0x28040513, 0x2b040613, 0x08cf8c93, 0x01953823, 0x00000073], .head 640 688 3 0⟩
 def piece1465 : ChainPiece :=
-  ⟨1465, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece1467 : ChainPiece :=
-  ⟨1467, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
-def piece1470 : ChainPiece :=
-  ⟨1470, [0x24040513, 0x27040613, 0x190f8c93, 0x01953823, 0x00000073], .head 576 624 4 1⟩
-def piece1475 : ChainPiece :=
-  ⟨1475, [0x00d508a3, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+  ⟨1465, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+def piece1468 : ChainPiece :=
+  ⟨1468, [0x24040513, 0x27040613, 0x910e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 2⟩
+def piece1474 : ChainPiece :=
+  ⟨1474, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
 def piece1478 : ChainPiece :=
-  ⟨1478, [0xd89ff06f], .jump 1320⟩
+  ⟨1478, [0xa69ff06f], .jump 1120⟩
 def piece1479 : ChainPiece :=
-  ⟨1479, [0x28040513, 0x2b040613, 0x08cf8c93, 0x01953823, 0x00000073], .head 640 688 3 0⟩
-def piece1484 : ChainPiece :=
-  ⟨1484, [0x007508a3, 0x00000073], .rung 1 none⟩
-def piece1486 : ChainPiece :=
-  ⟨1486, [0x00d508a3, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
-def piece1489 : ChainPiece :=
-  ⟨1489, [0x24040513, 0x27040613, 0x090f8c93, 0x01953823, 0x00000073], .head 576 624 4 0⟩
-def piece1494 : ChainPiece :=
-  ⟨1494, [0x007508a3, 0x00000073], .rung 1 none⟩
+  ⟨1479, [0x28040513, 0x2b040613, 0x8c0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 0⟩
+def piece1485 : ChainPiece :=
+  ⟨1485, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece1487 : ChainPiece :=
+  ⟨1487, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+def piece1490 : ChainPiece :=
+  ⟨1490, [0x24040513, 0x3c040613, 0x910e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 960 4 2⟩
 def piece1496 : ChainPiece :=
-  ⟨1496, [0x00d508a3, 0x00000073], .rung 2 none⟩
-def piece1498 : ChainPiece :=
-  ⟨1498, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
-def piece1502 : ChainPiece :=
-  ⟨1502, [0xf4cff06f], .jump 945⟩
+  ⟨1496, [0xa69ff06f], .jump 1138⟩
+def piece1497 : ChainPiece :=
+  ⟨1497, [0x28040513, 0x2b040613, 0x8c0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 0⟩
 def piece1503 : ChainPiece :=
-  ⟨1503, [0x2c040513, 0x2f040613, 0x288f8c93, 0x01953823, 0x00000073], .head 704 752 2 2⟩
+  ⟨1503, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece1505 : ChainPiece :=
+  ⟨1505, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
 def piece1508 : ChainPiece :=
-  ⟨1508, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
-def piece1512 : ChainPiece :=
-  ⟨1512, [0xf60ff06f], .jump 960⟩
-def piece1513 : ChainPiece :=
-  ⟨1513, [0x2c040513, 0x2f040613, 0x288f8c93, 0x01953823, 0x00000073], .head 704 752 2 2⟩
-def piece1518 : ChainPiece :=
-  ⟨1518, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
-def piece1522 : ChainPiece :=
-  ⟨1522, [0xf60ff06f], .jump 970⟩
+  ⟨1508, [0x24040513, 0x3c040613, 0x910e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 960 4 2⟩
+def piece1514 : ChainPiece :=
+  ⟨1514, [0xa81ff06f], .jump 1162⟩
+def piece1515 : ChainPiece :=
+  ⟨1515, [0x28040513, 0x2b040613, 0x8c0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 0⟩
+def piece1521 : ChainPiece :=
+  ⟨1521, [0x00650a23, 0x00000073], .rung 1 none⟩
 def piece1523 : ChainPiece :=
-  ⟨1523, [0x2c040513, 0x2f040613, 0x288f8c93, 0x01953823, 0x00000073], .head 704 752 2 2⟩
-def piece1528 : ChainPiece :=
-  ⟨1528, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
+  ⟨1523, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+def piece1526 : ChainPiece :=
+  ⟨1526, [0x24040513, 0x27040613, 0x908e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 1⟩
 def piece1532 : ChainPiece :=
-  ⟨1532, [0xf50ff06f], .jump 976⟩
-def piece1533 : ChainPiece :=
-  ⟨1533, [0x2c040513, 0x2f040613, 0x288f8c93, 0x01953823, 0x00000073], .head 704 752 2 2⟩
+  ⟨1532, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1534 : ChainPiece :=
+  ⟨1534, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
 def piece1538 : ChainPiece :=
-  ⟨1538, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
-def piece1542 : ChainPiece :=
-  ⟨1542, [0xf54ff06f], .jump 987⟩
-def piece1543 : ChainPiece :=
-  ⟨1543, [0x2c040513, 0x2f040613, 0x288f8c93, 0x01953823, 0x00000073], .head 704 752 2 2⟩
-def piece1548 : ChainPiece :=
-  ⟨1548, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
-def piece1552 : ChainPiece :=
-  ⟨1552, [0xf58ff06f], .jump 998⟩
-def piece1553 : ChainPiece :=
-  ⟨1553, [0x2c040513, 0x2f040613, 0x288f8c93, 0x01953823, 0x00000073], .head 704 752 2 2⟩
-def piece1558 : ChainPiece :=
-  ⟨1558, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
-def piece1562 : ChainPiece :=
-  ⟨1562, [0xf5cff06f], .jump 1009⟩
-def piece1563 : ChainPiece :=
-  ⟨1563, [0x2c040513, 0x2f040613, 0x288f8c93, 0x01953823, 0x00000073], .head 704 752 2 2⟩
+  ⟨1538, [0xd4dff06f], .jump 1365⟩
+def piece1539 : ChainPiece :=
+  ⟨1539, [0x28040513, 0x2b040613, 0x8c0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 0⟩
+def piece1545 : ChainPiece :=
+  ⟨1545, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece1547 : ChainPiece :=
+  ⟨1547, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+def piece1550 : ChainPiece :=
+  ⟨1550, [0x24040513, 0x27040613, 0x908e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 1⟩
+def piece1556 : ChainPiece :=
+  ⟨1556, [0x00750a23, 0x3c040613, 0x00000073], .rung 2 (some 960)⟩
+def piece1559 : ChainPiece :=
+  ⟨1559, [0xd4dff06f], .jump 1386⟩
+def piece1560 : ChainPiece :=
+  ⟨1560, [0x28040513, 0x2b040613, 0x8c0e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 640 688 3 0⟩
+def piece1566 : ChainPiece :=
+  ⟨1566, [0x00650a23, 0x00000073], .rung 1 none⟩
 def piece1568 : ChainPiece :=
-  ⟨1568, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
-def piece1572 : ChainPiece :=
-  ⟨1572, [0xf78ff06f], .jump 1026⟩
-def piece1573 : ChainPiece :=
-  ⟨1573, [0x2c040513, 0x2f040613, 0x288f8c93, 0x01953823, 0x00000073], .head 704 752 2 2⟩
-def piece1578 : ChainPiece :=
-  ⟨1578, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
-def piece1582 : ChainPiece :=
-  ⟨1582, [0xf88ff06f], .jump 1040⟩
-def piece1583 : ChainPiece :=
-  ⟨1583, [0x2c040513, 0x2f040613, 0x288f8c93, 0x01953823, 0x00000073], .head 704 752 2 2⟩
-def piece1588 : ChainPiece :=
-  ⟨1588, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
+  ⟨1568, [0x00750a23, 0x3b040613, 0x00000073], .rung 2 (some 944)⟩
+def piece1571 : ChainPiece :=
+  ⟨1571, [0x24040513, 0x27040613, 0x900e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 576 624 4 0⟩
+def piece1577 : ChainPiece :=
+  ⟨1577, [0x00650a23, 0x00000073], .rung 1 none⟩
+def piece1579 : ChainPiece :=
+  ⟨1579, [0x00750a23, 0x00000073], .rung 2 none⟩
+def piece1581 : ChainPiece :=
+  ⟨1581, [0x27043183, 0x27843703, 0x3c343023, 0x3ce43423], .copy 576 960⟩
+def piece1585 : ChainPiece :=
+  ⟨1585, [0xe54ff06f], .jump 966⟩
+def piece1586 : ChainPiece :=
+  ⟨1586, [0x2c040513, 0x2f040613, 0x890e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 704 752 2 2⟩
 def piece1592 : ChainPiece :=
-  ⟨1592, [0xf98ff06f], .jump 1054⟩
-def piece1593 : ChainPiece :=
-  ⟨1593, [0x2c040513, 0x2f040613, 0x288f8c93, 0x01953823, 0x00000073], .head 704 752 2 2⟩
-def piece1598 : ChainPiece :=
-  ⟨1598, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
+  ⟨1592, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
+def piece1596 : ChainPiece :=
+  ⟨1596, [0xe68ff06f], .jump 982⟩
+def piece1597 : ChainPiece :=
+  ⟨1597, [0x2c040513, 0x2f040613, 0x890e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 704 752 2 2⟩
+def piece1603 : ChainPiece :=
+  ⟨1603, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
+def piece1607 : ChainPiece :=
+  ⟨1607, [0xe68ff06f], .jump 993⟩
+def piece1608 : ChainPiece :=
+  ⟨1608, [0x2c040513, 0x2f040613, 0x890e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 704 752 2 2⟩
+def piece1614 : ChainPiece :=
+  ⟨1614, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
+def piece1618 : ChainPiece :=
+  ⟨1618, [0xe58ff06f], .jump 1000⟩
+def piece1619 : ChainPiece :=
+  ⟨1619, [0x2c040513, 0x2f040613, 0x890e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 704 752 2 2⟩
+def piece1625 : ChainPiece :=
+  ⟨1625, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
+def piece1629 : ChainPiece :=
+  ⟨1629, [0xe60ff06f], .jump 1013⟩
+def piece1630 : ChainPiece :=
+  ⟨1630, [0x2c040513, 0x2f040613, 0x890e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 704 752 2 2⟩
+def piece1636 : ChainPiece :=
+  ⟨1636, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
+def piece1640 : ChainPiece :=
+  ⟨1640, [0xe68ff06f], .jump 1026⟩
+def piece1641 : ChainPiece :=
+  ⟨1641, [0x2c040513, 0x2f040613, 0x890e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 704 752 2 2⟩
+def piece1647 : ChainPiece :=
+  ⟨1647, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
+def piece1651 : ChainPiece :=
+  ⟨1651, [0xe70ff06f], .jump 1039⟩
+def piece1652 : ChainPiece :=
+  ⟨1652, [0x2c040513, 0x2f040613, 0x890e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 704 752 2 2⟩
+def piece1658 : ChainPiece :=
+  ⟨1658, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
+def piece1662 : ChainPiece :=
+  ⟨1662, [0xe90ff06f], .jump 1058⟩
+def piece1663 : ChainPiece :=
+  ⟨1663, [0x2c040513, 0x2f040613, 0x890e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 704 752 2 2⟩
+def piece1669 : ChainPiece :=
+  ⟨1669, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
+def piece1673 : ChainPiece :=
+  ⟨1673, [0xea4ff06f], .jump 1074⟩
+def piece1674 : ChainPiece :=
+  ⟨1674, [0x2c040513, 0x2f040613, 0x890e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 704 752 2 2⟩
+def piece1680 : ChainPiece :=
+  ⟨1680, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
+def piece1684 : ChainPiece :=
+  ⟨1684, [0xeb8ff06f], .jump 1090⟩
+def piece1685 : ChainPiece :=
+  ⟨1685, [0x2c040513, 0x2f040613, 0x890e3c83, 0x01953823, 0x00453c23, 0x00000073], .head 704 752 2 2⟩
+def piece1691 : ChainPiece :=
+  ⟨1691, [0x2f043183, 0x2f843703, 0x3a343023, 0x3ae43423], .copy 704 928⟩
 def chainBatch03 : List ChainPiece :=
-  [piece1393, piece1396, piece1401, piece1405, piece1406, piece1411, piece1413, piece1416, piece1421, piece1422, piece1427, piece1429, piece1432, piece1437, piece1438, piece1443, piece1445, piece1448, piece1453, piece1455, piece1459, piece1460, piece1465, piece1467, piece1470, piece1475, piece1478, piece1479, piece1484, piece1486, piece1489, piece1494, piece1496, piece1498, piece1502, piece1503, piece1508, piece1512, piece1513, piece1518, piece1522, piece1523, piece1528, piece1532, piece1533, piece1538, piece1542, piece1543, piece1548, piece1552, piece1553, piece1558, piece1562, piece1563, piece1568, piece1572, piece1573, piece1578, piece1582, piece1583, piece1588, piece1592, piece1593, piece1598]
+  [piece1465, piece1468, piece1474, piece1478, piece1479, piece1485, piece1487, piece1490, piece1496, piece1497, piece1503, piece1505, piece1508, piece1514, piece1515, piece1521, piece1523, piece1526, piece1532, piece1534, piece1538, piece1539, piece1545, piece1547, piece1550, piece1556, piece1559, piece1560, piece1566, piece1568, piece1571, piece1577, piece1579, piece1581, piece1585, piece1586, piece1592, piece1596, piece1597, piece1603, piece1607, piece1608, piece1614, piece1618, piece1619, piece1625, piece1629, piece1630, piece1636, piece1640, piece1641, piece1647, piece1651, piece1652, piece1658, piece1662, piece1663, piece1669, piece1673, piece1674, piece1680, piece1684, piece1685, piece1691]
 theorem chainBatch03_checked : (chainBatch03.all ChainPiece.checked) = true := by
   decide +kernel
 end W9Machine

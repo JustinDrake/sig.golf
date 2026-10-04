@@ -257,8 +257,6 @@ theorem chainBatch49_linked :
 theorem chainBatch50_linked :
     (chainBatch50.all fun p ↦ sliceChecked p.pc p.words) = true := by
   decide +kernel
-theorem chainBatch51_linked :
-    (chainBatch51.all fun p => sliceChecked p.pc p.words) = true := by decide +kernel
 end W9Machine
 end
 
@@ -482,9 +480,5 @@ theorem chainBatch50_evidence : PlanLinked chainBatch50 := by
   intro p hp
   exact ⟨List.all_eq_true.mp chainBatch50_linked p hp,
     List.all_eq_true.mp chainBatch50_checked p hp⟩
-theorem chainBatch51_evidence : PlanLinked chainBatch51 := by
-  intro p hp
-  exact ⟨List.all_eq_true.mp chainBatch51_linked p hp,
-    List.all_eq_true.mp chainBatch51_checked p hp⟩
 end W9Machine
 end

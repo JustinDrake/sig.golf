@@ -1,50 +1,32 @@
-import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Expand.Defs
-import SigGolfCandidate.T3M.Expand.Layers
 import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Expand.ComposeBack
+import SigGolfCandidate.T3M.Expand.Layers
 import SigGolfCandidate.T3M.Expand.Blocks
 import SigGolfCandidate.T3M.ImageSlice
 import SigGolfCandidate.T3M.Images.DataPartsExpand
+import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Expand.Defs
 import SigGolfCandidate.T3M.Verify.Code
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Final.Pending
-import SigGolfCandidate.ClaudeWCT.W9.T3M.Submission
-import SigGolfCandidate.T3M.Sign.WctCertified
 import SigGolfCandidate.T3M.Submission
-import SigGolfCandidate.T3M.Sign.WctFinal
 
 section
-
-
-namespace ClaudeWCT.W9.Machine.Expand
-open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
-open SigGolfCandidate.T3M
-open SigGolfCandidate.T3 (Digest HashOutput M)
-open SigGolfCandidate.T3M.Search (KernAt)
-open SigGolfCandidate.T3M.Expand (LInv LPost lcost)
-def BackSpec (im : Image) : Prop :=
-  (∀ (sk : BitVec 256) (sig : WCT9.Signature) (index : Nat) (root : Digest) (s : MachineState),
-    LInv sig index 4 (.forest root) s →
-      TBSim im sk s (lcost 4) (WCT9.expandLayersBC sig index 4 (.forest root)) (LPost s sig index 4)) ∧
-  CodeAt im (pcOf 342) compareCode ∧ KernAt im 354
-def ExpandComposeSpec : Prop :=
-  ∀ imgs : Phase → Image, (imgs .expand).Valid (w9Sub imgs).sizes (w9Sub imgs).layout →
-    NewCodeAt (imgs .expand) → FrontAt (imgs .expand) → ExpandDataOK (imgs .expand) → BackSpec (imgs .expand) →
-    ExpandRefinesW imgs ∧ ExpandTerminatesW imgs
-end ClaudeWCT.W9.Machine.Expand
-end
-
-section
-
 
 namespace ClaudeWCT.W9.Machine.Expand
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M
 open SigGolfCandidate.T3 (Digest HashOutput M Layer height chainCount route)
 open SigGolfCandidate.T3M.Search (DIG NBUF ENC OutAt FailedAt TOP_DATA TableOK KernAt NODE NOUT EOUT DIGITS)
-open SigGolfCandidate.T3M.Expand (IDXV LInv LPost lcost lP lD lk lWC lWM LW LZero SigLayersAt HalfAt
-  RlWit entryOf lval lpath sideOff CHAIN LEAFPK)
-open SigGolfCandidate.T3M.Expand.BC (ltable ltable_lo ltable_disj rlWit_range)
+open SigGolfCandidate.T3M.Expand (IDXV LInv LPost lcost lP lD lk lWC lWM lBase LW LZero SigLayersAt HalfAt
+  RlScratch RlWit entryOf layer_words readWords_zero headerBytes_words ltable ltable_lo ltable_disj rlWit_range
+  lBase_eq lval lpath sideOff CHAIN LEAFPK)
 open ClaudeWCT.W9.T3M (sigDig sigDec sigDigests sigDigests_sigDec sigDigests_layValue sigDigests_layPath)
 set_option linter.unusedSimpArgs false
+theorem frame_readWords {s t : MachineState} {W : Nat → Prop} (h : Frame s t W) (A : Nat) :
+    ∀ m, A + 8 * m ≤ 2 ^ 64 → (∀ i < m, ¬ W (A + 8 * i)) →
+      t.readWords (BitVec.ofNat 64 A) m = s.readWords (BitVec.ofNat 64 A) m
+  | 0, _, _ => rfl
+  | m + 1, hA, hW => by
+    rw [readWords_add, readWords_add, frame_readWords h A m (by omega) (fun i hi => hW i (by omega)),
+      readWords_one, readWords_one, h.get (by omega) (hW m (by omega))]
 theorem dword_of_halves (w : BitVec 64) :
     w = BitVec.ofNat 64 ((w.extractLsb' 0 32).toNat + 2 ^ 32 * (w.extractLsb' 32 32).toNat) := by
   apply BitVec.eq_of_toNat_eq
@@ -54,11 +36,11 @@ theorem dword_of_halves (w : BitVec 64) :
   rw [h1]
   omega
 def ExpQW : Option (HashOutput × WCT9.Witness) → MachineState → Prop
-  | none, t => FailedAt 354 t ∨ FailedAt 1418 t
+  | none, t => FailedAt 354 t ∨ FailedAt 1385 t
   | some (N, w), t => t.pc = pcOf 353 ∧ t.getReg .x5 = BitVec.ofNat 64 1 ∧ t.getReg .x10 = BitVec.ofNat 64 0 ∧
-      t.readWords (BitVec.ofNat 64 0x800) 3033 = wordsOf (ClaudeWCT.W9.T3M.witList N w)
+      t.readWords (BitVec.ofNat 64 0x800) 3155 = wordsOf (ClaudeWCT.W9.T3M.witList N w)
 def expCostW : Nat := 30 + newCost + (lcost 4 + 11)
-theorem lcost_four : lcost 4 ≤ 3000000000 := by decide
+theorem lcost_four : lcost 4 ≤ 2831226883 := by decide
 theorem expCostW_lt : expCostW + 1 < CYCLE_LIMIT := by
   have h := lcost_four
   unfold expCostW newCost CYCLE_LIMIT
@@ -70,31 +52,6 @@ theorem lP_eq (lay : Layer) : lP lay = 0x7000 + 2192 + 16 * (ClaudeWCT.W9.T3M.la
   fin_cases lay <;> decide
 def FrontW (A : Nat) : Prop :=
   A = 0x800 ∨ A = 0x808 ∨ A = DIG ∨ A = DIG + 8 ∨ A = DIG + 32 ∨ A = DIG + 40 ∨ A = DIG + 48 ∨ A = DIG + 56
-theorem lD_cases (lay : Layer) : lD lay = 0x41e8 ∨ lD lay = 0x4e68 ∨ lD lay = 0x5aa8 ∨ lD lay = 0x820 := by
-  fin_cases lay <;> simp [lD]
-theorem lk_zero (lay : Layer) : lk lay = 0 := by fin_cases lay <;> rfl
-theorem lD_above (lay : Layer) (h : lay.val ≠ 0) : lD (Fin.ofNat 4 (lay.val - 1)) = lBase lay + 32 := by
-  fin_cases lay <;> simp_all [lD, lBase] <;> rfl
-theorem fin_ofNat_pred (lay : Layer) : (Fin.ofNat 4 (lay.val - 1) : Layer).val = lay.val - 1 := by
-  fin_cases lay <;> rfl
-theorem region_bounds (lay : Layer) : 0x3148 ≤ lBase lay ∧ lBase lay + 64 * (height lay + chainCount lay) ≤ 0x66C8 := by
-  fin_cases lay <;> decide
-theorem lD_in_region (lay lay' : Layer) (A : Nat) (h1 : lBase lay ≤ A) (h2 : A < lBase lay + 64 * (height lay + chainCount lay))
-    (he : A = lD lay') : A = lBase lay + 32 := by
-  subst he
-  fin_cases lay <;> fin_cases lay' <;> simp_all [lD, lBase, height, chainCount] <;> omega
-theorem rlWit_region (lay lay' : Layer) (leaf A : Nat) (h1 : lBase lay ≤ A)
-    (h2 : A < lBase lay + 64 * (height lay + chainCount lay)) (hne : lay' ≠ lay)
-    (h : RlWit lay' leaf (lWC lay') (lWM lay') A) : False := by
-  have hr := rlWit_range h
-  obtain ⟨hWM, hWC⟩ := lBase_eq lay
-  obtain ⟨hWM', hWC'⟩ := lBase_eq lay'
-  have hH1 : 1 ≤ height lay := by fin_cases lay <;> decide
-  have hN1 : 1 ≤ chainCount lay := by fin_cases lay <;> decide
-  rcases ltable_disj lay' lay hne with hd | hd <;> omega
-theorem halves_lo (x z y : BitVec 32) (hy : y = 0) (hxz : x = z) :
-    BitVec.ofNat 64 (x.toNat + 2 ^ 32 * y.toNat) = BitVec.ofNat 64 z.toNat := by
-  subst hy hxz; simp
 section run
 variable {sk : BitVec 256}
 theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : ExpandDataOK im)
@@ -108,12 +65,11 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
   unfold HB0 at hz0
   rw [expandN_split]
   refine (TBSim.steps st1 (TBSim.bind (W₂ := lcost 4 + 11)
-    (newCode_tb hc (hookAt_of_front hF) sk m sig t1 hpre) (fun r t7 h7 => ?_))).mono
+    (newCodeSpec_holds hc (hookAt_of_front hF) sk m sig t1 hpre) (fun r t7 h7 => ?_))).mono
     (by unfold expCostW; omega) (fun _ _ h => h)
   rcases r with _ | ⟨counter, N, root⟩
-  · exact (TBSim.pure (Q := ExpQW) (a := none) (Or.inr h7.1)).mono (by omega) (fun _ _ h => h)
-  have P := h7.1
-  have hi7 := h7.2 rfl
+  · exact (TBSim.pure (Q := ExpQW) (a := none) (Or.inr h7)).mono (by omega) (fun _ _ h => h)
+  have P := h7
   simp only [NewPost] at P
   set index := N.toNat % 2 ^ 31 with hindex
   have hi : index < 2 ^ 31 := Nat.mod_lt _ (by positivity)
@@ -122,95 +78,75 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
     fun A hA h1 h2 => F7 A hA (fun h => h.elim h1 h2)
   have nFW : ∀ A, (A < 0x800 ∨ 0x810 ≤ A) → (A < DIG ∨ DIG + 64 ≤ A) → ¬ FrontW A := by
     intro A h1 h2 h; unfold FrontW at h; simp only [DIG] at h h2; omega
-  have nNW : ∀ A, A ≠ 0x810 → (A < 0x60 ∨ 0x80 ≤ A) → (A < 0x100 ∨ 0x120 ≤ A) → (A < 0x400 ∨ 0x550 ≤ A) →
-      (A < 0x840 ∨ 0x3148 ≤ A) → (A < 0x7890 ∨ 0x85f0 ≤ A) → (A < DIG + 16 ∨ DIG + 32 ≤ A) →
+  have nNW : ∀ A, A ≠ 0x810 → (A < 0x60 ∨ 0x80 ≤ A) → (A < 0x100 ∨ 0x120 ≤ A) → (A < 0x700 ∨ 0x7c0 ≤ A) →
+      (A < 0x840 ∨ 0x3418 ≤ A) → (A < 0x7890 ∨ 0x85f0 ≤ A) → (A < DIG + 16 ∨ DIG + 32 ≤ A) →
       (A < NBUF ∨ NBUF + 32 ≤ A) → A ≠ IDXV → A ≠ ENC → A ≠ ENC + 8 → ¬ NewW A := by
     intro A h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h
     unfold NewW at h; simp only [DIG, NBUF, IDXV, ENC] at h h7 h8 h9 h10 h11; omega
-  have z7 : ∀ A, A < 0x7000 → (A < 0x60 ∨ 0x80 ≤ A) → (A < 0x100 ∨ 0x120 ≤ A) → (A < 0x400 ∨ 0x550 ≤ A) →
-      (A < 0x800 ∨ 0x818 ≤ A) → (A < 0x840 ∨ 0x3148 ≤ A) → (A < 0xA0 ∨ 0xB0 ≤ A) → (A < 0x40 ∨ 0x60 ≤ A) →
-      t7.getMem (BitVec.ofNat 64 A) = 0 := by
-    intro A h0 h1 h2 h3 h4 h4' h5 h6
-    rw [g7 A (by omega) (nFW _ (by omega) (by simp only [DIG]; omega))
-      (nNW _ (by omega) h1 h2 h3 h4' (by omega) (by simp only [DIG]; omega) (by simp only [NBUF]; omega)
-        (by simp only [IDXV]; omega) (by simp only [ENC]; omega) (by simp only [ENC]; omega)),
-      hz0 _ (by omega) (by omega) h5 h6]
-  have z7h : ∀ A, 0x20000 ≤ A → A < 0x30000 → A ≠ ENC → A ≠ ENC + 8 → (A < DIG ∨ DIG + 64 ≤ A) →
-      (A < NBUF ∨ NBUF + 32 ≤ A) → A ≠ IDXV → t7.getMem (BitVec.ofNat 64 A) = 0 := by
-    intro A h0 h1 h2 h3 h4 h5 h6
-    rw [g7 A (by omega) (nFW _ (by omega) h4)
-      (nNW _ (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by simp only [DIG] at h4 ⊢; omega)
-        h5 h6 h2 h3),
-      hz0 _ (by omega) (by omega) (by omega) (by omega)]
-  have hL : LInv sig index 4 (.forest root) t7 := by
-    refine ⟨by rw [P.pc]; rfl, le_refl _, P.x5, hi, P.idx, P.enc, fun _ => ?_, fun h => absurd h (by decide),
-      ⟨0, by norm_num, ?_⟩, ?_, ?_, ?_⟩
-    · simp only [SigGolfCandidate.T3M.Search.BC.right]
-      refine ⟨?_, ?_⟩
-      · rw [z7h _ (by simp only [ENC]; omega) (by simp only [ENC]; omega) (by simp only [ENC]; omega)
-          (by simp only [ENC]; omega) (by simp only [DIG, ENC]; omega) (by simp only [NBUF, ENC]; omega)
-          (by simp only [IDXV, ENC]; omega)]; decide
-      · rw [z7h _ (by simp only [ENC]; omega) (by simp only [ENC]; omega) (by simp only [ENC]; omega)
-          (by simp only [ENC]; omega) (by simp only [DIG, ENC]; omega) (by simp only [NBUF, ENC]; omega)
-          (by simp only [IDXV, ENC]; omega)]; decide
-    · rw [z7h _ (by simp only [ENC]; omega) (by simp only [ENC]; omega) (by simp only [ENC]; omega)
-        (by simp only [ENC]; omega) (by simp only [DIG, ENC]; omega) (by simp only [NBUF, ENC]; omega)
-        (by simp only [IDXV, ENC]; omega)]; rfl
+  have hT3 : (WCT9.toT3Signature sig).layers = sig.layers := rfl
+  have hL : LInv (WCT9.toT3Signature sig) index 4 (root, 0, 0) t7 := by
+    refine ⟨by rw [P.pc]; rfl, le_refl _, P.x5, hi, P.idx, by rw [if_neg (by decide)]; exact P.enc,
+      fun _ => ⟨?_, ?_⟩, rfl, ⟨0, by norm_num, ?_⟩, ?_, ?_, ?_⟩
+    · rw [g7 _ (by decide) (nFW _ (by decide) (by decide))
+        (nNW _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide)), hz0 _ (by decide) (by decide) (by decide) (by decide)]
+      show (0 : BitVec 64) = BitVec.extractLsb' 0 64 (0 : BitVec 128); decide
+    · rw [g7 _ (by decide) (nFW _ (by decide) (by decide))
+        (nNW _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide)), hz0 _ (by decide) (by decide) (by decide) (by decide)]
+      show (0 : BitVec 64) = BitVec.extractLsb' 64 64 (0 : BitVec 128); decide
+    · rw [g7 _ (by decide) (nFW _ (by decide) (by decide))
+        (nNW _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide)), hz0 _ (by decide) (by decide) (by decide) (by decide)]
+      rfl
     · intro lay
       obtain ⟨hP, h127, hlen⟩ := lP_eq lay
       refine ⟨fun i hi' => ?_, fun j hj => ?_⟩
       · have hd := P.layers (ClaudeWCT.W9.T3M.layIdx lay - 127 + i) (by omega)
-        rw [show 127 + (ClaudeWCT.W9.T3M.layIdx lay - 127 + i) = ClaudeWCT.W9.T3M.layIdx lay + i by omega,
-          sigDigests_layValue sig lay i hi',
+        rw [show 127 + (ClaudeWCT.W9.T3M.layIdx lay - 127 + i) = ClaudeWCT.W9.T3M.layIdx lay + i by omega, sigDigests_layValue sig lay i hi',
           show 0x7000 + 2192 + 16 * (ClaudeWCT.W9.T3M.layIdx lay - 127 + i) = lP lay + 16 * i by rw [hP]; ring] at hd
         exact hd
       · have hd := P.layers (ClaudeWCT.W9.T3M.layIdx lay - 127 + (chainCount lay + j)) (by omega)
-        rw [show 127 + (ClaudeWCT.W9.T3M.layIdx lay - 127 + (chainCount lay + j)) =
-            ClaudeWCT.W9.T3M.layIdx lay + (chainCount lay + j) by omega,
+        rw [show 127 + (ClaudeWCT.W9.T3M.layIdx lay - 127 + (chainCount lay + j)) = ClaudeWCT.W9.T3M.layIdx lay + (chainCount lay + j) by omega,
           sigDigests_layPath sig lay j hj,
-          show 0x7000 + 2192 + 16 * (ClaudeWCT.W9.T3M.layIdx lay - 127 + (chainCount lay + j)) =
-            lP lay + 16 * chainCount lay + 16 * j by rw [hP]; ring] at hd
+          show 0x7000 + 2192 + 16 * (ClaudeWCT.W9.T3M.layIdx lay - 127 + (chainCount lay + j)) = lP lay + 16 * chainCount lay + 16 * j by
+            rw [hP]; ring] at hd
         exact hd
     · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      · rw [z7h _ (by simp only [CHAIN, Search.NODE, LEAFPK, ENC]; omega)
-          (by simp only [CHAIN, Search.NODE, LEAFPK, ENC]; omega) (by simp only [CHAIN, Search.NODE, LEAFPK, ENC]; omega)
-          (by simp only [CHAIN, Search.NODE, LEAFPK, ENC]; omega)
-          (by simp only [CHAIN, Search.NODE, LEAFPK, ENC, DIG]; omega)
-          (by simp only [CHAIN, Search.NODE, LEAFPK, ENC, NBUF]; omega)
-          (by simp only [CHAIN, Search.NODE, LEAFPK, ENC, IDXV]; omega)]
+      · rw [g7 _ (by decide) (nFW _ (by decide) (by decide))
+          (nNW _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+            (by decide) (by decide) (by decide)), hz0 _ (by decide) (by decide) (by decide) (by decide)]
     · apply (w9init_table hd m pk σ).frame F7
       intro i hi h
       rcases h with h | h
       · unfold FrontW at h; simp only [TOP_DATA, DIG] at h; omega
       · unfold NewW at h; simp only [TOP_DATA, DIG, NBUF, IDXV, ENC] at h; omega
   simp only [tailProg]
-  refine (TBSim.bind (W₂ := 11) (hB.1 sk sig index root t7 hL) (fun r8 t8 h8 => ?_)).mono
+  refine (TBSim.bind (W₂ := 11) (hB.1 sk (WCT9.toT3Signature sig) index root t7 hL) (fun r8 t8 h8 => ?_)).mono
     (by omega) (fun _ _ h => h)
   rcases r8 with _ | ⟨root', counters⟩
   · exact (TBSim.pure (Q := ExpQW) (a := none) (Or.inl h8)).mono (by omega) (fun _ _ h => h)
   obtain ⟨p8, x5_8, e8, hlen8, hout8, hhf8, r8, f8⟩ := h8
   have g87 : ∀ A, A < 2 ^ 64 → ¬ LW index 4 A → t8.getMem (BitVec.ofNat 64 A) = t7.getMem (BitVec.ofNat 64 A) :=
     fun A hA h => f8.get hA h
-  have nLW : ∀ A, A < 0x3148 → A ≠ 0x820 → ¬ LW index 4 A := by
-    intro A hA h8 h
-    rcases h with h | h | ⟨lay, _, h | h⟩
-    · unfold Search.CsW Search.DigW at h; simp only [ENC, EOUT, DIGITS] at h; omega
-    · simp only [SigGolfCandidate.T3M.Expand.BC.RlScratch, SigGolfCandidate.T3M.Expand.RlScratch, CHAIN, Search.NODE,
-        Search.NOUT, LEAFPK, ENC] at h; omega
-    · rcases lD_cases lay with e | e | e | e <;> omega
-    · have := rlWit_range h; have := ltable_lo lay; omega
   have hpk : ∀ j < 2, t8.getMem (BitVec.ofNat 64 (0xA0 + 8 * j)) = pk.extractLsb' (64 * j) 64 := by
     intro j hj
-    rw [g87 _ (by omega) (nLW _ (by omega) (by omega)), g7 _ (by omega) (nFW _ (by omega) (by simp only [DIG]; omega))
+    have nLW : ¬ LW index 4 (0xA0 + 8 * j) := by
+      rintro (h | h | ⟨lay, _, h | h⟩)
+      · unfold Search.CsW Search.DigW at h; simp only [ENC, EOUT, DIGITS] at h; omega
+      · unfold RlScratch at h; simp only [CHAIN, NODE, NOUT, LEAFPK, ENC] at h; omega
+      · have := (ltable lay).2.2.2.2.2.2.2.2.2.1; omega
+      · have := rlWit_range h; have := ltable_lo lay; omega
+    rw [g87 _ (by omega) nLW, g7 _ (by omega) (nFW _ (by omega) (by simp only [DIG]; omega))
       (nNW _ (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by simp only [DIG]; omega)
         (by simp only [NBUF]; omega) (by simp only [IDXV]; omega) (by simp only [ENC]; omega)
         (by simp only [ENC]; omega))]
     exact w9init_pk hd m pk σ j hj
   obtain ⟨t9, st9, p9, x28, x29, r9, f9⟩ := c342W hB.2.1 t8 p8
-  have hlo : (t8.getMem (BitVec.ofNat 64 ENC) = t8.getMem (BitVec.ofNat 64 0xA0)) ↔
+  have hlo : (t8.getMem (BitVec.ofNat 64 NOUT) = t8.getMem (BitVec.ofNat 64 0xA0)) ↔
       root'.extractLsb' 0 64 = pk.extractLsb' 0 64 := by
     rw [e8.1, show (0xA0 : Nat) = 0xA0 + 8 * 0 from rfl, hpk 0 (by decide)]
-  have hhi : (t9.getMem (BitVec.ofNat 64 (ENC + 8)) = t9.getMem (BitVec.ofNat 64 0xA8)) ↔
+  have hhi : (t9.getMem (BitVec.ofNat 64 (NOUT + 8)) = t9.getMem (BitVec.ofNat 64 0xA8)) ↔
       root'.extractLsb' 64 64 = pk.extractLsb' 64 64 := by
     rw [f9.get (by decide) (by simp), f9.get (by decide) (by simp), e8.2,
       show (0xA8 : Nat) = 0xA0 + 8 * 1 from rfl, hpk 1 (by decide)]
@@ -238,120 +174,125 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
       (fun _ _ h => h)
     have f811 : Frame t8 t11 (fun _ => False) := ((f9.trans f10).trans f11).mono (fun _ _ h => by
       rcases h with (h | h) | h <;> exact h)
-    rw [frame_readWords f811 0x800 3033 (by decide) (fun _ _ h => h)]
+    rw [frame_readWords f811 0x800 3155 (by decide) (fun _ _ h => h)]
+    have nLW : ∀ A, (A < 0x810 ∨ (0x828 ≤ A ∧ A < 0x3418)) → ¬ LW index 4 A := by
+      intro A hA h
+      rcases h with h | h | ⟨lay, _, h | h⟩
+      · unfold Search.CsW Search.DigW at h; simp only [ENC, EOUT, DIGITS] at h; omega
+      · unfold RlScratch at h; simp only [CHAIN, NODE, NOUT, LEAFPK, ENC] at h; omega
+      · have := (ltable lay).2.2.2.2.2.2.2.2.2.1; have := (ltable lay).2.2.2.2.2.2.2.2.1; omega
+      · have := rlWit_range h; have := ltable_lo lay; omega
     set w : WCT9.Witness := ⟨sig, counter, fun lay => counters.getD lay.val 0⟩ with hw
+    have hdw : ∀ D, (D = 0x810 ∨ D = 0x818 ∨ D = 0x820) → ∀ k, k < 2 →
+        (∀ lay : Layer, lay.val < 4 → ¬ (lD lay = D ∧ lk lay = k)) →
+        (t8.getMem (BitVec.ofNat 64 D)).extractLsb' (32 * k) 32 =
+          (t7.getMem (BitVec.ofNat 64 D)).extractLsb' (32 * k) 32 := by
+      intro D hD k hk hn
+      exact hhf8 D k hD hk hn
+    have c0 : (t8.getMem (BitVec.ofNat 64 0x810)).extractLsb' 0 32 = counter := by
+      have := hdw 0x810 (Or.inl rfl) 0 (by decide) (fun lay _ h => by
+        revert h; fin_cases lay <;> simp [lD, lk])
+      simp only [Nat.mul_zero] at this
+      rw [this]; exact P.dc
+    have c20 : (t8.getMem (BitVec.ofNat 64 0x820)).extractLsb' 32 32 = 0 := by
+      have := hdw 0x820 (Or.inr (Or.inr rfl)) 1 (by decide) (fun lay _ h => by
+        revert h; fin_cases lay <;> simp [lD, lk])
+      simp only [Nat.mul_one] at this
+      rw [this, g7 _ (by decide) (nFW _ (by decide) (by decide))
+        (nNW _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide)), hz0 _ (by decide) (by decide) (by decide) (by decide)]
+      rfl
+    have hhalf : ∀ lay : Layer, HalfAt t8 (lD lay) (lk lay) (counters.getD lay.val 0) :=
+      fun lay => (hout8 lay (by omega)).1
     have halves : ∀ D lo hi, (t8.getMem (BitVec.ofNat 64 D)).extractLsb' 0 32 = lo →
         (t8.getMem (BitVec.ofNat 64 D)).extractLsb' 32 32 = hi →
         t8.getMem (BitVec.ofNat 64 D) = BitVec.ofNat 64 (lo.toNat + 2 ^ 32 * hi.toNat) := by
       intro D lo hi h1 h2
       rw [dword_of_halves (t8.getMem (BitVec.ofNat 64 D)), h1, h2]
-    have hhf1 : ∀ D, (D = 0x41e8 ∨ D = 0x4e68 ∨ D = 0x5aa8 ∨ D = 0x820) →
-        (t8.getMem (BitVec.ofNat 64 D)).extractLsb' 32 32 = (t7.getMem (BitVec.ofNat 64 D)).extractLsb' 32 32 := by
-      intro D hD
-      have := hhf8 D 1 (by rcases hD with h | h | h | h <;> simp [h]) (by decide)
-        (fun lay _ h => by rw [lk_zero] at h; exact absurd h.2 (by decide))
-      simpa using this
-    have r0 : t8.getMem (BitVec.ofNat 64 0x800) = sig.rho.extractLsb' 0 64 := by
-      rw [g87 _ (by decide) (nLW _ (by decide) (by decide)),
-        P.frame _ (by decide) (by unfold NewW; simp only [DIG, NBUF, IDXV, ENC]; omega)]
-      exact w800
-    have r8' : t8.getMem (BitVec.ofNat 64 0x808) = sig.rho.extractLsb' 64 64 := by
-      rw [g87 _ (by decide) (nLW _ (by decide) (by decide)),
-        P.frame _ (by decide) (by unfold NewW; simp only [DIG, NBUF, IDXV, ENC]; omega)]
-      exact w808
-    have c810 : t8.getMem (BitVec.ofNat 64 0x810) = BitVec.ofNat 64 counter.toNat := by
-      rw [g87 _ (by decide) (nLW _ (by decide) (by decide))]
-      have hhi0 : (t7.getMem (BitVec.ofNat 64 0x810)).extractLsb' 32 32 = 0 := by
-        rw [hi7, show t1.getMem (BitVec.ofNat 64 0x810) = s0.getMem (BitVec.ofNat 64 0x810) from
-          f1.get (by decide) (by simp only [DIG]; omega), hz0 _ (by decide) (by decide) (by decide)
-          (by decide)]
-        rfl
-      rw [dword_of_halves (t7.getMem (BitVec.ofNat 64 0x810)), P.dc, hhi0]
-      simp
-    have c818 : t8.getMem (BitVec.ofNat 64 0x818) = 0 := by
-      rw [g87 _ (by decide) (nLW _ (by decide) (by decide))]
-      exact z7 _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
-    have c820 : t8.getMem (BitVec.ofNat 64 0x820) = BitVec.ofNat 64 (counters.getD 3 0).toNat := by
-      have hlo3 := (hout8 3 (by decide)).1
-      simp only [HalfAt, show lD (3 : Layer) = 0x820 from rfl, show lk (3 : Layer) = 0 from rfl, Nat.mul_zero] at hlo3
-      have hhi3 := hhf1 0x820 (by simp)
-      rw [z7 _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)] at hhi3
-      rw [halves 0x820 _ _ hlo3 hhi3]
-      simp
     have hz8 : ∀ A, 0x828 ≤ A → A < 0x840 → t8.getMem (BitVec.ofNat 64 A) = 0 := by
       intro A h1 h2
-      rw [g87 A (by omega) (nLW A (by omega) (by omega))]
-      exact z7 _ (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)
+      rw [g87 A (by omega) (nLW A (by omega)), g7 A (by omega) (nFW _ (by omega) (by simp only [DIG]; omega))
+        (nNW _ (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by simp only [DIG]; omega)
+          (by simp only [NBUF]; omega) (by simp only [IDXV]; omega) (by simp only [ENC]; omega)
+          (by simp only [ENC]; omega)), hz0 _ (by omega) (by omega) (by omega) (by omega)]
     have hh : t8.readWords (BitVec.ofNat 64 0x800) 8 = wordsOf (ClaudeWCT.W9.T3M.headerBytes w) := by
-      rw [headerW_words, readWords_eight, r0, show 0x800 + 8 = 0x808 from rfl, r8',
-        show 0x800 + 16 = 0x810 from rfl, c810, show 0x800 + 24 = 0x818 from rfl, c818,
-        show 0x800 + 32 = 0x820 from rfl, c820, hz8 (0x800 + 40) (by decide) (by decide),
-        hz8 (0x800 + 48) (by decide) (by decide), hz8 (0x800 + 56) (by decide) (by decide)]
-      rfl
+      rw [headerW_eq, headerBytes_words, readWords_eight]
+      have r0 : t8.getMem (BitVec.ofNat 64 0x800) = sig.rho.extractLsb' 0 64 := by
+        rw [g87 _ (by decide) (nLW _ (by decide)), P.frame _ (by decide) (by unfold NewW; simp only [DIG, NBUF, IDXV, ENC]; omega)]
+        exact w800
+      have r8 : t8.getMem (BitVec.ofNat 64 (0x800 + 8)) = sig.rho.extractLsb' 64 64 := by
+        rw [g87 _ (by decide) (nLW _ (by decide)), P.frame _ (by decide) (by unfold NewW; simp only [DIG, NBUF, IDXV, ENC]; omega)]
+        exact w808
+      have h0 := hhalf 0; have h1 := hhalf 1; have h2 := hhalf 2; have h3 := hhalf 3
+      simp only [HalfAt, lD, lk] at h0 h1 h2 h3
+      try simp only [Nat.mul_zero, Nat.mul_one] at h0 h1 h2 h3
+      rw [r0, r8, show 0x800 + 16 = 0x810 from rfl, halves 0x810 _ _ c0 h0,
+        show 0x800 + 24 = 0x818 from rfl, halves 0x818 _ _ h1 h2,
+        show 0x800 + 32 = 0x820 from rfl, halves 0x820 _ _ h3 c20,
+        hz8 (0x800 + 40) (by decide) (by decide), hz8 (0x800 + 48) (by decide) (by decide),
+        hz8 (0x800 + 56) (by decide) (by decide)]
+      simp [WCT9.toT3Witness, WCT9.toT3Signature, w]
     have hplaced8 : Placed N sig t8 := fun k i hk hi' => by
-      rw [g87 _ (by unfold regBase; omega) (nLW _ (by unfold regBase; omega) (by unfold regBase; omega))]
+      rw [g87 _ (by unfold regBase; omega) (nLW _ (by unfold regBase; omega))]
       exact P.placed k i hk hi'
     have hwct : t8.readWords (BitVec.ofNat 64 0x840) 1152 = wordsOf (ClaudeWCT.W9.T3M.wctBytes N w.signature) :=
       placed_words hplaced8
-    have hgap : t8.readWords (BitVec.ofNat 64 0x2c40) 161 = List.replicate 161 0 := by
-      apply readWords_zero t8 0x2c40 161 (by decide)
+    have hgap : t8.readWords (BitVec.ofNat 64 0x2c40) 251 = List.replicate 251 0 := by
+      apply readWords_zero t8 0x2c40 251 (by decide)
       intro j hj
-      rw [g87 _ (by omega) (nLW _ (by omega) (by omega))]
+      rw [g87 _ (by omega) (nLW _ (by omega))]
       exact P.gap _ (by omega) (by omega)
-    have g8L : ∀ A, 0x3148 ≤ A → A < 0x66C8 → ¬ LW index 4 A → t8.getMem (BitVec.ofNat 64 A) = 0 := by
+    have g8L : ∀ A, 0x3418 ≤ A → A < 0x6A98 → ¬ LW index 4 A → t8.getMem (BitVec.ofNat 64 A) = 0 := by
       intro A h1 h2 hn
-      rw [g87 A (by omega) hn]
-      exact z7 _ (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)
+      rw [g87 A (by omega) hn, g7 A (by omega) (nFW _ (by omega) (by simp only [DIG]; omega))
+        (nNW _ (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by simp only [DIG]; omega)
+          (by simp only [NBUF]; omega) (by simp only [IDXV]; omega) (by simp only [ENC]; omega)
+          (by simp only [ENC]; omega)), hz0 _ (by omega) (by omega) (by omega) (by omega)]
     have hlay : ∀ lay : Layer, t8.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay)) =
-        wordsOf (ClaudeWCT.W9.T3M.layerRegion N w lay) := by
+        wordsOf (layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) := by
       intro lay
       have hout := hout8 lay (by omega)
-      have hrb := region_bounds lay
-      have hv : ∀ i (h : i < chainCount lay), DigAt t8 (lWC lay - 64 * i + 48) ((sig.layers lay).values ⟨i, h⟩) := by
-        intro i h
-        have e : lval (WCT9.toT3Signature sig) lay i = (sig.layers lay).values ⟨i, h⟩ := by
-          unfold lval; rw [dif_pos h]; rfl
+      obtain ⟨hWM, hWC⟩ := lBase_eq lay
+      have hlo := ltable_lo lay
+      have htab := ltable lay
+      refine layer_words t8 lay _ _ (fun i h => ?_) (fun j h => ?_) (fun A h1 h2 hn => ?_)
+      · have e : lval (WCT9.toT3Signature sig) lay i = (sig.layers lay).values ⟨i, h⟩ := by unfold lval; rw [dif_pos h]; rfl
         rw [← e]; exact hout.2.1 i h
-      have hp : ∀ j (h : j < height lay), DigAt t8 (lWM lay - 64 * j + sideOff (route index lay).1 j)
-          ((sig.layers lay).path ⟨j, h⟩) := by
-        intro j h
-        have e : lpath (WCT9.toT3Signature sig) lay j = (sig.layers lay).path ⟨j, h⟩ := by
-          unfold lpath; rw [dif_pos h]; rfl
+      · have e : lpath (WCT9.toT3Signature sig) lay j = (sig.layers lay).path ⟨j, h⟩ := by unfold lpath; rw [dif_pos h]; rfl
         rw [← e]; exact hout.2.2 j h
-      unfold ClaudeWCT.W9.T3M.layerRegion
-      split
-      · rename_i h0
-        refine layer_words t8 lay _ _ hv hp (fun A h1 h2 hn => g8L A (by omega) (by omega) ?_)
-        rintro (h | h | ⟨lay', _, h | h⟩)
-        · unfold Search.CsW Search.DigW at h; simp only [ENC, EOUT, DIGITS] at h; omega
-        · simp only [SigGolfCandidate.T3M.Expand.BC.RlScratch, SigGolfCandidate.T3M.Expand.RlScratch, CHAIN,
-            Search.NODE, Search.NOUT, LEAFPK, ENC] at h; omega
-        · have e1 := lD_in_region lay lay' A h1 h2 h
-          have hl0 : lay = 0 := Fin.ext h0
-          rw [hl0, show lBase (0 : Layer) = 0x3148 from rfl] at e1
-          rcases lD_cases lay' with e | e | e | e <;> omega
-        · by_cases he : lay' = lay
-          · subst he; exact hn h
-          · exact rlWit_region lay lay' _ A h1 h2 he h
-      · rename_i h0
-        refine layerBC_words t8 lay _ _ _ hv hp ?_ (fun A h1 h2 hn hne => g8L A (by omega) (by omega) ?_)
-        ·
-          have hD := lD_above lay h0
-          have hlo := (hout8 (Fin.ofNat 4 (lay.val - 1)) (by rw [fin_ofNat_pred]; omega)).1
-          simp only [HalfAt, lk_zero, Nat.mul_zero, hD] at hlo
-          have hhi1 := hhf1 (lBase lay + 32) (by rw [← hD]; exact lD_cases _)
-          rw [z7 _ (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)] at hhi1
-          rw [halves _ _ _ hlo hhi1]
-          exact halves_lo _ _ _ (by decide) rfl
-        · rintro (h | h | ⟨lay', _, h | h⟩)
+      · have hA : 0x3418 ≤ A ∧ A < 0x6A98 := by
+          constructor
+          · have : 0x3418 ≤ lBase lay := by fin_cases lay <;> decide
+            omega
+          · have : lBase lay + 64 * (height lay + chainCount lay) ≤ 0x6A98 := by fin_cases lay <;> decide
+            omega
+        have nLW' : ¬ LW index 4 A := by
+          rintro (h | h | ⟨lay', _, h | h⟩)
           · unfold Search.CsW Search.DigW at h; simp only [ENC, EOUT, DIGITS] at h; omega
-          · simp only [SigGolfCandidate.T3M.Expand.BC.RlScratch, SigGolfCandidate.T3M.Expand.RlScratch, CHAIN,
-              Search.NODE, Search.NOUT, LEAFPK, ENC] at h; omega
-          · exact hne (lD_in_region lay lay' A h1 h2 h)
+          · unfold RlScratch at h; simp only [CHAIN, NODE, NOUT, LEAFPK, ENC] at h; omega
+          · have := (ltable lay').2.2.2.2.2.2.2.2.1; omega
           · by_cases he : lay' = lay
             · subst he; exact hn h
-            · exact rlWit_region lay lay' _ A h1 h2 he h
-    exact witListW_words t8 N w hh hwct hgap hlay
+            · have hr := rlWit_range h
+              obtain ⟨hWM', hWC'⟩ := lBase_eq lay'
+              rcases ltable_disj lay' lay he with hd | hd <;> omega
+        exact g8L A hA.1 hA.2 nLW'
+    have hpad : t8.readWords (BitVec.ofNat 64 0x4498) 32 = List.replicate 32 0 := by
+      apply readWords_zero t8 0x4498 32 (by decide)
+      intro j hj
+      have nLWgap : ¬ LW index 4 (0x4498 + 8 * j) := by
+        rintro (h | h | ⟨lay, _, h | h⟩)
+        · unfold Search.CsW Search.DigW at h
+          simp only [ENC, EOUT, DIGITS] at h; omega
+        · unfold RlScratch at h
+          simp only [CHAIN, NODE, NOUT, LEAFPK, ENC] at h; omega
+        · fin_cases lay <;> simp [lD] at h <;> omega
+        · unfold RlWit sideOff at h
+          fin_cases lay <;> norm_num [lWC, lWM, height, chainCount] at h
+          all_goals rcases h with ⟨i, hi, h | h⟩ | ⟨i, hi, h | h⟩
+          all_goals first | (split_ifs at h <;> omega) | omega
+      exact g8L _ (by omega) (by omega) nLWgap
+    exact witListW_words t8 N w hh hwct hgap hpad hlay
   · simp only [ne_eq, heq, not_false_eq_true, ↓reduceIte]
     by_cases h0 : root'.extractLsb' 0 64 = pk.extractLsb' 0 64
     · rw [if_pos (hlo.mpr h0)] at p9
@@ -367,9 +308,9 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
         (Or.inl ⟨p10, x5_10, x10_10⟩))).mono (by omega) (fun _ _ h => h)
 end run
 theorem expqW_output {imgs : Phase → Image} {N : HashOutput} {w : WCT9.Witness} {t : MachineState}
-    (h : t.readWords (BitVec.ofNat 64 0x800) 3033 = wordsOf (ClaudeWCT.W9.T3M.witList N w)) :
+    (h : t.readWords (BitVec.ofNat 64 0x800) 3155 = wordsOf (ClaudeWCT.W9.T3M.witList N w)) :
     readOutput (w9Sub imgs).sizes (w9Sub imgs).layout .expand t = ClaudeWCT.W9.T3M.witEnc N w :=
-  readBuffer_of_words t 0x800 3033 (ClaudeWCT.W9.T3M.witList N w) (by decide) (by decide)
+  readBuffer_of_words t 0x800 3155 (ClaudeWCT.W9.T3M.witList N w) (by decide) (by decide)
     (ClaudeWCT.W9.T3M.witList_length_eq N w) h
 theorem expqW_halt (imgs : Phase → Image) (hc : NewCodeAt (imgs .expand)) (hB : BackSpec (imgs .expand))
     (a : Option (HashOutput × WCT9.Witness)) (t : MachineState) (h : ExpQW a t) :
@@ -380,7 +321,7 @@ theorem expqW_halt (imgs : Phase → Image) (hc : NewCodeAt (imgs .expand)) (hB 
   · rcases h with ⟨p, x5, x10⟩ | ⟨p, x5, x10⟩
     · refine ⟨((Search.codeAt_k_2 hB.2.2).fetch t p).trans rfl, x5, ?_⟩
       rw [x10]; rfl
-    · refine ⟨((codeAt_1420 hc).fetch t p).trans rfl, x5, ?_⟩
+    · refine ⟨((codeAt_1387 hc).fetch t p).trans rfl, x5, ?_⟩
       rw [x10]; rfl
   · obtain ⟨p, x5, x10, hw⟩ := h
     refine ⟨((codeAt_353W hB.2.1).fetch t p).trans rfl, x5, ?_⟩
@@ -415,7 +356,7 @@ theorem wct_compareCode : CodeAt image (pcOf 342) compareCode := by
   · decide +kernel
   · decide +kernel
 theorem wct_backSpec : BackSpec Images.expandImage := by
-  exact ⟨fun sk sig index value s h => layers_tbsim 4 (.forest value) s h, wct_compareCode, Search.kernAt_expand⟩
+  exact ⟨fun sk sig index value s h => layers_tbsim 4 (value, 0, 0) s h, wct_compareCode, Search.kernAt_expand⟩
 theorem wct_headerBank : Images.expandPrefixData =
     ClaudeWCT.W9.Machine.Expand.hdrBankBytes := by
   set_option maxRecDepth 100000 in decide +kernel
@@ -438,10 +379,10 @@ open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGol
 open ClaudeWCT.W9.Machine.Expand (NewCodeAt expChunks expChunks_len_le)
 set_option maxRecDepth 100000
 private def chunks : List (List (BitVec 32)) :=
-  [Images.expandCode_0, Images.expandCode_1, Images.expandCode_2, Images.expandCode_3, Images.expandCode_4, Images.expandCode_5, Images.expandCode_6, Images.expandCode_7, Images.expandCode_8, Images.expandCode_9, Images.expandCode_10, Images.expandCode_11, Images.expandCode_12, Images.expandCode_13, Images.expandCode_14, Images.expandCode_15, Images.expandCode_16, Images.expandCode_17, Images.expandCode_18, Images.expandCode_19, Images.expandCode_20, Images.expandCode_21, Images.expandCode_22, Images.expandCode_23, Images.expandCode_24, Images.expandCode_25, Images.expandCode_26, Images.expandCode_27, Images.expandCode_28, Images.expandCode_29, Images.expandCode_30, Images.expandCode_31, Images.expandCode_32, Images.expandCode_33, Images.expandCode_34, Images.expandCode_35, Images.expandCode_36, Images.expandCode_37, Images.expandCode_38, Images.expandCode_39, Images.expandCode_40, Images.expandCode_41, Images.expandCode_42, Images.expandCode_43, Images.expandCode_44, Images.expandCode_45, Images.expandCode_46, Images.expandCode_47, Images.expandCode_48, Images.expandCode_49, Images.expandCode_50, Images.expandCode_51, Images.expandCode_52, Images.expandCode_53, Images.expandCode_54, Images.expandCode_55, Images.expandCode_56, Images.expandCode_57, Images.expandCode_58, Images.expandCode_59, Images.expandCode_60, Images.expandCode_61, Images.expandCode_62, Images.expandCode_63, Images.expandCode_64, Images.expandCode_65, Images.expandCode_66, Images.expandCode_67, Images.expandCode_68, Images.expandCode_69, Images.expandCode_70, Images.expandCode_71, Images.expandCode_72, Images.expandCode_73, Images.expandCode_74, Images.expandCode_75, Images.expandCode_76, Images.expandCode_77, Images.expandCode_78, Images.expandCode_79, Images.expandCode_80, Images.expandCode_81, Images.expandCode_82, Images.expandCode_83, Images.expandCode_84, Images.expandCode_85, Images.expandCode_86, Images.expandCode_87, Images.expandCode_88, Images.expandCode_89, Images.expandCode_90, Images.expandCode_91, Images.expandCode_92, Images.expandCode_93, Images.expandCode_94, Images.expandCode_95, Images.expandCode_96, Images.expandCode_97, Images.expandCode_98, Images.expandCode_99, Images.expandCode_100, Images.expandCode_101, Images.expandCode_102, Images.expandCode_103, Images.expandCode_104, Images.expandCode_105, Images.expandCode_106, Images.expandCode_107, Images.expandCode_108, Images.expandCode_109, Images.expandCode_110, Images.expandCode_111, Images.expandCode_112, Images.expandCode_113, Images.expandCode_114, Images.expandCode_115, Images.expandCode_116, Images.expandCode_117, Images.expandCode_118, Images.expandCode_119, Images.expandCode_120, Images.expandCode_121, Images.expandCode_122, Images.expandCode_123, Images.expandCode_124, Images.expandCode_125, Images.expandCode_126, Images.expandCode_127, Images.expandCode_128, Images.expandCode_129, Images.expandCode_130, Images.expandCode_131, Images.expandCode_132, Images.expandCode_133, Images.expandCode_134, Images.expandCode_135, Images.expandCode_136, Images.expandCode_137, Images.expandCode_138, Images.expandCode_139, Images.expandCode_140, Images.expandCode_141, Images.expandCode_142, Images.expandCode_143, Images.expandCode_144, Images.expandCode_145, Images.expandCode_146, Images.expandCode_147, Images.expandCode_148, Images.expandCode_149, Images.expandCode_150, Images.expandCode_151, Images.expandCode_152, Images.expandCode_153, Images.expandCode_154, Images.expandCode_155, Images.expandCode_156, Images.expandCode_157, Images.expandCode_158, Images.expandCode_159]
+  [Images.expandCode_0, Images.expandCode_1, Images.expandCode_2, Images.expandCode_3, Images.expandCode_4, Images.expandCode_5, Images.expandCode_6, Images.expandCode_7, Images.expandCode_8, Images.expandCode_9, Images.expandCode_10, Images.expandCode_11, Images.expandCode_12, Images.expandCode_13, Images.expandCode_14, Images.expandCode_15, Images.expandCode_16, Images.expandCode_17, Images.expandCode_18, Images.expandCode_19, Images.expandCode_20, Images.expandCode_21, Images.expandCode_22, Images.expandCode_23, Images.expandCode_24, Images.expandCode_25, Images.expandCode_26, Images.expandCode_27, Images.expandCode_28, Images.expandCode_29, Images.expandCode_30, Images.expandCode_31, Images.expandCode_32, Images.expandCode_33, Images.expandCode_34, Images.expandCode_35, Images.expandCode_36, Images.expandCode_37, Images.expandCode_38, Images.expandCode_39, Images.expandCode_40, Images.expandCode_41, Images.expandCode_42, Images.expandCode_43, Images.expandCode_44, Images.expandCode_45, Images.expandCode_46, Images.expandCode_47, Images.expandCode_48, Images.expandCode_49, Images.expandCode_50, Images.expandCode_51, Images.expandCode_52, Images.expandCode_53, Images.expandCode_54, Images.expandCode_55, Images.expandCode_56, Images.expandCode_57, Images.expandCode_58, Images.expandCode_59, Images.expandCode_60, Images.expandCode_61, Images.expandCode_62, Images.expandCode_63, Images.expandCode_64, Images.expandCode_65, Images.expandCode_66, Images.expandCode_67, Images.expandCode_68, Images.expandCode_69, Images.expandCode_70, Images.expandCode_71, Images.expandCode_72, Images.expandCode_73, Images.expandCode_74, Images.expandCode_75, Images.expandCode_76, Images.expandCode_77, Images.expandCode_78, Images.expandCode_79, Images.expandCode_80, Images.expandCode_81, Images.expandCode_82, Images.expandCode_83, Images.expandCode_84, Images.expandCode_85, Images.expandCode_86, Images.expandCode_87, Images.expandCode_88, Images.expandCode_89, Images.expandCode_90, Images.expandCode_91, Images.expandCode_92, Images.expandCode_93, Images.expandCode_94, Images.expandCode_95, Images.expandCode_96, Images.expandCode_97, Images.expandCode_98, Images.expandCode_99, Images.expandCode_100, Images.expandCode_101, Images.expandCode_102, Images.expandCode_103, Images.expandCode_104, Images.expandCode_105, Images.expandCode_106, Images.expandCode_107, Images.expandCode_108, Images.expandCode_109, Images.expandCode_110, Images.expandCode_111, Images.expandCode_112, Images.expandCode_113, Images.expandCode_114, Images.expandCode_115, Images.expandCode_116, Images.expandCode_117, Images.expandCode_118, Images.expandCode_119, Images.expandCode_120, Images.expandCode_121, Images.expandCode_122, Images.expandCode_123, Images.expandCode_124, Images.expandCode_125, Images.expandCode_126, Images.expandCode_127, Images.expandCode_128, Images.expandCode_129, Images.expandCode_130, Images.expandCode_131, Images.expandCode_132, Images.expandCode_133, Images.expandCode_134, Images.expandCode_135, Images.expandCode_136, Images.expandCode_137, Images.expandCode_138, Images.expandCode_139, Images.expandCode_140, Images.expandCode_141, Images.expandCode_142, Images.expandCode_143, Images.expandCode_144, Images.expandCode_145, Images.expandCode_146, Images.expandCode_147, Images.expandCode_148, Images.expandCode_149, Images.expandCode_150, Images.expandCode_151, Images.expandCode_152, Images.expandCode_153, Images.expandCode_154, Images.expandCode_155, Images.expandCode_156, Images.expandCode_157, Images.expandCode_158, Images.expandCode_159, Images.expandCode_160, Images.expandCode_161, Images.expandCode_162]
 private theorem chunks_ok : (chunks.dropLast.all fun c => c.length == 256) = true := by
   decide +kernel
-private theorem chunks_length : chunks.length = 160 := by rfl
+private theorem chunks_length : chunks.length = 163 := by rfl
 private theorem chunks_new : expChunks = chunks.drop 4 := by
   decide +kernel
 private theorem code_chunks : Images.expandCode = chunks.flatten := by
@@ -474,13 +415,12 @@ end
 section
 
 
-
 namespace ClaudeWCT.W9.Machine.Expand
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.T3M
 set_option maxRecDepth 100000 in
-theorem expChunks_full : ∀ c, c < 155 → (expChunks.getD c []).length = 256 := by decide +kernel
+theorem expChunks_full : ∀ c, c < 158 → (expChunks.getD c []).length = 256 := by decide +kernel
 set_option maxRecDepth 100000 in
-theorem expChunks_flatten_length : expChunks.flatten.length = 39869 := by decide +kernel
+theorem expChunks_flatten_length : expChunks.flatten.length = 40691 := by decide +kernel
 theorem drop_flatten_chunks : ∀ (L : List (List (BitVec 32))) (c : Nat), (∀ i, i < c → (L.getD i []).length = 256) →
     c ≤ L.length → L.flatten.drop (256 * c) = (L.drop c).flatten
   | L, 0, _, _ => by simp
@@ -514,43 +454,16 @@ section
 
 
 
-
-
-
 namespace ClaudeWCT.W9.Machine.ExpandLink
 open SigGolfCandidate.T3M
 def I0 : ClaudeWCT.W9.T3M.Images := ⟨Images.signImage, Images.expandImage, Images.verifyImage⟩
-theorem v3_valid : I0.expand.Valid (ClaudeWCT.W9.T3M.submission I0).sizes (ClaudeWCT.W9.T3M.submission I0).layout :=
+theorem v1_valid : I0.expand.Valid (ClaudeWCT.W9.T3M.submission I0).sizes (ClaudeWCT.W9.T3M.submission I0).layout :=
   submission_expand_valid
-theorem v3_dataOK : ClaudeWCT.W9.Machine.Expand.ExpandDataOK I0.expand := Expand.wct_expandData
-theorem expand_W_v3 :
-    ClaudeWCT.W9.Machine.Expand.ExpandRefinesW (ClaudeWCT.W9.T3M.submission I0).image ∧
-      ClaudeWCT.W9.Machine.Expand.ExpandTerminatesW (ClaudeWCT.W9.T3M.submission I0).image :=
-  ClaudeWCT.W9.Machine.Expand.expandComposeSpec_holds _ v3_valid Expand.wct_newCodeAt Expand.wct_frontAt
-    v3_dataOK Expand.wct_backSpec
-theorem sign_W_v3 :
-    ClaudeWCT.W9.Machine.Sign.SignRefinesW (ClaudeWCT.W9.T3M.submission I0).image ∧
-      ClaudeWCT.W9.Machine.Sign.SignTerminatesW (ClaudeWCT.W9.T3M.submission I0).image :=
-  Sign.Boundary.wct_sign_certified
-#print axioms expand_W_v3
-#print axioms sign_W_v3
-end ClaudeWCT.W9.Machine.ExpandLink
-end
-
-section
-
-
-
-namespace ClaudeWCT.W9.Machine.ExpandLink
-open SigGolfCandidate.T3M
-theorem I0_eq_finalImages : I0 = Sign.Boundary.finalImages := rfl
-theorem expand_pending_v3 :
+theorem v1_dataOK : ClaudeWCT.W9.Machine.Expand.ExpandDataOK I0.expand := Expand.wct_expandData
+theorem expand_pending_v1 :
     ClaudeWCT.W9.T3M.Final.ExpandRefines I0 ∧ ClaudeWCT.W9.T3M.Final.ExpandTerminates I0 :=
-  expand_W_v3
-theorem sign_pending_v3 :
-    ClaudeWCT.W9.T3M.Final.SignRefines I0 ∧ ClaudeWCT.W9.T3M.Final.SignTerminates I0 :=
-  sign_W_v3
-#print axioms expand_pending_v3
-#print axioms sign_pending_v3
+  ClaudeWCT.W9.Machine.Expand.expand_pending I0 v1_valid Expand.wct_newCodeAt Expand.wct_frontAt v1_dataOK
+    Expand.wct_backSpec
+#print axioms expand_pending_v1
 end ClaudeWCT.W9.Machine.ExpandLink
 end

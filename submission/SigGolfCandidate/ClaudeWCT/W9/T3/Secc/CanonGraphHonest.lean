@@ -1,6 +1,5 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonGraph
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsEvents
-
 namespace ClaudeWCT.W9.T3.Security.CanonGraph
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
@@ -122,18 +121,18 @@ theorem builtTree_eq (h : Agrees answers labels) (lay : Layer) (tree : Fin (2^31
 theorem honestRoot_eq (h : Agrees answers labels) (lay : Layer) (tree : Fin (2^31)) :
     Extract.honestRoot answers lay tree.val = treeLabel labels lay tree (height lay) 0 :=
   builtTree_eq h lay tree (height lay) 0 le_rfl (by simp)
+theorem honestPair_eq (h : Agrees answers labels) (lay : Layer) (tree : Fin (2^31)) :
+    Extract.honestPair answers lay tree.val =
+      (treeLabel labels lay tree (height lay - 1) 0, 0, treeLabel labels lay tree (height lay - 1) 1) := by
+  have hp := height_pos lay
+  have h2 : 1 < 2 ^ (height lay - (height lay - 1)) := by
+    rw [show height lay - (height lay - 1) = 1 by omega]; decide
+  unfold Extract.honestPair
+  rw [builtTree_eq h lay tree (height lay - 1) 0 (by omega) (by omega),
+    builtTree_eq h lay tree (height lay - 1) 1 (by omega) h2]
 theorem honestRoot_label (h : Agrees answers labels) (lay : Layer) (tree : Fin (2^31)) :
     Extract.honestRoot answers lay tree.val = (labels (.node (rootNode lay tree))).extractLsb' 0 128 := by
   rw [honestRoot_eq h, treeLabel_root]
-theorem honestPair_eq (h : Agrees answers labels) (lay : Layer) (tree : Fin (2^31)) :
-    Extract.honestPair answers lay tree.val =
-      (treeLabel labels lay tree (height lay - 1) 0, treeLabel labels lay tree (height lay - 1) 1) := by
-  have hpos := height_pos lay
-  have hpow : 2 ≤ 2 ^ (height lay - (height lay - 1)) := by
-    rw [show height lay - (height lay - 1) = 1 by omega]; norm_num
-  unfold Extract.honestPair
-  rw [builtTree_eq h lay tree (height lay - 1) 0 (by omega) (by omega),
-    builtTree_eq h lay tree (height lay - 1) 1 (by omega) (by omega)]
 theorem wctValue_eq (h : Agrees answers labels) (a : WctAddr) (s : Nat) (hs : s ≤ 3) :
     Extract.wctValue answers a.1.val a.2.1.val a.2.2.1.val a.2.2.2.val s = wctValueL (secretsOf answers) labels a s := by
   induction s with
@@ -180,7 +179,7 @@ theorem childRoot_eq (h : Agrees answers labels) (L : WctLeafPos) :
   change (answers (.inl (.inr (pad64 (Extract.wctLeafInput L.index.val L.coord.val L.child.val
     (List.ofFn fun t : Fin 7 => wctEndLabel labels (L.index, L.coord, L.child, t))))))).extractLsb' 0 128 = _
   exact congrArg (fun output : HashOutput => output.extractLsb' 0 128) (h (.wctLeaf L))
-theorem ftsNodeAt_some (index : Fin (2^31)) (coord : Fin 9) (level c : Nat) (hlevel : level < 6)
+theorem ftsNodeAt_some (index : Fin (2^31)) (coord : Fin 9) (level c : Nat) (hlevel : level < 7)
     (hc : c < 2 ^ (7 - level - 1)) :
     ∃ n : WctNodePos, ftsNodeAt index coord level c = some n ∧ n.1.index = index ∧ n.1.coord = coord ∧
       n.1.level.val = level ∧ n.1.idx.val = c := by
@@ -188,7 +187,7 @@ theorem ftsNodeAt_some (index : Fin (2^31)) (coord : Fin 9) (level c : Nat) (hle
   rw [dif_pos ⟨hlevel, hc⟩]
   exact ⟨_, rfl, rfl, rfl, rfl, rfl⟩
 theorem ftsTree_eq (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin 9) (level c : Nat)
-    (hlevel : level ≤ 6) (hc : c < 2 ^ (7 - level)) :
+    (hlevel : level ≤ 7) (hc : c < 2 ^ (7 - level)) :
     treeValue (Extract.ftsLevels answers index.val coord.val) level c = ftsLabel labels index coord level c := by
   have hinv := WCT9.heap_complete answers index.val coord.val (Extract.ftsLeaves answers index.val coord.val)
     (by simp [Extract.ftsLeaves])
@@ -214,14 +213,12 @@ theorem ftsTree_eq (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin
       rw [if_pos rfl, dif_pos hc']
   | succ level ih =>
       intro c hc
-      have hlt : level < 6 := by omega
+      have hlt : level < 7 := by omega
       have hsub : 7 - (level + 1) = 7 - level - 1 := by omega
       have hc1 : c < 2 ^ (7 - level - 1) := by rw [← hsub]; exact hc
       have hpow : 2 ^ (7 - level) = 2 * 2 ^ (7 - level - 1) := by
         rw [← pow_succ']; congr 1; omega
-      have hpos : 2 ≤ 2 ^ (7 - level - 1) := by
-        calc 2 = 2 ^ 1 := by norm_num
-          _ ≤ 2 ^ (7 - level - 1) := Nat.pow_le_pow_right (by decide) (by omega)
+      have hpos : 1 ≤ 2 ^ (7 - level - 1) := Nat.one_le_two_pow
       have hle : 2 ^ (7 - level - 1) ≤ 64 :=
         (Nat.pow_le_pow_right (by decide) (by omega : 7 - level - 1 ≤ 6)).trans (by decide)
       have hchild : ∀ j, j < 2 * c + 2 → treeValue (WCT9.heapLevels X) level j = ftsLabel labels index coord level j := by
@@ -232,7 +229,7 @@ theorem ftsTree_eq (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin
         unfold ftsLabel
         rw [if_neg (by omega), show level + 1 - 1 = level by omega, hn]
       have hinput : cell (secretsOf answers) (.wctNode n) labels =
-          pad64 (nodeInputP 3 (WCT9.nodeLayer coord.val) index.val (2 ^ (7 - level - 1) + c)
+          pad64 (nodeInputP 11 coord.val index.val (2 ^ (7 - level - 1) + c)
             (ftsLabel labels index coord level (2 * c)) 0 (ftsLabel labels index coord level (2 * c + 1))) := by
         obtain ⟨⟨nindex, ncoord, nlevel, nidx⟩, hv⟩ := n
         simp only at hindex hcoord hlev hidx
@@ -242,43 +239,36 @@ theorem ftsTree_eq (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin
       rw [hrhs, WCT9.heapLevels_value X (level + 1) c (by omega) hc, hsub]
       have hl := WCT9.heapLevels_value X level (2 * c) (by omega) (by omega)
       have hr := WCT9.heapLevels_value X level (2 * c + 1) (by omega) (by omega)
-      rw [hnode (2 ^ (7 - level - 1) + c) (by omega) (by omega) (by omega), WCT9.wctNodeHash, nodeHash_eq_shortHash,
-        eval_shortHash]
+      rw [hnode (2 ^ (7 - level - 1) + c) (by omega) (by omega) (by omega), nodeHash_eq_shortHash, eval_shortHash]
       have e1 : 2 * (2 ^ (7 - level - 1) + c) = 2 ^ (7 - level) + 2 * c := by omega
       rw [e1, show 2 ^ (7 - level) + 2 * c + 1 = 2 ^ (7 - level) + (2 * c + 1) by omega, ← hl, ← hr,
         hchild (2 * c) (by omega), hchild (2 * c + 1) (by omega)]
       rw [← hinput]
       exact congrArg (fun output : HashOutput => output.extractLsb' 0 128) (h (.wctNode n))
-theorem ftsPair_eq (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin 9) :
-    Extract.ftsPair answers index.val coord.val = (ftsLabel labels index coord 6 0, ftsLabel labels index coord 6 1) := by
-  unfold Extract.ftsPair
-  rw [ftsTree_eq h index coord 6 0 le_rfl (by decide), ftsTree_eq h index coord 6 1 le_rfl (by decide)]
-theorem ftsPair_label (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin 9) :
-    Extract.ftsPair answers index.val coord.val =
-      ((labels (.wctNode (ftsTopNode index coord 0))).extractLsb' 0 128,
-        (labels (.wctNode (ftsTopNode index coord 1))).extractLsb' 0 128) := by
-  rw [ftsPair_eq h]
-  have h0 := ftsLabel_top labels index coord 0
-  have h1 := ftsLabel_top labels index coord 1
-  simp only [Fin.val_zero, Fin.val_one] at h0 h1
-  rw [h0, h1]
-theorem ftsPairs_eq (h : Agrees answers labels) (index : Fin (2^31)) :
-    Extract.ftsPairsHonest answers index.val =
-      (List.range 9).map fun coord => (ftsLabel labels index (fin9 coord) 6 0, ftsLabel labels index (fin9 coord) 6 1) := by
-  unfold Extract.ftsPairsHonest
+theorem ftsRoot_eq (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin 9) :
+    Extract.ftsRoot answers index.val coord.val = ftsLabel labels index coord 7 0 :=
+  ftsTree_eq h index coord 7 0 le_rfl (by decide)
+theorem ftsRoot_label (h : Agrees answers labels) (index : Fin (2^31)) (coord : Fin 9) :
+    Extract.ftsRoot answers index.val coord.val =
+      (labels (.wctNode (ftsRootNode index coord))).extractLsb' 0 128 := by
+  rw [ftsRoot_eq h, ftsLabel_root]
+theorem ftsRoots_eq (h : Agrees answers labels) (index : Fin (2^31)) :
+    Extract.ftsRootsHonest answers index.val =
+      (List.range 9).map fun coord => ftsLabel labels index (fin9 coord) 7 0 := by
+  unfold Extract.ftsRootsHonest
   apply List.map_congr_left
   intro coord hcoord
   have hc : coord < 9 := List.mem_range.mp hcoord
   have hval : (fin9 coord).val = coord := Nat.mod_eq_of_lt hc
-  have hx := ftsPair_eq h index (fin9 coord)
+  have hx := ftsRoot_eq h index (fin9 coord)
   rw [hval] at hx
   exact hx
 theorem honestForest_eq (h : Agrees answers labels) (index : Fin (2^31)) :
     Extract.honestForest answers index.val = (labels (.forest index)).extractLsb' 0 128 := by
   unfold Extract.honestForest
-  rw [show WCT9.forestPk index.val (Extract.ftsPairsHonest answers index.val) =
-      shortHash (Extract.forestInput index.val (Extract.ftsPairsHonest answers index.val)) from rfl,
-    eval_shortHash, ftsPairs_eq h index]
+  rw [show WCT9.forestPk index.val (Extract.ftsRootsHonest answers index.val) =
+      shortHash (Extract.forestInput index.val (Extract.ftsRootsHonest answers index.val)) from rfl,
+    eval_shortHash, ftsRoots_eq h index]
   exact congrArg (fun output : HashOutput => output.extractLsb' 0 128) (h (.forest index))
 theorem honestInput_eq (h : Agrees answers labels) (node : Node) :
     Extract.honestInput answers node.toPos = cell (secretsOf answers) node labels := by
@@ -317,7 +307,7 @@ theorem honestInput_eq (h : Agrees answers labels) (node : Node) :
         ftsTree_eq h index coord level.val (2 * idx.val + 1) (by have := level.isLt; omega) (by omega)]
   | forest index =>
       simp only [Node.toPos, Extract.honestInput, cell]
-      rw [ftsPairs_eq h index]
+      rw [ftsRoots_eq h index]
 theorem honest_answer (h : Agrees answers labels) (node : Node) :
     answers (.inl (.inr (Extract.honestInput answers node.toPos))) = labels node := by
   rw [honestInput_eq h node]

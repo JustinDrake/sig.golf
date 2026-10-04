@@ -1,55 +1,64 @@
+import SigGolfCandidate.W9Machine.WctChainContract
 import SigGolfCandidate.W9Machine.WctJudg
-import SigGolfCandidate.W9Machine.WctChildContract
-import SigGolfCandidate.T3M.Verify.Compose
 
 namespace W9Drv
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64
 open SigGolfCandidate.Rv SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
-open SigGolfCandidate.T3 (Digest HashOutput)
-open W9Machine
+open SigGolfCandidate.T3 (Digest HashOutput M)
+open ClaudeWCT.W9.Machine.Merkle
+def dispatchPc (n : Nat) : Nat := [68,81,96,111,126,141,156,171,186,201].getD n 201
 abbrev idxOf (a : HashOutput) : Nat := a.toNat % 2 ^ 31
 def DigestAt (a : HashOutput) (u : MachineState) : Prop :=
   ∀ k, k < 4 → u.getMem (BitVec.ofNat 64 (0x60 + 8 * k)) = a.extractLsb' (64 * k) 64
-structure HeaderBank (u : MachineState) : Prop where
+structure HeaderBank (index : Nat) (u : MachineState) : Prop where
+  chain : ∀ k : Fin 9, ∀ t, t < 7 → ∀ d, d < 3 →
+    u.getMem (BitVec.ofNat 64 (W9Machine.Chain.table k + 64 * t + 8 * d)) =
+      BitVec.ofNat 64 (hdr0 5 k.val index (d + 256 * t))
   node : ∀ k : Fin 9,
-    u.getMem (BitVec.ofNat 64 (0xfee600 + 512 * k.val + 448)) =
-      BitVec.ofNat 64 (1 + 3 * 256 + (4 + k.val) * 65536)
+    u.getMem (BitVec.ofNat 64 (W9Machine.Chain.table k + 448)) = BitVec.ofNat 64 (w0n k.val index)
   leaf : ∀ k : Fin 9,
-    u.getMem (BitVec.ofNat 64 (0xfee600 + 512 * k.val + 456)) =
-      BitVec.ofNat 64 (1 + 6 * 256 + k.val * 65536)
+    u.getMem (BitVec.ofNat 64 (W9Machine.Chain.table k + 456)) =
+      BitVec.ofNat 64 (hdr0 6 k.val index 0)
+  top : ∀ k, k < 5 → u.getMem (BitVec.ofNat 64 (TOPLOAD + 8 * k)) =
+    BitVec.ofNat 64 (dataWords.getD k 0)
+def setupMaskAddr : Nat := 0xfee7d0
+structure SetupMask (u : MachineState) : Prop where
+  mask : u.getMem (BitVec.ofNat 64 setupMaskAddr) = BitVec.ofNat 64 0xfffc
+  child : u.getMem (BitVec.ofNat 64 (setupMaskAddr + 16)) = BitVec.ofNat 64 0xce800
+  jt : u.getMem (BitVec.ofNat 64 (setupMaskAddr + 24)) = BitVec.ofNat 64 0xd6800
+  head : u.getMem (BitVec.ofNat 64 (setupMaskAddr + 32)) = BitVec.ofNat 64 0xfeee00
 structure GatePre (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState) : Prop where
-  pc : u.pc = pcOf 27
+  pc : u.pc = pcOf 15
   glob : Glob baseK w pk u
   digest : DigestAt a u
-  bank : HeaderBank u
+  bank : HeaderBank (idxOf a) u
   wit : WitAll w u
-def dispatchPc (n : Nat) : Nat := [57,73,91,109,127,145,163,181,199,217].getD n 217
-def cachedWord (n : Nat) : Nat := [0,0,1,1,1,2,2,2,3,3].getD n 3
-structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat)
-    (pairs : List (Digest × Digest)) (u : MachineState) : Prop where
+  forestZero : ∀ A, A = 1968 ∨ A = 1976 → u.getMem (BitVec.ofNat 64 A) = 0
+  hashLen : u.getReg .x11 = 64
+  setupMask : SetupMask u
+  sp : u.getReg .x2 = BitVec.ofNat 64 0xfee600
+structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat) (roots : List Digest)
+    (u : MachineState) : Prop where
   le : n ≤ 9
-  length : pairs.length = n
+  length : roots.length = n
   pc : u.pc = pcOf (dispatchPc n)
   glob : Glob baseK w pk u
   digest : DigestAt a u
-  bank : HeaderBank u
+  bank : HeaderBank (idxOf a) u
   index : u.getReg .x22 = BitVec.ofNat 64 (idxOf a)
-  heaps : ∀ h, 2 ≤ h → h ≤ 7 → u.getReg (Child.heapReg h) = BitVec.ofNat 64 h
-  stepOne : u.getReg .x7 = 1
-  stepTwo : u.getReg .x13 = 2
-  hashLen : u.getReg .x11 = 64
-  coordStep : u.getReg .x6 = 65536
-  prefixReg : u.getReg .x15 = BitVec.ofNat 64 (idxOf a * 2^27 + 65536 * (n-1))
-  nodeIndex : u.getReg .x17 = BitVec.ofNat 64 (idxOf a * 2^32)
-  cached : n ≠ 0 → u.getReg .x16 = a.extractLsb' (64 * cachedWord n) 64
+  digestWord : u.getReg .x16 = a.extractLsb' (64 * ((n + 1) / 3)) 64
+  heaps : ∀ h, 1 ≤ h → h ≤ 7 → u.getReg (heapReg h) = BitVec.ofNat 64 (idxOf a + 2 ^ 32 * h)
+  stepOne : u.getReg .x6 = 1
+  stepTwo : u.getReg .x7 = 2
   mask : u.getReg .x2 = BitVec.ofNat 64 0xfffc
   jt : u.getReg .x24 = BitVec.ofNat 64 0xd6800
   childBlock : u.getReg .x29 = BitVec.ofNat 64 0xce800
-  baseReg : u.getReg .x8 = BitVec.ofNat 64 (2112 + 1024 * (n-1))
-  headerReg : u.getReg .x28 = BitVec.ofNat 64 (0xfee600 + 2048 + 512 * (n-1))
-  pairs : ∀ i, i < n → DigAt u (1056 + 32*i) (pairs.getD i (0,0)).1 ∧
-    DigAt u (1056 + 32*i + 16) (pairs.getD i (0,0)).2
+  baseReg : u.getReg .x8 = BitVec.ofNat 64 (2112 + 1024 * (n - 1))
+  headerReg : u.getReg .x28 = BitVec.ofNat 64 (0xfee600 + 2048 + 512 * (n - 1))
+  roots : ∀ i, i < n → DigAt u (W9Machine.forestSlot i) (roots.getD i 0)
   coords : ∀ k : Fin 9, n ≤ k.val → ∀ off, off < 1024 → off % 8 = 0 →
-    OrigW w u (coordinateBase k + off)
-  layer : Orig w (fun o => o < 64 ∨ 10568 ≤ o) u
+    OrigW w u (W9Machine.Chain.base k + off)
+  layer : Orig w (fun o => o < 64 ∨ 11288 ≤ o) u
+  forestZero : ∀ A, A = 1968 ∨ A = 1976 → u.getMem (BitVec.ofNat 64 A) = 0
+  hashLen : u.getReg .x11 = 64
 end W9Drv

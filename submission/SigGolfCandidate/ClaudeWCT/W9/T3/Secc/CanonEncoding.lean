@@ -1,9 +1,7 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonGraphHonest
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsEvents
-import SigGolfCandidate.ClaudeWCT.W9.New.BC.Rows
 import SigGolfCandidate.SphincsSecurity.Proof.Base.FirstSuccessFamily
 import SigGolfCandidate.SphincsSecurity.Proof.Base.UniformTableOverwrite
-
 namespace ClaudeWCT.W9.T3.Security.CanonEncoding
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
@@ -38,21 +36,19 @@ theorem childIndex_lt (L : EncLeaf) : L.1.tree.val * 2 ^ height L.1.lay + L.1.le
   fin_cases lay <;> simp [treeBits, height] at ht hl ⊢ <;> omega
 def childIndex (L : EncLeaf) : Fin (2^31) :=
   ⟨L.1.tree.val * 2 ^ height L.1.lay + L.1.leaf.val, childIndex_lt L⟩
-def msgLabel (labels : Labels) (L : EncLeaf) : WCT9.LayerMsg :=
+def msgLabel (labels : Labels) (L : EncLeaf) : (Digest × BitVec 96 × Digest) :=
   if h : L.1.lay.val < 3 then
-    .pair (treeLabel labels ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) (height ⟨L.1.lay.val + 1, by omega⟩ - 1) 0)
-      (treeLabel labels ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) (height ⟨L.1.lay.val + 1, by omega⟩ - 1) 1)
-  else .forest ((labels (.forest (childIndex L))).extractLsb' 0 128)
+    (treeLabel labels ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) (height ⟨L.1.lay.val + 1, by omega⟩ - 1) 0, 0,
+      treeLabel labels ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) (height ⟨L.1.lay.val + 1, by omega⟩ - 1) 1)
+  else ((labels (.forest (childIndex L))).extractLsb' 0 128, 0, 0)
 theorem leafMsg_eq {answers : Answers} {labels : Labels} (h : Agrees answers labels) (L : EncLeaf) :
     Wots.leafMsg answers L.toWots = msgLabel labels L := by
   unfold Wots.leafMsg msgLabel EncLeaf.toWots
   dsimp only
   split_ifs with hlay
-  · rw [show L.1.tree.val * 2 ^ height L.1.lay + L.1.leaf.val = (childIndex L).val from rfl,
-      honestPair_eq h ⟨L.1.lay.val + 1, by omega⟩ (childIndex L)]
-  · rw [show L.1.tree.val * 2 ^ height L.1.lay + L.1.leaf.val = (childIndex L).val from rfl,
-      Nat.mod_eq_of_lt (childIndex L).isLt, honestForest_eq h (childIndex L)]
-def encKey (labels : Labels) (x : EncLeaf × Fin (2^22)) : EncKey :=
+  · exact honestPair_eq h ⟨L.1.lay.val + 1, by omega⟩ (childIndex L)
+  · exact congrArg (fun x : Digest => ((x, 0, 0) : Digest × BitVec 96 × Digest)) (honestForest_eq h (childIndex L))
+def encKey (labels : Labels) (x : EncLeaf × Fin (2^22)) : QuerySpace.EncodingKey :=
   ((x.1.1.lay, x.1.1.tree, x.1.1.leaf, msgLabel labels x.1), x.2)
 theorem encKey_injective (labels : Labels) : Function.Injective (encKey labels) := by
   rintro ⟨⟨⟨lay, tree, leaf⟩, hL⟩, c⟩ ⟨⟨⟨lay', tree', leaf'⟩, hL'⟩, c'⟩ heq
@@ -60,53 +56,27 @@ theorem encKey_injective (labels : Labels) : Function.Injective (encKey labels) 
   obtain ⟨⟨h1, h2, h3, -⟩, h4⟩ := heq
   subst h1 h2 h3 h4
   rfl
-theorem hdrBlock_encQuery (key : EncKey) :
-    Extract.hdrBlock (encQuery key) = bytesLE 16 (header 4 key.1.1.val key.1.2.1.val 0 key.1.2.2.1.val) :=
-  BC.hdrBlock_layerEncodingInput _ _ _ _ _
-theorem header4_ne_hdr (lay tree leaf : Nat) (node : Node) : header 4 lay tree 0 leaf ≠ node.toPos.hdr := by
-  intro h2
+theorem encodingQuery_ne_cell (key : QuerySpace.EncodingKey) (secrets : Secrets) (node : Node) (labels : Labels) :
+    QuerySpace.encodingQuery key ≠ cell secrets node labels := by
+  intro heq
+  have h1 : Extract.hdrBlock (QuerySpace.encodingQuery key) =
+      bytesLE 16 (header 4 key.1.1.val key.1.2.1.val 0 key.1.2.2.1.val) :=
+    QuerySpace.queryHeader_encoding _ _ _ _ _
+  rw [heq, hdrBlock_cell] at h1
+  have h2 := bytesLE_injective h1
   cases node with
   | chain point =>
-      exact chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ h2.symm
-  | wctChain point =>
-      exact WCT9.ftsChainHeaderP_ne_header _ _ _ _ _ _ _ _ _ _ _ h2.symm
-  | wctNode n =>
-      simp only [Node.toPos, Extract.Pos.hdr, WCT9.wctNodeHeader] at h2
-      exact QuerySpace.header_ne_of_tag (by decide) h2
+      exact chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ h2
   | _ =>
       simp only [Node.toPos, Extract.Pos.hdr] at h2
       exact QuerySpace.header_ne_of_tag (by decide) h2
-theorem encodingQuery_ne_cell (key : EncKey) (secrets : Secrets) (node : Node) (labels : Labels) :
-    encQuery key ≠ cell secrets node labels := by
-  intro heq
-  have h1 := hdrBlock_encQuery key
-  rw [heq, hdrBlock_cell] at h1
-  exact header4_ne_hdr _ _ _ node (bytesLE_injective h1).symm
 noncomputable def encCell (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels)
     (x : EncLeaf × Fin (2^22)) : U :=
-  ⟨encQuery (encKey labels x), hE (encQuery_mem _)⟩
-theorem encCell_val (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels) (x : EncLeaf × Fin (2^22)) :
-    (encCell U hE labels x).val = pad64 (WCT9.layerEncodingInput x.1.1.lay x.1.1.tree.val x.1.1.leaf.val
-      (msgLabel labels x.1) (BitVec.ofNat 32 x.2.val)) := rfl
+  ⟨QuerySpace.encodingQuery (encKey labels x), hE (encodingQuery_mem _)⟩
 theorem encCell_injective (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels) :
     Function.Injective (encCell U hE labels) := by
-  rintro ⟨⟨⟨lay, tree, leaf⟩, hL⟩, c⟩ ⟨⟨⟨lay', tree', leaf'⟩, hL'⟩, c'⟩ heq
-  have hv := congrArg Subtype.val heq
-  rw [encCell_val, encCell_val, ← BC.layerEncodingInputP_zero, ← BC.layerEncodingInputP_zero] at hv
-  obtain ⟨e1, e2, e3, e4⟩ := BC.layerEncodingRow_coords (by have := tree.isLt; omega) (by have := leaf.isLt; omega)
-    (by have := tree'.isLt; omega) (by have := leaf'.isLt; omega) hv
-  simp only at e1 e2 e3 e4
-  subst e1
-  have e2' : tree = tree' := Fin.ext e2
-  have e3' : leaf = leaf' := Fin.ext e3
-  subst e2' e3'
-  have e4' : c = c' := by
-    have h1 := congrArg BitVec.toNat e4
-    simp only [BitVec.toNat_ofNat] at h1
-    exact Fin.ext (by rw [Nat.mod_eq_of_lt (lt_trans c.isLt (by norm_num)),
-      Nat.mod_eq_of_lt (lt_trans c'.isLt (by norm_num))] at h1; exact h1)
-  subst e4'
-  rfl
+  intro left right heq
+  exact encKey_injective labels (QuerySpace.encodingQuery_injective (congrArg Subtype.val heq))
 def decodeAt (L : EncLeaf) (answer : HashOutput) : Option Digest :=
   if (decode L.1.lay (answer.extractLsb' 0 128)).isSome then some (answer.extractLsb' 0 128) else none
 theorem decodeAt_eq_some (L : EncLeaf) (answer : HashOutput) (d : Digest) :
@@ -285,29 +255,26 @@ theorem selection_valid (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : 
   have h := (FirstSuccessTable.select_some_iff _ _ r.1 r.2).mp hr
   obtain ⟨-, hs⟩ := (decodeAt_eq_some L _ r.2).mp h.1
   exact Option.isSome_iff_exists.mp hs
-theorem counterSearch_select (answers : Answers) (lay : Layer) (tree leaf : Nat) (message : WCT9.LayerMsg)
+theorem counterSearch_select (answers : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest)
     (decodeLay : HashOutput → Option Digest)
     (hdecode : ∀ answer, decodeLay answer =
       if (decode lay (answer.extractLsb' 0 128)).isSome then some (answer.extractLsb' 0 128) else none) :
-    ∀ fuel start, evalWithAnswerFn answers (WCT9.layerCounterSearch lay tree leaf message start fuel) =
+    ∀ fuel start, evalWithAnswerFn answers (counterSearch lay tree leaf message start fuel) =
       (FirstSuccessTable.select decodeLay (fun i : Fin fuel =>
-          answers (.inl (.inr (pad64 (WCT9.layerEncodingInput lay tree leaf message
-            (BitVec.ofNat 32 (start + i.val)))))))).bind
+          answers (.inl (.inr (Sampling.encodingTrial lay tree leaf message (start + i.val)))))).bind
         fun r => (decode lay r.2).map fun digits => (BitVec.ofNat 32 (start + r.1.val), digits) := by
   intro fuel
   induction fuel with
   | zero => intro start; rfl
   | succ fuel ih =>
       intro start
-      simp only [WCT9.layerCounterSearch, evalWithAnswerFn_bind, eval_shortHash]
+      simp only [counterSearch, evalWithAnswerFn_bind, eval_shortHash]
       rw [FirstSuccessTable.select]
-      have h0 : answers (.inl (.inr (pad64 (WCT9.layerEncodingInput lay tree leaf message
-          (BitVec.ofNat 32 (start + (0 : Fin (fuel + 1)).val)))))) =
-          answers (.inl (.inr (pad64 (WCT9.layerEncodingInput lay tree leaf message (BitVec.ofNat 32 start))))) := by
-        simp only [Fin.val_zero, Nat.add_zero]
+      have h0 : answers (.inl (.inr (Sampling.encodingTrial lay tree leaf message (start + (0 : Fin (fuel + 1)).val)))) =
+          answers (.inl (.inr (pad64 (encodingInput lay tree leaf message (BitVec.ofNat 32 start))))) := by
+        simp only [Fin.val_zero, Nat.add_zero, Sampling.encodingTrial]
       rw [h0, hdecode]
-      generalize answers (.inl (.inr (pad64 (WCT9.layerEncodingInput lay tree leaf message
-        (BitVec.ofNat 32 start))))) = A
+      generalize answers (.inl (.inr (pad64 (encodingInput lay tree leaf message (BitVec.ofNat 32 start))))) = A
       cases hd : decode lay (A.extractLsb' 0 128) with
       | some digits =>
           simp only [hd, Option.isSome_some, if_true, evalWithAnswerFn_pure, Option.bind_some, Option.map_some,
@@ -315,15 +282,15 @@ theorem counterSearch_select (answers : Answers) (lay : Layer) (tree leaf : Nat)
       | none =>
           simp only [Option.isSome_none, Bool.false_eq_true, if_false]
           rw [ih (start + 1)]
-          have htail : (fun i : Fin fuel => answers (.inl (.inr (pad64 (WCT9.layerEncodingInput lay tree leaf message
-              (BitVec.ofNat 32 (start + (i.succ).val))))))) =
-              (fun i : Fin fuel => answers (.inl (.inr (pad64 (WCT9.layerEncodingInput lay tree leaf message
-                (BitVec.ofNat 32 (start + 1 + i.val))))))) := by
+          have htail : (fun i : Fin fuel => answers (.inl (.inr (Sampling.encodingTrial lay tree leaf message
+              (start + (i.succ).val))))) =
+              (fun i : Fin fuel => answers (.inl (.inr (Sampling.encodingTrial lay tree leaf message
+                (start + 1 + i.val))))) := by
             funext i
             rw [Fin.val_succ, show start + (i.val + 1) = start + 1 + i.val by omega]
           rw [htail]
           cases FirstSuccessTable.select decodeLay (fun i : Fin fuel => answers (.inl (.inr
-              (pad64 (WCT9.layerEncodingInput lay tree leaf message (BitVec.ofNat 32 (start + 1 + i.val))))))) with
+              (Sampling.encodingTrial lay tree leaf message (start + 1 + i.val))))) with
           | none => rfl
           | some r =>
               simp only [Option.map_some, Option.bind_some, Fin.val_succ,
@@ -347,14 +314,13 @@ theorem referenceSearch_eq (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE :
   have hagrees := agrees_of_programmed U hU answers labels residual hpub
   unfold Wots.referenceSearch
   rw [leafMsg_eq hagrees L]
-  change evalWithAnswerFn answers (WCT9.layerCounterSearch L.1.lay L.1.tree.val L.1.leaf.val (msgLabel labels L) 0
+  change evalWithAnswerFn answers (counterSearch L.1.lay L.1.tree.val L.1.leaf.val (msgLabel labels L) 0
     counterLimit) = _
   rw [counterSearch_select answers L.1.lay L.1.tree.val L.1.leaf.val (msgLabel labels L) (decodeAt L)
     (fun _ => rfl) counterLimit 0]
   unfold selectionsOf
-  have hrows : (fun i : Fin counterLimit => answers (.inl (.inr (pad64 (WCT9.layerEncodingInput L.1.lay L.1.tree.val
-      L.1.leaf.val (msgLabel labels L) (BitVec.ofNat 32 (0 + i.val))))))) =
-      fun c => residual (encCell U hE labels (L, c)) := by
+  have hrows : (fun i : Fin counterLimit => answers (.inl (.inr (Sampling.encodingTrial L.1.lay L.1.tree.val
+      L.1.leaf.val (msgLabel labels L) (0 + i.val))))) = fun c => residual (encCell U hE labels (L, c)) := by
     funext c
     rw [Nat.zero_add]
     exact answers_encCell U hU hE answers labels residual hpub (L, c)
@@ -389,8 +355,5 @@ theorem referenceInput_eq (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE : 
   | some r =>
       obtain ⟨w, hw⟩ := selection_valid U hE labels residual L r hsel
       simp only [Option.bind_some, hw, Option.map_some]
-      rw [encCell_val]
-      unfold Wots.encRow
-      rw [BC.layerEncodingInputP_zero]
       rfl
 end ClaudeWCT.W9.T3.Security.CanonEncoding

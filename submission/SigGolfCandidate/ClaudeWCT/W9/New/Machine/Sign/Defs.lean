@@ -7,7 +7,7 @@ import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Sign.Data
 namespace ClaudeWCT.W9.Machine.Sign
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M
-open SigGolfCandidate.T3 (Digest HashOutput M Pieces Layer chainCount height privateMac privateNonce)
+open SigGolfCandidate.T3 (Digest HashOutput M Pieces Layer signLayers chainCount height privateMac privateNonce)
 abbrev SK : Nat := 0x80
 abbrev SIG : Nat := 0x7000
 abbrev DIG : Nat := 0x20120
@@ -20,12 +20,12 @@ abbrev PAIRW : Nat := 0x50040
 abbrev CHAINW : Nat := 0x50100
 abbrev LEAFW : Nat := 0x50200
 abbrev NODEW : Nat := 0x50300
-abbrev FORW : Nat := 0x50600
+abbrev FORW : Nat := 0x50400
 abbrev NOUTW : Nat := 0x50500
 abbrev HEAPW : Nat := 0x51000
 abbrev SCREND : Nat := 0x52010
 def hook153 : BitVec 32 := 0x6050106f
-def hook540 : BitVec 32 := 0x3180a06f
+def hook540 : BitVec 32 := 0x25c0a06f
 def NewCodeAt (im : Image) : Prop := signNew <+: im.code.drop 2074
 def HooksAt (im : Image) : Prop :=
   im.code[153]? = some hook153 ∧ im.code[540]? = some hook540 ∧ im.code[545]? = some 0x00000073
@@ -60,7 +60,7 @@ def SearchGood (im : Image) : Prop :=
       TBSim im sk s searchC (WCT9.digestSearch rho m 0 WCT9.digestAttemptLimit) (SearchPost s)
 def ScrZero (A : Nat) : Prop :=
   A = PRIVW + 48 ∨ A = PRIVW + 56 ∨ A = CHAINW ∨ A = CHAINW + 8 ∨ A = CHAINW + 32 ∨ A = CHAINW + 40 ∨
-    A = NODEW + 32 ∨ A = NODEW + 40
+    A = NODEW + 32 ∨ A = NODEW + 40 ∨ A = FORW + 160 ∨ A = FORW + 168 ∨ A = FORW + 176 ∨ A = FORW + 184
 structure FtsPre (sk : BitVec 256) (N : HashOutput) (s : MachineState) : Prop where
   pc : s.pc = pcOf 2215
   x5 : s.getReg .x5 = 0
@@ -83,7 +83,7 @@ def FtsGood (im : Image) : Prop :=
   NewCodeAt im → ∀ (sk : BitVec 256) (N : HashOutput) (s : MachineState), FtsPre sk N s →
     TBSim im sk s ftsC (WCT9.signForest (N.toNat % 2 ^ 31) N) (FtsPost s)
 def CompactPost (s t : MachineState) : Prop :=
-  t.pc = pcOf 10993 ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 0 ∧
+  t.pc = pcOf 10946 ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 0 ∧
     (∀ k < 428, t.getMem (BitVec.ofNat 64 (SIG + 2032 + 8 * k)) = s.getMem (BitVec.ofNat 64 (SIG + 2192 + 8 * k))) ∧
     Frame s t (fun A => SIG + 2032 ≤ A ∧ A < SIG + 5456)
 def compactK : Nat := 1 + 6 + 214 * 7 + 2
@@ -126,13 +126,13 @@ def LayPost (t : MachineState) : Option (List Pieces) → MachineState → Prop
 def layC : Nat := 26 + 2879687599
 def LayersSpec (im : Image) (sk : BitVec 256) (cache : Bytes 131072) (Inv : MachineState → Prop) : Prop :=
   ∀ (index : Nat) (root : Digest) (t : MachineState), LayPre index root t → Inv t →
-    TBSim im sk t layC (WCT9.signLayersBC (cacheDec cache) index 4 (.forest root)) (LayPost t)
+    TBSim im sk t layC (signLayers (cacheDec cache) index 4 (root, 0, 0)) (LayPost t)
 def newRegs : List Reg := [.x6, .x7, .x10, .x11, .x12, .x18, .x19, .x22, .x24, .x25, .x26, .x28, .x29]
 def NewW (A : Nat) : Prop := SearchW A ∨ FtsW A
 def InvStable (Inv : MachineState → Prop) : Prop :=
   ∀ t u, Inv t → Frame t u NewW → RegsExcept t u newRegs → Inv u
 def wsub (imgs : Phase → Image) : Submission :=
-  ⟨⟨5456, 24264, 131072⟩, ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩, imgs⟩
+  ⟨⟨5456, 25240, 131072⟩, ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩, imgs⟩
 structure Unchanged (imgs : Phase → Image) (Inv : BitVec 256 → Bytes 131072 → Message → MachineState → Prop) :
     Prop where
   front : ∀ sk cache m, ∃ s0, initialState (wsub imgs) .sign (sk, cache, m) = some s0 ∧

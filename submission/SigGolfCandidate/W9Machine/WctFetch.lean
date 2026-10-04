@@ -4,7 +4,7 @@ import SigGolfCandidate.W9Machine.WctChainPieces
 namespace W9Machine
 open SigGolfCandidate.T3M SigGolfCandidate.Rv RiscvZkvm.Rv64
 def sliceChecked (pc : Nat) (words : List (BitVec 32)) : Bool :=
-  decide (pc < 242202) && (words == (Frozen.codeFrom pc).take words.length)
+  decide (pc < 242393) && (words == (Frozen.codeFrom pc).take words.length)
 theorem slice_at (pc : Nat) (words : List (BitVec 32)) (h : sliceChecked pc words = true) :
     CodeAt Frozen.image (pcOf pc) words := by
   simp only [sliceChecked, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at h

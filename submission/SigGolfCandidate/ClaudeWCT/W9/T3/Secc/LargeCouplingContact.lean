@@ -4,10 +4,7 @@ import SigGolfCandidate.T3.Secc.LargeCouplingSamplers
 import SigGolfCandidate.T3.Secc.LargeCouplingLaw
 import SigGolfCandidate.T3.Secc.LargeCouplingChain
 import SigGolfCandidate.T3.Secc.LargeCouplingContact
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -128,19 +125,17 @@ theorem eagerAnswers_eq (priv : FullGame.FullTable) (pub : U → HashOutput) :
   funext q
   rcases q with (n | x) | c <;> rfl
 theorem encCell_val (labels : Labels) (L : EncLeaf) (c : Fin (2 ^ 22)) :
-    (encCell U hE labels (L, c)).val = Wots.encRow L.toWots (msgLabel labels L) (BitVec.ofNat 32 c.val) 0 := by
-  rw [CanonEncoding.encCell_val, Wots.encRow_zero]
-  rfl
+    (encCell U hE labels (L, c)).val = Wots.encodingRow L.toWots (msgLabel labels L) (BitVec.ofNat 32 c.val) := rfl
 theorem msgLabel_router (vals : Coord → Digest) (a : AuxData) (L : EncLeaf) :
-    msgLabel (routerLabels vals a) L = msgVals vals L := by
-  unfold msgLabel msgVals
+    msgLabel (routerLabels vals a) L = msgOf L vals := by
+  unfold msgLabel msgOf
   by_cases hl : L.1.lay.val < 3
   · rw [dif_pos hl, dif_pos hl]
-    congr 1
-    · exact (treeLabel_top _ _ _ 0).trans (joinLabels_low _ _ _)
-    · exact (treeLabel_top _ _ _ 1).trans (joinLabels_low _ _ _)
+    refine Prod.ext ?_ (Prod.ext rfl ?_)
+    · exact (treeLabel_child _ _ _ 0).trans (joinLabels_low _ _ _)
+    · exact (treeLabel_child _ _ _ 1).trans (joinLabels_low _ _ _)
   · rw [dif_neg hl, dif_neg hl]
-    exact congrArg WCT9.LayerMsg.forest (joinLabels_low _ _ _)
+    exact Prod.ext (joinLabels_low _ _ _) rfl
 theorem sel_psi (a : AuxData) (labels : Labels) (τ : U → HashOutput) (L : EncLeaf) :
     selectionsOf U hE labels (residualPsi U hE labels a.rows τ) L = a.sel L := by
   unfold selectionsOf AuxData.sel
@@ -211,7 +206,7 @@ theorem coherent_psi (vals : Coord → Digest) (nv : Message → Digest) (τ : U
       apply BitVec.eq_of_toNat_eq
       rw [BitVec.toNat_ofNat]
       exact Nat.mod_eq_of_lt (by have := hp.1; omega)
-    have hX : Wots.encRow L.toWots (msgVals vals L) ctr 0 = (encCell U hE labels (L, ⟨ctr.toNat, hp.1⟩)).val := by
+    have hX : Wots.encodingRow L.toWots (msgOf L vals) ctr = (encCell U hE labels (L, ⟨ctr.toNat, hp.1⟩)).val := by
       rw [encCell_val, msgLabel_router, hc]
     rw [hX, hpubX _ (encCell U hE labels (L, ⟨ctr.toNat, hp.1⟩)).property]
     rw [programmed_other U hU s labels res _ (fun N => encodingQuery_ne_cell _ s N labels)]
@@ -247,10 +242,7 @@ theorem coherent_psi (vals : Coord → Digest) (nv : Message → Digest) (τ : U
 end Coherence
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling.Samplers
 open OracleComp
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -291,10 +283,7 @@ noncomputable scoped instance (priority := high) samplerEncOutside (U : Finset H
   SampleableType.ofFintype _
 end ClaudeWCT.W9.T3.Security.LargeCoupling.Samplers
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -397,10 +386,7 @@ theorem law_target (U : Finset HashInput) (hU : canonInputs ⊆ U) (hE : encInpu
 end Law
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -514,10 +500,7 @@ end Lazy
 end Chain
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security

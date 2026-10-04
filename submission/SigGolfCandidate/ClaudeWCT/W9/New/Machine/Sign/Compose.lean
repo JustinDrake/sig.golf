@@ -113,14 +113,14 @@ section
 namespace ClaudeWCT.W9.Machine.Sign
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
-open SigGolfCandidate.T3 (Digest HashOutput M Pieces Layer privateMac privateNonce)
+open SigGolfCandidate.T3 (Digest HashOutput M Pieces Layer signLayers privateMac privateNonce)
 local macro "so" : tactic =>
   `(tactic| ((try simp only [SIG, SK, DIG, NBUF, FOUT, IDXV, TBL, PRIVW, CHAINW, NODEW, FORW, SCREND,
     SearchW, FtsW, ScrZero, NewW] at *) <;> omega))
 def Kw (cache : Bytes 131072) (m : Message) (rho : Digest) : M (Option WCT9.Signature) := do
   let some (_, output) ← WCT9.digestSearch rho m 0 WCT9.digestAttemptLimit | pure none
   let forest ← WCT9.signForest (output.toNat % 2 ^ 31) output
-  let some pieces ← WCT9.signLayersBC (cacheDec cache) (output.toNat % 2 ^ 31) 4 (.forest forest.2) | pure none
+  let some pieces ← signLayers (cacheDec cache) (output.toNat % 2 ^ 31) 4 (forest.2, 0, 0) | pure none
   pure (some (WCT9.assembledSignature rho forest.1 pieces))
 theorem rev3_sign_eq (cache : Bytes 131072) (m : Message) :
     WCT9.Rev3.sign (cacheDec cache) m = (do
@@ -130,7 +130,7 @@ theorem rev3_sign_eq (cache : Bytes 131072) (m : Message) :
   rfl
 def FinalQ : Option WCT9.Signature → MachineState → Prop
   | none, t => FailedT t ∨ FailedS t
-  | some sig, t => t.pc = pcOf 10993 ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 0 ∧
+  | some sig, t => t.pc = pcOf 10946 ∧ t.getReg .x5 = 1 ∧ t.getReg .x10 = 0 ∧
       ∀ k < 341, DigAt t (SIG + 16 * k) ((W9.T3M.sigDigests sig).getD k 0)
 def restC : Nat := searchC + (ftsC + (layC + compactK))
 def signCW : Nat := frontC + restC
@@ -204,7 +204,7 @@ theorem finalQ_fetch {imgs : Phase → Image} (hcode : SignCodeAt (imgs .sign)) 
   · rcases ht with h | h
     · exact ⟨fetch_ecall (hookLook_ok hhooks) 545 (by decide) (by decide) t h.pc, h.x5⟩
     · exact ⟨fetch_ecall (headLook_ok hnew) 2214 (by decide +kernel) (by decide) t h.pc, h.x5⟩
-  · exact ⟨fetch_ecall (tailLook_ok hnew) 10993 (by decide +kernel) (by decide) t ht.1, ht.2.1⟩
+  · exact ⟨fetch_ecall (tailLook_ok hnew) 10946 (by decide +kernel) (by decide) t ht.1, ht.2.1⟩
 theorem signMain_of (hS : ∀ im, SearchGood im) (hF : ∀ im, FtsGood im) (hC : ∀ im, CompactGood im) :
     SignMain := by
   intro imgs Inv hcode hU
