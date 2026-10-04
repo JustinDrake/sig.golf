@@ -20,11 +20,12 @@ structure HeaderBank (index : Nat) (u : MachineState) : Prop where
     u.getMem (BitVec.ofNat 64 (W9Machine.Chain.table k + 456)) =
       BitVec.ofNat 64 (hdr0 6 k.val index 0)
 structure GatePre (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState) : Prop where
-  pc : u.pc = pcOf 23
+  pc : u.pc = pcOf 17
   glob : Glob baseK w pk u
   digest : DigestAt a u
   bank : HeaderBank (idxOf a) u
   wit : WitAll w u
+  forestZero : ∀ A, A = 1968 ∨ A = 1976 → u.getMem (BitVec.ofNat 64 A) = 0
 structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat) (roots : List Digest)
     (u : MachineState) : Prop where
   le : n ≤ 9
@@ -46,4 +47,5 @@ structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat) (roots 
   coords : ∀ k : Fin 9, n ≤ k.val → ∀ off, off < 1024 → off % 8 = 0 →
     OrigW w u (W9Machine.Chain.base k + off)
   layer : Orig w (fun o => o < 64 ∨ 11288 ≤ o) u
+  forestZero : ∀ A, A = 1968 ∨ A = 1976 → u.getMem (BitVec.ofNat 64 A) = 0
 end W9Drv

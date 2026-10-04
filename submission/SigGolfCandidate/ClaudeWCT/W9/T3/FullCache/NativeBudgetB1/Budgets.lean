@@ -121,11 +121,40 @@ end ClaudeWCT.W9.T3.Correctness
 end
 section
 namespace ClaudeWCT.W9.T3.BaseAudit
-open SigGolfCandidate.T3.BaseAudit (zU b1 b2 b3 b4 step_1 step_2 step_3 step_4)
+open SigGolfCandidate.T3.BaseAudit (zU)
 set_option maxRecDepth 10000
 set_option maxHeartbeats 1000000
 def p0 : ℚ := 16016 ^ 9 / 2 ^ 138
 def b0 : ℚ := 10273002 / 10000000
+def b1 : ℚ := 1009892452433 / 1000000000000
+def b2 : ℚ := 986589319 / 976562500
+def b3 : ℚ := b2
+def b4 : ℚ := b2
+def encodingTargets : SigGolfCandidate.T3.Layer → Nat := ![126,196,196,196]
+noncomputable def encodingB : SigGolfCandidate.T3.Layer → ℝ :=
+  ![(b1 : ℝ),(b2 : ℝ),(b3 : ℝ),(b4 : ℝ)]
+noncomputable def encodingP : SigGolfCandidate.T3.Layer → ℝ :=
+  fun lay => (![183707182173445436457863622839156476,
+    177063161351702039889196043868193572,
+    177063161351702039889196043868193572,
+    177063161351702039889196043868193572] lay : ℝ) / 2^128
+theorem encodingB_ge_one (lay : SigGolfCandidate.T3.Layer) : 1 ≤ encodingB lay := by
+  fin_cases lay <;> norm_num [encodingB,b1,b2,b3,b4]
+theorem encoding_step_real (lay : SigGolfCandidate.T3.Layer) :
+    (zU : ℝ)*((1-encodingP lay)*encodingB lay+encodingP lay) ≤ encodingB lay := by
+  fin_cases lay <;> norm_num [encodingP,encodingB,zU,b1,b2,b3,b4]
+theorem encoding_spec : SigGolfCandidate.T3.Budgets.EncodingEnvelopeSpec encodingTargets encodingB := by
+  apply SigGolfCandidate.T3.Budgets.EncodingEnvelopeSpec.of_rates encodingTargets encodingB encodingP
+    encodingB_ge_one
+  · intro lay
+    fin_cases lay <;> norm_num [encodingP]
+  · intro lay
+    change SphincsSecurity.Completeness.failMass (SigGolfCandidate.T3.Sampling.encodingDecode lay) = _
+    rw [SigGolfCandidate.T3.Budgets.encoding_failMass]
+    congr 2
+    fin_cases lay <;> norm_num [encodingP,SigGolfCandidate.T3.Budgets.encodingRate,
+      SigGolfCandidate.T3.EncodingCounting.acceptedCount]
+  · exact encoding_step_real
 theorem step_0 : zU * ((1 - p0) * b0 + p0) ≤ b0 := by
   norm_num [zU, p0, b0]
 theorem probability_floor : 1 / 5026 ≤ p0 ∧ p0 ≤ 1 / 5025 := by
@@ -140,8 +169,7 @@ theorem signing_envelope :
   have hlo := SigGolfCandidate.Budget.rpow_two_ge (12896 / 131072) (by norm_num)
   have hn : (b0 : ℝ) * (b1 : ℝ) * (b2 : ℝ) * (b3 : ℝ) * (b4 : ℝ) ≤
       1 + 0.6931471803 * (12896 / 131072) + (0.6931471803 * (12896 / 131072)) ^ 2 / 2 := by
-    norm_num [b0, SigGolfCandidate.T3.BaseAudit.b1, SigGolfCandidate.T3.BaseAudit.b2,
-      SigGolfCandidate.T3.BaseAudit.b3, SigGolfCandidate.T3.BaseAudit.b4]
+    norm_num [b0,b1,b2,b3,b4]
   rw [hsplit, div_mul_eq_mul_div, div_le_iff₀ (by positivity)]
   nlinarith
 end ClaudeWCT.W9.T3.BaseAudit
@@ -166,6 +194,24 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 set_option linter.unusedSimpArgs false
+noncomputable abbrev encodingEnvelope := SigGolfCandidate.T3.Budgets.encodingEnvelope BaseAudit.encodingB
+noncomputable abbrev layerMomentBound := SigGolfCandidate.T3.Budgets.layerMomentBound BaseAudit.encodingB
+theorem encodingEnvelope_ge_one (lay : Layer) : 1 ≤ encodingEnvelope lay :=
+  SigGolfCandidate.T3.Budgets.encodingEnvelope_ge_one _ BaseAudit.encodingB_ge_one lay
+theorem layerMomentBound_ge_one (n : Nat) : 1 ≤ layerMomentBound n :=
+  SigGolfCandidate.T3.Budgets.layerMomentBound_ge_one _ BaseAudit.encodingB_ge_one n
+theorem layerMomentBound_four :
+    layerMomentBound 4 = SigGolfCandidate.T3.Budgets.signingZ^85922 *
+      encodingEnvelope 0 * encodingEnvelope 1 * encodingEnvelope 2 * encodingEnvelope 3 :=
+  SigGolfCandidate.T3.Budgets.layerMomentBound_four _
+theorem V_signLayers_of_freshness (secret : BitVec 256)
+    (hf : SigGolfCandidate.T3.Budgets.SourceFreshness secret) (cache : Cache) (index : Nat)
+    (n : Nat) (hn : n ≤ 4) (message : LayerMessage) (rcache : SigGolfCandidate.T3.Sampling.RCache)
+    (hc : SigGolfCandidate.T3.Budgets.EncodingFreshBelow n rcache) :
+    SigGolfCandidate.T3.Sampling.V secret SigGolfCandidate.T3.Budgets.signingZ
+      (signLayers cache index n message) rcache ≤ layerMomentBound n :=
+  SigGolfCandidate.T3.Budgets.V_signLayers_of_freshness BaseAudit.encodingB BaseAudit.encoding_spec
+    secret hf cache index n hn message rcache hc
 theorem digest_probability_eq_p0 :
     Pr[fun answer => (digestDecode answer).isSome |
       ($ᵗ HashOutput : ProbComp HashOutput)] = ENNReal.ofReal (BaseAudit.p0 : ℝ) := by
