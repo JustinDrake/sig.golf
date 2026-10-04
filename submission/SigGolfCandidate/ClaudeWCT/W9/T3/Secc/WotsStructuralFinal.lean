@@ -101,9 +101,9 @@ theorem honestRoot_variant (hv : Variant labels T T') (lay : Layer) (tree : Nat)
   unfold Extract.honestRoot
   rw [builtTree_variant hv]
 theorem posOf_some_spec {x : HashInput} {p : Extract.Pos} (h : Extract.posOf x = some p) :
-    p.Bounded ∧ Extract.canonicalHeader (Extract.hdrBlock x) = bytesLE 16 p.hdr := by
+    p.Bounded ∧ Extract.hdrBlock x = bytesLE 16 p.hdr := by
   unfold Extract.posOf at h
-  by_cases hex : ∃ q : Extract.Pos, q.Bounded ∧ Extract.canonicalHeader (Extract.hdrBlock x) = bytesLE 16 q.hdr
+  by_cases hex : ∃ q : Extract.Pos, q.Bounded ∧ Extract.hdrBlock x = bytesLE 16 q.hdr
   · rw [dif_pos hex] at h
     have hp := Option.some.inj h
     rw [← hp]
@@ -115,16 +115,10 @@ theorem fts_input_not_source {index : Nat} (hlarge : 2 ^ 31 ≤ index) (hindex :
   intro hpos
   obtain ⟨-, hb⟩ := posOf_some_spec hpos
   obtain ⟨tag, lay, position, idx, htag, hblock⟩ := ClaudeWCT.WCT9.FtsInput.hdrBlock hx
-  rw [show Extract.hdrBlock x = _ from hblock,
-    Extract.canonicalHeader_marker_ne _ (by rw [header_firstByte]; decide)] at hb
   have h1 : bytesLE 16 node.toPos.hdr = bytesLE 16 (header tag lay index position idx) :=
-    hb.symm
+    (show Extract.hdrBlock x = _ from hb).symm.trans (show Extract.hdrBlock x = _ from hblock)
   have h2 := bytesLE_injective h1
-  have hn : node.toPos.fields.1 ≠ 1 := by
-    cases node with
-    | chain p => exact False.elim (chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ h2)
-    | _ => simp [CanonGraph.Node.toPos, Extract.Pos.fields]
-  rw [Extract.Pos.hdr_eq _ hn] at h2
+  rw [Extract.Pos.hdr_eq] at h2
   obtain ⟨e1, -, e3, -, -⟩ := Mask.header_fields h2
   have hsrc := CanonGraph.toPos_source node
   rcases htag with rfl | rfl | rfl | rfl <;> cases node <;>

@@ -10,19 +10,19 @@ set_option maxRecDepth 100000
 set_option maxHeartbeats 0
 def gJumpWords : List (BitVec 32) := [16777327]
 def gCheckWords : List (BitVec 32) :=
-  [0x6003b03,33247635,6455,0xfff90913,19001779,0xfe0190e3]
+  [0x06003b03,0x01fb5193,19001779,0xfe0190e3]
 def gSetupWords : List (BitVec 32) :=
   [35330835,35347219,1049363,2098067,1049747,33854611,23389363,2098835,33986195,23520947,3148179,34183571,23718323,4196883,34216467,23751219,5245587,34249363,23784115,6294803,34413843,23948595,7343891,34545427,24080179,5175,0x84040413,0xfefe37,0xe00e0e13,65847,0xffc10113,851639,0x800e8e93,883767,0x800c0c13]
 def gRejectWords : List (BitVec 32) := [1049235,1049875,115]
 def gateE : E := .bin .and (.bin .srl (.ld (.c (BitVec.ofNat 64 96))) (.c (BitVec.ofNat 64 31)))
-  (.c (BitVec.ofNat 64 4095))
+  (.reg .x18)
 def idxE : E := .bin .srl (.bin .sll (.reg .x22) (.c (BitVec.ofNat 64 33))) (.c (BitVec.ofNat 64 33))
 def heapE (h : Nat) : E := .bin .or (.c (BitVec.ofNat 64 (2 ^ 32 * h))) idxE
 def gJump : Result := ⟨SymState.init, .c (pcOf 27), .jump, 1, 1⟩
 def gCheck : Result :=
-  ⟨⟨((RegFile.init.set .x3 gateE).set .x18 (.c (BitVec.ofNat 64 4095))).set .x22
+  ⟨⟨(RegFile.init.set .x3 gateE).set .x22
       (.ld (.c (BitVec.ofNat 64 96))), [], []⟩,
-    .ite .ne gateE (.c 0) (.c (pcOf 24)) (.c (pcOf 33)), .branch, 6, 6⟩
+    .ite .ne gateE (.c 0) (.c (pcOf 24)) (.c (pcOf 33)), .branch, 4, 4⟩
 def gSetup : Result :=
   ⟨⟨((((((((((((((RegFile.init.set .x2 (.c (BitVec.ofNat 64 0xfffc))).set .x6 (.c 1)).set .x7 (.c 2)).set
       .x8 (.c (BitVec.ofNat 64 2112))).set .x9 (heapE 1)).set .x13 (heapE 2)).set .x19 (heapE 3)).set
@@ -34,8 +34,8 @@ def gReject : Result :=
   ⟨⟨(RegFile.init.set .x5 (.c 1)).set .x10 (.c 1), [], []⟩, .c (pcOf 26), .ecall, 2, 2⟩
 theorem gJump_checked : rOK (symRun {} gJumpWords (pcOf 23) 1) gJump = true := by decide +kernel
 theorem gJump_linked : sliceChecked 23 gJumpWords = true := by decide +kernel
-theorem gCheck_checked : rOK (symRun {} gCheckWords (pcOf 27) 6) gCheck = true := by decide +kernel
-theorem gCheck_linked : sliceChecked 27 gCheckWords = true := by decide +kernel
+theorem gCheck_checked : rOK (symRun {} gCheckWords (pcOf 29) 4) gCheck = true := by decide +kernel
+theorem gCheck_linked : sliceChecked 29 gCheckWords = true := by decide +kernel
 theorem gSetup_checked : rOK (symRun {} gSetupWords (pcOf 33) 35) gSetup = true := by decide +kernel
 theorem gSetup_linked : sliceChecked 33 gSetupWords = true := by decide +kernel
 theorem gReject_checked : rOK (symRun {} gRejectWords (pcOf 24) 3) gReject = true := by decide +kernel
@@ -102,8 +102,10 @@ theorem idxE_eval (s : MachineState) :
   rw [← idx_val]; rfl
 theorem heapE_eval (s : MachineState) (h : Nat) :
     (heapE h).eval s = BitVec.ofNat 64 (2 ^ 32 * h) ||| idxE.eval s := rfl
-theorem gateE_eval (s : MachineState) :
-    gateE.eval s = (s.getMem (BitVec.ofNat 64 96) >>> 31) &&& BitVec.ofNat 64 4095 := rfl
+theorem gateE_eval (s : MachineState) (h18 : s.getReg .x18 = 0xFFF) :
+    gateE.eval s = (s.getMem (BitVec.ofNat 64 96) >>> 31) &&& BitVec.ofNat 64 4095 := by
+  change (s.getMem (BitVec.ofNat 64 96) >>> 31) &&& s.getReg .x18 = _
+  rw [h18]
 theorem word0_toNat (a : HashOutput) : (a.extractLsb' 0 64).toNat = a.toNat % 2 ^ 64 := by
   rw [BitVec.extractLsb'_toNat, Nat.shiftRight_zero]
 theorem gate_iff (a : HashOutput) :
@@ -127,13 +129,12 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
     (hu : GatePre pk w a u) (hnone : K false = pure (false, 0))
     (hnext : ∀ t, CoordPre pk w a 0 [] t →
       GoodQFor Frozen.image t N C Q A (K true)) :
-    GoodQFor Frozen.image u (N + 42) (C + 42) Q (A + 42) (K (ClaudeWCT.W9.T3M.gateOk a)) := by
-  have st1 := block_steps gJump_checked gJump_linked rfl u hu.pc
-  set s1 := gJump.toState u with hs1
-  have m1 : s1.mem = u.mem := toState_mem_nil _ _ rfl
-  have r1 : ∀ x, s1.getReg x = u.getReg x := fun x => by
-    rw [hs1, Result.toState_getReg]; exact init_getReg u x
-  have pc1 : s1.pc = pcOf 27 := rfl
+    GoodQFor Frozen.image u (N + 39) (C + 39) Q (A + 39) (K (ClaudeWCT.W9.T3M.gateOk a)) := by
+  -- The hook enters the gate check directly; no jump or state mutation is needed.
+  let s1 := u
+  have m1 : s1.mem = u.mem := rfl
+  have r1 : ∀ x, s1.getReg x = u.getReg x := fun _ => rfl
+  have pc1 : s1.pc = pcOf 29 := hu.pc
   have st2 := block_steps gCheck_checked gCheck_linked rfl s1 pc1
   set s2 := gCheck.toState s1 with hs2
   have m2 : s2.mem = u.mem := (toState_mem_nil _ _ rfl).trans m1
@@ -144,9 +145,8 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
     show (E.ite .ne gateE (.c 0) (.c (pcOf 24)) (.c (pcOf 33))).eval s1 = _
     rfl
   have hg : gateE.eval s1 = (a.extractLsb' 0 64 >>> 31) &&& BitVec.ofNat 64 4095 := by
-    rw [gateE_eval, hw0]
-  have st1' : Steps Frozen.image u 1 1 s1 := st1
-  have st2' : Steps Frozen.image s1 6 6 s2 := st2
+    rw [gateE_eval s1 (hu.glob.1 (.x18, 0xFFF) (by simp [baseK])), hw0]
+  have st2' : Steps Frozen.image s1 4 4 s2 := st2
   by_cases hok : ClaudeWCT.W9.T3M.gateOk a = true
   ·
     rw [hok]
@@ -173,7 +173,9 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
     have h18 : s3.getReg .x18 = 0xFFF := by
       rw [hs3, Result.toState_getReg]
       show s2.getReg .x18 = 0xFFF
-      rw [hs2, Result.toState_getReg]; rfl
+      rw [hs2, Result.toState_getReg]
+      show s1.getReg .x18 = 0xFFF
+      exact hu.glob.1 (.x18, 0xFFF) (by simp [baseK])
     have hpre : CoordPre pk w a 0 [] s3 := by
       refine ⟨by decide, rfl, rfl, glob_congr hu.glob m3 h5 h18, ?_, ?_, ?_, ?_, rfl, rfl, rfl, rfl,
         rfl, rfl, rfl, fun i hi => absurd hi (Nat.not_lt_zero _), ?_, ?_⟩
@@ -202,7 +204,7 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
           unfold Chain.base; omega
         rw [hw, wword, e]
       · exact (hu.wit.orig _).frame (fun j _ _ => e3 _)
-    have := ((((hnext s3 hpre).steps st3').steps st2').steps st1')
+    have := (((hnext s3 hpre).steps st3').steps st2')
     exact this.mono (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)
   ·
     have hok' : ClaudeWCT.W9.T3M.gateOk a = false := by simpa using hok
@@ -215,7 +217,7 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
     have hf := block_ecall gReject_checked gReject_linked rfl s2 rfl
     have hr : GoodQFor Frozen.image (gReject.toState s2) 1 1 Q A (pure (false, 0)) :=
       GoodQFor.reject hf (by rw [Result.toState_getReg]; rfl) (by rw [Result.toState_getReg]; rfl)
-    have := ((hr.steps st3').steps st2').steps st1'
+    have := (hr.steps st3').steps st2'
     exact this.mono (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)
 end W9Drv
 end

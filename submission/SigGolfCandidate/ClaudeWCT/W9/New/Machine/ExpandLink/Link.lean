@@ -40,7 +40,7 @@ def ExpQW : Option (HashOutput × WCT9.Witness) → MachineState → Prop
   | some (N, w), t => t.pc = pcOf 353 ∧ t.getReg .x5 = BitVec.ofNat 64 1 ∧ t.getReg .x10 = BitVec.ofNat 64 0 ∧
       t.readWords (BitVec.ofNat 64 0x800) 3155 = wordsOf (ClaudeWCT.W9.T3M.witList N w)
 def expCostW : Nat := 30 + newCost + (lcost 4 + 11)
-theorem lcost_four : lcost 4 ≤ 2831226883 := by decide
+theorem lcost_four : lcost 4 ≤ 2831201263 := by decide
 theorem expCostW_lt : expCostW + 1 < CYCLE_LIMIT := by
   have h := lcost_four
   unfold expCostW newCost CYCLE_LIMIT
@@ -411,7 +411,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 set_option maxRecDepth 100000 in
 theorem expChunks_full : ∀ c, c < 158 → (expChunks.getD c []).length = 256 := by decide +kernel
 set_option maxRecDepth 100000 in
-theorem expChunks_flatten_length : expChunks.flatten.length = 40686 := by decide +kernel
+theorem expChunks_flatten_length : expChunks.flatten.length = 40661 := by decide +kernel
 theorem drop_flatten_chunks : ∀ (L : List (List (BitVec 32))) (c : Nat), (∀ i, i < c → (L.getD i []).length = 256) →
     c ≤ L.length → L.flatten.drop (256 * c) = (L.drop c).flatten
   | L, 0, _, _ => by simp

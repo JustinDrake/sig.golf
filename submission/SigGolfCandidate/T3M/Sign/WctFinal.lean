@@ -112,7 +112,5 @@ theorem wct_final_sign_refines : ClaudeWCT.W9.T3M.Final.SignRefines finalImages 
   exact wct_sign_certified.1
 theorem wct_final_sign_terminates : ClaudeWCT.W9.T3M.Final.SignTerminates finalImages := by
   exact wct_sign_certified.2
-#print axioms wct_final_sign_refines
-#print axioms wct_final_sign_terminates
 end SigGolfCandidate.T3M.Sign.Boundary
 end

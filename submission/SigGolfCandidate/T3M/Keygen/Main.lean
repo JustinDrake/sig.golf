@@ -22,7 +22,7 @@ structure KDone (r : Digest × Cache) (t : MachineState) : Prop where
 section main
 variable {sk : SecretKey} {s1 : MachineState} (hs : KStart sk s1)
 include hs
-theorem keygen_from_start : TSim image sk s1 45739860 53919380 995328 1048576 keygen KDone := by
+theorem keygen_from_start : TSim image sk s1 31780692 39960212 995328 1048576 keygen KDone := by
   unfold keygen
   refine TSim.bind (k₂ := 1703623) (c₂ := 2489877) (n₂ := 2) (b₂ := 2)
     (payload_tsim hs) (fun r t ht => ?_)
@@ -51,7 +51,7 @@ theorem keygen_from_start : TSim image sk s1 45739860 53919380 995328 1048576 ke
     exact congrArg _ ht.region
 end main
 theorem keygen_tsim (sk : SecretKey) :
-    TSim image sk (kinit sk) 45739886 53919406 995328 1048576 keygen KDone := by
+    TSim image sk (kinit sk) 31780718 39960238 995328 1048576 keygen KDone := by
   obtain ⟨s1, st1, hs⟩ := kstart sk
   exact TSim.steps st1 (keygen_from_start hs)
 theorem kdone_output {r : Digest × Cache} {t : MachineState} (h : KDone r t) :
@@ -67,7 +67,7 @@ theorem kdone_output {r : Digest × Cache} {t : MachineState} (h : KDone r t) :
   rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt r.1.isLt]
 theorem keygen_run (sk : SecretKey) :
     submission.run .keygen sk =
-      (fun r => ⟨some ((r.1 : PublicKey), cacheB r.2), true, 53919407, 995328, 1048576⟩) <$>
+      (fun r => ⟨some ((r.1 : PublicKey), cacheB r.2), true, 39960239, 995328, 1048576⟩) <$>
         mrealize sk keygen :=
   XSim.run_eq submission .keygen sk (initialState_keygen sk) (keygen_tsim sk) (by decide)
     (fun r => ((r.1 : PublicKey), cacheB r.2))
@@ -83,8 +83,7 @@ theorem keygen_run_counts (sk : SecretKey) :
 theorem keygen_runWith (hash : Hash) (sk : SecretKey) :
     submission.runWith hash .keygen sk =
       ⟨some (((evalWithAnswerFn hash (mrealize sk keygen)).1 : PublicKey),
-        cacheB (evalWithAnswerFn hash (mrealize sk keygen)).2), true, 53919407, 995328, 1048576⟩ := by
+        cacheB (evalWithAnswerFn hash (mrealize sk keygen)).2), true, 39960239, 995328, 1048576⟩ := by
   unfold Submission.runWith
   rw [keygen_run, evalWithAnswerFn_map]
-#print axioms keygen_runWith
 end SigGolfCandidate.T3M.Keygen

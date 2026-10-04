@@ -8,16 +8,12 @@ def ftsLeafP (index coord leaf : Nat) (pad0 secret pad1 : Digest) : M Digest :=
     bytesLE 16 pad1)
 def nodeHashP (tag lay tree heap : Nat) (left pad right : Digest) : M Digest :=
   shortHash (bytesLE 16 left ++ bytesLE 16 (header tag lay tree 0 heap) ++ bytesLE 16 pad ++ bytesLE 16 right)
-def chainHeaderP (lay : Layer) (tree leaf i step : Nat) (headerPad : BitVec 64) : Digest :=
-  headerPad ++ (chainHeader lay tree leaf i step).extractLsb' 0 64
-def chainInputP (lay : Layer) (tree leaf i step : Nat) (pad0 pad1 : Digest)
-    (headerPad : BitVec 64) (value : Digest) : HashInput :=
-  bytesLE 16 pad0 ++ bytesLE 16 (chainHeaderP lay tree leaf i step headerPad) ++ bytesLE 16 pad1 ++
+def chainInputP (lay : Layer) (tree leaf i step : Nat) (pad0 pad1 value : Digest) : HashInput :=
+  bytesLE 16 pad0 ++ bytesLE 16 (header 1 lay.val tree (step + 256 * i) leaf) ++ bytesLE 16 pad1 ++
     bytesLE 16 value
-def chainP (lay : Layer) (tree leaf i start count : Nat) (pad0 pad1 : Digest)
-    (headerPad : BitVec 64) (value : Digest) : M Digest :=
+def chainP (lay : Layer) (tree leaf i start count : Nat) (pad0 pad1 value : Digest) : M Digest :=
   (List.range' start count).foldlM
-    (fun value step => shortHash (chainInputP lay tree leaf i step pad0 pad1 headerPad value)) value
+    (fun value step => shortHash (chainInputP lay tree leaf i step pad0 pad1 value)) value
 def digestP (m : Message) (w : WBytes) : M (Option HashOutput) :=
   if (wdc w).toNat ≥ attemptLimit then pure none else some <$> digest (wrho w) m (wdc w)
 def selectionsOk (chosen : List Selection) : Bool :=
@@ -76,7 +72,7 @@ def layerP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) : M Dige
   let (leaf, tree) := route index lay
   let ends ← (List.finRange (chainCount lay)).mapM fun i =>
     chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
-      (wchainPads w lay i.val).1 (wchainPads w lay i.val).2 (wchainHeaderPad w lay i.val) (wvalue w lay i.val)
+      (wchainPads w lay i.val).1 (wchainPads w lay i.val).2 (wvalue w lay i.val)
   let value ← leafHash lay tree leaf ends
   (List.finRange (height lay)).foldlM (fun value j => do
     let other := wpath w lay leaf j.val
@@ -108,8 +104,7 @@ structure Pads where
   fold : Fin 115 → Digest
   chain : (lay : Layer) → Fin (chainCount lay) → Digest × Digest
   merkle : (lay : Layer) → Fin (height lay) → Digest
-  chainHeader : (lay : Layer) → Fin (chainCount lay) → BitVec 64
-instance : Zero Pads := ⟨⟨fun _ => 0, fun _ => 0, fun _ _ => (0, 0), fun _ _ => 0, fun _ _ => 0⟩⟩
+instance : Zero Pads := ⟨⟨fun _ => 0, fun _ => 0, fun _ _ => (0, 0), fun _ _ => 0⟩⟩
 def foldPad (pads : Pads) (leaves : List Nat) (level node used next : Nat) : Digest :=
   if !hasLeaf leaves level (2 * node) then pads.fold ⟨used % 115, Nat.mod_lt _ (by decide)⟩
   else if !hasLeaf leaves level (2 * node + 1) then pads.fold ⟨next % 115, Nat.mod_lt _ (by decide)⟩
@@ -164,7 +159,7 @@ def recoverLayerP (sig : Signature) (pads : Pads) (index : Nat) (lay : Layer) (d
   let (leaf, tree) := route index lay
   let ends ← (List.finRange (chainCount lay)).mapM fun i =>
     chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
-      (pads.chain lay i).1 (pads.chain lay i).2 (pads.chainHeader lay i) ((sig.layers lay).values i)
+      (pads.chain lay i).1 (pads.chain lay i).2 ((sig.layers lay).values i)
   let value ← leafHash lay tree leaf ends
   (List.finRange (height lay)).foldlM (fun value j => do
     let other := (sig.layers lay).path j
