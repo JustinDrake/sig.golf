@@ -10,7 +10,7 @@ def mkShp (lay ci sh : Nat) : Nat :=
   if lay = 3 then 5487 + 101 * sh else if lay = 2 then 11951 + 101 * sh
   else if lay = 1 then 18416 + 134 * sh else if ci = 0 then 35567 + 48 * sh else 38641 + 53 * sh
 def mkReg (lay l : Nat) : Bool := decide (hL lay ≤ l + 3)
-def mkWords (lay l : Nat) : Nat := (if l = 0 then 8 else 5) + (if mkReg lay l then 0 else 1)
+def mkWords (lay l : Nat) : Nat := (if l = 0 then (if lay = 0 then 6 else 8) else 5) + (if mkReg lay l then 0 else 1)
 def mkOff (lay ci : Nat) : Nat → Nat
   | 0 => 0
   | kk + 1 => mkOff lay ci kk + mkWords lay (mkLo lay ci + kk)
@@ -23,11 +23,12 @@ def mkMove (lay level : Nat) : Nat := if lay = 0 ∧ level = 11 then 0 else 1
 def mkHeap (lay ci sh l : Nat) : Nat := (2 ^ hL lay + sh * 2 ^ mkLo lay ci) / 2 ^ (l + 1)
 def mkK (lay : Nat) : List (Reg × Word) :=
   baseK ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)), (.x6, 1), (.x7, 2), (.x8, 3),
-    (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x15, 0xce000)]
+    (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x15, if lay = 0 then 0xce000 else 0x6e000)]
 def mkKc (lay : Nat) : List (Reg × Word) :=
   baseK ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x6, 1), (.x7, 2), (.x8, 3),
-    (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x15, 0xce000)]
-def mkX4 (lay : Nat) : E := .bin (.st .w 4) (kw (hw 3 lay)) (.reg .x30)
+    (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x15, if lay = 0 then 0xce000 else 0x6e000)]
+/-- Level-0 header word: lower layers merge the tree into `tp`; the top layer's tree is 0, so `tp` is stored as is. -/
+def mkX4 (lay : Nat) : E := if lay = 0 then kw (hw 3 lay) else .bin (.st .w 4) (kw (hw 3 lay)) (.reg .x30)
 def mkKeep : List Reg := [.x1, .x2, .x16, .x17, .x19, .x20, .x21, .x23, .x24, .x25, .x27, .x28, .x29, .x30]
 def mkEntSpec (lay ci sh : Nat) : Spec := ⟨[], [], mkShp lay ci sh + 1, true, 2, [], none, 2⟩
 def mkEntPost (lay ci sh : Nat) : List (Reg × Word) :=
@@ -46,7 +47,7 @@ def mkLvlKeep (l : Nat) : List Reg := if l = 0 then [] else [.x4]
 def mkLvlAllow (lay l : Nat) : List Nat := [mkBlk lay l + 16, mkBlk lay l + 24]
 def mkDispTgt : E :=
   .bin .and (.bin .add (.bin .sll (.bin .srl (.reg .x23) (kw 6)) (kw 2)) (kw 843168)) (.c (~~~1#64))
-def mkBody (lay l : Nat) : Nat := (if l = 0 then 5 else 2) + (if mkReg lay l then 1 else 2)
+def mkBody (lay l : Nat) : Nat := (if l = 0 then (if lay = 0 then 3 else 5) else 2) + (if mkReg lay l then 1 else 2)
 def mkIsDisp (lay ci kk : Nat) : Bool := decide (lay = 0 ∧ ci = 0 ∧ kk + 1 = mkBits lay ci)
 def mkNextA2 (lay ci sh kk : Nat) : Nat :=
   if kk + 1 < mkBits lay ci then mkCur lay (mkLo lay ci + kk + 1) (sh / 2 ^ (kk + 1) % 2) else if lay = 0 then 13336 + 48 * (sh / 32 % 2) else 256
