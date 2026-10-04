@@ -8,6 +8,10 @@ open SigGolfCandidate.T3M SigGolfCandidate.Rv RiscvZkvm.Rv64
 open W9Machine
 set_option maxRecDepth 100000
 set_option maxHeartbeats 0
+def fJumpWords : List (BitVec 32) := [37748847]
+def fJump : Result := ⟨SymState.init, .c (pcOf 219), .jump, 1, 1⟩
+theorem fJump_checked : rOK (symRun {} fJumpWords (pcOf 210) 1) fJump = true := by decide +kernel
+theorem fJump_linked : sliceChecked 210 fJumpWords = true := by decide +kernel
 def fPrepWords : List (BitVec 32) :=
   [4535,0xf0118193,0x70303823,0x71603c23,0x7a003023,0x7a003423,0x7a003823,0x7a003c23,0x70000513,0xc000593,268437011,115]
 def fTailWords : List (BitVec 32) := [6455,0xfff90913,659,0x6980006f]
@@ -145,13 +149,18 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
     (hu : CoordPre pk w a 9 roots u)
     (hnext : ∀ root t, FtsOut ⟨pk, w, a⟩ root t →
       GoodQFor Frozen.image t N C Q A (K root)) :
-    GoodQFor Frozen.image u (N + 16) (C + 39) Q (A + 39)
+    GoodQFor Frozen.image u (N + 17) (C + 40) Q (A + 40)
       (ccM (ClaudeWCT.WCT9.forestPk (a.toNat % 2 ^ 31) roots) K) := by
   have hi : idxOf a < 2 ^ 31 := Nat.mod_lt _ (by decide)
-  have st1 := block_steps fPrep_checked fPrep_linked rfl u hu.pc
-  have st1' : Steps Frozen.image u 11 11 (fPrep.toState u) := st1
-  set s1 := fPrep.toState u with hs1
-  have hf := block_ecall fPrep_checked fPrep_linked rfl u rfl
+  have st0 := block_steps fJump_checked fJump_linked rfl u hu.pc
+  set v := fJump.toState u
+  have st0' : Steps Frozen.image u 1 1 v := st0
+  have gv : Glob baseK w pk v := glob_congr hu.glob rfl
+    (hu.glob.1 (.x5, 0) (by simp [baseK])) (hu.glob.1 (.x18, 0xFFF) (by simp [baseK]))
+  have st1 := block_steps fPrep_checked fPrep_linked rfl v (show v.pc = pcOf 219 from rfl)
+  have st1' : Steps Frozen.image v 11 11 (fPrep.toState v) := st1
+  set s1 := fPrep.toState v with hs1
+  have hf := block_ecall fPrep_checked fPrep_linked rfl v rfl
   have r1 : ∀ x, x ≠ .x3 → x ≠ .x10 → x ≠ .x11 → x ≠ .x12 → s1.getReg x = u.getReg x := by
     intro x h3 h10 h11 h12
     rw [hs1, Result.toState_getReg]
@@ -168,11 +177,11 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
       (by norm_num)
   have hin : hashInput s1 = toQ (pad64 (forestIn (idxOf a) roots)) :=
     hashInput_toQ s1 _ 2 0x700 (pad64_forestIn_length _ _ hu.length) h10 (by decide) (by norm_num)
-      h11 (by norm_num) (forest_words u (idxOf a) roots hu.length hi hu.index hu.roots)
+      h11 (by norm_num) (forest_words v (idxOf a) roots hu.length hi hu.index hu.roots)
   have g1 : Glob [] w pk s1 :=
-    Glob_toState hu.glob fPrep.st (fPrep.pc.eval u) (by decide) rfl
+    Glob_toState gv fPrep.st (fPrep.pc.eval v) (by decide) rfl
   have o1 : Orig w (fun o => o < 64 ∨ 11288 ≤ o) s1 :=
-    hu.layer.frame (fun j hj _ => fPrep_frame u _ (by unfold WIT WX at *; omega)
+    hu.layer.frame (fun j hj _ => fPrep_frame v _ (by unfold WIT WX at *; omega)
       (by unfold WIT; omega))
   have hpost : ∀ ans : BitVec 256, GoodQFor Frozen.image (writeHash s1 ans) (N + 4) (C + 4) Q (A + 4)
       (ccM (pure (ans.extractLsb' 0 128) : M Digest) K) := by
@@ -204,7 +213,7 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
   have hq := GoodQFor.shortHash_bind (f := fun d : Digest => (pure d : M Digest)) (K := K)
     hf h5 hv hin hpost
   rw [blocks_forestIn _ _ hu.length, bind_pure] at hq
-  have := hq.steps st1'
+  have := (hq.steps st1').steps st0'
   rw [forestPk_eq']
   exact this.mono (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)
 end W9Drv

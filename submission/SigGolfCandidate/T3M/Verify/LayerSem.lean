@@ -200,7 +200,7 @@ theorem copy_parts (lay p : Nat) (h : copyCheck lay p = true) :
     specB (copyAllow lay) [] baseK (runAt (preK lay) [] p [.br false]) (specA lay p) [] (bK lay) (keepA lay) = true ∧
     specB (copyAllow lay) [] [] (runAt (preK lay) [] p [.br true]) (rejA lay p) [] [] [] = true ∧
     (lay = 0 →
-      specB [] [] [] (runAt [] [724] (p + stepsA lay + 1) []) (specTopCall p) ansObl [] keepTopCall = true) ∧
+      specB [] [] [] (runAt [] [730] (p + stepsA lay + 1) []) (specTopCall p) ansObl [] keepTopCall = true) ∧
     (lay ≠ 0 →
       specB [] [] baseK (runAt (bKB lay) [] (p + stepsA lay + 1) [.br false, .br false, .jmp]) (specBl lay p) ansObl
         (postBl lay p) keepB = true ∧
@@ -643,7 +643,7 @@ theorem lctxOf_known (w : WBytes) (index : Nat) (lay : Layer) (a : BitVec 256) (
   · exact hk (.x15, 0x6e000) (by simp [postBl, chainK, baseK, hw])
   · exact hk (.x22, BitVec.ofNat 64 (s6v lay.val)) (by simp [postBl, chainK, baseK, hw])
   · exact h4
-  · exact hk (.x27, BitVec.ofNat 64 (0x101 + 65536 * lay.val)) (by simp [postBl, chainK, baseK, hw])
+  · exact hk (.x27, BitVec.ofNat 64 (0x401 + 65536 * lay.val)) (by simp [postBl, chainK, baseK, hw])
   · exact h16
   · exact h17
   · exact h29
@@ -652,7 +652,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
     (hidx : index < 2 ^ 31) (t : MachineState) (ht : EncPre w pk index lay.val c t) (a : BitVec 256) :
     (decode lay (a.extractLsb' 0 128) = none → ∃ v k cy, Steps image (writeHash t a) k cy v ∧
         fetch image v = some (.base .ECALL) ∧ v.getReg .x5 = 1 ∧ v.getReg .x10 = 1 ∧ k ≤ 23 ∧ cy ≤ 26) ∧
-    (decode lay (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 34 37 s0 ∧
+    (decode lay (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) (bSt lay.val) (bCy lay.val) s0 ∧
         (lctxOf w index lay a (trPc lay.val c)).ok ∧
         (∀ p ∈ (lctxOf w index lay a (trPc lay.val c)).known, s0.getReg p.1 = p.2) ∧
         (lctxOf w index lay a (trPc lay.val c)).Orig0 s0 ∧
