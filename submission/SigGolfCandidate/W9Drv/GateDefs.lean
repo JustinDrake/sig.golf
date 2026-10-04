@@ -17,13 +17,27 @@ structure HeaderBank (u : MachineState) : Prop where
   leaf : ∀ k : Fin 9,
     u.getMem (BitVec.ofNat 64 (0xfee600 + 512 * k.val + 456)) =
       BitVec.ofNat 64 (1 + 6 * 256 + k.val * 65536)
+structure SetupBank (u : MachineState) : Prop where
+  mask : u.getMem (BitVec.ofNat 64 (VERIFY_DATA + 464)) = BitVec.ofNat 64 0xfffc
+  child : u.getMem (BitVec.ofNat 64 (VERIFY_DATA + 480)) = BitVec.ofNat 64 0xce800
+  jump : u.getMem (BitVec.ofNat 64 (VERIFY_DATA + 488)) = BitVec.ofNat 64 0xd6800
+  header : u.getMem (BitVec.ofNat 64 (VERIFY_DATA + 496)) = BitVec.ofNat 64 0xfeee00
+theorem SetupBank.congr {s t : MachineState} (h : SetupBank s)
+    (hm : ∀ A, VERIFY_DATA ≤ A → A < VERIFY_DATA + 4608 →
+      t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A)) : SetupBank t := by
+  exact ⟨(hm _ (by omega) (by omega)).trans h.mask,
+    (hm _ (by omega) (by omega)).trans h.child,
+    (hm _ (by omega) (by omega)).trans h.jump,
+    (hm _ (by omega) (by omega)).trans h.header⟩
 structure GatePre (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState) : Prop where
   pc : u.pc = pcOf 27
   glob : Glob baseK w pk u
   digest : DigestAt a u
   bank : HeaderBank u
   wit : WitAll w u
-def dispatchPc (n : Nat) : Nat := [57,73,91,109,127,145,163,181,199,217].getD n 217
+  sp : u.getReg .x2 = BitVec.ofNat 64 VERIFY_DATA
+  setup : SetupBank u
+def dispatchPc (n : Nat) : Nat := [53,69,87,105,123,141,159,177,195,213].getD n 213
 def cachedWord (n : Nat) : Nat := [0,0,1,1,1,2,2,2,3,3].getD n 3
 structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat)
     (pairs : List (Digest × Digest)) (u : MachineState) : Prop where
