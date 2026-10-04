@@ -927,8 +927,8 @@ open ClaudeWCT.WCT9 (Signature Witness)
 open ClaudeWCT.WCT9.Rev3 (sign expand verify)
 open SigGolfCandidate.T3M (mrealize countBoth countCalls cacheB cacheDec isHash)
 open ClaudeWCT.W9.T3M (Images submission)
-def verifyCycleBound : Nat := 7794
-def claimedC : Nat := 7893
+def verifyCycleBound : Nat := 7762
+def claimedC : Nat := 7861
 variable (I : Images)
 def KeygenRunCounts : Prop := ∀ sk : SecretKey,
   (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$> (submission I).run .keygen sk =
