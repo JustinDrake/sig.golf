@@ -137,6 +137,8 @@ def WitHdr (w : WBytes) (s : MachineState) : Prop :=
   ∀ j, j < 8 → s.getMem (BitVec.ofNat 64 (WIT + 8 * j)) = wword w j
 def dataWords : List Nat :=
   [2 ^ 40, 17311559823019733055, 8198552921648689607, 0x30401, 0x3fe00, 2256, 11736, 0xa01, 0x901, 7072, 15264, 0]
+def TOPLOAD : Nat := 0xfef7d0
+def TOPBASE : Nat := 0xfefe00
 def DATA : Nat := 16777120
 def TAB : Nat := 16709632
 def HDATA : Nat := 16726016
