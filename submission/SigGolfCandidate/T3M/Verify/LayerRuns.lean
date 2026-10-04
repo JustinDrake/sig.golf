@@ -24,8 +24,8 @@ def nCopy (lay : Nat) : Nat := (xtrTab.getD lay []).length
 def trPc (lay c : Nat) : Nat := (xtrTab.getD lay []).getD c 0
 def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 def hL (lay : Nat) : Nat := [12,7,6,6].getD lay 0
-def stepsA (lay : Nat) : Nat := if lay = 3 then 19 else if lay = 0 then 14 else 14
-def retOff (lay : Nat) : Nat := if lay = 0 then 18 else if lay = 3 then 51 else 44
+def stepsA (lay : Nat) : Nat := if lay = 3 then 21 else if lay = 0 then 11 else 13
+def retOff (lay : Nat) : Nat := if lay = 0 then 15 else if lay = 3 then 50 else 40
 def s6v (lay : Nat) : Nat := [15064,19288,22424,25560].getD lay 0
 def s3v : Nat := 15768
 def tgtL (lay : Nat) : Nat := [126,196,196,196].getD lay 0
@@ -44,7 +44,8 @@ def preK (lay : Nat) : List (Reg × Word) :=
     (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00), (.x6, 1), (.x7, 2)]
   else baseK ++ [(.x27, BitVec.ofNat 64 (hw 4 (lay + 1))), (.x24, 0x10000), (.x2, 0x3fe00),
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64), (.x28, BitVec.ofNat 64 (headerBank 0 0)),
-    (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x22, BitVec.ofNat 64 (s6v (lay + 1)))]
+    (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x22, BitVec.ofNat 64 (s6v (lay + 1))),
+    (.x19, BitVec.ofNat 64 4194304), (.x15, 0x6e000)]
 def layK (lay : Nat) : List (Reg × Word) :=
   baseK ++ [(.x27, BitVec.ofNat 64 (hw 4 lay)), (.x24, 0x10000), (.x2, 0x3fe00),
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64),
@@ -53,32 +54,36 @@ def layK (lay : Nat) : List (Reg × Word) :=
 def chainK (lay : Nat) : List (Reg × Word) :=
   baseK ++ [(.x27, BitVec.ofNat 64 (hw 4 lay)), (.x24, 0x10000), (.x2, 0x3fe00),
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64),
-    (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7)]
+    (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7),
+    (.x19, BitVec.ofNat 64 4194304)]
 def ld3Spec : Spec :=
   ⟨[(.x28, .ld (kw DATA)), (.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
       (.x27, .ld (kw (DATA + 24))), (.x2, .ld (kw (DATA + 32)))],
     [], 662, false, 6, [], none, 6⟩
-def ld3Check : Bool := specB [] [] baseK (runAt baseK [662] 656 []) ld3Spec [] baseK [.x22, .x6, .x7, .x12]
+def ld3Check : Bool := specB [] [] baseK (runAt baseK [662] 656 []) ld3Spec [] baseK [.x22, .x6, .x7]
 def bKB (lay : Nat) : List (Reg × Word) := layK lay ++ [(.x10, BitVec.ofNat 64 (encB lay))] ++
   (if lay = 1 ∨ lay = 2 then [(.x22, BitVec.ofNat 64 (s6v lay))] else []) ++
-  (if lay = 0 then [] else [(.x15, 0x6e000)])
-def bK (lay : Nat) : List (Reg × Word) := bKB lay
-def dstSet (lay : Nat) : List Nat := if lay = 3 then [256] else [encB lay, encB lay + 48]
+  (if lay = 0 then [] else [(.x15, 0x6e000)]) ++ [(.x19, BitVec.ofNat 64 4194304)]
+def bK (lay : Nat) : List (Reg × Word) := bKB lay ++ (if lay = 3 then [(.x12, 320)] else [])
+def dstSet (lay : Nat) : List Nat := if lay = 3 then [320] else [encB lay, encB lay + 48]
 def rReg (lay : Nat) : Reg := if lay = 3 then .x22 else .x30
 def leafE (lay : Nat) : E := if lay = 0 then .reg .x30 else .bin .and (.reg (rReg lay)) (kw (2 ^ hL lay - 1))
 def treeE (lay : Nat) : E := .bin .srl (.reg (rReg lay)) (kw (hL lay))
-def tpE (lay : Nat) : E := .bin .or (.bin .sll (leafE lay) (kw 32)) (treeE lay)
+def tpE (lay : Nat) : E :=
+  if lay = 0 then .bin .sll (leafE lay) (kw 32)
+  else .bin .or (.bin .sll (leafE lay) (kw 32)) (treeE lay)
 /-- Leaf register `s7`: the top layer keeps the heap form `2 ^ h + leaf`, lower layers keep the bare leaf. -/
 def s7v (lay leaf : Nat) : Nat := if lay = 0 then 2 ^ hL lay + leaf else leaf
-def s7E (lay : Nat) : E := if lay = 0 then .bin .or (leafE lay) (kw (2 ^ hL lay)) else leafE lay
+def s7E (lay : Nat) : E := if lay = 0 then .bin .add (leafE lay) (kw (2 ^ hL lay)) else leafE lay
 def ctrE (lay : Nat) : E := .un (.ld .wu (4 * ((lay + 1) % 2))) (.ld (kw (0x810 + 8 * ((lay + 1) / 2))))
-def ctrBr (lay : Nat) (d : Bool) : Br := ⟨.ne, .bin .srl (ctrE lay) (kw 22), kw 0, d⟩
+def ctrBr (lay : Nat) (d : Bool) : Br := ⟨.geu, ctrE lay, kw (2 ^ 22), d⟩
 def specA (lay p : Nat) : Spec :=
-  ⟨[(.x4, tpE lay), (.x23, s7E lay), (.x30, treeE lay), (.x3, ctrE lay)],
+  ⟨[(.x4, tpE lay), (.x23, s7E lay), (.x30, treeE lay), (.x3, ctrE lay)] ++
+     (if lay = 0 then [] else [(.x1, .bin .sll (.reg (rReg lay)) (kw 16))]),
    [(⟨none, BitVec.ofNat 64 (encB lay + 32)⟩, .bin (.st .w 0) (.ld (kw (encB lay + 32))) (ctrE lay)),
     (⟨none, BitVec.ofNat 64 (encB lay + 24)⟩, tpE lay), (⟨none, BitVec.ofNat 64 (encB lay + 16)⟩, kw (hw 4 lay))],
    p + stepsA lay, true, stepsA lay, [ctrBr lay false], none, stepsA lay⟩
-def rejSt (lay : Nat) : Nat := stepsA lay + (if lay = 3 then 1 else 2)
+def rejSt (lay : Nat) : Nat := stepsA lay + (if lay = 3 then 0 else 2)
 def rejA (lay p : Nat) : Spec :=
   ⟨[(.x5, kw 1), (.x10, kw 1)],
    [(⟨none, BitVec.ofNat 64 (encB lay + 24)⟩, tpE lay), (⟨none, BitVec.ofNat 64 (encB lay + 16)⟩, kw (hw 4 lay))],
@@ -99,15 +104,12 @@ def ckBr (lay : Nat) (d : Bool) : Br := ⟨.ltu, kw 7, t4E lay, d⟩
 def a7lE : E := .bin .or b1E (.bin .srl a6E (kw 63))
 def x14l : E := .bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe00)) (kw 0x6e000)
 def tgtl : E := .bin .and (.bin .add (.bin .and (.bin .sll a6E (kw 9)) (kw 0x3fe00)) (kw 448800)) (.c (~~~1#64))
-def bSt (lay : Nat) : Nat := if lay = 3 then 31 else 29
-def bCy (lay : Nat) : Nat := if lay = 3 then 34 else 32
-def packedRouteE (lay : Nat) : E :=
-  .bin .or (.bin .add (.ld (kw (HDATA + 8 * lay)))
-    (.bin .sll (.reg .x23) (kw 16)))
-    (.bin .sll (.reg .x30) (kw (hL lay + 16)))
+def bSt (lay : Nat) : Nat := if lay = 3 then 28 else 26
+def bCy (lay : Nat) : Nat := if lay = 3 then 31 else 29
+def packedRouteE (lay : Nat) : E := .bin .add (.ld (kw (HDATA + 8 * lay))) (.reg .x1)
 def specBl (lay p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, a7lE), (.x25, sumE), (.x29, t4E lay),
-    (.x3, .bin .sll (.reg .x30) (kw (hL lay + 16))), (.x14, x14l), (.x28, packedRouteE lay)],
+    (.x3, .bin .srl a6E (kw 63)), (.x14, x14l), (.x28, packedRouteE lay)],
    [], 0, false, bSt lay, [ckBr lay false, rngBr 62 false], some tgtl, bCy lay⟩
 def postBl (lay p : Nat) : List (Reg × Word) :=
   chainK lay ++ [(.x22, BitVec.ofNat 64 (s6v lay)), (.x15, 0x6e000), (.x1, pcOf (p + retOff lay))]
@@ -164,12 +166,12 @@ def postLf (lay : Nat) : List (Reg × Word) :=
    [(.x3, BitVec.ofNat 64 (hw 2 lay)), (.x4, BitVec.ofNat 64 (hw 3 lay)),
     (.x10, BitVec.ofNat 64 (if lay = 0 then 512 else 768)), (.x11, BitVec.ofNat 64 (if lay = 0 then 896 else 704))] ++
   (if lay = 0 then [(.x15, 0xce000)] else [])
-def keepA (_lay : Nat) : List Reg := [.x12]
+def keepA (lay : Nat) : List Reg := if lay = 3 then [] else [.x12]
 def keepB : List Reg := [.x4, .x23, .x30]
 def keepLf : List Reg := [.x23, .x30, .x22]
 def keepTopCall : List Reg := [.x2, .x3, .x4, .x5, .x6, .x7, .x8, .x9, .x10, .x11, .x12, .x13, .x14, .x15, .x18, .x19, .x20, .x21, .x22, .x23, .x24, .x25, .x26, .x27, .x28, .x29, .x30, .x31]
 def specTopCall (p : Nat) : Spec :=
-  ⟨[(.x16, a6E), (.x17, a7E), (.x1, kw (0x1000 + 4 * (p + 18)))], [], 730, false, 3, [], none, 3⟩
+  ⟨[(.x16, a6E), (.x17, a7E), (.x1, kw (0x1000 + 4 * (p + 15)))], [], 730, false, 3, [], none, 3⟩
 def copyCheck (lay p : Nat) : Bool :=
   specB (copyAllow lay) [] baseK (runAt (preK lay) [] p [.br false]) (specA lay p) [] (bK lay) (keepA lay) &&
   specB (copyAllow lay) [] [] (runAt (preK lay) [] p [.br true]) (rejA lay p) [] [] [] &&

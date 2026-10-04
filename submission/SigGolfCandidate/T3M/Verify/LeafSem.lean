@@ -263,7 +263,7 @@ def lfKeepK (lay : Nat) : List (Reg × Word) :=
   [(.x2, 0x3fe00), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6),
    (.x31, 7), (.x22, BitVec.ofNat 64 (s6v lay))] ++
   (if lay = 0 then [] else [(.x28, BitVec.ofNat 64 (headerBank 0 0)), (.x20, BitVec.ofNat 64 M1c),
-    (.x21, BitVec.ofNat 64 M2c), (.x24, 0x10000), (.x15, 0x6e000)])
+    (.x21, BitVec.ofNat 64 M2c), (.x24, 0x10000), (.x15, 0x6e000), (.x19, BitVec.ofNat 64 4194304)])
 def lfK (lay : Nat) : List (Reg × Word) := postLf lay ++ lfKeepK lay
 structure LeafOut (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends : List Digest) (u : MachineState) :
     Prop where
@@ -451,7 +451,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
       have m6 : ((.x6 : Reg), (1 : Word)) ∈ postLf lay.val := by
         simp [postLf, leafK, h0]
       simp only [lfKeepK, if_neg h0, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-      rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) | (rfl | rfl | rfl | rfl | rfl)
+      rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) | (rfl | rfl | rfl | rfl | rfl | rfl)
       all_goals first
         | exact hku _ m28
         | exact hku _ m6
@@ -492,7 +492,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
     exact (hu.orig_const hOt).mono (fun o ho => ⟨ho, by simp⟩)
 structure TopLeafReady (w : WBytes) (pk : Digest) (index c : Nat) (ends : List Digest)
     (t : MachineState) : Prop where
-  pc : t.pc = pcOf (trPc 0 c + 18)
+  pc : t.pc = pcOf (trPc 0 c + 15)
   glob : Glob (leafK 0) w pk t
   keep : KnownOK (lfKeepK 0) t
   s7 : t.getReg .x23 = BitVec.ofNat 64 (2 ^ hL 0 + (route index 0).1)

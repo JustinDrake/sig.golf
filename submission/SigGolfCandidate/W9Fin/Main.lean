@@ -157,7 +157,8 @@ def proBr (d : Bool) : Br := ⟨.ne, .bin .srl lwuDc (cw 21), .c 0, d⟩
 def proSpec : Spec :=
   ⟨[(.x4, cw 3073)],
     [(⟨none, BitVec.ofNat 64 0x28⟩, .ld (cw 0x808)), (⟨none, BitVec.ofNat 64 0x20⟩, .ld (cw 0x800)),
-      (⟨none, BitVec.ofNat 64 0x30⟩, cw 0xc01), (⟨none, BitVec.ofNat 64 0x38⟩, .bin (.st .w 4) (.ld (cw 0x38)) lwuDc)],
+      (⟨none, BitVec.ofNat 64 0x30⟩, cw 0xc01),
+      (⟨none, BitVec.ofNat 64 0x38⟩, .bin (.st .w 4) (.ld (cw 0x38)) lwuDc)],
     15, true, 15, [proBr false], none, 15⟩
 def proPost : List (Reg × Word) := baseK ++ [(.x10, 32), (.x11, 64), (.x12, 96)]
 theorem proCheck : specB [] [] baseK (runAt k0 [] 0 [.br false]) proSpec [] proPost [.x2] = true := by
@@ -285,8 +286,11 @@ theorem digest_step (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBytes)
           show (BitVec.ofNat 64 (32 + 24) = BitVec.ofNat 64 0x20) = False by decide,
           show (BitVec.ofNat 64 (32 + 24) = BitVec.ofNat 64 0x30) = False by decide,
           show (BitVec.ofNat 64 (32 + 24) = BitVec.ofNat 64 0x38) = True by decide, if_true, if_false]
-        show StoreKind.merge .w (s.getMem (BitVec.ofNat 64 0x38)) 4 (lwuDc.eval s) = _
-        rw [hs.zero 0x38 (by unfold WIT; omega) (by omega), lwuDc_eval w s hs.wit]
+        show BinOp.eval (.st .w 4) ((E.ld (cw 0x38)).eval s) (lwuDc.eval s) = _
+        have h38 : (E.ld (cw 0x38)).eval s = BitVec.ofNat 64 0 := by
+          show s.getMem (BitVec.ofNat 64 0x38) = _
+          rw [hs.zero 0x38 (by unfold WIT; omega) (by omega)]; rfl
+        rw [lwuDc_eval w s hs.wit, h38]
         exact merge_hi 0 (wdc w).toNat
       have em : ∀ k, k < 4 → t.getMem (BitVec.ofNat 64 (32 + 32 + 8 * k)) = m.extractLsb' (64 * k) 64 := by
         intro k hk
@@ -420,9 +424,9 @@ theorem verifyP_eq (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBytes) 
 theorem afterDigest_good (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood)
     (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState)
     (hu : DgOut m pk w a u) :
-    GoodQ u (8057 + 1981 + 0) (8057 + 1981 + 0) True (5717 + 1981 + 0) (ccM (afterDigest pk w a) Kb) := by
+    GoodQ u (8057 + 1981 + 0) (8057 + 1981 + 0) True (5705 + 1981 + 0) (ccM (afterDigest pk w a) Kb) := by
   obtain ⟨hst, hpre⟩ := gatePre_of_hook m pk w a u hu
-  have h := fts pk w a _ 8057 8057 5717 True (fun r => ccM (afterFts pk w (a.toNat % 2 ^ 31) r) Kb) hpre
+  have h := fts pk w a _ 8057 8057 5705 True (fun r => ccM (afterFts pk w (a.toNat % 2 ^ 31) r) Kb) hpre
     (by simp only [afterFts, ccM_pure, Kb])
     (fun root t ht => (goodQ_frozen hbridge).mpr (after_good pk w True trivial a root t ht))
   have h2 := (goodQ_frozen hbridge).mp (h.steps hst)
@@ -431,7 +435,7 @@ theorem afterDigest_good (hbridge : W9Machine.Frozen.image = Images.verifyImage)
   exact h2
 def fuelBound : Nat := 16 + (8057 + 1981 + 0)
 def cycleBoundAll : Nat := 23 + (8057 + 1981 + 0)
-def cycleBound : Nat := 23 + (5717 + 1981 + 0)
+def cycleBound : Nat := 23 + (5705 + 1981 + 0)
 theorem fuelBound_eq : fuelBound = 10054 := rfl
 theorem cycleBoundAll_eq : cycleBoundAll = 10061 := rfl
 theorem cycleBound_eq : cycleBound = ClaudeWCT.W9.T3M.Final.verifyCycleBound := rfl

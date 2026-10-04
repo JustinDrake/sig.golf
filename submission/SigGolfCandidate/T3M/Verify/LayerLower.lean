@@ -115,8 +115,8 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
   have hidx := hs.idx
   have hA := encA_step w pk index lay M s hs
   have hT : 9 * tgtL lay.val ≤ 2950 := by fin_cases lay <;> decide
-  have hbS : 29 ≤ bSt lay.val := by unfold bSt; split <;> omega
-  have hbC : 32 ≤ bCy lay.val := by unfold bCy; split <;> omega
+  have hbS : 26 ≤ bSt lay.val := by unfold bSt; split <;> omega
+  have hbC : 29 ≤ bCy lay.val := by unfold bCy; split <;> omega
   have hfuel : layerFuel lay.val = stepsA lay.val + 1 + bSt lay.val + 1720 + 10 := by
     simp only [layerFuel, stB, chainFuel, lfSteps, if_neg h0] <;> omega
   have hcost : layerCost lay.val 0 = stepsA lay.val + 8 + bCy lay.val + 10 + (2950 - 9 * tgtL lay.val) := by
@@ -173,7 +173,7 @@ theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u
     (hidx : idx < 2 ^ 31) (hglob : Glob baseK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
     (hpc : u.pc = pcOf 656) (hroot : DigAt u 0x100 root)
     (hwit : Verify.Orig w (fun o => o < 64 ∨ 11288 ≤ o) u)
-    (h6 : u.getReg .x6 = 1) (h7 : u.getReg .x7 = 2) (h12 : u.getReg .x12 = BitVec.ofNat 64 0x100) :
+    (h6 : u.getReg .x6 = 1) (h7 : u.getReg .x7 = 2) :
     ∃ t, Steps image u 6 6 t ∧ LayerIn w pk idx 3 (root, 0, 0) t := by
   obtain ⟨t, ht⟩ := spec_run ld3Check_ok u hpc hglob.1 (by simp [ld3Spec]) (by simp)
   have hm : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
@@ -213,7 +213,7 @@ theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u
     · exact (ht.keep .x6 (by simp)).trans h6
     · exact (ht.keep .x7 (by simp)).trans h7
   refine ⟨t, ht.steps, ⟨by norm_num, hidx, ⟨0, by rw [nCopy_eq.1]; norm_num, by rw [ht.pc rfl]; rfl⟩, ⟨hk, hG0.2⟩,
-    ?_, ?_, ?_, ⟨256, by simp [dstSet], by rw [ht.keep .x12 (by simp), h12]⟩⟩⟩
+    ?_, ?_, ?_, Or.inl rfl⟩⟩
   · rw [show rReg 3 = .x22 from rfl, ht.keep .x22 (by simp), hreg, show below 3 = 0 from rfl, pow_zero, Nat.div_one]
   · have hPZ : PZero u := hglob.2.2.2.1
     have hPH : PHalf u := hglob.2.2.2.2.1
