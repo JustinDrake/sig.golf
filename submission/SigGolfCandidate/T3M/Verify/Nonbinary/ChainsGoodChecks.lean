@@ -217,6 +217,7 @@ section
 namespace SigGolfCandidate.T3M.Nonbinary.NCtx
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Nonbinary
+set_option maxRecDepth 8192
 set_option maxHeartbeats 800000
 set_option linter.unusedSimpArgs false
 def DigitsOk (c : NCtx) : Prop := ∀i,i<54 → c.dig i ≤ topMax i
@@ -356,7 +357,7 @@ theorem chk_rung (c : NCtx) (hds : c.DigitsOk) (i m : Nat) (hi : i<54)
     rw [if_neg (by omega),Bool.and_eq_true] at hp
     have hmmax : m< mx (i/3) := by change m<topMax i;unfold last at hm2;omega
     have hh := List.all_eq_true.mp hp.2 m (List.mem_range'_1.mpr ⟨by omega,by omega⟩)
-    have hr : c.rungPc i m=c.startPc i+5+2*(m-(c.dig i+1)) := by
+    have hr : c.rungPc i m=c.startPc i+6+2*(m-(c.dig i+1)) := by
       unfold rungPc
       rw [if_neg h0,if_neg (by omega)]
       omega

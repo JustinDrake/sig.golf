@@ -362,8 +362,7 @@ def btLeaf (lay : Layer) (tree sel : Nat) (ds : List Nat) (sb l : Nat) : LeafArg
   ⟨lay, tree, l, if l = sel then ds else [], false, if l = sel then DIGITS else ZDIG,
     if l = sel then sb else DUMMY, LOW + 16 * (2 ^ height lay + l), 1191⟩
 theorem btLeaf_costs (lay : Layer) (hlay : lay ≠ 0) (tree sel : Nat) (ds : List Nat) (sb l : Nat) :
-    (btLeaf lay tree sel ds sb l).leafK = (if lay = 1 then 13800 else 14101) ∧
-    (btLeaf lay tree sel ds sb l).leafC = (if lay = 1 then 16148 else 16449) ∧
+    (btLeaf lay tree sel ds sb l).leafK = 8081 ∧ (btLeaf lay tree sel ds sb l).leafC = 10429 ∧
     (btLeaf lay tree sel ds sb l).leafN = 324 ∧ (btLeaf lay tree sel ds sb l).leafB = 334 := by
   have e : (btLeaf lay tree sel ds sb l).leafK = (btLeaf lay 0 0 [] 0 1).leafK ∧
       (btLeaf lay tree sel ds sb l).leafC = (btLeaf lay 0 0 [] 0 1).leafC ∧
@@ -396,7 +395,6 @@ structure BtPre (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (tree sel 
   base : Base sk cache s
   hlay : lay ≠ 0
   htree : tree < 2 ^ 32
-  hroute : ∀ l < 2 ^ height lay, tree * 2 ^ height lay + l < 2 ^ 31
   hsel : sel < 2 ^ height lay
   hdb : ∀ i < 43, ds.getD i 0 ≤ 7
   digits : ∀ i < 43, s.getByte (BitVec.ofNat 64 (DIGITS + i)) = BitVec.ofNat 8 (ds.getD i 0)
@@ -464,9 +462,6 @@ theorem bt_leafPre {l : Nat} (hl : l < 2 ^ height lay) {t : MachineState}
       x31 := by rw [g _ (by decide), hs.x31]; rfl
       htree := hs.htree
       hleaf := by show l < 2 ^ 32; omega
-      hroute := hs.hroute l hl
-      hleafHeight := hl
-      hsteps := fun i _ => by change T3.maxDigit lay i ≤ 8; simp [T3.maxDigit, hlay]
       p0 := by rw [m _ (by decide) (by unfold BtW; sgo), hs.base.p0]
       p8 := by rw [m _ (by decide) (by unfold BtW; sgo), hs.base.p8]
       p32 := by rw [m _ (by decide) (by unfold BtW; sgo), hs.base.p32]
@@ -529,8 +524,7 @@ theorem bt_leafPre {l : Nat} (hl : l < 2 ^ height lay) {t : MachineState}
         rw [hn]; right; split_ifs <;> sgo }
 theorem bt_body {l : Nat} (hl : l < 2 ^ height lay) {st : List Digest × List Digest} {t : MachineState}
     (ht : BtInv s1 sb sel (height lay) l st t) :
-    TSim image sk t ((if lay = 1 then 13815 else 14116) + (if l = sel then 3 else 0))
-      ((if lay = 1 then 16163 else 16464) + (if l = sel then 3 else 0)) 324 334
+    TSim image sk t (8096 + (if l = sel then 3 else 0)) (10444 + (if l = sel then 3 else 0)) 324 334
       (btBody lay tree sel ds st l) (BtInv s1 sb sel (height lay) (l + 1)) := by
   have hlay := hs.hlay
   have hH := height_low hlay
@@ -575,8 +569,7 @@ theorem bt_body {l : Nat} (hl : l < 2 ^ height lay) {st : List Digest × List Di
   rw [cK, cC, cN, cB] at hleaf
   unfold btBody
   refine (TSim.steps (st1.trans (st2.trans (st3.trans st4))) (TSim.bind (k₂ := 2) (c₂ := 2) (n₂ := 0) (b₂ := 0)
-    hleaf (fun r u hu => ?_))).of_eq rfl (by rw [hk3]; split_ifs <;> omega)
-      (by rw [hk3]; split_ifs <;> omega) rfl rfl
+    hleaf (fun r u hu => ?_))).of_eq rfl (by rw [hk3]; omega) (by rw [hk3]; omega) rfl rfl
   obtain ⟨upc, uroot, uvals, ulen, -, ur, uf⟩ := hu
   obtain ⟨root, values⟩ := r
   obtain ⟨t5, st5, t5pc, t5x13, t5r, t5f⟩ := blk1191_spec u upc l
@@ -710,7 +703,7 @@ structure BtPost (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (tree sel
   base : Base sk cache u
   regs : RegsExcept s u btAllRegs
   frame : Frame s u (BtAllW lay tree sb)
-def btCost : Nat := 2127776
+def btCost : Nat := 128 * 10447 + 20000
 theorem sumTo_le_mul (f : Nat → Nat) (b : Nat) : ∀ n, (∀ j < n, f j ≤ b) → sumTo f n ≤ n * b
   | 0, _ => by simp [sumTo]
   | n + 1, h => by
@@ -899,7 +892,6 @@ theorem buildTree_tbsim {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {t
       hlay := hlay
       htree := hs.htree
       hsel := hsel
-      hroute := hs.hroute
       hdb := hs.hdb
       digits := fun i hi => by rw [s1f.getByte (by sgo) (fun h => h)]; exact hs.digits i hi
       hsb := hsb
@@ -907,14 +899,14 @@ theorem buildTree_tbsim {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {t
   have h0 : BtInv s1 sb sel (height lay) 0 ([], []) s1 :=
     ⟨s1pc, s1x13, RegsExcept.refl _ _, Frame.refl _ _, rfl, DigsAt.nil _ _, fun h => absurd h (by omega)⟩
   have hloop := TSim.foldlM_range (image := image) (sk := sk) (2 ^ height lay) (btBody lay tree sel ds) ([], [])
-    (BtInv s1 sb sel (height lay)) (fun l => (if lay = 1 then 13815 else 14116) + (if l = sel then 3 else 0))
-    (fun l => (if lay = 1 then 16163 else 16464) + (if l = sel then 3 else 0)) (fun _ => 324) (fun _ => 334)
+    (BtInv s1 sb sel (height lay)) (fun l => 8096 + (if l = sel then 3 else 0))
+    (fun l => 10444 + (if l = sel then 3 else 0)) (fun _ => 324) (fun _ => 334)
     (fun l hl st t ht => bt_body hs1 hl ht) h0
-  have hkc : sumTo (fun l => (if lay = 1 then 13815 else 14116) + (if l = sel then 3 else 0)) (2 ^ height lay) ≤
-      sumTo (fun l => (if lay = 1 then 16163 else 16464) + (if l = sel then 3 else 0)) (2 ^ height lay) :=
+  have hkc : sumTo (fun l => 8096 + (if l = sel then 3 else 0)) (2 ^ height lay) ≤
+      sumTo (fun l => 10444 + (if l = sel then 3 else 0)) (2 ^ height lay) :=
     sumTo_le_sumTo _ _ _ (fun j _ => by split_ifs <;> omega)
-  have hcb : sumTo (fun l => (if lay = 1 then 16163 else 16464) + (if l = sel then 3 else 0)) (2 ^ height lay) ≤ 128 * 16467 :=
-    le_trans (sumTo_le_mul _ 16467 _ (fun j _ => by split_ifs <;> omega)) (Nat.mul_le_mul_right _ hHp)
+  have hcb : sumTo (fun l => 10444 + (if l = sel then 3 else 0)) (2 ^ height lay) ≤ 128 * 10447 :=
+    le_trans (sumTo_le_mul _ 10447 _ (fun j _ => by split_ifs <;> omega)) (Nat.mul_le_mul_right _ hHp)
   rw [buildTree_eq]
   exact TBSim.mono (TBSim.steps st1 (TBSim.bind (W₂ := 19000) (TSim.toTBSim hloop hkc)
     (fun st t ht => bt_tail hs1 (by rw [s1x4, h1]) s1r s1f ht))) (by unfold btCost; omega) (fun _ _ h => h)

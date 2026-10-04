@@ -81,6 +81,7 @@ section
 namespace SigGolfCandidate.T3M.Nonbinary.NCtx
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Nonbinary SigGolfCandidate.T3
+set_option maxRecDepth 8192
 set_option maxHeartbeats 800000
 set_option linter.unusedSimpArgs false
 theorem next_inline (c : NCtx) (s0 : MachineState) (i : Nat) (hi : i<54) (h2 : i%3≠2)
@@ -98,7 +99,7 @@ theorem next_inline (c : NCtx) (s0 : MachineState) (i : Nat) (hi : i<54) (h2 : i
       if_neg (show (i+1)%3≠1 by omega)]
     unfold qC;rw [e]
 def chainF (c : NCtx) (ends : List Digest) (i : Nat) : M (List Digest) := do
-  let v ← chainP 0 c.tree c.leaf i (c.dig i) (topMax i-c.dig i) (c.pad0 i) (c.pad1 i) (c.padHeader i) (c.val i)
+  let v ← chainP 0 c.tree c.leaf i (c.dig i) (topMax i-c.dig i) (c.pad0 i) (c.pad1 i) (c.val i)
   pure (ends++[v])
 def chainsCost (c : NCtx) (i k : Nat) : Nat :=
   ((List.range' i k).map fun j => chainCost j (c.dig j)).sum

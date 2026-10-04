@@ -426,7 +426,7 @@ theorem shortHash_wct_ok (a rest : HashInput) (tag lay tree position index : Nat
     show BPB.hdrTag (pad64 (a ++ bytesLE 16 (wctHeader tag lay tree position index) ++ rest)) ≠ 12
     unfold BPB.hdrTag
     rw [hdrBlock_pad64_prefix _ _ _ ha (bytesLE_length _ _), wctHeader_byte1]
-    split <;> simp_all
+    exact ht
   · intro _; exact SourceQueries.pure_allowed _ _
 theorem chain_ok (index coord selected i start count : Nat) (value : Digest) :
     AllQueriesSatisfy (WCT9.chain index coord selected i start count value) BPB.NotDigestQ := by

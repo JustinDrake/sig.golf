@@ -64,23 +64,17 @@ theorem recoverFtsP_zero (sig : Signature) (index : Nat) (chosen : List Selectio
     recoverFtsP sig 0 index chosen = recoverFts sig index chosen := by
   simp only [recoverFtsP, recoverFts, recoverChildP_zero, Pads.zero_fold, nodeHashP_zero]
   rfl
-theorem recoverLayerP_zero (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat)
-    (hindex : index < 2^31) :
+theorem recoverLayerP_zero (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
     recoverLayerP sig 0 index lay digits = recoverLayer sig index lay digits := by
-  simp only [recoverLayerP, recoverLayer, Pads.zero_chain, Pads.zero_chainHeader,
-    chainP_zero_route _ _ _ _ _ hindex, Pads.zero_merkle, nodeHashP_zero]
-theorem verifyLayersP_zero (w : Witness) (index : Nat) (hindex : index < 2^31) : ∀ n root,
+  simp only [recoverLayerP, recoverLayer, Pads.zero_chain, chainP_zero, Pads.zero_merkle, nodeHashP_zero]
+theorem verifyLayersP_zero (w : Witness) (index : Nat) : ∀ n root,
     verifyLayersP w 0 index n root = verifyLayers w index n root := by
   intro n
   induction n with
   | zero => intro root; rfl
-  | succ n ih =>
-      intro root
-      simp only [verifyLayersP, verifyLayers, recoverLayerP_zero _ _ _ _ hindex, ih]
-      rfl
+  | succ n ih => intro root; simp only [verifyLayersP, verifyLayers, recoverLayerP_zero, ih]; rfl
 theorem verifyPads_zero (m : Message) (pk : Digest) (w : Witness) : verifyPads m pk w 0 = verify m pk w := by
-  simp only [verifyPads, verifyPadsTail, verify, recoverFtsP_zero,
-    verifyLayersP_zero _ _ (Nat.mod_lt _ (by decide))]
+  simp only [verifyPads, verifyPadsTail, verify, recoverFtsP_zero, verifyLayersP_zero]
   rfl
 theorem verifyPadsZero_holds : VerifyPadsZero := verifyPads_zero
 theorem rejectTailFalse_holds : RejectTailFalse := rejectTail_false

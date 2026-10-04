@@ -56,7 +56,6 @@ def padDecP (N : HashOutput) (w : WBytes) : Pads where
     | none => 0
   chain lay i := wchainPads w lay i.val
   merkle lay j := wmerklePad w lay j.val
-  chainHeader lay i := wchainHeaderPad w lay i.val
 def Shaped (N : HashOutput) (w : WBytes) : Prop :=
   selectionsOk (selections N) = true ∧ admissible (selections N) = true ∧ StreamMatches (selections N) w
 instance (N : HashOutput) (w : WBytes) : Decidable (Shaped N w) := by
