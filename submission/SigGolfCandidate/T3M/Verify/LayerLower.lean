@@ -115,8 +115,8 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
   have hidx := hs.idx
   have hA := encA_step w pk index lay M s hs
   have hT : 9 * tgtL lay.val ≤ 2950 := by fin_cases lay <;> decide
-  have hbS : 26 ≤ bSt lay.val := by unfold bSt; split <;> omega
-  have hbC : 29 ≤ bCy lay.val := by unfold bCy; split <;> omega
+  have hbS : 29 ≤ bSt lay.val := by unfold bSt; split <;> omega
+  have hbC : 32 ≤ bCy lay.val := by unfold bCy; split <;> omega
   have hfuel : layerFuel lay.val = stepsA lay.val + 1 + bSt lay.val + 1720 + 10 := by
     simp only [layerFuel, stB, chainFuel, lfSteps, if_neg h0] <;> omega
   have hcost : layerCost lay.val 0 = stepsA lay.val + 8 + bCy lay.val + 10 + (2950 - 9 * tgtL lay.val) := by
@@ -171,49 +171,73 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
     exact GoodQ.steps' hst this (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)
 theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u : MachineState)
     (hidx : idx < 2 ^ 31) (hglob : Glob baseK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
-    (hpc : u.pc = pcOf 656) (hroot : DigAt u 0x100 root)
-    (hwit : Verify.Orig w (fun o => o < 64 ∨ 11288 ≤ o) u)
-    (h6 : u.getReg .x6 = 1) (h7 : u.getReg .x7 = 2) :
-    ∃ t, Steps image u 6 6 t ∧ LayerIn w pk idx 3 (root, 0, 0) t := by
-  obtain ⟨t, ht⟩ := spec_run ld3Check_ok u hpc hglob.1 (by simp [ld3Spec]) (by simp)
+    (hpc : u.pc = pcOf 657) (h12 : u.getReg .x12 = BitVec.ofNat 64 0x100) (h6 : u.getReg .x6 = 1) (h7 : u.getReg .x7 = 2)
+    (hbase : u.getReg .x28 = BitVec.ofNat 64 TOPBASE)
+    (htop : ∀ k, k < 5 → u.getMem (BitVec.ofNat 64 (TOPLOAD + 8 * k)) =
+      BitVec.ofNat 64 (dataWords.getD k 0)) (hroot : DigAt u 0x100 root)
+    (hwit : Verify.Orig w (fun o => o < 64 ∨ 11288 ≤ o) u) :
+    ∃ t, Steps image u 5 5 t ∧ LayerIn w pk idx 3 (root, 0, 0) t := by
+  have hk0 : KnownOK ld3In u := by
+    intro p hp
+    simp only [ld3In, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with hp | rfl | rfl | rfl
+    · exact hglob.1 p hp
+    · exact h6
+    · exact h7
+    · exact hbase
+  obtain ⟨t, ht⟩ := spec_run ld3Check_ok u hpc hk0 (by simp [ld3Spec]) (by simp)
   have hm : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
   have hD : DataOK u := hglob.2.2.2.2.2
-  have r28 : t.getReg .x28 = (E.ld (kw DATA)).eval u := ht.regs (.x28, .ld (kw DATA)) (by simp [ld3Spec])
-  have r21 : t.getReg .x21 = (E.ld (kw (DATA + 8))).eval u := ht.regs (.x21, .ld (kw (DATA + 8))) (by simp [ld3Spec])
-  have r20 : t.getReg .x20 = (E.ld (kw (DATA + 16))).eval u :=
-    ht.regs (.x20, .ld (kw (DATA + 16))) (by simp [ld3Spec])
-  have r27 : t.getReg .x27 = (E.ld (kw (DATA + 24))).eval u :=
-    ht.regs (.x27, .ld (kw (DATA + 24))) (by simp [ld3Spec])
-  have r2 : t.getReg .x2 = (E.ld (kw (DATA + 32))).eval u := ht.regs (.x2, .ld (kw (DATA + 32))) (by simp [ld3Spec])
+  have r28 : t.getReg .x28 = (E.ld (kw TOPLOAD)).eval u := ht.regs (.x28, .ld (kw TOPLOAD)) (by simp [ld3Spec])
+  have r21 : t.getReg .x21 = (E.ld (kw (TOPLOAD + 8))).eval u := ht.regs (.x21, .ld (kw (TOPLOAD + 8))) (by simp [ld3Spec])
+  have r20 : t.getReg .x20 = (E.ld (kw (TOPLOAD + 16))).eval u :=
+    ht.regs (.x20, .ld (kw (TOPLOAD + 16))) (by simp [ld3Spec])
+  have r27 : t.getReg .x27 = (E.ld (kw (TOPLOAD + 24))).eval u :=
+    ht.regs (.x27, .ld (kw (TOPLOAD + 24))) (by simp [ld3Spec])
+  have r2 : t.getReg .x2 = (E.ld (kw (TOPLOAD + 32))).eval u := ht.regs (.x2, .ld (kw (TOPLOAD + 32))) (by simp [ld3Spec])
   have e28 : t.getReg .x28 = BitVec.ofNat 64 (headerBank 0 0) :=
-    r28.trans (hD.word 0 (by omega) (headerBank 0 0) (by decide) DATA (by omega))
+    by
+      rw [r28]
+      change u.getMem (BitVec.ofNat 64 TOPLOAD) = _
+      exact (htop 0 (by decide)).trans (by decide +kernel)
   have e21 : t.getReg .x21 = BitVec.ofNat 64 M2c :=
-    r21.trans (hD.word 1 (by omega) M2c (by decide) (DATA + 8) (by omega))
+    by
+      rw [r21]
+      change u.getMem (BitVec.ofNat 64 (TOPLOAD + 8)) = _
+      exact (htop 1 (by decide)).trans (by decide +kernel)
   have e20 : t.getReg .x20 = BitVec.ofNat 64 M1c :=
-    r20.trans (hD.word 2 (by omega) M1c (by decide) (DATA + 16) (by omega))
+    by
+      rw [r20]
+      change u.getMem (BitVec.ofNat 64 (TOPLOAD + 16)) = _
+      exact (htop 2 (by decide)).trans (by decide +kernel)
   have e27 : t.getReg .x27 = BitVec.ofNat 64 (hw 4 3) :=
-    r27.trans (hD.word 3 (by omega) (hw 4 3) (by decide) (DATA + 24) (by omega))
+    by
+      rw [r27]
+      change u.getMem (BitVec.ofNat 64 (TOPLOAD + 24)) = _
+      exact (htop 3 (by decide)).trans (by decide +kernel)
   have e2 : t.getReg .x2 = BitVec.ofNat 64 0x3fe00 :=
-    r2.trans (hD.word 4 (by omega) 0x3fe00 (by decide) (DATA + 32) (by omega))
+    by
+      rw [r2]
+      change u.getMem (BitVec.ofNat 64 (TOPLOAD + 32)) = _
+      exact (htop 4 (by decide)).trans (by decide +kernel)
   have hG0 : Glob baseK w pk t := ht.glob _ _ _ hglob (RelOK.nil u)
   have hpk : preK 3 = baseK ++ [(.x28, BitVec.ofNat 64 (headerBank 0 0)), (.x21, BitVec.ofNat 64 M2c),
-      (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00),
-      (.x6, 1), (.x7, 2)] := rfl
+      (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00), (.x6, 1), (.x7, 2)] := rfl
   have hk : ∀ p ∈ preK 3, t.getReg p.1 = p.2 := by
     intro p hp
     rw [hpk] at hp
     simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
     rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    · exact ht.known p hp
+    · exact ht.known p (List.mem_append_left _ hp)
     · exact e28
     · exact e21
     · exact e20
     · exact e27
     · exact e2
-    · exact (ht.keep .x6 (by simp)).trans h6
-    · exact (ht.keep .x7 (by simp)).trans h7
+    · exact ht.known (.x6, 1) (by simp)
+    · exact ht.known (.x7, 2) (by simp)
   refine ⟨t, ht.steps, ⟨by norm_num, hidx, ⟨0, by rw [nCopy_eq.1]; norm_num, by rw [ht.pc rfl]; rfl⟩, ⟨hk, hG0.2⟩,
-    ?_, ?_, ?_, Or.inl rfl⟩⟩
+    ?_, ?_, ?_, ⟨256, by simp [dstSet], by rw [ht.keep .x12 (by simp), h12]⟩⟩⟩
   · rw [show rReg 3 = .x22 from rfl, ht.keep .x22 (by simp), hreg, show below 3 = 0 from rfl, pow_zero, Nat.div_one]
   · have hPZ : PZero u := hglob.2.2.2.1
     have hPH : PHalf u := hglob.2.2.2.2.1
