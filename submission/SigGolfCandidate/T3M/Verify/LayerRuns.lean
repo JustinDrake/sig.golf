@@ -8,8 +8,8 @@ def nCopy (lay : Nat) : Nat := (xtrTab.getD lay []).length
 def trPc (lay c : Nat) : Nat := (xtrTab.getD lay []).getD c 0
 def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 def hL (lay : Nat) : Nat := [12,7,6,6].getD lay 0
-def stepsA (lay : Nat) : Nat := if lay = 3 then 20 else if lay = 0 then 10 else 13
-def retOff (lay : Nat) : Nat := if lay = 0 then 12 else if lay = 3 then 49 else 39
+def stepsA (lay : Nat) : Nat := if lay = 3 then 19 else if lay = 0 then 10 else 13
+def retOff (lay : Nat) : Nat := if lay = 0 then 12 else if lay = 3 then 48 else 39
 def s6v (lay : Nat) : Nat := [14344,18312,21448,24584].getD lay 0
 def s3v : Nat := 15048
 def tgtL (lay : Nat) : Nat := [126,197,197,196].getD lay 0
@@ -28,7 +28,7 @@ def lfT3 (lay : Nat) : Nat := if lay ≤ 1 then headerBank 0 0 else headerBank l
 def x10In (lay : Nat) : Nat := [16840,20040,23176].getD lay 0
 def preK (lay : Nat) : List (Reg × Word) :=
   if lay = 3 then baseK ++ [(.x19, BitVec.ofNat 64 0x400000), (.x21, BitVec.ofNat 64 M2c), (.x20, BitVec.ofNat 64 M1c),
-    (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00), (.x12, BitVec.ofNat 64 256)]
+    (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00), (.x12, BitVec.ofNat 64 256), (.x26, 6)]
   else baseK ++ [(.x27, BitVec.ofNat 64 (hw 4 (lay + 1))), (.x24, 0x10000), (.x2, 0x3fe00),
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x19, BitVec.ofNat 64 0x400000),
@@ -49,7 +49,7 @@ def ld3Spec : Spec :=
   ⟨[(.x19, kw 0x400000), (.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
       (.x27, .ld (kw (DATA + 24))), (.x2, .ld (kw (DATA + 32)))],
     [], 594, false, 6, [], none, 6⟩
-def ld3Check : Bool := specB [] [] baseK (runAt baseK [594] 588 []) ld3Spec [] baseK [.x22, .x12]
+def ld3Check : Bool := specB [] [] baseK (runAt baseK [594] 588 []) ld3Spec [] baseK [.x22, .x12, .x26]
 def bK (lay : Nat) : List (Reg × Word) := layK lay ++ [(.x10, 256), (.x12, 256)] ++
   (if lay = 1 ∨ lay = 2 then [(.x22, BitVec.ofNat 64 (s6v lay))] else [])
 def rReg (lay : Nat) : Reg := if lay = 3 then .x22 else .x30
@@ -90,7 +90,7 @@ def packedRouteE (lay : Nat) : E :=
   .bin .or (.bin .or (.ld (kw (HDATA + 8 * lay)))
     (.bin .sll (.bin .srl (.reg .x4) (kw 32)) (kw 16)))
     (.bin .sll (.reg .x30) (kw (hL lay + 16)))
-def prefixReturn (lay p : Nat) : Nat := p + (if lay = 3 then 48 else 38)
+def prefixReturn (lay p : Nat) : Nat := p + (if lay = 3 then 47 else 38)
 def specBl (lay p : Nat) : Spec :=
   ⟨[(.x16, a6E), (.x17, a7lE), (.x25, kw (0x1000 + 4 * prefixReturn lay p)), (.x29, t4E lay),
     (.x3, .bin .sll (.reg .x30) (kw (hL lay + 16))), (.x14, x14l), (.x28, packedRouteE lay)],

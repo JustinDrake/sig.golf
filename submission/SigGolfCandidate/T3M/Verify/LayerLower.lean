@@ -304,16 +304,16 @@ def layerHead {β : Type} (w : WBytes) (index : Nat) (lay : Layer) (M : ClaudeWC
     match decode lay answer with
     | none => pure none
     | some digits => chainsP w lay (route index lay).2 (route index lay).1 digits >>= R
-def stB (lay : Nat) : Nat := if lay = 0 then 123 else bSt lay
-def cyB (lay : Nat) : Nat := if lay = 0 then 75 else bCy lay
+def stB (lay : Nat) : Nat := if lay = 0 then 120 else bSt lay
+def cyB (lay : Nat) : Nat := if lay = 0 then 72 else bCy lay
 def chainCost0 (lay : Nat) : Nat := if lay = 0 then 1086 else 2950 - 9 * tgtL lay
 def chainFuel (lay : Nat) : Nat := if lay = 0 then 2321 else 1720
 def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + chainCost0 lay - Z
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 theorem layerCost_vals :
-    layerCost 3 0 = 1262 ∧ layerCost 2 0 = 1243 ∧ layerCost 1 0 = 1244 ∧ layerCost 0 0 = 1191 := by decide
+    layerCost 3 0 = 1261 ∧ layerCost 2 0 = 1243 ∧ layerCost 1 0 = 1244 ∧ layerCost 0 0 = 1188 := by decide
 theorem layerFuel_vals :
-    layerFuel 3 = 1786 ∧ layerFuel 2 = 1776 ∧ layerFuel 1 = 1777 ∧ layerFuel 0 = 2467 := by decide
+    layerFuel 3 = 1785 ∧ layerFuel 2 = 1776 ∧ layerFuel 1 = 1777 ∧ layerFuel 0 = 2464 := by decide
 theorem ckOf_lt (lay : Layer) (hlay : lay ≠ 0) (a : BitVec 256) (ds : List Nat)
     (hds : decode lay (a.extractLsb' 0 128) = some ds) : ckOf lay a < 8 := by
   rw [decode_lower lay hlay] at hds
@@ -409,7 +409,8 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
 theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u : MachineState)
     (hidx : idx < 2 ^ 31) (hglob : Glob baseK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
     (hpc : u.pc = pcOf 588) (hroot : DigAt u 0x100 root)
-    (hwit : Verify.Orig w (fun o => o < 64 ∨ 10568 ≤ o) u) (ha2 : u.getReg .x12 = BitVec.ofNat 64 0x100) :
+    (hwit : Verify.Orig w (fun o => o < 64 ∨ 10568 ≤ o) u) (ha2 : u.getReg .x12 = BitVec.ofNat 64 0x100)
+    (hs10 : u.getReg .x26 = 6) :
     ∃ t, Steps image u 6 6 t ∧ LayerIn w pk idx 3 (.forest root) t := by
   obtain ⟨t, ht⟩ := spec_run BC.ld3Check_ok u hpc hglob.1 (by simp [ld3Spec]) (by simp)
   have hm : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
@@ -433,13 +434,14 @@ theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u
   have hG0 : Glob baseK w pk t := ht.glob _ _ _ hglob (RelOK.nil u)
   have hpk : preK 3 = baseK ++ [(.x19, BitVec.ofNat 64 0x400000), (.x21, BitVec.ofNat 64 M2c),
       (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00),
-      (.x12, BitVec.ofNat 64 256)] := rfl
+      (.x12, BitVec.ofNat 64 256), (.x26, 6)] := rfl
   have e12 : t.getReg .x12 = BitVec.ofNat 64 256 := (ht.keep .x12 (by simp)).trans ha2
+  have e26 : t.getReg .x26 = 6 := (ht.keep .x26 (by simp)).trans hs10
   have hk : ∀ p ∈ preK 3, t.getReg p.1 = p.2 := by
     intro p hp
     rw [hpk] at hp
     simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl
+    rcases hp with hp | rfl | rfl | rfl | rfl | rfl | rfl | rfl
     · exact ht.known p hp
     · exact e19
     · exact e21
@@ -447,6 +449,7 @@ theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u
     · exact e27
     · exact e2
     · exact e12
+    · exact e26
   refine ⟨t, ht.steps, ⟨by norm_num, hidx, ⟨0, by rw [BC.nCopy_eq.1]; norm_num, by rw [ht.pc rfl]; rfl⟩, ⟨hk, hG0.2⟩,
     ?_, ?_, ?_⟩⟩
   · rw [show rReg 3 = .x22 from rfl, show BC.below 3 = 0 from rfl, pow_zero, Nat.div_one,

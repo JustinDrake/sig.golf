@@ -59,10 +59,10 @@ open SigGolfCandidate.T3 (Digest)
 set_option maxRecDepth 8192
 set_option maxHeartbeats 600000
 set_option linter.unusedSimpArgs false
-def pairInitCode : List (BitVec 32) := [0xff89b7,19511,0xfffc0c13]
+def pairInitCode : List (BitVec 32) := [0xff89b7,0xe3750c13]
 sym_block pairInitBase := symRun { noAlias := true } pairInitCode 0#64 200
 theorem pairInit_run (pc : Word) : symRun { noAlias := true } pairInitCode pc 200 =
-    some ⟨pairInitBase.res.st, .c (pc + 4 + 4 + 4), .endOfCode, 3, 3⟩ := by rfl
+    some ⟨pairInitBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
 def pairPtr0Code : List (BitVec 32) := [25720627,20383539]
 sym_block pairPtr0Base := symRun { noAlias := true } pairPtr0Code 0#64 200
 theorem pairPtr0_run (pc : Word) : symRun { noAlias := true } pairPtr0Code pc 200 =
@@ -87,23 +87,31 @@ def singleTailCode : List (BitVec 32) := [0xec8cb3,8314515]
 sym_block singleTailBase := symRun { noAlias := true } singleTailCode 0#64 200
 theorem singleTail_run (pc : Word) : symRun { noAlias := true } singleTailCode pc 200 =
     some ⟨singleTailBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
-def pairCrossCode : List (BitVec 32) := [1611923,30992563,560787]
+def pairCrossCode : List (BitVec 32) := [1611923,30992563]
 sym_block pairCrossBase := symRun { noAlias := true } pairCrossCode 0#64 200
 theorem pairCross_run (pc : Word) : symRun { noAlias := true } pairCrossCode pc 200 =
-    some ⟨pairCrossBase.res.st, .c (pc + 4 + 4 + 4), .endOfCode, 3, 3⟩ := by rfl
+    some ⟨pairCrossBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
+def pairPtrXCode : List (BitVec 32) := [0x188f733,20383539]
+sym_block pairPtrXBase := symRun { noAlias := true } pairPtrXCode 0#64 200
+theorem pairPtrX_run (pc : Word) : symRun { noAlias := true } pairPtrXCode pc 200 =
+    some ⟨pairPtrXBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
+def pairTailXCode : List (BitVec 32) := [0xec8cb3,0xe8de93]
+sym_block pairTailXBase := symRun { noAlias := true } pairTailXCode 0#64 200
+theorem pairTailX_run (pc : Word) : symRun { noAlias := true } pairTailXCode pc 200 =
+    some ⟨pairTailXBase.res.st, .c (pc + 4 + 4), .endOfCode, 2, 2⟩ := by rfl
 def tailInitCode : List (BitVec 32) := [0xffc9b7]
 sym_block tailInitBase := symRun { noAlias := true } tailInitCode 0#64 200
 theorem tailInit_run (pc : Word) : symRun { noAlias := true } tailInitCode pc 200 =
     some ⟨tailInitBase.res.st, .c (pc + 4), .endOfCode, 1, 1⟩ := by rfl
 theorem pairInit_spec {image : Image} (s : MachineState) (pc : Word)
-    (hc : CodeAt image pc pairInitCode) (hpc : s.pc = pc) :
-    ∃ t, Steps image s 3 3 t ∧ t.pc = pc + 4 + 4 + 4 ∧
+    (hc : CodeAt image pc pairInitCode) (hpc : s.pc = pc) (h10 : s.getReg .x10 = 16840#64) :
+    ∃ t, Steps image s 2 2 t ∧ t.pc = pc + 4 + 4 ∧
       t.getReg .x19 = BitVec.ofNat 64 PAIR_DATA ∧ t.getReg .x24 = 16383#64 ∧
       RegsExcept s t [.x19,.x24] ∧ Frame s t (fun _ => False) := by
   refine ⟨_,symRun_sound (pairInit_run pc) hc s hpc (by simp [pairInitBase.res,rv_simp]),?_,?_,?_,?_,?_⟩
   · rfl
   · rfl
-  · rfl
+  · simp [pairInitBase.res,rv_simp,h10]
   · intro q hq; cases q <;> simp at hq <;> simp [pairInitBase.res,rv_simp] <;> rfl
   · intro A _ _; simp [pairInitBase.res,rv_simp]
 theorem pairPtr0_spec {image : Image} (s : MachineState) (pc : Word)
@@ -185,15 +193,42 @@ theorem singlePtr_spec {image : Image} (s : MachineState) (pc : Word)
 theorem pairCross_spec {image : Image} (s : MachineState) (pc : Word)
     (hc : CodeAt image pc pairCrossCode) (hpc : s.pc = pc) (v : Digest)
     (hw : s.getReg .x29 = v.extractLsb' 0 64 >>> 63) (hh : s.getReg .x17 = v.extractLsb' 64 64) :
-    ∃ t, Steps image s 3 3 t ∧ t.pc = pc + 4 + 4 + 4 ∧
-      t.getReg .x17 = v.extractLsb' 63 64 ∧ t.getReg .x29 = topWindow v 9 ∧
-      RegsExcept s t [.x17,.x29] ∧ Frame s t (fun _ => False) := by
+    ∃ t, Steps image s 2 2 t ∧ t.pc = pc + 4 + 4 ∧
+      t.getReg .x17 = v.extractLsb' 63 64 ∧ t.getReg .x17 = topWindow v 9 ∧
+      RegsExcept s t [.x17] ∧ Frame s t (fun _ => False) := by
   refine ⟨_,symRun_sound (pairCross_run pc) hc s hpc (by simp [pairCrossBase.res,rv_simp]),?_,?_,?_,?_,?_⟩
   · rfl
   · simpa [pairCrossBase.res,rv_simp,hw,hh] using topWindow_cross v
   · simpa [pairCrossBase.res,rv_simp,hw,hh,topWindow] using topWindow_cross v
   · intro q hq; cases q <;> simp at hq <;> simp [pairCrossBase.res,rv_simp] <;> rfl
   · intro A _ _; simp [pairCrossBase.res,rv_simp]
+theorem pairPtrX_spec {image : Image} (s : MachineState) (pc : Word)
+    (hc : CodeAt image pc pairPtrXCode) (hpc : s.pc = pc) (v : Digest) (q : Nat)
+    (hq : q < 8 ∨ (9 ≤ q ∧ q < 16))
+    (hw : s.getReg .x17 = topWindow v q) (hb : s.getReg .x19 = BitVec.ofNat 64 PAIR_DATA)
+    (hm : s.getReg .x24 = 16383#64) :
+    ∃ t, Steps image s 2 2 t ∧ t.pc = pc + 4 + 4 ∧
+      t.getReg .x14 = BitVec.ofNat 64 (PAIR_DATA + pairRank v q) ∧
+      RegsExcept s t [.x14] ∧ Frame s t (fun _ => False) := by
+  refine ⟨_,symRun_sound (pairPtrX_run pc) hc s hpc (by simp [pairPtrXBase.res,rv_simp]),?_,?_,?_,?_⟩
+  · rfl
+  · simp only [Result.toState_getReg,pairPtrXBase.res,rv_simp,hw,hb,hm,pairWindow_rank v q hq,ofNat_add_ofNat]
+    congr 1; omega
+  · intro q hq; cases q <;> simp at hq <;> simp [pairPtrXBase.res,rv_simp] <;> rfl
+  · intro A _ _; simp [pairPtrXBase.res,rv_simp]
+theorem pairTailX_spec {image : Image} (s : MachineState) (pc : Word)
+    (hc : CodeAt image pc pairTailXCode) (hpc : s.pc = pc) (W : Word) (sum value : Nat)
+    (hw : s.getReg .x17 = W) (hs : s.getReg .x25 = BitVec.ofNat 64 sum)
+    (hv : s.getReg .x14 = BitVec.ofNat 64 value) :
+    ∃ t, Steps image s 2 2 t ∧ t.pc = pc + 4 + 4 ∧
+      t.getReg .x29 = W >>> 14 ∧ t.getReg .x25 = BitVec.ofNat 64 (sum + value) ∧
+      RegsExcept s t [.x25,.x29] ∧ Frame s t (fun _ => False) := by
+  refine ⟨_,symRun_sound (pairTailX_run pc) hc s hpc (by simp [pairTailXBase.res,rv_simp]),?_,?_,?_,?_,?_⟩
+  · rfl
+  · simp [pairTailXBase.res,rv_simp,hw]
+  · simp [pairTailXBase.res,rv_simp,hs,hv,ofNat_add_ofNat]
+  · intro q hq; cases q <;> simp at hq <;> simp [pairTailXBase.res,rv_simp] <;> rfl
+  · intro A _ _; simp [pairTailXBase.res,rv_simp]
 theorem tailInit_spec {image : Image} (s : MachineState) (pc : Word)
     (hc : CodeAt image pc tailInitCode) (hpc : s.pc = pc) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pc + 4 ∧ t.getReg .x19 = BitVec.ofNat 64 TAIL_DATA ∧
@@ -246,117 +281,117 @@ private theorem pf_96164 : CodeAt Verify.image (pcOf 96164) pairInitCode := by
   have h := codeAt_from 96164 (by decide)
   have hp : pairInitCode <+: codeFrom 96164 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96167 : CodeAt Verify.image (pcOf 96167) pairPtr0Code := by
-  have h := codeAt_from 96167 (by decide)
-  have hp : pairPtr0Code <+: codeFrom 96167 := by decide +kernel
+private theorem pf_96166 : CodeAt Verify.image (pcOf 96166) pairPtr0Code := by
+  have h := codeAt_from 96166 (by decide)
+  have hp : pairPtr0Code <+: codeFrom 96166 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96169 : CodeAt Verify.image (pcOf 96169) [0x00074c83] := by
+private theorem pf_96168 : CodeAt Verify.image (pcOf 96168) [0x00074c83] := by
+  have h := codeAt_from 96168 (by decide)
+  have hp : [0x00074c83] <+: codeFrom 96168 := by decide +kernel
+  exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
+private theorem pf_96169 : CodeAt Verify.image (pcOf 96169) pairShift0Code := by
   have h := codeAt_from 96169 (by decide)
-  have hp : [0x00074c83] <+: codeFrom 96169 := by decide +kernel
+  have hp : pairShift0Code <+: codeFrom 96169 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96170 : CodeAt Verify.image (pcOf 96170) pairShift0Code := by
+private theorem pf_96170 : CodeAt Verify.image (pcOf 96170) pairPtrCode := by
   have h := codeAt_from 96170 (by decide)
-  have hp : pairShift0Code <+: codeFrom 96170 := by decide +kernel
+  have hp : pairPtrCode <+: codeFrom 96170 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96171 : CodeAt Verify.image (pcOf 96171) pairPtrCode := by
-  have h := codeAt_from 96171 (by decide)
-  have hp : pairPtrCode <+: codeFrom 96171 := by decide +kernel
+private theorem pf_96172 : CodeAt Verify.image (pcOf 96172) [0x00074703] := by
+  have h := codeAt_from 96172 (by decide)
+  have hp : [0x00074703] <+: codeFrom 96172 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96173 : CodeAt Verify.image (pcOf 96173) [0x00074703] := by
+private theorem pf_96173 : CodeAt Verify.image (pcOf 96173) pairTailCode := by
   have h := codeAt_from 96173 (by decide)
-  have hp : [0x00074703] <+: codeFrom 96173 := by decide +kernel
+  have hp : pairTailCode <+: codeFrom 96173 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96174 : CodeAt Verify.image (pcOf 96174) pairTailCode := by
-  have h := codeAt_from 96174 (by decide)
-  have hp : pairTailCode <+: codeFrom 96174 := by decide +kernel
+private theorem pf_96175 : CodeAt Verify.image (pcOf 96175) pairPtrCode := by
+  have h := codeAt_from 96175 (by decide)
+  have hp : pairPtrCode <+: codeFrom 96175 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96176 : CodeAt Verify.image (pcOf 96176) pairPtrCode := by
-  have h := codeAt_from 96176 (by decide)
-  have hp : pairPtrCode <+: codeFrom 96176 := by decide +kernel
+private theorem pf_96177 : CodeAt Verify.image (pcOf 96177) [0x00074703] := by
+  have h := codeAt_from 96177 (by decide)
+  have hp : [0x00074703] <+: codeFrom 96177 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96178 : CodeAt Verify.image (pcOf 96178) [0x00074703] := by
+private theorem pf_96178 : CodeAt Verify.image (pcOf 96178) pairTailCode := by
   have h := codeAt_from 96178 (by decide)
-  have hp : [0x00074703] <+: codeFrom 96178 := by decide +kernel
+  have hp : pairTailCode <+: codeFrom 96178 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96179 : CodeAt Verify.image (pcOf 96179) pairTailCode := by
-  have h := codeAt_from 96179 (by decide)
-  have hp : pairTailCode <+: codeFrom 96179 := by decide +kernel
+private theorem pf_96180 : CodeAt Verify.image (pcOf 96180) pairPtrCode := by
+  have h := codeAt_from 96180 (by decide)
+  have hp : pairPtrCode <+: codeFrom 96180 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96181 : CodeAt Verify.image (pcOf 96181) pairPtrCode := by
-  have h := codeAt_from 96181 (by decide)
-  have hp : pairPtrCode <+: codeFrom 96181 := by decide +kernel
+private theorem pf_96182 : CodeAt Verify.image (pcOf 96182) [0x00074703] := by
+  have h := codeAt_from 96182 (by decide)
+  have hp : [0x00074703] <+: codeFrom 96182 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96183 : CodeAt Verify.image (pcOf 96183) [0x00074703] := by
+private theorem pf_96183 : CodeAt Verify.image (pcOf 96183) pairTailCode := by
   have h := codeAt_from 96183 (by decide)
-  have hp : [0x00074703] <+: codeFrom 96183 := by decide +kernel
+  have hp : pairTailCode <+: codeFrom 96183 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96184 : CodeAt Verify.image (pcOf 96184) pairTailCode := by
-  have h := codeAt_from 96184 (by decide)
-  have hp : pairTailCode <+: codeFrom 96184 := by decide +kernel
+private theorem pf_96185 : CodeAt Verify.image (pcOf 96185) singlePtrCode := by
+  have h := codeAt_from 96185 (by decide)
+  have hp : singlePtrCode <+: codeFrom 96185 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96186 : CodeAt Verify.image (pcOf 96186) singlePtrCode := by
-  have h := codeAt_from 96186 (by decide)
-  have hp : singlePtrCode <+: codeFrom 96186 := by decide +kernel
+private theorem pf_96187 : CodeAt Verify.image (pcOf 96187) [0x00074703] := by
+  have h := codeAt_from 96187 (by decide)
+  have hp : [0x00074703] <+: codeFrom 96187 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96188 : CodeAt Verify.image (pcOf 96188) [0x00074703] := by
+private theorem pf_96188 : CodeAt Verify.image (pcOf 96188) singleTailCode := by
   have h := codeAt_from 96188 (by decide)
-  have hp : [0x00074703] <+: codeFrom 96188 := by decide +kernel
+  have hp : singleTailCode <+: codeFrom 96188 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96189 : CodeAt Verify.image (pcOf 96189) singleTailCode := by
-  have h := codeAt_from 96189 (by decide)
-  have hp : singleTailCode <+: codeFrom 96189 := by decide +kernel
+private theorem pf_96190 : CodeAt Verify.image (pcOf 96190) pairCrossCode := by
+  have h := codeAt_from 96190 (by decide)
+  have hp : pairCrossCode <+: codeFrom 96190 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96191 : CodeAt Verify.image (pcOf 96191) pairCrossCode := by
-  have h := codeAt_from 96191 (by decide)
-  have hp : pairCrossCode <+: codeFrom 96191 := by decide +kernel
+private theorem pf_96192 : CodeAt Verify.image (pcOf 96192) pairPtrXCode := by
+  have h := codeAt_from 96192 (by decide)
+  have hp : pairPtrXCode <+: codeFrom 96192 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96194 : CodeAt Verify.image (pcOf 96194) pairPtrCode := by
+private theorem pf_96194 : CodeAt Verify.image (pcOf 96194) [0x00074703] := by
   have h := codeAt_from 96194 (by decide)
-  have hp : pairPtrCode <+: codeFrom 96194 := by decide +kernel
+  have hp : [0x00074703] <+: codeFrom 96194 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96196 : CodeAt Verify.image (pcOf 96196) [0x00074703] := by
-  have h := codeAt_from 96196 (by decide)
-  have hp : [0x00074703] <+: codeFrom 96196 := by decide +kernel
+private theorem pf_96195 : CodeAt Verify.image (pcOf 96195) pairTailXCode := by
+  have h := codeAt_from 96195 (by decide)
+  have hp : pairTailXCode <+: codeFrom 96195 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96197 : CodeAt Verify.image (pcOf 96197) pairTailCode := by
+private theorem pf_96197 : CodeAt Verify.image (pcOf 96197) pairPtrCode := by
   have h := codeAt_from 96197 (by decide)
-  have hp : pairTailCode <+: codeFrom 96197 := by decide +kernel
+  have hp : pairPtrCode <+: codeFrom 96197 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96199 : CodeAt Verify.image (pcOf 96199) pairPtrCode := by
+private theorem pf_96199 : CodeAt Verify.image (pcOf 96199) [0x00074703] := by
   have h := codeAt_from 96199 (by decide)
-  have hp : pairPtrCode <+: codeFrom 96199 := by decide +kernel
+  have hp : [0x00074703] <+: codeFrom 96199 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96201 : CodeAt Verify.image (pcOf 96201) [0x00074703] := by
-  have h := codeAt_from 96201 (by decide)
-  have hp : [0x00074703] <+: codeFrom 96201 := by decide +kernel
+private theorem pf_96200 : CodeAt Verify.image (pcOf 96200) pairTailCode := by
+  have h := codeAt_from 96200 (by decide)
+  have hp : pairTailCode <+: codeFrom 96200 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96202 : CodeAt Verify.image (pcOf 96202) pairTailCode := by
+private theorem pf_96202 : CodeAt Verify.image (pcOf 96202) pairPtrCode := by
   have h := codeAt_from 96202 (by decide)
-  have hp : pairTailCode <+: codeFrom 96202 := by decide +kernel
+  have hp : pairPtrCode <+: codeFrom 96202 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96204 : CodeAt Verify.image (pcOf 96204) pairPtrCode := by
+private theorem pf_96204 : CodeAt Verify.image (pcOf 96204) [0x00074703] := by
   have h := codeAt_from 96204 (by decide)
-  have hp : pairPtrCode <+: codeFrom 96204 := by decide +kernel
+  have hp : [0x00074703] <+: codeFrom 96204 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96206 : CodeAt Verify.image (pcOf 96206) [0x00074703] := by
-  have h := codeAt_from 96206 (by decide)
-  have hp : [0x00074703] <+: codeFrom 96206 := by decide +kernel
+private theorem pf_96205 : CodeAt Verify.image (pcOf 96205) pairTailCode := by
+  have h := codeAt_from 96205 (by decide)
+  have hp : pairTailCode <+: codeFrom 96205 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96207 : CodeAt Verify.image (pcOf 96207) pairTailCode := by
+private theorem pf_96207 : CodeAt Verify.image (pcOf 96207) pairPtrCode := by
   have h := codeAt_from 96207 (by decide)
-  have hp : pairTailCode <+: codeFrom 96207 := by decide +kernel
+  have hp : pairPtrCode <+: codeFrom 96207 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96209 : CodeAt Verify.image (pcOf 96209) pairPtrCode := by
+private theorem pf_96209 : CodeAt Verify.image (pcOf 96209) [0x00074703] := by
   have h := codeAt_from 96209 (by decide)
-  have hp : pairPtrCode <+: codeFrom 96209 := by decide +kernel
+  have hp : [0x00074703] <+: codeFrom 96209 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96211 : CodeAt Verify.image (pcOf 96211) [0x00074703] := by
-  have h := codeAt_from 96211 (by decide)
-  have hp : [0x00074703] <+: codeFrom 96211 := by decide +kernel
-  exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem pf_96212 : CodeAt Verify.image (pcOf 96212) pairTailCode := by
-  have h := codeAt_from 96212 (by decide)
-  have hp : pairTailCode <+: codeFrom 96212 := by decide +kernel
+private theorem pf_96210 : CodeAt Verify.image (pcOf 96210) pairTailCode := by
+  have h := codeAt_from 96210 (by decide)
+  have hp : pairTailCode <+: codeFrom 96210 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
 theorem pairStep_spec {image : Image} (s : MachineState) (pc : Word) (v : Digest) (q sum : Nat)
     (hc1 : CodeAt image pc pairPtrCode) (hc2 : CodeAt image (pc+4+4) [0x00074703])
@@ -377,18 +412,37 @@ theorem pairStep_spec {image : Image} (s : MachineState) (pc : Word) (v : Digest
     (by rw [r2.get (by decide),r1.get (by decide),hs]) a2
   exact ⟨s3,(e1.trans e2).trans e3,p3,w3.trans (pairWindow_shift v q (by omega)),a3,
     ((r1.trans r2).trans r3).mono (by decide),((f1.trans f2).trans f3).mono (by simp)⟩
+theorem pairStepX_spec {image : Image} (s : MachineState) (pc : Word) (v : Digest) (q sum : Nat)
+    (hc1 : CodeAt image pc pairPtrXCode) (hc2 : CodeAt image (pc+4+4) [0x00074703])
+    (hc3 : CodeAt image (pc+4+4+4) pairTailXCode) (hpc : s.pc = pc)
+    (hq : q < 7 ∨ (9 ≤ q ∧ q < 16))
+    (hw : s.getReg .x17 = topWindow v q) (hs : s.getReg .x25 = BitVec.ofNat 64 sum)
+    (hb : s.getReg .x19 = BitVec.ofNat 64 PAIR_DATA) (hm : s.getReg .x24 = 16383#64)
+    (ht : PackedTables s) :
+    ∃ t, Steps image s 5 5 t ∧ t.pc = pc+4+4+4+4+4 ∧
+      t.getReg .x29 = topWindow v (q+2) ∧
+      t.getReg .x25 = BitVec.ofNat 64 (sum + pairLookup (pairRank v q)) ∧
+      RegsExcept s t [.x25,.x29,.x14] ∧ Frame s t (fun _ => False) := by
+  obtain ⟨s1,e1,p1,a1,r1,f1⟩ := pairPtrX_spec s pc hc1 hpc v q (by omega) hw hb hm
+  obtain ⟨s2,e2,p2,a2,r2,f2⟩ := pair_lbu_spec s1 _ 0x00074703 .x14 hc2 p1 (by rfl) (by decide)
+    _ (pairRank_lt v q) a1 (ht.frame f1).pair
+  obtain ⟨s3,e3,p3,w3,a3,r3,f3⟩ := pairTailX_spec s2 _ hc3 p2 _ sum _
+    (by rw [r2.get (by decide),r1.get (by decide),hw])
+    (by rw [r2.get (by decide),r1.get (by decide),hs]) a2
+  exact ⟨s3,(e1.trans e2).trans e3,p3,w3.trans (pairWindow_shift v q (by omega)),a3,
+    ((r1.trans r2).trans r3).mono (by decide),((f1.trans f2).trans f3).mono (by simp)⟩
 theorem singleStep_spec (s : MachineState) (v : Digest) (sum : Nat)
-    (hpc : s.pc = pcOf 96186) (hw : s.getReg .x29 = topWindow v 8)
+    (hpc : s.pc = pcOf 96185) (hw : s.getReg .x29 = topWindow v 8)
     (hs : s.getReg .x25 = BitVec.ofNat 64 sum)
     (hb : s.getReg .x19 = BitVec.ofNat 64 PAIR_DATA) (ht : PackedTables s) :
-    ∃ t, Steps Verify.image s 5 5 t ∧ t.pc = pcOf 96191 ∧
+    ∃ t, Steps Verify.image s 5 5 t ∧ t.pc = pcOf 96190 ∧
       t.getReg .x29 = v.extractLsb' 0 64 >>> 63 ∧
       t.getReg .x25 = BitVec.ofNat 64 (sum + rankLookup (topRank v 8)) ∧
       RegsExcept s t [.x25,.x29,.x14] ∧ Frame s t (fun _ => False) := by
-  obtain ⟨s1,e1,p1,a1,r1,f1⟩ := singlePtr_spec s _ pf_96186 hpc v hw hb
-  obtain ⟨s2,e2,p2,a2,r2,f2⟩ := pair_lbu_spec s1 _ 0x00074703 .x14 pf_96188 p1 (by rfl) (by decide)
+  obtain ⟨s1,e1,p1,a1,r1,f1⟩ := singlePtr_spec s _ pf_96185 hpc v hw hb
+  obtain ⟨s2,e2,p2,a2,r2,f2⟩ := pair_lbu_spec s1 _ 0x00074703 .x14 pf_96187 p1 (by rfl) (by decide)
     _ (by have := topRank_lt v 8; omega) a1 (ht.frame f1).pair
-  obtain ⟨s3,e3,p3,w3,a3,r3,f3⟩ := singleTail_spec s2 _ pf_96189 p2 _ sum _
+  obtain ⟨s3,e3,p3,w3,a3,r3,f3⟩ := singleTail_spec s2 _ pf_96188 p2 _ sum _
     (by rw [r2.get (by decide),r1.get (by decide),hw])
     (by rw [r2.get (by decide),r1.get (by decide),hs]) a2
   rw [pairLookup_single _ (topRank_lt v 8)] at a3
@@ -397,47 +451,47 @@ theorem singleStep_spec (s : MachineState) (v : Digest) (sum : Nat)
   simpa [topWindow,← BitVec.shiftRight_add] using w3
 theorem pairedFold_spec (s : MachineState) (v : Digest)
     (hpc : s.pc = pcOf 96164) (h16 : s.getReg .x16 = v.extractLsb' 0 64)
-    (h17 : s.getReg .x17 = v.extractLsb' 64 64) (ht : PackedTables s) :
-    ∃ t, Steps Verify.image s 50 50 t ∧ t.pc = pcOf 96214 ∧
+    (h17 : s.getReg .x17 = v.extractLsb' 64 64) (h10 : s.getReg .x10 = 16840#64) (ht : PackedTables s) :
+    ∃ t, Steps Verify.image s 48 48 t ∧ t.pc = pcOf 96212 ∧
       t.getReg .x29 = topWindow v 17 ∧ t.getReg .x25 = BitVec.ofNat 64 (compressedSum (topRank v)) ∧
       t.getReg .x17 = v.extractLsb' 63 64 ∧
       t.getReg .x19 = BitVec.ofNat 64 PAIR_DATA ∧ t.getReg .x24 = 16383#64 ∧
       RegsExcept s t packedFoldRegs ∧ Frame s t (fun _ => False) := by
-  obtain ⟨u0,e0,p0,b0,m0,r0,f0⟩ := pairInit_spec s _ pf_96164 hpc
-  obtain ⟨u1,e1,p1,a1,r1,f1⟩ := pairPtr0_spec u0 _ pf_96167 p0 v 0 (by decide)
+  obtain ⟨u0,e0,p0,b0,m0,r0,f0⟩ := pairInit_spec s _ pf_96164 hpc h10
+  obtain ⟨u1,e1,p1,a1,r1,f1⟩ := pairPtr0_spec u0 _ pf_96166 p0 v 0 (by decide)
     (by rw [r0.get (by decide),h16]; simp [topWindow]) b0 m0
-  obtain ⟨u2,e2,p2,a2,r2,f2⟩ := pair_lbu_spec u1 _ 0x00074c83 .x25 pf_96169 p1
+  obtain ⟨u2,e2,p2,a2,r2,f2⟩ := pair_lbu_spec u1 _ 0x00074c83 .x25 pf_96168 p1
     (by rfl) (by decide) _ (pairRank_lt v 0) a1 ((ht.frame f0).frame f1).pair
-  obtain ⟨t0,e3,p3,w0,r3,f3⟩ := pairShift0_spec u2 _ pf_96170 p2 v
+  obtain ⟨t0,e3,p3,w0,r3,f3⟩ := pairShift0_spec u2 _ pf_96169 p2 v
     (by rw [r2.get (by decide),r1.get (by decide),r0.get (by decide),h16])
-  have E0 : Steps Verify.image s 7 7 t0 := ((e0.trans e1).trans e2).trans e3
+  have E0 : Steps Verify.image s 6 6 t0 := ((e0.trans e1).trans e2).trans e3
   have R0 : RegsExcept s t0 packedFoldRegs := (((r0.trans r1).trans r2).trans r3).mono (by decide)
   have F0 : Frame s t0 (fun _ => False) := (((f0.trans f1).trans f2).trans f3).mono (by simp)
   have S0 : t0.getReg .x25 = BitVec.ofNat 64 (pairLookup (pairRank v 0)) := by rw [r3.get (by decide),a2]
   have B0 : t0.getReg .x19 = BitVec.ofNat 64 PAIR_DATA := by rw [r3.get (by decide),r2.get (by decide),r1.get (by decide),b0]
   have M0 : t0.getReg .x24 = 16383#64 := by rw [r3.get (by decide),r2.get (by decide),r1.get (by decide),m0]
   have H0 : t0.getReg .x17 = v.extractLsb' 64 64 := by rw [r3.get (by decide),r2.get (by decide),r1.get (by decide),r0.get (by decide),h17]
-  obtain ⟨t1,e1p,p1p,w1,a1,r1p,f1p⟩ := pairStep_spec t0 (pcOf 96171) v 2 _
-    pf_96171 pf_96173 pf_96174 p3 (by decide) w0 S0 B0 M0 (ht.frame F0)
-  have E1 : Steps Verify.image s 12 12 t1 := E0.trans e1p
+  obtain ⟨t1,e1p,p1p,w1,a1,r1p,f1p⟩ := pairStep_spec t0 (pcOf 96170) v 2 _
+    pf_96170 pf_96172 pf_96173 p3 (by decide) w0 S0 B0 M0 (ht.frame F0)
+  have E1 : Steps Verify.image s 11 11 t1 := E0.trans e1p
   have R1 : RegsExcept s t1 packedFoldRegs := (R0.trans r1p).mono (by decide)
   have F1 : Frame s t1 (fun _ => False) := (F0.trans f1p).mono (by simp)
   have S1 : t1.getReg .x25 = BitVec.ofNat 64 (pairLookup (pairRank v 0) + pairLookup (pairRank v 2)) := a1
   have B1 : t1.getReg .x19 = BitVec.ofNat 64 PAIR_DATA := by rw [r1p.get (by decide),B0]
   have M1 : t1.getReg .x24 = 16383#64 := by rw [r1p.get (by decide),M0]
   have H1 : t1.getReg .x17 = v.extractLsb' 64 64 := by rw [r1p.get (by decide),H0]
-  obtain ⟨t2,e2p,p2p,w2,a2,r2p,f2p⟩ := pairStep_spec t1 (pcOf 96176) v 4 _
-    pf_96176 pf_96178 pf_96179 p1p (by decide) w1 S1 B1 M1 (ht.frame F1)
-  have E2 : Steps Verify.image s 17 17 t2 := E1.trans e2p
+  obtain ⟨t2,e2p,p2p,w2,a2,r2p,f2p⟩ := pairStep_spec t1 (pcOf 96175) v 4 _
+    pf_96175 pf_96177 pf_96178 p1p (by decide) w1 S1 B1 M1 (ht.frame F1)
+  have E2 : Steps Verify.image s 16 16 t2 := E1.trans e2p
   have R2 : RegsExcept s t2 packedFoldRegs := (R1.trans r2p).mono (by decide)
   have F2 : Frame s t2 (fun _ => False) := (F1.trans f2p).mono (by simp)
   have S2 : t2.getReg .x25 = BitVec.ofNat 64 ((pairLookup (pairRank v 0) + pairLookup (pairRank v 2)) + pairLookup (pairRank v 4)) := a2
   have B2 : t2.getReg .x19 = BitVec.ofNat 64 PAIR_DATA := by rw [r2p.get (by decide),B1]
   have M2 : t2.getReg .x24 = 16383#64 := by rw [r2p.get (by decide),M1]
   have H2 : t2.getReg .x17 = v.extractLsb' 64 64 := by rw [r2p.get (by decide),H1]
-  obtain ⟨t3,e3p,p3p,w3,a3,r3p,f3p⟩ := pairStep_spec t2 (pcOf 96181) v 6 _
-    pf_96181 pf_96183 pf_96184 p2p (by decide) w2 S2 B2 M2 (ht.frame F2)
-  have E3 : Steps Verify.image s 22 22 t3 := E2.trans e3p
+  obtain ⟨t3,e3p,p3p,w3,a3,r3p,f3p⟩ := pairStep_spec t2 (pcOf 96180) v 6 _
+    pf_96180 pf_96182 pf_96183 p2p (by decide) w2 S2 B2 M2 (ht.frame F2)
+  have E3 : Steps Verify.image s 21 21 t3 := E2.trans e3p
   have R3 : RegsExcept s t3 packedFoldRegs := (R2.trans r3p).mono (by decide)
   have F3 : Frame s t3 (fun _ => False) := (F2.trans f3p).mono (by simp)
   have S3 : t3.getReg .x25 = BitVec.ofNat 64 (((pairLookup (pairRank v 0) + pairLookup (pairRank v 2)) + pairLookup (pairRank v 4)) + pairLookup (pairRank v 6)) := a3
@@ -445,45 +499,45 @@ theorem pairedFold_spec (s : MachineState) (v : Digest)
   have M3 : t3.getReg .x24 = 16383#64 := by rw [r3p.get (by decide),M2]
   have H3 : t3.getReg .x17 = v.extractLsb' 64 64 := by rw [r3p.get (by decide),H2]
   obtain ⟨us,es,ps,ws,ass,rs,fs⟩ := singleStep_spec t3 v _ p3p w3 S3 B3 (ht.frame F3)
-  obtain ⟨t4,ec,pc,wc,wwc,rc,fc⟩ := pairCross_spec us _ pf_96191 ps v ws
+  obtain ⟨t4,ec,pc,wc,wwc,rc,fc⟩ := pairCross_spec us _ pf_96190 ps v ws
     (by rw [rs.get (by decide),H3])
-  have E4 : Steps Verify.image s 30 30 t4 := (E3.trans es).trans ec
+  have E4 : Steps Verify.image s 28 28 t4 := (E3.trans es).trans ec
   have R4 : RegsExcept s t4 packedFoldRegs := ((R3.trans rs).trans rc).mono (by decide)
   have F4 : Frame s t4 (fun _ => False) := ((F3.trans fs).trans fc).mono (by simp)
   have S4 : t4.getReg .x25 = BitVec.ofNat 64 ((((pairLookup (pairRank v 0) + pairLookup (pairRank v 2)) + pairLookup (pairRank v 4)) + pairLookup (pairRank v 6)) + rankLookup (topRank v 8)) := by rw [rc.get (by decide),ass]
   have B4 : t4.getReg .x19 = BitVec.ofNat 64 PAIR_DATA := by rw [rc.get (by decide),rs.get (by decide),B3]
   have M4 : t4.getReg .x24 = 16383#64 := by rw [rc.get (by decide),rs.get (by decide),M3]
   have H4 : t4.getReg .x17 = v.extractLsb' 63 64 := wc
-  obtain ⟨t5,e5p,p5p,w5,a5,r5p,f5p⟩ := pairStep_spec t4 (pcOf 96194) v 9 _
-    pf_96194 pf_96196 pf_96197 pc (by decide) wwc S4 B4 M4 (ht.frame F4)
-  have E5 : Steps Verify.image s 35 35 t5 := E4.trans e5p
+  obtain ⟨t5,e5p,p5p,w5,a5,r5p,f5p⟩ := pairStepX_spec t4 (pcOf 96192) v 9 _
+    pf_96192 pf_96194 pf_96195 pc (by decide) wwc S4 B4 M4 (ht.frame F4)
+  have E5 : Steps Verify.image s 33 33 t5 := E4.trans e5p
   have R5 : RegsExcept s t5 packedFoldRegs := (R4.trans r5p).mono (by decide)
   have F5 : Frame s t5 (fun _ => False) := (F4.trans f5p).mono (by simp)
   have S5 : t5.getReg .x25 = BitVec.ofNat 64 (((((pairLookup (pairRank v 0) + pairLookup (pairRank v 2)) + pairLookup (pairRank v 4)) + pairLookup (pairRank v 6)) + rankLookup (topRank v 8)) + pairLookup (pairRank v 9)) := a5
   have B5 : t5.getReg .x19 = BitVec.ofNat 64 PAIR_DATA := by rw [r5p.get (by decide),B4]
   have M5 : t5.getReg .x24 = 16383#64 := by rw [r5p.get (by decide),M4]
   have H5 : t5.getReg .x17 = v.extractLsb' 63 64 := by rw [r5p.get (by decide),H4]
-  obtain ⟨t6,e6p,p6p,w6,a6,r6p,f6p⟩ := pairStep_spec t5 (pcOf 96199) v 11 _
-    pf_96199 pf_96201 pf_96202 p5p (by decide) w5 S5 B5 M5 (ht.frame F5)
-  have E6 : Steps Verify.image s 40 40 t6 := E5.trans e6p
+  obtain ⟨t6,e6p,p6p,w6,a6,r6p,f6p⟩ := pairStep_spec t5 (pcOf 96197) v 11 _
+    pf_96197 pf_96199 pf_96200 p5p (by decide) w5 S5 B5 M5 (ht.frame F5)
+  have E6 : Steps Verify.image s 38 38 t6 := E5.trans e6p
   have R6 : RegsExcept s t6 packedFoldRegs := (R5.trans r6p).mono (by decide)
   have F6 : Frame s t6 (fun _ => False) := (F5.trans f6p).mono (by simp)
   have S6 : t6.getReg .x25 = BitVec.ofNat 64 ((((((pairLookup (pairRank v 0) + pairLookup (pairRank v 2)) + pairLookup (pairRank v 4)) + pairLookup (pairRank v 6)) + rankLookup (topRank v 8)) + pairLookup (pairRank v 9)) + pairLookup (pairRank v 11)) := a6
   have B6 : t6.getReg .x19 = BitVec.ofNat 64 PAIR_DATA := by rw [r6p.get (by decide),B5]
   have M6 : t6.getReg .x24 = 16383#64 := by rw [r6p.get (by decide),M5]
   have H6 : t6.getReg .x17 = v.extractLsb' 63 64 := by rw [r6p.get (by decide),H5]
-  obtain ⟨t7,e7p,p7p,w7,a7,r7p,f7p⟩ := pairStep_spec t6 (pcOf 96204) v 13 _
-    pf_96204 pf_96206 pf_96207 p6p (by decide) w6 S6 B6 M6 (ht.frame F6)
-  have E7 : Steps Verify.image s 45 45 t7 := E6.trans e7p
+  obtain ⟨t7,e7p,p7p,w7,a7,r7p,f7p⟩ := pairStep_spec t6 (pcOf 96202) v 13 _
+    pf_96202 pf_96204 pf_96205 p6p (by decide) w6 S6 B6 M6 (ht.frame F6)
+  have E7 : Steps Verify.image s 43 43 t7 := E6.trans e7p
   have R7 : RegsExcept s t7 packedFoldRegs := (R6.trans r7p).mono (by decide)
   have F7 : Frame s t7 (fun _ => False) := (F6.trans f7p).mono (by simp)
   have S7 : t7.getReg .x25 = BitVec.ofNat 64 (((((((pairLookup (pairRank v 0) + pairLookup (pairRank v 2)) + pairLookup (pairRank v 4)) + pairLookup (pairRank v 6)) + rankLookup (topRank v 8)) + pairLookup (pairRank v 9)) + pairLookup (pairRank v 11)) + pairLookup (pairRank v 13)) := a7
   have B7 : t7.getReg .x19 = BitVec.ofNat 64 PAIR_DATA := by rw [r7p.get (by decide),B6]
   have M7 : t7.getReg .x24 = 16383#64 := by rw [r7p.get (by decide),M6]
   have H7 : t7.getReg .x17 = v.extractLsb' 63 64 := by rw [r7p.get (by decide),H6]
-  obtain ⟨t8,e8p,p8p,w8,a8,r8p,f8p⟩ := pairStep_spec t7 (pcOf 96209) v 15 _
-    pf_96209 pf_96211 pf_96212 p7p (by decide) w7 S7 B7 M7 (ht.frame F7)
-  have E8 : Steps Verify.image s 50 50 t8 := E7.trans e8p
+  obtain ⟨t8,e8p,p8p,w8,a8,r8p,f8p⟩ := pairStep_spec t7 (pcOf 96207) v 15 _
+    pf_96207 pf_96209 pf_96210 p7p (by decide) w7 S7 B7 M7 (ht.frame F7)
+  have E8 : Steps Verify.image s 48 48 t8 := E7.trans e8p
   have R8 : RegsExcept s t8 packedFoldRegs := (R7.trans r8p).mono (by decide)
   have F8 : Frame s t8 (fun _ => False) := (F7.trans f8p).mono (by simp)
   have S8 : t8.getReg .x25 = BitVec.ofNat 64 ((((((((pairLookup (pairRank v 0) + pairLookup (pairRank v 2)) + pairLookup (pairRank v 4)) + pairLookup (pairRank v 6)) + rankLookup (topRank v 8)) + pairLookup (pairRank v 9)) + pairLookup (pairRank v 11)) + pairLookup (pairRank v 13)) + pairLookup (pairRank v 15)) := a8
@@ -506,12 +560,12 @@ set_option maxRecDepth 8192
 set_option maxHeartbeats 600000
 set_option linter.unusedSimpArgs false
 def ptrCode : List (BitVec 32) := [20875059]
-sym_block ptrBase := symRun { noAlias := true } ptrCode (pcOf 96215) 200
+sym_block ptrBase := symRun { noAlias := true } ptrCode (pcOf 96213) 200
 theorem ptr_spec {image : Image} (s : MachineState)
-    (hc : CodeAt image (pcOf 96215) ptrCode) (hpc : s.pc = pcOf 96215)
+    (hc : CodeAt image (pcOf 96213) ptrCode) (hpc : s.pc = pcOf 96213)
     (r : Nat) (h29 : s.getReg .x29 = BitVec.ofNat 64 r)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 TAIL_DATA) :
-    ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 96216 ∧
+    ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 96214 ∧
       t.getReg .x14 = BitVec.ofNat 64 (TAIL_DATA + r) ∧
       RegsExcept s t [.x14] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound ptrBase hc s hpc (by simp [ptrBase.res, rv_simp]), ?_, ?_, ?_, ?_⟩
@@ -520,10 +574,10 @@ theorem ptr_spec {image : Image} (s : MachineState)
   · intro q hq; cases q <;> simp at hq <;> simp [ptrBase.res, rv_simp] <;> rfl
   · intro A _ _; simp [ptrBase.res, rv_simp]
 theorem tail_lbu {image : Image} (s : MachineState)
-    (hc : CodeAt image (pcOf 96216) [0x00074703]) (hpc : s.pc = pcOf 96216)
+    (hc : CodeAt image (pcOf 96214) [0x00074703]) (hpc : s.pc = pcOf 96214)
     (r : Nat) (hr : r < 64) (h14 : s.getReg .x14 = BitVec.ofNat 64 (TAIL_DATA + r))
     (ht : TailTableOK s) :
-    ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 96217 ∧
+    ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 96215 ∧
       t.getReg .x14 = BitVec.ofNat 64 (126 - tailSum r) ∧
       RegsExcept s t [.x14] ∧ Frame s t (fun _ => False) := by
   have hz : signExtend12 (0 : BitVec 12) = (0 : Word) := rfl
@@ -542,16 +596,16 @@ theorem tail_lbu {image : Image} (s : MachineState)
     exact MachineState.getReg_setReg_ne _ _ _ _ (Ne.symm hq)
   · intro A _ _; simp [MachineState.setReg, MachineState.setPC, MachineState.getMem]
 def sumCode : List (BitVec 32) := [0xec8663]
-sym_block sumBase := symRun { noAlias := true } sumCode (pcOf 96217) 200
-def tailRejectJumpCode : List (BitVec 32) := [50331759]
-sym_block tailRejectJumpBase := symRun { noAlias := true } tailRejectJumpCode (pcOf 96218) 200
+sym_block sumBase := symRun { noAlias := true } sumCode (pcOf 96215) 200
+def tailRejectJumpCode : List (BitVec 32) := [0x0380006f]
+sym_block tailRejectJumpBase := symRun { noAlias := true } tailRejectJumpCode (pcOf 96216) 200
 theorem sum_spec {image : Image} (s : MachineState)
-    (hc : CodeAt image (pcOf 96217) sumCode) (hpc : s.pc = pcOf 96217)
+    (hc : CodeAt image (pcOf 96215) sumCode) (hpc : s.pc = pcOf 96215)
     (sum value : Nat) (hsum : sum ≤ 4335) (hvalue : value ≤ 9)
     (h25 : s.getReg .x25 = BitVec.ofNat 64 sum)
     (h14 : s.getReg .x14 = BitVec.ofNat 64 (126 - value)) :
     ∃ t, Steps image s 1 1 t ∧
-      t.pc = (if sum + value = 126 then pcOf 96220 else pcOf 96218) ∧
+      t.pc = (if sum + value = 126 then pcOf 96218 else pcOf 96216) ∧
       RegsExcept s t [] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound sumBase hc s hpc (by simp [sumBase.res, rv_simp]), ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, sumBase.res, E.eval, CmpOp.eval, BinOp.eval,
@@ -563,7 +617,7 @@ theorem sum_spec {image : Image} (s : MachineState)
   · intro q hq; cases q <;> simp [sumBase.res, rv_simp] <;> rfl
   · intro A _ _; simp [sumBase.res, rv_simp]
 theorem tailRejectJump_spec {image : Image} (s : MachineState)
-    (hc : CodeAt image (pcOf 96218) tailRejectJumpCode) (hpc : s.pc = pcOf 96218) :
+    (hc : CodeAt image (pcOf 96216) tailRejectJumpCode) (hpc : s.pc = pcOf 96216) :
     ∃ t, Steps image s 1 1 t ∧ t.pc = pcOf 96230 ∧
       RegsExcept s t [] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound tailRejectJumpBase hc s hpc (by simp [tailRejectJumpBase.res, rv_simp]), ?_, ?_, ?_⟩
@@ -571,17 +625,17 @@ theorem tailRejectJump_spec {image : Image} (s : MachineState)
   · intro q hq; cases q <;> simp [tailRejectJumpBase.res, rv_simp] <;> rfl
   · intro A _ _; simp [tailRejectJumpBase.res, rv_simp]
 theorem tail_compare_spec {image : Image} (s : MachineState) (v : Digest) (sum : Nat)
-    (hptr : CodeAt image (pcOf 96215) ptrCode)
-    (hload : CodeAt image (pcOf 96216) [0x00074703])
-    (hsumcode : CodeAt image (pcOf 96217) sumCode)
-    (hreject : CodeAt image (pcOf 96218) tailRejectJumpCode)
+    (hptr : CodeAt image (pcOf 96213) ptrCode)
+    (hload : CodeAt image (pcOf 96214) [0x00074703])
+    (hsumcode : CodeAt image (pcOf 96215) sumCode)
+    (hreject : CodeAt image (pcOf 96216) tailRejectJumpCode)
     (hsum : sum ≤ 4335) (hv : v.toNat < 2 ^ 125)
-    (hpc : s.pc = pcOf 96215) (h29 : s.getReg .x29 = topWindow v 17)
+    (hpc : s.pc = pcOf 96213) (h29 : s.getReg .x29 = topWindow v 17)
     (h25 : s.getReg .x25 = BitVec.ofNat 64 sum)
     (h19 : s.getReg .x19 = BitVec.ofNat 64 TAIL_DATA) (ht : PackedTables s) :
     ∃ t, Steps image s (if sum + tailWeight v = 126 then 3 else 4)
       (if sum + tailWeight v = 126 then 3 else 4) t ∧
-      t.pc = (if sum + tailWeight v = 126 then pcOf 96220 else pcOf 96230) ∧
+      t.pc = (if sum + tailWeight v = 126 then pcOf 96218 else pcOf 96230) ∧
       RegsExcept s t [.x14] ∧ Frame s t (fun _ => False) := by
   have hr : v.toNat / 2 ^ 119 < 64 := by omega
   rw [topWindow_tail v hv] at h29
@@ -599,33 +653,33 @@ theorem tail_compare_spec {image : Image} (s : MachineState) (v : Digest) (sum :
     exact ⟨s4,((e1.trans e2).trans e3).trans e4,p4,
       (((r1.trans r2).trans r3).trans r4).mono (by decide),
       (((f1.trans f2).trans f3).trans f4).mono (by simp)⟩
-private theorem tail_init_at : CodeAt Verify.image (pcOf 96214) tailInitCode := by
+private theorem tail_init_at : CodeAt Verify.image (pcOf 96212) tailInitCode := by
+  have h := codeAt_from 96212 (by decide)
+  have hp : tailInitCode <+: codeFrom 96212 := by decide +kernel
+  exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
+private theorem tail_ptr_at : CodeAt Verify.image (pcOf 96213) ptrCode := by
+  have h := codeAt_from 96213 (by decide)
+  have hp : ptrCode <+: codeFrom 96213 := by decide +kernel
+  exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
+private theorem tail_load_at : CodeAt Verify.image (pcOf 96214) [0x00074703] := by
   have h := codeAt_from 96214 (by decide)
-  have hp : tailInitCode <+: codeFrom 96214 := by decide +kernel
+  have hp : [0x00074703] <+: codeFrom 96214 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem tail_ptr_at : CodeAt Verify.image (pcOf 96215) ptrCode := by
+private theorem tail_sum_at : CodeAt Verify.image (pcOf 96215) sumCode := by
   have h := codeAt_from 96215 (by decide)
-  have hp : ptrCode <+: codeFrom 96215 := by decide +kernel
+  have hp : sumCode <+: codeFrom 96215 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem tail_load_at : CodeAt Verify.image (pcOf 96216) [0x00074703] := by
+private theorem tail_reject_at : CodeAt Verify.image (pcOf 96216) tailRejectJumpCode := by
   have h := codeAt_from 96216 (by decide)
-  have hp : [0x00074703] <+: codeFrom 96216 := by decide +kernel
-  exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem tail_sum_at : CodeAt Verify.image (pcOf 96217) sumCode := by
-  have h := codeAt_from 96217 (by decide)
-  have hp : sumCode <+: codeFrom 96217 := by decide +kernel
-  exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
-private theorem tail_reject_at : CodeAt Verify.image (pcOf 96218) tailRejectJumpCode := by
-  have h := codeAt_from 96218 (by decide)
-  have hp : tailRejectJumpCode <+: codeFrom 96218 := by decide +kernel
+  have hp : tailRejectJumpCode <+: codeFrom 96216 := by decide +kernel
   exact ⟨by decide,by decide,by decide +kernel,hp.trans h.2.2.2⟩
 theorem tail_spec (s : MachineState) (v : Digest) (sum : Nat) (hsum : sum ≤ 4335)
-    (hv : v.toNat < 2 ^ 125) (hpc : s.pc = pcOf 96214)
+    (hv : v.toNat < 2 ^ 125) (hpc : s.pc = pcOf 96212)
     (h29 : s.getReg .x29 = topWindow v 17) (h25 : s.getReg .x25 = BitVec.ofNat 64 sum)
     (ht : PackedTables s) :
     ∃ t, Steps Verify.image s (if sum + tailWeight v = 126 then 4 else 5)
       (if sum + tailWeight v = 126 then 4 else 5) t ∧
-      t.pc = (if sum + tailWeight v = 126 then pcOf 96220 else pcOf 96230) ∧
+      t.pc = (if sum + tailWeight v = 126 then pcOf 96218 else pcOf 96230) ∧
       RegsExcept s t [.x14,.x19] ∧ Frame s t (fun _ => False) := by
   obtain ⟨s1,e1,p1,b1,r1,f1⟩ := tailInit_spec s _ tail_init_at hpc
   obtain ⟨s2,e2,p2,r2,f2⟩ := tail_compare_spec s1 v sum tail_ptr_at tail_load_at tail_sum_at tail_reject_at hsum hv p1
@@ -682,10 +736,11 @@ theorem compressedSum_le (v : Digest) : compressedSum (topRank v) ≤ 4335 := by
   unfold compressedSum; omega
 theorem decode_ok (s : MachineState) (v : Digest)
     (hpc : s.pc = pcOf 96160) (hv : DigAt s 256 v) (ht : PackedTables s)
+    (h10 : s.getReg .x10 = 16840#64)
     (hvalid : T3.decode 0 v = some (topDigits v)) :
-    ∃ t, Steps Verify.image s 58 58 t ∧ t.pc = pcOf 96220 ∧
+    ∃ t, Steps Verify.image s 56 56 t ∧ t.pc = pcOf 96218 ∧
       t.getReg .x16 = v.extractLsb' 0 64 ∧ t.getReg .x17 = v.extractLsb' 63 64 ∧
-      t.getReg .x29 = topWindow v 17 ∧
+      t.getReg .x29 = topWindow v 17 ∧ t.getReg .x24 = 16383#64 ∧
       RegsExcept s t [.x16,.x17,.x14,.x25,.x29,.x19,.x24] ∧ Frame s t (fun _ => False) := by
   have hh : v.toNat < 2 ^ 125 ∧ pairedLookupSum v = 126 := by
     rw [decode_top_paired] at hvalid
@@ -693,15 +748,17 @@ theorem decode_ok (s : MachineState) (v : Digest)
     exact hh
   obtain ⟨t1,e1,p1,a1,b1,r1,f1⟩ := head_spec s v hpc hv
   rw [if_pos hh.1] at p1
-  obtain ⟨t2,e2,p2,w2,a2,h172,b192,b242,r2,f2⟩ := pairedFold_spec t1 v p1 a1 b1 (ht.frame f1)
+  obtain ⟨t2,e2,p2,w2,a2,h172,b192,b242,r2,f2⟩ := pairedFold_spec t1 v p1 a1 b1
+    (by rw [r1.get (by decide)]; exact h10) (ht.frame f1)
   have hb : compressedSum (topRank v) + tailWeight v = 126 := hh.2
   obtain ⟨t3,e3,p3,r3,f3⟩ := tail_spec t2 v _ (compressedSum_le v) hh.1 p2 w2 a2 ((ht.frame f1).frame f2)
   rw [if_pos hb] at p3 e3
-  refine ⟨t3,(e1.trans e2).trans e3,p3,?_,?_,?_,
+  refine ⟨t3,(e1.trans e2).trans e3,p3,?_,?_,?_,?_,
     ((r1.trans r2).trans r3).mono (by decide),((f1.trans f2).trans f3).mono (by simp)⟩
   · rw [r3.get (by decide),r2.get (by decide),a1]
   · rw [r3.get (by decide),h172]
   · rw [r3.get (by decide),w2]
+  · rw [r3.get (by decide),b242]
 end SigGolfCandidate.T3M.Verify.Nonbinary
 end
 
@@ -715,13 +772,15 @@ set_option maxHeartbeats 600000
 set_option linter.unusedSimpArgs false
 theorem decode_reject (s : MachineState) (v : Digest)
     (hpc : s.pc = pcOf 96160) (hv : DigAt s 256 v) (ht : PackedTables s)
+    (h10 : s.getReg .x10 = 16840#64)
     (hbad : T3.decode 0 v = none) :
     ∃ k t, Steps Verify.image s k k t ∧ k ≤ 60 ∧ t.pc = pcOf 96230 ∧
       RegsExcept s t [.x16,.x17,.x14,.x25,.x29,.x19,.x24] ∧ Frame s t (fun _ => False) := by
   obtain ⟨t1, e1, p1, a1, b1, r1, f1⟩ := head_spec s v hpc hv
   by_cases hr : v.toNat < 2 ^ 125
   · rw [if_pos hr] at p1
-    obtain ⟨t2,e2,p2,w2,a2,h172,b192,b242,r2,f2⟩ := pairedFold_spec t1 v p1 a1 b1 (ht.frame f1)
+    obtain ⟨t2,e2,p2,w2,a2,h172,b192,b242,r2,f2⟩ := pairedFold_spec t1 v p1 a1 b1
+      (by rw [r1.get (by decide)]; exact h10) (ht.frame f1)
     have hn : pairedLookupSum v ≠ 126 := by
       intro he
       rw [decode_top_paired,if_pos ⟨hr,he⟩] at hbad
@@ -729,7 +788,7 @@ theorem decode_reject (s : MachineState) (v : Digest)
     have hb : compressedSum (topRank v) + tailWeight v ≠ 126 := hn
     obtain ⟨t3,e3,p3,r3,f3⟩ := tail_spec t2 v _ (compressedSum_le v) hr p2 w2 a2 ((ht.frame f1).frame f2)
     rw [if_neg hb] at p3 e3
-    exact ⟨59,t3,(e1.trans e2).trans e3,by decide,p3,
+    exact ⟨57,t3,(e1.trans e2).trans e3,by decide,p3,
       ((r1.trans r2).trans r3).mono (by decide),((f1.trans f2).trans f3).mono (by simp)⟩
   · rw [if_neg hr] at p1
     exact ⟨4, t1, e1, by decide, p1, r1.mono (by decide), f1⟩
@@ -781,18 +840,19 @@ open SigGolfCandidate.T3 (Digest)
 set_option maxRecDepth 8192
 set_option maxHeartbeats 600000
 set_option linter.unusedSimpArgs false
-def prologueCode : List (BitVec 32) := [18871,0xac898993,0xd4098b13,134199,0xc00c0c13,714679,0xa81713,25655091,0xf70733,0x9a070067]
-sym_block prologueBase := symRun { noAlias := true } prologueCode (pcOf 96220) 200
-theorem prologue_at : CodeAt Verify.image (pcOf 96220) prologueCode := by
-  have h := codeAt_from 96220 (by decide)
-  have hp : prologueCode <+: codeFrom 96220 := by decide +kernel
+def prologueCode : List (BitVec 32) := [0xac9c0993,0xd4098b13,134199,0xc00c0c13,714679,0xa81713,25655091,0xf70733,0x9a070067]
+sym_block prologueBase := symRun { noAlias := true } prologueCode (pcOf 96218) 200
+theorem prologue_at : CodeAt Verify.image (pcOf 96218) prologueCode := by
+  have h := codeAt_from 96218 (by decide)
+  have hp : prologueCode <+: codeFrom 96218 := by decide +kernel
   exact ⟨by decide, by decide, by decide +kernel, hp.trans h.2.2.2⟩
 def prologueTarget (v : Digest) : Word :=
   (((v.extractLsb' 0 64 <<< (10 : Word)) &&& 130048#64) + pcOf 176744) &&& ~~~1#64
 theorem prologue_spec (s : MachineState) (v : Digest)
-    (hpc : s.pc = pcOf 96220)
-    (h16 : s.getReg .x16 = v.extractLsb' 0 64) (h17 : s.getReg .x17 = v.extractLsb' 63 64) :
-    ∃ t, Steps Verify.image s 10 10 t ∧ t.pc = prologueTarget v ∧
+    (hpc : s.pc = pcOf 96218)
+    (h16 : s.getReg .x16 = v.extractLsb' 0 64) (h17 : s.getReg .x17 = v.extractLsb' 63 64)
+    (h24 : s.getReg .x24 = 16383#64) :
+    ∃ t, Steps Verify.image s 9 9 t ∧ t.pc = prologueTarget v ∧
       t.getReg .x16 = v.extractLsb' 0 64 ∧
       t.getReg .x17 = v.extractLsb' 63 64 ∧
       t.getReg .x22 = 14344#64 ∧ t.getReg .x19 = 15048#64 ∧ t.getReg .x24 = 130048#64 ∧
@@ -803,8 +863,8 @@ theorem prologue_spec (s : MachineState) (v : Digest)
     rfl
   · simpa [prologueBase.res, rv_simp] using h16
   · simp [prologueBase.res, rv_simp, h16, h17]
-  · simp [prologueBase.res, rv_simp]
-  · simp [prologueBase.res, rv_simp]
+  · simp [prologueBase.res, rv_simp, h24]
+  · simp [prologueBase.res, rv_simp, h24]
   · simp [prologueBase.res, rv_simp]
   · simp [prologueBase.res, rv_simp, pcOf]
   · intro r hr; cases r <;> simp at hr <;> simp [prologueBase.res, rv_simp] <;> rfl
@@ -927,13 +987,16 @@ theorem topTransition_reject (w : WBytes) (pk : Digest) (index c : Nat) (hc : c 
     (hglob.2.2.2.2.2.prefix 0 (by decide))
   have hv := (DigAt.writeHash_lo t a 256 h12 (by decide)).frame fs (by decide) (by simp) (by simp)
   have hd := hglob.2.2.2.2.2.packed.frame fs
-  obtain ⟨k, r, er, hk, pr, rr, fr⟩ := Verify.Nonbinary.decode_reject s _ ps hv hd hbad
+  have h10 : s.getReg .x10 = 16840#64 := by
+    rw [rs.get (by decide)]
+    exact hk (.x10, BitVec.ofNat 64 (x10In 0)) (by simp [BC.bK])
+  obtain ⟨k, r, er, hk, pr, rr, fr⟩ := Verify.Nonbinary.decode_reject s _ ps hv hd h10 hbad
   obtain ⟨z, ez, hz, h5, h10⟩ := Verify.Nonbinary.reject_halt r pr
   refine ⟨7 + k + 3, z, (e.trans er).trans ez, by omega, hz, h5, h10⟩
 theorem topTransition_ok (w : WBytes) (pk : Digest) (index c : Nat) (hc : c < nCopy 0)
     (t : MachineState) (ht : EncPre w pk index 0 c t) (a : BitVec 256)
     (hgood : T3.decode 0 (a.extractLsb' 0 128) = some (Search.topDigits (a.extractLsb' 0 128))) :
-    ∃ s, Steps image (writeHash t a) 75 75 s ∧
+    ∃ s, Steps image (writeHash t a) 72 72 s ∧
       TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s := by
   have h12 : t.getReg .x12 = 256#64 := ht.glob.1 (_, _) (by simp [BC.bK, bK])
   have hk : KnownOK (BC.bK 0) (writeHash t a) := fun p hp => by rw [writeHash_getReg]; exact ht.glob.1 p hp
@@ -946,8 +1009,11 @@ theorem topTransition_ok (w : WBytes) (pk : Digest) (index c : Nat) (hc : c < nC
     (hglob.2.2.2.2.2.prefix 0 (by decide))
   have hv := (DigAt.writeHash_lo t a 256 h12 (by decide)).frame fs (by decide) (by simp) (by simp)
   have hd := hglob.2.2.2.2.2.packed.frame fs
-  obtain ⟨r, er, pr, h16, h17, h29, rr, fr⟩ := Verify.Nonbinary.decode_ok s _ ps hv hd hgood
-  obtain ⟨z, ez, pz, lo, hi, s6, s3, mask, tab, rz, fz⟩ := Verify.Nonbinary.prologue_spec r _ pr h16 h17
+  have h10 : s.getReg .x10 = 16840#64 := by
+    rw [rs.get (by decide)]
+    exact hk (.x10, BitVec.ofNat 64 (x10In 0)) (by simp [BC.bK])
+  obtain ⟨r, er, pr, h16, h17, h29, h24, rr, fr⟩ := Verify.Nonbinary.decode_ok s _ ps hv hd h10 hgood
+  obtain ⟨z, ez, pz, lo, hi, s6, s3, mask, tab, rz, fz⟩ := Verify.Nonbinary.prologue_spec r _ pr h16 h17 h24
   refine ⟨z, (e.trans er).trans ez, ⟨?_, ?_, lo, ?_, ?_, s6, s3, mask, tab, ?_, ?_, ?_⟩⟩
   · rw [pz]
     exact Nonbinary.prologue_target _
