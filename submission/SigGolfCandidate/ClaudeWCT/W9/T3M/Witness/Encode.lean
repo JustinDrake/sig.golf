@@ -37,7 +37,7 @@ def layerRegion (N : HashOutput) (w : WCT9.Witness) (lay : Layer) : List UInt8 :
   else layerBytesBC lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)
     (w.counters (Fin.ofNat 4 (lay.val - 1)))
 def witList (N : HashOutput) (w : WCT9.Witness) : List UInt8 :=
-  headerBytes w ++ wctBytes N w.signature ++ zeros 1288 ++ (List.finRange 4).flatMap (layerRegion N w)
+  headerBytes w ++ wctBytes N w.signature ++ zeros 8 ++ (List.finRange 4).flatMap (layerRegion N w)
 def witEnc (N : HashOutput) (w : WCT9.Witness) : WBytes := BitVec.ofNat _ (readLE (witList N w))
 def expandB (message : Message) (pk : Digest) (sig : WCT9.Signature) : M (Option WBytes) :=
   (Option.map fun x => witEnc x.1 x.2) <$> expandN message pk sig

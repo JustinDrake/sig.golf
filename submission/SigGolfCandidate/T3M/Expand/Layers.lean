@@ -475,7 +475,7 @@ structure LInv (sig : WCT9.Signature) (index n : Nat) (value : WCT9.LayerMsg) (s
 def HalfAt (t : MachineState) (D k : Nat) (v : BitVec 32) : Prop :=
   (t.getMem (BitVec.ofNat 64 D)).extractLsb' (32 * k) 32 = v
 def HalfFrame (s t : MachineState) (n : Nat) : Prop :=
-  ∀ D k, (D = 0x41e8 ∨ D = 0x4e68 ∨ D = 0x5aa8 ∨ D = 0x820 ∨ D = 0x810 ∨ D = 0x818) → k < 2 → (∀ lay : Layer, lay.val < n → ¬ (lD lay = D ∧ lk lay = k)) →
+  ∀ D k, (D = 0x3ce8 ∨ D = 0x4968 ∨ D = 0x55a8 ∨ D = 0x820 ∨ D = 0x810 ∨ D = 0x818) → k < 2 → (∀ lay : Layer, lay.val < n → ¬ (lD lay = D ∧ lk lay = k)) →
     (t.getMem (BitVec.ofNat 64 D)).extractLsb' (32 * k) 32 = (s.getMem (BitVec.ofNat 64 D)).extractLsb' (32 * k) 32
 def lRegs : List Reg :=
   [.x1, .x6, .x7, .x8, .x9, .x10, .x11, .x12, .x13, .x15, .x16, .x17, .x18, .x19, .x20, .x21, .x22, .x23, .x24,
@@ -536,7 +536,7 @@ theorem ltable_disj (lay lay' : Layer) (h : lay ≠ lay') :
   fin_cases lay <;> fin_cases lay' <;> simp_all <;> decide
 theorem lhalf_inj (lay lay' : Layer) (h1 : lD lay = lD lay') (h2 : lk lay = lk lay') : lay = lay' := by
   fin_cases lay <;> fin_cases lay' <;> simp_all [lD, lk]
-theorem ltable_lo (lay : Layer) : 0x3148 ≤ lWM lay - 64 * (height lay - 1) := by
+theorem ltable_lo (lay : Layer) : 0x2c48 ≤ lWM lay - 64 * (height lay - 1) := by
   fin_cases lay <;> decide
 theorem counter_ne_wit (counter lay : Layer) (leaf : Nat) :
     ¬ RlWit lay leaf (lWC lay) (lWM lay) (lD counter) := by
@@ -668,7 +668,7 @@ theorem layer_step {sig : WCT9.Signature} {index n : Nat} {value : WCT9.LayerMsg
     refine (TBSim.steps s3 (TBSim.bind (W₂ := lcost n) (recoverMsg_tbsim (sk := sk) hrl)
       (fun root t4 h4 => ?_))).mono (by omega) (fun _ _ h => h)
     obtain ⟨p4, e4, er4, form4, cv4, pv4, r4, f4⟩ := h4
-    have hfar4 : ∀ A, A < 2 ^ 64 → ¬ CsW A → A ≠ lD lay → (A < 0x3148 ∨ 0x7000 ≤ A) → ¬ RlScratch A →
+    have hfar4 : ∀ A, A < 2 ^ 64 → ¬ CsW A → A ≠ lD lay → (A < 0x2c48 ∨ 0x7000 ≤ A) → ¬ RlScratch A →
         t4.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
       intro A hA h1 h2 h3 h4
       have hw : ¬ (RlScratch A ∨ RlWit lay (route index lay).1 (lWC lay) (lWM lay) A) := by
@@ -761,7 +761,7 @@ theorem layer_step {sig : WCT9.Signature} {index n : Nat} {value : WCT9.LayerMsg
     · exact TBSim.pure h5
     · obtain ⟨p5, x5', e5, hlen5, hout5, hhf5, r5, f5⟩ := h5
       have hk := htab.2.2.2.2.2.2.2.2.2.2
-      have hDv : lD lay = 0x41e8 ∨ lD lay = 0x4e68 ∨ lD lay = 0x5aa8 ∨ lD lay = 0x820 ∨ lD lay = 0x810 ∨ lD lay = 0x818 := by
+      have hDv : lD lay = 0x3ce8 ∨ lD lay = 0x4968 ∨ lD lay = 0x55a8 ∨ lD lay = 0x820 ∨ lD lay = 0x810 ∨ lD lay = 0x818 := by
         clear_value lay; fin_cases lay <;> simp [lD]
       have hlo := ltable_lo lay
       have hnotLW : ∀ A, RlWit lay (route index lay).1 (lWC lay) (lWM lay) A → ¬ LW index n A := by

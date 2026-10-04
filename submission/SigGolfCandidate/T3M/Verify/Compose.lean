@@ -294,7 +294,7 @@ open SigGolfCandidate.T3 (Digest route)
 set_option maxHeartbeats 800000
 set_option linter.unusedSimpArgs false
 def topChainRegs : List Reg := [.x10,.x12,.x25,.x3,.x14,.x15]
-def topChainWrites (A : Nat) : Prop := (512 ≤ A ∧ A < 1488) ∨ (13384 ≤ A ∧ A < 16856)
+def topChainWrites (A : Nat) : Prop := (512 ≤ A ∧ A < 1488) ∨ (12104 ≤ A ∧ A < 15576)
 theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : MachineState)
     (a : BitVec 256) (ends : List Digest) (ht : EncPre w pk index 0 c t)
     (he : TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s0)
@@ -353,7 +353,7 @@ set_option maxHeartbeats 800000
 set_option linter.unusedSimpArgs false
 theorem nctx_block (w : WBytes) (index : Nat) (v : Digest) (p i : Nat) :
     (nctxOf w index v p).blk i - 0x800 = chainBlock 0 i := by
-  change 15048 - 1664 + 64 * (53 - i) - 2048 = 10568 + 64 * 12 + 64 * (54 - 1 - i)
+  change 13768 - 1664 + 64 * (53 - i) - 2048 = 9288 + 64 * 12 + 64 * (54 - 1 - i)
   omega
 theorem nctx_chain_eq (w : WBytes) (index : Nat) (v : Digest) (p i : Nat) (hi : i < 54) :
     let c := nctxOf w index v p
@@ -414,7 +414,7 @@ theorem nctx_encoded (u s : MachineState) (v : Digest) (p : Nat) (he : TopEntry 
   · rw [he.hi]
     exact Search.topWindow_cross v
   · rw [he.tail,Search.topWindow_tail v hv]
-theorem top_chain_frame (c : NCtx) (hc : c.S3 = 15048) {s t : MachineState}
+theorem top_chain_frame (c : NCtx) (hc : c.S3 = 13768) {s t : MachineState}
     (hf : Frame s t (c.Wr 54)) : Frame s t topChainWrites := by
   apply hf.mono
   intro A _ hA
@@ -638,7 +638,7 @@ structure FtsOut (F : FCtx) (root : Digest) (u : MachineState) : Prop where
   idx : u.getReg .x22 = BitVec.ofNat 64 F.idx
   pc : u.pc = pcOf layerPc
   root : DigAt u 0x100 root
-  wit : Orig F.w (fun o => o < 64 ∨ 10568 ≤ o) u
+  wit : Orig F.w (fun o => o < 64 ∨ 9288 ≤ o) u
   a2 : u.getReg .x12 = BitVec.ofNat 64 0x100
 end SigGolfCandidate.T3M.Verify
 namespace SigGolfCandidate.T3M.Verify
@@ -686,7 +686,7 @@ theorem mkEnd_top (w : WBytes) (pk : Digest) (index : Nat) (u : MachineState) (r
     · rw [ht.dstReg]
       congr 1
       exact (mkDst_chunk _).symm
-  · change DigAt t (12616 + 48 * (mkSh 0 1 (route index 0).1 / 32 % 2)) root
+  · change DigAt t (11336 + 48 * (mkSh 0 1 (route index 0).1 / 32 % 2)) root
     rw [mkDst_chunk]
     exact ht.root
 theorem mkStop_next (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^ 31)

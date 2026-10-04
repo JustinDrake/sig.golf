@@ -289,7 +289,7 @@ theorem layerRegion_length (N : HashOutput) (w : WCT9.Witness) (lay : Layer) :
   unfold layerRegion; split
   · exact layerBytes_length _ _ _
   · exact layerBytesBC_length _ _ _ _
-theorem witList_length_eq (N : HashOutput) (w : WCT9.Witness) : (witList N w).length = 24264 := by
+theorem witList_length_eq (N : HashOutput) (w : WCT9.Witness) : (witList N w).length = 22984 := by
   unfold witList
   simp only [List.length_append, headerBytes_length, wctBytes_length, zeros, List.length_replicate,
     List.length_flatMap, layerRegion_length]
@@ -297,16 +297,16 @@ theorem witList_length_eq (N : HashOutput) (w : WCT9.Witness) : (witList N w).le
 theorem wdig_witEnc (N : HashOutput) (w : WCT9.Witness) (off : Nat) :
     wdig (witEnc N w) off = readDigest (window (witList N w) off 16) := by
   unfold wdig witEnc readDigest window
-  exact extract_readLE (witList N w) 24264 (by rw [witList_length_eq]) off 16
+  exact extract_readLE (witList N w) 22984 (by rw [witList_length_eq]) off 16
 theorem wle32_witEnc (N : HashOutput) (w : WCT9.Witness) (off : Nat) :
     wle32 (witEnc N w) off = BitVec.ofNat 32 (readLE (window (witList N w) off 4)) := by
   unfold wle32 witEnc window
-  exact extract_readLE (witList N w) 24264 (by rw [witList_length_eq]) off 4
+  exact extract_readLE (witList N w) 22984 (by rw [witList_length_eq]) off 4
 section header
 variable (N : HashOutput) (w : WCT9.Witness)
 theorem win_header (off n : Nat) (h : off + n ≤ 64) :
     window (witList N w) off n = window (headerBytes w) off n := by
-  have hA : (headerBytes w ++ wctBytes N w.signature ++ zeros 1288).length = 10568 := by
+  have hA : (headerBytes w ++ wctBytes N w.signature ++ zeros 8).length = 9288 := by
     simp only [List.length_append, headerBytes_length, wctBytes_length, zeros, List.length_replicate]
   have hB : (headerBytes w ++ wctBytes N w.signature).length = 9280 := by
     simp only [List.length_append, headerBytes_length, wctBytes_length]
@@ -340,7 +340,7 @@ theorem wctr3_witEnc : SigGolfCandidate.T3M.wle32 (witEnc N w) 32 = w.counters 3
       simp [bytesLE_length, zeros],
     window_full _ _ (bytesLE_length _ _), readLE_bytesLE_32]
 theorem wpad3_witEnc : (witEnc N w).extractLsb' (8 * 36) 96 = 0 := by
-  have h := extract_readLE (witList N w) 24264 (by rw [witList_length_eq]) 36 12
+  have h := extract_readLE (witList N w) 22984 (by rw [witList_length_eq]) 36 12
   unfold witEnc
   rw [show (96 : Nat) = 8 * 12 from rfl, h, show ((witList N w).drop 36).take 12 = window (witList N w) 36 12 from rfl,
     win_header _ _ _ _ (by omega)]
@@ -352,14 +352,14 @@ theorem wpad3_witEnc : (witEnc N w).extractLsb' (8 * 36) 96 = 0 := by
   rfl
 end header
 theorem layer_prefix (N : HashOutput) (w : WCT9.Witness) (lay : Layer) :
-    (((List.finRange 4).take lay.val).map fun l => (layerRegion N w l).length).sum = layerBase lay - 10568 := by
+    (((List.finRange 4).take lay.val).map fun l => (layerRegion N w l).length).sum = layerBase lay - 9288 := by
   simp only [layerRegion_length]
   fin_cases lay <;> simp [List.finRange, layerBase, height, chainCount]
 theorem win_layerRegion (N : HashOutput) (w : WCT9.Witness) (lay : Layer) (j m : Nat)
     (hjm : j + m ≤ 64 * (height lay + chainCount lay)) :
     window (witList N w) (layerBase lay + j) m = window (layerRegion N w lay) j m := by
-  have hb : 10568 ≤ layerBase lay := by fin_cases lay <;> simp [layerBase]
-  have hA : (headerBytes w ++ wctBytes N w.signature ++ zeros 1288).length = 10568 := by
+  have hb : 9288 ≤ layerBase lay := by fin_cases lay <;> simp [layerBase]
+  have hA : (headerBytes w ++ wctBytes N w.signature ++ zeros 8).length = 9288 := by
     simp only [List.length_append, headerBytes_length, wctBytes_length, zeros, List.length_replicate]
   have hlen : ((List.finRange 4)[lay.val]'(by simp)) = lay := by simp
   have key := SigGolfCandidate.T3M.window_flatMap (List.finRange 4) (layerRegion N w) lay.val (by simp) j m
@@ -367,7 +367,7 @@ theorem win_layerRegion (N : HashOutput) (w : WCT9.Witness) (lay : Layer) (j m :
   rw [layer_prefix N w lay, hlen] at key
   unfold witList
   rw [window_append_right _ _ _ _ (by rw [hA]; omega), hA,
-    show layerBase lay + j - 10568 = (layerBase lay - 10568) + j by omega, key]
+    show layerBase lay + j - 9288 = (layerBase lay - 9288) + j by omega, key]
 theorem layerRegion_tail (N : HashOutput) (w : WCT9.Witness) (lay : Layer) (j m : Nat) (hj : 64 ≤ j) :
     window (layerRegion N w lay) j m =
       window (layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) j m := by
@@ -397,7 +397,7 @@ theorem win_layer (N : HashOutput) (w : WCT9.Witness) (lay : Layer) (j m : Nat)
     exact layerRegion_top N w j m
 section t3
 variable (N : HashOutput) (w : WCT9.Witness)
-theorem layerBase_ge (lay : Layer) : 10568 ≤ layerBase lay := by
+theorem layerBase_ge (lay : Layer) : 9288 ≤ layerBase lay := by
   fin_cases lay <;> simp [layerBase]
 theorem wvalue_witEnc (lay : Layer) (i : Fin (chainCount lay)) :
     wvalue (witEnc N w) lay i.val = (w.signature.layers lay).values i := by
@@ -524,7 +524,7 @@ theorem wbcPad_witEnc (lay : Layer) : wbcPad (witEnc N w) lay = 0 := by
     have hv : (Fin.ofNat 4 (lay.val + 1) : Layer).val = lay.val + 1 := Nat.mod_eq_of_lt (by omega)
     unfold wbcPad witEnc
     rw [bcCounterOff_upper lay hlt, show (96 : Nat) = 8 * 12 from rfl,
-      extract_readLE (witList N w) 24264 (by rw [witList_length_eq]) _ 12,
+      extract_readLE (witList N w) 22984 (by rw [witList_length_eq]) _ 12,
       show ((witList N w).drop (layerBase (Fin.ofNat 4 (lay.val + 1)) + 32 + 4)).take 12 =
         window (witList N w) (layerBase (Fin.ofNat 4 (lay.val + 1)) + 36) 12 from rfl,
       win_bcTop N w _ (by rw [hv]; omega) 36 12 (by omega)]

@@ -18,12 +18,12 @@ def headerBytes (w : Witness) : List UInt8 :=
 def leafBytes (sig : Signature) : List UInt8 :=
   (List.finRange 21).flatMap (fun s => zeros 32 ++ bytesLE 16 (sig.secrets s)) ++ zeros 16
 def foldBytes (E : Nat) (sib : Digest) : List UInt8 :=
-  if E % 2 = 1 then bytesLE 16 sib ++ zeros 64 else zeros 48 ++ bytesLE 16 sib ++ zeros 16
+  if E % 2 = 1 then bytesLE 16 sib ++ zeros 48 else zeros 48 ++ bytesLE 16 sib
 def segBytes (chosen : List Selection) (proof : Fin 115 → Digest) (seg : Segment) : List UInt8 :=
   [UInt8.ofNat seg.byte0] ++ zeros 7 ++ (List.range seg.a).flatMap fun r =>
     foldBytes (seg.heap r) (proof ⟨foldSlot chosen seg r % 115, Nat.mod_lt _ (by decide)⟩)
 def streamBytes (chosen : List Selection) (proof : Fin 115 → Digest) : List UInt8 :=
-  (((schedule chosen).flatMap (segBytes chosen proof)) ++ zeros 9480).take 9480
+  (((schedule chosen).flatMap (segBytes chosen proof)) ++ zeros 8200).take 8200
 def layerBytes (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8 :=
   (List.finRange (height lay)).reverse.flatMap (fun j =>
       if leaf / 2 ^ j.val % 2 = 1 then bytesLE 16 (ls.path j) ++ zeros 48

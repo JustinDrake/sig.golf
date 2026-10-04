@@ -82,7 +82,7 @@ theorem Bank.congr {s t : MachineState} (h : Bank s)
     exact h.node k
   · rw [hm _ (by unfold VERIFY_DATA; omega) (by unfold VERIFY_DATA; have := k.isLt; omega)]
     exact h.leaf k
-theorem init_word (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : MachineState)
+theorem init_word (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 22984) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) (j : Nat) (hj : j < 576) :
     s.getMem (BitVec.ofNat 64 (VERIFY_DATA + 8 * j)) =
       bytesToWordLE ((Images.verifyPrefixData.drop (8 * j)).take 8) := by
@@ -95,7 +95,7 @@ theorem init_word (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : By
   simp only [List.foldl_cons, List.foldl_nil]
   have lm : (bytes m).length = 32 := length_bytes m
   have lp : (bytes pk).length = 16 := length_bytes pk
-  have lw : (bytes w).length = 24264 := length_bytes w
+  have lw : (bytes w).length = 22984 := length_bytes w
   have lD := verifyData_length
   have eD := dataBase_verify
   set blank : MachineState := { regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 }
@@ -123,7 +123,7 @@ theorem init_word (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : By
     intro A hA
     rw [getMem_writeBytesAsWords _ s1 0xA0 A (by rw [lp]; omega) hA, lp]
   have g3 : ∀ A, A < 2 ^ 64 → s3.getMem (BitVec.ofNat 64 A) =
-      if 0x800 ≤ A ∧ A < 0x800 + 8 * ((24264 + 7) / 8) ∧ (A - 0x800) % 8 = 0 then
+      if 0x800 ≤ A ∧ A < 0x800 + 8 * ((22984 + 7) / 8) ∧ (A - 0x800) % 8 = 0 then
         bytesToWordLE (((bytes w).drop (A - 0x800)).take 8) else s2.getMem (BitVec.ofNat 64 A) := by
     intro A hA
     rw [getMem_writeBytesAsWords _ s2 0x800 A (by rw [lw]; omega) hA, lw]
@@ -135,7 +135,7 @@ theorem init_word (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : By
   show bytesToWordLE ((Images.verifyData.drop (8 * j)).take 8) = _
   rw [Images.verifyData, List.drop_append_of_le_length (by rw [Images.verifyPrefixData_length]; omega),
     List.take_append_of_le_length (by rw [List.length_drop, Images.verifyPrefixData_length]; omega)]
-theorem init_bank (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : MachineState)
+theorem init_bank (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 22984) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) : Bank s := by
   have hB := List.all_eq_true.mp bankOK_eq
   have hk : ∀ k : Fin 9, _ := fun k : Fin 9 => hB k.val (List.mem_range.mpr k.isLt)
@@ -550,7 +550,7 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
       h11 (by norm_num) (forest_words u (idxOf a) roots hu.length hi hu.index hu.pairs)
   have g1 : Glob [] w pk s1 :=
     Glob_toState hu.glob fPrep.st (fPrep.pc.eval u) (by decide) rfl
-  have o1 : Orig w (fun o => o < 64 ∨ 10568 ≤ o) s1 :=
+  have o1 : Orig w (fun o => o < 64 ∨ 9288 ≤ o) s1 :=
     hu.layer.frame (fun j hj _ => fPrep_frame u _ (by unfold WIT WX at *; omega)
       (by unfold WIT; omega))
   have hpost : ∀ ans : BitVec 256, GoodQFor Frozen.image (writeHash s1 ans) (N + 1) (C + 1) Q (A + 1)
@@ -590,7 +590,7 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
       · obtain ⟨e0, e1⟩ := writeHash_lo s1 ans 0x100 h12 (by norm_num)
         exact ⟨(et _).trans e0, (et _).trans e1⟩
       · have o2 := Orig_writeHash o1 ans 0x100 h12 (by norm_num)
-        have o3 : Orig w (fun o => o < 64 ∨ 10568 ≤ o) (writeHash s1 ans) :=
+        have o3 : Orig w (fun o => o < 64 ∨ 9288 ≤ o) (writeHash s1 ans) :=
           o2.mono (fun o ho => ⟨ho, Or.inr (by unfold WIT; omega)⟩)
         exact o3.frame (fun j _ _ => et _)
       · rw [ht, Result.toState_getReg]
@@ -655,7 +655,7 @@ theorem cycleBoundAll_eq : cycleBoundAll = 10099 := rfl
 theorem cycleBound_eq' : cycleBound = 7628 := rfl
 theorem cycleBound_eq : cycleBound = ClaudeWCT.W9.T3M.Final.verifyCycleBound := rfl
 theorem verify_good (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood)
-    (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : MachineState)
+    (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 22984) (s : MachineState)
     (hs : initialState submission .verify (m, pk, w) = some s) :
     GoodQ s fuelBound cycleBoundAll True cycleBound (ccM (ClaudeWCT.W9.T3M.verifyP m pk w) Kb) := by
   rw [verifyP_eq, ccM_bind]
@@ -666,13 +666,13 @@ theorem verify_good (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts
     (fun a u hu => afterDigest_good hbridge fts m pk w a u hu)
 def I0 : ClaudeWCT.W9.T3M.Images := ⟨Images.signImage, Images.expandImage, Images.verifyImage⟩
 theorem I0_verify : I0.verify = Images.verifyImage := rfl
-theorem init_mk (sI eI : Riscv.Image) (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 24264) :
+theorem init_mk (sI eI : Riscv.Image) (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 22984) :
     initialState (ClaudeWCT.W9.T3M.submission ⟨sI, eI, Images.verifyImage⟩) .verify (m, pk, w) =
       initialState submission .verify (m, pk, w) :=
   rfl
 theorem mk_verify (sI eI : Riscv.Image) :
     (⟨sI, eI, Images.verifyImage⟩ : ClaudeWCT.W9.T3M.Images).verify = Images.verifyImage := rfl
-theorem init_exists (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 24264) :
+theorem init_exists (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 22984) :
     ∃ s, initialState submission .verify (m, pk, w) = some s := by
   unfold initialState
   simp only [submission_admissible.2 .verify, if_true]

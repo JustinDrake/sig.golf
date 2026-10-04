@@ -2,8 +2,8 @@ import SigGolfCandidate.T3.Core
 
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.T3
-def wsize : Nat := 24264
-abbrev WBytes := BitVec (8 * 24264)
+def wsize : Nat := 22984
+abbrev WBytes := BitVec (8 * 22984)
 def wbyte (w : WBytes) (i : Nat) : UInt8 := UInt8.ofBitVec (w.extractLsb' (8 * i) 8)
 def wdig (w : WBytes) (off : Nat) : Digest := w.extractLsb' (8 * off) 128
 def wle32 (w : WBytes) (off : Nat) : BitVec 32 := w.extractLsb' (8 * off) 32
@@ -12,11 +12,11 @@ def dcOff : Nat := 16
 def counterOff (lay : Layer) : Nat := 20 + 4 * lay.val
 def leafBlock (s : Nat) : Nat := 64 + 48 * s
 def streamBase : Nat := 1088
-def streamEnd : Nat := 10568
-def foldBlock (ptr r : Nat) : Nat := ptr + 8 + 80 * r
-def segNext (ptr a : Nat) : Nat := ptr + 8 + 80 * a
+def streamEnd : Nat := 8728
+def foldBlock (ptr r : Nat) : Nat := ptr + 8 + 64 * r
+def segNext (ptr a : Nat) : Nat := ptr + 8 + 64 * a
 def sibOff (side : Nat) : Nat := if side = 1 then 0 else 48
-def layerBase (lay : Layer) : Nat := (![10568, 14792, 17992, 21128] : Layer → Nat) lay
+def layerBase (lay : Layer) : Nat := (![9288, 13512, 16712, 19848] : Layer → Nat) lay
 def merkleBlock (lay : Layer) (j : Nat) : Nat := layerBase lay + 64 * (height lay - 1 - j)
 def chainBlock (lay : Layer) (i : Nat) : Nat := layerBase lay + 64 * height lay + 64 * (chainCount lay - 1 - i)
 def wrho (w : WBytes) : Digest := wdig w rhoOff

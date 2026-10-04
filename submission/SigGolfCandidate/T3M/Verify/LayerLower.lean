@@ -409,7 +409,7 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
 theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u : MachineState)
     (hidx : idx < 2 ^ 31) (hglob : Glob baseK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
     (hpc : u.pc = pcOf 588) (hroot : DigAt u 0x100 root)
-    (hwit : Verify.Orig w (fun o => o < 64 ∨ 10568 ≤ o) u) (ha2 : u.getReg .x12 = BitVec.ofNat 64 0x100) :
+    (hwit : Verify.Orig w (fun o => o < 64 ∨ 9288 ≤ o) u) (ha2 : u.getReg .x12 = BitVec.ofNat 64 0x100) :
     ∃ t, Steps image u 6 6 t ∧ LayerIn w pk idx 3 (.forest root) t := by
   obtain ⟨t, ht⟩ := spec_run BC.ld3Check_ok u hpc hglob.1 (by simp [ld3Spec]) (by simp)
   have hm : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl

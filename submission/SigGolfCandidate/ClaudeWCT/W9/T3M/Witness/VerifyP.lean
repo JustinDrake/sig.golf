@@ -23,7 +23,7 @@ def wcpads (w : WBytes) (k t : Nat) : Digest × Digest :=
 def wsib (w : WBytes) (k child l : Nat) : Digest := wdig w (wctMerkleBlock k l + sibOff (child / 2 ^ l % 2))
 def wmpad (w : WBytes) (k l : Nat) : Digest := wdig w (wctMerkleBlock k l + 32)
 def wcHeaderPad (w : WBytes) (k t : Nat) : BitVec 64 := (wdig w (wctChainBlock k t + 16)).extractLsb' 64 64
-def bcCounterOff (lay : Layer) : Nat := (![14824, 18024, 21160, 32] : Layer → Nat) lay
+def bcCounterOff (lay : Layer) : Nat := (![13544, 16744, 19880, 32] : Layer → Nat) lay
 def wbcCtr (w : WBytes) (lay : Layer) : BitVec 32 := SigGolfCandidate.T3M.wle32 w (bcCounterOff lay)
 def wbcPad (w : WBytes) (lay : Layer) : BitVec 96 := w.extractLsb' (8 * (bcCounterOff lay + 4)) 96
 theorem wctLeafSlot_zero (k : Nat) : wctLeafSlot k 0 = wctChainBlock k 0 + 48 := by

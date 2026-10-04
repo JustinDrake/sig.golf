@@ -393,7 +393,7 @@ theorem wordsOf_zeros48_dig (d : Digest) :
   rw [wordsOf_append _ _ (by rfl), wordsOf_bytesLE16,
     show SigGolfCandidate.T3M.zeros 48 = List.replicate (8 * 6) 0 from rfl, wordsOf_replicate_zero]
   rfl
-def lBase (lay : Layer) : Nat := ![0x3148, 0x41C8, 0x4E48, 0x5A88] lay
+def lBase (lay : Layer) : Nat := ![0x2c48, 0x3CC8, 0x4948, 0x5588] lay
 theorem lBase_eq (lay : Layer) : lWM lay = lBase lay + 64 * (height lay - 1) ∧
     lWC lay = lBase lay + 64 * height lay + 64 * (chainCount lay - 1) := by
   fin_cases lay <;> decide
@@ -788,10 +788,10 @@ theorem placed_words {N : HashOutput} {sig : WCT9.Signature} {t : MachineState} 
 theorem witListW_words (t : MachineState) (N : HashOutput) (w : WCT9.Witness)
     (hh : t.readWords (BitVec.ofNat 64 0x800) 8 = wordsOf (ClaudeWCT.W9.T3M.headerBytes w))
     (hwct : t.readWords (BitVec.ofNat 64 0x840) 1152 = wordsOf (wctBytes N w.signature))
-    (hgap : t.readWords (BitVec.ofNat 64 0x2c40) 161 = List.replicate 161 0)
+    (hgap : t.readWords (BitVec.ofNat 64 0x2c40) 1 = List.replicate 1 0)
     (hlay : ∀ lay : Layer, t.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay)) =
       wordsOf (ClaudeWCT.W9.T3M.layerRegion N w lay)) :
-    t.readWords (BitVec.ofNat 64 0x800) 3033 = wordsOf (ClaudeWCT.W9.T3M.witList N w) := by
+    t.readWords (BitVec.ofNat 64 0x800) 2873 = wordsOf (ClaudeWCT.W9.T3M.witList N w) := by
   have l1 : (ClaudeWCT.W9.T3M.headerBytes w).length = 64 := ClaudeWCT.W9.T3M.headerBytes_length w
   have hf : (List.finRange 4).flatMap (ClaudeWCT.W9.T3M.layerRegion N w) =
       ClaudeWCT.W9.T3M.layerRegion N w 0 ++ ClaudeWCT.W9.T3M.layerRegion N w 1 ++
@@ -803,17 +803,17 @@ theorem witListW_words (t : MachineState) (N : HashOutput) (w : WCT9.Witness)
   rw [hf]
   simp only [List.append_assoc]
   rw [wordsOf_append _ _ (by rw [l1]), wordsOf_append _ _ (by rw [wctBytes_length]),
-    wordsOf_append _ _ (by rw [show (SigGolfCandidate.T3M.zeros 1288).length = 1288 from List.length_replicate]),
+    wordsOf_append _ _ (by rw [show (SigGolfCandidate.T3M.zeros 8).length = 8 from List.length_replicate]),
     wordsOf_append _ _ (by rw [ClaudeWCT.W9.T3M.layerRegion_length]; decide),
     wordsOf_append _ _ (by rw [ClaudeWCT.W9.T3M.layerRegion_length]; decide),
     wordsOf_append _ _ (by rw [ClaudeWCT.W9.T3M.layerRegion_length]; decide), ← hh, ← hwct]
-  have hz : wordsOf (SigGolfCandidate.T3M.zeros 1288) = List.replicate 161 0 := by
-    rw [show SigGolfCandidate.T3M.zeros 1288 = List.replicate (8 * 161) 0 from rfl, wordsOf_replicate_zero]
+  have hz : wordsOf (SigGolfCandidate.T3M.zeros 8) = List.replicate 1 0 := by
+    rw [show SigGolfCandidate.T3M.zeros 8 = List.replicate (8 * 1) 0 from rfl, wordsOf_replicate_zero]
   rw [hz, ← hgap]
   have h0 := hlay 0; have h1 := hlay 1; have h2 := hlay 2; have h3 := hlay 3
   rw [← h0, ← h1, ← h2, ← h3]
   simp only [lBase, height, chainCount]
-  rw [show (3033 : Nat) = 8 + (1152 + (161 + (528 + (400 + (392 + 392))))) from rfl, readWords_add, readWords_add,
+  rw [show (2873 : Nat) = 8 + (1152 + (1 + (528 + (400 + (392 + 392))))) from rfl, readWords_add, readWords_add,
     readWords_add, readWords_add, readWords_add, readWords_add]
   rfl
 def tailProg (pk : PublicKey) (sig : WCT9.Signature) :

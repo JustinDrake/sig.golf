@@ -5,7 +5,7 @@ namespace ClaudeWCT.W9.Final
 open ClaudeWCT.W9.T3M (Images)
 abbrev submission (I : Images) : SigGolf.Submission := ClaudeWCT.W9.T3M.Final.submissionNew I
 theorem signature_bytes (I : Images) : (submission I).sizes.signature = 5456 := rfl
-theorem witness_bytes (I : Images) : (submission I).sizes.witness = 24264 := rfl
+theorem witness_bytes (I : Images) : (submission I).sizes.witness = 22984 := rfl
 theorem cache_bytes (I : Images) : (submission I).sizes.cache = 131072 := rfl
 theorem layout_offsets (I : Images) : (submission I).layout =
     { message := 64, secretKey := 128, publicKey := 160,
@@ -38,6 +38,6 @@ theorem PendingInputs.machine {I : Images} (h : PendingInputs I) : ClaudeWCT.W9.
   verify_accept_cycles := h.verify_accept_cycles
 theorem PendingInputs.securityP {I : Images} (h : PendingInputs I) : ClaudeWCT.W9.T3M.Final.SecurityP :=
   ClaudeWCT.W9.T3.Secc.t3_securityP h.near_bound h.pair_bound h.large_route
-theorem certificate_of_pending {I : Images} (h : PendingInputs I) : SigGolf.Certificate (submission I) 7723 :=
+theorem certificate_of_pending {I : Images} (h : PendingInputs I) : SigGolf.Certificate (submission I) 7718 :=
   ClaudeWCT.W9.T3M.Final.certificate_of_security h.securityP h.machine
 end ClaudeWCT.W9.Final

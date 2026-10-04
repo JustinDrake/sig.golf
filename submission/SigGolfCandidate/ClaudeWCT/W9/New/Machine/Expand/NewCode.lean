@@ -65,16 +65,16 @@ def mvOK : Bool := (List.range 214).all mvCheck
 def sufCheck : Bool :=
   optCheck (pathAux pcfg expLook [pcOf 39153] 20 (pcOf 39142) [] (σK []) []) fun r =>
     runB r 39153 [(0x20260 + 8, some 264), (0x20260, some 256)] [.x6, .x7, .x28, .x29] &&
-      regIsB r .x28 (BitVec.ofNat 64 0x840) && regIsB r .x29 (BitVec.ofNat 64 0x3148) && r.brs.isEmpty &&
+      regIsB r .x28 (BitVec.ofNat 64 0x840) && regIsB r .x29 (BitVec.ofNat 64 0x2c48) && r.brs.isEmpty &&
       decide (r.cycles ≤ 11)
 def clA (k : Nat) : Nat := 0x840 + 8 * k
 def clCheck (k : Nat) : Bool :=
   optCheck (pathAux pcfg expLook [pcOf 39153, pcOf 39156] 10 (pcOf 39153) []
-      (σK [(.x28, BitVec.ofNat 64 (clA k)), (.x29, BitVec.ofNat 64 0x3148)]) []) fun r =>
-    runB r (if k < 1312 then 39153 else 39156) [(clA k, none)] [.x28, .x29] &&
-      regIsB r .x28 (BitVec.ofNat 64 (clA (k + 1))) && regIsB r .x29 (BitVec.ofNat 64 0x3148) && r.brs.isEmpty &&
+      (σK [(.x28, BitVec.ofNat 64 (clA k)), (.x29, BitVec.ofNat 64 0x2c48)]) []) fun r =>
+    runB r (if k < 1152 then 39153 else 39156) [(clA k, none)] [.x28, .x29] &&
+      regIsB r .x28 (BitVec.ofNat 64 (clA (k + 1))) && regIsB r .x29 (BitVec.ofNat 64 0x2c48) && r.brs.isEmpty &&
       decide (r.cycles ≤ 3)
-def clOK : Bool := (List.range 1313).all clCheck
+def clOK : Bool := (List.range 1153).all clCheck
 def finCheck : Bool :=
   optCheck (pathAux pcfg expLook [pcOf 249] 10 (pcOf 40872) [] (σK []) []) fun r =>
     runB r 249 [] [.x2] && regIsB r .x2 (BitVec.ofNat 64 0x22000) && r.brs.isEmpty && decide (r.cycles ≤ 3)
@@ -284,7 +284,7 @@ theorem mv_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc 
     · unfold mvB at h; constructor <;> omega
 theorem suf_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 39142) :
     ∃ t k cy, Steps im s k cy t ∧ cy ≤ 11 ∧ t.pc = pcOf 39153 ∧ t.getReg .x28 = BitVec.ofNat 64 (clA 0) ∧
-      t.getReg .x29 = BitVec.ofNat 64 0x3148 ∧ RegsExcept s t [.x6, .x7, .x28, .x29] ∧
+      t.getReg .x29 = BitVec.ofNat 64 0x2c48 ∧ RegsExcept s t [.x6, .x7, .x28, .x29] ∧
       t.getMem (BitVec.ofNat 64 0x20260) = s.getMem (BitVec.ofNat 64 0x100) ∧
       t.getMem (BitVec.ofNat 64 (0x20260 + 8)) = s.getMem (BitVec.ofNat 64 0x108) ∧
       Frame s t (fun A => A = 0x20260 ∨ A = 0x20260 + 8) := by
@@ -302,13 +302,13 @@ theorem suf_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc
       · right; rfl
       · left; rfl)
 structure ClInv (s0 : MachineState) (k : Nat) (t : MachineState) : Prop where
-  pc : t.pc = pcOf (if k < 1313 then 39153 else 39156)
+  pc : t.pc = pcOf (if k < 1153 then 39153 else 39156)
   x28 : t.getReg .x28 = BitVec.ofNat 64 (clA k)
-  x29 : t.getReg .x29 = BitVec.ofNat 64 0x3148
+  x29 : t.getReg .x29 = BitVec.ofNat 64 0x2c48
   regs : RegsExcept s0 t [.x28, .x29]
   mem : ∀ A, A < 2 ^ 64 → t.getMem (BitVec.ofNat 64 A) =
     if 0x840 ≤ A ∧ A < clA k ∧ A % 8 = 0 then 0 else s0.getMem (BitVec.ofNat 64 A)
-theorem cl_step {im : Image} (hc : NewCodeAt im) {s0 : MachineState} (k : Nat) (hk : k < 1313) (t : MachineState)
+theorem cl_step {im : Image} (hc : NewCodeAt im) {s0 : MachineState} (k : Nat) (hk : k < 1153) (t : MachineState)
     (hI : ClInv s0 k t) : ∃ u n cy, Steps im t n cy u ∧ cy ≤ 3 ∧ ClInv s0 (k + 1) u := by
   obtain ⟨r, hr, hb⟩ := optCheck_some (List.all_eq_true.mp clOK_ok k (List.mem_range.mpr hk))
   simp only [Bool.and_eq_true, List.isEmpty_iff, decide_eq_true_eq] at hb
@@ -338,13 +338,13 @@ theorem cl_step {im : Image} (hc : NewCodeAt im) {s0 : MachineState} (k : Nat) (
       · rw [if_pos h1, if_pos ⟨h1.1, by omega, h1.2.2⟩]
       · rw [if_neg h1, if_neg (fun h2 => h1 ⟨h2.1, by omega, h2.2.2⟩)]
 theorem cl_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 39153)
-    (h28 : s.getReg .x28 = BitVec.ofNat 64 (clA 0)) (h29 : s.getReg .x29 = BitVec.ofNat 64 0x3148) :
-    ∃ t k cy, Steps im s k cy t ∧ cy ≤ 3 * 1313 ∧ t.pc = pcOf 39156 ∧ RegsExcept s t [.x28, .x29] ∧
+    (h28 : s.getReg .x28 = BitVec.ofNat 64 (clA 0)) (h29 : s.getReg .x29 = BitVec.ofNat 64 0x2c48) :
+    ∃ t k cy, Steps im s k cy t ∧ cy ≤ 3 * 1153 ∧ t.pc = pcOf 39156 ∧ RegsExcept s t [.x28, .x29] ∧
       ∀ A, A < 2 ^ 64 → t.getMem (BitVec.ofNat 64 A) =
-        if 0x840 ≤ A ∧ A < 0x3148 ∧ A % 8 = 0 then 0 else s.getMem (BitVec.ofNat 64 A) := by
+        if 0x840 ≤ A ∧ A < 0x2c48 ∧ A % 8 = 0 then 0 else s.getMem (BitVec.ofNat 64 A) := by
   have I0 : ClInv s 0 s := ⟨by rw [hpc]; rfl, h28, h29, RegsExcept.refl _ _, fun A _ => by
     rw [if_neg (fun h => by unfold clA at h; omega)]⟩
-  have gen : ∀ k, k ≤ 1313 → ∃ u n cy, Steps im s n cy u ∧ cy ≤ 3 * k ∧ ClInv s k u := by
+  have gen : ∀ k, k ≤ 1153 → ∃ u n cy, Steps im s n cy u ∧ cy ≤ 3 * k ∧ ClInv s k u := by
     intro k
     induction k with
     | zero => intro _; exact ⟨s, 0, 0, Steps.refl _, le_refl _, I0⟩
@@ -353,7 +353,7 @@ theorem cl_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc 
       obtain ⟨u, n, cy, su, hcy, hu⟩ := ih (by omega)
       obtain ⟨v, n', cy', sv, hcy', hv⟩ := cl_step hc k (by omega) u hu
       exact ⟨v, _, _, su.trans sv, by rw [Nat.mul_succ]; omega, hv⟩
-  obtain ⟨u, n, cy, su, hcy, hu⟩ := gen 1313 le_rfl
+  obtain ⟨u, n, cy, su, hcy, hu⟩ := gen 1153 le_rfl
   exact ⟨u, n, cy, su, hcy, by rw [hu.pc]; rfl, hu.regs, fun A hA => by rw [hu.mem A hA]; rfl⟩
 theorem fin_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 40872) :
     ∃ t k cy, Steps im s k cy t ∧ cy ≤ 3 ∧ t.pc = pcOf 249 ∧ t.getReg .x2 = BitVec.ofNat 64 0x22000 ∧
@@ -786,13 +786,13 @@ theorem newCode_tb {im : Image} (hc : NewCodeAt im) (hh : HookAt im) (sk : BitVe
       · omega
       · unfold regBase at h; omega
       · omega
-  refine (TBSim.steps (st3.trans (st4.trans st5)) (TBSim.bind (W₂ := 11 + 3 * 1313 + 9 * 204 + 3)
+  refine (TBSim.steps (st3.trans (st4.trans st5)) (TBSim.bind (W₂ := 11 + 3 * 1153 + 9 * 204 + 3)
     (fts_tb hc hin p5 x5_5) (fun root t6 h6 => ?_))).mono
     (by unfold ftsCost coordCost; omega) (fun _ _ h => h)
   obtain ⟨p6, x5_6, root6, f6⟩ := h6
   obtain ⟨t7, k7, c7, st7, hc7, p7, x28_7, x29_7, r7, enc7lo, enc7hi, f7⟩ := suf_spec hc t6 p6
   obtain ⟨t8, k8, c8, st8, hc8, p8, r8, m8⟩ := cl_spec hc t7 p7 x28_7 x29_7
-  have g8 : ∀ A, A < 2 ^ 64 → (A < 0x840 ∨ 0x3148 ≤ A) → t8.getMem (BitVec.ofNat 64 A) = t7.getMem (BitVec.ofNat 64 A) :=
+  have g8 : ∀ A, A < 2 ^ 64 → (A < 0x840 ∨ 0x2c48 ≤ A) → t8.getMem (BitVec.ofNat 64 A) = t7.getMem (BitVec.ofNat 64 A) :=
     fun A hA h => by rw [m8 A hA, if_neg (by omega)]
   have nF : ∀ A, (A < 0x840 ∨ 0x2c40 ≤ A) → (A < 0x400 ∨ 0x550 ≤ A) → (A < 0x100 ∨ 0x120 ≤ A) → ¬ FtsW A := by
     intro A h1 h2 h3 h; unfold FtsW at h; omega
@@ -824,12 +824,12 @@ theorem newCode_tb {im : Image} (hc : NewCodeAt im) (hh : HookAt im) (sk : BitVe
     have e2 : t2.getMem (BitVec.ofNat 64 0x810) = s.getMem (BitVec.ofNat 64 0x810) := by
       rw [f2 _ (by decide) (nW _ (by decide) (by decide) (by decide))]; rfl
     rw [e3, hi3, e2]
-  have g10 : ∀ A, A < 2 ^ 64 → (A < 0x840 ∨ 0x3148 ≤ A) →
+  have g10 : ∀ A, A < 2 ^ 64 → (A < 0x840 ∨ 0x2c48 ≤ A) →
       t10.getMem (BitVec.ofNat 64 A) = t7.getMem (BitVec.ofNat 64 A) := by
     intro A hA h
     rw [f10 A hA (fun h => h), hI9.frame A hA (by unfold regBase; omega), g8 A hA h]
   have gall : ∀ A, A < 2 ^ 64 → (A < 0x60 ∨ 0x80 ≤ A) → A ≠ 0x810 → ¬ (A = 0x20130 ∨ A = 0x20138) →
-      (A < 0x20160 ∨ 0x20180 ≤ A) → A ≠ 0x20550 → (A < 0x840 ∨ 0x3148 ≤ A) → (A < 0x7890 ∨ 0x85f0 ≤ A) →
+      (A < 0x20160 ∨ 0x20180 ≤ A) → A ≠ 0x20550 → (A < 0x840 ∨ 0x2c48 ≤ A) → (A < 0x7890 ∨ 0x85f0 ≤ A) →
       (A < 0x400 ∨ 0x550 ≤ A) → (A < 0x100 ∨ 0x120 ≤ A) → A ≠ 0x20260 → A ≠ 0x20268 →
       t10.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11

@@ -10,8 +10,8 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 def hL (lay : Nat) : Nat := [12,7,6,6].getD lay 0
 def stepsA (lay : Nat) : Nat := if lay = 3 then 20 else if lay = 0 then 10 else 13
 def retOff (lay : Nat) : Nat := if lay = 0 then 12 else if lay = 3 then 49 else 39
-def s6v (lay : Nat) : Nat := [14344,18312,21448,24584].getD lay 0
-def s3v : Nat := 15048
+def s6v (lay : Nat) : Nat := [13064,17032,20168,23304].getD lay 0
+def s3v : Nat := 13768
 def tgtL (lay : Nat) : Nat := [126,197,197,196].getD lay 0
 def hw (t lay : Nat) : Nat := 1 + 256 * t + 65536 * lay
 def rejEcall : Nat := 743
@@ -25,7 +25,7 @@ def M4c : Nat := 3689348814741910323
 def M8c : Nat := 1085102592571150095
 def t3In (lay : Nat) : Nat := if lay = 0 then headerBank 0 0 else headerBank (lay + 1) 0
 def lfT3 (lay : Nat) : Nat := if lay ≤ 1 then headerBank 0 0 else headerBank lay 0
-def x10In (lay : Nat) : Nat := [16840,20040,23176].getD lay 0
+def x10In (lay : Nat) : Nat := [15560,18760,21896].getD lay 0
 def preK (lay : Nat) : List (Reg × Word) :=
   if lay = 3 then baseK ++ [(.x19, BitVec.ofNat 64 0x400000), (.x21, BitVec.ofNat 64 M2c), (.x20, BitVec.ofNat 64 M1c),
     (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00), (.x12, BitVec.ofNat 64 256)]

@@ -781,7 +781,7 @@ open SigGolfCandidate.T3 (Digest)
 set_option maxRecDepth 8192
 set_option maxHeartbeats 600000
 set_option linter.unusedSimpArgs false
-def prologueCode : List (BitVec 32) := [18871,0xac898993,0xd4098b13,134199,0xc00c0c13,714679,0xa81713,25655091,0xf70733,0x9a070067]
+def prologueCode : List (BitVec 32) := [14775,0x5c898993,0xd4098b13,134199,0xc00c0c13,714679,0xa81713,25655091,0xf70733,0x9a070067]
 sym_block prologueBase := symRun { noAlias := true } prologueCode (pcOf 96220) 200
 theorem prologue_at : CodeAt Verify.image (pcOf 96220) prologueCode := by
   have h := codeAt_from 96220 (by decide)
@@ -795,7 +795,7 @@ theorem prologue_spec (s : MachineState) (v : Digest)
     ∃ t, Steps Verify.image s 10 10 t ∧ t.pc = prologueTarget v ∧
       t.getReg .x16 = v.extractLsb' 0 64 ∧
       t.getReg .x17 = v.extractLsb' 63 64 ∧
-      t.getReg .x22 = 14344#64 ∧ t.getReg .x19 = 15048#64 ∧ t.getReg .x24 = 130048#64 ∧
+      t.getReg .x22 = 13064#64 ∧ t.getReg .x19 = 13768#64 ∧ t.getReg .x24 = 130048#64 ∧
       t.getReg .x15 = 712704#64 ∧
       RegsExcept s t [.x3,.x17,.x22,.x19,.x24,.x15,.x14] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound prologueBase prologue_at s hpc (by simp [prologueBase.res, rv_simp]), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -874,8 +874,8 @@ structure TopEntry (u : MachineState) (v : Digest) (p : Nat) (s : MachineState) 
   lo : s.getReg .x16 = v.extractLsb' 0 64
   hi : s.getReg .x17 = (v.extractLsb' 64 64 <<< (1 : Word)) ||| (v.extractLsb' 0 64 >>> (63 : Word))
   tail : s.getReg .x29 = Search.topWindow v 17
-  s6 : s.getReg .x22 = 14344#64
-  s3 : s.getReg .x19 = 15048#64
+  s6 : s.getReg .x22 = 13064#64
+  s3 : s.getReg .x19 = 13768#64
   mask : s.getReg .x24 = 130048#64
   table : s.getReg .x15 = 712704#64
   «prefix» : s.getReg .x28 = Nonbinary.topPrefixWord (u.getReg .x4)
@@ -971,7 +971,7 @@ open Nonbinary (NCtx)
 set_option maxHeartbeats 800000
 set_option linter.unusedSimpArgs false
 def nctxOf (w : WBytes) (index : Nat) (v : Digest) (p : Nat) : NCtx :=
-  ⟨w, (route index 0).2, (route index 0).1, 15048, coreDigit 0 v, p + 12⟩
+  ⟨w, (route index 0).2, (route index 0).1, 13768, coreDigit 0 v, p + 12⟩
 theorem nctx_ok (w : WBytes) (index : Nat) (v : Digest) (c : Nat) (hidx : index < 2 ^ 31) :
     (nctxOf w index v (trPc 0 c)).ok := by
   have hp := trPc_lt 0 c
@@ -1004,14 +1004,14 @@ theorem nctx_known (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineStat
 theorem topEntry_orig (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineState) (a : BitVec 256)
     (ht : EncPre w pk index 0 c t)
     (he : TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s) :
-    Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd 0) s := by
+    Verify.Orig w (fun o => 9288 ≤ o ∧ o < layerEnd 0) s := by
   have h12 : t.getReg .x12 = 256#64 := ht.glob.1 (_, _) (by simp [BC.bK, bK])
   have ho := Orig_writeHash ht.orig a 256 h12 (by norm_num)
-  have hu : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd 0) (writeHash t a) :=
+  have hu : Verify.Orig w (fun o => 9288 ≤ o ∧ o < layerEnd 0) (writeHash t a) :=
     ho.mono (fun o h => ⟨h, Or.inr (by unfold WIT; omega)⟩)
   exact hu.frame (fun j hj hp => he.frame.get (by unfold WIT WX at *; omega) (by simp))
 theorem nctx_orig (w : WBytes) (index : Nat) (v : Digest) (p : Nat) (s : MachineState)
-    (ho : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd 0) s) (hD : DataOK s) :
+    (ho : Verify.Orig w (fun o => 9288 ≤ o ∧ o < layerEnd 0) s) (hD : DataOK s) :
     (nctxOf w index v p).Orig0 s := by
   refine ⟨fun i hi k hk => ?_, hD⟩
   clear hD

@@ -33,11 +33,11 @@ structure Pre30 (m : Message) (sig : WCT9.Signature) (s : MachineState) : Prop w
   rho : DigAt s DIG sig.rho
   msg : ∀ k, k < 4 → s.getMem (BitVec.ofNat 64 (DIG + 32 + 8 * k)) = m.extractLsb' (64 * k) 64
   sigAt : ∀ k, k < 341 → DigAt s (0x7000 + 16 * k) ((ClaudeWCT.W9.T3M.sigDigests sig).getD k 0)
-  zeroW : ∀ A, 0x840 ≤ A → A < 0x3148 → s.getMem (BitVec.ofNat 64 A) = 0
+  zeroW : ∀ A, 0x840 ≤ A → A < 0x2c48 → s.getMem (BitVec.ofNat 64 A) = 0
   bank : HdrBankOK s
 def NewW (A : Nat) : Prop :=
   A = DIG + 16 ∨ A = DIG + 24 ∨ (NBUF ≤ A ∧ A < NBUF + 32) ∨ A = IDXV ∨ A = 0x810 ∨ (0x60 ≤ A ∧ A < 0x80) ∨
-    (0x100 ≤ A ∧ A < 0x120) ∨ (0x400 ≤ A ∧ A < 0x550) ∨ (0x840 ≤ A ∧ A < 0x3148) ∨ A = ENC ∨ A = ENC + 8 ∨
+    (0x100 ≤ A ∧ A < 0x120) ∨ (0x400 ≤ A ∧ A < 0x550) ∨ (0x840 ≤ A ∧ A < 0x2c48) ∨ A = ENC ∨ A = ENC + 8 ∨
     (0x7000 + 2192 ≤ A ∧ A < 0x7000 + 5616)
 structure Post249 (sig : WCT9.Signature) (s0 : MachineState) (counter : BitVec 32) (N : HashOutput) (root : Digest)
     (t : MachineState) : Prop where
@@ -48,7 +48,7 @@ structure Post249 (sig : WCT9.Signature) (s0 : MachineState) (counter : BitVec 3
   enc : DigAt t ENC root
   dc : (t.getMem (BitVec.ofNat 64 0x810)).extractLsb' 0 32 = counter
   placed : Placed N sig t
-  gap : ∀ A, 0x2c40 ≤ A → A < 0x3148 → t.getMem (BitVec.ofNat 64 A) = 0
+  gap : ∀ A, 0x2c40 ≤ A → A < 0x2c48 → t.getMem (BitVec.ofNat 64 A) = 0
   layers : ∀ i, i < 214 → DigAt t (0x7000 + 2192 + 16 * i) ((ClaudeWCT.W9.T3M.sigDigests sig).getD (127 + i) 0)
   frame : Frame s0 t NewW
 def NewPost (sig : WCT9.Signature) (s0 : MachineState) :
@@ -61,7 +61,7 @@ def NewCodeSpec (im : Image) : Prop :=
   ∀ (sk : BitVec 256) (m : Message) (sig : WCT9.Signature) (s : MachineState), Pre30 m sig s →
     TBSim im sk s newCost (newProg m sig) (NewPost sig s)
 def w9Sub (imgs : Phase → Image) : Submission where
-  sizes := ⟨5456, 24264, 131072⟩
+  sizes := ⟨5456, 22984, 131072⟩
   layout := ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩
   image := imgs
 def FrontAt (im : Image) : Prop := CodeAt im (pcOf 0) (SigGolfCandidate.T3M.Expand.seg_0 ++ [hookWord])

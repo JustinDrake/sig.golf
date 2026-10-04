@@ -11,7 +11,7 @@ abbrev dhi (d : BitVec 128) : Word := d.extractLsb' 64 64
 def wword (w : WBytes) (j : Nat) : Word := w.extractLsb' (64 * j) 64
 theorem wword_toNat (w : WBytes) (j : Nat) : (wword w j).toNat = w.toNat / 2 ^ (64 * j) % 2 ^ 64 := by
   simp only [wword, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]
-theorem wword_zero (w : WBytes) (j : Nat) (h : 3033 ≤ j) : wword w j = 0 := by
+theorem wword_zero (w : WBytes) (j : Nat) (h : 2873 ≤ j) : wword w j = 0 := by
   apply BitVec.eq_of_toNat_eq
   rw [wword_toNat]
   have hw : w.toNat < 2 ^ (64 * j) :=

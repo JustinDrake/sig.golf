@@ -152,7 +152,7 @@ open SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.T3 (Digest Layer route)
 open ClaudeWCT.WCT9 (LayerMsg)
 def below (lay : Nat) : Nat := [19,12,6,0].getD lay 0
-def layerEnd (lay : Nat) : Nat := [14792,17992,21128,24264].getD lay 0
+def layerEnd (lay : Nat) : Nat := [13512,16712,19848,22984].getD lay 0
 def MsgAt (w : WBytes) (lay : Nat) (msg : LayerMsg) (s : MachineState) : Prop :=
   match msg with
   | .forest root => lay = 3 ∧ DigAt s 256 root
@@ -169,7 +169,7 @@ structure LayerIn (w : WBytes) (pk : Digest) (index lay : Nat) (msg : LayerMsg)
   glob : Glob (preK lay) w pk s
   route : s.getReg (rReg lay) = BitVec.ofNat 64 (index / 2 ^ below lay)
   msg : MsgAt w lay msg s
-  orig : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd lay) s
+  orig : Verify.Orig w (fun o => 9288 ≤ o ∧ o < layerEnd lay) s
 structure EncPre (w : WBytes) (pk : Digest) (index lay c : Nat)
     (t : MachineState) : Prop where
   pc : t.pc = pcOf (trPc lay c + stepsA lay)
@@ -180,7 +180,7 @@ structure EncPre (w : WBytes) (pk : Digest) (index lay c : Nat)
     t.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay + (route index L).1)
   t5 : ∀ L : Layer, L.val = lay → lay ≠ 0 →
     t.getReg .x30 = BitVec.ofNat 64 (route index L).2
-  orig : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd lay) t
+  orig : Verify.Orig w (fun o => 9288 ≤ o ∧ o < layerEnd lay) t
 def rejectSteps (lay : Nat) : Nat := stepsA lay + if lay = 3 then 1 else 2
 def EncodingSetup : Prop :=
   ∀ (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer)
@@ -216,7 +216,7 @@ open SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.T3 (Digest HashOutput Layer route height chainCount counterLimit decode encodingInput target
   dataDigits pad64)
 def below (lay : Nat) : Nat := [19,12,6,0].getD lay 0
-def layerEnd (lay : Nat) : Nat := [14792,17992,21128,24264].getD lay 0
+def layerEnd (lay : Nat) : Nat := [13512,16712,19848,22984].getD lay 0
 theorem hL_eq (lay : Layer) : hL lay.val = height lay := by fin_cases lay <;> rfl
 theorem below_eq (lay : Layer) : below lay.val = (![19, 12, 6, 0] : Layer → Nat) lay := by fin_cases lay <;> rfl
 theorem tgtL_eq (lay : Layer) : tgtL lay.val = target lay := by fin_cases lay <;> rfl
@@ -694,7 +694,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
         (∀ p ∈ (lctxOf w index lay a (trPc lay.val c)).known, s0.getReg p.1 = p.2) ∧
         (lctxOf w index lay a (trPc lay.val c)).Orig0 s0 ∧
         (lctxOf w index lay a (trPc lay.val c)).ChainIn s0 0 [] s0 ∧ Glob (chainK lay.val) w pk s0 ∧
-        Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd lay.val) s0 ∧
+        Verify.Orig w (fun o => 9288 ≤ o ∧ o < layerEnd lay.val) s0 ∧
         s0.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay.val + (route index lay).1) ∧
         s0.getReg .x30 = BitVec.ofNat 64 (route index lay).2) := by
   set u := writeHash t a with hu
@@ -776,10 +776,10 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
       have := Glob_writeHash ht.glob a 256 h12 (by decide)
       exact this
     have hGs0 := hs0.glob _ w pk hGu (RelOK.nil u)
-    have hOu : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd lay.val) u := by
+    have hOu : Verify.Orig w (fun o => 9288 ≤ o ∧ o < layerEnd lay.val) u := by
       have := Orig_writeHash ht.orig a 256 h12 (by norm_num)
       exact this.mono (fun o ho => ⟨ho, Or.inr (by unfold WIT; omega)⟩)
-    have hOs0 : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd lay.val) s0 := by
+    have hOs0 : Verify.Orig w (fun o => 9288 ≤ o ∧ o < layerEnd lay.val) s0 := by
       have := hs0.orig_const hOu
       exact this.mono (fun o ho => ⟨ho, by simp⟩)
     have hpc0 : s0.pc = pcOf (L.startPc 0) := by

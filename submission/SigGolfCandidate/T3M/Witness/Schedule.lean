@@ -30,7 +30,7 @@ def coordSchedule (coord : Nat) (sel : Selection) : List Segment :=
 def schedule (chosen : List Selection) : List Segment :=
   (List.range 7).flatMap fun c => coordSchedule c (chosen.getD c ⟨0, []⟩)
 def segPtr (segs : List Segment) (n : Nat) : Nat :=
-  streamBase + ((segs.take n).map fun s => 8 + 80 * s.a).sum
+  streamBase + ((segs.take n).map fun s => 8 + 64 * s.a).sum
 def selectedLeaves (sel : Selection) : List Nat := sel.leaves.map fun s => sel.bucket * 128 + s
 def slotPositions (sel : Selection) : List (Nat × Nat) :=
   frontier (selectedLeaves sel) 7 sel.bucket ++ (List.range 4).map fun j => (7 + j, sel.bucket / 2 ^ j ^^^ 1)

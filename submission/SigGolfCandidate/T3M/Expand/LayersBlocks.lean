@@ -168,8 +168,8 @@ theorem l262_spec (hpc : s.pc = pcOf 262) (c : Nat) (h19 : s.getReg .x19 = BitVe
     ∃ t, Steps image s 10 10 t ∧ t.pc = pcOf 997 ∧ t.getReg .x1 = pcOf 272 ∧
       t.getMem (BitVec.ofNat 64 0x820) =
         replaceWord32 (s.getMem (BitVec.ofNat 64 0x820)) 0 ((BitVec.ofNat 64 c).truncate 32) ∧
-      t.getReg .x16 = BitVec.ofNat 64 0x82e0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x6688 ∧
-      t.getReg .x24 = BitVec.ofNat 64 0x5bc8 ∧
+      t.getReg .x16 = BitVec.ofNat 64 0x82e0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x6188 ∧
+      t.getReg .x24 = BitVec.ofNat 64 0x56c8 ∧
       RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x820) := by
   refine ⟨_, symRun_sound eblk_262 codeAt_262 s hpc (by simp [eblk_262.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -187,11 +187,11 @@ theorem l262_spec (hpc : s.pc = pcOf 262) (c : Nat) (h19 : s.getReg .x19 = BitVe
     rw [if_neg (by omega)]
 theorem l285_spec (hpc : s.pc = pcOf 285) (c : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = pcOf 997 ∧ t.getReg .x1 = pcOf 295 ∧
-      t.getMem (BitVec.ofNat 64 0x5aa8) =
-        replaceWord32 (s.getMem (BitVec.ofNat 64 0x5aa8)) 0 ((BitVec.ofNat 64 c).truncate 32) ∧
-      t.getReg .x16 = BitVec.ofNat 64 0x7fd0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x5a48 ∧
-      t.getReg .x24 = BitVec.ofNat 64 0x4f88 ∧
-      RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x5aa8) := by
+      t.getMem (BitVec.ofNat 64 0x55a8) =
+        replaceWord32 (s.getMem (BitVec.ofNat 64 0x55a8)) 0 ((BitVec.ofNat 64 c).truncate 32) ∧
+      t.getReg .x16 = BitVec.ofNat 64 0x7fd0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x5548 ∧
+      t.getReg .x24 = BitVec.ofNat 64 0x4a88 ∧
+      RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x55a8) := by
   refine ⟨_, symRun_sound eblk_285 codeAt_285 s hpc (by simp [eblk_285.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [Result.toState_pc, eblk_285.res, E.eval]
@@ -208,11 +208,11 @@ theorem l285_spec (hpc : s.pc = pcOf 285) (c : Nat) (h19 : s.getReg .x19 = BitVe
     rw [if_neg (by omega)]
 theorem l308_spec (hpc : s.pc = pcOf 308) (c : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = pcOf 997 ∧ t.getReg .x1 = pcOf 318 ∧
-      t.getMem (BitVec.ofNat 64 0x4e68) =
-        replaceWord32 (s.getMem (BitVec.ofNat 64 0x4e68)) 0 ((BitVec.ofNat 64 c).truncate 32) ∧
-      t.getReg .x16 = BitVec.ofNat 64 0x7cb0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x4e08 ∧
-      t.getReg .x24 = BitVec.ofNat 64 0x4348 ∧
-      RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x4e68) := by
+      t.getMem (BitVec.ofNat 64 0x4968) =
+        replaceWord32 (s.getMem (BitVec.ofNat 64 0x4968)) 0 ((BitVec.ofNat 64 c).truncate 32) ∧
+      t.getReg .x16 = BitVec.ofNat 64 0x7cb0 ∧ t.getReg .x23 = BitVec.ofNat 64 0x4908 ∧
+      t.getReg .x24 = BitVec.ofNat 64 0x3e48 ∧
+      RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x4968) := by
   refine ⟨_, symRun_sound eblk_308 codeAt_308 s hpc (by simp [eblk_308.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [Result.toState_pc, eblk_308.res, E.eval]
@@ -229,11 +229,11 @@ theorem l308_spec (hpc : s.pc = pcOf 308) (c : Nat) (h19 : s.getReg .x19 = BitVe
     rw [if_neg (by omega)]
 theorem l332_spec (hpc : s.pc = pcOf 332) (c : Nat) (h19 : s.getReg .x19 = BitVec.ofNat 64 c) :
     ∃ t, Steps image s 10 10 t ∧ t.pc = pcOf 997 ∧ t.getReg .x1 = pcOf 342 ∧
-      t.getMem (BitVec.ofNat 64 0x41e8) =
-        replaceWord32 (s.getMem (BitVec.ofNat 64 0x41e8)) 0 ((BitVec.ofNat 64 c).truncate 32) ∧
-      t.getReg .x16 = BitVec.ofNat 64 0x7890 ∧ t.getReg .x23 = BitVec.ofNat 64 0x4188 ∧
-      t.getReg .x24 = BitVec.ofNat 64 0x3408 ∧
-      RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x41e8) := by
+      t.getMem (BitVec.ofNat 64 0x3ce8) =
+        replaceWord32 (s.getMem (BitVec.ofNat 64 0x3ce8)) 0 ((BitVec.ofNat 64 c).truncate 32) ∧
+      t.getReg .x16 = BitVec.ofNat 64 0x7890 ∧ t.getReg .x23 = BitVec.ofNat 64 0x3c88 ∧
+      t.getReg .x24 = BitVec.ofNat 64 0x2f08 ∧
+      RegsExcept s t [.x1, .x16, .x23, .x24, .x28] ∧ Frame s t (fun A => A = 0x3ce8) := by
   refine ⟨_, symRun_sound eblk_332 codeAt_332 s hpc (by simp [eblk_332.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [Result.toState_pc, eblk_332.res, E.eval]
@@ -288,11 +288,11 @@ def lE (lay : Layer) : Nat := ![318, 295, 272, 249] lay
 def lK (lay : Layer) : Nat := ![14, 13, 13, 13] lay
 def lR1 (lay : Layer) : Nat := ![332, 308, 285, 262] lay
 def lR2 (lay : Layer) : Nat := ![342, 318, 295, 272] lay
-def lD (lay : Layer) : Nat := ![0x41e8, 0x4e68, 0x5aa8, 0x820] lay
+def lD (lay : Layer) : Nat := ![0x3ce8, 0x4968, 0x55a8, 0x820] lay
 def lk (lay : Layer) : Nat := ![0, 0, 0, 0] lay
 def lP (lay : Layer) : Nat := ![0x7890, 0x7cb0, 0x7fd0, 0x82e0] lay
-def lWC (lay : Layer) : Nat := ![0x4188, 0x4E08, 0x5A48, 0x6688] lay
-def lWM (lay : Layer) : Nat := ![0x3408, 0x4348, 0x4F88, 0x5BC8] lay
+def lWC (lay : Layer) : Nat := ![0x3c88, 0x4908, 0x5548, 0x6188] lay
+def lWM (lay : Layer) : Nat := ![0x2f08, 0x3e48, 0x4A88, 0x56C8] lay
 theorem route_fst (index : Nat) (lay : Layer) :
     (route index lay).1 = index / 2 ^ ((![19, 12, 6, 0] : Layer → Nat) lay) % 2 ^ height lay := rfl
 theorem route_snd (index : Nat) (lay : Layer) :

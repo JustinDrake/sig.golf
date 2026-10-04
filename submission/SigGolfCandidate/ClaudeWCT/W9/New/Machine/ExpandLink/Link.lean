@@ -56,7 +56,7 @@ theorem dword_of_halves (w : BitVec 64) :
 def ExpQW : Option (HashOutput × WCT9.Witness) → MachineState → Prop
   | none, t => FailedAt 354 t ∨ FailedAt 1418 t
   | some (N, w), t => t.pc = pcOf 353 ∧ t.getReg .x5 = BitVec.ofNat 64 1 ∧ t.getReg .x10 = BitVec.ofNat 64 0 ∧
-      t.readWords (BitVec.ofNat 64 0x800) 3033 = wordsOf (ClaudeWCT.W9.T3M.witList N w)
+      t.readWords (BitVec.ofNat 64 0x800) 2873 = wordsOf (ClaudeWCT.W9.T3M.witList N w)
 def expCostW : Nat := 30 + newCost + (lcost 4 + 11)
 theorem lcost_four : lcost 4 ≤ 3000000000 := by decide
 theorem expCostW_lt : expCostW + 1 < CYCLE_LIMIT := by
@@ -70,14 +70,14 @@ theorem lP_eq (lay : Layer) : lP lay = 0x7000 + 2192 + 16 * (ClaudeWCT.W9.T3M.la
   fin_cases lay <;> decide
 def FrontW (A : Nat) : Prop :=
   A = 0x800 ∨ A = 0x808 ∨ A = DIG ∨ A = DIG + 8 ∨ A = DIG + 32 ∨ A = DIG + 40 ∨ A = DIG + 48 ∨ A = DIG + 56
-theorem lD_cases (lay : Layer) : lD lay = 0x41e8 ∨ lD lay = 0x4e68 ∨ lD lay = 0x5aa8 ∨ lD lay = 0x820 := by
+theorem lD_cases (lay : Layer) : lD lay = 0x3ce8 ∨ lD lay = 0x4968 ∨ lD lay = 0x55a8 ∨ lD lay = 0x820 := by
   fin_cases lay <;> simp [lD]
 theorem lk_zero (lay : Layer) : lk lay = 0 := by fin_cases lay <;> rfl
 theorem lD_above (lay : Layer) (h : lay.val ≠ 0) : lD (Fin.ofNat 4 (lay.val - 1)) = lBase lay + 32 := by
   fin_cases lay <;> simp_all [lD, lBase] <;> rfl
 theorem fin_ofNat_pred (lay : Layer) : (Fin.ofNat 4 (lay.val - 1) : Layer).val = lay.val - 1 := by
   fin_cases lay <;> rfl
-theorem region_bounds (lay : Layer) : 0x3148 ≤ lBase lay ∧ lBase lay + 64 * (height lay + chainCount lay) ≤ 0x66C8 := by
+theorem region_bounds (lay : Layer) : 0x2c48 ≤ lBase lay ∧ lBase lay + 64 * (height lay + chainCount lay) ≤ 0x61C8 := by
   fin_cases lay <;> decide
 theorem lD_in_region (lay lay' : Layer) (A : Nat) (h1 : lBase lay ≤ A) (h2 : A < lBase lay + 64 * (height lay + chainCount lay))
     (he : A = lD lay') : A = lBase lay + 32 := by
@@ -123,12 +123,12 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
   have nFW : ∀ A, (A < 0x800 ∨ 0x810 ≤ A) → (A < DIG ∨ DIG + 64 ≤ A) → ¬ FrontW A := by
     intro A h1 h2 h; unfold FrontW at h; simp only [DIG] at h h2; omega
   have nNW : ∀ A, A ≠ 0x810 → (A < 0x60 ∨ 0x80 ≤ A) → (A < 0x100 ∨ 0x120 ≤ A) → (A < 0x400 ∨ 0x550 ≤ A) →
-      (A < 0x840 ∨ 0x3148 ≤ A) → (A < 0x7890 ∨ 0x85f0 ≤ A) → (A < DIG + 16 ∨ DIG + 32 ≤ A) →
+      (A < 0x840 ∨ 0x2c48 ≤ A) → (A < 0x7890 ∨ 0x85f0 ≤ A) → (A < DIG + 16 ∨ DIG + 32 ≤ A) →
       (A < NBUF ∨ NBUF + 32 ≤ A) → A ≠ IDXV → A ≠ ENC → A ≠ ENC + 8 → ¬ NewW A := by
     intro A h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h
     unfold NewW at h; simp only [DIG, NBUF, IDXV, ENC] at h h7 h8 h9 h10 h11; omega
   have z7 : ∀ A, A < 0x7000 → (A < 0x60 ∨ 0x80 ≤ A) → (A < 0x100 ∨ 0x120 ≤ A) → (A < 0x400 ∨ 0x550 ≤ A) →
-      (A < 0x800 ∨ 0x818 ≤ A) → (A < 0x840 ∨ 0x3148 ≤ A) → (A < 0xA0 ∨ 0xB0 ≤ A) → (A < 0x40 ∨ 0x60 ≤ A) →
+      (A < 0x800 ∨ 0x818 ≤ A) → (A < 0x840 ∨ 0x2c48 ≤ A) → (A < 0xA0 ∨ 0xB0 ≤ A) → (A < 0x40 ∨ 0x60 ≤ A) →
       t7.getMem (BitVec.ofNat 64 A) = 0 := by
     intro A h0 h1 h2 h3 h4 h4' h5 h6
     rw [g7 A (by omega) (nFW _ (by omega) (by simp only [DIG]; omega))
@@ -191,7 +191,7 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
   obtain ⟨p8, x5_8, e8, hlen8, hout8, hhf8, r8, f8⟩ := h8
   have g87 : ∀ A, A < 2 ^ 64 → ¬ LW index 4 A → t8.getMem (BitVec.ofNat 64 A) = t7.getMem (BitVec.ofNat 64 A) :=
     fun A hA h => f8.get hA h
-  have nLW : ∀ A, A < 0x3148 → A ≠ 0x820 → ¬ LW index 4 A := by
+  have nLW : ∀ A, A < 0x2c48 → A ≠ 0x820 → ¬ LW index 4 A := by
     intro A hA h8 h
     rcases h with h | h | ⟨lay, _, h | h⟩
     · unfold Search.CsW Search.DigW at h; simp only [ENC, EOUT, DIGITS] at h; omega
@@ -238,14 +238,14 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
       (fun _ _ h => h)
     have f811 : Frame t8 t11 (fun _ => False) := ((f9.trans f10).trans f11).mono (fun _ _ h => by
       rcases h with (h | h) | h <;> exact h)
-    rw [frame_readWords f811 0x800 3033 (by decide) (fun _ _ h => h)]
+    rw [frame_readWords f811 0x800 2873 (by decide) (fun _ _ h => h)]
     set w : WCT9.Witness := ⟨sig, counter, fun lay => counters.getD lay.val 0⟩ with hw
     have halves : ∀ D lo hi, (t8.getMem (BitVec.ofNat 64 D)).extractLsb' 0 32 = lo →
         (t8.getMem (BitVec.ofNat 64 D)).extractLsb' 32 32 = hi →
         t8.getMem (BitVec.ofNat 64 D) = BitVec.ofNat 64 (lo.toNat + 2 ^ 32 * hi.toNat) := by
       intro D lo hi h1 h2
       rw [dword_of_halves (t8.getMem (BitVec.ofNat 64 D)), h1, h2]
-    have hhf1 : ∀ D, (D = 0x41e8 ∨ D = 0x4e68 ∨ D = 0x5aa8 ∨ D = 0x820) →
+    have hhf1 : ∀ D, (D = 0x3ce8 ∨ D = 0x4968 ∨ D = 0x55a8 ∨ D = 0x820) →
         (t8.getMem (BitVec.ofNat 64 D)).extractLsb' 32 32 = (t7.getMem (BitVec.ofNat 64 D)).extractLsb' 32 32 := by
       intro D hD
       have := hhf8 D 1 (by rcases hD with h | h | h | h <;> simp [h]) (by decide)
@@ -293,12 +293,12 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
       exact P.placed k i hk hi'
     have hwct : t8.readWords (BitVec.ofNat 64 0x840) 1152 = wordsOf (ClaudeWCT.W9.T3M.wctBytes N w.signature) :=
       placed_words hplaced8
-    have hgap : t8.readWords (BitVec.ofNat 64 0x2c40) 161 = List.replicate 161 0 := by
-      apply readWords_zero t8 0x2c40 161 (by decide)
+    have hgap : t8.readWords (BitVec.ofNat 64 0x2c40) 1 = List.replicate 1 0 := by
+      apply readWords_zero t8 0x2c40 1 (by decide)
       intro j hj
       rw [g87 _ (by omega) (nLW _ (by omega) (by omega))]
       exact P.gap _ (by omega) (by omega)
-    have g8L : ∀ A, 0x3148 ≤ A → A < 0x66C8 → ¬ LW index 4 A → t8.getMem (BitVec.ofNat 64 A) = 0 := by
+    have g8L : ∀ A, 0x2c48 ≤ A → A < 0x61C8 → ¬ LW index 4 A → t8.getMem (BitVec.ofNat 64 A) = 0 := by
       intro A h1 h2 hn
       rw [g87 A (by omega) hn]
       exact z7 _ (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)
@@ -328,7 +328,7 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
             Search.NODE, Search.NOUT, LEAFPK, ENC] at h; omega
         · have e1 := lD_in_region lay lay' A h1 h2 h
           have hl0 : lay = 0 := Fin.ext h0
-          rw [hl0, show lBase (0 : Layer) = 0x3148 from rfl] at e1
+          rw [hl0, show lBase (0 : Layer) = 0x2c48 from rfl] at e1
           rcases lD_cases lay' with e | e | e | e <;> omega
         · by_cases he : lay' = lay
           · subst he; exact hn h
@@ -367,9 +367,9 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
         (Or.inl ⟨p10, x5_10, x10_10⟩))).mono (by omega) (fun _ _ h => h)
 end run
 theorem expqW_output {imgs : Phase → Image} {N : HashOutput} {w : WCT9.Witness} {t : MachineState}
-    (h : t.readWords (BitVec.ofNat 64 0x800) 3033 = wordsOf (ClaudeWCT.W9.T3M.witList N w)) :
+    (h : t.readWords (BitVec.ofNat 64 0x800) 2873 = wordsOf (ClaudeWCT.W9.T3M.witList N w)) :
     readOutput (w9Sub imgs).sizes (w9Sub imgs).layout .expand t = ClaudeWCT.W9.T3M.witEnc N w :=
-  readBuffer_of_words t 0x800 3033 (ClaudeWCT.W9.T3M.witList N w) (by decide) (by decide)
+  readBuffer_of_words t 0x800 2873 (ClaudeWCT.W9.T3M.witList N w) (by decide) (by decide)
     (ClaudeWCT.W9.T3M.witList_length_eq N w) h
 theorem expqW_halt (imgs : Phase → Image) (hc : NewCodeAt (imgs .expand)) (hB : BackSpec (imgs .expand))
     (a : Option (HashOutput × WCT9.Witness)) (t : MachineState) (h : ExpQW a t) :

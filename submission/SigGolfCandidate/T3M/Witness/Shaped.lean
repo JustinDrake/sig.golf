@@ -832,11 +832,11 @@ theorem schedule_folds (chosen : List Selection) (hc : ChosenOk chosen) :
   rw [List.mem_range] at hc'
   exact coord_fold_count c _ (hc c hc')
 theorem segPtr_end (chosen : List Selection) (hc : ChosenOk chosen) :
-    segPtr (schedule chosen) 35 = streamBase + 280 + 80 * slotBase chosen 7 := by
+    segPtr (schedule chosen) 35 = streamBase + 280 + 64 * slotBase chosen 7 := by
   unfold segPtr
   rw [List.take_of_length_le (by rw [schedule_length])]
   have h1 := schedule_folds chosen hc
-  have h2 : ((schedule chosen).map fun s => 8 + 80 * s.a).sum = 8 * 35 + 80 * ((schedule chosen).map Segment.a).sum := by
+  have h2 : ((schedule chosen).map fun s => 8 + 64 * s.a).sum = 8 * 35 + 64 * ((schedule chosen).map Segment.a).sum := by
     rw [List.sum_map_add, List.map_const', List.sum_replicate, schedule_length, List.sum_map_mul_left]; rfl
   rw [h2, h1]; omega
 def decVal (N : HashOutput) (w : WBytes) (c : Nat) : Nat × Nat → Digest :=

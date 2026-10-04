@@ -64,7 +64,7 @@ theorem headerBytes_length (w : Witness) : (headerBytes w).length = 64 := by
 theorem leafBytes_length (sig : Signature) : (leafBytes sig).length = 1024 := by
   simp [leafBytes, zeros, bytesLE_length, List.length_flatMap, List.sum_replicate]
 theorem streamBytes_length (chosen : List Selection) (proof : Fin 115 → Digest) :
-    (streamBytes chosen proof).length = 9480 := by
+    (streamBytes chosen proof).length = 8200 := by
   simp only [streamBytes, zeros, List.length_take, List.length_append, List.length_replicate]
   omega
 theorem layerBytes_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
@@ -81,7 +81,7 @@ theorem layerBytes_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
 theorem layerStorage_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
     (layerStorage lay leaf ls).length = 64 * (height lay + chainCount lay) := by
   simp only [layerStorage, layerBytes_length]
-theorem witList_length_eq (N : HashOutput) (w : Witness) : (witList N w).length = 24264 := by
+theorem witList_length_eq (N : HashOutput) (w : Witness) : (witList N w).length = 22984 := by
   unfold witList
   rw [List.length_append, List.length_append, List.length_append, headerBytes_length, leafBytes_length,
     streamBytes_length, List.length_flatMap]
@@ -90,11 +90,11 @@ theorem witList_length_eq (N : HashOutput) (w : Witness) : (witList N w).length 
 theorem wdig_witEnc (N : HashOutput) (w : Witness) (off : Nat) :
     wdig (witEnc N w) off = readDigest (((witList N w).drop off).take 16) := by
   unfold wdig witEnc readDigest
-  exact extract_readLE (witList N w) 24264 (by rw [witList_length_eq]) off 16
+  exact extract_readLE (witList N w) 22984 (by rw [witList_length_eq]) off 16
 theorem wle32_witEnc (N : HashOutput) (w : Witness) (off : Nat) :
     wle32 (witEnc N w) off = BitVec.ofNat 32 (readLE (((witList N w).drop off).take 4)) := by
   unfold wle32 witEnc
-  exact extract_readLE (witList N w) 24264 (by rw [witList_length_eq]) off 4
+  exact extract_readLE (witList N w) 22984 (by rw [witList_length_eq]) off 4
 theorem take_one_drop (L : List UInt8) : ∀ i, readLE ((L.drop i).take 1) = (L.getD i 0).toNat := by
   induction L with
   | nil => intro i; simp [readLE]
@@ -105,11 +105,11 @@ theorem take_one_drop (L : List UInt8) : ∀ i, readLE ((L.drop i).take 1) = (L.
       | succ i => rw [List.drop_succ_cons, ih i]; simp
 theorem wbyte_witEnc (N : HashOutput) (w : Witness) (i : Nat) :
     (wbyte (witEnc N w) i).toNat = ((witList N w).getD i 0).toNat := by
-  have hlt : readLE (witList N w) < 2 ^ (8 * 24264) := by
+  have hlt : readLE (witList N w) < 2 ^ (8 * 22984) := by
     have := readLE_lt (witList N w)
     rw [witList_length_eq] at this
-    calc readLE (witList N w) < 256 ^ 24264 := this
-      _ = 2 ^ (8 * 24264) := by rw [pow_mul]; norm_num
+    calc readLE (witList N w) < 256 ^ 22984 := this
+      _ = 2 ^ (8 * 22984) := by rw [pow_mul]; norm_num
   unfold wbyte witEnc
   rw [UInt8.toNat_ofBitVec, BitVec.extractLsb'_toNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt,
     Nat.shiftRight_eq_div_pow, show 2 ^ (8 * i) = 256 ^ i by rw [pow_mul]; norm_num, readLE_drop,
@@ -184,15 +184,15 @@ theorem win_leaf (off n : Nat) (h1 : 64 ≤ off) (h : off + n ≤ 1088) :
   rw [window_append_left _ _ _ _ (by simp [headerBytes_length, leafBytes_length, streamBytes_length]; omega),
     window_append_left _ _ _ _ (by simp [headerBytes_length, leafBytes_length]; omega),
     window_append_right _ _ _ _ (by simp [headerBytes_length]; omega), headerBytes_length]
-theorem win_stream (off n : Nat) (h1 : 1088 ≤ off) (h : off + n ≤ 10568) :
+theorem win_stream (off n : Nat) (h1 : 1088 ≤ off) (h : off + n ≤ 9288) :
     window (witList N w) off n = window (streamBytes (selections N) w.signature.proof) (off - 1088) n := by
   unfold witList
   rw [window_append_left _ _ _ _ (by simp [headerBytes_length, leafBytes_length, streamBytes_length]; omega),
     window_append_right _ _ _ _ (by simp [headerBytes_length, leafBytes_length]; omega)]
   simp [headerBytes_length, leafBytes_length]
-theorem win_layers (off n : Nat) (h1 : 10568 ≤ off) :
+theorem win_layers (off n : Nat) (h1 : 9288 ≤ off) :
     window (witList N w) off n = window ((List.finRange 4).flatMap fun lay =>
-      layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) (off - 10568) n := by
+      layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) (off - 9288) n := by
   unfold witList
   rw [window_append_right _ _ _ _ (by simp [headerBytes_length, leafBytes_length, streamBytes_length]; omega)]
   simp [headerBytes_length, leafBytes_length, streamBytes_length]
@@ -255,26 +255,26 @@ theorem wleafPad_witEnc (N : HashOutput) (w : Witness) (s : Nat) (hs : s < 22) :
     simp only [List.length_flatMap, zeros, bytesLE_length, List.length_append, List.length_replicate]
     simp only [List.map_const', List.length_finRange, List.sum_replicate, smul_eq_mul, Nat.reduceMul, Nat.sub_self]
     rw [window_full _ _ (by simp), show List.replicate 16 (0 : UInt8) = zeros 16 from rfl, readDigest_zeros]
-theorem foldBytes_length (E : Nat) (sib : Digest) : (foldBytes E sib).length = 80 := by
+theorem foldBytes_length (E : Nat) (sib : Digest) : (foldBytes E sib).length = 64 := by
   unfold foldBytes; split <;> simp [zeros, bytesLE_length]
 theorem segBytes_length (chosen : List Selection) (proof : Fin 115 → Digest) (seg : Segment) :
-    (segBytes chosen proof seg).length = 8 + 80 * seg.a := by
+    (segBytes chosen proof seg).length = 8 + 64 * seg.a := by
   unfold segBytes
   simp only [List.length_append, List.length_singleton, zeros, List.length_replicate, List.length_flatMap,
     foldBytes_length, List.map_const', List.length_range, List.sum_replicate, smul_eq_mul]
   omega
 theorem stream_flat_length (chosen : List Selection) (proof : Fin 115 → Digest) :
-    ((schedule chosen).flatMap (segBytes chosen proof)).length = ((schedule chosen).map fun s => 8 + 80 * s.a).sum := by
+    ((schedule chosen).flatMap (segBytes chosen proof)).length = ((schedule chosen).map fun s => 8 + 64 * s.a).sum := by
   rw [List.length_flatMap]; congr 1; exact List.map_congr_left (fun s _ => segBytes_length _ _ _)
 theorem segPtr_le_end (chosen : List Selection) (_hc : ChosenOk chosen) {n : Nat} (_hn : n ≤ 35) :
     segPtr (schedule chosen) n ≤ segPtr (schedule chosen) 35 := by
   unfold segPtr
-  have := List.sum_take_add_sum_drop ((schedule chosen).map fun s => 8 + 80 * s.a) n
+  have := List.sum_take_add_sum_drop ((schedule chosen).map fun s => 8 + 64 * s.a) n
   rw [← List.map_take] at this
   rw [show (schedule chosen).take 35 = schedule chosen from List.take_of_length_le (by rw [schedule_length])]
   omega
 theorem win_seg (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N)) (hle : slotBase (selections N) 7 ≤ 115)
-    {n : Nat} (hn : n < 35) (j m : Nat) (hjm : j + m ≤ 8 + 80 * ((schedule (selections N)).getD n default).a) :
+    {n : Nat} (hn : n < 35) (j m : Nat) (hjm : j + m ≤ 8 + 64 * ((schedule (selections N)).getD n default).a) :
     window (witList N w) (segPtr (schedule (selections N)) n + j) m =
       window (segBytes (selections N) w.signature.proof ((schedule (selections N)).getD n default)) j m := by
   have hend := segPtr_end (selections N) hc
@@ -283,7 +283,7 @@ theorem win_seg (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N)) (h
   unfold segNext at hsucc
   have hb : 1088 ≤ segPtr (schedule (selections N)) n := by unfold segPtr streamBase; omega
   have hflat := stream_flat_length (selections N) w.signature.proof
-  have hsum : segPtr (schedule (selections N)) 35 = 1088 + ((schedule (selections N)).map fun s => 8 + 80 * s.a).sum := by
+  have hsum : segPtr (schedule (selections N)) 35 = 1088 + ((schedule (selections N)).map fun s => 8 + 64 * s.a).sum := by
     unfold segPtr streamBase; rw [List.take_of_length_le (by rw [schedule_length])]
   rw [win_stream _ _ _ _ (by omega) (by unfold streamBase at hend; omega)]
   unfold streamBytes
@@ -301,19 +301,19 @@ theorem segBytes_header (chosen : List Selection) (proof : Fin 115 → Digest) (
     window (segBytes chosen proof seg) 0 1 = [UInt8.ofNat seg.byte0] := by
   unfold segBytes window; simp
 theorem segBytes_fold (chosen : List Selection) (proof : Fin 115 → Digest) (seg : Segment) {r : Nat}
-    (hr : r < seg.a) (j : Nat) (hj : j + 16 ≤ 80) :
-    window (segBytes chosen proof seg) (8 + 80 * r + j) 16 =
+    (hr : r < seg.a) (j : Nat) (hj : j + 16 ≤ 64) :
+    window (segBytes chosen proof seg) (8 + 64 * r + j) 16 =
       window (foldBytes (seg.heap r) (proof ⟨foldSlot chosen seg r % 115, Nat.mod_lt _ (by decide)⟩)) j 16 := by
   unfold segBytes
   have hl : ([UInt8.ofNat seg.byte0] ++ zeros 7).length = 8 := by simp [zeros]
-  rw [window_append_right _ _ _ _ (by rw [hl]; omega), hl, show 8 + 80 * r + j - 8 = 80 * r + j by omega]
-  rw [window_flatMap_const _ _ 80 (fun _ => foldBytes_length _ _) r (by simpa using hr) j 16 hj]
+  rw [window_append_right _ _ _ _ (by rw [hl]; omega), hl, show 8 + 64 * r + j - 8 = 64 * r + j by omega]
+  rw [window_flatMap_const _ _ 64 (fun _ => foldBytes_length _ _) r (by simpa using hr) j 16 hj]
   simp only [List.getElem_range]
 theorem foldBytes_sib (E : Nat) (sib : Digest) : window (foldBytes E sib) (sibOff (E % 2)) 16 = bytesLE 16 sib := by
   unfold foldBytes sibOff
   rcases Nat.mod_two_eq_zero_or_one E with h | h
   · simp only [h, show (0 : Nat) ≠ 1 by decide, if_false]
-    rw [window_append_left _ _ _ _ (by simp [zeros, bytesLE_length]), window_append_right _ _ _ _ (by simp [zeros]),
+    rw [window_append_right _ _ _ _ (by simp [zeros]),
       show 48 - (zeros 48).length = 0 by simp [zeros], window_full _ _ (bytesLE_length _ _)]
   · simp only [h, if_true]
     rw [window_append_left _ _ _ _ (by simp [bytesLE_length]), window_full _ _ (bytesLE_length _ _)]
@@ -321,23 +321,22 @@ theorem foldBytes_pad (E : Nat) (sib : Digest) : window (foldBytes E sib) 32 16 
   unfold foldBytes
   split
   · rw [window_append_right _ _ _ _ (by simp [bytesLE_length]), window_zeros _ _ _ (by simp [bytesLE_length])]
-  · rw [window_append_left _ _ _ _ (by simp [zeros, bytesLE_length]), window_append_left _ _ _ _ (by simp [zeros]),
-      window_zeros _ _ _ (by omega)]
+  · rw [window_append_left _ _ _ _ (by simp [zeros]), window_zeros _ _ _ (by omega)]
 theorem layer_prefix (N : HashOutput) (w : Witness) (lay : Layer) :
     (((List.finRange 4).take lay.val).map fun l =>
-        (layerStorage l (route (N.toNat % 2 ^ 31) l).1 (w.signature.layers l)).length).sum = layerBase lay - 10568 := by
+        (layerStorage l (route (N.toNat % 2 ^ 31) l).1 (w.signature.layers l)).length).sum = layerBase lay - 9288 := by
   simp only [layerStorage_length]
   fin_cases lay <;> simp [List.finRange, layerBase, height, chainCount]
 theorem win_layer (N : HashOutput) (w : Witness) (lay : Layer) (j m : Nat)
     (hjm : j + m ≤ 64 * (height lay + chainCount lay)) :
     window (witList N w) (layerBase lay + j) m =
       window (layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) j m := by
-  have hb : 10568 ≤ layerBase lay := by fin_cases lay <;> simp [layerBase]
+  have hb : 9288 ≤ layerBase lay := by fin_cases lay <;> simp [layerBase]
   have hlen : ((List.finRange 4)[lay.val]'(by simp)) = lay := by simp
   have key := window_flatMap (List.finRange 4) (fun l => layerStorage l (route (N.toNat % 2 ^ 31) l).1
     (w.signature.layers l)) lay.val (by simp) j m (by rw [hlen, layerStorage_length]; omega)
   rw [layer_prefix N w lay, hlen] at key
-  rw [win_layers _ _ _ _ (by omega), show layerBase lay + j - 10568 = (layerBase lay - 10568) + j by omega, key]
+  rw [win_layers _ _ _ _ (by omega), show layerBase lay + j - 9288 = (layerBase lay - 9288) + j by omega, key]
   rfl
 theorem layerBytes_merkle (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) (j : Fin (height lay)) (o : Nat)
     (ho : o + 16 ≤ 64) :
@@ -480,14 +479,14 @@ theorem wfold_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N
   have hs : sibOff (((schedule (selections N)).getD n default).heap r % 2) ≤ 48 := by unfold sibOff; split <;> omega
   unfold foldBlock
   constructor
-  · rw [wdig_witEnc, show ((witList N w).drop (segPtr (schedule (selections N)) n + 8 + 80 * r +
+  · rw [wdig_witEnc, show ((witList N w).drop (segPtr (schedule (selections N)) n + 8 + 64 * r +
         sibOff (((schedule (selections N)).getD n default).heap r % 2))).take 16 =
-      window (witList N w) (segPtr (schedule (selections N)) n + (8 + 80 * r +
+      window (witList N w) (segPtr (schedule (selections N)) n + (8 + 64 * r +
         sibOff (((schedule (selections N)).getD n default).heap r % 2))) 16 by unfold window; congr 2; omega,
       win_seg N w hc hle hn _ _ (by omega), segBytes_fold _ _ _ hr _ (by omega), foldBytes_sib,
       Correctness.readDigest_bytesLE]
-  · rw [wdig_witEnc, show ((witList N w).drop (segPtr (schedule (selections N)) n + 8 + 80 * r + 32)).take 16 =
-      window (witList N w) (segPtr (schedule (selections N)) n + (8 + 80 * r + 32)) 16 by unfold window; congr 2; omega,
+  · rw [wdig_witEnc, show ((witList N w).drop (segPtr (schedule (selections N)) n + 8 + 64 * r + 32)).take 16 =
+      window (witList N w) (segPtr (schedule (selections N)) n + (8 + 64 * r + 32)) 16 by unfold window; congr 2; omega,
       win_seg N w hc hle hn _ _ (by omega), segBytes_fold _ _ _ hr _ (by omega), foldBytes_pad, readDigest_zeros]
 theorem foldPositions_nodup (segs : List Segment) : (foldPositions segs).Nodup := by
   unfold foldPositions
