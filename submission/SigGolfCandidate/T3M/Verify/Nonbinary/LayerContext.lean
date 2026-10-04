@@ -857,38 +857,32 @@ namespace SigGolfCandidate.T3M.Verify.Nonbinary
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 set_option maxHeartbeats 600000
 set_option linter.unusedSimpArgs false
-def topPrefixWord (tp : Word) : Word :=
-  BitVec.ofNat 64 (128 + 193 * 2 ^ 56) ||| ((tp >>> (32 : Word)) <<< (16 : Word))
+def topPrefixWord (s7 : Word) : Word :=
+  BitVec.ofNat 64 (128 + 193 * 2 ^ 56 - 2 ^ 28) + (s7 <<< (16 : Word))
 def prefixCode : List (BitVec 32) :=
-  [0x00ff4e37, 0x800e3e03, 0x02025193, 0x01019193, 0x003e6e33, 0x3245d06f]
-sym_block prefixBase := symRun { noAlias := true } prefixCode (pcOf 724) 200
-theorem prefix_at : CodeAt Verify.image (pcOf 724) prefixCode := by
-  have h := codeAt_from 724 (by decide)
-  have hp : prefixCode <+: codeFrom 724 := by decide +kernel
+  [0x800e3e03, 0x010b9193, 0x003e0e33, 0x3145d06f]
+sym_block prefixBase := symRun { noAlias := true } prefixCode (pcOf 730) 200
+theorem prefix_at : CodeAt Verify.image (pcOf 730) prefixCode := by
+  have h := codeAt_from 730 (by decide)
+  have hp : prefixCode <+: codeFrom 730 := by decide +kernel
   exact ⟨by decide, by decide, by decide +kernel, hp.trans h.2.2.2⟩
-theorem prefix_spec (s : MachineState) (hpc : s.pc = pcOf 724)
-    (hmem : s.getMem (BitVec.ofNat 64 0xff3800) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56)) :
-    ∃ t, Steps Verify.image s 6 6 t ∧ t.pc = pcOf 96162 ∧
-      t.getReg .x28 = topPrefixWord (s.getReg .x4) ∧
+theorem prefix_spec (s : MachineState) (hpc : s.pc = pcOf 730)
+    (h28 : s.getReg .x28 = BitVec.ofNat 64 16728064)
+    (hmem : s.getMem (BitVec.ofNat 64 0xff3800) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56 - 2 ^ 28)) :
+    ∃ t, Steps Verify.image s 4 4 t ∧ t.pc = pcOf 96162 ∧
+      t.getReg .x28 = topPrefixWord (s.getReg .x23) ∧
       RegsExcept s t [.x3,.x28] ∧ Frame s t (fun _ => False) := by
-  refine ⟨_, symRun_sound prefixBase prefix_at s hpc (by simp [prefixBase.res, rv_simp]), ?_, ?_, ?_, ?_⟩
+  refine ⟨_, symRun_sound prefixBase prefix_at s hpc (by simp [prefixBase.res, rv_simp, h28] <;> decide), ?_, ?_, ?_, ?_⟩
   · simp [prefixBase.res, rv_simp, pcOf]
-  · simp [prefixBase.res, rv_simp, topPrefixWord, hmem]
+  · simp [prefixBase.res, rv_simp, topPrefixWord, h28, hmem]
   · intro r hr; cases r <;> simp at hr <;> simp [prefixBase.res, rv_simp] <;> rfl
   · intro A _ _; simp [prefixBase.res, rv_simp]
-theorem topPrefixWord_hdr1 (tree leaf : Nat) (ht : tree < 2 ^ 32) (hl : leaf < 2 ^ 32) :
-    topPrefixWord (BitVec.ofNat 64 (hdr1 tree leaf)) =
+theorem topPrefixWord_s7 (leaf : Nat) (hl : leaf < 2 ^ 12) :
+    topPrefixWord (BitVec.ofNat 64 (2 ^ 12 + leaf)) =
       BitVec.ofNat 64 (128 + 193 * 2 ^ 56 + leaf * 2 ^ 16) := by
-  rw [hdr1_eq tree leaf ht hl]
   unfold topPrefixWord
-  change BitVec.ofNat 64 (128 + 193 * 2 ^ 56) |||
-    ((BitVec.ofNat 64 (tree + 2 ^ 32 * leaf) >>> (32 : Nat)) <<< (16 : Nat)) = _
-  rw [ofNat_shr _ _ (by omega), ofNat_shl]
-  rw [show (tree + 2 ^ 32 * leaf) / 2 ^ 32 = leaf by omega]
-  rw [show 128 + 193 * 2 ^ 56 = 193 * 2 ^ 56 + 128 by omega,
-    ← ofNat_or_add 128 193 56 (by decide), BitVec.or_assoc,
-    ofNat_or_disjoint' 128 (leaf * 2 ^ 16) 16 (by decide) (by omega),
-    ofNat_or_add _ 193 56 (by omega)]
+  change BitVec.ofNat 64 (128 + 193 * 2 ^ 56 - 2 ^ 28) + (BitVec.ofNat 64 (2 ^ 12 + leaf) <<< (16 : Nat)) = _
+  rw [ofNat_shl, ofNat_add_ofNat]
   congr 1
   omega
 end SigGolfCandidate.T3M.Verify.Nonbinary
@@ -903,7 +897,7 @@ set_option linter.unusedSimpArgs false
 def topEntryRegs : List Reg := [.x1,.x3,.x16,.x17,.x14,.x25,.x29,.x19,.x22,.x24,.x15,.x28]
 structure TopEntry (u : MachineState) (v : Digest) (p : Nat) (s : MachineState) : Prop where
   pc : s.pc = pcOf (176744 + 256 * (v.toNat % 128))
-  ra : s.getReg .x1 = pcOf (p + 19)
+  ra : s.getReg .x1 = pcOf (p + 18)
   lo : s.getReg .x16 = v.extractLsb' 0 64
   hi : s.getReg .x17 = (v.extractLsb' 64 64 <<< (1 : Word)) ||| (v.extractLsb' 0 64 >>> (63 : Word))
   tail : s.getReg .x29 = Search.topWindow v 17
@@ -911,19 +905,19 @@ structure TopEntry (u : MachineState) (v : Digest) (p : Nat) (s : MachineState) 
   s3 : s.getReg .x19 = 15768#64
   mask : s.getReg .x24 = 130048#64
   table : s.getReg .x15 = 712704#64
-  «prefix» : s.getReg .x28 = Nonbinary.topPrefixWord (u.getReg .x4)
+  «prefix» : s.getReg .x28 = Nonbinary.topPrefixWord (u.getReg .x23)
   regs : RegsExcept u s topEntryRegs
   frame : Frame u s (fun _ => False)
 theorem topCall_jumps (c : Nat) (hc : c < nCopy 0) (u : MachineState)
-    (hpc : u.pc = pcOf (trPc 0 c + 16)) (hob : ∀ o ∈ ansObl, o.holds u) :
-    ∃ s, Steps image u 3 3 s ∧ s.pc = pcOf 724 ∧ s.getReg .x1 = pcOf (trPc 0 c + 19) ∧
+    (hpc : u.pc = pcOf (trPc 0 c + 15)) (hob : ∀ o ∈ ansObl, o.holds u) :
+    ∃ s, Steps image u 3 3 s ∧ s.pc = pcOf 730 ∧ s.getReg .x1 = pcOf (trPc 0 c + 18) ∧
       s.getReg .x16 = a6E.eval u ∧ s.getReg .x17 = a7E.eval u ∧
       RegsExcept u s [.x1, .x16, .x17] ∧ Frame u s (fun _ => False) := by
   have hcc := (copy_parts 0 (trPc 0 c) (copyCheck_at 0 c (by decide) hc)).2.2.1 rfl
   obtain ⟨s, hs⟩ := spec_run hcc u hpc (by simp [KnownOK]) (by simp [specTopCall]) hob
   refine ⟨s, hs.steps, hs.pc rfl, ?_, hs.regs (.x16, a6E) (by simp [specTopCall]),
     hs.regs (.x17, a7E) (by simp [specTopCall]), ?_, ?_⟩
-  · exact hs.regs (.x1, kw (0x1000 + 4 * (trPc 0 c + 19))) (by simp [specTopCall])
+  · exact hs.regs (.x1, kw (0x1000 + 4 * (trPc 0 c + 18))) (by simp [specTopCall])
   · intro r hr
     cases r
     case x0 => simp [MachineState.getReg]
@@ -935,16 +929,18 @@ theorem topCall_jumps (c : Nat) (hc : c < nCopy 0) (u : MachineState)
     rw [hs.mem]
     rfl
 theorem topCall_step (c : Nat) (hc : c < nCopy 0) (u : MachineState)
-    (hpc : u.pc = pcOf (trPc 0 c + 16)) (hob : ∀ o ∈ ansObl, o.holds u)
-    (hmem : u.getMem (BitVec.ofNat 64 0xff3800) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56)) :
-    ∃ s, Steps image u 9 9 s ∧ s.pc = pcOf 96162 ∧ s.getReg .x1 = pcOf (trPc 0 c + 19) ∧
+    (hpc : u.pc = pcOf (trPc 0 c + 15)) (hob : ∀ o ∈ ansObl, o.holds u)
+    (h28 : u.getReg .x28 = BitVec.ofNat 64 16728064)
+    (hmem : u.getMem (BitVec.ofNat 64 0xff3800) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56 - 2 ^ 28)) :
+    ∃ s, Steps image u 7 7 s ∧ s.pc = pcOf 96162 ∧ s.getReg .x1 = pcOf (trPc 0 c + 18) ∧
       s.getReg .x16 = a6E.eval u ∧ s.getReg .x17 = a7E.eval u ∧
-      s.getReg .x28 = Nonbinary.topPrefixWord (u.getReg .x4) ∧
+      s.getReg .x28 = Nonbinary.topPrefixWord (u.getReg .x23) ∧
       RegsExcept u s [.x1,.x3,.x16,.x17,.x28] ∧ Frame u s (fun _ => False) := by
   obtain ⟨r, er, pr, ra, h16, h17, rr, fr⟩ := topCall_jumps c hc u hpc hob
-  have hm : r.getMem (BitVec.ofNat 64 0xff3800) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56) := by
+  have hm : r.getMem (BitVec.ofNat 64 0xff3800) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56 - 2 ^ 28) := by
     rw [fr.get (by decide) (by simp), hmem]
-  obtain ⟨s, es, ps, hp, rs, fs⟩ := Nonbinary.prefix_spec r pr hm
+  have hr28 : r.getReg .x28 = BitVec.ofNat 64 16728064 := by rw [rr.get (by decide), h28]
+  obtain ⟨s, es, ps, hp, rs, fs⟩ := Nonbinary.prefix_spec r pr hr28 hm
   refine ⟨s, er.trans es, ps, ?_, ?_, ?_, ?_, (rr.trans rs).mono (by decide), ?_⟩
   · rw [rs.get (by decide), ra]
   · rw [rs.get (by decide), h16]
@@ -953,22 +949,24 @@ theorem topCall_step (c : Nat) (hc : c < nCopy 0) (u : MachineState)
   · exact (fr.trans fs).mono (by simp)
 theorem topCall_of (w : WBytes) (pk : Digest) (index c : Nat) (hc : c < nCopy 0)
     (t : MachineState) (ht : EncPre w pk index 0 c t) (a : BitVec 256) :
-    ∃ s, Steps image (writeHash t a) 9 9 s ∧ s.pc = pcOf 96162 ∧ s.getReg .x1 = pcOf (trPc 0 c + 19) ∧
+    ∃ s, Steps image (writeHash t a) 7 7 s ∧ s.pc = pcOf 96162 ∧ s.getReg .x1 = pcOf (trPc 0 c + 18) ∧
       s.getReg .x16 = (a.extractLsb' 0 128).extractLsb' 0 64 ∧
       s.getReg .x17 = (a.extractLsb' 0 128).extractLsb' 64 64 ∧
-      s.getReg .x28 = Nonbinary.topPrefixWord ((writeHash t a).getReg .x4) ∧
+      s.getReg .x28 = Nonbinary.topPrefixWord ((writeHash t a).getReg .x23) ∧
       RegsExcept (writeHash t a) s [.x1,.x3,.x16,.x17,.x28] ∧ Frame (writeHash t a) s (fun _ => False) ∧
       Glob (bK 0) w pk (writeHash t a) := by
   obtain ⟨D, hD, h12⟩ := ht.dst
   have hDf := dst_facts 0 (by decide) D hD
-  have hpc : (writeHash t a).pc = pcOf (trPc 0 c + 16) := by
+  have hpc : (writeHash t a).pc = pcOf (trPc 0 c + 15) := by
     rw [writeHash_pc, ht.pc]
-    change pcOf (trPc 0 c + 15) + 4 = pcOf (trPc 0 c + 16)
-    simpa only [Nat.add_assoc] using pcOf_add4 (trPc 0 c + 15)
+    change pcOf (trPc 0 c + 14) + 4 = pcOf (trPc 0 c + 15)
+    simpa only [Nat.add_assoc] using pcOf_add4 (trPc 0 c + 14)
   have hob : ∀ o ∈ ansObl, o.holds (writeHash t a) :=
     ansObl_holds _ D (by rw [writeHash_getReg]; exact h12) hDf.2.2.2.2.2.1 hDf.2.2.2.2.2.2
   have hglob := Glob_writeHash ht.glob a D h12 hDf.1
-  obtain ⟨s, e, ps, ra, h16, h17, hp, rs, fs⟩ := topCall_step c hc _ hpc hob
+  have h28 : (writeHash t a).getReg .x28 = BitVec.ofNat 64 16728064 :=
+    hglob.1 (.x28, BitVec.ofNat 64 16728064) (by decide)
+  obtain ⟨s, e, ps, ra, h16, h17, hp, rs, fs⟩ := topCall_step c hc _ hpc hob h28
     (hglob.2.2.2.2.2.prefix 0 (by decide))
   have hans := ansAt_of t a D h12 (by omega)
   refine ⟨s, e, ps, ra, ?_, ?_, hp, rs, fs, hglob⟩
@@ -985,11 +983,11 @@ theorem topTransition_reject (w : WBytes) (pk : Digest) (index c : Nat) (hc : c 
   have hd := hglob.2.2.2.2.2.packed.frame fs
   obtain ⟨k, r, er, hk, pr, rr, fr⟩ := Verify.Nonbinary.decode_reject2 s _ ps h16 h17 hd hbad
   obtain ⟨z, ez, hz, h5, h10⟩ := Verify.Nonbinary.reject_halt r pr
-  refine ⟨9 + k + 3, z, (e.trans er).trans ez, by omega, hz, h5, h10⟩
+  refine ⟨7 + k + 3, z, (e.trans er).trans ez, by omega, hz, h5, h10⟩
 theorem topTransition_ok (w : WBytes) (pk : Digest) (index c : Nat) (hc : c < nCopy 0)
     (t : MachineState) (ht : EncPre w pk index 0 c t) (a : BitVec 256)
     (hgood : T3.decode 0 (a.extractLsb' 0 128) = some (Search.topDigits (a.extractLsb' 0 128))) :
-    ∃ s, Steps image (writeHash t a) 75 75 s ∧
+    ∃ s, Steps image (writeHash t a) 73 73 s ∧
       TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s := by
   obtain ⟨s, e, ps, ra, h16', h17', hp, rs, fs, hglob⟩ := topCall_of w pk index c hc t ht a
   have hd := hglob.2.2.2.2.2.packed.frame fs
@@ -1015,7 +1013,7 @@ open Nonbinary (NCtx)
 set_option maxHeartbeats 800000
 set_option linter.unusedSimpArgs false
 def nctxOf (w : WBytes) (index : Nat) (v : Digest) (p : Nat) : NCtx :=
-  ⟨w, (route index 0).2, (route index 0).1, 15768, coreDigit 0 v, p + 19⟩
+  ⟨w, (route index 0).2, (route index 0).1, 15768, coreDigit 0 v, p + 18⟩
 theorem nctx_ok (w : WBytes) (index : Nat) (v : Digest) (c : Nat) (hidx : index < 2 ^ 31) :
     (nctxOf w index v (trPc 0 c)).ok := by
   have hp := trPc_lt 0 c
@@ -1032,8 +1030,10 @@ theorem nctx_known (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineStat
   have hleaf := leaf_lt32 index 0
   have hprefix : s.getReg .x28 = BitVec.ofNat 64
       (nctxOf w index (a.extractLsb' 0 128) (trPc 0 c)).prefix := by
-    rw [he.prefix, writeHash_getReg, ht.tp 0 rfl,
-      Nonbinary.topPrefixWord_hdr1 _ _ (tree_lt index 0 hidx) hleaf]
+    have hl12 : (route index 0).1 < 2 ^ 12 := leaf_lt index 0
+    rw [he.prefix, writeHash_getReg, ht.s7 0 rfl,
+      show s7v 0 (route index 0).1 = 2 ^ 12 + (route index 0).1 from rfl,
+      Nonbinary.topPrefixWord_s7 _ hl12]
     simp only [nctxOf, NCtx.prefix, htree, Nat.zero_mul, Nat.zero_add,
       Nat.mod_eq_of_lt hleaf]
   intro p hp
