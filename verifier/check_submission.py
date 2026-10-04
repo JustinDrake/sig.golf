@@ -9,7 +9,7 @@ from pathlib import Path
 
 MAX_FILES = 1000
 MAX_FILE_BYTES = 8 * 1024 * 1024
-MAX_TOTAL_BYTES = 16 * 1024 * 1024
+MAX_TOTAL_BYTES = 32 * 1024 * 1024
 MODULE = re.compile(r"[A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*")
 INTEGER = re.compile(r"0|[1-9][0-9]*")
 MEMORY_BYTES = 1 << 24
