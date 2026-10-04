@@ -23,14 +23,14 @@ def segBytes (chosen : List Selection) (proof : Fin 115 → Digest) (seg : Segme
   [UInt8.ofNat seg.byte0] ++ zeros 7 ++ (List.range seg.a).flatMap fun r =>
     foldBytes (seg.heap r) (proof ⟨foldSlot chosen seg r % 115, Nat.mod_lt _ (by decide)⟩)
 def streamBytes (chosen : List Selection) (proof : Fin 115 → Digest) : List UInt8 :=
-  (((schedule chosen).flatMap (segBytes chosen proof)) ++ zeros 10200).take 10200
+  (((schedule chosen).flatMap (segBytes chosen proof)) ++ zeros 9480).take 9480
 def layerBytes (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8 :=
   (List.finRange (height lay)).reverse.flatMap (fun j =>
       if leaf / 2 ^ j.val % 2 = 1 then bytesLE 16 (ls.path j) ++ zeros 48
       else zeros 48 ++ bytesLE 16 (ls.path j)) ++
     (List.finRange (chainCount lay)).reverse.flatMap (fun i => zeros 48 ++ bytesLE 16 (ls.values i))
 def layerStorage (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8 :=
-  layerBytes lay leaf ls ++ zeros (if lay = 0 then 256 else 0)
+  layerBytes lay leaf ls
 def witList (N : HashOutput) (w : Witness) : List UInt8 :=
   headerBytes w ++ leafBytes w.signature ++ streamBytes (selections N) w.signature.proof ++
     (List.finRange 4).flatMap fun lay =>
