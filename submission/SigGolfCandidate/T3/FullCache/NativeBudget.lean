@@ -1271,7 +1271,7 @@ theorem encoding_moment_step (b : Layer → ℝ) (hencoding : EncodingEnvelopeSp
   simpa only [encodingDecodeFor_target] using hencoding.step lay
 theorem V_counterSearch_fresh (b : Layer → ℝ) (hencoding : EncodingEnvelopeSpec target b)
     (secret : BitVec 256) (lay : Layer)
-    (tree leaf : Nat) (message : LayerMessage) (fuel counter : Nat)
+    (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (fuel counter : Nat)
     (hlimit : counter+fuel ≤ 2^32) (cache : Sampling.RCache)
     (hfresh : ∀ c,counter ≤ c → c < 2^32 → cache (Sampling.encodingTrial lay tree leaf message c)=none) :
     Sampling.V secret (SigGolfCandidate.Budget.zOf 131072)
