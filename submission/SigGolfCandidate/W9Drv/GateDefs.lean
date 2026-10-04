@@ -19,14 +19,24 @@ structure HeaderBank (index : Nat) (u : MachineState) : Prop where
   leaf : ∀ k : Fin 9,
     u.getMem (BitVec.ofNat 64 (W9Machine.Chain.table k + 456)) =
       BitVec.ofNat 64 (hdr0 6 k.val index 0)
+  top : ∀ k, k < 5 → u.getMem (BitVec.ofNat 64 (TOPLOAD + 8 * k)) =
+    BitVec.ofNat 64 (dataWords.getD k 0)
+def setupMaskAddr : Nat := 0xfee7d0
+structure SetupMask (u : MachineState) : Prop where
+  mask : u.getMem (BitVec.ofNat 64 setupMaskAddr) = BitVec.ofNat 64 0xfffc
+  child : u.getMem (BitVec.ofNat 64 (setupMaskAddr + 16)) = BitVec.ofNat 64 0xce800
+  jt : u.getMem (BitVec.ofNat 64 (setupMaskAddr + 24)) = BitVec.ofNat 64 0xd6800
+  head : u.getMem (BitVec.ofNat 64 (setupMaskAddr + 32)) = BitVec.ofNat 64 0xfeee00
 structure GatePre (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState) : Prop where
-  pc : u.pc = pcOf 17
+  pc : u.pc = pcOf 15
   glob : Glob baseK w pk u
   digest : DigestAt a u
   bank : HeaderBank (idxOf a) u
   wit : WitAll w u
   forestZero : ∀ A, A = 1968 ∨ A = 1976 → u.getMem (BitVec.ofNat 64 A) = 0
   hashLen : u.getReg .x11 = 64
+  setupMask : SetupMask u
+  sp : u.getReg .x2 = BitVec.ofNat 64 0xfee600
 structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat) (roots : List Digest)
     (u : MachineState) : Prop where
   le : n ≤ 9
