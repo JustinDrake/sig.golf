@@ -18,11 +18,12 @@ structure HeaderBank (u : MachineState) : Prop where
     u.getMem (BitVec.ofNat 64 (0xfee600 + 512 * k.val + 456)) =
       BitVec.ofNat 64 (1 + 6 * 256 + k.val * 65536)
 structure GatePre (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState) : Prop where
-  pc : u.pc = pcOf 27
+  pc : u.pc = pcOf 32
   glob : Glob baseK w pk u
   digest : DigestAt a u
   bank : HeaderBank u
   wit : WitAll w u
+  hashLen : u.getReg .x11 = 64
 def dispatchPc (n : Nat) : Nat := [57,73,90,107,124,141,158,175,192,209].getD n 209
 def cachedWord (n : Nat) : Nat := [0,0,1,1,1,2,2,2,3,3].getD n 3
 structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat)

@@ -57,7 +57,7 @@ section
 namespace SigGolfCandidate.Packaging
 open SigGolfCandidate.T3M.Sign.Boundary (finalImages)
 theorem certificate_ready :
-    SigGolf.Certificate (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7715 :=
+    SigGolf.Certificate (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7708 :=
   ClaudeWCT.W9.Final.certificate_of_pending (I := finalImages)
     { large_route := ClaudeWCT.W9.T3.Security.LargeCoupling.large_route_hlarge
       pair_bound := ClaudeWCT.W9.T3.Security.WPair.pair_guess_bound
