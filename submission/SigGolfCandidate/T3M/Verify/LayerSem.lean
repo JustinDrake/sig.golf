@@ -46,7 +46,7 @@ theorem encB_facts (lay : Nat) (hlay : lay < 4) :
     encB lay % 8 = 0 ∧ encB lay + 64 < 16777216 ∧ (encB lay = 256 ∨ 0x800 + layerEnd lay ≤ encB lay) := by
   interval_cases lay <;> decide
 theorem dst_facts (lay : Nat) (hlay : lay < 4) (D : Nat) (hD : D ∈ dstSet lay) :
-    safeDest D = true ∧ D % 8 = 0 ∧ D + 32 ≤ 2 ^ 23 ∧ (D = 320 ∨ 0x800 + layerEnd lay ≤ D) ∧ layerEnd lay % 8 = 0 ∧
+    safeDest D = true ∧ D % 8 = 0 ∧ D + 32 ≤ 2 ^ 23 ∧ (D = 256 ∨ 0x800 + layerEnd lay ≤ D) ∧ layerEnd lay % 8 = 0 ∧
     accessValid (BitVec.ofNat 64 D) 8 = true ∧ accessValid (BitVec.ofNat 64 (D + 8)) 8 = true := by
   interval_cases lay <;> simp [dstSet] at hD <;>
     first | (subst hD; decide +kernel) | (rcases hD with rfl | rfl <;> decide +kernel)
@@ -58,7 +58,7 @@ structure LayerIn (w : WBytes) (pk : Digest) (index lay : Nat) (M : T3.LayerMess
   route : s.getReg (rReg lay) = BitVec.ofNat 64 (index / 2 ^ below lay)
   msg : MsgAt (encB lay) M s
   orig : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd lay) s
-  dst : lay = 3 ∨ ∃ D ∈ dstSet lay, s.getReg .x12 = BitVec.ofNat 64 D
+  dst : ∃ D ∈ dstSet lay, s.getReg .x12 = BitVec.ofNat 64 D
 theorem route_fst (index : Nat) (lay : Layer) : (route index lay).1 = index / 2 ^ below lay.val % 2 ^ hL lay.val := by
   simp only [route, below_eq, hL_eq]
 theorem route_snd (index : Nat) (lay : Layer) : (route index lay).2 = index / 2 ^ (below lay.val + hL lay.val) := by
@@ -256,10 +256,8 @@ theorem encA_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (M : T3
     have hB := encB_facts lay.val lay.isLt
     have h11 : t.getReg .x11 = BitVec.ofNat 64 64 := hkt (.x11, 64) (by simp [bK, bKB, layK])
     obtain ⟨D, hD, h12⟩ : ∃ D ∈ dstSet lay.val, t.getReg .x12 = BitVec.ofNat 64 D := by
-      by_cases h3 : lay.val = 3
-      · exact ⟨320, by simp [dstSet, h3], hkt (.x12, 320) (by simp [bK, h3])⟩
-      · obtain ⟨D, hD, h⟩ := hs.dst.resolve_left h3
-        exact ⟨D, hD, by rw [ht.keep .x12 (by simp [keepA, h3]), h]⟩
+      obtain ⟨D, hD, h⟩ := hs.dst
+      exact ⟨D, hD, by rw [ht.keep .x12 (by simp [keepA]), h]⟩
     have hDf := dst_facts lay.val lay.isLt D hD
     have hG : Glob (bK lay.val) w pk t := by
       have := ht.glob _ w pk hs.glob (RelOK.nil s)
@@ -654,7 +652,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
   obtain ⟨D, hD, h12⟩ := ht.dst
   have hDf := dst_facts lay.val lay.isLt D hD
   have hku : KnownOK (bKB lay.val) u := fun p hp => by
-    rw [hu, writeHash_getReg]; exact hkt p (List.mem_append_left _ hp)
+    rw [hu, writeHash_getReg]; exact hkt p hp
   have hob : ∀ o ∈ ansObl, o.holds u :=
     ansObl_holds u D (by rw [hu, writeHash_getReg]; exact h12) hDf.2.2.2.2.2.1 hDf.2.2.2.2.2.2
   have hpcu : u.pc = pcOf (trPc lay.val c + stepsA lay.val + 1) := by

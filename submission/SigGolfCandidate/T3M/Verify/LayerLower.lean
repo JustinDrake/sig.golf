@@ -173,7 +173,7 @@ theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u
     (hidx : idx < 2 ^ 31) (hglob : Glob baseK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
     (hpc : u.pc = pcOf 656) (hroot : DigAt u 0x100 root)
     (hwit : Verify.Orig w (fun o => o < 64 ∨ 11288 ≤ o) u)
-    (h6 : u.getReg .x6 = 1) (h7 : u.getReg .x7 = 2) :
+    (h6 : u.getReg .x6 = 1) (h7 : u.getReg .x7 = 2) (h12 : u.getReg .x12 = BitVec.ofNat 64 0x100) :
     ∃ t, Steps image u 6 6 t ∧ LayerIn w pk idx 3 (root, 0, 0) t := by
   obtain ⟨t, ht⟩ := spec_run ld3Check_ok u hpc hglob.1 (by simp [ld3Spec]) (by simp)
   have hm : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
@@ -213,7 +213,7 @@ theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u
     · exact (ht.keep .x6 (by simp)).trans h6
     · exact (ht.keep .x7 (by simp)).trans h7
   refine ⟨t, ht.steps, ⟨by norm_num, hidx, ⟨0, by rw [nCopy_eq.1]; norm_num, by rw [ht.pc rfl]; rfl⟩, ⟨hk, hG0.2⟩,
-    ?_, ?_, ?_, Or.inl rfl⟩⟩
+    ?_, ?_, ?_, ⟨256, by simp [dstSet], by rw [ht.keep .x12 (by simp), h12]⟩⟩⟩
   · rw [show rReg 3 = .x22 from rfl, ht.keep .x22 (by simp), hreg, show below 3 = 0 from rfl, pow_zero, Nat.div_one]
   · have hPZ : PZero u := hglob.2.2.2.1
     have hPH : PHalf u := hglob.2.2.2.2.1
