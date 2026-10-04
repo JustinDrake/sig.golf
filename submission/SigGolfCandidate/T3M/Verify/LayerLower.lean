@@ -115,8 +115,8 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
   have hidx := hs.idx
   have hA := encA_step w pk index lay M s hs
   have hT : 9 * tgtL lay.val ≤ 2950 := by fin_cases lay <;> decide
-  have hbS : 29 ≤ bSt lay.val := by unfold bSt; split <;> omega
-  have hbC : 32 ≤ bCy lay.val := by unfold bCy; split <;> omega
+  have hbS : 26 ≤ bSt lay.val := by unfold bSt; split <;> omega
+  have hbC : 29 ≤ bCy lay.val := by unfold bCy; split <;> omega
   have hfuel : layerFuel lay.val = stepsA lay.val + 1 + bSt lay.val + 1720 + 10 := by
     simp only [layerFuel, stB, chainFuel, lfSteps, if_neg h0] <;> omega
   have hcost : layerCost lay.val 0 = stepsA lay.val + 8 + bCy lay.val + 10 + (2950 - 9 * tgtL lay.val) := by
