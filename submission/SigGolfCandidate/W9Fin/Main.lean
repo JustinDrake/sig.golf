@@ -19,12 +19,13 @@ theorem gate_good17 (pk : Digest) (w : WBytes) (a : HashOutput)
     (hpc : u.pc = pcOf 16) (hglob : Glob baseK w pk u) (hdig : DigestAt a u)
     (hbank : HeaderBank (idxOf a) u) (hwit : WitAll w u)
     (hzero : ∀ B, B = 1968 ∨ B = 1976 → u.getMem (BitVec.ofNat 64 B) = 0)
-    (hlen : u.getReg .x11 = 64)
+    (hlen : u.getReg .x11 = 64) (hmask : SetupMask u)
+    (hsp : u.getReg .x2 = BitVec.ofNat 64 0xfee600)
     (hnone : K false = pure (false, 0))
     (hnext : ∀ t, CoordPre pk w a 0 [] t →
       GoodQFor Frozen.image t N C Q A (K true)) :
-    GoodQFor Frozen.image u (N + 24) (C + 24) Q (A + 24) (K (ClaudeWCT.W9.T3M.gateOk a)) := by
-  exact gate_good pk w a u N C A Q K ⟨hpc, hglob, hdig, hbank, hwit, hzero, hlen⟩ hnone hnext
+    GoodQFor Frozen.image u (N + 20) (C + 20) Q (A + 20) (K (ClaudeWCT.W9.T3M.gateOk a)) := by
+  exact gate_good pk w a u N C A Q K ⟨hpc, hglob, hdig, hbank, hwit, hzero, hlen, hmask, hsp⟩ hnone hnext
 end W9Drv
 end
 
@@ -49,22 +50,39 @@ def bankOK : Bool :=
 set_option maxRecDepth 200000 in
 set_option maxHeartbeats 0 in
 theorem bankOK_eq : bankOK = true := by decide +kernel
-def Bank (u : MachineState) : Prop := ∀ index, index < 2 ^ 32 → W9Drv.HeaderBank index u
+def Bank (u : MachineState) : Prop :=
+  (∀ index, index < 2 ^ 32 → W9Drv.HeaderBank index u) ∧ W9Drv.SetupMask u
 theorem Bank.congr {s t : MachineState} (h : Bank s)
     (hm : ∀ A, VERIFY_DATA ≤ A → A < VERIFY_DATA + 4608 →
       t.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A)) : Bank t := by
-  intro index hi
-  obtain ⟨hc, hn, hl⟩ := h index hi
-  refine ⟨fun k t' ht d hd => ?_, fun k => ?_, fun k => ?_⟩
-  · rw [hm _ (by unfold W9Machine.Chain.table VERIFY_DATA; omega)
-      (by unfold W9Machine.Chain.table VERIFY_DATA; have := k.isLt; omega)]
-    exact hc k t' ht d hd
-  · rw [hm _ (by unfold W9Machine.Chain.table VERIFY_DATA; omega)
-      (by unfold W9Machine.Chain.table VERIFY_DATA; have := k.isLt; omega)]
-    exact hn k
-  · rw [hm _ (by unfold W9Machine.Chain.table VERIFY_DATA; omega)
-      (by unfold W9Machine.Chain.table VERIFY_DATA; have := k.isLt; omega)]
-    exact hl k
+  constructor
+  ·
+    intro index hi
+    obtain ⟨hc, hn, hl⟩ := h.1 index hi
+    refine ⟨fun k t' ht d hd => ?_, fun k => ?_, fun k => ?_⟩
+    · rw [hm _ (by unfold W9Machine.Chain.table VERIFY_DATA; omega)
+        (by unfold W9Machine.Chain.table VERIFY_DATA; have := k.isLt; omega)]
+      exact hc k t' ht d hd
+    · rw [hm _ (by unfold W9Machine.Chain.table VERIFY_DATA; omega)
+        (by unfold W9Machine.Chain.table VERIFY_DATA; have := k.isLt; omega)]
+      exact hn k
+    · rw [hm _ (by unfold W9Machine.Chain.table VERIFY_DATA; omega)
+        (by unfold W9Machine.Chain.table VERIFY_DATA; have := k.isLt; omega)]
+      exact hl k
+  · refine ⟨?_, ?_, ?_, ?_⟩
+    · change t.getMem (BitVec.ofNat 64 W9Drv.setupMaskAddr) = _
+      rw [hm _ (by unfold W9Drv.setupMaskAddr VERIFY_DATA; omega)
+        (by unfold W9Drv.setupMaskAddr VERIFY_DATA; omega)]
+      exact h.2.mask
+    · rw [hm _ (by unfold W9Drv.setupMaskAddr VERIFY_DATA; omega)
+        (by unfold W9Drv.setupMaskAddr VERIFY_DATA; omega)]
+      exact h.2.child
+    · rw [hm _ (by unfold W9Drv.setupMaskAddr VERIFY_DATA; omega)
+        (by unfold W9Drv.setupMaskAddr VERIFY_DATA; omega)]
+      exact h.2.jt
+    · rw [hm _ (by unfold W9Drv.setupMaskAddr VERIFY_DATA; omega)
+        (by unfold W9Drv.setupMaskAddr VERIFY_DATA; omega)]
+      exact h.2.head
 theorem init_word (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) (j : Nat) (hj : j < 576) :
     s.getMem (BitVec.ofNat 64 (VERIFY_DATA + 8 * j)) =
@@ -120,34 +138,49 @@ theorem init_word (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : By
     List.take_append_of_le_length (by rw [List.length_drop, Images.verifyPrefixData_length]; omega)]
 theorem init_bank (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) : Bank s := by
-  intro index hi
-  have hB := List.all_eq_true.mp bankOK_eq
-  have hk : ∀ k : Fin 9, _ := fun k : Fin 9 => hB k.val (List.mem_range.mpr k.isLt)
-  refine ⟨fun k t ht d hd => ?_, fun k => ?_, fun k => ?_⟩
-  · have hkt := hk k
-    simp only [Bool.and_eq_true] at hkt
-    have e := beq_iff_eq.mp (List.all_eq_true.mp (List.all_eq_true.mp hkt.1.1 t (List.mem_range.mpr ht)) d
-      (List.mem_range.mpr hd))
-    rw [show W9Machine.Chain.table k + 64 * t + 8 * d = VERIFY_DATA + 8 * (64 * k.val + 8 * t + d) by
-        unfold W9Machine.Chain.table VERIFY_DATA; omega,
-      init_word m pk w s h _ (by have := k.isLt; omega), e,
-      hdr0_eq 5 k.val index (d + 256 * t) (by decide) (by have := k.isLt; omega) hi (by omega)]
-  · have hkt := hk k
-    simp only [Bool.and_eq_true] at hkt
-    have e := beq_iff_eq.mp hkt.1.2
-    rw [show W9Machine.Chain.table k + 448 = VERIFY_DATA + 8 * (64 * k.val + 56) by
-        unfold W9Machine.Chain.table VERIFY_DATA; omega,
-      init_word m pk w s h _ (by have := k.isLt; omega), e, ClaudeWCT.W9.Machine.Merkle.w0n,
-      hdr0_eq 11 k.val index 0 (by decide) (by have := k.isLt; omega) hi (by omega)]
-    congr 1
-  · have hkt := hk k
-    simp only [Bool.and_eq_true] at hkt
-    have e := beq_iff_eq.mp hkt.2
-    rw [show W9Machine.Chain.table k + 456 = VERIFY_DATA + 8 * (64 * k.val + 57) by
-        unfold W9Machine.Chain.table VERIFY_DATA; omega,
-      init_word m pk w s h _ (by have := k.isLt; omega), e,
-      hdr0_eq 6 k.val index 0 (by decide) (by have := k.isLt; omega) hi (by omega)]
-    congr 1
+  constructor
+  ·
+    intro index hi
+    have hB := List.all_eq_true.mp bankOK_eq
+    have hk : ∀ k : Fin 9, _ := fun k : Fin 9 => hB k.val (List.mem_range.mpr k.isLt)
+    refine ⟨fun k t ht d hd => ?_, fun k => ?_, fun k => ?_⟩
+    · have hkt := hk k
+      simp only [Bool.and_eq_true] at hkt
+      have e := beq_iff_eq.mp (List.all_eq_true.mp (List.all_eq_true.mp hkt.1.1 t (List.mem_range.mpr ht)) d
+        (List.mem_range.mpr hd))
+      rw [show W9Machine.Chain.table k + 64 * t + 8 * d = VERIFY_DATA + 8 * (64 * k.val + 8 * t + d) by
+          unfold W9Machine.Chain.table VERIFY_DATA; omega,
+        init_word m pk w s h _ (by have := k.isLt; omega), e,
+        hdr0_eq 5 k.val index (d + 256 * t) (by decide) (by have := k.isLt; omega) hi (by omega)]
+    · have hkt := hk k
+      simp only [Bool.and_eq_true] at hkt
+      have e := beq_iff_eq.mp hkt.1.2
+      rw [show W9Machine.Chain.table k + 448 = VERIFY_DATA + 8 * (64 * k.val + 56) by
+          unfold W9Machine.Chain.table VERIFY_DATA; omega,
+        init_word m pk w s h _ (by have := k.isLt; omega), e, ClaudeWCT.W9.Machine.Merkle.w0n,
+        hdr0_eq 11 k.val index 0 (by decide) (by have := k.isLt; omega) hi (by omega)]
+      congr 1
+    · have hkt := hk k
+      simp only [Bool.and_eq_true] at hkt
+      have e := beq_iff_eq.mp hkt.2
+      rw [show W9Machine.Chain.table k + 456 = VERIFY_DATA + 8 * (64 * k.val + 57) by
+          unfold W9Machine.Chain.table VERIFY_DATA; omega,
+        init_word m pk w s h _ (by have := k.isLt; omega), e,
+        hdr0_eq 6 k.val index 0 (by decide) (by have := k.isLt; omega) hi (by omega)]
+      congr 1
+  · refine ⟨?_, ?_, ?_, ?_⟩
+    · change s.getMem (BitVec.ofNat 64 (VERIFY_DATA + 8 * 58)) = BitVec.ofNat 64 0xfffc
+      rw [init_word m pk w s h 58 (by decide)]
+      decide +kernel
+    · change s.getMem (BitVec.ofNat 64 (VERIFY_DATA + 8 * 60)) = BitVec.ofNat 64 0xce800
+      rw [init_word m pk w s h 60 (by decide)]
+      decide +kernel
+    · change s.getMem (BitVec.ofNat 64 (VERIFY_DATA + 8 * 61)) = BitVec.ofNat 64 0xd6800
+      rw [init_word m pk w s h 61 (by decide)]
+      decide +kernel
+    · change s.getMem (BitVec.ofNat 64 (VERIFY_DATA + 8 * 62)) = BitVec.ofNat 64 0xfeee00
+      rw [init_word m pk w s h 62 (by decide)]
+      decide +kernel
 abbrev cw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 def rejectPc : Nat := 743
 def rejSpec (steps : Nat) (brs : List Br) : Spec :=
@@ -157,8 +190,7 @@ def proBr (d : Bool) : Br := ⟨.ne, .bin .srl lwuDc (cw 21), .c 0, d⟩
 def proSpec : Spec :=
   ⟨[(.x4, cw 3073)],
     [(⟨none, BitVec.ofNat 64 0x28⟩, .ld (cw 0x808)), (⟨none, BitVec.ofNat 64 0x20⟩, .ld (cw 0x800)),
-      (⟨none, BitVec.ofNat 64 0x30⟩, cw 0xc01),
-      (⟨none, BitVec.ofNat 64 0x38⟩, .bin (.st .w 4) (.ld (cw 0x38)) lwuDc)],
+      (⟨none, BitVec.ofNat 64 0x30⟩, cw 0xc01), (⟨none, BitVec.ofNat 64 0x38⟩, .bin (.st .w 4) (.ld (cw 0x38)) lwuDc)],
     15, true, 15, [proBr false], none, 15⟩
 def proPost : List (Reg × Word) := baseK ++ [(.x10, 32), (.x11, 64), (.x12, 96)]
 theorem proCheck : specB [] [] baseK (runAt k0 [] 0 [.br false]) proSpec [] proPost [.x2] = true := by
@@ -286,11 +318,8 @@ theorem digest_step (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBytes)
           show (BitVec.ofNat 64 (32 + 24) = BitVec.ofNat 64 0x20) = False by decide,
           show (BitVec.ofNat 64 (32 + 24) = BitVec.ofNat 64 0x30) = False by decide,
           show (BitVec.ofNat 64 (32 + 24) = BitVec.ofNat 64 0x38) = True by decide, if_true, if_false]
-        show BinOp.eval (.st .w 4) ((E.ld (cw 0x38)).eval s) (lwuDc.eval s) = _
-        have h38 : (E.ld (cw 0x38)).eval s = BitVec.ofNat 64 0 := by
-          show s.getMem (BitVec.ofNat 64 0x38) = _
-          rw [hs.zero 0x38 (by unfold WIT; omega) (by omega)]; rfl
-        rw [lwuDc_eval w s hs.wit, h38]
+        show StoreKind.merge .w (s.getMem (BitVec.ofNat 64 0x38)) 4 (lwuDc.eval s) = _
+        rw [hs.zero 0x38 (by unfold WIT; omega) (by omega), lwuDc_eval w s hs.wit]
         exact merge_hi 0 (wdc w).toNat
       have em : ∀ k, k < 4 → t.getMem (BitVec.ofNat 64 (32 + 32 + 8 * k)) = m.extractLsb' (64 * k) 64 := by
         intro k hk
@@ -383,8 +412,8 @@ theorem gatePre_of_hook (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBy
     · show (u.getMem (BitVec.ofNat 64 CTRW)).toNat / 2 ^ 32 = 0
       rw [hu.zero CTRW (by unfold CTRW WIT; omega) (by unfold CTRW; omega)]
       rfl
-  refine ⟨Steps.refl u, hu.pc, hglob, hu.nwords, ?_, hu.wit, ?_, ?_⟩
-  · have hb := hu.bank (W9Drv.idxOf a) (show a.toNat % 2 ^ 31 < 2 ^ 32 by omega)
+  refine ⟨Steps.refl u, hu.pc, hglob, hu.nwords, ?_, hu.wit, ?_, ?_, hu.bank.2, hu.sp⟩
+  · have hb := hu.bank.1 (W9Drv.idxOf a) (show a.toNat % 2 ^ 31 < 2 ^ 32 by omega)
     exact ⟨fun k t ht d hd => hb.chain k t ht d hd, fun k => hb.node k,
       fun k => hb.leaf k⟩
   · intro A hA
@@ -424,7 +453,7 @@ theorem verifyP_eq (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBytes) 
 theorem afterDigest_good (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood)
     (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState)
     (hu : DgOut m pk w a u) :
-    GoodQ u (8057 + 1981 + 0) (8057 + 1981 + 0) True (5705 + 1981 + 0) (ccM (afterDigest pk w a) Kb) := by
+    GoodQ u (8057 + 1977 + 0) (8057 + 1977 + 0) True (5705 + 1977 + 0) (ccM (afterDigest pk w a) Kb) := by
   obtain ⟨hst, hpre⟩ := gatePre_of_hook m pk w a u hu
   have h := fts pk w a _ 8057 8057 5705 True (fun r => ccM (afterFts pk w (a.toNat % 2 ^ 31) r) Kb) hpre
     (by simp only [afterFts, ccM_pure, Kb])
@@ -433,11 +462,11 @@ theorem afterDigest_good (hbridge : W9Machine.Frozen.image = Images.verifyImage)
   unfold afterDigest
   rw [ccM_bind]
   exact h2
-def fuelBound : Nat := 16 + (8057 + 1981 + 0)
-def cycleBoundAll : Nat := 23 + (8057 + 1981 + 0)
-def cycleBound : Nat := 23 + (5705 + 1981 + 0)
-theorem fuelBound_eq : fuelBound = 10054 := rfl
-theorem cycleBoundAll_eq : cycleBoundAll = 10061 := rfl
+def fuelBound : Nat := 16 + (8057 + 1977 + 0)
+def cycleBoundAll : Nat := 23 + (8057 + 1977 + 0)
+def cycleBound : Nat := 23 + (5705 + 1977 + 0)
+theorem fuelBound_eq : fuelBound = 10050 := rfl
+theorem cycleBoundAll_eq : cycleBoundAll = 10057 := rfl
 theorem cycleBound_eq : cycleBound = ClaudeWCT.W9.T3M.Final.verifyCycleBound := rfl
 theorem verify_good (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood)
     (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : MachineState)
